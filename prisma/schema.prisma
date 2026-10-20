@@ -9,7 +9,10 @@ generator client {
 
 enum Role {
   USER
+  /// 대표관리자 — 모든 관리자 기능(2026-10-20 전 "관리자" 그대로)
   ADMIN
+  /// 준관리자 — lib/permissions.ts 표가 연 기능만(영상 촬영 · 구속 측정 관리자 · 세션 녹화 · ABS)
+  MANAGER
 }
 
 /// 계정 종류(2026-10-20 팀 · 레슨장 마스터) — 가입할 때 정해진다. MASTER 는 선수 기능이 없고 /master 로만 간다(lib/dal.ts requireMaster).

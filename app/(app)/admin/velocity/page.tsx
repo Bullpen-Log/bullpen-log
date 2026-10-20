@@ -1,5 +1,5 @@
 import { headers } from 'next/headers';
-import { requireAdmin } from '@/lib/dal';
+import { requirePermission } from '@/lib/dal';
 import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import {
@@ -26,7 +26,7 @@ export default async function VelocityAdminPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  await requireAdmin();
+  await requirePermission('velocityAdmin');
   const sp = await searchParams;
   const one = (v: string | string[] | undefined) => (typeof v === 'string' ? v : null);
   let path: ExplorerPath = parseExplorerPath(one(sp.area), one(sp.at), one(sp.run));

@@ -15,7 +15,7 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 받은 뒤 할 일: **`npx prisma generate`**(새 표 · enum). 설계는 `docs/designs/team-lesson-master.md` · 작업 프롬프트 `docs/designs/team-lesson-build-prompt.md`(결정 10개 반영).
 - **스키마(더하기만)**: enum `AccountType`(PLAYER · MASTER) · `OrgKind` · `OrgRole` · `OrgMemberStatus`, `User.accountType @default(PLAYER)`, 표 `Org` · `OrgMember` · `OrgInvite` · `ShareConsent` · `OrgEvent` · `OrgNotice` · `LessonNote`,
-  `PitchLog` · `VelocitySession` 에 `enteredById` · `orgId`(둘 다 null 허용, 코치가 대신 적은 표시 — 3단계). 마이그레이션 `prisma/migrations/20261020120000_org_master`(손으로 확인한 SQL, 옛 어긋남 줄은 뺌).
+  `PitchLog` · `VelocitySession` 에 `enteredById` · `orgId`(둘 다 null 허용, 코치가 대신 적은 표시 — 3단계). 마이그레이션 `prisma/migrations/20261020180000_org_master`(손으로 확인한 SQL, 옛 어긋남 줄은 뺌).
   **`lib/dal.ts getCurrentUser` 가 `accountType` 을 읽는다** — 마이그레이션이 공유 DB 에 적용되기 전에는 로컬 개발 서버의 모든 화면이 'column accountType does not exist' 로 막힌다. 배포(migrate deploy)가 적용한다.
 - **접근**: `requireMaster()`(lib/dal.ts) = 관리자 또는 accountType MASTER, 아니면 /today. `app/(app)/layout.tsx` 는 마스터 계정을 /master 로 보낸다(관리자는 안 보냄 — 둘 다 본다). `app/(master)/layout.tsx` 가 유일한 방어선(미들웨어 없음).
   조직 접근 `lib/org/access.ts`(orgsFor · requireOrg · currentOrg — 쿠키 `bp-org`), 순수 규칙 `lib/org/rules.ts`(초대 코드 · 동의 기본값 · 태그).
@@ -34,16 +34,46 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 가입 폼에 **'코치로 들어가요'(스태프 코드) 칸**이 하나 더 늘었다 — `SignupAnswers.staffCode`. 앱 가입은 여전히 선수만이라 `signupFields` 는 kind 가 없으면 안 보낸다.
 
 ## 김민에게 — 2026-10-20 · 금윤호(Claude, 윤호 맥북) — 새 앱 구속 측정이 10-20 세션에서 거의 안 잡힌 것 분석 · 복구 프롬프트 — 네가 답해 줄 것 하나
+## 금윤호에게 — 2026-10-20 · 김민(Claude, UI/UX 세션) — 더보기에서 '자료실' 뺌
 
-받은 뒤 할 일: **10-20 낮에 윤호 폰에 깔려 있던 새 앱이 어떤 빌드였는지(Xcode `expo run:ios --device` 로 바로 깐 Debug 인지 · GitHub `ios-native.yml` Release 아카이브인지) 알려 줘.**
-코드 변경 없음 — `docs/velocity/native-measure-recovery-prompt.md` 하나(영어 작업 프롬프트 + 한국어 자료 요약).
-- 화면 녹화 셋 · DB 로 본 것: 카메라 알약이 세션 내내 `1080p · 16~41fps · 버림 19~55`(세션 끝난 뒤 쉬는 때도 31fps · 버림 29) — 캡처 콜백이 장면 반을 버려 클립에 공이 안 남고
-  (완료된 시도 11 중 ok 2 · 장면 0 이 7, 시한 초과는 기록도 안 남음), 계산기 30초 시한이 겹쳤다. 가장 유력한 까닭은 **Debug(최적화 없는) 빌드** — `scripts/velocity-lab/README.md`
-  65줄의 10-08 기록(초당 20장)과 같은 증상. 그다음은 base64 두 번 건너기(Expo → RN → WebView) · 5초마다 6초 훑기 · 10Hz 기울기로 화면 전체 다시 그리기.
-- 세션 녹화는 파일이 둘 다 있다(관리자 → 구속 측정 → 세션 녹화 `?kind=session`) — LTE 에서 올리기가 밀려 조각을 건너뛰어 구멍(#2 는 145초 중 약 40초).
-  웹 녹화기는 10-19 에 스풀로 고쳤고 앱 `native/src/velocity/session-recorder.ts`(MAX_PENDING 3 · 건너뜀)는 안 옮겼다 — 문서 Phase B.
-- 다음 순서는 문서대로: A 진단(빌드 표시 · 단계별 시간 · 시한 초과도 시도 기록) → B 녹화기 스풀 → C 장면 버림 없애기 → D 다리 바이트 줄이기. 엔진(`lib/velocity-engine`)은 안 건드린다.
+받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "더보기에 있는 자료실 없애". `lib/nav.ts` NAV_GROUPS 라이브러리 묶음에서 자료실(`/board`) 한 줄만 뺐다 —
+웹 더보기 · PC 메뉴 · 앱(사이트가 보내는 메뉴)에서 같이 빠진다. `/board` 화면 · 관리자 첫 화면의 '자료실 게시글' 칸 · 앱 관리자 숫자는 그대로.
 
+## 금윤호에게 — 2026-10-20 · 김민(Claude, 데스크톱) — 하단 탭 넷째를 영양 → 커뮤니티로 · 영양은 더보기로 · 새 앱 굽기 필요
+
+받은 뒤 할 일: **새 앱(Expo)을 구울 때 같이 실린다**(DB · 패키지 그대로). 김민: "커뮤니티 개선작업을 시작할거라 하단바의 영양을 더보기로 빼고 그 자리에 커뮤니티".
+**네 영역(앱 틀 · 메뉴 · 판 넘기기 · 새 앱 탭 막대)을 고쳤다.**
+- 웹: `lib/nav.ts` MOBILE_TABS 넷째 = `/community`, NAV_GROUPS 는 커뮤니티를 트레이닝 바로 뒤(도크 첫 줄 = 막대의 넷), 영양은 그 다음(더보기 폴더 맨 앞), '소통'은 고객센터만.
+  판 넘기기 넷째 자리 `@nutrition` → `@community`(`default.tsx` · `community/page.tsx` · `loading.tsx`), 목록 본문은 `app/(app)/community/community-page.tsx`,
+  `community/page.tsx` 는 빈 쪽. 영양은 이제 여느 하위 화면(`nutrition/page.tsx` 가 nutrition-page 를 그대로, 잠금은 그 화면의 redirect). 위 막대 없는 탭(bare)도 영양 → 커뮤니티.
+- 커뮤니티 목록은 새 앱에서도 앱 화면으로 넘기지 않고 웹 판을 보인다 — 판은 늘 떠 있어 OpenNative(router.back)를 그리면 어느 화면을 열든 튕긴다. 글 · 글쓰기는 앱 화면 그대로.
+- 새 앱: `native/src/shell/tab-bar.tsx` DEFAULT_TABS · 탭 그림 `community` → messages-square, `native/src/app/index.tsx` 영양 잠김을 더보기 메뉴에서 읽고 커뮤니티 탭을 누르면
+  주소를 먼저 바꿈. **이 PC 엔 native node_modules 가 없어 앱 tsc 는 못 돌렸다.** 지금 깔린 앱은 사이트가 보낸 탭이라 굽기 전에도 커뮤니티 칸이 서지만, 그림은 집 모양 ·
+  더보기 폴더(옛 DEFAULT_TABS 로 거름)에 영양이 빠져 보인다 — 구우면 바로잡힌다.
+- 로그인한 화면은 못 봤다(내장 브라우저 로그인 없음) — 휴대폰 하단 탭 · 커뮤니티 판 · 더보기의 영양 · 앱 탭을 한 번 봐 줘.
+
+## 금윤호에게 — 2026-10-20 · 김민(Claude, 데스크톱 · 구속측정 엔진) — 네 질문 답: 10-20 낮 윤호 폰 새 앱은 **Release**(TestFlight)였다
+
+김민: "금윤호 테스트플라이트에서 받은 거야." TestFlight 판은 `ios-native.yml` 이 `xcodebuild archive -configuration Release` 로 굽는다(123~126줄) — **Debug 가 아니다.**
+네 '새 앱 구속 측정이 안 되던 것' 글은 처리해서 지웠다(근거 · 진행은 `docs/velocity/native-measure-recovery-prompt.md` 에 그대로).
+- **뜻**: 원인 1(카메라가 장면을 반쯤 버림 · 16~41fps)의 가장 유력한 까닭으로 본 Debug 빌드가 아니다 — Release 에서도 장면을 버렸다. 그래서 C(공 찾기를 장면 줄에서 떼기)가
+  실제로 이걸 잡는지가 핵심이고, 남은 원인 후보는 공 찾기 계산 자체 · 열(thermal) · 장면 줄을 막는 다른 일이다. C 판을 구워 같은 자리에서 알약의 '버림'과 진단 창 '건너뜀'을 보면 갈린다.
+- D2(클립을 base64 두 번 대신 파일로 계산기에)도 'Release 로 재 보고 정한다'고 했는데 이제 Release 기준 자료가 10-20 그 세션이다 — 진단(A) 판으로 '읽기' 시간을 한 번 재 보고 정하면 된다.
+
+## 김민에게 — 2026-10-20 밤 · 금윤호(Claude, 윤호 맥북) — 역할에 준관리자(MANAGER) — DB 적용함 · **받으면 `npx prisma generate`**
+
+받은 뒤 할 일: **`npx prisma generate`**(`enum Role` 에 `MANAGER` — 마이그레이션 `20261020120000_role_manager`, 적용함, 백업 `db-2026-10-20-07-21.json`). 더하기만이라 옛 코드도 돈다.
+금윤호: "관리자를 준관리자 · 대표관리자로 나눠 준관리자 기능을 제한하고 우리는 원래 관리자 기능을". 지금 `ADMIN` 다섯 명(너 · 나 포함)은 그대로 **대표관리자**다.
+- **권한 표 한 곳 `lib/permissions.ts`**(`can(role, perm)` · `isOwner` · `isStaff` · `ROLE_LABEL`). 준관리자에게 연 것(금윤호가 고름): `adminHome`(관리자 첫 화면 — 연 칸만) ·
+  `shoot`(영상 촬영) · `velocityAdmin`(구속 측정 관리자 · 웹 측정 · 보정용 저장 · 수기) · `recording`(세션 · 엔진 녹화 · 편집기) · `abs`. **그 밖의 `role === 'ADMIN'` 검사(회원 · 패치노트 ·
+  공지 · 문의 · 커뮤니티 · 운동/드릴 고치기 · 게시판 · 카메라 진단 · 관리자 도구)는 손대지 않아 대표만**이다. 새 관리자 기능을 만들 때 준관리자에게도 줄 거면 표에 권한을 더하고 `can()` 으로 본다.
+- 서버: `requirePermission(perm)`(lib/dal.ts — 페이지), 동작은 `can(user.role, …)`(shoot · app-shoot · velocity-admin · velocity-recording · velocity · app-admin 의 구속 둘 · 라이브러리 업로드 주소).
+  `requireAdmin()` 은 그대로 대표만. 역할은 요청마다 DB 에서 읽어 바꾸면 곧바로 먹는다.
+- 화면: 메뉴 `lib/nav.ts` 항목에 `perm`(`visibleGroups(role, isNative)` — 인자가 isAdmin → role 로 바뀜), 관리자 첫 화면은 준관리자면 안내 한 줄 + 연 칸만. 회원 줄의 역할은
+  [일반 · 준관리자 · 대표관리자] 고르개(웹 `RolePicker` · 앱 회원 줄 메뉴, `toggleUserRole` 이 폼 `role` 을 받고 없으면 옛처럼 뒤집기). 측정 화면은 `canAbs` · `canRecord`(웹 `velocityAccess` ·
+  앱 `loadVelocityStart`) — 진단 · 보정 같은 나머지는 `isAdmin`(대표) 그대로. 앱 투구 탭의 ABS · 구속 관리자 칸은 사이트가 보낸 메뉴에 그 항목이 있으면.
+- `native-api:test` 모양 셋 갱신(더하기만 — `APP_API_LEVEL` 안 올림). 웹 · 앱 tsc · lint 통과. **준관리자 계정으로 화면은 아직 안 봤다** — 시험 계정 하나를 준관리자로 바꿔 메뉴 ·
+  관리자 첫 화면 · 구속 관리자 · 촬영 · ABS · 막힌 주소(/admin/support)를 한 번 보면 좋다.
 ## 금윤호에게 — 2026-10-20 · 김민(Claude, 네이티브1) — 새 앱 굽는 법이 바뀜(다이나믹 아일랜드 확장) · 새벽에 앱을 많이 고쳤다
 
 받은 뒤 할 일: **앱을 다시 구울 때 `cd native && npx expo prebuild -p ios --no-install` → `LANG=en_US.UTF-8 pod install`**(prebuild 가 ios/ 를 새로 만들고

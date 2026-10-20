@@ -1,6 +1,7 @@
 'use server';
 
 import { getCurrentUser } from '@/lib/dal';
+import { can } from '@/lib/permissions';
 import { SHOOT_PLAN } from '@/lib/shoot/plan';
 import { loadShootChecks, loadShootExercises, loadShootWeek } from '@/lib/shoot/load';
 import {
@@ -23,7 +24,7 @@ import { crewsOf } from '@/lib/shoot/crews';
 async function admin() {
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' } as const;
-  if (user.role !== 'ADMIN') return { ok: false, to: '/today' } as const;
+  if (!can(user.role, 'shoot')) return { ok: false, to: '/today' } as const;
   return user;
 }
 

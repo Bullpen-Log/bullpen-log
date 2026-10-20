@@ -26,9 +26,14 @@
 ```bash
 npm install                      # 처음 한 번(이 폴더)
 npx expo run:ios                 # 시뮬레이터에 굽고 켜기(맥만)
+npx expo run:ios --device --configuration Release   # 폰에 깔아 구속 측정을 볼 때는 꼭 Release 로
 npx expo start                   # 굽고 난 뒤 화면 코드만 고칠 때
 npx tsc --noEmit && npx expo lint
 ```
+
+**폰에 깔 때는 `--configuration Release`** — Debug(기본값)는 Swift 최적화가 없어 구속 측정 카메라의 공 찾기가 장면마다 수십 ms 걸리고, 10-20 엔
+장면을 반이나 버려 측정이 거의 안 됐다(`docs/velocity/native-measure-recovery-prompt.md`). 카메라 화면 알약에 `DEBUG` 가 보이면 그 빌드다.
+개발용 현장 기록(30Mbps) · 화각 재기는 `-labRecord YES` · `-fovProbe YES` 로 켤 때만 돈다(`scripts/velocity-lab/README.md`).
 
 패키지는 `npx expo install <이름>` 으로 더한다(SDK 에 맞는 판). `ios/` · `android/` 는 만들어지는 폴더라 손으로 고치지 않고
 git 에도 안 올린다 — 설정은 `app.json` 에.

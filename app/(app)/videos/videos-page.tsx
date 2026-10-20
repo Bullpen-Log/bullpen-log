@@ -1,4 +1,5 @@
 import { appNow } from '@/lib/clock';
+import { can } from '@/lib/permissions';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
@@ -40,8 +41,9 @@ export default async function VideosPage({
    * 옛 주소 ?view=velocity 는 관리자면 관리자로, 앱이면 구속 측정 모드로 보낸다.
    */
   const isNative = isNativeUserAgent((await headers()).get('user-agent'));
-  const canMeasure = user.role === 'ADMIN' || isNative;
-  const velocityHref = user.role === 'ADMIN' ? '/admin/velocity' : null;
+  /* 구속 관리자(대표 · 준관리자, lib/permissions.ts)는 웹에서도 재고 관리자 화면으로 */
+  const canMeasure = can(user.role, 'velocityAdmin') || isNative;
+  const velocityHref = can(user.role, 'velocityAdmin') ? '/admin/velocity' : null;
   if (params.view === 'velocity' && canMeasure) redirect(velocityHref ?? '/velocity');
   /* 캘린더의 '대표 바꾸기'로 들어오면 그 날짜의 달을 펴 둔다(?month=2026-08) */
   const month = readMonthParam(params.month);

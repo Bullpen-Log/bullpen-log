@@ -4,7 +4,7 @@ const encodedKey = new TextEncoder().encode(process.env.SESSION_SECRET);
 
 export type SessionPayload = {
   userId: string;
-  role: 'USER' | 'ADMIN';
+  role: 'USER' | 'ADMIN' | 'MANAGER';
   /**
    * 비밀번호 지문 — 표를 만들 때의 비밀번호(해시)에서 뽑은 짧은 값(lib/session.ts passwordFingerprint). 비밀번호를
    * 바꾸면 달라져서, 바꾸기 전에 다른 기기에서 받은 표는 더는 통하지 않는다(lib/dal.ts getCurrentUser). 예전에는 표에
@@ -45,7 +45,7 @@ export async function decrypt(token?: string): Promise<SessionInfo | null> {
         : 0;
     return {
       userId: payload.userId as string,
-      role: payload.role as 'USER' | 'ADMIN',
+      role: payload.role as 'USER' | 'ADMIN' | 'MANAGER',
       ...(typeof payload.pw === 'string' ? { pw: payload.pw } : {}),
       persistent: lifetime > 2 * 24 * 60 * 60,
     };

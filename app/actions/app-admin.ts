@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { can, isOwner, type Permission } from '@/lib/permissions';
 import { getCurrentUser } from '@/lib/dal';
 import { ageFromBirthDate } from '@/lib/profile';
 import { INQUIRY_STATUS, type InquiryStatusKey } from '@/lib/support';
@@ -22,7 +23,15 @@ import { pitchTypeLabel } from '@/lib/velocity-meta';
 const NOT_ADMIN = { ok: false, to: '/today' } as const;
 const TO_LOGIN = { ok: false, to: '/login' } as const;
 
-/** 관리자면 그 사용자, 아니면 화면을 닫고 보낼 곳({ ok:false, to }) */
+/** 이 기능을 쓸 수 있는 관리자(대표 · 준, lib/permissions.ts)면 그 사용자 */
+async function staff(perm: Permission) {
+  const user = await getCurrentUser();
+  if (!user) return TO_LOGIN;
+  if (!can(user.role, perm)) return NOT_ADMIN;
+  return user;
+}
+
+/** 대표관리자면 그 사용자, 아니면 화면을 닫고 보낼 곳({ ok:false, to }) */
 async function admin() {
   const user = await getCurrentUser();
   if (!user) return TO_LOGIN;
@@ -35,8 +44,12 @@ const ymd = (d: Date) =>
 
 /** 관리자 첫 화면 — 웹 app/(app)/admin/page.tsx 와 같은 요약 · 회원 목록 · 콘텐츠 수 */
 export async function loadAppAdmin() {
-  const a = await admin();
+  /* 준관리자(2026-10-20)는 연 기능 칸만 — 숫자 · 회원 목록 · 소통 · 패치노트는 대표만(lib/permissions.ts) */
+  const a = await staff('adminHome');
   if ('ok' in a) return a;
+  const perms = { owner: isOwner(a.role), velocityAdmin: can(a.role, 'velocityAdmin'), shoot: can(a.role, 'shoot') };
+  if (!perms.owner)
+    return { ok: true as const, meId: a.id, perms, stats: [], content: { videos: 0, articles: 0, logs: 0 }, openInquiries: 0, openReports: 0, users: [] };
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const [users, recent, logs, articles, videos, openInquiries, openReports] = await Promise.all([
     prisma.user.findMany({
@@ -63,6 +76,7 @@ export async function loadAppAdmin() {
   return {
     ok: true as const,
     meId: a.id,
+    perms,
     stats: [
       { label: '전체 회원', value: users.length, unit: '명' },
       { label: '최근 7일 신규', value: recent, unit: '명' },
@@ -77,6 +91,7 @@ export async function loadAppAdmin() {
       email: u.email,
       nickname: u.nickname,
       admin: u.role === 'ADMIN',
+      role: u.role,
       age: u.birthDate ? ageFromBirthDate(u.birthDate) : null,
       heightCm: u.heightCm,
       joined: ymd(u.createdAt),
@@ -90,10 +105,11 @@ export async function loadAppAdmin() {
 type AdminState = { error?: string; success?: string } | undefined;
 const done = (r: AdminState) => (r?.error ? { ok: false as const, error: r.error } : { ok: true as const, message: r?.success ?? '' });
 
-/** 관리자 권한 켜고 끄기 — 본인은 못 바꾼다(toggleUserRole 이 본다) */
-export async function setAppUserRole(userId: unknown) {
+/** 역할 정하기(일반 · 준관리자 · 대표관리자) — role 이 없으면 옛 앱처럼 대표관리자 ↔ 일반. 본인은 못 바꾼다(toggleUserRole 이 본다) */
+export async function setAppUserRole(userId: unknown, role?: unknown) {
   const fd = new FormData();
   fd.set('userId', String(userId ?? ''));
+  if (role != null) fd.set('role', String(role));
   return done(await toggleUserRole(undefined, fd));
 }
 
@@ -276,7 +292,7 @@ export async function saveAppPatchNote(id: unknown, memo: unknown) {
  * 탐색기 · 보정 · 다시 재기는 브라우저 영상 엔진이라 PC 웹에 둔다.
  */
 export async function loadAppVelocityAdmin() {
-  const a = await admin();
+  const a = await staff('velocityAdmin');
   if ('ok' in a) return a;
   const [data, recordings, sessionRecordings] = await Promise.all([
     loadVelocityAdminOverview(),
@@ -296,7 +312,7 @@ export async function loadAppVelocityAdmin() {
 
 /** 그날 공 — 최근부터(웹 MobileDay 와 같은 줄). 영상은 서명 재생 주소(누를 때 받는다) */
 export async function loadAppVelocityDay(date: unknown) {
-  const a = await admin();
+  const a = await staff('velocityAdmin');
   if ('ok' in a) return a;
   const d = String(date ?? '');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return { ok: true as const, day: null };

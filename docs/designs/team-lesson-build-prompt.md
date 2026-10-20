@@ -27,7 +27,7 @@
 
 ## 진행
 
-- **1단계 끝(2026-10-20)** — 스키마 · 마이그레이션(`prisma/migrations/20261020120000_org_master`) · `requireMaster` · 가입 종류(선수 · 레슨장 · 팀) ·
+- **1단계 끝(2026-10-20)** — 스키마 · 마이그레이션(`prisma/migrations/20261020180000_org_master`) · `requireMaster` · 가입 종류(선수 · 레슨장 · 팀) ·
   `/join?code=` · `app/(master)` 틀 + 홈 · 회원 목록 · 설정(초대 코드) · 관리자 조직 목록 · `scripts/org-selftest.mts`(`npm run org:test`).
   마이그레이션은 배포가 적용한다 — 적용 전에는 로컬 개발 서버의 모든 화면이 `User.accountType` 이 없다고 막힌다(getCurrentUser 가 읽는다).
 - **2~6단계 끝(2026-10-20, 한 커밋)** — 선수 카드(`/master/players/[memberId]`: 팔 상태 · 투구 28일 · 구속 · 체크인 · 재활 · 영상 · 체중, 동의한 범위만 서버가 읽음) ·

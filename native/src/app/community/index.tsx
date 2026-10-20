@@ -6,7 +6,8 @@ import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { POST_CATEGORIES, POST_SORTS, isPostCategory, postCategoryLabel, type PostCategory, type PostSort } from '@/lib/community';
 import type { loadAppCommunity } from '@/app/actions/community';
-import { Badge, Bar, BarButton, categoryColor, Chip, LoadState, s, useLoad } from '~/community/parts';
+import { Badge, Bar, BarButton, categoryColor, Chip, LoadState, s, useLoad, useTitleCollapse } from '~/community/parts';
+import { PageHead } from '~/shell/heading';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 
@@ -23,6 +24,7 @@ const MAX_PAGES = 10;
 
 export default function CommunityScreen() {
   const c = usePalette();
+  const { shown, scroll } = useTitleCollapse();
   const inset = useSafeAreaInsets();
   const params = useLocalSearchParams<{ category?: string; sort?: string }>();
   const [category, setCategory] = useState<PostCategory | null>(isPostCategory(params.category) ? params.category : null);
@@ -43,6 +45,9 @@ export default function CommunityScreen() {
 
   const head = (
     <View style={{ gap: 12, paddingBottom: 12 }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+        <PageHead title="커뮤니티" />
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
         <Chip label="전체" on={category == null} onPress={() => pick({ category: null })} c={c} />
         {POST_CATEGORIES.map((k) => (
@@ -105,7 +110,7 @@ export default function CommunityScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="뒤로" title="커뮤니티" right={<BarButton label="글쓰기" onPress={() => router.push('/community/new' as Href)} c={c} />} c={c} />
+      <Bar back="뒤로" title="커뮤니티" right={<BarButton label="글쓰기" onPress={() => router.push('/community/new' as Href)} c={c} />} shown={shown} c={c} />
       {!data ? (
         <>
           {head}
@@ -113,6 +118,7 @@ export default function CommunityScreen() {
         </>
       ) : (
         <FlatList
+          {...scroll}
           data={data.posts}
           keyExtractor={(p) => p.id}
           renderItem={row}

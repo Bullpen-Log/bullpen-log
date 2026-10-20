@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { headers } from 'next/headers';
-import { requireAdmin } from '@/lib/dal';
+import { requirePermission } from '@/lib/dal';
 import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { BackLink } from '@/components/ui';
@@ -16,7 +16,7 @@ export default async function ShootWeekPage({
 }: {
   params: Promise<{ week: string }>;
 }) {
-  const me = await requireAdmin();
+  const me = await requirePermission('shoot');
   const n = Number((await params).week);
   /* 새 아이폰 앱(판 9~)은 앱 화면(native/src/app/admin/shoot/[week].tsx) */
   if (Number.isInteger(n) && expoLevel((await headers()).get('user-agent')) >= 9)

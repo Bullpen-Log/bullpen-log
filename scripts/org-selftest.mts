@@ -293,7 +293,7 @@ console.log('\n[5] 선수 계정이 관리 화면에 못 들어가는가 — 코
   );
   check(
     '마이그레이션이 있다',
-    existsSync(join(ROOT, 'prisma/migrations/20261020120000_org_master/migration.sql'))
+    existsSync(join(ROOT, 'prisma/migrations/20261020180000_org_master/migration.sql'))
   );
 }
 

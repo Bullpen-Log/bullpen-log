@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppPatchNotes } from '@/app/actions/app-admin';
-import { Bar, LoadState, Row, s, useLoad } from '~/community/parts';
+import { Bar, LoadState, Row, s, useLoad, useTitleCollapse } from '~/community/parts';
+import { PageHead } from '~/shell/heading';
 import { ChipRow, SearchField } from '~/library/parts';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
@@ -28,6 +29,7 @@ const monthLabel = (m: string) => `${m.slice(0, 4)}년 ${Number(m.slice(5, 7))}�
 
 export default function PatchNotesScreen() {
   const c = usePalette();
+  const { shown: titleShown, scroll } = useTitleCollapse();
   const inset = useSafeAreaInsets();
   const { data, error, reload } = useLoad<Loaded>('app-admin.loadAppPatchNotes');
   const [query, setQuery] = useState('');
@@ -69,16 +71,19 @@ export default function PatchNotesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="관리자" title="패치노트" c={c} />
+      <Bar back="관리자" title="패치노트" shown={!data || !('notes' in data) || titleShown} c={c} />
       {!data || !('notes' in data) ? (
         /* 관리자가 아니면 서버가 갈 곳만 돌려준다 — 빈 목록으로 보이지 않게 알림으로 */
         <LoadState error={data ? '관리자만 볼 수 있어요.' : error} onRetry={() => void reload()} c={c} />
       ) : (
-        <ScrollView
+        <ScrollView {...scroll}
           keyboardDismissMode="on-drag"
           contentContainerStyle={[{ paddingVertical: 16, paddingBottom: inset.bottom + 32, gap: 12 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
+          <View style={{ paddingHorizontal: 16 }}>
+            <PageHead title="패치노트" />
+          </View>
           <SearchField value={query} onChange={setQuery} placeholder="이름 · 날짜 · 한 일 · 고친 자리로 찾기" c={c} />
           <ChipRow chips={SORTS.map((x) => ({ key: x.value, label: x.label, on: sort === x.value, onPress: () => setSort(x.value) }))} c={c} />
           {people.length > 1 ? (

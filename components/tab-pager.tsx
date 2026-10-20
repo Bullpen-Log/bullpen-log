@@ -18,11 +18,11 @@ import { haptic } from '@/lib/haptics';
 import { TAB_CHOSEN_EVENT } from '@/components/tab-lens';
 
 /**
- * 판 넘기기(2026-10-15 사용자 "인스타는 바로바로 넘어가고 이질감이 없다 — 저렇게") — 탭 넷(홈 · 투구 · 트레이닝 · 영양)을 한 틀 안에
+ * 판 넘기기(2026-10-15 사용자 "인스타는 바로바로 넘어가고 이질감이 없다 — 저렇게") — 탭 넷(홈 · 투구 · 트레이닝 · 커뮤니티)을 한 틀 안에
  * 나란히 띄워 두고 옆으로 민다. 넘어갈 때 서버에 묻지 않는다 — 주소만 바꾼다(history.replaceState, Next 가 usePathname 에 반영하되
  * 다시 받지 않는다). 그래서 천천히 끌어도 옆에 '진짜 화면'이 있고 로딩이 없다.
  *
- * 네 판은 app/(app)/layout.tsx 의 병렬 경로 자리(@home · @videos · @training · @nutrition)가 그린다. 처음 열 때 넷을 다 그리되
+ * 네 판은 app/(app)/layout.tsx 의 병렬 경로 자리(@home · @videos · @training · @community)가 그린다. 처음 열 때 넷을 다 그리되
  * (주소가 아닌 판은 default.tsx 가 Suspense 로 뒤따라 들어옴) 처음 연 탭이 먼저 뜬다. 한 번 그려진 판은 주소가 바뀌어도 그대로 산다(판마다 제 스크롤 자리 그대로).
  * 하위 화면(투구 기록 날짜 · 분석 …)은 children — 그때는 판이 숨고 children 이 보인다(html[data-pager]="page").
  *
@@ -32,7 +32,8 @@ import { TAB_CHOSEN_EVENT } from '@/components/tab-lens';
  *
  * PC(desk)는 판을 옆으로 안 민다 — 지금 탭의 판만 보이고 창이 굴러간다(globals.css '판 넘기기').
  */
-const TAB_ORDER = ['/today', '/videos', TRAINING_HOME_HREF, '/nutrition'];
+/* 넷째 판 — 영양 → 커뮤니티(2026-10-20 김민). 영양은 이제 하위 화면(children)이다 */
+const TAB_ORDER = ['/today', '/videos', TRAINING_HOME_HREF, '/community'];
 const base = (href: string) => href.split('?')[0];
 
 /** 놓았을 때 넘어가는 기준 — 폭의 이만큼 */
@@ -79,7 +80,7 @@ export function TabPager({
   tabs: NavItem[];
   /** 홈에서 오른쪽으로 쓸면 여는 것(구속 측정). 없으면 고무줄 */
   camera?: NavItem | null;
-  /** 판 넷 — TAB_ORDER 차례(홈 · 투구 · 트레이닝 · 영양) */
+  /** 판 넷 — TAB_ORDER 차례(홈 · 투구 · 트레이닝 · 커뮤니티) */
   panels: ReactNode[];
   /** 판의 주소 차례 — 기본은 하단 탭 넷. 시험 화면이 바꿔 쓴다 */
   order?: string[];

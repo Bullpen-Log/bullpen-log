@@ -23,6 +23,10 @@ export type StartInfo = {
   mainHeight: number;
   mainFovDeg: number;
   stabilization?: string;
+  /** Debug(최적화 없는 Swift) 빌드인가 — 장면을 반이나 버려 측정이 안 된다(2026-10-20). 옛 앱 판에는 없다 */
+  debugBuild?: boolean;
+  appVersion?: string;
+  appBuild?: string;
   [key: string]: unknown;
 };
 
@@ -37,10 +41,14 @@ export type Clip = {
   fovDeg: number;
   fovSource: string;
   stabilized: boolean;
+  /** 클립에 실제로 담긴 장면 수 · 그로 셈한 초당 장면 수 — 약속한 fps 보다 많이 모자라면 캡처가 장면을 버린 것(옛 앱 판에는 없다) */
+  frames?: number;
+  fpsActual?: number;
 };
 
 export type ThrowEvent = { atSec: number; strength: number; kind: 'ball' | 'seed' | 'motion' | 'skip'; thermal: number };
-export type FpsEvent = { fps: number; dropped: number; shutter: number; iso: number };
+/** 1초마다 — thermal 0~3(ProcessInfo.ThermalState) · feedMs 장면당 공 찾기 시간(ms) · feedSkipped 공 찾기가 밀려 건너뛴 장면 수. 셋은 2026-10-20 판부터 */
+export type FpsEvent = { fps: number; dropped: number; shutter: number; iso: number; thermal?: number; feedMs?: number; feedSkipped?: number };
 
 export type DualCameraEvents = {
   throw: (e: ThrowEvent) => void;

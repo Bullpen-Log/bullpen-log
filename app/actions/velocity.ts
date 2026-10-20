@@ -1,6 +1,7 @@
 'use server';
 
 import { phoneVideoPath } from '@/lib/phone-video-path';
+import { can } from '@/lib/permissions';
 import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
@@ -230,7 +231,7 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
  * today 는 시험 계정 날짜(simDate)까지 맞춘 오늘이라 저장 날짜로 그대로 쓴다.
  */
 export async function loadVelocityStart(): Promise<
-  | { ok: true; isAdmin: boolean; pitchLocked: boolean; today: string; fit: CalFit }
+  | { ok: true; isAdmin: boolean; canAbs: boolean; canRecord: boolean; canVelocityAdmin: boolean; pitchLocked: boolean; today: string; fit: CalFit }
   | { ok: false; error: string }
 > {
   const user = await getCurrentUser();
@@ -239,6 +240,10 @@ export async function loadVelocityStart(): Promise<
   return {
     ok: true,
     isAdmin: user.role === 'ADMIN',
+    /* 준관리자(2026-10-20)도 쓰는 것 — ABS 모드 · 세션 녹화 · 구속 관리자(보정용 저장) */
+    canAbs: can(user.role, 'abs'),
+    canRecord: can(user.role, 'recording'),
+    canVelocityAdmin: can(user.role, 'velocityAdmin'),
     pitchLocked: featureLocks(user).pitch,
     today: toDateKey(appNow()),
     fit,
@@ -300,7 +305,7 @@ export async function saveVelocitySession(
   for (const p of input.pitches) {
     if (p.manual) {
       /* 수기 — 관리자만. 스피드건 값이 곧 구속이고 카메라 값 칸은 비운다 */
-      if (user.role !== 'ADMIN')
+      if (!can(user.role, 'velocityAdmin'))
         return { ok: false, error: '수기 입력은 관리자만 할 수 있어요.' };
       const edit = checkEdit(p);
       if ('error' in edit) return { ok: false, error: edit.error };
@@ -387,7 +392,7 @@ export async function saveVelocitySession(
         engineVersion: VELOCITY_ENGINE_VERSION,
         device: input.device ? String(input.device).slice(0, 200) : null,
         /* 보정용 저장은 관리자만 — 일반 계정이 켜 보내도 저장하지 않는다 */
-        forCalibration: user.role === 'ADMIN' && input.forCalibration === true,
+        forCalibration: can(user.role, 'velocityAdmin') && input.forCalibration === true,
         autoMode: input.autoMode !== false,
         focalPx: optional(input.focalPx, 100, 100_000),
         lensCal:
@@ -722,7 +727,7 @@ export async function createAttemptClipUpload(
 ): Promise<ClipUploadTarget> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
-  if (user.role !== 'ADMIN')
+  if (!can(user.role, 'velocityAdmin'))
     return { ok: false, error: '못 잰 공의 클립은 관리자의 보정용 저장에서만 올라가요.' };
   if (!isStorageConfigured())
     return { ok: false, error: '영상 저장소가 설정되지 않았어요.' };

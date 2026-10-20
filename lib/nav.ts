@@ -7,6 +7,7 @@
  */
 
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
+import { can, isOwner, type Permission } from '@/lib/permissions';
 import {
   FEATURE_HOME,
   SETUP_PATH,
@@ -73,8 +74,9 @@ export type NavItem = {
    * 같은 앱 안에서 색 체계를 두 벌 만들 이유가 없다.
    */
   tone?: 'lower' | 'upper' | 'mobility' | 'power' | 'core' | 'armcare' | 'recovery';
-  /** 관리자에게만 보이는 항목 */
+  /** 관리자에게만 보이는 항목 — perm 이 없으면 대표관리자만, 있으면 그 권한이 있는 관리자(준관리자 포함, lib/permissions.ts) */
   adminOnly?: boolean;
+  perm?: Permission;
   /**
    * 앱(스마트폰 껍데기)에서는 누구나, 웹에서는 관리자만 보이는 항목 — 폰의 고속 촬영이 있어야
    * 하는 구속 측정. 여는 쪽의 규칙(app/(session)/velocity/access.ts)과 같다.
@@ -101,7 +103,8 @@ export type NavGroup = {
 /**
  * 큰 카테고리로 나눈다.
  *
- *   홈 · 투구 기록 · 트레이닝 · 영양 · 라이브러리 · 자료실 · 설정
+ *   홈 · 투구 기록 · 트레이닝 · 커뮤니티 · 영양 · 라이브러리 · 설정
+ *   (자료실은 2026-10-20 메뉴에서 뺐다 — 김민. /board 주소 · 관리자 첫 화면 칸은 그대로)
  *
  * '분석'은 홈으로 들어갔다. 분석은 결국 '그날 어땠나'를 보는 일인데 날짜는 홈 캘린더가
  * 쥐고 있어서, 캘린더 밑에 늘 떠 있는 분석 칸이 고른 날의 분석을 보여 준다. 예전 주소
@@ -166,15 +169,19 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   /*
-   * 영양은 트레이닝 바로 뒤에 둔다. 몸을 만드는 두 바퀴라 나란히 있어야 하고,
-   * 매일 적는 것이라 하단 탭에도 들어간다(아래 MOBILE_TABS).
+   * 커뮤니티는 하단 탭 넷째(2026-10-20 김민: "커뮤니티 개선작업을 시작할거라 영양을 더보기로 빼고 그 자리에 커뮤니티") — 도크의 첫 줄이
+   * 막대의 넷이라 트레이닝 바로 뒤. 잠금 없음 — 가입하면 바로 열린다. 고객센터는 아래 '소통'에 남는다.
    */
+  {
+    items: [{ href: '/community', label: '커뮤니티', icon: 'community' }],
+  },
+  /* 영양 — 하단 탭에서 더보기로(같은 날). 몸을 만드는 두 바퀴라 더보기에서도 트레이닝 쪽 맨 앞 */
   {
     items: [{ href: '/nutrition', label: '영양', icon: 'utensils', lock: 'nutrition' }],
   },
   /*
    * 구속 측정 — 투구 기록을 거치지 않고 카메라 측정으로 곧장(2026-09-28 사용자). 막대의 넷
-   * (홈 · 투구 기록 · 트레이닝 · 영양) 뒤에 둔다 — 도크의 첫 줄이 막대의 넷이라, 그 사이에 끼우면
+   * (홈 · 투구 기록 · 트레이닝 · 커뮤니티) 뒤에 둔다 — 도크의 첫 줄이 막대의 넷이라, 그 사이에 끼우면
    * 막대에서 날아온 아이콘이 제 줄에 앉지 못한다. 투구 기록에 속하므로 같은 자물쇠다.
    */
   {
@@ -196,6 +203,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: 'target',
         appOrAdmin: true,
         adminOnly: true,
+        perm: 'abs',
         lock: 'pitch',
       },
     ],
@@ -224,24 +232,15 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: 'target',
         tone: 'mobility',
       },
-      {
-        href: '/board',
-        label: '자료실',
-        icon: 'book',
-        tone: 'upper',
-      },
     ],
   },
   /*
-   * 소통 — 커뮤니티(글 · 댓글 · 좋아요 · 신고)와 고객센터(공지 · 자주 묻는 질문 · 1:1 문의), 2026-10-17 1판(틀). 매일 쓰는 곳은 아니라
-   * 라이브러리 뒤. 잠금 없음 — 가입하면 바로 열린다.
+   * 소통 — 고객센터(공지 · 자주 묻는 질문 · 1:1 문의), 2026-10-17 1판(틀). 매일 쓰는 곳은 아니라 라이브러리 뒤. 잠금 없음.
+   * 커뮤니티도 여기 있다가 2026-10-20 하단 탭으로 올라갔다(위).
    */
   {
     title: '소통',
-    items: [
-      { href: '/community', label: '커뮤니티', icon: 'community' },
-      { href: '/support', label: '고객센터', icon: 'support' },
-    ],
+    items: [{ href: '/support', label: '고객센터', icon: 'support' }],
   },
   {
     title: '관리',
@@ -252,6 +251,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: 'shield',
         tone: 'armcare',
         adminOnly: true,
+        perm: 'adminHome',
       },
       /* 카메라로 잰 값과 스피드건 값을 견줘 정확도를 올리는 자료 — 관리자만, 웹 화면 */
       {
@@ -260,6 +260,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: 'gauge',
         tone: 'armcare',
         adminOnly: true,
+        perm: 'velocityAdmin',
       },
       /* 유튜브 참고 영상을 우리 영상으로 — 촬영 계획 · 체크 · 휴대폰 촬영 모드(2026-10-09) */
       {
@@ -268,6 +269,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: 'clapper',
         tone: 'armcare',
         adminOnly: true,
+        perm: 'shoot',
       },
       /* 1:1 문의 답하기 · 공지 쓰기 · 커뮤니티 신고 처리(2026-10-17) */
       {
@@ -291,7 +293,7 @@ export const NAV_GROUPS: NavGroup[] = [
 
 /**
  * 모바일 하단 탭 — 매일 쓰는 것 + 더보기.
- * 라이브러리와 자료실은 매일 열지 않으므로 '더보기'로 보낸다.
+ * 라이브러리는 매일 열지 않으므로 '더보기'로 보낸다.
  */
 /**
  * 하단 탭의 '더보기' 자리.
@@ -349,7 +351,8 @@ export const MOBILE_TABS: NavItem[] = [
     lock: 'pitch',
   },
   { href: TRAINING_HOME_HREF, label: '트레이닝', icon: 'dumbbell', lock: 'training' },
-  { href: '/nutrition', label: '영양', icon: 'utensils', lock: 'nutrition' },
+  /* 넷째 칸 — 영양 → 커뮤니티(2026-10-20 김민). 영양은 더보기에 */
+  { href: '/community', label: '커뮤니티', icon: 'community' },
   { href: MORE_HREF, label: '더보기', icon: 'menu' },
 ];
 
@@ -420,11 +423,15 @@ export function quickTabs(): NavItem[] {
  * 볼 수 없는 항목을 걸러낸다 — 관리자 전용은 관리자만, 앱 · 관리자 전용(구속 측정)은 앱 안이거나
  * 관리자일 때만. 앱 안인지는 요청의 User-Agent 로 부르는 쪽이 가린다(lib/app-env.ts).
  */
-export function visibleGroups(isAdmin: boolean, isNative = false): NavGroup[] {
+export function visibleGroups(role: string, isNative = false): NavGroup[] {
+  /* 준관리자(2026-10-20)는 perm 이 있는 관리자 항목 중 표가 연 것만 · 웹 구속 측정은 구속 관리자 권한으로 */
+  const owner = isOwner(role);
+  const webMeasure = owner || can(role, 'velocityAdmin');
   return NAV_GROUPS.map((g) => ({
     ...g,
     items: g.items.filter(
-      (i) => (!i.adminOnly || isAdmin) && (!i.appOrAdmin || isAdmin || isNative)
+      (i) =>
+        (!i.adminOnly || (i.perm ? can(role, i.perm) : owner)) && (!i.appOrAdmin || webMeasure || isNative)
     ),
   })).filter((g) => g.items.length > 0);
 }

@@ -4,10 +4,11 @@ import { OpenNative } from '@/app/(session)/velocity/open-native';
 import Link from 'next/link';
 import { ChevronRight, Clapperboard, Gauge, ScrollText } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/dal';
+import { requirePermission } from '@/lib/dal';
+import { can, isOwner, parseRole } from '@/lib/permissions';
 import { Badge, Card, PageHeading } from '@/components/ui';
 import { ageFromBirthDate } from '@/lib/profile';
-import { DeleteUser, RoleToggle } from './user-row-actions';
+import { DeleteUser, RolePicker } from './user-row-actions';
 
 function formatDate(date: Date) {
   /* 서버(Vercel)는 UTC 로 돈다 — 시간대를 안 주면 한국 0~9시에 쓴 글이 전날로, 시각은 9시간 이르게 찍혔다 */
@@ -26,12 +27,15 @@ async function countRecentSignups() {
 }
 
 export default async function AdminPage() {
-  const admin = await requireAdmin();
+  /* 대표관리자는 전부, 준관리자(2026-10-20)는 연 기능 칸만 — 회원 목록 · 숫자 · 패치노트는 대표만(lib/permissions.ts) */
+  const admin = await requirePermission('adminHome');
+  const owner = isOwner(admin.role);
   /* 앱(BullpenNative/8 부터)은 앱 관리자 화면 — native/src/app/admin */
   if (expoLevel((await headers()).get('user-agent')) >= 8) return <OpenNative path="/admin" cover={false} />;
 
-  const [users, recentSignups, totalLogs, totalArticles, totalVideos] =
-    await Promise.all([
+  const [users, recentSignups, totalLogs, totalArticles, totalVideos] = !owner
+    ? [[], 0, 0, 0, 0]
+    : await Promise.all([
       prisma.user.findMany({
         orderBy: { createdAt: 'desc' },
         select: {
@@ -71,6 +75,13 @@ export default async function AdminPage() {
     <div className="stack-page">
       <PageHeading eyebrow="Admin" title="관리자" />
 
+      {!owner && (
+        <p className="rounded-xl border border-line bg-surface px-5 py-4 text-xs leading-relaxed text-muted">
+          준관리자는 아래 기능만 쓸 수 있어요. 회원 관리 · 공지 · 라이브러리 고치기는 대표관리자에게 부탁해 주세요.
+        </p>
+      )}
+
+      {owner && (<>
       {/* 요약 */}
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-4">
         {stats.map((s) => (
@@ -105,8 +116,9 @@ export default async function AdminPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-bold text-ink">{u.nickname}</span>
                     {u.role === 'ADMIN' && (
-                      <Badge className="border-sky-soft/60 text-sky">관리자</Badge>
+                      <Badge className="border-sky-soft/60 text-sky">대표관리자</Badge>
                     )}
+                    {u.role === 'MANAGER' && <Badge className="border-line text-muted">준관리자</Badge>}
                     {isSelf && <Badge>나</Badge>}
                   </div>
                   <p className="mt-1 truncate text-sm text-muted">{u.email}</p>
@@ -139,12 +151,7 @@ export default async function AdminPage() {
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
-                  <RoleToggle
-                    userId={u.id}
-                    nickname={u.nickname}
-                    isAdmin={u.role === 'ADMIN'}
-                    disabled={isSelf}
-                  />
+                  <RolePicker userId={u.id} nickname={u.nickname} role={parseRole(u.role)} disabled={isSelf} />
                   <DeleteUser userId={u.id} nickname={u.nickname} disabled={isSelf} />
                 </div>
               </Card>
@@ -191,8 +198,10 @@ export default async function AdminPage() {
         </span>
         <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
       </Link>
+      </>)}
 
-      {/* 구속 측정 관리자 — 카메라 값과 스피드건 값을 견줘 정확도를 올리는 자료 */}
+      {can(admin.role, 'velocityAdmin') && (
+      /* 구속 측정 관리자 — 카메라 값과 스피드건 값을 견줘 정확도를 올리는 자료 */
       <Link
         href="/admin/velocity"
         className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
@@ -209,8 +218,10 @@ export default async function AdminPage() {
         </span>
         <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
       </Link>
+      )}
 
-      {/* 트레이닝 영상 촬영 — 유튜브 참고 영상을 우리 영상으로 바꾸는 계획과 체크(2026-10-09) */}
+      {can(admin.role, 'shoot') && (
+      /* 트레이닝 영상 촬영 — 유튜브 참고 영상을 우리 영상으로 바꾸는 계획과 체크(2026-10-09) */
       <Link
         href="/admin/shoot"
         className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
@@ -227,11 +238,12 @@ export default async function AdminPage() {
         </span>
         <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
       </Link>
+      )}
 
-      <p className="rounded-xl border border-line bg-surface px-5 py-4 text-xs leading-relaxed text-muted">
+      {owner && <p className="rounded-xl border border-line bg-surface px-5 py-4 text-xs leading-relaxed text-muted">
         본인 계정은 실수로 잠기는 것을 막기 위해 권한 변경과 삭제가 막혀 있습니다.
         회원을 삭제하면 그 회원의 투구 기록과 게시글도 함께 지워지며 되돌릴 수 없습니다.
-      </p>
+      </p>}
     </div>
   );
 }

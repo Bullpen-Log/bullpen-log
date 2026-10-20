@@ -22,7 +22,8 @@ export const DEFAULT_TABS: ShellTab[] = [
   { href: '/today', label: '홈', icon: 'home' },
   { href: '/videos', label: '투구', icon: 'baseball' },
   { href: '/training?view=home', label: '트레이닝', icon: 'dumbbell' },
-  { href: '/nutrition', label: '영양', icon: 'utensils' },
+  /* 넷째 칸 — 영양 → 커뮤니티(2026-10-20 김민, 웹 lib/nav.ts MOBILE_TABS). 영양은 더보기에 */
+  { href: '/community', label: '커뮤니티', icon: 'community' },
   { href: '/more', label: '더보기', icon: 'menu' },
 ];
 
@@ -32,6 +33,7 @@ const GLYPH: Record<string, IconName> = {
   baseball: 'baseball',
   dumbbell: 'dumbbell',
   utensils: 'utensils',
+  community: 'messages-square',
   menu: 'squares',
 };
 

@@ -28,13 +28,15 @@ export default async function AbsPage({
    * (웹뷰 카메라라 덜 정확 — 화면이 기준 밖 알림으로 알린다).
    */
   if (params.web !== '1' && expoLevel((await headers()).get('user-agent')) >= 10) return <OpenNative path="/velocity?mode=abs" />;
-  const { user, allowed, pitchLocked, isAdmin, native } = await velocityAccess();
+  const { user, allowed, pitchLocked, isAdmin, canAbs, canRecord, native } = await velocityAccess();
   if (pitchLocked) redirect(SETUP_PATH.pitch);
-  if (!allowed || !isAdmin) return <AppOnly />;
+  if (!allowed || !canAbs) return <AppOnly />;
   const [history, { fit }] = await Promise.all([loadVelocityHistory(user.id), loadCalibration()]);
   return (
     <VelocityScreen
       isAdmin={isAdmin}
+      canAbs={canAbs}
+      canRecord={canRecord}
       native={native}
       today={toDateKey(appNow())}
       calibration={fit}

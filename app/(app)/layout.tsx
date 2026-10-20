@@ -52,19 +52,19 @@ export default async function AppLayout({
   home,
   videos,
   training,
-  nutrition,
+  community,
 }: {
   children: React.ReactNode;
   /** 팝업 자리 — 앱 안에서 날짜 화면으로 가면 여기에 투구 기록 팝업이 뜬다(@modal) */
   modal: React.ReactNode;
   /**
-   * 탭 판 넷(@home · @videos · @training · @nutrition, 2026-10-15 판 넘기기) — 주소가 그 탭이 아니어도 각 자리의 default.tsx 가
+   * 탭 판 넷(@home · @videos · @training · @community, 2026-10-15 판 넘기기 · 넷째는 2026-10-20 영양 → 커뮤니티) — 주소가 그 탭이 아니어도 각 자리의 default.tsx 가
    * 그 탭을 그려 늘 넷이 떠 있고, components/tab-pager.tsx 가 옆으로 민다. 탭 주소의 본문(children)은 빈 쪽이다.
    */
   home: React.ReactNode;
   videos: React.ReactNode;
   training: React.ReactNode;
-  nutrition: React.ReactNode;
+  community: React.ReactNode;
 }) {
   // 이 레이아웃 아래의 모든 페이지는 로그인이 필요하다.
   const user = await requireUser();
@@ -129,7 +129,7 @@ export default async function AppLayout({
       */}
       {!isNative && <AppSplash />}
       <AppNav
-        groups={applyLocksToGroups(visibleGroups(isAdmin, isNative), locks)}
+        groups={applyLocksToGroups(visibleGroups(user.role, isNative), locks)}
         quick={applyLocks(quickTabs(), locks)}
         tabs={applyLocks(MOBILE_TABS, locks)}
         nickname={user.nickname}
@@ -226,11 +226,11 @@ export default async function AppLayout({
             tabs={applyLocks(MOBILE_TABS, locks)}
             camera={
               /* 잠긴 사람(투구 첫 설정 전)은 설정 화면 주소라 구속 측정 전환(zoom)을 걸면 안 된다 */
-              applyLocksToGroups(visibleGroups(isAdmin, isNative), locks)
+              applyLocksToGroups(visibleGroups(user.role, isNative), locks)
                 .flatMap((g) => g.items)
                 .find((i) => i.icon === 'radar' && !i.locked) ?? null
             }
-            panels={[home, videos, training, nutrition]}
+            panels={[home, videos, training, community]}
           >
             <MainTransition>{children}</MainTransition>
           </TabPager>

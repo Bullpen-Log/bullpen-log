@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppAdminSupport } from '@/app/actions/app-admin';
-import { Badge, Bar, BarButton, Chip, InquiryMeta, LoadState, Row, s, useLoad } from '~/community/parts';
+import { Badge, Bar, BarButton, Chip, InquiryMeta, LoadState, Row, s, useLoad, useTitleCollapse } from '~/community/parts';
+import { PageHead } from '~/shell/heading';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 
@@ -16,19 +17,21 @@ type Loaded = Awaited<ReturnType<typeof loadAppAdminSupport>>;
 
 export default function AdminSupportScreen() {
   const c = usePalette();
+  const { shown, scroll } = useTitleCollapse();
   const inset = useSafeAreaInsets();
   const [filter, setFilter] = useState('OPEN');
   const { data, error, reload } = useLoad<Loaded>('app-admin.loadAppAdminSupport', filter);
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="관리자" title="소통 관리" right={<BarButton label="공지 쓰기" onPress={() => router.push('/admin/notice' as Href)} c={c} />} c={c} />
+      <Bar back="관리자" title="소통 관리" right={<BarButton label="공지 쓰기" onPress={() => router.push('/admin/notice' as Href)} c={c} />} shown={!data || shown} c={c} />
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
-        <ScrollView
+        <ScrollView {...scroll}
           contentContainerStyle={[{ padding: 16, gap: 20, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
+          <PageHead title="소통 관리" />
           <View style={{ gap: 10 }}>
             <Text style={[s.title, { color: c.ink, paddingHorizontal: 4 }]}>1:1 문의</Text>
             <View accessibilityRole="radiogroup" style={s.chips}>

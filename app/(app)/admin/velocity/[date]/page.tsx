@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { requireAdmin } from '@/lib/dal';
+import { requirePermission } from '@/lib/dal';
 import { explorerHref, parseExplorerPath } from '../explorer-path';
 
 /**
@@ -11,7 +11,7 @@ export default async function VelocityAdminDayRedirect({
 }: {
   params: Promise<{ date: string }>;
 }) {
-  await requireAdmin();
+  await requirePermission('velocityAdmin');
   const { date } = await params;
   redirect(explorerHref(parseExplorerPath('orig', date)));
 }

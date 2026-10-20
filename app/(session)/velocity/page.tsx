@@ -31,7 +31,7 @@ export default async function VelocityPage({
    */
   if (params.web !== '1' && isExpoUserAgent((await headers()).get('user-agent'))) return <OpenNative path="/velocity" />;
   const { resume } = params;
-  const { user, allowed, pitchLocked, isAdmin, native } = await velocityAccess();
+  const { user, allowed, pitchLocked, isAdmin, canAbs, canRecord, native } = await velocityAccess();
   /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
   if (pitchLocked) redirect(SETUP_PATH.pitch);
   if (!allowed) return <AppOnly />;
@@ -45,6 +45,8 @@ export default async function VelocityPage({
   return (
     <VelocityScreen
       isAdmin={isAdmin}
+      canAbs={canAbs}
+      canRecord={canRecord}
       native={native}
       today={toDateKey(appNow())}
       calibration={fit}

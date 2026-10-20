@@ -1427,7 +1427,7 @@
   배포가 건다. 옛 파서(`parseCheckinBody` 등)는 옛 기록 · 자가 시험용으로 남겼다.
 - **예상 시간은 Claude 기준(2026-10-09 사용자 규칙).** 계획표 시간은 Claude 가 실제로 걸릴 시간으로 적는다(사람 개발자 기준 금지). 사용자가 할 일은 따로 "사용자 몫"으로.
 - **팀 · 레슨장 마스터 1단계(2026-10-20)** — 설계 `docs/designs/team-lesson-master.md`, 작업 프롬프트 `docs/designs/team-lesson-build-prompt.md`(진행 표시는 그 문서의 '진행').
-  마스터 화면은 `app/(master)`(선수 껍데기와 별개), 방어선은 `requireMaster`(lib/dal.ts) 하나. 마이그레이션 `20261020120000_org_master` 는 배포가 건다 —
+  마스터 화면은 `app/(master)`(선수 껍데기와 별개), 방어선은 `requireMaster`(lib/dal.ts) 하나. 마이그레이션 `20261020180000_org_master` 는 배포가 건다 —
   **적용 전에는 로컬 개발 서버의 로그인된 화면이 전부 `User.accountType` 없음(P2022)으로 막힌다**(getCurrentUser 가 읽는다). 공유 DB 라 가입 · 조직 만들기는 안 눌러 본다.
   시험 `npm run org:test`(63). **2~6단계도 2026-10-20 에 끝냈다**(한 커밋): 선수 카드 · 두 홈 · 대신 기록 · 레슨 노트 · 수강권 · 보호자 리포트(`app/(report)`, 공개 + 코드) ·
   달력 · 공지 · 코치 초대 코드 · 관리자 요금제 칸. 코치 화면의 자료 읽기는 `lib/org/player-data.ts` 한 곳 — 김민 영역 함수를 부르기만. 구속 대신 재기는 김민과 `forUserId` 약속 뒤(HANDOFF).

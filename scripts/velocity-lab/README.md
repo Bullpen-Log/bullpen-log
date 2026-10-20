@@ -30,10 +30,10 @@ node scripts/velocity-lab/sheet.mjs ~/bullpen-velocity-lab/2026-10-03/clips/132_
 # 5) 앱의 던짐 알아채기(공 찾기)를 영상에 — 앱 Swift 의 BALL_TRIGGER 구간을 그대로 떼어 맥에서 돌린다(V=1 이면 이은 길까지)
 scripts/velocity-lab/ball-trigger/run.sh ~/bullpen-velocity-lab/2026-10-03/clips/*.mov
 
-# 6) 폰의 현장 기록 가져오기 — 맥에서 깐 개발용 앱이 측정 중 장면을 1분 조각(30Mbps)으로 폰에 남긴다.
+# 6) 폰의 현장 기록 가져오기 — 맥에서 깐 개발용 앱이 측정 중 장면을 1분 조각(30Mbps)으로 폰에 남긴다(새 앱은 `-labRecord YES` 로 켠 실행에서만 — 2026-10-20).
 #    케이블 또는 같은 와이파이로 짝 맺은 아이폰에서 받아(~/bullpen-velocity-lab/device/<세션>/) 폰 알림과 5) 결과를 나란히 보인다
 scripts/velocity-lab/pull-device.sh
-# 7) 손떨림 보정이 화면을 자르는 몫(새 기종) — 개발용 앱을 켜고 카메라 단계에서 폰을 세워 두면(1초 멈춤) 보정 켬 · 끔 · 다시 켬을
+# 7) 손떨림 보정이 화면을 자르는 몫(새 기종) — 개발용 앱(새 앱은 `-fovProbe YES` 로 켠 실행)을 켜고 카메라 단계에서 폰을 세워 두면(1초 멈춤) 보정 켬 · 끔 · 다시 켬을
 #    찍어 Documents/lab/fov-<시각>/ 에 남긴다. 6) 으로 받은 뒤 배율을 재 DualCameraPlugin.swift 의 STAB_CROP_MEASURED 에 기종 이름으로 넣는다
 node scripts/velocity-lab/fov-crop.mjs ~/bullpen-velocity-lab/device/fov-<시각>
 # 8) 앱 카메라로 잰 공을 맥에서 다시 재기 — 앱과 같은 구간(공 알림 앞 0.25 ~ 뒤 1.45초)으로 거리 자동 · 넣은 거리를 스피드건과 견준다

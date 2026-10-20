@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Clapperboard } from 'lucide-react';
-import { requireAdmin } from '@/lib/dal';
+import { requirePermission } from '@/lib/dal';
 import { loadVelocityRecordings } from '@/lib/velocity-recording-load';
 import { BackLink, EmptyState, PageHeading } from '@/components/ui';
 import { RecordingList } from './recording-list';
@@ -42,7 +42,7 @@ export default async function VelocityRecordingsPage({
 }: {
   searchParams: Promise<{ kind?: string | string[] }>;
 }) {
-  await requireAdmin();
+  await requirePermission('recording');
   const { kind: raw } = await searchParams;
   const kind: RecordingKind = raw === 'dev' ? 'dev' : 'session';
   const all = await loadVelocityRecordings();

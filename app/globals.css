@@ -3748,7 +3748,7 @@ html[data-dualcam] [data-finder] > video {
   [data-panel]::-webkit-scrollbar {
     display: none;
   }
-  /* 위 막대가 없는 탭(투구 · 트레이닝 · 영양 — app-shell 의 bare)은 시계 자리 + 본문 위 여백만 */
+  /* 위 막대가 없는 탭(투구 · 트레이닝 · 커뮤니티 — app-shell 의 bare)은 시계 자리 + 본문 위 여백만 */
   [data-panel][data-bare] {
     padding-top: calc(env(safe-area-inset-top) + 1.5rem);
   }

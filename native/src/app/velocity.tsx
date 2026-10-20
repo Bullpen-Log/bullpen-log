@@ -25,7 +25,7 @@ import {
 import { DualCamera, DualCameraPreview, type StartInfo } from '../../modules/dual-camera';
 import { rpc, RpcError } from '~/lib/rpc';
 import { loadJson, saveJson } from '~/lib/store';
-import { AppCapture, type CaptureStatus, type MeasureSettings } from '~/velocity/capture';
+import { AppCapture, timingLine, type CaptureStatus, type JobTiming, type MeasureSettings } from '~/velocity/capture';
 import { VelocityEngine, type EngineHandle } from '~/velocity/engine';
 import { decide, saveSession, shownKmh, statsOf, type NativePitch, type SessionCtx } from '~/velocity/session';
 import { clearDraft, loadDraft, saveDraft } from '~/velocity/draft';
@@ -100,7 +100,8 @@ const discardAll = (list: NativePitch[]) => {
  * 투구 탭의 '구속 측정' · 'ABS 판정' 칸은 ?mode= 로 열어 시트를 건너뛴다.
  */
 type Step = 'loading' | 'mode' | 'guide' | 'ask' | 'type' | 'camera' | 'level' | 'zone' | 'abs' | 'measure';
-type Start = { isAdmin: boolean; today: string; fit: CalFit };
+/** isAdmin 대표관리자(진단 · 관리자 저장) · canAbs · canRecord 준관리자도(2026-10-20, lib/permissions.ts — 옛 서버면 isAdmin 으로) */
+type Start = { isAdmin: boolean; canAbs: boolean; canRecord: boolean; today: string; fit: CalFit };
 
 export default function VelocityScreen() {
   const inset = useSafeAreaInsets();
@@ -121,7 +122,10 @@ export default function VelocityScreen() {
   const [error, setError] = useState<string | null>(null);
   /** 카메라 권한을 거절했나 — 설정을 바꾸면 iOS 가 앱을 다시 켜므로 돌아와 다시 켜기는 없다 */
   const [denied, setDenied] = useState(false);
-  const [fps, setFps] = useState<{ fps: number; dropped: number } | null>(null);
+  const [fps, setFps] = useState<FpsState | null>(null);
+  /* 관리자 진단(2026-10-20) — 알약을 누르면 빌드 · 카메라 · 최근 작업의 단계별 시간 */
+  const [diag, setDiag] = useState<JobTiming[] | null>(null);
+  const timings = useRef<JobTiming[]>([]);
   const [status, setStatus] = useState<{ status: CaptureStatus; visible: number }>({ status: 'armed', visible: 0 });
   const [notice, setNotice] = useState<string | null>(null);
   const [tilt, setTilt] = useState<{ roll: number; pitch: number } | null>(null);
@@ -179,7 +183,7 @@ export default function VelocityScreen() {
   useEffect(() => {
     let alive = true;
     void Promise.all([
-      rpc<{ ok: true; isAdmin: boolean; pitchLocked: boolean; today: string; fit: CalFit } | { ok: false; error: string }>(
+      rpc<{ ok: true; isAdmin: boolean; canAbs?: boolean; canRecord?: boolean; pitchLocked: boolean; today: string; fit: CalFit } | { ok: false; error: string }>(
         'velocity.loadVelocityStart'
       ),
       loadLastMode(),
@@ -189,11 +193,11 @@ export default function VelocityScreen() {
         if (!res.ok) return setBlocked(res.error);
         if (res.pitchLocked) return setBlocked('투구 기록 첫 설정을 먼저 마쳐 주세요.');
         todayRef.current = res.today;
-        setStart({ isAdmin: res.isAdmin, today: res.today, fit: res.fit });
+        setStart({ isAdmin: res.isAdmin, canAbs: res.canAbs ?? res.isAdmin, canRecord: res.canRecord ?? res.isAdmin, today: res.today, fit: res.fit });
         /* 관리자만 쓰는 모드를 지난 번에 골랐어도 지금 관리자가 아니면 구속 측정으로 */
         if (entryMode) {
           /* 투구 탭에서 모드를 정해 왔으면 시트 없이 안내부터(openMode 와 같은 일 — 그 함수는 이 뒤에 있어 여기서 못 부른다) */
-          const m = allowedMode(entryMode, res.isAdmin);
+          const m = allowedMode(entryMode, res.canAbs ?? res.isAdmin);
           setMode(m);
           void saveLastMode(m);
           void Promise.all([loadJson(TIPS_SKIP_KEY), loadJson(setupKeyOf(m))]).then(([skip, raw]) => {
@@ -208,7 +212,7 @@ export default function VelocityScreen() {
             setStep(s ? 'ask' : 'type');
           });
         } else {
-          setMode(allowedMode(last, res.isAdmin));
+          setMode(allowedMode(last, res.canAbs ?? res.isAdmin));
           setStep('mode');
         }
         void loadDraft().then((d) => {
@@ -276,6 +280,9 @@ export default function VelocityScreen() {
         },
         onStatus: (s, visible) => setStatus({ status: s, visible }),
         onNotice: (m) => setNotice(m),
+        onTiming: (t) => {
+          timings.current = [...timings.current.slice(-5), t];
+        },
         onAttempt: (a) => {
           const date = todayRef.current;
           if (!date) return;
@@ -293,17 +300,19 @@ export default function VelocityScreen() {
     const subs = [
       DualCamera.addListener('throw', (e) => capture.onThrow(e)),
       DualCamera.addListener('fps', (e) => {
-        setFps({ fps: Math.round(e.fps), dropped: e.dropped });
+        setFps({ fps: Math.round(e.fps), dropped: e.dropped, thermal: e.thermal ?? null, feedMs: e.feedMs ?? null, feedSkipped: e.feedSkipped ?? null });
         /* 장면이 다시 흐른다 = 카메라가 산다 — 전화 · 컨트롤센터로 잠깐 끊겼을 때 온 'error' 를 걷는다(안 걷으면 설정 카드가 오류 카드에 가려 못 갔다) */
         setError((prev) => (prev ? null : prev));
       }),
       DualCamera.addListener('error', (e) => setError(e.message)),
       DualCamera.addListener('level', (g) => {
         const t = tiltOf([g.x, g.y, g.z]);
-        /* 웹 수평계처럼 살짝 다듬는다(0.1초 알림 · 약 0.25초) */
-        setTilt((prev) =>
-          prev ? { roll: prev.roll + 0.35 * (t.roll - prev.roll), pitch: prev.pitch + 0.35 * (t.pitch - prev.pitch) } : t
-        );
+        /* 웹 수평계처럼 살짝 다듬는다(0.2초 알림). 0.1° 도 안 움직였으면 같은 값을 돌려줘 화면을 다시 그리지 않는다(측정 중 CPU — 2026-10-20) */
+        setTilt((prev) => {
+          if (!prev) return t;
+          const next = { roll: prev.roll + 0.5 * (t.roll - prev.roll), pitch: prev.pitch + 0.5 * (t.pitch - prev.pitch) };
+          return Math.abs(next.roll - prev.roll) < 0.1 && Math.abs(next.pitch - prev.pitch) < 0.1 ? prev : next;
+        });
       }),
     ];
     /* 사이트(dual-capture start)와 같은 옵션 — 투수 뒤라 2배 · 먼 곳만 초점 */
@@ -345,7 +354,7 @@ export default function VelocityScreen() {
   const [recWanted, setRecWanted] = useState(false);
   const [rec, setRec] = useState<RecState | null>(null);
   useEffect(() => {
-    if (!(step === 'measure' && live && recWanted && start?.isAdmin && info)) return;
+    if (!(step === 'measure' && live && recWanted && start?.canRecord && info)) return;
     const r = new SessionRecorder(setRec);
     void r.start(sessionDate ?? start.today, {
       sessionRecording: true,
@@ -363,7 +372,7 @@ export default function VelocityScreen() {
     };
     // 녹화는 측정을 켜고 끌 때만 — 존 · 종류를 바꿔도 이어서 녹화한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, live, recWanted, start?.isAdmin, info]);
+  }, [step, live, recWanted, start?.canRecord, info]);
 
   /* 그 모드의 지난 설정이 있으면 묻고(ask), 없으면 첫 설정(type) */
   const goSetup = (next: CameraMode) => {
@@ -512,7 +521,7 @@ export default function VelocityScreen() {
   const measuring = step === 'measure' && live;
   /* ABS — 플레이트 보정 · 존 상자(웹 velocity-screen 의 useAbsSession 과 같은 입력: 긴 변 화각 → 초점 px, 숙임 · 좌우 기울기) */
   const abs = useAbs({
-    enabled: mode === 'abs' && !!start?.isAdmin,
+    enabled: mode === 'abs' && !!start?.canAbs,
     camera: info ? { width: info.mainWidth, height: info.mainHeight } : null,
     focalPx: info ? focalPxFromFov(Math.max(info.mainWidth, info.mainHeight), info.mainFovDeg > 0 ? info.mainFovDeg : SETTINGS.fallbackFovDeg) : null,
     tiltRad: tilt ? (-tilt.pitch * Math.PI) / 180 : null,
@@ -601,24 +610,23 @@ export default function VelocityScreen() {
         {/* 둘째 줄 — 수평계 | 카메라 상태 */}
         <View style={[styles.second, { top: inset.top + 58 }]}>
           {tilt ? <LevelBubble roll={tilt.roll} pitch={tilt.pitch} rollOk={ROLL_OK} pitchOk={PITCH_OK} /> : <View />}
-          <InfoPill tone={error ? 'warn' : undefined}>
-            {error
-              ? '카메라 오류'
-              : info
-                ? `${Math.min(info.mainWidth, info.mainHeight)}p · ${fps?.fps ?? Math.round(info.mainFps)}fps · 2배${fps?.dropped ? ` · 버림 ${fps.dropped}` : ''}`
-                : '카메라 켜는 중'}
-          </InfoPill>
+          {/* 관리자는 눌러 진단(빌드 · 카메라 · 최근 작업 시간, 2026-10-20). Debug 빌드 · 장면을 많이 버리면 주황 */}
+          <Pressable accessibilityRole="button" accessibilityLabel="카메라 진단" disabled={!start?.isAdmin} onPress={() => setDiag(timings.current)}>
+            <InfoPill tone={error || info?.debugBuild || (fps?.dropped ?? 0) > 5 ? 'warn' : undefined}>
+              {error ? '카메라 오류' : info ? pillText(info, fps) : '카메라 켜는 중'}
+            </InfoPill>
+          </Pressable>
         </View>
 
         {/* 모드 고르기 시트 — 열리자마자 미리보기 위(설계 2-1). 고르면 그 모드의 지난 설정 · 첫 설정으로 */}
         {step === 'mode' && start && !blocked && !error ? (
-          <ModeSheet value={mode} isAdmin={start.isAdmin} bottom={12} onPick={(m) => pickMode(m, 'sheet')} />
+          <ModeSheet value={mode} isAdmin={start.canAbs} bottom={12} onPick={(m) => pickMode(m, 'sheet')} />
         ) : null}
         {/* 카메라 위 안내창 · 결과 — 뷰파인더 아래쪽 */}
         <View style={styles.over} pointerEvents="box-none">
           {/* 관리자 세션 녹화 — 측정 전엔 켜기 칩, 측정 중엔 녹화 상태(웹 velocity-screen 의 sessionRecWanted 칩) */}
-          {step === 'measure' && start?.isAdmin && canRecordSession() && tipsAt == null ? (
-            !live ? (
+          {step === 'measure' && start?.canRecord && canRecordSession() && tipsAt == null ? (
+            !live && rec?.phase !== 'stopping' ? (
               <Press select selected={recWanted}
                 accessibilityRole="switch"
                 accessibilityState={{ checked: recWanted }}
@@ -631,9 +639,7 @@ export default function VelocityScreen() {
             ) : rec && rec.phase !== 'idle' ? (
               <View style={[styles.recChip, styles.recChipOn]}>
                 <View style={[styles.recDot, { backgroundColor: '#fff' }]} />
-                <Text style={styles.recText}>
-                  {rec.phase === 'error' ? `녹화 못 함 · ${rec.error ?? ''}` : `녹화 중 · 올림 ${rec.uploaded}/${rec.parts}${rec.failed ? ` · 실패 ${rec.failed}` : ''}`}
-                </Text>
+                <Text style={styles.recText}>{recChipText(rec)}</Text>
               </View>
             ) : null
           ) : null}
@@ -789,7 +795,7 @@ export default function VelocityScreen() {
       {/* 아래 검은 막대 — 모드 띠 · 옆 단추 · 셔터 · 옆 단추(웹 카메라 앱 꼴) */}
       <View style={[styles.bar, { paddingBottom: Math.max(inset.bottom, 12) }]}>
         {start && !blocked && step !== 'loading' && step !== 'mode' ? (
-          <ModeStrip value={mode} isAdmin={start.isAdmin} locked={measuring} onChange={(m) => pickMode(m, 'strip')} />
+          <ModeStrip value={mode} isAdmin={start.canAbs} locked={measuring} onChange={(m) => pickMode(m, 'strip')} />
         ) : (
           <View style={{ height: 32 }} />
         )}
@@ -908,8 +914,61 @@ export default function VelocityScreen() {
         <ClipModal path={replay} onClose={() => setReplay(null)} />
       </Modal>
       {!sheet ? <ClipModal path={replay} onClose={() => setReplay(null)} /> : null}
+      {/* 관리자 진단(2026-10-20) — 10-20 세션에서 무엇이 느린지 · 어떤 빌드인지 알 길이 없었다. 폰 화면에서 바로 본다 */}
+      <Modal visible={diag != null} transparent animationType="fade" onRequestClose={() => setDiag(null)}>
+        <Pressable style={styles.diagScrim} accessibilityRole="button" accessibilityLabel="닫기" onPress={() => setDiag(null)}>
+          <View style={[styles.diagCard, { marginBottom: inset.bottom + 8 }]}>
+            <Text style={styles.diagTitle}>카메라 진단</Text>
+            {diagLines(info, fps, diag ?? []).map((l, i) => (
+              <Text key={i} style={styles.diagLine} selectable>
+                {l}
+              </Text>
+            ))}
+            <Text style={styles.diagHint}>쉬는 중에도 버림이 초당 5를 넘으면 빌드 탓이에요(Debug). Release 로 다시 구워 보세요.</Text>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
+}
+
+/** 세션 녹화 칩 — '녹화 중 · 올림 6/9 · 대기 3 · 밀림 1 · 실패 2', 끝낼 때 '마무리 중 · 남음 N'(폰에 둔 조각을 올리는 중) */
+function recChipText(rec: RecState) {
+  if (rec.phase === 'error') return `녹화 못 함 · ${rec.error ?? ''}`;
+  const tail = `${rec.spooled ? ` · 대기 ${rec.spooled}` : ''}${rec.skipped ? ` · 밀림 ${rec.skipped}` : ''}${rec.failed ? ` · 실패 ${rec.failed}` : ''}`;
+  if (rec.phase === 'stopping') return `마무리 중 · 올림 ${rec.uploaded}/${rec.parts}${rec.queued ? ` · 남음 ${rec.queued}` : ''}${tail}`;
+  return `녹화 중 · 올림 ${rec.uploaded}/${rec.parts}${tail}`;
+}
+
+type FpsState = { fps: number; dropped: number; thermal: number | null; feedMs: number | null; feedSkipped: number | null };
+const THERMAL_TEXT: Record<number, string> = { 0: '보통', 1: '따뜻', 2: '뜨거움', 3: '아주 뜨거움' };
+
+/** 둘째 줄 알약 — '1080p · 60fps · 2배' 뒤에 버림 N · DEBUG · 뜨거움이 붙는다 */
+function pillText(info: StartInfo, fps: FpsState | null) {
+  return [
+    `${Math.min(info.mainWidth, info.mainHeight)}p`,
+    `${fps?.fps ?? Math.round(info.mainFps)}fps`,
+    '2배',
+    ...(fps?.dropped ? [`버림 ${fps.dropped}`] : []),
+    ...(info.debugBuild ? ['DEBUG'] : []),
+    ...((fps?.thermal ?? 0) >= 2 ? ['뜨거움'] : []),
+  ].join(' · ');
+}
+
+/** 관리자 진단 줄들 — 빌드 · 카메라 약속 · 지금 상태 · 최근 작업 여섯 */
+function diagLines(info: StartInfo | null, fps: FpsState | null, timings: JobTiming[]): string[] {
+  const build = info?.debugBuild == null ? '모름(옛 앱)' : info.debugBuild ? 'Debug(최적화 없음)' : 'Release';
+  const lines = [`빌드 ${build} · 앱 ${info?.appVersion || '?'} (${info?.appBuild || '?'}) · JS ${__DEV__ ? 'dev' : 'release'}`];
+  if (info) lines.push(`카메라 ${Math.min(info.mainWidth, info.mainHeight)}p · 약속 ${Math.round(info.mainFps)}fps · 화각 ${info.mainFovDeg.toFixed(1)}°`);
+  if (fps) {
+    const feed = fps.feedMs == null ? '?' : fps.feedMs.toFixed(1);
+    lines.push(
+      `지금 ${fps.fps}fps · 버림 ${fps.dropped}/초 · 공 찾기 ${feed}ms/장${fps.feedSkipped ? ` (건너뜀 ${fps.feedSkipped}/초)` : ''} · 열 ${THERMAL_TEXT[fps.thermal ?? -1] ?? '?'}`
+    );
+  }
+  lines.push(timings.length ? '최근 작업(ms):' : '최근 작업 없음');
+  for (const t of timings) lines.push(timingLine(t));
+  return lines;
 }
 
 function Button({
@@ -1044,6 +1103,11 @@ const styles = StyleSheet.create({
   listItem: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e5e5ea' },
   chev: { fontSize: 15, color: '#8e8e93' },
   label: { fontSize: 13, fontWeight: '600', color: '#6e6e73', marginTop: 8 },
+  diagScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end', padding: 12 },
+  diagCard: { borderRadius: 20, backgroundColor: 'rgba(20,20,22,0.96)', padding: 16, gap: 6 },
+  diagTitle: { color: '#fff', fontSize: 17, fontWeight: '700', marginBottom: 4 },
+  diagLine: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontVariant: ['tabular-nums'] },
+  diagHint: { color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 6 },
 });
 
 function StepBtn({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {

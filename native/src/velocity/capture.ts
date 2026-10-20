@@ -1,6 +1,7 @@
 import { clipSpanOf, coveredBy, nextSweepWindow, SWEEP_EVERY_SEC } from '@/lib/velocity-engine/sweep';
 import { DualCamera, type Clip, type ThrowEvent } from '../../modules/dual-camera';
-import type { EngineHandle, EngineResult, MeasureOpts } from './engine';
+import { FRAME_LOSS_WARN, frameLossNotice, frameLossOf } from './clip-health';
+import { EngineError, type EngineHandle, type EngineResult, type MeasureOpts } from './engine';
 
 /**
  * 앱 구속 측정의 흐름 — 던짐 알림 → 클립 자르기 → 숨은 웹뷰 계산기로 재기 → 결과.
@@ -22,7 +23,8 @@ import type { EngineHandle, EngineResult, MeasureOpts } from './engine';
  */
 
 const MAX_PENDING = 2;
-const BALL_CLIP: [number, number] = [0.6, 1.6];
+/** 공 알림 클립 앞 · 뒤(초) — 재는 범위(BALL_RANGE)보다 0.1~0.15초만 넉넉히. 0.6 · 1.6 이었을 때 클립의 1할이 안 쓰는 장면이었다(다리 바이트, 2026-10-20) */
+const BALL_CLIP: [number, number] = [0.4, 1.55];
 const BALL_RANGE: [number, number] = [0.25, 1.45];
 const MOTION_CLIP: [number, number] = [0.5, 2.6];
 /** 훑기 한 번이 이보다 오래 걸리면 다음 하나를 쉰다(사이트 dual-capture 와 같다) */
@@ -31,13 +33,65 @@ export const LOST_BALL_NOTE = '공을 끝까지 찾지 못해 이번 공은 재�
 
 type ThrowKind = 'ball' | 'seed' | 'motion' | 'sweep';
 
+/**
+ * 한 작업의 단계별 시간(ms) — 콘솔 '[velo] …' 한 줄 · 관리자 진단(2026-10-20: 10-20 세션에서 30초가 어디서 가는지 알 길이 없었다).
+ * queue 알림 뒤 차례 기다림 · clip 카메라 모듈 자르기 · read 클립 읽기 + 조각 보내기 · engine 계산기 안 · total 알림부터 결과까지
+ */
+export type JobTiming = {
+  id: number;
+  kind: ThrowKind;
+  queueMs: number;
+  clipMs: number;
+  readMs: number;
+  engineMs: number;
+  totalMs: number;
+  bytes: number;
+  /** 클립에 담긴 초당 장면 수(옛 앱 판은 null) */
+  fpsActual: number | null;
+  /** 계산기 안 시간 나눔(lib/velocity-engine/analyze-video.ts timing) — 결과에 실려 올 때만 */
+  inner?: { framesMs: number; analyzeMs: number; coarseMs: number };
+  /** 'ok 112.3 high' · 'NOT_ENOUGH_FRAMES no-flight' · 'TIMEOUT' */
+  outcome: string;
+};
+
+/** 진단 한 줄 — '#3 ball 큐 120 · 자르기 410 · 읽기 380(3.1MB · 58fps) · 계산 2900(장면 900 · 분석 1500) · 합 3800ms → ok 112.3 high' */
+export function timingLine(t: JobTiming): string {
+  const inner = t.inner ? `(장면 ${t.inner.framesMs} · 분석 ${t.inner.analyzeMs}${t.inner.coarseMs ? ` · 훑기 ${t.inner.coarseMs}` : ''})` : '';
+  const fps = t.fpsActual != null ? ` · ${Math.round(t.fpsActual)}fps` : '';
+  return `#${t.id} ${t.kind} 큐 ${t.queueMs} · 자르기 ${t.clipMs} · 읽기 ${t.readMs}(${(t.bytes / 1e6).toFixed(1)}MB${fps}) · 계산 ${t.engineMs}${inner} · 합 ${t.totalMs}ms → ${t.outcome}`;
+}
+
+/** 계산기 안 시간 나눔 — 결과에 timing 이 실려 올 때만 */
+function innerTimingOf(result: EngineResult): JobTiming['inner'] {
+  const t = (result as { timing?: { framesMs?: unknown; analyzeMs?: unknown; coarseMs?: unknown } }).timing;
+  if (!t) return undefined;
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : 0);
+  return { framesMs: n(t.framesMs), analyzeMs: n(t.analyzeMs), coarseMs: n(t.coarseMs) };
+}
+
+/** 실패를 시도 기록 코드로 — 계산기(EngineError.code) · 카메라 모듈(Expo 코드: clip 그 순간의 영상 없음 · off · read …) */
+function errorCodeOf(err: unknown): string {
+  if (err instanceof EngineError) return err.code;
+  const code = (err as { code?: unknown } | null)?.code;
+  if (typeof code === 'string' && code) {
+    if (code === 'clip') return 'NO_CLIP';
+    if (code === 'off') return 'CAMERA_OFF';
+    return `CLIP_${code.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`.slice(0, 40);
+  }
+  return 'ERROR';
+}
+
 type Job = {
   id: number;
   at: number;
   start: number;
   end: number;
+  /** 알림이 온 때(벽시계 ms) — 차례 기다림 · 전체 시간 재기 */
+  queuedAt: number;
   visible: boolean;
   ball: boolean;
+  /** 시도 기록을 이미 남겼나 — 실패 길에서 두 번 적지 않게 */
+  recorded?: boolean;
   seed?: boolean;
   /** 조용할 때 훑기가 찾은 공 — 결과에 late 표시 */
   sweep?: boolean;
@@ -45,6 +99,8 @@ type Job = {
   strength: number;
   thermal: number | null;
 };
+
+const kindOf = (job: Job): ThrowKind => (job.ball ? 'ball' : job.seed ? 'seed' : job.sweep ? 'sweep' : 'motion');
 
 /** 이 앱 판에서 훑기가 되나 — 카메라 시계(DualCamera.now)가 있어야 지난 창을 자른다 */
 export const canSweep = () => typeof DualCamera.now === 'function';
@@ -63,6 +119,8 @@ export type CaptureHandlers = {
   /** 화면에 띄울 작업 수가 바뀜 — '투구를 인식했어요' · '구속 계산 중' */
   onStatus(status: CaptureStatus, visible: number): void;
   onNotice(message: string): void;
+  /** 작업 하나가 끝날 때(쟀든 실패했든) 단계별 시간 — 관리자 진단 */
+  onTiming?(t: JobTiming): void;
   /** 시도 기록(사이트 recordVelocityAttempt 와 같은 칸) */
   onAttempt?(a: {
     id: number;
@@ -93,6 +151,8 @@ export class AppCapture {
   private sweptUntil: number | null = null;
   private sweeping = false;
   private sweepSkip = 0;
+  /** 장면 빠짐 알림을 마지막으로 띄운 때 — 10초에 한 번만 */
+  private lastLossNoticeAt = 0;
 
   constructor(
     private engine: () => EngineHandle | null,
@@ -158,6 +218,7 @@ export class AppCapture {
       at: atSec,
       start: atSec - before,
       end: atSec + after,
+      queuedAt: now,
       visible: ball,
       ball,
       ...(seed ? { seed: true, ballAt: atSec } : {}),
@@ -171,7 +232,24 @@ export class AppCapture {
     this.queue = this.queue
       .then(() => this.measure(job, gen))
       .catch((err: unknown) => {
-        if (gen === this.gen && job.visible) this.handlers.onNotice(err instanceof Error ? err.message : '영상을 읽지 못했어요');
+        if (gen !== this.gen) return;
+        /*
+         * 시한 초과 · 계산기 죽음 · 클립 없음도 시도로 남긴다(2026-10-20: 10-20 세션의 30초 시한 초과가 DB 에 한 줄도 없어 공을 몇 개
+         * 잃었는지 셀 수 없었다). 코드는 EngineError.code(TIMEOUT · ENGINE_…) · 카메라 모듈 코드(NO_CLIP · CAMERA_OFF …)
+         */
+        const code = errorCodeOf(err);
+        if (!job.recorded) {
+          job.recorded = true;
+          this.handlers.onAttempt?.({
+            id: job.id, kind: kindOf(job), atSec: job.at, strength: job.strength, ok: false, code,
+            why: code.toLowerCase().replace(/_/g, '-'), thermal: job.thermal, trackFrames: 0, rawKmh: null, confidence: null,
+          });
+        }
+        this.report({
+          id: job.id, kind: kindOf(job), queueMs: 0, clipMs: 0, readMs: 0, engineMs: 0, totalMs: Date.now() - job.queuedAt,
+          bytes: 0, fpsActual: null, outcome: code,
+        });
+        if (job.visible) this.handlers.onNotice(err instanceof Error ? err.message : '영상을 읽지 못했어요');
       })
       .finally(() => {
         this.jobs = this.jobs.filter((j) => j !== job);
@@ -185,12 +263,31 @@ export class AppCapture {
     this.handlers.onStatus(this.jobs.length ? (visible ? 'analyzing' : 'capturing') : 'armed', visible);
   }
 
+  /** 단계별 시간을 한 줄로 — 콘솔 · 관리자 진단(2026-10-20) */
+  private report(t: JobTiming) {
+    console.info(`[velo] ${timingLine(t)}`);
+    this.handlers.onTiming?.(t);
+  }
+
+  /** 클립에 장면이 많이 빠졌으면(캡처가 늦은 장면을 버림) 알린다 — 10초에 한 번. 재기는 그대로 간다(막지 않는다) */
+  private warnFrameLoss(clip: Clip) {
+    const loss = frameLossOf(clip);
+    if (loss == null || loss < FRAME_LOSS_WARN) return;
+    const now = Date.now();
+    if (now - this.lastLossNoticeAt < 10_000) return;
+    this.lastLossNoticeAt = now;
+    this.handlers.onNotice(frameLossNotice(clip.fpsActual ?? 0));
+  }
+
   private async measure(job: Job, gen: number) {
+    const t0 = Date.now();
     const { main, wide } = await DualCamera.clip({ atSec: job.at, beforeSec: job.at - job.start, afterSec: job.end - job.at });
+    const clipMs = Date.now() - t0;
     const drop = (paths: string[]) => DualCamera.discard({ paths }).catch(() => undefined);
     if (wide) void drop([wide.path]);
     const engine = this.engine();
     if (gen !== this.gen || !engine) return void drop([main.path]);
+    this.warnFrameLoss(main);
     const s = this.settings();
     /* 공이 처음 보인 때(클립 시각) — 공 알림 작업은 알림 시각, 움직임 작업에 묶인 공 알림은 그 차이만큼 뒤 */
     const ballEv = job.ball ? main.eventSec : job.ballAt != null ? main.eventSec + (job.ballAt - job.at) : null;
@@ -215,7 +312,7 @@ export class AppCapture {
       distanceAuto: s.distanceAuto,
       tiltRad: s.tiltRad,
     };
-    const { result } = await engine.measure(main, opts, () => {
+    const { result, ms, readMs } = await engine.measure(main, opts, () => {
       if (job.visible || gen !== this.gen) return;
       job.visible = true;
       this.sync();
@@ -231,9 +328,10 @@ export class AppCapture {
       ? { kept: false }
       : this.handlers.onResult(result, { id: job.id, hitT: main.eventSec, clip: main, late: job.sweep === true });
     const dropped = ok && !verdict.kept;
+    job.recorded = true;
     this.handlers.onAttempt?.({
       id: job.id,
-      kind: job.ball ? 'ball' : job.seed ? 'seed' : job.sweep ? 'sweep' : 'motion',
+      kind: kindOf(job),
       atSec: job.at,
       strength: job.strength,
       ok: ok && verdict.kept,
@@ -244,6 +342,22 @@ export class AppCapture {
       rawKmh: result.measure.ok ? result.measure.kmh : null,
       confidence: result.measure.ok ? result.measure.confidence : null,
       distance: result.distance,
+    });
+    const m = result.measure;
+    this.report({
+      id: job.id,
+      kind: kindOf(job),
+      queueMs: t0 - job.queuedAt,
+      clipMs,
+      readMs,
+      engineMs: ms,
+      totalMs: Date.now() - job.queuedAt,
+      bytes: main.bytes,
+      fpsActual: main.fpsActual ?? null,
+      inner: innerTimingOf(result),
+      outcome: m.ok
+        ? `${verdict.kept ? 'ok' : (verdict.code ?? 'LOW_CONFIDENCE')} ${m.kmh.toFixed(1)} ${m.confidence}`
+        : `${m.code}${noBall ? ' no-ball' : result.distance?.why ? ` ${result.distance.why}` : ''} 장면 ${track}`,
     });
     if (!verdict.kept) drop([main.path]);
   }

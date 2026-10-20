@@ -56,12 +56,29 @@ export type EngineResult = {
   [key: string]: unknown;
 };
 
+/** 한 번 재기 · 훑기에 든 시간(ms) — ms 계산기 안(장면 풀기 + 계산), readMs 클립 읽기 + 조각 보내기, totalMs 부른 뒤 답까지(계산기 뜨기 기다림 포함) */
+export type EngineTiming = { ms: number; readMs: number; totalMs: number };
+
 export type EngineHandle = {
   /** 클립을 재 결과를 돌려준다. onBall — 공 길을 찾은 순간(조용히 재던 클립을 화면에 띄울 때) */
-  measure(clip: Clip, opts: MeasureOpts, onBall?: () => void): Promise<{ result: EngineResult; ms: number }>;
+  measure(clip: Clip, opts: MeasureOpts, onBall?: () => void): Promise<{ result: EngineResult } & EngineTiming>;
   /** 클립을 훑어 공 시각만 찾는다(재지 않음) — 영상을 못 열면 null */
-  locate(clip: Clip, opts: LocateOpts): Promise<{ found: ThrowLocation | null; ms: number }>;
+  locate(clip: Clip, opts: LocateOpts): Promise<{ found: ThrowLocation | null } & EngineTiming>;
 };
+
+/**
+ * 계산기 쪽 실패 — code 가 시도 기록(VelocityAttempt.rejectCode)에 그대로 남는다. 2026-10-20 세션에서 30초 시한 초과가 DB 에 한 줄도
+ * 안 남아 몇 공을 잃었는지 몰랐다(capture.ts 가 실패도 시도로 적는다).
+ */
+export class EngineError extends Error {
+  constructor(
+    public code: 'TIMEOUT' | 'ENGINE_DOWN' | 'ENGINE_GONE' | 'ENGINE_FAIL',
+    message: string
+  ) {
+    super(message);
+    this.name = 'EngineError';
+  }
+}
 
 type WebViewHandle = { postMessage(message: string): void };
 /* react-native-webview 14 의 타입은 ref 를 안 받지만 실제 부품은 forwardRef 다 */
@@ -110,7 +127,7 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
     waiters.current.delete(msg.id!);
     if (msg.t === 'result' && msg.result) w.resolve({ result: msg.result, ms: msg.ms ?? 0 });
     else if (msg.t === 'located' && w.kind === 'locate') w.resolve({ found: msg.found ?? null, ms: msg.ms ?? 0 });
-    else w.reject(new Error(msg.message ?? '영상을 읽지 못했어요'));
+    else w.reject(new EngineError('ENGINE_FAIL', msg.message ?? '영상을 읽지 못했어요'));
   }, []);
 
   /**
@@ -119,16 +136,17 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
    */
   const ask = useCallback(
     async (first: { t: 'opts'; opts: MeasureOpts } | { t: 'locate'; opts: LocateOpts }, clip: Clip, onBall?: () => void) => {
+      const t0 = Date.now();
       /* 계산기(웹뷰)가 못 뜨면(오프라인 · 사이트 오류) 영영 기다리던 것 — 시한을 두고 실패로 돌린다 */
       const up = await Promise.race([(ready.current ?? Promise.resolve()).then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), READY_TIMEOUT_MS))]);
-      if (!up) throw new Error('계산기를 불러오지 못했어요. 신호를 확인해 주세요.');
+      if (!up) throw new EngineError('ENGINE_DOWN', '계산기를 불러오지 못했어요. 신호를 확인해 주세요.');
       const id = ++nextId.current;
       const kind = first.t === 'opts' ? 'measure' : 'locate';
       const done = new Promise<{ result?: EngineResult; found?: ThrowLocation | null; ms: number }>((resolve, reject) => {
         const timer = setTimeout(
           () => {
             waiters.current.delete(id);
-            reject(new Error(kind === 'measure' ? '계산이 너무 오래 걸려 이번 공은 재지 못했어요' : '훑기가 너무 오래 걸렸어요'));
+            reject(new EngineError('TIMEOUT', kind === 'measure' ? '계산이 너무 오래 걸려 이번 공은 재지 못했어요' : '훑기가 너무 오래 걸렸어요'));
           },
           kind === 'measure' ? TIMEOUT_MS : LOCATE_TIMEOUT_MS
         );
@@ -137,6 +155,7 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       const post = (m: unknown) => web.current?.postMessage(JSON.stringify(m));
       post({ ...first, id });
       const parts = Math.max(1, Math.ceil(clip.bytes / CHUNK));
+      const r0 = Date.now();
       try {
         for (let part = 0; part < parts; part++) {
           const { data } = await DualCamera.read({ path: clip.path, offset: part * CHUNK, length: CHUNK });
@@ -150,7 +169,9 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
         post({ t: 'abort', id });
         throw e;
       }
-      return done;
+      const readMs = Date.now() - r0;
+      const r = await done;
+      return { ...r, readMs, totalMs: Date.now() - t0 };
     },
     []
   );
@@ -158,12 +179,12 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
   useImperativeHandle(ref, () => ({
     async measure(clip, opts, onBall) {
       const r = await ask({ t: 'opts', opts }, clip, onBall);
-      if (!r.result) throw new Error('영상을 읽지 못했어요');
-      return { result: r.result, ms: r.ms };
+      if (!r.result) throw new EngineError('ENGINE_FAIL', '영상을 읽지 못했어요');
+      return { result: r.result, ms: r.ms, readMs: r.readMs, totalMs: r.totalMs };
     },
     async locate(clip, opts) {
       const r = await ask({ t: 'locate', opts }, clip);
-      return { found: r.found ?? null, ms: r.ms };
+      return { found: r.found ?? null, ms: r.ms, readMs: r.readMs, totalMs: r.totalMs };
     },
   }));
 
@@ -181,7 +202,7 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
         /* 사이트에 못 닿음 — 기다리던 공은 실패로. 다음 공은 다시 뜬 웹뷰가 받는다 */
         for (const [id, w] of waiters.current) {
           clearTimeout(w.timer);
-          w.reject(new Error('계산기를 불러오지 못했어요. 신호를 확인해 주세요.'));
+          w.reject(new EngineError('ENGINE_DOWN', '계산기를 불러오지 못했어요. 신호를 확인해 주세요.'));
           waiters.current.delete(id);
         }
         setGen((n) => n + 1);
@@ -190,7 +211,7 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
         ready.current = new Promise((r) => (markReady.current = r));
         for (const [id, w] of waiters.current) {
           clearTimeout(w.timer);
-          w.reject(new Error('계산기가 멈춰 이번 공은 재지 못했어요'));
+          w.reject(new EngineError('ENGINE_GONE', '계산기가 멈춰 이번 공은 재지 못했어요'));
           waiters.current.delete(id);
         }
         setGen((n) => n + 1);
