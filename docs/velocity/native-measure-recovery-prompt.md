@@ -202,3 +202,7 @@ D3. **JS-thread hygiene.** Throttle `level` to 4 Hz in Swift (`deviceMotionUpdat
   10초에 한 번 '카메라가 장면을 버리고 있어요(초당 N장)', 잰 공의 `analysis.offStandard` · 메모에 '장면 N% 빠짐'(`clip-health.ts`). 엔진 · DB 모양은 그대로.
 - **폰에서 볼 것(A5)**: 카메라 화면을 열고 5초 쉰 뒤 알약 — Release 면 `1080p · 60fps · 2배`(버림 없음 · DEBUG 없음). `DEBUG` 가 보이거나 쉬는 중에도 `버림` 이 5를 넘으면
   R1a 확정 → Release 로 다시 굽는다. 관리자 진단의 '공 찾기 ms/장' 이 Release 에서도 8 을 넘으면 Phase C2 로.
+- **Phase B 끝(2026-10-20)**: 앱 `session-recorder.ts` 가 웹 10-19 와 같은 규칙 — 자를 구간은 `sweep.ts nextRecordCut`(한 번에 4초 · 8초 밖으로 밀리면 건너뛰고 `skipped` 로 셈),
+  올리기가 `RECORD_MAX_PENDING`(6) 넘게 밀리면 조각을 버리지 않고 폰(앱 tmp 의 클립 파일 그대로)에 둔 채 `spooled` 로 세고, 끝낼 때 차례로 올린 뒤 지운다(1GB 넘으면 버림).
+  자르기 15초 · 서버 동작 20초 · 올리기 90초 상한. 칩 `녹화 중 · 올림 6/9 · 대기 3 · 밀림 1 · 실패 2`, 세션을 끝내면 `마무리 중 · 올림 N/M · 남음 K`(측정을 끈 뒤에도 보인다).
+  B4(관리자 목록 '영상 0:40만 올라감')는 이미 조각 길이 합(`uploadedSec`)으로 세고 있어 구멍 난 녹화를 그대로 드러낸다 — 고칠 것 없음.

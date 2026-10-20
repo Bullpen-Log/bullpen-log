@@ -1,30 +1,64 @@
+import { RECORD_MAX_PENDING, RECORD_SEGMENT_SEC, nextRecordCut } from '@/lib/velocity-engine/sweep';
 import { rpc } from '~/lib/rpc';
 import { DualCamera } from '../../modules/dual-camera';
 
 /**
  * 세션 통째 녹화(관리자) — 웹 lib/velocity-dual-recorder.ts DualSessionRecorder 를 앱으로. 재는 동안 앱 카메라가 쥔 최근 8초에서
- * 4초마다 '지난번 끝 ~ 지금'을 잘라 서버 녹화(VelocityRecording — 웹 녹화 편집기에서 본다)로 올린다. 놓친 공을 나중에 찾아보고,
- * 공 감지 학습 자료로 쓴다. 조각 약 7MB(14Mbps) — 와이파이용. 올리기가 3개 넘게 밀리면 그 구간은 건너뛴다.
+ * 4초마다 '지난번 끝 ~ 지금'을 잘라(sweep.ts nextRecordCut — 웹과 같은 규칙) 서버 녹화(VelocityRecording — 웹 녹화 편집기에서 본다)로
+ * 올린다. 놓친 공을 나중에 찾아보고, 공 감지 학습 자료로 쓴다. 조각 약 7~10MB(14Mbps).
+ *
+ * 올리기가 밀리면(LTE · 느린 와이파이 — 10-20 녹화 #2 는 145초 중 40초만 올라갔다) 조각을 버리지 않고 **폰(앱 tmp)에 둔 채** 끝낸 뒤
+ * 차례로 올린다(웹 10-19 와 같다). 클립 파일은 이미 폰에 있으니 그대로 두면 된다 — 1GB 를 넘으면 그때부터 버린다. 자르기 15초 · 서버
+ * 동작 20초 · 올리기 90초 상한이라 하나가 멈춰도 stop 이 끝난다.
  *
  * 카메라 시계는 DualCamera.now(앱 카메라의 장면 시각과 같은 호스트 시계) — 옛 앱 판에는 없어 녹화를 켜지 않는다.
  */
-export type RecState = { phase: 'idle' | 'starting' | 'recording' | 'stopping' | 'done' | 'error'; parts: number; uploaded: number; failed: number; error: string | null };
+export type RecState = {
+  phase: 'idle' | 'starting' | 'recording' | 'stopping' | 'done' | 'error';
+  parts: number;
+  uploaded: number;
+  /** 올리기 · 자르기 실패 */
+  failed: number;
+  /** 카메라가 밀려 건너뛴 횟수(앱이 쥔 8초 밖으로 뒤처짐) — 올리기 실패와 따로 */
+  skipped: number;
+  /** 올리기가 밀려 폰에 둔 조각(끝낸 뒤 올린다) */
+  spooled: number;
+  /** 끝낼 때 폰에 둔 조각을 올리는 중 — 남은 수 */
+  queued: number;
+  error: string | null;
+};
 
-const TICK_MS = 4000;
-/** 마지막 조각이 아직 안 닫혔을 수 있다 — 지금에서 이만큼 띄운다 */
-const LAG_SEC = 0.4;
-const MAX_CUT_SEC = 4;
-const MAX_PENDING = 3;
-/*
- * 앱 카메라가 쥔 영상 길이(DualCameraCore.swift keepSec 8) — 이만큼 넘게 뒤처지면 자를 영상이 이미 없다. 예전엔 자르기가 실패해도
- * lastEnd 를 그대로 둬 다음 차례도 같은 옛 구간을 자르려다 실패해, 측정 중 한 번 밀리면 첫 8초 뒤로 영상이 하나도 안 올라갔다
- * (2026-10-19 금윤호 녹화 다섯 — 189초 중 7초). 밀린 만큼은 건너뛰고 버퍼 안으로 돌아온다.
- */
-const KEEP_SEC = 8;
+const TICK_MS = RECORD_SEGMENT_SEC * 1000;
+/** 자르기 · 서버 동작 · 올리기 한 번의 상한(ms) — 넘으면 그 조각은 실패로 치고 다음으로(웹과 같다) */
+const CUT_TIMEOUT_MS = 15_000;
+const CALL_TIMEOUT_MS = 20_000;
+const PUT_TIMEOUT_MS = 90_000;
+/** 폰에 둘 수 있는 조각 합(바이트) — 넘으면 새 조각은 버린다 */
+const SPOOL_MAX_BYTES = 1024 * 1024 * 1024;
+const OFFLINE = '신호가 약해 조각을 올리지 못했어요.';
 
 type Res<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+type Part = { index: number; path: string; bytes: number; offsetSec: number; durationSec: number };
 
 export const canRecordSession = () => typeof DualCamera.now === 'function';
+
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(message)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e: unknown) => {
+        clearTimeout(t);
+        reject(e);
+      }
+    );
+  });
+}
+
+const dropFile = (path: string) => void DualCamera.discard({ paths: [path] }).catch(() => undefined);
 
 export class SessionRecorder {
   private id: string | null = null;
@@ -37,8 +71,11 @@ export class SessionRecorder {
   private cutJob: Promise<void> | null = null;
   private pending = 0;
   private uploads: Promise<void> = Promise.resolve();
+  /** 올리기가 밀려 폰에 둔 조각 — 끝낸 뒤 차례로 올린다 */
+  private deferred: Part[] = [];
+  private spooledBytes = 0;
   private startedAt = 0;
-  state: RecState = { phase: 'idle', parts: 0, uploaded: 0, failed: 0, error: null };
+  state: RecState = { phase: 'idle', parts: 0, uploaded: 0, failed: 0, skipped: 0, spooled: 0, queued: 0, error: null };
 
   constructor(private onChange: (s: RecState) => void) {}
 
@@ -51,7 +88,7 @@ export class SessionRecorder {
     if (this.state.phase !== 'idle' || !canRecordSession()) return;
     this.set({ phase: 'starting' });
     try {
-      const res = await rpc<Res<{ id: string }>>('velocity-recording.startVelocityRecording', { date, meta });
+      const res = await withTimeout(rpc<Res<{ id: string }>>('velocity-recording.startVelocityRecording', { date, meta }), CALL_TIMEOUT_MS, OFFLINE);
       if (!res.ok) return this.set({ phase: 'error', error: res.error });
       if ((this.state as RecState).phase !== 'starting') return;
       this.id = res.id;
@@ -67,71 +104,93 @@ export class SessionRecorder {
 
   private async tick(final = false) {
     if (this.cutting || this.lastEnd == null) return;
-    const to = DualCamera.now!() - LAG_SEC;
-    if (to - this.lastEnd > KEEP_SEC - 1) {
-      this.lastEnd = to - MAX_CUT_SEC;
-      this.set({ failed: this.state.failed + 1, error: '카메라가 밀려 몇 초를 건너뛰었어요.' });
-    }
-    const span = Math.min(MAX_CUT_SEC, to - this.lastEnd);
-    if (span < (final ? 0.5 : 2)) return;
-    const start = this.lastEnd;
+    const next = nextRecordCut(this.lastEnd, DualCamera.now!(), final);
+    if (!next) return;
+    const { from, to, skippedSec } = next;
     this.cutting = true;
     try {
-      if (this.pending >= MAX_PENDING) {
-        /* 올리기가 밀렸다 — 이 구간은 버리고 여기서 이어 간다 */
-        this.lastEnd += span;
-        this.set({ failed: this.state.failed + 1, error: '올리기가 밀려 조각 하나를 건너뛰었어요.' });
+      if (skippedSec > 0) {
+        /* 앱이 쥔 영상 밖으로 뒤처졌다 — 없는 구간은 버리고 버퍼 안부터(그대로 두면 다음에도 같은 자리를 청해 영영 멎는다, 2026-10-19) */
+        this.set({ skipped: this.state.skipped + 1, error: `카메라가 밀려 ${Math.round(skippedSec)}초를 건너뛰었어요.` });
+      }
+      const backlogged = this.pending >= RECORD_MAX_PENDING;
+      const { main } = await withTimeout(
+        DualCamera.clip({ atSec: from, beforeSec: 0.1, afterSec: to - from }),
+        CUT_TIMEOUT_MS,
+        '영상을 자르는 데 너무 오래 걸렸어요.'
+      );
+      if (this.t0 == null) this.t0 = from;
+      this.lastEnd = to;
+      const part: Part = { index: this.index++, path: main.path, bytes: main.bytes, offsetSec: Math.max(0, from - this.t0), durationSec: main.durationSec };
+      this.set({ parts: this.state.parts + 1 });
+      if (backlogged) {
+        /* 올리기가 밀렸다 — 파일은 이미 폰에 있으니 그대로 두고 끝낸 뒤 올린다. 예전(MAX_PENDING 3 · 버림)엔 10-20 녹화 #2 가 145초 중 40초만 올라갔다 */
+        if (this.spooledBytes + main.bytes > SPOOL_MAX_BYTES) {
+          dropFile(main.path);
+          this.set({ failed: this.state.failed + 1, error: '폰에 둘 자리가 없어 조각 하나를 버렸어요.' });
+          return;
+        }
+        this.spooledBytes += main.bytes;
+        this.deferred.push(part);
+        this.set({ spooled: this.deferred.length });
         return;
       }
-      const from = this.lastEnd;
-      const { main } = await DualCamera.clip({ atSec: from, beforeSec: 0.1, afterSec: span });
-      if (this.t0 == null) this.t0 = from;
-      this.lastEnd = from + span;
-      const index = this.index++;
-      const offsetSec = Math.max(0, from - this.t0);
-      this.set({ parts: this.state.parts + 1 });
       this.pending++;
-      this.uploads = this.uploads.then(() => this.upload(index, main.path, main.bytes, offsetSec, main.durationSec)).finally(() => this.pending--);
+      this.uploads = this.uploads.then(() => this.upload(part)).finally(() => this.pending--);
     } catch (e) {
       /* 이 구간은 버리고 다음으로 — 그대로 두면 같은 구간을 계속 자르려다 실패한다 */
-      this.lastEnd = Math.max(this.lastEnd, start + span);
+      this.lastEnd = to;
       this.set({ failed: this.state.failed + 1, error: e instanceof Error ? e.message : '영상을 자르지 못했어요.' });
     } finally {
       this.cutting = false;
     }
   }
 
-  private async upload(index: number, path: string, bytes: number, offsetSec: number, durationSec: number) {
+  private async upload(p: Part) {
     const id = this.id;
-    if (!id) return;
-    let error = '신호가 약해 조각을 올리지 못했어요.';
+    if (!id) return dropFile(p.path);
+    let error = OFFLINE;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const target = await rpc<Res<{ path: string; signedUrl: string }>>('velocity-recording.createRecordingPartUpload', id, 'video/mp4', bytes);
+        const target = await withTimeout(
+          rpc<Res<{ path: string; signedUrl: string }>>('velocity-recording.createRecordingPartUpload', id, 'video/mp4', p.bytes),
+          CALL_TIMEOUT_MS,
+          OFFLINE
+        );
         if (!target.ok) {
           error = target.error;
           break;
         }
-        const put = await DualCamera.upload({ path, url: target.signedUrl, contentType: 'video/mp4' });
+        const put = await withTimeout(
+          DualCamera.upload({ path: p.path, url: target.signedUrl, contentType: 'video/mp4' }),
+          PUT_TIMEOUT_MS,
+          '올리는 데 너무 오래 걸렸어요.'
+        );
         if (put.status < 200 || put.status >= 300) throw new Error(`올리기 ${put.status}`);
-        const attached = await rpc<Res>('velocity-recording.attachRecordingPart', id, { index, path: target.path, bytes, mime: 'video/mp4', offsetSec, durationSec });
+        const attached = await withTimeout(
+          rpc<Res>('velocity-recording.attachRecordingPart', id, {
+            index: p.index, path: target.path, bytes: p.bytes, mime: 'video/mp4', offsetSec: p.offsetSec, durationSec: p.durationSec,
+          }),
+          CALL_TIMEOUT_MS,
+          OFFLINE
+        );
         if (!attached.ok) {
           error = attached.error;
           break;
         }
         this.set({ uploaded: this.state.uploaded + 1 });
-        void DualCamera.discard({ paths: [path] });
+        dropFile(p.path);
         return;
       } catch (e) {
         error = e instanceof Error ? e.message : error;
         await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
       }
     }
-    void DualCamera.discard({ paths: [path] });
+    dropFile(p.path);
     this.set({ failed: this.state.failed + 1, error });
   }
 
-  /** 멈춤 — 남은 구간을 한 번 더 자르고 다 올린 뒤 녹화를 끝낸다 */
+  /** 멈춤 — 남은 구간을 한 번 더 자르고 다 올린 뒤(폰에 둔 조각까지) 녹화를 끝낸다 */
   async stop() {
     if (this.state.phase !== 'recording' && this.state.phase !== 'starting') return;
     if (this.timer) clearInterval(this.timer);
@@ -141,18 +200,35 @@ export class SessionRecorder {
     if (was) {
       await this.cutJob?.catch(() => undefined);
       await this.tick(true).catch(() => undefined);
-      await this.cutJob?.catch(() => undefined);
       await this.uploads;
+      await this.flushDeferred();
     }
     if (this.id)
-      await rpc('velocity-recording.finishVelocityRecording', this.id, { durationSec: (Date.now() - this.startedAt) / 1000 }).catch(() => undefined);
+      await withTimeout(
+        rpc('velocity-recording.finishVelocityRecording', this.id, { durationSec: (Date.now() - this.startedAt) / 1000 }),
+        CALL_TIMEOUT_MS,
+        OFFLINE
+      ).catch(() => undefined);
     this.set({ phase: 'done' });
   }
 
-  /** 화면을 떠남 — 더 자르지 않는다(이미 올린 조각은 남는다) */
+  /** 폰에 둔 조각을 차례로 올린다 — 올리든 못 올리든 파일은 지운다(upload 가) */
+  private async flushDeferred() {
+    const list = this.deferred;
+    this.deferred = [];
+    this.spooledBytes = 0;
+    for (let i = 0; i < list.length; i++) {
+      this.set({ queued: list.length - i, spooled: 0 });
+      await this.upload(list[i]);
+    }
+    if (list.length) this.set({ queued: 0 });
+  }
+
+  /** 화면을 떠남 — 더 자르지 않는다(이미 올린 조각은 남는다). 폰에 둔 조각은 뒤에서 마저 올리고 지운다 */
   abort() {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.set({ phase: 'done' });
+    void this.uploads.then(() => this.flushDeferred()).catch(() => undefined);
   }
 }

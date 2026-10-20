@@ -11,7 +11,7 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-10-20 밤 · 금윤호(Claude, 윤호 맥북) — 새 앱 구속 측정 진단(Phase A): 빌드 · 열 · 장면 수를 알약 · 시도 기록에 — 네 영역 · 새 앱 구워야 들어감
+## 김민에게 — 2026-10-20 밤 · 금윤호(Claude, 윤호 맥북) — 새 앱 구속 측정 진단(Phase A) · 세션 녹화 스풀(Phase B) — 네 영역 · 새 앱 구워야 들어감
 
 받은 뒤 할 일 없음(DB · 패키지 그대로 — Swift 는 시뮬레이터로 컴파일 확인). `docs/velocity/native-measure-recovery-prompt.md` '진행' 절의 Phase A. 네 영역(`native/modules/dual-camera` ·
 `native/src/velocity/*` · `app/velocity.tsx`)을 고쳤고 모두 더하기 — 옛 앱 판 · 웹 · 엔진 · 서버는 그대로.
@@ -21,7 +21,10 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   `capture.ts JobTiming` · `timingLine`, 콘솔 `[velo] #3 ball 큐 120 · 자르기 410 · 읽기 380(3.1MB · 58fps) · 계산 2900(장면 900 · 분석 1500) · 합 3800ms → ok 112.3 high`).
   시한 초과 · 계산기 죽음도 `VelocityAttempt` 에 남는다(rejectCode `TIMEOUT · ENGINE_DOWN · ENGINE_GONE · ENGINE_FAIL · NO_CLIP · CAMERA_OFF`, `engine.tsx EngineError`).
   클립이 장면을 20% 넘게 잃으면 알림 + 잰 공 `analysis.offStandard` 에 '장면 N% 빠짐'(`clip-health.ts`).
-- 10-20 세션의 진짜 까닭(Debug 빌드인지)은 네가 어떤 빌드를 깔아 줬는지에 달렸다 — 위 아침 메모의 물음 그대로. 다음은 Phase B(앱 세션 녹화기 스풀 — 웹 10-19 와 같게).
+- **Phase B — `native/src/velocity/session-recorder.ts` 를 웹 10-19 와 같게**: 구간은 `sweep.ts nextRecordCut`, 올리기가 6개 넘게 밀리면 조각을 버리지 않고 폰(tmp 의 클립 파일 그대로)에
+  두었다가 끝낼 때 차례로 올린다(1GB 상한 · 자르기 15초 · 서버 20초 · 올리기 90초 시한). `RecState` 에 `skipped · spooled · queued` 가 늘었고 칩이 '대기 · 밀림'을 따로 보인다,
+  세션을 끝내면 '마무리 중 · 남음 N'. 10-20 녹화 #2(145초 중 40초)가 이것이었다. 관리자 목록의 '영상 N만 올라감'은 그대로(조각 길이 합이라 구멍을 드러낸다).
+- 10-20 세션의 진짜 까닭(Debug 빌드인지)은 네가 어떤 빌드를 깔아 줬는지에 달렸다 — 위 아침 메모의 물음 그대로. 다음은 Phase C(장면 버림 없애기 — A 로 빌드를 확인한 뒤).
 
 ## 김민에게 — 2026-10-20 · 금윤호(Claude, 윤호 맥북) — 새 앱 구속 측정이 10-20 세션에서 거의 안 잡힌 것 분석 · 복구 프롬프트 — 네가 답해 줄 것 하나
 

@@ -623,7 +623,7 @@ export default function VelocityScreen() {
         <View style={styles.over} pointerEvents="box-none">
           {/* 관리자 세션 녹화 — 측정 전엔 켜기 칩, 측정 중엔 녹화 상태(웹 velocity-screen 의 sessionRecWanted 칩) */}
           {step === 'measure' && start?.isAdmin && canRecordSession() && tipsAt == null ? (
-            !live ? (
+            !live && rec?.phase !== 'stopping' ? (
               <Press select selected={recWanted}
                 accessibilityRole="switch"
                 accessibilityState={{ checked: recWanted }}
@@ -636,9 +636,7 @@ export default function VelocityScreen() {
             ) : rec && rec.phase !== 'idle' ? (
               <View style={[styles.recChip, styles.recChipOn]}>
                 <View style={[styles.recDot, { backgroundColor: '#fff' }]} />
-                <Text style={styles.recText}>
-                  {rec.phase === 'error' ? `녹화 못 함 · ${rec.error ?? ''}` : `녹화 중 · 올림 ${rec.uploaded}/${rec.parts}${rec.failed ? ` · 실패 ${rec.failed}` : ''}`}
-                </Text>
+                <Text style={styles.recText}>{recChipText(rec)}</Text>
               </View>
             ) : null
           ) : null}
@@ -929,6 +927,14 @@ export default function VelocityScreen() {
       </Modal>
     </View>
   );
+}
+
+/** 세션 녹화 칩 — '녹화 중 · 올림 6/9 · 대기 3 · 밀림 1 · 실패 2', 끝낼 때 '마무리 중 · 남음 N'(폰에 둔 조각을 올리는 중) */
+function recChipText(rec: RecState) {
+  if (rec.phase === 'error') return `녹화 못 함 · ${rec.error ?? ''}`;
+  const tail = `${rec.spooled ? ` · 대기 ${rec.spooled}` : ''}${rec.skipped ? ` · 밀림 ${rec.skipped}` : ''}${rec.failed ? ` · 실패 ${rec.failed}` : ''}`;
+  if (rec.phase === 'stopping') return `마무리 중 · 올림 ${rec.uploaded}/${rec.parts}${rec.queued ? ` · 남음 ${rec.queued}` : ''}${tail}`;
+  return `녹화 중 · 올림 ${rec.uploaded}/${rec.parts}${tail}`;
 }
 
 type FpsState = { fps: number; dropped: number; thermal: number | null; feedMs: number | null };
