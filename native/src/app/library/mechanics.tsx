@@ -1,4 +1,3 @@
-import { type Href, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,7 +5,8 @@ import { LATER_CATEGORY, MECHANICS_CATEGORY_NAMES } from '@/lib/categories';
 import { DRILL_EQUIPMENT, DRILL_STAGE_NAMES, FOCUS_POINTS } from '@/lib/exercise-meta';
 import { matchesSearch } from '@/lib/korean';
 import { Bar } from '~/community/parts';
-import { ChipRow, DRILL_LIST, FilterSheet, filterChips, filterCount, matchesFilter, FoldHead, ItemRow, SearchField, recall, remember, type Drill, LibraryTabs } from '~/library/parts';
+import { ChipRow, DRILL_LIST, FilterSheet, filterChips, filterCount, matchesFilter, FoldHead, GridRow, LibraryGrid, SearchField, gridRows, recall, remember, st, type Drill, LibraryTabs } from '~/library/parts';
+import { DrillDetail } from '~/library/detail';
 import { usePalette } from '~/lib/ui';
 import { useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
@@ -17,7 +17,8 @@ import { Press } from '~/shell/press';
  * 띄우고(page.tsx → OpenNative), 목록은 웹과 같은 곳(app-library.loadAppDrillLibrary → lib/library-load.ts)이다.
  *
  * 웹과 같은 칸: 투구 차례의 여섯 요소(주 요소 기준) → 근력 · 안정 → 요소 미정 → 나중에 촬영. 요소 칩을 고르면 보조로 걸린 드릴까지 나오고
- * 주 요소인 것 · 기초 단계가 앞에 선다(웹 matched 와 같은 차례). 관리자의 등록 · 수정은 웹에서 한다.
+ * 주 요소인 것 · 기초 단계가 앞에 선다(웹 matched 와 같은 차례). 목록은 웹처럼 두 칸 카드 격자, 누른 카드만 그 자리에서 펼친다(~/library/detail
+ * DrillDetail, 2026-10-20 김민: "웹과 똑같이"). 칸 머리에 요소 그림. 관리자의 등록 · 수정은 웹에서 한다.
  * 거르기는 웹 MetaFilter 와 같다 — [★ 즐겨찾기] 옆 [필터] 시트에서 요소 · 단계 · 종류 · 장비.
  */
 const FILTER_GROUPS = [
@@ -33,7 +34,6 @@ const SECTIONS = [...FOCUS_POINTS, STRENGTH_CATEGORY, NO_FOCUS, LATER_CATEGORY];
 const sectionOf = (g: Drill) =>
   g.category === LATER_CATEGORY || g.category === STRENGTH_CATEGORY ? g.category : (g.focusPoints[0] ?? NO_FOCUS);
 const stageRank = (g: Drill) => (g.stage ? DRILL_STAGE_NAMES.indexOf(g.stage as (typeof DRILL_STAGE_NAMES)[number]) : 3);
-const subOf = (g: Drill) => [g.focusPoints.join(' · '), g.stage].filter(Boolean).join(' · ');
 
 export default function DrillLibraryScreen() {
   const c = usePalette();
@@ -45,6 +45,8 @@ export default function DrillLibraryScreen() {
   const [sheet, setSheet] = useState(false);
   const points = filter.focusPoints;
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  /* 찾는 동안 펼친 카드 하나(칸 안은 칸마다 따로 — LibraryGrid) */
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const data = state.data;
   const drills = useMemo(() => {
@@ -72,7 +74,6 @@ export default function DrillLibraryScreen() {
     return m;
   }, [drills]);
 
-  const openItem = (id: string) => router.push(`/library/drill/${id}` as Href);
   const flip = (key: string) =>
     setOpen((prev) => {
       const next = new Set(prev);
@@ -107,12 +108,12 @@ export default function DrillLibraryScreen() {
         )
       ) : filtering ? (
         <FlatList
-          data={matched}
-          keyExtractor={(g) => g.id}
+          data={gridRows(matched, openId)}
+          keyExtractor={(row) => row.key}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[{ paddingHorizontal: 16, paddingBottom: inset.bottom + 32 }, READABLE]}
-          ListHeaderComponent={<Text style={{ color: c.muted, fontSize: 13, paddingBottom: 8 }}>{matched.length}개</Text>}
+          contentContainerStyle={[{ paddingHorizontal: 10, paddingBottom: inset.bottom + 32 }, READABLE]}
+          ListHeaderComponent={<Text style={{ color: c.muted, fontSize: 13, paddingBottom: 2, paddingHorizontal: 6 }}>{matched.length}개</Text>}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', gap: 12, paddingTop: 32 }}>
               <Text style={{ color: c.muted, fontSize: 15 }}>조건에 맞는 드릴이 없어요</Text>
@@ -129,18 +130,8 @@ export default function DrillLibraryScreen() {
               </Press>
             </View>
           }
-          renderItem={({ item, index }) => (
-            <ItemRow
-              title={item.title}
-              sub={subOf(item)}
-              thumbUrl={item.thumbUrl}
-              favorite={item.favorite}
-              onPress={() => openItem(item.id)}
-              first={index === 0}
-              last={index === matched.length - 1}
-              c={c}
-            />
-          )}
+          /* 웹 GuideGrid — 두 칸 카드, 누른 것만 그 자리에서 넓게 */
+          renderItem={({ item: row }) => <GridRow row={row} onOpen={setOpenId} detail={(g) => <DrillDetail item={g} onClose={() => setOpenId(null)} c={c} />} c={c} />}
         />
       ) : (
         <ScrollView
@@ -154,21 +145,12 @@ export default function DrillLibraryScreen() {
             if (list.length === 0) return null;
             return (
               <View key={name}>
-                <FoldHead title={name} count={list.length} open={open.has(name)} onPress={() => flip(name)} c={c} />
-                {open.has(name)
-                  ? list.map((g, i) => (
-                      <ItemRow
-                        key={g.id}
-                        title={g.title}
-                        sub={subOf(g)}
-                        thumbUrl={g.thumbUrl}
-                        favorite={g.favorite}
-                        onPress={() => openItem(g.id)}
-                        last={i === list.length - 1}
-                        c={c}
-                      />
-                    ))
-                  : null}
+                <FoldHead icon title={name} count={list.length} open={open.has(name)} onPress={() => flip(name)} c={c} />
+                {open.has(name) ? (
+                  <View style={[st.foldBody, { backgroundColor: c.card, borderTopColor: c.line }]}>
+                    <LibraryGrid items={list} detail={(g, close) => <DrillDetail item={g} onClose={close} c={c} />} c={c} />
+                  </View>
+                ) : null}
               </View>
             );
           })}

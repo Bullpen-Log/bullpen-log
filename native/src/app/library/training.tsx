@@ -1,5 +1,4 @@
-import { type Href, router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TRAINING_CATEGORIES } from '@/lib/categories';
@@ -7,7 +6,8 @@ import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_NAMES } from '@/lib/exercise-
 import { matchesSearch } from '@/lib/korean';
 import type { WarmupFolder } from '@/app/(app)/library/training/training-client';
 import { Bar } from '~/community/parts';
-import { ChipRow, EXERCISE_LIST, FilterSheet, filterChips, filterCount, matchesFilter, FoldHead, ItemRow, SearchField, recall, remember, type Exercise, LibraryTabs } from '~/library/parts';
+import { ChipRow, EXERCISE_LIST, FilterSheet, filterChips, filterCount, matchesFilter, FoldHead, GridRow, LibraryGrid, SearchField, gridRows, recall, remember, st, type Exercise, LibraryTabs } from '~/library/parts';
+import { ExerciseDetail } from '~/library/detail';
 import { usePalette } from '~/lib/ui';
 import { useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
@@ -17,8 +17,9 @@ import { Press } from '~/shell/press';
  * 운동 영상 라이브러리(앱 화면) — 웹 /library/training(training-client.tsx)을 옮겼다. 사이트의 그 주소가 앱(BullpenNative/7 부터)이면 이 화면을
  * 띄우고(page.tsx → OpenNative), 목록은 웹과 같은 곳(app-library.loadAppExerciseLibrary → lib/library-load.ts)이다.
  *
- * 웹과 같은 차례: 이름 찾기 → [즐겨찾기 · 부위] 거르기 → 거르는 동안은 맞는 운동만, 아니면 분류마다 접힌 칸(워밍업은 루틴 폴더). 줄을 누르면
- * 상세(영상 · 설명 · 별 · 내 기록). 관리자의 등록 · 수정 · 숨기기는 웹에서 한다.
+ * 웹과 같은 차례: 이름 찾기 → [즐겨찾기 · 부위] 거르기 → 거르는 동안은 맞는 운동만, 아니면 분류마다 접힌 칸(그림 머리, 워밍업은 루틴 폴더).
+ * 목록은 웹처럼 두 칸 카드 격자(16:9 미리보기 · 이름 · 별), 누른 카드만 그 자리에서 넓게 펼친다(영상 · 설명 · [즐겨찾기에 담기] · 내 기록 —
+ * ~/library/detail ExerciseDetail, 2026-10-20 김민: "웹과 똑같이"). 관리자의 등록 · 수정 · 숨기기는 웹에서 한다.
  * 거르기는 웹 MetaFilter 와 같다 — [★ 즐겨찾기] 옆 [필터]를 누르면 시트에서 목표 부위 · 강도 · 장비(묶음 안은 하나라도, 묶음끼리는 모두).
  */
 const FILTER_GROUPS = [
@@ -28,8 +29,6 @@ const FILTER_GROUPS = [
 ] as const;
 const EMPTY_FILTER: Record<string, string[]> = { bodyParts: [], intensity: [], equipment: [] };
 type Data = { exercises: Exercise[]; warmupFolders: WarmupFolder[] };
-
-const subOf = (ex: Exercise) => [ex.bodyParts.slice(0, 3).join(' · '), ex.intensity].filter(Boolean).join(' · ');
 
 export default function ExerciseLibraryScreen() {
   const c = usePalette();
@@ -41,6 +40,8 @@ export default function ExerciseLibraryScreen() {
   const [sheet, setSheet] = useState(false);
   const chosen = filterCount(filter);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  /* 찾는 동안 펼친 카드 하나(분류 칸 안은 칸마다 따로 — LibraryGrid) */
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const data = state.data;
   /* 상세에서 별을 바꾸고 돌아오면 목록이 새로 받기 전에도 맞게 — 받아 둔 줄(remember)이 더 새 것이다 */
@@ -67,7 +68,6 @@ export default function ExerciseLibraryScreen() {
     return m;
   }, [exercises]);
 
-  const openItem = (id: string) => router.push(`/library/exercise/${id}` as Href);
   const flip = (key: string) =>
     setOpen((prev) => {
       const next = new Set(prev);
@@ -75,21 +75,9 @@ export default function ExerciseLibraryScreen() {
       else next.add(key);
       return next;
     });
-  /* headed: 접힌 칸 머리 밑에 붙는 줄(첫 줄 위를 둥글리지 않는다) */
-  const rows = (list: Exercise[], headed = true) =>
-    list.map((ex, i) => (
-      <ItemRow
-        key={ex.id}
-        title={ex.title}
-        sub={subOf(ex)}
-        thumbUrl={ex.thumbUrl}
-        favorite={ex.favorite}
-        onPress={() => openItem(ex.id)}
-        first={!headed && i === 0}
-        last={i === list.length - 1}
-        c={c}
-      />
-    ));
+  /* 칸 안의 카드 격자 — 누르면 그 자리에서 펼침 */
+  const grid = (list: Exercise[]) => <LibraryGrid items={list} detail={(ex, close) => <ExerciseDetail item={ex} onClose={close} c={c} />} c={c} />;
+  const body = (children: ReactNode) => <View style={[st.foldBody, { backgroundColor: c.card, borderTopColor: c.line }]}>{children}</View>;
 
   const chips = [
     ...(favCount > 0 ? [{ key: 'fav', label: `★ 즐겨찾기 ${favCount}`, on: onlyFav, onPress: () => setOnlyFav((v) => !v) }] : []),
@@ -118,12 +106,12 @@ export default function ExerciseLibraryScreen() {
         )
       ) : filtering ? (
         <FlatList
-          data={matched}
-          keyExtractor={(ex) => ex.id}
+          data={gridRows(matched, openId)}
+          keyExtractor={(row) => row.key}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[{ paddingHorizontal: 16, paddingBottom: inset.bottom + 32 }, READABLE]}
-          ListHeaderComponent={<Text style={{ color: c.muted, fontSize: 13, paddingBottom: 8 }}>{matched.length}개</Text>}
+          contentContainerStyle={[{ paddingHorizontal: 10, paddingBottom: inset.bottom + 32 }, READABLE]}
+          ListHeaderComponent={<Text style={{ color: c.muted, fontSize: 13, paddingBottom: 2, paddingHorizontal: 6 }}>{matched.length}개</Text>}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', gap: 12, paddingTop: 32 }}>
               <Text style={{ color: c.muted, fontSize: 15 }}>조건에 맞는 운동이 없어요</Text>
@@ -140,17 +128,9 @@ export default function ExerciseLibraryScreen() {
               </Press>
             </View>
           }
-          renderItem={({ item, index }) => (
-            <ItemRow
-              title={item.title}
-              sub={`${item.category} · ${subOf(item)}`}
-              thumbUrl={item.thumbUrl}
-              favorite={item.favorite}
-              onPress={() => openItem(item.id)}
-              first={index === 0}
-              last={index === matched.length - 1}
-              c={c}
-            />
+          /* 웹 ExerciseGrid — 두 칸 카드, 누른 것만 그 자리에서 넓게 */
+          renderItem={({ item: row }) => (
+            <GridRow row={row} onOpen={setOpenId} detail={(ex) => <ExerciseDetail item={ex} onClose={() => setOpenId(null)} c={c} />} c={c} />
           )}
         />
       ) : (
@@ -169,30 +149,32 @@ export default function ExerciseLibraryScreen() {
               const count = [...inFolder].filter((id) => byId.has(id)).length + loose.length;
               return (
                 <View key={name}>
-                  <FoldHead title={name} count={count} open={open.has(name)} onPress={() => flip(name)} c={c} />
-                  {open.has(name) ? (
-                    <View style={{ backgroundColor: c.card, borderBottomLeftRadius: 14, borderBottomRightRadius: 14, padding: 10, gap: 8 }}>
-                      {data.warmupFolders.map((f) => {
-                        const fx = f.exerciseIds.flatMap((id) => byId.get(id) ?? []);
-                        const key = `${name}:${f.kind}`;
-                        return (
-                          <View key={key} style={{ borderRadius: 14, overflow: 'hidden', backgroundColor: c.page }}>
-                            <FoldHead title={f.name} desc={f.description} count={fx.length} open={open.has(key)} onPress={() => flip(key)} c={c} />
-                            {open.has(key) ? rows(fx) : null}
-                          </View>
-                        );
-                      })}
-                      {loose.length > 0 ? <View style={{ borderRadius: 14, overflow: 'hidden' }}>{rows(loose, false)}</View> : null}
-                    </View>
-                  ) : null}
+                  <FoldHead icon title={name} count={count} open={open.has(name)} onPress={() => flip(name)} c={c} />
+                  {open.has(name)
+                    ? body(
+                        <View style={{ gap: 8 }}>
+                          {data.warmupFolders.map((f) => {
+                            const fx = f.exerciseIds.flatMap((id) => byId.get(id) ?? []);
+                            const key = `${name}:${f.kind}`;
+                            return (
+                              <View key={key} style={{ borderRadius: 14, overflow: 'hidden', backgroundColor: c.page }}>
+                                <FoldHead title={f.name} desc={f.description} count={fx.length} open={open.has(key)} onPress={() => flip(key)} c={c} />
+                                {open.has(key) ? <View style={{ padding: 4, backgroundColor: c.page }}>{grid(fx)}</View> : null}
+                              </View>
+                            );
+                          })}
+                          {loose.length > 0 ? grid(loose) : null}
+                        </View>
+                      )
+                    : null}
                 </View>
               );
             }
             if (list.length === 0) return null;
             return (
               <View key={name}>
-                <FoldHead title={name} count={list.length} open={open.has(name)} onPress={() => flip(name)} c={c} />
-                {open.has(name) ? rows(list) : null}
+                <FoldHead icon title={name} count={list.length} open={open.has(name)} onPress={() => flip(name)} c={c} />
+                {open.has(name) ? body(grid(list)) : null}
               </View>
             );
           })}
