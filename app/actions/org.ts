@@ -173,13 +173,23 @@ export async function addPlaceholderMember(
 }
 
 /** 로그인한 마스터 계정이 스태프 초대 코드로 다른 레슨장 · 팀에 코치로 들어간다(5단계) — 코드는 한 번만 */
-export async function joinAsStaff(_prev: OrgActionState, formData: FormData): Promise<OrgActionState> {
+export async function joinAsStaff(
+  _prev: OrgActionState,
+  formData: FormData
+): Promise<OrgActionState> {
   const user = await requireMaster();
   const code = normalizeInviteCode(formData.get('code'));
   const invite = code
     ? await prisma.orgInvite.findUnique({
         where: { code },
-        select: { id: true, orgId: true, role: true, expiresAt: true, usedAt: true, org: { select: { name: true } } },
+        select: {
+          id: true,
+          orgId: true,
+          role: true,
+          expiresAt: true,
+          usedAt: true,
+          org: { select: { name: true } },
+        },
       })
     : null;
   if (!invite || invite.role !== 'STAFF' || !inviteUsable(invite, new Date()))
@@ -192,34 +202,105 @@ export async function joinAsStaff(_prev: OrgActionState, formData: FormData): Pr
     if (existing) {
       await tx.orgMember.update({
         where: { id: existing.id },
-        data: { status: 'ACTIVE', leftAt: null, role: existing.role === 'MASTER' ? 'MASTER' : 'STAFF' },
+        data: {
+          status: 'ACTIVE',
+          leftAt: null,
+          role: existing.role === 'MASTER' ? 'MASTER' : 'STAFF',
+        },
       });
     } else {
       await tx.orgMember.create({
-        data: { orgId: invite.orgId, userId: user.id, role: 'STAFF', status: 'ACTIVE', nickname: user.nickname },
+        data: {
+          orgId: invite.orgId,
+          userId: user.id,
+          role: 'STAFF',
+          status: 'ACTIVE',
+          nickname: user.nickname,
+        },
       });
     }
-    await tx.orgInvite.update({ where: { id: invite.id }, data: { usedById: user.id, usedAt: new Date() } });
+    await tx.orgInvite.update({
+      where: { id: invite.id },
+      data: { usedById: user.id, usedAt: new Date() },
+    });
   });
-  (await cookies()).set(ORG_COOKIE, invite.orgId, { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' });
+  (await cookies()).set(ORG_COOKIE, invite.orgId, {
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: 'lax',
+  });
   revalidatePath('/master', 'layout');
   return { success: `${invite.org.name}에 코치로 들어갔어요.` };
 }
 
 /** 요금제 · 자리 수 · 메모(6단계) — 결제 연동 전이라 관리자가 손으로 적는다 */
-export async function updateOrgPlan(_prev: OrgActionState, formData: FormData): Promise<OrgActionState> {
+export async function updateOrgPlan(
+  _prev: OrgActionState,
+  formData: FormData
+): Promise<OrgActionState> {
   await requireAdmin();
   const id = String(formData.get('orgId') ?? '');
   const org = await prisma.org.findUnique({ where: { id }, select: { id: true } });
   if (!org) return { error: '조직을 찾을 수 없어요.' };
-  const plan = String(formData.get('plan') ?? '').trim().slice(0, 20) || null;
+  const plan =
+    String(formData.get('plan') ?? '')
+      .trim()
+      .slice(0, 20) || null;
   const rawSeats = String(formData.get('seats') ?? '').trim();
   const seats = rawSeats ? Number.parseInt(rawSeats, 10) : null;
   if (seats != null && (!Number.isInteger(seats) || seats < 0 || seats > 10_000))
     return { error: '자리 수를 올바르게 적어 주세요.' };
-  const planNote = String(formData.get('planNote') ?? '').trim().slice(0, 120) || null;
+  const planNote =
+    String(formData.get('planNote') ?? '')
+      .trim()
+      .slice(0, 120) || null;
   await prisma.org.update({ where: { id: org.id }, data: { plan, seats, planNote } });
   revalidatePath('/master/orgs');
   revalidatePath('/master/settings');
   return { success: '저장했어요.' };
+}
+
+/**
+ * 대표관리자가 관리자 화면에서 팀 · 레슨장 화면으로 넘어간다(2026-10-20 사용자: "관리자는 관리자 메뉴에서 전환해서 팀 인터페이스를 보고 사용할 수 있게").
+ * 고른 종류의 '내 조직'(관리자가 만든 것)이 있으면 그것, 없으면 하나 만든다 — 관리자가 직접 눌렀을 때만 생긴다. 만든 뒤에는 설정에서 이름을 바꿔 쓴다.
+ * 다른 사람의 조직은 /master/orgs 에서 고른다.
+ */
+export async function adminEnterOrg(formData: FormData) {
+  const user = await requireAdmin();
+  const kind = formData.get('kind') === 'LESSON' ? 'LESSON' : 'TEAM';
+  let org = await prisma.org.findFirst({
+    where: { ownerId: user.id, kind },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  });
+  if (!org) {
+    org = await prisma.$transaction(async (tx) => {
+      const created = await tx.org.create({
+        data: {
+          kind,
+          name: kind === 'TEAM' ? '관리자 팀' : '관리자 레슨장',
+          ownerId: user.id,
+          planNote: '대표관리자 체험용',
+        },
+        select: { id: true },
+      });
+      await tx.orgMember.create({
+        data: {
+          orgId: created.id,
+          userId: user.id,
+          role: 'MASTER',
+          status: 'ACTIVE',
+          nickname: user.nickname,
+        },
+      });
+      return created;
+    });
+  }
+  (await cookies()).set(ORG_COOKIE, org.id, {
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: 'lax',
+  });
+  revalidatePath('/master', 'layout');
+  redirect('/master');
 }

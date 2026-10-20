@@ -1,6 +1,7 @@
 import { Shield } from '@/components/icon';
 import { Badge, Button, Card, EmptyState, PageHeading } from '@/components/ui';
 import { PlanForm } from '@/components/master/plan-form';
+import { AdminOrgSwitch } from '@/components/master/admin-org-switch';
 import { chooseOrg } from '@/app/actions/org';
 import { requireAdmin } from '@/lib/dal';
 import { ORG_KIND_LABEL } from '@/lib/org/rules';
@@ -27,9 +28,18 @@ export default async function AdminOrgsPage() {
   });
   return (
     <div className="stack-page">
-      <PageHeading kicker="관리자" title="모든 레슨장 · 팀" description={`${orgs.length}개 — 보기를 누르면 그 조직의 화면으로`} />
+      <PageHeading
+        kicker="관리자"
+        title="모든 레슨장 · 팀"
+        description={`${orgs.length}개 — 보기를 누르면 그 조직의 화면으로`}
+      />
+      <AdminOrgSwitch compact />
       {orgs.length === 0 ? (
-        <EmptyState icon={<Shield />} title="아직 만들어진 레슨장 · 팀이 없어요" description="가입 화면에서 레슨장 · 팀으로 가입하면 여기 보여요." />
+        <EmptyState
+          icon={<Shield />}
+          title="아직 만들어진 레슨장 · 팀이 없어요"
+          description="가입 화면에서 레슨장 · 팀으로 가입하면 여기 보여요."
+        />
       ) : (
         <Card className="divide-y divide-line p-0">
           {orgs.map((o) => (
@@ -39,11 +49,18 @@ export default async function AdminOrgsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-ink">{o.name}</p>
                   <p className="truncate text-xs text-muted">
-                    {[o.region, o.note].filter(Boolean).join(' · ') || '지역 · 소개 없음'} · 마스터 {o.owner.nickname} ({o.owner.email})
+                    {[o.region, o.note].filter(Boolean).join(' · ') ||
+                      '지역 · 소개 없음'}{' '}
+                    · 마스터 {o.owner.nickname} ({o.owner.email})
                   </p>
                 </div>
                 <span className="text-xs text-muted">선수 {o._count.members}명</span>
-                <span className="text-xs text-muted">{new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric' }).format(o.createdAt)}</span>
+                <span className="text-xs text-muted">
+                  {new Intl.DateTimeFormat('ko-KR', {
+                    month: 'numeric',
+                    day: 'numeric',
+                  }).format(o.createdAt)}
+                </span>
                 <form action={chooseOrg}>
                   <input type="hidden" name="orgId" value={o.id} />
                   <Button type="submit" variant="secondary" size="sm">
@@ -51,7 +68,9 @@ export default async function AdminOrgsPage() {
                   </Button>
                 </form>
               </div>
-              <PlanForm org={{ id: o.id, plan: o.plan, seats: o.seats, planNote: o.planNote }} />
+              <PlanForm
+                org={{ id: o.id, plan: o.plan, seats: o.seats, planNote: o.planNote }}
+              />
             </div>
           ))}
         </Card>
