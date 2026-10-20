@@ -15,6 +15,7 @@ import { haptic } from '@/lib/haptics';
 import { toast } from '@/components/toast';
 import { dateKeyLabel, weekStartKey } from '@/lib/pitch-stats';
 import { SPORT_LOG_VIEW } from '@/lib/nav';
+import { Film, Target } from '@/components/icon';
 import { HITTING_TYPES, hittingLine, type HittingType } from '@/lib/hitting-log';
 import { deleteHittingLog, saveHittingLog } from '@/app/actions/hitting-log';
 
@@ -258,6 +259,18 @@ export function HittingClient({ today, rows }: { today: string; rows: HittingRow
               </span>
             </span>
           </Link>
+
+          {/* 타격의 영상 — 더보기에서 옮겨 옴(2026-10-21 김민: "타격은 운동 영상 + 타격 드릴"). 운동 영상은 앱에선 앱 화면으로 열린다 */}
+          <div className="grid grid-cols-2 gap-2">
+            <Link href="/library/training" className="flex min-h-18 flex-col items-center justify-center gap-1.5 rounded-2xl border border-line bg-surface px-2">
+              <Film aria-hidden className="size-5.5 text-sky" />
+              <span className="text-footnote font-semibold text-ink">운동 영상</span>
+            </Link>
+            <Link href="/hitting/drills" className="flex min-h-18 flex-col items-center justify-center gap-1.5 rounded-2xl border border-line bg-surface px-2">
+              <Target aria-hidden className="size-5.5 text-sky" />
+              <span className="text-footnote font-semibold text-ink">타격 드릴</span>
+            </Link>
+          </div>
 
           {recent.length > 0 && (
             <section className="space-y-2">

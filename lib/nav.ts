@@ -98,6 +98,12 @@ export type NavItem = {
    * 링크는 산다(누르면 첫 설정 화면으로 간다) — 그래서 aria-disabled 가 아니라 이 표시다.
    */
   locked?: boolean;
+  /**
+   * 앱 더보기에서 뺀다 — 투구 · 타격 화면 안에서 들어가는 것(2026-10-21 김민: "더보기에 너무 많다 — 구속 측정 · ABS · 3D 는 투구 페이지에서,
+   * 운동 영상 · 드릴은 투구 · 타격 카테고리에서"). 항목은 남긴다 — 앱 투구 탭의 ABS 칸 · 홈에서 쓸어 여는 카메라가 이 목록을 본다.
+   * PC 웹 메뉴는 그대로 보인다(PC 에는 종목 홈이 없다).
+   */
+  appMoreHidden?: boolean;
 };
 
 export type NavGroup = {
@@ -205,6 +211,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: 'radar',
         appOrAdmin: true,
         lock: 'pitch',
+        appMoreHidden: true,
       },
       /*
        * ABS(볼 · 스트라이크 자동 판정) — 구속 측정과 같은 카메라 화면을 판정 모드로 연다(2026-10-18 사용자: "별개의 기능으로 따로도 쓸 수 있어야").
@@ -218,6 +225,7 @@ export const NAV_GROUPS: NavGroup[] = [
         adminOnly: true,
         perm: 'abs',
         lock: 'pitch',
+        appMoreHidden: true,
       },
     ],
   },
@@ -227,7 +235,7 @@ export const NAV_GROUPS: NavGroup[] = [
    */
   {
     items: [
-      { href: '/videos/lab', label: '3D 동작 분석', icon: 'body', lock: 'pitch' },
+      { href: '/videos/lab', label: '3D 동작 분석', icon: 'body', lock: 'pitch', appMoreHidden: true },
     ],
   },
   {
@@ -238,12 +246,14 @@ export const NAV_GROUPS: NavGroup[] = [
         label: '운동 영상',
         icon: 'film',
         tone: 'power',
+        appMoreHidden: true,
       },
       {
         href: '/library/mechanics',
         label: '투구 드릴',
         icon: 'target',
         tone: 'mobility',
+        appMoreHidden: true,
       },
     ],
   },

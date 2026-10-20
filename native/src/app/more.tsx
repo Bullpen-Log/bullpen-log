@@ -55,7 +55,7 @@ const SLIDE = Easing.bezier(0.32, 0.72, 0, 1);
 function folderGroups(groups: MenuGroup[]): MenuGroup[] {
   const out: MenuGroup[] = [];
   for (const g of groups) {
-    const items = g.items.filter((it) => !inTabBar(it));
+    const items = g.items.filter((it) => !inTabBar(it) && !it.hidden);
     if (!items.length) continue;
     const last = out[out.length - 1];
     if (!g.title && last && !last.title) last.items = [...last.items, ...items];

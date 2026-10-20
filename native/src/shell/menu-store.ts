@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from 'react';
 
 /** 더보기 목록 — 사이트가 알려 준 것(components/app-shell/expo-tabs.tsx { t: 'menu' }). 껍데기가 넣고 더보기 화면(/more)이 그린다 */
-export type MenuItem = { href: string; label: string; icon: string; locked: boolean };
+/** hidden — 더보기에서 뺌(투구 · 타격 화면에서 들어감, 웹 lib/nav.ts appMoreHidden). 권한 판정(투구 탭 ABS 칸 등)에는 그대로 쓴다 */
+export type MenuItem = { href: string; label: string; icon: string; locked: boolean; hidden?: boolean };
 export type MenuGroup = { title: string | null; items: MenuItem[] };
 type Menu = { groups: MenuGroup[]; nickname: string; avatarUrl?: string | null; isAdmin?: boolean };
 

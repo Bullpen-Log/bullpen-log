@@ -22,7 +22,7 @@ import { weekStartKey } from '@/lib/pitch-stats';
 
 /**
  * 투구 탭(앱 화면) — 종목 바의 두 칸이 이 판 하나를 나눠 쓴다(2026-10-20 김민: 종목 홈 추가).
- * 홈('투구', /videos): 구속 측정 · ABS · 3D 문 · 오늘 카드 · 이번 주 요약.
+ * 홈('투구', /videos): 구속 측정 · ABS · 3D 문 · 운동 영상 · 투구 드릴 · 오늘 카드 · 이번 주 요약.
  * 기록(/videos?view=log): 찾기 · 달력(그날 공 수 · 영상 점) + 목록 · 지난 영상 가져오기. 날짜를 누르면 그날 화면(/pitch/[date]).
  * 웹 투구 탭(app/(app)/videos)과 같은 규칙.
  */
@@ -163,6 +163,11 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
             <ToolTile icon="radar" label="구속 측정" onPress={() => router.push('/velocity?mode=speed' as Href)} />
             {canAbs ? <ToolTile icon="target" label="ABS 판정" onPress={() => router.push('/velocity?mode=abs' as Href)} /> : null}
             <ToolTile icon="rotate3d" label="3D 동작 분석" onPress={() => router.push('/lab' as Href)} />
+          </View>
+          {/* 투구의 영상 — 더보기에서 옮겨 옴(2026-10-21 김민: "운동 영상 · 투구 드릴은 투구 카테고리에서") */}
+          <View style={styles.tools}>
+            <ToolTile icon="film" label="운동 영상" onPress={() => router.push('/library/training' as Href)} />
+            <ToolTile icon="target" label="투구 드릴" onPress={() => router.push('/library/mechanics' as Href)} />
           </View>
           {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 오늘 카드, 오른쪽 이번 주. 좁으면 위아래 그대로 */}
           <TwoColumns ratio={[1, 1]} gap={16} left={<PitchTodayCard today={today} />} right={<PitchWeekCard today={today} onOpen={() => onWeb('/videos?view=log')} />} />

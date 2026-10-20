@@ -126,7 +126,7 @@ export function ExpoTabBridge({
         isAdmin,
         groups: groups.map((g) => ({
           title: g.title ?? null,
-          items: g.items.map((i) => ({ href: i.href, label: i.label, icon: i.icon, locked: !!i.locked })),
+          items: g.items.map((i) => ({ href: i.href, label: i.label, icon: i.icon, locked: !!i.locked, hidden: !!i.appMoreHidden })),
         })),
       })
     );
