@@ -273,6 +273,7 @@ export default function VelocityScreen() {
   /* 카메라 — 화면을 열면 켜 두고(설정 단계 뒤로 보이게), 알아채기는 측정 단계에서만 */
   useEffect(() => {
     let alive = true;
+    let shownJobs = 0;
     const capture = new AppCapture(
       () => engine.current,
       () => ({ ...SETTINGS, distanceM: distRef.current, tiltRad: tiltRef.current }),
@@ -287,7 +288,12 @@ export default function VelocityScreen() {
           }
           return out.verdict;
         },
-        onStatus: (s, visible) => setStatus({ status: s, visible }),
+        onStatus: (s, visible) => {
+          setStatus({ status: s, visible });
+          /* 새 투구를 알아챘다 — 지난 알림('계산이 밀려 …' 등)은 걷는다. 10-20 화면 녹화에선 한 알림이 80초 넘게 남아 새로 던진 공이 잡혔는지 알 수 없었다 */
+          if (visible > shownJobs) setNotice(null);
+          shownJobs = visible;
+        },
         onNotice: (m) => setNotice(m),
         onTiming: (t) => {
           timings.current = [...timings.current.slice(-5), t];
@@ -379,7 +385,13 @@ export default function VelocityScreen() {
   const [rec, setRec] = useState<RecState | null>(null);
   useEffect(() => {
     if (!(step === 'measure' && live && recWanted && start?.canRecord && info)) return;
-    const r = new SessionRecorder(setRec);
+    /*
+     * 칩은 지금 녹화기 것만 — 끝낸 녹화기가 마저 올리는 동안 새 세션을 켜면 옛 녹화기 숫자가 새 녹화를 덮었다(10-20 금윤호 화면 녹화:
+     * 다음 두 세션 내내 '녹화 중 · 올림 9/9 · 실패 16' 그대로). 지금 녹화기가 없으면(녹화 끔) 마저 올리는 옛 것을 보인다.
+     */
+    const r: SessionRecorder = new SessionRecorder((s) => {
+      if (recRef.current === r || recRef.current == null) setRec(s);
+    });
     recRef.current = r;
     void r.start(sessionDate ?? start.today, {
       sessionRecording: true,
@@ -677,7 +689,7 @@ export default function VelocityScreen() {
                 <View style={[styles.recDot, { backgroundColor: recWanted ? '#fff' : '#f87171' }]} />
                 <Text style={styles.recText}>{recWanted ? '세션 녹화 켬' : '세션 녹화 끔'}</Text>
               </Press>
-            ) : rec && rec.phase !== 'idle' ? (
+            ) : rec && rec.phase !== 'idle' && rec.phase !== 'done' ? (
               <View style={[styles.recChip, styles.recChipOn]}>
                 <View style={[styles.recDot, { backgroundColor: '#fff' }]} />
                 <Text style={styles.recText}>{recChipText(rec)}</Text>

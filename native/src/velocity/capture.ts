@@ -102,6 +102,10 @@ type Job = {
   ball: boolean;
   /** 시도 기록을 이미 남겼나 — 실패 길에서 두 번 적지 않게 */
   recorded?: boolean;
+  /** 차례가 와 자르기를 시작했나 — 시작 전인 안 보이는 작업만 공에게 자리를 내준다 */
+  started?: boolean;
+  /** 공에게 자리를 내주고 빠졌다 — 차례가 와도 안 잰다 */
+  dropped?: boolean;
   seed?: boolean;
   /** 조용할 때 훑기가 찾은 공 — 결과에 late 표시 */
   sweep?: boolean;
@@ -231,8 +235,17 @@ export class AppCapture {
     this.recent = this.recent.filter((r) => r.until > now);
     if (this.recent.some((r) => atSec >= r.start && atSec <= r.end)) return false;
     if (this.jobs.length >= MAX_PENDING) {
-      if (ball) this.handlers.onNotice('계산이 밀려 공 하나를 건너뛰었어요');
-      return false;
+      /*
+       * 확실한 공이면 아직 시작 안 한 안 보이는 작업(움직임 · 훑기)을 빼고 그 자리에 선다. 10-20 금윤호 실내 화면 녹화: 사람이 화면 앞을
+       * 오가며 낸 움직임 작업이 줄을 채워, 첫 투구부터 진짜 공이 '계산이 밀려 건너뛰었어요'로 버려졌다.
+       */
+      const victim = ball ? [...this.jobs].reverse().find((j) => !j.visible && !j.started) : undefined;
+      if (!victim) {
+        if (ball) this.handlers.onNotice('계산이 밀려 공 하나를 건너뛰었어요');
+        return false;
+      }
+      victim.dropped = true;
+      this.jobs = this.jobs.filter((j) => j !== victim);
     }
     /* 후보는 비어 있을 때만 — 헛 후보가 뒤따르는 확실한 공의 자리를 차지하지 않게 */
     if (seed && this.jobs.length > 0) return false;
@@ -280,7 +293,8 @@ export class AppCapture {
       })
       .finally(() => {
         this.jobs = this.jobs.filter((j) => j !== job);
-        this.recent.push({ start: job.start, end: job.end, until: Date.now() + 5000 });
+        /* 빠진 작업은 그 구간을 안 쟀다 — 최근 잰 구간으로 치면 그 안의 공 알림이 버려진다 */
+        if (!job.dropped) this.recent.push({ start: job.start, end: job.end, until: Date.now() + 5000 });
         if (gen === this.gen) this.sync();
       });
     return true;
@@ -316,6 +330,8 @@ export class AppCapture {
   private async measure(job: Job, gen: number) {
     const t0 = Date.now();
     const drop = (paths: string[]) => DualCamera.discard({ paths }).catch(() => undefined);
+    if (job.dropped) return void (job.pre && drop([job.pre.clip.path]));
+    job.started = true;
     const { main, wide } = job.pre
       ? { main: job.pre.clip, wide: null }
       : await DualCamera.clip({ atSec: job.at, beforeSec: job.at - job.start, afterSec: job.end - job.at });

@@ -291,6 +291,8 @@ export class DualSessionRecorder {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     const wasRecording = this.state.phase === 'recording';
+    /* 길이는 지금까지 — 다 올린 뒤에 재면 올린 시간까지 들어가 관리자에 없는 구멍이 보였다 */
+    const durationSec = (performance.now() - this.startedAt) / 1000;
     this.set({ phase: 'stopping' });
     if (wasRecording) {
       await this.tick(true).catch(() => undefined);
@@ -300,9 +302,7 @@ export class DualSessionRecorder {
     let parts = this.state.uploaded;
     if (this.recordingId) {
       try {
-        const res = await this.api.finish(this.recordingId, {
-          durationSec: (performance.now() - this.startedAt) / 1000,
-        });
+        const res = await this.api.finish(this.recordingId, { durationSec });
         if (res.ok) parts = res.parts;
       } catch (err) {
         unstable_rethrow(err);
