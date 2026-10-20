@@ -1,7 +1,8 @@
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, type NativeScrollEvent, type NativeSyntheticEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INQUIRY_STATUS, inquiryCategoryLabel, type InquiryStatusKey } from '@/lib/support';
 import { rpc, RpcError } from '~/lib/rpc';
@@ -89,8 +90,15 @@ export async function call<T extends { ok: boolean }>(action: string, ...args: u
 
 /** 위 막대 — 왼쪽 ‹ 뒤로(이름), 가운데 제목, 오른쪽 동작 하나 */
 /** modal = 아래에서 올라온 창(설정 · 내 정보) — 창은 시계 자리 밑에서 시작해 위 여백을 또 넣으면 80pt 가 비었다 */
-export function Bar({ back, title, right, c, modal = false }: { back: string; title?: string; right?: ReactNode; c: Palette; modal?: boolean }) {
+/** shown — 본문에 큰 제목(PageHead)을 둔 화면: 큰 제목이 막대 밑으로 굴러 가면 막대 제목이 옅게 뜬다(useTitleCollapse, 웹 NavTitle) */
+export function Bar({ back, title, right, c, modal = false, shown }: { back: string; title?: string; right?: ReactNode; c: Palette; modal?: boolean; shown?: boolean }) {
   const inset = useSafeAreaInsets();
+  const reduce = useReducedMotion();
+  const o = useSharedValue(shown === false ? 0 : 1);
+  useEffect(() => {
+    o.value = withTiming(shown === false ? 0 : 1, { duration: reduce ? 0 : 160 });
+  }, [shown, reduce, o]);
+  const fade = useAnimatedStyle(() => ({ opacity: o.value }));
   return (
     <View style={[s.bar, { paddingTop: modal ? 12 : inset.top, backgroundColor: c.page }]}>
       {/* 웹 위 막대의 뒤로(back-link.tsx): 화살표 그림 24 + 글 17, 하늘색 */}
@@ -100,12 +108,24 @@ export function Bar({ back, title, right, c, modal = false }: { back: string; ti
           {back}
         </Text>
       </Pressable>
-      <Text style={[s.barTitle, { color: c.ink }]} numberOfLines={1}>
-        {title ?? ''}
-      </Text>
+      <Animated.View style={[{ flex: 1 }, fade]} accessibilityElementsHidden={shown === false}>
+        <Text style={[s.barTitle, { color: c.ink }]} numberOfLines={1}>
+          {title ?? ''}
+        </Text>
+      </Animated.View>
       <View style={[s.side, { alignItems: 'flex-end' }]}>{right}</View>
     </View>
   );
+}
+
+/**
+ * 큰 제목 접기 — 웹 PageHeading + NavTitle 처럼: 본문 맨 위 큰 제목(PageHead)이 굴러 막대 밑으로 가면 막대에 작은 제목.
+ * 화면은 ScrollView 에 onScroll · scrollEventThrottle 을 주고 Bar 에 shown 을 넘긴다. 큰 제목 줄 높이(44) 넘게 굴렀으면 접힘.
+ */
+export function useTitleCollapse() {
+  const [shown, setShown] = useState(false);
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => setShown(e.nativeEvent.contentOffset.y > 44);
+  return { shown, scroll: { onScroll, scrollEventThrottle: 32 } };
 }
 
 /** 막대 오른쪽 글 단추(글쓰기 · 올리기) */

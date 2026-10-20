@@ -2,7 +2,8 @@ import { type Href, router } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppShoot } from '@/app/actions/app-shoot';
-import { Bar, LoadState, Row, s, useLoad } from '~/community/parts';
+import { Bar, LoadState, Row, s, useLoad, useTitleCollapse } from '~/community/parts';
+import { PageHead } from '~/shell/heading';
 import { leaveTo } from '~/shell/web-nav';
 import { ShootGauge, StackBar, StatePill } from '~/shoot/parts';
 import { usePalette, type Palette } from '~/lib/ui';
@@ -16,18 +17,20 @@ type Loaded = Awaited<ReturnType<typeof loadAppShoot>>;
 
 export default function ShootHomeScreen() {
   const c = usePalette();
+  const { shown, scroll } = useTitleCollapse();
   const inset = useSafeAreaInsets();
   const { data, error, reload } = useLoad<Loaded>('app-shoot.loadAppShoot');
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="관리자" title="영상 촬영" c={c} />
+      <Bar back="관리자" title="영상 촬영" shown={!data || shown} c={c} />
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
-        <ScrollView
+        <ScrollView {...scroll}
           contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
+          <PageHead title="영상 촬영" />
           <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21, paddingHorizontal: 4 }}>{data.description}</Text>
 
           <View style={{ borderRadius: 14, padding: 16, gap: 16, backgroundColor: c.card, boxShadow: c.float }}>

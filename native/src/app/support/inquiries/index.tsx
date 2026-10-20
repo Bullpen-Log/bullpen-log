@@ -2,7 +2,8 @@ import { type Href, router } from 'expo-router';
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppInquiries } from '@/app/actions/support';
-import { Bar, BarButton, InquiryRows, LoadState, s, useLoad } from '~/community/parts';
+import { Bar, BarButton, InquiryRows, LoadState, s, useLoad, useTitleCollapse } from '~/community/parts';
+import { PageHead } from '~/shell/heading';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
@@ -12,17 +13,19 @@ type Loaded = Awaited<ReturnType<typeof loadAppInquiries>>;
 
 export default function InquiriesScreen() {
   const c = usePalette();
+  const { shown, scroll } = useTitleCollapse();
   const inset = useSafeAreaInsets();
   const { data, error, reload } = useLoad<Loaded>('support.loadAppInquiries');
   const ask = () => router.push('/support/inquiries/new' as Href);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="고객센터" title="1:1 문의" right={<BarButton label="문의하기" onPress={ask} c={c} />} c={c} />
+      <Bar back="고객센터" title="1:1 문의" right={<BarButton label="문의하기" onPress={ask} c={c} />} shown={!data || shown} c={c} />
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
-        <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32 }, READABLE]}>
+        <ScrollView {...scroll} contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32 }, READABLE]}>
+          <PageHead title="1:1 문의" />
           {data.inquiries.length === 0 ? (
             <View style={{ padding: 24, gap: 12, alignItems: 'center' }}>
               <Text style={[s.title, { color: c.ink }]}>아직 문의한 게 없어요</Text>
