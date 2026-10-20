@@ -666,7 +666,33 @@ export type AttemptInput = {
   distance?: unknown;
   /** 알림 때 폰 발열 상태(0 보통 ~ 3 아주 뜨거움, 옛 앱은 없음) — analysis.thermal 로 */
   thermal?: number | null;
+  /**
+   * 새 앱(2026-10-20 밤) — 단계별 시간(native/src/velocity/capture.ts JobTiming) · 그때 카메라 상태(fps 알림). analysis.timing · analysis.camera 로.
+   * 폰 콘솔 · 관리자 진단에만 있으면 현장 뒤에 원격으로 못 읽었다. 숫자 칸만 거른다(sanitizeNumbers)
+   */
+  timing?: unknown;
+  camera?: unknown;
 };
+
+/** 알려진 숫자 칸만(0 ~ 1e7) · 글은 outcome 한 칸만 80자 — 앱이 보낸 진단을 JSON 으로 남길 때 */
+function sanitizeNumbers(v: unknown, keys: readonly string[]): Record<string, number | string | boolean> | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const o = v as Record<string, unknown>;
+  const out: Record<string, number | string | boolean> = {};
+  for (const k of keys) {
+    const x = o[k];
+    if (typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 1e7) out[k] = Math.round(x * 10) / 10;
+    else if (typeof x === 'boolean') out[k] = x;
+  }
+  if (typeof o.outcome === 'string') out.outcome = o.outcome.slice(0, 80);
+  const inner = o.inner as Record<string, unknown> | undefined;
+  if (inner && typeof inner === 'object')
+    for (const k of ['framesMs', 'analyzeMs', 'coarseMs'])
+      if (typeof inner[k] === 'number' && Number.isFinite(inner[k] as number)) out[k] = Math.round(inner[k] as number);
+  return Object.keys(out).length ? out : undefined;
+}
+const TIMING_KEYS = ['queueMs', 'clipMs', 'readMs', 'engineMs', 'totalMs', 'bytes', 'fpsActual'] as const;
+const CAMERA_KEYS = ['fps', 'dropped', 'droppedLate', 'droppedBuffers', 'writerSkipped', 'writerResets', 'feedMs', 'feedSkipped', 'thermal', 'screenCaptured'] as const;
 
 /**
  * 공 · 움직임 알림 하나를 시도로 남긴다 — 쟀든 못 쟀든(2026-10-12: 못 잰 공이 어디에도 안 남아 빠른 공의 실패를 구간별로 셀 수
@@ -702,10 +728,14 @@ export async function recordVelocityAttempt(
       confidence: ['high', 'medium', 'low'].includes(confidence) ? confidence : null,
       analysis: (() => {
         const thermal = optional(input.thermal, 0, 3);
-        if (!distance && thermal == null) return undefined;
+        const timing = sanitizeNumbers(input.timing, TIMING_KEYS);
+        const camera = sanitizeNumbers(input.camera, CAMERA_KEYS);
+        if (!distance && thermal == null && !timing && !camera) return undefined;
         return {
           ...(distance ? { distance } : {}),
           ...(thermal != null ? { thermal: Math.round(thermal) } : {}),
+          ...(timing ? { timing } : {}),
+          ...(camera ? { camera } : {}),
         } as Prisma.InputJsonValue;
       })(),
       engineVersion: VELOCITY_ENGINE_VERSION,

@@ -125,6 +125,8 @@ export default function VelocityScreen() {
   /** 카메라 권한을 거절했나 — 설정을 바꾸면 iOS 가 앱을 다시 켜므로 돌아와 다시 켜기는 없다 */
   const [denied, setDenied] = useState(false);
   const [fps, setFps] = useState<FpsState | null>(null);
+  /** 마지막 카메라 상태 — 시도 기록에 같이 싣는다(현장 뒤에 원격으로 장면 버림 · 열 · 화면 기록을 읽게) */
+  const fpsNow = useRef<FpsState | null>(null);
   /* 관리자 진단(2026-10-20) — 알약을 누르면 빌드 · 카메라 · 최근 작업의 단계별 시간 */
   const [diag, setDiag] = useState<JobTiming[] | null>(null);
   const timings = useRef<JobTiming[]>([]);
@@ -303,7 +305,7 @@ export default function VelocityScreen() {
           if (!date) return;
           attempts.current.set(
             a.id,
-            rpc<{ ok: true; id: string } | { ok: false }>('velocity.recordVelocityAttempt', { date, ...a })
+            rpc<{ ok: true; id: string } | { ok: false }>('velocity.recordVelocityAttempt', { date, ...a, camera: fpsNow.current })
               .then((r) => (r.ok ? r.id : null))
               .catch(() => null)
           );
@@ -315,7 +317,7 @@ export default function VelocityScreen() {
     const subs = [
       DualCamera.addListener('throw', (e) => capture.onThrow(e)),
       DualCamera.addListener('fps', (e) => {
-        setFps({
+        setFps((fpsNow.current = {
           fps: Math.round(e.fps),
           dropped: e.dropped,
           thermal: e.thermal ?? null,
@@ -326,7 +328,7 @@ export default function VelocityScreen() {
           writerSkipped: e.writerSkipped ?? null,
           writerResets: e.writerResets ?? null,
           screenCaptured: e.screenCaptured === true,
-        });
+        }));
         /* 장면이 다시 흐른다 = 카메라가 산다 — 전화 · 컨트롤센터로 잠깐 끊겼을 때 온 'error' 를 걷는다(안 걷으면 설정 카드가 오류 카드에 가려 못 갔다) */
         setError((prev) => (prev ? null : prev));
       }),

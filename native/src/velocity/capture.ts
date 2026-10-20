@@ -164,6 +164,8 @@ export type CaptureHandlers = {
     rawKmh: number | null;
     confidence: string | null;
     distance?: unknown;
+    /** 단계별 시간 — 시도 기록(analysis.timing)에도 싣는다. 폰 콘솔 · 관리자 진단에만 있으면 현장 뒤에 원격으로 못 읽었다(2026-10-20) */
+    timing?: JobTiming;
   }): void;
 };
 
@@ -342,17 +344,18 @@ export class AppCapture {
          * 잃었는지 셀 수 없었다). 코드는 EngineError.code(TIMEOUT · ENGINE_…) · 카메라 모듈 코드(NO_CLIP · CAMERA_OFF …)
          */
         const code = errorCodeOf(err);
+        const timing: JobTiming = {
+          id: job.id, kind: kindOf(job), queueMs: 0, clipMs: 0, readMs: 0, engineMs: 0, totalMs: Date.now() - job.queuedAt,
+          bytes: 0, fpsActual: null, outcome: code,
+        };
         if (!job.recorded) {
           job.recorded = true;
           this.handlers.onAttempt?.({
             id: job.id, kind: kindOf(job), atSec: job.at, strength: job.strength, ok: false, code,
-            why: code.toLowerCase().replace(/_/g, '-'), thermal: job.thermal, trackFrames: 0, rawKmh: null, confidence: null,
+            why: code.toLowerCase().replace(/_/g, '-'), thermal: job.thermal, trackFrames: 0, rawKmh: null, confidence: null, timing,
           });
         }
-        this.report({
-          id: job.id, kind: kindOf(job), queueMs: 0, clipMs: 0, readMs: 0, engineMs: 0, totalMs: Date.now() - job.queuedAt,
-          bytes: 0, fpsActual: null, outcome: code,
-        });
+        this.report(timing);
         if (job.visible) this.handlers.onNotice(err instanceof Error ? err.message : '영상을 읽지 못했어요');
       }
     } finally {
@@ -488,6 +491,22 @@ export class AppCapture {
     }
     const verdict = decided;
     const dropped = ok && !verdict.kept;
+    const m = result.measure;
+    const timing: JobTiming = {
+      id: job.id,
+      kind: kindOf(job),
+      queueMs: t0 - job.queuedAt,
+      clipMs,
+      readMs,
+      engineMs: ms,
+      totalMs: Date.now() - job.queuedAt,
+      bytes: main.bytes,
+      fpsActual: main.fpsActual ?? null,
+      inner: innerTimingOf(result),
+      outcome: m.ok
+        ? `${verdict.kept ? 'ok' : (verdict.code ?? 'LOW_CONFIDENCE')} ${m.kmh.toFixed(1)} ${m.confidence}`
+        : `${m.code}${noBall ? ' no-ball' : result.distance?.why ? ` ${result.distance.why}` : ''} 장면 ${track}`,
+    };
     job.recorded = true;
     this.handlers.onAttempt?.({
       id: job.id,
@@ -502,23 +521,9 @@ export class AppCapture {
       rawKmh: result.measure.ok ? result.measure.kmh : null,
       confidence: result.measure.ok ? result.measure.confidence : null,
       distance: result.distance,
+      timing,
     });
-    const m = result.measure;
-    this.report({
-      id: job.id,
-      kind: kindOf(job),
-      queueMs: t0 - job.queuedAt,
-      clipMs,
-      readMs,
-      engineMs: ms,
-      totalMs: Date.now() - job.queuedAt,
-      bytes: main.bytes,
-      fpsActual: main.fpsActual ?? null,
-      inner: innerTimingOf(result),
-      outcome: m.ok
-        ? `${verdict.kept ? 'ok' : (verdict.code ?? 'LOW_CONFIDENCE')} ${m.kmh.toFixed(1)} ${m.confidence}`
-        : `${m.code}${noBall ? ' no-ball' : result.distance?.why ? ` ${result.distance.why}` : ''} 장면 ${track}`,
-    });
+    this.report(timing);
     if (!verdict.kept) drop([main.path]);
   }
 
