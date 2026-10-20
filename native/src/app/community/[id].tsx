@@ -39,7 +39,7 @@ export default function CommunityPostScreen() {
   if (!data || !post) {
     return (
       <View style={{ flex: 1, backgroundColor: c.page }}>
-        <Bar back="커뮤니티" c={c} />
+        <Bar back="덕아웃" c={c} />
         {data && !post ? (
           <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', padding: 32 }}>글을 찾지 못했어요. 지워졌거나 볼 수 없는 글이에요.</Text>
         ) : (
@@ -107,7 +107,7 @@ export default function CommunityPostScreen() {
 
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="커뮤니티" c={c} />
+      <Bar back="덕아웃" c={c} />
       <ScrollView ref={scroll} contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: 24 }, READABLE]} keyboardShouldPersistTaps="handled">
         <View style={{ gap: 12, opacity: post.hidden ? 0.7 : 1 }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>

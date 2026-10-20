@@ -165,20 +165,20 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     items: [{ href: '/today', label: '홈', icon: 'home' }],
   },
-  /* 투구 기록 · 트레이닝 · 영양 · 구속 측정은 처음 가입한 사람에게 잠겨 있다(lock — 위 NavItem.lock) */
-  {
-    items: [{ href: '/videos', label: '투구', icon: 'baseball', lock: 'pitch' }],
-  },
-  /* 타격 — 하단 탭 셋째(2026-10-20 김민, docs/designs/hitting-restructure.md). 도크 첫 줄이 막대의 넷(홈 · 투구 · 타격 · 커뮤니티)이라 투구 바로 뒤 */
-  {
-    items: [{ href: '/hitting', label: '타격', icon: 'bat' }],
-  },
   /*
-   * 커뮤니티는 하단 탭 넷째(2026-10-20 김민: "커뮤니티 개선작업을 시작할거라 영양을 더보기로 빼고 그 자리에 커뮤니티").
+   * 덕아웃(커뮤니티)은 하단 탭 둘째(2026-10-21 김민: 홈 · 덕아웃 · 투구 · 타격 · 더보기 — 도크 첫 줄도 이 차례).
    * 잠금 없음 — 가입하면 바로 열린다. 고객센터는 아래 '소통'에 남는다.
    */
   {
     items: [{ href: '/community', label: '덕아웃', icon: 'community' }],
+  },
+  /* 투구 기록 · 트레이닝 · 영양 · 구속 측정은 처음 가입한 사람에게 잠겨 있다(lock — 위 NavItem.lock) */
+  {
+    items: [{ href: '/videos', label: '투구', icon: 'baseball', lock: 'pitch' }],
+  },
+  /* 타격 — 하단 탭 넷째(2026-10-20 김민, docs/designs/hitting-restructure.md). 도크 첫 줄이 막대의 넷(홈 · 덕아웃 · 투구 · 타격)이라 투구 바로 뒤 */
+  {
+    items: [{ href: '/hitting', label: '타격', icon: 'bat' }],
   },
   {
     /*
@@ -441,18 +441,17 @@ export const NAV_ALSO: Record<string, readonly string[]> = {
   '/today': ['/coach'],
 };
 
+/** 차례 홈 · 덕아웃 · 투구 · 타격 · 더보기(2026-10-21 김민). 트레이닝은 투구 · 타격 종목 하단바 안(아래 SPORT_BARS), 영양은 더보기 */
 export const MOBILE_TABS: NavItem[] = [
   { href: '/today', label: '홈', icon: 'home' },
+  { href: '/community', label: '덕아웃', icon: 'community' },
   {
     href: '/videos',
     label: '투구',
     icon: 'baseball',
     lock: 'pitch',
   },
-  /* 셋째 칸 — 트레이닝 → 타격(2026-10-20 김민). 트레이닝은 투구 · 타격 종목 하단바 안으로(아래 SPORT_BARS) */
   { href: '/hitting', label: '타격', icon: 'bat' },
-  /* 넷째 칸 — 영양 → 커뮤니티(2026-10-20 김민). 영양은 더보기에 */
-  { href: '/community', label: '덕아웃', icon: 'community' },
   { href: MORE_HREF, label: '더보기', icon: 'menu' },
 ];
 

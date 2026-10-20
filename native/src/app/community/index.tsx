@@ -21,7 +21,7 @@ import { READABLE } from '~/lib/layout';
 type Tab = 'new' | 'hot' | 'board';
 const WRITE = 'write';
 const TABS: ShellTab[] = [
-  { href: 'new', label: '커뮤니티', icon: 'community' },
+  { href: 'new', label: '덕아웃', icon: 'community' },
   { href: 'hot', label: '인기', icon: 'flame' },
   { href: 'board', label: '자료실', icon: 'book' },
   { href: WRITE, label: '글쓰기', icon: 'pencil' },
@@ -74,7 +74,7 @@ function PostList({ sort, first }: { sort: PostSort; first: PostCategory | null 
   const { data, stale, error, reload } = useLoad<List>('community.loadAppCommunity', category, sort, pages);
 
   /* 최신 · 인기는 하단바 칸으로 가른다(예전 목록 위 고르개) */
-  const title = sort === 'hot' ? '인기' : '커뮤니티';
+  const title = sort === 'hot' ? '인기' : '덕아웃';
   const pick = (next: { category: PostCategory | null }) => {
     void Haptics.selectionAsync();
     setCategory(next.category);

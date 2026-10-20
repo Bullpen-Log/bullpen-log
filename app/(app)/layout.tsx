@@ -236,7 +236,7 @@ export default async function AppLayout({
                 .flatMap((g) => g.items)
                 .find((i) => i.icon === 'radar' && !i.locked) ?? null
             }
-            panels={[home, videos, hitting, community]}
+            panels={[home, community, videos, hitting]}
           >
             <MainTransition>{children}</MainTransition>
           </TabPager>

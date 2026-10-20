@@ -34,7 +34,7 @@ export default function NewPostScreen() {
 
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="커뮤니티" title="글쓰기" right={<BarButton label="올리기" onPress={submit} disabled={send.busy} c={c} />} c={c} />
+      <Bar back="덕아웃" title="글쓰기" right={<BarButton label="올리기" onPress={submit} disabled={send.busy} c={c} />} c={c} />
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
         <Text style={[s.label, { color: c.muted }]}>구분</Text>
         <View accessibilityRole="radiogroup" style={s.chips}>

@@ -20,11 +20,10 @@ export type ShellTab = { href: string; label: string; icon: string; locked?: boo
 
 export const DEFAULT_TABS: ShellTab[] = [
   { href: '/today', label: '홈', icon: 'home' },
+  /* 차례 홈 · 덕아웃(커뮤니티) · 투구 · 타격 · 더보기(2026-10-21 김민, 웹 lib/nav.ts MOBILE_TABS). 트레이닝은 종목 바 안, 영양은 더보기 */
+  { href: '/community', label: '덕아웃', icon: 'community' },
   { href: '/videos', label: '투구', icon: 'baseball' },
-  /* 셋째 칸 — 트레이닝 → 타격(2026-10-20 김민, 웹 lib/nav.ts MOBILE_TABS). 트레이닝은 투구 · 타격 종목 바 안으로 */
   { href: '/hitting', label: '타격', icon: 'bat' },
-  /* 넷째 칸 — 영양 → 커뮤니티(2026-10-20 김민, 웹 lib/nav.ts MOBILE_TABS). 영양은 더보기에 */
-  { href: '/community', label: '커뮤니티', icon: 'community' },
   { href: '/more', label: '더보기', icon: 'menu' },
 ];
 
