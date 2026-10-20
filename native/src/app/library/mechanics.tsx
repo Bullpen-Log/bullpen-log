@@ -5,7 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LATER_CATEGORY, MECHANICS_CATEGORY_NAMES } from '@/lib/categories';
 import { DRILL_EQUIPMENT, DRILL_STAGE_NAMES, FOCUS_POINTS } from '@/lib/exercise-meta';
 import { matchesSearch } from '@/lib/korean';
-import { Bar } from '~/community/parts';
+import { Bar, BarButton, leave } from '~/community/parts';
+import { useMenu } from '~/shell/menu-store';
 import { ChipRow, DRILL_LIST, FilterSheet, filterChips, filterCount, matchesFilter, FoldHead, ItemRow, SearchField, recall, remember, type Drill, LibraryTabs } from '~/library/parts';
 import { usePalette } from '~/lib/ui';
 import { useScreenData } from '~/training/screen';
@@ -36,6 +37,7 @@ const subOf = (g: Drill) => [g.focusPoints.join(' · '), g.stage].filter(Boolean
 
 export default function DrillLibraryScreen() {
   const c = usePalette();
+  const { isAdmin } = useMenu();
   const inset = useSafeAreaInsets();
   const state = useScreenData<{ drills: Drill[] }>(DRILL_LIST, '', 'library:drills');
   const [query, setQuery] = useState('');
@@ -87,7 +89,7 @@ export default function DrillLibraryScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="뒤로" title="투구 드릴" c={c} />
+      <Bar back="뒤로" title="투구 드릴" right={isAdmin ? <BarButton label="편집" onPress={() => leave('/library/mechanics?web=1')} c={c} /> : undefined} c={c} />
       <View style={{ gap: 10, paddingTop: 4, paddingBottom: 10 }}>
         <SearchField value={query} onChange={setQuery} placeholder="드릴 이름으로 찾기" c={c} />
         <ChipRow chips={chips} c={c} />

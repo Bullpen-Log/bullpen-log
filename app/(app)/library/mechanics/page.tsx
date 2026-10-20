@@ -5,11 +5,12 @@ import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { loadDrillLibrary } from '@/lib/library-load';
 import { MechanicsClient } from './mechanics-client';
 
-export default async function MechanicsPage() {
+export default async function MechanicsPage({ searchParams }: { searchParams: Promise<{ web?: string }> }) {
   const user = await requireUser();
 
   /* 새 아이폰 앱(Expo)이 라이브러리를 아는 판(BullpenNative/7 부터)이면 앱 화면으로 연다(native/src/app/library/mechanics.tsx) */
-  if (expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path="/library/mechanics" cover={false} />;
+  /* ?web=1 — 앱 관리자가 '편집'으로 웹 화면을 연다(운동 · 드릴 고치기는 웹에만 있다, 2026-10-20 대조 검토) */
+  if ((await searchParams).web !== '1' && expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path="/library/mechanics" cover={false} />;
   /* 목록 · 별 — 앱(app-library.ts)과 같은 함수(lib/library-load.ts). 숨긴 드릴은 뺀다 */
   const items = await loadDrillLibrary(user.id);
 
