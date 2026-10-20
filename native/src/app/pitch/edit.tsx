@@ -445,7 +445,7 @@ export function EntryForm({
             }}
             style={styles.restoredBtn}
           >
-            <Text style={{ color: c.sky, fontSize: 13, fontWeight: '500' }}>지우기</Text>
+            <Text style={{ color: c.sky, fontSize: 13, fontWeight: '400' }}>지우기</Text>
           </Press>
         </View>
       ) : null}
@@ -473,11 +473,11 @@ export function EntryForm({
                 }}
               />
               {effortMissing ? (
-                <Text accessibilityRole="alert" style={{ color: c.danger, fontSize: 12 }}>
+                <Text accessibilityRole="alert" style={{ color: c.danger, fontSize: 13 }}>
                   체감 강도를 골라 주세요.
                 </Text>
               ) : offChip ? (
-                <Text style={{ color: withAlpha(c.muted, 0.8), fontSize: 12 }}>지금 {effortScaleText(effort)} · 칩을 누르면 바뀌어요</Text>
+                <Text style={{ color: withAlpha(c.muted, 0.8), fontSize: 13 }}>지금 {effortScaleText(effort)} · 칩을 누르면 바뀌어요</Text>
               ) : null}
             </View>
             <IntensityGuide c={c} />
@@ -532,7 +532,7 @@ export function EntryForm({
               </View>
               {/* 단위를 칸 바로 밑에서(웹 SpeedUnitSwitch) — 바꾸면 앱 전체 표시 단위가 바뀐다. 적은 숫자는 그 단위로 다시 보인다 */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <Text style={{ flex: 1, color: c.muted, fontSize: 12 }}>스피드건이 mph 면 단위를 바꿔 적어요</Text>
+                <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>스피드건이 mph 면 단위를 바꿔 적어요</Text>
                 <Segmented
                   label="구속 단위"
                   flow
@@ -558,11 +558,11 @@ export function EntryForm({
                 onChange={(v) => setSatisfaction(Number(v))}
               />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 }}>
-                <Text style={{ color: withAlpha(c.muted, 0.7), fontSize: 12 }}>1 {SATISFACTION_ENDS.low}</Text>
-                <Text style={{ color: withAlpha(c.muted, 0.7), fontSize: 12 }}>{SATISFACTION_ENDS.high} 5</Text>
+                <Text style={{ color: withAlpha(c.muted, 0.7), fontSize: 13 }}>1 {SATISFACTION_ENDS.low}</Text>
+                <Text style={{ color: withAlpha(c.muted, 0.7), fontSize: 13 }}>{SATISFACTION_ENDS.high} 5</Text>
               </View>
               <Press accessibilityRole="button" accessibilityState={{ expanded: cuesOpen }} onPress={() => setCuesOpen((o) => !o)} style={styles.cueToggle}>
-                <Text style={{ color: c.sky, fontSize: 15, fontWeight: '500' }}>느낀 점 더하기</Text>
+                <Text style={{ color: c.sky, fontSize: 15, fontWeight: '400' }}>느낀 점 더하기</Text>
                 <View style={{ transform: [{ rotate: cuesOpen ? '180deg' : '0deg' }] }}>
                   <Icon name="chevron-down" size={16} color={c.sky} />
                 </View>
@@ -576,7 +576,7 @@ export function EntryForm({
                     ] as const
                   ).map(([side, label, list]) => (
                     <View key={side} style={{ gap: 8 }}>
-                      <Text style={{ color: c.muted, fontSize: 12 }}>{label}</Text>
+                      <Text style={{ color: c.muted, fontSize: 13 }}>{label}</Text>
                       <View style={styles.chips}>
                         {PITCH_CUES.map((cue) => {
                           const on = list.includes(cue);
@@ -670,7 +670,7 @@ export function EntryForm({
         </Press>
         {inline?.onCancel ? (
           <Press accessibilityRole="button" onPress={cancel} disabled={!!busy} style={[styles.cancel, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
-            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '500' }}>취소</Text>
+            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '400' }}>취소</Text>
           </Press>
         ) : null}
       </View>
@@ -704,7 +704,7 @@ function Field({ c, label, hint, style, children }: { c: Palette; label: string;
     <View style={[{ gap: 8 }, style]}>
       <Text style={[styles.label, { color: c.muted }]}>{label}</Text>
       {children}
-      {hint ? <Text style={{ color: c.muted, fontSize: 12, lineHeight: 17 }}>{hint}</Text> : null}
+      {hint ? <Text style={{ color: c.muted, fontSize: 13, lineHeight: 17 }}>{hint}</Text> : null}
     </View>
   );
 }
@@ -751,7 +751,7 @@ function IntensityGuide({ c }: { c: Palette }) {
     <View style={[styles.guide, { borderColor: c.line, backgroundColor: withAlpha(c.chip, 0.25) }]}>
       <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={styles.guideHead}>
         <Icon name="info" size={14} color={c.sky} />
-        <Text style={{ flex: 1, color: c.muted, fontSize: 12 }}>{PITCH_EFFORT_ASK}</Text>
+        <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>{PITCH_EFFORT_ASK}</Text>
         <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
           <Icon name="chevron-down" size={14} color={c.muted} />
         </View>
@@ -761,9 +761,9 @@ function IntensityGuide({ c }: { c: Palette }) {
           <Text style={{ color: c.muted, fontSize: 11, lineHeight: 16 }}>{PITCH_EFFORT_INTRO}</Text>
           {PITCH_LEVELS.map((l) => (
             <View key={l.range} style={{ flexDirection: 'row', gap: 12 }}>
-              <Text style={{ width: 56, color: c.sky, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{l.range}</Text>
+              <Text style={{ width: 56, color: c.sky, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] }}>{l.range}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: c.ink, fontSize: 12, fontWeight: '600' }}>{l.label}</Text>
+                <Text style={{ color: c.ink, fontSize: 13, fontWeight: '600' }}>{l.label}</Text>
                 <Text style={{ color: c.muted, fontSize: 11, lineHeight: 16, marginTop: 2 }}>{l.detail}</Text>
               </View>
             </View>
@@ -783,8 +783,8 @@ const styles = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
   barAction: { fontSize: 17 },
   barTitle: { fontSize: 17, fontWeight: '600' },
-  label: { fontSize: 12, fontWeight: '500' },
-  input: { minHeight: 48, borderRadius: 12, paddingHorizontal: 16, fontSize: 16 },
+  label: { fontSize: 13, fontWeight: '400' },
+  input: { minHeight: 48, borderRadius: 12, paddingHorizontal: 16, fontSize: 17 },
   memo: { minHeight: 104, paddingTop: 12, textAlignVertical: 'top' },
   pair: { flexDirection: 'row', gap: 12 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

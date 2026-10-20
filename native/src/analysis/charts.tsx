@@ -388,8 +388,8 @@ const st = StyleSheet.create({
   value: { marginTop: 4, fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] },
   emptyChart: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tiny: { fontSize: 11, lineHeight: 16 },
-  tinyBold: { fontSize: 11, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  tinyBold: { fontSize: 11, fontWeight: '600', fontVariant: ['tabular-nums'] },
   small: { fontSize: 13, lineHeight: 18 },
-  smallBold: { fontSize: 13, fontWeight: '700' },
-  bodyBold: { fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  smallBold: { fontSize: 13, fontWeight: '600' },
+  bodyBold: { fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] },
 });

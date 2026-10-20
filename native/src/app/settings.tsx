@@ -52,7 +52,7 @@ export default function SettingsScreen() {
                 <Text style={[st.small, { color: c.muted }]}>{MODEL_CREDIT_INTRO}</Text>
                 {MODEL_CREDITS.map((cr) => (
                   <View key={cr.quote} style={{ gap: 2 }}>
-                    <Text selectable style={{ color: c.ink, fontSize: 14 }}>
+                    <Text selectable style={{ color: c.ink, fontSize: 15 }}>
                       “{cr.quote}”
                     </Text>
                     <Text selectable style={[st.small, { color: c.muted }]}>
@@ -63,7 +63,7 @@ export default function SettingsScreen() {
                 <Text style={[st.small, { color: c.ink, fontWeight: '700' }]}>바꾼 것</Text>
                 <Text style={[st.small, { color: c.muted }]}>{MODEL_CREDIT_CHANGES}</Text>
                 <Pressable accessibilityRole="link" onPress={() => void WebBrowser.openBrowserAsync(CC_BY_SA_URL).catch(() => undefined)} hitSlop={6}>
-                  <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>CC BY-SA 4.0 라이선스 전문 ›</Text>
+                  <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>CC BY-SA 4.0 라이선스 전문 ›</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -130,7 +130,7 @@ function Segmented<V extends string>({
             style={[st.segItem, icons && { flexDirection: 'row', gap: 4 }, on && { backgroundColor: c.raised }]}
           >
             {icons ? <SymbolView name={icons[o.value]} size={14} tintColor={c.ink} /> : null}
-            <Text style={{ color: c.ink, fontSize: 14, fontWeight: on ? '700' : '500' }}>{o.label}</Text>
+            <Text style={{ color: c.ink, fontSize: 15, fontWeight: on ? '700' : '500' }}>{o.label}</Text>
           </Pressable>
         );
       })}
@@ -173,7 +173,7 @@ function Row({ label, detail, onPress, open, last, c }: { label: string; detail?
       onPress={onPress}
       style={({ pressed }) => [st.row, pressed && { backgroundColor: c.chip }, !last && !open && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }]}
     >
-      <Text style={{ color: c.ink, fontSize: 16, flex: 1 }}>{label}</Text>
+      <Text style={{ color: c.ink, fontSize: 17, flex: 1 }}>{label}</Text>
       {detail ? (
         <Text style={[st.small, { color: c.muted }]} numberOfLines={1}>
           {detail}

@@ -206,7 +206,7 @@ export default function RehabStartScreen() {
                   onPress={() => toggleActivity(label)}
                   style={{ minHeight: 44, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1, justifyContent: 'center', backgroundColor: on ? c.sky : c.card, borderColor: on ? c.sky : c.line }}
                 >
-                  <Text style={{ color: on ? '#fff' : c.ink, fontSize: 16, fontWeight: '600' }}>{label}</Text>
+                  <Text style={{ color: on ? '#fff' : c.ink, fontSize: 17, fontWeight: '600' }}>{label}</Text>
                 </Press>
               );
             })}
@@ -221,7 +221,7 @@ export default function RehabStartScreen() {
               placeholderTextColor={c.muted}
               accessibilityLabel="내 활동 직접 적기"
               returnKeyType="done"
-              style={{ flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: c.line, backgroundColor: c.card, color: c.ink, paddingHorizontal: 14, fontSize: 16 }}
+              style={{ flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: c.line, backgroundColor: c.card, color: c.ink, paddingHorizontal: 14, fontSize: 17 }}
             />
             <Press
               accessibilityRole="button"
@@ -230,7 +230,7 @@ export default function RehabStartScreen() {
               disabled={!custom.trim()}
               style={{ height: 48, paddingHorizontal: 16, borderRadius: 24, justifyContent: 'center', backgroundColor: c.chip, opacity: custom.trim() ? 1 : 0.4 }}
             >
-              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>더하기</Text>
+              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>더하기</Text>
             </Press>
           </View>
           <Text style={{ color: c.muted, fontSize: 13 }}>{activities.length}/2개 골랐어요</Text>
@@ -314,7 +314,7 @@ function Summary({
         <Text style={[body, { color: c.danger, fontWeight: '700' }]}>이런 게 있으면 바로 진료받으세요</Text>
         <Text style={{ color: c.danger, fontSize: 13 }}>{RED_FLAGS_LINE}</Text>
         {RED_FLAGS.map((f) => (
-          <Text key={f} style={{ color: c.danger, fontSize: 14, lineHeight: 20 }}>
+          <Text key={f} style={{ color: c.danger, fontSize: 15, lineHeight: 20 }}>
             · {f}
           </Text>
         ))}

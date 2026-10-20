@@ -299,7 +299,7 @@ const s = StyleSheet.create({
   block: { borderRadius: 16, padding: 16, gap: 12, alignSelf: 'stretch' },
   blockTitle: { fontSize: 17, fontWeight: '700', lineHeight: 23 },
   small: { fontSize: 13, lineHeight: 18 },
-  smallBold: { fontSize: 13, fontWeight: '700' },
+  smallBold: { fontSize: 13, fontWeight: '600' },
   body: { fontSize: 15, lineHeight: 22 },
   bodyBold: { fontSize: 15, fontWeight: '600', lineHeight: 21 },
   center: { textAlign: 'center' },

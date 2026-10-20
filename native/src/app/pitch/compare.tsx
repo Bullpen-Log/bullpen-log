@@ -160,7 +160,7 @@ function Compare({ a, b, bottom }: { a: Pick; b: Pick; bottom: number }) {
             </Press>
             <Press accessibilityRole="button" accessibilityLabel={`${i ? 'B' : 'A'}면 기준점 지정`} onPress={() => mark(i as 0 | 1)} style={[styles.step, { flex: 1, flexDirection: 'row', gap: 4 }]}>
               <Icon name="flag" size={14} color="#fff" />
-              <Text style={{ color: '#fff', fontSize: 12 }}>기준점</Text>
+              <Text style={{ color: '#fff', fontSize: 13 }}>기준점</Text>
             </Press>
           </View>
         ))}
@@ -233,14 +233,14 @@ const styles = StyleSheet.create({
   barTitle: { fontSize: 17, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, borderRadius: 14, paddingHorizontal: 14 },
   check: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  checkText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  checkText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   footer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 12 },
   primary: { height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
   primaryText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   split: { flex: 1, flexDirection: 'row', gap: 2 },
   side: { flex: 1, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   sideHead: { position: 'absolute', top: 8, left: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sideBadge: { width: 22, height: 22, borderRadius: 6, overflow: 'hidden', textAlign: 'center', lineHeight: 22, fontSize: 12, fontWeight: '800' },
+  sideBadge: { width: 22, height: 22, borderRadius: 6, overflow: 'hidden', textAlign: 'center', lineHeight: 22, fontSize: 13, fontWeight: '800' },
   sides: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10 },
   sideCtl: { flex: 1, flexDirection: 'row', gap: 4 },
   step: { minWidth: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)' },
@@ -260,6 +260,6 @@ const styles = StyleSheet.create({
   rateText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   ctl: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)' },
   ctlMain: { backgroundColor: '#fff' },
-  ctlText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  ctlText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   hint: { color: 'rgba(255,255,255,0.6)', fontSize: 13, textAlign: 'center' },
 });

@@ -292,7 +292,7 @@ export function DrawToolbar({
             <View style={[st.swatch, { backgroundColor: col }]} />
           </Press>
         ))}
-        <Text style={{ flex: 1, color: c.muted, fontSize: 12, marginLeft: 6 }} numberOfLines={2}>
+        <Text style={{ flex: 1, color: c.muted, fontSize: 13, marginLeft: 6 }} numberOfLines={2}>
           {TOOLS.find((t) => t.kind === tool)?.hint}
         </Text>
       </View>

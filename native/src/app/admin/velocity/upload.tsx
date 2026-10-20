@@ -202,7 +202,7 @@ export default function VelocityUploadScreen() {
         ))}
         {!busy ? (
           <Press accessibilityRole="button" onPress={() => void pick()} style={[s.pill, { minHeight: 52, backgroundColor: c.card }]}>
-            <Text style={{ color: c.sky, fontSize: 16, fontWeight: '600' }}>{items.length ? '영상 더 고르기' : '영상 고르기'}</Text>
+            <Text style={{ color: c.sky, fontSize: 17, fontWeight: '600' }}>{items.length ? '영상 더 고르기' : '영상 고르기'}</Text>
           </Press>
         ) : null}
         {error ? <Text style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>{error}</Text> : null}
@@ -231,7 +231,7 @@ function ItemCard({ it, disabled, onGun, onType, onRemove, c }: { it: Item; disa
         </Text>
         {editable && !disabled ? (
           <Press accessibilityRole="button" accessibilityLabel="빼기" onPress={onRemove} hitSlop={8} style={{ minHeight: 32, justifyContent: 'center' }}>
-            <Text style={{ color: c.muted, fontSize: 14 }}>빼기</Text>
+            <Text style={{ color: c.muted, fontSize: 15 }}>빼기</Text>
           </Press>
         ) : null}
       </View>
@@ -258,7 +258,7 @@ function ItemCard({ it, disabled, onGun, onType, onRemove, c }: { it: Item; disa
         </Text>
       )}
       {status ? <Text style={[s.meta, { color: it.state === 'done' ? c.ok : c.sky, fontWeight: '600' }]}>{status}</Text> : null}
-      {it.error ? <Text style={{ color: c.danger, fontSize: 14 }}>{it.error}</Text> : null}
+      {it.error ? <Text style={{ color: c.danger, fontSize: 15 }}>{it.error}</Text> : null}
     </View>
   );
 }

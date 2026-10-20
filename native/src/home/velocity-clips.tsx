@@ -23,12 +23,12 @@ export function VelocityClips({ date }: { date: string }) {
   const [pickedId, setPicked] = useState<string | null>(null);
   const [played, setPlayed] = useState(false);
   const items = (data?.sessions ?? []).flatMap((s) => s.pitches.filter((p) => p.clip?.url).map((p) => ({ p, clip: p.clip! })));
-  if (!data && !failed) return <Text style={{ color: c.muted, fontSize: 12 }}>영상을 불러오는 중…</Text>;
+  if (!data && !failed) return <Text style={{ color: c.muted, fontSize: 13 }}>영상을 불러오는 중…</Text>;
   const picked = items.find((it) => it.p.id === pickedId) ?? items[0];
   if (!picked)
     return (
       <View style={[styles.reload, { backgroundColor: withAlpha(c.chip, 0.5) }]}>
-        <Text style={{ color: c.muted, fontSize: 12, textAlign: 'center', lineHeight: 18 }}>영상을 불러오지 못했어요. 화면을 오래 켜 두면 영상 주소가 만료돼요.</Text>
+        <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center', lineHeight: 18 }}>영상을 불러오지 못했어요. 화면을 오래 켜 두면 영상 주소가 만료돼요.</Text>
         <Press accessibilityRole="button" onPress={() => setReload((n) => n + 1)} style={[styles.reloadBtn, { backgroundColor: c.card }]}>
           <Icon name="rotate-cw" size={16} color={c.ink} />
           <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
@@ -39,14 +39,14 @@ export function VelocityClips({ date }: { date: string }) {
   const type = pitchTypeLabel(picked.p.pitchType);
   return (
     <View style={{ gap: 12 }}>
-      <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600' }}>구속 측정 영상 {items.length}개</Text>
+      <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>구속 측정 영상 {items.length}개</Text>
       <View style={{ gap: 6 }}>
         {isPhoneVideoPath(picked.clip.url) ? (
           <PitchVideo key={picked.p.id} path={picked.clip.url} />
         ) : (
           <UrlVideo key={picked.p.id} uri={picked.clip.url} start={start} autoPlay={played} />
         )}
-        <Text style={{ color: c.muted, fontSize: 12, textAlign: 'center', fontVariant: ['tabular-nums'] }}>
+        <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center', fontVariant: ['tabular-nums'] }}>
           {picked.p.seq}번째 공 · {formatSpeed(picked.p.kmh, speed)}
           {type ? ` · ${type}` : ''}
         </Text>
@@ -68,7 +68,7 @@ export function VelocityClips({ date }: { date: string }) {
                 }}
                 style={[styles.chip, on ? { borderColor: c.sky, backgroundColor: c.skyTint } : { borderColor: c.line, backgroundColor: c.card }]}
               >
-                <Text style={{ color: c.muted, fontSize: 12 }}>{it.p.seq}</Text>
+                <Text style={{ color: c.muted, fontSize: 13 }}>{it.p.seq}</Text>
                 <Text style={{ color: on ? c.sky : c.ink, fontSize: 15, fontWeight: on ? '700' : '400', fontVariant: ['tabular-nums'] }}>
                   {formatSpeed(it.p.kmh, speed)}
                 </Text>

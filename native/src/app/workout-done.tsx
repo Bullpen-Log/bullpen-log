@@ -89,7 +89,7 @@ export default function WorkoutDoneScreen() {
           <>
             <Text style={{ color: c.ink, fontSize: 15 }}>신호가 약해 불러오지 못했어요.</Text>
             <Press accessibilityRole="button" onPress={() => (setFailed(false), setTries((n) => n + 1))} hitSlop={8}>
-              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '700' }}>다시 불러오기</Text>
+              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
             </Press>
             <Press accessibilityRole="button" onPress={finish} hitSlop={8}>
               <Text style={{ color: c.muted, fontSize: 15 }}>트레이닝으로</Text>
@@ -153,7 +153,7 @@ export default function WorkoutDoneScreen() {
               <Text style={[s.tiny, { color: c.muted }]}>{n.label}</Text>
               <Text style={{ color: c.ink, fontSize: 24, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
                 {n.value == null ? '—' : <CountUp value={n.value} delay={750} still={still} />}
-                <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}> {n.unit}</Text>
+                <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}> {n.unit}</Text>
               </Text>
             </View>
           ))}
@@ -361,7 +361,7 @@ function Effort({ sessionId, c }: { sessionId: string; c: Palette }) {
               onPress={() => void pick(l.key)}
               style={[st.chip, { backgroundColor: on ? c.sky : c.chip, opacity: saved && !on ? 0.45 : 1 }]}
             >
-              <Text style={{ color: on ? '#fff' : c.ink, fontSize: 14, fontWeight: '600' }}>{l.label}</Text>
+              <Text style={{ color: on ? '#fff' : c.ink, fontSize: 15, fontWeight: '600' }}>{l.label}</Text>
             </Press>
           );
         })}

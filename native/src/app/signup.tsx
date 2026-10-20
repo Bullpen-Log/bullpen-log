@@ -112,7 +112,7 @@ export default function SignupScreen() {
         <Pressable accessibilityRole="button" onPress={back} hitSlop={10} style={{ minWidth: 72 }}>
           <Text style={{ color: c.sky, fontSize: 17 }}>‹ {index === 0 ? '로그인' : '이전'}</Text>
         </Pressable>
-        <Text style={{ color: c.muted, fontSize: 15, fontWeight: '600' }}>
+        <Text style={{ color: c.muted, fontSize: 15, fontWeight: '400' }}>
           {index + 1} / {SIGNUP_STEPS.length}
         </Text>
         <View style={{ minWidth: 72 }} />
@@ -124,7 +124,7 @@ export default function SignupScreen() {
       <ScrollView ref={scroll} contentContainerStyle={[{ padding: 20, gap: 20, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View style={{ gap: 6 }}>
           <Text style={{ color: c.ink, fontSize: 30, fontWeight: '800' }}>{TITLES[step].title}</Text>
-          <Text style={{ color: c.muted, fontSize: 16 }}>{TITLES[step].desc}</Text>
+          <Text style={{ color: c.muted, fontSize: 17 }}>{TITLES[step].desc}</Text>
         </View>
 
         {step === 'name' ? (
@@ -151,7 +151,7 @@ export default function SignupScreen() {
                 const on = a.sex === o.value;
                 return (
                   <Pressable key={o.value} accessibilityRole="radio" accessibilityState={{ selected: on }} onPress={() => set({ sex: o.value })} style={[st.chip, { backgroundColor: on ? c.sky : c.card }, bad('sex') && !on && { borderColor: c.danger, borderWidth: 1 }]}>
-                    <Text style={{ color: on ? '#fff' : c.ink, fontSize: 16, fontWeight: '600' }}>{o.name}</Text>
+                    <Text style={{ color: on ? '#fff' : c.ink, fontSize: 17, fontWeight: '600' }}>{o.name}</Text>
                   </Pressable>
                 );
               })}
@@ -266,10 +266,10 @@ function AgreeRow({ label, value, onChange, doc, strong, bad, last, c }: { label
   return (
     <View style={[st.row, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }]}>
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ color: bad ? c.danger : c.ink, fontSize: 16, fontWeight: strong ? '700' : '400' }}>{label}</Text>
+        <Text style={{ color: bad ? c.danger : c.ink, fontSize: 17, fontWeight: strong ? '700' : '400' }}>{label}</Text>
         {doc ? (
           <Pressable accessibilityRole="link" onPress={() => void WebBrowser.openBrowserAsync(`${SITE_URL}/${doc}`)} hitSlop={8}>
-            <Text style={{ color: c.sky, fontSize: 14 }}>읽어 보기 ›</Text>
+            <Text style={{ color: c.sky, fontSize: 15 }}>읽어 보기 ›</Text>
           </Pressable>
         ) : null}
       </View>

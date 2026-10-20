@@ -26,10 +26,10 @@ export function NutritionCheckinCard({ date, answer }: { date: string; answer: N
   if (!open)
     return (
       <Press accessibilityRole="button" onPress={() => setOpen(true)} style={[styles.pill, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
-        <Text numberOfLines={1} style={{ color: c.muted, fontSize: 12, fontWeight: '600', flexShrink: 1 }}>
+        <Text numberOfLines={1} style={{ color: c.muted, fontSize: 13, fontWeight: '400', flexShrink: 1 }}>
           {summary == null ? '오늘 식욕 · 끼니는요?' : '오늘 설정'}
         </Text>
-        <Text numberOfLines={1} style={{ color: summary == null ? c.sky : c.ink, fontSize: 12, flexShrink: 1 }}>
+        <Text numberOfLines={1} style={{ color: summary == null ? c.sky : c.ink, fontSize: 13, flexShrink: 1 }}>
           {summary ?? '답하기'}
         </Text>
         <Icon name="pencil" size={14} color={c.muted} />
@@ -79,10 +79,10 @@ function MealForm({ date, initial, onDone }: { date: string; initial: NutritionA
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>오늘 식욕 · 끼니는요?</Text>
-          <Text style={{ color: c.muted, fontSize: 12 }}>음식을 하나하나 안 적어도 오늘 조언과 식단이 여기에 맞춰요.</Text>
+          <Text style={{ color: c.muted, fontSize: 13 }}>음식을 하나하나 안 적어도 오늘 조언과 식단이 여기에 맞춰요.</Text>
         </View>
         <Press accessibilityRole="button" onPress={onDone} style={styles.later}>
-          <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>접기</Text>
+          <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>접기</Text>
         </Press>
       </View>
       <View style={{ gap: 6 }}>
@@ -105,9 +105,9 @@ function MealForm({ date, initial, onDone }: { date: string; initial: NutritionA
           )}
         </View>
       </View>
-      {error ? <Text style={{ color: c.danger, fontSize: 12 }}>{error}</Text> : null}
+      {error ? <Text style={{ color: c.danger, fontSize: 13 }}>{error}</Text> : null}
       <Press accessibilityRole="button" onPress={() => void save()} disabled={saving} style={[styles.primary, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
-        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{saving ? '저장 중…' : '저장'}</Text>
+        <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{saving ? '저장 중…' : '저장'}</Text>
       </Press>
     </Animated.View>
   );
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   pill: { alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, borderRadius: 20, paddingHorizontal: 14 },
   card: { borderRadius: 20, borderWidth: 1, padding: 20, gap: 12 },
   later: { minHeight: 40, marginVertical: -8, paddingHorizontal: 12, borderRadius: 20, justifyContent: 'center' },
-  label: { fontSize: 12, fontWeight: '600' },
+  label: { fontSize: 13, fontWeight: '600' },
   /* 웹 chip-grid data-cols=3 — 같은 폭 세 칸 */
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, rowGap: 8 },
   gridCell: { width: '33.333%', paddingHorizontal: 4 },

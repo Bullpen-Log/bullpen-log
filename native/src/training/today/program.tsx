@@ -394,6 +394,6 @@ export function ProgramDoneView({ result, c }: { result: ProgramResult; c: Palet
 const st = StyleSheet.create({
   row: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
   thumb: { width: 56, height: 42, borderRadius: 10 },
-  badge: { fontSize: 12, fontWeight: '600', borderRadius: 9, overflow: 'hidden', paddingHorizontal: 6, paddingVertical: 2 },
+  badge: { fontSize: 13, fontWeight: '600', borderRadius: 9, overflow: 'hidden', paddingHorizontal: 6, paddingVertical: 2 },
   tag: { alignSelf: 'flex-start', fontSize: 11, borderRadius: 7, overflow: 'hidden', paddingHorizontal: 6, paddingVertical: 1, marginTop: 2 },
 });

@@ -58,14 +58,14 @@ export default function ArticleScreen() {
         <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', padding: 32 }}>없는 글이에요.</Text>
       ) : (
         <ScrollView contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: inset.bottom + 40 }, READABLE]}>
-          {a.tags.length > 0 ? <Text style={{ color: c.sky, fontSize: 14 }}>{a.tags.map((t) => `#${t}`).join(' ')}</Text> : null}
+          {a.tags.length > 0 ? <Text style={{ color: c.sky, fontSize: 15 }}>{a.tags.map((t) => `#${t}`).join(' ')}</Text> : null}
           <Text selectable style={{ color: c.ink, fontSize: 24, fontWeight: '700', lineHeight: 31 }}>
             {a.title}
           </Text>
           <Text style={[s.meta, { color: c.muted }]}>
             {a.nickname} · {a.date} · 조회 {a.views}
           </Text>
-          {del.error ? <Text style={{ color: c.danger, fontSize: 14 }}>{del.error}</Text> : null}
+          {del.error ? <Text style={{ color: c.danger, fontSize: 15 }}>{del.error}</Text> : null}
           {a.attachmentUrl ? (
             <Pressable
               accessibilityRole="link"

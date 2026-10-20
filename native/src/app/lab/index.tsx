@@ -74,7 +74,7 @@ export default function LabListScreen() {
           {/* 웹 머리처럼 '베타' 표시 */}
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4 }}>
             <View style={{ borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, marginTop: 1, backgroundColor: c.skyTint }}>
-              <Text style={{ color: c.skyStrong, fontSize: 12, fontWeight: '700' }}>베타</Text>
+              <Text style={{ color: c.skyStrong, fontSize: 13, fontWeight: '600' }}>베타</Text>
             </View>
             <Text style={{ flex: 1, color: c.muted, fontSize: 15, lineHeight: 21 }}>같은 공을 옆과 뒤에서 함께 찍어 올리면 몸의 움직임을 3D 로 보여 줘요.</Text>
           </View>
@@ -315,7 +315,7 @@ function UploadCard({ heightCm, defaultHand, onDone, c }: { heightCm: number | n
 
       {fpsWarn ? (
         <View style={{ borderRadius: 12, padding: 12, gap: 4, backgroundColor: c.page }}>
-          <Text style={{ color: c.warn, fontSize: 14, lineHeight: 20 }}>{fpsWarn}</Text>
+          <Text style={{ color: c.warn, fontSize: 15, lineHeight: 20 }}>{fpsWarn}</Text>
           <GuideLink label="원본 그대로 옮기는 법 ›" section="move" hand={hand} c={c} />
         </View>
       ) : null}
@@ -339,7 +339,7 @@ function UploadCard({ heightCm, defaultHand, onDone, c }: { heightCm: number | n
 function GuideLink({ label, section, hand, c }: { label: string; section: LabGuideSection; hand: LabHand; c: Palette }) {
   return (
     <Pressable accessibilityRole="link" onPress={() => router.push(`/lab/guide?hand=${hand}&s=${section}` as Href)} hitSlop={6} style={{ minHeight: 32, justifyContent: 'center' }}>
-      <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{label}</Text>
     </Pressable>
   );
 }
@@ -389,7 +389,7 @@ function SampleRow({ item, name, last, onRemoved, c }: { item: AppLabListItem; n
         onPress={() => router.push(`/lab/${item.id}` as Href)}
         style={({ pressed }) => [{ flex: 1, gap: 3, opacity: pressed ? 0.6 : 1 }]}
       >
-        <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
+        <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }} numberOfLines={1}>
           {name}
           {item.when ? <Text style={[s.meta, { color: c.muted, fontWeight: '400' }]}>{`  ${item.when}`}</Text> : null}
         </Text>

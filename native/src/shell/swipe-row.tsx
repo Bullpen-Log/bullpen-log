@@ -67,5 +67,5 @@ function Actions({ progress, width, children }: { progress: SharedValue<number>;
 const styles = StyleSheet.create({
   actions: { flexDirection: 'row' },
   action: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  label: { color: '#fff', fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  label: { color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center' },
 });

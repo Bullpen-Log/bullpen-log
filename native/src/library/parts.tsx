@@ -187,7 +187,7 @@ export function LibraryTile({ title, thumbUrl, favorite, onPress, c }: { title: 
       </View>
       {/* 한 줄 이름 카드는 옆 두 줄 카드 높이로 늘어나 — 글을 세로 가운데에(웹 5b2e75cb) */}
       <View style={st.tileName}>
-        <Text numberOfLines={2} style={{ color: c.ink, fontSize: 14, fontWeight: '600', lineHeight: 19 }}>
+        <Text numberOfLines={2} style={{ color: c.ink, fontSize: 15, fontWeight: '600', lineHeight: 19 }}>
           {title}
         </Text>
       </View>
@@ -275,7 +275,7 @@ export function FavoriteFull({ on, onPress, note, c }: { on: boolean; onPress: (
         <Icon name="star" size={16} color={on ? c.skyStrong : c.ink} fill={on ? c.skyStrong : 'none'} />
         <Text style={{ color: on ? c.skyStrong : c.ink, fontSize: 15, fontWeight: on ? '600' : '400' }}>{on ? '즐겨찾기 해제' : '즐겨찾기에 담기'}</Text>
       </Press>
-      {note ? <Text style={{ color: c.danger, fontSize: 12 }}>{note}</Text> : null}
+      {note ? <Text style={{ color: c.danger, fontSize: 13 }}>{note}</Text> : null}
     </View>
   );
 }
@@ -293,7 +293,7 @@ export function SearchField({ value, onChange, placeholder, c }: { value: string
         returnKeyType="search"
         clearButtonMode="while-editing"
         autoCorrect={false}
-        style={{ flex: 1, color: c.ink, fontSize: 16, paddingVertical: 8 }}
+        style={{ flex: 1, color: c.ink, fontSize: 17, paddingVertical: 8 }}
       />
     </View>
   );
@@ -435,8 +435,8 @@ export function LibraryTabs({ active, c }: { active: (typeof LIBRARY_TABS)[numbe
               <Icon name={t.icon} size={16} color={on ? c.sky : c.muted} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: on ? c.sky : c.ink, fontSize: 15, fontWeight: '700' }}>{t.label}</Text>
-              <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{t.desc}</Text>
+              <Text style={{ color: on ? c.sky : c.ink, fontSize: 15, fontWeight: '600' }}>{t.label}</Text>
+              <Text style={{ color: c.muted, fontSize: 13, marginTop: 2 }}>{t.desc}</Text>
             </View>
           </Pressable>
         );
@@ -513,7 +513,7 @@ export function FilterSheet({
     >
       {groups.map((g) => (
         <View key={g.key} style={{ gap: 10, marginBottom: 20 }}>
-          <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>{g.label}</Text>
+          <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{g.label}</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {g.options.map((v) => {
               const on = (value[g.key] ?? []).includes(v);

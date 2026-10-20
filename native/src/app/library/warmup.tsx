@@ -57,11 +57,11 @@ export default function WarmupRoutineScreen() {
           <LibraryTabs active="warmup" c={c} />
           {/* 웹 /library/warmup 머리 카드와 같은 글 */}
           <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 16, padding: 16, gap: 6 }}>
-            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>워밍업은 고정이에요</Text>
-            <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
+            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>워밍업은 고정이에요</Text>
+            <Text style={{ color: c.muted, fontSize: 15, lineHeight: 20 }}>
               날마다 새로 뽑지 않아요. 운동을 시작하면 본운동 전에 공통 루틴(몸 데우기 · 동적 가동)과 오늘 목적에 맞는 루틴 하나가 차례로 떠요. 체크만 하고, 운동 시간과 운동량에는 안 들어가요.
             </Text>
-            <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>회복하는 날에는 워밍업이 아예 나오지 않아요.</Text>
+            <Text style={{ color: c.muted, fontSize: 15, lineHeight: 20 }}>회복하는 날에는 워밍업이 아예 나오지 않아요.</Text>
           </View>
           {routines.length === 0 ? (
             <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', padding: 24 }}>아직 담긴 루틴이 없어요.</Text>
@@ -71,10 +71,10 @@ export default function WarmupRoutineScreen() {
               <View style={styles.head}>
                 <Text style={{ flexShrink: 1, color: c.ink, fontSize: 17, fontWeight: '700' }}>{r.name}</Text>
                 <View style={[styles.badge, { backgroundColor: c.chip }]}>
-                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600' }}>{WHEN[r.kind] ?? r.kind}</Text>
+                  <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>{WHEN[r.kind] ?? r.kind}</Text>
                 </View>
               </View>
-              {r.description ? <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>{r.description}</Text> : null}
+              {r.description ? <Text style={{ color: c.muted, fontSize: 15, lineHeight: 20 }}>{r.description}</Text> : null}
               <View>
                 {r.items.map((ex, i) => (
                   <ItemRow

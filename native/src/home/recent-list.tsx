@@ -77,7 +77,7 @@ export function RecentList({ logs }: { logs: PitchLog[] | null }) {
               onPress={() => setFilter(x.key)}
               style={[styles.chip, { borderColor: on ? c.sky : c.line, backgroundColor: on ? c.skyTint : 'transparent' }]}
             >
-              <Text style={{ fontSize: 12, fontWeight: '500', color: on ? c.skyStrong : c.muted }}>{x.label}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '400', color: on ? c.skyStrong : c.muted }}>{x.label}</Text>
               <Text style={[TYPE.num, { fontSize: 13, color: on ? c.skyStrong : c.lineStrong }]}>{x.count}</Text>
             </Press>
           );
@@ -118,7 +118,7 @@ export function RecentList({ logs }: { logs: PitchLog[] | null }) {
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <View style={styles.rowTop}>
                             <Text style={{ color: c.ink, fontSize: 13, fontWeight: '600' }}>{spokenDate(key)}</Text>
-                            <Text style={{ color: c.muted, fontSize: 12, flexShrink: 1 }} numberOfLines={1}>
+                            <Text style={{ color: c.muted, fontSize: 13, flexShrink: 1 }} numberOfLines={1}>
                               {resting
                                 ? '쉬는 날'
                                 : `${l.sessionType} ${l.pitchCount}구${eff ? ` · 강도 ${eff}` : ''}${l.maxVelocity != null ? ` · 최고 ${formatSpeed(l.maxVelocity, speed)}` : ''}`}
@@ -131,7 +131,7 @@ export function RecentList({ logs }: { logs: PitchLog[] | null }) {
                             ) : null}
                           </View>
                           {l.memo ? (
-                            <Text numberOfLines={1} style={{ color: withAlpha(c.muted, 0.7), fontSize: 12, marginTop: 2 }}>
+                            <Text numberOfLines={1} style={{ color: withAlpha(c.muted, 0.7), fontSize: 13, marginTop: 2 }}>
                               {l.memo}
                             </Text>
                           ) : null}

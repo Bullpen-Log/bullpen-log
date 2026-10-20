@@ -367,7 +367,7 @@ export default function NutritionAddScreen() {
               style={[styles.input, { backgroundColor: c.card, color: c.ink }]}
             />
           </View>
-          {error ? <Text style={{ color: c.danger, fontSize: 14, paddingHorizontal: 20, paddingBottom: 6 }}>{error}</Text> : null}
+          {error ? <Text style={{ color: c.danger, fontSize: 15, paddingHorizontal: 20, paddingBottom: 6 }}>{error}</Text> : null}
           <ScrollView contentContainerStyle={[{ padding: 16, paddingTop: 0, gap: 6, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
             {q.trim() ? (
               <>
@@ -391,7 +391,7 @@ export default function NutritionAddScreen() {
                 ) : null}
                 {custom}
                 {day ? (
-                  <Text style={{ color: c.muted, fontSize: 12, lineHeight: 17, paddingTop: 8 }}>
+                  <Text style={{ color: c.muted, fontSize: 13, lineHeight: 17, paddingTop: 8 }}>
                     {day.mfds
                       ? '식약처 자료는 식품의약품안전처 식품영양성분 데이터베이스(공공데이터포털)에서 가져와요.'
                       : '식약처 음식 검색은 아직 연결 전이에요.'}
@@ -421,7 +421,7 @@ export default function NutritionAddScreen() {
                     {quick === 'yesterday' ? (
                       <ActivityIndicator />
                     ) : (
-                      <Text style={{ color: c.muted, fontSize: 14 }}>{Math.round(yesterdayKcal).toLocaleString('ko-KR')}kcal</Text>
+                      <Text style={{ color: c.muted, fontSize: 15 }}>{Math.round(yesterdayKcal).toLocaleString('ko-KR')}kcal</Text>
                     )}
                   </Pressable>
                 ) : null}
@@ -486,7 +486,7 @@ export default function NutritionAddScreen() {
                           {f.id ? (
                             confirmMine === f.id ? (
                               <Press accessibilityRole="button" onPress={() => void removeMine(f)} style={[styles.del, { backgroundColor: withAlpha(c.danger, 0.12) }]}>
-                                <Text style={{ color: c.danger, fontSize: 13, fontWeight: '700' }}>지우기</Text>
+                                <Text style={{ color: c.danger, fontSize: 13, fontWeight: '600' }}>지우기</Text>
                               </Press>
                             ) : (
                               <Press accessibilityRole="button" accessibilityLabel={`${f.name} 내 음식에서 빼기`} onPress={() => setConfirmMine(f.id)} style={styles.delIcon}>
@@ -508,7 +508,7 @@ export default function NutritionAddScreen() {
       )}
       {added.length > 0 && !replacing ? (
         <View style={[styles.added, { backgroundColor: c.card, borderTopColor: c.line, paddingBottom: inset.bottom + 10 }]}>
-          <Text style={{ color: c.ok, fontSize: 16 }}>✓</Text>
+          <Text style={{ color: c.ok, fontSize: 17 }}>✓</Text>
           <Text style={{ flex: 1, color: c.ink, fontSize: 15 }} numberOfLines={1}>
             {added.length === 1 ? `${added[0]} 담았어요` : `${added.length}번 담았어요 · ${added.at(-1)}`}
           </Text>

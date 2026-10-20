@@ -25,7 +25,7 @@ export function StatePill({ state, c }: { state: ItemState; c: Palette }) {
   const p = statePill(state, c);
   return (
     <View style={{ borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: p.bg, borderWidth: p.border ? 1 : 0, borderColor: p.border }}>
-      <Text style={{ color: p.color, fontSize: 12, fontWeight: '600' }}>{STATE_LABEL[state]}</Text>
+      <Text style={{ color: p.color, fontSize: 13, fontWeight: '600' }}>{STATE_LABEL[state]}</Text>
     </View>
   );
 }
@@ -87,7 +87,7 @@ export function ShootGauge({ done, uploaded, total, c }: { done: number; uploade
         {ring(19, up, 0.45)}
       </Svg>
       <Text style={{ color: c.ink, fontSize: 28, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{pct}%</Text>
-      <Text style={{ color: c.muted, fontSize: 12 }}>
+      <Text style={{ color: c.muted, fontSize: 13 }}>
         {done} / {total}
       </Text>
     </View>

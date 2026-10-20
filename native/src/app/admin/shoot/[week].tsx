@@ -153,7 +153,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
             <Chip key={w.week} label={w.label} on={w.week === week.week} onPress={() => w.week !== week.week && router.replace(`/admin/shoot/${w.week}` as Href)} c={c} />
           ))}
         </ScrollView>
-        <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20, paddingHorizontal: 4 }}>
+        <Text style={{ color: c.muted, fontSize: 15, lineHeight: 20, paddingHorizontal: 4 }}>
           {week.deferred
             ? `미룬 운동을 모아 둔 곳이에요 · ${items.length + carried.length}개`
             : `${items.length}개 · 계획 0:15~${clockText(week.end)} · ${crews.length ? `${crews.join(' · ')} 두 사람이 공간을 나눠 동시에` : `자리 ${week.stations.length}곳`}${carried.length ? ` · 앞 주에서 넘어온 것 ${carried.length}개` : ''}`}
@@ -161,7 +161,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
 
         <View style={{ borderRadius: 14, padding: 14, gap: 12, backgroundColor: c.card, boxShadow: c.float }}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-            <Text style={{ color: c.muted, fontSize: 14 }}>
+            <Text style={{ color: c.muted, fontSize: 15 }}>
               <Text style={{ color: c.ink, fontSize: 24, fontWeight: '700' }}>{count.done}</Text> / {count.total} 찍음
               {count.redo > 0 ? <Text style={{ color: c.warn }}>  다시 {count.redo}</Text> : null}
               {count.later > 0 ? <Text>  미룸 {count.later}</Text> : null}
@@ -189,10 +189,10 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
         </View>
 
         <View style={{ borderRadius: 14, padding: 14, gap: 8, backgroundColor: c.card, boxShadow: c.float }}>
-          <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>챙길 기구</Text>
+          <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>챙길 기구</Text>
           <View style={s.chips}>
             {equipment.map((e) => (
-              <Text key={e} style={{ color: c.ink, fontSize: 13, fontWeight: '500', borderRadius: 12, overflow: 'hidden', paddingHorizontal: 10, paddingVertical: 4, backgroundColor: c.chip }}>
+              <Text key={e} style={{ color: c.ink, fontSize: 13, fontWeight: '400', borderRadius: 12, overflow: 'hidden', paddingHorizontal: 10, paddingVertical: 4, backgroundColor: c.chip }}>
                 {e}
               </Text>
             ))}
@@ -220,9 +220,9 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
           return (
             <View key={st.warmup ? 'warmup' : st.station} style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: c.line }}>
-                <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '700' }} numberOfLines={2}>
+                <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '600' }} numberOfLines={2}>
                   {st.crew ? <Text style={{ color: c.sky }}>{st.crew} </Text> : null}
-                  {st.space ? <Text style={{ color: c.muted, fontWeight: '500' }}>{st.space} · </Text> : null}
+                  {st.space ? <Text style={{ color: c.muted, fontWeight: '400' }}>{st.space} · </Text> : null}
                   {st.warmup ? '몸풀기 · 가벼운 모빌리티 · 스트레칭' : st.station}
                 </Text>
                 <Text style={[s.meta, { color: c.muted, fontVariant: ['tabular-nums'] }]}>
@@ -239,7 +239,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
         {carried.length > 0 ? (
           <View style={[s.group, { backgroundColor: c.card, borderWidth: 1, borderStyle: 'dashed', borderColor: c.line }]}>
             <View style={{ paddingHorizontal: 14, paddingVertical: 10, gap: 2, borderBottomWidth: 0.5, borderBottomColor: c.line }}>
-              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>
+              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>
                 {week.deferred ? '다른 주에서 미룬 것' : '앞 주에서 넘어온 것'} {carried.length}개
               </Text>
               <Text style={[s.meta, { color: c.muted }]}>
@@ -286,7 +286,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
             }}
             style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 }}
           >
-            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '700' }}>되돌리기</Text>
+            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>되돌리기</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="알림 닫기" onPress={() => setToast(null)} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
             <SymbolView name="xmark" size={14} tintColor={c.page} />
@@ -363,8 +363,8 @@ function ItemRow({
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={{ color: state === 'done' ? c.muted : c.ink, fontSize: 15, fontWeight: '600', textDecorationLine: state === 'done' ? 'line-through' : 'none' }}>
               {it.title}
-              {it.load >= 2 ? <Text style={{ color: c.warn, fontSize: 11, fontWeight: '700' }}>  높음</Text> : null}
-              {uploaded ? <Text style={{ color: c.sky, fontSize: 11, fontWeight: '700' }}>  올림</Text> : null}
+              {it.load >= 2 ? <Text style={{ color: c.warn, fontSize: 11, fontWeight: '600' }}>  높음</Text> : null}
+              {uploaded ? <Text style={{ color: c.sky, fontSize: 11, fontWeight: '600' }}>  올림</Text> : null}
             </Text>
             <Text style={[s.meta, { color: c.muted }]} numberOfLines={1}>
               {carried ? `${it.station} · ` : ''}
@@ -374,7 +374,7 @@ function ItemRow({
           </View>
           {mark ? (
             <View style={{ borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: mark === '지금' ? c.sky : c.page }}>
-              <Text style={{ color: mark === '지금' ? '#fff' : c.sky, fontSize: 12, fontWeight: '700' }}>{mark}</Text>
+              <Text style={{ color: mark === '지금' ? '#fff' : c.sky, fontSize: 13, fontWeight: '600' }}>{mark}</Text>
             </View>
           ) : state === 'redo' || state === 'later' ? (
             <StatePill state={state} c={c} />
@@ -458,7 +458,7 @@ function DetailSheet({
           </Text>
         ) : null}
         <Pressable accessibilityRole="button" onPress={onRun} style={[s.pill, { backgroundColor: c.sky }]}>
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{info?.uploaded ? '다시 찍기 · 촬영 모드에서' : '영상 찍기 · 촬영 모드에서'}</Text>
+          <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{info?.uploaded ? '다시 찍기 · 촬영 모드에서' : '영상 찍기 · 촬영 모드에서'}</Text>
         </Pressable>
         <Text style={[s.meta, { color: c.muted, marginTop: -6 }]}>촬영 모드에서 카메라로 찍거나 앨범에서 골라 잘라 올려요.</Text>
 
@@ -483,7 +483,7 @@ function DetailSheet({
           <View style={{ gap: 6 }}>
             <Pressable accessibilityRole="button" accessibilityState={{ expanded: how }} onPress={() => setHow((v) => !v)} style={{ minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>진행 방법</Text>
-              <Text style={{ color: c.muted, fontSize: 14 }}>{how ? '접기' : '펴기'}</Text>
+              <Text style={{ color: c.muted, fontSize: 15 }}>{how ? '접기' : '펴기'}</Text>
             </Pressable>
             {how ? (
               <Text selectable style={{ color: c.ink, fontSize: 15, lineHeight: 23 }}>

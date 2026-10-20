@@ -41,7 +41,7 @@ export function MuscleChips({ muscles, highlight, max, c }: { muscles: string[];
             }}
             style={[st.chip, { backgroundColor: strong ? c.skyTint : c.chip }]}
           >
-            <Text style={{ color: strong ? c.skyStrong : c.muted, fontSize: 12, fontWeight: '500' }}>
+            <Text style={{ color: strong ? c.skyStrong : c.muted, fontSize: 13, fontWeight: '400' }}>
               {m}
               {known ? <Text style={{ opacity: 0.6 }}> ›</Text> : null}
             </Text>
@@ -50,7 +50,7 @@ export function MuscleChips({ muscles, highlight, max, c }: { muscles: string[];
       })}
       {hidden > 0 ? (
         <Press accessibilityRole="button" accessibilityLabel={`근육 ${hidden}개 더 보기`} onPress={() => setAll(true)} style={[st.chip, { backgroundColor: c.chip }]}>
-          <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>+{hidden}</Text>
+          <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>+{hidden}</Text>
         </Press>
       ) : null}
       <MuscleSheet name={open} muscles={muscles} onPick={setOpen} onClose={() => setOpen(null)} c={c} />
@@ -89,13 +89,13 @@ function MuscleSheet({ name, muscles, onPick, onClose, c }: { name: string | nul
             ] as const
           ).map(([title, body]) => (
             <View key={title} style={{ gap: 6 }}>
-              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>{title}</Text>
+              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{title}</Text>
               <Text style={{ color: c.ink, opacity: 0.85, fontSize: 15, lineHeight: 23 }}>{body}</Text>
             </View>
           ))}
           {info ? (
             <View style={[st.at, { backgroundColor: c.card }]}>
-              <Text style={{ color: c.skyStrong, fontSize: 13, fontWeight: '700' }}>붙는 곳</Text>
+              <Text style={{ color: c.skyStrong, fontSize: 13, fontWeight: '600' }}>붙는 곳</Text>
               <Text style={{ flex: 1, color: c.ink, opacity: 0.8, fontSize: 13, lineHeight: 19 }}>{info.at}</Text>
             </View>
           ) : null}

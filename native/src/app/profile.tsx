@@ -119,11 +119,11 @@ function Body({ p, reload, c }: { p: AppProfile; reload: () => void; c: Palette 
       <Group title="몸" footer="키는 영상에서 잰 보폭을 견줄 때 써요." c={c}>
         <Row label="키" c={c}>
           <TextInput value={shownHeight} onChangeText={(t) => setHeight(t.replace(/[^\d.]/g, '').slice(0, 5))} keyboardType="decimal-pad" placeholder="입력" placeholderTextColor={c.muted} style={[st.input, { color: c.ink }]} />
-          <Text style={{ color: c.muted, fontSize: 16 }}>{lengthUnit}</Text>
+          <Text style={{ color: c.muted, fontSize: 17 }}>{lengthUnit}</Text>
         </Row>
         <Row label="몸무게" last c={c}>
           <TextInput value={shownWeight} onChangeText={(t) => setWeight(t.replace(/[^\d.]/g, ''))} keyboardType="decimal-pad" placeholder="입력" placeholderTextColor={c.muted} style={[st.input, { color: c.ink }]} />
-          <Text style={{ color: c.muted, fontSize: 16 }}>{unit}</Text>
+          <Text style={{ color: c.muted, fontSize: 17 }}>{unit}</Text>
         </Row>
       </Group>
 
@@ -229,9 +229,9 @@ function Avatar({ nickname, url, reload, c }: { nickname: string; url: string | 
           </Pressable>
         ) : null}
       </View>
-      {error ? <Text style={{ color: c.danger, fontSize: 14 }}>{error}</Text> : null}
+      {error ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
       {/* 웹 avatar-picker 밑 한 줄 */}
-      <Text style={{ color: c.muted, fontSize: 12, textAlign: 'center' }}>사진은 작게 줄여서 올리고, 나만 볼 수 있게 저장해요.</Text>
+      <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>사진은 작게 줄여서 올리고, 나만 볼 수 있게 저장해요.</Text>
     </View>
   );
 }
@@ -239,7 +239,7 @@ function Avatar({ nickname, url, reload, c }: { nickname: string; url: string | 
 function Group({ title, footer, children, c }: { title: string; footer?: string; children: React.ReactNode; c: Palette }) {
   return (
     <View style={{ gap: 6 }}>
-      <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600', paddingHorizontal: 16 }}>{title}</Text>
+      <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400', paddingHorizontal: 16 }}>{title}</Text>
       <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 14, overflow: 'hidden' }}>{children}</View>
       {footer ? <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18, paddingHorizontal: 16 }}>{footer}</Text> : null}
     </View>
@@ -249,7 +249,7 @@ function Group({ title, footer, children, c }: { title: string; footer?: string;
 function Row({ label, last, children, c }: { label: string; last?: boolean; children: React.ReactNode; c: Palette }) {
   return (
     <View style={[st.row, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }]}>
-      <Text style={{ color: c.ink, fontSize: 16, flexShrink: 1 }} numberOfLines={1}>
+      <Text style={{ color: c.ink, fontSize: 17, flexShrink: 1 }} numberOfLines={1}>
         {label}
       </Text>
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>{children}</View>
@@ -259,8 +259,8 @@ function Row({ label, last, children, c }: { label: string; last?: boolean; chil
 
 const st = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, minHeight: 50 },
-  input: { flex: 1, textAlign: 'right', fontSize: 16, paddingVertical: 12 },
-  num: { textAlign: 'right', fontSize: 16, paddingVertical: 12 },
+  input: { flex: 1, textAlign: 'right', fontSize: 17, paddingVertical: 12 },
+  num: { textAlign: 'right', fontSize: 17, paddingVertical: 12 },
   seg: { minHeight: 36, paddingHorizontal: 14, borderRadius: 18, justifyContent: 'center' },
   save: { minHeight: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
   avatar: { width: 96, height: 96, borderRadius: 48, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },

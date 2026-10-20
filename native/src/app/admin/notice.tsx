@@ -80,7 +80,7 @@ export default function NoticeFormScreen() {
           />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: c.card, boxShadow: c.float }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: c.ink, fontSize: 16 }}>맨 위에 고정</Text>
+              <Text style={{ color: c.ink, fontSize: 17 }}>맨 위에 고정</Text>
               <Text style={[s.meta, { color: c.muted }]}>고정한 공지는 목록 맨 위에 늘 보여요.</Text>
             </View>
             <Switch value={pinned} onValueChange={setPinned} />

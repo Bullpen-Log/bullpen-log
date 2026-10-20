@@ -99,7 +99,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
           <Icon name="camera" size={16} color={c.sky} />
           <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>구속 측정</Text>
         </View>
-        <Text style={{ flex: 1, color: c.muted, fontSize: 12 }}>
+        <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>
           {hasClips ? '공을 누르면 잰 직후처럼 영상으로 봐요. 연필로 고쳐요' : '줄을 누르면 구종 · 코스 · 결과를 고쳐요'}
         </Text>
       </View>
@@ -112,7 +112,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
           <View key={s.id} style={[styles.session, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
             <View style={[styles.sessionHead, { borderBottomColor: c.line }]}>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ color: c.muted, fontSize: 12 }}>
+                <Text style={{ color: c.muted, fontSize: 13 }}>
                   <Text style={{ color: c.ink, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
                     {pad(at.getHours())}:{pad(at.getMinutes())}
                   </Text>
@@ -121,14 +121,14 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
                   {s.sessionType ? ` · ${s.sessionType}` : ''}
                 </Text>
                 {sum ? (
-                  <Text style={{ color: c.muted, fontSize: 12 }}>
+                  <Text style={{ color: c.muted, fontSize: 13 }}>
                     {s.pitches.length}구 · 최고 <Text style={{ color: c.ink, fontWeight: '700' }}>{formatSpeed(sum.max, unit)}</Text> · 평균{' '}
                     <Text style={{ color: c.ink, fontWeight: '700' }}>{formatSpeed(sum.avg, unit)}</Text>
                     {sum.strikeRate != null ? ` · 스트라이크 ${sum.strikeRate}%` : ''}
                     {sum.spreadCm != null ? ` · 릴리스 흩어짐 ${sum.spreadCm}cm` : ''}
                   </Text>
                 ) : null}
-                <Text style={{ color: c.muted, fontSize: 12 }}>
+                <Text style={{ color: c.muted, fontSize: 13 }}>
                   화각 {s.fovDeg}° · {cal ? `보정 ${cal}` : '보정 없음'}
                 </Text>
               </View>
@@ -144,7 +144,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
                   onPress={() => (p.clip ? setViewing(p) : setEditing(p))}
                   style={styles.rowMain}
                 >
-                  <Text style={{ width: 20, color: c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>{p.seq}</Text>
+                  <Text style={{ width: 20, color: c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>{p.seq}</Text>
                   <Text style={{ width: 56, color: c.ink, fontSize: 20, fontWeight: '800', fontVariant: ['tabular-nums'], letterSpacing: -0.4 }}>{speedNum(p.kmh)}</Text>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text numberOfLines={1} style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>
@@ -152,7 +152,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
                       {p.result === 'strike' ? <Text style={{ color: c.ok }}> S</Text> : p.result === 'ball' ? <Text style={{ color: c.warn }}> B</Text> : null}
                       {p.memo ? <Text style={{ color: c.muted, fontWeight: '400' }}>  {p.memo}</Text> : null}
                     </Text>
-                    <Text style={{ color: c.muted, fontSize: 12, lineHeight: 16 }}>
+                    <Text style={{ color: c.muted, fontSize: 13, lineHeight: 16 }}>
                       {zoneLabel(p.zone) ?? '코스 —'} · {CONFIDENCE_TEXT[p.confidence]}
                       {p.releaseKmh != null ? ` · 릴리스 추정 ${speedNum(release(p.releaseKmh))}` : ''}
                       {p.gunKmh != null ? ` · 건 ${speedNum(p.gunKmh)}` : ''}
@@ -196,9 +196,9 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
         </Press>
       ) : null}
       {pf?.missed ? (
-        <Text style={{ color: c.warn, fontSize: 12 }}>못 잰 공 {pf.missed}개는 빠졌어요. 실제로 던진 수가 다르면 기록에서 고쳐 주세요.</Text>
+        <Text style={{ color: c.warn, fontSize: 13 }}>못 잰 공 {pf.missed}개는 빠졌어요. 실제로 던진 수가 다르면 기록에서 고쳐 주세요.</Text>
       ) : null}
-      {pf ? <Text style={{ color: c.muted, fontSize: 12 }}>기록으로 남기기 전에는 이 공이 팔 부하 · 휴식에 안 들어가요.</Text> : null}
+      {pf ? <Text style={{ color: c.muted, fontSize: 13 }}>기록으로 남기기 전에는 이 공이 팔 부하 · 휴식에 안 들어가요.</Text> : null}
 
       {viewing ? (
         <ResultSheet
@@ -304,14 +304,14 @@ function ResultSheet({
               {speedNum(pitch.kmh)}
               <Text style={{ color: c.muted, fontSize: 17, fontWeight: '600' }}> {speedLabel(unit)}</Text>
             </Text>
-            <Text style={{ color: c.muted, fontSize: 12, textAlign: 'center' }}>
+            <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>
               ± {speedNum(pitch.errorKmh)} · {CONFIDENCE_TEXT[pitch.confidence]}
               {pitch.releaseKmh != null ? ` · 릴리스 ${speedNum(rel(pitch.releaseKmh))}` : ''}
               {pitch.gunKmh != null ? ` · 건 ${speedNum(pitch.gunKmh)}` : ''}
             </Text>
           </View>
           <View style={{ gap: 8 }}>
-            <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600' }}>구종</Text>
+            <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>구종</Text>
             <TypeChips value={type} onPick={(k) => void pick(k)} c={c} />
           </View>
           <Press accessibilityRole="button" onPress={onEdit} style={[styles.ghost, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
@@ -458,13 +458,13 @@ const styles = StyleSheet.create({
   playCircle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', paddingLeft: 2 },
   zone: { flexDirection: 'row', flexWrap: 'wrap', gap: 2, padding: 2, borderRadius: 8, borderWidth: 2 },
   prefill: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  prefillText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  prefillText: { color: '#fff', fontSize: 17, fontWeight: '700' },
   sheetBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
   ghost: { flexDirection: 'row', gap: 6, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 12, fontWeight: '600' },
+  label: { fontSize: 13, fontWeight: '600' },
   input: { minHeight: 48, borderRadius: 16, paddingHorizontal: 16, fontSize: 17 },
   removeBtn: { alignSelf: 'center', minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' },
 });

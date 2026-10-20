@@ -102,7 +102,7 @@ export default function WarmupScreen() {
           <View style={{ padding: 24, gap: 16, alignItems: 'center' }}>
             <Text style={{ color: c.ink, fontSize: 15 }}>{failed}</Text>
             <Press accessibilityRole="button" onPress={() => (setFailed(null), setTries((n) => n + 1))} hitSlop={8}>
-              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '700' }}>다시 불러오기</Text>
+              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
             </Press>
           </View>
         ) : (
@@ -135,9 +135,9 @@ export default function WarmupScreen() {
               <View style={[s.row, { gap: 8 }]}>
                 <Text style={[s.section, { color: c.ink }]}>{card.name}</Text>
                 {card.forToday ? (
-                  <Text style={[s.tag, { color: c.sky, backgroundColor: c.sky + '1a', fontSize: 12, fontWeight: '700' }]}>오늘 맞춤</Text>
+                  <Text style={[s.tag, { color: c.sky, backgroundColor: c.sky + '1a', fontSize: 13, fontWeight: '600' }]}>오늘 맞춤</Text>
                 ) : (
-                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>공통</Text>
+                  <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>공통</Text>
                 )}
               </View>
               {card.description ? <Text style={[s.small, { color: c.muted }]}>{card.description}</Text> : null}
@@ -211,7 +211,7 @@ export default function WarmupScreen() {
           <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{saving ? '여는 중' : '본운동 시작 ›'}</Text>
         </Pressable>
         <Press accessibilityRole="button" onPress={() => void finish(true)} disabled={saving} style={[s.textBtn, { alignSelf: 'center' }]}>
-          <Text style={{ color: c.muted, fontSize: 14, fontWeight: '600' }}>워밍업 건너뛰기</Text>
+          <Text style={{ color: c.muted, fontSize: 15, fontWeight: '400' }}>워밍업 건너뛰기</Text>
         </Press>
       </View>
     </View>

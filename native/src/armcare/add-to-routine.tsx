@@ -110,7 +110,7 @@ export function AddToRoutine({ exerciseId, title, c }: { exerciseId: string; tit
 
 const st = StyleSheet.create({
   add: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 32, borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, alignSelf: 'flex-start' },
-  addText: { fontSize: 12, fontWeight: '600' },
+  addText: { fontSize: 13, fontWeight: '600' },
   body: { fontSize: 15, lineHeight: 22 },
   small: { fontSize: 13 },
   choice: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 },

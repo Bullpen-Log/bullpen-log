@@ -64,12 +64,12 @@ function Body({ note, c }: { note: Note; c: Palette }) {
         {stats.map((st) => (
           <View key={st.label} style={{ flex: 1, borderRadius: 12, padding: 10, gap: 2, backgroundColor: c.card, boxShadow: c.float }}>
             <Text style={[s.meta, { color: c.muted }]}>{st.label}</Text>
-            <Text style={{ color: c.ink, fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{st.value}</Text>
+            <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{st.value}</Text>
           </View>
         ))}
       </View>
       <View style={{ borderRadius: 14, padding: 14, gap: 12, backgroundColor: c.card, boxShadow: c.float }}>
-        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>한 일</Text>
+        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>한 일</Text>
         {note.commits.length === 0 ? (
           <Text style={[s.meta, { color: c.muted }]}>커밋 기록이 없어요.</Text>
         ) : (
@@ -77,7 +77,7 @@ function Body({ note, c }: { note: Note; c: Palette }) {
         )}
       </View>
       <View style={{ gap: 8 }}>
-        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>메모</Text>
+        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>메모</Text>
         <Text style={[s.meta, { color: c.muted }]}>받은 뒤 할 일 같은 것을 적어 두면 같이 하는 사람이 봐요.{note.editedBy ? ` 마지막으로 ${note.editedBy} 님이 고쳤어요.` : ''}</Text>
         <TextInput
           value={memo}
@@ -88,7 +88,7 @@ function Body({ note, c }: { note: Note; c: Palette }) {
           placeholderTextColor={c.muted}
           style={[s.area, { backgroundColor: c.card, boxShadow: c.float, color: c.ink, minHeight: 140 }]}
         />
-        {save.error ? <Text style={{ color: c.danger, fontSize: 14, fontWeight: '600' }}>{save.error}</Text> : null}
+        {save.error ? <Text style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>{save.error}</Text> : null}
         <Press
           accessibilityRole="button"
           onPress={submit}
@@ -111,7 +111,7 @@ function CommitRow({ subject, body, sha, c }: { subject: string; body: string; s
         {sha.slice(0, 8)}
         {body ? (open ? ' · 접기' : ' · 자세히') : ''}
       </Text>
-      {open ? <Text selectable style={{ color: c.ink, fontSize: 14, lineHeight: 21 }}>{body}</Text> : null}
+      {open ? <Text selectable style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>{body}</Text> : null}
     </Press>
   );
 }

@@ -177,14 +177,14 @@ export default function MoreScreen() {
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
           ) : (
-            <Text style={{ color: L.glyph, fontSize: 15, fontWeight: '700' }}>{nickname ? nickname.slice(0, 1) : '나'}</Text>
+            <Text style={{ color: L.glyph, fontSize: 15, fontWeight: '600' }}>{nickname ? nickname.slice(0, 1) : '나'}</Text>
           )}
         </View>
         <View style={{ flex: 1 }}>
-          <Text numberOfLines={1} style={{ color: L.fg, fontSize: 15, fontWeight: '500' }}>
+          <Text numberOfLines={1} style={{ color: L.fg, fontSize: 15, fontWeight: '400' }}>
             {nickname || '내 정보'}
           </Text>
-          <Text style={{ color: L.fg, opacity: 0.65, fontSize: 12 }}>{isAdmin ? '관리자' : '내 정보'}</Text>
+          <Text style={{ color: L.fg, opacity: 0.65, fontSize: 13 }}>{isAdmin ? '관리자' : '내 정보'}</Text>
         </View>
       </Pressable>
     </View>
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   lock: { position: 'absolute', right: -4, bottom: -4, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  tileLabel: { fontSize: 12, lineHeight: 16, fontWeight: '500', maxWidth: '100%' },
+  tileLabel: { fontSize: 13, lineHeight: 16, fontWeight: '400', maxWidth: '100%' },
   me: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderRadius: 16, paddingHorizontal: 4 },
   avatar: { width: 36, height: 36, borderRadius: 18, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
 });

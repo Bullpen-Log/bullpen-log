@@ -96,7 +96,7 @@ export default function InquiryScreen() {
             ]}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ color: c.ink, fontSize: 13, fontWeight: '700' }}>{r.name}</Text>
+              <Text style={{ color: c.ink, fontSize: 13, fontWeight: '600' }}>{r.name}</Text>
               {r.fromStaff ? <Badge text="운영자" color={c.sky} c={c} /> : null}
               <Text style={[s.meta, { color: c.muted, flex: 1, textAlign: 'right' }]}>{r.at}</Text>
             </View>
@@ -123,15 +123,15 @@ export default function InquiryScreen() {
             style={styles.close}
           >
             <SymbolView name="lock" size={13} tintColor={c.muted} />
-            <Text style={{ color: c.muted, fontSize: 14, fontWeight: '600' }}>문의 종료</Text>
+            <Text style={{ color: c.muted, fontSize: 15, fontWeight: '400' }}>문의 종료</Text>
           </Press>
         )}
-        {closed && send.error ? <Text style={{ color: c.danger, fontSize: 14 }}>{send.error}</Text> : null}
+        {closed && send.error ? <Text style={{ color: c.danger, fontSize: 15 }}>{send.error}</Text> : null}
       </ScrollView>
 
       {closed ? null : (
         <View style={[styles.composer, { backgroundColor: c.page, borderTopColor: c.line, paddingBottom: inset.bottom + 8 }]}>
-          {send.error ? <Text style={{ color: c.danger, fontSize: 14 }}>{send.error}</Text> : null}
+          {send.error ? <Text style={{ color: c.danger, fontSize: 15 }}>{send.error}</Text> : null}
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
             <TextInput
               value={reply}
@@ -162,6 +162,6 @@ export default function InquiryScreen() {
 const styles = StyleSheet.create({
   close: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-end', minHeight: 40, paddingHorizontal: 8 },
   composer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingTop: 8, gap: 6 },
-  input: { flex: 1, minHeight: 44, maxHeight: 140, borderRadius: 22, paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, fontSize: 16 },
+  input: { flex: 1, minHeight: 44, maxHeight: 140, borderRadius: 22, paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, fontSize: 17 },
   send: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
 });

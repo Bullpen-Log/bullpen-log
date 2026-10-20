@@ -107,7 +107,7 @@ function Flow({ d }: { d: AppRehabDetail }) {
         ))}
         {result.test ? (
           <View style={{ gap: 6 }}>
-            <Text style={{ color: c.muted, fontSize: 13, fontWeight: '700' }}>{d.stage === 4 ? '투구 복귀표 열기 시험' : '단계 시험'}</Text>
+            <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>{d.stage === 4 ? '투구 복귀표 열기 시험' : '단계 시험'}</Text>
             <JudgedBox pass={result.test.pass} fails={result.test.fails} c={c} />
           </View>
         ) : null}

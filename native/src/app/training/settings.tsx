@@ -83,7 +83,7 @@ function Body({ initial }: { initial: Extract<Loaded, { ok: true }> }) {
 
 const st = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '700' },
-  hint: { fontSize: 14, lineHeight: 20 },
+  hint: { fontSize: 15, lineHeight: 20 },
   group: { borderRadius: 14, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, minHeight: 56 },
   rowTitle: { fontSize: 17, fontWeight: '600' },

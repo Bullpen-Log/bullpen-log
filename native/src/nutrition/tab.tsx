@@ -230,13 +230,13 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           <View style={styles.todayTop}>
             <KcalRing share={share} over={over} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ color: c.muted, fontSize: 12 }}>{!isToday ? '이날 먹은 열량' : over ? '목표보다 더 먹었어요' : '남은 열량'}</Text>
+              <Text style={{ color: c.muted, fontSize: 13 }}>{!isToday ? '이날 먹은 열량' : over ? '목표보다 더 먹었어요' : '남은 열량'}</Text>
               <Text style={{ color: over && isToday ? c.warn : c.ink, fontSize: 30, fontWeight: '700', fontVariant: ['tabular-nums'], letterSpacing: -0.5 }}>
                 {/* 웹 TodayCard 와 같이 올라가며 나타남(from 0.7) */}
                 <CountUp value={round(isToday ? Math.abs(left) : eaten.kcal)} from={0.7} />
-                <Text style={{ color: c.muted, fontSize: 14, fontWeight: '600' }}> kcal</Text>
+                <Text style={{ color: c.muted, fontSize: 15, fontWeight: '400' }}> kcal</Text>
               </Text>
-              <Text style={{ color: c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>
+              <Text style={{ color: c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>
                 {round(eaten.kcal).toLocaleString('ko-KR')} / {round(t.kcal).toLocaleString('ko-KR')}kcal
                 {t.burn > 0 ? <Text style={{ color: c.sky }}> · 운동 +{round(t.burn).toLocaleString('ko-KR')} 포함</Text> : null}
                 {day?.adjust ? ` · 체중 조정 ${day.adjust > 0 ? '+' : '−'}${Math.abs(round(day.adjust)).toLocaleString('ko-KR')}` : ''}
@@ -257,9 +257,9 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
             ] as const).map(([key, label, got, goal]) => (
               <View key={label} style={{ flex: 1, gap: 6 }}>
                 <View>
-                  <Text style={{ color: c.muted, fontSize: 12 }}>{label}</Text>
-                  <Text style={{ color: c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>
-                    <Text style={{ color: c.ink, fontSize: 14, fontWeight: '600' }}>{round(got)}</Text>
+                  <Text style={{ color: c.muted, fontSize: 13 }}>{label}</Text>
+                  <Text style={{ color: c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>
+                    <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{round(got)}</Text>
                     {/* 정보가 빠진 음식이 있으면 '+' — 적어도 이만큼, 실제로는 더 먹었다(뜻은 카드 밑 한 줄) */}
                     {gaps[key] > 0 ? (
                       <Text accessibilityLabel="이상, 정보가 없는 음식이 있어 실제로는 더 먹었어요" style={{ color: c.warn, fontWeight: '600' }}>
@@ -280,24 +280,24 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           ) : null}
           {isToday && day?.guide ? <GuideBlock guide={day.guide} /> : null}
           {gaps.foods > 0 ? (
-            <Text style={{ color: c.muted, fontSize: 12 }}>
+            <Text style={{ color: c.muted, fontSize: 13 }}>
               {gapNames(gaps)} 정보가 없는 음식이 {gaps.foods}개라, <Text style={{ color: c.warn, fontWeight: '600' }}>+</Text> 표시한 양은 실제보다 적게 잡혔어요.
             </Text>
           ) : null}
           {nudge ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 8 }}>
-              <Text style={{ color: c.muted, fontSize: 12 }}>체중 흐름을 보고 목표를 조금 바꿔 볼까요?</Text>
+              <Text style={{ color: c.muted, fontSize: 13 }}>체중 흐름을 보고 목표를 조금 바꿔 볼까요?</Text>
               <Press
                 accessibilityRole="button"
                 onPress={() => router.push({ pathname: '/nutrition/stats' as Href as never, params: { date } })}
                 style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 4 }}
               >
-                <Text style={{ color: c.skyStrong, fontSize: 12, fontWeight: '600' }}>보기</Text>
+                <Text style={{ color: c.skyStrong, fontSize: 13, fontWeight: '600' }}>보기</Text>
               </Press>
             </View>
           ) : null}
           {day?.hasProfile && day.assumed?.length ? (
-            <Text style={{ color: c.muted, fontSize: 12 }}>
+            <Text style={{ color: c.muted, fontSize: 13 }}>
               내 정보에 {day.assumed.map((a) => ASSUMED[a] ?? a).join(' · ')}{withObject(day.assumed.map((a) => ASSUMED[a] ?? a).at(-1) ?? '')} 넣으면 목표가 더 정확해져요.
             </Text>
           ) : null}
@@ -350,7 +350,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                     style={styles.mealLine}
                   >
                     <Text style={[styles.mealTitle, { color: c.ink }]}>{meal.label}</Text>
-                    <Text numberOfLines={1} style={{ flex: 1, textAlign: 'right', color: p?.done ? c.ok : c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>
+                    <Text numberOfLines={1} style={{ flex: 1, textAlign: 'right', color: p?.done ? c.ok : c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>
                       {list.length ? `${kcalText(kcal)} · 단백질 ${protein}${p?.unknown ? '+' : ''}g` : `식단 ${planned.length}가지`}
                     </Text>
                     <View style={{ transform: [{ rotate: shown ? '180deg' : '0deg' }] }}>
@@ -363,7 +363,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                     <View style={{ flex: 1 }} />
                     <Press accessibilityRole="button" accessibilityLabel={`${meal.label}에 음식 담기`} onPress={add} style={styles.addBtn}>
                       <Icon name="plus" size={16} color={c.sky} />
-                      <Text style={{ color: c.sky, fontSize: 15, fontWeight: '500' }}>담기</Text>
+                      <Text style={{ color: c.sky, fontSize: 15, fontWeight: '400' }}>담기</Text>
                     </Press>
                   </View>
                 )}
@@ -372,7 +372,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                     <View style={styles.mealHead}>
                       <View style={{ flex: 1, gap: 4 }}>
                         {list.length ? (
-                          <Text style={{ color: p?.done ? c.ok : c.muted, fontSize: 12, fontWeight: p?.done ? '600' : '400', fontVariant: ['tabular-nums'] }}>
+                          <Text style={{ color: p?.done ? c.ok : c.muted, fontSize: 13, fontWeight: p?.done ? '600' : '400', fontVariant: ['tabular-nums'] }}>
                             {kcalText(kcal)} · {p?.done ? '✓ ' : ''}단백질 {protein}
                             {p?.unknown ? '+' : ''}
                             {p?.goal != null ? ` / 목표 ${p.goal}` : ''}g
@@ -387,7 +387,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                       {isEditing ? (
                         <>
                           <Press accessibilityRole="button" onPress={() => (setEditing(null), setDrafts({}))} style={styles.textBtn}>
-                            <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>취소</Text>
+                            <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>취소</Text>
                           </Press>
                           <Press accessibilityRole="button" onPress={() => finishEdit(list)} style={styles.textBtn}>
                             <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>완료</Text>
@@ -402,11 +402,11 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                             onPress={() => startEdit(meal.key)}
                             style={[styles.textBtn, list.length === 0 && { opacity: 0.4 }]}
                           >
-                            <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>편집</Text>
+                            <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>편집</Text>
                           </Press>
                           <Press accessibilityRole="button" accessibilityLabel={`${meal.label}에 음식 담기`} onPress={add} style={styles.addBtn}>
                             <Icon name="plus" size={16} color={c.sky} />
-                            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '500' }}>담기</Text>
+                            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '400' }}>담기</Text>
                           </Press>
                         </>
                       )}
@@ -443,7 +443,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                     ) : null}
                     {isEditing ? (
                       <View style={styles.editFoot}>
-                        <Text style={{ flex: 1, color: c.muted, fontSize: 12 }}>고친 것은 완료를 누르면 한 번에 저장돼요</Text>
+                        <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>고친 것은 완료를 누르면 한 번에 저장돼요</Text>
                         <Press
                           accessibilityRole="button"
                           onPress={() =>
@@ -455,12 +455,12 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                           }
                           style={styles.textBtn}
                         >
-                          <Text style={{ color: allRemoved ? c.sky : c.danger, fontSize: 12, fontWeight: '500' }}>{allRemoved ? '모두 되살리기' : '모두 지우기'}</Text>
+                          <Text style={{ color: allRemoved ? c.sky : c.danger, fontSize: 13, fontWeight: '400' }}>{allRemoved ? '모두 되살리기' : '모두 지우기'}</Text>
                         </Press>
                       </View>
                     ) : null}
                     {p?.tip && !isEditing ? (
-                      <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>
+                      <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>
                         단백질 <Text style={{ color: c.ink, fontWeight: '600' }}>{p.short}g</Text> 모자라요 · {p.tip.label}(+{p.tip.protein}g)이면{' '}
                         {p.tip.covers ? '채워요' : '거의 채워요'}
                       </Text>
@@ -510,7 +510,7 @@ function KcalRing({ share, over }: { share: number; over: boolean }) {
           />
         ) : null}
       </Svg>
-      <Text style={{ color: c.ink, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{share}%</Text>
+      <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] }}>{share}%</Text>
     </View>
   );
 }
@@ -524,14 +524,14 @@ function GuideBlock({ guide }: { guide: NonNullable<NonNullable<ReturnType<typeo
     <View style={[styles.guide, { borderTopColor: c.line }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Text style={[styles.badge, { color: c.skyStrong, backgroundColor: c.skyTint }]}>{guide.badge}</Text>
-        <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '700' }}>{guide.title}</Text>
+        <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '600' }}>{guide.title}</Text>
       </View>
       {guide.lines[0] ? <Text style={{ color: c.ink, fontSize: 15, lineHeight: 22 }}>{guide.lines[0]}</Text> : null}
-      {more ? rest.map((l, i) => <Text key={i} style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>· {l}</Text>) : null}
-      {more && guide.hint ? <Text style={{ color: c.muted, fontSize: 12 }}>{guide.hint}</Text> : null}
+      {more ? rest.map((l, i) => <Text key={i} style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>· {l}</Text>) : null}
+      {more && guide.hint ? <Text style={{ color: c.muted, fontSize: 13 }}>{guide.hint}</Text> : null}
       {rest.length || guide.hint ? (
         <Press accessibilityRole="button" onPress={() => setMore((v) => !v)} style={styles.moreBtn}>
-          <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600' }}>{more ? '접기' : '더 보기'}</Text>
+          <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>{more ? '접기' : '더 보기'}</Text>
         </Press>
       ) : null}
     </View>
@@ -589,15 +589,15 @@ function PlanCard({
   const openPrefs = () => router.push({ pathname: '/nutrition/stats' as Href as never, params: { date, goal: '1', tab: 'diet' } });
   const stateLine = state ? (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6 }}>
-      {state.length ? <Text style={{ color: c.muted, fontSize: 12 }}>{state.join(' · ')}</Text> : null}
+      {state.length ? <Text style={{ color: c.muted, fontSize: 13 }}>{state.join(' · ')}</Text> : null}
       <Press accessibilityRole="button" onPress={openPrefs} hitSlop={10}>
-        <Text style={{ color: c.skyStrong, fontSize: 12, fontWeight: '600' }}>취향 바꾸기</Text>
+        <Text style={{ color: c.skyStrong, fontSize: 13, fontWeight: '600' }}>취향 바꾸기</Text>
       </Press>
     </View>
   ) : null;
   const envChips = (
     <>
-      <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>오늘 훈련 장소</Text>
+      <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>오늘 훈련 장소</Text>
       <View style={styles.grid}>
         {PLAN_PLACES.map((p) => chip(p.key, p.label, place === p.key, () => setPlace(p.key)))}
         {chip('hot', '더운 날 야외', hot, () => setHot((h) => !h))}
@@ -616,8 +616,8 @@ function PlanCard({
       <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float, gap: 8 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>오늘 식단</Text>
-            <Text style={{ color: c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>
+            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>오늘 식단</Text>
+            <Text style={{ color: c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>
               {left.length > 0 ? `남은 계획 ${kcalText(total.kcal)} · 단백질 ${Math.round(total.protein)}g · ${left.length}가지` : '계획한 것을 다 먹었어요'}
             </Text>
           </View>
@@ -628,7 +628,7 @@ function PlanCard({
             style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40, paddingHorizontal: 8, opacity: busy ? 0.6 : 1 }}
           >
             <Icon name="refresh-cw" size={14} color={c.sky} />
-            <Text style={{ color: c.sky, fontSize: 12, fontWeight: '600' }}>다른 식단으로</Text>
+            <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>다른 식단으로</Text>
           </Press>
           <Press
             accessibilityRole="button"
@@ -646,7 +646,7 @@ function PlanCard({
           <Animated.View entering={fadeIn} style={{ gap: 12 }}>
             <View style={{ gap: 4 }}>
               {[...plan.context.reasons, ...(childNote ? ['성장기에는 단백질이 목표보다 조금 많아도 괜찮아요. 밥 · 반찬을 골고루 먹는 것이 먼저예요.'] : [])].map((r, i) => (
-                <Text key={i} style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>
+                <Text key={i} style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>
                   <Text style={{ color: c.sky }}>· </Text>
                   {r}
                 </Text>
@@ -664,7 +664,7 @@ function PlanCard({
                 <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>이 조건으로 다시 짜기</Text>
               </Press>
               <Press accessibilityRole="button" onPress={openPrefs} style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 8 }}>
-                <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '500' }}>취향 바꾸기</Text>
+                <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '400' }}>취향 바꾸기</Text>
               </Press>
               <Press
                 accessibilityRole="button"
@@ -678,10 +678,10 @@ function PlanCard({
                 style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40, paddingHorizontal: 8, opacity: busy ? 0.6 : 1 }}
               >
                 <Icon name="trash2" size={16} color={c.danger} />
-                <Text style={{ color: c.danger, fontSize: 15, fontWeight: '500' }}>식단 지우기</Text>
+                <Text style={{ color: c.danger, fontSize: 15, fontWeight: '400' }}>식단 지우기</Text>
               </Press>
             </View>
-            <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>
+            <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>
               안 먹은 계획은 먹은 칼로리에 안 들어가요. 끼니 칸의 동그라미를 누르면 먹은 것으로 기록돼요.
             </Text>
           </Animated.View>
@@ -693,8 +693,8 @@ function PlanCard({
     <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((v) => !v)} style={styles.planHead}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>오늘 식단 짜기</Text>
-          <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>
+          <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>오늘 식단 짜기</Text>
+          <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>
             {kcalText(kcal)} · 단백질 {Math.round(protein)}g에 맞춰, 오늘 상태와 취향대로 짜요.
           </Text>
         </View>
@@ -751,7 +751,7 @@ function PlanRows({
               식단 · {p.name}
             </Text>
           </Press>
-          <Text style={{ color: c.muted, fontSize: 14 }}>
+          <Text style={{ color: c.muted, fontSize: 15 }}>
             {p.amount !== 1 ? `${amountText(p.amount)} · ` : ''}
             {kcalText(p.kcal * p.amount)}
           </Text>
@@ -759,7 +759,7 @@ function PlanRows({
       ))}
       {items.length > 1 ? (
         <Press accessibilityRole="button" disabled={busy} onPress={() => onEat(items.map((p) => p.key))} style={{ minHeight: 36, justifyContent: 'center' }}>
-          <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>모두 먹었어요</Text>
+          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>모두 먹었어요</Text>
         </Press>
       ) : null}
     </View>
@@ -788,7 +788,7 @@ function EntryRow({ entry, onPress }: { entry: MealEntryView; onPress: () => voi
       </Text>
       <Text style={{ color: c.ink, fontSize: 15, fontVariant: ['tabular-nums'], opacity: saving ? 0.5 : 1 }}>
         {round(m.kcal).toLocaleString('ko-KR')}
-        <Text style={{ color: c.muted, fontSize: 12 }}> kcal</Text>
+        <Text style={{ color: c.muted, fontSize: 13 }}> kcal</Text>
       </Text>
     </Press>
   );
@@ -841,7 +841,7 @@ function EditRow({
       </Press>
       {draft.remove ? (
         <Press accessibilityRole="button" onPress={() => onChange({ ...draft, remove: false })} style={styles.textBtn}>
-          <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>되살리기</Text>
+          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>되살리기</Text>
         </Press>
       ) : (
         <>
@@ -879,7 +879,7 @@ const styles = StyleSheet.create({
   macroTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
   headline: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, fontSize: 15, lineHeight: 21, fontWeight: '600' },
   guide: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 6 },
-  badge: { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, overflow: 'hidden' },
+  badge: { fontSize: 11, fontWeight: '600', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, overflow: 'hidden' },
   moreBtn: { alignSelf: 'flex-start', minHeight: 36, justifyContent: 'center' },
   mealsCard: { borderRadius: 20, overflow: 'hidden' },
   mealRow: { paddingHorizontal: 16, paddingVertical: 8, gap: 6 },
@@ -890,7 +890,7 @@ const styles = StyleSheet.create({
   gridCell: { width: '33.333%', paddingHorizontal: 4 },
   gridChip: { flexDirection: 'row', gap: 4, minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   chip: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
-  chipText: { fontSize: 14, fontWeight: '600' },
+  chipText: { fontSize: 15, fontWeight: '600' },
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: -8 },
   arrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   arrowText: { fontSize: 28 },
@@ -902,7 +902,7 @@ const styles = StyleSheet.create({
   track: { height: 8, borderRadius: 4, overflow: 'hidden' },
   fill: { height: 8, borderRadius: 4 },
   mealHead: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 40 },
-  mealTitle: { fontSize: 15, fontWeight: '700' },
+  mealTitle: { fontSize: 15, fontWeight: '600' },
   add: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
   addText: { fontSize: 15, fontWeight: '600' },
   entry: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },

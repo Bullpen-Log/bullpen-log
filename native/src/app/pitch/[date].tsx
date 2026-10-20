@@ -153,12 +153,12 @@ export default function PitchDayScreen() {
                           ) : l.maxVelocity != null ? (
                             <>
                               {round1(toSpeed(l.maxVelocity, speed))}
-                              <Text style={{ fontSize: 14, color: c.muted, fontWeight: '500' }}> {speedLabel(speed)} 최고</Text>
+                              <Text style={{ fontSize: 15, color: c.muted, fontWeight: '400' }}> {speedLabel(speed)} 최고</Text>
                             </>
                           ) : (
                             <>
                               {l.pitchCount}
-                              <Text style={{ fontSize: 14, color: c.muted, fontWeight: '500' }}> 구</Text>
+                              <Text style={{ fontSize: 15, color: c.muted, fontWeight: '400' }}> 구</Text>
                             </>
                           )}
                         </Text>
@@ -191,10 +191,10 @@ export default function PitchDayScreen() {
                     {/* 그날의 느낀점 — 영상보다 위(다시 여는 까닭은 대개 '그날 뭐라고 적었더라'), 남긴 것이 없으면 그리지 않는다 */}
                     {l.memo || cues.length ? (
                       <View style={[styles.feel, { backgroundColor: c.skyTint }]}>
-                        <Text style={{ color: c.sky, fontSize: 12, fontWeight: '500' }}>그날의 느낀점</Text>
+                        <Text style={{ color: c.sky, fontSize: 13, fontWeight: '400' }}>그날의 느낀점</Text>
                         {l.memo ? <Text style={[styles.memo, { color: c.ink }]}>{l.memo}</Text> : null}
                         {cues.map(([title, list]) => (
-                          <Text key={title} style={{ color: c.muted, fontSize: 12 }}>
+                          <Text key={title} style={{ color: c.muted, fontSize: 13 }}>
                             {title} <Text style={{ color: c.ink }}>{list.join(' · ')}</Text>
                           </Text>
                         ))}
@@ -202,7 +202,7 @@ export default function PitchDayScreen() {
                     ) : null}
                     {l.videoPaths.map((p, i) => (
                       <View key={p} style={{ gap: 6 }}>
-                        {l.videoPaths.length > 1 ? <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>영상 {i + 1}</Text> : null}
+                        {l.videoPaths.length > 1 ? <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>영상 {i + 1}</Text> : null}
                         <PitchVideo path={p} tools />
                       </View>
                     ))}
@@ -219,7 +219,7 @@ export default function PitchDayScreen() {
                     <Text style={[styles.formTitle, { color: c.ink }]}>{day.length > 0 ? '기록 추가' : '이날 기록하기'}</Text>
                     {day.length > 0 ? (
                       <Press accessibilityRole="button" onPress={() => setFormOpen(false)} style={styles.formCancel}>
-                        <Text style={{ color: c.muted, fontSize: 12 }}>취소</Text>
+                        <Text style={{ color: c.muted, fontSize: 13 }}>취소</Text>
                       </Press>
                     ) : null}
                   </View>
@@ -228,7 +228,7 @@ export default function PitchDayScreen() {
               ) : (
                 <Press accessibilityRole="button" onPress={() => setFormOpen(true)} style={[styles.add, { backgroundColor: c.skyTint }]}>
                   <Icon name="plus" size={16} color={c.skyStrong} />
-                  <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '500' }}>이 날짜에 기록 추가</Text>
+                  <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '400' }}>이 날짜에 기록 추가</Text>
                 </Press>
               )}
             </>
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
 
 /** 배지 — 웹 Badge(휴대폰: 옅은 회색 면 · 작은 회색 글자). strong 은 종류(하늘 면 · 짙은 하늘 글자) */
 function Badge({ c, strong, children }: { c: Palette; strong?: boolean; children: React.ReactNode }) {
-  const text: TextStyle = { color: strong ? c.skyStrong : c.muted, fontSize: 12, fontWeight: strong ? '600' : '400' };
+  const text: TextStyle = { color: strong ? c.skyStrong : c.muted, fontSize: 13, fontWeight: strong ? '600' : '400' };
   return (
     <View style={{ backgroundColor: strong ? c.skyTint : withAlpha(c.ink, 0.06), borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 }}>
       <Text style={text}>{children}</Text>
@@ -282,11 +282,11 @@ function NutritionNote({ c, line }: { c: Palette; line: { title: string; text: s
     >
       <Icon name="utensils" size={16} color={c.sky} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ color: c.muted, fontSize: 12 }}>{line.title}</Text>
+        <Text style={{ color: c.muted, fontSize: 13 }}>{line.title}</Text>
         <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{line.text}</Text>
-        {line.example ? <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{line.example}</Text> : null}
+        {line.example ? <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>{line.example}</Text> : null}
       </View>
-      <Text style={{ color: c.sky, fontSize: 12, fontWeight: '600' }}>자세히 ›</Text>
+      <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>자세히 ›</Text>
     </Press>
   );
 }
@@ -308,17 +308,17 @@ function ArmChip({ c, status }: { c: Palette; status: { level: 'danger' | 'cauti
         style={[styles.armChip, { backgroundColor: box[0], borderColor: box[1] }]}
       >
         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: tone }} />
-        <Text style={{ color: tone, fontSize: 12, fontWeight: '700' }}>팔 {word}</Text>
-        <Text numberOfLines={1} style={{ flex: 1, color: c.ink, fontSize: 12 }}>{short}</Text>
+        <Text style={{ color: tone, fontSize: 13, fontWeight: '600' }}>팔 {word}</Text>
+        <Text numberOfLines={1} style={{ flex: 1, color: c.ink, fontSize: 13 }}>{short}</Text>
         <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
           <Icon name="chevron-down" size={14} color={c.muted} />
         </View>
       </Press>
       {open ? (
         <Animated.View entering={fadeIn} style={{ gap: 2, paddingHorizontal: 12, paddingTop: 8 }}>
-          <Text style={{ color: c.ink, fontSize: 12, fontWeight: '600', lineHeight: 18 }}>{status.headline}</Text>
+          <Text style={{ color: c.ink, fontSize: 13, fontWeight: '600', lineHeight: 18 }}>{status.headline}</Text>
           {status.details.map((d) => (
-            <Text key={d} style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{d}</Text>
+            <Text key={d} style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>{d}</Text>
           ))}
         </Animated.View>
       ) : null}

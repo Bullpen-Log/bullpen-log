@@ -102,7 +102,7 @@ export function DayCards({
     vday && vday.n > 0 ? (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Icon name="camera" size={14} color={c.sky} />
-        <Text style={{ flex: 1, color: c.muted, fontSize: 12 }}>
+        <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>
           카메라로 잰 공 {vday.n}구 · 최고 {formatSpeed(vday.max, speed)}
           {vday.clips > 0 ? ` · 영상 ${vday.clips}개는 그날 화면에서 봐요` : ''}
         </Text>
@@ -133,7 +133,7 @@ export function DayCards({
       <Animated.View key={`s-${date}`} entering={cardIn} layout={layoutMove} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
         <View style={styles.head}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: c.sky, fontSize: 12, fontWeight: '600' }}>{agoText(date, today)}</Text>
+            <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{agoText(date, today)}</Text>
             <Text accessibilityRole="header" style={[TYPE.heading, { color: c.ink, fontSize: 18, marginTop: 2 }]}>
               {spokenDay(date)}
             </Text>
@@ -168,7 +168,7 @@ export function DayCards({
                     <Icon name={t.icon} size={24} color={on ? c.card : c.muted} />
                     {t.key === 'checkin' && pain ? <View style={[styles.warnDot, { backgroundColor: c.danger, borderColor: c.card }]} /> : null}
                   </View>
-                  <Text style={{ fontSize: 12, letterSpacing: -0.3, color: sel || on ? c.ink : c.muted, fontWeight: sel ? '700' : on ? '600' : '500' }} numberOfLines={1}>
+                  <Text style={{ fontSize: 13, letterSpacing: -0.3, color: sel || on ? c.ink : c.muted, fontWeight: sel ? '700' : on ? '600' : '500' }} numberOfLines={1}>
                     {t.label}
                   </Text>
                 </Press>
@@ -181,19 +181,19 @@ export function DayCards({
       {/* 자세히 카드 */}
       <Animated.View key={`d-${date}`} entering={cardIn} layout={layoutMove} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float, marginTop: 16 }]}>
         <View style={[styles.detailHead, { borderBottomColor: c.line }]}>
-          <Text style={{ color: c.ink, fontSize: 14, fontWeight: '700' }}>
+          <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>
             {spokenDay(date)}
             <Text style={{ color: c.muted, fontWeight: '400' }}> · {TITLES[focus]}</Text>
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
             {!ahead && focus !== 'schedule' ? (
               <Press accessibilityRole="link" onPress={() => router.push(`/analysis?view=${focus === 'training' ? 'training' : 'pitch'}&date=${date}` as Href)} style={styles.headLink}>
-                <Text style={{ color: c.muted, fontSize: 14, fontWeight: '500' }}>그날 분석</Text>
+                <Text style={{ color: c.muted, fontSize: 15, fontWeight: '400' }}>그날 분석</Text>
               </Press>
             ) : null}
             {link ? (
               <Press accessibilityRole="link" onPress={() => go(link.href, onTab)} style={[styles.headLink, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
-                <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>{link.label}</Text>
+                <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{link.label}</Text>
                 <Icon name="chevron-right" size={14} color={c.sky} />
               </Press>
             ) : null}
@@ -218,7 +218,7 @@ export function DayCards({
                   const rest = isRestSession(l.sessionType);
                   return (
                     <Animated.View key={l.id} entering={rowIn(i)} style={[styles.box, { backgroundColor: c.page }]}>
-                      <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>{rest ? '쉬는 날' : `${l.sessionType} · ${l.pitchCount}구`}</Text>
+                      <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{rest ? '쉬는 날' : `${l.sessionType} · ${l.pitchCount}구`}</Text>
                       {!rest ? (
                         <View style={styles.facts}>
                           <Fact c={c} label="강도" value={effortText({ intensity: l.intensity ?? 0, effortPct: l.effortPct }) ?? '—'} />
@@ -230,7 +230,7 @@ export function DayCards({
                       {l.videoPaths.length ? (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
                           <Icon name="film" size={14} color={c.muted} />
-                          <Text style={{ color: c.muted, fontSize: 12 }}>영상 {l.videoPaths.length}개 · 영상 아이콘을 누르면 봐요</Text>
+                          <Text style={{ color: c.muted, fontSize: 13 }}>영상 {l.videoPaths.length}개 · 영상 아이콘을 누르면 봐요</Text>
                         </View>
                       ) : null}
                     </Animated.View>
@@ -251,11 +251,11 @@ export function DayCards({
                   return ordered.slice(0, 2).map((p, i) => (
                     <View key={p} style={{ gap: 6 }}>
                       <PitchVideo path={p} />
-                      <Text style={{ color: c.muted, fontSize: 12 }}>{i === 0 && pick === p ? '대표 영상' : `영상 ${i + 1}`}</Text>
+                      <Text style={{ color: c.muted, fontSize: 13 }}>{i === 0 && pick === p ? '대표 영상' : `영상 ${i + 1}`}</Text>
                     </View>
                   ));
                 })()}
-                {videos > 2 ? <Text style={{ color: c.muted, fontSize: 12 }}>외 {videos - 2}개는 투구 기록에서 볼 수 있어요.</Text> : null}
+                {videos > 2 ? <Text style={{ color: c.muted, fontSize: 13 }}>외 {videos - 2}개는 투구 기록에서 볼 수 있어요.</Text> : null}
                   </View>
                 ) : null}
                 {vday?.clips ? <VelocityClips date={date} /> : null}
@@ -328,14 +328,14 @@ function TrainingDetail({ d, c }: { d: DayDetail; c: Palette }) {
               <Text style={{ color: e.done ? c.ink : c.muted, fontSize: 15 }} numberOfLines={1}>
                 {e.title}
               </Text>
-              <Text style={{ color: c.muted, fontSize: 12 }} numberOfLines={1}>
+              <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
                 {doneText(e)}
               </Text>
             </View>
           </Animated.View>
         ))}
       </View>
-      {t.exercises.length > shown.length ? <Text style={{ color: c.muted, fontSize: 12 }}>외 {t.exercises.length - shown.length}개는 트레이닝에서 볼 수 있어요.</Text> : null}
+      {t.exercises.length > shown.length ? <Text style={{ color: c.muted, fontSize: 13 }}>외 {t.exercises.length - shown.length}개는 트레이닝에서 볼 수 있어요.</Text> : null}
       {t.memo?.trim() ? <Memo c={c} text={t.memo} /> : null}
     </View>
   );
@@ -373,7 +373,7 @@ function NutritionDetail({ d, c }: { d: DayDetail; c: Palette }) {
             <View key={m.key} style={{ flex: 1, gap: 4 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <Text style={{ color: c.muted, fontSize: 11 }}>{m.label}</Text>
-                <Text style={{ color: c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>
+                <Text style={{ color: c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>
                   <Text style={{ color: c.ink, fontWeight: '600' }}>{Math.round(n[m.key])}</Text>/{Math.round(n.target[m.key])}g
                 </Text>
               </View>
@@ -387,9 +387,9 @@ function NutritionDetail({ d, c }: { d: DayDetail; c: Palette }) {
       <View style={[styles.meals, { borderColor: c.line }]}>
         {n.meals.map((m, i) => (
           <Animated.View key={m.meal} entering={rowIn(i)} style={[styles.meal, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
-            <Text style={{ width: 32, color: c.muted, fontSize: 12, fontWeight: '600' }}>{m.label}</Text>
+            <Text style={{ width: 32, color: c.muted, fontSize: 13, fontWeight: '400' }}>{m.label}</Text>
             <Text style={{ flex: 1, color: c.ink, fontSize: 13 }}>{m.items.map((it) => `${it.name}${it.amount === '1인분' ? '' : ` ${it.amount}`}`).join(', ')}</Text>
-            <Text style={{ color: c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>{Math.round(m.kcal).toLocaleString('ko-KR')}kcal</Text>
+            <Text style={{ color: c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>{Math.round(m.kcal).toLocaleString('ko-KR')}kcal</Text>
           </Animated.View>
         ))}
       </View>
@@ -422,7 +422,7 @@ function CheckinDetail({ d, c, isToday }: { d: DayDetail; c: Palette; isToday: b
           const t = tone(p.value);
           return (
             <View key={p.label} style={{ backgroundColor: t.bg, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 }}>
-              <Text style={{ color: t.fg, fontSize: 12, fontWeight: '500' }}>
+              <Text style={{ color: t.fg, fontSize: 13, fontWeight: '400' }}>
                 {p.label} {p.value}
               </Text>
             </View>

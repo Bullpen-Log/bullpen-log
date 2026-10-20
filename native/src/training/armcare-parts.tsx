@@ -547,7 +547,7 @@ export const AREAS_BY_JOINT = (['어깨', '팔꿈치'] as const).map((joint) => 
 }));
 
 const st = StyleSheet.create({
-  areaBody: { fontSize: 14, lineHeight: 21 },
+  areaBody: { fontSize: 15, lineHeight: 21 },
   row: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   rowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingHorizontal: 12, paddingVertical: 12 },
   checkHit: { width: 32, height: 44, marginTop: -8, marginLeft: -4, alignItems: 'center', justifyContent: 'center' },

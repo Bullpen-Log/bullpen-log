@@ -340,8 +340,8 @@ export function ComparePickBar({ bottom }: { bottom: number }) {
           const p = picked[i];
           return (
             <View key={i} style={[styles.slotChip, p ? { borderColor: c.sky, backgroundColor: c.skyTint } : { borderColor: c.line, borderStyle: 'dashed' }]}>
-              <Text style={{ color: p ? c.skyStrong : c.muted, fontSize: 12, fontWeight: '700' }}>{i === 0 ? 'A' : 'B'}</Text>
-              <Text numberOfLines={1} style={{ flexShrink: 1, color: p ? c.skyStrong : c.muted, fontSize: 12 }}>
+              <Text style={{ color: p ? c.skyStrong : c.muted, fontSize: 13, fontWeight: '600' }}>{i === 0 ? 'A' : 'B'}</Text>
+              <Text numberOfLines={1} style={{ flexShrink: 1, color: p ? c.skyStrong : c.muted, fontSize: 13 }}>
                 {p ? spokenDate(p.date) : '비어 있음'}
               </Text>
               {p ? (
@@ -372,7 +372,7 @@ export function ComparePickBar({ bottom }: { bottom: number }) {
           }}
           style={[styles.compareBtn, { backgroundColor: ready ? c.sky : c.lineStrong }]}
         >
-          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{ready ? '비교하기' : '두 개를 고르세요'}</Text>
+          <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{ready ? '비교하기' : '두 개를 고르세요'}</Text>
         </Press>
       </Animated.View>
     </View>
@@ -406,16 +406,16 @@ function ClipThumb({ clip, url }: { clip: Clip; url: Thumb | undefined }) {
 const styles = StyleSheet.create({
   star: { width: 40, height: 40, marginRight: 8, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headText: { flex: 1, fontSize: 15, fontWeight: '700' },
+  headText: { flex: 1, fontSize: 15, fontWeight: '600' },
   sort: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, borderRadius: 18, paddingLeft: 12, paddingRight: 10 },
-  sortText: { fontSize: 13, fontWeight: '500' },
+  sortText: { fontSize: 13, fontWeight: '400' },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, borderRadius: 18, paddingHorizontal: 14 },
-  chipText: { fontSize: 13, fontWeight: '500' },
+  chipText: { fontSize: 13, fontWeight: '400' },
   chipCount: { fontSize: 13 },
   empty: { borderRadius: 20, paddingVertical: 32, paddingHorizontal: 16, textAlign: 'center', fontSize: 15, overflow: 'hidden' },
   month: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   monthHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, minHeight: 48 },
-  monthTitle: { fontSize: 15, fontWeight: '700' },
+  monthTitle: { fontSize: 15, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingHorizontal: 20, paddingVertical: 10 },
   slot: { position: 'absolute', left: 4, top: 4, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   slotText: { color: '#fff', fontSize: 11, fontWeight: '800' },

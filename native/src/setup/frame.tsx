@@ -48,14 +48,14 @@ export function StepFrame({
         </View>
         {children}
         {problem ? (
-          <Text accessibilityLiveRegion="polite" style={{ color: c.danger, fontSize: 14, fontWeight: '600' }}>
+          <Text accessibilityLiveRegion="polite" style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>
             {problem}
           </Text>
         ) : null}
       </ScrollView>
       <View style={[st.foot, { paddingBottom: Math.max(16, inset.bottom), borderTopColor: c.line, backgroundColor: c.page }]}>
         <Pressable accessibilityRole="button" onPress={back.onPress} disabled={back.disabled} hitSlop={8} style={st.back}>
-          <Text style={{ color: c.muted, fontSize: 16, fontWeight: '600', opacity: back.disabled ? 0.4 : 1 }}>{back.label}</Text>
+          <Text style={{ color: c.muted, fontSize: 17, fontWeight: '600', opacity: back.disabled ? 0.4 : 1 }}>{back.label}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -111,7 +111,7 @@ export function ChoiceChips({
                 { backgroundColor: on ? c.sky : c.card, borderColor: invalid && !on ? c.danger : on ? c.sky : c.line },
               ]}
             >
-              <Text style={{ color: on ? '#fff' : c.ink, fontSize: 16, fontWeight: '600' }}>{o.label}</Text>
+              <Text style={{ color: on ? '#fff' : c.ink, fontSize: 17, fontWeight: '600' }}>{o.label}</Text>
             </Pressable>
           );
         })}

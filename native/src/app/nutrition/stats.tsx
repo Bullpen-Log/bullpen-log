@@ -79,7 +79,7 @@ export default function NutritionStatsScreen() {
         >
           {error ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
           {data.date !== data.today ? (
-            <Text style={{ color: c.muted, fontSize: 14 }}>{dateText(data.date)}까지의 기록이에요.</Text>
+            <Text style={{ color: c.muted, fontSize: 15 }}>{dateText(data.date)}까지의 기록이에요.</Text>
           ) : null}
 
           {/* 온보딩을 안 끝낸 옛 계정 — 웹 첫 설정 화면을 권한다(막지는 않는다, 웹과 같다) */}
@@ -89,7 +89,7 @@ export default function NutritionStatsScreen() {
                 {data.hasProfile ? '새 계획 화면으로 목표를 다시 정해 볼까요?' : '열 가지 질문으로 내 계획을 만들어요.'}
               </Text>
               <Press accessibilityRole="button" onPress={() => router.push('/setup/nutrition' as Href)} style={[st.smallBtn, { backgroundColor: c.sky }]}>
-                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>시작하기</Text>
+                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>시작하기</Text>
               </Press>
             </View>
           ) : null}
@@ -99,7 +99,7 @@ export default function NutritionStatsScreen() {
           <View style={[st.card, { backgroundColor: c.card, boxShadow: c.float }]}>
             <View style={st.cardHead}>
               <Text style={[st.cardTitle, { color: c.ink }]}>최근 7일</Text>
-              <Text style={{ color: c.muted, fontSize: 12 }}>막대 = 먹은 칼로리 · 선 = 그날 목표</Text>
+              <Text style={{ color: c.muted, fontSize: 13 }}>막대 = 먹은 칼로리 · 선 = 그날 목표</Text>
             </View>
             <WeekChart week={data.week} selected={data.date} c={c} />
           </View>
@@ -295,7 +295,7 @@ function WeightCard({
                   }}
                   style={st.ghost}
                 >
-                  <Text style={{ color: c.muted, fontSize: 15, fontWeight: '600' }}>
+                  <Text style={{ color: c.muted, fontSize: 15, fontWeight: '400' }}>
                     {copy.action === 'maintain' ? '새 목표 정하기' : '그대로 둘게요'}
                   </Text>
                 </Press>
@@ -305,10 +305,10 @@ function WeightCard({
         </View>
       ) : null}
       {copy.minor ? <Text style={[st.small, { color: c.muted }]}>{copy.minor}</Text> : null}
-      {error ? <Text style={{ color: c.danger, fontSize: 14 }}>{error}</Text> : null}
+      {error ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
 
       <WeightTrend weights={day.weights} unit={unit} trend={plan.trend} targetKg={plan.targetKg} c={c} />
-      {hasStatus ? <Text style={{ color: c.muted, fontSize: 12, lineHeight: 17 }}>{copy.foot}</Text> : null}
+      {hasStatus ? <Text style={{ color: c.muted, fontSize: 13, lineHeight: 17 }}>{copy.foot}</Text> : null}
     </View>
   );
 }
@@ -359,11 +359,11 @@ function PlanCard({ day, unit, onOpenGoal, c }: { day: Stats; unit: WeightUnit; 
           {parts.length > 0 ? <Text style={[st.small, { color: c.muted }]}>{parts.join(' · ')}</Text> : null}
         </View>
         <Press accessibilityRole="button" onPress={onOpenGoal} style={[st.smallBtn, { backgroundColor: c.chip }]}>
-          <Text style={{ color: c.ink, fontSize: 14, fontWeight: '600' }}>고치기</Text>
+          <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>고치기</Text>
         </Press>
       </View>
       <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={st.link}>
-        <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>{open ? '계산 내역 접기' : '계산 내역 보기'}</Text>
+        <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>{open ? '계산 내역 접기' : '계산 내역 보기'}</Text>
       </Press>
       {open ? (
         <View style={{ gap: 10 }}>
@@ -407,14 +407,14 @@ function PlanCard({ day, unit, onOpenGoal, c }: { day: Stats; unit: WeightUnit; 
 function PlanStat({ label, value, sub, strong, c }: { label: string; value: number; sub: string; strong?: boolean; c: Palette }) {
   return (
     <View style={[st.stat, { backgroundColor: strong ? c.sky + '1a' : c.page }]}>
-      <Text style={{ color: c.muted, fontSize: 12 }} numberOfLines={1}>
+      <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
         {label}
       </Text>
       <Text style={{ color: strong ? c.sky : c.ink, fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
         {kcalText(value)}
-        <Text style={{ color: c.muted, fontSize: 12, fontWeight: '400' }}> kcal</Text>
+        <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}> kcal</Text>
       </Text>
-      <Text style={{ color: c.muted, fontSize: 12 }} numberOfLines={1}>
+      <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
         {sub}
       </Text>
     </View>

@@ -42,7 +42,7 @@ export function BoardList({ back, bottom = 0 }: { back?: string; bottom?: number
           </Text>
           {item.hasLink ? <SymbolView name="paperclip" size={15} tintColor={c.muted} style={{ marginTop: 3 }} /> : null}
         </View>
-        <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }} numberOfLines={2}>
+        <Text style={{ color: c.muted, fontSize: 15, lineHeight: 20 }} numberOfLines={2}>
           {item.preview}
         </Text>
         {item.tags.length > 0 ? (

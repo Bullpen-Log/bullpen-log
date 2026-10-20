@@ -59,7 +59,7 @@ export function CustomFood({
 
   const field = (label: string, value: string, set: (v: string) => void, opts: { numeric?: boolean; placeholder?: string; max?: number } = {}) => (
     <View style={{ gap: 4, flex: 1 }}>
-      <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={opts.numeric ? (t) => set(clean(t)) : set}
@@ -89,7 +89,7 @@ export function CustomFood({
         <Switch value={save} onValueChange={setSave} />
       </View>
       {error ? (
-        <Text accessibilityRole="alert" style={{ color: c.danger, fontSize: 14 }}>
+        <Text accessibilityRole="alert" style={{ color: c.danger, fontSize: 15 }}>
           {error}
         </Text>
       ) : null}

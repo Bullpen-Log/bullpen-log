@@ -86,7 +86,7 @@ function Section({ title, more, children, c }: { title: string; more?: () => voi
         <Text style={[s.groupTitle, { color: c.muted, flex: 1 }]}>{title}</Text>
         {more ? (
           <Press accessibilityRole="button" onPress={more} hitSlop={8} style={{ paddingHorizontal: 16 }}>
-            <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>모두 보기</Text>
+            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>모두 보기</Text>
           </Press>
         ) : null}
       </View>
@@ -115,7 +115,7 @@ function Faq({ c }: { c: Palette }) {
               onPress={() => setOpen(on ? null : it.q)}
               style={styles.q}
             >
-              <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '500' }}>{it.q}</Text>
+              <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '400' }}>{it.q}</Text>
               <SymbolView name={on ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
             </Press>
             {on ? <Text style={{ color: c.muted, fontSize: 15, lineHeight: 22, paddingHorizontal: 16, paddingBottom: 14 }}>{it.a}</Text> : null}

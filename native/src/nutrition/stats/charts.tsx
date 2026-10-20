@@ -58,7 +58,7 @@ export function WeekChart({ week, selected, c }: { week: DaySummary[]; selected:
         {week.map((d) => (
           <Text
             key={d.date}
-            style={{ flex: 1, textAlign: 'center', fontSize: 12, color: d.date === (pick ?? selected) ? c.ink : c.muted, fontWeight: d.date === (pick ?? selected) ? '600' : '400' }}
+            style={{ flex: 1, textAlign: 'center', fontSize: 13, color: d.date === (pick ?? selected) ? c.ink : c.muted, fontWeight: d.date === (pick ?? selected) ? '600' : '400' }}
           >
             {weekday(d.date)}
           </Text>

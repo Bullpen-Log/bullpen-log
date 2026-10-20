@@ -63,12 +63,12 @@ export function ComboRow({ combo, busy, onAdd, onRemove, c }: { combo: MealCombo
             {combo.meal ? `${mealLabel(combo.meal)} · ` : ''}
             {names}
           </Text>
-          <Text style={{ color: c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>{totals}</Text>
+          <Text style={{ color: c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>{totals}</Text>
         </View>
       </Press>
       {confirm ? (
         <Press accessibilityRole="button" onPress={onRemove} style={[st.del, { backgroundColor: withAlpha(c.danger, 0.12) }]}>
-          <Text style={{ color: c.danger, fontSize: 13, fontWeight: '700' }}>지우기</Text>
+          <Text style={{ color: c.danger, fontSize: 13, fontWeight: '600' }}>지우기</Text>
         </Press>
       ) : (
         <Press accessibilityRole="button" accessibilityLabel={`${combo.name} 조합 지우기`} hitSlop={4} onPress={() => setConfirm(true)} style={st.icon}>
@@ -262,7 +262,7 @@ function MfdsBrowse({ category, sub, row, c }: { category: FoodCategory | 'all';
       {items.map((it, i) => (
         <View key={`m${i}`} style={{ gap: 6 }}>
           {category === 'all' && (i === 0 || items[i - 1].category !== it.category) ? (
-            <Text style={{ color: c.ink, fontSize: 13, fontWeight: '700', paddingTop: 6 }}>{it.category}</Text>
+            <Text style={{ color: c.ink, fontSize: 13, fontWeight: '600', paddingTop: 6 }}>{it.category}</Text>
           ) : null}
           {row(it.food, `mb${i}`, true)}
         </View>
@@ -428,10 +428,10 @@ export function PickPanel({
         {cell('단백질', food.protein === null ? null : got.protein, 'g')}
         {cell('지방', food.fat === null ? null : got.fat, 'g')}
       </View>
-      {error ? <Text style={{ color: c.danger, fontSize: 14 }}>{error}</Text> : null}
+      {error ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <Press accessibilityRole="button" onPress={onCancel} style={[st.half, { backgroundColor: c.chip }]}>
-          <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>다른 음식</Text>
+          <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>다른 음식</Text>
         </Press>
         <Press accessibilityRole="button" onPress={onSave} disabled={saving} style={[st.half, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
           <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{saving ? (replacing ? '바꾸는 중' : '담는 중') : replacing ? '바꾸기' : '담기'}</Text>

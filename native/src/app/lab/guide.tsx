@@ -103,7 +103,7 @@ export default function LabGuideScreen() {
             {LAB_GUIDE_POINTS.steps.map((text, i) => (
               <View key={text} style={{ flexDirection: 'row', gap: 12 }}>
                 <View style={{ width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.sky }}>
-                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{i + 1}</Text>
+                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{i + 1}</Text>
                 </View>
                 <Text style={{ flex: 1, color: c.ink, fontSize: 15, lineHeight: 22, paddingTop: 1 }}>{text}</Text>
               </View>
@@ -129,7 +129,7 @@ export default function LabGuideScreen() {
                   <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{V2_FAIL_TEXT[code]}</Text>
                   <Text style={[s.meta, { color: c.muted, lineHeight: 19 }]}>{forHand(fix.fix, hand)}</Text>
                   <Pressable accessibilityRole="link" onPress={() => go(fix.section)} hitSlop={6} style={{ minHeight: 32, justifyContent: 'center' }}>
-                    <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>{LAB_GUIDE_SECTION_NAME[fix.section]} ›</Text>
+                    <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{LAB_GUIDE_SECTION_NAME[fix.section]} ›</Text>
                   </Pressable>
                 </View>
               );
@@ -211,7 +211,7 @@ function Checklist({ hand, c }: { hand: LabHand; c: Palette }) {
         </Text>
         {count > 0 ? (
           <Pressable accessibilityRole="button" onPress={() => save(new Set())} hitSlop={8} style={{ minHeight: 32, justifyContent: 'center' }}>
-            <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>다시</Text>
+            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>다시</Text>
           </Pressable>
         ) : null}
       </View>
@@ -240,7 +240,7 @@ function Tag({ x, y, children, color, align = 'center', c }: { x: number; y: num
         alignItems: align === 'start' ? 'flex-start' : align === 'end' ? 'flex-end' : 'center',
       }}
     >
-      <Text style={{ color, fontSize: 12, fontWeight: '600', backgroundColor: c.card, borderRadius: 10, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 2 }}>{children}</Text>
+      <Text style={{ color, fontSize: 13, fontWeight: '600', backgroundColor: c.card, borderRadius: 10, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 2 }}>{children}</Text>
     </View>
   );
 }
@@ -336,7 +336,7 @@ function FramingArt({ c }: { c: Palette }) {
               <Rect x={2} y={2} width={156} height={86} rx={8} fill="none" stroke={c.muted} strokeWidth={2} />
             </Svg>
           </View>
-          <Text style={{ color: k.ok ? c.ok : c.danger, fontSize: 12, fontWeight: '600', textAlign: 'center' }}>
+          <Text style={{ color: k.ok ? c.ok : c.danger, fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
             {k.ok ? '✓ ' : '! '}
             {k.label}
           </Text>

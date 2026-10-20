@@ -50,7 +50,7 @@ export default function AdminScreen() {
                 <Text style={[s.meta, { color: c.muted }]}>{st.label}</Text>
                 <Text style={{ color: c.ink, fontSize: 26, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
                   {st.value}
-                  <Text style={{ fontSize: 14, color: c.muted, fontWeight: '500' }}> {st.unit}</Text>
+                  <Text style={{ fontSize: 15, color: c.muted, fontWeight: '400' }}> {st.unit}</Text>
                 </Text>
               </View>
             ))}
@@ -101,7 +101,7 @@ function MenuRow({ icon, label, detail, onPress, web, last, c }: { icon: SFSymbo
           <SymbolView name={icon} size={15} tintColor="#fff" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: c.ink, fontSize: 16 }}>{label}</Text>
+          <Text style={{ color: c.ink, fontSize: 17 }}>{label}</Text>
           <Text style={[s.meta, { color: c.muted }]}>{detail}</Text>
         </View>
         {web ? <SymbolView name="arrow.up.right" size={12} tintColor={c.muted} /> : null}
@@ -143,7 +143,7 @@ function UserRow({ u, self, last, reload, c }: { u: Data['users'][number]; self:
   return (
     <Row onPress={self ? undefined : menu} last={last} c={c}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <Text style={{ color: c.ink, fontSize: 16, fontWeight: '700' }}>{u.nickname}</Text>
+        <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>{u.nickname}</Text>
         {u.role === 'ADMIN' ? <Badge text="대표관리자" color={c.sky} c={c} /> : u.role === 'MANAGER' ? <Badge text="준관리자" c={c} /> : null}
         {self ? <Badge text="나" c={c} /> : null}
       </View>

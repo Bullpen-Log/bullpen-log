@@ -173,7 +173,7 @@ export default function LoginScreen() {
             disabled={busy}
             style={({ pressed }) => [st.primary, { backgroundColor: c.sky, opacity: busy ? 0.6 : pressed ? 0.85 : 1 }]}
           >
-            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{busy ? '로그인 중…' : '로그인'}</Text>
+            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{busy ? '로그인 중…' : '로그인'}</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -184,7 +184,7 @@ export default function LoginScreen() {
 function Labeled({ label, c, children }: { label: string; c: Palette; children: React.ReactNode }) {
   return (
     <View style={{ gap: 8 }}>
-      <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>{label}</Text>
+      <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>{label}</Text>
       {children}
     </View>
   );

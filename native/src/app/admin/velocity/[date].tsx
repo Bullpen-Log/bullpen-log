@@ -77,7 +77,7 @@ function PitchRow({ p, open, onToggle, c }: { p: Day['rows'][number]; open: bool
           {p.clipUrl ? (
             <UrlVideo uri={p.clipUrl} />
           ) : (
-            <Text style={{ color: c.muted, fontSize: 14, textAlign: 'center', paddingVertical: 20 }}>이 공에는 영상이 없어요.</Text>
+            <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', paddingVertical: 20 }}>이 공에는 영상이 없어요.</Text>
           )}
           {p.wideClipUrl ? (
             <View style={{ gap: 4 }}>

@@ -92,7 +92,7 @@ export function FindBar({
         </ScrollView>
         {isFindActive(q) ? (
           <Press accessibilityRole="button" onPress={() => onChange({ text: '', cues: {}, satisfaction: null })} style={styles.reset}>
-            <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>지우기</Text>
+            <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>지우기</Text>
           </Press>
         ) : null}
       </View>
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   clear: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   row: { gap: 6, alignItems: 'center', paddingVertical: 2 },
   chip: { minHeight: 36, paddingHorizontal: 14, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  chipText: { fontSize: 13, fontWeight: '500' },
+  chipText: { fontSize: 13, fontWeight: '400' },
   chipSub: { fontSize: 11, opacity: 0.8 },
   sep: { width: 1, height: 20, marginHorizontal: 2 },
   reset: { minHeight: 36, paddingHorizontal: 10, justifyContent: 'center' },

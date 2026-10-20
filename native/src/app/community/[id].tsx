@@ -100,7 +100,7 @@ export default function CommunityPostScreen() {
   const textBtn = (label: string, onPress: () => void, color = c.muted, icon?: SFSymbol) => (
     <Press accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={6} style={styles.textBtn}>
       {icon ? <SymbolView name={icon} size={15} tintColor={color} /> : null}
-      <Text style={{ color, fontSize: 14, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ color, fontSize: 15, fontWeight: '600' }}>{label}</Text>
     </Press>
   );
   const reportedText = <Text style={{ color: c.muted, fontSize: 13 }}>신고를 접수했어요. 살펴볼게요.</Text>;
@@ -191,7 +191,7 @@ export default function CommunityPostScreen() {
       {/* 가린 글에는 글쓴이도 댓글을 못 단다 — 아무도 못 보는 글이다(서버도 막는다) */}
       {post.canComment ? (
         <View style={[styles.composer, { backgroundColor: c.page, borderTopColor: c.line, paddingBottom: inset.bottom + 8 }]}>
-          {send.error ? <Text style={{ color: c.danger, fontSize: 14 }}>{send.error}</Text> : null}
+          {send.error ? <Text style={{ color: c.danger, fontSize: 15 }}>{send.error}</Text> : null}
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
             <TextInput
               value={comment}
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
   textBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40, paddingHorizontal: 8 },
   comment: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, gap: 6 },
   composer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingTop: 8, gap: 6 },
-  commentInput: { flex: 1, minHeight: 44, maxHeight: 120, borderRadius: 22, paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, fontSize: 16 },
+  commentInput: { flex: 1, minHeight: 44, maxHeight: 120, borderRadius: 22, paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, fontSize: 17 },
   send: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   sheetBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 },
 });

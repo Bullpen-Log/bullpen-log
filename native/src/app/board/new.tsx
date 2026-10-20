@@ -69,7 +69,7 @@ export default function NewArticleScreen() {
           placeholderTextColor={c.muted}
           style={[s.area, field]}
         />
-        {send.error ? <Text style={{ color: c.danger, fontSize: 14, marginTop: 8 }}>{send.error}</Text> : null}
+        {send.error ? <Text style={{ color: c.danger, fontSize: 15, marginTop: 8 }}>{send.error}</Text> : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );

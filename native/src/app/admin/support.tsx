@@ -48,7 +48,7 @@ export default function AdminSupportScreen() {
                 {data.inquiries.map((q, i) => (
                   <Row key={q.id} onPress={() => router.push(`/support/inquiries/${q.id}` as Href)} last={i === data.inquiries.length - 1} c={c}>
                     <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-                      <Text style={{ flex: 1, color: c.ink, fontSize: 16, fontWeight: '600' }} numberOfLines={2}>
+                      <Text style={{ flex: 1, color: c.ink, fontSize: 17, fontWeight: '600' }} numberOfLines={2}>
                         {q.title}
                       </Text>
                       <Badge text={q.status} color={q.open ? c.sky : undefined} c={c} />
@@ -76,7 +76,7 @@ export default function AdminSupportScreen() {
                   <Row key={n.id} onPress={() => router.push(`/support/notices/${n.id}` as Href)} last={i === data.notices.length - 1} c={c}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       {n.pinned ? <SymbolView name="pin.fill" size={13} tintColor={c.sky} /> : null}
-                      <Text style={{ flex: 1, color: c.ink, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
+                      <Text style={{ flex: 1, color: c.ink, fontSize: 17, fontWeight: '600' }} numberOfLines={1}>
                         {n.title}
                       </Text>
                     </View>
@@ -89,7 +89,7 @@ export default function AdminSupportScreen() {
 
           <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Row onPress={() => router.push('/admin/community' as Href)} last c={c}>
-              <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>커뮤니티 신고 처리</Text>
+              <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>커뮤니티 신고 처리</Text>
               <Text style={[s.meta, { color: c.muted }]}>신고된 글 · 댓글을 보고 가리거나 풀어요.</Text>
             </Row>
           </View>

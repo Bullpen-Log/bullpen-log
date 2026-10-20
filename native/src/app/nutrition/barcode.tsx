@@ -163,7 +163,7 @@ function ManualFood({ code, name: initialName, onRescan }: { code: string; name:
 
   const field = (label: string, value: string, set: (v: string) => void, numeric = true) => (
     <View style={{ gap: 4 }}>
-      <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={set}
@@ -181,7 +181,7 @@ function ManualFood({ code, name: initialName, onRescan }: { code: string; name:
       keyboardShouldPersistTaps="handled"
     >
       <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>처음 보는 바코드예요</Text>
-      <Text style={{ color: c.muted, fontSize: 14 }}>포장의 영양 정보를 적어 주세요. 다음부터는 바로 찾아요. ({code})</Text>
+      <Text style={{ color: c.muted, fontSize: 15 }}>포장의 영양 정보를 적어 주세요. 다음부터는 바로 찾아요. ({code})</Text>
       {field('이름', name, setName, false)}
       {field('1회 제공량', serving, setServing, false)}
       {field('열량(kcal)', kcal, setKcal)}
@@ -190,7 +190,7 @@ function ManualFood({ code, name: initialName, onRescan }: { code: string; name:
         <View style={{ flex: 1 }}>{field('단백질(g)', protein, setProtein)}</View>
         <View style={{ flex: 1 }}>{field('지방(g)', fat, setFat)}</View>
       </View>
-      {error ? <Text style={{ color: c.danger, fontSize: 14 }}>{error}</Text> : null}
+      {error ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
       <Press accessibilityRole="button" onPress={save} disabled={saving} style={[styles.primary, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
         <Text style={styles.primaryText}>{saving ? '저장하는 중' : '저장하고 담기'}</Text>
       </Press>

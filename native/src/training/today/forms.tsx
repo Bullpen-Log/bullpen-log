@@ -327,7 +327,7 @@ export function AddSheet({ inPlanIds, onClose, c, a }: {
 }
 
 const st = StyleSheet.create({
-  search: { minHeight: 44, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },
+  search: { minHeight: 44, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 17 },
   pick: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
   pickBtn: { minHeight: 40, minWidth: 56, borderRadius: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
   empty: { borderRadius: 12, paddingHorizontal: 16, paddingVertical: 24, textAlign: 'center', overflow: 'hidden' },

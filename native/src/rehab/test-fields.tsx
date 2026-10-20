@@ -93,7 +93,7 @@ export function JudgedBox({ pass, fails, c }: { pass: boolean; fails: string[]; 
       {pass ? (
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
           <SymbolView name="checkmark" size={14} tintColor={c.sky} />
-          <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>통과했어요</Text>
+          <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>통과했어요</Text>
         </View>
       ) : (
         fails.map((f) => (

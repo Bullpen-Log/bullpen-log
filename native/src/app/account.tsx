@@ -66,7 +66,7 @@ function ActionRow({ symbol, label, onPress, danger, expanded, disabled, last, c
       <View style={[st.circle, { backgroundColor: danger ? c.danger : c.sky }]}>
         <SymbolView name={symbol} size={15} tintColor="#fff" />
       </View>
-      <Text style={{ color: danger ? c.danger : c.ink, fontSize: 16, flex: 1 }}>{label}</Text>
+      <Text style={{ color: danger ? c.danger : c.ink, fontSize: 17, flex: 1 }}>{label}</Text>
       <Text style={{ color: c.muted, fontSize: 18 }}>{expanded ? '⌄' : '›'}</Text>
     </Pressable>
   );
@@ -154,7 +154,7 @@ function LeaveForm({ c }: { c: Palette }) {
 function Section({ title, footer, children, c }: { title: string; footer: string; children: React.ReactNode; c: Palette }) {
   return (
     <View style={{ gap: 10 }}>
-      <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600', paddingHorizontal: 16 }}>{title}</Text>
+      <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400', paddingHorizontal: 16 }}>{title}</Text>
       {children}
       <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18, paddingHorizontal: 16 }}>{footer}</Text>
     </View>

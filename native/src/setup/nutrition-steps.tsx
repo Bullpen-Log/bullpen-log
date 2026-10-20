@@ -175,8 +175,8 @@ export function OptionCards<T extends string>({
           >
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>{o.label}</Text>
-              {o.hint ? <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>{o.hint}</Text> : null}
-              {o.badge ? <Text style={{ color: c.sky, fontSize: 12, fontWeight: '600' }}>{o.badge}</Text> : null}
+              {o.hint ? <Text style={{ color: c.muted, fontSize: 15, lineHeight: 20 }}>{o.hint}</Text> : null}
+              {o.badge ? <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{o.badge}</Text> : null}
             </View>
             {on ? <SymbolView name="checkmark.circle.fill" size={22} tintColor={c.sky} /> : null}
           </Pressable>
@@ -334,7 +334,7 @@ function PaceStep({ ctx }: { ctx: StepCtx }) {
         </Text>
       ) : null}
       {p.etaWeeks !== null && a.targetWeightKg !== null ? (
-        <Text style={{ color: c.ink, fontSize: 16, lineHeight: 23 }}>
+        <Text style={{ color: c.ink, fontSize: 17, lineHeight: 23 }}>
           계획대로면 약 <Text style={{ color: c.sky, fontWeight: '700', fontSize: 20 }}>{p.etaWeeks}주</Text>, {dateText(periodDate(today, p.etaWeeks))}쯤 {kgText(a.targetWeightKg, unit)}이에요.
         </Text>
       ) : null}
@@ -446,7 +446,7 @@ function AvoidStep({ ctx }: { ctx: StepCtx }) {
                 }}
                 style={{ minHeight: 44, borderRadius: 22, borderWidth: 1, borderColor: on ? c.sky : c.line, backgroundColor: on ? c.sky : c.card, paddingHorizontal: 16, justifyContent: 'center' }}
               >
-                <Text style={{ color: on ? '#fff' : c.ink, fontSize: 16, fontWeight: '600' }}>{x.label}</Text>
+                <Text style={{ color: on ? '#fff' : c.ink, fontSize: 17, fontWeight: '600' }}>{x.label}</Text>
               </Pressable>
             );
           })}
@@ -489,7 +489,7 @@ function Building({ lines, onDone, c }: { lines: string[]; onDone: () => void; c
           <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: c.sky, alignItems: 'center', justifyContent: 'center' }}>
             <SymbolView name="checkmark" size={12} weight="bold" tintColor="#fff" />
           </View>
-          <Text style={{ color: c.ink, fontSize: 16, flex: 1 }}>{l}</Text>
+          <Text style={{ color: c.ink, fontSize: 17, flex: 1 }}>{l}</Text>
         </View>
       ))}
     </View>
@@ -516,9 +516,9 @@ export function MacroBar({ carbs, protein, fat, c }: { carbs: number; protein: n
           <View key={x.key} style={{ flex: 1, flexDirection: 'row', gap: 6 }}>
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: x.color, marginTop: 5 }} />
             <View>
-              <Text style={{ color: c.muted, fontSize: 12 }}>{x.label}</Text>
+              <Text style={{ color: c.muted, fontSize: 13 }}>{x.label}</Text>
               <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
-                {Math.round(x.g)}g <Text style={{ color: c.muted, fontSize: 12, fontWeight: '400' }}>{x.pct}%</Text>
+                {Math.round(x.g)}g <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>{x.pct}%</Text>
               </Text>
             </View>
           </View>
@@ -531,7 +531,7 @@ export function MacroBar({ carbs, protein, fat, c }: { carbs: number; protein: n
 function Stat({ label, value, sub, strong, c }: { label: string; value: number; sub: string; strong?: boolean; c: Palette }) {
   return (
     <View style={{ flex: 1, minWidth: 0, borderRadius: 16, borderWidth: 1, borderColor: strong ? c.sky + '66' : c.line, backgroundColor: strong ? c.sky + '1a' : c.card, padding: 10, gap: 4 }}>
-      <Text numberOfLines={1} style={{ color: c.muted, fontSize: 12 }}>
+      <Text numberOfLines={1} style={{ color: c.muted, fontSize: 13 }}>
         {label}
       </Text>
       <Text style={{ color: strong ? c.sky : c.ink, fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
@@ -563,7 +563,7 @@ function PlanStep({ ctx }: { ctx: StepCtx }) {
       {floorNote(t) ? <Text style={{ color: c.muted, fontSize: 13 }}>{floorNote(t)}</Text> : null}
       {open ? (
         <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 16, padding: 14, gap: 8 }}>
-          <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>하루 목표(운동 전)</Text>
+          <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>하루 목표(운동 전)</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: invalid('kcalTarget') ? c.danger : c.line, paddingHorizontal: 12 }}>
               <TextInput
@@ -589,7 +589,7 @@ function PlanStep({ ctx }: { ctx: StepCtx }) {
               hitSlop={6}
               style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 }}
             >
-              <Text style={{ color: c.muted, fontSize: 14, fontWeight: '600' }}>계산으로</Text>
+              <Text style={{ color: c.muted, fontSize: 15, fontWeight: '400' }}>계산으로</Text>
             </Pressable>
           </View>
           <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>
@@ -617,7 +617,7 @@ function PlanStep({ ctx }: { ctx: StepCtx }) {
           </Text>
         </View>
       ) : null}
-      <Text style={{ color: c.muted, fontSize: 12, lineHeight: 17 }}>
+      <Text style={{ color: c.muted, fontSize: 13, lineHeight: 17 }}>
         계산에 쓴 몸: {body.weightKg !== null ? kgText(body.weightKg, unit) : `${kgText(t.weightKg, unit)}(짐작)`}
         {body.heightCm !== null ? ` · ${body.heightCm}cm` : ' · 178cm(짐작)'}
         {p.age !== null ? ` · 만 ${p.age}세` : ' · 20세(짐작)'}
@@ -701,8 +701,8 @@ function GramRow({
   return (
     <View style={{ gap: 4 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>{label}</Text>
-        {manual ? <Text style={{ color: c.sky, fontSize: 12, fontWeight: '600' }}>직접 · 계산 {Math.round(auto)}g</Text> : null}
+        <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>{label}</Text>
+        {manual ? <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>직접 · 계산 {Math.round(auto)}g</Text> : null}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: invalid ? c.danger : c.line, paddingHorizontal: 12 }}>
@@ -736,7 +736,7 @@ function GramRow({
           <SymbolView name="arrow.counterclockwise" size={17} tintColor={c.muted} />
         </Pressable>
       </View>
-      <Text style={{ color: c.muted, fontSize: 12, lineHeight: 17 }}>{hint}</Text>
+      <Text style={{ color: c.muted, fontSize: 13, lineHeight: 17 }}>{hint}</Text>
     </View>
   );
 }

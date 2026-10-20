@@ -302,7 +302,7 @@ function Start({ label, onPress, c }: { label: string; onPress: () => void; c: P
   return (
     <Press onPress={onPress} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
       <SymbolView name="play.fill" size={13} tintColor="#fff" />
-      <Text style={[s.bodyBold, { color: '#fff', fontSize: 16 }]}>{label}</Text>
+      <Text style={[s.bodyBold, { color: '#fff', fontSize: 17 }]}>{label}</Text>
     </Press>
   );
 }
@@ -630,7 +630,7 @@ export function ElementCard({
             primary.length + secondary.length === 0 ? null : (
               <View key={stage.name} style={{ gap: 8 }}>
                 <Text style={[s.small, { color: c.muted }]}>
-                  <Text style={{ color: c.ink, fontWeight: '700', fontSize: 15 }}>{stage.name}</Text> {stage.desc}
+                  <Text style={{ color: c.ink, fontWeight: '600', fontSize: 15 }}>{stage.name}</Text> {stage.desc}
                 </Text>
                 {primary.map((d) => (
                   <DrillRow key={d.title} drill={d} secondary={false} c={c} />

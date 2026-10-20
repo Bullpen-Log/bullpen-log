@@ -59,14 +59,14 @@ export default function ShootHomeScreen() {
                       onPress={() => leaveTo(`/admin/shoot/${n.week}/run`)}
                       style={[s.pill, { flex: 1, backgroundColor: c.sky }]}
                     >
-                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{n.done > 0 ? '이어 찍기' : '촬영 시작'}</Text>
+                      <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{n.done > 0 ? '이어 찍기' : '촬영 시작'}</Text>
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
                       onPress={() => router.push(`/admin/shoot/${n.week}` as Href)}
                       style={[s.pill, { backgroundColor: c.chip }]}
                     >
-                      <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>{n.weekLabel} 시간표</Text>
+                      <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>{n.weekLabel} 시간표</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -156,7 +156,7 @@ function WeekState({ state, deferred, c }: { state: string; deferred: boolean; c
   const soft = state === '진행 중' || deferred;
   return (
     <View style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 2, backgroundColor: strong ? c.sky : soft ? c.chip : c.page }}>
-      <Text style={{ color: strong ? '#fff' : soft ? c.sky : c.muted, fontSize: 12, fontWeight: '600' }}>{state}</Text>
+      <Text style={{ color: strong ? '#fff' : soft ? c.sky : c.muted, fontSize: 13, fontWeight: '600' }}>{state}</Text>
     </View>
   );
 }

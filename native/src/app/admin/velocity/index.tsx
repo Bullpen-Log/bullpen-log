@@ -61,7 +61,7 @@ export default function VelocityAdminScreen() {
             <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
               {data.days.map((d, i) => (
                 <Row key={d.date} onPress={() => router.push(`/admin/velocity/${d.date}` as Href)} last={i === data.days.length - 1} c={c}>
-                  <Text style={{ color: c.ink, fontSize: 15, fontWeight: '500', fontVariant: ['tabular-nums'] }}>{d.date}</Text>
+                  <Text style={{ color: c.ink, fontSize: 15, fontWeight: '400', fontVariant: ['tabular-nums'] }}>{d.date}</Text>
                   <Text style={[s.meta, { color: c.muted, fontVariant: ['tabular-nums'] }]} numberOfLines={1}>
                     공 {d.pitches} · 영상 {d.clips}
                     {d.pairs > 0 ? ` · 짝 ${d.pairs}` : ''}
@@ -84,7 +84,7 @@ function Tile({ label, value, unit, c }: { label: string; value: string; unit?: 
       <Text style={[s.meta, { color: c.muted }]}>{label}</Text>
       <Text style={{ color: c.ink, fontSize: 20, fontWeight: '700', marginTop: 2, fontVariant: ['tabular-nums'] }}>
         {value}
-        {unit ? <Text style={{ color: c.muted, fontSize: 12, fontWeight: '400' }}> {unit}</Text> : null}
+        {unit ? <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}> {unit}</Text> : null}
       </Text>
     </View>
   );

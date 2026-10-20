@@ -119,7 +119,7 @@ export default function PatchNotesScreen() {
                         {n.author} · {n.day}
                         {n.hasNote ? ' · 메모' : ''}
                       </Text>
-                      <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }} numberOfLines={2}>
+                      <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }} numberOfLines={2}>
                         {n.headline || '(제목 없음)'}
                       </Text>
                       <Text style={[s.meta, { color: c.muted }]}>

@@ -58,7 +58,7 @@ export default function TrainingSetupScreen() {
           <>
             <Text style={{ color: c.ink, fontSize: 15 }}>신호가 약해 불러오지 못했어요.</Text>
             <Press accessibilityRole="button" onPress={() => (setFailed(false), setTries((n) => n + 1))} hitSlop={8}>
-              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '700' }}>다시 불러오기</Text>
+              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
             </Press>
           </>
         ) : (
@@ -236,7 +236,7 @@ function OptionCard({ label, hint, on, invalid, onPress, c }: { label: string; h
     >
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>{label}</Text>
-        <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>{hint}</Text>
+        <Text style={{ color: c.muted, fontSize: 15, lineHeight: 20 }}>{hint}</Text>
       </View>
       {on ? <SymbolView name="checkmark.circle.fill" size={22} tintColor={c.sky} /> : null}
     </Press>

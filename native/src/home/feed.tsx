@@ -190,7 +190,7 @@ function FeedLabel({ item, c }: { item: FeedItem; c: Palette }) {
       <Text style={[styles.label, { color: tone }]}>{item.label}</Text>
       {item.tone === 'past' ? (
         <View style={[styles.pastChip, { backgroundColor: 'rgba(29,29,31,0.06)' }]}>
-          <Text style={{ color: c.muted, fontSize: 11, fontWeight: '500' }}>지난 기록</Text>
+          <Text style={{ color: c.muted, fontSize: 11, fontWeight: '400' }}>지난 기록</Text>
         </View>
       ) : null}
     </View>
@@ -227,7 +227,7 @@ function Slide({ item, lap, c, active, onPress }: { item: FeedItem; lap: number;
         </Text>
         {sub && item.tone === 'none' ? (
           <View style={[styles.addPill, { borderColor: c.lineStrong }]}>
-            <Text style={{ color: c.sky, fontSize: 12, fontWeight: '500' }}>{sub}</Text>
+            <Text style={{ color: c.sky, fontSize: 13, fontWeight: '400' }}>{sub}</Text>
           </View>
         ) : sub ? (
           <Text style={[styles.sub, { color: c.muted }]} numberOfLines={2}>
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   slide: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingBottom: 32 },
   text: { fontSize: 18, fontWeight: '600', lineHeight: 25 },
   sub: { fontSize: 13, lineHeight: 18, marginTop: 6 },
-  detail: { fontSize: 12, lineHeight: 16, marginTop: 4, opacity: 0.8 },
+  detail: { fontSize: 13, lineHeight: 16, marginTop: 4, opacity: 0.8 },
   addPill: { alignSelf: 'flex-start', marginTop: 8, minHeight: 28, borderRadius: 999, borderWidth: 1, borderStyle: 'dashed', paddingHorizontal: 10, justifyContent: 'center' },
   dots: { position: 'absolute', right: 20, bottom: 2, flexDirection: 'row', alignItems: 'center' },
   dotHit: { width: 28, height: 44, alignItems: 'center', justifyContent: 'center' },

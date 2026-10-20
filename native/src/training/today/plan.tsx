@@ -225,7 +225,7 @@ export function PrefsCard({ prefs, today, c, a }: { prefs: NonNullable<TrainingT
           <Text style={[s.tiny, { color: c.muted }]}>고르면 그쪽으로 일정을 짜요. 아픈 날은 고른 것과 상관없이 회복으로 가요.</Text>
         </View>
         <Press accessibilityRole="button" onPress={() => setOpen(false)} style={st.prefsFold}>
-          <Text style={[s.tiny, { color: c.muted, fontWeight: '500' }]}>접기</Text>
+          <Text style={[s.tiny, { color: c.muted, fontWeight: '400' }]}>접기</Text>
         </Press>
       </View>
       <View style={{ gap: 10 }}>

@@ -160,7 +160,7 @@ export function HowTo({
           {m ? (
             <View style={[s.method, { borderColor: c.sky + '40', backgroundColor: c.sky + '0f' }]}>
               <Text style={[s.smallBold, { color: c.sky }]}>
-                {m.label} 방식 <Text style={{ color: c.muted, fontWeight: '500' }}>· {m.cue}</Text>
+                {m.label} 방식 <Text style={{ color: c.muted, fontWeight: '400' }}>· {m.cue}</Text>
               </Text>
               {[
                 ['하는 법', m.what],
@@ -328,9 +328,9 @@ const s = StyleSheet.create({
   rehabTitle: { fontSize: 17, fontWeight: '700' },
   result: { fontSize: 15, lineHeight: 22, fontWeight: '600', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, overflow: 'hidden', alignSelf: 'stretch' },
   submit: { minHeight: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  submitText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  submitText: { color: '#fff', fontSize: 17, fontWeight: '700' },
   small: { fontSize: 13, lineHeight: 18 },
-  smallBold: { fontSize: 13, fontWeight: '700' },
+  smallBold: { fontSize: 13, fontWeight: '600' },
   body: { fontSize: 15, lineHeight: 22 },
   bodyBold: { fontSize: 15, fontWeight: '600', lineHeight: 21 },
 });

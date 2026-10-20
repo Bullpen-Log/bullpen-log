@@ -164,7 +164,7 @@ export function categoryColor(category: string, c: Palette) {
 export function Badge({ text, color, c }: { text: string; color?: string; c: Palette }) {
   return (
     <View style={[s.badge, { borderColor: color ?? c.line }]}>
-      <Text style={{ color: color ?? c.muted, fontSize: 12, fontWeight: '600' }}>{text}</Text>
+      <Text style={{ color: color ?? c.muted, fontSize: 13, fontWeight: '600' }}>{text}</Text>
     </View>
   );
 }
@@ -214,7 +214,7 @@ export function NoticeRows({ rows, c }: { rows: { id: string; title: string; pin
     <Row key={n.id} onPress={() => router.push(`/support/notices/${n.id}` as Href)} last={i === rows.length - 1} c={c}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {n.pinned ? <SymbolView name="pin.fill" size={13} tintColor={c.sky} /> : null}
-        <Text style={{ flex: 1, color: c.ink, fontSize: 16, fontWeight: '600' }} numberOfLines={1}>
+        <Text style={{ flex: 1, color: c.ink, fontSize: 17, fontWeight: '600' }} numberOfLines={1}>
           {n.title}
         </Text>
       </View>
@@ -234,7 +234,7 @@ export function InquiryRows({
   return rows.map((q, i) => (
     <Row key={q.id} onPress={() => router.push(`/support/inquiries/${q.id}` as Href)} last={i === rows.length - 1} c={c}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-        <Text style={{ flex: 1, color: c.ink, fontSize: 16, fontWeight: '600' }} numberOfLines={2}>
+        <Text style={{ flex: 1, color: c.ink, fontSize: 17, fontWeight: '600' }} numberOfLines={2}>
           {q.title}
         </Text>
         <StatusBadge status={q.status} c={c} />
@@ -287,7 +287,7 @@ export const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12, minHeight: 52 },
   title: { fontSize: 17, fontWeight: '600' },
   meta: { fontSize: 13 },
-  body: { fontSize: 16, lineHeight: 26 },
+  body: { fontSize: 17, lineHeight: 26 },
   label: { fontSize: 13, fontWeight: '600', marginTop: 10 },
   input: { minHeight: 48, borderRadius: 12, paddingHorizontal: 14, fontSize: 17 },
   area: { minHeight: 200, borderRadius: 12, paddingHorizontal: 14, paddingTop: 12, fontSize: 17, textAlignVertical: 'top' },

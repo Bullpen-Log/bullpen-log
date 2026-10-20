@@ -62,7 +62,7 @@ export function PitchDayPanel({ date, logs }: { date: string; logs: PitchLog[] }
   return (
     <Animated.View entering={fadeIn} style={[styles.panel, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
       <View style={[styles.head, { borderBottomColor: c.line }]}>
-        <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '700' }}>
+        <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '600' }}>
           {spokenDate(date)}
           <Text style={{ color: c.muted, fontWeight: '400' }}>
             {rest ? ' · 쉬는 날' : ` · ${pitches}구`}
@@ -92,7 +92,7 @@ export function PitchDayPanel({ date, logs }: { date: string; logs: PitchLog[] }
             )}
           </View>
           {l.memo ? (
-            <Text numberOfLines={2} style={{ color: c.muted, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
+            <Text numberOfLines={2} style={{ color: c.muted, fontSize: 13, lineHeight: 18, marginTop: 4 }}>
               {l.memo}
             </Text>
           ) : null}
@@ -100,7 +100,7 @@ export function PitchDayPanel({ date, logs }: { date: string; logs: PitchLog[] }
       ))}
 
       {!playing ? (
-        rest ? null : <Text style={{ color: c.muted, fontSize: 12, padding: 20 }}>이 날은 올린 영상이 없어요. 기록을 고칠 때 영상을 함께 올릴 수 있어요.</Text>
+        rest ? null : <Text style={{ color: c.muted, fontSize: 13, padding: 20 }}>이 날은 올린 영상이 없어요. 기록을 고칠 때 영상을 함께 올릴 수 있어요.</Text>
       ) : (
         <View style={{ padding: 20, gap: 12 }}>
           <PitchVideo key={playing} path={playing} />
@@ -108,7 +108,7 @@ export function PitchDayPanel({ date, logs }: { date: string; logs: PitchLog[] }
           {paths.length > 1 ? (
             <View style={{ gap: 8 }}>
               <Press accessibilityRole="button" accessibilityState={{ expanded: tools }} onPress={() => setTools((v) => !v)} style={styles.toolsBtn}>
-                <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600' }}>영상 관리</Text>
+                <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>영상 관리</Text>
                 <View style={{ transform: [{ rotate: tools ? '180deg' : '0deg' }] }}>
                   <Icon name="chevron-down" size={14} color={c.muted} />
                 </View>
@@ -122,17 +122,17 @@ export function PitchDayPanel({ date, logs }: { date: string; logs: PitchLog[] }
                       style={[styles.toolBtn, { borderColor: c.lineStrong, backgroundColor: c.card }]}
                     >
                       <Icon name="star" size={16} color={c.ink} />
-                      <Text style={{ color: c.ink, fontSize: 15, fontWeight: '500' }}>이 영상을 대표로</Text>
+                      <Text style={{ color: c.ink, fontSize: 15, fontWeight: '400' }}>이 영상을 대표로</Text>
                     </Press>
                   ) : (
-                    <Text style={{ color: c.muted, fontSize: 12 }}>지금 영상이 대표예요. 달력 칸에 이 영상이 떠요.</Text>
+                    <Text style={{ color: c.muted, fontSize: 13 }}>지금 영상이 대표예요. 달력 칸에 이 영상이 떠요.</Text>
                   )}
                 </Animated.View>
               ) : null}
             </View>
           ) : null}
           {log && logs.length > 1 ? (
-            <Text style={{ color: c.muted, fontSize: 12 }}>
+            <Text style={{ color: c.muted, fontSize: 13 }}>
               {paths.length > 1 ? `영상 ${paths.indexOf(playing) + 1} · ` : ''}
               {log.sessionType} · {log.pitchCount}구{effortText(effortOf(log)) ? ` · 강도 ${effortText(effortOf(log))}` : ''}
             </Text>
@@ -159,11 +159,11 @@ export function PitchDayPanel({ date, logs }: { date: string; logs: PitchLog[] }
                         )}
                       </View>
                       <View style={styles.thumbFoot}>
-                        <Text style={{ fontSize: 12, color: on ? c.ink : c.muted, fontWeight: on ? '600' : '400' }}>영상 {i + 1}</Text>
+                        <Text style={{ fontSize: 13, color: on ? c.ink : c.muted, fontWeight: on ? '600' : '400' }}>영상 {i + 1}</Text>
                         {p === rep ? (
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
                             <Icon name="star" size={12} color={c.skyStrong} fill={c.skyStrong} />
-                            <Text style={{ fontSize: 12, color: c.skyStrong, fontWeight: '600' }}>대표</Text>
+                            <Text style={{ fontSize: 13, color: c.skyStrong, fontWeight: '600' }}>대표</Text>
                           </View>
                         ) : null}
                       </View>

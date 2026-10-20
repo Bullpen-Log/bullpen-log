@@ -157,17 +157,17 @@ export function DayEvents({ date }: { date: string }) {
                       ) : null}
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                      <Text style={{ color: c.muted, fontSize: 12 }}>{timeLabel(e.time)}</Text>
+                      <Text style={{ color: c.muted, fontSize: 13 }}>{timeLabel(e.time)}</Text>
                       {!e.owner && remindText(e) ? (
                         <>
                           <View style={{ marginLeft: 4 }}>
                             <Icon name="bell" size={12} color={c.muted} />
                           </View>
-                          <Text style={{ color: c.muted, fontSize: 12 }}>{remindText(e)}</Text>
+                          <Text style={{ color: c.muted, fontSize: 13 }}>{remindText(e)}</Text>
                         </>
                       ) : null}
                     </View>
-                    {e.memo ? <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{e.memo}</Text> : null}
+                    {e.memo ? <Text style={{ color: c.muted, fontSize: 13, marginTop: 2 }}>{e.memo}</Text> : null}
                   </View>
                 </Press>
               )}
@@ -358,7 +358,7 @@ function EventForm({
           onPress={() => void save()}
           style={[styles.primary, { backgroundColor: c.sky }, (busy || !title.trim()) && { opacity: 0.4 }]}
         >
-          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>{busy ? '저장하는 중…' : event ? '저장' : '추가'}</Text>
+          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>{busy ? '저장하는 중…' : event ? '저장' : '추가'}</Text>
         </Press>
       </View>
     </View>
@@ -368,10 +368,10 @@ function EventForm({
 const styles = StyleSheet.create({
   line: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, minHeight: 56, paddingVertical: 10 },
   bar: { width: 4, height: 16, borderRadius: 2, marginTop: 3 },
-  owner: { fontSize: 12, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
+  owner: { fontSize: 13, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
   secondary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 22 },
   label: { fontSize: 13, fontWeight: '600' },
-  input: { minHeight: 48, borderRadius: 12, paddingHorizontal: 16, fontSize: 16 },
+  input: { minHeight: 48, borderRadius: 12, paddingHorizontal: 16, fontSize: 17 },
   select: { flexDirection: 'row', alignItems: 'center' },
   ghost: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   primary: { minHeight: 44, paddingHorizontal: 20, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

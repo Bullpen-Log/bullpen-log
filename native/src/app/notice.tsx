@@ -75,7 +75,7 @@ export default function NoticeScreen() {
           <Icon name="circle-check" color={c.ok} size={22} />
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>지금은 알림이 없어요</Text>
-            <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>오늘 체크인과 투구 기록을 다 남겼어요.</Text>
+            <Text style={{ color: c.muted, fontSize: 13, marginTop: 2 }}>오늘 체크인과 투구 기록을 다 남겼어요.</Text>
           </View>
         </View>
       ) : null}
@@ -121,7 +121,7 @@ function Item({ c, icon, title, body, children }: { c: Palette; icon: 'clipboard
         <Icon name={icon} color={c.sky} size={16} />
         <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '600' }}>{title}</Text>
       </View>
-      <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18, marginTop: 4, marginBottom: 10 }}>{body}</Text>
+      <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18, marginTop: 4, marginBottom: 10 }}>{body}</Text>
       {children}
     </View>
   );

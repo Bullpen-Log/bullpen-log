@@ -151,7 +151,7 @@ const st = StyleSheet.create({
   chip: { alignSelf: 'flex-start', minHeight: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
   chipText: { fontSize: 13, fontWeight: '600' },
   title: { fontSize: 17, fontWeight: '700' },
-  label: { fontSize: 12, fontWeight: '700' },
+  label: { fontSize: 13, fontWeight: '600' },
   body: { fontSize: 15, lineHeight: 22 },
   small: { fontSize: 13, lineHeight: 19 },
   list: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, overflow: 'hidden' },

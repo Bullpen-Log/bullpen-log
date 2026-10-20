@@ -375,7 +375,7 @@ export function GoalSheet({
                           { backgroundColor: c.card, borderColor: on ? c.sky : 'transparent' },
                         ]}
                       >
-                        <Text style={{ color: on ? c.sky : c.ink, fontSize: 16, fontWeight: '700' }}>
+                        <Text style={{ color: on ? c.sky : c.ink, fontSize: 17, fontWeight: '700' }}>
                           {GOAL_KINDS.find((g) => g.key === key)?.label ?? key}
                         </Text>
                         <Text style={[st.small, { color: c.muted }]}>{goalKindHint(key, body.age)}</Text>
@@ -561,7 +561,7 @@ export function GoalSheet({
                   onPress={() => setFoldOpen((o) => !o)}
                   style={{ minHeight: 40, justifyContent: 'center' }}
                 >
-                  <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>{foldOpen ? '계산 내역 접기' : '계산 내역 보기'}</Text>
+                  <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>{foldOpen ? '계산 내역 접기' : '계산 내역 보기'}</Text>
                 </Press>
                 {foldOpen ? (
                   <Text style={[st.small, { color: c.muted, lineHeight: 19 }]}>
@@ -727,7 +727,7 @@ function SwitchRow({
 function Stat({ label, value, strong, c }: { label: string; value: string; strong?: boolean; c: Palette }) {
   return (
     <View style={{ width: '47%', gap: 2 }}>
-      <Text style={{ color: c.muted, fontSize: 12 }}>{label}</Text>
+      <Text style={{ color: c.muted, fontSize: 13 }}>{label}</Text>
       <Text style={{ color: c.ink, fontSize: strong ? 17 : 15, fontWeight: strong ? '700' : '600', fontVariant: ['tabular-nums'] }}>{value}</Text>
     </View>
   );

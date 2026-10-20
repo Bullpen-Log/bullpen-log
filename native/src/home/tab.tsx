@@ -355,7 +355,7 @@ function Warn({ title, body, why, action, onPress }: { title: string; body: stri
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           {why ? (
             <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={{ minHeight: 44, justifyContent: 'center' }}>
-              <Text style={{ color: c.warn, fontSize: 14, fontWeight: '600' }}>왜 물어보나요 {open ? '⌃' : '⌄'}</Text>
+              <Text style={{ color: c.warn, fontSize: 15, fontWeight: '600' }}>왜 물어보나요 {open ? '⌃' : '⌄'}</Text>
             </Pressable>
           ) : null}
           {action && onPress ? (
@@ -410,7 +410,7 @@ function FirstDayCard({
   };
   return (
     <View style={[styles.card, { backgroundColor: c.skyTint, gap: 12 }]}>
-      <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '700' }}>여기부터 시작하세요</Text>
+      <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '600' }}>여기부터 시작하세요</Text>
       {locked ? (
         <>
           <Text style={{ color: c.ink, opacity: 0.8, fontSize: 15, lineHeight: 22 }}>
@@ -425,12 +425,12 @@ function FirstDayCard({
           <View accessibilityRole="summary" style={{ gap: 4 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: tone }} />
-              <Text style={{ color: c.muted, fontSize: 12 }}>지금 팔 상태</Text>
-              <Text style={{ color: tone, fontSize: 12, fontWeight: '700' }}>{ARM_LABEL[status.level]}</Text>
+              <Text style={{ color: c.muted, fontSize: 13 }}>지금 팔 상태</Text>
+              <Text style={{ color: tone, fontSize: 13, fontWeight: '600' }}>{ARM_LABEL[status.level]}</Text>
             </View>
             <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{status.headline}</Text>
             {status.details.map((d) => (
-              <Text key={d} style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>
+              <Text key={d} style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>
                 {d}
               </Text>
             ))}
@@ -445,7 +445,7 @@ function FirstDayCard({
               <Text style={styles.pillText}>오늘 투구 남기기</Text>
             </Pressable>
             <Pressable accessibilityRole="button" disabled={saving} onPress={() => void rest()} style={[styles.pill, { backgroundColor: c.card, opacity: saving ? 0.5 : 1 }]}>
-              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '500' }}>{saving ? '남기는 중…' : '오늘 안 던졌어요'}</Text>
+              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '400' }}>{saving ? '남기는 중…' : '오늘 안 던졌어요'}</Text>
             </Pressable>
           </View>
           {err ? <Text style={{ color: c.danger, fontSize: 13 }}>{err}</Text> : null}
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
   goodHead: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, padding: SPACE.pad },
   listHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
   viewBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { fontSize: 15, fontWeight: '700' },
+  cardTitle: { fontSize: 15, fontWeight: '600' },
   pill: { minHeight: 44, borderRadius: 22, paddingHorizontal: 16, justifyContent: 'center' },
   pillText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   ghost: { alignSelf: 'flex-start', minHeight: 44, borderRadius: 22, borderWidth: 1, paddingHorizontal: 16, justifyContent: 'center' },
@@ -490,7 +490,7 @@ function GoodDayNote({ note }: { note: NonNullable<AppHome['goodNote']> }) {
     <Animated.View layout={layoutMove} style={[styles.good, { backgroundColor: c.skyTint, borderColor: withAlpha(c.sky, 0.25) }]}>
       <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={styles.goodHead}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ color: c.skyStrong, fontSize: 12, fontWeight: '500' }}>지난번 잘 던진 날 남긴 말</Text>
+          <Text style={{ color: c.skyStrong, fontSize: 13, fontWeight: '400' }}>지난번 잘 던진 날 남긴 말</Text>
           {open ? null : (
             <Text numberOfLines={1} style={{ color: c.ink, fontSize: 15, marginTop: 4 }}>
               {note.memo}
@@ -504,7 +504,7 @@ function GoodDayNote({ note }: { note: NonNullable<AppHome['goodNote']> }) {
       {open ? (
         <Animated.View entering={fadeIn} style={{ gap: 8, paddingHorizontal: SPACE.pad, paddingBottom: SPACE.pad, marginTop: -8 }}>
           <Text style={{ color: c.ink, fontSize: 15, lineHeight: 23 }}>{note.memo}</Text>
-          <Text style={{ color: c.muted, fontSize: 12 }}>
+          <Text style={{ color: c.muted, fontSize: 13 }}>
             {m}월 {d}일 · {note.sessionType} · 만족도 {note.satisfaction}/5
             {note.cuesGood.length ? ` · 좋았던 것 ${note.cuesGood.join(' · ')}` : ''}
           </Text>

@@ -484,7 +484,7 @@ const s = StyleSheet.create({
   mechHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 14, paddingVertical: 10, minHeight: 48 },
   mechBody: { paddingHorizontal: 14, paddingBottom: 12, gap: 8 },
   tag: { borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1 },
-  tagText: { fontSize: 12 },
+  tagText: { fontSize: 13 },
   well: {
     aspectRatio: 4 / 5,
     width: '100%',
