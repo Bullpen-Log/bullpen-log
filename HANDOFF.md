@@ -11,14 +11,26 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 금윤호에게 — 2026-10-20 · 김민(Claude, UI/UX 세션) — 미리 알림: 타격을 넣는다 · DB 구조 바꿈(더하기만) · 네 영역(하단바 · 판 넘기기 · 새 앱 탭 막대)도 고친다
+## 금윤호에게 — 2026-10-20 · 김민(Claude, UI/UX 세션) — 타격 1단계: 하단 탭 홈 · 투구 · 타격 · 커뮤니티 · 더보기 · 종목 하단바 · 타격 일지 — 받으면 `npx prisma generate` · 새 앱 굽기
 
-김민: "투구만 있는데 타격도 추가 — 하단바를 홈 · 투구 · 타격 · 커뮤니티 · 더보기로, 트레이닝은 투구 · 타격 공통 + 투구엔 암케어 · 메커니즘".
-설계 · 결정(D1~D6 · E1~E2) · 일 목록은 `docs/designs/hitting-restructure.md`. **지금 DB 구조를 바꾸는 중이면 말해 줘 — 차례를 맞추자**(AGENTS 2번).
-- **DB(T1, 곧 적용 · 더하기만)**: `User.position String?`(pitcher · hitter · two-way, 비면 투수) · `battingHand String?` · `hitSetupAt DateTime?`, 새 표 `HittingLog`. 적용하면 다시 적는다(받으면 `npx prisma generate`).
-- **네 영역을 고칠 곳**: `lib/nav.ts`(하단 탭 · 종목 바 표) · `components/app-shell/mobile-tabs.tsx`(주소로 종목 바) · `app/(app)/layout.tsx` 판 셋째 `@training` → `@hitting` · 트레이닝 홈(`?view=home`)은 종목 바가 대신 ·
-  새 앱 `native/src/shell/tab-bar.tsx` — 네가 오늘 만든 커뮤니티 하단바(back · enter, 9c7a2db0)를 투구 · 타격 바에 그대로 쓴다.
-- 주소는 그대로 둔다(투구 `/videos` · `/pitch-log` · 트레이닝 `?view=…`), 타격만 새 `/hitting`, 같이 쓰는 트레이닝은 `?sport=pitch|hit`.
+받은 뒤 할 일: **`npx prisma generate`**(T1 — `User.position` · `battingHand` · `hitSetupAt`, 새 표 `HittingLog`, 마이그레이션 `20261020200000_hitting_position_log` 적용함 ·
+더하기만 · 백업 `db-2026-10-20-09-13.json`), **새 앱(Expo)을 구울 때 같이 실린다.** 김민: "하단바를 홈 · 투구 · 타격 · 커뮤니티 · 더보기로, 트레이닝은 투구 · 타격 공통 +
+투구엔 암케어 · 메커니즘". 설계 · 결정 D1~D6 · E1~E2 · 일 목록은 `docs/designs/hitting-restructure.md`. 커밋 63d6607a(T1) · 0b9cb3c9(T2) · 9245f3c6(T3 · T5) · 07c7d12c(T4) · (이 커밋 T6).
+**네 영역(앱 틀 · 하단 탭 · 판 넘기기 · 새 앱 탭 막대)을 많이 고쳤다:**
+- `lib/nav.ts`: MOBILE_TABS 셋째 = 타격(`/hitting`, lock 'hit'), 새 `SPORT_BARS`(투구 = ‹ · 기록 `/videos` · 트레이닝 `/training?sport=pitch` · 암케어 · 메커니즘, 타격 = ‹ · 기록 `/hitting` ·
+  트레이닝 `?sport=hit`) · `sportOf` · `sportActiveHref`. 주소로 종목을 정한다(탭만, 쓸기 없음 — E2).
+- 앱 틀: 새 `components/app-shell/sport-tabs.tsx`(SportAwareTabs — 종목 안이면 MobileTabs 에 종목 바 + `activeOverride`), `mobile-tabs.tsx`(`activeOverride` 칸),
+  `app-shell.tsx`(AppNav 가 `sportBars` · `defaultSport` 를 받아 넘김), `mobile-top-bar.tsx`(트레이닝 하위 '‹ 뒤로' 걷음 · bare 에 /hitting · /training),
+  `back-link.tsx`(`toBar` 칸 — 트레이닝 화면은 막대에 안 올림), `expo-tabs.tsx`(앱에 `{ t: 'tabs', sports, defaultSport }` 를 같이 보냄, ‹ 칸은 빼고).
+- 판 넘기기: `app/(app)/layout.tsx` 셋째 자리 `@training` → `@hitting`(`@hitting/default.tsx` · `hitting/page.tsx` · `loading.tsx`, `@training` 폴더 지움),
+  `components/tab-pager.tsx` TAB_ORDER `/today · /videos · /hitting · /community`. 트레이닝은 이제 여느 하위 화면(`training/page.tsx` 가 training-page 를 그대로, `loading.tsx` 새로).
+- 잠금: `lib/feature-locks.ts` 에 'hit'(`hitSetupAt`), SETUP_PATH `/hitting/setup`, `lib/position.ts`(포지션 · 치는 손 — 비면 투수). 타자만 하는 사람은 트레이닝의 등판 줄을 숨긴다(T4).
+- **새 앱**: `native/src/shell/tab-bar.tsx` DEFAULT_TABS 셋째 = 타격(그림 `bat` → `shell/icon.tsx` 의 새 'baseball-bat'), `DEFAULT_SPORT_BARS` · `sportOfPath` · `sportActiveHref`
+  (웹 규칙 복사), `native/src/app/index.tsx` 는 종목 안이면 네 커뮤니티 하단바처럼 `TabBar back enter`(‹ 는 홈으로), 타격 탭을 누르면 주소를 먼저 바꿈.
+  종목 바의 트레이닝(`?sport=`)은 웹 판이다(앱 트레이닝 카드는 `?view=home` 때만 그대로). **이 PC 엔 native node_modules 가 없어 앱 tsc 는 못 돌렸다.**
+  깔린 옛 앱은 사이트가 보낸 탭이라 타격 칸은 바로 서지만 그림은 집 모양 · 종목 바는 없다 — 구우면 바로잡힌다.
+- 확인: 웹 tsc · eslint · hitting:test 18 · integration:test 33(실패 [13] 카메라 Swift 는 이 일과 무관). **화면은 못 봤다** — 휴대폰 하단 탭 · 투구/타격 누르면 바 바뀜 · ‹ ·
+  타격 시작하기 · 타격 일지 저장 · 앱 하단바를 한 번 봐 줘.
 
 ## 금윤호에게 — 2026-10-20 · 김민(Claude, UI/UX 세션) — 더보기에서 '자료실' 뺌
 

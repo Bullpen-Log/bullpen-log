@@ -80,13 +80,21 @@ export function MobileTabs({
   tabs,
   menuOpen,
   onMenu,
+  activeOverride,
 }: {
   tabs: NavItem[];
   /** 사이드바가 열려 있는가 — 렌즈를 '더보기'에 둔다 */
   menuOpen: boolean;
   onMenu: () => void;
+  /**
+   * 종목 하단바(lib/nav.ts SPORT_BARS, 2026-10-20) — 같은 /training 이 칸 셋(트레이닝 · 암케어 · 메커니즘)으로 갈라져 경로만 보는
+   * useIsActive 로는 못 고른다. 주면 이 칸 하나만 켜진다(lib/nav.ts sportActiveHref).
+   */
+  activeOverride?: string | null;
 }) {
-  const isActive = useIsActive();
+  const pathActive = useIsActive();
+  const isActive =
+    activeOverride === undefined ? pathActive : (href: string) => href === activeOverride;
   const pathname = usePathname();
   const [spinning, setSpinning] = useState(false);
   const router = useRouter();

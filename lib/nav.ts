@@ -20,6 +20,12 @@ export type NavIconName =
   | 'home'
   /* 투구 기록 — 야구공(components/baseball-icon.tsx) */
   | 'baseball'
+  /* 타격 — 야구 방망이(components/baseball-icon.tsx, 2026-10-20) */
+  | 'bat'
+  /* 종목 하단바의 ‹(평소 하단바로) · 암케어 · 기록(2026-10-20) */
+  | 'back'
+  | 'heart'
+  | 'calendar'
   | 'dumbbell'
   | 'film'
   /* 영양 — 숟가락·포크. 끼니를 적는 곳이라는 것이 한눈에 보인다 */
@@ -155,8 +161,22 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     items: [{ href: '/videos', label: '투구', icon: 'baseball', lock: 'pitch' }],
   },
+  /* 타격 — 하단 탭 셋째(2026-10-20 김민, docs/designs/hitting-restructure.md). 도크 첫 줄이 막대의 넷(홈 · 투구 · 타격 · 커뮤니티)이라 투구 바로 뒤 */
   {
-    /* 트레이닝 홈 — 트레이닝 · 암케어 · 메커니즘 앱 카드(lib/training-part.ts) */
+    items: [{ href: '/hitting', label: '타격', icon: 'bat', lock: 'hit' }],
+  },
+  /*
+   * 커뮤니티는 하단 탭 넷째(2026-10-20 김민: "커뮤니티 개선작업을 시작할거라 영양을 더보기로 빼고 그 자리에 커뮤니티").
+   * 잠금 없음 — 가입하면 바로 열린다. 고객센터는 아래 '소통'에 남는다.
+   */
+  {
+    items: [{ href: '/community', label: '커뮤니티', icon: 'community' }],
+  },
+  {
+    /*
+     * 트레이닝 홈 — 트레이닝 · 암케어 · 메커니즘 앱 카드(lib/training-part.ts). 휴대폰은 투구 · 타격 종목 하단바가 대신한다(2026-10-20) —
+     * 하단 탭에서 빠져 더보기 · PC 메뉴에만 남는다.
+     */
     items: [
       {
         href: TRAINING_HOME_HREF,
@@ -165,13 +185,6 @@ export const NAV_GROUPS: NavGroup[] = [
         lock: 'training',
       },
     ],
-  },
-  /*
-   * 커뮤니티는 하단 탭 넷째(2026-10-20 김민: "커뮤니티 개선작업을 시작할거라 영양을 더보기로 빼고 그 자리에 커뮤니티") — 도크의 첫 줄이
-   * 막대의 넷이라 트레이닝 바로 뒤. 잠금 없음 — 가입하면 바로 열린다. 고객센터는 아래 '소통'에 남는다.
-   */
-  {
-    items: [{ href: '/community', label: '커뮤니티', icon: 'community' }],
   },
   /* 영양 — 하단 탭에서 더보기로(같은 날). 몸을 만드는 두 바퀴라 더보기에서도 트레이닝 쪽 맨 앞 */
   {
@@ -286,6 +299,72 @@ export const NAV_GROUPS: NavGroup[] = [
  * 라이브러리는 매일 열지 않으므로 '더보기'로 보낸다.
  */
 /**
+ * 종목 하단바(2026-10-20 김민 D1 · E1 · E2, docs/designs/hitting-restructure.md) — 투구 · 타격 화면에 들어가면 하단바가 그 종목 것으로
+ * 바뀐다. 첫 칸 ‹ 는 평소 하단바(홈)로. 칸끼리는 누르기만(판 넘기기 없음 — E2). 주소는 지금 것 그대로(E1), 같이 쓰는 트레이닝은
+ * ?sport= 로 어느 바인지 붙인다. 운동 판은 종목과 상관없이 하루 하나(TrainingSession userId · date).
+ */
+export type SportKey = 'pitch' | 'hit';
+
+export const SPORT_BACK: NavItem = { href: '/today', label: '뒤로', icon: 'back' };
+
+export const SPORT_BARS: Record<SportKey, NavItem[]> = {
+  pitch: [
+    SPORT_BACK,
+    { href: '/videos', label: '기록', icon: 'calendar', lock: 'pitch' },
+    { href: '/training?sport=pitch', label: '트레이닝', icon: 'dumbbell', lock: 'training' },
+    { href: '/training?view=armcare', label: '암케어', icon: 'heart', lock: 'training' },
+    { href: '/training?view=mechanics', label: '메커니즘', icon: 'target', lock: 'training' },
+  ],
+  hit: [
+    SPORT_BACK,
+    { href: '/hitting', label: '기록', icon: 'calendar', lock: 'hit' },
+    { href: '/training?sport=hit', label: '트레이닝', icon: 'dumbbell', lock: 'training' },
+  ],
+};
+
+/**
+ * 지금 주소가 어느 종목 바인가 — 없으면 평소 하단바. 첫 설정 화면도 그 종목 바(잠긴 칸은 applyLocks 가 설정 주소로 바꿔 둔다).
+ * 그냥 /training(홈 링 · 요약 칸의 링크)은 사람의 포지션으로(타자면 타격 바 — fallback). 트레이닝 홈(?view=home)은 평소 바.
+ */
+export function sportOf(
+  pathname: string,
+  params: { get(name: string): string | null },
+  fallback: SportKey
+): SportKey | null {
+  if (pathname === '/hitting' || pathname.startsWith('/hitting/')) return 'hit';
+  if (
+    pathname === '/videos' ||
+    pathname.startsWith('/videos/') ||
+    pathname.startsWith('/pitch-log/')
+  )
+    return 'pitch';
+  if (pathname === '/training') {
+    const view = params.get('view');
+    if (view === 'home' || view === 'last') return null;
+    if (view === 'armcare' || view === 'mechanics') return 'pitch';
+    const sport = params.get('sport');
+    return sport === 'hit' || sport === 'pitch' ? sport : fallback;
+  }
+  if (pathname === SETUP_PATH.training) return fallback;
+  return null;
+}
+
+/** 종목 바에서 지금 켜진 칸 — 같은 /training 이 칸 셋으로 갈라져 경로만으로는 못 고른다 */
+export function sportActiveHref(
+  sport: SportKey,
+  pathname: string,
+  params: { get(name: string): string | null }
+): string | null {
+  if (pathname === '/training' || pathname === SETUP_PATH.training) {
+    const view = params.get('view');
+    if (sport === 'pitch' && view === 'armcare') return '/training?view=armcare';
+    if (sport === 'pitch' && view === 'mechanics') return '/training?view=mechanics';
+    return `/training?sport=${sport}`;
+  }
+  return sport === 'pitch' ? '/videos' : '/hitting';
+}
+
+/**
  * 하단 탭의 '더보기' 자리.
  *
  * 링크처럼 생겼지만 화면으로 넘어가지 않는다 — 누르면 PC 와 같은 사이드바가
@@ -328,6 +407,7 @@ export const NAV_ALSO: Record<string, readonly string[]> = {
   '/videos': ['/pitch-log', '/admin/velocity', SETUP_PATH.pitch],
   '/training': [SETUP_PATH.training],
   '/nutrition': [SETUP_PATH.nutrition],
+  '/hitting': [SETUP_PATH.hit],
   /* 분석 · 그래프는 홈의 '더 보기'다(2026-10-05 홈 정리, app/(app)/coach/page.tsx) */
   '/today': ['/coach'],
 };
@@ -340,7 +420,8 @@ export const MOBILE_TABS: NavItem[] = [
     icon: 'baseball',
     lock: 'pitch',
   },
-  { href: TRAINING_HOME_HREF, label: '트레이닝', icon: 'dumbbell', lock: 'training' },
+  /* 셋째 칸 — 트레이닝 → 타격(2026-10-20 김민). 트레이닝은 투구 · 타격 종목 하단바 안으로(아래 SPORT_BARS) */
+  { href: '/hitting', label: '타격', icon: 'bat', lock: 'hit' },
   /* 넷째 칸 — 영양 → 커뮤니티(2026-10-20 김민). 영양은 더보기에 */
   { href: '/community', label: '커뮤니티', icon: 'community' },
   { href: MORE_HREF, label: '더보기', icon: 'menu' },

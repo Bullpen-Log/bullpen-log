@@ -21,17 +21,68 @@ export type ShellTab = { href: string; label: string; icon: string; locked?: boo
 export const DEFAULT_TABS: ShellTab[] = [
   { href: '/today', label: '홈', icon: 'home' },
   { href: '/videos', label: '투구', icon: 'baseball' },
-  { href: '/training?view=home', label: '트레이닝', icon: 'dumbbell' },
+  /* 셋째 칸 — 트레이닝 → 타격(2026-10-20 김민, 웹 lib/nav.ts MOBILE_TABS). 트레이닝은 투구 · 타격 종목 바 안으로 */
+  { href: '/hitting', label: '타격', icon: 'bat' },
   /* 넷째 칸 — 영양 → 커뮤니티(2026-10-20 김민, 웹 lib/nav.ts MOBILE_TABS). 영양은 더보기에 */
   { href: '/community', label: '커뮤니티', icon: 'community' },
   { href: '/more', label: '더보기', icon: 'menu' },
 ];
+
+/**
+ * 투구 · 타격을 누르면 갈아 끼우는 종목 바(웹 lib/nav.ts SPORT_BARS — ‹ 는 TabBar back 이 따로 그린다). 사이트가 잠금을 입혀 보내 주고({ t: 'tabs', sports }),
+ * 이것은 그 전에 쓰는 기본값이다.
+ */
+export type SportKey = 'pitch' | 'hit';
+export const DEFAULT_SPORT_BARS: Record<SportKey, ShellTab[]> = {
+  pitch: [
+    { href: '/videos', label: '기록', icon: 'calendar' },
+    { href: '/training?sport=pitch', label: '트레이닝', icon: 'dumbbell' },
+    { href: '/training?view=armcare', label: '암케어', icon: 'heart' },
+    { href: '/training?view=mechanics', label: '메커니즘', icon: 'target' },
+  ],
+  hit: [
+    { href: '/hitting', label: '기록', icon: 'calendar' },
+    { href: '/training?sport=hit', label: '트레이닝', icon: 'dumbbell' },
+  ],
+};
+
+/** 지금 주소가 어느 종목 안인지(null = 기본 막대) — 웹 lib/nav.ts sportOf 와 같은 규칙 */
+export function sportOfPath(path: string, search: string, fallback: SportKey): SportKey | null {
+  if (path === '/hitting' || path.startsWith('/hitting/')) return 'hit';
+  if (path === '/videos' || path.startsWith('/videos/') || path.startsWith('/pitch-log/')) return 'pitch';
+  if (path === '/training') {
+    const sp = new URLSearchParams(search);
+    const view = sp.get('view');
+    if (view === 'home' || view === 'last') return null;
+    if (view === 'armcare' || view === 'mechanics') return 'pitch';
+    const sport = sp.get('sport');
+    return sport === 'hit' || sport === 'pitch' ? sport : fallback;
+  }
+  if (path === '/training/setup') return fallback;
+  return null;
+}
+
+/** 종목 바에서 켜진 칸 — 웹 lib/nav.ts sportActiveHref 와 같다 */
+export function sportActiveHref(sport: SportKey, path: string, search: string): string {
+  if (path === '/training' || path === '/training/setup') {
+    const view = new URLSearchParams(search).get('view');
+    if (sport === 'pitch' && view === 'armcare') return '/training?view=armcare';
+    if (sport === 'pitch' && view === 'mechanics') return '/training?view=mechanics';
+    return `/training?sport=${sport}`;
+  }
+  return sport === 'pitch' ? '/videos' : '/hitting';
+}
 
 /* 웹 하단 탭과 같은 선 그림(nav-icons.tsx · glyphs.tsx Squares) — 26px */
 const GLYPH: Record<string, IconName> = {
   home: 'house',
   baseball: 'baseball',
   dumbbell: 'dumbbell',
+  /* 타격 탭 · 종목 바(2026-10-20) */
+  bat: 'baseball-bat',
+  calendar: 'calendar-days',
+  heart: 'heart-pulse',
+  target: 'target',
   utensils: 'utensils',
   community: 'messages-square',
   menu: 'squares',
