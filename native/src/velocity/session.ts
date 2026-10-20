@@ -124,19 +124,52 @@ export function decide(
       abs: absJudged,
       zoneRect: ctx.zone,
       offStandard,
+      trail: trailOf(result),
     },
-    zone: absJudged?.verdict?.cell ?? zone,
+    /* 판정이 났으면 판정 칸 그대로(존 밖 공은 칸이 null — 짐작 칸으로 덮지 않는다, 웹 velocity-screen 과 같다) */
+    zone: absJudged?.verdict ? absJudged.verdict.cell : zone,
     notes: [
       ...(offStandard.length ? [`기준 조건 밖: ${offStandard.join(' · ')}`] : []),
       ...(mismatch
         ? [`${ctx.tape ? TAPE_MISMATCH_FIX : OUT_OF_RANGE_FIX} (공 크기로 본 거리 ${mismatch.size}m) 최고 · 평균에서 뺐어요.`]
         : []),
       ...(steadied(result) ? ['폰이 흔들려 바로잡아 잰 값이에요.'] : []),
+      ...(releaseOff(result) ? [RELEASE_OFF_NOTE] : []),
       /* 조용할 때 훑기(capture.ts sweep)가 찾은 공 — 웹 velocity-screen 과 같은 글 */
       ...(meta.late ? ['뒤늦게 찾은 공이에요. 알림이 없어 지난 영상을 훑어 쟀어요.'] : []),
     ],
   };
   return { verdict: { kept: true }, list: withSessionDistance([...list, pitch], null, ctx.tape) };
+}
+
+/**
+ * 잰 공이 처음 보인 자리가 화면 가운데(릴리스 표적)에서 이만큼(짧은 변 절반 기준) 넘게 벗어나면 알린다 — 표적 원 반지름이 약 0.29,
+ * 엔진은 0.45 를 넘으면 아예 못 잰다(RELEASE_NOT_CENTERED). 그 사이에서 재진 공에 '다음엔 맞추라'고 미리 알린다(2026-10-20).
+ */
+const RELEASE_OFF_RATIO = 0.3;
+export const RELEASE_OFF_NOTE = '공을 놓은 자리가 릴리스 표적에서 벗어났어요. 폰 방향을 맞추면 더 잘 재져요.';
+function releaseOff(result: Result): boolean {
+  const { width, height } = result.analyzeSize;
+  const first = result.track[0];
+  if (!first || !width || !height) return false;
+  return Math.hypot(first.x - width / 2, first.y - height / 2) / (Math.min(width, height) / 2) > RELEASE_OFF_RATIO;
+}
+
+/**
+ * 저장할 공 길 — [클립 시각, x, y, 지름](장면 비율, 160점까지). 웹 velocity-screen 의 trailOf · withTrail 과 같다. 앱 클립은 궤적 시각이 곧
+ * 클립 시각이라(웹 앱 카메라 길도 hitT = eventSec) 옮길 것이 없다. 없으면 그날 화면이 잡힌 공(track)으로 그렸다(2026-10-20).
+ */
+function trailOf(result: Result): number[][] | null {
+  const { width, height } = result.analyzeSize;
+  if (!width || !height) return null;
+  const path = (result.distance as { path?: number[][] } | undefined)?.path;
+  const rows = path && path.length >= 2 ? path : result.track.map((o) => [o.t, o.x, o.y, o.diameterPx]);
+  if (rows.length < 2) return null;
+  const every = Math.max(1, Math.ceil(rows.length / 160));
+  const r = (v: number, k: number) => Math.round(v * k) / k;
+  return rows
+    .filter((_, i) => i % every === 0 || i === rows.length - 1)
+    .map(([t, x, y, d]) => [r(t, 1e4), r(x / width, 1e5), r(y / height, 1e5), r(d / width, 1e5)]);
 }
 
 /** 보여 줄 구속 — 그 사람의 스피드건 짝 보정식(웹과 같이 늘 켬) */

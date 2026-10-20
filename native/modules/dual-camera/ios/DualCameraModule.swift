@@ -240,9 +240,9 @@ public class DualCameraModule: Module {
         controller.onError = { [weak self] message in
             self?.sendEvent("error", ["message": message])
         }
-        controller.onFps = { [weak self] fps, dropped, shutter, iso, thermal, feedMs, feedSkipped in
-            /* thermal — ProcessInfo.ThermalState(0~3), feedMs — 장면당 공 찾기 시간(ms, 1초 평균), feedSkipped — 공 찾기가 밀려 건너뛴 장면. 2026-10-20 진단용 */
-            self?.sendEvent("fps", ["fps": fps, "dropped": dropped, "shutter": shutter, "iso": iso, "thermal": thermal, "feedMs": feedMs, "feedSkipped": feedSkipped])
+        controller.onFps = { [weak self] stats in
+            /* 칸 뜻은 DualCameraController.onFps — thermal · feedMs · feedSkipped(2026-10-20 진단), droppedLate · droppedBuffers · writerSkipped · writerResets(같은 날 밤) */
+            self?.sendEvent("fps", stats)
         }
         self.controller = controller
         controller.start(

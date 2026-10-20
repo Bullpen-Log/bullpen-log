@@ -1,4 +1,4 @@
-import { RECORD_MAX_PENDING, RECORD_SEGMENT_SEC, nextRecordCut } from '@/lib/velocity-engine/sweep';
+import { RECORD_MAX_PENDING, RECORD_SEGMENT_SEC, clipSpanOf, nextRecordCut } from '@/lib/velocity-engine/sweep';
 import { rpc } from '~/lib/rpc';
 import { DualCamera } from '../../modules/dual-camera';
 
@@ -69,6 +69,8 @@ export class SessionRecorder {
   private cutting = false;
   /** 자르는 중인 tick — stop 이 기다린다(안 기다리면 마지막 조각이 끝낸 녹화 뒤에 붙었다) */
   private cutJob: Promise<void> | null = null;
+  /** 자르기를 끝낸 약속(finishCuts) — 한 번만 */
+  private cutsDone: Promise<void> | null = null;
   private pending = 0;
   private uploads: Promise<void> = Promise.resolve();
   /** 올리기가 밀려 폰에 둔 조각 — 끝낸 뒤 차례로 올린다 */
@@ -96,7 +98,10 @@ export class SessionRecorder {
       /* 켜기 전 영상은 안 담는다 — 첫 조각은 지금부터 */
       this.lastEnd = DualCamera.now!();
       this.set({ phase: 'recording' });
-      this.timer = setInterval(() => void (this.cutJob = this.tick()), TICK_MS);
+      /* 자르는 중이면 이번 차례는 건너뛴다 — 예전엔 빈 tick 이 cutJob 을 덮어써 stop 이 자르는 중인 조각을 안 기다렸다(2026-10-20) */
+      this.timer = setInterval(() => {
+        if (!this.cutting) this.cutJob = this.tick();
+      }, TICK_MS);
     } catch {
       this.set({ phase: 'error', error: '신호가 약해 녹화를 시작하지 못했어요.' });
     }
@@ -119,9 +124,11 @@ export class SessionRecorder {
         CUT_TIMEOUT_MS,
         '영상을 자르는 데 너무 오래 걸렸어요.'
       );
-      if (this.t0 == null) this.t0 = from;
+      /* 조각이 실제로 시작한 자리 — 앞 0.1초 · 조각 경계만큼 from 보다 앞이다(웹 녹화기 cut.start 와 같다) */
+      const start = clipSpanOf(from, main, to).start;
+      if (this.t0 == null) this.t0 = start;
       this.lastEnd = to;
-      const part: Part = { index: this.index++, path: main.path, bytes: main.bytes, offsetSec: Math.max(0, from - this.t0), durationSec: main.durationSec };
+      const part: Part = { index: this.index++, path: main.path, bytes: main.bytes, offsetSec: Math.max(0, start - this.t0), durationSec: main.durationSec };
       this.set({ parts: this.state.parts + 1 });
       if (backlogged) {
         /* 올리기가 밀렸다 — 파일은 이미 폰에 있으니 그대로 두고 끝낸 뒤 올린다. 예전(MAX_PENDING 3 · 버림)엔 10-20 녹화 #2 가 145초 중 40초만 올라갔다 */
@@ -190,19 +197,29 @@ export class SessionRecorder {
     this.set({ failed: this.state.failed + 1, error });
   }
 
+  /**
+   * 자르기를 멈추고 남은 구간을 한 번 더 자른다 — 카메라를 끄기 전에 부른다. 화면을 떠나면 카메라 정리가 녹화기 정리보다 먼저 돌아
+   * 마지막 구간을 꺼진 카메라에서 자르려다 잃었다(2026-10-20). 여러 번 불러도 한 번만 자른다.
+   */
+  finishCuts(): Promise<void> {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    this.cutsDone ??= (async () => {
+      if (this.state.phase !== 'recording') return;
+      await this.cutJob?.catch(() => undefined);
+      await this.tick(true).catch(() => undefined);
+    })();
+    return this.cutsDone;
+  }
+
   /** 멈춤 — 남은 구간을 한 번 더 자르고 다 올린 뒤(폰에 둔 조각까지) 녹화를 끝낸다 */
   async stop() {
     if (this.state.phase !== 'recording' && this.state.phase !== 'starting') return;
-    if (this.timer) clearInterval(this.timer);
-    this.timer = null;
-    const was = this.state.phase === 'recording';
+    const cuts = this.finishCuts();
     this.set({ phase: 'stopping' });
-    if (was) {
-      await this.cutJob?.catch(() => undefined);
-      await this.tick(true).catch(() => undefined);
-      await this.uploads;
-      await this.flushDeferred();
-    }
+    await cuts;
+    await this.uploads;
+    await this.flushDeferred();
     if (this.id)
       await withTimeout(
         rpc('velocity-recording.finishVelocityRecording', this.id, { durationSec: (Date.now() - this.startedAt) / 1000 }),

@@ -4,6 +4,8 @@ import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tiltOf } from '@/lib/device-tilt';
 import { NO_CALIBRATION, type CalFit } from '@/lib/velocity-calibration';
+import { distanceMismatch } from '@/lib/velocity-analysis';
+import { withSessionDistance } from '@/lib/velocity-session';
 import { EFFORT_CHIPS, effortScaleText } from '@/lib/pitch-effort';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import {
@@ -27,7 +29,7 @@ import { rpc, RpcError } from '~/lib/rpc';
 import { loadJson, saveJson } from '~/lib/store';
 import { AppCapture, timingLine, type CaptureStatus, type JobTiming, type MeasureSettings } from '~/velocity/capture';
 import { VelocityEngine, type EngineHandle } from '~/velocity/engine';
-import { decide, saveSession, shownKmh, statsOf, type NativePitch, type SessionCtx } from '~/velocity/session';
+import { RELEASE_OFF_NOTE, decide, saveSession, shownKmh, statsOf, type NativePitch, type SessionCtx } from '~/velocity/session';
 import { clearDraft, loadDraft, saveDraft } from '~/velocity/draft';
 import { ClipModal } from '~/velocity/clip-modal';
 import { PITCH_TYPES } from '@/lib/velocity-meta';
@@ -158,8 +160,15 @@ export default function VelocityScreen() {
   const ctxRef = useRef<SessionCtx>({ cameraPos, zone, info: null, tape: false, distM: STANDARD_TARGET_DIST_M });
   const tiltRef = useRef<number | null>(null);
   const todayRef = useRef<string | null>(null);
+  /* 시도 기록 날짜 — 맡겨 둔 세션을 이어 재면 그 세션 날짜(저장 날짜와 같게) */
+  const sessionDateRef = useRef<string | null>(null);
+  useEffect(() => {
+    sessionDateRef.current = sessionDate;
+  }, [sessionDate]);
   const attempts = useRef(new Map<number, Promise<string | null>>());
   const captureRef = useRef<AppCapture | null>(null);
+  /* 세션 녹화기 — 화면을 떠날 때 카메라 정리가 마지막 구간 자르기를 기다리게 */
+  const recRef = useRef<SessionRecorder | null>(null);
   /* ABS 판정 함수 — 재기 흐름(한 번 만든 AppCapture)이 지금 값을 읽게 ref 로 */
   const absRef = useRef<AbsSession | null>(null);
   useEffect(() => {
@@ -284,7 +293,7 @@ export default function VelocityScreen() {
           timings.current = [...timings.current.slice(-5), t];
         },
         onAttempt: (a) => {
-          const date = todayRef.current;
+          const date = sessionDateRef.current ?? todayRef.current;
           if (!date) return;
           attempts.current.set(
             a.id,
@@ -300,7 +309,18 @@ export default function VelocityScreen() {
     const subs = [
       DualCamera.addListener('throw', (e) => capture.onThrow(e)),
       DualCamera.addListener('fps', (e) => {
-        setFps({ fps: Math.round(e.fps), dropped: e.dropped, thermal: e.thermal ?? null, feedMs: e.feedMs ?? null, feedSkipped: e.feedSkipped ?? null });
+        setFps({
+          fps: Math.round(e.fps),
+          dropped: e.dropped,
+          thermal: e.thermal ?? null,
+          feedMs: e.feedMs ?? null,
+          feedSkipped: e.feedSkipped ?? null,
+          droppedLate: e.droppedLate ?? null,
+          droppedBuffers: e.droppedBuffers ?? null,
+          writerSkipped: e.writerSkipped ?? null,
+          writerResets: e.writerResets ?? null,
+          screenCaptured: e.screenCaptured === true,
+        });
         /* 장면이 다시 흐른다 = 카메라가 산다 — 전화 · 컨트롤센터로 잠깐 끊겼을 때 온 'error' 를 걷는다(안 걷으면 설정 카드가 오류 카드에 가려 못 갔다) */
         setError((prev) => (prev ? null : prev));
       }),
@@ -329,7 +349,11 @@ export default function VelocityScreen() {
       capture.stop();
       subs.forEach((s) => s.remove());
       void DualCamera.level({ on: false });
-      void DualCamera.stop();
+      /* 세션 녹화 중이면 마지막 구간을 자른 뒤에 끈다(이 정리가 녹화 정리보다 먼저 돈다) — 오래 걸려도 2초까지만 */
+      const r = recRef.current;
+      void (r ? Promise.race([r.finishCuts(), new Promise((res) => setTimeout(res, 2000))]) : Promise.resolve()).finally(
+        () => void DualCamera.stop()
+      );
     };
   }, []);
 
@@ -356,6 +380,7 @@ export default function VelocityScreen() {
   useEffect(() => {
     if (!(step === 'measure' && live && recWanted && start?.canRecord && info)) return;
     const r = new SessionRecorder(setRec);
+    recRef.current = r;
     void r.start(sessionDate ?? start.today, {
       sessionRecording: true,
       source: 'app',
@@ -367,6 +392,7 @@ export default function VelocityScreen() {
       cameraClockStart: DualCamera.now?.() ?? null,
     });
     return () => {
+      if (recRef.current === r) recRef.current = null;
       if (r.state.phase === 'recording' || r.state.phase === 'starting') void r.stop();
       else r.abort();
     };
@@ -476,7 +502,8 @@ export default function VelocityScreen() {
   const remove = (id: number) => {
     const gone = pitches.find((p) => p.id === id);
     if (gone) discardAll([gone]);
-    setList(pitches.filter((p) => p.id !== id));
+    /* 웹과 같이 남은 공으로 세션 거리를 다시 셈 — 지운 공이 세션 거리를 끌던 값이 남지 않게 */
+    setList(withSessionDistance(pitches.filter((p) => p.id !== id), null, ctxRef.current.tape));
   };
   const setPitchType = (id: number, key: string) =>
     setList(pitches.map((p) => (p.id === id ? { ...p, pitchType: p.pitchType === key ? null : key } : p)));
@@ -516,6 +543,14 @@ export default function VelocityScreen() {
   const level = tilt && Math.abs(tilt.roll) <= ROLL_OK && Math.abs(tilt.pitch) <= PITCH_OK;
   const last = pitches.at(-1);
   const stats = statsOf(pitches, fit);
+  /* 공이 더해지면 알림을 지우므로, 알림이 떠 있으면 그 알림은 마지막 공 뒤에 온 일(측정 불가 · 놓침)이다 —
+   * 그때 앞 공 숫자를 크게 두면 새 공을 그 값으로 잰 것처럼 보였다(2026-10-20). 앞 공은 작게만. */
+  const stale = !!notice && !!last;
+  /* 마지막 공의 경고 — 공 크기 거리가 어긋나 최고 · 평균에서 빠졌거나 릴리스가 표적에서 벗어남(목록 메모와 같은 글) */
+  const lastWarns =
+    last && !stale
+      ? last.notes.filter((n) => n === RELEASE_OFF_NOTE || (distanceMismatch(last.analysis) && n.includes('최고 · 평균에서 뺐어요')))
+      : [];
   const frame = info ? { width: info.mainWidth, height: info.mainHeight } : { width: 1080, height: 1920 };
   const zoneView = view.width ? frameRectToView(zone, frame, view) : null;
   const measuring = step === 'measure' && live;
@@ -624,6 +659,12 @@ export default function VelocityScreen() {
         ) : null}
         {/* 카메라 위 안내창 · 결과 — 뷰파인더 아래쪽 */}
         <View style={styles.over} pointerEvents="box-none">
+          {/* 아이폰 화면 기록 — 인코더를 같이 써 장면이 빠지고 공을 놓친다(10-20 금윤호 실내). 영상이 필요하면 앱의 세션 녹화로 */}
+          {fps?.screenCaptured && step !== 'loading' && step !== 'mode' ? (
+            <InfoPill tone="warn">
+              화면 기록이 켜져 있어 공을 놓칠 수 있어요. 꺼 주세요{start?.canRecord ? ' (영상은 세션 녹화로)' : ''}
+            </InfoPill>
+          ) : null}
           {/* 관리자 세션 녹화 — 측정 전엔 켜기 칩, 측정 중엔 녹화 상태(웹 velocity-screen 의 sessionRecWanted 칩) */}
           {step === 'measure' && start?.canRecord && canRecordSession() && tipsAt == null ? (
             !live && rec?.phase !== 'stopping' ? (
@@ -767,8 +808,8 @@ export default function VelocityScreen() {
               onPress={() => last && setReplay(last.clip.path)}
               style={styles.result}
             >
-              {last?.analysis?.abs ? <VerdictCard abs={last.analysis.abs} fit={last.analysis.distance?.fit ?? null} /> : null}
-              {last ? (
+              {!stale && last?.analysis?.abs ? <VerdictCard abs={last.analysis.abs} fit={last.analysis.distance?.fit ?? null} /> : null}
+              {last && !stale ? (
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
                   <Text style={styles.big}>
                     {shownKmh(last, fit).toFixed(1)}
@@ -784,7 +825,18 @@ export default function VelocityScreen() {
               ) : null}
               {error && step === 'measure' ? <Text style={styles.error}>{error}</Text> : null}
               {notice ? <Text style={styles.line}>{notice}</Text> : null}
-              {last ? <Text style={styles.hint}>눌러서 영상 다시 보기</Text> : null}
+              {lastWarns.map((w) => (
+                <Text key={w} style={styles.line}>
+                  {w}
+                </Text>
+              ))}
+              {last && stale ? (
+                <Text style={styles.hint}>
+                  앞 공 {shownKmh(last, fit).toFixed(1)} km/h{stats ? ` · 최고 ${stats.max.toFixed(1)} · 평균 ${stats.avg.toFixed(1)}` : ''} · 눌러서 앞 공 영상 보기
+                </Text>
+              ) : last ? (
+                <Text style={styles.hint}>눌러서 영상 다시 보기</Text>
+              ) : null}
             </Press>
           ) : !live ? (
             <InfoPill>빨간 단추를 누르면 {mode === 'abs' ? '판정' : '측정'}을 시작해요</InfoPill>
@@ -940,7 +992,20 @@ function recChipText(rec: RecState) {
   return `녹화 중 · 올림 ${rec.uploaded}/${rec.parts}${tail}`;
 }
 
-type FpsState = { fps: number; dropped: number; thermal: number | null; feedMs: number | null; feedSkipped: number | null };
+type FpsState = {
+  fps: number;
+  dropped: number;
+  thermal: number | null;
+  feedMs: number | null;
+  feedSkipped: number | null;
+  /** 버린 까닭(늦음 · 버퍼 모자람) · 인코더가 안 받은 장면 · 녹화기를 새로 연 횟수 — 같은 날 밤 판부터, 옛 판은 null */
+  droppedLate: number | null;
+  droppedBuffers: number | null;
+  writerSkipped: number | null;
+  writerResets: number | null;
+  /** 아이폰 화면 기록(미러링)이 켜져 있나 — 같은 날 밤 판부터 */
+  screenCaptured: boolean;
+};
 const THERMAL_TEXT: Record<number, string> = { 0: '보통', 1: '따뜻', 2: '뜨거움', 3: '아주 뜨거움' };
 
 /** 둘째 줄 알약 — '1080p · 60fps · 2배' 뒤에 버림 N · DEBUG · 뜨거움이 붙는다 */
@@ -965,6 +1030,11 @@ function diagLines(info: StartInfo | null, fps: FpsState | null, timings: JobTim
     lines.push(
       `지금 ${fps.fps}fps · 버림 ${fps.dropped}/초 · 공 찾기 ${feed}ms/장${fps.feedSkipped ? ` (건너뜀 ${fps.feedSkipped}/초)` : ''} · 열 ${THERMAL_TEXT[fps.thermal ?? -1] ?? '?'}`
     );
+    /* 버린 까닭 — 늦음은 장면 줄이 밀림, 버퍼 모자람은 인코더 · 다른 앱(화면 녹화)이 버퍼를 붙듦. 인코더 건너뜀 · 녹화기 새로 염은 클립이 빈 까닭 */
+    if (fps.droppedLate != null)
+      lines.push(
+        `버린 까닭 늦음 ${fps.droppedLate} · 버퍼 ${fps.droppedBuffers ?? 0} · 인코더 건너뜀 ${fps.writerSkipped ?? 0}${fps.writerResets ? ` · 녹화기 새로 염 ${fps.writerResets}` : ''}`
+      );
   }
   lines.push(timings.length ? '최근 작업(ms):' : '최근 작업 없음');
   for (const t of timings) lines.push(timingLine(t));
