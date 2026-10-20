@@ -52,12 +52,25 @@ function textOf(children: ReactNode): string {
  * 판 넘기기(components/tab-pager.tsx)의 숨은 판(data-active 없음) 안에서는 막대에 쓰지 않고, 판이 숨으면 걷는다 —
  * 트레이닝 하위 화면(암케어)에서 하단 탭으로 옮기면 투구 · 홈 막대에 '‹ 트레이닝'이 남았다(2026-10-16, NavTitle 과 같은 까닭).
  */
-export function BackLink({ href, children }: { href: string; children: ReactNode }) {
+export function BackLink({
+  href,
+  children,
+  toBar = true,
+}: {
+  href: string;
+  children: ReactNode;
+  /**
+   * 휴대폰 위 막대에 '‹ 뒤로'를 세우나 — 트레이닝 앱 머리(training-page.tsx AppHead)는 PC 줄에만 쓴다(2026-10-20).
+   * 휴대폰은 투구 · 타격 종목 하단바의 ‹ 가 돌아가는 길이라 막대에 또 세우면 길이 둘이 된다.
+   */
+  toBar?: boolean;
+}) {
   const router = useRouter();
   const label = textOf(children);
   const ref = useRef<HTMLAnchorElement>(null);
 
   useEffect(() => {
+    if (!toBar) return;
     const panel = ref.current?.closest('[data-panel]');
     const shown = () => !panel || panel.hasAttribute('data-active');
     if (shown()) setBarBack({ href, label });
@@ -70,7 +83,7 @@ export function BackLink({ href, children }: { href: string; children: ReactNode
       mo.disconnect();
       clearBarBack(href);
     };
-  }, [href, label]);
+  }, [href, label, toBar]);
 
   return (
     <Link

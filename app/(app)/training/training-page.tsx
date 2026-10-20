@@ -128,7 +128,9 @@ function AppHead({
         떠 있었다(2026-10-15 김민 "상단이 부자연스럽다") → 휴대폰은 설정을 제목 오른쪽 알약으로(투구의 '분석'처럼).
       */}
       <div className="hidden min-h-11 items-center gap-3 desk:flex">
-        <BackLink href={TRAINING_HOME_HREF}>트레이닝</BackLink>
+        <BackLink href={TRAINING_HOME_HREF} toBar={false}>
+          트레이닝
+        </BackLink>
         {settings && (
           <div className="ml-auto">
             <TrainingSettingsButton

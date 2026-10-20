@@ -16,7 +16,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { forgetPage, rememberPage } from '@/lib/last-page';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
-import type { NavGroup, NavItem } from '@/lib/nav';
+import type { NavGroup, NavItem, SportKey } from '@/lib/nav';
 import { DESK_MEDIA } from '@/lib/nav';
 import { Wordmark } from '@/components/logo';
 import { Modal } from '@/components/modal';
@@ -38,7 +38,7 @@ import { QuickBar, MenuSquares, DockGrid } from './app-shell/dock';
 import { SettingsCog, Avatar } from './app-shell/glyphs';
 import { DetailMenu } from './app-shell/detail-menu';
 import { MobileTopBar } from './app-shell/mobile-top-bar';
-import { MobileTabs } from './app-shell/mobile-tabs';
+import { SportAwareTabs } from './app-shell/sport-tabs';
 import { ExpoTabBridge } from './app-shell/expo-tabs';
 
 /*
@@ -134,6 +134,8 @@ export function AppNav({
   groups,
   quick,
   tabs,
+  sportBars,
+  defaultSport,
   nickname,
   avatarUrl,
   isAdmin,
@@ -152,6 +154,9 @@ export function AppNav({
    * 여닫이(open)를 쥔 이곳과 이어져 있어야 한다. 상단 바도 이미 여기서 그린다.
    */
   tabs: NavItem[];
+  /** 종목 하단바 둘(잠금 입힘)과 그냥 /training 의 종목 — 투구 · 타격 화면이면 하단바가 이것으로 바뀐다(2026-10-20, sport-tabs.tsx) */
+  sportBars: Record<SportKey, NavItem[]>;
+  defaultSport: SportKey;
   nickname: string;
   avatarUrl: string | null;
   isAdmin: boolean;
@@ -1325,7 +1330,13 @@ export function AppNav({
         <ProfilePanel data={profile} avatarUrl={avatarUrl} today={today} />
       </Modal>
 
-      <MobileTabs tabs={tabs} menuOpen={open} onMenu={() => go('sheet')} />
+      <SportAwareTabs
+        tabs={tabs}
+        sportBars={sportBars}
+        defaultSport={defaultSport}
+        menuOpen={open}
+        onMenu={() => go('sheet')}
+      />
       <Suspense fallback={null}>
         <ExpoTabBridge
           tabs={tabs}
