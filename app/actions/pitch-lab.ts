@@ -482,18 +482,24 @@ const LIST_WHEN = new Intl.DateTimeFormat('ko-KR', {
  * 올리기는 앱이 영상을 저장소에 바로 올리고(app/api/pitch-lab/upload-url) saveLabSample 을 부른다 · 지우기는 removeLabSample.
  * /api/rpc/pitch-lab.loadAppLabList 로 부른다.
  */
-export async function loadAppLabList(): Promise<
-  | { ok: true; samples: AppLabListItem[]; heightCm: number | null; hand: 'L' | 'R' }
+export async function loadAppLabList(scope?: string): Promise<
+  | { ok: true; samples: AppLabListItem[]; heightCm: number | null; hand: 'L' | 'R'; isAdmin: boolean }
   | { ok: false; to: string }
 > {
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   /* 투구 첫 설정 전이면 설정으로(웹 /videos/lab 과 같다) */
   if (featureLocks(user).pitch) return { ok: false, to: SETUP_PATH.pitch };
-  const samples = await listLabSamples(user);
+  const all = await listLabSamples(user);
+  /*
+   * 'mine' = 사용자 화면(앱 /lab) — 관리자도 자기 투구만(마커 빼고). 없으면 관리자 샘플 화면(앱 /lab/samples) · 옛 앱 — 관리자끼리 · 마커 포함 그대로.
+   * 2026-10-21 김민: "샘플 · 마커 샘플은 관리자 전용, 사용자가 실제로 쓰는 페이지는 따로"
+   */
+  const samples = scope === 'mine' ? all.filter((s) => s.ownerId === user.id && s.meta?.kind !== 'marker') : all;
   const now = Date.now();
   return {
     ok: true,
+    isAdmin: user.role === 'ADMIN',
     heightCm: user.heightCm ?? null,
     hand: labHandOf(user.throwingHand),
     samples: samples.map((s) => ({
