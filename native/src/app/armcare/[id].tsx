@@ -5,6 +5,7 @@ import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalSt
 import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatSeconds } from '@/lib/exercise-meta';
+import { useLiveActivity } from '~/shell/live-activity';
 import { REST_CLOCK_LIMIT_SECONDS } from '@/lib/workout/rest';
 import type { ArmcarePlay } from '@/lib/armcare/play-load';
 import type { PlayerItem } from '@/app/(session)/armcare/play/[id]/armcare-player';
@@ -323,6 +324,29 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
     };
   }, [state.clock]);
   useEffect(() => () => void BullpenNative.cancelAlarm(CLOCK_ALARM_ID).catch(() => undefined), []);
+
+  /*
+   * 다이나믹 아일랜드 · 잠금 화면(2026-10-20 김민) — 버티기 · 쉬기는 끝나는 때까지 거꾸로, 그 밖엔 이 루틴을 연 때부터 올라간다.
+   * 다 마치면 거둔다. 시계가 끝나면 이 화면의 상태가 바뀌어(clock-end) 저절로 다음 모양으로 넘어간다.
+   */
+  const [openedMs] = useState(() => Date.now());
+  const liveItem = items[state.index];
+  const liveSets = liveItem ? `세트 ${Math.min(state.sets[state.index] + (state.clock?.kind === 'hold' ? 1 : 0), liveItem.sets)}/${liveItem.sets}` : '';
+  useLiveActivity(
+    state.finished || !liveItem
+      ? null
+      : state.clock
+        ? {
+            kind: 'hold',
+            symbol: state.clock.kind === 'hold' ? 'hourglass' : 'timer',
+            label: state.clock.kind === 'hold' ? (twoSides(liveItem) ? (state.side === 0 ? '버티기 · 한쪽' : '버티기 · 반대쪽') : '버티기') : '쉬는 시간',
+            title: liveItem.exercise.title,
+            detail: liveSets,
+            since: state.clock.endsAt - state.clock.total * 1000,
+            until: state.clock.endsAt,
+          }
+        : { kind: 'work', symbol: 'figure.flexibility', label: '암케어', title: liveItem.exercise.title, detail: liveSets, since: openedMs }
+  );
 
   /* 운동이 바뀌면 맨 위(영상 · 이름)부터 — 자세 설명을 읽느라 내려가 있던 자리에 다음 운동이 뜨면 할 차례가 화면 밖에 있다 */
   const scrollRef = useRef<ScrollViewInstance>(null);

@@ -24,6 +24,7 @@ import { act, Description, FilmVerdictButtons, leave, LevelOffer, ThrowNoteCard 
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE, useBarSide } from '~/lib/layout';
+import { useLiveActivity } from '~/shell/live-activity';
 
 /**
  * 메커니즘 세션 따라 하기(앱 화면) — 웹 app/(session)/mechanics/play/mechanics-player.tsx 를 옮겼다. 사이트의 따라 하기가 앱(BullpenNative/4 부터)이면
@@ -174,6 +175,21 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
   const view = viewOf(item, choices[index]);
   const counted = Math.min(setsDone, view.sets);
   const choose = (next: Choice) => setChoices((list) => list.map((v, i) => (i === index ? next : v)));
+
+  /* 다이나믹 아일랜드 · 잠금 화면(2026-10-20 김민) — 지금 드릴 · 몇 번째 · 세트, 시계는 이 세션을 연 때부터. 마치면 거둔다 */
+  const [openedMs] = useState(() => Date.now());
+  useLiveActivity(
+    finished || !item
+      ? null
+      : {
+          kind: 'work',
+          symbol: 'figure.baseball',
+          label: '메커니즘',
+          title: view.title,
+          detail: `드릴 ${index + 1}/${items.length} · 세트 ${counted}/${view.sets}`,
+          since: openedMs,
+        }
+  );
 
   const next = () => {
     setIndex(index + 1);

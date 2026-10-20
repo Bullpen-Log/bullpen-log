@@ -39,7 +39,8 @@ import { usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { drainOutbox, onSent, outbox, withPending, type ShownSet } from '~/workout/outbox';
-import { NoteBox, NumberPad, RestPill, RirQuestion, SetDots } from '~/workout/parts';
+import { NoteBox, NumberPad, RestPill, RirQuestion, SetDots, clockText } from '~/workout/parts';
+import { useLiveActivity } from '~/shell/live-activity';
 import { ExerciseMedia } from '~/armcare/parts';
 import { HistoryPanel } from '~/training/history';
 import { FinishSheet, ListSheet, SwapSheet } from '~/workout/sheets';
@@ -294,18 +295,23 @@ function Run({
   const restTarget = lastSet ? (list.find((e) => e.id === lastSet.exerciseId)?.restSeconds ?? null) : null;
 
   /*
-   * 같은 휴식 시계를 다이나믹 아일랜드 · 잠금 화면에도(Live Activity, 2026-10-20 김민) — 세트를 남기면 그때부터 올라가고,
-   * 10분이 지나 시계를 거두거나 화면을 나가면 거둔다. 시계는 시스템이 세므로 장면마다 다시 보내지 않는다. 옛 앱엔 함수가 없어 그냥 넘어간다.
+   * 다이나믹 아일랜드 · 잠금 화면(2026-10-20 김민) — 세트를 남기면 쉬는 시계(이 화면 시계와 같이 마지막 세트부터 올라감),
+   * 그 밖엔 '운동 중' 전체 시간(마치기 창의 운동 시간과 같은 기준: 이 판을 연 때 − 앞서 한 시간). 화면을 나가면 거둔다.
    */
-  const restOn = rest != null;
-  useEffect(() => {
-    if (!restOn || !lastAt) {
-      void BullpenNative.endRest?.().catch(() => undefined);
-      return;
-    }
-    void BullpenNative.startRest?.(Date.parse(lastAt), restTarget ?? 0, ex.title).catch(() => undefined);
-  }, [restOn, lastAt, restTarget, ex.title]);
-  useEffect(() => () => void BullpenNative.endRest?.().catch(() => undefined), []);
+  const startedMs = Date.parse(openedAt) - priorSeconds * 1000;
+  const setLine = ex.plannedSets ? `세트 ${Math.min(mine.length, ex.plannedSets)}/${ex.plannedSets}` : `${mine.length}세트`;
+  useLiveActivity(
+    rest != null && lastAt
+      ? {
+          kind: 'rest',
+          symbol: 'timer',
+          label: '휴식',
+          title: ex.title,
+          detail: restTarget != null ? `권장 ${clockText(restTarget)}` : setLine,
+          since: Date.parse(lastAt),
+        }
+      : { kind: 'work', symbol: 'figure.strengthtraining.traditional', label: '운동 중', title: ex.title, detail: setLine, since: startedMs }
+  );
 
   const setCounts = useMemo(() => {
     const counts = new Map<string, number>();
