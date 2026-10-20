@@ -35,8 +35,7 @@ const GLYPH: Record<string, IconName> = {
   utensils: 'utensils',
   community: 'messages-square',
   menu: 'squares',
-  /* 커뮤니티 하단바(app/community/index.tsx) */
-  community: 'messages-square',
+  /* 커뮤니티 하단바(app/community/index.tsx) — 'community' 는 위(넷째 탭과 같은 그림) */
   flame: 'flame',
   book: 'book-open',
   pencil: 'pencil',
