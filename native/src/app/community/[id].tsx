@@ -2,24 +2,14 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  type ScrollViewInstance,
-} from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COMMENT_BODY_MAX, REPORT_DETAIL_MAX, REPORT_REASONS, postCategoryLabel, type ReportReason } from '@/lib/community';
 import type { loadAppCommunityPost } from '@/app/actions/community';
 import { Badge, Bar, call, categoryColor, Chip, LoadState, s, useBusy, useLoad } from '~/community/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 글 하나(앱 화면) — 웹 app/(app)/community/[id]/page.tsx 를 옮겼다. 본문 · 좋아요 · 신고 · 댓글, 관리자는 가리기 · 되살리기까지.
@@ -108,10 +98,10 @@ export default function CommunityPostScreen() {
     });
 
   const textBtn = (label: string, onPress: () => void, color = c.muted, icon?: SFSymbol) => (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={6} style={styles.textBtn}>
+    <Press accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={6} style={styles.textBtn}>
       {icon ? <SymbolView name={icon} size={15} tintColor={color} /> : null}
       <Text style={{ color, fontSize: 14, fontWeight: '600' }}>{label}</Text>
-    </Pressable>
+    </Press>
   );
   const reportedText = <Text style={{ color: c.muted, fontSize: 13 }}>신고를 접수했어요. 살펴볼게요.</Text>;
 
@@ -141,7 +131,7 @@ export default function CommunityPostScreen() {
 
         {/* 동작 줄 — 좋아요 · 댓글 수 왼쪽, 가리기 · 지우기 오른쪽 */}
         <View style={[styles.actions, { borderColor: c.line }]}>
-          <Pressable
+          <Press
             accessibilityRole="button"
             accessibilityState={{ selected: shown.liked, disabled: !post.canLike }}
             accessibilityLabel={`${shown.liked ? '좋아요 취소' : '좋아요'} ${shown.likes}`}
@@ -151,7 +141,7 @@ export default function CommunityPostScreen() {
           >
             <SymbolView name={shown.liked ? 'heart.fill' : 'heart'} size={16} tintColor={shown.liked ? c.danger : c.muted} />
             <Text style={{ color: shown.liked ? c.danger : c.ink, fontSize: 15, fontWeight: '600' }}>{shown.likes}</Text>
-          </Pressable>
+          </Press>
           <View style={styles.textBtn}>
             <SymbolView name="bubble.left" size={15} tintColor={c.muted} />
             <Text style={{ color: c.muted, fontSize: 15 }}>{post.commentCount}</Text>
@@ -213,7 +203,7 @@ export default function CommunityPostScreen() {
               accessibilityLabel="댓글"
               style={[styles.commentInput, { backgroundColor: c.card, color: c.ink }]}
             />
-            <Pressable
+            <Press
               accessibilityRole="button"
               accessibilityLabel={send.busy ? '올리는 중' : '댓글 올리기'}
               onPress={addComment}
@@ -221,7 +211,7 @@ export default function CommunityPostScreen() {
               style={[styles.send, { backgroundColor: c.sky, opacity: send.busy || !comment.trim() ? 0.4 : 1 }]}
             >
               <SymbolView name="paperplane.fill" size={18} tintColor="#fff" />
-            </Pressable>
+            </Press>
           </View>
         </View>
       ) : null}
@@ -260,13 +250,13 @@ function ReportSheet({ target, c, onClose, onDone }: { target: Target; c: Palett
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
         <View style={styles.sheetBar}>
-          <Pressable accessibilityRole="button" onPress={onClose} hitSlop={10}>
+          <Press accessibilityRole="button" onPress={onClose} hitSlop={10}>
             <Text style={{ color: c.sky, fontSize: 17 }}>취소</Text>
-          </Pressable>
+          </Press>
           <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>신고</Text>
-          <Pressable accessibilityRole="button" onPress={submit} disabled={send.busy} hitSlop={10}>
+          <Press accessibilityRole="button" onPress={submit} disabled={send.busy} hitSlop={10}>
             <Text style={{ color: c.danger, fontSize: 17, fontWeight: '700', opacity: send.busy ? 0.4 : 1 }}>보내기</Text>
-          </Pressable>
+          </Press>
         </View>
         <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled">
           <Text style={[s.label, { color: c.muted }]}>왜 신고하나요?</Text>

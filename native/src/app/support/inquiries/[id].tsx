@@ -2,13 +2,14 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { REPLY_BODY_MAX, inquiryCategoryLabel } from '@/lib/support';
 import type { loadAppInquiry } from '@/app/actions/support';
 import { Badge, Bar, call, LoadState, s, StatusBadge, useBusy, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 문의 한 건의 대화(앱 화면) — 웹 app/(app)/support/inquiries/[id]/page.tsx. 물음이 맨 위, 그 밑에 답글이 시간순, 운영자 답은 하늘색.
@@ -109,12 +110,12 @@ export default function InquiryScreen() {
           <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float, padding: 20, gap: 12, alignItems: 'center' }]}>
             <SymbolView name="lock.fill" size={20} tintColor={c.muted} />
             <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center' }}>종료된 문의예요. 더 물을 게 있으면 다시 열어 주세요.</Text>
-            <Pressable accessibilityRole="button" onPress={() => setOpen(true)} disabled={send.busy} style={[s.pill, { backgroundColor: c.chip }]}>
+            <Press accessibilityRole="button" onPress={() => setOpen(true)} disabled={send.busy} style={[s.pill, { backgroundColor: c.chip }]}>
               <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>다시 열기</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : (
-          <Pressable
+          <Press
             accessibilityRole="button"
             onPress={() => setOpen(false)}
             disabled={send.busy}
@@ -123,7 +124,7 @@ export default function InquiryScreen() {
           >
             <SymbolView name="lock" size={13} tintColor={c.muted} />
             <Text style={{ color: c.muted, fontSize: 14, fontWeight: '600' }}>문의 종료</Text>
-          </Pressable>
+          </Press>
         )}
         {closed && send.error ? <Text style={{ color: c.danger, fontSize: 14 }}>{send.error}</Text> : null}
       </ScrollView>
@@ -142,7 +143,7 @@ export default function InquiryScreen() {
               accessibilityLabel={q.staff ? '답변' : '덧붙이는 글'}
               style={[styles.input, { backgroundColor: c.card, color: c.ink }]}
             />
-            <Pressable
+            <Press
               accessibilityRole="button"
               accessibilityLabel={send.busy ? '보내는 중' : '보내기'}
               onPress={submit}
@@ -150,7 +151,7 @@ export default function InquiryScreen() {
               style={[styles.send, { backgroundColor: c.sky, opacity: send.busy || !reply.trim() ? 0.4 : 1 }]}
             >
               <SymbolView name="paperplane.fill" size={18} tintColor="#fff" />
-            </Pressable>
+            </Press>
           </View>
         </View>
       )}

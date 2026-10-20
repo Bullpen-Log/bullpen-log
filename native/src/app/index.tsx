@@ -10,7 +10,7 @@ import {
   type ComponentType,
   type Ref,
 } from 'react';
-import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, StyleSheet, Text, View } from 'react-native';
 import {
   WebView,
   type WebViewMessageEvent,
@@ -47,6 +47,7 @@ import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
 import { TabPager } from '~/shell/tab-pager';
 import { ClockVeil } from '~/shell/clock-veil';
+import { Press } from '~/shell/press';
 
 type WebViewHandle = { injectJavaScript(script: string): void };
 /* react-native-webview 14 의 타입은 ref 를 안 받지만 실제 부품은 forwardRef 다(velocity/engine.tsx 와 같다) */
@@ -506,7 +507,7 @@ export default function SiteScreen() {
         <Text style={[styles.body, dark && styles.mutedDark]}>
           연결되면 다시 불러와 주세요.
         </Text>
-        <Pressable
+        <Press
           accessibilityRole="button"
           style={styles.button}
           onPress={() => {
@@ -516,7 +517,7 @@ export default function SiteScreen() {
           }}
         >
           <Text style={styles.buttonText}>다시 불러오기</Text>
-        </Pressable>
+        </Press>
       </View>
     );
   }

@@ -1,12 +1,13 @@
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { FlatList, RefreshControl, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppBoard } from '@/app/actions/board';
 import { Bar, BarButton, LoadState, Row, s, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 자료실 목록(앱 화면) — 웹 app/(app)/board/page.tsx 를 옮겼다. 사이트의 /board 가 앱(BullpenNative/7 부터)이면 이 화면을 띄운다(page.tsx →
@@ -85,9 +86,9 @@ export default function BoardScreen() {
               </Text>
               {/* 웹 board/page.tsx 빈 칸의 [첫 글 쓰기](글을 쓸 수 있는 사람만) */}
               {data.canWrite ? (
-                <Pressable accessibilityRole="button" onPress={() => router.push('/board/new' as Href)} style={[s.pill, { marginTop: 12, backgroundColor: c.chip }]}>
+                <Press accessibilityRole="button" onPress={() => router.push('/board/new' as Href)} style={[s.pill, { marginTop: 12, backgroundColor: c.chip }]}>
                   <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>첫 글 쓰기</Text>
-                </Pressable>
+                </Press>
               ) : null}
             </View>
           }

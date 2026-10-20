@@ -1,11 +1,12 @@
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppVelocityAdmin } from '@/app/actions/app-admin';
 import { Bar, leave, LoadState, Row, s, useLoad } from '~/community/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { signed } from '~/velocity/signed';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 구속 측정 관리자(앱) — 웹 app/(app)/admin/velocity/mobile-admin.tsx 의 휴대폰 화면을 옮겼다: [영상 올리기] · 녹화 · 측정 시작 · 숫자 셋 ·
@@ -29,20 +30,20 @@ export default function VelocityAdminScreen() {
           contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
-          <Pressable accessibilityRole="button" onPress={() => router.push('/admin/velocity/upload' as Href)} style={[s.pill, { minHeight: 56, backgroundColor: c.sky }]}>
+          <Press accessibilityRole="button" onPress={() => router.push('/admin/velocity/upload' as Href)} style={[s.pill, { minHeight: 56, backgroundColor: c.sky }]}>
             <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>영상 올리기</Text>
-          </Pressable>
+          </Press>
           {/* 세션 녹화 — 측정된 공과 따로 본다(웹 목록의 '세션 녹화' 칸, 2026-10-18) */}
-          <Pressable accessibilityRole="button" onPress={() => leave('/admin/velocity/recordings?kind=session')} style={[s.pill, { minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
+          <Press accessibilityRole="button" onPress={() => leave('/admin/velocity/recordings?kind=session')} style={[s.pill, { minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
             <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>세션 녹화{(data.sessionRecordings ?? 0) > 0 ? ` ${data.sessionRecordings}` : ''}</Text>
-          </Pressable>
+          </Press>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Pressable accessibilityRole="button" onPress={() => leave('/admin/velocity/recordings?kind=dev')} style={[s.pill, { flex: 1, minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
+            <Press accessibilityRole="button" onPress={() => leave('/admin/velocity/recordings?kind=dev')} style={[s.pill, { flex: 1, minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
               <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>개발용 녹화{data.recordings > 0 ? ` ${data.recordings}` : ''}</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={() => router.push('/velocity' as Href)} style={[s.pill, { flex: 1, minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
+            </Press>
+            <Press accessibilityRole="button" onPress={() => router.push('/velocity' as Href)} style={[s.pill, { flex: 1, minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
               <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>측정 시작</Text>
-            </Pressable>
+            </Press>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Tile label="공" value={String(data.totals.pitches)} c={c} />

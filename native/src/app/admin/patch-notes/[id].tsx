@@ -1,12 +1,13 @@
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppPatchNote } from '@/app/actions/app-admin';
 import { Bar, call, LoadState, s, useBusy, useLoad } from '~/community/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 패치노트 한 장(앱 화면, 관리자) — 웹 app/(app)/admin/patch-notes/[id]/page.tsx: 그날의 크기 · 한 일(커밋 제목 · 본문) · 메모.
@@ -88,14 +89,14 @@ function Body({ note, c }: { note: Note; c: Palette }) {
           style={[s.area, { backgroundColor: c.card, boxShadow: c.float, color: c.ink, minHeight: 140 }]}
         />
         {save.error ? <Text style={{ color: c.danger, fontSize: 14, fontWeight: '600' }}>{save.error}</Text> : null}
-        <Pressable
+        <Press
           accessibilityRole="button"
           onPress={submit}
           disabled={save.busy || memo === saved}
           style={[s.primary, { backgroundColor: c.sky, opacity: save.busy || memo === saved ? 0.5 : 1 }]}
         >
           <Text style={s.primaryText}>{save.busy ? '저장하는 중…' : memo === saved ? '저장됨' : '메모 저장'}</Text>
-        </Pressable>
+        </Press>
       </View>
     </ScrollView>
   );
@@ -104,13 +105,13 @@ function Body({ note, c }: { note: Note; c: Palette }) {
 function CommitRow({ subject, body, sha, c }: { subject: string; body: string; sha: string; c: Palette }) {
   const [open, setOpen] = useState(false);
   return (
-    <Pressable accessibilityRole="button" onPress={() => body && setOpen((v) => !v)} style={{ gap: 4 }}>
+    <Press accessibilityRole="button" onPress={() => body && setOpen((v) => !v)} style={{ gap: 4 }}>
       <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600', lineHeight: 21 }}>{subject}</Text>
       <Text style={[s.meta, { color: c.muted }]}>
         {sha.slice(0, 8)}
         {body ? (open ? ' · 접기' : ' · 자세히') : ''}
       </Text>
       {open ? <Text selectable style={{ color: c.ink, fontSize: 14, lineHeight: 21 }}>{body}</Text> : null}
-    </Pressable>
+    </Press>
   );
 }

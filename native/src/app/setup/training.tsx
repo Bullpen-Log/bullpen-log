@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { BASELINE_WORKOUT_FREQ, THROWING_HANDS } from '@/lib/baseline';
 import { TRAINING_LEVELS } from '@/lib/report/personalize';
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
@@ -20,6 +20,7 @@ import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { leaveTo, openWebAfter } from '~/shell/web-nav';
 import { ChoiceChips, StepFrame, SummaryRows } from '~/setup/frame';
+import { Press } from '~/shell/press';
 
 /**
  * 트레이닝 첫 설정(앱 화면) — 웹 app/(app)/training/setup/training-setup-wizard.tsx 를 옮겼다. 경력 → 웨이트 횟수 → 하루 운동 시간 →
@@ -55,9 +56,9 @@ export default function TrainingSetupScreen() {
         {failed ? (
           <>
             <Text style={{ color: c.ink, fontSize: 15 }}>신호가 약해 불러오지 못했어요.</Text>
-            <Pressable accessibilityRole="button" onPress={() => (setFailed(false), setTries((n) => n + 1))} hitSlop={8}>
+            <Press accessibilityRole="button" onPress={() => (setFailed(false), setTries((n) => n + 1))} hitSlop={8}>
               <Text style={{ color: c.sky, fontSize: 15, fontWeight: '700' }}>다시 불러오기</Text>
-            </Pressable>
+            </Press>
           </>
         ) : (
           <ActivityIndicator />
@@ -213,7 +214,7 @@ function Wizard({ name, age, askHand, hasSetup, basicsDone, initial }: Extract<L
 /** 설명이 붙은 고르기 카드(웹 OptionCards) */
 function OptionCard({ label, hint, on, invalid, onPress, c }: { label: string; hint: string; on: boolean; invalid: boolean; onPress: () => void; c: Palette }) {
   return (
-    <Pressable
+    <Press
       accessibilityRole="radio"
       accessibilityState={{ selected: on }}
       onPress={() => {
@@ -237,6 +238,6 @@ function OptionCard({ label, hint, on, invalid, onPress, c }: { label: string; h
         <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>{hint}</Text>
       </View>
       {on ? <SymbolView name="checkmark.circle.fill" size={22} tintColor={c.sky} /> : null}
-    </Pressable>
+    </Press>
   );
 }

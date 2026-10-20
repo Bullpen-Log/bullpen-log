@@ -1,13 +1,14 @@
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FAQ } from '@/lib/support';
 import type { loadAppSupport } from '@/app/actions/support';
 import { Bar, InquiryRows, LoadState, NoticeRows, s, useLoad } from '~/community/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 고객센터(앱 화면) — 웹 app/(app)/support/page.tsx 를 옮겼다. 공지 · 자주 묻는 질문 · 내 1:1 문의 · 메일을 묶음 하나씩, '무슨 일이 있나 →
@@ -46,13 +47,13 @@ export default function SupportScreen() {
               <InquiryRows rows={data.inquiries} c={c} />
             )}
           </Section>
-          <Pressable
+          <Press
             accessibilityRole="button"
             onPress={() => router.push('/support/inquiries/new' as Href)}
             style={[s.primary, { backgroundColor: c.sky, marginTop: -8 }]}
           >
             <Text style={s.primaryText}>문의하기</Text>
-          </Pressable>
+          </Press>
 
           {/* 메일 — 로그인이 안 되는 사람도 닿을 수 있는 길(웹 꼬리말 · 약관과 같은 주소, 서버가 알려 준다) */}
           <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float, padding: 16, gap: 8 }]}>
@@ -60,14 +61,14 @@ export default function SupportScreen() {
             <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>
               자주 묻는 질문에 없으면 1:1 문의로 물어 주세요. 로그인이 안 될 때는 메일로도 받아요.
             </Text>
-            <Pressable
+            <Press
               accessibilityRole="link"
               onPress={() => void Linking.openURL(`mailto:${data.contact}`)}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40 }}
             >
               <SymbolView name="paperplane" size={15} tintColor={c.sky} />
               <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{data.contact}</Text>
-            </Pressable>
+            </Press>
           </View>
         </ScrollView>
       )}
@@ -81,9 +82,9 @@ function Section({ title, more, children, c }: { title: string; more?: () => voi
       <View style={styles.head}>
         <Text style={[s.groupTitle, { color: c.muted, flex: 1 }]}>{title}</Text>
         {more ? (
-          <Pressable accessibilityRole="button" onPress={more} hitSlop={8} style={{ paddingHorizontal: 16 }}>
+          <Press accessibilityRole="button" onPress={more} hitSlop={8} style={{ paddingHorizontal: 16 }}>
             <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>모두 보기</Text>
-          </Pressable>
+          </Press>
         ) : null}
       </View>
       <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>{children}</View>
@@ -105,7 +106,7 @@ function Faq({ c }: { c: Palette }) {
         const on = open === it.q;
         return (
           <View key={it.q}>
-            <Pressable
+            <Press
               accessibilityRole="button"
               accessibilityState={{ expanded: on }}
               onPress={() => setOpen(on ? null : it.q)}
@@ -113,7 +114,7 @@ function Faq({ c }: { c: Palette }) {
             >
               <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '500' }}>{it.q}</Text>
               <SymbolView name={on ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-            </Pressable>
+            </Press>
             {on ? <Text style={{ color: c.muted, fontSize: 15, lineHeight: 22, paddingHorizontal: 16, paddingBottom: 14 }}>{it.a}</Text> : null}
           </View>
         );
