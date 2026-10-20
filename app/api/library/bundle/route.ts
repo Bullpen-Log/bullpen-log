@@ -1,12 +1,13 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { createPlaybackUrls, smallLibraryCopies, smallLibraryPath } from '@/lib/storage';
+import { LIBRARY_HEVC_PREFIX, LIBRARY_SMALL_PREFIX, createPlaybackUrls, smallLibraryCopies, smallLibraryPath } from '@/lib/storage';
 import { visibleExercises, visibleGuides } from '@/lib/library-cache';
 
 /**
  * 아이폰 앱 굽기(GitHub · .github/workflows/ios.yml)가 앱 안에 넣을 운동 · 드릴 영상(720p)을 받는 곳.
  * 회원 로그인 대신 굽기 전용 열쇠(LIBRARY_BUNDLE_TOKEN — Vercel 환경변수 · GitHub 비밀)로만 연다 — 줄인 라이브러리 영상
  * 읽기 주소(1시간)만 준다. 열쇠가 없으면(설정 전) 404.
+ * `?kind=hevc` 면 새 앱(Expo, ios-native.yml)이 넣는 720p HEVC 판(library-hevc/), 없으면 옛 앱의 H.264 판(library-720/).
  */
 function authorized(req: Request): boolean {
   const want = process.env.LIBRARY_BUNDLE_TOKEN;
@@ -19,12 +20,13 @@ function authorized(req: Request): boolean {
 
 export async function GET(req: Request) {
   if (!authorized(req)) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  const prefix = new URL(req.url).searchParams.get('kind') === 'hevc' ? LIBRARY_HEVC_PREFIX : LIBRARY_SMALL_PREFIX;
   const [exercises, guides, copies] = await Promise.all([
     visibleExercises(),
     visibleGuides(),
-    smallLibraryCopies(),
+    smallLibraryCopies(prefix),
   ]);
-  const small = [...new Set([...exercises, ...guides].map((r) => (r.videoPath ? smallLibraryPath(r.videoPath) : null)))].filter(
+  const small = [...new Set([...exercises, ...guides].map((r) => (r.videoPath ? smallLibraryPath(r.videoPath, prefix) : null)))].filter(
     (p): p is string => p !== null && copies.has(p)
   );
   const urls = await createPlaybackUrls(small);

@@ -45,7 +45,8 @@
           ]
         }
       ],
-      "./plugins/rest-activity"
+      "./plugins/rest-activity",
+      "./plugins/library-videos"
     ],
     "experiments": {
       "typedRoutes": true,

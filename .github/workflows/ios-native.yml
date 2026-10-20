@@ -23,9 +23,8 @@
 #
 # ■ 열쇠 — ios.yml 과 같은 넷(ASC_KEY_ID · ASC_ISSUER_ID · ASC_KEY_P8 · APPLE_TEAM_ID), 설정 순서는 mobile/APPLE-SETUP.md
 #
-# ■ 아직 안 넣은 것: 운동 · 드릴 영상을 앱 안에 넣기(옛 앱의 '운동 영상 넣기' 단계, LIBRARY_BUNDLE_TOKEN).
-#   새 앱의 LocalVideo 부품은 앱 안 LibraryVideos/ 폴더를 찾지만 Xcode 프로젝트에 그 폴더를 넣는 길을 아직 안 정했다
-#   (김민 · 금윤호가 같이 정하기로, 2026-10-19). 없어도 앱은 영상을 볼 때 받아 폰에 둔다.
+# ■ 운동 · 드릴 영상(720p HEVC)을 앱 안에 — prebuild 전에 native/LibraryVideos 로 받고(LIBRARY_BUNDLE_TOKEN), prebuild 의
+#   plugins/library-videos 가 Xcode 에 폴더 참조로 싣는다(2026-10-20 김민: "앱 안에 넣을 거야"). 못 받으면 영상 없이 굽는다.
 #
 # 결과는 주석(annotation)으로 남긴다 — 공개 저장소의 주석은 로그인 없이 읽힌다(Checks API).
 name: 새 앱(Expo) 굽기
@@ -78,6 +77,13 @@ jobs:
         run: |
           set -o pipefail
           npm ci --no-audit --no-fund 2>&1 | tee "$RUNNER_TEMP/npm.log"
+
+      # 운동 · 드릴 영상(720p HEVC) — 사이트가 굽기 전용 열쇠로 읽기 주소를 준다(npm run library:bundle -- --hevc 가 저장소
+      # library-hevc/ 에 올린 것). 다음 prebuild 가 앱에 싣는다. 열쇠가 없거나 못 받으면 영상 없이 굽는다.
+      - name: 운동 영상 받기
+        env:
+          LIBRARY_BUNDLE_TOKEN: ${{ secrets.LIBRARY_BUNDLE_TOKEN }}
+        run: node scripts/fetch-library-videos.mjs
 
       # app.json → ios/ (Xcode 프로젝트 · Info.plist · Podfile). --no-install 로 pod install 은 다음 단계에서 따로 —
       # 어디서 막혔는지 로그가 갈리게.

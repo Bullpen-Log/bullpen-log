@@ -40,4 +40,6 @@ example
 
 # generated native folders
 /ios
+# 운동 · 드릴 영상(GitHub 굽기가 받음, 700MB) — plugins/library-videos 가 앱에 싣는다
+/LibraryVideos
 /android
