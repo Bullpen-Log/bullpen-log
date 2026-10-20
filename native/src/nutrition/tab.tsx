@@ -12,7 +12,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { Icon } from '~/shell/icon';
 import { CountUp, Pulse, fadeIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
-import { Segmented } from '~/shell/heading';
+import { SectionHead, Segmented } from '~/shell/heading';
 import { DateStrip, StripBar } from '~/shell/date-strip';
 import { DateNavButton } from '~/shell/mini-calendar';
 import { useTabIntent } from '~/shell/tab-intent';
@@ -221,9 +221,6 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
 
       {error && !day ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
 
-      {/* 오늘만 — 지난 날은 적을 수 없다(웹 nutrition-view.tsx 와 같은 자리: 오늘 카드 위) */}
-      {day && isToday ? <NutritionCheckinCard date={date} answer={day.checkinAnswers ?? null} /> : null}
-
       {/* 오늘 영양 한 장(웹 TodayCard) — 링 · 남은 열량 · 균형 점수, 탄단지 세 칸, 할 일 한 줄(던지는 날은 가이드) */}
       {t ? (
         <Animated.View entering={fadeIn} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
@@ -321,9 +318,13 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
         </View>
       ) : null}
 
+      {/* 오늘만 — 지난 날은 적을 수 없다. 오늘 카드(남은 열량 — 이 화면의 주인공) 밑으로(2026-10-21: 질문 카드가 먼저 보여 주인공을 밀어냈다) */}
+      {day && isToday ? <NutritionCheckinCard date={date} answer={day.checkinAnswers ?? null} /> : null}
+
       {day && isToday && t ? <PlanCard date={date} plan={day.mealPlan} busy={busy} run={run} kcal={t.kcal} protein={t.protein} state={day.planState ?? null} ageBand={day.ageBand} /> : null}
 
       {/* 끼니 넷 — 한 판 안에 줄로(웹 끼니 칸 ul · 사이 선). 휴대폰은 한 줄로 접어 두고 누르면 편다 */}
+      {day ? <SectionHead title={isToday ? '오늘 먹은 것' : '이날 먹은 것'} /> : null}
       {day ? (
         <View style={[styles.mealsCard, { backgroundColor: c.card, boxShadow: c.float }]}>
           {MEALS.map((meal, mi) => {

@@ -12,7 +12,7 @@ import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { rpc, RpcError } from '~/lib/rpc';
 import { REST_DAY } from '~/training/rest-day';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
-import { usePalette } from '~/lib/ui';
+import { usePalette, withAlpha } from '~/lib/ui';
 import { fromApp, openCheckin } from '~/shell/web-nav';
 import { READABLE } from '~/lib/layout';
 import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
@@ -213,8 +213,9 @@ function Card({
   return (
     <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Press accessibilityRole="button" accessibilityLabel={`${a.name}. ${card.status}`} onPress={onOpen} style={styles.row}>
-        <View style={[styles.icon, { backgroundColor: c.sky }]}>
-          <Icon name={a.glyph} size={24} color="#fff" />
+        {/* 그림 판은 옅은 회색 — 파랑은 [시작] 단추에만(2026-10-21: 카드 셋의 파란 판 셋 + 파란 단추 셋이라 누를 곳이 안 보였다) */}
+        <View style={[styles.icon, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
+          <Icon name={a.glyph} size={24} color={c.ink} />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[styles.name, { color: c.ink }]}>{a.name}</Text>
