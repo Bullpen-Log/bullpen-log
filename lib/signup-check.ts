@@ -9,12 +9,18 @@ import {
   parseBirthDate,
   type Sex,
 } from '@/lib/profile';
+import { ORG_NAME_MAX, ORG_NAME_MIN, orgNameOk, type OrgKind } from '@/lib/org/rules';
 
 /**
  * 가입 화면의 답 · 차례 · 화면별 검사 — 웹 가입 폼(app/login/auth-form.tsx)과 앱 가입 화면(native/src/app/signup.tsx)이 같이 쓴다.
  * 서버(app/actions/auth.ts signup · lib/profile.ts)와 같은 선을 먼저 봐서 네 화면을 다 지나 마지막에야 막히지 않게 한다.
  */
 export type SignupAnswers = {
+  /**
+   * 계정 종류(2026-10-20 팀 · 레슨장 마스터) — 웹 가입의 첫 화면에서 고른다. 앱 가입(native/src/app/signup.tsx)은 아직 선수만이라
+   * null 그대로 보내고, 서버는 accountType 칸이 없으면 선수로 만든다.
+   */
+  kind: SignupKind | null;
   nickname: string;
   email: string;
   /** 'YYYY-MM-DD' */
@@ -26,9 +32,33 @@ export type SignupAnswers = {
   passwordConfirm: string;
   agreeTerms: boolean;
   agreePrivacy: boolean;
+  /** 레슨장 · 팀 가입만 — 조직 이름 · 지역 · 메모(레슨장: 코치 수 · 소개, 팀: 연령대 · 리그) */
+  orgName: string;
+  orgRegion: string;
+  orgNote: string;
 };
 
+/** 가입 종류 — 선수(지금의 불펜로그) · 레슨장 · 팀(마스터 화면 /master, 선수 기능 없음) */
+export type SignupKind = 'player' | 'lesson' | 'team';
+
+export const SIGNUP_KIND_OPTIONS: { value: SignupKind; label: string; hint: string }[] =
+  [
+    { value: 'player', label: '선수', hint: '내 투구 · 훈련 · 영양을 기록해요.' },
+    { value: 'lesson', label: '레슨장', hint: '회원을 관리하고 성장을 보여 줘요.' },
+    { value: 'team', label: '팀', hint: '선수단 · 훈련 일정 · 투수 관리.' },
+  ];
+
+export function isMasterKind(kind: SignupKind | null): kind is 'lesson' | 'team' {
+  return kind === 'lesson' || kind === 'team';
+}
+
+/** 가입 종류 → 조직 종류(prisma OrgKind). 선수면 null */
+export function orgKindOf(kind: SignupKind | null): OrgKind | null {
+  return kind === 'lesson' ? 'LESSON' : kind === 'team' ? 'TEAM' : null;
+}
+
 export const EMPTY_SIGNUP: SignupAnswers = {
+  kind: null,
   nickname: '',
   email: '',
   birthDate: '',
@@ -39,6 +69,9 @@ export const EMPTY_SIGNUP: SignupAnswers = {
   passwordConfirm: '',
   agreeTerms: false,
   agreePrivacy: false,
+  orgName: '',
+  orgRegion: '',
+  orgNote: '',
 };
 
 export type SignupStep = 'name' | 'birth' | 'body' | 'terms';
@@ -65,6 +98,56 @@ const FIELD_STEP: Record<string, SignupStep> = {
 
 export function stepOfField(field: string): SignupStep {
   return FIELD_STEP[field] ?? 'terms';
+}
+
+/*
+ * ── 웹 가입(app/login/auth-form.tsx)의 차례 — 종류 화면이 앞에 하나 더, 레슨장 · 팀은 선수 칸 대신 조직 화면 ──
+ * SignupStep · SIGNUP_STEPS · stepOfField · checkSignupStep 은 그대로 둔다 — 앱 가입(native/src/app/signup.tsx)이 그 넷으로
+ * 제 화면을 그린다(TITLES: Record<SignupStep, …>). 웹은 아래 넓은 꼴을 쓴다.
+ */
+export type WebSignupStep = SignupStep | 'kind' | 'org';
+
+export function signupStepsOf(a: SignupAnswers): WebSignupStep[] {
+  if (isMasterKind(a.kind)) return ['kind', 'name', 'org', 'terms'];
+  return ['kind', ...SIGNUP_STEPS];
+}
+
+const WEB_FIELD_STEP: Record<string, WebSignupStep> = {
+  kind: 'kind',
+  accountType: 'kind',
+  orgKind: 'kind',
+  orgName: 'org',
+  orgRegion: 'org',
+  orgNote: 'org',
+};
+
+export function webStepOfField(field: string): WebSignupStep {
+  return WEB_FIELD_STEP[field] ?? stepOfField(field);
+}
+
+/** 웹 가입의 화면 검사 — 종류 · 조직 화면은 여기서, 나머지는 checkSignupStep 그대로 */
+export function checkWebSignupStep(
+  key: WebSignupStep,
+  a: SignupAnswers,
+  today: string
+): { error: string; field: string } | null {
+  switch (key) {
+    case 'kind':
+      if (!a.kind) return { error: '어떻게 쓸지 골라 주세요.', field: 'kind' };
+      return null;
+    case 'org': {
+      const name = a.orgName.trim();
+      if (!name) return { error: '이름을 적어 주세요.', field: 'orgName' };
+      if (!orgNameOk(name))
+        return {
+          error: `이름은 ${ORG_NAME_MIN}~${ORG_NAME_MAX}자로 적어 주세요.`,
+          field: 'orgName',
+        };
+      return null;
+    }
+    default:
+      return checkSignupStep(key, a, today);
+  }
 }
 
 /** 키 · 몸무게가 범위 안인가 — 서버(lib/profile.ts)와 같은 선. 몸무게 칸은 키가 이 선을 넘어야 펴진다 */
@@ -155,5 +238,15 @@ export function signupFields(a: SignupAnswers): Record<string, string | null> {
     passwordConfirm: a.passwordConfirm,
     agreeTerms: a.agreeTerms ? 'on' : null,
     agreePrivacy: a.agreePrivacy ? 'on' : null,
+    /* 레슨장 · 팀 — 서버(app/actions/auth.ts)가 accountType 이 'MASTER' 면 조직을 함께 만든다. 선수는 이 칸들이 없다 */
+    ...(isMasterKind(a.kind)
+      ? {
+          accountType: 'MASTER',
+          orgKind: orgKindOf(a.kind) ?? '',
+          orgName: a.orgName.trim(),
+          orgRegion: a.orgRegion.trim(),
+          orgNote: a.orgNote.trim(),
+        }
+      : {}),
   };
 }

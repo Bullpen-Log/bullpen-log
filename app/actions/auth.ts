@@ -23,6 +23,15 @@ import {
 import { toDateKey } from '@/lib/pitch-stats';
 import { withInput, type FormValues } from '@/lib/form-values';
 import { dbDate } from '@/lib/nutrition/days';
+import {
+  ORG_KIND_LABEL,
+  ORG_NAME_MAX,
+  ORG_NAME_MIN,
+  ORG_NOTE_MAX,
+  ORG_REGION_MAX,
+  isOrgKind,
+  orgNameOk,
+} from '@/lib/org/rules';
 
 /**
  * field — 문제가 난 칸의 name. 가입은 여러 단계로 나뉘어 있어서(app/login/auth-form.tsx)
@@ -109,6 +118,14 @@ async function trySignup(formData: FormData): Promise<AuthState> {
       error: '이용약관과 개인정보 처리방침에 동의해 주세요.',
       field: 'agreeTerms',
     };
+  }
+
+  /*
+   * 계정 종류(2026-10-20 팀 · 레슨장 마스터) — 레슨장 · 팀으로 가입하면 선수 칸(생년월일 · 성별 · 키 · 몸무게)은 받지 않고 조직을
+   * 함께 만든다(아래 trySignupMaster). 칸이 없으면(앱 가입 · 옛 폼) 선수다. 선수 가입은 아래 그대로.
+   */
+  if (formData.get('accountType') === 'MASTER') {
+    return trySignupMaster(formData, { email, nickname, password });
   }
 
   /*
@@ -211,6 +228,81 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   redirect('/today');
 }
 
+/**
+ * 레슨장 · 팀(마스터) 가입 — 계정(accountType MASTER) · 조직(Org) · 마스터 구성원(OrgMember) 셋을 한 트랜잭션으로 만들고 /master 로.
+ * 이메일 · 이름 · 비밀번호 · 동의는 trySignup 이 이미 봤다. 마스터 계정은 선수 기능이 없어 생년월일 · 키 · 몸무게 · 체중 줄을 만들지 않는다
+ * (2026-10-20 결정 2). 관리자 이메일 규칙은 선수 가입과 같다.
+ */
+async function trySignupMaster(
+  formData: FormData,
+  base: { email: string; nickname: string; password: string }
+): Promise<AuthState> {
+  const orgKind = String(formData.get('orgKind') ?? '');
+  if (!isOrgKind(orgKind))
+    return { error: '레슨장인지 팀인지 골라 주세요.', field: 'kind' };
+  const orgName = String(formData.get('orgName') ?? '').trim();
+  if (!orgNameOk(orgName)) {
+    return {
+      error: `${ORG_KIND_LABEL[orgKind]} 이름을 ${ORG_NAME_MIN}~${ORG_NAME_MAX}자로 적어 주세요.`,
+      field: 'orgName',
+    };
+  }
+  const region =
+    String(formData.get('orgRegion') ?? '')
+      .trim()
+      .slice(0, ORG_REGION_MAX) || null;
+  const note =
+    String(formData.get('orgNote') ?? '')
+      .trim()
+      .slice(0, ORG_NOTE_MAX) || null;
+
+  const existing = await prisma.user.findUnique({
+    where: { email: base.email },
+    select: { id: true },
+  });
+  if (existing) return { error: '이미 가입된 이메일이에요.', field: 'email' };
+
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const role = adminEmail && base.email === adminEmail ? 'ADMIN' : 'USER';
+  const passwordHash = await bcrypt.hash(base.password, 10);
+
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        email: base.email,
+        nickname: base.nickname,
+        password: passwordHash,
+        role,
+        accountType: 'MASTER',
+        agreedAt: new Date(),
+      },
+      select: { id: true, role: true },
+    });
+    const org = await tx.org.create({
+      data: { kind: orgKind, name: orgName, region, note, ownerId: created.id },
+      select: { id: true },
+    });
+    /* 만든 사람도 구성원 줄을 가진다 — 스태프 목록 · 조직 접근(lib/org/access.ts orgsFor)이 한 표만 보게 */
+    await tx.orgMember.create({
+      data: {
+        orgId: org.id,
+        userId: created.id,
+        role: 'MASTER',
+        status: 'ACTIVE',
+        nickname: base.nickname,
+      },
+    });
+    return created;
+  });
+
+  await createSession({
+    userId: user.id,
+    role: user.role,
+    pw: passwordFingerprint(passwordHash),
+  });
+  redirect('/master');
+}
+
 export async function login(_prev: AuthState, formData: FormData): Promise<AuthState> {
   return withInput(await tryLogin(formData), formData);
 }
@@ -230,7 +322,7 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
 
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, role: true, password: true },
+    select: { id: true, role: true, accountType: true, password: true },
   });
 
   // 이메일이 없는 경우와 비밀번호가 틀린 경우를 구분하지 않는다.
@@ -256,7 +348,10 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
     { userId: user.id, role: user.role, pw: passwordFingerprint(user.password) },
     stayLoggedIn
   );
-  redirect('/today');
+  /* 마스터 계정(팀 · 레슨장)은 선수 홈이 없다 — 관리 화면으로(2026-10-20). 관리자는 선수 홈에서 메뉴로 넘어간다 */
+  redirect(
+    user.accountType === 'MASTER' && user.role !== 'ADMIN' ? '/master' : '/today'
+  );
 }
 
 export async function logout() {

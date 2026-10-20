@@ -11,6 +11,23 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-20 · 금윤호(Claude, 데스크톱) — 팀 · 레슨장 마스터 1단계: 새 표 7개 · `User.accountType` · `/master` 화면 · 가입 종류 — 배포가 마이그레이션을 적용해야 로컬도 돈다
+
+받은 뒤 할 일: **`npx prisma generate`**(새 표 · enum). 설계는 `docs/designs/team-lesson-master.md` · 작업 프롬프트 `docs/designs/team-lesson-build-prompt.md`(결정 10개 반영).
+- **스키마(더하기만)**: enum `AccountType`(PLAYER · MASTER) · `OrgKind` · `OrgRole` · `OrgMemberStatus`, `User.accountType @default(PLAYER)`, 표 `Org` · `OrgMember` · `OrgInvite` · `ShareConsent` · `OrgEvent` · `OrgNotice` · `LessonNote`,
+  `PitchLog` · `VelocitySession` 에 `enteredById` · `orgId`(둘 다 null 허용, 코치가 대신 적은 표시 — 3단계). 마이그레이션 `prisma/migrations/20261020120000_org_master`(손으로 확인한 SQL, 옛 어긋남 줄은 뺌).
+  **`lib/dal.ts getCurrentUser` 가 `accountType` 을 읽는다** — 마이그레이션이 공유 DB 에 적용되기 전에는 로컬 개발 서버의 모든 화면이 'column accountType does not exist' 로 막힌다. 배포(migrate deploy)가 적용한다.
+- **접근**: `requireMaster()`(lib/dal.ts) = 관리자 또는 accountType MASTER, 아니면 /today. `app/(app)/layout.tsx` 는 마스터 계정을 /master 로 보낸다(관리자는 안 보냄 — 둘 다 본다). `app/(master)/layout.tsx` 가 유일한 방어선(미들웨어 없음).
+  조직 접근 `lib/org/access.ts`(orgsFor · requireOrg · currentOrg — 쿠키 `bp-org`), 순수 규칙 `lib/org/rules.ts`(초대 코드 · 동의 기본값 · 태그).
+- **가입**: 웹 가입 첫 화면에 종류(선수 · 레슨장 · 팀). 레슨장 · 팀은 생년월일 · 키 · 몸무게 없이 조직 이름 · 지역 · 메모 → `trySignupMaster`(계정 + Org + OrgMember MASTER 한 트랜잭션) → /master.
+  `lib/signup-check.ts` 의 `SignupStep` · `SIGNUP_STEPS` · `stepOfField` · `checkSignupStep` 은 그대로(네 `native/src/app/signup.tsx` TITLES 가 쓴다) — 웹만 `WebSignupStep` · `signupStepsOf` · `webStepOfField` · `checkWebSignupStep`.
+  `SignupAnswers` 에 `kind · orgName · orgRegion · orgNote` 가 늘었다(EMPTY_SIGNUP 에 기본값, `signupFields` 는 kind 가 레슨장 · 팀일 때만 accountType 을 보낸다) — 앱 가입은 선수 그대로.
+- **로그인**: `auth.login` 이 accountType MASTER(관리자 아님)면 /master 로 보낸다. **앱(rpc auth.login)에서 마스터 계정이 로그인하면** 앱 웹뷰가 (app) 틀의 redirect 로 /master 를 열 것이다 — 마스터 화면은 PC 가 먼저라 앱에서는 아직 안 맞는다.
+  네 판단: 앱 로그인 화면에서 마스터 계정이면 '웹에서 써 주세요'로 막을지. 지금은 안 막았다.
+- **화면**: `app/(master)/master`(홈 · `players` · `settings` · 관리자 `orgs`), 껍데기 `components/master/master-shell.tsx`(선수 껍데기 안 씀). 선수 쪽은 `/join?code=`(app/(app)/join) 하나 — 조직 보고 공유 범위(투구 · 트레이닝 · 체크인 · 영상 켬, 영양 · 체중 끔) 골라 참여.
+  `app/actions/org.ts`(모두 requireMaster) · `app/actions/org-join.ts`(requireUser) — rpc 허용 목록에 넣었다. 시험 `npm run org:test`(45) · `integration:test`(34) 통과.
+- 네 영역(엔진 · 트레이닝 · 3D · 앱)은 안 건드렸다. 2단계(선수 카드 · 두 홈의 내용)는 `lib/report/arm-status.ts` · `lib/velocity-load.ts` 를 **부르기만** 할 계획 — 그 함수들의 모양이 바뀌면 알려 줘.
+
 ## 김민에게 — 2026-10-20 · 금윤호(Claude, 윤호 맥북) — 새 앱 구속 측정이 10-20 세션에서 거의 안 잡힌 것 분석 · 복구 프롬프트 — 네가 답해 줄 것 하나
 
 받은 뒤 할 일: **10-20 낮에 윤호 폰에 깔려 있던 새 앱이 어떤 빌드였는지(Xcode `expo run:ios --device` 로 바로 깐 Debug 인지 · GitHub `ios-native.yml` Release 아카이브인지) 알려 줘.**

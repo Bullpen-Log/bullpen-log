@@ -29,6 +29,8 @@ export const getCurrentUser = cache(async () => {
         /* 막대와 상단 바의 아바타에 쓴다. 이름 옆에 늘 붙는 값이라 함께 읽는다. */
         avatarPath: true,
         role: true,
+        /* 선수 · 마스터(팀 · 레슨장 관리) — (app) 틀이 마스터를 /master 로 보내고, requireMaster 가 선수를 막는다 */
+        accountType: true,
         birthDate: true,
         /* 내 정보에서 고치고, 영양 목표의 기초대사량 계산이 읽는다 */
         sex: true,
@@ -96,5 +98,23 @@ export async function requireUser() {
 export async function requireAdmin() {
   const user = await requireUser();
   if (user.role !== 'ADMIN') redirect('/today');
+  return user;
+}
+
+/** 팀 · 레슨장 마스터 화면(app/(master))에 들어갈 수 있는 사람 — 마스터 계정과 관리자. 선수 계정은 제 홈으로 */
+export function isMasterUser(user: {
+  role: 'USER' | 'ADMIN';
+  accountType: 'PLAYER' | 'MASTER';
+}): boolean {
+  return user.role === 'ADMIN' || user.accountType === 'MASTER';
+}
+
+/**
+ * 마스터 화면 · 마스터 동작(app/actions/org.ts)에서 사용. 선수 계정은 /today 로 — 이 앱에는 미들웨어가 없어 (master) 틀과 동작마다
+ * 이것이 유일한 방어선이다(2026-10-20 사용자: "일반 선수 사용자는 절대 이 페이지를 들어갈 수가 없어야 돼").
+ */
+export async function requireMaster() {
+  const user = await requireUser();
+  if (!isMasterUser(user)) redirect('/today');
   return user;
 }

@@ -157,7 +157,7 @@ console.log('\n[6] 기능 잠금 ↔ 메뉴 — 잠금 표 하나를 메뉴 · �
 /* ─────────────────────── 7. 서버 동작 — 주인 확인 ─────────────────────── */
 console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한 사람을 확인하는가');
 {
-  const AUTH = /\b(getCurrentUser|requireUser|requireAdmin|assertAdmin|requireAdminUser)\(/;
+  const AUTH = /\b(getCurrentUser|requireUser|requireAdmin|assertAdmin|requireAdminUser|requireMaster)\(/;
   /* 로그인 전에 부르는 것 — 가입 · 로그인 · 로그아웃 */
   const PUBLIC = new Set(['auth.ts:checkSignupEmail', 'auth.ts:signup', 'auth.ts:login', 'auth.ts:logout']);
   const open: string[] = [];

@@ -28,7 +28,7 @@ import {
   TextButton,
   invalidProps,
 } from '@/components/onboarding/step-card';
-import { Chips } from '@/components/onboarding/choices';
+import { Chips, OptionCards } from '@/components/onboarding/choices';
 import { NumberUnitField } from '@/components/onboarding/number-unit-field';
 import { RevealField } from '@/components/onboarding/reveal-field';
 import { useStepWizard } from '@/components/onboarding/use-step-wizard';
@@ -44,13 +44,17 @@ import {
 import {
   EMAIL_RE,
   EMPTY_SIGNUP as EMPTY,
-  SIGNUP_STEPS as STEPS,
-  checkSignupStep as checkStep,
+  SIGNUP_KIND_OPTIONS,
+  checkWebSignupStep as checkStep,
   heightOk,
-  stepOfField,
+  isMasterKind,
+  orgKindOf,
+  signupStepsOf,
+  webStepOfField as stepOfField,
   type SignupAnswers,
-  type SignupStep as StepKey,
+  type WebSignupStep as StepKey,
 } from '@/lib/signup-check';
+import { ORG_NAME_MAX, ORG_NOTE_MAX, ORG_REGION_MAX, orgNameOk } from '@/lib/org/rules';
 
 /**
  * 로그인 · 회원가입.
@@ -514,9 +518,10 @@ function SignupWizard({
   );
   const formRef = useRef<HTMLFormElement>(null);
 
+  /* 차례는 종류에 따라 다르다(lib/signup-check.ts signupStepsOf) — 선수 다섯, 레슨장 · 팀 넷(2026-10-20) */
   const w = useStepWizard<StepKey, SignupAnswers>({
     initial: EMPTY,
-    steps: () => STEPS,
+    steps: (a) => signupStepsOf(a),
     check: (key, a) => checkStep(key, a, today),
     stepOfField,
   });
@@ -529,6 +534,9 @@ function SignupWizard({
   /* ── 답에서 셈하는 것 ── */
   const name = answers.nickname.trim();
   const who = name ? `${name} 님, ` : '';
+  /* 레슨장 · 팀(마스터) 가입인가 — 조직 화면의 말과 마지막 단추가 다르다 */
+  const master = isMasterKind(answers.kind);
+  const orgWord = answers.kind === 'team' ? '팀' : '레슨장';
   const last = w.total - 1;
   const invalid = (field: string) => w.problem?.field === field;
 
@@ -638,10 +646,22 @@ function SignupWizard({
   /* ── 제목 ── */
   function titleOf(key: StepKey): { title: string; desc: string } {
     switch (key) {
+      case 'kind':
+        return {
+          title: '불펜로그를 어떻게 쓰실 건가요?',
+          desc: '선수는 내 기록을 남기고, 레슨장 · 팀은 선수들의 기록을 관리해요. 가입한 뒤에는 바꿀 수 없어요.',
+        };
       case 'name':
         return {
           title: '계정을 만들어요',
-          desc: '앱에서 부를 이름, 로그인에 쓸 이메일과 비밀번호를 정해 주세요.',
+          desc: master
+            ? '관리에 쓸 이름(대표 · 감독 · 코치), 로그인에 쓸 이메일과 비밀번호를 정해 주세요.'
+            : '앱에서 부를 이름, 로그인에 쓸 이메일과 비밀번호를 정해 주세요.',
+        };
+      case 'org':
+        return {
+          title: `${orgWord} 이름을 알려 주세요`,
+          desc: `${answers.kind === 'team' ? '선수가' : '회원이'} 초대 코드로 참여할 때 보는 이름이에요. 지역과 소개는 나중에 설정에서 바꿀 수 있어요.`,
         };
       case 'birth':
         return {
@@ -712,7 +732,7 @@ function SignupWizard({
               </Button>
             ) : (
               <SubmitButton
-                label="가입하고 시작하기"
+                label={master ? '가입하고 관리 시작하기' : '가입하고 시작하기'}
                 pendingLabel="가입하는 중…"
                 onClick={(e) => {
                   /* 보내기 전에 모든 화면을 다시 본다 — 막히면 그 화면으로 */
@@ -733,6 +753,24 @@ function SignupWizard({
           키 · 몸무게 · 동의는 제 화면 안의 칸이 보낸다.
         */}
         <input type="hidden" name="sex" value={answers.sex ?? ''} />
+        {/* 계정 종류 — 레슨장 · 팀이면 'MASTER'(서버가 조직을 함께 만든다, app/actions/auth.ts trySignupMaster). 선수는 빈 값 */}
+        <input type="hidden" name="accountType" value={master ? 'MASTER' : ''} />
+        <input type="hidden" name="orgKind" value={orgKindOf(answers.kind) ?? ''} />
+
+        {/* ── 0 계정 종류 — 선수 · 레슨장 · 팀(2026-10-20). 레슨장 · 팀은 선수 칸(생년월일 · 키 · 몸무게) 대신 조직 화면으로 ── */}
+        {panel(
+          'kind',
+          <OptionCards
+            name="kind"
+            label="계정 종류"
+            options={SIGNUP_KIND_OPTIONS}
+            value={answers.kind}
+            onChange={(kind) => w.patch({ kind })}
+            columns={1}
+            invalid={invalid('kind')}
+            foot="레슨장 · 팀 계정에는 선수 기능이 없어요. 선수로도 쓰려면 선수 계정을 따로 만들어 주세요."
+          />
+        )}
 
         {/* ── 1 이름 · 이메일 · 비밀번호 — 위 칸이 맞으면 아래 칸이 펴진다 ── */}
         {panel(
@@ -846,6 +884,65 @@ function SignupWizard({
           aria-hidden
           className="sr-only"
         />
+
+        {/* ── 1-2 레슨장 · 팀 이름 · 지역 · 소개 — 레슨장 · 팀 가입만. 이름이 맞으면 나머지가 펴진다 ── */}
+        {panel(
+          'org',
+          <div>
+            <Field label={`${orgWord} 이름`}>
+              <Input
+                name="orgName"
+                type="text"
+                autoComplete="organization"
+                value={answers.orgName}
+                onChange={(e) => w.patch({ orgName: e.target.value })}
+                placeholder={
+                  answers.kind === 'team' ? '○○ 리틀 야구단' : '○○ 피칭 레슨'
+                }
+                maxLength={ORG_NAME_MAX}
+                className={inputLarge}
+                {...invalidProps(invalid('orgName'))}
+              />
+            </Field>
+            <RevealField open={orgNameOk(answers.orgName)}>
+              <div>
+                <div className="pt-5">
+                  <Field label="지역" hint="선택">
+                    <Input
+                      name="orgRegion"
+                      type="text"
+                      value={answers.orgRegion}
+                      onChange={(e) => w.patch({ orgRegion: e.target.value })}
+                      placeholder="서울 강남"
+                      maxLength={ORG_REGION_MAX}
+                      className={inputLarge}
+                    />
+                  </Field>
+                </div>
+                <div className="pt-5">
+                  <Field
+                    label={answers.kind === 'team' ? '연령대 · 리그' : '코치 수 · 소개'}
+                    hint="선택"
+                  >
+                    <Input
+                      name="orgNote"
+                      type="text"
+                      value={answers.orgNote}
+                      onChange={(e) => w.patch({ orgNote: e.target.value })}
+                      placeholder={
+                        answers.kind === 'team'
+                          ? '초등 · 주말 리그'
+                          : '코치 2명 · 투수 전문'
+                      }
+                      maxLength={ORG_NOTE_MAX}
+                      className={inputLarge}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </RevealField>
+          </div>
+        )}
 
         {/* ── 2 생년월일 · 성별 — 날짜를 고르면 성별이 펴진다 ── */}
         {panel(
