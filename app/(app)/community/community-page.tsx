@@ -26,7 +26,7 @@ function listHref(q: { category?: string; sort: PostSort; page?: number }) {
   if (q.sort !== 'new') sp.set('sort', q.sort);
   if (q.page && q.page > 1) sp.set('page', String(q.page));
   const s = sp.toString();
-  return s ? `/community?${s}` : '/community';
+  return s ? `/community/feed?${s}` : '/community/feed';
 }
 
 /**

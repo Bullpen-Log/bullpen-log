@@ -37,6 +37,7 @@ const field = (formData: FormData, name: string) =>
 /** 글 화면 · 목록 · 신고 관리가 함께 바뀌는 동작이 많아 한 줄로 */
 function revalidatePost(postId: string) {
   revalidatePath('/community');
+  revalidatePath('/community/feed');
   revalidatePath(`/community/${postId}`);
   revalidatePath('/admin/community');
 }
@@ -76,7 +77,13 @@ async function tryCreatePost(
    * createdAt 은 DB 의 실제 시각이라 Date.now 와 견준다.
    */
   const same = await prisma.communityPost.findFirst({
-    where: { userId: user.id, category, title, body, createdAt: { gte: new Date(Date.now() - 60_000) } },
+    where: {
+      userId: user.id,
+      category,
+      title,
+      body,
+      createdAt: { gte: new Date(Date.now() - 60_000) },
+    },
     select: { id: true },
   });
   if (same) return { id: same.id };
@@ -87,12 +94,14 @@ async function tryCreatePost(
   });
 
   revalidatePath('/community');
+  revalidatePath('/community/feed');
   return { id: post.id };
 }
 
 export async function deletePost(formData: FormData) {
   const user = await getCurrentUser();
-  if (user && (await removePost(user, field(formData, 'id')))) redirect('/community');
+  if (user && (await removePost(user, field(formData, 'id'))))
+    redirect('/community/feed');
 }
 
 /** 지웠으면 true — 웹(deletePost)은 목록으로 redirect, 앱(deleteAppPost)은 화면을 닫는다 */
@@ -143,6 +152,7 @@ export async function toggleLike(formData: FormData) {
   }
 
   revalidatePath('/community');
+  revalidatePath('/community/feed');
   revalidatePath(`/community/${postId}`);
 }
 
@@ -175,11 +185,18 @@ async function tryAddComment(formData: FormData): Promise<CommunityState> {
 
   /* 1분 안 같은 댓글이면 새로 안 만든다(끊긴 응답에 다시 보냄 — 글 만들기와 같은 까닭) */
   const same = await prisma.communityComment.findFirst({
-    where: { postId, userId: user.id, body, createdAt: { gte: new Date(Date.now() - 60_000) } },
+    where: {
+      postId,
+      userId: user.id,
+      body,
+      createdAt: { gte: new Date(Date.now() - 60_000) },
+    },
     select: { id: true },
   });
-  if (!same) await prisma.communityComment.create({ data: { postId, userId: user.id, body } });
+  if (!same)
+    await prisma.communityComment.create({ data: { postId, userId: user.id, body } });
   revalidatePath('/community');
+  revalidatePath('/community/feed');
   revalidatePath(`/community/${postId}`);
   return undefined;
 }
@@ -394,21 +411,28 @@ export async function deleteAppPost(id: unknown) {
 export async function setAppLike(postId: unknown, liked: unknown) {
   const user = await getCurrentUser();
   if (!user) return fail({ error: LOGIN_NEEDED });
-  if (typeof postId !== 'string' || !postId || typeof liked !== 'boolean') return fail({ error: '다시 해 주세요.' });
-  const post = await prisma.communityPost.findUnique({ where: { id: postId }, select: { hiddenAt: true } });
+  if (typeof postId !== 'string' || !postId || typeof liked !== 'boolean')
+    return fail({ error: '다시 해 주세요.' });
+  const post = await prisma.communityPost.findUnique({
+    where: { id: postId },
+    select: { hiddenAt: true },
+  });
   /* 가린 글은 관리자만 보이므로 좋아요도 관리자만(웹 toggleLike 와 같다) */
-  if (!post || (post.hiddenAt && user.role !== 'ADMIN')) return fail({ error: '글을 찾을 수 없어요.' });
+  if (!post || (post.hiddenAt && user.role !== 'ADMIN'))
+    return fail({ error: '글을 찾을 수 없어요.' });
   if (liked) {
     try {
       await prisma.communityLike.create({ data: { postId, userId: user.id } });
     } catch (e) {
-      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e;
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002'))
+        throw e;
     }
   } else {
     await prisma.communityLike.deleteMany({ where: { postId, userId: user.id } });
   }
   const likes = await prisma.communityLike.count({ where: { postId } });
   revalidatePath('/community');
+  revalidatePath('/community/feed');
   revalidatePath(`/community/${postId}`);
   return { ok: true as const, liked, likes };
 }

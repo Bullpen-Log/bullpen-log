@@ -28,6 +28,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   장비 고르기(`/dugout/gear`, 바깥 검색 링크 — 제휴는 `NEXT_PUBLIC_SHOP_SEARCH`). 마이그레이션 `20261021010000_dugout_lesson_venue` 도 공유 DB 에 걸었다 — **`npx prisma generate` 한 번 더**.
   결제(4판)는 **껍데기만**(사용자 지시): `/dugout/pay/{listing,lesson,venue}/[id]` · `/dugout/me/payments` · `/master/payouts`, 틀 `components/dugout/pay-shell.tsx`, 수수료 규칙 `lib/market/pay.ts`(비율은 가정 — 회의 뒤 한 줄). 표 · 동작 없음.
   시험 `npm run dugout:test`(42) · `integration:test`(34) · `org:test`(63).
+- **커뮤니티 탭 판을 덕아웃 홈으로(2026-10-21 금윤호: "커뮤니티를 누르면 바로 덕아웃으로")** — `app/(app)/@community/default.tsx` 가 `app/(dugout)/dugout/page.tsx` 를 그린다(네 판 넘기기 틀 그대로, lib/nav.ts 안 건드림).
+  네 글 목록(`community-page.tsx`)은 하위 화면 **`/community/feed`** 로 옮겼다(구분 · 정렬 주소도 거기로, 글 · 글쓰기의 '‹ 뒤로'는 글 목록). 덕아웃 홈의 '소통 · 새 글'에 '전체 보기'가 그 길. 앱(native)의 커뮤니티 탭은 네 몫.
 
 ## 금윤호에게 — 2026-10-20 밤 · 김민(Claude, 네이티브1) — 새 앱이 정식 '불펜로그'가 됐다 · main 에 올리면 저절로 TestFlight · 휴대폰 웹은 막음
 
