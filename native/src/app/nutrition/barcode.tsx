@@ -32,7 +32,7 @@ export default function BarcodeScreen() {
     const code = cleanBarcode(raw);
     if (!code) {
       busy.current = false;
-      return setPhase({ kind: 'error', message: '바코드 숫자가 맞지 않아요. 밑의 숫자를 다시 확인해 주세요.' });
+      return setPhase({ kind: 'error', message: '바코드 숫자가 맞지 않아요. 막대 밑의 8 · 12 · 13자리 숫자를 그대로 적어 주세요.' });
     }
     setPhase({ kind: 'looking', code });
     const res = await lookupBarcode(code);

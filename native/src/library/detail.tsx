@@ -97,7 +97,8 @@ export function DrillDetail({ item, c, onClose }: { item: Drill; c: Palette; onC
   const star = useStar(item, 'drill');
   const [main, ...more] = item.focusPoints;
   return (
-    <View style={[{ gap: 16 }, onClose && [s.card, { backgroundColor: c.card, boxShadow: c.float, borderWidth: 1, borderColor: c.sky + '40' }]]}>
+    /* 별을 단 드릴은 펼친 카드 테두리가 주황(웹 GuideDetail border-warn-line) */
+    <View style={[{ gap: 16 }, onClose && [s.card, { backgroundColor: c.card, boxShadow: c.float, borderWidth: 1, borderColor: star.on ? c.warn + '66' : c.sky + '40' }]]}>
       <ExerciseMedia path={item.videoPath} referenceVideoId={item.referenceVideoId} thumbUrl={item.thumbUrl} aspectRatio={item.aspectRatio} />
       <View style={[s.row, { alignItems: 'flex-start' }]}>
         <View style={{ flex: 1, gap: 6 }}>
