@@ -87,16 +87,28 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     var onThrow: ((Double, Double, String, Int) -> Void)?
     var onError: ((String) -> Void)?
     /// 실제로 받은 초당 장면 수 · 그 사이 버린 장면 수 — 1초마다. 약속한 60 과 달리 처리가 밀리면 장면을 버린다(구형 폰 · 개발용 빌드)
-    /// 1초마다 — 받은 장면 수 · 버린 수 · 지금 셔터(초) · ISO(엔진 2.4 B1: 세션에 남긴다) · 폰 열 상태(0~3) · 장면당 공 찾기 시간(ms) ·
-    /// 공 찾기가 밀려 건너뛴 장면 수
-    var onFps: ((Double, Int, Double, Double, Int, Double, Int) -> Void)?
+    /// 1초마다 — fps 받은 장면 수 · dropped 버린 수(그중 droppedLate 늦어서 · droppedBuffers 버퍼가 모자라서) · shutter 지금 셔터(초) ·
+    /// iso(엔진 2.4 B1: 세션에 남긴다) · thermal 폰 열 상태(0~3) · feedMs 장면당 공 찾기 시간(ms) · feedSkipped 공 찾기가 밀려 건너뛴 장면 수 ·
+    /// writerSkipped 인코더가 안 받아 클립에 빠진 장면 수 · writerResets 깨진 녹화기를 새로 연 횟수
+    var onFps: (([String: Any]) -> Void)?
     private var fpsCount = 0
     private var fpsDropped = 0
+    /*
+     * 버린 까닭 — 늦음(FrameWasLate: 장면 콜백이 밀림)인지 버퍼 모자람(OutOfBuffers: 인코더 · 다른 일이 버퍼를 붙듦 — 화면 녹화가 인코더를 같이 쓸 때)인지
+     * 가르면 다음 진단이 빨라진다(2026-10-20 — 개수만 세어 까닭을 몰랐다)
+     */
+    private var fpsDroppedLate = 0
+    private var fpsDroppedBuffers = 0
     private var fpsSince = -1.0
     /// 이번 1초 동안 trigger.feed 에 든 시간 합(ms) · 공 찾기가 밀려 건너뛴 장면 수 — 공 찾기 줄(triggerQueue)에서 쓰고 카메라 줄에서 읽는다
     private let statLock = NSLock()
     private var feedAcc = 0.0
     private var feedSkipped = 0
+    /*
+     * 아이폰 화면 기록이 켜져 있나 — 화면 기록이 인코더를 같이 써 장면이 빠지고 공을 놓친다(2026-10-20 금윤호 실내: 기록을 켠 순간부터 버림이 늘었다).
+     * UIKit 이라 메인에서만 읽힌다 — 통계를 보낼 때마다(1초) 메인에서 읽어 두고 다음 통계에 싣는다. statLock 으로 지킨다.
+     */
+    private var screenCaptured = false
     /*
      * 공 찾기(MotionTrigger.feed)는 카메라 장면 줄이 아니라 제 줄에서(2026-10-20). 전엔 장면 콜백 안에서 돌아, 공 찾기가 느리면(Debug 빌드 수십 ms ·
      * 뜨거운 폰) iOS 가 늦은 장면을 통째로 버렸고 그 장면은 녹화기에도 안 들어가 클립이 초당 25~30장이 됐다(10-20 세션 — 측정이 거의 안 됨).
@@ -996,22 +1008,48 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         statLock.lock()
         let feed = feedAcc
         let skipped = feedSkipped
+        let captured = screenCaptured
         feedAcc = 0
         feedSkipped = 0
         statLock.unlock()
-        onFps?(
-            Double(fpsCount - 1) / (t - fpsSince), fpsDropped,
-            mainDevice?.exposureDuration.seconds ?? 0, Double(mainDevice?.iso ?? 0),
-            ProcessInfo.processInfo.thermalState.rawValue, feed / Double(max(1, fpsCount - 1 - skipped)), skipped
-        )
+        DispatchQueue.main.async { [weak self] in self?.readScreenCaptured() }
+        let writer = mainRecorder.takeStats()
+        onFps?([
+            "fps": Double(fpsCount - 1) / (t - fpsSince), "dropped": fpsDropped,
+            "droppedLate": fpsDroppedLate, "droppedBuffers": fpsDroppedBuffers,
+            "shutter": mainDevice?.exposureDuration.seconds ?? 0, "iso": Double(mainDevice?.iso ?? 0),
+            "thermal": ProcessInfo.processInfo.thermalState.rawValue, "feedMs": feed / Double(max(1, fpsCount - 1 - skipped)),
+            "feedSkipped": skipped, "writerSkipped": writer.skipped, "writerResets": writer.resets,
+            "screenCaptured": captured,
+        ])
         fpsSince = t
         fpsCount = 1
         fpsDropped = 0
+        fpsDroppedLate = 0
+        fpsDroppedBuffers = 0
     }
 
-    /// 늦어서 버린 장면(alwaysDiscardsLateVideoFrames) — 처리가 밀렸다
+    /// 메인에서 — 앱 화면이 기록(화면 기록 · 미러링)되고 있나
+    private func readScreenCaptured() {
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        let on: Bool
+        if #available(iOS 17.0, *) {
+            on = scene?.traitCollection.sceneCaptureState == .active
+        } else {
+            on = scene?.screen.isCaptured ?? false
+        }
+        statLock.lock()
+        screenCaptured = on
+        statLock.unlock()
+    }
+
+    /// 버린 장면(alwaysDiscardsLateVideoFrames) — 처리가 밀렸거나 버퍼가 모자랐다. 까닭을 같이 센다
     func captureOutput(_ output: AVCaptureOutput, didDrop sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        if output === mainOutput { fpsDropped += 1 }
+        guard output === mainOutput else { return }
+        fpsDropped += 1
+        let reason = CMGetAttachment(sampleBuffer, key: kCMSampleBufferAttachmentKey_DroppedFrameReason, attachmentModeOut: nil) as? String
+        if reason == (kCMSampleBufferDroppedFrameReason_FrameWasLate as String) { fpsDroppedLate += 1 }
+        else if reason == (kCMSampleBufferDroppedFrameReason_OutOfBuffers as String) { fpsDroppedBuffers += 1 }
     }
 
     // MARK: 렌즈 보정용 장면
@@ -1022,12 +1060,21 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         snapshotLock.unlock()
     }
 
+    /*
+     * 줄인 밝기 만들기(720×1280 을 한 점씩 · base64)는 장면 줄이 아니라 제 줄에서 — ABS 플레이트 찾기가 0.6초마다 부르는데 장면 콜백 안에서 돌면
+     * 그만큼 늦은 장면이 버려졌다(2026-10-20 검토). 장면은 잡아 두기만 한다.
+     */
+    private let snapshotQueue = DispatchQueue(label: "bullpen.dualcam.snapshot", qos: .utility)
+
     private func serveSnapshots(_ buffer: CMSampleBuffer) {
         snapshotLock.lock()
         let waiters = snapshotWaiters
         snapshotWaiters.removeAll()
         snapshotLock.unlock()
-        for waiter in waiters { waiter.done(DualCameraController.portraitLuma(buffer, short: waiter.short)) }
+        guard !waiters.isEmpty else { return }
+        snapshotQueue.async {
+            for waiter in waiters { waiter.done(DualCameraController.portraitLuma(buffer, short: waiter.short)) }
+        }
     }
 
     /// 장면의 밝기만 세로 화면으로, 짧은 변 short 픽셀로 줄여(2×2 평균) — 영상 범위(16~235)를 0~255 로 편다(웹 캔버스의 밝기와 같게)
@@ -1182,7 +1229,16 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
     private var segments: [Segment] = []
     /// 인코더에 넣은 장면의 시각(초) — 쥐고 있는 조각 범위만. 클립이 실제로 담은 장면 수를 세는 데(frames)
     private var pts: [Double] = []
-    private var failed = false
+    /*
+     * 쓰개가 깨지면(앱이 뒤로 간 사이 인코더가 끊김 · 쓰기 실패) 버리고 이 장면 시각(초)부터 새로 연다. 예전엔 failed 를 한 번 세우면 카메라를
+     * 다시 켤 때까지 클립이 하나도 안 나왔다 — 미리보기 · fps 는 멀쩡해 보여 '그 순간의 영상이 없어요'만 이어졌다(2026-10-20 검토).
+     */
+    private var retryAt = 0.0
+    /// 지금 쓰개 — 깨진 옛 쓰개가 늦게 넘긴 조각을 거른다
+    private var writerID: ObjectIdentifier?
+    /// 1초 진단(takeStats) — 인코더가 안 받아 빠진 장면 · 쓰개를 새로 연 횟수
+    private var skipped = 0
+    private var resets = 0
 
     init(bitrate: Int) {
         self.bitrate = bitrate
@@ -1196,7 +1252,30 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
         initData = nil
         segments = []
         pts = []
-        failed = false
+        retryAt = 0
+        writerID = nil
+        lock.unlock()
+    }
+
+    /// 지난 진단 이후 — 인코더가 안 받아 빠진 장면 수 · 쓰개를 새로 연 횟수(읽으면 0 으로)
+    func takeStats() -> (skipped: Int, resets: Int) {
+        lock.lock()
+        defer { skipped = 0; resets = 0; lock.unlock() }
+        return (skipped, resets)
+    }
+
+    /// 깨진 쓰개를 버린다 — 쥔 조각도 버린다(새 쓰개는 새 머리 조각부터). after 초 뒤 장면부터 다시 연다
+    private func reset(at t: Double, after: Double) {
+        writer?.cancelWriting()
+        writer = nil
+        input = nil
+        lock.lock()
+        initData = nil
+        segments = []
+        pts = []
+        writerID = nil
+        retryAt = t + after
+        resets += 1
         lock.unlock()
     }
 
@@ -1208,21 +1287,27 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
     }
 
     func append(_ sampleBuffer: CMSampleBuffer) {
+        let t = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
         lock.lock()
         let settings = self.settings
-        let failed = self.failed
+        let retryAt = self.retryAt
         lock.unlock()
-        guard let settings, !failed else { return }
+        guard let settings, t >= retryAt else { return }
+        if let w = writer, w.status == .failed || w.status == .cancelled || w.status == .completed { return reset(at: t, after: 0.5) }
         if writer == nil { start(at: CMSampleBufferGetPresentationTimeStamp(sampleBuffer), settings) }
-        guard let writer, let input, writer.status == .writing, input.isReadyForMoreMediaData else { return }
+        guard let writer, let input, writer.status == .writing else { return }
+        guard input.isReadyForMoreMediaData else {
+            lock.lock()
+            skipped += 1
+            lock.unlock()
+            return
+        }
         if input.append(sampleBuffer) {
             lock.lock()
-            pts.append(CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds)
+            pts.append(t)
             lock.unlock()
         } else {
-            lock.lock()
-            self.failed = true
-            lock.unlock()
+            reset(at: t, after: 0.5)
         }
     }
 
@@ -1253,18 +1338,21 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
         input.transform = s.transform
         guard writer.canAdd(input) else {
             lock.lock()
-            failed = true
+            retryAt = pts.seconds + 1
             lock.unlock()
             return
         }
         writer.add(input)
         guard writer.startWriting() else {
             lock.lock()
-            failed = true
+            retryAt = pts.seconds + 1
             lock.unlock()
             return
         }
         writer.startSession(atSourceTime: pts)
+        lock.lock()
+        writerID = ObjectIdentifier(writer)
+        lock.unlock()
         self.writer = writer
         self.input = input
     }
@@ -1285,6 +1373,8 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
     ) {
         lock.lock()
         defer { lock.unlock() }
+        /* 버린 옛 쓰개가 늦게 넘긴 조각 — 새 머리 조각과 섞이면 클립이 깨진다 */
+        guard writerID == ObjectIdentifier(writer) else { return }
         switch segmentType {
         case .initialization:
             initData = segmentData

@@ -1,4 +1,4 @@
-import { CLIP_MAX_SEC, clipSpanOf, coveredBy, nextSweepWindow, SWEEP_EVERY_SEC } from '@/lib/velocity-engine/sweep';
+import { clipSpanOf, coveredBy, nextSweepWindow, SWEEP_EVERY_SEC } from '@/lib/velocity-engine/sweep';
 import { DualCamera, type Clip, type ThrowEvent } from '../../modules/dual-camera';
 import { FRAME_LOSS_WARN, frameLossNotice, frameLossOf } from './clip-health';
 import { EngineError, type EngineHandle, type EngineResult, type MeasureOpts } from './engine';
@@ -29,6 +29,16 @@ const BALL_RANGE: [number, number] = [0.25, 1.45];
 const MOTION_CLIP: [number, number] = [0.5, 2.6];
 /** 훑기 한 번이 이보다 오래 걸리면 다음 하나를 쉰다(사이트 dual-capture 와 같다) */
 const SWEEP_SLOW_MS = 2500;
+/**
+ * 던짐 알림(공 · 움직임 · 후보) 뒤 이만큼(ms)은 훑기를 쉰다 — 계산기 줄은 하나라, 막 시작한 훑기(최대 15초) 뒤에서 진짜 공이 기다렸다
+ * (사이트는 훑기를 재기와 따로 돌려 이런 일이 없다, 2026-10-20 검토). 알림이 오면 줄에 선 훑기도 뺀다(engine.yieldToMeasure).
+ */
+const SWEEP_AFTER_THROW_MS = 4000;
+/**
+ * 훑기가 찾은 공은 그 훑기 클립에서 바로 잰다 — 공 시각 앞 0.9 · 뒤 1.9초(훑기 공 시각은 0.4~0.9초 어긋날 수 있어 넉넉히).
+ * 예전엔 훑기 클립을 지우고 새로 잘라, 훑기가 오래 걸리면 앞 장면(릴리스)이 카메라가 쥔 8초 밖으로 밀려났다(2026-10-20 검토).
+ */
+const SWEEP_RANGE: [number, number] = [0.9, 1.9];
 export const LOST_BALL_NOTE = '공을 끝까지 찾지 못해 이번 공은 재지 못했어요. 다시 던져 주세요.';
 
 type ThrowKind = 'ball' | 'seed' | 'motion' | 'sweep';
@@ -98,6 +108,12 @@ type Job = {
   ballAt?: number;
   strength: number;
   thermal: number | null;
+  /** 이미 잘라 둔 클립(훑기가 찾은 공) · 그 클립의 첫 장면 카메라 시각 — 새로 자르지 않는다 */
+  pre?: { clip: Clip; t0: number };
+  /** 클립을 받아 계산기로 넘겼나 — 그 전엔 '투구를 인식했어요', 뒤엔 '구속 계산 중' */
+  analyzing?: boolean;
+  /** 조용히 재던 클립이 공을 찾았다 — 이때까지 '인식했어요'를 먼저 보인다(웹처럼 결과가 불쑥 뜨지 않게) */
+  flashUntil?: number;
 };
 
 const kindOf = (job: Job): ThrowKind => (job.ball ? 'ball' : job.seed ? 'seed' : job.sweep ? 'sweep' : 'motion');
@@ -142,7 +158,13 @@ export class AppCapture {
   private jobs: Job[] = [];
   private recent: { start: number; end: number; until: number }[] = [];
   private queue: Promise<void> = Promise.resolve();
-  private nextId = 0;
+  /*
+   * 작업 번호는 화면을 열 때마다 1부터가 아니라 지금 시각부터 — 이어서 잰 세션은 맡겨 둔 공이 옛 번호(1, 2, …)를 갖고 있어, 새 작업의 시도
+   * 기록이 옛 공에 붙었다(2026-10-20 검토). ms 시각이라 실행마다 겹치지 않는다.
+   */
+  private nextId = Date.now();
+  /** 마지막 던짐 알림(벽시계 ms) — 그 뒤 잠깐은 훑기를 쉰다 */
+  private lastThrowAt = 0;
   /** 멈추거나 다시 켜면 올린다 — 그 전 작업의 결과는 버린다 */
   private gen = 0;
   private armedNow = true;
@@ -179,6 +201,7 @@ export class AppCapture {
 
   onThrow(e: ThrowEvent) {
     if (!this.armedNow) return;
+    this.lastThrowAt = Date.now();
     if (e.kind === 'skip') {
       this.handlers.onAttempt?.({
         id: ++this.nextId, kind: 'motion', atSec: e.atSec, strength: e.strength, ok: false, code: null,
@@ -189,7 +212,8 @@ export class AppCapture {
     this.enqueue(e.atSec, e.kind, e.strength, e.thermal);
   }
 
-  private enqueue(atSec: number, kind: ThrowKind, strength: number, thermal: number | null) {
+  /** 작업을 줄에 세운다 — 받았으면 true(pre 클립은 작업 것), 안 받았으면 false(pre 클립은 부른 쪽이 지운다) */
+  private enqueue(atSec: number, kind: ThrowKind, strength: number, thermal: number | null, pre?: { clip: Clip; t0: number }): boolean {
     const ball = kind === 'ball';
     const seed = kind === 'seed';
     const sweep = kind === 'sweep';
@@ -201,18 +225,20 @@ export class AppCapture {
         covering.visible = true;
         this.sync();
       }
-      return;
+      return false;
     }
     const now = Date.now();
     this.recent = this.recent.filter((r) => r.until > now);
-    if (this.recent.some((r) => atSec >= r.start && atSec <= r.end)) return;
+    if (this.recent.some((r) => atSec >= r.start && atSec <= r.end)) return false;
     if (this.jobs.length >= MAX_PENDING) {
       if (ball) this.handlers.onNotice('계산이 밀려 공 하나를 건너뛰었어요');
-      return;
+      return false;
     }
     /* 후보는 비어 있을 때만 — 헛 후보가 뒤따르는 확실한 공의 자리를 차지하지 않게 */
-    if (seed && this.jobs.length > 0) return;
-    const [before, after] = ball || seed ? BALL_CLIP : MOTION_CLIP;
+    if (seed && this.jobs.length > 0) return false;
+    /* 진짜 공이 왔다 — 줄에 선(아직 시작 안 한) 훑기는 비킨다 */
+    if (!sweep) this.engine()?.yieldToMeasure();
+    const [before, after] = pre ? SWEEP_RANGE : ball || seed ? BALL_CLIP : MOTION_CLIP;
     const job: Job = {
       id: ++this.nextId,
       at: atSec,
@@ -223,6 +249,7 @@ export class AppCapture {
       ball,
       ...(seed ? { seed: true, ballAt: atSec } : {}),
       ...(sweep ? { sweep: true } : {}),
+      ...(pre ? { pre } : {}),
       strength,
       thermal,
     };
@@ -256,11 +283,18 @@ export class AppCapture {
         this.recent.push({ start: job.start, end: job.end, until: Date.now() + 5000 });
         if (gen === this.gen) this.sync();
       });
+    return true;
   }
 
+  /*
+   * 화면 상태 — 보이는 작업 중 클립을 아직 기다리거나 막 공을 찾은(flash) 것이 있으면 '투구를 인식했어요'(capturing), 모두 계산기로 넘어갔으면
+   * '구속 계산 중'(analyzing). 예전엔 보이는 작업이 있으면 늘 analyzing 이라 '인식했어요'가 한 번도 안 떴다(2026-10-20 — 사이트는 둘을 가른다).
+   */
   private sync() {
-    const visible = this.jobs.filter((j) => j.visible).length;
-    this.handlers.onStatus(this.jobs.length ? (visible ? 'analyzing' : 'capturing') : 'armed', visible);
+    const visible = this.jobs.filter((j) => j.visible);
+    const now = Date.now();
+    const recognizing = visible.some((j) => !j.analyzing || (j.flashUntil ?? 0) > now);
+    this.handlers.onStatus(this.jobs.length ? (visible.length && !recognizing ? 'analyzing' : 'capturing') : 'armed', visible.length);
   }
 
   /** 단계별 시간을 한 줄로 — 콘솔 · 관리자 진단(2026-10-20) */
@@ -281,16 +315,32 @@ export class AppCapture {
 
   private async measure(job: Job, gen: number) {
     const t0 = Date.now();
-    const { main, wide } = await DualCamera.clip({ atSec: job.at, beforeSec: job.at - job.start, afterSec: job.end - job.at });
-    const clipMs = Date.now() - t0;
     const drop = (paths: string[]) => DualCamera.discard({ paths }).catch(() => undefined);
+    const { main, wide } = job.pre
+      ? { main: job.pre.clip, wide: null }
+      : await DualCamera.clip({ atSec: job.at, beforeSec: job.at - job.start, afterSec: job.end - job.at });
+    const clipMs = Date.now() - t0;
     if (wide) void drop([wide.path]);
+    if (gen !== this.gen) return void drop([main.path]);
     const engine = this.engine();
-    if (gen !== this.gen || !engine) return void drop([main.path]);
+    if (!engine) {
+      void drop([main.path]);
+      throw new EngineError('ENGINE_DOWN', '계산기를 불러오지 못했어요. 신호를 확인해 주세요.');
+    }
     this.warnFrameLoss(main);
     const s = this.settings();
-    /* 공이 처음 보인 때(클립 시각) — 공 알림 작업은 알림 시각, 움직임 작업에 묶인 공 알림은 그 차이만큼 뒤 */
-    const ballEv = job.ball ? main.eventSec : job.ballAt != null ? main.eventSec + (job.ballAt - job.at) : null;
+    /*
+     * 공이 처음 보인 때(클립 시각) — 공 알림 작업은 알림 시각, 움직임 작업에 묶인 공 알림은 그 차이만큼 뒤, 훑기가 찾은 공은 훑기 클립 안의 그 시각
+     * (훑기 공 시각은 어긋날 수 있어 범위만 넓게 — SWEEP_RANGE, 씨앗은 엔진이 둘레부터 찾는 힌트일 뿐)
+     */
+    const ballEv = job.pre
+      ? job.at - job.pre.t0
+      : job.ball
+        ? main.eventSec
+        : job.ballAt != null
+          ? main.eventSec + (job.ballAt - job.at)
+          : null;
+    const range = job.pre ? SWEEP_RANGE : BALL_RANGE;
     const opts: MeasureOpts = {
       fps: main.fps,
       fovDeg: main.fovDeg > 0 ? main.fovDeg : s.fallbackFovDeg,
@@ -299,8 +349,8 @@ export class AppCapture {
       ...(ballEv != null && ballEv < main.durationSec
         ? {
             ballRange: {
-              startSec: Math.max(0, ballEv - BALL_RANGE[0]),
-              endSec: Math.min(main.durationSec, ballEv + BALL_RANGE[1]),
+              startSec: Math.max(0, ballEv - range[0]),
+              endSec: Math.min(main.durationSec, ballEv + range[1]),
               seedT: ballEv,
             },
           }
@@ -312,11 +362,26 @@ export class AppCapture {
       distanceAuto: s.distanceAuto,
       tiltRad: s.tiltRad,
     };
-    const { result, ms, readMs } = await engine.measure(main, opts, () => {
-      if (job.visible || gen !== this.gen) return;
-      job.visible = true;
-      this.sync();
-    });
+    job.analyzing = true;
+    if (gen === this.gen) this.sync();
+    let measured: Awaited<ReturnType<EngineHandle['measure']>>;
+    try {
+      measured = await engine.measure(main, opts, () => {
+        if (job.visible || gen !== this.gen) return;
+        /* 조용히 재던 클립이 공을 찾았다 — '인식했어요'를 잠깐 먼저 보인다 */
+        job.visible = true;
+        job.flashUntil = Date.now() + 400;
+        this.sync();
+        setTimeout(() => {
+          if (gen === this.gen) this.sync();
+        }, 420);
+      });
+    } catch (e) {
+      /* 시한 초과 · 계산기 멈춤 — 클립 파일을 남기지 않는다(예전엔 실패마다 3~7MB 가 폰에 쌓였다) */
+      void drop([main.path]);
+      throw e;
+    }
+    const { result, ms, readMs } = measured;
     if (gen !== this.gen) return void drop([main.path]);
     const ok = result.measure.ok;
     const track = result.track.length;
@@ -324,9 +389,16 @@ export class AppCapture {
     /* 공 길이 거의 없으면 헛알림 — 띄웠던 공이면 알리고, 아니면 조용히 넘긴다. 아니면 화면이 받을지 정한다 */
     const silent = !ok && (!job.visible || track < 4);
     if (silent && job.visible) this.handlers.onNotice(LOST_BALL_NOTE);
-    const verdict: Verdict = silent
-      ? { kept: false }
-      : this.handlers.onResult(result, { id: job.id, hitT: main.eventSec, clip: main, late: job.sweep === true });
+    let decided: Verdict;
+    try {
+      decided = silent
+        ? { kept: false }
+        : this.handlers.onResult(result, { id: job.id, hitT: job.pre && ballEv != null ? ballEv : main.eventSec, clip: main, late: job.sweep === true });
+    } catch (e) {
+      void drop([main.path]);
+      throw e;
+    }
+    const verdict = decided;
     const dropped = ok && !verdict.kept;
     job.recorded = true;
     this.handlers.onAttempt?.({
@@ -390,10 +462,10 @@ export class AppCapture {
     const engine = this.engine();
     /*
      * 계산기가 아직 붙든 일이 있으면(앱이 포기한 일 포함) 쉰다 — 예전엔 포기한 일 뒤에 훑기를 계속 쌓아 줄이 끝없이 길어졌다(2026-10-20).
-     * 창은 웹(dual-capture.ts)과 같은 4초 — 6초면 장면 360장을 풀어 폰에서 한 번이 5초 간격보다 길어졌다.
+     * 막 던짐 알림이 왔으면 그 공 재기가 먼저다. 창은 6초(sweep.ts SWEEP_MAX_SEC — 5초 간격 + 겹침 1초) — 4초면 매번 0.4~1초를 못 봤다.
      */
-    if (!engine || !DualCamera.now || engine.busy()) return;
-    const win = nextSweepWindow(this.sweptUntil, DualCamera.now(), CLIP_MAX_SEC);
+    if (!engine || !DualCamera.now || engine.busy() || Date.now() - this.lastThrowAt < SWEEP_AFTER_THROW_MS) return;
+    const win = nextSweepWindow(this.sweptUntil, DualCamera.now());
     if (!win) return;
     const gen = this.gen;
     this.sweeping = true;
@@ -421,7 +493,8 @@ export class AppCapture {
         /* 겹침 안에서 찾은 공은 지난 훑기 · 알림이 이미 쟀을 수 있다 — 재는 중 · 최근 창에 없을 때만 */
         if (!coveredBy(t, busy)) {
           console.info(`[velo] sweep ${span.start.toFixed(2)}~${span.end.toFixed(2)} → 공 ${t.toFixed(2)} (${found.via})`);
-          this.enqueue(t, 'sweep', 0, null);
+          /* 이 훑기 클립으로 바로 잰다 — 작업이 받으면 클립은 작업 것(아래 finally 가 지우지 않는다) */
+          if (this.enqueue(t, 'sweep', 0, null, { clip: main, t0: span.start })) path = null;
         }
       }
     } catch (e) {

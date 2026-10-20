@@ -47,8 +47,25 @@ export type Clip = {
 };
 
 export type ThrowEvent = { atSec: number; strength: number; kind: 'ball' | 'seed' | 'motion' | 'skip'; thermal: number };
-/** 1초마다 — thermal 0~3(ProcessInfo.ThermalState) · feedMs 장면당 공 찾기 시간(ms) · feedSkipped 공 찾기가 밀려 건너뛴 장면 수. 셋은 2026-10-20 판부터 */
-export type FpsEvent = { fps: number; dropped: number; shutter: number; iso: number; thermal?: number; feedMs?: number; feedSkipped?: number };
+/**
+ * 1초마다 — thermal 0~3(ProcessInfo.ThermalState) · feedMs 장면당 공 찾기 시간(ms) · feedSkipped 공 찾기가 밀려 건너뛴 장면 수(셋은 2026-10-20 판부터).
+ * droppedLate · droppedBuffers 버린 장면의 까닭(늦음 · 버퍼 모자람), writerSkipped 인코더가 안 받아 클립에 빠진 장면, writerResets 깨진 녹화기를 새로 연 횟수(같은 날 밤 판부터)
+ */
+export type FpsEvent = {
+  fps: number;
+  dropped: number;
+  shutter: number;
+  iso: number;
+  thermal?: number;
+  feedMs?: number;
+  feedSkipped?: number;
+  droppedLate?: number;
+  droppedBuffers?: number;
+  writerSkipped?: number;
+  writerResets?: number;
+  /** 아이폰 화면 기록(또는 미러링)이 켜져 있나 — 장면이 빠져 공을 놓친다 */
+  screenCaptured?: boolean;
+};
 
 export type DualCameraEvents = {
   throw: (e: ThrowEvent) => void;

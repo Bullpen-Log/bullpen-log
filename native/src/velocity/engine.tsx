@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState, type ComponentType, type Ref } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type ComponentType, type Ref } from 'react';
 import { StyleSheet } from 'react-native';
 import { WebView, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 import { APP_UA, SITE_URL } from '~/lib/site';
@@ -66,6 +66,8 @@ export type EngineHandle = {
   locate(clip: Clip, opts: LocateOpts): Promise<{ found: ThrowLocation | null } & EngineTiming>;
   /** 계산기가 아직 붙든 일이 있나 — 앱이 시한에 포기한 일도 끝(답 · 건너뜀)이 올 때까지 센다. 훑기는 이때 쉰다 */
   busy(): boolean;
+  /** 공(재기)이 왔다 — 아직 시작 안 한 훑기는 줄에서 뺀다(공이 훑기 뒤에서 기다리지 않게) */
+  yieldToMeasure(): void;
 };
 
 /**
@@ -97,6 +99,10 @@ const LOCATE_TIMEOUT_MS = 15_000;
  * 그 뒤 모든 공이 시한에 걸려 '인식'이 한 번도 안 떴다). 이제 포기하면 계산기에 버리라고 알리고(abort), 기다린 시간은 따로 잰다.
  */
 const QUEUE_TIMEOUT_MS = 90_000;
+/** 시작한 일이 시한을 넘기고도 이만큼 끝(답)을 안 보내면 계산기가 멈춘 것 — 웹뷰를 새로 띄운다(디코더 · 일꾼이 멈추면 줄이 영영 안 풀린다) */
+const HANG_GRACE_MS = 20_000;
+/** 계산기 페이지를 못 불러오면(신호 없음) 다시 불러오기 전 쉬는 시간 — 처음 3초, 거듭 실패하면 두 배씩 30초까지 */
+const RELOAD_BACKOFF_MS = [3_000, 6_000, 12_000, 30_000];
 /** 계산기 웹뷰가 뜨기를 기다리는 시한 — 넘기면 그 공은 못 잰 것으로 */
 const READY_TIMEOUT_MS = 20_000;
 
@@ -124,6 +130,34 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
   /** 계산기에 넘겼고 끝(result · located · fail · skipped)이 아직 안 온 일 — 앱이 포기한 일도 포함 */
   const inEngine = useRef(new Set<number>());
   const post = useCallback((m: unknown) => web.current?.postMessage(JSON.stringify(m)), []);
+  /** 거듭된 불러오기 실패 수(ready 를 받으면 0) · 다시 불러오기 예약 */
+  const loadFails = useRef(0);
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * 계산기 웹뷰를 새로 띄운다 — 기다리던 일은 모두 실패로, 붙든 일 셈은 비운다. ready 도 새로 — 예전엔 onError 뒤 ready 를 안 되돌려
+   * 새 웹뷰가 뜨기 전에 보낸 일이 사라지고 그 번호가 '붙든 일'로 영영 남아 훑기가 세션 끝까지 멈췄다(2026-10-20 검토).
+   */
+  const restart = useCallback((code: 'ENGINE_DOWN' | 'ENGINE_GONE', message: string, delayMs: number) => {
+    ready.current = new Promise((r) => (markReady.current = r));
+    for (const [id, w] of waiters.current) {
+      clearTimeout(w.timer);
+      w.reject(new EngineError(code, message));
+      waiters.current.delete(id);
+    }
+    inEngine.current.clear();
+    if (reloadTimer.current) clearTimeout(reloadTimer.current);
+    reloadTimer.current = setTimeout(() => {
+      reloadTimer.current = null;
+      setGen((n) => n + 1);
+    }, delayMs);
+  }, []);
+  useEffect(
+    () => () => {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+    },
+    []
+  );
 
   if (!ready.current) ready.current = new Promise((r) => (markReady.current = r));
 
@@ -134,7 +168,10 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
     } catch {
       return;
     }
-    if (msg.t === 'ready') return markReady.current();
+    if (msg.t === 'ready') {
+      loadFails.current = 0;
+      return markReady.current();
+    }
     if (msg.id != null && (msg.t === 'result' || msg.t === 'located' || msg.t === 'fail' || msg.t === 'skipped')) inEngine.current.delete(msg.id);
     const w = msg.id != null ? waiters.current.get(msg.id) : undefined;
     if (!w) return;
@@ -168,10 +205,20 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       const done = new Promise<{ result?: EngineResult; found?: ThrowLocation | null; ms: number }>((resolve, reject) => {
         const expire = () => {
           const w = waiters.current.get(id);
+          if (w) clearTimeout(w.timer);
           waiters.current.delete(id);
           /* 계산기가 아직 붙들고 있으면 버리게 — 줄에 서 있던 일은 건너뛰고 'skipped' 로 끝을 알린다 */
           post({ t: 'abort', id });
           const queued = w != null && !w.started;
+          if (queued) {
+            /* 시작 전이면 계산기는 이 일을 하지 않는다(옛 사이트 · 잃은 메시지면 답도 없다) — 붙든 일에서 바로 뺀다 */
+            inEngine.current.delete(id);
+          } else {
+            /* 돌던 일 — 끝 답이 이만큼 안 오면 계산기가 멈춘 것이라 웹뷰를 새로 띄운다 */
+            setTimeout(() => {
+              if (inEngine.current.has(id)) restart('ENGINE_GONE', '계산기가 멈춰 다시 띄웠어요', 0);
+            }, HANG_GRACE_MS);
+          }
           reject(
             new EngineError(
               'TIMEOUT',
@@ -208,7 +255,7 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       const r = await done;
       return { ...r, readMs, totalMs: Date.now() - t0 };
     },
-    [post]
+    [post, restart]
   );
 
   useImperativeHandle(ref, () => ({
@@ -222,6 +269,9 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       return { found: r.found ?? null, ms: r.ms, readMs: r.readMs, totalMs: r.totalMs };
     },
     busy: () => inEngine.current.size > 0,
+    yieldToMeasure() {
+      for (const w of [...waiters.current.values()]) if (w.kind === 'locate' && !w.started) w.expire();
+    },
   }));
 
   return (
@@ -235,25 +285,12 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       style={styles.hidden}
       pointerEvents="none"
       onError={() => {
-        /* 사이트에 못 닿음 — 기다리던 공은 실패로. 다음 공은 다시 뜬 웹뷰가 받는다 */
-        for (const [id, w] of waiters.current) {
-          clearTimeout(w.timer);
-          w.reject(new EngineError('ENGINE_DOWN', '계산기를 불러오지 못했어요. 신호를 확인해 주세요.'));
-          waiters.current.delete(id);
-        }
-        inEngine.current.clear();
-        setGen((n) => n + 1);
+        /* 사이트에 못 닿음 — 기다리던 공은 실패로, 쉬었다가 다시 불러온다(예전엔 쉼 없이 다시 불러와 신호 없는 곳에서 끝없이 돌았다) */
+        const wait = RELOAD_BACKOFF_MS[Math.min(loadFails.current, RELOAD_BACKOFF_MS.length - 1)];
+        loadFails.current += 1;
+        restart('ENGINE_DOWN', '계산기를 불러오지 못했어요. 신호를 확인해 주세요.', wait);
       }}
-      onContentProcessDidTerminate={() => {
-        ready.current = new Promise((r) => (markReady.current = r));
-        for (const [id, w] of waiters.current) {
-          clearTimeout(w.timer);
-          w.reject(new EngineError('ENGINE_GONE', '계산기가 멈춰 이번 공은 재지 못했어요'));
-          waiters.current.delete(id);
-        }
-        inEngine.current.clear();
-        setGen((n) => n + 1);
-      }}
+      onContentProcessDidTerminate={() => restart('ENGINE_GONE', '계산기가 멈춰 이번 공은 재지 못했어요', 0)}
     />
   );
 });

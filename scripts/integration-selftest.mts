@@ -378,17 +378,19 @@ console.log('\n[12] 앱 입구 — 아이폰 앱(native/)이 부르는 /api/rpc 
 }
 
 /* ─────────────────────── 13. 앱 카메라 두 벌 ─────────────────────── */
-console.log('\n[13] 앱 카메라 — Capacitor 앱과 Expo 앱(native/)의 카메라 핵심이 같은가');
+console.log('\n[13] 앱 카메라 — Capacitor 앱과 Expo 앱(native/)의 공 알아채기가 같은가');
 {
-  /* Expo 판이 나갈 때까지 두 앱이 같이 쓰인다 — 한쪽만 고치면 구속 측정이 앱마다 달라진다. mobile/ 을 지우면 이 검사도 지운다 */
-  const MARK = '\n// MARK: - 카메라 둘\n';
-  const capacitor = src('mobile/ios/App/App/DualCameraPlugin.swift');
-  const expo = src('native/modules/dual-camera/ios/DualCameraCore.swift');
-  const a = capacitor.slice(capacitor.indexOf(MARK));
-  const b = expo.slice(expo.indexOf(MARK));
+  /*
+   * 두 앱이 같이 쓰이는 동안 공 알아채기(MotionTrigger)가 앱마다 다르면 구속 측정이 앱마다 달라진다 — 그 구간(BALL_TRIGGER)만 글자까지
+   * 견준다. 녹화 · 장면 넘기기 · 진단 같은 카메라 길은 새 앱만 일부러 바꿨다(10-20 Phase A/C — 알아채기 줄 · 녹화기 다시 열기 · 버린 까닭),
+   * 옛 앱(mobile/)은 굳힌 기준이라 손대지 않는다. 예전엔 '카메라 둘' 뒤 전체를 견줘 늘 실패했다. mobile/ 을 지우면 이 검사도 지운다.
+   */
+  const section = (text: string) => text.slice(text.indexOf('// BALL_TRIGGER_BEGIN'), text.indexOf('// BALL_TRIGGER_END'));
+  const a = section(src('mobile/ios/App/App/DualCameraPlugin.swift'));
+  const b = section(src('native/modules/dual-camera/ios/DualCameraCore.swift'));
   const line = a.split('\n').findIndex((l, i) => l !== b.split('\n')[i]);
   check(
-    'mobile/…/DualCameraPlugin.swift 와 native/modules/dual-camera/ios/DualCameraCore.swift 의 카메라 핵심이 글자까지 같다',
+    'mobile/…/DualCameraPlugin.swift 와 native/…/DualCameraCore.swift 의 공 알아채기(BALL_TRIGGER) 구간이 글자까지 같다',
     a.length > 10_000 && a === b,
     line < 0 ? '' : `${line + 1}번째 줄부터 다름 — 두 파일을 같이 고친다`
   );
