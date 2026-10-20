@@ -1,6 +1,5 @@
 import type * as Three from 'three';
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
-import { V2J } from '@/lib/pitch-3d/v2/contract';
 import type { DisplayTrack } from '@/lib/pitch-3d/v2/display';
 import {
   LIGHT_RIG,
@@ -149,24 +148,6 @@ function moundMaterial(THREE: typeof import('three')) {
   return mat;
 }
 
-/** 평지 — 축발(먼저 땅에 닿은 발)이 처음 닿은 장면에서 발 뒤 가장자리 = 투수판 앞 모서리. 닿은 구간이 없으면 첫 장면의 뒤쪽 발 */
-function flatSpot(
-  track: Pick<DisplayTrack, 'frames' | 'contacts'>
-): { x0: number; z0: number } | null {
-  const first = [...track.contacts].sort((a, b) => a.from - b.from)[0];
-  const f = track.frames[first ? first.from : 0];
-  if (!f) return null;
-  const foot = (side: 'L' | 'R') =>
-    side === 'L' ? [f[V2J.lHe], f[V2J.lTo]] : [f[V2J.rHe], f[V2J.rTo]];
-  const side = first
-    ? first.side
-    : Math.min(f[V2J.lHe][0], f[V2J.lTo][0]) < Math.min(f[V2J.rHe][0], f[V2J.rTo][0])
-      ? 'L'
-      : 'R';
-  const [he, to] = foot(side);
-  return { x0: Math.min(he[0], to[0]), z0: (he[2] + to[2]) / 2 };
-}
-
 /**
  * 무대를 장면에 놓는다 — 바탕색 · 톤 · 조명 · 바닥 격자 · 마운드와 투수판 · 축 화살표(빨강 홈 · 파랑 위 · 하늘 옆).
  * center = 움직임 상자 가운데(카메라가 보는 곳), heightM = 투수 키(m, 마운드 크기를 키 단위로).
@@ -182,7 +163,7 @@ export function buildStage({
   THREE: typeof import('three');
   scene: Three.Scene;
   renderer: Three.WebGLRenderer;
-  track: Pick<DisplayTrack, 'groundAt' | 'mound' | 'frames' | 'contacts'>;
+  track: Pick<DisplayTrack, 'groundAt' | 'mound' | 'rubber'>;
   center: Vec3;
   heightM: number;
 }): void {
@@ -245,11 +226,11 @@ export function buildStage({
 
   /* 마운드 — 투수판 앞 모서리 = 축발이 처음 닿은 자리, 높이는 두 발 자리에 맞춘 배율(display.ts) */
   /*
-   * 평지에서 던진 영상(track.mound 없음)은 같은 간이 마운드를 납작하게(높이 0) 깐다 — 투수판 자리는 축발이 처음 닿은 장면의 발 뒤 가장자리
-   * (2026-10-11 김민: "평지에서 던질때는 저 마운드를 그냥 평지로 납작하게").
+   * 평지에서 던진 영상(track.mound 없음)은 같은 간이 마운드를 납작하게(높이 0) 깐다(2026-10-11 김민: "평지에서 던질때는 저 마운드를 그냥 평지로 납작하게").
+   * 투수판 자리는 마운드 · 평지 모두 화면 모델이 정한 축발 자리(track.rubber, display.ts) — 예전엔 평지만 여기서 '가장 먼저 닿은 발'로 정해 앞발이 뽑혔다.
    */
   const { groundAt } = track;
-  const mound = track.mound ?? flatSpot(track);
+  const mound = track.mound ?? track.rubber;
   if (mound) {
     const s = 1 / heightM;
     const moundMesh = new THREE.Mesh(
