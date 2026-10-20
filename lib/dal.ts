@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { readSession, passwordFingerprint } from '@/lib/session';
 import { ensureSim } from '@/lib/clock-server';
+import { can, type Permission } from '@/lib/permissions';
 
 /**
  * 현재 로그인한 사용자를 반환한다. 로그인하지 않았으면 null.
@@ -92,9 +93,16 @@ export async function requireUser() {
   return user;
 }
 
-/** 관리자 전용 동작에서 사용. */
+/** 대표관리자 전용 동작에서 사용(2026-10-20 준관리자가 생긴 뒤에도 ADMIN 만). */
 export async function requireAdmin() {
   const user = await requireUser();
   if (user.role !== 'ADMIN') redirect('/today');
+  return user;
+}
+
+/** 이 기능을 쓸 수 있는 관리자(대표 · 준)만 — 표는 lib/permissions.ts. 못 쓰면 오늘 화면으로 */
+export async function requirePermission(perm: Permission) {
+  const user = await requireUser();
+  if (!can(user.role, perm)) redirect('/today');
   return user;
 }

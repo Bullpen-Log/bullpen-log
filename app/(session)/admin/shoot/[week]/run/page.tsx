@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { requireAdmin } from '@/lib/dal';
+import { requirePermission } from '@/lib/dal';
 import { loadShootWeek } from '@/lib/shoot/load';
 import { crewWeek, crewsOf } from '@/lib/shoot/crews';
 import { RunClient } from './run-client';
@@ -16,7 +16,7 @@ export default async function ShootRunPage({
   params: Promise<{ week: string }>;
   searchParams: Promise<{ at?: string | string[]; crew?: string | string[] }>;
 }) {
-  const me = await requireAdmin();
+  const me = await requirePermission('shoot');
   const n = Number((await params).week);
   const data = Number.isInteger(n) ? await loadShootWeek(n) : null;
   if (!data) notFound();

@@ -126,7 +126,7 @@ export default async function AppLayout({
       */}
       {!isNative && <AppSplash />}
       <AppNav
-        groups={applyLocksToGroups(visibleGroups(isAdmin, isNative), locks)}
+        groups={applyLocksToGroups(visibleGroups(user.role, isNative), locks)}
         quick={applyLocks(quickTabs(), locks)}
         tabs={applyLocks(MOBILE_TABS, locks)}
         nickname={user.nickname}
@@ -223,7 +223,7 @@ export default async function AppLayout({
             tabs={applyLocks(MOBILE_TABS, locks)}
             camera={
               /* 잠긴 사람(투구 첫 설정 전)은 설정 화면 주소라 구속 측정 전환(zoom)을 걸면 안 된다 */
-              applyLocksToGroups(visibleGroups(isAdmin, isNative), locks)
+              applyLocksToGroups(visibleGroups(user.role, isNative), locks)
                 .flatMap((g) => g.items)
                 .find((i) => i.icon === 'radar' && !i.locked) ?? null
             }

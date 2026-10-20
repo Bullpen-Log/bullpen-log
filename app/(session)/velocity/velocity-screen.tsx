@@ -495,6 +495,8 @@ const readLastMode = () => {
 
 export function VelocityScreen({
   isAdmin,
+  canAbs = isAdmin,
+  canRecord = isAdmin,
   native,
   today,
   calibration,
@@ -505,7 +507,11 @@ export function VelocityScreen({
 }: {
   /** /abs 딥링크 — ABS 모드로 바로 열고(모드 시트 없이) 제목 · 셔터 글이 '판정'. 흐름 · 엔진은 구속 측정 그대로(lib/camera-mode.ts) */
   absMode?: boolean;
+  /** 대표관리자 — 보정 · 카메라 진단 · 관리자 도구 */
   isAdmin: boolean;
+  /** ABS 모드 · 세션 녹화 — 대표 · 준관리자(lib/permissions.ts, 2026-10-20) */
+  canAbs?: boolean;
+  canRecord?: boolean;
   native: boolean;
   today: string;
   /** 서버가 그 사람의 스피드건 짝으로 맞춘 보정식 */
@@ -585,7 +591,7 @@ export function VelocityScreen({
    */
   const lastModeRaw = useSyncExternalStore(subscribeStorage, readLastMode, () => null);
   const [modeChosen, setModeChosen] = useState<CameraMode | null>(absMode ? 'abs' : null);
-  const mode: CameraMode = modeChosen ?? allowedMode(parseMode(lastModeRaw), isAdmin);
+  const mode: CameraMode = modeChosen ?? allowedMode(parseMode(lastModeRaw), canAbs);
   const [modePicked, setModePicked] = useState(absMode || initialStep !== 'home');
   const modeMeta = modeInfo(mode);
   const setMode = (next: CameraMode) => {
@@ -816,7 +822,7 @@ export function VelocityScreen({
    * judge() 로 analysis.abs 를 만들고 코스 · 결과를 채운다. 초점거리는 세션 저장 입력(focalPx)과 같은 셈.
    */
   const abs = useAbsSession({
-    enabled: isAdmin,
+    enabled: canAbs,
     camera: camera ? { width: camera.width, height: camera.height } : null,
     focalPx: camera
       ? focalRatio
@@ -1561,7 +1567,7 @@ export function VelocityScreen({
    * 최근 영상을 4초마다 잘라 서버 녹화(엔진 개발용 녹화와 같은 표 · 편집기)로 올린다. 알림이 침묵해 놓친 공의 영상이 남는다.
    */
   const startSessionRecording = async (capture: DualCapture | LiveCapture) => {
-    if (!isAdmin || !sessionRecWanted || sessionRecRef.current) return;
+    if (!canRecord || !sessionRecWanted || sessionRecRef.current) return;
     if (!(capture instanceof DualCapture)) {
       setToast('세션 녹화는 앱 카메라에서만 돼요');
       return;
@@ -2490,7 +2496,7 @@ export function VelocityScreen({
       : null;
   const speedNum = (kmh: number) => Math.round(toSpeed(kmh, unit) * 10) / 10;
   /* 관리자 '세션 녹화' 칩 — 측정 시작 전엔 켜기 단추, 측정 중엔 녹화 상태(결과가 떠 있으면 숨김). 알림창은 그만큼 위로 */
-  const recChip = step === 'measure' && isAdmin && !recOn && (!live || (rec != null && !resultShown));
+  const recChip = step === 'measure' && canRecord && !recOn && (!live || (rec != null && !resultShown));
   const levelOk = !level.supported || level.ok;
   const targetText =
     choices.cameraPos === 'behind-pitcher' ? '릴리스 포인트' : '미트가 오는 자리';
@@ -2598,7 +2604,7 @@ export function VelocityScreen({
       )}
 
       {/* 모드 고르기 시트 — 열리자마자 미리보기 위(docs/designs/camera-modes.md 2-1). 고르면 그 모드의 설정 흐름으로 */}
-      {step === 'home' && !modePicked && status !== 'starting' && <ModeSheet value={mode} isAdmin={isAdmin} onPick={pickMode} />}
+      {step === 'home' && !modePicked && status !== 'starting' && <ModeSheet value={mode} isAdmin={canAbs} onPick={pickMode} />}
       {/* 표적 — 릴리스 포인트 */}
       {cameraOn && step !== 'zone' && step !== 'abs' && step !== 'lens' && !(live && !showCamera) && (
         <div aria-hidden className="pointer-events-none absolute inset-0 text-white">
@@ -3600,7 +3606,7 @@ export function VelocityScreen({
           {/* 모드 띠 — 셔터 위(설계 2-2). 측정 중엔 잠금. 모드를 아직 안 골랐으면(시트가 떠 있음) 자리만 */}
           {step !== 'lens' && (
             <div className="relative z-10 shrink-0 bg-black px-3 pt-1.5">
-              {modePicked ? <ModeStrip value={mode} isAdmin={isAdmin} locked={step === 'measure' && live} onChange={switchMode} /> : <div className="h-8" />}
+              {modePicked ? <ModeStrip value={mode} isAdmin={canAbs} locked={step === 'measure' && live} onChange={switchMode} /> : <div className="h-8" />}
             </div>
           )}
           {step !== 'lens' && (

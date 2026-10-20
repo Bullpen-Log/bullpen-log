@@ -1,4 +1,5 @@
 import 'server-only';
+import { can } from '@/lib/permissions';
 import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
@@ -18,11 +19,15 @@ export async function velocityAccess() {
   const user = await requireUser();
   const native = isNativeUserAgent((await headers()).get('user-agent'));
   const isAdmin = user.role === 'ADMIN';
+  /* 준관리자(2026-10-20, lib/permissions.ts) — 구속 관리자 · 녹화 · ABS 만. 웹에서도 연다(구속 관리자라서) */
+  const canVelocityAdmin = can(user.role, 'velocityAdmin');
   return {
     user,
     native,
     isAdmin,
-    allowed: isAdmin || native,
+    canAbs: can(user.role, 'abs'),
+    canRecord: can(user.role, 'recording'),
+    allowed: isAdmin || canVelocityAdmin || native,
     pitchLocked: featureLocks(user).pitch,
   };
 }

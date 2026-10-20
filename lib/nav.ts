@@ -7,6 +7,7 @@
  */
 
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
+import { can, isOwner, type Permission } from '@/lib/permissions';
 import {
   FEATURE_HOME,
   SETUP_PATH,
@@ -71,8 +72,9 @@ export type NavItem = {
    * 같은 앱 안에서 색 체계를 두 벌 만들 이유가 없다.
    */
   tone?: 'lower' | 'upper' | 'mobility' | 'power' | 'core' | 'armcare' | 'recovery';
-  /** 관리자에게만 보이는 항목 */
+  /** 관리자에게만 보이는 항목 — perm 이 없으면 대표관리자만, 있으면 그 권한이 있는 관리자(준관리자 포함, lib/permissions.ts) */
   adminOnly?: boolean;
+  perm?: Permission;
   /**
    * 앱(스마트폰 껍데기)에서는 누구나, 웹에서는 관리자만 보이는 항목 — 폰의 고속 촬영이 있어야
    * 하는 구속 측정. 여는 쪽의 규칙(app/(session)/velocity/access.ts)과 같다.
@@ -194,6 +196,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: 'target',
         appOrAdmin: true,
         adminOnly: true,
+        perm: 'abs',
         lock: 'pitch',
       },
     ],
@@ -250,6 +253,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: 'shield',
         tone: 'armcare',
         adminOnly: true,
+        perm: 'adminHome',
       },
       /* 카메라로 잰 값과 스피드건 값을 견줘 정확도를 올리는 자료 — 관리자만, 웹 화면 */
       {
@@ -258,6 +262,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: 'gauge',
         tone: 'armcare',
         adminOnly: true,
+        perm: 'velocityAdmin',
       },
       /* 유튜브 참고 영상을 우리 영상으로 — 촬영 계획 · 체크 · 휴대폰 촬영 모드(2026-10-09) */
       {
@@ -266,6 +271,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: 'clapper',
         tone: 'armcare',
         adminOnly: true,
+        perm: 'shoot',
       },
       /* 1:1 문의 답하기 · 공지 쓰기 · 커뮤니티 신고 처리(2026-10-17) */
       {
@@ -410,11 +416,15 @@ export function quickTabs(): NavItem[] {
  * 볼 수 없는 항목을 걸러낸다 — 관리자 전용은 관리자만, 앱 · 관리자 전용(구속 측정)은 앱 안이거나
  * 관리자일 때만. 앱 안인지는 요청의 User-Agent 로 부르는 쪽이 가린다(lib/app-env.ts).
  */
-export function visibleGroups(isAdmin: boolean, isNative = false): NavGroup[] {
+export function visibleGroups(role: string, isNative = false): NavGroup[] {
+  /* 준관리자(2026-10-20)는 perm 이 있는 관리자 항목 중 표가 연 것만 · 웹 구속 측정은 구속 관리자 권한으로 */
+  const owner = isOwner(role);
+  const webMeasure = owner || can(role, 'velocityAdmin');
   return NAV_GROUPS.map((g) => ({
     ...g,
     items: g.items.filter(
-      (i) => (!i.adminOnly || isAdmin) && (!i.appOrAdmin || isAdmin || isNative)
+      (i) =>
+        (!i.adminOnly || (i.perm ? can(role, i.perm) : owner)) && (!i.appOrAdmin || webMeasure || isNative)
     ),
   })).filter((g) => g.items.length > 0);
 }

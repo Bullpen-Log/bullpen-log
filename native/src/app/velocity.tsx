@@ -100,7 +100,8 @@ const discardAll = (list: NativePitch[]) => {
  * 투구 탭의 '구속 측정' · 'ABS 판정' 칸은 ?mode= 로 열어 시트를 건너뛴다.
  */
 type Step = 'loading' | 'mode' | 'guide' | 'ask' | 'type' | 'camera' | 'level' | 'zone' | 'abs' | 'measure';
-type Start = { isAdmin: boolean; today: string; fit: CalFit };
+/** isAdmin 대표관리자(진단 · 관리자 저장) · canAbs · canRecord 준관리자도(2026-10-20, lib/permissions.ts — 옛 서버면 isAdmin 으로) */
+type Start = { isAdmin: boolean; canAbs: boolean; canRecord: boolean; today: string; fit: CalFit };
 
 export default function VelocityScreen() {
   const inset = useSafeAreaInsets();
@@ -182,7 +183,7 @@ export default function VelocityScreen() {
   useEffect(() => {
     let alive = true;
     void Promise.all([
-      rpc<{ ok: true; isAdmin: boolean; pitchLocked: boolean; today: string; fit: CalFit } | { ok: false; error: string }>(
+      rpc<{ ok: true; isAdmin: boolean; canAbs?: boolean; canRecord?: boolean; pitchLocked: boolean; today: string; fit: CalFit } | { ok: false; error: string }>(
         'velocity.loadVelocityStart'
       ),
       loadLastMode(),
@@ -192,11 +193,11 @@ export default function VelocityScreen() {
         if (!res.ok) return setBlocked(res.error);
         if (res.pitchLocked) return setBlocked('투구 기록 첫 설정을 먼저 마쳐 주세요.');
         todayRef.current = res.today;
-        setStart({ isAdmin: res.isAdmin, today: res.today, fit: res.fit });
+        setStart({ isAdmin: res.isAdmin, canAbs: res.canAbs ?? res.isAdmin, canRecord: res.canRecord ?? res.isAdmin, today: res.today, fit: res.fit });
         /* 관리자만 쓰는 모드를 지난 번에 골랐어도 지금 관리자가 아니면 구속 측정으로 */
         if (entryMode) {
           /* 투구 탭에서 모드를 정해 왔으면 시트 없이 안내부터(openMode 와 같은 일 — 그 함수는 이 뒤에 있어 여기서 못 부른다) */
-          const m = allowedMode(entryMode, res.isAdmin);
+          const m = allowedMode(entryMode, res.canAbs ?? res.isAdmin);
           setMode(m);
           void saveLastMode(m);
           void Promise.all([loadJson(TIPS_SKIP_KEY), loadJson(setupKeyOf(m))]).then(([skip, raw]) => {
@@ -211,7 +212,7 @@ export default function VelocityScreen() {
             setStep(s ? 'ask' : 'type');
           });
         } else {
-          setMode(allowedMode(last, res.isAdmin));
+          setMode(allowedMode(last, res.canAbs ?? res.isAdmin));
           setStep('mode');
         }
         void loadDraft().then((d) => {
@@ -353,7 +354,7 @@ export default function VelocityScreen() {
   const [recWanted, setRecWanted] = useState(false);
   const [rec, setRec] = useState<RecState | null>(null);
   useEffect(() => {
-    if (!(step === 'measure' && live && recWanted && start?.isAdmin && info)) return;
+    if (!(step === 'measure' && live && recWanted && start?.canRecord && info)) return;
     const r = new SessionRecorder(setRec);
     void r.start(sessionDate ?? start.today, {
       sessionRecording: true,
@@ -371,7 +372,7 @@ export default function VelocityScreen() {
     };
     // 녹화는 측정을 켜고 끌 때만 — 존 · 종류를 바꿔도 이어서 녹화한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, live, recWanted, start?.isAdmin, info]);
+  }, [step, live, recWanted, start?.canRecord, info]);
 
   /* 그 모드의 지난 설정이 있으면 묻고(ask), 없으면 첫 설정(type) */
   const goSetup = (next: CameraMode) => {
@@ -520,7 +521,7 @@ export default function VelocityScreen() {
   const measuring = step === 'measure' && live;
   /* ABS — 플레이트 보정 · 존 상자(웹 velocity-screen 의 useAbsSession 과 같은 입력: 긴 변 화각 → 초점 px, 숙임 · 좌우 기울기) */
   const abs = useAbs({
-    enabled: mode === 'abs' && !!start?.isAdmin,
+    enabled: mode === 'abs' && !!start?.canAbs,
     camera: info ? { width: info.mainWidth, height: info.mainHeight } : null,
     focalPx: info ? focalPxFromFov(Math.max(info.mainWidth, info.mainHeight), info.mainFovDeg > 0 ? info.mainFovDeg : SETTINGS.fallbackFovDeg) : null,
     tiltRad: tilt ? (-tilt.pitch * Math.PI) / 180 : null,
@@ -619,12 +620,12 @@ export default function VelocityScreen() {
 
         {/* 모드 고르기 시트 — 열리자마자 미리보기 위(설계 2-1). 고르면 그 모드의 지난 설정 · 첫 설정으로 */}
         {step === 'mode' && start && !blocked && !error ? (
-          <ModeSheet value={mode} isAdmin={start.isAdmin} bottom={12} onPick={(m) => pickMode(m, 'sheet')} />
+          <ModeSheet value={mode} isAdmin={start.canAbs} bottom={12} onPick={(m) => pickMode(m, 'sheet')} />
         ) : null}
         {/* 카메라 위 안내창 · 결과 — 뷰파인더 아래쪽 */}
         <View style={styles.over} pointerEvents="box-none">
           {/* 관리자 세션 녹화 — 측정 전엔 켜기 칩, 측정 중엔 녹화 상태(웹 velocity-screen 의 sessionRecWanted 칩) */}
-          {step === 'measure' && start?.isAdmin && canRecordSession() && tipsAt == null ? (
+          {step === 'measure' && start?.canRecord && canRecordSession() && tipsAt == null ? (
             !live && rec?.phase !== 'stopping' ? (
               <Press select selected={recWanted}
                 accessibilityRole="switch"
@@ -794,7 +795,7 @@ export default function VelocityScreen() {
       {/* 아래 검은 막대 — 모드 띠 · 옆 단추 · 셔터 · 옆 단추(웹 카메라 앱 꼴) */}
       <View style={[styles.bar, { paddingBottom: Math.max(inset.bottom, 12) }]}>
         {start && !blocked && step !== 'loading' && step !== 'mode' ? (
-          <ModeStrip value={mode} isAdmin={start.isAdmin} locked={measuring} onChange={(m) => pickMode(m, 'strip')} />
+          <ModeStrip value={mode} isAdmin={start.canAbs} locked={measuring} onChange={(m) => pickMode(m, 'strip')} />
         ) : (
           <View style={{ height: 32 }} />
         )}

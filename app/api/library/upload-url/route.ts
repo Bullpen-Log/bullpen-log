@@ -1,6 +1,7 @@
 import { withJosa } from '@/lib/korean';
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
+import { can } from '@/lib/permissions';
 import {
   MAX_THUMB_BYTES,
   ADMIN_MAX_VIDEO_BYTES,
@@ -18,7 +19,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
   }
   // 화면에서 버튼을 숨기는 것과 별개로 서버에서도 반드시 막는다.
-  if (user.role !== 'ADMIN') {
+  // 준관리자(2026-10-20)는 영상 촬영 권한으로 — 받은 주소로 올린 파일을 운동에 붙이는 건 촬영(attachShootClip)만 하게 서버가 다시 본다
+  if (!can(user.role, 'shoot')) {
     return NextResponse.json(
       { error: '관리자만 라이브러리 영상을 올릴 수 있어요' },
       { status: 403 }

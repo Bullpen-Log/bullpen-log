@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { can } from '@/lib/permissions';
 import { getCurrentUser } from '@/lib/dal';
 import { clearLibraryCache } from '@/lib/library-cache';
 import { prisma } from '@/lib/prisma';
@@ -30,7 +31,8 @@ const NOTE_MAX = 200;
 
 async function requireAdminUser() {
   const user = await getCurrentUser();
-  return user && user.role === 'ADMIN' ? user : null;
+  /* 영상 촬영 — 대표 · 준관리자(lib/permissions.ts) */
+  return user && can(user.role, 'shoot') ? user : null;
 }
 
 function revalidate() {

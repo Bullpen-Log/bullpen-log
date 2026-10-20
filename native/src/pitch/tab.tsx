@@ -26,7 +26,14 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
   const inset = useSafeAreaInsets();
   /* [캘린더 | 목록] — 웹 투구 탭 고르개(pitch-log-heading.tsx PITCH_VIEW_OPTIONS). 찾기는 목록에만(웹 video-gallery 와 같다) */
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
-  const isAdmin = useMenu().isAdmin === true;
+  /*
+   * 관리자 칸은 사이트가 보낸 메뉴로 — 웹 visibleGroups 가 역할 · 권한(lib/permissions.ts)으로 거른 항목이 있으면 보인다(준관리자도, 2026-10-20).
+   * 옛 사이트(메뉴에 없음)면 isAdmin 으로
+   */
+  const menu = useMenu();
+  const hasMenu = (href: string) => menu.groups.some((g) => g.items.some((i) => i.href === href));
+  const canAbs = hasMenu('/abs') || menu.isAdmin === true;
+  const canVelocityAdmin = hasMenu('/admin/velocity') || menu.isAdmin === true;
   const [month, setMonth] = useState(monthOf(today));
   const [monthSettled, setMonthSettled] = useState(false);
   /* 고른 날 — 밑에 그날 칸(웹 video-calendar). 펴지면 320ms 뒤 화면 밖이면 굴려 보인다 */
@@ -90,7 +97,7 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
       */}
       <View style={styles.tools}>
         <ToolTile icon="radar" label="구속 측정" onPress={() => router.push('/velocity?mode=speed' as Href)} />
-        {isAdmin ? <ToolTile icon="target" label="ABS 판정" onPress={() => router.push('/velocity?mode=abs' as Href)} /> : null}
+        {canAbs ? <ToolTile icon="target" label="ABS 판정" onPress={() => router.push('/velocity?mode=abs' as Href)} /> : null}
         <ToolTile icon="rotate3d" label="3D 동작 분석" onPress={() => router.push('/lab' as Href)} />
       </View>
       {/* 관리자는 셋째 칸 '구속 측정 관리자'(웹 videos-client VELOCITY_ADMIN_OPTION) — 누르면 그 화면으로 가고 고른 보기는 그대로 */}
@@ -99,7 +106,7 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
         options={[
           { value: 'calendar', label: '캘린더' },
           { value: 'list', label: '목록' },
-          ...(isAdmin ? [{ value: 'velocity' as const, label: '구속 측정 관리자' }] : []),
+          ...(canVelocityAdmin ? [{ value: 'velocity' as const, label: '구속 측정 관리자' }] : []),
         ]}
         value={view}
         onChange={(v) => (v === 'velocity' ? router.push('/admin/velocity?from=pitch' as Href) : setView(v))}

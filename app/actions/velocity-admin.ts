@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { can } from '@/lib/permissions';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteVideos } from '@/lib/storage';
@@ -42,7 +43,8 @@ const NOT_ADMIN: AdminActionResult = { ok: false, error: '관리자만 할 수 �
 
 async function requireAdminUser() {
   const user = await getCurrentUser();
-  return user && user.role === 'ADMIN' ? user : null;
+  /* 구속 측정 관리자 — 대표 · 준관리자(lib/permissions.ts) */
+  return user && can(user.role, 'velocityAdmin') ? user : null;
 }
 
 const num = (v: unknown, lo: number, hi: number): number | null => {

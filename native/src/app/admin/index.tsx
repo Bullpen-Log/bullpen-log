@@ -4,10 +4,17 @@ import { type Href, router } from 'expo-router';
 import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppAdmin } from '@/app/actions/app-admin';
+import { ROLE_LABEL, parseRole, type Role } from '@/lib/permissions';
 import { Badge, Bar, call, LoadState, Row, s, useLoad, useTitleCollapse } from '~/community/parts';
 import { PageHead } from '~/shell/heading';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+
+const ROLE_DETAIL: Record<Role, string> = {
+  USER: '관리자 메뉴를 더는 쓸 수 없어요.',
+  MANAGER: '영상 촬영 · 구속 측정 관리자 · 세션 녹화 · ABS 만 쓸 수 있어요.',
+  ADMIN: '회원 관리 · 역할 바꾸기까지 모든 관리자 기능을 쓸 수 있어요.',
+};
 
 /**
  * 관리자(앱 화면) — 웹 app/(app)/admin/page.tsx: 요약 넷 · 관리 메뉴(소통 · 커뮤니티 신고 · 패치노트는 앱, 구속 측정 · 촬영 관리자는 웹) ·
@@ -32,6 +39,11 @@ export default function AdminScreen() {
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
           <PageHead title="관리자" />
+          {!data.perms.owner ? (
+            <Text style={[s.meta, { color: c.muted, paddingHorizontal: 4 }]}>
+              준관리자는 아래 기능만 쓸 수 있어요. 회원 관리 · 공지 · 라이브러리 고치기는 대표관리자에게 부탁해 주세요.
+            </Text>
+          ) : null}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             {data.stats.map((st) => (
               <View key={st.label} style={{ flexBasis: '47%', flexGrow: 1, borderRadius: 14, padding: 14, backgroundColor: c.card, boxShadow: c.float, gap: 4 }}>
@@ -45,13 +57,16 @@ export default function AdminScreen() {
           </View>
 
           <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
+            {data.perms.owner ? (<>
             <MenuRow icon="bubble.left.and.bubble.right" label="소통 관리" detail={data.openInquiries > 0 ? `답할 문의 ${data.openInquiries}` : '1:1 문의 · 공지'} onPress={() => router.push('/admin/support' as Href)} c={c} />
             <MenuRow icon="flag" label="커뮤니티 신고" detail={data.openReports > 0 ? `처리 전 ${data.openReports}` : '신고된 글 · 댓글'} onPress={() => router.push('/admin/community' as Href)} c={c} />
             <MenuRow icon="doc.text" label="패치노트" detail="누가 · 어느 날 무엇을 고쳤나" onPress={() => router.push('/admin/patch-notes' as Href)} c={c} />
-            <MenuRow icon="gauge.with.needle" label="구속 측정 관리자" detail="지난 영상 · 영상 올리기" onPress={() => router.push('/admin/velocity' as Href)} c={c} />
-            <MenuRow icon="video" label="촬영 관리자" detail="주차 시간표 · 찍음 체크" last onPress={() => router.push('/admin/shoot' as Href)} c={c} />
+            </>) : null}
+            {data.perms.velocityAdmin ? <MenuRow icon="gauge.with.needle" label="구속 측정 관리자" detail="지난 영상 · 영상 올리기" onPress={() => router.push('/admin/velocity' as Href)} last={!data.perms.shoot} c={c} /> : null}
+            {data.perms.shoot ? <MenuRow icon="video" label="촬영 관리자" detail="주차 시간표 · 찍음 체크" last onPress={() => router.push('/admin/shoot' as Href)} c={c} /> : null}
           </View>
 
+          {data.perms.owner ? (<>
           <View style={{ gap: 6 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 }}>
               <Text style={[s.title, { color: c.ink }]}>회원 목록</Text>
@@ -67,6 +82,7 @@ export default function AdminScreen() {
           <Text style={[s.meta, { color: c.muted, paddingHorizontal: 4 }]}>
             트레이닝 영상 {data.content.videos} · 자료실 글 {data.content.articles} · 투구 기록 {data.content.logs}
           </Text>
+          </>) : null}
           {/* 웹 관리자 맨 밑 안내와 같은 말(해요체) — 회원 줄을 누르면 권한 · 삭제가 뜬다 */}
           <Text style={[s.meta, { color: c.muted, paddingHorizontal: 4, lineHeight: 19 }]}>
             내 계정은 실수로 잠기지 않게 권한 변경과 삭제를 막아 두었어요. 회원을 삭제하면 그 회원의 투구 기록과 게시글도 함께 지워지고 되돌릴 수 없어요.
@@ -95,31 +111,24 @@ function MenuRow({ icon, label, detail, onPress, web, last, c }: { icon: SFSymbo
 }
 
 function UserRow({ u, self, last, reload, c }: { u: Data['users'][number]; self: boolean; last: boolean; reload: () => void; c: Palette }) {
-  const act = (action: string) =>
-    void call<{ ok: true; message: string }>(action, u.id).then((r) => {
+  const act = (action: string, ...args: unknown[]) =>
+    void call<{ ok: true; message: string }>(action, u.id, ...args).then((r) => {
       if (!r.ok) return Alert.alert('하지 못했어요', r.error);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       reload();
     });
+  /* 역할 셋(2026-10-20, lib/permissions.ts) — 지금 역할은 빼고 고르게 한 번 더 묻는다 */
+  const toRole = (role: Role) => ({
+    text: `${ROLE_LABEL[role]}로 바꾸기`,
+    onPress: () =>
+      Alert.alert(`${u.nickname}님을 ${ROLE_LABEL[role]}로 바꿀까요?`, ROLE_DETAIL[role], [
+        { text: '취소', style: 'cancel' as const },
+        { text: '바꾸기', onPress: () => act('app-admin.setAppUserRole', role) },
+      ]),
+  });
   const menu = () =>
-    Alert.alert(u.nickname, u.email, [
-      u.admin
-        ? {
-            text: '관리자 해제',
-            onPress: () =>
-              Alert.alert(`${u.nickname}님의 관리자 권한을 해제할까요?`, '해제하면 관리자 메뉴를 더는 쓸 수 없어요.', [
-                { text: '취소', style: 'cancel' },
-                { text: '해제하기', style: 'destructive', onPress: () => act('app-admin.setAppUserRole') },
-              ]),
-          }
-        : {
-            text: '관리자로 지정',
-            onPress: () =>
-              Alert.alert(`${u.nickname}님에게 관리자 권한을 줄까요?`, '영상 등록과 회원 관리를 할 수 있게 돼요.', [
-                { text: '취소', style: 'cancel' },
-                { text: '관리자로 지정', onPress: () => act('app-admin.setAppUserRole') },
-              ]),
-          },
+    Alert.alert(u.nickname, `${u.email} · ${ROLE_LABEL[parseRole(u.role)]}`, [
+      ...(['USER', 'MANAGER', 'ADMIN'] as const).filter((r) => r !== parseRole(u.role)).map(toRole),
       {
         text: '회원 삭제',
         style: 'destructive',
@@ -135,7 +144,7 @@ function UserRow({ u, self, last, reload, c }: { u: Data['users'][number]; self:
     <Row onPress={self ? undefined : menu} last={last} c={c}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <Text style={{ color: c.ink, fontSize: 16, fontWeight: '700' }}>{u.nickname}</Text>
-        {u.admin ? <Badge text="관리자" color={c.sky} c={c} /> : null}
+        {u.role === 'ADMIN' ? <Badge text="대표관리자" color={c.sky} c={c} /> : u.role === 'MANAGER' ? <Badge text="준관리자" c={c} /> : null}
         {self ? <Badge text="나" c={c} /> : null}
       </View>
       <Text style={[s.meta, { color: c.muted }]} numberOfLines={1}>

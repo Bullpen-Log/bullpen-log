@@ -11,14 +11,20 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-10-20 밤 · 금윤호(Claude, 윤호 맥북) — 미리 알림: DB 구조 변경 시작(역할에 준관리자 MANAGER 더하기) — 끝나면 `npx prisma generate`
+## 김민에게 — 2026-10-20 밤 · 금윤호(Claude, 윤호 맥북) — 역할에 준관리자(MANAGER) — DB 적용함 · **받으면 `npx prisma generate`**
 
-AGENTS.md 2번대로 시작 전에 알린다. 금윤호: "관리자를 준관리자 · 대표관리자로 나눠 준관리자 기능을 제한하고 우리는 원래 관리자 기능을 쓰게".
-- **바뀌는 것**: `enum Role` 에 `MANAGER`(준관리자)를 더한다 — 더하기만, 지금 `ADMIN` 다섯 명은 그대로 대표관리자. 백업 뒤 `migrate deploy`.
-- **준관리자가 쓰는 것(금윤호가 고름)**: 영상 촬영 관리 · 구속 측정 관리자 · 세션 · 엔진 녹화 · ABS 판정. 나머지(회원 · 패치노트 · 공지 · 문의 · 커뮤니티 · 운동/드릴 고치기 ·
-  카메라 진단 · 관리자 도구)는 대표만. 권한 표는 새 `lib/permissions.ts` 한 곳 — 화면과 서버 동작이 같이 본다.
-- **네가 지금 관리자 기능을 고치는 중이면 알려 줘**(관리자 화면 · `app/actions/*` 의 관리자 검사 · 앱 `native/src/app/admin` 을 손댄다). 끝나면 이 자리에 결과를 적는다.
-
+받은 뒤 할 일: **`npx prisma generate`**(`enum Role` 에 `MANAGER` — 마이그레이션 `20261020120000_role_manager`, 적용함, 백업 `db-2026-10-20-07-21.json`). 더하기만이라 옛 코드도 돈다.
+금윤호: "관리자를 준관리자 · 대표관리자로 나눠 준관리자 기능을 제한하고 우리는 원래 관리자 기능을". 지금 `ADMIN` 다섯 명(너 · 나 포함)은 그대로 **대표관리자**다.
+- **권한 표 한 곳 `lib/permissions.ts`**(`can(role, perm)` · `isOwner` · `isStaff` · `ROLE_LABEL`). 준관리자에게 연 것(금윤호가 고름): `adminHome`(관리자 첫 화면 — 연 칸만) ·
+  `shoot`(영상 촬영) · `velocityAdmin`(구속 측정 관리자 · 웹 측정 · 보정용 저장 · 수기) · `recording`(세션 · 엔진 녹화 · 편집기) · `abs`. **그 밖의 `role === 'ADMIN'` 검사(회원 · 패치노트 ·
+  공지 · 문의 · 커뮤니티 · 운동/드릴 고치기 · 게시판 · 카메라 진단 · 관리자 도구)는 손대지 않아 대표만**이다. 새 관리자 기능을 만들 때 준관리자에게도 줄 거면 표에 권한을 더하고 `can()` 으로 본다.
+- 서버: `requirePermission(perm)`(lib/dal.ts — 페이지), 동작은 `can(user.role, …)`(shoot · app-shoot · velocity-admin · velocity-recording · velocity · app-admin 의 구속 둘 · 라이브러리 업로드 주소).
+  `requireAdmin()` 은 그대로 대표만. 역할은 요청마다 DB 에서 읽어 바꾸면 곧바로 먹는다.
+- 화면: 메뉴 `lib/nav.ts` 항목에 `perm`(`visibleGroups(role, isNative)` — 인자가 isAdmin → role 로 바뀜), 관리자 첫 화면은 준관리자면 안내 한 줄 + 연 칸만. 회원 줄의 역할은
+  [일반 · 준관리자 · 대표관리자] 고르개(웹 `RolePicker` · 앱 회원 줄 메뉴, `toggleUserRole` 이 폼 `role` 을 받고 없으면 옛처럼 뒤집기). 측정 화면은 `canAbs` · `canRecord`(웹 `velocityAccess` ·
+  앱 `loadVelocityStart`) — 진단 · 보정 같은 나머지는 `isAdmin`(대표) 그대로. 앱 투구 탭의 ABS · 구속 관리자 칸은 사이트가 보낸 메뉴에 그 항목이 있으면.
+- `native-api:test` 모양 셋 갱신(더하기만 — `APP_API_LEVEL` 안 올림). 웹 · 앱 tsc · lint 통과. **준관리자 계정으로 화면은 아직 안 봤다** — 시험 계정 하나를 준관리자로 바꿔 메뉴 ·
+  관리자 첫 화면 · 구속 관리자 · 촬영 · ABS · 막힌 주소(/admin/support)를 한 번 보면 좋다.
 ## 김민에게 — 2026-10-20 밤 · 금윤호(Claude, 윤호 맥북) — 새 앱 구속 측정이 안 되던 것: 원인 · 고친 것 · 남은 것(쉬운 정리) — 네 답 하나 필요
 
 받은 뒤 할 일: **10-20 낮 윤호 폰에 깔아 준 새 앱이 Debug(`expo run:ios --device` 로 바로 깐 것)였는지 Release(GitHub `ios-native.yml`)였는지 알려 줘.** DB · 패키지 그대로.

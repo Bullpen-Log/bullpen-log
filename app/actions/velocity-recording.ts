@@ -1,6 +1,7 @@
 'use server';
 
 import { Prisma } from '@prisma/client';
+import { can } from '@/lib/permissions';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
@@ -32,7 +33,8 @@ export type RecordingResult<T = object> =
 
 async function requireAdminUser() {
   const user = await getCurrentUser();
-  return user && user.role === 'ADMIN' ? user : null;
+  /* 세션 · 엔진 녹화 — 대표 · 준관리자(lib/permissions.ts) */
+  return user && can(user.role, 'recording') ? user : null;
 }
 
 const num = (v: unknown, lo: number, hi: number): number | null => {

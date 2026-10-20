@@ -9,7 +9,10 @@ generator client {
 
 enum Role {
   USER
+  /// 대표관리자 — 모든 관리자 기능(2026-10-20 전 "관리자" 그대로)
   ADMIN
+  /// 준관리자 — lib/permissions.ts 표가 연 기능만(영상 촬영 · 구속 측정 관리자 · 세션 녹화 · ABS)
+  MANAGER
 }
 
 /// 운동 영상의 출처. 직접 찍은 것과 참고용으로 걸어둔 것을 구분한다.

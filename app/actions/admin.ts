@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteUserCompletely } from '@/lib/delete-user';
+import { ROLE_LABEL, parseRole } from '@/lib/permissions';
 
 export type AdminState = { error?: string; success?: string } | undefined;
 
@@ -12,7 +13,10 @@ async function assertAdmin() {
   return user?.role === 'ADMIN' ? user : null;
 }
 
-/** 회원의 관리자 권한을 켜고 끈다. 본인 권한은 바꿀 수 없다. */
+/**
+ * 회원의 역할을 정한다 — 일반 · 준관리자 · 대표관리자(2026-10-20, lib/permissions.ts). 대표관리자만, 본인 역할은 못 바꾼다.
+ * 폼에 role 이 없으면(옛 앱 · 옛 화면) 예전처럼 대표관리자 ↔ 일반을 뒤집는다.
+ */
 export async function toggleUserRole(
   _prev: AdminState,
   formData: FormData
@@ -34,7 +38,9 @@ export async function toggleUserRole(
   });
   if (!target) return { error: '대상을 찾을 수 없습니다.' };
 
-  const nextRole = target.role === 'ADMIN' ? 'USER' : 'ADMIN';
+  const asked = formData.get('role');
+  const nextRole = asked == null ? (target.role === 'ADMIN' ? 'USER' : 'ADMIN') : parseRole(asked);
+  if (nextRole === target.role) return { success: `${target.nickname}님은 이미 ${ROLE_LABEL[nextRole]}예요.` };
 
   await prisma.user.update({
     where: { id: userId },
@@ -43,10 +49,7 @@ export async function toggleUserRole(
 
   revalidatePath('/admin');
   return {
-    success:
-      nextRole === 'ADMIN'
-        ? `${target.nickname}님을 관리자로 지정했습니다.`
-        : `${target.nickname}님의 관리자 권한을 해제했습니다.`,
+    success: `${target.nickname}님을 ${ROLE_LABEL[nextRole]}로 바꿨어요.`,
   };
 }
 

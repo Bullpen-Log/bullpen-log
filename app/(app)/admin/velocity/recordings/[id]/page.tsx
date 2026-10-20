@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { requireAdmin } from '@/lib/dal';
+import { requirePermission } from '@/lib/dal';
 import { loadVelocityRecording } from '@/lib/velocity-recording-load';
 import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
 import { BackLink } from '@/components/ui';
@@ -14,7 +14,7 @@ export default async function VelocityRecordingPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdmin();
+  await requirePermission('recording');
   const { id } = await params;
   if (!/^[A-Za-z0-9-]{1,64}$/.test(id)) notFound();
   const detail = await loadVelocityRecording(id);
