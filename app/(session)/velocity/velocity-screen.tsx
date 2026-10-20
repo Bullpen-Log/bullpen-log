@@ -856,7 +856,8 @@ export function VelocityScreen({
   /* 저장한 세션의 날짜 — '기록 남기기' 링크가 그날로(되살린 세션은 오늘이 아닐 수 있다). 없으면 null */
   const [saved, setSaved] = useState<string | null>(null);
   /* 저장하지 않은 공이 있을 때 나가기 — 묻는 창(앱의 영어 시스템 창 대신) */
-  const [askLeave, setAskLeave] = useState(false);
+  /* 'home' = 닫기(첫 화면으로) · 'exit' = 구속 측정을 떠남(위 줄 ✕) */
+  const [askLeave, setAskLeave] = useState<false | 'home' | 'exit'>(false);
   const [askClear, setAskClear] = useState(false);
   /* 결과 화면의 '스피드건 값 넣기'로 공 시트를 열었다 — 스피드건 칸부터 */
   const [focusGun, setFocusGun] = useState(false);
@@ -1749,11 +1750,26 @@ export function VelocityScreen({
       return;
     }
     if (pitches.length > 0) {
-      setAskLeave(true);
+      setAskLeave('home');
       return;
     }
     if (step === 'home') exit();
     else goHome();
+  };
+  /*
+   * 구속 측정을 떠난다 — 위 줄 ✕. 설정 단계엔 '‹ 앞 단계'뿐, 측정 중엔 '카메라 · 이번 세션'뿐이라 나가는 길이 몇 번을 눌러야 나왔다
+   * (2026-10-20 김민: 투구 탭에서 들어가면 나가기가 없다). 녹화 중이면 막고, 저장 안 한 공이 있으면 묻는다.
+   */
+  const quit = () => {
+    if (recorderRef.current) {
+      setToast('녹화를 먼저 멈춰 주세요');
+      return;
+    }
+    if (pitches.length > 0) {
+      setAskLeave('exit');
+      return;
+    }
+    exit();
   };
   const refocus = async () => {
     const capture = captureRef.current;
@@ -3474,6 +3490,12 @@ export function VelocityScreen({
           {!(step === 'measure' && summaryOpen) && (
             <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
               <div className="pointer-events-auto flex items-center gap-1">
+                {/* 설정 단계에도 늘 나가기(✕) — 그 옆 ‹ 는 앞 단계로 */}
+                {step !== 'measure' && back && (
+                  <button type="button" onClick={quit} aria-label="구속 측정 나가기" className={CHROME_BTN}>
+                    <X aria-hidden className="h-5 w-5" />
+                  </button>
+                )}
                 {step !== 'measure' && back ? (
                   <button
                     type="button"
@@ -4269,12 +4291,13 @@ export function VelocityScreen({
       </BottomSheet>
 
       <ConfirmDialog
-        open={askLeave}
+        open={askLeave !== false}
         onClose={() => setAskLeave(false)}
         onConfirm={() => {
+          const to = askLeave;
           setAskLeave(false);
           discardPitches();
-          if (step === 'home') exit();
+          if (to === 'exit' || step === 'home') exit();
           else goHome();
         }}
         title="저장하지 않고 나갈까요?"

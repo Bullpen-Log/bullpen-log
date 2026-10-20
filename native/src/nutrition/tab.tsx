@@ -1,16 +1,16 @@
 import { SymbolView } from 'expo-symbols';
-import { type Href, router } from 'expo-router';
-import { useRef, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
+import { type Href, router, useFocusEffect } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
+import { Alert, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MEALS, amountText, entryMacros, mealLabel, stepAmount, type EntryEdit, type MealEntryView, type MealKey } from '@/lib/nutrition/meta';
+import { MEALS, amountText, entryMacros, gapNames, macroGaps, mealLabel, missingMacros, missingText, stepAmount, type EntryEdit, type MealEntryView, type MealKey } from '@/lib/nutrition/meta';
 import { mealProtein } from '@/lib/nutrition/meal-protein';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { usePalette, withAlpha } from '~/lib/ui';
 import Animated from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { Icon } from '~/shell/icon';
-import { fadeIn } from '~/shell/motion';
+import { CountUp, Pulse, fadeIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import { Segmented } from '~/shell/heading';
 import { DateStrip, StripBar } from '~/shell/date-strip';
@@ -18,7 +18,8 @@ import { DateNavButton } from '~/shell/mini-calendar';
 import { useTabIntent } from '~/shell/tab-intent';
 import { PLAN_PLACES, type PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
-import { clearPlan, eatPlan, editEntries, makePlan, useNutritionDay } from './api';
+import { SNOOZE_KEY, clearPlan, eatPlan, editEntries, isSnoozed, makePlan, useNutritionDay } from './api';
+import { cacheGet } from '~/lib/store';
 import { READABLE } from '~/lib/layout';
 import { NutritionCheckinCard } from './checkin-card';
 import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
@@ -54,7 +55,6 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     setDrafts({});
   };
   const { day, error, to, reload } = useNutritionDay(date);
-  const [pulling, setPulling] = useState(false);
   /* 탭을 옮겼다 돌아오면 새로 받는다(1번 판 넘기기 — 판이 붙어 있어 마운트로는 안 받는다) */
   /* 지금 탭(영양)을 다시 누르면 맨 위로(1번 세션 — 앱 틀) */
   const topRef = useRef<ScrollViewInstance>(null);
@@ -66,14 +66,21 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   const [busy, setBusy] = useState(false);
   /* 펴 둔 끼니(휴대폰 웹처럼 한 줄로 접어 두고 누르면 편다) */
   const [openMeals, setOpenMeals] = useState<MealKey[]>([]);
+  /* 체중 권유 '그대로 둘게요'(통계 화면이 폰에 남김) — 통계에서 돌아올 때마다 다시 읽는다 */
+  const [snooze, setSnooze] = useState<string | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      void cacheGet(SNOOZE_KEY).then((v) => setSnooze(typeof v === 'string' ? v : null));
+    }, [])
+  );
 
   if (to)
     return (
       <View style={[styles.center, { backgroundColor: c.page, paddingBottom: bottom }]}>
         <Text style={{ color: c.ink, fontSize: 17, textAlign: 'center' }}>{error}</Text>
-        <Pressable accessibilityRole="button" onPress={onWebNutrition} style={[styles.primary, { backgroundColor: c.sky }]}>
+        <Press accessibilityRole="button" onPress={onWebNutrition} style={[styles.primary, { backgroundColor: c.sky }]}>
           <Text style={styles.primaryText}>영양 설정하기</Text>
-        </Pressable>
+        </Press>
       </View>
     );
 
@@ -84,8 +91,12 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     },
     { kcal: 0, carbs: 0, protein: 0, fat: 0 }
   );
+  /* 탄 · 단 · 지 정보가 빠진 음식 수 — 오늘 카드의 '+'(적어도 이만큼)와 밑 한 줄(웹 TodayCard gaps) */
+  const gaps = macroGaps(day?.entries ?? []);
   const t = day?.targets;
   const left = t ? t.kcal - eaten.kcal : 0;
+  /* 체중 흐름을 보고 목표를 바꿔 볼까요 — 던지는 날 가이드와 겹치지 않게(웹 TodayCard nudge) */
+  const nudge = date === today && day?.suggestAdjust != null && !day.guide && !isSnoozed(snooze, today, day.suggestAdjust);
   const oldest = shiftDateKey(today, -BACK_DAYS);
   const [, m, d] = date.split('-').map(Number);
 
@@ -142,16 +153,6 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
       ref={topRef}
       style={{ flex: 1, backgroundColor: c.page }}
       contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 20 }, READABLE]}
-      /* 돌개는 손으로 당겼을 때만 — 탭에 들어올 때 뒤에서 다시 받는 것(loading)에 걸면 돌개만큼 화면이 내려갔다 올라왔다(2026-10-19 김민) */
-      refreshControl={
-        <RefreshControl
-          refreshing={pulling}
-          onRefresh={() => {
-            setPulling(true);
-            void reload().finally(() => setPulling(false));
-          }}
-        />
-      }
       keyboardShouldPersistTaps="handled"
     >
       {/* 머리 — 웹 영양 탭 휴대폰: 큰 제목 · 오른쪽 목표 단추(그림만), 밑에 날짜 띠(최근 6주) */}
@@ -193,13 +194,13 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           />
         ) : (
           <View style={styles.dateRow}>
-            <Pressable accessibilityLabel="전날" disabled={date <= oldest} onPress={() => setDate(shiftDateKey(date, -1))} style={[styles.arrow, date <= oldest && { opacity: 0.3 }]}>
+            <Press accessibilityLabel="전날" disabled={date <= oldest} onPress={() => setDate(shiftDateKey(date, -1))} style={[styles.arrow, date <= oldest && { opacity: 0.3 }]}>
               <Text style={[styles.arrowText, { color: c.sky }]}>‹</Text>
-            </Pressable>
+            </Press>
             <Text style={[styles.date, { color: c.ink }]}>{isToday ? '오늘' : `${m}월 ${d}일`}</Text>
-            <Pressable accessibilityLabel="다음날" disabled={date >= today} onPress={() => setDate(shiftDateKey(date, 1))} style={[styles.arrow, date >= today && { opacity: 0.3 }]}>
+            <Press accessibilityLabel="다음날" disabled={date >= today} onPress={() => setDate(shiftDateKey(date, 1))} style={[styles.arrow, date >= today && { opacity: 0.3 }]}>
               <Text style={[styles.arrowText, { color: c.sky }]}>›</Text>
-            </Pressable>
+            </Press>
           </View>
         )}
       </View>
@@ -231,7 +232,8 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ color: c.muted, fontSize: 12 }}>{!isToday ? '이날 먹은 열량' : over ? '목표보다 더 먹었어요' : '남은 열량'}</Text>
               <Text style={{ color: over && isToday ? c.warn : c.ink, fontSize: 30, fontWeight: '700', fontVariant: ['tabular-nums'], letterSpacing: -0.5 }}>
-                {round(isToday ? Math.abs(left) : eaten.kcal).toLocaleString('ko-KR')}
+                {/* 웹 TodayCard 와 같이 올라가며 나타남(from 0.7) */}
+                <CountUp value={round(isToday ? Math.abs(left) : eaten.kcal)} from={0.7} />
                 <Text style={{ color: c.muted, fontSize: 14, fontWeight: '600' }}> kcal</Text>
               </Text>
               <Text style={{ color: c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>
@@ -249,15 +251,22 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           </View>
           <View style={styles.macros}>
             {([
-              ['탄수화물', eaten.carbs, t.carbs],
-              ['단백질', eaten.protein, t.protein],
-              ['지방', eaten.fat, t.fat],
-            ] as const).map(([label, got, goal]) => (
+              ['carbs', '탄수화물', eaten.carbs, t.carbs],
+              ['protein', '단백질', eaten.protein, t.protein],
+              ['fat', '지방', eaten.fat, t.fat],
+            ] as const).map(([key, label, got, goal]) => (
               <View key={label} style={{ flex: 1, gap: 6 }}>
                 <View>
                   <Text style={{ color: c.muted, fontSize: 12 }}>{label}</Text>
                   <Text style={{ color: c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>
-                    <Text style={{ color: c.ink, fontSize: 14, fontWeight: '600' }}>{round(got)}</Text> / {round(goal)}g
+                    <Text style={{ color: c.ink, fontSize: 14, fontWeight: '600' }}>{round(got)}</Text>
+                    {/* 정보가 빠진 음식이 있으면 '+' — 적어도 이만큼, 실제로는 더 먹었다(뜻은 카드 밑 한 줄) */}
+                    {gaps[key] > 0 ? (
+                      <Text accessibilityLabel="이상, 정보가 없는 음식이 있어 실제로는 더 먹었어요" style={{ color: c.warn, fontWeight: '600' }}>
+                        +
+                      </Text>
+                    ) : null}{' '}
+                    / {round(goal)}g
                   </Text>
                 </View>
                 <View style={[styles.macroTrack, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
@@ -270,6 +279,23 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
             <Text style={[styles.headline, { borderTopColor: c.line, color: day.advice.highlight ? c.skyStrong : c.ink }]}>{day.advice.headline}</Text>
           ) : null}
           {isToday && day?.guide ? <GuideBlock guide={day.guide} /> : null}
+          {gaps.foods > 0 ? (
+            <Text style={{ color: c.muted, fontSize: 12 }}>
+              {gapNames(gaps)} 정보가 없는 음식이 {gaps.foods}개라, <Text style={{ color: c.warn, fontWeight: '600' }}>+</Text> 표시한 양은 실제보다 적게 잡혔어요.
+            </Text>
+          ) : null}
+          {nudge ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 8 }}>
+              <Text style={{ color: c.muted, fontSize: 12 }}>체중 흐름을 보고 목표를 조금 바꿔 볼까요?</Text>
+              <Press
+                accessibilityRole="button"
+                onPress={() => router.push({ pathname: '/nutrition/stats' as Href as never, params: { date } })}
+                style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 4 }}
+              >
+                <Text style={{ color: c.skyStrong, fontSize: 12, fontWeight: '600' }}>보기</Text>
+              </Press>
+            </View>
+          ) : null}
           {day?.hasProfile && day.assumed?.length ? (
             <Text style={{ color: c.muted, fontSize: 12 }}>
               내 정보에 {day.assumed.map((a) => ASSUMED[a] ?? a).join(' · ')}{withObject(day.assumed.map((a) => ASSUMED[a] ?? a).at(-1) ?? '')} 넣으면 목표가 더 정확해져요.
@@ -277,7 +303,22 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           ) : null}
         </Animated.View>
       ) : !error ? (
-        <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float, height: 180 }]} />
+        /* 불러오는 동안 — 실제 카드와 같은 틀(웹 nutrition/loading.tsx 처럼 회색 덩이가 깜빡임) */
+        <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float, gap: 14 }]} accessibilityLabel="영양 기록을 불러오는 중이에요">
+          <View style={styles.todayTop}>
+            <Pulse style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: c.line }} />
+            <View style={{ flex: 1, gap: 8 }}>
+              <Pulse style={{ width: 60, height: 12, borderRadius: 6, backgroundColor: c.line }} />
+              <Pulse style={{ width: 140, height: 28, borderRadius: 8, backgroundColor: c.line }} />
+              <Pulse style={{ width: 110, height: 12, borderRadius: 6, backgroundColor: c.line }} />
+            </View>
+          </View>
+          <View style={styles.macros}>
+            {[0, 1, 2].map((i) => (
+              <Pulse key={i} style={{ flex: 1, height: 34, borderRadius: 8, backgroundColor: c.line }} />
+            ))}
+          </View>
+        </View>
       ) : null}
 
       {day && isToday && t ? <PlanCard date={date} plan={day.mealPlan} busy={busy} run={run} kcal={t.kcal} protein={t.protein} state={day.planState ?? null} ageBand={day.ageBand} /> : null}
@@ -697,7 +738,7 @@ function PlanRows({
     <View style={{ gap: 2 }}>
       {items.map((p) => (
         <View key={p.key} style={[styles.entry, { opacity: 0.75 }]}>
-          <Pressable
+          <Press
             accessibilityRole="button"
             accessibilityLabel={`${p.name} 먹었어요`}
             disabled={busy}
@@ -705,11 +746,11 @@ function PlanRows({
             hitSlop={8}
             style={[styles.eat, { borderColor: c.sky }]}
           />
-          <Pressable accessibilityRole="button" accessibilityLabel={`${p.name} 다른 음식으로 바꾸기`} onPress={() => onReplace(p)} style={{ flex: 1 }}>
+          <Press accessibilityRole="button" accessibilityLabel={`${p.name} 다른 음식으로 바꾸기`} onPress={() => onReplace(p)} style={{ flex: 1 }}>
             <Text style={{ color: c.ink, fontSize: 15 }} numberOfLines={1}>
               식단 · {p.name}
             </Text>
-          </Pressable>
+          </Press>
           <Text style={{ color: c.muted, fontSize: 14 }}>
             {p.amount !== 1 ? `${amountText(p.amount)} · ` : ''}
             {kcalText(p.kcal * p.amount)}
@@ -717,9 +758,9 @@ function PlanRows({
         </View>
       ))}
       {items.length > 1 ? (
-        <Pressable accessibilityRole="button" disabled={busy} onPress={() => onEat(items.map((p) => p.key))} style={{ minHeight: 36, justifyContent: 'center' }}>
+        <Press accessibilityRole="button" disabled={busy} onPress={() => onEat(items.map((p) => p.key))} style={{ minHeight: 36, justifyContent: 'center' }}>
           <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>모두 먹었어요</Text>
-        </Pressable>
+        </Press>
       ) : null}
     </View>
   );
@@ -727,19 +768,29 @@ function PlanRows({
 
 type Draft = { amount: number; meal: MealKey; remove: boolean };
 
+/** 끼니 칸의 음식 한 줄 — 웹 nutrition-view EntryLine 과 같은 글: 이름 · 양 · 빠진 영양소 · 1인분 크기 / kcal. 저장 중인 줄(tmp-)은 흐리게, 못 누름 */
 function EntryRow({ entry, onPress }: { entry: MealEntryView; onPress: () => void }) {
   const c = usePalette();
   const m = entryMacros(entry);
+  const missing = missingMacros(entry);
+  const saving = entry.id.startsWith('tmp-');
   return (
-    <Pressable accessibilityRole="button" accessibilityHint="끼니 편집" onPress={onPress} style={styles.entry}>
+    <Press accessibilityRole="button" accessibilityHint="끼니 편집" disabled={saving} onPress={onPress} style={styles.entry}>
       <Text style={{ flex: 1, color: c.ink, fontSize: 15 }} numberOfLines={1}>
         {entry.name}
+        {/* 빠진 영양소는 양 바로 뒤에 — 줄이 좁으면 뒤쪽부터 잘려서, 끝에 두면 안 보인다(웹과 같다) */}
+        <Text style={{ color: c.muted, fontSize: 13 }}>
+          {'  '}
+          {amountText(entry.amount)}
+          {missing.length > 0 ? ` · ${missingText(missing)}` : ''}
+          {entry.servingLabel ? ` · ${entry.servingLabel}` : ''}
+        </Text>
       </Text>
-      <Text style={{ color: c.muted, fontSize: 14 }}>
-        {entry.amount !== 1 ? `${amountText(entry.amount)} · ` : ''}
-        {kcalText(m.kcal)}
+      <Text style={{ color: c.ink, fontSize: 15, fontVariant: ['tabular-nums'], opacity: saving ? 0.5 : 1 }}>
+        {round(m.kcal).toLocaleString('ko-KR')}
+        <Text style={{ color: c.muted, fontSize: 12 }}> kcal</Text>
       </Text>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -772,7 +823,7 @@ function EditRow({
     );
   return (
     <View style={styles.entry}>
-      <Pressable
+      <Press
         accessibilityRole="button"
         accessibilityLabel={`${entry.name} 다른 음식으로 바꾸기`}
         disabled={draft.remove}
@@ -787,30 +838,30 @@ function EditRow({
           {moved && !draft.remove ? <Text style={{ color: c.sky, fontWeight: '600' }}> · {mealLabel(draft.meal)}으로 옮김</Text> : null}
           {!draft.remove ? <Text style={{ color: c.sky }}> · 바꾸기</Text> : null}
         </Text>
-      </Pressable>
+      </Press>
       {draft.remove ? (
-        <Pressable accessibilityRole="button" onPress={() => onChange({ ...draft, remove: false })} style={styles.textBtn}>
+        <Press accessibilityRole="button" onPress={() => onChange({ ...draft, remove: false })} style={styles.textBtn}>
           <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>되살리기</Text>
-        </Pressable>
+        </Press>
       ) : (
         <>
           <View style={[styles.stepper, { backgroundColor: c.chip }]}>
-            <Pressable accessibilityLabel={`${entry.name} 줄이기`} onPress={() => onChange({ ...draft, amount: stepAmount(draft.amount, -1) })} style={styles.step}>
+            <Press accessibilityLabel={`${entry.name} 줄이기`} onPress={() => onChange({ ...draft, amount: stepAmount(draft.amount, -1) })} style={styles.step}>
               <Text style={[styles.stepText, { color: c.ink }]}>−</Text>
-            </Pressable>
+            </Press>
             <Text style={{ color: c.ink, fontSize: 13, fontWeight: '600', minWidth: 44, textAlign: 'center', fontVariant: ['tabular-nums'] }}>
               {amountText(draft.amount)}
             </Text>
-            <Pressable accessibilityLabel={`${entry.name} 늘리기`} onPress={() => onChange({ ...draft, amount: stepAmount(draft.amount, 1) })} style={styles.step}>
+            <Press accessibilityLabel={`${entry.name} 늘리기`} onPress={() => onChange({ ...draft, amount: stepAmount(draft.amount, 1) })} style={styles.step}>
               <Text style={[styles.stepText, { color: c.ink }]}>+</Text>
-            </Pressable>
+            </Press>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`${entry.name} 다른 끼니로 옮기기`} onPress={move} style={styles.icon}>
+          <Press accessibilityRole="button" accessibilityLabel={`${entry.name} 다른 끼니로 옮기기`} onPress={move} style={styles.icon}>
             <SymbolView name="arrow.left.arrow.right" size={17} tintColor={moved ? c.sky : c.muted} />
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`${entry.name} 지우기`} onPress={() => onChange({ ...draft, remove: true })} style={styles.icon}>
+          </Press>
+          <Press accessibilityRole="button" accessibilityLabel={`${entry.name} 지우기`} onPress={() => onChange({ ...draft, remove: true })} style={styles.icon}>
             <SymbolView name="trash" size={17} tintColor={c.muted} />
-          </Pressable>
+          </Press>
         </>
       )}
     </View>

@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
 import { type GestureResponderEvent, StyleSheet, Text, View } from 'react-native';
+import Animated, { Easing, useAnimatedProps, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { ACWR_ZONES, formatShortDate, zoneOf, type AcwrTrendPoint } from '@/lib/pitch-stats';
 import { smoothPath } from '@/lib/smooth-path';
@@ -23,6 +24,48 @@ import type { Palette } from '~/lib/ui';
  * app/(app)/today/home-trends.tsx TrendCell · Chart). 칸 · 묶기 · 눈금 셈은 웹과 같은 lib/report/trends.ts, 그리기만 따로.
  * 손가락으로 훑으면 위 숫자가 그날 값으로 바뀌고 칸을 넘을 때마다 '톡'(웹과 같다). 날짜별 그래프는 톡 친 날로 분석을 다시 연다(onJump).
  */
+
+const APath = Animated.createAnimatedComponent(Path);
+const DRAW = Easing.bezier(0.22, 1, 0.36, 1);
+
+/**
+ * 선이 왼쪽부터 그려지는 꺾은선 — 웹 trend-draw(globals.css, 900ms · 같은 곡선)와 같은 움직임. 웹은 pathLength=1 로 그리는데
+ * 앱 svg 는 그 칸이 없어 점 사이 직선 길이로 어림한다(곡선이라 조금 더 길게 — 넉넉하면 끝에 빈칸 없이 다 그려진다). 처음 그릴 때 한 번만(웹과 같다).
+ */
+function DrawPath({ d, points, stroke, duration = 900 }: { d: string; points: [number, number][]; stroke: string; duration?: number }) {
+  let len = 0;
+  for (let i = 1; i < points.length; i++) len += Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]);
+  len = len * 1.2 + 4;
+  const reduce = useReducedMotion();
+  const drawn = useSharedValue(reduce ? 1 : 0);
+  useEffect(() => {
+    if (!reduce) drawn.value = withTiming(1, { duration, easing: DRAW });
+  }, [reduce, drawn, duration]);
+  const animated = useAnimatedProps(() => ({ strokeDashoffset: len * (1 - drawn.value) }));
+  return (
+    <APath
+      d={d}
+      fill="none"
+      stroke={stroke}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeDasharray={[len, len]}
+      animatedProps={animated}
+    />
+  );
+}
+
+/** 선 밑 칠 — 웹 trend-fade(700ms · 250ms 뒤)처럼 선이 그려지는 동안 옅게 들어온다 */
+function FadePath({ d, fill }: { d: string; fill: string }) {
+  const reduce = useReducedMotion();
+  const shown = useSharedValue(reduce ? 1 : 0);
+  useEffect(() => {
+    if (!reduce) shown.value = withDelay(250, withTiming(1, { duration: 700, easing: Easing.out(Easing.ease) }));
+  }, [reduce, shown]);
+  const animated = useAnimatedProps(() => ({ opacity: shown.value }));
+  return <APath d={d} fill={fill} animatedProps={animated} />;
+}
 
 /** 상태 색 — 사이트 components/tone.tsx 와 같은 뜻 */
 export function toneColor(tone: 'good' | 'info' | 'warn' | 'bad' | 'neutral', c: Palette) {
@@ -153,14 +196,7 @@ export function LoadTrend({ trend, c }: { trend: AcwrTrendPoint[]; c: Palette })
               {formatShortDate(trend[n - 1].dateKey)}
             </SvgText>
             {hover != null ? <Line x1={x(hover)} x2={x(hover)} y1={padT - 4} y2={padT + plotH} stroke={c.ink} strokeOpacity={0.3} /> : null}
-            <Path
-              d={smoothPath(pts.map((p) => [p.px, p.py] as [number, number]))}
-              fill="none"
-              stroke={c.sky}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            <DrawPath d={smoothPath(pts.map((p) => [p.px, p.py] as [number, number]))} points={pts.map((p) => [p.px, p.py])} stroke={c.sky} />
             {pts.map((p) => (
               <Circle
                 key={p.i}
@@ -320,18 +356,15 @@ export function TrendCardView({
               : linePoints.length > 0 && (
                   <>
                     {linePoints.length > 1 ? (
-                      <Path
+                      <FadePath
                         d={`${smoothPath(linePoints.map(([px, py]) => [px, py]))} L${latest[0]},${base} L${linePoints[0][0]},${base} Z`}
                         fill={`url(#fill-${spec.key})`}
                       />
                     ) : null}
-                    <Path
+                    <DrawPath
                       d={smoothPath(linePoints.map(([px, py]) => [px, py]))}
-                      fill="none"
+                      points={linePoints.map(([px, py]) => [px, py])}
                       stroke={c.sky}
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
                     />
                     {linePoints.map(([px, py, i]) => (
                       <Circle key={i} cx={px} cy={py} r={hover === i ? 4 : i === latest[2] ? 3.5 : 2.25} fill={c.sky} stroke={c.card} strokeWidth={1.5} />

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { NO_WORKOUT_KIND, WORKOUT_KINDS } from '@/lib/checkin';
+import { findFocus, focusesFor, goalForUnchosen } from '@/lib/report/personalize';
 import { saveTrainingPrefs } from '@/app/actions/day-cards';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { Chip, DayCard } from '@/components/day-card';
@@ -15,20 +16,21 @@ import { Button } from '@/components/ui';
  * 2판까지 체크인 상세에 있던 운동 종류 · 부위 질문의 새 집. 일정을 만들 수 있는 날(체크인이 있는 날)에 만들기 폼 위에 한 번 묻고,
  * 답은 DailyTrainingSetup 에 적힌다(app/actions/day-cards.ts saveTrainingPrefs). 매일 일정은 facts 로 그 답을 읽는다
  * (lib/report/gather.ts). '추천대로'는 앱에 맡기는 답이다.
+ *
+ * 2026-10-20(김민): 몸 부위 여러 개 고르기('하고 싶은 부위')를 빼고, 만들기 폼의 '직접 고르기'에 있던 간단한 '오늘 할 부위'(하체 · 상체 …)를
+ * 여기로 옮겼다 — 직접 고르기는 없앴다. 고른 부위는 preferredParts 맨 앞에 열쇠로 담기고 자동 맞춤이 읽는다(lib/report/auto-setup.ts).
  */
 export function TrainingPrefsCard({
   day,
   answer,
-  parts,
 }: {
   day: string;
-  /** 오늘 답 — 아직이면 null. workout 은 파워 · 웨이트 · 회복, 앱에 맡겼으면 null */
+  /** 오늘 답 — 아직이면 null. workout 은 파워 · 웨이트 · 회복, 앱에 맡겼으면 null. parts 맨 앞의 부위 열쇠가 '오늘 할 부위' */
   answer: { workout: string | null; parts: string[] } | null;
-  /** 고를 수 있는 부위(라이브러리에 실제로 있는 것) */
-  parts: string[];
 }) {
+  const focus = answer?.parts.map(findFocus).find((f) => f != null) ?? null;
   const summary = answer
-    ? [answer.workout ?? NO_WORKOUT_KIND, ...answer.parts].join(' · ')
+    ? [answer.workout ?? NO_WORKOUT_KIND, ...(focus ? [focus.label] : [])].join(' · ')
     : null;
   return (
     <DayCard
@@ -39,7 +41,7 @@ export function TrainingPrefsCard({
       answer={summary}
       folded
     >
-      {(close) => <PrefsForm day={day} initial={answer} parts={parts} onDone={close} />}
+      {(close) => <PrefsForm day={day} initial={answer} initialFocus={focus?.key ?? null} onDone={close} />}
     </DayCard>
   );
 }
@@ -47,28 +49,28 @@ export function TrainingPrefsCard({
 function PrefsForm({
   day,
   initial,
-  parts,
+  initialFocus,
   onDone,
 }: {
   day: string;
   initial: { workout: string | null; parts: string[] } | null;
-  parts: string[];
+  initialFocus: string | null;
   onDone: () => void;
 }) {
   const router = useRouter();
   const [workout, setWorkout] = useState<string | null>(initial?.workout ?? null);
-  const [picked, setPicked] = useState<string[]>(initial?.parts ?? []);
+  const [focus, setFocus] = useState<string | null>(initialFocus);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
-
-  const togglePart = (p: string) =>
-    setPicked((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
+  /* 고른 종류의 목표에 있는 부위만(회복은 부위 없음) — 종류를 바꿔 목록에 없게 된 부위는 안 보낸다 */
+  const focuses = workout === '회복' ? [] : focusesFor(goalForUnchosen(workout));
+  const pickedFocus = focuses.some((f) => f.key === focus) ? focus : null;
 
   const save = () =>
     start(async () => {
       setError(null);
       const r = await orOffline(
-        saveTrainingPrefs({ date: day, workout, parts: picked }),
+        saveTrainingPrefs({ date: day, workout, parts: [], focus: pickedFocus }),
         {
           ok: false as const,
           error: OFFLINE_MESSAGE,
@@ -104,15 +106,20 @@ function PrefsForm({
         {WORKOUT_KINDS.find((k) => k.name === workout)?.desc ??
           '앱이 투구량과 몸 상태를 보고 골라요.'}
       </p>
-      {parts.length > 0 && (
+      {focuses.length > 0 && (
         <div className="space-y-1.5">
           <p className="text-xs font-semibold text-muted">
-            하고 싶은 부위 (없어도 돼요)
+            오늘 할 부위 (안 고르면 상체 · 하체를 번갈아 골라요)
           </p>
           <div className="chip-grid flex flex-wrap gap-2">
-            {parts.map((p) => (
-              <Chip key={p} pressed={picked.includes(p)} onClick={() => togglePart(p)}>
-                {p}
+            {focuses.map((f) => (
+              <Chip
+                key={f.key}
+                pressed={pickedFocus === f.key}
+                /* 다시 누르면 비운다 — 앱이 상체 · 하체를 번갈아 정한다 */
+                onClick={() => setFocus(pickedFocus === f.key ? null : f.key)}
+              >
+                {f.desc ? `${f.label} · ${f.desc}` : f.label}
               </Chip>
             ))}
           </div>

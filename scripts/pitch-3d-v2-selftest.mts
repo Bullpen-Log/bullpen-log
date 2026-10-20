@@ -48,7 +48,8 @@ import {
   recordFail,
   seoulDay,
 } from '../lib/pitch-lab-guard.ts';
-import { parseAppleDate, readLabFileFacts } from '../lib/pitch-lab-file.ts';
+import { parseAppleDate, readLabFileFacts, videoEditShift } from '../lib/pitch-lab-file.ts';
+import { followStep, sourceTimesAt, FOLLOW_SEEK_S } from '../lib/pitch-3d/v2/video-sync.ts';
 import { readLabMeta } from '../lib/pitch-lab-meta.ts';
 import {
   base,
@@ -1068,6 +1069,21 @@ console.log('■ 마운드 · 보기용 다듬기 · 관절 각도 틀(kinematic
             '보기: 투수판 앞 모서리가 축발 뒤 가장자리보다 뒤(발이 투수판 앞)',
             tr.mound != null && tr.mound.x0 < footBack - 0.01,
             tr.mound ? `${tr.mound.x0.toFixed(3)} < ${footBack.toFixed(3)}` : '마운드 없음'
+          );
+          /* 평지도 같은 축발 자리 — 예전엔 무대가 '가장 먼저 닿은 발'(우투면 앞발일 수 있음)로 정해 투수판이 축발 앞에 놓였다(2026-10-20 샘플 15) */
+          const fc = flat.contacts.find((c) => c.side === 'R' && c.from <= fp);
+          const flatBack = fc
+            ? Math.min(...[V2J.rAn, V2J.rHe, V2J.rTo].map((j) => flat.frames[fc.from][j][0]))
+            : NaN;
+          check(
+            '보기: 평지 투수판도 축발 뒤(발 너비 안쪽 · 앞발이 아님)',
+            flat.rubber != null && flat.rubber.x0 < flatBack - 0.01 && flat.rubber.x0 > flatBack - 0.15,
+            flat.rubber ? `${flat.rubber.x0.toFixed(3)} vs 축발 ${flatBack.toFixed(3)}` : '투수판 없음'
+          );
+          check(
+            '보기: 마운드 투수판 = 마운드 앞 모서리',
+            tr.rubber != null && tr.mound != null && tr.rubber.x0 === tr.mound.x0 && tr.rubber.z0 === tr.mound.z0,
+            tr.rubber ? `${tr.rubber.x0}` : '투수판 없음'
           );
         }
 
@@ -3233,6 +3249,46 @@ console.log('■ 점검 카드 드릴 고르기(drillPicksFor) — 쉬운 단계
     !!free && !!pulled && Math.abs(pulled.s / (sc.side.k * 1.15) - 1) < 0.03 && Math.abs(pulled.b / free.b - 1) < 0.05,
     free && pulled ? `옆 ${free.s.toFixed(3)} → ${pulled.s.toFixed(3)}(사전 ${(sc.side.k * 1.15).toFixed(3)}) · 뒤 ${free.b.toFixed(3)} → ${pulled.b.toFixed(3)}` : '실패'
   );
+}
+
+/* ─── 원본 영상 따라가기(2026-10-20 — 편집 목록 앞머리 · 재생 중 빠르기) ─── */
+{
+  const box = (type: string, ...parts: Uint8Array[]) => {
+    const len = 8 + parts.reduce((a, p) => a + p.length, 0);
+    const out = new Uint8Array(len);
+    new DataView(out.buffer).setUint32(0, len);
+    out.set(new TextEncoder().encode(type), 4);
+    let at = 8;
+    for (const p of parts) {
+      out.set(p, at);
+      at += p.length;
+    }
+    return out;
+  };
+  const u32s = (...xs: number[]) => {
+    const b = new Uint8Array(xs.length * 4);
+    xs.forEach((x, i) => new DataView(b.buffer).setUint32(i * 4, x >>> 0));
+    return b;
+  };
+  /* mvhd v0: 판·깃발 · 만든 · 고친 · 시간 단위 · 길이 */
+  const mvhd = box('mvhd', u32s(0, 0, 0, 600, 2400));
+  const mdhd = box('mdhd', u32s(0, 0, 0, 2400, 9600));
+  const hdlr = box('hdlr', u32s(0, 0), new TextEncoder().encode('vide'), u32s(0, 0, 0));
+  const elst = (entries: [number, number, number][]) =>
+    box('elst', u32s(0, entries.length), ...entries.map(([seg, media, rate]) => u32s(seg, media, rate)));
+  const moov = (e: Uint8Array) => box('moov', mvhd, box('trak', box('edts', e), box('mdia', hdlr, mdhd)));
+  check('앞머리: 시간만 자른 영상은 −(미디어 시작)', Math.abs(videoEditShift(moov(elst([[2400, 1183, 0x10000]]))) + 1183 / 2400) < 1e-9);
+  check('앞머리: 빈 조각은 늦춤으로 더함', Math.abs(videoEditShift(moov(elst([[300, 0xffffffff, 0x10000], [2400, 0, 0x10000]]))) - 0.5) < 1e-9);
+  check('앞머리: 조각이 둘이면(슬로모 내보낸 영상) 0', videoEditShift(moov(elst([[600, 0, 0x10000], [600, 2400, 0x10000]]))) === 0);
+  check('앞머리: 배율 1 아니면 0', videoEditShift(moov(elst([[2400, 100, 0x4000]]))) === 0);
+  check('앞머리: 편집 목록 없으면 0', videoEditShift(box('moov', mvhd, box('trak', box('mdia', hdlr, mdhd)))) === 0);
+
+  const tt = [0, 0.1, 0.2];
+  const tb = [1, 1.1, 1.3];
+  check('두 영상 시각: 장면 사이는 선으로', Math.abs(sourceTimesAt(tt, tb, 0.15).back - 1.2) < 1e-9);
+  check('따라가기: 많이 벌어지면 옮김', followStep(1, 1 + FOLLOW_SEEK_S + 0.01, 0.5).seek);
+  check('따라가기: 앞서면 느리게 · 뒤처지면 빠르게', followStep(1.05, 1, 0.5).rate < 0.5 && followStep(0.95, 1, 0.5).rate > 0.5);
+  check('따라가기: ¼× 에서도 바닥 위', followStep(1.1, 1, 0.25).rate >= 0.0625);
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

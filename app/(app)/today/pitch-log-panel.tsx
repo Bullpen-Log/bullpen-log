@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, ChartLine, List } from '@/components/icon';
+import { CalendarDays, List } from '@/components/icon';
 import { Card, FormError } from '@/components/ui';
 import { readEffort } from '@/lib/pitch-effort';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
@@ -558,10 +558,6 @@ export function PitchLogPanel({
                 <LegendSwatch className="h-1.5 w-1.5 rounded-full bg-sky-strong">
                   영상
                 </LegendSwatch>
-                <span className="flex items-center gap-1.5">
-                  <ChartLine aria-hidden className="h-3 w-3 text-sky" />
-                  분석
-                </span>
                 <LegendSwatch className="h-1 w-3 rounded-full bg-ink/70">
                   일정
                 </LegendSwatch>

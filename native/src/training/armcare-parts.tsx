@@ -3,19 +3,21 @@ import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { AddToRoutine } from '~/armcare/add-to-routine';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
-import { Image, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Image, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { ARMCARE_AREAS, ARMCARE_MUSCLES, areaOfMuscle, type ArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import type { ArmcareExerciseView } from '@/app/(app)/training/armcare-media';
 import type { AppArmcareItem, AppMyRoutine, AppRehabSummary } from '@/lib/armcare/today-load';
 import type { ArmPainLine } from '@/lib/armcare/coverage-load';
 import { checkId, checkOutbox } from '~/armcare/outbox';
 import { ExerciseMedia, HowTo } from '~/armcare/parts';
-import { act, leave } from '~/mechanics/parts';
+import { act, leave, offlineAs } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Fold, s } from './screen';
 import { fromApp } from '~/shell/web-nav';
+import { Star } from './fav-button';
 import { Muscle3D, MuscleChips } from '~/armcare/muscle-info';
 import { AREA_DETAILS } from '@/lib/armcare/details';
+import { Press } from '~/shell/press';
 
 /**
  * 암케어 전체 화면(native/src/app/training-armcare.tsx)의 조각 — 웹 armcare-today.tsx(체크 목록 · 이번 주) · my-routines.tsx · rehab-card.tsx(겉) ·
@@ -25,18 +27,24 @@ import { AREA_DETAILS } from '@/lib/armcare/details';
 /** 따라 하기 앱 화면 — 웹 주소 /armcare/play/<id>?… 와 같은 물음 */
 export const openPlay = (id: string, query: string) => router.push(fromApp(query ? `/armcare/${id}?${query}` : `/armcare/${id}`) as Href);
 
-/** 운동 한 줄의 겉 — 이름 · 처방 · 근육 · 강도 · 미리보기, '자세 · 영상'을 누르면 영상과 설명 */
-function ExerciseRow({
+/** 운동 한 줄의 겉 — 이름 · 처방 · 근육 · 강도 · 미리보기 · [별](fav 를 넘긴 곳), '자세 · 영상'을 누르면 영상과 설명 */
+export function ExerciseRow({
   ex,
   note,
   warning,
   check,
+  fav,
+  highlight,
   c,
 }: {
   ex: ArmcareExerciseView;
   note?: string | null;
   warning?: string | null;
   check?: { done: boolean; disabled: boolean; onToggle: () => void };
+  /** 서버가 준 즐겨찾기 값 — 넘기면 미리보기 옆에 별(부위별 보강 · 즐겨찾기 모음) */
+  fav?: boolean;
+  /** 부위별 보강 — 그 부위의 근육 칩을 강조(웹 GuideExercise highlight) */
+  highlight?: string[];
   c: Palette;
 }) {
   const [open, setOpen] = useState(false);
@@ -45,7 +53,7 @@ function ExerciseRow({
     <View style={[st.row, { backgroundColor: check?.done ? c.sky + '14' : c.card, borderColor: check?.done ? c.sky : c.line }]}>
       <View style={st.rowHead}>
         {check ? (
-          <Pressable
+          <Press
             onPress={check.onToggle}
             disabled={check.disabled}
             accessibilityRole="checkbox"
@@ -56,7 +64,7 @@ function ExerciseRow({
             <View style={[st.check, check.done ? { backgroundColor: c.sky, borderColor: c.sky } : { borderColor: c.line }]}>
               {check.done ? <SymbolView name="checkmark" size={13} weight="bold" tintColor="#fff" /> : null}
             </View>
-          </Pressable>
+          </Press>
         ) : null}
         <View style={{ flex: 1, gap: 3 }}>
           <Text style={[s.bodyBold, { color: c.ink }]}>
@@ -65,23 +73,24 @@ function ExerciseRow({
           </Text>
           {ex.prescription ? <Text style={[s.smallBold, { color: c.muted }]}>{ex.prescription}</Text> : null}
           {warning ? <Text style={[s.small, { color: c.warn }]}>{warning}</Text> : null}
-          {ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={2} c={c} /> : null}
+          {ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={2} highlight={highlight} c={c} /> : null}
           <Text style={[s.tiny, { color: c.muted }]}>{meta}</Text>
           {/* 부위별 보강에서만(루틴 목록을 넘긴 곳) — 웹 AddToRoutine 처럼 운동 줄 안 [담기] */}
           <AddToRoutine exerciseId={ex.id} title={ex.title} c={c} />
         </View>
         {ex.thumbUrl ? <Image source={{ uri: ex.thumbUrl }} style={st.thumb} /> : null}
+        {fav != null ? <Star kind="exercise" id={ex.id} initial={fav} title={ex.title} c={c} /> : null}
       </View>
-      <Pressable
+      <Press
         onPress={() => setOpen((v) => !v)}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         style={[st.disclose, { borderTopColor: c.line }]}
       >
         <SymbolView name="info.circle" size={13} tintColor={c.muted} />
-        <Text style={[s.smallBold, { color: c.muted, flex: 1 }]}>자세 · 영상 보기</Text>
+        <Text style={[s.smallBold, { color: c.muted, flex: 1 }]}>자세·영상 보기</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={11} tintColor={c.muted} />
-      </Pressable>
+      </Press>
       {open ? (
         <View style={{ gap: 10, paddingHorizontal: 12, paddingBottom: 12 }}>
           <ExerciseMedia path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
@@ -144,7 +153,7 @@ export function Checklist({
     const res = await act<{ ok: true }>('exercise-log.setExerciseDone', id, next, dateKey);
     if ('error' in res) {
       flip(!next);
-      setError(res.error);
+      setError(offlineAs(res.error, '저장하지 못했어요.'));
     } else onChanged?.();
   };
 
@@ -255,7 +264,7 @@ export function RoutineCard({ routine: r, dateKey, fresh, open, onToggle, onChan
   return (
     <View style={[st.routine, { backgroundColor: c.card, boxShadow: c.float, borderColor: open ? c.sky + '66' : c.line }]}>
       <View style={s.row}>
-        <Pressable onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.routineHead}>
+        <Press onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.routineHead}>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={[s.bodyBold, { color: c.ink }]}>{r.name}</Text>
             <Text style={[s.small, { color: c.muted }]}>
@@ -276,19 +285,19 @@ export function RoutineCard({ routine: r, dateKey, fresh, open, onToggle, onChan
             오늘 {done}/{all}
           </Text>
           <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-        </Pressable>
+        </Press>
         {all > 0 ? (
-          <Pressable onPress={() => openPlay(r.id, `d=${dateKey}`)} accessibilityRole="button" accessibilityLabel={`${r.name} 따라하기`} style={st.circleHit}>
+          <Press onPress={() => openPlay(r.id, `d=${dateKey}`)} accessibilityRole="button" accessibilityLabel={`${r.name} 따라하기`} style={st.circleHit}>
             <View style={[st.circle, { backgroundColor: c.sky }]}>
               <SymbolView name="play.fill" size={15} tintColor="#fff" />
             </View>
-          </Pressable>
+          </Press>
         ) : null}
-        <Pressable onPress={() => router.push(`/training/routine/${r.id}` as Href)} accessibilityRole="button" accessibilityLabel={`${r.name} 고치기`} style={st.circleHit}>
+        <Press onPress={() => router.push(`/training/routine/${r.id}` as Href)} accessibilityRole="button" accessibilityLabel={`${r.name} 고치기`} style={st.circleHit}>
           <View style={[st.circle, { backgroundColor: c.chip }]}>
             <SymbolView name="pencil" size={15} tintColor={c.ink} />
           </View>
-        </Pressable>
+        </Press>
       </View>
       {open ? (
         <View style={{ gap: 8, paddingTop: 4 }}>
@@ -317,9 +326,9 @@ export function RehabLine({ line, bg, c }: { line: NonNullable<AppRehabSummary['
     <View style={[s.box, { backgroundColor: bg, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
       <Text style={[s.body, { color: c.ink, flex: 1 }]}>{line.text}</Text>
       {action ? (
-        <Pressable onPress={() => router.push(action.href as Href)} accessibilityRole="button" style={[s.textBtn, { minHeight: 44, justifyContent: 'center' }]}>
+        <Press onPress={() => router.push(action.href as Href)} accessibilityRole="button" style={[s.textBtn, { minHeight: 44, justifyContent: 'center' }]}>
           <Text style={[s.smallBold, { color: c.sky }]}>{action.label}</Text>
-        </Pressable>
+        </Press>
       ) : null}
     </View>
   );
@@ -339,9 +348,9 @@ export function RehabCard({ rehab, dateKey, c }: { rehab: AppRehabSummary; dateK
             <Text style={[s.bodyBold, { color: rehab.today.warn ? c.warn : c.ink }]}>오늘 재활 끝 · {rehab.today.resultLabel}</Text>
             <Text style={[s.small, { color: c.muted }]}>{rehab.today.text}</Text>
           </View>
-          <Pressable onPress={() => openPlay('rehab', `d=${dateKey}`)} accessibilityRole="button" style={s.textBtn}>
+          <Press onPress={() => openPlay('rehab', `d=${dateKey}`)} accessibilityRole="button" style={s.textBtn}>
             <Text style={[s.smallBold, { color: c.sky }]}>다시 답하기</Text>
-          </Pressable>
+          </Press>
         </View>
       ) : !rehab.rest ? (
         <View style={s.row}>
@@ -349,21 +358,21 @@ export function RehabCard({ rehab, dateKey, c }: { rehab: AppRehabSummary; dateK
             오늘 <Text style={[s.bodyBold, { color: c.ink }]}>{rehab.count}</Text>개 · 약{' '}
             <Text style={[s.bodyBold, { color: c.ink }]}>{rehab.estimatedMinutes}</Text>분{rehab.done > 0 ? ` · ${rehab.done}개 함` : ''}
           </Text>
-          <Pressable onPress={() => openPlay('rehab', `d=${dateKey}`)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky }]}>
+          <Press onPress={() => openPlay('rehab', `d=${dateKey}`)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky }]}>
             <SymbolView name="play.fill" size={12} tintColor="#fff" />
             <Text style={[s.bodyBold, { color: '#fff' }]}>시작</Text>
-          </Pressable>
+          </Press>
         </View>
       ) : null}
       <Text style={[s.small, { color: c.muted }]}>{rehab.progress}</Text>
-      <Pressable
+      <Press
         onPress={() => (rehab.detail ? router.push('/rehab' as Href) : leave('/training?view=armcare'))}
         accessibilityRole={rehab.detail ? 'button' : 'link'}
         style={[st.disclose, { borderTopColor: c.line, paddingHorizontal: 0 }]}
       >
         <Text style={[s.smallBold, { color: c.sky, flex: 1 }]}>{rehab.detail ? '자세히' : '자세히 · 단계 시험 · 매주 확인은 웹에서'}</Text>
         <SymbolView name={rehab.detail ? 'chevron.right' : 'arrow.up.right'} size={12} tintColor={c.sky} />
-      </Pressable>
+      </Press>
     </View>
   );
 }
@@ -380,55 +389,14 @@ export function PainNote({ pain, onArea, c }: { pain: ArmPainLine; onArea: (key:
       </Text>
       <View style={s.wrap}>
         {pain.spots.map((x) => (
-          <Pressable key={x.key} onPress={() => onArea(x.key)} accessibilityRole="button" style={[s.chip, { backgroundColor: c.card }]}>
+          <Press key={x.key} onPress={() => onArea(x.key)} accessibilityRole="button" style={[s.chip, { backgroundColor: c.card }]}>
             <Text style={[s.smallBold, { color: c.warn }]}>{x.label} 보기 ›</Text>
-          </Pressable>
+          </Press>
         ))}
       </View>
       {pain.level != null && pain.level >= 2 ? (
         <Text style={[s.small, { color: c.warn }]}>평소에도 아프면 보강보다 진료가 먼저예요. 아픈 곳은 빈 곳 보강에서 뺐어요.</Text>
       ) : null}
-    </View>
-  );
-}
-
-/** 2주째 비어 있는 부위 — 그 부위로 짠 10분 루틴(앱 따라 하기 /armcare/focus). 다 챙겼으면 칭찬 한 줄 */
-export function GapCard({
-  gaps,
-  allCovered,
-  total,
-  dateKey,
-  c,
-}: {
-  gaps: { key: ArmcareAreaKey; label: string }[];
-  allCovered: boolean;
-  total: number;
-  dateKey: string;
-  c: Palette;
-}) {
-  if (gaps.length === 0) {
-    if (!allCovered) return null;
-    return <Text style={[s.bodyBold, s.box, { color: c.sky, backgroundColor: c.card }]}>✓ 최근 2주 동안 여덟 부위를 모두 챙겼어요</Text>;
-  }
-  const decel = gaps.some((g) => g.key === 'shoulder-back' || g.key === 'elbow-inner');
-  return (
-    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <View style={{ gap: 2 }}>
-        <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>{total === 0 ? '최근 2주 암케어 기록이 없어요' : '2주째 비어 있어요'}</Text>
-        <Text style={[s.body, { color: c.muted }]}>
-          {gaps.map((g) => g.label).join(' · ')}
-          {decel ? ', 던질 때 팔을 멈춰 주는 곳이에요' : ''}
-          {total === 0 ? '. 여기부터 시작해 보세요.' : ''}
-        </Text>
-      </View>
-      <Pressable
-        onPress={() => openPlay('focus', `areas=${gaps.map((g) => g.key).join(',')}&d=${dateKey}`)}
-        accessibilityRole="button"
-        style={[s.pill, { backgroundColor: c.sky }]}
-      >
-        <SymbolView name="play.fill" size={13} tintColor="#fff" />
-        <Text style={[s.bodyBold, { color: '#fff' }]}>{gaps.length === 1 ? '이곳으로' : `이 ${gaps.length}곳으로`} 10분 루틴</Text>
-      </Pressable>
     </View>
   );
 }
@@ -452,10 +420,13 @@ export function AreaCard({
   open,
   onToggle,
   onLayout,
+  favIds,
   c,
 }: {
   area: ArmcareArea;
   exercises: ArmcareExerciseView[];
+  /** 즐겨찾기한 운동 — 넘기면 운동 줄에 별(옛 서버면 없음) */
+  favIds?: readonly string[];
   open: boolean;
   onToggle: () => void;
   onLayout: (e: LayoutChangeEvent) => void;
@@ -469,12 +440,12 @@ export function AreaCard({
       onLayout={onLayout}
       style={[st.routine, { backgroundColor: c.card, boxShadow: c.float, borderColor: open ? c.sky + '66' : c.line }]}
     >
-      <Pressable onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.routineHead}>
+      <Press onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.routineHead}>
         <Text style={[s.bodyBold, { color: c.ink, flex: 1 }]}>
           {area.label} <Text style={[s.small, { color: c.muted, fontWeight: '400' }]}>운동 {count}개</Text>
         </Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-      </Pressable>
+      </Press>
       {open ? (
         <View style={{ gap: 12, paddingTop: 4 }}>
           <View style={s.wrap}>
@@ -544,7 +515,14 @@ export function AreaCard({
             <Text style={[s.small, { color: c.muted }]}>이 부위를 키우는 운동이 아직 없어요.</Text>
           ) : (
             [...primary, ...secondary].map((ex) => (
-              <ExerciseRow key={ex.id} ex={ex} note={secondary.includes(ex) ? '함께 쓰는 운동' : null} c={c} />
+              <ExerciseRow
+                key={ex.id}
+                ex={ex}
+                note={secondary.includes(ex) ? '함께 쓰는 운동' : null}
+                fav={favIds ? favIds.includes(ex.id) : undefined}
+                highlight={muscles.map((m) => m.name)}
+                c={c}
+              />
             ))
           )}
         </View>

@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { TYPE, usePalette } from '~/lib/ui';
-import { Icon, type IconName } from '~/shell/icon';
+import { Icon } from '~/shell/icon';
 
 /**
  * 탭 첫 화면 머리 — 웹 휴대폰과 같은 꼴(components/ui.tsx PageHeading inlineAction · analysis-link.tsx · segmented.tsx):
@@ -33,22 +33,6 @@ export function AnalysisPill({ view }: { view: 'pitch' | 'training' }) {
     >
       <Icon name="chart-no-axes-column" size={16} color={c.sky} />
       <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>분석</Text>
-    </Pressable>
-  );
-}
-
-/** 그림만 있는 40pt 동그라미 도구 단추(웹 투구 머리의 구속 측정 · 3D 동작 분석) */
-export function ToolCircle({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
-  const c = usePalette();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      hitSlop={4}
-      style={({ pressed }) => [st.circle, { backgroundColor: c.chip }, pressed && { opacity: 0.6 }]}
-    >
-      <Icon name={icon} size={16} color={c.skyStrong} />
     </Pressable>
   );
 }
@@ -127,7 +111,6 @@ const st = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   tools: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pill: { height: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  circle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   seg: { flexDirection: 'row', padding: PAD, gap: GAP, borderRadius: 28 },
   thumb: { position: 'absolute', top: PAD, bottom: PAD, left: PAD, borderRadius: 20 },
   segItem: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },

@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { judgeStageTest } from '@/lib/armcare/rehab';
 import { emptyStageTestDraft, num, stageTestFilled, stageTestInput } from '@/lib/armcare/rehab-test-draft';
 import { emptyThrowingDraft, judgeThrowingDraft, throwingFilled, throwingInput } from '@/lib/armcare/rehab-throwing-draft';
@@ -12,6 +12,7 @@ import { JudgedBox, StageTestFields, ThrowingTestFields, ZERO_TEN } from '~/reha
 import { usePalette } from '~/lib/ui';
 import { ChoiceChips, StepFrame } from '~/setup/frame';
 import { useScreenData } from '~/training/screen';
+import { Press } from '~/shell/press';
 
 /**
  * 매주 확인(앱 화면, 약 1분) — 웹 rehab-weekly.tsx WeeklyFlow 와 같은 질문: ① 다치기 전 대비 % ② 이번 주 가장 아팠던 정도 · 밤이나 쉴 때
@@ -175,10 +176,10 @@ function Flow({ d }: { d: AppRehabDetail }) {
             </>
           )}
           {test || throwTest ? (
-            <Pressable onPress={() => setSkipTest((v) => !v)} accessibilityRole="button" hitSlop={8} style={{ flexDirection: 'row', gap: 6, alignItems: 'center', minHeight: 44 }}>
+            <Press onPress={() => setSkipTest((v) => !v)} accessibilityRole="button" hitSlop={8} style={{ flexDirection: 'row', gap: 6, alignItems: 'center', minHeight: 44 }}>
               <SymbolView name={skipTest ? 'pencil' : 'forward'} size={13} tintColor={c.sky} />
               <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{skipTest ? '시험할게요' : '오늘은 시험 건너뛰기'}</Text>
-            </Pressable>
+            </Press>
           ) : null}
         </View>
       )}

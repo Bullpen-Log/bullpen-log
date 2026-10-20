@@ -2897,6 +2897,10 @@ html[data-splash] *::after {
   /* 걷힐 때 무대가 1.06배로 커져도 밖으로 안 넘치게(가로 막대가 번쩍이지 않게) */
   overflow: hidden;
 }
+/* 사이트 안에서 이동해 문서를 다시 연 것 — 연출 없이(components/app-splash.tsx IN_SITE_JS) */
+html[data-splash-skip] .app-splash {
+  display: none;
+}
 .app-splash__stage {
   position: absolute;
   inset: 0;
@@ -3578,7 +3582,8 @@ html[data-dualcam] [data-finder] > video {
   accent-color: var(--color-sky);
   width: 100%;
   height: 2.25rem;
-  touch-action: pan-x;
+  /* 손가락은 막대가 직접 받는다(steps.tsx rangePointer) — 브라우저가 화면 밀기로 가져가지 않게 */
+  touch-action: none;
 }
 /* 아직 안 고름 — 손잡이를 숨긴다(미리 골라 둔 값처럼 안 보이게, 2026-10-18 사용자: "미리 고르는 건 아니지") */
 .checkin-range-unset {

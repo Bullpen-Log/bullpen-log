@@ -20,7 +20,7 @@ import {
   stopProgram,
 } from '@/app/actions/program';
 import type { ProgramCardProps } from '@/lib/program/load';
-import type { VariantKey } from '@/lib/program/program';
+import { sessionTitle, type VariantKey } from '@/lib/program/program';
 
 /**
  * 근력 · 파워 프로그램 카드 — 트레이닝 화면 맨 위(설계 §13-1 · 2).
@@ -59,16 +59,20 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
   const resting = p.kind === 'rest' || p.kind === 'painWait';
   const preview = !going || finishedToday;
 
+  const programName = p.basics ? '기본기 프로그램' : '근력 · 파워 프로그램';
+  const session = sessionTitle(p.dayLabel);
+  /* 하는 날은 한 줄로 '근력 · 파워 프로그램 · 2번째 세션(B)' — 위 작은 글과 겹쳐 '오늘 해요 · 2번 세션 · B 날'로 읽히던 것(2026-10-20 김민) */
+  const oneLine = going && !finishedToday;
   const title = finishedToday
-    ? `오늘 했어요 · ${p.dayLabel}`
+    ? `오늘 했어요 · ${session}`
     : going
-      ? `오늘 해요 · ${p.dayLabel}`
+      ? `${programName} · ${session}`
       : resting
         ? '오늘은 쉬어요'
         : p.kind === 'otherMode'
           ? '오늘은 다른 운동을 했어요'
           : p.kind === 'needCheckin'
-            ? `오늘 할 일 · ${p.dayLabel}`
+            ? `오늘 할 일 · ${session}`
             : '다 마쳤어요';
 
   const sub =
@@ -85,15 +89,13 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
   return (
     <Card className="space-y-3">
       <div className="space-y-1">
-        <p className="text-xs font-semibold text-muted">
-          {p.basics ? '기본기 프로그램' : '근력 · 파워 프로그램'}
-        </p>
+        {!oneLine && <p className="text-xs font-semibold text-muted">{programName}</p>}
         <p className="text-heading text-xl text-ink">{title}</p>
         {sub && <p className="text-sm text-muted">{sub}</p>}
         {(resting || finishedToday || p.kind === 'otherMode') &&
           (p.nextLabel || resting) && (
             <p className="text-sm text-muted">
-              다음: {finishedToday ? p.nextLabel : p.dayLabel}
+              다음: {sessionTitle((finishedToday ? p.nextLabel : p.dayLabel) ?? '')}
             </p>
           )}
       </div>
@@ -216,6 +218,17 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
 
       {error && <ErrorLine>{error}</ErrorLine>}
 
+      {/* 자주 찾는 셋은 '자세히' 밖에(2026-10-20 김민: "자세히를 눌러야 나와서 못 찾는다") */}
+      <div>
+        <MoreRow onClick={() => setRepin(true)}>고정 운동 바꾸기</MoreRow>
+        <OpenCheckinButton className="flex min-h-11 w-full items-center text-sm font-semibold text-sky-strong">
+          몸 상태가 바뀌었으면 체크인 고치기
+        </OpenCheckinButton>
+        <MoreRow onClick={() => setConfirm('stop')} danger>
+          그만두기
+        </MoreRow>
+      </div>
+
       {p.upcoming.length > 0 && (
         <div className="-mx-(--block-pad) border-t border-line">
           <DisclosureButton
@@ -242,13 +255,6 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
             {going && !finishedToday && p.todayState !== 'active' && (
               <MoreRow onClick={() => setConfirm('skip')}>이 날 건너뛰기</MoreRow>
             )}
-            <MoreRow onClick={() => setRepin(true)}>고정 운동 바꾸기</MoreRow>
-            <OpenCheckinButton className="flex min-h-11 w-full items-center text-sm font-semibold text-sky-strong">
-              몸 상태가 바뀌었으면 체크인 고치기
-            </OpenCheckinButton>
-            <MoreRow onClick={() => setConfirm('stop')} danger>
-              그만두기
-            </MoreRow>
           </div>
         )}
       </div>

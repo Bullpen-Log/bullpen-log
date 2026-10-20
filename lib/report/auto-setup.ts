@@ -15,6 +15,8 @@ import {
   DEFAULT_GOAL_NAME,
   TRAINING_GOAL_NAMES,
   focusesFor,
+  goalForUnchosen,
+  validFocus,
   type GoalFocusKey,
 } from '@/lib/report/personalize';
 import {
@@ -213,8 +215,27 @@ export function decideAutoFence({
   /* 목표마다 오늘 시간의 바탕 — 아래의 '실제로 줄어드는가' 검사와 시간 목록이 같은 값을 본다(위 끝으로 누른 뒤의 값) */
   const baseOf = (goal: string) => baseMinutesFor(goal, defaultMinutes, weeklyCap);
   const today = facts.condition.today;
-  const preferred = todayPrefsOf(facts).preferredWorkout;
+  const prefs = todayPrefsOf(facts);
+  const preferred = prefs.preferredWorkout;
   const rules: string[] = [];
+
+  /*
+   * 부위는 근력 날에만, 뻐근한 곳으로 좁히지 않게. 최근 7일에 아팠던 곳 · 재활 중인 관절(1~3단계)도 막는다 —
+   * 그 부위의 무거운 운동이 빠지므로(prescription.ts) 그쪽으로 좁히면 본운동이 빈다.
+   */
+  const blocked = blockedFocuses([
+    ...soreParts(today),
+    ...painEasingParts(facts),
+    ...rehabEasingParts(facts),
+  ]);
+  /*
+   * 카드의 '오늘 할 부위'(2026-10-20 — '직접 고르기'에 있던 것을 카드로 옮김). 고른 종류의 목표에 있는 부위이고 막힌 쪽이 아닐 때만 —
+   * 아픈 쪽 · 회복날은 위 몸 상태가 이긴다(decideTheme 이 부위보다 몸 상태 분기를 먼저 본다).
+   */
+  const wantedFocus =
+    prefs.focus && validFocus(goalForUnchosen(preferred), prefs.focus) && !blocked.has(prefs.focus)
+      ? prefs.focus
+      : null;
 
   /*
    * 오늘이 어떤 날인지는 지금 엔진이 정한다 — 통증·등판 여파·투구 부하·컨디션.
@@ -230,7 +251,7 @@ export function decideAutoFence({
     lastUpperKey,
     preferredWorkout: preferred,
     override: false,
-    focus: null,
+    focus: wantedFocus,
   });
   const strengthDay = day.key === 'lower' || day.key === 'upper';
 
@@ -400,15 +421,6 @@ export function decideAutoFence({
     minutes[goal] = minutesChoicesFor(goal).filter((m) => m <= cap);
   }
 
-  /*
-   * 부위는 근력 날에만, 뻐근한 곳으로 좁히지 않게. 최근 7일에 아팠던 곳 · 재활 중인 관절(1~3단계)도 막는다 —
-   * 그 부위의 무거운 운동이 빠지므로(prescription.ts) 그쪽으로 좁히면 본운동이 빈다.
-   */
-  const blocked = blockedFocuses([
-    ...soreParts(today),
-    ...painEasingParts(facts),
-    ...rehabEasingParts(facts),
-  ]);
   const focuses: Record<string, GoalFocusKey[]> = {};
   for (const goal of goals) {
     focuses[goal] = strengthDay
@@ -427,6 +439,8 @@ export function decideAutoFence({
    */
   const draftGoal = fixedGoal ?? DEFAULT_GOAL;
   const draftMinutes = Math.max(...minutes[draftGoal]);
+  /* 고른 부위가 오늘 목표에도 있으면 그대로 — 컨디셔닝으로 정해진 날(부위 없음)은 버린다 */
+  const draftFocus = wantedFocus && focuses[draftGoal]?.includes(wantedFocus) ? wantedFocus : null;
 
   return {
     /*
@@ -444,7 +458,7 @@ export function decideAutoFence({
     draft: {
       goal: draftGoal,
       minutes: draftMinutes,
-      focus: null,
+      focus: draftFocus,
       caution: [],
       painSuspected: false,
       reason: draftReason({

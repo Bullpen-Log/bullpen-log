@@ -8,7 +8,8 @@ import { insideApp } from '@/lib/shoot-camera';
 import { localVideoAvailable, removePhoneVideos, saveBlobToPhone } from '@/lib/local-video';
 
 export const MAX_VIDEO_MB = 50;
-const MAX_VIDEO_BYTES = MAX_VIDEO_MB * 1024 * 1024;
+/** 관리자 한도 — 서버 lib/storage.ts ADMIN_MAX_VIDEO_BYTES 와 같게(그 파일은 서버 전용이라 값만) */
+export const ADMIN_MAX_VIDEO_MB = 500;
 /** 줄여서 올릴 때 고를 수 있는 원본 크기 — 4K 원본도 1080p 로 줄이면 대개 50MB 안에 든다 */
 const MAX_SOURCE_MB = 400;
 /** 이보다 작으면 줄이지 않는다(이미 작은 영상을 다시 만들어도 거의 안 준다) */
@@ -145,7 +146,10 @@ export function VideoUpload({
   toPhone = false,
   onUploadingChange,
   onUploaded,
+  maxMb = MAX_VIDEO_MB,
 }: {
+  /** 한 개 한도(MB) — 회원 50, 관리자 500(ADMIN_MAX_VIDEO_MB). 서버가 같은 값으로 한 번 더 막는다 */
+  maxMb?: number;
   /** 올리기 전에 줄인다(shrinkVideo) — 회원이 올리는 투구 영상. 라이브러리 · 투구 분석 샘플은 원본 그대로 */
   compress?: boolean;
   /**
@@ -236,13 +240,15 @@ export function VideoUpload({
       return;
     }
     const canShrink = compress && typeof VideoEncoder !== 'undefined';
-    if (file.size > (canShrink ? MAX_SOURCE_MB * 1024 * 1024 : MAX_VIDEO_BYTES)) {
+    const maxBytes = maxMb * 1024 * 1024;
+    const sourceMb = Math.max(MAX_SOURCE_MB, maxMb);
+    if (file.size > (canShrink ? sourceMb * 1024 * 1024 : maxBytes)) {
       /*
        * 무엇을 하면 되는지까지 — 아이폰 카메라는 4K · 60fps 가 기본이라 몇 초짜리도 50MB 를 넘는다(2026-10-03).
        * 사진 앱의 '편집'으로 던지는 부분만 남기거나, 설정 › 카메라 › 비디오 녹화를 1080p 로 바꾸면 된다.
        */
       setError(
-        `${canShrink ? MAX_SOURCE_MB : MAX_VIDEO_MB}MB 이하만 올릴 수 있어요(고른 영상 ${formatSize(file.size)}). 사진 앱의 '편집'에서 던지는 부분만 남기고 잘라 주세요. 다음부터는 설정 › 카메라 › 비디오 녹화를 1080p 로 찍으면 작아져요.`
+        `${canShrink ? sourceMb : maxMb}MB 이하만 올릴 수 있어요(고른 영상 ${formatSize(file.size)}). 사진 앱의 '편집'에서 던지는 부분만 남기고 잘라 주세요. 다음부터는 설정 › 카메라 › 비디오 녹화를 1080p 로 찍으면 작아져요.`
       );
       return;
     }
@@ -279,9 +285,9 @@ export function VideoUpload({
         return;
       }
       setStage('upload');
-      if (file.size > MAX_VIDEO_BYTES) {
+      if (file.size > maxBytes) {
         throw new Error(
-          `줄여도 ${MAX_VIDEO_MB}MB 를 넘어요(${formatSize(file.size)}). 사진 앱의 '편집'에서 던지는 부분만 남기고 잘라 주세요.`
+          `줄여도 ${maxMb}MB 를 넘어요(${formatSize(file.size)}). 사진 앱의 '편집'에서 던지는 부분만 남기고 잘라 주세요.`
         );
       }
       const path = await uploadToStorage(file, endpoint, setProgress);
@@ -368,7 +374,7 @@ export function VideoUpload({
           )}
         </button>
         <span className="text-xs text-muted">
-          {videos.length} / {max} · 최대 {compress ? MAX_SOURCE_MB : MAX_VIDEO_MB}MB
+          {videos.length} / {max} · 최대 {compress ? Math.max(MAX_SOURCE_MB, maxMb) : maxMb}MB
         </span>
       </div>
       {webOnly && (

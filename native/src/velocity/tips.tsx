@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import Svg, { Circle, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { Icon } from '~/shell/icon';
 import { CardButton } from './camera-ui';
+import type { CameraMode } from './mode';
+import { Press } from '~/shell/press';
 
 /*
  * 주의사항 — 웹 components/velocity/tips-popup.tsx TipsCard 와 같은 꼴: 위 그림(옅은 하늘 판) · '주의사항 n/4' · 제목 · 짧은 글 · '자세히' 펼침 ·
  * 점(눌러 바로 가기) · '오늘은 보지 않기' · 아래 단추(다음 · 마지막은 카메라 맞추기). 글 · 그림은 setup-steps.tsx tipsFor 의 투수 뒤 카드 넷 그대로.
  * 앱은 투수 뒤만 재서 렌즈 · 1x · 포수 뒤 자리 · 미트 표적 카드는 없다(웹도 투수 뒤면 뺀다).
+ * 모드를 고르면 맨 앞에 '사용 방법' 카드가 붙는다(tipsFor — 2026-10-20 김민: 고른 뒤 먼저 사용 방법과 안내사항, 그다음 시작). ABS 는 플레이트 카드도.
  */
 export const TIPS_SKIP_KEY = 'bullpen-velocity-tips-skip';
 
@@ -16,7 +19,8 @@ const SKY = '#0a84d6';
 const WARN = '#b45309';
 const OK = '#047857';
 
-type Tip = { key: string; title: string; short: string; long: string; art: () => React.JSX.Element };
+/** kicker — 카드 위 작은 이름(없으면 '주의사항') */
+type Tip = { key: string; title: string; short: string; long: string; art: () => React.JSX.Element; kicker?: string };
 
 const svg = { viewBox: '0 0 200 150', width: '100%', height: '100%', fill: 'none', stroke: SKY, strokeWidth: 4, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
 
@@ -92,19 +96,82 @@ export const TIPS: Tip[] = [
   },
 ];
 
+/* 사용 방법 — 구속 측정 */
+const HOWTO_SPEED: Tip = {
+  key: 'howto-speed',
+  kicker: '사용 방법',
+  title: '이렇게 재요',
+  short: '폰을 투수 바로 뒤에 두고 설정을 마친 뒤 빨간 단추를 눌러요. 그다음엔 던지기만 하면 공마다 저절로 재요.',
+  long: '1. 투구 종류를 고르고 폰을 투수 뒤 1m 안, 던지는 방향 정면에 둬요. 2. 수평을 맞추고 릴리스 포인트가 가운데 표적에 오게 해요. 3. 스트라이크 존 크기를 맞춰요. 4. 빨간 단추를 누르고 던지면 공마다 구속이 떠요. 5. 다 던졌으면 세션 종료를 눌러 체감 강도를 고르고 저장해요.',
+  art: () => (
+    <Svg {...svg}>
+      <Rect x="18" y="52" width="28" height="48" rx="5" fill="white" />
+      <Circle cx="32" cy="70" r="5" />
+      <Path d="M32 100v12M32 112l-14 22M32 112l14 22" />
+      <Path d="M56 76c30-14 64-14 100 0" strokeDasharray="4 7" />
+      <Circle cx="72" cy="70" r="7" fill="white" />
+      <Circle cx="104" cy="65" r="5" fill="white" />
+      <Circle cx="134" cy="68" r="3.5" fill="white" />
+      <Rect x="158" y="40" width="26" height="70" rx="4" fill="#1e293b" stroke="#1e293b" />
+      <Path d="M158 58h26M158 76h26M158 94h26M171 40v70" stroke="#475569" strokeWidth={2} />
+    </Svg>
+  ),
+};
+
+/* 사용 방법 — ABS 판정(lib/abs, 설정 5단계의 홈플레이트 · 타자) */
+const HOWTO_ABS: Tip = {
+  key: 'howto-abs',
+  kicker: '사용 방법',
+  title: 'ABS 는 이렇게 판정해요',
+  short: '구속 측정 설정에 홈플레이트 · 타자 단계가 하나 더 있어요. 공마다 볼 · 스트라이크와 구속이 같이 떠요.',
+  long: '1. 구속 측정과 같이 종류 · 자리 · 수평 · 존을 맞춰요. 2. 흰 홈플레이트가 존 밑에 보이게 두면 저절로 찾아요. 못 찾으면 직접 맞추기로 앞변 양 끝을 맞춰요. 3. 타자 신장을 고르면 존 위아래가 정해져요. 측정 중에는 위 칩으로 다음 타자를 바꿔요. 4. 판정은 아직 참고용이에요. 실제 판정과 다를 수 있어요.',
+  art: () => (
+    <Svg {...svg}>
+      <Rect x="70" y="18" width="60" height="78" rx="3" fill="white" />
+      <Path d="M90 18v78M110 18v78M70 44h60M70 70h60" stroke="#94a3b8" strokeWidth={2} />
+      <Circle cx="100" cy="57" r="7" fill={OK} stroke="none" />
+      <Path d="M70 112h60l-6 14-24 12-24-12z" fill="white" />
+      <SvgText x="160" y="62" textAnchor="middle" fontSize="22" fontWeight="800" fill={OK} stroke="none">
+        S
+      </SvgText>
+    </Svg>
+  ),
+};
+
+const ABS_PLATE: Tip = {
+  key: 'abs-plate',
+  title: '홈플레이트가 보이게',
+  short: '홈플레이트 전체가 화면에 들어오게 둬요. 흙이나 그늘에 가리면 못 찾아요.',
+  long: '플레이트 앞변(투수 쪽 변) 두 끝으로 거리와 기울기를 맞춰요. 앞변이 존 밑에 또렷이 보여야 해요. 플레이트가 흙에 덮였으면 쓸어 주세요. 판정 중에 삼각대가 움직이면 판정이 어긋나니 단단히 고정해요.',
+  art: () => (
+    <Svg {...svg}>
+      <Rect x="40" y="16" width="120" height="118" rx="10" fill="white" />
+      <Path d="M70 92h60l-6 14-24 12-24-12z" fill="white" />
+      <Path d="M70 92h60" stroke={OK} strokeWidth={5} />
+      <Circle cx="70" cy="92" r="5" fill={SKY} stroke="none" />
+      <Circle cx="130" cy="92" r="5" fill={SKY} stroke="none" />
+    </Svg>
+  ),
+};
+
+/** 모드를 고른 뒤 보이는 카드 — 사용 방법(ABS 는 플레이트 카드까지) → 주의사항 넷 */
+export const tipsFor = (mode: CameraMode): Tip[] => (mode === 'abs' ? [HOWTO_ABS, ABS_PLATE, ...TIPS] : [HOWTO_SPEED, ...TIPS]);
+
 export function TipsCard({
+  tips = TIPS,
   index,
   onIndex,
   action,
   onSkipToday,
 }: {
+  tips?: Tip[];
   index: number;
   onIndex: (i: number) => void;
   action: { label: string; onPress: () => void };
   onSkipToday: () => void;
 }) {
-  const at = Math.min(index, TIPS.length - 1);
-  const tip = TIPS[at];
+  const at = Math.min(index, tips.length - 1);
+  const tip = tips[at];
   /* 장이 바뀌면 접힌 채로 */
   const [detailOf, setDetailOf] = useState<string | null>(null);
   const detail = detailOf === tip.key;
@@ -114,11 +181,11 @@ export function TipsCard({
         <View style={st.art}>{tip.art()}</View>
         <View style={st.body}>
           <Text style={st.count}>
-            주의사항 {at + 1}/{TIPS.length}
+            {tip.kicker ?? '주의사항'} {at + 1}/{tips.length}
           </Text>
           <Text style={st.title}>{tip.title}</Text>
           <Text style={st.short}>{tip.short}</Text>
-          <Pressable
+          <Press
             accessibilityRole="button"
             accessibilityState={{ expanded: detail }}
             onPress={() => setDetailOf(detail ? null : tip.key)}
@@ -127,7 +194,7 @@ export function TipsCard({
             <Icon name="info" size={16} color={SKY} />
             <Text style={st.moreText}>자세히</Text>
             <Icon name={detail ? 'chevron-up' : 'chevron-down'} size={16} color={SKY} />
-          </Pressable>
+          </Press>
           {detail ? (
             <Animated.Text entering={FadeIn.duration(160)} style={st.long}>
               {tip.long}
@@ -136,16 +203,16 @@ export function TipsCard({
         </View>
       </Animated.View>
       <View style={st.foot}>
-        <View style={st.dots} accessibilityLabel={`${at + 1} / ${TIPS.length}`}>
-          {TIPS.map((t, k) => (
-            <Pressable key={t.key} accessibilityRole="button" accessibilityLabel={`${k + 1}번째 카드`} onPress={() => onIndex(k)} hitSlop={6} style={st.dotHit}>
+        <View style={st.dots} accessibilityLabel={`${at + 1} / ${tips.length}`}>
+          {tips.map((t, k) => (
+            <Press select selected={k === at} key={t.key} accessibilityRole="button" accessibilityLabel={`${k + 1}번째 카드`} onPress={() => onIndex(k)} hitSlop={6} style={st.dotHit}>
               <View style={[st.dot, k === at ? st.dotOn : null]} />
-            </Pressable>
+            </Press>
           ))}
         </View>
-        <Pressable accessibilityRole="button" onPress={onSkipToday} style={st.skip}>
+        <Press accessibilityRole="button" onPress={onSkipToday} style={st.skip}>
           <Text style={st.skipText}>오늘은 보지 않기</Text>
-        </Pressable>
+        </Press>
       </View>
       <View style={st.action}>
         <CardButton label={action.label} onPress={action.onPress} />

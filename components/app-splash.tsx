@@ -27,6 +27,8 @@ const LETTERS = ['U', 'L', 'L', 'P', 'E', 'N', ' ', 'L', 'O', 'G'];
 /** 연출이 끝나면 html 에서 이 표시를 걷고 이 이벤트를 보낸다 */
 export const SPLASH_ATTR = 'data-splash';
 export const SPLASH_END_EVENT = 'bullpen-splash-end';
+/** 이번 문서는 연출을 건너뛴다 — 첫 페인트 전에 판을 숨긴다(globals.css) */
+const SKIP_ATTR = 'data-splash-skip';
 
 /** 큰 B 를 잠깐 보인 뒤(초) 자리로 가는 데 걸리는 시간 · 글자 시작 · 다 보인 뒤 걷는 때 — IntroOverlay 와 같다 */
 const SETTLE_MS = 2900;
@@ -50,10 +52,33 @@ function isRevisit() {
   }
 }
 
+/*
+ * 사이트 안에서 이동했을 뿐인가 — 이 탭에서 이미 연출을 봤고, 뒤로/앞으로 이거나 우리 사이트 화면에서 넘어온 문서 열기(링크 ·
+ * Next 가 전체 다시 열기로 넘어간 이동). 2026-10-20 김민: "맥북 웹에서 페이지 이동할 때마다 로고 연출이 계속 나온다" — 연출은
+ * 문서를 새로 열 때만 도는데, 페이지 이동이 문서 열기로 일어나면 그때마다 짧은 연출을 틀었다. 새로고침 · 주소 직접 입력 · 로그인
+ * 직후는 예전처럼 튼다. 첫 페인트 전에 정해야 해서(서버가 그린 큰 B 가 번쩍이지 않게) 판 안의 스크립트로 돈다 — 그래서 문자열이다.
+ */
+const IN_SITE_JS = `(function(){try{if(sessionStorage.getItem('${SEEN_KEY}')!=='1')return false;var n=performance.getEntriesByType('navigation')[0];var t=n&&n.type;if(t==='back_forward')return true;if(t!=='navigate'||!document.referrer)return false;var r=new URL(document.referrer);return r.origin===location.origin&&r.pathname!=='/login'}catch(e){return false}})()`;
+
+/*
+ * 서버 그림 없이 처음 붙는가(다른 화면 묶음에서 문서를 연 뒤 클라이언트 이동으로 들어옴) — 그때는 판 안의 스크립트가 안 돌아 html 에
+ * 두 표시가 다 없다. 이 탭에서 이미 봤으면 틀지 않는다. 서버 · 붙는 중에는 늘 false(서버 그림과 같게).
+ */
+function seenOnClientMount() {
+  if (typeof document === 'undefined') return false;
+  const html = document.documentElement;
+  if (html.hasAttribute(SPLASH_ATTR) || html.hasAttribute(SKIP_ATTR)) return false;
+  try {
+    return sessionStorage.getItem(SEEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 const noSubscribe = () => () => {};
 
 export function AppSplash() {
-  const [show, setShow] = useState(() => !played);
+  const [show, setShow] = useState(() => !played && !seenOnClientMount());
   /* 서버 HTML 을 그리거나 붙는(hydration) 중인가 — 클라이언트 이동으로 새로 그릴 때는 <script> 가 돌지 않고 React 가 콘솔 오류만
      낸다(체크인 건너뛰기 → 홈, 2026-10-17 QA). 그때 표시는 아래 효과가 단다 */
   const fromServer = useSyncExternalStore(noSubscribe, () => false, () => true);
@@ -64,11 +89,13 @@ export function AppSplash() {
   useEffect(() => {
     if (!show) return;
     played = true;
+    const html = document.documentElement;
+    /* 판 안의 스크립트가 건너뛰기로 정했다 — 판은 CSS 로 숨은 채 둔다(붙은 그림과 서버 그림이 같아야 해서 걷지 않는다) */
+    if (html.hasAttribute(SKIP_ATTR)) return;
     const root = rootRef.current;
     const mark = markRef.current;
     const slot = slotRef.current;
     if (!root || !mark || !slot) return;
-    const html = document.documentElement;
     html.setAttribute(SPLASH_ATTR, '');
 
     /* 큰 B(화면 가운데) → 이름의 B 칸: 가운데에서 가운데로 옮기고 높이 비율만큼 줄인다 */
@@ -120,7 +147,7 @@ export function AppSplash() {
       {fromServer && (
         <script
           dangerouslySetInnerHTML={{
-            __html: `document.documentElement.setAttribute('${SPLASH_ATTR}','')`,
+            __html: `document.documentElement.setAttribute(${IN_SITE_JS}?'${SKIP_ATTR}':'${SPLASH_ATTR}','')`,
           }}
         />
       )}

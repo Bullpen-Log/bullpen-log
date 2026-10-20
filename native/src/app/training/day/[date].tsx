@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatAmount } from '@/lib/exercise-meta';
 import { type WeightUnit } from '@/lib/units';
@@ -15,6 +15,7 @@ import { s } from '~/training/screen';
 import { Sheet } from '~/workout/sheets';
 import { HistoryPanel } from '~/training/history';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 그날의 운동 기록(앱 화면) — 웹 /training/day/<날짜>(app/(app)/training/day/[date]/page.tsx · day-exercises.tsx)를 옮겼다. 자료는 웹과 같은
@@ -62,9 +63,9 @@ export default function TrainingDayScreen() {
           {load.error ? (
             <View style={[st.notice, { backgroundColor: c.danger + '14' }]}>
               <Text style={[s.small, { color: c.danger, flex: 1 }]}>{load.error}</Text>
-              <Pressable onPress={() => void load.reload()} accessibilityRole="button" style={s.textBtn}>
+              <Press onPress={() => void load.reload()} accessibilityRole="button" style={s.textBtn}>
                 <Text style={[s.smallBold, { color: c.sky }]}>다시 불러오기</Text>
-              </Pressable>
+              </Press>
             </View>
           ) : null}
           {/* 다른 날로 옮기면 그날 목록으로 새로 그린다(체크해 둔 낙관값이 옆 날에 남지 않게) */}
@@ -200,7 +201,7 @@ function ExerciseLine({
   const planned = ex.planned ? `계획 ${ex.planned}` : null;
   return (
     <View style={[st.line, { backgroundColor: c.card, borderColor: c.line }]}>
-      <Pressable
+      <Press
         onPress={onToggle}
         disabled={!editable}
         accessibilityRole="checkbox"
@@ -227,10 +228,10 @@ function ExerciseLine({
             )}
           </Text>
         </View>
-      </Pressable>
-      <Pressable onPress={onHistory} accessibilityRole="button" accessibilityLabel={`${ex.title} 기록 보기`} style={st.historyBtn}>
+      </Press>
+      <Press onPress={onHistory} accessibilityRole="button" accessibilityLabel={`${ex.title} 기록 보기`} style={st.historyBtn}>
         <SymbolView name="chart.xyaxis.line" size={16} tintColor={c.muted} />
-      </Pressable>
+      </Press>
     </View>
   );
 }
@@ -253,7 +254,7 @@ function Strip({ days, date, today, c }: { days: AppTrainingDay['strip']; date: 
         const dots = [day.workout, day.armcare, day.drill];
         const done = [day.workout && '운동', day.armcare && '암케어', day.drill && '메커니즘'].filter(Boolean).join(' · ');
         return (
-          <Pressable
+          <Press
             key={day.date}
             onLayout={on ? (e) => scroll.current?.scrollTo({ x: Math.max(0, e.nativeEvent.layout.x - 120), animated: false }) : undefined}
             onPress={() => pick(day.date)}
@@ -266,7 +267,7 @@ function Strip({ days, date, today, c }: { days: AppTrainingDay['strip']; date: 
             <Text style={[s.tiny, { color: on ? '#fff' : c.muted }]}>{day.date === today ? '오늘' : d.day === 1 ? `${d.month}월` : d.week}</Text>
             <Text style={[s.bodyBold, { color: on ? '#fff' : c.ink }]}>{d.day}</Text>
             <View style={st.dots}>{dots.map((x, i) => (x ? <View key={i} style={[st.dot, { backgroundColor: on ? '#fff' : c.sky }]} /> : null))}</View>
-          </Pressable>
+          </Press>
         );
       })}
     </ScrollView>

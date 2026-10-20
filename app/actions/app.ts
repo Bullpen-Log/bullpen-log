@@ -27,6 +27,7 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { loadHomeFeed, loadHomeRings, type HomeRing } from '@/lib/report/home-today';
 import { loadTodayCoreCached } from '@/lib/report/today-data';
 import { armStatusOf, type ArmStatus } from '@/lib/report/arm-status';
+import { pitchNutritionLine, type NutritionLine } from '@/lib/nutrition/nudge';
 import type { FeedItem } from '@/lib/report/feed-items';
 import {
   armcareCardData,
@@ -166,6 +167,8 @@ export async function loadAppNutrition(date: string): Promise<
       /** ★ 내 음식에 둔 기본 · 식약처 · 바코드 음식의 열쇠('source:id') — 담기 화면의 '내 음식에 두기' */
       favorites: string[];
       planState: string[];
+      /** 체중 흐름 권유가 선 날의 다음 조정값(웹 TodayCard nudge — 통계 화면의 체중 카드와 같은 plan.suggestion). 없으면 null */
+      suggestAdjust: number | null;
     }
   | { ok: false; error: string; to?: string }
 > {
@@ -213,6 +216,7 @@ export async function loadAppNutrition(date: string): Promise<
       DIET_STYLES.find((x) => x.key === day.prefs.dietStyle)?.label ?? null,
       MEAL_PATTERNS.find((x) => x.key === day.prefs.mealPattern)?.label ?? null,
     ].filter((x): x is string => x != null),
+    suggestAdjust: day.plan.suggestion?.nextAdjust ?? null,
   };
 }
 
@@ -420,6 +424,8 @@ export async function loadAppPitchToday(): Promise<
       logged: { pitches: number } | null;
       unloggedVelocity: number | null;
       throwCard: { plan: string | null; hasCheckin: boolean; hint: string | null };
+      /** 던진 뒤 회복식 한 줄 — 오늘 불펜 · 라이브 · 경기 기록이 있을 때만(웹 그날 화면 NutritionLineNote, lib/nutrition/nudge.ts) */
+      nutritionLine: NutritionLine | null;
     }
   | { ok: false; error: string }
 > {
@@ -428,7 +434,7 @@ export async function loadAppPitchToday(): Promise<
   const now = appNow();
   const todayKey = toDateKey(now);
   const todayAt = dbDate(todayKey);
-  const [gathered, todayLogs, velocityToday, checkinToday, calendarRows] = await Promise.all([
+  const [gathered, todayLogs, velocityToday, checkinToday, calendarRows, nutritionLine] = await Promise.all([
     gatherFactsAndPlan(user, now),
     prisma.pitchLog.findMany({ where: { userId: user.id, date: todayAt }, select: { pitchCount: true, createdAt: true } }),
     prisma.velocitySession.findMany({
@@ -443,6 +449,7 @@ export async function loadAppPitchToday(): Promise<
       where: { userId: user.id, date: { gte: todayAt, lte: dbDate(shiftDateKey(todayKey, 1)) } },
       select: { date: true, title: true },
     }),
+    pitchNutritionLine(user, todayKey, todayKey),
   ]);
   const outingOn = (day: string) => calendarRows.some((e) => keyOfDbDate(e.date) === day && isOutingTitle(e.title));
   return {
@@ -460,5 +467,6 @@ export async function loadAppPitchToday(): Promise<
       hasCheckin: checkinToday != null,
       hint: outingOn(todayKey) ? '오늘 등판' : outingOn(shiftDateKey(todayKey, 1)) ? '내일 등판' : null,
     },
+    nutritionLine,
   };
 }

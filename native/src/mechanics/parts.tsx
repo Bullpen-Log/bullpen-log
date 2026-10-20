@@ -1,19 +1,26 @@
 import * as Haptics from 'expo-haptics';
+import { CHECK_CONNECTION } from '@/lib/offline';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { josa } from '@/lib/korean';
 import { mechanicsLevel } from '@/lib/mechanics/levels';
 import { DRILL_THROW_TEXT, FILM_VERDICTS, type DrillThrowNote, type FilmNote, type FilmVerdict } from '@/lib/mechanics/program';
 import { rpc, RpcError } from '~/lib/rpc';
 import type { Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
+import { Press } from '~/shell/press';
 
 /** 메커니즘 따라 하기(native/src/app/mechanics.tsx)의 작은 조각 — 웹 mechanics-player.tsx · drill-throw-note.tsx · film-verdict.tsx 를 옮겼다 */
 
 /** 화면을 닫고 웹을 그 주소로 — 껍데기(index.tsx)가 웹뷰를 옮긴다(~/shell/web-nav leaveTo) */
 export const leave = leaveTo;
+
+/** act 가 신호 끊김에 돌려주는 글 — 화면이 웹처럼 앞말('담지 못했어요.')을 붙이고 싶을 때 견준다(웹 lib/action-offline OFFLINE_MESSAGE 와 같은 글) */
+export const OFFLINE_TEXT = '인터넷 연결을 확인한 뒤 다시 해 주세요.';
+/** 신호가 끊겨 못 했으면 웹과 같은 '○○하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.'(lib/offline CHECK_CONNECTION), 아니면 서버 글 그대로 */
+export const offlineAs = (error: string, what: string) => (error === OFFLINE_TEXT ? `${what} ${CHECK_CONNECTION}` : error);
 
 /**
  * 서버 동작 부르기 — 웹 orOffline 처럼 던지지 않고 { error } 로 돌려준다(신호가 끊겨도 화면이 오류로 사라지지 않게). 로그인이 풀렸으면
@@ -27,7 +34,7 @@ export async function act<T extends object>(action: string, ...args: unknown[]):
       leave(e.to ?? '/login');
       return { error: e.message };
     }
-    return { error: e instanceof RpcError && e.code !== 'offline' ? e.message : '인터넷 연결을 확인한 뒤 다시 해 주세요.' };
+    return { error: e instanceof RpcError && e.code !== 'offline' ? e.message : OFFLINE_TEXT };
   }
 }
 
@@ -58,11 +65,11 @@ export function Description({ guideId, inline = false, c }: { guideId: string; i
     return loading ? (
       <ActivityIndicator />
     ) : failed ? (
-      <Pressable onPress={load} accessibilityRole="button" style={s.textBtn}>
+      <Press onPress={load} accessibilityRole="button" style={s.textBtn}>
         <Text style={[s.small, { color: c.muted }]}>
           설명을 불러오지 못했어요. <Text style={{ color: c.sky, fontWeight: '700' }}>다시 받기</Text>
         </Text>
-      </Pressable>
+      </Press>
     ) : got?.text ? (
       <Text selectable style={[s.body, { color: c.ink }]}>
         {got.text}
@@ -70,7 +77,7 @@ export function Description({ guideId, inline = false, c }: { guideId: string; i
     ) : null;
   return (
     <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <Pressable
+      <Press
         onPress={() => {
           setOpen((v) => !v);
           if (!open && (got == null || failed)) load();
@@ -82,17 +89,17 @@ export function Description({ guideId, inline = false, c }: { guideId: string; i
         <SymbolView name="info.circle" size={14} tintColor={c.muted} />
         <Text style={[s.bodyBold, { color: c.ink, flex: 1 }]}>자세 설명</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-      </Pressable>
+      </Press>
       {open ? (
         <View style={{ paddingBottom: 14 }}>
           {loading ? (
             <ActivityIndicator />
           ) : failed ? (
-            <Pressable onPress={load} accessibilityRole="button" style={s.textBtn}>
+            <Press onPress={load} accessibilityRole="button" style={s.textBtn}>
               <Text style={[s.small, { color: c.muted }]}>
                 설명을 불러오지 못했어요. <Text style={{ color: c.sky, fontWeight: '700' }}>다시 받기</Text>
               </Text>
-            </Pressable>
+            </Press>
           ) : got ? (
             <Text selectable style={[s.body, { color: c.ink }]}>
               {got.text}
@@ -133,7 +140,7 @@ export function ThrowNoteCard({ note, c }: { note: DrillThrowNote; c: Palette })
     <View style={[s.note, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.bodyBold, { color: c.ink }]}>{DRILL_THROW_TEXT.line(note.throws)}</Text>
       <View style={s.row}>
-        <Pressable
+        <Press
           onPress={() => {
             /* 남기러 가면 닫는다 — 끝 화면이 밑에 남아, 저장하고 돌아와 또 누르면 같은 공으로 기록이 하나 더 생겼다 */
             setClosed(true);
@@ -142,11 +149,11 @@ export function ThrowNoteCard({ note, c }: { note: DrillThrowNote; c: Palette })
           accessibilityRole="link" style={[s.chip, { backgroundColor: c.sky + '1a' }]}>
           <Text style={[s.smallBold, { color: c.sky }]}>{DRILL_THROW_TEXT.record}</Text>
           <SymbolView name="chevron.right" size={11} weight="semibold" tintColor={c.sky} />
-        </Pressable>
+        </Press>
         {[DRILL_THROW_TEXT.done, DRILL_THROW_TEXT.skip].map((t) => (
-          <Pressable key={t} onPress={() => void close()} disabled={pending} accessibilityRole="button" style={[s.textBtn, { opacity: pending ? 0.5 : 1 }]}>
+          <Press key={t} onPress={() => void close()} disabled={pending} accessibilityRole="button" style={[s.textBtn, { opacity: pending ? 0.5 : 1 }]}>
             <Text style={[s.small, { color: c.muted }]}>{t}</Text>
-          </Pressable>
+          </Press>
         ))}
       </View>
       {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
@@ -178,7 +185,9 @@ export function FilmVerdictButtons({ session, current = null, c }: { session: nu
         {FILM_VERDICTS.map((v) => {
           const on = saved === v.value;
           return (
-            <Pressable
+            <Press
+              select
+              selected={on}
               key={v.value}
               onPress={() => void pick(v.value)}
               disabled={pending}
@@ -190,7 +199,7 @@ export function FilmVerdictButtons({ session, current = null, c }: { session: nu
                 {on ? '✓ ' : ''}
                 {v.label}
               </Text>
-            </Pressable>
+            </Press>
           );
         })}
       </View>
@@ -259,17 +268,17 @@ export function LevelOffer({
           <Text style={[s.blockTitle, { color: c.ink }]}>{title}</Text>
           <Text style={[s.body, { color: c.muted }]}>{detail}</Text>
           <View style={s.grid}>
-            <Pressable
+            <Press
               onPress={() => void start()}
               disabled={pending}
               accessibilityRole="button"
               style={[s.cell, { backgroundColor: c.sky, opacity: pending ? 0.6 : 1 }]}
             >
               <Text style={[s.bodyBold, { color: '#fff' }]}>{pending ? '바꾸는 중…' : `${level.name} 시작`}</Text>
-            </Pressable>
-            <Pressable onPress={() => setState('keep')} disabled={pending} accessibilityRole="button" style={[s.cell, { backgroundColor: c.chip }]}>
+            </Press>
+            <Press onPress={() => setState('keep')} disabled={pending} accessibilityRole="button" style={[s.cell, { backgroundColor: c.chip }]}>
               <Text style={[s.bodyBold, { color: c.ink }]}>{keepLabel}</Text>
-            </Pressable>
+            </Press>
           </View>
           {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
         </>

@@ -2,7 +2,7 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'ex
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cleanBarcode } from '@/lib/nutrition/barcode';
 import type { Food } from '@/lib/nutrition/meta';
@@ -11,6 +11,7 @@ import { usePalette } from '~/lib/ui';
 import { lookupBarcode, toFoodInput } from '~/nutrition/api';
 import { putScanned } from '~/nutrition/scanned';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 바코드로 담기(앱 카메라) — 웹 barcode-panel.tsx 와 같은 길: 읽은 숫자 → /api/nutrition/barcode(내 음식 → Open Food Facts) →
@@ -31,14 +32,14 @@ export default function BarcodeScreen() {
     const code = cleanBarcode(raw);
     if (!code) {
       busy.current = false;
-      return setPhase({ kind: 'error', message: '바코드 숫자가 맞지 않아요. 밑의 숫자를 다시 확인해 주세요.' });
+      return setPhase({ kind: 'error', message: '바코드 숫자가 맞지 않아요. 막대 밑의 8 · 12 · 13자리 숫자를 그대로 적어 주세요.' });
     }
     setPhase({ kind: 'looking', code });
     const res = await lookupBarcode(code);
     busy.current = false;
     if (!res.ok) return setPhase({ kind: 'error', message: res.error });
     if (!res.food) return setPhase({ kind: 'manual', code, name: res.name ?? '' });
-    putScanned(res.food);
+    putScanned(res.food, res.from);
     router.back();
   };
 
@@ -60,9 +61,9 @@ export default function BarcodeScreen() {
         />
       ) : null}
       <View style={[styles.bar, { paddingTop: inset.top + 8 }]}>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
+        <Press accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
           <Text style={styles.barAction}>닫기</Text>
-        </Pressable>
+        </Press>
         <Text style={styles.barTitle}>바코드로 담기</Text>
         <View style={{ width: 34 }} />
       </View>
@@ -72,13 +73,13 @@ export default function BarcodeScreen() {
           {!perm ? null : !perm.granted ? (
             <>
               <Text style={styles.note}>바코드를 읽으려면 카메라를 허락해 주세요.</Text>
-              <Pressable
+              <Press
                 accessibilityRole="button"
                 onPress={() => (perm.canAskAgain ? void requestPerm() : void Linking.openSettings())}
                 style={[styles.primary, { backgroundColor: c.sky }]}
               >
                 <Text style={styles.primaryText}>{perm.canAskAgain ? '카메라 허락하기' : '설정 열기'}</Text>
-              </Pressable>
+              </Press>
             </>
           ) : (
             <Text style={styles.note}>포장의 바코드를 화면 가운데에 비춰 주세요.</Text>
@@ -92,9 +93,9 @@ export default function BarcodeScreen() {
               placeholderTextColor="rgba(255,255,255,0.5)"
               style={styles.typeInput}
             />
-            <Pressable accessibilityRole="button" disabled={!typed.trim()} onPress={() => void look(typed)} style={[styles.small, { backgroundColor: c.sky }, !typed.trim() && { opacity: 0.4 }]}>
+            <Press accessibilityRole="button" disabled={!typed.trim()} onPress={() => void look(typed)} style={[styles.small, { backgroundColor: c.sky }, !typed.trim() && { opacity: 0.4 }]}>
               <Text style={styles.primaryText}>찾기</Text>
-            </Pressable>
+            </Press>
           </View>
         </View>
       ) : phase.kind === 'looking' ? (
@@ -105,9 +106,9 @@ export default function BarcodeScreen() {
       ) : phase.kind === 'error' ? (
         <View style={styles.center}>
           <Text style={styles.note}>{phase.message}</Text>
-          <Pressable accessibilityRole="button" onPress={() => setPhase({ kind: 'scan' })} style={[styles.primary, { backgroundColor: c.sky }]}>
+          <Press accessibilityRole="button" onPress={() => setPhase({ kind: 'scan' })} style={[styles.primary, { backgroundColor: c.sky }]}>
             <Text style={styles.primaryText}>다시 읽기</Text>
-          </Pressable>
+          </Press>
         </View>
       ) : (
         <ManualFood code={phase.code} name={phase.name} onRescan={() => setPhase({ kind: 'scan' })} />
@@ -151,7 +152,7 @@ function ManualFood({ code, name: initialName, onRescan }: { code: string; name:
       /* 바코드 숫자가 sourceId 로 가야 다음에 같은 바코드를 내 음식에서 바로 찾는다(lib/nutrition/barcode-lookup.ts) */
       const res = await rpc<{ ok: true } | { ok: false; error: string }>('nutrition.saveUserFood', toFoodInput(food));
       if (!res.ok) return setError(res.error);
-      putScanned(food);
+      putScanned(food, 'new');
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : '저장하지 못했어요.');
@@ -190,12 +191,12 @@ function ManualFood({ code, name: initialName, onRescan }: { code: string; name:
         <View style={{ flex: 1 }}>{field('지방(g)', fat, setFat)}</View>
       </View>
       {error ? <Text style={{ color: c.danger, fontSize: 14 }}>{error}</Text> : null}
-      <Pressable accessibilityRole="button" onPress={save} disabled={saving} style={[styles.primary, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
+      <Press accessibilityRole="button" onPress={save} disabled={saving} style={[styles.primary, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
         <Text style={styles.primaryText}>{saving ? '저장하는 중' : '저장하고 담기'}</Text>
-      </Pressable>
-      <Pressable accessibilityRole="button" onPress={onRescan} style={[styles.primary, { backgroundColor: c.chip }]}>
+      </Press>
+      <Press accessibilityRole="button" onPress={onRescan} style={[styles.primary, { backgroundColor: c.chip }]}>
         <Text style={[styles.primaryText, { color: c.ink }]}>다시 읽기</Text>
-      </Pressable>
+      </Press>
     </ScrollView>
   );
 }

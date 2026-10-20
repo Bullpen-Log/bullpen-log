@@ -1,12 +1,13 @@
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import { DISCLAIMER, RED_FLAGS, RED_FLAGS_LINE, guideFor, levelAdvice, type PainGuide } from '@/lib/armcare/pain-guide';
 import { REHAB_ENABLED } from '@/lib/armcare/rehab-regions';
 import type { Palette } from '~/lib/ui';
 import { Sheet } from '~/workout/sheets';
+import { Press } from '~/shell/press';
 
 export type PainView = { spots: ArmcareAreaKey[]; level: number | null; age: number | null };
 
@@ -20,13 +21,13 @@ export function PainGuideButton({ pain, c, tone }: { pain: PainView; c: Palette;
   const color = tone === 'warn' ? c.warn : c.sky;
   return (
     <>
-      <Pressable
+      <Press
         onPress={() => setOpen(true)}
         accessibilityRole="button"
         style={[st.chip, { backgroundColor: tone === 'warn' ? c.card : c.sky + '1a' }]}
       >
         <Text style={[st.chipText, { color }]}>통증 안내 보기 ›</Text>
-      </Pressable>
+      </Press>
       <Sheet open={open} onClose={() => setOpen(false)} title="팔 통증 안내" c={c}>
         <PainGuideBody
           pain={pain}
@@ -64,13 +65,13 @@ function PainGuideBody({ pain, c, onRehab }: { pain: PainView; c: Palette; onReh
       </View>
       <Text style={[st.small, { color: c.muted, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line, paddingTop: 12 }]}>{DISCLAIMER}</Text>
       {REHAB_ENABLED ? (
-        <Pressable onPress={onRehab} accessibilityRole="button" style={[st.row, { backgroundColor: c.card, boxShadow: c.float }]}>
+        <Press onPress={onRehab} accessibilityRole="button" style={[st.row, { backgroundColor: c.card, boxShadow: c.float }]}>
           <View style={{ flex: 1 }}>
             <Text style={[st.body, { color: c.ink, fontWeight: '600' }]}>재활 프로그램</Text>
             <Text style={[st.small, { color: c.muted }]}>아픈 곳과 정도에 맞춰 몇 주에 걸쳐 단계별로 해요</Text>
           </View>
           <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} />
-        </Pressable>
+        </Press>
       ) : null}
     </View>
   );
@@ -89,7 +90,7 @@ function SpotGuide({ guide, c }: { guide: PainGuide; c: Palette }) {
               const on = openName === inj.name;
               return (
                 <View key={inj.name} style={i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line } : null}>
-                  <Pressable
+                  <Press
                     onPress={() => setOpenName(on ? null : inj.name)}
                     accessibilityRole="button"
                     accessibilityState={{ expanded: on }}
@@ -97,7 +98,7 @@ function SpotGuide({ guide, c }: { guide: PainGuide; c: Palette }) {
                   >
                     <Text style={[st.body, { color: c.ink, fontWeight: '600', flex: 1 }]}>{inj.name}</Text>
                     <SymbolView name={on ? 'chevron.up' : 'chevron.down'} size={13} tintColor={c.muted} />
-                  </Pressable>
+                  </Press>
                   {on ? <Text style={[st.small, { color: c.ink, paddingHorizontal: 14, paddingBottom: 12 }]}>{inj.desc}</Text> : null}
                 </View>
               );
@@ -121,7 +122,7 @@ function SpotGuide({ guide, c }: { guide: PainGuide; c: Palette }) {
 function RedFlags({ c }: { c: Palette }) {
   const [open, setOpen] = useState(false);
   return (
-    <Pressable
+    <Press
       onPress={() => setOpen((o) => !o)}
       accessibilityRole="button"
       accessibilityState={{ expanded: open }}
@@ -142,7 +143,7 @@ function RedFlags({ c }: { c: Palette }) {
           ))}
         </View>
       ) : null}
-    </Pressable>
+    </Press>
   );
 }
 

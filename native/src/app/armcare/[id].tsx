@@ -5,6 +5,7 @@ import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalSt
 import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatSeconds } from '@/lib/exercise-meta';
+import { useLiveActivity } from '~/shell/live-activity';
 import { REST_CLOCK_LIMIT_SECONDS } from '@/lib/workout/rest';
 import type { ArmcarePlay } from '@/lib/armcare/play-load';
 import type { PlayerItem } from '@/app/(session)/armcare/play/[id]/armcare-player';
@@ -17,6 +18,7 @@ import { usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { SetDots } from '~/workout/parts';
 import { READABLE, useBarSide } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 암케어 따라 하기(앱 화면) — 웹 app/(session)/armcare/play/[id]/armcare-player.tsx 를 옮겼다. 사이트의 따라 하기가 앱(BullpenNative/3 부터)이면
@@ -64,7 +66,7 @@ export default function ArmcarePlayScreen() {
       {failed ? (
         <>
           <Text style={[s.body, { color: c.ink, textAlign: 'center' }]}>{failed}</Text>
-          <Pressable
+          <Press
             onPress={() => {
               setFailed(null);
               setTries((n) => n + 1);
@@ -73,10 +75,10 @@ export default function ArmcarePlayScreen() {
             style={[s.pill, { backgroundColor: c.sky }]}
           >
             <Text style={[s.bodyBold, { color: '#fff' }]}>다시 불러오기</Text>
-          </Pressable>
-          <Pressable onPress={() => router.back()} accessibilityRole="button" style={s.pill}>
+          </Press>
+          <Press onPress={() => router.back()} accessibilityRole="button" style={s.pill}>
             <Text style={[s.bodyBold, { color: c.muted }]}>닫기</Text>
-          </Pressable>
+          </Press>
         </>
       ) : (
         <ActivityIndicator />
@@ -324,6 +326,29 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
   }, [state.clock]);
   useEffect(() => () => void BullpenNative.cancelAlarm(CLOCK_ALARM_ID).catch(() => undefined), []);
 
+  /*
+   * 다이나믹 아일랜드 · 잠금 화면(2026-10-20 김민) — 버티기 · 쉬기는 끝나는 때까지 거꾸로, 그 밖엔 이 루틴을 연 때부터 올라간다.
+   * 다 마치면 거둔다. 시계가 끝나면 이 화면의 상태가 바뀌어(clock-end) 저절로 다음 모양으로 넘어간다.
+   */
+  const [openedMs] = useState(() => Date.now());
+  const liveItem = items[state.index];
+  const liveSets = liveItem ? `세트 ${Math.min(state.sets[state.index] + (state.clock?.kind === 'hold' ? 1 : 0), liveItem.sets)}/${liveItem.sets}` : '';
+  useLiveActivity(
+    state.finished || !liveItem
+      ? null
+      : state.clock
+        ? {
+            kind: 'hold',
+            symbol: state.clock.kind === 'hold' ? 'hourglass' : 'timer',
+            label: state.clock.kind === 'hold' ? (twoSides(liveItem) ? (state.side === 0 ? '버티기 · 한쪽' : '버티기 · 반대쪽') : '버티기') : '쉬는 시간',
+            title: liveItem.exercise.title,
+            detail: liveSets,
+            since: state.clock.endsAt - state.clock.total * 1000,
+            until: state.clock.endsAt,
+          }
+        : { kind: 'work', symbol: 'figure.flexibility', label: '암케어', title: liveItem.exercise.title, detail: liveSets, since: openedMs }
+  );
+
   /* 운동이 바뀌면 맨 위(영상 · 이름)부터 — 자세 설명을 읽느라 내려가 있던 자리에 다음 운동이 뜨면 할 차례가 화면 밖에 있다 */
   const scrollRef = useRef<ScrollViewInstance>(null);
   useEffect(() => {
@@ -347,9 +372,9 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
           <Text style={[s.small, { color: c.warn, flex: 1 }]}>
             인터넷이 끊겨 체크 {unsent}개를 아직 못 남겼어요. 폰에 담아 뒀다가 신호가 돌아오면 보내요.
           </Text>
-          <Pressable onPress={() => void flush()} accessibilityRole="button" style={s.textBtn}>
+          <Press onPress={() => void flush()} accessibilityRole="button" style={s.textBtn}>
             <Text style={[s.smallBold, { color: c.sky }]}>다시 보내기</Text>
-          </Pressable>
+          </Press>
         </View>
       ) : null}
       {refusedHere.length > 0 && refused ? (
@@ -363,11 +388,11 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
   const header = (
     <View style={[s.header, { paddingTop: inset.top + 8, backgroundColor: c.card, borderBottomColor: c.line }]}>
       <View style={s.headRow}>
-        <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="따라하기 닫기" style={s.iconBtn}>
+        <Press onPress={close} accessibilityRole="button" accessibilityLabel="따라하기 닫기" style={s.iconBtn}>
           <View style={[s.circle, { backgroundColor: c.chip }]}>
             <SymbolView name="xmark" size={14} weight="semibold" tintColor={c.muted} />
           </View>
-        </Pressable>
+        </Press>
         <Text numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
           {title}
         </Text>
@@ -429,9 +454,9 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
         {rehabCheck && count > 0 ? (
           <RehabCheck dateKey={dateKey} settled={unsaved.length === 0} initial={rehabCheck.initial} c={c} />
         ) : null}
-        <Pressable onPress={close} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
+        <Press onPress={close} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
           <Text style={[s.bodyBold, { color: '#fff' }]}>암케어로 돌아가기</Text>
-        </Pressable>
+        </Press>
       </ScrollView>
     );
   }
@@ -515,26 +540,26 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
         )}
 
         <View style={s.navRow}>
-          <Pressable
+          <Press
             onPress={() => dispatch({ type: 'go', index: state.index - 1 })}
             disabled={state.index === 0}
             accessibilityRole="button"
             style={[s.nav, { backgroundColor: c.chip, opacity: state.index === 0 ? 0.3 : 1 }]}
           >
             <Text style={[s.smallBold, { color: c.ink }]}>‹ 이전</Text>
-          </Pressable>
+          </Press>
           {state.index < items.length - 1 ? (
-            <Pressable
+            <Press
               onPress={() => dispatch({ type: 'go', index: state.index + 1 })}
               accessibilityRole="button"
               style={[s.nav, { backgroundColor: c.chip }]}
             >
               <Text style={[s.smallBold, { color: c.ink }]}>다음 ›</Text>
-            </Pressable>
+            </Press>
           ) : (
-            <Pressable onPress={() => dispatch({ type: 'finish' })} accessibilityRole="button" style={[s.nav, { backgroundColor: c.chip }]}>
+            <Press onPress={() => dispatch({ type: 'finish' })} accessibilityRole="button" style={[s.nav, { backgroundColor: c.chip }]}>
               <Text style={[s.smallBold, { color: c.ink }]}>끝내기 ✓</Text>
-            </Pressable>
+            </Press>
           )}
         </View>
       </View>

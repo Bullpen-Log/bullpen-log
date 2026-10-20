@@ -72,25 +72,80 @@ function boxesIn(b: Uint8Array, from: number, to: number): Box[] {
   return out;
 }
 
+/** 파일의 [start, end) 바이트를 읽는 쪽 — 폰의 Blob 이든 서버의 주소(범위 요청)든. size 를 모르면 Infinity */
+export type ByteReader = { size: number; read: (start: number, end: number) => Promise<Uint8Array> };
+
+const blobReader = (file: Blob): ByteReader => ({
+  size: file.size,
+  read: async (start, end) => new Uint8Array(await file.slice(start, end).arrayBuffer()),
+});
+
 /** 파일 맨 위 상자에서 moov 를 찾아 그 바이트를 돌려준다 */
-async function readMoov(file: Blob): Promise<Uint8Array | null> {
+export async function readMoov(file: Blob | ByteReader): Promise<Uint8Array | null> {
+  const r = file instanceof Blob ? blobReader(file) : file;
   let p = 0;
-  for (let n = 0; p + 8 <= file.size && n < 64; n++) {
-    const h = new Uint8Array(
-      await file.slice(p, Math.min(file.size, p + 16)).arrayBuffer()
-    );
+  for (let n = 0; p + 8 <= r.size && n < 64; n++) {
+    const h = await r.read(p, Math.min(r.size, p + 16));
     if (h.length < 8) return null;
     let size = u32(h, 0);
     if (size === 1 && h.length >= 16) size = u64(h, 8);
-    else if (size === 0) size = file.size - p;
-    if (size < 8) return null;
+    else if (size === 0) size = r.size - p;
+    if (size < 8 || !Number.isFinite(size)) return null;
     if (fourcc(h, 4) === 'moov') {
       if (size > MAX_MOOV) return null;
-      return new Uint8Array(await file.slice(p, p + size).arrayBuffer());
+      return r.read(p, p + size);
     }
     p += size;
   }
   return null;
+}
+
+/**
+ * 영상 트랙 편집 목록(elst)의 앞머리 — 3D 결과 시각(원본 트랙 시각, GPU 가 편집 목록을 무시하고 읽음 · video.py)에 이 값을 더하면
+ * 재생기(브라우저 · 아이폰)의 currentTime 이다. 시간만 잘라 붙인 영상(AVAssetExportSession passthrough)은 앞 키 장면부터 담고 편집 목록으로
+ * 앞머리 0.1~1초를 감춰, 이를 안 빼면 원본 영상이 3D 보다 그만큼 앞선 장면을 보였다(2026-10-20 김민: "싱크가 안 맞아").
+ * 보이는 조각이 하나 · 배율 1 일 때만(아이폰 슬로모를 내보낸 여러 조각은 직선으로 못 옮겨 0), 못 읽으면 0.
+ */
+export function videoEditShift(moov: Uint8Array): number {
+  const top = boxesIn(moov, u32(moov, 0) === 1 ? 16 : 8, moov.length);
+  const mvhd = top.find((b) => b.type === 'mvhd');
+  const movieScale = mvhd ? u32(moov, mvhd.body + (moov[mvhd.body] === 1 ? 20 : 12)) : 0;
+  for (const trak of top.filter((b) => b.type === 'trak')) {
+    const kids = boxesIn(moov, trak.body, trak.end);
+    const mdia = kids.find((b) => b.type === 'mdia');
+    if (!mdia) continue;
+    const mk = boxesIn(moov, mdia.body, mdia.end);
+    const hdlr = mk.find((b) => b.type === 'hdlr');
+    if (!hdlr || fourcc(moov, hdlr.body + 8) !== 'vide') continue;
+    const mdhd = mk.find((b) => b.type === 'mdhd');
+    const mediaScale = mdhd ? u32(moov, mdhd.body + (moov[mdhd.body] === 1 ? 20 : 12)) : 0;
+    const edts = kids.find((b) => b.type === 'edts');
+    const elst = edts && boxesIn(moov, edts.body, edts.end).find((b) => b.type === 'elst');
+    if (!elst || !mediaScale || !movieScale) return 0;
+    const v1 = moov[elst.body] === 1;
+    const count = u32(moov, elst.body + 4);
+    const step = v1 ? 20 : 12;
+    let delay = 0;
+    let shown: { media: number; rate: number } | null = null;
+    for (let i = 0; i < count; i++) {
+      const at = elst.body + 8 + i * step;
+      if (at + step > elst.end) break;
+      const seg = v1 ? u64(moov, at) : u32(moov, at);
+      const raw = v1 ? u64(moov, at + 8) : u32(moov, at + 4);
+      /* 미디어 시각 −1(빈 조각) — 32/64 비트 부호 */
+      const media = raw >= (v1 ? 2 ** 63 : 2 ** 31) ? -1 : raw;
+      if (media < 0) {
+        if (shown) continue;
+        delay += seg / movieScale;
+        continue;
+      }
+      if (shown) return 0;
+      shown = { media, rate: u32(moov, at + (v1 ? 16 : 8)) / 65536 };
+    }
+    if (!shown || shown.rate !== 1) return 0;
+    return delay - shown.media / mediaScale;
+  }
+  return 0;
 }
 
 /** QuickTime 메타(keys · ilst)의 값 — 글 · 정수 · 실수만 */

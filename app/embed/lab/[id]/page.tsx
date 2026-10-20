@@ -25,6 +25,7 @@ export default async function LabEmbedPage({ params }: { params: Promise<{ id: s
   const meta = sample.meta;
   return (
     <LabEmbed
+      id={id}
       result={parsed}
       ground={meta?.ground ?? 'mound'}
       heightCm={meta?.heightCm ?? (sample.ownerId === user.id ? (user.heightCm ?? null) : null)}

@@ -14,10 +14,16 @@ export const VIDEO_BUCKET = 'pitch-videos';
 export const LIBRARY_PREFIX = 'library';
 
 /**
- * 업로드 가능한 최대 용량 — 투구 기록 · 구속 측정 · 라이브러리. 버킷(pitch-videos) 한도는 2026-10-09 부터 150MB 라(투구 분석 슬로모션,
- * lib/pitch-lab-meta.ts LAB_MAX_VIDEO_BYTES) 이 50MB 는 서버가 서명 주소를 줄 때 막는 값이다.
+ * 회원이 올리는 영상 한도 — 투구 기록(웹). 버킷(pitch-videos) 한도는 2026-10-20 부터 500MB 라(관리자 · 투구 분석 슬로모션
+ * lib/pitch-lab-meta.ts LAB_MAX_VIDEO_BYTES 150MB) 이 50MB 는 서버가 서명 주소를 줄 때 막는 값이다.
  */
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
+/**
+ * 관리자가 올리는 영상 한도 — 버킷(pitch-videos) 한도를 2026-10-20 500MB 로 올렸다(김민: 관리자는 500MB).
+ * 투구 기록(관리자 자료는 늘 서버) · 구속 측정 클립 · 세션 녹화 조각 · 라이브러리. 회원은 그대로 MAX_VIDEO_BYTES.
+ */
+export const ADMIN_MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+export const videoLimitOf = (role: string | null | undefined) => (role === 'ADMIN' ? ADMIN_MAX_VIDEO_BYTES : MAX_VIDEO_BYTES);
 
 /**
  * 프로필 사진의 최대 용량.
@@ -412,29 +418,35 @@ export function isLibraryPath(path: string) {
  * (2026-10-13 김민 — 서버 전송량을 줄이려고). 촬영 편집기는 원본을 그대로 쓴다.
  */
 export const LIBRARY_SMALL_PREFIX = 'library-720';
+/**
+ * 새 앱(Expo)용 720p HEVC 판 — 'library-hevc/<uuid>.mp4'. npm run library:bundle -- --hevc 가 올린다(2026-10-20 김민: "폰은 720p HEVC").
+ * 같은 화질에 H.264 판의 절반 남짓(영상 10개 시험 −56%). 웹은 H.264 판 그대로(윈도 크롬 등이 HEVC 를 못 푼다).
+ */
+export const LIBRARY_HEVC_PREFIX = 'library-hevc';
 
-export function smallLibraryPath(path: string): string | null {
+export function smallLibraryPath(path: string, prefix: string = LIBRARY_SMALL_PREFIX): string | null {
   const m = /^library\/([\w-]{1,64})\.\w+$/.exec(path);
-  return m ? `${LIBRARY_SMALL_PREFIX}/${m[1]}.mp4` : null;
+  return m ? `${prefix}/${m[1]}.mp4` : null;
 }
 
-/* 저장소에 있는 줄인 판 목록 — 10분 붙들어 둔다(새로 줄여 올린 것은 그 뒤에 쓰인다) */
-let smallCopies: { at: number; set: Promise<Set<string>> } | null = null;
+/* 저장소에 있는 줄인 판 목록 — 폴더마다 10분 붙들어 둔다(새로 줄여 올린 것은 그 뒤에 쓰인다) */
+const smallCopies = new Map<string, { at: number; set: Promise<Set<string>> }>();
 
-export function smallLibraryCopies(): Promise<Set<string>> {
-  if (smallCopies && Date.now() - smallCopies.at < 10 * 60 * 1000) return smallCopies.set;
+export function smallLibraryCopies(prefix: string = LIBRARY_SMALL_PREFIX): Promise<Set<string>> {
+  const kept = smallCopies.get(prefix);
+  if (kept && Date.now() - kept.at < 10 * 60 * 1000) return kept.set;
   const set = (async () => {
     const found = new Set<string>();
     const bucket = getClient().storage.from(VIDEO_BUCKET);
     for (let offset = 0; ; offset += 1000) {
-      const { data, error } = await bucket.list(LIBRARY_SMALL_PREFIX, { limit: 1000, offset });
+      const { data, error } = await bucket.list(prefix, { limit: 1000, offset });
       if (error || !data) throw new Error(error?.message ?? '줄인 영상 목록을 못 읽었어요');
-      for (const f of data) found.add(`${LIBRARY_SMALL_PREFIX}/${f.name}`);
+      for (const f of data) found.add(`${prefix}/${f.name}`);
       if (data.length < 1000) break;
     }
     return found;
   })();
-  smallCopies = { at: Date.now(), set };
-  set.catch(() => (smallCopies = null));
+  smallCopies.set(prefix, { at: Date.now(), set });
+  set.catch(() => smallCopies.delete(prefix));
   return set;
 }

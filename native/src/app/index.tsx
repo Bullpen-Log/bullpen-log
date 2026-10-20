@@ -10,7 +10,7 @@ import {
   type ComponentType,
   type Ref,
 } from 'react';
-import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, StyleSheet, Text, View } from 'react-native';
 import {
   WebView,
   type WebViewMessageEvent,
@@ -32,7 +32,8 @@ import { TrainingTab, resetTrainingCache } from '~/training/tab';
 import { resetPitchTodayCache } from '~/pitch/today-card';
 import { resetVelocityDayCache } from '~/pitch/velocity-day';
 import { resetNutritionStore } from '~/nutrition/api';
-import { useWebNav } from '~/shell/web-nav';
+import { useWebNav, webArrived } from '~/shell/web-nav';
+import { resetFavorites } from '~/training/favorites';
 import { setMenu, useMenu, type MenuGroup } from '~/shell/menu-store';
 import { adoptWebValues, cacheClear, loadJson, saveJson } from '~/lib/store';
 import { onPrefsChange, PREF_KEYS, reloadPrefs } from '~/lib/prefs';
@@ -46,6 +47,7 @@ import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
 import { TabPager } from '~/shell/tab-pager';
 import { ClockVeil } from '~/shell/clock-veil';
+import { Press } from '~/shell/press';
 
 type WebViewHandle = { injectJavaScript(script: string): void };
 /* react-native-webview 14 의 타입은 ref 를 안 받지만 실제 부품은 forwardRef 다(velocity/engine.tsx 와 같다) */
@@ -81,6 +83,7 @@ const NATIVE_ROUTES = [
   /^\/admin(\/(support|community|patch-notes(\/[\w-]+)?|notice(\?id=[\w-]+)?))?$/,
   /^\/admin\/shoot(\/\d+(\?at=[\w%.-]+)?)?$/,
   /^\/admin\/velocity(\/(upload|\d{4}-\d{2}-\d{2}))?$/,
+  /^\/velocity\?mode=(speed|abs)$/,
   /^\/lab(\/guide|\/[0-9a-f-]{36})?(\?[\w=&%.-]*)?$/,
   /^\/login\?native=1$/,
   /^\/(signup|account)$/,
@@ -101,6 +104,8 @@ function nativeOfWeb(href: string): string | null {
   const setup: Record<string, string> = { '/videos/setup': '/setup/pitch', '/training/setup': '/setup/training', '/nutrition/setup': '/setup/nutrition' };
   if (setup[path]) return setup[path];
   if (path === '/workout/warmup') return '/warmup';
+  /* 웹 ABS 판정 → 앱 카메라 화면의 ABS 모드(앱 카메라 · 2배 · 손떨림 보정 — 웹뷰 카메라보다 정확) */
+  if (path === '/abs') return '/velocity?mode=abs';
   const sp = new URLSearchParams(q ?? '');
   const view = path === '/coach' ? sp.get('view') : null;
   /* '그날 분석'(?date=YYYY-MM-DD)은 그 날짜째 — 네이티브3 분석 화면이 받는다 */
@@ -155,6 +160,8 @@ const OLD_VELOCITY_SNOOZE = 'bullpen-old-velocity-snooze';
 let askedOldVelocity = false;
 
 const isLoginPath = (p: string) => p === '/login' || p.startsWith('/login/') || p === '/signup';
+/** 웹 체크인 흐름(app/(session)/checkin) — 탭 막대가 없는 화면 */
+const isCheckinPath = (p: string) => p === '/checkin' || p.startsWith('/checkin/');
 
 /** 로그아웃 — 앞사람 기록(메모리 · 폰)을 지운다. 다음 사람이 로그인하면 새로 받는다 */
 function resetAccount() {
@@ -166,6 +173,7 @@ function resetAccount() {
   resetHomeCache();
   resetNutritionStore();
   resetTrainingCache();
+  resetFavorites();
   resetPitchTodayCache();
   resetVelocityDayCache();
   resetImported();
@@ -331,7 +339,11 @@ export default function SiteScreen() {
     goWeb(href);
   };
   const goTab = (href: string) => {
-    const t = tabs.find((x) => x.href === href);
+    /*
+     * 쿼리 없는 탭 주소도 그 탭으로 — 트레이닝 탭의 주소는 '/training?view=home' 인데 운동을 마치거나 트레이닝 첫 설정을 끝낸 뒤 '/training' 으로 보내
+     * 짝을 못 찾고 웹 '오늘 운동' 화면이 열렸다(2026-10-20 대조 검토)
+     */
+    const t = tabs.find((x) => x.href === href) ?? (href.includes('?') ? undefined : tabs.find((x) => x.href.split('?')[0] === href));
     if (t) pressTab(t);
     else openWeb(href);
   };
@@ -442,6 +454,7 @@ export default function SiteScreen() {
     if (msg.t === 'path' && typeof msg.path === 'string') {
       setPath(msg.path);
       setSearch(typeof msg.search === 'string' ? msg.search : '');
+      webArrived(msg.path, typeof msg.search === 'string' ? msg.search : '');
       return;
     }
     if (msg.t === 'tabbar') return setBarOn(msg.on === true);
@@ -494,7 +507,7 @@ export default function SiteScreen() {
         <Text style={[styles.body, dark && styles.mutedDark]}>
           연결되면 다시 불러와 주세요.
         </Text>
-        <Pressable
+        <Press
           accessibilityRole="button"
           style={styles.button}
           onPress={() => {
@@ -504,7 +517,7 @@ export default function SiteScreen() {
           }}
         >
           <Text style={styles.buttonText}>다시 불러오기</Text>
-        </Pressable>
+        </Press>
       </View>
     );
   }
@@ -565,7 +578,11 @@ export default function SiteScreen() {
         웹 창(설정 · 내 정보 — 웹 틀의 폴더 모양 창)이 앞에 떠 있는 동안은 숨긴다 — 그 창을 닫는 바깥 막은 아래쪽 띠뿐인데 이 막대가 그 띠를
         덮어, 앱에서는 창을 닫을 자리가 없었다(2026-10-18 시뮬레이터에서 확인). 창이 닫히면 웹이 알려(webfront false) 다시 보인다.
       */}
-      {barOn && !webFront ? (
+      {/*
+        체크인(웹 (session) 흐름)으로 갈 때는 앱이 주소를 정하는 그 순간 숨긴다 — 웹 틀이 떨어져 '막대 끔'을 알려 오기 전까지 체크인 화면 위에
+        막대가 같이 보였다(2026-10-20 김민: "체크인 고치기를 누르면 체크인과 하단 바가 같이 나온다").
+      */}
+      {barOn && !webFront && !isCheckinPath(path) ? (
         <TabBar
           tabs={tabs}
           active={showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : showTraining ? (trainingTab?.href ?? active) : active}

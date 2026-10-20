@@ -3,14 +3,13 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useTransition, type ReactNode } from 'react';
 import { Button } from '@/components/ui';
-import { Chips, MultiChips, OptionCards } from '@/components/onboarding/choices';
+import { Chips, OptionCards } from '@/components/onboarding/choices';
 import { BurnInsert } from '@/components/onboarding/insert-cards';
 import { ProblemLine, StepCard, TextButton } from '@/components/onboarding/step-card';
 import { useStepWizard } from '@/components/onboarding/use-step-wizard';
 import { finishTrainingSetup } from '@/app/actions/training-setup';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { BASELINE_WORKOUT_FREQ, THROWING_HANDS } from '@/lib/baseline';
-import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import { TRAINING_LEVELS } from '@/lib/report/personalize';
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 import {
@@ -26,7 +25,7 @@ import {
 } from '@/lib/training/setup-answers';
 
 /**
- * 트레이닝 첫 설정 화면 — 경력 → 웨이트 횟수 → 장비 → 하루 운동 시간 → [던지는 손] → [운동 소모] → 요약 → 저장.
+ * 트레이닝 첫 설정 화면 — 경력 → 웨이트 횟수 → 하루 운동 시간 → [던지는 손] → [운동 소모] → 요약 → 저장.
  * 영양 첫 설정(app/(app)/nutrition/setup/setup-wizard.tsx)과 같은 모양: 한 화면에 한 질문(StepCard, brand 없음), 뼈대는
  * useStepWizard(components/onboarding/use-step-wizard.ts). 답의 차례 · 검사는 lib/training/setup-answers.ts.
  *
@@ -91,20 +90,6 @@ export function TrainingSetupWizard({
     if (first?.dataset.field) focusField(first.dataset.field);
   }, [step, focusField]);
 
-  function toggleEquipment(value: string, on: boolean) {
-    w.patch({
-      ownedEquipment: on
-        ? [...a.ownedEquipment.filter((e) => e !== value), value]
-        : a.ownedEquipment.filter((e) => e !== value),
-      /* 장비를 하나라도 켜면 '맨몸뿐'이 아니다 */
-      bodyOnly: on ? false : a.bodyOnly,
-    });
-  }
-  function toggleBodyOnly(on: boolean) {
-    /* '맨몸뿐이에요'를 켜면 골라 둔 장비를 비운다 — 둘이 같이 켜져 있을 수 없다 */
-    w.patch({ bodyOnly: on, ownedEquipment: on ? [] : a.ownedEquipment });
-  }
-
   function save() {
     const bad = checkTrainingAnswers(a, { askHand });
     if (bad) return w.setProblem(bad);
@@ -137,11 +122,6 @@ export function TrainingSetupWizard({
         return {
           title: '일주일에 몇 번 해요?',
           desc: '기록이 쌓이기 전까지 운동 부하 지수를 이 값으로 셈해요.',
-        };
-      case 'equipment':
-        return {
-          title: '어떤 장비가 있어요?',
-          desc: '없는 장비로 하는 운동은 빼고 짜요. 집에서 하는 날은 일정을 만들 때 오늘 쓸 것만 다시 골라요.',
         };
       case 'minutes':
         return {
@@ -259,36 +239,6 @@ export function TrainingSetupWizard({
             invalid={invalid('baselineWorkoutFreq')}
             hint="이 답과 하루 운동 시간으로 첫날부터 운동 부하 지수를 내요."
           />
-        )}
-
-        {/*
-         * 장비 — 여러 개 고르기. 하나도 안 고르면 '맨몸'만 저장되어 장비 운동이 모두 빠지므로(readOwnedEquipment 와 같은 규칙),
-         * 빈 채로 넘어가지 않고 '맨몸뿐이에요'를 따로 누르게 한다. 그 규칙은 글로도 적는다.
-         */}
-        {panel(
-          'equipment',
-          <div className="space-y-5">
-            <MultiChips
-              name="ownedEquipment"
-              label="가진 장비"
-              options={SELECTABLE_EQUIPMENT.map((e) => ({ value: e, label: e }))}
-              values={a.ownedEquipment}
-              onToggle={toggleEquipment}
-              hint="장비가 없으면 아래 ‘맨몸뿐이에요’를 눌러요. 장비가 생기면 트레이닝 설정에서 더해요."
-            />
-            <div className="border-t border-line pt-4">
-              <p className="mb-2 text-xs font-medium text-muted">
-                장비가 하나도 없으면
-              </p>
-              <MultiChips
-                name="bodyOnly"
-                label="맨몸뿐이에요"
-                options={[{ value: 'on', label: '맨몸뿐이에요' }]}
-                values={a.bodyOnly ? ['on'] : []}
-                onToggle={(_v, on) => toggleBodyOnly(on)}
-              />
-            </div>
-          </div>
         )}
 
         {panel(

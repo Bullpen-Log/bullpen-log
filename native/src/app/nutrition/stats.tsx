@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppNutritionStats } from '@/app/actions/app-nutrition';
 import { ageRule } from '@/lib/nutrition/age';
@@ -13,7 +13,7 @@ import { computeTargets } from '@/lib/nutrition/targets';
 import { STEP_KCAL, goalCopy, planOnSave } from '@/lib/nutrition/weight-goal';
 import { fromWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
 import { Bar, BarButton, LoadState, call, useLoad } from '~/community/parts';
-import { refreshNutritionDays } from '~/nutrition/api';
+import { SNOOZE_KEY, isSnoozed, refreshNutritionDays } from '~/nutrition/api';
 import { WeekChart, WeightTrend } from '~/nutrition/stats/charts';
 import { GoalSheet, kgText, paceText } from '~/nutrition/stats/goal-sheet';
 import { cacheGet, cacheSet } from '~/lib/store';
@@ -22,6 +22,7 @@ import { useWeightUnit } from '~/lib/weight-unit';
 import { READABLE } from '~/lib/layout';
 import { WeightForecast } from '~/shell/weight-forecast';
 import { MacroBar } from '~/setup/nutrition-steps';
+import { Press } from '~/shell/press';
 
 /**
  * 영양 목표 · 통계(앱 화면) — 웹 영양 탭의 통계 열(app/(app)/nutrition/nutrition-view.tsx: 체중 카드 → 최근 7일 → 내 계획)과 목표 창을 옮겼다.
@@ -35,8 +36,6 @@ type Result = { ok: true } | { ok: false; error: string };
 
 
 /* '그대로 둘게요' — 웹은 그 브라우저 localStorage 에 14일, 앱은 받아 둔 값 칸에 같은 꼴('오늘:다음 조정')로(로그아웃하면 지워져 다음 사람에게 안 남는다) */
-const SNOOZE_KEY = 'weight-suggest-snooze';
-const SNOOZE_DAYS = 14;
 
 const STEP_LABEL = {
   raise: `하루 +${STEP_KCAL}kcal 올리기`,
@@ -89,9 +88,9 @@ export default function NutritionStatsScreen() {
               <Text style={{ flex: 1, color: c.ink, fontSize: 15 }}>
                 {data.hasProfile ? '새 계획 화면으로 목표를 다시 정해 볼까요?' : '열 가지 질문으로 내 계획을 만들어요.'}
               </Text>
-              <Pressable accessibilityRole="button" onPress={() => router.push('/setup/nutrition' as Href)} style={[st.smallBtn, { backgroundColor: c.sky }]}>
+              <Press accessibilityRole="button" onPress={() => router.push('/setup/nutrition' as Href)} style={[st.smallBtn, { backgroundColor: c.sky }]}>
                 <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>시작하기</Text>
-              </Pressable>
+              </Press>
             </View>
           ) : null}
 
@@ -165,12 +164,7 @@ function WeightCard({
     unit,
     isToday: day.date === day.today,
   });
-  const snoozed = (() => {
-    if (!plan.suggestion || !snooze) return false;
-    const [since, next] = snooze.split(':');
-    const days = Math.round((Date.parse(`${day.today}T00:00:00.000Z`) - Date.parse(`${since}T00:00:00.000Z`)) / 86_400_000);
-    return Number(next) === plan.suggestion.nextAdjust && days >= 0 && days < SNOOZE_DAYS;
-  })();
+  const snoozed = isSnoozed(snooze, day.today, plan.suggestion?.nextAdjust);
 
   /* '유지로 바꾸기'를 누르면 하루 목표가 얼마가 되나 — 목표 창과 같은 규칙으로 미리 셈한다(웹과 같다) */
   const keepProfile = { goal: 'maintain' as const, activity: day.profile.activity, weeklyRateKg: null, kcalTarget: day.profile.kcalTarget };
@@ -255,9 +249,9 @@ function WeightCard({
           <Text style={{ color: c.muted, fontSize: 15 }}>{unit}</Text>
         </View>
         {changed ? (
-          <Pressable accessibilityRole="button" onPress={() => void saveWeightNow()} disabled={busy} style={[st.weightSave, { backgroundColor: c.sky }, busy && { opacity: 0.5 }]}>
+          <Press accessibilityRole="button" onPress={() => void saveWeightNow()} disabled={busy} style={[st.weightSave, { backgroundColor: c.sky }, busy && { opacity: 0.5 }]}>
             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>{busy ? '저장 중' : '저장'}</Text>
-          </Pressable>
+          </Press>
         ) : null}
       </View>
 
@@ -272,27 +266,27 @@ function WeightCard({
             snoozed ? (
               <View style={st.row}>
                 <Text style={[st.small, { color: c.muted }]}>그대로 두기로 했어요.</Text>
-                <Pressable accessibilityRole="button" onPress={() => writeSnooze(null)} hitSlop={8} style={st.link}>
+                <Press accessibilityRole="button" onPress={() => writeSnooze(null)} hitSlop={8} style={st.link}>
                   <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>다시 보기</Text>
-                </Pressable>
+                </Press>
               </View>
             ) : (
               <View style={{ gap: 6, paddingTop: 4 }}>
-                <Pressable
+                <Press
                   accessibilityRole="button"
                   onPress={() => void act()}
                   disabled={busy}
                   style={[st.primary, { backgroundColor: c.sky }, busy && { opacity: 0.5 }]}
                 >
                   <Text style={st.primaryText}>{busy ? '바꾸는 중' : STEP_LABEL[copy.action]}</Text>
-                </Pressable>
+                </Press>
                 {copy.action === 'maintain' && keepBase !== t.base ? (
                   <Text style={[st.small, st.center, { color: c.muted }]}>
                     하루 목표가 {kcalText(t.base)} → {kcalText(keepBase)}kcal로 바뀌어요
                   </Text>
                 ) : null}
                 {copy.actionNote ? <Text style={[st.small, st.center, { color: c.muted }]}>{copy.actionNote}</Text> : null}
-                <Pressable
+                <Press
                   accessibilityRole="button"
                   disabled={busy}
                   onPress={() => {
@@ -304,7 +298,7 @@ function WeightCard({
                   <Text style={{ color: c.muted, fontSize: 15, fontWeight: '600' }}>
                     {copy.action === 'maintain' ? '새 목표 정하기' : '그대로 둘게요'}
                   </Text>
-                </Pressable>
+                </Press>
               </View>
             )
           ) : null}
@@ -364,13 +358,13 @@ function PlanCard({ day, unit, onOpenGoal, c }: { day: Stats; unit: WeightUnit; 
           ) : null}
           {parts.length > 0 ? <Text style={[st.small, { color: c.muted }]}>{parts.join(' · ')}</Text> : null}
         </View>
-        <Pressable accessibilityRole="button" onPress={onOpenGoal} style={[st.smallBtn, { backgroundColor: c.chip }]}>
+        <Press accessibilityRole="button" onPress={onOpenGoal} style={[st.smallBtn, { backgroundColor: c.chip }]}>
           <Text style={{ color: c.ink, fontSize: 14, fontWeight: '600' }}>고치기</Text>
-        </Pressable>
+        </Press>
       </View>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={st.link}>
+      <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={st.link}>
         <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>{open ? '계산 내역 접기' : '계산 내역 보기'}</Text>
-      </Pressable>
+      </Press>
       {open ? (
         <View style={{ gap: 10 }}>
           <View style={st.statRow}>

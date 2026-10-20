@@ -39,12 +39,14 @@ import { usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { drainOutbox, onSent, outbox, withPending, type ShownSet } from '~/workout/outbox';
-import { NoteBox, NumberPad, RestPill, RirQuestion, SetDots } from '~/workout/parts';
+import { NoteBox, NumberPad, RestPill, RirQuestion, SetDots, clockText } from '~/workout/parts';
+import { useLiveActivity } from '~/shell/live-activity';
 import { ExerciseMedia } from '~/armcare/parts';
 import { HistoryPanel } from '~/training/history';
 import { FinishSheet, ListSheet, SwapSheet } from '~/workout/sheets';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { READABLE, useBarSide } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 운동 진행(앱 화면) — 웹 app/(session)/workout/run/session-client.tsx 를 옮겼다. 사이트의 운동 화면이 앱(BullpenNative/2 부터)이면 이 화면을
@@ -99,7 +101,11 @@ export default function WorkoutScreen() {
       {failed ? (
         <>
           <Text style={[s.body, { color: c.ink, textAlign: 'center' }]}>{failed}</Text>
-          <Pressable
+          {/* 웹 운동 화면 오류(app/(session)/error.tsx)와 같은 안심 한 줄 — 남긴 세트는 폰 대기열에 있다(~/workout/outbox) */}
+          <Text style={[s.small, { color: c.muted, textAlign: 'center' }]}>
+            남긴 세트는 지워지지 않았어요. 신호가 없을 때 남긴 세트도 폰에 있다가 저절로 보내져요.
+          </Text>
+          <Press
             onPress={() => {
               setFailed(null);
               setTries((n) => n + 1);
@@ -108,10 +114,10 @@ export default function WorkoutScreen() {
             style={[s.pill, { backgroundColor: c.sky }]}
           >
             <Text style={[s.bodyBold, { color: '#fff' }]}>다시 불러오기</Text>
-          </Pressable>
-          <Pressable onPress={() => router.back()} accessibilityRole="button" style={s.pill}>
+          </Press>
+          <Press onPress={() => router.back()} accessibilityRole="button" style={s.pill}>
             <Text style={[s.bodyBold, { color: c.muted }]}>닫기</Text>
-          </Pressable>
+          </Press>
         </>
       ) : (
         <ActivityIndicator />
@@ -292,6 +298,25 @@ function Run({
 
   /* 권장 쉬는 시간 — 마지막 세트를 한 운동의 처방 휴식. 참고 글로만(2026-10-12 사용자: 링 · 소리 · 알림 없음) */
   const restTarget = lastSet ? (list.find((e) => e.id === lastSet.exerciseId)?.restSeconds ?? null) : null;
+
+  /*
+   * 다이나믹 아일랜드 · 잠금 화면(2026-10-20 김민) — 세트를 남기면 쉬는 시계(이 화면 시계와 같이 마지막 세트부터 올라감),
+   * 그 밖엔 '운동 중' 전체 시간(마치기 창의 운동 시간과 같은 기준: 이 판을 연 때 − 앞서 한 시간). 화면을 나가면 거둔다.
+   */
+  const startedMs = Date.parse(openedAt) - priorSeconds * 1000;
+  const setLine = ex.plannedSets ? `세트 ${Math.min(mine.length, ex.plannedSets)}/${ex.plannedSets}` : `${mine.length}세트`;
+  useLiveActivity(
+    rest != null && lastAt
+      ? {
+          kind: 'rest',
+          symbol: 'timer',
+          label: '휴식',
+          title: ex.title,
+          detail: restTarget != null ? `권장 ${clockText(restTarget)}` : setLine,
+          since: Date.parse(lastAt),
+        }
+      : { kind: 'work', symbol: 'figure.strengthtraining.traditional', label: '운동 중', title: ex.title, detail: setLine, since: startedMs }
+  );
 
   const setCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -673,13 +698,13 @@ function Run({
       <KeyboardAvoidingView behavior="padding" style={s.fill}>
         {/* ─────────── 위: 보는 곳 ─────────── */}
         <View style={[s.header, { paddingTop: inset.top + 8, backgroundColor: c.card, borderBottomColor: c.line }]}>
-          <Pressable onPress={() => leave(TRAINING_HOME_HREF)} accessibilityRole="button" accessibilityLabel="나가기" style={s.iconBtn}>
+          <Press onPress={() => leave(TRAINING_HOME_HREF)} accessibilityRole="button" accessibilityLabel="나가기" style={s.iconBtn}>
             <View style={[s.circle, { backgroundColor: c.chip }]}>
               <SymbolView name="xmark" size={14} weight="semibold" tintColor={c.muted} />
             </View>
-          </Pressable>
+          </Press>
           {/* 진행 막대 · 목록 단추 — 누르면 오늘 목록. 운동마다 한 칸이 세트를 남길수록 찬다 */}
-          <Pressable onPress={() => openSheet('list')} accessibilityRole="button" accessibilityLabel="오늘 운동 목록 열기" style={s.progress}>
+          <Press onPress={() => openSheet('list')} accessibilityRole="button" accessibilityLabel="오늘 운동 목록 열기" style={s.progress}>
             <View style={[s.listPill, { backgroundColor: c.sky + '1f', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
               {/* 웹 ListOrdered 그림 */}
               <SymbolView name="list.number" size={13} tintColor={c.sky} />
@@ -703,10 +728,10 @@ function Run({
                 })}
               </View>
             </View>
-          </Pressable>
-          <Pressable onPress={openFinish} disabled={ending} accessibilityRole="button" style={[s.endPill, { backgroundColor: c.chip }]}>
+          </Press>
+          <Press onPress={openFinish} disabled={ending} accessibilityRole="button" style={[s.endPill, { backgroundColor: c.chip }]}>
             <Text style={[s.smallBold, { color: c.ink }]}>{ending ? '정리 중' : '운동 종료'}</Text>
-          </Pressable>
+          </Press>
         </View>
 
         {/* 못 보낸 세트가 있을 때만 — 신호가 없다는 것과 세트는 안전하다는 것을 같이 말한다 */}
@@ -726,7 +751,7 @@ function Run({
           <Text style={[s.smallBold, { color: c.muted }]}>{ex.category}</Text>
           <View style={s.titleRow}>
             <Text style={[s.title, { color: c.ink }]}>{ex.title}</Text>
-            <Pressable
+            <Press
               onPress={() => void toggleStar()}
               disabled={starring}
               accessibilityRole="button"
@@ -735,11 +760,11 @@ function Run({
               style={s.iconBtn}
             >
               <SymbolView name={favorites.has(ex.id) ? 'star.fill' : 'star'} size={24} tintColor={favorites.has(ex.id) ? c.sky : c.muted} />
-            </Pressable>
+            </Press>
             {/* 세트를 남긴 운동이면 [추가] — 하던 운동은 두고 바로 뒤에 더한다 */}
-            <Pressable onPress={() => openSheet('swap')} accessibilityRole="button" style={[s.chipBtn, { backgroundColor: c.card }]}>
+            <Press onPress={() => openSheet('swap')} accessibilityRole="button" style={[s.chipBtn, { backgroundColor: c.card }]}>
               <Text style={[s.smallBold, { color: c.ink }]}>{mine.length > 0 ? '＋ 추가' : '⇄ 교체'}</Text>
-            </Pressable>
+            </Press>
           </View>
           {ex.prescription ? (
             <Text style={[s.body, { color: c.muted }]}>
@@ -752,9 +777,9 @@ function Run({
               <Text style={[s.tag, { color: c.ink, backgroundColor: c.chip }]}>선택</Text>
               <Text style={[s.small, { color: c.muted, flex: 1 }]}>메디신볼을 못 던지면 건너뛰어도 돼요</Text>
               {at < list.length - 1 ? (
-                <Pressable onPress={() => goTo(at + 1)} accessibilityRole="button" style={s.textBtn}>
+                <Press onPress={() => goTo(at + 1)} accessibilityRole="button" style={s.textBtn}>
                   <Text style={[s.smallBold, { color: c.sky }]}>건너뛰기</Text>
-                </Pressable>
+                </Press>
               ) : null}
             </View>
           ) : null}
@@ -786,23 +811,23 @@ function Run({
           {/* 자세 · 영상과 내 기록 — 웹 session-client 와 같은 두 칸(자세 영상이 없는 운동은 내 기록 한 칸). 내 기록은 지금 판을 뺀 지난 기록 */}
           <View style={s.formRow}>
             {hasForm ? (
-              <Pressable
+              <Press
                 onPress={() => setShowForm((v) => !v)}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: showForm }}
                 style={[s.formBtn, { backgroundColor: c.card }]}
               >
                 <Text style={[s.smallBold, { color: showForm ? c.sky : c.ink }]}>{showForm ? '자세 설명 접기' : 'ⓘ 자세·영상 보기'}</Text>
-              </Pressable>
+              </Press>
             ) : null}
-            <Pressable
+            <Press
               onPress={() => setShowHistory((v) => !v)}
               accessibilityRole="button"
               accessibilityState={{ expanded: showHistory }}
               style={[s.formBtn, { backgroundColor: c.card }]}
             >
               <Text style={[s.smallBold, { color: showHistory ? c.sky : c.ink }]}>{showHistory ? '내 기록 접기' : '내 기록'}</Text>
-            </Pressable>
+            </Press>
           </View>
           {showForm && hasForm ? (
             <View style={[s.formBox, { backgroundColor: c.card, boxShadow: c.float }]}>
@@ -846,7 +871,7 @@ function Run({
                         fixingThis ? { backgroundColor: c.sky + '14' } : null,
                       ]}
                     >
-                      <Pressable
+                      <Press
                         onPress={() => startEdit(x)}
                         accessibilityRole="button"
                         accessibilityState={{ selected: fixingThis }}
@@ -871,15 +896,15 @@ function Run({
                           </View>
                         ) : null}
                         <SymbolView name="pencil" size={14} tintColor={fixingThis ? c.sky : c.muted} />
-                      </Pressable>
-                      <Pressable
+                      </Press>
+                      <Press
                         onPress={() => void drop(x)}
                         accessibilityRole="button"
                         accessibilityLabel={`${i + 1}세트 지우기`}
                         style={s.iconBtn}
                       >
                         <SymbolView name="trash" size={16} tintColor={c.muted} />
-                      </Pressable>
+                      </Press>
                     </View>
                   );
                 })}
@@ -915,7 +940,7 @@ function Run({
                         >
                           <Text style={[s.stepText, { color: c.ink }]}>−</Text>
                         </Pressable>
-                        <Pressable
+                        <Press
                           onPress={() => {
                             setField(f.key);
                             setPad(true);
@@ -935,7 +960,7 @@ function Run({
                             {f.value === '' ? '—' : f.value}
                             <Text style={[s.small, { color: c.muted }]}> {f.unit}</Text>
                           </Text>
-                        </Pressable>
+                        </Press>
                         <Pressable
                           onPress={() => bump(f.key, 1)}
                           accessibilityRole="button"
@@ -957,7 +982,7 @@ function Run({
                       c={c}
                     />
                     {/* 다 넣었으면 — 무게면 다음 칸으로, 횟수까지 넣었으면 판을 접는다 */}
-                    <Pressable
+                    <Press
                       onPress={() => (field === 'weight' ? setField('count') : setPad(false))}
                       accessibilityRole="button"
                       style={[s.padOk, { height: short ? 40 : 48, backgroundColor: c.sky + '26' }]}
@@ -965,7 +990,7 @@ function Run({
                       <Text style={[s.bodyBold, { color: c.sky }]}>
                         {field === 'weight' ? `다음 · ${ex.isHold ? timeLabel : '횟수'} →` : '확인'}
                       </Text>
-                    </Pressable>
+                    </Press>
                   </View>
                 ) : null}
 
@@ -973,25 +998,25 @@ function Run({
                   editIndex >= 0 ? (
                     <View style={[s.editing, { backgroundColor: c.sky + '1a' }]}>
                       <Text style={[s.small, { color: c.sky, flex: 1 }]}>✎ {editIndex + 1}세트를 고치는 중이에요</Text>
-                      <Pressable onPress={endEdit} accessibilityRole="button" style={s.textBtn}>
+                      <Press onPress={endEdit} accessibilityRole="button" style={s.textBtn}>
                         <Text style={[s.smallBold, { color: c.sky }]}>그만두기</Text>
-                      </Pressable>
+                      </Press>
                     </View>
                   ) : suggestKg != null ? (
                     <View>
-                      <Pressable onPress={fillSuggested} accessibilityRole="button" style={s.fillBtn}>
+                      <Press onPress={fillSuggested} accessibilityRole="button" style={s.fillBtn}>
                         <Text style={[s.smallBold, { color: c.sky }]}>
                           ↺ 추천 {shown(suggestKg)}
                           {wUnit} 담기
                         </Text>
-                      </Pressable>
+                      </Press>
                       {/* 자유 운동의 추천은 까닭 한 줄 — 왜 올랐는지(안 올랐는지) 보여야 믿고 담는다 */}
                       {ex.suggestNote ? <Text style={[s.tiny, s.center, { color: c.muted }]}>{ex.suggestNote}</Text> : null}
                     </View>
                   ) : ex.last ? (
-                    <Pressable onPress={fillLast} accessibilityRole="button" style={s.fillBtn}>
+                    <Press onPress={fillLast} accessibilityRole="button" style={s.fillBtn}>
                       <Text style={[s.smallBold, { color: c.sky }]}>↺ 지난번 그대로 담기</Text>
-                    </Pressable>
+                    </Press>
                   ) : null
                 ) : null}
 
@@ -1012,15 +1037,15 @@ function Run({
             {/* 숫자판이 열려 있으면 운동 이동은 감춘다 — 지금 할 일은 숫자 넣기다 */}
             {!pad ? (
               <View style={s.navRow}>
-                <Pressable
+                <Press
                   onPress={() => goTo(at - 1)}
                   disabled={at === 0}
                   accessibilityRole="button"
                   style={[s.nav, { backgroundColor: c.chip, opacity: at === 0 ? 0.3 : 1 }]}
                 >
                   <Text style={[s.smallBold, { color: c.ink }]}>‹ 이전 운동</Text>
-                </Pressable>
-                <Pressable
+                </Press>
+                <Press
                   onPress={() => goTo(at + 1)}
                   disabled={nextTitle == null}
                   accessibilityRole="button"
@@ -1030,7 +1055,7 @@ function Run({
                   <Text numberOfLines={1} style={[s.smallBold, { color: c.ink }]}>
                     {nextTitle ? `다음 · ${nextTitle} ›` : '다음 운동 ›'}
                   </Text>
-                </Pressable>
+                </Press>
               </View>
             ) : null}
           </View>

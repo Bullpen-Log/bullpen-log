@@ -168,10 +168,11 @@ export async function createStage(
     dirty = true;
   });
   /*
-   * OrbitControls 는 손가락 스크롤을 모두 막는다(touch-action: none). 위아래는 화면
-   * 스크롤에 돌려준다 — 3D 가 화면을 크게 차지해도 쓸어서 내려갈 수 있게. 좌우로 끌면 돈다.
+   * 3D 위의 손가락은 모두 3D 가 받는다(touch-action: none). 예전엔 위아래를 화면 스크롤에 돌려줘(pan-y) 위아래로 돌리려 하면
+   * 화면이 밀리고, 앱 웹뷰에선 바깥 화면까지 끌려갔다(2026-10-20 김민: "스크롤 인식이 안 먹거나 전체 화면이 움직인다").
+   * 3D 칸은 화면의 절반 남짓이라 그 밖을 쓸어 내려간다(앱은 shell/scroll-lock 이 만지는 동안 바깥 스크롤을 멈춘다).
    */
-  renderer.domElement.style.touchAction = 'pan-y';
+  renderer.domElement.style.touchAction = 'none';
   /*
    * PC 마우스 휠도 화면 스크롤에 돌려준다 — 휠이 3D 위를 지나가면 스크롤이 멈추고 모델이 커졌다.
    * 확대는 Ctrl + 휠(노트북 터치패드의 두 손가락 벌리기도 이것으로 온다). OrbitControls 보다 먼저

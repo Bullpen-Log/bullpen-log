@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ScrollLockScope } from '~/shell/scroll-lock';
 import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, { Easing, FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { matchesSearch } from '@/lib/korean';
 import { summarizeSets } from '@/lib/workout/summarize';
+import { TRAINING_EFFORT_ASK, TRAINING_EFFORT_LEVELS, TRAINING_EFFORT_NOTE, trainingEffortLevel } from '@/lib/training-effort';
 import { equipmentLabel, type SwapMode } from '@/lib/workout/swap';
 import type { SwapChoices, SwapPick } from '@/app/actions/workout';
 import type { RunExercise } from '@/lib/workout/run-exercises';
@@ -11,11 +14,15 @@ import { rpc } from '~/lib/rpc';
 import type { Palette } from '~/lib/ui';
 import type { ShownSet } from './outbox';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 운동 진행 화면의 아래 시트 셋 — 오늘 목록(웹 exercise-sheet.tsx) · 마치기(finish-sheet.tsx) · 교체(swap-sheet.tsx). Sheet 는 트레이닝 운동 화면의 시트도 쓴다.
  * 아이폰 기본 시트(pageSheet)라 끌어내려 닫기가 저절로 온다.
  */
+/** 내용만큼 올라오는 시트가 내려가며 걷히는 시간 — 그 뒤에 onClose */
+const SHEET_OUT_MS = 200;
+
 export function Sheet({
   open,
   onClose,
@@ -24,6 +31,7 @@ export function Sheet({
   footer,
   children,
   c,
+  fit = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -32,23 +40,81 @@ export function Sheet({
   footer?: ReactNode;
   children: ReactNode;
   c: Palette;
+  /** 내용만큼만 올라오는 시트(뒤를 누르면 닫힘) — 짧은 내용에 화면을 다 덮는 pageSheet 는 빈 곳이 많았다(2026-10-20 김민) */
+  fit?: boolean;
 }) {
   const inset = useSafeAreaInsets();
+  /*
+   * 내용만큼 올라오는 시트는 뒤 어둠이 제자리에서 옅게 깔리고 카드만 밑에서 올라온다(아이폰 시트처럼). 예전엔 Modal 의 slide 가 어둠까지
+   * 통째로 밀어 올려 카드 위로 검은 판이 같이 올라왔다(2026-10-20 김민: "필요한 창만 나오는 게 아니라 창 위로 어두운 그림자도 같이 나와").
+   * 닫을 때도 카드가 내려가고 어둠이 걷힌 뒤에 onClose — 그동안 Modal 은 떠 있어야 해서 leaving 동안 내용만 걷는다(exiting 이 돈다).
+   */
+  const [leaving, setLeaving] = useState(false);
+  /* 닫았다가 다시 열면(open 을 받아 쓰는 곳) 걷어 둔 내용을 되돌린다 */
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) setLeaving(false);
+  }
+  const close = () => {
+    if (!fit) return onClose();
+    if (leaving) return;
+    setLeaving(true);
+    setTimeout(onClose, SHEET_OUT_MS);
+  };
+  const head = (
+    <View style={st.head}>
+      <View style={{ flex: 1 }}>
+        <Text style={[st.title, { color: c.ink }]}>{title}</Text>
+        {description ? <Text style={[st.desc, { color: c.muted }]}>{description}</Text> : null}
+      </View>
+      <Press onPress={close} accessibilityRole="button" accessibilityLabel="닫기" style={st.close}>
+        <SymbolView name="xmark.circle.fill" size={28} tintColor={c.muted} />
+      </Press>
+    </View>
+  );
+  if (fit)
+    return (
+      <Modal visible={open} transparent animationType="none" onRequestClose={close}>
+        {!leaving ? (
+          <>
+            <Animated.View entering={FadeIn.duration(220)} exiting={FadeOut.duration(SHEET_OUT_MS)} style={st.scrim}>
+              <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="닫기" />
+            </Animated.View>
+            <View style={st.fitWrap} pointerEvents="box-none">
+              <Animated.View
+                entering={SlideInDown.duration(320).easing(Easing.bezier(0.22, 1, 0.36, 1))}
+                exiting={SlideOutDown.duration(SHEET_OUT_MS).easing(Easing.in(Easing.ease))}
+                style={[st.fitCard, { backgroundColor: c.page, paddingBottom: footer ? 0 : Math.max(16, inset.bottom) }]}
+              >
+                <View style={[st.grabber, { backgroundColor: c.line }]} />
+                {head}
+                {/* 운동 창 안의 3D 근육 그림을 돌리는 동안 시트가 같이 굴러가지 않게(shell/scroll-lock) */}
+                <ScrollLockScope>
+                  {(scrollEnabled) => (
+                    <ScrollView style={st.fitScroll} scrollEnabled={scrollEnabled} keyboardShouldPersistTaps="handled" contentContainerStyle={[st.scroll, READABLE]}>
+                      {children}
+                    </ScrollView>
+                  )}
+                </ScrollLockScope>
+                {footer ? <View style={[st.footer, { paddingBottom: Math.max(16, inset.bottom), borderTopColor: c.line }]}>{footer}</View> : null}
+              </Animated.View>
+            </View>
+          </>
+        ) : null}
+      </Modal>
+    );
   return (
     <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
-        <View style={st.head}>
-          <View style={{ flex: 1 }}>
-            <Text style={[st.title, { color: c.ink }]}>{title}</Text>
-            {description ? <Text style={[st.desc, { color: c.muted }]}>{description}</Text> : null}
-          </View>
-          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="닫기" style={st.close}>
-            <SymbolView name="xmark.circle.fill" size={28} tintColor={c.muted} />
-          </Pressable>
-        </View>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[st.scroll, READABLE]}>
+        {head}
+        <ScrollLockScope>
+          {(scrollEnabled) => (
+        <ScrollView scrollEnabled={scrollEnabled} keyboardShouldPersistTaps="handled" contentContainerStyle={[st.scroll, READABLE]}>
           {children}
         </ScrollView>
+          )}
+        </ScrollLockScope>
         {footer ? <View style={[st.footer, { paddingBottom: Math.max(16, inset.bottom), borderTopColor: c.line }]}>{footer}</View> : null}
       </KeyboardAvoidingView>
     </Modal>
@@ -99,7 +165,7 @@ export function ListSheet({
         const here = i === at;
         return (
           <View key={ex.id} style={[st.listRow, { borderColor: here ? c.sky : c.line, backgroundColor: c.card }]}>
-            <Pressable onPress={() => onJump(i)} accessibilityRole="button" style={st.listMain}>
+            <Press onPress={() => onJump(i)} accessibilityRole="button" style={st.listMain}>
               <Text style={[st.listNo, { color: here ? c.sky : c.muted }]}>{i + 1}</Text>
               <View style={{ flex: 1 }}>
                 <Text numberOfLines={1} style={[st.listTitle, { color: here ? c.sky : c.ink, fontWeight: here ? '700' : '500' }]}>
@@ -109,7 +175,7 @@ export function ListSheet({
                   {done > 0 ? `${done}세트 남김 · 기록이 있어 못 빼요` : (ex.prescription ?? '아직')}
                 </Text>
               </View>
-            </Pressable>
+            </Press>
             <IconButton icon="chevron.up" a11y={`${ex.title} 위로`} disabled={busy || i === 0} onPress={() => move(i, -1)} c={c} />
             <IconButton
               icon="chevron.down"
@@ -162,15 +228,6 @@ function IconButton({
 
 /* ----------------------------- 마치기 ----------------------------- */
 
-/** 운동 체감 강도 기준표 — 웹 components/intensity-guide.tsx TRAINING_LEVELS 그대로(그 파일은 웹 부품이라 못 부른다) */
-export const TRAINING_LEVELS = [
-  { max: 2, label: '아주 가벼움', detail: '몸을 푸는 정도로 끝났어요. 끝나고도 피로가 거의 없어요.' },
-  { max: 4, label: '가벼움', detail: '땀은 났지만 여유가 많았어요. 같은 운동을 한 번 더 해도 될 것 같아요.' },
-  { max: 6, label: '보통', detail: '평소대로 제대로 한 날이에요. 끝날 즈음 지쳤지만 무리는 아니었어요.' },
-  { max: 8, label: '힘듦', detail: '후반부는 버티면서 했어요. 끝나고 한동안 쉬어야 했어요.' },
-  { max: 10, label: '최대', detail: '오늘 쓸 수 있는 힘을 다 썼어요. 한 세트도 더 못 할 것 같아요.' },
-] as const;
-
 /**
  * 마치기 직전 — 체감 강도(선택)와 느낀점. 강도를 안 고르면 축하 화면이 칩 하나로 한 번 더 묻는다(웹과 같다). 느낀점만 적고 강도가 없으면
  * 막는다(강도 없이 온 메모는 서버가 버린다). 못 보낸 세트가 있으면 마치기를 막는다 — 마치면 그 세트는 요약에서 빠지고 판이 닫힌다.
@@ -207,7 +264,7 @@ export function FinishSheet({
   const [openedAt] = useState(() => Date.now());
   const minutes = Math.max(0, Math.round((priorSeconds * 1000 + (openedAt - Date.parse(startedAt))) / 60000));
   const exerciseCount = summarizeSets(sets).length;
-  const level = intensity != null ? TRAINING_LEVELS.find((l) => intensity <= l.max) : null;
+  const level = intensity != null ? trainingEffortLevel(intensity) : null;
   const off = busy || memoNeedsIntensity || pendingCount > 0;
 
   const footer = (
@@ -228,9 +285,9 @@ export function FinishSheet({
       >
         <Text style={st.bigText}>{busy ? '정리 중' : '✓ 운동 마치기'}</Text>
       </Pressable>
-      <Pressable onPress={onClose} disabled={busy} accessibilityRole="button" style={st.textBtn}>
+      <Press onPress={onClose} disabled={busy} accessibilityRole="button" style={st.textBtn}>
         <Text style={[st.bodyBold, { color: c.sky }]}>더 하기</Text>
-      </Pressable>
+      </Press>
     </View>
   );
 
@@ -263,7 +320,9 @@ export function FinishSheet({
       {/* 밀대가 아니라 열 칸 — 손을 대는 순간 어딘가가 골라지면 '안 고름'을 남길 수 없다 */}
       <View style={st.levels}>
         {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-          <Pressable
+          <Press
+            select
+            selected={intensity === n}
             key={n}
             onPress={() => setIntensity(n)}
             accessibilityRole="button"
@@ -271,7 +330,7 @@ export function FinishSheet({
             style={[st.level, { backgroundColor: intensity === n ? c.sky : c.chip }]}
           >
             <Text style={[st.levelText, { color: intensity === n ? '#fff' : c.ink }]}>{n}</Text>
-          </Pressable>
+          </Press>
         ))}
       </View>
       <View style={st.levelEnds}>
@@ -284,6 +343,7 @@ export function FinishSheet({
           <Text style={{ fontWeight: '700', color: c.ink }}>{level.label}</Text> · {level.detail}
         </Text>
       ) : null}
+      <EffortGuide c={c} />
       <Text style={[st.bodyBold, { color: c.ink, marginTop: 12 }]}>
         느낀점 <Text style={[st.tiny, { color: c.muted, fontWeight: '400' }]}>선택</Text>
       </Text>
@@ -296,6 +356,41 @@ export function FinishSheet({
         style={[st.input, { backgroundColor: c.chip, color: c.ink }]}
       />
     </Sheet>
+  );
+}
+
+/** '강도를 어떻게 정하나요?' — 웹 마치기 창 IntensityGuide(kind training)와 같은 접이: 다섯 단계 + '오늘 운동 전체' 안내 */
+export function EffortGuide({ c }: { c: Palette }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={[st.guide, { borderColor: c.line }]}>
+      <Press
+        onPress={() => setOpen((v) => !v)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        style={st.guideHead}
+      >
+        <SymbolView name="info.circle" size={14} tintColor={c.sky} />
+        <Text style={[st.small, { flex: 1, color: c.muted }]}>{TRAINING_EFFORT_ASK}</Text>
+        <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
+      </Press>
+      {open ? (
+        <View style={[st.guideBody, { borderTopColor: c.line }]}>
+          {TRAINING_EFFORT_LEVELS.map((l) => (
+            <View key={l.range} style={{ flexDirection: 'row', gap: 12 }}>
+              <Text style={[st.small, { width: 48, color: c.sky, fontWeight: '700', fontVariant: ['tabular-nums'] }]}>{l.range}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[st.small, { color: c.ink, fontWeight: '600' }]}>{l.label}</Text>
+                <Text style={[st.small, { color: c.muted }]}>{l.detail}</Text>
+              </View>
+            </View>
+          ))}
+          <Text style={[st.small, st.guideNote, { color: c.sky, backgroundColor: c.sky + '14' }]}>
+            <Text style={{ fontWeight: '700' }}>{TRAINING_EFFORT_NOTE.strong}</Text> {TRAINING_EFFORT_NOTE.rest}
+          </Text>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -424,7 +519,7 @@ export function SwapSheet({
           {p.prescription ? <Text style={[st.tiny, { color: c.muted }]}>{p.prescription}</Text> : null}
           {unsafe && !halted ? <Text style={[st.tiny, { color: c.warn }]}>오늘 몸 상태에는 권하지 않는 운동이에요</Text> : null}
         </View>
-        <Pressable
+        <Press
           onPress={() => void pick(p.id)}
           disabled={off}
           accessibilityRole="button"
@@ -433,7 +528,7 @@ export function SwapSheet({
           <Text style={[st.smallBold, { color: already || halted ? c.muted : '#fff' }]}>
             {busyId === p.id ? '넣는 중…' : already ? '목록에 있음' : mode === 'replace' ? '바꾸기' : '더하기'}
           </Text>
-        </Pressable>
+        </Press>
       </View>
     );
   };
@@ -456,7 +551,9 @@ export function SwapSheet({
     >
       <View style={[st.tabs, { backgroundColor: c.chip }]} accessibilityRole="tablist">
         {TABS.map((t) => (
-          <Pressable
+          <Press
+            select
+            selected={tab === t.value}
             key={t.value}
             onPress={() => setTab(t.value)}
             accessibilityRole="tab"
@@ -464,7 +561,7 @@ export function SwapSheet({
             style={[st.tab, tab === t.value ? { backgroundColor: c.card } : null]}
           >
             <Text style={[st.small, { color: c.ink, fontWeight: tab === t.value ? '700' : '500' }]}>{t.label}</Text>
-          </Pressable>
+          </Press>
         ))}
       </View>
       {tab === 'search' ? (
@@ -516,9 +613,9 @@ export function SwapSheet({
         <>
           {matched.slice(0, limit).map((p) => row(p, kind(p)))}
           {matched.length > limit ? (
-            <Pressable onPress={() => setLimit((n) => n + PAGE)} accessibilityRole="button" style={st.textBtn}>
+            <Press onPress={() => setLimit((n) => n + PAGE)} accessibilityRole="button" style={st.textBtn}>
               <Text style={[st.bodyBold, { color: c.sky }]}>{matched.length - limit}개 더 보기</Text>
-            </Pressable>
+            </Press>
           ) : null}
         </>
       )}
@@ -534,6 +631,11 @@ const st = StyleSheet.create({
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginTop: -8, marginRight: -8 },
   scroll: { paddingHorizontal: 20, paddingBottom: 24, gap: 8 },
   footer: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  fitWrap: { flex: 1, justifyContent: 'flex-end' },
+  scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
+  fitCard: { maxHeight: '88%', borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden' },
+  fitScroll: { flexGrow: 0, flexShrink: 1 },
+  grabber: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, marginTop: 8 },
   error: { fontSize: 13, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, overflow: 'hidden' },
   small: { fontSize: 13, lineHeight: 18 },
   smallBold: { fontSize: 13, fontWeight: '700' },
@@ -550,6 +652,10 @@ const st = StyleSheet.create({
   bigText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   textBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   note: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, gap: 4, overflow: 'hidden' },
+  guide: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, marginTop: 8 },
+  guideHead: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 12 },
+  guideBody: { borderTopWidth: StyleSheet.hairlineWidth, padding: 12, gap: 10 },
+  guideNote: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, overflow: 'hidden' },
   question: { fontSize: 17, fontWeight: '700', marginTop: 8 },
   levels: { flexDirection: 'row', gap: 4, marginTop: 8 },
   level: { flex: 1, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

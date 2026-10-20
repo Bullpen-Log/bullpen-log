@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ARMCARE_AREAS, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import { methodByKey } from '@/lib/armcare/methods';
@@ -25,6 +25,7 @@ import { usePalette, type Palette } from '~/lib/ui';
 import { s } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
 import { MuscleChips } from '~/armcare/muscle-info';
+import { Press } from '~/shell/press';
 
 /**
  * 내 루틴 만들기 · 고치기(앱 화면) — 웹 /training/routine/new · /training/routine/<id>(app/(app)/training/routine/[id]/routine-builder.tsx)를 옮겼다.
@@ -252,10 +253,10 @@ function Builder({ data, c }: { data: RoutineBuilderData; c: Palette }) {
         </View>
 
         {data.id ? (
-          <Pressable onPress={remove} disabled={busy != null} accessibilityRole="button" style={[s.textBtn, { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+          <Press onPress={remove} disabled={busy != null} accessibilityRole="button" style={[s.textBtn, { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
             <SymbolView name="trash" size={14} tintColor={c.muted} />
             <Text style={[s.bodyBold, { color: c.muted }]}>{busy === 'delete' ? '지우는 중…' : '이 루틴 지우기'}</Text>
-          </Pressable>
+          </Press>
         ) : null}
       </ScrollView>
 
@@ -264,9 +265,9 @@ function Builder({ data, c }: { data: RoutineBuilderData; c: Palette }) {
         {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
         <View style={s.row}>
           <Text style={[s.small, { color: c.muted, flex: 1 }]}>{items.length === 0 ? '운동을 담아 주세요' : `${items.length}개 · 약 ${minutes}분`}</Text>
-          <Pressable onPress={save} disabled={busy != null} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky, opacity: busy ? 0.6 : 1 }]}>
+          <Press onPress={save} disabled={busy != null} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky, opacity: busy ? 0.6 : 1 }]}>
             <Text style={[s.bodyBold, { color: '#fff' }]}>{busy === 'save' ? '저장하는 중…' : data.id ? '고친 것 저장' : '루틴 저장'}</Text>
-          </Pressable>
+          </Press>
         </View>
       </View>
     </View>
@@ -291,7 +292,7 @@ function PickRow({ e, inside, disabled, onToggle, c }: { e: BuilderExercise; ins
           {line ? <Text style={[s.tiny, { color: c.muted }]}>{line}</Text> : null}
           {ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={2} c={c} /> : null}
         </View>
-        <Pressable
+        <Press
           onPress={onToggle}
           disabled={disabled}
           accessibilityRole="button"
@@ -301,18 +302,19 @@ function PickRow({ e, inside, disabled, onToggle, c }: { e: BuilderExercise; ins
         >
           <SymbolView name={inside ? 'checkmark' : 'plus'} size={12} weight="bold" tintColor={inside ? '#fff' : c.ink} />
           <Text style={[s.smallBold, { color: inside ? '#fff' : c.ink }]}>{inside ? '담김' : '담기'}</Text>
-        </Pressable>
+        </Press>
       </View>
-      <Pressable onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={[st.disclose, { borderTopColor: c.line }]}>
+      <Press onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={[st.disclose, { borderTopColor: c.line }]}>
         <SymbolView name="info.circle" size={13} tintColor={c.muted} />
-        <Text style={[s.smallBold, { color: c.muted, flex: 1 }]}>자세 · 영상 보기</Text>
+        <Text style={[s.smallBold, { color: c.muted, flex: 1 }]}>자세·영상 보기</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={11} tintColor={c.muted} />
-      </Pressable>
+      </Press>
       {open ? (
         <View style={{ gap: 10, paddingHorizontal: 12, paddingBottom: 12 }}>
           <Text style={[s.tiny, { color: c.muted }]}>{[`강도 ${ex.intensity}`, ex.difficulty].filter(Boolean).join(' · ')}</Text>
           <ExerciseMedia path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
-          <HowTo exerciseId={ex.id} method={ex.method} c={c} />
+          {/* 펼친 칸 안이라 설명을 바로 받아 보인다(웹 armcare-media 와 같다) */}
+          <HowTo exerciseId={ex.id} method={ex.method} inline c={c} />
         </View>
       ) : null}
     </View>
@@ -336,7 +338,7 @@ function Square({
   c: Palette;
 }) {
   return (
-    <Pressable
+    <Press
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
@@ -344,7 +346,7 @@ function Square({
       style={[st.square, boxed && { borderWidth: 1, borderColor: c.line }, disabled && { opacity: 0.3 }]}
     >
       <SymbolView name={icon} size={14} weight="semibold" tintColor={c.muted} />
-    </Pressable>
+    </Press>
   );
 }
 

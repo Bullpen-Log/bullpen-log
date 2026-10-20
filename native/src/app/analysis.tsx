@@ -30,9 +30,12 @@ import { usePrefs } from '~/lib/prefs';
 import { loadJson, saveJson } from '~/lib/store';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { rpc, RpcError } from '~/lib/rpc';
-import { usePalette, type Palette } from '~/lib/ui';
+import { TYPE, usePalette, type Palette } from '~/lib/ui';
+import Animated from 'react-native-reanimated';
+import { fadeIn, Pulse } from '~/shell/motion';
 import { READABLE } from '~/lib/layout';
 import { DateNavButton } from '~/shell/mini-calendar';
+import { Press } from '~/shell/press';
 
 /**
  * 투구 분석 · 트레이닝 분석(앱 화면) — 웹 /coach?view=…&date=…(app/(app)/coach/page.tsx)를 옮겼다. 사이트의 분석 화면이 앱(BullpenNative/5 부터)이면
@@ -62,6 +65,8 @@ export default function AnalysisScreen() {
   const [tries, setTries] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const scroll = useRef<ScrollViewInstance>(null);
+  /* 큰 제목이 위로 밀려 나가면 막대에 작은 제목 · 밑줄(웹 PageHeading 이 휴대폰 위 막대 제목으로 접히는 것과 같다) */
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -101,18 +106,36 @@ export default function AnalysisScreen() {
   };
 
   const header = (
-    <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: c.line }]}>
+    <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: scrolled ? c.line : 'transparent' }]}>
       {/* 웹처럼 돌아갈 곳 이름(coach/page.tsx '‹ 투구 기록' · '‹ 트레이닝') */}
-      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={`뒤로 · ${BACK[view]}`} style={[s.iconBtn, s.backBtn]}>
+      <Press onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={`뒤로 · ${BACK[view]}`} style={[s.iconBtn, s.backBtn]}>
         <SymbolView name="chevron.left" size={20} weight="semibold" tintColor={c.sky} />
         <Text numberOfLines={1} style={[s.backText, { color: c.sky }]}>{BACK[view]}</Text>
-      </Pressable>
-      <Text accessibilityRole="header" numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
+      </Press>
+      <Text numberOfLines={1} style={[s.headTitle, { color: c.ink, opacity: scrolled ? 1 : 0 }]}>
         {TITLE[view]}
       </Text>
-      <View style={[s.iconBtn, s.backBtn, { justifyContent: 'flex-end' }]}>{waiting ? <ActivityIndicator /> : null}</View>
+      <View style={[s.iconBtn, s.backBtn]} />
     </View>
   );
+
+  if (!data && !failed) {
+    /* 불러오는 동안 — 웹 coach/loading.tsx 와 같은 모양(제목 · 큰 칸 하나 · 작은 칸 여섯)이 숨 쉬듯 옅어졌다 진해짐 */
+    return (
+      <View style={[s.fill, { backgroundColor: c.page }]} accessibilityLabel="분석을 불러오는 중이에요">
+        {header}
+        <View style={[s.content, READABLE]}>
+          <Text accessibilityRole="header" style={[TYPE.title, { color: c.ink }]}>{TITLE[view]}</Text>
+          <Pulse style={[s.bone, { height: 288, backgroundColor: c.line }]} />
+          <View style={s.boneGrid}>
+            {Array.from({ length: 6 }, (_, i) => (
+              <Pulse key={i} style={[s.bone, s.boneCell, { backgroundColor: c.line }]} />
+            ))}
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   if (!data) {
     return (
@@ -122,13 +145,11 @@ export default function AnalysisScreen() {
           {failed ? (
             <>
               <Text style={[s.body, s.center, { color: c.ink }]}>{failed}</Text>
-              <Pressable onPress={retry} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
+              <Press onPress={retry} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
                 <Text style={[s.bodyBold, { color: '#fff' }]}>다시 불러오기</Text>
-              </Pressable>
+              </Press>
             </>
-          ) : (
-            <ActivityIndicator />
-          )}
+          ) : null}
         </View>
       </View>
     );
@@ -141,6 +162,11 @@ export default function AnalysisScreen() {
       <ScrollView
         ref={scroll}
         style={s.fill}
+        scrollEventThrottle={32}
+        onScroll={(e) => {
+          const next = e.nativeEvent.contentOffset.y > 40;
+          if (next !== scrolled) setScrolled(next);
+        }}
         contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE]}
         refreshControl={
           <RefreshControl
@@ -152,28 +178,41 @@ export default function AnalysisScreen() {
           />
         }
       >
+        <Text accessibilityRole="header" style={[TYPE.title, { color: c.ink }]}>{TITLE[view]}</Text>
         {failed ? (
           <View style={[s.notice, { backgroundColor: c.danger + '14' }]}>
             <Text style={[s.small, { color: c.danger, flex: 1 }]}>{failed}</Text>
-            <Pressable onPress={retry} accessibilityRole="button" style={s.textBtn}>
+            <Press onPress={retry} accessibilityRole="button" style={s.textBtn}>
               <Text style={[s.smallBold, { color: c.sky }]}>다시 불러오기</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : null}
 
         {/* 오늘이 아닐 때만 한 줄(웹과 같다) — 앱은 오늘로 돌아가는 단추를 붙인다 */}
         {shownDate !== data.today ? (
           <View style={s.dateRow}>
-            <Text style={[s.body, { color: c.muted, flex: 1 }]}>
-              <Text style={[s.bodyBold, { color: c.ink }]}>{`${spokenDay(shownDate)} · ${agoText(shownDate, data.today)}`}</Text> 기준
-            </Text>
-            <Pressable onPress={() => jump(data.today)} accessibilityRole="button" style={[s.chip, { backgroundColor: c.chip }]}>
+            {/* 날짜가 바뀔 때마다 살짝 떠오른다(웹 analysis-block 의 fade-in) — 무엇이 바뀌었는지 눈이 따라간다 */}
+            <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' }}>
+              <Animated.Text key={shownDate} entering={fadeIn} style={[s.bodyBold, { color: c.ink }]}>
+                {`${spokenDay(shownDate)} · ${agoText(shownDate, data.today)}`}
+              </Animated.Text>
+              <Text style={[s.body, { color: c.muted }]}> 기준</Text>
+            </View>
+            <Press onPress={() => jump(data.today)} accessibilityRole="button" style={[s.chip, { backgroundColor: c.chip }]}>
               <Text style={[s.smallBold, { color: c.ink }]}>오늘로</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : null}
 
-        <View style={{ opacity: waiting ? 0.5 : 1, gap: 16 }}>
+        <View>
+        {/* 다른 날을 받는 동안 — 보던 분석은 옅게 두고 오른쪽 위에 '불러오는 중' 알약(웹 analysis-block) */}
+        {waiting ? (
+          <Animated.View entering={fadeIn} style={[s.waitPill, { backgroundColor: c.card, boxShadow: c.float }]}>
+            <ActivityIndicator size="small" />
+            <Text style={[s.tiny, { color: c.muted }]}>불러오는 중</Text>
+          </Animated.View>
+        ) : null}
+        <Animated.View key={shownDate} entering={fadeIn} style={{ opacity: waiting ? 0.5 : 1, gap: 16 }}>
           {data.highlights.length > 0 ? <Highlights items={data.highlights} c={c} /> : null}
           {view === 'pitch' ? (
             <>
@@ -190,6 +229,7 @@ export default function AnalysisScreen() {
           <Text style={[s.small, s.center, { color: c.muted }]}>
             부하 지수는 훈련량 관리를 돕는 참고 지표예요. 통증이 있다면 수치와 관계없이 전문의와 상담하세요.
           </Text>
+        </Animated.View>
         </View>
 
         <Trends data={data} onJump={jump} c={c} />
@@ -305,11 +345,11 @@ function LoadCard({ v, notices, c }: { v: LoadView; notices?: AnalysisOverview['
 
       {/* 기록이 빠진 날이 많으면 지수가 실제보다 낮게 나온다 — 낮은 숫자는 '더 던져도 된다'로 읽힌다 */}
       {notices?.missingDays != null ? (
-        <Pressable onPress={() => leave('/today')} accessibilityRole="link" style={[s.warnRow, { backgroundColor: c.warnBg, borderTopColor: c.warn + '40' }]}>
+        <Press onPress={() => leave('/today')} accessibilityRole="link" style={[s.warnRow, { backgroundColor: c.warnBg, borderTopColor: c.warn + '40' }]}>
           <Text style={[s.small, { color: c.warn }]}>
             기록 없는 날이 {notices.missingDays}일이라 지수가 낮게 나올 수 있어요. <Text style={[s.smallBold, { color: c.sky }]}>투구 일지</Text>에 남겨 주세요.
           </Text>
-        </Pressable>
+        </Press>
       ) : null}
       {notices?.throwStreak != null ? (
         <View style={[s.warnRow, { backgroundColor: c.warnBg, borderTopColor: c.warn + '40' }]}>
@@ -443,7 +483,7 @@ function GoodDays({ result, c }: { result: GoodDayResult; c: Palette }) {
 
       {/* 찾는 법 · 견줘 본 항목은 '자세히' 하나 안으로(웹과 같다) */}
       <View style={[s.divider, { borderTopColor: c.line }]}>
-        <Pressable
+        <Press
           onPress={() => {
             void Haptics.selectionAsync();
             setOpen((v) => !v);
@@ -454,7 +494,7 @@ function GoodDays({ result, c }: { result: GoodDayResult; c: Palette }) {
         >
           <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} weight="semibold" tintColor={c.muted} />
           <Text style={[s.small, { color: c.muted }]}>{all.length > 0 ? '자세히 · 견줘 본 항목' : '어떻게 찾나요'}</Text>
-        </Pressable>
+        </Press>
         {open ? (
           <View style={{ gap: 10 }}>
             <Text style={[s.tiny, { color: c.muted }]}>
@@ -627,11 +667,10 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
           {PERIODS.map((x) => {
             const on = x.value === period;
             return (
-              <Pressable
+              <Press select selected={on}
                 key={x.value}
                 onPress={() => {
                   if (on) return;
-                  void Haptics.selectionAsync();
                   setPeriodState(x.value);
                   void saveJson(RANGE_KEY, { period: x.value, ...custom });
                 }}
@@ -640,7 +679,7 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
                 style={[s.segItem, on && { backgroundColor: c.card }]}
               >
                 <Text style={[s.smallBold, { color: on ? c.ink : c.muted }]}>{x.label}</Text>
-              </Pressable>
+              </Press>
             );
           })}
         </View>
@@ -694,6 +733,10 @@ const s = StyleSheet.create({
   chip: { minHeight: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
   section: { fontSize: 20, fontWeight: '700' },
   card: { borderRadius: 20, padding: 16, gap: 12 },
+  bone: { borderRadius: 16 },
+  boneGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  boneCell: { width: '47.5%', height: 128 },
+  waitPill: { position: 'absolute', right: 12, top: 12, zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   cardFlat: { borderRadius: 20, overflow: 'hidden' },
   cardTitle: { fontSize: 17, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },

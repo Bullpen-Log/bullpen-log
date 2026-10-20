@@ -24,6 +24,8 @@ import { act, Description, FilmVerdictButtons, leave, LevelOffer, ThrowNoteCard 
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE, useBarSide } from '~/lib/layout';
+import { useLiveActivity } from '~/shell/live-activity';
+import { Press } from '~/shell/press';
 
 /**
  * 메커니즘 세션 따라 하기(앱 화면) — 웹 app/(session)/mechanics/play/mechanics-player.tsx 를 옮겼다. 사이트의 따라 하기가 앱(BullpenNative/4 부터)이면
@@ -69,7 +71,7 @@ export default function MechanicsPlayScreen() {
       {failed ? (
         <>
           <Text style={[s.body, { color: c.ink, textAlign: 'center' }]}>{failed}</Text>
-          <Pressable
+          <Press
             onPress={() => {
               setFailed(null);
               setTries((n) => n + 1);
@@ -78,10 +80,10 @@ export default function MechanicsPlayScreen() {
             style={[s.pill, { backgroundColor: c.sky }]}
           >
             <Text style={[s.bodyBold, { color: '#fff' }]}>다시 불러오기</Text>
-          </Pressable>
-          <Pressable onPress={() => router.back()} accessibilityRole="button" style={s.pill}>
+          </Press>
+          <Press onPress={() => router.back()} accessibilityRole="button" style={s.pill}>
             <Text style={[s.bodyBold, { color: c.muted }]}>닫기</Text>
-          </Pressable>
+          </Press>
         </>
       ) : (
         <ActivityIndicator />
@@ -175,6 +177,21 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
   const counted = Math.min(setsDone, view.sets);
   const choose = (next: Choice) => setChoices((list) => list.map((v, i) => (i === index ? next : v)));
 
+  /* 다이나믹 아일랜드 · 잠금 화면(2026-10-20 김민) — 지금 드릴 · 몇 번째 · 세트, 시계는 이 세션을 연 때부터. 마치면 거둔다 */
+  const [openedMs] = useState(() => Date.now());
+  useLiveActivity(
+    finished || !item
+      ? null
+      : {
+          kind: 'work',
+          symbol: 'figure.baseball',
+          label: '메커니즘',
+          title: view.title,
+          detail: `드릴 ${index + 1}/${items.length} · 세트 ${counted}/${view.sets}`,
+          since: openedMs,
+        }
+  );
+
   const next = () => {
     setIndex(index + 1);
     setSetsDone(0);
@@ -226,11 +243,11 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
   const header = (
     <View style={[s.header, { paddingTop: inset.top + 8, backgroundColor: c.card, borderBottomColor: c.line }]}>
       <View style={s.headRow}>
-        <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="따라 하기 닫기" style={s.iconBtn}>
+        <Press onPress={close} accessibilityRole="button" accessibilityLabel="따라 하기 닫기" style={s.iconBtn}>
           <View style={[s.circle, { backgroundColor: c.chip }]}>
             <SymbolView name="xmark" size={14} weight="semibold" tintColor={c.muted} />
           </View>
-        </Pressable>
+        </Press>
         <Text numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
           메커니즘 · {label}
         </Text>
@@ -281,9 +298,9 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
             <Text style={[s.body, { color: c.muted }]}>
               같은 자리에서 다시 찍어 처음 영상과 2분할로 견줘 보세요. 구속도 재 두면 효과를 알 수 있어요.
             </Text>
-            <Pressable onPress={() => router.push('/pitch/compare' as Href)} accessibilityRole="link" style={[s.pill, { backgroundColor: c.chip }]}>
+            <Press onPress={() => router.push('/pitch/compare' as Href)} accessibilityRole="link" style={[s.pill, { backgroundColor: c.chip }]}>
               <Text style={[s.bodyBold, { color: c.ink }]}>2분할 비교 열기</Text>
-            </Pressable>
+            </Press>
             {/* 견준 결과 — 지금 못 견줬으면 '아직'을 누르거나 프로그램 칸에서 나중에 남긴다 */}
             <View style={[s.divider, { borderTopColor: c.line }]}>
               <FilmVerdictButtons session={sessionNumber} c={c} />
@@ -291,9 +308,9 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
           </View>
         ) : null}
 
-        <Pressable onPress={close} accessibilityRole="button" style={[s.pill, s.stretch, { backgroundColor: c.sky }]}>
+        <Press onPress={close} accessibilityRole="button" style={[s.pill, s.stretch, { backgroundColor: c.sky }]}>
           <Text style={[s.bodyBold, { color: '#fff' }]}>완료</Text>
-        </Pressable>
+        </Press>
       </ScrollView>
     );
   }
@@ -312,7 +329,7 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
           {Array.from({ length: view.sets }, (_, i) => {
             const on = i < counted;
             return (
-              <Pressable
+              <Press
                 key={i}
                 onPress={() => {
                   void Haptics.selectionAsync();
@@ -326,7 +343,7 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
                   {on ? '✓ ' : ''}
                   {i + 1}세트
                 </Text>
-              </Pressable>
+              </Press>
             );
           })}
         </View>
@@ -348,13 +365,13 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
         </View>
         {error ? <Text style={[s.small, s.box, { color: c.danger, backgroundColor: c.danger + '14' }]}>{error}</Text> : null}
         {finishFailed ? (
-          <Pressable onPress={() => void run(finish)} disabled={pending} accessibilityRole="button" style={s.textBtn}>
+          <Press onPress={() => void run(finish)} disabled={pending} accessibilityRole="button" style={s.textBtn}>
             <Text style={[s.bodyBold, { color: c.sky }]}>세션 마치기 다시 저장</Text>
-          </Pressable>
+          </Press>
         ) : (
-          <Pressable onPress={skip} disabled={pending} accessibilityRole="button" style={s.textBtn}>
+          <Press onPress={skip} disabled={pending} accessibilityRole="button" style={s.textBtn}>
             <Text style={[s.smallBold, { color: c.muted }]}>{index + 1 < items.length ? '이번 드릴은 건너뛰기' : done.some(Boolean) ? '건너뛰고 세션 마치기' : '오늘은 그만하기'}</Text>
-          </Pressable>
+          </Press>
         )}
       </View>
     </>
@@ -403,7 +420,7 @@ function DrillView({
         <View style={s.doseRow}>
           <Text style={[s.amount, { color: c.sky }]}>{view.dose}</Text>
           {alts > 1 ? (
-            <Pressable
+            <Press
               onPress={() => {
                 const n = (alt + 1) % alts;
                 void Haptics.selectionAsync();
@@ -417,7 +434,7 @@ function DrillView({
               <Text style={[s.small, { color: c.muted, fontVariant: ['tabular-nums'] }]}>
                 {alt + 1}/{alts}
               </Text>
-            </Pressable>
+            </Press>
           ) : null}
         </View>
         <Text style={[s.small, { color: c.muted }]}>{view.tempo}</Text>
@@ -428,7 +445,7 @@ function DrillView({
           {view.variants.map((t) => {
             const on = t.id === view.guideId;
             return (
-              <Pressable
+              <Press
                 key={t.id}
                 onPress={() => {
                   void Haptics.selectionAsync();
@@ -447,7 +464,7 @@ function DrillView({
                 ]}
               >
                 <Text style={[s.bodyBold, { color: on ? '#fff' : t.owned ? c.ink : c.muted }]}>{t.tool}</Text>
-              </Pressable>
+              </Press>
             );
           })}
         </View>

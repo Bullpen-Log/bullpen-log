@@ -2,6 +2,7 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Palette } from '~/lib/ui';
+import { Press } from '~/shell/press';
 
 /** 트레이닝 '운동' 화면(native/src/app/training-today.tsx)의 작은 조각 · 모양 — 웹 app/(app)/training/* 의 카드 모양을 앱 모양으로 */
 
@@ -92,14 +93,16 @@ export function WebRows({ c, rows }: { c: Palette; rows: { label: string; href: 
 /** 고르는 칩(웹 Chip) */
 export function Chip({ c, label, on, onPress }: { c: Palette; label: string; on: boolean; onPress: () => void }) {
   return (
-    <Pressable
+    <Press
+      select
+      selected={on}
       accessibilityRole="button"
       accessibilityState={{ selected: on }}
       onPress={onPress}
       style={[s.chip, { backgroundColor: on ? c.sky : c.chip }]}
     >
       <Text style={[s.bodyBold, { color: on ? '#fff' : c.ink }]}>{label}</Text>
-    </Pressable>
+    </Press>
   );
 }
 

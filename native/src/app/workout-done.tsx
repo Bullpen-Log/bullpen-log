@@ -17,6 +17,7 @@ import { useWeightUnit } from '~/lib/weight-unit';
 import { leaveTo } from '~/shell/web-nav';
 import { s } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 운동 끝 — 축하 화면(앱 화면). 웹 app/(session)/workout/done/done-client.tsx 를 옮겼다. 운동 화면에서 [운동 마치기]가 되면 이리 온다
@@ -87,12 +88,12 @@ export default function WorkoutDoneScreen() {
         {failed ? (
           <>
             <Text style={{ color: c.ink, fontSize: 15 }}>신호가 약해 불러오지 못했어요.</Text>
-            <Pressable accessibilityRole="button" onPress={() => (setFailed(false), setTries((n) => n + 1))} hitSlop={8}>
+            <Press accessibilityRole="button" onPress={() => (setFailed(false), setTries((n) => n + 1))} hitSlop={8}>
               <Text style={{ color: c.sky, fontSize: 15, fontWeight: '700' }}>다시 불러오기</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={finish} hitSlop={8}>
+            </Press>
+            <Press accessibilityRole="button" onPress={finish} hitSlop={8}>
               <Text style={{ color: c.muted, fontSize: 15 }}>트레이닝으로</Text>
-            </Pressable>
+            </Press>
           </>
         ) : (
           <ActivityIndicator />
@@ -342,9 +343,9 @@ function Effort({ sessionId, c }: { sessionId: string; c: Palette }) {
         {saved ? (
           <Text style={[s.smallBold, { color: c.sky }]}>✓ {level?.intensity}/10</Text>
         ) : (
-          <Pressable accessibilityRole="button" onPress={() => setSkipped(true)} disabled={busy} hitSlop={8}>
+          <Press accessibilityRole="button" onPress={() => setSkipped(true)} disabled={busy} hitSlop={8}>
             <Text style={[s.small, { color: c.muted }]}>건너뛰기</Text>
-          </Pressable>
+          </Press>
         )}
       </View>
       <Text style={[s.tiny, { color: c.muted }]}>{saved ? '트레이닝 탭에서 고칠 수 있어요.' : '한 번만 눌러 주세요. 운동 전체를 합친 느낌이에요.'}</Text>
@@ -352,7 +353,7 @@ function Effort({ sessionId, c }: { sessionId: string; c: Palette }) {
         {EFFORT_LEVELS.map((l) => {
           const on = current === l.key;
           return (
-            <Pressable
+            <Press
               key={l.key}
               accessibilityRole="radio"
               accessibilityState={{ selected: on, disabled: busy || saved != null }}
@@ -361,7 +362,7 @@ function Effort({ sessionId, c }: { sessionId: string; c: Palette }) {
               style={[st.chip, { backgroundColor: on ? c.sky : c.chip, opacity: saved && !on ? 0.45 : 1 }]}
             >
               <Text style={{ color: on ? '#fff' : c.ink, fontSize: 14, fontWeight: '600' }}>{l.label}</Text>
-            </Pressable>
+            </Press>
           );
         })}
       </View>

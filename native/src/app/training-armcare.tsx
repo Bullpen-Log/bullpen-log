@@ -1,19 +1,24 @@
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { Pressable, Text, View, type ScrollViewInstance } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View, type ScrollViewInstance } from 'react-native';
 import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import type { AppArmcareGuideTab, AppArmcareTodayTab } from '@/lib/armcare/today-load';
 import { drainChecks, onCheckResult } from '~/armcare/outbox';
 import { PainGuideButton, type PainView } from '~/armcare/pain-guide-sheet';
 import { MyRoutinesProvider } from '~/armcare/add-to-routine';
 import { sendCheck } from '~/armcare/send';
-import { act, leave } from '~/mechanics/parts';
+import { act, leave, offlineAs } from '~/mechanics/parts';
+import { rpc } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
-import { openCheckin } from '~/shell/web-nav';
-import { AREAS_BY_JOINT, AreaCard, Checklist, GapCard, PainNote, RehabCard, RoutineCard, WeekDots, openPlay } from '~/training/armcare-parts';
-import { Fold, Screen, SectionHead, WebRow, s, useJump, useScreenData } from '~/training/screen';
+import { leaveWhenShown, openCheckin } from '~/shell/web-nav';
+import { AREAS_BY_JOINT, AreaCard, Checklist, ExerciseRow, PainNote, RehabCard, RoutineCard, WeekDots, openPlay } from '~/training/armcare-parts';
+import { isFav, useFavVersion } from '~/training/favorites';
+import { FavButton } from '~/training/fav-button';
+import { Fold, Screen, SectionHead, s, useJump, useScreenData } from '~/training/screen';
+import { Sheet } from '~/workout/sheets';
 import { useRememberPart } from '~/training/remember';
+import { Press } from '~/shell/press';
 
 /**
  * 암케어(앱 화면) — 웹 /training?view=armcare(&tab=guide)(app/(app)/training/training-page.tsx 의 armcare 칸 · armcare-section.tsx)를 옮겼다.
@@ -62,14 +67,75 @@ export default function TrainingArmcareScreen() {
   };
 
   const data = state.data && state.data.tab === tab ? state.data : null;
+  const [favOpen, setFavOpen] = useState(false);
   return (
-    <Screen title="암케어" tabs={TABS} tab={tab} onTab={pick} state={{ ...state, data }} scrollRef={scroll} settings>
+    <Screen
+      title="암케어"
+      tabs={TABS}
+      tab={tab}
+      onTab={pick}
+      state={{ ...state, data }}
+      scrollRef={scroll}
+      right={<FavButton onPress={() => setFavOpen(true)} c={c} />}
+    >
       {data?.tab === 'today' ? (
         <TodayTab data={data} fresh={state.fresh} reload={load} c={c} />
       ) : data?.tab === 'guide' ? (
         <GuideTab data={data} scroll={scroll} c={c} />
       ) : null}
+      {favOpen ? <FavSheet guide={data?.tab === 'guide' ? data : null} onClose={() => setFavOpen(false)} c={c} /> : null}
     </Screen>
+  );
+}
+
+/**
+ * 즐겨찾기 모음 — 별을 단 암케어 운동만(2026-10-20 김민: "즐겨찾기한 운동을 빨리 찾는 입구"). 부위별 보강 칸의 자료(운동 · 별 · 내 루틴)를 쓰고,
+ * 루틴 칸에서 열면 그 자료를 한 번 받는다. 별을 끄면 목록에서 빠진다.
+ */
+function FavSheet({ guide, onClose, c }: { guide: AppArmcareGuideTab | null; onClose: () => void; c: Palette }) {
+  const [got, setGot] = useState<AppArmcareGuideTab | null>(null);
+  const [failed, setFailed] = useState(false);
+  const data = guide ?? got;
+  useFavVersion();
+  useEffect(() => {
+    if (guide) return;
+    let alive = true;
+    rpc<({ ok: true } & AppArmcareGuideTab) | { ok: false; to: string }>('app-training-parts.loadAppArmcare', 'guide').then(
+      (r) => {
+        if (!alive) return;
+        if (!r.ok) return leave(r.to);
+        setGot(r);
+      },
+      () => alive && setFailed(true)
+    );
+    return () => {
+      alive = false;
+    };
+  }, [guide]);
+  const favIds = data?.favoriteIds ?? [];
+  const list = data ? data.exercises.filter((ex) => isFav('exercise', ex.id, favIds.includes(ex.id))) : [];
+  return (
+    <Sheet fit open onClose={onClose} title="즐겨찾기" description="별을 단 암케어 운동" c={c}>
+      {!data ? (
+        failed ? (
+          <Text style={[s.small, { color: c.muted }]}>신호가 약해 불러오지 못했어요.</Text>
+        ) : (
+          <ActivityIndicator style={{ paddingVertical: 24 }} />
+        )
+      ) : list.length === 0 ? (
+        <Text style={[s.body, s.box, { color: c.muted, backgroundColor: c.card }]}>
+          아직 즐겨찾기한 운동이 없어요. 부위별 보강에서 운동 옆 별을 눌러 담아요.
+        </Text>
+      ) : (
+        <MyRoutinesProvider routines={data.routines ?? null}>
+          <View style={{ gap: 10 }}>
+            {list.map((ex) => (
+              <ExerciseRow key={ex.id} ex={ex} fav={favIds.includes(ex.id)} c={c} />
+            ))}
+          </View>
+        </MyRoutinesProvider>
+      )}
+    </Sheet>
   );
 }
 
@@ -92,13 +158,13 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
           <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>오늘 체크인을 먼저 남겨 주세요</Text>
             <Text style={[s.body, { color: c.muted }]}>30초면 돼요. 몸 상태를 보고 루틴을 짜요.</Text>
-            <Pressable
+            <Press
               onPress={() => openCheckin('/training?view=home')}
               accessibilityRole="button"
               style={[s.pill, { backgroundColor: c.sky }]}
             >
               <Text style={[s.bodyBold, { color: '#fff' }]}>체크인하기 ›</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : custom.kind === 'rest' ? (
           <View style={[s.card, { backgroundColor: c.warnBg }]}>
@@ -108,18 +174,18 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
               data.painView ? (
                 <PainGuideButton pain={data.painView} tone="warn" c={c} />
               ) : (
-                <Pressable onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.card, alignSelf: 'flex-start' }]}>
+                <Press onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.card, alignSelf: 'flex-start' }]}>
                   <Text style={[s.smallBold, { color: c.warn }]}>통증 안내 보기 ›</Text>
-                </Pressable>
+                </Press>
               )
             ) : null}
-            <Pressable
+            <Press
               onPress={() => openCheckin('/training?view=home')}
               accessibilityRole="button"
               style={s.textBtn}
             >
               <Text style={[s.smallBold, { color: c.sky }]}>통증이 아니면 체크인 고치기</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : (
           <CustomRoutine custom={custom} painView={data.painView ?? null} dateKey={data.dateKey} fresh={fresh} reload={reload} c={c} />
@@ -152,10 +218,10 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
           ))
         )}
         {data.routines.length < data.routineMax ? (
-          <Pressable onPress={() => router.push('/training/routine/new' as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
+          <Press onPress={() => router.push('/training/routine/new' as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Text style={[s.body, { color: c.ink, flex: 1 }]}>새 루틴 만들기</Text>
             <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} />
-          </Pressable>
+          </Press>
         ) : (
           <Text style={[s.tiny, { color: c.muted, paddingHorizontal: 4 }]}>루틴은 {data.routineMax}개까지 둘 수 있어요.</Text>
         )}
@@ -191,7 +257,7 @@ function CustomRoutine({
     setMaking(true);
     setError(null);
     const res = await act<{ ok: true }>('armcare.makeArmcareRoutine');
-    if ('error' in res) setError(res.error);
+    if ('error' in res) setError(offlineAs(res.error, '루틴을 만들지 못했어요.'));
     else await reload();
     setMaking(false);
   };
@@ -202,9 +268,9 @@ function CustomRoutine({
         painView ? (
           <PainGuideButton pain={painView} tone="sky" c={c} />
         ) : (
-          <Pressable onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start' }]}>
+          <Press onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start' }]}>
             <Text style={[s.smallBold, { color: c.sky }]}>통증 안내 보기 ›</Text>
-          </Pressable>
+          </Press>
         )
       ) : null}
     </>
@@ -217,14 +283,14 @@ function CustomRoutine({
         <Text style={[s.title, { color: c.ink }]}>오늘은 {decision.label}을 권해요</Text>
         <Text style={[s.bodyBold, { color: c.sky }]}>{decision.reason}</Text>
         {extra}
-        <Pressable
+        <Press
           onPress={() => void make()}
           disabled={making || !fresh}
           accessibilityRole="button"
           style={[s.pill, { backgroundColor: c.sky, opacity: making || !fresh ? 0.6 : 1 }]}
         >
           <Text style={[s.bodyBold, { color: '#fff' }]}>{making ? '만드는 중…' : '맞춤 루틴 만들기'}</Text>
-        </Pressable>
+        </Press>
         {errorLine}
       </View>
     );
@@ -259,11 +325,11 @@ function CustomRoutine({
           </Text>
         ) : null}
         <View style={[s.row, { borderTopWidth: 1, borderTopColor: c.line, paddingTop: 12, flexWrap: 'wrap' }]}>
-          <Pressable onPress={() => openPlay('today', `d=${dateKey}`)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky }]}>
+          <Press onPress={() => openPlay('today', `d=${dateKey}`)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky }]}>
             <SymbolView name="play.fill" size={12} tintColor="#fff" />
             <Text style={[s.bodyBold, { color: '#fff' }]}>따라하기</Text>
-          </Pressable>
-          <Pressable
+          </Press>
+          <Press
             onPress={() => void make()}
             disabled={making || !fresh}
             accessibilityRole="button"
@@ -271,7 +337,7 @@ function CustomRoutine({
           >
             <SymbolView name="arrow.clockwise" size={12} tintColor={c.ink} />
             <Text style={[s.smallBold, { color: c.ink }]}>{making ? '만드는 중…' : '다시 만들기'}</Text>
-          </Pressable>
+          </Press>
         </View>
         {errorLine}
       </View>
@@ -293,10 +359,23 @@ function GuideTab({ data, scroll, c }: { data: AppArmcareGuideTab; scroll: RefOb
   return (
     <MyRoutinesProvider routines={data.routines ?? null}>
       <View onLayout={jump.onRoot} style={{ gap: 12 }}>
-        <Text style={[s.small, { color: c.muted }]}>부위를 펼쳐 보세요.</Text>
+        <Text style={[s.small, { color: c.muted }]}>근육을 누르거나 부위를 펼쳐 보세요.</Text>
         {data.coverage.pain ? <PainNote pain={data.coverage.pain} onArea={showArea} c={c} /> : null}
-        <GapCard gaps={data.coverage.gaps} allCovered={data.coverage.allCovered} total={data.coverage.total} dateKey={data.dateKey} c={c} />
-        <WebRow label="3D 근육 지도 보기" href="/training?view=armcare&tab=guide" c={c} />
+        {/* 3D 근육 지도(웹) — 큰 단추로(2026-10-20 김민). 웹이 지도를 그린 뒤에 이 화면을 걷는다(leaveWhenShown — 트레이닝 첫 화면이 비치지 않게) */}
+        <Pressable
+          onPress={() => leaveWhenShown('/training?view=armcare&tab=guide')}
+          accessibilityRole="link"
+          style={({ pressed }) => [s.card, { backgroundColor: c.card, boxShadow: c.float, flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 84 }, pressed && { opacity: 0.7 }]}
+        >
+          <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: c.sky + '1a', alignItems: 'center', justifyContent: 'center' }}>
+            <SymbolView name="figure.arms.open" size={26} tintColor={c.sky} />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>3D 근육 지도 보기</Text>
+            <Text style={[s.small, { color: c.muted }]}>근육을 눌러 그 부위 운동을 찾아요</Text>
+          </View>
+          <SymbolView name="chevron.right" size={14} weight="semibold" tintColor={c.muted} />
+        </Pressable>
         {AREAS_BY_JOINT.flatMap(({ joint, areas }) => [
           <Text key={joint} accessibilityRole="header" style={[s.section, { color: c.ink, paddingHorizontal: 4, paddingTop: 8 }]}>
             {joint}
@@ -309,6 +388,7 @@ function GuideTab({ data, scroll, c }: { data: AppArmcareGuideTab; scroll: RefOb
               open={open === area.key}
               onToggle={() => setOpen(open === area.key ? null : area.key)}
               onLayout={jump.onItem(area.key)}
+              favIds={data.favoriteIds}
               c={c}
             />
           )),
@@ -329,11 +409,11 @@ function RehabStartRow({ start, c }: { start: NonNullable<AppArmcareTodayTab['re
   if (start.area) q.set('area', start.area);
   if (start.level) q.set('level', String(start.level));
   return (
-    <Pressable onPress={() => router.push(`/rehab-start?${q}` as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
+    <Press onPress={() => router.push(`/rehab-start?${q}` as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.body, { color: c.ink, flex: 1 }]}>
         팔이 아프면 · <Text style={{ color: c.sky, fontWeight: '600' }}>재활 프로그램</Text>
       </Text>
       <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} />
-    </Pressable>
+    </Press>
   );
 }

@@ -1,7 +1,8 @@
 import { SymbolView } from 'expo-symbols';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useEvent } from 'expo';
+import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { EXERCISE_NOTE_MAX, cleanExerciseNote } from '@/lib/exercise-meta';
@@ -10,6 +11,8 @@ import { rpc } from '~/lib/rpc';
 import { SITE_URL } from '~/lib/site';
 import type { Palette } from '~/lib/ui';
 import { call, loadMe } from '~/pitch/api';
+import { LocalVideo } from '../../modules/local-video';
+import { Press } from '~/shell/press';
 
 /** 운동 진행 화면(native/src/app/workout.tsx)의 작은 조각 — 웹 app/(session)/workout/run/session-client.tsx 의 같은 이름 부품을 옮겼다 */
 
@@ -176,9 +179,9 @@ export function RirQuestion({
           </Pressable>
         ))}
       </View>
-      <Pressable onPress={() => onAnswer(null)} accessibilityRole="button" style={s.skip}>
+      <Press onPress={() => onAnswer(null)} accessibilityRole="button" style={s.skip}>
         <Text style={[s.bodyBold, { color: c.muted }]}>건너뛰기</Text>
-      </Pressable>
+      </Press>
     </View>
   );
 }
@@ -238,17 +241,17 @@ export function NoteBox({
       <View style={[s.noteBox, { borderColor: c.sky, backgroundColor: c.card, boxShadow: c.float }]}>
         <View style={s.noteHead}>
           <Text style={[s.smallBold, { color: c.sky, flex: 1 }]}>내 메모</Text>
-          <Pressable onPress={() => setDraft(null)} disabled={saving} style={s.noteBtn} accessibilityRole="button">
+          <Press onPress={() => setDraft(null)} disabled={saving} style={s.noteBtn} accessibilityRole="button">
             <Text style={[s.smallBold, { color: c.muted }]}>취소</Text>
-          </Pressable>
-          <Pressable
+          </Press>
+          <Press
             onPress={() => void save()}
             disabled={saving}
             accessibilityRole="button"
             style={[s.noteBtn, { backgroundColor: c.sky, opacity: saving ? 0.6 : 1 }]}
           >
             <Text style={[s.smallBold, { color: '#fff' }]}>{saving ? '저장 중…' : '저장'}</Text>
-          </Pressable>
+          </Press>
         </View>
         {writing.error ? <Text style={[s.small, { color: c.danger }]}>{writing.error}</Text> : null}
         <TextInput
@@ -271,20 +274,20 @@ export function NoteBox({
   const open = () => setDraft({ exerciseId, text: note ?? '' });
   if (!note)
     return (
-      <Pressable onPress={open} accessibilityRole="button" style={s.noteAdd}>
+      <Press onPress={open} accessibilityRole="button" style={s.noteAdd}>
         <Text style={[s.small, { color: c.muted }]}>✎ 이 운동에 내 메모 남기기</Text>
-      </Pressable>
+      </Press>
     );
   return (
-    <Pressable onPress={open} accessibilityRole="button" style={[s.noteBox, { borderColor: c.line, backgroundColor: c.card, boxShadow: c.float }]}>
+    <Press onPress={open} accessibilityRole="button" style={[s.noteBox, { borderColor: c.line, backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.tiny, { color: c.muted, fontWeight: '600' }]}>내 메모 · 고치기</Text>
       <Text style={[s.body, { color: c.ink }]}>{note}</Text>
-    </Pressable>
+    </Press>
   );
 }
 
 /**
- * 자세 영상 — 직접 찍은 영상은 라이브러리 재생 주소(/api/library/video-url, 웹 components/library-video.tsx 와 같은 small 판)로 틀고,
+ * 자세 영상 — 직접 찍은 영상은 폰에 받아 둔 720p HEVC 판(LibraryClip)으로 틀고,
  * 유튜브 참고 영상은 공식 삽입 재생기를 작은 웹뷰로(우리 사이트를 주소로 둔다 — 유튜브가 출처 없는 삽입을 막는다).
  */
 /** 관리자인가 — 앱을 켤 때 한 번 받은 나(app.loadAppMe, ~/pitch/api loadMe). 받기 전 · 실패면 아님 */
@@ -330,24 +333,49 @@ export function ExerciseVideo({
       </View>
       {/* 관리자만 — 웹 components/library-video.tsx 와 같다(2026-10-04 '앱 안에 머물기': 일반 사용자는 유튜브로 나가지 않게) */}
       {admin ? (
-        <Pressable
+        <Press
           onPress={() => void WebBrowser.openBrowserAsync(referenceWatchUrl(referenceVideoId))}
           accessibilityRole="link"
           style={s.noteAdd}
         >
           <Text style={[s.small, { color: '#0a84d6' }]}>유튜브에서 열기 ↗</Text>
-        </Pressable>
+        </Press>
       ) : null}
     </View>
   );
+}
+
+/** 'library/<uuid>.mp4' → '<uuid>' — 폰에 받아 둔 파일 이름(LocalVideo libraryLoad · libraryFetch 와 같은 규칙) */
+const libraryKey = (path: string) => /^library\/([\w-]{1,64})\.\w+$/.exec(path)?.[1] ?? null;
+
+/**
+ * 폰에 있으면(앱 안 · 받아 둔 것) 그 파일, 없으면 720p HEVC 판(서버 small 'hevc' — 없으면 H.264 판)을 한 번 받아 폰에 두고 튼다.
+ * 2026-10-20 김민: 서버 전송비 — 예전엔 볼 때마다 서버에서 받았다. 받기에 실패하면 예전처럼 주소로 바로 튼다.
+ * HEVC 는 같은 화질에 H.264 판의 절반 남짓(영상 10개 시험 −56%, scripts/library-bundle/compress.swift 머리).
+ */
+async function libraryUri(path: string): Promise<string | null> {
+  const key = libraryKey(path);
+  if (key) {
+    const local = await LocalVideo.libraryLoad({ key }).catch(() => null);
+    if (local) return `file://${local.path}`;
+  }
+  const r = await call<{ urls: Record<string, string> }>('/api/library/video-url', {
+    method: 'POST',
+    body: { paths: [path], small: 'hevc' },
+  });
+  const url = r.urls[path];
+  if (!url) return null;
+  if (!key) return url;
+  const got = await LocalVideo.libraryFetch({ key, url }).catch(() => null);
+  return got ? `file://${got.path}` : url;
 }
 
 function LibraryClip({ path, aspectRatio }: { path: string; aspectRatio: number | null }) {
   const [state, setState] = useState<{ path: string; uri: string | null; failed: boolean } | null>(null);
   useEffect(() => {
     let alive = true;
-    call<{ urls: Record<string, string> }>('/api/library/video-url', { method: 'POST', body: { paths: [path], small: true } }).then(
-      (r) => alive && setState({ path, uri: r.urls[path] ?? null, failed: !r.urls[path] }),
+    libraryUri(path).then(
+      (uri) => alive && setState({ path, uri, failed: !uri }),
       () => alive && setState({ path, uri: null, failed: true })
     );
     return () => {
@@ -370,16 +398,50 @@ function LibraryClip({ path, aspectRatio }: { path: string; aspectRatio: number 
   return <ClipPlayer uri={state.uri} aspectRatio={aspectRatio} />;
 }
 
+/*
+ * 운동 영상 — 아이폰 기본 재생 단추(가운데 큰 재생 · 10초 건너뛰기)가 영상의 동작을 가려서(2026-10-20 김민) 기본 단추를 끄고,
+ * 화면을 누르면 멈춤 · 재생, 오른쪽 아래 작은 단추 둘(재생 · 멈춤, 크게 보기 — 크게 보기 안에서는 기본 단추가 다시 나온다).
+ */
 function ClipPlayer({ uri, aspectRatio }: { uri: string; aspectRatio: number | null }) {
+  const view = useRef<VideoView>(null);
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;
     p.loop = true;
     p.play();
   });
-  return <VideoView player={player} style={[s.video, { aspectRatio: aspectRatio ?? 9 / 16 }]} nativeControls contentFit="contain" />;
+  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+  const toggle = () => togglePlay(player);
+  return (
+    <View style={[s.video, { aspectRatio: aspectRatio ?? 9 / 16 }]}>
+      <VideoView ref={view} player={player} style={StyleSheet.absoluteFill} nativeControls={false} contentFit="contain" />
+      <Pressable onPress={toggle} accessibilityRole="button" accessibilityLabel={isPlaying ? '영상 멈춤' : '영상 재생'} style={StyleSheet.absoluteFill} />
+      <View style={s.clipTools}>
+        <Press onPress={toggle} hitSlop={6} accessibilityRole="button" accessibilityLabel={isPlaying ? '멈춤' : '재생'} style={s.clipTool}>
+          <SymbolView name={isPlaying ? 'pause.fill' : 'play.fill'} size={13} tintColor="#fff" />
+        </Press>
+        <Press
+          onPress={() => void view.current?.enterFullscreen().catch(() => undefined)}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel="크게 보기"
+          style={s.clipTool}
+        >
+          <SymbolView name="arrow.up.left.and.arrow.down.right" size={13} tintColor="#fff" />
+        </Press>
+      </View>
+    </View>
+  );
+}
+
+/* 재생기 값은 훅 밖 함수에서 바꾼다(컴포넌트 안에서 훅 값을 바꾸면 린트가 막는다 — pitch/video.tsx 와 같다) */
+function togglePlay(p: VideoPlayer) {
+  if (p.playing) p.pause();
+  else p.play();
 }
 
 const s = StyleSheet.create({
+  clipTools: { position: 'absolute', right: 8, bottom: 8, flexDirection: 'row', gap: 6 },
+  clipTool: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   rest: { alignSelf: 'center', height: 40, borderRadius: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
   restClock: { fontSize: 18, fontWeight: '600', fontVariant: ['tabular-nums'] },
   small: { fontSize: 13 },

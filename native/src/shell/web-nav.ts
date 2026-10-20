@@ -37,3 +37,35 @@ export function leaveTo(href: string) {
  * 체크인 화면이 둘이었다(2026-10-18 김민: "웹과 많이 다르다" — 3D 몸 그림 · 쉬라는 카드도 웹에만 있었다). 끝나면 next(없으면 홈)로.
  */
 export const openCheckin = (next?: string) => leaveTo(next ? `/checkin?next=${encodeURIComponent(next)}` : '/checkin');
+
+/*
+ * 웹이 새 주소를 그렸다는 알림(껍데기 index.tsx 가 웹의 'path' 알림을 받을 때 부른다) — leaveWhenShown 이 듣는다.
+ */
+const arrived = new Set<(path: string, search: string) => void>();
+export const webArrived = (path: string, search: string) => arrived.forEach((f) => f(path, search));
+
+/**
+ * leaveTo 와 같지만 앱 화면을 웹이 그 주소를 그린 뒤에 걷는다 — 먼저 걷으면 웹이 옮겨 가는 동안 밑의 옛 웹 화면(트레이닝 첫 화면)이 잠깐
+ * 보였다(2026-10-20 김민: "3D 근육 지도를 누르면 트레이닝 첫 화면에 갔다가 넘어간다"). 웹 주소일 때만 쓴다 — 앱 화면 주소면 새로 연 화면까지 걷힌다.
+ * 웹이 알려 오지 않으면(같은 주소 · 느린 망) 2.5초 뒤에 걷는다.
+ */
+export function leaveWhenShown(href: string) {
+  const [path, query = ''] = href.split('?');
+  const want = new URLSearchParams(query);
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    arrived.delete(on);
+    clearTimeout(timer);
+    if (router.canDismiss()) router.dismissAll();
+    else if (router.canGoBack()) router.back();
+  };
+  const on = (p: string, search: string) => {
+    const got = new URLSearchParams(search);
+    if (p === path && [...want].every(([k, v]) => got.get(k) === v)) finish();
+  };
+  arrived.add(on);
+  const timer = setTimeout(finish, 2500);
+  openWebAfter(href);
+}

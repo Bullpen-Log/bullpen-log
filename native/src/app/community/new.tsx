@@ -1,12 +1,13 @@
 import * as Haptics from 'expo-haptics';
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { POST_BODY_MAX, POST_CATEGORIES, POST_TITLE_MAX, type PostCategory } from '@/lib/community';
 import { Bar, BarButton, call, Chip, s, useBusy } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 글쓰기(앱 화면) — 웹 app/(app)/community/new/community-post-form.tsx 를 옮겼다. 구분 · 제목 · 내용, 같은 한도 · 같은 서버 검사
@@ -72,14 +73,14 @@ export default function NewPostScreen() {
         />
         <Text style={{ color: c.muted, fontSize: 13 }}>{POST_BODY_MAX}자까지 적을 수 있어요. 선수 · 팀 이름은 적지 않아요.</Text>
         {send.error ? <Text style={{ color: c.danger, fontSize: 15 }}>{send.error}</Text> : null}
-        <Pressable
+        <Press
           accessibilityRole="button"
           onPress={submit}
           disabled={send.busy}
           style={[s.primary, { backgroundColor: c.sky }, send.busy && { opacity: 0.5 }]}
         >
           <Text style={s.primaryText}>{send.busy ? '올리는 중' : '올리기'}</Text>
-        </Pressable>
+        </Press>
       </ScrollView>
     </KeyboardAvoidingView>
   );

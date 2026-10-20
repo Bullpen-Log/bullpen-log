@@ -75,8 +75,14 @@ export function LibraryTile({
         )}
       </span>
 
-      <span className="line-clamp-2 px-3 py-2.5 text-sm font-semibold leading-snug break-keep text-ink transition-colors group-hover:text-sky">
-        {title}
+      {/*
+        한 줄 이름 카드는 옆의 두 줄 카드 높이로 늘어나는데, 글이 위에 붙어 밑만 비었다(2026-10-20 김민: 위아래 공백이 안 맞는다) —
+        이름 칸이 남는 높이를 채우고 글을 세로 가운데에. line-clamp 는 flex 와 한 요소에 같이 못 써서 안쪽에 둔다.
+      */}
+      <span className="flex flex-1 items-center px-3 py-2.5">
+        <span className="line-clamp-2 text-sm font-semibold leading-snug break-keep text-ink transition-colors group-hover:text-sky">
+          {title}
+        </span>
       </span>
     </button>
   );

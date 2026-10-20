@@ -1,5 +1,6 @@
 import { forwardRef, useImperativeHandle, useRef, useState, type ComponentType, type Ref } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useGrabProps } from '~/shell/scroll-lock';
 import { WebView, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 import { APP_UA, SITE_URL } from '~/lib/site';
 
@@ -8,7 +9,7 @@ import { APP_UA, SITE_URL } from '~/lib/site';
  * 가지지 않게). 로그인은 앱 껍데기와 같은 'session' 쿠키(sharedCookiesEnabled).
  *
  * 웹뷰와의 말(사이트 app/embed/lab/[id]/lab-embed.tsx 와 같은 모양):
- *   - 웹 → 앱(postMessage JSON): ready · size(칸 높이 px — 웹뷰 높이를 맞춘다) · transport(3D 시계 + 그 장면의 두 영상 시각)
+ *   - 웹 → 앱(postMessage JSON): ready · size(칸 높이 px — 웹뷰 높이를 맞춘다) · transport(3D 시계 + 그때 두 영상의 재생기 시각)
  *   - 앱 → 웹: window.__labSeek(장면) — 숫자 · 메커니즘 점검의 '그 순간 보기'
  */
 export type LabTransport = {
@@ -16,7 +17,9 @@ export type LabTransport = {
   playing: boolean;
   speed: number;
   reason: 'tick' | 'seek' | 'toggle' | 'speed';
-  /** 그 장면의 옆 · 뒤 영상 시각(초) */
+  /** 3D 시계(옆 영상 트랙 시각) — 2026-10-20 부터. 영상은 아래 두 값을 쓴다 */
+  time?: number;
+  /** 그때 옆 · 뒤 영상의 재생기 시각(초, 편집 목록 앞머리까지 더함 — 재생 중엔 0.1초마다) */
   side: number;
   back: number;
 };
@@ -43,6 +46,7 @@ export const Lab3D = forwardRef<
   }
 >(function Lab3D({ id, width, bg, onTransport }, ref) {
   const web = useRef<WebViewHandle>(null);
+  const grab = useGrabProps();
   const [height, setHeight] = useState(() => Math.round(width * 1.25) + 132);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -71,7 +75,8 @@ export const Lab3D = forwardRef<
   };
 
   return (
-    <View style={{ height, borderRadius: 16, overflow: 'hidden', backgroundColor: bg }}>
+    /* 손가락이 3D 에 닿은 동안 둘레 스크롤을 멈춘다(shell/scroll-lock) */
+    <View {...grab} style={{ height, borderRadius: 16, overflow: 'hidden', backgroundColor: bg }}>
       <RefWebView
         ref={web}
         source={{ uri: url }}

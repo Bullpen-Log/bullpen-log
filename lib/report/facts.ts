@@ -1,4 +1,5 @@
 import { appNow } from '@/lib/clock';
+import { findFocus, type GoalFocusKey } from '@/lib/report/personalize';
 import {
   ACUTE_WINDOW_DAYS,
   CHRONIC_WINDOW_DAYS,
@@ -94,14 +95,24 @@ export type CheckinLike = CheckinParts & {
 /** 오늘 하고 싶은 운동 — 종류(null = 앱에 맡김) · 부위 */
 export type TodayPrefs = { preferredParts: string[]; preferredWorkout: string | null };
 
-/** 오늘 하고 싶은 운동 — 트레이닝 탭 카드의 답이 있으면 그것(체크인이 없어도), 없으면 오늘 체크인의 칸 */
-export function todayPrefsOf(facts: ReportFacts): TodayPrefs {
+/**
+ * 오늘 하고 싶은 운동 — 트레이닝 탭 카드의 답이 있으면 그것(체크인이 없어도), 없으면 오늘 체크인의 칸.
+ *
+ * focus — 카드의 '오늘 할 부위'(하체 · 상체 · 상체 밀기 · 상체 당기기, GOAL_FOCUSES 의 열쇠). 칸을 새로 만들지 않고 preferredParts 에
+ * 열쇠 그대로 담는다(2026-10-20 — '직접 고르기'를 빼고 그 부위 고르기를 카드로 옮김, DB 구조 그대로). 그래서 여기서 갈라
+ * preferredParts 에는 몸 부위(어깨 · 코어 …)만 남긴다 — 고르기 차례(prescription · theme)가 열쇠를 부위로 읽지 않게.
+ */
+export function todayPrefsOf(facts: ReportFacts): TodayPrefs & { focus: GoalFocusKey | null } {
   const card = facts.condition.prefsToday;
-  if (card) return card;
   const today = facts.condition.today;
-  return {
+  const raw = card ?? {
     preferredParts: today?.preferredParts ?? [],
     preferredWorkout: today?.preferredWorkout ?? null,
+  };
+  return {
+    preferredParts: raw.preferredParts.filter((p) => !findFocus(p)),
+    preferredWorkout: raw.preferredWorkout,
+    focus: raw.preferredParts.map(findFocus).find((f) => f != null)?.key ?? null,
   };
 }
 

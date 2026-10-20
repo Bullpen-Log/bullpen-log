@@ -15,6 +15,7 @@ import {
   validateCheckinDate,
 } from '@/lib/checkin';
 import { availableParts } from '@/lib/report/today-pick';
+import { goalForUnchosen, validFocus } from '@/lib/report/personalize';
 import { visibleExercises } from '@/lib/library-cache';
 
 /**
@@ -56,6 +57,11 @@ export async function saveTrainingPrefs(input: {
   date: string;
   workout: string | null;
   parts: string[];
+  /**
+   * 오늘 할 부위(GOAL_FOCUSES 열쇠 — 하체 · 상체 · 상체 밀기 · 상체 당기기, 2026-10-20 '직접 고르기'에서 옮김). 칸을 새로 안 만들고 preferredParts
+   * 맨 앞에 열쇠로 담는다 — 읽는 쪽은 todayPrefsOf(lib/report/facts.ts)가 갈라 낸다. 고른 종류의 목표에 없는 부위는 버린다.
+   */
+  focus?: string | null;
 }): Promise<DayCardResult> {
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
@@ -67,8 +73,12 @@ export async function saveTrainingPrefs(input: {
     Array.isArray(input.parts) ? input.parts.map(String) : [],
     availableParts(library)
   );
+  const focus = validFocus(goalForUnchosen(workout), typeof input.focus === 'string' ? input.focus : null);
   const date = dayOf(input.date);
-  const saved = { preferredWorkout: workout ?? NO_WORKOUT_KIND, preferredParts: parts };
+  const saved = {
+    preferredWorkout: workout ?? NO_WORKOUT_KIND,
+    preferredParts: workout === '회복' || !focus ? parts : [focus, ...parts],
+  };
   await prisma.dailyTrainingSetup.upsert({
     where: { userId_date: { userId: user.id, date } },
     update: saved,

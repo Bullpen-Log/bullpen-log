@@ -4,18 +4,18 @@ import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-ro
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BASIC_FOODS, STARTER_FOOD_IDS, basicAliases, basicFood } from '@/lib/nutrition/foods';
+import { BASIC_FOODS, STARTER_FOOD_IDS, basicFood, rankFoods } from '@/lib/nutrition/foods';
 import { COMBO_TOP, comboFood, findCombo, itemsFromEntries, orderCombos, type MealComboView } from '@/lib/nutrition/combos';
-import { matchScore } from '@/lib/nutrition/hangul';
-import { isMealKey, mealLabel, type Food, type MealKey } from '@/lib/nutrition/meta';
+import { isMealKey, mealLabel, missingMacros, missingText, type Food, type MealKey } from '@/lib/nutrition/meta';
 import { usePalette, withAlpha } from '~/lib/ui';
 import { addFoods, deleteCombo, deleteMyFood, favoriteFood, unfavoriteFood, markComboUsed, replaceEntry, replacePlan, saveCombo, saveMyFood, searchMfds, searchMfdsReps, useNutritionDay } from '~/nutrition/api';
 import { BrowseAll, ComboButton, ComboRow, PickPanel, SaveCombo } from '~/nutrition/add-parts';
 import { Segmented } from '~/shell/heading';
 import { Icon } from '~/shell/icon';
 import { CustomFood } from '~/nutrition/custom-food';
-import { takeScanned } from '~/nutrition/scanned';
+import { takeScanned, type Scanned } from '~/nutrition/scanned';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 음식 담기(앱) — 웹 영양 탭 음식 창의 첫 판: 찾기(기본 음식 · 내 음식 → 식약처 품목대표 → 식약처 상품, 웹과 같은 순서) · 최근 먹은 것 ·
@@ -51,7 +51,7 @@ export default function NutritionAddScreen() {
   const [savedName, setSavedName] = useState<string | null>(null);
 
   /* 바코드 화면에서 돌아오면 찾은 음식을 고른 것으로 */
-  const [scanned, setScanned] = useState<Food | null>(null);
+  const [scanned, setScanned] = useState<Scanned | null>(null);
   useFocusEffect(
     useCallback(() => {
       const f = takeScanned();
@@ -61,21 +61,13 @@ export default function NutritionAddScreen() {
       }
     }, [])
   );
-  const chosen = scanned ?? picked;
+  const chosen = scanned?.food ?? picked;
 
   const local = useMemo(() => {
     const text = q.trim();
     if (!text) return [];
-    const mine = (day?.mine ?? []).map((f) => ({ f, s: matchScore(f.name, text) }));
-    const basic = BASIC_FOODS.map((f) => ({
-      f,
-      s: Math.max(matchScore(f.name, text), ...basicAliases(f.id ?? '').map((a) => matchScore(a, text))),
-    }));
-    return [...mine, ...basic]
-      .filter((x) => x.s > 0)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, LIMIT)
-      .map((x) => x.f);
+    /* 웹 음식 창과 같은 순서(rankFoods — 내 음식 +5점, 같은 점수면 짧은 이름 먼저, 40개) */
+    return rankFoods([...(day?.mine ?? []), ...BASIC_FOODS], text, 40);
   }, [q, day?.mine]);
 
   /* 식약처 — 칠 때마다 0.35초 기다렸다가, 품목대표(바로) → 상품까지(느림). 늦게 온 옛 검색어 답은 버린다 */
@@ -259,7 +251,7 @@ export default function NutritionAddScreen() {
 
   const custom = (
     <View style={{ gap: 8, paddingTop: 8 }}>
-      <Pressable
+      <Press
         accessibilityRole="button"
         accessibilityState={{ expanded: customOpen }}
         onPress={() => setCustomOpen((o) => !o)}
@@ -268,7 +260,7 @@ export default function NutritionAddScreen() {
         <Text style={{ color: customOpen ? c.sky : c.muted, fontSize: 15 }}>
           ✎ {q.trim() ? `‘${q.trim()}’ 직접 입력` : '목록에 없으면 직접 입력'}
         </Text>
-      </Pressable>
+      </Press>
       {customOpen ? (
         <CustomFood
           key={q.trim()}
@@ -299,9 +291,11 @@ export default function NutritionAddScreen() {
         <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
           {f.servingLabel} · {Math.round(f.kcal)}kcal{f.protein != null ? ` · 단백질 ${Math.round(f.protein)}g` : ''}
           {f.note && !hideNote ? ` · ${f.note}` : ''}
+          {/* 모르는 영양소 — 웹 음식 창 줄과 같은 '탄·지 모름'('없음'이라 적으면 0g 으로 읽힌다) */}
+          {missingMacros(f).length > 0 ? ` · ${missingText(missingMacros(f))}` : ''}
         </Text>
       </View>
-      <Pressable
+      <Press
         accessibilityRole="button"
         accessibilityLabel={replacing ? `${f.name}(으)로 바꾸기` : `${f.name} 1인분 담기`}
         onPress={() => void quickAdd(f, key)}
@@ -315,26 +309,32 @@ export default function NutritionAddScreen() {
         ) : (
           <Text style={{ color: c.sky, fontSize: 24 }}>+</Text>
         )}
-      </Pressable>
+      </Press>
     </Pressable>
   );
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <View style={styles.bar}>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
+        <Press accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
           <Text style={[styles.barAction, { color: c.sky }]}>{added.length ? '다 했어요' : '닫기'}</Text>
-        </Pressable>
+        </Press>
         <Text style={[styles.barTitle, { color: c.ink, flexShrink: 1 }]} numberOfLines={1}>
           {replacing ? `‘${replacing.name}’ 바꾸기` : `${mealLabel(mealKey)}에 담기`}
         </Text>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/nutrition/barcode' as Href)} hitSlop={10}>
+        <Press accessibilityRole="button" onPress={() => router.push('/nutrition/barcode' as Href)} hitSlop={10}>
           <Text style={[styles.barAction, { color: c.sky }]}>바코드</Text>
-        </Pressable>
+        </Press>
       </View>
 
       {chosen ? (
         <ScrollView contentContainerStyle={[{ paddingHorizontal: 16, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled">
+          {/* 바코드로 찾은 음식이면 어디서 찾았는지 한 줄(웹 barcode-panel 과 같은 글) */}
+          {scanned && scanned.food === chosen && scanned.from !== 'new' ? (
+            <Text style={{ color: c.muted, fontSize: 13, paddingHorizontal: 4, paddingBottom: 8 }}>
+              {scanned.from === 'mine' ? '전에 적어 둔 바코드예요.' : '공개 자료(Open Food Facts)에서 찾았어요. 이름 · 값이 포장과 다를 수 있어요.'}
+            </Text>
+          ) : null}
           <PickPanel
             key={`${chosen.source}:${chosen.id ?? chosen.name}`}
             food={chosen}
@@ -485,13 +485,13 @@ export default function NutritionAddScreen() {
                           <View style={{ flex: 1 }}>{row(f, `yr${i}`)}</View>
                           {f.id ? (
                             confirmMine === f.id ? (
-                              <Pressable accessibilityRole="button" onPress={() => void removeMine(f)} style={[styles.del, { backgroundColor: withAlpha(c.danger, 0.12) }]}>
+                              <Press accessibilityRole="button" onPress={() => void removeMine(f)} style={[styles.del, { backgroundColor: withAlpha(c.danger, 0.12) }]}>
                                 <Text style={{ color: c.danger, fontSize: 13, fontWeight: '700' }}>지우기</Text>
-                              </Pressable>
+                              </Press>
                             ) : (
-                              <Pressable accessibilityRole="button" accessibilityLabel={`${f.name} 내 음식에서 빼기`} onPress={() => setConfirmMine(f.id)} style={styles.delIcon}>
+                              <Press accessibilityRole="button" accessibilityLabel={`${f.name} 내 음식에서 빼기`} onPress={() => setConfirmMine(f.id)} style={styles.delIcon}>
                                 <Icon name="trash2" size={16} color={c.muted} />
-                              </Pressable>
+                              </Press>
                             )
                           ) : null}
                         </View>
@@ -512,9 +512,9 @@ export default function NutritionAddScreen() {
           <Text style={{ flex: 1, color: c.ink, fontSize: 15 }} numberOfLines={1}>
             {added.length === 1 ? `${added[0]} 담았어요` : `${added.length}번 담았어요 · ${added.at(-1)}`}
           </Text>
-          <Pressable accessibilityRole="button" onPress={() => router.back()} style={[styles.done, { backgroundColor: c.sky }]}>
+          <Press accessibilityRole="button" onPress={() => router.back()} style={[styles.done, { backgroundColor: c.sky }]}>
             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>다 했어요</Text>
-          </Pressable>
+          </Press>
         </View>
       ) : null}
     </View>

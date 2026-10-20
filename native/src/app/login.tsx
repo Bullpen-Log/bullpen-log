@@ -1,13 +1,15 @@
 import * as Haptics from 'expo-haptics';
 import { type Href, router, Stack } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, type TextInputInstance, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, type TextInputInstance, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AuthState } from '@/app/actions/auth';
 import { accountForm, clearSession } from '~/account/session';
 import { loadJson, saveJson } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
+import { Icon } from '~/shell/icon';
 import { leaveTo } from '~/shell/web-nav';
+import { Wordmark } from '~/shell/wordmark';
 import { READABLE } from '~/lib/layout';
 
 /**
@@ -66,111 +68,148 @@ export default function LoginScreen() {
     setError('error' in r ? r.error : (r.state?.error ?? '로그인하지 못했어요.'));
   };
 
+  const [hint, setHint] = useState(false);
+
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Stack.Screen options={{ gestureEnabled: false }} />
+      {/* 웹 로그인(StepCard)과 같은 차례 — 로고 · 제목 · 한 줄 · 이름 붙은 칸 둘 · 체크 줄 · 아래 [계정 만들기][로그인] */}
       <ScrollView
-        contentContainerStyle={[{ padding: 20, paddingTop: inset.top + 48, paddingBottom: inset.bottom + 32, gap: 22 }, READABLE]}
+        contentContainerStyle={[{ flexGrow: 1, paddingHorizontal: 20, paddingTop: inset.top + 20, paddingBottom: inset.bottom + 20 }, READABLE]}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
       >
-        <View style={{ gap: 6 }}>
-          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '700', letterSpacing: 1 }}>BULLPEN LOG</Text>
-          <Text style={{ color: c.ink, fontSize: 34, fontWeight: '800' }}>로그인</Text>
-          <Text style={{ color: c.muted, fontSize: 16 }}>기록을 이어서 보려면 로그인해 주세요.</Text>
+        <Wordmark size={24} color={c.ink} />
+        <Text style={{ color: c.ink, fontSize: 28, fontWeight: '800', marginTop: 24 }}>로그인</Text>
+        <Text style={{ color: c.muted, fontSize: 15, lineHeight: 22, marginTop: 10 }}>기록을 이어서 보려면 로그인해 주세요.</Text>
+
+        <View style={{ flex: 1, gap: 20, marginTop: 24 }}>
+          {error ? (
+            <Text accessibilityRole="alert" style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>
+              {error}
+            </Text>
+          ) : null}
+          <Labeled label="이메일" c={c}>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="pitcher@example.com"
+              placeholderTextColor={c.muted}
+              keyboardType="email-address"
+              textContentType="username"
+              autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              accessibilityLabel="이메일"
+              style={[st.input, { color: c.ink, backgroundColor: c.card, borderColor: c.line }]}
+            />
+          </Labeled>
+          <Labeled label="비밀번호" c={c}>
+            <TextInput
+              ref={passwordRef}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              placeholderTextColor={c.muted}
+              secureTextEntry
+              textContentType="password"
+              autoComplete="current-password"
+              returnKeyType="go"
+              onSubmitEditing={() => void submit()}
+              accessibilityLabel="비밀번호"
+              style={[st.input, { color: c.ink, backgroundColor: c.card, borderColor: c.line }]}
+            />
+          </Labeled>
+
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+              <CheckLine
+                label="자동 로그인"
+                value={stay}
+                onChange={(v) => {
+                  setStay(v);
+                  savePrefs({ stay: v });
+                }}
+                c={c}
+              />
+              <CheckLine
+                label="아이디 기억하기"
+                value={remember}
+                onChange={(v) => {
+                  setRemember(v);
+                  savePrefs({ email: v ? email.trim() : null });
+                }}
+                c={c}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="로그인 유지 · 아이디 기억하기 설명"
+                accessibilityState={{ expanded: hint }}
+                onPress={() => setHint((h) => !h)}
+                hitSlop={8}
+                style={{ marginLeft: 'auto', width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Icon name="info" size={18} color={hint ? c.sky : c.muted} strokeWidth={2} />
+              </Pressable>
+            </View>
+            {hint ? (
+              <View style={{ gap: 6, marginTop: 4 }}>
+                <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>자동 로그인: 앱을 닫아도 30일 동안 로그인이 유지돼요.</Text>
+                <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>아이디 기억하기: 다음에 올 때 이메일 칸을 채워 둬요. 비밀번호는 저장하지 않아요.</Text>
+              </View>
+            ) : null}
+          </View>
         </View>
 
-        <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="이메일"
-            placeholderTextColor={c.muted}
-            keyboardType="email-address"
-            textContentType="username"
-            autoComplete="email"
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="next"
-            onSubmitEditing={() => passwordRef.current?.focus()}
-            accessibilityLabel="이메일"
-            style={[st.input, { color: c.ink, borderBottomColor: c.line, borderBottomWidth: StyleSheet.hairlineWidth }]}
-          />
-          <TextInput
-            ref={passwordRef}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="비밀번호"
-            placeholderTextColor={c.muted}
-            secureTextEntry
-            textContentType="password"
-            autoComplete="current-password"
-            returnKeyType="go"
-            onSubmitEditing={() => void submit()}
-            accessibilityLabel="비밀번호"
-            style={[st.input, { color: c.ink }]}
-          />
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
+          <Pressable accessibilityRole="link" onPress={() => router.push('/signup' as Href)} style={({ pressed }) => [st.text, pressed && { backgroundColor: c.line }]}>
+            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>계정 만들기</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void submit()}
+            disabled={busy}
+            style={({ pressed }) => [st.primary, { backgroundColor: c.sky, opacity: busy ? 0.6 : pressed ? 0.85 : 1 }]}
+          >
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{busy ? '로그인 중…' : '로그인'}</Text>
+          </Pressable>
         </View>
-
-        <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
-          <ToggleRow
-            label="자동 로그인"
-            value={stay}
-            onChange={(v) => {
-              setStay(v);
-              savePrefs({ stay: v });
-            }}
-            c={c}
-          />
-          <ToggleRow
-            label="아이디 기억하기"
-            value={remember}
-            onChange={(v) => {
-              setRemember(v);
-              savePrefs({ email: v ? email.trim() : null });
-            }}
-            last
-            c={c}
-          />
-        </View>
-        <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18, marginTop: -14, paddingHorizontal: 16 }}>
-          자동 로그인을 끄면 앱을 완전히 닫을 때 로그아웃돼요. 아이디만 기억하고 비밀번호는 저장하지 않아요.
-        </Text>
-
-        {error ? (
-          <Text accessibilityRole="alert" style={{ color: c.danger, fontSize: 15, fontWeight: '600', paddingHorizontal: 4 }}>
-            {error}
-          </Text>
-        ) : null}
-
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => void submit()}
-          disabled={busy}
-          style={({ pressed }) => [st.primary, { backgroundColor: c.sky, opacity: busy ? 0.6 : pressed ? 0.85 : 1 }]}
-        >
-          <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{busy ? '로그인 중…' : '로그인'}</Text>
-        </Pressable>
-        <Pressable accessibilityRole="link" onPress={() => router.push('/signup' as Href)} hitSlop={8} style={{ alignSelf: 'center', minHeight: 44, justifyContent: 'center' }}>
-          <Text style={{ color: c.sky, fontSize: 16, fontWeight: '600' }}>계정 만들기</Text>
-        </Pressable>
       </ScrollView>
     </View>
   );
 }
 
-function ToggleRow({ label, value, onChange, last, c }: { label: string; value: boolean; onChange: (v: boolean) => void; last?: boolean; c: Palette }) {
+function Labeled({ label, c, children }: { label: string; c: Palette; children: React.ReactNode }) {
   return (
-    <View style={[st.row, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }]}>
-      <Text style={{ color: c.ink, fontSize: 16, flex: 1 }}>{label}</Text>
-      <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />
+    <View style={{ gap: 8 }}>
+      <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>{label}</Text>
+      {children}
     </View>
   );
 }
 
+/** 웹 CheckLine 과 같은 네모 체크 + 글 — 누르는 줄 44pt */
+function CheckLine({ label, value, onChange, c }: { label: string; value: boolean; onChange: (v: boolean) => void; c: Palette }) {
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: value }}
+      onPress={() => onChange(!value)}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 }}
+    >
+      <View style={[st.box, value ? { backgroundColor: c.sky, borderColor: c.sky } : { borderColor: c.muted }]}>
+        {value ? <Icon name="check" size={13} color="#fff" strokeWidth={3} /> : null}
+      </View>
+      <Text style={{ color: c.muted, fontSize: 15 }}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const st = StyleSheet.create({
-  group: { borderRadius: 14, overflow: 'hidden' },
-  input: { fontSize: 17, paddingHorizontal: 16, minHeight: 52 },
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, minHeight: 50 },
-  primary: { minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  input: { fontSize: 17, paddingHorizontal: 14, minHeight: 52, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth * 2 },
+  box: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  text: { minHeight: 48, paddingHorizontal: 16, borderRadius: 12, justifyContent: 'center' },
+  primary: { minHeight: 48, paddingHorizontal: 28, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
 });

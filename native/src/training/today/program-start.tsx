@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useRef, useState } from 'react';
 import { dateKeyOf, toDateKey } from '@/lib/pitch-stats';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   BASICS_MIN_AGE,
   GOAL_LABELS,
@@ -10,7 +10,6 @@ import {
   PROGRAM_MIN_AGE,
   RECOMMENDED_EQUIPMENT,
   TM_LOOKBACK_DAYS,
-  equipmentBlock,
   profileBlock,
   type PerWeek,
   type ProgramBlock,
@@ -24,10 +23,11 @@ import { act } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Sheet } from '~/workout/sheets';
 import { BigButton, Chip, LinkRow, s, type TodayActions } from './parts';
+import { Press } from '~/shell/press';
 
 /**
  * 근력 · 파워 프로그램 고르기 · 시작(앱 화면) — 웹 app/(app)/training/program-start.tsx 를 옮겼다. 입구 한 줄 + 기본기 카드, 시트는 한 쪽에 하나씩:
- * 목록 → 소개 → [생년월일] [경력] [장비](비었을 때만) → 고정 운동 → 주 몇 번 + 요약 + [시작]. 막힘 글은 서버와 같은 함수(profileBlock · equipmentBlock),
+ * 목록 → 소개 → [생년월일] [경력] 장비(늘 — 전에 고른 것을 켜 둔 채) → 고정 운동 → 주 몇 번 + 요약 + [시작]. 막힘 글은 서버와 같은 함수(profileBlock · equipmentBlock),
  * 저장은 웹과 같은 서버 동작(program.previewPinned · programChoices · startProgram). 고정 운동 바꾸기(진행 중, 웹 program-card.tsx RepinSheet)도 여기.
  */
 
@@ -76,7 +76,7 @@ export function ProgramStartView({ ps, c, a }: { ps: TodayProgramStart; c: Palet
 
   const basicsCard =
     showBasics && basicsChoice ? (
-      <Pressable
+      <Press
         accessibilityRole="button"
         onPress={() => setOpening({ with: basicsChoice })}
         style={[st.entry, { backgroundColor: `${c.sky}14`, borderColor: `${c.sky}66`, borderWidth: 1 }]}
@@ -91,13 +91,13 @@ export function ProgramStartView({ ps, c, a }: { ps: TodayProgramStart; c: Palet
           </Text>
         </View>
         <Text style={{ color: c.muted, fontSize: 18 }}>›</Text>
-      </Pressable>
+      </Press>
     ) : null;
 
   return (
     <>
       {recommend ? basicsCard : null}
-      <Pressable accessibilityRole="button" onPress={() => setOpening({ with: null })} style={[st.entry, { backgroundColor: c.card, boxShadow: c.float }]}>
+      <Press accessibilityRole="button" onPress={() => setOpening({ with: null })} style={[st.entry, { backgroundColor: c.card, boxShadow: c.float }]}>
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text style={[s.bodyBold, { color: c.ink }]}>근력 · 파워 프로그램</Text>
           <Text style={[s.tiny, { color: c.muted }]}>
@@ -105,7 +105,7 @@ export function ProgramStartView({ ps, c, a }: { ps: TodayProgramStart; c: Palet
           </Text>
         </View>
         <Text style={{ color: c.muted, fontSize: 18 }}>›</Text>
-      </Pressable>
+      </Press>
       {recommend ? null : basicsCard}
       {opening ? <StartSheet ps={ps} startWith={opening.with} onClose={() => setOpening(null)} c={c} a={a} /> : null}
     </>
@@ -139,7 +139,8 @@ function StartSheet({
   const steps: Step[] = [
     ...(ps.needBirth ? (['birth'] as const) : []),
     ...(ps.level == null ? (['level'] as const) : []),
-    ...(ps.owned.length === 0 ? (['equipment'] as const) : []),
+    /* 장비는 시작할 때마다 고른다(2026-10-20 김민 — 트레이닝 설정의 '가진 장비'를 없앰). 전에 고른 것을 켜 둔 채로 */
+    'equipment',
     'pins',
     'summary',
   ];
@@ -150,7 +151,7 @@ function StartSheet({
   const [perWeekPick, setPerWeekPick] = useState<PerWeek | null>(null);
   const [birth, setBirth] = useState('');
   const [level, setLevel] = useState<string | null>(ps.level);
-  const [owned, setOwned] = useState<string[]>([]);
+  const [owned, setOwned] = useState<string[]>(() => ps.owned.filter((e) => ps.equipment.includes(e)));
   const [pins, setPins] = useState<PinView[] | null>(null);
   const [changing, setChanging] = useState<VariantKey | null>(null);
   const [choices, setChoices] = useState<{ id: string; title: string }[] | null>(null);
@@ -164,7 +165,7 @@ function StartSheet({
     setError(null);
     setStep(next);
   };
-  const equipmentForCall = ps.owned.length === 0 ? owned : null;
+  const equipmentForCall = owned;
   const levelForCall = ps.level == null ? level : null;
   /* 주 3번이 기본(되는 프로그램만) */
   const perWeek: PerWeek = choice ? (perWeekPick ?? (choice.perWeek.includes(3) ? 3 : 2)) : 3;
@@ -237,10 +238,8 @@ function StartSheet({
       await a.reload();
     });
 
-  /* 막힘 — 서버(checkEligibility)와 같은 함수로. 장비가 이미 저장된 사람은 장비 칸을 건너뛰므로 빠진 장비를 소개 쪽에서 바로 말한다 */
-  const choiceBlocked = choice
-    ? ((basics ? ps.basicsBlocked : ps.blocked) ?? (ps.owned.length > 0 ? equipmentBlock(ps.owned, choice.required) : null))
-    : null;
+  /* 막힘 — 서버(checkEligibility)와 같은 함수로. 장비는 늘 장비 칸에서 고르므로 빠진 장비는 그 칸이 말한다 */
+  const choiceBlocked = choice ? ((basics ? ps.basicsBlocked : ps.blocked) ?? null) : null;
   const birthAge = ageOf(birth);
   const birthBlocked = birthAge == null ? null : profileBlock({ audience, age: birthAge, trainingLevel: null });
   const levelBlocked = profileBlock({ audience, age: null, trainingLevel: level, basicsDone: ps.basicsDone });
@@ -260,8 +259,7 @@ function StartSheet({
   const basicsChoices = offersBasics(ps) ? ps.programs.filter((p) => p.audience === 'basics') : [];
   const shown = ps.programs.filter((p) => p.audience === 'adult' && p.goal === goal);
   const changingLabel = pins?.find((x) => x.variant === changing)?.label ?? '';
-  const ownedNow = ps.owned.length > 0 ? ps.owned : owned;
-  const recommendedMissing = RECOMMENDED_EQUIPMENT.filter((e) => !ownedNow.includes(e));
+  const recommendedMissing = RECOMMENDED_EQUIPMENT.filter((e) => !owned.includes(e));
 
   return (
     <Sheet
@@ -272,13 +270,13 @@ function StartSheet({
       footer={
         step !== 'list' && step !== 'intro' ? (
           <View style={[s.row, { gap: 8 }]}>
-            <Pressable
+            <Press
               accessibilityRole="button"
               onPress={() => (changing ? setChanging(null) : back())}
               style={[s.big, { flex: 1, backgroundColor: c.chip }]}
             >
               <Text style={[s.bigText, { color: c.ink }]}>뒤로</Text>
-            </Pressable>
+            </Press>
             <View style={{ flex: 2 }}>
               <BigButton
                 c={c}
@@ -303,7 +301,7 @@ function StartSheet({
       {step === 'list' ? (
         <>
           {basicsChoices.map((p) => (
-            <Pressable
+            <Press
               key={p.id}
               accessibilityRole="button"
               onPress={() => pick(p)}
@@ -317,11 +315,13 @@ function StartSheet({
                 <Gist p={p} c={c} />
               </View>
               <Text style={{ color: c.muted, fontSize: 18 }}>›</Text>
-            </Pressable>
+            </Press>
           ))}
           <View accessibilityRole="tablist" style={[st.seg, { backgroundColor: c.chip }]}>
             {GOALS.map((g) => (
-              <Pressable
+              <Press
+                select
+                selected={goal === g.value}
                 key={g.value}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: goal === g.value }}
@@ -329,7 +329,7 @@ function StartSheet({
                 style={[st.segItem, goal === g.value && { backgroundColor: c.card }]}
               >
                 <Text style={[s.small, { color: c.ink, fontWeight: goal === g.value ? '700' : '500' }]}>{g.label}</Text>
-              </Pressable>
+              </Press>
             ))}
           </View>
           {ps.blocked ? (
@@ -339,7 +339,7 @@ function StartSheet({
           ) : null}
           <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 4, gap: 0 }]}>
             {shown.map((p, i) => (
-              <Pressable
+              <Press
                 key={p.id}
                 accessibilityRole="button"
                 onPress={() => pick(p)}
@@ -353,7 +353,7 @@ function StartSheet({
                   <Gist p={p} c={c} />
                 </View>
                 <Text style={{ color: c.muted, fontSize: 18 }}>›</Text>
-              </Pressable>
+              </Press>
             ))}
           </View>
         </>
@@ -369,7 +369,7 @@ function StartSheet({
             </Text>
           </View>
           <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 4 }]}>
-            <Pressable
+            <Press
               accessibilityRole="button"
               accessibilityState={{ expanded: weeksOpen }}
               onPress={() => setWeeksOpen((v) => !v)}
@@ -377,7 +377,7 @@ function StartSheet({
             >
               <Text style={[s.bodyBold, { flex: 1, color: c.ink }]}>자세히 보기</Text>
               <SymbolView name={weeksOpen ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-            </Pressable>
+            </Press>
             {weeksOpen ? (
               <View style={{ gap: 8, paddingBottom: 12 }}>
                 {choice.how ? <Text style={[s.small, { color: c.ink }]}>{choice.how}</Text> : null}
@@ -435,7 +435,9 @@ function StartSheet({
         <>
           <Text style={[s.cardTitle, { color: c.ink }]}>웨이트 경력은 얼마나 돼요?</Text>
           {ps.levels.map((l) => (
-            <Pressable
+            <Press
+              select
+              selected={level === l.name}
               key={l.name}
               accessibilityRole="radio"
               accessibilityState={{ selected: level === l.name }}
@@ -444,7 +446,7 @@ function StartSheet({
             >
               <Text style={[s.bodyBold, { color: c.ink }]}>{l.name}</Text>
               <Text style={[s.tiny, { flex: 1, textAlign: 'right', color: c.muted }]}>{l.desc}</Text>
-            </Pressable>
+            </Press>
           ))}
           {levelBlocked ? <Blocked b={levelBlocked} c={c} /> : null}
         </>
@@ -452,7 +454,7 @@ function StartSheet({
 
       {step === 'equipment' ? (
         <>
-          <Text style={[s.cardTitle, { color: c.ink }]}>가진 장비를 골라 주세요</Text>
+          <Text style={[s.cardTitle, { color: c.ink }]}>쓸 수 있는 장비를 골라 주세요</Text>
           <Text style={[s.tiny, { color: c.muted }]}>
             {required.length > 0
               ? `${required.join(' · ')}은 꼭 있어야 해요.`
@@ -556,7 +558,7 @@ function PinList({
   return (
     <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 4, gap: 0 }]}>
       {pins.map((x, i) => (
-        <Pressable
+        <Press
           key={x.variant}
           accessibilityRole="button"
           accessibilityLabel={`${x.label} 바꾸기`}
@@ -571,7 +573,7 @@ function PinList({
             </Text>
           </View>
           <Text style={[s.bodyBold, { color: c.sky }]}>바꾸기</Text>
-        </Pressable>
+        </Press>
       ))}
     </View>
   );
@@ -598,7 +600,7 @@ function PickList({
   return (
     <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 4, gap: 0 }]}>
       {items.map((x, i) => (
-        <Pressable
+        <Press
           key={x.id}
           accessibilityRole="button"
           disabled={busy}
@@ -609,7 +611,7 @@ function PickList({
             {x.title}
           </Text>
           {current === x.title ? <Text style={[s.tiny, { color: c.muted }]}>지금</Text> : null}
-        </Pressable>
+        </Press>
       ))}
     </View>
   );

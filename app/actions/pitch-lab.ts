@@ -8,6 +8,7 @@ import {
   deleteLabSample,
   deleteUnsavedLabSample,
   findLabOwner,
+  labVideoShifts,
   seesMarkerSamples,
   labVideoUrls,
   loadLabGuard,
@@ -43,6 +44,7 @@ import {
 } from '@/lib/pitch-3d/v2/gpu-client';
 import {
   isLabId,
+  type LabView,
   LAB_VIEWS,
   forHand,
   labCardChips,
@@ -331,6 +333,18 @@ export async function loadPitch3dV2(input: {
   } catch {
     return { error: '분석 결과를 불러오지 못했어요.' };
   }
+}
+
+/**
+ * 원본 영상 두 칸의 시각 앞머리(초, lib/pitch-lab.ts labVideoShifts) — 결과 화면(웹 lab-detail · 앱 embed)이 열린 뒤 따로 받는다.
+ * 범위 요청 몇 번이라 화면 그리기를 막지 않게 서버 동작으로. 못 받으면 0(예전처럼 3D 시각 그대로).
+ */
+export async function loadLabVideoShifts(input: { id: string }): Promise<Record<LabView, number>> {
+  const zero = { side: 0, back: 0 };
+  const user = await getCurrentUser();
+  if (!user || !isLabId(input.id)) return zero;
+  const sample = await loadLabSample(input.id, user).catch(() => null);
+  return sample ? labVideoShifts(sample) : zero;
 }
 
 /** 아이폰 앱 결과 화면(native/src/app/lab/[id].tsx)이 받는 것 — 3D 는 웹 embed 화면(app/embed/lab/[id])이 그리고, 앱은 그 둘레만 */

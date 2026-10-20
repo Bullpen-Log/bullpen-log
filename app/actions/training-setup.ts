@@ -75,7 +75,6 @@ import {
   type TrainingSetupAnswers,
   checkTrainingAnswers,
   formOfRows,
-  ownedEquipmentToSave,
   readTrainingAnswers,
 } from '@/lib/training/setup-answers';
 
@@ -229,14 +228,12 @@ export async function generateTodayPlan(formData: FormData) {
   if (!user) redirect('/login');
 
   /*
-   * 오늘 쓸 수 있는 장비. 가지고 있는 것 중에서만 고를 수 있다 — 설정에서
-   * 장비를 뺐는데 폼에는 남아 있는 경우가 생긴다.
+   * 오늘 쓸 수 있는 장비 — 고른 그대로(2026-10-20 부터 가진 장비 설정이 없어 오늘 고른 것이 기준이다, lib/report/equipment.ts).
    */
-  const owned = new Set(user.ownedEquipment);
   const chosen = pickMany(
     formData.getAll('availableEquipment').map(String),
     SELECTABLE_EQUIPMENT
-  ).filter((name) => owned.has(name));
+  );
   /*
    * 고른 그대로 지킨다. 하나도 안 고른 것은 '맨몸만'이라는 뜻이다.
    *
@@ -618,7 +615,7 @@ async function decideAutoSetup({
 /* ─────────────────────────── 트레이닝 첫 설정(/training/setup) ─────────────────────────── */
 
 /**
- * 트레이닝 첫 설정의 저장 — 경력 · 웨이트 횟수 · 장비 · 하루 운동 시간 · [던지는 손](숨은 칸 모양, lib/training/setup-answers.ts)
+ * 트레이닝 첫 설정의 저장 — 경력 · 웨이트 횟수 · 하루 운동 시간 · [던지는 손](숨은 칸 모양, lib/training/setup-answers.ts)
  * 을 한 번에. 처음 가입한 사람은 이 저장이 트레이닝 탭의 잠금을 푼다 — 잠금은 trainingSetupAt 의 유무(lib/feature-locks.ts
  * featureLocks). 이미 마친 사람이 다시 와서 저장하면 값만 바뀌고 그 시각은 처음 것을 둔다.
  *
@@ -627,7 +624,7 @@ async function decideAutoSetup({
  * 이 값들로 부하 기준선이 만들어지고 운동이 걸러지니 저장하면 안 된다.
  *
  * 던지는 손은 계정에 없을 때만 받고(화면도 그때만 묻는다), 있을 때는 건드리지 않는다 — 투구 기록 설정이 맡는 값이다.
- * 장비는 맨몸을 앞에 붙여 저장한다(readOwnedEquipment 와 같은 규칙). 하나도 안 골랐으면 ['맨몸'].
+ * 가진 장비는 2026-10-20 부터 묻지 않는다(프로그램 시작 · 오늘 운동 만들기 때 고름) — 저장된 값은 건드리지 않는다.
  *
  * field 는 막힌 칸 — 화면이 그 칸이 있는 화면으로 되돌아간다.
  */
@@ -655,7 +652,6 @@ export async function finishTrainingSetup(
     data: {
       trainingLevel: answers.trainingLevel,
       baselineWorkoutFreq: workout.value.baselineWorkoutFreq,
-      ownedEquipment: ownedEquipmentToSave(answers),
       dailyWorkoutMinutes: Number(answers.dailyWorkoutMinutes),
       ...(askHand && answers.throwingHand ? { throwingHand: answers.throwingHand } : {}),
       trainingSetupAt: user.trainingSetupAt ?? appNow(),
@@ -703,7 +699,16 @@ function programScoreInputOf(
  * 넘기지 않는다(운동 소모 끼움은 2026-10-12 에 뺐다). 저장은 웹과 같은 finishTrainingSetup.
  */
 export async function loadAppTrainingSetup(): Promise<
-  | { ok: true; name: string; age: number | null; askHand: boolean; hasSetup: boolean; basicsDone: boolean; initial: TrainingSetupAnswers }
+  | {
+      ok: true;
+      name: string;
+      age: number | null;
+      askHand: boolean;
+      hasSetup: boolean;
+      basicsDone: boolean;
+      /* ownedEquipment · bodyOnly — 장비 질문을 아직 묻는 옛 앱(깔린 판)이 이 칸을 읽어서 남겨 둔다(2026-10-20 장비 질문을 뺌). 새 앱 · 서버는 안 읽는다 */
+      initial: TrainingSetupAnswers & { ownedEquipment: string[]; bodyOnly: boolean };
+    }
   | { ok: false; to: string }
 > {
   const user = await getCurrentUser();
@@ -717,6 +722,6 @@ export async function loadAppTrainingSetup(): Promise<
     hasSetup,
     /* 다시 온 사람만 — 처음 온 사람은 탭이 잠겨 있어 프로그램을 한 적이 없다(웹 page.tsx 와 같다) */
     basicsDone: hasSetup ? await hasFinishedBasics(user.id) : false,
-    initial: answersOfUser(user),
+    initial: { ...answersOfUser(user), ownedEquipment: [], bodyOnly: false },
   };
 }

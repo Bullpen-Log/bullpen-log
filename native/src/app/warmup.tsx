@@ -13,6 +13,7 @@ import { usePalette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { s } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 워밍업 창(앱 화면) — 웹 app/(session)/workout/warmup/warmup-client.tsx 를 옮겼다. [운동 시작]과 본운동 사이에 한 번 지난다. 사이트의
@@ -100,9 +101,9 @@ export default function WarmupScreen() {
         {failed ? (
           <View style={{ padding: 24, gap: 16, alignItems: 'center' }}>
             <Text style={{ color: c.ink, fontSize: 15 }}>{failed}</Text>
-            <Pressable accessibilityRole="button" onPress={() => (setFailed(null), setTries((n) => n + 1))} hitSlop={8}>
+            <Press accessibilityRole="button" onPress={() => (setFailed(null), setTries((n) => n + 1))} hitSlop={8}>
               <Text style={{ color: c.sky, fontSize: 15, fontWeight: '700' }}>다시 불러오기</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : (
           <ActivityIndicator style={{ marginTop: 40 }} />
@@ -152,7 +153,7 @@ export default function WarmupScreen() {
                     key={ex.id}
                     style={[st.item, { borderColor: on ? c.sky : c.line, backgroundColor: on ? c.sky + '14' : c.card }]}
                   >
-                    <Pressable
+                    <Press
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: on }}
                       accessibilityLabel={`${ex.title} 했어요`}
@@ -167,10 +168,10 @@ export default function WarmupScreen() {
                         {ex.note ? <Text style={[s.small, { color: on ? c.sky : c.muted }]}>{ex.note}</Text> : null}
                       </View>
                       {ex.thumbUrl ? <Image source={{ uri: ex.thumbUrl }} style={[st.thumb, { borderColor: c.line }]} resizeMode="cover" /> : null}
-                    </Pressable>
+                    </Press>
                     {hasMore ? (
                       <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }}>
-                        <Pressable
+                        <Press
                           accessibilityRole="button"
                           accessibilityState={{ expanded: showing }}
                           onPress={() => setOpen(showing ? null : ex.id)}
@@ -179,7 +180,7 @@ export default function WarmupScreen() {
                           <SymbolView name="info.circle" size={14} tintColor={showing ? c.sky : c.muted} />
                           <Text style={[s.smallBold, { flex: 1, color: showing ? c.sky : c.muted }]}>자세·영상 보기</Text>
                           <SymbolView name={showing ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-                        </Pressable>
+                        </Press>
                         {showing ? (
                           <View style={{ gap: 12, paddingHorizontal: 14, paddingBottom: 14 }}>
                             <ExerciseMedia key={ex.id} path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
@@ -209,9 +210,9 @@ export default function WarmupScreen() {
         >
           <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{saving ? '여는 중' : '본운동 시작 ›'}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => void finish(true)} disabled={saving} style={[s.textBtn, { alignSelf: 'center' }]}>
+        <Press accessibilityRole="button" onPress={() => void finish(true)} disabled={saving} style={[s.textBtn, { alignSelf: 'center' }]}>
           <Text style={{ color: c.muted, fontSize: 14, fontWeight: '600' }}>워밍업 건너뛰기</Text>
-        </Pressable>
+        </Press>
       </View>
     </View>
   );

@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import { ScrollLockScope } from '~/shell/scroll-lock';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
@@ -16,6 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AppLabDetail } from '@/app/actions/pitch-lab';
 import { CONSENT_TEXT } from '@/lib/pitch-3d/v2/lab-summary';
+import { followStep } from '@/lib/pitch-3d/v2/video-sync';
 import { Lab3D, type Lab3DHandle, type LabTransport } from '~/lab/lab-3d';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
@@ -28,7 +30,8 @@ import { READABLE_WIDE, TwoColumns, useTwoColumns, WIDE_MAX } from '~/lib/layout
  * app/embed/lab/[id] 를 웹뷰로(~/lab/lab-3d.tsx) — 웹과 같은 인형 부품 하나를 쓴다. 판정 · 숫자 · 이름은 웹과 같은 곳(lib/pitch-3d/v2/lab-summary.ts,
  * 서버 app/actions/pitch-lab.ts loadAppLabDetail).
  *
- * 원본 영상 두 칸은 3D 시계를 따라간다(웹과 같은 규칙): 멈춤 · 끌기 때 그 시각에 서고, 재생 때 같은 빠르기로 튼다.
+ * 원본 영상 두 칸은 3D 바로 밑에서(2026-10-20 김민: "같이 볼 수 있게") 3D 시계를 따라간다(웹과 같은 규칙, lib/pitch-3d/v2/video-sync.ts):
+ * 멈춤 · 끌기 때 그 시각에 서고, 재생 때 0.1초마다 빠르기를 맞춰 따라붙는다. 시각은 embed 가 편집 목록 앞머리까지 더해 보낸다.
  * 분석 걸기도 앱에서(판 9 — RequestPanel): 동의 글은 웹과 같은 한 곳(lab-summary CONSENT_TEXT), 비용 지키기 · 동의 확인은 서버 requestPitch3dV2.
  */
 type LoadResult = AppLabDetail | { ok: false; to: string };
@@ -86,7 +89,7 @@ export default function LabScreen() {
     if (p) players.current[view] = p;
     else delete players.current[view];
   }, []);
-  /* 원본 영상이 3D 시계를 따라간다(웹 lab-detail.tsx onTransport 와 같은 문턱) */
+  /* 원본 영상이 3D 시계를 따라간다(웹 lab-detail.tsx onTransport 와 같은 규칙) */
   const onTransport = useCallback((t: LabTransport) => {
     for (const view of ['side', 'back'] as const) {
       const p = players.current[view];
@@ -94,12 +97,14 @@ export default function LabScreen() {
       const want = t[view];
       if (!Number.isFinite(want)) continue;
       if (t.reason === 'tick') {
-        if (Math.abs(p.currentTime - want) > 0.25) p.currentTime = want;
+        const step = followStep(p.currentTime, want, t.speed);
+        if (step.seek) p.currentTime = want;
+        if (Math.abs(p.playbackRate - step.rate) > 0.005) p.playbackRate = step.rate;
         continue;
       }
       p.playbackRate = t.speed;
       if (t.playing) {
-        if (Math.abs(p.currentTime - want) > 0.05) p.currentTime = want;
+        if (Math.abs(p.currentTime - want) > 0.02) p.currentTime = want;
         p.play();
       } else {
         p.pause();
@@ -153,7 +158,9 @@ export default function LabScreen() {
   return (
     <View style={[s.fill, { backgroundColor: c.page }]}>
       {header}
-      <ScrollView ref={scroll} contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 20 }, READABLE_WIDE]}>
+      <ScrollLockScope>
+        {(scrollEnabled) => (
+      <ScrollView ref={scroll} scrollEnabled={scrollEnabled} contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 20 }, READABLE_WIDE]}>
         <View style={{ gap: 6 }}>
           <View style={s.row}>
             <Text style={[s.title, { color: c.ink }]}>{data.title}</Text>
@@ -172,23 +179,6 @@ export default function LabScreen() {
                   ) : (
                     data.waiting && <Waiting waiting={data.waiting} />
                   )}
-                  {r?.stale && !active && (
-                    <View style={[s.notice, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
-                      <Text style={[s.small, { color: c.ink, flex: 1 }]}>엔진이 나아졌어요. 다시 분석하면 새 엔진으로 볼 수 있어요.</Text>
-                    </View>
-                  )}
-                  {r && active && (
-                    <View style={[s.notice, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
-                      <Text style={[s.small, { color: c.ink, flex: 1 }]}>다시 분석 중이에요. 끝날 때까지 이전 결과를 보여 줘요.</Text>
-                    </View>
-                  )}
-                  {!active && typeof id === 'string' && (
-                    <RequestPanel id={id} req={data.request} hasResult={!!r || !!data.status} onStarted={() => setTries((n) => n + 1)} c={c} />
-                  )}
-                </View>
-          }
-          right={
-            <>
                     <View style={{ gap: 8 }}>
                       <Text style={[s.section, { color: c.ink }]}>원본 영상</Text>
                       <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -207,6 +197,23 @@ export default function LabScreen() {
                       </View>
                       {r && <Text style={[s.small, { color: c.muted }]}>영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.</Text>}
                     </View>
+                  {r?.stale && !active && (
+                    <View style={[s.notice, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
+                      <Text style={[s.small, { color: c.ink, flex: 1 }]}>엔진이 나아졌어요. 다시 분석하면 새 엔진으로 볼 수 있어요.</Text>
+                    </View>
+                  )}
+                  {r && active && (
+                    <View style={[s.notice, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
+                      <Text style={[s.small, { color: c.ink, flex: 1 }]}>다시 분석 중이에요. 끝날 때까지 이전 결과를 보여 줘요.</Text>
+                    </View>
+                  )}
+                  {!active && typeof id === 'string' && (
+                    <RequestPanel id={id} req={data.request} hasResult={!!r || !!data.status} onStarted={() => setTries((n) => n + 1)} c={c} />
+                  )}
+                </View>
+          }
+          right={
+            <>
 
                     {r && r.mech.items.length > 0 && <MechList c={c} mech={r.mech} onJump={jump} />}
 
@@ -252,6 +259,8 @@ export default function LabScreen() {
           }
         />
       </ScrollView>
+        )}
+      </ScrollLockScope>
     </View>
   );
 }

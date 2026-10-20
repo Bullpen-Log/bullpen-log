@@ -1,14 +1,17 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, StyleSheet, Text, View } from 'react-native';
 import { withJosa } from '@/lib/korean';
 import type { ProgramCardProps, ProgramResult } from '@/lib/program/load';
+import { sessionTitle } from '@/lib/program/program';
+import { ExerciseMedia, HowTo } from '~/armcare/parts';
 import { act } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { BigButton, Card, LinkRow, s, type TodayActions } from './parts';
 import { RepinSheet } from './program-start';
 import { Sheet } from '~/workout/sheets';
+import { Press } from '~/shell/press';
 
 /**
  * 근력 · 파워 프로그램 카드(앱 화면) — 웹 app/(app)/training/program-card.tsx 를 옮겼다. 차례도 같다: 오늘 상태 + 일차 → 주의 한 줄 → [운동 시작]
@@ -22,7 +25,8 @@ const kgText = (kg: number) => (Number.isInteger(kg) ? String(kg) : kg.toFixed(1
 export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; a: TodayActions }) {
   const [more, setMore] = useState(false);
   const [ahead, setAhead] = useState(false);
-  const [pending, setPending] = useState(false);
+  /* 확인 뒤 서버 동작 중 — 카드에 웹 ConfirmDialog pendingLabel 과 같은 글('넘기는 중…' 등) */
+  const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [repin, setRepin] = useState(false);
   /** 운동 줄을 누르면 그 무게의 까닭 — 웹처럼 시트(예전 앱은 Alert 글 한 덩이) */
@@ -33,16 +37,20 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
   const resting = p.kind === 'rest' || p.kind === 'painWait';
   const preview = !going || finishedToday;
 
+  const programName = p.basics ? '기본기 프로그램' : '근력 · 파워 프로그램';
+  const session = sessionTitle(p.dayLabel);
+  /* 하는 날은 한 줄로 '근력 · 파워 프로그램 · 2번째 세션(B)' — 위 작은 글과 겹쳐 '오늘 해요 · 2번 세션 · B 날'로 읽히던 것(2026-10-20 김민) */
+  const oneLine = going && !finishedToday;
   const title = finishedToday
-    ? `오늘 했어요 · ${p.dayLabel}`
+    ? `오늘 했어요 · ${session}`
     : going
-      ? `오늘 해요 · ${p.dayLabel}`
+      ? `${programName} · ${session}`
       : resting
         ? '오늘은 쉬어요'
         : p.kind === 'otherMode'
           ? '오늘은 다른 운동을 했어요'
           : p.kind === 'needCheckin'
-            ? `오늘 할 일 · ${p.dayLabel}`
+            ? `오늘 할 일 · ${session}`
             : '다 마쳤어요';
   const sub =
     p.kind === 'rest'
@@ -56,7 +64,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
             : null;
 
   /** 확인 창을 띄우고 서버 동작 — 끝나면 화면을 다시 읽는다(웹 ConfirmDialog → run) */
-  const confirm = (head: string, detail: string, label: string, action: string, arg?: unknown, destructive = false) =>
+  const confirm = (head: string, detail: string, label: string, pendingLabel: string, action: string, arg?: unknown, destructive = false) =>
     Alert.alert(head, detail, [
       { text: '취소', style: 'cancel' },
       {
@@ -64,10 +72,10 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
         style: destructive ? 'destructive' : 'default',
         onPress: () => {
           void (async () => {
-            setPending(true);
+            setPending(pendingLabel);
             setError(null);
             const r = await act<{ ok: true }>(action, ...(arg === undefined ? [] : [arg]));
-            setPending(false);
+            setPending(null);
             if ('error' in r) return setError(r.error);
             void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             await a.reload();
@@ -79,11 +87,11 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
   return (
     <Card c={c}>
       <View style={{ gap: 4 }}>
-        <Text style={[s.smallBold, { color: c.muted }]}>{p.basics ? '기본기 프로그램' : '근력 · 파워 프로그램'}</Text>
+        {oneLine ? null : <Text style={[s.smallBold, { color: c.muted }]}>{programName}</Text>}
         <Text style={[s.title, { color: c.ink }]}>{title}</Text>
         {sub ? <Text style={[s.body, { color: c.muted }]}>{sub}</Text> : null}
         {(resting || finishedToday || p.kind === 'otherMode') && (p.nextLabel || resting) ? (
-          <Text style={[s.body, { color: c.muted }]}>다음: {finishedToday ? p.nextLabel : p.dayLabel}</Text>
+          <Text style={[s.body, { color: c.muted }]}>다음: {sessionTitle((finishedToday ? p.nextLabel : p.dayLabel) ?? '')}</Text>
         ) : null}
       </View>
 
@@ -111,10 +119,10 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
       {p.rows.length > 0 ? (
         <View style={preview ? { opacity: 0.55 } : null}>
           {p.rows.map((r, i) => (
-            <Pressable
+            <Press
               key={r.id}
               accessibilityRole="button"
-              accessibilityHint="무게의 까닭 보기"
+              accessibilityHint="운동 영상 · 설명 보기"
               onPress={() => setWhy(r)}
               style={[st.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}
             >
@@ -137,7 +145,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
                 ) : null}
                 <Text style={[s.tiny, { color: c.muted }]}>{r.amount}</Text>
               </View>
-            </Pressable>
+            </Press>
           ))}
           {p.dropped.map((d) => (
             <Text key={`drop-${d.title}`} style={[s.small, { color: c.muted, paddingVertical: 8 }]}>
@@ -148,16 +156,16 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
       ) : null}
 
       {p.kind === 'rest' ? (
-        <Pressable
+        <Press
           accessibilityRole="button"
-          disabled={pending}
+          disabled={pending != null}
           onPress={() =>
-            confirm(p.restText ? `${p.restText}. 그래도 할까요?` : '그래도 할까요?', '가볍게 하고, 아프면 바로 멈춰요.', '할래요', 'program.overrideProgramRest')
+            confirm(p.restText ? `${p.restText}. 그래도 할까요?` : '그래도 할까요?', '가볍게 하고, 아프면 바로 멈춰요.', '할래요', '바꾸는 중…', 'program.overrideProgramRest')
           }
           style={[s.pill, { borderWidth: 1, borderColor: c.line }]}
         >
           <Text style={[s.bodyBold, { color: c.ink }]}>그래도 오늘 할래요</Text>
-        </Pressable>
+        </Press>
       ) : null}
 
       <View style={{ gap: 4 }}>
@@ -175,7 +183,30 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
         </Text>
       </View>
 
+      {pending ? <Text style={[s.small, { color: c.muted }]}>{pending}</Text> : null}
       {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
+
+      {/* 자주 찾는 셋은 '자세히' 밖에(2026-10-20 김민: "자세히를 눌러야 나와서 못 찾는다") */}
+      <View>
+        <LinkRow c={c} label="고정 운동 바꾸기" onPress={() => setRepin(true)} />
+        <LinkRow c={c} label="몸 상태가 바뀌었으면 체크인 고치기" onPress={a.checkin} />
+        <LinkRow
+          c={c}
+          danger
+          label="그만두기"
+          onPress={() =>
+            confirm(
+              '프로그램을 그만둘까요?',
+              '이 판은 여기서 끝나요. 기록은 남고, 나중에 새로 시작할 수 있어요.',
+              '그만두기',
+              '그만두는 중…',
+              'program.stopProgram',
+              undefined,
+              true
+            )
+          }
+        />
+      </View>
 
       {p.upcoming.length > 0 ? (
         <View style={[s.divider, { borderTopColor: c.line }]}>
@@ -200,37 +231,23 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
                     `${withJosa(p.dayLabel, '을/를')} 건너뛸까요?`,
                     `건너뛴 날은 완료로 세지 않아요. 지금 완료 ${p.completed} · 건너뜀 ${p.skipped}.`,
                     '건너뛰기',
+                    '넘기는 중…',
                     'program.skipProgramDay',
                     { day: p.day }
                   )
                 }
               />
             ) : null}
-            <LinkRow c={c} label="고정 운동 바꾸기" onPress={() => setRepin(true)} />
-            <LinkRow c={c} label="몸 상태가 바뀌었으면 체크인 고치기" onPress={a.checkin} />
-            <LinkRow
-              c={c}
-              danger
-              label="그만두기"
-              onPress={() =>
-                confirm(
-                  '프로그램을 그만둘까요?',
-                  '이 판은 여기서 끝나요. 기록은 남고, 나중에 새로 시작할 수 있어요.',
-                  '그만두기',
-                  'program.stopProgram',
-                  undefined,
-                  true
-                )
-              }
-            />
           </View>
         ) : null}
       </View>
       {repin ? <RepinSheet pinned={p.pinned} onClose={() => setRepin(false)} c={c} a={a} /> : null}
-      <Sheet open={why != null} onClose={() => setWhy(null)} title={why?.title ?? ''} c={c}>
+      {/* 운동 줄 — 내용만큼 올라오는 시트에 영상 · 처방 · 무게 까닭 · 설명(웹 운동 상세와 같은 설명 글). 예전엔 화면을 다 덮는 창에 글 몇 줄이었다(2026-10-20 김민) */}
+      <Sheet fit open={why != null} onClose={() => setWhy(null)} title={why?.title ?? ''} description={why?.category} c={c}>
         {why ? (
           <View style={{ gap: 12 }}>
-            <Text style={[s.body, { color: c.muted }]}>
+            <ExerciseMedia key={why.id} path={why.videoPath} referenceVideoId={why.referenceVideoId} thumbUrl={why.thumbUrl} aspectRatio={why.aspectRatio} />
+            <Text style={[s.bodyBold, { color: c.ink }]}>
               {why.slotLabel} · {why.line}
             </Text>
             {why.substituteFor ? <Text style={[s.body, { color: c.ink }]}>오늘은 {why.substituteFor} 대신이에요.</Text> : null}
@@ -242,6 +259,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
               </Text>
             ) : null}
             {why.warmup ? <Text style={[s.body, { color: c.muted }]}>준비: {why.warmup}</Text> : null}
+            <HowTo key={`how-${why.id}`} exerciseId={why.id} method={null} inline c={c} />
           </View>
         ) : null}
       </Sheet>
@@ -251,16 +269,17 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
 
 function Fold({ c, open, onPress, label }: { c: Palette; open: boolean; onPress: () => void; label: string }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={onPress} style={s.linkRow}>
+    <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={onPress} style={s.linkRow}>
       <Text style={[s.bodyBold, { flex: 1, color: c.ink }]}>{label}</Text>
       <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-    </Pressable>
+    </Press>
   );
 }
 
 /** 앞으로 할 세션 — 세션을 눌러 펴면 운동마다 썸네일 · 이름 · 양(웹 UpcomingSessions, 바로 다음 세션만 펴서 시작) */
 function Upcoming({ sessions, c }: { sessions: ProgramCardProps['upcoming']; c: Palette }) {
   const [open, setOpen] = useState<number | null>(sessions[0]?.day ?? null);
+  const [line, setLine] = useState<string | null>(null);
   return (
     <View>
       {sessions.map((u) => {
@@ -268,7 +287,7 @@ function Upcoming({ sessions, c }: { sessions: ProgramCardProps['upcoming']; c: 
         const names = u.items.map((it) => it.title);
         return (
           <View key={u.day} style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }}>
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: shown }} onPress={() => setOpen(shown ? null : u.day)} style={st.row}>
+            <Press accessibilityRole="button" accessibilityState={{ expanded: shown }} onPress={() => setOpen(shown ? null : u.day)} style={st.row}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[s.bodyBold, { color: c.ink }]}>{u.label}</Text>
                 {!shown ? (
@@ -281,27 +300,42 @@ function Upcoming({ sessions, c }: { sessions: ProgramCardProps['upcoming']; c: 
               <Text style={[s.tiny, { color: c.muted }]}>{u.items.length}개</Text>
               {/* 펼침 화살표(웹 UpcomingSessions 의 ▾) */}
               <SymbolView name={shown ? 'chevron.up' : 'chevron.down'} size={11} tintColor={c.muted} />
-            </Pressable>
+            </Press>
             {shown
-              ? u.items.map((it, i) => (
-                  <View key={`${u.day}-${i}`} style={[s.row, { paddingBottom: 8 }]}>
-                    {it.thumbUrl ? (
-                      <Image source={{ uri: it.thumbUrl }} style={[st.thumb, { backgroundColor: c.line }]} />
-                    ) : (
-                      <View style={[st.thumb, { backgroundColor: c.chip }]} />
-                    )}
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text numberOfLines={1} style={[s.body, { color: c.ink }]}>
-                        {it.title}
-                      </Text>
-                      <Text numberOfLines={1} style={[s.tiny, { color: c.muted }]}>
-                        {it.title !== it.slotLabel ? `${it.slotLabel} · ` : ''}
-                        {it.line}
-                      </Text>
-                    </View>
-                    <Text style={[s.smallBold, s.num, { color: c.ink }]}>{it.amount}</Text>
-                  </View>
-                ))
+              ? u.items.map((it, i) => {
+                  const key = `${u.day}-${i}`;
+                  /* 처방 한 줄은 운동을 눌러야 보인다(웹과 같다 — 2026-10-15 김민: "남은 세션이 글자로 쫙 써져 무슨 운동인지 알 수가 없다") */
+                  const lineShown = line === key;
+                  return (
+                    <Press
+                      key={key}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: lineShown }}
+                      onPress={() => setLine(lineShown ? null : key)}
+                      style={{ paddingBottom: 8 }}
+                    >
+                      <View style={s.row}>
+                        {it.thumbUrl ? (
+                          <Image source={{ uri: it.thumbUrl }} style={[st.thumb, { backgroundColor: c.line }]} />
+                        ) : (
+                          <View style={[st.thumb, { backgroundColor: c.chip }]} />
+                        )}
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text numberOfLines={1} style={[s.body, { color: c.ink }]}>
+                            {it.title}
+                          </Text>
+                          {it.title !== it.slotLabel ? (
+                            <Text numberOfLines={1} style={[s.tiny, { color: c.muted }]}>
+                              {it.slotLabel}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <Text style={[s.smallBold, s.num, { color: c.ink }]}>{it.amount}</Text>
+                      </View>
+                      {lineShown ? <Text style={[s.tiny, { color: c.muted, marginTop: 4, marginLeft: 66 }]}>{it.line}</Text> : null}
+                    </Press>
+                  );
+                })
               : null}
           </View>
         );

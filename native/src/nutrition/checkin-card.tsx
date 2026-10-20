@@ -12,7 +12,7 @@ import { saveNutritionAnswer, type NutritionAnswer } from './api';
 /**
  * 영양 탭 — '오늘 식욕 · 끼니는요?' 카드(웹 app/(app)/nutrition/nutrition-checkin-card.tsx · components/day-card.tsx folded, 오늘만).
  * 접힌 알약으로 시작한다(왼쪽에 붙은 작은 알약 · 연필): 답이 없으면 '오늘 식욕 · 끼니는요? 답하기', 답했으면 '오늘 설정 · 식욕 보통 · 잘 먹음'.
- * 누르면 하늘 판이 펴진다 — 제목 · 한 줄 · 오른쪽 위 '나중에', 칩(같은 폭 세 칸) · [저장](day-cards.saveNutritionCheckin).
+ * 누르면 하늘 판이 펴진다 — 제목 · 한 줄 · 오른쪽 위 '접기'(웹 DayCard — 접힌 채 시작하는 카드는 접기), 칩(같은 폭 세 칸) · [저장](day-cards.saveNutritionCheckin).
  */
 export function NutritionCheckinCard({ date, answer }: { date: string; answer: NutritionAnswer | null }) {
   const c = usePalette();
@@ -82,7 +82,7 @@ function MealForm({ date, initial, onDone }: { date: string; initial: NutritionA
           <Text style={{ color: c.muted, fontSize: 12 }}>음식을 하나하나 안 적어도 오늘 조언과 식단이 여기에 맞춰요.</Text>
         </View>
         <Press accessibilityRole="button" onPress={onDone} style={styles.later}>
-          <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>{initial ? '닫기' : '나중에'}</Text>
+          <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>접기</Text>
         </Press>
       </View>
       <View style={{ gap: 6 }}>

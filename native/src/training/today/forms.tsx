@@ -1,35 +1,28 @@
-import { type Href, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_LEVELS } from '@/lib/exercise-meta';
 import { matchesSearch, withJosa } from '@/lib/korean';
-import { TRAINING_GOALS, TRAINING_GOAL_NAMES, focusesFor, goalForUnchosen, validFocus } from '@/lib/report/personalize';
-import { CONDITIONING_GOAL, minutesChoicesFor, nearestMinutesChoice } from '@/lib/report/theme';
 import type { TodayMake, TodayPickItem } from '@/lib/report/training-today-data';
 import { act, leave } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Sheet } from '~/workout/sheets';
 import { BigButton, Chip, LinkRow, s, type TodayActions } from './parts';
+import { Press } from '~/shell/press';
 
 /**
- * 트레이닝 '운동' 화면의 일정 고치기 — 웹 components/training-forms.tsx 의 PlanForm(자동 맞춤 · 직접 고르기)과 app/(app)/training/add-exercise.tsx
+ * 트레이닝 '운동' 화면의 일정 고치기 — 웹 components/training-forms.tsx 의 PlanForm(자동 맞춤)과 app/(app)/training/add-exercise.tsx
  * (운동 추가 창)를 옮겼다. 서버 동작은 웹과 같다: 만들기는 training-setup.generateAppTodayPlan(웹 폼과 같은 칸 줄 → generateTodayPlan), 더하기는
  * plan-edit.addToTodayPlan. 목록 · 경고는 웹 페이지와 같은 셈(lib/report/training-today-data.ts).
  */
 
 /* ----------------------------- 일정 만들기 폼 ----------------------------- */
 
-const MODES = [
-  { value: 'auto', label: '자동 맞춤' },
-  { value: 'manual', label: '직접 고르기' },
-] as const;
-
 /**
- * 일정 만들기 — 체크인이 없으면 체크인 먼저, 장비를 한 번도 안 골랐으면 장비 먼저(웹은 그 자리 폼, 앱은 트레이닝 설정 화면 /training/settings), 아니면 [자동 맞춤 | 직접 고르기].
- * 직접 고르기의 칸 · 한도는 웹과 같은 함수(목표마다 시간 칸 · 부위 칸이 다르다). generated 면 '다시 만들기' 글. onLeave 는 체크인 · 설정 화면으로 가기 전에
- * 시트를 닫는 길(시트가 열린 채 다른 화면을 열면 시트 밑에 깔린다).
+ * 일정 만들기 — 체크인이 없으면 체크인 먼저, 아니면 자동 맞춤(목표 · 시간 · 부위는 앱이, 장비는 사람이). '직접 고르기'는 '오늘 하고 싶은 운동'
+ * 카드와 겹쳐 2026-10-20 뺐다(김민) — 부위 고르기는 그 카드로 옮겼다. 오늘 쓸 수 있는 장비는 처음엔 모두 켜 둔다(가진 장비 설정을 없앰).
+ * generated 면 '다시 만들기' 글. onLeave 는 체크인 화면으로 가기 전에 시트를 닫는 길(시트가 열린 채 다른 화면을 열면 시트 밑에 깔린다).
  */
 export function PlanForm({
   make,
@@ -44,49 +37,31 @@ export function PlanForm({
   a: TodayActions;
   onLeave?: () => void;
 }) {
-  const [mode, setMode] = useState<'auto' | 'manual'>(make.manual ? 'manual' : 'auto');
-  const [on, setOn] = useState<string[]>(() => make.selected.filter((n) => make.equipment.includes(n)));
-  /* 지난번 목표 — 없거나 목록에 없는 옛 이름이면 오늘 고른 운동 종류를 따른다(웹과 같은 goalForUnchosen) */
-  const [goal, setGoal] = useState(() =>
-    make.goal && TRAINING_GOAL_NAMES.includes(make.goal) ? make.goal : goalForUnchosen(make.preferredWorkout)
-  );
-  const [focus, setFocus] = useState<string | null>(make.focus);
-  const [minutes, setMinutes] = useState(make.minutes);
-  const [clashKept, setClashKept] = useState(false);
-  const [effortKept, setEffortKept] = useState(false);
-  const [saveDefaults, setSaveDefaults] = useState(false);
+  /* 오늘 이미 골랐으면(다시 만들기) 그 선택, 아니면 모두 켠 채로 시작 */
+  const [on, setOn] = useState<string[]>(() => {
+    const today = make.selected.filter((n) => make.equipment.includes(n));
+    return make.selected.length > 0 ? today : [...make.equipment];
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const go = (then: () => void) => {
-    onLeave?.();
-    then();
-  };
   if (!make.checkedIn)
     return (
       <View style={[s.box, { backgroundColor: c.page, gap: 8 }]}>
         <Text style={[s.bodyBold, { color: c.ink }]}>오늘 체크인을 먼저 남겨 주세요</Text>
         <Text style={[s.small, { color: c.muted }]}>20초면 돼요. 남기면 바로 오늘 운동 일정을 만들 수 있어요.</Text>
-        <BigButton c={c} label="체크인하기 ›" onPress={() => go(a.checkin)} />
-      </View>
-    );
-  if (make.needsEquipment)
-    return (
-      <View style={[s.box, { backgroundColor: c.page, gap: 4 }]}>
-        <Text style={[s.bodyBold, { color: c.ink }]}>가진 장비부터 골라 주세요</Text>
-        <Text style={[s.small, { color: c.muted }]}>처음 한 번만 물어요. 없는 장비로 하는 운동은 빼고 짜요.</Text>
-        <LinkRow c={c} label="장비 고르기" onPress={() => go(() => router.push('/training/settings' as Href))} />
+        <BigButton
+          c={c}
+          label="체크인하기 ›"
+          onPress={() => {
+            onLeave?.();
+            a.checkin();
+          }}
+        />
       </View>
     );
 
-  const manual = mode === 'manual';
   const clash = make.clash;
-  const focuses = focusesFor(goal);
-  const pickedFocus = validFocus(goal, focus);
-  const pickedMinutes = nearestMinutesChoice(minutes, goal);
-  const defaultChoice = nearestMinutesChoice(make.defaultMinutes, goal);
-  /* 힘듦 급증 경고 — 직접 고르기에서 줄일 본운동이 있을 수 있는 조합만(웹 effortWarn) */
-  const effortWarn = make.effortSpike && goal !== CONDITIONING_GOAL && (!clash || clashKept);
   const pick = () => void Haptics.selectionAsync();
 
   const submit = () => {
@@ -94,13 +69,7 @@ export function PlanForm({
     setBusy(true);
     setError(null);
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const fields: [string, string][] = [['mode', mode], ...on.map((n) => ['availableEquipment', n] as [string, string])];
-    if (manual) {
-      fields.push(['trainingGoal', goal], ['trainingFocus', pickedFocus ?? ''], ['minutes', String(pickedMinutes)]);
-      if (clash && clashKept) fields.push(['overrideCondition', 'on']);
-      if (effortWarn && effortKept) fields.push(['overrideEffort', 'on']);
-      if (saveDefaults) fields.push(['saveDefaults', 'on']);
-    }
+    const fields: [string, string][] = [['mode', 'auto'], ...on.map((n) => ['availableEquipment', n] as [string, string])];
     void a.generate(fields).then((err) => {
       setBusy(false);
       setError(err);
@@ -110,124 +79,18 @@ export function PlanForm({
 
   return (
     <View style={{ gap: 14 }}>
-      <View accessibilityRole="tablist" style={[st.seg, { backgroundColor: c.chip }]}>
-        {MODES.map((m) => (
-          <Pressable
-            key={m.value}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: mode === m.value }}
-            onPress={() => {
-              pick();
-              setMode(m.value);
-            }}
-            style={[st.segItem, mode === m.value && { backgroundColor: c.card }]}
-          >
-            <Text style={[s.small, { color: c.ink, fontWeight: mode === m.value ? '700' : '500' }]}>{m.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {!manual ? (
-        <>
-          <Text style={[s.small, { color: c.muted }]}>목표 · 시간은 앱이 정해요.</Text>
-          {clash ? (
-            <View style={[s.box, { backgroundColor: c.warnBg, gap: 4 }]}>
-              <Text style={[s.bodyBold, { color: c.warn }]}>
-                {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
-              </Text>
-              <Text style={[s.small, { color: c.warn }]}>
-                자동 맞춤은 몸 상태에 맞춰 {clash.fallbackLabel} 위주로 만들어요. {clash.kind} 운동을 하고 싶으면 ‘직접 고르기’에서 만들 수 있어요.
-              </Text>
-            </View>
-          ) : null}
-        </>
-      ) : (
-        <>
-          {clash ? (
-            <View style={[s.box, { backgroundColor: c.warnBg, gap: 6 }]}>
-              <Text style={[s.bodyBold, { color: c.warn }]}>
-                {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
-              </Text>
-              <Text style={[s.small, { color: c.warn }]}>
-                그래서 기본은 {clash.fallbackLabel} 위주로 만들어요. 몸이 괜찮으면 원하는 대로 만들어도 돼요.
-              </Text>
-              <ToggleRow c={c} tone="warn" label={`알겠어요. 그래도 ${clash.kind} 운동으로 만들어 주세요`} value={clashKept} onChange={setClashKept} />
-            </View>
-          ) : null}
-
-          <Field c={c} label="오늘 훈련 목표" hint="몸 상태가 안 좋은 날은 회복이 먼저예요.">
-            {TRAINING_GOALS.map((g) => {
-              const sel = goal === g.name;
-              return (
-                <Pressable
-                  key={g.name}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: sel }}
-                  onPress={() => {
-                    pick();
-                    setGoal(g.name);
-                  }}
-                  style={[st.option, { backgroundColor: c.page, borderColor: sel ? c.sky : 'transparent' }]}
-                >
-                  <Text style={[s.bodyBold, { color: sel ? c.sky : c.ink }]}>{g.name}</Text>
-                  <Text style={[s.tiny, { color: c.muted }]}>{g.desc}</Text>
-                </Pressable>
-              );
-            })}
-          </Field>
-
-          {focuses.length > 0 ? (
-            <Field c={c} label="오늘 할 부위" hint="안 고르면 상체 · 하체를 번갈아 골라요.">
-              <View style={s.chips}>
-                {focuses.map((f) => (
-                  <Chip
-                    key={f.key}
-                    c={c}
-                    label={f.desc ? `${f.label} · ${f.desc}` : f.label}
-                    on={pickedFocus === f.key}
-                    onPress={() => {
-                      pick();
-                      /* 다시 누르면 비운다 — 앱이 상체 · 하체를 번갈아 정한다 */
-                      setFocus(pickedFocus === f.key ? null : f.key);
-                    }}
-                  />
-                ))}
-              </View>
-            </Field>
-          ) : null}
-
-          <Field
-            c={c}
-            label="오늘 운동 시간"
-            hint={goal === CONDITIONING_GOAL ? '몸을 다지는 날이라 길게 끌지 않아요. 75분까지 고를 수 있어요.' : undefined}
-          >
-            <View style={s.chips}>
-              {minutesChoicesFor(goal).map((m) => (
-                <Chip
-                  key={m}
-                  c={c}
-                  label={m === defaultChoice ? `${m}분 · 기본값` : `${m}분`}
-                  on={pickedMinutes === m}
-                  onPress={() => {
-                    pick();
-                    setMinutes(m);
-                  }}
-                />
-              ))}
-            </View>
-          </Field>
-
-          {effortWarn ? (
-            <View style={[s.box, { backgroundColor: c.warnBg, gap: 6 }]}>
-              <Text style={[s.bodyBold, { color: c.warn }]}>최근 운동이 평소보다 힘들었다고 하셔서 본운동을 한 세트씩 줄여 만들어요.</Text>
-              <ToggleRow c={c} tone="warn" label="그래도 고른 대로 만들어 주세요" value={effortKept} onChange={setEffortKept} />
-            </View>
-          ) : null}
-        </>
-      )}
+      <Text style={[s.small, { color: c.muted }]}>목표 · 시간은 앱이 정해요.</Text>
+      {clash ? (
+        <View style={[s.box, { backgroundColor: c.warnBg, gap: 4 }]}>
+          <Text style={[s.bodyBold, { color: c.warn }]}>
+            {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
+          </Text>
+          <Text style={[s.small, { color: c.warn }]}>그래서 몸 상태에 맞춰 {clash.fallbackLabel} 위주로 만들어요.</Text>
+        </View>
+      ) : null}
 
       {make.equipment.length > 0 ? (
-        <Field c={c} label="오늘 쓸 수 있는 장비" hint="안 켜면 맨몸 운동만 나와요.">
+        <Field c={c} label="오늘 쓸 수 있는 장비" hint="없는 것은 꺼 주세요. 다 끄면 맨몸 운동만 나와요.">
           <View style={s.chips}>
             {make.equipment.map((n) => (
               <Chip
@@ -245,25 +108,11 @@ export function PlanForm({
         </Field>
       ) : null}
 
-      {manual ? <ToggleRow c={c} label="이 시간과 목표를 앞으로도 기본으로 쓰기" value={saveDefaults} onChange={setSaveDefaults} /> : null}
-
       {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
       <BigButton
         c={c}
         busy={busy}
-        label={
-          busy
-            ? manual
-              ? '만드는 중…'
-              : '오늘 몸 상태에 맞추고 있어요…'
-            : manual
-              ? generated
-                ? '이 조건으로 다시 만들기'
-                : '오늘 운동 일정 만들기'
-              : generated
-                ? '자동 맞춤으로 다시 만들기'
-                : '자동 맞춤으로 만들기'
-        }
+        label={busy ? '오늘 몸 상태에 맞추고 있어요…' : generated ? '자동 맞춤으로 다시 만들기' : '자동 맞춤으로 만들기'}
         onPress={submit}
       />
     </View>
@@ -278,27 +127,6 @@ function Field({ c, label, hint, children }: { c: Palette; label: string; hint?:
         {hint ? <Text style={[s.tiny, { color: c.muted }]}>{hint}</Text> : null}
       </View>
       {children}
-    </View>
-  );
-}
-
-function ToggleRow({
-  c,
-  label,
-  value,
-  onChange,
-  tone,
-}: {
-  c: Palette;
-  label: string;
-  value: boolean;
-  onChange: (on: boolean) => void;
-  tone?: 'warn';
-}) {
-  return (
-    <View style={[s.row, { minHeight: 44 }]}>
-      <Text style={[s.small, { flex: 1, color: tone === 'warn' ? c.warn : c.ink, fontWeight: '600' }]}>{label}</Text>
-      <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />
     </View>
   );
 }
@@ -475,7 +303,7 @@ export function AddSheet({ inPlanIds, onClose, c, a }: {
                     </View>
                   ) : null}
                 </View>
-                <Pressable
+                <Press
                   accessibilityRole="button"
                   accessibilityLabel={already ? `${ex.title} 넣음` : `${ex.title} 넣기`}
                   disabled={already}
@@ -483,14 +311,14 @@ export function AddSheet({ inPlanIds, onClose, c, a }: {
                   style={[st.pickBtn, { backgroundColor: already ? c.chip : c.sky }]}
                 >
                   <Text style={[s.smallBold, { color: already ? c.muted : '#fff' }]}>{already ? '넣음' : '넣기'}</Text>
-                </Pressable>
+                </Press>
               </View>
             );
           })}
           {matched.length > limit ? (
-            <Pressable onPress={() => setLimit((n) => n + PAGE)} accessibilityRole="button" style={[s.pill, { alignSelf: 'center' }]}>
+            <Press onPress={() => setLimit((n) => n + PAGE)} accessibilityRole="button" style={[s.pill, { alignSelf: 'center' }]}>
               <Text style={[s.bodyBold, { color: c.sky }]}>{matched.length - limit}개 더 보기</Text>
-            </Pressable>
+            </Press>
           ) : null}
         </>
       )}
@@ -499,9 +327,6 @@ export function AddSheet({ inPlanIds, onClose, c, a }: {
 }
 
 const st = StyleSheet.create({
-  seg: { flexDirection: 'row', borderRadius: 12, padding: 3 },
-  segItem: { flex: 1, minHeight: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  option: { borderRadius: 14, borderWidth: 2, paddingHorizontal: 12, paddingVertical: 10, gap: 2 },
   search: { minHeight: 44, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },
   pick: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
   pickBtn: { minHeight: 40, minWidth: 56, borderRadius: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },

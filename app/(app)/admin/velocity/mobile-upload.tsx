@@ -20,11 +20,11 @@ import type { CameraPos } from '@/lib/velocity-setup';
  * 값)로 저장한다 — 카메라 값은 PC 의 구속 측정 관리자에서 '이 영상으로 다시 재기'로 채운다(그때 보정 짝이 된다).
  *
  * 한 번에 올린 영상들은 세션 하나(영상 파일 · 보정용)의 공들이다. 공을 먼저 저장하고 영상을 하나씩 올린다 — 영상이 실패하면
- * 그 줄만 '다시 올리기'. 저장소가 파일 하나 50MB 까지라 넘는 영상은 고를 때 막는다(사진 앱에서 잘라 올리기).
+ * 그 줄만 '다시 올리기'. 관리자 한도(500MB)를 넘는 영상은 고를 때 막는다(사진 앱에서 잘라 올리기).
  */
 
-/** 저장소 한 파일 한도(lib/storage.ts MAX_VIDEO_BYTES 와 같게 — 그 파일은 서버 전용이라 여기 따로 둔다) */
-const MAX_BYTES = 50 * 1024 * 1024;
+/** 관리자 한 파일 한도(lib/storage.ts ADMIN_MAX_VIDEO_BYTES 와 같게 — 그 파일은 서버 전용이라 여기 따로 둔다) */
+const MAX_BYTES = 500 * 1024 * 1024;
 
 type Item = {
   key: number;
@@ -112,7 +112,7 @@ function MobileUpload({ onDone }: { onDone: () => void }) {
         pitchId: null,
         state: big ? 'error' : 'ready',
         percent: null,
-        error: big ? `${mb(file.size)} — 50MB 까지예요. 사진 앱에서 잘라 주세요` : null,
+        error: big ? `${mb(file.size)} — 500MB 까지예요. 사진 앱에서 잘라 주세요` : null,
       });
     }
     setItems((list) => [...list, ...added]);

@@ -2,7 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CardAction, TrainingCard } from '@/lib/report/training-home-data';
 import type { TrainingWeekCounts } from '@/lib/report/training-week-counts';
@@ -21,6 +21,7 @@ import { DateNavButton } from '~/shell/mini-calendar';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { AnalysisPill, PageHead } from '~/shell/heading';
 import { Icon, type IconName } from '~/shell/icon';
+import { Press } from '~/shell/press';
 
 /**
  * 트레이닝 탭 첫 화면(앱 화면) — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 같은 앱 카드 셋(오늘 운동 · 암케어 · 메커니즘,
@@ -45,7 +46,6 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
   const inset = useSafeAreaInsets();
   const [data, setData] = useState<Loaded | null>(() => (cached?.today === today ? cached : null));
   const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState(false);
   /* 이 화면을 연 뒤 서버에서 한 번 받았나 — 받아 둔 카드의 '드릴 공 남기기'는 이미 남긴 뒤일 수 있어, 새로 받은 뒤에만 보인다 */
   const [fresh, setFresh] = useState(false);
@@ -131,12 +131,6 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
     onWeb(a.href);
   };
 
-  const pull = async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  };
-
   /* 카드를 누르면 그 앱의 전체 화면 — 앱 화면이 있는 것은 앱으로(웹 탭 판 안의 화면이라 사이트가 넘기지 않는다) */
   const openPart = (app: TrainingPart) => {
     if (app === 'today') return router.push({ pathname: '/training-today' as Href as never, params: { today } });
@@ -154,7 +148,6 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
       ref={topRef}
       style={{ flex: 1, backgroundColor: c.page }}
       contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 12 }, READABLE]}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pull} />}
     >
       <PageHead title="트레이닝">
         <AnalysisPill view="training" />
@@ -166,7 +159,8 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
           days={data.strip.map((d) => d.date)}
           date={data.today}
           today={data.today}
-          onPick={(d) => router.push(`/training/day/${d}` as Href)}
+          /* 오늘은 이 화면이 그날이다(웹 trainingDayHref — 오늘은 트레이닝 홈) */
+          onPick={(d) => (d === data.today ? undefined : router.push(`/training/day/${d}` as Href))}
           labelOf={(d) => {
             const x = data.strip!.find((y) => y.date === d);
             const done = x ? [x.workout && '운동', x.armcare && '암케어', x.drill && '메커니즘'].filter(Boolean) : [];
@@ -218,7 +212,7 @@ function Card({
     card.action?.kind === 'workout' ? (card.action.resume ? '이어서' : '시작') : card.action ? card.action.label : null;
   return (
     <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${a.name}. ${card.status}`} onPress={onOpen} style={styles.row}>
+      <Press accessibilityRole="button" accessibilityLabel={`${a.name}. ${card.status}`} onPress={onOpen} style={styles.row}>
         <View style={[styles.icon, { backgroundColor: c.sky }]}>
           <Icon name={a.glyph} size={24} color="#fff" />
         </View>
@@ -242,7 +236,7 @@ function Card({
         ) : (
           <Text style={{ color: c.muted, fontSize: 20 }}>›</Text>
         )}
-      </Pressable>
+      </Press>
       {card.bars ? (
         <View style={styles.bars} accessibilityLabel={card.bars.label}>
           {Array.from({ length: card.bars.total }, (_, i) => (
@@ -254,7 +248,7 @@ function Card({
         </View>
       ) : null}
       {card.gap ? (
-        <Pressable
+        <Press
           accessibilityRole="button"
           onPress={() =>
             /* 암케어 빈 곳 줄(/training?view=armcare&tab=guide)은 앱 암케어 화면의 부위별 보강 칸으로 */
@@ -265,7 +259,7 @@ function Card({
           style={styles.line}
         >
           <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{card.gap.text} ›</Text>
-        </Pressable>
+        </Press>
       ) : null}
       {/* 웹 트레이닝 홈의 드릴 공 줄과 같은 부품(DRILL_THROW_TEXT 문구 · '이미 넣었어요' · '안 적을래요' 닫기 — mechanics.closeDrillThrowNote) */}
       {card.throwNote ? <ThrowNoteCard note={card.throwNote} c={c} /> : null}

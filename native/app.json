@@ -31,7 +31,8 @@
           }
         }
       ],
-      "expo-video"
+      "expo-video",
+      "./plugins/rest-activity"
     ],
     "experiments": {
       "typedRoutes": true,

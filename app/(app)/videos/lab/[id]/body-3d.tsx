@@ -53,6 +53,8 @@ export type Speed = 1 | 0.5 | 0.25;
 export type ViewName = 'side' | 'back' | 'catcher' | 'top';
 export type Transport = {
   frame: number;
+  /** 3D 시계(옆 영상 트랙 시각, 초) — 장면 사이도 이어진다. 원본 영상은 이 시각을 따라간다(lib/pitch-3d/v2/video-sync.ts) */
+  time: number;
   playing: boolean;
   speed: Speed;
   reason: 'tick' | 'seek' | 'toggle' | 'speed';
@@ -184,7 +186,8 @@ export const Body3D = forwardRef<
       renderer.domElement.style.display = 'block';
       renderer.domElement.style.width = '100%';
       renderer.domElement.style.height = '100%';
-      renderer.domElement.style.touchAction = 'pan-y';
+      /* 3D 위 손가락은 모두 돌리기로(components/three-stage.ts 와 같은 까닭, 2026-10-20) */
+      renderer.domElement.style.touchAction = 'none';
       host.prepend(renderer.domElement);
       /* 이름표 다섯(HTML, 캔버스 위에 겹침) — 글은 장면이 바뀔 때만, 자리는 그릴 때마다(placeLabelsDom) */
       /* 이름표를 누르면 다시 그리기 — dirty 는 아래에서 생기므로 나중에 잇는다 */
@@ -402,7 +405,7 @@ export const Body3D = forwardRef<
         dirty = true;
       };
       const emit = (reason: Transport['reason']) =>
-        transport.current?.({ frame: cur, playing: isPlaying, speed: spd, reason });
+        transport.current?.({ frame: cur, time: clock, playing: isPlaying, speed: spd, reason });
       const frameAt = (time: number) => {
         let lo = 0;
         let hi = n - 1;
@@ -561,7 +564,9 @@ export const Body3D = forwardRef<
         last = now;
         if (isPlaying) {
           clock += dt * spd;
-          if (clock > tEnd) clock = t0;
+          /* 되풀이 — 원본 영상도 곧바로 처음으로(예전엔 다음 알림까지 끝 장면에 남았다) */
+          const wrapped = clock > tEnd;
+          if (wrapped) clock = t0;
           const k = frameAt(clock);
           if (k !== cur) show(k);
           if (stopAtRelease && cur >= result.events.release) {
@@ -569,7 +574,10 @@ export const Body3D = forwardRef<
             stopAtRelease = false;
             setPlaying(false);
             emit('toggle');
-          } else if (now - lastTick > 500) {
+          } else if (wrapped) {
+            lastTick = now;
+            emit('seek');
+          } else if (now - lastTick > 100) {
             lastTick = now;
             emit('tick');
           }
@@ -776,12 +784,31 @@ function Scrubber({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const pct = (k: number) => (n > 1 ? (k / (n - 1)) * 100 : 0);
-  const pick = (e: React.PointerEvent) => {
+  /*
+   * 끄는 동안 장면은 화면 한 장에 한 번 · 바뀔 때만 — 손가락이 움직일 때마다 3D 다시 그리기 · 원본 영상 둘 되감기 · 앱 알림이 겹쳐
+   * 앱(웹뷰)에서 막대가 손을 못 따라왔다(2026-10-20 김민: "재생막대 스크롤이 인식이 잘 안 됨").
+   */
+  const want = useRef<number | null>(null);
+  const sent = useRef(-1);
+  const raf = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
+  const flush = () => {
+    raf.current = 0;
+    const k = want.current;
+    if (k == null || k === sent.current) return;
+    sent.current = k;
+    onSeek(k);
+  };
+  const pick = (e: React.PointerEvent, now = false) => {
     const el = ref.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
     const u = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-    onSeek(Math.round(u * (n - 1)));
+    want.current = Math.round(u * (n - 1));
+    if (now) {
+      cancelAnimationFrame(raf.current);
+      flush();
+    } else if (!raf.current) raf.current = requestAnimationFrame(flush);
   };
   return (
     <div
@@ -793,13 +820,18 @@ function Scrubber({
       aria-valuenow={frame}
       aria-valuetext={`${frame + 1} / ${n}`}
       onPointerDown={(e) => {
+        e.preventDefault();
         e.currentTarget.setPointerCapture(e.pointerId);
-        pick(e);
+        sent.current = -1;
+        pick(e, true);
       }}
       onPointerMove={(e) => {
         if (e.currentTarget.hasPointerCapture(e.pointerId)) pick(e);
       }}
-      className="relative min-w-0 flex-1 touch-none py-4"
+      onPointerUp={(e) => {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) pick(e, true);
+      }}
+      className="relative min-w-0 flex-1 touch-none select-none py-5"
     >
       <div className="relative h-1.5 overflow-hidden rounded-full bg-ink/10">
         {result.lowConf.map(([a, b]) => (
@@ -823,14 +855,14 @@ function Scrubber({
           <span
             key={k}
             aria-hidden
-            className="absolute top-2.5 h-4.5 w-0.5 -translate-x-1/2 rounded-full bg-ink/40"
+            className="absolute top-3.5 h-4.5 w-0.5 -translate-x-1/2 rounded-full bg-ink/40"
             style={{ left: `${pct(at)}%` }}
           />
         );
       })}
       <span
         aria-hidden
-        className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky shadow-[0_1px_3px_rgba(0,0,0,0.35)]"
+        className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky shadow-[0_1px_3px_rgba(0,0,0,0.35)]"
         style={{ left: `${pct(frame)}%` }}
       />
     </div>

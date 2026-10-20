@@ -2,8 +2,8 @@ import * as Haptics from 'expo-haptics';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import * as WebBrowser from 'expo-web-browser';
-import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, KeyboardAvoidingView, Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppShootWeek } from '@/app/actions/app-shoot';
 import type { ShootResult } from '@/app/actions/shoot';
@@ -73,8 +73,35 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
   /* 첫 화면 목록에서 ?at= 로 오면 그 운동 창을 연 채 시작한다 */
   const [openId, setOpenId] = useState<string | null>(() => (at ? (queue.find((it) => it.no === at)?.exerciseId ?? null) : null));
 
+  /* 방금 바꾼 것 되돌리기 알림 — 웹 ShootUndoToast 와 같이 6초 */
+  const [toast, setToast] = useState<{ seq: number; text: string; it: PlanItem; status: ShootStatus | null } | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
+  const inflight = useRef(0);
+
+  /* 다른 폰의 체크 받기 — 웹 use-shoot-checks 처럼 15초마다 · 앱으로 돌아올 때, 저장 중에는 쉰다 */
+  const base = data.checks;
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      if (inflight.current > 0 || AppState.currentState !== 'active') return;
+      const r = await rpc<ShootResult>('shoot.fetchShootChecks').catch(() => null);
+      if (alive && r?.ok && inflight.current === 0) setLocal({ from: base, list: r.checks });
+    };
+    const id = setInterval(tick, 15_000);
+    const sub = AppState.addEventListener('change', (st) => st === 'active' && void tick());
+    return () => {
+      alive = false;
+      clearInterval(id);
+      sub.remove();
+    };
+  }, [base]);
+
   /* 바로 반영 → 서버 → 받은 체크로 맞춤(다른 사람이 찍은 것까지), 실패하면 되돌림 */
-  const set = async (it: PlanItem, status: ShootStatus | null, note?: string | null): Promise<boolean> => {
+  const set = async (it: PlanItem, status: ShootStatus | null, note?: string | null, label?: string): Promise<boolean> => {
     setError(null);
     const before = checks;
     const prev = map.get(it.exerciseId);
@@ -86,14 +113,16 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
             ...checks.filter((x) => x.exerciseId !== it.exerciseId),
           ];
     setChecks(optimistic);
+    inflight.current++;
     try {
-      const r = await rpc<ShootResult>('shoot.setShootStatus', it.exerciseId, status, note);
+      const r = await rpc<ShootResult>('shoot.setShootStatus', it.exerciseId, status, note).finally(() => inflight.current--);
       if (!r.ok) {
         setChecks(before);
         setError(r.error);
         return false;
       }
       setChecks(r.checks);
+      if (label) setToast((t) => ({ seq: (t?.seq ?? 0) + 1, text: label, it, status: prev?.status ?? null }));
       return true;
     } catch {
       setChecks(before);
@@ -104,7 +133,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
   const toggle = (it: PlanItem) => {
     const done = stateOf(it, map) === 'done';
     void Haptics.impactAsync(done ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Medium);
-    void set(it, done ? null : 'done');
+    void set(it, done ? null : 'done', undefined, `${it.no} ${done ? '대기로 되돌림' : '찍음'}`);
   };
   const show = (it: PlanItem) => {
     const st = stateOf(it, map);
@@ -234,7 +263,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
             it={openItem}
             info={infos[openItem.exerciseId]}
             check={map.get(openItem.exerciseId)}
-            onSet={(status, note) => set(openItem, status, note)}
+            onSet={(status, note) => set(openItem, status, note, `${openItem.no} ${status ? STATE_LABEL[status] : '대기로 되돌림'}`)}
             onRun={() => {
               setOpenId(null);
               leaveTo(runHref(crewOf.get(openItem.exerciseId), openItem.no));
@@ -244,6 +273,26 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
           />
         ) : null}
       </Modal>
+      {toast ? (
+        <View key={toast.seq} accessibilityRole="alert" style={{ position: 'absolute', left: 16, right: 16, bottom: inset.bottom + 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 16, paddingLeft: 16, paddingVertical: 4, backgroundColor: c.ink }}>
+          <Text style={{ flex: 1, color: c.page, fontSize: 15 }} numberOfLines={1}>
+            {toast.text}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setToast(null);
+              void set(toast.it, toast.status);
+            }}
+            style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 }}
+          >
+            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '700' }}>되돌리기</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="알림 닫기" onPress={() => setToast(null)} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+            <SymbolView name="xmark" size={14} tintColor={c.page} />
+          </Pressable>
+        </View>
+      ) : null}
     </>
   );
 }

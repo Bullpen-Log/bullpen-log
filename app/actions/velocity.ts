@@ -9,7 +9,8 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { featureLocks } from '@/lib/feature-locks';
 import { getCurrentUser } from '@/lib/dal';
 import {
-  MAX_VIDEO_BYTES,
+  ADMIN_MAX_VIDEO_BYTES,
+  videoLimitOf,
   createUploadTarget,
   deleteVideos,
   isOwnedBy,
@@ -552,10 +553,11 @@ export async function createClipUpload(
     return { ok: false, error: '영상 저장소가 설정되지 않았어요.' };
   if (!/^video\//.test(String(mime)))
     return { ok: false, error: '영상 파일만 올릴 수 있어요.' };
-  if (!(bytes > 0 && bytes <= MAX_VIDEO_BYTES)) {
+  const clipLimit = videoLimitOf(user.role);
+  if (!(bytes > 0 && bytes <= clipLimit)) {
     return {
       ok: false,
-      error: `클립은 ${Math.round(MAX_VIDEO_BYTES / 1024 / 1024)}MB 까지 올릴 수 있어요.`,
+      error: `클립은 ${Math.round(clipLimit / 1024 / 1024)}MB 까지 올릴 수 있어요.`,
     };
   }
   const row = await prisma.velocityPitch.findFirst({
@@ -607,7 +609,7 @@ export async function attachClip(
     },
   });
   if (!row) return { ok: false, error: '공을 찾을 수 없어요.' };
-  const bytes = Math.round(num(info.bytes, 0, MAX_VIDEO_BYTES) ?? 0);
+  const bytes = Math.round(num(info.bytes, 0, ADMIN_MAX_VIDEO_BYTES) ?? 0);
   const sec = optional(info.sec, 0, 600);
   const mime = String(info.mime ?? '').slice(0, 80) || null;
   const eventSec = optional(info.eventSec, 0, 600);
@@ -726,10 +728,11 @@ export async function createAttemptClipUpload(
     return { ok: false, error: '영상 저장소가 설정되지 않았어요.' };
   if (!/^video\//.test(String(mime)))
     return { ok: false, error: '영상 파일만 올릴 수 있어요.' };
-  if (!(bytes > 0 && bytes <= MAX_VIDEO_BYTES)) {
+  const clipLimit = videoLimitOf(user.role);
+  if (!(bytes > 0 && bytes <= clipLimit)) {
     return {
       ok: false,
-      error: `클립은 ${Math.round(MAX_VIDEO_BYTES / 1024 / 1024)}MB 까지 올릴 수 있어요.`,
+      error: `클립은 ${Math.round(clipLimit / 1024 / 1024)}MB 까지 올릴 수 있어요.`,
     };
   }
   const row = await prisma.velocityAttempt.findFirst({
@@ -768,7 +771,7 @@ export async function attachAttemptClip(
     where: { id: attemptId },
     data: {
       clipPath: path,
-      clipBytes: Math.round(num(info.bytes, 0, MAX_VIDEO_BYTES) ?? 0),
+      clipBytes: Math.round(num(info.bytes, 0, ADMIN_MAX_VIDEO_BYTES) ?? 0),
       clipSec: optional(info.sec, 0, 600),
       clipMime: String(info.mime ?? '').slice(0, 80) || null,
       clipEventSec: optional(info.eventSec, 0, 600),

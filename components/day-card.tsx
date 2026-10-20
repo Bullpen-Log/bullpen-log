@@ -83,7 +83,6 @@ export function DayCard({
   hint,
   answer,
   children,
-  laterLabel,
   folded = false,
 }: {
   /** 카드마다 다른 열쇠(training · nutrition · throw) */
@@ -97,8 +96,6 @@ export function DayCard({
   answer: string | null;
   /** 물음 모양의 속 — 저장이 끝나면 close() 로 요약으로 돌아간다 */
   children: (close: () => void) => ReactNode;
-  /** '나중에' 단추의 말 — 던지는 일정 카드는 '모름' */
-  laterLabel?: string;
   /** 답이 없어도 접힌 알약으로 시작한다 — 영양 · 투구 탭(2026-10-14 김민: 화면을 핵심만) */
   folded?: boolean;
 }) {
@@ -126,18 +123,20 @@ export function DayCard({
             <p className="text-base font-bold text-ink">{title}</p>
             {hint && <p className="text-xs text-muted">{hint}</p>}
           </div>
-          {answer == null && (
-            <button
-              type="button"
-              onClick={() => {
-                writeLater(storageKey, day);
-                setOpen(false);
-              }}
-              className="-my-2 inline-flex min-h-10 shrink-0 items-center rounded-full px-3 text-xs font-medium text-muted transition-colors hover:bg-ink/6 hover:text-ink"
-            >
-              {laterLabel ?? '나중에'}
-            </button>
-          )}
+          {/*
+            펼친 뒤 늘 접을 수 있게(2026-10-20 김민: 던지는 일정 카드를 펼치면 접는 기능이 없다 — 답한 뒤 바꾸기로 열면 단추가 아예 없었고,
+            답 전에는 '모름'이라 접기로 안 읽혔다). 접힌 채 시작하는 카드 · 답한 카드는 '접기', 처음부터 묻는 카드의 답 전은 '나중에'(그날 기억).
+          */}
+          <button
+            type="button"
+            onClick={() => {
+              if (answer == null) writeLater(storageKey, day);
+              setOpen(false);
+            }}
+            className="-my-2 inline-flex min-h-10 shrink-0 items-center rounded-full px-3 text-xs font-medium text-muted transition-colors hover:bg-ink/6 hover:text-ink"
+          >
+            {folded || answer != null ? '접기' : '나중에'}
+          </button>
         </div>
         <div className="mt-3">{children(() => setOpen(false))}</div>
       </section>
