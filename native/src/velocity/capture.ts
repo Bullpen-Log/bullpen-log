@@ -23,7 +23,8 @@ import { EngineError, type EngineHandle, type EngineResult, type MeasureOpts } f
  */
 
 const MAX_PENDING = 2;
-const BALL_CLIP: [number, number] = [0.6, 1.6];
+/** 공 알림 클립 앞 · 뒤(초) — 재는 범위(BALL_RANGE)보다 0.1~0.15초만 넉넉히. 0.6 · 1.6 이었을 때 클립의 1할이 안 쓰는 장면이었다(다리 바이트, 2026-10-20) */
+const BALL_CLIP: [number, number] = [0.4, 1.55];
 const BALL_RANGE: [number, number] = [0.25, 1.45];
 const MOTION_CLIP: [number, number] = [0.5, 2.6];
 /** 훑기 한 번이 이보다 오래 걸리면 다음 하나를 쉰다(사이트 dual-capture 와 같다) */

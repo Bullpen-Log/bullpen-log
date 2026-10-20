@@ -9,7 +9,7 @@ import UIKit
 /// lib/velocity-engine/dual-capture.ts 가 쓰던 약속 그대로라 RN 쪽도 같은 모양으로 부른다. 다른 것은 미리보기 하나:
 /// Capacitor 는 투명한 웹뷰 뒤에 그렸지만(setPreview 의 CSS 자리), 여기서는 RN 화면에 놓는 뷰(DualCameraPreview)가 품는다.
 ///
-/// 알림: 'throw' { atSec, strength, kind, thermal } · 'error' { message } · 'fps' { fps, dropped, shutter, iso, thermal, feedMs } · 'level' { x, y, z }(중력, 폰 좌표)
+/// 알림: 'throw' { atSec, strength, kind, thermal } · 'error' { message } · 'fps' { fps, dropped, shutter, iso, thermal, feedMs, feedSkipped } · 'level' { x, y, z }(중력, 폰 좌표)
 ///
 /// 앱만의 것(2026-10-17 3판): level(폰 기울기 — 웹은 deviceorientation) · keep(회원 클립을 앱 안 폴더에, Capacitor LocalVideo 와 같은 자리) ·
 /// upload(관리자 클립을 서명 주소로 PUT).
@@ -164,7 +164,8 @@ public class DualCameraModule: Module {
             guard self.motion.isDeviceMotionAvailable else { return }
             if !on { return self.motion.stopDeviceMotionUpdates() }
             if self.motion.isDeviceMotionActive { return }
-            self.motion.deviceMotionUpdateInterval = 0.1
+            /* 0.2초 — 0.1초면 JS 가 10Hz 로 화면을 다시 그려 계산기 · 다리와 CPU 를 다퉜다(2026-10-20). 수평계는 0.2초로도 매끈하다 */
+            self.motion.deviceMotionUpdateInterval = 0.2
             self.motion.startDeviceMotionUpdates(to: .main) { [weak self] data, _ in
                 guard let g = data?.gravity else { return }
                 self?.sendEvent("level", ["x": g.x, "y": g.y, "z": g.z])
@@ -239,9 +240,9 @@ public class DualCameraModule: Module {
         controller.onError = { [weak self] message in
             self?.sendEvent("error", ["message": message])
         }
-        controller.onFps = { [weak self] fps, dropped, shutter, iso, thermal, feedMs in
-            /* thermal — ProcessInfo.ThermalState(0~3), feedMs — 장면당 공 찾기 시간(ms, 1초 평균). 2026-10-20 진단용 */
-            self?.sendEvent("fps", ["fps": fps, "dropped": dropped, "shutter": shutter, "iso": iso, "thermal": thermal, "feedMs": feedMs])
+        controller.onFps = { [weak self] fps, dropped, shutter, iso, thermal, feedMs, feedSkipped in
+            /* thermal — ProcessInfo.ThermalState(0~3), feedMs — 장면당 공 찾기 시간(ms, 1초 평균), feedSkipped — 공 찾기가 밀려 건너뛴 장면. 2026-10-20 진단용 */
+            self?.sendEvent("fps", ["fps": fps, "dropped": dropped, "shutter": shutter, "iso": iso, "thermal": thermal, "feedMs": feedMs, "feedSkipped": feedSkipped])
         }
         self.controller = controller
         controller.start(

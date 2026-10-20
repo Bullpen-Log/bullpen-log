@@ -299,17 +299,19 @@ export default function VelocityScreen() {
     const subs = [
       DualCamera.addListener('throw', (e) => capture.onThrow(e)),
       DualCamera.addListener('fps', (e) => {
-        setFps({ fps: Math.round(e.fps), dropped: e.dropped, thermal: e.thermal ?? null, feedMs: e.feedMs ?? null });
+        setFps({ fps: Math.round(e.fps), dropped: e.dropped, thermal: e.thermal ?? null, feedMs: e.feedMs ?? null, feedSkipped: e.feedSkipped ?? null });
         /* 장면이 다시 흐른다 = 카메라가 산다 — 전화 · 컨트롤센터로 잠깐 끊겼을 때 온 'error' 를 걷는다(안 걷으면 설정 카드가 오류 카드에 가려 못 갔다) */
         setError((prev) => (prev ? null : prev));
       }),
       DualCamera.addListener('error', (e) => setError(e.message)),
       DualCamera.addListener('level', (g) => {
         const t = tiltOf([g.x, g.y, g.z]);
-        /* 웹 수평계처럼 살짝 다듬는다(0.1초 알림 · 약 0.25초) */
-        setTilt((prev) =>
-          prev ? { roll: prev.roll + 0.35 * (t.roll - prev.roll), pitch: prev.pitch + 0.35 * (t.pitch - prev.pitch) } : t
-        );
+        /* 웹 수평계처럼 살짝 다듬는다(0.2초 알림). 0.1° 도 안 움직였으면 같은 값을 돌려줘 화면을 다시 그리지 않는다(측정 중 CPU — 2026-10-20) */
+        setTilt((prev) => {
+          if (!prev) return t;
+          const next = { roll: prev.roll + 0.5 * (t.roll - prev.roll), pitch: prev.pitch + 0.5 * (t.pitch - prev.pitch) };
+          return Math.abs(next.roll - prev.roll) < 0.1 && Math.abs(next.pitch - prev.pitch) < 0.1 ? prev : next;
+        });
       }),
     ];
     /* 사이트(dual-capture start)와 같은 옵션 — 투수 뒤라 2배 · 먼 곳만 초점 */
@@ -937,7 +939,7 @@ function recChipText(rec: RecState) {
   return `녹화 중 · 올림 ${rec.uploaded}/${rec.parts}${tail}`;
 }
 
-type FpsState = { fps: number; dropped: number; thermal: number | null; feedMs: number | null };
+type FpsState = { fps: number; dropped: number; thermal: number | null; feedMs: number | null; feedSkipped: number | null };
 const THERMAL_TEXT: Record<number, string> = { 0: '보통', 1: '따뜻', 2: '뜨거움', 3: '아주 뜨거움' };
 
 /** 둘째 줄 알약 — '1080p · 60fps · 2배' 뒤에 버림 N · DEBUG · 뜨거움이 붙는다 */
@@ -959,7 +961,9 @@ function diagLines(info: StartInfo | null, fps: FpsState | null, timings: JobTim
   if (info) lines.push(`카메라 ${Math.min(info.mainWidth, info.mainHeight)}p · 약속 ${Math.round(info.mainFps)}fps · 화각 ${info.mainFovDeg.toFixed(1)}°`);
   if (fps) {
     const feed = fps.feedMs == null ? '?' : fps.feedMs.toFixed(1);
-    lines.push(`지금 ${fps.fps}fps · 버림 ${fps.dropped}/초 · 공 찾기 ${feed}ms/장 · 열 ${THERMAL_TEXT[fps.thermal ?? -1] ?? '?'}`);
+    lines.push(
+      `지금 ${fps.fps}fps · 버림 ${fps.dropped}/초 · 공 찾기 ${feed}ms/장${fps.feedSkipped ? ` (건너뜀 ${fps.feedSkipped}/초)` : ''} · 열 ${THERMAL_TEXT[fps.thermal ?? -1] ?? '?'}`
+    );
   }
   lines.push(timings.length ? '최근 작업(ms):' : '최근 작업 없음');
   for (const t of timings) lines.push(timingLine(t));

@@ -47,8 +47,8 @@ export type Clip = {
 };
 
 export type ThrowEvent = { atSec: number; strength: number; kind: 'ball' | 'seed' | 'motion' | 'skip'; thermal: number };
-/** 1초마다 — thermal 0~3(ProcessInfo.ThermalState) · feedMs 장면당 공 찾기 시간(ms). 둘은 2026-10-20 판부터 */
-export type FpsEvent = { fps: number; dropped: number; shutter: number; iso: number; thermal?: number; feedMs?: number };
+/** 1초마다 — thermal 0~3(ProcessInfo.ThermalState) · feedMs 장면당 공 찾기 시간(ms) · feedSkipped 공 찾기가 밀려 건너뛴 장면 수. 셋은 2026-10-20 판부터 */
+export type FpsEvent = { fps: number; dropped: number; shutter: number; iso: number; thermal?: number; feedMs?: number; feedSkipped?: number };
 
 export type DualCameraEvents = {
   throw: (e: ThrowEvent) => void;

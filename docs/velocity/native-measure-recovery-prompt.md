@@ -206,3 +206,9 @@ D3. **JS-thread hygiene.** Throttle `level` to 4 Hz in Swift (`deviceMotionUpdat
   올리기가 `RECORD_MAX_PENDING`(6) 넘게 밀리면 조각을 버리지 않고 폰(앱 tmp 의 클립 파일 그대로)에 둔 채 `spooled` 로 세고, 끝낼 때 차례로 올린 뒤 지운다(1GB 넘으면 버림).
   자르기 15초 · 서버 동작 20초 · 올리기 90초 상한. 칩 `녹화 중 · 올림 6/9 · 대기 3 · 밀림 1 · 실패 2`, 세션을 끝내면 `마무리 중 · 올림 N/M · 남음 K`(측정을 끈 뒤에도 보인다).
   B4(관리자 목록 '영상 0:40만 올라감')는 이미 조각 길이 합(`uploadedSec`)으로 세고 있어 구멍 난 녹화를 그대로 드러낸다 — 고칠 것 없음.
+- **Phase C · D1 끝(2026-10-20 — 폰 확인 없이 코드로 할 수 있는 것)**: ① **공 찾기(MotionTrigger.feed)를 카메라 장면 줄에서 떼어 제 줄(`triggerQueue`)로** — 녹화기는
+  늘 모든 장면을 받고, 공 찾기가 밀리면 그 장면의 공 찾기만 건너뛴다(`feedSkipped`, fps 알림 · 진단에). Debug 빌드 · 뜨거운 폰에서도 클립은 온전하다(원인 1 의 구조적 고침).
+  장면 줄 QoS `userInteractive`. ② 개발용 현장 기록(LabRecorder 30Mbps) · 화각 재기는 `-labRecord YES` · `-fovProbe YES` 로 켤 때만(Debug 가 기본으로 디스크에 쓰던 것).
+  ③ 기울기 알림 10Hz → 5Hz, 0.1° 안 움직였으면 화면을 다시 그리지 않음. ④ 공 알림 클립 앞 0.6 · 뒤 1.6 → 0.4 · 1.55(재는 범위보다 0.1~0.15초만 넉넉히, 다리 바이트 1할).
+  ⑤ `native/README.md`: 폰에 깔 때 `--configuration Release`.
+  **아직 안 한 것**: D2(클립을 base64 로 두 번 건너지 않고 파일로 계산기에 넘기기 — 새 WKURLSchemeHandler 모듈, 하루). Release 에서 진단 알약의 '읽기' 가 계산보다 크면 그때.
