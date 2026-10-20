@@ -1,18 +1,40 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { CalendarDays, ClipboardList, KeyRound, Plus, Users } from '@/components/icon';
+import {
+  CalendarDays,
+  ClipboardList,
+  KeyRound,
+  Megaphone,
+  Plus,
+  Users,
+} from '@/components/icon';
 import { Badge, ButtonLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { InviteCodeCard } from '@/components/master/invite-code-card';
+import { PitcherBoard } from '@/components/master/pitcher-board';
 import { requireMaster } from '@/lib/dal';
-import { currentOrg } from '@/lib/org/access';
-import { ORG_KIND_LABEL, ORG_WORDS, inviteUsable } from '@/lib/org/rules';
+import { currentOrg, memberScope, type OrgRow } from '@/lib/org/access';
+import { checkinSummaryOf, loadPlayers, pitcherBoardOf } from '@/lib/org/player-data';
+import {
+  EVENT_KIND_LABEL,
+  ORG_KIND_LABEL,
+  ORG_WORDS,
+  PASS_ALERT_LEFT,
+  inviteUsable,
+  isEventKind,
+  passLeft,
+  passUsable,
+  realNow,
+} from '@/lib/org/rules';
+import { appNow } from '@/lib/clock';
+import { dbDate } from '@/lib/nutrition/days';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { prisma } from '@/lib/prisma';
 
 /**
- * 마스터 홈 — 조직 종류에 따라 다르다(1단계는 뼈대).
- *   레슨장: 회원 수 · 초대 코드 · 빠른 일(회원 초대 · 회원 목록 · 레슨 노트 · 측정 시작)
- *   팀:     선수단 수 · 초대 코드 · 빠른 일(선수 초대 · 선수단 · 훈련 일정 · 투수 부하판)
- * 오늘의 내용(레슨 시간표 · 투수 부하판 · 체크인 요약)은 2단계가 채운다 — 자리만 비워 둔다.
+ * 마스터 홈 — 조직 종류에 따라 다르다(2단계부터 실제 자료).
+ *   레슨장: 오늘 레슨(시간표) · 알림(수강권 3회 이하 · 2주 넘게 노트 없음) · 최근 레슨 노트 · 빠른 일
+ *   팀:     투수 부하판(팔 상태, 위험부터) · 오늘 일정 · 아침 체크인 요약 · 공지 · 빠른 일
+ * 날짜는 앱 시계(appNow) — 시험 계정의 날짜와 같은 눈금.
  */
 export default async function MasterHome() {
   const user = await requireMaster();
@@ -27,142 +49,65 @@ export default async function MasterHome() {
       />
     );
   }
+  const now = appNow();
+  const todayKey = toDateKey(now);
   const words = ORG_WORDS[org.kind];
 
-  const [players, joined, staff, invite, recent] = await Promise.all([
-    prisma.orgMember.count({
-      where: { orgId: org.id, role: 'PLAYER', status: 'ACTIVE' },
-    }),
-    prisma.orgMember.count({
-      where: { orgId: org.id, role: 'PLAYER', status: 'ACTIVE', userId: { not: null } },
-    }),
-    prisma.orgMember.count({
-      where: { orgId: org.id, role: { in: ['MASTER', 'STAFF'] }, status: 'ACTIVE' },
-    }),
+  const [players, invite] = await Promise.all([
+    loadPlayers(org.id),
     prisma.orgInvite.findFirst({
       where: { orgId: org.id, role: 'PLAYER' },
       orderBy: { createdAt: 'desc' },
       select: { id: true, code: true, role: true, expiresAt: true, usedAt: true },
     }),
-    prisma.orgMember.findMany({
-      where: { orgId: org.id, role: 'PLAYER', status: 'ACTIVE' },
-      orderBy: { joinedAt: 'desc' },
-      take: 5,
-      select: { id: true, nickname: true, userId: true, tags: true, joinedAt: true },
-    }),
   ]);
-  const liveInvite = invite && inviteUsable(invite, new Date()) ? invite : null;
-
-  const quick =
-    org.kind === 'LESSON'
-      ? [
-          {
-            href: '/master/settings#invite',
-            label: '회원 초대',
-            hint: '초대 코드 · 참여 링크',
-            icon: KeyRound,
-          },
-          {
-            href: '/master/players',
-            label: '회원 목록',
-            hint: `${players}명`,
-            icon: Users,
-          },
-          { href: null, label: '레슨 노트', hint: '4단계에서', icon: ClipboardList },
-          { href: null, label: '대신 기록 · 측정', hint: '3단계에서', icon: Plus },
-        ]
-      : [
-          {
-            href: '/master/settings#invite',
-            label: '선수 초대',
-            hint: '초대 코드 · 참여 링크',
-            icon: KeyRound,
-          },
-          {
-            href: '/master/players',
-            label: '선수단',
-            hint: `${players}명`,
-            icon: Users,
-          },
-          { href: null, label: '훈련 일정', hint: '5단계에서', icon: CalendarDays },
-          { href: null, label: '투수 부하판', hint: '2단계에서', icon: ClipboardList },
-        ];
+  const liveInvite = invite && inviteUsable(invite, realNow()) ? invite : null;
+  const joined = players.filter((p) => p.user).length;
 
   return (
     <div className="stack-page">
       <PageHeading
-        kicker={`${ORG_KIND_LABEL[org.kind]} 홈`}
+        kicker={`${ORG_KIND_LABEL[org.kind]} 홈 · ${fmtLong(todayKey)}`}
         title={org.name}
         description={[org.region, org.note].filter(Boolean).join(' · ') || undefined}
       />
 
-      {/* 숫자 셋 — 구성원 · 가입한 사람 · 스태프 */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat
           label={words.members}
-          value={`${players}명`}
-          sub={`가입 ${joined} · 자리 ${players - joined}`}
+          value={`${players.length}명`}
+          sub={`가입 ${joined} · 자리 ${players.length - joined}`}
         />
-        <Stat label="스태프" value={`${staff}명`} sub="마스터 · 코치" />
+        {org.kind === 'TEAM' ? (
+          <Stat label="오늘 체크인" value="아래" sub="아침 체크인 요약" />
+        ) : (
+          <Stat label="오늘 레슨" value="아래" sub="시간표에서" />
+        )}
         <Stat
           label="초대 코드"
           value={liveInvite ? liveInvite.code : '없음'}
           sub={
-            liveInvite ? `${fmtDate(liveInvite.expiresAt)}까지` : '설정에서 만들어요'
+            liveInvite
+              ? `${fmtShort(liveInvite.expiresAt.toISOString().slice(0, 10))}까지`
+              : '설정에서 만들어요'
           }
           mono
         />
       </section>
 
-      {/* 빠른 일 */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-bold text-ink">빠른 일</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {quick.map((q) => {
-            const Icon = q.icon;
-            const inner = (
-              <>
-                <Icon className={`h-5 w-5 ${q.href ? 'text-sky' : 'text-muted/60'}`} />
-                <span
-                  className={`mt-3 block text-sm font-semibold ${q.href ? 'text-ink' : 'text-muted'}`}
-                >
-                  {q.label}
-                </span>
-                <span className="mt-0.5 block text-xs text-muted">{q.hint}</span>
-              </>
-            );
-            return q.href ? (
-              <Link
-                key={q.label}
-                href={q.href}
-                className="rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-sky-soft"
-              >
-                {inner}
-              </Link>
-            ) : (
-              <div
-                key={q.label}
-                aria-disabled
-                className="rounded-2xl border border-dashed border-line bg-surface/60 p-4"
-              >
-                {inner}
-              </div>
-            );
-          })}
-        </div>
-      </section>
+      <QuickActions kind={org.kind} players={players.length} />
 
-      {/* 오늘 — 2단계가 채운다 */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-bold text-ink">오늘</h2>
+      {org.kind === 'TEAM' ? (
+        <TeamHome org={org} now={now} todayKey={todayKey} players={players} />
+      ) : (
+        <StudioHome org={org} todayKey={todayKey} players={players} />
+      )}
+
+      {players.length === 0 && (
         <EmptyState
           icon={<CalendarDays />}
-          title={
-            org.kind === 'LESSON'
-              ? '오늘 레슨 · 회원 상태가 여기 보여요'
-              : '투수 부하판 · 오늘 훈련 · 체크인 요약이 여기 보여요'
-          }
-          description={`${words.member}이 참여해 기록을 공유하면 채워져요. 먼저 초대 코드를 나눠 주세요.`}
+          title={`${words.member}이 들어오면 여기가 채워져요`}
+          description="초대 코드를 나눠 주세요. 코치가 먼저 자리를 만들어 둘 수도 있어요."
           action={
             liveInvite ? (
               <InviteCodeCard
@@ -177,34 +122,408 @@ export default async function MasterHome() {
             )
           }
         />
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────── 팀 홈 ─────────────────────────── */
+
+async function TeamHome({
+  org,
+  now,
+  todayKey,
+  players,
+}: {
+  org: OrgRow;
+  now: Date;
+  todayKey: string;
+  players: Awaited<ReturnType<typeof loadPlayers>>;
+}) {
+  const checkinIds = players
+    .filter((p) => p.user && memberScope(p.consent).checkin)
+    .map((p) => p.user!.id);
+  const nameOfUser = new Map(
+    players.filter((p) => p.user).map((p) => [p.user!.id, p.nickname])
+  );
+  const [board, events, checkin, notices] = await Promise.all([
+    pitcherBoardOf(org.id, now),
+    prisma.orgEvent.findMany({
+      where: {
+        orgId: org.id,
+        date: { gte: dbDate(todayKey), lte: dbDate(shiftDateKey(todayKey, 6)) },
+      },
+      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+      select: { id: true, date: true, time: true, kind: true, title: true },
+    }),
+    checkinSummaryOf(checkinIds, todayKey),
+    prisma.orgNotice.findMany({
+      where: { orgId: org.id },
+      orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
+      take: 3,
+      select: { id: true, title: true, pinned: true, createdAt: true },
+    }),
+  ]);
+  const names = (ids: string[]) =>
+    ids.map((id) => nameOfUser.get(id) ?? '?').join(' · ');
+
+  return (
+    <>
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-ink">투수 부하판</h2>
+          <Link href="/master/record" className="text-xs font-semibold text-sky">
+            투구수 적기
+          </Link>
+        </div>
+        <PitcherBoard rows={board.rows} hidden={board.hidden} memberWord="선수" />
       </section>
 
-      {/* 최근 들어온 구성원 */}
-      {recent.length > 0 && (
+      <div className="grid gap-4 lg:grid-cols-2">
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-ink">최근 들어온 {words.member}</h2>
-            <Link href="/master/players" className="text-xs font-semibold text-sky">
-              모두 보기
+            <h2 className="text-sm font-bold text-ink">아침 체크인</h2>
+            <span className="text-xs text-muted">
+              {checkin.answered}/{checkin.asked}명 답함
+            </span>
+          </div>
+          <Card className="space-y-2 text-sm">
+            {checkin.asked === 0 ? (
+              <p className="text-xs text-muted">체크인을 공유한 선수가 아직 없어요.</p>
+            ) : (
+              <>
+                <p
+                  className={
+                    checkin.pain.length ? 'font-semibold text-danger' : 'text-muted'
+                  }
+                >
+                  통증 {checkin.pain.length}명
+                  {checkin.pain.length > 0 && (
+                    <span className="font-normal">
+                      {' '}
+                      —{' '}
+                      {checkin.pain
+                        .map(
+                          (p) =>
+                            `${nameOfUser.get(p.userId) ?? '?'}(${p.parts.join('·')})`
+                        )
+                        .join(', ')}
+                    </span>
+                  )}
+                </p>
+                <p className={checkin.shortSleep.length ? 'text-warn' : 'text-muted'}>
+                  잠 부족 {checkin.shortSleep.length}명
+                  {checkin.shortSleep.length > 0 && ` — ${names(checkin.shortSleep)}`}
+                </p>
+                <p className={checkin.lowCondition.length ? 'text-warn' : 'text-muted'}>
+                  컨디션 4 이하 {checkin.lowCondition.length}명
+                  {checkin.lowCondition.length > 0 &&
+                    ` — ${names(checkin.lowCondition)}`}
+                </p>
+              </>
+            )}
+          </Card>
+        </section>
+
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-ink">이번 주 일정</h2>
+            <Link href="/master/calendar" className="text-xs font-semibold text-sky">
+              달력
             </Link>
           </div>
           <Card className="divide-y divide-line p-0">
-            {recent.map((m) => (
-              <div key={m.id} className="flex items-center gap-3 px-4 py-3">
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
-                  {m.nickname}
+            {events.length === 0 && (
+              <p className="px-4 py-4 text-xs text-muted">
+                앞으로 7일 안 일정이 없어요.
+              </p>
+            )}
+            {events.map((e) => (
+              <div key={e.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                <span className="w-12 shrink-0 text-xs text-muted">
+                  {fmtShort(e.date.toISOString().slice(0, 10))}
                 </span>
-                {m.tags.slice(0, 2).map((t) => (
-                  <Badge key={t}>{t}</Badge>
-                ))}
-                {!m.userId && <Badge className="text-warn">가입 전</Badge>}
-                <span className="text-xs text-muted">{fmtDate(m.joinedAt)}</span>
+                <span className="w-12 shrink-0 text-xs text-muted">
+                  {e.time ?? '종일'}
+                </span>
+                <Badge>{isEventKind(e.kind) ? EVENT_KIND_LABEL[e.kind] : e.kind}</Badge>
+                <span className="min-w-0 flex-1 truncate text-ink">{e.title}</span>
               </div>
             ))}
           </Card>
         </section>
-      )}
-    </div>
+      </div>
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-ink">공지</h2>
+          <Link href="/master/notices" className="text-xs font-semibold text-sky">
+            공지 쓰기
+          </Link>
+        </div>
+        <Card className="divide-y divide-line p-0">
+          {notices.length === 0 && (
+            <p className="px-4 py-4 text-xs text-muted">아직 공지가 없어요.</p>
+          )}
+          {notices.map((n) => (
+            <Link
+              key={n.id}
+              href={`/master/notices#${n.id}`}
+              className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-ink/4"
+            >
+              {n.pinned && <Badge className="text-sky-strong">고정</Badge>}
+              <span className="min-w-0 flex-1 truncate text-ink">{n.title}</span>
+              <span className="text-xs text-muted">
+                {fmtShort(n.createdAt.toISOString().slice(0, 10))}
+              </span>
+            </Link>
+          ))}
+        </Card>
+      </section>
+    </>
+  );
+}
+
+/* ─────────────────────────── 레슨장 홈 ─────────────────────────── */
+
+async function StudioHome({
+  org,
+  todayKey,
+  players,
+}: {
+  org: OrgRow;
+  todayKey: string;
+  players: Awaited<ReturnType<typeof loadPlayers>>;
+}) {
+  const nameOf = new Map(players.map((p) => [p.id, p.nickname]));
+  const [lessons, passes, lastNotes, recentNotes] = await Promise.all([
+    prisma.orgEvent.findMany({
+      where: { orgId: org.id, date: dbDate(todayKey) },
+      orderBy: [{ time: 'asc' }],
+      select: { id: true, time: true, kind: true, title: true, memberId: true },
+    }),
+    prisma.lessonPass.findMany({
+      where: { member: { orgId: org.id, status: 'ACTIVE' } },
+      select: { id: true, memberId: true, total: true, used: true, expiresAt: true },
+    }),
+    prisma.lessonNote.groupBy({
+      by: ['memberId'],
+      where: { member: { orgId: org.id, status: 'ACTIVE' } },
+      _max: { date: true },
+    }),
+    prisma.lessonNote.findMany({
+      where: { member: { orgId: org.id } },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      take: 5,
+      select: { id: true, date: true, body: true, homework: true, memberId: true },
+    }),
+  ]);
+  /* 수강권 — 회원마다 쓸 수 있는 것의 남은 회를 더해 3회 이하면 알림 */
+  const leftByMember = new Map<string, number>();
+  for (const p of passes) {
+    if (!passUsable(p, todayKey)) continue;
+    leftByMember.set(p.memberId, (leftByMember.get(p.memberId) ?? 0) + passLeft(p));
+  }
+  const lowPass = players.filter(
+    (p) => leftByMember.has(p.id) && leftByMember.get(p.id)! <= PASS_ALERT_LEFT
+  );
+  const lastNoteOf = new Map(
+    lastNotes.map((n) => [n.memberId, n._max.date?.toISOString().slice(0, 10) ?? null])
+  );
+  const staleCut = shiftDateKey(todayKey, -14);
+  const stale = players.filter((p) => {
+    const last = lastNoteOf.get(p.id);
+    return !last || last < staleCut;
+  });
+
+  return (
+    <>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-ink">오늘 레슨</h2>
+            <Link href="/master/calendar" className="text-xs font-semibold text-sky">
+              시간표
+            </Link>
+          </div>
+          <Card className="divide-y divide-line p-0">
+            {lessons.length === 0 && (
+              <p className="px-4 py-4 text-xs text-muted">
+                오늘 시간표에 레슨이 없어요. 달력에서 더해요.
+              </p>
+            )}
+            {lessons.map((e) => (
+              <Link
+                key={e.id}
+                href={e.memberId ? `/master/players/${e.memberId}` : '/master/calendar'}
+                className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-ink/4"
+              >
+                <span className="w-12 shrink-0 text-xs text-muted">
+                  {e.time ?? '종일'}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-semibold text-ink">
+                  {e.memberId ? (nameOf.get(e.memberId) ?? e.title) : e.title}
+                </span>
+                {e.memberId && leftByMember.has(e.memberId) && (
+                  <span className="text-xs text-muted">
+                    수강권 {leftByMember.get(e.memberId)}회
+                  </span>
+                )}
+              </Link>
+            ))}
+          </Card>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold text-ink">알림</h2>
+          <Card className="space-y-2 text-sm">
+            {lowPass.length === 0 && stale.length === 0 && (
+              <p className="text-xs text-muted">챙길 것이 없어요.</p>
+            )}
+            {lowPass.length > 0 && (
+              <p className="text-warn">
+                <b>수강권 {PASS_ALERT_LEFT}회 이하</b> —{' '}
+                {lowPass
+                  .map((p) => (
+                    <Link
+                      key={p.id}
+                      href={`/master/players/${p.id}`}
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {p.nickname}({leftByMember.get(p.id)}회)
+                    </Link>
+                  ))
+                  .reduce<React.ReactNode[]>(
+                    (acc, el, i) => (i ? [...acc, ', ', el] : [el]),
+                    []
+                  )}
+              </p>
+            )}
+            {stale.length > 0 && (
+              <p className="text-muted">
+                <b className="text-ink">2주 넘게 노트 없음</b> {stale.length}명 —{' '}
+                {stale
+                  .slice(0, 6)
+                  .map((p) => p.nickname)
+                  .join(' · ')}
+                {stale.length > 6 && ' …'}
+              </p>
+            )}
+          </Card>
+        </section>
+      </div>
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-ink">최근 레슨 노트</h2>
+          <Link href="/master/players" className="text-xs font-semibold text-sky">
+            회원 목록
+          </Link>
+        </div>
+        <Card className="divide-y divide-line p-0">
+          {recentNotes.length === 0 && (
+            <p className="px-4 py-4 text-xs text-muted">
+              회원 카드에서 레슨 노트를 쓰면 여기 모여요.
+            </p>
+          )}
+          {recentNotes.map((n) => (
+            <Link
+              key={n.id}
+              href={`/master/players/${n.memberId}`}
+              className="block px-4 py-2.5 text-sm hover:bg-ink/4"
+            >
+              <p className="flex items-center gap-2">
+                <span className="text-xs text-muted">
+                  {fmtShort(n.date.toISOString().slice(0, 10))}
+                </span>
+                <span className="font-semibold text-ink">
+                  {nameOf.get(n.memberId) ?? '?'}
+                </span>
+                {n.homework && <Badge>숙제</Badge>}
+              </p>
+              <p className="mt-0.5 truncate text-xs text-muted">{n.body}</p>
+            </Link>
+          ))}
+        </Card>
+      </section>
+    </>
+  );
+}
+
+/* ─────────────────────────── 공통 조각 ─────────────────────────── */
+
+function QuickActions({ kind, players }: { kind: 'LESSON' | 'TEAM'; players: number }) {
+  const quick =
+    kind === 'LESSON'
+      ? [
+          {
+            href: '/master/settings#invite',
+            label: '회원 초대',
+            hint: '초대 코드 · 참여 링크',
+            icon: KeyRound,
+          },
+          {
+            href: '/master/players',
+            label: '회원 목록',
+            hint: `${players}명`,
+            icon: Users,
+          },
+          {
+            href: '/master/record',
+            label: '대신 기록',
+            hint: '투구수 적기',
+            icon: Plus,
+          },
+          {
+            href: '/master/calendar',
+            label: '레슨 시간표',
+            hint: '오늘 · 이번 주',
+            icon: CalendarDays,
+          },
+        ]
+      : [
+          {
+            href: '/master/settings#invite',
+            label: '선수 초대',
+            hint: '초대 코드 · 참여 링크',
+            icon: KeyRound,
+          },
+          {
+            href: '/master/players',
+            label: '선수단',
+            hint: `${players}명`,
+            icon: Users,
+          },
+          {
+            href: '/master/record',
+            label: '경기 투구수',
+            hint: '한 번에 여럿',
+            icon: ClipboardList,
+          },
+          {
+            href: '/master/notices',
+            label: '공지',
+            hint: '선수단에 알리기',
+            icon: Megaphone,
+          },
+        ];
+  return (
+    <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {quick.map((q) => {
+        const Icon = q.icon;
+        return (
+          <Link
+            key={q.label}
+            href={q.href}
+            className="rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-sky-soft"
+          >
+            <Icon className="h-5 w-5 text-sky" />
+            <span className="mt-3 block text-sm font-semibold text-ink">{q.label}</span>
+            <span className="mt-0.5 block text-xs text-muted">{q.hint}</span>
+          </Link>
+        );
+      })}
+    </section>
   );
 }
 
@@ -232,6 +551,14 @@ function Stat({
   );
 }
 
-function fmtDate(d: Date): string {
-  return new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric' }).format(d);
+function fmtShort(key: string): string {
+  const [, m, d] = key.split('-');
+  return `${Number(m)}/${Number(d)}`;
+}
+function fmtLong(key: string): string {
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+  }).format(new Date(`${key}T00:00:00Z`));
 }

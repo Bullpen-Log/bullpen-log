@@ -34,6 +34,9 @@ CREATE TABLE "Org" (
     "region" TEXT,
     "note" TEXT,
     "ownerId" TEXT NOT NULL,
+    "plan" TEXT,
+    "seats" INTEGER,
+    "planNote" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -95,6 +98,7 @@ CREATE TABLE "OrgEvent" (
     "kind" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "memo" TEXT,
+    "memberId" TEXT,
     "createdById" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -129,6 +133,34 @@ CREATE TABLE "LessonNote" (
     CONSTRAINT "LessonNote_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "LessonPass" (
+    "id" TEXT NOT NULL,
+    "memberId" TEXT NOT NULL,
+    "total" INTEGER NOT NULL,
+    "used" INTEGER NOT NULL DEFAULT 0,
+    "expiresAt" DATE,
+    "memo" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "LessonPass_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "GuardianReport" (
+    "id" TEXT NOT NULL,
+    "token" TEXT NOT NULL,
+    "memberId" TEXT NOT NULL,
+    "codeHash" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "createdById" TEXT NOT NULL,
+    "lastOpenedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "GuardianReport_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE INDEX "Org_ownerId_idx" ON "Org"("ownerId");
 
@@ -151,10 +183,22 @@ CREATE INDEX "OrgInvite_orgId_idx" ON "OrgInvite"("orgId");
 CREATE INDEX "OrgEvent_orgId_date_idx" ON "OrgEvent"("orgId", "date");
 
 -- CreateIndex
+CREATE INDEX "OrgEvent_memberId_idx" ON "OrgEvent"("memberId");
+
+-- CreateIndex
 CREATE INDEX "OrgNotice_orgId_pinned_createdAt_idx" ON "OrgNotice"("orgId", "pinned", "createdAt");
 
 -- CreateIndex
 CREATE INDEX "LessonNote_memberId_date_idx" ON "LessonNote"("memberId", "date");
+
+-- CreateIndex
+CREATE INDEX "LessonPass_memberId_idx" ON "LessonPass"("memberId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GuardianReport_token_key" ON "GuardianReport"("token");
+
+-- CreateIndex
+CREATE INDEX "GuardianReport_memberId_idx" ON "GuardianReport"("memberId");
 
 -- CreateIndex
 CREATE INDEX "PitchLog_orgId_idx" ON "PitchLog"("orgId");

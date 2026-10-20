@@ -4,14 +4,16 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { requireMaster } from '@/lib/dal';
+import { requireAdmin, requireMaster } from '@/lib/dal';
 import { ORG_COOKIE, requireOrg } from '@/lib/org/access';
 import {
   INVITE_DAYS,
   ORG_NAME_MAX,
   ORG_NOTE_MAX,
   ORG_REGION_MAX,
+  inviteUsable,
   makeInviteCode,
+  normalizeInviteCode,
   orgNameOk,
   parseTags,
 } from '@/lib/org/rules';
@@ -65,6 +67,8 @@ export async function createInvite(formData: FormData) {
   const user = await requireMaster();
   const org = await requireOrg(user, String(formData.get('orgId') ?? ''));
   const role = formData.get('role') === 'STAFF' ? 'STAFF' : 'PLAYER';
+  /* 코치(스태프) 초대는 만든 마스터와 관리자만 — 스태프는 설정 · 스태프 관리를 못 한다(5단계) */
+  if (role === 'STAFF' && user.role !== 'ADMIN' && org.ownerId !== user.id) return;
   /* 초대 기한은 실제 시각 — 이 표는 시험 계정의 앱 시계(lib/prisma.ts TIME_FIELDS)를 안 쓴다 */
   const expiresAt = new Date(Date.now() + INVITE_DAYS * 86_400_000);
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -166,4 +170,56 @@ export async function addPlaceholderMember(
   revalidatePath('/master/players');
   revalidatePath('/master');
   return { success: '더했어요.' };
+}
+
+/** 로그인한 마스터 계정이 스태프 초대 코드로 다른 레슨장 · 팀에 코치로 들어간다(5단계) — 코드는 한 번만 */
+export async function joinAsStaff(_prev: OrgActionState, formData: FormData): Promise<OrgActionState> {
+  const user = await requireMaster();
+  const code = normalizeInviteCode(formData.get('code'));
+  const invite = code
+    ? await prisma.orgInvite.findUnique({
+        where: { code },
+        select: { id: true, orgId: true, role: true, expiresAt: true, usedAt: true, org: { select: { name: true } } },
+      })
+    : null;
+  if (!invite || invite.role !== 'STAFF' || !inviteUsable(invite, new Date()))
+    return { error: '코치 초대 코드가 맞지 않거나 기한이 지났어요.' };
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.orgMember.findUnique({
+      where: { orgId_userId: { orgId: invite.orgId, userId: user.id } },
+      select: { id: true, role: true },
+    });
+    if (existing) {
+      await tx.orgMember.update({
+        where: { id: existing.id },
+        data: { status: 'ACTIVE', leftAt: null, role: existing.role === 'MASTER' ? 'MASTER' : 'STAFF' },
+      });
+    } else {
+      await tx.orgMember.create({
+        data: { orgId: invite.orgId, userId: user.id, role: 'STAFF', status: 'ACTIVE', nickname: user.nickname },
+      });
+    }
+    await tx.orgInvite.update({ where: { id: invite.id }, data: { usedById: user.id, usedAt: new Date() } });
+  });
+  (await cookies()).set(ORG_COOKIE, invite.orgId, { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' });
+  revalidatePath('/master', 'layout');
+  return { success: `${invite.org.name}에 코치로 들어갔어요.` };
+}
+
+/** 요금제 · 자리 수 · 메모(6단계) — 결제 연동 전이라 관리자가 손으로 적는다 */
+export async function updateOrgPlan(_prev: OrgActionState, formData: FormData): Promise<OrgActionState> {
+  await requireAdmin();
+  const id = String(formData.get('orgId') ?? '');
+  const org = await prisma.org.findUnique({ where: { id }, select: { id: true } });
+  if (!org) return { error: '조직을 찾을 수 없어요.' };
+  const plan = String(formData.get('plan') ?? '').trim().slice(0, 20) || null;
+  const rawSeats = String(formData.get('seats') ?? '').trim();
+  const seats = rawSeats ? Number.parseInt(rawSeats, 10) : null;
+  if (seats != null && (!Number.isInteger(seats) || seats < 0 || seats > 10_000))
+    return { error: '자리 수를 올바르게 적어 주세요.' };
+  const planNote = String(formData.get('planNote') ?? '').trim().slice(0, 120) || null;
+  await prisma.org.update({ where: { id: org.id }, data: { plan, seats, planNote } });
+  revalidatePath('/master/orgs');
+  revalidatePath('/master/settings');
+  return { success: '저장했어요.' };
 }

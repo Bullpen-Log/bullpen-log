@@ -4,9 +4,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import {
+  CalendarDays,
   ChevronDown,
+  ClipboardList,
   House,
   LogOut,
+  Megaphone,
   Menu,
   Settings,
   Shield,
@@ -47,6 +50,17 @@ export function MasterShell({
     [
       { href: '/master', label: '홈', icon: House, exact: true },
       { href: '/master/players', label: `${words.members} 관리`, icon: Users },
+      {
+        href: '/master/calendar',
+        label: org?.kind === 'LESSON' ? '레슨 시간표' : '팀 달력',
+        icon: CalendarDays,
+      },
+      {
+        href: '/master/record',
+        label: org?.kind === 'LESSON' ? '대신 기록' : '경기 투구수',
+        icon: ClipboardList,
+      },
+      { href: '/master/notices', label: '공지', icon: Megaphone },
       { href: '/master/settings', label: '설정 · 초대', icon: Settings },
     ];
   if (user.isAdmin)

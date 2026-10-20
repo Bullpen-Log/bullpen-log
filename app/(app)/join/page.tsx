@@ -18,6 +18,7 @@ import {
   consentDefaults,
   inviteUsable,
   normalizeInviteCode,
+  realNow,
 } from '@/lib/org/rules';
 import { prisma } from '@/lib/prisma';
 
@@ -47,7 +48,25 @@ export default async function JoinPage({
       select: {
         id: true,
         role: true,
-        org: { select: { id: true, name: true, kind: true } },
+        org: {
+          select: {
+            id: true,
+            name: true,
+            kind: true,
+            /* 조직 공지(5단계) — 고정 먼저, 셋까지 */
+            notices: {
+              orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
+              take: 3,
+              select: {
+                id: true,
+                title: true,
+                body: true,
+                pinned: true,
+                createdAt: true,
+              },
+            },
+          },
+        },
         consent: {
           select: {
             pitch: true,
@@ -73,7 +92,7 @@ export default async function JoinPage({
       : null,
   ]);
   const usable =
-    !!invite && inviteUsable(invite, new Date()) && invite.role === 'PLAYER';
+    !!invite && inviteUsable(invite, realNow()) && invite.role === 'PLAYER';
   const already = !!invite && memberships.some((m) => m.org.id === invite.org.id);
   const joined = joinedId ? memberships.find((m) => m.org.id === joinedId) : null;
 
@@ -194,15 +213,40 @@ export default async function JoinPage({
         ) : (
           <Card className="divide-y divide-line p-0">
             {memberships.map((m) => (
-              <div key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <Badge className="text-sky-strong">{ORG_KIND_LABEL[m.org.kind]}</Badge>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-ink">
-                    {m.org.name}
-                  </p>
-                  <p className="text-xs text-muted">{consentSummary(m.consent)}</p>
+              <div key={m.id} className="space-y-2 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge className="text-sky-strong">
+                    {ORG_KIND_LABEL[m.org.kind]}
+                  </Badge>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-ink">
+                      {m.org.name}
+                    </p>
+                    <p className="text-xs text-muted">{consentSummary(m.consent)}</p>
+                  </div>
+                  <KeyRound className="h-4 w-4 text-muted/50" />
                 </div>
-                <KeyRound className="h-4 w-4 text-muted/50" />
+                {m.org.notices.length > 0 && (
+                  <ul className="space-y-1.5">
+                    {m.org.notices.map((n) => (
+                      <li key={n.id} className="rounded-xl bg-surface-2/70 px-3 py-2">
+                        <p className="flex items-center gap-2 text-xs font-semibold text-ink">
+                          {n.pinned && <Badge className="text-sky-strong">고정</Badge>}
+                          <span className="min-w-0 flex-1 truncate">{n.title}</span>
+                          <span className="font-normal text-muted">
+                            {new Intl.DateTimeFormat('ko-KR', {
+                              month: 'numeric',
+                              day: 'numeric',
+                            }).format(n.createdAt)}
+                          </span>
+                        </p>
+                        <p className="mt-0.5 line-clamp-3 whitespace-pre-wrap text-xs text-muted">
+                          {n.body}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ))}
           </Card>

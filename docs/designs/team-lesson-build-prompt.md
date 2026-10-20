@@ -30,7 +30,12 @@
 - **1단계 끝(2026-10-20)** — 스키마 · 마이그레이션(`prisma/migrations/20261020120000_org_master`) · `requireMaster` · 가입 종류(선수 · 레슨장 · 팀) ·
   `/join?code=` · `app/(master)` 틀 + 홈 · 회원 목록 · 설정(초대 코드) · 관리자 조직 목록 · `scripts/org-selftest.mts`(`npm run org:test`).
   마이그레이션은 배포가 적용한다 — 적용 전에는 로컬 개발 서버의 모든 화면이 `User.accountType` 이 없다고 막힌다(getCurrentUser 가 읽는다).
-- 2단계(선수 카드 · 두 홈의 내용) 다음.
+- **2~6단계 끝(2026-10-20, 한 커밋)** — 선수 카드(`/master/players/[memberId]`: 팔 상태 · 투구 28일 · 구속 · 체크인 · 재활 · 영상 · 체중, 동의한 범위만 서버가 읽음) ·
+  두 홈(팀: 투수 부하판 · 아침 체크인 요약 · 이번 주 일정 · 공지 / 레슨장: 오늘 레슨 · 수강권 알림 · 2주 노트 없음 · 최근 노트) · 대신 기록(`/master/record`, 경기 투구수표) ·
+  레슨 노트 · 숙제 · 수강권 · 보호자 리포트(`/report/[token]` 공개 + 네 자리 코드) · 달력(`OrgEvent`, 레슨은 회원에 붙음) · 공지(선수는 `/join` 에서 봄) ·
+  코치(스태프) 초대 코드(가입 폼의 '코치로 들어가요' 칸 · 설정의 합류 칸) · 관리자 요금제 · 자리 칸. 스키마는 1단계 마이그레이션에 합쳤다
+  (`OrgEvent.memberId` · `LessonPass` · `GuardianReport` · `Org.plan/seats/planNote` — 아직 어디에도 적용 전이라 한 파일).
+- 남은 것: 구속 측정을 코치가 대신 재기(구속 엔진 담당과 `forUserId` 약속 뒤) · 트레이닝 과제(`OrgAssignment`) · 결제.
 
 ## 구현 원칙(한국어 요약 — 자세한 건 아래 프롬프트)
 

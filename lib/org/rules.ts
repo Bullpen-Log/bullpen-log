@@ -128,3 +128,83 @@ export function parseTags(raw: string): string[] {
   }
   return [...seen];
 }
+
+/* ── 팔 상태 → 코치 말(2단계 투수 부하판) — 판정은 lib/report/arm-status.ts 그대로, 여기는 말만 ── */
+
+export const ARM_WORD: Record<'safe' | 'caution' | 'danger', string> = {
+  safe: '던져도 돼요',
+  caution: '가볍게',
+  danger: '쉬어야 해요',
+};
+
+/* ── 조직 일정 종류(5단계 팀 달력 · 4단계 레슨 시간표) ── */
+
+export const EVENT_KINDS = [
+  { key: 'training', label: '훈련' },
+  { key: 'game', label: '경기' },
+  { key: 'rest', label: '휴식' },
+  { key: 'lesson', label: '레슨' },
+  { key: 'other', label: '기타' },
+] as const;
+export type EventKind = (typeof EVENT_KINDS)[number]['key'];
+export function isEventKind(v: unknown): v is EventKind {
+  return EVENT_KINDS.some((k) => k.key === v);
+}
+export const EVENT_KIND_LABEL: Record<EventKind, string> = Object.fromEntries(
+  EVENT_KINDS.map((k) => [k.key, k.label])
+) as Record<EventKind, string>;
+export const EVENT_TITLE_MAX = 40;
+export const EVENT_MEMO_MAX = 300;
+/** 'HH:MM' — 비면 하루 종일 */
+export function timeOk(t: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
+}
+export function isDateKey(v: unknown): v is string {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const d = new Date(`${v}T00:00:00.000Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
+
+/* ── 레슨 노트 · 수강권(4단계) ── */
+
+export const NOTE_MAX = 2000;
+export const HOMEWORK_MAX = 500;
+/** 수강권이 이만큼 남으면 홈이 알린다 */
+export const PASS_ALERT_LEFT = 3;
+export const PASS_TOTAL_MAX = 200;
+
+export function passLeft(p: { total: number; used: number }): number {
+  return Math.max(0, p.total - p.used);
+}
+/** 아직 쓸 수 있는 수강권인가 — 남은 회가 있고 기한(그날 포함)이 안 지남 */
+export function passUsable(
+  p: { total: number; used: number; expiresAt: Date | null },
+  todayKey: string
+): boolean {
+  if (passLeft(p) <= 0) return false;
+  return p.expiresAt == null || p.expiresAt.toISOString().slice(0, 10) >= todayKey;
+}
+
+/* ── 보호자 리포트(4단계) — 토큰 주소 + 네 자리 코드, 30일 ── */
+
+export const GUARDIAN_DAYS = 30;
+export function makeGuardianCode(rand: () => number = Math.random): string {
+  return String(Math.min(9999, Math.floor(rand() * 10000))).padStart(4, '0');
+}
+export function isGuardianCode(v: unknown): v is string {
+  return typeof v === 'string' && /^\d{4}$/.test(v);
+}
+/** 리포트 토큰 — uuid 에서 줄표를 뺀 32자(app/actions/org-notes.ts createGuardianLink) */
+export const REPORT_TOKEN_RE = /^[0-9a-f]{32}$/;
+
+/* ── 공지(5단계) ── */
+export const NOTICE_TITLE_MAX = 60;
+export const NOTICE_BODY_MAX = 3000;
+
+/**
+ * 실제 시각 — 초대 코드 · 보호자 링크의 기한은 앱 시계(시험 계정의 날짜)가 아니라 실제 시각으로 센다. 화면을 그리는 도중에 Date.now 를
+ * 직접 부르지 않도록 함수로 감싼다(app/login/page.tsx 의 todayKey 와 같은 까닭, lint react-hooks/purity).
+ */
+export function realNow(): Date {
+  return new Date();
+}

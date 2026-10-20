@@ -9,7 +9,7 @@ import {
   parseBirthDate,
   type Sex,
 } from '@/lib/profile';
-import { ORG_NAME_MAX, ORG_NAME_MIN, orgNameOk, type OrgKind } from '@/lib/org/rules';
+import { ORG_NAME_MAX, ORG_NAME_MIN, normalizeInviteCode, orgNameOk, type OrgKind } from '@/lib/org/rules';
 
 /**
  * 가입 화면의 답 · 차례 · 화면별 검사 — 웹 가입 폼(app/login/auth-form.tsx)과 앱 가입 화면(native/src/app/signup.tsx)이 같이 쓴다.
@@ -36,6 +36,8 @@ export type SignupAnswers = {
   orgName: string;
   orgRegion: string;
   orgNote: string;
+  /** 이미 있는 레슨장 · 팀에 코치로 들어가는 초대 코드(스태프 코드) — 적으면 조직을 새로 만들지 않는다(5단계) */
+  staffCode: string;
 };
 
 /** 가입 종류 — 선수(지금의 불펜로그) · 레슨장 · 팀(마스터 화면 /master, 선수 기능 없음) */
@@ -72,6 +74,7 @@ export const EMPTY_SIGNUP: SignupAnswers = {
   orgName: '',
   orgRegion: '',
   orgNote: '',
+  staffCode: '',
 };
 
 export type SignupStep = 'name' | 'birth' | 'body' | 'terms';
@@ -119,6 +122,7 @@ const WEB_FIELD_STEP: Record<string, WebSignupStep> = {
   orgName: 'org',
   orgRegion: 'org',
   orgNote: 'org',
+  staffCode: 'org',
 };
 
 export function webStepOfField(field: string): WebSignupStep {
@@ -136,6 +140,12 @@ export function checkWebSignupStep(
       if (!a.kind) return { error: '어떻게 쓸지 골라 주세요.', field: 'kind' };
       return null;
     case 'org': {
+      /* 코치로 합류 — 코드가 있으면 조직 이름은 안 받는다. 코드 모양이 틀리면 거기서 막는다 */
+      const staff = a.staffCode.trim();
+      if (staff) {
+        if (!normalizeInviteCode(staff)) return { error: '초대 코드는 여섯 글자예요.', field: 'staffCode' };
+        return null;
+      }
       const name = a.orgName.trim();
       if (!name) return { error: '이름을 적어 주세요.', field: 'orgName' };
       if (!orgNameOk(name))
@@ -246,6 +256,7 @@ export function signupFields(a: SignupAnswers): Record<string, string | null> {
           orgName: a.orgName.trim(),
           orgRegion: a.orgRegion.trim(),
           orgNote: a.orgNote.trim(),
+          staffCode: a.staffCode.trim(),
         }
       : {}),
   };

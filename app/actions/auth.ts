@@ -29,7 +29,9 @@ import {
   ORG_NAME_MIN,
   ORG_NOTE_MAX,
   ORG_REGION_MAX,
+  inviteUsable,
   isOrgKind,
+  normalizeInviteCode,
   orgNameOk,
 } from '@/lib/org/rules';
 
@@ -240,6 +242,53 @@ async function trySignupMaster(
   const orgKind = String(formData.get('orgKind') ?? '');
   if (!isOrgKind(orgKind))
     return { error: '레슨장인지 팀인지 골라 주세요.', field: 'kind' };
+
+  /*
+   * 코치로 합류(5단계) — 스태프 초대 코드가 있으면 조직을 만들지 않고 그 조직의 STAFF 가 된다. 코드는 한 번만 쓴다(usedAt).
+   * 코드를 적었는데 못 쓰는 코드면 막는다 — 조용히 새 조직을 만들면 코치가 제 레슨장 밖에 혼자 서게 된다.
+   */
+  const rawStaff = String(formData.get('staffCode') ?? '').trim();
+  if (rawStaff) {
+    const code = normalizeInviteCode(rawStaff);
+    const invite = code
+      ? await prisma.orgInvite.findUnique({
+          where: { code },
+          select: { id: true, orgId: true, role: true, expiresAt: true, usedAt: true },
+        })
+      : null;
+    if (!invite || invite.role !== 'STAFF' || !inviteUsable(invite, new Date())) {
+      return {
+        error: '코치 초대 코드가 맞지 않거나 기한이 지났어요. 마스터에게 새 코드를 받아 주세요.',
+        field: 'staffCode',
+      };
+    }
+    const taken = await prisma.user.findUnique({ where: { email: base.email }, select: { id: true } });
+    if (taken) return { error: '이미 가입된 이메일이에요.', field: 'email' };
+    const adminMail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+    const staffRole = adminMail && base.email === adminMail ? 'ADMIN' : 'USER';
+    const hash = await bcrypt.hash(base.password, 10);
+    const staff = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email: base.email,
+          nickname: base.nickname,
+          password: hash,
+          role: staffRole,
+          accountType: 'MASTER',
+          agreedAt: new Date(),
+        },
+        select: { id: true, role: true },
+      });
+      await tx.orgMember.create({
+        data: { orgId: invite.orgId, userId: created.id, role: 'STAFF', status: 'ACTIVE', nickname: base.nickname },
+      });
+      await tx.orgInvite.update({ where: { id: invite.id }, data: { usedById: created.id, usedAt: new Date() } });
+      return created;
+    });
+    await createSession({ userId: staff.id, role: staff.role, pw: passwordFingerprint(hash) });
+    redirect('/master');
+  }
+
   const orgName = String(formData.get('orgName') ?? '').trim();
   if (!orgNameOk(orgName)) {
     return {

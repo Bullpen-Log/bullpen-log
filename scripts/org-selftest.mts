@@ -13,13 +13,21 @@ import {
   CONSENT_SCOPES,
   INVITE_ALPHABET,
   INVITE_LEN,
+  REPORT_TOKEN_RE,
   consentDefaults,
   consentFromForm,
   inviteUsable,
+  isDateKey,
+  isEventKind,
+  isGuardianCode,
+  makeGuardianCode,
   makeInviteCode,
   normalizeInviteCode,
   orgNameOk,
   parseTags,
+  passLeft,
+  passUsable,
+  timeOk,
 } from '@/lib/org/rules';
 import {
   EMPTY_SIGNUP,
@@ -251,10 +259,10 @@ console.log('\n[5] 선수 계정이 관리 화면에 못 들어가는가 — 코
       name: m[1],
       body: org.slice(m.index, heads[i + 1]?.index ?? org.length),
     }))
-    .filter((f) => !/requireMaster\(/.test(f.body))
+    .filter((f) => !/requireMaster\(|requireAdmin\(/.test(f.body))
     .map((f) => f.name);
   check(
-    `app/actions/org.ts 의 동작 ${heads.length}개가 모두 requireMaster 를 거친다`,
+    `app/actions/org.ts 의 동작 ${heads.length}개가 모두 requireMaster(관리자 칸은 requireAdmin)를 거친다`,
     heads.length >= 5 && open.length === 0,
     open.join(', ')
   );
@@ -286,6 +294,141 @@ console.log('\n[5] 선수 계정이 관리 화면에 못 들어가는가 — 코
   check(
     '마이그레이션이 있다',
     existsSync(join(ROOT, 'prisma/migrations/20261020120000_org_master/migration.sql'))
+  );
+}
+
+/* ─────────────────────── 6. 2~6단계 규칙 ─────────────────────── */
+console.log('\n[6] 일정 · 수강권 · 보호자 코드 — 순수 규칙');
+{
+  check(
+    '시각 꼴',
+    timeOk('09:30') &&
+      timeOk('23:59') &&
+      !timeOk('24:00') &&
+      !timeOk('9:30') &&
+      !timeOk('')
+  );
+  check(
+    '날짜 꼴 — 없는 날은 막는다',
+    isDateKey('2026-10-20') &&
+      !isDateKey('2026-02-31') &&
+      !isDateKey('20261020') &&
+      !isDateKey(null)
+  );
+  check(
+    '일정 종류',
+    isEventKind('lesson') && isEventKind('game') && !isEventKind('party')
+  );
+  check(
+    '수강권 — 남은 회',
+    passLeft({ total: 10, used: 3 }) === 7 && passLeft({ total: 10, used: 12 }) === 0
+  );
+  check(
+    '수강권 — 기한 그날까지 쓸 수 있고 다음 날은 안 됨',
+    passUsable(
+      { total: 10, used: 3, expiresAt: new Date('2026-10-20T00:00:00Z') },
+      '2026-10-20'
+    ) &&
+      !passUsable(
+        { total: 10, used: 3, expiresAt: new Date('2026-10-20T00:00:00Z') },
+        '2026-10-21'
+      ) &&
+      passUsable({ total: 10, used: 3, expiresAt: null }, '2030-01-01') &&
+      !passUsable({ total: 10, used: 10, expiresAt: null }, '2026-10-20')
+  );
+  let ok = true;
+  for (let i = 0; i < 300; i++) if (!isGuardianCode(makeGuardianCode())) ok = false;
+  check(
+    '보호자 코드 — 늘 네 자리 숫자',
+    ok &&
+      makeGuardianCode(() => 0) === '0000' &&
+      makeGuardianCode(() => 0.99999) === '9999'
+  );
+  check(
+    '리포트 토큰 꼴 — uuid 에서 줄표 뺀 32자',
+    REPORT_TOKEN_RE.test('0123456789abcdef0123456789abcdef') &&
+      !REPORT_TOKEN_RE.test('0123456789abcdef-0123456789abcde')
+  );
+}
+
+/* ─────────────────────── 7. 2~6단계 방어선 — 소스 읽기 ─────────────────────── */
+console.log(
+  '\n[7] 마스터 동작 파일마다 requireMaster — 선수 참여(org-join) · 보호자(org-report)만 예외'
+);
+{
+  const FN = /^export async function (\w+)/gm;
+  for (const f of ['org-notes', 'org-record', 'org-calendar', 'org-notices']) {
+    const text = src(`app/actions/${f}.ts`);
+    const heads = [...text.matchAll(FN)];
+    const open = heads
+      .map((m, i) => ({
+        name: m[1],
+        body: text.slice(m.index, heads[i + 1]?.index ?? text.length),
+      }))
+      .filter((x) => !/requireMaster\(/.test(x.body))
+      .map((x) => x.name);
+    check(
+      `app/actions/${f}.ts 의 동작 ${heads.length}개가 모두 requireMaster 를 거친다`,
+      heads.length >= 2 && open.length === 0,
+      open.join(', ')
+    );
+  }
+  const report = src('app/actions/org-report.ts');
+  check(
+    '보호자 코드 확인은 잠금(rate-limit)과 bcrypt 비교를 거친다',
+    /blockedMinutes\(/.test(report) &&
+      /bcrypt\.compare\(/.test(report) &&
+      /noteFail\(/.test(report)
+  );
+  const reportPage = src('app/(report)/report/[token]/page.tsx');
+  check(
+    '보호자 리포트는 쿠키가 토큰과 같을 때만 내용을 그린다',
+    /\.value === token/.test(reportPage)
+  );
+  check(
+    '보호자 리포트는 체크인 · 체중 · 영상을 안 읽는다',
+    !/checkinTodayOf|weightSeriesOf|recentClipsOf/.test(reportPage)
+  );
+  const data = src('lib/org/player-data.ts');
+  check(
+    '선수 카드는 동의한 범위만 읽는다(scope.* 가르기)',
+    /scope\.pitch \?/.test(data) &&
+      /scope\.checkin \?/.test(data) &&
+      /scope\.video \?/.test(data) &&
+      /scope\.weight \?/.test(data)
+  );
+  check(
+    '팔 상태는 선수 화면과 같은 함수(gatherFactsAndPlan → armStatusOf)',
+    /gatherFactsAndPlan\(/.test(data) && /armStatusOf\(/.test(data)
+  );
+  const record = src('app/actions/org-record.ts');
+  check(
+    '대신 기록은 투구 공유 동의 · 앞날 · 투구수 상한을 본다',
+    /memberScope\(/.test(record) &&
+      /isFutureDateKey\(/.test(record) &&
+      /MAX_PITCH_COUNT/.test(record) &&
+      /enteredById: user\.id/.test(record)
+  );
+  const registry = src('app/api/rpc/registry.ts');
+  check(
+    'rpc 허용 목록에 org 동작 파일 일곱',
+    [
+      'org',
+      'org-calendar',
+      'org-join',
+      'org-notes',
+      'org-notices',
+      'org-record',
+      'org-report',
+    ].every((f) => registry.includes(`'@/app/actions/${f}'`))
+  );
+  const masterPages = walk(join(ROOT, 'app', '(master)')).filter((p) =>
+    /page\.tsx$/.test(p)
+  );
+  check(
+    `(master) 화면 8개(홈 · 회원 · 카드 · 달력 · 공지 · 기록 · 설정 · 조직)`,
+    masterPages.length >= 8,
+    String(masterPages.length)
   );
 }
 

@@ -1779,6 +1779,10 @@ model Org {
   note      String?
   /// 만든 마스터 계정
   ownerId   String
+  /// 요금제 · 자리 수 · 메모 — 결제 연동 전(결정 8 · 9: 나중에)이라 관리자가 손으로 적는다. plan 은 'free' · 'studio' · 'team' 같은 자유 글
+  plan      String?
+  seats     Int?
+  planNote  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1806,10 +1810,12 @@ model OrgMember {
   joinedAt DateTime        @default(now())
   leftAt   DateTime?
 
-  org     Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  user    User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  org     Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user    User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
   consent ShareConsent?
   notes   LessonNote[]
+  passes  LessonPass[]
+  reports GuardianReport[]
 
   @@unique([orgId, userId])
   @@index([orgId, status])
@@ -1861,6 +1867,8 @@ model OrgEvent {
   kind        String
   title       String
   memo        String?  @db.Text
+  /// 레슨 시간표 — 어느 회원의 레슨인가(OrgMember.id). 팀 일정은 비어 있다
+  memberId    String?
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1868,6 +1876,7 @@ model OrgEvent {
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId, date])
+  @@index([memberId])
 }
 
 /// 조직 공지 — 앱 전체 공지(SupportNotice)와 다른 표(결정 6, 2026-10-20)
@@ -1899,4 +1908,36 @@ model LessonNote {
   member OrgMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([memberId, date])
+}
+
+/// 수강권(4단계) — 회원마다 '총 N회 · 쓴 M회 · 기한'. 레슨 노트를 레슨 날에 쓰면 한 회 줄고, 3회 남으면 홈이 알린다(lib/org/rules.ts passLeft)
+model LessonPass {
+  id        String    @id @default(uuid())
+  memberId  String
+  total     Int
+  used      Int       @default(0)
+  expiresAt DateTime? @db.Date
+  memo      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  member OrgMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+}
+
+/// 보호자 리포트 링크(4단계) — 토큰 주소 + 네 자리 코드(bcrypt 해시), 30일. 주소에 사람 정보는 없다(app/(report)/report/[token])
+model GuardianReport {
+  id           String    @id @default(uuid())
+  token        String    @unique
+  memberId     String
+  codeHash     String
+  expiresAt    DateTime
+  createdById  String
+  lastOpenedAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  member OrgMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
 }

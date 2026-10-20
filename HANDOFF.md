@@ -26,7 +26,12 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   네 판단: 앱 로그인 화면에서 마스터 계정이면 '웹에서 써 주세요'로 막을지. 지금은 안 막았다.
 - **화면**: `app/(master)/master`(홈 · `players` · `settings` · 관리자 `orgs`), 껍데기 `components/master/master-shell.tsx`(선수 껍데기 안 씀). 선수 쪽은 `/join?code=`(app/(app)/join) 하나 — 조직 보고 공유 범위(투구 · 트레이닝 · 체크인 · 영상 켬, 영양 · 체중 끔) 골라 참여.
   `app/actions/org.ts`(모두 requireMaster) · `app/actions/org-join.ts`(requireUser) — rpc 허용 목록에 넣었다. 시험 `npm run org:test`(45) · `integration:test`(34) 통과.
-- 네 영역(엔진 · 트레이닝 · 3D · 앱)은 안 건드렸다. 2단계(선수 카드 · 두 홈의 내용)는 `lib/report/arm-status.ts` · `lib/velocity-load.ts` 를 **부르기만** 할 계획 — 그 함수들의 모양이 바뀌면 알려 줘.
+- 네 영역(엔진 · 트레이닝 · 3D · 앱)은 안 건드렸다. 2~6단계도 같은 날 끝냈다(같이 로컬 커밋) — `lib/report/gather.ts gatherFactsAndPlan` · `lib/report/arm-status.ts armStatusOf` ·
+  `lib/velocity-load.ts loadVelocityHistory` · `lib/checkin.ts signalsOf` · `lib/armcare/rehab-store.ts loadActiveRehab` 를 **부르기만** 한다(`lib/org/player-data.ts`). 그 함수들의 모양이 바뀌면 알려 줘.
+- **구속 측정을 코치가 대신 재기 — 네 영역이라 안 건드렸다. 제안(네가 정해 줘)**: 웹 측정 화면(`app/(session)/velocity`)에 `?org=<orgId>` 가 오면 마스터 계정일 때만 공마다 '선수 고르기' 칩을 보이고,
+  `saveVelocitySession` 이 `forUserId` + `orgId` 를 받아 `requireOrg` · 그 선수의 `ShareConsent.pitch` 를 확인한 뒤 `VelocitySession.userId = 선수`, `enteredById = 코치`, `orgId` 로 저장(칸은 1단계 마이그레이션에 이미 있다).
+  그 전까지 코치 화면의 대신 기록은 투구수뿐(`app/actions/org-record.ts`).
+- 가입 폼에 **'코치로 들어가요'(스태프 코드) 칸**이 하나 더 늘었다 — `SignupAnswers.staffCode`. 앱 가입은 여전히 선수만이라 `signupFields` 는 kind 가 없으면 안 보낸다.
 
 ## 김민에게 — 2026-10-20 · 금윤호(Claude, 윤호 맥북) — 새 앱 구속 측정이 10-20 세션에서 거의 안 잡힌 것 분석 · 복구 프롬프트 — 네가 답해 줄 것 하나
 

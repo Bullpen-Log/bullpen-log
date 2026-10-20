@@ -54,7 +54,13 @@ import {
   type SignupAnswers,
   type WebSignupStep as StepKey,
 } from '@/lib/signup-check';
-import { ORG_NAME_MAX, ORG_NOTE_MAX, ORG_REGION_MAX, orgNameOk } from '@/lib/org/rules';
+import {
+  ORG_NAME_MAX,
+  ORG_NOTE_MAX,
+  ORG_REGION_MAX,
+  normalizeInviteCode,
+  orgNameOk,
+} from '@/lib/org/rules';
 
 /**
  * 로그인 · 회원가입.
@@ -537,6 +543,8 @@ function SignupWizard({
   /* 레슨장 · 팀(마스터) 가입인가 — 조직 화면의 말과 마지막 단추가 다르다 */
   const master = isMasterKind(answers.kind);
   const orgWord = answers.kind === 'team' ? '팀' : '레슨장';
+  /* 코치로 합류(스태프 코드) — 코드가 맞는 꼴이면 조직 이름 칸은 선택이 된다 */
+  const joiningAsStaff = normalizeInviteCode(answers.staffCode) != null;
   const last = w.total - 1;
   const invalid = (field: string) => w.problem?.field === field;
 
@@ -889,7 +897,10 @@ function SignupWizard({
         {panel(
           'org',
           <div>
-            <Field label={`${orgWord} 이름`}>
+            <Field
+              label={`${orgWord} 이름`}
+              hint={joiningAsStaff ? '코치로 합류하면 비워도 돼요' : undefined}
+            >
               <Input
                 name="orgName"
                 type="text"
@@ -904,7 +915,7 @@ function SignupWizard({
                 {...invalidProps(invalid('orgName'))}
               />
             </Field>
-            <RevealField open={orgNameOk(answers.orgName)}>
+            <RevealField open={orgNameOk(answers.orgName) && !joiningAsStaff}>
               <div>
                 <div className="pt-5">
                   <Field label="지역" hint="선택">
@@ -941,6 +952,26 @@ function SignupWizard({
                 </div>
               </div>
             </RevealField>
+            {/* 이미 있는 레슨장 · 팀의 코치로 — 마스터가 설정에서 만든 스태프 초대 코드(한 번 쓰는 코드). 조직은 새로 안 만든다 */}
+            <div className="mt-6 border-t border-line pt-5">
+              <Field
+                label={`이미 있는 ${orgWord}에 코치로 들어가요`}
+                hint="마스터가 준 여섯 글자 초대 코드 — 없으면 비워 두세요"
+              >
+                <Input
+                  name="staffCode"
+                  type="text"
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  maxLength={8}
+                  value={answers.staffCode}
+                  onChange={(e) => w.patch({ staffCode: e.target.value })}
+                  placeholder="ABC234"
+                  className={`${inputLarge} font-mono tracking-[0.2em] uppercase`}
+                  {...invalidProps(invalid('staffCode'))}
+                />
+              </Field>
+            </div>
           </div>
         )}
 
