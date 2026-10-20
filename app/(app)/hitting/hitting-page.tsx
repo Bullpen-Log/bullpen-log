@@ -1,9 +1,7 @@
-import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
 import { appNow } from '@/lib/clock';
 import { toDateKey } from '@/lib/pitch-stats';
-import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { HittingClient, type HittingRow } from './hitting-client';
 
 /** 처음 그릴 때 읽는 기간 — 달력을 넘기면 그 달만 더 읽지 않고 이 안에서 본다(1단계) */
@@ -11,11 +9,10 @@ const READ_DAYS = 400;
 
 /**
  * 타격 탭 — 타격 일지 + 달력(2026-10-20 타격 1단계 T5, docs/designs/hitting-restructure.md).
- * 판 넘기기 셋째 판(@hitting/default.tsx)과 /hitting 주소 둘 다 이것을 그린다. 잠겨 있으면 '타격 시작하기'로.
+ * 판 넘기기 셋째 판(@hitting/default.tsx)과 /hitting 주소 둘 다 이것을 그린다. 잠금 없이 누구나 바로 쓴다(2026-10-20 시작 질문 뺌).
  */
 export default async function HittingPage() {
   const user = await requireUser();
-  if (featureLocks(user).hit) redirect(SETUP_PATH.hit);
   const today = toDateKey(appNow());
   const since = new Date(`${today}T00:00:00.000Z`);
   since.setUTCDate(since.getUTCDate() - READ_DAYS);

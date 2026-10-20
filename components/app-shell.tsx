@@ -135,7 +135,6 @@ export function AppNav({
   quick,
   tabs,
   sportBars,
-  defaultSport,
   nickname,
   avatarUrl,
   isAdmin,
@@ -156,7 +155,6 @@ export function AppNav({
   tabs: NavItem[];
   /** 종목 하단바 둘(잠금 입힘)과 그냥 /training 의 종목 — 투구 · 타격 화면이면 하단바가 이것으로 바뀐다(2026-10-20, sport-tabs.tsx) */
   sportBars: Record<SportKey, NavItem[]>;
-  defaultSport: SportKey;
   nickname: string;
   avatarUrl: string | null;
   isAdmin: boolean;
@@ -1333,7 +1331,6 @@ export function AppNav({
       <SportAwareTabs
         tabs={tabs}
         sportBars={sportBars}
-        defaultSport={defaultSport}
         menuOpen={open}
         onMenu={() => go('sheet')}
       />
@@ -1341,7 +1338,6 @@ export function AppNav({
         <ExpoTabBridge
           tabs={tabs}
           sportBars={sportBars}
-          defaultSport={defaultSport}
           onMenu={() => go('sheet')}
           groups={groups}
           nickname={nickname}

@@ -14,7 +14,6 @@ import {
   visibleGroups,
 } from '@/lib/nav';
 import { featureLocks } from '@/lib/feature-locks';
-import { pitches } from '@/lib/position';
 import { AppNav } from '@/components/app-shell';
 import { CheckinGate } from '@/components/checkin-gate';
 import { RefreshOnReturn } from '@/components/refresh-on-return';
@@ -136,7 +135,6 @@ export default async function AppLayout({
           pitch: applyLocks(SPORT_BARS.pitch, locks),
           hit: applyLocks(SPORT_BARS.hit, locks),
         }}
-        defaultSport={pitches(user) ? 'pitch' : 'hit'}
         nickname={user.nickname}
         avatarUrl={avatarUrl}
         isAdmin={isAdmin}

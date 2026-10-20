@@ -19,7 +19,7 @@ import {
 
 /**
  * 새 아이폰 앱(Expo, native/)의 앱 탭 막대와 잇는다 — 앱이 아래 탭을 그리고(투구 탭은 앱 화면), 이 웹 화면은 홈 · 트레이닝 · 영양을 맡는다.
- *   웹 → 앱: { t: 'tabs', items, sports, defaultSport }(탭 이름 · 주소 · 잠김, 투구 · 타격 종목 바 — ‹ 칸은 빼고 보냄) · { t: 'path', path, search }(주소가 바뀔 때 — 앱이 지금 탭을 칠한다) ·
+ *   웹 → 앱: { t: 'tabs', items, sports }(탭 이름 · 주소 · 잠김, 투구 · 타격 종목 바 — ‹ 칸은 빼고 보냄) · { t: 'path', path, search }(주소가 바뀔 때 — 앱이 지금 탭을 칠한다) ·
  *            { t: 'tabbar', on }(이 틀이 붙고 떨어질 때 — 탭이 없는 화면에서는 앱 막대도 숨긴다)
  *            { t: 'menu', groups, nickname, avatarUrl, isAdmin }(더보기 목록 — 사진 · 관리자는 폴더 밑 내 정보 줄 — 앱이 제 더보기 화면에 그린다, 앱 화면 위에서 웹 메뉴를 열면 밑에 깔려 안 보여서)
  *            { t: 'webfront', on: false }(설정 창을 닫았다 — 앱이 덮었던 앱 화면을 다시 보인다)
@@ -35,7 +35,6 @@ const isExpo = () => typeof navigator !== 'undefined' && navigator.userAgent.inc
 export function ExpoTabBridge({
   tabs,
   sportBars,
-  defaultSport,
   onMenu,
   groups,
   nickname,
@@ -48,7 +47,6 @@ export function ExpoTabBridge({
   tabs: NavItem[];
   /** 투구 · 타격 종목 바(잠금 적용) — 앱이 투구 · 타격 안에서 하단바를 갈아 끼운다(2026-10-20 타격 1단계 D1) */
   sportBars: Record<SportKey, NavItem[]>;
-  defaultSport: SportKey;
   onMenu: () => void;
   groups: NavGroup[];
   nickname: string;
@@ -88,10 +86,9 @@ export function ExpoTabBridge({
           pitch: sportBars.pitch.filter((t) => t.icon !== 'back').map(shell),
           hit: sportBars.hit.filter((t) => t.icon !== 'back').map(shell),
         },
-        defaultSport,
       })
     );
-  }, [tabs, sportBars, defaultSport]);
+  }, [tabs, sportBars]);
 
   useEffect(() => {
     if (!isExpo()) return;

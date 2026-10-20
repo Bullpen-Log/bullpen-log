@@ -39,7 +39,6 @@ import * as patchNote from '@/app/actions/patch-note';
 import * as pitchLab from '@/app/actions/pitch-lab';
 import * as pitchSetup from '@/app/actions/pitch-setup';
 import * as hittingLog from '@/app/actions/hitting-log';
-import * as hittingSetup from '@/app/actions/hitting-setup';
 import * as planEdit from '@/app/actions/plan-edit';
 import * as profile from '@/app/actions/profile';
 import * as program from '@/app/actions/program';
@@ -89,7 +88,6 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   'pitch-setup': pitchSetup,
   /* 타격 1단계(2026-10-20) — 새 앱이 웹 화면 대신 부를 때를 위해 같이 연다 */
   'hitting-log': hittingLog,
-  'hitting-setup': hittingSetup,
   'plan-edit': planEdit,
   profile: profile,
   program: program,

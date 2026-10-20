@@ -206,9 +206,8 @@ export default function SiteScreen() {
   const [pageColor, setPageColor] = useState<string | null>(null);
   /* 앱 탭 막대 — 사이트가 알려 준 탭 · 지금 주소 · 막대를 보일지(탭이 없는 웹 화면에서는 숨김) */
   const [tabs, setTabs] = useState<ShellTab[]>(DEFAULT_TABS);
-  /* 투구 · 타격 종목 바(사이트가 잠금을 입혀 보냄) · 종목 모를 때 쓰는 쪽(타자면 타격) — 2026-10-20 타격 1단계 D1 */
+  /* 투구 · 타격 종목 바(사이트가 잠금을 입혀 보냄) — 2026-10-20 타격 1단계 D1 */
   const [sportBars, setSportBars] = useState<Record<SportKey, ShellTab[]>>(DEFAULT_SPORT_BARS);
-  const [defaultSport, setDefaultSport] = useState<SportKey>('pitch');
   const [path, setPath] = useState('/today');
   /* 주소의 ? 뒤 — 트레이닝은 첫 화면(?view=home)만 앱 화면이고 암케어 · 메커니즘(?view=…)은 웹이라 가른다 */
   const [search, setSearch] = useState('');
@@ -261,7 +260,7 @@ export default function SiteScreen() {
     return () => sub.remove();
   }, []);
   const active = tabOf(path, tabs);
-  const sport = sportOfPath(path, search, defaultSport);
+  const sport = sportOfPath(path, search);
   /* 웹을 앞으로 — 앱 화면 위에서 연 웹 창(설정)이 보이게 앱 화면을 잠시 걷는다. 그 창을 닫거나 탭을 누르면 돌아온다 */
   const [webFront, setWebFront] = useState(false);
   const pitchTab = tabs.find((t) => t.href === '/videos');
@@ -445,7 +444,6 @@ export default function SiteScreen() {
       path?: string;
       items?: ShellTab[] & Record<string, string | null>;
       sports?: { pitch?: unknown; hit?: unknown };
-      defaultSport?: unknown;
       on?: boolean;
       search?: string;
       groups?: MenuGroup[];
@@ -465,7 +463,6 @@ export default function SiteScreen() {
       setTabs(msg.items);
       const sp = msg.sports;
       if (sp && Array.isArray(sp.pitch) && Array.isArray(sp.hit)) setSportBars({ pitch: sp.pitch, hit: sp.hit });
-      if (msg.defaultSport === 'pitch' || msg.defaultSport === 'hit') setDefaultSport(msg.defaultSport);
       return;
     }
     if (msg.t === 'path' && typeof msg.path === 'string') {

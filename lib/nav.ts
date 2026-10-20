@@ -163,7 +163,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   /* 타격 — 하단 탭 셋째(2026-10-20 김민, docs/designs/hitting-restructure.md). 도크 첫 줄이 막대의 넷(홈 · 투구 · 타격 · 커뮤니티)이라 투구 바로 뒤 */
   {
-    items: [{ href: '/hitting', label: '타격', icon: 'bat', lock: 'hit' }],
+    items: [{ href: '/hitting', label: '타격', icon: 'bat' }],
   },
   /*
    * 커뮤니티는 하단 탭 넷째(2026-10-20 김민: "커뮤니티 개선작업을 시작할거라 영양을 더보기로 빼고 그 자리에 커뮤니티").
@@ -317,19 +317,18 @@ export const SPORT_BARS: Record<SportKey, NavItem[]> = {
   ],
   hit: [
     SPORT_BACK,
-    { href: '/hitting', label: '기록', icon: 'calendar', lock: 'hit' },
+    { href: '/hitting', label: '기록', icon: 'calendar' },
     { href: '/training?sport=hit', label: '트레이닝', icon: 'dumbbell', lock: 'training' },
   ],
 };
 
 /**
  * 지금 주소가 어느 종목 바인가 — 없으면 평소 하단바. 첫 설정 화면도 그 종목 바(잠긴 칸은 applyLocks 가 설정 주소로 바꿔 둔다).
- * 그냥 /training(홈 링 · 요약 칸의 링크)은 사람의 포지션으로(타자면 타격 바 — fallback). 트레이닝 홈(?view=home)은 평소 바.
+ * 그냥 /training(홈 링 · 요약 칸의 링크)은 투구 바(포지션은 묻지 않는다 — 2026-10-20 타격 시작 질문 뺌). 트레이닝 홈(?view=home)은 평소 바.
  */
 export function sportOf(
   pathname: string,
-  params: { get(name: string): string | null },
-  fallback: SportKey
+  params: { get(name: string): string | null }
 ): SportKey | null {
   if (pathname === '/hitting' || pathname.startsWith('/hitting/')) return 'hit';
   if (
@@ -343,9 +342,9 @@ export function sportOf(
     if (view === 'home' || view === 'last') return null;
     if (view === 'armcare' || view === 'mechanics') return 'pitch';
     const sport = params.get('sport');
-    return sport === 'hit' || sport === 'pitch' ? sport : fallback;
+    return sport === 'hit' ? 'hit' : 'pitch';
   }
-  if (pathname === SETUP_PATH.training) return fallback;
+  if (pathname === SETUP_PATH.training) return 'pitch';
   return null;
 }
 
@@ -407,7 +406,6 @@ export const NAV_ALSO: Record<string, readonly string[]> = {
   '/videos': ['/pitch-log', '/admin/velocity', SETUP_PATH.pitch],
   '/training': [SETUP_PATH.training],
   '/nutrition': [SETUP_PATH.nutrition],
-  '/hitting': [SETUP_PATH.hit],
   /* 분석 · 그래프는 홈의 '더 보기'다(2026-10-05 홈 정리, app/(app)/coach/page.tsx) */
   '/today': ['/coach'],
 };
@@ -421,7 +419,7 @@ export const MOBILE_TABS: NavItem[] = [
     lock: 'pitch',
   },
   /* 셋째 칸 — 트레이닝 → 타격(2026-10-20 김민). 트레이닝은 투구 · 타격 종목 하단바 안으로(아래 SPORT_BARS) */
-  { href: '/hitting', label: '타격', icon: 'bat', lock: 'hit' },
+  { href: '/hitting', label: '타격', icon: 'bat' },
   /* 넷째 칸 — 영양 → 커뮤니티(2026-10-20 김민). 영양은 더보기에 */
   { href: '/community', label: '커뮤니티', icon: 'community' },
   { href: MORE_HREF, label: '더보기', icon: 'menu' },
