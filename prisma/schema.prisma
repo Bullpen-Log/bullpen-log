@@ -94,6 +94,12 @@ model User {
   pitchSetupAt        DateTime?
   /// 트레이닝 첫 설정(웨이트 경력 · 평소 웨이트 빈도 · 장비 · 하루 시간)을 마친 시각. 비어 있으면 트레이닝 · 운동 · 암케어 · 메커니즘이 잠긴다.
   trainingSetupAt     DateTime?
+  /// 타격 첫 설정을 마친 시각(2026-10-20, docs/designs/hitting-restructure.md). 비어 있으면 타격 기록이 잠긴다('타격 시작하기').
+  hitSetupAt          DateTime?
+  /// 포지션 — 'pitcher' | 'hitter' | 'two-way'. 비면 투수로 본다(이 칸이 생기기 전 회원 모두). 값은 lib/position.ts 안에서만.
+  position            String?
+  /// 치는 손 — 'R' | 'L' | 'S'(스위치). 비면 모름.
+  battingHand         String?
   /// 영양은 NutritionProfile 줄이 있으면 열린 것으로 본다(가입에서는 더 이상 만들지 않는다).
   /// 본 튜토리얼 — 'tour:web' | 'tour:app'(앱 기본 사용법, 웹 · 앱 따로) · 'pitch' | 'training' | 'nutrition'(탭 사용법). 값은 lib/feature-locks.ts 의 TUTORIAL_KEYS 안에서만.
   tutorialsDone       String[]  @default([])
@@ -112,6 +118,7 @@ model User {
   drillLogs         UserDrillLog[]
   mechanicsProgram  MechanicsProgram?
   pitchLogs         PitchLog[]
+  hittingLogs       HittingLog[]
   velocitySessions  VelocitySession[]
   velocityPitches   VelocityPitch[]
   velocityAttempts  VelocityAttempt[]
@@ -595,6 +602,32 @@ model PitchLog {
   velocitySessions VelocitySession[]
 
   // 2026-10-16 통합 검토 — 홈 · 투구 · 트레이닝이 화면마다 [userId, date] 로 십여 번 읽는데 색인이 하나도 없어 표 전체를 훑었다
+  @@index([userId, date])
+}
+
+/**
+ * 타격 기록 — 하루에 여러 줄(티배팅 따로 · 경기 따로). 2026-10-20 타격 1단계(docs/designs/hitting-restructure.md).
+ * 투구 기록(PitchLog)과 같은 꼴 — 종류 · 스윙 수 · 체감 강도 · 메모 · 영상 · 만족도. 1단계는 엔진 부하에 넣지 않는다(D2).
+ */
+model HittingLog {
+  id          String   @id @default(uuid())
+  userId      String
+  date        DateTime @db.Date
+  /// 티배팅 / 토스 / 머신 / 라이브 / 경기 — 값은 lib/hitting-log.ts HITTING_TYPES 안에서만
+  sessionType String
+  /// 스윙 수(경기는 타석 수로 적어도 된다). 0~1000
+  swings      Int
+  /// 체감 강도 5~100%(5 단위). 안 적으면 null
+  effortPct   Int?
+  memo        String?  @db.Text
+  /// 그날 영상의 저장소 경로. 최대 2개
+  videoPaths  String[] @default([])
+  /// 만족도 1(아쉬움) ~ 5(만족). 안 매기면 null
+  satisfaction Int?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId, date])
 }
 

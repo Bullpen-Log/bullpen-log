@@ -15,7 +15,7 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 김민: "투구만 있는데 타격도 추가 — 하단바를 홈 · 투구 · 타격 · 커뮤니티 · 더보기로, 트레이닝은 투구 · 타격 공통 + 투구엔 암케어 · 메커니즘".
 설계 · 결정(D1~D6 · E1~E2) · 일 목록은 `docs/designs/hitting-restructure.md`. **지금 DB 구조를 바꾸는 중이면 말해 줘 — 차례를 맞추자**(AGENTS 2번).
-- **DB(T1, 곧 적용 · 더하기만)**: `User.position String?`(pitcher · hitter · two-way, 비면 투수) · `battingHand String?` · `hitSetupAt DateTime?`, 새 표 `HittingLog`. 적용하면 다시 적는다(받으면 `npx prisma generate`).
+- **DB(T1, 적용함 · 더하기만 · 백업 `db-2026-10-20-09-13.json` · 마이그레이션 `20261020200000_hitting_position_log` — 받으면 `npx prisma generate`)**: `User.position String?`(pitcher · hitter · two-way, 비면 투수) · `battingHand String?` · `hitSetupAt DateTime?`, 새 표 `HittingLog`.
 - **네 영역을 고칠 곳**: `lib/nav.ts`(하단 탭 · 종목 바 표) · `components/app-shell/mobile-tabs.tsx`(주소로 종목 바) · `app/(app)/layout.tsx` 판 셋째 `@training` → `@hitting` · 트레이닝 홈(`?view=home`)은 종목 바가 대신 ·
   새 앱 `native/src/shell/tab-bar.tsx` — 네가 오늘 만든 커뮤니티 하단바(back · enter, 9c7a2db0)를 투구 · 타격 바에 그대로 쓴다.
 - 주소는 그대로 둔다(투구 `/videos` · `/pitch-log` · 트레이닝 `?view=…`), 타격만 새 `/hitting`, 같이 쓰는 트레이닝은 `?sport=pitch|hit`.
