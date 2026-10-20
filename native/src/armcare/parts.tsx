@@ -79,7 +79,7 @@ export function ExerciseMedia({
     <Pressable onPress={() => setPlay(true)} accessibilityRole="button" accessibilityLabel="자세 영상 틀기" style={box}>
       {thumb}
       <View style={s.playMark}>
-        <SymbolView name="play.fill" size={22} tintColor="#fff" />
+        <SymbolView name="play.fill" size={16} tintColor="#fff" />
       </View>
     </Pressable>
   );
@@ -310,7 +310,7 @@ const s = StyleSheet.create({
   clock: { fontSize: 36, fontWeight: '600', fontVariant: ['tabular-nums'] },
   bar: { height: 8, borderRadius: 4, overflow: 'hidden' },
   media: { width: '100%', maxHeight: 420, borderRadius: 16, backgroundColor: '#000', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  playMark: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  playMark: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   howTo: { borderRadius: 12, paddingHorizontal: 14 },
   howToHead: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6 },
   textBtn: { minHeight: 40, justifyContent: 'center' },

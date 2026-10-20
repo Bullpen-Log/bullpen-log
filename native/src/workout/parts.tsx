@@ -1,7 +1,8 @@
 import { SymbolView } from 'expo-symbols';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useEvent } from 'expo';
+import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { EXERCISE_NOTE_MAX, cleanExerciseNote } from '@/lib/exercise-meta';
@@ -370,16 +371,50 @@ function LibraryClip({ path, aspectRatio }: { path: string; aspectRatio: number 
   return <ClipPlayer uri={state.uri} aspectRatio={aspectRatio} />;
 }
 
+/*
+ * 운동 영상 — 아이폰 기본 재생 단추(가운데 큰 재생 · 10초 건너뛰기)가 영상의 동작을 가려서(2026-10-20 김민) 기본 단추를 끄고,
+ * 화면을 누르면 멈춤 · 재생, 오른쪽 아래 작은 단추 둘(재생 · 멈춤, 크게 보기 — 크게 보기 안에서는 기본 단추가 다시 나온다).
+ */
 function ClipPlayer({ uri, aspectRatio }: { uri: string; aspectRatio: number | null }) {
+  const view = useRef<VideoView>(null);
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;
     p.loop = true;
     p.play();
   });
-  return <VideoView player={player} style={[s.video, { aspectRatio: aspectRatio ?? 9 / 16 }]} nativeControls contentFit="contain" />;
+  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+  const toggle = () => togglePlay(player);
+  return (
+    <View style={[s.video, { aspectRatio: aspectRatio ?? 9 / 16 }]}>
+      <VideoView ref={view} player={player} style={StyleSheet.absoluteFill} nativeControls={false} contentFit="contain" />
+      <Pressable onPress={toggle} accessibilityRole="button" accessibilityLabel={isPlaying ? '영상 멈춤' : '영상 재생'} style={StyleSheet.absoluteFill} />
+      <View style={s.clipTools}>
+        <Pressable onPress={toggle} hitSlop={6} accessibilityRole="button" accessibilityLabel={isPlaying ? '멈춤' : '재생'} style={s.clipTool}>
+          <SymbolView name={isPlaying ? 'pause.fill' : 'play.fill'} size={13} tintColor="#fff" />
+        </Pressable>
+        <Pressable
+          onPress={() => void view.current?.enterFullscreen().catch(() => undefined)}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel="크게 보기"
+          style={s.clipTool}
+        >
+          <SymbolView name="arrow.up.left.and.arrow.down.right" size={13} tintColor="#fff" />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/* 재생기 값은 훅 밖 함수에서 바꾼다(컴포넌트 안에서 훅 값을 바꾸면 린트가 막는다 — pitch/video.tsx 와 같다) */
+function togglePlay(p: VideoPlayer) {
+  if (p.playing) p.pause();
+  else p.play();
 }
 
 const s = StyleSheet.create({
+  clipTools: { position: 'absolute', right: 8, bottom: 8, flexDirection: 'row', gap: 6 },
+  clipTool: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   rest: { alignSelf: 'center', height: 40, borderRadius: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
   restClock: { fontSize: 18, fontWeight: '600', fontVariant: ['tabular-nums'] },
   small: { fontSize: 13 },
