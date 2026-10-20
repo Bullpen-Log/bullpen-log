@@ -19,6 +19,7 @@ import { SPLASH_ATTR, SPLASH_END_EVENT } from '@/components/app-splash';
 import { TOUR_ATTR, TOUR_END_EVENT } from '@/components/tutorial/tour-gate';
 import { useTodayKey } from '@/components/use-today-key';
 import { DESK_MEDIA, sportOf } from '@/lib/nav';
+import { isSetupPath } from '@/lib/feature-locks';
 
 /**
  * 체크인 관문 — 그날 체크인을 안 했으면 앱에 들어오자마자 먼저 뜬다.
@@ -194,7 +195,9 @@ export function CheckinGate({
    * 투구 · 타격 화면(그 종목 바 안의 트레이닝 · 암케어 · 메커니즘 포함, lib/nav.ts sportOf)에 들어갈 때만 묻는다(2026-10-21 김민:
    * "체크인을 투구, 타격에 들어갈 때 · 영양 빼고"). 예전엔 앱을 켜면 어디서든 떴다. 하루 한 번 · 건너뛰기 그대로.
    */
-  const inSport = sportOf(usePathname(), useSearchParams()) !== null;
+  const pathname = usePathname();
+  /* 첫 설정 화면(투구 · 트레이닝)은 빼다 — 관문이 설정 화면을 나가게 하면 적던 답이 사라진다(2026-10-21 검토) */
+  const inSport = sportOf(pathname, useSearchParams()) !== null && !isSetupPath(pathname);
   const needed =
     inSport &&
     today !== null &&

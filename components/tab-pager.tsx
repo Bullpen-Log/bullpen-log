@@ -145,11 +145,14 @@ export function TabPager({
     };
     let settleTimer = 0;
 
-    /* 주소만 바꾼다 — 판은 그대로, 하단 탭 렌즈는 바로 그 칸으로 */
-    const commit = (i: number) => {
+    /*
+     * 주소만 바꾼다 — 판은 그대로, 하단 탭 렌즈는 바로 그 칸으로. want = 부른 쪽이 ? 까지 정한 주소(앱 종목 바의 '기록' ?view=log ·
+     * 홈 그날 칸의 '투구 탭에서 보기') — 판의 지난 주소(lastUrl)보다 먼저다(2026-10-21: 지난 주소가 이겨 기록 대신 투구 홈이 열렸다).
+     */
+    const commit = (i: number, want?: string) => {
       const href = hrefOf(i);
       /* state 는 null — Next 의 state 객체를 그대로 넘기면 Next 가 제 것으로 보고 usePathname 을 안 바꾼다(2026-10-15 시험) */
-      window.history.replaceState(null, '', lastUrl.current[i] ?? href);
+      window.history.replaceState(null, '', want ?? lastUrl.current[i] ?? href);
       window.dispatchEvent(new CustomEvent(TAB_CHOSEN_EVENT, { detail: href }));
     };
     /* i 번째 판으로 미끄러진다(지금 --dx 에서) */
@@ -175,7 +178,7 @@ export function TabPager({
       el.style.willChange = 'transform';
       if (reduce) slide(i, 'none', 0);
       else slide(i, `transform ${TAP_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`, TAP_MS);
-      commit(i);
+      commit(i, href.includes('?') ? href : undefined);
       return true;
     };
 
