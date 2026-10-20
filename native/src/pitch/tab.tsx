@@ -2,7 +2,7 @@ import { type Href, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PRESSED, SPACE, TYPE, usePalette, withAlpha } from '~/lib/ui';
+import { PRESSED, SPACE, TYPE, usePalette } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
 import { AnalysisPill, PageHead, Segmented } from '~/shell/heading';
 import { ComparePickBar, LogList } from './log-list';
@@ -97,7 +97,18 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
     >
       {log ? (
         <>
-          <PageHead title="투구 기록" />
+          {/* 지난 영상 가져오기는 드물게 쓰여 머리 오른쪽 작은 알약으로(2026-10-21 김민: 달력 위 큰 칸이 첫 시야를 차지했다) */}
+          <PageHead title="투구 기록">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="지난 영상 가져오기"
+              onPress={() => router.push('/pitch/import' as Href)}
+              style={({ pressed }) => [styles.importBtn, { backgroundColor: c.chip }, pressed && PRESSED]}
+            >
+              <Icon name="film" size={16} color={c.sky} />
+              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>가져오기</Text>
+            </Pressable>
+          </PageHead>
           {/* 관리자는 셋째 칸 '구속 측정 관리자'(웹 videos-client VELOCITY_ADMIN_OPTION) — 누르면 그 화면으로 가고 고른 보기는 그대로 */}
           <Segmented<'calendar' | 'list' | 'velocity'>
             label="기록 보기 방식"
@@ -109,14 +120,6 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
             value={view}
             onChange={(v) => (v === 'velocity' ? router.push('/admin/velocity?from=pitch' as Href) : setView(v))}
           />
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/pitch/import' as Href)}
-            style={({ pressed }) => [styles.importBtn, { backgroundColor: withAlpha(c.ink, 0.06) }, pressed && PRESSED]}
-          >
-            <Icon name="film" size={16} color={c.ink} />
-            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '500' }}>지난 영상 가져오기</Text>
-          </Pressable>
           {view === 'calendar' ? (
             <>
               {error && !logs ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
@@ -156,21 +159,25 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
             <AnalysisPill view="pitch" />
           </PageHead>
           {/*
-            찍으러 가는 문 셋 — 이름까지 보이는 칸(2026-10-20 김민: 제목 옆 작은 그림 동그라미라 3D · 구속 측정 · ABS 를 찾기 어려웠다).
-            구속 측정 · ABS 는 같은 카메라 화면의 두 모드라 그 모드로 바로 연다(모드 고르기 시트를 건너뜀). ABS 는 관리자만(lib/camera-mode.ts adminOnly).
+            매일 보는 것 먼저 — 오늘 카드(팔 상태 · 기록 남기기) · 이번 주, 그 밑에 찍으러 가는 문(2026-10-21 김민: 가독성 · 시야 검토).
+            아이패드 가로(~/lib/layout TwoColumns)는 왼쪽 오늘 카드, 오른쪽 이번 주. 좁으면 위아래 그대로
+          */}
+          <TwoColumns ratio={[1, 1]} gap={16} left={<PitchTodayCard today={today} />} right={<PitchWeekCard today={today} onOpen={() => onWeb('/videos?view=log')} />} />
+          {/*
+            찍으러 가는 문 셋 — 한 줄 같은 폭. 구속 측정 · ABS 는 같은 카메라 화면의 두 모드라 그 모드로 바로 연다(모드 고르기 시트를 건너뜀).
+            ABS 는 관리자만(lib/camera-mode.ts adminOnly)
           */}
           <View style={styles.tools}>
             <ToolTile icon="radar" label="구속 측정" onPress={() => router.push('/velocity?mode=speed' as Href)} />
             {canAbs ? <ToolTile icon="target" label="ABS 판정" onPress={() => router.push('/velocity?mode=abs' as Href)} /> : null}
             <ToolTile icon="rotate3d" label="3D 동작 분석" onPress={() => router.push('/lab' as Href)} />
           </View>
-          {/* 투구의 영상 — 더보기에서 옮겨 옴(2026-10-21 김민: "운동 영상 · 투구 드릴은 투구 카테고리에서") */}
-          <View style={styles.tools}>
-            <ToolTile icon="film" label="운동 영상" onPress={() => router.push('/library/training' as Href)} />
-            <ToolTile icon="target" label="투구 드릴" onPress={() => router.push('/library/mechanics' as Href)} />
+          {/* 보는 것(운동 영상 · 투구 드릴)은 찍는 문과 무게를 달리해 목록 줄로(2026-10-21 더보기에서 옮겨 온 둘) */}
+          <View style={[styles.links, { backgroundColor: c.card, boxShadow: c.float }]}>
+            <LinkRow icon="film" label="운동 영상" onPress={() => router.push('/library/training' as Href)} />
+            <View style={[styles.linkLine, { backgroundColor: c.line }]} />
+            <LinkRow icon="book-open" label="투구 드릴" onPress={() => router.push('/library/mechanics' as Href)} />
           </View>
-          {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 오늘 카드, 오른쪽 이번 주. 좁으면 위아래 그대로 */}
-          <TwoColumns ratio={[1, 1]} gap={16} left={<PitchTodayCard today={today} />} right={<PitchWeekCard today={today} onOpen={() => onWeb('/videos?view=log')} />} />
         </>
       )}
     </ScrollView>
@@ -241,21 +248,36 @@ function ToolTile({ icon, label, onPress }: { icon: IconName; label: string; onP
       onPress={onPress}
       style={({ pressed }) => [styles.tool, { backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
     >
-      <Icon name={icon} size={22} color={c.sky} />
-      <Text numberOfLines={1} style={{ color: c.ink, fontSize: 13, fontWeight: '600' }}>
+      <Icon name={icon} size={24} color={c.sky} />
+      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>
         {label}
       </Text>
     </Pressable>
   );
 }
 
+/** 보는 곳으로 가는 줄 — 그림 · 이름 · › (설정 목록 줄 모양) */
+function LinkRow({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+  const c = usePalette();
+  return (
+    <Pressable accessibilityRole="link" onPress={onPress} style={({ pressed }) => [styles.linkRow, pressed && PRESSED]}>
+      <Icon name={icon} size={20} color={c.sky} />
+      <Text style={{ flex: 1, color: c.ink, fontSize: 17 }}>{label}</Text>
+      <Icon name="chevron-right" size={18} color={c.muted} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  links: { borderRadius: 20, overflow: 'hidden' },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingHorizontal: 20 },
+  linkLine: { height: StyleSheet.hairlineWidth, marginLeft: 52 },
   tools: { flexDirection: 'row', gap: 8 },
   /* 오늘 카드와 같은 판(둥글기 20 · 안쪽 20) */
   week: { borderRadius: 20, padding: 20, gap: 12 },
   weekHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   weekRow: { flexDirection: 'row', gap: 12 },
-  tool: { flex: 1, minHeight: 72, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6 },
-  /* 웹 import-sheet ImportEntry — 회색 알약, 가운데 필름 그림 + 글 */
-  importBtn: { minHeight: 40, borderRadius: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16 },
+  tool: { flex: 1, minHeight: 80, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6 },
+  /* 머리 오른쪽 '가져오기' 알약 — '분석' 알약(AnalysisPill)과 같은 44 */
+  importBtn: { height: 44, borderRadius: 22, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16 },
 });

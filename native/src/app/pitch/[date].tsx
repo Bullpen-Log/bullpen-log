@@ -13,7 +13,7 @@ import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
 import { ApiError, dateKeyOf, deleteLog, isPhoneVideoPath, phoneAssetId } from '~/pitch/api';
-import { monthOf, refreshMonth, useMonth } from '~/pitch/store';
+import { monthOf, refreshMonth, repOf, setFeatured, useFeatured, useMonth } from '~/pitch/store';
 import { PitchVideo } from '~/pitch/video';
 import { VelocityDay } from '~/pitch/velocity-day';
 import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
@@ -43,6 +43,10 @@ export default function PitchDayScreen() {
   const [formOpen, setFormOpen] = useState<boolean | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const addOpen = !future && (formOpen ?? (logs != null && day.length === 0));
+  /* 그날 영상(쉰 날 줄 빼고) · 대표 — 웹 video-calendar DayPanel 과 같은 규칙(repOf) */
+  const featured = useFeatured();
+  const dayPaths = day.filter((l) => !isRestSession(l.sessionType)).flatMap((l) => l.videoPaths);
+  const rep = repOf(dayPaths, featured[date]);
 
   /* 웹 day-record ConfirmDialog 와 같은 글 — 무엇이 없어지는지 이름을 대고 한 번 묻는다 */
   const remove = (id: string, videos: string[], label: string) =>
@@ -94,9 +98,6 @@ export default function PitchDayScreen() {
         automaticallyAdjustKeyboardInsets
         contentContainerStyle={[{ padding: 16, paddingTop: 4, paddingBottom: inset.bottom + 32, gap: 12 }, READABLE_WIDE]}
       >
-        <Text style={{ color: c.muted, fontSize: 15 }}>
-          {future ? '아직 오지 않은 날이에요' : day.length > 0 ? `${day.length}건의 기록` : '이 날은 아직 기록이 없어요'}
-        </Text>
         {future ? (
           <Text style={[styles.well, { color: c.muted, backgroundColor: withAlpha(c.chip, 0.5) }]}>
             앞으로 올 날짜에는 기록할 수 없어요.{'\n'}던지고 나서 그날 또는 그 뒤에 남겨 주세요.
@@ -108,7 +109,6 @@ export default function PitchDayScreen() {
         <TwoColumns ratio={[1, 1]} gap={12}
           left={
             <>
-              <VelocityDay date={date} logCount={day.length} />
               {error && !logs ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
               {day.map((l) => {
                 const rested = isRestSession(l.sessionType);
@@ -200,9 +200,30 @@ export default function PitchDayScreen() {
                         ))}
                       </View>
                     ) : null}
-                    {l.videoPaths.map((p, i) => (
-                      <View key={p} style={{ gap: 6 }}>
-                        {l.videoPaths.length > 1 ? <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>영상 {i + 1}</Text> : null}
+                    {l.videoPaths.map((p) => (
+                      <View key={p} style={{ gap: 8 }}>
+                        {/* 그날 영상이 둘 넘으면 대표(달력 칸 · 홈 그날 칸에 뜨는 영상) 고르기 — 투구 탭 그날 칸에서 옮겨 옴(2026-10-21) */}
+                        {dayPaths.length > 1 ? (
+                          <View style={styles.videoHead}>
+                            <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>영상 {dayPaths.indexOf(p) + 1}</Text>
+                            {p === rep ? (
+                              <View style={styles.repMark}>
+                                <Icon name="star" size={14} color={c.skyStrong} fill={c.skyStrong} />
+                                <Text style={{ color: c.skyStrong, fontSize: 13, fontWeight: '600' }}>대표</Text>
+                              </View>
+                            ) : (
+                              <Press
+                                accessibilityRole="button"
+                                accessibilityLabel={`영상 ${dayPaths.indexOf(p) + 1}을 대표로`}
+                                onPress={() => void setFeatured(date, p)}
+                                style={[styles.repBtn, { backgroundColor: c.chip }]}
+                              >
+                                <Icon name="star" size={14} color={c.muted} />
+                                <Text style={{ color: c.ink, fontSize: 13 }}>대표로</Text>
+                              </Press>
+                            )}
+                          </View>
+                        ) : null}
                         <PitchVideo path={p} tools />
                       </View>
                     ))}
@@ -213,6 +234,8 @@ export default function PitchDayScreen() {
           }
           right={
             <>
+              {/* 구속 측정은 기록 카드 밑에 접힌 한 줄로(2026-10-21 김민: 세션 · 공 목록이 기록보다 위에 길게 나왔다) */}
+              <VelocityDay date={date} logCount={day.length} />
               {future || !logs ? null : addOpen ? (
                 <View style={[styles.formBox, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
                   <View style={styles.formHead}>
@@ -258,6 +281,9 @@ const styles = StyleSheet.create({
   formTitle: { fontSize: 17, fontWeight: '700' },
   formCancel: { minHeight: 40, marginVertical: -8, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 12 },
   well: { borderRadius: 12, paddingHorizontal: 16, paddingVertical: 32, textAlign: 'center', fontSize: 15, lineHeight: 22, overflow: 'hidden' },
+  videoHead: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 36 },
+  repMark: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  repBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, paddingHorizontal: 12, borderRadius: 18 },
   armChip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1 },
 });
 

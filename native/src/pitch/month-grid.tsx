@@ -193,6 +193,13 @@ export function MonthGrid({
           }}
         />
       ) : null}
+      {/* 투구 탭 달력 — 이 달 던진 날 · 올린 영상을 늘 보이게(2026-10-21 김민: '표시 보기'를 눌러야 나왔다) */}
+      {video ? (
+        <Text style={{ color: c.muted, fontSize: 15, marginTop: 4 }}>
+          이 달 투구 <Text style={[TYPE.num, { color: c.ink, fontWeight: '700' }]}>{monthStats.days}</Text>일 · 영상{' '}
+          <Text style={[TYPE.num, { color: c.ink, fontWeight: '700' }]}>{monthStats.videos}</Text>개
+        </Text>
+      ) : null}
       {/* 요일 줄은 달이 바뀌어도 가만히 */}
       <View style={styles.weekRow}>
         {WEEK.map((w) => (
@@ -297,17 +304,8 @@ export function MonthGrid({
         </View>
       </Press>
       {legend ? (
-        video ? (
-          /* 투구 탭 달력 — 이 달 던진 날 · 올린 영상(웹 video-calendar monthStats) */
-          <Animated.View entering={fadeIn} style={styles.legend}>
-            <Text style={[styles.legendText, { color: c.muted }]}>
-              이 달 투구 <Text style={{ color: c.ink, fontWeight: '600' }}>{monthStats.days}</Text>일 · 영상{' '}
-              <Text style={{ color: c.ink, fontWeight: '600' }}>{monthStats.videos}</Text>개
-            </Text>
-          </Animated.View>
-        ) : (
         <Animated.View entering={fadeIn} style={styles.legend}>
-          {/* 웹 범례와 같은 차례 — 강도 낮음 · 보통 · 높음(12×20) · 쉬는 날 · 영상 · 일정 */}
+          {/* 웹 범례와 같은 차례 — 강도 낮음 · 보통 · 높음(12×20) · 쉬는 날 · 영상 · 일정. 영상 달력은 장면이 보여 '영상' 점 대신 칸 밑 강도 막대 */}
           <Text style={[styles.legendText, { color: c.muted }]}>강도</Text>
           {(['light', 'mid', 'strong'] as const).map((b, i) => (
             <View key={b} style={styles.legendItem}>
@@ -319,10 +317,14 @@ export function MonthGrid({
             <View style={[styles.swatch, { borderWidth: 1, borderStyle: 'dashed', borderColor: c.lineStrong }]} />
             <Text style={[styles.legendText, { color: c.muted }]}>쉬는 날</Text>
           </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: c.skyStrong }]} />
-            <Text style={[styles.legendText, { color: c.muted }]}>영상</Text>
-          </View>
+          {video ? (
+            <Text style={[styles.legendText, { color: c.muted, width: '100%', textAlign: 'center' }]}>영상을 올린 날은 칸 밑 막대가 강도예요</Text>
+          ) : (
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: c.skyStrong }]} />
+              <Text style={[styles.legendText, { color: c.muted }]}>영상</Text>
+            </View>
+          )}
           {legendExtra ? (
             <View style={styles.legendItem}>
               <View style={[styles.eventBar, { backgroundColor: withAlpha(c.ink, 0.7) }]} />
@@ -330,7 +332,6 @@ export function MonthGrid({
             </View>
           ) : null}
         </Animated.View>
-        )
       ) : null}
     </Animated.View>
   );
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
   eventBar: { width: 12, height: 4, borderRadius: 2 },
   eventDot: { width: 4, height: 4, borderRadius: 2 },
   legendDot: { width: 6, height: 6, borderRadius: 3 },
-  legendText: { fontSize: 11 },
+  legendText: { fontSize: 13 },
   jump: { position: 'absolute', left: 20, top: 64, width: 256, zIndex: 20, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, padding: 12 },
   jumpHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   jumpArrow: { minWidth: 44, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

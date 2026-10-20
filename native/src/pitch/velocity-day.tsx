@@ -70,7 +70,11 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
   const data = useVelocityDay(date, `${logCount}:${rev}`);
   const [viewing, setViewing] = useState<VelocityPitchView | null>(null);
   const [editing, setEditing] = useState<VelocityPitchView | null>(null);
+  const [open, setOpen] = useState(false);
   if (!data || data.sessions.length === 0) return null;
+  const allPitches = data.sessions.flatMap((s) => s.pitches);
+  const all = summarize(allPitches);
+  const totalPitches = allPitches.length;
   const pf = data.prefill;
   const hasClips = data.sessions.some((s) => s.pitches.some((p) => p.clip));
   const speedNum = (kmh: number) => round1(toSpeed(kmh, unit));
@@ -94,16 +98,34 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
 
   return (
     <View style={{ gap: 12 }}>
-      <View style={styles.head}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Icon name="camera" size={16} color={c.sky} />
+      {/*
+        접힌 한 줄 — '구속 측정 · 12구 · 최고 132km/h', 누르면 세션 · 공 목록이 펴진다(2026-10-21 김민: 그날 화면에서 기록보다 길게 나왔다).
+        '측정한 N구 기록 남기기'는 접혀 있어도 밑에 그대로
+      */}
+      <Press
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((v) => !v)}
+        style={[styles.fold, { backgroundColor: c.card, boxShadow: c.float }]}
+      >
+        <Icon name="camera" size={18} color={c.sky} />
+        <View style={{ flex: 1, gap: 2 }}>
           <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>구속 측정</Text>
+          {all ? (
+            <Text style={{ color: c.muted, fontSize: 15 }}>
+              {totalPitches}구 · 최고 <Text style={{ color: c.ink, fontWeight: '600' }}>{formatSpeed(all.max, unit)}</Text>
+              {data.sessions.length > 1 ? ` · 세션 ${data.sessions.length}개` : ''}
+            </Text>
+          ) : null}
         </View>
-        <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>
+        <Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} color={c.muted} />
+      </Press>
+      {open ? (
+        <Text style={{ color: c.muted, fontSize: 13 }}>
           {hasClips ? '공을 누르면 잰 직후처럼 영상으로 봐요. 연필로 고쳐요' : '줄을 누르면 구종 · 코스 · 결과를 고쳐요'}
         </Text>
-      </View>
-      {data.sessions.map((s) => {
+      ) : null}
+      {open ? data.sessions.map((s) => {
         const sum = summarize(s.pitches);
         const at = new Date(s.createdAt);
         const cal = calibrationText({ scale: s.calScale, offset: s.calOffset, n: s.calPairs });
@@ -172,7 +194,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
             ))}
           </View>
         );
-      })}
+      }) : null}
       {pf ? (
         <Press
           accessibilityRole="button"
@@ -448,7 +470,7 @@ function EditSheet({ pitch, onClose, onSaved }: { pitch: VelocityPitchView; onCl
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8, rowGap: 2 },
+  fold: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, borderRadius: 20, paddingHorizontal: 20, paddingVertical: 12 },
   session: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   sessionHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   trash: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: -6 },

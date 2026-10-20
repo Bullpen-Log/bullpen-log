@@ -65,6 +65,8 @@ export function PitchTodayCard({ today }: { today: string }) {
   const c = usePalette();
   const [data, setData] = useState<Today | null>(() => (cached?.today === today ? cached : null));
   const [saving, setSaving] = useState(false);
+  /* 팔 상태 까닭 펴기 */
+  const [why, setWhy] = useState(false);
 
   const load = useCallback(() => {
     void fetchToday().then((r) => r && setData(r));
@@ -114,6 +116,7 @@ export function PitchTodayCard({ today }: { today: string }) {
 
   if (!data) return null;
   const tone = { danger: c.danger, caution: c.warn, safe: c.ok }[data.status.level];
+  const box = { danger: [c.dangerBg, c.dangerLine], caution: [c.warnBg, c.warnLine], safe: [withAlpha(c.chip, 0.5), c.line] }[data.status.level];
   const button = data.unloggedVelocity
     ? { label: `측정한 ${data.unloggedVelocity}구 기록 남기기`, go: () => router.push(`/pitch/${data.today}` as Href) }
     : {
@@ -124,31 +127,49 @@ export function PitchTodayCard({ today }: { today: string }) {
 
   return (
     <Animated.View layout={LinearTransition.duration(260)} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      {/* 지금 팔 상태 — 웹 ArmStatusNote bare */}
-      <View accessibilityRole="summary" style={{ gap: 4 }}>
+      {/*
+        지금 팔 상태 — 카드에서 가장 먼저 읽히게 색 띠 · 큰 글(2026-10-21 김민: 안전 신호가 가장 작은 글이었다).
+        까닭(details)은 접어 두고 띠를 누르면 편다
+      */}
+      <Press
+        accessibilityRole="button"
+        accessibilityState={{ expanded: why }}
+        accessibilityLabel={`지금 팔 상태 ${LEVEL[data.status.level]}. ${data.status.headline}`}
+        disabled={!data.status.details.length}
+        onPress={() => setWhy((v) => !v)}
+        style={[styles.status, { backgroundColor: box[0], borderColor: box[1] }]}
+      >
         <View style={styles.statusRow}>
           <View style={[styles.dot, { backgroundColor: tone }]} />
-          <Text style={{ color: c.muted, fontSize: 12 }}>지금 팔 상태</Text>
-          <Text style={{ color: tone, fontSize: 12, fontWeight: '700' }}>{LEVEL[data.status.level]}</Text>
+          <Text style={{ color: tone, fontSize: 17, fontWeight: '700' }}>팔 {LEVEL[data.status.level]}</Text>
+          <View style={{ flex: 1 }} />
+          {data.status.details.length ? (
+            <>
+              <Text style={{ color: c.muted, fontSize: 13 }}>{why ? '접기' : '까닭'}</Text>
+              <Icon name={why ? 'chevron-up' : 'chevron-down'} size={14} color={c.muted} />
+            </>
+          ) : null}
         </View>
-        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{data.status.headline}</Text>
-        {data.status.details.map((d) => (
-          <Text key={d} style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>
-            {d}
-          </Text>
-        ))}
-      </View>
+        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600', lineHeight: 21 }}>{data.status.headline}</Text>
+        {why
+          ? data.status.details.map((d) => (
+              <Animated.Text entering={fadeIn} key={d} style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>
+                {d}
+              </Animated.Text>
+            ))
+          : null}
+      </Press>
 
       {open ? (
         <Animated.View entering={fadeIn} style={[styles.planBox, { backgroundColor: withAlpha(c.skyTint, 0.6), borderColor: withAlpha(c.sky, 0.25) }]}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>오늘 던지는 일정은요?</Text>
-              <Text style={{ color: c.muted, fontSize: 12 }}>등판 · 불펜 날은 운동 일정 · 끼니 · 암케어가 거기에 맞춰요.</Text>
+              <Text style={{ color: c.muted, fontSize: 13 }}>등판 · 불펜 날은 운동 일정 · 끼니 · 암케어가 거기에 맞춰요.</Text>
             </View>
             {/* 늘 접기(2026-10-20 김민: 펼치면 접는 기능이 없다 — '모름'이 접기로 안 읽혔다). 웹 DayCard 와 같은 글 */}
             <Press accessibilityRole="button" accessibilityLabel="접기" onPress={() => setOpen(false)} style={styles.later}>
-              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>접기</Text>
+              <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>접기</Text>
               <Icon name="chevron-up" size={14} color={c.muted} />
             </Press>
           </View>
@@ -173,9 +194,9 @@ export function PitchTodayCard({ today }: { today: string }) {
               );
             })}
           </View>
-          {data.throwCard.hint && answer == null ? <Text style={{ color: c.muted, fontSize: 12 }}>달력에 등판 일정이 있어 미리 골라 뒀어요.</Text> : null}
+          {data.throwCard.hint && answer == null ? <Text style={{ color: c.muted, fontSize: 13 }}>달력에 등판 일정이 있어 미리 골라 뒀어요.</Text> : null}
           {planError ? (
-            <Text style={{ color: c.danger, fontSize: 12 }}>
+            <Text style={{ color: c.danger, fontSize: 13 }}>
               {planError}
               {!data.throwCard.hasCheckin ? (
                 <Text onPress={() => openCheckin('/videos')} style={{ color: c.skyStrong, fontWeight: '600', textDecorationLine: 'underline' }}>
@@ -195,18 +216,18 @@ export function PitchTodayCard({ today }: { today: string }) {
         </Animated.View>
       ) : (
         <Press accessibilityRole="button" onPress={openPlan} style={[styles.pill, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
-          <Text numberOfLines={1} style={{ color: c.muted, fontSize: 12, fontWeight: '600', flexShrink: 1 }}>
-            {answer == null ? '오늘 던지는 일정은요?' : '오늘 설정'}
+          <Text numberOfLines={1} style={{ color: c.muted, fontSize: 15, flexShrink: 1 }}>
+            {answer == null ? '오늘 던지는 일정은요?' : '던지는 일정'}
           </Text>
-          <Text numberOfLines={1} style={{ color: answer == null ? c.sky : c.ink, fontSize: 12 }}>
+          <Text numberOfLines={1} style={{ color: answer == null ? c.sky : c.ink, fontSize: 15, fontWeight: '600' }}>
             {answer ?? '답하기'}
           </Text>
-          <Icon name="pencil" size={14} color={c.muted} />
+          <Icon name="pencil" size={16} color={c.muted} />
         </Press>
       )}
 
       {data.unloggedVelocity ? (
-        <Text style={{ color: c.muted, fontSize: 13 }}>구속 측정 {data.unloggedVelocity}구가 아직 투구 기록에 없어요. 남겨야 팔 부하에 들어가요.</Text>
+        <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>구속 측정 {data.unloggedVelocity}구가 아직 투구 기록에 없어요. 남겨야 팔 부하에 들어가요.</Text>
       ) : null}
       <Press accessibilityRole="button" onPress={button.go} style={[styles.primary, { backgroundColor: c.sky }]}>
         <Icon name="plus" size={16} color="#fff" />
@@ -219,9 +240,10 @@ export function PitchTodayCard({ today }: { today: string }) {
 /* 웹 Card space-y-3 · 둥근 20 · 안쪽 20 */
 const styles = StyleSheet.create({
   card: { borderRadius: 20, padding: 20, gap: 12 },
+  status: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, gap: 4 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  pill: { alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, borderRadius: 20, paddingHorizontal: 14 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  pill: { alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, borderRadius: 22, paddingHorizontal: 16 },
   planBox: { borderRadius: 20, borderWidth: 1, padding: 20, gap: 12 },
   later: { minHeight: 40, marginVertical: -8, paddingHorizontal: 12, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 2 },
   /* 웹 chip-grid data-cols=3 — 같은 폭 세 칸 */
@@ -229,5 +251,5 @@ const styles = StyleSheet.create({
   gridCell: { width: '33.333%', paddingHorizontal: 4 },
   dayChip: { minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   primary: { flexDirection: 'row', gap: 6, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  primaryText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 });
