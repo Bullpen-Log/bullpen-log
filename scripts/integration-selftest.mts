@@ -219,6 +219,8 @@ console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한
     'app/api/rpc/[action]/route.ts',
     /* 새 앱 화면 코드 업데이트 — 앱이 켜지며(로그인 전) 묻는다. 읽기만이고 주는 것은 모두에게 같은 앱 코드(lib/app-update.ts) */
     'app/api/app-update/route.ts',
+    /* 앱 업데이트 올리기 — 굽기 전용 열쇠로만(lib/build-token.ts, /api/library/bundle 과 같은 열쇠) */
+    'app/api/app-update/publish/route.ts',
   ]);
   const unchecked = routes.filter((r) => !OPEN_ROUTES.has(r) && !AUTH.test(src(r)));
   check(

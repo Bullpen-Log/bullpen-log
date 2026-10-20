@@ -1,6 +1,9 @@
 import { createHash, createHmac } from 'node:crypto';
 
 /**
+ * 지금은 안 쓴다(2026-10-20 김민: "일단 Supabase 로, 사용자가 많이 생기면 R2 로") — 앱 업데이트 파일을 R2 로 옮길 때 lib/app-update-store.ts 를
+ * 이 함수들로 바꾼다. SigV4 서명은 시험이 지킨다(npm run app-update:test).
+ *
  * Cloudflare R2(S3 와 같은 약속) — 서명된 주소(presigned URL)를 직접 만든다(AWS SigV4). 서버(app/api/app-update)와 새 앱 업데이트 올리기
  * (native/scripts/publish-update.mts)가 같이 쓴다 — 그래서 '@/' 가져오기 없이 node:crypto 만. 새 패키지 없이 서명 한 가지(쿼리 서명)로
  * GET · PUT · HEAD 를 다 한다. 열쇠는 R2_ACCOUNT_ID · R2_ACCESS_KEY_ID · R2_SECRET_ACCESS_KEY · R2_BUCKET(값은 .env · Vercel · GitHub 비밀).

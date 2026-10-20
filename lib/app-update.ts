@@ -1,9 +1,10 @@
 /**
  * 새 앱(Expo) 화면 코드 업데이트 — Expo Updates 약속(protocol 1)을 우리 서버로(2026-10-20 김민: "푸시하면 웹앱처럼 바로").
  * 앱(expo-updates)이 켤 때 /api/app-update 에 '이 바닥 판(runtimeVersion)의 최신 화면 코드'를 묻고, 있으면 받아 다음부터 그것으로 켠다.
- * 파일은 Cloudflare R2(전송비 0) — 올리기는 native/scripts/publish-update.mts. 여기는 순수 계산만(시험 scripts/app-update-selftest.mts).
+ * 파일은 지금 Supabase 저장소 공개 버킷 app-updates(lib/app-update-store.ts) — 사용자가 많아져 전송비가 커지면 Cloudflare R2(lib/r2.ts)로
+ * 그 모듈만 바꾼다. 올리기는 native/scripts/publish-update.mts. 여기는 순수 계산만(시험 scripts/app-update-selftest.mts).
  *
- * R2 의 꼴: updates/<runtime>/latest.json = StoredUpdate, 파일은 updates/files/<sha256> (같은 파일은 한 번만 — 내용 주소).
+ * 저장 꼴: updates/<runtime>/latest.json = StoredUpdate, 파일은 updates/files/<sha256> (같은 파일은 한 번만 — 내용 주소).
  */
 
 export type StoredAsset = {
@@ -11,8 +12,8 @@ export type StoredAsset = {
   key: string;
   /** base64url SHA-256 — 앱이 받은 파일을 이것으로 확인한다 */
   hash: string;
-  /** R2 안의 자리 */
-  r2Key: string;
+  /** 저장소 안의 자리(updates/files/<sha256>) */
+  path: string;
   contentType: string;
   /** '.png' 처럼 — 화면 코드(launch asset)는 비움 */
   fileExtension?: string;
@@ -39,13 +40,13 @@ export function multipart(parts: Part[], boundary: string): string {
   return `${chunks.join('')}--${boundary}--\r\n`;
 }
 
-export function manifestOf(u: StoredUpdate, urlOf: (r2Key: string) => string) {
+export function manifestOf(u: StoredUpdate, urlOf: (path: string) => string) {
   const asset = (a: StoredAsset) => ({
     hash: a.hash,
     key: a.key,
     contentType: a.contentType,
     ...(a.fileExtension ? { fileExtension: a.fileExtension } : {}),
-    url: urlOf(a.r2Key),
+    url: urlOf(a.path),
   });
   return {
     id: u.id,
@@ -67,7 +68,7 @@ export type UpdateResponse = { status: number; headers: Record<string, string>; 
 export function updateResponse(
   req: { runtimeVersion: string | null; platform: string | null; protocolVersion: string | null; currentUpdateId: string | null },
   latest: StoredUpdate | null,
-  urlOf: (r2Key: string) => string,
+  urlOf: (path: string) => string,
   boundary: string
 ): UpdateResponse {
   const base = { 'expo-protocol-version': '1', 'expo-sfv-version': '0', 'cache-control': 'private, max-age=0' };
@@ -90,6 +91,10 @@ export function updateResponse(
   };
 }
 
-/** R2 안 자리 — 바닥 판 이름은 지문(hex)이라 그대로 쓰되 다른 글자는 막는다 */
-export const latestKeyOf = (runtime: string) => `updates/${runtime.replace(/[^\w.-]/g, '_')}/latest.json`;
+/** 저장소 안 자리 — 바닥 판 이름은 지문(hex)이라 그대로 쓰되 다른 글자는 막는다 */
+const safe = (runtime: string) => runtime.replace(/[^\w.-]/g, '_');
+export const latestKeyOf = (runtime: string) => `updates/${safe(runtime)}/latest.json`;
+export const historyKeyOf = (runtime: string, id: string) => `updates/${safe(runtime)}/${safe(id)}.json`;
+/** 그 바닥 판 앱을 TestFlight 에 구워 올렸다는 표시 — 있으면 같은 판 푸시는 굽지 않고 업데이트만 */
+export const binaryKeyOf = (runtime: string) => `updates/${safe(runtime)}/binary.json`;
 export const fileKeyOf = (sha256hex: string) => `updates/files/${sha256hex}`;

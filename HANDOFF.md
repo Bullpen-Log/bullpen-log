@@ -18,8 +18,9 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 규칙은 `AGENTS.md` 7번에 적었다. 요점:
 - TestFlight '불펜로그'(com.bullpenlog.app)를 새 앱으로 올렸다(1.1.0 · 20261020.111737, 운동 영상 315개 앱 안). 옛 앱 굽기 `ios.yml` 은 손으로만(옛 앱이 새 앱을 덮지 않게).
 - **`ios-native.yml` 이 이제 main 푸시마다 돈다**(`native/` · `lib/` 바뀐 푸시): 화면 코드만 바뀌면 굽지 않고 업데이트(expo-updates, 우리 서버 `/api/app-update` ·
-  파일은 Cloudflare R2)로 3~5분 뒤 나가고 사용자는 앱을 다시 켤 때 받는다. 바닥 코드(스위프트 · 네이티브 패키지 · app.json)가 바뀌면 저절로 굽고 TestFlight.
-  네가 만든 '올리기 스위치'는 손으로 돌릴 때만 쓴다. R2 열쇠(`R2_*`, `.env.example`)는 김민이 Cloudflare 에서 만들어 넣는 중.
+  파일은 Supabase 공개 버킷 `app-updates`, 올리기는 굽기 전용 열쇠로 `/api/app-update/publish`)로 3~5분 뒤 나가고 사용자는 앱을 다시 켤 때 받는다.
+  바닥 코드(스위프트 · 네이티브 패키지 · app.json)가 바뀌면 저절로 굽고 TestFlight. 네가 만든 '올리기 스위치'는 손으로 돌릴 때만 쓴다.
+  사용자가 많아지면 파일만 Cloudflare R2 로(`lib/r2.ts` 준비됨, 김민 결정 — 지금은 Supabase).
 - 휴대폰 브라우저는 `proxy.ts` 가 `/phone`(앱으로 써 주세요)으로 돌린다. 개발 서버는 안 막는다. 앱 새 웹뷰는 `APP_UA` 를 꼭 단다.
 - 운동 영상은 `native/plugins/library-videos` 가 앱에 싣는다(굽기 전용 주소 `/api/library/bundle?kind=hevc`).
 

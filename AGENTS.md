@@ -72,7 +72,7 @@ DB 구조는 이렇게만 바꾼다.
 - **휴대폰 기능을 고치면 새 앱 화면(`native/src`)을 고친다.** 웹 사이트는 PC · 맥에서만 쓴다 — 휴대폰 브라우저는 `proxy.ts` 가 '앱으로 써 주세요'(`/phone`)로 돌린다
   (개발 서버는 안 막는다 — 예전 휴대폰 웹 화면을 열어 견주며 고칠 수 있다). 웹 코드는 지우지 않는다. 앱이 아직 웹 화면을 띄워 쓰는 곳(체크인 · 타격 · 커뮤니티 목록 등)이 있다.
 - **main 에 올리면 새 앱에 저절로 들어간다**(`.github/workflows/ios-native.yml`, `native/` · `lib/` 이 바뀐 푸시). 화면 코드(JS)만 바뀌었으면 굽지 않고
-  업데이트로 3~5분 뒤 R2 에 올라가고, 사용자는 앱을 다시 켤 때 받는다(`/api/app-update`, `lib/app-update.ts`). 스위프트 · 네이티브 패키지 · app.json 처럼
+  업데이트로 3~5분 뒤 올라가고(Supabase 공개 버킷 `app-updates`), 사용자는 앱을 다시 켤 때 받는다(`/api/app-update`, `lib/app-update.ts`). 스위프트 · 네이티브 패키지 · app.json 처럼
   바닥 코드가 바뀌면(바닥 판 = 지문이 바뀜) 저절로 굽고 TestFlight 에 올린다(25분 + 애플 처리). 잇따라 올리면 마지막 것만. 웹만 바꾼 푸시는 Vercel 배포로 끝.
 - 앱 안 새 웹뷰는 `applicationNameForUserAgent={APP_UA}` 를 단다(안 달면 휴대폰 막기에 걸린다). 휴대폰 사파리 창으로 열어야 하는 새 주소는 `proxy.ts` 의 `OPEN` 에 더한다.
 - 운동 · 드릴 영상은 앱 안에 든다(`native/plugins/library-videos`). 새 영상을 올리면 맥에서 `npm run library:bundle -- --hevc` 를 돌려야 다음 굽기에 들어간다(안 돌리면 앱이 처음 볼 때 받는다).

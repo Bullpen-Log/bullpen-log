@@ -30,8 +30,8 @@ const u: StoredUpdate = {
   id: '0b8f0c5e-1111-4222-8333-444455556666',
   createdAt: '2026-10-20T12:00:00.000Z',
   runtimeVersion: 'abc123',
-  launchAsset: { key: 'k0', hash: 'h0', r2Key: 'updates/files/aa', contentType: 'application/javascript' },
-  assets: [{ key: 'k1', hash: 'h1', r2Key: 'updates/files/bb', contentType: 'image/png', fileExtension: '.png' }],
+  launchAsset: { key: 'k0', hash: 'h0', path: 'updates/files/aa', contentType: 'application/javascript' },
+  assets: [{ key: 'k1', hash: 'h1', path: 'updates/files/bb', contentType: 'image/png', fileExtension: '.png' }],
   expoClient: { name: 'Bullpen Log' },
 };
 const signed = (k: string) => `https://r2/${k}?sig`;
@@ -49,7 +49,7 @@ check(ask({ protocolVersion: '0', currentUpdateId: u.id }).status === 204, '약�
 check(ask({ platform: 'android' }).status === 400 && ask({ runtimeVersion: null }).status === 400, 'iOS 아님 · 판 없음은 400');
 check(updateResponse({ runtimeVersion: 'abc123', platform: 'ios', protocolVersion: '1', currentUpdateId: null }, null, signed, 'B').body.includes('noUpdateAvailable'), '올린 업데이트가 없으면 업데이트 없음');
 check(fresh.body.startsWith('--B\r\n') && fresh.body.endsWith('--B--\r\n'), 'multipart 경계');
-check(latestKeyOf('ab/../c') === 'updates/ab_.._c/latest.json', 'R2 자리에 / 를 못 넣는다');
+check(latestKeyOf('ab/../c') === 'updates/ab_.._c/latest.json', '저장 자리에 / 를 못 넣는다');
 
 console.log(`\n통과 ${passed} / 실패 ${failed}`);
 if (failed) process.exit(1);
