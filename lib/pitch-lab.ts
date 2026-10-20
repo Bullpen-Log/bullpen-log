@@ -2,6 +2,7 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { createPlaybackUrls, videoBucket } from '@/lib/storage';
 import { readLabGuard, type LabGuard } from '@/lib/pitch-lab-guard';
+import { readMoov, videoEditShift } from '@/lib/pitch-lab-file';
 import {
   LAB_VIEWS,
   readLabMeta,
@@ -194,6 +195,48 @@ export async function labVideoUrls(
   const urls = await createPlaybackUrls([s, b]);
   if (!urls[s] || !urls[b]) return null;
   return { side: urls[s], back: urls[b] };
+}
+
+/*
+ * 옆 · 뒤 영상의 편집 목록 앞머리(lib/pitch-lab-file.ts videoEditShift) — 결과 화면이 3D 시각에 더해 원본 영상 currentTime 으로 쓴다.
+ * 서명 주소에 범위 요청으로 머리 상자만 훑고 moov 만 받는다(한 영상에 요청 4~5번). 영상은 같은 자리에 다시 안 올리니 자리로 기억한다.
+ * ponytail: 서버 한 대 안의 Map — 인스턴스가 바뀌면 다시 읽는다(요청 몇 번이라 따로 저장하지 않음).
+ */
+const shiftCache = new Map<string, number>();
+
+async function urlShift(url: string): Promise<number> {
+  const signal = AbortSignal.timeout(5_000);
+  const moov = await readMoov({
+    size: Number.POSITIVE_INFINITY,
+    read: async (start, end) => {
+      const r = await fetch(url, { headers: { Range: `bytes=${start}-${end - 1}` }, signal });
+      if (!r.ok) throw new Error(`range ${r.status}`);
+      return new Uint8Array(await r.arrayBuffer());
+    },
+  });
+  return moov ? videoEditShift(moov) : 0;
+}
+
+export async function labVideoShifts(sample: LabSample): Promise<Record<LabView, number>> {
+  const out: Record<LabView, number> = { side: 0, back: 0 };
+  await Promise.all(
+    LAB_VIEWS.map(async (view) => {
+      const v = sample.videos[view];
+      if (!v?.url) return;
+      const kept = shiftCache.get(v.path);
+      if (kept != null) {
+        out[view] = kept;
+        return;
+      }
+      try {
+        out[view] = await urlShift(v.url);
+        shiftCache.set(v.path, out[view]);
+      } catch {
+        /* 못 읽으면 0 — 예전처럼 3D 시각 그대로 */
+      }
+    })
+  );
+  return out;
 }
 
 async function readSample(userId: string, id: string): Promise<LabSample> {

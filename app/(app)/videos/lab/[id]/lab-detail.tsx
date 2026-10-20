@@ -19,14 +19,17 @@ import { MechCard } from './mech-card';
 import type { DrillPicks } from '@/lib/pitch-3d/v2/lab-summary';
 import type { Body3DHandle, Transport } from './body-3d';
 import { useV2Analysis } from './use-v2-analysis';
+import { loadLabVideoShifts } from '@/app/actions/pitch-lab';
+import { followStep, sourceTimesAt } from '@/lib/pitch-3d/v2/video-sync';
 
 /** 3D 보기는 결과가 있을 때만 받는다(three 를 안 여는 화면에 실리지 않게) */
 const Body3D = dynamic(() => import('./body-3d').then((m) => m.Body3D), { ssr: false });
 
 /**
  * 샘플 결과 화면 /videos/lab/[id](설계 pitch-3d-quality.md 화면 결정 1 · 2 · 15) — 위에서부터 3D(4:5, 화면의 60% 까지) → 시점 · 재생 →
- * 원본 두 칸(180px) → 숫자. PC(desk)는 왼쏙 3D(폭 60%, 스크롤해도 멈춰 있음) · 오른쪽 원본 두 칸 + 숫자.
- * 원본 영상은 3D 시계를 따라간다(결정 12): 멈춤 · 끌기 때 currentTime, 재생 때 playbackRate. 숫자를 누르면 그 순간으로 가고 3D 가 보이게 올린다.
+ * 원본 두 칸 → 숫자. PC(desk)는 왼쪽 3D + 원본 두 칸(폭 60%, 스크롤해도 멈춰 있음) · 오른쪽 점검 + 숫자.
+ * 원본 영상은 3D 바로 밑(2026-10-20 김민: "같이 볼 수 있게")에서 3D 시계를 따라간다(결정 12, lib/pitch-3d/v2/video-sync.ts): 멈춤 · 끌기 때 그 시각,
+ * 재생 때 0.1초마다 빠르기를 맞춰 따라붙는다. 숫자를 누르면 그 순간으로 가고 3D 가 보이게 올린다.
  */
 
 export function LabDetail({
@@ -60,25 +63,33 @@ export function LabDetail({
   const result = v2.result;
   const hasVideos = Boolean(sample.videos.side?.url && sample.videos.back?.url);
 
+  /*
+   * 영상마다 편집 목록 앞머리(초) — 3D 시각 + 이 값 = 재생기 시각. 화면이 열린 뒤 받는다(못 받으면 0).
+   * 받는 사이 멈춰 있던 영상은 마지막 알림을 다시 따라가게 한다.
+   */
+  const shifts = useRef<Record<LabView, number>>({ side: 0, back: 0 });
+  const lastT = useRef<Transport | null>(null);
+
   /* 원본 영상이 3D 시계를 따라간다 */
   const onTransport = useCallback(
     (t: Transport) => {
       if (!result) return;
-      const times: Record<LabView, number> = {
-        side: result.t[t.frame],
-        back: result.tBack[t.frame],
-      };
+      lastT.current = t;
+      const src = sourceTimesAt(result.t, result.tBack, t.time);
       for (const view of LAB_VIEWS) {
         const v = videos.current[view];
         if (!v) continue;
-        const want = times[view];
+        const want = Math.max(0, src[view] + shifts.current[view]);
         if (t.reason === 'tick') {
-          if (Math.abs(v.currentTime - want) > 0.25) v.currentTime = want;
+          if (v.seeking) continue;
+          const step = followStep(v.currentTime, want, t.speed);
+          if (step.seek) v.currentTime = want;
+          if (Math.abs(v.playbackRate - step.rate) > 0.005) v.playbackRate = step.rate;
           continue;
         }
         v.playbackRate = t.speed;
         if (t.playing) {
-          if (Math.abs(v.currentTime - want) > 0.05) v.currentTime = want;
+          if (Math.abs(v.currentTime - want) > 0.02) v.currentTime = want;
           void v.play().catch(() => undefined);
         } else {
           v.pause();
@@ -88,6 +99,24 @@ export function LabDetail({
     },
     [result]
   );
+  const follow = useRef(onTransport);
+  useEffect(() => {
+    follow.current = onTransport;
+  }, [onTransport]);
+  useEffect(() => {
+    let alive = true;
+    loadLabVideoShifts({ id: sample.id }).then(
+      (r) => {
+        if (!alive) return;
+        shifts.current = r;
+        if (lastT.current) follow.current({ ...lastT.current, reason: 'seek' });
+      },
+      () => undefined
+    );
+    return () => {
+      alive = false;
+    };
+  }, [sample.id]);
 
   const jump = (k: number) => {
     body.current?.seek(k);
@@ -138,23 +167,6 @@ export function LabDetail({
               hand={meta?.hand ?? 'R'}
             />
           )}
-          <V2RequestRow
-            job={v2.job}
-            now={now}
-            busy={v2.busy}
-            v2Enabled={v2Enabled}
-            hasVideos={hasVideos}
-            hasResult={result != null}
-            stale={result != null && engineBuild != null && result.engine.build !== engineBuild}
-            error={v2.error}
-            onRequest={v2.request}
-          />
-          {v2.offline && (
-            <ErrorLine>연결을 확인해 주세요. 마지막 상태를 보고 있어요.</ErrorLine>
-          )}
-        </div>
-
-        <div className="stack-block mt-(--gap-block) desk:mt-0">
           <section className="space-y-2">
             <h2 className="text-sm font-semibold text-ink">원본 영상</h2>
             <div className="grid grid-cols-2 gap-2">
@@ -172,10 +184,10 @@ export function LabDetail({
                         playsInline
                         muted
                         preload="auto"
-                        className="h-[180px] w-full rounded-xl bg-black object-contain"
+                        className="h-[180px] w-full rounded-xl bg-black object-contain desk:h-[min(180px,22vh)]"
                       />
                     ) : (
-                      <div className="grid h-[180px] w-full place-items-center rounded-xl bg-ink/5 text-xs text-muted">
+                      <div className="grid h-[180px] w-full place-items-center rounded-xl bg-ink/5 text-xs text-muted desk:h-[min(180px,22vh)]">
                         영상 없음
                       </div>
                     )}
@@ -189,6 +201,23 @@ export function LabDetail({
               </p>
             )}
           </section>
+          <V2RequestRow
+            job={v2.job}
+            now={now}
+            busy={v2.busy}
+            v2Enabled={v2Enabled}
+            hasVideos={hasVideos}
+            hasResult={result != null}
+            stale={result != null && engineBuild != null && result.engine.build !== engineBuild}
+            error={v2.error}
+            onRequest={v2.request}
+          />
+          {v2.offline && (
+            <ErrorLine>연결을 확인해 주세요. 마지막 상태를 보고 있어요.</ErrorLine>
+          )}
+        </div>
+
+        <div className="stack-block mt-(--gap-block) desk:mt-0">
 
           {result && (
             <MechCard
