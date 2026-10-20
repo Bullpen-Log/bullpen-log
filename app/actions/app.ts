@@ -167,6 +167,8 @@ export async function loadAppNutrition(date: string): Promise<
       /** ★ 내 음식에 둔 기본 · 식약처 · 바코드 음식의 열쇠('source:id') — 담기 화면의 '내 음식에 두기' */
       favorites: string[];
       planState: string[];
+      /** 체중 흐름 권유가 선 날의 다음 조정값(웹 TodayCard nudge — 통계 화면의 체중 카드와 같은 plan.suggestion). 없으면 null */
+      suggestAdjust: number | null;
     }
   | { ok: false; error: string; to?: string }
 > {
@@ -214,6 +216,7 @@ export async function loadAppNutrition(date: string): Promise<
       DIET_STYLES.find((x) => x.key === day.prefs.dietStyle)?.label ?? null,
       MEAL_PATTERNS.find((x) => x.key === day.prefs.mealPattern)?.label ?? null,
     ].filter((x): x is string => x != null),
+    suggestAdjust: day.plan.suggestion?.nextAdjust ?? null,
   };
 }
 

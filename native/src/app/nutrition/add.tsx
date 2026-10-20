@@ -4,17 +4,16 @@ import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-ro
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BASIC_FOODS, STARTER_FOOD_IDS, basicAliases, basicFood } from '@/lib/nutrition/foods';
+import { BASIC_FOODS, STARTER_FOOD_IDS, basicFood, rankFoods } from '@/lib/nutrition/foods';
 import { COMBO_TOP, comboFood, findCombo, itemsFromEntries, orderCombos, type MealComboView } from '@/lib/nutrition/combos';
-import { matchScore } from '@/lib/nutrition/hangul';
-import { isMealKey, mealLabel, type Food, type MealKey } from '@/lib/nutrition/meta';
+import { isMealKey, mealLabel, missingMacros, missingText, type Food, type MealKey } from '@/lib/nutrition/meta';
 import { usePalette, withAlpha } from '~/lib/ui';
 import { addFoods, deleteCombo, deleteMyFood, favoriteFood, unfavoriteFood, markComboUsed, replaceEntry, replacePlan, saveCombo, saveMyFood, searchMfds, searchMfdsReps, useNutritionDay } from '~/nutrition/api';
 import { BrowseAll, ComboButton, ComboRow, PickPanel, SaveCombo } from '~/nutrition/add-parts';
 import { Segmented } from '~/shell/heading';
 import { Icon } from '~/shell/icon';
 import { CustomFood } from '~/nutrition/custom-food';
-import { takeScanned } from '~/nutrition/scanned';
+import { takeScanned, type Scanned } from '~/nutrition/scanned';
 import { READABLE } from '~/lib/layout';
 
 /**
@@ -51,7 +50,7 @@ export default function NutritionAddScreen() {
   const [savedName, setSavedName] = useState<string | null>(null);
 
   /* 바코드 화면에서 돌아오면 찾은 음식을 고른 것으로 */
-  const [scanned, setScanned] = useState<Food | null>(null);
+  const [scanned, setScanned] = useState<Scanned | null>(null);
   useFocusEffect(
     useCallback(() => {
       const f = takeScanned();
@@ -61,21 +60,13 @@ export default function NutritionAddScreen() {
       }
     }, [])
   );
-  const chosen = scanned ?? picked;
+  const chosen = scanned?.food ?? picked;
 
   const local = useMemo(() => {
     const text = q.trim();
     if (!text) return [];
-    const mine = (day?.mine ?? []).map((f) => ({ f, s: matchScore(f.name, text) }));
-    const basic = BASIC_FOODS.map((f) => ({
-      f,
-      s: Math.max(matchScore(f.name, text), ...basicAliases(f.id ?? '').map((a) => matchScore(a, text))),
-    }));
-    return [...mine, ...basic]
-      .filter((x) => x.s > 0)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, LIMIT)
-      .map((x) => x.f);
+    /* 웹 음식 창과 같은 순서(rankFoods — 내 음식 +5점, 같은 점수면 짧은 이름 먼저, 40개) */
+    return rankFoods([...(day?.mine ?? []), ...BASIC_FOODS], text, 40);
   }, [q, day?.mine]);
 
   /* 식약처 — 칠 때마다 0.35초 기다렸다가, 품목대표(바로) → 상품까지(느림). 늦게 온 옛 검색어 답은 버린다 */
@@ -299,6 +290,8 @@ export default function NutritionAddScreen() {
         <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
           {f.servingLabel} · {Math.round(f.kcal)}kcal{f.protein != null ? ` · 단백질 ${Math.round(f.protein)}g` : ''}
           {f.note && !hideNote ? ` · ${f.note}` : ''}
+          {/* 모르는 영양소 — 웹 음식 창 줄과 같은 '탄·지 모름'('없음'이라 적으면 0g 으로 읽힌다) */}
+          {missingMacros(f).length > 0 ? ` · ${missingText(missingMacros(f))}` : ''}
         </Text>
       </View>
       <Pressable
@@ -335,6 +328,12 @@ export default function NutritionAddScreen() {
 
       {chosen ? (
         <ScrollView contentContainerStyle={[{ paddingHorizontal: 16, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled">
+          {/* 바코드로 찾은 음식이면 어디서 찾았는지 한 줄(웹 barcode-panel 과 같은 글) */}
+          {scanned && scanned.food === chosen && scanned.from !== 'new' ? (
+            <Text style={{ color: c.muted, fontSize: 13, paddingHorizontal: 4, paddingBottom: 8 }}>
+              {scanned.from === 'mine' ? '전에 적어 둔 바코드예요.' : '공개 자료(Open Food Facts)에서 찾았어요. 이름 · 값이 포장과 다를 수 있어요.'}
+            </Text>
+          ) : null}
           <PickPanel
             key={`${chosen.source}:${chosen.id ?? chosen.name}`}
             food={chosen}

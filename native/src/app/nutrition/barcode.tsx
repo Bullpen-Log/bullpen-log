@@ -38,7 +38,7 @@ export default function BarcodeScreen() {
     busy.current = false;
     if (!res.ok) return setPhase({ kind: 'error', message: res.error });
     if (!res.food) return setPhase({ kind: 'manual', code, name: res.name ?? '' });
-    putScanned(res.food);
+    putScanned(res.food, res.from);
     router.back();
   };
 
@@ -151,7 +151,7 @@ function ManualFood({ code, name: initialName, onRescan }: { code: string; name:
       /* 바코드 숫자가 sourceId 로 가야 다음에 같은 바코드를 내 음식에서 바로 찾는다(lib/nutrition/barcode-lookup.ts) */
       const res = await rpc<{ ok: true } | { ok: false; error: string }>('nutrition.saveUserFood', toFoodInput(food));
       if (!res.ok) return setError(res.error);
-      putScanned(food);
+      putScanned(food, 'new');
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : '저장하지 못했어요.');
