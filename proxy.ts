@@ -9,6 +9,8 @@ import { isPhoneBrowser } from '@/lib/app-env';
 const OPEN = /^\/(phone|terms|privacy|embed|velocity-engine)(\/|$)/;
 
 export function proxy(req: NextRequest) {
+  /* 개발 서버(localhost)는 막지 않는다 — 휴대폰 웹 화면을 새 앱과 견주며 고칠 때 · 휴대폰 크기 확인(브라우저 휴대폰 흉내는 이름표도 바꾼다) */
+  if (process.env.NODE_ENV !== 'production') return NextResponse.next();
   if (!isPhoneBrowser(req.headers.get('user-agent')) || OPEN.test(req.nextUrl.pathname)) return NextResponse.next();
   return NextResponse.rewrite(new URL('/phone', req.url));
 }
