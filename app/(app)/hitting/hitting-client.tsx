@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button, PageHeading } from '@/components/ui';
 import { Modal } from '@/components/modal';
 import { MonthCalendar, type DayMark } from '@/components/month-calendar';
@@ -12,7 +13,8 @@ import { orOffline } from '@/lib/action-offline';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { haptic } from '@/lib/haptics';
 import { toast } from '@/components/toast';
-import { dateKeyLabel } from '@/lib/pitch-stats';
+import { dateKeyLabel, weekStartKey } from '@/lib/pitch-stats';
+import { SPORT_LOG_VIEW } from '@/lib/nav';
 import { HITTING_TYPES, hittingLine, type HittingType } from '@/lib/hitting-log';
 import { deleteHittingLog, saveHittingLog } from '@/app/actions/hitting-log';
 
@@ -38,11 +40,13 @@ type Draft = {
 const OFFLINE = { ok: false as const, error: '신호가 약해 저장하지 못했어요. 신호가 잡히면 다시 눌러 주세요.' };
 
 /**
- * 타격 탭 화면 — 달력(그날 스윙 수) · 고른 날 기록 · 기록 남기기 시트(2026-10-20 타격 1단계 T5).
- * 투구 기록과 같은 꼴을 작게: 종류 · 스윙 수 · 체감 강도(1~10) · 메모. 영상 · 만족도는 다음 단계.
+ * 타격 탭 화면 — 종목 바의 두 칸이 한 화면을 나눠 쓴다(2026-10-20 김민: 종목 홈 추가, lib/nav.ts SPORT_BARS).
+ * 홈('타격', /hitting): 오늘 · 이번 주 · 최근 기록. 기록(/hitting?view=log): 달력(그날 스윙 수) · 고른 날 기록.
+ * 기록 남기기 시트는 둘 다 같다(2026-10-20 타격 1단계 T5). 투구 기록과 같은 꼴을 작게: 종류 · 스윙 수 · 체감 강도(1~10) · 메모.
  */
 export function HittingClient({ today, rows }: { today: string; rows: HittingRow[] }) {
   const router = useRouter();
+  const log = useSearchParams().get('view') === SPORT_LOG_VIEW;
   const [month, setMonth] = useState(() => new Date(`${today}T00:00:00`));
   const [selected, setSelected] = useState<string | null>(today);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -72,9 +76,19 @@ export function HittingClient({ today, rows }: { today: string; rows: HittingRow
 
   const dayRows = selected ? (byDate.get(selected) ?? []) : [];
 
-  const openNew = () => {
+  /* 홈 — 이번 주(월요일부터) 스윙 · 횟수, 오늘 아닌 최근 기록 셋(rows 는 날짜 내림차순) */
+  const week = useMemo(() => {
+    const start = weekStartKey(today);
+    const list = rows.filter((r) => r.date >= start && r.date <= today);
+    return { swings: list.reduce((s, r) => s + r.swings, 0), count: list.length };
+  }, [rows, today]);
+  const recent = rows.filter((r) => r.date < today).slice(0, 3);
+  const todayRows = byDate.get(today) ?? [];
+
+  /* 홈에서 남기는 기록은 늘 오늘 — 기록 칸에서 고른 날이 남아 있어도 */
+  const openNew = (date = log ? (selected ?? today) : today) => {
     setError(null);
-    setDraft({ date: selected ?? today, sessionType: null, swings: '', effortPct: null, memo: '' });
+    setDraft({ date, sessionType: null, swings: '', effortPct: null, memo: '' });
   };
   const openEdit = (r: HittingRow) => {
     setError(null);
@@ -134,64 +148,124 @@ export function HittingClient({ today, rows }: { today: string; rows: HittingRow
     });
   };
 
+  const rowList = (list: HittingRow[], withDate = false) => (
+    <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+      {list.map((r) => (
+        <li key={r.id}>
+          <button
+            type="button"
+            onClick={() => openEdit(r)}
+            className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block text-subhead font-medium text-ink">
+                {withDate ? `${dateKeyLabel(r.date)} · ${hittingLine(r)}` : hittingLine(r)}
+              </span>
+              {r.memo && <span className="block truncate text-footnote text-muted">{r.memo}</span>}
+            </span>
+            <span aria-hidden className="text-muted">
+              ›
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+
   return (
     <div className="stack-page">
       <PageHeading
-        title="타격"
+        title={log ? '타격 기록' : '타격'}
         inlineAction
         action={
-          <Button size="sm" onClick={openNew}>
+          <Button size="sm" onClick={() => openNew()}>
             기록 남기기
           </Button>
         }
       />
 
-      <MonthCalendar
-        month={month}
-        onMonthChange={(update) => setMonth(update)}
-        selected={selected}
-        onSelect={setSelected}
-        marks={marks}
-      />
+      {log ? (
+        <>
+          <MonthCalendar
+            month={month}
+            onMonthChange={(update) => setMonth(update)}
+            selected={selected}
+            onSelect={setSelected}
+            marks={marks}
+          />
 
-      {selected && (
-        <section className="space-y-2">
-          <p className="text-sm font-semibold text-ink">{dateKeyLabel(selected)}</p>
-          {dayRows.length === 0 ? (
-            <div className="rounded-2xl empty-well px-4 py-5 text-center">
-              <p className="text-sm text-muted">이날 타격 기록이 없어요.</p>
-              {selected <= today && (
+          {selected && (
+            <section className="space-y-2">
+              <p className="text-sm font-semibold text-ink">{dateKeyLabel(selected)}</p>
+              {dayRows.length === 0 ? (
+                <div className="rounded-2xl empty-well px-4 py-5 text-center">
+                  <p className="text-sm text-muted">이날 타격 기록이 없어요.</p>
+                  {selected <= today && (
+                    <button
+                      type="button"
+                      onClick={() => openNew()}
+                      className="mt-2 min-h-10 text-sm font-semibold text-sky-strong"
+                    >
+                      이날 기록 남기기
+                    </button>
+                  )}
+                </div>
+              ) : (
+                rowList(dayRows)
+              )}
+            </section>
+          )}
+        </>
+      ) : (
+        <>
+          <section className="space-y-2">
+            <p className="text-sm font-semibold text-ink">오늘</p>
+            {todayRows.length === 0 ? (
+              <div className="rounded-2xl empty-well px-4 py-5 text-center">
+                <p className="text-sm text-muted">오늘 타격 기록이 없어요.</p>
                 <button
                   type="button"
-                  onClick={openNew}
+                  onClick={() => openNew(today)}
                   className="mt-2 min-h-10 text-sm font-semibold text-sky-strong"
                 >
-                  이날 기록 남기기
+                  오늘 기록 남기기
                 </button>
-              )}
-            </div>
-          ) : (
-            <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
-              {dayRows.map((r) => (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    onClick={() => openEdit(r)}
-                    className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-subhead font-medium text-ink">{hittingLine(r)}</span>
-                      {r.memo && <span className="block truncate text-footnote text-muted">{r.memo}</span>}
-                    </span>
-                    <span aria-hidden className="text-muted">
-                      ›
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+              </div>
+            ) : (
+              rowList(todayRows)
+            )}
+          </section>
+
+          {/* 누르면 기록(달력) — 종목 바의 '기록' 칸과 같은 주소 */}
+          <Link
+            href={`/hitting?view=${SPORT_LOG_VIEW}`}
+            className="block rounded-2xl border border-line bg-surface p-(--block-pad)"
+          >
+            <span className="flex items-center justify-between">
+              <span className="text-subhead font-semibold text-ink">이번 주</span>
+              <span aria-hidden className="text-muted">
+                ›
+              </span>
+            </span>
+            <span className="mt-2 grid grid-cols-2 gap-3">
+              <span>
+                <span className="block text-footnote text-muted">스윙</span>
+                <span className="block text-numeric text-2xl font-bold text-ink">{week.swings}회</span>
+              </span>
+              <span>
+                <span className="block text-footnote text-muted">기록</span>
+                <span className="block text-numeric text-2xl font-bold text-ink">{week.count}번</span>
+              </span>
+            </span>
+          </Link>
+
+          {recent.length > 0 && (
+            <section className="space-y-2">
+              <p className="text-sm font-semibold text-ink">최근 기록</p>
+              {rowList(recent, true)}
+            </section>
           )}
-        </section>
+        </>
       )}
 
       <Modal

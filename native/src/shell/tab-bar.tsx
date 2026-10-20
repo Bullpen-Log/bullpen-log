@@ -34,14 +34,17 @@ export const DEFAULT_TABS: ShellTab[] = [
  */
 export type SportKey = 'pitch' | 'hit';
 export const DEFAULT_SPORT_BARS: Record<SportKey, ShellTab[]> = {
+  /* 첫 칸 = 종목 홈(이름은 종목 이름, 2026-10-20 김민), 기록은 ?view=log — 웹 lib/nav.ts SPORT_BARS */
   pitch: [
-    { href: '/videos', label: '기록', icon: 'calendar' },
+    { href: '/videos', label: '투구', icon: 'baseball' },
+    { href: '/videos?view=log', label: '기록', icon: 'calendar' },
     { href: '/training?sport=pitch', label: '트레이닝', icon: 'dumbbell' },
     { href: '/training?view=armcare', label: '암케어', icon: 'heart' },
     { href: '/training?view=mechanics', label: '메커니즘', icon: 'target' },
   ],
   hit: [
-    { href: '/hitting', label: '기록', icon: 'calendar' },
+    { href: '/hitting', label: '타격', icon: 'bat' },
+    { href: '/hitting?view=log', label: '기록', icon: 'calendar' },
     { href: '/training?sport=hit', label: '트레이닝', icon: 'dumbbell' },
   ],
 };
@@ -70,7 +73,9 @@ export function sportActiveHref(sport: SportKey, path: string, search: string): 
     if (sport === 'pitch' && view === 'mechanics') return '/training?view=mechanics';
     return `/training?sport=${sport}`;
   }
-  return sport === 'pitch' ? '/videos' : '/hitting';
+  const home = sport === 'pitch' ? '/videos' : '/hitting';
+  const log = new URLSearchParams(search).get('view') === 'log' || path.startsWith('/pitch-log/');
+  return log ? `${home}?view=log` : home;
 }
 
 /* 웹 하단 탭과 같은 선 그림(nav-icons.tsx · glyphs.tsx Squares) — 26px */

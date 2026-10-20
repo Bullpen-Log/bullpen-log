@@ -335,9 +335,11 @@ export default function SiteScreen() {
      */
     if (t.href === '/community' && !t.locked) return openNative('/community');
     /* 타격 탭(2026-10-20)은 웹 판 — 주소를 먼저 바꿔 앱 판을 바로 걷고 종목 바로 갈아 끼운다 */
-    if ((t.href === '/videos' || t.href === '/today' || t.href === '/nutrition' || t.href === '/community' || t.href === '/hitting') && !t.locked) {
-      setPath(t.href);
-      setSearch('');
+    /* 종목 바의 홈 · 기록(?view=log)도 같은 판이라 ? 뒤까지 바로 맞춘다 */
+    const [tabPath, tabQuery = ''] = t.href.split('?');
+    if ((tabPath === '/videos' || tabPath === '/today' || tabPath === '/nutrition' || tabPath === '/community' || tabPath === '/hitting') && !t.locked) {
+      setPath(tabPath);
+      setSearch(tabQuery);
     }
     if (t.href === '/today') setWebHome(false);
     if (t.href === '/nutrition') setWebNutrition(false);
@@ -585,7 +587,7 @@ export default function SiteScreen() {
           visible={pagerOn}
           slots={[
             seen.home ? <HomeTab key="home" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} onTab={goTab} /> : null,
-            seen.pitch ? <PitchTab key="pitch" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} /> : null,
+            seen.pitch ? <PitchTab key="pitch" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} log={showPitch && new URLSearchParams(search).get('view') === 'log'} /> : null,
             seen.training ? <TrainingTab key="training" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} /> : null,
             seen.nutrition ? <NutritionTab key="nutrition" today={today} bottom={TAB_BAR_HEIGHT} onWebNutrition={() => setWebNutrition(true)} /> : null,
           ]}
