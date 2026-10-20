@@ -4,7 +4,8 @@ import { type Href, router } from 'expo-router';
 import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppAdmin } from '@/app/actions/app-admin';
-import { Badge, Bar, call, LoadState, Row, s, useLoad } from '~/community/parts';
+import { Badge, Bar, call, LoadState, Row, s, useLoad, useTitleCollapse } from '~/community/parts';
+import { PageHead } from '~/shell/heading';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 
@@ -17,18 +18,20 @@ type Data = Extract<Loaded, { ok: true }>;
 
 export default function AdminScreen() {
   const c = usePalette();
+  const { shown, scroll } = useTitleCollapse();
   const inset = useSafeAreaInsets();
   const { data, error, reload } = useLoad<Loaded>('app-admin.loadAppAdmin');
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="더보기" title="관리자" c={c} />
+      <Bar back="더보기" title="관리자" shown={!data || shown} c={c} />
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
-        <ScrollView
+        <ScrollView {...scroll}
           contentContainerStyle={[{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
+          <PageHead title="관리자" />
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             {data.stats.map((st) => (
               <View key={st.label} style={{ flexBasis: '47%', flexGrow: 1, borderRadius: 14, padding: 14, backgroundColor: c.card, boxShadow: c.float, gap: 4 }}>

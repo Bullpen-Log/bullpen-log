@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppCommunityReports } from '@/app/actions/app-admin';
-import { Badge, Bar, call, Chip, LoadState, s, useLoad } from '~/community/parts';
+import { Badge, Bar, call, Chip, LoadState, s, useLoad, useTitleCollapse } from '~/community/parts';
+import { PageHead } from '~/shell/heading';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 
@@ -17,19 +18,21 @@ type Report = Extract<Loaded, { ok: true }>['reports'][number];
 
 export default function AdminCommunityScreen() {
   const c = usePalette();
+  const { shown, scroll } = useTitleCollapse();
   const inset = useSafeAreaInsets();
   const [all, setAll] = useState(false);
   const { data, error, reload } = useLoad<Loaded>('app-admin.loadAppCommunityReports', all ? 1 : 0);
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="관리자" title="커뮤니티 신고" c={c} />
+      <Bar back="관리자" title="커뮤니티 신고" shown={!data || shown} c={c} />
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
-        <ScrollView
+        <ScrollView {...scroll}
           contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
+          <PageHead title="커뮤니티 신고" />
           <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21, paddingHorizontal: 4 }}>신고된 글 · 댓글을 보고 가리거나 그대로 둬요. 처리하면 목록에서 내려가요.</Text>
           <View accessibilityRole="radiogroup" style={s.chips}>
             <Chip label={`처리 전 ${data.openCount}`} on={!all} onPress={() => setAll(false)} c={c} />

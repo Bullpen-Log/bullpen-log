@@ -2,7 +2,8 @@ import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppVelocityAdmin } from '@/app/actions/app-admin';
-import { Bar, leave, LoadState, Row, s, useLoad } from '~/community/parts';
+import { Bar, leave, LoadState, Row, s, useLoad, useTitleCollapse } from '~/community/parts';
+import { PageHead } from '~/shell/heading';
 import { usePalette, type Palette } from '~/lib/ui';
 import { signed } from '~/velocity/signed';
 import { READABLE } from '~/lib/layout';
@@ -16,20 +17,22 @@ type Loaded = Awaited<ReturnType<typeof loadAppVelocityAdmin>>;
 
 export default function VelocityAdminScreen() {
   const c = usePalette();
+  const { shown, scroll } = useTitleCollapse();
   const inset = useSafeAreaInsets();
   const { data, error, reload } = useLoad<Loaded>('app-admin.loadAppVelocityAdmin');
   /* 투구 탭 고르개의 셋째 칸에서 왔으면 뒤로 글도 '투구' */
   const { from } = useLocalSearchParams<{ from?: string }>();
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back={from === 'pitch' ? '투구' : '관리자'} title="구속 측정 관리자" c={c} />
+      <Bar back={from === 'pitch' ? '투구' : '관리자'} title="구속 측정 관리자" shown={!data || shown} c={c} />
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
-        <ScrollView
+        <ScrollView {...scroll}
           contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
+          <PageHead title="구속 측정 관리자" />
           <Press accessibilityRole="button" onPress={() => router.push('/admin/velocity/upload' as Href)} style={[s.pill, { minHeight: 56, backgroundColor: c.sky }]}>
             <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>영상 올리기</Text>
           </Press>

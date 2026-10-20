@@ -5,7 +5,8 @@ import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FAQ } from '@/lib/support';
 import type { loadAppSupport } from '@/app/actions/support';
-import { Bar, InquiryRows, LoadState, NoticeRows, s, useLoad } from '~/community/parts';
+import { Bar, InquiryRows, LoadState, NoticeRows, s, useLoad, useTitleCollapse } from '~/community/parts';
+import { PageHead } from '~/shell/heading';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
@@ -18,16 +19,18 @@ type Loaded = Awaited<ReturnType<typeof loadAppSupport>>;
 
 export default function SupportScreen() {
   const c = usePalette();
+  const { shown, scroll } = useTitleCollapse();
   const inset = useSafeAreaInsets();
   const { data, error, reload } = useLoad<Loaded>('support.loadAppSupport');
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="뒤로" title="고객센터" c={c} />
+      <Bar back="뒤로" title="고객센터" shown={!data || shown} c={c} />
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
-        <ScrollView contentContainerStyle={[{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }, READABLE]}>
+        <ScrollView {...scroll} contentContainerStyle={[{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }, READABLE]}>
+          <PageHead title="고객센터" />
           <Section title="공지" more={data.notices.length ? () => router.push('/support/notices' as Href) : undefined} c={c}>
             {data.notices.length === 0 ? <Empty text="아직 올라온 공지가 없어요." c={c} /> : <NoticeRows rows={data.notices} c={c} />}
           </Section>
