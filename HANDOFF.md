@@ -11,31 +11,28 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-10-20 밤 · 금윤호(Claude, 윤호 맥북) — 새 앱 구속 측정 진단(Phase A) · 세션 녹화 스풀(Phase B) — 네 영역 · 새 앱 구워야 들어감
+## 김민에게 — 2026-10-20 밤 · 금윤호(Claude, 윤호 맥북) — 새 앱 구속 측정이 안 되던 것: 원인 · 고친 것 · 남은 것(쉬운 정리) — 네 답 하나 필요
 
-받은 뒤 할 일 없음(DB · 패키지 그대로 — Swift 는 시뮬레이터로 컴파일 확인). `docs/velocity/native-measure-recovery-prompt.md` '진행' 절의 Phase A. 네 영역(`native/modules/dual-camera` ·
-`native/src/velocity/*` · `app/velocity.tsx`)을 고쳤고 모두 더하기 — 옛 앱 판 · 웹 · 엔진 · 서버는 그대로.
-- **모듈 약속에 더한 것**: `start` 답 `debugBuild · appVersion · appBuild`, 'fps' 알림 `thermal · feedMs`(장면당 공 찾기 ms — Release 에서도), `Clip.frames · fpsActual`
-  (`SegmentRecorder` 가 인코더에 넣은 장면 시각을 쥐고 셈). `clip(from:to:)` 의 답에 `frames` 가 하나 늘었다(옛 앱 `mobile/` 모듈은 안 건드림).
-- **앱**: 알약 `1080p · 31fps · 2배 · 버림 29 · DEBUG · 뜨거움`(Debug 거나 버림 5 넘으면 주황), 관리자가 누르면 진단 시트(빌드 · 카메라 · 최근 작업 6줄의 단계별 시간 —
-  `capture.ts JobTiming` · `timingLine`, 콘솔 `[velo] #3 ball 큐 120 · 자르기 410 · 읽기 380(3.1MB · 58fps) · 계산 2900(장면 900 · 분석 1500) · 합 3800ms → ok 112.3 high`).
-  시한 초과 · 계산기 죽음도 `VelocityAttempt` 에 남는다(rejectCode `TIMEOUT · ENGINE_DOWN · ENGINE_GONE · ENGINE_FAIL · NO_CLIP · CAMERA_OFF`, `engine.tsx EngineError`).
-  클립이 장면을 20% 넘게 잃으면 알림 + 잰 공 `analysis.offStandard` 에 '장면 N% 빠짐'(`clip-health.ts`).
-- **Phase B — `native/src/velocity/session-recorder.ts` 를 웹 10-19 와 같게**: 구간은 `sweep.ts nextRecordCut`, 올리기가 6개 넘게 밀리면 조각을 버리지 않고 폰(tmp 의 클립 파일 그대로)에
-  두었다가 끝낼 때 차례로 올린다(1GB 상한 · 자르기 15초 · 서버 20초 · 올리기 90초 시한). `RecState` 에 `skipped · spooled · queued` 가 늘었고 칩이 '대기 · 밀림'을 따로 보인다,
-  세션을 끝내면 '마무리 중 · 남음 N'. 10-20 녹화 #2(145초 중 40초)가 이것이었다. 관리자 목록의 '영상 N만 올라감'은 그대로(조각 길이 합이라 구멍을 드러낸다).
-- 10-20 세션의 진짜 까닭(Debug 빌드인지)은 네가 어떤 빌드를 깔아 줬는지에 달렸다 — 위 아침 메모의 물음 그대로. 다음은 Phase C(장면 버림 없애기 — A 로 빌드를 확인한 뒤).
+받은 뒤 할 일: **10-20 낮 윤호 폰에 깔아 준 새 앱이 Debug(`expo run:ios --device` 로 바로 깐 것)였는지 Release(GitHub `ios-native.yml`)였는지 알려 줘.** DB · 패키지 그대로.
+자세한 근거 · 다음 작업은 `docs/velocity/native-measure-recovery-prompt.md`(영어 프롬프트 + '진행' 절).
 
-## 김민에게 — 2026-10-20 · 금윤호(Claude, 윤호 맥북) — 새 앱 구속 측정이 10-20 세션에서 거의 안 잡힌 것 분석 · 복구 프롬프트 — 네가 답해 줄 것 하나
+**무슨 일이 있었나** — 같은 자리에서 옛 앱(웹 포장)은 잘 쟀는데 새 앱은 끝난 시도 11번 중 2번만 쟀고, 세션 녹화는 비어 보였다.
 
-받은 뒤 할 일: **10-20 낮에 윤호 폰에 깔려 있던 새 앱이 어떤 빌드였는지(Xcode `expo run:ios --device` 로 바로 깐 Debug 인지 · GitHub `ios-native.yml` Release 아카이브인지) 알려 줘.**
-코드 변경 없음 — `docs/velocity/native-measure-recovery-prompt.md` 하나(영어 작업 프롬프트 + 한국어 자료 요약).
-- 화면 녹화 셋 · DB 로 본 것: 카메라 알약이 세션 내내 `1080p · 16~41fps · 버림 19~55`(세션 끝난 뒤 쉬는 때도 31fps · 버림 29) — 캡처 콜백이 장면 반을 버려 클립에 공이 안 남고
-  (완료된 시도 11 중 ok 2 · 장면 0 이 7, 시한 초과는 기록도 안 남음), 계산기 30초 시한이 겹쳤다. 가장 유력한 까닭은 **Debug(최적화 없는) 빌드** — `scripts/velocity-lab/README.md`
-  65줄의 10-08 기록(초당 20장)과 같은 증상. 그다음은 base64 두 번 건너기(Expo → RN → WebView) · 5초마다 6초 훑기 · 10Hz 기울기로 화면 전체 다시 그리기.
-- 세션 녹화는 파일이 둘 다 있다(관리자 → 구속 측정 → 세션 녹화 `?kind=session`) — LTE 에서 올리기가 밀려 조각을 건너뛰어 구멍(#2 는 145초 중 약 40초).
-  웹 녹화기는 10-19 에 스풀로 고쳤고 앱 `native/src/velocity/session-recorder.ts`(MAX_PENDING 3 · 건너뜀)는 안 옮겼다 — 문서 Phase B.
-- 다음 순서는 문서대로: A 진단(빌드 표시 · 단계별 시간 · 시한 초과도 시도 기록) → B 녹화기 스풀 → C 장면 버림 없애기 → D 다리 바이트 줄이기. 엔진(`lib/velocity-engine`)은 안 건드린다.
+**원인 셋**
+1. **카메라가 장면을 반이나 버렸다(가장 큼).** 알약이 세션 내내 `16~41fps · 버림 19~55`, 쉬는 때도 31fps. 버린 장면은 클립에 안 들어가 '60fps' 클립에 실제론 초당 25~30장 →
+   엔진이 공 길을 못 이어 `NOT_ENOUGH_FRAMES`(장면 0)로 끝났다. 가장 유력한 까닭은 **Debug 빌드**(최적화 없는 Swift — 10-08 에도 초당 20장으로 같은 증상, velocity-lab README 65줄).
+2. **계산이 밀렸다.** 장면이 모자란 데다 클립을 base64 로 두 번 건너 보내고(Expo → RN → 웹뷰) 5초마다 6초 훑기까지 돌아 30초 시한을 넘겼다. 이 실패는 DB 에 한 줄도 안 남았다.
+3. **녹화는 있었는데 구멍이 났다.** 녹화 둘 다 있다(관리자 → 구속 측정 → 세션 녹화). LTE 에서 조각(4초 7~10MB)이 3개 넘게 밀리면 버려서 #2 는 145초 중 40초만 올라갔다.
+
+**고친 것(main, 새 앱 구워야 들어감)**
+- **A 진단**: 알약에 `버림 N · DEBUG · 뜨거움`(주황), 관리자가 알약을 누르면 진단 창(빌드 · 공 찾기 ms · 작업마다 자르기 · 읽기 · 계산 시간). 시한 초과 · 계산기 죽음도
+  시도 기록에(`TIMEOUT · ENGINE_DOWN · ENGINE_GONE · ENGINE_FAIL · NO_CLIP`). 클립이 장면을 20% 넘게 잃으면 알림 + 공 메모 '장면 N% 빠짐'. 모듈 약속에 `debugBuild · thermal · feedMs ·
+  Clip.frames · fpsActual` 더함(`dual-camera` · `capture.ts` · `engine.tsx` · `clip-health.ts`).
+- **B 녹화**: `session-recorder.ts` 를 웹 10-19 와 같게 — 밀린 조각은 버리지 않고 폰에 두었다가 끝낼 때 올린다(1GB 상한 · 시한 15/20/90초). 칩 '대기 · 밀림 · 남음'.
+
+**아직 안 고친 것 — 이것이 남아 있으면 측정은 여전히 안 된다**
+- 장면을 버리는 근본(원인 1 · 2)은 **진단만 붙였지 아직 안 고쳤다.** Debug 였다면 Release 로 구우면 대부분 풀린다. Release 인데도 진단 알약에 `버림` 이 뜨면 Phase C(캡처 줄의 일 덜기) ·
+  D(클립을 base64 대신 파일로 계산기에 넘기기)를 한다. 폰 확인: 카메라 화면 5초 쉬고 알약이 `1080p · 60fps · 2배`(버림 · DEBUG 없음)인지.
 
 ## 금윤호에게 — 2026-10-20 · 김민(Claude, 네이티브1) — 새 앱 굽는 법이 바뀜(다이나믹 아일랜드 확장) · 새벽에 앱을 많이 고쳤다
 
