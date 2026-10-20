@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AVERAGE_HEIGHT_CM, HEIGHT_MAX_CM, HEIGHT_MIN_CM } from '@/lib/abs/rules';
 import { Icon } from '~/shell/icon';
+import { Press } from '~/shell/press';
 
 /**
  * 측정 중 '타자 N · 175cm' 칩(앱) — 누르면 '다음 타자' 시트: 평균 신장 그대로 또는 숫자 입력(웹 components/abs/batter-chip.tsx 와 같다).
@@ -31,12 +32,12 @@ export function BatterChip({ batter, height, onNext }: { batter: number; height:
           <Text style={st.title}>다음 타자</Text>
           <Text style={st.body}>타자 {batter + 1}의 신장을 넣어요. 존 위 · 아래가 신장에 따라 바뀌어요.</Text>
           <View style={st.row}>
-            <Pressable accessibilityRole="radio" accessibilityState={{ selected: mode === 'average' }} onPress={() => setMode('average')} style={[st.opt, mode === 'average' && st.optOn]}>
+            <Press select selected={mode === 'average'} accessibilityRole="radio" accessibilityState={{ selected: mode === 'average' }} onPress={() => setMode('average')} style={[st.opt, mode === 'average' && st.optOn]}>
               <Text style={[st.optText, mode === 'average' && { color: '#fff' }]}>평균 신장 {AVERAGE_HEIGHT_CM}cm</Text>
-            </Pressable>
-            <Pressable accessibilityRole="radio" accessibilityState={{ selected: mode === 'number' }} onPress={() => setMode('number')} style={[st.opt, mode === 'number' && st.optOn]}>
+            </Press>
+            <Press select selected={mode === 'number'} accessibilityRole="radio" accessibilityState={{ selected: mode === 'number' }} onPress={() => setMode('number')} style={[st.opt, mode === 'number' && st.optOn]}>
               <Text style={[st.optText, mode === 'number' && { color: '#fff' }]}>직접 입력</Text>
-            </Pressable>
+            </Press>
           </View>
           {mode === 'number' ? (
             <View style={st.inputRow}>

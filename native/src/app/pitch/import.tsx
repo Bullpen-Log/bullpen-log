@@ -19,6 +19,7 @@ import { isPhoneVideoPath, loadMe, phoneAssetId } from '~/pitch/api';
 import { PICK_ORIGINAL, attach, attachErrorText, readVideoFacts, useImported } from '~/pitch/attach';
 import { Icon } from '~/shell/icon';
 import { DateNavButton } from '~/shell/mini-calendar';
+import { Press } from '~/shell/press';
 
 /**
  * 지난 영상 가져오기(앱) — 웹 app/(app)/videos/import-sheet.tsx 와 같은 규칙(lib/pitch-import.ts): 사진 앱에서 영상 여러 개를 고르면
@@ -141,9 +142,9 @@ export default function PitchImportScreen() {
             <Text style={{ color: c.muted, fontSize: 15, lineHeight: 22 }}>
               사진 앱의 투구 영상을 찍은 날짜로 묶어 기록으로 남겨요. 한 번에 {PICK_LIMIT}개까지 고르고, 같은 날 영상은 2개씩 한 기록이 돼요.
             </Text>
-            <Pressable accessibilityRole="button" onPress={pick} disabled={!!busy} style={[styles.primary, { backgroundColor: c.sky }, busy && { opacity: 0.4 }]}>
+            <Press accessibilityRole="button" onPress={pick} disabled={!!busy} style={[styles.primary, { backgroundColor: c.sky }, busy && { opacity: 0.4 }]}>
               <Text style={styles.primaryText}>영상 고르기</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : (
           <>
@@ -200,21 +201,21 @@ export default function PitchImportScreen() {
                   {saved ? (
                     <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>기록으로 남겼어요</Text>
                   ) : (
-                    <Pressable
+                    <Press
                       accessibilityRole="button"
                       onPress={() => open(g)}
                       disabled={!!busy || !g.date}
                       style={[styles.primary, { backgroundColor: c.sky }, (!g.date || busy) && { opacity: 0.4 }]}
                     >
                       <Text style={styles.primaryText}>기록 남기기</Text>
-                    </Pressable>
+                    </Press>
                   )}
                 </View>
               );
             })}
-            <Pressable accessibilityRole="button" onPress={pick} disabled={!!busy} style={[styles.ghost, { backgroundColor: c.chip }]}>
+            <Press accessibilityRole="button" onPress={pick} disabled={!!busy} style={[styles.ghost, { backgroundColor: c.chip }]}>
               <Text style={[styles.ghostText, { color: c.ink }]}>다른 영상 고르기</Text>
-            </Pressable>
+            </Press>
           </>
         )}
     </ScrollView>

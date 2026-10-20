@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Icon, type IconName } from '~/shell/icon';
+import { Press } from '~/shell/press';
 
 /*
  * 구속 측정 카메라 화면의 조각 — 웹 app/(session)/velocity/velocity-screen.tsx 의 카메라 앱 꼴과 같게:
@@ -219,9 +220,9 @@ export function Segmented({ items, value, onChange }: { items: { value: string; 
       {items.map((it) => {
         const on = it.value === value;
         return (
-          <Pressable key={it.value} accessibilityRole="radio" accessibilityState={{ selected: on }} onPress={() => onChange(it.value)} style={[st.segItem, on && st.segOn]}>
+          <Press select selected={on} key={it.value} accessibilityRole="radio" accessibilityState={{ selected: on }} onPress={() => onChange(it.value)} style={[st.segItem, on && st.segOn]}>
             <Text style={[st.segText, on && { fontWeight: '700' }]}>{it.label}</Text>
-          </Pressable>
+          </Press>
         );
       })}
     </View>

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ABS_DISCLOSURE, AVERAGE_HEIGHT_CM, HEIGHT_MAX_CM, HEIGHT_MIN_CM, RULES, type RuleSetId } from '@/lib/abs/rules';
 import { Segmented } from '~/velocity/camera-ui';
 import type { AbsSession } from './use-abs';
+import { Press } from '~/shell/press';
 
 /**
  * ABS 설정 카드 안(앱) — 웹 components/abs/abs-setup-card.tsx 와 같은 내용: 타자 신장(평균 · 직접) · 규칙 · 홈플레이트 찾기 상태 + [다시 찾기][직접 맞추기].
@@ -98,9 +99,9 @@ export function AbsSetupBody({ abs, tiltKnown }: { abs: AbsSession; tiltKnown: b
 
 function Chip({ on, label, onPress }: { on: boolean; label: string; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="radio" accessibilityState={{ selected: on }} onPress={onPress} style={[st.chip, on && st.chipOn]}>
+    <Press select selected={on} accessibilityRole="radio" accessibilityState={{ selected: on }} onPress={onPress} style={[st.chip, on && st.chipOn]}>
       <Text style={[st.chipText, on && { color: '#fff' }]}>{label}</Text>
-    </Pressable>
+    </Press>
   );
 }
 

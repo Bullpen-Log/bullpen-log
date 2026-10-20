@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { AbsAnalysis, FitSnapshot } from '@/lib/abs/analysis';
 import { APP_UA, SITE_URL } from '~/lib/site';
 import { verdictText } from '@/lib/abs/judge';
 import { RULES } from '@/lib/abs/rules';
 import { zoneWorld } from '@/lib/abs/zone';
+import { Press } from '~/shell/press';
 
 const SKY = '#0a84d6';
 const WARN = '#f59e0b';
@@ -40,9 +41,9 @@ function Abs3dButton({ abs, fit }: { abs: AbsAnalysis; fit: FitSnapshot }) {
   };
   return (
     <>
-      <Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={st.open3d}>
+      <Press accessibilityRole="button" onPress={() => setOpen(true)} style={st.open3d}>
         <Text style={st.open3dText}>3D 로 둘러보기</Text>
-      </Pressable>
+      </Press>
       <Modal visible={open} animationType="fade" presentationStyle="fullScreen" onRequestClose={() => setOpen(false)}>
         <View style={{ flex: 1, backgroundColor: '#151722' }}>
           <WebView

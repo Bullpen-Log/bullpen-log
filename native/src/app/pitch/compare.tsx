@@ -10,6 +10,7 @@ import { dateKeyOf } from '~/pitch/api';
 import { useAllLogs } from '~/pitch/store';
 import { useVideoUri } from '~/pitch/video';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 2분할 비교(앱) — 웹 투구 탭의 '2분할 비교'와 같은 일: 영상 둘을 골라 나란히 튼다. 같이 재생 · 멈춤 · 처음으로 · 느리게(½ · ¼),
@@ -50,9 +51,9 @@ export default function PitchCompareScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: comparing ? '#000' : c.page }}>
       <View style={[styles.bar, { paddingTop: inset.top + 8 }]}>
-        <Pressable accessibilityRole="button" onPress={() => (comparing ? setComparing(false) : router.back())} hitSlop={10}>
+        <Press accessibilityRole="button" onPress={() => (comparing ? setComparing(false) : router.back())} hitSlop={10}>
           <Text style={[styles.barAction, { color: comparing ? '#fff' : c.sky }]}>{comparing ? '‹ 다시 고르기' : '‹ 투구 기록'}</Text>
-        </Pressable>
+        </Press>
         <Text style={[styles.barTitle, { color: comparing ? '#fff' : c.ink }]}>2분할 비교</Text>
         <View style={{ width: 80 }} />
       </View>
@@ -69,7 +70,7 @@ export default function PitchCompareScreen() {
             {videos.map((v) => {
               const n = picked.findIndex((x) => x.key === v.key);
               return (
-                <Pressable
+                <Press select selected={n >= 0}
                   key={v.key}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: n >= 0 }}
@@ -80,19 +81,19 @@ export default function PitchCompareScreen() {
                     {n >= 0 ? <Text style={styles.checkText}>{n + 1}</Text> : null}
                   </View>
                   <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '600' }}>{v.label}</Text>
-                </Pressable>
+                </Press>
               );
             })}
           </ScrollView>
           <View style={[styles.footer, { paddingBottom: inset.bottom + 12, backgroundColor: c.page }]}>
-            <Pressable
+            <Press
               accessibilityRole="button"
               disabled={picked.length < 2}
               onPress={() => setComparing(true)}
               style={[styles.primary, { backgroundColor: c.sky }, picked.length < 2 && { opacity: 0.4 }]}
             >
               <Text style={styles.primaryText}>{picked.length < 2 ? `${picked.length}/2 골랐어요` : '나란히 보기'}</Text>
-            </Pressable>
+            </Press>
           </View>
         </>
       )}
@@ -151,23 +152,23 @@ function Compare({ a, b, bottom }: { a: Pick; b: Pick; bottom: number }) {
       <View style={styles.sides}>
         {([pa, pb] as const).map((p, i) => (
           <View key={i} style={styles.sideCtl}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`${i ? 'B' : 'A'}면 한 프레임 뒤로`} onPress={() => nudge(p, -1)} style={styles.step}>
+            <Press accessibilityRole="button" accessibilityLabel={`${i ? 'B' : 'A'}면 한 프레임 뒤로`} onPress={() => nudge(p, -1)} style={styles.step}>
               <Icon name="chevron-left" size={16} color="#fff" />
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={`${i ? 'B' : 'A'}면 한 프레임 앞으로`} onPress={() => nudge(p, 1)} style={styles.step}>
+            </Press>
+            <Press accessibilityRole="button" accessibilityLabel={`${i ? 'B' : 'A'}면 한 프레임 앞으로`} onPress={() => nudge(p, 1)} style={styles.step}>
               <Icon name="chevron-right" size={16} color="#fff" />
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={`${i ? 'B' : 'A'}면 기준점 지정`} onPress={() => mark(i as 0 | 1)} style={[styles.step, { flex: 1, flexDirection: 'row', gap: 4 }]}>
+            </Press>
+            <Press accessibilityRole="button" accessibilityLabel={`${i ? 'B' : 'A'}면 기준점 지정`} onPress={() => mark(i as 0 | 1)} style={[styles.step, { flex: 1, flexDirection: 'row', gap: 4 }]}>
               <Icon name="flag" size={14} color="#fff" />
               <Text style={{ color: '#fff', fontSize: 12 }}>기준점</Text>
-            </Pressable>
+            </Press>
           </View>
         ))}
       </View>
       <View style={[styles.controls, { paddingBottom: bottom + 12 }]}>
         <View style={styles.rates}>
           {RATES.map((r) => (
-            <Pressable
+            <Press select selected={rate === r}
               key={r}
               accessibilityRole="radio"
               accessibilityState={{ selected: rate === r }}
@@ -175,20 +176,20 @@ function Compare({ a, b, bottom }: { a: Pick; b: Pick; bottom: number }) {
               style={[styles.rate, rate === r && styles.rateOn]}
             >
               <Text style={[styles.rateText, rate === r && { color: '#000' }]}>{r === 1 ? '1×' : r === 0.5 ? '½×' : '¼×'}</Text>
-            </Pressable>
+            </Press>
           ))}
         </View>
         <View style={styles.rates}>
-          <Pressable accessibilityRole="button" accessibilityLabel="두 영상을 각자의 기준점으로" onPress={toMarks} style={[styles.ctl, { flex: 1, flexDirection: 'row', gap: 6 }]}>
+          <Press accessibilityRole="button" accessibilityLabel="두 영상을 각자의 기준점으로" onPress={toMarks} style={[styles.ctl, { flex: 1, flexDirection: 'row', gap: 6 }]}>
             <Icon name="flag" size={16} color="#fff" />
             <Text style={styles.ctlText}>기준점</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={restart} style={[styles.ctl, { flex: 1 }]}>
+          </Press>
+          <Press accessibilityRole="button" onPress={restart} style={[styles.ctl, { flex: 1 }]}>
             <Text style={styles.ctlText}>처음으로</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={playAll} style={[styles.ctl, styles.ctlMain, { flex: 1.4 }]}>
+          </Press>
+          <Press accessibilityRole="button" onPress={playAll} style={[styles.ctl, styles.ctlMain, { flex: 1.4 }]}>
             <Text style={[styles.ctlText, { color: '#000' }]}>같이 재생 · 멈춤</Text>
-          </Pressable>
+          </Press>
         </View>
         <Text style={styles.hint}>각 화면의 ◀ ▶로 두 영상을 같은 동작(예: 앞발 착지)에 맞추고 ‘기준점’을 누르세요. 화면을 누르면 그쪽만 재생 · 멈춤.</Text>
       </View>

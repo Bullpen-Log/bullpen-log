@@ -35,6 +35,7 @@ import Animated from 'react-native-reanimated';
 import { fadeIn, Pulse } from '~/shell/motion';
 import { READABLE } from '~/lib/layout';
 import { DateNavButton } from '~/shell/mini-calendar';
+import { Press } from '~/shell/press';
 
 /**
  * 투구 분석 · 트레이닝 분석(앱 화면) — 웹 /coach?view=…&date=…(app/(app)/coach/page.tsx)를 옮겼다. 사이트의 분석 화면이 앱(BullpenNative/5 부터)이면
@@ -107,10 +108,10 @@ export default function AnalysisScreen() {
   const header = (
     <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: scrolled ? c.line : 'transparent' }]}>
       {/* 웹처럼 돌아갈 곳 이름(coach/page.tsx '‹ 투구 기록' · '‹ 트레이닝') */}
-      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={`뒤로 · ${BACK[view]}`} style={[s.iconBtn, s.backBtn]}>
+      <Press onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={`뒤로 · ${BACK[view]}`} style={[s.iconBtn, s.backBtn]}>
         <SymbolView name="chevron.left" size={20} weight="semibold" tintColor={c.sky} />
         <Text numberOfLines={1} style={[s.backText, { color: c.sky }]}>{BACK[view]}</Text>
-      </Pressable>
+      </Press>
       <Text numberOfLines={1} style={[s.headTitle, { color: c.ink, opacity: scrolled ? 1 : 0 }]}>
         {TITLE[view]}
       </Text>
@@ -144,9 +145,9 @@ export default function AnalysisScreen() {
           {failed ? (
             <>
               <Text style={[s.body, s.center, { color: c.ink }]}>{failed}</Text>
-              <Pressable onPress={retry} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
+              <Press onPress={retry} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
                 <Text style={[s.bodyBold, { color: '#fff' }]}>다시 불러오기</Text>
-              </Pressable>
+              </Press>
             </>
           ) : null}
         </View>
@@ -181,9 +182,9 @@ export default function AnalysisScreen() {
         {failed ? (
           <View style={[s.notice, { backgroundColor: c.danger + '14' }]}>
             <Text style={[s.small, { color: c.danger, flex: 1 }]}>{failed}</Text>
-            <Pressable onPress={retry} accessibilityRole="button" style={s.textBtn}>
+            <Press onPress={retry} accessibilityRole="button" style={s.textBtn}>
               <Text style={[s.smallBold, { color: c.sky }]}>다시 불러오기</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : null}
 
@@ -197,9 +198,9 @@ export default function AnalysisScreen() {
               </Animated.Text>
               <Text style={[s.body, { color: c.muted }]}> 기준</Text>
             </View>
-            <Pressable onPress={() => jump(data.today)} accessibilityRole="button" style={[s.chip, { backgroundColor: c.chip }]}>
+            <Press onPress={() => jump(data.today)} accessibilityRole="button" style={[s.chip, { backgroundColor: c.chip }]}>
               <Text style={[s.smallBold, { color: c.ink }]}>오늘로</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : null}
 
@@ -344,11 +345,11 @@ function LoadCard({ v, notices, c }: { v: LoadView; notices?: AnalysisOverview['
 
       {/* 기록이 빠진 날이 많으면 지수가 실제보다 낮게 나온다 — 낮은 숫자는 '더 던져도 된다'로 읽힌다 */}
       {notices?.missingDays != null ? (
-        <Pressable onPress={() => leave('/today')} accessibilityRole="link" style={[s.warnRow, { backgroundColor: c.warnBg, borderTopColor: c.warn + '40' }]}>
+        <Press onPress={() => leave('/today')} accessibilityRole="link" style={[s.warnRow, { backgroundColor: c.warnBg, borderTopColor: c.warn + '40' }]}>
           <Text style={[s.small, { color: c.warn }]}>
             기록 없는 날이 {notices.missingDays}일이라 지수가 낮게 나올 수 있어요. <Text style={[s.smallBold, { color: c.sky }]}>투구 일지</Text>에 남겨 주세요.
           </Text>
-        </Pressable>
+        </Press>
       ) : null}
       {notices?.throwStreak != null ? (
         <View style={[s.warnRow, { backgroundColor: c.warnBg, borderTopColor: c.warn + '40' }]}>
@@ -482,7 +483,7 @@ function GoodDays({ result, c }: { result: GoodDayResult; c: Palette }) {
 
       {/* 찾는 법 · 견줘 본 항목은 '자세히' 하나 안으로(웹과 같다) */}
       <View style={[s.divider, { borderTopColor: c.line }]}>
-        <Pressable
+        <Press
           onPress={() => {
             void Haptics.selectionAsync();
             setOpen((v) => !v);
@@ -493,7 +494,7 @@ function GoodDays({ result, c }: { result: GoodDayResult; c: Palette }) {
         >
           <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} weight="semibold" tintColor={c.muted} />
           <Text style={[s.small, { color: c.muted }]}>{all.length > 0 ? '자세히 · 견줘 본 항목' : '어떻게 찾나요'}</Text>
-        </Pressable>
+        </Press>
         {open ? (
           <View style={{ gap: 10 }}>
             <Text style={[s.tiny, { color: c.muted }]}>
@@ -666,11 +667,10 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
           {PERIODS.map((x) => {
             const on = x.value === period;
             return (
-              <Pressable
+              <Press select selected={on}
                 key={x.value}
                 onPress={() => {
                   if (on) return;
-                  void Haptics.selectionAsync();
                   setPeriodState(x.value);
                   void saveJson(RANGE_KEY, { period: x.value, ...custom });
                 }}
@@ -679,7 +679,7 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
                 style={[s.segItem, on && { backgroundColor: c.card }]}
               >
                 <Text style={[s.smallBold, { color: on ? c.ink : c.muted }]}>{x.label}</Text>
-              </Pressable>
+              </Press>
             );
           })}
         </View>

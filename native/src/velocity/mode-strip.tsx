@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { MODES, type CameraMode } from './mode';
 import { MODE_YELLOW } from './mode';
+import { Press } from '~/shell/press';
 
 /**
  * 모드 띠 — 셔터 위에 아이폰 카메라의 '동영상 · 슬로모션' 띠처럼. 고른 것이 가운데 · 노란 글, 옆으로 밀거나 눌러 바꾼다
@@ -73,7 +74,7 @@ export function ModeStrip({
           {items.map((m, i) => {
             const on = i === index;
             return (
-              <Pressable
+              <Press
                 key={m.key}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: on, disabled: locked }}
@@ -82,7 +83,7 @@ export function ModeStrip({
                 style={styles.item}
               >
                 <Text style={[styles.text, on && styles.textOn]}>{m.short}</Text>
-              </Pressable>
+              </Press>
             );
           })}
         </Animated.View>

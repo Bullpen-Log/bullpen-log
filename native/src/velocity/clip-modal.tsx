@@ -1,6 +1,7 @@
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Press } from '~/shell/press';
 
 /** 잰 공의 클립 다시 보기 — 앱 카메라가 tmp 에 둔 파일을 그대로(저장 전이라 서버엔 아직 없다). 소리 없음 · 되풀이 */
 export function ClipModal({ path, onClose }: { path: string | null; onClose: () => void }) {
@@ -21,7 +22,7 @@ function Clip({ uri, onClose }: { uri: string; onClose: () => void }) {
   return (
     <View style={styles.root}>
       <VideoView player={player} style={StyleSheet.absoluteFill} nativeControls contentFit="contain" />
-      <Pressable
+      <Press
         accessibilityRole="button"
         accessibilityLabel="닫기"
         onPress={onClose}
@@ -29,7 +30,7 @@ function Clip({ uri, onClose }: { uri: string; onClose: () => void }) {
         hitSlop={8}
       >
         <Text style={styles.closeText}>닫기</Text>
-      </Pressable>
+      </Press>
     </View>
   );
 }

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import Svg, { Circle, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { Icon } from '~/shell/icon';
 import { CardButton } from './camera-ui';
 import type { CameraMode } from './mode';
+import { Press } from '~/shell/press';
 
 /*
  * 주의사항 — 웹 components/velocity/tips-popup.tsx TipsCard 와 같은 꼴: 위 그림(옅은 하늘 판) · '주의사항 n/4' · 제목 · 짧은 글 · '자세히' 펼침 ·
@@ -184,7 +185,7 @@ export function TipsCard({
           </Text>
           <Text style={st.title}>{tip.title}</Text>
           <Text style={st.short}>{tip.short}</Text>
-          <Pressable
+          <Press
             accessibilityRole="button"
             accessibilityState={{ expanded: detail }}
             onPress={() => setDetailOf(detail ? null : tip.key)}
@@ -193,7 +194,7 @@ export function TipsCard({
             <Icon name="info" size={16} color={SKY} />
             <Text style={st.moreText}>자세히</Text>
             <Icon name={detail ? 'chevron-up' : 'chevron-down'} size={16} color={SKY} />
-          </Pressable>
+          </Press>
           {detail ? (
             <Animated.Text entering={FadeIn.duration(160)} style={st.long}>
               {tip.long}
@@ -204,14 +205,14 @@ export function TipsCard({
       <View style={st.foot}>
         <View style={st.dots} accessibilityLabel={`${at + 1} / ${tips.length}`}>
           {tips.map((t, k) => (
-            <Pressable key={t.key} accessibilityRole="button" accessibilityLabel={`${k + 1}번째 카드`} onPress={() => onIndex(k)} hitSlop={6} style={st.dotHit}>
+            <Press select selected={k === at} key={t.key} accessibilityRole="button" accessibilityLabel={`${k + 1}번째 카드`} onPress={() => onIndex(k)} hitSlop={6} style={st.dotHit}>
               <View style={[st.dot, k === at ? st.dotOn : null]} />
-            </Pressable>
+            </Press>
           ))}
         </View>
-        <Pressable accessibilityRole="button" onPress={onSkipToday} style={st.skip}>
+        <Press accessibilityRole="button" onPress={onSkipToday} style={st.skip}>
           <Text style={st.skipText}>오늘은 보지 않기</Text>
-        </Pressable>
+        </Press>
       </View>
       <View style={st.action}>
         <CardButton label={action.label} onPress={action.onPress} />
