@@ -39,6 +39,12 @@ export type DisplayTrack = {
   groundAt: (x: number, z: number) => number;
   /** 마운드 — 투수판 앞 모서리(축발 뒤 가장자리) · 높이 배율. 평지면 null */
   mound: { x0: number; z0: number; scale: number } | null;
+  /**
+   * 투수판 앞 모서리 — 마운드 · 평지 모두 같은 규칙(던지는 손 쪽 발 = 축발이 착지 전에 디딘 구간의 뒤 가장자리에서 발 너비 절반 뒤).
+   * 예전엔 평지만 무대(stage.ts flatSpot)가 '가장 먼저 닿은 발'로 정해, 두 발이 같은 장면에 닿기 시작하면 왼발(우투의 앞발)이 뽑혀
+   * 투수판이 축발 앞에 놓였다 — 인형이 투수판 뒤에서 던지기 시작했다(2026-10-20 사용자: 샘플 15).
+   */
+  rubber: { x0: number; z0: number } | null;
   contacts: V2Contact[];
 };
 
@@ -496,5 +502,11 @@ export function displayTrack(
       fr[F.to] = add(fr[F.to], up);
     }
   }
-  return { frames, refs, groundAt, mound, contacts };
+  /* 투수판 — 마운드는 그 자리 그대로, 평지도 같은 축발 자리로(위의 offset 은 높이만 바꿔 앞 · 옆 자리는 그대로다) */
+  const rubber: DisplayTrack['rubber'] = mound
+    ? { x0: mound.x0, z0: mound.z0 }
+    : P
+      ? { x0: P.back - FOOT_HALF_WIDTH_M / opts.heightM, z0: P.z }
+      : null;
+  return { frames, refs, groundAt, mound, rubber, contacts };
 }
