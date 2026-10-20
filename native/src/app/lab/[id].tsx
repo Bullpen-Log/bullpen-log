@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { ScrollLockScope } from '~/shell/scroll-lock';
 import { SymbolView } from 'expo-symbols';
-import { type Href, router, useLocalSearchParams } from 'expo-router';
+import { type Href, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -157,6 +157,8 @@ export default function LabScreen() {
   const boxW = two ? ((bodyW - 20) * 3) / 5 : bodyW;
   return (
     <View style={[s.fill, { backgroundColor: c.page }]}>
+      {/* 왼쪽 끝에서 3D 를 돌리면 아이폰 '뒤로 쓸기'가 먼저 잡아 화면이 넘어갔다(2026-10-21 김민) — 이 화면은 쓸어 닫기를 끈다(‹ 단추로 나감) */}
+      <Stack.Screen options={{ gestureEnabled: false }} />
       {header}
       <ScrollLockScope>
         {(scrollEnabled) => (
