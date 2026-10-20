@@ -11,7 +11,7 @@ import {
 import { Check, ChevronDown } from '@/components/icon';
 import { Button, Field, Input, Textarea } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
-import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
+import { ADMIN_MAX_VIDEO_MB, MAX_VIDEO_MB, VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { IntensityGuide } from '@/components/intensity-guide';
 import { EffortChips, focusEffortChips } from '@/components/effort-chips';
@@ -781,6 +781,7 @@ export function EntryForm({
                   onUploadingChange={setUploading}
                   compress
                   toPhone={!isAdmin}
+                  maxMb={isAdmin ? ADMIN_MAX_VIDEO_MB : MAX_VIDEO_MB}
                   /* 영상 캘린더의 썸네일 — 손에 든 파일에서 바로 뜬다(기다리지 않는다) */
                   onUploaded={(path, file) => {
                     freshRef.current.add(path);
@@ -902,6 +903,7 @@ export function EntryForm({
                   onUploadingChange={setUploading}
                   compress
                   toPhone={!isAdmin}
+                  maxMb={isAdmin ? ADMIN_MAX_VIDEO_MB : MAX_VIDEO_MB}
                   /* 영상 캘린더의 썸네일 — 손에 든 파일에서 바로 뜬다(기다리지 않는다) */
                   onUploaded={(path, file) => {
                     freshRef.current.add(path);

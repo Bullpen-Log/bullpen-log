@@ -14,7 +14,7 @@ import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { MusclePicker } from '@/components/muscle-picker';
 import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { kept, keptAll } from '@/lib/form-values';
-import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
+import { ADMIN_MAX_VIDEO_MB, VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import {
   AMOUNT_LIMITS,
   BODY_PARTS,
@@ -175,6 +175,7 @@ export function ExerciseForm({
         ) : (
           <div className="space-y-2">
             <VideoUpload
+              maxMb={ADMIN_MAX_VIDEO_MB}
               videos={videos}
               onChange={setVideos}
               max={1}

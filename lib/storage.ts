@@ -14,10 +14,16 @@ export const VIDEO_BUCKET = 'pitch-videos';
 export const LIBRARY_PREFIX = 'library';
 
 /**
- * 업로드 가능한 최대 용량 — 투구 기록 · 구속 측정 · 라이브러리. 버킷(pitch-videos) 한도는 2026-10-09 부터 150MB 라(투구 분석 슬로모션,
- * lib/pitch-lab-meta.ts LAB_MAX_VIDEO_BYTES) 이 50MB 는 서버가 서명 주소를 줄 때 막는 값이다.
+ * 회원이 올리는 영상 한도 — 투구 기록(웹). 버킷(pitch-videos) 한도는 2026-10-20 부터 500MB 라(관리자 · 투구 분석 슬로모션
+ * lib/pitch-lab-meta.ts LAB_MAX_VIDEO_BYTES 150MB) 이 50MB 는 서버가 서명 주소를 줄 때 막는 값이다.
  */
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
+/**
+ * 관리자가 올리는 영상 한도 — 버킷(pitch-videos) 한도를 2026-10-20 500MB 로 올렸다(김민: 관리자는 500MB).
+ * 투구 기록(관리자 자료는 늘 서버) · 구속 측정 클립 · 세션 녹화 조각 · 라이브러리. 회원은 그대로 MAX_VIDEO_BYTES.
+ */
+export const ADMIN_MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+export const videoLimitOf = (role: string | null | undefined) => (role === 'ADMIN' ? ADMIN_MAX_VIDEO_BYTES : MAX_VIDEO_BYTES);
 
 /**
  * 프로필 사진의 최대 용량.

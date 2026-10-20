@@ -8,7 +8,7 @@ import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { kept, keptAll } from '@/lib/form-values';
-import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
+import { ADMIN_MAX_VIDEO_MB, VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { MECHANICS_CATEGORY_NAMES } from '@/lib/categories';
 import {
   DRILL_EQUIPMENT,
@@ -160,6 +160,7 @@ export function GuideForm({
         ) : (
           <div className="space-y-2">
             <VideoUpload
+              maxMb={ADMIN_MAX_VIDEO_MB}
               videos={videos}
               onChange={setVideos}
               max={1}

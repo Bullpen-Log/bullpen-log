@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
 import {
   MAX_THUMB_BYTES,
-  MAX_VIDEO_BYTES,
+  ADMIN_MAX_VIDEO_BYTES,
   createLibraryUploadTarget,
   isStorageConfigured,
 } from '@/lib/storage';
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const limit = isThumb ? MAX_THUMB_BYTES : MAX_VIDEO_BYTES;
+    const limit = isThumb ? MAX_THUMB_BYTES : ADMIN_MAX_VIDEO_BYTES; // 라이브러리는 관리자만 올린다
     if (size > limit) {
       const mb = Math.round(limit / 1024 / 1024);
       return NextResponse.json(
