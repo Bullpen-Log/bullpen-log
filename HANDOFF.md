@@ -13,10 +13,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ## 금윤호에게 — 2026-10-20 밤 · 김민(Claude, 네이티브1) — 새 앱이 정식 '불펜로그'가 됐다 · main 에 올리면 저절로 TestFlight · 휴대폰 웹은 막음
 
-받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "불펜로그 베타 삭제하고 네이티브 앱으로 전환" · "웹은 PC · 맥에서만" · "모든 세션의 푸시가 네이티브 앱에 적용되게, 금윤호도".
+받은 뒤 할 일: **`cd native && npm ci`**(새 패키지 `expo-updates`), DB 그대로. 김민: "불펜로그 베타 삭제하고 네이티브 앱으로 전환" · "웹은 PC · 맥에서만" ·
+"모든 세션의 푸시가 네이티브 앱에, 웹앱처럼 바로 — 금윤호도".
 규칙은 `AGENTS.md` 7번에 적었다. 요점:
 - TestFlight '불펜로그'(com.bullpenlog.app)를 새 앱으로 올렸다(1.1.0 · 20261020.111737, 운동 영상 315개 앱 안). 옛 앱 굽기 `ios.yml` 은 손으로만(옛 앱이 새 앱을 덮지 않게).
-- **`ios-native.yml` 이 이제 main 푸시마다 돈다**(`native/` · `lib/` 바뀐 푸시, TestFlight 까지 저절로 — 네가 만든 '올리기 스위치'는 손으로 돌릴 때만 쓴다).
+- **`ios-native.yml` 이 이제 main 푸시마다 돈다**(`native/` · `lib/` 바뀐 푸시): 화면 코드만 바뀌면 굽지 않고 업데이트(expo-updates, 우리 서버 `/api/app-update` ·
+  파일은 Cloudflare R2)로 3~5분 뒤 나가고 사용자는 앱을 다시 켤 때 받는다. 바닥 코드(스위프트 · 네이티브 패키지 · app.json)가 바뀌면 저절로 굽고 TestFlight.
+  네가 만든 '올리기 스위치'는 손으로 돌릴 때만 쓴다. R2 열쇠(`R2_*`, `.env.example`)는 김민이 Cloudflare 에서 만들어 넣는 중.
 - 휴대폰 브라우저는 `proxy.ts` 가 `/phone`(앱으로 써 주세요)으로 돌린다. 개발 서버는 안 막는다. 앱 새 웹뷰는 `APP_UA` 를 꼭 단다.
 - 운동 영상은 `native/plugins/library-videos` 가 앱에 싣는다(굽기 전용 주소 `/api/library/bundle?kind=hevc`).
 

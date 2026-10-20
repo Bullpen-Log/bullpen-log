@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { prefsReady, usePrefs } from '~/lib/prefs';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { useTheme } from '~/lib/ui';
+import { useAppUpdateOnReturn } from '~/shell/app-update';
 
 /** 사이트 첫 화면이 그려질 때까지 시작 화면을 둔다(index.tsx 가 걷는다) — 흰 화면이 번쩍이지 않게 */
 SplashScreen.preventAutoHideAsync();
@@ -44,6 +45,7 @@ export default function RootLayout() {
   /* 딥링크로 앱 화면부터 열면 그 화면이 보이게 시작 화면을 걷는다 — 밑의 웹 껍데기는 가려져 있어 다 그려졌다는 알림이 오지 않았다 */
   const path = usePathname();
   const theme = useTheme();
+  useAppUpdateOnReturn(path === '/');
   useEffect(() => {
     if (path !== '/') {
       void SplashScreen.hideAsync();

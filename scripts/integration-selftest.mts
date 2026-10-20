@@ -217,10 +217,12 @@ console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한
     'app/api/sim-offset/route.ts',
     'app/api/library/bundle/route.ts',
     'app/api/rpc/[action]/route.ts',
+    /* 새 앱 화면 코드 업데이트 — 앱이 켜지며(로그인 전) 묻는다. 읽기만이고 주는 것은 모두에게 같은 앱 코드(lib/app-update.ts) */
+    'app/api/app-update/route.ts',
   ]);
   const unchecked = routes.filter((r) => !OPEN_ROUTES.has(r) && !AUTH.test(src(r)));
   check(
-    `API 경로도 로그인 확인(로그아웃 · 시험 시계 · 굽기 전용 열쇠 셋은 따로, 읽은 경로 ${routes.length}개)`,
+    `API 경로도 로그인 확인(로그아웃 · 시험 시계 · 굽기 전용 열쇠 · 앱 업데이트는 따로, 읽은 경로 ${routes.length}개)`,
     routes.length > 10 && unchecked.length === 0,
     unchecked.join(', ')
   );
