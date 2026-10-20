@@ -20,6 +20,7 @@ import {
   type LucideIcon,
   LifeBuoy,
   MessagesSquare,
+  Users,
 } from '@/components/icon';
 import type { NavIconName } from '@/lib/nav';
 
@@ -54,6 +55,7 @@ export const NAV_TINT: Record<NavIconName, [string, string]> = {
   settings: ['#6b7180', '#2c313b'],
   community: ['#c4a7ff', '#7c3aed'],
   support: ['#5fd3c8', '#0f8f86'],
+  users: ['#7fb3ff', '#2563eb'],
   menu: ['#6b7180', '#2c313b'],
 };
 
@@ -77,5 +79,6 @@ export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
   body: PersonStanding,
   community: MessagesSquare,
   support: LifeBuoy,
+  users: Users,
   menu: Menu,
 };

@@ -15,6 +15,32 @@ enum Role {
   MANAGER
 }
 
+/// 계정 종류(2026-10-20 팀 · 레슨장 마스터) — 가입할 때 정해진다. MASTER 는 선수 기능이 없고 /master 로만 간다(lib/dal.ts requireMaster).
+enum AccountType {
+  PLAYER
+  MASTER
+}
+
+/// 조직 종류 — 레슨장(회원 · 레슨)과 팀(선수단 · 훈련 일정). 화면의 말과 홈이 다르다.
+enum OrgKind {
+  LESSON
+  TEAM
+}
+
+/// 조직 안 역할 — 마스터(만든 사람) · 스태프(코치) · 선수(회원)
+enum OrgRole {
+  MASTER
+  STAFF
+  PLAYER
+}
+
+/// 구성원 상태 — 초대만 됨 · 활동 · 나감(기록은 선수 것이라 남고 조직 화면에서만 빠진다)
+enum OrgMemberStatus {
+  INVITED
+  ACTIVE
+  LEFT
+}
+
 /// 운동 영상의 출처. 직접 찍은 것과 참고용으로 걸어둔 것을 구분한다.
 enum ExerciseSource {
   /// 직접 촬영해 저장소에 올린 영상
@@ -32,6 +58,8 @@ model User {
   /// 투구 영상과 같은 비공개 저장소에 들어가고, 볼 때마다 서명된 임시 주소를 만든다.
   avatarPath          String?
   role                Role      @default(USER)
+  /// 선수 · 마스터(팀 · 레슨장 관리) — 마스터 계정은 (app) 틀이 /master 로 보낸다
+  accountType         AccountType @default(PLAYER)
   /// 생년월일. 나이에 따라 안전한 투구수 한도가 달라져 투구량 조언에 필요하다.
   birthDate           DateTime? @db.Date
   /// 성별 'M' | 'F'. 가입할 때 받고 내 정보에서 고친다. 영양 목표의 기초대사량 계산에 쓴다.
@@ -136,6 +164,8 @@ model User {
   trainingSetups    DailyTrainingSetup[]
   armcareRoutines   DailyArmcare[]
   myArmcareRoutines UserArmcareRoutine[]
+  orgMemberships    OrgMember[]
+  ownedOrgs         Org[]             @relation("OrgOwner")
   rehabPrograms     UserRehabProgram[]
   trainingPrograms  UserTrainingProgram[]
   trainingNotes     DailyTrainingNote[]
@@ -597,12 +627,16 @@ model PitchLog {
   cuesGood     String[] @default([])
   cuesBad      String[] @default([])
   createdAt   DateTime @default(now())
+  /// 코치가 대신 적은 기록(2026-10-20 팀 · 레슨장) — 적은 사람(User.id)과 그 조직. 선수가 적은 것은 둘 다 null
+  enteredById String?
+  orgId       String?
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   velocitySessions VelocitySession[]
 
   // 2026-10-16 통합 검토 — 홈 · 투구 · 트레이닝이 화면마다 [userId, date] 로 십여 번 읽는데 색인이 하나도 없어 표 전체를 훑었다
   @@index([userId, date])
+  @@index([orgId])
 }
 
 /**
@@ -685,6 +719,9 @@ model VelocitySession {
   sessionType    String?
   effortPct      Int?
   createdAt  DateTime @default(now())
+  /// 코치가 대신 잰 세션(2026-10-20 팀 · 레슨장) — 잰 사람(User.id)과 그 조직. 선수가 잰 것은 둘 다 null
+  enteredById String?
+  orgId       String?
 
   user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   pitchLog PitchLog?      @relation(fields: [pitchLogId], references: [id], onDelete: SetNull)
@@ -694,6 +731,7 @@ model VelocitySession {
   @@index([userId, date])
   // 2026-10-16 통합 검토 — 투구 기록을 지울 때 이어진 세션의 pitchLogId 를 비우는(SetNull) 찾기 · 측정 → 기록 잇기
   @@index([pitchLogId])
+  @@index([orgId])
 }
 
 /**
@@ -1756,4 +1794,186 @@ model CalendarEvent {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
+}
+
+/*
+ * ─────────────────────────── 팀 · 레슨장 마스터(2026-10-20, docs/designs/team-lesson-build-prompt.md) ───────────────────────────
+ *
+ * 조직(Org)은 마스터 계정이 가입하면서 하나 만든다. 선수는 초대 코드(OrgInvite)로 들어와 구성원(OrgMember)이 되고, 무엇을 보여 줄지
+ * (ShareConsent)를 스스로 정한다. 코치가 아직 가입 안 한 회원을 대신 적어 두는 자리는 userId 가 null 인 구성원이다 — 나중에 그 사람이
+ * 초대 코드로 가입하면 그 줄을 이어받는다. 관계는 relationMode = "prisma" 라 DB 외래키가 없다 — 찾는 칸마다 색인을 둔다.
+ */
+
+/// 레슨장 · 팀 하나
+model Org {
+  id        String   @id @default(uuid())
+  kind      OrgKind
+  name      String
+  /// 지역 — 자유 글(예: 서울 강남)
+  region    String?
+  /// 짧은 메모 — 레슨장은 코치 수, 팀은 연령대 · 리그
+  note      String?
+  /// 만든 마스터 계정
+  ownerId   String
+  /// 요금제 · 자리 수 · 메모 — 결제 연동 전(결정 8 · 9: 나중에)이라 관리자가 손으로 적는다. plan 은 'free' · 'studio' · 'team' 같은 자유 글
+  plan      String?
+  seats     Int?
+  planNote  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner   User        @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members OrgMember[]
+  invites OrgInvite[]
+  events  OrgEvent[]
+  notices OrgNotice[]
+
+  @@index([ownerId])
+}
+
+/// 조직의 구성원 — 마스터 · 스태프 · 선수(회원). userId 가 null 이면 코치가 대신 만든 자리(아직 가입 안 함)
+model OrgMember {
+  id       String          @id @default(uuid())
+  orgId    String
+  userId   String?
+  role     OrgRole
+  status   OrgMemberStatus @default(ACTIVE)
+  /// 조직 안에서 부르는 이름 — 들어올 때 User.nickname 을 베끼고 스태프가 고칠 수 있다
+  nickname String
+  /// 포지션 · 학년 · 묶음 — 자유 글
+  tags     String[]        @default([])
+  memo     String?         @db.Text
+  joinedAt DateTime        @default(now())
+  leftAt   DateTime?
+
+  org     Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user    User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  consent ShareConsent?
+  notes   LessonNote[]
+  passes  LessonPass[]
+  reports GuardianReport[]
+
+  @@unique([orgId, userId])
+  @@index([orgId, status])
+  @@index([userId])
+}
+
+/// 초대 코드 — 여섯 글자(0 · O · 1 · I 없음, lib/org/rules.ts). 선수 코드는 기한까지 여럿이 쓰고, 스태프 코드는 한 번
+model OrgInvite {
+  id        String    @id @default(uuid())
+  orgId     String
+  code      String    @unique
+  role      OrgRole   @default(PLAYER)
+  /// 코치가 대신 만든 자리(OrgMember.id)를 그 사람이 이어받게 하는 초대
+  memberId  String?
+  expiresAt DateTime
+  usedById  String?
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+/// 선수가 조직에 보여 주는 범위 — 구성원마다 하나. 줄이 없으면(코치가 대신 만든 자리) 모두 보인다(lib/org/access.ts memberScope)
+model ShareConsent {
+  memberId  String   @id
+  pitch     Boolean  @default(true)
+  training  Boolean  @default(true)
+  checkin   Boolean  @default(true)
+  video     Boolean  @default(true)
+  nutrition Boolean  @default(false)
+  weight    Boolean  @default(false)
+  /// 마지막으로 바꾼 사람(User.id)
+  byUserId  String
+  updatedAt DateTime @updatedAt
+
+  member OrgMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+/// 조직 일정(팀 달력 · 레슨 시간표) — 선수 개인의 CalendarEvent 와 다른 표(결정 7, 2026-10-20)
+model OrgEvent {
+  id          String   @id @default(uuid())
+  orgId       String
+  date        DateTime @db.Date
+  /// 'HH:MM' — 비우면 하루 종일
+  time        String?
+  /// 'training' 훈련 · 'game' 경기 · 'rest' 휴식 · 'lesson' 레슨 · 'other'
+  kind        String
+  title       String
+  memo        String?  @db.Text
+  /// 레슨 시간표 — 어느 회원의 레슨인가(OrgMember.id). 팀 일정은 비어 있다
+  memberId    String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, date])
+  @@index([memberId])
+}
+
+/// 조직 공지 — 앱 전체 공지(SupportNotice)와 다른 표(결정 6, 2026-10-20)
+model OrgNotice {
+  id        String   @id @default(uuid())
+  orgId     String
+  title     String
+  body      String   @db.Text
+  pinned    Boolean  @default(false)
+  authorId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, pinned, createdAt])
+}
+
+/// 레슨 노트(4단계) — 표는 1단계에 함께 만들어 마이그레이션을 한 번으로
+model LessonNote {
+  id        String   @id @default(uuid())
+  memberId  String
+  date      DateTime @db.Date
+  body      String   @db.Text
+  homework  String?  @db.Text
+  authorId  String
+  createdAt DateTime @default(now())
+
+  member OrgMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, date])
+}
+
+/// 수강권(4단계) — 회원마다 '총 N회 · 쓴 M회 · 기한'. 레슨 노트를 레슨 날에 쓰면 한 회 줄고, 3회 남으면 홈이 알린다(lib/org/rules.ts passLeft)
+model LessonPass {
+  id        String    @id @default(uuid())
+  memberId  String
+  total     Int
+  used      Int       @default(0)
+  expiresAt DateTime? @db.Date
+  memo      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  member OrgMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+}
+
+/// 보호자 리포트 링크(4단계) — 토큰 주소 + 네 자리 코드(bcrypt 해시), 30일. 주소에 사람 정보는 없다(app/(report)/report/[token])
+model GuardianReport {
+  id           String    @id @default(uuid())
+  token        String    @unique
+  memberId     String
+  codeHash     String
+  expiresAt    DateTime
+  createdById  String
+  lastOpenedAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  member OrgMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
 }

@@ -157,9 +157,16 @@ console.log('\n[6] 기능 잠금 ↔ 메뉴 — 잠금 표 하나를 메뉴 · �
 /* ─────────────────────── 7. 서버 동작 — 주인 확인 ─────────────────────── */
 console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한 사람을 확인하는가');
 {
-  const AUTH = /\b(getCurrentUser|requireUser|requireAdmin|assertAdmin|requireAdminUser)\(/;
+  const AUTH = /\b(getCurrentUser|requireUser|requireAdmin|assertAdmin|requireAdminUser|requireMaster)\(/;
   /* 로그인 전에 부르는 것 — 가입 · 로그인 · 로그아웃 */
-  const PUBLIC = new Set(['auth.ts:checkSignupEmail', 'auth.ts:signup', 'auth.ts:login', 'auth.ts:logout']);
+  const PUBLIC = new Set([
+    'auth.ts:checkSignupEmail',
+    'auth.ts:signup',
+    'auth.ts:login',
+    'auth.ts:logout',
+    /* 보호자 리포트 — 로그인 없이 토큰 + 네 자리 코드로 연다(app/(report)) */
+    'org-report.ts:verifyGuardianCode',
+  ]);
   const open: string[] = [];
   let seen = 0;
   /* 함수 몸통 = 다음 최상위 function 앞까지 — export 든 아니든(파일 안 도우미 admin() · writeNotice 꼴도) */
@@ -231,6 +238,7 @@ console.log('\n[8] 쓰기 뒤 다시 그리기 — 기록을 바꾸는 입구가
   const NO_REFRESH: Record<string, string> = {
     'app/actions/auth.ts': '가입 · 로그인 · 로그아웃 · 탈퇴는 redirect 로 새 화면을 연다, 비밀번호는 화면에 안 보인다',
     'app/actions/exercise-note.ts': '운동 중 화면이 받은 메모로 바로 고친다(onSaved) — 다시 그리면 진행 중인 판이 흔들린다',
+    'app/actions/org-report.ts': '보호자 코드 확인은 redirect 로 같은 주소를 다시 연다 — 쿠키가 바뀌어 새로 그려진다',
   };
   const files = readdirSync(new URL('../app/actions/', import.meta.url))
     .map((f) => `app/actions/${f}`)

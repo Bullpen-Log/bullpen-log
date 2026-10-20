@@ -1,5 +1,6 @@
 import { appNow, appNowMs } from '@/lib/clock';
 import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
 import { isSex, toDateInputValue } from '@/lib/profile';
@@ -69,6 +70,8 @@ export default async function AppLayout({
 }) {
   // 이 레이아웃 아래의 모든 페이지는 로그인이 필요하다.
   const user = await requireUser();
+  /* 마스터 계정(팀 · 레슨장)은 선수 기능이 없다 — 선수 화면 전체가 /master 로 간다(2026-10-20 결정 2). 관리자는 둘 다 본다 */
+  if (user.accountType === 'MASTER' && user.role !== 'ADMIN') redirect('/master');
   const isAdmin = user.role === 'ADMIN';
   /* 앱(스마트폰 껍데기) 안인가 — 구속 측정 메뉴는 앱이면 누구나, 웹이면 관리자만(lib/nav.ts) */
   const isNative = isNativeUserAgent((await headers()).get('user-agent'));

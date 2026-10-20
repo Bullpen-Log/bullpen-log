@@ -35,6 +35,13 @@ import * as featuredVideo from '@/app/actions/featured-video';
 import * as mechanics from '@/app/actions/mechanics';
 import * as nutrition from '@/app/actions/nutrition';
 import * as onboardingState from '@/app/actions/onboarding-state';
+import * as org from '@/app/actions/org';
+import * as orgCalendar from '@/app/actions/org-calendar';
+import * as orgJoin from '@/app/actions/org-join';
+import * as orgNotes from '@/app/actions/org-notes';
+import * as orgNotices from '@/app/actions/org-notices';
+import * as orgRecord from '@/app/actions/org-record';
+import * as orgReport from '@/app/actions/org-report';
 import * as patchNote from '@/app/actions/patch-note';
 import * as pitchLab from '@/app/actions/pitch-lab';
 import * as pitchSetup from '@/app/actions/pitch-setup';
@@ -83,6 +90,13 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   mechanics: mechanics,
   nutrition: nutrition,
   'onboarding-state': onboardingState,
+  org: org,
+  'org-calendar': orgCalendar,
+  'org-join': orgJoin,
+  'org-notes': orgNotes,
+  'org-notices': orgNotices,
+  'org-record': orgRecord,
+  'org-report': orgReport,
   'patch-note': patchNote,
   'pitch-lab': pitchLab,
   'pitch-setup': pitchSetup,

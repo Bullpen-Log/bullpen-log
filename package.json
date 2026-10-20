@@ -35,6 +35,7 @@
     "pitch-import:test": "node --import ./scripts/alias-register.mjs scripts/pitch-import-selftest.mts",
     "arm-status:test": "node --import ./scripts/alias-register.mjs scripts/arm-status-selftest.mts",
     "calendar:test": "node --import ./scripts/alias-register.mjs scripts/calendar-event-selftest.mts",
+    "org:test": "node --import ./scripts/alias-register.mjs scripts/org-selftest.mts",
     "good-days:test": "node --import ./scripts/alias-register.mjs scripts/good-days-selftest.mts",
     "mechanics:test": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/mechanics-selftest.mts",
     "armcare-map:test": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/armcare-map-selftest.mts",

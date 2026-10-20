@@ -9,6 +9,7 @@ import { can, isOwner, parseRole } from '@/lib/permissions';
 import { Badge, Card, PageHeading } from '@/components/ui';
 import { ageFromBirthDate } from '@/lib/profile';
 import { DeleteUser, RolePicker } from './user-row-actions';
+import { AdminOrgSwitch } from '@/components/master/admin-org-switch';
 
 function formatDate(date: Date) {
   /* 서버(Vercel)는 UTC 로 돈다 — 시간대를 안 주면 한국 0~9시에 쓴 글이 전날로, 시각은 9시간 이르게 찍혔다 */
@@ -74,6 +75,9 @@ export default async function AdminPage() {
   return (
     <div className="stack-page">
       <PageHeading eyebrow="Admin" title="관리자" />
+
+      {/* 팀 · 레슨장 화면으로 전환 — 대표관리자만(2026-10-20) */}
+      {owner && <AdminOrgSwitch />}
 
       {!owner && (
         <p className="rounded-xl border border-line bg-surface px-5 py-4 text-xs leading-relaxed text-muted">

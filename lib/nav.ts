@@ -46,6 +46,8 @@ export type NavIconName =
   /* 커뮤니티 — 말풍선 둘 · 고객센터 — 구명 튜브(2026-10-17) */
   | 'community'
   | 'support'
+  /* 팀 · 레슨장 관리(마스터 화면) — 사람 둘 */
+  | 'users'
   | 'menu';
 
 export type NavItem = {
@@ -287,6 +289,14 @@ export const NAV_GROUPS: NavGroup[] = [
         href: '/admin/support',
         label: '소통 관리',
         icon: 'support',
+        tone: 'armcare',
+        adminOnly: true,
+      },
+      /* 팀 · 레슨장 마스터 화면으로 전환(2026-10-20) — 관리자만. 마스터 계정은 이 메뉴 자체를 못 본다((app) 틀이 /master 로 보낸다) */
+      {
+        href: '/master',
+        label: '팀 · 레슨장 관리',
+        icon: 'users',
         tone: 'armcare',
         adminOnly: true,
       },
