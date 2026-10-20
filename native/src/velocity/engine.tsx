@@ -66,7 +66,7 @@ export type EngineHandle = {
   locate(clip: Clip, opts: LocateOpts): Promise<{ found: ThrowLocation | null } & EngineTiming>;
   /** 계산기가 아직 붙든 일이 있나 — 앱이 시한에 포기한 일도 끝(답 · 건너뜀)이 올 때까지 센다. 훑기는 이때 쉰다 */
   busy(): boolean;
-  /** 공(재기)이 왔다 — 아직 시작 안 한 훑기는 줄에서 뺀다(공이 훑기 뒤에서 기다리지 않게) */
+  /** 공(재기)이 왔다 — 훑기는 줄에서 빼고, 돌고 있으면 끊는다(공이 훑기 뒤에서 기다리지 않게) */
   yieldToMeasure(): void;
 };
 
@@ -238,6 +238,8 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       const r0 = Date.now();
       try {
         for (let part = 0; part < parts; part++) {
+          /* 그사이 포기한 일(시한 · 공이 와서 훑기를 비킴 · 웹뷰를 다시 띄움) — 남은 조각은 안 보낸다(계산기도 버린다) */
+          if (!waiters.current.has(id)) break;
           const { data } = await DualCamera.read({ path: clip.path, offset: part * CHUNK, length: CHUNK });
           post({ t: 'clip', id, part, parts, data });
         }
@@ -270,7 +272,8 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
     },
     busy: () => inEngine.current.size > 0,
     yieldToMeasure() {
-      for (const w of [...waiters.current.values()]) if (w.kind === 'locate' && !w.started) w.expire();
+      /* 돌고 있는 훑기도 — expire 가 abort 를 보내고 계산기가 끊는다(2.7.3, 모델 · 거친 훑기 둘 다). 예전엔 시작 안 한 것만 빼 공이 돌던 훑기 뒤에서 3~15초 기다렸다 */
+      for (const w of [...waiters.current.values()]) if (w.kind === 'locate') w.expire();
     },
   }));
 
@@ -284,6 +287,12 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       /* 화면에 안 보이게 — 다만 0 크기 · 완전 투명이면 WebKit 이 일을 늦출 수 있어 1pt · 거의 투명으로 둔다 */
       style={styles.hidden}
       pointerEvents="none"
+      /*
+       * 디코더(WebCodecs)를 못 열면 엔진은 <video> 되감기 길로 간다 — 이 둘이 없으면 RN 웹뷰가 화면 안 재생을 막아 첫 장면이 안 오고, 30초를
+       * 기다리다 재기 시한(30초)에 걸렸다(2026-10-20 검토)
+       */
+      allowsInlineMediaPlayback
+      mediaPlaybackRequiresUserAction={false}
       onError={() => {
         /* 사이트에 못 닿음 — 기다리던 공은 실패로, 쉬었다가 다시 불러온다(예전엔 쉼 없이 다시 불러와 신호 없는 곳에서 끝없이 돌았다) */
         const wait = RELOAD_BACKOFF_MS[Math.min(loadFails.current, RELOAD_BACKOFF_MS.length - 1)];

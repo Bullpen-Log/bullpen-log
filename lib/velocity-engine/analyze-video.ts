@@ -295,6 +295,11 @@ export async function locateThrow(options: {
   detector?: 'auto' | 'net' | 'coarse';
   /** 모델 입력 세 장면 사이 간격(초) — 영상 fps 를 알면 1/fps. 기본 1/60 */
   frameGapSec?: number;
+  /**
+   * 끊기 — 앱 계산기(app/velocity-engine/engine-client.tsx)는 하나뿐이라, 돌던 훑기를 못 끊으면 그사이 던진 공이 3~15초 기다렸다(2026-10-20 검토).
+   * 끊으면 null(못 찾음과 같다). 값 계산은 그대로다.
+   */
+  signal?: AbortSignal;
 }): Promise<ThrowLocation | null> {
   const dec = await openDecoder(options.file).catch(() => null);
   if (!dec) return null;
@@ -307,7 +312,8 @@ export async function locateThrow(options: {
     if (detector !== 'coarse') {
       const net = await loadBallNet();
       if (net) {
-        const r = await locateByNet(dec, net, duration, options.frameGapSec ?? NET_FRAME_GAP_SEC);
+        const r = await locateByNet(dec, net, duration, options.frameGapSec ?? NET_FRAME_GAP_SEC, options.signal);
+        if (options.signal?.aborted) return null;
         return { ...r, duration, via: 'net', ms: now() - t0 };
       }
       if (detector === 'net') return null;
@@ -316,14 +322,16 @@ export async function locateThrow(options: {
       ? options.focalPerLongSide * Math.max(sourceW, sourceH)
       : focalPxFromFov(Math.max(sourceW, sourceH), options.fovDeg ?? DEFAULT_FOV_DEG);
     const timing = { findMs: 0, seeks: 0, seekWaitMs: 0, drawMs: 0 };
+    if (options.signal?.aborted) return null;
     const plan = await planFromCoarse(
-      { width: sourceW, height: sourceH, draws: (seeks, w, h) => dec.coarse(seeks, w, h) },
+      { width: sourceW, height: sourceH, draws: (seeks, w, h) => untilAborted(dec.coarse(seeks, w, h), options.signal) },
       duration,
       null,
       approach,
       focalLong / sourceW,
       timing
     );
+    if (options.signal?.aborted) return null;
     return plan.ball
       ? { ballT: plan.ball.t, accepted: plan.ball.accepted, peak: plan.peak, duration, via: 'coarse', ms: now() - t0 }
       : { ballT: NaN, accepted: false, peak: plan.peak, duration, via: 'coarse', ms: now() - t0 };
@@ -336,11 +344,20 @@ export async function locateThrow(options: {
  * 학습 모델로 날아간 공 찾기 — NET_STEP_SEC(0.2초)마다 연속 세 장면을 디코더에서 긴 변 736 밝기로 꺼내(칸 평균) 모델에 넣고, 장면마다 가장 센
  * 봉우리를 모아 findThrowRun 으로 '이어 날아간' 묶음을 찾는다. 6초 조각이면 표본 30 · 장면 90 — 데스크톱 크롬 2~3초(거친 훑기와 비슷).
  */
+/** 끊기면(signal) 장면 받기를 멈춘다 — 거친 훑기도 돌던 중에 끊기게(2.7.3) */
+async function* untilAborted<T>(frames: AsyncGenerator<T>, signal?: AbortSignal): AsyncGenerator<T> {
+  for await (const f of frames) {
+    if (signal?.aborted) return;
+    yield f;
+  }
+}
+
 async function locateByNet(
   dec: { width: number; height: number; coarse(seeks: number[], w: number, h: number): AsyncGenerator<Float32Array | null> },
   net: BallNet,
   duration: number,
-  gap: number
+  gap: number,
+  signal?: AbortSignal
 ): Promise<{ ballT: number; accepted: boolean; peak: number | null; hits: number; strong: number }> {
   const { w, h } = netInputSize(dec.width, dec.height);
   const hits: NetHit[] = [];
@@ -350,7 +367,7 @@ async function locateByNet(
     let tri: Float32Array[] = [];
     let k = 0;
     for await (const luma of dec.coarse(seeks, w, h)) {
-      if (!luma) break;
+      if (!luma || signal?.aborted) break;
       tri.push(luma);
       if (tri.length === 3) {
         const c = centers[k++];
@@ -364,7 +381,7 @@ async function locateByNet(
   for (let t = 0.02; t + 2 * gap < duration; t += NET_STEP_SEC) coarseCenters.push(t);
   await pass(coarseCenters);
   let run = findThrowRun(hits);
-  if (!run) {
+  if (!run && !signal?.aborted) {
     /* 센 표본은 있는데 묶음이 안 됨 — 가장 센 몇 개 둘레를 촘촘히(짧은 조각 · 빠른 공은 0.2초 표본이 비행 중 2~3개뿐) */
     const seeds = hits
       .filter((x) => x.score >= BALL_NET_THRESHOLD)

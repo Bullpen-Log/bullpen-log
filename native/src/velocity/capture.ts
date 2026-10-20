@@ -35,10 +35,12 @@ const SWEEP_SLOW_MS = 2500;
  */
 const SWEEP_AFTER_THROW_MS = 4000;
 /**
- * 훑기가 찾은 공은 그 훑기 클립에서 바로 잰다 — 공 시각 앞 0.9 · 뒤 1.9초(훑기 공 시각은 0.4~0.9초 어긋날 수 있어 넉넉히).
+ * 훑기가 찾은 공은 그 훑기 클립에서 바로 잰다 — 공 시각 앞 0.7 · 뒤 1.3초.
  * 예전엔 훑기 클립을 지우고 새로 잘라, 훑기가 오래 걸리면 앞 장면(릴리스)이 카메라가 쥔 8초 밖으로 밀려났다(2026-10-20 검토).
+ * 합쳐 2초 안이어야 한다 — 엔진은 한 번에 120장(analyze-video.ts MAX_FRAMES)까지만 보고 넘치면 한 장씩 건너뛰어, 예전 2.8초(0.9 · 1.9)는
+ * 60fps 영상을 30fps 로 쟀다(믿음이 낮게 나와 버려지기 쉬움, 2026-10-20 검토).
  */
-const SWEEP_RANGE: [number, number] = [0.9, 1.9];
+const SWEEP_RANGE: [number, number] = [0.7, 1.3];
 export const LOST_BALL_NOTE = '공을 끝까지 찾지 못해 이번 공은 재지 못했어요. 다시 던져 주세요.';
 
 type ThrowKind = 'ball' | 'seed' | 'motion' | 'sweep';
@@ -102,10 +104,17 @@ type Job = {
   ball: boolean;
   /** 시도 기록을 이미 남겼나 — 실패 길에서 두 번 적지 않게 */
   recorded?: boolean;
-  /** 차례가 와 자르기를 시작했나 — 시작 전인 안 보이는 작업만 공에게 자리를 내준다 */
+  /** 차례가 와 재기를 시작했나 — 시작 전인 안 보이는 작업만 공에게 자리를 내준다 */
   started?: boolean;
-  /** 공에게 자리를 내주고 빠졌다 — 차례가 와도 안 잰다 */
+  /** 공에게 자리를 내주고 빠졌다 — 재지 않는다 */
   dropped?: boolean;
+  /** 같은 공을 따로 세운 공 작업이 맡았다 — 이미 돌고 있으면 끝까지 가되 결과는 버린다 */
+  superseded?: boolean;
+  /**
+   * 알림을 받자마자 자른 클립(pre 가 없을 때). 예전엔 차례가 와서야 잘라, 앞 작업의 계산(3~10초)이 길면 공 영상이 카메라가 쥔 8초 밖으로
+   * 밀려 '그 순간의 영상이 없어요'가 됐다(2026-10-20 검토). 카메라 모듈은 자르기를 차례로 하니 여기서 바로 청해도 된다.
+   */
+  clip?: Promise<{ main: Clip; wide: Clip | null }>;
   seed?: boolean;
   /** 조용할 때 훑기가 찾은 공 — 결과에 late 표시 */
   sweep?: boolean;
@@ -161,7 +170,8 @@ export type CaptureHandlers = {
 export class AppCapture {
   private jobs: Job[] = [];
   private recent: { start: number; end: number; until: number }[] = [];
-  private queue: Promise<void> = Promise.resolve();
+  /** 계산기로 넘기는 작업이 돌고 있나 — 한 번에 하나(계산기도 하나다). 다음 차례는 보이는 작업(공)부터(pump) */
+  private running = false;
   /*
    * 작업 번호는 화면을 열 때마다 1부터가 아니라 지금 시각부터 — 이어서 잰 세션은 맡겨 둔 공이 옛 번호(1, 2, …)를 갖고 있어, 새 작업의 시도
    * 기록이 옛 공에 붙었다(2026-10-20 검토). ms 시각이라 실행마다 겹치지 않는다.
@@ -199,8 +209,24 @@ export class AppCapture {
 
   stop() {
     this.gen++;
+    /* 아직 안 잰 작업의 클립은 이미 잘라 두었다 — 지운다(돌고 있는 작업은 gen 이 바뀌어 스스로 지운다) */
+    for (const j of this.jobs) if (!j.started) this.discardJob(j);
     this.jobs = [];
     this.stopSweep();
+  }
+
+  /** 안 잴 작업의 클립을 지운다 — 미리 자른 클립 · 훑기 클립 */
+  private discardJob(job: Job) {
+    const paths = (c: { main: Clip; wide: Clip | null }) => [c.main.path, ...(c.wide ? [c.wide.path] : [])];
+    if (job.pre) void DualCamera.discard({ paths: [job.pre.clip.path] }).catch(() => undefined);
+    void job.clip?.then((c) => DualCamera.discard({ paths: paths(c) })).catch(() => undefined);
+  }
+
+  /** 작업을 줄에서 뺀다(재지 않음) */
+  private dropJob(job: Job) {
+    job.dropped = true;
+    this.jobs = this.jobs.filter((j) => j !== job);
+    this.discardJob(job);
   }
 
   onThrow(e: ThrowEvent) {
@@ -222,34 +248,52 @@ export class AppCapture {
     const seed = kind === 'seed';
     const sweep = kind === 'sweep';
     const covering = this.jobs.find((j) => atSec >= j.start && atSec <= j.end);
+    let displace: Job | undefined;
     if (covering) {
-      /* 재고 있는 움직임 클립 안에 공 알림이 왔다 — 그 공 시각으로 잰다 */
-      if ((ball || seed) && !covering.ball && covering.ballAt == null) covering.ballAt = atSec;
-      if (ball && !covering.visible) {
-        covering.visible = true;
-        this.sync();
+      /*
+       * 재고 있는 움직임 클립 안에 공 알림이 왔다 — 그 클립에 공 구간(BALL_RANGE)이 다 들고 아직 안 쟀으면 그 공 시각으로 잰다. 아니면(이미 재는 중 ·
+       * 클립이 그물 전에 끝남) 공 작업을 따로 세우고 그 작업은 비킨다 — 예전엔 붙기만 해 공이 클립에 다 안 들거나 ballAt 이 무시됐다(2026-10-20 검토)
+       */
+      const fits = !covering.started && !covering.pre && atSec - BALL_RANGE[0] >= covering.start && atSec + BALL_RANGE[1] <= covering.end;
+      /* 이미 재면서 공 길을 찾은 작업(보이게 됨)이면 그 공이다 — 새로 세우지 않는다 */
+      const found = covering.started && covering.visible;
+      if (!ball || covering.ball || fits || found) {
+        /* 진짜 공 알림이 후보 클립 안에 들었다 — 후보 시각보다 공 시각이 맞다 */
+        if (ball && covering.seed && fits) covering.ballAt = atSec;
+        else if ((ball || seed) && !covering.ball && covering.ballAt == null) covering.ballAt = atSec;
+        if (ball && !covering.visible) {
+          covering.visible = true;
+          this.sync();
+        }
+        return false;
       }
-      return false;
+      /* 공이 그 클립에 다 안 든다 — 아래 거절 검사를 다 넘으면 그 작업을 비킨다(먼저 비키면 공이 거절될 때 둘 다 잃었다) */
+      displace = covering;
     }
     const now = Date.now();
     this.recent = this.recent.filter((r) => r.until > now);
     if (this.recent.some((r) => atSec >= r.start && atSec <= r.end)) return false;
-    if (this.jobs.length >= MAX_PENDING) {
+    /* 비킬 작업이 아직 안 시작했으면 자리를 셀 때 빼 둔다(그 자리에 선다) */
+    const others = displace && !displace.started ? this.jobs.filter((j) => j !== displace) : this.jobs;
+    if (others.length >= MAX_PENDING) {
       /*
        * 확실한 공이면 아직 시작 안 한 안 보이는 작업(움직임 · 훑기)을 빼고 그 자리에 선다. 10-20 금윤호 실내 화면 녹화: 사람이 화면 앞을
        * 오가며 낸 움직임 작업이 줄을 채워, 첫 투구부터 진짜 공이 '계산이 밀려 건너뛰었어요'로 버려졌다.
        */
-      const victim = ball ? [...this.jobs].reverse().find((j) => !j.visible && !j.started) : undefined;
+      const victim = ball ? [...others].reverse().find((j) => !j.visible && !j.started) : undefined;
       if (!victim) {
         if (ball) this.handlers.onNotice('계산이 밀려 공 하나를 건너뛰었어요');
         return false;
       }
-      victim.dropped = true;
-      this.jobs = this.jobs.filter((j) => j !== victim);
+      this.dropJob(victim);
     }
     /* 후보는 비어 있을 때만 — 헛 후보가 뒤따르는 확실한 공의 자리를 차지하지 않게 */
     if (seed && this.jobs.length > 0) return false;
-    /* 진짜 공이 왔다 — 줄에 선(아직 시작 안 한) 훑기는 비킨다 */
+    if (displace) {
+      if (displace.started) displace.superseded = true;
+      else this.dropJob(displace);
+    }
+    /* 진짜 공이 왔다 — 훑기는 비킨다(돌고 있어도 끊는다, 엔진 2.7.3) */
     if (!sweep) this.engine()?.yieldToMeasure();
     const [before, after] = pre ? SWEEP_RANGE : ball || seed ? BALL_CLIP : MOTION_CLIP;
     const job: Job = {
@@ -262,17 +306,37 @@ export class AppCapture {
       ball,
       ...(seed ? { seed: true, ballAt: atSec } : {}),
       ...(sweep ? { sweep: true } : {}),
-      ...(pre ? { pre } : {}),
+      ...(pre ? { pre } : { clip: DualCamera.clip({ atSec, beforeSec: before, afterSec: after }) }),
       strength,
       thermal,
     };
+    /* 기다리는 동안 실패해도 '처리 안 된 거부'로 남지 않게 — 실패는 measure 가 받는다 */
+    job.clip?.catch(() => undefined);
     this.jobs.push(job);
-    const gen = this.gen;
     this.sync();
-    this.queue = this.queue
-      .then(() => this.measure(job, gen))
-      .catch((err: unknown) => {
-        if (gen !== this.gen) return;
+    this.pump();
+    return true;
+  }
+
+  /** 다음 작업을 계산기로 — 한 번에 하나, 보이는 작업(공)이 먼저. 예전엔 들어온 차례대로라 공이 안 보이는 움직임 작업 뒤에서 기다렸다 */
+  private pump() {
+    if (this.running) return;
+    const next = this.jobs.find((j) => !j.started && j.visible) ?? this.jobs.find((j) => !j.started);
+    if (!next) return;
+    next.started = true;
+    this.running = true;
+    void this.run(next, this.gen).finally(() => {
+      this.running = false;
+      this.pump();
+    });
+  }
+
+  private async run(job: Job, gen: number) {
+    let yielded = false;
+    try {
+      yielded = (await this.measure(job, gen)) === 'yield';
+    } catch (err: unknown) {
+      if (gen === this.gen && !job.superseded) {
         /*
          * 시한 초과 · 계산기 죽음 · 클립 없음도 시도로 남긴다(2026-10-20: 10-20 세션의 30초 시한 초과가 DB 에 한 줄도 없어 공을 몇 개
          * 잃었는지 셀 수 없었다). 코드는 EngineError.code(TIMEOUT · ENGINE_…) · 카메라 모듈 코드(NO_CLIP · CAMERA_OFF …)
@@ -290,14 +354,14 @@ export class AppCapture {
           bytes: 0, fpsActual: null, outcome: code,
         });
         if (job.visible) this.handlers.onNotice(err instanceof Error ? err.message : '영상을 읽지 못했어요');
-      })
-      .finally(() => {
+      }
+    } finally {
+      if (!yielded) {
         this.jobs = this.jobs.filter((j) => j !== job);
-        /* 빠진 작업은 그 구간을 안 쟀다 — 최근 잰 구간으로 치면 그 안의 공 알림이 버려진다 */
-        if (!job.dropped) this.recent.push({ start: job.start, end: job.end, until: Date.now() + 5000 });
-        if (gen === this.gen) this.sync();
-      });
-    return true;
+        this.recent.push({ start: job.start, end: job.end, until: Date.now() + 5000 });
+      }
+      if (gen === this.gen) this.sync();
+    }
   }
 
   /*
@@ -327,17 +391,24 @@ export class AppCapture {
     this.handlers.onNotice(frameLossNotice(clip.fpsActual ?? 0));
   }
 
-  private async measure(job: Job, gen: number) {
+  /** 'yield' — 공 작업에게 차례를 내주고 줄로 돌아갔다(클립은 그대로 쥔다) */
+  private async measure(job: Job, gen: number): Promise<'yield' | void> {
     const t0 = Date.now();
     const drop = (paths: string[]) => DualCamera.discard({ paths }).catch(() => undefined);
-    if (job.dropped) return void (job.pre && drop([job.pre.clip.path]));
-    job.started = true;
-    const { main, wide } = job.pre
-      ? { main: job.pre.clip, wide: null }
-      : await DualCamera.clip({ atSec: job.at, beforeSec: job.at - job.start, afterSec: job.end - job.at });
+    const { main, wide } = job.pre ? { main: job.pre.clip, wide: null } : await job.clip!;
+    /* 차례가 와서 클립을 마저 기다린 시간(알림 때 바로 청했다) */
     const clipMs = Date.now() - t0;
     if (wide) void drop([wide.path]);
-    if (gen !== this.gen) return void drop([main.path]);
+    if (gen !== this.gen || job.superseded) return void drop([main.path]);
+    /*
+     * 클립을 기다리는 사이 공이 왔다 — 안 보이는 작업(움직임 · 훑기 공)은 계산기로 넘기기 전에 공에게 차례를 내준다. 계산기는 돌던 재기를 못 끊어,
+     * 넘기고 나면 공이 3~10초 기다렸다(2026-10-20 검토). 클립은 이미 잘려 있으니 나중에 그대로 잰다.
+     */
+    if (!job.visible && this.jobs.some((j) => !j.started && j.visible)) {
+      job.started = false;
+      if (!job.pre) job.clip = Promise.resolve({ main, wide: null });
+      return 'yield';
+    }
     const engine = this.engine();
     if (!engine) {
       void drop([main.path]);
@@ -383,7 +454,7 @@ export class AppCapture {
     let measured: Awaited<ReturnType<EngineHandle['measure']>>;
     try {
       measured = await engine.measure(main, opts, () => {
-        if (job.visible || gen !== this.gen) return;
+        if (job.visible || job.superseded || gen !== this.gen) return;
         /* 조용히 재던 클립이 공을 찾았다 — '인식했어요'를 잠깐 먼저 보인다 */
         job.visible = true;
         job.flashUntil = Date.now() + 400;
@@ -398,7 +469,8 @@ export class AppCapture {
       throw e;
     }
     const { result, ms, readMs } = measured;
-    if (gen !== this.gen) return void drop([main.path]);
+    /* 같은 공을 공 작업이 따로 잰다 — 이 결과는 버린다(같은 공이 두 번 남지 않게) */
+    if (gen !== this.gen || job.superseded) return void drop([main.path]);
     const ok = result.measure.ok;
     const track = result.track.length;
     const noBall = !ok && !job.ball && track < 4 && (job.ballAt == null || job.seed === true);

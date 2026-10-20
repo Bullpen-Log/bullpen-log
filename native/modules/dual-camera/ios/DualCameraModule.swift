@@ -207,10 +207,23 @@ public class DualCameraModule: Module {
             var request = URLRequest(url: target)
             request.httpMethod = "PUT"
             request.setValue((options["contentType"] as? String) ?? "video/mp4", forHTTPHeaderField: "Content-Type")
-            URLSession.shared.uploadTask(with: request, fromFile: URL(fileURLWithPath: path)) { _, response, error in
-                if let error { return promise.reject("network", error.localizedDescription) }
-                promise.resolve(["status": (response as? HTTPURLResponse)?.statusCode ?? 0])
-            }.resume()
+            /*
+             * 앱을 잠깐 내려도(LTE 로 마저 올리는 중 · 전화) 올리던 조각은 끝내게 — iOS 가 주는 몇십 초 안에서. 세션 녹화는 LTE · 5G 에서 조각이
+             * 밀리면 폰에 두었다 측정을 끝낸 뒤 올리는데, 그사이 앱을 내리면 올리기가 멈췄다(2026-10-20 검토)
+             */
+            DispatchQueue.main.async {
+                var bg = UIBackgroundTaskIdentifier.invalid
+                let end = {
+                    if bg != .invalid { UIApplication.shared.endBackgroundTask(bg) }
+                    bg = .invalid
+                }
+                bg = UIApplication.shared.beginBackgroundTask(withName: "bullpen.dualcam.upload") { end() }
+                Self.uploadSession.uploadTask(with: request, fromFile: URL(fileURLWithPath: path)) { _, response, error in
+                    DispatchQueue.main.async { end() }
+                    if let error { return promise.reject("network", error.localizedDescription) }
+                    promise.resolve(["status": (response as? HTTPURLResponse)?.statusCode ?? 0])
+                }.resume()
+            }
         }
 
         View(DualCameraPreview.self) {}
@@ -299,6 +312,19 @@ public class DualCameraModule: Module {
 
     /// Expo 는 JS 숫자를 Double 로 넘긴다 — `as? Int` 는 nil 이라 offset · length · fps 를 못 읽어 늘 기본값이었다(2026-10-18 찾음:
     /// read 가 늘 처음 1MB 만 돌려줘 1MB 넘는 클립이 계산기에 망가진 채 갔다)
+    /*
+     * 올리기 한 번의 상한을 여기서 — 예전엔 JS 가 90초에 포기하고 같은 파일을 새 주소로 다시 올렸는데 앞선 올리기는 뒤에서 계속 돌아, 느린 LTE 에서
+     * 대역폭을 두 배로 쓰고 어디에도 안 붙은 파일이 남았다(2026-10-20 검토). 이제 이 상한이 지나면 올리기 자체가 끝나고, JS 는 그보다 조금 더 기다린다
+     * (native/src/velocity/session-recorder.ts PUT_TIMEOUT_MS). 끊김 없이 30초 동안 한 바이트도 못 보내도 끝낸다.
+     */
+    static let uploadTimeoutSec: TimeInterval = 120
+    private static let uploadSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = uploadTimeoutSec
+        return URLSession(configuration: config)
+    }()
+
     private static func int(_ value: Any?) -> Int? {
         number(value).map { Int($0) }
     }

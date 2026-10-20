@@ -15,7 +15,7 @@ const appModules = path.resolve(__dirname, 'node_modules');
 // 앱 화면(src/)의 import 'react-native' 는 src/rn/index.tsx 로 — 글꼴(Pretendard)을 한 곳에서 입히려고(그 파일 머리말). 그 파일 자신은 진짜를 받는다.
 // 그 파일은 혼자 폴더에 둔다 — Metro 가 찾은 결과를 폴더마다 기억해, src/shell 에 두었더니 같은 폴더 파일 열둘이 진짜를 받았다.
 const appSrc = path.resolve(__dirname, 'src') + path.sep;
-const rnShim = path.resolve(__dirname, 'src/rn/index.tsx');
+const rnShim = path.resolve(__dirname, 'src/rn/index.js');
 config.resolver.resolveRequest = (context, name, platform) => {
   const origin = context.originModulePath;
   if (name === 'react-native' && origin.startsWith(appSrc) && origin !== rnShim) return { type: 'sourceFile', filePath: rnShim };

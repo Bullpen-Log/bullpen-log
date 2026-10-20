@@ -15,6 +15,7 @@ import { createEngineQueue } from '@/lib/velocity-engine/engine-queue';
  *   { t: 'locate', id, opts } — 재지 않고 훑기만(아래 LocateOpts, 2.7 조용할 때 훑기 — 앱 capture.ts sweep). 'clip' 첫 조각보다 먼저 보낸다.
  *     opts · locate 에 ack: true 를 붙이면 그 일을 시작할 때 { t: 'start', id } 를 보낸다(앱이 시한을 '시작부터' 잰다 — 옛 앱은 안 붙여 안 받는다).
  *   { t: 'abort', id } — 조각을 덜 받았으면 버리고, 다 받아 줄에 선 일이면 차례가 와도 하지 않고 { t: 'skipped', id } 만 보낸다.
+ *     돌고 있는 훑기면 끊고 { t: 'located', id, found: null } 을 보낸다(공이 오면 앱이 훑기를 끊는다 — 계산기가 하나라 공이 훑기 뒤에서 기다렸다).
  * 계산기 → 앱(window.ReactNativeWebView.postMessage):
  *   { t: 'ready' } · { t: 'ball', id }(공 길을 찾음 — '구속 계산 중'을 띄울 때) · { t: 'result', id, result, ms } · { t: 'fail', id, message }
  *   { t: 'located', id, found, ms } — 훑기 답(found 는 lib/velocity-engine/analyze-video.ts ThrowLocation, 못 열면 null)
@@ -78,6 +79,8 @@ export function EngineClient() {
     const pending = new Map<number, Pending>();
     /* 한 번에 한 클립씩 — 폰에서 둘을 같이 재면 서로 느려진다(사이트도 차례로 잰다). 앱이 포기한 일은 건너뛴다(engine-queue.ts) */
     const queue = createEngineQueue(send);
+    /** 돌고 있는 훑기 — 앱이 버리라고 하면(abort) 끊는다 */
+    let runningLocate: { id: number; ac: AbortController } | null = null;
 
     const measure = (id: number, ack: boolean, opts: MeasureOpts, data: Uint8Array<ArrayBuffer>) => {
       void queue.run(id, ack, async () => {
@@ -108,17 +111,28 @@ export function EngineClient() {
     const locate = (id: number, ack: boolean, opts: LocateOpts, data: Uint8Array<ArrayBuffer>) => {
       void queue.run(id, ack, async () => {
         const t0 = performance.now();
+        const ac = new AbortController();
+        runningLocate = { id, ac };
         let found: ThrowLocation | null = null;
         try {
+          /*
+           * 공 감지 모델이 아직 안 받아졌으면 이번엔 거친 훑기로 — 받기를 기다리면(느린 LTE 첫 실행) 하나뿐인 계산기 줄이 시한 없이 막혀 앱이
+           * 웹뷰를 다시 띄우고, 그러면 받던 것이 날아가 같은 일이 되풀이됐다(2026-10-20 검토). 받기는 뒤에서 이어진다(아래 loadBallNet).
+           */
+          const net = await Promise.race([loadBallNet().catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 0))]);
           found = await locateThrow({
             file: new File([data], 'sweep.mp4', { type: 'video/mp4' }),
             fovDeg: opts.fovDeg,
             focalPerLongSide: opts.focalPerLongSide,
             approach: opts.approach,
+            detector: net ? 'auto' : 'coarse',
+            signal: ac.signal,
             ...(opts.fps > 0 ? { frameGapSec: 1 / opts.fps } : {}),
           });
         } catch {
           found = null;
+        } finally {
+          runningLocate = null;
         }
         send({ t: 'located', id, found, ms: Math.round(performance.now() - t0) });
       });
@@ -133,10 +147,16 @@ export function EngineClient() {
         return;
       }
       if (msg.t === 'abort') {
-        /* 덜 받은 조각이면 버리기만, 이미 줄에 섰으면 차례가 와도 건너뛴다 */
+        /* 덜 받은 조각이면 버리기만, 이미 줄에 섰으면 차례가 와도 건너뛴다, 돌고 있는 훑기면 끊는다 */
         if (!pending.delete(msg.id)) queue.abort(msg.id);
+        if (runningLocate?.id === msg.id) runningLocate.ac.abort();
         return;
       }
+      /*
+       * 조각은 늘 첫 메시지(opts · locate) 뒤에 온다 — 자리가 없는 번호의 조각은 버린(abort) 일의 남은 조각이다. 예전엔 자리를 새로 만들어
+       * 영영 쥐어, 포기한 훑기마다 10MB 넘게 쌓여 계산기 웹뷰가 죽을 수 있었다(2026-10-20 검토)
+       */
+      if (msg.t === 'clip' && !pending.has(msg.id)) return;
       const p = pending.get(msg.id) ?? { total: 0, parts: new Map<number, string>() };
       pending.set(msg.id, p);
       if ((msg.t === 'opts' || msg.t === 'locate') && msg.ack) p.ack = true;
