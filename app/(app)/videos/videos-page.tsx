@@ -8,8 +8,7 @@ import { isNativeUserAgent } from '@/lib/app-env';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { loadVelocityByDate } from '@/lib/velocity-load';
 import { unloggedSessions } from '@/lib/velocity-meta';
-import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
-import { isOutingTitle } from '@/lib/calendar-event';
+import { toDateKey } from '@/lib/pitch-stats';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { armStatusOf } from '@/lib/report/arm-status';
 import { VideosClient } from './videos-client';
@@ -65,8 +64,6 @@ export default async function VideosPage({
     logs,
     featured,
     measured,
-    checkinToday,
-    calendarRows,
     noteRows,
     { facts },
     velocityToday,
@@ -103,23 +100,6 @@ export default async function VideosPage({
       }),
       /* 카메라로 잰 날 — 그날 칸에 '측정 n구 · 최고' 한 줄 */
       loadVelocityByDate(user.id),
-      /* '오늘 던지는 일정' 카드(체크인 3판) — 오늘 체크인 줄의 답과, 달력의 오늘 · 내일 등판(미리 골라 둔다) */
-      prisma.dailyCheckin.findUnique({
-        where: {
-          userId_date: { userId: user.id, date: new Date(`${todayKey}T00:00:00.000Z`) },
-        },
-        select: { throwPlan: true },
-      }),
-      prisma.calendarEvent.findMany({
-        where: {
-          userId: user.id,
-          date: {
-            gte: new Date(`${todayKey}T00:00:00.000Z`),
-            lte: new Date(`${shiftDateKey(todayKey, 1)}T00:00:00.000Z`),
-          },
-        },
-        select: { date: true, title: true },
-      }),
       /* 체크인 메모를 남긴 날(체크인 3판) — 캘린더 칸의 작은 쪽지. 하루 한 줄이라 전부 읽어도 가볍다 */
       prisma.dailyCheckin.findMany({
         where: { userId: user.id, note: { not: null } },
@@ -141,17 +121,6 @@ export default async function VideosPage({
       }),
     ]);
   const noteDays = noteRows.filter((r) => r.note?.trim()).map((r) => toDateKey(r.date));
-  const outingOn = (day: string) =>
-    calendarRows.some((e) => toDateKey(e.date) === day && isOutingTitle(e.title));
-  const throwCard = {
-    plan: checkinToday?.throwPlan ?? null,
-    hasCheckin: checkinToday != null,
-    hint: outingOn(todayKey)
-      ? '오늘 등판'
-      : outingOn(shiftDateKey(todayKey, 1))
-        ? '내일 등판'
-        : null,
-  };
 
   /*
    * '오늘' 카드(2026-10-14 김민: 홈 · 트레이닝처럼 핵심만) — 지금 팔 상태(위험 · 주의 · 안전)와 오늘 남긴 양. 예전엔 오늘 계획
@@ -183,7 +152,6 @@ export default async function VideosPage({
         initialMonth={month ?? (date ? date.slice(0, 7) : null)}
         initialDate={date}
         today={todayKey}
-        throwCard={throwCard}
         todayCard={todayCard}
         noteDays={noteDays}
         canMeasure={canMeasure}

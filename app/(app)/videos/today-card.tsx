@@ -6,7 +6,6 @@ import { LinkPending } from '@/components/link-pending';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 import { ArmStatusNote } from '@/components/arm-status-note';
 import type { ArmStatus } from '@/lib/report/arm-status';
-import { ThrowPlanCard, type ThrowCardData } from './throw-plan-card';
 
 export type TodayCardData = {
   /** 지금 팔 상태(lib/report/arm-status.ts armStatusOf — app/(app)/videos/page.tsx) */
@@ -18,22 +17,13 @@ export type TodayCardData = {
 };
 
 /**
- * 투구 탭 맨 위 '오늘' 카드(2026-10-14 김민: 홈 · 트레이닝처럼 단순하게, 핵심만) — 지금 팔 상태(위험 · 주의 · 안전), 던지는 일정 질문(접힌 알약),
- * 오늘 기록 남기기 단추 하나. 예전엔 제목 옆 [+] · 따로 선 던지는 일정 카드 · 고르개 밑 알약 줄이 흩어져 있었다.
+ * 투구 탭 맨 위 '오늘' 카드(2026-10-14 김민: 홈 · 트레이닝처럼 단순하게, 핵심만) — 지금 팔 상태(위험 · 주의 · 안전), 오늘 기록 남기기 단추 하나.
+ * '오늘 던지는 일정' 질문은 2026-10-21 뺐다(김민: 답한 줄이 0 — 던진 양 · 체감 강도는 투구 기록에서 읽는다, 등판 날은 달력 · 같은 요일 짐작).
  */
-export function TodayCard({
-  today,
-  data,
-  throwCard,
-}: {
-  today: string;
-  data: TodayCardData;
-  throwCard: ThrowCardData;
-}) {
+export function TodayCard({ today, data }: { today: string; data: TodayCardData }) {
   return (
     <Card className="space-y-3">
       <ArmStatusNote status={data.status} bare />
-      <ThrowPlanCard day={today} data={throwCard} folded />
       {data.unloggedVelocity ? (
         <p className="text-footnote text-muted">
           구속 측정 {data.unloggedVelocity}구가 아직 투구 기록에 없어요. 남겨야 팔 부하에 들어가요.

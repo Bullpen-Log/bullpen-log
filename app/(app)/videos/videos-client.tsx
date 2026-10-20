@@ -17,7 +17,6 @@ import { VideoCalendar } from './video-calendar';
 import { effortText } from '@/lib/pitch-effort';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
-import { type ThrowCardData } from './throw-plan-card';
 import { TodayCard, type TodayCardData } from './today-card';
 import { ImportEntry } from './import-sheet';
 
@@ -69,13 +68,10 @@ export function VideosClient({
   measured,
   initialView,
   initialCompare = false,
-  throwCard,
   todayCard,
   noteDays,
 }: {
   logs: VideoLog[];
-  /** '오늘 던지는 일정' 카드의 재료(체크인 3판, throw-plan-card.tsx) */
-  throwCard: ThrowCardData;
   /** 맨 위 '오늘' 카드 — 오늘 계획 한 줄 · 오늘 남긴 양(today-card.tsx) */
   todayCard: TodayCardData;
   /** 체크인 메모를 남긴 날 — 캘린더 칸의 작은 쪽지 */
@@ -196,8 +192,8 @@ export function VideosClient({
         canAbs={velocityHref != null}
       />
 
-      {/* 오늘 — 계획 한 줄 · 던지는 일정(접힌 알약) · 기록 남기기 */}
-      <TodayCard today={todayKey} data={todayCard} throwCard={throwCard} />
+      {/* 오늘 — 지금 팔 상태 · 기록 남기기 */}
+      <TodayCard today={todayKey} data={todayCard} />
       {/* 과거 영상 가져오기 — 아이폰 앱(폰 저장 가능)에서만 보인다(import-sheet.tsx) */}
       {/* 관리자(velocityHref 는 관리자만 있다)는 가져온 영상도 서버에 — 폰에만 두면 앱을 지울 때 사라진다 */}
       <ImportEntry isAdmin={velocityHref != null} />
