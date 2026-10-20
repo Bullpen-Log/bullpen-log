@@ -2,7 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CardAction, TrainingCard } from '@/lib/report/training-home-data';
 import type { TrainingWeekCounts } from '@/lib/report/training-week-counts';
@@ -45,7 +45,6 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
   const inset = useSafeAreaInsets();
   const [data, setData] = useState<Loaded | null>(() => (cached?.today === today ? cached : null));
   const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState(false);
   /* 이 화면을 연 뒤 서버에서 한 번 받았나 — 받아 둔 카드의 '드릴 공 남기기'는 이미 남긴 뒤일 수 있어, 새로 받은 뒤에만 보인다 */
   const [fresh, setFresh] = useState(false);
@@ -131,12 +130,6 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
     onWeb(a.href);
   };
 
-  const pull = async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  };
-
   /* 카드를 누르면 그 앱의 전체 화면 — 앱 화면이 있는 것은 앱으로(웹 탭 판 안의 화면이라 사이트가 넘기지 않는다) */
   const openPart = (app: TrainingPart) => {
     if (app === 'today') return router.push({ pathname: '/training-today' as Href as never, params: { today } });
@@ -154,7 +147,6 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
       ref={topRef}
       style={{ flex: 1, backgroundColor: c.page }}
       contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 12 }, READABLE]}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pull} />}
     >
       <PageHead title="트레이닝">
         <AnalysisPill view="training" />
