@@ -1,5 +1,6 @@
 'use client';
 
+import { scrollToTop } from '@/lib/scroller';
 import { useEffect, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { MORE_HREF, type NavGroup, type NavItem, type SportKey } from '@/lib/nav';
@@ -31,6 +32,24 @@ import {
 type RN = { postMessage(s: string): void };
 const rn = () => (window as unknown as { ReactNativeWebView?: RN }).ReactNativeWebView;
 const isExpo = () => typeof navigator !== 'undefined' && navigator.userAgent.includes('BullpenNative/');
+
+/**
+ * 앱 하단바(기본 · 투구 · 타격 종목 바)로 옮긴 화면은 맨 위에서 시작 — 판마다 스크롤 자리를 기억해(tab-pager), 전에 아래까지 내려 본 화면
+ * (트레이닝 · 암케어 · 메커니즘 · 타격 기록 …)을 다시 누르면 아래에서 열렸다(2026-10-20 김민). 주소가 바뀌어 새 화면이 붙은 뒤에 올린다.
+ */
+function startAtTop(href: string, slid: boolean) {
+  const want = new URL(href, location.href);
+  const until = performance.now() + 3000;
+  /* 판으로 미끄러지면 그 판이 지난 주소(?view=…)로 돌아가 길만 본다 */
+  const at = () => location.pathname === want.pathname && (slid || location.search === want.search);
+  const tick = () => {
+    if (at()) {
+      scrollToTop(false);
+      requestAnimationFrame(() => scrollToTop(false));
+    } else if (performance.now() < until) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
 
 export function ExpoTabBridge({
   tabs,
@@ -65,7 +84,9 @@ export function ExpoTabBridge({
     if (!isExpo()) return;
     (window as unknown as { __bpTab?: (href: string) => void }).__bpTab = (href) => {
       if (href === MORE_HREF) return onMenu();
-      if (!slideToTab(href)) router.push(href);
+      const slid = slideToTab(href);
+      if (!slid) router.push(href);
+      startAtTop(href, slid);
     };
     /*
      * 앱 화면이 서버 동작(/api/rpc)으로 저장한 뒤 — 거기서 부른 revalidatePath 는 웹뷰가 들고 있는 화면을 비우지 못한다(영양 첫 설정을 마쳐도
