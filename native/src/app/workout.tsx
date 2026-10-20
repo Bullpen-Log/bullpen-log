@@ -5,6 +5,7 @@ import { type Href, router, Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   AppState,
   Keyboard,
   KeyboardAvoidingView,
@@ -1104,6 +1105,19 @@ function Run({
         busy={ending}
         error={finishError}
         onFinish={(i, m) => void finish(i, m)}
+        onDropAndFinish={(i, m) =>
+          Alert.alert('못 보낸 세트를 빼고 마칠까요?', `세트 ${pending.length}개는 기록에 남지 않아요. 되돌릴 수 없어요.`, [
+            { text: '취소', style: 'cancel' },
+            {
+              text: '빼고 마치기',
+              style: 'destructive',
+              onPress: () => {
+                for (const p of pending) outbox.drop(p);
+                void finish(i, m);
+              },
+            },
+          ])
+        }
         onClose={() => {
           closeSheet();
           setFinishError(null);

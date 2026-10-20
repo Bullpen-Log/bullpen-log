@@ -153,6 +153,13 @@ async function tryReplyInquiry(formData: FormData): Promise<SupportState> {
    * 물음이면 다시 접수됨으로 돌아가 관리자 목록(기본 OPEN)에 다시 뜬다.
    */
   const fromStaff = user.role === 'ADMIN' && inquiry.userId !== user.id;
+  /* 1분 안 같은 답글이면 새로 안 만든다(끊긴 응답에 다시 보냄 — 문의 만들기와 같은 까닭) */
+  const same = await prisma.supportReply.findFirst({
+    where: { inquiryId: id, authorId: user.id, body, createdAt: { gte: new Date(Date.now() - 60_000) } },
+    select: { id: true },
+  });
+  if (same) return undefined;
+
   await prisma.$transaction([
     prisma.supportReply.create({
       data: { inquiryId: id, authorId: user.id, fromStaff, body },
@@ -243,6 +250,18 @@ async function writeNotice(formData: FormData, id: string | null): Promise<{ id:
   if ('error' in read) return { error: read.error ?? '처리하지 못했어요.' };
 
   if (id == null) {
+    /* 1분 안 같은 공지면 그것을 돌려준다(끊긴 응답에 다시 보냄 — 문의 만들기와 같은 까닭) */
+    const same = await prisma.supportNotice.findFirst({
+      where: {
+        authorId: user.id,
+        title: read.data.title,
+        body: read.data.body,
+        createdAt: { gte: new Date(Date.now() - 60_000) },
+      },
+      select: { id: true },
+    });
+    if (same) return { id: same.id };
+
     const notice = await prisma.supportNotice.create({
       data: { authorId: user.id, ...read.data },
       select: { id: true },

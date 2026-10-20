@@ -20,6 +20,7 @@ import type { RoutineBuilderData } from '@/lib/armcare/routine-builder-load';
 import type { BuilderExercise } from '@/app/(app)/training/routine/[id]/routine-builder';
 import { ExerciseMedia, HowTo } from '~/armcare/parts';
 import { Bar, Chip, LoadState, useLoad } from '~/community/parts';
+import { useDraftGuard } from '~/community/draft-guard';
 import { act } from '~/mechanics/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { s } from '~/training/screen';
@@ -67,6 +68,8 @@ function Builder({ data, c }: { data: RoutineBuilderData; c: Palette }) {
   const [busy, setBusy] = useState<'save' | 'delete' | null>(null);
   /* 두 번 눌러도 한 번만 보낸다 — state 는 다음 그림까지 안 바뀌어 빠른 두 번을 못 막는다 */
   const sending = useRef(false);
+  /* 고치던 것이 있으면 나가기 전에 묻는다 — 저장 · 지우기 뒤에는 묻지 않는다 */
+  const allowLeave = useDraftGuard(name !== data.name || JSON.stringify(items) !== JSON.stringify(data.items));
 
   const byId = useMemo(() => new Map(data.exercises.map((e) => [e.view.id, e])), [data.exercises]);
   const picked = new Set(items.map((it) => it.exerciseId));
@@ -120,6 +123,7 @@ function Builder({ data, c }: { data: RoutineBuilderData; c: Palette }) {
       return;
     }
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    allowLeave();
     router.back();
   };
   const save = () => {

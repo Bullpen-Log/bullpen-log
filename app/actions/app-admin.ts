@@ -14,6 +14,7 @@ import { updatePatchNote } from '@/app/actions/patch-note';
 import { loadVelocityAdminDay, loadVelocityAdminOverview } from '@/lib/velocity-admin-load';
 import { countSessionRecordings, countVelocityRecordings } from '@/lib/velocity-recording-load';
 import { pitchTypeLabel } from '@/lib/velocity-meta';
+import { videoLimitOf } from '@/lib/storage';
 
 /**
  * 아이폰 앱의 관리자 화면(native/src/app/admin/*) — 웹 app/(app)/admin/* 과 같은 자료 · 같은 쓰기. 쓰기는 웹 폼 동작(FormData)을 그대로 부른다
@@ -307,6 +308,8 @@ export async function loadAppVelocityAdmin() {
     recordings: recordings - sessionRecordings,
     sessionRecordings,
     days: data.days.slice(0, 40).map((d) => ({ date: d.date, pitches: d.pitches, clips: d.clips, pairs: d.pairs, maxKmh: d.maxKmh })),
+    /* 이 사람이 올릴 수 있는 영상 크기 — 앱이 저장 전에 큰 파일을 막는다(서버 서명 주소와 같은 값) */
+    maxBytes: videoLimitOf(a.role),
   };
 }
 

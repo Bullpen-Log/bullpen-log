@@ -1,6 +1,7 @@
 import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 import { isPhoneVideoPath } from '@/lib/phone-video-path';
+import { can } from '@/lib/permissions';
 
 export const VIDEO_BUCKET = 'pitch-videos';
 
@@ -23,7 +24,9 @@ export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
  * 투구 기록(관리자 자료는 늘 서버) · 구속 측정 클립 · 세션 녹화 조각 · 라이브러리. 회원은 그대로 MAX_VIDEO_BYTES.
  */
 export const ADMIN_MAX_VIDEO_BYTES = 500 * 1024 * 1024;
-export const videoLimitOf = (role: string | null | undefined) => (role === 'ADMIN' ? ADMIN_MAX_VIDEO_BYTES : MAX_VIDEO_BYTES);
+/* 준관리자도 구속 측정 관리자(velocityAdmin)를 쓰면 관리자 한도 — 50MB 로 막혀 공은 저장됐는데 클립 올리기만 실패했다 */
+export const videoLimitOf = (role: string | null | undefined) =>
+  can(role, 'velocityAdmin') ? ADMIN_MAX_VIDEO_BYTES : MAX_VIDEO_BYTES;
 
 /**
  * 프로필 사진의 최대 용량.

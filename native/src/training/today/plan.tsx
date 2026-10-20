@@ -357,10 +357,15 @@ export function PlanBody({
       setError(offlineAs(res.error, '저장하지 못했어요.'));
     }
   };
+  const starring = useRef(new Set<string>());
   const star = async (r: TodayRow) => {
+    /* 빠른 두 번 누름 — 하나씩, 바라는 값을 보낸다(뒤집기를 두 번 보내면 서버와 화면이 엇갈렸다) */
+    if (starring.current.has(r.id)) return;
+    starring.current.add(r.id);
     tick();
     setLocal((l) => ({ ...l, fav: { ...l.fav, [r.id]: !r.favorite } }));
-    const res = await act<{ favorite: boolean }>('favorite.toggleExerciseFavorite', r.id);
+    const res = await act<{ favorite: boolean }>('favorite.setExerciseFavorite', r.id, !r.favorite);
+    starring.current.delete(r.id);
     if ('error' in res) {
       setLocal((l) => ({ ...l, fav: { ...l.fav, [r.id]: r.favorite } }));
       setError(offlineAs(res.error, '저장하지 못했어요.'));

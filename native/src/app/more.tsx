@@ -9,7 +9,7 @@ import { useTheme } from '~/lib/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, type IconName } from '~/shell/icon';
 import { useMenu, type MenuGroup } from '~/shell/menu-store';
-import { DEFAULT_TABS } from '~/shell/tab-bar';
+import type { ShellTab } from '~/shell/tab-bar';
 import { leaveTo } from '~/shell/web-nav';
 
 /**
@@ -37,8 +37,11 @@ const ICON: Record<string, IconName> = {
   support: 'life-buoy',
   menu: 'menu',
 };
-/** 하단 탭에도 있는 메뉴 항목 — 폴더에서 뺀다(웹 detail-menu.tsx inTabBar: 같은 길이 두 번). 잠기면 주소가 바뀌어 이름 · 그림으로 견준다(네이티브3) */
-const inTabBar = (it: { label: string; icon: string }) => DEFAULT_TABS.some((t) => t.label === it.label && t.icon === it.icon);
+/**
+ * 하단 탭에도 있는 메뉴 항목 — 폴더에서 뺀다(웹 detail-menu.tsx inTabBar: 같은 길이 두 번). 잠기면 주소가 바뀌어 이름 · 그림으로 견준다(네이티브3).
+ * 탭은 사이트가 보낸 지금 탭(menu-store tabs) — 고정 목록이면 사이트가 탭을 바꿔도 더보기가 따라가지 않았다
+ */
+const inTabBar = (it: { label: string; icon: string }, tabs: ShellTab[]) => tabs.some((t) => t.label === it.label && t.icon === it.icon);
 /* 테마별 색 — 웹 globals.css(2026-10-14 사용자 "화이트는 희게 반투명 · 타일 옅은 하늘색, 네이비는 네이비 반투명, 다크는 그대로") */
 const LOOK = {
   dark: { scrim: 'rgba(0,0,0,0.5)', folder: 'rgba(255,255,255,0.14)', border: 'rgba(255,255,255,0.22)', fg: '#ffffff', tile: 'rgba(255,255,255,0.14)', ring: 'rgba(255,255,255,0.22)', glyph: '#ffffff', gloss: 'rgba(255,255,255,0.45)' },
@@ -52,10 +55,10 @@ const DRAG_FLICK = 48;
 const SLIDE = Easing.bezier(0.32, 0.72, 0, 1);
 
 /** 제목 없는 묶음(홈 · 투구 · …)은 한 판으로 이어 붙인다 — 묶음마다 한 줄이면 칸이 비었다(웹과 같다) */
-function folderGroups(groups: MenuGroup[]): MenuGroup[] {
+function folderGroups(groups: MenuGroup[], tabs: ShellTab[]): MenuGroup[] {
   const out: MenuGroup[] = [];
   for (const g of groups) {
-    const items = g.items.filter((it) => !inTabBar(it) && !it.hidden);
+    const items = g.items.filter((it) => !inTabBar(it, tabs) && !it.hidden);
     if (!items.length) continue;
     const last = out[out.length - 1];
     if (!g.title && last && !last.title) last.items = [...last.items, ...items];
@@ -67,7 +70,7 @@ function folderGroups(groups: MenuGroup[]): MenuGroup[] {
 export default function MoreScreen() {
   const inset = useSafeAreaInsets();
   const { height } = useWindowDimensions();
-  const { groups, nickname, avatarUrl, isAdmin } = useMenu();
+  const { groups, nickname, avatarUrl, isAdmin, tabs } = useMenu();
   const theme = useTheme();
   const L = LOOK[theme];
   const reduce = useReducedMotion();
@@ -156,7 +159,7 @@ export default function MoreScreen() {
     </Pressable>
   );
 
-  const folders = folderGroups(groups);
+  const folders = folderGroups(groups, tabs);
   const body = (
     <View style={{ paddingTop: 24, paddingHorizontal: 22, paddingBottom: 22, gap: 12 }}>
       {folders.map((g, gi) => (

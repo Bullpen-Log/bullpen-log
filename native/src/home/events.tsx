@@ -13,7 +13,7 @@ import {
 } from '@/lib/calendar-event';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { rpc } from '~/lib/rpc';
-import { cacheEpoch } from '~/lib/store';
+import { cacheEpoch, loadJson, saveJson } from '~/lib/store';
 import { usePalette, withAlpha } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { fadeIn } from '~/shell/motion';
@@ -38,30 +38,66 @@ const subscribe = (l: () => void) => {
   };
 };
 let loading: Promise<void> | null = null;
+/** 목록을 고칠 때마다 올린다 — 그 전에 떠난 받기가 늦게 와서 그새 지운 일정을 되살리지 않게(웹은 서버가 다시 그린다) */
+let version = 0;
+
+/**
+ * 이 폰에 걸어 둔 일정 알림(일정 id) — 웹 event-alarms.ts 와 같이 적어 두고, 새 목록에 없는 것(다른 기기에서 지운 일정)과
+ * 로그아웃 때는 모두 걷는다. 적어 두지 않으면 지운 일정이 앱을 다시 켜도 계속 울린다.
+ */
+const ARMED_KEY = 'bullpen-event-alarms';
+let armedLoad: Promise<Set<string>> | null = null;
+const armedIds = () =>
+  (armedLoad ??= loadJson(ARMED_KEY).then(
+    (v) => new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+  ));
+const markArmed = (id: string, on: boolean) =>
+  void armedIds().then((s) => {
+    if (on === s.has(id)) return;
+    if (on) s.add(id);
+    else s.delete(id);
+    void saveJson(ARMED_KEY, [...s]);
+  });
+
+function cancelEventAlarm(id: string) {
+  void BullpenNative.cancelAlarm(`event-${id}`).catch(() => undefined);
+  markArmed(id, false);
+}
 
 export const resetEventsCache = () => {
   store = { list: null };
+  version++;
   /* 로그아웃 전에 떠난 받기가 끝나 앞사람 일정 · 알림을 다시 넣지 않게(reloadEvents 의 세대 확인과 같이) */
   loading = null;
+  /* 앞사람 일정 알림은 모두 걷는다 */
+  void armedIds().then((s) => {
+    for (const id of s) void BullpenNative.cancelAlarm(`event-${id}`).catch(() => undefined);
+    s.clear();
+    void saveJson(ARMED_KEY, []);
+  });
   emit();
 };
 
 function syncAlarm(e: CalendarEventView) {
-  const id = `event-${e.id}`;
   const at = e.owner ? null : remindAt(e);
-  if (at == null || at <= Date.now()) return void BullpenNative.cancelAlarm(id).catch(() => undefined);
+  if (at == null || at <= Date.now()) return cancelEventAlarm(e.id);
   const body = [timeLabel(e.time), e.memo?.split('\n')[0]].filter(Boolean).join(' · ');
-  void BullpenNative.scheduleAlarm(id, at, e.title, body).catch(() => undefined);
+  void BullpenNative.scheduleAlarm(`event-${e.id}`, at, e.title, body).catch(() => undefined);
+  markArmed(e.id, true);
 }
 
 /** 일정을 (다시) 받는다 — 홈이 보일 때마다. 알림도 다시 건다 */
 export function reloadEvents(): Promise<void> {
   const epoch = cacheEpoch();
+  const from = version;
   loading ??= rpc<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }>('app.loadAppEvents')
-    .then((r) => {
-      if (!r.ok || epoch !== cacheEpoch()) return;
+    .then(async (r) => {
+      /* 그새 고쳤으면(지움 · 저장) 이 받기는 버린다 — 옛 목록이 지운 일정을 되살린다 */
+      if (!r.ok || epoch !== cacheEpoch() || from !== version) return;
       store = { list: r.events };
       emit();
+      const ids = new Set(r.events.filter((e) => !e.owner).map((e) => e.id));
+      for (const id of await armedIds()) if (!ids.has(id)) cancelEventAlarm(id);
       for (const e of r.events) if (!e.owner) syncAlarm(e);
     })
     .catch(() => undefined)
@@ -73,6 +109,7 @@ export function reloadEvents(): Promise<void> {
 
 /** 지금 목록에서 고쳐 넣는다 — 그린 때 쥔 목록으로 덮으면 그새 받은 일정 · 다른 저장이 사라진다 */
 const put = (edit: (list: CalendarEventView[]) => CalendarEventView[]) => {
+  version++;
   store = { list: sortEvents(edit(store.list ?? [])) };
   emit();
 };
@@ -94,6 +131,12 @@ export function useDayEventCount(date: string): number | null {
   const list = useEvents();
   return list ? list.filter((e) => e.date === date).length : null;
 }
+
+/** 숫자 셋('930')은 치는 동안 '93:0' 으로 보인다 — 다 친 뒤에는 '09:30'(서버는 HH:MM 만 받는다) */
+const fullTime = (v: string) => {
+  const t = v.trim();
+  return /^\d\d:\d$/.test(t) ? `0${t[0]}:${t[1]}${t[3]}` : t;
+};
 
 function remindText(e: CalendarEventView) {
   const o = REMIND_OPTIONS.find((x) => x.value === e.remindMin);
@@ -133,7 +176,7 @@ export function DayEvents({ date }: { date: string }) {
                     onCancel={() => set(null)}
                     onDeleted={() => {
                       put((list) => list.filter((x) => x.id !== e.id));
-                      void BullpenNative.cancelAlarm(`event-${e.id}`).catch(() => undefined);
+                      cancelEventAlarm(e.id);
                       set(null);
                     }}
                   />
@@ -228,7 +271,7 @@ function EventForm({
       const res = await rpc<{ ok: true; event: CalendarEventView } | { ok: false; error: string }>(
         'calendar-event.saveCalendarEvent',
         event?.id ?? null,
-        { date, title, time: time.trim() || null, memo: memo.trim() || null, remindMin: remind }
+        { date, title, time: fullTime(time) || null, memo: memo.trim() || null, remindMin: remind }
       );
       if (!res.ok) return setError(res.error);
       toast(event ? '고쳤어요' : '일정을 더했어요');
@@ -308,6 +351,7 @@ function EventForm({
               const digits = v.replace(/\D/g, '').slice(0, 4);
               setTime(digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits);
             }}
+            onBlur={() => setTime(fullTime)}
             keyboardType="number-pad"
             placeholder="예: 19:30"
             placeholderTextColor={c.muted}

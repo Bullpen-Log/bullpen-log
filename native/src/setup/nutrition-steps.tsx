@@ -18,7 +18,7 @@ import {
 } from '@/lib/nutrition/onboarding-answers';
 import { dateText, neededRate } from '@/lib/nutrition/period';
 import { MAX_WEIGHT_KG, MIN_WEIGHT_KG } from '@/lib/profile';
-import { fromWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
+import { fromLength, fromWeight, round1, toLength, toWeight, type LengthUnit, type WeightUnit } from '@/lib/units';
 import { floorNote } from '@/lib/nutrition/targets';
 import { TYPE, type Palette } from '~/lib/ui';
 import { ChoiceChips } from '~/setup/frame';
@@ -229,14 +229,16 @@ export function NumberField({
 }: {
   value: number | null;
   onChange: (v: number | null) => void;
-  unit: WeightUnit | 'cm';
+  /** 보이는 단위 — 값(value · onChange)은 늘 kg · cm */
+  unit: WeightUnit | LengthUnit;
   kind: 'weight' | 'length';
   placeholder: number;
   invalid?: boolean;
   hint?: string;
   c: Palette;
 }) {
-  const shown = (v: number | null) => (v === null ? '' : String(kind === 'weight' && unit !== 'cm' ? round1(toWeight(v, unit)) : v));
+  const shown = (v: number | null) =>
+    v === null ? '' : String(kind === 'weight' ? round1(toWeight(v, unit as WeightUnit)) : round1(toLength(v, unit as LengthUnit)));
   const [text, setText] = useState(() => shown(value));
   /*
    * 값이 밖에서 바뀌면(목표 체중 '나중에 정할게요' → '되돌리기') 칸 글도 따라간다 — 적는 중에는 안 건드린다. 웹은 useSyncedText 가 같은 일을 한다
@@ -256,7 +258,7 @@ export function NumberField({
             setText(t);
             const n = Number(t.trim().replace(',', '.'));
             if (t.trim() === '' || !Number.isFinite(n)) return onChange(null);
-            onChange(kind === 'weight' && unit !== 'cm' ? Math.round(fromWeight(n, unit) * 10) / 10 : kind === 'length' ? Math.round(n) : n);
+            onChange(kind === 'weight' ? Math.round(fromWeight(n, unit as WeightUnit) * 10) / 10 : Math.round(fromLength(n, unit as LengthUnit)));
           }}
           onFocus={() => (focused.current = true)}
           onBlur={() => (focused.current = false)}

@@ -23,7 +23,10 @@ import type { CameraPos } from '@/lib/velocity-setup';
  * 그 줄만 '다시 올리기'. 관리자 한도(500MB)를 넘는 영상은 고를 때 막는다(사진 앱에서 잘라 올리기).
  */
 
-/** 관리자 한 파일 한도(lib/storage.ts ADMIN_MAX_VIDEO_BYTES 와 같게 — 그 파일은 서버 전용이라 여기 따로 둔다) */
+/**
+ * 한 파일 한도 — lib/storage.ts videoLimitOf 가 velocityAdmin 권한(대표 · 준관리자)에게 주는 값과 같게. 이 화면은 그 권한만 들어오고
+ * (requirePermission), 그 파일은 서버 전용이라 여기 따로 둔다. 한도를 바꾸면 둘 다.
+ */
 const MAX_BYTES = 500 * 1024 * 1024;
 
 type Item = {

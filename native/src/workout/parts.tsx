@@ -13,6 +13,7 @@ import type { Palette } from '~/lib/ui';
 import { call, loadMe } from '~/pitch/api';
 import { LocalVideo } from '../../modules/local-video';
 import { Press } from '~/shell/press';
+import { useDraftGuard } from '~/community/draft-guard';
 
 /** 운동 진행 화면(native/src/app/workout.tsx)의 작은 조각 — 웹 app/(session)/workout/run/session-client.tsx 의 같은 이름 부품을 옮겼다 */
 
@@ -191,7 +192,7 @@ export function RirQuestion({
  * 쓰던 글은 어느 운동의 것인지와 같이 들고 있어 다른 운동으로 가면 안 보이고 돌아오면 그대로 다시 열린다. 저장 단추는 입력칸 위 —
  * 자판이 아래를 가린다.
  */
-type Draft = { exerciseId: string; text: string; error?: string };
+type Draft = { exerciseId: string; text: string; base: string; error?: string };
 
 export function NoteBox({
   exerciseId,
@@ -207,6 +208,8 @@ export function NoteBox({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const writing = draft?.exerciseId === exerciseId ? draft : null;
+  /* 고치던 메모가 있으면(다른 운동 것이어도) 화면을 나가기 전에 묻는다 */
+  useDraftGuard(!!draft && cleanExerciseNote(draft.text) !== draft.base);
 
   const save = async () => {
     if (!writing) return;
@@ -258,7 +261,7 @@ export function NoteBox({
           autoFocus
           multiline
           value={writing.text}
-          onChangeText={(text) => setDraft({ exerciseId, text })}
+          onChangeText={(text) => setDraft({ exerciseId, text, base: writing.base })}
           maxLength={EXERCISE_NOTE_MAX}
           accessibilityLabel="이 운동 메모"
           placeholder="예: 그립 한 칸 넓게, 벤치 등받이 3칸"
@@ -271,7 +274,7 @@ export function NoteBox({
       </View>
     );
 
-  const open = () => setDraft({ exerciseId, text: note ?? '' });
+  const open = () => setDraft({ exerciseId, text: note ?? '', base: note ?? '' });
   if (!note)
     return (
       <Press onPress={open} accessibilityRole="button" style={s.noteAdd}>

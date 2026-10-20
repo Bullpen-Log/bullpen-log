@@ -8,8 +8,9 @@
 #   1. plan    바닥 판(runtimeVersion = 지문, app.json policy fingerprint)을 셈하고 그 판 앱을 구운 적 있는지 사이트에 묻는다
 #   2. publish 화면 코드를 내보내 업데이트로 올린다(3~5분, Supabase 공개 버킷 app-updates) — 그 바닥 판 앱은 다시 켤 때 받는다(/api/app-update)
 #   3. build   바닥 판이 새것일 때만(스위프트 · 네이티브 패키지 · 설정이 바뀜) 굽고 TestFlight 에 올린 뒤 '구웠음'을 적는다
-#   업데이트 올리기는 굽기 전용 열쇠(LIBRARY_BUNDLE_TOKEN)로 사이트 /api/app-update/publish 를 부른다 — 저장소 열쇠는 GitHub 에 없다
-# 잇따라 올리면 앞 실행은 멈추고 마지막 것만(concurrency). 푸시로 돌 때는 시뮬레이터 확인은 건너뛴다(35분 아낌).
+#   업데이트 올리기는 앱 업데이트 전용 열쇠(APP_UPDATE_TOKEN, 없으면 LIBRARY_BUNDLE_TOKEN)로 사이트 /api/app-update/publish 를 부른다 — 저장소 열쇠는 GitHub 에 없다
+# 잇따라 올리면 plan · publish 는 앞 것을 멈추고 마지막 것만, build(30~50분)는 멈추지 않고 앞 굽기가 끝난 뒤 차례로(잡마다 concurrency).
+# 푸시로 돌 때는 시뮬레이터 확인은 건너뛴다(35분 아낌).
 # 손으로 돌릴 때(Run workflow)는 늘 굽고, '올리기' 스위치를 켠 실행만 TestFlight 에 올린다. 웹만 바꾼 푸시는 Vercel 배포로 끝.
 #
 # ■ ios/ 폴더는 저장소에 없다 — 매번 expo prebuild 로 만든다
@@ -54,20 +55,19 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ios-native-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   plan:
     name: 바닥 판 셈
+    concurrency:
+      group: ios-native-plan-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
       run:
         working-directory: native
     env:
-      LIBRARY_BUNDLE_TOKEN: ${{ secrets.LIBRARY_BUNDLE_TOKEN }}
+      APP_UPDATE_TOKEN: ${{ secrets.APP_UPDATE_TOKEN || secrets.LIBRARY_BUNDLE_TOKEN }}
     outputs:
       runtime: ${{ steps.fp.outputs.runtime }}
       built: ${{ steps.bin.outputs.built }}
@@ -92,13 +92,16 @@ jobs:
     name: 화면 코드 업데이트 올리기
     needs: plan
     if: github.event_name == 'push'
+    concurrency:
+      group: ios-native-publish-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
       run:
         working-directory: native
     env:
-      LIBRARY_BUNDLE_TOKEN: ${{ secrets.LIBRARY_BUNDLE_TOKEN }}
+      APP_UPDATE_TOKEN: ${{ secrets.APP_UPDATE_TOKEN || secrets.LIBRARY_BUNDLE_TOKEN }}
       EXPO_NO_TELEMETRY: '1'
     steps:
       - uses: actions/checkout@v7
@@ -116,6 +119,10 @@ jobs:
     # 바닥 판이 새것일 때만(그 판 앱이 TestFlight 에 없다) — 같은 판이면 publish 로 끝난다. 손으로 돌리면 늘 굽는다
     if: github.event_name == 'workflow_dispatch' || needs.plan.outputs.built != 'true'
     name: 굽기${{ (github.event_name == 'push' || inputs.upload) && ' · TestFlight 올리기' || '' }}
+    # 긴 굽기는 뒤 푸시가 와도 멈추지 않는다 — 멈추면 TestFlight 에 영영 못 올라간다. 뒤 것은 앞 굽기가 끝나면 이어서
+    concurrency:
+      group: ios-native-build-${{ github.ref }}
+      cancel-in-progress: false
     # Expo SDK 58 · React Native 0.88 은 Xcode 26 이상 — macos-26 의 기본 Xcode 가 26.x 다
     runs-on: macos-26
     # RN · Hermes 까지 처음부터 컴파일해서 옛 앱보다 오래 걸린다(윤호 맥북 M 시리즈에서 12분, GitHub 맥은 더)
@@ -394,7 +401,7 @@ jobs:
       - name: 바닥 판 앱을 구웠다고 적기
         if: steps.upload.outcome == 'success'
         env:
-          LIBRARY_BUNDLE_TOKEN: ${{ secrets.LIBRARY_BUNDLE_TOKEN }}
+          APP_UPDATE_TOKEN: ${{ secrets.APP_UPDATE_TOKEN || secrets.LIBRARY_BUNDLE_TOKEN }}
         run: node scripts/publish-update.mts mark-binary --runtime '${{ needs.plan.outputs.runtime }}' --build '${{ steps.version.outputs.build }}'
 
       - name: 올리기 건너뜀 알림

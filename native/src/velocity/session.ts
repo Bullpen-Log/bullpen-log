@@ -18,6 +18,7 @@ import {
 } from '@/lib/velocity-session';
 import { OUT_OF_RANGE_FIX, STANDARD_TARGET_DIST_M, TAPE_MISMATCH_FIX, zoneOfPoint, type CameraPos, type ZoneRect } from '@/lib/velocity-setup';
 import { DualCamera, type Clip, type StartInfo } from '../../modules/dual-camera';
+import { LocalVideo } from '../../modules/local-video';
 import { rpc } from '~/lib/rpc';
 import type { Verdict } from './capture';
 import { frameLossNote } from './clip-health';
@@ -265,8 +266,13 @@ export async function saveSession(input: {
   let clipFailed = 0;
   for (const [i, p] of pitches.entries()) {
     const pitchId = res.pitchIds?.[i];
-    if (!pitchId) continue;
+    if (!pitchId) {
+      void DualCamera.discard({ paths: [p.clip.path] });
+      continue;
+    }
     const clipInfo = { bytes: p.clip.bytes, sec: p.clip.durationSec, mime: 'video/mp4', eventSec: p.clip.eventSec };
+    /* 앱 안 영상 폴더로 옮겼나(keep) — 못 옮겼으면 카메라 임시 클립이 그대로 남으니 끝에 지운다 */
+    let kept = false;
     try {
       let attached: { ok: boolean };
       if (input.isAdmin) {
@@ -280,14 +286,19 @@ export async function saveSession(input: {
         const put = await DualCamera.upload({ path: p.clip.path, url: target.signedUrl, contentType: clipInfo.mime });
         if (put.status < 200 || put.status >= 300) throw new Error(`올리기 ${put.status}`);
         attached = await rpc('velocity.attachClip', pitchId, { path: target.path, ...clipInfo });
-        void DualCamera.discard({ paths: [p.clip.path] });
       } else {
         const { id } = await DualCamera.keep({ path: p.clip.path });
-        attached = await rpc('velocity.attachClip', pitchId, { path: '', localId: id, ...clipInfo });
+        kept = true;
+        /* keep 이 클립을 앱 안 영상 폴더로 옮겼다 — 붙이지 못하면 아무도 모르는 파일이 되니 바로 지운다 */
+        attached = await rpc<{ ok: boolean }>('velocity.attachClip', pitchId, { path: '', localId: id, ...clipInfo }).catch(() => ({ ok: false }));
+        if (!attached.ok) void LocalVideo.remove({ ids: [id] }).catch(() => undefined);
       }
       if (!attached.ok) clipFailed++;
     } catch {
       clipFailed++;
+    } finally {
+      /* 세션은 저장됐고 공은 목록에서 빠진다 — 서버에 올렸든 못 붙였든 카메라 임시 클립은 지운다(쌓이지 않게) */
+      if (!kept) void DualCamera.discard({ paths: [p.clip.path] });
     }
   }
   return { ok: true, clipFailed };

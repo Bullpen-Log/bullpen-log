@@ -11,7 +11,8 @@ import { REST_SESSION_TYPE } from '@/lib/session-type';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Wordmark } from '~/shell/wordmark';
 import { fadeIn, Pulse, viewSwap } from '~/shell/motion';
-import { openCheckin } from '~/shell/web-nav';
+import { leaveTo, openCheckin } from '~/shell/web-nav';
+import { RpcError } from '~/lib/rpc';
 import { ApiError, call, dateKeyOf } from '~/pitch/api';
 import { MonthGrid } from '~/pitch/month-grid';
 import { monthOf, reloadFeatured, reloadVelocityDays, useAllLogs, useMonth, useVelocityDays } from '~/pitch/store';
@@ -33,6 +34,12 @@ import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
  * 아직 웹인 것(체크인 흐름 · 잠긴 탭의 첫 설정)은 onWeb 으로 웹 화면을 연다 — 분석 · 그날 화면처럼 앱 화면이 있는 주소는 껍데기가 앱 화면으로 바꿔 연다(index.tsx nativeOfWeb).
  */
 let cached: AppHome | null = null;
+
+/** 못 받음 — 로그인이 풀렸으면(redirect) 다른 화면처럼 그 주소로, 아니면 글 + 다시 불러오기 */
+function failed(e: unknown, setError: (v: string) => void) {
+  if (e instanceof RpcError && e.code === 'redirect') return leaveTo(e.to ?? '/login');
+  setError(e instanceof Error ? e.message : '불러오지 못했어요.');
+}
 /** 로그아웃 — 앞사람 홈을 지운다 */
 export const resetHomeCache = () => {
   cached = null;
@@ -75,8 +82,11 @@ export function HomeTab({
   const clipCounts: Record<string, number> = {};
   for (const [k, v] of Object.entries(velocityDays ?? {})) clipCounts[k] = v.clips;
 
+  /* 펴 둔 그날 칸도 홈과 같이 새로 받게(DayCards refreshKey) */
+  const [dayTick, setDayTick] = useState(0);
   const refresh = useCallback(() => {
     const e = cacheEpoch();
+    setDayTick((n) => n + 1);
     return loadHome().then(
         (h) => {
           if (e !== cacheEpoch()) return;
@@ -85,7 +95,7 @@ export function HomeTab({
           setHome(h);
           setError(null);
         },
-        (err: unknown) => setError(err instanceof Error ? err.message : '불러오지 못했어요.')
+        (err: unknown) => failed(err, setError)
       );
   }, []);
   useEffect(() => {
@@ -105,7 +115,7 @@ export function HomeTab({
         void cacheSet('home', h);
         if (alive) setHome(h);
       },
-      (e: unknown) => alive && setError(e instanceof Error ? e.message : '불러오지 못했어요.')
+      (e: unknown) => alive && failed(e, setError)
     );
     return () => {
       alive = false;
@@ -248,7 +258,12 @@ export function HomeTab({
             </View>
           </>
         ) : error ? (
-          <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text>
+          <View style={{ gap: 12, alignItems: 'flex-start' }}>
+            <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text>
+            <Press accessibilityRole="button" onPress={() => void refresh()} style={[styles.retry, { backgroundColor: c.sky }]}>
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
+            </Press>
+          </View>
         ) : (
           /* 불러오는 동안 — 웹 @home/today/loading.tsx 의 뼈대(216 · 180)가 숨 쉬듯 옅어졌다 진해짐 */
           <>
@@ -303,7 +318,7 @@ export function HomeTab({
               style={{ marginTop: 16 }}
               onLayout={(e) => (dayY.current = e.nativeEvent.layout.y)}
             >
-              <DayCards date={selected} today={today} logs={dayLogs} onTab={onTab} onClose={() => setSelected(null)} />
+              <DayCards date={selected} today={today} logs={dayLogs} onTab={onTab} onClose={() => setSelected(null)} refreshKey={dayTick} />
             </Animated.View>
           ) : null}
         </Animated.View>
@@ -475,6 +490,7 @@ const styles = StyleSheet.create({
   bell: { position: 'absolute', right: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   dot: { position: 'absolute', right: 10, top: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2 },
   card: { borderRadius: 20, padding: SPACE.pad, gap: 10 },
+  retry: { minHeight: 44, paddingHorizontal: 20, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   good: { borderRadius: 20, borderWidth: 1 },
   goodHead: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, padding: SPACE.pad },
   listHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },

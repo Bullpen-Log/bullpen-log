@@ -5,6 +5,7 @@ import { KeyboardAvoidingView, ScrollView, Text, TextInput, View } from 'react-n
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INQUIRY_BODY_MAX, INQUIRY_CATEGORIES, INQUIRY_TITLE_MAX, type InquiryCategory } from '@/lib/support';
 import { Bar, BarButton, call, Chip, s, useBusy } from '~/community/parts';
+import { useDraftGuard } from '~/community/draft-guard';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
@@ -20,6 +21,7 @@ export default function NewInquiryScreen() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const send = useBusy();
+  const allowLeave = useDraftGuard(!!(title.trim() || body.trim()));
 
   const submit = () =>
     send.run(async () => {
@@ -28,6 +30,7 @@ export default function NewInquiryScreen() {
       const r = await call<{ ok: true; id: string } | { ok: false; error: string }>('support.createAppInquiry', { category, title, body });
       if (!r.ok) return r.error;
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      allowLeave();
       router.replace(`/support/inquiries/${r.id}` as Href);
       return null;
     });

@@ -41,7 +41,9 @@ export default function NutritionAddScreen() {
   const [amount, setAmount] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mfds, setMfds] = useState<{ q: string; foods: Food[]; full: boolean } | null>(null);
+  /* failed — 둘 다 못 받음(신호 · 서버). 돌개를 영영 돌리지 않고 '다시'를 보인다 */
+  const [mfds, setMfds] = useState<{ q: string; foods: Food[]; full: boolean; failed?: boolean } | null>(null);
+  const [mfdsTry, setMfdsTry] = useState(0);
   /* 이 창에서 담은 음식 이름 — 웹 '담았어요' 줄 */
   const [added, setAdded] = useState<string[]>([]);
   const [quick, setQuick] = useState<string | null>(null);
@@ -79,14 +81,26 @@ export default function NutritionAddScreen() {
     const t = setTimeout(() => {
       /* 상품까지(full) 답이 먼저 왔으면 품목대표 답으로 덮지 않는다(순서가 뒤집히면 결과가 줄고 '더 찾는 중'이 안 끝났다) */
       void searchMfdsReps(text)
-        .then((foods) => latest.current === text && setMfds((prev) => (prev?.q === text && prev.full ? prev : { q: text, foods, full: false })))
+        .then(
+          (foods) =>
+            latest.current === text &&
+            setMfds((prev) =>
+              prev?.q === text && prev.full && !prev.failed ? prev : { q: text, foods, full: prev?.q === text && !!prev.failed }
+            )
+        )
         .catch(() => undefined);
       void searchMfds(text)
         .then((foods) => latest.current === text && setMfds({ q: text, foods, full: true }))
-        .catch(() => undefined);
+        .catch(
+          () =>
+            latest.current === text &&
+            setMfds((prev) =>
+              prev?.q === text && prev.foods.length ? { ...prev, full: true } : { q: text, foods: [], full: true, failed: true }
+            )
+        );
     }, 350);
     return () => clearTimeout(t);
-  }, [q, day?.mfds]);
+  }, [q, day?.mfds, mfdsTry]);
   const shownMfds = mfds && mfds.q === q.trim() ? mfds : null;
 
   /* 바꾸기 모드면 그 줄을 바꾸고 닫는다 */
@@ -379,7 +393,18 @@ export default function NutritionAddScreen() {
                     </Text>
                     {!shownMfds ? <ActivityIndicator style={{ padding: 8 }} /> : null}
                     {shownMfds?.foods.slice(0, LIMIT).map((f, i) => row(f, `m${i}`))}
-                    {shownMfds?.full && shownMfds.foods.length === 0 && local.length === 0 ? (
+                    {shownMfds?.failed ? (
+                      <Press
+                        accessibilityRole="button"
+                        onPress={() => {
+                          setMfds(null);
+                          setMfdsTry((n) => n + 1);
+                        }}
+                        style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>찾지 못했어요 · 다시</Text>
+                      </Press>
+                    ) : shownMfds?.full && shownMfds.foods.length === 0 && local.length === 0 ? (
                       <Text style={{ color: c.muted, fontSize: 15, padding: 8, textAlign: 'center' }}>‘{q.trim()}’에 맞는 음식이 없어요.</Text>
                     ) : null}
                   </>

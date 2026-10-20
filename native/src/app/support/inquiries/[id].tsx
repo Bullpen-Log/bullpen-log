@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { REPLY_BODY_MAX, inquiryCategoryLabel } from '@/lib/support';
 import type { loadAppInquiry } from '@/app/actions/support';
 import { Badge, Bar, call, LoadState, s, StatusBadge, useBusy, useLoad } from '~/community/parts';
+import { useDraftGuard } from '~/community/draft-guard';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
@@ -27,6 +28,8 @@ export default function InquiryScreen() {
   const [reply, setReply] = useState('');
   const send = useBusy();
   const scroll = useRef<ScrollViewInstance>(null);
+  /* 적던 답글이 있으면 나가기 전에 묻는다(보내면 칸이 비어 묻지 않는다) */
+  useDraftGuard(!!reply.trim());
   const q = data?.inquiry;
 
   if (!data || !q) {

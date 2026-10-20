@@ -10,7 +10,7 @@
       "url": "https://bullpen-log.vercel.app/api/app-update",
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 5000
+      "fallbackToCacheTimeout": 1500
     },
     "orientation": "portrait",
     "icon": "./assets/icon.png",

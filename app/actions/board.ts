@@ -63,6 +63,13 @@ async function saveArticle(
     return { error: '자료 링크는 http:// 또는 https:// 로 시작해야 해요.' };
   }
 
+  /* 1분 안 같은 글이면 그것을 돌려준다(끊긴 응답에 다시 보냄 — 커뮤니티 글과 같은 까닭) */
+  const same = await prisma.article.findFirst({
+    where: { userId: user.id, title, content, createdAt: { gte: new Date(Date.now() - 60_000) } },
+    select: { id: true },
+  });
+  if (same) return { id: same.id };
+
   const article = await prisma.article.create({
     data: {
       userId: user.id,

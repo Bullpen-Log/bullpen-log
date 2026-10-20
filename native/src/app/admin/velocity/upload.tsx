@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { createUploadTask, FileSystemUploadType } from 'expo-file-system/legacy';
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -18,9 +18,11 @@ import { Press } from '~/shell/press';
  * 구속 측정 관리자의 '영상 올리기'(앱) — 웹 app/(app)/admin/velocity/mobile-upload.tsx 를 옮겼다: 사진 앱의 투구 영상 여러 개를 골라 스피드건 값만
  * 적고 한 번에 올린다. 폰에서 재지 않고 '수기'(스피드건 값)로 저장 — 카메라 값은 PC 구속 측정 관리자의 '이 영상으로 다시 재기'로 채운다.
  * 한 번에 올린 영상들은 세션 하나(영상 파일 · 보정용)의 공들. 공을 먼저 저장하고 영상을 하나씩(디스크에서 바로) 올린다 — 영상이 실패하면
- * 그 줄만 다시. 관리자 한도(500MB, 사이트 lib/storage.ts ADMIN_MAX_VIDEO_BYTES)를 넘는 영상은 고를 때 막는다.
+ * 그 줄만 다시. 한도는 사이트가 이 사람 역할로 알려 준다(app-admin.loadAppVelocityAdmin maxBytes — lib/storage.ts videoLimitOf).
+ * 못 받았으면 회원 한도(50MB)로 막는다 — 공을 먼저 저장하니, 서버가 영상을 거절하면 영상 없는 공만 남았다.
  */
-const MAX_BYTES = 500 * 1024 * 1024;
+const FALLBACK_BYTES = 50 * 1024 * 1024;
+const tooBig = (bytes: number, limit: number) => `${mb(bytes)} — ${Math.round(limit / 1024 / 1024)}MB 까지예요. 사진 앱에서 잘라 주세요`;
 const CAMERA_OPTIONS = [
   { value: 'behind-pitcher', label: '투수 뒤' },
   { value: 'behind-catcher', label: '포수 뒤' },
@@ -46,6 +48,14 @@ export default function VelocityUploadScreen() {
   const [cameraPos, setCameraPos] = useState<'behind-pitcher' | 'behind-catcher'>('behind-pitcher');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [maxBytes, setMaxBytes] = useState(FALLBACK_BYTES);
+  useEffect(() => {
+    void rpc<{ ok: boolean; maxBytes?: number }>('app-admin.loadAppVelocityAdmin')
+      .then((r) => {
+        if (r.ok && typeof r.maxBytes === 'number' && r.maxBytes > 0) setMaxBytes(r.maxBytes);
+      })
+      .catch(() => undefined);
+  }, []);
   const patch = (key: number, p: Partial<Item>) => setItems((list) => list.map((it) => (it.key === key ? { ...it, ...p } : it)));
 
   const pick = async () => {
@@ -54,7 +64,7 @@ export default function VelocityUploadScreen() {
     setItems((list) => [
       ...list,
       ...res.assets.map((asset): Item => {
-        const big = (asset.fileSize ?? 0) > MAX_BYTES;
+        const big = (asset.fileSize ?? 0) > maxBytes;
         return {
           key: ++seq.current,
           asset,
@@ -63,7 +73,7 @@ export default function VelocityUploadScreen() {
           pitchId: null,
           state: big ? 'error' : 'ready',
           percent: null,
-          error: big ? `${mb(asset.fileSize ?? 0)} — 500MB 까지예요. 사진 앱에서 잘라 주세요` : null,
+          error: big ? tooBig(asset.fileSize ?? 0, maxBytes) : null,
         };
       }),
     ]);
@@ -100,7 +110,10 @@ export default function VelocityUploadScreen() {
 
   const submit = async () => {
     setError(null);
-    const ready = items.filter((it) => it.state === 'ready');
+    /* 고른 뒤 한도를 받았을 수 있다 — 공을 저장하기 전에 다시 본다 */
+    const over = items.filter((it) => it.state === 'ready' && (it.asset.fileSize ?? 0) > maxBytes);
+    for (const it of over) patch(it.key, { state: 'error', error: tooBig(it.asset.fileSize ?? 0, maxBytes) });
+    const ready = items.filter((it) => it.state === 'ready' && !over.includes(it));
     const retry = items.filter((it) => it.state === 'error' && it.pitchId);
     const missing = ready.filter((it) => gunOf(it) == null);
     if (missing.length > 0) {

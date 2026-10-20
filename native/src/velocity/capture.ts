@@ -417,7 +417,8 @@ export class AppCapture {
       void drop([main.path]);
       throw new EngineError('ENGINE_DOWN', '계산기를 불러오지 못했어요. 신호를 확인해 주세요.');
     }
-    this.warnFrameLoss(main);
+    /* 화면에 띄운 작업만 알린다 — 조용한 움직임 작업까지 알리면 마지막 공이 오래된 값처럼 흐려졌다(stale) */
+    if (job.visible) this.warnFrameLoss(main);
     const s = this.settings();
     /*
      * 공이 처음 보인 때(클립 시각) — 공 알림 작업은 알림 시각, 움직임 작업에 묶인 공 알림은 그 차이만큼 뒤, 훑기가 찾은 공은 훑기 클립 안의 그 시각

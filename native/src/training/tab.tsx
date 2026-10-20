@@ -70,7 +70,11 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
           setFresh(true);
           setError(null);
         },
-        (err: unknown) => setError(err instanceof Error ? err.message : '불러오지 못했어요.')
+        (err: unknown) => {
+          /* 로그인이 풀렸으면 다른 화면처럼 그 주소로(로그인) */
+          if (err instanceof RpcError && err.code === 'redirect') return onWebRef.current(err.to ?? '/login');
+          setError(err instanceof Error ? err.message : '불러오지 못했어요.');
+        }
       );
   }, []);
   useEffect(() => {
@@ -181,7 +185,20 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
         />
       ) : null}
 
-      {error ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
+      {error ? (
+        <View style={{ gap: 12, alignItems: 'flex-start' }}>
+          <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text>
+          {!data ? (
+            <Press
+              accessibilityRole="button"
+              onPress={() => void load()}
+              style={{ minHeight: 44, paddingHorizontal: 20, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: c.sky }}
+            >
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
+            </Press>
+          ) : null}
+        </View>
+      ) : null}
       {!data && !error ? <ActivityIndicator style={{ paddingVertical: 24 }} /> : null}
 
       {data?.cards.map((card) => (

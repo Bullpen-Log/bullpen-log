@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COMMENT_BODY_MAX, REPORT_DETAIL_MAX, REPORT_REASONS, postCategoryLabel, type ReportReason } from '@/lib/community';
 import type { loadAppCommunityPost } from '@/app/actions/community';
 import { Badge, Bar, call, categoryColor, Chip, LoadState, s, useBusy, useLoad } from '~/community/parts';
+import { useDraftGuard } from '~/community/draft-guard';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
@@ -35,6 +36,8 @@ export default function CommunityPostScreen() {
   const [comment, setComment] = useState('');
   const send = useBusy();
   const scroll = useRef<ScrollViewInstance>(null);
+  /* 적던 댓글이 있으면 나가기 전에 묻는다(올리면 칸이 비어 묻지 않는다) */
+  useDraftGuard(!!comment.trim());
 
   if (!data || !post) {
     return (

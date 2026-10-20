@@ -45,7 +45,7 @@ export default function RootLayout() {
   /* 딥링크로 앱 화면부터 열면 그 화면이 보이게 시작 화면을 걷는다 — 밑의 웹 껍데기는 가려져 있어 다 그려졌다는 알림이 오지 않았다 */
   const path = usePathname();
   const theme = useTheme();
-  useAppUpdateOnReturn(path === '/');
+  useAppUpdateOnReturn();
   useEffect(() => {
     if (path !== '/') {
       void SplashScreen.hideAsync();

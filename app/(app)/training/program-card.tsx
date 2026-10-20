@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react';
 import { AlertCircle, ChevronDown, Play } from '@/components/icon';
 import { Card, Button } from '@/components/ui';
+import { useWeightUnit } from '@/components/use-units';
+import { formatWeight } from '@/lib/units';
 import { Modal, useModalState } from '@/components/modal';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { DisclosureButton } from '@/components/disclosure';
@@ -32,11 +34,9 @@ import { sessionTitle, type VariantKey } from '@/lib/program/program';
 
 type Row = ProgramCardProps['rows'][number];
 
-function kgText(kg: number) {
-  return Number.isInteger(kg) ? String(kg) : kg.toFixed(1);
-}
-
 export function ProgramCard({ props }: { props: ProgramCardProps }) {
+  /* 추천 무게는 설정 단위로(저장 · 계산은 kg) */
+  const unit = useWeightUnit();
   const p = props;
   const reason = useModalState<Row>();
   const [more, setMore] = useState(false);
@@ -160,7 +160,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
                 <span className="shrink-0 text-right">
                   {r.kg != null ? (
                     <span className="text-numeric text-base font-bold text-sky-strong">
-                      {kgText(r.kg)}kg
+                      {formatWeight(r.kg, unit)}
                       {r.perHand && (
                         <span className="ml-1 text-caption font-medium text-muted">
                           한 손
@@ -324,6 +324,7 @@ function MoreRow({
 }
 
 function ReasonBody({ row }: { row: Row }) {
+  const unit = useWeightUnit();
   return (
     <div className="space-y-3 text-sm leading-relaxed text-ink">
       <p className="text-muted">
@@ -337,7 +338,7 @@ function ReasonBody({ row }: { row: Row }) {
       )}
       {row.kg != null && (
         <p>
-          추천 <b className="text-numeric">{kgText(row.kg)}kg</b>
+          추천 <b className="text-numeric">{formatWeight(row.kg, unit)}</b>
           {row.perHand ? ' (한 손)' : ''}. 실제 무게는 들어 보고 정해요.
         </p>
       )}

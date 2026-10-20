@@ -34,12 +34,14 @@ import { resetVelocityDayCache } from '~/pitch/velocity-day';
 import { resetNutritionStore } from '~/nutrition/api';
 import { useWebNav, webArrived } from '~/shell/web-nav';
 import { resetFavorites } from '~/training/favorites';
-import { setMenu, useMenu, type MenuGroup } from '~/shell/menu-store';
+import { setMenu, setMenuTabs, useMenu, type MenuGroup } from '~/shell/menu-store';
 import { adoptWebValues, cacheClear, loadJson, saveJson } from '~/lib/store';
 import { onPrefsChange, PREF_KEYS, reloadPrefs } from '~/lib/prefs';
 import { useTheme } from '~/lib/ui';
-import { clearDraft } from '~/velocity/draft';
-import { rpc } from '~/lib/rpc';
+import { dropDraftNotOf } from '~/velocity/draft';
+import { rpc, RpcError } from '~/lib/rpc';
+import { toDateKey } from '@/lib/pitch-stats';
+import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { drainOutbox, setOutboxOwner } from '~/workout/outbox';
 import { drainChecks } from '~/armcare/outbox';
 import { sendCheck } from '~/armcare/send';
@@ -115,14 +117,17 @@ function nativeOfWeb(href: string): string | null {
   return null;
 }
 function openNative(path: string) {
-  /* 같은 주소만 1.5초 안에 한 번 — 예전엔 어느 주소든 막아, 앱 화면을 닫자마자 다른 앱 화면을 열면 말없이 안 열렸다 */
-  if (path === lastOpen.path && Date.now() - lastOpen.at < 1500) return;
-  if (NATIVE_PATHS.has(path)) router.push('/velocity');
-  else if (NATIVE_ROUTES.some((r) => r.test(path))) router.push(path as Href);
+  /*
+   * 같은 주소만 0.7초 안에 한 번 — 예전엔 어느 주소든 막아, 앱 화면을 닫자마자 다른 앱 화면을 열면 말없이 안 열렸다.
+   * 1.5초면 화면을 닫고 곧바로 같은 곳을 다시 누를 때 안 열렸다(2026-10-21) — _layout 의 같은 곳 두 번 밀기 막기(0.7초)와 같게
+   */
+  if (path === lastOpen.path && Date.now() - lastOpen.at < 700) return;
+  /* ? 뒤까지 맞는 앱 화면이 먼저 — '/velocity?mode=abs' 를 '/velocity' 로 열면 ABS 모드가 빠졌다 */
+  if (NATIVE_ROUTES.some((r) => r.test(path))) router.push(path as Href);
+  else if (NATIVE_PATHS.has(path.split('?')[0])) router.push('/velocity');
   else return;
   lastOpen = { path, at: Date.now() };
 }
-const openVelocity = () => openNative('/velocity');
 
 /** 사이트 주소 → 그 주소가 속한 탭(웹 lib/nav.ts NAV_ALSO 와 같은 묶음) */
 function tabOf(path: string, tabs: ShellTab[]): string | null {
@@ -163,7 +168,7 @@ const isLoginPath = (p: string) => p === '/login' || p.startsWith('/login/') || 
 /** 웹 체크인 흐름(app/(session)/checkin) — 탭 막대가 없는 화면 */
 const isCheckinPath = (p: string) => p === '/checkin' || p.startsWith('/checkin/');
 
-/** 로그아웃 — 앞사람 기록(메모리 · 폰)을 지운다. 다음 사람이 로그인하면 새로 받는다 */
+/** 로그아웃 — 앞사람 기록(메모리 · 폰)을 지운다. 다음 사람이 로그인하면 새로 받는다(껍데기 상태는 SiteScreen resetShell) */
 function resetAccount() {
   resetMe();
   setOutboxOwner(null);
@@ -180,10 +185,24 @@ function resetAccount() {
   resetScanned();
   /* 더보기의 이름 · 관리자 칸 — 다음 사람의 메뉴 알림이 오기 전까지 앞사람 것이 보였다 */
   setMenu({ groups: [], nickname: '' });
+  setMenuTabs(DEFAULT_TABS);
   void cacheClear();
-  /* 저장 안 한 구속 세션(폰에 맡김) — 다음 사람이 '이어서 하기'로 앞사람 공을 제 기록에 저장하지 않게. 클립 파일은 tmp 라 하루 안에 앱이 치운다 */
-  void clearDraft();
+  /*
+   * 저장 안 한 구속 세션(폰에 맡김)은 여기서 지우지 않는다 — 로그인 화면에 왔다고 지우면 같은 사람이 다시 로그인해도 잰 공이 사라졌다(2026-10-21).
+   * 다른 계정이 로그인했을 때만 지운다(ownerKnown → dropDraftNotOf, 운동 대기열과 같은 규칙)
+   */
 }
+
+/** 누가 로그인했는지 안 때 — 대기열 주인을 정하고, 다른 계정이 맡긴 구속 세션은 지우고, 폰에 남은 것을 보낸다 */
+function ownerKnown(userId: string) {
+  setOutboxOwner(userId);
+  void dropDraftNotOf(userId);
+  drainQueues();
+}
+
+/** 다음 한국 자정까지(ms) — 한국은 서머타임이 없어 UTC+9 고정. 1초 넉넉히 */
+const untilKstMidnight = () => 86_400_000 - ((Date.now() + 9 * 3_600_000) % 86_400_000) + 1000;
+const UNSEEN = { home: false, pitch: false, training: false, nutrition: false };
 
 /** 폰에 남은 운동 세트 · 암케어 체크를 보낸다 — 체크를 하나라도 보냈으면 사이트의 트레이닝 목록 · 홈을 새로 그리게(따라 하기 화면과 같다) */
 function drainQueues() {
@@ -213,52 +232,70 @@ export default function SiteScreen() {
   const [search, setSearch] = useState('');
   const [barOn, setBarOn] = useState(false);
   const [today, setToday] = useState<string | null>(null);
-  /* 꺼진 망에서 켜면 실패하고 영영 웹만 보였다 — 8초 뒤 다시(망이 돌아올 때까지 되풀이) */
+  /* 서버가 계정 · 오늘을 알려 줬나 — 꺼진 망이면 오늘은 폰의 한국 날짜로 두고(앱 탭이 그려지게) 8초마다 다시 묻는다 */
+  const [meOk, setMeOk] = useState(false);
   const [meTry, setMeTry] = useState(0);
-  useEffect(() => {
-    if (!barOn || today) return;
-    let alive = true;
-    void loadMe().then(
-      (m) => alive && setToday(m.today),
-      () => alive && setTimeout(() => alive && setMeTry((n) => n + 1), 8000)
+  /** 폰 날짜로 둔 오늘 — 망이 끊겼다고 서버 오늘(시험 계정의 시뮬레이션 날짜)을 덮지 않게, 폰 날짜를 따르던 때만 바꾼다 */
+  const deviceDay = useRef(toDateKey(new Date()));
+  /*
+   * 계정 · 오늘을 (다시) 묻는다. 됐으면 대기열 주인을 정하고 폰에 남은 운동 세트 · 암케어 체크를 보낸다(그 화면을 다시 안 열어도 — 암케어 체크는
+   * 7일 지나면 버려진다. 서버가 거절한 것은 대기열이 뺀다). 로그인 전이면 막혀 그대로 남는다(다음 기회에).
+   */
+  const askMe = useCallback(() => {
+    resetMe();
+    return loadMe().then(
+      (m) => {
+        deviceDay.current = toDateKey(new Date());
+        setToday(m.today);
+        setMeOk(true);
+        ownerKnown(m.userId);
+        return true;
+      },
+      (e: unknown) => {
+        if (e instanceof RpcError && e.code === 'offline') {
+          const was = deviceDay.current;
+          const now = toDateKey(new Date());
+          deviceDay.current = now;
+          setToday((t) => (!t || t === was ? now : t));
+        }
+        return false;
+      }
     );
+  }, []);
+  /* 꺼진 망에서 켜면 실패하고 영영 웹만 보였다 — 8초 뒤 다시(망이 돌아올 때까지 되풀이) */
+  useEffect(() => {
+    if (!(barOn || failed) || meOk) return;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    void askMe().then((ok) => {
+      if (!ok && alive) timer = setTimeout(() => alive && setMeTry((n) => n + 1), 8000);
+    });
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
-  }, [barOn, today, meTry]);
+  }, [barOn, failed, meOk, meTry, askMe]);
   /*
-   * 운동 중 신호가 없어 폰에 남은 세트 · 암케어 체크 — 앱을 켤 때 · 다시 볼 때 보낸다(그 화면을 다시 안 열어도 — 암케어 체크는 7일 지나면 버려진다).
-   * 서버가 거절한 것은 대기열이 뺀다.
-   * 로그인 전이면 보내기가 막혀 그대로 남는다(다음 기회에).
+   * 앱을 다시 볼 때 · 한국 자정에 오늘을 다시 묻는다 — 밤을 넘겨 켜 둔 앱이 어제 달력 · 어제 홈을 보이지 않게. 계정도 다시 정한다 — 꺼진 망에서 켜
+   * 첫 물음이 실패했으면 여기서 처음 계정이 정해진다(2026-10-18 통합 점검). 뒤에 있는 동안 멈춘 자정 시계는 '다시 볼 때'가 메운다.
    */
   useEffect(() => {
-    if (!barOn) return;
-    /* 누구인지 안 뒤에 — 대기열은 지금 계정 것만 보낸다 */
-    void loadMe().then(
-      (m) => {
-        setOutboxOwner(m.userId);
-        drainQueues();
-      },
-      () => undefined
-    );
-  }, [barOn]);
-  /* 앱을 다시 볼 때 오늘을 다시 묻는다 — 밤을 넘겨 켜 둔 앱이 어제 달력 · 어제 홈을 보이지 않게 */
-  useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
-      if (st !== 'active') return;
-      resetMe();
-      /* 계정을 먼저 안 뒤 보낸다 — 꺼진 망에서 켜 첫 loadMe 가 실패했으면 여기서 처음 계정이 정해진다(2026-10-18 통합 점검) */
-      void loadMe().then(
-        (m) => {
-          setToday(m.today);
-          setOutboxOwner(m.userId);
-          drainQueues();
-        },
-        () => undefined
-      );
+      if (st === 'active') void askMe();
     });
-    return () => sub.remove();
-  }, []);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const atMidnight = () => {
+      timer = setTimeout(() => {
+        void askMe();
+        atMidnight();
+      }, untilKstMidnight());
+    };
+    atMidnight();
+    return () => {
+      sub.remove();
+      clearTimeout(timer);
+    };
+  }, [askMe]);
   const active = tabOf(path, tabs);
   const sport = sportOfPath(path, search);
   /* 웹을 앞으로 — 앱 화면 위에서 연 웹 창(설정)이 보이게 앱 화면을 잠시 걷는다. 그 창을 닫거나 탭을 누르면 돌아온다 */
@@ -273,10 +310,14 @@ export default function SiteScreen() {
   /* 영양 첫 화면도 앱 화면(오늘 먹은 것 · 담기 · 체중) — '식단 · 목표 · 통계'를 누르면 영양을 다시 열 때까지 웹 영양 */
   const [webNutrition, setWebNutrition] = useState(false);
   /* 2026-10-20 영양은 하단 탭에서 더보기로(넷째 탭은 커뮤니티) — 잠김은 더보기 목록(사이트가 보낸 메뉴)에서 읽는다 */
-  const nutritionTab = tabs.find((t) => t.href === '/nutrition') ?? menu.groups.flatMap((g) => g.items).find((i) => i.icon === 'utensils');
+  const nutritionTab =
+    tabs.find((t) => t.href === '/nutrition') ?? menu.groups.flatMap((g) => g.items).find((i) => i.href.split('?')[0] === '/nutrition' || i.icon === 'utensils');
+  /* undefined = 아직 모름(메뉴가 오기 전) */
+  const nutritionLocked = nutritionTab?.locked;
   const showNutrition = barOn && path === '/nutrition' && !!today && !webNutrition && !nutritionTab?.locked && !webFront;
   /* 트레이닝 첫 화면(앱 카드 셋)도 앱 화면 — 카드를 누르면(암케어 · 메커니즘 · 운동 전체) 주소가 ?view=… 로 바뀌어 웹이 보인다 */
-  const trainingTab = tabs.find((t) => t.href.startsWith('/training'));
+  /* 2026-10-21 트레이닝은 하단 탭이 아니라 투구 종목 바 안 — 잠김은 그 칸에서 읽는다(하단 탭에서 찾으면 늘 없어 잠김을 못 봤다) */
+  const trainingTab = sportBars.pitch.find((t) => t.href.startsWith('/training?sport='));
   const trainingView = new URLSearchParams(search).get('view');
   const showTraining =
     barOn && path === '/training' && (trainingView === 'home' || trainingView === 'last') && !!today && !trainingTab?.locked && !webFront;
@@ -285,7 +326,7 @@ export default function SiteScreen() {
   const nowIndex = showHome ? 0 : showPitch ? 1 : showTraining ? 2 : showNutrition ? 3 : -1;
   const [pagerIndex, setPagerIndex] = useState(0);
   if (nowIndex >= 0 && nowIndex !== pagerIndex) setPagerIndex(nowIndex);
-  const [seen, setSeen] = useState({ home: false, pitch: false, training: false, nutrition: false });
+  const [seen, setSeen] = useState(UNSEEN);
   if ((showHome && !seen.home) || (showPitch && !seen.pitch) || (showTraining && !seen.training) || (showNutrition && !seen.nutrition))
     setSeen({ home: seen.home || showHome, pitch: seen.pitch || showPitch, training: seen.training || showTraining, nutrition: seen.nutrition || showNutrition });
   /*
@@ -301,7 +342,8 @@ export default function SiteScreen() {
             home: true,
             pitch: s.pitch || !pitchTab?.locked,
             training: s.training || !trainingTab?.locked,
-            nutrition: s.nutrition || !nutritionTab?.locked,
+            /* 메뉴가 오기 전에는 잠겼는지 몰라 붙이지 않는다 */
+            nutrition: s.nutrition || nutritionLocked === false,
           };
           /* 바뀐 게 없으면 그대로 — 새 객체를 돌려주면 잠긴 탭이 있는 동안 1.2초마다 영영 다시 그렸다 */
           return next.home === s.home && next.pitch === s.pitch && next.training === s.training && next.nutrition === s.nutrition ? s : next;
@@ -309,7 +351,7 @@ export default function SiteScreen() {
       1200
     );
     return () => clearTimeout(t);
-  }, [pagerOn, seen, pitchTab?.locked, trainingTab?.locked, nutritionTab?.locked]);
+  }, [pagerOn, seen, pitchTab?.locked, trainingTab?.locked, nutritionLocked]);
 
   /* 웹뷰를 새로 만들 때(다시 불러오기 · 프로세스 죽음) — 새 웹은 /today 인데 앱 상태가 옛 주소로 남아 탭 불 · 판이 어긋났다 */
   const resetWebState = () => {
@@ -354,6 +396,16 @@ export default function SiteScreen() {
     goWeb(href);
   };
   const goTab = (href: string) => {
+    /*
+     * 운동을 마치거나 트레이닝 첫 설정을 끝낸 뒤의 '/training' — 2026-10-21 트레이닝이 종목 바 안으로 들어가 하단 탭에서 못 찾고 웹 '오늘 운동'이 열렸다.
+     * 앱 트레이닝 첫 화면(TrainingTab, ?view=home — 트레이닝 홈 카드가 여는 곳)으로. 잠겼으면 웹이 첫 설정으로 보낸다
+     */
+    if (href === '/training' && !trainingTab?.locked) {
+      setWebFront(false);
+      setPath('/training');
+      setSearch(TRAINING_HOME_HREF.split('?')[1]);
+      return goWeb(TRAINING_HOME_HREF);
+    }
     /*
      * 쿼리 없는 탭 주소도 그 탭으로 — 트레이닝 탭의 주소는 '/training?view=home' 인데 운동을 마치거나 트레이닝 첫 설정을 끝낸 뒤 '/training' 으로 보내
      * 짝을 못 찾고 웹 '오늘 운동' 화면이 열렸다(2026-10-20 대조 검토)
@@ -412,7 +464,7 @@ export default function SiteScreen() {
     /* ?web=1 은 옛 앱 세션을 웹 구속 화면이 마무리하는 길이라 가로채지 않는다(app/(session)/velocity/page.tsx) */
     const u = new URL(req.url);
     if (host === SITE_HOST && NATIVE_PATHS.has(u.pathname) && u.searchParams.get('web') !== '1') {
-      openVelocity();
+      openNative(u.pathname + u.search);
       return false;
     }
     if (
@@ -445,6 +497,18 @@ export default function SiteScreen() {
     oldVelocity.current = askOldVelocity;
   });
 
+  /* 로그인 화면에 왔다 = 로그아웃 — 앞사람 기록과 함께 껍데기 상태(붙여 둔 판 · 웹 홈/영양 · 탭 · 종목 바)도 처음으로 */
+  const resetShell = useCallback(() => {
+    resetAccount();
+    setToday(null);
+    setMeOk(false);
+    setSeen(UNSEEN);
+    setWebHome(false);
+    setWebNutrition(false);
+    setTabs(DEFAULT_TABS);
+    setSportBars(DEFAULT_SPORT_BARS);
+  }, []);
+
   const onMessage = useCallback((ev: WebViewMessageEvent) => {
     let msg: {
       t?: string;
@@ -468,6 +532,7 @@ export default function SiteScreen() {
     if (msg.t === 'native' && msg.path) return openNative(msg.path);
     if (msg.t === 'tabs' && Array.isArray(msg.items)) {
       setTabs(msg.items);
+      setMenuTabs(msg.items);
       const sp = msg.sports;
       if (sp && Array.isArray(sp.pitch) && Array.isArray(sp.hit)) setSportBars({ pitch: sp.pitch, hit: sp.hit });
       return;
@@ -489,10 +554,7 @@ export default function SiteScreen() {
       });
     if (msg.t === 'webfront') return setWebFront(msg.on === true);
     if (msg.t === 'loc') {
-      if (typeof msg.path === 'string' && isLoginPath(msg.path)) {
-        resetAccount();
-        setToday(null);
-      }
+      if (typeof msg.path === 'string' && isLoginPath(msg.path)) resetShell();
       return;
     }
     if (msg.t === 'oldvelo') return void oldVelocity.current(Number(msg.pitches) || 0, Number(msg.uploads) || 0);
@@ -502,7 +564,7 @@ export default function SiteScreen() {
       (script) => web.current?.injectJavaScript(script),
       (t) => t.color && setPageColor(t.color)
     );
-  }, []);
+  }, [resetShell]);
 
   const onNav = useCallback((nav: WebViewNavigation) => {
     if (!nav.loading) setFailed(false);
@@ -513,35 +575,11 @@ export default function SiteScreen() {
     } catch {
       return;
     }
-    if (isLoginPath(pathname)) {
-      resetAccount();
-      setToday(null);
-    }
-  }, []);
+    if (isLoginPath(pathname)) resetShell();
+  }, [resetShell]);
 
-  if (failed) {
-    return (
-      <View style={[styles.offline, dark && styles.offlineDark]}>
-        <Text style={[styles.title, dark && styles.textDark]}>
-          인터넷에 연결할 수 없어요
-        </Text>
-        <Text style={[styles.body, dark && styles.mutedDark]}>
-          연결되면 다시 불러와 주세요.
-        </Text>
-        <Press
-          accessibilityRole="button"
-          style={styles.button}
-          onPress={() => {
-            setFailed(false);
-            resetWebState();
-            setLoad((n) => n + 1);
-          }}
-        >
-          <Text style={styles.buttonText}>다시 불러오기</Text>
-        </Press>
-      </View>
-    );
-  }
+  /* 웹을 못 불러와도(꺼진 망에서 켬) 탭 막대 · 앱 탭은 그대로 쓴다 — 사이트가 '막대 켬'을 못 알려 주니 실패면 켠 것으로 본다 */
+  const barShown = (barOn || failed) && !webFront && !isCheckinPath(path);
 
   return (
     <View style={{ flex: 1 }}>
@@ -580,6 +618,24 @@ export default function SiteScreen() {
           setLoad((n) => n + 1);
         }}
       />
+      {/* 웹 자리에만 알림 — 예전엔 껍데기 전체를 이 화면으로 바꿔 탭 막대 · 앱 탭까지 못 썼다(2026-10-21) */}
+      {failed ? (
+        <View style={[StyleSheet.absoluteFill, styles.offline, dark && styles.offlineDark, { paddingBottom: 24 + TAB_BAR_HEIGHT }]}>
+          <Text style={[styles.title, dark && styles.textDark]}>인터넷에 연결할 수 없어요</Text>
+          <Text style={[styles.body, dark && styles.mutedDark]}>연결되면 다시 불러와 주세요.</Text>
+          <Press
+            accessibilityRole="button"
+            style={styles.button}
+            onPress={() => {
+              setFailed(false);
+              resetWebState();
+              setLoad((n) => n + 1);
+            }}
+          >
+            <Text style={styles.buttonText}>다시 불러오기</Text>
+          </Press>
+        </View>
+      ) : null}
       {/* 탭 넷 — 나란히 두고 240ms 에 미끄러진다(웹 tab-pager). 한 번 연 판은 붙여 둬서 굴린 자리가 남는다 */}
       {today ? (
         <TabPager
@@ -607,7 +663,7 @@ export default function SiteScreen() {
         투구 · 타격 안에서는 종목 바(‹ · 기록 · 트레이닝 · …)로 갈아 끼운다 — 커뮤니티 하단바와 같은 back · enter(웹 sport-tabs.tsx 와 같은 규칙).
         key 가 바뀌어 새로 붙을 때마다 들어오기 연출이 돈다.
       */}
-      {barOn && !webFront && !isCheckinPath(path) ? (
+      {barShown ? (
         sport ? (
           <TabBar
             key={sport}
@@ -621,7 +677,7 @@ export default function SiteScreen() {
           <TabBar
             key="main"
             tabs={tabs}
-            active={showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : showTraining ? (trainingTab?.href ?? active) : active}
+            active={showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : active}
             onPress={pressTab}
           />
         )

@@ -39,3 +39,10 @@ export async function uploadTarget(path: string): Promise<string> {
   if (error || !data) throw new Error(`올릴 주소 ${path}: ${error?.message}`);
   return data.signedUrl;
 }
+
+/** 폴더 안 파일 이름 — 새것부터(되돌리기용 지난 업데이트 목록) */
+export async function listNewest(folder: string, limit: number): Promise<string[]> {
+  const { data, error } = await bucket().list(folder, { limit, sortBy: { column: 'created_at', order: 'desc' } });
+  if (error) throw new Error(`앱 업데이트 목록 ${folder}: ${error.message}`);
+  return data.map((f) => f.name);
+}

@@ -6,7 +6,7 @@ import { SLEEP_QUALITY_LEVELS } from '@/lib/checkin';
 import { effortText } from '@/lib/pitch-effort';
 import { agoText, spokenDay } from '@/lib/report/trends';
 import { isRestSession } from '@/lib/session-type';
-import { formatSpeed } from '@/lib/units';
+import { formatSpeed, formatWeight, type WeightUnit } from '@/lib/units';
 import { usePrefs } from '~/lib/prefs';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import type { PitchLog } from '~/pitch/api';
@@ -53,9 +53,12 @@ export function DayCards({
   logs,
   onTab,
   onClose,
+  refreshKey = 0,
 }: {
   date: string;
   today: string;
+  /** 홈이 새로 받을 때마다 올린다 — 펴 둔 칸도 따라 새로(탭 · 화면에서 돌아왔을 때) */
+  refreshKey?: number;
   /** 그날 투구 기록 — 달력이 이미 받은 달 묶음에서 */
   logs: PitchLog[];
   onTab: (href: string) => void;
@@ -84,7 +87,7 @@ export function DayCards({
     return () => {
       alive = false;
     };
-  }, [date, today, retry]);
+  }, [date, today, retry, refreshKey]);
   /* 한 번은 저절로 다시 받는다 — 서버가 잠깐 몰려 실패한 것이면 사람이 누르기 전에 채워진다(1.5초 뒤, 날마다 한 번) */
   const autoRetried = useRef<string | null>(null);
   useEffect(() => {
@@ -187,12 +190,12 @@ export function DayCards({
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
             {!ahead && focus !== 'schedule' ? (
-              <Press accessibilityRole="link" onPress={() => router.push(`/analysis?view=${focus === 'training' ? 'training' : 'pitch'}&date=${date}` as Href)} style={styles.headLink}>
+              <Press accessibilityRole="link" onPress={() => router.push(`/analysis?view=${focus === 'training' ? 'training' : 'pitch'}&date=${date}` as Href)} hitSlop={{ top: 6, bottom: 6 }} style={styles.headLink}>
                 <Text style={{ color: c.muted, fontSize: 15, fontWeight: '400' }}>그날 분석</Text>
               </Press>
             ) : null}
             {link ? (
-              <Press accessibilityRole="link" onPress={() => go(link.href, onTab)} style={[styles.headLink, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+              <Press accessibilityRole="link" onPress={() => go(link.href, onTab)} hitSlop={{ top: 6, bottom: 6 }} style={[styles.headLink, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
                 <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{link.label}</Text>
                 <Icon name="chevron-right" size={14} color={c.sky} />
               </Press>
@@ -310,6 +313,7 @@ function go(href: string, onTab: (href: string) => void) {
 }
 
 function TrainingDetail({ d, c }: { d: DayDetail; c: Palette }) {
+  const unit = usePrefs().weight;
   const t = d.training;
   const done = t.exercises.filter((e) => e.done);
   if (!t.exercises.length && t.intensity == null) return <Empty c={c}>이 날 남긴 운동이 없어요.</Empty>;
@@ -329,7 +333,7 @@ function TrainingDetail({ d, c }: { d: DayDetail; c: Palette }) {
                 {e.title}
               </Text>
               <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
-                {doneText(e)}
+                {doneText(e, unit)}
               </Text>
             </View>
           </Animated.View>
@@ -340,12 +344,12 @@ function TrainingDetail({ d, c }: { d: DayDetail; c: Palette }) {
     </View>
   );
 }
-function doneText(e: DayDetail['training']['exercises'][number]) {
+function doneText(e: DayDetail['training']['exercises'][number], unit: WeightUnit) {
   const a = [
     e.setsDone != null ? `${e.setsDone}세트` : null,
     e.repsDone != null ? `${e.repsDone}회` : null,
     e.holdSecondsDone != null ? `${e.holdSecondsDone}초` : null,
-    e.weightKg != null ? `${e.weightKg}kg` : null,
+    formatWeight(e.weightKg, unit),
   ].filter(Boolean);
   return a.length ? a.join(' · ') : (e.planned ?? e.category);
 }
@@ -486,6 +490,7 @@ const styles = StyleSheet.create({
   tileIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   warnDot: { position: 'absolute', right: -4, top: -4, width: 14, height: 14, borderRadius: 7, borderWidth: 2 },
   detailHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  /* 32 + 위아래 hitSlop 6 = 누르는 자리 44 */
   headLink: { minHeight: 32, justifyContent: 'center', paddingHorizontal: 8, borderRadius: 12 },
   detailBody: { paddingHorizontal: 20, paddingVertical: 16, gap: 16 },
   box: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12 },

@@ -12,6 +12,8 @@ import { BigButton, Card, LinkRow, s, type TodayActions } from './parts';
 import { RepinSheet } from './program-start';
 import { Sheet } from '~/workout/sheets';
 import { Press } from '~/shell/press';
+import { formatWeight, toWeight } from '@/lib/units';
+import { useWeightUnit } from '~/lib/weight-unit';
 
 /**
  * 근력 · 파워 프로그램 카드(앱 화면) — 웹 app/(app)/training/program-card.tsx 를 옮겼다. 차례도 같다: 오늘 상태 + 일차 → 주의 한 줄 → [운동 시작]
@@ -20,9 +22,10 @@ import { Press } from '~/shell/press';
  */
 type Row = ProgramCardProps['rows'][number];
 
-const kgText = (kg: number) => (Number.isInteger(kg) ? String(kg) : kg.toFixed(1));
 
 export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; a: TodayActions }) {
+  /* 추천 무게는 설정 단위로(저장 · 계산은 kg) */
+  const unit = useWeightUnit();
   const [more, setMore] = useState(false);
   const [ahead, setAhead] = useState(false);
   /* 확인 뒤 서버 동작 중 — 카드에 웹 ConfirmDialog pendingLabel 과 같은 글('넘기는 중…' 등) */
@@ -138,7 +141,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
               <View style={{ alignItems: 'flex-end' }}>
                 {r.kg != null ? (
                   <Text style={[s.bodyBold, s.num, { color: c.sky }]}>
-                    {kgText(r.kg)}kg{r.perHand ? <Text style={[s.tiny, { color: c.muted }]}> 한 손</Text> : null}
+                    {formatWeight(r.kg, unit)}{r.perHand ? <Text style={[s.tiny, { color: c.muted }]}> 한 손</Text> : null}
                   </Text>
                 ) : r.first ? (
                   <Text style={[s.tiny, { color: c.muted }]}>처음</Text>
@@ -254,7 +257,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
             <Text style={[s.body, { color: c.ink }]}>{why.reason ?? '무게 없이 하는 운동이에요.'}</Text>
             {why.kg != null ? (
               <Text style={[s.body, { color: c.ink }]}>
-                추천 <Text style={[s.bodyBold, s.num]}>{kgText(why.kg)}kg</Text>
+                추천 <Text style={[s.bodyBold, s.num]}>{formatWeight(why.kg, unit)}</Text>
                 {why.perHand ? ' (한 손)' : ''}. 실제 무게는 들어 보고 정해요.
               </Text>
             ) : null}
@@ -346,6 +349,7 @@ function Upcoming({ sessions, c }: { sessions: ProgramCardProps['upcoming']; c: 
 
 /** 프로그램을 다 마쳤을 때(웹 program-done.tsx) — 큰 운동의 추정 최대, 기본기는 다음 길 */
 export function ProgramDoneView({ result, c }: { result: ProgramResult; c: Palette }) {
+  const unit = useWeightUnit();
   return (
     <Card c={c}>
       <View style={{ gap: 4 }}>
@@ -374,7 +378,8 @@ export function ProgramDoneView({ result, c }: { result: ProgramResult; c: Palet
             {l.from != null && l.to != null ? (
               up ? (
                 <Text style={[s.bodyBold, s.num, { color: c.sky }]}>
-                  {Math.round(l.from)} → {Math.round(l.to)}kg
+                  {Math.round(toWeight(l.from, unit))} → {Math.round(toWeight(l.to, unit))}
+                  {unit}
                 </Text>
               ) : (
                 <Text style={[s.small, { color: c.muted }]}>이번엔 그대로예요</Text>

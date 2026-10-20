@@ -63,6 +63,8 @@ import { VerdictCard } from '~/velocity/abs/verdict-card';
 import { AbsSummary } from '~/velocity/abs/abs-summary';
 import type { AbsSession } from '~/velocity/abs/use-abs';
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
+import { speedLabel, toSpeed } from '@/lib/units';
+import { usePrefs } from '~/lib/prefs';
 import { Icon, type IconName } from '~/shell/icon';
 import { Press } from '~/shell/press';
 
@@ -91,6 +93,12 @@ const ROLL_OK = 1.5;
 const PITCH_OK = 10;
 
 /** 저장 안 하고 버리는 공의 클립 파일을 지운다 */
+/**
+ * 카메라를 켠 화면 차례 — 화면을 닫으며 늦게(세션 녹화 마무리로 2초까지) 끄는 사이 다시 열면, 옛 화면의 늦은 stop 이 새 화면의 카메라를 껐다.
+ * 그 사이 새 화면이 켰으면(차례가 바뀌었으면) 옛 화면은 끄지 않는다(새 start 가 이미 옛 카메라를 갈아 끼웠다).
+ */
+let cameraGen = 0;
+
 const discardAll = (list: NativePitch[]) => {
   const paths = list.map((p) => p.clip.path);
   if (paths.length) void DualCamera.discard({ paths });
@@ -107,6 +115,10 @@ type Start = { isAdmin: boolean; canAbs: boolean; canRecord: boolean; today: str
 
 export default function VelocityScreen() {
   const inset = useSafeAreaInsets();
+  /* 구속 단위 — 앱 설정(km/h · mph)대로 보이고, 저장은 늘 km/h */
+  const unit = usePrefs().speed;
+  const sp = (kmh: number) => toSpeed(kmh, unit).toFixed(1);
+  const ul = speedLabel(unit);
   /* 투구 탭에서 모드를 정해 열었나(speed · abs) — 없으면 모드 고르기 시트부터 */
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
   const entryMode: CameraMode | null = modeParam === 'speed' || modeParam === 'abs' ? modeParam : null;
@@ -276,6 +288,7 @@ export default function VelocityScreen() {
   useEffect(() => {
     let alive = true;
     let shownJobs = 0;
+    const myGen = ++cameraGen;
     const capture = new AppCapture(
       () => engine.current,
       () => ({ ...SETTINGS, distanceM: distRef.current, tiltRad: tiltRef.current }),
@@ -360,7 +373,9 @@ export default function VelocityScreen() {
       /* 세션 녹화 중이면 마지막 구간을 자른 뒤에 끈다(이 정리가 녹화 정리보다 먼저 돈다) — 오래 걸려도 2초까지만 */
       const r = recRef.current;
       void (r ? Promise.race([r.finishCuts(), new Promise((res) => setTimeout(res, 2000))]) : Promise.resolve()).finally(
-        () => void DualCamera.stop()
+        () => {
+          if (myGen === cameraGen) void DualCamera.stop();
+        }
       );
     };
   }, []);
@@ -465,7 +480,8 @@ export default function VelocityScreen() {
     setZone(s.zone);
     setDistTape(s.distTape);
     setTargetDistM(s.targetDistM);
-    setStep('measure');
+    /* ABS 인데 홈플레이트를 아직 못 맞췄으면(지난 설정으로 바로 시작) 플레이트 단계부터 — 건너뛰면 판정이 늘 비었다 */
+    setStep(mode === 'abs' && !abs.calib?.ok ? 'abs' : 'measure');
     void saveJson(setupKeyOf(mode), {
       ...DEFAULT_SETUP,
       sessionType: s.sessionType,
@@ -490,14 +506,16 @@ export default function VelocityScreen() {
     setStep(prevStep);
   };
   const close = () => {
-    if (!pitches.length) return router.back();
-    Alert.alert('저장하지 않고 나갈까요?', `잰 공 ${pitches.length}개가 사라져요.`, [
+    /* 지금 목록(ref) — 저장 뒤 알림에서 부르면 화면 값은 저장 전 목록이었다 */
+    const list = pitchesRef.current;
+    if (!list.length) return router.back();
+    Alert.alert('저장하지 않고 나갈까요?', `잰 공 ${list.length}개가 사라져요.`, [
       { text: '취소', style: 'cancel' },
       {
         text: '나가기',
         style: 'destructive',
         onPress: () => {
-          discardAll(pitches);
+          discardAll(pitchesRef.current);
           void clearDraft();
           router.back();
         },
@@ -521,31 +539,50 @@ export default function VelocityScreen() {
   };
   const setPitchType = (id: number, key: string) =>
     setList(pitches.map((p) => (p.id === id ? { ...p, pitchType: p.pitchType === key ? null : key } : p)));
+  /*
+   * 세션 저장 — [저장]을 누르면 측정을 멈춘다(2026-10-21 김민: 저장하는 동안 · 뒤에도 재기가 이어졌다). 저장하는 사이 끝난 재기의 공은 목록에
+   * 그대로 남고(저장한 공만 뺀다), 다 되면 [이어 재기]로 같은 설정의 새 세션을 켠다.
+   */
   const save = async () => {
-    if (!start || saving || !pitches.length) return;
+    if (!start || saving || !pitchesRef.current.length) return;
     if (effortPct == null) return setSaveError('체감 강도를 골라 주세요.');
+    setLive(false);
     setSaving(true);
     setSaveError(null);
+    const batch = pitchesRef.current;
+    const savedIds = new Set(batch.map((p) => p.id));
+    /* 지금까지의 시도 기록만 이 세션에 — 저장하는 사이 생긴 시도는 다음 세션 몫 */
+    const sentAttempts = new Map(attempts.current);
     try {
       const res = await saveSession({
         date: sessionDate ?? start.today,
         sessionType,
         effortPct,
         ctx: ctxRef.current,
-        pitches,
+        pitches: batch,
         isAdmin: start.isAdmin,
-        attemptIds: attempts.current,
+        attemptIds: sentAttempts,
       });
       if (!res.ok) return setSaveError(res.error);
-      setList([]);
-      void clearDraft();
+      const rest = pitchesRef.current.filter((p) => !savedIds.has(p.id));
+      setList(rest.length ? withSessionDistance(rest, null, ctxRef.current.tape) : []);
+      if (!rest.length) void clearDraft();
       setSessionDate(null);
-      attempts.current.clear();
+      for (const k of sentAttempts.keys()) attempts.current.delete(k);
       setSheet(false);
       Alert.alert(
         '저장했어요',
         res.clipFailed ? `영상 ${res.clipFailed}개는 붙이지 못했어요(측정값은 저장됐어요).` : '투구 기록으로도 남겨 주세요.',
-        [{ text: '확인', onPress: () => router.back() }]
+        [
+          { text: '끝내기', style: 'cancel', onPress: close },
+          {
+            text: '이어 재기',
+            onPress: () => {
+              setNotice(null);
+              setLive(true);
+            },
+          },
+        ]
       );
     } catch (e) {
       setSaveError(e instanceof RpcError ? e.message : '저장하지 못했어요. 잰 공은 그대로 있으니 다시 눌러 주세요.');
@@ -826,13 +863,13 @@ export default function VelocityScreen() {
               {last && !stale ? (
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
                   <Text style={styles.big}>
-                    {shownKmh(last, fit).toFixed(1)}
-                    <Text style={styles.unit}> km/h</Text>
+                    {sp(shownKmh(last, fit))}
+                    <Text style={styles.unit}> {ul}</Text>
                   </Text>
                   {stats ? (
                     <Text style={styles.statLine}>
-                      최고 {stats.max.toFixed(1)}
-                      {'\n'}평균 {stats.avg.toFixed(1)}
+                      최고 {sp(stats.max)}
+                      {'\n'}평균 {sp(stats.avg)}
                     </Text>
                   ) : null}
                 </View>
@@ -846,7 +883,7 @@ export default function VelocityScreen() {
               ))}
               {last && stale ? (
                 <Text style={styles.hint}>
-                  앞 공 {shownKmh(last, fit).toFixed(1)} km/h{stats ? ` · 최고 ${stats.max.toFixed(1)} · 평균 ${stats.avg.toFixed(1)}` : ''} · 눌러서 앞 공 영상 보기
+                  앞 공 {sp(shownKmh(last, fit))} {ul}{stats ? ` · 최고 ${sp(stats.max)} · 평균 ${sp(stats.avg)}` : ''} · 눌러서 앞 공 영상 보기
                 </Text>
               ) : last ? (
                 <Text style={styles.hint}>눌러서 영상 다시 보기</Text>
@@ -913,7 +950,7 @@ export default function VelocityScreen() {
             <Text style={styles.sheetTitle}>세션 저장하기</Text>
             {stats ? (
               <Text style={styles.sheetBody}>
-                {stats.n}구 · 최고 {stats.max.toFixed(1)} km/h · 평균 {stats.avg.toFixed(1)} km/h
+                {stats.n}구 · 최고 {sp(stats.max)} {ul} · 평균 {sp(stats.avg)} {ul}
               </Text>
             ) : null}
             <ScrollView style={styles.list}>
@@ -931,7 +968,7 @@ export default function VelocityScreen() {
                       style={styles.listRow}
                     >
                       <Text style={styles.listText} numberOfLines={openId === p.id ? undefined : 1}>
-                        {i + 1}. {shownKmh(p, fit).toFixed(1)} km/h{call ? ` · ${call === 'strike' ? 'S' : 'B'}` : ''}{type ? ` · ${type}` : ''}
+                        {i + 1}. {sp(shownKmh(p, fit))} {ul}{call ? ` · ${call === 'strike' ? 'S' : 'B'}` : ''}{type ? ` · ${type}` : ''}
                         {p.notes.length ? ` · ${p.notes[0]}` : ''}
                       </Text>
                       <Text style={styles.chev}>{openId === p.id ? '⌃' : '⌄'}</Text>
@@ -974,7 +1011,16 @@ export default function VelocityScreen() {
             />
             {saveError ? <Text style={styles.errorDark}>{saveError}</Text> : null}
             <Button label={saving ? '저장하는 중' : '저장하기'} onPress={save} disabled={saving} />
-            <Button label="더 재기" kind="ghostDark" onPress={() => setSheet(false)} disabled={saving} />
+            <Button
+              label="더 재기"
+              kind="ghostDark"
+              onPress={() => {
+                setSheet(false);
+                /* 저장에 실패해 측정이 멈췄으면 다시 켠다 */
+                setLive(true);
+              }}
+              disabled={saving}
+            />
           </View>
         </View>
         <ClipModal path={replay} onClose={() => setReplay(null)} />

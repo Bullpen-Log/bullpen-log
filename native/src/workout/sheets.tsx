@@ -15,6 +15,7 @@ import type { Palette } from '~/lib/ui';
 import type { ShownSet } from './outbox';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
+import { useDraftGuard } from '~/community/draft-guard';
 
 /**
  * 운동 진행 화면의 아래 시트 셋 — 오늘 목록(웹 exercise-sheet.tsx) · 마치기(finish-sheet.tsx) · 교체(swap-sheet.tsx). Sheet 는 트레이닝 운동 화면의 시트도 쓴다.
@@ -242,6 +243,7 @@ export function FinishSheet({
   busy,
   error,
   onFinish,
+  onDropAndFinish,
   onClose,
   c,
 }: {
@@ -254,11 +256,15 @@ export function FinishSheet({
   busy: boolean;
   error: string | null;
   onFinish: (intensity: number | null, memo: string) => void;
+  /** 못 보낸 세트를 대기열에서 빼고 마치기(묻는 것은 부르는 쪽) — 서버가 끝내 못 받는 세트가 7일 동안 마치기를 막았다 */
+  onDropAndFinish?: (intensity: number | null, memo: string) => void;
   onClose: () => void;
   c: Palette;
 }) {
   const [intensity, setIntensity] = useState<number | null>(null);
   const [memo, setMemo] = useState('');
+  /* 적던 느낀점이 있으면 나가기 전에 묻는다 — 마치는 중(busy)에는 축하 화면으로 바꿔야 하니 묻지 않는다 */
+  useDraftGuard(open && !busy && memo.trim() !== '');
   const memoNeedsIntensity = memo.trim() !== '' && intensity == null;
   /* 연 시각으로 못박는다 — 고르는 동안 숫자가 올라가면 산만하다 */
   const [openedAt] = useState(() => Date.now());
@@ -271,9 +277,21 @@ export function FinishSheet({
     <View style={{ gap: 8 }}>
       {error ? <Text style={[st.error, { color: c.danger, backgroundColor: c.danger + '14' }]}>{error}</Text> : null}
       {pendingCount > 0 ? (
-        <Text style={[st.small, st.center, { color: c.danger }]}>
-          아직 못 보낸 세트가 {pendingCount}개 있어요. 신호가 잡혀 저절로 보내지면 마칠 수 있어요.
-        </Text>
+        <View style={{ gap: 2 }}>
+          <Text style={[st.small, st.center, { color: c.danger }]}>
+            아직 못 보낸 세트가 {pendingCount}개 있어요. 신호가 잡혀 저절로 보내지면 마칠 수 있어요.
+          </Text>
+          {onDropAndFinish ? (
+            <Press
+              onPress={() => onDropAndFinish(intensity, memo)}
+              disabled={busy || memoNeedsIntensity}
+              accessibilityRole="button"
+              style={[st.textBtn, (busy || memoNeedsIntensity) && { opacity: 0.4 }]}
+            >
+              <Text style={[st.bodyBold, { color: c.danger }]}>이 세트 빼고 마치기</Text>
+            </Press>
+          ) : null}
+        </View>
       ) : memoNeedsIntensity ? (
         <Text style={[st.small, st.center, { color: c.muted }]}>느낀점을 남기려면 강도도 골라 주세요.</Text>
       ) : null}

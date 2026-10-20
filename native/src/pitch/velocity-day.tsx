@@ -13,7 +13,8 @@ import { usePalette, withAlpha, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
 import { toast } from '~/shell/toast';
-import { isPhoneVideoPath } from './api';
+import { LocalVideo } from '../../modules/local-video';
+import { isPhoneVideoPath, phoneAssetId } from './api';
 import { PitchVideo, UrlVideo } from './video';
 
 /**
@@ -60,6 +61,11 @@ type Result = { ok: true } | { ok: false; error: string };
 const pad = (n: number) => String(n).padStart(2, '0');
 const releaseOf = (s: VelocitySessionView) => (kmh: number) =>
   s.calPairs > 0 ? applyCalibration(kmh, { scale: s.calScale, offset: s.calOffset, n: s.calPairs }) : kmh;
+/** 지운 공의 폰 클립을 앱이 지운다 — 서버는 폰에 둔 영상을 못 지운다(그날 화면 투구 기록 지우기와 같다) */
+const removePhoneClips = (pitches: VelocityPitchView[]) => {
+  const ids = pitches.flatMap((p) => (p.clip && isPhoneVideoPath(p.clip.url) ? [phoneAssetId(p.clip.url)] : []));
+  if (ids.length) void LocalVideo.remove({ ids }).catch(() => undefined);
+};
 const editOf = (p: VelocityPitchView): PitchEdit => ({ pitchType: p.pitchType, zone: p.zone, result: p.result, gunKmh: p.gunKmh, memo: p.memo });
 
 export function VelocityDay({ date, logCount }: { date: string; logCount: number }) {
@@ -90,6 +96,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
         onPress: async () => {
           const r = await rpc<Result>('velocity.deleteVelocitySession', s.id).catch(() => ({ ok: false as const, error: '신호가 약해 서버에 닿지 못했어요.' }));
           if (!r.ok) return Alert.alert('지우지 못했어요', r.error);
+          removePhoneClips(s.pitches);
           toast('지웠어요');
           reload();
         },
@@ -397,6 +404,7 @@ function EditSheet({ pitch, onClose, onSaved }: { pitch: VelocityPitchView; onCl
         onPress: async () => {
           const r = await rpc<Result>('velocity.deleteVelocityPitch', pitch.id).catch(() => ({ ok: false as const, error: '신호가 약해 서버에 닿지 못했어요.' }));
           if (!r.ok) return Alert.alert('지우지 못했어요', r.error);
+          removePhoneClips([pitch]);
           toast('지웠어요');
           onSaved();
           onClose();

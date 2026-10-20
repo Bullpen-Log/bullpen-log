@@ -1,11 +1,12 @@
 import * as Haptics from 'expo-haptics';
-import { type Href, router, Stack } from 'expo-router';
+import { type Href, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, type TextInputInstance, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, type TextInputInstance, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AuthState } from '@/app/actions/auth';
 import { accountForm, clearSession } from '~/account/session';
 import { loadJson, saveJson } from '~/lib/store';
+import { loadMe, resetMe } from '~/pitch/api';
 import { usePalette, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { leaveTo } from '~/shell/web-nav';
@@ -14,39 +15,58 @@ import { READABLE } from '~/lib/layout';
 
 /**
  * 로그인(앱 화면) — 웹 로그인(app/login/auth-form.tsx LoginForm)을 옮겼다. 서버는 같은 auth.login(막힘 · 잠금 규칙 그대로).
- * 사이트 /login 이 앱이면 '/login?native=1' 로 이 화면을 연다(그냥 '/login' 은 웹으로 가 껍데기가 앞사람 기록을 지운다). 로그인 화면에 왔다 = 로그아웃 상태라 열 때 두 저장소의 로그인을 지운다(~/account/session).
+ * 사이트 /login 이 앱이면 '/login?native=1' 로 이 화면을 연다(그냥 '/login' 은 웹으로 가 껍데기가 앞사람 기록을 지운다). 그 길로 왔다 = 로그아웃 상태라 열 때 두 저장소의 로그인을 지운다(~/account/session).
+ * 딥링크(bullpenlog://login)로 오면 지우지 않는다 — 이미 로그인돼 있으면 바로 닫는다(2026-10-21: 링크 하나로 로그인이 풀렸다).
  * 닫을 수 없다(뒤로 쓸기 막음) — 밑의 웹은 빈 로그인 자리라 닫으면 갈 곳이 없다. 성공하면 웹뷰 로그인을 맞춘 뒤 웹을 /today 로.
  *
- * '자동 로그인'(기본 켬) · '아이디 기억하기'는 이 폰에만(웹 lib/login-prefs.ts 와 같은 뜻). 비밀번호는 담지 않는다 — iOS 암호 자동 채우기가 맡는다.
+ * 앱은 늘 자동 로그인(30일, 2026-10-21 김민 — 끄는 칸 없음). '아이디 기억하기'는 이 폰에만(웹 lib/login-prefs.ts 와 같은 뜻).
+ * 비밀번호는 담지 않는다 — iOS 암호 자동 채우기가 맡는다.
  */
 const PREFS = 'bullpen-login-prefs';
-type Prefs = { email: string | null; stay: boolean };
+type Prefs = { email: string | null };
+/** 비밀번호를 잊었을 때 물을 곳 — 개인정보 처리방침 8조의 공개 연락처(app/(legal)/privacy/privacy-content.tsx) */
+const CONTACT = 'bullpenlog.com@gmail.com';
+
+/** 비밀번호 찾기 — 아직 메일로 재설정하는 길이 없어 운영팀이 임시 비밀번호를 만들어 준다(관리자 '임시 비밀번호 만들기') */
+function forgotPassword() {
+  Alert.alert('비밀번호를 잊었어요', `가입한 이메일을 적어 운영팀(${CONTACT})에 보내 주세요. 임시 비밀번호를 만들어 드려요. 로그인한 뒤 내 정보에서 바꿔 주세요.`, [
+    { text: '닫기', style: 'cancel' },
+    { text: '메일 쓰기', onPress: () => void Linking.openURL(`mailto:${CONTACT}?subject=${encodeURIComponent('불펜로그 비밀번호 찾기')}`).catch(() => undefined) },
+  ]);
+}
 
 export default function LoginScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [stay, setStay] = useState(true);
   const [remember, setRemember] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const passwordRef = useRef<TextInputInstance>(null);
 
+  const { native } = useLocalSearchParams<{ native?: string }>();
   useEffect(() => {
-    void clearSession();
+    if (native === '1') void clearSession();
+    else {
+      /* 딥링크 — 이미 로그인돼 있으면 로그인 화면을 둘 까닭이 없다 */
+      resetMe();
+      void loadMe().then(
+        () => (router.canGoBack() ? router.back() : router.replace('/')),
+        () => undefined
+      );
+    }
     void loadJson(PREFS).then((raw) => {
       const p = raw as Partial<Prefs> | null;
-      if (typeof p?.stay === 'boolean') setStay(p.stay);
       if (typeof p?.email === 'string') {
         setRemember(true);
         setEmail((now) => now || (p.email as string));
       }
     });
-  }, []);
+  }, [native]);
 
   const savePrefs = (next: Partial<Prefs>) =>
-    void saveJson(PREFS, { email: remember ? email.trim() : null, stay, ...next });
+    void saveJson(PREFS, { email: remember ? email.trim() : null, ...next });
 
   const submit = async () => {
     if (busy) return;
@@ -57,7 +77,7 @@ export default function LoginScreen() {
     const r = await accountForm<AuthState>('auth.login', {
       email: email.trim(),
       password,
-      stayLoggedIn: stay ? 'on' : null,
+      stayLoggedIn: 'on',
     });
     setBusy(false);
     if ('moved' in r) {
@@ -126,15 +146,6 @@ export default function LoginScreen() {
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
               <CheckLine
-                label="자동 로그인"
-                value={stay}
-                onChange={(v) => {
-                  setStay(v);
-                  savePrefs({ stay: v });
-                }}
-                c={c}
-              />
-              <CheckLine
                 label="아이디 기억하기"
                 value={remember}
                 onChange={(v) => {
@@ -145,7 +156,7 @@ export default function LoginScreen() {
               />
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="로그인 유지 · 아이디 기억하기 설명"
+                accessibilityLabel="자동 로그인 · 아이디 기억하기 설명"
                 accessibilityState={{ expanded: hint }}
                 onPress={() => setHint((h) => !h)}
                 hitSlop={8}
@@ -156,11 +167,14 @@ export default function LoginScreen() {
             </View>
             {hint ? (
               <View style={{ gap: 6, marginTop: 4 }}>
-                <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>자동 로그인: 앱을 닫아도 30일 동안 로그인이 유지돼요.</Text>
+                <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>앱은 자동 로그인이에요. 앱을 닫아도 30일 동안 로그인이 유지돼요.</Text>
                 <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>아이디 기억하기: 다음에 올 때 이메일 칸을 채워 둬요. 비밀번호는 저장하지 않아요.</Text>
               </View>
             ) : null}
           </View>
+          <Pressable accessibilityRole="button" onPress={forgotPassword} style={({ pressed }) => [st.text, { alignSelf: 'flex-start', paddingHorizontal: 0 }, pressed && { opacity: 0.6 }]}>
+            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>비밀번호를 잊었어요</Text>
+          </Pressable>
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, ScrollView, Text, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bar, BarButton, call, s, useBusy } from '~/community/parts';
+import { useDraftGuard } from '~/community/draft-guard';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 
@@ -19,6 +20,7 @@ export default function NewArticleScreen() {
   const [link, setLink] = useState('');
   const [tags, setTags] = useState('');
   const send = useBusy();
+  const allowLeave = useDraftGuard(!!(title.trim() || content.trim() || link.trim() || tags.trim()));
 
   const submit = () =>
     send.run(async () => {
@@ -26,6 +28,7 @@ export default function NewArticleScreen() {
       const r = await call<{ ok: true; id: string }>('board.createAppArticle', { title, content, attachmentUrl: link, tags });
       if (!r.ok) return r.error;
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      allowLeave();
       router.replace(`/board/${r.id}` as Href);
       return null;
     });

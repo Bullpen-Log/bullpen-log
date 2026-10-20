@@ -5,8 +5,8 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { ArrowRight, Camera, Check, Circle, Film, StickyNote } from '@/components/icon';
-import { formatSpeed } from '@/lib/units';
-import { useSpeedUnit } from '@/components/use-units';
+import { formatSpeed, formatWeight, type WeightUnit } from '@/lib/units';
+import { useSpeedUnit, useWeightUnit } from '@/components/use-units';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { sleepQualityWord } from '@/lib/checkin';
@@ -413,6 +413,7 @@ function TrainingDetail({
   plan: PlanDaySummary | undefined;
 }) {
   const done = training.exercises.filter((e) => e.done);
+  const unit = useWeightUnit();
   const shown = training.exercises.slice(0, MAX_EXERCISES);
   const hidden = training.exercises.length - shown.length;
 
@@ -458,7 +459,7 @@ function TrainingDetail({
                 >
                   {e.title}
                 </span>
-                <span className="block truncate text-xs text-muted">{doneText(e)}</span>
+                <span className="block truncate text-xs text-muted">{doneText(e, unit)}</span>
               </span>
             </li>
           ))}
@@ -479,12 +480,12 @@ function TrainingDetail({
 }
 
 /** 실제로 한 만큼, 없으면 계획 — '3세트 · 10회 · 40kg' */
-function doneText(e: DayDetail['training']['exercises'][number]) {
+function doneText(e: DayDetail['training']['exercises'][number], unit: WeightUnit) {
   const actual = [
     e.setsDone != null ? `${e.setsDone}세트` : null,
     e.repsDone != null ? `${e.repsDone}회` : null,
     e.holdSecondsDone != null ? `${e.holdSecondsDone}초` : null,
-    e.weightKg != null ? `${e.weightKg}kg` : null,
+    formatWeight(e.weightKg, unit),
   ].filter(Boolean);
   if (actual.length > 0) return actual.join(' · ');
   return e.planned ?? e.category;

@@ -2,12 +2,13 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { Trash2 } from '@/components/icon';
+import { KeyRound, Trash2 } from '@/components/icon';
 import { ROLE_LABEL, type Role } from '@/lib/permissions';
-import { deleteUser, toggleUserRole, type AdminState } from '@/app/actions/admin';
+import { deleteUser, resetUserPassword, toggleUserRole, type AdminState } from '@/app/actions/admin';
 import { guardFormAction } from '@/lib/action-offline';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { toast } from '@/components/toast';
+import { Modal } from '@/components/modal';
 
 /* 실패(신호 끊김 · 이미 지워진 회원)를 한 줄로 알린다 — 예전엔 state 를 버려 창만 닫히고 아무 말이 없었다(2026-10-18) */
 function useErrorToast(state: AdminState) {
@@ -169,6 +170,65 @@ export function DeleteUser({
       >
         <Trash2 className="h-3.5 w-3.5" />
       </ActionButton>
+    </form>
+  );
+}
+
+/**
+ * 임시 비밀번호 만들기 — 비밀번호를 잊은 회원(메일 보내는 길이 없음)에게 관리자가 새 비밀번호를 전한다. 만든 비밀번호는 이 창에서 한 번만
+ * 보이고 어디에도 남지 않는다. 창을 닫으면 다시 못 본다(다시 만들면 새 것).
+ */
+export function TempPassword({
+  userId,
+  nickname,
+  disabled,
+}: {
+  userId: string;
+  nickname: string;
+  disabled: boolean;
+}) {
+  const [state, formAction] = useActionState<AdminState, FormData>(guardFormAction(resetUserPassword), undefined);
+  useErrorToast(state);
+  /* 돌려받은 비밀번호를 창에 띄울지 — 닫으면 다시 안 띄운다(같은 state 를 또 보이지 않게 그 값을 쥔다) */
+  const [shownFor, setShownFor] = useState<string | null>(null);
+  const temp = state?.tempPassword ?? null;
+
+  if (disabled) return null;
+
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="userId" value={userId} />
+      <ActionButton
+        label={`${nickname} 임시 비밀번호 만들기`}
+        title="임시 비밀번호 만들기"
+        ask={{
+          title: `${nickname}님의 임시 비밀번호를 만들까요?`,
+          detail: '지금 비밀번호는 더 쓸 수 없고 모든 기기의 로그인이 풀려요. 만든 비밀번호는 한 번만 보여요.',
+          confirmLabel: '만들기',
+        }}
+      >
+        <KeyRound className="h-3.5 w-3.5" />
+      </ActionButton>
+      <Modal
+        open={temp != null && shownFor !== temp}
+        onClose={() => setShownFor(temp)}
+        title="임시 비밀번호"
+        description={`${nickname}님에게 전해 주세요. 로그인한 뒤 내 정보에서 바꾸게 알려 주세요.`}
+      >
+        <p className="selectable select-all rounded-lg bg-surface-2 px-4 py-3 text-center font-mono text-xl tracking-wider text-ink">
+          {temp}
+        </p>
+        <p className="mt-3 text-xs text-muted">이 창을 닫으면 다시 볼 수 없어요.</p>
+        <button
+          type="button"
+          onClick={() => {
+            if (temp) navigator.clipboard?.writeText(temp).then(() => toast('복사했어요'), () => {});
+          }}
+          className="mt-4 min-h-11 w-full rounded-lg border border-line text-sm text-ink hover:border-sky hover:text-sky"
+        >
+          복사하기
+        </button>
+      </Modal>
     </form>
   );
 }

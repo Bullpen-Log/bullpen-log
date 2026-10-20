@@ -183,7 +183,14 @@ function PostList({ sort, first }: { sort: PostSort; first: PostCategory | null 
               </Pressable>
             </View>
           }
-          ListFooterComponent={stale && more ? <LoadState error={error} onRetry={() => void reload()} c={c} /> : undefined}
+          ListFooterComponent={
+            stale && more ? (
+              <LoadState error={error} onRetry={() => void reload()} c={c} />
+            ) : data.hasMore && pages >= MAX_PAGES && !stale ? (
+              /* 이어 붙이기 끝(200개) — 말없이 멈추면 글이 더 없는 줄 안다 */
+              <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center', padding: 16 }}>여기까지 보여요</Text>
+            ) : undefined
+          }
         />
       )}
     </View>

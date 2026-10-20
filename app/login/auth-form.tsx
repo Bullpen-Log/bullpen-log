@@ -313,6 +313,19 @@ function LoginForm({
               </ul>
             )}
           </div>
+          {/* 메일 보내는 길이 없어 운영자가 임시 비밀번호를 만들어 준다(관리자 › 회원 줄의 열쇠 단추). 연락처는 개인정보 처리방침 8조와 같다 */}
+          <details className="text-xs text-muted">
+            <summary className="inline-flex min-h-11 cursor-pointer items-center hover:text-sky desk:min-h-0">
+              비밀번호를 잊었어요
+            </summary>
+            <p className="mt-1 leading-relaxed break-keep">
+              가입한 이메일을 적어{' '}
+              <a href="mailto:bullpenlog.com@gmail.com" className="font-medium text-sky underline underline-offset-2">
+                bullpenlog.com@gmail.com
+              </a>{' '}
+              으로 보내 주세요. 운영자가 임시 비밀번호를 만들어 드려요.
+            </p>
+          </details>
         </div>
       </StepCard>
     </form>

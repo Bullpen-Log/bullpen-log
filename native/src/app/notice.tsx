@@ -64,7 +64,7 @@ export default function NoticeScreen() {
         <Text accessibilityRole="header" style={[styles.title, { color: c.ink }]}>
           오늘 할 일
         </Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={() => router.back()} style={({ pressed }) => [styles.close, { backgroundColor: c.chip }, pressed && { opacity: 0.55 }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={() => router.back()} hitSlop={6} style={({ pressed }) => [styles.close, { backgroundColor: c.chip }, pressed && { opacity: 0.55 }]}>
           <Icon name="x" size={18} color={c.muted} />
         </Pressable>
       </View>

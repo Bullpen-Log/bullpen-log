@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { type Href, router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -16,7 +16,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { usePalette } from '~/lib/ui';
 import { LocalVideo } from '../../../modules/local-video';
 import { isPhoneVideoPath, loadMe, phoneAssetId } from '~/pitch/api';
-import { PICK_ORIGINAL, attach, attachErrorText, readVideoFacts, useImported } from '~/pitch/attach';
+import { PICK_ORIGINAL, attach, attachErrorText, dropPickerTemp, readVideoFacts, useImported } from '~/pitch/attach';
 import { Icon } from '~/shell/icon';
 import { DateNavButton } from '~/shell/mini-calendar';
 import { Press } from '~/shell/press';
@@ -52,6 +52,12 @@ export default function PitchImportScreen() {
   const [pickNo, setPickNo] = useState(0);
   const keyOf = (g: ImportGroup) => `${pickNo}|${g.key}`;
   const done = useImported();
+  /* 선택기가 앱 캐시에 복사해 둔 원본 — 화면을 닫으면 지운다(그때까지는 묶음을 다시 넣을 수 있게 둔다) */
+  const pickedRef = useRef<Picked[]>([]);
+  useEffect(() => {
+    pickedRef.current = picked;
+  }, [picked]);
+  useEffect(() => () => pickedRef.current.forEach((p) => dropPickerTemp(p.asset.uri)), []);
 
   const pick = async () => {
     if (busy) return;
@@ -79,6 +85,8 @@ export default function PitchImportScreen() {
         next.push({ item: { id: i, name: asset.fileName ?? `영상 ${i + 1}`, date, source }, asset });
       }
       setPickNo((n) => n + 1);
+      /* 다시 골랐다 — 앞서 고른 것 중 아직 안 넣은 원본은 더 쓸 일이 없다 */
+      picked.forEach((p) => dropPickerTemp(p.asset.uri));
       setPicked(next);
       setGroups(groupItems(next.map((p) => p.item)));
     } catch (e) {
@@ -97,7 +105,8 @@ export default function PitchImportScreen() {
       for (const [i, it] of g.items.entries()) {
         setBusy(`영상 ${i + 1}/${g.items.length} 넣는 중`);
         const asset = picked.find((p) => p.item.id === it.id)!.asset;
-        paths.push(await attach(asset, me.isAdmin));
+        /* 원본은 화면을 닫거나 다시 고를 때 지운다 — 반쯤 막히거나 폼을 저장 없이 닫으면 이 묶음을 처음부터 다시 넣어서 */
+        paths.push(await attach(asset, me.isAdmin, { keepPickerFile: true }));
       }
       router.push({
         pathname: '/pitch/edit' as Href as never,

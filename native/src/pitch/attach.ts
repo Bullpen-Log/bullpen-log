@@ -62,12 +62,36 @@ async function saveToPhone(uri: string): Promise<string> {
   }
 }
 
+/** file:// 주소 → 비교할 경로(iOS 는 /private/var 와 /var 가 같은 자리) */
+const plainPath = (uri: string) => decodeURI(uri.replace(/^file:\/\//, '')).replace(/^\/private\//, '/');
+
+/**
+ * 사진 선택기가 앱 캐시(Caches/ImagePicker)에 복사해 둔 원본을 지운다 — 폰에 넣거나 올린 뒤에는 쓸 일이 없는데 그대로 쌓였다
+ * (영상 하나에 수백 MB). 앱 캐시 밖의 주소(사진 앱 원본 등)는 건드리지 않는다.
+ */
+export function dropPickerTemp(uri: string) {
+  try {
+    if (!plainPath(uri).startsWith(plainPath(Paths.cache.uri))) return;
+    const f = new File(uri);
+    if (f.exists) f.delete();
+  } catch {
+    /* 캐시라 iOS 가 언젠가 지운다 */
+  }
+}
+
 /**
  * 고른 영상 하나를 붙일 경로로 — 회원은 폰에 넣고 경로만 받고, 관리자는 서버에 올린다.
  * 관리자 자료는 늘 서버에 둔다(2026-10-20 김민) — 서버 한도(관리자 500MB)를 넘으면 폰에 넣지 않고 웹과 같은 안내로 막는다
  * (웹 components/video-upload.tsx). 크기를 모르면 서버가 서명 주소를 줄 때 한 번 더 본다.
  */
-export async function attach(asset: ImagePicker.ImagePickerAsset, admin: boolean): Promise<string> {
+export async function attach(asset: ImagePicker.ImagePickerAsset, admin: boolean, opts: { keepPickerFile?: boolean } = {}): Promise<string> {
+  const path = await attachOnce(asset, admin);
+  /* 다 넣었으면 선택기 임시 원본은 지운다 — 묶음을 다시 넣을 수 있는 가져오기 화면은 keepPickerFile 로 남겨 두고 나중에 지운다 */
+  if (!opts.keepPickerFile) dropPickerTemp(asset.uri);
+  return path;
+}
+
+async function attachOnce(asset: ImagePicker.ImagePickerAsset, admin: boolean): Promise<string> {
   const size = sizeOf(asset);
   if (!admin) {
     const id = await saveToPhone(asset.uri);

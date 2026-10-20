@@ -1,15 +1,22 @@
 import { useSyncExternalStore } from 'react';
+import { DEFAULT_TABS, type ShellTab } from '~/shell/tab-bar';
 
 /** 더보기 목록 — 사이트가 알려 준 것(components/app-shell/expo-tabs.tsx { t: 'menu' }). 껍데기가 넣고 더보기 화면(/more)이 그린다 */
 /** hidden — 더보기에서 뺌(투구 · 타격 화면에서 들어감, 웹 lib/nav.ts appMoreHidden). 권한 판정(투구 탭 ABS 칸 등)에는 그대로 쓴다 */
 export type MenuItem = { href: string; label: string; icon: string; locked: boolean; hidden?: boolean };
 export type MenuGroup = { title: string | null; items: MenuItem[] };
-type Menu = { groups: MenuGroup[]; nickname: string; avatarUrl?: string | null; isAdmin?: boolean };
+/** tabs — 지금 하단 탭(사이트가 보낸 것, { t: 'tabs' }). 더보기가 하단 탭에 있는 항목을 폴더에서 뺄 때 쓴다 */
+type Menu = { groups: MenuGroup[]; nickname: string; avatarUrl?: string | null; isAdmin?: boolean; tabs: ShellTab[] };
 
-let menu: Menu = { groups: [], nickname: '' };
+let menu: Menu = { groups: [], nickname: '', tabs: DEFAULT_TABS };
 const subs = new Set<() => void>();
-export function setMenu(next: Menu) {
-  menu = next;
+/** 메뉴 알림은 탭을 모른다 — 탭은 따로 온 것(setMenuTabs)을 그대로 둔다 */
+export function setMenu(next: Omit<Menu, 'tabs'>) {
+  menu = { ...next, tabs: menu.tabs };
+  subs.forEach((f) => f());
+}
+export function setMenuTabs(tabs: ShellTab[]) {
+  menu = { ...menu, tabs };
   subs.forEach((f) => f());
 }
 export const useMenu = () =>

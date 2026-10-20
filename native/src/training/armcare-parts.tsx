@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { AddToRoutine } from '~/armcare/add-to-routine';
-import { useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Image, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { ARMCARE_AREAS, ARMCARE_MUSCLES, areaOfMuscle, type ArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import type { ArmcareExerciseView } from '@/app/(app)/training/armcare-media';
@@ -136,9 +136,11 @@ export function Checklist({
   const waiting = new Set(pending.map(checkId));
   const doneOf = (it: AppArmcareItem) => it.done || waiting.has(checkId({ exerciseId: it.exercise.id, dateKey }));
 
+  /* 보내는 중인 운동 — 빠른 두 번 누름이 켜기 · 끄기를 엇갈려 보내지 않게 */
+  const sending = useRef(new Set<string>());
   const toggle = async (id: string) => {
     const target = items.find((it) => it.exercise.id === id);
-    if (!target) return;
+    if (!target || sending.current.has(id)) return;
     const key = { exerciseId: id, dateKey };
     /* 폰에만 담긴 체크(따라 하기에서 신호 없이 마침)를 푼다 — 서버에 간 적이 없으니 대기열에서 빼기만(서버 값으로 풀면 대기열이 나중에 다시 체크했다) */
     if (!target.done && waiting.has(checkId(key))) {
@@ -150,7 +152,9 @@ export function Checklist({
     const flip = (v: boolean) => setItems((prev) => prev.map((it) => (it.exercise.id === id ? { ...it, done: v } : it)));
     flip(next);
     setError(null);
+    sending.current.add(id);
     const res = await act<{ ok: true }>('exercise-log.setExerciseDone', id, next, dateKey);
+    sending.current.delete(id);
     if ('error' in res) {
       flip(!next);
       setError(offlineAs(res.error, '저장하지 못했어요.'));

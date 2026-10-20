@@ -1,10 +1,10 @@
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { labPairBlock, labVideoBlock, type LabCapture } from '@/lib/pitch-lab-guard';
 import { LAB_MAX_VIDEO_BYTES, LAB_MAX_VIDEO_MB, LAB_VIEWS, labViewLabel, type LabGround, type LabHand, type LabMeta, type LabView } from '@/lib/pitch-lab-meta';
 import { probeLabAsset, uploadLabVideo } from '~/lab/upload';
-import { PICK_ORIGINAL } from '~/pitch/attach';
+import { PICK_ORIGINAL, dropPickerTemp } from '~/pitch/attach';
 import { rpc } from '~/lib/rpc';
 
 /**
@@ -38,6 +38,8 @@ export function useLabUpload(hand: LabHand) {
   const [blocked, setBlocked] = useState(false);
   /* 두 영상 다 고속(원본 슬로모)이면 고른 순간 저절로 채운 슬로모 배수 */
   const [autoSlowmo, setAutoSlowmo] = useState<LabSlowmo | null>(null);
+  /* 고른 짝의 샘플 번호 — 다시 올리기도 같은 번호(서명 주소가 upsert 라 덮어씀). 올릴 때마다 새 번호면 실패한 쪽 영상이 버려진 폴더에 남았다 */
+  const labId = useRef<string | null>(null);
 
   const busy = progress != null;
   const pairBlock = picked.side && picked.back ? labPairBlock(picked.side.cap, picked.back.cap) : null;
@@ -49,6 +51,8 @@ export function useLabUpload(hand: LabHand) {
     const res = await ImagePicker.launchImageLibraryAsync(PICK_ORIGINAL);
     const asset = res.canceled ? null : res.assets[0];
     if (!asset) return;
+    /* 짝이 바뀐다 — 다음 올리기는 새 샘플 번호 */
+    labId.current = null;
     if ((asset.fileSize ?? 0) > LAB_MAX_VIDEO_BYTES) return setError(`영상은 ${LAB_MAX_VIDEO_MB}MB 이하만 올릴 수 있어요.`);
     setPicked((p) => ({ ...p, [view]: undefined }));
     setChecking(view);
@@ -91,7 +95,7 @@ export function useLabUpload(hand: LabHand) {
   const upload = async (info: LabUploadInfo): Promise<string | null> => {
     setError(null);
     setBlocked(false);
-    const id = newLabId();
+    const id = (labId.current ??= newLabId());
     try {
       for (const view of LAB_VIEWS) {
         setProgress({ view, percent: 0 });
@@ -131,6 +135,9 @@ export function useLabUpload(hand: LabHand) {
         return null;
       }
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      /* 올렸으니 선택기가 앱 캐시에 복사해 둔 원본은 지운다 */
+      LAB_VIEWS.forEach((v) => dropPickerTemp(picked[v]!.asset.uri));
+      labId.current = null;
       setPicked({});
       return id;
     } catch (e) {

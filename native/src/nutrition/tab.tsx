@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import { Alert, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, AppState, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MEALS, amountText, entryMacros, gapNames, macroGaps, mealLabel, missingMacros, missingText, stepAmount, type EntryEdit, type MealEntryView, type MealKey } from '@/lib/nutrition/meta';
 import { mealProtein } from '@/lib/nutrition/meal-protein';
@@ -22,7 +22,7 @@ import { SNOOZE_KEY, clearPlan, eatPlan, editEntries, isSnoozed, makePlan, useNu
 import { cacheGet } from '~/lib/store';
 import { READABLE } from '~/lib/layout';
 import { NutritionCheckinCard } from './checkin-card';
-import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
+import { useOnTabActive, useRetapTop, useTabActive } from '~/shell/tab-pager';
 
 /**
  * 영양 탭(앱 화면) — 웹 영양 탭의 '기록' 쪽: 오늘 먹은 것과 목표(kcal · 탄 · 단 · 지) · 끼니마다 담은 음식(양 바꾸기 · 지우기). 체중은 웹처럼 통계(/nutrition/stats).
@@ -61,6 +61,27 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   useRetapTop(() => topRef.current?.scrollTo({ y: 0, animated: true }));
 
   useOnTabActive(() => void reload());
+  /* 위에 쌓은 화면(음식 담기 · 통계)에서 돌아올 때 · 앱을 다시 열 때도 — 다른 기기 · 웹에서 담은 것이 보이게. 처음 붙을 때는 훅이 받는다 */
+  const tabActive = useTabActive();
+  const activeRef = useRef(tabActive);
+  const reloadRef = useRef(reload);
+  useEffect(() => {
+    activeRef.current = tabActive;
+    reloadRef.current = reload;
+  });
+  const focusedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (focusedOnce.current && activeRef.current) void reloadRef.current();
+      focusedOnce.current = true;
+    }, [])
+  );
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active' && activeRef.current) void reloadRef.current();
+    });
+    return () => sub.remove();
+  }, []);
   /* 홈 그날 칸의 '영양 탭에서 자세히' — 그날로 연다(웹 /nutrition?date=) */
   useTabIntent('nutrition', (d) => setDate(d));
   const [busy, setBusy] = useState(false);
@@ -339,7 +360,9 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
             const isEditing = editing === meal.key;
             const hasAny = list.length > 0 || planned.length > 0;
             const shown = openMeals.includes(meal.key) || isEditing;
-            const allRemoved = list.length > 0 && list.every((e) => draftOf(e).remove);
+            /* 저장 중인 줄(tmp-)은 편집 · '모두 지우기'에서 뺀다 — 아직 서버 id 가 없어 고치면 엉뚱하게 저장된다 */
+            const editable = list.filter((e) => !e.id.startsWith('tmp-'));
+            const allRemoved = editable.length > 0 && editable.every((e) => draftOf(e).remove);
             const add = () => router.push({ pathname: '/nutrition/add' as Href as never, params: { date, meal: meal.key } });
             return (
               <View key={meal.key} style={[styles.mealRow, mi > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
@@ -390,7 +413,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                           <Press accessibilityRole="button" onPress={() => (setEditing(null), setDrafts({}))} style={styles.textBtn}>
                             <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>취소</Text>
                           </Press>
-                          <Press accessibilityRole="button" onPress={() => finishEdit(list)} style={styles.textBtn}>
+                          <Press accessibilityRole="button" onPress={() => finishEdit(editable)} style={styles.textBtn}>
                             <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>완료</Text>
                           </Press>
                         </>
@@ -399,9 +422,9 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                           <Press
                             accessibilityRole="button"
                             accessibilityLabel={`${meal.label} 편집`}
-                            disabled={list.length === 0}
+                            disabled={editable.length === 0}
                             onPress={() => startEdit(meal.key)}
-                            style={[styles.textBtn, list.length === 0 && { opacity: 0.4 }]}
+                            style={[styles.textBtn, editable.length === 0 && { opacity: 0.4 }]}
                           >
                             <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>편집</Text>
                           </Press>
@@ -413,7 +436,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                       )}
                     </View>
                     {list.map((e) =>
-                      isEditing ? (
+                      isEditing && !e.id.startsWith('tmp-') ? (
                         <EditRow
                           key={e.id}
                           entry={e}
@@ -450,7 +473,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                           onPress={() =>
                             setDrafts((all) => {
                               const next = { ...all };
-                              for (const e of list) next[e.id] = { ...draftOf(e), remove: !allRemoved };
+                              for (const e of editable) next[e.id] = { ...draftOf(e), remove: !allRemoved };
                               return next;
                             })
                           }
@@ -608,11 +631,13 @@ function PlanCard({
   if (plan) {
     /* 웹 PlanCard '짜 둔 계획': 머리 한 줄(남은 계획 kcal · 단백질 · 가지) + [다른 식단으로] + 펼치기(까닭 · 조건 · 다시 짜기 · 지우기) */
     const left = plan.items.filter((p) => !p.done);
-    const total = plan.items.reduce(
+    const total = left.reduce(
       (a, p) => ({ kcal: a.kcal + p.kcal * p.amount, protein: a.protein + (p.protein ?? 0) * p.amount }),
       { kcal: 0, protein: 0 }
     );
-    const childNote = ageBand != null && ageBand !== 'adult' && total.protein > (plan.context.target?.protein || 1) * 1.3;
+    /* 성장기 한 줄은 계획 전체로 본다(남은 것만 보면 먹을수록 줄어 사라진다) */
+    const planProtein = plan.items.reduce((n, p) => n + (p.protein ?? 0) * p.amount, 0);
+    const childNote = ageBand != null && ageBand !== 'adult' && planProtein > (plan.context.target?.protein || 1) * 1.3;
     return (
       <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float, gap: 8 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -744,7 +769,7 @@ function PlanRows({
             accessibilityLabel={`${p.name} 먹었어요`}
             disabled={busy}
             onPress={() => onEat([p.key])}
-            hitSlop={8}
+            hitSlop={11}
             style={[styles.eat, { borderColor: c.sky }]}
           />
           <Press accessibilityRole="button" accessibilityLabel={`${p.name} 다른 음식으로 바꾸기`} onPress={() => onReplace(p)} style={{ flex: 1 }}>
@@ -759,7 +784,7 @@ function PlanRows({
         </View>
       ))}
       {items.length > 1 ? (
-        <Press accessibilityRole="button" disabled={busy} onPress={() => onEat(items.map((p) => p.key))} style={{ minHeight: 36, justifyContent: 'center' }}>
+        <Press accessibilityRole="button" disabled={busy} onPress={() => onEat(items.map((p) => p.key))} style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }}>
           <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>모두 먹었어요</Text>
         </Press>
       ) : null}

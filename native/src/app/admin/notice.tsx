@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NOTICE_BODY_MAX, NOTICE_TITLE_MAX } from '@/lib/support';
-import { Bar, BarButton, call, s, useBusy } from '~/community/parts';
+import { useDraftGuard } from '~/community/draft-guard';
+import { Bar, BarButton, LoadState, call, s, useBusy } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 
@@ -22,8 +23,13 @@ export default function NoticeFormScreen() {
   const [body, setBody] = useState('');
   const [pinned, setPinned] = useState(false);
   const [ready, setReady] = useState(!id);
+  /* 고칠 공지를 못 읽었으면 빈 폼을 열지 않는다 — 빈 채로 올리면 원래 공지를 덮는다 */
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [tries, setTries] = useState(0);
+  /* 읽어 온(또는 빈) 처음 글 — 이것과 다르면 나갈 때 묻는다 */
+  const [base, setBase] = useState({ title: '', body: '' });
   const save = useBusy();
-  const { setError } = save;
+  const allowLeave = useDraftGuard(ready && !loadError && (title !== base.title || body !== base.body));
 
   useEffect(() => {
     if (!id) return;
@@ -34,13 +40,14 @@ export default function NoticeFormScreen() {
         setTitle(r.notice.title);
         setBody(r.notice.body);
         setPinned(r.notice.pinned);
-      } else setError(r.ok ? '공지를 찾을 수 없어요.' : (r.error ?? '로그인이 풀렸어요. 앱을 다시 열어 주세요.'));
-      setReady(true);
+        setBase({ title: r.notice.title, body: r.notice.body });
+        setReady(true);
+      } else setLoadError(r.ok ? '공지를 찾을 수 없어요.' : (r.error ?? '로그인이 풀렸어요. 앱을 다시 열어 주세요.'));
     });
     return () => {
       alive = false;
     };
-  }, [id, setError]);
+  }, [id, tries]);
 
   const submit = () =>
     save.run(async () => {
@@ -48,14 +55,20 @@ export default function NoticeFormScreen() {
       const r = await call<{ ok: true; id: string }>('support.saveAppNotice', { id, title, body, pinned });
       if (!r.ok) return r.error;
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      allowLeave();
       router.replace(`/support/notices/${r.id}` as Href);
       return null;
     });
 
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="소통 관리" title={id ? '공지 고치기' : '공지 쓰기'} right={<BarButton label="올리기" onPress={submit} disabled={save.busy || !ready} c={c} />} c={c} />
-      {!ready ? (
+      <Bar back="소통 관리" title={id ? '공지 고치기' : '공지 쓰기'} right={<BarButton label="올리기" onPress={submit} disabled={save.busy || !ready || !!loadError} c={c} />} c={c} />
+      {loadError ? (
+        <LoadState error={loadError} onRetry={() => {
+            setLoadError(null);
+            setTries((n) => n + 1);
+          }} c={c} />
+      ) : !ready ? (
         <ActivityIndicator style={{ marginTop: 40 }} />
       ) : (
         <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">

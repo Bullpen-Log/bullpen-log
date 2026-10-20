@@ -16,6 +16,7 @@ import { MAX_HEIGHT_CM, MAX_WEIGHT_KG, MIN_HEIGHT_CM, MIN_WEIGHT_KG, type Sex } 
 import { rpc, RpcError } from '~/lib/rpc';
 import { TYPE, usePalette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
+import { usePrefs } from '~/lib/prefs';
 import { leaveTo, openWebAfter } from '~/shell/web-nav';
 import { StepFrame, SummaryRows } from '~/setup/frame';
 import { BurnInsert } from '~/setup/inserts';
@@ -75,6 +76,8 @@ export default function NutritionSetupScreen() {
 function Wizard({ today, name, age, sex, heightCm: savedHeight, weightKg: savedWeight, hasProfile, initial }: Extract<Loaded, { ok: true }>) {
   const c = usePalette();
   const unit = useWeightUnit();
+  /* 키는 설정 단위(cm · in)로 적고 cm 로 둔다 — 내 정보 화면과 같다 */
+  const lengthUnit = usePrefs().length;
   const [heightCm, setHeightCm] = useState<number | null>(savedHeight);
   const [weightKg, setWeightKg] = useState<number | null>(savedWeight);
   const [a, setA] = useState<NutritionAnswers>(initial);
@@ -224,9 +227,9 @@ function Wizard({ today, name, age, sex, heightCm: savedHeight, weightKg: savedW
             setHeightCm(v);
             setProblem(null);
           }}
-          unit="cm"
+          unit={lengthUnit}
           kind="length"
-          placeholder={175}
+          placeholder={lengthUnit === 'in' ? 69 : 175}
           invalid={problem?.field === 'heightCm'}
           c={c}
         />

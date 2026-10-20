@@ -268,7 +268,7 @@ function AgreeRow({ label, value, onChange, doc, strong, bad, last, c }: { label
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={{ color: bad ? c.danger : c.ink, fontSize: 17, fontWeight: strong ? '700' : '400' }}>{label}</Text>
         {doc ? (
-          <Pressable accessibilityRole="link" onPress={() => void WebBrowser.openBrowserAsync(`${SITE_URL}/${doc}`)} hitSlop={8}>
+          <Pressable accessibilityRole="link" onPress={() => void WebBrowser.openBrowserAsync(`${SITE_URL}/${doc}`).catch(() => undefined)} hitSlop={8}>
             <Text style={{ color: c.sky, fontSize: 15 }}>읽어 보기 ›</Text>
           </Pressable>
         ) : null}

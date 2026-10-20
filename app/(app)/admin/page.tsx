@@ -8,7 +8,7 @@ import { requirePermission } from '@/lib/dal';
 import { can, isOwner, parseRole } from '@/lib/permissions';
 import { Badge, Card, PageHeading } from '@/components/ui';
 import { ageFromBirthDate } from '@/lib/profile';
-import { DeleteUser, RolePicker } from './user-row-actions';
+import { DeleteUser, RolePicker, TempPassword } from './user-row-actions';
 import { AdminOrgSwitch } from '@/components/master/admin-org-switch';
 
 function formatDate(date: Date) {
@@ -156,6 +156,7 @@ export default async function AdminPage() {
 
                 <div className="flex shrink-0 items-center gap-2">
                   <RolePicker userId={u.id} nickname={u.nickname} role={parseRole(u.role)} disabled={isSelf} />
+                  <TempPassword userId={u.id} nickname={u.nickname} disabled={isSelf} />
                   <DeleteUser userId={u.id} nickname={u.nickname} disabled={isSelf} />
                 </div>
               </Card>
