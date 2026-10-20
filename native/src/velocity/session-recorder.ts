@@ -32,9 +32,13 @@ const TICK_MS = RECORD_SEGMENT_SEC * 1000;
 /** 자르기 · 서버 동작 · 올리기 한 번의 상한(ms) — 넘으면 그 조각은 실패로 치고 다음으로(웹과 같다) */
 const CUT_TIMEOUT_MS = 15_000;
 const CALL_TIMEOUT_MS = 20_000;
-const PUT_TIMEOUT_MS = 90_000;
-/** 폰에 둘 수 있는 조각 합(바이트) — 넘으면 새 조각은 버린다 */
-const SPOOL_MAX_BYTES = 1024 * 1024 * 1024;
+/** 올리기 상한은 카메라 모듈이 정한다(120초, DualCameraModule.swift uploadTimeoutSec) — 여기선 그보다 조금 더 기다린다. 먼저 포기하면 같은 조각이 두 번 올라갔다 */
+const PUT_TIMEOUT_MS = 130_000;
+/**
+ * 폰에 둘 수 있는 조각 합(바이트) — 넘으면 새 조각은 버린다. 현장은 와이파이가 없어 LTE · 5G 로 올린다(김민 2026-10-20) — 녹화는 초당 14Mb 라
+ * LTE 올리기가 못 따라가면 쌓인다. 2GB = 쌓이기만 하면 약 19분 몫.
+ */
+const SPOOL_MAX_BYTES = 2 * 1024 * 1024 * 1024;
 const OFFLINE = '신호가 약해 조각을 올리지 못했어요.';
 
 type Res<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -92,7 +96,11 @@ export class SessionRecorder {
     try {
       const res = await withTimeout(rpc<Res<{ id: string }>>('velocity-recording.startVelocityRecording', { date, meta }), CALL_TIMEOUT_MS, OFFLINE);
       if (!res.ok) return this.set({ phase: 'error', error: res.error });
-      if ((this.state as RecState).phase !== 'starting') return;
+      if ((this.state as RecState).phase !== 'starting') {
+        /* 그사이 멈췄다(켜자마자 측정 종료) — 만든 녹화를 끝내 둔다. 예전엔 조각 없는 '찍는 중' 녹화가 관리자 목록에 남았다(2026-10-20 검토) */
+        void withTimeout(rpc('velocity-recording.finishVelocityRecording', res.id, { durationSec: 0 }), CALL_TIMEOUT_MS, OFFLINE).catch(() => undefined);
+        return;
+      }
       this.id = res.id;
       this.startedAt = Date.now();
       /* 켜기 전 영상은 안 담는다 — 첫 조각은 지금부터 */
