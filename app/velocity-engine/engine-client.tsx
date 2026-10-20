@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { analyzeVideo, locateThrow, warmDecoder, type ThrowLocation } from '@/lib/velocity-engine/analyze-video';
 import type { Approach } from '@/lib/velocity-engine/analyze-frames';
 import { loadBallNet } from '@/lib/velocity-engine/ball-net';
+import { createEngineQueue } from '@/lib/velocity-engine/engine-queue';
 
 /**
  * 앱 ↔ 계산기 약속(native/src/velocity/engine.tsx 와 같이 고친다).
@@ -12,9 +13,15 @@ import { loadBallNet } from '@/lib/velocity-engine/ball-net';
  *   { t: 'clip', id, part, parts, data(base64) } — 클립 파일을 조각으로. 조각이 다 오면 잰다(또는 훑는다).
  *   { t: 'opts', id, opts } — 그 클립을 잴 옵션(아래 MeasureOpts). 'clip' 첫 조각보다 먼저 보낸다.
  *   { t: 'locate', id, opts } — 재지 않고 훑기만(아래 LocateOpts, 2.7 조용할 때 훑기 — 앱 capture.ts sweep). 'clip' 첫 조각보다 먼저 보낸다.
+ *     opts · locate 에 ack: true 를 붙이면 그 일을 시작할 때 { t: 'start', id } 를 보낸다(앱이 시한을 '시작부터' 잰다 — 옛 앱은 안 붙여 안 받는다).
+ *   { t: 'abort', id } — 조각을 덜 받았으면 버리고, 다 받아 줄에 선 일이면 차례가 와도 하지 않고 { t: 'skipped', id } 만 보낸다.
  * 계산기 → 앱(window.ReactNativeWebView.postMessage):
  *   { t: 'ready' } · { t: 'ball', id }(공 길을 찾음 — '구속 계산 중'을 띄울 때) · { t: 'result', id, result, ms } · { t: 'fail', id, message }
  *   { t: 'located', id, found, ms } — 훑기 답(found 는 lib/velocity-engine/analyze-video.ts ThrowLocation, 못 열면 null)
+ *   { t: 'start', id } · { t: 'skipped', id } — 위 ack · abort 의 답.
+ *
+ * 줄에 선 일을 버리는 까닭(2026-10-20): 앱이 시한(재기 30초 · 훑기 15초)에 포기해도 계산기는 그 일을 끝까지 했고, 앱은 그사이 새 훑기 ·
+ * 재기를 계속 보내 줄이 끝없이 길어졌다 — 한 번 늦어지면 그 뒤 모든 공이 시한에 걸려 새 앱에서는 '인식'이 한 번도 안 떴다(금윤호 10-20 실내).
  *
  * 옵션은 사이트가 앱 클립을 잴 때(lib/velocity-engine/dual-capture.ts measure)와 같다 — 공 알림이면 공 시각 둘레(ballRange)만,
  * 아니면 영상 전체를 훑는다. fMP4 라 파일 머리에 fps · 렌즈 정보가 없어 앱이 알려 준 값을 쓴다.
@@ -41,14 +48,14 @@ export type LocateOpts = {
 };
 
 type Inbound =
-  | { t: 'opts'; id: number; opts: MeasureOpts }
-  | { t: 'locate'; id: number; opts: LocateOpts }
+  | { t: 'opts'; id: number; opts: MeasureOpts; ack?: boolean }
+  | { t: 'locate'; id: number; opts: LocateOpts; ack?: boolean }
   | { t: 'clip'; id: number; part: number; parts: number; data: string }
-  /** 앱이 클립을 끝까지 못 넘김 — 반쯤 온 조각을 버린다 */
+  /** 앱이 클립을 끝까지 못 넘겼거나 시한에 포기함 — 반쯤 온 조각을 버리고, 줄에 선 일이면 건너뛴다 */
   | { t: 'abort'; id: number };
 
 /** 받은 조각은 칸 번호로 센다 — 배열 길이만 늘려 두면 빈 칸을 every 가 건너뛰어 덜 온 클립을 쟀다 */
-type Pending = { opts?: MeasureOpts; locate?: LocateOpts; total: number; parts: Map<number, string> };
+type Pending = { opts?: MeasureOpts; locate?: LocateOpts; ack?: boolean; total: number; parts: Map<number, string> };
 
 function send(msg: unknown) {
   const rn = (window as unknown as { ReactNativeWebView?: { postMessage(s: string): void } }).ReactNativeWebView;
@@ -69,11 +76,11 @@ function bytesOf(parts: string[]): Uint8Array<ArrayBuffer> {
 export function EngineClient() {
   useEffect(() => {
     const pending = new Map<number, Pending>();
-    /* 한 번에 한 클립씩 — 폰에서 둘을 같이 재면 서로 느려진다(사이트도 차례로 잰다) */
-    let queue = Promise.resolve();
+    /* 한 번에 한 클립씩 — 폰에서 둘을 같이 재면 서로 느려진다(사이트도 차례로 잰다). 앱이 포기한 일은 건너뛴다(engine-queue.ts) */
+    const queue = createEngineQueue(send);
 
-    const measure = (id: number, opts: MeasureOpts, data: Uint8Array<ArrayBuffer>) => {
-      queue = queue.then(async () => {
+    const measure = (id: number, ack: boolean, opts: MeasureOpts, data: Uint8Array<ArrayBuffer>) => {
+      void queue.run(id, ack, async () => {
         const t0 = performance.now();
         try {
           const result = await analyzeVideo({
@@ -98,8 +105,8 @@ export function EngineClient() {
     };
 
     /* 훑기(2.7) — 재기와 같은 줄에 선다(폰에서 둘을 같이 돌리면 서로 느려진다). 못 연 영상은 null */
-    const locate = (id: number, opts: LocateOpts, data: Uint8Array<ArrayBuffer>) => {
-      queue = queue.then(async () => {
+    const locate = (id: number, ack: boolean, opts: LocateOpts, data: Uint8Array<ArrayBuffer>) => {
+      void queue.run(id, ack, async () => {
         const t0 = performance.now();
         let found: ThrowLocation | null = null;
         try {
@@ -125,9 +132,14 @@ export function EngineClient() {
       } catch {
         return;
       }
-      if (msg.t === 'abort') return void pending.delete(msg.id);
+      if (msg.t === 'abort') {
+        /* 덜 받은 조각이면 버리기만, 이미 줄에 섰으면 차례가 와도 건너뛴다 */
+        if (!pending.delete(msg.id)) queue.abort(msg.id);
+        return;
+      }
       const p = pending.get(msg.id) ?? { total: 0, parts: new Map<number, string>() };
       pending.set(msg.id, p);
+      if ((msg.t === 'opts' || msg.t === 'locate') && msg.ack) p.ack = true;
       if (msg.t === 'opts') p.opts = msg.opts;
       else if (msg.t === 'locate') p.locate = msg.opts;
       else if (msg.t === 'clip') {
@@ -137,8 +149,8 @@ export function EngineClient() {
       if ((p.opts || p.locate) && p.total > 0 && p.parts.size === p.total) {
         pending.delete(msg.id);
         const data = bytesOf(Array.from({ length: p.total }, (_, i) => p.parts.get(i) ?? ''));
-        if (p.locate) locate(msg.id, p.locate, data);
-        else if (p.opts) measure(msg.id, p.opts, data);
+        if (p.locate) locate(msg.id, p.ack === true, p.locate, data);
+        else if (p.opts) measure(msg.id, p.ack === true, p.opts, data);
       }
     };
 

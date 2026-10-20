@@ -12,7 +12,6 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { Camera } from '@/components/icon';
 import { DESK_MEDIA, MORE_HREF, type NavItem } from '@/lib/nav';
-import { TRAINING_HOME_HREF, isTrainingSubView } from '@/lib/training-part';
 import { barSnapshot, setNavDirection } from '@/lib/nav-state';
 import { haptic } from '@/lib/haptics';
 import { TAB_CHOSEN_EVENT } from '@/components/tab-lens';
@@ -32,8 +31,11 @@ import { TAB_CHOSEN_EVENT } from '@/components/tab-lens';
  *
  * PC(desk)는 판을 옆으로 안 민다 — 지금 탭의 판만 보이고 창이 굴러간다(globals.css '판 넘기기').
  */
-/* 넷째 판 — 영양 → 커뮤니티(2026-10-20 김민). 영양은 이제 하위 화면(children)이다 */
-const TAB_ORDER = ['/today', '/videos', TRAINING_HOME_HREF, '/community'];
+/*
+ * 넷째 판 — 영양 → 커뮤니티(2026-10-20 김민). 영양은 이제 하위 화면(children)이다.
+ * 셋째 판 — 트레이닝 → 타격(같은 날, docs/designs/hitting-restructure.md). 트레이닝은 투구 · 타격 종목 하단바 안의 하위 화면이다.
+ */
+const TAB_ORDER = ['/today', '/videos', '/hitting', '/community'];
 const base = (href: string) => href.split('?')[0];
 
 /** 놓았을 때 넘어가는 기준 — 폭의 이만큼 */
@@ -417,12 +419,7 @@ export function TabPager({
              * 홈 말고는 휴대폰 위 막대가 없다(app-shell MobileTopBar 의 bare) — 위 여백은 시계 자리만큼(globals.css). 트레이닝 하위 화면은
              * '‹ 트레이닝' 막대가 서므로 막대만큼(서버가 그린 첫 화면부터 — 본문이 밀리지 않게)
              */
-            data-bare={
-              base(order[i]) === '/today' ||
-              (i === index && isTrainingSubView(shown.pathname, shown.view))
-                ? undefined
-                : ''
-            }
+            data-bare={base(order[i]) === '/today' ? undefined : ''}
             data-active={i === index ? '' : undefined}
             inert={i !== index || undefined}
             aria-hidden={i !== index || undefined}

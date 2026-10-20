@@ -11,9 +11,8 @@ import { ChevronLeft } from '@/components/icon';
 import { goBack } from '@/components/back-link';
 import { barSnapshot, serverBarSnapshot, subscribeBar } from '@/lib/nav-state';
 import { onAnyScroll, scrollTopNow } from '@/lib/scroller';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Wordmark } from '@/components/logo';
-import { TRAINING_HOME_HREF, isTrainingSubView } from '@/lib/training-part';
 
 /* 앱 틀의 휴대폰 위 막대 — 숨기기 · 뒤로 · 가운데 제목. 2026-10-16 에 app-shell.tsx 에서 옮겼다(내용 그대로). */
 
@@ -45,13 +44,11 @@ export function MobileTopBar({
   const bar = useSyncExternalStore(subscribeBar, barSnapshot, serverBarSnapshot);
   /* 홈은 앱 이름을 막대 왼쪽에 — 큰 제목 자리에 두면 날짜 위로 한 줄을 통째로 차지했다(2026-10-13 김민) */
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  /* 트레이닝 하위 화면은 '‹ 트레이닝'을 주소로 처음부터 — 서버가 그린 첫 화면부터 막대가 서서 본문이 밀리지 않는다(lib/training-part.ts) */
-  const back =
-    bar.back ??
-    (isTrainingSubView(pathname, searchParams.get('view'))
-      ? { href: TRAINING_HOME_HREF, label: '트레이닝' }
-      : null);
+  /*
+   * 트레이닝 하위 화면의 '‹ 트레이닝'은 뺐다(2026-10-20) — 이제 투구 · 타격 종목 하단바의 ‹ 가 돌아가는 길이다(lib/nav.ts SPORT_BARS).
+   * 트레이닝 홈(?view=home, 더보기 · PC 메뉴)에서 들어간 경우도 하단바가 종목 바로 바뀌어 같은 길로 돌아간다.
+   */
+  const back = bar.back;
   /* 투구 기록 팝업(/pitch-log/<날짜>) 동안은 팝업 전 화면의 막대 그대로 — 판(tab-pager)과 같은 규칙(그리는 도중 상태 보정, 2026-10-17) */
   const popup = pathname.startsWith('/pitch-log/');
   const [shownPath, setShownPath] = useState(pathname);
@@ -70,7 +67,8 @@ export function MobileTopBar({
   const bare =
     !back &&
     /* 넷째 탭 영양 → 커뮤니티(2026-10-20). 영양은 더보기의 여느 화면처럼 막대가 선다 */
-    ['/videos', '/community', '/training', '/admin/velocity'].includes(shownPath);
+    /* 셋째 탭 트레이닝 → 타격(2026-10-20). 트레이닝은 종목 바 안의 화면이라 투구 · 타격처럼 막대 없이 큰 제목부터 */
+    ['/videos', '/hitting', '/community', '/training', '/admin/velocity'].includes(shownPath);
   /* 숨기기는 첫 화면들만 — '‹ 뒤로'가 있는 화면은 돌아갈 길을 늘 보인다. 알림 창이 열려 있으면 안 숨긴다 */
   const hidden = useBarHidden(!back && !bare && panel == null);
   /*

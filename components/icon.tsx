@@ -1,7 +1,7 @@
 import { forwardRef, type SVGProps } from 'react';
 import * as L from 'lucide-react';
 import type { LucideIcon, LucideProps } from 'lucide-react';
-import { Baseball as BaseballRaw } from '@/components/baseball-icon';
+import { Baseball as BaseballRaw, BaseballBat as BaseballBatRaw } from '@/components/baseball-icon';
 
 /**
  * 아이콘 체계 — 앱의 모든 아이콘은 이 파일에서 받는다(2026-10-14, docs/designs/icon-system.md).
@@ -41,6 +41,7 @@ export const ArrowUpDown = weighted(L.ArrowUpDown);
 export const Box = weighted(L.Box);
 export const ArrowUpRight = weighted(L.ArrowUpRight);
 export const Baseball = weighted(BaseballRaw);
+export const BaseballBat = weighted(BaseballBatRaw);
 export const Bell = weighted(L.Bell);
 export const BookOpen = weighted(L.BookOpen);
 export const BookmarkPlus = weighted(L.BookmarkPlus);
@@ -211,6 +212,7 @@ export const ALL_ICONS: Record<string, LucideIcon> = {
   ArrowUpDown,
   ArrowUpRight,
   Baseball,
+  BaseballBat,
   Bell,
   BookOpen,
   BookmarkPlus,

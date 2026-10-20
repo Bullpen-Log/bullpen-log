@@ -44,7 +44,7 @@ import { drainOutbox, setOutboxOwner } from '~/workout/outbox';
 import { drainChecks } from '~/armcare/outbox';
 import { sendCheck } from '~/armcare/send';
 import { PitchTab } from '~/pitch/tab';
-import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
+import { DEFAULT_SPORT_BARS, DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, sportActiveHref, sportOfPath, type ShellTab, type SportKey } from '~/shell/tab-bar';
 import { TabPager } from '~/shell/tab-pager';
 import { ClockVeil } from '~/shell/clock-veil';
 import { Press } from '~/shell/press';
@@ -206,6 +206,8 @@ export default function SiteScreen() {
   const [pageColor, setPageColor] = useState<string | null>(null);
   /* 앱 탭 막대 — 사이트가 알려 준 탭 · 지금 주소 · 막대를 보일지(탭이 없는 웹 화면에서는 숨김) */
   const [tabs, setTabs] = useState<ShellTab[]>(DEFAULT_TABS);
+  /* 투구 · 타격 종목 바(사이트가 잠금을 입혀 보냄) — 2026-10-20 타격 1단계 D1 */
+  const [sportBars, setSportBars] = useState<Record<SportKey, ShellTab[]>>(DEFAULT_SPORT_BARS);
   const [path, setPath] = useState('/today');
   /* 주소의 ? 뒤 — 트레이닝은 첫 화면(?view=home)만 앱 화면이고 암케어 · 메커니즘(?view=…)은 웹이라 가른다 */
   const [search, setSearch] = useState('');
@@ -258,6 +260,7 @@ export default function SiteScreen() {
     return () => sub.remove();
   }, []);
   const active = tabOf(path, tabs);
+  const sport = sportOfPath(path, search);
   /* 웹을 앞으로 — 앱 화면 위에서 연 웹 창(설정)이 보이게 앱 화면을 잠시 걷는다. 그 창을 닫거나 탭을 누르면 돌아온다 */
   const [webFront, setWebFront] = useState(false);
   const pitchTab = tabs.find((t) => t.href === '/videos');
@@ -326,8 +329,11 @@ export default function SiteScreen() {
     }
     /* 더보기는 앱 화면(사이트가 목록을 알려 준 뒤) — 웹 메뉴는 앱 화면 위에서 열면 밑에 깔려 안 보인다 */
     if (t.href === '/more' && menu.groups.length) return router.push('/more' as Href);
-    /* 커뮤니티 탭(2026-10-20)은 웹 판 — 주소를 먼저 바꿔 앱 판을 바로 걷는다 */
-    if ((t.href === '/videos' || t.href === '/today' || t.href === '/nutrition' || t.href === '/community') && !t.locked) setPath(t.href);
+    /* 커뮤니티 · 타격 탭(2026-10-20)은 웹 판 — 주소를 먼저 바꿔 앱 판을 바로 걷고 종목 바로 갈아 끼운다 */
+    if ((t.href === '/videos' || t.href === '/today' || t.href === '/nutrition' || t.href === '/community' || t.href === '/hitting') && !t.locked) {
+      setPath(t.href);
+      setSearch('');
+    }
     if (t.href === '/today') setWebHome(false);
     if (t.href === '/nutrition') setWebNutrition(false);
     goWeb(t.href);
@@ -437,6 +443,7 @@ export default function SiteScreen() {
       t?: string;
       path?: string;
       items?: ShellTab[] & Record<string, string | null>;
+      sports?: { pitch?: unknown; hit?: unknown };
       on?: boolean;
       search?: string;
       groups?: MenuGroup[];
@@ -452,7 +459,12 @@ export default function SiteScreen() {
       return;
     }
     if (msg.t === 'native' && msg.path) return openNative(msg.path);
-    if (msg.t === 'tabs' && Array.isArray(msg.items)) return setTabs(msg.items);
+    if (msg.t === 'tabs' && Array.isArray(msg.items)) {
+      setTabs(msg.items);
+      const sp = msg.sports;
+      if (sp && Array.isArray(sp.pitch) && Array.isArray(sp.hit)) setSportBars({ pitch: sp.pitch, hit: sp.hit });
+      return;
+    }
     if (msg.t === 'path' && typeof msg.path === 'string') {
       setPath(msg.path);
       setSearch(typeof msg.search === 'string' ? msg.search : '');
@@ -584,12 +596,28 @@ export default function SiteScreen() {
         체크인(웹 (session) 흐름)으로 갈 때는 앱이 주소를 정하는 그 순간 숨긴다 — 웹 틀이 떨어져 '막대 끔'을 알려 오기 전까지 체크인 화면 위에
         막대가 같이 보였다(2026-10-20 김민: "체크인 고치기를 누르면 체크인과 하단 바가 같이 나온다").
       */}
+      {/*
+        투구 · 타격 안에서는 종목 바(‹ · 기록 · 트레이닝 · …)로 갈아 끼운다 — 커뮤니티 하단바와 같은 back · enter(웹 sport-tabs.tsx 와 같은 규칙).
+        key 가 바뀌어 새로 붙을 때마다 들어오기 연출이 돈다.
+      */}
       {barOn && !webFront && !isCheckinPath(path) ? (
-        <TabBar
-          tabs={tabs}
-          active={showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : showTraining ? (trainingTab?.href ?? active) : active}
-          onPress={pressTab}
-        />
+        sport ? (
+          <TabBar
+            key={sport}
+            tabs={sportBars[sport]}
+            active={sportActiveHref(sport, path, search)}
+            onPress={pressTab}
+            back={() => goTab('/today')}
+            enter
+          />
+        ) : (
+          <TabBar
+            key="main"
+            tabs={tabs}
+            active={showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : showTraining ? (trainingTab?.href ?? active) : active}
+            onPress={pressTab}
+          />
+        )
       ) : null}
     </View>
   );

@@ -1,5 +1,9 @@
 import {
   Baseball,
+  BaseballBat,
+  CalendarDays,
+  ChevronLeft,
+  HeartPulse,
   BookOpen,
   Clapperboard,
   Dumbbell,
@@ -34,6 +38,10 @@ import type { NavIconName } from '@/lib/nav';
 export const NAV_TINT: Record<NavIconName, [string, string]> = {
   home: ['#4fc3ff', '#0a7fd6'],
   baseball: ['#ff7a6b', '#e0352b'],
+  bat: ['#ff9f6b', '#e0602b'],
+  back: ['#6b7180', '#2c313b'],
+  heart: ['#ff7aa8', '#d9346b'],
+  calendar: ['#4fc3ff', '#0a7fd6'],
   dumbbell: ['#ffb14a', '#f06a0f'],
   utensils: ['#5fe07a', '#1f9e45'],
   radar: ['#8f9bff', '#4b55d6'],
@@ -54,6 +62,10 @@ export const NAV_TINT: Record<NavIconName, [string, string]> = {
 export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
   home: House,
   baseball: Baseball,
+  bat: BaseballBat,
+  back: ChevronLeft,
+  heart: HeartPulse,
+  calendar: CalendarDays,
   dumbbell: Dumbbell,
   film: Film,
   utensils: Utensils,

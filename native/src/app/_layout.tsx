@@ -67,6 +67,8 @@ export default function RootLayout() {
         {/* 구속 측정 — 웹은 멀리서 튀어나오는 zoom 전환. 앱은 옅어지며 들어온다(홈 쓸기의 검은 판 위로 이어짐) */}
         <Stack.Screen name="velocity" options={{ animation: 'fade', animationDuration: 220 }} />
         {/* 그날 화면 — 웹 휴대폰처럼 아래에서 올라오는 창(끌어내려 닫기) */}
+        {/* 커뮤니티 — 토스 '증권'처럼 옅어지며 들어오고 하단바가 커뮤니티 것으로 바뀐다(community/index.tsx · tab-bar.tsx enter) */}
+        <Stack.Screen name="community/index" options={{ animation: 'fade', animationDuration: 220 }} />
         <Stack.Screen name="pitch/[date]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="pitch/edit" options={{ presentation: 'modal' }} />
         {/* 지난 영상 가져오기 — 내용만큼만 올라오는 아래 시트(2026-10-20 김민: 큰 창에 영상 고르기 단추 하나만 떠 있었다). 묶음이 늘면 같이 자란다 */}

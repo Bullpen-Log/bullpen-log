@@ -8,6 +8,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { createAvatarUrl } from '@/lib/storage';
 import {
   MOBILE_TABS,
+  SPORT_BARS,
   applyLocks,
   applyLocksToGroups,
   quickTabs,
@@ -51,7 +52,7 @@ export default async function AppLayout({
   modal,
   home,
   videos,
-  training,
+  hitting,
   community,
 }: {
   children: React.ReactNode;
@@ -63,7 +64,8 @@ export default async function AppLayout({
    */
   home: React.ReactNode;
   videos: React.ReactNode;
-  training: React.ReactNode;
+  /** 셋째 판 — 트레이닝 → 타격(2026-10-20). 트레이닝은 이제 종목 하단바 안의 하위 화면이다 */
+  hitting: React.ReactNode;
   community: React.ReactNode;
 }) {
   // 이 레이아웃 아래의 모든 페이지는 로그인이 필요하다.
@@ -132,6 +134,10 @@ export default async function AppLayout({
         groups={applyLocksToGroups(visibleGroups(user.role, isNative), locks)}
         quick={applyLocks(quickTabs(), locks)}
         tabs={applyLocks(MOBILE_TABS, locks)}
+        sportBars={{
+          pitch: applyLocks(SPORT_BARS.pitch, locks),
+          hit: applyLocks(SPORT_BARS.hit, locks),
+        }}
         nickname={user.nickname}
         avatarUrl={avatarUrl}
         isAdmin={isAdmin}
@@ -230,7 +236,7 @@ export default async function AppLayout({
                 .flatMap((g) => g.items)
                 .find((i) => i.icon === 'radar' && !i.locked) ?? null
             }
-            panels={[home, videos, training, community]}
+            panels={[home, videos, hitting, community]}
           >
             <MainTransition>{children}</MainTransition>
           </TabPager>
