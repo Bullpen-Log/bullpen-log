@@ -189,3 +189,16 @@ D3. **JS-thread hygiene.** Throttle `level` to 4 Hz in Swift (`deviceMotionUpdat
 | 세션 녹화 | #1 40.7초 조각 7(0~28초 연속) · #2 145.8초 조각 9(0 · 3.6 · 7.6 · 15.6 · 39.6 · 47.6 · 59.6 · 71.6 · 83.6초 — 구멍) · 조각 7~10MB/4.5초 |
 | 저장 세션 | 1(공 1개, 2.7.2) |
 | 전날(옛 앱) | ok 12(공 8 · 후보 3 · 움직임 1) |
+
+---
+
+## 진행
+
+- **Phase A 끝(2026-10-20, 윤호 맥북 — 앱을 다시 구워야 들어간다)**: ① Swift `start` 답에 `debugBuild · appVersion · appBuild`, 'fps' 알림에 `thermal`(0~3) ·
+  `feedMs`(장면당 공 찾기 시간, Release 에서도 잼) — 카메라 알약이 `… · 버림 N · DEBUG · 뜨거움` 을 보이고(Debug · 버림 5 넘으면 주황), 관리자는 알약을 눌러
+  진단(빌드 · 카메라 · 최근 작업 6줄). ② 작업마다 단계별 시간(`capture.ts JobTiming` — 큐 · 자르기 · 읽기(MB · 실제 fps) · 계산(장면 · 분석) · 합)을 콘솔 `[velo] …` 한 줄 +
+  진단에. ③ 시한 초과 · 계산기 죽음 · 클립 없음도 시도 기록에 남는다(`engine.tsx EngineError` → rejectCode `TIMEOUT · ENGINE_DOWN · ENGINE_GONE · ENGINE_FAIL`, 카메라 모듈은
+  `NO_CLIP · CAMERA_OFF · CLIP_…`, why 는 소문자). ④ 클립마다 실제 담긴 장면 수(`Clip.frames · fpsActual`, `SegmentRecorder` 가 넣은 장면 시각을 셈) — 20% 넘게 빠지면
+  10초에 한 번 '카메라가 장면을 버리고 있어요(초당 N장)', 잰 공의 `analysis.offStandard` · 메모에 '장면 N% 빠짐'(`clip-health.ts`). 엔진 · DB 모양은 그대로.
+- **폰에서 볼 것(A5)**: 카메라 화면을 열고 5초 쉰 뒤 알약 — Release 면 `1080p · 60fps · 2배`(버림 없음 · DEBUG 없음). `DEBUG` 가 보이거나 쉬는 중에도 `버림` 이 5를 넘으면
+  R1a 확정 → Release 로 다시 굽는다. 관리자 진단의 '공 찾기 ms/장' 이 Release 에서도 8 을 넘으면 Phase C2 로.

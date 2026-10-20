@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-20 밤 · 금윤호(Claude, 윤호 맥북) — 새 앱 구속 측정 진단(Phase A): 빌드 · 열 · 장면 수를 알약 · 시도 기록에 — 네 영역 · 새 앱 구워야 들어감
+
+받은 뒤 할 일 없음(DB · 패키지 그대로 — Swift 는 시뮬레이터로 컴파일 확인). `docs/velocity/native-measure-recovery-prompt.md` '진행' 절의 Phase A. 네 영역(`native/modules/dual-camera` ·
+`native/src/velocity/*` · `app/velocity.tsx`)을 고쳤고 모두 더하기 — 옛 앱 판 · 웹 · 엔진 · 서버는 그대로.
+- **모듈 약속에 더한 것**: `start` 답 `debugBuild · appVersion · appBuild`, 'fps' 알림 `thermal · feedMs`(장면당 공 찾기 ms — Release 에서도), `Clip.frames · fpsActual`
+  (`SegmentRecorder` 가 인코더에 넣은 장면 시각을 쥐고 셈). `clip(from:to:)` 의 답에 `frames` 가 하나 늘었다(옛 앱 `mobile/` 모듈은 안 건드림).
+- **앱**: 알약 `1080p · 31fps · 2배 · 버림 29 · DEBUG · 뜨거움`(Debug 거나 버림 5 넘으면 주황), 관리자가 누르면 진단 시트(빌드 · 카메라 · 최근 작업 6줄의 단계별 시간 —
+  `capture.ts JobTiming` · `timingLine`, 콘솔 `[velo] #3 ball 큐 120 · 자르기 410 · 읽기 380(3.1MB · 58fps) · 계산 2900(장면 900 · 분석 1500) · 합 3800ms → ok 112.3 high`).
+  시한 초과 · 계산기 죽음도 `VelocityAttempt` 에 남는다(rejectCode `TIMEOUT · ENGINE_DOWN · ENGINE_GONE · ENGINE_FAIL · NO_CLIP · CAMERA_OFF`, `engine.tsx EngineError`).
+  클립이 장면을 20% 넘게 잃으면 알림 + 잰 공 `analysis.offStandard` 에 '장면 N% 빠짐'(`clip-health.ts`).
+- 10-20 세션의 진짜 까닭(Debug 빌드인지)은 네가 어떤 빌드를 깔아 줬는지에 달렸다 — 위 아침 메모의 물음 그대로. 다음은 Phase B(앱 세션 녹화기 스풀 — 웹 10-19 와 같게).
+
 ## 김민에게 — 2026-10-20 · 금윤호(Claude, 윤호 맥북) — 새 앱 구속 측정이 10-20 세션에서 거의 안 잡힌 것 분석 · 복구 프롬프트 — 네가 답해 줄 것 하나
 
 받은 뒤 할 일: **10-20 낮에 윤호 폰에 깔려 있던 새 앱이 어떤 빌드였는지(Xcode `expo run:ios --device` 로 바로 깐 Debug 인지 · GitHub `ios-native.yml` Release 아카이브인지) 알려 줘.**

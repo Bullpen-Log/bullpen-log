@@ -25,7 +25,7 @@ import {
 import { DualCamera, DualCameraPreview, type StartInfo } from '../../modules/dual-camera';
 import { rpc, RpcError } from '~/lib/rpc';
 import { loadJson, saveJson } from '~/lib/store';
-import { AppCapture, type CaptureStatus, type MeasureSettings } from '~/velocity/capture';
+import { AppCapture, timingLine, type CaptureStatus, type JobTiming, type MeasureSettings } from '~/velocity/capture';
 import { VelocityEngine, type EngineHandle } from '~/velocity/engine';
 import { decide, saveSession, shownKmh, statsOf, type NativePitch, type SessionCtx } from '~/velocity/session';
 import { clearDraft, loadDraft, saveDraft } from '~/velocity/draft';
@@ -121,7 +121,10 @@ export default function VelocityScreen() {
   const [error, setError] = useState<string | null>(null);
   /** 카메라 권한을 거절했나 — 설정을 바꾸면 iOS 가 앱을 다시 켜므로 돌아와 다시 켜기는 없다 */
   const [denied, setDenied] = useState(false);
-  const [fps, setFps] = useState<{ fps: number; dropped: number } | null>(null);
+  const [fps, setFps] = useState<FpsState | null>(null);
+  /* 관리자 진단(2026-10-20) — 알약을 누르면 빌드 · 카메라 · 최근 작업의 단계별 시간 */
+  const [diag, setDiag] = useState<JobTiming[] | null>(null);
+  const timings = useRef<JobTiming[]>([]);
   const [status, setStatus] = useState<{ status: CaptureStatus; visible: number }>({ status: 'armed', visible: 0 });
   const [notice, setNotice] = useState<string | null>(null);
   const [tilt, setTilt] = useState<{ roll: number; pitch: number } | null>(null);
@@ -276,6 +279,9 @@ export default function VelocityScreen() {
         },
         onStatus: (s, visible) => setStatus({ status: s, visible }),
         onNotice: (m) => setNotice(m),
+        onTiming: (t) => {
+          timings.current = [...timings.current.slice(-5), t];
+        },
         onAttempt: (a) => {
           const date = todayRef.current;
           if (!date) return;
@@ -293,7 +299,7 @@ export default function VelocityScreen() {
     const subs = [
       DualCamera.addListener('throw', (e) => capture.onThrow(e)),
       DualCamera.addListener('fps', (e) => {
-        setFps({ fps: Math.round(e.fps), dropped: e.dropped });
+        setFps({ fps: Math.round(e.fps), dropped: e.dropped, thermal: e.thermal ?? null, feedMs: e.feedMs ?? null });
         /* 장면이 다시 흐른다 = 카메라가 산다 — 전화 · 컨트롤센터로 잠깐 끊겼을 때 온 'error' 를 걷는다(안 걷으면 설정 카드가 오류 카드에 가려 못 갔다) */
         setError((prev) => (prev ? null : prev));
       }),
@@ -601,13 +607,12 @@ export default function VelocityScreen() {
         {/* 둘째 줄 — 수평계 | 카메라 상태 */}
         <View style={[styles.second, { top: inset.top + 58 }]}>
           {tilt ? <LevelBubble roll={tilt.roll} pitch={tilt.pitch} rollOk={ROLL_OK} pitchOk={PITCH_OK} /> : <View />}
-          <InfoPill tone={error ? 'warn' : undefined}>
-            {error
-              ? '카메라 오류'
-              : info
-                ? `${Math.min(info.mainWidth, info.mainHeight)}p · ${fps?.fps ?? Math.round(info.mainFps)}fps · 2배${fps?.dropped ? ` · 버림 ${fps.dropped}` : ''}`
-                : '카메라 켜는 중'}
-          </InfoPill>
+          {/* 관리자는 눌러 진단(빌드 · 카메라 · 최근 작업 시간, 2026-10-20). Debug 빌드 · 장면을 많이 버리면 주황 */}
+          <Pressable accessibilityRole="button" accessibilityLabel="카메라 진단" disabled={!start?.isAdmin} onPress={() => setDiag(timings.current)}>
+            <InfoPill tone={error || info?.debugBuild || (fps?.dropped ?? 0) > 5 ? 'warn' : undefined}>
+              {error ? '카메라 오류' : info ? pillText(info, fps) : '카메라 켜는 중'}
+            </InfoPill>
+          </Pressable>
         </View>
 
         {/* 모드 고르기 시트 — 열리자마자 미리보기 위(설계 2-1). 고르면 그 모드의 지난 설정 · 첫 설정으로 */}
@@ -908,8 +913,51 @@ export default function VelocityScreen() {
         <ClipModal path={replay} onClose={() => setReplay(null)} />
       </Modal>
       {!sheet ? <ClipModal path={replay} onClose={() => setReplay(null)} /> : null}
+      {/* 관리자 진단(2026-10-20) — 10-20 세션에서 무엇이 느린지 · 어떤 빌드인지 알 길이 없었다. 폰 화면에서 바로 본다 */}
+      <Modal visible={diag != null} transparent animationType="fade" onRequestClose={() => setDiag(null)}>
+        <Pressable style={styles.diagScrim} accessibilityRole="button" accessibilityLabel="닫기" onPress={() => setDiag(null)}>
+          <View style={[styles.diagCard, { marginBottom: inset.bottom + 8 }]}>
+            <Text style={styles.diagTitle}>카메라 진단</Text>
+            {diagLines(info, fps, diag ?? []).map((l, i) => (
+              <Text key={i} style={styles.diagLine} selectable>
+                {l}
+              </Text>
+            ))}
+            <Text style={styles.diagHint}>쉬는 중에도 버림이 초당 5를 넘으면 빌드 탓이에요(Debug). Release 로 다시 구워 보세요.</Text>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
+}
+
+type FpsState = { fps: number; dropped: number; thermal: number | null; feedMs: number | null };
+const THERMAL_TEXT: Record<number, string> = { 0: '보통', 1: '따뜻', 2: '뜨거움', 3: '아주 뜨거움' };
+
+/** 둘째 줄 알약 — '1080p · 60fps · 2배' 뒤에 버림 N · DEBUG · 뜨거움이 붙는다 */
+function pillText(info: StartInfo, fps: FpsState | null) {
+  return [
+    `${Math.min(info.mainWidth, info.mainHeight)}p`,
+    `${fps?.fps ?? Math.round(info.mainFps)}fps`,
+    '2배',
+    ...(fps?.dropped ? [`버림 ${fps.dropped}`] : []),
+    ...(info.debugBuild ? ['DEBUG'] : []),
+    ...((fps?.thermal ?? 0) >= 2 ? ['뜨거움'] : []),
+  ].join(' · ');
+}
+
+/** 관리자 진단 줄들 — 빌드 · 카메라 약속 · 지금 상태 · 최근 작업 여섯 */
+function diagLines(info: StartInfo | null, fps: FpsState | null, timings: JobTiming[]): string[] {
+  const build = info?.debugBuild == null ? '모름(옛 앱)' : info.debugBuild ? 'Debug(최적화 없음)' : 'Release';
+  const lines = [`빌드 ${build} · 앱 ${info?.appVersion || '?'} (${info?.appBuild || '?'}) · JS ${__DEV__ ? 'dev' : 'release'}`];
+  if (info) lines.push(`카메라 ${Math.min(info.mainWidth, info.mainHeight)}p · 약속 ${Math.round(info.mainFps)}fps · 화각 ${info.mainFovDeg.toFixed(1)}°`);
+  if (fps) {
+    const feed = fps.feedMs == null ? '?' : fps.feedMs.toFixed(1);
+    lines.push(`지금 ${fps.fps}fps · 버림 ${fps.dropped}/초 · 공 찾기 ${feed}ms/장 · 열 ${THERMAL_TEXT[fps.thermal ?? -1] ?? '?'}`);
+  }
+  lines.push(timings.length ? '최근 작업(ms):' : '최근 작업 없음');
+  for (const t of timings) lines.push(timingLine(t));
+  return lines;
 }
 
 function Button({
@@ -1044,6 +1092,11 @@ const styles = StyleSheet.create({
   listItem: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e5e5ea' },
   chev: { fontSize: 15, color: '#8e8e93' },
   label: { fontSize: 13, fontWeight: '600', color: '#6e6e73', marginTop: 8 },
+  diagScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end', padding: 12 },
+  diagCard: { borderRadius: 20, backgroundColor: 'rgba(20,20,22,0.96)', padding: 16, gap: 6 },
+  diagTitle: { color: '#fff', fontSize: 17, fontWeight: '700', marginBottom: 4 },
+  diagLine: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontVariant: ['tabular-nums'] },
+  diagHint: { color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 6 },
 });
 
 function StepBtn({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
