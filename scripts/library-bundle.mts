@@ -81,11 +81,12 @@ if (list.length) {
   const listFile = join(srcDir, hevc ? '../list-hevc.tsv' : '../list.tsv');
   writeFileSync(listFile, list.join('\n'));
   try {
-    execFileSync(
-      'swift',
-      ['-suppress-warnings', join(root, 'scripts/library-bundle/compress.swift'), listFile, ...(hevc ? ['hevc'] : [])],
-      { stdio: 'inherit' }
-    );
+    /* 한 번 컴파일해서 돌린다 — `swift 파일` 로 풀어 돌리면 영상 하나에 수십 초씩 더 걸렸다(2026-10-20, 315개) */
+    const bin = join(srcDir, '../compress');
+    execFileSync('swiftc', ['-O', '-suppress-warnings', join(root, 'scripts/library-bundle/compress.swift'), '-o', bin], {
+      stdio: 'inherit',
+    });
+    execFileSync(bin, [listFile, ...(hevc ? ['hevc'] : [])], { stdio: 'inherit' });
   } catch {
     console.log('일부 영상을 줄이지 못했어요 — 위 fail 줄을 보세요(그 영상은 앱이 서버에서 받아요).');
   }
