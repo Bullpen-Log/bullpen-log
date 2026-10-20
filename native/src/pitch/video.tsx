@@ -1,8 +1,11 @@
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { usePalette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
+import { Press } from '~/shell/press';
+import { DRAW_COLORS, DrawLayer, DrawToolbar, type Shape, type ToolKind } from './video-draw';
 import { LocalVideo } from '../../modules/local-video';
 import { isPhoneVideoPath, phoneAssetId, serverVideoUrls } from './api';
 
@@ -85,12 +88,15 @@ function stepFrame(p: VideoPlayer, dir: 1 | -1) {
 function setPlayerRate(p: VideoPlayer, r: number) {
   p.playbackRate = r;
 }
+function pausePlayer(p: VideoPlayer) {
+  p.pause();
+}
 const RATES = [0.25, 0.5, 1] as const;
 const RATE_TEXT: Record<(typeof RATES)[number], string> = { 0.25: '¼×', 0.5: '½×', 1: '1×' };
 
 /*
- * 분석용 — 웹 PitchVideoPlayer 의 속도 · 프레임 넘기기. 한 장면 = 1/60초(대부분 60fps 로 찍는다 — 2분할 비교와 같다).
- * ponytail: 선 · 각도 그리기(웹 VideoCanvas)는 아직 없다 — 크게 보기는 기본 재생기의 전체 화면 단추가 한다.
+ * 분석용 — 웹 PitchVideoPlayer 의 속도 · 프레임 넘기기 · 측정(선 · 각도 그리기, pitch/video-draw.tsx). 한 장면 = 1/60초(대부분 60fps 로
+ * 찍는다 — 2분할 비교와 같다). 측정을 켜면 멈추고 기본 재생 단추를 끈다(손가락이 그림으로 가게). 크게 보기는 기본 재생기의 전체 화면 단추.
  */
 function ToolPlayer({ uri }: { uri: string }) {
   const c = usePalette();
@@ -101,20 +107,55 @@ function ToolPlayer({ uri }: { uri: string }) {
     p.playbackRate = 0.5;
   });
   const step = (dir: 1 | -1) => stepFrame(player, dir);
+  const [drawing, setDrawing] = useState(false);
+  const [tool, setTool] = useState<ToolKind>('tilt');
+  const [color, setColor] = useState(DRAW_COLORS[0]);
+  const [shapes, setShapes] = useState<Shape[]>([]);
   return (
     <View style={{ gap: 8 }}>
-      <VideoView player={player} style={styles.box} nativeControls contentFit="contain" />
+      <View style={styles.box}>
+        <VideoView player={player} style={StyleSheet.absoluteFill} nativeControls={!drawing} contentFit="contain" />
+        <DrawLayer shapes={shapes} onCommit={(sh) => setShapes((list) => [...list, sh])} tool={tool} color={color} enabled={drawing} />
+      </View>
+      {drawing ? (
+        <DrawToolbar
+          tool={tool}
+          onTool={setTool}
+          color={color}
+          onColor={setColor}
+          onUndo={() => setShapes((list) => list.slice(0, -1))}
+          onClear={() => setShapes([])}
+          canUndo={shapes.length > 0}
+        />
+      ) : null}
       <View style={styles.tools}>
-        <Pressable accessibilityRole="button" accessibilityLabel="한 프레임 뒤로" onPress={() => step(-1)} style={[styles.tool, { backgroundColor: c.chip }]}>
+        <Press accessibilityRole="button" accessibilityLabel="한 프레임 뒤로" onPress={() => step(-1)} style={[styles.tool, { backgroundColor: c.chip }]}>
           <Icon name="chevron-left" size={18} color={c.ink} />
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="한 프레임 앞으로" onPress={() => step(1)} style={[styles.tool, { backgroundColor: c.chip }]}>
+        </Press>
+        <Press accessibilityRole="button" accessibilityLabel="한 프레임 앞으로" onPress={() => step(1)} style={[styles.tool, { backgroundColor: c.chip }]}>
           <Icon name="chevron-right" size={18} color={c.ink} />
-        </Pressable>
+        </Press>
+        <Press
+          select
+          selected={drawing}
+          accessibilityRole="button"
+          accessibilityLabel="측정"
+          accessibilityState={{ selected: drawing }}
+          onPress={() => {
+            if (!drawing) pausePlayer(player);
+            setDrawing(!drawing);
+          }}
+          style={[styles.tool, styles.measure, { backgroundColor: drawing ? c.sky : c.chip }]}
+        >
+          <SymbolView name="ruler" size={15} weight="semibold" tintColor={drawing ? '#fff' : c.ink} />
+          <Text style={{ color: drawing ? '#fff' : c.ink, fontSize: 13, fontWeight: '600' }}>측정</Text>
+        </Press>
         <View style={{ flex: 1 }} />
         {RATES.map((r) => (
-          <Pressable
+          <Press
             key={r}
+            select
+            selected={rate === r}
             accessibilityRole="radio"
             accessibilityLabel={`${r}배 속도`}
             accessibilityState={{ selected: rate === r }}
@@ -125,7 +166,7 @@ function ToolPlayer({ uri }: { uri: string }) {
             style={[styles.tool, { backgroundColor: rate === r ? c.ink : c.chip }]}
           >
             <Text style={{ color: rate === r ? c.page : c.ink, fontSize: 13, fontWeight: '600' }}>{RATE_TEXT[r]}</Text>
-          </Pressable>
+          </Press>
         ))}
       </View>
     </View>
@@ -135,6 +176,7 @@ function ToolPlayer({ uri }: { uri: string }) {
 const styles = StyleSheet.create({
   tools: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   tool: { minWidth: 44, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
+  measure: { flexDirection: 'row', gap: 4 },
   box: { width: '100%', aspectRatio: 9 / 16, maxHeight: 420, alignSelf: 'center', borderRadius: 16, backgroundColor: '#000', overflow: 'hidden' },
   center: { alignItems: 'center', justifyContent: 'center', padding: 16 },
   note: { color: 'rgba(255,255,255,0.8)', fontSize: 15, textAlign: 'center' },
