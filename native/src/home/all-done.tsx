@@ -107,7 +107,7 @@ function Cheer({ onClose }: { onClose: () => void }) {
         </Animated.View>
         {reduce ? null : BITS.map((b, i) => <Bit key={i} {...b} color={c.sky} />)}
       </View>
-      <Animated.Text style={[styles.text, { color: c.ink }, textStyle]}>오늘 기록을 다 남겼어요</Animated.Text>
+      <Animated.Text style={[styles.text, { color: c.ink, fontFamily: 'Pretendard' }, textStyle]}>오늘 기록을 다 남겼어요</Animated.Text>
     </Pressable>
   );
 }

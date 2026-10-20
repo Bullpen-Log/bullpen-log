@@ -17,7 +17,7 @@ import {
   type Slot,
   type TrendCard,
 } from '@/lib/report/trends';
-import type { Palette } from '~/lib/ui';
+import { TYPE, type Palette } from '~/lib/ui';
 
 /**
  * 분석 화면(native/src/app/analysis.tsx)의 그래프 둘 — 부하 지수 2주 흐름(웹 app/(app)/coach/load-trend.tsx)과 기록 그래프 한 장(웹
@@ -289,7 +289,7 @@ export function TrendCardView({
       </View>
       <Text numberOfLines={1} style={[st.value, { color: hover == null ? c.ink : c.sky }]}>
         {shownValue ? shownValue[0] : '—'}
-        {shownValue ? <Text style={[st.small, { color: c.muted }]}> {shownValue[1]}</Text> : null}
+        {shownValue ? <Text style={[TYPE.unit, { color: c.muted }]}> {shownValue[1]}</Text> : null}
       </Text>
       <Text numberOfLines={1} style={[st.tiny, { color: c.muted, minHeight: 16 }]}>
         {shownNote}

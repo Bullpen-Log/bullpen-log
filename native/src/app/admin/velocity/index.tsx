@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppVelocityAdmin } from '@/app/actions/app-admin';
 import { Bar, leave, LoadState, Row, s, useLoad, useTitleCollapse } from '~/community/parts';
 import { PageHead } from '~/shell/heading';
-import { usePalette, type Palette } from '~/lib/ui';
+import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { signed } from '~/velocity/signed';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
@@ -84,7 +84,7 @@ function Tile({ label, value, unit, c }: { label: string; value: string; unit?: 
       <Text style={[s.meta, { color: c.muted }]}>{label}</Text>
       <Text style={{ color: c.ink, fontSize: 20, fontWeight: '700', marginTop: 2, fontVariant: ['tabular-nums'] }}>
         {value}
-        {unit ? <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}> {unit}</Text> : null}
+        {unit ? <Text style={[TYPE.unit, { color: c.muted }]}> {unit}</Text> : null}
       </Text>
     </View>
   );

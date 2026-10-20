@@ -112,6 +112,14 @@ export const TYPE = {
   card: { fontSize: 17, fontWeight: '600', letterSpacing: -0.2 },
   body: { fontSize: 15, fontWeight: '400' },
   sub: { fontSize: 13, fontWeight: '400', lineHeight: 18 },
+  /*
+   * 문장 안 숫자 — 글꼴 · 크기는 둘레 글 그대로, 굵기 · 고정폭만. TYPE.num(둥근 숫자 글꼴)은 혼자 서는 큰 숫자에만:
+   * 문장 안에 쓰면 숫자만 다른 글꼴이라 크기가 안 맞아 보이고, 한글 단위를 그 안에 넣으면 기기 기본 글꼴로 그려진다(2026-10-21).
+   */
+  numInline: { fontWeight: '600', fontVariant: ['tabular-nums'] },
+  /* 혼자 서는 큰 숫자 옆 단위(회색으로 덧붙임) — 숫자 20~26 이면 unit, 28~34 면 unitLg, 48 넘으면 20(구속 큰 숫자). 화면마다 비율이 제각각이었다 */
+  unit: { fontSize: 15, fontWeight: '400' },
+  unitLg: { fontSize: 17, fontWeight: '400' },
 } satisfies Record<string, TextStyle>;
 
 /** 간격 — 사이트 휴대폰 규격: 카드 안 20(--block-pad) · 카드 사이 16 · 큰 덩이 사이 24 · 화면 양옆 16 */

@@ -153,7 +153,7 @@ export function PitchTodayCard({ today }: { today: string }) {
         <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600', lineHeight: 21 }}>{data.status.headline}</Text>
         {why
           ? data.status.details.map((d) => (
-              <Animated.Text entering={fadeIn} key={d} style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>
+              <Animated.Text entering={fadeIn} key={d} style={{ color: c.muted, fontSize: 13, lineHeight: 19, fontFamily: 'Pretendard' }}>
                 {d}
               </Animated.Text>
             ))

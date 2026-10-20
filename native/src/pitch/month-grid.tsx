@@ -196,8 +196,8 @@ export function MonthGrid({
       {/* 투구 탭 달력 — 이 달 던진 날 · 올린 영상을 늘 보이게(2026-10-21 김민: '표시 보기'를 눌러야 나왔다) */}
       {video ? (
         <Text style={{ color: c.muted, fontSize: 15, marginTop: 4 }}>
-          이 달 투구 <Text style={[TYPE.num, { color: c.ink, fontWeight: '700' }]}>{monthStats.days}</Text>일 · 영상{' '}
-          <Text style={[TYPE.num, { color: c.ink, fontWeight: '700' }]}>{monthStats.videos}</Text>개
+          이 달 투구 <Text style={[TYPE.numInline, { color: c.ink }]}>{monthStats.days}</Text>일 · 영상{' '}
+          <Text style={[TYPE.numInline, { color: c.ink }]}>{monthStats.videos}</Text>개
         </Text>
       ) : null}
       {/* 요일 줄은 달이 바뀌어도 가만히 */}

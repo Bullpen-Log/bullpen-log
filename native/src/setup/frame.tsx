@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { type ReactNode } from 'react';
 import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { Palette } from '~/lib/ui';
+import { TYPE, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 
 /**
@@ -142,7 +142,7 @@ export function BigNumber({ label, value, unit, note, c }: { label: string; valu
       <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{label}</Text>
       <Text style={{ color: c.ink, fontSize: 30, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
         {value}
-        {unit ? <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}> {unit}</Text> : null}
+        {unit ? <Text style={[TYPE.unitLg, { color: c.muted }]}> {unit}</Text> : null}
       </Text>
       {note ? <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>{note}</Text> : null}
     </View>

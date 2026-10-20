@@ -149,9 +149,9 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
     <View style={{ gap: 12 }}>
       <View style={styles.head}>
         <Text style={[styles.headText, { color: c.ink }]} numberOfLines={1}>
-          투구 기록 <Text style={TYPE.num}>{shown.length}</Text>건
+          투구 기록 <Text style={TYPE.numInline}>{shown.length}</Text>건
           <Text style={{ color: c.muted, fontWeight: '400' }}>
-            {' · '}영상 <Text style={TYPE.num}>{videoCount}</Text>개
+            {' · '}영상 <Text style={TYPE.numInline}>{videoCount}</Text>개
           </Text>
         </Text>
         <Press accessibilityRole="button" accessibilityLabel={`정렬 ${SORTS.find((s) => s.key === sort)?.label}`} onPress={pickSort} style={[styles.sort, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
@@ -392,7 +392,7 @@ function ClipThumb({ clip, url }: { clip: Clip; url: Thumb | undefined }) {
             : { backgroundColor: withAlpha(c.sky, BAND_ALPHA[effortBand(clip.effortPct)]) },
         ]}
       >
-        <Text style={[TYPE.num, { fontSize: 17, color: clip.rest ? c.muted : strong ? '#fff' : c.ink }]}>{clip.rest ? '휴식' : `${clip.pitchCount}구`}</Text>
+        <Text style={[TYPE.num, { fontSize: 17, color: clip.rest ? c.muted : strong ? '#fff' : c.ink }]}>{clip.rest ? <Text>휴식</Text> : <>{clip.pitchCount}<Text style={{ fontSize: 13 }}>구</Text></>}</Text>
       </View>
     );
   }

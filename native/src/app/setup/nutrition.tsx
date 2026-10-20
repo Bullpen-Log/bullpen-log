@@ -14,7 +14,7 @@ import {
 } from '@/lib/nutrition/onboarding-answers';
 import { MAX_HEIGHT_CM, MAX_WEIGHT_KG, MIN_HEIGHT_CM, MIN_WEIGHT_KG, type Sex } from '@/lib/profile';
 import { rpc, RpcError } from '~/lib/rpc';
-import { usePalette } from '~/lib/ui';
+import { TYPE, usePalette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { leaveTo, openWebAfter } from '~/shell/web-nav';
 import { StepFrame, SummaryRows } from '~/setup/frame';
@@ -254,7 +254,7 @@ function Wizard({ today, name, age, sex, heightCm: savedHeight, weightKg: savedW
             <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{goalLabel ?? '목표'} · 운동 없는 날</Text>
             <Text style={{ color: c.ink, fontSize: 30, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
               {kcalText(p.targets.base)}
-              <Text style={{ color: c.muted, fontSize: 15, fontWeight: '400' }}> kcal</Text>
+              <Text style={[TYPE.unitLg, { color: c.muted }]}> kcal</Text>
             </Text>
             <MacroBar carbs={p.targets.carbs} protein={p.targets.protein} fat={p.targets.fat} c={c} />
           </View>

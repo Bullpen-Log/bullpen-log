@@ -20,7 +20,7 @@ import { dateText, neededRate } from '@/lib/nutrition/period';
 import { MAX_WEIGHT_KG, MIN_WEIGHT_KG } from '@/lib/profile';
 import { fromWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
 import { floorNote } from '@/lib/nutrition/targets';
-import type { Palette } from '~/lib/ui';
+import { TYPE, type Palette } from '~/lib/ui';
 import { ChoiceChips } from '~/setup/frame';
 import { WeightForecast } from '~/shell/weight-forecast';
 
@@ -335,7 +335,7 @@ function PaceStep({ ctx }: { ctx: StepCtx }) {
       ) : null}
       {p.etaWeeks !== null && a.targetWeightKg !== null ? (
         <Text style={{ color: c.ink, fontSize: 17, lineHeight: 23 }}>
-          계획대로면 약 <Text style={{ color: c.sky, fontWeight: '700', fontSize: 20 }}>{p.etaWeeks}주</Text>, {dateText(periodDate(today, p.etaWeeks))}쯤 {kgText(a.targetWeightKg, unit)}이에요.
+          계획대로면 약 <Text style={{ color: c.sky, fontWeight: '700' }}>{p.etaWeeks}주</Text>, {dateText(periodDate(today, p.etaWeeks))}쯤 {kgText(a.targetWeightKg, unit)}이에요.
         </Text>
       ) : null}
       <ChoiceChips
@@ -536,7 +536,7 @@ function Stat({ label, value, sub, strong, c }: { label: string; value: number; 
       </Text>
       <Text style={{ color: strong ? c.sky : c.ink, fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
         {kcalText(value)}
-        <Text style={{ color: c.muted, fontSize: 11, fontWeight: '400' }}> kcal</Text>
+        <Text style={[TYPE.unit, { color: c.muted }]}> kcal</Text>
       </Text>
       <Text numberOfLines={1} style={{ color: c.muted, fontSize: 11 }}>
         {sub}

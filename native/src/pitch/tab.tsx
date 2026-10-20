@@ -15,7 +15,7 @@ import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
 import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 import { useTabIntent } from '~/shell/tab-intent';
 import { useMenu } from '~/shell/menu-store';
-import { formatSpeed } from '@/lib/units';
+import { round1, speedLabel, toSpeed } from '@/lib/units';
 import { usePrefs } from '~/lib/prefs';
 import type { PitchLog } from './api';
 import { weekStartKey } from '@/lib/pitch-stats';
@@ -209,10 +209,11 @@ function PitchWeekCard({ today, onOpen }: { today: string; onOpen: () => void })
       max: speeds.length ? Math.max(...speeds) : null,
     };
   }, [prev, cur, start, today]);
-  const stats: [string, string][] = [
-    ['투구', week ? `${week.pitches}구` : '–'],
-    ['던진 날', week ? `${week.days}일` : '–'],
-    ['최고 구속', (week?.max != null ? formatSpeed(week.max, speed) : null) ?? '–'],
+  /* [이름, 숫자, 단위] — 단위는 숫자 글꼴(TYPE.num) 밖에서 작게(한글이 숫자 글꼴에 섞이면 기기 기본 글꼴로 그려진다) */
+  const stats: [string, string, string][] = [
+    ['투구', week ? String(week.pitches) : '–', week ? '구' : ''],
+    ['던진 날', week ? String(week.days) : '–', week ? '일' : ''],
+    ['최고 구속', week?.max != null ? String(round1(toSpeed(week.max, speed))) : '–', week?.max != null ? speedLabel(speed) : ''],
   ];
   return (
     <Pressable
@@ -226,11 +227,12 @@ function PitchWeekCard({ today, onOpen }: { today: string; onOpen: () => void })
         <Icon name="chevron-right" size={18} color={c.muted} />
       </View>
       <View style={styles.weekRow}>
-        {stats.map(([label, value]) => (
+        {stats.map(([label, value, unit]) => (
           <View key={label} style={{ flex: 1, gap: 2 }}>
             <Text style={{ color: c.muted, fontSize: 13 }}>{label}</Text>
             <Text numberOfLines={1} style={[TYPE.num, { color: c.ink, fontSize: 22 }]}>
               {value}
+              {unit ? <Text style={{ color: c.muted, fontSize: 15 }}> {unit}</Text> : null}
             </Text>
           </View>
         ))}

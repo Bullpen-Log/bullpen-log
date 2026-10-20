@@ -17,7 +17,7 @@ import { SNOOZE_KEY, isSnoozed, refreshNutritionDays } from '~/nutrition/api';
 import { WeekChart, WeightTrend } from '~/nutrition/stats/charts';
 import { GoalSheet, kgText, paceText } from '~/nutrition/stats/goal-sheet';
 import { cacheGet, cacheSet } from '~/lib/store';
-import { usePalette, withAlpha, type Palette } from '~/lib/ui';
+import { TYPE, usePalette, withAlpha, type Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { READABLE } from '~/lib/layout';
 import { WeightForecast } from '~/shell/weight-forecast';
@@ -412,7 +412,7 @@ function PlanStat({ label, value, sub, strong, c }: { label: string; value: numb
       </Text>
       <Text style={{ color: strong ? c.sky : c.ink, fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
         {kcalText(value)}
-        <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}> kcal</Text>
+        <Text style={[TYPE.unit, { color: c.muted }]}> kcal</Text>
       </Text>
       <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
         {sub}

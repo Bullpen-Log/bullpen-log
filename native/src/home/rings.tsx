@@ -35,7 +35,7 @@ export function RingsCard({ rings, onPress }: { rings: HomeRing[]; onPress: (rin
         <Text style={[TYPE.card, { flex: 1, color: c.ink }]}>오늘</Text>
         <Text style={[TYPE.num, { fontSize: 22, color: done === rings.length ? c.sky : c.ink }]}>
           {done}
-          <Text style={{ color: c.muted, fontSize: 17 }}> / {rings.length}</Text>
+          <Text style={[TYPE.unit, { color: c.muted }]}> / {rings.length}</Text>
         </Text>
       </View>
       <View style={styles.row}>

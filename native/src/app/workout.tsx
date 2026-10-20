@@ -35,7 +35,7 @@ import type { RunExercise } from '@/lib/workout/run-exercises';
 import type { RunPayload } from '@/lib/workout/run-load';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { rpc, RpcError } from '~/lib/rpc';
-import { usePalette, type Palette } from '~/lib/ui';
+import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { drainOutbox, onSent, outbox, withPending, type ShownSet } from '~/workout/outbox';
@@ -958,7 +958,7 @@ function Run({
                           </Text>
                           <Text style={[s.fieldValue, { color: f.value === '' ? c.line : c.ink }]}>
                             {f.value === '' ? '—' : f.value}
-                            <Text style={[s.small, { color: c.muted }]}> {f.unit}</Text>
+                            <Text style={[TYPE.unit, { color: c.muted }]}> {f.unit}</Text>
                           </Text>
                         </Press>
                         <Pressable

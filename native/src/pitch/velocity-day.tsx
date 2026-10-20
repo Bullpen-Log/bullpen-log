@@ -324,7 +324,7 @@ function ResultSheet({
           <View style={{ alignItems: 'center', gap: 4 }}>
             <Text style={{ color: c.ink, fontSize: 56, fontWeight: '800', fontVariant: ['tabular-nums'], letterSpacing: -1.5 }}>
               {speedNum(pitch.kmh)}
-              <Text style={{ color: c.muted, fontSize: 17, fontWeight: '600' }}> {speedLabel(unit)}</Text>
+              <Text style={{ color: c.muted, fontSize: 20, fontWeight: '400' }}> {speedLabel(unit)}</Text>
             </Text>
             <Text style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>
               ± {speedNum(pitch.errorKmh)} · {CONFIDENCE_TEXT[pitch.confidence]}

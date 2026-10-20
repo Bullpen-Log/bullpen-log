@@ -363,7 +363,7 @@ function NutritionDetail({ d, c }: { d: DayDetail; c: Palette }) {
     <View style={{ gap: 16 }}>
       <View style={{ gap: 8 }}>
         <Text style={{ color: c.muted, fontSize: 15 }}>
-          <Text style={[TYPE.num, { color: c.ink, fontSize: 18 }]}>{Math.round(n.kcal).toLocaleString('ko-KR')}</Text> / {Math.round(n.target.kcal).toLocaleString('ko-KR')}kcal
+          <Text style={[TYPE.numInline, { color: c.ink }]}>{Math.round(n.kcal).toLocaleString('ko-KR')}</Text> / {Math.round(n.target.kcal).toLocaleString('ko-KR')}kcal
         </Text>
         <View style={[styles.bar, { backgroundColor: c.page }]}>
           <View style={[styles.barFill, { width: pct(n.kcal, n.target.kcal), backgroundColor: n.kcal > n.target.kcal ? c.warn : c.sky }]} />

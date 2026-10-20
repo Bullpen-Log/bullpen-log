@@ -149,7 +149,8 @@ export default function PitchDayScreen() {
                       <View style={{ flex: 1, gap: 12 }}>
                         <Text style={[TYPE.num, { fontSize: 24, color: rested ? c.muted : c.sky }]}>
                           {rested ? (
-                            '쉬는 날'
+                            /* 한글은 둥근 숫자 글꼴(TYPE.num)에 없어 기기 기본 글꼴로 그려졌다 — 안쪽 Text 는 Pretendard */
+                            <Text>쉬는 날</Text>
                           ) : l.maxVelocity != null ? (
                             <>
                               {round1(toSpeed(l.maxVelocity, speed))}

@@ -12,7 +12,7 @@ import { EFFORT_LEVELS, effortOf, type EffortKey } from '@/lib/workout/effort';
 import type { NewRecord } from '@/lib/workout/bests';
 import type { WorkoutDone } from '@/lib/workout/done-load';
 import { rpc, RpcError } from '~/lib/rpc';
-import { usePalette, type Palette } from '~/lib/ui';
+import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { leaveTo } from '~/shell/web-nav';
 import { s } from '~/training/screen';
@@ -153,7 +153,7 @@ export default function WorkoutDoneScreen() {
               <Text style={[s.tiny, { color: c.muted }]}>{n.label}</Text>
               <Text style={{ color: c.ink, fontSize: 24, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
                 {n.value == null ? '—' : <CountUp value={n.value} delay={750} still={still} />}
-                <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}> {n.unit}</Text>
+                <Text style={[TYPE.unit, { color: c.muted }]}> {n.unit}</Text>
               </Text>
             </View>
           ))}

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MEALS, amountText, entryMacros, gapNames, macroGaps, mealLabel, missingMacros, missingText, stepAmount, type EntryEdit, type MealEntryView, type MealKey } from '@/lib/nutrition/meta';
 import { mealProtein } from '@/lib/nutrition/meal-protein';
 import { shiftDateKey } from '@/lib/pitch-stats';
-import { usePalette, withAlpha } from '~/lib/ui';
+import { TYPE, usePalette, withAlpha } from '~/lib/ui';
 import Animated from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { Icon } from '~/shell/icon';
@@ -231,7 +231,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
               <Text style={{ color: over && isToday ? c.warn : c.ink, fontSize: 30, fontWeight: '700', fontVariant: ['tabular-nums'], letterSpacing: -0.5 }}>
                 {/* 웹 TodayCard 와 같이 올라가며 나타남(from 0.7) */}
                 <CountUp value={round(isToday ? Math.abs(left) : eaten.kcal)} from={0.7} />
-                <Text style={{ color: c.muted, fontSize: 15, fontWeight: '400' }}> kcal</Text>
+                <Text style={[TYPE.unitLg, { color: c.muted }]}> kcal</Text>
               </Text>
               <Text style={{ color: c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>
                 {round(eaten.kcal).toLocaleString('ko-KR')} / {round(t.kcal).toLocaleString('ko-KR')}kcal

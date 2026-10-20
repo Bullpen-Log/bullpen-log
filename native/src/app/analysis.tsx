@@ -193,7 +193,7 @@ export default function AnalysisScreen() {
           <View style={s.dateRow}>
             {/* 날짜가 바뀔 때마다 살짝 떠오른다(웹 analysis-block 의 fade-in) — 무엇이 바뀌었는지 눈이 따라간다 */}
             <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' }}>
-              <Animated.Text key={shownDate} entering={fadeIn} style={[s.bodyBold, { color: c.ink }]}>
+              <Animated.Text key={shownDate} entering={fadeIn} style={[s.bodyBold, { color: c.ink, fontFamily: 'Pretendard' }]}>
                 {`${spokenDay(shownDate)} · ${agoText(shownDate, data.today)}`}
               </Animated.Text>
               <Text style={[s.body, { color: c.muted }]}> 기준</Text>
@@ -413,7 +413,7 @@ function StatCell({
       </Text>
       <Text numberOfLines={1} adjustsFontSizeToFit style={[s.statValue, { color: c.ink }]}>
         {value}
-        {unit ? <Text style={[s.tiny, { color: c.muted }]}> {unit}</Text> : null}
+        {unit ? <Text style={[TYPE.unit, { color: c.muted }]}> {unit}</Text> : null}
       </Text>
       {footer}
     </View>
@@ -557,7 +557,7 @@ function Review({ review, armCareMissing, c }: { review: TrainingReview; armCare
             <Text style={[s.tiny, { color: c.muted }]}>{n.label}</Text>
             <Text style={[s.countValue, { color: n.alert ? c.warn : c.ink }]}>
               {n.value}
-              <Text style={[s.tiny, { color: c.muted }]}> 일</Text>
+              <Text style={[TYPE.unit, { color: c.muted }]}> 일</Text>
             </Text>
           </View>
         ))}
@@ -574,7 +574,7 @@ function Review({ review, armCareMissing, c }: { review: TrainingReview; armCare
                   {empty ? (
                     <Text style={[s.tiny, { color: c.muted + '99' }]}>쉬었어요</Text>
                   ) : (
-                    <Text style={[s.small, { color: c.muted }]}>
+                    <Text style={[TYPE.unit, { color: c.muted }]}>
                       <Text style={[s.countValue, { color: c.ink }]}>{w.days}</Text> 일 · {w.minutes}분
                     </Text>
                   )}
