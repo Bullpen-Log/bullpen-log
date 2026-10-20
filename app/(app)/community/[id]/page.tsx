@@ -78,7 +78,7 @@ export default async function CommunityPostPage({
 
   return (
     <div className="stack-page mx-auto max-w-3xl">
-      <BackLink href="/community">커뮤니티</BackLink>
+      <BackLink href="/community/feed">글 목록</BackLink>
 
       <article className={`selectable space-y-6 ${postHidden ? 'opacity-70' : ''}`}>
         <header className="space-y-4 border-b border-line pb-6">

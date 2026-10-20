@@ -258,11 +258,15 @@ async function trySignupMaster(
       : null;
     if (!invite || invite.role !== 'STAFF' || !inviteUsable(invite, new Date())) {
       return {
-        error: '코치 초대 코드가 맞지 않거나 기한이 지났어요. 마스터에게 새 코드를 받아 주세요.',
+        error:
+          '코치 초대 코드가 맞지 않거나 기한이 지났어요. 마스터에게 새 코드를 받아 주세요.',
         field: 'staffCode',
       };
     }
-    const taken = await prisma.user.findUnique({ where: { email: base.email }, select: { id: true } });
+    const taken = await prisma.user.findUnique({
+      where: { email: base.email },
+      select: { id: true },
+    });
     if (taken) return { error: '이미 가입된 이메일이에요.', field: 'email' };
     const adminMail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
     const staffRole = adminMail && base.email === adminMail ? 'ADMIN' : 'USER';
@@ -280,12 +284,25 @@ async function trySignupMaster(
         select: { id: true, role: true },
       });
       await tx.orgMember.create({
-        data: { orgId: invite.orgId, userId: created.id, role: 'STAFF', status: 'ACTIVE', nickname: base.nickname },
+        data: {
+          orgId: invite.orgId,
+          userId: created.id,
+          role: 'STAFF',
+          status: 'ACTIVE',
+          nickname: base.nickname,
+        },
       });
-      await tx.orgInvite.update({ where: { id: invite.id }, data: { usedById: created.id, usedAt: new Date() } });
+      await tx.orgInvite.update({
+        where: { id: invite.id },
+        data: { usedById: created.id, usedAt: new Date() },
+      });
       return created;
     });
-    await createSession({ userId: staff.id, role: staff.role, pw: passwordFingerprint(hash) });
+    await createSession({
+      userId: staff.id,
+      role: staff.role,
+      pw: passwordFingerprint(hash),
+    });
     redirect('/master');
   }
 
@@ -399,8 +416,16 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
   );
   /* 마스터 계정(팀 · 레슨장)은 선수 홈이 없다 — 관리 화면으로(2026-10-20). 관리자는 선수 홈에서 메뉴로 넘어간다 */
   redirect(
-    user.accountType === 'MASTER' && user.role !== 'ADMIN' ? '/master' : '/today'
+    user.accountType === 'MASTER' && user.role !== 'ADMIN'
+      ? '/master'
+      : (safeNext(formData) ?? '/today')
   );
+}
+
+/** 로그인 뒤 돌아갈 우리 주소(덕아웃의 '로그인하고 채팅하기' 등) — 바깥 주소('//…' · 'http…')는 받지 않는다 */
+function safeNext(formData: FormData): string | null {
+  const next = String(formData.get('next') ?? '').trim();
+  return /^\/(?!\/)[\w\-./?=&%]*$/.test(next) ? next : null;
 }
 
 export async function logout() {

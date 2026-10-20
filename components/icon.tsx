@@ -1,7 +1,10 @@
 import { forwardRef, type SVGProps } from 'react';
 import * as L from 'lucide-react';
 import type { LucideIcon, LucideProps } from 'lucide-react';
-import { Baseball as BaseballRaw, BaseballBat as BaseballBatRaw } from '@/components/baseball-icon';
+import {
+  Baseball as BaseballRaw,
+  BaseballBat as BaseballBatRaw,
+} from '@/components/baseball-icon';
 
 /**
  * 아이콘 체계 — 앱의 모든 아이콘은 이 파일에서 받는다(2026-10-14, docs/designs/icon-system.md).
@@ -195,6 +198,9 @@ export const Megaphone = weighted(L.Megaphone);
 export const CircleHelp = weighted(L.CircleHelp);
 export const Pin = weighted(L.Pin);
 export const Users = weighted(L.Users);
+/* 덕아웃 장터(2026-10-20) — 값표 · 가게 */
+export const Tag = weighted(L.Tag);
+export const Store = weighted(L.Store);
 export const ZoomIn = weighted(L.ZoomIn);
 
 /** 전부 — 임시 미리보기 · 시험이 한 판으로 훑는다 */

@@ -14,6 +14,8 @@ import { PitcherBoard } from '@/components/master/pitcher-board';
 import { requireMaster } from '@/lib/dal';
 import { currentOrg, memberScope, type OrgRow } from '@/lib/org/access';
 import { checkinSummaryOf, loadPlayers, pitcherBoardOf } from '@/lib/org/player-data';
+import { countOrgRequests } from '@/lib/market/lesson-load';
+import { countVenueRequests } from '@/lib/market/venue-load';
 import {
   EVENT_KIND_LABEL,
   ORG_KIND_LABEL,
@@ -296,7 +298,7 @@ async function StudioHome({
   players: Awaited<ReturnType<typeof loadPlayers>>;
 }) {
   const nameOf = new Map(players.map((p) => [p.id, p.nickname]));
-  const [lessons, passes, lastNotes, recentNotes] = await Promise.all([
+  const [lessons, passes, lastNotes, recentNotes, requests, venueRequests] = await Promise.all([
     prisma.orgEvent.findMany({
       where: { orgId: org.id, date: dbDate(todayKey) },
       orderBy: [{ time: 'asc' }],
@@ -317,6 +319,8 @@ async function StudioHome({
       take: 5,
       select: { id: true, date: true, body: true, homework: true, memberId: true },
     }),
+    countOrgRequests(org.id),
+    countVenueRequests(org.ownerId),
   ]);
   /* 수강권 — 회원마다 쓸 수 있는 것의 남은 회를 더해 3회 이하면 알림 */
   const leftByMember = new Map<string, number>();
@@ -377,7 +381,22 @@ async function StudioHome({
         <section className="space-y-3">
           <h2 className="text-sm font-bold text-ink">알림</h2>
           <Card className="space-y-2 text-sm">
-            {lowPass.length === 0 && stale.length === 0 && (
+            {requests > 0 && (
+              <p className="text-warn">
+                <Link href="/master/bookings" className="font-bold underline-offset-2 hover:underline">
+                  덕아웃 레슨 요청 {requests}건
+                </Link>{' '}
+                — 시간을 골라 확정해 주세요
+              </p>
+            )}
+            {venueRequests > 0 && (
+              <p className="text-warn">
+                <Link href="/master/venues" className="font-bold underline-offset-2 hover:underline">
+                  장소 예약 요청 {venueRequests}건
+                </Link>
+              </p>
+            )}
+            {lowPass.length === 0 && stale.length === 0 && requests === 0 && venueRequests === 0 && (
               <p className="text-xs text-muted">챙길 것이 없어요.</p>
             )}
             {lowPass.length > 0 && (

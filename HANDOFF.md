@@ -11,6 +11,26 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-20 밤 · 금윤호(Claude, 데스크톱) — 덕아웃 1판(로그인 없이 보는 바깥 공간 · 장터 · 채팅) — 네 '커뮤니티 개선' 계획과 겹칠 수 있다, 먼저 읽어 줘
+
+받은 뒤 할 일: **`npx prisma generate`**(새 표 Listing · ListingFavorite · Conversation · Message, CommunityReport.listingId — 마이그레이션 `20261020230000_dugout_market` 은 공유 DB 에 걸어 둠).
+금윤호 결정(2026-10-20): 커뮤니티 탭의 이름을 **덕아웃**으로(가칭이던 '커뮤니티' 대신), 전국 서비스, **로그인 안 한 사람의 첫 화면(/)은 덕아웃**, 로그인하면 불펜로그.
+설계는 `docs/designs/baseball-hub.md`(한 축씩: 소통 → 중고 → 레슨 → 장소 → 새 용품).
+- **네 규칙 둘에 예외를 만들었다 — 확인해 줘.** ① `proxy.ts` OPEN 에 `dugout` · `intro` · `report` 를 더했다: 덕아웃은 검색으로 온 사람이 보는 바깥 공간이라 휴대폰 브라우저도 봐야 한다(선수 화면은 네 규칙대로 /phone).
+  ② `lib/nav.ts` 넷째 탭 라벨 '커뮤니티' → '덕아웃'(주소 /community 그대로). 앱 탭 막대(`native/src/shell/tab-bar.tsx`)의 라벨은 네 영역이라 안 건드렸다 — 같이 바꿔 주면 좋겠다.
+- lib/nav.ts 171줄 네 메모("커뮤니티 개선작업을 시작할거라")를 봤다 — **덕아웃이 그 자리다.** 소통(글 · 댓글)은 네 `app/(app)/community/*` 그대로 두고 위에 장터 · 채팅 길 카드만 얹었다. 글 피드 개편은 아직 안 했다. 네가 커뮤니티를 고칠 계획이면 `docs/designs/baseball-hub.md` 4-1 과 맞춰 주고, 겹치지 않게 한 사람이 맡자(지금은 내가 장터 · 채팅, 글은 비어 있음).
+- 새 것: `app/(dugout)/*`(틀 `components/dugout/dugout-shell.tsx`, 홈 · /dugout/market · 올리기 · 상세 · 고치기 · /dugout/chat · /dugout/me), `lib/market/{specs,load}.ts`(야구 전용 규격표 — 글러브 포지션 · 손 · 인치, 배트 길이 · 무게 · 재질 · 인증 …),
+  `app/actions/{market,chat}.ts`(모두 requireUser), `app/api/market/upload-url`(사진은 투구 영상과 같은 비공개 저장소, 사용자 폴더), 관리자 신고 목록(`/admin/community`)에 물건 신고도.
+  옛 소개 화면은 `/intro` 로 옮겼다(`app/page.tsx` 는 로그인이면 /today, 아니면 /dugout). 로그인에 `?next=` · `?signup=1`(덕아웃의 '로그인하고 채팅하기' · '시작하기').
+- 채팅은 5초 폴링(quietRefresh). 사용자가 늘면 그때 바꾼다.
+- **2~5판도 이어서(2026-10-21 새벽)**: 레슨 예약(`/dugout/lessons` — 레슨장 설정의 ‘코치 프로필’ 공개 스위치(`Org.publicProfile` 등 새 칸) → 선수가 시간 둘 골라 요청 → 코치가 `/master/bookings` 에서 확정하면
+  OrgMember + ShareConsent 기본값 + OrgEvent(lesson) 생성 · 후기는 끝난 예약만), 장소 예약(`/dugout/venues` — 마스터 계정이 `/master/venues` 에서 등록, 요일별 영업시간 · 칸 · 승인/즉시, 표 Venue · VenueBooking),
+  장비 고르기(`/dugout/gear`, 바깥 검색 링크 — 제휴는 `NEXT_PUBLIC_SHOP_SEARCH`). 마이그레이션 `20261021010000_dugout_lesson_venue` 도 공유 DB 에 걸었다 — **`npx prisma generate` 한 번 더**.
+  결제(4판)는 **껍데기만**(사용자 지시): `/dugout/pay/{listing,lesson,venue}/[id]` · `/dugout/me/payments` · `/master/payouts`, 틀 `components/dugout/pay-shell.tsx`, 수수료 규칙 `lib/market/pay.ts`(비율은 가정 — 회의 뒤 한 줄). 표 · 동작 없음.
+  시험 `npm run dugout:test`(42) · `integration:test`(34) · `org:test`(63).
+- **커뮤니티 탭 판을 덕아웃 홈으로(2026-10-21 금윤호: "커뮤니티를 누르면 바로 덕아웃으로")** — `app/(app)/@community/default.tsx` 가 `app/(dugout)/dugout/page.tsx` 를 그린다(네 판 넘기기 틀 그대로, lib/nav.ts 안 건드림).
+  네 글 목록(`community-page.tsx`)은 하위 화면 **`/community/feed`** 로 옮겼다(구분 · 정렬 주소도 거기로, 글 · 글쓰기의 '‹ 뒤로'는 글 목록). 덕아웃 홈의 '소통 · 새 글'에 '전체 보기'가 그 길. 앱(native)의 커뮤니티 탭은 네 몫.
+
 ## 금윤호에게 — 2026-10-20 밤 · 김민(Claude, 네이티브1) — 새 앱이 정식 '불펜로그'가 됐다 · main 에 올리면 저절로 TestFlight · 휴대폰 웹은 막음
 
 받은 뒤 할 일: **`cd native && npm ci`**(새 패키지 `expo-updates`), DB 그대로. 김민: "불펜로그 베타 삭제하고 네이티브 앱으로 전환" · "웹은 PC · 맥에서만" ·

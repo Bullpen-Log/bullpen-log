@@ -5,6 +5,7 @@ import { ConfirmButton } from '@/components/master/confirm-button';
 import { InviteCodeCard } from '@/components/master/invite-code-card';
 import { JoinStaffForm } from '@/components/master/join-staff-form';
 import { OrgInfoForm } from '@/components/master/org-info-form';
+import { CoachProfileForm } from '@/components/master/coach-profile-form';
 import { createInvite, removeMember, revokeInvite } from '@/app/actions/org';
 import { requireMaster } from '@/lib/dal';
 import { requireCurrentOrg } from '@/lib/org/access';
@@ -53,7 +54,7 @@ export default async function SettingsPage() {
     }),
     prisma.org.findUnique({
       where: { id: org.id },
-      select: { plan: true, seats: true, planNote: true },
+      select: { plan: true, seats: true, planNote: true, publicProfile: true, coachIntro: true, coachCareer: true, specialties: true, priceFrom: true, priceNote: true, lessonHours: true },
     }),
     prisma.orgMember.count({
       where: { orgId: org.id, role: 'PLAYER', status: 'ACTIVE' },
@@ -90,6 +91,19 @@ export default async function SettingsPage() {
           — 결제는 아직 없어요. 바꾸려면 운영자에게 알려 주세요.
         </p>
       </Card>
+
+      {org.kind === 'LESSON' && plan && (
+        <Card id="coach" className="space-y-4">
+          <div>
+            <h2 className="text-sm font-bold text-ink">덕아웃 코치 프로필 · 레슨 예약</h2>
+            <p className="mt-1 text-xs text-muted">공개하면 덕아웃 ‘레슨’에 떠서 선수가 비교하고 시간을 골라 요청해요. 요청은 <a href="/master/bookings" className="font-semibold text-sky">레슨 요청</a>에서 확정해요.</p>
+          </div>
+          <CoachProfileForm
+            profile={{ orgId: org.id, publicProfile: plan.publicProfile, coachIntro: plan.coachIntro, coachCareer: plan.coachCareer, specialties: plan.specialties, priceFrom: plan.priceFrom, priceNote: plan.priceNote, lessonHours: plan.lessonHours }}
+            canEdit={owner}
+          />
+        </Card>
+      )}
 
       <Card id="invite" className="space-y-4">
         <div>

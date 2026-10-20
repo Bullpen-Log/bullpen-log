@@ -1431,3 +1431,10 @@
   **적용 전에는 로컬 개발 서버의 로그인된 화면이 전부 `User.accountType` 없음(P2022)으로 막힌다**(getCurrentUser 가 읽는다). 공유 DB 라 가입 · 조직 만들기는 안 눌러 본다.
   시험 `npm run org:test`(63). **2~6단계도 2026-10-20 에 끝냈다**(한 커밋): 선수 카드 · 두 홈 · 대신 기록 · 레슨 노트 · 수강권 · 보호자 리포트(`app/(report)`, 공개 + 코드) ·
   달력 · 공지 · 코치 초대 코드 · 관리자 요금제 칸. 코치 화면의 자료 읽기는 `lib/org/player-data.ts` 한 곳 — 김민 영역 함수를 부르기만. 구속 대신 재기는 김민과 `forUserId` 약속 뒤(HANDOFF).
+- **덕아웃 1판(2026-10-20 밤)** — 설계 `docs/designs/baseball-hub.md`('진행' 절). 바깥 공간 `app/(dugout)`(로그인 없이, getCurrentUser + redirect('/login?next=')), 장터 규격표 `lib/market/specs.ts`,
+  채팅 `app/actions/chat.ts`(5초 폴링). `/` 는 로그인 안 하면 /dugout. `proxy.ts` 의 휴대폰 차단에서 dugout · intro · report 는 예외. 시험 `npm run dugout:test`.
+  마이그레이션 `20261020230000_dugout_market` 은 공유 DB 에 걸었다(사용자 허락 패턴). 다음은 2판 레슨 예약(코치 프로필 공개 스위치 · 예약 표).
+- **덕아웃 2 · 3 · 5판(2026-10-21 새벽)** — 레슨 예약 · 장소 예약 · 장비 고르기. 규칙은 `lib/market/{lessons,venues,gear}.ts`(순수), 읽기 `lesson-load` · `venue-load`, 동작 `app/actions/{lessons,venues}.ts`.
+  코치 쪽은 마스터 화면(`/master/bookings` · `/master/venues` · 설정의 코치 프로필). 결제(4판)는 계약 뒤. 마이그레이션은 공유 DB 에 걸었다.
+- **덕아웃 4판 결제는 껍데기(2026-10-21)** — 사용자 지시 "겉만, 결제만 안 되게". `components/dugout/pay-shell.tsx` 하나가 모든 결제 화면의 틀(단추 disabled + '준비 중' 안내), 수수료율은 `lib/market/pay.ts` 상수 셋(가정값).
+  화면 다섯(`/dugout/pay/{listing,lesson,venue}/[id]` · `/dugout/me/payments` · `/master/payouts`). 계약 뒤 연동할 때 표(결제 기록)와 단추 동작만 더한다 — 화면은 안 바꾼다.

@@ -16,7 +16,7 @@ export default async function NewCommunityPostPage() {
 
   return (
     <div className="stack-page mx-auto max-w-3xl">
-      <BackLink href="/community">커뮤니티</BackLink>
+      <BackLink href="/community/feed">글 목록</BackLink>
       <PageHeading title="글쓰기" />
       <CommunityPostForm />
     </div>

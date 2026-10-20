@@ -160,6 +160,15 @@ model User {
   communityComments CommunityComment[]
   communityLikes    CommunityLike[]
   communityReports  CommunityReport[] @relation("CommunityReporter")
+  listings          Listing[]
+  listingFavorites  ListingFavorite[]
+  buyingChats       Conversation[]    @relation("ConversationBuyer")
+  sellingChats      Conversation[]    @relation("ConversationSeller")
+  messages          Message[]
+  lessonBookings    LessonBooking[]
+  lessonReviews     LessonReview[]
+  venues            Venue[]
+  venueBookings     VenueBooking[]
   checkins          DailyCheckin[]
   trainingSetups    DailyTrainingSetup[]
   armcareRoutines   DailyArmcare[]
@@ -1734,6 +1743,8 @@ model CommunityReport {
   reporterId String
   postId     String?
   commentId  String?
+  /// 덕아웃 장터 물건 신고(2026-10-20) — 글 · 댓글과 같은 표에 둔다(관리자 화면 하나)
+  listingId  String?
   reason     String
   detail     String?   @db.Text
   resolvedAt DateTime?
@@ -1743,10 +1754,13 @@ model CommunityReport {
   /* 글 · 댓글이 지워져도 신고 기록은 남는다(SetNull) — 관리자 화면이 '이미 지워졌어요'로 보인다 */
   post     CommunityPost?    @relation(fields: [postId], references: [id], onDelete: SetNull)
   comment  CommunityComment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  listing  Listing?          @relation(fields: [listingId], references: [id], onDelete: SetNull)
 
-  /* 같은 사람이 같은 글 · 댓글을 두 번 신고하지 못하게(NULL 은 서로 다른 값으로 친다) */
+  /* 같은 사람이 같은 글 · 댓글 · 물건을 두 번 신고하지 못하게(NULL 은 서로 다른 값으로 친다) */
   @@unique([reporterId, postId])
   @@unique([reporterId, commentId])
+  @@unique([reporterId, listingId])
+  @@index([listingId])
   @@index([resolvedAt, createdAt])
   @@index([reporterId])
 }
@@ -1819,14 +1833,26 @@ model Org {
   plan      String?
   seats     Int?
   planNote  String?
+  /// 덕아웃 레슨 예약(2판, 2026-10-21) — 코치 프로필을 공개하면 비교 목록에 뜬다. 레슨장(LESSON)만 쓴다
+  publicProfile Boolean  @default(false)
+  coachIntro    String?  @db.Text
+  coachCareer   String?
+  /// lib/market/lessons.ts SPECIALTIES 의 key — pitching · hitting · youth · rehab …
+  specialties   String[] @default([])
+  /// 1회 기준 가격(원) · 가격 메모('10회권 40만') · 레슨 가능 시간('평일 저녁 · 주말 오전')
+  priceFrom     Int?
+  priceNote     String?
+  lessonHours   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner   User        @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  members OrgMember[]
-  invites OrgInvite[]
-  events  OrgEvent[]
-  notices OrgNotice[]
+  owner    User            @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members  OrgMember[]
+  invites  OrgInvite[]
+  events   OrgEvent[]
+  notices  OrgNotice[]
+  bookings LessonBooking[]
+  reviews  LessonReview[]
 
   @@index([ownerId])
 }
@@ -1976,4 +2002,205 @@ model GuardianReport {
   member OrgMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([memberId])
+}
+
+/*
+ * ─────────────────────────── 덕아웃 장터(2026-10-20, docs/designs/baseball-hub.md 1판) ───────────────────────────
+ * 중고 야구용품 — 물건(Listing) · 찜 · 채팅(Conversation · Message). 로그인 없이 보고, 올리기 · 찜 · 채팅만 로그인.
+ * 규격(specs)은 품목마다 다른 칸을 JSON 으로(lib/market/specs.ts 가 정한다). 사진은 투구 영상과 같은 비공개 저장소(서명 주소).
+ */
+
+/// 장터 물건 하나
+model Listing {
+  id        String    @id @default(uuid())
+  userId    String
+  /// lib/market/specs.ts CATEGORIES 의 key — glove · bat · spikes · protector · uniform · ball · bag · training · other
+  category  String
+  title     String
+  /// 원 단위. 0 = 나눔
+  price     Int
+  body      String    @db.Text
+  /// 'new' · 'like-new' · 'used' · 'worn'(lib/market/specs.ts CONDITIONS)
+  condition String
+  /// 품목별 규격 — 글러브: hand · position · inch, 배트: lengthCm · weightG · material …
+  specs     Json      @default("{}")
+  /// 시 · 도(lib/market/specs.ts REGIONS) — 전국 서비스이되 직거래는 지역으로 거른다
+  region    String
+  /// 저장소 경로(사용자 폴더 안) — 다섯 장까지, 첫 장이 대표
+  images    String[]  @default([])
+  /// 'ACTIVE' 판매 중 · 'RESERVED' 예약 중 · 'SOLD' 거래 완료
+  status    String    @default("ACTIVE")
+  views     Int       @default(0)
+  /// 관리자가 가림(신고 처리) — 목록 · 검색에서 빠지고 주인과 관리자만 본다
+  hiddenAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  favorites ListingFavorite[]
+  chats     Conversation[]
+  reports   CommunityReport[]
+
+  @@index([status, hiddenAt, createdAt])
+  @@index([category, status, createdAt])
+  @@index([userId])
+}
+
+/// 찜
+model ListingFavorite {
+  listingId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([listingId, userId])
+  @@index([userId])
+}
+
+/// 채팅방 — 물건 하나에 사는 사람 하나. 물건이 지워져도 대화는 남는다(SetNull)
+model Conversation {
+  id        String    @id @default(uuid())
+  listingId String?
+  buyerId   String
+  sellerId  String
+  /// 마지막 말 — 목록 한 줄
+  lastText  String?
+  lastAt    DateTime  @default(now())
+  /// 마지막으로 읽은 때 — 안 읽은 수는 이 뒤의 상대 말을 센다
+  buyerReadAt  DateTime?
+  sellerReadAt DateTime?
+  createdAt DateTime  @default(now())
+
+  listing  Listing?  @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  buyer    User      @relation("ConversationBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller   User      @relation("ConversationSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([listingId, buyerId])
+  @@index([buyerId, lastAt])
+  @@index([sellerId, lastAt])
+}
+
+/// 채팅 한 줄
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  senderId       String
+  body           String   @db.Text
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
+/*
+ * ─────────────────────────── 덕아웃 레슨 예약(2판) · 장소 예약(3판) — 2026-10-21 ───────────────────────────
+ * 레슨 예약은 코치(레슨장 마스터)의 공개 프로필(Org.publicProfile)에 선수가 날짜 · 시간 둘을 골라 요청 → 코치가 하나를 확정. 확정되면 그 레슨장의
+ * 회원이 되고(OrgMember) 레슨 시간표(OrgEvent lesson)에 들어간다. 후기는 끝난(DONE) 예약에만. 장소는 마스터 계정이 등록하고(Venue), 시간표에서
+ * 빈 칸을 골라 예약(VenueBooking) — 사장님이 승인하거나 즉시 확정.
+ */
+
+/// 레슨 예약 요청 한 건
+model LessonBooking {
+  id        String    @id @default(uuid())
+  orgId     String
+  userId    String
+  /// 확정되며 만든(또는 이미 있던) 회원 줄
+  memberId  String?
+  /// 'REQUESTED' 요청 · 'CONFIRMED' 확정 · 'DECLINED' 거절 · 'CANCELED' 취소(선수) · 'DONE' 끝남
+  status    String    @default("REQUESTED")
+  /// 원하는 때 둘 — 코치가 하나를 고른다(chosen)
+  slot1     DateTime
+  slot2     DateTime?
+  chosen    DateTime?
+  /// 선수가 적은 말 · 코치의 답
+  note      String?   @db.Text
+  reply     String?   @db.Text
+  /// 확정될 때 만든 시간표 줄(OrgEvent.id)
+  eventId   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  org    Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  review LessonReview?
+
+  @@index([orgId, status, slot1])
+  @@index([userId, createdAt])
+}
+
+/// 레슨 후기 — 끝난 예약 하나에 하나(실제 수강생만)
+model LessonReview {
+  id        String   @id @default(uuid())
+  orgId     String
+  userId    String
+  bookingId String   @unique
+  /// 1~5
+  rating    Int
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  org     Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking LessonBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+}
+
+/// 연습장 · 구장 하나 — 마스터 계정(레슨장 · 팀)이 등록한다
+model Venue {
+  id        String   @id @default(uuid())
+  ownerId   String
+  name      String
+  /// 'indoor' 실내 연습장 · 'field' 야외 구장 · 'cage' 타격 케이지 · 'machine' 피칭 머신 · 'other'
+  kind      String
+  region    String
+  address   String?
+  intro     String?  @db.Text
+  /// 한 칸(분) 30 · 60 · 120, 칸당 가격(원), 가격 메모
+  slotMin   Int      @default(60)
+  pricePerSlot Int?
+  priceNote String?
+  /// 요일별 영업시간 — lib/market/venues.ts VenueHours(일~토, 'HH:MM'~'HH:MM' 또는 null=쉼)
+  hours     Json     @default("{}")
+  /// true 면 사장님이 승인해야 확정, false 면 즉시 확정
+  approval  Boolean  @default(true)
+  images    String[] @default([])
+  publicProfile Boolean @default(true)
+  hiddenAt  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner    User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  bookings VenueBooking[]
+
+  @@index([ownerId])
+  @@index([region, kind, publicProfile])
+}
+
+/// 장소 예약 한 건 — 그날 몇 분부터 몇 분까지(자정 기준 분)
+model VenueBooking {
+  id        String   @id @default(uuid())
+  venueId   String
+  userId    String
+  date      DateTime @db.Date
+  startMin  Int
+  endMin    Int
+  /// 'REQUESTED' · 'CONFIRMED' · 'DECLINED' · 'CANCELED'
+  status    String   @default("REQUESTED")
+  note      String?  @db.Text
+  reply     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([venueId, date, status])
+  @@index([userId, date])
 }

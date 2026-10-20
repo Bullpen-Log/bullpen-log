@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/dal';
 import { reportReasonLabel } from '@/lib/community';
 import { resolveReport, setHidden } from '@/app/actions/community';
+import { setListingHidden } from '@/app/actions/market';
 import {
   Badge,
   Button,
@@ -33,7 +34,8 @@ export default async function CommunityAdminPage({
   searchParams: Promise<Search>;
 }) {
   await requireAdmin();
-  if (expoLevel((await headers()).get('user-agent')) >= 8) return <OpenNative path="/admin/community" cover={false} />;
+  if (expoLevel((await headers()).get('user-agent')) >= 8)
+    return <OpenNative path="/admin/community" cover={false} />;
   const sp = await searchParams;
   const all = sp.all === '1';
 
@@ -45,6 +47,14 @@ export default async function CommunityAdminPage({
     include: {
       reporter: { select: { nickname: true } },
       post: {
+        select: {
+          id: true,
+          title: true,
+          hiddenAt: true,
+          user: { select: { nickname: true } },
+        },
+      },
+      listing: {
         select: {
           id: true,
           title: true,
@@ -112,7 +122,8 @@ export default async function CommunityAdminPage({
         <ul className="space-y-3">
           {reports.map((r, i) => {
             const isComment = r.comment !== null;
-            const target = isComment ? r.comment : r.post;
+            const isListing = r.listing !== null;
+            const target = isComment ? r.comment : isListing ? r.listing : r.post;
             /* 글 · 댓글이 이미 지워졌으면 대상이 없다 — 처리 완료만 남긴다 */
             const gone = !target;
             const postId = r.comment?.postId ?? r.post?.id;
@@ -128,8 +139,10 @@ export default async function CommunityAdminPage({
                 <Card className={`space-y-3 ${resolved ? 'opacity-70' : ''}`}>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
                     {/* 대상이 지워졌으면 종류를 모른다(글 · 댓글 둘 다 SetNull) — '글'로 단정하지 않는다 */}
-                    <Badge className={isComment || gone ? '' : 'border-sky-soft/60 text-sky'}>
-                      {gone ? '지워짐' : isComment ? '댓글' : '글'}
+                    <Badge
+                      className={isComment || gone ? '' : 'border-sky-soft/60 text-sky'}
+                    >
+                      {gone ? '지워짐' : isComment ? '댓글' : isListing ? '물건' : '글'}
                     </Badge>
                     <Badge className="border-danger-line bg-danger-bg text-danger desk:bg-transparent">
                       {reportReasonLabel(r.reason)}
@@ -157,14 +170,22 @@ export default async function CommunityAdminPage({
                     </p>
                   ) : (
                     <Link
-                      href={`/community/${postId}`}
+                      href={
+                        isListing
+                          ? `/dugout/market/${r.listing!.id}`
+                          : `/community/${postId}`
+                      }
                       className="group block rounded-xl bg-surface-2 px-4 py-3 transition-colors hover:bg-ink/6"
                     >
                       <p className="text-sm font-medium leading-snug text-ink group-hover:text-sky">
-                        {isComment ? preview(r.comment!.body) : r.post!.title}
+                        {isComment
+                          ? preview(r.comment!.body)
+                          : isListing
+                            ? r.listing!.title
+                            : r.post!.title}
                       </p>
                       <p className="mt-1 text-xs text-muted">
-                        {target.user.nickname} · 글 보기
+                        {target.user.nickname} · {isListing ? '물건 보기' : '글 보기'}
                         <ChevronRight aria-hidden className="ml-0.5 inline h-3 w-3" />
                       </p>
                     </Link>
@@ -180,7 +201,7 @@ export default async function CommunityAdminPage({
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     {/* SafeForm — 신호가 끊겨 보내기가 던지면 목록이 통째로 오류 화면이 됐다(2026-10-17) */}
                     {!gone && (
-                      <SafeForm action={setHidden}>
+                      <SafeForm action={isListing ? setListingHidden : setHidden}>
                         <input
                           type="hidden"
                           name="kind"
