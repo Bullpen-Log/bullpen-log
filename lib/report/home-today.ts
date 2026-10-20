@@ -8,7 +8,6 @@ import type { Advice } from '@/lib/nutrition/advice';
 import { loadAdvice } from '@/lib/nutrition/advice-load';
 import { serviceHour } from '@/lib/nutrition/advice-input';
 import { dbDate } from '@/lib/nutrition/days';
-import { parsePlanItems } from '@/lib/nutrition/meal-plan';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { CHECKIN_PARTS } from '@/lib/checkin';
@@ -39,35 +38,27 @@ export type HomeRing = {
 };
 
 /**
- * 링 넷 — 체크인 · 투구는 했나 안 했나, 운동은 오늘 일정 가운데 체크한 수, 영양은 식단 계획을 짰거나 균형 점수(음식 · 체크인 식사를
- * 적은 날), 아무것도 안 적은 날은 목표 칼로리 가운데 먹은 만큼. 투구 기록이 잠겨 있으면 투구 링은 첫 설정 화면으로.
+ * 링 셋 — 체크인 · 투구는 했나 안 했나, 운동은 오늘 일정 가운데 체크한 수. 투구 기록이 잠겨 있으면 투구 링은 첫 설정 화면으로.
+ * 영양 링은 뺐다(2026-10-21 김민: 홈 개편 — 체크인 · 투구 · 운동 셋). 'nutrition' 키는 옛 앱이 읽을 수 있게 타입에만 남긴다.
  */
 export async function loadHomeRings(
   user: HomeUser,
   today: string,
   pitchLocked: boolean
 ): Promise<{ items: HomeRing[]; checkinDone: boolean; pitchDone: boolean }> {
-  const [detail, logs, advice, mealPlan] = await Promise.all([
+  const [detail, logs] = await Promise.all([
     loadDayDetailCached(user, today),
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: dbDate(today) },
       select: { sessionType: true, pitchCount: true },
     }),
-    loadAdvice(user, today, today, serviceHour(now())),
-    /* 오늘 식단 계획(영양 탭 '식단 짜기') — 짜 두기만 해도 영양 링이 찬다(2026-10-13 사용자) */
-    prisma.mealPlan.findUnique({
-      where: { userId_date: { userId: user.id, date: dbDate(today) } },
-      select: { items: true },
-    }),
   ]);
-  const planned = mealPlan != null && parsePlanItems(mealPlan.items).length > 0;
 
   const exercises = detail.training.exercises;
   const doneCount = exercises.filter((e) => e.done).length;
   const rested =
     logs.length > 0 && logs.every((l) => l.sessionType === REST_SESSION_TYPE);
   const pitches = logs.reduce((n, l) => n + l.pitchCount, 0);
-  const { kcal, target } = detail.nutrition;
 
   const items: HomeRing[] = [
     {
@@ -96,26 +87,6 @@ export async function loadHomeRings(
       value: exercises.length > 0 ? doneCount / exercises.length : 0,
       caption: exercises.length > 0 ? `${doneCount}/${exercises.length}` : '일정 없음',
       href: '/training',
-    },
-    {
-      key: 'nutrition',
-      label: '영양',
-      /* 오늘 식단 계획을 짜 두었으면 다 찬 것 — 아니면 예전처럼 균형 점수 · 먹은 칼로리 */
-      value: planned
-        ? 1
-        : advice.score !== null
-          ? advice.score / 100
-          : target.kcal > 0
-            ? kcal / target.kcal
-            : 0,
-      caption: planned
-        ? '계획 완료'
-        : advice.score !== null
-          ? `균형 ${advice.score}`
-          : kcal > 0
-            ? `${kcal.toLocaleString('ko-KR')}kcal`
-            : '남기기',
-      href: '/nutrition',
     },
   ];
 

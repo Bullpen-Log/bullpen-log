@@ -81,7 +81,7 @@ export function RingsCard({
         allDone={day != null && items.every((it) => it.value >= 1)}
         day={day ?? ''}
       >
-        <div className="grid grid-cols-4 gap-1">
+        <div className="grid grid-cols-3 gap-1">
           {items.map((it) => {
             const face = (
               <>

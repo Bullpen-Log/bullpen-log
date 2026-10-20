@@ -7,7 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { CheckinFlow } from '@/components/checkin-flow/flow';
 import type { CheckinFlowContext } from '@/components/checkin-flow/types';
 import {
@@ -18,7 +18,7 @@ import {
 import { SPLASH_ATTR, SPLASH_END_EVENT } from '@/components/app-splash';
 import { TOUR_ATTR, TOUR_END_EVENT } from '@/components/tutorial/tour-gate';
 import { useTodayKey } from '@/components/use-today-key';
-import { DESK_MEDIA } from '@/lib/nav';
+import { DESK_MEDIA, sportOf } from '@/lib/nav';
 
 /**
  * 체크인 관문 — 그날 체크인을 안 했으면 앱에 들어오자마자 먼저 뜬다.
@@ -190,7 +190,13 @@ export function CheckinGate({
   const [doneHere, setDoneHere] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
 
+  /*
+   * 투구 · 타격 화면(그 종목 바 안의 트레이닝 · 암케어 · 메커니즘 포함, lib/nav.ts sportOf)에 들어갈 때만 묻는다(2026-10-21 김민:
+   * "체크인을 투구, 타격에 들어갈 때 · 영양 빼고"). 예전엔 앱을 켜면 어디서든 떴다. 하루 한 번 · 건너뛰기 그대로.
+   */
+  const inSport = sportOf(usePathname(), useSearchParams()) !== null;
   const needed =
+    inSport &&
     today !== null &&
     !checkedDays.includes(today) &&
     skippedDay !== today &&
@@ -252,7 +258,8 @@ export function CheckinGate({
       .then(() => {
         if (cancelled) return;
         if (mobile) {
-          router.push('/checkin');
+          /* 마치면 들어가려던 투구 · 타격 화면으로 돌아온다(흐름의 ?next=) */
+          router.push(`/checkin?next=${encodeURIComponent(location.pathname + location.search)}`);
           return;
         }
         if (el.open) return;
