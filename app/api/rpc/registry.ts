@@ -23,6 +23,7 @@ import * as armcare from '@/app/actions/armcare';
 import * as auth from '@/app/actions/auth';
 import * as board from '@/app/actions/board';
 import * as calendarEvent from '@/app/actions/calendar-event';
+import * as chat from '@/app/actions/chat';
 import * as checkin from '@/app/actions/checkin';
 import * as community from '@/app/actions/community';
 import * as content from '@/app/actions/content';
@@ -32,6 +33,7 @@ import * as exerciseLog from '@/app/actions/exercise-log';
 import * as exerciseNote from '@/app/actions/exercise-note';
 import * as favorite from '@/app/actions/favorite';
 import * as featuredVideo from '@/app/actions/featured-video';
+import * as market from '@/app/actions/market';
 import * as mechanics from '@/app/actions/mechanics';
 import * as nutrition from '@/app/actions/nutrition';
 import * as onboardingState from '@/app/actions/onboarding-state';
@@ -78,6 +80,7 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   auth: auth,
   board: board,
   'calendar-event': calendarEvent,
+  chat: chat,
   checkin: checkin,
   community: community,
   content: content,
@@ -87,6 +90,7 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   'exercise-note': exerciseNote,
   favorite: favorite,
   'featured-video': featuredVideo,
+  market: market,
   mechanics: mechanics,
   nutrition: nutrition,
   'onboarding-state': onboardingState,

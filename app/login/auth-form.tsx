@@ -9,6 +9,7 @@ import {
   useState,
   type KeyboardEvent,
   type ReactNode,
+  useSyncExternalStore,
 } from 'react';
 import { createPortal, useFormStatus } from 'react-dom';
 import { CalendarDays, Info } from '@/components/icon';
@@ -153,6 +154,21 @@ const STAY_HINT =
   '브라우저를 닫아도 30일 동안 로그인이 유지돼요. 공용 컴퓨터에서는 꺼 주세요.';
 const REMEMBER_HINT = '다음에 올 때 이메일 칸을 채워 둬요. 비밀번호는 저장하지 않아요.';
 
+/**
+ * 주소의 칸 하나(?next= · ?signup=) — 이 화면은 미리 만들어져 서버는 모른다. useSyncExternalStore 로 붙은 뒤에만 읽어 수화가 어긋나지 않는다
+ * (useTodayKey 와 같은 꼴). 2026-10-20 덕아웃: '로그인하고 채팅하기' 가 돌아올 곳을 들고 온다.
+ */
+function useQueryParam(name: string): string | null {
+  return useSyncExternalStore(
+    (cb) => {
+      window.addEventListener('popstate', cb);
+      return () => window.removeEventListener('popstate', cb);
+    },
+    () => new URLSearchParams(window.location.search).get(name),
+    () => null
+  );
+}
+
 function LoginForm({
   onSignup,
   focusHeading,
@@ -160,6 +176,7 @@ function LoginForm({
   onSignup: () => void;
   focusHeading: boolean;
 }) {
+  const next = useQueryParam('next');
   /* 신호가 끊겨도 로그인 밖 오류 화면으로 넘어가지 않고 한 줄로 알린다(lib/action-offline.ts) */
   const [state, formAction] = useActionState<AuthState, FormData>(
     guardFormAction(login),
@@ -237,6 +254,7 @@ function LoginForm({
             />
           </Field>
 
+          {next && <input type="hidden" name="next" value={next} />}
           <Field label="비밀번호">
             <Input
               name="password"
@@ -1110,7 +1128,10 @@ export function AuthForm({ today: serverToday }: { today: string }) {
    * 검사가 며칠 지나면 어긋났다(2026-10-17). 붙은 뒤에는 브라우저 날짜로(useSyncExternalStore — 수화 어긋남 없음).
    */
   const today = useTodayKey(serverToday);
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  /* 덕아웃의 '시작하기'(?signup=1)는 가입부터 — 손으로 바꾼 뒤에는 그 값 */
+  const wantSignup = useQueryParam('signup') === '1';
+  const [picked, setMode] = useState<'login' | 'signup' | null>(null);
+  const mode = picked ?? (wantSignup ? 'signup' : 'login');
   /* 로그인 ↔ 가입을 바꾼 뒤인가 — 처음 들어왔을 때는 초점을 옮기지 않는다 */
   const [switched, setSwitched] = useState(false);
   const switchTo = (next: 'login' | 'signup') => {

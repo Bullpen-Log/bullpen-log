@@ -247,7 +247,7 @@ console.log('\n[5] 선수 계정이 관리 화면에 못 들어가는가 — 코
   );
   check(
     '로그인이 accountType 으로 갈 곳을 고른다',
-    /accountType === 'MASTER'[^\n]*'\/master'/.test(auth)
+    /accountType === 'MASTER'[\s\S]{0,160}'\/master'/.test(auth)
   );
 
   /* 마스터 동작 — export 마다 requireMaster. 함수 몸통 = 다음 최상위 function 앞까지 */

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { EyeOff, Heart, MessageCircle, MessagesSquare } from '@/components/icon';
+import { EyeOff, Heart, MessageCircle, MessagesSquare, Tag } from '@/components/icon';
 import { requireUser } from '@/lib/dal';
 import { loadCommunityList } from '@/lib/community-load';
 import {
@@ -61,10 +61,38 @@ export default async function CommunityPage({
   return (
     <div className="stack-page">
       <PageHeading
-        title="커뮤니티"
+        title="덕아웃"
         inlineAction
         action={<ButtonLink href="/community/new">글쓰기</ButtonLink>}
       />
+
+      {/* 덕아웃의 다른 방 — 장터 · 채팅(app/(dugout), 2026-10-20). 로그인한 사람도 같은 화면을 쓴다 */}
+      <nav aria-label="덕아웃" className="grid grid-cols-2 gap-3">
+        <Link
+          href="/dugout/market"
+          className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 transition-colors hover:border-sky-soft"
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky/12 text-sky">
+            <Tag className="h-5 w-5" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-ink">장터</span>
+            <span className="block text-xs text-muted">중고 야구용품 사고팔기</span>
+          </span>
+        </Link>
+        <Link
+          href="/dugout/chat"
+          className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 transition-colors hover:border-sky-soft"
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky/12 text-sky">
+            <MessageCircle className="h-5 w-5" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-ink">채팅</span>
+            <span className="block text-xs text-muted">거래 · 레슨 이야기</span>
+          </span>
+        </Link>
+      </nav>
 
       {/* 거르기 — 구분 칩은 옆으로 미끄러지고(휴대폰), 정렬은 오른쪽 끝의 작은 둘 */}
       <div className="flex flex-col gap-3 desk:flex-row desk:items-center desk:justify-between">

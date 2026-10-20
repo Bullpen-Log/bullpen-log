@@ -172,7 +172,7 @@ export const NAV_GROUPS: NavGroup[] = [
    * 잠금 없음 — 가입하면 바로 열린다. 고객센터는 아래 '소통'에 남는다.
    */
   {
-    items: [{ href: '/community', label: '커뮤니티', icon: 'community' }],
+    items: [{ href: '/community', label: '덕아웃', icon: 'community' }],
   },
   {
     /*
@@ -321,14 +321,34 @@ export const SPORT_BARS: Record<SportKey, NavItem[]> = {
   pitch: [
     SPORT_BACK,
     { href: '/videos', label: '기록', icon: 'calendar', lock: 'pitch' },
-    { href: '/training?sport=pitch', label: '트레이닝', icon: 'dumbbell', lock: 'training' },
-    { href: '/training?view=armcare', label: '암케어', icon: 'heart', lock: 'training' },
-    { href: '/training?view=mechanics', label: '메커니즘', icon: 'target', lock: 'training' },
+    {
+      href: '/training?sport=pitch',
+      label: '트레이닝',
+      icon: 'dumbbell',
+      lock: 'training',
+    },
+    {
+      href: '/training?view=armcare',
+      label: '암케어',
+      icon: 'heart',
+      lock: 'training',
+    },
+    {
+      href: '/training?view=mechanics',
+      label: '메커니즘',
+      icon: 'target',
+      lock: 'training',
+    },
   ],
   hit: [
     SPORT_BACK,
     { href: '/hitting', label: '기록', icon: 'calendar' },
-    { href: '/training?sport=hit', label: '트레이닝', icon: 'dumbbell', lock: 'training' },
+    {
+      href: '/training?sport=hit',
+      label: '트레이닝',
+      icon: 'dumbbell',
+      lock: 'training',
+    },
   ],
 };
 
@@ -431,7 +451,7 @@ export const MOBILE_TABS: NavItem[] = [
   /* 셋째 칸 — 트레이닝 → 타격(2026-10-20 김민). 트레이닝은 투구 · 타격 종목 하단바 안으로(아래 SPORT_BARS) */
   { href: '/hitting', label: '타격', icon: 'bat' },
   /* 넷째 칸 — 영양 → 커뮤니티(2026-10-20 김민). 영양은 더보기에 */
-  { href: '/community', label: '커뮤니티', icon: 'community' },
+  { href: '/community', label: '덕아웃', icon: 'community' },
   { href: MORE_HREF, label: '더보기', icon: 'menu' },
 ];
 
@@ -510,7 +530,8 @@ export function visibleGroups(role: string, isNative = false): NavGroup[] {
     ...g,
     items: g.items.filter(
       (i) =>
-        (!i.adminOnly || (i.perm ? can(role, i.perm) : owner)) && (!i.appOrAdmin || webMeasure || isNative)
+        (!i.adminOnly || (i.perm ? can(role, i.perm) : owner)) &&
+        (!i.appOrAdmin || webMeasure || isNative)
     ),
   })).filter((g) => g.items.length > 0);
 }
