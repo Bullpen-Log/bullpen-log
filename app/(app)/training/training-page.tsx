@@ -34,7 +34,6 @@ import { AddExercise, type PickableExercise } from './add-exercise';
 import { TrainingNote } from './training-note';
 import { TrainingSettingsButton } from './settings-button';
 import { RememberTrainingApp } from './remember-app';
-import { pitches } from '@/lib/position';
 import { TrainingHome } from './training-home';
 import { ArmcareTabs, type ArmcareTab } from './armcare-tabs';
 import { ArmcareSection } from './armcare-section';
@@ -176,9 +175,9 @@ export default async function TrainingPage({
   const params = await searchParams;
   /*
    * 어느 종목 바에서 열었나(2026-10-20 타격 1단계, lib/nav.ts SPORT_BARS ?sport=). 운동 판 · 일정은 종목과 상관없이 하루 하나다(D3) —
-   * 이 값은 투구 전용 줄을 숨기는 데만 쓴다. ?sport= 가 없으면 포지션으로(타자만 하는 사람이면 타격 쪽).
+   * 이 값은 투구 전용 줄을 숨기는 데만 쓴다. ?sport= 가 없으면 투구 쪽(포지션은 묻지 않는다, 2026-10-20).
    */
-  const hitSide = params.sport === 'hit' || (params.sport == null && !pitches(user));
+  const hitSide = params.sport === 'hit';
   /* 예전 [기록] 칸의 주소 — 지난 기록은 이제 홈 캘린더에 있다 */
   if (params.view === 'history') redirect('/today');
   /*

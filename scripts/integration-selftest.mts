@@ -143,7 +143,7 @@ console.log('\n[6] 기능 잠금 ↔ 메뉴 — 잠금 표 하나를 메뉴 · �
   const items = [...NAV_GROUPS.flatMap((g) => g.items), ...MOBILE_TABS];
   const wrong = items.filter((i) => i.lock && featureOfPath(i.href) !== i.lock).map((i) => i.href);
   check('잠금 꼬리표가 달린 메뉴는 그 주소가 같은 기능에 속한다', wrong.length === 0, wrong.join(', '));
-  const all = { pitch: true, hit: true, training: true, nutrition: true } as const;
+  const all = { pitch: true, training: true, nutrition: true } as const;
   const locked = applyLocks(items, all).filter((i) => i.locked);
   check('모두 잠그면 잠긴 메뉴는 모두 첫 설정 화면으로 간다', locked.length > 0 && locked.every((i) => isSetupPath(i.href)));
   check(

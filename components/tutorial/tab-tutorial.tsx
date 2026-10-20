@@ -32,7 +32,7 @@ import { nutritionSlides, pitchSlides, trainingSlides } from './slides';
  */
 
 /** 탭 튜토리얼의 열쇠 — 잠글 수 있는 기능과 같다(lib/feature-locks.ts 의 FeatureKey) */
-export type TabTutorialKey = Exclude<FeatureKey, 'hit'>; // 타격은 튜토리얼 없이(2026-10-20)
+export type TabTutorialKey = FeatureKey;
 
 const LABELS: Record<TabTutorialKey, string> = {
   pitch: '투구 · 처음 안내',

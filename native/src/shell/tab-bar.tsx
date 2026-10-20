@@ -47,7 +47,7 @@ export const DEFAULT_SPORT_BARS: Record<SportKey, ShellTab[]> = {
 };
 
 /** 지금 주소가 어느 종목 안인지(null = 기본 막대) — 웹 lib/nav.ts sportOf 와 같은 규칙 */
-export function sportOfPath(path: string, search: string, fallback: SportKey): SportKey | null {
+export function sportOfPath(path: string, search: string): SportKey | null {
   if (path === '/hitting' || path.startsWith('/hitting/')) return 'hit';
   if (path === '/videos' || path.startsWith('/videos/') || path.startsWith('/pitch-log/')) return 'pitch';
   if (path === '/training') {
@@ -56,9 +56,9 @@ export function sportOfPath(path: string, search: string, fallback: SportKey): S
     if (view === 'home' || view === 'last') return null;
     if (view === 'armcare' || view === 'mechanics') return 'pitch';
     const sport = sp.get('sport');
-    return sport === 'hit' || sport === 'pitch' ? sport : fallback;
+    return sport === 'hit' ? 'hit' : 'pitch';
   }
-  if (path === '/training/setup') return fallback;
+  if (path === '/training/setup') return 'pitch';
   return null;
 }
 

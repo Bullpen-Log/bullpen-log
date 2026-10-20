@@ -5,7 +5,6 @@ import { getCurrentUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
 import { appNow, appNowMs } from '@/lib/clock';
 import { toDateKey } from '@/lib/pitch-stats';
-import { featureLocks } from '@/lib/feature-locks';
 import { DUPLICATE_WINDOW_MS, validateHitting, type HittingInput } from '@/lib/hitting-log';
 
 export type HittingSaveResult =
@@ -19,7 +18,6 @@ export type HittingSaveResult =
 export async function saveHittingLog(input: HittingInput & { id?: string }): Promise<HittingSaveResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
-  if (featureLocks(user).hit) return { ok: false, error: '타격 첫 설정을 먼저 해 주세요.' };
 
   const checked = validateHitting(input, toDateKey(appNow()));
   if ('error' in checked) return { ok: false, error: checked.error, field: checked.field };

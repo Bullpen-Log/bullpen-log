@@ -24,13 +24,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   `back-link.tsx`(`toBar` 칸 — 트레이닝 화면은 막대에 안 올림), `expo-tabs.tsx`(앱에 `{ t: 'tabs', sports, defaultSport }` 를 같이 보냄, ‹ 칸은 빼고).
 - 판 넘기기: `app/(app)/layout.tsx` 셋째 자리 `@training` → `@hitting`(`@hitting/default.tsx` · `hitting/page.tsx` · `loading.tsx`, `@training` 폴더 지움),
   `components/tab-pager.tsx` TAB_ORDER `/today · /videos · /hitting · /community`. 트레이닝은 이제 여느 하위 화면(`training/page.tsx` 가 training-page 를 그대로, `loading.tsx` 새로).
-- 잠금: `lib/feature-locks.ts` 에 'hit'(`hitSetupAt`), SETUP_PATH `/hitting/setup`, `lib/position.ts`(포지션 · 치는 손 — 비면 투수). 타자만 하는 사람은 트레이닝의 등판 줄을 숨긴다(T4).
+- 잠금 없음(같은 날 김민: "타격 시작 질문 다 없애고 바로 타격 기록") — 'hit' 잠금 · `/hitting/setup` · `lib/position.ts` · `app/actions/hitting-setup.ts` 를 지웠다. DB 칸 셋은 남김(안 씀).
+  타격 바에서 연 트레이닝(`?sport=hit`)만 등판 줄을 숨긴다(T4), 종목 모를 때는 늘 투구 바.
 - **새 앱**: `native/src/shell/tab-bar.tsx` DEFAULT_TABS 셋째 = 타격(그림 `bat` → `shell/icon.tsx` 의 새 'baseball-bat'), `DEFAULT_SPORT_BARS` · `sportOfPath` · `sportActiveHref`
   (웹 규칙 복사), `native/src/app/index.tsx` 는 종목 안이면 네 커뮤니티 하단바처럼 `TabBar back enter`(‹ 는 홈으로), 타격 탭을 누르면 주소를 먼저 바꿈.
   종목 바의 트레이닝(`?sport=`)은 웹 판이다(앱 트레이닝 카드는 `?view=home` 때만 그대로). **이 PC 엔 native node_modules 가 없어 앱 tsc 는 못 돌렸다.**
   깔린 옛 앱은 사이트가 보낸 탭이라 타격 칸은 바로 서지만 그림은 집 모양 · 종목 바는 없다 — 구우면 바로잡힌다.
 - 확인: 웹 tsc · eslint · hitting:test 18 · integration:test 33(실패 [13] 카메라 Swift 는 이 일과 무관). **화면은 못 봤다** — 휴대폰 하단 탭 · 투구/타격 누르면 바 바뀜 · ‹ ·
-  타격 시작하기 · 타격 일지 저장 · 앱 하단바를 한 번 봐 줘.
+  타격 일지 저장 · 앱 하단바를 한 번 봐 줘.
 
 ## 금윤호에게 — 2026-10-20 · 김민(Claude, UI/UX 세션) — 더보기에서 '자료실' 뺌
 

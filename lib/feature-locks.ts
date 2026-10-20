@@ -13,9 +13,9 @@
  */
 
 /** 잠글 수 있는 기능 — 홈 · 설정 · 내 정보 · 체크인 · 알림 · 라이브러리 · 자료실은 늘 열려 있다 */
-export type FeatureKey = 'pitch' | 'hit' | 'training' | 'nutrition';
+export type FeatureKey = 'pitch' | 'training' | 'nutrition';
 
-export const FEATURE_KEYS: readonly FeatureKey[] = ['pitch', 'hit', 'training', 'nutrition'];
+export const FEATURE_KEYS: readonly FeatureKey[] = ['pitch', 'training', 'nutrition'];
 
 /** 기능마다 true 면 잠김(첫 설정 전) */
 export type FeatureLocks = Record<FeatureKey, boolean>;
@@ -23,8 +23,6 @@ export type FeatureLocks = Record<FeatureKey, boolean>;
 /** getCurrentUser 가 돌려주는 것 중 잠금 계산에 쓰는 칸 */
 export type LockSource = {
   pitchSetupAt: Date | null;
-  /** 타격 첫 설정(2026-10-20) — 비면 타격 기록이 잠긴다('타격 시작하기') */
-  hitSetupAt: Date | null;
   trainingSetupAt: Date | null;
   nutritionProfile: { onboardedAt: Date | null } | null;
   createdAt: Date;
@@ -49,7 +47,6 @@ export const NUTRITION_LOCK_SINCE = new Date('2026-10-09T15:00:00.000Z');
 export function featureLocks(user: LockSource): FeatureLocks {
   return {
     pitch: user.pitchSetupAt == null,
-    hit: user.hitSetupAt == null,
     training: user.trainingSetupAt == null,
     nutrition: user.nutritionProfile == null && user.createdAt >= NUTRITION_LOCK_SINCE,
   };
@@ -58,7 +55,6 @@ export function featureLocks(user: LockSource): FeatureLocks {
 /** 잠긴 탭으로 가면 보내는 첫 설정 화면 */
 export const SETUP_PATH: Record<FeatureKey, string> = {
   pitch: '/videos/setup',
-  hit: '/hitting/setup',
   training: '/training/setup',
   nutrition: '/nutrition/setup',
 };
@@ -66,7 +62,6 @@ export const SETUP_PATH: Record<FeatureKey, string> = {
 /** 첫 설정을 마치면 돌아가는 탭 */
 export const FEATURE_HOME: Record<FeatureKey, string> = {
   pitch: '/videos',
-  hit: '/hitting',
   training: '/training',
   nutrition: '/nutrition',
 };
@@ -84,7 +79,6 @@ export function featureOfPath(pathname: string): FeatureKey | null {
     p.startsWith('/abs')
   )
     return 'pitch';
-  if (p.startsWith('/hitting')) return 'hit';
   if (
     p.startsWith('/training') ||
     p.startsWith('/workout') ||

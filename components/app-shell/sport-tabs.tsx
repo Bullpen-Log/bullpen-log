@@ -12,7 +12,6 @@ import { sportActiveHref, sportOf, type NavItem, type SportKey } from '@/lib/nav
 export function SportAwareTabs({
   tabs,
   sportBars,
-  defaultSport,
   menuOpen,
   onMenu,
 }: {
@@ -20,13 +19,12 @@ export function SportAwareTabs({
   /** 잠금을 입힌 종목 바 둘(app/(app)/layout.tsx 가 applyLocks 로) */
   sportBars: Record<SportKey, NavItem[]>;
   /** 그냥 /training 일 때의 종목 — 타자만 하는 사람이면 타격 */
-  defaultSport: SportKey;
   menuOpen: boolean;
   onMenu: () => void;
 }) {
   const pathname = usePathname();
   const params = useSearchParams();
-  const sport = sportOf(pathname, params, defaultSport);
+  const sport = sportOf(pathname, params);
   if (!sport) {
     return <MobileTabs key="main" tabs={tabs} menuOpen={menuOpen} onMenu={onMenu} />;
   }
