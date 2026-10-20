@@ -2897,6 +2897,10 @@ html[data-splash] *::after {
   /* 걷힐 때 무대가 1.06배로 커져도 밖으로 안 넘치게(가로 막대가 번쩍이지 않게) */
   overflow: hidden;
 }
+/* 사이트 안에서 이동해 문서를 다시 연 것 — 연출 없이(components/app-splash.tsx IN_SITE_JS) */
+html[data-splash-skip] .app-splash {
+  display: none;
+}
 .app-splash__stage {
   position: absolute;
   inset: 0;
