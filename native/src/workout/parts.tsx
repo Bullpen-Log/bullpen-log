@@ -11,6 +11,7 @@ import { rpc } from '~/lib/rpc';
 import { SITE_URL } from '~/lib/site';
 import type { Palette } from '~/lib/ui';
 import { call, loadMe } from '~/pitch/api';
+import { LocalVideo } from '../../modules/local-video';
 
 /** 운동 진행 화면(native/src/app/workout.tsx)의 작은 조각 — 웹 app/(session)/workout/run/session-client.tsx 의 같은 이름 부품을 옮겼다 */
 
@@ -285,7 +286,7 @@ export function NoteBox({
 }
 
 /**
- * 자세 영상 — 직접 찍은 영상은 라이브러리 재생 주소(/api/library/video-url, 웹 components/library-video.tsx 와 같은 small 판)로 틀고,
+ * 자세 영상 — 직접 찍은 영상은 폰에 받아 둔 720p HEVC 판(LibraryClip)으로 틀고,
  * 유튜브 참고 영상은 공식 삽입 재생기를 작은 웹뷰로(우리 사이트를 주소로 둔다 — 유튜브가 출처 없는 삽입을 막는다).
  */
 /** 관리자인가 — 앱을 켤 때 한 번 받은 나(app.loadAppMe, ~/pitch/api loadMe). 받기 전 · 실패면 아님 */
@@ -343,12 +344,37 @@ export function ExerciseVideo({
   );
 }
 
+/** 'library/<uuid>.mp4' → '<uuid>' — 폰에 받아 둔 파일 이름(LocalVideo libraryLoad · libraryFetch 와 같은 규칙) */
+const libraryKey = (path: string) => /^library\/([\w-]{1,64})\.\w+$/.exec(path)?.[1] ?? null;
+
+/**
+ * 폰에 있으면(앱 안 · 받아 둔 것) 그 파일, 없으면 720p HEVC 판(서버 small 'hevc' — 없으면 H.264 판)을 한 번 받아 폰에 두고 튼다.
+ * 2026-10-20 김민: 서버 전송비 — 예전엔 볼 때마다 서버에서 받았다. 받기에 실패하면 예전처럼 주소로 바로 튼다.
+ * HEVC 는 같은 화질에 H.264 판의 절반 남짓(영상 10개 시험 −56%, scripts/library-bundle/compress.swift 머리).
+ */
+async function libraryUri(path: string): Promise<string | null> {
+  const key = libraryKey(path);
+  if (key) {
+    const local = await LocalVideo.libraryLoad({ key }).catch(() => null);
+    if (local) return `file://${local.path}`;
+  }
+  const r = await call<{ urls: Record<string, string> }>('/api/library/video-url', {
+    method: 'POST',
+    body: { paths: [path], small: 'hevc' },
+  });
+  const url = r.urls[path];
+  if (!url) return null;
+  if (!key) return url;
+  const got = await LocalVideo.libraryFetch({ key, url }).catch(() => null);
+  return got ? `file://${got.path}` : url;
+}
+
 function LibraryClip({ path, aspectRatio }: { path: string; aspectRatio: number | null }) {
   const [state, setState] = useState<{ path: string; uri: string | null; failed: boolean } | null>(null);
   useEffect(() => {
     let alive = true;
-    call<{ urls: Record<string, string> }>('/api/library/video-url', { method: 'POST', body: { paths: [path], small: true } }).then(
-      (r) => alive && setState({ path, uri: r.urls[path] ?? null, failed: !r.urls[path] }),
+    libraryUri(path).then(
+      (uri) => alive && setState({ path, uri, failed: !uri }),
       () => alive && setState({ path, uri: null, failed: true })
     );
     return () => {
