@@ -1,6 +1,13 @@
 {
-  "platforms": ["apple"],
+  "platforms": [
+    "apple"
+  ],
   "apple": {
-    "modules": ["BullpenNativeModule"]
+    "modules": [
+      "BullpenNativeModule"
+    ],
+    "appDelegateSubscribers": [
+      "LaunchStyleSubscriber"
+    ]
   }
 }
