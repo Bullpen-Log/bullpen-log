@@ -1,7 +1,7 @@
 // 새 앱(Expo) 굽기(GitHub · ios-native.yml) 때 운동 · 드릴 영상(720p HEVC)을 native/LibraryVideos 에 받는다 — prebuild 의
 // plugins/library-videos 가 그 폴더를 앱 안에 싣는다. 사이트의 굽기 전용 주소(/api/library/bundle?kind=hevc)가 굽기 전용 열쇠
 // (LIBRARY_BUNDLE_TOKEN)로 읽기 주소를 준다. 열쇠가 없거나 못 받으면 영상 없이 굽는다 — 실패로 끝내지 않는다(앱이 볼 때 받는다).
-// 같은 푸시로 사이트가 아직 배포 중일 수 있어 404 · 5xx 는 30초씩 10번까지 다시 묻는다.
+// 같은 푸시로 사이트가 아직 배포 중일 수 있어 404 · 5xx 는 30초씩 20번(10분)까지 다시 묻는다.
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -16,11 +16,13 @@ if (!token) {
 }
 
 let files = null;
-for (let i = 0; i < 10 && !files; i++) {
+for (let i = 0; i < 20 && !files; i++) {
   const res = await fetch(`${SITE}/api/library/bundle?kind=hevc`, { headers: { authorization: `Bearer ${token}` } }).catch(() => null);
-  if (res?.ok) files = (await res.json()).files;
+  /* 배포 전 옛 주소는 kind 없이 H.264 판을 준다 — 'hevc' 가 올 때까지 다시 묻는다 */
+  const body = res?.ok ? await res.json().catch(() => null) : null;
+  if (body?.kind === 'hevc') files = body.files;
   else {
-    console.log(`목록 못 받음(${res?.status ?? '연결 실패'}) — 30초 뒤 다시`);
+    console.log(`목록 못 받음(${res?.status ?? '연결 실패'}${res?.ok ? ' · 아직 옛 주소' : ''}) — 30초 뒤 다시`);
     await new Promise((r) => setTimeout(r, 30_000));
   }
 }

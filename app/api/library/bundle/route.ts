@@ -33,5 +33,6 @@ export async function GET(req: Request) {
   const files = small
     .filter((p) => urls[p])
     .map((p) => ({ key: p.slice(p.indexOf('/') + 1, -'.mp4'.length), url: urls[p] }));
-  return NextResponse.json({ files });
+  /* kind 를 같이 — 새 앱 굽기가 배포 전 옛 주소(늘 H.264)의 답을 HEVC 로 잘못 받지 않게 이 칸이 올 때까지 다시 묻는다 */
+  return NextResponse.json({ kind: prefix === LIBRARY_HEVC_PREFIX ? 'hevc' : 'h264', files });
 }
