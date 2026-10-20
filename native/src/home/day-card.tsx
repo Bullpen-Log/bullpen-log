@@ -305,7 +305,8 @@ function go(href: string, onTab: (href: string) => void) {
   const date = new URLSearchParams(query ?? '').get('date');
   if (date && path === '/nutrition') openTabAt('nutrition', date);
   if (date && path === '/videos') openTabAt('pitch', date);
-  onTab(path);
+  /* 투구 달력은 종목 바의 '기록'(?view=log) — 투구 홈에는 달력이 없다 */
+  onTab(date && path === '/videos' ? '/videos?view=log' : path);
 }
 
 function TrainingDetail({ d, c }: { d: DayDetail; c: Palette }) {

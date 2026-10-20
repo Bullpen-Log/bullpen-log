@@ -130,6 +130,13 @@ export function dateKeyOf(year: number, monthIndex: number, day: number) {
  *
  * 리포트 '2026-10-03 기준'처럼 키를 그대로 찍으면 웹 표기 같았다(2026-10-04 '앱 느낌' 점검). 연도는 한국 시간의 올해와 견준다.
  */
+/** 그 날이 든 주의 월요일(YYYY-MM-DD) — 투구 · 타격 홈 '이번 주'(2026-10-20) */
+export function weekStartKey(dateKey: string) {
+  const d = new Date(`${dateKey}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+
 export function dateKeyLabel(dateKey: string) {
   const [y, m, d] = dateKey.split('-').map(Number);
   if (!y || !m || !d) return dateKey;

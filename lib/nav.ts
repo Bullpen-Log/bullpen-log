@@ -317,38 +317,27 @@ export type SportKey = 'pitch' | 'hit';
 
 export const SPORT_BACK: NavItem = { href: '/today', label: '뒤로', icon: 'back' };
 
+/**
+ * 종목 홈(2026-10-20 김민: "투구 · 타격 각 카테고리에도 홈, 이름은 투구 · 타격") — 홈은 오늘 카드 · 바로가기 · 이번 주 요약,
+ * 기록(달력 · 목록)은 ?view=log 로 가른다(같은 판 · 같은 자료). 기록 칸에 lock 을 안 다는 것은 applyLocks 가 홈과 같은 설정 주소로 바꿔
+ * key 가 겹치기 때문 — 잠겨 있으면 그 화면이 첫 설정으로 보낸다.
+ */
+export const SPORT_LOG_VIEW = 'log';
+
 export const SPORT_BARS: Record<SportKey, NavItem[]> = {
   pitch: [
     SPORT_BACK,
-    { href: '/videos', label: '기록', icon: 'calendar', lock: 'pitch' },
-    {
-      href: '/training?sport=pitch',
-      label: '트레이닝',
-      icon: 'dumbbell',
-      lock: 'training',
-    },
-    {
-      href: '/training?view=armcare',
-      label: '암케어',
-      icon: 'heart',
-      lock: 'training',
-    },
-    {
-      href: '/training?view=mechanics',
-      label: '메커니즘',
-      icon: 'target',
-      lock: 'training',
-    },
+    { href: '/videos', label: '투구', icon: 'baseball', lock: 'pitch' },
+    { href: '/videos?view=log', label: '기록', icon: 'calendar' },
+    { href: '/training?sport=pitch', label: '트레이닝', icon: 'dumbbell', lock: 'training' },
+    { href: '/training?view=armcare', label: '암케어', icon: 'heart', lock: 'training' },
+    { href: '/training?view=mechanics', label: '메커니즘', icon: 'target', lock: 'training' },
   ],
   hit: [
     SPORT_BACK,
-    { href: '/hitting', label: '기록', icon: 'calendar' },
-    {
-      href: '/training?sport=hit',
-      label: '트레이닝',
-      icon: 'dumbbell',
-      lock: 'training',
-    },
+    { href: '/hitting', label: '타격', icon: 'bat' },
+    { href: '/hitting?view=log', label: '기록', icon: 'calendar' },
+    { href: '/training?sport=hit', label: '트레이닝', icon: 'dumbbell', lock: 'training' },
   ],
 };
 
@@ -390,7 +379,9 @@ export function sportActiveHref(
     if (sport === 'pitch' && view === 'mechanics') return '/training?view=mechanics';
     return `/training?sport=${sport}`;
   }
-  return sport === 'pitch' ? '/videos' : '/hitting';
+  const home = sport === 'pitch' ? '/videos' : '/hitting';
+  const log = params.get('view') === SPORT_LOG_VIEW || pathname.startsWith('/pitch-log/');
+  return log ? `${home}?view=${SPORT_LOG_VIEW}` : home;
 }
 
 /**

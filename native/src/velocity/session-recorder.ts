@@ -216,13 +216,15 @@ export class SessionRecorder {
   async stop() {
     if (this.state.phase !== 'recording' && this.state.phase !== 'starting') return;
     const cuts = this.finishCuts();
+    /* 길이는 지금까지 — 다 올린 뒤에 재면 올린 시간까지 들어갔다(10-20 녹화 #2: 실제 약 95초가 145.8초로, 관리자에 큰 구멍처럼 보임) */
+    const durationSec = (Date.now() - this.startedAt) / 1000;
     this.set({ phase: 'stopping' });
     await cuts;
     await this.uploads;
     await this.flushDeferred();
     if (this.id)
       await withTimeout(
-        rpc('velocity-recording.finishVelocityRecording', this.id, { durationSec: (Date.now() - this.startedAt) / 1000 }),
+        rpc('velocity-recording.finishVelocityRecording', this.id, { durationSec }),
         CALL_TIMEOUT_MS,
         OFFLINE
       ).catch(() => undefined);
