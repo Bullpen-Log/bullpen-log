@@ -53,7 +53,7 @@ const TABS = [
   ['홈', '/today'],
   ['투구', '/videos'],
   ['트레이닝', '/training?view=home'],
-  ['영양', '/nutrition'],
+  ['커뮤니티', '/community'],
 ];
 const headers = {
   cookie: `session=${token}`,

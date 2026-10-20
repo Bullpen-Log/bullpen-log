@@ -56,7 +56,7 @@ const RefWebView = WebView as unknown as ComponentType<
 >;
 
 /**
- * 앱 껍데기 — 사이트 웹뷰 하나 + 앱 아래 탭 막대(shell/tab-bar.tsx). 홈 · 트레이닝 · 영양은 웹뷰가(사이트의 판 넘기기로 바로 옮김), 투구 탭은
+ * 앱 껍데기 — 사이트 웹뷰 하나 + 앱 아래 탭 막대(shell/tab-bar.tsx). 홈 · 트레이닝 · 커뮤니티는 웹뷰가(사이트의 판 넘기기로 바로 옮김), 투구 탭은
  * 앱 화면(pitch/tab.tsx)이 웹뷰를 덮는다. 사이트는 앱 안이면 제 탭 막대를 숨긴다(components/app-shell/expo-tabs.tsx).
  *
  * 화면을 네이티브로 옮기면(구속 측정 · 촬영 · 투구 영상부터, 검토 D3) 그 주소로 가는 길을 여기서 가로채 네이티브 화면을 연다.
@@ -266,16 +266,17 @@ export default function SiteScreen() {
   /* 홈 첫 화면도 앱 화면 — '웹 홈에서' 를 누르면 홈 탭을 다시 누를 때까지 웹 홈(일정 · 자세한 그날 칸) */
   const [webHome, setWebHome] = useState(false);
   const showHome = barOn && path === '/today' && !!today && !webHome && !webFront;
-  /* 영양 첫 화면도 앱 화면(오늘 먹은 것 · 담기 · 체중) — '식단 · 목표 · 통계'를 누르면 영양 탭을 다시 누를 때까지 웹 영양 */
+  const menu = useMenu();
+  /* 영양 첫 화면도 앱 화면(오늘 먹은 것 · 담기 · 체중) — '식단 · 목표 · 통계'를 누르면 영양을 다시 열 때까지 웹 영양 */
   const [webNutrition, setWebNutrition] = useState(false);
-  const nutritionTab = tabs.find((t) => t.href === '/nutrition');
+  /* 2026-10-20 영양은 하단 탭에서 더보기로(넷째 탭은 커뮤니티) — 잠김은 더보기 목록(사이트가 보낸 메뉴)에서 읽는다 */
+  const nutritionTab = tabs.find((t) => t.href === '/nutrition') ?? menu.groups.flatMap((g) => g.items).find((i) => i.icon === 'utensils');
   const showNutrition = barOn && path === '/nutrition' && !!today && !webNutrition && !nutritionTab?.locked && !webFront;
   /* 트레이닝 첫 화면(앱 카드 셋)도 앱 화면 — 카드를 누르면(암케어 · 메커니즘 · 운동 전체) 주소가 ?view=… 로 바뀌어 웹이 보인다 */
   const trainingTab = tabs.find((t) => t.href.startsWith('/training'));
   const trainingView = new URLSearchParams(search).get('view');
   const showTraining =
     barOn && path === '/training' && (trainingView === 'home' || trainingView === 'last') && !!today && !trainingTab?.locked && !webFront;
-  const menu = useMenu();
   /* 판 넘기기 — 지금 보일 앱 판(없으면 웹이 앞)과 한 번이라도 열린 판(붙여 둠) */
   const pagerOn = showHome || showPitch || showTraining || showNutrition;
   const nowIndex = showHome ? 0 : showPitch ? 1 : showTraining ? 2 : showNutrition ? 3 : -1;
@@ -325,7 +326,8 @@ export default function SiteScreen() {
     }
     /* 더보기는 앱 화면(사이트가 목록을 알려 준 뒤) — 웹 메뉴는 앱 화면 위에서 열면 밑에 깔려 안 보인다 */
     if (t.href === '/more' && menu.groups.length) return router.push('/more' as Href);
-    if ((t.href === '/videos' || t.href === '/today' || t.href === '/nutrition') && !t.locked) setPath(t.href);
+    /* 커뮤니티 탭(2026-10-20)은 웹 판 — 주소를 먼저 바꿔 앱 판을 바로 걷는다 */
+    if ((t.href === '/videos' || t.href === '/today' || t.href === '/nutrition' || t.href === '/community') && !t.locked) setPath(t.href);
     if (t.href === '/today') setWebHome(false);
     if (t.href === '/nutrition') setWebNutrition(false);
     goWeb(t.href);

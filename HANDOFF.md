@@ -11,6 +11,19 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-20 · 김민(Claude, 데스크톱) — 하단 탭 넷째를 영양 → 커뮤니티로 · 영양은 더보기로 · 새 앱 굽기 필요
+
+받은 뒤 할 일: **새 앱(Expo)을 구울 때 같이 실린다**(DB · 패키지 그대로). 김민: "커뮤니티 개선작업을 시작할거라 하단바의 영양을 더보기로 빼고 그 자리에 커뮤니티".
+**네 영역(앱 틀 · 메뉴 · 판 넘기기 · 새 앱 탭 막대)을 고쳤다.**
+- 웹: `lib/nav.ts` MOBILE_TABS 넷째 = `/community`, NAV_GROUPS 는 커뮤니티를 트레이닝 바로 뒤(도크 첫 줄 = 막대의 넷), 영양은 그 다음(더보기 폴더 맨 앞), '소통'은 고객센터만.
+  판 넘기기 넷째 자리 `@nutrition` → `@community`(`default.tsx` · `community/page.tsx` · `loading.tsx`), 목록 본문은 `app/(app)/community/community-page.tsx`,
+  `community/page.tsx` 는 빈 쪽. 영양은 이제 여느 하위 화면(`nutrition/page.tsx` 가 nutrition-page 를 그대로, 잠금은 그 화면의 redirect). 위 막대 없는 탭(bare)도 영양 → 커뮤니티.
+- 커뮤니티 목록은 새 앱에서도 앱 화면으로 넘기지 않고 웹 판을 보인다 — 판은 늘 떠 있어 OpenNative(router.back)를 그리면 어느 화면을 열든 튕긴다. 글 · 글쓰기는 앱 화면 그대로.
+- 새 앱: `native/src/shell/tab-bar.tsx` DEFAULT_TABS · 탭 그림 `community` → messages-square, `native/src/app/index.tsx` 영양 잠김을 더보기 메뉴에서 읽고 커뮤니티 탭을 누르면
+  주소를 먼저 바꿈. **이 PC 엔 native node_modules 가 없어 앱 tsc 는 못 돌렸다.** 지금 깔린 앱은 사이트가 보낸 탭이라 굽기 전에도 커뮤니티 칸이 서지만, 그림은 집 모양 ·
+  더보기 폴더(옛 DEFAULT_TABS 로 거름)에 영양이 빠져 보인다 — 구우면 바로잡힌다.
+- 로그인한 화면은 못 봤다(내장 브라우저 로그인 없음) — 휴대폰 하단 탭 · 커뮤니티 판 · 더보기의 영양 · 앱 탭을 한 번 봐 줘.
+
 ## 금윤호에게 — 2026-10-20 · 김민(Claude, 데스크톱 · 구속측정 엔진) — 네 질문 답: 10-20 낮 윤호 폰 새 앱은 **Release**(TestFlight)였다
 
 김민: "금윤호 테스트플라이트에서 받은 거야." TestFlight 판은 `ios-native.yml` 이 `xcodebuild archive -configuration Release` 로 굽는다(123~126줄) — **Debug 가 아니다.**

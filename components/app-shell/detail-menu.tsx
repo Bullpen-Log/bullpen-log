@@ -420,7 +420,7 @@ export function DetailMenu({
                       누르는 칸은 44px 이상 — 예전에는 32px 남짓이라 옆 항목을 잘못 누르곤 했다.
                     */
                           /*
-                           * 휴대폰 폴더에는 하단 탭에 있는 넷(홈 · 투구 · 트레이닝 · 영양)이 없다(2026-10-14 홈, 2026-10-16 나머지 셋 — 같은 길이 두 번).
+                           * 휴대폰 폴더에는 하단 탭에 있는 넷(홈 · 투구 · 트레이닝 · 커뮤니티 — 2026-10-20 영양 자리)이 없다(2026-10-14 홈, 2026-10-16 나머지 셋 — 같은 길이 두 번).
                            * 잠긴 탭은 주소가 설정 화면으로 바뀌어 이름 · 그림으로 견준다. PC 팝업에는 그대로
                            */
                           className={`${inTabBar(item) ? 'hidden desk:flex' : 'flex'} min-w-0 flex-col items-center gap-1.5 rounded-2xl px-0.5 py-0.5 text-center text-(--folder-fg) transition-[colors,transform] duration-75 motion-safe:active:scale-95 desk:min-h-10 desk:flex-row desk:gap-3 desk:rounded-lg desk:px-3 desk:py-1.5 desk:text-left desk:text-ink desk:active:scale-100 ${
