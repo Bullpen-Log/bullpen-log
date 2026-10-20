@@ -27,8 +27,8 @@ const Body3D = dynamic(() => import('./body-3d').then((m) => m.Body3D), { ssr: f
 
 /**
  * 샘플 결과 화면 /videos/lab/[id](설계 pitch-3d-quality.md 화면 결정 1 · 2 · 15) — 위에서부터 3D(4:5, 화면의 60% 까지) → 시점 · 재생 →
- * 원본 두 칸 → 숫자. PC(desk)는 왼쪽 3D + 원본 두 칸(폭 60%, 스크롤해도 멈춰 있음) · 오른쪽 점검 + 숫자.
- * 원본 영상은 3D 바로 밑(2026-10-20 김민: "같이 볼 수 있게")에서 3D 시계를 따라간다(결정 12, lib/pitch-3d/v2/video-sync.ts): 멈춤 · 끌기 때 그 시각,
+ * 원본 두 칸 → 숫자. PC(desk)는 왼쪽 3D(폭 60%, 스크롤해도 멈춰 있음) · 오른쪽 원본 두 칸 → 점검 + 숫자.
+ * 원본 영상은 3D 와 한눈에(휴대폰은 바로 밑 · PC 는 오른쪽 위, 2026-10-20 김민: "같이 볼 수 있게") 3D 시계를 따라간다(결정 12, lib/pitch-3d/v2/video-sync.ts): 멈춤 · 끌기 때 그 시각,
  * 재생 때 0.1초마다 빠르기를 맞춰 따라붙는다. 숫자를 누르면 그 순간으로 가고 3D 가 보이게 올린다.
  */
 
@@ -144,8 +144,15 @@ export function LabDetail({
         />
       </div>
 
-      <div className="desk:grid desk:grid-cols-[3fr_2fr] desk:items-start desk:gap-8">
-        <div ref={stage} className="stack-block desk:sticky desk:top-(--desk-veil-solid)">
+      {/*
+       * 휴대폰: 3D → 원본 영상 → 분석 걸기 · 점검 · 숫자. PC: 왼쪽 3D(스크롤해도 멈춰 있음), 오른쪽 위 원본 영상 · 그 밑 분석
+       * (2026-10-20 김민: "PC 에선 영상을 3D 밑이 아니라 오른쪽에 — 한눈에 같이 보게, 분석은 밑으로").
+       */}
+      <div className="flex flex-col gap-block desk:grid desk:grid-cols-[3fr_2fr] desk:items-start desk:gap-x-8">
+        <div
+          ref={stage}
+          className="stack-block desk:sticky desk:top-(--desk-veil-solid) desk:col-start-1 desk:row-span-2 desk:row-start-1"
+        >
           {result && labHandNote(result.hand, meta?.hand) && (
             <p className="text-xs text-muted break-keep">{labHandNote(result.hand, meta?.hand)}</p>
           )}
@@ -167,40 +174,44 @@ export function LabDetail({
               hand={meta?.hand ?? 'R'}
             />
           )}
-          <section className="space-y-2">
-            <h2 className="text-sm font-semibold text-ink">원본 영상</h2>
-            <div className="grid grid-cols-2 gap-2">
-              {LAB_VIEWS.map((view) => {
-                const v = sample.videos[view];
-                return (
-                  <div key={view} className="space-y-1">
-                    <p className="text-xs text-muted">{labViewLabel(view, meta?.hand ?? 'R')}</p>
-                    {v?.url ? (
-                      <video
-                        ref={(el) => {
-                          videos.current[view] = el;
-                        }}
-                        src={`${v.url}#t=0.001`}
-                        playsInline
-                        muted
-                        preload="auto"
-                        className="h-[180px] w-full rounded-xl bg-black object-contain desk:h-[min(180px,22vh)]"
-                      />
-                    ) : (
-                      <div className="grid h-[180px] w-full place-items-center rounded-xl bg-ink/5 text-xs text-muted desk:h-[min(180px,22vh)]">
-                        영상 없음
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            {result && (
-              <p className="text-xs text-muted">
-                영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.
-              </p>
-            )}
-          </section>
+        </div>
+
+        <section className="space-y-2 desk:col-start-2 desk:row-start-1">
+          <h2 className="text-sm font-semibold text-ink">원본 영상</h2>
+          <div className="grid grid-cols-2 gap-2">
+            {LAB_VIEWS.map((view) => {
+              const v = sample.videos[view];
+              return (
+                <div key={view} className="space-y-1">
+                  <p className="text-xs text-muted">{labViewLabel(view, meta?.hand ?? 'R')}</p>
+                  {v?.url ? (
+                    <video
+                      ref={(el) => {
+                        videos.current[view] = el;
+                      }}
+                      src={`${v.url}#t=0.001`}
+                      playsInline
+                      muted
+                      preload="auto"
+                      className="h-[180px] w-full rounded-xl bg-black object-contain desk:h-[min(360px,42vh)]"
+                    />
+                  ) : (
+                    <div className="grid h-[180px] w-full place-items-center rounded-xl bg-ink/5 text-xs text-muted desk:h-[min(360px,42vh)]">
+                      영상 없음
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {result && (
+            <p className="text-xs text-muted">
+              영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.
+            </p>
+          )}
+        </section>
+
+        <div className="stack-block desk:col-start-2 desk:row-start-2">
           <V2RequestRow
             job={v2.job}
             now={now}
@@ -215,9 +226,6 @@ export function LabDetail({
           {v2.offline && (
             <ErrorLine>연결을 확인해 주세요. 마지막 상태를 보고 있어요.</ErrorLine>
           )}
-        </div>
-
-        <div className="stack-block mt-(--gap-block) desk:mt-0">
 
           {result && (
             <MechCard
