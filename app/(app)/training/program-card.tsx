@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { AlertCircle, ChevronDown, Play } from '@/components/icon';
+import { unstable_rethrow } from 'next/navigation';
+import { AlertCircle, ArrowLeftRight, ChevronDown, Play } from '@/components/icon';
 import { Card, Button } from '@/components/ui';
 import { useWeightUnit } from '@/components/use-units';
 import { formatWeight } from '@/lib/units';
@@ -19,12 +20,15 @@ import { withJosa } from '@/lib/korean';
 import {
   overrideProgramRest,
   programChoices,
+  programSwapChoices,
   repinProgramExercise,
   skipProgramDay,
   startProgramWorkout,
   stopProgram,
+  swapProgramToday,
 } from '@/app/actions/program';
-import { changeSessionExercise } from '@/app/actions/workout';
+import { changeSessionExercise, type SwapChoices, type SwapPick } from '@/app/actions/workout';
+import { SwapSheetView } from '@/app/(session)/workout/run/swap-sheet';
 import type { ProgramCardProps } from '@/lib/program/load';
 import { sessionTitle, type VariantKey } from '@/lib/program/program';
 
@@ -43,6 +47,8 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
   const unit = useWeightUnit();
   const p = props;
   const reason = useModalState<Row>();
+  /* 줄의 '바꾸기' — 오늘만 다른 운동으로(2026-10-21 김민: "목록에서 바로 · 직접 고르게") */
+  const swap = useModalState<Row>();
   const [more, setMore] = useState(false);
   const [ahead, setAhead] = useState(false);
   const [confirm, setConfirm] = useState<'skip' | 'stop' | 'override' | null>(null);
@@ -62,6 +68,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
   const finishedToday = p.todayState === 'finished';
   const resting = p.kind === 'rest' || p.kind === 'painWait';
   const preview = !going || finishedToday;
+  const canSwap = going && !finishedToday;
 
   const programName = p.basics ? '기본기 프로그램' : '근력 · 파워 프로그램';
   const session = sessionTitle(p.dayLabel);
@@ -137,11 +144,11 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
       {p.rows.length > 0 && (
         <ul className={`divide-y divide-line ${preview ? 'opacity-55' : ''}`}>
           {p.rows.map((r) => (
-            <li key={r.id}>
+            <li key={r.id} className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={(e) => reason.show(r, e)}
-                className="flex min-h-12 w-full items-center gap-3 py-2 text-left"
+                className="flex min-h-12 min-w-0 flex-1 items-center gap-3 py-2 text-left"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-subhead text-ink">
@@ -155,10 +162,16 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
                   {r.contrast && (
                     <span className="block text-xs text-muted">{r.contrast}</span>
                   )}
-                  {r.tag && (
-                    <span className="mt-0.5 inline-block rounded-lg bg-ink/6 px-1.5 text-caption text-muted">
-                      {r.tag}
+                  {r.swappedFrom ? (
+                    <span className="mt-0.5 inline-block truncate rounded-lg bg-sky/12 px-1.5 text-caption text-sky-strong">
+                      오늘만 바꿈 · 원래 {r.swappedFrom.title}
                     </span>
+                  ) : (
+                    r.tag && (
+                      <span className="mt-0.5 inline-block rounded-lg bg-ink/6 px-1.5 text-caption text-muted">
+                        {r.tag}
+                      </span>
+                    )
                   )}
                 </span>
                 <span className="shrink-0 text-right">
@@ -177,6 +190,16 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
                   <span className="block text-xs text-muted">{r.amount}</span>
                 </span>
               </button>
+              {canSwap && (
+                <button
+                  type="button"
+                  onClick={(e) => swap.show(r, e)}
+                  aria-label={`${r.title} 바꾸기`}
+                  className="-mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-sky-strong active:bg-ink/6"
+                >
+                  <ArrowLeftRight aria-hidden className="h-5 w-5" />
+                </button>
+              )}
             </li>
           ))}
           {p.dropped.map((d) => (
@@ -273,9 +296,13 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
           <ReasonBody
             key={reason.content.id}
             row={reason.content}
-            canSwap={going && !finishedToday}
+            canSwap={canSwap}
             active={p.todayState === 'active'}
-            todayIds={p.rows.map((r) => r.id)}
+            onSwap={() => {
+              const r = reason.content;
+              reason.close();
+              if (r) swap.show(r);
+            }}
             onSwapped={reason.close}
           />
         )}
@@ -312,6 +339,15 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
         pendingLabel="바꾸는 중…"
       />
       <RepinSheet open={repin} onClose={() => setRepin(false)} pinned={p.pinned} />
+      {swap.content && (
+        <ProgramSwapSheet
+          open={swap.open}
+          row={swap.content}
+          active={p.todayState === 'active'}
+          todayIds={p.rows.map((r) => r.id)}
+          onClose={swap.close}
+        />
+      )}
     </Card>
   );
 }
@@ -337,23 +373,22 @@ function MoreRow({
 }
 
 /**
- * 운동 줄을 누르면 뜨는 시트 — 영상 · 처방 · 무게 까닭 · 설명, 그리고 이 칸의 운동 바꾸기(2026-10-21 김민: "목록에서 영상 · 내용 확인 · 교체").
- * 바꾸기는 고정 운동 바꾸기(RepinSheet)와 같은 서버 동작 — 그 칸은 앞으로 고른 운동으로 하고 무게 기록은 새로 시작한다.
+ * 운동 줄을 누르면 뜨는 시트 — 영상 · 처방 · 무게 까닭 · 설명(2026-10-21 김민: "목록에서 영상 · 내용 확인"). 바꾸기는 줄 오른쪽 단추가
+ * 먼저고(ProgramSwapSheet), 여기서도 같은 창을 연다. 오늘만 바꾼 줄은 '원래대로'.
  */
 function ReasonBody({
   row,
   canSwap,
   active,
-  todayIds,
+  onSwap,
   onSwapped,
 }: {
   row: Row;
   /** 오늘 하는 날이고 아직 안 마쳤나 */
   canSwap: boolean;
-  /** 오늘 판을 이미 열었나 — 그 판의 줄도 같이 바꾼다 */
+  /** 오늘 판을 이미 열었나 — 원래대로 돌릴 때 그 판의 줄도 같이 */
   active: boolean;
-  /** 오늘 목록의 운동 — 같은 운동이 두 줄이 되지 않게 후보에서 뺀다 */
-  todayIds: string[];
+  onSwap: () => void;
   onSwapped: () => void;
 }) {
   const unit = useWeightUnit();
@@ -361,33 +396,25 @@ function ReasonBody({
   /* 열자마자 설명을 받는다 — 운동을 보려고 연 시트다. 줄마다 key 로 새로 붙어 한 번만 돈다 */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(desc.load, []);
-  const [choices, setChoices] = useState<{ id: string; title: string }[] | null>(null);
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
+  const from = row.swappedFrom;
 
-  const openChoices = () =>
+  const restore = () =>
     start(async () => {
+      if (!from) return;
       setError(undefined);
-      const r = await orOffline(programChoices({ variant: row.variant }), { error: OFFLINE_MESSAGE });
-      if ('error' in r) setError(r.error);
-      else setChoices(r.choices.filter((c) => !todayIds.includes(c.id)));
-    });
-
-  const choose = (id: string) =>
-    start(async () => {
-      setError(undefined);
-      const r = await orOffline(repinProgramExercise({ variant: row.variant, exerciseId: id }), {
+      const r = await orOffline(swapProgramToday({ variant: row.variant, exerciseId: null }), {
         error: OFFLINE_MESSAGE,
       });
       if ('error' in r) return setError(r.error);
-      /* 오늘 판을 이미 열었으면 그 판의 줄도 — 고정 운동만 바꾸면 '운동 이어서 하기'가 옛 운동으로 열린다 */
       if (active) {
-        const s = await orOffline(changeSessionExercise({ fromId: row.id, toId: id, mode: 'replace' }), {
+        const s = await orOffline(changeSessionExercise({ fromId: row.id, toId: from.id, mode: 'replace' }), {
           error: OFFLINE_MESSAGE,
         });
         if ('error' in s) return setError(s.error);
       }
-      toast('바꿨어요');
+      toast('원래대로 돌렸어요');
       onSwapped();
     });
 
@@ -405,6 +432,7 @@ function ReasonBody({
       <p className="text-muted">
         {row.slotLabel} · {row.line}
       </p>
+      {from && <p>오늘만 {from.title} 대신이에요.</p>}
       {row.substituteFor && <p>오늘은 {row.substituteFor} 대신이에요.</p>}
       {row.reason ? (
         <p className="break-keep">{row.reason}</p>
@@ -419,38 +447,113 @@ function ReasonBody({
       )}
       {row.warmup && <p className="text-muted">준비: {row.warmup}</p>}
       <DescriptionText desc={desc} />
-      {canSwap && row.swappable && (
-        <div className="space-y-2 border-t border-line pt-3">
-          {choices == null ? (
-            <Button type="button" variant="secondary" className="w-full" disabled={pending} onClick={openChoices}>
-              {pending ? '불러오는 중…' : '다른 운동으로 바꾸기'}
+      {canSwap && (
+        <div className="flex gap-2 border-t border-line pt-3">
+          <Button type="button" variant="secondary" className="flex-1" disabled={pending} onClick={onSwap}>
+            <ArrowLeftRight aria-hidden className="h-4 w-4" />
+            다른 운동으로 바꾸기
+          </Button>
+          {from && (
+            <Button type="button" variant="ghost" disabled={pending} onClick={restore}>
+              {pending ? '돌리는 중…' : '원래대로'}
             </Button>
-          ) : choices.length === 0 ? (
-            <p className="text-muted">가진 장비로 바꿀 수 있는 운동이 없어요.</p>
-          ) : (
-            <>
-              <p className="text-xs text-muted">이 칸은 앞으로 고른 운동으로 해요. 무게 기록은 새로 시작해요.</p>
-              <ul className="divide-y divide-line">
-                {choices.map((c) => (
-                  <li key={c.id}>
-                    <button
-                      type="button"
-                      disabled={pending}
-                      onClick={() => choose(c.id)}
-                      className="flex min-h-12 w-full items-center justify-between gap-3 text-left disabled:opacity-50"
-                    >
-                      <span className="truncate text-subhead text-ink">{c.title}</span>
-                      <span className="shrink-0 text-sm font-semibold text-sky-strong">바꾸기</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
           )}
         </div>
       )}
       {error && <ErrorLine>{error}</ErrorLine>}
     </div>
+  );
+}
+
+/* 찾기용 전체 목록 — 한 번 받으면 이 화면에 있는 동안 들고 있는다(운동 중 바꾸기 창과 같은 까닭) */
+let swapLibrary: SwapPick[] | null = null;
+
+/**
+ * 줄의 '바꾸기' 창 — 운동 중 바꾸기 창과 같은 모양(비슷한 운동 · 즐겨찾기 · 최근 · 찾기). 고르면 오늘만 그 칸이 그 운동이 된다
+ * (program.swapProgramToday — 고정 운동 · 다음 세션은 그대로). 오늘 판을 이미 열었으면 그 판의 줄도 같이 바꾼다.
+ */
+function ProgramSwapSheet({
+  open,
+  row,
+  active,
+  todayIds,
+  onClose,
+}: {
+  open: boolean;
+  row: Row;
+  active: boolean;
+  todayIds: string[];
+  onClose: () => void;
+}) {
+  const [choices, setChoices] = useState<SwapChoices | null>(null);
+  const [library, setLibrary] = useState<SwapPick[] | null>(swapLibrary);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+
+  useEffect(() => {
+    let alive = true;
+    programSwapChoices({ exerciseId: row.id, variant: row.variant, withLibrary: swapLibrary == null })
+      .then((res) => {
+        if (!alive) return;
+        if ('error' in res) return setLoadError(res.error);
+        if (res.library) {
+          swapLibrary = res.library;
+          setLibrary(res.library);
+        }
+        setChoices(res);
+      })
+      .catch(() => {
+        if (alive) setLoadError('신호가 없어 불러오지 못했어요. 신호가 잡히면 다시 열어 주세요.');
+      });
+    return () => {
+      alive = false;
+    };
+  }, [row.id, row.variant]);
+
+  const pick = (id: string) => {
+    setError(null);
+    setBusyId(id);
+    start(async () => {
+      try {
+        /* 원래 운동으로 고르면 바꿈을 지운다 */
+        const r = await swapProgramToday({
+          variant: row.variant,
+          exerciseId: id === row.swappedFrom?.id ? null : id,
+        });
+        if ('error' in r) return setError(r.error);
+        if (active) {
+          const s = await changeSessionExercise({ fromId: row.id, toId: id, mode: 'replace' });
+          if ('error' in s) return setError(s.error);
+        }
+        toast('오늘만 바꿨어요');
+        onClose();
+      } catch (err) {
+        unstable_rethrow(err);
+        setError('신호가 없어 바꾸지 못했어요. 신호가 잡히면 다시 눌러 주세요.');
+      } finally {
+        setBusyId(null);
+      }
+    });
+  };
+
+  return (
+    <SwapSheetView
+      open={open}
+      current={{ id: row.id, title: row.title }}
+      mode="replace"
+      inPlanIds={todayIds}
+      choices={choices}
+      library={library}
+      loadError={loadError}
+      error={error}
+      busyId={busyId}
+      pending={pending}
+      onPick={pick}
+      onClose={onClose}
+      note="오늘 세션에만 바뀌어요. 다음 세션은 원래 운동으로 해요. 늘 바꾸려면 '고정 운동 바꾸기'에서."
+    />
   );
 }
 

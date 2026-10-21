@@ -40,6 +40,8 @@ import {
   programSignalsOf,
   programKeyOf,
   readPinned,
+  readDaySwaps,
+  pinnedJson,
   readSessionProgram,
   shouldAdvance,
   programDef,
@@ -876,6 +878,12 @@ const lib: PinnableExercise[] = [
     '저장된 pinned 읽기 — 모르는 키 버림',
     eq(readPinned({ squat: 'a', foo: 'b', hinge: 3 }), { squat: 'a' })
   );
+  /* 오늘만 바꾼 운동(목록의 '바꾸기') — 고정 운동과 한 Json 에, 날짜가 지나면 안 읽고, 고정 운동을 고쳐도 안 날아간다 */
+  const box = pinnedJson({}, { squat: 'a' }, { dateKey: '2026-10-21', swaps: { ohp: 'x' } });
+  check('오늘만 바꾼 운동 — 그날만 읽힘', eq(readDaySwaps(box, '2026-10-21'), { ohp: 'x' }) && eq(readDaySwaps(box, '2026-10-22'), {}));
+  check('오늘만 바꾼 운동 — 고정 운동 칸은 그대로', eq(readPinned(box), { squat: 'a' }));
+  check('고정 운동을 고쳐도 오늘 바꾼 것은 남음', eq(readDaySwaps(pinnedJson(box, { squat: 'b' }), '2026-10-21'), { ohp: 'x' }));
+  check('바꾼 것을 다 지우면 상자도 없음', !('_today' in pinnedJson(box, { squat: 'a' }, { dateKey: '2026-10-21', swaps: {} })));
 }
 
 {

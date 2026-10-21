@@ -52,6 +52,7 @@ import {
   planSubtitle,
   prescriptionLine,
   programSignalsOf,
+  readDaySwaps,
   readPinned,
   BASICS_ROTATION,
   basicsPool,
@@ -339,6 +340,8 @@ export type ProgramDayRow = {
   warmup: string | null;
   /** 앞 운동과 묶음(바로 이어서)이면 그 한 줄 */
   contrast: string | null;
+  /** 오늘만 바꿨으면 원래 운동(program.swapProgramToday) */
+  swappedFrom: { id: string; title: string } | null;
 };
 
 export type ProgramDayView = {
@@ -686,13 +689,20 @@ export async function buildProgramDay(
     ex: CachedExercise;
     substituteFor: ProgramDayRow['substituteFor'];
     repinned: boolean;
+    swappedFrom?: ProgramDayRow['swappedFrom'];
   }[] = [];
+  /* 오늘만 바꾼 운동(목록의 '바꾸기') — 본인이 고른 것이라 통증 대체는 하지 않는다(빼는 규칙은 그대로) */
+  const daySwaps = readDaySwaps(row.pinned, todayKey);
   for (const rx of items) {
     const { slot, variant } = rx;
     const a = adjust[slot];
-    const { ex: pinnedEx, repinned } = rx.assist
+    const planned = rx.assist
       ? { ex: accessoryOf.get(variant) ?? null, repinned: false }
       : pinnedFor(variant);
+    const swapId = daySwaps[variant];
+    const swapped = swapId ? (core.library.find((e) => e.id === swapId) ?? null) : null;
+    const pinnedEx = swapped ?? planned.ex;
+    const { repinned } = planned;
     if (!pinnedEx) {
       view.dropped.push({
         slot,
@@ -715,6 +725,16 @@ export async function buildProgramDay(
     /* 팔을 아끼는 날은 팔 보조(삼두 · 이두 · 전완)도 뺀다 — 던지는 변형만 빼던 것에 더해(2026-10-14) */
     if (deferred.includes(variant) || (deferred.length > 0 && ARM_ACCESSORIES.includes(variant))) {
       view.dropped.push({ slot, title: pinnedEx.title, reason: ARM_DEFER_REASON });
+      continue;
+    }
+    if (swapped) {
+      chosen.push({
+        rx,
+        ex: swapped,
+        substituteFor: null,
+        repinned,
+        swappedFrom: planned.ex && planned.ex.id !== swapped.id ? { id: planned.ex.id, title: planned.ex.title } : null,
+      });
       continue;
     }
     /* 대체는 그 운동이 통증 부위에 걸릴 때만 — 같은 칸의 다른 운동(스쿼트 · 힌지처럼 한 날 둘)은 그대로 */
@@ -809,6 +829,7 @@ export async function buildProgramDay(
           ? warmupLine(kgs?.[0] ?? suggestion?.kg ?? null)
           : null,
       contrast: null,
+      swappedFrom: c.swappedFrom ?? null,
     });
   }
 
@@ -903,13 +924,10 @@ export type ProgramCardProps = {
     aspectRatio: number | null;
     thumbPath: string | null;
     thumbUrl: string | null;
-    /** 이 줄의 칸 — 줄의 '바꾸기'가 이 칸의 고정 운동을 바꾼다(program.repinProgramExercise) */
+    /** 이 줄의 칸 — 줄의 '바꾸기'가 오늘 이 칸을 다른 운동으로(program.swapProgramToday) */
     variant: VariantKey;
-    /**
-     * 바꾸면 오늘 줄도 그 운동이 되나 — 오늘 운동이 이 칸의 고정 운동 그대로일 때만. 세션마다 돌리는 칸 · 기본기 · 보조 메뉴 · 그날 대체는
-     * 고정 운동을 바꿔도 오늘 줄이 안 바뀌어 false(2026-10-21 김민: 목록에서 교체)
-     */
-    swappable: boolean;
+    /** 오늘만 바꾼 줄이면 원래 운동 — 줄에 '바꿈' 표시 · 시트에 '원래대로' */
+    swappedFrom: { id: string; title: string } | null;
   }[];
   dropped: { title: string; reason: string }[];
   pinned: { variant: VariantKey; label: string; title: string | null }[];
@@ -995,12 +1013,7 @@ export function programCardProps(
       thumbPath: r.exercise.referenceVideoId ? null : (r.exercise.thumbPath ?? null),
       thumbUrl: r.exercise.referenceVideoId ? referenceThumbUrl(r.exercise.referenceVideoId) : null,
       variant: r.variant,
-      swappable:
-        audience !== 'basics' &&
-        !r.rx.assist &&
-        !r.substituteFor &&
-        !ROTATING_VARIANTS.includes(r.variant) &&
-        pinned[r.variant] === r.exercise.id,
+      swappedFrom: r.swappedFrom,
     })),
     dropped: view.dropped.map((d) => ({ title: d.title, reason: d.reason })),
     pinned: usedVariants(plan.def).map((v) => ({
