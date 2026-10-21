@@ -25,7 +25,7 @@ metadata:
 3. 앱이 /master 나 /dugout 을 열면 301 을 탄다. 앱 코드의 주소를 /manage 와 뿌리 주소로 옮긴다.
 4. 받은 뒤 `npm ci` 와 `npx prisma generate` (qrcode 패키지 추가).
 5. 마이그레이션 셋 세 개(20261021120000_sinker_dugout_account · 20261021150000_notifications · 20261021170000_login_ticket)는 공유 DB 에 이미 적용됨. 다시 돌릴 필요 없음.
-6. 앱 화면 쪽 `/community` 는 그대로 두었다. lib/nav.ts · tab-pager 도 건드리지 않았다.
+6. (2026-10-21 뒤) 싱커의 커뮤니티 판을 걷었다 — 탭 · 메뉴의 '덕아웃'은 `/?dugout=1`(lib/nav.ts DUGOUT_HREF), 판 넘기기는 홈 · 투구 · 타격 셋. 커뮤니티 글은 덕아웃 `app/(dugout)/community`(주소 /community 그대로). 새 앱의 DEFAULT_TABS · `/community` 갈래 · 앱 커뮤니티 화면을 맞출 것(HANDOFF 맨 위 글).
 
 **김민 몫 (B)**
 - B-1 앱 표시 이름 · 아이콘 · 시작 화면 · 로그인 문구를 싱커로, 굽기. 번들 ID 그대로.
