@@ -3964,3 +3964,11 @@ body:has([data-dugout-hero]:not([data-stage='home'])) [aria-label='덕아웃 탭
   transform: translateY(12px);
   pointer-events: none;
 }
+
+/* 덕아웃 바로가기(components/dugout/app-launcher.tsx) — 아이콘이 차례로 살짝 떠오르며 들어온다 */
+@keyframes launcher-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+  }
+}

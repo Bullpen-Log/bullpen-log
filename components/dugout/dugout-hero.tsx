@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { Bell, LayoutGrid, MessagesSquare, Search } from '@/components/icon';
+import { Bell, LayoutGrid, MessagesSquare } from '@/components/icon';
+import { AppLauncher } from '@/components/dugout/app-launcher';
 import { Wordmark } from '@/components/logo';
 
 /**
@@ -23,10 +24,15 @@ export function DugoutHero({
   user,
   unread = 0,
   alerts = 0,
+  sinker = false,
+  native = false,
 }: {
   user: { nickname: string } | null;
   unread?: number;
   alerts?: number;
+  /** 싱커를 쓰는 사람 — 바로가기 마지막 칸이 '싱커' */
+  sinker?: boolean;
+  native?: boolean;
 }) {
   /* 서버 그림부터 splash(로고 크게) — 첫 칠에 위 막대가 비쳤다 사라지는 일이 없다. 이미 본 세션이면 수화 뒤 바로 hero 로 줄어든다 */
   const [stage, setStage] = useState<Stage>('splash');
@@ -263,42 +269,12 @@ export function DugoutHero({
         >
           <Wordmark brand="dugout" className="text-6xl text-ink md:text-8xl" />
         </div>
-        <form
-          method="get"
-          action="/market"
-          className={`mt-8 w-full max-w-xl transition-all duration-500 ${splash || home ? 'pointer-events-none translate-y-4 opacity-0' : 'translate-y-0 opacity-100'}`}
+        {/* 바로가기(2026-10-21 — 검색 대신 앱 아이콘처럼 바로 열기) */}
+        <div
+          className={`mt-10 w-full max-w-3xl transition-all duration-500 ${splash || home ? 'pointer-events-none translate-y-4 opacity-0' : 'translate-y-0 opacity-100'}`}
         >
-          <label className="flex min-h-14 items-center gap-3 rounded-full border border-line bg-surface px-5 shadow-sm transition-shadow focus-within:border-sky-soft focus-within:shadow-md">
-            <Search className="h-5 w-5 shrink-0 text-muted" />
-            <input
-              name="q"
-              type="search"
-              autoComplete="off"
-              placeholder="글러브, 배트, 레슨장, 연습장…"
-              className="min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-muted/60"
-            />
-            <Link
-              href="/gear"
-              className="hidden shrink-0 rounded-full bg-sky/12 px-3 py-1.5 text-xs font-semibold text-sky-strong sm:inline-flex"
-            >
-              장비 고르기
-            </Link>
-          </label>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <button
-              type="submit"
-              className="min-h-11 rounded-full border border-line bg-surface px-5 text-sm font-semibold text-ink hover:border-sky-soft"
-            >
-              덕아웃 검색
-            </button>
-            <Link
-              href="/lessons"
-              className="inline-flex min-h-11 items-center rounded-full border border-line bg-surface px-5 text-sm font-semibold text-ink hover:border-sky-soft"
-            >
-              레슨 찾기
-            </Link>
-          </div>
-        </form>
+          {!splash && <AppLauncher loggedIn={!!user} sinker={sinker} native={native} />}
+        </div>
       </div>
 
       {/* 아래 안내 — 내리면 홈 */}

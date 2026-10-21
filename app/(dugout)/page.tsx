@@ -15,6 +15,7 @@ import { getCurrentUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
 import { SinkerStrip } from '@/components/dugout/sinker-strip';
 import { DugoutHero } from '@/components/dugout/dugout-hero';
+import { AppLauncher } from '@/components/dugout/app-launcher';
 import { countUnread } from '@/lib/market/load';
 import { countUnreadNotifications } from '@/lib/notify';
 import { LessonFeedCard } from '@/components/dugout/lesson-feed-card';
@@ -40,11 +41,8 @@ export default async function DugoutHome({
   const user = await getCurrentUser();
   /* 아이폰 앱(싱커) 안에서 /: 예전처럼 홈 · 로그인 — 앱의 첫 화면은 덕아웃이 아니라 싱커다(2026-10-21 2단계, 옛 app/page.tsx) */
   /* 앱(싱커 웹뷰)의 / 는 예전처럼 싱커로 — 단 덕아웃 탭(?dugout=1)으로 온 것은 덕아웃(2026-10-21) */
-  if (
-    isNativeUserAgent((await headers()).get('user-agent')) &&
-    !(await searchParams).dugout
-  )
-    redirect(user ? '/today' : '/login');
+  const native = isNativeUserAgent((await headers()).get('user-agent'));
+  if (native && !(await searchParams).dugout) redirect(user ? '/today' : '/login');
   const viewer = user ? { id: user.id, role: user.role } : null;
   const [listings, posts, unread, alerts] = await Promise.all([
     loadLatestListings(8, viewer),
@@ -61,6 +59,8 @@ export default async function DugoutHome({
         user={user ? { nickname: user.nickname } : null}
         unread={unread}
         alerts={alerts}
+        sinker={!!user && usesSinker(user)}
+        native={native}
       />
       {/* 로그인한 싱커 사용자 — 오늘 체크인 · 이번 주 투구 · 마지막 등판 한 줄(2단계 2-5) */}
       {user && usesSinker(user) && <SinkerStrip userId={user.id} />}
@@ -72,7 +72,7 @@ export default async function DugoutHome({
           title="최근 레슨"
         />
       )}
-      {/* 첫 줄 — 무엇을 하는 곳인지 한 문장, 검색 */}
+      {/* 첫 줄 — 무엇을 하는 곳인지 한 문장, 바로가기 */}
       <section className="space-y-5">
         <div className="space-y-2">
           <h1 className="text-[28px] leading-snug font-black break-keep text-ink md:text-4xl">
@@ -84,23 +84,13 @@ export default async function DugoutHome({
             기록은 싱커에서.
           </p>
         </div>
-        <form method="get" action="/market" className="flex gap-2">
-          <label className="relative flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-muted" />
-            <input
-              name="q"
-              type="search"
-              placeholder="글러브, 배트, 스파이크…"
-              className="min-h-12 w-full rounded-2xl border border-line bg-surface pr-4 pl-11 text-sm text-ink placeholder:text-muted/60 focus:border-sky focus:outline-none"
-            />
-          </label>
-          <button
-            type="submit"
-            className="min-h-12 rounded-2xl bg-sky px-5 text-sm font-semibold text-white hover:bg-sky-strong"
-          >
-            찾기
-          </button>
-        </form>
+        {/* 바로가기(2026-10-21 — 검색 대신) */}
+        <AppLauncher
+          loggedIn={!!user}
+          sinker={!!user && usesSinker(user)}
+          native={native}
+          size="sm"
+        />
         <div className="flex flex-wrap gap-2">
           {CATEGORIES.slice(0, 6).map((c) => (
             <Link
