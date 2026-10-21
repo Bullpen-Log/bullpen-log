@@ -6,7 +6,8 @@ import { TAB_SWIPE } from '@/lib/transition-types';
 /* 탭 쓸기(TAB_SWIPE)로 오갈 때는 화면 전환을 걸지 않는다(lib/transition-types.ts) */
 const SWIPE_OFF = { [TAB_SWIPE]: 'none', default: 'auto' };
 import { useRouter } from 'next/navigation';
-import { Radar, Rotate3d, Target } from '@/components/icon';
+import { Rotate3d } from '@/components/icon';
+import { RoundRadar, RoundZone } from '@/components/round-icon';
 import { PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { AnalysisLink } from '@/components/analysis-link';
@@ -83,13 +84,13 @@ function PitchTools({ canMeasure, canAbs }: { canMeasure: boolean; canAbs: boole
           aria-label="구속 측정"
           className={TOOL_CHIP}
         >
-          <Radar aria-hidden className="h-4 w-4 text-sky-strong" />
+          <RoundRadar aria-hidden className="h-4 w-4 text-sky-strong" />
           <span aria-hidden className="hidden pad:inline desk:inline">구속 측정</span>
         </button>
       )}
       {canMeasure && canAbs && (
         <button type="button" onClick={() => router.push('/abs')} aria-label="ABS 판정" className={TOOL_CHIP}>
-          <Target aria-hidden className="h-4 w-4 text-sky-strong" />
+          <RoundZone aria-hidden className="h-4 w-4 text-sky-strong" />
           <span aria-hidden className="hidden pad:inline desk:inline">ABS 판정</span>
         </button>
       )}

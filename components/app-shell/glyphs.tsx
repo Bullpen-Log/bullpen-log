@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { Lock } from '@/components/icon';
 import { NAV_ICONS } from '@/components/nav-icons';
+import { isRoundIcon, RoundMenu } from '@/components/round-icon';
 import type { NavItem } from '@/lib/nav';
 import { isPlainClick } from '@/components/use-sliding-thumb';
 
@@ -43,8 +44,11 @@ export function NavGlyph({
   dim = locked,
   className,
   style,
+  filled = false,
 }: {
   Icon: (typeof NAV_ICONS)[keyof typeof NAV_ICONS];
+  /** 채움형으로 — 둥근 아이콘만(지금 고른 하단 탭, 2026-10-21) */
+  filled?: boolean;
   locked?: boolean;
   /** 흐리게 — 기본은 잠겼으면. 판의 '지금 여기'(파란 줄) · 휴대폰 탭(탭이 통째로 흐리다)은 끈다 */
   dim?: boolean;
@@ -55,7 +59,7 @@ export function NavGlyph({
 }) {
   return (
     <span className={`relative flex shrink-0 ${dim ? 'opacity-55' : ''}`} style={style}>
-      <Icon aria-hidden className={className} />
+      <Icon aria-hidden className={className} {...(filled && isRoundIcon(Icon) ? ({ filled: true } as object) : {})} />
       {locked && <Lock aria-hidden className="absolute -bottom-1 -right-1 h-3 w-3" />}
     </span>
   );
@@ -168,32 +172,12 @@ export function Squares({
   /** lg — PC 막대의 메뉴 단추(1.4rem, 옆 아이콘보다 조금 크게). md — 휴대폰 하단 탭 */
   size?: 'md' | 'lg';
 }) {
-  /* 왼위 → 오른위 → 왼아래 → 오른아래. 글 읽는 차례와 같게 돈다. */
-  const corners = [
-    'left-0 top-0',
-    'right-0 top-0',
-    'left-0 bottom-0',
-    'right-0 bottom-0',
-  ];
-
+  /* 2026-10-21: 네모 넷 → 둥근 메뉴 아이콘(lib/round-icons.ts). 돌던 연출은 없어 누르면 곧바로 끝을 알린다 */
+  useEffect(() => {
+    if (spinning) onDone();
+  }, [spinning, onDone]);
   return (
-    <span
-      aria-hidden
-      className={`relative block ${size === 'lg' ? 'h-[1.4rem] w-[1.4rem]' : 'h-[1.15rem] w-[1.15rem]'}`}
-    >
-      {corners.map((at, i) => (
-        <span
-          key={at}
-          className={`absolute rounded-[2px] border-current ${
-            size === 'lg'
-              ? 'h-[0.56rem] w-[0.56rem] border-[2.1px]'
-              : 'h-[0.45rem] w-[0.45rem] border-[1.9px]'
-          } ${at} ${spinning ? 'motion-safe:animate-square-spin' : ''}`}
-          style={{ '--sq': i } as CSSProperties}
-          onAnimationEnd={i === 3 ? onDone : undefined}
-        />
-      ))}
-    </span>
+    <RoundMenu aria-hidden className={size === 'lg' ? 'h-[1.4rem] w-[1.4rem]' : 'h-[1.15rem] w-[1.15rem]'} />
   );
 }
 

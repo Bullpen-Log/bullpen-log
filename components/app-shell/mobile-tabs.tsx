@@ -54,7 +54,7 @@ function TabFace({
         selected ? 'font-semibold' : ''
       }`}
     >
-      <NavGlyph Icon={Icon} locked={locked} dim={false} className="h-[26px] w-[26px]" />
+      <NavGlyph Icon={Icon} locked={locked} dim={false} filled={selected} className="h-[26px] w-[26px]" />
       {label}
     </span>
   );

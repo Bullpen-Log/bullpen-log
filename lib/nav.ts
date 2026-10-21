@@ -18,6 +18,8 @@ import {
 /** 쓸 수 있는 아이콘 이름. 그림은 components/nav-icons.tsx 에 있다. */
 export type NavIconName =
   | 'home'
+  /* ABS 판정 — 스트라이크존(2026-10-21 둥근 아이콘) */
+  | 'zone'
   /* 투구 기록 — 야구공(components/baseball-icon.tsx) */
   | 'baseball'
   /* 타격 — 야구 방망이(components/baseball-icon.tsx, 2026-10-20) */
@@ -220,7 +222,7 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         href: '/abs',
         label: 'ABS 판정',
-        icon: 'target',
+        icon: 'zone',
         appOrAdmin: true,
         adminOnly: true,
         perm: 'abs',

@@ -1,28 +1,30 @@
 import {
-  Baseball,
-  BaseballBat,
   CalendarDays,
   ChevronLeft,
   HeartPulse,
   BookOpen,
   Clapperboard,
-  Dumbbell,
   Film,
   Gauge,
-  House,
-  Menu,
-  PersonStanding,
-  Radar,
-  Settings,
   Shield,
-  Target,
-  Utensils,
   type LucideIcon,
-  LifeBuoy,
-  MessagesSquare,
   Users,
 } from '@/components/icon';
 import type { NavIconName } from '@/lib/nav';
+import {
+  RoundBaseball,
+  RoundBat,
+  RoundCommunity,
+  RoundCutlery,
+  RoundHome,
+  RoundMenu,
+  RoundPitcher,
+  RoundRadar,
+  RoundSettings,
+  RoundSupport,
+  RoundTraining,
+  RoundZone,
+} from '@/components/round-icon';
 
 /**
  * 메뉴 아이콘 이름 → 그림.
@@ -57,28 +59,38 @@ export const NAV_TINT: Record<NavIconName, [string, string]> = {
   support: ['#5fd3c8', '#0f8f86'],
   users: ['#7fb3ff', '#2563eb'],
   menu: ['#6b7180', '#2c313b'],
+  zone: ['#ffd25a', '#eb9a06'],
 };
 
-export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
-  home: House,
-  baseball: Baseball,
-  bat: BaseballBat,
+/** 메뉴 아이콘 — lucide 와 둥근 야구 아이콘(components/round-icon.tsx, 같은 타입). 둥근 아이콘은 filled 도 알아듣는다(지금 고른 탭) */
+export type NavIcon = LucideIcon;
+
+/*
+ * 2026-10-21 금윤호: 둥근 야구 아이콘 13종으로 바꿈 — 홈 · 투구(공) · 타격(배트) · 덕아웃(말풍선) · 더보기(메뉴) · 설정 · 트레이닝(덤벨) ·
+ * 영양(포크 · 나이프) · 구속 측정(스피드건) · ABS(스트라이크존) · 메커니즘 · 투구 드릴 · 3D 동작 분석(투구 모션) · 고객센터 · 소통 관리(헤드셋).
+ * 짝이 없는 것(뒤로 · 기록 달력 · 암케어 · 운동 영상 · 관리자 · 촬영 · 구속 관리자 · 팀 관리)은 lucide 그대로.
+ */
+export const NAV_ICONS: Record<NavIconName, NavIcon> = {
+  home: RoundHome,
+  baseball: RoundBaseball,
+  bat: RoundBat,
   back: ChevronLeft,
   heart: HeartPulse,
   calendar: CalendarDays,
-  dumbbell: Dumbbell,
+  dumbbell: RoundTraining,
   film: Film,
-  utensils: Utensils,
-  target: Target,
+  utensils: RoundCutlery,
+  target: RoundPitcher,
+  zone: RoundZone,
   book: BookOpen,
-  settings: Settings,
+  settings: RoundSettings,
   shield: Shield,
   gauge: Gauge,
   clapper: Clapperboard,
-  radar: Radar,
-  body: PersonStanding,
-  community: MessagesSquare,
-  support: LifeBuoy,
+  radar: RoundRadar,
+  body: RoundPitcher,
+  community: RoundCommunity,
+  support: RoundSupport,
   users: Users,
-  menu: Menu,
+  menu: RoundMenu,
 };

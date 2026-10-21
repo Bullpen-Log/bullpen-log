@@ -169,7 +169,7 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
           */}
           <View style={styles.tools}>
             <ToolTile icon="radar" label="구속 측정" onPress={() => router.push('/velocity?mode=speed' as Href)} />
-            {canAbs ? <ToolTile icon="target" label="ABS 판정" onPress={() => router.push('/velocity?mode=abs' as Href)} /> : null}
+            {canAbs ? <ToolTile icon="zone" label="ABS 판정" onPress={() => router.push('/velocity?mode=abs' as Href)} /> : null}
             <ToolTile icon="rotate3d" label="3D 동작 분석" onPress={() => router.push('/lab' as Href)} />
           </View>
           {/* 보는 것(운동 영상 · 투구 드릴)은 찍는 문과 무게를 달리해 목록 줄로(2026-10-21 더보기에서 옮겨 온 둘) */}
