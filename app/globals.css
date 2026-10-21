@@ -3938,3 +3938,29 @@ html[data-morph] [data-morph-chrome] > :nth-child(n + 8) {
     animation: none !important;
   }
 }
+
+/*
+ * 덕아웃 첫 화면(components/dugout/dugout-hero.tsx) — splash · hero 동안 위 막대와 휴대폰 아래 탭은 숨고, 접힐 때(home) 떠오른다.
+ * 로고가 작아지며 위로 가는 것과 같은 시간(0.6초)으로 맞춰 '로고가 위 막대로 들어가는' 느낌.
+ */
+[data-morph-bar],
+[aria-label='덕아웃 탭'] {
+  transition:
+    opacity 480ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 480ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 360ms ease,
+    border-color 360ms ease;
+}
+/* 서버가 그린 첫 칠부터 숨긴다(:has — splash · hero 단계의 첫 화면 판이 있으면). html[data-hero] 는 :has 가 없는 옛 브라우저용 */
+html[data-hero] [data-morph-bar],
+body:has([data-dugout-hero]:not([data-stage='home'])) [data-morph-bar] {
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+}
+html[data-hero] [aria-label='덕아웃 탭'],
+body:has([data-dugout-hero]:not([data-stage='home'])) [aria-label='덕아웃 탭'] {
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+}

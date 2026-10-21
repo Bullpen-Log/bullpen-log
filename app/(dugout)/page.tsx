@@ -14,6 +14,9 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
 import { SinkerStrip } from '@/components/dugout/sinker-strip';
+import { DugoutHero } from '@/components/dugout/dugout-hero';
+import { countUnread } from '@/lib/market/load';
+import { countUnreadNotifications } from '@/lib/notify';
 import { LessonFeedCard } from '@/components/dugout/lesson-feed-card';
 import { loadLessonFeed } from '@/lib/org/lesson-feed';
 import { usesSinker } from '@/lib/brand';
@@ -43,14 +46,22 @@ export default async function DugoutHome({
   )
     redirect(user ? '/today' : '/login');
   const viewer = user ? { id: user.id, role: user.role } : null;
-  const [listings, posts] = await Promise.all([
+  const [listings, posts, unread, alerts] = await Promise.all([
     loadLatestListings(8, viewer),
     loadPublicPosts(8),
+    user ? countUnread(user.id) : 0,
+    user ? countUnreadNotifications(user.id) : 0,
   ]);
   const now = new Date();
 
   return (
     <div className="space-y-10">
+      {/* 첫 화면(2026-10-21) — 로고 크게 → 구글식 검색 홈 → 조금 내리면 접히며 아래 홈. 위 막대는 html[data-hero] 동안 숨는다 */}
+      <DugoutHero
+        user={user ? { nickname: user.nickname } : null}
+        unread={unread}
+        alerts={alerts}
+      />
       {/* 로그인한 싱커 사용자 — 오늘 체크인 · 이번 주 투구 · 마지막 등판 한 줄(2단계 2-5) */}
       {user && usesSinker(user) && <SinkerStrip userId={user.id} />}
       {/* 코치가 쓴 레슨 노트 — 선수 쪽 레슨 줄(3단계 3-4) */}
