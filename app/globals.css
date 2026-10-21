@@ -3893,14 +3893,14 @@ html[data-shell='expo'] {
     transform: translateY(6px) scale(0.92);
   }
 }
-html[data-morph$='-out'] [data-morph-main] {
+html[data-morph='to-sinker-out'] [data-morph-main] {
   animation: morph-main-out 320ms cubic-bezier(0.4, 0, 1, 1) forwards;
   pointer-events: none;
 }
 html[data-morph='in'] [data-morph-main] {
   animation: morph-main-in 440ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-html[data-morph$='-out'] [data-morph-chrome] > * {
+html[data-morph='to-sinker-out'] [data-morph-chrome] > * {
   animation: morph-chrome-out 240ms ease-in forwards;
 }
 html[data-morph='in'] [data-morph-chrome] > * {
@@ -3970,5 +3970,52 @@ body:has([data-dugout-hero]:not([data-stage='home'])) [aria-label='덕아웃 탭
   from {
     opacity: 0;
     transform: translateY(10px) scale(0.92);
+  }
+}
+
+/*
+ * 싱커 → 덕아웃(components/shell-morph.tsx markSides · MorphOverlay) — 칸들은 화면 왼쪽 것은 왼쪽으로, 오른쪽 것은 오른쪽으로 날아가며 사라지고(--mx),
+ * 본문은 옅어지며 살짝 작아진다. 그 사이 바탕(data-morph-veil)이 덮이고 가운데 덕아웃 로고가 커진다. 덕아웃 쪽은 본문을 다시 올리지 않는다(in-dugout).
+ */
+@keyframes morph-side-out {
+  to {
+    opacity: 0;
+    transform: translateX(var(--mx, 0px));
+  }
+}
+@keyframes morph-fade-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes morph-veil-in {
+  from {
+    opacity: 0;
+  }
+}
+html[data-morph='to-dugout-out'] :is([data-morph-chrome] > *, [data-morph-side]) {
+  animation: morph-side-out 340ms cubic-bezier(0.5, 0, 0.75, 0) forwards;
+}
+html[data-morph='to-dugout-out'] [data-morph-main] {
+  animation: morph-fade-out 220ms ease-in forwards;
+  pointer-events: none;
+}
+/* 칸이 빠진 뒤 빈 유리 알약 · 막대가 남지 않게 — 그릇도 같이 옅어진다 */
+@keyframes morph-shell-out {
+  to {
+    opacity: 0;
+  }
+}
+html[data-morph='to-dugout-out'] [data-morph-chrome] {
+  animation: morph-shell-out 300ms ease-in 60ms forwards;
+}
+[data-morph-veil] {
+  animation: morph-veil-in 200ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-morph] :is([data-morph-chrome] > *, [data-morph-side], [data-morph-main]),
+  [data-morph-veil] {
+    animation: none !important;
   }
 }

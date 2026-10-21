@@ -298,6 +298,7 @@ export function MobileTabs({
             aria-label={`${back.label}으로`}
             title={back.label}
             data-tab-bar
+            data-morph-side
             className="pointer-events-auto grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full text-(--tab-fg) transition-transform duration-100 motion-safe:active:scale-[0.94] pad:hidden"
           >
             <ChevronLeft className="h-6 w-6" />

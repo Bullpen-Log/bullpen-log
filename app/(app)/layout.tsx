@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
 import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
-import { MorphIn } from '@/components/shell-morph';
+import { MorphIn, MorphOverlay } from '@/components/shell-morph';
 import { usesSinker } from '@/lib/brand';
 import { countUnread } from '@/lib/market/load';
 import { countUnreadNotifications } from '@/lib/notify';
@@ -147,6 +147,7 @@ export default async function AppLayout({
       */}
       {!isNative && <AppSplash />}
       {!isNative && <MorphIn />}
+      {!isNative && <MorphOverlay />}
       {!isNative && (
         <DugoutTopBar
           user={{ nickname: user.nickname }}

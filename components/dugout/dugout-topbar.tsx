@@ -85,7 +85,7 @@ export function DugoutTopBar({
       className={`${sticky ? 'sticky top-0' : ''} z-20 border-b border-line bg-surface/90 backdrop-blur ${className}`}
     >
       <div className="mx-auto flex min-h-14 w-full max-w-5xl items-center gap-3 px-4 md:px-6">
-        <Link href={homeHref} className="flex items-baseline gap-2">
+        <Link href={homeHref} data-morph-side className="flex items-baseline gap-2">
           <Wordmark brand={brand} className="text-2xl text-ink" />
         </Link>
         {nav.length > 0 && (

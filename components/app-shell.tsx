@@ -1124,6 +1124,7 @@ export function AppNav({
          */
         style={{ viewTransitionName: choreo ? 'none' : 'shell-logo' }}
         /* ui-chrome — PC 의 작아진 크기 기준(globals.css)에서 빠져 원래 크기를 지킨다(사용자 요청) */
+        data-morph-side
         className="ui-chrome fixed left-6 top-6 z-40 hidden items-center gap-2 desk:flex"
       >
         <Wordmark className="text-2xl text-ink" />
@@ -1165,6 +1166,7 @@ export function AppNav({
             dir="to-dugout"
             aria-label={`${back.label}으로`}
             title={back.label}
+            data-morph-side
             className="relative z-10 mr-2 grid h-11 w-11 place-items-center rounded-full border border-line/70 bg-surface/75 text-ink shadow-sm backdrop-blur-md transition-transform hover:scale-105 motion-safe:active:scale-95"
           >
             <ChevronLeft className="h-5 w-5" />
