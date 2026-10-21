@@ -12,6 +12,7 @@ import {
   seesMarkerSamples,
   labVideoUrls,
   loadLabGuard,
+  loadFocusProgress,
   loadLabSample,
   loadLabJob,
   loadLabMetaRaw,
@@ -60,6 +61,7 @@ import { drillPicksFor, groupDrills, type DrillPick } from '@/lib/mechanics/dril
 import {
   buildReport,
   isYouth,
+  type FocusProgress,
   jobReport,
   jobReportSummary,
   reportDrillsOf,
@@ -429,6 +431,10 @@ export type AppLabDetail = {
     stale: boolean;
     /** 투구 진단 리포트(무료 1구, lib/pitch-3d/v2/report.ts) — 2026-10-21 결과 화면이 리포트로. 옛 앱은 mech 를 그대로 읽는다 */
     report: PitchReport;
+    /** 내 샘플 — 처방을 시작할 수 있다 */
+    mine: boolean;
+    /** 이 리포트의 처방이 메커니즘에서 진행 중이면 n / 9(메커니즘 세션 P2) */
+    focus: FocusProgress;
   } | null;
   /** 결과가 없을 때 3D 칸의 글 */
   waiting: ReturnType<typeof labWaitingText> | null;
@@ -492,6 +498,12 @@ export async function loadAppLabDetail(input: {
       engineLine: `엔진 v2 ${result.version} · 뼈 흔들림 ${result.fit.boneCvPct}% · 다시 비춤 ${result.fit.reprojPct}%`,
       stale: engineBuild != null && result.engine.build !== engineBuild,
       report,
+      mine: sample.ownerId === user.id,
+      focus: await (async () => {
+        if (sample.ownerId !== user.id) return null;
+        const f = await loadFocusProgress(user.id).catch(() => null);
+        return f?.reportId === sample.id ? { done: f.done, total: f.total } : null;
+      })(),
     };
   }
   return {

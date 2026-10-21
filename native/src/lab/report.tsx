@@ -4,13 +4,16 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   REPORT_STATUS_TEXT,
+  rxAction,
   type ElementRx,
+  type FocusProgress,
   type PitchReport,
   type ReportGauge,
   type ReportItem,
   type ReportStatus,
 } from '@/lib/pitch-3d/v2/report';
 import { TYPE, type Palette } from '~/lib/ui';
+import { type Href, router } from 'expo-router';
 import { leaveTo } from '~/shell/web-nav';
 
 /**
@@ -227,9 +230,30 @@ function RxBlock({ c, rx }: { c: Palette; rx: ElementRx }) {
   );
 }
 
-export function RxCard({ c, report }: { c: Palette; report: PitchReport }) {
+/** 처방 카드 단추가 갈 곳(앱) — 무엇을 할지는 lib/pitch-3d/v2/report.ts rxAction(웹과 같은 판단). 메커니즘은 앱 화면(training-mechanics) */
+function goRx(kind: ReturnType<typeof rxAction>['kind'], reportId: string, elementKey: string) {
+  if (kind === 'start') return router.push(`/training-mechanics?focus=${reportId}` as Href);
+  if (kind === 'progress') return router.push('/training-mechanics' as Href);
+  if (kind === 'retake') return router.push('/lab/new' as Href);
+  leaveTo(`/training?view=mechanics&tab=elements&el=${elementKey}`);
+}
+
+export function RxCard({
+  c,
+  report,
+  reportId,
+  mine,
+  focus,
+}: {
+  c: Palette;
+  report: PitchReport;
+  reportId: string;
+  mine: boolean;
+  focus: FocusProgress;
+}) {
   if (report.rx.length === 0) return null;
   const main = report.rx[0];
+  const cta = rxAction(mine, focus);
   const weeks: [string, string][] =
     main.level === 'improve'
       ? [
@@ -261,13 +285,16 @@ export function RxCard({ c, report }: { c: Palette; report: PitchReport }) {
         ) : null}
         <View style={{ gap: 8 }}>
           <Pressable
-            onPress={() => leaveTo(`/training?view=mechanics&tab=elements&el=${main.key}`)}
+            onPress={() => {
+              void Haptics.selectionAsync();
+              goRx(cta.kind, reportId, main.key);
+            }}
             accessibilityRole="button"
             style={({ pressed }) => [s.cta, { backgroundColor: c.sky, opacity: pressed ? 0.85 : 1 }]}
           >
-            <Text style={s.ctaText}>메커니즘에서 드릴 하기</Text>
+            <Text style={s.ctaText}>{cta.label}</Text>
           </Pressable>
-          <Text style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>드릴 영상과 하는 법은 메커니즘의 요소별 드릴에서 봐요.</Text>
+          <Text style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>{cta.note}</Text>
         </View>
       </View>
     </View>

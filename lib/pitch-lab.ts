@@ -15,6 +15,8 @@ import {
   readPitch3dV2Job,
   type Pitch3dV2Job,
 } from '@/lib/pitch-3d/v2/contract';
+import { jobReportSummary, type ReportSummary } from '@/lib/pitch-3d/v2/report';
+import { FOCUS_SESSIONS, readProgramState } from '@/lib/mechanics/program';
 
 /**
  * 투구 분석 실험실(베타)의 샘플 저장 — 비공개 영상 버킷의 `{userId}/pitch-lab/{샘플 번호}/` 에 둔다.
@@ -370,6 +372,50 @@ export async function listLabSamples(viewer: LabViewer, sport: LabSport = 'pitch
  * 정보(meta.json)를 아직 못 쓴 새 샘플의 영상만 지운다 — 올린 뒤 저장 전 검사에 막힌 짝(app/actions/pitch-lab.ts saveLabSample).
  * 정보가 있는 샘플은 건드리지 않는다. 목록을 못 읽으면 던진다(아무것도 안 지움).
  */
+/**
+ * 내 가장 최근 진단 리포트의 요약(투구, 마커 샘플 빼고) — 메커니즘 요소 탭이 처방 없이 리포트만 받은 사람에게도 점을 찍게(설계 6-4절).
+ * 샘플마다 job.json(요약이 든 곳) · meta.json 두 작은 파일만 읽는다(영상 주소 · 결과 파일은 안 읽음). 요약이 아직 없는 옛 결과는 건너뛴다.
+ * ponytail: 샘플 수만큼 읽는다 — 한 사람 샘플이 수십 개를 넘으면 마지막 리포트 번호를 따로 적어 둔다.
+ */
+export async function loadLatestReport(
+  userId: string
+): Promise<{ reportId: string; finishedAt: string | null; summary: ReportSummary } | null> {
+  const { data: dirs, error } = await videoBucket().list(`${userId}/${labDir('pitch')}`, { limit: 200 });
+  if (error) throw new Error(error.message);
+  const ids = (dirs ?? []).filter((d) => d.id == null).map((d) => d.name);
+  const rows = await Promise.all(
+    ids.map(async (id) => {
+      const [jobRaw, metaRaw] = await Promise.all([
+        getJson(`${folder(userId, id)}/${JOB_FILE}`),
+        getJson(`${folder(userId, id)}/meta.json`),
+      ]);
+      const job = readPitch3dV2Job(jobRaw);
+      const summary = jobReportSummary(job);
+      if (!job || !summary) return null;
+      let marker = false;
+      try {
+        marker = metaRaw != null && readLabMeta(metaRaw, '').kind === 'marker';
+      } catch {
+        /* 정보가 깨졌으면 투구로 */
+      }
+      return marker ? null : { reportId: id, finishedAt: job.finishedAt ?? job.requestedAt, summary };
+    })
+  );
+  const found = rows.filter((r): r is NonNullable<typeof r> => r != null);
+  found.sort((a, b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''));
+  return found[0] ?? null;
+}
+
+/**
+ * 메커니즘에서 진행 중인 리포트 처방(메커니즘 세션 P2 — MechanicsProgram.progress.focus) — 리포트 화면의 [처방 시작]이 '처방 진행 중 n / 9'로.
+ * 없으면 null. 마친 처방(done = 9)도 돌려준다(화면이 '마쳤어요'로).
+ */
+export async function loadFocusProgress(userId: string): Promise<{ reportId: string; done: number; total: number } | null> {
+  const row = await prisma.mechanicsProgram.findUnique({ where: { userId }, select: { progress: true } });
+  const focus = row ? readProgramState(row.progress).focus : null;
+  return focus ? { reportId: focus.reportId, done: Math.min(focus.done, FOCUS_SESSIONS), total: FOCUS_SESSIONS } : null;
+}
+
 export async function deleteUnsavedLabSample(userId: string, id: string, sport: LabSport = 'pitch') {
   const { data: files, error } = await videoBucket().list(folder(userId, id, sport), {
     limit: FOLDER_LIMIT,

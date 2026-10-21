@@ -3379,7 +3379,8 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   const sum = reportSummary(fake);
   check('요약: 주 문제 · 고칠 점', sum.primary?.element === '드리프트' && sum.primary.level === 'improve' && sum.judged);
   check('요약 읽기: 모양이 맞으면 그대로 · 틀리면 null', JSON.stringify(readReportSummary(JSON.parse(JSON.stringify(sum)))) === JSON.stringify(sum) && readReportSummary({ v: 1, criteria: 'x', judged: true, primary: { element: '없는 요소', level: 'improve' } }) === null);
-  check('목록 꼬리표', summaryChip(sum)?.text === '드리프트' && summaryChip({ v: 1, criteria: 'x', judged: false, primary: null })?.text === '판정 못 함');
+  check('목록 꼬리표', summaryChip(sum)?.text === '드리프트' && summaryChip({ v: 1, criteria: 'x', judged: false, primary: null, bad: [] })?.text === '판정 못 함');
+  check('요약: 경계 이상 요소 모두(흐름 차례) · 옛 요약은 주 문제 하나로', sum.bad.map((b) => b.element).join() === '드리프트,브레이크,몸통 회전' && readReportSummary({ v: 1, criteria: 'x', judged: true, primary: { element: '드롭', level: 'edge' } })?.bad.length === 1);
 
 }
 

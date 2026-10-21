@@ -4,6 +4,9 @@ import { useState, type ReactNode } from 'react';
 import { ButtonLink } from '@/components/ui';
 import {
   REPORT_STATUS_TEXT,
+  rxAction,
+  type FocusProgress,
+  type RxAction,
   type ElementRx,
   type PitchReport,
   type ReportGauge,
@@ -272,9 +275,31 @@ function RxBlock({ rx }: { rx: ElementRx }) {
   );
 }
 
-export function RxCard({ report }: { report: PitchReport }) {
+/** 처방 카드 단추가 갈 곳(웹) — 무엇을 할지는 lib/pitch-3d/v2/report.ts rxAction(앱과 같은 판단) */
+const RX_HREF = (kind: RxAction['kind'], reportId: string, elementKey: string) =>
+  kind === 'start'
+    ? `/training?view=mechanics&focus=${reportId}`
+    : kind === 'progress'
+      ? '/training?view=mechanics'
+      : kind === 'retake'
+        ? '/videos/lab'
+        : `/training?view=mechanics&tab=elements&el=${elementKey}`;
+
+export function RxCard({
+  report,
+  reportId,
+  mine,
+  focus,
+}: {
+  report: PitchReport;
+  reportId: string;
+  mine: boolean;
+  focus: FocusProgress;
+}) {
   if (report.rx.length === 0) return null;
   const main = report.rx[0];
+  const cta = rxAction(mine, focus);
+  const href = RX_HREF(cta.kind, reportId, main.key);
   const weeks =
     main.level === 'improve'
       ? [
@@ -305,16 +330,10 @@ export function RxCard({ report }: { report: PitchReport }) {
           <p className="text-caption text-muted break-keep">다음 차례 · {report.later.join(' · ')}</p>
         )}
         <div className="space-y-2">
-          <ButtonLink
-            href={`/training?view=mechanics&tab=elements&el=${main.key}`}
-            size="lg"
-            className="w-full"
-          >
-            메커니즘에서 드릴 하기
+          <ButtonLink href={href} size="lg" className="w-full">
+            {cta.label}
           </ButtonLink>
-          <p className="text-center text-caption text-muted break-keep">
-            드릴 영상과 하는 법은 메커니즘의 요소별 드릴에서 봐요.
-          </p>
+          <p className="text-center text-caption text-muted break-keep">{cta.note}</p>
         </div>
       </div>
     </section>

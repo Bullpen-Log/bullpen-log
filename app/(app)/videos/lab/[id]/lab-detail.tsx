@@ -8,7 +8,7 @@ import type { LabSample } from '@/lib/pitch-lab';
 import { LAB_VIEWS, labViewLabel, type LabGround, type LabView } from '@/lib/pitch-lab-meta';
 import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { labHandNote, labTitle, metricRows, type LabMetricRow } from '@/lib/pitch-3d/v2/lab-summary';
-import { buildReport, type ReportDrill } from '@/lib/pitch-3d/v2/report';
+import { buildReport, type FocusProgress, type ReportDrill } from '@/lib/pitch-3d/v2/report';
 import { V2EmptyWell, V2RequestRow, V2StatusBadge } from './analysis-v2';
 import { FlowCard, ReportHero, RxCard, VerdictCard } from './report-parts';
 import type { Body3DHandle, Transport } from './body-3d';
@@ -32,6 +32,8 @@ export function LabDetail({
   engineBuild = null,
   drills = [],
   youth = false,
+  mine = false,
+  focus = null,
   preview,
   ownerHeightCm = null,
 }: {
@@ -43,6 +45,10 @@ export function LabDetail({
   drills?: ReportDrill[];
   /** 성장기(만 16세 미만, 내 샘플일 때만) — 크기 지표는 참고로 */
   youth?: boolean;
+  /** 내 샘플 — 처방을 시작할 수 있다 */
+  mine?: boolean;
+  /** 이 리포트의 처방이 메커니즘에서 진행 중이면 n / 9 */
+  focus?: FocusProgress;
   /** 개발 확인용 결과(서버를 안 부른다) */
   preview?: Pitch3dV2Ok | null;
   /** 샘플에 키가 없을 때 쓸 올린 사람의 키(내 샘플일 때만, page.tsx) */
@@ -240,7 +246,7 @@ export function LabDetail({
               }}
             />
           )}
-          {report && <RxCard report={report} />}
+          {report && <RxCard report={report} reportId={sample.id} mine={mine} focus={focus} />}
 
           {result && (
             <details className="group rounded-2xl bg-surface p-(--block-pad)">

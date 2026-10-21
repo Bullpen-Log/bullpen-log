@@ -509,3 +509,12 @@ P0 이 끝나기 전에 P1 을 시작할 수는 있지만(틀 · 화면), **'고
 4. [처방 시작]은 아직 '메커니즘에서 드릴 하기'(요소별 드릴 칸으로) — 처방을 메커니즘 프로그램에 넣는 것은 P2(메커니즘 세션, 6-4절). 첫 화면 '지금 처방' 카드도 P2 뒤.
 
 남은 것: 실제 휴대폰(앱)에서 화면 보기 · 웹도 올리면 바로 분석(동의 칸이 필요해 안 함) · 무료 한도(정할 것) · P0 · P2.
+
+**P2 잇기(2026-10-22, 메커니즘 P2 cd07f808 뒤)** — 3D 쪽 몫:
+- 처방 드릴은 메커니즘의 문제 · 단계 표(`lib/mechanics/prescriptions.ts prescribedTitles`)를 먼저 쓰고, 라이브러리에 없거나 빈 칸이면 요소의 단계 드릴로(`report.ts prescribed`).
+- [처방 시작] = 웹 `/training?view=mechanics&focus=<리포트 번호>` · 앱 `/training-mechanics?focus=<번호>`(확인 시트 → 서버가 리포트를 다시 셈해 베낌).
+  이 리포트의 처방이 진행 중이면 '처방 진행 중 n / 9', 마쳤으면 '다시 찍어 리포트 받기', 남의 샘플이면 '요소별 드릴 보기'(판단은 `report.ts rxAction` 하나 — 웹 · 앱 같음).
+  진행은 `lib/pitch-lab.ts loadFocusProgress`(MechanicsProgram.progress.focus 를 읽기만).
+- 처방 없이 리포트만 받은 사람의 요소 탭 점: `lib/pitch-lab.ts loadLatestReport(userId)` → `{ reportId, finishedAt, summary }`, `summary.bad` = 경계 이상 요소 모두(흐름 차례,
+  2026-10-22 요약에 더한 칸 — 옛 요약은 주 문제 하나로). 메커니즘 세션이 `loadElementReport` 의 처방이 없을 때 이것으로 점을 찍으면 된다.
+

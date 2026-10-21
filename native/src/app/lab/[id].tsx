@@ -229,7 +229,7 @@ export default function LabScreen() {
                   }}
                 />
               )}
-              {report && <RxCard c={c} report={report} />}
+              {report && r && <RxCard c={c} report={report} reportId={data.id} mine={r.mine} focus={r.focus} />}
               {r && <Details c={c} r={r} active={active} request={request} onJump={jump} />}
             </>
           }

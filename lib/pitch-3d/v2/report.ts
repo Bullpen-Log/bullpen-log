@@ -15,6 +15,7 @@ import { withJosa } from '@/lib/korean';
 import type { MechanicsDrillView } from '@/lib/mechanics/drills';
 import { mechanicsElement } from '@/lib/mechanics/elements';
 import { doseOf, doseText } from '@/lib/mechanics/program';
+import { prescribedTitles } from '@/lib/mechanics/prescriptions';
 import { plantFrame, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { mechChecks, DROP_RISE_MAX, type MechChecks } from '@/lib/pitch-3d/v2/mech-checks';
 import { DRIFT_GOOD, DRIFT_LOW, MECH_CONF_MIN, TRUNK_PLANT_NORM } from '@/lib/pitch-3d/v2/mech-judge';
@@ -186,6 +187,8 @@ export type ReportSummary = {
   v: 1;
   criteria: string;
   primary: { element: ElementName; level: 'improve' | 'edge' } | null;
+  /** 경계 이상인 요소 모두(흐름 차례) — 메커니즘 요소 탭의 점(처방 없이 리포트만 받은 사람도) */
+  bad: { element: ElementName; level: 'improve' | 'edge' }[];
   /** 판정한 요소가 하나라도 있나 */
   judged: boolean;
 };
@@ -489,6 +492,19 @@ function drillsFor(drills: ReportDrill[], element: ElementName, stage: DrillStag
     .map((d) => ({ title: d.title, thumbUrl: d.thumbUrl, dose: doseText(doseOf(d.category, stage)) }));
 }
 
+/**
+ * 처방 드릴 — 메커니즘 세션의 문제 · 단계 표(lib/mechanics/prescriptions.ts FAULT_DRILLS)를 먼저, 그 이름이 라이브러리에 없거나 표가 비면
+ * 그 요소의 단계 드릴로 채운다(drillsFor).
+ */
+function prescribed(drills: ReportDrill[], item: ReportItem & { fault: FaultKey }, stage: DrillStage, n: number) {
+  const byTitle = new Map(drills.map((d) => [d.title, d]));
+  const picked = prescribedTitles(item.fault, stage, n).flatMap((t) => {
+    const d = byTitle.get(t);
+    return d ? [{ title: d.title, thumbUrl: d.thumbUrl, dose: doseText(doseOf(d.category, stage)) }] : [];
+  });
+  return picked.length ? picked : drillsFor(drills, item.element, stage, n);
+}
+
 function rxOf(item: ReportItem, drills: ReportDrill[], slots: 1 | 2): ElementRx | null {
   if (!item.fault || (item.status !== 'improve' && item.status !== 'edge')) return null;
   /* 고칠 점 = 1주 기초 · 2주 연결 · 3주 통합, 경계 = 1주 연결 · 2~3주 통합(기초 건너뜀) */
@@ -504,7 +520,7 @@ function rxOf(item: ReportItem, drills: ReportDrill[], slots: 1 | 2): ElementRx 
           { week: 2, label: '2~3주', stage: '통합' },
         ];
   const weeks = plan
-    .map((w) => ({ ...w, drills: drillsFor(drills, item.element, w.stage, slots) }))
+    .map((w) => ({ ...w, drills: prescribed(drills, { ...item, fault: item.fault! }, w.stage, slots) }))
     .filter((w) => w.drills.length > 0);
   const g = item.gauge;
   return {
@@ -602,6 +618,7 @@ export function reportSummary(report: PitchReport): ReportSummary {
     v: 1,
     criteria: report.criteria,
     primary: p && (p.status === 'improve' || p.status === 'edge') ? { element: p.element, level: p.status } : null,
+    bad: report.items.flatMap((i) => (i.status === 'improve' || i.status === 'edge' ? [{ element: i.element, level: i.status }] : [])),
     judged: report.items.some((i) => i.status !== 'unsure' && i.status !== 'note'),
   };
 }
@@ -615,12 +632,18 @@ export function readReportSummary(raw: unknown): ReportSummary | null {
   if (p != null) {
     if (typeof p !== 'object' || !CHAIN.includes(p.element as ElementName) || (p.level !== 'improve' && p.level !== 'edge')) return null;
   }
-  return {
-    v: 1,
-    criteria: r.criteria,
-    primary: p ? { element: p.element as ElementName, level: p.level as 'improve' | 'edge' } : null,
-    judged: r.judged,
-  };
+  const primary = p ? { element: p.element as ElementName, level: p.level as 'improve' | 'edge' } : null;
+  /* bad 칸은 2026-10-22 에 더함 — 없는 옛 요약은 주 문제 하나로 */
+  const bad = Array.isArray(r.bad)
+    ? (r.bad as Record<string, unknown>[]).flatMap((b) =>
+        b && CHAIN.includes(b.element as ElementName) && (b.level === 'improve' || b.level === 'edge')
+          ? [{ element: b.element as ElementName, level: b.level as 'improve' | 'edge' }]
+          : []
+      )
+    : primary
+      ? [primary]
+      : [];
+  return { v: 1, criteria: r.criteria, primary, bad, judged: r.judged };
 }
 
 /** 작업 기록(job.json)에 남기는 모양 — 결과 작업 번호와 함께 */
@@ -638,6 +661,23 @@ export function summaryChip(s: ReportSummary | null): { text: string; tone: 'imp
   if (!s) return null;
   if (s.primary) return { text: `${s.primary.element}${s.primary.level === 'improve' ? '' : ' · 경계'}`, tone: s.primary.level };
   return s.judged ? { text: '좋아요', tone: 'good' } : { text: '판정 못 함', tone: 'muted' };
+}
+
+/** 이 리포트의 처방이 메커니즘에서 진행 중이면 마친 세션 수 / 전체(메커니즘 세션 P2 — MechanicsProgram.progress.focus) */
+export type FocusProgress = { done: number; total: number } | null;
+
+export type RxAction = { kind: 'start' | 'progress' | 'retake' | 'drills'; label: string; note: string };
+
+/**
+ * 처방 카드 맨 아래 단추(웹 · 앱 같은 판단) — 처방 시작(메커니즘 확인 시트) · 진행 중 n / 9 · 마쳤으면 다시 찍기.
+ * 남의 샘플(관리자)이면 시작할 수 없어(lib/mechanics/focus-load.ts 가 막음) 요소별 드릴로. 갈 주소는 화면마다(웹 · 앱 길이 달라서).
+ */
+export function rxAction(mine: boolean, focus: FocusProgress): RxAction {
+  if (!mine) return { kind: 'drills', label: '요소별 드릴 보기', note: '처방은 리포트를 받은 사람만 시작할 수 있어요.' };
+  if (focus && focus.done >= focus.total)
+    return { kind: 'retake', label: '다시 찍어 리포트 받기', note: '처방을 마쳤어요. 같은 자리에서 다시 찍어 견줘요.' };
+  if (focus) return { kind: 'progress', label: `처방 진행 중 ${focus.done} / ${focus.total}`, note: '메커니즘 프로그램에서 이어서 해요.' };
+  return { kind: 'start', label: '처방 시작', note: '메커니즘 프로그램의 드릴 칸이 이 처방으로 바뀌어요.' };
 }
 
 /** 만 나이(생년월일 'YYYY-MM-DD' · Date) — 모르면 null */

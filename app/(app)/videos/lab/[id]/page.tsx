@@ -4,7 +4,7 @@ import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
-import { loadLabSample } from '@/lib/pitch-lab';
+import { loadFocusProgress, loadLabSample } from '@/lib/pitch-lab';
 import { isLabId } from '@/lib/pitch-lab-meta';
 import { getEngineBuild, isPitch3dV2Configured } from '@/lib/pitch-3d/v2/gpu-client';
 import { isYouth, reportDrillsOf } from '@/lib/pitch-3d/v2/report';
@@ -36,19 +36,23 @@ export default async function LabSamplePage({
    */
   if ((await searchParams).web !== '1' && expoLevel((await headers()).get('user-agent')) >= 8)
     return <OpenNative path={`/lab/${id}`} cover={false} />;
-  const [sample, guides, engineBuild] = await Promise.all([
+  const [sample, guides, engineBuild, focus] = await Promise.all([
     loadLabSample(id, user),
     trainingGuides(),
     getEngineBuild(),
+    loadFocusProgress(user.id).catch(() => null),
   ]);
   if (!sample) notFound();
+  const mine = sample.ownerId === user.id;
   return (
     <LabDetail
       sample={sample}
       v2Enabled={isPitch3dV2Configured()}
       engineBuild={engineBuild}
       drills={reportDrillsOf(groupDrills(guides))}
-      youth={sample.ownerId === user.id && isYouth(user.birthDate, new Date())}
+      youth={mine && isYouth(user.birthDate, new Date())}
+      mine={mine}
+      focus={mine && focus?.reportId === id ? { done: focus.done, total: focus.total } : null}
       /* 샘플에 키가 비어 있으면(예전 샘플) 내 샘플일 때만 가입 때 적은 키로 — 3D 인형 크기 · 점검 cm */
       ownerHeightCm={sample.ownerId === user.id ? (user.heightCm ?? null) : null}
     />
