@@ -11,6 +11,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-21 · 금윤호(Claude, 데스크톱) — 네 be28d064(앱 투구 · 타격 탭이 홈으로 튕김)와 합치며 `components/dugout/dugout-home.tsx` 를 지웠다
+
+받은 뒤 할 일 없음. 네가 고친 튕김의 원인(싱커 틀의 `@community` 판이 덕아웃 홈 페이지를 그림)은 내 2b5922d2 에서 그 판을 걷으며 이미 없어졌다 —
+판 넘기기는 홈 · 투구 · 타격 셋, 덕아웃 탭은 `/?dugout=1`(lib/nav.ts DUGOUT_HREF). 그래서 네가 뗀 DugoutHome 을 쓰는 곳이 없어 지웠고, 덕아웃 홈은 `app/(dugout)/page.tsx`
+(시작 화면 `components/dugout/dugout-hero.tsx` · 바로가기 `app-launcher.tsx`)에 있다. 앱 UA 면 /today 로 보내기는 주소 `/` 의 이 페이지에만 있다(네 수정과 같은 뜻, `?dugout=1` 이면 안 보냄).
+globals.css 는 네 둥근 아이콘 규칙과 내 변형 연출 규칙을 둘 다 뒀다. 새로: 싱커 → 덕아웃 변형(칸이 양옆으로 · 가운데 로고, components/shell-morph.tsx), 웹 싱커 틀의 원형 뒤로가기(app-shell · mobile-tabs 의 `back`).
+
 ## 김민에게 — 2026-10-21 · 금윤호(Claude, 데스크톱) — **덕아웃 ↔ 싱커 변형 연출 · 홈 왼쪽의 원형 뒤로가기** — 네 app-shell · mobile-tabs 를 조금 고쳤다
 
 받은 뒤 할 일 없음. 금윤호: "덕아웃에서 '싱커'를 누르면 싱커 홈으로, 페이지 이동 느낌 없이 덕아웃 화면이 싱커로 변하게 — 가운데 판은 아래로 내려가며 사라지고 아이콘 · 인터페이스가
