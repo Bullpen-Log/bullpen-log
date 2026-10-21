@@ -34,7 +34,7 @@ export function useVideoUri(path: string | null): { uri: string | null; error: s
         setState({
           path,
           uri: null,
-          error: isPhoneVideoPath(path) ? '이 영상은 이 폰에 없어요. 찍은 폰의 불펜로그 앱에서 볼 수 있어요.' : '영상을 불러오지 못했어요.',
+          error: isPhoneVideoPath(path) ? '이 영상은 이 폰에 없어요. 찍은 폰의 싱커 앱에서 볼 수 있어요.' : '영상을 불러오지 못했어요.',
         })
     );
     return () => {

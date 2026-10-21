@@ -16,7 +16,7 @@
 # ■ ios/ 폴더는 저장소에 없다 — 매번 expo prebuild 로 만든다
 #
 # Expo 는 ios/ · android/ 를 app.json 에서 만들어 낸다(native/.gitignore 가 둘을 뺀다). 그래서 굽기 전에
-# `expo prebuild -p ios` → `pod install` 을 먼저 돈다. Xcode 워크스페이스는 ios/BullpenLog.xcworkspace, 스킴은 BullpenLog.
+# `expo prebuild -p ios` → `pod install` 을 먼저 돈다. Xcode 워크스페이스는 ios/Sinker.xcworkspace, 스킴은 Sinker.
 #
 # ■ 빌드 번호는 Info.plist 에 직접 쓴다
 #
@@ -166,7 +166,7 @@ jobs:
         run: |
           set -o pipefail
           npx expo prebuild -p ios --no-install 2>&1 | tee "$RUNNER_TEMP/prebuild.log"
-          test -d ios/BullpenLog.xcodeproj
+          test -d ios/Sinker.xcodeproj
 
       - name: CocoaPods 설치
         id: pods
@@ -174,7 +174,7 @@ jobs:
           set -o pipefail
           pod --version
           (cd ios && pod install 2>&1) | tee "$RUNNER_TEMP/pods.log"
-          test -d ios/BullpenLog.xcworkspace
+          test -d ios/Sinker.xcworkspace
 
       # 빌드 번호는 올릴 때마다 커져야 한다(같거나 작으면 애플이 거절한다). 시각으로 만든다 — 20261019.123045(UTC).
       # 옛 앱(ios.yml)과 같은 모양이라 두 워크플로가 번갈아 올려도 겹치지 않는다.
@@ -184,14 +184,14 @@ jobs:
           NOW=$(date -u +%Y%m%d%H%M%S)
           BUILD="${NOW:0:8}.$((10#${NOW:8:6}))"
           echo "build=$BUILD" >> "$GITHUB_OUTPUT"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" ios/BullpenLog/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" ios/Sinker/Info.plist
           # 다이나믹 아일랜드 휴식 시계 확장(plugins/rest-activity)도 앱과 같은 번호여야 App Store 가 받는다
           EXT=ios/RestActivity/RestActivity-Info.plist
           if [ -f "$EXT" ]; then
             /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$EXT"
-            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' ios/BullpenLog/Info.plist)" "$EXT"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' ios/Sinker/Info.plist)" "$EXT"
           fi
-          echo "빌드 번호 $BUILD · 판 $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' ios/BullpenLog/Info.plist)"
+          echo "빌드 번호 $BUILD · 판 $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' ios/Sinker/Info.plist)"
 
       - name: 앱 굽기 — 서명 없이 아카이브
         id: xcodebuild
@@ -201,11 +201,11 @@ jobs:
           set -o pipefail
           xcodebuild -version
           xcodebuild archive \
-            -workspace ios/BullpenLog.xcworkspace \
-            -scheme BullpenLog \
+            -workspace ios/Sinker.xcworkspace \
+            -scheme Sinker \
             -configuration Release \
             -destination 'generic/platform=iOS' \
-            -archivePath "$RUNNER_TEMP/BullpenLog.xcarchive" \
+            -archivePath "$RUNNER_TEMP/Sinker.xcarchive" \
             CODE_SIGNING_ALLOWED=NO \
             CURRENT_PROJECT_VERSION="$BUILD" \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
@@ -215,14 +215,14 @@ jobs:
         env:
           BUILD: ${{ steps.version.outputs.build }}
         run: |
-          APP="$RUNNER_TEMP/BullpenLog.xcarchive/Products/Applications/BullpenLog.app"
+          APP="$RUNNER_TEMP/Sinker.xcarchive/Products/Applications/Sinker.app"
           plist() { /usr/libexec/PlistBuddy -c "Print :$1" "$APP/Info.plist"; }
           test -f "$APP/Assets.car"                          # 아이콘 · 시작 화면
           test -f "$APP/main.jsbundle"                       # Release 는 화면 코드(JS)를 앱 안에 넣는다 — 없으면 켜자마자 빈 화면
           plist NSCameraUsageDescription > /dev/null
           test "$(plist CFBundleIdentifier)" = "com.bullpenlog.app"
           test "$(plist CFBundleVersion)" = "$BUILD"
-          MSG="앱이 만들어졌다 — $(plist CFBundleDisplayName) $(plist CFBundleShortVersionString) ($BUILD) · $(plist CFBundleIdentifier) · 최소 iOS $(plist MinimumOSVersion) · $(lipo -archs "$APP/BullpenLog") · $(du -sh "$APP" | cut -f1)"
+          MSG="앱이 만들어졌다 — $(plist CFBundleDisplayName) $(plist CFBundleShortVersionString) ($BUILD) · $(plist CFBundleIdentifier) · 최소 iOS $(plist MinimumOSVersion) · $(lipo -archs "$APP/Sinker") · $(du -sh "$APP" | cut -f1)"
           echo "::notice title=굽기 성공::$MSG"
           echo "### $MSG" >> "$GITHUB_STEP_SUMMARY"
 
@@ -230,10 +230,10 @@ jobs:
       - name: 앱 안 부품 확인
         id: frameworks
         run: |
-          APP="$RUNNER_TEMP/BullpenLog.xcarchive/Products/Applications/BullpenLog.app"
+          APP="$RUNNER_TEMP/Sinker.xcarchive/Products/Applications/Sinker.app"
           FW=$(ls "$APP/Frameworks" 2>/dev/null | tr '\n' ' ')
           NEED=""
-          for bin in "$APP/BullpenLog" "$APP"/Frameworks/*.framework/*; do
+          for bin in "$APP/Sinker" "$APP"/Frameworks/*.framework/*; do
             [ -f "$bin" ] && file "$bin" | grep -q 'Mach-O' || continue
             NEED="$NEED $(otool -L "$bin" | awk 'NR>1{print $1}' | grep '^@rpath/' | sed 's#^@rpath/##' | tr '\n' ' ')"
           done
@@ -257,14 +257,14 @@ jobs:
           set -o pipefail
           trap 'echo "::warning title=시뮬레이터 단계가 멈춘 곳::줄 $LINENO: $(echo "$BASH_COMMAND" | cut -c1-300)"' ERR
           step() { echo "::notice title=시뮬레이터::$1"; }
-          if ! xcodebuild build -workspace ios/BullpenLog.xcworkspace -scheme BullpenLog -configuration Release \
+          if ! xcodebuild build -workspace ios/Sinker.xcworkspace -scheme Sinker -configuration Release \
                -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
                -derivedDataPath "$RUNNER_TEMP/sim" CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/sim-build.log" 2>&1; then
             { grep -E 'error:' "$RUNNER_TEMP/sim-build.log" | awk '!seen[$0]++' | head -n 8 || true; tail -n 3 "$RUNNER_TEMP/sim-build.log"; } \
               | cut -c1-900 | sed 's/%/%25/g; s/^/::warning title=시뮬레이터용 굽기 실패::/'
             exit 1
           fi
-          SIMAPP="$RUNNER_TEMP/sim/Build/Products/Release-iphonesimulator/BullpenLog.app"
+          SIMAPP="$RUNNER_TEMP/sim/Build/Products/Release-iphonesimulator/Sinker.app"
           step "굽기 끝 ($(du -sh "$SIMAPP" | cut -f1))"
           UDID=$(xcrun simctl list devices available -j | python3 -c '
           import json, sys
@@ -293,9 +293,9 @@ jobs:
           trap - ERR
           set +e +o pipefail
           sleep 5
-          REPORT=$(ls -t ~/Library/Logs/DiagnosticReports/BullpenLog-*.ips ~/Library/Logs/DiagnosticReports/*/BullpenLog-*.ips 2>/dev/null | head -n 1)
+          REPORT=$(ls -t ~/Library/Logs/DiagnosticReports/Sinker-*.ips ~/Library/Logs/DiagnosticReports/*/Sinker-*.ips 2>/dev/null | head -n 1)
           xcrun simctl spawn "$UDID" log show --style compact --last 3m \
-            --predicate 'process == "BullpenLog" AND (messageType == error OR messageType == fault)' > "$RUNNER_TEMP/sim-log.txt" 2>&1
+            --predicate 'process == "Sinker" AND (messageType == error OR messageType == fault)' > "$RUNNER_TEMP/sim-log.txt" 2>&1
           {
             echo "켜진 pid: ${APP_PID:-못 찾음} / 충돌 기록: ${REPORT:-없음}"
             [ -n "$REPORT" ] && python3 -c '
@@ -385,7 +385,7 @@ jobs:
           </plist>
           PLIST
           xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/BullpenLog.xcarchive" \
+            -archivePath "$RUNNER_TEMP/Sinker.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
             -exportPath "$RUNNER_TEMP/export" \
             -allowProvisioningUpdates \
@@ -393,7 +393,7 @@ jobs:
             -authenticationKeyID "$KEY_ID" \
             -authenticationKeyIssuerID "$ISSUER" \
             2>&1 | tee "$RUNNER_TEMP/export.log"
-          MSG="TestFlight 에 올렸다 — 새 앱 Bullpen Log ($BUILD). 애플 처리(보통 5~30분)가 끝나면 TestFlight 앱에 뜬다 — 테스터 모두의 앱이 새 앱으로 바뀐다"
+          MSG="TestFlight 에 올렸다 — 새 앱 Sinker ($BUILD). 애플 처리(보통 5~30분)가 끝나면 TestFlight 앱에 뜬다 — 테스터 모두의 앱이 새 앱으로 바뀐다"
           echo "::notice title=TestFlight 올리기 성공::$MSG"
           echo "### $MSG" >> "$GITHUB_STEP_SUMMARY"
 
