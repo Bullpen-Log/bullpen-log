@@ -5,7 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tiltOf } from '@/lib/device-tilt';
 import { NO_CALIBRATION, type CalFit } from '@/lib/velocity-calibration';
 import { distanceMismatch } from '@/lib/velocity-analysis';
-import { withSessionDistance } from '@/lib/velocity-session';
+import { stdCorrection, withSessionDistance } from '@/lib/velocity-session';
+import { TAPE_WARN } from '@/lib/velocity-session-distance';
 import { EFFORT_CHIPS, effortScaleText } from '@/lib/pitch-effort';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import {
@@ -641,6 +642,24 @@ export default function VelocityScreen() {
     spokenLen.current = n;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pitches]);
+
+  /*
+   * 세션 거리 알림 — 웹 측정 화면과 같다(앱엔 없었다). 줄자 세션인데 깨끗한 공들의 공 크기 가운데 값이 넣은 거리와 7% 넘게 다르면 다시 재
+   * 보라고, 기준 20m 세션이면 세션 거리로 옮긴 것을 한 번 알린다. 10-21 밖: 측정 앱(AR)으로 잰 '20m' 가 실제 약 21.4m 라 값이 7% 낮았는데
+   * 알리지 않아 몰랐다(공 크기는 22.9m 를 말하고 있었다).
+   */
+  const corrNote = useRef<string | null>(null);
+  useEffect(() => {
+    const c = stdCorrection(pitches, 'camera');
+    let note: string | null = null;
+    if (c && distTape && Math.abs(c.m / targetDistM - 1) > TAPE_WARN)
+      note = `넣은 거리 ${targetDistM}m · 공 크기로는 ${c.m}m. 폰에서 받는 곳까지 줄자로 다시 재 봐요(측정 앱은 1~2m 틀릴 수 있어요)`;
+    else if (c?.apply && !distTape) note = `공 ${c.n}개의 공 크기로 세션 거리를 ${c.m}m 로 맞추고 앞 공도 다시 셌어요`;
+    if (note && note !== corrNote.current) {
+      corrNote.current = note;
+      setNotice(note);
+    }
+  }, [pitches, distTape, targetDistM]);
 
   const level = tilt && Math.abs(tilt.roll) <= ROLL_OK && Math.abs(tilt.pitch) <= PITCH_OK;
   const last = pitches.at(-1);
