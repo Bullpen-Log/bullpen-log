@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
-import { Eye, EyeOff, Heart, MessageCircle, Trash2 } from '@/components/icon';
+import { Eye, EyeOff } from '@/components/icon';
+import { RoundChat, RoundEyeOff, RoundHeart, RoundTrash } from '@/components/round-icon';
 import { getCurrentUser } from '@/lib/dal';
 import { expoLevel } from '@/lib/app-env';
 import { loadCommunityPost } from '@/lib/community-load';
@@ -89,7 +90,7 @@ export default async function CommunityPostPage({
             </Badge>
             {postHidden && (
               <Badge className="gap-1 border-danger-line bg-danger-bg text-danger desk:bg-transparent">
-                <EyeOff aria-hidden className="h-3 w-3" />
+                <RoundEyeOff aria-hidden className="h-3 w-3" />
                 {isAdmin
                   ? '가림 — 관리자에게만 보여요'
                   : '운영자가 가렸어요 — 다른 사람에게는 보이지 않아요'}
@@ -114,7 +115,7 @@ export default async function CommunityPostPage({
           {/* 가린 글은 글쓴이도 좋아요를 못 누른다(서버 toggleLike 가 거절) — 단추 대신 수만(댓글 폼과 같은 조건) */}
           {!post.canLike ? (
             <span className="inline-flex min-h-10 items-center gap-1.5 px-3 text-sm text-muted tabular-nums">
-              <Heart aria-hidden className="h-4 w-4" />
+              <RoundHeart aria-hidden className="h-4 w-4" />
               <span className="sr-only">좋아요 </span>
               {post.likes}
             </span>
@@ -126,7 +127,7 @@ export default async function CommunityPostPage({
             />
           )}
           <span className="inline-flex min-h-10 items-center gap-1.5 px-3 text-sm text-muted tabular-nums">
-            <MessageCircle aria-hidden className="h-4 w-4" />
+            <RoundChat aria-hidden className="h-4 w-4" />
             <span className="sr-only">댓글 </span>
             {visibleComments}
           </span>
@@ -150,7 +151,7 @@ export default async function CommunityPostPage({
                 }
                 className={DELETE_BUTTON}
               >
-                <Trash2 aria-hidden className="h-4 w-4" />
+                <RoundTrash aria-hidden className="h-4 w-4" />
                 지우기
               </ConfirmDeleteForm>
             )}
@@ -182,7 +183,7 @@ export default async function CommunityPostPage({
                     {mine && <Badge className="min-h-0 px-2 py-0.5">나</Badge>}
                     {hidden && (
                       <Badge className="min-h-0 gap-1 border-danger-line bg-danger-bg px-2 py-0.5 text-danger desk:bg-transparent">
-                        <EyeOff aria-hidden className="h-3 w-3" />
+                        <RoundEyeOff aria-hidden className="h-3 w-3" />
                         가림
                       </Badge>
                     )}
@@ -208,7 +209,7 @@ export default async function CommunityPostPage({
                         detail={<p className="text-muted">되돌릴 수 없어요.</p>}
                         className={DELETE_BUTTON}
                       >
-                        <Trash2 aria-hidden className="h-4 w-4" />
+                        <RoundTrash aria-hidden className="h-4 w-4" />
                         <span className="sr-only">지우기</span>
                       </ConfirmDeleteForm>
                     )}

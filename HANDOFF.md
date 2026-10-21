@@ -11,6 +11,33 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — 둥근 아이콘 26종 더함(rounded-baseball-icons-3) · 네 앱 틀 · 앱 아이콘 부품을 고쳤다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 표는 `lib/round-icons.ts`(29종 더함 — 26 + 단순판 셋, 자잘한 그림은 선 0.8배 `ROUND_ICON_WEIGHT`).
+- **앱 `native/src/shell/icon.tsx`**: 같은 뜻의 lucide 이름이 앱 어디서나 둥근 그림으로 — search · star · pencil · trash2 · flag · lock · image-plus · user-round · flame ·
+  book-open · clapperboard · gauge · film · video. 새 이름 back · log · armcare · admin(별 방패) · people · market · lesson · venue · gear · chat · heart · eye-off.
+  **짝이 있는 것(chevron-left/right · plus/minus)과 뜻이 둘인 것(shield = 코어 · 컨디션, heart-pulse = 컨디션)은 그대로** — 고른 자리만 새 이름으로.
+  star · heart 는 채움이 '켜짐'이라 다크에서도 `fill` 을 넘길 때만 채운다(STATEFUL).
+- 앱 탭 막대(`tab-bar.tsx`): 기록 → log · 암케어 → armcare, 종목 바 ‹ 는 돌린 화살표 대신 'back'. 더보기(`more.tsx`)에 heart · calendar · users · admin · back.
+  위 막대 ‹ 셋(커뮤니티 · 트레이닝 화면 · 트레이닝 오늘)을 'back' 으로.
+- 웹: `lib/nav.ts` 관리자 메뉴 아이콘 이름 'shield' → **'admin'**('shield' 는 홈 요약 칸 컨디션이 써서 옛 방패 그대로 — 앱 feed 도 같은 이름을 받는다).
+  `components/nav-icons.tsx` 뒤로 · 기록 · 암케어 · 운동 영상 · 자료 · 관리자 · 구속 관리자 · 촬영 · 팀 관리를 둥근 그림으로, 틀의 ‹(`back-link` · 위 막대 · 둥근 뒤로 단추)도.
+  `components/round-icon.tsx` 에 `outline`(늘 테두리 — 찜 · 좋아요 꺼짐) 칸. 커뮤니티 좋아요 · 신고 단추(`components/community/*`)도 바꿨다.
+
+## 김민에게 — 2026-10-21 · 금윤호(Claude, 윤호 맥북) — 타자 3D 스윙 분석 · 3D 개발 관리자 · 네 앱 영역(lab 올리기 · 관리자 메뉴) 조금 고침 · 앱 화면 판 11
+
+받은 뒤 할 일 없음(DB · 패키지 그대로 — 저장은 영상 버킷 `{관리자}/swing-lab/{번호}/`, DB 표 없음). 금윤호: "투구에서 만든 그대로 타자 3D 스윙 분석을 ·
+모델링은 우리가 찍어서 줄 수 있도록 3D 개발 관리자를". 분석(GPU)은 아직 없다 — 사용자 화면의 [리포트 받기]는 '준비 중'.
+- **저장 · 서버**: `lib/pitch-lab.ts` 함수들 끝에 선택 인자 `sport`('pitch' 기본 → 폴더 그대로, 'hit' → swing-lab). GPU · 작업 · 비용 지키기는 투구만.
+  `LabMeta.bat?`(타자 배트) · `LabSport` · `LAB_BAT_OPTIONS`(lib/pitch-lab-meta.ts), 타자 이름 · 안내는 새 `lib/swing-lab-meta.ts`(정면 = 우타 1루 · 좌타 3루, 포수 뒤).
+  새 서버 동작 `app/actions/swing-lab.ts`(rpc 'swing-lab.*'). 올리기 주소는 `?sport=hit` — 그때만 3D 개발 관리자가 ③ · ④ 카메라(cam3 · cam4)도 올린다.
+- **권한**: `lib/permissions.ts` 새 'dev3d'(대표관리자만). 앱 `loadAppAdmin` 의 perms 에 `dev3d` 칸(더하기만 — native-api 모양 갱신, 레벨 그대로).
+- **네 앱 영역 고친 곳**: `native/src/lab/upload.ts` uploadLabVideo 끝 인자 `sport` · `native/src/lab/use-lab-upload.ts` useLabUpload(hand, sport) · info 의 bat · kind · extras(투구는 그대로) ·
+  `native/src/app/admin/index.tsx` '3D 개발 관리자' 줄 · `native/src/lib/site.ts` APP_UA **BullpenNative/11**(11 = /swing · /swing/guide · /swing/<id> · /swing/samples).
+  새 앱 화면 `native/src/app/swing/*` · `native/src/swing/parts.tsx`. 웹 `/hitting/lab`(+guide · [id]) · `/admin/dev3d` 는 판 11 이면 앱 화면으로 넘긴다.
+- 웹 타격 탭 홈 칸이 셋(운동 영상 · 타격 드릴 · 3D 스윙 분석). 웹 `videos/lab/lab-client.tsx` 의 `probeLabVideo` · `FilePick` 을 export 만 했다.
+- 확인: tsc(웹 · 앱) · eslint · native-api · pitch-lab 시험, 웹 화면 휴대폰 375(3D 개발 관리자 · 안내 좌타 그림 · 타격 칸). **앱 화면은 폰에서 아직 안 봤다.**
+
 ## 김민에게 — 2026-10-21 · 금윤호(Claude, 데스크톱) — 네 be28d064(앱 투구 · 타격 탭이 홈으로 튕김)와 합치며 `components/dugout/dugout-home.tsx` 를 지웠다
 
 받은 뒤 할 일 없음. 네가 고친 튕김의 원인(싱커 틀의 `@community` 판이 덕아웃 홈 페이지를 그림)은 내 2b5922d2 에서 그 판을 걷으며 이미 없어졌다 —

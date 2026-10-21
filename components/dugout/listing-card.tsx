@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Heart, MessagesSquare } from '@/components/icon';
+import { RoundChat, RoundHeart } from '@/components/round-icon';
 import type { ListingCard as Card } from '@/lib/market/load';
 import {
   categoryLabel,
@@ -51,12 +51,12 @@ export function ListingCard({ item, now }: { item: Card; now: Date }) {
           <span>{relativeTime(item.createdAt, now)}</span>
           {item.favorites > 0 && (
             <span className="ml-auto inline-flex items-center gap-0.5">
-              <Heart className="h-3 w-3" /> {item.favorites}
+              <RoundHeart className="h-3 w-3" /> {item.favorites}
             </span>
           )}
           {item.chats > 0 && (
             <span className="inline-flex items-center gap-0.5">
-              <MessagesSquare className="h-3 w-3" /> {item.chats}
+              <RoundChat className="h-3 w-3" /> {item.chats}
             </span>
           )}
         </p>

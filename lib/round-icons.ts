@@ -1,9 +1,16 @@
 /**
- * 둥근 야구 아이콘 13종(2026-10-21 금윤호 — rounded-baseball-icons-2) — 테두리형(outline) · 채움형(filled) 한 쌍씩.
+ * 둥근 야구 아이콘(2026-10-21 금윤호 — rounded-baseball-icons-2 의 13종, 2026-10-22 rounded-baseball-icons-3 의 26종 + 단순판 셋) — 테두리형(outline) · 채움형(filled) 한 쌍씩.
  * 웹(components/round-icon.tsx)과 앱(native/src/shell/round-icon.tsx)이 같은 그림을 쓰려고 순수 문자열로 둔다(viewBox 0 0 64 64).
  * outline: {{W}} 는 선 굵기(64 칸 기준) · 색은 currentColor. filled: 구멍은 마스크로 — {{ID}} 를 그림마다 다른 이름으로 바꿔 쓴다.
  */
-export type RoundIconName = 'home' | 'baseball' | 'bat' | 'community' | 'menu' | 'bell' | 'settings' | 'training' | 'cutlery' | 'radar' | 'zone' | 'pitcher' | 'support';
+export type RoundIconName =
+  | 'home' | 'baseball' | 'bat' | 'community' | 'menu' | 'bell' | 'settings' | 'training' | 'cutlery' | 'radar' | 'zone' | 'pitcher' | 'support'
+  /* 14~39(2026-10-22 금윤호 — rounded-baseball-icons-3): 덕아웃(장터 · 레슨 · 연습장 · 장비 · 채팅)과 동작(검색 · 올리기 · 찜 · 별점 · 뒤로 · 고치기 · 지우기 ·
+     신고 · 사진 · 잠금 · 숨김 · 내 정보), 싱커 메뉴(기록 · 암케어 · 영상 · 촬영 · 구속 관리자 · 관리자 · 팀 관리 · 인기 · 자료실) */
+  | 'market' | 'lesson' | 'venue' | 'gear' | 'chat' | 'search' | 'plus' | 'heart' | 'star' | 'back' | 'pencil' | 'trash' | 'flag'
+  | 'photo-plus' | 'lock' | 'eye-off' | 'user' | 'log' | 'armcare' | 'video' | 'clapper' | 'gauge' | 'shield' | 'people' | 'flame' | 'book'
+  /* 20px 밑 작은 자리용 단순판(디자이너 제공 simpler-variants) — 레슨 공 실밥 · 글러브 손가락 · 암케어 맥박을 뺐다 */
+  | 'lesson-simple' | 'gear-simple' | 'armcare-simple';
 
 export const ROUND_ICONS: Record<RoundIconName, { outline: string; filled: string }> = {
   home: {
@@ -58,13 +65,151 @@ export const ROUND_ICONS: Record<RoundIconName, { outline: string; filled: strin
     outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 29V28Q12 9 32 9Q52 9 52 28V29\"/><rect x=\"7\" y=\"29\" width=\"12\" height=\"20\" rx=\"5\"/><rect x=\"45\" y=\"29\" width=\"12\" height=\"20\" rx=\"5\"/><path d=\"M52 49Q52 55 42 55\"/><rect x=\"29\" y=\"51\" width=\"13\" height=\"8\" rx=\"4\"/></g>",
     filled: "<defs><mask id=\"{{ID}}\"><rect width=\"64\" height=\"64\" fill=\"white\"/></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M9 32V29Q9 6 32 6Q55 6 55 29V35H49V29Q49 13 32 13Q15 13 15 29V35H9Z\"/><rect x=\"7\" y=\"29\" width=\"12\" height=\"20\" rx=\"5\"/><rect x=\"45\" y=\"29\" width=\"12\" height=\"20\" rx=\"5\"/><path d=\"M49 46H55Q55 57 42 57H35V51H42Q49 51 49 46Z\"/><rect x=\"28\" y=\"49\" width=\"14\" height=\"10\" rx=\"5\"/></g>",
   },
+  market: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 12Q10 8 14 8H32Q35 8 37 10L56 29Q59 32 56 35L35 56Q32 59 29 56L10 37Q8 35 8 32V16Q8 12 12 12Z\"/><circle cx=\"11\" cy=\"11\" r=\"4\"/><circle cx=\"20\" cy=\"20\" r=\"4\"/><circle cx=\"11\" cy=\"11\" r=\"2\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><circle cx=\"20\" cy=\"20\" r=\"4\"/><circle cx=\"11\" cy=\"11\" r=\"2\"/></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M10 12Q10 8 14 8H32Q35 8 37 10L56 29Q59 32 56 35L35 56Q32 59 29 56L10 37Q8 35 8 32V16Q8 12 12 12Z\"/><circle cx=\"11\" cy=\"11\" r=\"4\"/></g>",
+  },
+  lesson: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"9\" y=\"12\" width=\"46\" height=\"44\" rx=\"7\"/><rect x=\"18\" y=\"7\" width=\"4\" height=\"10\" rx=\"2\"/><rect x=\"42\" y=\"7\" width=\"4\" height=\"10\" rx=\"2\"/><path d=\"M9 23H55\"/><circle cx=\"32\" cy=\"39\" r=\"10\"/><path d=\"M28 30Q34 39 28 48M36 30Q30 39 36 48\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 23H55\"/><circle cx=\"32\" cy=\"39\" r=\"10\"/><path d=\"M28 30Q34 39 28 48M36 30Q30 39 36 48\"/></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><rect x=\"9\" y=\"12\" width=\"46\" height=\"44\" rx=\"7\"/><rect x=\"18\" y=\"7\" width=\"4\" height=\"10\" rx=\"2\"/><rect x=\"42\" y=\"7\" width=\"4\" height=\"10\" rx=\"2\"/></g>",
+  },
+  venue: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M32 58Q12 39 12 26C12 1 52 1 52 26Q52 39 32 58Z\"/><path d=\"M24 22Q24 20 26 20H38Q40 20 40 22V30L32 37L24 30Z\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><path d=\"M24 22Q24 20 26 20H38Q40 20 40 22V30L32 37L24 30Z\"/></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M32 58Q12 39 12 26C12 1 52 1 52 26Q52 39 32 58Z\"/></g>",
+  },
+  gear: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M17 53Q8 47 8 36V27Q8 22 12 22Q16 22 16 27V32L18 15Q18 10 22 10Q26 10 26 15V27L28 10Q29 6 33 7Q37 8 36 13L35 27L39 12Q40 8 44 10Q48 11 46 16L42 30L47 21Q49 17 53 20Q56 22 54 26L47 44Q43 56 32 57Q23 58 17 53Z\"/><path d=\"M19 39Q29 33 39 41M24 47Q30 44 36 47\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M19 39Q29 33 39 41M24 47Q30 44 36 47\"/></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M17 53Q8 47 8 36V27Q8 22 12 22Q16 22 16 27V32L18 15Q18 10 22 10Q26 10 26 15V27L28 10Q29 6 33 7Q37 8 36 13L35 27L39 12Q40 8 44 10Q48 11 46 16L42 30L47 21Q49 17 53 20Q56 22 54 26L47 44Q43 56 32 57Q23 58 17 53Z\"/></g>",
+  },
+  chat: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M11 46Q7 40 7 30Q7 10 31 10Q56 10 56 30Q56 49 33 49H22L10 56Z\"/><circle cx=\"22\" cy=\"30\" r=\"2.2\"/><circle cx=\"32\" cy=\"30\" r=\"2.2\"/><circle cx=\"42\" cy=\"30\" r=\"2.2\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><circle cx=\"22\" cy=\"30\" r=\"2.2\"/><circle cx=\"32\" cy=\"30\" r=\"2.2\"/><circle cx=\"42\" cy=\"30\" r=\"2.2\"/></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M11 46Q7 40 7 30Q7 10 31 10Q56 10 56 30Q56 49 33 49H22L10 56Z\"/></g>",
+  },
+  search: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"27\" cy=\"27\" r=\"18\"/><path d=\"M40 45L44 41Q46 39 48 41L57 50Q60 53 57 56Q54 59 51 56L40 45Z\"/><circle cx=\"27\" cy=\"27\" r=\"11\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><circle cx=\"27\" cy=\"27\" r=\"11\"/></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><circle cx=\"27\" cy=\"27\" r=\"18\"/><path d=\"M40 45L44 41Q46 39 48 41L57 50Q60 53 57 56Q54 59 51 56L40 45Z\"/></g>",
+  },
+  plus: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M28 12Q28 8 32 8Q36 8 36 12V28H52Q56 28 56 32Q56 36 52 36H36V52Q36 56 32 56Q28 56 28 52V36H12Q8 36 8 32Q8 28 12 28H28Z\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M28 12Q28 8 32 8Q36 8 36 12V28H52Q56 28 56 32Q56 36 52 36H36V52Q36 56 32 56Q28 56 28 52V36H12Q8 36 8 32Q8 28 12 28H28Z\"/></g>",
+  },
+  heart: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M32 55Q30 55 27 52L11 36C-2 21 15 2 29 16L32 19L35 16C49 2 66 21 53 36L37 52Q34 55 32 55Z\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M32 55Q30 55 27 52L11 36C-2 21 15 2 29 16L32 19L35 16C49 2 66 21 53 36L37 52Q34 55 32 55Z\"/></g>",
+  },
+  star: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M29 9Q32 3 35 9L41 22L55 24Q62 25 57 30L46 40L49 54Q50 60 44 57L32 50L20 57Q14 60 15 54L18 40L7 30Q2 25 9 24L23 22Z\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M29 9Q32 3 35 9L41 22L55 24Q62 25 57 30L46 40L49 54Q50 60 44 57L32 50L20 57Q14 60 15 54L18 40L7 30Q2 25 9 24L23 22Z\"/></g>",
+  },
+  back: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M40 9Q43 12 40 15L23 32L40 49Q43 52 40 55Q37 58 34 55L14 35Q11 32 14 29L34 9Q37 6 40 9Z\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M40 9Q43 12 40 15L23 32L40 49Q43 52 40 55Q37 58 34 55L14 35Q11 32 14 29L34 9Q37 6 40 9Z\"/></g>",
+  },
+  pencil: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M13 40L42 11Q46 7 50 11L54 15Q58 19 54 23L25 52L12 55Q9 56 10 53Z\"/><path d=\"M37 16L49 28M13 40L25 52\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M37 16L49 28M13 40L25 52\"/></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M13 40L42 11Q46 7 50 11L54 15Q58 19 54 23L25 52L12 55Q9 56 10 53Z\"/></g>",
+  },
+  trash: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 21H50L47 51Q47 56 42 56H22Q17 56 17 51Z\"/><rect x=\"9\" y=\"13\" width=\"46\" height=\"8\" rx=\"4\"/><rect x=\"24\" y=\"7\" width=\"16\" height=\"6\" rx=\"3\"/><path d=\"M26 29V47M38 29V47\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M26 29V47M38 29V47\"/></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M14 21H50L47 51Q47 56 42 56H22Q17 56 17 51Z\"/><rect x=\"9\" y=\"13\" width=\"46\" height=\"8\" rx=\"4\"/><rect x=\"24\" y=\"7\" width=\"16\" height=\"6\" rx=\"3\"/></g>",
+  },
+  flag: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"9\" y=\"7\" width=\"6\" height=\"50\" rx=\"3\"/><path d=\"M15 12Q26 6 35 12Q43 17 54 11V37Q43 43 34 37Q25 31 15 37Z\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><rect x=\"9\" y=\"7\" width=\"6\" height=\"50\" rx=\"3\"/><path d=\"M15 12Q26 6 35 12Q43 17 54 11V37Q43 43 34 37Q25 31 15 37Z\"/></g>",
+  },
+  "photo-plus": {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"7\" y=\"15\" width=\"42\" height=\"41\" rx=\"6\"/><path d=\"M47 9Q47 6 50 6Q53 6 53 9V14H57Q60 14 60 17Q60 20 57 20H53V24Q53 27 50 27Q47 27 47 24V20H43Q40 20 40 17Q40 14 43 14H47Z\"/><circle cx=\"20\" cy=\"28\" r=\"3.5\"/><path d=\"M12 48L23 36Q25 34 27 37L32 43L36 39Q38 37 40 40L45 48\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><circle cx=\"20\" cy=\"28\" r=\"3.5\"/><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 48L23 36Q25 34 27 37L32 43L36 39Q38 37 40 40L45 48\"/></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><rect x=\"7\" y=\"15\" width=\"42\" height=\"41\" rx=\"6\"/><path d=\"M47 9Q47 6 50 6Q53 6 53 9V14H57Q60 14 60 17Q60 20 57 20H53V24Q53 27 50 27Q47 27 47 24V20H43Q40 20 40 17Q40 14 43 14H47Z\"/></g>",
+  },
+  lock: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"11\" y=\"27\" width=\"42\" height=\"30\" rx=\"7\"/><path d=\"M19 27V20C19 2 45 2 45 20V27H39V20C39 10 25 10 25 20V27Z\"/><circle cx=\"32\" cy=\"40\" r=\"3\"/><path d=\"M32 43V48\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><circle cx=\"32\" cy=\"40\" r=\"3\"/><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M32 43V48\"/></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><rect x=\"11\" y=\"27\" width=\"42\" height=\"30\" rx=\"7\"/><path d=\"M19 27V20C19 2 45 2 45 20V27H39V20C39 10 25 10 25 20V27Z\"/></g>",
+  },
+  "eye-off": {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 29Q32 4 56 29Q59 32 56 35Q32 60 8 35Q5 32 8 29Z\"/><path d=\"M11 7Q13 5 15 7L57 49Q59 51 57 53Q55 55 53 53L11 11Q9 9 11 7Z\"/><circle cx=\"32\" cy=\"32\" r=\"9\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><circle cx=\"32\" cy=\"32\" r=\"9\"/><path d=\"M11 7Q13 5 15 7L57 49Q59 51 57 53Q55 55 53 53L11 11Q9 9 11 7Z\" fill=\"white\"/></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M8 29Q32 4 56 29Q59 32 56 35Q32 60 8 35Q5 32 8 29Z\"/><path d=\"M11 7Q13 5 15 7L57 49Q59 51 57 53Q55 55 53 53L11 11Q9 9 11 7Z\"/></g>",
+  },
+  user: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"32\" cy=\"18\" r=\"10\"/><path d=\"M10 52Q10 34 32 34Q54 34 54 52Q54 57 49 57H15Q10 57 10 52Z\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><circle cx=\"32\" cy=\"18\" r=\"10\"/><path d=\"M10 52Q10 34 32 34Q54 34 54 52Q54 57 49 57H15Q10 57 10 52Z\"/></g>",
+  },
+  log: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"12\" y=\"10\" width=\"42\" height=\"47\" rx=\"6\"/><rect x=\"23\" y=\"6\" width=\"20\" height=\"9\" rx=\"4\"/><path d=\"M22 25L25 28L30 22M35 26H45M22 38L25 41L30 35M35 39H45M22 50H29M35 50H45\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 25L25 28L30 22M35 26H45M22 38L25 41L30 35M35 39H45M22 50H29M35 50H45\"/></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><rect x=\"12\" y=\"10\" width=\"42\" height=\"47\" rx=\"6\"/><rect x=\"23\" y=\"6\" width=\"20\" height=\"9\" rx=\"4\"/></g>",
+  },
+  armcare: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 53V31Q10 21 20 21Q29 21 29 31V39H43V27H40Q37 27 37 24V15Q37 9 43 9H48Q54 9 54 15V41Q54 54 41 54H14Q10 54 10 53Z\"/><path d=\"M15 36H20L23 31L27 42L31 36H36\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 36H20L23 31L27 42L31 36H36\"/></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M10 53V31Q10 21 20 21Q29 21 29 31V39H43V27H40Q37 27 37 24V15Q37 9 43 9H48Q54 9 54 15V41Q54 54 41 54H14Q10 54 10 53Z\"/></g>",
+  },
+  video: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"7\" y=\"13\" width=\"50\" height=\"38\" rx=\"8\"/><path d=\"M27 23Q25 22 25 25V39Q25 42 28 40L40 33Q42 32 40 30Z\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><path d=\"M27 23Q25 22 25 25V39Q25 42 28 40L40 33Q42 32 40 30Z\"/></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><rect x=\"7\" y=\"13\" width=\"50\" height=\"38\" rx=\"8\"/></g>",
+  },
+  clapper: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"9\" y=\"24\" width=\"46\" height=\"32\" rx=\"6\"/><path d=\"M9 14Q9 10 13 10L49 6Q53 6 54 10L55 18L10 23Z\"/><path d=\"M20 10L26 21M35 8L41 19M10 32H54\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 10L26 21M35 8L41 19M10 32H54\"/></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><rect x=\"9\" y=\"24\" width=\"46\" height=\"32\" rx=\"6\"/><path d=\"M9 14Q9 10 13 10L49 6Q53 6 54 10L55 18L10 23Z\"/></g>",
+  },
+  gauge: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"32\" cy=\"32\" r=\"25\"/><path d=\"M32 32L43 22M20 44H44M16 30H20M22 17L24 21M32 12V17M44 16L42 20M48 30H44\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M32 32L43 22M20 44H44M16 30H20M22 17L24 21M32 12V17M44 16L42 20M48 30H44\"/></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><circle cx=\"32\" cy=\"32\" r=\"25\"/></g>",
+  },
+  shield: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M30 7Q32 6 34 7Q43 12 52 13Q54 13 54 16V30Q54 47 34 57Q32 59 30 57Q10 47 10 30V16Q10 13 12 13Q21 12 30 7Z\"/><path d=\"M31 21Q32 18 33 21L36 27L43 28Q46 28 44 30L39 35L40 42Q41 45 38 43L32 40L26 43Q23 45 24 42L25 35L20 30Q18 28 21 28L28 27Z\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><path d=\"M31 21Q32 18 33 21L36 27L43 28Q46 28 44 30L39 35L40 42Q41 45 38 43L32 40L26 43Q23 45 24 42L25 35L20 30Q18 28 21 28L28 27Z\"/></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M30 7Q32 6 34 7Q43 12 52 13Q54 13 54 16V30Q54 47 34 57Q32 59 30 57Q10 47 10 30V16Q10 13 12 13Q21 12 30 7Z\"/></g>",
+  },
+  people: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"41\" cy=\"19\" r=\"8\"/><path d=\"M30 45Q30 32 43 32Q57 32 57 45V49H48\"/><circle cx=\"24\" cy=\"22\" r=\"10\"/><path d=\"M6 51Q6 36 24 36Q43 36 43 51Q43 56 38 56H11Q6 56 6 51Z\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><circle cx=\"41\" cy=\"19\" r=\"8\"/><path d=\"M30 45Q30 32 43 32Q57 32 57 45V49H48\"/><circle cx=\"24\" cy=\"22\" r=\"10\"/><path d=\"M6 51Q6 36 24 36Q43 36 43 51Q43 56 38 56H11Q6 56 6 51Z\"/></g>",
+  },
+  flame: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M34 6Q37 18 45 23Q56 31 53 42Q50 57 33 58Q15 58 11 44Q7 32 20 21Q18 30 25 32Q35 25 31 10Q30 5 34 6Z\"/><path d=\"M32 36Q44 45 37 51Q32 55 27 50Q22 44 32 36Z\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><path d=\"M32 36Q44 45 37 51Q32 55 27 50Q22 44 32 36Z\"/></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M34 6Q37 18 45 23Q56 31 53 42Q50 57 33 58Q15 58 11 44Q7 32 20 21Q18 30 25 32Q35 25 31 10Q30 5 34 6Z\"/></g>",
+  },
+  book: {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M32 16Q20 8 9 11Q6 12 6 16V48Q6 52 10 51Q21 48 32 56Q43 48 54 51Q58 52 58 48V16Q58 12 55 11Q44 8 32 16Z\"/><path d=\"M32 16V56M14 22Q21 21 26 25M14 33Q21 32 26 36M38 25Q44 21 50 22M38 36Q44 32 50 33\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M32 16V56M14 22Q21 21 26 25M14 33Q21 32 26 36M38 25Q44 21 50 22M38 36Q44 32 50 33\"/></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M32 16Q20 8 9 11Q6 12 6 16V48Q6 52 10 51Q21 48 32 56Q43 48 54 51Q58 52 58 48V16Q58 12 55 11Q44 8 32 16Z\"/></g>",
+  },
+  "lesson-simple": {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"9\" y=\"12\" width=\"46\" height=\"44\" rx=\"7\"/><rect x=\"18\" y=\"7\" width=\"4\" height=\"10\" rx=\"2\"/><rect x=\"42\" y=\"7\" width=\"4\" height=\"10\" rx=\"2\"/><path d=\"M9 23H55\"/><circle cx=\"32\" cy=\"39\" r=\"11\"/><path d=\"M26 30Q34 39 26 48\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 23H55\"/><circle cx=\"32\" cy=\"39\" r=\"11\"/><path d=\"M26 30Q34 39 26 48\"/></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><rect x=\"9\" y=\"12\" width=\"46\" height=\"44\" rx=\"7\"/><rect x=\"18\" y=\"7\" width=\"4\" height=\"10\" rx=\"2\"/><rect x=\"42\" y=\"7\" width=\"4\" height=\"10\" rx=\"2\"/></g>",
+  },
+  "gear-simple": {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M18 54Q8 48 8 36V29Q8 23 13 23Q18 23 18 29V32L23 15Q25 8 31 9L43 12Q51 14 49 22L45 42Q43 56 30 57Q23 57 18 54Z\"/><path d=\"M24 39Q31 35 38 40\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M24 39Q31 35 38 40\"/></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M18 54Q8 48 8 36V29Q8 23 13 23Q18 23 18 29V32L23 15Q25 8 31 9L43 12Q51 14 49 22L45 42Q43 56 30 57Q23 57 18 54Z\"/></g>",
+  },
+  "armcare-simple": {
+    outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 53V31Q10 21 20 21Q29 21 29 31V39H43V27H40Q37 27 37 24V15Q37 9 43 9H48Q54 9 54 15V41Q54 54 41 54H14Q10 54 10 53Z\"/></g>",
+    filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M10 53V31Q10 21 20 21Q29 21 29 31V39H43V27H40Q37 27 37 24V15Q37 9 43 9H48Q54 9 54 15V41Q54 54 41 54H14Q10 54 10 53Z\"/></g>",
+  },
 };
 
 /** 64 칸 선 굵기 — 원본(2.4)은 큰 그림용이라 메뉴 크기(20~28px)에서 가늘어 lucide(24 칸 2.5 ≈ 64 칸 6.7)와 맞춰 굵게 */
 export const ROUND_ICON_STROKE = 5.2;
 
+/**
+ * 그림마다 선 굵기 배율 — 속이 자잘한 그림(레슨 공 실밥 · 눈 · 계기판 눈금 · 체크 목록 · 맥박 · 손가락 · 책 줄)은 5.2 면 20~26px 에서 뭉개져
+ * 0.8 배(≈4.2)로 그린다(2026-10-22 실제 크기로 견줘 고름). 채움형은 마스크라 상관없다.
+ */
+const ROUND_ICON_WEIGHT: Partial<Record<RoundIconName, number>> = {
+  lesson: 0.8,
+  'lesson-simple': 0.8,
+  gear: 0.8,
+  'gear-simple': 0.8,
+  'eye-off': 0.8,
+  gauge: 0.8,
+  log: 0.8,
+  armcare: 0.8,
+  'armcare-simple': 0.8,
+  clapper: 0.8,
+  book: 0.8,
+  'photo-plus': 0.8,
+  people: 0.8,
+};
+
 /** 그릴 SVG 속 — outline 이면 선 굵기를, filled 면 마스크 이름을 채운다 */
 export function roundIconMarkup(name: RoundIconName, filled: boolean, id: string, stroke = ROUND_ICON_STROKE): string {
   const icon = ROUND_ICONS[name];
-  return filled ? icon.filled.split('{{ID}}').join(id) : icon.outline.split('{{W}}').join(String(stroke));
+  if (filled) return icon.filled.split('{{ID}}').join(id);
+  const w = Math.round(stroke * (ROUND_ICON_WEIGHT[name] ?? 1) * 100) / 100;
+  return icon.outline.split('{{W}}').join(String(w));
 }

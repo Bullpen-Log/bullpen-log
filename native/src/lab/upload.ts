@@ -5,7 +5,7 @@ import { readVideoFps } from '@/lib/velocity-engine/video-fps';
 import { readVideoLens } from '@/lib/velocity-engine/video-lens';
 import { readLabFileFacts } from '@/lib/pitch-lab-file';
 import type { LabCapture, LabVideoInfo } from '@/lib/pitch-lab-guard';
-import type { LabView } from '@/lib/pitch-lab-meta';
+import type { LabSport, LabView } from '@/lib/pitch-lab-meta';
 import { SITE_URL } from '~/lib/site';
 import { syncSession } from '~/lib/rpc';
 
@@ -156,13 +156,15 @@ export function sha256Hex(data: Uint8Array): string {
  */
 export async function uploadLabVideo(
   id: string,
-  view: LabView,
+  view: LabView | 'cam3' | 'cam4',
   asset: ImagePicker.ImagePickerAsset,
-  onProgress: (percent: number) => void
+  onProgress: (percent: number) => void,
+  /** 'hit' = 3D 스윙 분석(타자) 폴더 — ③ · ④ 카메라는 그때 3D 개발 관리자만 */
+  sport: LabSport = 'pitch'
 ): Promise<void> {
   await syncSession();
   const type = asset.mimeType ?? 'video/quicktime';
-  const res = await fetch(`${SITE_URL}/api/pitch-lab/upload-url?pair=${id}&view=${view}`, {
+  const res = await fetch(`${SITE_URL}/api/pitch-lab/upload-url?pair=${id}&view=${view}${sport === 'hit' ? '&sport=hit' : ''}`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'content-type': 'application/json' },

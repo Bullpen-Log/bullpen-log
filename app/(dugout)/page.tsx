@@ -1,12 +1,6 @@
 import Link from 'next/link';
-import {
-  ArrowRight,
-  CalendarDays,
-  Dumbbell,
-  MapPin,
-  MessagesSquare,
-  Search,
-} from '@/components/icon';
+import { ArrowRight, CalendarDays } from '@/components/icon';
+import { RoundChat, RoundGear, RoundLesson, RoundVenue } from '@/components/round-icon';
 import { Badge, Card } from '@/components/ui';
 import { ListingCard } from '@/components/dugout/listing-card';
 import { headers } from 'next/headers';
@@ -183,7 +177,7 @@ export default async function DugoutHome({
                   <span>{p.nickname}</span>
                   <span>{relativeTime(p.createdAt, now)}</span>
                   <span className="ml-auto inline-flex items-center gap-0.5">
-                    <MessagesSquare className="h-3 w-3" /> {p.comments}
+                    <RoundChat className="h-3 w-3" /> {p.comments}
                   </span>
                 </p>
               </Link>
@@ -204,7 +198,7 @@ export default async function DugoutHome({
           className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-sky-soft"
         >
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky/12 text-sky">
-            <Dumbbell className="h-5 w-5" />
+            <RoundLesson className="h-5 w-5" />
           </span>
           <span className="min-w-0">
             <span className="block text-sm font-bold text-ink">레슨 예약</span>
@@ -218,7 +212,7 @@ export default async function DugoutHome({
           className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-sky-soft"
         >
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky/12 text-sky">
-            <MapPin className="h-5 w-5" />
+            <RoundVenue className="h-5 w-5" />
           </span>
           <span className="min-w-0">
             <span className="block text-sm font-bold text-ink">연습장 · 구장 예약</span>
@@ -232,7 +226,7 @@ export default async function DugoutHome({
           className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-sky-soft"
         >
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky/12 text-sky">
-            <Search className="h-5 w-5" />
+            <RoundGear className="h-5 w-5" />
           </span>
           <span className="min-w-0">
             <span className="block text-sm font-bold text-ink">장비 고르기</span>

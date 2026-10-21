@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import Link from 'next/link';
-import { ChevronRight, Clapperboard, Gauge, ScrollText } from '@/components/icon';
+import { ChevronRight, Clapperboard, Gauge, Rotate3d, ScrollText } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
 import { requirePermission } from '@/lib/dal';
 import { can, isOwner, parseRole } from '@/lib/permissions';
@@ -239,6 +239,25 @@ export default async function AdminPage() {
           <span className="mt-0.5 block text-xs leading-relaxed text-muted">
             실내 · 야외 주차별 촬영 계획과 진행 게이지, 시간표, 휴대폰으로 찍으며 넘기는 촬영
             모드.
+          </span>
+        </span>
+        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+      </Link>
+      )}
+
+      {can(admin.role, 'dev3d') && (
+      /* 3D 개발 관리자 — 3D 스윙 분석(타자) 모델을 만들 영상 모으기(2026-10-21) */
+      <Link
+        href="/admin/dev3d"
+        className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-strong text-muted">
+          <Rotate3d aria-hidden className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-ink">3D 개발 관리자</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+            3D 스윙 분석 모델을 만들 타자 샘플과 마커 샘플을 올리고 봅니다.
           </span>
         </span>
         <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />

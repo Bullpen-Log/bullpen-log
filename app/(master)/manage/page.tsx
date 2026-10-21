@@ -1,13 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import {
-  CalendarDays,
-  ClipboardList,
-  KeyRound,
-  Megaphone,
-  Plus,
-  Users,
-} from '@/components/icon';
+import { CalendarDays, ClipboardList, KeyRound, Megaphone, Plus, Users } from '@/components/icon';
+import { RoundPeople } from '@/components/round-icon';
 import { Badge, ButtonLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { InviteCodeCard } from '@/components/master/invite-code-card';
 import { PitcherBoard } from '@/components/master/pitcher-board';
@@ -45,7 +39,7 @@ export default async function MasterHome() {
     if (user.role === 'ADMIN') redirect('/manage/orgs');
     return (
       <EmptyState
-        icon={<Users />}
+        icon={<RoundPeople />}
         title="아직 조직이 없어요"
         description="가입할 때 만든 레슨장 · 팀이 보이지 않아요. 관리자에게 알려 주세요."
       />

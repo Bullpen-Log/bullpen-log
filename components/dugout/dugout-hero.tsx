@@ -9,7 +9,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, LayoutGrid, MessagesSquare } from '@/components/icon';
+import { RoundBell, RoundChat, RoundMenu } from '@/components/round-icon';
 import { AppLauncher } from '@/components/dugout/app-launcher';
 import { splashScale } from '@/lib/brand';
 import { Wordmark } from '@/components/logo';
@@ -256,7 +256,7 @@ export function DugoutHero({
                     className="relative grid h-12 w-12 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
                     aria-label="채팅"
                   >
-                    <MessagesSquare className="h-6 w-6" />
+                    <RoundChat className="h-6 w-6" />
                     {unread > 0 && (
                       <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-danger" />
                     )}
@@ -266,7 +266,7 @@ export function DugoutHero({
                     className="relative grid h-12 w-12 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
                     aria-label="알림"
                   >
-                    <Bell className="h-6 w-6" />
+                    <RoundBell className="h-6 w-6" />
                     {alerts > 0 && (
                       <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-danger" />
                     )}
@@ -287,7 +287,7 @@ export function DugoutHero({
                 onClick={() => setGridOpen((v) => !v)}
                 className="grid h-12 w-12 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
               >
-                <LayoutGrid className="h-6 w-6" />
+                <RoundMenu className="h-6 w-6" />
               </button>
               {user ? (
                 <Link

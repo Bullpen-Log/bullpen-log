@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Heart, Plus, Tag } from '@/components/icon';
+import { RoundHeart, RoundMarket, RoundPlus } from '@/components/round-icon';
 import { Card, EmptyState } from '@/components/ui';
 import { ListingCard } from '@/components/dugout/listing-card';
 import { getCurrentUser } from '@/lib/dal';
@@ -121,13 +121,13 @@ export default async function MePage() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="inline-flex items-center gap-1.5 text-lg font-bold text-ink">
-            <Tag className="h-4 w-4" /> 내 물건 {mine.length}
+            <RoundMarket className="h-4 w-4" /> 내 물건 {mine.length}
           </h2>
           <Link
             href="/market/new"
             className="inline-flex items-center gap-1 text-sm font-semibold text-sky"
           >
-            <Plus className="h-4 w-4" /> 올리기
+            <RoundPlus className="h-4 w-4" /> 올리기
           </Link>
         </div>
         {mine.length === 0 ? (
@@ -286,11 +286,11 @@ export default async function MePage() {
 
       <section className="space-y-3">
         <h2 className="inline-flex items-center gap-1.5 text-lg font-bold text-ink">
-          <Heart className="h-4 w-4" /> 찜 {favorites.length}
+          <RoundHeart className="h-4 w-4" /> 찜 {favorites.length}
         </h2>
         {favorites.length === 0 ? (
           <EmptyState
-            icon={<Heart />}
+            icon={<RoundHeart />}
             title="찜한 물건이 없어요"
             description="장터에서 하트를 누르면 여기 모여요."
           />

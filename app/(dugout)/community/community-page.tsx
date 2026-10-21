@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { EyeOff, Heart, MessageCircle, MessagesSquare } from '@/components/icon';
+import { RoundChat, RoundCommunity, RoundEyeOff, RoundHeart } from '@/components/round-icon';
 import { getCurrentUser } from '@/lib/dal';
 import { loadCommunityList } from '@/lib/community-load';
 import {
@@ -117,7 +117,7 @@ export default async function CommunityPage({
 
       {posts.length === 0 ? (
         <EmptyState
-          icon={<MessagesSquare />}
+          icon={<RoundCommunity />}
           title={
             page > 1
               ? '여기까지예요'
@@ -162,7 +162,7 @@ export default async function CommunityPage({
                     </Badge>
                     {hidden && (
                       <Badge className="gap-1 border-danger-line bg-danger-bg text-danger desk:bg-transparent">
-                        <EyeOff aria-hidden className="h-3 w-3" />
+                        <RoundEyeOff aria-hidden className="h-3 w-3" />
                         가림
                       </Badge>
                     )}
@@ -178,12 +178,12 @@ export default async function CommunityPage({
                     <span>{relativeTime(post.createdAt)}</span>
                     <span className="ml-auto flex items-center gap-3 tabular-nums">
                       <span className="flex items-center gap-1">
-                        <Heart aria-hidden className="h-3.5 w-3.5" />
+                        <RoundHeart aria-hidden className="h-3.5 w-3.5" />
                         <span className="sr-only">좋아요 </span>
                         {post.likes}
                       </span>
                       <span className="flex items-center gap-1">
-                        <MessageCircle aria-hidden className="h-3.5 w-3.5" />
+                        <RoundChat aria-hidden className="h-3.5 w-3.5" />
                         <span className="sr-only">댓글 </span>
                         {post.comments}
                       </span>

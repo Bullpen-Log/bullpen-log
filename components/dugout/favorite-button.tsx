@@ -2,7 +2,7 @@
 
 import { useOptimistic } from 'react';
 import { toggleFavorite } from '@/app/actions/market';
-import { Heart } from '@/components/icon';
+import { RoundIcon } from '@/components/round-icon';
 import { orOffline } from '@/lib/action-offline';
 import { haptic } from '@/lib/haptics';
 
@@ -25,7 +25,7 @@ export function FavoriteButton({
         href={`/login?next=/market/${listingId}`}
         className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line px-4 text-sm font-semibold text-ink"
       >
-        <Heart className="h-4 w-4" /> 찜 {count}
+        <RoundIcon name="heart" outline className="h-4 w-4" /> 찜 {count}
       </a>
     );
   }
@@ -50,7 +50,7 @@ export function FavoriteButton({
             : 'border-line text-ink hover:border-sky-soft'
         }`}
       >
-        <Heart className={`h-4 w-4 ${shown.favorite ? 'fill-current' : ''}`} /> 찜{' '}
+        <RoundIcon name="heart" filled={shown.favorite} outline={!shown.favorite} className="h-4 w-4" /> 찜{' '}
         {shown.count}
       </button>
     </form>

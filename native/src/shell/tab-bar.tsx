@@ -84,8 +84,10 @@ const GLYPH: Record<string, IconName> = {
   dumbbell: 'dumbbell',
   /* 타격 탭 · 종목 바(2026-10-20) */
   bat: 'baseball-bat',
-  calendar: 'calendar-days',
-  heart: 'heart-pulse',
+  /* 기록 · 암케어 — 둥근 그림(2026-10-22, 웹 nav-icons.tsx 와 같게) */
+  calendar: 'log',
+  heart: 'armcare',
+  back: 'back',
   target: 'pitcher',
   utensils: 'utensils',
   community: 'messages-square',
@@ -389,10 +391,8 @@ export function TabBar({
               hitSlop={6}
               style={({ pressed }) => [styles.backHit, pressed && { transform: [{ scale: 0.92 }] }]}
             >
-              {/* ← (그림 모음에 왼쪽 화살표가 없어 오른쪽 화살표를 돌림) */}
-              <View style={{ transform: [{ rotate: '180deg' }] }}>
-                <Icon name="arrow-right" size={24} color={c.ink} />
-              </View>
+              {/* ‹ — 둥근 뒤로(2026-10-22, 웹 종목 바 · 둥근 뒤로 단추와 같은 그림) */}
+              <Icon name="back" size={24} color={c.ink} />
             </Pressable>
           </Animated.View>
         ) : null}

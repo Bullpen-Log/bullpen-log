@@ -12,6 +12,14 @@
 export const LAB_MAX_VIDEO_MB = 150;
 export const LAB_MAX_VIDEO_BYTES = LAB_MAX_VIDEO_MB * 1024 * 1024;
 
+/**
+ * 종목 — 'pitch' 3D 동작 분석(투구) · 'hit' 3D 스윙 분석(타자, 2026-10-21 금윤호: "투구에서 만든 그대로 타자 버전을"). 저장 폴더만 다르다
+ * (lib/pitch-lab.ts labDir — 투구 pitch-lab · 타자 swing-lab). 타자의 두 카메라는 같은 열쇠(side · back)에 이름만 다르다 — 정면(가슴 쪽) · 포수 뒤
+ * (lib/swing-lab-meta.ts swingViewLabel).
+ */
+export type LabSport = 'pitch' | 'hit';
+export const isLabSport = (v: unknown): v is LabSport => v === 'pitch' || v === 'hit';
+
 export const LAB_VIEWS = ['side', 'back'] as const;
 export type LabView = (typeof LAB_VIEWS)[number];
 
@@ -41,6 +49,15 @@ export const LAB_GROUND_OPTIONS = [
   { value: 'mound', label: '마운드' },
   { value: 'flat', label: '평지' },
 ] as const;
+
+/** 타자 배트 — 3D 스윙 분석 샘플만(배트 끝 찾기 · 길이 어림에 쓸 기록) */
+export type LabBat = 'wood' | 'metal' | 'training';
+export const LAB_BAT_OPTIONS = [
+  { value: 'wood', label: '나무' },
+  { value: 'metal', label: '알루미늄' },
+  { value: 'training', label: '연습 배트' },
+] as const;
+const isLabBat = (v: unknown): v is LabBat => v === 'wood' || v === 'metal' || v === 'training';
 
 export type LabFile = {
   name: string;
@@ -88,6 +105,8 @@ export type LabMeta = {
    * 기존 샘플과 다른 곳에"). 실험실 목록이 따로 모아 보이고, 같은 폴더에 ③ · ④ 카메라 영상(cam3.* · cam4.*)이 더 있을 수 있다.
    */
   kind: 'sample' | 'marker';
+  /** 타자 배트(3D 스윙 분석만 — 투구 샘플은 없다) */
+  bat?: LabBat;
   createdAt: string;
 };
 
@@ -159,6 +178,7 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
     memo: text(v.memo, 500),
     files,
     kind: v.kind === 'marker' ? 'marker' : 'sample',
+    ...(isLabBat(v.bat) ? { bat: v.bat } : {}),
     createdAt: typeof v.createdAt === 'string' ? v.createdAt : createdAt,
   };
 }

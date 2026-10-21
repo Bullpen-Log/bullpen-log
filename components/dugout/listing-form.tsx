@@ -3,7 +3,8 @@
 import { useActionState, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { createListing, updateListing, type MarketState } from '@/app/actions/market';
-import { ImagePlus, X } from '@/components/icon';
+import { X } from '@/components/icon';
+import { RoundPhotoPlus } from '@/components/round-icon';
 import { Button, ButtonLink, Field, FormError, Input, Textarea } from '@/components/ui';
 import { guardFormAction } from '@/lib/action-offline';
 import { kept } from '@/lib/form-values';
@@ -153,7 +154,7 @@ export function ListingForm({
               className="grid h-24 w-24 place-items-center rounded-xl border border-dashed border-line-strong text-muted hover:border-sky hover:text-sky"
             >
               <span className="flex flex-col items-center gap-1 text-[11px]">
-                <ImagePlus className="h-5 w-5" /> 사진
+                <RoundPhotoPlus className="h-5 w-5" /> 사진
               </span>
             </button>
           )}

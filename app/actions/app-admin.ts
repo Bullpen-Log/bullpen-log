@@ -48,7 +48,7 @@ export async function loadAppAdmin() {
   /* 준관리자(2026-10-20)는 연 기능 칸만 — 숫자 · 회원 목록 · 소통 · 패치노트는 대표만(lib/permissions.ts) */
   const a = await staff('adminHome');
   if ('ok' in a) return a;
-  const perms = { owner: isOwner(a.role), velocityAdmin: can(a.role, 'velocityAdmin'), shoot: can(a.role, 'shoot') };
+  const perms = { owner: isOwner(a.role), velocityAdmin: can(a.role, 'velocityAdmin'), shoot: can(a.role, 'shoot'), dev3d: can(a.role, 'dev3d') };
   if (!perms.owner)
     return { ok: true as const, meId: a.id, perms, stats: [], content: { videos: 0, articles: 0, logs: 0 }, openInquiries: 0, openReports: 0, users: [] };
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);

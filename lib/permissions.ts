@@ -17,7 +17,9 @@ export type Permission =
   /** 세션 · 엔진 녹화(측정 중 녹화 켜기 · 녹화 편집기 · 공 라벨) */
   | 'recording'
   /** ABS 판정 모드 */
-  | 'abs';
+  | 'abs'
+  /** 3D 개발 관리자 — 3D 스윙 분석 모델링용 타자 샘플 · 마커 샘플 올리기(2026-10-21, 대표관리자만 — 열려면 MANAGER_PERMISSIONS 에 'dev3d') */
+  | 'dev3d';
 
 const MANAGER_PERMISSIONS: readonly Permission[] = ['adminHome', 'shoot', 'velocityAdmin', 'recording', 'abs'];
 

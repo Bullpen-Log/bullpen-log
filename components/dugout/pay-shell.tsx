@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Lock } from '@/components/icon';
+import { RoundLock } from '@/components/round-icon';
 import { Card } from '@/components/ui';
 import { formatPrice } from '@/lib/market/specs';
 
@@ -89,7 +89,7 @@ export function PayShell({
         disabled
         className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-ink/15 text-base font-bold text-muted"
       >
-        <Lock className="h-4 w-4" /> {formatPrice(total)} 결제하기 · 준비 중
+        <RoundLock className="h-4 w-4" /> {formatPrice(total)} 결제하기 · 준비 중
       </button>
       <p className="rounded-xl border border-warn-line bg-warn-bg px-4 py-3 text-xs leading-relaxed text-warn">
         결제는 아직 열리지 않았어요. 결제 회사 계약과 본인 인증이 끝나면 이 단추가 바로

@@ -98,7 +98,7 @@ function readVideoBox(file: File): Promise<VideoBox> {
  * 올리기 전 검사 재료(lib/pitch-lab-guard.ts labVideoBlock · labPairBlock) — GPU 를 안 쓴다.
  * 렌즈 정보는 두 읽기 중 하나라도 찾으면 있음, 파일 머리를 못 읽었으면 모름(null — 그 칸으로는 안 막는다).
  */
-async function probeLabVideo(
+export async function probeLabVideo(
   file: File
 ): Promise<{ info: LabVideoInfo; capture: Omit<LabCapture, 'fp'> }> {
   const [fps, box, lens, facts] = await Promise.all([
@@ -511,7 +511,7 @@ function UploadCard({
   );
 }
 
-function FilePick({
+export function FilePick({
   label,
   file,
   disabled,

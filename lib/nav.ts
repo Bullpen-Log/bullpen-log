@@ -53,8 +53,9 @@ export type NavIconName =
   | 'target'
   | 'book'
   | 'settings'
-  /* 관리자 — 설정(톱니)과 헷갈리지 않게 방패를 쓴다 */
+  /* 관리자 — 설정(톱니)과 헷갈리지 않게 방패를 쓴다. 'shield' 는 홈 요약 칸 '컨디션'(옛 방패), 관리자 메뉴는 'admin'(별 방패, 2026-10-22) */
   | 'shield'
+  | 'admin'
   /* 구속 측정 관리자 — 계기판 */
   | 'gauge'
   /* 트레이닝 영상 촬영 관리자 — 슬레이트(촬영 시작 판) */
@@ -262,6 +263,13 @@ export const NAV_GROUPS: NavGroup[] = [
         lock: 'pitch',
         appMoreHidden: true,
       },
+      /* 3D 스윙 분석(타자, 베타 2026-10-21) — 타격 탭 안에서 들어간다. 모델을 만들기 전이라 리포트는 '준비 중' */
+      {
+        href: '/hitting/lab',
+        label: '3D 스윙 분석',
+        icon: 'body',
+        appMoreHidden: true,
+      },
     ],
   },
   {
@@ -297,7 +305,7 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         href: '/admin',
         label: '관리자',
-        icon: 'shield',
+        icon: 'admin',
         tone: 'armcare',
         adminOnly: true,
         perm: 'adminHome',
@@ -319,6 +327,15 @@ export const NAV_GROUPS: NavGroup[] = [
         tone: 'armcare',
         adminOnly: true,
         perm: 'shoot',
+      },
+      /* 3D 스윙 분석 모델링용 타자 샘플 · 마커 샘플 올리기(2026-10-21, 대표관리자만 — lib/permissions.ts 'dev3d') */
+      {
+        href: '/admin/dev3d',
+        label: '3D 개발 관리자',
+        icon: 'body',
+        tone: 'armcare',
+        adminOnly: true,
+        perm: 'dev3d',
       },
       /* 1:1 문의 답하기 · 공지 쓰기 · 커뮤니티 신고 처리(2026-10-17) */
       {

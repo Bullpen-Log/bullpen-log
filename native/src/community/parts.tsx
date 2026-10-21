@@ -105,7 +105,7 @@ export function Bar({ back, title, right, c, modal = false, shown }: { back?: st
       {/* back 이 없으면(커뮤니티 하단바의 ← 가 대신) 자리만 비운다 */}
       {back ? (
         <Pressable accessibilityRole="button" accessibilityLabel={`${back}(으)로 돌아가기`} onPress={() => router.back()} hitSlop={10} style={({ pressed }) => [s.side, s.backRow, pressed && { opacity: 0.6 }]}>
-          <Icon name="chevron-left" size={24} color={c.sky} />
+          <Icon name="back" size={24} color={c.sky} />
           <Text style={{ color: c.sky, fontSize: 17, flexShrink: 1 }} numberOfLines={1}>
             {back}
           </Text>

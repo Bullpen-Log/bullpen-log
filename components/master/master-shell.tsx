@@ -3,20 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
-import {
-  CalendarDays,
-  ChevronDown,
-  ClipboardList,
-  House,
-  MapPin,
-  LogOut,
-  Megaphone,
-  Menu,
-  Settings,
-  Shield,
-  Users,
-  X,
-} from '@/components/icon';
+import { CalendarDays, ChevronDown, LogOut, Megaphone, X } from '@/components/icon';
+import { RoundHome, RoundLesson, RoundLog, RoundMenu, RoundPeople, RoundSettings, RoundShield, RoundVenue } from '@/components/round-icon';
 import { Wordmark } from '@/components/logo';
 import { chooseOrg } from '@/app/actions/org';
 import { logout } from '@/app/actions/auth';
@@ -47,10 +35,10 @@ export function MasterShell({
   const [open, setOpen] = useState(false);
 
   const words = org ? ORG_WORDS[org.kind] : ORG_WORDS.TEAM;
-  const items: { href: string; label: string; icon: typeof House; exact?: boolean }[] =
+  const items: { href: string; label: string; icon: typeof RoundHome; exact?: boolean }[] =
     [
-      { href: '/manage', label: '홈', icon: House, exact: true },
-      { href: '/manage/players', label: `${words.members} 관리`, icon: Users },
+      { href: '/manage', label: '홈', icon: RoundHome, exact: true },
+      { href: '/manage/players', label: `${words.members} 관리`, icon: RoundPeople },
       {
         href: '/manage/calendar',
         label: org?.kind === 'LESSON' ? '레슨 시간표' : '팀 달력',
@@ -59,18 +47,18 @@ export function MasterShell({
       {
         href: '/manage/record',
         label: org?.kind === 'LESSON' ? '대신 기록' : '경기 투구수',
-        icon: ClipboardList,
+        icon: RoundLog,
       },
       ...(org?.kind === 'LESSON'
-        ? [{ href: '/manage/bookings', label: '레슨 요청', icon: ClipboardList }]
+        ? [{ href: '/manage/bookings', label: '레슨 요청', icon: RoundLesson }]
         : []),
-      { href: '/manage/venues', label: '장소 · 예약', icon: MapPin },
+      { href: '/manage/venues', label: '장소 · 예약', icon: RoundVenue },
       { href: '/manage/notices', label: '공지', icon: Megaphone },
       { href: '/manage/payouts', label: '정산', icon: CalendarDays },
-      { href: '/manage/settings', label: '설정 · 초대', icon: Settings },
+      { href: '/manage/settings', label: '설정 · 초대', icon: RoundSettings },
     ];
   if (user.isAdmin)
-    items.push({ href: '/manage/orgs', label: '모든 조직(관리자)', icon: Shield });
+    items.push({ href: '/manage/orgs', label: '모든 조직(관리자)', icon: RoundShield });
 
   const active = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
@@ -124,7 +112,7 @@ export function MasterShell({
             onClick={() => setOpen((v) => !v)}
             className="grid h-10 w-10 place-items-center rounded-xl text-ink hover:bg-ink/5 md:hidden"
           >
-            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {open ? <X className="h-5 w-5" /> : <RoundMenu className="h-5 w-5" />}
           </button>
 
           <OrgSwitcher org={org} orgs={orgs} />

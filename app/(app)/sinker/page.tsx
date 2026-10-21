@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { ArrowRight, Lock } from '@/components/icon';
+import { ArrowRight } from '@/components/icon';
+import { RoundLock } from '@/components/round-icon';
 import { Badge, Card, PageHeading } from '@/components/ui';
 import { SinkerNav } from '@/components/sinker/sinker-nav';
 import { LessonFeedCard } from '@/components/dugout/lesson-feed-card';
@@ -257,7 +258,7 @@ export default async function SinkerDashboardPage() {
         ].map((c) => (
           <Card key={c.title} className="flex items-start gap-3 p-4">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink/6 text-muted">
-              <Lock className="h-4 w-4" />
+              <RoundLock className="h-4 w-4" />
             </span>
             <div>
               <p className="text-sm font-semibold text-ink">{c.title} · 싱커 앱에서</p>

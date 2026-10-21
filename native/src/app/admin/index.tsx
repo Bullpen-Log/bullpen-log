@@ -62,7 +62,9 @@ export default function AdminScreen() {
             <MenuRow icon="flag" label="커뮤니티 신고" detail={data.openReports > 0 ? `처리 전 ${data.openReports}` : '신고된 글 · 댓글'} onPress={() => router.push('/admin/community' as Href)} c={c} />
             <MenuRow icon="doc.text" label="패치노트" detail="누가 · 어느 날 무엇을 고쳤나" onPress={() => router.push('/admin/patch-notes' as Href)} c={c} />
             </>) : null}
-            {data.perms.velocityAdmin ? <MenuRow icon="gauge.with.needle" label="구속 측정 관리자" detail="지난 영상 · 영상 올리기" onPress={() => router.push('/admin/velocity' as Href)} last={!data.perms.shoot} c={c} /> : null}
+            {data.perms.velocityAdmin ? <MenuRow icon="gauge.with.needle" label="구속 측정 관리자" detail="지난 영상 · 영상 올리기" onPress={() => router.push('/admin/velocity' as Href)} last={!data.perms.shoot && !data.perms.dev3d} c={c} /> : null}
+            {/* 3D 개발 관리자(2026-10-21) — 3D 스윙 분석 모델링용 타자 샘플 · 마커 샘플. 옛 서버 답에는 dev3d 칸이 없다 */}
+            {data.perms.dev3d ? <MenuRow icon="rotate.3d" label="3D 개발 관리자" detail="타자 샘플 · 마커 샘플 올리기" onPress={() => router.push('/swing/samples' as Href)} last={!data.perms.shoot} c={c} /> : null}
             {data.perms.shoot ? <MenuRow icon="video" label="촬영 관리자" detail="주차 시간표 · 찍음 체크" last onPress={() => router.push('/admin/shoot' as Href)} c={c} /> : null}
           </View>
 

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, EyeOff, MessagesSquare, Pencil } from '@/components/icon';
+import { RoundBack, RoundChat, RoundEyeOff, RoundPencil } from '@/components/round-icon';
 import { SafeForm } from '@/components/safe-form';
 import { Badge, Button, Card } from '@/components/ui';
 import { ConfirmButton } from '@/components/master/confirm-button';
@@ -71,12 +71,12 @@ export default async function ListingPage({
         href="/market"
         className="inline-flex items-center gap-1 text-sm font-semibold text-sky"
       >
-        <ChevronLeft className="h-4 w-4" /> 장터
+        <RoundBack className="h-4 w-4" /> 장터
       </Link>
 
       {item.hidden && (
         <p className="rounded-xl border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn">
-          <EyeOff className="mr-1 inline h-4 w-4" /> 관리자가 가린 물건이에요. 주인과
+          <RoundEyeOff className="mr-1 inline h-4 w-4" /> 관리자가 가린 물건이에요. 주인과
           관리자만 봐요.
         </p>
       )}
@@ -176,7 +176,7 @@ export default async function ListingPage({
               href={`/market/${item.id}/edit`}
               className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-line px-3 text-sm font-semibold text-ink"
             >
-              <Pencil className="h-4 w-4" /> 고치기
+              <RoundPencil className="h-4 w-4" /> 고치기
             </Link>
             <ConfirmButton
               action={deleteListing}
@@ -194,7 +194,7 @@ export default async function ListingPage({
             <SafeForm action={openConversation}>
               <input type="hidden" name="listingId" value={item.id} />
               <Button type="submit" size="lg" className="gap-1.5">
-                <MessagesSquare className="h-4 w-4" />{' '}
+                <RoundChat className="h-4 w-4" />{' '}
                 {item.chatId ? '채팅 이어서' : '채팅하기'}
               </Button>
             </SafeForm>
@@ -203,7 +203,7 @@ export default async function ListingPage({
               href={`/login?next=/market/${item.id}`}
               className="inline-flex min-h-12 items-center gap-1.5 rounded-xl bg-sky px-5 text-base font-semibold text-white"
             >
-              <MessagesSquare className="h-4 w-4" /> 로그인하고 채팅하기
+              <RoundChat className="h-4 w-4" /> 로그인하고 채팅하기
             </Link>
           )}
           {item.status === 'ACTIVE' && (
@@ -234,7 +234,7 @@ export default async function ListingPage({
           <input type="hidden" name="id" value={item.id} />
           <input type="hidden" name="hidden" value={item.hidden ? '0' : '1'} />
           <Button type="submit" variant="ghost" size="sm" className="gap-1">
-            <EyeOff className="h-4 w-4" />{' '}
+            <RoundEyeOff className="h-4 w-4" />{' '}
             {item.hidden ? '되살리기' : '관리자 · 가리기'}
           </Button>
         </SafeForm>

@@ -53,6 +53,7 @@ import * as orgRecord from '@/app/actions/org-record';
 import * as orgReport from '@/app/actions/org-report';
 import * as patchNote from '@/app/actions/patch-note';
 import * as pitchLab from '@/app/actions/pitch-lab';
+import * as swingLab from '@/app/actions/swing-lab';
 import * as pitchSetup from '@/app/actions/pitch-setup';
 import * as hittingLog from '@/app/actions/hitting-log';
 import * as planEdit from '@/app/actions/plan-edit';
@@ -118,6 +119,7 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   'org-report': orgReport,
   'patch-note': patchNote,
   'pitch-lab': pitchLab,
+  'swing-lab': swingLab,
   'pitch-setup': pitchSetup,
   /* 타격 1단계(2026-10-20) — 새 앱이 웹 화면 대신 부를 때를 위해 같이 연다 */
   'hitting-log': hittingLog,

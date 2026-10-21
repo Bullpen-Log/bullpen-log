@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, Star } from '@/components/icon';
+import { RoundBack, RoundStar } from '@/components/round-icon';
 import { Badge, Card } from '@/components/ui';
 import { BookingForm } from '@/components/dugout/booking-form';
 import { ConfirmButton } from '@/components/master/confirm-button';
@@ -28,7 +28,7 @@ export default async function CoachPage({ params }: { params: Promise<{ orgId: s
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <Link href="/lessons" className="inline-flex items-center gap-1 text-sm font-semibold text-sky">
-        <ChevronLeft className="h-4 w-4" /> 레슨
+        <RoundBack className="h-4 w-4" /> 레슨
       </Link>
       <div className="flex items-start gap-4">
         <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-sky/12 text-2xl font-bold text-sky-strong">{c.coach.slice(0, 1)}</span>
@@ -53,7 +53,7 @@ export default async function CoachPage({ params }: { params: Promise<{ orgId: s
         <div className="px-2 py-3">
           <p className="text-[11px] text-muted">후기</p>
           <p className="inline-flex items-center gap-1 text-sm font-bold text-ink">
-            <Star className="h-3.5 w-3.5" /> {c.rating ?? '-'} <span className="font-normal text-muted">({c.reviews})</span>
+            <RoundStar className="h-3.5 w-3.5" /> {c.rating ?? '-'} <span className="font-normal text-muted">({c.reviews})</span>
           </p>
         </div>
         <div className="px-2 py-3">

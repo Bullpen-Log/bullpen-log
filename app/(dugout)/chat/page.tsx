@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { MessagesSquare } from '@/components/icon';
+import { RoundChat } from '@/components/round-icon';
 import { Card, EmptyState } from '@/components/ui';
 import { getCurrentUser } from '@/lib/dal';
 import { loadConversations } from '@/lib/market/load';
@@ -17,7 +17,7 @@ export default async function ChatListPage() {
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="text-2xl font-black text-ink">채팅</h1>
       {rooms.length === 0 ? (
-        <EmptyState icon={<MessagesSquare />} title="아직 채팅이 없어요" description="장터에서 마음에 드는 물건의 ‘채팅하기’를 누르면 여기 생겨요." />
+        <EmptyState icon={<RoundChat />} title="아직 채팅이 없어요" description="장터에서 마음에 드는 물건의 ‘채팅하기’를 누르면 여기 생겨요." />
       ) : (
         <Card className="divide-y divide-line p-0">
           {rooms.map((r) => (

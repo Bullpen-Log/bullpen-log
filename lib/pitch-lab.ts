@@ -7,6 +7,7 @@ import {
   LAB_VIEWS,
   readLabMeta,
   type LabMeta,
+  type LabSport,
   type LabView,
 } from '@/lib/pitch-lab-meta';
 import {
@@ -39,7 +40,15 @@ const v2File = (jobId: string) => `${V2_PREFIX}${jobId}.json`;
 /** 폴더 안 파일 수 상한 — 영상 2 · 정보 · v1 결과 · job + v2 결과(작업마다 하나) */
 const FOLDER_LIMIT = 100;
 
-const folder = (userId: string, id: string) => `${userId}/${LAB_DIR}/${id}`;
+/**
+ * 종목별 폴더 — 투구 `pitch-lab`, 타자 3D 스윙 분석 `swing-lab`(2026-10-21). 아래 함수들의 끝 인자 sport 가 정하고, 안 주면 투구라 예전 그대로다.
+ * v2 GPU(작업 · 결과 · 비용 지키기)는 투구만 — 타자 모델은 샘플을 모은 뒤에 만든다.
+ */
+const labDir = (sport: LabSport = 'pitch') => (sport === 'hit' ? 'swing-lab' : LAB_DIR);
+const folder = (userId: string, id: string, sport: LabSport = 'pitch') => `${userId}/${labDir(sport)}/${id}`;
+
+/** 올릴 수 있는 영상 자리 — 짝 둘(side · back) + 마커 샘플의 ③ · ④ 카메라(타자 마커 샘플은 앱 · 웹에서 올린다) */
+export type LabUploadView = LabView | 'cam3' | 'cam4';
 
 export type LabSample = {
   id: string;
@@ -58,8 +67,9 @@ export type LabSample = {
 export async function createLabUploadTarget(
   userId: string,
   id: string,
-  view: LabView,
-  fileName: string
+  view: LabUploadView,
+  fileName: string,
+  sport: LabSport = 'pitch'
 ) {
   const ext =
     fileName
@@ -68,7 +78,7 @@ export async function createLabUploadTarget(
       ?.toLowerCase()
       .replace(/[^a-z0-9]/g, '')
       .slice(0, 5) || 'mp4';
-  const path = `${folder(userId, id)}/${view}.${ext}`;
+  const path = `${folder(userId, id, sport)}/${view}.${ext}`;
   const { data, error } = await videoBucket().createSignedUploadUrl(path, {
     upsert: true,
   });
@@ -106,12 +116,12 @@ export async function saveLabGuard(userId: string, guard: LabGuard) {
 }
 
 /** 촬영 정보(meta.json) 원본 — 없으면 null. 모양 검사는 readLabMeta 가 */
-export async function loadLabMetaRaw(userId: string, id: string): Promise<unknown | null> {
-  return getJson(`${folder(userId, id)}/meta.json`);
+export async function loadLabMetaRaw(userId: string, id: string, sport: LabSport = 'pitch'): Promise<unknown | null> {
+  return getJson(`${folder(userId, id, sport)}/meta.json`);
 }
 
-export async function saveLabMeta(userId: string, id: string, meta: LabMeta) {
-  await putJson(`${folder(userId, id)}/meta.json`, meta);
+export async function saveLabMeta(userId: string, id: string, meta: LabMeta, sport: LabSport = 'pitch') {
+  await putJson(`${folder(userId, id, sport)}/meta.json`, meta);
 }
 
 /* ───────────────────────────── v2(서버 GPU) ───────────────────────────── */
@@ -154,8 +164,9 @@ export async function createV2ResultUploadUrl(
 }
 
 /** 폴더 파일 목록 → 영상 경로 · v1 결과 · v2 작업 번호들 */
-async function scanFolder(userId: string, id: string) {
-  const { data: files, error } = await videoBucket().list(folder(userId, id), {
+async function scanFolder(userId: string, id: string, sport: LabSport = 'pitch') {
+  const dir = folder(userId, id, sport);
+  const { data: files, error } = await videoBucket().list(dir, {
     limit: FOLDER_LIMIT,
   });
   if (error) throw new Error(error.message);
@@ -163,12 +174,12 @@ async function scanFolder(userId: string, id: string) {
   const videos: LabSample['videos'] = {};
   for (const view of LAB_VIEWS) {
     const f = names.find((x) => x.startsWith(`${view}.`));
-    if (f) videos[view] = { path: `${folder(userId, id)}/${f}`, url: null };
+    if (f) videos[view] = { path: `${dir}/${f}`, url: null };
   }
   const extras: LabSample['extras'] = [];
   for (const key of ['cam3', 'cam4'] as const) {
     const f = names.find((x) => x.startsWith(`${key}.`));
-    if (f) extras.push({ key, path: `${folder(userId, id)}/${f}`, url: null });
+    if (f) extras.push({ key, path: `${dir}/${f}`, url: null });
   }
   const resultIds = names
     .filter((n) => n.startsWith(V2_PREFIX) && n.endsWith('.json'))
@@ -239,11 +250,11 @@ export async function labVideoShifts(sample: LabSample): Promise<Record<LabView,
   return out;
 }
 
-async function readSample(userId: string, id: string): Promise<LabSample> {
-  const scan = await scanFolder(userId, id);
+async function readSample(userId: string, id: string, sport: LabSport = 'pitch'): Promise<LabSample> {
+  const scan = await scanFolder(userId, id, sport);
   const [metaRaw, jobRaw] = await Promise.all([
-    getJson(`${folder(userId, id)}/meta.json`),
-    scan.hasJob ? getJson(`${folder(userId, id)}/${JOB_FILE}`) : Promise.resolve(null),
+    getJson(`${folder(userId, id, sport)}/meta.json`),
+    scan.hasJob ? getJson(`${folder(userId, id, sport)}/${JOB_FILE}`) : Promise.resolve(null),
   ]);
   let meta: LabMeta | null = null;
   if (metaRaw != null) {
@@ -300,19 +311,22 @@ async function ownerIds(viewer: LabViewer): Promise<string[]> {
  */
 const MARKER_VIEWER_ID = 'e0418384-8334-4c4b-85e3-b042cad362c5';
 export const seesMarkerSamples = (viewer: LabViewer) => viewer.id === MARKER_VIEWER_ID;
+/** 그 종목의 마커 샘플을 보는가 — 타자 마커 샘플은 3D 개발 관리자(대표관리자)끼리 같이 본다 */
+const seesMarkers = (viewer: LabViewer, sport: LabSport) =>
+  sport === 'hit' ? viewer.role === 'ADMIN' : seesMarkerSamples(viewer);
 
-async function isMarkerFolder(uid: string, id: string): Promise<boolean> {
-  const raw = (await getJson(`${folder(uid, id)}/meta.json`)) as { kind?: unknown } | null;
+async function isMarkerFolder(uid: string, id: string, sport: LabSport = 'pitch'): Promise<boolean> {
+  const raw = (await getJson(`${folder(uid, id, sport)}/meta.json`)) as { kind?: unknown } | null;
   return raw?.kind === 'marker';
 }
 
 /** 그 샘플이 든 폴더의 주인(보는 사람이 볼 수 있는 폴더 안에서) — 없으면 null. 자기 폴더를 먼저 본다 */
-export async function findLabOwner(id: string, viewer: LabViewer): Promise<string | null> {
+export async function findLabOwner(id: string, viewer: LabViewer, sport: LabSport = 'pitch'): Promise<string | null> {
   const order = await ownerIds(viewer);
   for (const uid of order) {
-    const { data, error } = await videoBucket().list(folder(uid, id), { limit: 1 });
+    const { data, error } = await videoBucket().list(folder(uid, id, sport), { limit: 1 });
     if (!error && (data ?? []).length > 0) {
-      if (!seesMarkerSamples(viewer) && (await isMarkerFolder(uid, id))) return null;
+      if (!seesMarkers(viewer, sport) && (await isMarkerFolder(uid, id, sport))) return null;
       return uid;
     }
   }
@@ -320,10 +334,10 @@ export async function findLabOwner(id: string, viewer: LabViewer): Promise<strin
 }
 
 /** 샘플 하나(결과 화면) — 볼 수 있는 폴더에 없거나 폴더가 비었으면 null */
-export async function loadLabSample(id: string, viewer: LabViewer): Promise<LabSample | null> {
-  const owner = await findLabOwner(id, viewer);
+export async function loadLabSample(id: string, viewer: LabViewer, sport: LabSport = 'pitch'): Promise<LabSample | null> {
+  const owner = await findLabOwner(id, viewer, sport);
   if (!owner) return null;
-  const sample = await readSample(owner, id);
+  const sample = await readSample(owner, id, sport);
   if (!sample.meta && Object.keys(sample.videos).length === 0 && sample.extras.length === 0)
     return null;
   await attachUrls([sample]);
@@ -331,20 +345,20 @@ export async function loadLabSample(id: string, viewer: LabViewer): Promise<LabS
 }
 
 /** 보는 사람이 볼 수 있는 샘플(관리자는 모든 관리자 것, 일반 사용자는 자기 것) — 최근 것부터. 재생 주소까지 붙인다 */
-export async function listLabSamples(viewer: LabViewer): Promise<LabSample[]> {
+export async function listLabSamples(viewer: LabViewer, sport: LabSport = 'pitch'): Promise<LabSample[]> {
   const bucket = videoBucket();
   const per = await Promise.all(
     (await ownerIds(viewer)).map(async (uid) => {
-      const { data: dirs, error } = await bucket.list(`${uid}/${LAB_DIR}`, { limit: 200 });
+      const { data: dirs, error } = await bucket.list(`${uid}/${labDir(sport)}`, { limit: 200 });
       if (error) throw new Error(error.message);
       /* 폴더는 id 가 없다 */
       const ids = (dirs ?? []).filter((d) => d.id == null).map((d) => d.name);
-      return Promise.all(ids.map((id) => readSample(uid, id)));
+      return Promise.all(ids.map((id) => readSample(uid, id, sport)));
     })
   );
   const samples = per
     .flat()
-    .filter((s) => s.meta?.kind !== 'marker' || seesMarkerSamples(viewer));
+    .filter((s) => s.meta?.kind !== 'marker' || seesMarkers(viewer, sport));
   await attachUrls(samples);
   return samples.sort((a, b) =>
     (b.meta?.createdAt ?? '').localeCompare(a.meta?.createdAt ?? '')
@@ -356,22 +370,22 @@ export async function listLabSamples(viewer: LabViewer): Promise<LabSample[]> {
  * 정보(meta.json)를 아직 못 쓴 새 샘플의 영상만 지운다 — 올린 뒤 저장 전 검사에 막힌 짝(app/actions/pitch-lab.ts saveLabSample).
  * 정보가 있는 샘플은 건드리지 않는다. 목록을 못 읽으면 던진다(아무것도 안 지움).
  */
-export async function deleteUnsavedLabSample(userId: string, id: string) {
-  const { data: files, error } = await videoBucket().list(folder(userId, id), {
+export async function deleteUnsavedLabSample(userId: string, id: string, sport: LabSport = 'pitch') {
+  const { data: files, error } = await videoBucket().list(folder(userId, id, sport), {
     limit: FOLDER_LIMIT,
   });
   if (error) throw new Error(error.message);
   if ((files ?? []).some((f) => f.name === 'meta.json')) return;
-  await deleteLabSample(userId, id);
+  await deleteLabSample(userId, id, sport);
 }
 
-export async function deleteLabSample(userId: string, id: string) {
+export async function deleteLabSample(userId: string, id: string, sport: LabSport = 'pitch') {
   const bucket = videoBucket();
-  const { data: files, error } = await bucket.list(folder(userId, id), {
+  const { data: files, error } = await bucket.list(folder(userId, id, sport), {
     limit: FOLDER_LIMIT,
   });
   if (error) throw new Error(error.message);
-  const paths = (files ?? []).map((f) => `${folder(userId, id)}/${f.name}`);
+  const paths = (files ?? []).map((f) => `${folder(userId, id, sport)}/${f.name}`);
   if (paths.length === 0) return;
   const removed = await bucket.remove(paths);
   if (removed.error) throw new Error(removed.error.message);
