@@ -108,7 +108,8 @@ for (const g of [...new Set(out.map((o) => o.group))]) {
     if (!o.ok) continue;
     let conf = o.preConf ?? o.conf;
     const off = o.size ? Math.abs(o.size / ref - 1) : 0;
-    if (off > INPUT_SIZE_MISMATCH || (o.impact === 'end' && (o.size == null || off > END_SIZE_AGREE))) conf = 'low';
+    /* 세션 거리가 걸렸으면 그 기준은 믿을 만하다 — 튕긴 공도 10%(엔진 judgeSize strict, 2.7.6) */
+    if (off > INPUT_SIZE_MISMATCH || (corr?.apply && off > END_SIZE_AGREE) || (o.impact === 'end' && (o.size == null || off > END_SIZE_AGREE))) conf = 'low';
     if (conf === 'high' || (conf === 'medium' && o.stab)) errs.push(o.kmh * (corr?.k ?? 1) - o.gun);
   }
   rec += errs.length;

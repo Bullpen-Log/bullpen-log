@@ -78,7 +78,11 @@ export function judgeBySession<T extends Result>(
   source: SessionPitchCore['source'],
   tape: boolean
 ): T {
-  if (tape) return result;
+  /* 줄자 거리는 믿을 만한 기준 — 엔진이 넣은 거리로 한 판정에 튕긴 공의 10% 문턱을 더한다(2.7.6) */
+  if (tape) {
+    const d = (result as { distance?: { inputDistM?: number } }).distance;
+    return d?.inputDistM ? rejudgeSize(result, d.inputDistM) : result;
+  }
   const c = stdCorrection(list, source);
   return c?.apply ? rejudgeSize(result, c.m) : result;
 }
@@ -184,6 +188,11 @@ export function lowConfidenceFix(
    * 잡힌 끝(impact 'end')만으로는 까닭이 아니다 — 포수가 받으면 늘 'end' 다. 끝을 못 봤고 거리 판독도 어긋날 때(end-unseen)만 이 말(2.7.4,
    * 10-21: 잔차로 '보통'이 된 캐치볼 공 셋이 엉뚱하게 '닿는 곳이 안 보였어요'를 들었다)
    */
+  /* 튕김은 봤는데 공 크기 거리가 10~15% 다르다(엔진 size-off, 2.7.6) — 끝을 잘못 잡았거나 넣은 거리가 조금 틀렸다 */
+  if (d?.why === 'size-off')
+    return tape
+      ? TAPE_MISMATCH_FIX
+      : '공 크기로 본 거리가 맞지 않아 미트 · 그물에 닿은 때를 잘못 잡은 것 같아요. 폰과 미트 자리는 그대로 두고 다시 던져 주세요.';
   if (d?.why === 'end-unseen')
     return '공이 닿는 순간이 화면에서 안 보였어요. 미트 · 그물까지 화면에 들어오게 해 주세요.';
   if (d?.why === 'short-flight')
