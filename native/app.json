@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Bullpen Log",
+    "name": "Sinker",
     "slug": "bullpen-log",
     "version": "1.1.0",
     "runtimeVersion": {
@@ -14,7 +14,10 @@
     },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "bullpenlog",
+    "scheme": [
+      "bullpenlog",
+      "sinker"
+    ],
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.bullpenlog.app",
@@ -24,7 +27,8 @@
         "NSMicrophoneUsageDescription": "영상을 찍을 때 소리를 함께 담는 데 마이크를 씁니다.",
         "NSPhotoLibraryUsageDescription": "앨범의 투구 · 운동 영상을 고르는 데 사진을 씁니다.",
         "NSPhotoLibraryAddUsageDescription": "찍은 영상을 앨범에 저장하는 데 씁니다.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleAllowMixedLocalizations": true
       }
     },
     "plugins": [
@@ -60,6 +64,10 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "locales": {
+      "ko": "./locales/ko.json",
+      "en": "./locales/en.json"
     }
   }
 }

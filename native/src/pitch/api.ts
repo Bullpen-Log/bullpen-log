@@ -1,7 +1,7 @@
 import { APP_API_HEADER, APP_API_LEVEL } from '@/lib/app-api';
 import { phoneAssetId, phoneVideoPath, isPhoneVideoPath } from '@/lib/phone-video-path';
 import { SITE_URL } from '~/lib/site';
-import { rpc, syncSession } from '~/lib/rpc';
+import { markWrite, rpc, syncSession } from '~/lib/rpc';
 
 /**
  * 투구 기록 — 사이트의 /api/pitch-log(읽기 GET ?month · 남기기 POST · 고치기 PATCH · 지우기 DELETE)와 재생 주소(/api/pitch-log/video-url).
@@ -65,6 +65,7 @@ export async function call<T>(path: string, init: { method: string; body?: unkno
   }
   const body = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
   if (!res.ok) throw new ApiError(body?.error ?? '서버에서 처리하지 못했어요.');
+  if (init.method !== 'GET') markWrite();
   return body as T;
 }
 

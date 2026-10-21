@@ -31,7 +31,7 @@ const CONTACT = 'bullpenlog.com@gmail.com';
 function forgotPassword() {
   Alert.alert('비밀번호를 잊었어요', `가입한 이메일을 적어 운영팀(${CONTACT})에 보내 주세요. 임시 비밀번호를 만들어 드려요. 로그인한 뒤 내 정보에서 바꿔 주세요.`, [
     { text: '닫기', style: 'cancel' },
-    { text: '메일 쓰기', onPress: () => void Linking.openURL(`mailto:${CONTACT}?subject=${encodeURIComponent('불펜로그 비밀번호 찾기')}`).catch(() => undefined) },
+    { text: '메일 쓰기', onPress: () => void Linking.openURL(`mailto:${CONTACT}?subject=${encodeURIComponent('싱커 비밀번호 찾기')}`).catch(() => undefined) },
   ]);
 }
 
