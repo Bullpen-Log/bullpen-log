@@ -229,7 +229,7 @@ export default async function TrainingPage({
 
   /*
    * 메커니즘 — 투구 드릴로 투구 동작을 키운다(2026-10-04). 암케어처럼 운동 일정과 따로다(사용자분).
-   * [프로그램 | 요소별 드릴], 요소 카드는 ?el= 로 열어 둘 수 있다.
+   * [프로그램 | 요소별 드릴], 요소 카드는 ?el= 로 열어 둘 수 있다. 3D 리포트의 [처방 시작]은 ?focus=<리포트 번호>로 와서 프로그램 칸에 확인 시트를 연다.
    */
   if (view === 'mechanics') {
     const tab: MechanicsTab = params.tab === 'elements' ? 'elements' : 'program';
@@ -249,6 +249,7 @@ export default async function TrainingPage({
           user={user}
           tab={tab}
           focus={typeof params.el === 'string' ? params.el : null}
+          report={tab === 'program' && typeof params.focus === 'string' ? params.focus : null}
         />
       </div>
     );

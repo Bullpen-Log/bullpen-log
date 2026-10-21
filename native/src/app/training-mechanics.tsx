@@ -15,6 +15,8 @@ import {
   ElementCard,
   ElementChain,
   FilmCard,
+  FocusCard,
+  FocusStartSheet,
   LevelProgress,
   LevelSettings,
   NoProgram,
@@ -42,7 +44,9 @@ type Tab = (typeof TABS)[number]['value'];
 export default function TrainingMechanicsScreen() {
   useRememberPart('mechanics');
   const c = usePalette();
-  const params = useLocalSearchParams<{ tab?: string; el?: string }>();
+  const params = useLocalSearchParams<{ tab?: string; el?: string; focus?: string }>();
+  /* 3D 리포트 [처방 시작]에서 왔다 — 프로그램 칸을 받은 뒤 확인 시트를 한 번 연다 */
+  const [offerId, setOfferId] = useState(typeof params.focus === 'string' ? params.focus : null);
   const [tab, setTab] = useState<Tab>(params.tab === 'elements' ? 'elements' : 'program');
   const state = useScreenData<AppMechanicsProgramTab | AppMechanicsElementsTab>('app-training-parts.loadAppMechanics', tab, `training-mechanics:${tab}`);
   const scroll = useRef<ScrollViewInstance>(null);
@@ -67,6 +71,19 @@ export default function TrainingMechanicsScreen() {
         <ProgramTab data={data} reload={state.load} c={c} />
       ) : data?.tab === 'elements' ? (
         <ElementsTab data={data} focus={typeof params.el === 'string' ? params.el : null} scroll={scroll} c={c} />
+      ) : null}
+      {offerId && data?.tab === 'program' && !(data.program?.focus && !data.program.focus.finished && data.program.focus.reportId === offerId) ? (
+        <FocusStartSheet
+          reportId={offerId}
+          level={data.program?.level ?? null}
+          current={data.program?.focus ?? null}
+          reload={state.load}
+          onClose={() => {
+            setOfferId(null);
+            router.setParams({ focus: undefined });
+          }}
+          c={c}
+        />
       ) : null}
       {favOpen ? <FavSheet elements={data?.tab === 'elements' ? data : null} onClose={() => setFavOpen(false)} c={c} /> : null}
     </Screen>
@@ -131,9 +148,12 @@ function FavSheet({ elements, onClose, c }: { elements: AppMechanicsElementsTab 
 function ProgramTab({ data, reload, c }: { data: AppMechanicsProgramTab; reload: () => Promise<void>; c: Palette }) {
   const { program } = data;
   if (!program?.level) return <NoProgram reload={reload} c={c} />;
-  const completed = program.week == null;
+  const rx = program.focus && !program.focus.finished ? program.focus : null;
+  /* 처방이 남았으면 수준 12세션을 마쳤어도 처방 세션을 이어 한다 */
+  const completed = program.week == null && !rx;
   return (
     <View style={{ gap: 12 }}>
+      {program.focus ? <FocusCard focus={program.focus} reload={reload} c={c} /> : null}
       {/* 오늘 드릴로 던진 공 — 투구 기록에 남기라고(트레이닝 탭 카드 · 따라 하기 끝 화면과 같은 알림) */}
       {data.throwNote ? <ThrowNoteCard note={data.throwNote} c={c} /> : null}
       {completed ? (
@@ -145,7 +165,8 @@ function ProgramTab({ data, reload, c }: { data: AppMechanicsProgramTab; reload:
         <LevelOffer kind={program.advice.kind} to={program.advice.to} onChanged={() => void reload()} keepLabel="지금 수준 계속" c={c} />
       ) : null}
       <LevelProgress program={program} c={c} />
-      <FilmCard sessionsDone={program.sessionsDone} films={program.films} c={c} />
+      {/* 처방 중엔 다시 재기 안내가 처방 카드 하나라 촬영 권유를 숨긴다 */}
+      {program.focus ? null : <FilmCard sessionsDone={program.sessionsDone} films={program.films} c={c} />}
       <LevelSettings current={program.level} index={program.index} reload={reload} c={c} />
       <OverviewFold c={c} />
     </View>
@@ -178,7 +199,7 @@ function ElementsTab({
       <Text accessibilityRole="header" style={[s.section, { color: c.ink, paddingHorizontal: 4 }]}>
         투구의 흐름
       </Text>
-      <ElementChain current={open} onPick={(name) => openElement(name, null)} c={c} />
+      <ElementChain current={open} onPick={(name) => openElement(name, null)} report={data.report} c={c} />
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 6 }]}>
         <Fold label="왜 순서가 중요한가요" c={c}>
           <OverviewDetail c={c} />
@@ -194,6 +215,7 @@ function ElementsTab({
           hand={data.hand}
           open={open === el.name}
           via={open === el.name ? via : null}
+          report={data.report?.find((r) => r.element === el.name) ?? null}
           onToggle={() => {
             setOpen(open === el.name ? null : el.name);
             setVia(null);

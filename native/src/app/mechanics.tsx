@@ -125,7 +125,7 @@ const tick = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
 /* ----------------------------- 본체 ----------------------------- */
 
-function Player({ backHref, items, startAt, label, sessionNumber, partial, painLabel, inApp, c }: MechanicsPlay & { inApp: boolean; c: Palette }) {
+function Player({ backHref, items, startAt, label, sessionNumber, partial, painLabel, focus, inApp, c }: MechanicsPlay & { inApp: boolean; c: Palette }) {
   /* 앱 화면에서 열었으면 그냥 뒤로(그 화면이 다시 보인다) — 웹에서 넘어왔으면 웹을 돌아갈 칸으로(~/shell/web-nav fromApp) */
   const close = () => (inApp ? router.back() : leave(backHref));
   const inset = useSafeAreaInsets();
@@ -285,14 +285,17 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
         <Text accessibilityRole="header" style={[s.finishTitle, { color: c.ink }]}>
           {partial ? '오늘 드릴을 마쳤어요' : '세션을 마쳤어요'}
         </Text>
-        <Text style={[s.body, s.center, { color: c.muted }]}>드릴 {count}개를 했어요.</Text>
+        <Text style={[s.body, s.center, { color: c.muted }]}>
+          {focus && !partial ? `처방 ${focus.number} / ${focus.total} 마쳤어요 · ` : ''}드릴 {count}개를 했어요.
+        </Text>
         {partial ? <Text style={[s.body, s.center, { color: c.muted }]}>{MECHANICS_FOLD_TEXT.partialFinish}</Text> : null}
 
         {throwNote ? <ThrowNoteCard note={throwNote} c={c} /> : null}
 
         {!partial && advice?.to ? <LevelOffer kind={advice.kind} to={advice.to} c={c} /> : null}
 
-        {!partial && filmPrompt(sessionNumber) === 'compare' ? (
+        {/* 처방 중엔 찍기 권유를 처방 카드가 맡는다 */}
+        {!partial && !focus && filmPrompt(sessionNumber) === 'compare' ? (
           <View style={[s.block, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Text style={[s.blockTitle, { color: c.ink }]}>세션 {sessionNumber}번 · 찍어서 견줘 볼 때예요</Text>
             <Text style={[s.body, { color: c.muted }]}>
@@ -412,6 +415,7 @@ function DrillView({
 
       <View style={{ gap: 6 }}>
         <View style={s.tags}>
+          {item.rx ? <Text style={[s.tag, { color: '#fff', backgroundColor: c.sky }]}>처방 · {item.rx.element}</Text> : null}
           <Text style={[s.tag, { color: c.sky, backgroundColor: c.sky + '1a' }]}>{item.element}</Text>
           <Text style={[s.tag, { color: c.ink, backgroundColor: c.chip }]}>{item.stage}</Text>
           {view.variants.length < 2 ? <Text style={[s.small, { color: c.muted }]}>{view.tool}</Text> : null}

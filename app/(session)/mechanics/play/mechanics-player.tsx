@@ -47,6 +47,7 @@ export function MechanicsPlayer({
   isAdmin,
   partial = false,
   painLabel = null,
+  focus = null,
 }: {
   backHref: string;
   items: SessionDrillView[];
@@ -63,6 +64,8 @@ export function MechanicsPlayer({
   partial?: boolean;
   /** 아픈 날 '그래도 하기'로 펼쳤으면 아픈 관절 이름('어깨') — 팔에 싣는 드릴마다 주의 한 줄 */
   painLabel?: string | null;
+  /** 3D 리포트 처방 중이면 이번이 몇 번째 처방 세션인가 — 끝 화면 '처방 5 / 9 마쳤어요' */
+  focus?: { number: number; total: number } | null;
 }) {
   const [index, setIndex] = useState(startAt);
   const [done, setDone] = useState<boolean[]>(() => items.map((_, i) => i < startAt));
@@ -187,6 +190,7 @@ export function MechanicsPlayer({
           backHref={backHref}
           count={done.filter(Boolean).length}
           partial={partial}
+          focus={focus}
         />
       ) : (
         <>
@@ -343,6 +347,9 @@ function DrillView({
       )}
       <div className="space-y-1.5">
         <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+          {item.rx && (
+            <span className="rounded-full bg-sky px-2.5 py-0.5 text-white">처방 · {item.rx.element}</span>
+          )}
           <span className="rounded-full bg-sky-tint px-2.5 py-0.5 text-sky-strong">{item.element}</span>
           <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-ink">{item.stage}</span>
           {view.variants.length < 2 && <span className="text-muted">{view.tool}</span>}
@@ -507,6 +514,7 @@ function FinishView({
   backHref,
   count,
   partial,
+  focus,
 }: {
   advice: ReturnType<typeof levelAdvice>;
   /** 드릴로 던진 공 — 투구 기록에 남기라는 카드(없으면 null) */
@@ -517,6 +525,8 @@ function FinishView({
   count: number;
   /** 아픈 날 무브먼트만 하고 마침 — 세션 수가 안 올랐으니 권하기 · 찍기는 띄우지 않는다 */
   partial: boolean;
+  /** 3D 리포트 처방 중 — '처방 N / 9 마쳤어요', 찍기 권유는 처방 카드가 맡아 안 띄운다 */
+  focus: { number: number; total: number } | null;
 }) {
   const ref = useRef<HTMLHeadingElement>(null);
   useEffect(() => ref.current?.focus(), []);
@@ -530,7 +540,9 @@ function FinishView({
           <h1 ref={ref} tabIndex={-1} className="text-2xl font-bold text-ink outline-none">
             {partial ? '오늘 드릴을 마쳤어요' : '세션을 마쳤어요'}
           </h1>
-          <p className="text-sm text-muted">드릴 {count}개를 했어요.</p>
+          <p className="text-sm text-muted">
+            {focus && !partial ? `처방 ${focus.number} / ${focus.total} 마쳤어요 · ` : ''}드릴 {count}개를 했어요.
+          </p>
           {partial && (
             <p className="text-sm leading-relaxed break-keep text-muted">
               {MECHANICS_FOLD_TEXT.partialFinish}
@@ -542,7 +554,7 @@ function FinishView({
 
         {!partial && advice?.to && <LevelOffer kind={advice.kind} to={advice.to} />}
 
-        {!partial && filmPrompt(sessionNumber) === 'compare' && (
+        {!partial && !focus && filmPrompt(sessionNumber) === 'compare' && (
           <div className="space-y-3 rounded-2xl bg-surface p-(--block-pad)">
             <p className="text-base font-bold break-keep text-ink">세션 {sessionNumber}번 · 찍어서 견줘 볼 때예요</p>
             <p className="text-sm break-keep text-muted">

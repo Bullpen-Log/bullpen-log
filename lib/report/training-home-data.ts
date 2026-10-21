@@ -185,7 +185,9 @@ export async function mechanicsCardData(userId: string): Promise<TrainingCard> {
   }
   const level = mechanicsLevel(program.level);
   const done = new Set(program.finishedToday ? [] : doneToday);
-  const completed = program.week == null;
+  /* 3D 리포트 처방이 남았으면 수준 12세션을 마쳐도 세션이 있다(lib/mechanics/program.ts buildProgramSession) */
+  const rx = program.focus && !program.focus.finished ? program.focus : null;
+  const completed = program.week == null && !rx;
   const bars = { index: program.index, total: program.total, label: `${level.name} ${program.total}번 중 ${program.index}번 마침` };
 
   const fold = painFold && !completed && !program.finishedToday ? painFold : null;
@@ -219,7 +221,9 @@ export async function mechanicsCardData(userId: string): Promise<TrainingCard> {
       ? `${level.name} 프로그램을 마쳤어요`
       : program.finishedToday
         ? '오늘 세션을 마쳤어요'
-        : `${level.name} ${program.index + 1}번 세션 · 드릴 ${session.length}개 · 15~20분`,
+        : rx
+          ? `처방 ${rx.done + 1}/${rx.total} · ${rx.rx[0].element} · 드릴 ${session.length}개`
+          : `${level.name} ${program.index + 1}번 세션 · 드릴 ${session.length}개 · 15~20분`,
     {
       tone: program.finishedToday || completed ? 'done' : 'normal',
       action:

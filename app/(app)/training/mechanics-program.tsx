@@ -13,6 +13,7 @@ import {
   Video,
 } from '@/components/icon';
 import { Button, ButtonLink, Card } from '@/components/ui';
+import { Modal } from '@/components/modal';
 import { FoldNote } from '@/components/fold-note';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { ErrorLine } from '@/components/error-line';
@@ -32,15 +33,22 @@ import {
   FILM_VERDICTS,
   MECHANICS_FOLD_BUTTONS,
   MECHANICS_FOLD_TEXT,
+  RX_LEVEL_TEXT,
   filmPrompt,
   foldSession,
   isArmLoaded,
   type FilmNote,
+  type FocusView,
   type MechanicsPainFold,
 } from '@/lib/mechanics/program';
 import { FilmVerdictButtons } from './film-verdict';
 import type { MechanicsProgramView, SessionDrillView } from '@/lib/mechanics/load';
-import { resetMechanicsProgram, startMechanicsProgram } from '@/app/actions/mechanics';
+import {
+  endMechanicsFocus,
+  resetMechanicsProgram,
+  startMechanicsFocus,
+  startMechanicsProgram,
+} from '@/app/actions/mechanics';
 import { josa } from '@/lib/korean';
 import { OverviewDetail } from './mechanics-guide';
 
@@ -51,21 +59,29 @@ import { OverviewDetail } from './mechanics-guide';
  * 수준을 안 골랐으면 고르기 카드 넷, 골랐으면 오늘의 세션 · 12칸 진행 · 권하기 · 수준 바꾸기. 세션은 따라 하기 화면
  * (/mechanics/play)에서 한 드릴씩 하고 느낌을 누른다. 규칙은 lib/mechanics/program.ts · levels.ts.
  */
+/** 3D 리포트 [처방 시작]에서 온 처방(확인 시트가 그린다) — 못 시작하면 까닭 */
+export type FocusOfferView = { reportId: string; rx: { element: string; level: 'improve' | 'edge' }[] } | { error: string };
+
 export function MechanicsProgram({
   program,
   session,
   doneToday,
   painFold = null,
+  offer = null,
 }: {
   program: MechanicsProgramView | null;
   session: SessionDrillView[];
   doneToday: string[];
   /** 오늘 어깨 · 팔꿈치 통증으로 팔에 싣는 드릴을 접는가(2판 P6-5, D5) — 아니면 null */
   painFold?: MechanicsPainFold | null;
+  /** 주소 ?focus= 로 온 3D 리포트 처방 — 확인 시트를 연다(docs/designs/pitch-3d-report.md 6-4절) */
+  offer?: FocusOfferView | null;
 }) {
+  const sheet = offer && <FocusStartSheet offer={offer} level={program?.level ?? null} current={program?.focus ?? null} />;
   if (!program?.level) {
     return (
       <div className="stack-block">
+        {sheet}
         {/* 글은 한 줄만, 나머지는 '자세히' 뒤로(2026-10-16 김민 "화면 글 많은 곳 줄여줘" — 이 화면이 1,500자 · 화면 3장 길이였다) */}
         <Card className="space-y-1">
           <h2 className="text-heading text-lg text-ink">투구 메커니즘 향상 프로그램</h2>
@@ -83,10 +99,14 @@ export function MechanicsProgram({
   }
 
   const level = mechanicsLevel(program.level);
-  const completed = program.week == null;
+  const focus = program.focus;
+  /* 처방이 남았으면 수준 12세션을 마쳐도 세션이 있다(lib/mechanics/program.ts buildProgramSession) */
+  const completed = program.week == null && !(focus && !focus.finished);
 
   return (
     <div className="stack-block">
+      {sheet}
+      {focus && <FocusCard focus={focus} />}
       {completed ? (
         <CompletedCard level={level} advice={program.advice} />
       ) : (
@@ -105,7 +125,8 @@ export function MechanicsProgram({
 
       <LevelProgress program={program} level={level} />
 
-      <FilmCard sessionsDone={program.sessionsDone} films={program.films} />
+      {/* 처방 중에는 '다시 찍기'를 처방 카드가 맡는다 — 권유가 둘로 겹치지 않게(6-4절) */}
+      {!focus && <FilmCard sessionsDone={program.sessionsDone} films={program.films} />}
 
       <LevelSettings current={level.key} index={program.index} />
 
@@ -165,9 +186,12 @@ function SessionCard({
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 className="text-heading text-lg text-ink">
           {program.finishedToday ? '다음 세션' : '오늘의 세션'}
+          {program.focus && !program.focus.finished && (
+            <span className="text-sky-strong"> · 처방 {program.focus.done + 1}/{program.focus.total}</span>
+          )}
         </h2>
         <span className="text-xs text-muted">
-          {level.name} · {program.index + 1}번 세션 · {level.key === 'intermediate' || level.key === 'advanced' ? '20~25분' : '15~20분'}
+          {level.name} · {Math.min(program.index + 1, program.total)}번 세션 · {level.key === 'intermediate' || level.key === 'advanced' ? '20~25분' : '15~20분'}
         </span>
       </div>
       {program.finishedToday && (
@@ -225,6 +249,7 @@ function SessionCard({
                 </span>
                 <span className="min-w-0 flex-1 space-y-0.5">
                   <span className="block text-sm font-bold break-keep text-ink">
+                    {item.rx && <RxTag rx={item.rx} />}
                     {item.title}
                   </span>
                   <span className="block text-xs break-keep text-muted">
@@ -642,5 +667,231 @@ function FilmHistory({ films }: { films: FilmNote[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/* ------------------------- 3D 리포트 처방(6-4절) ------------------------- */
+
+/** 처방 칸 드릴의 '처방' 꼬리표 — 드릴 이름 앞 */
+export function RxTag({ rx }: { rx: { element: string; level: 'improve' | 'edge' } }) {
+  return (
+    <span className="mr-1.5 inline-flex translate-y-[-1px] items-center rounded-full bg-sky px-2 py-0.5 align-middle text-caption font-bold text-white">
+      처방 · {rx.element}
+    </span>
+  );
+}
+
+/** 요소 칩 '브레이크 집중' · '몸통 회전 보조' */
+function RxChips({ rx }: { rx: { element: string; level: 'improve' | 'edge' }[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {rx.map((r) => (
+        <span
+          key={r.element}
+          className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+            r.level === 'improve' ? 'bg-sky text-white' : 'bg-sky-tint text-sky-strong'
+          }`}
+        >
+          {r.element} {RX_LEVEL_TEXT[r.level]}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+const dayText = (key: string) => `${Number(key.slice(5, 7))}월 ${Number(key.slice(8, 10))}일`;
+
+/**
+ * 처방 카드(프로그램 칸 맨 위) — 무엇을 · 몇 번째 · 느낌 신호 · 다음 재기에서 볼 숫자. 다 마치면 '다시 찍어 견줘요' 하나로 바뀐다
+ * (다시 재기 안내는 여기 하나 — 촬영 권유 카드는 처방 중엔 숨긴다).
+ */
+function FocusCard({ focus }: { focus: FocusView }) {
+  const router = useRouter();
+  const [ask, setAsk] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const end = () =>
+    startTransition(async () => {
+      setError(null);
+      const res = await orOffline(endMechanicsFocus(), { error: OFFLINE_MESSAGE });
+      setAsk(false);
+      if ('error' in res) setError(res.error);
+      else quietRefresh(router);
+    });
+  return (
+    <Card className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h2 className="text-heading text-lg text-ink">3D 리포트 처방</h2>
+        <span className="text-xs text-muted">{dayText(focus.startedOn)} 시작</span>
+      </div>
+      <RxChips rx={focus.rx} />
+      {focus.finished ? (
+        <>
+          <p className="text-sm leading-relaxed break-keep text-ink">
+            처방을 마쳤어요. 같은 자리에서 다시 찍어 리포트와 견줘요.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <ButtonLink href="/videos/lab" className="rounded-full">
+              리포트 받기
+            </ButtonLink>
+            <Button variant="secondary" onClick={end} disabled={pending} className="rounded-full">
+              {pending ? '닫는 중…' : '처방 닫기'}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="space-y-1.5">
+            <p className="flex items-baseline justify-between gap-2 text-sm">
+              <b className="text-ink tabular-nums">
+                {focus.done} / {focus.total} 세션
+              </b>
+              <span className="text-xs text-muted">
+                {focus.week}주차{focus.stage ? ` · ${focus.stage}` : ''}
+              </span>
+            </p>
+            <div className="grid grid-cols-9 gap-1" aria-hidden>
+              {Array.from({ length: focus.total }, (_, i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 rounded-full ${i < focus.done ? 'bg-sky' : i === focus.done ? 'bg-sky/40' : 'bg-surface-2'}`}
+                />
+              ))}
+            </div>
+          </div>
+          {focus.cue && (
+            <p className="rounded-xl bg-sky-tint/60 px-3.5 py-2.5 text-sm font-semibold break-keep text-sky-strong">
+              “{focus.cue}”
+            </p>
+          )}
+          {focus.target && (
+            <p className="text-xs break-keep text-muted">
+              목표 {focus.target.label} {focus.target.now} → {focus.target.goal}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Link
+              href={`/videos/lab/${focus.reportId}`}
+              className="inline-flex min-h-10 items-center text-sm font-semibold text-sky-strong"
+            >
+              리포트 보기 ›
+            </Link>
+            <button
+              type="button"
+              onClick={() => setAsk(true)}
+              className="inline-flex min-h-10 items-center text-xs font-semibold text-muted transition-colors hover:text-danger"
+            >
+              처방 그만두기
+            </button>
+          </div>
+        </>
+      )}
+      {error && <ErrorLine>{error}</ErrorLine>}
+      <ConfirmDialog
+        open={ask}
+        onClose={() => setAsk(false)}
+        onConfirm={end}
+        title="처방을 그만둘까요?"
+        detail="지금 수준 프로그램의 드릴로 돌아가요. 수준 진행은 그대로예요."
+        confirmLabel="그만두기"
+        pending={pending}
+        pendingLabel="그만두는 중…"
+      />
+    </Card>
+  );
+}
+
+/**
+ * [처방 시작] 확인 시트 — 3D 리포트에서 /training?view=mechanics&focus=<리포트 번호>로 왔을 때. 처방은 지금 수준 세션의 드릴 칸을 바꾸는 것이라
+ * 수준이 없으면 같은 시트에서 고른다. 다른 처방이 진행 중이면 바뀐다고 알린다. 같은 처방이 이미 진행 중이면 시트를 안 띄운다.
+ */
+function FocusStartSheet({
+  offer,
+  level,
+  current,
+}: {
+  offer: FocusOfferView;
+  level: LevelKey | null;
+  current: FocusView | null;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(true);
+  const [pick, setPick] = useState<LevelKey | null>(level);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const running = current && !current.finished ? current : null;
+  if ('reportId' in offer && running?.reportId === offer.reportId) return null;
+  const close = () => {
+    setOpen(false);
+    router.replace('/training?view=mechanics', { scroll: false });
+  };
+  if ('error' in offer) {
+    return (
+      <Modal open={open} onClose={close} title="처방을 시작할 수 없어요">
+        <div className="space-y-5">
+          <p className="text-sm leading-relaxed break-keep text-ink">{offer.error}</p>
+          <Button variant="secondary" onClick={close} className="w-full rounded-full">
+            닫기
+          </Button>
+        </div>
+      </Modal>
+    );
+  }
+  const what = offer.rx.map((r) => `${r.element} ${RX_LEVEL_TEXT[r.level]}`).join(' · ');
+  const start = () =>
+    startTransition(async () => {
+      setError(null);
+      const res = await orOffline(startMechanicsFocus({ reportId: offer.reportId, level: pick }), {
+        error: OFFLINE_MESSAGE,
+      });
+      if ('error' in res) setError(res.error);
+      else close();
+    });
+  return (
+    <Modal open={open} onClose={close} title="처방을 시작할까요?">
+      <div className="space-y-4">
+        <RxChips rx={offer.rx} />
+        <p className="text-sm leading-relaxed break-keep text-ink">
+          {what}
+          {josa(what, '으로/로')} 3주 · 9세션 해요. 지금 수준 프로그램의 드릴 칸이 처방 드릴로 바뀌어요.
+        </p>
+        {running && (
+          <p className="rounded-xl bg-warn-bg px-3.5 py-2.5 text-sm font-semibold break-keep text-warn">
+            진행 중인 처방({running.rx[0]?.element} {running.done}/{running.total})은 새 처방으로 바뀌어요.
+          </p>
+        )}
+        {!level && (
+          <div className="space-y-2">
+            <p className="text-sm font-bold text-ink">수준부터 골라요</p>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="수준">
+              {MECHANICS_LEVELS.map((lv) => (
+                <button
+                  key={lv.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={pick === lv.key}
+                  onClick={() => setPick(lv.key)}
+                  className={`min-h-12 rounded-2xl border px-3 text-left transition-colors ${
+                    pick === lv.key ? 'border-sky bg-sky-tint text-sky-strong' : 'border-line bg-surface text-ink'
+                  }`}
+                >
+                  <span className="block text-sm font-bold">{lv.name}</span>
+                  <span className="block text-xs break-keep text-muted">{lv.line}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {error && <ErrorLine>{error}</ErrorLine>}
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="secondary" onClick={close} className="rounded-full">
+            나중에
+          </Button>
+          <Button onClick={start} disabled={pending || !pick} className="rounded-full">
+            {pending ? '시작하는 중…' : '시작'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }

@@ -12,13 +12,15 @@ import { equipmentForToday } from '@/lib/report/equipment';
 import { groupDrills, type MechanicsDrillView, type MechanicsVariant } from '@/lib/mechanics/drills';
 import { MECHANICS_PAIN_WINDOW_DAYS, mechanicsFoldOf } from '@/lib/mechanics/fold';
 import {
-  buildLevelSession,
+  buildProgramSession,
   canUseVariant,
   drillThrowNote,
+  focusView,
   levelAdvice,
   readProgramState,
   type DrillThrowNote,
   type FilmNote,
+  type FocusView,
   type ProgramState,
   type MechanicsPainFold,
   type SessionItem,
@@ -58,6 +60,8 @@ export type MechanicsProgramView = {
   advice: ReturnType<typeof levelAdvice>;
   /** 찍어서 처음과 견준 결과 — 세션 번호 순(프로그램 칸의 '견준 기록') */
   films: FilmNote[];
+  /** 3D 리포트 처방(진행 중 · 마침) — 없으면 null. 진행 중이면 수준 12세션을 마친 뒤에도 세션이 있다 */
+  focus: FocusView | null;
 };
 
 /**
@@ -152,6 +156,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     finishedToday: row.lastSessionOn ? keyOfDbDate(row.lastSessionOn) === todayKey : false,
     advice: levelAdvice(state),
     films: state.films,
+    focus: state.focus ? focusView(state.focus) : null,
   };
   const gear = equipmentForToday(user?.ownedEquipment ?? [], setup?.availableEquipment);
   const owned = gear.length > 0 ? new Set(gear) : null;
@@ -162,7 +167,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     guideId,
     variants: d.variants.map((v) => ({ ...v, owned: canUseVariant(v, owned) })),
   });
-  const items = state.level ? buildLevelSession({ drills, level: state.level, index: state.index, owned }) : [];
+  const items = buildProgramSession({ drills, state, owned });
   const session = items.flatMap((item): SessionDrillView[] => {
     const variant = variants.get(item.guideId);
     const drill = byTitle.get(item.title);
@@ -205,6 +210,32 @@ export async function loadMechanicsProgram(userId: string): Promise<{
       age: user?.birthDate ? ageFromBirthDate(user.birthDate, now) : null,
     }),
   };
+}
+
+/** 요소별 드릴 칸이 보이는 내 처방 — 요소 칩의 점 · 요소 카드 맨 위 한 줄과 처방 드릴(docs/designs/pitch-3d-report.md 6-4절) */
+export type ElementReportView = {
+  element: string;
+  level: 'improve' | 'edge';
+  target: { label: string; now: string; goal: string } | null;
+  /** 처방 드릴 — 단계 차례(주차 차례), 겹치지 않게 */
+  titles: { title: string; stage: string }[];
+};
+
+/**
+ * 진행 중 · 마친 처방의 요소들 — 처방이 없으면 null. 리포트 파일은 다시 안 읽고 베낀 처방(progress.focus)만 본다 — 처방 없이 리포트만 받은
+ * 사람의 점은 3D 세션이 가벼운 '마지막 리포트 요약' 읽기를 주면 그때 더한다.
+ */
+export async function loadElementReport(userId: string): Promise<ElementReportView[] | null> {
+  const row = await prisma.mechanicsProgram.findUnique({ where: { userId }, select: { progress: true } });
+  const focus = row ? readProgramState(row.progress).focus : null;
+  if (!focus) return null;
+  return focus.rx.map((r) => {
+    const seen = new Set<string>();
+    const titles = r.weeks.flatMap((w) =>
+      w.drills.flatMap((d) => (seen.has(d.title) ? [] : (seen.add(d.title), [{ title: d.title, stage: w.stage }])))
+    );
+    return { element: r.element, level: r.level, target: r.target, titles };
+  });
 }
 
 /**

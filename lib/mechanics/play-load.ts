@@ -26,6 +26,8 @@ export type MechanicsPlay = {
   isAdmin: boolean;
   partial: boolean;
   painLabel: string | null;
+  /** 3D 리포트 처방 중이면 이번이 몇 번째 처방 세션인가 — 끝 화면 '처방 5 / 9 마쳤어요'. 아니면 null */
+  focus: { number: number; total: number } | null;
 };
 
 /**
@@ -60,12 +62,18 @@ export async function loadMechanicsPlay(
     items,
     startAt: resumeAt(items, done),
     label:
-      program.level && program.week
-        ? `${mechanicsLevel(program.level).name} ${program.index + 1}번 세션`
-        : `${program.sessionsDone + 1}번째 세션`,
+      program.focus && !program.focus.finished
+        ? `처방 ${program.focus.done + 1}/${program.focus.total}`
+        : program.level && program.week
+          ? `${mechanicsLevel(program.level).name} ${program.index + 1}번 세션`
+          : `${program.sessionsDone + 1}번째 세션`,
     sessionNumber: program.sessionsDone + 1,
     isAdmin: user.role === 'ADMIN',
     partial,
     painLabel: painFold && anyway ? painFold.label : null,
+    focus:
+      program.focus && !program.focus.finished
+        ? { number: program.focus.done + 1, total: program.focus.total }
+        : null,
   };
 }

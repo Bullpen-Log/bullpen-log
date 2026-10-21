@@ -30,6 +30,7 @@ import {
   type MechanicsElementName,
 } from '@/lib/mechanics/elements';
 import { isLevelKey, levelSession, nextLevel, prevLevel, SESSIONS_PER_LEVEL, type LevelKey } from '@/lib/mechanics/levels';
+import type { ElementRx } from '@/lib/pitch-3d/v2/report';
 
 export type DrillStage = (typeof DRILL_STAGE_NAMES)[number];
 export type DrillFeel = 'hard' | 'ok' | 'easy';
@@ -79,7 +80,28 @@ export type ProgramState = {
   films: FilmNote[];
   /** 오늘 드릴로 던진 공의 기록 알림 — 2026-10-16 앞에 쓴 줄 · 스로잉 드릴을 안 한 날은 null */
   throwLog: ThrowLog | null;
+  /** 3D 리포트 처방 — 진행 중이거나 마친 처방(새 처방 · 끝내기 전까지 남는다). 없으면 null */
+  focus: ProgramFocus | null;
 };
+
+/**
+ * 3D 리포트 처방(docs/designs/pitch-3d-report.md 6-2 · 6-4절) — [처방 시작]을 누를 때 리포트의 처방 한 장들(ElementRx[])을 그대로 베낀다.
+ * 메커니즘은 리포트 파일을 다시 읽지 않는다. 리포트 번호는 지금 샘플 번호(리포트가 분석 결과로 셈해서 — 3D 세션).
+ */
+export type ProgramFocus = {
+  reportId: string;
+  /** 처방을 뽑은 분석 결과의 작업 번호 — 같은 샘플을 다시 분석하면 리포트가 바뀌어 견줄 때 쓴다 */
+  jobId: string | null;
+  /** 흐름 차례 · 많아야 두 장 — 첫 장이 주 문제 */
+  rx: ElementRx[];
+  startedOn: string;
+  /** 마친 처방 세션 수(0~{FOCUS_SESSIONS}) */
+  done: number;
+};
+
+/** 처방 한 번 = 3주 × 주 3번 */
+export const FOCUS_WEEKS = 3;
+export const FOCUS_SESSIONS = FOCUS_WEEKS * 3;
 
 /** 다음 수준을 권하는 데 필요한 '쉬움' 날 수(요소마다) · 그런 요소 수 */
 export const EASY_DAYS = 3;
@@ -151,6 +173,51 @@ function readThrowLog(raw: unknown): ThrowLog | null {
   return on ? { on, base: countOf(v.base), closed: v.closed === true } : null;
 }
 
+const STAGES = new Set<string>(DRILL_STAGE_NAMES);
+const str = (x: unknown) => (typeof x === 'string' ? x : null);
+
+/** 베낀 처방 한 장 — 모양이 아니면 버린다(Json 이라 무엇이 들어 있을지 모른다) */
+function readRx(x: unknown): ElementRx | null {
+  const v = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
+  const fault = str(v.fault);
+  if (!isElementName(v.element) || !fault || (v.level !== 'improve' && v.level !== 'edge')) return null;
+  const weeks = (Array.isArray(v.weeks) ? v.weeks : []).flatMap((w) => {
+    const o = (w && typeof w === 'object' ? w : {}) as Record<string, unknown>;
+    const week: 1 | 2 | 3 | null = o.week === 1 || o.week === 2 || o.week === 3 ? o.week : null;
+    const stage = str(o.stage);
+    if (!week || !stage || !STAGES.has(stage)) return [];
+    const drills = (Array.isArray(o.drills) ? o.drills : []).flatMap((d) => {
+      const t = (d && typeof d === 'object' ? d : {}) as Record<string, unknown>;
+      const title = str(t.title);
+      return title ? [{ title, thumbUrl: str(t.thumbUrl), dose: str(t.dose) ?? '' }] : [];
+    });
+    return [{ week, label: str(o.label) ?? `${week}주`, stage: stage as DrillStage, drills }];
+  });
+  const t = (v.target && typeof v.target === 'object' ? v.target : null) as Record<string, unknown> | null;
+  const label = str(t?.label);
+  const now = str(t?.now);
+  const goal = str(t?.goal);
+  return {
+    element: v.element,
+    key: str(v.key) ?? '',
+    fault: fault as ElementRx['fault'],
+    level: v.level,
+    slots: v.slots === 2 ? 2 : 1,
+    cue: str(v.cue) ?? '',
+    weeks,
+    target: label && now && goal ? { label, now, goal } : null,
+  };
+}
+
+function readFocus(raw: unknown): ProgramFocus | null {
+  const v = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const reportId = str(v.reportId);
+  const startedOn = dayOf(v.startedOn);
+  const rx = (Array.isArray(v.rx) ? v.rx : []).map(readRx).filter((r): r is ElementRx => r != null);
+  if (!reportId || !startedOn || rx.length === 0) return null;
+  return { reportId, jobId: str(v.jobId), rx: rx.slice(0, 2), startedOn, done: countOf(v.done, FOCUS_SESSIONS) };
+}
+
 export function readProgramState(json: unknown): ProgramState {
   const raw = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>;
   if (raw.v !== 2) return freshState(null);
@@ -161,6 +228,7 @@ export function readProgramState(json: unknown): ProgramState {
     feels: readFeels((raw.feels && typeof raw.feels === 'object' ? raw.feels : {}) as Record<string, unknown>),
     films: readFilms(raw.films),
     throwLog: readThrowLog(raw.throwLog),
+    focus: readFocus(raw.focus),
   };
 }
 
@@ -173,12 +241,13 @@ export function programStateJson(state: ProgramState) {
     feels: state.feels,
     films: state.films,
     throwLog: state.throwLog,
+    focus: state.focus,
   };
 }
 
-/** 새로 시작하는 수준 — 세션 0, 느낌도 처음부터(다른 수준의 쉬움을 끌고 오지 않는다). 견준 결과 · 던진 공 알림은 부르는 쪽이 이어 붙인다 */
+/** 새로 시작하는 수준 — 세션 0, 느낌도 처음부터(다른 수준의 쉬움을 끌고 오지 않는다). 견준 결과 · 던진 공 알림 · 처방은 부르는 쪽이 이어 붙인다 */
 export function freshState(level: LevelKey | null): ProgramState {
-  return { level, index: 0, feels: readFeels({}), films: [], throwLog: null };
+  return { level, index: 0, feels: readFeels({}), films: [], throwLog: null, focus: null };
 }
 
 /* ------------------------- 드릴로 던진 공 알림(2026-10-16) ------------------------- */
@@ -350,6 +419,8 @@ export type SessionItem = {
   gearNote: { need: string; replaced: string | null } | null;
   /** 같은 요소 · 같은 단계에서 할 수 있는 다른 동작(이 세션에 이미 든 것은 뺀다, 최대 4) */
   swaps: SessionSwap[];
+  /** 3D 리포트 처방 칸이면 그 처방의 요소 · 집중(improve) | 보조(edge) — '처방' 꼬리표. 수준 프로그램 칸은 null */
+  rx: { element: MechanicsElementName; level: 'improve' | 'edge' } | null;
 };
 
 const MOVEMENT = '무브먼트 패턴 드릴';
@@ -461,36 +532,44 @@ function swapsFor(
   return out;
 }
 
+/** 처방 칸 꼬리표 — 드릴 이름마다(처방 칸이 아니면 없음) */
+type RxTag = { element: MechanicsElementName; level: 'improve' | 'edge'; cue: string };
+
 /**
- * 고른 수준의 index 번째 세션을 펼친다 — 정해진 드릴(levels.ts)마다 할 수 있는 도구를 고르고, 장비가 없어 못 하면 같은
- * 요소 · 같은 단계의 할 수 있는 드릴로 바꿔 넣는다(없으면 그대로 두고 알린다). 라이브러리에 없는 이름은 건너뛴다(시험이 막는다).
- * 12세션을 다 마쳤으면 빈 배열.
+ * 드릴 이름 목록을 세션으로 펼친다 — 이름마다 할 수 있는 도구를 고르고, 장비가 없어 못 하면 같은 요소 · 같은 단계의 할 수 있는 드릴로 바꿔
+ * 넣는다(없으면 그대로 두고 알린다). 라이브러리에 없는 이름은 건너뛴다(시험이 막는다). 처방 칸(tags)은 '처방' 꼬리표와 처방 느낌 신호를 단다.
  */
-export function buildLevelSession({
+function itemsFromTitles({
   drills,
-  level,
+  titles,
   index,
-  owned = null,
+  owned,
+  tags = new Map(),
 }: {
   drills: ProgramDrill[];
-  level: LevelKey;
+  titles: string[];
   index: number;
-  /** 가진 장비 — null 이면 거르지 않는다(아직 안 고른 사람) */
-  owned?: ReadonlySet<string> | null;
+  owned: ReadonlySet<string> | null;
+  tags?: ReadonlyMap<string, RxTag>;
 }): SessionItem[] {
-  const plan = levelSession(level, index);
-  if (!plan) return [];
   const byTitle = new Map(drills.map((d) => [d.title, d] as const));
-  const used = new Set(plan.titles);
-  const picks: { drill: ProgramDrill; variant: ProgramDrill['variants'][number]; replaced: string | null; need: string[] }[] = [];
+  const used = new Set(titles);
+  const picks: {
+    drill: ProgramDrill;
+    variant: ProgramDrill['variants'][number];
+    replaced: string | null;
+    need: string[];
+    tag: RxTag | null;
+  }[] = [];
 
-  for (const title of plan.titles) {
+  for (const title of titles) {
     const drill = byTitle.get(title);
     if (!drill) continue;
+    const tag = tags.get(title) ?? null;
     const element = drill.focusPoints[0];
     const own = usableVariant(drill, owned);
     if (own) {
-      picks.push({ drill, variant: own, replaced: null, need: [] });
+      picks.push({ drill, variant: own, replaced: null, need: [], tag });
       continue;
     }
     /*
@@ -506,13 +585,13 @@ export function buildLevelSession({
     const altVariant = alt ? usableVariant(alt, owned) : null;
     if (alt && altVariant) {
       used.add(alt.title);
-      picks.push({ drill: alt, variant: altVariant, replaced: drill.title, need });
+      picks.push({ drill: alt, variant: altVariant, replaced: drill.title, need, tag });
     } else {
-      picks.push({ drill, variant: drill.variants[0], replaced: null, need });
+      picks.push({ drill, variant: drill.variants[0], replaced: null, need, tag });
     }
   }
 
-  return picks.flatMap(({ drill, variant, replaced, need }, i) => {
+  return picks.flatMap(({ drill, variant, replaced, need, tag }, i) => {
     const element = drill.focusPoints[0];
     if (!isElementName(element)) return [];
     const stage = stageOf(drill);
@@ -526,12 +605,159 @@ export function buildLevelSession({
         category: variant.category,
         tool: variant.tool,
         ...doseFields(variant.category, stage),
-        cue: cues.length > 0 ? cues[(index + i) % cues.length] : '',
+        cue: tag?.cue || (cues.length > 0 ? cues[(index + i) % cues.length] : ''),
         gearNote: need.length > 0 ? { need: need.join(' · '), replaced } : null,
         swaps: swapsFor(drills, element, stage, used, owned),
+        rx: tag ? { element: tag.element, level: tag.level } : null,
       },
     ];
   });
+}
+
+/**
+ * 고른 수준의 index 번째 세션을 펼친다 — 정해진 드릴(levels.ts)을 itemsFromTitles 로. 12세션을 다 마쳤으면 빈 배열.
+ */
+export function buildLevelSession({
+  drills,
+  level,
+  index,
+  owned = null,
+}: {
+  drills: ProgramDrill[];
+  level: LevelKey;
+  index: number;
+  /** 가진 장비 — null 이면 거르지 않는다(아직 안 고른 사람) */
+  owned?: ReadonlySet<string> | null;
+}): SessionItem[] {
+  const plan = levelSession(level, index);
+  if (!plan) return [];
+  return itemsFromTitles({ drills, titles: plan.titles, index, owned });
+}
+
+/* ------------------------- 3D 리포트 처방(6-2 · 6-4절) ------------------------- */
+
+/** 처방이 진행 중인가 — 아홉 세션을 다 마치면 끝(카드는 '다시 찍어 견줘요'로 남는다) */
+export const focusActive = (focus: ProgramFocus | null): focus is ProgramFocus =>
+  focus != null && focus.done < FOCUS_SESSIONS;
+
+/** 처방 몇 주차인가(1~3) — 마친 세션 수로 */
+export const focusWeek = (done: number) => Math.min(FOCUS_WEEKS, Math.floor(Math.max(0, done) / 3) + 1);
+
+/** 그 주에 할 처방 단계 — 경계 처방은 '1주 연결 · 2~3주 통합'이라 3주차는 2주차 칸을 쓴다(주차가 그보다 작거나 같은 마지막 칸) */
+export function rxWeek(rx: ElementRx, week: number): ElementRx['weeks'][number] | null {
+  return [...rx.weeks].sort((a, b) => a.week - b.week).filter((w) => w.week <= week).at(-1) ?? null;
+}
+
+/**
+ * 처방 세션의 드릴 이름 — 6-2절 세션 틀. 지금 수준 세션(base)의 칸 수는 그대로(입문 · 초급 셋, 중급 · 고급 넷), 드릴 칸만 바꾼다:
+ *   ① 주 문제 처방(고칠 점 2칸 · 경계 1칸) ② 다음 문제 처방 1칸 ③ 통합 — 두 요소를 같이 쓰는 통합 드릴(없으면 주 문제의 통합 드릴).
+ *   칸이 모자라면 앞 차례가 먼저, 남으면 지금 수준 드릴로 채우고, 투구 차례(여섯 요소 차례)로 다시 놓는다.
+ * 처방 드릴 이름은 리포트가 넘긴 것 그대로(lib/mechanics/prescriptions.ts 로 리포트가 고른 것) — 라이브러리에 없으면 itemsFromTitles 가 건너뛴다.
+ */
+export function focusPlan({
+  rx,
+  done,
+  base,
+  drills,
+}: {
+  rx: ElementRx[];
+  done: number;
+  base: string[];
+  drills: ProgramDrill[];
+}): { titles: string[]; tags: Map<string, RxTag> } {
+  const week = focusWeek(done);
+  const slots = Math.max(3, base.length);
+  const picks: { title: string; tag: RxTag }[] = [];
+  const add = (title: string | undefined, r: ElementRx) => {
+    if (!title || picks.some((p) => p.title === title) || picks.length >= slots) return;
+    picks.push({ title, tag: { element: r.element, level: r.level, cue: r.cue } });
+  };
+  const [main, next] = rx;
+  if (main) for (const d of (rxWeek(main, week)?.drills ?? []).slice(0, main.slots)) add(d.title, main);
+  if (next) {
+    const w = rxWeek(next, week);
+    add(w?.drills.find((d) => !picks.some((p) => p.title === d.title))?.title, next);
+  }
+  if (main) {
+    const both = drills.find(
+      (d) =>
+        d.stage === '통합' &&
+        d.focusPoints.includes(main.element) &&
+        (!next || d.focusPoints.includes(next.element)) &&
+        !picks.some((p) => p.title === d.title)
+    );
+    const own = main.weeks.find((w) => w.stage === '통합')?.drills.find((d) => !picks.some((p) => p.title === d.title));
+    add(next ? (both?.title ?? own?.title) : own?.title, main);
+  }
+  const tags = new Map(picks.map((p) => [p.title, p.tag] as const));
+  const titles = [...picks.map((p) => p.title), ...base.filter((t) => !tags.has(t))].slice(0, slots);
+  const order = (t: string) => {
+    const el = tags.get(t)?.element ?? drills.find((d) => d.title === t)?.focusPoints[0];
+    const i = ELEMENT_NAMES.indexOf(el as MechanicsElementName);
+    return i < 0 ? ELEMENT_NAMES.length : i;
+  };
+  return { titles: titles.map((t, i) => ({ t, i })).sort((a, b) => order(a.t) - order(b.t) || a.i - b.i).map((x) => x.t), tags };
+}
+
+/** 프로그램 칸 · 앱이 그리는 처방 요약(처방 카드 · 머리 '처방 4/9' · 요소 탭 점) */
+/** 처방 요소의 몫 이름 — 웹 · 앱 칩이 같이 쓴다 */
+export const RX_LEVEL_TEXT = { improve: '집중', edge: '보조' } as const;
+/** 요소 탭의 '내 리포트' 칸 — 리포트의 판정 말 */
+export const RX_REPORT_TEXT = { improve: '고칠 점', edge: '경계' } as const;
+
+export type FocusView = {
+  reportId: string;
+  startedOn: string;
+  /** 마친 처방 세션 수 · 모두 몇 번 */
+  done: number;
+  total: number;
+  finished: boolean;
+  /** 다음 세션의 주차 · 주 문제의 그 주 단계 */
+  week: number;
+  stage: DrillStage | null;
+  /** 요소 칩 — 흐름 차례 · 집중(improve) | 보조(edge) */
+  rx: { element: MechanicsElementName; key: string; level: 'improve' | 'edge'; fault: string; target: ElementRx['target'] }[];
+  /** 주 문제의 느낌 신호 · 다음 재기에서 볼 숫자 */
+  cue: string;
+  target: ElementRx['target'];
+};
+
+export function focusView(focus: ProgramFocus): FocusView {
+  const main = focus.rx[0];
+  const week = focusWeek(focus.done);
+  return {
+    reportId: focus.reportId,
+    startedOn: focus.startedOn,
+    done: Math.min(focus.done, FOCUS_SESSIONS),
+    total: FOCUS_SESSIONS,
+    finished: focus.done >= FOCUS_SESSIONS,
+    week,
+    stage: rxWeek(main, week)?.stage ?? null,
+    rx: focus.rx.map((r) => ({ element: r.element, key: r.key, level: r.level, fault: r.fault, target: r.target })),
+    cue: main.cue,
+    target: main.target,
+  };
+}
+
+/**
+ * 오늘의 세션 — 처방 중이면 지금 수준 세션의 드릴 칸을 처방으로 바꾼 것, 아니면 수준 세션 그대로.
+ * 수준 12세션을 다 마친 뒤에도 처방이 남았으면 마지막 세션을 틀로 쓴다.
+ */
+export function buildProgramSession({
+  drills,
+  state,
+  owned = null,
+}: {
+  drills: ProgramDrill[];
+  state: Pick<ProgramState, 'level' | 'index' | 'focus'>;
+  owned?: ReadonlySet<string> | null;
+}): SessionItem[] {
+  if (!state.level) return [];
+  if (!focusActive(state.focus)) return buildLevelSession({ drills, level: state.level, index: state.index, owned });
+  const index = Math.min(state.index, SESSIONS_PER_LEVEL - 1);
+  const base = levelSession(state.level, index)?.titles ?? [];
+  const { titles, tags } = focusPlan({ rx: state.focus.rx, done: state.focus.done, base, drills });
+  return itemsFromTitles({ drills, titles, index, owned, tags });
 }
 
 /* -------------------------- 팔이 아픈 날 접기(D5) -------------------------- */
@@ -714,5 +940,10 @@ export function resumeAt(
  */
 export function finishState(state: ProgramState, partial: boolean): ProgramState {
   if (partial) return state;
-  return { ...state, index: Math.min(state.index + 1, SESSIONS_PER_LEVEL) };
+  return {
+    ...state,
+    index: Math.min(state.index + 1, SESSIONS_PER_LEVEL),
+    /* 처방 중이면 처방 세션도 하나 — 수준 칸과 같은 세션이라 둘 다 오른다 */
+    focus: focusActive(state.focus) ? { ...state.focus, done: state.focus.done + 1 } : state.focus,
+  };
 }

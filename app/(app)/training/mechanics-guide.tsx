@@ -14,6 +14,9 @@ import {
   type MechanicsElement,
 } from '@/lib/mechanics/elements';
 import { MechanicsDrill, type MechanicsDrillView } from './mechanics-drill';
+import type { ElementReportView } from '@/lib/mechanics/load';
+import { RX_REPORT_TEXT } from '@/lib/mechanics/program';
+
 
 /** 자세히 보기 창에 띄울 것 — 투구 한눈에, 또는 요소 하나 */
 type InfoTarget = { kind: 'overview' } | { kind: 'element'; name: string };
@@ -36,6 +39,7 @@ export function MechanicsGuide({
   hand,
   isAdmin,
   focus,
+  report = null,
 }: {
   drills: MechanicsDrillView[];
   /** 던지는 손 — 글의 1루 · 3루, 왼쪽 · 오른쪽을 맞춘다 */
@@ -43,10 +47,13 @@ export function MechanicsGuide({
   isAdmin: boolean;
   /** 처음에 열어 둘 요소(주소의 ?el=) */
   focus: string | null;
+  /** 3D 리포트 처방의 요소들 — 칩에 점, 카드 맨 위에 '내 리포트' 한 줄 · 처방 드릴(6-4절). 처방이 없으면 null */
+  report?: ElementReportView[] | null;
 }) {
   const [open, setOpen] = useState<string | null>(
     () => MECHANICS_ELEMENTS.find((e) => e.key === focus)?.name ?? null
   );
+  const reportOf = (name: string) => report?.find((r) => r.element === name) ?? null;
   /** 증상 칩으로 열었으면 그 증상 — 열린 카드 위에 '함께 볼 요소'를 적는다 */
   const [via, setVia] = useState<(typeof MECHANICS_SYMPTOMS)[number] | null>(null);
   const modal = useModalState<InfoTarget>();
@@ -80,7 +87,7 @@ export function MechanicsGuide({
             <ChevronRight aria-hidden className="h-3.5 w-3.5" />
           </button>
         </div>
-        <ElementChain onPick={(name) => openElement(name, null)} current={open} />
+        <ElementChain onPick={(name) => openElement(name, null)} current={open} report={report} />
       </section>
 
       <section className="space-y-2.5">
@@ -108,6 +115,7 @@ export function MechanicsGuide({
             drills={drillsFor(el.name, drills)}
             open={open === el.name}
             via={open === el.name ? via : null}
+            report={reportOf(el.name)}
             onToggle={() => {
               setOpen(open === el.name ? null : el.name);
               setVia(null);
@@ -144,9 +152,11 @@ export function MechanicsGuide({
 function ElementChain({
   onPick,
   current,
+  report,
 }: {
   onPick: (name: string) => void;
   current: string | null;
+  report: ElementReportView[] | null;
 }) {
   return (
     <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 desk:grid-cols-6">
@@ -172,6 +182,15 @@ function ElementChain({
               {el.order}
             </span>
             <span className="text-sm font-bold break-keep">{el.name}</span>
+            {(() => {
+              const r = report?.find((x) => x.element === el.name);
+              return r ? (
+                <span
+                  aria-label={`내 리포트 ${RX_REPORT_TEXT[r.level]}`}
+                  className={`ml-auto h-2 w-2 shrink-0 rounded-full ${r.level === 'improve' ? 'bg-warn' : 'bg-warn/45'}`}
+                />
+              ) : null;
+            })()}
           </button>
         </li>
       ))}
@@ -199,11 +218,13 @@ function ElementCard({
   drills,
   open,
   via,
+  report,
   onToggle,
   onInfo,
   onElement,
   isAdmin,
 }: {
+  report: ElementReportView | null;
   element: MechanicsElement;
   hand: string | null;
   drills: ReturnType<typeof drillsFor>;
@@ -247,6 +268,31 @@ function ElementCard({
 
       {open && (
         <div className="space-y-4 border-t border-line px-4 py-4">
+          {report && (
+            <div className="space-y-2 rounded-xl bg-sky-tint/60 px-3.5 py-3">
+              <p className="text-sm font-bold break-keep text-ink">
+                내 리포트: {RX_REPORT_TEXT[report.level]}
+                {report.target && (
+                  <span className="font-semibold text-ink/80">
+                    {' '}
+                    · {report.target.label} {report.target.now}
+                  </span>
+                )}
+              </p>
+              {report.titles.length > 0 && (
+                <ol className="space-y-1">
+                  {report.titles.map((t, i) => (
+                    <li key={t.title} className="flex gap-2 text-xs break-keep text-ink/85">
+                      <span className="font-bold text-sky-strong tabular-nums">{i + 1}</span>
+                      <span>
+                        <b className="font-semibold">{t.title}</b> · {t.stage}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
           {via && via.also.length > 0 && (
             <p className="rounded-xl bg-sky-tint/60 px-3.5 py-2.5 text-xs leading-relaxed break-keep text-ink/85">
               ‘{via.text}’라면 {el.name}부터 보고, 함께{' '}

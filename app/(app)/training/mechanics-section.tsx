@@ -3,7 +3,8 @@ import { trainingGuides } from '@/lib/library-cache';
 import { createPlaybackUrls } from '@/lib/storage';
 import { groupDrills } from '@/lib/mechanics/drills';
 import type { MechanicsTab } from './mechanics-tabs';
-import { loadMechanicsProgram } from '@/lib/mechanics/load';
+import { loadElementReport, loadMechanicsProgram } from '@/lib/mechanics/load';
+import { loadFocusOffer } from '@/lib/mechanics/focus-load';
 import { MechanicsGuide } from './mechanics-guide';
 import { MechanicsProgram } from './mechanics-program';
 
@@ -19,27 +20,42 @@ export async function MechanicsSection({
   user,
   tab,
   focus,
+  report = null,
 }: {
-  user: { id: string; role: string; throwingHand: string | null };
+  user: { id: string; role: string; throwingHand: string | null; heightCm?: number | null; birthDate?: Date | null };
   tab: MechanicsTab;
   /** 주소의 ?el= — 그 요소 카드를 열어 둔다 */
   focus: string | null;
+  /** 주소의 ?focus= — 3D 리포트 [처방 시작]에서 왔다. 처방 확인 시트를 연다(docs/designs/pitch-3d-report.md 6-4절) */
+  report?: string | null;
 }) {
   if (tab === 'program') {
-    const { program, session, doneToday, painFold } = await loadMechanicsProgram(
-      user.id
-    );
+    const [{ program, session, doneToday, painFold }, offer] = await Promise.all([
+      loadMechanicsProgram(user.id),
+      report ? loadFocusOffer(user, report) : null,
+    ]);
     return (
       <MechanicsProgram
         program={program}
         session={session}
         doneToday={doneToday}
         painFold={painFold}
+        offer={
+          !offer
+            ? null
+            : 'error' in offer
+              ? { error: offer.error }
+              : { reportId: offer.reportId, rx: offer.rx.map((r) => ({ element: r.element, level: r.level })) }
+        }
       />
     );
   }
 
-  const [guides, favorites] = await Promise.all([trainingGuides(), favoriteDrillIds(user.id)]);
+  const [guides, favorites, elementReport] = await Promise.all([
+    trainingGuides(),
+    favoriteDrillIds(user.id),
+    loadElementReport(user.id),
+  ]);
   const ownThumbs = await createPlaybackUrls(
     guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string)
   );
@@ -50,6 +66,7 @@ export async function MechanicsSection({
       hand={user.throwingHand}
       isAdmin={user.role === 'ADMIN'}
       focus={focus}
+      report={elementReport}
     />
   );
 }

@@ -45,6 +45,7 @@ export default async function MechanicsPlayPage({
       isAdmin={play.isAdmin}
       partial={play.partial}
       painLabel={play.painLabel}
+      focus={play.focus}
     />
   );
 }

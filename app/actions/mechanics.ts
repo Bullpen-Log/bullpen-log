@@ -10,6 +10,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
 import { isLevelKey } from '@/lib/mechanics/levels';
 import { loadDrillThrowNote } from '@/lib/mechanics/load';
+import { loadFocusOffer } from '@/lib/mechanics/focus-load';
 import {
   countFeel,
   finishState,
@@ -57,12 +58,71 @@ export async function startMechanicsProgram(level: string): Promise<Result> {
       films: prevState?.films ?? [],
       /* 오늘 드릴로 던진 공 알림도 지킨다 — 같은 날 수준을 바꿔도 남길 공은 그대로 */
       throwLog: prevState?.throwLog ?? null,
+      /* 3D 리포트 처방도 지킨다 — 처방은 수준 세션의 드릴 칸만 바꾸는 것이라 수준을 바꿔도 이어 간다 */
+      focus: prevState?.focus ?? null,
+    })
+  );
+  const focus = prevState?.focus?.reportId ?? null;
+  await prisma.mechanicsProgram.upsert({
+    where: { userId: user.id },
+    create: { userId: user.id, focus, progress },
+    update: { focus, progress },
+  });
+  revalidatePath(PROGRAM_PATH);
+  return { ok: true };
+}
+
+/**
+ * 3D 리포트 처방 시작(docs/designs/pitch-3d-report.md 6-4절) — 리포트의 처방 한 장들을 그대로 베껴 progress.focus 에, 리포트 번호는
+ * MechanicsProgram.focus 칼럼에(DB 구조 그대로). 처방은 지금 수준 세션의 드릴 칸을 바꾸는 것이라 수준이 있어야 한다 — 아직 안 골랐으면
+ * 확인 시트가 함께 고른 수준(level)으로 시작한다. 진행 중인 다른 처방은 새 처방으로 바뀐다(시트가 먼저 묻는다).
+ */
+export async function startMechanicsFocus(input: { reportId: string; level?: string | null }): Promise<Result> {
+  const user = await requireUser();
+  const offer = await loadFocusOffer(user, input?.reportId);
+  if ('error' in offer) return offer;
+  const prev = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id }, select: { progress: true } });
+  const prevState = prev ? readProgramState(prev.progress) : null;
+  const level = prevState?.level ?? (isLevelKey(input.level) ? input.level : null);
+  if (!level) return { error: '수준을 먼저 골라 주세요.' };
+  const base = prevState?.level ? prevState : { ...freshState(level), films: prevState?.films ?? [], throwLog: prevState?.throwLog ?? null };
+  const progress = asJson(
+    programStateJson({
+      ...base,
+      focus: { reportId: offer.reportId, jobId: offer.jobId, rx: offer.rx, startedOn: toDateKey(appNow()), done: 0 },
     })
   );
   await prisma.mechanicsProgram.upsert({
     where: { userId: user.id },
-    create: { userId: user.id, focus: null, progress },
-    update: { focus: null, progress },
+    create: { userId: user.id, focus: offer.reportId, progress },
+    update: { focus: offer.reportId, progress },
+  });
+  revalidatePath(PROGRAM_PATH);
+  return { ok: true };
+}
+
+/**
+ * 처방 확인 시트(앱 native/src/app/training-mechanics.tsx ?focus=)가 읽는다 — 웹은 mechanics-section.tsx 가 서버에서 같은 loadFocusOffer 를 부른다.
+ * 시트에 그릴 요소 · 집중/보조만 내준다(드릴은 시작할 때 서버가 다시 셈해 베낀다).
+ */
+export async function loadMechanicsFocusOffer(
+  reportId: string
+): Promise<{ reportId: string; rx: { element: string; level: 'improve' | 'edge' }[] } | { error: string }> {
+  const user = await requireUser();
+  const offer = await loadFocusOffer(user, reportId);
+  if ('error' in offer) return offer;
+  return { reportId: offer.reportId, rx: offer.rx.map((r) => ({ element: r.element, level: r.level })) };
+}
+
+/** 처방 끝내기 — 처방 카드를 걷고 지금 수준 세션으로 돌아간다(마친 처방 · 그만두기). 수준 진행은 그대로 */
+export async function endMechanicsFocus(): Promise<Result> {
+  const user = await requireUser();
+  const program = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id }, select: { progress: true } });
+  if (!program) return { ok: true };
+  const state = readProgramState(program.progress);
+  await prisma.mechanicsProgram.update({
+    where: { userId: user.id },
+    data: { focus: null, progress: asJson(programStateJson({ ...state, focus: null })) },
   });
   revalidatePath(PROGRAM_PATH);
   return { ok: true };

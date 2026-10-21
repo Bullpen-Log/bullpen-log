@@ -26,6 +26,12 @@ import {
 import {
   EASY_DAYS,
   FILM_EVERY,
+  FOCUS_SESSIONS,
+  buildProgramSession,
+  focusActive,
+  focusPlan,
+  focusView,
+  focusWeek,
   HARD_DAYS,
   MECHANICS_FOLD_BUTTONS,
   MECHANICS_FOLD_TEXT,
@@ -51,6 +57,8 @@ import {
   type ProgramState,
 } from '@/lib/mechanics/program';
 import type { CachedGuide } from '@/lib/library-cache';
+import { FAULT_DRILLS, prescribedTitles } from '@/lib/mechanics/prescriptions';
+import type { ElementRx, FaultKey } from '@/lib/pitch-3d/v2/report';
 
 let pass = 0;
 let fail = 0;
@@ -706,6 +714,118 @@ console.log('\n[2판 P6-5] 어깨 · 팔꿈치 통증 날 접기 · 펼치기 ·
       `${folded}/${items}`
     );
   }
+}
+
+/* ── 3D 리포트 처방(docs/designs/pitch-3d-report.md 6-1 · 6-2 · 6-4절) ── */
+console.log('\n[3D 리포트 처방] 처방 드릴 표 · 9세션 짜기 · 마치기');
+{
+  const FAULT_ELEMENT: Record<string, MechanicsElementName> = {
+    drift: '드리프트',
+    drop: '드롭',
+    sep: '상하체 분리',
+    block: '브레이크',
+    trunk: '몸통 회전',
+    arm: '스로잉',
+  };
+  const elementOfFault = (f: string) => FAULT_ELEMENT[f.split('.')[0]];
+  for (const [fault, stages] of Object.entries(FAULT_DRILLS)) {
+    for (const [stage, titles] of Object.entries(stages)) {
+      ok(titles.length === 2 && new Set(titles).size === 2, `${fault} ${stage}: 드릴 둘 · 겹치지 않음`);
+      for (const t of titles) {
+        const d = byTitle.get(t);
+        ok(d != null, `${fault} ${stage}: '${t}' 가 라이브러리에 있음`);
+        if (!d) continue;
+        /* drop.shallow 는 '기초 건너뜀' — 기초 칸에 연결 드릴 */
+        const want = fault === 'drop.shallow' && stage === '기초' ? '연결' : stage;
+        ok(d.stage === want, `${fault} ${stage}: '${t}' 단계 ${want}`, `${d.stage}`);
+        ok(d.focusPoints.includes(elementOfFault(fault)), `${fault}: '${t}' 가 ${elementOfFault(fault)} 드릴`, d.focusPoints.join('/'));
+      }
+    }
+  }
+  ok(prescribedTitles('block.collapse', '기초', 1).length === 1, '경계는 한 칸만');
+
+  /* 리포트가 짜는 것과 같은 모양의 처방 한 장(report.ts rxOf) — 고칠 점 1·2·3주 기초·연결·통합, 경계 1주 연결 · 2~3주 통합 */
+  const rxOf = (fault: FaultKey, level: 'improve' | 'edge'): ElementRx => {
+    const slots = level === 'improve' ? 2 : 1;
+    const plan =
+      level === 'improve'
+        ? ([
+            [1, '1주', '기초'],
+            [2, '2주', '연결'],
+            [3, '3주', '통합'],
+          ] as const)
+        : ([
+            [1, '1주', '연결'],
+            [2, '2~3주', '통합'],
+          ] as const);
+    return {
+      element: elementOfFault(fault),
+      key: fault,
+      fault,
+      level,
+      slots,
+      cue: `${fault} 느낌`,
+      weeks: plan.map(([week, label, stage]) => ({
+        week,
+        label,
+        stage,
+        drills: prescribedTitles(fault, stage, slots).map((title) => ({ title, thumbUrl: null, dose: '' })),
+      })),
+      target: { label: '값', now: '20°', goal: '8° 밑' },
+    };
+  };
+  const block = rxOf('block.collapse', 'improve');
+  const trunk = rxOf('trunk.upright', 'edge');
+  const base4 = levelSession('intermediate', 0)!.titles;
+  const base3 = levelSession('intro', 0)!.titles;
+
+  ok(focusWeek(0) === 1 && focusWeek(2) === 1 && focusWeek(3) === 2 && focusWeek(8) === 3 && focusWeek(9) === 3, '처방 주차 — 세 번씩');
+
+  const p0 = focusPlan({ rx: [block, trunk], done: 0, base: base4, drills });
+  const tagged0 = p0.titles.filter((t) => p0.tags.has(t));
+  ok(p0.titles.length === base4.length, '처방 세션도 수준 세션의 칸 수 그대로(중급 넷)');
+  ok(prescribedTitles('block.collapse', '기초', 2).every((t) => p0.titles.includes(t)), '1주: 주 문제(고칠 점) 기초 드릴 두 칸');
+  ok(p0.titles.includes(prescribedTitles('trunk.upright', '연결', 1)[0]), '1주: 다음 문제(경계) 연결 드릴 한 칸');
+  ok(tagged0.length === 4, '중급: 네 칸 모두 처방(주 2 · 다음 1 · 통합 1)', `${tagged0.length}`);
+  const integ = p0.titles.find((t) => p0.tags.get(t)?.element === '브레이크' && byTitle.get(t)?.stage === '통합');
+  ok(integ != null && (byTitle.get(integ!)?.focusPoints.includes('몸통 회전') ?? false), '통합 칸은 두 요소를 같이 쓰는 통합 드릴', integ ?? '');
+  const order = p0.titles.map((t) => NAMES.indexOf((p0.tags.get(t)?.element ?? byTitle.get(t)?.focusPoints[0]) as MechanicsElementName));
+  ok(order.every((v, i) => i === 0 || v >= order[i - 1]), '처방 세션도 투구 차례');
+
+  const p0intro = focusPlan({ rx: [block, trunk], done: 0, base: base3, drills });
+  ok(p0intro.titles.length === 3 && p0intro.titles.every((t) => p0intro.tags.has(t)), '입문 · 초급(세 칸): 주 2 · 다음 1, 통합은 빠짐');
+
+  const pEdge = focusPlan({ rx: [trunk], done: 0, base: base3, drills });
+  ok(pEdge.titles.filter((t) => pEdge.tags.has(t)).length === 2, '경계 하나뿐: 주 1 · 통합 1, 남은 칸은 수준 드릴');
+  ok(pEdge.titles.some((t) => !pEdge.tags.has(t) && base3.includes(t)), '남은 칸은 지금 수준 드릴');
+
+  const p7 = focusPlan({ rx: [trunk], done: 7, base: base3, drills });
+  ok(prescribedTitles('trunk.upright', '통합', 1).every((t) => p7.titles.includes(t)), '경계 3주차는 2~3주 칸(통합)');
+  const p4 = focusPlan({ rx: [block, trunk], done: 4, base: base4, drills });
+  ok(prescribedTitles('block.collapse', '연결', 2).every((t) => p4.titles.includes(t)), '고칠 점 2주차는 연결');
+
+  /* 상태 · 세션 · 마치기 */
+  const fresh = freshState('intermediate');
+  const focus = { reportId: 'r1', jobId: 'j1', rx: [block, trunk], startedOn: '2026-10-21', done: 0 };
+  const st: ProgramState = { ...fresh, focus };
+  const round = readProgramState(programStateJson(st));
+  ok(same(round.focus, focus), '처방 저장 · 읽기가 같음');
+  ok(readProgramState({ ...programStateJson(fresh), focus: { reportId: 'x', rx: [{ element: '없는 요소' }] } }).focus === null, '모양이 아닌 처방은 버림');
+  ok(readProgramState(programStateJson(fresh)).focus === null, '처방 없는 줄은 null');
+
+  const s0 = buildProgramSession({ drills, state: st });
+  ok(s0.filter((it) => it.rx).length === 4 && s0.every((it) => it.rx == null || it.cue.endsWith('느낌')), '처방 칸은 처방 꼬리표 · 처방 느낌 신호');
+  ok(same(buildProgramSession({ drills, state: fresh }), buildLevelSession({ drills, level: 'intermediate', index: 0 })), '처방 없으면 수준 세션 그대로');
+  ok(buildProgramSession({ drills, state: { ...st, index: 12 } }).length > 0, '수준 12세션을 마쳐도 처방이 남았으면 세션이 있음');
+  ok(buildProgramSession({ drills, state: { ...st, focus: { ...focus, done: FOCUS_SESSIONS } } }).every((it) => it.rx == null), '처방을 다 마치면 수준 세션으로');
+
+  const f1 = finishState(st, false);
+  ok(f1.index === 1 && f1.focus?.done === 1, '마치면 수준 · 처방 둘 다 하나 오름');
+  ok(same(finishState(st, true), st), '반만 마치면 처방도 그대로');
+  const f9 = finishState({ ...st, focus: { ...focus, done: FOCUS_SESSIONS } }, false);
+  ok(f9.focus?.done === FOCUS_SESSIONS && !focusActive(f9.focus), '아홉 번에서 멈춤 · 끝난 처방');
+  const v = focusView({ ...focus, done: 4 });
+  ok(v.week === 2 && v.stage === '연결' && v.total === 9 && !v.finished && v.rx.length === 2, '처방 요약 — 2주차 연결 · 4/9');
 }
 
 console.log(`\n${pass}개 통과, ${fail}개 실패`);

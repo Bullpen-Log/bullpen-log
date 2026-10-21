@@ -1,8 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, Image, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Image, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { josa } from '@/lib/korean';
 import { DRILL_STAGES } from '@/lib/exercise-meta';
 import { MECHANICS_ELEMENTS, MECHANICS_OVERVIEW, MECHANICS_SOURCE_NOTE, MECHANICS_SYMPTOMS, sideText, type MechanicsElement } from '@/lib/mechanics/elements';
@@ -12,20 +12,24 @@ import {
   FILM_VERDICTS,
   MECHANICS_FOLD_BUTTONS,
   MECHANICS_FOLD_TEXT,
+  RX_LEVEL_TEXT,
+  RX_REPORT_TEXT,
   filmPrompt,
   foldSession,
   isArmLoaded,
   type FilmNote,
+  type FocusView,
   type MechanicsPainFold,
 } from '@/lib/mechanics/program';
 import type { MechanicsDrillView } from '@/lib/mechanics/drills';
-import type { MechanicsProgramView } from '@/lib/mechanics/load';
+import type { ElementReportView, MechanicsProgramView } from '@/lib/mechanics/load';
 import type { AppSessionDrill } from '@/lib/mechanics/home-load';
 import { ExerciseMedia } from '~/armcare/parts';
 import { act, Description, FilmVerdictButtons, leave } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Fold, s } from './screen';
 import { Star } from './fav-button';
+import { Sheet } from '~/workout/sheets';
 import { fromApp } from '~/shell/web-nav';
 import { Press } from '~/shell/press';
 
@@ -222,7 +226,8 @@ export function SessionCard({
       <View style={s.between}>
         <Text style={[s.title, { color: c.ink }]}>{program.finishedToday ? '다음 세션' : '오늘의 세션'}</Text>
         <Text style={[s.tiny, { color: c.muted, flexShrink: 1, textAlign: 'right' }]}>
-          {level.name} · {program.index + 1}번 세션 · {level.key === 'intermediate' || level.key === 'advanced' ? '20~25분' : '15~20분'}
+          {level.name} · {program.focus && !program.focus.finished ? `처방 ${program.focus.done + 1}/${program.focus.total}` : `${program.index + 1}번 세션`} ·{' '}
+          {level.key === 'intermediate' || level.key === 'advanced' ? '20~25분' : '15~20분'}
         </Text>
       </View>
       {program.finishedToday ? (
@@ -246,6 +251,7 @@ export function SessionCard({
           <View key={d.guideId} style={[st.drill, { backgroundColor: c.page }]}>
             <Num n={i + 1} done={done.has(d.guideId)} c={c} />
             <View style={{ flex: 1, gap: 2 }}>
+              {d.rx ? <RxTag element={d.rx.element} c={c} /> : null}
               <Text style={[s.bodyBold, { color: c.ink }]}>{d.title}</Text>
               <Text style={[s.small, { color: c.muted }]}>
                 {d.element} · {d.stage} · {d.tool} · {d.dose}
@@ -304,6 +310,222 @@ function Start({ label, onPress, c }: { label: string; onPress: () => void; c: P
       <SymbolView name="play.fill" size={13} tintColor="#fff" />
       <Text style={[s.bodyBold, { color: '#fff', fontSize: 17 }]}>{label}</Text>
     </Press>
+  );
+}
+
+/* ----------------------------- 3D 리포트 처방 ----------------------------- */
+
+type FocusOffer = { reportId: string; rx: { element: string; level: 'improve' | 'edge' }[] };
+
+/** 처방 칸 드릴의 '처방' 꼬리표(웹 RxTag) */
+function RxTag({ element, c }: { element: string; c: Palette }) {
+  return (
+    <Text style={[s.smallBold, s.tag, { alignSelf: 'flex-start', color: '#fff', backgroundColor: c.sky }]}>처방 · {element}</Text>
+  );
+}
+
+/** 요소 칩 '브레이크 집중' · '몸통 회전 보조'(웹 RxChips) */
+function RxChips({ rx, c }: { rx: FocusOffer['rx']; c: Palette }) {
+  return (
+    <View style={s.wrap}>
+      {rx.map((r) => (
+        <Text
+          key={r.element}
+          style={[s.smallBold, s.tag, { color: r.level === 'improve' ? '#fff' : c.sky, backgroundColor: r.level === 'improve' ? c.sky : c.sky + '1a' }]}
+        >
+          {r.element} {RX_LEVEL_TEXT[r.level]}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
+const dayText = (key: string) => `${Number(key.slice(5, 7))}월 ${Number(key.slice(8, 10))}일`;
+
+/** 처방 카드(프로그램 칸 맨 위, 웹 FocusCard) — 무엇을 · 몇 번째 · 느낌 신호 · 목표. 다 마치면 '다시 찍어 견줘요' */
+export function FocusCard({ focus, reload, c }: { focus: FocusView; reload: Reload; c: Palette }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const end = async () => {
+    if (pending) return;
+    setPending(true);
+    setError(null);
+    const res = await act<{ ok: true }>('mechanics.endMechanicsFocus');
+    if ('error' in res) setError(res.error);
+    else await reload();
+    setPending(false);
+  };
+  const askEnd = () =>
+    Alert.alert('처방을 그만둘까요?', '지금 수준 프로그램의 드릴로 돌아가요. 수준 진행은 그대로예요.', [
+      { text: '취소', style: 'cancel' },
+      { text: '그만두기', style: 'destructive', onPress: () => void end() },
+    ]);
+  return (
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
+      <View style={s.between}>
+        <Text style={[s.title, { color: c.ink }]}>3D 리포트 처방</Text>
+        <Text style={[s.tiny, { color: c.muted }]}>{dayText(focus.startedOn)} 시작</Text>
+      </View>
+      <RxChips rx={focus.rx} c={c} />
+      {focus.finished ? (
+        <>
+          <Text style={[s.body, { color: c.ink }]}>처방을 마쳤어요. 같은 자리에서 다시 찍어 리포트와 견줘요.</Text>
+          <Btn label="리포트 받기" onPress={() => router.push('/lab' as Href)} c={c} />
+          <Btn label={pending ? '닫는 중…' : '처방 닫기'} primary={false} disabled={pending} onPress={() => void end()} c={c} />
+        </>
+      ) : (
+        <>
+          <View style={s.between}>
+            <Text style={[s.bodyBold, { color: c.ink }]}>
+              {focus.done} / {focus.total} 세션
+            </Text>
+            <Text style={[s.tiny, { color: c.muted }]}>
+              {focus.week}주차{focus.stage ? ` · ${focus.stage}` : ''}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            {Array.from({ length: focus.total }, (_, i) => (
+              <View
+                key={i}
+                style={[st.cell, { height: 6, backgroundColor: i < focus.done ? c.sky : i === focus.done ? c.sky + '66' : c.chip }]}
+              />
+            ))}
+          </View>
+          {focus.cue ? <Text style={[s.bodyBold, s.box, { color: c.sky, backgroundColor: c.sky + '14' }]}>“{focus.cue}”</Text> : null}
+          {focus.target ? (
+            <Text style={[s.small, { color: c.muted }]}>
+              목표 {focus.target.label} {focus.target.now} → {focus.target.goal}
+            </Text>
+          ) : null}
+          <View style={[s.between, { alignItems: 'center' }]}>
+            <Press onPress={() => router.push(`/lab/${focus.reportId}` as Href)} accessibilityRole="button" style={s.textBtn}>
+              <Text style={[s.smallBold, { color: c.sky }]}>리포트 보기 ›</Text>
+            </Press>
+            <Press onPress={askEnd} accessibilityRole="button" style={s.textBtn}>
+              <Text style={[s.tiny, { color: c.muted }]}>처방 그만두기</Text>
+            </Press>
+          </View>
+        </>
+      )}
+      {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
+    </View>
+  );
+}
+
+/**
+ * 3D 리포트 [처방 시작]에서 왔을 때(?focus=<리포트 번호>, 웹 FocusStartSheet) — 무엇을 3주 · 9세션 할지 보이고 시작. 수준이 없으면 같이 고른다.
+ * 진행 중인 다른 처방은 새 처방으로 바뀐다고 먼저 알린다.
+ */
+export function FocusStartSheet({
+  reportId,
+  level,
+  current,
+  reload,
+  onClose,
+  c,
+}: {
+  reportId: string;
+  level: LevelKey | null;
+  current: FocusView | null;
+  reload: Reload;
+  onClose: () => void;
+  c: Palette;
+}) {
+  const [offer, setOffer] = useState<FocusOffer | { error: string } | null>(null);
+  const [pick, setPick] = useState<LevelKey | null>(level);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void act<FocusOffer>('mechanics.loadMechanicsFocusOffer', reportId).then((r) => alive && setOffer(r));
+    return () => {
+      alive = false;
+    };
+  }, [reportId]);
+  const running = current && !current.finished ? current : null;
+  const start = async () => {
+    if (pending || !pick) return;
+    setPending(true);
+    setError(null);
+    const res = await act<{ ok: true }>('mechanics.startMechanicsFocus', { reportId, level: pick });
+    if ('error' in res) {
+      setError(res.error);
+      setPending(false);
+      return;
+    }
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await reload();
+    onClose();
+  };
+  if (offer && 'error' in offer) {
+    return (
+      <Sheet fit open onClose={onClose} title="처방을 시작할 수 없어요" c={c}>
+        <Text style={[s.body, { color: c.ink }]}>{offer.error}</Text>
+        <Btn label="닫기" primary={false} onPress={onClose} c={c} />
+      </Sheet>
+    );
+  }
+  const what = offer ? offer.rx.map((r) => `${r.element} ${RX_LEVEL_TEXT[r.level]}`).join(' · ') : '';
+  return (
+    <Sheet
+      fit
+      open
+      onClose={onClose}
+      title="처방을 시작할까요?"
+      c={c}
+      footer={
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <Btn label="나중에" primary={false} onPress={onClose} c={c} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Btn label={pending ? '시작하는 중…' : '시작'} disabled={pending || !pick || !offer} onPress={() => void start()} c={c} />
+          </View>
+        </View>
+      }
+    >
+      {!offer ? (
+        <ActivityIndicator style={{ paddingVertical: 24 }} />
+      ) : (
+        <View style={{ gap: 14 }}>
+          <RxChips rx={offer.rx} c={c} />
+          <Text style={[s.body, { color: c.ink }]}>
+            {what}
+            {josa(what, '으로/로')} 3주 · 9세션 해요. 지금 수준 프로그램의 드릴 칸이 처방 드릴로 바뀌어요.
+          </Text>
+          {running ? (
+            <Text style={[s.bodyBold, s.box, { color: c.warn, backgroundColor: c.warnBg }]}>
+              진행 중인 처방({running.rx[0]?.element} {running.done}/{running.total})은 새 처방으로 바뀌어요.
+            </Text>
+          ) : null}
+          {!level ? (
+            <View style={{ gap: 8 }}>
+              <Text style={[s.bodyBold, { color: c.ink }]}>수준부터 골라요</Text>
+              <View style={st.grid} accessibilityRole="radiogroup">
+                {MECHANICS_LEVELS.map((lv) => {
+                  const on = pick === lv.key;
+                  return (
+                    <Press
+                      key={lv.key}
+                      select
+                      selected={on}
+                      onPress={() => setPick(lv.key)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: on }}
+                      style={[st.chainItem, { flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 2, paddingVertical: 8, borderWidth: 1, borderColor: on ? c.sky : c.line, backgroundColor: on ? c.sky + '14' : c.card }]}
+                    >
+                      <Text style={[s.bodyBold, { color: on ? c.sky : c.ink }]}>{lv.name}</Text>
+                      <Text style={[s.tiny, { color: c.muted }]}>{lv.line}</Text>
+                    </Press>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+          {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
+        </View>
+      )}
+    </Sheet>
   );
 }
 
@@ -489,11 +711,23 @@ function drillsFor(name: string, drills: MechanicsDrillView[]) {
 }
 
 /** 여섯 요소를 투구 차례대로 — 누르면 그 카드로 */
-export function ElementChain({ current, onPick, c }: { current: string | null; onPick: (name: string) => void; c: Palette }) {
+export function ElementChain({
+  current,
+  onPick,
+  report = null,
+  c,
+}: {
+  current: string | null;
+  onPick: (name: string) => void;
+  /** 3D 리포트 처방의 요소들 — 칩 끝에 점(고칠 점 진하게 · 경계 옅게) */
+  report?: ElementReportView[] | null;
+  c: Palette;
+}) {
   return (
     <View style={st.grid}>
       {MECHANICS_ELEMENTS.map((el) => {
         const on = current === el.name;
+        const r = report?.find((x) => x.element === el.name);
         return (
           <Press
             select
@@ -501,6 +735,7 @@ export function ElementChain({ current, onPick, c }: { current: string | null; o
             key={el.key}
             onPress={() => onPick(el.name)}
             accessibilityRole="button"
+            accessibilityLabel={r ? `${el.name}, 내 리포트 ${RX_REPORT_TEXT[r.level]}` : undefined}
             accessibilityState={{ selected: on }}
             style={[st.chainItem, { backgroundColor: on ? c.sky : c.card }]}
           >
@@ -508,6 +743,9 @@ export function ElementChain({ current, onPick, c }: { current: string | null; o
               <Text style={[s.smallBold, { color: on ? '#fff' : c.sky }]}>{el.order}</Text>
             </View>
             <Text style={[s.bodyBold, { color: on ? '#fff' : c.ink, flexShrink: 1 }]}>{el.name}</Text>
+            {r ? (
+              <View style={[st.dot, { marginLeft: 'auto', backgroundColor: on ? '#fff' : c.warn, opacity: r.level === 'improve' ? 1 : 0.45 }]} />
+            ) : null}
           </Press>
         );
       })}
@@ -572,11 +810,14 @@ export function ElementCard({
   onToggle,
   onElement,
   onLayout,
+  report = null,
   c,
 }: {
   el: MechanicsElement;
   drills: MechanicsDrillView[];
   hand: string | null;
+  /** 이 요소의 3D 리포트 처방 — 펼치면 맨 위에 '내 리포트' 한 줄 · 처방 드릴 */
+  report?: ElementReportView | null;
   open: boolean;
   via: (typeof MECHANICS_SYMPTOMS)[number] | null;
   onToggle: () => void;
@@ -602,6 +843,19 @@ export function ElementCard({
       </Press>
       {open ? (
         <View style={{ gap: 12, paddingBottom: 14 }}>
+          {report ? (
+            <View style={[s.box, { gap: 4, backgroundColor: c.sky + '14' }]}>
+              <Text style={[s.bodyBold, { color: c.ink }]}>
+                내 리포트: {RX_REPORT_TEXT[report.level]}
+                {report.target ? ` · ${report.target.label} ${report.target.now}` : ''}
+              </Text>
+              {report.titles.map((t, i) => (
+                <Text key={t.title} style={[s.small, { color: c.ink }]}>
+                  <Text style={{ color: c.sky, fontWeight: '700' }}>{i + 1}</Text> {t.title} · {t.stage}
+                </Text>
+              ))}
+            </View>
+          ) : null}
           {via && via.also.length > 0 ? (
             <Text style={[s.small, s.box, { color: c.ink, backgroundColor: c.sky + '14' }]}>
               ‘{via.text}’라면 {el.name}부터 보고, 함께{' '}
@@ -720,6 +974,7 @@ export function DrillRow({ drill, secondary, start = 0, c }: { drill: MechanicsD
 
 const st = StyleSheet.create({
   num: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  dot: { width: 8, height: 8, borderRadius: 4 },
   bigNum: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   drill: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
   foldBar: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 14, paddingLeft: 14, paddingRight: 4, paddingVertical: 4 },
