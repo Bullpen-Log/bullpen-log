@@ -35,6 +35,22 @@ export function BullpenMark({ className = '' }: { className?: string }) {
  * 따로 안 주면 둘레 글자색을 물려받는다 — 로고는 늘 파랑이다.
  */
 /**
+ * 예전 이름표 'BULLPEN LOG' — B 자리에 B 로고(2026-09-30 사용자분이 만든 로고). 2026-10-21 개편으로 앱 이름은 싱커가 됐지만, 투구 탭 제목 밑에
+ * 작게 남긴다(금윤호 "투구 밑에 작게 원래의 불펜로그 B 와 글씨"). 높이 · 기준선 맞춤은 예전 Wordmark 그대로 — 글자 크기(text-*)만 정하면 된다.
+ */
+export function BullpenWordmark({ className = '' }: { className?: string }) {
+  return (
+    <span
+      className={`text-display inline-flex items-baseline whitespace-nowrap leading-none ${className}`}
+    >
+      <BullpenMark className="mr-[0.07em] h-[0.7em]" />
+      <span aria-hidden>ULLPEN LOG</span>
+      <span className="sr-only">BULLPEN LOG</span>
+    </span>
+  );
+}
+
+/**
  * 임시 로고(2026-10-21 1단계, 사용자 "임시 로고는 네가 만들고 나중에 파일을 준다") — 파일이 오면 이 둘의 path 만 바꾼다.
  * 싱커: 공 하나가 아래로 가라앉는 꼬리(싱커 구종). 덕아웃: 지붕 밑 긴 의자.
  */
