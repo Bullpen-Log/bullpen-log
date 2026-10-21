@@ -11,6 +11,20 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-21 · 금윤호(Claude, 윤호 맥북) — 타자 3D 스윙 분석 · 3D 개발 관리자 · 네 앱 영역(lab 올리기 · 관리자 메뉴) 조금 고침 · 앱 화면 판 11
+
+받은 뒤 할 일 없음(DB · 패키지 그대로 — 저장은 영상 버킷 `{관리자}/swing-lab/{번호}/`, DB 표 없음). 금윤호: "투구에서 만든 그대로 타자 3D 스윙 분석을 ·
+모델링은 우리가 찍어서 줄 수 있도록 3D 개발 관리자를". 분석(GPU)은 아직 없다 — 사용자 화면의 [리포트 받기]는 '준비 중'.
+- **저장 · 서버**: `lib/pitch-lab.ts` 함수들 끝에 선택 인자 `sport`('pitch' 기본 → 폴더 그대로, 'hit' → swing-lab). GPU · 작업 · 비용 지키기는 투구만.
+  `LabMeta.bat?`(타자 배트) · `LabSport` · `LAB_BAT_OPTIONS`(lib/pitch-lab-meta.ts), 타자 이름 · 안내는 새 `lib/swing-lab-meta.ts`(정면 = 우타 1루 · 좌타 3루, 포수 뒤).
+  새 서버 동작 `app/actions/swing-lab.ts`(rpc 'swing-lab.*'). 올리기 주소는 `?sport=hit` — 그때만 3D 개발 관리자가 ③ · ④ 카메라(cam3 · cam4)도 올린다.
+- **권한**: `lib/permissions.ts` 새 'dev3d'(대표관리자만). 앱 `loadAppAdmin` 의 perms 에 `dev3d` 칸(더하기만 — native-api 모양 갱신, 레벨 그대로).
+- **네 앱 영역 고친 곳**: `native/src/lab/upload.ts` uploadLabVideo 끝 인자 `sport` · `native/src/lab/use-lab-upload.ts` useLabUpload(hand, sport) · info 의 bat · kind · extras(투구는 그대로) ·
+  `native/src/app/admin/index.tsx` '3D 개발 관리자' 줄 · `native/src/lib/site.ts` APP_UA **BullpenNative/11**(11 = /swing · /swing/guide · /swing/<id> · /swing/samples).
+  새 앱 화면 `native/src/app/swing/*` · `native/src/swing/parts.tsx`. 웹 `/hitting/lab`(+guide · [id]) · `/admin/dev3d` 는 판 11 이면 앱 화면으로 넘긴다.
+- 웹 타격 탭 홈 칸이 셋(운동 영상 · 타격 드릴 · 3D 스윙 분석). 웹 `videos/lab/lab-client.tsx` 의 `probeLabVideo` · `FilePick` 을 export 만 했다.
+- 확인: tsc(웹 · 앱) · eslint · native-api · pitch-lab 시험, 웹 화면 휴대폰 375(3D 개발 관리자 · 안내 좌타 그림 · 타격 칸). **앱 화면은 폰에서 아직 안 봤다.**
+
 ## 김민에게 — 2026-10-21 · 금윤호(Claude, 데스크톱) — 네 be28d064(앱 투구 · 타격 탭이 홈으로 튕김)와 합치며 `components/dugout/dugout-home.tsx` 를 지웠다
 
 받은 뒤 할 일 없음. 네가 고친 튕김의 원인(싱커 틀의 `@community` 판이 덕아웃 홈 페이지를 그림)은 내 2b5922d2 에서 그 판을 걷으며 이미 없어졌다 —

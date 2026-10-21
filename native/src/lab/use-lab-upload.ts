@@ -2,7 +2,19 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useRef, useState } from 'react';
 import { labPairBlock, labVideoBlock, type LabCapture } from '@/lib/pitch-lab-guard';
-import { LAB_MAX_VIDEO_BYTES, LAB_MAX_VIDEO_MB, LAB_VIEWS, labViewLabel, type LabGround, type LabHand, type LabMeta, type LabView } from '@/lib/pitch-lab-meta';
+import {
+  LAB_MAX_VIDEO_BYTES,
+  LAB_MAX_VIDEO_MB,
+  LAB_VIEWS,
+  labViewLabel,
+  type LabBat,
+  type LabGround,
+  type LabHand,
+  type LabMeta,
+  type LabSport,
+  type LabView,
+} from '@/lib/pitch-lab-meta';
+import { swingViewLabel } from '@/lib/swing-lab-meta';
 import { probeLabAsset, uploadLabVideo } from '~/lab/upload';
 import { PICK_ORIGINAL, dropPickerTemp } from '~/pitch/attach';
 import { rpc } from '~/lib/rpc';
@@ -10,6 +22,7 @@ import { rpc } from '~/lib/rpc';
 /**
  * 옆 · 뒤 영상 짝 고르기 · 검사 · 올리기 — 관리자 샘플 화면(app/lab/samples.tsx)의 올리기 카드와 사용자 새 분석 흐름(app/lab/new.tsx)이 같이 쓴다.
  * 올리기 전 검사 · 짝 검사 · 지문은 웹과 같은 lib(pitch-lab-guard), 서버 saveLabSample 이 한 번 더 본다.
+ * sport 'hit' = 3D 스윙 분석(타자, 2026-10-21) — 칸 이름이 정면 · 포수 뒤, 저장은 swing-lab.saveSwingSample, 마커 샘플이면 ③ · ④ 카메라(extras)도 올린다.
  */
 export type LabPicked = { asset: ImagePicker.ImagePickerAsset; fps: number | null; cap: LabCapture & { fp: string } };
 export type LabSlowmo = 'unknown' | '120' | '240';
@@ -20,6 +33,12 @@ export type LabUploadInfo = {
   heightCm: number | null;
   distances?: Partial<Record<LabView, number>>;
   memo: string | null;
+  /** 타자 배트(sport 'hit') */
+  bat?: LabBat;
+  /** 마커 샘플(3D 개발 관리자, sport 'hit') */
+  kind?: 'sample' | 'marker';
+  /** 마커 샘플의 ③ · ④ 카메라(고른 것만) */
+  extras?: Partial<Record<'cam3' | 'cam4', ImagePicker.ImagePickerAsset>>;
 };
 
 /** 샘플 번호(UUID v4 모양 — 사이트 isLabId) — 앱에는 crypto.randomUUID 가 없다. 사람마다 자기 폴더 안이라 Math.random 이면 겹칠 일이 없다 */
@@ -29,7 +48,8 @@ const newLabId = () =>
     return (ch === 'x' ? r : (r & 3) | 8).toString(16);
   });
 
-export function useLabUpload(hand: LabHand) {
+export function useLabUpload(hand: LabHand, sport: LabSport = 'pitch') {
+  const viewLabel = (view: LabView) => (sport === 'hit' ? swingViewLabel(view, hand) : labViewLabel(view, hand));
   const [picked, setPicked] = useState<Partial<Record<LabView, LabPicked>>>({});
   const [checking, setChecking] = useState<LabView | null>(null);
   const [progress, setProgress] = useState<{ view: LabView; percent: number } | null>(null);
@@ -64,7 +84,7 @@ export function useLabUpload(hand: LabHand) {
       const probe = await probeLabAsset(asset);
       const block = labVideoBlock(probe.info);
       if (block) {
-        setError(`${labViewLabel(view, hand)} 영상: ${block}`);
+        setError(`${viewLabel(view)} 영상: ${block}`);
         setBlocked(true);
         return;
       }
@@ -99,7 +119,11 @@ export function useLabUpload(hand: LabHand) {
     try {
       for (const view of LAB_VIEWS) {
         setProgress({ view, percent: 0 });
-        await uploadLabVideo(id, view, picked[view]!.asset, (percent) => setProgress({ view, percent }));
+        await uploadLabVideo(id, view, picked[view]!.asset, (percent) => setProgress({ view, percent }), sport);
+      }
+      for (const key of ['cam3', 'cam4'] as const) {
+        const extra = info.extras?.[key];
+        if (extra) await uploadLabVideo(id, key, extra, () => undefined, sport);
       }
       const meta: Omit<LabMeta, 'createdAt'> = {
         /* 늘 두 폰 동시 촬영 · 원본(2026-10-15) — 서버도 다르면 받지 않는다 */
@@ -112,7 +136,8 @@ export function useLabUpload(hand: LabHand) {
         distanceM: null,
         distances: info.distances ?? {},
         memo: info.memo,
-        kind: 'sample',
+        kind: info.kind ?? 'sample',
+        ...(info.bat ? { bat: info.bat } : {}),
         files: Object.fromEntries(
           LAB_VIEWS.map((v) => {
             const p = picked[v]!;
@@ -129,7 +154,7 @@ export function useLabUpload(hand: LabHand) {
           })
         ),
       };
-      const r = await rpc<{ ok: true } | { error: string }>('pitch-lab.saveLabSample', { id, meta });
+      const r = await rpc<{ ok: true } | { error: string }>(sport === 'hit' ? 'swing-lab.saveSwingSample' : 'pitch-lab.saveLabSample', { id, meta });
       if ('error' in r) {
         setError(r.error);
         return null;
@@ -137,6 +162,7 @@ export function useLabUpload(hand: LabHand) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       /* 올렸으니 선택기가 앱 캐시에 복사해 둔 원본은 지운다 */
       LAB_VIEWS.forEach((v) => dropPickerTemp(picked[v]!.asset.uri));
+      Object.values(info.extras ?? {}).forEach((a) => a && dropPickerTemp(a.uri));
       labId.current = null;
       setPicked({});
       return id;

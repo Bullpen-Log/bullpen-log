@@ -49,6 +49,7 @@ export const getCurrentUser = cache(async () => {
         baselineMix: true,
         baselineWorkoutFreq: true,
         throwingHand: true,
+        battingHand: true,
         competitionLevel: true,
         dailyWorkoutMinutes: true,
         ownedEquipment: true,
