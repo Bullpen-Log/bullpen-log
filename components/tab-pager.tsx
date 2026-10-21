@@ -11,7 +11,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { Camera } from '@/components/icon';
-import { DESK_MEDIA, MORE_HREF, type NavItem } from '@/lib/nav';
+import { DESK_MEDIA, DUGOUT_HREF, MORE_HREF, type NavItem } from '@/lib/nav';
 import { barSnapshot, setNavDirection } from '@/lib/nav-state';
 import { haptic } from '@/lib/haptics';
 import { TAB_CHOSEN_EVENT } from '@/components/tab-lens';
@@ -137,7 +137,12 @@ export function TabPager({
     const el = track.current;
     if (!el) return;
     const html = document.documentElement;
-    const tabList = () => latest.current.tabs.filter((t) => t.href !== MORE_HREF);
+    /*
+     * 판이 있는 탭만 — 차례가 판(order)과 같아야 한다. 앱의 탭에는 판 없는 덕아웃(/?dugout=1)이 둘째에 있어, 빼지 않으면 투구 판의 주소가
+     * 덕아웃이 돼 앱 홈에서 투구를 누르면 덕아웃으로 갔다(2026-10-22 김민). 더보기도 판이 없다.
+     */
+    const tabList = () =>
+      latest.current.tabs.filter((t) => t.href !== MORE_HREF && t.href !== DUGOUT_HREF);
     const hrefOf = (i: number) => tabList()[i]?.href ?? latest.current.order[i];
 
     const setDx = (dx: number) => el.style.setProperty('--dx', `${dx}px`);
