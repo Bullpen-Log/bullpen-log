@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import DugoutHome from '@/app/(dugout)/page';
+import { DugoutHome } from '@/components/dugout/dugout-home';
 import Loading from '@/app/(app)/@community/community/loading';
 
 /**
