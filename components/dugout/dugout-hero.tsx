@@ -166,11 +166,11 @@ export function DugoutHero({
     >
       {/* 구글식 작은 링크 — 왼쪽 위 · 오른쪽 위. splash · home 에서는 숨는다 */}
       <div
-        className={`fixed inset-x-0 top-0 z-30 flex items-center justify-between pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] text-sm transition-opacity duration-500 md:pl-6 md:pr-5 ${
+        className={`fixed inset-x-0 top-0 z-30 flex items-center justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-3 pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] text-[15px] transition-opacity duration-500 md:px-10 lg:px-14 ${
           splash || home ? 'pointer-events-none opacity-0' : 'opacity-100'
         }`}
       >
-        <nav className="flex items-center gap-4 text-muted">
+        <nav className="flex items-center gap-6 font-medium text-muted">
           <Link href="/intro" className="hover:text-ink">
             덕아웃 소개
           </Link>
@@ -178,32 +178,32 @@ export function DugoutHero({
             장터
           </Link>
         </nav>
-        <div className="relative flex items-center gap-2">
+        <div className="relative flex items-center gap-3">
           {user ? (
             <>
               <Link
                 href="/chat"
-                className="relative grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
+                className="relative grid h-12 w-12 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
                 aria-label="채팅"
               >
-                <MessagesSquare className="h-5 w-5" />
+                <MessagesSquare className="h-6 w-6" />
                 {unread > 0 && (
-                  <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-danger" />
+                  <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-danger" />
                 )}
               </Link>
               <Link
                 href="/notifications"
-                className="relative grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
+                className="relative grid h-12 w-12 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
                 aria-label="알림"
               >
-                <Bell className="h-5 w-5" />
+                <Bell className="h-6 w-6" />
                 {alerts > 0 && (
-                  <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-danger" />
+                  <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-danger" />
                 )}
               </Link>
             </>
           ) : (
-            <Link href="/login" className="px-2 text-muted hover:text-ink">
+            <Link href="/login" className="px-2 font-medium text-muted hover:text-ink">
               로그인
             </Link>
           )}
@@ -212,28 +212,28 @@ export function DugoutHero({
             aria-label="덕아웃 메뉴"
             aria-expanded={gridOpen}
             onClick={() => setGridOpen((v) => !v)}
-            className="grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
+            className="grid h-12 w-12 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
           >
-            <LayoutGrid className="h-5 w-5" />
+            <LayoutGrid className="h-6 w-6" />
           </button>
           {user ? (
             <Link
               href="/me"
               aria-label="내 것"
-              className="grid h-9 w-9 place-items-center rounded-full bg-sky text-sm font-bold text-white"
+              className="grid h-11 w-11 place-items-center rounded-full bg-sky text-base font-bold text-white"
             >
               {user.nickname.slice(0, 1)}
             </Link>
           ) : (
             <Link
               href="/login?signup=1"
-              className="min-h-9 rounded-full bg-sky px-4 text-sm font-semibold leading-9 text-white"
+              className="min-h-11 rounded-full bg-sky px-5 text-[15px] font-semibold leading-[2.75rem] text-white"
             >
               시작하기
             </Link>
           )}
           {gridOpen && (
-            <div className="absolute top-12 right-0 z-10 grid w-64 grid-cols-3 gap-1 rounded-2xl border border-line bg-surface p-2 shadow-lg">
+            <div className="absolute top-14 right-0 z-10 grid w-72 grid-cols-3 gap-1 rounded-2xl border border-line bg-surface p-2 shadow-lg">
               {apps.map((a) => (
                 <Link
                   key={a.href}
