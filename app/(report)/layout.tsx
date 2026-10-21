@@ -8,7 +8,7 @@ export default function ReportLayout({ children }: { children: React.ReactNode }
   return (
     <div data-safe-area className="min-h-[var(--vvh,100dvh)] bg-page text-ink">
       <header className="flex min-h-14 items-center gap-2 border-b border-line bg-surface px-4">
-        <Wordmark className="text-lg text-ink" />
+        <Wordmark brand="dugout" className="text-lg text-ink" />
         <span className="rounded-full bg-ink/6 px-2 py-0.5 text-[11px] font-semibold text-muted">보호자 리포트</span>
       </header>
       <main className="mx-auto w-full max-w-2xl px-4 py-6">{children}</main>

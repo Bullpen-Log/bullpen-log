@@ -1,6 +1,7 @@
 import { toDateKey } from '@/lib/pitch-stats';
 import { AuthForm } from './auth-form';
 import { NativeLoginBridge } from './native-login';
+import { RENAME_NOTICE } from '@/lib/brand';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
@@ -36,7 +37,13 @@ export default function LoginPage() {
       <NativeLoginBridge />
       {/* 평평한 바탕 — 하늘색 빛 그라데이션(bg-spotlight)은 AI 템플릿의 첫 화면 같았다(2026-10-04 'AI 티 줄이기') */}
       <main className="[html[data-native-login]_&]:invisible seam-hero flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] items-center justify-center px-5 py-4 short:py-3 max-md:items-stretch sm:px-8 sm:py-6 md:py-10 md:short:py-4">
-        <AuthForm today={todayKey()} />
+        <div className="flex w-full max-w-3xl flex-col items-center gap-3">
+          {/* 이름 바꾼 안내(2026-10-21 1단계) — 한 달쯤 두고 지운다 */}
+          <p className="rounded-full border border-line bg-surface/80 px-4 py-1.5 text-center text-xs text-muted">
+            {RENAME_NOTICE}
+          </p>
+          <AuthForm today={todayKey()} />
+        </div>
       </main>
     </>
   );

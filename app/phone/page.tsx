@@ -11,9 +11,12 @@ export default function PhonePage() {
       <div className="flex max-w-xs flex-col gap-3">
         <h1 className="text-xl font-semibold text-ink">휴대폰에서는 앱으로 써요</h1>
         <p className="text-sm leading-relaxed text-muted">
-          불펜로그 웹은 PC · 맥에서만 열려요. 휴대폰에서는 TestFlight 에서 받은 불펜로그 앱을 열어 주세요.
+          싱커의 선수 화면은 PC · 맥에서만 열려요. 휴대폰에서는 TestFlight 에서 받은
+          싱커 앱(옛 불펜로그)을 열어 주세요. 덕아웃은 휴대폰 브라우저에서도 열려요.
         </p>
-        <p className="text-sm leading-relaxed text-muted">앱 초대를 아직 못 받았으면 운영팀에 알려 주세요.</p>
+        <p className="text-sm leading-relaxed text-muted">
+          앱 초대를 아직 못 받았으면 운영팀에 알려 주세요.
+        </p>
       </div>
     </main>
   );

@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import { PrivacyContent } from './privacy-content';
 
 export const metadata: Metadata = {
-  title: '개인정보 처리방침 — Bullpen Log',
-  description: 'Bullpen Log가 어떤 정보를 받아 어떻게 쓰는지 적어 둔 문서입니다.',
+  title: '개인정보 처리방침 — 덕아웃 · 싱커',
+  description: '덕아웃 · 싱커가 어떤 정보를 받아 어떻게 쓰는지 적어 둔 문서입니다.',
 };
 
 /*

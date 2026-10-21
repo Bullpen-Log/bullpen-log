@@ -101,11 +101,11 @@ export function MasterShell({
   );
 
   return (
-    <div data-safe-area className="flex min-h-[var(--vvh,100dvh)] bg-page text-ink">
+    <div data-safe-area data-brand="dugout" className="flex min-h-[var(--vvh,100dvh)] bg-page text-ink">
       {/* 왼쪽 메뉴 — PC 만 */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-line bg-surface px-4 py-5 md:flex">
         <Link href="/master" className="flex items-center gap-2 px-2">
-          <Wordmark className="text-lg text-ink" />
+          <Wordmark brand="dugout" className="text-lg text-ink" />
           <span className="rounded-full bg-ink/6 px-2 py-0.5 text-[11px] font-semibold text-muted">
             관리
           </span>

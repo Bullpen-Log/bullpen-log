@@ -121,7 +121,7 @@ export default async function ListingPage({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-ink">{item.seller.nickname}</p>
           <p className="text-xs text-muted">
-            불펜로그 {formatDateTime(item.seller.since).slice(0, 8)}부터 · 투구 기록{' '}
+            가입 {formatDateTime(item.seller.since).slice(0, 8)} · 투구 기록{' '}
             {item.seller.records}건 · 올린 물건 {item.seller.listings}개
           </p>
         </div>

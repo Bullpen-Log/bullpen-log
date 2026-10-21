@@ -50,7 +50,7 @@ function Art({ icon: Icon }: { icon: LucideIcon }) {
 export const tourWebSlides: TutorialSlide[] = [
   {
     key: 'welcome',
-    title: '불펜로그 둘러보기',
+    title: '싱커 둘러보기',
     body: '투구 · 트레이닝 · 영양을 한곳에 적고, 그날 몸 상태로 운동과 조언을 받아요.',
     note: '오른쪽 위 X 로 건너뛸 수 있어요.',
     art: <Art icon={Sparkles} />,
@@ -89,7 +89,7 @@ export const tourWebSlides: TutorialSlide[] = [
 export const tourAppSlides: TutorialSlide[] = [
   {
     key: 'welcome',
-    title: '불펜로그 둘러보기',
+    title: '싱커 둘러보기',
     body: '투구 · 트레이닝 · 영양을 한곳에 적고, 그날 몸 상태로 운동과 조언을 받아요.',
     note: '오른쪽 위 X 로 건너뛸 수 있어요.',
     art: <Art icon={Sparkles} />,

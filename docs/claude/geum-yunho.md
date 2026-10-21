@@ -1438,3 +1438,5 @@
   코치 쪽은 마스터 화면(`/master/bookings` · `/master/venues` · 설정의 코치 프로필). 결제(4판)는 계약 뒤. 마이그레이션은 공유 DB 에 걸었다.
 - **덕아웃 4판 결제는 껍데기(2026-10-21)** — 사용자 지시 "겉만, 결제만 안 되게". `components/dugout/pay-shell.tsx` 하나가 모든 결제 화면의 틀(단추 disabled + '준비 중' 안내), 수수료율은 `lib/market/pay.ts` 상수 셋(가정값).
   화면 다섯(`/dugout/pay/{listing,lesson,venue}/[id]` · `/dugout/me/payments` · `/master/payouts`). 계약 뒤 연동할 때 표(결제 기록)와 단추 동작만 더한다 — 화면은 안 바꾼다.
+- **싱커 · 덕아웃 개편(2026-10-21)** — 계획 `docs/designs/sinker-dugout.md`(결정 9절 · 파트 10절 · 단계 11~12절). 1단계 끝: `lib/brand.ts` · `surfaceOf`(lib/app-env.ts) · `Wordmark brand=` · `[data-brand='dugout']`(globals.css 끝).
+  바꾸지 않는 것: 번들 ID · UA `BullpenLogApp` · vercel 주소 · 저장소 이름. 다음 2단계는 PC 를 덕아웃 틀 하나로(/master → /manage, /dugout/* → 뿌리).

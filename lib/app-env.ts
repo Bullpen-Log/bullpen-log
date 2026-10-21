@@ -22,12 +22,28 @@ export const NATIVE_UA_MARK = 'BullpenLogApp';
  */
 export const EXPO_UA_MARK = 'BullpenNative/';
 
+/** 덕아웃 앱(선수가 아닌 사람의 앱, docs/designs/sinker-dugout.md 7절 — 아직 없다)이 달 표시 */
+export const DUGOUT_UA_MARK = 'DugoutApp/';
+
+/** 지금 요청이 어느 얼굴에서 왔나 — 싱커 앱(지금 '불펜로그' 앱 · 옛 Capacitor 껍데기 포함) · 덕아웃 앱 · 브라우저 */
+export type Surface = 'sinker-app' | 'dugout-app' | 'web';
+export function surfaceOf(userAgent: string | null | undefined): Surface {
+  if (!userAgent) return 'web';
+  if (userAgent.includes(DUGOUT_UA_MARK)) return 'dugout-app';
+  if (userAgent.includes(NATIVE_UA_MARK)) return 'sinker-app';
+  return 'web';
+}
+
 /**
  * 휴대폰 브라우저(앱 밖)인가 — 2026-10-20 김민: "데스크탑 · 맥 · PC 에서만 웹으로, 휴대폰은 앱만". proxy.ts 가 휴대폰 브라우저를
  * '앱으로 써 주세요' 화면(/phone)으로 돌린다. 아이패드 사파리는 맥 이름표를 달고 와서 여기 안 걸린다(태블릿은 막지 않음).
  */
 export function isPhoneBrowser(userAgent: string | null | undefined): boolean {
-  return !!userAgent && /iPhone|iPod|Android.+Mobile|Windows Phone/i.test(userAgent) && !userAgent.includes(NATIVE_UA_MARK);
+  return (
+    !!userAgent &&
+    /iPhone|iPod|Android.+Mobile|Windows Phone/i.test(userAgent) &&
+    !userAgent.includes(NATIVE_UA_MARK)
+  );
 }
 
 export function isExpoUserAgent(userAgent: string | null | undefined): boolean {

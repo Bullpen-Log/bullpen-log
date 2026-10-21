@@ -9,7 +9,7 @@ import { Wordmark } from '@/components/logo';
 /**
  * 덕아웃 껍데기(2026-10-20, docs/designs/baseball-hub.md) — 로그인 없이 보는 야구인의 공간. 선수 껍데기(components/app-shell)와 별개.
  * PC: 위 막대(이름 · 홈 · 장터 · 채팅 · 내 것 · 로그인/내 불펜로그). 휴대폰: 위 막대는 이름만, 아래 탭 다섯(홈 · 장터 · 올리기 · 채팅 · 내 것).
- * 로그인한 사람에게는 '내 불펜로그'(/today) 로 가는 길이 늘 오른쪽 위에 있다 — 덕아웃은 밖, 불펜로그는 안.
+ * 로그인한 사람에게는 '내 싱커'(/today) 로 가는 길이 늘 오른쪽 위에 있다 — 덕아웃은 밖, 싱커는 안(2026-10-21 이름, lib/brand.ts).
  */
 export function DugoutShell({
   user,
@@ -40,15 +40,14 @@ export function DugoutShell({
   return (
     <div
       data-safe-area
+      data-brand="dugout"
       className="flex min-h-[var(--vvh,100dvh)] flex-col bg-page text-ink"
     >
       <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur">
         <div className="mx-auto flex min-h-14 w-full max-w-5xl items-center gap-3 px-4 md:px-6">
           <Link href="/dugout" className="flex items-baseline gap-2">
-            <span className="text-xl font-black tracking-tight text-ink">덕아웃</span>
-            <span className="hidden items-baseline gap-1 text-[11px] text-muted sm:inline-flex">
-              by <Wordmark className="text-xs text-muted" />
-            </span>
+            <Wordmark brand="dugout" className="text-2xl text-ink" />
+            <span className="hidden text-[11px] text-muted sm:inline-flex"></span>
           </Link>
           <nav aria-label="덕아웃" className="ml-4 hidden items-center gap-1 md:flex">
             {tabs
@@ -105,7 +104,7 @@ export function DugoutShell({
                 href="/today"
                 className="flex min-h-10 items-center gap-1.5 rounded-xl bg-sky px-3.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
               >
-                내 불펜로그
+                내 싱커
               </Link>
             ) : (
               <>

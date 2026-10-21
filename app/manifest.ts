@@ -21,9 +21,9 @@ export default function manifest(): MetadataRoute.Manifest {
      * 바꾸면 폰이 다른 앱으로 알아 두 번 깔린다. 그래서 따로 못박는다.
      */
     id: '/',
-    name: 'Bullpen Log',
+    name: '덕아웃',
     /* 홈 화면 아이콘 밑 글자. 길면 잘리는데 11자라 들어간다. */
-    short_name: 'Bullpen Log',
+    short_name: '덕아웃',
     description: '투수를 위한 트레이닝 · 투구 기록',
     lang: 'ko',
     /*

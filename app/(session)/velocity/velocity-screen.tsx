@@ -1267,7 +1267,7 @@ export function VelocityScreen({
        */
       setError(
         native && message.includes('허용')
-          ? '카메라가 꺼져 있어요. 아이폰 설정 › Bullpen Log › 카메라를 켠 뒤 다시 켜 주세요.'
+          ? '카메라가 꺼져 있어요. 아이폰 설정 › 싱커(불펜로그) › 카메라를 켠 뒤 다시 켜 주세요.'
           : message
       );
       if (captureRef.current === capture) captureRef.current = null;
@@ -2481,7 +2481,7 @@ export function VelocityScreen({
     ? standardNoteOf(camera.offStandard) +
       /* 옛 앱(앱 카메라가 없음) — 무엇을 하면 되는지까지(웹 카메라라 손떨림 보정을 못 켠다) */
       (native && !recOn && isOldApp(dualStatusNow())
-        ? ' TestFlight에서 불펜로그를 업데이트하면 앱 카메라로 기준 조건에 맞춰 재요.'
+        ? ' TestFlight에서 싱커 앱을 업데이트하면 앱 카메라로 기준 조건에 맞춰 재요.'
         : '')
     : null;
   /* 오른쪽 위 알약을 주황으로 — 실제로 들어오는 fps 가 낮거나(50 아래), 카메라가 60fps 아래로 켜졌거나(시트와 같은 기준) */

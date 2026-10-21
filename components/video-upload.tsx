@@ -379,11 +379,11 @@ export function VideoUpload({
       </div>
       {webOnly && (
         <p className="text-xs text-muted">
-          영상은 불펜로그 앱에서 남길 수 있어요. 찍은 폰의 앱 안에 저장돼요.
+          영상은 싱커 앱에서 남길 수 있어요. 찍은 폰의 앱 안에 저장돼요.
         </p>
       )}
       {where === 'phone' && (
-        <p className="text-xs text-muted">영상은 이 폰의 불펜로그 앱 안에 저장돼요. 앱을 지우면 같이 지워져요.</p>
+        <p className="text-xs text-muted">영상은 이 폰의 싱커 앱 안에 저장돼요. 앱을 지우면 같이 지워져요.</p>
       )}
 
       <input

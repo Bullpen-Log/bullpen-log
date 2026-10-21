@@ -53,7 +53,7 @@ export function StepCard({
       <Link
         href="/"
         className="group inline-flex items-center gap-2.5 rounded-lg in-data-[app=native]:pointer-events-none"
-        aria-label="Bullpen Log 첫 화면"
+        aria-label="싱커 첫 화면"
       >
         <Wordmark className="text-2xl text-ink transition-colors group-hover:text-sky md:text-3xl" />
       </Link>

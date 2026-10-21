@@ -23,7 +23,7 @@ export default async function LegalLayout({ children }: { children: React.ReactN
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-5 py-2.5 sm:px-6 desk:py-4">
           {/* 앱 안에서는 로고가 소개(웹) 화면으로 가지 않는다 — 앱은 소개를 안 보인다(app/page.tsx) */}
           <Link href="/" className="flex items-center gap-2.5 in-data-[app=native]:pointer-events-none">
-            <Wordmark className="text-2xl text-ink" />
+            <Wordmark brand="dugout" className="text-2xl text-ink" />
           </Link>
           <LegalBackLink fallback={fallback} />
         </div>

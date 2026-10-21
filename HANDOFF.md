@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-21 · 금윤호(Claude, 데스크톱) — **큰 개편: 앱은 '싱커', 웹은 '덕아웃'** — 계획 `docs/designs/sinker-dugout.md` 먼저 읽어 줘 · 네 몫(B-1~B-5)이 있다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호 결정(10-21): 선수 앱(지금 불펜로그 앱)은 **싱커**로 이름만 바꾸고 기능 그대로 · 웹사이트 전체는 **덕아웃**(커뮤니티 + 싱커 자료 PC 관리 + 팀 관리) ·
+선수가 아닌 사람(학부모 · 팬 · 코치)용 **덕아웃 앱**을 따로. 싱커 안에서 덕아웃 전부 쓴다(하단 탭 '덕아웃' 영구). 한 서버 · 한 계정.
+- **1단계(웹 이름)는 내가 끝냈다**: `lib/brand.ts`(이름 상수 · `RENAME_NOTICE`), `lib/app-env.ts` 에 `surfaceOf(ua)`('sinker-app' · 'dugout-app' · 'web' — 덕아웃 앱은 UA `DugoutApp/N` 을 달기로),
+  `components/logo.tsx` 의 `Wordmark` 가 `brand` 를 받는다(기본 'sinker' = SINKER, 'dugout' = DUGOUT — 둘 다 **임시 로고**, 파일 오면 path 만 교체), `globals.css` 끝의 `[data-brand='dugout']` 가 덕아웃 틀 안에서 sky 를 초록으로.
+  웹 문구 '불펜로그' → 자리에 따라 싱커 / 덕아웃. **번들 ID `com.bullpenlog.app` · UA `BullpenLogApp` · `bullpen-log.vercel.app` 은 안 바꾼다**(바꾸면 앱이 끊긴다).
+- **네 몫(계획 12절)**: B-1 앱 표시 이름 · 아이콘 · 시작 화면 · 로그인 문구를 '싱커'로(바닥 코드 → 굽기, 번들 ID 그대로) · B-2 하단 탭 '덕아웃' 유지 + 더보기 'PC 에서 관리하기' ·
+  B-3 트레이닝 엔진이 코치 레슨 노트의 '한 일'(운동 · 세트 · 횟수 · 투구 수 · 강도)을 그날 운동량으로 읽기(내 3-4 와 짝 — **읽기 함수 이름 · 모양을 먼저 맞추자**) ·
+  B-4 푸시 받기(expo-notifications) · 토큰 등록(내 5-3 과 짝) · B-5 덕아웃 앱 1판(`native-dugout/`, 5단계 뒤).
+- 물음: ① 싱커 굽기를 언제 할지 ② 덕아웃 앱(B-5)과 커뮤니티 피드 개편을 네가 맡는지 ③ B-3 함수 모양. 윤호가 직접 묻거나 여기 답해 줘.
+
 ## 김민에게 — 2026-10-20 밤 · 금윤호(Claude, 데스크톱) — 덕아웃 1판(로그인 없이 보는 바깥 공간 · 장터 · 채팅) — 네 '커뮤니티 개선' 계획과 겹칠 수 있다, 먼저 읽어 줘
 
 받은 뒤 할 일: **`npx prisma generate`**(새 표 Listing · ListingFavorite · Conversation · Message, CommunityReport.listingId — 마이그레이션 `20261020230000_dugout_market` 은 공유 DB 에 걸어 둠).

@@ -15,7 +15,7 @@ import { ConfirmButton } from '@/components/master/confirm-button';
 import { ReviewForm } from '@/components/dugout/review-form';
 import { Badge } from '@/components/ui';
 
-/** 내 것 — 내가 올린 물건 · 찜. 불펜로그 안(/today)으로 가는 길도 여기 */
+/** 내 것 — 내가 올린 물건 · 찜. 싱커 안(/today)으로 가는 길도 여기 */
 export default async function MePage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login?next=/dugout/me');
@@ -42,7 +42,7 @@ export default async function MePage() {
           href="/today"
           className="inline-flex min-h-10 items-center rounded-xl bg-sky px-4 text-sm font-semibold text-white"
         >
-          내 불펜로그
+          내 싱커
         </Link>
       </div>
 

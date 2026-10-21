@@ -18,7 +18,7 @@ export function AppOnly() {
         </h1>
         <p className="mt-2 text-sm leading-relaxed break-keep text-muted">
           폰 카메라의 고속 촬영으로 공을 찍어야 구속을 잴 수 있어요. 웹 브라우저의
-          카메라는 그만큼 빠르게 찍지 못해서, 이 기능은 Bullpen Log 앱에서만 열려요.
+          카메라는 그만큼 빠르게 찍지 못해서, 이 기능은 싱커 앱에서만 열려요.
         </p>
         <p className="mt-2 text-xs leading-relaxed break-keep text-muted">
           스피드건으로 잰 구속은 지금도 투구 기록에 직접 적을 수 있어요.

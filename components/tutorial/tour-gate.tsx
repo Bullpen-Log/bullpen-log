@@ -139,7 +139,7 @@ export function TourGate({ open, variant }: { open: boolean; variant: 'web' | 'a
   return (
     <TutorialDialog
       open={shown}
-      label="불펜로그 · 처음 안내"
+      label="싱커 · 처음 안내"
       slides={variant === 'app' ? tourAppSlides : tourWebSlides}
       onClose={close}
     />

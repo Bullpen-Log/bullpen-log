@@ -280,6 +280,6 @@ export async function phoneVideosPresent(paths: string[]): Promise<Set<string>> 
 /** 이 폰에서 열 수 없는 영상의 말 — 웹 · 다른 기기 · 옛 앱 */
 export function phoneVideoElsewhereText(): string {
   return localVideoAvailable()
-    ? '이 영상은 이 폰에 없어요. 찍은 폰의 불펜로그 앱에서 볼 수 있어요.'
-    : '이 영상은 찍은 폰의 불펜로그 앱에서 볼 수 있어요.';
+    ? '이 영상은 이 폰에 없어요. 찍은 폰의 싱커 앱에서 볼 수 있어요.'
+    : '이 영상은 찍은 폰의 싱커 앱에서 볼 수 있어요.';
 }

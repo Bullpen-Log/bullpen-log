@@ -27,7 +27,7 @@ const bebas = Bebas_Neue({
 
 export const metadata: Metadata = {
   /* 이름만 — 공유 미리보기 · 앱 전환 화면에 '…트레이닝 & 기록 플랫폼'이 붙어 웹사이트 같았다(2026-10-04). 소개는 description */
-  title: 'Bullpen Log',
+  title: '덕아웃',
   description: '투수를 위한 투구 기록 · 영상, 몸 상태에 맞춘 트레이닝, 투구 역학 자료.',
   /*
    * 아이폰 홈 화면에 앱으로 추가했을 때의 이름과 상태바 (app/manifest.ts 와 함께).
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
    * 따로 비우지 않아 제목이 시계·배터리 밑으로 들어간다. 운동 화면은 여백을
    * 스스로 비우지만(app/(session)), 앱 전체는 아니다.
    */
-  appleWebApp: { title: 'Bullpen Log', statusBarStyle: 'default' },
+  appleWebApp: { title: '덕아웃', statusBarStyle: 'default' },
 };
 
 /*

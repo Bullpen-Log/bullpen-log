@@ -34,12 +34,65 @@ export function BullpenMark({ className = '' }: { className?: string }) {
  * 붙여, 글자 크기(text-*)만 정하면 로고도 같이 커지고 한 단어로 읽힌다. 글자색도
  * 따로 안 주면 둘레 글자색을 물려받는다 — 로고는 늘 파랑이다.
  */
-export function Wordmark({ className = '' }: { className?: string }) {
+/**
+ * 임시 로고(2026-10-21 1단계, 사용자 "임시 로고는 네가 만들고 나중에 파일을 준다") — 파일이 오면 이 둘의 path 만 바꾼다.
+ * 싱커: 공 하나가 아래로 가라앉는 꼬리(싱커 구종). 덕아웃: 지붕 밑 긴 의자.
+ */
+export function SinkerMark({ className = '' }: { className?: string }) {
   return (
-    <span className={`text-display inline-flex items-baseline whitespace-nowrap leading-none ${className}`}>
-      <BullpenMark className="mr-[0.07em] h-[0.7em]" />
-      <span aria-hidden>ULLPEN LOG</span>
-      <span className="sr-only">BULLPEN LOG</span>
+    <svg viewBox="0 0 64 64" aria-hidden className={`w-auto shrink-0 ${className}`}>
+      <circle cx="26" cy="26" r="20" className="fill-brand" />
+      <path
+        d="M14 14c6 4 10 10 10 20M38 14c-6 4-10 10-10 20"
+        fill="none"
+        stroke="var(--color-surface, #fff)"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+      <path
+        d="M42 40c6 5 10 10 12 20"
+        fill="none"
+        className="stroke-brand"
+        strokeWidth="6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+export function DugoutMark({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      aria-hidden
+      className={`w-auto shrink-0 fill-dugout ${className}`}
+    >
+      <path d="M4 28 32 8l28 20-4 5-24-17L8 33z" />
+      <rect x="12" y="36" width="40" height="8" rx="2" />
+      <rect x="15" y="44" width="6" height="12" rx="1" />
+      <rect x="43" y="44" width="6" height="12" rx="1" />
+    </svg>
+  );
+}
+
+/**
+ * 이름표 — 싱커(선수 앱 · PC 의 내 싱커) 또는 덕아웃(웹). 기본은 싱커(예전 'BULLPEN LOG' 자리가 모두 앱 쪽이었다, lib/brand.ts).
+ * 로고 높이는 글꼴(Bebas Neue)의 대문자 높이에 맞추고 바닥을 기준선에 붙여, 글자 크기(text-*)만 정하면 로고도 같이 커진다.
+ */
+export function Wordmark({
+  className = '',
+  brand = 'sinker',
+}: {
+  className?: string;
+  brand?: 'sinker' | 'dugout';
+}) {
+  const Mark = brand === 'dugout' ? DugoutMark : SinkerMark;
+  return (
+    <span
+      className={`text-display inline-flex items-baseline gap-[0.18em] whitespace-nowrap leading-none ${className}`}
+    >
+      <Mark className="h-[0.78em] self-center" />
+      <span aria-hidden>{brand === 'dugout' ? 'DUGOUT' : 'SINKER'}</span>
+      <span className="sr-only">{brand === 'dugout' ? '덕아웃' : '싱커'}</span>
     </span>
   );
 }

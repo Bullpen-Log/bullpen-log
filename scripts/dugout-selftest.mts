@@ -36,6 +36,8 @@ import {
 } from '@/lib/market/venues';
 import { recommend } from '@/lib/market/gear';
 import { ESCROW_FEE_RATE, escrowFee, payout, platformFee } from '@/lib/market/pay';
+import { surfaceOf } from '@/lib/app-env';
+import { BRAND, brandOfPath } from '@/lib/brand';
 
 let pass = 0;
 const fails: string[] = [];
@@ -315,6 +317,23 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
     escrowFee(80000) === Math.ceil((80000 * ESCROW_FEE_RATE) / 100) * 100 &&
       platformFee(55500, 0.1) === 5500 &&
       payout(55500, 0.1) === 50000
+  );
+  check(
+    '얼굴 판별 — 싱커 앱(BullpenLogApp) · 덕아웃 앱(DugoutApp/) · 브라우저',
+    surfaceOf('Mozilla/5.0 BullpenLogApp/2.0 BullpenNative/10') === 'sinker-app' &&
+      surfaceOf('Mozilla/5.0 DugoutApp/1') === 'dugout-app' &&
+      surfaceOf('Mozilla/5.0 (iPhone)') === 'web' &&
+      surfaceOf(null) === 'web'
+  );
+  check(
+    '이름 — 덕아웃 주소는 덕아웃, 선수 화면은 싱커',
+    BRAND.sinker.name === '싱커' &&
+      BRAND.dugout.name === '덕아웃' &&
+      brandOfPath('/dugout/market') === 'dugout' &&
+      brandOfPath('/master/players') === 'dugout' &&
+      brandOfPath('/') === 'dugout' &&
+      brandOfPath('/today') === 'sinker' &&
+      brandOfPath('/videos/abc') === 'sinker'
   );
   const picks = recommend('u13', 'pitcher', 'L');
   check(

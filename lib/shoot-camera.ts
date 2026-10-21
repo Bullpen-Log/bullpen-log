@@ -49,7 +49,7 @@ export function insideApp(): boolean {
 export function appCameraMissingText(): string {
   return insideApp()
     ? '앱을 새 버전으로 업데이트하면(TestFlight) 여기서 바로 찍어요.'
-    : '영상은 불펜로그 앱에서만 찍어요. 앱에서 이 화면을 열어 주세요.';
+    : '영상은 싱커 앱에서만 찍어요. 앱에서 이 화면을 열어 주세요.';
 }
 
 export type AppCameraErrorCode = 'denied' | 'unavailable' | 'busy' | 'failed';
@@ -73,7 +73,7 @@ async function call<T>(method: string, options?: unknown): Promise<T> {
     const e = err as { code?: string; message?: string };
     if (e?.code === 'denied') {
       throw new AppCameraError(
-        '카메라 권한이 꺼져 있어요. 아이폰 설정 → 불펜로그 → 카메라를 켜 주세요.',
+        '카메라 권한이 꺼져 있어요. 아이폰 설정 → 싱커(불펜로그) → 카메라를 켜 주세요.',
         'denied'
       );
     }

@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import { TermsContent } from './terms-content';
 
 export const metadata: Metadata = {
-  title: '이용약관 — Bullpen Log',
-  description: 'Bullpen Log 서비스 이용약관입니다.',
+  title: '이용약관 — 덕아웃 · 싱커',
+  description: '덕아웃 · 싱커 서비스 이용약관입니다.',
 };
 
 /*

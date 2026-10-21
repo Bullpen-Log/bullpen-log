@@ -53,7 +53,7 @@ export function SiteFooter({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="flex items-center gap-2">
-                <Wordmark className="text-lg text-ink" />
+                <Wordmark brand="dugout" className="text-lg text-ink" />
               </p>
               <p className="mt-1 text-xs text-muted">
                 투수를 위한 투구 기록과 트레이닝
@@ -89,7 +89,7 @@ export function SiteFooter({
             {MEDICAL_NOTICE}
           </p>
           <p className="mt-1 text-xs text-muted">
-            © 2026 Bullpen Log. All rights reserved.
+            © 2026 덕아웃 · 싱커. All rights reserved.
           </p>
         </div>
       </footer>

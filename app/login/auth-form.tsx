@@ -687,7 +687,7 @@ function SignupWizard({
     switch (key) {
       case 'kind':
         return {
-          title: '불펜로그를 어떻게 쓰실 건가요?',
+          title: '어떻게 쓰실 건가요?',
           desc: '선수는 내 기록을 남기고, 레슨장 · 팀은 선수들의 기록을 관리해요. 가입한 뒤에는 바꿀 수 없어요.',
         };
       case 'name':

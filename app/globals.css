@@ -94,6 +94,11 @@
   --color-sky-soft: #8cc8f0;
   /* 아주 옅은 파랑 배경 (뱃지·강조 블록) */
   --color-sky-tint: #e8f3fc;
+  /* 덕아웃 초록(2026-10-21 1단계, 베타 제안 — 로고 파일이 오면 맞춘다). 웹의 덕아웃 틀은 파일 끝의 [data-brand] 가 sky 를 이 색으로 바꾼다 */
+  --color-dugout: #1d8a4f;
+  --color-dugout-strong: #146b3c;
+  --color-dugout-soft: #8fd4ad;
+  --color-dugout-tint: #e6f5ec;
   /* 로고의 파랑 — 새 로고 원본 그대로(components/logo.tsx). 어두운 판에서도 같은 색 */
   --color-brand: #0297e4;
 
@@ -3826,4 +3831,23 @@ html[data-shell='expo'] nav[data-mobile-tabs] {
 }
 html[data-shell='expo'] {
   --tab-bar-top: calc(env(safe-area-inset-bottom) + 3.0625rem);
+}
+
+/*
+ * 얼굴마다 강조색(2026-10-21 1단계, docs/designs/sinker-dugout.md 8절 G) — 덕아웃 틀(components/dugout/dugout-shell · master-shell) 안에서는
+ * 화면 코드가 1,000곳 넘게 쓰는 sky 를 초록으로 바꾼다. 부품은 안 고치고 변수만 바꾼다. 싱커(선수 화면)는 그대로 파랑.
+ */
+[data-brand='dugout'] {
+  --color-sky: #1d8a4f;
+  --color-sky-strong: #146b3c;
+  --color-sky-soft: #8fd4ad;
+  --color-sky-tint: #e6f5ec;
+  --color-brand: #1d8a4f;
+}
+:root[data-theme='dark'] [data-brand='dugout'],
+:root[data-theme='navy'] [data-brand='dugout'] {
+  --color-sky: #22a35e;
+  --color-sky-strong: #7fe0a8;
+  --color-sky-soft: #1c5a38;
+  --color-sky-tint: #0b2417;
 }

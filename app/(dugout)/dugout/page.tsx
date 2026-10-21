@@ -42,7 +42,7 @@ export default async function DugoutHome() {
           </h1>
           <p className="text-sm leading-relaxed break-keep text-muted md:text-base">
             글러브 사고팔기, 팀 소식, 레슨과 연습장 예약까지. 로그인 없이 둘러보고,
-            기록은 불펜로그에서.
+            기록은 싱커에서.
           </p>
         </div>
         <form method="get" action="/dugout/market" className="flex gap-2">
@@ -214,11 +214,11 @@ export default async function DugoutHome() {
         </Link>
       </section>
 
-      {/* 불펜로그로 */}
+      {/* 싱커로 */}
       {!user && (
         <section className="rounded-2xl bg-ink px-5 py-6 text-white md:px-8 md:py-8">
           <p className="flex items-center gap-2 text-xs font-semibold text-white/70">
-            <CalendarDays className="h-4 w-4" /> 불펜로그
+            <CalendarDays className="h-4 w-4" /> 싱커
           </p>
           <p className="mt-2 text-lg font-bold break-keep md:text-xl">
             던진 만큼 적으면, 오늘 할 일을 정해 줘요
