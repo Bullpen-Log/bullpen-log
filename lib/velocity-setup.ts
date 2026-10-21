@@ -214,6 +214,11 @@ export const TAPE_MODES = [
 export const STANDARD_DIST_HINT = `폰에서 미트까지 ${STANDARD_DIST_RANGE[0]}~${STANDARD_DIST_RANGE[1]}m 면 이대로, 아니면 줄자로 재서 넣어요.`;
 /** '18~22m' 를 골랐는데 공 크기 거리가 기준과 15% 넘게 다를 때(엔진 size-mismatch → '낮음' → 기록 안 함) */
 export const OUT_OF_RANGE_FIX = `${STANDARD_DIST_RANGE[0]}~${STANDARD_DIST_RANGE[1]}m 밖 같아요. 줄자로 재서 넣어 주세요.`;
+/**
+ * 줄자 칸 밑 글 — 무엇을 재는지(폰 → 받는 곳). 10-21 밤 '18m' 세션은 투수판 → 미트 거리를 넣은 듯 공 크기가 모두 19.5m 를 말했다
+ * (폰이 던지는 사람 1.5m 뒤) — 구속이 5% 낮았다.
+ */
+export const TAPE_HINT = '폰에서 받는 곳까지 잰 거리예요. 투수판 거리가 아니에요. 5% 틀리면 구속도 5% 틀려요.';
 /** 줄자 세션인데 공 크기 거리가 줄자 값과 15% 넘게 다를 때 */
 export const TAPE_MISMATCH_FIX = '줄자 거리와 공 크기 거리가 많이 달라요. 줄자 값과 폰 · 미트 자리를 확인해 주세요.';
 

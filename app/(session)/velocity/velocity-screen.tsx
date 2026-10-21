@@ -145,6 +145,7 @@ import {
   type ZoneRect,
   STANDARD_TARGET_DIST_M,
   STANDARD_DIST_HINT,
+  TAPE_HINT,
 } from '@/lib/velocity-setup';
 import { useDeviceLevel } from '@/lib/use-device-level';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
@@ -2987,7 +2988,7 @@ export function VelocityScreen({
                       {distTape && (
                         <DistanceField
                           label="줄자로 잰 거리"
-                          hint="5% 틀리면 구속도 5% 틀려요."
+                          hint={TAPE_HINT}
                           value={targetDistM}
                           min={TARGET_DIST_MIN}
                           max={TARGET_DIST_MAX}

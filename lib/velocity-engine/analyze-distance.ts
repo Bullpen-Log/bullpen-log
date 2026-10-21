@@ -112,6 +112,17 @@ export const HIGH_RMS = 1.5;
 export const HIGH_MIN_FLIGHT_SEC = 0.4;
 export const HIGH_MIN_SPAN_M = 11;
 /**
+ * 속력의 표준오차가 속력의 이만큼을 넘으면 '낮음'(2.7.7) — 폰이 던지는 사람 바로 뒤 · 같은 높이라 공이 화면에서 거의 안 움직이고 시선 방향으로만
+ * 가면 궤적 맞춤이 속력을 못 정한다(10-21 밤 실내 18 · 16m: 7.1% · 11.7% 인 공이 스피드건과 −17 · −14%). 가진 스피드건 짝 80구에서 잘 잰 공은
+ * 모두 2.0% 밑이었다.
+ */
+export const HIGH_MAX_SE_REL = 0.03;
+/**
+ * 튕김을 못 본 끝(impact 'end')인데 끝 장면의 덩어리가 거리 D 에 있는 공 크기의 이 배를 넘으면 공이 아직 받는 곳에 못 갔다 — 그 장면을 끝으로 쓰면
+ * 끝이 일러 빠르게 나온다(2.7.7, 10-21 밤 138 → 166.9 · 1.35배). 덩어리는 D 에서 BLOB_SIZE_RATIO(1.16)배쯤이고, 잘 잰 'end' 공은 0.7~1.16배였다.
+ */
+export const END_EARLY_SIZE = 1.3;
+/**
  * 공 크기 거리는 초점거리에 비례한다 — 화각을 짐작했으면(렌즈 정보 · 렌즈 보정 · 앱 카메라 값 없음) 그만큼 더 틀린다. 아이폰 영상 · 웹
  * 카메라의 화각은 짐작과 8% 안팎 갈린다. 부르는 쪽(analyze-video · live-meter)이 ± 에 더하고 이 알림을 붙인다.
  */
@@ -821,6 +832,13 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      * 끝을 일찍 잡아 155.1 로 기록됐다. 삼각대(흔들림 없음)는 '높음' 조건 그대로.
      */
     if (confidence === 'medium' && report.shaky && skipped > 0) confidence = 'low';
+    /* 속력이 흔들리거나(HIGH_MAX_SE_REL) 끝을 일찍 잡았으면(END_EARLY_SIZE) '낮음' — 화면이 까닭을 말한다(2.7.7) */
+    const endEarly = report.impact === 'end' && (report.endSizeRatio ?? 0) > END_EARLY_SIZE;
+    const speedUnsure = relSe > HIGH_MAX_SE_REL;
+    if (endEarly || speedUnsure) {
+      confidence = 'low';
+      report.why = endEarly ? 'end-early' : 'speed-unsure';
+    } else if (report.why === 'end-early' || report.why === 'speed-unsure') report.why = undefined;
     /* 보통이면 왜 높음이 못 됐나 — 화면이 측정 불가 까닭을 말한다(judgeSize 가 why 로 옮긴다) */
     report.soft =
       confidence !== 'medium'

@@ -193,6 +193,11 @@ export function lowConfidenceFix(
     return tape
       ? TAPE_MISMATCH_FIX
       : '공 크기로 본 거리가 맞지 않아 미트 · 그물에 닿은 때를 잘못 잡은 것 같아요. 폰과 미트 자리는 그대로 두고 다시 던져 주세요.';
+  /* 엔진 2.7.7 — 끝 장면의 공이 아직 컸다(받는 곳 앞에서 놓침) · 공이 화면에서 거의 안 움직여 속력이 흔들렸다 */
+  if (d?.why === 'end-early')
+    return '공이 받는 곳에 닿기 전에 놓쳤어요. 받는 곳 뒤가 어두운 쪽이 되게 하고, 받는 곳까지 화면에 들어오게 해 주세요.';
+  if (d?.why === 'speed-unsure')
+    return '공이 화면에서 거의 안 움직여 속도를 정하지 못했어요. 폰을 던지는 사람 1.5~2m 뒤, 옆으로 조금 비켜 두세요.';
   if (d?.why === 'end-unseen')
     return '공이 닿는 순간이 화면에서 안 보였어요. 미트 · 그물까지 화면에 들어오게 해 주세요.';
   if (d?.why === 'short-flight')

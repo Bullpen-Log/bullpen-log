@@ -45,7 +45,9 @@ for (const d of list('live')) {
     const an = JSON.parse(readFileSync(join(LAB, d, 'live', `${e.file}.analysis.json`), 'utf8'));
     const long = Math.max(an.sourceSize?.width ?? e.session.frameW, an.sourceSize?.height ?? e.session.frameH);
     const fp = an.focalPx ?? e.session.focalPx;
-    S.push({ group: d, path: join(LAB, d, 'live', e.file), name: e.file, gun: e.gun, seed: e.clipEventSec, fov: (2 * Math.atan(long / 2 / fp) * 180) / Math.PI });
+    /* 앱이 엔진에 넘긴 거리(줄자 세션이면 그 값) — 20m 이 아니면 줄자 세션으로 보고 그 거리로 묶는다(세션 거리 보정 없음 · 공 크기 10% 판정) */
+    const dist = an.distance?.inputDistM ?? BASE;
+    S.push({ group: dist !== BASE ? `${d}@${dist}m` : d, path: join(LAB, d, 'live', e.file), name: e.file, gun: e.gun, seed: e.clipEventSec, fov: (2 * Math.atan(long / 2 / fp) * 180) / Math.PI, dist, tape: dist !== BASE });
   }
 }
 for (const r of list('rec')) {
@@ -73,11 +75,12 @@ for (const s of S) {
     const seed = ${s.seed ?? 'null'};
     const range = seed != null ? { startSec: Math.max(0, seed - 0.25), endSec: seed + 1.45, seedT: seed } : {};
     try {
-      const res = await AV.analyzeVideo({ file, ...range, fps: 60, fovDeg: fov, approach: 'receding', distanceM: ${BASE}, distanceAuto: false, tiltRad: ${TILT} });
+      const res = await AV.analyzeVideo({ file, ...range, fps: 60, fovDeg: fov, approach: 'receding', distanceM: ${s.dist ?? BASE}, distanceAuto: false, tiltRad: ${TILT} });
       const m = res.measure, d = res.distance ?? {};
       return { ok: m.ok, code: m.ok ? null : m.code, kmh: m.ok ? m.kmh : null, conf: m.ok ? m.confidence : null, frames: m.ok ? m.detail.frames : null,
         preConf: d.preSize?.confidence ?? null, why: d.why ?? null, size: d.sizeDistM ?? null, slope: d.sizeSlope ?? null, ext: d.extended ?? 0,
-        impact: d.impact ?? null, stab: !!d.stabilized, decoded: res.video?.timing?.decoded ?? null };
+        impact: d.impact ?? null, stab: !!d.stabilized, decoded: res.video?.timing?.decoded ?? null,
+        se: m.ok ? m.detail.startSeKmh : null, start: m.ok ? m.detail.startKmh : null, endSize: d.endSizeRatio ?? null, first: d.firstDepthM ?? null, shaky: !!d.shaky };
     } catch (e) { return { error: String(e?.message ?? e) }; }
   })()`);
   const o = { ...s, ...r };
@@ -97,19 +100,20 @@ let rec = 0;
 console.log('\n묶음별(세션 거리 보정 · 기록 규칙 적용, 차이 = 화면 값 − 건)');
 for (const g of [...new Set(out.map((o) => o.group))]) {
   const rs = out.filter((o) => o.group === g);
-  const corr = sessionCorrection(
+  const tape = rs.some((o) => o.tape);
+  const corr = tape ? null : sessionCorrection(
     rs.filter((o) => o.ok).map((o) => ({ sizeDistM: o.size, sizeSlope: o.slope, extended: o.ext, impact: o.impact, confidence: o.preConf ?? o.conf, frames: o.frames })),
     BASE,
     SPEED_DISTANCE_EXPONENT
   );
-  const ref = corr?.apply ? corr.m : BASE;
+  const ref = tape ? rs[0].dist : corr?.apply ? corr.m : BASE;
   const errs = [];
   for (const o of rs) {
     if (!o.ok) continue;
     let conf = o.preConf ?? o.conf;
     const off = o.size ? Math.abs(o.size / ref - 1) : 0;
     /* 세션 거리가 걸렸으면 그 기준은 믿을 만하다 — 튕긴 공도 10%(엔진 judgeSize strict, 2.7.6) */
-    if (off > INPUT_SIZE_MISMATCH || (corr?.apply && off > END_SIZE_AGREE) || (o.impact === 'end' && (o.size == null || off > END_SIZE_AGREE))) conf = 'low';
+    if (off > INPUT_SIZE_MISMATCH || ((tape || corr?.apply) && off > END_SIZE_AGREE) || (o.impact === 'end' && (o.size == null || off > END_SIZE_AGREE))) conf = 'low';
     if (conf === 'high' || (conf === 'medium' && o.stab)) errs.push(o.kmh * (corr?.k ?? 1) - o.gun);
   }
   rec += errs.length;

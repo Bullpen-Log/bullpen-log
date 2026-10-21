@@ -31,6 +31,7 @@ import {
   CALIBRATION_FAMILY,
   VELOCITY_ENGINE_VERSION,
 } from '@/lib/velocity-engine/version';
+import { END_EARLY_SIZE, HIGH_MAX_SE_REL } from '@/lib/velocity-engine/analyze-distance';
 import {
   PITCH_RESULT_KEYS,
   PITCH_TYPE_KEYS,
@@ -179,6 +180,36 @@ function checkEdit(edit: PitchEdit): { error: string } | PitchEdit {
 }
 
 /** 그 사람의 스피드건 짝으로 맞춘 보정식 — 화면이 처음 열 때와 저장할 때 */
+/** 보정 짝의 거리를 믿을 만한가 — 공 크기 거리가 줄자 거리와 이만큼 안(2.7.7) */
+const CAL_TAPE_AGREE = 0.05;
+
+/**
+ * 보정 짝으로 쓸 공인가(2.7.7) — 비율은 카메라의 고른 치우침을 고치려는 것인데, 거리를 모르는 세션(기준 20m)의 짝은 거리 오차까지 품는다
+ * (10-21 아침 실제 약 21.4m 를 20m 로 잰 공 넷이 비율 1.065 를 만들어 줄자로 잰 밤 세션까지 6.5% 올렸다). 줄자로 쟀고 공 크기 거리가 줄자와
+ * CAL_TAPE_AGREE 안인 공만 쓴다. 속력이 흔들렸거나(속력 표준오차 3% 넘음) 끝을 일찍 잡은 공(엔진 2.7.7 이 '낮음'으로 내리는 공 — 그 전에
+ * 저장된 공도)은 뺀다.
+ */
+function knownDistance(r: {
+  analysis: unknown;
+  session: { distanceSource: string | null } | null;
+}): boolean {
+  if (r.session?.distanceSource !== 'tape') return false;
+  const a = r.analysis as {
+    startKmh?: unknown;
+    startSeKmh?: unknown;
+    distance?: { inputDistM?: unknown; sizeDistM?: unknown; impact?: unknown; endSizeRatio?: unknown } | null;
+  } | null;
+  const d = a?.distance;
+  const input = typeof d?.inputDistM === 'number' ? d.inputDistM : null;
+  const size = typeof d?.sizeDistM === 'number' ? d.sizeDistM : null;
+  if (!input || !size || Math.abs(size / input - 1) > CAL_TAPE_AGREE) return false;
+  const start = typeof a?.startKmh === 'number' ? a.startKmh : null;
+  const se = typeof a?.startSeKmh === 'number' ? a.startSeKmh : null;
+  if (start && se != null && se / start > HIGH_MAX_SE_REL) return false;
+  if (d?.impact === 'end' && typeof d.endSizeRatio === 'number' && d.endSizeRatio > END_EARLY_SIZE) return false;
+  return true;
+}
+
 export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[] }> {
   const user = await getCurrentUser();
   if (!user) return { fit: fitCalibration([]), pairs: [] };
@@ -200,7 +231,7 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
     },
     orderBy: { createdAt: 'desc' },
     take: CAL_PAIR_LIMIT,
-    select: { rawKmh: true, gunKmh: true, analysis: true },
+    select: { rawKmh: true, gunKmh: true, analysis: true, session: { select: { distanceSource: true } } },
   });
   /*
    * 밝은 배경 앞의 어두운 공(모델 1.8.0 의 두 번째 길 — analysis.polarity 'dark' · 'mixed')은 다른 자로 쟀다(확인 전) — 짝에서 뺀다.
@@ -220,7 +251,7 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
       const offStandard = Array.isArray(a?.offStandard) && a.offStandard.length > 0;
       /* 엔진이 짝으로 못 쓴다고 본 공(이어 찾기 · 끝 못 봄 · 공 크기 거리 불일치 · 거리 자동 — 2.4.1 calibEligible)도 뺀다 */
       const eligible = a?.distance?.calibEligible !== false;
-      return a?.polarity !== 'dark' && a?.polarity !== 'mixed' && a?.fallback == null && !offStandard && eligible;
+      return a?.polarity !== 'dark' && a?.polarity !== 'mixed' && a?.fallback == null && !offStandard && eligible && knownDistance(r);
     })
     .map((r) => ({ measured: r.rawKmh, gun: r.gunKmh as number }));
   return { fit: fitCalibration(pairs), pairs };

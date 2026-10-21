@@ -20,6 +20,7 @@ import {
   frameRectToView,
   parseSetup,
   STANDARD_DIST_HINT,
+  TAPE_HINT,
   TAPE_MODES,
   type CameraPos,
   type VelocitySetup,
@@ -884,7 +885,7 @@ export default function VelocityScreen() {
               />
               {distTape ? (
                 <View style={styles.distRow}>
-                  <Text style={styles.distHint}>줄자로 잰 거리 · 5% 틀리면 구속도 5% 틀려요.</Text>
+                  <Text style={styles.distHint}>{TAPE_HINT}</Text>
                   <View style={styles.stepper}>
                     <StepBtn icon="minus" label="0.5m 줄이기" onPress={() => setTargetDistM((d) => Math.max(TARGET_DIST_MIN, Math.round((d - 0.5) * 2) / 2))} />
                     <Text style={styles.distValue}>{targetDistM.toFixed(1)}m</Text>
