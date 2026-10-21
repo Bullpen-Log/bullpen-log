@@ -2630,7 +2630,8 @@ dialog[open]::backdrop {
   dialog[data-look='folder'] {
     width: 100%;
     margin: 0;
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) var(--rail);
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+      env(safe-area-inset-bottom) var(--rail);
   }
   dialog[data-drawer] [data-folder],
   dialog[data-look='folder'] [data-folder] {
@@ -3227,8 +3228,18 @@ html[data-nav='zoom'] * {
   inset: 0;
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 var(--veil-bar), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0, #000 var(--veil-bar), transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 var(--veil-bar),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 var(--veil-bar),
+    transparent 100%
+  );
 }
 /*
  * 위 막대가 보일 때(data-short 아님 — '‹ 뒤로'가 있는 하위 화면 · 홈에서 막대가 돌아왔을 때)는 막대 자리까지 단단한 바탕(구속 측정처럼 불투명)을 깐다.
@@ -3544,7 +3555,8 @@ html:has(dialog:modal) {
 
 /* 손가락 화면에서 글자를 치는 동안 하단 탭을 숨긴다 — 아이폰은 자판이 올라와도 화면 높이가 그대로라
    탭이 자판 위 · 화면 가운데에 떠서 입력칸을 가렸다. 패드(왼쪽 세로 막대)는 빼다 — 막대가 사라지면 본문 왼쪽에 빈 띠만 남았다(2026-10-15) */
-@media (pointer: coarse) and (max-width: 46.49rem), (pointer: coarse) and (max-height: 37.49rem) {
+@media (pointer: coarse) and (max-width: 46.49rem),
+  (pointer: coarse) and (max-height: 37.49rem) {
   html:has(
       :is(
         input:not(
@@ -3850,4 +3862,79 @@ html[data-shell='expo'] {
   --color-sky-strong: #7fe0a8;
   --color-sky-soft: #1c5a38;
   --color-sky-tint: #0b2417;
+}
+
+/*
+ * 덕아웃 ↔ 싱커 변형(2026-10-21, components/shell-morph.tsx) — 페이지가 바뀌는 느낌 대신 한 화면이 다른 화면으로 바뀌는 느낌.
+ * html[data-morph='…-out']: 보고 있던 본문([data-morph-main])은 아래로 내려가며 옅어지고, 막대의 칸들([data-morph-chrome] > *)은 차례로 접힌다.
+ * html[data-morph='in']: 새 틀의 본문은 아래에서 올라오고 칸들은 차례로 펴진다. 색은 [data-brand] 토큰이 바뀌며 따라온다.
+ */
+@keyframes morph-main-out {
+  to {
+    opacity: 0;
+    transform: translateY(36px) scale(0.985);
+  }
+}
+@keyframes morph-main-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+}
+@keyframes morph-chrome-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.92);
+  }
+}
+@keyframes morph-chrome-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.92);
+  }
+}
+html[data-morph$='-out'] [data-morph-main] {
+  animation: morph-main-out 320ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
+}
+html[data-morph='in'] [data-morph-main] {
+  animation: morph-main-in 440ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+html[data-morph$='-out'] [data-morph-chrome] > * {
+  animation: morph-chrome-out 240ms ease-in forwards;
+}
+html[data-morph='in'] [data-morph-chrome] > * {
+  animation: morph-chrome-in 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+html[data-morph] [data-morph-chrome] > :nth-child(2) {
+  animation-delay: 35ms;
+}
+html[data-morph] [data-morph-chrome] > :nth-child(3) {
+  animation-delay: 70ms;
+}
+html[data-morph] [data-morph-chrome] > :nth-child(4) {
+  animation-delay: 105ms;
+}
+html[data-morph] [data-morph-chrome] > :nth-child(5) {
+  animation-delay: 140ms;
+}
+html[data-morph] [data-morph-chrome] > :nth-child(6) {
+  animation-delay: 175ms;
+}
+html[data-morph] [data-morph-chrome] > :nth-child(7) {
+  animation-delay: 210ms;
+}
+html[data-morph] [data-morph-chrome] > :nth-child(n + 8) {
+  animation-delay: 245ms;
+}
+[data-morph-bar] {
+  transition:
+    background-color 360ms ease,
+    border-color 360ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-morph] [data-morph-main],
+  html[data-morph] [data-morph-chrome] > * {
+    animation: none !important;
+  }
 }

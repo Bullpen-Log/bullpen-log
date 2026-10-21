@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
 import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
+import { MorphIn } from '@/components/shell-morph';
 import { usesSinker } from '@/lib/brand';
 import { countUnread } from '@/lib/market/load';
 import { countUnreadNotifications } from '@/lib/notify';
@@ -17,6 +18,8 @@ import {
   applyLocksToGroups,
   quickTabs,
   visibleGroups,
+  withoutDugoutTab,
+  withoutDugoutTabGroups,
 } from '@/lib/nav';
 import { featureLocks } from '@/lib/feature-locks';
 import { AppNav } from '@/components/app-shell';
@@ -77,6 +80,12 @@ export default async function AppLayout({
   const isAdmin = user.role === 'ADMIN';
   /* 앱(스마트폰 껍데기) 안인가 — 구속 측정 메뉴는 앱이면 누구나, 웹이면 관리자만(lib/nav.ts) */
   const isNative = isNativeUserAgent((await headers()).get('user-agent'));
+  /* 웹(브라우저)의 싱커 틀 — 덕아웃 탭 대신 홈 왼쪽의 원형 뒤로가기(2026-10-21 금윤호). 앱은 탭 그대로(김민 몫) */
+  const back = isNative ? null : { href: '/', label: '덕아웃' };
+  const tabsOf = <T extends { href: string }>(items: T[]) =>
+    isNative ? items : withoutDugoutTab(items);
+  const groupsOf = <G extends { items: { href: string }[] }>(groups: G[]) =>
+    isNative ? groups : withoutDugoutTabGroups(groups);
 
   /* PC 브라우저의 선수 화면은 덕아웃 틀 안(2026-10-21 2단계, docs/designs/sinker-dugout.md 5-1) — 위 막대 하나, 앱(싱커 웹뷰)은 안 그린다 */
   const [unread, alerts] = isNative
@@ -137,6 +146,7 @@ export default async function AppLayout({
         그릴 때 한 번. 아이폰 앱 안은 제 시작 연출(MainViewController.swift)이 같은 장면을 하므로 뺀다.
       */}
       {!isNative && <AppSplash />}
+      {!isNative && <MorphIn />}
       {!isNative && (
         <DugoutTopBar
           user={{ nickname: user.nickname }}
@@ -145,14 +155,16 @@ export default async function AppLayout({
           sinker={usesSinker(user)}
           manage={isAdmin}
           current="sinker"
+          brand="sinker"
           sticky={false}
           className="hidden md:block"
         />
       )}
       <AppNav
-        groups={applyLocksToGroups(visibleGroups(user.role, isNative), locks)}
-        quick={applyLocks(quickTabs(), locks)}
-        tabs={applyLocks(MOBILE_TABS, locks)}
+        groups={groupsOf(applyLocksToGroups(visibleGroups(user.role, isNative), locks))}
+        quick={tabsOf(applyLocks(quickTabs(), locks))}
+        tabs={tabsOf(applyLocks(MOBILE_TABS, locks))}
+        back={back}
         sportBars={{
           pitch: applyLocks(SPORT_BARS.pitch, locks),
           hit: applyLocks(SPORT_BARS.hit, locks),
@@ -239,6 +251,7 @@ export default async function AppLayout({
         {/* 밑 여백은 본문과 맨 밑 정보 사이의 틈이다. 휴대폰 하단 탭만큼 비우는 일은 SiteFooter 가 한다. */}
         {/* 양옆은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 글이 노치 밑에 들어갔다(2026-10-03). 세로 · PC 는 그 값이 0 이라 예전 여백 그대로 */}
         <main
+          data-morph-main
           /* touch-pan-y — 세로는 브라우저가 굴리고, 가로는 탭 쓸기(components/tab-pager.tsx)가 받는다. pinch-zoom 을 같이 둬야
              사파리에서 두 손가락 확대가 된다(pan-y 만이면 막혔다) */
           className="mx-auto w-full max-w-5xl flex-1 touch-pan-y touch-pinch-zoom py-6 pb-10 pl-[max(calc(var(--spacing)*4),env(safe-area-inset-left))] pr-[max(calc(var(--spacing)*4),env(safe-area-inset-right))] sm:pl-[max(calc(var(--spacing)*6),env(safe-area-inset-left))] sm:pr-[max(calc(var(--spacing)*6),env(safe-area-inset-right))] sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pt-(--page-top) desk:pb-32 pad:max-w-5xl pad:pl-8 pad:pr-[max(2rem,env(safe-area-inset-right))]"
@@ -248,7 +261,7 @@ export default async function AppLayout({
            * 이 전환에서 빠진다 — 내용만 바뀌고 틀은 가만히 있는 것으로 읽힌다. 언제 · 어떻게 움직이는지는 MainTransition.
            */}
           <TabPager
-            tabs={applyLocks(MOBILE_TABS, locks)}
+            tabs={tabsOf(applyLocks(MOBILE_TABS, locks))}
             camera={
               /* 잠긴 사람(투구 첫 설정 전)은 설정 화면 주소라 구속 측정 전환(zoom)을 걸면 안 된다 */
               applyLocksToGroups(visibleGroups(user.role, isNative), locks)

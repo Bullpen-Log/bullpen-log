@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { House, MessagesSquare, Plus, Tag, UserRound } from '@/components/icon';
 import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
+import { MorphIn } from '@/components/shell-morph';
 
 /**
  * 덕아웃 껍데기(2026-10-20, docs/designs/baseball-hub.md) — 로그인 없이 보는 야구인의 공간. 선수 껍데기(components/app-shell)와 별개.
@@ -55,39 +56,50 @@ export function DugoutShell({
         native={native}
       />
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-5 pb-28 md:px-6 md:pt-8 md:pb-16">
+      <MorphIn />
+      <main
+        data-morph-main
+        className="mx-auto w-full max-w-5xl flex-1 px-4 pt-5 pb-28 md:px-6 md:pt-8 md:pb-16"
+      >
         {children}
       </main>
 
-      {/* 휴대폰 아래 탭 — 싱커 앱 안에서는 앱의 탭 막대가 대신(겹치지 않게) */}
+      {/*
+        휴대폰 아래 탭 — 싱커의 유리 알약과 같은 모양(2026-10-21 금윤호: "덕아웃의 세부 인터페이스는 싱커와 비슷하게"; 유리는 globals.css '[data-tab-bar]').
+        싱커 앱 안에서는 앱의 탭 막대가 대신 선다(겹치지 않게).
+      */}
       {!native && (
         <nav
           aria-label="덕아웃 탭"
-          className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-20 pb-(--tab-bar-gap) pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] md:hidden"
         >
-          <ul className="grid grid-cols-5">
+          <ul
+            data-tab-bar
+            data-morph-chrome
+            className="pointer-events-auto mx-auto flex max-w-md items-center rounded-full p-1 text-(--tab-fg)"
+          >
             {tabs.map((t) => {
               const on = active(t.href, t.exact);
               const Icon = t.icon;
               return (
-                <li key={t.href}>
+                <li key={t.href} className="min-w-0 flex-1">
                   <Link
                     href={t.href}
                     aria-current={on ? 'page' : undefined}
-                    className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${
-                      on ? 'text-sky-strong' : 'text-muted'
+                    className={`relative flex h-[52px] flex-col items-center justify-center gap-0.5 rounded-full text-[10px] font-medium transition-transform duration-100 motion-safe:active:scale-[0.94] ${
+                      on ? 'bg-sky/14 text-(--tab-on)' : 'text-(--tab-off)'
                     }`}
                   >
                     {t.plus ? (
-                      <span className="grid h-9 w-9 place-items-center rounded-full bg-sky text-white shadow-md">
-                        <Icon className="h-5 w-5" />
+                      <span className="grid h-8 w-8 place-items-center rounded-full bg-sky text-white">
+                        <Icon className="h-4.5 w-4.5" />
                       </span>
                     ) : (
-                      <Icon className="h-5 w-5" />
+                      <Icon className="h-[22px] w-[22px]" />
                     )}
                     {!t.plus && t.label}
                     {t.badge ? (
-                      <span className="absolute top-2 right-[calc(50%-18px)] rounded-full bg-danger px-1.5 text-[10px] font-bold text-white">
+                      <span className="absolute top-1.5 right-[calc(50%-18px)] rounded-full bg-danger px-1.5 text-[10px] font-bold text-white">
                         {t.badge}
                       </span>
                     ) : null}

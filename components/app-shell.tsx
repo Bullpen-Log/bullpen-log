@@ -18,7 +18,9 @@ import { forgetPage, rememberPage } from '@/lib/last-page';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { NavGroup, NavItem, SportKey } from '@/lib/nav';
 import { DESK_MEDIA } from '@/lib/nav';
+import { ChevronLeft } from '@/components/icon';
 import { Wordmark } from '@/components/logo';
+import { MorphLink } from '@/components/shell-morph';
 import { Modal } from '@/components/modal';
 import { ProfilePanel, type ProfileData } from '@/components/profile-panel';
 import { SettingsPanel } from '@/components/settings-panel';
@@ -33,7 +35,13 @@ import {
 } from '@/components/notice-bell';
 import { useTodayKey } from '@/components/use-today-key';
 import { isPlainClick } from '@/components/use-sliding-thumb';
-import { useIsActive, DOCK_HOVER_MS, FlyKind, Anchor, flyStyle } from './app-shell/shared';
+import {
+  useIsActive,
+  DOCK_HOVER_MS,
+  FlyKind,
+  Anchor,
+  flyStyle,
+} from './app-shell/shared';
 import { QuickBar, MenuSquares, DockGrid } from './app-shell/dock';
 import { SettingsCog, Avatar } from './app-shell/glyphs';
 import { DetailMenu } from './app-shell/detail-menu';
@@ -134,6 +142,7 @@ export function AppNav({
   groups,
   quick,
   tabs,
+  back = null,
   sportBars,
   nickname,
   avatarUrl,
@@ -153,6 +162,8 @@ export function AppNav({
    * 여닫이(open)를 쥔 이곳과 이어져 있어야 한다. 상단 바도 이미 여기서 그린다.
    */
   tabs: NavItem[];
+  /** 덕아웃으로 돌아가는 원형 뒤로가기(웹만, 2026-10-21) — 홈 아이콘 왼쪽. 앱은 null(탭의 '덕아웃'이 그 길) */
+  back?: { href: string; label: string } | null;
   /** 종목 하단바 둘(잠금 입힘)과 그냥 /training 의 종목 — 투구 · 타격 화면이면 하단바가 이것으로 바뀐다(2026-10-20, sport-tabs.tsx) */
   sportBars: Record<SportKey, NavItem[]>;
   nickname: string;
@@ -1147,13 +1158,26 @@ export function AppNav({
           늘었다 줄었다 한다. 뒤를 흐리는 것도 이 판이 한다 — 이름표를 단
           요소(shell-topnav) 안에 두면 그 요소 밖의 본문을 흐리지 못한다.
         */}
+        {/* 덕아웃으로 돌아가는 원(2026-10-21) — 알약과 같은 유리, 알약 왼쪽에 따로 선다. 누르면 변형하며 덕아웃으로(components/shell-morph.tsx) */}
+        {back && (
+          <MorphLink
+            href={back.href}
+            dir="to-dugout"
+            aria-label={`${back.label}으로`}
+            title={back.label}
+            className="relative z-10 mr-2 grid h-11 w-11 place-items-center rounded-full border border-line/70 bg-surface/75 text-ink shadow-sm backdrop-blur-md transition-transform hover:scale-105 motion-safe:active:scale-95"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </MorphLink>
+        )}
         <span
           aria-hidden
           style={{ viewTransitionName: framed ? 'nav-pill' : 'shell-pill' }}
-          className="absolute inset-0 rounded-full border border-line/70 bg-surface/75 shadow-sm backdrop-blur-md"
+          className={`absolute inset-0 rounded-full border border-line/70 bg-surface/75 shadow-sm backdrop-blur-md ${back ? 'left-[3.25rem]' : ''}`}
         />
         <div
           style={{ viewTransitionName: choreo ? 'none' : 'shell-topnav' }}
+          data-morph-chrome
           className="relative flex items-center p-1"
         >
           <QuickBar
@@ -1330,6 +1354,7 @@ export function AppNav({
 
       <SportAwareTabs
         tabs={tabs}
+        back={back}
         sportBars={sportBars}
         menuOpen={open}
         onMenu={() => go('sheet')}

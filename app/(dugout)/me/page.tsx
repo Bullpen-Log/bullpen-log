@@ -49,10 +49,10 @@ export default async function MePage() {
         </div>
         {sinker ? (
           <Link
-            href="/sinker"
+            href="/today"
             className="inline-flex min-h-10 items-center rounded-xl bg-sky px-4 text-sm font-semibold text-white"
           >
-            내 싱커
+            싱커
           </Link>
         ) : (
           <p className="max-w-xs text-right text-xs text-muted">

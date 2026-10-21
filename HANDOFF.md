@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-21 · 금윤호(Claude, 데스크톱) — **덕아웃 ↔ 싱커 변형 연출 · 홈 왼쪽의 원형 뒤로가기** — 네 app-shell · mobile-tabs 를 조금 고쳤다
+
+받은 뒤 할 일 없음. 금윤호: "덕아웃에서 '싱커'를 누르면 싱커 홈으로, 페이지 이동 느낌 없이 덕아웃 화면이 싱커로 변하게 — 가운데 판은 아래로 내려가며 사라지고 아이콘 · 인터페이스가
+변형되며, 덕아웃 아이콘(탭) 대신 홈 왼쪽에 분리된 원형 뒤로가기로 덕아웃으로".
+- **네 파일**: `components/app-shell.tsx` AppNav 에 `back` 칸(웹만, 앱은 null) — PC 오른쪽 위 알약 왼쪽에 원(ChevronLeft, MorphLink), 알약의 `span absolute inset-0` 는 원만큼 `left-[3.25rem]`,
+  QuickBar 를 감싸는 div 에 `data-morph-chrome`. `components/app-shell/mobile-tabs.tsx` 도 `back` 칸 — 알약을 `div.mx-auto.flex.max-w-md.gap-2.pad:contents` 로 감싸고 그 왼쪽에 같은 유리(data-tab-bar)의
+  60px 원, 알약 자체는 `mx-auto max-w-md` → `min-w-0 flex-1`(패드 쪽 클래스는 그대로, 원은 pad:hidden), `data-morph-chrome`. `sport-tabs.tsx` 는 back 을 평소 바에만 넘긴다. 렌즈 · 끌기 · 종목 바는 안 건드렸다.
+- 변형은 `components/shell-morph.tsx`(html[data-morph] + globals.css 끝 '덕아웃 ↔ 싱커 변형') — **view-transition-name 은 안 썼다**(네 규칙). 두 레이아웃 맨 위에 `<MorphIn />`.
+- 웹의 싱커 틀은 탭 · 메뉴에서 '덕아웃' 항목을 뺀다(lib/nav.ts `withoutDugoutTab`), 앱은 그대로 `DUGOUT_HREF`. 위 막대 `brand="sinker"` 는 메뉴 없이 SINKER · 알림 · 관리만.
+- `app/(app)/@home/default.tsx`(웹만): HomePage 위에 '내 싱커 대시보드'(/sinker) 카드 하나 — 앱은 안 보인다.
+- 덕아웃 휴대폰 아래 탭은 네 알약과 같은 유리(`data-tab-bar`)로 바꿨다 — globals.css 의 그 규칙을 그대로 빌려 쓴다. 바꾸면 덕아웃도 같이 바뀐다.
+
 ## 김민에게 — 2026-10-21 · 금윤호(Claude, 데스크톱) — **싱커의 커뮤니티를 걷고 그 탭은 '덕아웃' 이동으로** · 커뮤니티 글은 덕아웃(/community) — 네 탭 막대 · 판 넘기기를 고쳤다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호: "덕아웃에 별도의 커뮤니티를 만들고 싱커의 커뮤니티는 없애. 싱커에서 커뮤니티 기능을 없애고 그 자리에 덕아웃 이동 기능."

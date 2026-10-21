@@ -10,7 +10,9 @@ import {
 import Link from 'next/link';
 import { TAB_CHOSEN_EVENT, useTabLens } from '@/components/tab-lens';
 import { currentUrl, sameScreen, setNavDirection } from '@/lib/nav-state';
+import { ChevronLeft } from '@/components/icon';
 import { NAV_ICONS } from '@/components/nav-icons';
+import { MorphLink } from '@/components/shell-morph';
 import { slideToTab } from '@/components/tab-pager';
 import { scrollToTop } from '@/lib/scroller';
 import { usePathname, useRouter } from 'next/navigation';
@@ -78,11 +80,14 @@ const CHOSEN_TIMEOUT_MS = 8000;
  */
 export function MobileTabs({
   tabs,
+  back = null,
   menuOpen,
   onMenu,
   activeOverride,
 }: {
   tabs: NavItem[];
+  /** 덕아웃으로 돌아가는 원형 뒤로가기(웹만, 2026-10-21) — 알약 왼쪽에 따로. 누르면 변형하며 덕아웃으로(components/shell-morph.tsx) */
+  back?: { href: string; label: string } | null;
   /** 사이드바가 열려 있는가 — 렌즈를 '더보기'에 둔다 */
   menuOpen: boolean;
   onMenu: () => void;
@@ -94,7 +99,9 @@ export function MobileTabs({
 }) {
   const pathActive = useIsActive();
   const isActive =
-    activeOverride === undefined ? pathActive : (href: string) => href === activeOverride;
+    activeOverride === undefined
+      ? pathActive
+      : (href: string) => href === activeOverride;
   const pathname = usePathname();
   const [spinning, setSpinning] = useState(false);
   const router = useRouter();
@@ -283,148 +290,163 @@ export function MobileTabs({
         휴대폰은 어두운 유리(2026-10-14 참고 영상) — 짙은 회색 72% + 뒤 흐림 · 채도, 얇은 흰 테두리, 위 1px 빛, 밑 그림자.
         글자 · 아이콘은 흰색(currentColor). 패드 막대는 예전의 밝은 유리 그대로.
       */}
-      <div
-        ref={bar}
-        data-tabbar
-        onPointerDown={startHold}
-        onPointerMove={moveHold}
-        onPointerUp={endHold}
-        onPointerCancel={endHold}
-        onPointerLeave={() => {
-          if (!dragged.current) lens.press(false);
-        }}
-        onClickCapture={(e) => {
-          if (dragged.current) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }}
-        onContextMenu={(e) => {
-          /* 길게 누르면 iOS 가 링크 미리보기 · 복사 메뉴를 띄운다 — 끌기와 겹치니 막는다 */
-          if (hold.current || dragging.current) e.preventDefault();
-        }}
-        style={{ '--tab-count': tabs.length } as CSSProperties}
-        data-tab-bar
-        /* 누름 표시는 렌즈 · 살짝 작아짐으로 충분하다 — 공용 옅어짐(press-feedback)까지 겹쳐 세 겹이었다(2026-10-16) */
-        data-press-none
-        /* 가로 알약의 유리(바탕 · 테두리 · 빛 · 그림자)는 globals.css '하단 탭의 유리 알약' — 가만히 있을 때도 유리로 보이게 */
-        className="pointer-events-auto relative mx-auto flex max-w-md touch-none rounded-full p-1 text-(--tab-fg) pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:text-ink"
-      >
-        {/*
+      <div className="mx-auto flex max-w-md items-center gap-2 pad:contents">
+        {back && (
+          <MorphLink
+            href={back.href}
+            dir="to-dugout"
+            aria-label={`${back.label}으로`}
+            title={back.label}
+            data-tab-bar
+            className="pointer-events-auto grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full text-(--tab-fg) transition-transform duration-100 motion-safe:active:scale-[0.94] pad:hidden"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </MorphLink>
+        )}
+        <div
+          ref={bar}
+          data-tabbar
+          onPointerDown={startHold}
+          onPointerMove={moveHold}
+          onPointerUp={endHold}
+          onPointerCancel={endHold}
+          onPointerLeave={() => {
+            if (!dragged.current) lens.press(false);
+          }}
+          onClickCapture={(e) => {
+            if (dragged.current) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }}
+          onContextMenu={(e) => {
+            /* 길게 누르면 iOS 가 링크 미리보기 · 복사 메뉴를 띄운다 — 끌기와 겹치니 막는다 */
+            if (hold.current || dragging.current) e.preventDefault();
+          }}
+          style={{ '--tab-count': tabs.length } as CSSProperties}
+          data-tab-bar
+          data-morph-chrome
+          /* 누름 표시는 렌즈 · 살짝 작아짐으로 충분하다 — 공용 옅어짐(press-feedback)까지 겹쳐 세 겹이었다(2026-10-16) */
+          data-press-none
+          /* 가로 알약의 유리(바탕 · 테두리 · 빛 · 그림자)는 globals.css '하단 탭의 유리 알약' — 가만히 있을 때도 유리로 보이게 */
+          className="pointer-events-auto relative flex min-w-0 flex-1 touch-none rounded-full p-1 text-(--tab-fg) pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:text-ink"
+        >
+          {/*
           렌즈 — 지금 탭 뒤의 캡슐 하나(components/tab-lens.ts 가 옮긴다, 모양은 globals.css '하단 탭의 유리 렌즈').
           --p 는 칸 번호 — 칸 폭이 같아 CSS 만으로 자리를 셈하므로 서버가 그린 첫 그림부터 맞는 자리에 있다.
           장식이라 읽어 주지 않는다(지금 탭은 글자 굵기 · aria-current 가 알린다).
         */}
-        <span
-          ref={lensEl}
-          aria-hidden
-          data-tab-lens
-          style={
-            {
-              '--p': Math.max(0, firstIndex),
-              '--show': firstIndex >= 0 ? 1 : 0,
-            } as CSSProperties
-          }
-        >
-          <span data-lens-fill />
-          <span data-lens-glass />
-          <span data-lens-rim />
-        </span>
-        {tabs.map((tab) => {
-          /*
-           * '더보기'는 화면으로 넘어가지 않고 옆에서 사이드바를 연다.
-           *
-           * 예전에는 /more 라는 화면 하나로 넘어갔다. 그러면 넓은 화면에서는
-           * 옆에서 미끄러져 나오던 같은 메뉴가 좁은 화면에서만 화면 전환이 되어,
-           * 창 폭 하나로 메뉴가 전혀 다르게 열렸다. 이제 폭과 상관없이 같은
-           * 사이드바가 같은 몸짓(네모가 돌며 오른쪽에서 밀려 들어옴)으로 열린다.
-           * 열려 있는 동안 렌즈가 이 칸에 선다.
-           */
-          if (tab.href === MORE_HREF) {
-            return (
-              <button
-                key={tab.href}
-                type="button"
-                data-tab-href={tab.href}
-                onClick={() => {
-                  lens.to(tabs.indexOf(tab));
-                  setSpinning(true);
-                  onMenu();
-                }}
-                aria-haspopup="dialog"
-                aria-expanded={menuOpen}
-                className="relative z-10 flex h-[52px] flex-1 flex-col items-center justify-center rounded-full text-[10px] font-medium transition-transform duration-100 motion-safe:active:scale-[0.94] pad:h-16 pad:flex-none pad:rounded-2xl pad:text-xs"
-              >
-                <span
-                  data-tab-face
-                  className={`flex flex-col items-center gap-0.5 pt-[2px] ${menuOpen ? 'font-semibold' : ''}`}
-                >
-                  <span className="flex h-[26px] w-[26px] items-center justify-center">
-                    <Squares
-                      spinning={spinning}
-                      onDone={() => setSpinning(false)}
-                      size="lg"
-                    />
-                  </span>
-                  {tab.short ?? tab.label}
-                </span>
-              </button>
-            );
-          }
-
-          const active = isActive(tab.href);
-          const Icon = NAV_ICONS[tab.icon];
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              data-tab-href={tab.href}
-              draggable={false}
-              data-nav={slideTo(tabs.indexOf(tab))}
-              aria-current={active ? 'page' : undefined}
-              /* 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 아이콘 오른쪽 아래 자물쇠. 링크는 산다 — 누르면 설정 화면 */
-              aria-label={tab.locked ? `${tab.label}(설정 전)` : undefined}
-              data-locked={tab.locked ? '' : undefined}
-              /*
-               * 누르면 렌즈가 곧바로 이 칸으로 간다(화면이 오기 전에). 지금 탭을 한 번 더 누르면 — 그 탭의 첫 화면이면
-               * 맨 위로 올라가고, 하위 화면이면 첫 화면으로 간다(아이폰 탭 바처럼, 2026-10-04).
-               */
-              onClick={(e) => {
-                if (!active || !sameScreen(currentUrl(), tab.href)) {
-                  if (!active) {
-                    /* 아이폰 탭 막대처럼 고를 때 가장 가벼운 톡(2026-10-16 — 짧게 누르면 떨림이 없었다, 길게 끌기만 떨렸다) */
-                    haptic('selection');
-                    /* 렌즈는 화면을 다시 그리기 전에 곧바로 — effect 를 기다리면 한두 장면 늦게 출발했다 */
+          <span
+            ref={lensEl}
+            aria-hidden
+            data-tab-lens
+            style={
+              {
+                '--p': Math.max(0, firstIndex),
+                '--show': firstIndex >= 0 ? 1 : 0,
+              } as CSSProperties
+            }
+          >
+            <span data-lens-fill />
+            <span data-lens-glass />
+            <span data-lens-rim />
+          </span>
+          {tabs.map((tab) => {
+            /*
+             * '더보기'는 화면으로 넘어가지 않고 옆에서 사이드바를 연다.
+             *
+             * 예전에는 /more 라는 화면 하나로 넘어갔다. 그러면 넓은 화면에서는
+             * 옆에서 미끄러져 나오던 같은 메뉴가 좁은 화면에서만 화면 전환이 되어,
+             * 창 폭 하나로 메뉴가 전혀 다르게 열렸다. 이제 폭과 상관없이 같은
+             * 사이드바가 같은 몸짓(네모가 돌며 오른쪽에서 밀려 들어옴)으로 열린다.
+             * 열려 있는 동안 렌즈가 이 칸에 선다.
+             */
+            if (tab.href === MORE_HREF) {
+              return (
+                <button
+                  key={tab.href}
+                  type="button"
+                  data-tab-href={tab.href}
+                  onClick={() => {
                     lens.to(tabs.indexOf(tab));
-                    setChosen({ href: tab.href, from: pathname });
-                    /* 탭 첫 화면이면 쓸기처럼 누르는 순간 본문이 밀리기 시작한다(components/tab-pager.tsx slideToTab) — 링크는 안 따른다 */
-                    if (slideToTab(tab.href)) e.preventDefault();
+                    setSpinning(true);
+                    onMenu();
+                  }}
+                  aria-haspopup="dialog"
+                  aria-expanded={menuOpen}
+                  className="relative z-10 flex h-[52px] flex-1 flex-col items-center justify-center rounded-full text-[10px] font-medium transition-transform duration-100 motion-safe:active:scale-[0.94] pad:h-16 pad:flex-none pad:rounded-2xl pad:text-xs"
+                >
+                  <span
+                    data-tab-face
+                    className={`flex flex-col items-center gap-0.5 pt-[2px] ${menuOpen ? 'font-semibold' : ''}`}
+                  >
+                    <span className="flex h-[26px] w-[26px] items-center justify-center">
+                      <Squares
+                        spinning={spinning}
+                        onDone={() => setSpinning(false)}
+                        size="lg"
+                      />
+                    </span>
+                    {tab.short ?? tab.label}
+                  </span>
+                </button>
+              );
+            }
+
+            const active = isActive(tab.href);
+            const Icon = NAV_ICONS[tab.icon];
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                data-tab-href={tab.href}
+                draggable={false}
+                data-nav={slideTo(tabs.indexOf(tab))}
+                aria-current={active ? 'page' : undefined}
+                /* 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 아이콘 오른쪽 아래 자물쇠. 링크는 산다 — 누르면 설정 화면 */
+                aria-label={tab.locked ? `${tab.label}(설정 전)` : undefined}
+                data-locked={tab.locked ? '' : undefined}
+                /*
+                 * 누르면 렌즈가 곧바로 이 칸으로 간다(화면이 오기 전에). 지금 탭을 한 번 더 누르면 — 그 탭의 첫 화면이면
+                 * 맨 위로 올라가고, 하위 화면이면 첫 화면으로 간다(아이폰 탭 바처럼, 2026-10-04).
+                 */
+                onClick={(e) => {
+                  if (!active || !sameScreen(currentUrl(), tab.href)) {
+                    if (!active) {
+                      /* 아이폰 탭 막대처럼 고를 때 가장 가벼운 톡(2026-10-16 — 짧게 누르면 떨림이 없었다, 길게 끌기만 떨렸다) */
+                      haptic('selection');
+                      /* 렌즈는 화면을 다시 그리기 전에 곧바로 — effect 를 기다리면 한두 장면 늦게 출발했다 */
+                      lens.to(tabs.indexOf(tab));
+                      setChosen({ href: tab.href, from: pathname });
+                      /* 탭 첫 화면이면 쓸기처럼 누르는 순간 본문이 밀리기 시작한다(components/tab-pager.tsx slideToTab) — 링크는 안 따른다 */
+                      if (slideToTab(tab.href)) e.preventDefault();
+                    }
+                    return;
                   }
-                  return;
-                }
-                e.preventDefault();
-                const reduce = window.matchMedia(
-                  '(prefers-reduced-motion: reduce)'
-                ).matches;
-                scrollToTop(!reduce);
-              }}
-              /*
-               * 휴대폰에서 가장 많이 눌리는 자리다. 눌렀을 때 살짝 작아져 먼저 대답한다(렌즈도 부푼다).
-               * 움직임을 줄여 쓰는 사람에게는 크기 변화가 없다.
-               */
-              className={`relative z-10 flex h-[52px] flex-1 flex-col items-center justify-center rounded-full text-[10px] font-medium transition-transform duration-100 motion-safe:active:scale-[0.94] pad:h-16 pad:flex-none pad:rounded-2xl pad:text-xs ${
-                tab.locked ? 'opacity-55' : ''
-              }`}
-            >
-              <TabFace
-                Icon={Icon}
-                selected={tab.href === selectedHref}
-                label={tab.short ?? tab.label}
-                locked={tab.locked}
-              />
-            </Link>
-          );
-        })}
+                  e.preventDefault();
+                  const reduce = window.matchMedia(
+                    '(prefers-reduced-motion: reduce)'
+                  ).matches;
+                  scrollToTop(!reduce);
+                }}
+                /*
+                 * 휴대폰에서 가장 많이 눌리는 자리다. 눌렀을 때 살짝 작아져 먼저 대답한다(렌즈도 부푼다).
+                 * 움직임을 줄여 쓰는 사람에게는 크기 변화가 없다.
+                 */
+                className={`relative z-10 flex h-[52px] flex-1 flex-col items-center justify-center rounded-full text-[10px] font-medium transition-transform duration-100 motion-safe:active:scale-[0.94] pad:h-16 pad:flex-none pad:rounded-2xl pad:text-xs ${
+                  tab.locked ? 'opacity-55' : ''
+                }`}
+              >
+                <TabFace
+                  Icon={Icon}
+                  selected={tab.href === selectedHref}
+                  label={tab.short ?? tab.label}
+                  locked={tab.locked}
+                />
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );

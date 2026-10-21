@@ -21,6 +21,17 @@ import {
  * 커뮤니티 글은 덕아웃의 /community.
  */
 export const DUGOUT_HREF = '/?dugout=1';
+/** 웹(브라우저)의 싱커 틀은 덕아웃 탭 대신 홈 왼쪽의 원형 뒤로가기를 쓴다(2026-10-21) — 목록에서 그 항목을 뺀다. 앱은 탭 그대로 */
+export function withoutDugoutTab<T extends { href: string }>(items: T[]): T[] {
+  return items.filter((i) => i.href !== DUGOUT_HREF);
+}
+export function withoutDugoutTabGroups<G extends { items: { href: string }[] }>(
+  groups: G[]
+): G[] {
+  return groups
+    .map((g) => ({ ...g, items: withoutDugoutTab(g.items) }))
+    .filter((g) => g.items.length > 0);
+}
 
 /** 쓸 수 있는 아이콘 이름. 그림은 components/nav-icons.tsx 에 있다. */
 export type NavIconName =

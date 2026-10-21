@@ -11,11 +11,14 @@ import { sportActiveHref, sportOf, type NavItem, type SportKey } from '@/lib/nav
  */
 export function SportAwareTabs({
   tabs,
+  back = null,
   sportBars,
   menuOpen,
   onMenu,
 }: {
   tabs: NavItem[];
+  /** 덕아웃으로 돌아가는 원형 뒤로가기(웹만) — 평소 바 왼쪽에만, 종목 바에는 없다 */
+  back?: { href: string; label: string } | null;
   /** 잠금을 입힌 종목 바 둘(app/(app)/layout.tsx 가 applyLocks 로) */
   sportBars: Record<SportKey, NavItem[]>;
   /** 그냥 /training 일 때의 종목 — 타자만 하는 사람이면 타격 */
@@ -26,7 +29,15 @@ export function SportAwareTabs({
   const params = useSearchParams();
   const sport = sportOf(pathname, params);
   if (!sport) {
-    return <MobileTabs key="main" tabs={tabs} menuOpen={menuOpen} onMenu={onMenu} />;
+    return (
+      <MobileTabs
+        key="main"
+        tabs={tabs}
+        back={back}
+        menuOpen={menuOpen}
+        onMenu={onMenu}
+      />
+    );
   }
   return (
     <MobileTabs
