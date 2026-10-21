@@ -21,7 +21,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **네 몫(계획 12절)**: B-1 앱 표시 이름 · 아이콘 · 시작 화면 · 로그인 문구를 '싱커'로(바닥 코드 → 굽기, 번들 ID 그대로) · B-2 하단 탭 '덕아웃' 유지 + 더보기 'PC 에서 관리하기' ·
   B-3 트레이닝 엔진이 코치 레슨 노트의 '한 일'(운동 · 세트 · 횟수 · 투구 수 · 강도)을 그날 운동량으로 읽기(내 3-4 와 짝 — **읽기 함수 이름 · 모양을 먼저 맞추자**) ·
   B-4 푸시 받기(expo-notifications) · 토큰 등록(내 5-3 과 짝) · B-5 덕아웃 앱 1판(`native-dugout/`, 5단계 뒤).
-- 물음: ① 싱커 굽기를 언제 할지 ② 덕아웃 앱(B-5)과 커뮤니티 피드 개편을 네가 맡는지 ③ B-3 함수 모양. 윤호가 직접 묻거나 여기 답해 줘.
+- **2~5 · 7단계(웹)도 같은 날 끝냈다** — 받으면 **`npx prisma generate`**(마이그레이션 셋 `20261021120000_sinker_dugout_account` · `20261021150000_notifications` · `20261021170000_login_ticket` 은 공유 DB 에 걸어 둠, 더하기만) · **`npm ci`**(qrcode 추가).
+  ① 주소: `/` 가 덕아웃 홈(앱 UA 면 예전처럼 /today · /login), `/dugout/*` → 뿌리(`/market` …), `/master/*` → `/manage/*`(둘 다 next.config 301). **네 앱 코드의 `/community` 는 그대로**지만 앱이 `/master` · `/dugout` 을 열면 301 을 탄다.
+  ② 위 막대 `components/dugout/dugout-topbar.tsx` 가 PC 브라우저의 선수 화면((app) 틀) 위에도 선다 — `isNative` 면 안 그린다(앱 웹뷰는 그대로). lib/nav.ts · tab-pager 는 안 건드렸다.
+  ③ 계정: `AccountType.MEMBER`(덕아웃만 쓰는 회원 — 가입 종류 '학부모 · 팬 · 코치'), `User.sinkerStartedAt`, `lib/brand.ts usesSinker()`. 앱 가입(native/src/app/signup.tsx)은 선수 그대로라 안 바뀐다.
+  ④ **B-3 자리 준비**: 코치 레슨 노트에 '한 일' 표(`LessonNote.exercises` Json · `pitchCount` · `intensity`), 파서 `lib/org/lesson-work.ts`(`parseExercises` · `lessonLoadOf(exercises, pitchCount) → { sets, pitches }`), 선수 쪽 읽기 `lib/org/lesson-feed.ts loadLessonFeed(userId)`.
+     트레이닝 엔진이 그날 운동량으로 세는 것 · 앱 기록 달력 · 트레이닝 탭에 '레슨' 줄을 얹는 것은 네 몫 — 함수 모양이 안 맞으면 바꿔도 된다(여기 알려 줘).
+  ⑤ **B-4 자리 준비**: 표 `PushDevice` · `Notification`, RPC `push.registerPushDevice({ token, app: 'sinker' | 'dugout', platform })` · `push.unregisterPushDevice({ token })`. 보내기는 서버가 Expo push API 로(`lib/notify.ts notify()`), 어느 앱으로 보낼지는 `lib/notify-rules.ts`(채팅 · 장터 · 예약은 덕아웃 앱 먼저, 기록 · 레슨은 싱커 먼저, 없는 쪽은 있는 쪽이 대신).
+     앱에서는 expo-notifications 로 토큰을 받아 로그인 뒤 등록하고, 알림을 누르면 `data.link`(사이트 주소)를 열면 된다. 댓글 · 팀 공지 알림은 네 화면 쪽에서 `notify()` 한 줄씩.
+  ⑥ **코드 · QR 로그인**: PC `/login/qr` 이 QR(사이트 주소 `/link/<8자>`)을 띄우고, 로그인된 폰이 `/link/<code>` 를 열어 승인하면 PC 가 로그인된다. 앱 웹뷰에서 그 주소를 열면 그대로 된다 —
+     더보기의 'PC 에서 관리하기'(B-2)에 QR 찍기 · 코드 입력 → `/link/<code>` 열기를 넣어 주면 끝. 앱 전용 주소(`sinker://`) · 유니버설 링크는 도메인이 생긴 뒤.
+  ⑦ 내 싱커(PC) `/sinker`(대시보드 · 기록 표 · 연결)는 `lib/org/player-data.ts` · `lib/report/training-today-data.ts` 를 읽기만 한다 — 네 엔진 모양이 바뀌면 거기만 따라간다.
+- 물음: ① 싱커 굽기를 언제 할지 ② 덕아웃 앱(B-5)과 커뮤니티 피드 개편을 네가 맡는지 ③ B-3 함수 모양이 맞는지. 윤호가 직접 묻거나 여기 답해 줘.
 
 ## 김민에게 — 2026-10-20 밤 · 금윤호(Claude, 데스크톱) — 덕아웃 1판(로그인 없이 보는 바깥 공간 · 장터 · 채팅) — 네 '커뮤니티 개선' 계획과 겹칠 수 있다, 먼저 읽어 줘
 

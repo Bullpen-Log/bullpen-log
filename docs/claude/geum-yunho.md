@@ -1440,3 +1440,6 @@
   화면 다섯(`/dugout/pay/{listing,lesson,venue}/[id]` · `/dugout/me/payments` · `/master/payouts`). 계약 뒤 연동할 때 표(결제 기록)와 단추 동작만 더한다 — 화면은 안 바꾼다.
 - **싱커 · 덕아웃 개편(2026-10-21)** — 계획 `docs/designs/sinker-dugout.md`(결정 9절 · 파트 10절 · 단계 11~12절). 1단계 끝: `lib/brand.ts` · `surfaceOf`(lib/app-env.ts) · `Wordmark brand=` · `[data-brand='dugout']`(globals.css 끝).
   바꾸지 않는 것: 번들 ID · UA `BullpenLogApp` · vercel 주소 · 저장소 이름. 다음 2단계는 PC 를 덕아웃 틀 하나로(/master → /manage, /dugout/* → 뿌리).
+  **2~5 · 7단계(웹)도 10-21 에 끝냈다(로컬 커밋 8개, 안 올림)** — `/` = 덕아웃 홈 · 뿌리 주소 · `/manage` · 공용 위 막대 `components/dugout/dugout-topbar.tsx` · MEMBER 회원 · 레슨 노트 '한 일'(`lib/org/lesson-work.ts`) → 선수 레슨 줄(`lib/org/lesson-feed.ts`) ·
+  내 싱커 PC `app/(app)/sinker/*` · 알림(`lib/notify.ts` · `lib/notify-rules.ts` · `/notifications`) · 코드 로그인(`/login/qr` ↔ `/link/[code]`) · robots · sitemap · `lib/site-url.ts`(도메인은 `NEXT_PUBLIC_SITE_URL`).
+  마이그레이션 셋(account · notifications · login_ticket) 공유 DB 적용. 남은 것: 7-1 도메인(사용자) · 앱 쪽 B-1~B-6(김민) · 4-3 화면별 PC 배치는 보고 고칠 점 받은 뒤.
