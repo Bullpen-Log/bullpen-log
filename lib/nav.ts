@@ -53,8 +53,9 @@ export type NavIconName =
   | 'target'
   | 'book'
   | 'settings'
-  /* 관리자 — 설정(톱니)과 헷갈리지 않게 방패를 쓴다 */
+  /* 관리자 — 설정(톱니)과 헷갈리지 않게 방패를 쓴다. 'shield' 는 홈 요약 칸 '컨디션'(옛 방패), 관리자 메뉴는 'admin'(별 방패, 2026-10-22) */
   | 'shield'
+  | 'admin'
   /* 구속 측정 관리자 — 계기판 */
   | 'gauge'
   /* 트레이닝 영상 촬영 관리자 — 슬레이트(촬영 시작 판) */
@@ -304,7 +305,7 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         href: '/admin',
         label: '관리자',
-        icon: 'shield',
+        icon: 'admin',
         tone: 'armcare',
         adminOnly: true,
         perm: 'adminHome',

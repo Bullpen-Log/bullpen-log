@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { MapPin } from '@/components/icon';
+import { RoundVenue } from '@/components/round-icon';
 import { Badge, EmptyState } from '@/components/ui';
 import { getCurrentUser } from '@/lib/dal';
 import { loadVenues } from '@/lib/market/venue-load';
@@ -53,7 +53,7 @@ export default async function VenuesPage({ searchParams }: { searchParams: Promi
       </div>
 
       {venues.length === 0 ? (
-        <EmptyState icon={<MapPin />} title="아직 등록된 장소가 없어요" description="연습장 · 구장을 운영한다면 팀 · 레슨장 계정으로 가입해 관리 화면의 '장소'에서 등록해 주세요." />
+        <EmptyState icon={<RoundVenue />} title="아직 등록된 장소가 없어요" description="연습장 · 구장을 운영한다면 팀 · 레슨장 계정으로 가입해 관리 화면의 '장소'에서 등록해 주세요." />
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {venues.map((v) => (

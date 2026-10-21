@@ -132,7 +132,7 @@ const CATEGORY_ICON: Record<string, IconName> = {
   모빌리티: 'waves',
   파워: 'zap',
   코어: 'shield',
-  암케어: 'heart-pulse',
+  암케어: 'armcare',
   '회복 및 보강': 'leaf',
   '스로잉 드릴': 'target',
   '메디신볼 드릴': 'activity',

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ChevronLeft } from '@/components/icon';
+import { RoundBack } from '@/components/round-icon';
 import { ChatRoom } from '@/components/dugout/chat-room';
 import { getCurrentUser } from '@/lib/dal';
 import { loadConversation } from '@/lib/market/load';
@@ -17,7 +17,7 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ id: s
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-3">
       <Link href="/chat" className="inline-flex items-center gap-1 text-sm font-semibold text-sky">
-        <ChevronLeft className="h-4 w-4" /> 채팅
+        <RoundBack className="h-4 w-4" /> 채팅
       </Link>
       <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3">
         <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-surface-2">

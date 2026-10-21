@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ChevronLeft, Lock } from '@/components/icon';
+import { RoundBack, RoundLock } from '@/components/round-icon';
 import { Card } from '@/components/ui';
 import { getCurrentUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
@@ -57,7 +57,7 @@ export default async function PaymentsPage() {
         href="/me"
         className="inline-flex items-center gap-1 text-sm font-semibold text-sky"
       >
-        <ChevronLeft className="h-4 w-4" /> 내 것
+        <RoundBack className="h-4 w-4" /> 내 것
       </Link>
       <h1 className="text-2xl font-black text-ink">결제</h1>
 
@@ -76,7 +76,7 @@ export default async function PaymentsPage() {
           ))}
         </div>
         <p className="inline-flex items-center gap-1.5 text-xs text-warn">
-          <Lock className="h-3.5 w-3.5" /> 결제 회사 계약과 본인 인증이 끝나면 열려요.
+          <RoundLock className="h-3.5 w-3.5" /> 결제 회사 계약과 본인 인증이 끝나면 열려요.
         </p>
       </Card>
 

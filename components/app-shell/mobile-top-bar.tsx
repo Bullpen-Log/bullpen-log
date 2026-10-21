@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
   type RefObject,
 } from 'react';
-import { ChevronLeft } from '@/components/icon';
+import { RoundBack } from '@/components/round-icon';
 import { goBack } from '@/components/back-link';
 import { barSnapshot, serverBarSnapshot, subscribeBar } from '@/lib/nav-state';
 import { onAnyScroll, scrollTopNow } from '@/lib/scroller';
@@ -153,7 +153,7 @@ export function MobileTopBar({
                 onClick={() => goBack(router, back.href)}
                 className="inline-flex min-h-11 max-w-[34vw] items-center gap-0.5 text-base text-sky transition-opacity active:opacity-60"
               >
-                <ChevronLeft aria-hidden className="h-6 w-6 shrink-0" />
+                <RoundBack aria-hidden className="h-6 w-6 shrink-0" />
                 <span className="truncate">{back.label || '뒤로'}</span>
               </button>
             )}

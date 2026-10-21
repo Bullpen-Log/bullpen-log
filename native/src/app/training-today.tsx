@@ -157,7 +157,7 @@ export default function TrainingTodayScreen() {
   const header = (
     <View style={[st.bar, { paddingTop: inset.top + 4, backgroundColor: c.page }]}>
       <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="트레이닝으로 돌아가기" style={({ pressed }) => [st.back, pressed && { opacity: 0.6 }]}>
-        <Icon name="chevron-left" size={24} color={c.sky} />
+        <Icon name="back" size={24} color={c.sky} />
         <Text style={{ color: c.sky, fontSize: 17 }}>트레이닝</Text>
       </Pressable>
     </View>

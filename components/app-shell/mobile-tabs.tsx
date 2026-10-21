@@ -10,7 +10,7 @@ import {
 import Link from 'next/link';
 import { TAB_CHOSEN_EVENT, useTabLens } from '@/components/tab-lens';
 import { currentUrl, sameScreen, setNavDirection } from '@/lib/nav-state';
-import { ChevronLeft } from '@/components/icon';
+import { RoundBack } from '@/components/round-icon';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { MorphLink } from '@/components/shell-morph';
 import { slideToTab } from '@/components/tab-pager';
@@ -301,7 +301,7 @@ export function MobileTabs({
             data-morph-side
             className="pointer-events-auto grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full text-(--tab-fg) transition-transform duration-100 motion-safe:active:scale-[0.94] pad:hidden"
           >
-            <ChevronLeft className="h-6 w-6" />
+            <RoundBack className="h-6 w-6" />
           </MorphLink>
         )}
         <div

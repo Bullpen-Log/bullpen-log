@@ -2,17 +2,8 @@
 
 import { useState, type ComponentType, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  Baseball,
-  CalendarDays,
-  Dumbbell,
-  MapPin,
-  MessageCircle,
-  MessagesSquare,
-  Plus,
-  Tag,
-  UserRound,
-} from '@/components/icon';
+import { Baseball } from '@/components/icon';
+import { RoundChat, RoundCommunity, RoundGear, RoundLesson, RoundMarket, RoundPlus, RoundUser, RoundVenue } from '@/components/round-icon';
 import { morphTo } from '@/components/shell-morph';
 
 /**
@@ -50,14 +41,14 @@ export function AppLauncher({
     {
       href: '/community',
       label: '커뮤니티',
-      icon: MessagesSquare,
+      icon: RoundCommunity,
     },
-    { href: '/market', label: '장터', icon: Tag },
-    { href: '/market/new', label: '물건 올리기', icon: Plus },
-    { href: '/lessons', label: '레슨', icon: CalendarDays },
-    { href: '/venues', label: '연습장', icon: MapPin },
-    { href: '/gear', label: '장비 고르기', icon: Dumbbell },
-    { href: '/chat', label: '채팅', icon: MessageCircle },
+    { href: '/market', label: '장터', icon: RoundMarket },
+    { href: '/market/new', label: '물건 올리기', icon: RoundPlus },
+    { href: '/lessons', label: '레슨', icon: RoundLesson },
+    { href: '/venues', label: '연습장', icon: RoundVenue },
+    { href: '/gear', label: '장비 고르기', icon: RoundGear },
+    { href: '/chat', label: '채팅', icon: RoundChat },
     sinker
       ? {
           href: '/today',
@@ -66,11 +57,11 @@ export function AppLauncher({
           morph: !native,
         }
       : loggedIn
-        ? { href: '/me', label: '내 것', icon: UserRound }
+        ? { href: '/me', label: '내 것', icon: RoundUser }
         : {
             href: '/login?signup=1',
             label: '시작하기',
-            icon: UserRound,
+            icon: RoundUser,
           },
   ];
 

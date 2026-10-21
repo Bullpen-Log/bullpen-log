@@ -18,7 +18,7 @@ import { forgetPage, rememberPage } from '@/lib/last-page';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { NavGroup, NavItem, SportKey } from '@/lib/nav';
 import { DESK_MEDIA } from '@/lib/nav';
-import { ChevronLeft } from '@/components/icon';
+import { RoundBack } from '@/components/round-icon';
 import { Wordmark } from '@/components/logo';
 import { MorphLink } from '@/components/shell-morph';
 import { Modal } from '@/components/modal';
@@ -1169,7 +1169,7 @@ export function AppNav({
             data-morph-side
             className="relative z-10 mr-2 grid h-11 w-11 place-items-center rounded-full border border-line/70 bg-surface/75 text-ink shadow-sm backdrop-blur-md transition-transform hover:scale-105 motion-safe:active:scale-95"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <RoundBack className="h-5 w-5" />
           </MorphLink>
         )}
         <span

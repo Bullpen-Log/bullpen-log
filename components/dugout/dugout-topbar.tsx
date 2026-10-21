@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Plus } from '@/components/icon';
+import { RoundPlus } from '@/components/round-icon';
 import { Wordmark } from '@/components/logo';
 import { MorphLink } from '@/components/shell-morph';
 
@@ -116,7 +116,7 @@ export function DugoutTopBar({
               href="/market/new"
               className="hidden min-h-10 items-center gap-1.5 rounded-full border border-line px-3.5 text-sm font-semibold text-ink transition-colors hover:border-sky-soft md:flex"
             >
-              <Plus className="h-4 w-4" /> 물건 올리기
+              <RoundPlus className="h-4 w-4" /> 물건 올리기
             </Link>
           )}
           {user ? (

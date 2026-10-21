@@ -3,7 +3,7 @@
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { reportListing, type ReportState } from '@/app/actions/market';
-import { Flag } from '@/components/icon';
+import { RoundFlag } from '@/components/round-icon';
 import { Button, FormError, Textarea } from '@/components/ui';
 import { guardFormAction } from '@/lib/action-offline';
 import { REPORT_DETAIL_MAX, REPORT_REASONS } from '@/lib/community';
@@ -24,7 +24,7 @@ export function ReportListingForm({ listingId }: { listingId: string }) {
         onClick={() => setOpen(true)}
         className="inline-flex min-h-10 items-center gap-1 text-xs text-muted hover:text-danger"
       >
-        <Flag className="h-3.5 w-3.5" /> 신고
+        <RoundFlag className="h-3.5 w-3.5" /> 신고
       </button>
     );
   }

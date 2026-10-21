@@ -111,9 +111,59 @@ const ROUND: Partial<Record<string, RoundIconName>> = {
   pitcher: 'pitcher',
   'person-standing': 'pitcher',
   'life-buoy': 'support',
+  /*
+   * 2026-10-22 rounded-baseball-icons-3 — 같은 뜻의 lucide 이름은 앱 어디서나 둥근 그림으로(검색 · 별 · 연필 · 휴지통 · 깃발 · 자물쇠 · 사진 더하기 ·
+   * 사람 · 불꽃 · 책 · 촬영 · 계기판 · 영상). 짝이 있는 것(‹ › · + −)과 뜻이 둘인 것(방패 = 관리자 · 코어 · 컨디션, 하트 맥박 = 컨디션 · 암케어)은
+   * 그대로 두고 아래의 새 이름으로 고른 자리에서만 쓴다.
+   */
+  search: 'search',
+  star: 'star',
+  pencil: 'pencil',
+  trash2: 'trash',
+  flag: 'flag',
+  lock: 'lock',
+  'image-plus': 'photo-plus',
+  'user-round': 'user',
+  flame: 'flame',
+  'book-open': 'book',
+  clapperboard: 'clapper',
+  gauge: 'gauge',
+  film: 'video',
+  video: 'video',
+  /* 둥근 그림에만 있는 이름 */
+  back: 'back',
+  log: 'log',
+  armcare: 'armcare',
+  admin: 'shield',
+  people: 'people',
+  market: 'market',
+  lesson: 'lesson',
+  venue: 'venue',
+  gear: 'gear',
+  chat: 'chat',
+  heart: 'heart',
+  'eye-off': 'eye-off',
 };
 
-export type IconName = keyof typeof ICONS | 'zone' | 'pitcher';
+/** 채움이 '켜짐'을 뜻하는 그림 — 네이비 · 다크에서도 fill 을 넘길 때만 채운다(찜 · 즐겨찾기 별이 늘 켜져 보이지 않게) */
+const STATEFUL = new Set<string>(['star', 'heart']);
+
+export type IconName =
+  | keyof typeof ICONS
+  | 'zone'
+  | 'pitcher'
+  | 'back'
+  | 'log'
+  | 'armcare'
+  | 'admin'
+  | 'people'
+  | 'market'
+  | 'lesson'
+  | 'venue'
+  | 'gear'
+  | 'chat'
+  | 'heart'
+  | 'eye-off';
 
 /* 웹 lucide 기본 선: 둥근 끝 · 둥근 이음, 굵기는 24px 기준 2.5(작으면 같이 가늘어진다) */
 export function Icon({
@@ -136,8 +186,10 @@ export function Icon({
   const round = ROUND[name];
   /* 네이비 · 다크 테마는 늘 채움형(2026-10-21 금윤호, 웹 globals.css .ri-f 와 같게) */
   const theme = useTheme();
-  if (theme !== 'light') filled = true;
+  if (theme !== 'light' && !STATEFUL.has(name)) filled = true;
   if (round) {
+    /* lucide 처럼 fill 을 넘긴 자리(켜진 별 · 하트)는 채움형 */
+    if (fill !== 'none') filled = true;
     /* 64 칸 그림 — 굵기는 lucide 24 칸 굵기에 맞춰(2.5 → 5.2) */
     const xml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${roundIconMarkup(round, filled, id, strokeWidth * 2.08)}</svg>`;
     return <SvgXml xml={xml} width={size} height={size} color={color} />;

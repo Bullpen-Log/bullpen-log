@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { House, MessagesSquare, Plus, Tag, UserRound } from '@/components/icon';
+import { RoundChat, RoundHome, RoundMarket, RoundPlus, RoundUser } from '@/components/round-icon';
 import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
 import { MorphIn } from '@/components/shell-morph';
 
@@ -32,11 +32,11 @@ export function DugoutShell({
 }) {
   const pathname = usePathname();
   const tabs = [
-    { href: '/', label: '홈', icon: House, exact: true },
-    { href: '/market', label: '장터', icon: Tag },
-    { href: '/market/new', label: '올리기', icon: Plus, plus: true },
-    { href: '/chat', label: '채팅', icon: MessagesSquare, badge: unread },
-    { href: '/me', label: '내 것', icon: UserRound },
+    { href: '/', label: '홈', icon: RoundHome, exact: true },
+    { href: '/market', label: '장터', icon: RoundMarket },
+    { href: '/market/new', label: '올리기', icon: RoundPlus, plus: true },
+    { href: '/chat', label: '채팅', icon: RoundChat, badge: unread },
+    { href: '/me', label: '내 것', icon: RoundUser },
   ];
   const active = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);

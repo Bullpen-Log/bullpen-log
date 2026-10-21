@@ -1,20 +1,18 @@
-import {
-  CalendarDays,
-  ChevronLeft,
-  HeartPulse,
-  BookOpen,
-  Clapperboard,
-  Film,
-  Gauge,
-  Shield,
-  type LucideIcon,
-  Users,
-} from '@/components/icon';
+import { Shield, type LucideIcon } from '@/components/icon';
 import type { NavIconName } from '@/lib/nav';
 import {
+  RoundArmcare,
+  RoundBack,
   RoundBaseball,
   RoundBat,
+  RoundBook,
+  RoundClapper,
   RoundCommunity,
+  RoundGauge,
+  RoundLog,
+  RoundPeople,
+  RoundShield,
+  RoundVideo,
   RoundCutlery,
   RoundHome,
   RoundMenu,
@@ -52,6 +50,7 @@ export const NAV_TINT: Record<NavIconName, [string, string]> = {
   target: ['#ffd25a', '#eb9a06'],
   book: ['#a3adbf', '#5e6b80'],
   shield: ['#6b7180', '#2c313b'],
+  admin: ['#6b7180', '#2c313b'],
   gauge: ['#6b7180', '#2c313b'],
   clapper: ['#6b7180', '#2c313b'],
   settings: ['#6b7180', '#2c313b'],
@@ -68,29 +67,32 @@ export type NavIcon = LucideIcon;
 /*
  * 2026-10-21 금윤호: 둥근 야구 아이콘 13종으로 바꿈 — 홈 · 투구(공) · 타격(배트) · 덕아웃(말풍선) · 더보기(메뉴) · 설정 · 트레이닝(덤벨) ·
  * 영양(포크 · 나이프) · 구속 측정(스피드건) · ABS(스트라이크존) · 메커니즘 · 투구 드릴 · 3D 동작 분석(투구 모션) · 고객센터 · 소통 관리(헤드셋).
- * 짝이 없는 것(뒤로 · 기록 달력 · 암케어 · 운동 영상 · 관리자 · 촬영 · 구속 관리자 · 팀 관리)은 lucide 그대로.
+ * 2026-10-22 rounded-baseball-icons-3 으로 나머지도: 뒤로 · 기록(체크 목록) · 암케어(팔) · 운동 영상 · 자료 · 관리자(별 방패) · 구속 관리자(계기판) ·
+ * 촬영(슬레이트) · 팀 관리(두 사람). 'shield' 는 홈 요약 칸의 '컨디션'(lib/report/feed-items.ts — 앱도 같은 이름을 받는다)이 써서 옛 방패 그대로,
+ * 관리자 메뉴는 새 이름 'admin'.
  */
 export const NAV_ICONS: Record<NavIconName, NavIcon> = {
   home: RoundHome,
   baseball: RoundBaseball,
   bat: RoundBat,
-  back: ChevronLeft,
-  heart: HeartPulse,
-  calendar: CalendarDays,
+  back: RoundBack,
+  heart: RoundArmcare,
+  calendar: RoundLog,
   dumbbell: RoundTraining,
-  film: Film,
+  film: RoundVideo,
   utensils: RoundCutlery,
   target: RoundPitcher,
   zone: RoundZone,
-  book: BookOpen,
+  book: RoundBook,
   settings: RoundSettings,
   shield: Shield,
-  gauge: Gauge,
-  clapper: Clapperboard,
+  admin: RoundShield,
+  gauge: RoundGauge,
+  clapper: RoundClapper,
   radar: RoundRadar,
   body: RoundPitcher,
   community: RoundCommunity,
   support: RoundSupport,
-  users: Users,
+  users: RoundPeople,
   menu: RoundMenu,
 };

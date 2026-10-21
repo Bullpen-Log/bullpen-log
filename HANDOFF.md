@@ -11,6 +11,19 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — 둥근 아이콘 26종 더함(rounded-baseball-icons-3) · 네 앱 틀 · 앱 아이콘 부품을 고쳤다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 표는 `lib/round-icons.ts`(29종 더함 — 26 + 단순판 셋, 자잘한 그림은 선 0.8배 `ROUND_ICON_WEIGHT`).
+- **앱 `native/src/shell/icon.tsx`**: 같은 뜻의 lucide 이름이 앱 어디서나 둥근 그림으로 — search · star · pencil · trash2 · flag · lock · image-plus · user-round · flame ·
+  book-open · clapperboard · gauge · film · video. 새 이름 back · log · armcare · admin(별 방패) · people · market · lesson · venue · gear · chat · heart · eye-off.
+  **짝이 있는 것(chevron-left/right · plus/minus)과 뜻이 둘인 것(shield = 코어 · 컨디션, heart-pulse = 컨디션)은 그대로** — 고른 자리만 새 이름으로.
+  star · heart 는 채움이 '켜짐'이라 다크에서도 `fill` 을 넘길 때만 채운다(STATEFUL).
+- 앱 탭 막대(`tab-bar.tsx`): 기록 → log · 암케어 → armcare, 종목 바 ‹ 는 돌린 화살표 대신 'back'. 더보기(`more.tsx`)에 heart · calendar · users · admin · back.
+  위 막대 ‹ 셋(커뮤니티 · 트레이닝 화면 · 트레이닝 오늘)을 'back' 으로.
+- 웹: `lib/nav.ts` 관리자 메뉴 아이콘 이름 'shield' → **'admin'**('shield' 는 홈 요약 칸 컨디션이 써서 옛 방패 그대로 — 앱 feed 도 같은 이름을 받는다).
+  `components/nav-icons.tsx` 뒤로 · 기록 · 암케어 · 운동 영상 · 자료 · 관리자 · 구속 관리자 · 촬영 · 팀 관리를 둥근 그림으로, 틀의 ‹(`back-link` · 위 막대 · 둥근 뒤로 단추)도.
+  `components/round-icon.tsx` 에 `outline`(늘 테두리 — 찜 · 좋아요 꺼짐) 칸. 커뮤니티 좋아요 · 신고 단추(`components/community/*`)도 바꿨다.
+
 ## 김민에게 — 2026-10-21 · 금윤호(Claude, 윤호 맥북) — 타자 3D 스윙 분석 · 3D 개발 관리자 · 네 앱 영역(lab 올리기 · 관리자 메뉴) 조금 고침 · 앱 화면 판 11
 
 받은 뒤 할 일 없음(DB · 패키지 그대로 — 저장은 영상 버킷 `{관리자}/swing-lab/{번호}/`, DB 표 없음). 금윤호: "투구에서 만든 그대로 타자 3D 스윙 분석을 ·

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Star } from '@/components/icon';
+import { RoundLesson, RoundStar } from '@/components/round-icon';
 import { Badge, EmptyState } from '@/components/ui';
 import { loadCoaches } from '@/lib/market/lesson-load';
 import { SPECIALTIES, isSpecialty, specialtyLabel } from '@/lib/market/lessons';
@@ -78,7 +78,7 @@ export default async function LessonsPage({
 
       {coaches.length === 0 ? (
         <EmptyState
-          icon={<Star />}
+          icon={<RoundLesson />}
           title="아직 공개한 코치가 없어요"
           description="레슨장 계정이 설정에서 프로필을 공개하면 여기 보여요. 코치라면 레슨장으로 가입해 주세요."
         />
@@ -118,7 +118,7 @@ export default async function LessonsPage({
                 </span>
                 {c.hours && <span>{c.hours}</span>}
                 <span className="ml-auto inline-flex items-center gap-1">
-                  <Star className="h-3.5 w-3.5" /> {c.rating ?? '-'} ({c.reviews})
+                  <RoundStar className="h-3.5 w-3.5" /> {c.rating ?? '-'} ({c.reviews})
                 </span>
                 <span>회원 {c.members}</span>
               </p>

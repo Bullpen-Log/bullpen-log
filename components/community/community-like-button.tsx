@@ -2,7 +2,7 @@
 
 import { useOptimistic } from 'react';
 import { toggleLike } from '@/app/actions/community';
-import { Heart } from '@/components/icon';
+import { RoundIcon } from '@/components/round-icon';
 import { orOffline } from '@/lib/action-offline';
 import { haptic } from '@/lib/haptics';
 
@@ -40,9 +40,12 @@ export function CommunityLikeButton({
             : 'bg-ink/6 text-ink hover:text-danger desk:border desk:border-line-strong desk:bg-surface-2'
         }`}
       >
-        <Heart
+        <RoundIcon
+          name="heart"
           aria-hidden
-          className={`h-4 w-4 transition-transform duration-200 ${shown.liked ? 'scale-110 fill-current' : ''}`}
+          filled={shown.liked}
+          outline={!shown.liked}
+          className={`h-4 w-4 transition-transform duration-200 ${shown.liked ? 'scale-110' : ''}`}
         />
         {shown.count}
       </button>

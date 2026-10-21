@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, MapPin } from '@/components/icon';
+import { RoundBack, RoundVenue } from '@/components/round-icon';
 import { Badge, Card } from '@/components/ui';
 import { VenueBooking } from '@/components/dugout/venue-booking';
 import { getCurrentUser } from '@/lib/dal';
@@ -32,7 +32,7 @@ export default async function VenuePage({ params, searchParams }: { params: Prom
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <Link href="/venues" className="inline-flex items-center gap-1 text-sm font-semibold text-sky">
-        <ChevronLeft className="h-4 w-4" /> 연습장 · 구장
+        <RoundBack className="h-4 w-4" /> 연습장 · 구장
       </Link>
       {v.images.length > 0 && (
         <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
@@ -50,7 +50,7 @@ export default async function VenuePage({ params, searchParams }: { params: Prom
         </p>
         <h1 className="text-2xl font-black text-ink">{v.name}</h1>
         <p className="inline-flex items-center gap-1 text-sm text-muted">
-          <MapPin className="h-4 w-4" /> {v.region}
+          <RoundVenue className="h-4 w-4" /> {v.region}
           {v.address ? ` · ${v.address}` : ''}
         </p>
         <p className="text-sm text-ink">

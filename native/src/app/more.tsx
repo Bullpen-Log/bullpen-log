@@ -38,6 +38,12 @@ const ICON: Record<string, IconName> = {
   radar: 'radar',
   body: 'pitcher',
   community: 'messages-square',
+  /* 2026-10-22 둥근 그림 — 웹 nav-icons.tsx 와 같게(관리자는 'admin' 별 방패, 'shield' 는 홈 요약 칸 컨디션) */
+  heart: 'armcare',
+  calendar: 'log',
+  users: 'people',
+  admin: 'admin',
+  back: 'back',
   support: 'life-buoy',
   menu: 'menu',
 };

@@ -3,7 +3,8 @@
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { reportTarget, type ReportState } from '@/app/actions/community';
-import { Check, Flag } from '@/components/icon';
+import { Check } from '@/components/icon';
+import { RoundFlag } from '@/components/round-icon';
 import { guardFormAction } from '@/lib/action-offline';
 import { kept } from '@/lib/form-values';
 import { REPORT_DETAIL_MAX, REPORT_REASONS } from '@/lib/community';
@@ -59,7 +60,7 @@ export function CommunityReportForm({
           compact ? 'px-2' : 'px-3'
         } ${open ? 'text-danger' : ''}`}
       >
-        <Flag aria-hidden className="h-4 w-4" />
+        <RoundFlag aria-hidden className="h-4 w-4" />
         {!compact && '신고'}
       </button>
 

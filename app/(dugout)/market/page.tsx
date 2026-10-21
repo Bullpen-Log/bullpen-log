@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Plus, Search } from '@/components/icon';
+import { RoundPlus, RoundSearch } from '@/components/round-icon';
 import { Card } from '@/components/ui';
 import { ListingCard } from '@/components/dugout/listing-card';
 import { getCurrentUser } from '@/lib/dal';
@@ -33,7 +33,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-black text-ink">장터</h1>
         <Link href="/market/new" className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-sky px-4 text-sm font-semibold text-white hover:bg-sky-strong">
-          <Plus className="h-4 w-4" /> 물건 올리기
+          <RoundPlus className="h-4 w-4" /> 물건 올리기
         </Link>
       </div>
 
@@ -42,7 +42,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
         {f.region && <input type="hidden" name="region" value={f.region} />}
         {f.condition && <input type="hidden" name="condition" value={f.condition} />}
         <label className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-muted" />
+          <RoundSearch className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-muted" />
           <input
             name="q"
             type="search"
