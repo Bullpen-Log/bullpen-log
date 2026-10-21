@@ -17,6 +17,7 @@ export function DugoutShell({
   alerts = 0,
   sinker = false,
   manage = false,
+  native = false,
   children,
 }: {
   user: { nickname: string } | null;
@@ -24,6 +25,8 @@ export function DugoutShell({
   alerts?: number;
   sinker?: boolean;
   manage?: boolean;
+  /** 싱커 앱 웹뷰 안 — 아래 탭은 앱 것이 대신 선다 */
+  native?: boolean;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -49,49 +52,52 @@ export function DugoutShell({
         alerts={alerts}
         sinker={sinker}
         manage={manage}
+        native={native}
       />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-5 pb-28 md:px-6 md:pt-8 md:pb-16">
         {children}
       </main>
 
-      {/* 휴대폰 아래 탭 */}
-      <nav
-        aria-label="덕아웃 탭"
-        className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
-      >
-        <ul className="grid grid-cols-5">
-          {tabs.map((t) => {
-            const on = active(t.href, t.exact);
-            const Icon = t.icon;
-            return (
-              <li key={t.href}>
-                <Link
-                  href={t.href}
-                  aria-current={on ? 'page' : undefined}
-                  className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${
-                    on ? 'text-sky-strong' : 'text-muted'
-                  }`}
-                >
-                  {t.plus ? (
-                    <span className="grid h-9 w-9 place-items-center rounded-full bg-sky text-white shadow-md">
+      {/* 휴대폰 아래 탭 — 싱커 앱 안에서는 앱의 탭 막대가 대신(겹치지 않게) */}
+      {!native && (
+        <nav
+          aria-label="덕아웃 탭"
+          className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+        >
+          <ul className="grid grid-cols-5">
+            {tabs.map((t) => {
+              const on = active(t.href, t.exact);
+              const Icon = t.icon;
+              return (
+                <li key={t.href}>
+                  <Link
+                    href={t.href}
+                    aria-current={on ? 'page' : undefined}
+                    className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${
+                      on ? 'text-sky-strong' : 'text-muted'
+                    }`}
+                  >
+                    {t.plus ? (
+                      <span className="grid h-9 w-9 place-items-center rounded-full bg-sky text-white shadow-md">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                    ) : (
                       <Icon className="h-5 w-5" />
-                    </span>
-                  ) : (
-                    <Icon className="h-5 w-5" />
-                  )}
-                  {!t.plus && t.label}
-                  {t.badge ? (
-                    <span className="absolute top-2 right-[calc(50%-18px)] rounded-full bg-danger px-1.5 text-[10px] font-bold text-white">
-                      {t.badge}
-                    </span>
-                  ) : null}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+                    )}
+                    {!t.plus && t.label}
+                    {t.badge ? (
+                      <span className="absolute top-2 right-[calc(50%-18px)] rounded-full bg-danger px-1.5 text-[10px] font-bold text-white">
+                        {t.badge}
+                      </span>
+                    ) : null}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      )}
     </div>
   );
 }

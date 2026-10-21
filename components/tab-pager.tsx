@@ -35,7 +35,8 @@ import { TAB_CHOSEN_EVENT } from '@/components/tab-lens';
  * 넷째 판 — 영양 → 커뮤니티(2026-10-20 김민). 영양은 이제 하위 화면(children)이다.
  * 셋째 판 — 트레이닝 → 타격(같은 날, docs/designs/hitting-restructure.md). 트레이닝은 투구 · 타격 종목 하단바 안의 하위 화면이다.
  */
-const TAB_ORDER = ['/today', '/community', '/videos', '/hitting'];
+/* 2026-10-21 커뮤니티 판을 걷었다 — 덕아웃 탭은 판이 아니라 덕아웃으로 넘어가는 길(lib/nav.ts DUGOUT_HREF) */
+const TAB_ORDER = ['/today', '/videos', '/hitting'];
 const base = (href: string) => href.split('?')[0];
 
 /** 놓았을 때 넘어가는 기준 — 폭의 이만큼 */
@@ -443,9 +444,15 @@ export function TabPager({
           <div className="flex flex-col items-center gap-3">
             <span className="grid h-20 w-20 place-items-center rounded-full bg-white/12">
               {/* 구속 측정 · ABS 는 카메라가 열린 뒤 모드로 고른다(lib/camera-mode.ts) — 자리표시는 '카메라' */}
-              {ghost.item.href === '/velocity' ? <Camera aria-hidden className="h-10 w-10" /> : <Icon aria-hidden className="h-10 w-10" />}
+              {ghost.item.href === '/velocity' ? (
+                <Camera aria-hidden className="h-10 w-10" />
+              ) : (
+                <Icon aria-hidden className="h-10 w-10" />
+              )}
             </span>
-            <span className="text-lg font-semibold">{ghost.item.href === '/velocity' ? '카메라' : ghost.item.label}</span>
+            <span className="text-lg font-semibold">
+              {ghost.item.href === '/velocity' ? '카메라' : ghost.item.label}
+            </span>
           </div>
         </div>
       )}

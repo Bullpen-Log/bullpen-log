@@ -37,7 +37,6 @@ const field = (formData: FormData, name: string) =>
 /** 글 화면 · 목록 · 신고 관리가 함께 바뀌는 동작이 많아 한 줄로 */
 function revalidatePost(postId: string) {
   revalidatePath('/community');
-  revalidatePath('/community/feed');
   revalidatePath(`/community/${postId}`);
   revalidatePath('/admin/community');
 }
@@ -94,14 +93,12 @@ async function tryCreatePost(
   });
 
   revalidatePath('/community');
-  revalidatePath('/community/feed');
   return { id: post.id };
 }
 
 export async function deletePost(formData: FormData) {
   const user = await getCurrentUser();
-  if (user && (await removePost(user, field(formData, 'id'))))
-    redirect('/community/feed');
+  if (user && (await removePost(user, field(formData, 'id')))) redirect('/community');
 }
 
 /** 지웠으면 true — 웹(deletePost)은 목록으로 redirect, 앱(deleteAppPost)은 화면을 닫는다 */
@@ -152,7 +149,6 @@ export async function toggleLike(formData: FormData) {
   }
 
   revalidatePath('/community');
-  revalidatePath('/community/feed');
   revalidatePath(`/community/${postId}`);
 }
 
@@ -196,7 +192,6 @@ async function tryAddComment(formData: FormData): Promise<CommunityState> {
   if (!same)
     await prisma.communityComment.create({ data: { postId, userId: user.id, body } });
   revalidatePath('/community');
-  revalidatePath('/community/feed');
   revalidatePath(`/community/${postId}`);
   return undefined;
 }
@@ -432,7 +427,6 @@ export async function setAppLike(postId: unknown, liked: unknown) {
   }
   const likes = await prisma.communityLike.count({ where: { postId } });
   revalidatePath('/community');
-  revalidatePath('/community/feed');
   revalidatePath(`/community/${postId}`);
   return { ok: true as const, liked, likes };
 }

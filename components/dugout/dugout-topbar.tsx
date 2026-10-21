@@ -19,6 +19,7 @@ export function DugoutTopBar({
   current = null,
   sticky = true,
   className = '',
+  native = false,
 }: {
   user: { nickname: string } | null;
   unread?: number;
@@ -31,12 +32,16 @@ export function DugoutTopBar({
   current?: 'sinker' | 'manage' | null;
   sticky?: boolean;
   className?: string;
+  /** 싱커 앱 웹뷰 안 — 홈은 /?dugout=1(앱의 / 는 싱커로 돌아간다), '내 싱커'는 앱 홈(/today) */
+  native?: boolean;
 }) {
   const pathname = usePathname();
   const inDugout = current === null;
+  const homeHref = native ? '/?dugout=1' : '/';
+  const sinkerHref = native ? '/today' : '/sinker';
   const nav = [
-    { href: '/', label: '홈', exact: true },
-    ...(user ? [{ href: '/#talk', label: '커뮤니티' }] : []),
+    { href: homeHref, label: '홈', exact: true },
+    { href: '/community', label: '커뮤니티' },
     { href: '/market', label: '장터' },
     { href: '/lessons', label: '레슨' },
     { href: '/venues', label: '연습장' },
@@ -46,7 +51,9 @@ export function DugoutTopBar({
   ];
   const active = (href: string, exact?: boolean) =>
     inDugout &&
-    (exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`));
+    (exact
+      ? pathname === href.split('?')[0]
+      : pathname === href || pathname.startsWith(`${href}/`));
   const item = (on: boolean) =>
     `relative flex min-h-10 items-center rounded-xl px-3 text-sm font-semibold transition-colors ${
       on ? 'bg-sky/12 text-sky-strong' : 'text-muted hover:bg-ink/5 hover:text-ink'
@@ -62,7 +69,7 @@ export function DugoutTopBar({
       className={`${sticky ? 'sticky top-0' : ''} z-20 border-b border-line bg-surface/90 backdrop-blur ${className}`}
     >
       <div className="mx-auto flex min-h-14 w-full max-w-5xl items-center gap-3 px-4 md:px-6">
-        <Link href="/" className="flex items-baseline gap-2">
+        <Link href={homeHref} className="flex items-baseline gap-2">
           <Wordmark brand="dugout" className="text-2xl text-ink" />
         </Link>
         <nav aria-label="덕아웃" className="ml-4 hidden items-center gap-1 md:flex">
@@ -98,7 +105,7 @@ export function DugoutTopBar({
             <>
               {sinker && (
                 <Link
-                  href="/sinker"
+                  href={sinkerHref}
                   aria-current={current === 'sinker' ? 'page' : undefined}
                   className={side(current === 'sinker')}
                 >

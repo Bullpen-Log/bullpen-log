@@ -15,6 +15,13 @@ import {
   type FeatureLocks,
 } from '@/lib/feature-locks';
 
+/**
+ * 싱커의 '덕아웃' 탭(2026-10-21 금윤호: "싱커에서 커뮤니티 기능을 없애고 그 자리에 덕아웃 이동 기능") — 싱커 틀 안의 커뮤니티 판은 지웠고,
+ * 이 탭은 진짜 덕아웃(app/(dugout))으로 넘어간다. ?dugout=1 은 앱(웹뷰) 안에서도 / 가 /today 로 돌아가지 않고 덕아웃을 열게 하는 표시(app/(dugout)/page.tsx).
+ * 커뮤니티 글은 덕아웃의 /community.
+ */
+export const DUGOUT_HREF = '/?dugout=1';
+
 /** 쓸 수 있는 아이콘 이름. 그림은 components/nav-icons.tsx 에 있다. */
 export type NavIconName =
   | 'home'
@@ -170,7 +177,7 @@ export const NAV_GROUPS: NavGroup[] = [
    * 잠금 없음 — 가입하면 바로 열린다. 고객센터는 아래 '소통'에 남는다.
    */
   {
-    items: [{ href: '/community', label: '덕아웃', icon: 'community' }],
+    items: [{ href: DUGOUT_HREF, label: '덕아웃', icon: 'community' }],
   },
   /* 투구 기록 · 트레이닝 · 영양 · 구속 측정은 처음 가입한 사람에게 잠겨 있다(lock — 위 NavItem.lock) */
   {
@@ -471,7 +478,7 @@ export const NAV_ALSO: Record<string, readonly string[]> = {
 /** 차례 홈 · 덕아웃 · 투구 · 타격 · 더보기(2026-10-21 김민). 트레이닝은 투구 · 타격 종목 하단바 안(아래 SPORT_BARS), 영양은 더보기 */
 export const MOBILE_TABS: NavItem[] = [
   { href: '/today', label: '홈', icon: 'home' },
-  { href: '/community', label: '덕아웃', icon: 'community' },
+  { href: DUGOUT_HREF, label: '덕아웃', icon: 'community' },
   {
     href: '/videos',
     label: '투구',
@@ -561,19 +568,4 @@ export function visibleGroups(role: string, isNative = false): NavGroup[] {
         (!i.appOrAdmin || webMeasure || isNative)
     ),
   })).filter((g) => g.items.length > 0);
-}
-
-/**
- * 웹 브라우저의 덕아웃 탭(2026-10-21 금윤호: "싱커로 들어갔을 때 덕아웃으로 돌아올 방법이 없다 — 커뮤니티 버튼을 누르면 바로 덕아웃으로").
- * 싱커 틀 안의 /community 판 대신 진짜 덕아웃(/ — 위 막대 · '내 싱커' 단추가 있는 틀)으로 보낸다. 앱(웹뷰)은 그대로 둔다 —
- * 앱은 /community 를 제 화면으로 열고(native/src/app/index.tsx), 앱의 / 는 /today 로 돌아가서다.
- */
-export const DUGOUT_TAB_HREF = '/community';
-export function toDugoutHome<T extends { href: string }>(items: T[]): T[] {
-  return items.map((i) => (i.href === DUGOUT_TAB_HREF ? { ...i, href: '/' } : i));
-}
-export function toDugoutHomeGroups<G extends { items: { href: string }[] }>(
-  groups: G[]
-): G[] {
-  return groups.map((g) => ({ ...g, items: toDugoutHome(g.items) }));
 }

@@ -17,8 +17,6 @@ import {
   applyLocksToGroups,
   quickTabs,
   visibleGroups,
-  toDugoutHome,
-  toDugoutHomeGroups,
 } from '@/lib/nav';
 import { featureLocks } from '@/lib/feature-locks';
 import { AppNav } from '@/components/app-shell';
@@ -59,7 +57,6 @@ export default async function AppLayout({
   home,
   videos,
   hitting,
-  community,
 }: {
   children: React.ReactNode;
   /** 팝업 자리 — 앱 안에서 날짜 화면으로 가면 여기에 투구 기록 팝업이 뜬다(@modal) */
@@ -72,7 +69,6 @@ export default async function AppLayout({
   videos: React.ReactNode;
   /** 셋째 판 — 트레이닝 → 타격(2026-10-20). 트레이닝은 이제 종목 하단바 안의 하위 화면이다 */
   hitting: React.ReactNode;
-  community: React.ReactNode;
 }) {
   // 이 레이아웃 아래의 모든 페이지는 로그인이 필요하다.
   const user = await requireUser();
@@ -81,11 +77,6 @@ export default async function AppLayout({
   const isAdmin = user.role === 'ADMIN';
   /* 앱(스마트폰 껍데기) 안인가 — 구속 측정 메뉴는 앱이면 누구나, 웹이면 관리자만(lib/nav.ts) */
   const isNative = isNativeUserAgent((await headers()).get('user-agent'));
-  /* 웹 브라우저면 메뉴 · 탭의 덕아웃(/community)을 진짜 덕아웃(/)으로 — lib/nav.ts toDugoutHome. 앱은 그대로 */
-  const webTabs = <T extends { href: string }>(items: T[]) =>
-    isNative ? items : toDugoutHome(items);
-  const webGroups = <G extends { items: { href: string }[] }>(groups: G[]) =>
-    isNative ? groups : toDugoutHomeGroups(groups);
 
   /* PC 브라우저의 선수 화면은 덕아웃 틀 안(2026-10-21 2단계, docs/designs/sinker-dugout.md 5-1) — 위 막대 하나, 앱(싱커 웹뷰)은 안 그린다 */
   const [unread, alerts] = isNative
@@ -159,12 +150,9 @@ export default async function AppLayout({
         />
       )}
       <AppNav
-        /* 웹에서는 덕아웃 탭이 진짜 덕아웃(/)으로(2026-10-21) — 앱은 그대로 /community */
-        groups={webGroups(
-          applyLocksToGroups(visibleGroups(user.role, isNative), locks)
-        )}
-        quick={webTabs(applyLocks(quickTabs(), locks))}
-        tabs={webTabs(applyLocks(MOBILE_TABS, locks))}
+        groups={applyLocksToGroups(visibleGroups(user.role, isNative), locks)}
+        quick={applyLocks(quickTabs(), locks)}
+        tabs={applyLocks(MOBILE_TABS, locks)}
         sportBars={{
           pitch: applyLocks(SPORT_BARS.pitch, locks),
           hit: applyLocks(SPORT_BARS.hit, locks),
@@ -267,7 +255,7 @@ export default async function AppLayout({
                 .flatMap((g) => g.items)
                 .find((i) => i.icon === 'radar' && !i.locked) ?? null
             }
-            panels={[home, community, videos, hitting]}
+            panels={[home, videos, hitting]}
           >
             <MainTransition>{children}</MainTransition>
           </TabPager>

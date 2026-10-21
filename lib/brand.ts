@@ -22,7 +22,7 @@ export const RENAME_NOTICE = `${OLD_NAME}가 싱커(앱)와 덕아웃(웹)으로
  * 2단계에서 PC 의 선수 화면이 덕아웃 틀 안에 들어가면 그때 '틀은 덕아웃, 내용은 싱커'가 된다 — 이 함수는 내용 쪽 이름을 준다.
  */
 export function brandOfPath(pathname: string): Brand {
-  return /^\/(market|chat|lessons|venues|gear|me|pay|u|notifications|link|manage|admin|terms|privacy|report|login|intro|phone)(\/|$)|^\/$/.test(
+  return /^\/(market|chat|lessons|venues|gear|me|pay|u|notifications|link|community|manage|admin|terms|privacy|report|login|intro|phone)(\/|$)|^\/$/.test(
     pathname
   )
     ? 'dugout'

@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { Eye, EyeOff, Heart, MessageCircle, Trash2 } from '@/components/icon';
-import { requireUser } from '@/lib/dal';
+import { getCurrentUser } from '@/lib/dal';
 import { expoLevel } from '@/lib/app-env';
 import { loadCommunityPost } from '@/lib/community-load';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
@@ -58,7 +58,8 @@ export default async function CommunityPostPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const user = await requireUser();
+  const user = await getCurrentUser();
+  if (!user) redirect(`/login?next=/community/${id}`);
 
   /* 새 아이폰 앱(Expo)이 커뮤니티를 아는 판(BullpenNative/6 부터)이면 앱 화면으로 연다(native/src/app/community/[id].tsx) */
   if (expoLevel((await headers()).get('user-agent')) >= 6) {
@@ -78,7 +79,7 @@ export default async function CommunityPostPage({
 
   return (
     <div className="stack-page mx-auto max-w-3xl">
-      <BackLink href="/community/feed">글 목록</BackLink>
+      <BackLink href="/community">커뮤니티</BackLink>
 
       <article className={`selectable space-y-6 ${postHidden ? 'opacity-70' : ''}`}>
         <header className="space-y-4 border-b border-line pb-6">

@@ -68,7 +68,7 @@ export function MobileTopBar({
     !back &&
     /* 넷째 탭 영양 → 커뮤니티(2026-10-20). 영양은 더보기의 여느 화면처럼 막대가 선다 */
     /* 셋째 탭 트레이닝 → 타격(2026-10-20). 트레이닝은 종목 바 안의 화면이라 투구 · 타격처럼 막대 없이 큰 제목부터 */
-    ['/videos', '/hitting', '/community', '/training', '/admin/velocity'].includes(shownPath);
+    ['/videos', '/hitting', '/training', '/admin/velocity'].includes(shownPath);
   /* 숨기기는 첫 화면들만 — '‹ 뒤로'가 있는 화면은 돌아갈 길을 늘 보인다. 알림 창이 열려 있으면 안 숨긴다 */
   const hidden = useBarHidden(!back && !bare && panel == null);
   /*

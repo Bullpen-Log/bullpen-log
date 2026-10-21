@@ -11,6 +11,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-21 · 금윤호(Claude, 데스크톱) — **싱커의 커뮤니티를 걷고 그 탭은 '덕아웃' 이동으로** · 커뮤니티 글은 덕아웃(/community) — 네 탭 막대 · 판 넘기기를 고쳤다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호: "덕아웃에 별도의 커뮤니티를 만들고 싱커의 커뮤니티는 없애. 싱커에서 커뮤니티 기능을 없애고 그 자리에 덕아웃 이동 기능."
+- **네 영역을 고쳤다**: `lib/nav.ts` 탭 · 메뉴의 '덕아웃' 주소가 `/community` → **`DUGOUT_HREF = '/?dugout=1'`**, `components/tab-pager.tsx` TAB_ORDER 에서 `/community` 뺌(판 셋 — 홈 · 투구 · 타격),
+  `app/(app)/layout.tsx` 에서 `@community` 자리 · 판을 뺌, `app/(app)/@community` · `app/(app)/community` 지움, `mobile-top-bar.tsx` bare 목록에서 /community 뺌.
+- 커뮤니티 목록 · 글 · 글쓰기는 **`app/(dugout)/community`**(주소는 그대로 `/community` · `/community/<id>` · `/community/new`, 덕아웃 틀). `[id]` · `new` 의 `OpenNative`(expoLevel ≥ 6 이면 앱 화면)는 그대로 뒀다.
+- **새 앱에 걸리는 것(네 몫)**: 사이트가 보내는 탭의 넷째가 이제 `/?dugout=1`(라벨 '덕아웃'). `native/src/app/index.tsx` 의 `t.href === '/community'` 갈래(앱 커뮤니티 화면 열기)는 더 안 탄다 —
+  탭을 누르면 `goWeb('/?dugout=1')` 로 웹뷰가 덕아웃을 연다. 앱 UA 로 `/` 는 예전처럼 /today · /login 으로 돌아가고, `?dugout=1` 일 때만 덕아웃을 보인다(app/(dugout)/page.tsx).
+  덕아웃 틀은 앱 UA 면 제 아래 탭을 숨기고(앱 탭 막대와 안 겹치게) 위 막대의 홈은 `/?dugout=1`, '내 싱커'는 `/today` 로 간다. **새 앱 탭 막대의 DEFAULT_TABS 와 탭 그림 · 앱 커뮤니티 화면(native/src/app/community/*)을 이 모양에 맞춰 줘** — 앱 커뮤니티 화면을 덕아웃 앱으로 옮길지도.
+
 ## 김민에게 — 2026-10-21 · 금윤호(Claude, 데스크톱) — **큰 개편: 앱은 '싱커', 웹은 '덕아웃'** — 계획 `docs/designs/sinker-dugout.md` 먼저 읽어 줘 · 네 몫(B-1~B-5)이 있다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호 결정(10-21): 선수 앱(지금 불펜로그 앱)은 **싱커**로 이름만 바꾸고 기능 그대로 · 웹사이트 전체는 **덕아웃**(커뮤니티 + 싱커 자료 PC 관리 + 팀 관리) ·

@@ -29,10 +29,18 @@ import {
  * 덕아웃 홈(2026-10-20) — 로그인 안 한 사람의 첫 화면. 야구인이 매일 하는 일 넷(장터 · 소통 · 레슨 · 장소)이 한 화면에.
  * 1판은 장터와 소통이 돌고, 레슨 · 장소는 '곧'(2 · 3판). 로그인한 사람도 같은 화면 — 위 막대의 '내 불펜로그'가 안으로 가는 길.
  */
-export default async function DugoutHome() {
+export default async function DugoutHome({
+  searchParams,
+}: {
+  searchParams: Promise<{ dugout?: string }>;
+}) {
   const user = await getCurrentUser();
   /* 아이폰 앱(싱커) 안에서 /: 예전처럼 홈 · 로그인 — 앱의 첫 화면은 덕아웃이 아니라 싱커다(2026-10-21 2단계, 옛 app/page.tsx) */
-  if (isNativeUserAgent((await headers()).get('user-agent')))
+  /* 앱(싱커 웹뷰)의 / 는 예전처럼 싱커로 — 단 덕아웃 탭(?dugout=1)으로 온 것은 덕아웃(2026-10-21) */
+  if (
+    isNativeUserAgent((await headers()).get('user-agent')) &&
+    !(await searchParams).dugout
+  )
     redirect(user ? '/today' : '/login');
   const viewer = user ? { id: user.id, role: user.role } : null;
   const [listings, posts] = await Promise.all([
@@ -135,12 +143,12 @@ export default async function DugoutHome() {
           <h2 className="text-lg font-bold text-ink">소통 · 새 글</h2>
           <span className="flex items-center gap-3">
             {user && (
-              <Link href="/community/feed" className="text-sm font-semibold text-muted">
+              <Link href="/community" className="text-sm font-semibold text-muted">
                 전체 보기
               </Link>
             )}
             <Link
-              href={user ? '/community/new' : '/login'}
+              href={user ? '/community/new' : '/login?next=/community/new'}
               className="inline-flex items-center gap-0.5 text-sm font-semibold text-sky"
             >
               {user ? '글쓰기' : '로그인하고 글쓰기'} <ArrowRight className="h-4 w-4" />

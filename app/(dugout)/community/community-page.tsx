@@ -1,6 +1,7 @@
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { EyeOff, Heart, MessageCircle, MessagesSquare, Tag } from '@/components/icon';
-import { requireUser } from '@/lib/dal';
+import { EyeOff, Heart, MessageCircle, MessagesSquare } from '@/components/icon';
+import { getCurrentUser } from '@/lib/dal';
 import { loadCommunityList } from '@/lib/community-load';
 import {
   POST_CATEGORIES,
@@ -26,21 +27,21 @@ function listHref(q: { category?: string; sort: PostSort; page?: number }) {
   if (q.sort !== 'new') sp.set('sort', q.sort);
   if (q.page && q.page > 1) sp.set('page', String(q.page));
   const s = sp.toString();
-  return s ? `/community/feed?${s}` : '/community/feed';
+  return s ? `/community?${s}` : '/community';
 }
 
 /**
  * 커뮤니티 목록(2026-10-17 1판 — 틀). 구분 칩 · 최신/인기 · 더 보기. 가린 글은 관리자에게만 흐리게 보인다.
  *
- * 2026-10-20 하단 탭 넷째(영양 자리)가 돼 판 넘기기 자리(app/(app)/@community)가 그린다. 새 아이폰 앱(Expo)에서도 앱 화면으로 넘기지 않고
- * 이 판을 보인다 — 판은 늘 떠 있어 넘기면(OpenNative 의 router.back) 어느 화면을 열든 튕긴다. 글 · 글쓰기는 앱 화면 그대로(그 페이지들이 넘김).
+ * 2026-10-21 부터 덕아웃 안(/community, app/(dugout)) — 싱커의 커뮤니티 판은 걷었다. 장터 · 채팅은 덕아웃 위 막대에 있어 여기 길 카드는 뺐다.
  */
 export default async function CommunityPage({
   searchParams,
 }: {
   searchParams: Promise<Search>;
 }) {
-  const user = await requireUser();
+  const user = await getCurrentUser();
+  if (!user) redirect('/login?next=/community');
   const sp = await searchParams;
 
   const rawCategory = one(sp.category);
@@ -61,38 +62,10 @@ export default async function CommunityPage({
   return (
     <div className="stack-page">
       <PageHeading
-        title="덕아웃"
+        title="커뮤니티"
         inlineAction
         action={<ButtonLink href="/community/new">글쓰기</ButtonLink>}
       />
-
-      {/* 덕아웃의 다른 방 — 장터 · 채팅(app/(dugout), 2026-10-20). 로그인한 사람도 같은 화면을 쓴다 */}
-      <nav aria-label="덕아웃" className="grid grid-cols-2 gap-3">
-        <Link
-          href="/market"
-          className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 transition-colors hover:border-sky-soft"
-        >
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky/12 text-sky">
-            <Tag className="h-5 w-5" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-bold text-ink">장터</span>
-            <span className="block text-xs text-muted">중고 야구용품 사고팔기</span>
-          </span>
-        </Link>
-        <Link
-          href="/chat"
-          className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 transition-colors hover:border-sky-soft"
-        >
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky/12 text-sky">
-            <MessageCircle className="h-5 w-5" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-bold text-ink">채팅</span>
-            <span className="block text-xs text-muted">거래 · 레슨 이야기</span>
-          </span>
-        </Link>
-      </nav>
 
       {/* 거르기 — 구분 칩은 옆으로 미끄러지고(휴대폰), 정렬은 오른쪽 끝의 작은 둘 */}
       <div className="flex flex-col gap-3 desk:flex-row desk:items-center desk:justify-between">
