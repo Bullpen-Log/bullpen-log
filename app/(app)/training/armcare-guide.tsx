@@ -14,7 +14,7 @@ import {
 import { MuscleChips } from '@/components/muscle-chips';
 import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
 import { AddToRoutine, MyRoutinesProvider, type RoutineChoice } from './add-to-routine';
-import { MuscleMapPanel, selectionFor, type MapCoverage } from './muscle-map-panel';
+import { MuscleMapPanel, selectionFor } from './muscle-map-panel';
 import type { ArmPainLine } from '@/lib/armcare/coverage-load';
 import { ArmcareInfoProvider, INFO_PILL, InfoButton } from './armcare-info';
 
@@ -42,21 +42,13 @@ export function ArmcareGuide({
   exercises,
   routines,
   map,
-  coverage = null,
+  pain = null,
 }: {
   /**
-   * 내 팔 지도(2026-10-04) — 최근 2주 기록의 진하기 · 비어 있는 부위. 주면 3D 가 처음에 내 기록으로 칠해진다(lib/armcare/coverage.ts).
-   * 맨 위의 '2주째 비어 있어요' 카드는 2026-10-20 뺐다(김민 — 이 화면에서는 군더더기).
+   * 오늘 · 어제 체크인의 팔 통증(lib/armcare/coverage-load.ts). 3D 를 최근 2주 기록으로 칠하던 것(2026-10-04)과
+   * '2주째 비어 있어요' 카드는 뺐다(2026-10-20 · 10-21 김민).
    */
-  coverage?:
-    | (MapCoverage & {
-        gaps: ArmcareAreaKey[];
-        /** 여덟 부위를 모두 했나 — 칭찬은 이때만(아픈 곳을 빼서 권할 곳이 없어진 날과 가른다) */
-        allCovered: boolean;
-        dateKey: string;
-        pain?: PainLine | null;
-      })
-    | null;
+  pain?: PainLine | null;
   exercises: ArmcareExerciseView[];
   /** 내 루틴 — 운동마다 '담기'로 넣을 곳 (add-to-routine.tsx) */
   routines: RoutineChoice[];
@@ -102,7 +94,7 @@ export function ArmcareGuide({
             근육을 누르거나 부위를 펼쳐 보세요.
           </p>
 
-          {coverage?.pain && <PainNote pain={coverage.pain} onArea={showArea} />}
+          {pain && <PainNote pain={pain} onArea={showArea} />}
 
           <MuscleMapPanel
             side={side}
@@ -111,7 +103,6 @@ export function ArmcareGuide({
             exercises={exercises}
             initial={selectionFor(map.focusMuscle)}
             onShowArea={showArea}
-            coverage={coverage}
           />
 
           {joints.map((joint) => (

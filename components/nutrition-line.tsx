@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { ChevronRight, Utensils } from '@/components/icon';
+import { ChevronRight } from '@/components/icon';
+import { RoundCutlery } from '@/components/round-icon';
 import type { NutritionLine } from '@/lib/nutrition/nudge';
 
 /**
@@ -9,7 +10,7 @@ import type { NutritionLine } from '@/lib/nutrition/nudge';
 export function NutritionLineNote({ line }: { line: NutritionLine }) {
   return (
     <div className="flex items-start gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
-      <Utensils aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-sky" />
+      <RoundCutlery aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-sky" />
       <div className="min-w-0 flex-1 space-y-0.5">
         <p className="text-xs text-muted">{line.title}</p>
         <p className="text-sm font-semibold text-ink break-keep">{line.text}</p>

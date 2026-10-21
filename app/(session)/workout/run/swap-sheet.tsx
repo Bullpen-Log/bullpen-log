@@ -171,7 +171,10 @@ export function SwapSheetView({
   pending,
   onPick,
   onClose,
+  note = '바꾼 운동은 오늘 운동에만 반영돼요. 트레이닝 화면의 일정은 그대로예요.',
 }: {
+  /** 맨 아래 한 줄 — 프로그램 목록에서 열면 그쪽 말로(program-card.tsx) */
+  note?: string;
   open: boolean;
   current: { id: string; title: string };
   mode: SwapMode;
@@ -404,7 +407,7 @@ export function SwapSheetView({
         )}
 
         <p className="mt-3 px-2 text-center text-caption leading-relaxed break-keep text-muted/80">
-          바꾼 운동은 오늘 운동에만 반영돼요. 트레이닝 화면의 일정은 그대로예요.
+          {note}
         </p>
       </div>
     </Modal>

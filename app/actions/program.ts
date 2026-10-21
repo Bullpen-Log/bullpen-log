@@ -28,7 +28,9 @@ import {
   isYouthAge,
   parseProgram,
   pickPinned,
+  pinnedJson,
   programDef,
+  readDaySwaps,
   readPinned,
   startProgramKey,
   usedVariants,
@@ -39,6 +41,10 @@ import {
   type VariantKey,
 } from '@/lib/program/program';
 import { activeProgram, buildProgramDay, hasFinishedBasics } from '@/lib/program/load';
+import { favoriteExerciseIds } from '@/lib/favorites';
+import { recentExerciseIds } from '@/lib/report/exercise-recent';
+import { selectCandidates } from '@/lib/report/prescription';
+import type { SwapChoices } from '@/app/actions/workout';
 
 /**
  * 근력 · 파워 프로그램의 저장 동작 — 시작 · 운동 시작 · 건너뛰기 · 그만두기 · 오늘 할래요 · 고정 운동 바꾸기.
@@ -288,7 +294,7 @@ export async function startProgramWorkout() {
   if (Object.keys(view.repin).length > 0) {
     await prisma.userTrainingProgram.update({
       where: { id: row.id },
-      data: { pinned: { ...readPinned(row.pinned), ...view.repin } },
+      data: { pinned: pinnedJson(row.pinned, { ...readPinned(row.pinned), ...view.repin }) as Prisma.InputJsonValue },
     });
   }
 
@@ -406,7 +412,86 @@ export async function repinProgramExercise(input: {
   if (!ok) return { error: '이 칸에 넣을 수 없는 운동이에요.' };
   await prisma.userTrainingProgram.update({
     where: { id: row.id },
-    data: { pinned: { ...readPinned(row.pinned), [input.variant]: input.exerciseId } },
+    data: {
+      pinned: pinnedJson(row.pinned, { ...readPinned(row.pinned), [input.variant]: input.exerciseId }) as Prisma.InputJsonValue,
+    },
+  });
+  revalidatePath('/training');
+  return { ok: true };
+}
+
+/**
+ * 프로그램 운동 줄의 '바꾸기' 창 — 운동 중 바꾸기 창(workout/run/swap-sheet.tsx)과 같은 모양을 판 없이 낸다. 비슷한 운동은 같은 칸 후보,
+ * 즐겨찾기 · 최근 · 찾기(전체)는 운동 중과 같다. 오늘 몸 상태에 안 맞는 운동도 막지 않고 주의만(2026-10-19 사용자 결정).
+ */
+export async function programSwapChoices(input: {
+  exerciseId: string;
+  variant: VariantKey;
+  withLibrary: boolean;
+}): Promise<SwapChoices | { error: string }> {
+  const user = await requireUser();
+  if (!VARIANT_KEYS.includes(input.variant)) return { error: '모르는 칸이에요.' };
+  const row = await activeProgram(user.id);
+  if (!row) return { error: '진행 중인 프로그램이 없어요.' };
+  const now = appNow();
+  const [core, favorites, recentIds] = await Promise.all([
+    loadTodayCore(user, now),
+    favoriteExerciseIds(user.id),
+    recentExerciseIds(user.id, now),
+  ]);
+  const safety = selectCandidates({ facts: core.facts, plan: core.plan, library: core.library });
+  const safeIds = new Set(safety.candidates.map((ex) => ex.id));
+  const def = parseProgram(row.programKey)?.def;
+  const audience = def ? audienceOf(def) : 'adult';
+  const label = variantLabel(input.variant, audience);
+  const sameSlot = variantCandidates(
+    input.variant,
+    core.library,
+    user.ownedEquipment,
+    user.trainingLevel,
+    audience,
+    isYouthAge(user.birthDate ? ageFromBirthDate(user.birthDate) : null)
+  ).filter((ex) => ex.id !== input.exerciseId && safeIds.has(ex.id));
+  return {
+    halted: safety.halted ? (safety.haltReason ?? '오늘은 운동을 바꿀 수 없어요.') : null,
+    similar: safety.halted ? [] : sameSlot.map((ex) => ({ id: ex.id, reason: `같은 칸(${label}) 운동` })),
+    blockedIds: core.library.filter((ex) => !safeIds.has(ex.id)).map((ex) => ex.id),
+    favoriteIds: [...favorites],
+    recentIds,
+    /* 처방은 넣을 때 그 칸 · 그 주의 것으로 정해져 목록에는 안 보인다(운동 중 프로그램 판과 같다) */
+    library: input.withLibrary
+      ? core.library.map((ex) => ({
+          id: ex.id,
+          title: ex.title,
+          category: ex.category,
+          equipment: ex.equipment,
+          prescription: null,
+        }))
+      : null,
+  };
+}
+
+/**
+ * 프로그램 운동 줄을 오늘만 다른 운동으로 — 고정 운동은 그대로, 다음 세션은 원래대로(2026-10-21 김민). exerciseId 가 null 이면 원래대로.
+ * 오늘 판(운동 시작)이 이 바꿈을 읽어 얼린다(lib/program/load.ts buildProgramDay). 이미 연 판은 화면이 changeSessionExercise 로 같이 바꾼다.
+ */
+export async function swapProgramToday(input: {
+  variant: VariantKey;
+  exerciseId: string | null;
+}): Promise<Result> {
+  const user = await requireUser();
+  if (!VARIANT_KEYS.includes(input.variant)) return { error: '모르는 칸이에요.' };
+  const row = await activeProgram(user.id);
+  if (!row) return { error: '진행 중인 프로그램이 없어요.' };
+  if (input.exerciseId != null && !(await visibleExercises()).some((ex) => ex.id === input.exerciseId))
+    return { error: '운동을 찾을 수 없어요.' };
+  const dateKey = toDateKey(appNow());
+  const swaps = { ...readDaySwaps(row.pinned, dateKey) };
+  if (input.exerciseId) swaps[input.variant] = input.exerciseId;
+  else delete swaps[input.variant];
+  await prisma.userTrainingProgram.update({
+    where: { id: row.id },
+    data: { pinned: pinnedJson(row.pinned, readPinned(row.pinned), { dateKey, swaps }) as Prisma.InputJsonValue },
   });
   revalidatePath('/training');
   return { ok: true };

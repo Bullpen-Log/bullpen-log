@@ -2,7 +2,8 @@
 
 import { useRef, useState, type RefObject } from 'react';
 import Link from 'next/link';
-import { Bell, CheckCircle2, ChevronRight, ClipboardList, Target } from '@/components/icon';
+import { CheckCircle2, ChevronRight, ClipboardList, Target } from '@/components/icon';
+import { RoundBell } from '@/components/round-icon';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 import { SETUP_PATH } from '@/lib/feature-locks';
 import { LinkPending } from '@/components/link-pending';
@@ -132,10 +133,7 @@ export function NoticeBellButton({
         open ? 'bg-sky/15 text-sky' : idle
       }`}
     >
-      <Bell
-        aria-hidden
-        className="h-[1.05rem] w-[1.05rem]"
-      />
+      <RoundBell aria-hidden className="h-[1.15rem] w-[1.15rem]" {...({ filled: open } as object)} />
       {count > 0 && (
         <span
           aria-hidden

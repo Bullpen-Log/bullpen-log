@@ -1,4 +1,7 @@
-import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { useId } from 'react';
+import Svg, { Path, Circle, Rect, SvgXml } from 'react-native-svg';
+import { roundIconMarkup, type RoundIconName } from '@/lib/round-icons';
+import { useTheme } from '~/lib/ui';
 
 /**
  * 그림(아이콘) — 웹과 같은 선 그림. 웹은 lucide(components/icon.tsx, 굵기 2.5)와 손으로 그린 야구공(components/baseball-icon.tsx)을 쓴다.
@@ -88,13 +91,60 @@ const ICONS = {
   "arrow-left-right": [["path",{"d":"M8 3 4 7l4 4"}],["path",{"d":"M4 7h16"}],["path",{"d":"m16 21 4-4-4-4"}],["path",{"d":"M20 17H4"}]],
 } satisfies Record<string, El[]>;
 
-export type IconName = keyof typeof ICONS;
+/*
+ * 둥근 야구 아이콘(2026-10-21 금윤호, lib/round-icons.ts — 웹 components/round-icon.tsx 와 같은 그림). 아래 이름은 lucide 선 대신 그것으로 그린다.
+ * zone(ABS 스트라이크존) · pitcher(투구 모션 — 메커니즘 · 투구 드릴 · 3D 동작 분석)는 둥근 아이콘에만 있는 이름.
+ */
+const ROUND: Partial<Record<string, RoundIconName>> = {
+  house: 'home',
+  baseball: 'baseball',
+  'baseball-bat': 'bat',
+  'messages-square': 'community',
+  menu: 'menu',
+  squares: 'menu',
+  bell: 'bell',
+  settings: 'settings',
+  dumbbell: 'training',
+  utensils: 'cutlery',
+  radar: 'radar',
+  zone: 'zone',
+  pitcher: 'pitcher',
+  'person-standing': 'pitcher',
+  'life-buoy': 'support',
+};
+
+export type IconName = keyof typeof ICONS | 'zone' | 'pitcher';
 
 /* 웹 lucide 기본 선: 둥근 끝 · 둥근 이음, 굵기는 24px 기준 2.5(작으면 같이 가늘어진다) */
-export function Icon({ name, size = 24, color, strokeWidth = 2.5, fill = 'none' }: { name: IconName; size?: number; color: string; strokeWidth?: number; fill?: string }) {
+export function Icon({
+  name,
+  size = 24,
+  color,
+  strokeWidth = 2.5,
+  fill = 'none',
+  filled = false,
+}: {
+  name: IconName;
+  size?: number;
+  color: string;
+  strokeWidth?: number;
+  fill?: string;
+  /** 채움형 — 둥근 아이콘만(지금 고른 하단 탭) */
+  filled?: boolean;
+}) {
+  const id = `ri${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
+  const round = ROUND[name];
+  /* 네이비 · 다크 테마는 늘 채움형(2026-10-21 금윤호, 웹 globals.css .ri-f 와 같게) */
+  const theme = useTheme();
+  if (theme !== 'light') filled = true;
+  if (round) {
+    /* 64 칸 그림 — 굵기는 lucide 24 칸 굵기에 맞춰(2.5 → 5.2) */
+    const xml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${roundIconMarkup(round, filled, id, strokeWidth * 2.08)}</svg>`;
+    return <SvgXml xml={xml} width={size} height={size} color={color} />;
+  }
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
-      {(ICONS[name] as El[]).map(([tag, a], i) => {
+      {(ICONS[name as keyof typeof ICONS] as El[]).map(([tag, a], i) => {
         switch (tag) {
           case "path":
             return <Path key={i} {...(a as object)} />;

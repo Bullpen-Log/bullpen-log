@@ -1780,6 +1780,41 @@ export function pickSubstitute<T extends { id: string }>(
 
 export type Pinned = Partial<Record<VariantKey, string>>;
 
+/*
+ * 오늘만 바꾼 운동(2026-10-21 김민: "목록에서 바로 바꾸게 · 직접 고르게") — 칸 → 운동 id 를 고정 운동과 같은 Json(UserTrainingProgram.pinned)의
+ * 이 열쇠에 날짜와 함께 둔다. 칸 열쇠(VARIANT_KEYS)와 겹치지 않아 readPinned 는 못 본다. 날짜가 지나면 읽지 않는다.
+ */
+const DAY_SWAPS_KEY = '_today';
+
+/** 그날(dateKey) 바꾼 운동 */
+export function readDaySwaps(value: unknown, dateKey: string): Pinned {
+  const box = value && typeof value === 'object' ? (value as Record<string, unknown>)[DAY_SWAPS_KEY] : null;
+  if (!box || typeof box !== 'object') return {};
+  const { date, swaps } = box as { date?: unknown; swaps?: unknown };
+  return date === dateKey ? readPinned(swaps) : {};
+}
+
+/**
+ * pinned Json 에 쓸 값 — 고정 운동(pinned)과 그날 바꾼 운동을 한 상자로. 고정 운동을 고칠 때도 이것으로 써야 오늘 바꾼 것이 안 날아간다.
+ * daySwaps 를 안 주면 원래 값의 것을 그대로 둔다.
+ */
+export function pinnedJson(
+  value: unknown,
+  pinned: Pinned,
+  day?: { dateKey: string; swaps: Pinned }
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...pinned };
+  const box = day
+    ? Object.keys(day.swaps).length > 0
+      ? { date: day.dateKey, swaps: day.swaps }
+      : null
+    : value && typeof value === 'object'
+      ? ((value as Record<string, unknown>)[DAY_SWAPS_KEY] ?? null)
+      : null;
+  if (box) out[DAY_SWAPS_KEY] = box;
+  return out;
+}
+
 /**
  * 세션마다 돌리는 보조 칸(2026-10-14 김민: "4주 고정이면 안 돼 — 세션마다 다르게"). 본 운동(스쿼트 · 힌지 · 밀기)은 무게 흐름(TM · 직선 증량)
  * 때문에 그대로 두고, 나머지는 같은 칸의 후보를 그 칸이 나올 때마다 다음 것으로 바꾼다. 고정 운동(pinned)이 첫째. 기본기는 일곱 칸 모두 돌린다(BASICS_ROTATION).

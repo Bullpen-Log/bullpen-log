@@ -510,13 +510,15 @@ export function Modal({
         아이폰 점검).
       */}
         <div
+          /* 시트의 맨 아래 칸 — 앱 하단바가 덮는 만큼 비운다(globals.css 'Expo 앱 탭') */
+          data-sheet-end={footer || look === 'folder' ? undefined : ''}
           className={`no-scrollbar relative min-h-0 flex-auto overflow-y-auto overscroll-contain px-5 pt-3 desk:py-5 ${look === 'folder' ? 'pb-5' : footer ? 'pb-3' : 'pb-[calc(1.25rem+env(safe-area-inset-bottom))]'}`}
         >
           {/* 내용의 제 높이를 재는 자리(위 'page' 창의 높이 잇기) */}
           <div ref={contentRef}>{children}</div>
         </div>
         {footer && (
-          <div className="shrink-0 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] desk:px-5 desk:pb-5">
+          <div data-sheet-end className="shrink-0 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] desk:px-5 desk:pb-5">
             {footer}
           </div>
         )}

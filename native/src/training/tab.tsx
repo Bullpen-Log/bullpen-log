@@ -38,7 +38,7 @@ export const resetTrainingCache = () => {
 const APP: Record<TrainingPart, { name: string; glyph: IconName }> = {
   today: { name: '오늘 운동', glyph: 'dumbbell' },
   armcare: { name: '암케어', glyph: 'shield-plus' },
-  mechanics: { name: '메커니즘', glyph: 'target' },
+  mechanics: { name: '메커니즘', glyph: 'pitcher' },
 };
 
 export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: number; onWeb: (href: string) => void }) {
