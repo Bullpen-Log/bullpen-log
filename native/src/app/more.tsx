@@ -1,3 +1,4 @@
+import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { type Href, router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -13,8 +14,9 @@ import type { ShellTab } from '~/shell/tab-bar';
 import { leaveTo } from '~/shell/web-nav';
 
 /**
- * 더보기(앱) — 웹 휴대폰 더보기 폴더(components/app-shell/detail-menu.tsx · globals.css [data-folder])와 같은 꼴: 화면 전체를 어둡게 덮고
- * 가운데 반투명 유리 폴더, 그 안에 투명 아이콘(흰 그림) + 이름이 셋씩, 묶음 제목은 흰 글자 60%, 맨 밑에 설정 타일 · 내 정보 줄.
+ * 더보기(앱) — 아이폰 홈 화면 폴더처럼: 뒤 화면을 흐리고 어둡게 가라앉히고(expo-blur), 그 위에 '메뉴' 큰 제목과 반투명 유리 폴더가
+ * 그림자를 달고 떠오른다(2026-10-21 김민: "뒤가 불투명해지고 폴더가 떠오르는 입체감 — 지금은 배경이랑 겹치는 느낌"). 예전엔 막이 옅은 색 한 겹이라
+ * 라이트 테마에서 흰 폴더가 흰 배경에 묻혔다. 폴더 안은 투명 아이콘 + 이름이 셋씩, 묶음 제목은 60%, 맨 밑에 설정 타일 · 내 정보 줄.
  * 하단 탭에 있는 넷(홈 · 투구 · 트레이닝 · 영양)은 뺀다. 막을 누르면 닫힌다(아이폰 폴더처럼 닫기 단추 없음).
  * 목록은 사이트가 알려 준 메뉴 묶음(lib/nav.ts visibleGroups · 잠김까지). 누르면 닫고 그곳으로(앱 화면이 있는 곳은 앱 화면 — 껍데기가 가른다).
  */
@@ -44,11 +46,19 @@ const ICON: Record<string, IconName> = {
  */
 const inTabBar = (it: { label: string; icon: string }, tabs: ShellTab[]) => tabs.some((t) => t.label === it.label && t.icon === it.icon);
 /* 테마별 색 — 웹 globals.css(2026-10-14 사용자 "화이트는 희게 반투명 · 타일 옅은 하늘색, 네이비는 네이비 반투명, 다크는 그대로") */
+/*
+ * scrim = 흐린 뒤 화면 위에 얹는 어둠(모든 테마에서 가라앉혀 폴더 · 흰 제목이 떠 보이게), folder = 폴더 유리 색. 라이트는 폴더를 더 희게(0.62 → 0.8) —
+ * 뒤가 어두워져 흰 유리가 또렷이 뜬다.
+ */
 const LOOK = {
-  dark: { scrim: 'rgba(0,0,0,0.5)', folder: 'rgba(255,255,255,0.14)', border: 'rgba(255,255,255,0.22)', fg: '#ffffff', tile: 'rgba(255,255,255,0.14)', ring: 'rgba(255,255,255,0.22)', glyph: '#ffffff', gloss: 'rgba(255,255,255,0.45)' },
-  navy: { scrim: 'rgba(11,18,32,0.55)', folder: 'rgba(30,41,59,0.6)', border: 'rgba(148,163,184,0.25)', fg: '#ffffff', tile: 'rgba(51,65,85,0.55)', ring: 'rgba(148,163,184,0.3)', glyph: '#ffffff', gloss: 'rgba(255,255,255,0.35)' },
-  light: { scrim: 'rgba(242,242,247,0.55)', folder: 'rgba(255,255,255,0.62)', border: 'rgba(255,255,255,0.8)', fg: '#1d1d1f', tile: 'rgba(10,132,214,0.16)', ring: 'rgba(10,132,214,0.22)', glyph: '#0a6fb8', gloss: 'rgba(255,255,255,0.7)' },
+  dark: { scrim: 'rgba(0,0,0,0.42)', folder: 'rgba(255,255,255,0.16)', border: 'rgba(255,255,255,0.26)', fg: '#ffffff', tile: 'rgba(255,255,255,0.14)', ring: 'rgba(255,255,255,0.22)', glyph: '#ffffff', gloss: 'rgba(255,255,255,0.45)' },
+  navy: { scrim: 'rgba(4,9,20,0.45)', folder: 'rgba(30,41,59,0.62)', border: 'rgba(148,163,184,0.3)', fg: '#ffffff', tile: 'rgba(51,65,85,0.55)', ring: 'rgba(148,163,184,0.3)', glyph: '#ffffff', gloss: 'rgba(255,255,255,0.35)' },
+  light: { scrim: 'rgba(16,22,34,0.28)', folder: 'rgba(255,255,255,0.8)', border: 'rgba(255,255,255,0.95)', fg: '#1d1d1f', tile: 'rgba(10,132,214,0.16)', ring: 'rgba(10,132,214,0.22)', glyph: '#0a6fb8', gloss: 'rgba(255,255,255,0.7)' },
 } as const;
+/* 뒤 화면 흐림 — 아이폰 폴더 뒤(홈 화면 배경이 크게 번짐)만큼. 어둠은 위 scrim 이 따로 얹는다 */
+const BACKDROP_BLUR = 60;
+/* 폴더가 떠 보이는 그림자 — 가까운 것 · 먼 것 두 겹 */
+const FOLDER_SHADOW = '0 2px 6px rgba(0,0,0,0.12), 0 24px 60px -12px rgba(0,0,0,0.38)';
 /* 끌어내려 닫기 — 웹 detail-menu startDrag: 12px 넘게 거의 세로로 움직이면 끌기, 100px(빠르면 48px) 넘으면 닫힘 */
 const DRAG_START = 12;
 const DRAG_CLOSE = 100;
@@ -197,14 +207,21 @@ export default function MoreScreen() {
   return (
     <GestureDetector gesture={drag}>
       <View style={{ flex: 1 }}>
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: L.scrim }, scrimStyle]} />
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, scrimStyle]}>
+          <BlurView intensity={BACKDROP_BLUR} tint={theme === 'light' ? 'systemThinMaterialLight' : 'systemThinMaterialDark'} style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: L.scrim }]} />
+        </Animated.View>
         {/* 하단 탭 자리만큼 비운다 — 폴더가 탭 막대 위에 선다(웹 inset.bottom + 72) */}
         <Pressable accessibilityLabel="메뉴 닫기" onPress={close} style={[styles.scrim, { paddingTop: inset.top, paddingBottom: inset.bottom + 72 }]}>
           {/* 폴더 안을 눌러도 닫히지 않게 — 안쪽 Pressable 이 누름을 먼저 받는다 */}
           <Animated.View style={[styles.folderWrap, folderStyle]} onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
-            <Pressable accessibilityRole="menu" accessibilityLabel="메뉴" onPress={() => undefined}>
+            {/* 폴더 위 큰 제목 — 아이폰 폴더 이름처럼 흰 글자(뒤가 어두워져 늘 읽힌다) */}
+            <Text accessibilityRole="header" style={styles.title}>
+              메뉴
+            </Text>
+            <Pressable accessibilityRole="menu" accessibilityLabel="메뉴" onPress={() => undefined} style={styles.lift}>
               {glass ? (
-                <GlassView glassEffectStyle="regular" colorScheme={theme === 'light' ? 'light' : 'dark'} tintColor={L.folder} style={styles.folder}>
+                <GlassView glassEffectStyle="regular" colorScheme={theme === 'light' ? 'light' : 'dark'} tintColor={L.folder} style={[styles.folder, { borderWidth: 1, borderColor: L.border }]}>
                   {body}
                 </GlassView>
               ) : (
@@ -221,6 +238,9 @@ export default function MoreScreen() {
 const styles = StyleSheet.create({
   scrim: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   folderWrap: { width: '88%', maxWidth: 352 },
+  title: { color: '#ffffff', fontSize: 30, fontWeight: '700', letterSpacing: -0.5, marginLeft: 8, marginBottom: 14, textShadowColor: 'rgba(0,0,0,0.18)', textShadowRadius: 8 },
+  /* 그림자는 겉에(폴더 안쪽은 overflow hidden 이라 잘린다) */
+  lift: { borderRadius: 36, boxShadow: FOLDER_SHADOW },
   folder: { borderRadius: 36, overflow: 'hidden' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 12 },
   groupTitle: { width: '100%', fontSize: 11, fontWeight: '600', paddingHorizontal: 4, marginBottom: -4 },
