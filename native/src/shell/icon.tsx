@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import Svg, { Path, Circle, Rect, SvgXml } from 'react-native-svg';
 import { roundIconMarkup, type RoundIconName } from '@/lib/round-icons';
+import { useTheme } from '~/lib/ui';
 
 /**
  * 그림(아이콘) — 웹과 같은 선 그림. 웹은 lucide(components/icon.tsx, 굵기 2.5)와 손으로 그린 야구공(components/baseball-icon.tsx)을 쓴다.
@@ -133,6 +134,9 @@ export function Icon({
 }) {
   const id = `ri${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const round = ROUND[name];
+  /* 네이비 · 다크 테마는 늘 채움형(2026-10-21 금윤호, 웹 globals.css .ri-f 와 같게) */
+  const theme = useTheme();
+  if (theme !== 'light') filled = true;
   if (round) {
     /* 64 칸 그림 — 굵기는 lucide 24 칸 굵기에 맞춰(2.5 → 5.2) */
     const xml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">${roundIconMarkup(round, filled, id, strokeWidth * 2.08)}</svg>`;

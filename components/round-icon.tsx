@@ -19,7 +19,11 @@ export const RoundIcon = forwardRef<SVGSVGElement, Props & { name: RoundIconName
   void strokeWidth;
   void absoluteStrokeWidth;
   const id = `ri${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
-  return (
+  /*
+   * 네이비 · 다크 테마는 늘 채움형(2026-10-21 금윤호) — 라이트는 테두리형(고른 탭만 채움). 테마는 <html data-theme> 라
+   * 두 벌을 그리고 CSS(globals.css .ri-o · .ri-f)가 하나만 보인다. filled 면 채움형 하나만.
+   */
+  const svg = (fill: boolean, cls: string) => (
     <svg
       ref={ref}
       xmlns="http://www.w3.org/2000/svg"
@@ -27,8 +31,16 @@ export const RoundIcon = forwardRef<SVGSVGElement, Props & { name: RoundIconName
       height={size}
       viewBox="0 0 64 64"
       {...rest}
-      dangerouslySetInnerHTML={{ __html: roundIconMarkup(name, filled, id) }}
+      className={`${rest.className ?? ''} ${cls}`}
+      dangerouslySetInnerHTML={{ __html: roundIconMarkup(name, fill, `${id}${cls}`) }}
     />
+  );
+  if (filled) return svg(true, '');
+  return (
+    <>
+      {svg(false, 'ri-o')}
+      {svg(true, 'ri-f')}
+    </>
   );
 });
 

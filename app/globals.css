@@ -3851,3 +3851,7 @@ html[data-shell='expo'] {
   --color-sky-soft: #1c5a38;
   --color-sky-tint: #0b2417;
 }
+
+/* 둥근 야구 아이콘(components/round-icon.tsx) — 라이트는 테두리형, 네이비 · 다크는 채움형(2026-10-21) */
+:root:not([data-theme='dark']):not([data-theme='navy']) .ri-f { display: none; }
+:root[data-theme='dark'] .ri-o, :root[data-theme='navy'] .ri-o { display: none; }
