@@ -35,6 +35,7 @@ import * as favorite from '@/app/actions/favorite';
 import * as featuredVideo from '@/app/actions/featured-video';
 import * as lessons from '@/app/actions/lessons';
 import * as market from '@/app/actions/market';
+import * as profilePublic from '@/app/actions/profile-public';
 import * as mechanics from '@/app/actions/mechanics';
 import * as nutrition from '@/app/actions/nutrition';
 import * as onboardingState from '@/app/actions/onboarding-state';
@@ -94,6 +95,7 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   'featured-video': featuredVideo,
   lessons: lessons,
   market: market,
+  'profile-public': profilePublic,
   mechanics: mechanics,
   nutrition: nutrition,
   'onboarding-state': onboardingState,

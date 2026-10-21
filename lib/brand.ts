@@ -28,3 +28,16 @@ export function brandOfPath(pathname: string): Brand {
     ? 'dugout'
     : 'sinker';
 }
+
+/**
+ * 싱커(선수 기록)를 쓰는 사람인가(2026-10-21 개편 3단계) — 선수는 늘, 덕아웃 회원(MEMBER)은 첫 레슨 기록 뒤(User.sinkerStartedAt), 팀 · 레슨장은 아니다.
+ * 위 막대의 '내 싱커' · 덕아웃 홈의 요약 줄 · 내 것의 단추가 이것을 본다.
+ */
+export function usesSinker(u: {
+  accountType: string;
+  sinkerStartedAt: Date | null;
+}): boolean {
+  if (u.accountType === 'PLAYER') return true;
+  if (u.accountType === 'MEMBER') return u.sinkerStartedAt != null;
+  return false;
+}

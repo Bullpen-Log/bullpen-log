@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getCurrentUser } from '@/lib/dal';
 import { countUnread } from '@/lib/market/load';
 import { DugoutShell } from '@/components/dugout/dugout-shell';
+import { usesSinker } from '@/lib/brand';
 
 export const metadata: Metadata = {
   title: { default: '덕아웃', template: '%s · 덕아웃' },
@@ -23,7 +24,7 @@ export default async function DugoutLayout({
     <DugoutShell
       user={user ? { nickname: user.nickname } : null}
       unread={unread}
-      sinker={!!user && user.accountType !== 'MASTER'}
+      sinker={!!user && usesSinker(user)}
       manage={!!user && (user.accountType === 'MASTER' || user.role === 'ADMIN')}
     >
       {children}

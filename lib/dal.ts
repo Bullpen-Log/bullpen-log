@@ -33,6 +33,9 @@ export const getCurrentUser = cache(async () => {
         role: true,
         /* 선수 · 마스터(팀 · 레슨장 관리) — (app) 틀이 마스터를 /manage 로 보내고, requireMaster 가 선수를 막는다 */
         accountType: true,
+        /* 싱커를 쓰는 사람인가(lib/brand.ts usesSinker) — 위 막대의 '내 싱커' · 덕아웃 홈의 요약 줄 */
+        sinkerStartedAt: true,
+        publicSinker: true,
         birthDate: true,
         /* 내 정보에서 고치고, 영양 목표의 기초대사량 계산이 읽는다 */
         sex: true,

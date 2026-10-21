@@ -19,6 +19,8 @@ enum Role {
 enum AccountType {
   PLAYER
   MASTER
+  /// 덕아웃만 쓰는 회원(2026-10-21, docs/designs/sinker-dugout.md 결정 3) — 학부모 · 팬 · 코치. 레슨을 받아 첫 기록이 생기면 sinkerStartedAt 이 찍히고 싱커를 쓴다
+  MEMBER
 }
 
 /// 조직 종류 — 레슨장(회원 · 레슨)과 팀(선수단 · 훈련 일정). 화면의 말과 홈이 다르다.
@@ -60,6 +62,12 @@ model User {
   role                Role      @default(USER)
   /// 선수 · 마스터(팀 · 레슨장 관리) — 마스터 계정은 (app) 틀이 /master 로 보낸다
   accountType         AccountType @default(PLAYER)
+  /// 어느 얼굴에서 가입했나(lib/app-env.ts Surface: 'sinker-app' · 'dugout-app' · 'web') — 2026-10-21 개편 3단계
+  signupSource        String    @default("web")
+  /// 싱커(선수 기록)를 쓰기 시작한 때 — 선수는 가입 때, 덕아웃 회원(MEMBER)은 첫 레슨 기록이 생길 때. 비면 '내 싱커'가 안 보인다
+  sinkerStartedAt     DateTime?
+  /// 덕아웃 공개 프로필(/u/<닉네임>)에 보일 싱커 항목 — 'position' · 'velocity' · 'days'. 기본은 전부 숨김
+  publicSinker        String[]  @default([])
   /// 생년월일. 나이에 따라 안전한 투구수 한도가 달라져 투구량 조언에 필요하다.
   birthDate           DateTime? @db.Date
   /// 성별 'M' | 'F'. 가입할 때 받고 내 정보에서 고친다. 영양 목표의 기초대사량 계산에 쓴다.
@@ -1964,6 +1972,11 @@ model LessonNote {
   date      DateTime @db.Date
   body      String   @db.Text
   homework  String?  @db.Text
+  /// 한 일(2026-10-21 개편 3단계) — [{ name, sets, reps, note }] (lib/org/lesson-work.ts parseExercises). 선수의 레슨 줄 · 트레이닝 엔진(김민 B-3)이 읽는다
+  exercises Json?
+  /// 레슨 중 던진 공 수 · 강도(1~10) — 선수 쪽 레슨 줄에 보인다
+  pitchCount Int?
+  intensity  Int?
   authorId  String
   createdAt DateTime @default(now())
 

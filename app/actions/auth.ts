@@ -1,6 +1,8 @@
 'use server';
 
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { surfaceOf } from '@/lib/app-env';
 import bcrypt from 'bcryptjs';
 import { BLOCKED_TEXT, blockedMinutes, clearFails, noteFail } from '@/lib/rate-limit';
 import { prisma } from '@/lib/prisma';
@@ -129,6 +131,10 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   if (formData.get('accountType') === 'MASTER') {
     return trySignupMaster(formData, { email, nickname, password });
   }
+  /* 덕아웃 회원(학부모 · 팬 · 코치, 2026-10-21 개편 3단계) — 선수 칸 없이 계정만. 첫 레슨 기록이 생기면 sinkerStartedAt 이 찍힌다 */
+  if (formData.get('accountType') === 'MEMBER') {
+    return trySignupMember({ email, nickname, password });
+  }
 
   /*
    * 생년월일 · 키 — 둘 다 가입할 때 꼭 받는다(2026-10-09 재설계, 키 · 몸무게 화면).
@@ -212,6 +218,9 @@ async function trySignup(formData: FormData): Promise<AuthState> {
         weightKg,
         /* 약관 · 개인정보 처리방침에 동의한 시각 — 위에서 둘 다 'on' 인 것을 봤다 */
         agreedAt: new Date(),
+        /* 어느 얼굴에서 가입했나 · 선수는 가입 때부터 싱커(2026-10-21 개편 3단계) */
+        signupSource: await signupSurface(),
+        sinkerStartedAt: new Date(),
       },
       select: { id: true, role: true },
     });
@@ -228,6 +237,42 @@ async function trySignup(formData: FormData): Promise<AuthState> {
     pw: passwordFingerprint(passwordHash),
   });
   redirect('/today');
+}
+
+/** 가입한 얼굴(lib/app-env.ts Surface) — User.signupSource */
+async function signupSurface(): Promise<string> {
+  return surfaceOf((await headers()).get('user-agent'));
+}
+
+/**
+ * 덕아웃 회원 가입(2026-10-21 개편 3단계, docs/designs/sinker-dugout.md 결정 3) — 계정만 만들고 덕아웃 홈(/)으로.
+ * 선수 칸(생년월일 · 키 · 성별 · 몸무게)은 없다. 레슨을 예약해 코치가 첫 노트를 쓰면 app/actions/org-notes.ts 가 sinkerStartedAt 을 찍는다.
+ */
+async function trySignupMember(acc: {
+  email: string;
+  nickname: string;
+  password: string;
+}): Promise<AuthState> {
+  const existing = await prisma.user.findUnique({ where: { email: acc.email } });
+  if (existing) return { error: '이미 가입된 이메일이에요.', field: 'email' };
+  const passwordHash = await bcrypt.hash(acc.password, 10);
+  const created = await prisma.user.create({
+    data: {
+      email: acc.email,
+      nickname: acc.nickname,
+      password: passwordHash,
+      accountType: 'MEMBER',
+      agreedAt: new Date(),
+      signupSource: await signupSurface(),
+    },
+    select: { id: true, role: true },
+  });
+  await createSession({
+    userId: created.id,
+    role: created.role,
+    pw: passwordFingerprint(passwordHash),
+  });
+  redirect('/');
 }
 
 /**
@@ -415,10 +460,11 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
     stayLoggedIn
   );
   /* 마스터 계정(팀 · 레슨장)은 선수 홈이 없다 — 관리 화면으로(2026-10-20). 관리자는 선수 홈에서 메뉴로 넘어간다 */
+  /* 덕아웃 회원은 홈이 덕아웃(/)이다(2026-10-21 개편 3단계) */
   redirect(
     user.accountType === 'MASTER' && user.role !== 'ADMIN'
       ? '/manage'
-      : (safeNext(formData) ?? '/today')
+      : (safeNext(formData) ?? (user.accountType === 'MEMBER' ? '/' : '/today'))
   );
 }
 

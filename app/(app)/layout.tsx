@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
 import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
+import { usesSinker } from '@/lib/brand';
 import { countUnread } from '@/lib/market/load';
 import { isSex, toDateInputValue } from '@/lib/profile';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -138,7 +139,7 @@ export default async function AppLayout({
         <DugoutTopBar
           user={{ nickname: user.nickname }}
           unread={unread}
-          sinker
+          sinker={usesSinker(user)}
           manage={isAdmin}
           current="sinker"
           sticky={false}

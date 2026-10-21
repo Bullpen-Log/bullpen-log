@@ -204,14 +204,14 @@ PC 의 '내 싱커'에서는 그 자리에 "싱커 앱에서 재요" 카드만 �
 - 한 것: 공용 위 막대 `components/dugout/dugout-topbar.tsx`(덕아웃 · PC 선수 화면 · 관리 셋 다), 내 싱커 요약 줄 `components/dugout/sinker-strip.tsx`, `/` = 덕아웃 홈(앱 안은 /today), 옛 `/dugout/*` · `/master/*` 는 next.config 301.
   PC 선수 화면의 도크 · 메뉴는 그대로 두고 위에 막대만 얹었다(4-3 에서 배치를 손본다). 커뮤니티 피드 개편 담당은 김민에게 물어 둠(HANDOFF).
 
-### 3단계 계정 · 레슨→기록 (4~5시간)
-- ☐ 3-1 마이그레이션(더하기만): `User.signupSource` · `User.sinkerStartedAt` · `AccountType.MEMBER` · `LessonNote.exercises/pitchCount/intensity` · `User.publicSinker`.
-- ☐ 3-2 덕아웃 가입(`/login?signup=1`) 에 '선수 · 학부모 · 코치 · 그냥 야구 팬' 고르기 → MEMBER 는 싱커 온보딩 생략.
-- ☐ 3-3 코치 레슨 노트에 '한 일' 표 입력(운동 · 세트 · 횟수 · 투구 수 · 강도).
-- ☐ 3-4 선수 쪽 레슨 줄 읽기(`lib/org/lesson-feed.ts`) → 기록 달력 · 홈 · 트레이닝 탭에 '레슨' 카드, 알림.
-- ☐ 3-5 첫 레슨 기록이 생기면 `sinkerStartedAt` 찍고 덕아웃 홈에 '내 싱커' 줄 + 앱 안내.
-- ☐ 3-6 공개 프로필 `/u/[nickname]` + 공개 범위 설정(기본 전부 숨김).
-- 김민과: 3-4 의 운동량을 트레이닝 엔진이 읽는 함수 모양.
+### 3단계 계정 · 레슨→기록 (4~5시간) — 끝(2026-10-21, 마이그레이션 `20261021120000_sinker_dugout_account` 공유 DB 적용)
+- ☑ 3-1 마이그레이션(더하기만): `User.signupSource` · `User.sinkerStartedAt` · `AccountType.MEMBER` · `LessonNote.exercises/pitchCount/intensity` · `User.publicSinker`.
+- ☑ 3-2 덕아웃 가입(`/login?signup=1`) 에 '선수 · 학부모 · 코치 · 그냥 야구 팬' 고르기 → MEMBER 는 싱커 온보딩 생략.
+- ☑ 3-3 코치 레슨 노트에 '한 일' 표 입력(운동 · 세트 · 횟수 · 투구 수 · 강도).
+- ☑ 3-4 선수 쪽 레슨 줄 읽기(`lib/org/lesson-feed.ts`) → 기록 달력 · 홈 · 트레이닝 탭에 '레슨' 카드, 알림.
+- ☑ 3-5 첫 레슨 기록이 생기면 `sinkerStartedAt` 찍고 덕아웃 홈에 '내 싱커' 줄 + 앱 안내.
+- ☑ 3-6 공개 프로필 `/u/[nickname]` + 공개 범위 설정(기본 전부 숨김).
+- 김민과: 3-4 의 운동량을 트레이닝 엔진이 읽는 함수 모양 — 준비해 둔 것: `lib/org/lesson-work.ts lessonLoadOf(exercises, pitchCount)` · `lib/org/lesson-feed.ts loadLessonFeed(userId)`. 3-4 의 알림은 5단계에서 잇는다.
 
 ### 4단계 내 싱커 PC (6~8시간)
 - ☐ 4-1 `/sinker` 대시보드 — 지표 넷 · 주간 투구량 · 구속 추세 · 체크인 · **오늘의 트레이닝 추천 카드**(지금 엔진 결과 그대로).

@@ -38,7 +38,14 @@ import { recommend } from '@/lib/market/gear';
 import { ESCROW_FEE_RATE, escrowFee, payout, platformFee } from '@/lib/market/pay';
 import { existsSync } from 'node:fs';
 import { surfaceOf } from '@/lib/app-env';
-import { BRAND, brandOfPath } from '@/lib/brand';
+import { BRAND, brandOfPath, usesSinker } from '@/lib/brand';
+import {
+  formatExercise,
+  lessonLoadOf,
+  parseExercises,
+  readExercises,
+} from '@/lib/org/lesson-work';
+import { readPublicKeys } from '@/lib/public-profile';
 
 let pass = 0;
 const fails: string[] = [];
@@ -207,10 +214,14 @@ console.log(
   const root = src('app/(dugout)/page.tsx');
   check(
     '첫 화면(/)은 덕아웃 홈 — 앱 안이면 /today 또는 /login',
-    /isNativeUserAgent\(/.test(root) && /redirect\(user \? '\/today' : '\/login'\)/.test(root)
+    /isNativeUserAgent\(/.test(root) &&
+      /redirect\(user \? '\/today' : '\/login'\)/.test(root)
   );
   const proxy = src('proxy.ts');
-  check('휴대폰 브라우저도 덕아웃은 본다(proxy OPEN — 뿌리 주소)', /market\|chat\|lessons/.test(proxy) && proxy.includes(String.raw`|^\/$/`));
+  check(
+    '휴대폰 브라우저도 덕아웃은 본다(proxy OPEN — 뿌리 주소)',
+    /market\|chat\|lessons/.test(proxy) && proxy.includes(String.raw`|^\/$/`)
+  );
   const registry = src('app/api/rpc/registry.ts');
   check(
     'rpc 허용 목록에 market · chat',
@@ -340,7 +351,46 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
     '주소 이동(2단계) — 옛 /dugout · /master 는 코드에 안 남고, 덕아웃 홈이 / 다',
     !/['"`]\/dugout/.test(src('components/dugout/dugout-shell.tsx')) &&
       !/['"`]\/master(\/|['"`])/.test(src('components/master/master-shell.tsx')) &&
-      existsSync(join(ROOT, 'app/(dugout)/page.tsx')) && existsSync(join(ROOT, 'app/(master)/manage/page.tsx')) && !existsSync(join(ROOT, 'app/page.tsx')),
+      existsSync(join(ROOT, 'app/(dugout)/page.tsx')) &&
+      existsSync(join(ROOT, 'app/(master)/manage/page.tsx')) &&
+      !existsSync(join(ROOT, 'app/page.tsx'))
+  );
+  {
+    const ex = parseExercises('스쿼트 3x10 60kg\n- 런지 12회\n밴드 외회전\n\n');
+    check(
+      '레슨 한 일 — 세트×횟수 · 횟수만 · 이름만',
+      ex.length === 3 &&
+        ex[0].name === '스쿼트' &&
+        ex[0].sets === 3 &&
+        ex[0].reps === 10 &&
+        ex[0].note === '60kg' &&
+        ex[1].name === '런지' &&
+        ex[1].sets === null &&
+        ex[1].reps === 12 &&
+        ex[2].name === '밴드 외회전' &&
+        ex[2].reps === null &&
+        formatExercise(ex[0]) === '스쿼트 3×10 60kg' &&
+        readExercises(JSON.parse(JSON.stringify(ex))).length === 3 &&
+        lessonLoadOf(ex, 40).sets === 5 &&
+        lessonLoadOf(ex, null).pitches === 0
+    );
+  }
+  check(
+    '싱커를 쓰는 사람 — 선수는 늘, 회원은 첫 레슨 뒤, 팀 · 레슨장은 아님',
+    usesSinker({ accountType: 'PLAYER', sinkerStartedAt: null }) &&
+      !usesSinker({ accountType: 'MEMBER', sinkerStartedAt: null }) &&
+      usesSinker({ accountType: 'MEMBER', sinkerStartedAt: new Date() }) &&
+      !usesSinker({ accountType: 'MASTER', sinkerStartedAt: new Date() })
+  );
+  check(
+    '공개 범위 — 모르는 키는 버리고 중복은 하나',
+    readPublicKeys(['velocity', 'x', 'velocity', 'days']).join() === 'velocity,days'
+  );
+  check(
+    '마이그레이션 3단계는 더하기만(ADD COLUMN · ADD VALUE · UPDATE)',
+    !/DROP|ALTER COLUMN|DELETE/.test(
+      src('prisma/migrations/20261021120000_sinker_dugout_account/migration.sql')
+    )
   );
   const picks = recommend('u13', 'pitcher', 'L');
   check(

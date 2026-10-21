@@ -14,6 +14,9 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
 import { SinkerStrip } from '@/components/dugout/sinker-strip';
+import { LessonFeedCard } from '@/components/dugout/lesson-feed-card';
+import { loadLessonFeed } from '@/lib/org/lesson-feed';
+import { usesSinker } from '@/lib/brand';
 import { loadLatestListings, loadPublicPosts } from '@/lib/market/load';
 import { CATEGORIES, filterHref } from '@/lib/market/specs';
 import { postCategoryLabel } from '@/lib/community';
@@ -41,7 +44,15 @@ export default async function DugoutHome() {
   return (
     <div className="space-y-10">
       {/* 로그인한 싱커 사용자 — 오늘 체크인 · 이번 주 투구 · 마지막 등판 한 줄(2단계 2-5) */}
-      {user && user.accountType !== 'MASTER' && <SinkerStrip userId={user.id} />}
+      {user && usesSinker(user) && <SinkerStrip userId={user.id} />}
+      {/* 코치가 쓴 레슨 노트 — 선수 쪽 레슨 줄(3단계 3-4) */}
+      {user && (
+        <LessonFeedCard
+          items={await loadLessonFeed(user.id, 3)}
+          compact
+          title="최근 레슨"
+        />
+      )}
       {/* 첫 줄 — 무엇을 하는 곳인지 한 문장, 검색 */}
       <section className="space-y-5">
         <div className="space-y-2">

@@ -4,6 +4,13 @@ import { revalidatePath } from 'next/cache';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
+import {
+  INTENSITY_MAX,
+  INTENSITY_MIN,
+  PITCH_COUNT_MAX,
+  parseExercises,
+  readBounded,
+} from '@/lib/org/lesson-work';
 import { requireMaster } from '@/lib/dal';
 import { requireOrg } from '@/lib/org/access';
 import {
@@ -25,32 +32,66 @@ import { isFutureDateKey } from '@/lib/pitch-stats';
 
 export type OrgActionState = { error?: string; success?: string } | undefined;
 
-async function memberOf(user: Awaited<ReturnType<typeof requireMaster>>, memberId: string) {
+async function memberOf(
+  user: Awaited<ReturnType<typeof requireMaster>>,
+  memberId: string
+) {
   const member = await prisma.orgMember.findUnique({
     where: { id: memberId },
-    select: { id: true, orgId: true, nickname: true },
+    select: { id: true, orgId: true, nickname: true, userId: true },
   });
   if (!member) return null;
   await requireOrg(user, member.orgId);
   return member;
 }
 
-export async function createLessonNote(_prev: OrgActionState, formData: FormData): Promise<OrgActionState> {
+export async function createLessonNote(
+  _prev: OrgActionState,
+  formData: FormData
+): Promise<OrgActionState> {
   const user = await requireMaster();
   const member = await memberOf(user, String(formData.get('memberId') ?? ''));
   if (!member) return { error: '구성원을 찾을 수 없어요.' };
   const date = String(formData.get('date') ?? '');
   if (!isDateKey(date)) return { error: '날짜를 골라 주세요.' };
   if (isFutureDateKey(date)) return { error: '아직 오지 않은 날에는 쓸 수 없어요.' };
-  const body = String(formData.get('body') ?? '').trim().slice(0, NOTE_MAX);
-  const homework = String(formData.get('homework') ?? '').trim().slice(0, HOMEWORK_MAX) || null;
+  const body = String(formData.get('body') ?? '')
+    .trim()
+    .slice(0, NOTE_MAX);
+  const homework =
+    String(formData.get('homework') ?? '')
+      .trim()
+      .slice(0, HOMEWORK_MAX) || null;
   if (!body && !homework) return { error: '노트나 숙제를 적어 주세요.' };
   const countPass = formData.get('countPass') === 'on';
+  /* 한 일 · 공 수 · 강도(2026-10-21 개편 3단계) — 선수 쪽 레슨 줄(lib/org/lesson-feed.ts)이 읽는다 */
+  const exercises = parseExercises(String(formData.get('exercises') ?? ''));
+  const pitchCount = readBounded(formData.get('pitchCount'), 0, PITCH_COUNT_MAX);
+  const intensity = readBounded(
+    formData.get('intensity'),
+    INTENSITY_MIN,
+    INTENSITY_MAX
+  );
 
   await prisma.$transaction(async (tx) => {
     await tx.lessonNote.create({
-      data: { memberId: member.id, date: dbDate(date), body: body || '(숙제만)', homework, authorId: user.id },
+      data: {
+        memberId: member.id,
+        date: dbDate(date),
+        body: body || '(숙제만)',
+        homework,
+        authorId: user.id,
+        exercises: exercises.length ? exercises : undefined,
+        pitchCount,
+        intensity,
+      },
     });
+    /* 덕아웃 회원의 첫 레슨 기록 — 이 순간 싱커를 쓰기 시작한다(결정 3) */
+    if (member.userId)
+      await tx.user.updateMany({
+        where: { id: member.userId, sinkerStartedAt: null },
+        data: { sinkerStartedAt: new Date() },
+      });
     if (countPass) {
       const passes = await tx.lessonPass.findMany({
         where: { memberId: member.id },
@@ -58,11 +99,17 @@ export async function createLessonNote(_prev: OrgActionState, formData: FormData
         select: { id: true, total: true, used: true, expiresAt: true },
       });
       const pick = passes.find((p) => passUsable(p, date));
-      if (pick) await tx.lessonPass.update({ where: { id: pick.id }, data: { used: { increment: 1 } } });
+      if (pick)
+        await tx.lessonPass.update({
+          where: { id: pick.id },
+          data: { used: { increment: 1 } },
+        });
     }
   });
   revalidatePath(`/manage/players/${member.id}`);
   revalidatePath('/manage');
+  revalidatePath('/');
+  revalidatePath('/me');
   return { success: '남겼어요.' };
 }
 
@@ -81,17 +128,29 @@ export async function deleteLessonNote(formData: FormData) {
 
 /* ── 수강권 ── */
 
-export async function addPass(_prev: OrgActionState, formData: FormData): Promise<OrgActionState> {
+export async function addPass(
+  _prev: OrgActionState,
+  formData: FormData
+): Promise<OrgActionState> {
   const user = await requireMaster();
   const member = await memberOf(user, String(formData.get('memberId') ?? ''));
   if (!member) return { error: '구성원을 찾을 수 없어요.' };
   const total = Number.parseInt(String(formData.get('total') ?? ''), 10);
-  if (!Number.isInteger(total) || total < 1 || total > PASS_TOTAL_MAX) return { error: `횟수는 1~${PASS_TOTAL_MAX}회로 적어 주세요.` };
+  if (!Number.isInteger(total) || total < 1 || total > PASS_TOTAL_MAX)
+    return { error: `횟수는 1~${PASS_TOTAL_MAX}회로 적어 주세요.` };
   const rawExp = String(formData.get('expiresAt') ?? '').trim();
   if (rawExp && !isDateKey(rawExp)) return { error: '기한 날짜가 올바르지 않아요.' };
-  const memo = String(formData.get('memo') ?? '').trim().slice(0, 80) || null;
+  const memo =
+    String(formData.get('memo') ?? '')
+      .trim()
+      .slice(0, 80) || null;
   await prisma.lessonPass.create({
-    data: { memberId: member.id, total, expiresAt: rawExp ? dbDate(rawExp) : null, memo },
+    data: {
+      memberId: member.id,
+      total,
+      expiresAt: rawExp ? dbDate(rawExp) : null,
+      memo,
+    },
   });
   revalidatePath(`/manage/players/${member.id}`);
   revalidatePath('/manage');
@@ -103,7 +162,13 @@ export async function adjustPass(formData: FormData) {
   const user = await requireMaster();
   const pass = await prisma.lessonPass.findUnique({
     where: { id: String(formData.get('id') ?? '') },
-    select: { id: true, used: true, total: true, memberId: true, member: { select: { orgId: true } } },
+    select: {
+      id: true,
+      used: true,
+      total: true,
+      memberId: true,
+      member: { select: { orgId: true } },
+    },
   });
   if (!pass) return;
   await requireOrg(user, pass.member.orgId);
@@ -130,7 +195,10 @@ export async function deletePass(formData: FormData) {
 /* ── 보호자 리포트 링크 ── */
 
 /** 링크 + 네 자리 코드를 만든다 — 코드는 한 번만 돌려준다(해시로만 저장). 30일 */
-export async function createGuardianLink(_prev: OrgActionState, formData: FormData): Promise<OrgActionState> {
+export async function createGuardianLink(
+  _prev: OrgActionState,
+  formData: FormData
+): Promise<OrgActionState> {
   const user = await requireMaster();
   const member = await memberOf(user, String(formData.get('memberId') ?? ''));
   if (!member) return { error: '구성원을 찾을 수 없어요.' };
@@ -161,4 +229,3 @@ export async function revokeGuardianLink(formData: FormData) {
   await prisma.guardianReport.delete({ where: { id: r.id } });
   revalidatePath(`/manage/players/${r.memberId}`);
 }
-

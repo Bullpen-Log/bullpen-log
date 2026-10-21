@@ -145,6 +145,36 @@ export function LessonNotes({
               placeholder="섀도 피칭 20회 × 3일"
             />
           </Field>
+          {/* 한 일(2026-10-21 개편 3단계) — 선수의 레슨 줄 · 트레이닝 엔진이 읽는다(lib/org/lesson-work.ts) */}
+          <Field label="한 일" hint="한 줄에 하나 — 운동 세트×횟수 메모">
+            <Textarea
+              name="exercises"
+              rows={3}
+              placeholder={'스쿼트 3x10 60kg\n런지 12회\n밴드 외회전'}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="던진 공 수" hint="선택">
+              <Input
+                name="pitchCount"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={300}
+                placeholder="0"
+              />
+            </Field>
+            <Field label="강도 1~10" hint="선택">
+              <Input
+                name="intensity"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={10}
+                placeholder="5"
+              />
+            </Field>
+          </div>
           {state?.error && <FormError>{state.error}</FormError>}
           <Submit />
         </form>

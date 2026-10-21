@@ -9,7 +9,13 @@ import {
   parseBirthDate,
   type Sex,
 } from '@/lib/profile';
-import { ORG_NAME_MAX, ORG_NAME_MIN, normalizeInviteCode, orgNameOk, type OrgKind } from '@/lib/org/rules';
+import {
+  ORG_NAME_MAX,
+  ORG_NAME_MIN,
+  normalizeInviteCode,
+  orgNameOk,
+  type OrgKind,
+} from '@/lib/org/rules';
 
 /**
  * 가입 화면의 답 · 차례 · 화면별 검사 — 웹 가입 폼(app/login/auth-form.tsx)과 앱 가입 화면(native/src/app/signup.tsx)이 같이 쓴다.
@@ -41,13 +47,19 @@ export type SignupAnswers = {
 };
 
 /** 가입 종류 — 선수(지금의 불펜로그) · 레슨장 · 팀(마스터 화면 /manage, 선수 기능 없음) */
-export type SignupKind = 'player' | 'lesson' | 'team';
+export type SignupKind = 'player' | 'lesson' | 'team' | 'member';
 
 export const SIGNUP_KIND_OPTIONS: { value: SignupKind; label: string; hint: string }[] =
   [
     { value: 'player', label: '선수', hint: '내 투구 · 훈련 · 영양을 기록해요.' },
     { value: 'lesson', label: '레슨장', hint: '회원을 관리하고 성장을 보여 줘요.' },
     { value: 'team', label: '팀', hint: '선수단 · 훈련 일정 · 투수 관리.' },
+    /* 덕아웃 회원(2026-10-21 개편 3단계, 결정 3) — 선수 칸 없이 가입. 레슨을 받아 첫 기록이 생기면 싱커가 열린다 */
+    {
+      value: 'member',
+      label: '학부모 · 팬 · 코치',
+      hint: '덕아웃(커뮤니티 · 장터 · 레슨 예약)만 써요.',
+    },
   ];
 
 export function isMasterKind(kind: SignupKind | null): kind is 'lesson' | 'team' {
@@ -112,6 +124,7 @@ export type WebSignupStep = SignupStep | 'kind' | 'org';
 
 export function signupStepsOf(a: SignupAnswers): WebSignupStep[] {
   if (isMasterKind(a.kind)) return ['kind', 'name', 'org', 'terms'];
+  if (a.kind === 'member') return ['kind', 'name', 'terms'];
   return ['kind', ...SIGNUP_STEPS];
 }
 
@@ -143,7 +156,8 @@ export function checkWebSignupStep(
       /* 코치로 합류 — 코드가 있으면 조직 이름은 안 받는다. 코드 모양이 틀리면 거기서 막는다 */
       const staff = a.staffCode.trim();
       if (staff) {
-        if (!normalizeInviteCode(staff)) return { error: '초대 코드는 여섯 글자예요.', field: 'staffCode' };
+        if (!normalizeInviteCode(staff))
+          return { error: '초대 코드는 여섯 글자예요.', field: 'staffCode' };
         return null;
       }
       const name = a.orgName.trim();
@@ -258,6 +272,8 @@ export function signupFields(a: SignupAnswers): Record<string, string | null> {
           orgNote: a.orgNote.trim(),
           staffCode: a.staffCode.trim(),
         }
-      : {}),
+      : a.kind === 'member'
+        ? { accountType: 'MEMBER' }
+        : {}),
   };
 }

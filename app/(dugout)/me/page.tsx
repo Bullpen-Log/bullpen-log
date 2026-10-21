@@ -14,17 +14,26 @@ import { cancelVenueBooking } from '@/app/actions/venues';
 import { ConfirmButton } from '@/components/master/confirm-button';
 import { ReviewForm } from '@/components/dugout/review-form';
 import { Badge } from '@/components/ui';
+import { SafeForm } from '@/components/safe-form';
+import { LessonFeedCard } from '@/components/dugout/lesson-feed-card';
+import { loadLessonFeed } from '@/lib/org/lesson-feed';
+import { setPublicSinker } from '@/app/actions/profile-public';
+import { PUBLIC_SINKER_OPTIONS, profileHref } from '@/lib/public-profile';
+import { usesSinker } from '@/lib/brand';
 
 /** 내 것 — 내가 올린 물건 · 찜. 싱커 안(/today)으로 가는 길도 여기 */
 export default async function MePage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login?next=/me');
-  const [mine, favorites, bookings, venueBookings] = await Promise.all([
+  const [mine, favorites, bookings, venueBookings, lessonFeed] = await Promise.all([
     loadMyListings(user.id),
     loadFavorites(user.id),
     loadMyBookings(user.id),
     loadMyVenueBookings(user.id),
+    loadLessonFeed(user.id, 10),
   ]);
+  const sinker = usesSinker(user);
+  const shown = new Set(user.publicSinker ?? []);
   const now = new Date();
   return (
     <div className="space-y-8">
@@ -38,13 +47,76 @@ export default async function MePage() {
             </Link>
           </p>
         </div>
-        <Link
-          href="/today"
-          className="inline-flex min-h-10 items-center rounded-xl bg-sky px-4 text-sm font-semibold text-white"
-        >
-          내 싱커
-        </Link>
+        {sinker ? (
+          <Link
+            href="/today"
+            className="inline-flex min-h-10 items-center rounded-xl bg-sky px-4 text-sm font-semibold text-white"
+          >
+            내 싱커
+          </Link>
+        ) : (
+          <p className="max-w-xs text-right text-xs text-muted">
+            레슨을 받고 코치가 기록을 남기면 ‘내 싱커’가 열려요.
+          </p>
+        )}
       </div>
+
+      {/* 레슨 기록(3단계 3-4) — 코치가 쓴 노트가 그대로 */}
+      <div id="lessons">
+        {lessonFeed.length === 0 ? (
+          <Card>
+            <p className="text-sm text-muted">
+              아직 레슨 기록이 없어요. 레슨을 예약하고 받으면 코치의 노트가 여기 쌓여요.
+            </p>
+          </Card>
+        ) : (
+          <LessonFeedCard items={lessonFeed} />
+        )}
+      </div>
+
+      {/* 공개 프로필(3단계 3-6) — 기본은 전부 숨김 */}
+      <section className="space-y-3">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-lg font-bold text-ink">공개 프로필</h2>
+          <Link
+            href={profileHref(user.nickname)}
+            className="text-sm font-semibold text-sky"
+          >
+            내 프로필 보기
+          </Link>
+        </div>
+        <Card>
+          <SafeForm
+            action={setPublicSinker}
+            doneToast="저장했어요."
+            className="space-y-3"
+          >
+            <p className="text-xs text-muted">
+              덕아웃의 다른 사람에게 보일 싱커 기록을 고르세요. 기본은 전부 숨김이에요.
+            </p>
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              {PUBLIC_SINKER_OPTIONS.map((o) => (
+                <label key={o.key} className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    name="keys"
+                    value={o.key}
+                    defaultChecked={shown.has(o.key)}
+                    className="h-4 w-4 accent-sky"
+                  />
+                  {o.label}
+                </label>
+              ))}
+            </div>
+            <button
+              type="submit"
+              className="min-h-10 rounded-xl border border-line px-4 text-sm font-semibold text-ink"
+            >
+              저장
+            </button>
+          </SafeForm>
+        </Card>
+      </section>
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
