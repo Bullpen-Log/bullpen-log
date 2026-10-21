@@ -44,6 +44,16 @@ export function rpcForm<T>(action: string, fields: Record<string, string | null 
   return call<T>(action, form, {});
 }
 
+/*
+ * 마지막으로 서버에 쓴 때 — 탭을 다시 볼 때 새로 받을지 정한다(shell/tab-pager useOnTabActive). 서버 동작 이름이 load · fetch · get 으로
+ * 시작하면 읽기, 나머지는 쓰기로 본다(쓰기를 읽기로 잘못 보면 다른 탭이 30초까지 옛 값이라, 모르는 이름은 쓰기 쪽으로).
+ */
+let wroteAt = 0;
+export const lastWriteAt = () => wroteAt;
+export const markWrite = () => {
+  wroteAt = Date.now();
+};
+
 async function call<T>(action: string, payload: string | FormData, headers: Record<string, string>): Promise<T> {
   await syncSession();
   let res: Response;
@@ -65,5 +75,6 @@ async function call<T>(action: string, payload: string | FormData, headers: Reco
   if (res.status === 426) throw new RpcError('앱을 업데이트해 주세요.', 'update');
   if (!body || !body.ok) throw new RpcError('서버에서 처리하지 못했어요.', body?.error ?? 'server');
   if ('redirect' in body) throw new RpcError('다시 로그인해 주세요.', 'redirect', body.redirect);
+  if (!/\.(load|fetch|get)[A-Z]/.test(action)) markWrite();
   return body.result;
 }

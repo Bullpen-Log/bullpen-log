@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { Wordmark } from '@/components/logo';
+import { splashScale } from '@/lib/brand';
 
 /**
  * 덕아웃 ↔ 싱커 변형(2026-10-21 금윤호: "페이지 이동 느낌이 아니라 덕아웃 화면이 싱커로 자연스럽게 바뀌는 느낌 — 보고 있던 가운데 판은 아래로
@@ -86,7 +87,7 @@ export function MorphOverlay() {
     const el = logo.current;
     if (!on || !el) return;
     const w = el.getBoundingClientRect().width;
-    const big = Math.max(1.2, Math.min(2, (window.innerWidth * 0.86) / Math.max(1, w)));
+    const big = splashScale(w, window.innerWidth);
     el.animate(
       [
         { transform: 'scale(0.25)', opacity: 0 },

@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { Rotate3d } from '@/components/icon';
 import { RoundRadar, RoundZone } from '@/components/round-icon';
 import { PageHeading } from '@/components/ui';
+import { BullpenWordmark } from '@/components/logo';
 import { Segmented } from '@/components/segmented';
 import { AnalysisLink } from '@/components/analysis-link';
 
@@ -45,7 +46,10 @@ export const PITCH_VIEW_OPTIONS = [
  * 보면 폰 틀 패널 대신 구속 측정 관리자(/admin/velocity)로 가는 칸이 된다.
  */
 export const VELOCITY_OPTION = { value: 'velocity', label: '구속 측정' } as const;
-export const VELOCITY_ADMIN_OPTION = { value: 'velocity', label: '구속 측정 관리자' } as const;
+export const VELOCITY_ADMIN_OPTION = {
+  value: 'velocity',
+  label: '구속 측정 관리자',
+} as const;
 
 type ViewOption = { readonly value: PitchView; readonly label: string };
 
@@ -59,7 +63,8 @@ const SWITCH_WIDTH = 'flex-1 pad:flex-none pad:min-w-80 desk:w-auto desk:flex-no
  * 칸이 셋(관리자의 '구속 측정 관리자')이면 휴대폰은 고르개가 한 줄을 다 쓰고 칩은 밑 줄로 — 칩 옆에 끼우면 고르개가 글자보다 좁아져
  * '목록'과 '구속 측정 관리자'가 겹치며 틀 밖으로 나갔다(2026-10-15 김민). 패드 · PC 는 그대로.
  */
-const SWITCH_WIDTH_WIDE = 'w-full pad:w-auto pad:flex-none pad:min-w-80 desk:w-auto desk:flex-none';
+const SWITCH_WIDTH_WIDE =
+  'w-full pad:w-auto pad:flex-none pad:min-w-80 desk:w-auto desk:flex-none';
 
 /*
  * 찍으러 가는 문 — 제목 줄 오른쪽('분석' 앞). 휴대폰은 그림만 있는 40px 동그라미, 패드 · PC 는 이름까지(2026-10-16 디자인 점검 — 고르개 옆
@@ -85,13 +90,22 @@ function PitchTools({ canMeasure, canAbs }: { canMeasure: boolean; canAbs: boole
           className={TOOL_CHIP}
         >
           <RoundRadar aria-hidden className="h-4 w-4 text-sky-strong" />
-          <span aria-hidden className="hidden pad:inline desk:inline">구속 측정</span>
+          <span aria-hidden className="hidden pad:inline desk:inline">
+            구속 측정
+          </span>
         </button>
       )}
       {canMeasure && canAbs && (
-        <button type="button" onClick={() => router.push('/abs')} aria-label="ABS 판정" className={TOOL_CHIP}>
+        <button
+          type="button"
+          onClick={() => router.push('/abs')}
+          aria-label="ABS 판정"
+          className={TOOL_CHIP}
+        >
           <RoundZone aria-hidden className="h-4 w-4 text-sky-strong" />
-          <span aria-hidden className="hidden pad:inline desk:inline">ABS 판정</span>
+          <span aria-hidden className="hidden pad:inline desk:inline">
+            ABS 판정
+          </span>
         </button>
       )}
       <button
@@ -101,7 +115,9 @@ function PitchTools({ canMeasure, canAbs }: { canMeasure: boolean; canAbs: boole
         className={TOOL_CHIP}
       >
         <Rotate3d aria-hidden className="h-4 w-4 text-sky-strong" />
-        <span aria-hidden className="hidden pad:inline desk:inline">3D 동작 분석</span>
+        <span aria-hidden className="hidden pad:inline desk:inline">
+          3D 동작 분석
+        </span>
       </button>
     </div>
   );
@@ -173,6 +189,8 @@ export function PitchLogHeading({
             </div>
           }
         />
+        {/* 예전 이름표를 제목 밑에 작게(2026-10-21 금윤호) — 앱 이름은 싱커, 투구 기록의 뿌리는 불펜로그 */}
+        <BullpenWordmark className="-mt-[calc(var(--gap-page,1rem)*0.6)] mb-1 text-[15px] text-muted" />
       </ViewTransition>
       <ViewTransition default={SWIPE_OFF}>
         <div className="flex flex-wrap items-center gap-2 desk-low:hidden">

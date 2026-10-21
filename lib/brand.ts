@@ -41,3 +41,17 @@ export function usesSinker(u: {
   if (u.accountType === 'MEMBER') return u.sinkerStartedAt != null;
   return false;
 }
+
+/**
+ * 덕아웃 시작 연출의 로고가 화면에 보일 너비(px) — 덕아웃 시작 화면(components/dugout/dugout-hero.tsx)과 싱커 → 덕아웃의 가운데 로고
+ * (components/shell-morph.tsx MorphOverlay)가 같은 값을 쓴다. 배율이 아니라 너비로 정하는 까닭: 싱커 틀은 PC 에서 글자 기준 크기가 달라(ui 축소)
+ * 같은 배율이라도 실제 크기가 달라 이어받을 때 로고가 튀었다(2026-10-21 영상). 폭의 46% · 300~520px.
+ */
+export function splashWidth(viewportWidth: number): number {
+  return Math.min(Math.max(viewportWidth * 0.46, 300), 520, viewportWidth * 0.86);
+}
+
+/** 지금 그려진 로고 너비에서 시작 연출 크기로 가는 배율 */
+export function splashScale(logoWidth: number, viewportWidth: number): number {
+  return splashWidth(viewportWidth) / Math.max(1, logoWidth);
+}
