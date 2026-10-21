@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { usePalette } from '~/lib/ui';
+import { lastWriteAt } from '~/lib/rpc';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 /**
@@ -14,16 +15,27 @@ const ActiveCtx = createContext(true);
 /** 이 판이 지금 보이는가 */
 export const useTabActive = () => useContext(ActiveCtx);
 
-/** 판이 숨었다가 다시 보일 때 — 처음 붙을 때는 안 부른다(그때는 화면이 스스로 받는다) */
+/*
+ * 탭을 금방 다시 보면 새로 받지 않는 시간 — 웹 next.config.ts staleTimes.dynamic(30초)과 같다. 탭을 오갈 때마다 홈이 서버 동작 다섯을
+ * 부르고 그 안에 무거운 계산(오늘 상태 · 추천)이 있어 Vercel 계산 시간의 대부분이 여기서 나갔다(2026-10-21, 무료 한도 4시간의 81%).
+ * 그사이 어디서든 서버에 썼으면(lib/rpc markWrite) 바로 받는다.
+ */
+const STALE_MS = 30_000;
+
+/** 판이 숨었다가 다시 보일 때 — 처음 붙을 때는 안 부른다(그때는 화면이 스스로 받는다). 30초 안 · 쓴 것 없음이면 건너뛴다 */
 export function useOnTabActive(cb: () => void) {
   const active = useTabActive();
   const was = useRef(active);
   const latest = useRef(cb);
+  const ranAt = useRef(Date.now());
   useEffect(() => {
     latest.current = cb;
   });
   useEffect(() => {
-    if (active && !was.current) latest.current();
+    if (active && !was.current && (Date.now() - ranAt.current >= STALE_MS || lastWriteAt() > ranAt.current)) {
+      ranAt.current = Date.now();
+      latest.current();
+    }
     was.current = active;
   }, [active]);
 }
