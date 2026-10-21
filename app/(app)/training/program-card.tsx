@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { AlertCircle, ChevronDown, Play } from '@/components/icon';
 import { Card, Button } from '@/components/ui';
 import { useWeightUnit } from '@/components/use-units';
@@ -11,6 +11,9 @@ import { DisclosureButton } from '@/components/disclosure';
 import { ErrorLine } from '@/components/error-line';
 import { SafeForm } from '@/components/safe-form';
 import { OpenCheckinButton } from '@/components/notice-bell';
+import { LibraryVideo } from '@/components/library-video';
+import { toast } from '@/components/toast';
+import { DescriptionText, useExerciseDescription } from './armcare-media';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { withJosa } from '@/lib/korean';
 import {
@@ -21,6 +24,7 @@ import {
   startProgramWorkout,
   stopProgram,
 } from '@/app/actions/program';
+import { changeSessionExercise } from '@/app/actions/workout';
 import type { ProgramCardProps } from '@/lib/program/load';
 import { sessionTitle, type VariantKey } from '@/lib/program/program';
 
@@ -265,7 +269,16 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
         title={reason.content?.title ?? ''}
         origin={reason.origin}
       >
-        {reason.content && <ReasonBody row={reason.content} />}
+        {reason.content && (
+          <ReasonBody
+            key={reason.content.id}
+            row={reason.content}
+            canSwap={going && !finishedToday}
+            active={p.todayState === 'active'}
+            todayIds={p.rows.map((r) => r.id)}
+            onSwapped={reason.close}
+          />
+        )}
       </Modal>
 
       <ConfirmDialog
@@ -323,10 +336,72 @@ function MoreRow({
   );
 }
 
-function ReasonBody({ row }: { row: Row }) {
+/**
+ * 운동 줄을 누르면 뜨는 시트 — 영상 · 처방 · 무게 까닭 · 설명, 그리고 이 칸의 운동 바꾸기(2026-10-21 김민: "목록에서 영상 · 내용 확인 · 교체").
+ * 바꾸기는 고정 운동 바꾸기(RepinSheet)와 같은 서버 동작 — 그 칸은 앞으로 고른 운동으로 하고 무게 기록은 새로 시작한다.
+ */
+function ReasonBody({
+  row,
+  canSwap,
+  active,
+  todayIds,
+  onSwapped,
+}: {
+  row: Row;
+  /** 오늘 하는 날이고 아직 안 마쳤나 */
+  canSwap: boolean;
+  /** 오늘 판을 이미 열었나 — 그 판의 줄도 같이 바꾼다 */
+  active: boolean;
+  /** 오늘 목록의 운동 — 같은 운동이 두 줄이 되지 않게 후보에서 뺀다 */
+  todayIds: string[];
+  onSwapped: () => void;
+}) {
   const unit = useWeightUnit();
+  const desc = useExerciseDescription(row.id);
+  /* 열자마자 설명을 받는다 — 운동을 보려고 연 시트다. 줄마다 key 로 새로 붙어 한 번만 돈다 */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(desc.load, []);
+  const [choices, setChoices] = useState<{ id: string; title: string }[] | null>(null);
+  const [error, setError] = useState<string>();
+  const [pending, start] = useTransition();
+
+  const openChoices = () =>
+    start(async () => {
+      setError(undefined);
+      const r = await orOffline(programChoices({ variant: row.variant }), { error: OFFLINE_MESSAGE });
+      if ('error' in r) setError(r.error);
+      else setChoices(r.choices.filter((c) => !todayIds.includes(c.id)));
+    });
+
+  const choose = (id: string) =>
+    start(async () => {
+      setError(undefined);
+      const r = await orOffline(repinProgramExercise({ variant: row.variant, exerciseId: id }), {
+        error: OFFLINE_MESSAGE,
+      });
+      if ('error' in r) return setError(r.error);
+      /* 오늘 판을 이미 열었으면 그 판의 줄도 — 고정 운동만 바꾸면 '운동 이어서 하기'가 옛 운동으로 열린다 */
+      if (active) {
+        const s = await orOffline(changeSessionExercise({ fromId: row.id, toId: id, mode: 'replace' }), {
+          error: OFFLINE_MESSAGE,
+        });
+        if ('error' in s) return setError(s.error);
+      }
+      toast('바꿨어요');
+      onSwapped();
+    });
+
   return (
     <div className="space-y-3 text-sm leading-relaxed text-ink">
+      {(row.videoPath || row.referenceVideoId) && (
+        <LibraryVideo
+          path={row.videoPath}
+          referenceVideoId={row.referenceVideoId}
+          title={row.title}
+          thumbUrl={row.thumbUrl}
+          aspectRatio={row.aspectRatio}
+        />
+      )}
       <p className="text-muted">
         {row.slotLabel} · {row.line}
       </p>
@@ -343,6 +418,38 @@ function ReasonBody({ row }: { row: Row }) {
         </p>
       )}
       {row.warmup && <p className="text-muted">준비: {row.warmup}</p>}
+      <DescriptionText desc={desc} />
+      {canSwap && row.swappable && (
+        <div className="space-y-2 border-t border-line pt-3">
+          {choices == null ? (
+            <Button type="button" variant="secondary" className="w-full" disabled={pending} onClick={openChoices}>
+              {pending ? '불러오는 중…' : '다른 운동으로 바꾸기'}
+            </Button>
+          ) : choices.length === 0 ? (
+            <p className="text-muted">가진 장비로 바꿀 수 있는 운동이 없어요.</p>
+          ) : (
+            <>
+              <p className="text-xs text-muted">이 칸은 앞으로 고른 운동으로 해요. 무게 기록은 새로 시작해요.</p>
+              <ul className="divide-y divide-line">
+                {choices.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => choose(c.id)}
+                      className="flex min-h-12 w-full items-center justify-between gap-3 text-left disabled:opacity-50"
+                    >
+                      <span className="truncate text-subhead text-ink">{c.title}</span>
+                      <span className="shrink-0 text-sm font-semibold text-sky-strong">바꾸기</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
+      {error && <ErrorLine>{error}</ErrorLine>}
     </div>
   );
 }

@@ -385,6 +385,8 @@ export default async function TrainingPage({
       ...full.map((p) => p.ex.thumbPath),
       /* 근력 프로그램 '앞으로 할 세션'의 썸네일도 같은 한 번에 */
       ...(programCard?.upcoming.flatMap((u) => u.items.map((it) => it.thumbPath)) ?? []),
+      /* 오늘 운동 줄의 시트 영상 첫 장면 */
+      ...(programCard?.rows.map((r) => r.thumbPath) ?? []),
     ].filter((p): p is string => !!p)),
     /*
      * 이 운동을 지난번에 얼마나 했는가.
@@ -404,7 +406,7 @@ export default async function TrainingPage({
         })
       : Promise.resolve([]),
   ]);
-  for (const it of programCard?.upcoming.flatMap((u) => u.items) ?? []) {
+  for (const it of [...(programCard?.upcoming.flatMap((u) => u.items) ?? []), ...(programCard?.rows ?? [])]) {
     if (it.thumbPath) it.thumbUrl = thumbUrls[it.thumbPath] ?? null;
   }
 

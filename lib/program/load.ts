@@ -903,6 +903,13 @@ export type ProgramCardProps = {
     aspectRatio: number | null;
     thumbPath: string | null;
     thumbUrl: string | null;
+    /** 이 줄의 칸 — 줄의 '바꾸기'가 이 칸의 고정 운동을 바꾼다(program.repinProgramExercise) */
+    variant: VariantKey;
+    /**
+     * 바꾸면 오늘 줄도 그 운동이 되나 — 오늘 운동이 이 칸의 고정 운동 그대로일 때만. 세션마다 돌리는 칸 · 기본기 · 보조 메뉴 · 그날 대체는
+     * 고정 운동을 바꿔도 오늘 줄이 안 바뀌어 false(2026-10-21 김민: 목록에서 교체)
+     */
+    swappable: boolean;
   }[];
   dropped: { title: string; reason: string }[];
   pinned: { variant: VariantKey; label: string; title: string | null }[];
@@ -987,6 +994,13 @@ export function programCardProps(
       aspectRatio: r.exercise.aspectRatio ?? null,
       thumbPath: r.exercise.referenceVideoId ? null : (r.exercise.thumbPath ?? null),
       thumbUrl: r.exercise.referenceVideoId ? referenceThumbUrl(r.exercise.referenceVideoId) : null,
+      variant: r.variant,
+      swappable:
+        audience !== 'basics' &&
+        !r.rx.assist &&
+        !r.substituteFor &&
+        !ROTATING_VARIANTS.includes(r.variant) &&
+        pinned[r.variant] === r.exercise.id,
     })),
     dropped: view.dropped.map((d) => ({ title: d.title, reason: d.reason })),
     pinned: usedVariants(plan.def).map((v) => ({

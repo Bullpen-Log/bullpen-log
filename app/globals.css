@@ -3832,6 +3832,13 @@ html[data-shell='expo'] nav[data-mobile-tabs] {
 html[data-shell='expo'] {
   --tab-bar-top: calc(env(safe-area-inset-bottom) + 3.0625rem);
 }
+/*
+ * 앱 하단바는 웹뷰 위에 떠 있어 아래 시트(Modal 의 data-sheet)의 바닥을 덮는다 — 시트 맨 아래 칸(내용 · 단추 줄)을 막대 위까지 비운다
+ * (2026-10-21 김민: 트레이닝 운동 줄 시트가 하단바에 겹침). 하단바는 앱 틀((app), html[data-pager]) 안에서만 뜬다 — 운동 진행 같은 (session) 화면은 그대로.
+ */
+html[data-shell='expo'][data-pager] dialog[data-sheet] [data-sheet-end] {
+  padding-bottom: calc(var(--tab-bar-top) + 1rem);
+}
 
 /*
  * 얼굴마다 강조색(2026-10-21 1단계, docs/designs/sinker-dugout.md 8절 G) — 덕아웃 틀(components/dugout-shell · master-shell) 안에서는
