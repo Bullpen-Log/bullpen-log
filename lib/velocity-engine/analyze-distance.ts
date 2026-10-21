@@ -106,6 +106,12 @@ export const END_SIZE_AGREE = 0.1;
 /** 믿음 '높음'의 맞춤 잔차 상한(σ 배 — 1080 기준 px, 분석 720 이면 1.0px). 2.7.3 까지 1.2 */
 export const HIGH_RMS = 1.5;
 /**
+ * 믿음 '높음'에 필요한 공 길 — 0.4초, 빠른 공은 11m 를 지나는 시간까지(100km/h 에서 0.4초와 같다). 2.7.4 까지 늘 0.4초라 18m 에서
+ * 130~140km/h 는 던진 곳부터 받는 곳까지 다 봐도 0.40~0.43초라 거의 '짧게 잡힘'으로 빠졌다(2.7.5, 2026-10-21 김민).
+ */
+export const HIGH_MIN_FLIGHT_SEC = 0.4;
+export const HIGH_MIN_SPAN_M = 11;
+/**
  * 공 크기 거리는 초점거리에 비례한다 — 화각을 짐작했으면(렌즈 정보 · 렌즈 보정 · 앱 카메라 값 없음) 그만큼 더 틀린다. 아이폰 영상 · 웹
  * 카메라의 화각은 짐작과 8% 안팎 갈린다. 부르는 쪽(analyze-video · live-meter)이 ± 에 더하고 이 알림을 붙인다.
  */
@@ -766,6 +772,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     );
     const errorKmh = 1.645 * sigmaRel * kmh;
     let confidence: Confidence = 'medium';
+    const minFlight = Math.min(HIGH_MIN_FLIGHT_SEC, HIGH_MIN_SPAN_M / (kmh / 3.6));
     /*
      * 끝에서 튕기는 장면을 못 봤어도(impact 'end' — 포수가 받아 공이 멈춤) 이어 찾지 않았으면 끝은 본 것이다 — 넣은 거리일 때는 '낮음'으로
      * 떨어뜨리지 않고, 아래에서 공 크기 거리가 넣은 거리와 END_SIZE_AGREE 안인지로 가린다(2.3.21 — 10-12 밖 그런 공 둘이
@@ -787,7 +794,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      * 0.84~0.94px(문턱 0.8px · 분석 720)인 공 셋이 높음 공 둘과 같은 95~102km/h 인데 측정 불가로 빠졌다. 스피드건 짝 0.8~1.0px 3구
      * 평균 오차 4.0km/h(0.8px 밑 45구 5.3), 1.0px 넘으면 16km/h.
      */
-    else if (!auto && !report.shaky && used.length * dt >= 0.4 && fit.rms <= HIGH_RMS * s)
+    else if (!auto && !report.shaky && used.length * dt >= minFlight && fit.rms <= HIGH_RMS * s)
       confidence = 'high';
     /* 보통이면 왜 높음이 못 됐나 — 화면이 측정 불가 까닭을 말한다(judgeSize 가 why 로 옮긴다) */
     report.soft =
@@ -797,7 +804,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
           ? 'auto-distance'
           : report.shaky
             ? 'stabilized'
-            : used.length * dt < 0.4
+            : used.length * dt < minFlight
               ? 'short-flight'
               : 'fit-rms';
     report.timingMs = Math.round(now() - t0);
