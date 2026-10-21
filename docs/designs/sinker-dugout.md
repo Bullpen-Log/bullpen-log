@@ -220,11 +220,12 @@ PC 의 '내 싱커'에서는 그 자리에 "싱커 앱에서 재요" 카드만 �
 - ☑ 4-4 측정 자리(구속 측정 · ABS · 촬영 · 3D 촬영)는 PC 에서 "싱커 앱에서 재요" 카드 + QR.
 - ☑ 4-5 `/sinker/sharing` 연결 — 팀 · 레슨장별 공유 범위, 앱 연결 상태.
 
-### 5단계 알림 (웹 3시간)
-- ☐ 5-1 마이그레이션: `PushDevice` · `Notification`.
-- ☐ 5-2 `lib/notify.ts` — 종류 · 보낼 곳 규칙(채팅 · 장터 · 예약 · 댓글 · 레슨 기록 · 팀 공지), 웹 알림함 `/notifications` + 위 막대 숫자.
-- ☐ 5-3 보내기: Expo push API(싱커 · 덕아웃 앱 공용), 기기 등록 RPC(`push.register`).
-- 김민: 앱에서 토큰 등록 · 받기(expo-notifications, 굽기). 사용자: APNs 키.
+### 5단계 알림 (웹 3시간) — 웹 끝(2026-10-21, 마이그레이션 `20261021150000_notifications` 공유 DB 적용). 앱 쪽(B-4)은 김민
+- ☑ 5-1 마이그레이션: `PushDevice` · `Notification`.
+- ☑ 5-2 `lib/notify.ts` — 종류 · 보낼 곳 규칙(채팅 · 장터 · 예약 · 댓글 · 레슨 기록 · 팀 공지), 웹 알림함 `/notifications` + 위 막대 숫자.
+- ☑ 5-3 보내기: Expo push API(싱커 · 덕아웃 앱 공용), 기기 등록 RPC(`push.register`).
+- 김민: 앱에서 토큰 등록 · 받기(expo-notifications, 굽기) — RPC `push.registerPushDevice({ token, app: 'sinker' | 'dugout', platform })` · `push.unregisterPushDevice({ token })`. 보내기는 Expo push API(exp.host) 라 APNs 키는 Expo 쪽 설정(사용자 · 김민).
+- 보내는 곳(지금): 채팅 · 레슨 예약 요청/확정/거절 · 연습장 요청/답 · 코치 레슨 노트. 댓글 · 팀 공지는 김민의 커뮤니티 · 팀 화면 쪽에서 `notify()` 한 줄씩.
 
 ### 7단계 도메인 (3시간) — 도메인이 생기면
 - ☐ 7-1 Vercel 도메인 연결 · 옛 주소는 유지(앱용) · 브라우저만 301.

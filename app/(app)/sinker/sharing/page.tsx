@@ -23,7 +23,7 @@ const SHARE_OPTIONS = [
  */
 export default async function SharingPage() {
   const user = await requireUser();
-  const [members, me, lastLog] = await Promise.all([
+  const [members, me, devices, lastLog] = await Promise.all([
     prisma.orgMember.findMany({
       where: { userId: user.id, status: 'ACTIVE' },
       select: {
@@ -44,6 +44,11 @@ export default async function SharingPage() {
     prisma.user.findUnique({
       where: { id: user.id },
       select: { signupSource: true, sinkerStartedAt: true, createdAt: true },
+    }),
+    prisma.pushDevice.findMany({
+      where: { userId: user.id },
+      orderBy: { lastSeenAt: 'desc' },
+      select: { app: true, platform: true, lastSeenAt: true },
     }),
     prisma.pitchLog.findFirst({
       where: { userId: user.id },
@@ -157,7 +162,16 @@ export default async function SharingPage() {
             </div>
             <div className="flex justify-between px-4 py-2.5">
               <dt className="text-muted">알림 기기</dt>
-              <dd className="text-muted">앱 알림은 곧 열려요(5단계).</dd>
+              <dd className="text-right font-semibold text-ink">
+                {devices.length === 0
+                  ? '없음 — 앱에서 알림을 켜면 여기 떠요'
+                  : devices
+                      .map(
+                        (d) =>
+                          `${d.app === 'dugout' ? '덕아웃' : '싱커'} 앱 · ${formatDateTime(d.lastSeenAt).slice(0, 8)}`
+                      )
+                      .join(', ')}
+              </dd>
             </div>
           </dl>
         </Card>

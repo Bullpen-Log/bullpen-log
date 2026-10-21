@@ -46,6 +46,7 @@ import {
   readExercises,
 } from '@/lib/org/lesson-work';
 import { readPublicKeys } from '@/lib/public-profile';
+import { appsFor, isExpoToken } from '@/lib/notify-rules';
 
 let pass = 0;
 const fails: string[] = [];
@@ -396,10 +397,58 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
     const body = src(`app/actions/${f}.ts`);
     const heads = [...body.matchAll(/export async function (\w+)\(([\s\S]*?)\n\}/g)];
     const bare = heads.filter((x) => !/requireUser\(/.test(x[0])).map((x) => x[1]);
-    check(`app/actions/${f}.ts 의 동작이 모두 requireUser 를 거친다`, heads.length >= 1 && bare.length === 0, bare.join(', '));
+    check(
+      `app/actions/${f}.ts 의 동작이 모두 requireUser 를 거친다`,
+      heads.length >= 1 && bare.length === 0,
+      bare.join(', ')
+    );
   }
-  check('기록 표 CSV 는 로그인한 사람의 것만', /getCurrentUser\(/.test(src('app/api/sinker/log.csv/route.ts')) && /userId: user\.id/.test(src('app/api/sinker/log.csv/route.ts')));
-  check('내 싱커 화면 셋', ['page', 'log/page', 'sharing/page'].every((p) => existsSync(join(ROOT, `app/(app)/sinker/${p}.tsx`))));
+  check(
+    '기록 표 CSV 는 로그인한 사람의 것만',
+    /getCurrentUser\(/.test(src('app/api/sinker/log.csv/route.ts')) &&
+      /userId: user\.id/.test(src('app/api/sinker/log.csv/route.ts'))
+  );
+  check(
+    '내 싱커 화면 셋',
+    ['page', 'log/page', 'sharing/page'].every((p) =>
+      existsSync(join(ROOT, `app/(app)/sinker/${p}.tsx`))
+    )
+  );
+  check(
+    '알림 보낼 곳 — 채팅은 덕아웃 앱 먼저, 없으면 싱커 · 레슨 기록은 싱커 먼저 · 앱이 없으면 아무 데도',
+    appsFor('chat', ['sinker', 'dugout']).join() === 'dugout' &&
+      appsFor('chat', ['sinker']).join() === 'sinker' &&
+      appsFor('lesson', ['sinker', 'dugout']).join() === 'sinker' &&
+      appsFor('lesson', ['dugout']).join() === 'dugout' &&
+      appsFor('chat', []).length === 0
+  );
+  check(
+    'Expo 토큰 모양',
+    isExpoToken('ExponentPushToken[abc-123]') &&
+      isExpoToken('ExpoPushToken[xyz]') &&
+      !isExpoToken('abc')
+  );
+  for (const f of ['push', 'notifications']) {
+    const body = src(`app/actions/${f}.ts`);
+    const heads = (body.match(/export async function /g) ?? []).length;
+    const guarded = (body.match(/await requireUser\(/g) ?? []).length;
+    check(
+      `app/actions/${f}.ts 의 동작 ${heads}개가 모두 requireUser 를 거친다`,
+      heads >= 1 && guarded === heads
+    );
+  }
+  check(
+    '보내는 곳 — 채팅 · 레슨 예약 · 연습장 · 레슨 노트가 notify 를 부른다',
+    ['chat', 'lessons', 'venues', 'org-notes'].every((f) =>
+      /await notify\(/.test(src(`app/actions/${f}.ts`))
+    )
+  );
+  check(
+    '마이그레이션 5단계는 더하기만',
+    !/DROP|ALTER COLUMN|DELETE/.test(
+      src('prisma/migrations/20261021150000_notifications/migration.sql')
+    )
+  );
   const picks = recommend('u13', 'pitcher', 'L');
   check(
     '장비 추천 다섯 — 글러브가 포지션 · 손을 품는다',

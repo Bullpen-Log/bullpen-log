@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/dal';
 import { countUnread } from '@/lib/market/load';
 import { DugoutShell } from '@/components/dugout/dugout-shell';
 import { usesSinker } from '@/lib/brand';
+import { countUnreadNotifications } from '@/lib/notify';
 
 export const metadata: Metadata = {
   title: { default: '덕아웃', template: '%s · 덕아웃' },
@@ -19,11 +20,14 @@ export default async function DugoutLayout({
   children: React.ReactNode;
 }) {
   const user = await getCurrentUser();
-  const unread = user ? await countUnread(user.id) : 0;
+  const [unread, alerts] = user
+    ? await Promise.all([countUnread(user.id), countUnreadNotifications(user.id)])
+    : [0, 0];
   return (
     <DugoutShell
       user={user ? { nickname: user.nickname } : null}
       unread={unread}
+      alerts={alerts}
       sinker={!!user && usesSinker(user)}
       manage={!!user && (user.accountType === 'MASTER' || user.role === 'ADMIN')}
     >

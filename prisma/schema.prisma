@@ -2217,3 +2217,31 @@ model VenueBooking {
   @@index([venueId, date, status])
   @@index([userId, date])
 }
+
+/// 앱 알림 기기(2026-10-21 개편 5단계, docs/designs/sinker-dugout.md 8절 D) — Expo 푸시 토큰. app 은 'sinker' · 'dugout'(어느 앱이 등록했나), 보낼 곳 규칙은 lib/notify-rules.ts
+model PushDevice {
+  id         String   @id @default(uuid())
+  userId     String
+  app        String
+  platform   String   @default("ios")
+  token      String   @unique
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// 알림 기록(5단계) — 웹 알림함(/notifications) · 위 막대 숫자. kind: chat · booking · venue · lesson · listing · community · team
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  kind      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}

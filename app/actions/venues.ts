@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { notify } from '@/lib/notify';
 import { requireMaster, requireUser } from '@/lib/dal';
 import { isOwnedBy } from '@/lib/storage';
 import { dbDate } from '@/lib/nutrition/days';
@@ -144,7 +145,11 @@ export async function answerVenueBooking(formData: FormData) {
       .slice(0, 300) || null;
   const b = await prisma.venueBooking.findUnique({
     where: { id },
-    select: { status: true, venue: { select: { ownerId: true, id: true } } },
+    select: {
+      status: true,
+      userId: true,
+      venue: { select: { ownerId: true, id: true, name: true } },
+    },
   });
   if (
     !b ||
@@ -155,6 +160,11 @@ export async function answerVenueBooking(formData: FormData) {
   await prisma.venueBooking.update({
     where: { id },
     data: { status: ok ? 'CONFIRMED' : 'DECLINED', reply },
+  });
+  await notify(b.userId, {
+    kind: 'venue',
+    title: `${b.venue.name} 예약 답이 왔어요`,
+    link: '/me',
   });
   revalidatePath('/manage/venues', 'layout');
   revalidatePath(`/venues/${b.venue.id}`);
@@ -210,6 +220,11 @@ export async function bookVenue(
     select: { id: true },
   });
   if (taken) return { error: '방금 다른 사람이 잡았어요. 다른 칸을 골라 주세요.' };
+  await notify(v.ownerId, {
+    kind: 'venue',
+    title: `${user.nickname} 님이 예약을 요청했어요`,
+    link: '/manage/venues',
+  });
   await prisma.venueBooking.create({
     data: {
       venueId,

@@ -14,12 +14,14 @@ import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
 export function DugoutShell({
   user,
   unread,
+  alerts = 0,
   sinker = false,
   manage = false,
   children,
 }: {
   user: { nickname: string } | null;
   unread: number;
+  alerts?: number;
   sinker?: boolean;
   manage?: boolean;
   children: ReactNode;
@@ -41,7 +43,13 @@ export function DugoutShell({
       data-brand="dugout"
       className="flex min-h-[var(--vvh,100dvh)] flex-col bg-page text-ink"
     >
-      <DugoutTopBar user={user} unread={unread} sinker={sinker} manage={manage} />
+      <DugoutTopBar
+        user={user}
+        unread={unread}
+        alerts={alerts}
+        sinker={sinker}
+        manage={manage}
+      />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-5 pb-28 md:px-6 md:pt-8 md:pb-16">
         {children}

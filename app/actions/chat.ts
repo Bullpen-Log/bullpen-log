@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { notify } from '@/lib/notify';
 import { requireUser } from '@/lib/dal';
 import { MESSAGE_MAX } from '@/lib/market/specs';
 
@@ -63,6 +64,12 @@ export async function sendMessage(
       },
     }),
   ]);
+  /* 상대에게 알림(5단계) — 덕아웃 앱이 있으면 거기로, 없으면 싱커로(lib/notify-rules.ts) */
+  await notify(room.buyerId === user.id ? room.sellerId : room.buyerId, {
+    kind: 'chat',
+    title: `${user.nickname}: ${body.length > 40 ? `${body.slice(0, 40)}…` : body}`,
+    link: `/chat/${conversationId}`,
+  });
   revalidatePath(`/chat/${conversationId}`);
   revalidatePath('/chat');
   return undefined;

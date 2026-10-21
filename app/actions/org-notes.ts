@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
+import { notify } from '@/lib/notify';
 import {
   INTENSITY_MAX,
   INTENSITY_MIN,
@@ -106,6 +107,13 @@ export async function createLessonNote(
         });
     }
   });
+  if (member.userId)
+    await notify(member.userId, {
+      kind: 'lesson',
+      title: '코치가 레슨 기록을 남겼어요',
+      body: body.slice(0, 60),
+      link: '/me#lessons',
+    });
   revalidatePath(`/manage/players/${member.id}`);
   revalidatePath('/manage');
   revalidatePath('/');

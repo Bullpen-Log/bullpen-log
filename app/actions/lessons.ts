@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
+import { notify } from '@/lib/notify';
 import { requireMaster, requireUser } from '@/lib/dal';
 import { requireOrg } from '@/lib/org/access';
 import { consentDefaults } from '@/lib/org/rules';
@@ -19,6 +20,7 @@ import {
   parseSlot,
   readSpecialties,
   slotParts,
+  formatSlot,
 } from '@/lib/market/lessons';
 
 /**
@@ -152,6 +154,12 @@ export async function confirmBooking(formData: FormData) {
       data: { status: 'CONFIRMED', chosen, reply, memberId, eventId: ev.id },
     });
   });
+  await notify(b.userId, {
+    kind: 'booking',
+    title: '레슨 예약이 확정됐어요',
+    body: formatSlot(chosen),
+    link: '/me',
+  });
   revalidatePath('/manage', 'layout');
   revalidatePath('/', 'layout');
 }
@@ -165,13 +173,19 @@ export async function declineBooking(formData: FormData) {
       .slice(0, BOOKING_NOTE_MAX) || null;
   const b = await prisma.lessonBooking.findUnique({
     where: { id },
-    select: { orgId: true, status: true },
+    select: { orgId: true, status: true, userId: true },
   });
   if (!b || b.status !== 'REQUESTED') return;
   await requireOrg(user, b.orgId);
   await prisma.lessonBooking.update({
     where: { id },
     data: { status: 'DECLINED', reply },
+  });
+  await notify(b.userId, {
+    kind: 'booking',
+    title: '레슨 요청을 받지 못했어요',
+    body: '다른 시간으로 다시 요청해 보세요.',
+    link: '/me',
   });
   revalidatePath('/manage', 'layout');
   revalidatePath('/', 'layout');
@@ -223,6 +237,11 @@ export async function requestBooking(
     select: { id: true },
   });
   if (live) return { error: '이미 보낸 요청이 있어요. 답을 기다려 주세요.' };
+  await notify(org.ownerId, {
+    kind: 'booking',
+    title: `${user.nickname} 님이 레슨을 요청했어요`,
+    link: '/manage/bookings',
+  });
   await prisma.lessonBooking.create({
     data: { orgId, userId: user.id, slot1, slot2, note },
   });

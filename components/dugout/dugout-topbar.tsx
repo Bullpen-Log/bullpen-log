@@ -13,6 +13,7 @@ import { Wordmark } from '@/components/logo';
 export function DugoutTopBar({
   user,
   unread = 0,
+  alerts = 0,
   sinker = false,
   manage = false,
   current = null,
@@ -21,6 +22,8 @@ export function DugoutTopBar({
 }: {
   user: { nickname: string } | null;
   unread?: number;
+  /** 안 읽은 알림(lib/notify.ts countUnreadNotifications) */
+  alerts?: number;
   /** 싱커(선수 기록)를 쓰는 사람인가 — 아니면 '내 싱커' 대신 아무것도 */
   sinker?: boolean;
   /** 팀 · 레슨장 관리 계정 · 관리자인가 */
@@ -39,6 +42,7 @@ export function DugoutTopBar({
     { href: '/venues', label: '연습장' },
     { href: '/gear', label: '장비' },
     { href: '/chat', label: '채팅', badge: unread },
+    ...(user ? [{ href: '/notifications', label: '알림', badge: alerts }] : []),
   ];
   const active = (href: string, exact?: boolean) =>
     inDugout &&

@@ -6,6 +6,7 @@ import { isNativeUserAgent } from '@/lib/app-env';
 import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
 import { usesSinker } from '@/lib/brand';
 import { countUnread } from '@/lib/market/load';
+import { countUnreadNotifications } from '@/lib/notify';
 import { isSex, toDateInputValue } from '@/lib/profile';
 import { toDateKey } from '@/lib/pitch-stats';
 import { createAvatarUrl } from '@/lib/storage';
@@ -79,7 +80,9 @@ export default async function AppLayout({
   /* 앱(스마트폰 껍데기) 안인가 — 구속 측정 메뉴는 앱이면 누구나, 웹이면 관리자만(lib/nav.ts) */
   const isNative = isNativeUserAgent((await headers()).get('user-agent'));
   /* PC 브라우저의 선수 화면은 덕아웃 틀 안(2026-10-21 2단계, docs/designs/sinker-dugout.md 5-1) — 위 막대 하나, 앱(싱커 웹뷰)은 안 그린다 */
-  const unread = isNative ? 0 : await countUnread(user.id);
+  const [unread, alerts] = isNative
+    ? [0, 0]
+    : await Promise.all([countUnread(user.id), countUnreadNotifications(user.id)]);
   /*
    * 어느 탭이 잠겨 있나(lib/feature-locks.ts, 2026-10-09) — 처음 가입한 사람은 투구 기록 · 트레이닝 · 영양이 잠겨 있고,
    * 막대 · 탭에서는 흐리게 + 자물쇠로 보이되 누르면 그 탭의 첫 설정 화면으로 간다(lib/nav.ts applyLocks). 홈의 기능
@@ -139,6 +142,7 @@ export default async function AppLayout({
         <DugoutTopBar
           user={{ nickname: user.nickname }}
           unread={unread}
+          alerts={alerts}
           sinker={usesSinker(user)}
           manage={isAdmin}
           current="sinker"
