@@ -34,11 +34,15 @@ export function LabEmbed({
   result,
   ground,
   heightCm,
+  stopFrame = null,
+  dark = false,
 }: {
   id: string;
   result: Pitch3dV2Ok;
   ground: LabGround;
   heightCm: number | null;
+  stopFrame?: number | null;
+  dark?: boolean;
 }) {
   const body = useRef<Body3DHandle>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -103,9 +107,9 @@ export function LabEmbed({
      * 이 화면에서만 그 한도를 푼다(칸은 폭의 5:4). data-safe-area: 앱 안 웹 화면이 몸에 주는 시계 · 홈 막대 여백(globals.css)을 뺀다 —
      * 이 웹뷰는 앱 화면 가운데의 작은 칸이다.
      */
-    <div ref={box} data-lab-embed data-safe-area className="bg-page">
+    <div ref={box} data-lab-embed data-safe-area className={dark ? 'theme-dark bg-page' : 'bg-page'}>
       <style>{'[data-lab-embed] .max-h-\\[60vh\\]{max-height:none}'}</style>
-      <Body3D ref={body} result={result} onTransport={onTransport} ground={ground} heightCm={heightCm} />
+      <Body3D ref={body} result={result} onTransport={onTransport} ground={ground} heightCm={heightCm} stopFrame={stopFrame} />
     </div>
   );
 }

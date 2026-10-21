@@ -446,6 +446,11 @@ export type Pitch3dV2Job = {
   fail: { code: V2FailCode; reason: string } | null;
   /** 지금 보여 줄 결과의 작업 번호(done 인 마지막 것) — 다시 분석 중 · 실패 뒤에도 이전 결과를 보인다(화면 결정 6) */
   shownJobId: string | null;
+  /**
+   * 그 결과의 진단 리포트 요약(lib/pitch-3d/v2/report.ts ReportSummary + 결과 작업 번호) — 목록이 결과 파일을 다시 읽지 않게.
+   * 모양은 쓰는 곳이 jobReportSummary 로 본다(여기서는 그대로 옮기기만 — report.ts 를 부르면 서로 부른다).
+   */
+  report?: unknown;
 };
 
 const STATUSES: V2JobStatus[] = ['queued', 'running', 'done', 'failed'];
@@ -496,6 +501,7 @@ export function readPitch3dV2Job(raw: unknown): Pitch3dV2Job | null {
     stages,
     fail,
     shownJobId: isV2JobId(r.shownJobId) ? r.shownJobId : null,
+    ...(r.report && typeof r.report === 'object' ? { report: r.report } : {}),
   };
 }
 
@@ -548,6 +554,8 @@ export function newV2Job(
     stages: {},
     fail: null,
     shownJobId: prev?.shownJobId ?? (prev?.status === 'done' ? prev.jobId : null),
+    /* 다시 분석하는 동안 보여 줄 옛 결과의 요약도 그대로 */
+    ...(prev?.report ? { report: prev.report } : {}),
   };
 }
 

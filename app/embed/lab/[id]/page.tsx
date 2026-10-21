@@ -10,8 +10,17 @@ import { LabEmbed } from './lab-embed';
  * 앱 틀 · 하단 탭 · 체크인 관문이 없는 맨 화면이다(app/(app) 밖). 로그인은 앱과 같은 'session' 쿠키.
  * 웹 결과 화면(app/(app)/videos/lab/[id])과 같은 샘플 · 보여 줄 결과(job.shownJobId)를 그린다. 결과가 없으면 짧은 글만(앱이 그 칸을 따로 그린다).
  */
-export default async function LabEmbedPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function LabEmbedPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  /** stop = 처음 재생이 멈출 장면(리포트의 주 문제), dark = 어두운 무대(리포트 결론 판 안, 2026-10-21) */
+  searchParams: Promise<{ stop?: string; dark?: string }>;
+}) {
   const { id } = await params;
+  const q = await searchParams;
+  const stop = q.stop != null && /^\d{1,4}$/.test(q.stop) ? Number(q.stop) : null;
   if (!isLabId(id)) notFound();
   const user = await getCurrentUser();
   if (!user) return <Note text="로그인이 필요해요." />;
@@ -29,6 +38,8 @@ export default async function LabEmbedPage({ params }: { params: Promise<{ id: s
       result={parsed}
       ground={meta?.ground ?? 'mound'}
       heightCm={meta?.heightCm ?? (sample.ownerId === user.id ? (user.heightCm ?? null) : null)}
+      stopFrame={stop}
+      dark={q.dark === '1'}
     />
   );
 }

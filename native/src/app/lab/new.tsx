@@ -92,7 +92,7 @@ function Flow({ heightCm, defaultHand, c }: { heightCm: number | null; defaultHa
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       {/* 올리는 동안은 쓸어 닫지 않게 */}
       <Stack.Screen options={{ gestureEnabled: !sending }} />
-      <Bar back={sending ? undefined : '3D 동작 분석'} title="새 분석" c={c} />
+      <Bar back={sending ? undefined : '3D 동작 분석'} title="리포트 받기" c={c} />
       {/* 단계 막대 */}
       <View style={[{ flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingBottom: 8 }, READABLE]}>
         {STEPS.map((x, i) => (
@@ -136,7 +136,7 @@ function Flow({ heightCm, defaultHand, c }: { heightCm: number | null; defaultHa
             onPress={next}
             style={[s.primary, { flex: 2, marginTop: 0, backgroundColor: c.sky, opacity: canNext ? 1 : 0.4 }]}
           >
-            <Text style={s.primaryText}>{step === 'ready' ? '영상 고르기' : step === 'info' ? '올리고 분석하기' : '다음'}</Text>
+            <Text style={s.primaryText}>{step === 'ready' ? '영상 고르기' : step === 'info' ? '올리고 리포트 받기' : '다음'}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -161,6 +161,9 @@ function ReadyStep({ hand, c }: { hand: LabHand; c: Palette }) {
     ['slowmo', '슬로 모션 240fps · 1배 줌'],
     ['camera.metering.center.weighted', `옆(${labSideBase(hand)} 쪽)과 뒤(2루 쪽)에 삼각대로`],
     ['photo.on.rectangle', `찍은 원본 그대로, 하나에 ${LAB_MAX_VIDEO_MB}MB까지`],
+    /* 리포트 촬영 안내(설계 docs/designs/pitch-3d-report.md 5-1절) */
+    ['baseball', '직구만, 실전처럼 세게 · 2~3구 찍고 가장 잘 담긴 한 구'],
+    ['mountain.2', '마운드에서 찍으면 볼 수 있는 항목이 늘어나요'],
   ];
   return (
     <>

@@ -7,16 +7,16 @@ import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { loadLabSample } from '@/lib/pitch-lab';
 import { isLabId } from '@/lib/pitch-lab-meta';
 import { getEngineBuild, isPitch3dV2Configured } from '@/lib/pitch-3d/v2/gpu-client';
-import { MECH_FOCUS_POINTS } from '@/lib/pitch-3d/v2/mech-judge';
+import { isYouth, reportDrillsOf } from '@/lib/pitch-3d/v2/report';
 import { trainingGuides } from '@/lib/library-cache';
-import { drillPicksFor, groupDrills } from '@/lib/mechanics/drills';
+import { groupDrills } from '@/lib/mechanics/drills';
 import { LabDetail } from './lab-detail';
 
 /**
  * 3D 동작 분석(베타) 하나 — 3D(v2, 서버 GPU) 결과 화면. 자기 것만(관리자는 관리자끼리). 목록(/videos/lab)의 카드에서 들어온다.
  * 서버 분석 설정(PITCH3D_GPU_*)이 없으면 결과 보기만 되고 분석 걸기 단추는 숨는다(검토 2절 NotConfigured).
  * 분석 서버의 엔진 지문도 묻는다 — 결과가 옛 엔진이면 '다시 분석' 띠(getEngineBuild).
- * 메커니즘 점검 카드가 고칠 요소의 드릴을 보이게 요소별 드릴(쉬운 단계부터 셋 · 전체 수)을 함께 넘긴다.
+ * 리포트의 처방이 드릴을 고르게 드릴 목록을 함께 넘긴다(lib/pitch-3d/v2/report.ts — 리포트는 화면이 결과로 셈한다).
  */
 export default async function LabSamplePage({
   params,
@@ -42,14 +42,13 @@ export default async function LabSamplePage({
     getEngineBuild(),
   ]);
   if (!sample) notFound();
-  const drills = groupDrills(guides);
-  const drillPicks = Object.fromEntries(MECH_FOCUS_POINTS.map((f) => [f, drillPicksFor(drills, f)]));
   return (
     <LabDetail
       sample={sample}
       v2Enabled={isPitch3dV2Configured()}
       engineBuild={engineBuild}
-      drillPicks={drillPicks}
+      drills={reportDrillsOf(groupDrills(guides))}
+      youth={sample.ownerId === user.id && isYouth(user.birthDate, new Date())}
       /* 샘플에 키가 비어 있으면(예전 샘플) 내 샘플일 때만 가입 때 적은 키로 — 3D 인형 크기 · 점검 cm */
       ownerHeightCm={sample.ownerId === user.id ? (user.heightCm ?? null) : null}
     />

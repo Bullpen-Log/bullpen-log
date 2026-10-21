@@ -10,7 +10,8 @@ import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 
 /**
- * 3D 동작 분석(사용자 화면) — 투구 탭의 '3D 동작 분석' 칸으로 들어온다. 위는 [새 분석 시작](단계 흐름 app/lab/new.tsx), 아래는 내 분석(누르면 결과 /lab/<id>).
+ * 3D 동작 분석(사용자 화면) — 투구 탭의 '3D 동작 분석' 칸으로 들어온다. 위는 '투구 진단 리포트' [리포트 받기](단계 흐름 app/lab/new.tsx),
+ * 아래는 내 리포트(누르면 리포트 /lab/<id> — 2026-10-21 결과 화면이 리포트로, 설계 docs/designs/pitch-3d-report.md 5-9절).
  * 2026-10-21 김민: "샘플 · 마커 샘플이 있는 페이지는 관리자 전용, 사용자가 실제로 3D 분석에 쓰는 페이지는 따로" — 관리자는 머리 '샘플' 단추로
  * 관리자 샘플 화면(app/lab/samples.tsx)에 간다. 이 화면은 관리자도 자기 투구만(서버 loadAppLabList('mine')).
  */
@@ -42,16 +43,16 @@ export default function LabHomeScreen() {
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[s.title, { color: c.ink }]}>내 투구를 3D 로</Text>
+                  <Text style={[s.title, { color: c.ink }]}>투구 진단 리포트</Text>
                   <View style={{ borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1, backgroundColor: c.skyTint }}>
                     <Text style={{ color: c.skyStrong, fontSize: 12, fontWeight: '600' }}>베타</Text>
                   </View>
                 </View>
-                <Text style={[s.meta, { color: c.muted }]}>옆 · 뒤 영상 두 개로 몸의 움직임과 고칠 점을 알려 줘요.</Text>
+                <Text style={[s.meta, { color: c.muted }]}>한 구를 찍어 올리면 고칠 점과 드릴 처방을 드려요.</Text>
               </View>
             </View>
             <Pressable accessibilityRole="button" onPress={() => router.push('/lab/new' as Href)} style={[s.primary, { marginTop: 0, backgroundColor: c.sky }]}>
-              <Text style={s.primaryText}>새 분석 시작</Text>
+              <Text style={s.primaryText}>리포트 받기</Text>
             </Pressable>
             <Pressable
               accessibilityRole="link"
@@ -64,10 +65,10 @@ export default function LabHomeScreen() {
           </View>
 
           <View style={{ gap: 8 }}>
-            <Text style={[s.label, { color: c.muted, paddingHorizontal: 4 }]}>내 분석</Text>
+            <Text style={[s.label, { color: c.muted, paddingHorizontal: 4 }]}>내 리포트</Text>
             {data.samples.length === 0 ? (
               <View style={{ padding: 24, gap: 6, alignItems: 'center' }}>
-                <Text style={[s.title, { color: c.ink }]}>아직 분석한 투구가 없어요</Text>
+                <Text style={[s.title, { color: c.ink }]}>아직 받은 리포트가 없어요</Text>
                 <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center' }}>
                   같은 공을 옆({labSideBase(data.hand)} 쪽)과 뒤(2루 쪽)에서 동시에 찍어 시작해 보세요.
                 </Text>

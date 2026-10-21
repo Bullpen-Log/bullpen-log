@@ -3,7 +3,7 @@ import { ScrollLockScope } from '~/shell/scroll-lock';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -19,8 +19,9 @@ import type { AppLabDetail } from '@/app/actions/pitch-lab';
 import { CONSENT_TEXT } from '@/lib/pitch-3d/v2/lab-summary';
 import { followStep } from '@/lib/pitch-3d/v2/video-sync';
 import { Lab3D, type Lab3DHandle, type LabTransport } from '~/lab/lab-3d';
+import { FlowCard, ReportHero, RxCard, STAGE_BG } from '~/lab/report';
 import { rpc, RpcError } from '~/lib/rpc';
-import { usePalette, type Palette } from '~/lib/ui';
+import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { READABLE_WIDE, TwoColumns, useTwoColumns, WIDE_MAX } from '~/lib/layout';
 
@@ -152,9 +153,36 @@ export default function LabScreen() {
     );
 
   const r = data.result;
+  const report = r?.report ?? null;
   /* 3D 칸 폭(처음 높이 어림) — 본문 폭(READABLE_WIDE), 두 칸이면 왼쪽 칸(3 : 2, 사이 20) */
   const bodyW = Math.min(width, WIDE_MAX) - 32;
   const boxW = two ? ((bodyW - 20) * 3) / 5 : bodyW;
+  const when = data.title.replace(/ 투구$/, '');
+  const sub = report
+    ? `${when} · ${report.ground === 'flat' ? '평지' : '마운드'} · ${report.hand === 'L' ? '왼손' : '오른손'} · 이 한 구 기준`
+    : [when, ...data.chips].join(' · ');
+  const sources = (
+    <View style={{ gap: 8 }}>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {data.videos.map((v) => (
+          <View key={v.view} style={{ flex: 1, gap: 4 }}>
+            <Text style={[s.small, { color: '#9aa3b8' }]}>{v.label}</Text>
+            {v.url ? (
+              <SourceVideo uri={v.url} view={v.view} onPlayer={register} />
+            ) : (
+              <View style={[s.video, s.centerBox]}>
+                <Text style={[s.small, { color: '#9aa3b8' }]}>영상 없음</Text>
+              </View>
+            )}
+          </View>
+        ))}
+      </View>
+      <Text style={[s.small, { color: '#9aa3b8' }]}>영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.</Text>
+    </View>
+  );
+  const request = !active && typeof id === 'string' && (
+    <RequestPanel id={id} req={data.request} hasResult={!!r || !!data.status} onStarted={() => setTries((n) => n + 1)} c={c} />
+  );
   return (
     <View style={[s.fill, { backgroundColor: c.page }]}>
       {/* 왼쪽 끝에서 3D 를 돌리면 아이폰 '뒤로 쓸기'가 먼저 잡아 화면이 넘어갔다(2026-10-21 김민) — 이 화면은 쓸어 닫기를 끈다(‹ 단추로 나감) */}
@@ -163,106 +191,116 @@ export default function LabScreen() {
       <ScrollLockScope>
         {(scrollEnabled) => (
       <ScrollView ref={scroll} scrollEnabled={scrollEnabled} contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 20 }, READABLE_WIDE]}>
-        <View style={{ gap: 6 }}>
+        <View style={{ gap: 4 }}>
           <View style={s.row}>
-            <Text style={[s.title, { color: c.ink }]}>{data.title}</Text>
-            {data.status && <StatusPill c={c} status={data.status} />}
+            <Text style={[TYPE.hero, { color: c.ink, flexShrink: 1 }]}>투구 진단</Text>
+            {data.status && (active || !r) && <StatusPill c={c} status={data.status} />}
           </View>
-          {data.chips.length > 0 && <Text style={[s.small, { color: c.muted }]}>{data.chips.join(' · ')}</Text>}
+          <Text style={[s.small, { color: c.muted }]}>{sub}</Text>
         </View>
 
-        {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 3D, 오른쪽 원본 영상 · 점검 · 숫자(웹 결과 화면의 PC 배치). 좁으면 위아래 그대로 */}
+        {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 결론(3D), 오른쪽 흐름 · 처방 · 자세히(웹 리포트의 PC 배치). 좁으면 위아래 그대로 */}
         <TwoColumns
           left={
-                <View style={{ gap: 8 }}>
-                  {r?.handNote && <Text style={[s.small, { color: c.muted }]}>{r.handNote}</Text>}
-                  {r ? (
-                    <Lab3D ref={lab} id={data.id} width={boxW} bg={c.page} onTransport={onTransport} />
-                  ) : (
-                    data.waiting && <Waiting waiting={data.waiting} />
-                  )}
-                    <View style={{ gap: 8 }}>
-                      <Text style={[s.section, { color: c.ink }]}>원본 영상</Text>
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        {data.videos.map((v) => (
-                          <View key={v.view} style={{ flex: 1, gap: 4 }}>
-                            <Text style={[s.small, { color: c.muted }]}>{v.label}</Text>
-                            {v.url ? (
-                              <SourceVideo uri={v.url} view={v.view} onPlayer={register} />
-                            ) : (
-                              <View style={[s.video, s.centerBox, { backgroundColor: c.chip }]}>
-                                <Text style={[s.small, { color: c.muted }]}>영상 없음</Text>
-                              </View>
-                            )}
-                          </View>
-                        ))}
-                      </View>
-                      {r && <Text style={[s.small, { color: c.muted }]}>영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.</Text>}
-                    </View>
-                  {r?.stale && !active && (
-                    <View style={[s.notice, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
-                      <Text style={[s.small, { color: c.ink, flex: 1 }]}>엔진이 나아졌어요. 다시 분석하면 새 엔진으로 볼 수 있어요.</Text>
-                    </View>
-                  )}
-                  {r && active && (
-                    <View style={[s.notice, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
-                      <Text style={[s.small, { color: c.ink, flex: 1 }]}>다시 분석 중이에요. 끝날 때까지 이전 결과를 보여 줘요.</Text>
-                    </View>
-                  )}
-                  {!active && typeof id === 'string' && (
-                    <RequestPanel id={id} req={data.request} hasResult={!!r || !!data.status} onStarted={() => setTries((n) => n + 1)} c={c} />
-                  )}
-                </View>
+            <View style={{ gap: 8 }}>
+              {r?.handNote && <Text style={[s.small, { color: c.muted }]}>{r.handNote}</Text>}
+              {r && report ? (
+                <ReportHero
+                  report={report}
+                  stage={<Lab3D ref={lab} id={data.id} width={boxW} bg={STAGE_BG} onTransport={onTransport} stop={report.headline.frame} dark />}
+                  videos={sources}
+                />
+              ) : (
+                <>
+                  {data.waiting && <Waiting waiting={data.waiting} />}
+                  {request}
+                </>
+              )}
+            </View>
           }
           right={
             <>
-
-                    {r && r.mech.items.length > 0 && <MechList c={c} mech={r.mech} onJump={jump} />}
-
-                    <View style={{ gap: 8 }}>
-                      <Text style={[s.section, { color: c.ink }]}>숫자</Text>
-                      {r ? (
-                        <>
-                          <Text style={[s.small, { color: c.muted }]}>숫자는 아직 참고용이에요. 누르면 그 순간으로 가요.</Text>
-                          <View style={[s.list, { backgroundColor: c.card, boxShadow: c.float }]}>
-                            {r.rows.map((m, i) => (
-                              <Pressable
-                                key={m.key}
-                                onPress={() => jump(m.frame)}
-                                accessibilityRole="button"
-                                style={({ pressed }) => [s.metric, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }, pressed && { opacity: 0.6 }]}
-                              >
-                                <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-                                  <Text style={[s.body, { color: c.ink }]}>{m.label}</Text>
-                                  {m.experimental && <Tag c={c} text="실험" />}
-                                  {m.check && <Tag c={c} text="확인 필요" warn />}
-                                </View>
-                                <Text style={[s.numeric, { color: c.ink }]}>
-                                  {m.value}
-                                  {m.unit}
-                                  <Text style={[s.small, { color: c.muted }]}>
-                                    {' '}±{m.pm}
-                                    {m.unit}
-                                  </Text>
-                                </Text>
-                              </Pressable>
-                            ))}
-                          </View>
-                          {r.warnings && (
-                            <Text style={[s.small, { color: c.warn }]}>두 영상 사이 각도 · 초점 · 장면 수 때문에 오차 범위를 넓힌 값이 있어요.</Text>
-                          )}
-                          <Text style={[s.small, { color: c.muted }]}>{r.engineLine}</Text>
-                        </>
-                      ) : (
-                        <Text style={[s.small, { color: c.muted }]}>결과가 나오면 여기에 지표가 와요.</Text>
-                      )}
-                    </View>
+              {report && (
+                <FlowCard
+                  c={c}
+                  report={report}
+                  onPick={(it) => {
+                    if (it.frame != null) lab.current?.seek(it.frame);
+                  }}
+                />
+              )}
+              {report && <RxCard c={c} report={report} />}
+              {r && <Details c={c} r={r} active={active} request={request} onJump={jump} />}
             </>
           }
         />
       </ScrollView>
         )}
       </ScrollLockScope>
+    </View>
+  );
+}
+
+/** 접힌 '분석 자세히' — 숫자 · 엔진 · 다시 분석(리포트를 읽는 데는 필요 없어 맨 아래로, 설계 5-9절) */
+function Details({
+  c,
+  r,
+  active,
+  request,
+  onJump,
+}: {
+  c: Palette;
+  r: NonNullable<AppLabDetail['result']>;
+  active: boolean;
+  request: ReactNode;
+  onJump: (frame: number | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={[s.list, { backgroundColor: c.card, boxShadow: c.float }]}>
+      <Pressable
+        onPress={() => setOpen((v) => !v)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        style={({ pressed }) => [s.metric, pressed && { opacity: 0.6 }]}
+      >
+        <Text style={[s.bodyBold, { color: c.ink, flex: 1 }]}>분석 자세히</Text>
+        <Text style={[s.small, { color: c.muted }]}>{open ? '' : '숫자 · 다시 분석'}</Text>
+        <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={14} tintColor={c.muted} />
+      </Pressable>
+      {open && (
+        <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 10 }}>
+          {r.stale && !active && <Text style={[s.small, { color: c.ink }]}>엔진이 나아졌어요. 다시 분석하면 새 엔진으로 볼 수 있어요.</Text>}
+          {active && <Text style={[s.small, { color: c.ink }]}>다시 분석 중이에요. 끝날 때까지 이전 결과를 보여 줘요.</Text>}
+          {request}
+          <Text style={[s.small, { color: c.muted }]}>{r.engineLine}. 숫자는 아직 참고용이에요. 누르면 그 순간으로 가요.</Text>
+          <View>
+            {r.rows.map((m, i) => (
+              <Pressable
+                key={m.key}
+                onPress={() => onJump(m.frame)}
+                accessibilityRole="button"
+                style={({ pressed }) => [s.metricRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }, pressed && { opacity: 0.6 }]}
+              >
+                <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+                  <Text style={[s.body, { color: c.ink }]}>{m.label}</Text>
+                  {m.experimental && <Tag c={c} text="실험" />}
+                  {m.check && <Tag c={c} text="확인 필요" warn />}
+                </View>
+                <Text style={[s.numeric, { color: c.ink }]}>
+                  {m.value}
+                  {m.unit}
+                  <Text style={[s.small, { color: c.muted }]}>
+                    {' '}±{m.pm}
+                    {m.unit}
+                  </Text>
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {r.warnings && <Text style={[s.small, { color: c.warn }]}>두 영상 사이 각도 · 초점 · 장면 수 때문에 오차 범위를 넓힌 값이 있어요.</Text>}
+        </View>
+      )}
     </View>
   );
 }
@@ -373,78 +411,6 @@ function RequestPanel({ id, req, hasResult, onStarted, c }: { id: string; req: A
   );
 }
 
-type Mech = NonNullable<AppLabDetail['result']>['mech'];
-
-/** 메커니즘 점검 — 겉은 한 줄, 누르면 숫자 · 그 순간 보기 · 쉬운 드릴 셋 · 그 요소 드릴 모두 보기(웹 mech-card.tsx 와 같다) */
-function MechList({ c, mech, onJump }: { c: Palette; mech: Mech; onJump: (frame: number | null) => void }) {
-  const [open, setOpen] = useState<string | null>(null);
-  return (
-    <View style={{ gap: 8 }}>
-      <View style={[s.row, { alignItems: 'baseline' }]}>
-        <Text style={[s.section, { color: c.ink }]}>메커니즘 점검</Text>
-        {mech.tentative && <Text style={[s.small, { color: c.muted }]}>한 구만 봐서 참고용</Text>}
-      </View>
-      <View style={[s.list, { backgroundColor: c.card, boxShadow: c.float }]}>
-        {mech.items.map((it, i) => {
-          const isOpen = open === it.key;
-          const improve = it.status === 'improve';
-          return (
-            <View key={it.key} style={i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }}>
-              <Pressable
-                onPress={() => setOpen(isOpen ? null : it.key)}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: isOpen }}
-                style={({ pressed }) => [s.mechHead, pressed && { opacity: 0.6 }]}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-                    <Text style={[s.bodyBold, { color: c.ink }]}>{it.title}</Text>
-                    <Tag c={c} text={it.statusText} warn={improve} />
-                  </View>
-                  <Text style={[s.small, { color: c.muted }]}>{it.line}</Text>
-                </View>
-                <SymbolView name={isOpen ? 'chevron.up' : 'chevron.down'} size={14} tintColor={c.muted} />
-              </Pressable>
-              {isOpen && (
-                <View style={s.mechBody}>
-                  {it.detail ? <Text style={[s.small, { color: c.ink }]}>{it.detail}</Text> : null}
-                  {it.frame != null && (
-                    <Pressable onPress={() => onJump(it.frame)} accessibilityRole="button" hitSlop={8}>
-                      <Text style={[s.smallBold, { color: c.sky }]}>그 순간 보기</Text>
-                    </Pressable>
-                  )}
-                  {it.drills && (
-                    <View style={{ gap: 4 }}>
-                      <Text style={[s.small, { color: c.muted }]}>{improve ? '도움이 되는 드릴' : '함께 보면 좋은 드릴'}</Text>
-                      {it.drills.items.map((d) => (
-                        <View key={d.title} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          {d.stage && <Tag c={c} text={d.stage} />}
-                          <Text style={[s.body, { color: c.ink, flexShrink: 1 }]}>{d.title}</Text>
-                        </View>
-                      ))}
-                      {it.drills.elementKey && (
-                        <Pressable
-                          onPress={() => leaveTo(`/training?view=mechanics&tab=elements&el=${it.drills!.elementKey}`)}
-                          accessibilityRole="link"
-                          style={{ minHeight: 44, justifyContent: 'center' }}
-                        >
-                          <Text style={[s.smallBold, { color: c.sky }]}>
-                            {it.focus} 드릴 {it.drills.count}개 모두 보기 ›
-                          </Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
 function StatusPill({ c, status }: { c: Palette; status: NonNullable<AppLabDetail['status']> }) {
   const bg = status.tone === 'sky' ? `${c.sky}22` : status.tone === 'warn' ? c.warnBg : c.chip;
   const fg = status.tone === 'sky' ? c.sky : status.tone === 'warn' ? c.warn : c.muted;
@@ -471,8 +437,6 @@ const s = StyleSheet.create({
   headTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600' },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  title: { fontSize: 22, fontWeight: '700', flexShrink: 1 },
-  section: { fontSize: 17, fontWeight: '600' },
   body: { fontSize: 15 },
   bodyBold: { fontSize: 15, fontWeight: '600' },
   small: { fontSize: 13, lineHeight: 18 },
@@ -483,8 +447,7 @@ const s = StyleSheet.create({
   video: { width: '100%', height: 180, borderRadius: 12, backgroundColor: '#000', overflow: 'hidden' },
   list: { borderRadius: 14, overflow: 'hidden' },
   metric: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingHorizontal: 14, paddingVertical: 8 },
-  mechHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 14, paddingVertical: 10, minHeight: 48 },
-  mechBody: { paddingHorizontal: 14, paddingBottom: 12, gap: 8 },
+  metricRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44, paddingVertical: 6 },
   tag: { borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1 },
   tagText: { fontSize: 13 },
   well: {

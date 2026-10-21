@@ -81,7 +81,16 @@ export function SampleRow({ item, name, last, onRemoved, c }: { item: AppLabList
             {item.memo}
           </Text>
         ) : null}
-        {item.status ? <Badge text={item.status.text} color={toneColor(item.status.tone, c)} c={c} /> : null}
+        {item.report && item.status?.tone !== 'sky' ? (
+          /* 끝난 분석은 리포트 꼬리표(주 문제 · 좋아요 · 판정 못 함), 도는 중 · 실패는 작업 상태 */
+          <Badge
+            text={item.report.text}
+            color={item.report.tone === 'good' ? c.ok : item.report.tone === 'muted' ? undefined : c.warn}
+            c={c}
+          />
+        ) : item.status ? (
+          <Badge text={item.status.text} color={toneColor(item.status.tone, c)} c={c} />
+        ) : null}
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`${name} 지우기`} disabled={busy} onPress={remove} hitSlop={6} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
         <SymbolView name="trash" size={18} tintColor={c.muted} />

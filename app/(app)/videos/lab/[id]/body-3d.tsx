@@ -108,13 +108,16 @@ export const Body3D = forwardRef<
     heightCm?: number | null;
     /** AI 스켈레톤 보정을 섞을지(결과에 AI 관절이 있을 때만 효과) */
     ai?: boolean;
+    /** 처음 재생이 멈출 장면(리포트의 주 문제 장면) — 없으면 릴리스 */
+    stopFrame?: number | null;
   }
->(function Body3D({ result, onTransport, ground = 'mound', heightCm, ai = false }, ref) {
+>(function Body3D({ result, onTransport, ground = 'mound', heightCm, ai = false, stopFrame = null }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>(() =>
     typeof window !== 'undefined' && !hasWebGL() ? 'unavailable' : 'loading'
   );
-  const [frame, setFrame] = useState(result.events.release);
+  const firstStop = stopFrame != null && stopFrame >= 0 && stopFrame < result.t.length ? stopFrame : result.events.release;
+  const [frame, setFrame] = useState(firstStop);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<Speed>(0.5);
   const [view, setView] = useState<ViewName>('side');
@@ -364,7 +367,7 @@ export const Body3D = forwardRef<
       const t0 = result.t[0];
       const tEnd = result.t[n - 1];
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      let cur = reduced ? result.events.release : 0;
+      let cur = reduced ? firstStop : 0;
       let clock = result.t[cur];
       let isPlaying = !reduced;
       let spd: Speed = 0.5;
@@ -569,7 +572,7 @@ export const Body3D = forwardRef<
           if (wrapped) clock = t0;
           const k = frameAt(clock);
           if (k !== cur) show(k);
-          if (stopAtRelease && cur >= result.events.release) {
+          if (stopAtRelease && cur >= firstStop) {
             isPlaying = false;
             stopAtRelease = false;
             setPlaying(false);
@@ -618,7 +621,7 @@ export const Body3D = forwardRef<
       disposed = true;
       cleanup?.();
     };
-  }, [bounds, track, mann, n, result.events.release, result.hand, result.t, result.cameras, result.joints, result.events, result.metrics, retry]);
+  }, [bounds, track, mann, n, firstStop, result.hand, result.t, result.cameras, result.joints, result.events, result.metrics, retry]);
 
   useImperativeHandle(ref, () => ({ seek: (k) => ctrl.current?.seek(k) }), []);
 

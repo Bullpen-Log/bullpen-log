@@ -7,7 +7,10 @@
  * 길이는 키 비율로 내고, 키(cm)를 알면 cm 도 함께 낸다. 판정 · 문턱은 이 파일 밖(3단계).
  */
 import { V2J, plantFrame, type Pitch3dV2Ok, type V2JointName } from '@/lib/pitch-3d/v2/contract';
-import { angleDeg, mid, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
+import { angleDeg, dot, mid, norm, scale, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
+
+/** 드롭이 '뜸'으로 보는 만큼 — 니업 높이보다 골반이 이만큼(다리 길이 비율) 넘게 올라가면. 엔진 오차 0.01 × 2(마커 15구) */
+export const DROP_RISE_MAX = 0.02;
 
 /** 최대 분리를 찾는 구간의 시작 — 착지 이만큼 전부터 릴리스까지(sep_timing.py '좁힘': 니업부터 찾으면 다리 들 때 평평한 투구가 튄다) */
 export const SEPARATION_PRE_PLANT_S = 0.15;
@@ -66,6 +69,22 @@ export type MechChecks = {
     trunkConf: number | null;
     conf: number | null;
   };
+  /**
+   * 드롭 — 니업 → 착지 사이 골반 가운데가 '두 발 사이 바닥선'(니업 때 축발 발목 → 착지 때 앞발 발목) 위에서 내려간 만큼(다리 길이 비율).
+   * 바닥선 위로 재 마운드 경사 몫은 뺀다. 식은 scripts/pitch-lab/obp/elements.py · markers/selfcal/element_score.py 와 같다(엔진 오차 0.01 · 상관 0.99).
+   * 니업이 없으면 null.
+   */
+  drop: {
+    /** 니업 높이 − 착지 높이(+ = 내려감) */
+    pelvisDrop: number;
+    /** 니업 뒤 가장 높았을 때 − 니업 높이(+ = 떴음) */
+    rise: number;
+    conf: number | null;
+  } | null;
+  /** 릴리스 때 몸통(엉덩이 가운데 → 어깨 가운데) 기울기(°) — 앞 = 디딤 방향으로, 옆 = 글러브 쪽으로(+) */
+  trunkTilt: { forwardDeg: number; lateralDeg: number; conf: number | null };
+  /** 착지 때 던지는 팔 어깨 벌림(°) — 위팔과 몸통 아래쪽 사이 각(90 = 팔꿈치가 어깨 높이) */
+  arm: { abductionAtPlantDeg: number; conf: number | null };
   block: {
     /** 골반 앞 빠르기가 착지 전 최고 → 릴리스 사이 줄어든 몫(%) — 블록의 주 지표 */
     pelvisDecelPct: number;
@@ -95,7 +114,7 @@ export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechCh
   // 던지는 쪽 = 축발 · 뒤 엉덩이, 반대쪽 = 앞다리 · 글러브 쪽
   const back = r.hand === 'R' ? 'r' : 'l';
   const lead = r.hand === 'R' ? 'l' : 'r';
-  const J = (side: 'l' | 'r', part: 'Hip' | 'Kn' | 'An') =>
+  const J = (side: 'l' | 'r', part: 'Hip' | 'Kn' | 'An' | 'Sh' | 'El') =>
     (side + part) as V2JointName;
   const cm = (v: number) => (heightCm ? v * heightCm : null);
   const at = (k: number) => Math.min(n - 1, Math.max(0, k));
@@ -231,5 +250,51 @@ export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechCh
     conf: confOf([J(lead, 'Hip'), J(lead, 'Kn'), J(lead, 'An')], plantToRelease),
   };
 
-  return { hand: r.hand, drift, pelvisLevel, separation, block };
+  /* 5 드롭 · 6 몸통 기울기 · 7 팔 — 기준 축은 디딤 방향(니업 때 축발 발목 → 착지 때 앞발 발목, 수평) */
+  const U: Vec3 = [0, 1, 0];
+  const stride = sub(P(fp, J(lead, 'An')), P(ku ?? 0, J(back, 'An')));
+  const sl = Math.hypot(stride[0], stride[2]) || 1;
+  const F: Vec3 = [stride[0] / sl, 0, stride[2] / sl];
+  /* 글러브 쪽 = 우투는 왼쪽. 결과 좌표 [앞, 위, 오른쪽] 에서 U × F 가 왼쪽 */
+  const G: Vec3 = [F[2] * sg, 0, -F[0] * sg];
+  const deg = (rad: number) => (rad * 180) / Math.PI;
+  const shMid = (k: number) => mid(P(k, 'lSh'), P(k, 'rSh'));
+
+  let drop: MechChecks['drop'] = null;
+  if (ku != null && fp > ku) {
+    const a0 = P(ku, J(back, 'An'));
+    const a1 = P(fp, J(lead, 'An'));
+    const span = dot(sub(a1, a0), F);
+    const leg = norm(sub(P(ku, J(back, 'Hip')), P(ku, J(back, 'Kn')))) + norm(sub(P(ku, J(back, 'Kn')), a0));
+    if (span > 0 && leg > 0) {
+      const height = (k: number) => {
+        const q = hip(k);
+        const w = Math.min(1, Math.max(0, dot(sub(q, a0), F) / span));
+        return (q[1] - (a0[1] + w * (a1[1] - a0[1]))) / leg;
+      };
+      const h0 = height(ku);
+      let top = h0;
+      for (let k = ku; k <= fp; k++) top = Math.max(top, height(k));
+      drop = {
+        pelvisDrop: h0 - height(fp),
+        rise: top - h0,
+        conf: confOf(['lHip', 'rHip', J(back, 'Kn'), J(back, 'An'), J(lead, 'An')], [ku, fp]),
+      };
+    }
+  }
+
+  const T = sub(shMid(rl), hip(rl));
+  const trunkTilt = {
+    forwardDeg: deg(Math.atan2(dot(T, F), dot(T, U))),
+    lateralDeg: deg(Math.atan2(dot(T, G), dot(T, U))),
+    conf: confOf(['lSh', 'rSh', 'lHip', 'rHip'], [rl]),
+  };
+
+  const Tf = sub(shMid(fp), hip(fp));
+  const arm = {
+    abductionAtPlantDeg: angleDeg(sub(P(fp, J(back, 'El')), P(fp, J(back, 'Sh'))), scale(Tf, -1)),
+    conf: confOf([J(back, 'Sh'), J(back, 'El')], [fp]),
+  };
+
+  return { hand: r.hand, drift, pelvisLevel, separation, drop, trunkTilt, arm, block };
 }

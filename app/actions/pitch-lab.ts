@@ -58,6 +58,16 @@ import { LAB_FAIL_FIX, type LabGuideSection } from '@/lib/pitch-lab-guide';
 import { trainingGuides } from '@/lib/library-cache';
 import { drillPicksFor, groupDrills, type DrillPick } from '@/lib/mechanics/drills';
 import {
+  buildReport,
+  isYouth,
+  jobReport,
+  jobReportSummary,
+  reportDrillsOf,
+  reportSummary,
+  summaryChip,
+  type PitchReport,
+} from '@/lib/pitch-3d/v2/report';
+import {
   labHandNote,
   labStatusLabel,
   labTitle,
@@ -75,7 +85,8 @@ import {
  * 관리자는 관리자끼리 같이 본다(lib/pitch-lab.ts ownerIds). GPU 비용은 lib/pitch-lab-guard.ts 가 지킨다. 영상은 브라우저가 이미 올렸고(app/api/pitch-lab/upload-url), 여기서는 촬영 정보 ·
  * 분석 결과 · v2 작업 상태를 다룬다. 오류 글은 해요체 한 줄(화면이 그대로 보인다).
  *
- * v2(서버 GPU, 설계 pitch-3d-quality.md 기술 D1): job.json 을 쓰는 것은 여기 둘(requestPitch3dV2 · checkPitch3dV2)뿐이다.
+ * v2(서버 GPU, 설계 pitch-3d-quality.md 기술 D1): job.json 의 상태를 쓰는 것은 여기 둘(requestPitch3dV2 · checkPitch3dV2)뿐이다(끝난 작업에 리포트 요약만
+ * 덧붙이는 backfillReport 는 도는 작업을 건드리지 않는다).
  * 화면은 열려 있는 동안 5초마다 checkPitch3dV2 를 부르고, 그때 서버 동작이 GPU 에 작업 번호로 상태를 물어 job.json 을 갱신한다.
  */
 
@@ -83,6 +94,46 @@ type Result = { ok: true } | { error: string };
 
 const LAB_PATH = '/videos/lab';
 const STORAGE_ERROR = '저장소에 쓰지 못했어요. 다시 해 주세요.';
+
+/**
+ * 진단 리포트 요약을 작업 기록에 붙인다(목록 꼬리표 — lib/pitch-3d/v2/report.ts). 키는 비율이라 상태에 안 쓰여 넘기지 않는다.
+ * 성장기는 올린 사람이 지금 보는 사람일 때만 생년월일로(관리자가 남의 샘플을 볼 땐 성인으로).
+ */
+async function withReport(
+  job: Pitch3dV2Job,
+  result: Extract<Pitch3dV2Result, { ok: true }>,
+  owner: string,
+  id: string,
+  viewer: { id: string; birthDate?: Date | null }
+): Promise<Pitch3dV2Job> {
+  const meta = readLabMeta(await loadLabMetaRaw(owner, id).catch(() => null), new Date().toISOString());
+  const report = buildReport(result, {
+    heightCm: null,
+    ground: meta.ground ?? 'mound',
+    youth: viewer.id === owner ? isYouth(viewer.birthDate, new Date()) : false,
+  });
+  return { ...job, report: jobReport(result.jobId, reportSummary(report)) };
+}
+
+/**
+ * 끝난 작업인데 요약이 없거나 옛 기준이면 붙여 둔다(옛 결과 · 기준 판이 바뀐 뒤) — 화면을 그릴 때 한 번. 도는 작업은 건드리지 않는다
+ * (job.json 의 상태는 requestPitch3dV2 · checkPitch3dV2 만 쓴다). 못 적어도 화면은 그대로.
+ */
+async function backfillReport(
+  owner: string,
+  id: string,
+  result: Extract<Pitch3dV2Result, { ok: true }>,
+  viewer: { id: string; birthDate?: Date | null }
+) {
+  try {
+    const job = await loadLabJob(owner, id);
+    if (!job || job.shownJobId !== result.jobId || job.status === 'queued' || job.status === 'running') return;
+    if (jobReportSummary(job)) return;
+    await saveLabJob(owner, id, await withReport(job, result, owner, id, viewer));
+  } catch {
+    /* 다음에 다시 */
+  }
+}
 
 /** 저장소 쓰기 — 한 번 다시(검토 2절 StorageError) */
 async function retryOnce<T>(fn: () => Promise<T>): Promise<T> {
@@ -279,14 +330,19 @@ export async function checkPitch3dV2(input: {
     ? await getGpuStatus(job.gpuCallId)
     : { kind: 'failed', code: 'gpu' };
   let resultSaved = false;
+  let saved: Pitch3dV2Result | null = null;
   if (status.kind === 'done') {
     const raw = await loadV2Result(owner, input.id, job.jobId).catch(() => null);
     if (raw != null) {
-      if (readPitch3dV2Result(raw)) resultSaved = true;
+      saved = readPitch3dV2Result(raw);
+      if (saved) resultSaved = true;
       else status = { kind: 'failed', code: 'internal', stages: status.stages };
     }
   }
-  const next = applyGpuStatus(job, job.jobId, status, resultSaved, now);
+  let next = applyGpuStatus(job, job.jobId, status, resultSaved, now);
+  /* 끝났으면 진단 리포트 요약을 같이 적는다(목록 꼬리표) — 셈이 실패해도 결과는 저장한다 */
+  if (next !== job && next.status === 'done' && saved?.ok)
+    next = await withReport(next, saved, owner, input.id, user).catch(() => next);
   if (next !== job) {
     try {
       await retryOnce(() => saveLabJob(owner, input.id, next));
@@ -327,9 +383,9 @@ export async function loadPitch3dV2(input: {
   const owner = await findLabOwner(input.id, user).catch(() => null);
   if (!owner) return { result: null };
   try {
-    return {
-      result: readPitch3dV2Result(await loadV2Result(owner, input.id, input.jobId)),
-    };
+    const result = readPitch3dV2Result(await loadV2Result(owner, input.id, input.jobId));
+    if (result?.ok) await backfillReport(owner, input.id, result, user);
+    return { result };
   } catch {
     return { error: '분석 결과를 불러오지 못했어요.' };
   }
@@ -371,6 +427,8 @@ export type AppLabDetail = {
     engineLine: string;
     /** 결과가 지금 분석 서버보다 옛 엔진 — 다시 분석은 웹에서 */
     stale: boolean;
+    /** 투구 진단 리포트(무료 1구, lib/pitch-3d/v2/report.ts) — 2026-10-21 결과 화면이 리포트로. 옛 앱은 mech 를 그대로 읽는다 */
+    report: PitchReport;
   } | null;
   /** 결과가 없을 때 3D 칸의 글 */
   waiting: ReturnType<typeof labWaitingText> | null;
@@ -412,6 +470,13 @@ export async function loadAppLabDetail(input: {
     const drills = groupDrills(guides);
     const picks = Object.fromEntries(MECH_FOCUS_POINTS.map((f) => [f, drillPicksFor(drills, f)]));
     const mech = mechSummary(result, heightCm);
+    const report = buildReport(result, {
+      heightCm,
+      ground: meta?.ground ?? 'mound',
+      youth: sample.ownerId === user.id ? isYouth(user.birthDate, new Date()) : false,
+      drills: reportDrillsOf(drills),
+    });
+    if (!jobReportSummary(job)) await backfillReport(sample.ownerId, sample.id, result, user);
     summary = {
       handNote: labHandNote(result.hand, meta?.hand),
       rows: metricRows(result),
@@ -426,6 +491,7 @@ export async function loadAppLabDetail(input: {
       warnings: result.warnings.length > 0,
       engineLine: `엔진 v2 ${result.version} · 뼈 흔들림 ${result.fit.boneCvPct}% · 다시 비춤 ${result.fit.reprojPct}%`,
       stale: engineBuild != null && result.engine.build !== engineBuild,
+      report,
     };
   }
   return {
@@ -466,6 +532,8 @@ export type AppLabListItem = {
   chips: string[];
   memo: string | null;
   status: ReturnType<typeof labStatusLabel>;
+  /** 진단 리포트 꼬리표 — '브레이크' · '드롭 · 경계' · '좋아요' · '판정 못 함'(결과가 없거나 아직 요약 전이면 null) */
+  report: ReturnType<typeof summaryChip>;
 };
 
 const LIST_WHEN = new Intl.DateTimeFormat('ko-KR', {
@@ -510,6 +578,7 @@ export async function loadAppLabList(scope?: string): Promise<
       chips: s.meta && s.meta.kind !== 'marker' ? labCardChips(s.meta) : [],
       memo: s.meta?.memo ?? null,
       status: labStatusLabel(s.v2.job, now),
+      report: summaryChip(jobReportSummary(s.v2.job)),
     })),
   };
 }

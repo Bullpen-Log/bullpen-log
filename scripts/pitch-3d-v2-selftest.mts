@@ -114,6 +114,8 @@ import { moundHeightAt } from '../lib/pitch-3d/v2/pose-rig.ts';
 import { AI_SPINE_DEV_DEG, RULE_TWIST, TRUNK_LEVELS, readAiTrunk, trunkTrack } from '../lib/pitch-3d/v2/trunk.ts';
 import { mechChecks } from '../lib/pitch-3d/v2/mech-checks.ts';
 import { judgeMechanics } from '../lib/pitch-3d/v2/mech-judge.ts';
+import { judgeElements, pickProblems, readReportSummary, reportSummary, summaryChip, type PitchReport } from '../lib/pitch-3d/v2/report.ts';
+import type { MechChecks } from '../lib/pitch-3d/v2/mech-checks.ts';
 import { drillPicksFor } from '../lib/mechanics/drills.ts';
 import { FOCUS_POINTS } from '../lib/exercise-meta.ts';
 
@@ -2934,6 +2936,9 @@ console.log('■ 메커니즘 점검 판정(mech-judge) — 문턱 · 여러 구
     pelvisLevel: { tiltDeg: 2, conf: 50 },
     separation: { frame: 0, peakMs: o.ms ?? 0, peakDeg: o.sep ?? 56, atPlantDeg: 20, trunkOpenAtPlantDeg: o.open ?? -20, pelvisOpenAtPlantDeg: 25, trunkHalfPct: o.half === undefined ? 54 : o.half, trunkHalfFrame: 0, trunkConf: o.tConf ?? 50, conf: o.sConf ?? 50 },
     block: { pelvisDecelPct: o.decel ?? 95, kneeAtPlantDeg: 30, kneeAtReleaseDeg: 30 - (o.ext ?? 0), kneeExtensionDeg: o.ext ?? 0, kneeCollapseDeg: 5, conf: o.bConf ?? 50 },
+    drop: null,
+    trunkTilt: { forwardDeg: 30, lateralDeg: 20, conf: 50 },
+    arm: { abductionAtPlantDeg: 88, conf: 50 },
   });
   const st = (j: ReturnType<typeof judgeMechanics>, k: string) => j.items.find((i) => i.key === k)!.status;
   check(
@@ -3289,6 +3294,93 @@ console.log('■ 점검 카드 드릴 고르기(drillPicksFor) — 쉬운 단계
   check('따라가기: 많이 벌어지면 옮김', followStep(1, 1 + FOLLOW_SEEK_S + 0.01, 0.5).seek);
   check('따라가기: 앞서면 느리게 · 뒤처지면 빠르게', followStep(1.05, 1, 0.5).rate < 0.5 && followStep(0.95, 1, 0.5).rate > 0.5);
   check('따라가기: ¼× 에서도 바닥 위', followStep(1.1, 1, 0.25).rate >= 0.0625);
+}
+
+
+console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등급 · 평지 · 주 문제');
+{
+  /* 기준 자리의 투수(모두 좋아요) — 하나씩 바꿔 본다 */
+  const base = (): MechChecks => ({
+    hand: 'R',
+    drift: { aheadAtKneeUp: 0.1, aheadAtKneeUpCm: 18, travel: 0.1, travelCm: 18, speed: 1, speedMs: 1.8, conf: 50 },
+    pelvisLevel: { tiltDeg: 0, conf: 50 },
+    separation: {
+      frame: 10, peakMs: 0, peakDeg: 55, atPlantDeg: 50, trunkOpenAtPlantDeg: -20, pelvisOpenAtPlantDeg: 30,
+      trunkHalfPct: 55, trunkHalfFrame: 12, trunkConf: 50, conf: 50,
+    },
+    drop: { pelvisDrop: 0.36, rise: 0, conf: 50 },
+    trunkTilt: { forwardDeg: 30, lateralDeg: 25, conf: 50 },
+    arm: { abductionAtPlantDeg: 88, conf: 50 },
+    block: { pelvisDecelPct: 95, kneeAtPlantDeg: 50, kneeAtReleaseDeg: 40, kneeExtensionDeg: 10, kneeCollapseDeg: 3, conf: 50 },
+  });
+  const fr = { kneeUp: 5, plant: 10, release: 20 };
+  const mound: { heightCm: number; ground: 'mound' | 'flat'; youth: boolean } = { heightCm: 180, ground: 'mound', youth: false };
+  const st = (m: MechChecks, ctx = mound) => Object.fromEntries(judgeElements(m, ctx, fr).map((i) => [i.element, i.status]));
+
+  const good = st(base());
+  check('기준 투수: 다섯 요소 좋아요 · 스로잉은 참고(B)', ['드리프트', '드롭', '상하체 분리', '브레이크', '몸통 회전'].every((e) => good[e] === 'good') && good['스로잉'] === 'note', JSON.stringify(good));
+
+  const m1 = base();
+  m1.drift!.aheadAtKneeUp = 0.04;
+  check('드리프트(A) 0.06 밑은 고칠 점', st(m1)['드리프트'] === 'improve');
+  m1.drift!.aheadAtKneeUp = 0.065;
+  check('드리프트 0.06~0.07 은 경계', st(m1)['드리프트'] === 'edge');
+
+  const m2 = base();
+  m2.block.kneeCollapseDeg = 25;
+  m2.block.kneeExtensionDeg = -20;
+  check('브레이크(A 후보) 무너짐은 경계까지', st(m2)['브레이크'] === 'edge');
+  const it2 = judgeElements(m2, mound, fr).find((i) => i.element === '브레이크')!;
+  check('브레이크 경계 · 문제 = 무너짐 · 띠 밑에 까닭', it2.fault === 'block.collapse' && /확인하는 중/.test(it2.foot ?? ''));
+  m2.block.kneeCollapseDeg = 45;
+  check('브레이크 더 굽음 40° 넘으면 엔진 오류로 판정 안 함', st(m2)['브레이크'] === 'unsure');
+
+  const m3 = base();
+  m3.drop!.pelvisDrop = 0.27;
+  check('드롭 0.26~0.31 은 보통', st(m3)['드롭'] === 'fair');
+  m3.drop!.pelvisDrop = 0.02;
+  check('드롭 거의 안 가라앉음 → 마운드 경계(A 후보)', st(m3)['드롭'] === 'edge');
+  const flatDrop = judgeElements(m3, { ...mound, ground: 'flat' }, fr).find((i) => i.element === '드롭')!;
+  check('드롭 거의 안 가라앉음은 평지에서도 문제(뜸)', flatDrop.status === 'edge' && flatDrop.fault === 'drop.float');
+  m3.drop!.pelvisDrop = 0.24;
+  check('평지 드롭 크기는 참고(평지)', judgeElements(m3, { ...mound, ground: 'flat' }, fr).find((i) => i.element === '드롭')!.why === 'flat');
+
+  const m4 = base();
+  m4.trunkTilt.forwardDeg = 15;
+  check('몸통 앞 기울기 13~17.6 은 경계', st(m4)['몸통 회전'] === 'edge');
+  check('평지 몸통 앞 기울기는 참고', st(m4, { ...mound, ground: 'flat' })['몸통 회전'] === 'note');
+  check('성장기 몸통 앞 기울기는 참고', st(m4, { ...mound, youth: true })['몸통 회전'] === 'note');
+
+  const m5 = base();
+  m5.separation.trunkOpenAtPlantDeg = 0;
+  check('착지 때 상체 위 10% 넘게 열림 → 경계(A 후보)', st(m5)['상하체 분리'] === 'edge');
+  m5.separation.trunkConf = 20;
+  check('확신 30 밑은 판정 안 함', st(m5)['상하체 분리'] === 'unsure');
+
+  const m6 = base();
+  m6.arm.abductionAtPlantDeg = 50;
+  check('스로잉(B)은 낮아도 참고', st(m6)['스로잉'] === 'note');
+
+  /* 주 문제 — 고칠 점 먼저, 없으면 흐름 앞쪽 경계 */
+  const m7 = base();
+  m7.trunkTilt.forwardDeg = 15;
+  m7.block.kneeCollapseDeg = 13;
+  m7.drift!.aheadAtKneeUp = 0.04;
+  const items7 = judgeElements(m7, mound, fr);
+  const p7 = pickProblems(items7);
+  check('주 문제 = 고칠 점(드리프트), 다음 = 흐름 차례 경계(브레이크), 그 뒤 다음 차례', p7.primary?.element === '드리프트' && p7.next?.element === '브레이크' && p7.later.map((i) => i.element).join() === '몸통 회전');
+  const m8 = base();
+  m8.trunkTilt.forwardDeg = 15;
+  m8.block.kneeCollapseDeg = 13;
+  check('고칠 점이 없으면 흐름 앞쪽 경계가 주 문제', pickProblems(judgeElements(m8, mound, fr)).primary?.element === '브레이크');
+
+  /* 요약 · 목록 꼬리표 */
+  const fake = { criteria: 'x', items: items7, primary: '드리프트' } as unknown as PitchReport;
+  const sum = reportSummary(fake);
+  check('요약: 주 문제 · 고칠 점', sum.primary?.element === '드리프트' && sum.primary.level === 'improve' && sum.judged);
+  check('요약 읽기: 모양이 맞으면 그대로 · 틀리면 null', JSON.stringify(readReportSummary(JSON.parse(JSON.stringify(sum)))) === JSON.stringify(sum) && readReportSummary({ v: 1, criteria: 'x', judged: true, primary: { element: '없는 요소', level: 'improve' } }) === null);
+  check('목록 꼬리표', summaryChip(sum)?.text === '드리프트' && summaryChip({ v: 1, criteria: 'x', judged: false, primary: null })?.text === '판정 못 함');
+
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

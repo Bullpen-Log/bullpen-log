@@ -43,14 +43,20 @@ export const Lab3D = forwardRef<
     /** 웹이 그리기 전 바탕 */
     bg: string;
     onTransport: (t: LabTransport) => void;
+    /** 처음 재생이 멈출 장면(리포트의 주 문제) */
+    stop?: number | null;
+    /** 어두운 무대(리포트 결론 판 안) */
+    dark?: boolean;
   }
->(function Lab3D({ id, width, bg, onTransport }, ref) {
+>(function Lab3D({ id, width, bg, onTransport, stop = null, dark = false }, ref) {
   const web = useRef<WebViewHandle>(null);
   const grab = useGrabProps();
   const [height, setHeight] = useState(() => Math.round(width * 1.25) + 132);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
-  const url = `${SITE_URL}/embed/lab/${id}`;
+  const base = `${SITE_URL}/embed/lab/${id}`;
+  const q = [stop != null ? `stop=${Math.max(0, Math.round(stop))}` : null, dark ? 'dark=1' : null].filter(Boolean).join('&');
+  const url = q ? `${base}?${q}` : base;
 
   useImperativeHandle(
     ref,
@@ -89,7 +95,7 @@ export const Lab3D = forwardRef<
         automaticallyAdjustContentInsets={false}
         style={{ flex: 1, backgroundColor: bg }}
         /* 이 칸은 3D 하나만 — 다른 주소로 옮겨 가지 않는다(로그인 화면 등은 앱 화면이 먼저 막는다) */
-        onShouldStartLoadWithRequest={(r) => r.url === url || r.url.startsWith(`${url}?`) || r.url === 'about:blank'}
+        onShouldStartLoadWithRequest={(r) => r.url === url || r.url.startsWith(`${base}?`) || r.url === base || r.url === 'about:blank'}
         onMessage={onMessage}
         onError={() => setFailed(true)}
         onHttpError={() => setFailed(true)}

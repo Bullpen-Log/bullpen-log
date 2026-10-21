@@ -33,6 +33,10 @@ for (const [p, T] of Object.entries(truth)) {
     pelvisLevel: { tiltDeg: n('tiltDeg'), conf: null },
     separation: { frame: 0, peakMs: n('peakMs'), peakDeg: n('peakDeg'), atPlantDeg: n('atPlantDeg'), trunkOpenAtPlantDeg: n('trunkOpenAtPlantDeg'), pelvisOpenAtPlantDeg: n('pelvisOpenAtPlantDeg'), trunkHalfPct: T.trunkHalfPct == null ? null : n('trunkHalfPct'), trunkHalfFrame: null, trunkConf: null, conf: null },
     block: { pelvisDecelPct: n('pelvisDecelPct'), kneeAtPlantDeg: n('kneeAtPlantDeg'), kneeAtReleaseDeg: n('kneeAtReleaseDeg'), kneeExtensionDeg: n('kneeExtensionDeg'), kneeCollapseDeg: n('kneeCollapseDeg'), conf: null },
+    /* 리포트 지표(드롭 · 몸통 기울기 · 팔)는 정답지에 아직 없다 — element_score.py 가 따로 잰다 */
+    drop: null,
+    trunkTilt: { forwardDeg: NaN, lateralDeg: NaN, conf: null },
+    arm: { abductionAtPlantDeg: NaN, conf: null },
   });
   put('드리프트: 니업 때 골반이 축발보다 앞(cm)', m.drift?.aheadAtKneeUpCm, T.aheadAtKneeUpCm);
   put('드리프트: 첫 장면 → 니업 앞으로 간 거리(cm)', m.drift?.travelCm, T.travelCm);

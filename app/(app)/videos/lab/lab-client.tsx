@@ -39,6 +39,8 @@ import {
 } from '@/lib/pitch-lab-meta';
 import type { LabSample } from '@/lib/pitch-lab';
 import { V2StatusBadge } from './[id]/analysis-v2';
+import { isV2JobActive } from '@/lib/pitch-3d/v2/contract';
+import { jobReportSummary, summaryChip } from '@/lib/pitch-3d/v2/report';
 
 /**
  * 투구 분석(베타) 화면 — 위: 옆 · 뒤 영상 짝 올리기, 아래: 올린 샘플(나란히 재생 · 3D 분석 · 지우기).
@@ -154,7 +156,7 @@ export function LabClient({
         <PageHeading
           kicker="베타"
           title="3D 동작 분석"
-          description="같은 공을 옆과 뒤에서 함께 찍어 올리면 몸의 움직임을 3D 로 보여 줘요."
+          description="한 구를 옆과 뒤에서 함께 찍어 올리면 투구 진단 리포트와 드릴 처방을 드려요."
         />
       </div>
       {/*
@@ -687,7 +689,7 @@ function SampleCard({
             )
           )}
           {meta?.memo && <p className="truncate text-xs text-ink/80">{meta.memo}</p>}
-          <V2StatusBadge job={sample.v2.job} now={now} />
+          <ReportOrStatus sample={sample} now={now} />
         </Link>
         <button
           type="button"
@@ -763,4 +765,20 @@ function SampleCard({
       />
     </Card>
   );
+}
+
+/** 끝난 분석은 리포트 꼬리표(주 문제 · 좋아요 · 판정 못 함 — lib/pitch-3d/v2/report.ts), 도는 중 · 실패 · 요약 전은 작업 상태 */
+function ReportOrStatus({ sample, now }: { sample: LabSample; now: number }) {
+  const job = sample.v2.job;
+  const chip = job && !isV2JobActive(job, now) ? summaryChip(jobReportSummary(job)) : null;
+  if (!chip) return <V2StatusBadge job={job} now={now} />;
+  const cls =
+    chip.tone === 'improve'
+      ? 'bg-warn-bg text-warn'
+      : chip.tone === 'edge'
+        ? 'border border-warn text-warn'
+        : chip.tone === 'good'
+          ? 'bg-ok/15 text-ok'
+          : 'bg-surface-2 text-muted';
+  return <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{chip.text}</span>;
 }
