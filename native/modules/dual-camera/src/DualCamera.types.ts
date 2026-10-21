@@ -56,6 +56,8 @@ export type FpsEvent = {
   dropped: number;
   shutter: number;
   iso: number;
+  /** 지금 셔터 상한의 분모(2000 · 1000 · 500 — 어두우면 푼다, 2026-10-21 판부터) */
+  shutterCap?: number;
   thermal?: number;
   feedMs?: number;
   feedSkipped?: number;

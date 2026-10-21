@@ -31,7 +31,7 @@ const rows = (
 ).filter((r) => !user || r.userId.startsWith(user));
 
 console.log(`${date} 시도 ${rows.length}개${user ? ` (사용자 ${user}…)` : ''}`);
-console.log('시각(KST) 사용자 종류    결과                       km/h  장면 |  큐 자르기 읽기  계산   합  fps실 | 카메라 fps L  B  쓰개 공찾기ms 건너뜀 열 rec');
+console.log('시각(KST) 사용자 종류    결과                       km/h  장면 |  큐 자르기 읽기  계산   합  fps실 | 카메라 fps L  B  쓰개 공찾기ms 건너뜀 열 rec  셔터 상한  ISO');
 const codes = new Map();
 for (const r of rows) {
   const a = r.analysis ?? {};
@@ -63,6 +63,9 @@ for (const r of rows) {
       n(c.feedSkipped, 4),
       n(c.thermal ?? a.thermal, 2),
       c.screenCaptured ? ' 켬' : ' -',
+      c.shutterDen ? `1/${c.shutterDen}`.padStart(7) : '      -',
+      c.shutterCap ? `1/${c.shutterCap}`.padStart(6) : '     -',
+      n(c.iso, 4),
     ].join(' ')
   );
 }

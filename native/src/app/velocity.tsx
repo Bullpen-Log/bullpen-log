@@ -372,6 +372,10 @@ export default function VelocityScreen() {
           writerSkipped: e.writerSkipped ?? null,
           writerResets: e.writerResets ?? null,
           screenCaptured: e.screenCaptured === true,
+          /* 셔터는 분모로(1/1250 → 1250) — 서버가 숫자를 정수로 남겨 초로 두면 0 이 됐다 */
+          shutterDen: e.shutter > 0 ? Math.round(1 / e.shutter) : null,
+          iso: e.iso > 0 ? Math.round(e.iso) : null,
+          shutterCap: e.shutterCap ?? null,
         }));
         /* 장면이 다시 흐른다 = 카메라가 산다 — 전화 · 컨트롤센터로 잠깐 끊겼을 때 온 'error' 를 걷는다(안 걷으면 설정 카드가 오류 카드에 가려 못 갔다) */
         setError((prev) => (prev ? null : prev));
@@ -1141,6 +1145,10 @@ type FpsState = {
   writerResets: number | null;
   /** 아이폰 화면 기록(미러링)이 켜져 있나 — 같은 날 밤 판부터 */
   screenCaptured: boolean;
+  /** 지금 셔터(분모) · ISO · 셔터 상한(분모) — 10-21 부터 시도 기록에 남긴다(그날 셔터를 몰라 빠른 공 번짐을 가리지 못했다) */
+  shutterDen: number | null;
+  iso: number | null;
+  shutterCap: number | null;
 };
 const THERMAL_TEXT: Record<number, string> = { 0: '보통', 1: '따뜻', 2: '뜨거움', 3: '아주 뜨거움' };
 
@@ -1164,7 +1172,7 @@ function diagLines(info: StartInfo | null, fps: FpsState | null, timings: JobTim
   if (fps) {
     const feed = fps.feedMs == null ? '?' : fps.feedMs.toFixed(1);
     lines.push(
-      `지금 ${fps.fps}fps · 버림 ${fps.dropped}/초 · 공 찾기 ${feed}ms/장${fps.feedSkipped ? ` (건너뜀 ${fps.feedSkipped}/초)` : ''} · 열 ${THERMAL_TEXT[fps.thermal ?? -1] ?? '?'}`
+      `지금 ${fps.fps}fps · 버림 ${fps.dropped}/초 · 공 찾기 ${feed}ms/장${fps.feedSkipped ? ` (건너뜀 ${fps.feedSkipped}/초)` : ''} · 열 ${THERMAL_TEXT[fps.thermal ?? -1] ?? '?'}${fps.shutterDen ? ` · 셔터 1/${fps.shutterDen}${fps.shutterCap ? `(상한 1/${fps.shutterCap})` : ''} ISO ${fps.iso ?? '?'}` : ''}`
     );
     /* 버린 까닭 — 늦음은 장면 줄이 밀림, 버퍼 모자람은 인코더 · 다른 앱(화면 녹화)이 버퍼를 붙듦. 인코더 건너뜀 · 녹화기 새로 염은 클립이 빈 까닭 */
     if (fps.droppedLate != null)

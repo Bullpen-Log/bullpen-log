@@ -692,7 +692,7 @@ function sanitizeNumbers(v: unknown, keys: readonly string[]): Record<string, nu
   return Object.keys(out).length ? out : undefined;
 }
 const TIMING_KEYS = ['queueMs', 'clipMs', 'readMs', 'engineMs', 'totalMs', 'bytes', 'fpsActual'] as const;
-const CAMERA_KEYS = ['fps', 'dropped', 'droppedLate', 'droppedBuffers', 'writerSkipped', 'writerResets', 'feedMs', 'feedSkipped', 'thermal', 'screenCaptured'] as const;
+const CAMERA_KEYS = ['fps', 'dropped', 'droppedLate', 'droppedBuffers', 'writerSkipped', 'writerResets', 'feedMs', 'feedSkipped', 'thermal', 'screenCaptured', 'shutterDen', 'iso', 'shutterCap'] as const;
 
 /**
  * 공 · 움직임 알림 하나를 시도로 남긴다 — 쟀든 못 쟀든(2026-10-12: 못 잰 공이 어디에도 안 남아 빠른 공의 실패를 구간별로 셀 수

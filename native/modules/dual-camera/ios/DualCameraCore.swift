@@ -616,15 +616,57 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         if device.videoZoomFactor != want { device.videoZoomFactor = want }
         if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
         /*
-         * 셔터 상한 1/500초(ISO 는 자동) — 빠른 공이 번지지 않게(엔진 2.4 B1). 자동 노출은 어두우면 셔터를 1/60 까지 늘려 40m/s 공이
-         * 한 장면에 공 두세 개 길이로 번졌다. 모양이 허락하는 범위 안으로 넣는다. 끌 때 되돌린다(stop).
+         * 셔터 상한(ISO 는 자동) — 빠른 공이 번지지 않게(엔진 2.4 B1 은 1/500). 자동 노출은 어두우면 셔터를 1/60 까지 늘려 40m/s 공이
+         * 한 장면에 공 두세 개 길이로 번졌다. 2026-10-21 부터 1/2000 에서 시작해 어두우면 한 단계씩 푼다(adaptShutter) — SmartScout 은
+         * 1/6289 로 찍는다. 끌 때 되돌린다(stop).
          */
         if device.isExposureModeSupported(.continuousAutoExposure) { device.exposureMode = .continuousAutoExposure }
-        let lo = pick.format.minExposureDuration
-        let hi = pick.format.maxExposureDuration
+        setShutterCap(device, SHUTTER_CAPS[0])
+    }
+
+    /// 셔터 상한 단계(분모) — 밝으면 1/2000, ISO 가 끝까지 올라도 어두우면 1/1000 · 1/500 으로 푼다
+    static let SHUTTER_CAPS: [Int32] = [2000, 1000, 500]
+
+    /// 셔터 상한을 1/den 초로(그 모양이 허락하는 범위 안) — 잠근 채로 부른다
+    static func setShutterCap(_ device: AVCaptureDevice, _ den: Int32) {
+        let lo = device.activeFormat.minExposureDuration
+        let hi = device.activeFormat.maxExposureDuration
         if lo.isValid, hi.isValid, CMTimeCompare(hi, lo) > 0 {
-            device.activeMaxExposureDuration = CMTimeMaximum(lo, CMTimeMinimum(CMTime(value: 1, timescale: 500), hi))
+            device.activeMaxExposureDuration = CMTimeMaximum(lo, CMTimeMinimum(CMTime(value: 1, timescale: den), hi))
         }
+    }
+
+    private var shutterStep = 0
+    private var darkSec = 0
+    private var brightSec = 0
+
+    /*
+     * 1초마다 — 상한에 막혀 어둡게 찍히면(노출이 목표보다 0.6EV 넘게 모자라고 ISO 가 그 모양 끝의 90% 넘게 올라감) 2초 이어질 때 한 단계 풀고,
+     * 밝으면(ISO 가 끝의 35% 밑) 3초 이어질 때 한 단계 조인다. 조이면 ISO 가 두 배가 돼도 70% 라 다시 풀리지 않는다(오락가락하지 않게).
+     */
+    private func adaptShutter() {
+        guard let d = mainDevice else { return }
+        let maxISO = d.activeFormat.maxISO
+        guard maxISO > 0 else { return }
+        if d.exposureTargetOffset < -0.6 && d.iso >= maxISO * 0.9 {
+            darkSec += 1
+            brightSec = 0
+        } else if d.iso <= maxISO * 0.35 {
+            brightSec += 1
+            darkSec = 0
+        } else {
+            darkSec = 0
+            brightSec = 0
+        }
+        var next = shutterStep
+        if darkSec >= 2, shutterStep < Self.SHUTTER_CAPS.count - 1 { next += 1 }
+        if brightSec >= 3, shutterStep > 0 { next -= 1 }
+        guard next != shutterStep, (try? d.lockForConfiguration()) != nil else { return }
+        Self.setShutterCap(d, Self.SHUTTER_CAPS[next])
+        d.unlockForConfiguration()
+        shutterStep = next
+        darkSec = 0
+        brightSec = 0
     }
 
     /*
@@ -1014,10 +1056,12 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         statLock.unlock()
         DispatchQueue.main.async { [weak self] in self?.readScreenCaptured() }
         let writer = mainRecorder.takeStats()
+        adaptShutter()
         onFps?([
             "fps": Double(fpsCount - 1) / (t - fpsSince), "dropped": fpsDropped,
             "droppedLate": fpsDroppedLate, "droppedBuffers": fpsDroppedBuffers,
             "shutter": mainDevice?.exposureDuration.seconds ?? 0, "iso": Double(mainDevice?.iso ?? 0),
+            "shutterCap": Double(Self.SHUTTER_CAPS[shutterStep]),
             "thermal": ProcessInfo.processInfo.thermalState.rawValue, "feedMs": feed / Double(max(1, fpsCount - 1 - skipped)),
             "feedSkipped": skipped, "writerSkipped": writer.skipped, "writerResets": writer.resets,
             "screenCaptured": captured,
