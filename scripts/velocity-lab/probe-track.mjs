@@ -15,7 +15,7 @@ const r = await c.evaluate(`(async () => {
   const d = res.distance ?? {};
   const { fit, ...dd } = d;
   return { measure: res.measure.ok ? { kmh: res.measure.kmh, conf: res.measure.confidence, detail: res.measure.detail } : res.measure, distance: dd, fit,
-    track: (res.track ?? []).map((o) => [Math.round(o.t * 1000) / 1000, Math.round(o.x), Math.round(o.y), Math.round((o.d ?? o.diameter ?? 0) * 10) / 10]),
+    track: (res.track ?? []).map((o) => [Math.round(o.t * 1000) / 1000, Math.round(o.x), Math.round(o.y), Math.round((o.diameterPx ?? o.d ?? 0) * 10) / 10]),
     size: res.analyzeSize, src: res.sourceSize };
 })()`);
 console.log(JSON.stringify(r, null, 0));

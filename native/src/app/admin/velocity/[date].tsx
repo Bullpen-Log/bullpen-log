@@ -16,6 +16,7 @@ import { READABLE } from '~/lib/layout';
  * 구속 측정 관리자(앱) — 그날 공(최근부터). 웹 mobile-admin.tsx MobileDay 를 옮겼다: 누르면 영상(일반 · 광각)이 펼쳐진다(그때 받는다 —
  * 휴대폰 데이터 아끼기) · 그 밑에 실제 구속(스피드건) 칸(2026-10-21 김민: "실제값을 넣어 놓는 기능 — 지금 클립 확인만 가능"). 저장은 웹 탐색기와
  * 같은 velocity-admin.adminUpdateVelocityPitch(보정 짝이 된다 · 수기 공은 값도 바뀐다). 스트라이크 존 겹치기 · 다시 재기는 PC 웹.
+ * 밑에 공으로 남지 않은 시도의 클립(못 잼 · 기록 안 됨)도 — 실제 구속은 adminUpdateVelocityAttempt 로 그 시도에(웹 '시도' 표와 같다, 2026-10-21 김민).
  */
 type Loaded = Awaited<ReturnType<typeof loadAppVelocityDay>>;
 type Day = NonNullable<Extract<Loaded, { ok: true }>['day']>;
@@ -48,6 +49,13 @@ export default function VelocityDayScreen() {
           </Text>
           {day.rows.map((p) => (
             <PitchRow key={p.id} p={p} open={open === p.id} onToggle={() => setOpen(open === p.id ? null : p.id)} onSaved={() => void reload()} c={c} />
+          ))}
+          {/* 옛 사이트 판은 attempts 칸이 없다 */}
+          {day.attempts?.length ? (
+            <Text style={[TYPE.sub, { color: c.muted, paddingHorizontal: 4, marginTop: 12 }]}>못 잰 공 클립 {day.attempts.length}</Text>
+          ) : null}
+          {day.attempts?.map((t) => (
+            <AttemptRow key={t.id} t={t} open={open === t.id} onToggle={() => setOpen(open === t.id ? null : t.id)} onSaved={() => void reload()} c={c} />
           ))}
         </ScrollView>
       )}
@@ -90,15 +98,46 @@ function PitchRow({ p, open, onToggle, onSaved, c }: { p: Day['rows'][number]; o
               <UrlVideo uri={p.wideClipUrl} />
             </View>
           ) : null}
-          <GunField id={p.id} gun={p.gunKmh} onSaved={onSaved} c={c} />
+          <GunField action="velocity-admin.adminUpdateVelocityPitch" id={p.id} gun={p.gunKmh} onSaved={onSaved} c={c} />
         </View>
       ) : null}
     </View>
   );
 }
 
-/** 실제 구속(스피드건) — 넣고 저장하면 보정 짝이 된다. 비우고 저장하면 지운다. 숫자 검사(범위)는 서버가 한다 */
-function GunField({ id, gun, onSaved, c }: { id: string; gun: number | null; onSaved: () => void; c: Palette }) {
+function AttemptRow({ t, open, onToggle, onSaved, c }: { t: Day['attempts'][number]; open: boolean; onToggle: () => void; onSaved: () => void; c: Palette }) {
+  const at = new Date(t.at);
+  const hhmm = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}:${String(at.getSeconds()).padStart(2, '0')}`;
+  return (
+    <View style={{ borderRadius: 14, overflow: 'hidden', backgroundColor: c.card, boxShadow: c.float }}>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={onToggle} style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 14, paddingVertical: 10, opacity: pressed ? 0.6 : 1 }]}>
+        <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: c.chip }}>
+          <SymbolView name="play.fill" size={15} tintColor={c.sky} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
+            {t.rawKmh != null ? `${t.rawKmh.toFixed(1)} km/h · 기록 안 됨` : '못 잼'}
+            {t.gunKmh != null ? <Text style={{ color: c.muted, fontWeight: '400' }}> · 건 {t.gunKmh.toFixed(1)}</Text> : null}
+          </Text>
+          <Text style={[s.meta, { color: c.muted }]} numberOfLines={1}>
+            {hhmm} · {t.who}
+            {t.why ? ` · ${t.why}` : ''}
+          </Text>
+        </View>
+        <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={13} tintColor={c.muted} />
+      </Pressable>
+      {open ? (
+        <View style={{ paddingHorizontal: 10, paddingBottom: 10, gap: 8 }}>
+          <UrlVideo uri={t.clipUrl} />
+          <GunField action="velocity-admin.adminUpdateVelocityAttempt" id={t.id} gun={t.gunKmh} onSaved={onSaved} c={c} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** 실제 구속(스피드건) — 넣고 저장하면 보정 짝이 된다(공) · 시도의 건 값이 된다(못 잰 공). 비우고 저장하면 지운다. 숫자 검사(범위)는 서버가 한다 */
+function GunField({ action, id, gun, onSaved, c }: { action: 'velocity-admin.adminUpdateVelocityPitch' | 'velocity-admin.adminUpdateVelocityAttempt'; id: string; gun: number | null; onSaved: () => void; c: Palette }) {
   const [text, setText] = useState(gun != null ? String(gun) : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +150,7 @@ function GunField({ id, gun, onSaved, c }: { id: string; gun: number | null; onS
     setBusy(true);
     setError(null);
     try {
-      const r = await rpc<{ ok: boolean; error?: string }>('velocity-admin.adminUpdateVelocityPitch', id, { gunKmh: value });
+      const r = await rpc<{ ok: boolean; error?: string }>(action, id, { gunKmh: value });
       if (!r.ok) setError(r.error ?? '저장하지 못했어요.');
       else {
         toast(value === null ? '실제 구속을 지웠어요' : '저장했어요');

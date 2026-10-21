@@ -336,9 +336,22 @@ export async function loadAppVelocityDay(date: unknown) {
       clipUrl: p.clipUrl,
       wideClipUrl: p.wideClipUrl,
     }));
+  /* 공으로 남지 않은 시도의 클립(못 잼 · 믿음이 낮아 기록 안 됨) — 실제 구속을 넣으면 그 시도의 건 값이 된다(웹 날짜 폴더의 '시도' 표와 같다) */
+  const attempts = day.attempts
+    .filter((t) => !t.pitch && t.clipUrl)
+    .sort((x, y) => y.createdAt.localeCompare(x.createdAt))
+    .map((t) => ({
+      id: t.id,
+      at: t.createdAt,
+      who: t.nickname,
+      rawKmh: t.rawKmh,
+      gunKmh: t.gunKmh,
+      why: [t.rejectCode, t.why].filter(Boolean).join(' · ') || null,
+      clipUrl: t.clipUrl as string,
+    }));
   return {
     ok: true as const,
-    day: { date: day.date, pitches: day.stat.pitches, clips: day.stat.clips, pairs: day.stat.pairs, biasKmh: day.stat.biasKmh, rows },
+    day: { date: day.date, pitches: day.stat.pitches, clips: day.stat.clips, pairs: day.stat.pairs, biasKmh: day.stat.biasKmh, rows, attempts },
   };
 }
 

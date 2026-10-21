@@ -106,6 +106,12 @@ export const END_SIZE_AGREE = 0.1;
 /** 믿음 '높음'의 맞춤 잔차 상한(σ 배 — 1080 기준 px, 분석 720 이면 1.0px). 2.7.3 까지 1.2 */
 export const HIGH_RMS = 1.5;
 /**
+ * 믿음 '높음'에 필요한 공 길 — 0.4초, 빠른 공은 11m 를 지나는 시간까지(100km/h 에서 0.4초와 같다). 2.7.4 까지 늘 0.4초라 18m 에서
+ * 130~140km/h 는 던진 곳부터 받는 곳까지 다 봐도 0.40~0.43초라 거의 '짧게 잡힘'으로 빠졌다(2.7.5, 2026-10-21 김민).
+ */
+export const HIGH_MIN_FLIGHT_SEC = 0.4;
+export const HIGH_MIN_SPAN_M = 11;
+/**
  * 공 크기 거리는 초점거리에 비례한다 — 화각을 짐작했으면(렌즈 정보 · 렌즈 보정 · 앱 카메라 값 없음) 그만큼 더 틀린다. 아이폰 영상 · 웹
  * 카메라의 화각은 짐작과 8% 안팎 갈린다. 부르는 쪽(analyze-video · live-meter)이 ± 에 더하고 이 알림을 붙인다.
  */
@@ -214,6 +220,43 @@ function pickBackground(
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
+/** 공 크기 기울기가 공답나(−1 근처) — 아래 finish 의 '공인가' 검사와 같은 문턱 */
+const SIZE_SLOPE_MIN = -1.6;
+const SIZE_SLOPE_MAX = -0.6;
+
+/**
+ * ln(지름) 을 ln(맞춘 깊이) 에 맞춘 기울기 — 공이면 −1 근처(멀어진 만큼 작아짐). 덩어리 점만(이어 찾은 테두리 점은 지름이 25% 작게 잡혀
+ * 기울기를 비튼다). 점 수 n 도 돌려준다.
+ */
+function sizeSlopeOf(
+  pts: TrackedBall[],
+  fit: Pick<TrajectoryFit, 'positionAt'>
+): { slope: number | null; n: number } {
+  const lz: number[] = [];
+  const ld: number[] = [];
+  for (const o of pts) {
+    if (o.ring || o.streak) continue;
+    const z = fit.positionAt(o.t)[2];
+    if (z > 0 && o.diam > 0) {
+      lz.push(Math.log(z));
+      ld.push(Math.log(o.diam));
+    }
+  }
+  const n = lz.length;
+  const mz = lz.reduce((a, x) => a + x, 0) / n;
+  const md = ld.reduce((a, x) => a + x, 0) / n;
+  let sxy = 0;
+  let sxx = 0;
+  for (let k = 0; k < n; k++) {
+    sxy += (lz[k] - mz) * (ld[k] - md);
+    sxx += (lz[k] - mz) ** 2;
+  }
+  return { slope: n >= 3 && sxx > 0 ? Math.round((sxy / sxx) * 100) / 100 : null, n };
+}
+
+const slopeOff = ({ slope, n }: { slope: number | null; n: number }) =>
+  slope != null && n >= 6 && (slope > SIZE_SLOPE_MAX || slope < SIZE_SLOPE_MIN);
+
 /**
  * 투수 뒤(멀어지는 공) — 씨앗마다 이어 찾아 물리에 맞는 가장 긴 앞부분을 고른다. 공이면 지름이 두 배 넘게 줄고(멀어짐) 앞부분이
  * 길다. 판단이 본 공(seedHint)이 있으면 그 둘레(±0.1초) 씨앗을 먼저.
@@ -241,6 +284,7 @@ function bestFlight(
     seg: ReturnType<typeof toPoints>;
     fit: TrajectoryFit;
   } | null;
+  let skipped = 0;
   const tryAll = (list: Seed[]) => {
     for (const seed of list.slice(0, 16)) {
       const raw = blobTrack(fs, bg, seed);
@@ -251,6 +295,14 @@ function bestFlight(
       const seg = pre.seg;
       const shrink = seg[0].diam / seg[seg.length - 1].diam;
       if (!(shrink >= 1.3)) continue;
+      /*
+       * 크기가 공답지 않은 줄(던지는 팔 · 몸)은 여기서 건너뛴다 — 고른 뒤 finish 의 '공인가' 검사에 걸리면 진짜 공 씨앗은 시도조차 안 하고
+       * 통째로 못 쟀다(2.7.6, 10-21 김민 빠른 공 113 · 114 · 121: 팔이 공보다 먼저 길게 이어졌다).
+       */
+      if (slopeOff(sizeSlopeOf(seg, pre.fit))) {
+        skipped++;
+        continue;
+      }
       if (!best || seg.length > best.seg.length)
         best = { seed, raw, seg, fit: pre.fit };
       /* 충분히 긴 줄이면(0.25초 · 두 배 넘게 작아짐) 더 보지 않는다 — 이른 씨앗이 대개 그 공이다 */
@@ -265,7 +317,7 @@ function bestFlight(
     count += rest.length;
     tryAll(rest);
   }
-  return { best, seeds: count };
+  return { best, seeds: count, skipped };
 }
 
 /**
@@ -440,7 +492,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
         }
       : fs;
   const bg = medianBackground(pickBackground(frames, stab.extra), width, height);
-  const { best, seeds } = bestFlight(
+  const { best, seeds, skipped } = bestFlight(
     fsOrdered,
     bg,
     cam,
@@ -651,41 +703,15 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
       const sized = r.length >= 8 ? BLOB_SIZE_RATIO * Dm * r[r.length >> 1] : NaN;
       report.sizeDistM = sized >= 3 && sized <= 60 ? round1(sized) : null;
     }
-    {
-      const lz: number[] = [];
-      const ld: number[] = [];
-      /* 덩어리 점만 — 이어 찾은 테두리 점은 지름이 25% 작게 잡혀 기울기를 비튼다 */
-      for (const o of used) {
-        if (o.ring || o.streak) continue;
-        const z = fit.positionAt(o.t)[2];
-        if (z > 0 && o.diam > 0) {
-          lz.push(Math.log(z));
-          ld.push(Math.log(o.diam));
-        }
-      }
-      const n = lz.length;
-      const mz = lz.reduce((a, x) => a + x, 0) / n;
-      const md = ld.reduce((a, x) => a + x, 0) / n;
-      let sxy = 0;
-      let sxx = 0;
-      for (let k = 0; k < n; k++) {
-        sxy += (lz[k] - mz) * (ld[k] - md);
-        sxx += (lz[k] - mz) ** 2;
-      }
-      report.sizeSlope = n >= 3 && sxx > 0 ? Math.round((sxy / sxx) * 100) / 100 : null;
-    }
+    const slope = sizeSlopeOf(used, fit);
+    report.sizeSlope = slope.slope;
     /*
      * 공인가 — 공이면 맞춘 깊이가 늘어난 만큼 지름이 줄어 기울기가 −1 근처다(밖 13개 −0.92 ~ −1.17, 실내 6개 −0.81 ~ −1.28: 자리만으로
      * 맞춘 깊이가 크기와 맞는다). 제자리에서 밝기만 바뀌는 덩어리 · 몸 · 그물은 0 근처이거나 −2 아래로 벗어난다(실내 111 투구 뒤 화면
      * 귀퉁이의 덩어리를 공으로 잡아 169.8km/h 를 냈다: −2.08). 공이 아니니 조용히 넘긴다(궤적을 안 넘긴다 — 화면이 '못 쟀어요'를
      * 말하지 않게).
      */
-    if (
-      report.sizeSlope != null &&
-      used.filter((o) => !o.ring && !o.streak).length >= 6 &&
-      (report.sizeSlope > -0.6 || report.sizeSlope < -1.6)
-    )
-      return fail('UNSTABLE_TRACK', [], 'size-slope');
+    if (slopeOff(slope)) return fail('UNSTABLE_TRACK', [], 'size-slope');
     report.flightFrames = used.length;
     report.extended = extended;
     report.rmsPx = Math.round(fit.rms * 100) / 100;
@@ -766,6 +792,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     );
     const errorKmh = 1.645 * sigmaRel * kmh;
     let confidence: Confidence = 'medium';
+    const minFlight = Math.min(HIGH_MIN_FLIGHT_SEC, HIGH_MIN_SPAN_M / (kmh / 3.6));
     /*
      * 끝에서 튕기는 장면을 못 봤어도(impact 'end' — 포수가 받아 공이 멈춤) 이어 찾지 않았으면 끝은 본 것이다 — 넣은 거리일 때는 '낮음'으로
      * 떨어뜨리지 않고, 아래에서 공 크기 거리가 넣은 거리와 END_SIZE_AGREE 안인지로 가린다(2.3.21 — 10-12 밖 그런 공 둘이
@@ -787,8 +814,13 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      * 0.84~0.94px(문턱 0.8px · 분석 720)인 공 셋이 높음 공 둘과 같은 95~102km/h 인데 측정 불가로 빠졌다. 스피드건 짝 0.8~1.0px 3구
      * 평균 오차 4.0km/h(0.8px 밑 45구 5.3), 1.0px 넘으면 16km/h.
      */
-    else if (!auto && !report.shaky && used.length * dt >= 0.4 && fit.rms <= HIGH_RMS * s)
+    else if (!auto && !report.shaky && used.length * dt >= minFlight && fit.rms <= HIGH_RMS * s)
       confidence = 'high';
+    /*
+     * 손에 든 폰(흔들림)인데 공답지 않은 줄(팔 · 몸)을 건너뛰고 고른 공이면 '보통'으로 받지 않는다(2.7.6) — 10-06 손에 든 119 가 그렇게 고른 줄의
+     * 끝을 일찍 잡아 155.1 로 기록됐다. 삼각대(흔들림 없음)는 '높음' 조건 그대로.
+     */
+    if (confidence === 'medium' && report.shaky && skipped > 0) confidence = 'low';
     /* 보통이면 왜 높음이 못 됐나 — 화면이 측정 불가 까닭을 말한다(judgeSize 가 why 로 옮긴다) */
     report.soft =
       confidence !== 'medium'
@@ -797,7 +829,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
           ? 'auto-distance'
           : report.shaky
             ? 'stabilized'
-            : used.length * dt < 0.4
+            : used.length * dt < minFlight
               ? 'short-flight'
               : 'fit-rms';
     report.timingMs = Math.round(now() - t0);
@@ -881,10 +913,10 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
 
 /**
  * 공 크기 판정 — 공 크기 거리가 기준 거리(refM)와 15% 넘게 다르면(INPUT_SIZE_MISMATCH), 또는 튕김을 못 본 끝인데 10% 넘게 다르면(END_SIZE_AGREE)
- * '낮음' · ± 를 그 차이만큼. 까닭 한 토막(why) · 보정 짝 자격(calibEligible)도 여기서 정한다. refM 이 null 이면 거리 자동 — 견주지 않는다.
+ * '낮음' · ± 를 그 차이만큼. 기준이 믿을 만하면(strict — 세션 거리 · 줄자, 2.7.6) 튕김을 봤어도 10% 넘으면 '낮음'. 까닭 한 토막(why) · 보정 짝 자격(calibEligible)도 여기서 정한다. refM 이 null 이면 거리 자동 — 견주지 않는다.
  * 판정 전 값(report.preSize)에서 시작하므로 몇 번 불러도 같다(rejudgeSize).
  */
-function judgeSize(out: DistanceResult, refM: number | null) {
+function judgeSize(out: DistanceResult, refM: number | null, strict = false) {
   const m = out.measure;
   const report = out.distance;
   const pre = report.preSize;
@@ -896,7 +928,13 @@ function judgeSize(out: DistanceResult, refM: number | null) {
   const off = refM != null && s != null ? Math.abs(s / refM - 1) : 0;
   /* 튕김을 못 본 끝은 공이 그물 · 미트 앞에서 끊겼을 수도 있다 — 공 크기 거리가 기준 거리와 더 가깝게 맞을 때만 믿는다 */
   const endUnseen = refM != null && report.impact === 'end' && (s == null || off > END_SIZE_AGREE);
-  if (off > INPUT_SIZE_MISMATCH || endUnseen) {
+  /*
+   * 기준이 믿을 만한데(세션 거리 · 줄자) 튕김을 봤어도 10% 넘게 다르면 끝을 잘못 잡았다(2.7.6) — 미트 · 포수 덩어리가 공보다 먼저 와 '맞고 튐'으로
+   * 끝을 일찍 정하면 공 크기 거리가 짧게 나온다(10-21 오늘 A 6번째 114 → 123.8, 세션 거리보다 −11.5%). 기준 20m(세션 거리 전)에는 걸지 않는다 —
+   * 실제 22.6m 자리(10-03 밖)는 공마다 10~14% 라 첫 공부터 모두 빠져 세션 거리가 생기지 못한다.
+   */
+  const sizeOff = strict && refM != null && off > END_SIZE_AGREE;
+  if (off > INPUT_SIZE_MISMATCH || sizeOff || endUnseen) {
     m.confidence = 'low';
     m.errorKmh = Math.max(m.errorKmh, round1(m.kmh * off));
   }
@@ -908,6 +946,7 @@ function judgeSize(out: DistanceResult, refM: number | null) {
   if (report.why == null) {
     if (off > INPUT_SIZE_MISMATCH) report.why = 'size-mismatch';
     else if (endUnseen) report.why = 'end-unseen';
+    else if (sizeOff) report.why = 'size-off';
     else if ((report.extended ?? 0) > 8) report.why = 'extended';
     /* 맞음새 = 1 − 잔차 ÷ (4σ) 라 잔차 2.5σ 넘음(0.375 밑)도 여기에 든다 */
     else if (m.detail.fitQuality < 0.6) report.why = 'fit-quality';
@@ -929,7 +968,9 @@ function judgeSize(out: DistanceResult, refM: number | null) {
  */
 export function rejudgeSize<T extends AnalyzeResult & { distance?: DistanceReport }>(
   result: T,
-  refM: number
+  refM: number,
+  /** 기준이 믿을 만한가(세션 거리 · 줄자) — 튕김을 봤어도 10% 넘으면 '낮음'(2.7.6) */
+  strict = true
 ): T {
   const d = result.distance;
   if (!result.measure.ok || !d?.preSize || d.distanceSource !== 'input' || !(refM > 0)) return result;
@@ -938,7 +979,7 @@ export function rejudgeSize<T extends AnalyzeResult & { distance?: DistanceRepor
     measure: { ...result.measure, detail: { ...result.measure.detail } },
     distance: { ...d },
   };
-  judgeSize(out as DistanceResult, refM);
+  judgeSize(out as DistanceResult, refM, strict);
   return out;
 }
 
