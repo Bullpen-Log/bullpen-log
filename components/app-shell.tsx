@@ -1174,6 +1174,8 @@ export function AppNav({
         )}
         <span
           aria-hidden
+          /* 싱커 → 덕아웃 때 칸들과 같이 옆으로 빠진다(빈 알약만 남던 것, 2026-10-21 영상) */
+          data-morph-side
           style={{ viewTransitionName: framed ? 'nav-pill' : 'shell-pill' }}
           className={`absolute inset-0 rounded-full border border-line/70 bg-surface/75 shadow-sm backdrop-blur-md ${back ? 'left-[3.25rem]' : ''}`}
         />

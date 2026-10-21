@@ -1,7 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, LayoutGrid, MessagesSquare } from '@/components/icon';
 import { AppLauncher } from '@/components/dugout/app-launcher';
 import { splashScale } from '@/lib/brand';
@@ -16,6 +23,8 @@ import { Wordmark } from '@/components/logo';
  *   hero    구글식 홈 — 작은 링크 · 큰 로고 · 검색창 · 단추 둘. 위 막대는 숨는다. 바퀴 · 손가락 · 키로 조금만 내리면 home
  *   home    로고가 작아지며 위로(위 막대가 떠오름) · 이 판이 접히며 밑의 덕아웃 홈이 올라온다. 맨 위에서 다시 올리면 hero 로
  */
+const noopSubscribe = () => () => {};
+
 type Stage = 'splash' | 'hero' | 'home';
 /** 로고만 떠 있는 시간(2026-10-21 금윤호: "로고 외에는 아무것도 없다가 1초 후에 스르륵") */
 const SPLASH_MS = 1000;
@@ -48,6 +57,13 @@ export function DugoutHero({
    * 시작 연출의 로고를 화면 정중앙에(2026-10-21 금윤호: "정중앙이 아니라 살짝 밑에 치우쳐 있다"). 홈 자리(바로가기 위)에 놓인 로고 칸을 재서
    * 화면 가운데까지의 차이만큼 옮겨 둔다 — 위 막대가 투명하게 자리를 차지해도, 바로가기 높이가 달라도 늘 정중앙. 재기 전에는 숨긴다(엉뚱한 자리에서 튀지 않게).
    */
+  /* 모서리 묶음을 그릴 곳 — 수화 뒤의 body(서버 그림에는 없다 — splash 동안 어차피 숨어 있다). 프레임을 기다리지 않는다(숨은 탭에서 안 붙던 것) */
+  const hydrated = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false
+  );
+  const portalTarget = hydrated ? document.body : null;
   const logoBox = useRef<HTMLDivElement>(null);
   const [center, setCenter] = useState<{ x: number; y: number; scale: number } | null>(
     null
@@ -202,90 +218,101 @@ export function DugoutHero({
         transition: `height ${COLLAPSE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1)`,
       }}
     >
-      {/* 구글식 작은 링크 — 왼쪽 위 · 오른쪽 위. splash · home 에서는 숨는다 */}
-      <div
-        className={`fixed inset-x-0 top-0 z-30 flex items-center justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-3 pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] text-[15px] transition-opacity duration-700 md:px-10 lg:px-14 ${
-          splash || home ? 'pointer-events-none opacity-0' : 'opacity-100 delay-[450ms]'
-        }`}
-      >
-        <nav className="flex items-center gap-6 font-medium text-muted">
-          <Link href="/intro" className="hover:text-ink">
-            덕아웃 소개
-          </Link>
-          <Link href="/market" className="hover:text-ink">
-            장터
-          </Link>
-        </nav>
-        <div className="relative flex items-center gap-3">
-          {user ? (
-            <>
-              <Link
-                href="/chat"
-                className="relative grid h-12 w-12 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
-                aria-label="채팅"
-              >
-                <MessagesSquare className="h-6 w-6" />
-                {unread > 0 && (
-                  <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-danger" />
-                )}
-              </Link>
-              <Link
-                href="/notifications"
-                className="relative grid h-12 w-12 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
-                aria-label="알림"
-              >
-                <Bell className="h-6 w-6" />
-                {alerts > 0 && (
-                  <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-danger" />
-                )}
-              </Link>
-            </>
-          ) : (
-            <Link href="/login" className="px-2 font-medium text-muted hover:text-ink">
-              로그인
-            </Link>
-          )}
-          <button
-            type="button"
-            aria-label="덕아웃 메뉴"
-            aria-expanded={gridOpen}
-            onClick={() => setGridOpen((v) => !v)}
-            className="grid h-12 w-12 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
+      {/* 구글식 작은 링크 — 왼쪽 위 · 오른쪽 위. body 로 옮겨 그린다(본문 연출의 변형에 안 끌려가게). splash · home 에서는 숨는다 */}
+      {portalTarget &&
+        createPortal(
+          <div
+            inert={splash || home}
+            data-brand="dugout"
+            className={`fixed inset-x-0 top-0 z-30 flex items-center justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-3 pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] text-[15px] transition-opacity duration-700 md:px-10 lg:px-14 ${
+              splash || home
+                ? 'pointer-events-none opacity-0'
+                : 'opacity-100 delay-[450ms]'
+            }`}
           >
-            <LayoutGrid className="h-6 w-6" />
-          </button>
-          {user ? (
-            <Link
-              href="/me"
-              aria-label="내 것"
-              className="grid h-11 w-11 place-items-center rounded-full bg-sky text-base font-bold text-white"
-            >
-              {user.nickname.slice(0, 1)}
-            </Link>
-          ) : (
-            <Link
-              href="/login?signup=1"
-              className="min-h-11 rounded-full bg-sky px-5 text-[15px] font-semibold leading-[2.75rem] text-white"
-            >
-              시작하기
-            </Link>
-          )}
-          {gridOpen && (
-            <div className="absolute top-14 right-0 z-10 grid w-72 grid-cols-3 gap-1 rounded-2xl border border-line bg-surface p-2 shadow-lg">
-              {apps.map((a) => (
+            <nav className="flex items-center gap-6 font-medium text-muted">
+              <Link href="/intro" className="hover:text-ink">
+                덕아웃 소개
+              </Link>
+              <Link href="/market" className="hover:text-ink">
+                장터
+              </Link>
+            </nav>
+            <div className="relative flex items-center gap-3">
+              {user ? (
+                <>
+                  <Link
+                    href="/chat"
+                    className="relative grid h-12 w-12 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
+                    aria-label="채팅"
+                  >
+                    <MessagesSquare className="h-6 w-6" />
+                    {unread > 0 && (
+                      <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-danger" />
+                    )}
+                  </Link>
+                  <Link
+                    href="/notifications"
+                    className="relative grid h-12 w-12 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
+                    aria-label="알림"
+                  >
+                    <Bell className="h-6 w-6" />
+                    {alerts > 0 && (
+                      <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-danger" />
+                    )}
+                  </Link>
+                </>
+              ) : (
                 <Link
-                  key={a.href}
-                  href={a.href}
-                  onClick={() => setGridOpen(false)}
-                  className="rounded-xl px-2 py-3 text-center text-sm font-semibold text-ink hover:bg-sky/10"
+                  href="/login"
+                  className="px-2 font-medium text-muted hover:text-ink"
                 >
-                  {a.label}
+                  로그인
                 </Link>
-              ))}
+              )}
+              <button
+                type="button"
+                aria-label="덕아웃 메뉴"
+                aria-expanded={gridOpen}
+                onClick={() => setGridOpen((v) => !v)}
+                className="grid h-12 w-12 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
+              >
+                <LayoutGrid className="h-6 w-6" />
+              </button>
+              {user ? (
+                <Link
+                  href="/me"
+                  aria-label="내 것"
+                  className="grid h-11 w-11 place-items-center rounded-full bg-sky text-base font-bold text-white"
+                >
+                  {user.nickname.slice(0, 1)}
+                </Link>
+              ) : (
+                <Link
+                  href="/login?signup=1"
+                  className="min-h-11 rounded-full bg-sky px-5 text-[15px] font-semibold leading-[2.75rem] text-white"
+                >
+                  시작하기
+                </Link>
+              )}
+              {gridOpen && (
+                <div className="absolute top-14 right-0 z-10 grid w-72 grid-cols-3 gap-1 rounded-2xl border border-line bg-surface p-2 shadow-lg">
+                  {apps.map((a) => (
+                    <Link
+                      key={a.href}
+                      href={a.href}
+                      onClick={() => setGridOpen(false)}
+                      className="rounded-xl px-2 py-3 text-center text-sm font-semibold text-ink hover:bg-sky/10"
+                    >
+                      {a.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>,
+          portalTarget
+        )}
 
       {/* 가운데 — 로고 · 검색 · 단추 */}
       <div className="absolute inset-0 flex flex-col items-center justify-center px-4">
