@@ -44,7 +44,8 @@ for (const kind of ['sample', 'marker']) {
     const n = i + 1;
     const subject = subjectOf(kind, n);
     console.log(`${String(n).padStart(2)}  ${(r.meta.createdAt ?? '').slice(0, 16)}  ${r.meta.memo ?? ''}  → ${subject ?? '(기타)'}  [지금 ${r.meta.subject ?? '-'}]`);
-    if (!apply || (r.meta.subject ?? null) === subject) continue;
+    // 이미 사람이 적힌 샘플은 건드리지 않는다(2026-10-22 정강민 마커 샘플 — 뒤에 올린 것을 김민으로 덮지 않게)
+    if (!apply || r.meta.subject != null) continue;
     const next = { ...r.meta };
     if (subject) next.subject = subject;
     else delete next.subject;

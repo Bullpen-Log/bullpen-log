@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { type Href, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppLabList } from '@/app/actions/pitch-lab';
 import {
   LAB_GROUND_OPTIONS,
-  LAB_OTHER_SUBJECT,
   LAB_SUBJECT_FOLDERS,
   groupLabSamples,
   LAB_MAX_VIDEO_MB,
@@ -86,24 +85,29 @@ export default function LabListScreen() {
             </View>
           ) : (
             /*
-              사람별로 접어 묶는다(2026-10-22 김민: "샘플이 너무 많이 나열돼 보기 어렵다") — 마커 샘플은 모두 한 사람이라 촬영 날까지 나눈다.
+              사람 폴더 넷으로 접어 묶는다 — 늘 이 차례, 비어 있어도(2026-10-22 김민: "샘플이 너무 많이 나열돼 보기 어렵다" ·
+              "김민, 금윤호, 기타, 정강민 4개 폴더" · 마커 샘플도 사람별로). 마커 샘플은 폴더 안에서 촬영 날마다 한 줄을 띄운다.
               번호는 묶기 전 전체 차례 그대로(오래된 것이 1).
             */
-            (tab === 'marker'
-              ? groupLabSamples(shown, (x) => `${x.subject ?? LAB_OTHER_SUBJECT} · ${x.when?.split(' ').slice(0, 2).join(' ') ?? '날짜 모름'}`)
-              : groupLabSamples(shown, (x) => x.subject, LAB_SUBJECT_FOLDERS)
-            ).map((g) => (
+            groupLabSamples(shown, (x) => x.subject, LAB_SUBJECT_FOLDERS).map((g) => (
               <SampleGroup key={`${tab}:${g.name}`} name={g.name} count={g.items.length} c={c}>
-                {g.items.map((x, i) => (
-                  <SampleRow
-                    key={x.id}
-                    item={x}
-                    name={`${x.marker ? '마커 샘플' : '투구'} ${shown.length - shown.indexOf(x)}`}
-                    last={i === g.items.length - 1}
-                    onRemoved={() => void reload()}
-                    c={c}
-                  />
-                ))}
+                {g.items.map((x, i) => {
+                  const day = tab === 'marker' ? dayOf(x.when) : null;
+                  return (
+                    <Fragment key={x.id}>
+                      {day && day !== dayOf(g.items[i - 1]?.when) ? (
+                        <Text style={{ color: c.muted, fontSize: 13, paddingHorizontal: 16, paddingTop: 8 }}>{day} 촬영</Text>
+                      ) : null}
+                      <SampleRow
+                        item={x}
+                        name={`${x.marker ? '마커 샘플' : '투구'} ${shown.length - shown.indexOf(x)}`}
+                        last={i === g.items.length - 1}
+                        onRemoved={() => void reload()}
+                        c={c}
+                      />
+                    </Fragment>
+                  );
+                })}
               </SampleGroup>
             ))
           )}
@@ -266,3 +270,6 @@ function UploadCard({ heightCm, defaultHand, onDone, c }: { heightCm: number | n
   );
 }
 
+
+/** '10월 16일' — 마커 샘플의 촬영 날(목록의 when '10월 16일 오후 3:34' 앞 두 낱말) */
+const dayOf = (when: string | null | undefined) => when?.split(' ').slice(0, 2).join(' ') ?? null;

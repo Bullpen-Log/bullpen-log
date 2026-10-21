@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { Fragment, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Camera, ChevronDown, ChevronRight, Film, Folder, Play, Rotate3d, Trash2, Upload } from '@/components/icon';
@@ -195,24 +195,19 @@ export function LabClient({
         />
       ) : (
         /*
-          사람별로 접어 묶는다(2026-10-22 김민: "샘플이 너무 많이 나열돼 보기 어렵다") — 마커 샘플은 모두 한 사람이라 촬영 날까지 나눈다.
+          사람 폴더 넷으로 접어 묶는다 — 늘 이 차례, 비어 있어도(2026-10-22 김민: "샘플이 너무 많이 나열돼 보기 어렵다" ·
+          "김민, 금윤호, 기타, 정강민 4개 폴더" · 마커 샘플도 사람별로). 마커 샘플은 폴더 안에서 촬영 날마다 한 줄을 띄운다.
           번호는 묶기 전 전체 차례 그대로(오래된 것이 1).
         */
         <div className="space-y-2">
-          {(tab === 'marker'
-            ? groupLabSamples(shown, (x) => `${x.meta?.subject ?? LAB_OTHER_SUBJECT} · ${labDayLabel(x.meta?.createdAt)}`)
-            : /* 사람 폴더 넷 — 늘 이 차례, 비어 있어도(2026-10-22 김민: "김민, 금윤호, 기타, 정강민 4개 폴더") */
-              groupLabSamples(shown, (x) => x.meta?.subject, LAB_SUBJECT_FOLDERS)
-          ).map((g) => (
+          {groupLabSamples(shown, (x) => x.meta?.subject, LAB_SUBJECT_FOLDERS).map((g) => (
             <details key={g.name} className="group rounded-2xl bg-surface-2/60">
               <summary
                 className={`flex min-h-12 list-none items-center gap-2 px-4 [&::-webkit-details-marker]:hidden ${
                   g.items.length === 0 ? 'pointer-events-none' : 'cursor-pointer'
                 }`}
               >
-                {tab !== 'marker' && (
-                  <Folder aria-hidden className={`h-4 w-4 ${g.items.length === 0 ? 'text-muted' : 'text-sky'}`} />
-                )}
+                <Folder aria-hidden className={`h-4 w-4 ${g.items.length === 0 ? 'text-muted' : 'text-sky'}`} />
                 <span className={`flex-1 font-semibold ${g.items.length === 0 ? 'text-muted' : 'text-ink'}`}>{g.name}</span>
                 <span className="text-numeric text-sm text-muted">{g.items.length}</span>
                 <ChevronDown
@@ -221,14 +216,17 @@ export function LabClient({
                 />
               </summary>
               <div className="space-y-2 px-2 pb-2">
-                {g.items.map((x) => (
-                  <SampleCard
-                    key={x.id}
-                    sample={x}
-                    n={shown.length - shown.indexOf(x)}
-                    label={tab === 'marker' ? '마커 샘플' : '투구'}
-                  />
-                ))}
+                {g.items.map((x, i) => {
+                  const day = tab === 'marker' ? labDayLabel(x.meta?.createdAt) : null;
+                  return (
+                    <Fragment key={x.id}>
+                      {day && day !== labDayLabel(g.items[i - 1]?.meta?.createdAt) && (
+                        <p className="px-2 pt-1 text-footnote text-muted">{day} 촬영</p>
+                      )}
+                      <SampleCard sample={x} n={shown.length - shown.indexOf(x)} label={tab === 'marker' ? '마커 샘플' : '투구'} />
+                    </Fragment>
+                  );
+                })}
               </div>
             </details>
           ))}
@@ -238,7 +236,7 @@ export function LabClient({
   );
 }
 
-/** '10월 16일' — 마커 샘플 묶음의 촬영 날(올린 시각, 한국 시간) */
+/** '10월 16일' — 마커 샘플의 촬영 날(createdAt, 한국 시간) */
 const labDayLabel = (iso: string | undefined) =>
   iso
     ? new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', timeZone: 'Asia/Seoul' }).format(new Date(iso))
