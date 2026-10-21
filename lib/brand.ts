@@ -41,3 +41,11 @@ export function usesSinker(u: {
   if (u.accountType === 'MEMBER') return u.sinkerStartedAt != null;
   return false;
 }
+
+/**
+ * 덕아웃 시작 연출의 로고 크기(홈 자리 크기의 배수) — 덕아웃 시작 화면(components/dugout/dugout-hero.tsx)과 싱커 → 덕아웃의 가운데 로고
+ * (components/shell-morph.tsx MorphOverlay)가 같은 값을 써야 이어받을 때 크기가 튀지 않는다. 2026-10-21 금윤호 "너무 크다" — 2배 · 화면 86% → 1.4배 · 70%.
+ */
+export function splashScale(logoWidth: number, viewportWidth: number): number {
+  return Math.max(1.1, Math.min(1.4, (viewportWidth * 0.7) / Math.max(1, logoWidth)));
+}

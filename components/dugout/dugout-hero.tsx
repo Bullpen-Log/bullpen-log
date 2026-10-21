@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Bell, LayoutGrid, MessagesSquare } from '@/components/icon';
 import { AppLauncher } from '@/components/dugout/app-launcher';
+import { splashScale } from '@/lib/brand';
 import { Wordmark } from '@/components/logo';
 
 /**
@@ -59,11 +60,8 @@ export function DugoutHero({
       setCenter({
         x: window.innerWidth / 2 - (r.left + r.width / 2),
         y: window.innerHeight / 2 - (r.top + r.height / 2),
-        /* 지금 크기의 2배까지, 단 화면 폭의 86% 안 — 휴대폰에서 글자가 화면 밖으로 나가지 않게 */
-        scale: Math.max(
-          1.2,
-          Math.min(2, (window.innerWidth * 0.86) / Math.max(1, r.width))
-        ),
+        /* 크기는 lib/brand.ts splashScale — 싱커에서 돌아올 때의 가운데 로고와 같은 값 */
+        scale: splashScale(r.width, window.innerWidth),
       });
     };
     measure();
