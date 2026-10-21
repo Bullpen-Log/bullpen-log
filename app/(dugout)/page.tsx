@@ -61,7 +61,7 @@ export default async function DugoutHome({
         alerts={alerts}
         sinker={!!user && usesSinker(user)}
         native={native}
-        initialStage={(await cookies()).get(DUGOUT_ENTERED_COOKIE) ? 'home' : 'splash'}
+        initialStage={(await cookies()).get(DUGOUT_ENTERED_COOKIE) ? 'hero' : 'splash'}
       />
       {/* 로그인한 싱커 사용자 — 오늘 체크인 · 이번 주 투구 · 마지막 등판 한 줄(2단계 2-5) */}
       {user && usesSinker(user) && <SinkerStrip userId={user.id} />}

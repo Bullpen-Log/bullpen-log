@@ -12,7 +12,7 @@ import { Wordmark } from '@/components/logo';
  * 위로 가고 지금의 덕아웃 홈이 나오게").
  *
  * 단계 셋 — html[data-hero] 로 적어 위 막대(components/dugout/dugout-topbar.tsx)가 같이 움직인다(globals.css '덕아웃 첫 화면').
- *   splash  로고 · 이름만 가운데 크게(한 세션에 한 번 — 세션 쿠키 dugout-entered, 그 뒤로는 서버가 바로 home 으로 그린다) → 0.9초 뒤 hero
+ *   splash  로고 · 이름만 가운데 크게(한 세션에 한 번 — 세션 쿠키 dugout-entered, 그 뒤로는 서버가 바로 hero 부터 그린다) → 0.9초 뒤 hero
  *   hero    구글식 홈 — 작은 링크 · 큰 로고 · 검색창 · 단추 둘. 위 막대는 숨는다. 바퀴 · 손가락 · 키로 조금만 내리면 home
  *   home    로고가 작아지며 위로(위 막대가 떠오름) · 이 판이 접히며 밑의 덕아웃 홈이 올라온다. 맨 위에서 다시 올리면 hero 로
  */
@@ -34,8 +34,8 @@ export function DugoutHero({
   /** 싱커를 쓰는 사람 — 바로가기 마지막 칸이 '싱커' */
   sinker?: boolean;
   native?: boolean;
-  /** 서버가 정한 첫 단계 — 세션 첫 방문이면 splash, 아니면 home(2026-10-21 버그: 싱커에서 돌아오면 첫 화면이 다시 떴다) */
-  initialStage?: 'splash' | 'home';
+  /** 서버가 정한 첫 단계 — 세션 첫 방문이면 splash(로고 크게), 그 뒤로는 hero(바로가기 메인 화면)부터. 아래 홈은 늘 내려야 나온다(2026-10-21 금윤호) */
+  initialStage?: 'splash' | 'hero';
 }) {
   /* 서버 그림부터 splash(로고 크게) — 첫 칠에 위 막대가 비쳤다 사라지는 일이 없다. 이미 본 세션이면 수화 뒤 바로 hero 로 줄어든다 */
   const [stage, setStage] = useState<Stage>(initialStage);
