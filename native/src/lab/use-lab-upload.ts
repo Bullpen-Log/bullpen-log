@@ -33,6 +33,8 @@ export type LabUploadInfo = {
   heightCm: number | null;
   distances?: Partial<Record<LabView, number>>;
   memo: string | null;
+  /** 누구 투구 — 관리자 샘플 목록이 사람별로 묶는다(비면 '기타') */
+  subject?: string | null;
   /** 타자 배트(sport 'hit') */
   bat?: LabBat;
   /** 마커 샘플(3D 개발 관리자, sport 'hit') */
@@ -136,6 +138,7 @@ export function useLabUpload(hand: LabHand, sport: LabSport = 'pitch') {
         distanceM: null,
         distances: info.distances ?? {},
         memo: info.memo,
+        ...(info.subject ? { subject: info.subject } : {}),
         kind: info.kind ?? 'sample',
         ...(info.bat ? { bat: info.bat } : {}),
         files: Object.fromEntries(

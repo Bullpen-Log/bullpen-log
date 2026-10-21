@@ -543,6 +543,8 @@ export type AppLabListItem = {
   /** 기본값과 다른 촬영 정보(웹 카드와 같은 labCardChips) */
   chips: string[];
   memo: string | null;
+  /** 누구 투구(목록이 사람별로 묶는다) — 안 적었으면 null */
+  subject: string | null;
   status: ReturnType<typeof labStatusLabel>;
   /** 진단 리포트 꼬리표 — '브레이크' · '드롭 · 경계' · '좋아요' · '판정 못 함'(결과가 없거나 아직 요약 전이면 null) */
   report: ReturnType<typeof summaryChip>;
@@ -589,6 +591,7 @@ export async function loadAppLabList(scope?: string): Promise<
       broken: !s.meta,
       chips: s.meta && s.meta.kind !== 'marker' ? labCardChips(s.meta) : [],
       memo: s.meta?.memo ?? null,
+      subject: s.meta?.subject ?? null,
       status: labStatusLabel(s.v2.job, now),
       report: summaryChip(jobReportSummary(s.v2.job)),
     })),

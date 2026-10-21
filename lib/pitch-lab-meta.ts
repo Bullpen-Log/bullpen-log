@@ -96,6 +96,11 @@ export type LabMeta = {
   distances: Partial<Record<LabView, number>>;
   memo: string | null;
   /**
+   * 누구 투구 — 실험실 목록이 사람별로 묶는다(2026-10-22 김민: "샘플이 너무 많이 나열돼 보기 어렵다"). 비면 '기타'.
+   * 옛 샘플은 scripts/pitch-lab/set-subjects.mjs 로 채웠다.
+   */
+  subject?: string;
+  /**
    * 올린 파일 이름 · 크기(분석 때 원본을 가려내려고) · 지문(lib/pitch-lab-guard.ts — 영상 탓으로 실패한 파일을 다시 안 돌리려고, 옛 샘플은 없다) ·
    * 찍은 시각 · 그 출처 · 길이(lib/pitch-lab-file.ts — 따로 찍은 짝을 서버가 한 번 더 막으려고, 2026-10-15 부터 · 못 읽었으면 없다)
    */
@@ -166,6 +171,7 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
     const m = num(rawDist[view], 1, 60);
     if (m != null) distances[view] = m;
   }
+  const subject = text(v.subject, 20);
   return {
     synced: v.synced !== false,
     slowmoFps: v.slowmoFps === 120 || v.slowmoFps === 240 ? v.slowmoFps : null,
@@ -176,6 +182,7 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
     distanceM: num(v.distanceM, 1, 60),
     distances,
     memo: text(v.memo, 500),
+    ...(subject ? { subject } : {}),
     files,
     kind: v.kind === 'marker' ? 'marker' : 'sample',
     ...(isLabBat(v.bat) ? { bat: v.bat } : {}),
@@ -214,4 +221,21 @@ export function labCardChips(meta: LabMeta): string[] {
     ...(meta.hand === 'L' ? ['왼손'] : []),
     ...(meta.screenRecorded ? ['화면 녹화'] : []),
   ];
+}
+
+/** 실험실 목록의 묶음 이름 — 누구 투구를 안 적은 샘플 */
+export const LAB_OTHER_SUBJECT = '기타';
+
+/**
+ * 실험실 목록을 묶는다(2026-10-22 김민) — 묶음 차례는 들어온 차례(최근 것이 든 묶음 먼저), '기타'는 맨 뒤. 묶음 안의 차례도 그대로.
+ */
+export function groupLabSamples<T>(items: T[], keyOf: (item: T) => string | null | undefined): { name: string; items: T[] }[] {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const name = keyOf(item)?.trim() || LAB_OTHER_SUBJECT;
+    groups.set(name, [...(groups.get(name) ?? []), item]);
+  }
+  return [...groups]
+    .map(([name, list]) => ({ name, items: list }))
+    .sort((a, b) => Number(a.name === LAB_OTHER_SUBJECT) - Number(b.name === LAB_OTHER_SUBJECT));
 }

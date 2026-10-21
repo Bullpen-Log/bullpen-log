@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Camera, ChevronRight, Film, Play, Rotate3d, Trash2, Upload } from '@/components/icon';
+import { Camera, ChevronDown, ChevronRight, Film, Play, Rotate3d, Trash2, Upload } from '@/components/icon';
 import { BackLink, ButtonLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { DisclosureButton } from '@/components/disclosure';
@@ -26,6 +26,8 @@ import { quietRefresh } from '@/lib/quiet-refresh';
 import { removeLabSample, saveLabSample } from '@/app/actions/pitch-lab';
 import {
   LAB_GROUND_OPTIONS,
+  LAB_OTHER_SUBJECT,
+  groupLabSamples,
   LAB_MAX_VIDEO_BYTES,
   LAB_MAX_VIDEO_MB,
   LAB_VIEWS,
@@ -191,20 +193,48 @@ export function LabClient({
           }
         />
       ) : (
+        /*
+          사람별로 접어 묶는다(2026-10-22 김민: "샘플이 너무 많이 나열돼 보기 어렵다") — 마커 샘플은 모두 한 사람이라 촬영 날까지 나눈다.
+          번호는 묶기 전 전체 차례 그대로(오래된 것이 1).
+        */
         <div className="space-y-2">
-          {shown.map((s, i) => (
-            <SampleCard
-              key={s.id}
-              sample={s}
-              n={shown.length - i}
-              label={tab === 'marker' ? '마커 샘플' : '투구'}
-            />
+          {groupLabSamples(shown, (x) =>
+            tab === 'marker'
+              ? `${x.meta?.subject ?? LAB_OTHER_SUBJECT} · ${labDayLabel(x.meta?.createdAt)}`
+              : x.meta?.subject
+          ).map((g) => (
+            <details key={g.name} className="group rounded-2xl bg-surface-2/60">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 [&::-webkit-details-marker]:hidden">
+                <span className="flex-1 font-semibold text-ink">{g.name}</span>
+                <span className="text-numeric text-sm text-muted">{g.items.length}</span>
+                <ChevronDown
+                  aria-hidden
+                  className="h-4 w-4 text-muted motion-safe:transition-transform group-open:rotate-180"
+                />
+              </summary>
+              <div className="space-y-2 px-2 pb-2">
+                {g.items.map((x) => (
+                  <SampleCard
+                    key={x.id}
+                    sample={x}
+                    n={shown.length - shown.indexOf(x)}
+                    label={tab === 'marker' ? '마커 샘플' : '투구'}
+                  />
+                ))}
+              </div>
+            </details>
           ))}
         </div>
       )}
     </div>
   );
 }
+
+/** '10월 16일' — 마커 샘플 묶음의 촬영 날(올린 시각, 한국 시간) */
+const labDayLabel = (iso: string | undefined) =>
+  iso
+    ? new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', timeZone: 'Asia/Seoul' }).format(new Date(iso))
+    : '날짜 모름';
 
 /* ─────────────────────────── 올리기 ─────────────────────────── */
 
@@ -225,6 +255,8 @@ function UploadCard({
   /* 폰마다 투수까지(m) — 1배여도 폰마다 화각이 달라 두 대를 따로 적는다 */
   const [distance, setDistance] = useState<Record<LabView, string>>({ side: '', back: '' });
   const [memo, setMemo] = useState('');
+  /* 누구 투구 — 목록이 사람별로 묶는다(비면 '기타') */
+  const [subject, setSubject] = useState('');
   const [progress, setProgress] = useState<{ view: LabView; percent: number } | null>(
     null
   );
@@ -322,6 +354,7 @@ function UploadCard({
           LAB_VIEWS.filter((v) => distance[v]).map((v) => [v, Number(distance[v])])
         ),
         memo: memo.trim() || null,
+        ...(subject.trim() ? { subject: subject.trim() } : {}),
         /* 화면에서 올리는 것은 늘 일반 샘플 — 마커 샘플은 3~4대 영상이라 스크립트로 올린다 */
         kind: 'sample',
         files: Object.fromEntries(
@@ -458,6 +491,16 @@ function UploadCard({
                 폰마다 투수까지 따로 재서 적어 주세요. 같은 1배여도 폰마다 찍히는 크기가 달라요.
               </p>
             </div>
+            <label className="block space-y-1">
+              <span className="text-xs text-muted">누구 투구</span>
+              <input
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                maxLength={20}
+                placeholder="예: 김민 · 비우면 기타로 묶여요"
+                className="min-h-11 w-full rounded-xl bg-surface px-3 text-ink"
+              />
+            </label>
             <label className="block space-y-1">
               <span className="text-xs text-muted">메모</span>
               <input
