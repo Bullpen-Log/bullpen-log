@@ -166,7 +166,7 @@ export function DugoutHero({
     >
       {/* 구글식 작은 링크 — 왼쪽 위 · 오른쪽 위. splash · home 에서는 숨는다 */}
       <div
-        className={`absolute inset-x-0 top-0 flex items-center justify-between px-4 py-3 text-sm transition-opacity duration-500 md:px-6 ${
+        className={`fixed inset-x-0 top-0 z-30 flex items-center justify-between pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] text-sm transition-opacity duration-500 md:pl-6 md:pr-5 ${
           splash || home ? 'pointer-events-none opacity-0' : 'opacity-100'
         }`}
       >
