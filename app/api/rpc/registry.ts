@@ -36,6 +36,8 @@ import * as featuredVideo from '@/app/actions/featured-video';
 import * as lessons from '@/app/actions/lessons';
 import * as market from '@/app/actions/market';
 import * as profilePublic from '@/app/actions/profile-public';
+import * as sinkerLog from '@/app/actions/sinker-log';
+import * as sharing from '@/app/actions/sharing';
 import * as mechanics from '@/app/actions/mechanics';
 import * as nutrition from '@/app/actions/nutrition';
 import * as onboardingState from '@/app/actions/onboarding-state';
@@ -96,6 +98,8 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   lessons: lessons,
   market: market,
   'profile-public': profilePublic,
+  'sinker-log': sinkerLog,
+  sharing: sharing,
   mechanics: mechanics,
   nutrition: nutrition,
   'onboarding-state': onboardingState,

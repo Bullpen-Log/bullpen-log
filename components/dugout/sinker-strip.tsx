@@ -57,7 +57,7 @@ export async function SinkerStrip({ userId }: { userId: string }) {
           </Link>
         ))}
         <Link
-          href="/today"
+          href="/sinker"
           className="ml-auto inline-flex items-center gap-0.5 text-sm font-semibold text-sky-strong"
         >
           대시보드 <ArrowRight className="h-4 w-4" />

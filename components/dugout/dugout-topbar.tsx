@@ -94,7 +94,7 @@ export function DugoutTopBar({
             <>
               {sinker && (
                 <Link
-                  href="/today"
+                  href="/sinker"
                   aria-current={current === 'sinker' ? 'page' : undefined}
                   className={side(current === 'sinker')}
                 >

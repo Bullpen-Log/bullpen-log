@@ -392,6 +392,14 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
       src('prisma/migrations/20261021120000_sinker_dugout_account/migration.sql')
     )
   );
+  for (const f of ['sinker-log', 'sharing', 'profile-public']) {
+    const body = src(`app/actions/${f}.ts`);
+    const heads = [...body.matchAll(/export async function (\w+)\(([\s\S]*?)\n\}/g)];
+    const bare = heads.filter((x) => !/requireUser\(/.test(x[0])).map((x) => x[1]);
+    check(`app/actions/${f}.ts 의 동작이 모두 requireUser 를 거친다`, heads.length >= 1 && bare.length === 0, bare.join(', '));
+  }
+  check('기록 표 CSV 는 로그인한 사람의 것만', /getCurrentUser\(/.test(src('app/api/sinker/log.csv/route.ts')) && /userId: user\.id/.test(src('app/api/sinker/log.csv/route.ts')));
+  check('내 싱커 화면 셋', ['page', 'log/page', 'sharing/page'].every((p) => existsSync(join(ROOT, `app/(app)/sinker/${p}.tsx`))));
   const picks = recommend('u13', 'pitcher', 'L');
   check(
     '장비 추천 다섯 — 글러브가 포지션 · 손을 품는다',
