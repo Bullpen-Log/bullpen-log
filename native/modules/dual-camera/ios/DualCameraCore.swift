@@ -624,8 +624,13 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         setShutterCap(device, SHUTTER_CAPS[0])
     }
 
-    /// 셔터 상한 단계(분모) — 밝으면 1/2000, ISO 가 끝까지 올라도 어두우면 1/1000 · 1/500 으로 푼다
+    /// 셔터 상한 단계(분모) — 밝으면 1/2000, ISO 가 끝까지 올라도 어둡거나 ISO 가 NOISY_ISO 를 넘으면 1/1000 · 1/500 으로 푼다
     static let SHUTTER_CAPS: [Int32] = [2000, 1000, 500]
+    /*
+     * 이 ISO 를 넘으면 잡음 지우기가 공 가장자리를 뭉갠다 — 10-21 밤 밝은 실내에서 1/2000 이 ISO 2,700~4,500 이라 화질 · 초점이 나빠 보였다
+     * (예전 규칙은 ISO 가 끝까지 올라야 풀어 실내에선 한 번도 안 풀렸다). ponytail: 15 Pro Max 눈대중, 기종마다 다르면 모양별로.
+     */
+    static let NOISY_ISO: Float = 1600
 
     /// 셔터 상한을 1/den 초로(그 모양이 허락하는 범위 안) — 잠근 채로 부른다
     static func setShutterCap(_ device: AVCaptureDevice, _ den: Int32) {
@@ -641,17 +646,18 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     private var brightSec = 0
 
     /*
-     * 1초마다 — 상한에 막혀 어둡게 찍히면(노출이 목표보다 0.6EV 넘게 모자라고 ISO 가 그 모양 끝의 90% 넘게 올라감) 2초 이어질 때 한 단계 풀고,
-     * 밝으면(ISO 가 끝의 35% 밑) 3초 이어질 때 한 단계 조인다. 조이면 ISO 가 두 배가 돼도 70% 라 다시 풀리지 않는다(오락가락하지 않게).
+     * 1초마다 — 상한에 막혀 어둡게 찍히거나(노출이 목표보다 0.6EV 넘게 모자라고 ISO 가 그 모양 끝의 90% 넘게 올라감) ISO 가 NOISY_ISO 를
+     * 넘으면 2초 이어질 때 한 단계 풀고, 밝으면(ISO 가 끝의 35% 밑이고 NOISY_ISO 의 40% 밑) 3초 이어질 때 한 단계 조인다. 조이면 ISO 가 두 배가
+     * 돼도 끝의 70% · NOISY_ISO 의 80% 라 다시 풀리지 않는다(오락가락하지 않게).
      */
     private func adaptShutter() {
         guard let d = mainDevice else { return }
         let maxISO = d.activeFormat.maxISO
         guard maxISO > 0 else { return }
-        if d.exposureTargetOffset < -0.6 && d.iso >= maxISO * 0.9 {
+        if (d.exposureTargetOffset < -0.6 && d.iso >= maxISO * 0.9) || d.iso > Self.NOISY_ISO {
             darkSec += 1
             brightSec = 0
-        } else if d.iso <= maxISO * 0.35 {
+        } else if d.iso <= min(maxISO * 0.35, Self.NOISY_ISO * 0.4) {
             brightSec += 1
             darkSec = 0
         } else {
