@@ -11,7 +11,7 @@ import { deleteUserFiles, deleteVideos } from '@/lib/storage';
  *
  * DB 는 User 를 지우면 관계가 있는 표가 함께 지워진다(relationMode prisma — Prisma 가 찾아 지운다). User 관계가 없는 표는 따로 본다:
  *   VelocityRecording(조각 · 표시 딸림) — 지운다. 파일이 그 관리자 폴더라 위에서 같이 지워져 줄만 남는다.
- *   PushDevice · Notification(2026-10-21 알림) — 지운다. 기기 토큰과 알림함은 그 사람 것뿐이다.
+ *   PushDevice · Notification · LoginTicket(2026-10-21 알림 · 코드 로그인) — 지운다. 기기 토큰과 알림함은 그 사람 것뿐이다.
  *   VelocityCalibRun · ShootCheck — 남긴다. 다른 관리자들이 같이 보는 팀 자료(보정 기록 · 촬영 진행)라, 사람이 빠져도 기록은 쓸모 있다.
  */
 export async function deleteUserCompletely(userId: string) {
@@ -48,6 +48,7 @@ export async function deleteUserCompletely(userId: string) {
     prisma.velocityRecording.deleteMany({ where: { userId } }),
     prisma.pushDevice.deleteMany({ where: { userId } }),
     prisma.notification.deleteMany({ where: { userId } }),
+    prisma.loginTicket.deleteMany({ where: { userId } }),
     prisma.user.delete({ where: { id: userId } }),
   ]);
 }

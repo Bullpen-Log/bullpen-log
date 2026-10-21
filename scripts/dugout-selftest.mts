@@ -47,6 +47,13 @@ import {
 } from '@/lib/org/lesson-work';
 import { readPublicKeys } from '@/lib/public-profile';
 import { appsFor, isExpoToken } from '@/lib/notify-rules';
+import {
+  formatTicketCode,
+  isTicketCode,
+  makeTicketCode,
+  normalizeTicketCode,
+  ticketStateOf,
+} from '@/lib/login-ticket';
 
 let pass = 0;
 const fails: string[] = [];
@@ -448,6 +455,45 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
     !/DROP|ALTER COLUMN|DELETE/.test(
       src('prisma/migrations/20261021150000_notifications/migration.sql')
     )
+  );
+  {
+    const code = makeTicketCode();
+    const t0 = new Date('2026-10-21T10:00:00Z');
+    check(
+      '코드 로그인 — 8자 · 헷갈리는 글자 없음 · 하이픈 · 소문자 정리 · 상태 넷',
+      isTicketCode(code) &&
+        !/[01OI]/.test(code) &&
+        isTicketCode(normalizeTicketCode(formatTicketCode(code).toLowerCase())) &&
+        ticketStateOf(
+          { userId: null, expiresAt: new Date(t0.getTime() + 1000), claimedAt: null },
+          t0
+        ) === 'waiting' &&
+        ticketStateOf(
+          { userId: 'u', expiresAt: new Date(t0.getTime() + 1000), claimedAt: null },
+          t0
+        ) === 'approved' &&
+        ticketStateOf({ userId: 'u', expiresAt: t0, claimedAt: null }, t0) ===
+          'expired' &&
+        ticketStateOf(
+          { userId: 'u', expiresAt: new Date(t0.getTime() + 1000), claimedAt: t0 },
+          t0
+        ) === 'used'
+    );
+  }
+  check(
+    '코드 로그인 — 승인은 requireUser, 받기는 claimedAt 을 먼저 찍는다(한 번만), 세션은 비밀번호 지문으로',
+    /export async function approveLoginTicket[\s\S]*?await requireUser\(/.test(
+      src('app/actions/login-ticket.ts')
+    ) &&
+      /claimedAt: null \}, data: \{ claimedAt: now \}/.test(
+        src('app/actions/login-ticket.ts')
+      ) &&
+      /passwordFingerprint\(user\.password\)/.test(src('app/actions/login-ticket.ts'))
+  );
+  check(
+    '검색 노출 — robots 가 선수 · 관리 · 채팅을 막고 sitemap 이 있다',
+    /disallow:[\s\S]*'\/sinker'/.test(src('app/robots.ts')) &&
+      existsSync(join(ROOT, 'app/sitemap.ts'))
   );
   const picks = recommend('u13', 'pitcher', 'L');
   check(

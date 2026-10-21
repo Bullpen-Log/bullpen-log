@@ -1,3 +1,4 @@
+import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChevronLeft, EyeOff, MessagesSquare, Pencil } from '@/components/icon';
@@ -24,6 +25,26 @@ import {
   statusLabel,
 } from '@/lib/market/specs';
 import { formatDateTime, relativeTime } from '@/components/community/community-format';
+
+/** 공유 미리보기(2026-10-21 7단계 7-2) — 제목 · 가격 · 지역. 사진은 서명 주소라 안 넣는다 */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const item = await loadListing(id, null);
+  if (!item || item.hidden) return { title: '물건' };
+  return {
+    title: item.title,
+    description: `${formatPrice(item.price)} · ${item.region} · ${categoryLabel(item.category)}`,
+    openGraph: {
+      title: item.title,
+      description: `${formatPrice(item.price)} · ${item.region}`,
+      type: 'article',
+    },
+  };
+}
 
 /** 물건 하나(2026-10-20) — 사진 · 가격 · 규격 표 · 설명 · 판매자 · 채팅하기 · 찜 · 신고. 주인은 상태 바꾸기 · 고치기 · 지우기 */
 export default async function ListingPage({
@@ -188,9 +209,7 @@ export default async function ListingPage({
           {item.status === 'ACTIVE' && (
             <Link
               href={
-                user
-                  ? `/pay/listing/${item.id}`
-                  : `/login?next=/pay/listing/${item.id}`
+                user ? `/pay/listing/${item.id}` : `/login?next=/pay/listing/${item.id}`
               }
               className="inline-flex min-h-11 items-center rounded-xl border border-sky px-4 text-sm font-semibold text-sky-strong"
             >

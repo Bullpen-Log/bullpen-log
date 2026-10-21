@@ -1,6 +1,7 @@
 import { toDateKey } from '@/lib/pitch-stats';
 import { AuthForm } from './auth-form';
 import { NativeLoginBridge } from './native-login';
+import Link from 'next/link';
 import { RENAME_NOTICE } from '@/lib/brand';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
@@ -43,6 +44,10 @@ export default function LoginPage() {
             {RENAME_NOTICE}
           </p>
           <AuthForm today={todayKey()} />
+          {/* 폰의 싱커 앱으로 PC 에 로그인(7단계 7-3) */}
+          <Link href="/login/qr" className="text-sm font-semibold text-sky">
+            폰으로 로그인(QR · 코드)
+          </Link>
         </div>
       </main>
     </>

@@ -1,6 +1,7 @@
 import { ensureSim, simOffsetMs } from '@/lib/clock-server';
 import { SimClockSync } from '@/components/sim-clock-sync';
 import type { Metadata, Viewport } from 'next';
+import { SITE_URL } from '@/lib/site-url';
 import { Bebas_Neue } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import { APP_INIT_SCRIPT } from '@/lib/native-app';
@@ -27,7 +28,16 @@ const bebas = Bebas_Neue({
 
 export const metadata: Metadata = {
   /* 이름만 — 공유 미리보기 · 앱 전환 화면에 '…트레이닝 & 기록 플랫폼'이 붙어 웹사이트 같았다(2026-10-04). 소개는 description */
+  metadataBase: new URL(SITE_URL),
   title: '덕아웃',
+  openGraph: {
+    siteName: '덕아웃',
+    type: 'website',
+    locale: 'ko_KR',
+    title: '덕아웃 — 야구인의 커뮤니티',
+    description:
+      '글러브 사고팔기, 팀 소식, 레슨과 연습장 예약까지. 로그인 없이 둘러보고, 기록은 싱커에서.',
+  },
   description: '투수를 위한 투구 기록 · 영상, 몸 상태에 맞춘 트레이닝, 투구 역학 자료.',
   /*
    * 아이폰 홈 화면에 앱으로 추가했을 때의 이름과 상태바 (app/manifest.ts 와 함께).
@@ -98,7 +108,9 @@ export default async function RootLayout({
          * 컴포넌트이고 화면에서 다시 만들어지지 않으므로(붙기만 한다) 리액트가 스크립트를
          * 새로 그릴 때 내는 경고도 나지 않는다.
          */}
-        {simOffset !== 0 && <script dangerouslySetInnerHTML={{ __html: simClockScript(simOffset) }} />}
+        {simOffset !== 0 && (
+          <script dangerouslySetInnerHTML={{ __html: simClockScript(simOffset) }} />
+        )}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {/*
          * 아이폰 앱 안에서만 — 앱 표시(data-app) · 상태바 글자색 · 로딩 화면 걷기(lib/native-app.ts).

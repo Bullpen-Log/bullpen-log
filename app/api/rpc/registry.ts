@@ -40,6 +40,7 @@ import * as sinkerLog from '@/app/actions/sinker-log';
 import * as sharing from '@/app/actions/sharing';
 import * as push from '@/app/actions/push';
 import * as notifications from '@/app/actions/notifications';
+import * as loginTicket from '@/app/actions/login-ticket';
 import * as mechanics from '@/app/actions/mechanics';
 import * as nutrition from '@/app/actions/nutrition';
 import * as onboardingState from '@/app/actions/onboarding-state';
@@ -104,6 +105,7 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   sharing: sharing,
   push: push,
   notifications: notifications,
+  'login-ticket': loginTicket,
   mechanics: mechanics,
   nutrition: nutrition,
   'onboarding-state': onboardingState,

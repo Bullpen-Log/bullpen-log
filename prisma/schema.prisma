@@ -2245,3 +2245,14 @@ model Notification {
   @@index([userId, readAt])
   @@index([userId, createdAt])
 }
+
+/// 코드 · QR 로그인(2026-10-21 개편 7단계 7-3, docs/designs/sinker-dugout.md 8절 E) — PC 가 코드를 만들고(/login/qr), 로그인된 폰(싱커 앱 · 웹)이 /link/<code> 에서 승인하면 PC 가 세션을 받는다. 2분, 한 번
+model LoginTicket {
+  code      String    @id
+  userId    String?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  claimedAt DateTime?
+
+  @@index([expiresAt])
+}

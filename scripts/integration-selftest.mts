@@ -270,6 +270,9 @@ console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한
     'auth.ts:logout',
     /* 보호자 리포트 — 로그인 없이 토큰 + 네 자리 코드로 연다(app/(report)) */
     'org-report.ts:verifyGuardianCode',
+    /* 코드 · QR 로그인(2026-10-21 7단계) — PC 가 로그인 전에 코드를 만들고 묻는다. 승인(approve)은 requireUser */
+    'login-ticket.ts:createLoginTicket',
+    'login-ticket.ts:claimLoginTicket',
   ]);
   const open: string[] = [];
   let seen = 0;
@@ -376,6 +379,8 @@ console.log(
       '보호자 코드 확인은 redirect 로 같은 주소를 다시 연다 — 쿠키가 바뀌어 새로 그려진다',
     'app/actions/push.ts':
       '앱이 부르는 알림 기기 등록(RPC) — 웹 화면이 없고, 기기 목록(/sinker/sharing)은 들어갈 때 새로 읽는다',
+    'app/actions/login-ticket.ts':
+      '코드 로그인 — PC 는 2초마다 묻는 RPC 로, 폰은 redirect 로 같은 주소를 다시 열어 새로 그린다',
   };
   const files = readdirSync(new URL('../app/actions/', import.meta.url))
     .map((f) => `app/actions/${f}`)

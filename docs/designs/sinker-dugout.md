@@ -227,10 +227,10 @@ PC 의 '내 싱커'에서는 그 자리에 "싱커 앱에서 재요" 카드만 �
 - 김민: 앱에서 토큰 등록 · 받기(expo-notifications, 굽기) — RPC `push.registerPushDevice({ token, app: 'sinker' | 'dugout', platform })` · `push.unregisterPushDevice({ token })`. 보내기는 Expo push API(exp.host) 라 APNs 키는 Expo 쪽 설정(사용자 · 김민).
 - 보내는 곳(지금): 채팅 · 레슨 예약 요청/확정/거절 · 연습장 요청/답 · 코치 레슨 노트. 댓글 · 팀 공지는 김민의 커뮤니티 · 팀 화면 쪽에서 `notify()` 한 줄씩.
 
-### 7단계 도메인 (3시간) — 도메인이 생기면
-- ☐ 7-1 Vercel 도메인 연결 · 옛 주소는 유지(앱용) · 브라우저만 301.
-- ☐ 7-2 sitemap · OG 이미지 · 구조화 자료.
-- ☐ 7-3 QR 로그인(`LoginTicket`) · `sinker://` · `dugout://` · 유니버설 링크.
+### 7단계 도메인 (3시간) — 웹 쪽 끝(2026-10-21). 7-1 은 도메인이 생기면(사용자)
+- ☐ 7-1 Vercel 도메인 연결 · 옛 주소는 유지(앱용) · 브라우저만 301 — **사용자 몫**: 도메인을 사서 Vercel 에 붙이고 `NEXT_PUBLIC_SITE_URL=https://<도메인>` 을 넣는다(lib/site-url.ts 가 읽는다). 코드는 준비됨.
+- ☑ 7-2 sitemap · OG 이미지 · 구조화 자료.
+- ☑ 7-3 QR 로그인(`LoginTicket`, 마이그레이션 `20261021170000_login_ticket` 적용) — PC `/login/qr`(QR + 8자 코드, 2분) ↔ 폰 `/link/<code>`(로그인된 싱커 앱 웹뷰 · 브라우저가 승인). 앱 전용 주소(`sinker://` · `dugout://`) · 유니버설 링크(apple-app-site-association)는 도메인 뒤 김민(B-6).
 
 ## 12. 세분화 단계 — B 앱(김민에게 넘길 것)
 
