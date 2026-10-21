@@ -2945,8 +2945,8 @@ export function VelocityScreen({
                     key="camera"
                     step={2}
                     total={4}
-                    title="폰은 투수 바로 뒤 1m 안에 둬요"
-                    subtitle="던지는 방향을 정면으로 보게 둬요. 멀거나 옆이면 공을 놓쳐요."
+                    title="폰은 투수 뒤 1.5~2m 에 둬요"
+                    subtitle="던지는 방향을 정면으로 보게 둬요. 너무 붙으면 팔 · 몸이 공을 가리고, 멀면 공이 작아요."
                     footer={
                       <PrimaryButton onClick={onGuideNext}>
                         {guideLabel}

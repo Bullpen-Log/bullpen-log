@@ -519,7 +519,7 @@ function ArtDistance({ behind }: { behind: boolean }) {
         stroke="none"
         fontWeight="700"
       >
-        {behind ? '1m 이내' : '1~3m'}
+        {behind ? '1.5~2m' : '1~3m'}
       </text>
     </svg>
   );

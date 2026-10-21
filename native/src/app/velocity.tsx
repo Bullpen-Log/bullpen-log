@@ -869,8 +869,8 @@ export default function VelocityScreen() {
             <GuideCard
               step={2}
               total={total}
-              title="폰은 투수 바로 뒤 1m 안에 둬요"
-              subtitle="던지는 방향을 정면으로 보게 둬요. 멀거나 옆이면 공을 놓쳐요."
+              title="폰은 투수 뒤 1.5~2m 에 둬요"
+              subtitle="던지는 방향을 정면으로 보게 둬요. 너무 붙으면 팔 · 몸이 공을 가리고, 멀면 공이 작아요."
               footer={<CardButton label="다음" onPress={() => setStep('level')} />}
             >
               {/* 폰에서 미트까지 — '18~22m'(기준 20m 로 재고 세션마다 공 크기로 맞춤) 또는 줄자(웹과 같은 글, lib/velocity-setup.ts TAPE_MODES) */}
