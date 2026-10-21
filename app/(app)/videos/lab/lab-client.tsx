@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Camera, ChevronDown, ChevronRight, Film, Play, Rotate3d, Trash2, Upload } from '@/components/icon';
+import { Camera, ChevronDown, ChevronRight, Film, Folder, Play, Rotate3d, Trash2, Upload } from '@/components/icon';
 import { BackLink, ButtonLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { DisclosureButton } from '@/components/disclosure';
@@ -27,6 +27,7 @@ import { removeLabSample, saveLabSample } from '@/app/actions/pitch-lab';
 import {
   LAB_GROUND_OPTIONS,
   LAB_OTHER_SUBJECT,
+  LAB_SUBJECT_FOLDERS,
   groupLabSamples,
   LAB_MAX_VIDEO_BYTES,
   LAB_MAX_VIDEO_MB,
@@ -198,14 +199,21 @@ export function LabClient({
           번호는 묶기 전 전체 차례 그대로(오래된 것이 1).
         */
         <div className="space-y-2">
-          {groupLabSamples(shown, (x) =>
-            tab === 'marker'
-              ? `${x.meta?.subject ?? LAB_OTHER_SUBJECT} · ${labDayLabel(x.meta?.createdAt)}`
-              : x.meta?.subject
+          {(tab === 'marker'
+            ? groupLabSamples(shown, (x) => `${x.meta?.subject ?? LAB_OTHER_SUBJECT} · ${labDayLabel(x.meta?.createdAt)}`)
+            : /* 사람 폴더 넷 — 늘 이 차례, 비어 있어도(2026-10-22 김민: "김민, 금윤호, 기타, 정강민 4개 폴더") */
+              groupLabSamples(shown, (x) => x.meta?.subject, LAB_SUBJECT_FOLDERS)
           ).map((g) => (
             <details key={g.name} className="group rounded-2xl bg-surface-2/60">
-              <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 [&::-webkit-details-marker]:hidden">
-                <span className="flex-1 font-semibold text-ink">{g.name}</span>
+              <summary
+                className={`flex min-h-12 list-none items-center gap-2 px-4 [&::-webkit-details-marker]:hidden ${
+                  g.items.length === 0 ? 'pointer-events-none' : 'cursor-pointer'
+                }`}
+              >
+                {tab !== 'marker' && (
+                  <Folder aria-hidden className={`h-4 w-4 ${g.items.length === 0 ? 'text-muted' : 'text-sky'}`} />
+                )}
+                <span className={`flex-1 font-semibold ${g.items.length === 0 ? 'text-muted' : 'text-ink'}`}>{g.name}</span>
                 <span className="text-numeric text-sm text-muted">{g.items.length}</span>
                 <ChevronDown
                   aria-hidden
@@ -491,13 +499,21 @@ function UploadCard({
                 폰마다 투수까지 따로 재서 적어 주세요. 같은 1배여도 폰마다 찍히는 크기가 달라요.
               </p>
             </div>
+            <Row label="누구 투구">
+              <Segmented
+                label="누구 투구"
+                value={(LAB_SUBJECT_FOLDERS as readonly string[]).includes(subject.trim()) ? subject.trim() : LAB_OTHER_SUBJECT}
+                onChange={(v) => setSubject(v === LAB_OTHER_SUBJECT ? '' : v)}
+                options={LAB_SUBJECT_FOLDERS.map((n) => ({ value: n, label: n }))}
+              />
+            </Row>
             <label className="block space-y-1">
-              <span className="text-xs text-muted">누구 투구</span>
+              <span className="text-xs text-muted">다른 사람이면 이름</span>
               <input
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 maxLength={20}
-                placeholder="예: 김민 · 비우면 기타로 묶여요"
+                placeholder="비우면 기타"
                 className="min-h-11 w-full rounded-xl bg-surface px-3 text-ink"
               />
             </label>

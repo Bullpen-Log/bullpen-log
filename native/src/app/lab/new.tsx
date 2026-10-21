@@ -7,7 +7,7 @@ import type { loadAppLabList } from '@/app/actions/pitch-lab';
 import { CONSENT_TEXT } from '@/lib/pitch-3d/v2/lab-summary';
 import { LAB_GROUND_OPTIONS, LAB_MAX_VIDEO_MB, labSideBase, labViewLabel, type LabGround, type LabHand, type LabView } from '@/lib/pitch-lab-meta';
 import { Badge, Bar, Chip, LoadState, s, useLoad } from '~/community/parts';
-import { GuideLink, NumberInput } from '~/lab/parts';
+import { GuideLink, NumberInput, SubjectChips } from '~/lab/parts';
 import { useLabUpload, type LabSlowmo } from '~/lab/use-lab-upload';
 import { rpc } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
@@ -40,17 +40,17 @@ export default function LabNewScreen() {
     <View style={{ flex: 1, backgroundColor: c.page }}>
       {!data ? (
         <>
-          <Bar back="3D 동작 분석" title="새 분석" c={c} />
+          <Bar back="3D 동작 분석" title="리포트 받기" c={c} />
           <LoadState error={error} onRetry={() => void reload()} c={c} />
         </>
       ) : (
-        <Flow heightCm={data.heightCm} defaultHand={data.hand} c={c} />
+        <Flow heightCm={data.heightCm} defaultHand={data.hand} isAdmin={data.isAdmin} c={c} />
       )}
     </View>
   );
 }
 
-function Flow({ heightCm, defaultHand, c }: { heightCm: number | null; defaultHand: LabHand; c: Palette }) {
+function Flow({ heightCm, defaultHand, isAdmin, c }: { heightCm: number | null; defaultHand: LabHand; isAdmin: boolean; c: Palette }) {
   const inset = useSafeAreaInsets();
   const [step, setStep] = useState<Step>('ready');
   const [hand, setHand] = useState<LabHand>(defaultHand);
@@ -58,6 +58,8 @@ function Flow({ heightCm, defaultHand, c }: { heightCm: number | null; defaultHa
   const [height, setHeight] = useState(heightCm ? String(heightCm) : '');
   const [slowmo, setSlowmo] = useState<LabSlowmo>('unknown');
   const [consent, setConsent] = useState(false);
+  /* 누구 투구(관리자만 — 여러 사람을 올린다, 사람 폴더로 묶임). 비면 기타 */
+  const [subject, setSubject] = useState('');
   const up = useLabUpload(hand);
   /* 두 영상 다 고속이면 슬로모 배수를 저절로(고른 순간 한 번 — 그 뒤 손으로 바꿀 수 있다) */
   const [seenAuto, setSeenAuto] = useState<LabSlowmo | null>(null);
@@ -76,7 +78,7 @@ function Flow({ heightCm, defaultHand, c }: { heightCm: number | null; defaultHa
 
   const send = async () => {
     setStep('send');
-    const id = await up.upload({ slowmo, hand, ground, heightCm: height ? Number(height) : null, memo: null });
+    const id = await up.upload({ slowmo, hand, ground, heightCm: height ? Number(height) : null, memo: null, subject: isAdmin ? subject.trim() || null : null });
     if (!id) return setStep('info');
     /* 걸기가 막혀도(서버 설정 · 하루 실패 등) 결과 화면이 까닭과 다시 걸기를 보인다 — 여기서는 기다리지 않고 넘어간다 */
     await rpc('pitch-lab.requestPitch3dV2', { id, consent: true }).catch(() => null);
@@ -116,6 +118,8 @@ function Flow({ heightCm, defaultHand, c }: { heightCm: number | null; defaultHa
             setSlowmo={setSlowmo}
             consent={consent}
             setConsent={setConsent}
+            subject={isAdmin ? subject : null}
+            setSubject={setSubject}
             up={up}
             c={c}
           />
@@ -241,6 +245,9 @@ function InfoStep(p: {
   setSlowmo: (v: LabSlowmo) => void;
   consent: boolean;
   setConsent: (v: boolean) => void;
+  /** 누구 투구 — 관리자만(아니면 null 이라 칸이 안 보임) */
+  subject: string | null;
+  setSubject: (v: string) => void;
   up: Up;
   c: Palette;
 }) {
@@ -249,6 +256,12 @@ function InfoStep(p: {
     <>
       <StepTitle title="마지막으로 확인해요" sub="맞게 적을수록 3D 인형 크기와 점검이 정확해요." c={c} />
       <View style={{ borderRadius: 16, padding: 14, gap: 6, backgroundColor: c.card, boxShadow: c.float }}>
+        {p.subject != null ? (
+          <>
+            <Text style={[s.label, { color: c.muted }]}>누구 투구</Text>
+            <SubjectChips value={p.subject} onChange={p.setSubject} c={c} />
+          </>
+        ) : null}
         <Text style={[s.label, { color: c.muted }]}>던지는 손</Text>
         <View accessibilityRole="radiogroup" style={s.chips}>
           {HAND_OPTIONS.map((o) => (

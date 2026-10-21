@@ -3,7 +3,7 @@
  *
  *   npm run pitch-lab:test
  */
-import { isLabId, isLabView, labCardChips, labMetaChips, readLabMeta } from '../lib/pitch-lab-meta.ts';
+import { groupLabSamples, isLabId, isLabView, labCardChips, labMetaChips, LAB_SUBJECT_FOLDERS, readLabMeta } from '../lib/pitch-lab-meta.ts';
 import { LAB_FAIL_FIX, LAB_GUIDE_CHECKS, labGuideHref } from '../lib/pitch-lab-guide.ts';
 import { V2_VIDEO_FAULT } from '../lib/pitch-3d/v2/contract.ts';
 
@@ -96,6 +96,15 @@ check(
 );
 /* 마커 샘플(2026-10-12) — 종류를 읽고 표시 맨 앞에 '마커' */
 check('종류 — 없으면 일반 샘플', readLabMeta({}, NOW).kind === 'sample');
+{
+  /* 사람 폴더 넷 — 늘 이 차례(비어 있어도), 다른 이름은 '기타' 앞, 빈 이름은 '기타'(2026-10-22 김민) */
+  const g = groupLabSamples([{ s: '금윤호' }, { s: null }, { s: '홍길동' }, { s: '김민' }], (x) => x.s, LAB_SUBJECT_FOLDERS);
+  check(
+    '사람 폴더 — 김민 · 금윤호 · 정강민(빈) · 다른 이름 · 기타',
+    g.map((x) => `${x.name}${x.items.length}`).join() === '김민1,금윤호1,정강민0,홍길동1,기타1',
+    g.map((x) => `${x.name}${x.items.length}`).join()
+  );
+}
 check('종류 — 마커', readLabMeta({ kind: 'marker' }, NOW).kind === 'marker');
 check('마커 표시가 맨 앞', labMetaChips(readLabMeta({ kind: 'marker' }, NOW))[0] === '마커');
 check(

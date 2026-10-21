@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { type Href, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,6 +6,7 @@ import type { loadAppLabList } from '@/app/actions/pitch-lab';
 import {
   LAB_GROUND_OPTIONS,
   LAB_OTHER_SUBJECT,
+  LAB_SUBJECT_FOLDERS,
   groupLabSamples,
   LAB_MAX_VIDEO_MB,
   LAB_VIEWS,
@@ -16,10 +17,9 @@ import {
   type LabView,
 } from '@/lib/pitch-lab-meta';
 import { Badge, Bar, Chip, LoadState, s, useLoad } from '~/community/parts';
-import { GuideLink, NumberInput, SampleRow } from '~/lab/parts';
+import { GuideLink, NumberInput, SampleGroup, SampleRow, SubjectChips } from '~/lab/parts';
 import { useLabUpload, type LabSlowmo } from '~/lab/use-lab-upload';
 import { usePalette, type Palette } from '~/lib/ui';
-import { Icon } from '~/shell/icon';
 import { READABLE } from '~/lib/layout';
 
 /**
@@ -89,7 +89,10 @@ export default function LabListScreen() {
               사람별로 접어 묶는다(2026-10-22 김민: "샘플이 너무 많이 나열돼 보기 어렵다") — 마커 샘플은 모두 한 사람이라 촬영 날까지 나눈다.
               번호는 묶기 전 전체 차례 그대로(오래된 것이 1).
             */
-            groupLabSamples(shown, (x) => (tab === 'marker' ? `${x.subject ?? LAB_OTHER_SUBJECT} · ${x.when?.split(' ').slice(0, 2).join(' ') ?? '날짜 모름'}` : x.subject)).map((g) => (
+            (tab === 'marker'
+              ? groupLabSamples(shown, (x) => `${x.subject ?? LAB_OTHER_SUBJECT} · ${x.when?.split(' ').slice(0, 2).join(' ') ?? '날짜 모름'}`)
+              : groupLabSamples(shown, (x) => x.subject, LAB_SUBJECT_FOLDERS)
+            ).map((g) => (
               <SampleGroup key={`${tab}:${g.name}`} name={g.name} count={g.items.length} c={c}>
                 {g.items.map((x, i) => (
                   <SampleRow
@@ -107,27 +110,6 @@ export default function LabListScreen() {
         </ScrollView>
       )}
     </KeyboardAvoidingView>
-  );
-}
-
-/** 접히는 묶음 하나 — 머리(이름 · 수 · 화살표)를 누르면 편다. 처음엔 접힘 */
-function SampleGroup({ name, count, c, children }: { name: string; count: number; c: Palette; children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        accessibilityLabel={`${name} ${count}개`}
-        onPress={() => setOpen((v) => !v)}
-        style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 52, paddingHorizontal: 16, opacity: pressed ? 0.6 : 1 }]}
-      >
-        <Text style={{ flex: 1, color: c.ink, fontSize: 17, fontWeight: '600' }}>{name}</Text>
-        <Text style={{ color: c.muted, fontSize: 15, fontVariant: ['tabular-nums'] }}>{count}</Text>
-        <Icon name={open ? 'chevron-up' : 'chevron-down'} size={18} color={c.muted} />
-      </Pressable>
-      {open ? <View style={{ borderTopWidth: 0.5, borderTopColor: c.line }}>{children}</View> : null}
-    </View>
   );
 }
 
@@ -240,11 +222,12 @@ function UploadCard({ heightCm, defaultHand, onDone, c }: { heightCm: number | n
           </View>
           <Text style={[s.meta, { color: c.muted }]}>폰마다 투수까지 따로 재서 적어 주세요. 같은 1배여도 폰마다 찍히는 크기가 달라요.</Text>
           <Text style={[s.label, { color: c.muted }]}>누구 투구</Text>
+          <SubjectChips value={subject} onChange={setSubject} c={c} />
           <TextInput
             value={subject}
             onChangeText={setSubject}
             maxLength={20}
-            placeholder="예: 김민 · 비우면 기타로 묶여요"
+            placeholder="다른 사람이면 이름 · 비우면 기타"
             placeholderTextColor={c.muted}
             style={[s.input, { backgroundColor: c.page, color: c.ink }]}
           />

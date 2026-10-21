@@ -3,9 +3,9 @@ import { SymbolView } from 'expo-symbols';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppLabList } from '@/app/actions/pitch-lab';
-import { labSideBase } from '@/lib/pitch-lab-meta';
+import { groupLabSamples, labSideBase, LAB_SUBJECT_FOLDERS } from '@/lib/pitch-lab-meta';
 import { Bar, BarButton, LoadState, s, useLoad } from '~/community/parts';
-import { SampleRow } from '~/lab/parts';
+import { SampleGroup, SampleRow } from '~/lab/parts';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 
@@ -72,6 +72,24 @@ export default function LabHomeScreen() {
                 <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center' }}>
                   같은 공을 옆({labSideBase(data.hand)} 쪽)과 뒤(2루 쪽)에서 동시에 찍어 시작해 보세요.
                 </Text>
+              </View>
+            ) : data.isAdmin ? (
+              /* 관리자는 여러 사람 투구를 올린다 — 사람 폴더 넷(김민 · 금윤호 · 정강민 · 기타, 2026-10-22 김민). 번호는 묶기 전 전체 차례 그대로 */
+              <View style={{ gap: 10 }}>
+                {groupLabSamples(data.samples, (x) => x.subject, LAB_SUBJECT_FOLDERS).map((g) => (
+                  <SampleGroup key={g.name} name={g.name} count={g.items.length} c={c}>
+                    {g.items.map((x, i) => (
+                      <SampleRow
+                        key={x.id}
+                        item={x}
+                        name={`투구 ${data.samples.length - data.samples.indexOf(x)}`}
+                        last={i === g.items.length - 1}
+                        onRemoved={() => void reload()}
+                        c={c}
+                      />
+                    ))}
+                  </SampleGroup>
+                ))}
               </View>
             ) : (
               <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>

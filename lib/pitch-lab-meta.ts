@@ -229,13 +229,33 @@ export const LAB_OTHER_SUBJECT = '기타';
 /**
  * 실험실 목록을 묶는다(2026-10-22 김민) — 묶음 차례는 들어온 차례(최근 것이 든 묶음 먼저), '기타'는 맨 뒤. 묶음 안의 차례도 그대로.
  */
-export function groupLabSamples<T>(items: T[], keyOf: (item: T) => string | null | undefined): { name: string; items: T[] }[] {
-  const groups = new Map<string, T[]>();
+/**
+ * 사람 폴더 — 늘 이 차례로 보인다(비어 있어도). 2026-10-22 김민: "김민, 금윤호, 기타, 정강민 4개 폴더로". 이 밖의 이름을 적으면 그 이름 폴더가 '기타' 앞에 생긴다.
+ * 올리기 칸은 '기타'를 뺀 셋을 칩으로 고른다(LAB_SUBJECT_CHOICES — 비우면 기타).
+ */
+export const LAB_SUBJECT_FOLDERS = ['김민', '금윤호', '정강민', LAB_OTHER_SUBJECT] as const;
+export const LAB_SUBJECT_CHOICES = LAB_SUBJECT_FOLDERS.filter((x) => x !== LAB_OTHER_SUBJECT);
+
+/**
+ * 사람별 묶음 — fixed 를 주면 그 폴더들이 그 차례로 늘 있다(비어 있어도), 그 밖의 이름은 들어온 차례로 '기타' 앞에. fixed 가 없으면
+ * 들어온 차례(최근 것이 든 묶음 먼저) · '기타'는 맨 뒤(마커 탭의 '사람 · 날' 묶음).
+ */
+export function groupLabSamples<T>(
+  items: T[],
+  keyOf: (item: T) => string | null | undefined,
+  fixed?: readonly string[]
+): { name: string; items: T[] }[] {
+  const groups = new Map<string, T[]>((fixed ?? []).map((n) => [n, []]));
   for (const item of items) {
     const name = keyOf(item)?.trim() || LAB_OTHER_SUBJECT;
     groups.set(name, [...(groups.get(name) ?? []), item]);
   }
+  const rank = (n: string) => (n === LAB_OTHER_SUBJECT ? 2 : fixed?.includes(n) ? 0 : 1);
   return [...groups]
     .map(([name, list]) => ({ name, items: list }))
-    .sort((a, b) => Number(a.name === LAB_OTHER_SUBJECT) - Number(b.name === LAB_OTHER_SUBJECT));
+    .sort((a, b) =>
+      fixed
+        ? rank(a.name) - rank(b.name) || (fixed.indexOf(a.name) - fixed.indexOf(b.name))
+        : Number(a.name === LAB_OTHER_SUBJECT) - Number(b.name === LAB_OTHER_SUBJECT)
+    );
 }
