@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Bell, LayoutGrid, MessagesSquare } from '@/components/icon';
 import { AppLauncher } from '@/components/dugout/app-launcher';
 import { DUGOUT_ENTERED_COOKIE as ENTERED_COOKIE } from '@/lib/brand';
@@ -45,6 +45,27 @@ export function DugoutHero({
   const busy = useRef(false);
   const touchY = useRef<number | null>(null);
   const box = useRef<HTMLDivElement>(null);
+
+  /*
+   * 시작 연출의 로고를 화면 정중앙에(2026-10-21 금윤호: "정중앙이 아니라 살짝 밑에 치우쳐 있다"). 홈 자리(바로가기 위)에 놓인 로고 칸을 재서
+   * 화면 가운데까지의 차이만큼 옮겨 둔다 — 위 막대가 투명하게 자리를 차지해도, 바로가기 높이가 달라도 늘 정중앙. 재기 전에는 숨긴다(엉뚱한 자리에서 튀지 않게).
+   */
+  const logoBox = useRef<HTMLDivElement>(null);
+  const [center, setCenter] = useState<{ x: number; y: number } | null>(null);
+  useLayoutEffect(() => {
+    if (stageRef.current !== 'splash') return;
+    const measure = () => {
+      const r = logoBox.current?.getBoundingClientRect();
+      if (!r) return;
+      setCenter({
+        x: window.innerWidth / 2 - (r.left + r.width / 2),
+        y: window.innerHeight / 2 - (r.top + r.height / 2),
+      });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
 
   function go(next: Stage) {
     stageRef.current = next;
@@ -267,23 +288,34 @@ export function DugoutHero({
 
       {/* 가운데 — 로고 · 검색 · 단추 */}
       <div className="absolute inset-0 flex flex-col items-center justify-center px-4">
-        <div
-          className="flex flex-col items-center transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
-          style={{
-            transform: splash
-              ? 'translateY(48px) scale(1.35)'
-              : home
-                ? 'translateY(-40vh) scale(0.35)'
-                : 'translateY(-16px) scale(1)',
-          }}
-        >
-          <Wordmark brand="dugout" className="text-6xl text-ink md:text-8xl" />
+        {/* 바깥 칸은 홈 자리 그대로(재는 기준), 안쪽만 움직인다 */}
+        <div ref={logoBox} className="flex flex-col items-center">
+          <div
+            className="flex flex-col items-center transition-[transform,opacity] duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+            style={{
+              transform: splash
+                ? `translate(${center?.x ?? 0}px, ${center?.y ?? 0}px) scale(1.35)`
+                : home
+                  ? 'translateY(-40vh) scale(0.35)'
+                  : 'translateY(-16px) scale(1)',
+              opacity: splash && !center ? 0 : 1,
+              transitionDuration: splash ? '0ms' : undefined,
+            }}
+          >
+            <Wordmark brand="dugout" className="text-6xl text-ink md:text-8xl" />
+          </div>
         </div>
         {/* 바로가기(2026-10-21 — 검색 대신 앱 아이콘처럼 바로 열기) */}
         <div
           className={`mt-10 w-full max-w-3xl transition-all duration-500 ${splash || home ? 'pointer-events-none translate-y-4 opacity-0' : 'translate-y-0 opacity-100'}`}
         >
-          {!splash && <AppLauncher loggedIn={!!user} sinker={sinker} native={native} />}
+          <AppLauncher
+            key={splash ? 'wait' : 'show'}
+            loggedIn={!!user}
+            sinker={sinker}
+            native={native}
+            className={splash ? 'invisible' : ''}
+          />
         </div>
       </div>
 
