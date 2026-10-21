@@ -26,8 +26,10 @@ import { Wordmark } from '@/components/logo';
 const noopSubscribe = () => () => {};
 
 type Stage = 'splash' | 'hero' | 'home';
-/** 로고만 떠 있는 시간(2026-10-21 금윤호: "로고 외에는 아무것도 없다가 1초 후에 스르륵") */
-const SPLASH_MS = 1000;
+/** 로고만 떠 있는 시간(2026-10-21 금윤호: 1초 → "0.5초로") */
+const SPLASH_MS = 500;
+/** 싱커에서 돌아올 때 — 가운데 로고가 이미 커지며 보였으니 바로 줄어든다(2026-10-21 금윤호 "로고가 떠 있는 시간이 너무 길다") */
+const SPLASH_FROM_SINKER_MS = 250;
 const COLLAPSE_MS = 620;
 
 export function DugoutHero({
@@ -65,10 +67,15 @@ export function DugoutHero({
   );
   const portalTarget = hydrated ? document.body : null;
   const logoBox = useRef<HTMLDivElement>(null);
+  const fromSinker = useRef(false);
   const [center, setCenter] = useState<{ x: number; y: number; scale: number } | null>(
     null
   );
   useLayoutEffect(() => {
+    /* 싱커 → 덕아웃 변형으로 왔나 — 덕아웃 틀의 MorphIn 보다 먼저 돌아 아직 'to-dugout-out' 이 보인다 */
+    fromSinker.current = /^(to-dugout-out|in-dugout)$/.test(
+      document.documentElement.dataset.morph ?? ''
+    );
     if (stageRef.current !== 'splash') return;
     const measure = () => {
       const r = logoBox.current?.getBoundingClientRect();
@@ -99,10 +106,13 @@ export function DugoutHero({
       go('hero');
   }, []);
 
-  /* splash 는 0.9초 뒤 hero 로 */
+  /* splash 는 0.5초(싱커에서 오면 0.25초) 뒤 hero 로 */
   useEffect(() => {
     if (stage !== 'splash') return;
-    const t = window.setTimeout(() => go('hero'), SPLASH_MS);
+    const t = window.setTimeout(
+      () => go('hero'),
+      fromSinker.current ? SPLASH_FROM_SINKER_MS : SPLASH_MS
+    );
     return () => window.clearTimeout(t);
   }, [stage]);
 
