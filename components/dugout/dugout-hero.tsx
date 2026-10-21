@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Bell, LayoutGrid, MessagesSquare } from '@/components/icon';
 import { AppLauncher } from '@/components/dugout/app-launcher';
+import { DUGOUT_ENTERED_COOKIE as ENTERED_COOKIE } from '@/lib/brand';
 import { Wordmark } from '@/components/logo';
 
 /**
@@ -11,12 +12,11 @@ import { Wordmark } from '@/components/logo';
  * 위로 가고 지금의 덕아웃 홈이 나오게").
  *
  * 단계 셋 — html[data-hero] 로 적어 위 막대(components/dugout/dugout-topbar.tsx)가 같이 움직인다(globals.css '덕아웃 첫 화면').
- *   splash  로고 · 이름만 가운데 크게(한 세션에 한 번, sessionStorage) → 0.9초 뒤 hero
+ *   splash  로고 · 이름만 가운데 크게(한 세션에 한 번 — 세션 쿠키 dugout-entered, 그 뒤로는 서버가 바로 home 으로 그린다) → 0.9초 뒤 hero
  *   hero    구글식 홈 — 작은 링크 · 큰 로고 · 검색창 · 단추 둘. 위 막대는 숨는다. 바퀴 · 손가락 · 키로 조금만 내리면 home
  *   home    로고가 작아지며 위로(위 막대가 떠오름) · 이 판이 접히며 밑의 덕아웃 홈이 올라온다. 맨 위에서 다시 올리면 hero 로
  */
 type Stage = 'splash' | 'hero' | 'home';
-const SPLASH_KEY = 'dugout-splash-seen';
 const SPLASH_MS = 900;
 const COLLAPSE_MS = 620;
 
@@ -26,6 +26,7 @@ export function DugoutHero({
   alerts = 0,
   sinker = false,
   native = false,
+  initialStage = 'splash',
 }: {
   user: { nickname: string } | null;
   unread?: number;
@@ -33,10 +34,14 @@ export function DugoutHero({
   /** 싱커를 쓰는 사람 — 바로가기 마지막 칸이 '싱커' */
   sinker?: boolean;
   native?: boolean;
+  /** 서버가 정한 첫 단계 — 세션 첫 방문이면 splash, 아니면 home(2026-10-21 버그: 싱커에서 돌아오면 첫 화면이 다시 떴다) */
+  initialStage?: 'splash' | 'home';
 }) {
   /* 서버 그림부터 splash(로고 크게) — 첫 칠에 위 막대가 비쳤다 사라지는 일이 없다. 이미 본 세션이면 수화 뒤 바로 hero 로 줄어든다 */
-  const [stage, setStage] = useState<Stage>('splash');
-  const stageRef = useRef<Stage>('splash');
+  const [stage, setStage] = useState<Stage>(initialStage);
+  const stageRef = useRef<Stage>(initialStage);
+  /* 맨 위에 닿은 때 — 관성으로 굴러 올라와 닿자마자 첫 화면이 다시 펴지지 않게(0.35초는 맨 위에 머물러야 편다) */
+  const topSince = useRef<number>(0);
   const busy = useRef(false);
   const touchY = useRef<number | null>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -46,20 +51,14 @@ export function DugoutHero({
     setStage(next);
   }
 
-  /* 첫 그림: 한 세션에 한 번은 splash 부터. 움직임 줄이기면 바로 hero. 서버 그림과 어긋나지 않게 다음 프레임에 정한다 */
+  /* 이 세션은 첫 화면을 봤다고 적는다(세션 쿠키 — 브라우저를 닫으면 사라짐). 움직임 줄이기면 splash 를 건너뛴다 */
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      let seen = true;
-      try {
-        seen = sessionStorage.getItem(SPLASH_KEY) === '1';
-        if (!seen) sessionStorage.setItem(SPLASH_KEY, '1');
-      } catch {
-        /* 저장소 없음 */
-      }
-      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (seen || reduce) go('hero');
-    });
-    return () => window.cancelAnimationFrame(frame);
+    document.cookie = `${ENTERED_COOKIE}=1; path=/; SameSite=Lax`;
+    if (
+      stageRef.current === 'splash' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    )
+      go('hero');
   }, []);
 
   /* splash 는 0.9초 뒤 hero 로 */
@@ -89,6 +88,7 @@ export function DugoutHero({
     };
     const expand = () => {
       if (busy.current || stageRef.current !== 'home' || window.scrollY > 0) return;
+      if (performance.now() - topSince.current < 350) return;
       busy.current = true;
       go('hero');
       window.scrollTo({ top: 0 });
@@ -118,7 +118,13 @@ export function DugoutHero({
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return;
+      const el = e.target as HTMLElement | null;
+      if (
+        el &&
+        el !== document.body &&
+        el.closest('input, textarea, select, button, a, [contenteditable]')
+      )
+        return;
       if (
         ['ArrowDown', 'PageDown', ' '].includes(e.key) &&
         stageRef.current === 'hero'
@@ -128,8 +134,11 @@ export function DugoutHero({
       }
     };
     const onScroll = () => {
+      if (window.scrollY > 0) topSince.current = Infinity;
+      else if (topSince.current === Infinity) topSince.current = performance.now();
       if (stageRef.current === 'hero' && window.scrollY > 24) collapse();
     };
+    topSince.current = window.scrollY > 0 ? Infinity : 0;
     window.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('touchstart', onTouchStart, { passive: true });
     window.addEventListener('touchmove', onTouchMove, { passive: true });
@@ -162,6 +171,7 @@ export function DugoutHero({
       data-dugout-hero
       data-stage={stage}
       aria-hidden={home}
+      inert={home}
       /* 틀의 본문 여백을 덮고 화면 전체를 쓴다 — 접히면 높이 0 */
       className="relative -mx-4 -mt-5 overflow-hidden md:-mx-6 md:-mt-8"
       style={{

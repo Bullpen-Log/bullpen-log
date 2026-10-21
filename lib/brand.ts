@@ -41,3 +41,9 @@ export function usesSinker(u: {
   if (u.accountType === 'MEMBER') return u.sinkerStartedAt != null;
   return false;
 }
+
+/**
+ * 이 세션에 덕아웃 첫 화면(로고 크게 → 바로가기)을 이미 봤다 — 세션 쿠키. 덕아웃 홈(app/(dugout)/page.tsx)이 읽어 첫 단계를 정하고,
+ * components/dugout/dugout-hero.tsx 가 처음 그릴 때 적는다. 클라이언트 파일에서 내보내면 서버가 문자열 대신 참조를 받아 여기 둔다.
+ */
+export const DUGOUT_ENTERED_COOKIE = 'dugout-entered';

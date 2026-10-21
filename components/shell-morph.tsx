@@ -30,6 +30,8 @@ export function morphTo(
     router.push(href);
     return;
   }
+  /* 이미 넘어가는 중이면 무시 — 두 번 누르면 이동이 두 번 걸렸다 */
+  if (html.dataset.morph?.endsWith('-out')) return;
   html.dataset.morph = `${dir}-out`;
   window.setTimeout(() => router.push(href), OUT_MS);
   /* 새 틀이 끝내 안 오면(막힘 · 오류) 본문이 숨은 채 남지 않게 */
@@ -44,10 +46,10 @@ export function MorphIn() {
     const html = document.documentElement;
     if (!html.dataset.morph?.endsWith('-out')) return;
     html.dataset.morph = 'in';
-    const t = window.setTimeout(() => {
+    /* 정리 타이머는 지우지 않는다 — 효과가 두 번 돌거나(개발 모드) 틀이 곧바로 바뀌면 'in' 이 html 에 남아 새로 붙는 칸마다 연출이 다시 돌았다 */
+    window.setTimeout(() => {
       if (html.dataset.morph === 'in') delete html.dataset.morph;
     }, IN_MS);
-    return () => window.clearTimeout(t);
   }, []);
   return null;
 }
