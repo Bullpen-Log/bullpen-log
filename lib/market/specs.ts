@@ -413,7 +413,7 @@ export function filterHref(f: Partial<ListingFilter>): string {
   if (f.page && f.page > 1) sp.set('page', String(f.page));
   if (f.all) sp.set('all', '1');
   const s = sp.toString();
-  return s ? `/dugout/market?${s}` : '/dugout/market';
+  return s ? `/market?${s}` : '/market';
 }
 
 /** 사진 — 올릴 때 쓰는 종류 · 크기(브라우저가 lib/shrink-image.ts 로 줄여 올린다) */

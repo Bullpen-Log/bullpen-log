@@ -22,7 +22,7 @@ export function FavoriteButton({
   if (!loggedIn) {
     return (
       <a
-        href={`/login?next=/dugout/market/${listingId}`}
+        href={`/login?next=/market/${listingId}`}
         className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line px-4 text-sm font-semibold text-ink"
       >
         <Heart className="h-4 w-4" /> 찜 {count}

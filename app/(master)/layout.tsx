@@ -1,6 +1,8 @@
 import { requireMaster } from '@/lib/dal';
 import { currentOrg } from '@/lib/org/access';
 import { MasterShell } from '@/components/master/master-shell';
+import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
+import { countUnread } from '@/lib/market/load';
 
 /**
  * 팀 · 레슨장 마스터 화면의 틀(2026-10-20, docs/designs/team-lesson-build-prompt.md) — 선수 화면((app))과 아예 별개.
@@ -18,13 +20,26 @@ export default async function MasterLayout({
   const user = await requireMaster();
   const { org, orgs } = await currentOrg(user);
   const pick = (o: (typeof orgs)[number]) => ({ id: o.id, kind: o.kind, name: o.name });
+  const unread = await countUnread(user.id);
   return (
-    <MasterShell
-      user={{ nickname: user.nickname, isAdmin: user.role === 'ADMIN' }}
-      org={org ? pick(org) : null}
-      orgs={orgs.map(pick)}
-    >
-      {children}
-    </MasterShell>
+    <div className="flex min-h-dvh flex-col">
+      {/* 사이트 공용 위 막대(2026-10-21 2단계) — 관리는 덕아웃 웹의 한 부분 */}
+      <DugoutTopBar
+        user={{ nickname: user.nickname }}
+        unread={unread}
+        sinker={user.role === 'ADMIN'}
+        manage
+        current="manage"
+        sticky={false}
+        className="hidden md:block"
+      />
+      <MasterShell
+        user={{ nickname: user.nickname, isAdmin: user.role === 'ADMIN' }}
+        org={org ? pick(org) : null}
+        orgs={orgs.map(pick)}
+      >
+        {children}
+      </MasterShell>
+    </div>
   );
 }

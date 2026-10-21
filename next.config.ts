@@ -49,6 +49,11 @@ const nextConfig: NextConfig = {
   // (북마크나 예전에 공유한 링크가 끊기지 않도록)
   async redirects() {
     return [
+      /* 2026-10-21 2단계(docs/designs/sinker-dugout.md 8절 H) — 덕아웃은 뿌리 주소로, 관리는 /manage 로. 옛 링크 · 북마크 */
+      { source: '/dugout', destination: '/', permanent: true },
+      { source: '/dugout/:path*', destination: '/:path*', permanent: true },
+      { source: '/master', destination: '/manage', permanent: true },
+      { source: '/master/:path*', destination: '/manage/:path*', permanent: true },
       // 영상분석은 투구 일지 안으로 들어갔고, 그 투구 일지는 홈으로 들어갔다.
       { source: '/analysis', destination: '/today', permanent: false },
       /*

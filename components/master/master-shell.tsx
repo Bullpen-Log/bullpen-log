@@ -49,28 +49,28 @@ export function MasterShell({
   const words = org ? ORG_WORDS[org.kind] : ORG_WORDS.TEAM;
   const items: { href: string; label: string; icon: typeof House; exact?: boolean }[] =
     [
-      { href: '/master', label: '홈', icon: House, exact: true },
-      { href: '/master/players', label: `${words.members} 관리`, icon: Users },
+      { href: '/manage', label: '홈', icon: House, exact: true },
+      { href: '/manage/players', label: `${words.members} 관리`, icon: Users },
       {
-        href: '/master/calendar',
+        href: '/manage/calendar',
         label: org?.kind === 'LESSON' ? '레슨 시간표' : '팀 달력',
         icon: CalendarDays,
       },
       {
-        href: '/master/record',
+        href: '/manage/record',
         label: org?.kind === 'LESSON' ? '대신 기록' : '경기 투구수',
         icon: ClipboardList,
       },
       ...(org?.kind === 'LESSON'
-        ? [{ href: '/master/bookings', label: '레슨 요청', icon: ClipboardList }]
+        ? [{ href: '/manage/bookings', label: '레슨 요청', icon: ClipboardList }]
         : []),
-      { href: '/master/venues', label: '장소 · 예약', icon: MapPin },
-      { href: '/master/notices', label: '공지', icon: Megaphone },
-      { href: '/master/payouts', label: '정산', icon: CalendarDays },
-      { href: '/master/settings', label: '설정 · 초대', icon: Settings },
+      { href: '/manage/venues', label: '장소 · 예약', icon: MapPin },
+      { href: '/manage/notices', label: '공지', icon: Megaphone },
+      { href: '/manage/payouts', label: '정산', icon: CalendarDays },
+      { href: '/manage/settings', label: '설정 · 초대', icon: Settings },
     ];
   if (user.isAdmin)
-    items.push({ href: '/master/orgs', label: '모든 조직(관리자)', icon: Shield });
+    items.push({ href: '/manage/orgs', label: '모든 조직(관리자)', icon: Shield });
 
   const active = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
@@ -104,7 +104,7 @@ export function MasterShell({
     <div data-safe-area data-brand="dugout" className="flex min-h-[var(--vvh,100dvh)] bg-page text-ink">
       {/* 왼쪽 메뉴 — PC 만 */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-line bg-surface px-4 py-5 md:flex">
-        <Link href="/master" className="flex items-center gap-2 px-2">
+        <Link href="/manage" className="flex items-center gap-2 px-2">
           <Wordmark brand="dugout" className="text-lg text-ink" />
           <span className="rounded-full bg-ink/6 px-2 py-0.5 text-[11px] font-semibold text-muted">
             관리

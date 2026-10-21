@@ -28,7 +28,7 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) 
 /**
  * 팀 · 레슨장 참여(선수 화면) — 코치가 준 초대 코드(/join?code=XXXXXX)로 들어와 조직을 보고, 무엇을 보여 줄지 고른 뒤 참여한다.
  * 공유 범위의 기본값은 lib/org/rules.ts consentDefaults(투구 · 트레이닝 · 체크인 · 영상 켬, 영양 · 체중 끔). 바꾸는 것은 다음 단계.
- * 마스터 계정은 여기 못 온다 — (app) 틀이 /master 로 보낸다.
+ * 마스터 계정은 여기 못 온다 — (app) 틀이 /manage 로 보낸다.
  */
 export default async function JoinPage({
   searchParams,

@@ -74,7 +74,7 @@ export function VenueBooking({
             <Submit label={approval ? '예약 요청' : '바로 예약'} />
           ) : (
             <a
-              href={`/login?next=/dugout/venues/${venueId}?date=${dateKey}`}
+              href={`/login?next=/venues/${venueId}?date=${dateKey}`}
               className="inline-flex min-h-11 items-center rounded-xl bg-sky px-5 text-sm font-semibold text-white"
             >
               로그인하고 예약하기

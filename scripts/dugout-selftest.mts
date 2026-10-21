@@ -36,6 +36,7 @@ import {
 } from '@/lib/market/venues';
 import { recommend } from '@/lib/market/gear';
 import { ESCROW_FEE_RATE, escrowFee, payout, platformFee } from '@/lib/market/pay';
+import { existsSync } from 'node:fs';
 import { surfaceOf } from '@/lib/app-env';
 import { BRAND, brandOfPath } from '@/lib/brand';
 
@@ -144,8 +145,8 @@ console.log('\n[2] 가격 · 거르기 주소');
   check(
     '거르기 → 주소',
     filterHref({ category: 'bat', sort: 'cheap', page: 2 }) ===
-      '/dugout/market?category=bat&sort=cheap&page=2' &&
-      filterHref({ sort: 'new', page: 1 }) === '/dugout/market'
+      '/market?category=bat&sort=cheap&page=2' &&
+      filterHref({ sort: 'new', page: 1 }) === '/market'
   );
   check(
     '지역 — 전국(택배)이 첫째',
@@ -171,7 +172,7 @@ console.log(
     open.join(', ')
   );
   const writers = ['market/new', 'market/[id]/edit', 'chat', 'me'].map((d) =>
-    pages.find((p) => p.replace(/\\/g, '/').includes(`/dugout/${d}/page.tsx`))
+    pages.find((p) => p.replace(/\\/g, '/').includes(`/${d}/page.tsx`))
   );
   check(
     '쓰기 · 채팅 · 내 것 화면은 로그인 없으면 /login 으로',
@@ -203,13 +204,13 @@ console.log(
   const market = src('app/actions/market.ts');
   check('사진 경로는 내 폴더 안인지 본다(isOwnedBy)', /isOwnedBy\(/.test(market));
   check('가리기는 관리자만', /user\.role !== 'ADMIN'\) return;/.test(market));
-  const root = src('app/page.tsx');
+  const root = src('app/(dugout)/page.tsx');
   check(
-    '첫 화면: 로그인 안 하면 /dugout, 하면 /today',
-    /redirect\(user \? '\/today' : '\/dugout'\)/.test(root)
+    '첫 화면(/)은 덕아웃 홈 — 앱 안이면 /today 또는 /login',
+    /isNativeUserAgent\(/.test(root) && /redirect\(user \? '\/today' : '\/login'\)/.test(root)
   );
   const proxy = src('proxy.ts');
-  check('휴대폰 브라우저도 덕아웃은 본다(proxy OPEN)', /dugout/.test(proxy));
+  check('휴대폰 브라우저도 덕아웃은 본다(proxy OPEN — 뿌리 주소)', /market\|chat\|lessons/.test(proxy) && proxy.includes(String.raw`|^\/$/`));
   const registry = src('app/api/rpc/registry.ts');
   check(
     'rpc 허용 목록에 market · chat',
@@ -329,11 +330,17 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
     '이름 — 덕아웃 주소는 덕아웃, 선수 화면은 싱커',
     BRAND.sinker.name === '싱커' &&
       BRAND.dugout.name === '덕아웃' &&
-      brandOfPath('/dugout/market') === 'dugout' &&
-      brandOfPath('/master/players') === 'dugout' &&
+      brandOfPath('/market') === 'dugout' &&
+      brandOfPath('/manage/players') === 'dugout' &&
       brandOfPath('/') === 'dugout' &&
       brandOfPath('/today') === 'sinker' &&
       brandOfPath('/videos/abc') === 'sinker'
+  );
+  check(
+    '주소 이동(2단계) — 옛 /dugout · /master 는 코드에 안 남고, 덕아웃 홈이 / 다',
+    !/['"`]\/dugout/.test(src('components/dugout/dugout-shell.tsx')) &&
+      !/['"`]\/master(\/|['"`])/.test(src('components/master/master-shell.tsx')) &&
+      existsSync(join(ROOT, 'app/(dugout)/page.tsx')) && existsSync(join(ROOT, 'app/(master)/manage/page.tsx')) && !existsSync(join(ROOT, 'app/page.tsx')),
   );
   const picks = recommend('u13', 'pitcher', 'L');
   check(

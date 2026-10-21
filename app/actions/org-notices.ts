@@ -26,8 +26,8 @@ export async function saveOrgNotice(_prev: OrgActionState, formData: FormData): 
   } else {
     await prisma.orgNotice.create({ data: { orgId: org.id, title, body, pinned, authorId: user.id } });
   }
-  revalidatePath('/master/notices');
-  revalidatePath('/master');
+  revalidatePath('/manage/notices');
+  revalidatePath('/manage');
   revalidatePath('/join');
   return { success: id ? '고쳤어요.' : '올렸어요.' };
 }
@@ -38,7 +38,7 @@ export async function deleteOrgNotice(formData: FormData) {
   if (!n) return;
   await requireOrg(user, n.orgId);
   await prisma.orgNotice.delete({ where: { id: n.id } });
-  revalidatePath('/master/notices');
-  revalidatePath('/master');
+  revalidatePath('/manage/notices');
+  revalidatePath('/manage');
   revalidatePath('/join');
 }

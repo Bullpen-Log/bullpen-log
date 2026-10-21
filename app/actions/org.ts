@@ -34,8 +34,8 @@ export async function chooseOrg(formData: FormData) {
     maxAge: 60 * 60 * 24 * 365,
     sameSite: 'lax',
   });
-  revalidatePath('/master', 'layout');
-  redirect('/master');
+  revalidatePath('/manage', 'layout');
+  redirect('/manage');
 }
 
 /** 조직 이름 · 지역 · 메모 — 조직을 만든 마스터와 관리자만 */
@@ -58,7 +58,7 @@ export async function updateOrg(
       .trim()
       .slice(0, ORG_NOTE_MAX) || null;
   await prisma.org.update({ where: { id: org.id }, data: { name, region, note } });
-  revalidatePath('/master', 'layout');
+  revalidatePath('/manage', 'layout');
   return { success: '고쳤어요.' };
 }
 
@@ -81,8 +81,8 @@ export async function createInvite(formData: FormData) {
     await prisma.orgInvite.create({ data: { orgId: org.id, code, role, expiresAt } });
     break;
   }
-  revalidatePath('/master/settings');
-  revalidatePath('/master');
+  revalidatePath('/manage/settings');
+  revalidatePath('/manage');
 }
 
 /** 초대 코드 지우기 — 더는 못 쓰게 */
@@ -95,8 +95,8 @@ export async function revokeInvite(formData: FormData) {
   if (!invite) return;
   await requireOrg(user, invite.orgId);
   await prisma.orgInvite.delete({ where: { id: invite.id } });
-  revalidatePath('/master/settings');
-  revalidatePath('/master');
+  revalidatePath('/manage/settings');
+  revalidatePath('/manage');
 }
 
 /** 구성원 빼기 — 기록은 선수 것이라 남고, 조직 화면에서만 사라진다(LEFT) */
@@ -112,8 +112,8 @@ export async function removeMember(formData: FormData) {
     where: { id: member.id },
     data: { status: 'LEFT', leftAt: new Date() },
   });
-  revalidatePath('/master/players');
-  revalidatePath('/master');
+  revalidatePath('/manage/players');
+  revalidatePath('/manage');
 }
 
 /** 구성원의 이름(조직 안 표시) · 태그 · 메모 — 스태프도 고친다 */
@@ -141,7 +141,7 @@ export async function updateMember(
     where: { id: member.id },
     data: { nickname, tags, memo },
   });
-  revalidatePath('/master/players');
+  revalidatePath('/manage/players');
   return { success: '고쳤어요.' };
 }
 
@@ -167,8 +167,8 @@ export async function addPlaceholderMember(
       tags,
     },
   });
-  revalidatePath('/master/players');
-  revalidatePath('/master');
+  revalidatePath('/manage/players');
+  revalidatePath('/manage');
   return { success: '더했어요.' };
 }
 
@@ -229,7 +229,7 @@ export async function joinAsStaff(
     maxAge: 60 * 60 * 24 * 365,
     sameSite: 'lax',
   });
-  revalidatePath('/master', 'layout');
+  revalidatePath('/manage', 'layout');
   return { success: `${invite.org.name}에 코치로 들어갔어요.` };
 }
 
@@ -255,15 +255,15 @@ export async function updateOrgPlan(
       .trim()
       .slice(0, 120) || null;
   await prisma.org.update({ where: { id: org.id }, data: { plan, seats, planNote } });
-  revalidatePath('/master/orgs');
-  revalidatePath('/master/settings');
+  revalidatePath('/manage/orgs');
+  revalidatePath('/manage/settings');
   return { success: '저장했어요.' };
 }
 
 /**
  * 대표관리자가 관리자 화면에서 팀 · 레슨장 화면으로 넘어간다(2026-10-20 사용자: "관리자는 관리자 메뉴에서 전환해서 팀 인터페이스를 보고 사용할 수 있게").
  * 고른 종류의 '내 조직'(관리자가 만든 것)이 있으면 그것, 없으면 하나 만든다 — 관리자가 직접 눌렀을 때만 생긴다. 만든 뒤에는 설정에서 이름을 바꿔 쓴다.
- * 다른 사람의 조직은 /master/orgs 에서 고른다.
+ * 다른 사람의 조직은 /manage/orgs 에서 고른다.
  */
 export async function adminEnterOrg(formData: FormData) {
   const user = await requireAdmin();
@@ -301,6 +301,6 @@ export async function adminEnterOrg(formData: FormData) {
     maxAge: 60 * 60 * 24 * 365,
     sameSite: 'lax',
   });
-  revalidatePath('/master', 'layout');
-  redirect('/master');
+  revalidatePath('/manage', 'layout');
+  redirect('/manage');
 }

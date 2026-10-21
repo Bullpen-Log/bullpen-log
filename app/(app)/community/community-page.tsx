@@ -69,7 +69,7 @@ export default async function CommunityPage({
       {/* 덕아웃의 다른 방 — 장터 · 채팅(app/(dugout), 2026-10-20). 로그인한 사람도 같은 화면을 쓴다 */}
       <nav aria-label="덕아웃" className="grid grid-cols-2 gap-3">
         <Link
-          href="/dugout/market"
+          href="/market"
           className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 transition-colors hover:border-sky-soft"
         >
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky/12 text-sky">
@@ -81,7 +81,7 @@ export default async function CommunityPage({
           </span>
         </Link>
         <Link
-          href="/dugout/chat"
+          href="/chat"
           className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 transition-colors hover:border-sky-soft"
         >
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-sky/12 text-sky">

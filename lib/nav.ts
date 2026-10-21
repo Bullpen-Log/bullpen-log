@@ -302,9 +302,9 @@ export const NAV_GROUPS: NavGroup[] = [
         tone: 'armcare',
         adminOnly: true,
       },
-      /* 팀 · 레슨장 마스터 화면으로 전환(2026-10-20) — 관리자만. 마스터 계정은 이 메뉴 자체를 못 본다((app) 틀이 /master 로 보낸다) */
+      /* 팀 · 레슨장 마스터 화면으로 전환(2026-10-20) — 관리자만. 마스터 계정은 이 메뉴 자체를 못 본다((app) 틀이 /manage 로 보낸다) */
       {
-        href: '/master',
+        href: '/manage',
         label: '팀 · 레슨장 관리',
         icon: 'users',
         tone: 'armcare',

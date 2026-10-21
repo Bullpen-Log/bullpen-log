@@ -25,7 +25,7 @@ export type CoachProfile = {
   lessonHours: string | null;
 };
 
-/** 코치 프로필(덕아웃 레슨 2판) — 공개 스위치 · 소개 · 경력 · 전문 · 가격 · 시간. 공개하면 /dugout/lessons 에 뜬다 */
+/** 코치 프로필(덕아웃 레슨 2판) — 공개 스위치 · 소개 · 경력 · 전문 · 가격 · 시간. 공개하면 /lessons 에 뜬다 */
 export function CoachProfileForm({
   profile,
   canEdit,

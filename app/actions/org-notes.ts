@@ -61,8 +61,8 @@ export async function createLessonNote(_prev: OrgActionState, formData: FormData
       if (pick) await tx.lessonPass.update({ where: { id: pick.id }, data: { used: { increment: 1 } } });
     }
   });
-  revalidatePath(`/master/players/${member.id}`);
-  revalidatePath('/master');
+  revalidatePath(`/manage/players/${member.id}`);
+  revalidatePath('/manage');
   return { success: '남겼어요.' };
 }
 
@@ -75,8 +75,8 @@ export async function deleteLessonNote(formData: FormData) {
   if (!note) return;
   await requireOrg(user, note.member.orgId);
   await prisma.lessonNote.delete({ where: { id: note.id } });
-  revalidatePath(`/master/players/${note.memberId}`);
-  revalidatePath('/master');
+  revalidatePath(`/manage/players/${note.memberId}`);
+  revalidatePath('/manage');
 }
 
 /* ── 수강권 ── */
@@ -93,8 +93,8 @@ export async function addPass(_prev: OrgActionState, formData: FormData): Promis
   await prisma.lessonPass.create({
     data: { memberId: member.id, total, expiresAt: rawExp ? dbDate(rawExp) : null, memo },
   });
-  revalidatePath(`/master/players/${member.id}`);
-  revalidatePath('/master');
+  revalidatePath(`/manage/players/${member.id}`);
+  revalidatePath('/manage');
   return { success: '수강권을 더했어요.' };
 }
 
@@ -110,8 +110,8 @@ export async function adjustPass(formData: FormData) {
   const delta = formData.get('delta') === '-1' ? -1 : 1;
   const used = Math.max(0, Math.min(pass.total, pass.used + delta));
   await prisma.lessonPass.update({ where: { id: pass.id }, data: { used } });
-  revalidatePath(`/master/players/${pass.memberId}`);
-  revalidatePath('/master');
+  revalidatePath(`/manage/players/${pass.memberId}`);
+  revalidatePath('/manage');
 }
 
 export async function deletePass(formData: FormData) {
@@ -123,8 +123,8 @@ export async function deletePass(formData: FormData) {
   if (!pass) return;
   await requireOrg(user, pass.member.orgId);
   await prisma.lessonPass.delete({ where: { id: pass.id } });
-  revalidatePath(`/master/players/${pass.memberId}`);
-  revalidatePath('/master');
+  revalidatePath(`/manage/players/${pass.memberId}`);
+  revalidatePath('/manage');
 }
 
 /* ── 보호자 리포트 링크 ── */
@@ -145,7 +145,7 @@ export async function createGuardianLink(_prev: OrgActionState, formData: FormDa
       createdById: user.id,
     },
   });
-  revalidatePath(`/master/players/${member.id}`);
+  revalidatePath(`/manage/players/${member.id}`);
   /* 코드는 이 답에만 — 화면이 한 번 보여 주고 보호자에게 따로 알린다(주소와 다른 길로) */
   return { success: `${token}:${code}` };
 }
@@ -159,6 +159,6 @@ export async function revokeGuardianLink(formData: FormData) {
   if (!r) return;
   await requireOrg(user, r.member.orgId);
   await prisma.guardianReport.delete({ where: { id: r.id } });
-  revalidatePath(`/master/players/${r.memberId}`);
+  revalidatePath(`/manage/players/${r.memberId}`);
 }
 

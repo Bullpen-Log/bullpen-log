@@ -40,7 +40,7 @@ export type SignupAnswers = {
   staffCode: string;
 };
 
-/** 가입 종류 — 선수(지금의 불펜로그) · 레슨장 · 팀(마스터 화면 /master, 선수 기능 없음) */
+/** 가입 종류 — 선수(지금의 불펜로그) · 레슨장 · 팀(마스터 화면 /manage, 선수 기능 없음) */
 export type SignupKind = 'player' | 'lesson' | 'team';
 
 export const SIGNUP_KIND_OPTIONS: { value: SignupKind; label: string; hint: string }[] =

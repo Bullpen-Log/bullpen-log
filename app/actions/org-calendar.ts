@@ -46,8 +46,8 @@ export async function saveOrgEvent(_prev: OrgActionState, formData: FormData): P
   } else {
     await prisma.orgEvent.create({ data: { ...data, orgId: org.id, createdById: user.id } });
   }
-  revalidatePath('/master/calendar');
-  revalidatePath('/master');
+  revalidatePath('/manage/calendar');
+  revalidatePath('/manage');
   return { success: id ? '고쳤어요.' : '더했어요.' };
 }
 
@@ -60,6 +60,6 @@ export async function deleteOrgEvent(formData: FormData) {
   if (!ev) return;
   await requireOrg(user, ev.orgId);
   await prisma.orgEvent.delete({ where: { id: ev.id } });
-  revalidatePath('/master/calendar');
-  revalidatePath('/master');
+  revalidatePath('/manage/calendar');
+  revalidatePath('/manage');
 }

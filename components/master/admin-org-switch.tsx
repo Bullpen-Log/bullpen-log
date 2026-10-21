@@ -45,7 +45,7 @@ export function AdminOrgSwitch({ compact = false }: { compact?: boolean }) {
         </SafeForm>
         {!compact && (
           <a
-            href="/master/orgs"
+            href="/manage/orgs"
             className="inline-flex min-h-11 items-center px-3 text-sm font-semibold text-sky"
           >
             모든 조직 보기

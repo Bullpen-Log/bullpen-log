@@ -107,12 +107,12 @@ export async function saveVenue(
       data: { ...read.data, ownerId: user.id },
       select: { id: true },
     });
-    revalidatePath('/master/venues');
-    revalidatePath('/dugout/venues', 'layout');
-    redirect(`/master/venues/${created.id}`);
+    revalidatePath('/manage/venues');
+    revalidatePath('/venues', 'layout');
+    redirect(`/manage/venues/${created.id}`);
   }
-  revalidatePath('/master/venues', 'layout');
-  revalidatePath('/dugout/venues', 'layout');
+  revalidatePath('/manage/venues', 'layout');
+  revalidatePath('/venues', 'layout');
   return { success: '저장했어요.' };
 }
 
@@ -128,9 +128,9 @@ export async function deleteVenue(formData: FormData) {
     where: { id },
     data: { hiddenAt: new Date(), publicProfile: false },
   });
-  revalidatePath('/master/venues', 'layout');
-  revalidatePath('/dugout/venues', 'layout');
-  redirect('/master/venues');
+  revalidatePath('/manage/venues', 'layout');
+  revalidatePath('/venues', 'layout');
+  redirect('/manage/venues');
 }
 
 /** 사장님 — 승인 · 거절 */
@@ -156,9 +156,9 @@ export async function answerVenueBooking(formData: FormData) {
     where: { id },
     data: { status: ok ? 'CONFIRMED' : 'DECLINED', reply },
   });
-  revalidatePath('/master/venues', 'layout');
-  revalidatePath(`/dugout/venues/${b.venue.id}`);
-  revalidatePath('/dugout/me');
+  revalidatePath('/manage/venues', 'layout');
+  revalidatePath(`/venues/${b.venue.id}`);
+  revalidatePath('/me');
 }
 
 /* ── 선수 ── */
@@ -221,9 +221,9 @@ export async function bookVenue(
       status: v.approval ? 'REQUESTED' : 'CONFIRMED',
     },
   });
-  revalidatePath(`/dugout/venues/${venueId}`);
-  revalidatePath('/dugout/me');
-  revalidatePath('/master/venues', 'layout');
+  revalidatePath(`/venues/${venueId}`);
+  revalidatePath('/me');
+  revalidatePath('/manage/venues', 'layout');
   return {
     success: v.approval ? '요청했어요. 사장님이 승인하면 확정돼요.' : '예약됐어요.',
   };
@@ -239,7 +239,7 @@ export async function cancelVenueBooking(formData: FormData) {
   if (!b || b.userId !== user.id || !['REQUESTED', 'CONFIRMED'].includes(b.status))
     return;
   await prisma.venueBooking.update({ where: { id }, data: { status: 'CANCELED' } });
-  revalidatePath('/dugout/me');
-  revalidatePath(`/dugout/venues/${b.venueId}`);
-  revalidatePath('/master/venues', 'layout');
+  revalidatePath('/me');
+  revalidatePath(`/venues/${b.venueId}`);
+  revalidatePath('/manage/venues', 'layout');
 }

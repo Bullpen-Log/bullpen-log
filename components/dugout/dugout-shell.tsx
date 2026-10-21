@@ -4,35 +4,33 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { House, MessagesSquare, Plus, Tag, UserRound } from '@/components/icon';
-import { Wordmark } from '@/components/logo';
+import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
 
 /**
  * 덕아웃 껍데기(2026-10-20, docs/designs/baseball-hub.md) — 로그인 없이 보는 야구인의 공간. 선수 껍데기(components/app-shell)와 별개.
- * PC: 위 막대(이름 · 홈 · 장터 · 채팅 · 내 것 · 로그인/내 불펜로그). 휴대폰: 위 막대는 이름만, 아래 탭 다섯(홈 · 장터 · 올리기 · 채팅 · 내 것).
+ * PC: 공용 위 막대(components/dugout/dugout-topbar.tsx — 2026-10-21 2단계부터 사이트 전체가 같은 막대). 휴대폰: 아래 탭 다섯(홈 · 장터 · 올리기 · 채팅 · 내 것).
  * 로그인한 사람에게는 '내 싱커'(/today) 로 가는 길이 늘 오른쪽 위에 있다 — 덕아웃은 밖, 싱커는 안(2026-10-21 이름, lib/brand.ts).
  */
 export function DugoutShell({
   user,
   unread,
+  sinker = false,
+  manage = false,
   children,
 }: {
   user: { nickname: string } | null;
   unread: number;
+  sinker?: boolean;
+  manage?: boolean;
   children: ReactNode;
 }) {
   const pathname = usePathname();
   const tabs = [
-    { href: '/dugout', label: '홈', icon: House, exact: true },
-    { href: '/dugout/market', label: '장터', icon: Tag },
-    { href: '/dugout/market/new', label: '올리기', icon: Plus, plus: true },
-    { href: '/dugout/chat', label: '채팅', icon: MessagesSquare, badge: unread },
-    { href: '/dugout/me', label: '내 것', icon: UserRound },
-  ];
-  /* PC 위 막대에만 — 휴대폰 아래 탭은 다섯까지 */
-  const more = [
-    { href: '/dugout/lessons', label: '레슨' },
-    { href: '/dugout/venues', label: '장소' },
-    { href: '/dugout/gear', label: '장비 고르기' },
+    { href: '/', label: '홈', icon: House, exact: true },
+    { href: '/market', label: '장터', icon: Tag },
+    { href: '/market/new', label: '올리기', icon: Plus, plus: true },
+    { href: '/chat', label: '채팅', icon: MessagesSquare, badge: unread },
+    { href: '/me', label: '내 것', icon: UserRound },
   ];
   const active = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
@@ -43,88 +41,7 @@ export function DugoutShell({
       data-brand="dugout"
       className="flex min-h-[var(--vvh,100dvh)] flex-col bg-page text-ink"
     >
-      <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur">
-        <div className="mx-auto flex min-h-14 w-full max-w-5xl items-center gap-3 px-4 md:px-6">
-          <Link href="/dugout" className="flex items-baseline gap-2">
-            <Wordmark brand="dugout" className="text-2xl text-ink" />
-            <span className="hidden text-[11px] text-muted sm:inline-flex"></span>
-          </Link>
-          <nav aria-label="덕아웃" className="ml-4 hidden items-center gap-1 md:flex">
-            {tabs
-              .filter((t) => !t.plus)
-              .map((t) => {
-                const on = active(t.href, t.exact);
-                return (
-                  <Link
-                    key={t.href}
-                    href={t.href}
-                    aria-current={on ? 'page' : undefined}
-                    className={`relative flex min-h-10 items-center rounded-xl px-3 text-sm font-semibold transition-colors ${
-                      on
-                        ? 'bg-sky/12 text-sky-strong'
-                        : 'text-muted hover:bg-ink/5 hover:text-ink'
-                    }`}
-                  >
-                    {t.label}
-                    {t.badge ? (
-                      <span className="ml-1.5 rounded-full bg-danger px-1.5 text-[10px] font-bold text-white">
-                        {t.badge}
-                      </span>
-                    ) : null}
-                  </Link>
-                );
-              })}
-            {more.map((t) => {
-              const on = active(t.href);
-              return (
-                <Link
-                  key={t.href}
-                  href={t.href}
-                  aria-current={on ? 'page' : undefined}
-                  className={`flex min-h-10 items-center rounded-xl px-3 text-sm font-semibold transition-colors ${
-                    on
-                      ? 'bg-sky/12 text-sky-strong'
-                      : 'text-muted hover:bg-ink/5 hover:text-ink'
-                  }`}
-                >
-                  {t.label}
-                </Link>
-              );
-            })}
-          </nav>
-          <div className="ml-auto flex items-center gap-2">
-            <Link
-              href="/dugout/market/new"
-              className="hidden min-h-10 items-center gap-1.5 rounded-xl border border-line px-3 text-sm font-semibold text-ink transition-colors hover:border-sky-soft md:flex"
-            >
-              <Plus className="h-4 w-4" /> 물건 올리기
-            </Link>
-            {user ? (
-              <Link
-                href="/today"
-                className="flex min-h-10 items-center gap-1.5 rounded-xl bg-sky px-3.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
-              >
-                내 싱커
-              </Link>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="flex min-h-10 items-center px-2 text-sm font-semibold text-muted hover:text-ink"
-                >
-                  로그인
-                </Link>
-                <Link
-                  href="/login?signup=1"
-                  className="flex min-h-10 items-center rounded-xl bg-sky px-3.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
-                >
-                  시작하기
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+      <DugoutTopBar user={user} unread={unread} sinker={sinker} manage={manage} />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-5 pb-28 md:px-6 md:pt-8 md:pb-16">
         {children}

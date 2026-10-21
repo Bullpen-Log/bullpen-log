@@ -1,1 +1,1 @@
-export { default } from '@/app/(dugout)/dugout/page';
+export { default } from '@/app/(dugout)/page';

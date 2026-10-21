@@ -3834,7 +3834,7 @@ html[data-shell='expo'] {
 }
 
 /*
- * 얼굴마다 강조색(2026-10-21 1단계, docs/designs/sinker-dugout.md 8절 G) — 덕아웃 틀(components/dugout/dugout-shell · master-shell) 안에서는
+ * 얼굴마다 강조색(2026-10-21 1단계, docs/designs/sinker-dugout.md 8절 G) — 덕아웃 틀(components/dugout-shell · master-shell) 안에서는
  * 화면 코드가 1,000곳 넘게 쓰는 sky 를 초록으로 바꾼다. 부품은 안 고치고 변수만 바꾼다. 싱커(선수 화면)는 그대로 파랑.
  */
 [data-brand='dugout'] {

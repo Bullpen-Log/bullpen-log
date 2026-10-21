@@ -14,7 +14,7 @@ export function ListingCard({ item, now }: { item: Card; now: Date }) {
   const summary = specSummary(item.category, item.specs);
   return (
     <Link
-      href={`/dugout/market/${item.id}`}
+      href={`/market/${item.id}`}
       className={`group block overflow-hidden rounded-2xl border border-line bg-surface transition-colors hover:border-sky-soft ${item.hidden ? 'opacity-50' : ''}`}
     >
       <div className="relative aspect-square bg-surface-2">

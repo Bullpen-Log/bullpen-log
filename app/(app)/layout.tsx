@@ -3,6 +3,8 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
+import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
+import { countUnread } from '@/lib/market/load';
 import { isSex, toDateInputValue } from '@/lib/profile';
 import { toDateKey } from '@/lib/pitch-stats';
 import { createAvatarUrl } from '@/lib/storage';
@@ -70,11 +72,13 @@ export default async function AppLayout({
 }) {
   // 이 레이아웃 아래의 모든 페이지는 로그인이 필요하다.
   const user = await requireUser();
-  /* 마스터 계정(팀 · 레슨장)은 선수 기능이 없다 — 선수 화면 전체가 /master 로 간다(2026-10-20 결정 2). 관리자는 둘 다 본다 */
-  if (user.accountType === 'MASTER' && user.role !== 'ADMIN') redirect('/master');
+  /* 마스터 계정(팀 · 레슨장)은 선수 기능이 없다 — 선수 화면 전체가 /manage 로 간다(2026-10-20 결정 2). 관리자는 둘 다 본다 */
+  if (user.accountType === 'MASTER' && user.role !== 'ADMIN') redirect('/manage');
   const isAdmin = user.role === 'ADMIN';
   /* 앱(스마트폰 껍데기) 안인가 — 구속 측정 메뉴는 앱이면 누구나, 웹이면 관리자만(lib/nav.ts) */
   const isNative = isNativeUserAgent((await headers()).get('user-agent'));
+  /* PC 브라우저의 선수 화면은 덕아웃 틀 안(2026-10-21 2단계, docs/designs/sinker-dugout.md 5-1) — 위 막대 하나, 앱(싱커 웹뷰)은 안 그린다 */
+  const unread = isNative ? 0 : await countUnread(user.id);
   /*
    * 어느 탭이 잠겨 있나(lib/feature-locks.ts, 2026-10-09) — 처음 가입한 사람은 투구 기록 · 트레이닝 · 영양이 잠겨 있고,
    * 막대 · 탭에서는 흐리게 + 자물쇠로 보이되 누르면 그 탭의 첫 설정 화면으로 간다(lib/nav.ts applyLocks). 홈의 기능
@@ -130,6 +134,17 @@ export default async function AppLayout({
         그릴 때 한 번. 아이폰 앱 안은 제 시작 연출(MainViewController.swift)이 같은 장면을 하므로 뺀다.
       */}
       {!isNative && <AppSplash />}
+      {!isNative && (
+        <DugoutTopBar
+          user={{ nickname: user.nickname }}
+          unread={unread}
+          sinker
+          manage={isAdmin}
+          current="sinker"
+          sticky={false}
+          className="hidden md:block"
+        />
+      )}
       <AppNav
         groups={applyLocksToGroups(visibleGroups(user.role, isNative), locks)}
         quick={applyLocks(quickTabs(), locks)}

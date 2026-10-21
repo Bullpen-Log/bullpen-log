@@ -30,7 +30,7 @@ export function PitcherBoard({
       {rows.map((r) => (
         <Link
           key={r.memberId}
-          href={`/master/players/${r.memberId}`}
+          href={`/manage/players/${r.memberId}`}
           className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-ink/4"
         >
           <span

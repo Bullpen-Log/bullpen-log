@@ -119,7 +119,7 @@ export async function createPitchLogs(_prev: OrgActionState, formData: FormData)
       })),
     });
   }
-  revalidatePath('/master', 'layout');
+  revalidatePath('/manage', 'layout');
   return { success: `${rows.length}명 기록했어요${fresh.length < rows.length ? ' (방금 같은 값은 한 번만)' : ''}.` };
 }
 
@@ -133,5 +133,5 @@ export async function deleteProxyPitchLog(formData: FormData) {
   if (!log || !log.orgId || !log.enteredById) return;
   await requireOrg(user, log.orgId);
   await prisma.pitchLog.delete({ where: { id: log.id } });
-  revalidatePath('/master', 'layout');
+  revalidatePath('/manage', 'layout');
 }

@@ -75,8 +75,8 @@ export async function updateCoachProfile(
       lessonHours,
     },
   });
-  revalidatePath('/master/settings');
-  revalidatePath('/dugout/lessons', 'layout');
+  revalidatePath('/manage/settings');
+  revalidatePath('/lessons', 'layout');
   return { success: publicProfile ? '덕아웃에 공개했어요.' : '저장했어요(비공개).' };
 }
 
@@ -152,8 +152,8 @@ export async function confirmBooking(formData: FormData) {
       data: { status: 'CONFIRMED', chosen, reply, memberId, eventId: ev.id },
     });
   });
-  revalidatePath('/master', 'layout');
-  revalidatePath('/dugout', 'layout');
+  revalidatePath('/manage', 'layout');
+  revalidatePath('/', 'layout');
 }
 
 export async function declineBooking(formData: FormData) {
@@ -173,8 +173,8 @@ export async function declineBooking(formData: FormData) {
     where: { id },
     data: { status: 'DECLINED', reply },
   });
-  revalidatePath('/master', 'layout');
-  revalidatePath('/dugout', 'layout');
+  revalidatePath('/manage', 'layout');
+  revalidatePath('/', 'layout');
 }
 
 /** 레슨을 했다 — 끝남으로. 후기를 쓸 수 있게 된다 */
@@ -188,8 +188,8 @@ export async function finishBooking(formData: FormData) {
   if (!b || b.status !== 'CONFIRMED') return;
   await requireOrg(user, b.orgId);
   await prisma.lessonBooking.update({ where: { id }, data: { status: 'DONE' } });
-  revalidatePath('/master', 'layout');
-  revalidatePath('/dugout', 'layout');
+  revalidatePath('/manage', 'layout');
+  revalidatePath('/', 'layout');
 }
 
 /* ── 선수 ── */
@@ -226,9 +226,9 @@ export async function requestBooking(
   await prisma.lessonBooking.create({
     data: { orgId, userId: user.id, slot1, slot2, note },
   });
-  revalidatePath(`/dugout/lessons/${orgId}`);
-  revalidatePath('/dugout/me');
-  revalidatePath('/master', 'layout');
+  revalidatePath(`/lessons/${orgId}`);
+  revalidatePath('/me');
+  revalidatePath('/manage', 'layout');
   return { success: '요청을 보냈어요. 코치가 확정하면 알려 드려요.' };
 }
 
@@ -245,9 +245,9 @@ export async function cancelBooking(formData: FormData) {
     await tx.lessonBooking.update({ where: { id }, data: { status: 'CANCELED' } });
     if (b.eventId) await tx.orgEvent.deleteMany({ where: { id: b.eventId } });
   });
-  revalidatePath('/dugout/me');
-  revalidatePath(`/dugout/lessons/${b.orgId}`);
-  revalidatePath('/master', 'layout');
+  revalidatePath('/me');
+  revalidatePath(`/lessons/${b.orgId}`);
+  revalidatePath('/manage', 'layout');
 }
 
 export async function writeReview(
@@ -277,7 +277,7 @@ export async function writeReview(
   await prisma.lessonReview.create({
     data: { orgId: b.orgId, userId: user.id, bookingId, rating, body },
   });
-  revalidatePath(`/dugout/lessons/${b.orgId}`);
-  revalidatePath('/dugout/me');
+  revalidatePath(`/lessons/${b.orgId}`);
+  revalidatePath('/me');
   return { success: '후기를 남겼어요. 고마워요.' };
 }

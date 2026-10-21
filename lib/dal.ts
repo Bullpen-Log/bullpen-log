@@ -31,7 +31,7 @@ export const getCurrentUser = cache(async () => {
         /* 막대와 상단 바의 아바타에 쓴다. 이름 옆에 늘 붙는 값이라 함께 읽는다. */
         avatarPath: true,
         role: true,
-        /* 선수 · 마스터(팀 · 레슨장 관리) — (app) 틀이 마스터를 /master 로 보내고, requireMaster 가 선수를 막는다 */
+        /* 선수 · 마스터(팀 · 레슨장 관리) — (app) 틀이 마스터를 /manage 로 보내고, requireMaster 가 선수를 막는다 */
         accountType: true,
         birthDate: true,
         /* 내 정보에서 고치고, 영양 목표의 기초대사량 계산이 읽는다 */

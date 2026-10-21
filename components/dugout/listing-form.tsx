@@ -298,7 +298,7 @@ export function ListingForm({
 
       <div className="flex items-center justify-end gap-2">
         <ButtonLink
-          href={editing ? `/dugout/market/${initial.id}` : '/dugout/market'}
+          href={editing ? `/market/${initial.id}` : '/market'}
           variant="ghost"
         >
           취소

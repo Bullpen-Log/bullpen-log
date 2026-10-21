@@ -231,7 +231,7 @@ async function trySignup(formData: FormData): Promise<AuthState> {
 }
 
 /**
- * 레슨장 · 팀(마스터) 가입 — 계정(accountType MASTER) · 조직(Org) · 마스터 구성원(OrgMember) 셋을 한 트랜잭션으로 만들고 /master 로.
+ * 레슨장 · 팀(마스터) 가입 — 계정(accountType MASTER) · 조직(Org) · 마스터 구성원(OrgMember) 셋을 한 트랜잭션으로 만들고 /manage 로.
  * 이메일 · 이름 · 비밀번호 · 동의는 trySignup 이 이미 봤다. 마스터 계정은 선수 기능이 없어 생년월일 · 키 · 몸무게 · 체중 줄을 만들지 않는다
  * (2026-10-20 결정 2). 관리자 이메일 규칙은 선수 가입과 같다.
  */
@@ -303,7 +303,7 @@ async function trySignupMaster(
       role: staff.role,
       pw: passwordFingerprint(hash),
     });
-    redirect('/master');
+    redirect('/manage');
   }
 
   const orgName = String(formData.get('orgName') ?? '').trim();
@@ -366,7 +366,7 @@ async function trySignupMaster(
     role: user.role,
     pw: passwordFingerprint(passwordHash),
   });
-  redirect('/master');
+  redirect('/manage');
 }
 
 export async function login(_prev: AuthState, formData: FormData): Promise<AuthState> {
@@ -417,7 +417,7 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
   /* 마스터 계정(팀 · 레슨장)은 선수 홈이 없다 — 관리 화면으로(2026-10-20). 관리자는 선수 홈에서 메뉴로 넘어간다 */
   redirect(
     user.accountType === 'MASTER' && user.role !== 'ADMIN'
-      ? '/master'
+      ? '/manage'
       : (safeNext(formData) ?? '/today')
   );
 }

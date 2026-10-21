@@ -3,7 +3,7 @@
  *
  *   npm run org:test
  *
- * DB 는 안 쓴다. 선수 차단은 (master) 틀의 requireMaster · 마스터 동작마다의 requireMaster · (app) 틀의 /master 보내기 — 셋 가운데 하나가
+ * DB 는 안 쓴다. 선수 차단은 (master) 틀의 requireMaster · 마스터 동작마다의 requireMaster · (app) 틀의 /manage 보내기 — 셋 가운데 하나가
  * 빠지면 선수 계정이 관리 화면을 열 수 있다(2026-10-20 사용자: "일반 선수 사용자는 절대 이 페이지를 들어갈 수가 없어야 돼").
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -237,17 +237,17 @@ console.log('\n[5] 선수 계정이 관리 화면에 못 들어가는가 — 코
   check('getCurrentUser 가 accountType 을 읽는다', /accountType: true/.test(dal));
   const app = src('app/(app)/layout.tsx');
   check(
-    '(app) 틀이 마스터 계정을 /master 로 보낸다',
-    /accountType === 'MASTER'[^\n]*redirect\('\/master'\)/.test(app)
+    '(app) 틀이 마스터 계정을 /manage 로 보낸다',
+    /accountType === 'MASTER'[^\n]*redirect\('\/manage'\)/.test(app)
   );
   const auth = src('app/actions/auth.ts');
   check(
-    '가입이 accountType MASTER 를 만들고 /master 로 보낸다',
-    /accountType: 'MASTER'/.test(auth) && /redirect\('\/master'\)/.test(auth)
+    '가입이 accountType MASTER 를 만들고 /manage 로 보낸다',
+    /accountType: 'MASTER'/.test(auth) && /redirect\('\/manage'\)/.test(auth)
   );
   check(
     '로그인이 accountType 으로 갈 곳을 고른다',
-    /accountType === 'MASTER'[\s\S]{0,160}'\/master'/.test(auth)
+    /accountType === 'MASTER'[\s\S]{0,160}'\/manage'/.test(auth)
   );
 
   /* 마스터 동작 — export 마다 requireMaster. 함수 몸통 = 다음 최상위 function 앞까지 */

@@ -195,13 +195,14 @@ PC 의 '내 싱커'에서는 그 자리에 "싱커 앱에서 재요" 카드만 �
 - 답(10-21): 로고는 임시로 Claude 가(파일은 나중에), 색은 베타로 덕아웃 초록 · 싱커 파랑, 도메인은 이름 그대로(덕아웃).
 - 남긴 것: 웹 시작 연출(components/app-splash.tsx)과 PWA 아이콘은 아직 옛 B — 로고 파일이 오면 같이 바꾼다. 앱 안 문구(native/)는 B-1(김민).
 
-### 2단계 덕아웃 틀 (4~5시간)
-- ☐ 2-1 `components/dugout/dugout-shell.tsx` 를 사이트 공용 위 막대로 — 홈 · 커뮤니티 · 장터 · 레슨 · 연습장 · 장비 · 검색 · 채팅 · 알림 · **내 싱커** · **관리** · 나.
-- ☐ 2-2 PC 브라우저(`surfaceOf === 'web'` 이고 데스크톱)의 선수 화면 `(app)` 을 덕아웃 틀 안에 — 지금 도크 · PC 메뉴는 '내 싱커' 안의 왼쪽 메뉴로. 앱(싱커 웹뷰)은 그대로.
-- ☐ 2-3 `/master/*` → `/manage/*`(301), 마스터 틀을 덕아웃 틀 안으로.
-- ☐ 2-4 `/dugout/*` → 뿌리(`/market` …) — 주소 옮기기 + 옛 주소 301(도메인 전이라도 먼저 해 둠, `/community` 피드는 그대로).
-- ☐ 2-5 로그인한 덕아웃 홈의 '내 싱커 요약 줄'.
-- 물어볼 것: 커뮤니티 피드 개편을 누가 맡는지(김민).
+### 2단계 덕아웃 틀 (4~5시간) — 끝(2026-10-21, 로컬 커밋)
+- ☑ 2-1 `components/dugout/dugout-shell.tsx` 를 사이트 공용 위 막대로 — 홈 · 커뮤니티 · 장터 · 레슨 · 연습장 · 장비 · 검색 · 채팅 · 알림 · **내 싱커** · **관리** · 나.
+- ☑ 2-2 PC 브라우저(`surfaceOf === 'web'` 이고 데스크톱)의 선수 화면 `(app)` 을 덕아웃 틀 안에 — 지금 도크 · PC 메뉴는 '내 싱커' 안의 왼쪽 메뉴로. 앱(싱커 웹뷰)은 그대로.
+- ☑ 2-3 `/master/*` → `/manage/*`(301), 마스터 틀을 덕아웃 틀 안으로.
+- ☑ 2-4 `/dugout/*` → 뿌리(`/market` …) — 주소 옮기기 + 옛 주소 301(도메인 전이라도 먼저 해 둠, `/community` 피드는 그대로).
+- ☑ 2-5 로그인한 덕아웃 홈의 '내 싱커 요약 줄'.
+- 한 것: 공용 위 막대 `components/dugout/dugout-topbar.tsx`(덕아웃 · PC 선수 화면 · 관리 셋 다), 내 싱커 요약 줄 `components/dugout/sinker-strip.tsx`, `/` = 덕아웃 홈(앱 안은 /today), 옛 `/dugout/*` · `/master/*` 는 next.config 301.
+  PC 선수 화면의 도크 · 메뉴는 그대로 두고 위에 막대만 얹었다(4-3 에서 배치를 손본다). 커뮤니티 피드 개편 담당은 김민에게 물어 둠(HANDOFF).
 
 ### 3단계 계정 · 레슨→기록 (4~5시간)
 - ☐ 3-1 마이그레이션(더하기만): `User.signupSource` · `User.sinkerStartedAt` · `AccountType.MEMBER` · `LessonNote.exercises/pitchCount/intensity` · `User.publicSinker`.

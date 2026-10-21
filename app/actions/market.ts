@@ -79,8 +79,8 @@ export async function createListing(
     data: { ...read.data, userId: user.id },
     select: { id: true },
   });
-  revalidatePath('/dugout', 'layout');
-  redirect(`/dugout/market/${created.id}`);
+  revalidatePath('/', 'layout');
+  redirect(`/market/${created.id}`);
 }
 
 export async function updateListing(
@@ -102,8 +102,8 @@ export async function updateListing(
   /* 뺀 사진은 저장소에서도 지운다 */
   const removed = found.images.filter((p) => !read.data.images.includes(p));
   if (removed.length) await deleteVideos(removed).catch(() => undefined);
-  revalidatePath('/dugout', 'layout');
-  redirect(`/dugout/market/${id}`);
+  revalidatePath('/', 'layout');
+  redirect(`/market/${id}`);
 }
 
 /** 판매 중 · 예약 중 · 거래 완료 */
@@ -118,7 +118,7 @@ export async function setListingStatus(formData: FormData) {
   });
   if (!found || found.userId !== user.id) return;
   await prisma.listing.update({ where: { id }, data: { status } });
-  revalidatePath('/dugout', 'layout');
+  revalidatePath('/', 'layout');
 }
 
 export async function deleteListing(formData: FormData) {
@@ -131,8 +131,8 @@ export async function deleteListing(formData: FormData) {
   if (!found || (found.userId !== user.id && user.role !== 'ADMIN')) return;
   await prisma.listing.delete({ where: { id } });
   if (found.images.length) await deleteVideos(found.images).catch(() => undefined);
-  revalidatePath('/dugout', 'layout');
-  redirect('/dugout/me');
+  revalidatePath('/', 'layout');
+  redirect('/me');
 }
 
 /** 찜 — 있으면 빼고 없으면 더한다. 돌려주는 값은 지금 상태 */
@@ -153,8 +153,8 @@ export async function toggleFavorite(
   });
   if (had) await prisma.listingFavorite.delete({ where: key });
   else await prisma.listingFavorite.create({ data: { listingId, userId: user.id } });
-  revalidatePath(`/dugout/market/${listingId}`);
-  revalidatePath('/dugout/me');
+  revalidatePath(`/market/${listingId}`);
+  revalidatePath('/me');
   return { favorite: !had };
 }
 
@@ -203,6 +203,6 @@ export async function setListingHidden(formData: FormData) {
   });
   if (!found) return;
   await prisma.listing.update({ where: { id }, data: { hiddenAt } });
-  revalidatePath('/dugout', 'layout');
+  revalidatePath('/', 'layout');
   revalidatePath('/admin/community');
 }

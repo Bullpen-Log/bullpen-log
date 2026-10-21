@@ -172,7 +172,7 @@ export default async function CommunityAdminPage({
                     <Link
                       href={
                         isListing
-                          ? `/dugout/market/${r.listing!.id}`
+                          ? `/market/${r.listing!.id}`
                           : `/community/${postId}`
                       }
                       className="group block rounded-xl bg-surface-2 px-4 py-3 transition-colors hover:bg-ink/6"
