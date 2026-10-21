@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Bell, LayoutGrid, MessagesSquare } from '@/components/icon';
 import { AppLauncher } from '@/components/dugout/app-launcher';
-import { DUGOUT_ENTERED_COOKIE as ENTERED_COOKIE } from '@/lib/brand';
 import { Wordmark } from '@/components/logo';
 
 /**
@@ -12,12 +11,13 @@ import { Wordmark } from '@/components/logo';
  * 위로 가고 지금의 덕아웃 홈이 나오게").
  *
  * 단계 셋 — html[data-hero] 로 적어 위 막대(components/dugout/dugout-topbar.tsx)가 같이 움직인다(globals.css '덕아웃 첫 화면').
- *   splash  로고 · 이름만 가운데 크게(한 세션에 한 번 — 세션 쿠키 dugout-entered, 그 뒤로는 서버가 바로 hero 부터 그린다) → 0.9초 뒤 hero
+ *   splash  로고 · 이름만 화면 정중앙에 크게(들어올 때마다), 나머지는 아무것도 없다 → 1초 뒤 hero(로고가 줄며 제자리로, 바로가기 · 모서리 · 안내가 스르륵)
  *   hero    구글식 홈 — 작은 링크 · 큰 로고 · 검색창 · 단추 둘. 위 막대는 숨는다. 바퀴 · 손가락 · 키로 조금만 내리면 home
  *   home    로고가 작아지며 위로(위 막대가 떠오름) · 이 판이 접히며 밑의 덕아웃 홈이 올라온다. 맨 위에서 다시 올리면 hero 로
  */
 type Stage = 'splash' | 'hero' | 'home';
-const SPLASH_MS = 900;
+/** 로고만 떠 있는 시간(2026-10-21 금윤호: "로고 외에는 아무것도 없다가 1초 후에 스르륵") */
+const SPLASH_MS = 1000;
 const COLLAPSE_MS = 620;
 
 export function DugoutHero({
@@ -26,7 +26,6 @@ export function DugoutHero({
   alerts = 0,
   sinker = false,
   native = false,
-  initialStage = 'splash',
 }: {
   user: { nickname: string } | null;
   unread?: number;
@@ -34,12 +33,10 @@ export function DugoutHero({
   /** 싱커를 쓰는 사람 — 바로가기 마지막 칸이 '싱커' */
   sinker?: boolean;
   native?: boolean;
-  /** 서버가 정한 첫 단계 — 세션 첫 방문이면 splash(로고 크게), 그 뒤로는 hero(바로가기 메인 화면)부터. 아래 홈은 늘 내려야 나온다(2026-10-21 금윤호) */
-  initialStage?: 'splash' | 'hero';
 }) {
   /* 서버 그림부터 splash(로고 크게) — 첫 칠에 위 막대가 비쳤다 사라지는 일이 없다. 이미 본 세션이면 수화 뒤 바로 hero 로 줄어든다 */
-  const [stage, setStage] = useState<Stage>(initialStage);
-  const stageRef = useRef<Stage>(initialStage);
+  const [stage, setStage] = useState<Stage>('splash');
+  const stageRef = useRef<Stage>('splash');
   /* 맨 위에 닿은 때 — 관성으로 굴러 올라와 닿자마자 첫 화면이 다시 펴지지 않게(0.35초는 맨 위에 머물러야 편다) */
   const topSince = useRef<number>(0);
   const busy = useRef(false);
@@ -51,7 +48,9 @@ export function DugoutHero({
    * 화면 가운데까지의 차이만큼 옮겨 둔다 — 위 막대가 투명하게 자리를 차지해도, 바로가기 높이가 달라도 늘 정중앙. 재기 전에는 숨긴다(엉뚱한 자리에서 튀지 않게).
    */
   const logoBox = useRef<HTMLDivElement>(null);
-  const [center, setCenter] = useState<{ x: number; y: number } | null>(null);
+  const [center, setCenter] = useState<{ x: number; y: number; scale: number } | null>(
+    null
+  );
   useLayoutEffect(() => {
     if (stageRef.current !== 'splash') return;
     const measure = () => {
@@ -60,6 +59,11 @@ export function DugoutHero({
       setCenter({
         x: window.innerWidth / 2 - (r.left + r.width / 2),
         y: window.innerHeight / 2 - (r.top + r.height / 2),
+        /* 지금 크기의 2배까지, 단 화면 폭의 86% 안 — 휴대폰에서 글자가 화면 밖으로 나가지 않게 */
+        scale: Math.max(
+          1.2,
+          Math.min(2, (window.innerWidth * 0.86) / Math.max(1, r.width))
+        ),
       });
     };
     measure();
@@ -72,9 +76,8 @@ export function DugoutHero({
     setStage(next);
   }
 
-  /* 이 세션은 첫 화면을 봤다고 적는다(세션 쿠키 — 브라우저를 닫으면 사라짐). 움직임 줄이기면 splash 를 건너뛴다 */
+  /* 움직임 줄이기면 splash 를 건너뛴다 */
   useEffect(() => {
-    document.cookie = `${ENTERED_COOKIE}=1; path=/; SameSite=Lax`;
     if (
       stageRef.current === 'splash' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -203,8 +206,8 @@ export function DugoutHero({
     >
       {/* 구글식 작은 링크 — 왼쪽 위 · 오른쪽 위. splash · home 에서는 숨는다 */}
       <div
-        className={`fixed inset-x-0 top-0 z-30 flex items-center justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-3 pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] text-[15px] transition-opacity duration-500 md:px-10 lg:px-14 ${
-          splash || home ? 'pointer-events-none opacity-0' : 'opacity-100'
+        className={`fixed inset-x-0 top-0 z-30 flex items-center justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-3 pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] text-[15px] transition-opacity duration-700 md:px-10 lg:px-14 ${
+          splash || home ? 'pointer-events-none opacity-0' : 'opacity-100 delay-[450ms]'
         }`}
       >
         <nav className="flex items-center gap-6 font-medium text-muted">
@@ -291,10 +294,10 @@ export function DugoutHero({
         {/* 바깥 칸은 홈 자리 그대로(재는 기준), 안쪽만 움직인다 */}
         <div ref={logoBox} className="flex flex-col items-center">
           <div
-            className="flex flex-col items-center transition-[transform,opacity] duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+            className="flex flex-col items-center transition-[transform,opacity] duration-[900ms] ease-[cubic-bezier(0.65,0,0.25,1)]"
             style={{
               transform: splash
-                ? `translate(${center?.x ?? 0}px, ${center?.y ?? 0}px) scale(1.35)`
+                ? `translate(${center?.x ?? 0}px, ${center?.y ?? 0}px) scale(${center?.scale ?? 1.6})`
                 : home
                   ? 'translateY(-40vh) scale(0.35)'
                   : 'translateY(-16px) scale(1)',
@@ -307,7 +310,7 @@ export function DugoutHero({
         </div>
         {/* 바로가기(2026-10-21 — 검색 대신 앱 아이콘처럼 바로 열기) */}
         <div
-          className={`mt-10 w-full max-w-3xl transition-all duration-500 ${splash || home ? 'pointer-events-none translate-y-4 opacity-0' : 'translate-y-0 opacity-100'}`}
+          className={`mt-10 w-full max-w-3xl transition-all duration-700 ${splash || home ? 'pointer-events-none translate-y-4 opacity-0' : 'translate-y-0 opacity-100 delay-[300ms]'}`}
         >
           <AppLauncher
             key={splash ? 'wait' : 'show'}
@@ -323,7 +326,7 @@ export function DugoutHero({
       <button
         type="button"
         onClick={() => stage === 'hero' && go('home')}
-        className={`absolute inset-x-0 bottom-6 mx-auto flex w-fit flex-col items-center gap-1 text-xs text-muted transition-opacity duration-500 ${splash || home ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
+        className={`absolute inset-x-0 bottom-6 mx-auto flex w-fit flex-col items-center gap-1 text-xs text-muted transition-opacity duration-700 ${splash || home ? 'pointer-events-none opacity-0' : 'opacity-100 delay-[900ms]'}`}
       >
         <span>아래로 내리면 장터 · 소통 · 레슨</span>
         <span aria-hidden className="motion-safe:animate-bounce">

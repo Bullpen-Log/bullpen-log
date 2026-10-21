@@ -110,8 +110,8 @@ export function AppLauncher({
           return (
             <li
               key={it.href}
-              className="motion-safe:animate-[launcher-in_420ms_cubic-bezier(0.2,0.8,0.2,1)_both]"
-              style={{ animationDelay: `${i * 35}ms` }}
+              className="motion-safe:animate-[launcher-in_640ms_cubic-bezier(0.2,0.8,0.2,1)_both]"
+              style={{ animationDelay: `${(big ? 320 : 0) + i * 55}ms` }}
             >
               <a
                 href={it.href}
