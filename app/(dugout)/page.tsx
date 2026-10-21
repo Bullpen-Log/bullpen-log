@@ -130,7 +130,7 @@ export default async function DugoutHome() {
       </section>
 
       {/* 소통 */}
-      <section className="space-y-3">
+      <section id="talk" className="scroll-mt-20 space-y-3">
         <div className="flex items-baseline justify-between">
           <h2 className="text-lg font-bold text-ink">소통 · 새 글</h2>
           <span className="flex items-center gap-3">

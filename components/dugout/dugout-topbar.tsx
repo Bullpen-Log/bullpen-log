@@ -36,7 +36,7 @@ export function DugoutTopBar({
   const inDugout = current === null;
   const nav = [
     { href: '/', label: '홈', exact: true },
-    ...(user ? [{ href: '/community', label: '커뮤니티' }] : []),
+    ...(user ? [{ href: '/#talk', label: '커뮤니티' }] : []),
     { href: '/market', label: '장터' },
     { href: '/lessons', label: '레슨' },
     { href: '/venues', label: '연습장' },

@@ -17,6 +17,8 @@ import {
   applyLocksToGroups,
   quickTabs,
   visibleGroups,
+  toDugoutHome,
+  toDugoutHomeGroups,
 } from '@/lib/nav';
 import { featureLocks } from '@/lib/feature-locks';
 import { AppNav } from '@/components/app-shell';
@@ -79,6 +81,12 @@ export default async function AppLayout({
   const isAdmin = user.role === 'ADMIN';
   /* 앱(스마트폰 껍데기) 안인가 — 구속 측정 메뉴는 앱이면 누구나, 웹이면 관리자만(lib/nav.ts) */
   const isNative = isNativeUserAgent((await headers()).get('user-agent'));
+  /* 웹 브라우저면 메뉴 · 탭의 덕아웃(/community)을 진짜 덕아웃(/)으로 — lib/nav.ts toDugoutHome. 앱은 그대로 */
+  const webTabs = <T extends { href: string }>(items: T[]) =>
+    isNative ? items : toDugoutHome(items);
+  const webGroups = <G extends { items: { href: string }[] }>(groups: G[]) =>
+    isNative ? groups : toDugoutHomeGroups(groups);
+
   /* PC 브라우저의 선수 화면은 덕아웃 틀 안(2026-10-21 2단계, docs/designs/sinker-dugout.md 5-1) — 위 막대 하나, 앱(싱커 웹뷰)은 안 그린다 */
   const [unread, alerts] = isNative
     ? [0, 0]
@@ -151,9 +159,12 @@ export default async function AppLayout({
         />
       )}
       <AppNav
-        groups={applyLocksToGroups(visibleGroups(user.role, isNative), locks)}
-        quick={applyLocks(quickTabs(), locks)}
-        tabs={applyLocks(MOBILE_TABS, locks)}
+        /* 웹에서는 덕아웃 탭이 진짜 덕아웃(/)으로(2026-10-21) — 앱은 그대로 /community */
+        groups={webGroups(
+          applyLocksToGroups(visibleGroups(user.role, isNative), locks)
+        )}
+        quick={webTabs(applyLocks(quickTabs(), locks))}
+        tabs={webTabs(applyLocks(MOBILE_TABS, locks))}
         sportBars={{
           pitch: applyLocks(SPORT_BARS.pitch, locks),
           hit: applyLocks(SPORT_BARS.hit, locks),

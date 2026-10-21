@@ -235,7 +235,13 @@ export const NAV_GROUPS: NavGroup[] = [
    */
   {
     items: [
-      { href: '/videos/lab', label: '3D 동작 분석', icon: 'body', lock: 'pitch', appMoreHidden: true },
+      {
+        href: '/videos/lab',
+        label: '3D 동작 분석',
+        icon: 'body',
+        lock: 'pitch',
+        appMoreHidden: true,
+      },
     ],
   },
   {
@@ -339,15 +345,35 @@ export const SPORT_BARS: Record<SportKey, NavItem[]> = {
     SPORT_BACK,
     { href: '/videos', label: '투구', icon: 'baseball', lock: 'pitch' },
     { href: '/videos?view=log', label: '기록', icon: 'calendar' },
-    { href: '/training?sport=pitch', label: '트레이닝', icon: 'dumbbell', lock: 'training' },
-    { href: '/training?view=armcare', label: '암케어', icon: 'heart', lock: 'training' },
-    { href: '/training?view=mechanics', label: '메커니즘', icon: 'target', lock: 'training' },
+    {
+      href: '/training?sport=pitch',
+      label: '트레이닝',
+      icon: 'dumbbell',
+      lock: 'training',
+    },
+    {
+      href: '/training?view=armcare',
+      label: '암케어',
+      icon: 'heart',
+      lock: 'training',
+    },
+    {
+      href: '/training?view=mechanics',
+      label: '메커니즘',
+      icon: 'target',
+      lock: 'training',
+    },
   ],
   hit: [
     SPORT_BACK,
     { href: '/hitting', label: '타격', icon: 'bat' },
     { href: '/hitting?view=log', label: '기록', icon: 'calendar' },
-    { href: '/training?sport=hit', label: '트레이닝', icon: 'dumbbell', lock: 'training' },
+    {
+      href: '/training?sport=hit',
+      label: '트레이닝',
+      icon: 'dumbbell',
+      lock: 'training',
+    },
   ],
 };
 
@@ -390,7 +416,8 @@ export function sportActiveHref(
     return `/training?sport=${sport}`;
   }
   const home = sport === 'pitch' ? '/videos' : '/hitting';
-  const log = params.get('view') === SPORT_LOG_VIEW || pathname.startsWith('/pitch-log/');
+  const log =
+    params.get('view') === SPORT_LOG_VIEW || pathname.startsWith('/pitch-log/');
   return log ? `${home}?view=${SPORT_LOG_VIEW}` : home;
 }
 
@@ -534,4 +561,19 @@ export function visibleGroups(role: string, isNative = false): NavGroup[] {
         (!i.appOrAdmin || webMeasure || isNative)
     ),
   })).filter((g) => g.items.length > 0);
+}
+
+/**
+ * 웹 브라우저의 덕아웃 탭(2026-10-21 금윤호: "싱커로 들어갔을 때 덕아웃으로 돌아올 방법이 없다 — 커뮤니티 버튼을 누르면 바로 덕아웃으로").
+ * 싱커 틀 안의 /community 판 대신 진짜 덕아웃(/ — 위 막대 · '내 싱커' 단추가 있는 틀)으로 보낸다. 앱(웹뷰)은 그대로 둔다 —
+ * 앱은 /community 를 제 화면으로 열고(native/src/app/index.tsx), 앱의 / 는 /today 로 돌아가서다.
+ */
+export const DUGOUT_TAB_HREF = '/community';
+export function toDugoutHome<T extends { href: string }>(items: T[]): T[] {
+  return items.map((i) => (i.href === DUGOUT_TAB_HREF ? { ...i, href: '/' } : i));
+}
+export function toDugoutHomeGroups<G extends { items: { href: string }[] }>(
+  groups: G[]
+): G[] {
+  return groups.map((g) => ({ ...g, items: toDugoutHome(g.items) }));
 }
