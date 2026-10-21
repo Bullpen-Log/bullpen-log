@@ -12,13 +12,15 @@ import UIKit
 /// 알림: 'throw' { atSec, strength, kind, thermal } · 'error' { message } · 'fps' { fps, dropped, shutter, iso, thermal, feedMs, feedSkipped } · 'level' { x, y, z }(중력, 폰 좌표)
 ///
 /// 앱만의 것(2026-10-17 3판): level(폰 기울기 — 웹은 deviceorientation) · keep(회원 클립을 앱 안 폴더에, Capacitor LocalVideo 와 같은 자리) ·
-/// upload(관리자 클립을 서명 주소로 PUT).
+/// upload(관리자 클립을 서명 주소로 PUT) · speak(소리 안내).
 public class DualCameraModule: Module {
     private var controller: DualCameraController?
     /// 넘겨준 클립 파일 — read · discard 는 이것만 받는다(다른 파일을 읽히지 않게)
     private var issued = Set<String>()
     private let issuedLock = NSLock()
     private let motion = CMMotionManager()
+    /// 소리 안내(speak) — 하나를 두고 새 말이 오면 앞 말을 끊는다
+    private let speech = AVSpeechSynthesizer()
 
     public func definition() -> ModuleDefinition {
         Name("DualCamera")
@@ -196,6 +198,21 @@ public class DualCameraModule: Module {
                 promise.resolve(["id": id])
             } catch {
                 promise.reject("failed", "폰에 저장하지 못했어요.")
+            }
+        }
+
+        /// 소리 안내 — 잰 구속 · 측정 불가를 한국어로 읽는다(웹 측정 화면 speechSynthesis 와 같은 말, 2026-10-21 김민). 앞 말은 끊는다.
+        /// 무음 스위치를 켜 둔 현장에서도 들리게 playback, 다른 앱 소리(음악)는 그대로 섞는다
+        AsyncFunction("speak") { (text: String) in
+            DispatchQueue.main.async {
+                let session = AVAudioSession.sharedInstance()
+                try? session.setCategory(.playback, mode: .spokenAudio, options: [.mixWithOthers])
+                try? session.setActive(true)
+                if self.speech.isSpeaking { self.speech.stopSpeaking(at: .immediate) }
+                let utterance = AVSpeechUtterance(string: text)
+                utterance.voice = AVSpeechSynthesisVoice(language: "ko-KR")
+                utterance.rate = min(AVSpeechUtteranceMaximumSpeechRate, AVSpeechUtteranceDefaultSpeechRate * 1.05)
+                self.speech.speak(utterance)
             }
         }
 

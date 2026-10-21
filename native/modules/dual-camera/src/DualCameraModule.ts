@@ -21,6 +21,8 @@ declare class DualCameraModule extends NativeModule<DualCameraEvents> {
   keep(options: { path: string }): Promise<{ id: string }>;
   /** 관리자 클립을 서명 주소로 PUT */
   upload(options: { path: string; url: string; contentType?: string }): Promise<{ status: number }>;
+  /** 소리 안내 — 한국어로 읽는다(앞 말은 끊음). 2026-10-21 판부터, 옛 앱 판에는 없다 */
+  speak?(text: string): Promise<void>;
   snapshot(options: { short?: number }): Promise<{ luma: string; width: number; height: number }>;
   diag(): Promise<Record<string, unknown>>;
   tune(options: { stabilization?: boolean; zoom?: number; lens?: number; autoFocus?: boolean }): Promise<Record<string, unknown>>;

@@ -103,6 +103,8 @@ export const SPEED_DISTANCE_EXPONENT = 1.076;
 export const AUTO_DISTANCE_SIGMA_REL = 0.03;
 /** 튕김을 못 본 끝(impact 'end')을 믿는 공 크기 거리 · 넣은 거리 차이 — 10-12 밖 그런 공 둘은 3 · 5% 였다 */
 export const END_SIZE_AGREE = 0.1;
+/** 믿음 '높음'의 맞춤 잔차 상한(σ 배 — 1080 기준 px, 분석 720 이면 1.0px). 2.7.3 까지 1.2 */
+export const HIGH_RMS = 1.5;
 /**
  * 공 크기 거리는 초점거리에 비례한다 — 화각을 짐작했으면(렌즈 정보 · 렌즈 보정 · 앱 카메라 값 없음) 그만큼 더 틀린다. 아이폰 영상 · 웹
  * 카메라의 화각은 짐작과 8% 안팎 갈린다. 부르는 쪽(analyze-video · live-meter)이 ± 에 더하고 이 알림을 붙인다.
@@ -132,6 +134,8 @@ export type DistanceReport = {
   sizeDistM: number | null;
   /** 공 크기 판정을 한 기준 거리(m) — 넣은 거리, 화면이 세션 거리로 다시 판정했으면 그 거리(rejudgeSize, 2.5.3). 거리 자동 · 못 쟀으면 없다 */
   sizeRefM?: number;
+  /** 믿음이 '보통'인 까닭(2.7.4) — 공 크기 판정이 다른 까닭을 못 찾으면 why 가 된다 */
+  soft?: 'auto-distance' | 'stabilized' | 'short-flight' | 'fit-rms';
   /** 공 크기 판정 전의 믿음 · ± · 까닭 — rejudgeSize 가 여기서 다시 시작한다. 쟀을 때만 */
   preSize?: { confidence: Confidence; errorKmh: number; why: string | null };
   /** 구속을 낸 거리가 어디서 왔나 — 'input' 넣은 거리, 'ball' 공 크기 어림 */
@@ -778,9 +782,24 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
       (report.shaky && !report.stabilized)
     )
       confidence = 'low';
-    /* 공 크기로 어림한 거리는 줄자보다 덜 믿는다 — '보통'까지 */
-    else if (!auto && !report.shaky && used.length * dt >= 0.4 && fit.rms <= 1.2 * s)
+    /*
+     * 공 크기로 어림한 거리는 줄자보다 덜 믿는다 — '보통'까지. 잔차 문턱 1.2 → 1.5σ(2.7.4, 2026-10-21 김민): 10-21 밖 캐치볼에서
+     * 0.84~0.94px(문턱 0.8px · 분석 720)인 공 셋이 높음 공 둘과 같은 95~102km/h 인데 측정 불가로 빠졌다. 스피드건 짝 0.8~1.0px 3구
+     * 평균 오차 4.0km/h(0.8px 밑 45구 5.3), 1.0px 넘으면 16km/h.
+     */
+    else if (!auto && !report.shaky && used.length * dt >= 0.4 && fit.rms <= HIGH_RMS * s)
       confidence = 'high';
+    /* 보통이면 왜 높음이 못 됐나 — 화면이 측정 불가 까닭을 말한다(judgeSize 가 why 로 옮긴다) */
+    report.soft =
+      confidence !== 'medium'
+        ? undefined
+        : auto
+          ? 'auto-distance'
+          : report.shaky
+            ? 'stabilized'
+            : used.length * dt < 0.4
+              ? 'short-flight'
+              : 'fit-rms';
     report.timingMs = Math.round(now() - t0);
     const kmhEnd = Math.hypot(...fit.velocityAt(used[used.length - 1].t)) * Dm * 3.6;
     return {
@@ -892,6 +911,7 @@ function judgeSize(out: DistanceResult, refM: number | null) {
     else if ((report.extended ?? 0) > 8) report.why = 'extended';
     /* 맞음새 = 1 − 잔차 ÷ (4σ) 라 잔차 2.5σ 넘음(0.375 밑)도 여기에 든다 */
     else if (m.detail.fitQuality < 0.6) report.why = 'fit-quality';
+    else if (m.confidence === 'medium' && report.soft) report.why = report.soft;
   }
   report.calibEligible =
     refM != null &&

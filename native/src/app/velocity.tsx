@@ -25,6 +25,7 @@ import {
   type ZoneRect,
 } from '@/lib/velocity-setup';
 import { DualCamera, DualCameraPreview, type StartInfo } from '../../modules/dual-camera';
+import { BullpenNative } from '../../modules/bullpen-native';
 import { rpc, RpcError } from '~/lib/rpc';
 import { loadJson, saveJson } from '~/lib/store';
 import { AppCapture, timingLine, type CaptureStatus, type JobTiming, type MeasureSettings } from '~/velocity/capture';
@@ -91,6 +92,10 @@ const SETTINGS: Omit<MeasureSettings, 'tiltRad'> = {
 /** 수평으로 볼 좌우 · 앞뒤 기울기(도) — 웹 수평계(lib/use-device-level.ts LEVEL_OK_DEG · PITCH_OK_DEG)와 같다 */
 const ROLL_OK = 1.5;
 const PITCH_OK = 10;
+/** 소리 안내 켬/끔 — 이 폰에 기억(모드 설정과 따로) */
+const VOICE_KEY = 'bullpen-velocity-voice';
+/** 소리 안내 — 새 앱 판(DualCamera.speak, 2026-10-21)부터. 옛 판이면 단추를 안 보인다 */
+const canSpeak = typeof DualCamera.speak === 'function';
 
 /** 저장 안 하고 버리는 공의 클립 파일을 지운다 */
 /**
@@ -284,6 +289,29 @@ export default function VelocityScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /*
+   * 소리 안내 — 웹 측정 화면의 '소리로 구속 알려주기'와 같은 말(시작 · 잰 구속 · 측정 불가 · 못 쟀어요, 2026-10-21 김민). 위 오른쪽 스피커 단추로
+   * 켜고 끄며 이 폰에 기억한다. 카메라 알림 콜백에서도 부르니 켬/끔은 ref 로 읽는다
+   */
+  const [voice, setVoice] = useState(false);
+  const voiceRef = useRef(false);
+  useEffect(() => {
+    void loadJson(VOICE_KEY).then((v) => {
+      voiceRef.current = v === true;
+      setVoice(v === true);
+    });
+  }, []);
+  const say = (text: string) => {
+    if (voiceRef.current) void DualCamera.speak?.(text).catch(() => undefined);
+  };
+  const toggleVoice = () => {
+    const on = !voiceRef.current;
+    voiceRef.current = on;
+    setVoice(on);
+    void saveJson(VOICE_KEY, on);
+    if (on) say('소리 안내를 켰어요');
+  };
+
   /* 카메라 — 화면을 열면 켜 두고(설정 단계 뒤로 보이게), 알아채기는 측정 단계에서만 */
   useEffect(() => {
     let alive = true;
@@ -297,6 +325,8 @@ export default function VelocityScreen() {
           const a = absRef.current;
           const out = decide(result, pitchesRef.current, ctxRef.current, meta, a?.on ? a.judge : undefined);
           if (out.notice) setNotice(out.notice);
+          /* 받은 공의 값은 목록이 바뀐 뒤 읽는다(아래 — 세션 거리 보정까지 다시 낸 값) */
+          if (out.notice && !out.list) say(out.notice.startsWith('측정 불가') ? '측정 불가' : '못 쟀어요');
           if (out.list) {
             setList(out.list);
             setNotice(null);
@@ -378,6 +408,15 @@ export default function VelocityScreen() {
         }
       );
     };
+  }, []);
+
+  /*
+   * 카메라 화면에서는 폰이 잠기지 않게 — 삼각대에 두고 안 만지면 30초 뒤 자동 잠금이 카메라를 멈췄다(10-21 밖: 녹화가 26초에서 끊기고
+   * 그 뒤 던진 공은 알아채지도 못함). 운동 · 워밍업 화면과 같은 BullpenNative.keepAwake
+   */
+  useEffect(() => {
+    void BullpenNative.keepAwake(true).catch(() => undefined);
+    return () => void BullpenNative.keepAwake(false).catch(() => undefined);
   }, []);
 
   /* 엔진에 넘기는 카메라 앞뒤 기울기(웹 velocity-screen 의 setTilt — 위를 보면 +) */
@@ -591,6 +630,18 @@ export default function VelocityScreen() {
     }
   };
 
+  /* 소리 안내 — 측정을 시작하면 한 번, 공이 하나 더해지면 그 값(보이는 단위 · 정수, 웹과 같다). 이어 하기로 여러 개가 한꺼번에 오면 안 읽는다 */
+  useEffect(() => {
+    if (step === 'measure' && live) say('측정을 시작해요. 던져요');
+  }, [step, live]);
+  const spokenLen = useRef(0);
+  useEffect(() => {
+    const n = pitches.length;
+    if (live && n === spokenLen.current + 1) say(`${Math.round(toSpeed(shownKmh(pitches[n - 1], fit), unit))}`);
+    spokenLen.current = n;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pitches]);
+
   const level = tilt && Math.abs(tilt.roll) <= ROLL_OK && Math.abs(tilt.pitch) <= PITCH_OK;
   const last = pitches.at(-1);
   const stats = statsOf(pitches, fit);
@@ -691,7 +742,13 @@ export default function VelocityScreen() {
               <ChromePill dot={measuring ? statusDot : 'rgba(255,255,255,0.5)'}>{measuring ? statusText : `${modeMeta.title} 준비`}</ChromePill>
             ) : null}
           </View>
-          {step !== 'measure' ? <ChromeButton icon="focus" label="초점 다시 맞추기" onPress={refocus} busy={focusBusy} disabled={!info} /> : <View style={{ width: 44 }} />}
+          {step !== 'measure' ? (
+            <ChromeButton icon="focus" label="초점 다시 맞추기" onPress={refocus} busy={focusBusy} disabled={!info} />
+          ) : canSpeak ? (
+            <ChromeButton icon={voice ? 'volume-2' : 'volume-x'} label={voice ? '소리 안내 끄기' : '소리 안내 켜기'} onPress={toggleVoice} />
+          ) : (
+            <View style={{ width: 44 }} />
+          )}
         </View>
         {/* 둘째 줄 — 수평계 | 카메라 상태 */}
         <View style={[styles.second, { top: inset.top + 58 }]}>

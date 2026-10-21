@@ -229,3 +229,8 @@ D3. **JS-thread hygiene.** Throttle `level` to 4 Hz in Swift (`deviceMotionUpdat
   풀기 · 훑기는 모두 돌았고(조각당 1.3~2.1초), 끊기는 0.3초에 청해 0.5~0.7초에 멈췄다. 공 후보 9곳은 모두 NOT_ENOUGH_FRAMES · UNSTABLE_TRACK(공 길 0장) —
   2초 구간 120장 가운데 44~74장이 같은 장면(되풀이)이라 **카메라가 장면을 버린 영상**이다. 엔진 탓이 아니라 그날 판의 장면 버림 탓을 다시 확인.
   사이트 `/velocity-engine` · `/velocity-detector/ball-v1.onnx` · jsDelivr 런타임 모두 200(앱 UA). 현장 뒤 읽기: `scripts/velocity-lab/attempts-report.mjs --date=…`.
+- **10-21 밖 캐치볼 20m(김민, 엔진 2.7.4)**: 카메라는 내내 60fps · 버림 0 — 장면 문제는 풀렸다. 못 잰 까닭 셋: ① 측정 화면이 화면 꺼짐을 안 막아 30초 자동 잠금에
+  카메라가 멈춤(세션 녹화 26~52초 빔, 그사이 공 알아채기도 없음) → `keepAwake` ② 잔차 0.84~0.94px 공 셋(95~102km/h)이 높음 문턱 0.8px 에 걸려 측정 불가 → `HIGH_RMS`
+  1.2 → 1.5σ, 엉뚱한 안내('닿는 곳이 안 보였어요' — 포수가 받으면 늘 impact 'end')를 까닭별로(`DistanceReport.soft` → why) ③ 세션 거리 보정이 깨끗한 공 하나의 공 크기
+  거리 18.1m 로 세션을 −10% 옮김(다른 공 19.5~21m) — 거리를 알면 '줄자로 쟀어요'. 저장된 두 공은 20m 값(100.5 · 98.4)으로 고침(백업 `~/bullpen-log-backups`).
+  같이: 못 잰 공 안내에 까닭 한 줄 · 소리 안내(DualCamera.speak, 위 오른쪽 스피커 — 스위프트라 새 TestFlight).

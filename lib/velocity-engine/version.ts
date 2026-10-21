@@ -317,8 +317,11 @@
  *                      (lib/velocity-setup.ts TAPE_MODES — 계산은 그대로 20m + 세션 보정 ±15%), 공 크기 거리가 15% 넘게 다르면 "18~22m 밖 같아요".
  *   2.7.3  2026-10-20  작은 자리(값 그대로): 조용할 때 훑기(locateThrow)를 끊을 수 있게(signal). 새 앱 계산기는 하나라 돌던 훑기 뒤에서 공이 3~15초
  *                      기다렸다 — 공이 오면 앱이 훑기를 끊는다(engine-client.tsx).
+ *   2.7.4  2026-10-21  작은 자리(값 그대로 · 믿음만): '높음' 잔차 문턱 1.2 → 1.5σ(analyze-distance.ts HIGH_RMS). 10-21 밖 캐치볼 20m 에서 잔차
+ *                      0.84~0.94px 인 공 셋(95.4 · 100.0 · 101.8)이 높음 공 둘(100.5 · 98.4)과 같은 값인데 측정 불가로 빠졌다. '보통'의 까닭을
+ *                      DistanceReport.soft → why 로(fit-rms · short-flight · stabilized · auto-distance) — 화면이 측정 불가 까닭을 바로 말한다.
  */
-export const VELOCITY_ENGINE_VERSION = '2.7.3';
+export const VELOCITY_ENGINE_VERSION = '2.7.4';
 
 /**
  * 스피드건 보정 짝이 이어지는 묶음 — 작은 자리(0.0.X)는 재는 방법이 같아 짝을 그대로 쓴다(가운데 자리까지 같은 공 모두 — 지금은 '1.9.').

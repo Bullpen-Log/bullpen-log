@@ -90,8 +90,12 @@ export function decide(
   if (!m.ok) {
     if (m.code === 'CAMERA_SHAKE')
       return { verdict: { kept: false }, notice: '폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.' };
-    /* 여기 오는 실패는 화면에 띄운 공뿐이다(capture.ts — 안 보이는 작업 · 공 길 4장 밑은 조용히 넘김). 예전엔 '구속 계산 중' 뒤에 말없이 사라졌다 */
-    return { verdict: { kept: false }, notice: '공은 봤는데 못 쟀어요. 다시 던져 주세요.' };
+    /*
+     * 여기 오는 실패는 화면에 띄운 공뿐이다(capture.ts — 안 보이는 작업 · 공 길 4장 밑은 조용히 넘김). 예전엔 '구속 계산 중' 뒤에 말없이 사라졌다.
+     * 까닭(거부 코드의 한 줄)과 할 일 첫 문장을 같이 — 10-21 김민: "측정 불가하면 원인 띄우고"
+     */
+    const fix = m.fix?.split('. ')[0]?.replace(/\.?$/, '.');
+    return { verdict: { kept: false }, notice: `못 쟀어요 · ${m.message ?? '공은 봤는데 거리를 못 쟀어요.'}${fix ? ` ${fix}` : ''}` };
   }
   if (m.confidence !== 'high' && !steadied(result))
     return {
