@@ -1,4 +1,5 @@
-import { BlurView } from 'expo-blur';
+import type { BlurView as BlurViewType } from 'expo-blur';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { type Href, router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -57,6 +58,14 @@ const LOOK = {
 } as const;
 /* 뒤 화면 흐림 — 아이폰 폴더 뒤(홈 화면 배경이 크게 번짐)만큼. 어둠은 위 scrim 이 따로 얹는다 */
 const BACKDROP_BLUR = 60;
+/*
+ * expo-blur 는 2026-10-21 에 넣은 네이티브 부품이라 그 전에 구운 앱(개발용 '불펜로그 테스트' 등)에는 없다 — 그때 불러오면 화면째 멈추니
+ * 부품이 있을 때만 불러오고, 없으면 흐림 없이 어둠만(조금 더 진하게) 깐다.
+ */
+const BlurView: typeof BlurViewType | null = requireOptionalNativeModule('ExpoBlur')
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    (require('expo-blur') as typeof import('expo-blur')).BlurView
+  : null;
 /* 폴더가 떠 보이는 그림자 — 가까운 것 · 먼 것 두 겹 */
 const FOLDER_SHADOW = '0 2px 6px rgba(0,0,0,0.12), 0 24px 60px -12px rgba(0,0,0,0.38)';
 /* 끌어내려 닫기 — 웹 detail-menu startDrag: 12px 넘게 거의 세로로 움직이면 끌기, 100px(빠르면 48px) 넘으면 닫힘 */
@@ -208,7 +217,11 @@ export default function MoreScreen() {
     <GestureDetector gesture={drag}>
       <View style={{ flex: 1 }}>
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, scrimStyle]}>
-          <BlurView intensity={BACKDROP_BLUR} tint={theme === 'light' ? 'systemThinMaterialLight' : 'systemThinMaterialDark'} style={StyleSheet.absoluteFill} />
+          {BlurView ? (
+            <BlurView intensity={BACKDROP_BLUR} tint={theme === 'light' ? 'systemThinMaterialLight' : 'systemThinMaterialDark'} style={StyleSheet.absoluteFill} />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: L.scrim }]} />
+          )}
           <View style={[StyleSheet.absoluteFill, { backgroundColor: L.scrim }]} />
         </Animated.View>
         {/* 하단 탭 자리만큼 비운다 — 폴더가 탭 막대 위에 선다(웹 inset.bottom + 72) */}
