@@ -854,6 +854,11 @@ export function ElementCard({
                   <Text style={{ color: c.sky, fontWeight: '700' }}>{i + 1}</Text> {t.title} · {t.stage}
                 </Text>
               ))}
+              {report.reportId ? (
+                <Press onPress={() => router.push(`/lab/${report.reportId}` as Href)} accessibilityRole="button" style={[s.textBtn, { paddingHorizontal: 0 }]}>
+                  <Text style={[s.smallBold, { color: c.sky }]}>리포트에서 처방 시작 ›</Text>
+                </Press>
+              ) : null}
             </View>
           ) : null}
           {via && via.also.length > 0 ? (

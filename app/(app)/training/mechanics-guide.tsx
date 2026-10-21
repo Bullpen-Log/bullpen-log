@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight } from '@/components/icon';
 import { Modal, useModalState } from '@/components/modal';
@@ -290,6 +291,14 @@ function ElementCard({
                     </li>
                   ))}
                 </ol>
+              )}
+              {report.reportId && (
+                <Link
+                  href={`/videos/lab/${report.reportId}`}
+                  className="inline-flex min-h-10 items-center text-xs font-semibold text-sky-strong"
+                >
+                  리포트에서 처방 시작 ›
+                </Link>
               )}
             </div>
           )}

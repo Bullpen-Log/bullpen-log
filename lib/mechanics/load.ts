@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { favoriteDrillIds } from '@/lib/favorites';
 import { allGuides, trainingGuides } from '@/lib/library-cache';
 import { createPlaybackUrls } from '@/lib/storage';
+import { loadLatestReport } from '@/lib/pitch-lab';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { ageFromBirthDate } from '@/lib/profile';
@@ -217,18 +218,25 @@ export type ElementReportView = {
   element: string;
   level: 'improve' | 'edge';
   target: { label: string; now: string; goal: string } | null;
-  /** 처방 드릴 — 단계 차례(주차 차례), 겹치지 않게 */
+  /** 처방 드릴 — 단계 차례(주차 차례), 겹치지 않게. 처방 없이 리포트만 받았으면 빈 배열 */
   titles: { title: string; stage: string }[];
+  /** 처방 없이 리포트만 받았을 때 그 리포트(샘플) 번호 — 카드가 '리포트에서 처방 시작'으로 잇는다 */
+  reportId?: string;
 };
 
 /**
- * 진행 중 · 마친 처방의 요소들 — 처방이 없으면 null. 리포트 파일은 다시 안 읽고 베낀 처방(progress.focus)만 본다 — 처방 없이 리포트만 받은
- * 사람의 점은 3D 세션이 가벼운 '마지막 리포트 요약' 읽기를 주면 그때 더한다.
+ * 진행 중 · 마친 처방의 요소들 — 처방(progress.focus)이 있으면 베낀 처방만 본다. 없으면 마지막 리포트 요약(3D 세션 loadLatestReport)의
+ * 경계 이상 요소로 점만 찍는다(드릴 없음). 둘 다 없으면 null.
  */
 export async function loadElementReport(userId: string): Promise<ElementReportView[] | null> {
   const row = await prisma.mechanicsProgram.findUnique({ where: { userId }, select: { progress: true } });
   const focus = row ? readProgramState(row.progress).focus : null;
-  if (!focus) return null;
+  if (!focus) {
+    // ponytail: 샘플마다 저장소 파일 둘을 읽는다 — 샘플이 수십 개로 늘면 리포트 요약을 한 파일에 모아 두기
+    const latest = await loadLatestReport(userId).catch(() => null);
+    if (!latest || latest.summary.bad.length === 0) return null;
+    return latest.summary.bad.map((b) => ({ element: b.element, level: b.level, target: null, titles: [], reportId: latest.reportId }));
+  }
   return focus.rx.map((r) => {
     const seen = new Set<string>();
     const titles = r.weeks.flatMap((w) =>
