@@ -1,6 +1,7 @@
 import { add, cross, dot, normalize, scale, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
 import type { MannequinJoints, MannequinTrack } from '@/lib/pitch-3d/v2/mannequin-prep';
 import { RULE_BEND } from '@/lib/pitch-3d/v2/trunk';
+import { rotateAbout } from '@/lib/pitch-3d/v2/kinematics';
 
 /**
  * 데생 인형 — 장면마다 미리 셈해 두는 '틀'(설계 docs/designs/pitch-3d-mannequin.md §6, 2026-10-11 금윤호). 순수 — three 없이 화면
@@ -199,10 +200,7 @@ const angleBetween = (a: Vec3, b: Vec3) =>
   Math.acos(Math.max(-1, Math.min(1, dot(normalize(a), normalize(b)))));
 /** v 를 축 ax 둘레로 th 만큼 돌린다(로드리게스) */
 function rotateAxis(v: Vec3, ax: Vec3, th: number): Vec3 {
-  const k = normalize(ax);
-  const c = Math.cos(th);
-  const s = Math.sin(th);
-  return add(add(scale(v, c), scale(cross(k, v), s)), scale(k, dot(k, v) * (1 - c)));
+  return rotateAbout(v, normalize(ax), th);
 }
 
 /**
@@ -377,7 +375,5 @@ export function mannequinFrames(frames: MannequinJoints[], heightM: number): Man
   });
 }
 
-/** 왼쪽 · 오른쪽을 바꾼 벡터(거울 시험용) */
-export const mirrorY = (v: Vec3): Vec3 => [v[0], -v[1], v[2]];
 /** lerp · mid — 화면 쪽도 같은 것을 쓴다 */
 export { lerp3 as lerp, mid3 as mid };
