@@ -6,14 +6,17 @@ import { analysisOf, distanceMismatch } from '@/lib/velocity-analysis';
 import { applyCalibration, type CalFit } from '@/lib/velocity-calibration';
 import { summarize } from '@/lib/velocity-meta';
 import {
+  MISS_REASONS,
   SIZE_OUTLIER_FIX,
   judgeBySession,
   lowConfidenceFix,
+  missReasonOf,
   measuredFields,
   sessionDistanceOf,
   sizeOutlier,
   steadied,
   withSessionDistance,
+  type MissReason,
   type SessionPitchCore,
 } from '@/lib/velocity-session';
 import { OUT_OF_RANGE_FIX, STANDARD_TARGET_DIST_M, TAPE_MISMATCH_FIX, zoneOfPoint, type CameraPos, type ZoneRect } from '@/lib/velocity-setup';
@@ -84,26 +87,33 @@ export function decide(
   meta: { id: number; clip: Clip; late?: boolean },
   /** ABS 모드면 판정 함수(use-abs judge) — 보정이 있고 궤적 스냅샷이 있으면 analysis.abs 에 싣고 코스는 판정 칸으로(웹과 같다) */
   judgeAbs?: (r: AbsJudgeSource) => AbsAnalysis | null
-): { verdict: Verdict; list?: NativePitch[]; notice?: string } {
+): { verdict: Verdict; list?: NativePitch[]; notice?: string; miss?: MissReason } {
   const result = judgeBySession(raw as unknown as Result, list, 'camera', ctx.tape);
   const m = result.measure;
+  /* 조용할 때 훑기가 찾은 공(late)은 알림 없이 잰 것 — 못 쟀으면 어느 공 이야기인지 앞에 붙인다 */
+  const pre = meta.late ? '뒤늦게 찾은 공 · ' : '';
   if (!m.ok) {
     if (m.code === 'CAMERA_SHAKE')
-      return { verdict: { kept: false }, notice: '폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.' };
+      return { verdict: { kept: false }, notice: `${pre}폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.`, miss: MISS_REASONS.shake };
     /*
      * 여기 오는 실패는 화면에 띄운 공뿐이다(capture.ts — 안 보이는 작업 · 공 길 4장 밑은 조용히 넘김). 예전엔 '구속 계산 중' 뒤에 말없이 사라졌다.
      * 까닭(거부 코드의 한 줄)과 할 일 첫 문장을 같이 — 10-21 김민: "측정 불가하면 원인 띄우고"
      */
     const fix = m.fix?.split('. ')[0]?.replace(/\.?$/, '.');
-    return { verdict: { kept: false }, notice: `못 쟀어요 · ${m.message ?? '공은 봤는데 거리를 못 쟀어요.'}${fix ? ` ${fix}` : ''}` };
+    return {
+      verdict: { kept: false },
+      notice: `${pre}못 쟀어요 · ${m.message ?? '공은 봤는데 거리를 못 쟀어요.'}${fix ? ` ${fix}` : ''}`,
+      miss: missReasonOf(result),
+    };
   }
   if (m.confidence !== 'high' && !steadied(result))
     return {
       verdict: { kept: false, why: 'low-confidence' },
-      notice: `측정 불가 · ${lowConfidenceFix(result, 'camera', ctx.cameraPos !== 'behind-pitcher', ctx.tape)}`,
+      notice: `${pre}측정 불가 · ${lowConfidenceFix(result, 'camera', ctx.cameraPos !== 'behind-pitcher', ctx.tape)}`,
+      miss: missReasonOf(result, ctx.cameraPos !== 'behind-pitcher'),
     };
   if (sizeOutlier(result, list, 'camera'))
-    return { verdict: { kept: false, why: 'session-size' }, notice: `측정 불가 · ${SIZE_OUTLIER_FIX}` };
+    return { verdict: { kept: false, why: 'session-size' }, notice: `${pre}측정 불가 · ${SIZE_OUTLIER_FIX}`, miss: MISS_REASONS.session };
 
   const tail = result.track[result.track.length - 1];
   const zone =

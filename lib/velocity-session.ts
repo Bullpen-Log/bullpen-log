@@ -229,6 +229,60 @@ export function lowConfidenceFix(
   return '공이 잡힌 구간이 짧거나 흐렸어요. 초점과 밝기를 확인하고 다시 던져 주세요.';
 }
 
+/**
+ * 못 잰 공의 짧은 까닭 — 측정 중 화면의 '못 잰 공' 집계와 소리 안내(던지는 사람은 18m 밖이라 화면 글을 못 본다, 2026-10-22 김민 "인식이 안 될 때
+ * 왜 안 됐는지 실시간으로"). label 은 집계 칸, say 는 '측정 불가.' 뒤에 읽을 할 일 한 마디. 자세한 말은 lowConfidenceFix · 엔진 거부 글.
+ */
+export type MissReason = { label: string; say: string };
+export const MISS_REASONS = {
+  still: { label: '공이 안 움직임', say: '폰을 옆으로 반 걸음 비켜 주세요' },
+  late: { label: '늦게 잡힘', say: '손이 떠나는 자리를 화면 가운데로' },
+  end: { label: '끝을 놓침', say: '받는 곳이 다 보이게 해 주세요' },
+  bright: { label: '밝은 배경', say: '공 뒤 배경이 밝아요' },
+  blurry: { label: '공이 흐림', say: '초점을 다시 맞춰 주세요' },
+  short: { label: '공 길이 짧음', say: '폰을 1.5에서 2미터 뒤로' },
+  shake: { label: '폰 흔들림', say: '폰을 단단히 고정해 주세요' },
+  distance: { label: '거리 어긋남', say: '폰과 받는 자리를 확인해 주세요' },
+  path: { label: '공 길 흔들림', say: '공 뒤 배경이 단순한 쪽으로' },
+  catcher: { label: '포수 뒤', say: '투수 뒤에 두세요' },
+  session: { label: '앞 공과 거리 다름', say: '폰과 받는 자리를 그대로 두고 다시' },
+  other: { label: '공을 못 찾음', say: '다시 던져 주세요' },
+} as const satisfies Record<string, MissReason>;
+export function missReasonOf(r: Result, approaching = false): MissReason {
+  const m = r.measure;
+  const d = r.distance;
+  if (approaching) return MISS_REASONS.catcher;
+  if (!m.ok) {
+    if (m.code === 'CAMERA_SHAKE') return MISS_REASONS.shake;
+    if (m.code === 'NOT_ENOUGH_FRAMES' || m.code === 'TOO_CLOSE' || m.code === 'RELEASE_NOT_CENTERED') return MISS_REASONS.short;
+    if (m.code === 'UNSTABLE_TRACK' || m.code === 'IMPLAUSIBLE_SPEED') return MISS_REASONS.path;
+    return MISS_REASONS.other;
+  }
+  if (d?.shaky && !d.stabilized) return MISS_REASONS.shake;
+  switch (d?.why) {
+    case 'speed-unsure':
+      return MISS_REASONS.still;
+    case 'late-start':
+      return MISS_REASONS.late;
+    case 'end-early':
+    case 'end-unseen':
+      return MISS_REASONS.end;
+    case 'extended':
+      return MISS_REASONS.bright;
+    case 'no-size':
+      return MISS_REASONS.blurry;
+    case 'short-flight':
+      return MISS_REASONS.short;
+    case 'size-mismatch':
+    case 'size-off':
+      return MISS_REASONS.distance;
+    case 'fit-rms':
+    case 'fit-quality':
+      return MISS_REASONS.path;
+  }
+  return (d?.extended ?? 0) > 0 ? MISS_REASONS.bright : MISS_REASONS.other;
+}
+
 /** 세션 안 공 크기 거리의 허용 흩어짐(가운데 값 대비) — sizeOutlier */
 export const SESSION_SIZE_SPREAD = 0.09;
 export const SIZE_OUTLIER_FIX =

@@ -2,7 +2,14 @@
  * 구속 측정 세션 규칙(lib/velocity-session.ts) 시험 — `npm run velocity:session-test`. 웹 · 앱이 같이 쓰는 세션 거리 · 저장 거리 · 측정 불가 안내와
  * 엔진 2.8.0 의 공 크기 거리(자동) 판정을 지킨다. 2026-10-22 검토에서 이 규칙들을 바꿔도 어떤 시험도 안 깨진다는 것이 드러나 만들었다.
  */
-import { lowConfidenceFix, sessionDistanceOf, withSessionDistance, type SessionPitchCore } from '@/lib/velocity-session';
+import {
+  MISS_REASONS,
+  lowConfidenceFix,
+  missReasonOf,
+  sessionDistanceOf,
+  withSessionDistance,
+  type SessionPitchCore,
+} from '@/lib/velocity-session';
 import { rejudgeSize } from '@/lib/velocity-engine/analyze-distance';
 import { STANDARD_TARGET_DIST_M } from '@/lib/velocity-setup';
 
@@ -81,6 +88,24 @@ console.log('\n▶ 측정 불가 안내 — 까닭별 말이 먼저(이어 찾�
   check(lowConfidenceFix(r('extended', 12), 'camera', false).includes('흰 배경'), '이어 찾기가 까닭이면 흰 배경 말');
   check(lowConfidenceFix(r('no-size'), 'camera', false).includes('크기로 거리를 재지 못했어요'), 'no-size 말');
   check(lowConfidenceFix(r('short-flight'), 'camera', false).includes('1.5~2m'), '짧게 잡힘 말은 폰 자리 1.5~2m');
+}
+
+console.log('\n▶ 못 잰 공의 짧은 까닭(측정 중 집계 · 소리 안내)');
+{
+  type R = Parameters<typeof missReasonOf>[0];
+  const low = (why: string | undefined, extended = 0, shaky = false) =>
+    ({ measure: { ok: true }, distance: { why, extended, shaky, stabilized: false } }) as unknown as R;
+  const no = (code: string) => ({ measure: { ok: false, code }, distance: {} }) as unknown as R;
+  check(missReasonOf(low('speed-unsure', 3)) === MISS_REASONS.still, '속력 흔들림 → 공이 안 움직임(이어 찾기가 있어도)');
+  check(missReasonOf(low('late-start')) === MISS_REASONS.late, '늦게 잡힘');
+  check(missReasonOf(low('end-early')) === MISS_REASONS.end && missReasonOf(low('end-unseen')) === MISS_REASONS.end, '끝 일찍 · 끝 안 보임 → 끝을 놓침');
+  check(missReasonOf(low('extended', 12)) === MISS_REASONS.bright, '이어 찾기 → 밝은 배경');
+  check(missReasonOf(low('no-size')) === MISS_REASONS.blurry, 'no-size → 공이 흐림');
+  check(missReasonOf(low(undefined, 0, true)) === MISS_REASONS.shake, '못 바로잡은 흔들림 → 폰 흔들림');
+  check(missReasonOf(no('NOT_ENOUGH_FRAMES')) === MISS_REASONS.short, '장면 모자람 → 공 길이 짧음');
+  check(missReasonOf(no('CAMERA_SHAKE')) === MISS_REASONS.shake, '카메라 흔들림');
+  check(missReasonOf(low('speed-unsure'), true) === MISS_REASONS.catcher, '포수 뒤가 먼저');
+  check(Object.values(MISS_REASONS).every((m) => m.label.length <= 12 && m.say.length <= 20), '짧은 까닭 · 읽을 말은 짧게(집계 칸 · 소리)');
 }
 
 console.log('\n▶ 엔진 — 공 크기 거리를 못 낸 자동 공은 세션 다시 판정에서도 낮음');
