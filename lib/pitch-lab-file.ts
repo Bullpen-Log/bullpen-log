@@ -203,7 +203,8 @@ export function parseAppleDate(text: string): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-export async function readLabFileFacts(file: Blob): Promise<LabFileFacts | null> {
+/** 파일(폰) 또는 범위 읽기(서버 — 서명 주소에 Range 요청, lib/pitch-lab.ts labServerFacts) */
+export async function readLabFileFacts(file: Blob | ByteReader): Promise<LabFileFacts | null> {
   try {
     const moov = await readMoov(file);
     if (!moov) return null;

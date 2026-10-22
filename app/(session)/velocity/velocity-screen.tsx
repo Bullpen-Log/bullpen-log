@@ -2050,7 +2050,6 @@ export function VelocityScreen({
       releaseDistM: approach === 'approaching' ? releaseDistM : null,
       ...sessionDistanceOf(pitches, {
         cameraPos: choices.cameraPos,
-        distAuto,
         distTape,
         targetDistM,
       }),

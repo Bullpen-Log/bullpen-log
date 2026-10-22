@@ -12,11 +12,16 @@
  *
  * 화면 규칙은 앱(velocity-screen.tsx)을 따라 묶음(날짜 · 녹화) 하나를 한 세션으로 본다. 세션 거리는 깨끗한 공 셋부터의 가운데 값이고, 공을
  * 받은 차례로 걸리는 앱과 달리 끝의 값으로 한 번에 옮긴다(견주는 도구다).
+ * --auto=1(공마다 공 크기 거리, 2.8.0)이면 공 크기로 잰 공은 앱 lib/velocity-session.ts 규칙 그대로 — 받은 차례로 앞 공 셋 넘게의 공 크기 가운데에서
+ * 9% 넘게 튀면 빼고(sizeOutlier), 끝이 깨끗한 공(튕김 · 이어 찾기 없음)의 가운데 거리에서 5% 안이면 그 거리로 옮긴다(withSessionDistance).
  */
+/** lib/velocity-session.ts 의 SESSION_DIST_TOL · SESSION_SIZE_SPREAD — 그 파일은 '@/' 를 써서 노드가 못 읽는다 */
+const AUTO_SESSION_TOL = 0.05;
+const AUTO_SIZE_SPREAD = 0.09;
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { open, LAB, argOf } from './cdp.mjs';
-import { sessionCorrection } from '../../lib/velocity-session-distance.ts';
+import { sessionCorrection, sessionDistOf } from '../../lib/velocity-session-distance.ts';
 import { SPEED_DISTANCE_EXPONENT, END_SIZE_AGREE } from '../../lib/velocity-engine/analyze-distance.ts';
 import { INPUT_SIZE_MISMATCH } from '../../lib/velocity-engine/validate.ts';
 
@@ -75,12 +80,12 @@ for (const s of S) {
     const seed = ${s.seed ?? 'null'};
     const range = seed != null ? { startSec: Math.max(0, seed - 0.25), endSec: seed + 1.45, seedT: seed } : {};
     try {
-      const res = await AV.analyzeVideo({ file, ...range, fps: 60, fovDeg: fov, approach: 'receding', distanceM: ${s.dist ?? BASE}, distanceAuto: false, tiltRad: ${TILT} });
+      const res = await AV.analyzeVideo({ file, ...range, fps: 60, fovDeg: fov, approach: 'receding', distanceM: ${s.dist ?? BASE}, distanceAuto: ${argOf('auto', '0') === '1'}, fovKnown: ${s.fov != null ? 'true' : 'undefined'}, tiltRad: ${TILT} });
       const m = res.measure, d = res.distance ?? {};
       return { ok: m.ok, code: m.ok ? null : m.code, kmh: m.ok ? m.kmh : null, conf: m.ok ? m.confidence : null, frames: m.ok ? m.detail.frames : null,
         preConf: d.preSize?.confidence ?? null, why: d.why ?? null, size: d.sizeDistM ?? null, slope: d.sizeSlope ?? null, ext: d.extended ?? 0,
         impact: d.impact ?? null, stab: !!d.stabilized, decoded: res.video?.timing?.decoded ?? null,
-        se: m.ok ? m.detail.startSeKmh : null, start: m.ok ? m.detail.startKmh : null, endSize: d.endSizeRatio ?? null, first: d.firstDepthM ?? null, shaky: !!d.shaky };
+        se: m.ok ? m.detail.startSeKmh : null, start: m.ok ? m.detail.startKmh : null, endSize: d.endSizeRatio ?? null, first: d.firstDepthM ?? null, shaky: !!d.shaky, source: d.distanceSource ?? null, usedDist: d.distanceM ?? null };
     } catch (e) { return { error: String(e?.message ?? e) }; }
   })()`);
   const o = { ...s, ...r };
@@ -101,15 +106,32 @@ console.log('\n묶음별(세션 거리 보정 · 기록 규칙 적용, 차이 = 
 for (const g of [...new Set(out.map((o) => o.group))]) {
   const rs = out.filter((o) => o.group === g);
   const tape = rs.some((o) => o.tape);
+  const isAuto = (o) => o.source === 'ball';
   const corr = tape ? null : sessionCorrection(
-    rs.filter((o) => o.ok).map((o) => ({ sizeDistM: o.size, sizeSlope: o.slope, extended: o.ext, impact: o.impact, confidence: o.preConf ?? o.conf, frames: o.frames })),
+    rs.filter((o) => o.ok && !isAuto(o)).map((o) => ({ sizeDistM: o.size, sizeSlope: o.slope, extended: o.ext, impact: o.impact, confidence: o.preConf ?? o.conf, frames: o.frames })),
     BASE,
     SPEED_DISTANCE_EXPONENT
   );
   const ref = tape ? rs[0].dist : corr?.apply ? corr.m : BASE;
   const errs = [];
+  /* 공 크기 거리로 잰 공 — 앱처럼 받은 차례로 */
+  const kept = [];
   for (const o of rs) {
-    if (!o.ok) continue;
+    if (!o.ok || !isAuto(o) || !(o.conf === 'high' || (o.conf === 'medium' && o.stab))) continue;
+    const prior = kept.map((p) => p.size).filter((v) => v > 0).sort((a, b) => a - b);
+    const n = prior.length;
+    const mid = n % 2 ? prior[(n - 1) / 2] : (prior[n / 2 - 1] + prior[n / 2]) / 2;
+    if (o.size > 0 && n >= 3 && Math.abs(o.size / mid - 1) > AUTO_SIZE_SPREAD) continue;
+    kept.push(o);
+  }
+  const clean = (o) => o.impact === 'rebound' && o.ext === 0;
+  const sess = sessionDistOf(kept.filter(clean).map((o) => o.usedDist), null);
+  for (const o of kept) {
+    const on = sess && clean(o) && Math.abs(o.usedDist / sess.m - 1) <= AUTO_SESSION_TOL;
+    errs.push(o.kmh * (on ? (sess.m / o.usedDist) ** SPEED_DISTANCE_EXPONENT : 1) - o.gun);
+  }
+  for (const o of rs) {
+    if (!o.ok || isAuto(o)) continue;
     let conf = o.preConf ?? o.conf;
     const off = o.size ? Math.abs(o.size / ref - 1) : 0;
     /* 세션 거리가 걸렸으면 그 기준은 믿을 만하다 — 튕긴 공도 10%(엔진 judgeSize strict, 2.7.6) */
@@ -121,7 +143,7 @@ for (const g of [...new Set(out.map((o) => o.group))]) {
   const mae = errs.length ? errs.reduce((a, e) => a + Math.abs(e), 0) / errs.length : NaN;
   const mean = errs.length ? errs.reduce((a, e) => a + e, 0) / errs.length : NaN;
   console.log(
-    `${g}: 기록 ${errs.length}/${rs.length} · 세션 거리 ${corr ? `${corr.m}m${corr.apply ? ' 적용' : ''}` : '-'} · MAE ${mae.toFixed(1)} · 평균 ${mean >= 0 ? '+' : ''}${mean.toFixed(1)} · [${errs.map((e) => e.toFixed(1)).join(', ')}]`
+    `${g}: 기록 ${errs.length}/${rs.length} · 세션 거리 ${corr ? `${corr.m}m${corr.apply ? ' 적용' : ''}` : '-'}${sess ? ` · 자동 세션 ${Math.round(sess.m * 10) / 10}m` : ''} · MAE ${mae.toFixed(1)} · 평균 ${mean >= 0 ? '+' : ''}${mean.toFixed(1)} · [${errs.map((e) => e.toFixed(1)).join(', ')}]`
   );
 }
 const abs = all.map(Math.abs).sort((a, b) => a - b);

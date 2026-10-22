@@ -6,14 +6,17 @@ import { analysisOf, distanceMismatch } from '@/lib/velocity-analysis';
 import { applyCalibration, type CalFit } from '@/lib/velocity-calibration';
 import { summarize } from '@/lib/velocity-meta';
 import {
+  MISS_REASONS,
   SIZE_OUTLIER_FIX,
   judgeBySession,
   lowConfidenceFix,
+  missReasonOf,
   measuredFields,
   sessionDistanceOf,
   sizeOutlier,
   steadied,
   withSessionDistance,
+  type MissReason,
   type SessionPitchCore,
 } from '@/lib/velocity-session';
 import { OUT_OF_RANGE_FIX, STANDARD_TARGET_DIST_M, TAPE_MISMATCH_FIX, zoneOfPoint, type CameraPos, type ZoneRect } from '@/lib/velocity-setup';
@@ -27,7 +30,7 @@ import type { AbsJudgeSource } from './abs/use-abs';
 
 /**
  * 앱 구속 측정 세션 — 잰 공을 받을지 · 세션 거리 보정 · 저장. 규칙은 웹 측정 화면과 같은 lib/velocity-session.ts(웹 velocity-screen.tsx
- * addResult · save 를 옮김). 앱이 웹과 다른 것: 늘 앱 카메라 · 기준 20m 또는 줄자(공마다 공 크기 거리 없음) · 관리자 '정확도 보정용 저장' 없음.
+ * addResult · save 를 옮김). 앱이 웹과 다른 것: 늘 앱 카메라 · '자동'이면 공마다 공 크기 거리(엔진 2.8.0, 화각을 아는 폰) 또는 줄자 · 관리자 '정확도 보정용 저장' 없음.
  */
 
 type Result = AnalyzeResult & { distance?: DistanceReport };
@@ -52,7 +55,7 @@ export type SessionCtx = {
   info: StartInfo | null;
   /** 줄자로 잰 거리인가 — 그러면 세션 거리 보정을 안 한다(줄자가 이긴다, 웹과 같다) */
   tape: boolean;
-  /** 폰에서 미트까지(m) — 기준 20m 또는 줄자 값 */
+  /** 폰에서 미트까지(m) — 줄자 값, '자동'이면 기준 20m(엔진의 첫 어림) */
   distM: number;
 };
 
@@ -84,26 +87,33 @@ export function decide(
   meta: { id: number; clip: Clip; late?: boolean },
   /** ABS 모드면 판정 함수(use-abs judge) — 보정이 있고 궤적 스냅샷이 있으면 analysis.abs 에 싣고 코스는 판정 칸으로(웹과 같다) */
   judgeAbs?: (r: AbsJudgeSource) => AbsAnalysis | null
-): { verdict: Verdict; list?: NativePitch[]; notice?: string } {
+): { verdict: Verdict; list?: NativePitch[]; notice?: string; miss?: MissReason } {
   const result = judgeBySession(raw as unknown as Result, list, 'camera', ctx.tape);
   const m = result.measure;
+  /* 조용할 때 훑기가 찾은 공(late)은 알림 없이 잰 것 — 못 쟀으면 어느 공 이야기인지 앞에 붙인다 */
+  const pre = meta.late ? '뒤늦게 찾은 공 · ' : '';
   if (!m.ok) {
     if (m.code === 'CAMERA_SHAKE')
-      return { verdict: { kept: false }, notice: '폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.' };
+      return { verdict: { kept: false }, notice: `${pre}폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.`, miss: MISS_REASONS.shake };
     /*
      * 여기 오는 실패는 화면에 띄운 공뿐이다(capture.ts — 안 보이는 작업 · 공 길 4장 밑은 조용히 넘김). 예전엔 '구속 계산 중' 뒤에 말없이 사라졌다.
      * 까닭(거부 코드의 한 줄)과 할 일 첫 문장을 같이 — 10-21 김민: "측정 불가하면 원인 띄우고"
      */
     const fix = m.fix?.split('. ')[0]?.replace(/\.?$/, '.');
-    return { verdict: { kept: false }, notice: `못 쟀어요 · ${m.message ?? '공은 봤는데 거리를 못 쟀어요.'}${fix ? ` ${fix}` : ''}` };
+    return {
+      verdict: { kept: false },
+      notice: `${pre}못 쟀어요 · ${m.message ?? '공은 봤는데 거리를 못 쟀어요.'}${fix ? ` ${fix}` : ''}`,
+      miss: missReasonOf(result),
+    };
   }
   if (m.confidence !== 'high' && !steadied(result))
     return {
       verdict: { kept: false, why: 'low-confidence' },
-      notice: `측정 불가 · ${lowConfidenceFix(result, 'camera', ctx.cameraPos !== 'behind-pitcher', ctx.tape)}`,
+      notice: `${pre}측정 불가 · ${lowConfidenceFix(result, 'camera', ctx.cameraPos !== 'behind-pitcher', ctx.tape)}`,
+      miss: missReasonOf(result, ctx.cameraPos !== 'behind-pitcher'),
     };
   if (sizeOutlier(result, list, 'camera'))
-    return { verdict: { kept: false, why: 'session-size' }, notice: `측정 불가 · ${SIZE_OUTLIER_FIX}` };
+    return { verdict: { kept: false, why: 'session-size' }, notice: `${pre}측정 불가 · ${SIZE_OUTLIER_FIX}`, miss: MISS_REASONS.session };
 
   const tail = result.track[result.track.length - 1];
   const zone =
@@ -178,7 +188,7 @@ function trailOf(result: Result): number[][] | null {
     .map(([t, x, y, d]) => [r(t, 1e4), r(x / width, 1e5), r(y / height, 1e5), r(d / width, 1e5)]);
 }
 
-/** 보여 줄 구속 — 그 사람의 스피드건 짝 보정식(웹과 같이 늘 켬) */
+/** 보여 줄 구속 — 스피드건 짝 보정식(2026-10-22 부터 늘 빈 식이라 원값 그대로) */
 export const shownKmh = (p: { rawKmh: number }, fit: CalFit) =>
   fit.n > 0 ? applyCalibration(p.rawKmh, fit) : p.rawKmh;
 
@@ -236,7 +246,6 @@ export async function saveSession(input: {
       releaseDistM: null,
       ...sessionDistanceOf(pitches, {
         cameraPos: ctx.cameraPos,
-        distAuto: false,
         distTape: ctx.tape,
         targetDistM: ctx.tape ? ctx.distM : STANDARD_TARGET_DIST_M,
       }),

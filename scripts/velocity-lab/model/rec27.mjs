@@ -15,7 +15,7 @@ for (const k of V) {
   const r = await c.evaluate(`(async () => {
     const AV = window.__m['analyze-video'];
     const file = document.querySelector('input[type=file]').files[0];
-    const res = await AV.analyzeVideo({ file, startSec: Math.max(0, ${t0} - 0.3), endSec: ${t0} + 1.4, seedT: ${t0}, fps: 60, fovDeg: 38.33, approach: 'receding', distanceM: ${D}, distanceAuto: false, tiltRad: 0.035 });
+    const res = await AV.analyzeVideo({ file, startSec: Math.max(0, ${t0} - 0.3), endSec: ${t0} + 1.4, seedT: ${t0}, fps: 60, fovDeg: 38.33, approach: 'receding', distanceM: ${D}, distanceAuto: ${argOf('auto', '0') === '1'}, fovKnown: true, tiltRad: 0.035 });
     const m = res.measure, d = res.distance ?? {};
     return m.ok ? { kmh: m.kmh, conf: m.confidence, why: d.why ?? null, se: m.detail.startSeKmh / m.detail.startKmh, size: d.sizeDistM, first: d.firstDepthM, slope: d.sizeSlope, frames: m.detail.frames } : { code: m.code, why: d.why ?? null };
   })()`);

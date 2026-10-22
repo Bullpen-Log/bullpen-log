@@ -11,7 +11,7 @@
  *  2 화면 트랙이 원 결과보다 더 떠는 관절이 새로 생겼다(화면 > 원 × 1.25 + 0.3%) — 화면 모델은 다듬기만 해야 한다(편 팔 비틀림을 거꾸로 이어 손이 휘둘림).
  *  3 기준 때 되던 샘플이 실패한다.
  *  4 화면의 이상한 움직임(순간 튐 · 사람 한계 넘는 빠르기 · 뒤로 꺾인 무릎 · 분리 75° 넘음, measure.mts oddities)이나 인형 방향(골반 ·
- *    가슴 · 머리 · 두 손 · 두 발)의 순간 튐 · 빠르기 넘음(mannequinOddities)이 늘었다.
+ *    가슴 · 머리 · 두 손 · 두 발)의 순간 튐 · 빠르기 넘음, 마디 꺾임 · 앞발 휘두름(mannequinOddities)이 늘었다.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -96,6 +96,7 @@ for (const k of keys) {
 }
 const ODD = ['pop', 'speed', 'knee', 'sep'];
 const ODD_KO = { pop: '순간 튐', speed: '빠르기 넘음', knee: '뒤로 꺾인 무릎', sep: '분리 75° 넘음' };
+const MAN_KO = { pop: '방향 순간 튐', speed: '방향 빠르기 넘음', kink: '꺾임', whip: '앞발 휘두름' };
 const oddLine = (o) => ODD.map((x) => `${ODD_KO[x]} ${o[x]}`).join(' · ');
 console.log('\n이상한 움직임(장면 수) — 화면 / 원 결과');
 for (const k of keys)
@@ -103,12 +104,12 @@ for (const k of keys)
     const where = Object.entries(odd[k].disp.where).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([w, c]) => `${w} ${c}`).join(', ');
     console.log(`  ${k.padEnd(9)} 화면 ${oddLine(odd[k].disp)} / 원 ${oddLine(odd[k].raw)}${where ? `  [${where}]` : ''}`);
     const mw = Object.entries(odd[k].man.where).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([w, c]) => `${w} ${c}`).join(', ');
-    console.log(`  ${''.padEnd(9)} 인형 방향 순간 튐 ${odd[k].man.pop} · 빠르기 넘음 ${odd[k].man.speed}${mw ? `  [${mw}]` : ''}`);
+    console.log(`  ${''.padEnd(9)} 인형 방향 순간 튐 ${odd[k].man.pop} · 빠르기 넘음 ${odd[k].man.speed} · 꺾임 ${odd[k].man.kink} · 앞발 휘두름 ${odd[k].man.whip}${mw ? `  [${mw}]` : ''}`);
   }
 if (process.argv.includes('--save')) {
   const strip = (o) => Object.fromEntries(ODD.map((x) => [x, o[x]]));
   const oddSave = Object.fromEntries(
-    Object.entries(odd).map(([k, o]) => [k, { disp: strip(o.disp), raw: strip(o.raw), man: { pop: o.man.pop, speed: o.man.speed } }])
+    Object.entries(odd).map(([k, o]) => [k, { disp: strip(o.disp), raw: strip(o.raw), man: { pop: o.man.pop, speed: o.man.speed, kink: o.man.kink, whip: o.man.whip } }])
   );
   writeFileSync(BASE, JSON.stringify({ savedAt: new Date().toISOString(), samples: now, odd: oddSave }, null, 1) + '\n');
   console.log('새 기준 저장', BASE);
@@ -144,8 +145,8 @@ for (const [k, b] of Object.entries(baseAll.odd ?? {})) {
   if (!odd[k]) continue;
   for (const x of ODD)
     if (odd[k].disp[x] > b.disp[x] + 2) bad.push(`${k} 화면 ${ODD_KO[x]} ${b.disp[x]} → ${odd[k].disp[x]}`);
-  for (const x of ['pop', 'speed'])
-    if (b.man && odd[k].man[x] > b.man[x] + 2) bad.push(`${k} 인형 방향 ${ODD_KO[x]} ${b.man[x]} → ${odd[k].man[x]}`);
+  for (const x of ['pop', 'speed', 'kink', 'whip'])
+    if (b.man?.[x] != null && odd[k].man[x] > b.man[x] + 2) bad.push(`${k} 인형 ${MAN_KO[x]} ${b.man[x]} → ${odd[k].man[x]}`);
 }
 console.log(bad.length ? `\n나빠짐 ${bad.length}:\n  ${bad.join('\n  ')}` : '\n기준과 비교: 나빠진 곳 없음');
 process.exit(bad.length ? 1 : 0);

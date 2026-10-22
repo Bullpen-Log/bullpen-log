@@ -38,9 +38,15 @@ import { add, cross, dot, norm, normalize, scale, sub, type Vec3 } from '../lib/
 import { pickSegment, readV2Events, runFit, segmentWindow } from '../lib/pitch-3d/v2/run-node.ts';
 import { toPoseTrack } from '../lib/pitch-3d/v2/track.ts';
 import {
+  ACTIVE_TTL_MS,
   DAILY_FAIL_LIMIT,
+  DAILY_REQUEST_LIMIT,
+  MAX_ACTIVE,
   fileFingerprint,
+  finishRequest,
   guardBlock,
+  recordRequest,
+  serverPairBlock,
   labMetaBlock,
   labPairBlock,
   labVideoBlock,
@@ -66,6 +72,7 @@ import { blendAi, despike, displayTrack, readAiGate, readAiJoints, readAiMiss } 
 import { mannequinTrack, smoothForMannequin, type MannequinJoints, type MannequinTrack } from '../lib/pitch-3d/v2/mannequin-prep.ts';
 import {
   basis,
+  blendMannequin,
   canonicalFrames,
   frame as mannequinFrame,
   mannequinFrames,
@@ -1964,6 +1971,40 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
     const F = mannequinFrames(fr, H);
     const k = H / 1.8;
     check('틀: 우투는 우투 꼴 그대로', fr === mR.frames && F.length === mR.frames.length);
+    /* 착지 맞춤이 앞발목을 옮겨도 앞 넙다리 길이는 그대로(무릎을 두 마디로 다시 접는다 — 예전엔 무릎을 발목만큼 옮겨 넙다리가 늘었다) */
+    {
+      const S0 = smoothForMannequin(tr.frames, result, H);
+      const len = (f: Vec3[]) => norm(sub(f[V2J.lKn], f[V2J.lHip]));
+      const fc = Math.round(result.events.footContact ?? result.events.footPlant);
+      const ref = len(S0[Math.max(0, fc - 40)]);
+      let worst = 0;
+      for (let q = Math.max(0, fc - 30); q < Math.min(S0.length, fc + 40); q++) worst = Math.max(worst, Math.abs(len(S0[q]) - ref));
+      check(`착지 맞춤: 앞 넙다리 길이 그대로(착지 앞뒤 가장 큰 변화 ${(worst * 100).toFixed(1)}cm · 0.5cm 안 — 고치기 전 합성 1.5 · 실제 가운데 11cm)`, worst < 0.005);
+    }
+    /* 장면 사이 그리기 — 끝(u 0 · 1)은 그 장면 그대로, 가운데는 두 장면 사이 · 회전은 길이 1 */
+    {
+      const kk = Math.floor(fr.length / 2);
+      const b0 = blendMannequin(fr, F, kk, 0);
+      const b1 = blendMannequin(fr, F, kk, 1);
+      const bm = blendMannequin(fr, F, kk, 0.5);
+      const between = (x: Vec3, a: Vec3, c: Vec3) => norm(sub(x, scale(add(a, c), 0.5))) <= norm(sub(a, c)) * 0.6 + 1e-9;
+      check(
+        '장면 사이: u 0 · 1 은 그 장면, 0.5 는 두 장면 사이(손목 · 발목) · 틀 회전 길이 1',
+        b0.J === fr[kk] && b1.J === fr[kk + 1] && between(bm.J.wr, fr[kk].wr, fr[kk + 1].wr) && between(bm.J.la, fr[kk].la, fr[kk + 1].la) &&
+          Math.abs(Math.hypot(...bm.F.chest.q) - 1) < 1e-6 && Math.abs(norm(bm.F.throwing.hd) - 1) < 1e-6
+      );
+      /* 손 · 발이 팔다리 끝에 붙는다 — 릴리스 근처 장면 사이마다 손 가운데 = 손목 + 손 방향 4.5%(handFrame), 발목 = 정강이 끝 */
+      let worstHand = 0;
+      let worstAnkle = 0;
+      for (let q = Math.max(1, mR.events.release - 15); q < Math.min(fr.length - 2, mR.events.release + 15); q++)
+        for (const uu of [0.25, 0.5, 0.75]) {
+          const b = blendMannequin(fr, F, q, uu);
+          worstHand = Math.max(worstHand, norm(sub(b.F.throwing.hc, add(b.J.wr, scale(b.F.throwing.hd, 0.045 * k)))));
+          worstAnkle = Math.max(worstAnkle, norm(sub(b.F.lead.ankle, b.J.la)) - norm(sub(F[q].lead.ankle, fr[q].la)) - norm(sub(F[q + 1].lead.ankle, fr[q + 1].la)));
+        }
+      check(`장면 사이: 손 가운데가 손목에 붙어 있다(릴리스 앞뒤, 가장 큰 차 ${(worstHand * 1000).toFixed(2)}mm · 1mm 안)`, worstHand < 1e-3);
+      check(`장면 사이: 앞발목이 정강이 끝에서 장면보다 더 떨어지지 않는다(${(worstAnkle * 1000).toFixed(2)}mm)`, worstAnkle < 1e-3);
+    }
     /* 같은 몸을 y 로 뒤집고 좌투라고 하면 — 우투 꼴로 돌아와 모든 틀이 같다(거울 규칙의 핵심) */
     const mL: MannequinTrack = {
       ...mR,
@@ -3066,6 +3107,29 @@ console.log('■ 점검 카드 드릴 고르기(drillPicksFor) — 쉬운 단계
   check(
     '지문: 같은 파일 같음 · 끝 1바이트가 다르면 다름 · 64자',
     f1 === (await fileFingerprint(new Blob([big]))) && f1 !== (await fileFingerprint(new Blob([big2]))) && f1.length === 64
+  );
+
+  /* 2026-10-22 검토 — 걸 때 세는 하루 요청 · 동시 작업 상한, 서버가 읽은 값으로 짝 검사 */
+  const E = '2.0.0';
+  let r = readLabGuard(null);
+  for (let i = 0; i < MAX_ACTIVE; i++) r = recordRequest(r, { nowMs: t0, id: `s${i}`, jobId: `j${i}`, fps: [] });
+  check('동시 작업 상한 — 돌고 있는 게 꽉 차면 막음 · 관리자는 안 막음', guardBlock(r, { nowMs: t0, fps: [], engine: E }) !== null && guardBlock(r, { nowMs: t0, fps: [], engine: E, staff: true }) === null);
+  check('끝난 작업은 빼서 다시 걸 수 있음', guardBlock(finishRequest(r, { nowMs: t0, jobId: 'j0', fail: null, engine: E, fallbackFps: [] }), { nowMs: t0, fps: [], engine: E }) === null);
+  check('소식 없는 작업은 ACTIVE_TTL_MS 뒤 끝난 것으로', guardBlock(r, { nowMs: t0 + ACTIVE_TTL_MS + 1, fps: [], engine: E }) === null);
+  let q = readLabGuard(null);
+  for (let i = 0; i < DAILY_REQUEST_LIMIT; i++)
+    q = finishRequest(recordRequest(q, { nowMs: t0, id: 's', jobId: `j${i}`, fps: [] }), { nowMs: t0, jobId: `j${i}`, fail: null, engine: E, fallbackFps: [] });
+  check('하루 요청 상한 — 성공한 분석도 센다 · 다음 날 다시', q.reqs === DAILY_REQUEST_LIMIT && guardBlock(q, { nowMs: t0, fps: [], engine: E }) !== null && guardBlock(q, { nowMs: t0 + 3600_000, fps: [], engine: E }) === null);
+  const w = finishRequest(recordRequest(readLabGuard(null), { nowMs: t0, id: 's', jobId: 'jx', fps: [fp] }), { nowMs: t0, jobId: 'jx', fail: 'events', engine: E, fallbackFps: [] });
+  check('실패는 걸 때 적은 지문으로 센다', w.fails === 1 && guardBlock(w, { nowMs: t0 + 86400_000, fps: [fp], engine: E }) !== null && w.active.length === 0);
+  check('옛 기록(reqs · active 없음)도 읽는다', readLabGuard({ day: '2026-10-14', fails: 2, failed: [] }).reqs === 0 && readLabGuard({ day: '2026-10-14', fails: 2, failed: [] }).active.length === 0);
+  const at = (ms: number) => ({ startMs: ms, timeSource: 'apple' as const, durationSec: 6, hasLens: true, make: null, model: null });
+  check(
+    '서버 짝 검사 — 같은 파일 · 따로 찍음은 막고, 같이 찍은 짝 · 못 읽은 값은 통과',
+    serverPairBlock({ side: { fp, facts: at(t0) }, back: { fp, facts: at(t0) } }) !== null &&
+      serverPairBlock({ side: { fp, facts: at(t0) }, back: { fp: 'b'.repeat(64), facts: at(t0 + 120_000) } }) !== null &&
+      serverPairBlock({ side: { fp, facts: at(t0) }, back: { fp: 'b'.repeat(64), facts: at(t0 + 1_000) } }) === null &&
+      serverPairBlock({ side: { fp, facts: null }, back: { fp: 'b'.repeat(64), facts: null } }) === null
   );
 }
 

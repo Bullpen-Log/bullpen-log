@@ -115,6 +115,78 @@ export function slerp(a: Quat, b: Quat, t: number): Quat {
   return [a[0] * ra + bx * rb, a[1] * ra + by * rb, a[2] * ra + bz * rb, a[3] * ra + bw * rb];
 }
 
+/* ───────────────────────────── 장면 사이 ───────────────────────────── */
+
+/**
+ * 재생 때 장면 k 와 k + 1 사이(u 0~1)를 그린다 — 관절 자리와 틀의 자리 · 수 · 방향은 앞뒤 넷으로 캐트멀-롬 곡선(u 0 · 1 에서는 그 장면 그대로,
+ * 방향은 다시 길이 1), 회전(q)은 구면으로. 틀도 같은 곡선이라야 손 · 발 · 머리가 팔다리 끝에 붙는다(틀만 곧게 이었더니 릴리스 근처에서 손이 손목에서
+ * 몇 cm 떨어졌다 — 2026-10-22 검토). 예전엔 재생이 데이터 장면만 이어 붙여 ½× · ¼× · 슬로모 영상에서 한 장면이 화면 몇 번씩 멈췄다
+ * 넘어가 끊겨 보였다(2026-10-22 김민: "원래가 30프레임이면 60프레임 같은 걸 원한 거지"). 찍은 장면의 자세는 바꾸지 않는다.
+ */
+export function blendMannequin(
+  Js: MannequinJoints[],
+  Fs: MannequinFrame[],
+  k: number,
+  u: number
+): { J: MannequinJoints; F: MannequinFrame } {
+  const n = Js.length;
+  const k1 = Math.min(n - 1, k + 1);
+  if (u <= 0 || k1 === k) return { J: Js[k], F: Fs[k] };
+  if (u >= 1) return { J: Js[k1], F: Fs[k1] };
+  const k0 = Math.max(0, k - 1);
+  const k2 = Math.min(n - 1, k + 2);
+  const u2 = u * u;
+  const u3 = u2 * u;
+  const cr = (p0: number, p1: number, p2: number, p3: number) =>
+    0.5 * (2 * p1 + (p2 - p0) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (3 * p1 - p0 - 3 * p2 + p3) * u3);
+  const J = {} as Record<string, Vec3>;
+  for (const key of Object.keys(Js[k]) as (keyof MannequinJoints)[]) {
+    const a = Js[k][key];
+    const b = Js[k1][key];
+    if (!a || !b) {
+      if (a) J[key] = a;
+      continue;
+    }
+    const p0 = Js[k0][key] ?? a;
+    const p3 = Js[k2][key] ?? b;
+    J[key] = [0, 1, 2].map((i) => cr(p0[i], a[i], b[i], p3[i])) as Vec3;
+  }
+  return { J: J as MannequinJoints, F: blendTree(Fs[k0], Fs[k], Fs[k1], Fs[k2], (p0, p1, p2, p3) => cr(p0, p1, p2, p3), u) as MannequinFrame };
+}
+
+/** 틀의 방향 칸(길이 1) — 곡선으로 이은 뒤 다시 길이 1 로 */
+const FRAME_DIRS = new Set(['xa', 'ya', 'fw', 'up', 'hd', 'side', 'nrm', 'n']);
+
+function blendTree(
+  p0: unknown,
+  a: unknown,
+  b: unknown,
+  p3: unknown,
+  curve: (p0: number, p1: number, p2: number, p3: number) => number,
+  u: number,
+  key = ''
+): unknown {
+  const num = (x: unknown, fb: number) => (typeof x === 'number' ? x : fb);
+  if (typeof a === 'number' && typeof b === 'number') return curve(num(p0, a), a, b, num(p3, b));
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (key === 'q' && a.length === 4) return slerp(a as Quat, b as Quat, u);
+    const q0 = Array.isArray(p0) ? p0 : a;
+    const q3 = Array.isArray(p3) ? p3 : b;
+    const v = a.map((x, i) => curve(num(q0[i], x as number), x as number, b[i] as number, num(q3[i], b[i] as number)));
+    if (!FRAME_DIRS.has(key)) return v;
+    const l = Math.hypot(...v) || 1;
+    return v.map((x) => x / l);
+  }
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    const pick = (o: unknown, kk: string) => (o && typeof o === 'object' ? (o as Record<string, unknown>)[kk] : undefined);
+    const out: Record<string, unknown> = {};
+    for (const [kk, va] of Object.entries(a))
+      out[kk] = kk in (b as object) ? blendTree(pick(p0, kk), va, pick(b, kk), pick(p3, kk), curve, u, kk) : va;
+    return out;
+  }
+  return a;
+}
+
 /* ───────────────────────────── 틀 ───────────────────────────── */
 
 export const smooth01 = (x: number) => {

@@ -1,6 +1,7 @@
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
 import { V2_JOINTS, plantFrame, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import type { DisplayTrack } from '@/lib/pitch-3d/v2/display';
+import { twoBoneIk } from '@/lib/pitch-3d/v2/kinematics';
 import { aiTrunkInputs, trunkTrack } from '@/lib/pitch-3d/v2/trunk';
 
 /**
@@ -46,6 +47,11 @@ const IX = (nm: string) => NAMES.indexOf(nm);
 const HAND_PARTS = ['Wr', 'HandMid', 'HandIdx', 'HandPinky'];
 /** 앞발이 착지로 내려오는 장면 수(엔진 발이 그보다 늦게 내려올 때 — 120fps 로 약 50ms) */
 const LAND_EASE = 6;
+/** 앞발이 착지로 내려오는 가장 짧은 실제 시간(초) · 발끝이 착지 뒤 마저 내려오는 시간(초) */
+const LAND_EASE_S = 0.05;
+const TOE_ROLL_S = 0.04;
+/** 앞발 방향이 디딘 방향으로 도는 시간(착지 전, 초) */
+const FOOT_TURN_S = 0.18;
 
 /** 관절별 가우스 폭(장면) */
 function sigmaOf(nm: string, glove: string, throwing: string, lead: string): number {
@@ -89,22 +95,50 @@ export function smoothForMannequin(frames: Vec3[][], result: Pick<Pitch3dV2Ok, '
      */
     const arrive = Math.max(0, Math.min(lockAt, plantFrame(result.events)));
     const zLock = F[lockAt][an][1];
+    /* 실제 1초의 장면 수 — mannequinTrack 의 dt(착지 → 릴리스 0.15초)와 같게. 장면 수로만 잡으면 슬로모 샘플에서 6장면이 20ms 라 발이 한 번에 꺾였다 */
+    const perS = Math.max(1, result.events.release - result.events.footPlant) / 0.15;
     let from = Math.max(0, fp - 15);
     while (from < lockAt && F[from][an][1] > zLock + 0.05) from++;
-    from = Math.min(from, Math.max(0, arrive - LAND_EASE));
+    from = Math.min(from, Math.max(0, arrive - Math.max(LAND_EASE, Math.round(LAND_EASE_S * perS))));
+    /*
+     * 발 방향(발목 → 뒤꿈치 · 발끝)은 착지 전 FOOT_TURN_S 동안 디딘 방향으로 돈다. 엔진 앞발은 착지 뒤까지 옆(3루 쪽)을 보다 늦게 돌아, 발목만 맞추면
+     * 그 돌림(70~110°)이 착지 앞뒤 몇 장면에 몰려 발이 휙 돌았다(2026-10-22 실험실 8샘플 앞발 가장 빠름 가운데 3000°/s · s9 4800). 실제로도
+     * 앞발은 내딛는 동안 열리며 닿는다. 뒤꿈치는 착지에, 발끝은 그 뒤 TOE_ROLL_S 동안 마저 내려온다(뒤꿈치 → 발바닥).
+     */
+    const toeAt = Math.min(lockAt, arrive + Math.round(TOE_ROLL_S * perS));
+    const turnFrom = Math.max(0, Math.min(from, arrive - Math.round(FOOT_TURN_S * perS)));
     const ease = (u: number) => u * u * (3 - 2 * u);
     const B = (j: number) => F[lockAt][j];
-    for (let i = from + 1; i < lockAt; i++) {
-      const u = i >= arrive ? 1 : ease((i - from) / Math.max(1, arrive - from));
-      const ja = IX(`${lead}An`);
+    const ja = IX(`${lead}An`);
+    const offOf = (fr: Vec3[], j: number): Vec3 => [fr[j][0] - fr[ja][0], fr[j][1] - fr[ja][1], fr[j][2] - fr[ja][2]];
+    const off0 = ['He', 'To'].map((nm) => offOf(F[turnFrom], IX(`${lead}${nm}`)));
+    const off1 = ['He', 'To'].map((nm) => offOf(F[lockAt], IX(`${lead}${nm}`)));
+    /* 방향은 구면으로, 길이는 곧게 섞는다 */
+    const blend = (a: Vec3, b: Vec3, t: number): Vec3 => {
+      const la = Math.hypot(...a) || 1e-9;
+      const lb = Math.hypot(...b) || 1e-9;
+      const ua = a.map((x) => x / la);
+      const ub = b.map((x) => x / lb);
+      const c = Math.max(-1, Math.min(1, ua[0] * ub[0] + ua[1] * ub[1] + ua[2] * ub[2]));
+      const om = Math.acos(c);
+      const [wa, wb] = om < 1e-4 ? [1 - t, t] : [Math.sin((1 - t) * om) / Math.sin(om), Math.sin(t * om) / Math.sin(om)];
+      const L = la + (lb - la) * t;
+      return [0, 1, 2].map((i) => (ua[i] * wa + ub[i] * wb) * L) as Vec3;
+    };
+    for (let i = turnFrom + 1; i < lockAt; i++) {
+      const u = i >= arrive ? 1 : i <= from ? 0 : ease((i - from) / Math.max(1, arrive - from));
       const d: Vec3 = [(B(ja)[0] - F[i][ja][0]) * u, (B(ja)[1] - F[i][ja][1]) * u, (B(ja)[2] - F[i][ja][2]) * u];
-      for (const nm of ['An', 'He', 'To']) {
-        const j = IX(`${lead}${nm}`);
-        const a = F[from][j];
-        F[i][j] = i >= arrive ? [...B(j)] as Vec3 : [a[0] + (B(j)[0] - a[0]) * u, a[1] + (B(j)[1] - a[1]) * u, a[2] + (B(j)[2] - a[2]) * u];
-      }
+      const A: Vec3 = i >= arrive ? [...B(ja)] as Vec3 : [F[i][ja][0] + d[0], F[i][ja][1] + d[1], F[i][ja][2] + d[2]];
+      ['He', 'To'].forEach((nm, q) => {
+        const at = nm === 'To' ? toeAt : arrive;
+        const v = i >= at ? 1 : ease((i - turnFrom) / Math.max(1, at - turnFrom));
+        const o = blend(off0[q], off1[q], v);
+        F[i][IX(`${lead}${nm}`)] = [A[0] + o[0], A[1] + o[1], A[2] + o[2]];
+      });
+      /* 무릎은 엉덩이를 둔 채 두 마디로 다시 접는다(길이 그대로) — 발목이 옮긴 만큼 무릎도 옮기면 넙다리가 몇 cm 늘었다(2026-10-22 검토) */
       const kn = IX(`${lead}Kn`);
-      F[i][kn] = [F[i][kn][0] + d[0], F[i][kn][1] + d[1], F[i][kn][2] + d[2]];
+      if (d[0] || d[1] || d[2]) F[i][kn] = twoBoneIk(F[i][IX(`${lead}Hip`)], F[i][kn], F[i][ja], A);
+      F[i][ja] = A;
     }
   }
   /* 2 관절마다 가우스 */

@@ -457,6 +457,11 @@ const STATUSES: V2JobStatus[] = ['queued', 'running', 'done', 'failed'];
 const isIso = (v: unknown): v is string =>
   typeof v === 'string' && Number.isFinite(Date.parse(v));
 
+/** 화면(클라이언트)으로 보내는 작업 — 요청한 계정 번호 · GPU 호출 번호는 뺀다(복사한 샘플을 받은 사람에게 원본 관리자 번호가 보였다, 2026-10-22 검토) */
+export function clientJob(job: Pitch3dV2Job | null): Pitch3dV2Job | null {
+  return job && { ...job, requestedBy: '', gpuCallId: null };
+}
+
 /** job.json 을 읽는다 — 모양이 틀리면 null(없는 것과 같이 다룬다) */
 export function readPitch3dV2Job(raw: unknown): Pitch3dV2Job | null {
   if (!raw || typeof raw !== 'object') return null;

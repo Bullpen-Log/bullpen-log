@@ -10,6 +10,7 @@ import {
   type DistanceReport,
 } from '@/lib/velocity-engine/analyze-distance';
 import {
+  medianOf,
   sessionCorrection,
   sessionDistOf,
   type DistMemory,
@@ -54,11 +55,16 @@ export type SessionPitchCore = {
 
 /**
  * 세션 거리(규칙 · 숫자는 lib/velocity-session-distance.ts) — 끝이 깨끗한 공(맞고 튄 공으로 끝, 이어 찾기 없음)에만 쓴다. 실내(흰 천 ·
- * 포수)는 공마다 끝 판정이 흔들리고 그 공의 거리가 그것을 메워, 세션 거리로 옮기면 오히려 5.5 → 8.2 로 나빴다. 세션 거리와 8% 넘게
- * 다른 공도 다른 일(폰을 옮김 등)이라 제 거리를 둔다. 영상 파일은 파일끼리 따로 세고 지난 세션 거리도 안 쓴다 — 찍은 자리를 모른다.
+ * 포수)는 공마다 끝 판정이 흔들리고 그 공의 거리가 그것을 메워, 세션 거리로 옮기면 오히려 5.5 → 8.2 로 나빴다. 세션 거리와 5% 넘게
+ * 다른 공도 다른 일(폰을 옮김 · 받는 사람이 움직임)이라 제 거리를 둔다. 영상 파일은 파일끼리 따로 세고 지난 세션 거리도 안 쓴다 — 찍은 자리를 모른다.
  * 공을 더하거나 지울 때마다 다시 센다.
  */
-const SESSION_DIST_TOL = 0.08;
+/*
+ * 8% → 5%(2026-10-22, 엔진 2.8.0 — 앱이 공마다 공 크기로 거리를 어림하며): 캐치볼은 받는 사람이 움직여 끝 자리가 공마다 다르다(10-21 낮 한 세션 세 공의
+ * 스피드건 거리 18.5 · 20.7 · 21.6m). 8% 면 18.9m 공을 세션 가운데 20.2m 로 옮겨 +2% → +10% 가 됐다. 앱 카메라 스피드건 짝 25구: 문턱 0(안 옮김) 3.70% ·
+ * 5% 3.36% · 8% 3.67%(공마다 공 크기 거리의 흩어짐이 3% 안팎이라 5% 면 흔들림만 잡고 자리가 바뀐 공은 둔다).
+ */
+const SESSION_DIST_TOL = 0.05;
 /** 기준 20m 로 잰 공들의 세션 보정(공 크기 가운데 값) — 그 출처의 깨끗한 공이 하나도 없으면 null(2026-10-19 부터 1개부터) */
 export function stdCorrection(list: SessionPitchCore[], source: SessionPitchCore['source']) {
   return sessionCorrection(
@@ -86,15 +92,19 @@ export function judgeBySession<T extends Result>(
   const c = stdCorrection(list, source);
   return c?.apply ? rejudgeSize(result, c.m) : result;
 }
-/** 저장할 세션의 거리 · 출처 — 줄자가 이기고, 기준 20m 세션은 보정이 걸렸으면 그 가운데 값(엔진 2.4 1단계) */
+/**
+ * 저장할 세션의 거리 · 출처 — 줄자가 이기고, 공마다 공 크기로 잰 공이 있으면 'auto'(2.8.0 — 화각을 모르는 폰은 엔진이 기준 20m 로 재서 없다),
+ * 기준 20m 세션은 보정이 걸렸으면 그 가운데 값(엔진 2.4 1단계)
+ */
 export function sessionDistanceOf(
   list: SessionPitchCore[],
-  s: { cameraPos: string; distAuto: boolean; distTape: boolean; targetDistM: number }
+  s: { cameraPos: string; distTape: boolean; targetDistM: number }
 ): { distanceM: number | null; distanceSource: string | null } {
   if (s.cameraPos !== 'behind-pitcher')
     return { distanceM: null, distanceSource: null };
-  if (s.distAuto) return { distanceM: null, distanceSource: 'auto' };
   if (s.distTape) return { distanceM: s.targetDistM, distanceSource: 'tape' };
+  const autoM = list.filter((p) => p.dist?.auto).map((p) => p.dist!.m);
+  if (autoM.length) return { distanceM: Math.round(medianOf(autoM) * 10) / 10, distanceSource: 'auto' };
   const c = stdCorrection(list, 'camera') ?? stdCorrection(list, 'file');
   return c?.apply
     ? { distanceM: c.m, distanceSource: 'session-size' }
@@ -125,9 +135,10 @@ export function withSessionDistance<T extends SessionPitchCore>(
     if (p.std) {
       const c = corr[p.source];
       const on = c != null && c.apply;
-      const use = on ? c.m : STANDARD_TARGET_DIST_M;
-      const k = on ? c.k : 1;
       const distance = p.analysis?.distance;
+      /* 보정이 안 걸리면 값을 낸 거리 그대로 — 줄자 세션이면 줄자 값(예전엔 늘 20m 로 적어 줄자 18m 세션의 공이 '20m' 로 저장 · 관리자 다시 재기도 20m) */
+      const use = on ? c.m : (distance?.inputDistM ?? STANDARD_TARGET_DIST_M);
+      const k = on ? c.k : 1;
       return {
         ...p,
         rawKmh: r1(p.std.kmh * k),
@@ -178,12 +189,9 @@ export function lowConfidenceFix(
   const d = r.distance;
   if (approaching)
     return '포수 뒤에서는 정확하게 잴 수 없어요. 투수 뒤에 폰을 두고 재 주세요.';
-  /* 공 크기 거리가 넣은 거리와 15% 넘게 다르다(엔진 size-mismatch) — '18~22m' 를 골랐으면 그 밖이니 줄자로(2026-10-19 김민 결정) */
+  /* 공 크기 거리가 넣은 거리와 15% 넘게 다르다(엔진 size-mismatch) — '자동'인데 기준 20m 로 잰 폰(화각 모름)이면 줄자로(2026-10-19 김민 결정) */
   if (d?.why === 'size-mismatch') return tape ? TAPE_MISMATCH_FIX : OUT_OF_RANGE_FIX;
   if (d?.shaky) return '폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.';
-  /* 흰 과녁 천 · 밝은 벽 앞에서는 공이 끝에서 배경에 묻혀 엔진이 끝을 짐작으로 잇는다(10-09 실내 14구 중 12구) — 흰 배경 앞은 재지 않는다 */
-  if ((d?.extended ?? 0) > 0)
-    return '흰 배경 앞에서는 공이 끝에서 배경에 묻혀 잴 수 없어요. 공 뒤에 어두운 천을 두거나 어두운 쪽을 향해 던져 주세요.';
   /*
    * 잡힌 끝(impact 'end')만으로는 까닭이 아니다 — 포수가 받으면 늘 'end' 다. 끝을 못 봤고 거리 판독도 어긋날 때(end-unseen)만 이 말(2.7.4,
    * 10-21: 잔차로 '보통'이 된 캐치볼 공 셋이 엉뚱하게 '닿는 곳이 안 보였어요'를 들었다)
@@ -201,15 +209,78 @@ export function lowConfidenceFix(
   /* 2.7.8 — 손을 떠난 앞부분을 못 잡았다(몸에 가림 · 화면 가장자리에서 옆으로 빠르게 · 그물 무늬 위) */
   if (d?.why === 'late-start')
     return '공이 손을 떠난 직후를 잡지 못했어요. 폰을 던지는 사람 1.5~2m 뒤에 두고, 손이 떠나는 자리가 화면 가운데 쪽에 오게 해 주세요.';
+  /* 엔진 2.8.0 — 공마다 공 크기로 거리를 어림하는데 크기를 잰 장면이 모자랐다 */
+  if (d?.why === 'no-size')
+    return '공이 작거나 흐려 크기로 거리를 재지 못했어요. 초점을 다시 맞추고, 공이 화면 가운데로 또렷하게 지나가게 해 주세요.';
   if (d?.why === 'end-unseen')
     return '공이 닿는 순간이 화면에서 안 보였어요. 미트 · 그물까지 화면에 들어오게 해 주세요.';
   if (d?.why === 'short-flight')
-    return '공이 날아가는 모습이 너무 짧게 잡혔어요. 폰을 던지는 사람 바로 뒤에 두고, 공이 화면 가운데로 길게 지나가게 해 주세요.';
+    return '공이 날아가는 모습이 너무 짧게 잡혔어요. 폰을 던지는 사람 1.5~2m 뒤에 두고, 공이 화면 가운데로 길게 지나가게 해 주세요.';
   if (d?.why === 'fit-rms' || d?.why === 'fit-quality')
     return '공 길이 고르게 잡히지 않았어요(흐림 · 그림자 · 배경). 초점을 다시 맞추고 공 뒤 배경이 단순한 쪽으로 던져 주세요.';
+  /*
+   * 흰 과녁 천 · 밝은 벽 앞에서는 공이 끝에서 배경에 묻혀 엔진이 끝을 짐작으로 잇는다(10-09 실내 14구 중 12구) — 흰 배경 앞은 재지 않는다. 2.7.9 부터
+   * 이어 찾기만으로는 '낮음'이 아니라, 다른 까닭(속력 흔들림 · 늦게 잡힘 …)이 있으면 그 말이 먼저다(이 줄이 위에 있어 다 '흰 배경'으로 들렸다).
+   */
+  if (d?.why === 'extended' || (d?.extended ?? 0) > 0)
+    return '흰 배경 앞에서는 공이 끝에서 배경에 묻혀 잴 수 없어요. 공 뒤에 어두운 천을 두거나 어두운 쪽을 향해 던져 주세요.';
   if (source === 'file')
     return '공이 잡힌 구간이 짧거나 흐려요. 60fps 이상, 공이 닿는 곳까지 찍힌 영상으로 다시 재 주세요.';
   return '공이 잡힌 구간이 짧거나 흐렸어요. 초점과 밝기를 확인하고 다시 던져 주세요.';
+}
+
+/**
+ * 못 잰 공의 짧은 까닭 — 측정 중 화면의 '못 잰 공' 집계와 소리 안내(던지는 사람은 18m 밖이라 화면 글을 못 본다, 2026-10-22 김민 "인식이 안 될 때
+ * 왜 안 됐는지 실시간으로"). label 은 집계 칸, say 는 '측정 불가.' 뒤에 읽을 할 일 한 마디. 자세한 말은 lowConfidenceFix · 엔진 거부 글.
+ */
+export type MissReason = { label: string; say: string };
+export const MISS_REASONS = {
+  still: { label: '공이 안 움직임', say: '폰을 옆으로 반 걸음 비켜 주세요' },
+  late: { label: '늦게 잡힘', say: '손이 떠나는 자리를 화면 가운데로' },
+  end: { label: '끝을 놓침', say: '받는 곳이 다 보이게 해 주세요' },
+  bright: { label: '밝은 배경', say: '공 뒤 배경이 밝아요' },
+  blurry: { label: '공이 흐림', say: '초점을 다시 맞춰 주세요' },
+  short: { label: '공 길이 짧음', say: '폰을 1.5에서 2미터 뒤로' },
+  shake: { label: '폰 흔들림', say: '폰을 단단히 고정해 주세요' },
+  distance: { label: '거리 어긋남', say: '폰과 받는 자리를 확인해 주세요' },
+  path: { label: '공 길 흔들림', say: '공 뒤 배경이 단순한 쪽으로' },
+  catcher: { label: '포수 뒤', say: '투수 뒤에 두세요' },
+  session: { label: '앞 공과 거리 다름', say: '폰과 받는 자리를 그대로 두고 다시' },
+  other: { label: '공을 못 찾음', say: '다시 던져 주세요' },
+} as const satisfies Record<string, MissReason>;
+export function missReasonOf(r: Result, approaching = false): MissReason {
+  const m = r.measure;
+  const d = r.distance;
+  if (approaching) return MISS_REASONS.catcher;
+  if (!m.ok) {
+    if (m.code === 'CAMERA_SHAKE') return MISS_REASONS.shake;
+    if (m.code === 'NOT_ENOUGH_FRAMES' || m.code === 'TOO_CLOSE' || m.code === 'RELEASE_NOT_CENTERED') return MISS_REASONS.short;
+    if (m.code === 'UNSTABLE_TRACK' || m.code === 'IMPLAUSIBLE_SPEED') return MISS_REASONS.path;
+    return MISS_REASONS.other;
+  }
+  if (d?.shaky && !d.stabilized) return MISS_REASONS.shake;
+  switch (d?.why) {
+    case 'speed-unsure':
+      return MISS_REASONS.still;
+    case 'late-start':
+      return MISS_REASONS.late;
+    case 'end-early':
+    case 'end-unseen':
+      return MISS_REASONS.end;
+    case 'extended':
+      return MISS_REASONS.bright;
+    case 'no-size':
+      return MISS_REASONS.blurry;
+    case 'short-flight':
+      return MISS_REASONS.short;
+    case 'size-mismatch':
+    case 'size-off':
+      return MISS_REASONS.distance;
+    case 'fit-rms':
+    case 'fit-quality':
+      return MISS_REASONS.path;
+  }
+  return (d?.extended ?? 0) > 0 ? MISS_REASONS.bright : MISS_REASONS.other;
 }
 
 /** 세션 안 공 크기 거리의 허용 흩어짐(가운데 값 대비) — sizeOutlier */

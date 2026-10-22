@@ -2,6 +2,7 @@ import { clipSpanOf, coveredBy, nextSweepWindow, SWEEP_EVERY_SEC } from '@/lib/v
 import { DualCamera, type Clip, type ThrowEvent } from '../../modules/dual-camera';
 import { FRAME_LOSS_WARN, frameLossNotice, frameLossOf } from './clip-health';
 import { EngineError, type EngineHandle, type EngineResult, type MeasureOpts } from './engine';
+import { MISS_REASONS, type MissReason } from '@/lib/velocity-session';
 
 /**
  * 앱 구속 측정의 흐름 — 던짐 알림 → 클립 자르기 → 숨은 웹뷰 계산기로 재기 → 결과.
@@ -41,7 +42,8 @@ const SWEEP_AFTER_THROW_MS = 4000;
  * 60fps 영상을 30fps 로 쟀다(믿음이 낮게 나와 버려지기 쉬움, 2026-10-20 검토).
  */
 const SWEEP_RANGE: [number, number] = [0.7, 1.3];
-export const LOST_BALL_NOTE = '공을 끝까지 찾지 못해 이번 공은 재지 못했어요. 다시 던져 주세요.';
+export const LOST_BALL_NOTE =
+  '공을 알아챘는데 날아가는 길을 거의 못 잡았어요. 폰은 던지는 사람 1.5~2m 뒤, 손이 떠나는 자리가 화면 가운데 쪽에 오게 해 주세요.';
 
 type ThrowKind = 'ball' | 'seed' | 'motion' | 'sweep';
 
@@ -147,7 +149,8 @@ export type CaptureHandlers = {
   onResult(result: EngineResult, meta: { id: number; hitT: number; clip: Clip; late: boolean }): Verdict;
   /** 화면에 띄울 작업 수가 바뀜 — '투구를 인식했어요' · '구속 계산 중' */
   onStatus(status: CaptureStatus, visible: number): void;
-  onNotice(message: string): void;
+  /** miss — 못 잰 공 알림이면 그 짧은 까닭(화면 집계 · 소리 안내) */
+  onNotice(message: string, miss?: MissReason): void;
   /** 작업 하나가 끝날 때(쟀든 실패했든) 단계별 시간 — 관리자 진단 */
   onTiming?(t: JobTiming): void;
   /** 시도 기록(사이트 recordVelocityAttempt 와 같은 칸) */
@@ -478,9 +481,12 @@ export class AppCapture {
     const ok = result.measure.ok;
     const track = result.track.length;
     const noBall = !ok && !job.ball && track < 4 && (job.ballAt == null || job.seed === true);
-    /* 공 길이 거의 없으면 헛알림 — 띄웠던 공이면 알리고, 아니면 조용히 넘긴다. 아니면 화면이 받을지 정한다 */
-    const silent = !ok && (!job.visible || track < 4);
-    if (silent && job.visible) this.handlers.onNotice(LOST_BALL_NOTE);
+    /*
+     * 공 길이 거의 없으면 헛알림 — 띄웠던 공이면 알리고, 아니면 조용히 넘긴다. 아니면 화면이 받을지 정한다. 훑기가 공 감지 모델로 찾은 공(sweep)은
+     * 안 띄웠어도 공 길이 있으면 못 잰 까닭을 알린다(2026-10-22 — 알림 없이 던진 공이 말없이 사라지던 것).
+     */
+    const silent = !ok && ((!job.visible && !job.sweep) || track < 4);
+    if (silent && job.visible) this.handlers.onNotice(LOST_BALL_NOTE, MISS_REASONS.short);
     let decided: Verdict;
     try {
       decided = silent

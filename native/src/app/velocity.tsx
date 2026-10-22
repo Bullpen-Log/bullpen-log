@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tiltOf } from '@/lib/device-tilt';
 import { NO_CALIBRATION, type CalFit } from '@/lib/velocity-calibration';
 import { distanceMismatch } from '@/lib/velocity-analysis';
-import { stdCorrection, withSessionDistance } from '@/lib/velocity-session';
+import { stdCorrection, withSessionDistance, type MissReason } from '@/lib/velocity-session';
 import { TAPE_WARN } from '@/lib/velocity-session-distance';
 import { EFFORT_CHIPS, effortScaleText } from '@/lib/pitch-effort';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
@@ -82,12 +82,10 @@ import { Press } from '~/shell/press';
  * ABS 모드는 존 다음에 제 설정 단계(abs — 홈플레이트 찾기 · 타자 신장 · 규칙, velocity/abs/use-abs.ts)가 하나 더 있고 측정 중에 타자 칩이 뜬다.
  * 공마다 판정 · 세션 요약은 다음 단계(설계 4~5단계).
  */
-const SETTINGS: Omit<MeasureSettings, 'tiltRad'> = {
+const SETTINGS: Omit<MeasureSettings, 'tiltRad' | 'distanceM' | 'distanceAuto'> = {
   approach: 'receding',
   focalPerLongSide: null,
   releaseDistanceM: null,
-  distanceM: 20,
-  distanceAuto: false,
   /* 앱이 화각을 못 주면 — 15 Pro Max 2배 · 손떨림 보정의 긴 변 화각(실험대 38.3°) */
   fallbackFovDeg: 38.3,
 };
@@ -165,12 +163,15 @@ export default function VelocityScreen() {
   const [sessionDate, setSessionDate] = useState<string | null>(null);
   /* 측정 시작 셔터를 눌렀나 — 웹처럼 카메라 화면에서 빨간 단추로 시작 */
   const [live, setLive] = useState(false);
-  /* 폰에서 미트까지 — 기준 20m 또는 줄자(웹과 같다, 줄자가 이긴다) */
+  /*
+   * 폰에서 미트까지 — 줄자를 안 넣으면 공마다 공 크기로 거리를 어림한다(엔진 2.8.0, 2026-10-22 김민 "SmartScout 처럼 간편하지만 정확하게").
+   * 화각을 모르는 폰은 엔진이 기준 20m + 세션 보정으로 잰다. 줄자가 이긴다.
+   */
   const [distTape, setDistTape] = useState(false);
   const [targetDistM, setTargetDistM] = useState(STANDARD_TARGET_DIST_M);
-  const distRef = useRef(STANDARD_TARGET_DIST_M);
+  const distRef = useRef({ m: STANDARD_TARGET_DIST_M, auto: true });
   useEffect(() => {
-    distRef.current = distTape ? targetDistM : STANDARD_TARGET_DIST_M;
+    distRef.current = { m: distTape ? targetDistM : STANDARD_TARGET_DIST_M, auto: !distTape };
   }, [distTape, targetDistM]);
   /* 주의사항 카드 — 몇 번째 장(null = 닫힘). 설정을 마치면 한 번 뜬다(오늘은 보지 않기면 안 뜸) */
   const [tipsAt, setTipsAt] = useState<number | null>(null);
@@ -306,6 +307,23 @@ export default function VelocityScreen() {
   const say = (text: string) => {
     if (voiceRef.current) void DualCamera.speak?.(text).catch(() => undefined);
   };
+  /*
+   * 못 잰 공 집계 — 세션 내내 까닭별로 쌓아 보이고, 소리 안내는 할 일 한 마디까지 읽는다(던지는 사람은 18m 밖이라 화면 글을 못 본다 —
+   * 2026-10-22 김민 "인식이 안 될 때 왜 안 됐는지 실시간으로").
+   */
+  const [misses, setMisses] = useState<Record<string, number>>({});
+  const countMiss = (m: MissReason) => {
+    setMisses((c) => ({ ...c, [m.label]: (c[m.label] ?? 0) + 1 }));
+    say(`측정 불가. ${m.say}`);
+  };
+  const missTotal = Object.values(misses).reduce((a, b) => a + b, 0);
+  const missLine = missTotal
+    ? `못 잰 공 ${missTotal} · ${Object.entries(misses)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([k, v]) => `${k} ${v}`)
+        .join(' · ')}`
+    : null;
   const toggleVoice = () => {
     const on = !voiceRef.current;
     voiceRef.current = on;
@@ -321,14 +339,15 @@ export default function VelocityScreen() {
     const myGen = ++cameraGen;
     const capture = new AppCapture(
       () => engine.current,
-      () => ({ ...SETTINGS, distanceM: distRef.current, tiltRad: tiltRef.current }),
+      () => ({ ...SETTINGS, distanceM: distRef.current.m, distanceAuto: distRef.current.auto, tiltRad: tiltRef.current }),
       {
         onResult: (result, meta) => {
           const a = absRef.current;
           const out = decide(result, pitchesRef.current, ctxRef.current, meta, a?.on ? a.judge : undefined);
           if (out.notice) setNotice(out.notice);
           /* 받은 공의 값은 목록이 바뀐 뒤 읽는다(아래 — 세션 거리 보정까지 다시 낸 값) */
-          if (out.notice && !out.list) say(out.notice.startsWith('측정 불가') ? '측정 불가' : '못 쟀어요');
+          if (out.miss) countMiss(out.miss);
+          else if (out.notice && !out.list) say(out.notice.startsWith('측정 불가') ? '측정 불가' : '못 쟀어요');
           if (out.list) {
             setList(out.list);
             setNotice(null);
@@ -341,7 +360,10 @@ export default function VelocityScreen() {
           if (visible > shownJobs) setNotice(null);
           shownJobs = visible;
         },
-        onNotice: (m) => setNotice(m),
+        onNotice: (m, miss) => {
+          setNotice(m);
+          if (miss) countMiss(miss);
+        },
         onTiming: (t) => {
           timings.current = [...timings.current.slice(-5), t];
         },
@@ -414,6 +436,8 @@ export default function VelocityScreen() {
         }
       );
     };
+    /* 카메라는 한 번만 켠다 — 처리기는 ref · 안정된 setState(countMiss 는 setMisses · voiceRef 만 읽는다)만 쓴다 */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /*
@@ -613,6 +637,7 @@ export default function VelocityScreen() {
       setList(rest.length ? withSessionDistance(rest, null, ctxRef.current.tape) : []);
       if (!rest.length) void clearDraft();
       setSessionDate(null);
+      setMisses({});
       for (const k of sentAttempts.keys()) attempts.current.delete(k);
       setSheet(false);
       Alert.alert(
@@ -873,7 +898,7 @@ export default function VelocityScreen() {
               subtitle="던지는 방향을 정면으로 보게 둬요. 너무 붙으면 팔 · 몸이 공을 가리고, 멀면 공이 작아요."
               footer={<CardButton label="다음" onPress={() => setStep('level')} />}
             >
-              {/* 폰에서 미트까지 — '18~22m'(기준 20m 로 재고 세션마다 공 크기로 맞춤) 또는 줄자(웹과 같은 글, lib/velocity-setup.ts TAPE_MODES) */}
+              {/* 폰에서 미트까지 — '자동'(공 크기로 거리 어림) 또는 줄자(웹과 같은 글, lib/velocity-setup.ts TAPE_MODES) */}
               <Text style={styles.cardLabel}>폰에서 포수 미트까지</Text>
               <Segmented
                 items={TAPE_MODES.map((m) => ({ value: m.value, label: m.label }))}
@@ -931,7 +956,7 @@ export default function VelocityScreen() {
             >
               <AbsSetupBody abs={abs} tiltKnown={!!tilt} />
             </GuideCard>
-          ) : last || notice || (error && step === 'measure') ? (
+          ) : last || notice || missLine || (error && step === 'measure') ? (
             /* 방금 공 — 누르면 영상 다시 보기 */
             <Press
               accessibilityRole="button"
@@ -957,6 +982,7 @@ export default function VelocityScreen() {
               ) : null}
               {error && step === 'measure' ? <Text style={styles.error}>{error}</Text> : null}
               {notice ? <Text style={styles.line}>{notice}</Text> : null}
+              {missLine ? <Text style={styles.hint}>{missLine}</Text> : null}
               {lastWarns.map((w) => (
                 <Text key={w} style={styles.line}>
                   {w}
@@ -972,6 +998,9 @@ export default function VelocityScreen() {
             </Press>
           ) : !live ? (
             <InfoPill>빨간 단추를 누르면 {mode === 'abs' ? '판정' : '측정'}을 시작해요</InfoPill>
+          ) : step === 'measure' ? (
+            /* 아직 아무 공도 못 잰 동안 — 반응이 없을 때 고칠 자리(못 잰 까닭 1위 둘: 공이 화면에서 안 움직임 · 첫 공을 놓침) */
+            <InfoPill>반응이 없으면 폰을 1.5~2m 뒤 · 옆으로 반 걸음, 손 떠나는 자리를 화면 가운데로</InfoPill>
           ) : null}
         </View>
       </View>
@@ -999,6 +1028,7 @@ export default function VelocityScreen() {
             <View style={styles.mid}>
               <Shutter state="ready" label={modeMeta.shutter} onPress={() => {
                   setNotice(null);
+                  setMisses({});
                   setLive(true);
                 }}
                 disabled={!info}

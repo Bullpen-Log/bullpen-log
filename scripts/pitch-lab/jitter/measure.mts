@@ -156,10 +156,71 @@ const PARTS: { name: string; lim: number; ax: (f: MF) => [number[], number[]] }[
 ];
 const turn = (a: [number[], number[]], b: [number[], number[]]) => Math.max(angle(a[0], b[0]), angle(a[1], b[1]));
 
+/*
+ * 꺾임 — 마디 방향이 국소 3차 곡선(앞뒤 KINK_HALF 장면 최소제곱)에서 KINK_DEG 넘게 벗어난 구간 수. 빠르지만 매끈한 움직임(던지는 팔의 가속)은
+ * 곡선이 따라가 안 세고, 갑자기 꺾이는 것만 센다 — 2026-10-22 김민 "짧은 시간에 관절이 사람이 못 하는 각도로 팍팍 튄다"(던지는 손 · 아래팔,
+ * 착지 ~ 릴리스 뒤). 앞발 휘두름 — 인형 앞발이 인형 시계(착지 → 릴리스 0.15초)로 FOOT_WHIP °/초 넘게 도는 장면 수(착지 앞뒤 발 돌림).
+ */
+const KINK_DEG = 6;
+const KINK_HALF = 6;
+const FOOT_WHIP = 2500;
+const KINK_W = (() => {
+  const xs = Array.from({ length: 2 * KINK_HALF + 1 }, (_, i) => i - KINK_HALF);
+  const A = [0, 1, 2, 3].map((i) => [0, 1, 2, 3].map((j) => xs.reduce((a, x) => a + x ** (i + j), 0)));
+  /* (AᵀA)⁻¹ 의 첫 행 — 가운데 장면 값의 가중치 */
+  const M = A.map((r, i) => [...r, ...[0, 1, 2, 3].map((j) => (i === j ? 1 : 0))]);
+  for (let c = 0; c < 4; c++) {
+    let p = c;
+    for (let q = c + 1; q < 4; q++) if (Math.abs(M[q][c]) > Math.abs(M[p][c])) p = q;
+    [M[c], M[p]] = [M[p], M[c]];
+    const v = M[c][c];
+    for (let j = 0; j < 8; j++) M[c][j] /= v;
+    for (let q = 0; q < 4; q++) if (q !== c) { const f = M[q][c]; for (let j = 0; j < 8; j++) M[q][j] -= f * M[c][j]; }
+  }
+  const inv0 = M[0].slice(4);
+  return xs.map((x) => [1, x, x * x, x * x * x].reduce((a, v, i) => a + v * inv0[i], 0));
+})();
+function kinkRuns(d: number[][]): number {
+  let runs = 0;
+  let inRun = false;
+  for (let k = 0; k < d.length; k++) {
+    let off = 0;
+    if (k >= KINK_HALF && k + KINK_HALF < d.length) {
+      const s = [0, 0, 0];
+      for (let q = -KINK_HALF; q <= KINK_HALF; q++) for (let i = 0; i < 3; i++) s[i] += d[k + q][i] * KINK_W[q + KINK_HALF];
+      off = angle(d[k], nz(s));
+    }
+    if (off > KINK_DEG && !inRun) runs++;
+    inRun = off > KINK_DEG;
+  }
+  return runs;
+}
+
 export function mannequinOddities(r: Parameters<typeof displayTrack>[0], dt: number) {
   const tr = displayTrack(r, { ground: 'mound', heightM: 1.8 });
-  const M = mannequinFrames(canonicalFrames(mannequinTrack(tr, r, 1.8)), 1.8);
-  const out = { pop: 0, speed: 0, where: {} as Record<string, number> };
+  const mt = mannequinTrack(tr, r, 1.8);
+  const C = canonicalFrames(mt);
+  const M = mannequinFrames(C, 1.8);
+  const out = { pop: 0, speed: 0, kink: 0, whip: 0, where: {} as Record<string, number> };
+  const seg = (a: number[], b: number[]) => nz(b.map((x, i) => x - a[i]));
+  const LIMBS: [string, (k: number) => number[]][] = [
+    ['던지는위팔', (k) => seg(C[k].sh, C[k].el)], ['던지는아래팔', (k) => seg(C[k].el, C[k].wr)], ['던지는손', (k) => M[k].throwing.hd],
+    ['글러브위팔', (k) => seg(C[k].gs, C[k].ge)], ['글러브아래팔', (k) => seg(C[k].ge, C[k].gw)], ['글러브손', (k) => M[k].glove.hd],
+    ['뒷넙다리', (k) => seg(C[k].rh, C[k].rk)], ['앞넙다리', (k) => seg(C[k].lh, C[k].lk)], ['뒷정강이', (k) => seg(C[k].rk, C[k].ra)],
+    ['앞정강이', (k) => seg(C[k].lk, C[k].la)], ['골반', (k) => M[k].pelvis.xa], ['가슴', (k) => M[k].chest.xa], ['머리', (k) => M[k].head.fw],
+  ];
+  for (const [name, f] of LIMBS) {
+    const n = kinkRuns(C.map((_, k) => f(k)));
+    if (!n) continue;
+    out.kink += n;
+    out.where[`kink:${name}`] = n;
+  }
+  const lead = M.map((f) => nz(f.lead.toe.map((x, i) => x - f.lead.heel[i])));
+  for (let k = 1; k + 1 < lead.length; k++)
+    if (angle(lead[k - 1], lead[k + 1]) / (2 * mt.dt) > FOOT_WHIP) {
+      out.whip++;
+      out.where['whip:앞발'] = (out.where['whip:앞발'] ?? 0) + 1;
+    }
   for (const p of PARTS) {
     const q = M.map(p.ax);
     for (let k = 1; k + 1 < q.length; k++) {

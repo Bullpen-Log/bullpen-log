@@ -151,11 +151,15 @@ export const KIN_LIMITS = {
  */
 /** 던지는 팔이 엔진 팔 방향을 따르는 구간 — 착지 ~ 릴리스 + 착지→릴리스 시간의 이 배, 앞뒤 섞는 장면 수 */
 export const ARM_FOLLOW_POST = 0.8;
-export const ARM_FOLLOW_RAMP = 3;
+export const ARM_FOLLOW_RAMP = 10;
+/** 글러브 팔 따르기 앞뒤 섞는 장면 수 — 릴리스 뒤 가려진 글러브 팔은 엔진이 흔들려 짧게 */
+export const GLOVE_FOLLOW_RAMP = 3;
 /** 머리 점 마지막 다듬기 폭(장면, [좁게, 넓게]) */
 export const HEAD_POST_SMOOTH: [number, number] = [3, 5];
 /** 따를 때 엔진 팔 방향을 살짝 다듬는 폭(장면) — 0 이면 엔진 그대로(릴리스 뒤 떨림이 원 결과만큼 커짐), 2 면 엔진에서 위팔 가운데 1~3.5° 떨어짐 */
 export const ARM_FOLLOW_SMOOTH = 1.5;
+/** 따를 때 던지는 팔 방향을 국소 3차 곡선으로 맞추는 폭(장면, 가우스 σ) — 0 이면 예전 가우스(ARM_FOLLOW_SMOOTH) */
+export const ARM_FOLLOW_POLY = 4;
 /**
  * 글러브 팔도 착지 앞(착지 → 릴리스 시간의 이 배)부터 릴리스까지 엔진 팔을 따른다 — 다듬기는 글러브 팔 세기(앞뒤 1.2~4장면) 그대로.
  * 2026-10-14 겹쳐 보기: 착지 무렵 엔진 글러브 팔은 옆 영상에 붙어 있는데 인형 팔만 아래로 처졌다(f046 · c4d8 위팔 차 상위 10% 28~30°).
@@ -370,6 +374,48 @@ function smoothMulti(
 }
 
 /**
+ * 국소 다항식 맞춤(앞뒤 가우스 무게 × 보이는 만큼 무게로 deg 차 곡선을 맞춰 가운데 값) — 가우스 다듬기는 빠른 팔의 꼭대기를 깎아 폭을 좁게
+ * 둘 수밖에 없어 엔진 2D 잡음이 그대로 꺾임으로 남았다. 3차 곡선은 빠르지만 매끈한 움직임(가속까지)은 그대로 두고 갑자기 꺾이는 것만 걷는다.
+ */
+function localPoly(xs: number[][], ws: number[], sigma: number, deg = 3): number[][] {
+  const n = xs.length;
+  const D = xs[0]?.length ?? 0;
+  const r = Math.ceil(sigma * 2.5);
+  const m = deg + 1;
+  return xs.map((x, k) => {
+    const A = Array.from({ length: m }, () => new Array<number>(m).fill(0));
+    const b = Array.from({ length: m }, () => new Array<number>(D).fill(0));
+    let cnt = 0;
+    for (let q = Math.max(0, k - r); q <= Math.min(n - 1, k + r); q++) {
+      const t = (q - k) / sigma;
+      const w = (ws[q] + 1e-3) * Math.exp(-(t * t) / 2);
+      const p = [1, t, t * t, t * t * t].slice(0, m);
+      for (let i = 0; i < m; i++) {
+        for (let j = 0; j < m; j++) A[i][j] += w * p[i] * p[j];
+        for (let d = 0; d < D; d++) b[i][d] += w * p[i] * xs[q][d];
+      }
+      cnt++;
+    }
+    if (cnt <= m) return [...x];
+    /* 가우스 소거 — 가운데(t = 0) 값은 첫 계수 */
+    for (let c = 0; c < m; c++) {
+      let pv = c;
+      for (let i = c + 1; i < m; i++) if (Math.abs(A[i][c]) > Math.abs(A[pv][c])) pv = i;
+      [A[c], A[pv]] = [A[pv], A[c]];
+      [b[c], b[pv]] = [b[pv], b[c]];
+      if (Math.abs(A[c][c]) < 1e-12) return [...x];
+      for (let i = 0; i < m; i++) {
+        if (i === c) continue;
+        const f = A[i][c] / A[c][c];
+        for (let j = c; j < m; j++) A[i][j] -= f * A[c][j];
+        for (let d = 0; d < D; d++) b[i][d] -= f * b[c][d];
+      }
+    }
+    return b[0].map((v) => v / A[0][0]);
+  });
+}
+
+/**
  * 각을 이어 붙인다 — 바로 앞 장면이 아니라 앞 5장면 가운데값에 가깝게. 앞 장면에만 맞추면 두세 장면 반 바퀴 튄 값(손 점 검지 · 새끼 뒤바뀜)을
  * 지나 돌아올 때 반대쪽으로 돌아 그 뒤 전체가 한 바퀴 밀렸고, 화면 손이 한 바퀴를 천천히 따라 돌다 한계에 걸려 150° 뒤집힌 채 남았다
  * (2026-10-10 샘플 4 글러브 손, 착지 ~ 끝).
@@ -497,6 +543,8 @@ const GLOVE_HAND_RATE = 0.5;
  * 회전 빠르기 변화 상위 10% 손 4~5° · 몸통 0.4°). 빠른 장면(던지는 손 릴리스)은 다듬기가 저절로 좁아진다(smoothMulti).
  */
 const HAND_SMOOTH: [number, number] = [1.2, 4.5];
+/** 던지는 손 각도(엎침 · 손목 굽힘 · 옆)를 국소 3차 곡선으로 맞추는 폭(장면, 가우스 σ) — 0 이면 HAND_SMOOTH */
+const HAND_POLY = 5;
 
 /*
  * 비틀림(팔꿈치 · 무릎이 굽는 면)은 다듬기 전에 앞뒤 7장면 가운데값으로 — 세 장면까지 튄 반 바퀴를 걷는다. 예전엔 '가운데값에서 60° 넘게 벗어난
@@ -1020,17 +1068,22 @@ export function kinematicTrack(
      * 큰 장면(상위 10%) 4~18 → 2~10°(c4d8 겹쳐 보기 그림). 엔진 어깨까지 따르게 하면 분리 75° 넘는 장면이 늘어 어깨는 몸통 모델 그대로 둔다.
      */
     const armEng = new Array<number>(n).fill(0);
-    const [fMin, fMax] = throwing ? [ARM_FOLLOW_SMOOTH, ARM_FOLLOW_SMOOTH] : [gMin, gMax];
+    const [fMin, fMax] = throwing ? [ARM_FOLLOW_SMOOTH, 3] : [gMin, gMax];
     const smDir = (vs: Vec3[]) =>
-      smoothMulti(vs as number[][], limb.flexW, fMin, fMax).map((v) => unit(v as Vec3, [0, -1, 0]));
+      smoothMulti(
+        throwing && ARM_FOLLOW_POLY > 0 ? localPoly(vs as number[][], limb.flexW, ARM_FOLLOW_POLY) : (vs as number[][]),
+        limb.flexW,
+        fMin,
+        fMax
+      ).map((v) => unit(v as Vec3, [0, -1, 0]));
     const engUS = smDir(frames.map((fr) => unit(sub(fr[El], fr[Sh]), [0, -1, 0])));
     const engFS = smDir(frames.map((fr) => unit(sub(fr[Wr], fr[El]), [0, -1, 0])));
     if (ev) {
       const span = Math.max(1, ev.release - ev.footPlant);
       const lo = throwing ? ev.footPlant : ev.footPlant - Math.round(GLOVE_FOLLOW_PRE * span);
       const hi = Math.min(n - 1, ev.release + Math.round((throwing ? ARM_FOLLOW_POST : GLOVE_FOLLOW_POST) * span));
-      for (let k = 0; k < n; k++)
-        armEng[k] = clamp(Math.min(k - lo + ARM_FOLLOW_RAMP, hi - k + ARM_FOLLOW_RAMP) / ARM_FOLLOW_RAMP, 0, 1);
+      const ramp = throwing ? ARM_FOLLOW_RAMP : GLOVE_FOLLOW_RAMP;
+      for (let k = 0; k < n; k++) armEng[k] = clamp(Math.min(k - lo + ramp, hi - k + ramp) / ramp, 0, 1);
     }
     /* 원 손목을 따르는 정도 — 사람 범위 한계가 손을 쓴 장면(엔진 실수: 위팔이 어깨선 뒤로 80°)은 각도 모델 그대로, 앞뒤로 다듬어 한 장면에 안 바뀌게 */
     const wFollow = smooth1(
@@ -1091,11 +1144,20 @@ export function kinematicTrack(
       frames.map((_, k) =>
         rad(deg * (throwing && (!ev || k >= ev.footPlant) ? 1 : GLOVE_HAND_RATE))
       );
+    /* 던지는 손 각도 — 국소 3차 곡선(HAND_POLY). 손은 릴리스 앞뒤로 진짜 빨라 가우스 폭이 1.2 장면까지 좁아져 손 점 잡음이 그대로 꺾임이 됐다 */
+    const handSmooth = (xs: number[], ws: number[], widen = false): number[] =>
+      smooth1(
+        throwing && HAND_POLY > 0 ? localPoly(xs.map((v) => [v]), ws, HAND_POLY).map((v) => v[0]) : xs,
+        ws,
+        HAND_SMOOTH[0],
+        HAND_SMOOTH[1],
+        widen
+      );
     const pronU = medianFilter(unwrap(pron), 5);
     const wPron = outlierW(pronU, wHand);
     const pronMid = weightedMedian(pronU, wPron);
     const pronS = rateLimit(
-      smooth1(pronU, wPron, HAND_SMOOTH[0], HAND_SMOOTH[1], true),
+      handSmooth(pronU, wPron, true),
       handRate(KIN_LIMITS.pronationRatePerFrame)
     ).map((p) =>
       clamp(p, pronMid - rad(KIN_LIMITS.pronation), pronMid + rad(KIN_LIMITS.pronation))
@@ -1126,20 +1188,16 @@ export function kinematicTrack(
         clamp((rad(70) - Math.abs(devW[k])) / rad(30), 0, 1)
     );
     const wfS = rateLimit(
-      smooth1(
+      handSmooth(
         flexW.map((v, k) => v * handOk[k]),
-        wHandOnly.map(() => 1),
-        HAND_SMOOTH[0],
-        HAND_SMOOTH[1]
+        wHandOnly.map(() => 1)
       ).map((v) => clamp(v, -rad(KIN_LIMITS.wristFlex), rad(KIN_LIMITS.wristFlex))),
       handRate(KIN_LIMITS.wristRatePerFrame)
     );
     const wdS = rateLimit(
-      smooth1(
+      handSmooth(
         devW.map((v, k) => v * handOk[k]),
-        wHandOnly.map(() => 1),
-        HAND_SMOOTH[0],
-        HAND_SMOOTH[1]
+        wHandOnly.map(() => 1)
       ).map((v) => clamp(v, -rad(KIN_LIMITS.wristDev), rad(KIN_LIMITS.wristDev))),
       handRate(KIN_LIMITS.wristRatePerFrame)
     );
