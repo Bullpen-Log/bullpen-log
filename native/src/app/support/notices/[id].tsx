@@ -1,5 +1,4 @@
 import * as Haptics from 'expo-haptics';
-import { SymbolView } from 'expo-symbols';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +7,7 @@ import { Badge, Bar, call, LoadState, s, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
+import { Icon } from '~/shell/icon';
 
 /**
  * 공지 한 편(앱 화면) — 웹 app/(app)/support/notices/[id]/page.tsx. 누구나 읽는다. 관리자만 고치고(웹 관리 화면으로) 지운다
@@ -55,11 +55,11 @@ export default function NoticeScreen() {
           {data.isAdmin ? (
             <View style={styles.admin}>
               <Press accessibilityRole="button" onPress={() => router.push(`/admin/notice?id=${notice.id}` as Href)} style={[styles.adminBtn, { backgroundColor: c.chip }]}>
-                <SymbolView name="pencil" size={14} tintColor={c.ink} />
+                <Icon name="pencil" size={16} color={c.ink} />
                 <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>수정</Text>
               </Press>
               <Press accessibilityRole="button" onPress={remove} style={[styles.adminBtn, { backgroundColor: c.chip }]}>
-                <SymbolView name="trash" size={14} tintColor={c.danger} />
+                <Icon name="trash2" size={16} color={c.danger} />
                 <Text style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>지우기</Text>
               </Press>
             </View>

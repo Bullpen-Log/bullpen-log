@@ -27,6 +27,7 @@ import { s } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
 import { MuscleChips } from '~/armcare/muscle-info';
 import { Press } from '~/shell/press';
+import { Icon } from '~/shell/icon';
 
 /**
  * 내 루틴 만들기 · 고치기(앱 화면) — 웹 /training/routine/new · /training/routine/<id>(app/(app)/training/routine/[id]/routine-builder.tsx)를 옮겼다.
@@ -222,7 +223,7 @@ function Builder({ data, c }: { data: RoutineBuilderData; c: Palette }) {
             </Text>
           </View>
           <View style={[st.search, { backgroundColor: c.card }]}>
-            <SymbolView name="magnifyingglass" size={15} tintColor={c.muted} />
+            <Icon name="search" size={17} color={c.muted} />
             <TextInput
               value={query}
               onChangeText={setQuery}
@@ -258,7 +259,7 @@ function Builder({ data, c }: { data: RoutineBuilderData; c: Palette }) {
 
         {data.id ? (
           <Press onPress={remove} disabled={busy != null} accessibilityRole="button" style={[s.textBtn, { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
-            <SymbolView name="trash" size={14} tintColor={c.muted} />
+            <Icon name="trash2" size={16} color={c.muted} />
             <Text style={[s.bodyBold, { color: c.muted }]}>{busy === 'delete' ? '지우는 중…' : '이 루틴 지우기'}</Text>
           </Press>
         ) : null}

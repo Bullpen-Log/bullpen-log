@@ -18,6 +18,7 @@ import { leaveTo } from '~/shell/web-nav';
 import { s } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
+import { Icon } from '~/shell/icon';
 
 /**
  * 운동 끝 — 축하 화면(앱 화면). 웹 app/(session)/workout/done/done-client.tsx 를 옮겼다. 운동 화면에서 [운동 마치기]가 되면 이리 온다
@@ -226,7 +227,7 @@ export default function WorkoutDoneScreen() {
             onPress={() => leaveTo(data.nutritionLine!.href)}
             style={({ pressed }) => [st.nudge, { backgroundColor: pressed ? c.chip : c.card }]}
           >
-            <SymbolView name="fork.knife" size={15} tintColor={c.sky} style={{ marginTop: 2 }} />
+            <View style={{ marginTop: 2 }}><Icon name="utensils" size={17} color={c.sky} /></View>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={[s.tiny, { color: c.muted }]}>{data.nutritionLine.title}</Text>
               <Text style={[s.smallBold, { color: c.ink }]}>{data.nutritionLine.text}</Text>

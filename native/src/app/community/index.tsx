@@ -1,5 +1,4 @@
 import * as Haptics from 'expo-haptics';
-import { SymbolView } from 'expo-symbols';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -12,6 +11,7 @@ import { TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
 import { PageHead } from '~/shell/heading';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { Icon } from '~/shell/icon';
 
 /**
  * 커뮤니티(앱 화면) — 토스뱅크의 '증권'처럼 들어오면 하단바가 커뮤니티 전용으로 바뀐다(2026-10-20 김민 화면 녹화): 옛 막대가 고른 칸 하나로
@@ -119,11 +119,11 @@ function PostList({ sort, first }: { sort: PostSort; first: PostCategory | null 
       <View style={styles.foot}>
         <Text style={[s.meta, { color: c.ink }]}>{item.nickname}</Text>
         <Text style={[s.meta, { color: c.muted, flex: 1 }]}>{item.ago}</Text>
-        <SymbolView name="heart" size={13} tintColor={c.muted} />
+        <Icon name="heart" size={15} color={c.muted} />
         <Text style={[s.meta, { color: c.muted }]} accessibilityLabel={`좋아요 ${item.likes}`}>
           {item.likes}
         </Text>
-        <SymbolView name="bubble.left" size={13} tintColor={c.muted} />
+        <Icon name="chat" size={15} color={c.muted} />
         <Text style={[s.meta, { color: c.muted }]} accessibilityLabel={`댓글 ${item.comments}`}>
           {item.comments}
         </Text>

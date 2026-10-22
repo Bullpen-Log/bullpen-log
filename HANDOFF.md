@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — 탭 이름 · 아이콘이 구역마다(싱커 / 덕아웃) · 남은 자리도 둥근 아이콘으로 — 네 앱 화면 여럿을 고쳤다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호: "싱커에 들어갔으면 싱커 로고에 싱커, 덕아웃에 들어갔으면 덕아웃 로고에 덕아웃 · 내가 준 아이콘으로 안 바뀐 곳 맞추고, 타자 자리에 투수 아이콘 들어간 것 고쳐".
+- **탭 이름 · 아이콘**: `app/favicon.ico` · `app/apple-icon.png`(파일 규칙 — 사이트에 하나뿐이라 둘로 못 가름)를 지우고 `lib/brand-metadata.ts` 로 — 뿌리(app/layout.tsx)는 덕아웃,
+  `app/(app)` · `app/(session)` 레이아웃은 싱커(제목 '싱커' · `%s · 싱커`). 그림은 `public/icons/{sinker,dugout}-{tab,apple}.png` · `public/favicon.ico`(`npm run icons`).
+  아래 정보 칸(`SiteFooter brand`)도 싱커 틀이면 SINKER.
+- **타자 자리**: 메뉴의 '3D 스윙 분석' · '3D 개발 관리자'가 'body'(투수 그림)였다 → 새 이름 'batter'(lib/nav.ts · nav-icons.tsx · 앱 more.tsx · tab-bar.tsx 바꿈표).
+- **웹**: `components/icon.tsx` 의 같은 뜻 lucide 26개(검색 · 별 · 연필 · 휴지통 · 깃발 · 자물쇠 · 영상 · 종 · 설정 · 아령 · 숟가락 · 사람들 …)가 이제 둥근 그림으로 그린다(앱 shell/icon.tsx ROUND 와 같은 줄, ‹ › · + − 는 그대로).
+- **네 앱 화면**: SF 기호(SymbolView) 24곳을 같은 뜻의 둥근 `Icon` 으로 — 휴지통 · 연필 · 검색 · 자물쇠 · 하트 · 댓글(chat) · 영상 · 즐겨찾기 별 · 숟가락 · 팔(암케어)
+  (workout · routine · support · community · library · nutrition · lab · swing · training 쪽). 관리자 메뉴 줄 아이콘도(`app/admin/index.tsx` MenuRow 가 `IconName` 을 받음).
+  투수 그림('pitcher')은 받은 팩의 3D 분석 벡터로 바꿨다(lib/round-icons.ts). 앱 tsc 통과, **폰에서는 아직 안 봤다.**
+
 ## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — **싱커 로고를 새 그림으로(초안 · 임시 — 나중에 바뀔 수 있다)** · 불펜로그 B 자리를 모두 싱커로
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호: "싱커의 로고도 이거로 바꿔주는데 sinker 의 s 는 이 로고로 해서 전에 불펜로그의 앱을 들어가는 모션이라던가 다 싱커로 바꿔줘.

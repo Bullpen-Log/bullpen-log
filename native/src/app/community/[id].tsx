@@ -11,6 +11,7 @@ import { useDraftGuard } from '~/community/draft-guard';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
+import { Icon } from '~/shell/icon';
 
 /**
  * 글 하나(앱 화면) — 웹 app/(app)/community/[id]/page.tsx 를 옮겼다. 본문 · 좋아요 · 신고 · 댓글, 관리자는 가리기 · 되살리기까지.
@@ -146,7 +147,7 @@ export default function CommunityPostScreen() {
             <Text style={{ color: shown.liked ? c.danger : c.ink, fontSize: 15, fontWeight: '600' }}>{shown.likes}</Text>
           </Press>
           <View style={styles.textBtn}>
-            <SymbolView name="bubble.left" size={15} tintColor={c.muted} />
+            <Icon name="chat" size={17} color={c.muted} />
             <Text style={{ color: c.muted, fontSize: 15 }}>{post.commentCount}</Text>
           </View>
           <View style={{ flex: 1 }} />

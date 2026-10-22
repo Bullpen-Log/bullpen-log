@@ -32,6 +32,7 @@ import { Star } from './fav-button';
 import { Sheet } from '~/workout/sheets';
 import { fromApp } from '~/shell/web-nav';
 import { Press } from '~/shell/press';
+import { Icon } from '~/shell/icon';
 
 /**
  * 메커니즘 전체 화면(native/src/app/training-mechanics.tsx)의 조각 — 웹 mechanics-program.tsx(오늘의 세션 · 수준 고르기 · 12칸 · 영상으로 확인)와
@@ -605,7 +606,7 @@ export function FilmCard({ sessionsDone, films, c }: { sessionsDone: number; fil
     <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={[s.row, { alignItems: 'flex-start' }]}>
         <View style={[st.bigNum, { backgroundColor: c.sky + '1a' }]}>
-          <SymbolView name="video.fill" size={15} tintColor={c.sky} />
+          <Icon name="video" size={17} color={c.sky} filled />
         </View>
         <View style={{ flex: 1, gap: 4 }}>
           <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>

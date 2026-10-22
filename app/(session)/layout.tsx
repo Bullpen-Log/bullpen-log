@@ -1,4 +1,5 @@
-import type { Viewport } from 'next';
+import type { Metadata, Viewport } from 'next';
+import { SINKER_METADATA } from '@/lib/brand-metadata';
 import { requireUser } from '@/lib/dal';
 
 /**
@@ -12,6 +13,9 @@ import { requireUser } from '@/lib/dal';
  * requireUser() 하나뿐이다 (lib/dal.ts). 여기서 안 부르면 로그인하지 않은
  * 사람이 운동 화면을 그냥 연다.
  */
+/** 탭 이름 · 아이콘은 싱커(lib/brand-metadata.ts) */
+export const metadata: Metadata = SINKER_METADATA;
+
 export const viewport: Viewport = {
   /*
    * 화면 끝까지 쓴다. 이걸 켜야 아래쪽 안전영역(env(safe-area-inset-bottom))

@@ -18,6 +18,7 @@ import { Star } from './fav-button';
 import { Muscle3D, MuscleChips } from '~/armcare/muscle-info';
 import { AREA_DETAILS } from '@/lib/armcare/details';
 import { Press } from '~/shell/press';
+import { Icon } from '~/shell/icon';
 
 /**
  * 암케어 전체 화면(native/src/app/training-armcare.tsx)의 조각 — 웹 armcare-today.tsx(체크 목록 · 이번 주) · my-routines.tsx · rehab-card.tsx(겉) ·
@@ -299,7 +300,7 @@ export function RoutineCard({ routine: r, dateKey, fresh, open, onToggle, onChan
         ) : null}
         <Press onPress={() => router.push(`/training/routine/${r.id}` as Href)} accessibilityRole="button" accessibilityLabel={`${r.name} 고치기`} style={st.circleHit}>
           <View style={[st.circle, { backgroundColor: c.chip }]}>
-            <SymbolView name="pencil" size={15} tintColor={c.ink} />
+            <Icon name="pencil" size={17} color={c.ink} />
           </View>
         </Press>
       </View>

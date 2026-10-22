@@ -23,6 +23,7 @@ import { floorNote } from '@/lib/nutrition/targets';
 import { TYPE, type Palette } from '~/lib/ui';
 import { ChoiceChips } from '~/setup/frame';
 import { WeightForecast } from '~/shell/weight-forecast';
+import { Icon } from '~/shell/icon';
 
 /**
  * 영양 질문 화면들(앱) — 웹 components/onboarding/nutrition-steps.tsx · plan-stats.tsx · macro-editor.tsx · building-steps.tsx 를 옮겼다.
@@ -600,7 +601,7 @@ function PlanStep({ ctx }: { ctx: StepCtx }) {
         </View>
       ) : (
         <Pressable accessibilityRole="button" onPress={() => setOpen(true)} hitSlop={6} style={{ alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <SymbolView name="pencil" size={14} tintColor={c.sky} />
+          <Icon name="pencil" size={16} color={c.sky} />
           <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>하루 목표를 직접 정하기</Text>
         </Pressable>
       )}

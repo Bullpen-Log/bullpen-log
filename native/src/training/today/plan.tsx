@@ -19,6 +19,7 @@ import { SwipeRow } from '~/shell/swipe-row';
 import { AddSheet, PlanForm } from './forms';
 import { BigButton, Card, Chip, LinkRow, s, useWeightUnit, type TodayActions } from './parts';
 import { Press } from '~/shell/press';
+import { Icon } from '~/shell/icon';
 
 /**
  * 트레이닝 '운동' 화면의 일정 쪽 조각 — 웹 app/(app)/training/ 의 state-notice-band · done-card · exercise-list · training-note ·
@@ -213,7 +214,7 @@ export function PrefsCard({ prefs, today, c, a }: { prefs: NonNullable<TrainingT
         <Text numberOfLines={1} style={[s.tiny, { color: summary == null ? c.sky : c.ink, flexShrink: 1 }]}>
           {summary ?? '답하기'}
         </Text>
-        <SymbolView name="pencil" size={13} tintColor={c.muted} />
+        <Icon name="pencil" size={15} color={c.muted} />
       </Pressable>
     );
 

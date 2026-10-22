@@ -886,7 +886,7 @@ function EditRow({
             <SymbolView name="arrow.left.arrow.right" size={17} tintColor={moved ? c.sky : c.muted} />
           </Press>
           <Press accessibilityRole="button" accessibilityLabel={`${entry.name} 지우기`} onPress={() => onChange({ ...draft, remove: true })} style={styles.icon}>
-            <SymbolView name="trash" size={17} tintColor={c.muted} />
+            <Icon name="trash2" size={19} color={c.muted} />
           </Press>
         </>
       )}

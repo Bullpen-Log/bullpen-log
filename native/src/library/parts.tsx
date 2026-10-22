@@ -117,7 +117,7 @@ export function ItemRow({
           </Text>
         ) : null}
       </View>
-      {favorite ? <SymbolView name="star.fill" size={15} tintColor="#ff9500" /> : null}
+      {favorite ? <Icon name="star" size={17} color="#ff9500" filled /> : null}
       <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
     </Pressable>
   );
@@ -284,7 +284,7 @@ export function FavoriteFull({ on, onPress, note, c }: { on: boolean; onPress: (
 export function SearchField({ value, onChange, placeholder, c }: { value: string; onChange: (v: string) => void; placeholder: string; c: Palette }) {
   return (
     <View style={[st.search, { backgroundColor: c.chip }]}>
-      <SymbolView name="magnifyingglass" size={15} tintColor={c.muted} />
+      <Icon name="search" size={17} color={c.muted} />
       <TextInput
         value={value}
         onChangeText={onChange}

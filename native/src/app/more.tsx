@@ -37,6 +37,9 @@ const ICON: Record<string, IconName> = {
   clapper: 'clapperboard',
   radar: 'radar',
   body: 'pitcher',
+  /* 3D 스윙 분석 · 3D 개발 관리자 — 타자(2026-10-22), 타격 — 방망이 */
+  batter: 'batter',
+  bat: 'baseball-bat',
   community: 'messages-square',
   /* 2026-10-22 둥근 그림 — 웹 nav-icons.tsx 와 같게(관리자는 'admin' 별 방패, 'shield' 는 홈 요약 칸 컨디션) */
   heart: 'armcare',

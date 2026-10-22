@@ -265,7 +265,7 @@ export function InquiryMeta({
       <Text style={[s.meta, { color: c.muted }]}>{date}</Text>
       {replies > 0 ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }} accessibilityLabel={`답글 ${replies}`}>
-          <SymbolView name="bubble.left" size={13} tintColor={c.muted} />
+          <Icon name="chat" size={15} color={c.muted} />
           <Text style={[s.meta, { color: c.muted }]}>{replies}</Text>
         </View>
       ) : null}

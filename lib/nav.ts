@@ -62,8 +62,10 @@ export type NavIconName =
   | 'clapper'
   /* 구속 측정 — 스피드건(레이더 건)처럼 곧장 잰다. 계기판(관리자)과 가르려고 다른 그림 */
   | 'radar'
-  /* 투구 분석(3D, 실험실) — 서 있는 사람 */
+  /* 투구 분석(3D, 실험실) — 공 던지는 투수 */
   | 'body'
+  /* 3D 스윙 분석 · 3D 개발 관리자 — 배트를 든 타자(2026-10-22, 투수 그림이 들어가 있던 것) */
+  | 'batter'
   /* 커뮤니티 — 말풍선 둘 · 고객센터 — 구명 튜브(2026-10-17) */
   | 'community'
   | 'support'
@@ -267,7 +269,7 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         href: '/hitting/lab',
         label: '3D 스윙 분석',
-        icon: 'body',
+        icon: 'batter',
         appMoreHidden: true,
       },
     ],
@@ -332,7 +334,7 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         href: '/admin/dev3d',
         label: '3D 개발 관리자',
-        icon: 'body',
+        icon: 'batter',
         tone: 'armcare',
         adminOnly: true,
         perm: 'dev3d',

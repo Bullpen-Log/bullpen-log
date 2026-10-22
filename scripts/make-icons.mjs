@@ -11,11 +11,12 @@
  *   public/icons/icon-192.png           안드로이드 홈 화면 · 설치 창
  *   public/icons/icon-512.png           안드로이드 시작 화면(스플래시)
  *   public/icons/icon-maskable-512.png  안드로이드가 모양(원·둥근 네모)을 잘라 쓰는 판
- *   app/apple-icon.png                  아이폰 홈 화면 (180×180)
- *   app/favicon.ico                     브라우저 탭 (16 · 32 · 48)
+ *   public/icons/{sinker,dugout}-tab.png  브라우저 탭 (64, 투명)
+ *   public/icons/{sinker,dugout}-apple.png 아이폰 홈 화면 (180×180)
+ *   public/favicon.ico                  링크 없이 묻는 곳 (16 · 32 · 48, 덕아웃)
  *
- * 앞의 셋은 app/manifest.ts 가, 뒤의 둘은 Next.js 가 파일 이름을 보고 알아서
- * 머리말에 건다.
+ * 앞의 셋은 app/manifest.ts 가, 탭 · 홈 화면 넷은 레이아웃의 metadata.icons 가 건다. 예전엔 app/favicon.ico ·
+ * app/apple-icon.png(파일 규칙)였는데, 파일 규칙은 사이트 전체에 하나뿐이고 metadata 보다 이겨서 싱커 · 덕아웃을 못 갈랐다.
  *
  * ■ 그림
  *
@@ -93,16 +94,50 @@ function ico(images) {
   return Buffer.concat([head, ...entries, ...images.map((i) => i.data)]);
 }
 
+/*
+ * 덕아웃 로고(components/logo.tsx DugoutMark 와 같은 모양 · 색) — 64칸 판 안에서 그림이 차지하는 네모(지붕 선 굵기 포함)를
+ * 가운데에 맞춰 키운다. 싱커와 덕아웃은 같은 서버의 두 얼굴이라 브라우저 탭 · 아이폰 홈 화면 아이콘을 구역마다 따로 건다
+ * (싱커 = app/(app) · (session) 레이아웃, 덕아웃 = 뿌리 레이아웃 — 2026-10-22 금윤호 "싱커에 들어가면 싱커 로고, 덕아웃이면 덕아웃 로고").
+ */
+const DUGOUT = '#1d8a4f';
+const DUGOUT_BOX = { x: 3.3, y: 12, w: 57.7, h: 39.4 };
+const DUGOUT_BODY =
+  '<path d="M6.9 29.2 32.1 15.6 57.4 29.2" fill="none" stroke="currentColor" stroke-width="7.2" stroke-linecap="round" stroke-linejoin="round" />' +
+  '<rect x="11.2" y="33.3" width="42" height="7.7" rx="2.3" />' +
+  '<rect x="14.4" y="41.8" width="6.9" height="9.6" rx="2.3" />' +
+  '<rect x="43.1" y="41.8" width="6.9" height="9.6" rx="2.3" />';
+
+/** 덕아웃 한 장 — ratio 는 그림 폭이 한 변에서 차지하는 몫(가로로 긴 그림이라 폭으로 맞춘다) */
+function dugoutSvg(size, ratio, ground) {
+  const k = (size * ratio) / DUGOUT_BOX.w;
+  const x = (size - DUGOUT_BOX.w * k) / 2 - DUGOUT_BOX.x * k;
+  const y = (size - DUGOUT_BOX.h * k) / 2 - DUGOUT_BOX.y * k;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+  ${ground ? `<rect width="${size}" height="${size}" fill="${ground}" />` : ''}
+  <g transform="translate(${x} ${y}) scale(${k})" fill="${DUGOUT}" color="${DUGOUT}">${DUGOUT_BODY}</g>
+</svg>`;
+}
+const flatPng = (markup, size) =>
+  sharp(Buffer.from(markup)).resize(size, size).flatten({ background: '#ffffff' }).png().toBuffer();
+const clearPng = (markup) => sharp(Buffer.from(markup)).png().toBuffer();
+
 mkdirSync('public/icons', { recursive: true });
 
+/* 홈 화면에 앱으로 추가(PWA, app/manifest.ts) — 싱커(첫 화면이 /today) */
 writeFileSync('public/icons/icon-192.png', await home(192));
 writeFileSync('public/icons/icon-512.png', await home(512));
 writeFileSync('public/icons/icon-maskable-512.png', await home(512, 0.42));
-writeFileSync('app/apple-icon.png', await home(180));
 
+/* 브라우저 탭 · 아이폰 홈 화면 — 구역마다(app/layout.tsx · app/(app)/layout.tsx 의 metadata.icons) */
+writeFileSync('public/icons/sinker-tab.png', await tabIcon(64));
+writeFileSync('public/icons/sinker-apple.png', await home(180));
+writeFileSync('public/icons/dugout-tab.png', await clearPng(dugoutSvg(64, 0.94)));
+writeFileSync('public/icons/dugout-apple.png', await flatPng(dugoutSvg(180, 0.62, '#ffffff'), 180));
+
+/* 링크 없이 /favicon.ico 를 묻는 곳(옛 브라우저 · 북마크)에 줄 것 — 바깥 첫 화면이 덕아웃이라 덕아웃 */
 const tab = await Promise.all(
-  [16, 32, 48].map(async (size) => ({ size, data: await tabIcon(size) }))
+  [16, 32, 48].map(async (size) => ({ size, data: await clearPng(dugoutSvg(size, 0.94)) }))
 );
-writeFileSync('app/favicon.ico', ico(tab));
+writeFileSync('public/favicon.ico', ico(tab));
 
-console.log('아이콘 다섯 개를 만들었습니다.');
+console.log('아이콘 아홉 개를 만들었습니다.');

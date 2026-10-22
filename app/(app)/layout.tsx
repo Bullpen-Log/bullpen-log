@@ -1,3 +1,5 @@
+import type { Metadata } from 'next';
+import { SINKER_METADATA } from '@/lib/brand-metadata';
 import { appNow, appNowMs } from '@/lib/clock';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -53,6 +55,9 @@ function checkinWindowStart() {
 function streakWindowStart() {
   return new Date(appNowMs() - 62 * 86_400_000);
 }
+
+/** 탭 이름 · 아이콘은 싱커(lib/brand-metadata.ts — 뿌리는 덕아웃) */
+export const metadata: Metadata = SINKER_METADATA;
 
 export default async function AppLayout({
   children,
@@ -275,7 +280,7 @@ export default async function AppLayout({
           </TabPager>
         </main>
 
-        <SiteFooter tabBar />
+        <SiteFooter tabBar brand="sinker" />
       </div>
     </div>
   );

@@ -1,5 +1,4 @@
 import { type Href, router } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import Svg, { Circle, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
@@ -10,6 +9,7 @@ import { Badge, s } from '~/community/parts';
 import { rpc } from '~/lib/rpc';
 import { loadJson, saveJson } from '~/lib/store';
 import type { Palette } from '~/lib/ui';
+import { Icon } from '~/shell/icon';
 
 /**
  * 3D 스윙 분석(타자) 앱 화면들(사용자 /swing · 3D 개발 관리자 /swing/samples · 안내 /swing/guide · 샘플 /swing/<id>)이 같이 쓰는 조각.
@@ -65,7 +65,7 @@ export function SwingRow({ item, name, last, onRemoved, c }: { item: SwingListIt
         {!item.broken ? <Badge text={`영상 ${item.videoCount}개`} c={c} /> : null}
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`${name} 지우기`} disabled={busy} onPress={remove} hitSlop={6} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-        <SymbolView name="trash" size={18} tintColor={c.muted} />
+        <Icon name="trash2" size={20} color={c.muted} />
       </Pressable>
     </View>
   );

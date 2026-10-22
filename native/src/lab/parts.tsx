@@ -94,7 +94,7 @@ export function SampleRow({ item, name, last, onRemoved, c }: { item: AppLabList
         ) : null}
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`${name} 지우기`} disabled={busy} onPress={remove} hitSlop={6} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-        <SymbolView name="trash" size={18} tintColor={c.muted} />
+        <Icon name="trash2" size={20} color={c.muted} />
       </Pressable>
     </View>
   );

@@ -11,6 +11,7 @@ import { useDraftGuard } from '~/community/draft-guard';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
+import { Icon } from '~/shell/icon';
 
 /**
  * 문의 한 건의 대화(앱 화면) — 웹 app/(app)/support/inquiries/[id]/page.tsx. 물음이 맨 위, 그 밑에 답글이 시간순, 운영자 답은 하늘색.
@@ -111,7 +112,7 @@ export default function InquiryScreen() {
 
         {closed ? (
           <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float, padding: 20, gap: 12, alignItems: 'center' }]}>
-            <SymbolView name="lock.fill" size={20} tintColor={c.muted} />
+            <Icon name="lock" size={22} color={c.muted} filled />
             <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center' }}>종료된 문의예요. 더 물을 게 있으면 다시 열어 주세요.</Text>
             <Press accessibilityRole="button" onPress={() => setOpen(true)} disabled={send.busy} style={[s.pill, { backgroundColor: c.chip }]}>
               <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>다시 열기</Text>
@@ -125,7 +126,7 @@ export default function InquiryScreen() {
             hitSlop={6}
             style={styles.close}
           >
-            <SymbolView name="lock" size={13} tintColor={c.muted} />
+            <Icon name="lock" size={15} color={c.muted} />
             <Text style={{ color: c.muted, fontSize: 15, fontWeight: '400' }}>문의 종료</Text>
           </Press>
         )}

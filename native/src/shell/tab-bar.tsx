@@ -89,6 +89,8 @@ const GLYPH: Record<string, IconName> = {
   heart: 'armcare',
   back: 'back',
   target: 'pitcher',
+  body: 'pitcher',
+  batter: 'batter',
   utensils: 'utensils',
   community: 'messages-square',
   menu: 'squares',

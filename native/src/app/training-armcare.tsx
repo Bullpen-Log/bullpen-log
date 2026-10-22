@@ -19,6 +19,7 @@ import { Fold, Screen, SectionHead, s, useJump, useScreenData } from '~/training
 import { Sheet } from '~/workout/sheets';
 import { useRememberPart } from '~/training/remember';
 import { Press } from '~/shell/press';
+import { Icon } from '~/shell/icon';
 
 /**
  * 암케어(앱 화면) — 웹 /training?view=armcare(&tab=guide)(app/(app)/training/training-page.tsx 의 armcare 칸 · armcare-section.tsx)를 옮겼다.
@@ -368,7 +369,7 @@ function GuideTab({ data, scroll, c }: { data: AppArmcareGuideTab; scroll: RefOb
           style={({ pressed }) => [s.card, { backgroundColor: c.card, boxShadow: c.float, flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 84 }, pressed && { opacity: 0.7 }]}
         >
           <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: c.sky + '1a', alignItems: 'center', justifyContent: 'center' }}>
-            <SymbolView name="figure.arms.open" size={26} tintColor={c.sky} />
+            <Icon name="armcare" size={28} color={c.sky} />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>3D 근육 지도 보기</Text>

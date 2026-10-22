@@ -18,11 +18,14 @@ export { CONTACT, MEDICAL_NOTICE };
 export function SiteFooter({
   width = 'max-w-5xl xl:max-w-6xl 2xl:max-w-7xl',
   tabBar = false,
+  brand = 'dugout',
 }: {
   /** 본문과 같은 최대 폭 */
   width?: string;
   /** 휴대폰 하단 탭(fixed) 높이만큼 밑을 비운다 */
   tabBar?: boolean;
+  /** 싱커 화면(선수 틀)이면 싱커 이름표 · 소개 — 2026-10-22 금윤호 "싱커에 들어갔으면 싱커" */
+  brand?: 'sinker' | 'dugout';
 }) {
   return (
     <>
@@ -53,10 +56,10 @@ export function SiteFooter({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="flex items-center gap-2">
-                <Wordmark brand="dugout" className="text-lg text-ink" />
+                <Wordmark brand={brand} className="text-lg text-ink" />
               </p>
               <p className="mt-1 text-xs text-muted">
-                투수를 위한 투구 기록과 트레이닝
+                {brand === 'sinker' ? '투수를 위한 투구 기록과 트레이닝' : '야구인의 커뮤니티'}
               </p>
             </div>
 

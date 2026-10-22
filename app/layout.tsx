@@ -1,6 +1,7 @@
 import { ensureSim, simOffsetMs } from '@/lib/clock-server';
 import { SimClockSync } from '@/components/sim-clock-sync';
 import type { Metadata, Viewport } from 'next';
+import { DUGOUT_METADATA } from '@/lib/brand-metadata';
 import { SITE_URL } from '@/lib/site-url';
 import { Bebas_Neue } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
@@ -47,7 +48,7 @@ export const metadata: Metadata = {
    * 따로 비우지 않아 제목이 시계·배터리 밑으로 들어간다. 운동 화면은 여백을
    * 스스로 비우지만(app/(session)), 앱 전체는 아니다.
    */
-  appleWebApp: { title: '덕아웃', statusBarStyle: 'default' },
+  ...DUGOUT_METADATA,
 };
 
 /*

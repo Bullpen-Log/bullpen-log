@@ -48,6 +48,7 @@ import { FinishSheet, ListSheet, SwapSheet } from '~/workout/sheets';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { READABLE, useBarSide } from '~/lib/layout';
 import { Press } from '~/shell/press';
+import { Icon } from '~/shell/icon';
 
 /**
  * 운동 진행(앱 화면) — 웹 app/(session)/workout/run/session-client.tsx 를 옮겼다. 사이트의 운동 화면이 앱(BullpenNative/2 부터)이면 이 화면을
@@ -896,7 +897,7 @@ function Run({
                             <Text style={[s.tinyBold, { color: c.warn }]}>대기</Text>
                           </View>
                         ) : null}
-                        <SymbolView name="pencil" size={14} tintColor={fixingThis ? c.sky : c.muted} />
+                        <Icon name="pencil" size={16} color={fixingThis ? c.sky : c.muted} />
                       </Press>
                       <Press
                         onPress={() => void drop(x)}
@@ -904,7 +905,7 @@ function Run({
                         accessibilityLabel={`${i + 1}세트 지우기`}
                         style={s.iconBtn}
                       >
-                        <SymbolView name="trash" size={16} tintColor={c.muted} />
+                        <Icon name="trash2" size={18} color={c.muted} />
                       </Press>
                     </View>
                   );
