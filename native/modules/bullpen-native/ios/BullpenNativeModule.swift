@@ -129,6 +129,8 @@ public class BullpenNativeModule: Module {
         /// 앱 테마(light · dark · navy · system)를 기억 — 다음 시작 화면이 이 테마로 뜬다
         Function("setLaunchStyle") { (pick: String) in
             UserDefaults.standard.set(pick, forKey: BullpenNativeModule.styleKey)
+            /* iOS 가 맨 먼저 그리는 시작 화면 그림도 이 테마로(LaunchSnapshot.swift) — 다음에 켤 때부터 */
+            LaunchSnapshot.refresh(pick)
         }
 
         AsyncFunction("keepAwake") { (on: Bool) in
