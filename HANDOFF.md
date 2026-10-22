@@ -11,6 +11,19 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — **싱커 로고를 새 그림으로(초안 · 임시 — 나중에 바뀔 수 있다)** · 불펜로그 B 자리를 모두 싱커로
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호: "싱커의 로고도 이거로 바꿔주는데 sinker 의 s 는 이 로고로 해서 전에 불펜로그의 앱을 들어가는 모션이라던가 다 싱커로 바꿔줘.
+앞으로 싱커의 로고는 이거야. **이거는 초안이고 임시로 바꿔놓은 거라 나중에 바꿀 수 있다고 김민에게 전해줘**."
+- 로고: 아래로 꺾여 내려가는 화살표가 붙은 파란 S. 그림 파일을 따라 그려 `components/logo.tsx` 의 `MARK_PATH`(viewBox 0 0 1006 1001)로 — 색은 그대로 `--color-brand`.
+  이름표는 S 자리에 로고를 넣어 **[로고]INKER**(예전 B 로고 + ULLPEN LOG 와 같은 방식). `BullpenMark` · `BullpenWordmark` 는 지웠다 — 투구 탭 제목 밑 작은 이름표도 싱커로.
+- 시작 연출: 웹 `components/app-splash.tsx` · **새 앱 `native/src/shell/intro.tsx` · `shell/wordmark.tsx`(네 영역)** — 큰 로고 → S 칸으로 → I · N · K · E · R. 때 · 곡선은 그대로.
+- 그림 파일: 웹 아이콘 다섯(`npm run icons` = scripts/make-icons.mjs), **새 앱 `native/assets/icon.png` · `splash.png`**(새 `scripts/make-sinker-app-assets.mjs` — 로고 높이 한 변의 50%, 예전 B 와 같은 크기라
+  시작 화면 → 연출이 그대로 이어진다). 앱 그림이 바뀌어 이 푸시는 **앱을 새로 굽는다**(TestFlight). 옛 앱 `mobile/` 그림은 안 건드렸다.
+- **안 바꾼 것(네 몫 B-1)**: 홈 화면의 앱 이름 'Bullpen Log'(app.json `name` 을 바꾸면 Xcode 프로젝트 이름이 바뀌어 ios-native.yml 의 `ios/BullpenLog.xcworkspace` 가 깨진다 —
+  바꾸려면 `ios.infoPlist.CFBundleDisplayName` 으로), 로그인 문구. 번들 ID · UA · 도메인은 그대로.
+- 로고가 확정되면 그림만 바꾸면 된다: 같은 모양을 네 곳(logo.tsx · native/src/shell/wordmark.tsx · scripts/make-icons.mjs · scripts/make-sinker-app-assets.mjs)이 쓰고, 두 스크립트를 다시 돌린다.
+
 ## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — 둥근 아이콘 26종 더함(rounded-baseball-icons-3) · 네 앱 틀 · 앱 아이콘 부품을 고쳤다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 표는 `lib/round-icons.ts`(29종 더함 — 26 + 단순판 셋, 자잘한 그림은 선 0.8배 `ROUND_ICON_WEIGHT`).

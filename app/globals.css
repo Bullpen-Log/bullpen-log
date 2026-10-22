@@ -2889,7 +2889,7 @@ html[data-splash] *::after {
   }
 }
 /*
- * 시작 연출(components/app-splash.tsx) — 테마 바탕 위에 큰 B → 이름의 B 자리로 → 글자가 한 글자씩 뒤에서 밀려 나옴 → 걷힘.
+ * 시작 연출(components/app-splash.tsx) — 테마 바탕 위에 큰 싱커 로고 → 이름(SINKER)의 S 자리로 → 글자가 한 글자씩 뒤에서 밀려 나옴 → 걷힘.
  * 때와 곡선은 아이폰 앱의 시작 연출(MainViewController.swift IntroOverlay)과 같다: 큰 B 0.4초, 자리로 1초(ease-in-out),
  * 글자는 1.25초부터 0.075초 간격으로 0.65초씩(ease), 2.9초에 0.55초 동안 옅어지며 1.06배로(ease-in).
  * 자리(--splash-dx · dy · scale)는 스크립트가 글꼴을 재서 넣는다 — 그 전(첫 페인트)에는 큰 B 만 가운데에 서 있다.
@@ -2924,11 +2924,11 @@ html[data-splash-skip] .app-splash {
   font-size: min(15vw, 68px);
   color: var(--color-ink);
 }
-/* B 칸 — 로고 높이는 대문자 높이 0.7em, 바닥을 기준선에(components/logo.tsx Wordmark 와 같다). 보이지 않고 자리만 */
+/* S 칸 — 로고 높이는 대문자 높이 0.7em, 바닥을 기준선에(components/logo.tsx Wordmark 와 같다). 보이지 않고 자리만 */
 .app-splash__slot {
   display: inline-block;
   height: 0.7em;
-  margin-right: 0.07em;
+  margin-right: 0.05em;
   visibility: hidden;
 }
 .app-splash__space {

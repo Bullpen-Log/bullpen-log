@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { RoundPitcher } from '@/components/round-icon';
 import { RoundRadar, RoundZone } from '@/components/round-icon';
 import { PageHeading } from '@/components/ui';
-import { BullpenWordmark } from '@/components/logo';
+import { Wordmark } from '@/components/logo';
 import { Segmented } from '@/components/segmented';
 import { AnalysisLink } from '@/components/analysis-link';
 
@@ -189,8 +189,8 @@ export function PitchLogHeading({
             </div>
           }
         />
-        {/* 예전 이름표를 제목 밑에 작게(2026-10-21 금윤호) — 앱 이름은 싱커, 투구 기록의 뿌리는 불펜로그 */}
-        <BullpenWordmark className="-mt-[calc(var(--gap-page,1rem)*0.6)] mb-1 text-[15px] text-muted" />
+        {/* 제목 밑 작은 이름표(2026-10-21 금윤호) — 2026-10-22 불펜로그 B 를 싱커 로고 + INKER 로("다 싱커로 바꿔줘") */}
+        <Wordmark className="-mt-[calc(var(--gap-page,1rem)*0.6)] mb-1 text-[15px] text-muted" />
       </ViewTransition>
       <ViewTransition default={SWIPE_OFF}>
         <div className="flex flex-wrap items-center gap-2 desk-low:hidden">

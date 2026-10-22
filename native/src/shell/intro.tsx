@@ -13,15 +13,16 @@ import Animated, {
 } from 'react-native-reanimated';
 import { prefsReady } from '~/lib/prefs';
 import { usePalette } from '~/lib/ui';
-import { BullpenMark } from '~/shell/wordmark';
+import { MARK_ASPECT, SinkerMark } from '~/shell/wordmark';
 
 /*
- * 앱 시작 연출 — 웹 components/app-splash.tsx 와 같은 장면 · 같은 때(김민이 다듬은 옛 앱 IntroOverlay 그대로):
+ * 앱 시작 연출 — 웹 components/app-splash.tsx 와 같은 장면 · 같은 때(김민이 다듬은 옛 앱 IntroOverlay 그대로).
+ * 2026-10-22 금윤호: 불펜로그 B → BULLPEN LOG 이던 것을 싱커 로고(초안 · 임시) → SINKER 로. 아래 'B' 는 이제 싱커 로고, 글자는 I · N · K · E · R:
  * 큰 B 0.4초 → 1초 동안 작아지며 이름의 B 칸으로(ease-in-out) → 1.25초부터 U · L · … · G 가 0.075초 간격으로 0.65초씩 밀려 나오며 진해짐 →
  * 2.9초에(사이트가 다 그려졌으면) 0.55초 동안 옅어지며 1.06배. 움직임 줄이기면 완성된 이름 1.1초 → 걷힘.
  * 큰 B 는 시작 화면(app.json splash · 바탕 #f2f2f7 = 앱 바탕)과 같은 크기 · 자리 · 색이라 시작 화면을 걷는 순간이 이어진다.
  */
-const LETTERS = ['U', 'L', 'L', 'P', 'E', 'N', ' ', 'L', 'O', 'G'];
+const LETTERS = ['I', 'N', 'K', 'E', 'R'];
 const MOVE_AT = 400;
 const MOVE_MS = 1000;
 const LETTER_AT = 1250;
@@ -32,11 +33,11 @@ const LEAVE_MS = 550;
 const REDUCED_HOLD_MS = 1100;
 /*
  * 큰 B = 150pt(웹 app-splash 의 '긴 변 16%'와 거의 같다 — 852 화면 136 · 932 화면 149, 2026-10-19 김민: "너무 큰 상태에서 작아진다").
- * 시작 화면은 app.json splash imageWidth 300 — 그림(assets/splash.png, 512칸)의 B 가 높이 256칸이라 300 × 256/512 = 150pt, 같은 가운데.
+ * 시작 화면은 app.json splash imageWidth 300 — 그림(assets/splash.png)의 로고가 한 변의 절반 높이라 300 × 256/512 = 150pt, 같은 가운데.
  * native/ios 는 prebuild 가 만들어(git 밖) storyboard 를 손으로 고쳐도 GitHub 굽기에선 사라진다 — 그래서 고정 크기로 맞춘다.
  */
 const SPLASH_W = 300;
-const ASPECT = 594 / 613;
+const ASPECT = MARK_ASPECT;
 
 /* 사이트(웹 껍데기)가 다 그려졌다는 알림 — 그 전에 걷으면 흰 화면이 번쩍인다. index.tsx · 딥링크 화면이 부른다 */
 let ready = false;
@@ -144,7 +145,7 @@ export function Intro() {
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.page, zIndex: 1000 }, veil]}>
       <View style={styles.center}>
-        <View accessible accessibilityLabel="BULLPEN LOG" style={styles.row}>
+        <View accessible accessibilityLabel="싱커" style={styles.row}>
           {/* B 칸 — 자리만 잡고 그림은 밖의 움직이는 B 가 그린다 */}
           <View
             ref={slotRef}
@@ -153,7 +154,7 @@ export function Intro() {
               /* 화면 좌표로 잰다 — 덮개가 화면 전체라 같은 좌표다 */
               slotRef.current?.measureInWindow((x, y, w, h) => setSlot({ x, y, width: w, height: h }))
             }
-            style={{ width: slotH * ASPECT, height: slotH, marginRight: size * 0.07, marginBottom: size * 0.3 }}
+            style={{ width: slotH * ASPECT, height: slotH, marginRight: size * 0.05, marginBottom: size * 0.3 }}
           />
           {LETTERS.map((ch, i) => (
             <Letter key={i} ch={ch} i={i} t={t} size={size} color={c.ink} />
@@ -161,12 +162,12 @@ export function Intro() {
         </View>
       </View>
       <Animated.View style={[{ position: 'absolute', left: width / 2 - bigW / 2, top: height / 2 - bigH / 2 }, mark]}>
-        <BullpenMark height={bigH} />
+        <SinkerMark height={bigH} />
       </Animated.View>
       {/* 칸 자리의 제 크기 B — 옮기기가 끝난 뒤(정지 모양은 안 보임) */}
       {slot ? (
         <Animated.View style={[{ position: 'absolute', left: slot.x, top: slot.y, opacity: 0 }, crisp]}>
-          <BullpenMark height={slotH} />
+          <SinkerMark height={slotH} />
         </Animated.View>
       ) : null}
     </Animated.View>
