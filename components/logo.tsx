@@ -80,12 +80,13 @@ export function DugoutMark({ className = '' }: { className?: string }) {
     <svg
       viewBox="0 0 64 64"
       aria-hidden
-      className={`w-auto shrink-0 fill-dugout ${className}`}
+      className={`w-auto shrink-0 fill-dugout text-dugout ${className}`}
     >
-      <path d="M4 28 32 8l28 20-4 5-24-17L8 33z" />
-      <rect x="12" y="36" width="40" height="8" rx="2" />
-      <rect x="15" y="44" width="6" height="12" rx="1" />
-      <rect x="43" y="44" width="6" height="12" rx="1" />
+      {/* 2026-10-22 금윤호가 준 새 덕아웃 로고 — 둥근 지붕 + 벤치(덕아웃 의자) */}
+      <path d="M6.9 29.2 32.1 15.6 57.4 29.2" fill="none" stroke="currentColor" strokeWidth="7.2" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="11.2" y="33.3" width="42" height="7.7" rx="2.3" />
+      <rect x="14.4" y="41.8" width="6.9" height="9.6" rx="2.3" />
+      <rect x="43.1" y="41.8" width="6.9" height="9.6" rx="2.3" />
     </svg>
   );
 }
