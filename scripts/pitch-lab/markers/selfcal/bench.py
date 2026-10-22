@@ -17,6 +17,8 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WORK = os.environ.get("MARKER_WORK", os.path.join(os.getcwd(), "work"))
+BENCH = os.environ.get("BENCH_DIR", "bench")  # 엔진 입력 · 결과 폴더(work/ 아래) — 다른 판을 나란히 둘 때
+TRACK_FPS = float(os.environ.get("TRACK_FPS", "120"))  # 엔진에 넣을 2D fps — 서버는 min(120, 영상 fps)
 SCORE_SCALE = 6.0  # services/pitch3d-gpu/pitch3d_gpu/mapping.py 와 같다
 JM = json.load(open(os.path.join(HERE, "..", "..", "..", "..", "lib", "pitch-3d", "v2", "joint-map.json"), encoding="utf-8"))
 NAMES = [j["name"] for j in JM["joints"]]
@@ -80,12 +82,12 @@ def track_of(p, c, fps=120.0):
 
 def cmd_tracks(ps):
     for p in ps:
-        d = os.path.join(WORK, "bench", f"p{p:02d}")
+        d = os.path.join(WORK, BENCH, f"p{p:02d}")
         os.makedirs(d, exist_ok=True)
         meta = {"hand": "R", "height_m": float(os.environ.get("HEIGHT_M", "1.80"))}
         if os.environ.get("FOCAL_PRIOR", "1x") == "1x":  # 이 촬영은 네 대 모두 1배 — 엔진의 초점 사전(camera.ts FOCAL_PRIOR_1X)
             meta["focal_prior"] = {"k": 0.78, "sigma": 0.25}
-        tr = {"side": track_of(p, "1"), "back": track_of(p, "2"), "meta": meta}
+        tr = {"side": track_of(p, "1", TRACK_FPS), "back": track_of(p, "2", TRACK_FPS), "meta": meta}
         json.dump(tr, open(os.path.join(d, "tracks.json"), "w"))
         print(p, "옆", len(tr["side"]["frames"]), "뒤", len(tr["back"]["frames"]), flush=True)
 
@@ -164,7 +166,7 @@ def cmd_score(ps, cal_path, world_path, name):
     dirrows = []  # (투구, 뼈, 장면 수, 엔진 각도 차 가운데 °, K4 각도 차 가운데 °)
     bone = []  # (투구, 뼈, 엔진/정답 비율)
     for p in ps:
-        r = json.load(open(os.path.join(WORK, "bench", f"p{p:02d}", "result.json")))
+        r = json.load(open(os.path.join(WORK, BENCH, f"p{p:02d}", "result.json")))
         if not r.get("ok"):
             print(p, "엔진 실패", r.get("code")); continue
         rec = np.load(os.path.join(WORK, "rec", f"p{p:02d}.npz"))
@@ -173,7 +175,7 @@ def cmd_score(ps, cal_path, world_path, name):
         J = np.array(r["joints"], float) / 1000.0  # 키 = 1 단위, [앞, 위, 오른쪽]
         te = np.array(r["t"]) - off1  # 옆 영상 시각 → 기준 시각
         truths = {"K4": {}}
-        cache = os.path.join(WORK, "bench", f"k4r-p{p:02d}.npz")
+        cache = os.path.join(WORK, BENCH, f"k4r-p{p:02d}.npz")
         if os.environ.get("K4") != "robust":
             # 기본은 recon 의 K4(네 대 모두 같은 무게). 튼튼한 K4R 은 스티커와 비교하면 더 나빴다(거리 흔들림 1.21 → 1.52cm, 위팔 방향
             # 7.2 → 15°) — 시선을 빼면 둘만 남는 장면이 늘어 더 흔들린다. 진단용으로만 K4=robust.
@@ -254,8 +256,8 @@ def cmd_score(ps, cal_path, world_path, name):
                "k4_p90_cm": float(np.percentile(k4, 90)), "wrist_accel_p90_cm": float(np.percentile(wa, 90)) if wa else None,
                "mk_std_cm": float(np.median([r[3] for r in mkrows]) * 100) if mkrows else None}
     out = {"rows": rows, "bone": bone, "mk": mkrows, "dir": dirrows, "summary": summary}
-    os.makedirs(os.path.join(WORK, "bench"), exist_ok=True)
-    json.dump(out, open(os.path.join(WORK, "bench", f"score-{name}.json"), "w"))
+    os.makedirs(os.path.join(WORK, BENCH), exist_ok=True)
+    json.dump(out, open(os.path.join(WORK, BENCH, f"score-{name}.json"), "w"))
     report(out)
 
 
