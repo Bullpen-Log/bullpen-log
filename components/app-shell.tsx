@@ -1169,7 +1169,7 @@ export function AppNav({
             data-morph-side
             className="relative z-10 mr-2 grid h-11 w-11 place-items-center rounded-full border border-line/70 bg-surface/75 text-ink shadow-sm backdrop-blur-md transition-transform hover:scale-105 motion-safe:active:scale-95"
           >
-            <RoundBack className="h-5 w-5" />
+            <RoundBack className="h-5 w-5" {...({ filled: true } as object)} />
           </MorphLink>
         )}
         <span

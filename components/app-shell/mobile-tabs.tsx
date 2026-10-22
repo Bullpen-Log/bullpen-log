@@ -301,7 +301,7 @@ export function MobileTabs({
             data-morph-side
             className="pointer-events-auto grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full text-(--tab-fg) transition-transform duration-100 motion-safe:active:scale-[0.94] pad:hidden"
           >
-            <RoundBack className="h-6 w-6" />
+            <RoundBack className="h-6 w-6" {...({ filled: true } as object)} />
           </MorphLink>
         )}
         <div
