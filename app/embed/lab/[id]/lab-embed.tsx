@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { loadLabVideoShifts } from '@/app/actions/pitch-lab';
+import type { LabShifts } from '@/lib/pitch-lab-meta';
 import { sourceTimesAt } from '@/lib/pitch-3d/v2/video-sync';
 import dynamic from 'next/dynamic';
 import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
@@ -23,7 +24,7 @@ const Body3D = dynamic(() => import('@/app/(app)/videos/lab/[id]/body-3d').then(
 type ToApp =
   | { t: 'lab'; kind: 'ready' }
   | { t: 'lab'; kind: 'size'; h: number }
-  | ({ t: 'lab'; kind: 'transport'; side: number; back: number } & Transport);
+  | ({ t: 'lab'; kind: 'transport'; side: number; back: number; cam3?: number; cam4?: number } & Transport);
 
 type Bridge = { ReactNativeWebView?: { postMessage(s: string): void }; __labSeek?: (frame: number) => void };
 
@@ -47,7 +48,7 @@ export function LabEmbed({
   const body = useRef<Body3DHandle>(null);
   const box = useRef<HTMLDivElement>(null);
   /* 영상마다 편집 목록 앞머리 — 받기 전엔 0, 받으면 마지막 알림을 다시 보낸다 */
-  const shifts = useRef({ side: 0, back: 0 });
+  const shifts = useRef<LabShifts>({ side: 0, back: 0 });
   const lastT = useRef<Transport | null>(null);
 
   const onTransport = useCallback(
@@ -60,6 +61,9 @@ export function LabEmbed({
         ...t,
         side: Math.max(0, src.side + shifts.current.side),
         back: Math.max(0, src.back + shifts.current.back),
+        /* 마커 샘플 ③ · ④ — 옆 시각에 그 카메라 몫을 더해(있을 때만, 2026-10-22) */
+        ...(shifts.current.cam3 != null ? { cam3: Math.max(0, src.side + shifts.current.cam3) } : {}),
+        ...(shifts.current.cam4 != null ? { cam4: Math.max(0, src.side + shifts.current.cam4) } : {}),
       });
     },
     [result]

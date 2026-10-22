@@ -1,6 +1,6 @@
 /**
  * 3D 동작 분석 샘플에 '누구 투구'(meta.json 의 subject)를 단다 — 2026-10-22 김민: "샘플이 너무 많이 나열돼 보기 어렵다 · 사람별로 묶어 줘".
- * 일반 샘플 1~6 기타 인물(빈칸) · 7~14 김민 · 15 금윤호, 마커 샘플은 모두 김민.
+ * 일반 샘플 1~6 기타 인물(빈칸) · 7~12 김민 · 13~15 금윤호(10-22 김민: 13 · 14 도 금윤호), 마커 샘플은 모두 김민.
  * 번호는 마커를 보는 계정(lib/pitch-lab.ts MARKER_VIEWER_ID)이 실험실 목록에서 보는 차례 — 오래된 것이 1.
  *
  *   node --env-file=.env scripts/pitch-lab/set-subjects.mjs           목록만 보인다(바꾸지 않음)
@@ -11,7 +11,7 @@ import pg from 'pg';
 
 const VIEWER = 'e0418384-8334-4c4b-85e3-b042cad362c5';
 const apply = process.argv.includes('--apply');
-const subjectOf = (kind, n) => (kind === 'marker' ? '김민' : n >= 15 ? '금윤호' : n >= 7 ? '김민' : null);
+const subjectOf = (kind, n) => (kind === 'marker' ? '김민' : n >= 13 ? '금윤호' : n >= 7 ? '김민' : null);
 
 const db = new pg.Client({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL });
 await db.connect();

@@ -45,7 +45,6 @@ import {
 } from '@/lib/pitch-3d/v2/gpu-client';
 import {
   isLabId,
-  type LabView,
   LAB_VIEWS,
   forHand,
   labCardChips,
@@ -53,6 +52,7 @@ import {
   labMetaChips,
   labViewLabel,
   LAB_EXTRA_LABEL,
+  type LabShifts,
   readLabMeta,
 } from '@/lib/pitch-lab-meta';
 import { MECH_FOCUS_POINTS } from '@/lib/pitch-3d/v2/mech-judge';
@@ -398,7 +398,7 @@ export async function loadPitch3dV2(input: {
  * 원본 영상 두 칸의 시각 앞머리(초, lib/pitch-lab.ts labVideoShifts) — 결과 화면(웹 lab-detail · 앱 embed)이 열린 뒤 따로 받는다.
  * 범위 요청 몇 번이라 화면 그리기를 막지 않게 서버 동작으로. 못 받으면 0(예전처럼 3D 시각 그대로).
  */
-export async function loadLabVideoShifts(input: { id: string }): Promise<Record<LabView, number>> {
+export async function loadLabVideoShifts(input: { id: string }): Promise<LabShifts> {
   const zero = { side: 0, back: 0 };
   const user = await getCurrentUser();
   if (!user || !isLabId(input.id)) return zero;

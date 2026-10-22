@@ -22,6 +22,9 @@ export type LabTransport = {
   /** 그때 옆 · 뒤 영상의 재생기 시각(초, 편집 목록 앞머리까지 더함 — 재생 중엔 0.1초마다) */
   side: number;
   back: number;
+  /** 마커 샘플 ③ · ④ 의 재생기 시각(사이트가 시각 차를 알 때만, 2026-10-22) */
+  cam3?: number;
+  cam4?: number;
 };
 export type Lab3DHandle = { seek: (frame: number) => void };
 

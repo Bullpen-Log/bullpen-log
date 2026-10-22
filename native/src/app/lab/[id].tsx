@@ -36,6 +36,9 @@ import { READABLE_WIDE, TwoColumns, useTwoColumns, WIDE_MAX } from '~/lib/layout
  * 분석 걸기도 앱에서(판 9 — RequestPanel): 동의 글은 웹과 같은 한 곳(lab-summary CONSENT_TEXT), 비용 지키기 · 동의 확인은 서버 requestPitch3dV2.
  */
 type LoadResult = AppLabDetail | { ok: false; to: string };
+/** 원본 영상 칸 — 옆 · 뒤 · (마커 샘플) ③ · ④ */
+type SourceView = AppLabDetail['videos'][number]['view'];
+const SOURCE_VIEWS: readonly SourceView[] = ['side', 'back', 'cam3', 'cam4'];
 
 export default function LabScreen() {
   const c = usePalette();
@@ -85,18 +88,19 @@ export default function LabScreen() {
     return () => clearInterval(timer);
   }, [active, id]);
 
-  const players = useRef<Partial<Record<'side' | 'back', VideoPlayer>>>({});
-  const register = useCallback((view: 'side' | 'back', p: VideoPlayer | null) => {
+  const players = useRef<Partial<Record<SourceView, VideoPlayer>>>({});
+  const register = useCallback((view: SourceView, p: VideoPlayer | null) => {
     if (p) players.current[view] = p;
     else delete players.current[view];
   }, []);
   /* 원본 영상이 3D 시계를 따라간다(웹 lab-detail.tsx onTransport 와 같은 규칙) */
   const onTransport = useCallback((t: LabTransport) => {
-    for (const view of ['side', 'back'] as const) {
+    for (const view of SOURCE_VIEWS) {
       const p = players.current[view];
       if (!p) continue;
+      /* ③ · ④ 는 사이트가 시각을 보낼 때만(옛 사이트 · 시각 차를 모르는 샘플이면 없다) */
       const want = t[view];
-      if (!Number.isFinite(want)) continue;
+      if (want == null || !Number.isFinite(want)) continue;
       if (t.reason === 'tick') {
         const step = followStep(p.currentTime, want, t.speed);
         if (step.seek) p.currentTime = want;
@@ -163,9 +167,8 @@ export default function LabScreen() {
     : [when, ...data.chips].join(' · ');
   /*
    * 원본 영상 — 결과 바로 밑에 늘 보인다(2026-10-22 김민: "결과 밑에 원본 영상도 안 나와" — 예전엔 '원본 영상 보기'를 눌러야 폈다).
-   * 두 칸씩 줄을 바꿔 마커 샘플은 ③ · ④ 까지 넷. 옆 · 뒤는 3D 시계를 따라가고, ③ · ④ 는 맞출 시각 정보가 없어 따로 튼다(조작 막대).
+   * 두 칸씩 줄을 바꿔 마커 샘플은 ③ · ④ 까지 넷. 넷 다 3D 시계를 따라간다(③ · ④ 는 사이트가 옆 시각 + 그 카메라 몫으로 보낸다, 2026-10-22).
    */
-  const extras = data.videos.some((v) => v.view === 'cam3' || v.view === 'cam4');
   const sources = (
     <View style={{ gap: 8 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -176,16 +179,14 @@ export default function LabScreen() {
               <View style={[s.video, s.centerBox]}>
                 <Text style={[s.small, { color: '#9aa3b8' }]}>영상 없음</Text>
               </View>
-            ) : v.view === 'side' || v.view === 'back' ? (
-              <SourceVideo uri={v.url} view={v.view} onPlayer={register} />
             ) : (
-              <ExtraVideo uri={v.url} />
+              <SourceVideo uri={v.url} view={v.view} onPlayer={register} />
             )}
           </View>
         ))}
       </View>
       <Text style={[s.small, { color: c.muted }]}>
-        {extras ? '옆 · 뒤 영상은 3D 를 따라가요. ③ · ④ 는 따로 틀어요.' : '영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.'}
+        영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.
       </Text>
     </View>
   );
@@ -321,9 +322,9 @@ function SourceVideo({
   onPlayer,
 }: {
   uri: string;
-  view: 'side' | 'back';
+  view: SourceView;
   /** 3D 시계가 부를 재생기를 화면에 알린다(없어지면 null) */
-  onPlayer: (view: 'side' | 'back', p: VideoPlayer | null) => void;
+  onPlayer: (view: SourceView, p: VideoPlayer | null) => void;
 }) {
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;
@@ -334,15 +335,6 @@ function SourceVideo({
     return () => onPlayer(view, null);
   }, [player, view, onPlayer]);
   return <VideoView player={player} style={s.video} contentFit="contain" nativeControls={false} pointerEvents="none" />;
-}
-
-/** 마커 샘플의 ③ · ④ 원본 — 3D 시계와 맞출 시각이 없어 조작 막대로 따로 튼다 */
-function ExtraVideo({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri, (p) => {
-    p.muted = true;
-    p.loop = false;
-  });
-  return <VideoView player={player} style={s.video} contentFit="contain" nativeControls />;
 }
 
 /** 결과가 없을 때 3D 칸 — 분석 전 · 기다림 · 실패(웹 V2EmptyWell 과 같은 말). 분석 걸기는 밑의 RequestPanel */

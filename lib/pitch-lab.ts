@@ -8,6 +8,7 @@ import {
   readLabMeta,
   type LabMeta,
   type LabSport,
+  type LabShifts,
   type LabView,
 } from '@/lib/pitch-lab-meta';
 import {
@@ -230,25 +231,30 @@ async function urlShift(url: string): Promise<number> {
   return moov ? videoEditShift(moov) : 0;
 }
 
-export async function labVideoShifts(sample: LabSample): Promise<Record<LabView, number>> {
-  const out: Record<LabView, number> = { side: 0, back: 0 };
-  await Promise.all(
-    LAB_VIEWS.map(async (view) => {
+export async function labVideoShifts(sample: LabSample): Promise<LabShifts> {
+  const out: LabShifts = { side: 0, back: 0 };
+  const editShift = async (path: string, url: string) => {
+    const kept = shiftCache.get(path);
+    if (kept != null) return kept;
+    try {
+      const v = await urlShift(url);
+      shiftCache.set(path, v);
+      return v;
+    } catch {
+      /* 못 읽으면 0 — 예전처럼 3D 시각 그대로 */
+      return 0;
+    }
+  };
+  await Promise.all([
+    ...LAB_VIEWS.map(async (view) => {
       const v = sample.videos[view];
-      if (!v?.url) return;
-      const kept = shiftCache.get(v.path);
-      if (kept != null) {
-        out[view] = kept;
-        return;
-      }
-      try {
-        out[view] = await urlShift(v.url);
-        shiftCache.set(v.path, out[view]);
-      } catch {
-        /* 못 읽으면 0 — 예전처럼 3D 시각 그대로 */
-      }
-    })
-  );
+      if (v?.url) out[view] = await editShift(v.path, v.url);
+    }),
+    /* 마커 샘플 ③ · ④ — 옆 시각 기준 차이(meta.extraOffsets, 없으면 0) + 그 파일 앞머리. 받는 쪽은 옆 시각(편집 앞머리 전)에 이 값을 더한다 */
+    ...sample.extras.map(async (x) => {
+      if (x.url) out[x.key] = (sample.meta?.extraOffsets?.[x.key] ?? 0) + (await editShift(x.path, x.url));
+    }),
+  ]);
   return out;
 }
 

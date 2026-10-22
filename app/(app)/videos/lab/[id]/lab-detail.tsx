@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { BackLink, PageHeading } from '@/components/ui';
 import { ErrorLine } from '@/components/error-line';
 import type { LabSample } from '@/lib/pitch-lab';
-import { LAB_EXTRA_LABEL, LAB_VIEWS, labViewLabel, type LabGround, type LabView } from '@/lib/pitch-lab-meta';
+import { LAB_EXTRA_LABEL, LAB_VIEWS, labViewLabel, type LabGround, type LabShifts, type LabView } from '@/lib/pitch-lab-meta';
 import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { labHandNote, labTitle, metricRows, type LabMetricRow } from '@/lib/pitch-3d/v2/lab-summary';
 import { buildReport, type FocusProgress, type ReportDrill } from '@/lib/pitch-3d/v2/report';
@@ -62,7 +62,7 @@ export function LabDetail({
   }, []);
   const body = useRef<Body3DHandle>(null);
   const stage = useRef<HTMLDivElement>(null);
-  const videos = useRef<Partial<Record<LabView, HTMLVideoElement | null>>>({});
+  const videos = useRef<Partial<Record<LabView | 'cam3' | 'cam4', HTMLVideoElement | null>>>({});
   const result = v2.result;
   const hasVideos = Boolean(sample.videos.side?.url && sample.videos.back?.url);
 
@@ -70,7 +70,7 @@ export function LabDetail({
    * 영상마다 편집 목록 앞머리(초) — 3D 시각 + 이 값 = 재생기 시각. 화면이 열린 뒤 받는다(못 받으면 0).
    * 받는 사이 멈춰 있던 영상은 마지막 알림을 다시 따라가게 한다.
    */
-  const shifts = useRef<Record<LabView, number>>({ side: 0, back: 0 });
+  const shifts = useRef<LabShifts>({ side: 0, back: 0 });
   const lastT = useRef<Transport | null>(null);
 
   /* 원본 영상이 3D 시계를 따라간다 */
@@ -79,10 +79,13 @@ export function LabDetail({
       if (!result) return;
       lastT.current = t;
       const src = sourceTimesAt(result.t, result.tBack, t.time);
-      for (const view of LAB_VIEWS) {
+      for (const view of [...LAB_VIEWS, 'cam3', 'cam4'] as const) {
         const v = videos.current[view];
         if (!v) continue;
-        const want = Math.max(0, src[view] + shifts.current[view]);
+        /* ③ · ④ 는 옆 시각 + 그 카메라 몫(서버가 알 때만 — 모르면 그대로 둔다, 2026-10-22) */
+        const shift = shifts.current[view];
+        if (shift == null) continue;
+        const want = Math.max(0, (view === 'back' ? src.back : src.side) + shift);
         if (t.reason === 'tick') {
           if (v.seeking) continue;
           const step = followStep(v.currentTime, want, t.speed);
@@ -183,17 +186,20 @@ export function LabDetail({
             </div>
           );
         })}
-        {/* 마커 샘플의 ③ · ④ 카메라 — 3D 시계와 맞출 시각 정보가 없어 따로 튼다(조작 막대) */}
+        {/* 마커 샘플의 ③ · ④ 카메라 — 옆 · 뒤처럼 3D 시계를 따라간다(서버가 옆 시각과의 차이를 줄 때, 2026-10-22) */}
         {sample.extras.map((x) => (
           <div key={x.key} className="space-y-1">
             <p className="text-xs text-muted">{LAB_EXTRA_LABEL[x.key]}</p>
             {x.url ? (
               <video
+                ref={(el) => {
+                  videos.current[x.key] = el;
+                  if (el && lastT.current) follow.current({ ...lastT.current, reason: 'seek' });
+                }}
                 src={`${x.url}#t=0.001`}
                 playsInline
                 muted
-                controls
-                preload="metadata"
+                preload="auto"
                 className="h-[180px] w-full rounded-xl bg-black object-contain desk:h-[min(300px,36vh)]"
               />
             ) : (
@@ -205,7 +211,7 @@ export function LabDetail({
         ))}
       </div>
       <p className="text-xs text-muted">
-        옆 · 뒤 영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.{sample.extras.length > 0 ? ' ③ · ④ 는 따로 틀어요.' : ''}
+        영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.
       </p>
     </div>
   );
