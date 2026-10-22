@@ -101,6 +101,11 @@ export type LabMeta = {
    */
   subject?: string;
   /**
+   * 그 사람의 '내 리포트'에만 보이는 샘플 — 관리자 샘플 목록(앱 /lab/samples · 웹 관리자 목록)에서 뺀다(2026-10-22 김민: 마커 샘플을 찍힌 본인 계정에
+   * 넣을 때 "샘플에서 보이는 게 아니라 기본 화면 내 리포트에서"). scripts/pitch-lab/copy-to-account.mjs 가 단다.
+   */
+  personal?: true;
+  /**
    * 올린 파일 이름 · 크기(분석 때 원본을 가려내려고) · 지문(lib/pitch-lab-guard.ts — 영상 탓으로 실패한 파일을 다시 안 돌리려고, 옛 샘플은 없다) ·
    * 찍은 시각 · 그 출처 · 길이(lib/pitch-lab-file.ts — 따로 찍은 짝을 서버가 한 번 더 막으려고, 2026-10-15 부터 · 못 읽었으면 없다)
    */
@@ -183,6 +188,7 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
     distances,
     memo: text(v.memo, 500),
     ...(subject ? { subject } : {}),
+    ...(v.personal === true ? { personal: true as const } : {}),
     files,
     kind: v.kind === 'marker' ? 'marker' : 'sample',
     ...(isLabBat(v.bat) ? { bat: v.bat } : {}),

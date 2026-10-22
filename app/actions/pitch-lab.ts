@@ -582,7 +582,10 @@ export async function loadAppLabList(scope?: string): Promise<
    * 'mine' = 사용자 화면(앱 /lab) — 관리자도 자기 투구만(마커 빼고). 없으면 관리자 샘플 화면(앱 /lab/samples) · 옛 앱 — 관리자끼리 · 마커 포함 그대로.
    * 2026-10-21 김민: "샘플 · 마커 샘플은 관리자 전용, 사용자가 실제로 쓰는 페이지는 따로"
    */
-  const samples = scope === 'mine' ? all.filter((s) => s.ownerId === user.id && s.meta?.kind !== 'marker') : all;
+  const samples =
+    scope === 'mine'
+      ? all.filter((s) => s.ownerId === user.id && s.meta?.kind !== 'marker')
+      : /* 내 리포트 전용(meta.personal)은 관리자 샘플 목록에 안 보인다 */ all.filter((s) => !s.meta?.personal);
   const now = Date.now();
   return {
     ok: true,

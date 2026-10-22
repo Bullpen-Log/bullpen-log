@@ -33,7 +33,8 @@ for (const uid of owners) {
     const { data } = await bucket.download(path);
     if (!data) continue;
     const meta = JSON.parse(await data.text());
-    rows.push({ path, meta, kind: meta.kind === 'marker' ? 'marker' : 'sample' });
+    /* 내 리포트 전용 복사본(copy-to-account.mjs)은 샘플 목록 번호에 안 든다 */
+    if (!meta.personal) rows.push({ path, meta, kind: meta.kind === 'marker' ? 'marker' : 'sample' });
   }
 }
 
