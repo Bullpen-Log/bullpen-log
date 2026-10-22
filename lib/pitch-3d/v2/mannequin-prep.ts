@@ -1,6 +1,7 @@
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
 import { V2_JOINTS, plantFrame, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import type { DisplayTrack } from '@/lib/pitch-3d/v2/display';
+import { twoBoneIk } from '@/lib/pitch-3d/v2/kinematics';
 import { aiTrunkInputs, trunkTrack } from '@/lib/pitch-3d/v2/trunk';
 
 /**
@@ -134,9 +135,10 @@ export function smoothForMannequin(frames: Vec3[][], result: Pick<Pitch3dV2Ok, '
         const o = blend(off0[q], off1[q], v);
         F[i][IX(`${lead}${nm}`)] = [A[0] + o[0], A[1] + o[1], A[2] + o[2]];
       });
-      F[i][ja] = A;
+      /* 무릎은 엉덩이를 둔 채 두 마디로 다시 접는다(길이 그대로) — 발목이 옮긴 만큼 무릎도 옮기면 넙다리가 몇 cm 늘었다(2026-10-22 검토) */
       const kn = IX(`${lead}Kn`);
-      F[i][kn] = [F[i][kn][0] + d[0], F[i][kn][1] + d[1], F[i][kn][2] + d[2]];
+      if (d[0] || d[1] || d[2]) F[i][kn] = twoBoneIk(F[i][IX(`${lead}Hip`)], F[i][kn], F[i][ja], A);
+      F[i][ja] = A;
     }
   }
   /* 2 관절마다 가우스 */

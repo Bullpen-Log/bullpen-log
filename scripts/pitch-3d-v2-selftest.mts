@@ -1971,6 +1971,16 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
     const F = mannequinFrames(fr, H);
     const k = H / 1.8;
     check('틀: 우투는 우투 꼴 그대로', fr === mR.frames && F.length === mR.frames.length);
+    /* 착지 맞춤이 앞발목을 옮겨도 앞 넙다리 길이는 그대로(무릎을 두 마디로 다시 접는다 — 예전엔 무릎을 발목만큼 옮겨 넙다리가 늘었다) */
+    {
+      const S0 = smoothForMannequin(tr.frames, result, H);
+      const len = (f: Vec3[]) => norm(sub(f[V2J.lKn], f[V2J.lHip]));
+      const fc = Math.round(result.events.footContact ?? result.events.footPlant);
+      const ref = len(S0[Math.max(0, fc - 40)]);
+      let worst = 0;
+      for (let q = Math.max(0, fc - 30); q < Math.min(S0.length, fc + 40); q++) worst = Math.max(worst, Math.abs(len(S0[q]) - ref));
+      check(`착지 맞춤: 앞 넙다리 길이 그대로(착지 앞뒤 가장 큰 변화 ${(worst * 100).toFixed(1)}cm · 0.5cm 안 — 고치기 전 합성 1.5 · 실제 가운데 11cm)`, worst < 0.005);
+    }
     /* 장면 사이 그리기 — 끝(u 0 · 1)은 그 장면 그대로, 가운데는 두 장면 사이 · 회전은 길이 1 */
     {
       const kk = Math.floor(fr.length / 2);
