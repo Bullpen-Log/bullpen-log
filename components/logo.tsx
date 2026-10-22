@@ -58,7 +58,8 @@ export function Wordmark({
         data-morph-logo={morphTarget || undefined}
         className={`text-display inline-flex items-baseline whitespace-nowrap leading-none ${className}`}
       >
-        <SinkerMark className="mr-[0.05em] h-[0.7em]" />
+        {/* S 몸통(1001칸 중 위 ~ 아래 막대 882칸)이 대문자 높이 0.7em 이고 화살표만 기준선 밑으로 — 0.794em 높이를 0.094em 내린다(2026-10-22 금윤호 "아래 끝이 안 맞는다") */}
+        <SinkerMark className="relative top-[0.094em] mr-[0.05em] h-[0.794em]" />
         <span aria-hidden>INKER</span>
         <span className="sr-only">싱커</span>
       </span>

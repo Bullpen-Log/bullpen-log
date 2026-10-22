@@ -351,7 +351,7 @@ export function SinkerIntro() {
           <svg
             ref={mark}
             viewBox={MARK_VIEWBOX}
-            className="mr-[0.05em] h-[0.7em] w-auto shrink-0 fill-brand"
+            className="relative top-[0.094em] mr-[0.05em] h-[0.794em] w-auto shrink-0 fill-brand"
             style={{ opacity: 0, transformOrigin: 'center' }}
           >
             <path d={MARK_PATH} />

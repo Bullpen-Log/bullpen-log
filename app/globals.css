@@ -2927,7 +2927,10 @@ html[data-splash-skip] .app-splash {
 /* S 칸 — 로고 높이는 대문자 높이 0.7em, 바닥을 기준선에(components/logo.tsx Wordmark 와 같다). 보이지 않고 자리만 */
 .app-splash__slot {
   display: inline-block;
-  height: 0.7em;
+  /* S 몸통이 대문자 높이, 화살표만 기준선 밑으로(components/logo.tsx Wordmark 와 같은 0.794em · 0.094em) */
+  position: relative;
+  top: 0.094em;
+  height: 0.794em;
   margin-right: 0.05em;
   visibility: hidden;
 }

@@ -13,7 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { prefsReady } from '~/lib/prefs';
 import { usePalette } from '~/lib/ui';
-import { MARK_ASPECT, SinkerMark } from '~/shell/wordmark';
+import { MARK_ASPECT, MARK_DROP, MARK_EM, SinkerMark } from '~/shell/wordmark';
 
 /*
  * 앱 시작 연출 — 웹 components/app-splash.tsx 와 같은 장면 · 같은 때(김민이 다듬은 옛 앱 IntroOverlay 그대로).
@@ -71,7 +71,7 @@ export function Intro() {
   const [slot, setSlot] = useState<LayoutRectangle | null>(null);
   const slotRef = useRef<ComponentRef<typeof View>>(null);
   const size = Math.min(width * 0.15, 68);
-  const slotH = size * 0.7;
+  const slotH = size * MARK_EM;
   const bigH = (SPLASH_W * 256) / 512;
   const bigW = bigH * ASPECT;
   /* 타임라인(ms) 하나로 B · 글자를 다 그린다 — 장면마다 다시 그리지 않게 UI 스레드에서 */
@@ -154,7 +154,7 @@ export function Intro() {
               /* 화면 좌표로 잰다 — 덮개가 화면 전체라 같은 좌표다 */
               slotRef.current?.measureInWindow((x, y, w, h) => setSlot({ x, y, width: w, height: h }))
             }
-            style={{ width: slotH * ASPECT, height: slotH, marginRight: size * 0.05, marginBottom: size * 0.3 }}
+            style={{ width: slotH * ASPECT, height: slotH, marginRight: size * 0.05, marginBottom: size * (0.3 - MARK_DROP) }}
           />
           {LETTERS.map((ch, i) => (
             <Letter key={i} ch={ch} i={i} t={t} size={size} color={c.ink} />
