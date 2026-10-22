@@ -377,11 +377,11 @@ export function DugoutHero({
       <button
         type="button"
         onClick={() => stage === 'hero' && go('home')}
-        className={`fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-10 mx-auto flex w-fit flex-col items-center gap-0.5 px-4 pt-2 text-sm font-medium text-muted transition-opacity duration-700 hover:text-ink ${splash || home ? 'pointer-events-none opacity-0' : 'opacity-100 delay-[900ms]'}`}
+        className={`fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-10 mx-auto flex w-fit flex-col items-center gap-0 px-4 pt-2 text-xs font-medium text-muted transition-opacity duration-700 hover:text-ink ${splash || home ? 'pointer-events-none opacity-0' : 'opacity-100 delay-[900ms]'}`}
       >
         <span>아래로 스크롤</span>
         <span data-motion-keep aria-hidden className="block animate-[scroll-hint_1.6s_ease-in-out_infinite]">
-          <RoundBack className="h-9 w-9 -rotate-90" {...({ filled: true } as object)} />
+          <RoundBack className="h-6 w-6 -rotate-90" {...({ filled: true } as object)} />
         </span>
       </button>
     </div>
