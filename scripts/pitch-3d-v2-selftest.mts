@@ -66,6 +66,7 @@ import {
   type Scenario,
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
+import { mannequinOddities } from './pitch-lab/jitter/measure.mts';
 import { fixShoulderSwaps } from '../lib/pitch-3d/v2/clean2d.ts';
 import { footJump, footSway, gapWristError, hipSnap, junkGloveError, leadGapJump } from './pitch-lab/gap-check.mts';
 import { blendAi, despike, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
@@ -1971,6 +1972,49 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
     const F = mannequinFrames(fr, H);
     const k = H / 1.8;
     check('틀: 우투는 우투 꼴 그대로', fr === mR.frames && F.length === mR.frames.length);
+    /*
+     * 실제 자료에서 본 두 잘못을 합성에 넣어 인형이 걸러 내는지 — ① 엔진 앞발이 착지 뒤까지 옆을 보다 늦게 돈다(실험실 샘플 다섯) ② 착지 ~ 릴리스 뒤
+     * 던지는 팔에 2D 잡음(마커 25구 꺾임 138곳). 고치기 전(앞발 돌림 0 · 팔 곡선 맞춤 0)이면 둘 다 실패한다.
+     */
+    {
+      const ev = result.events;
+      const fc = Math.round(ev.footContact ?? ev.footPlant);
+      let seed = 7;
+      const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648) - 0.5;
+      const bad = {
+        ...result,
+        joints: result.joints.map((fr, k) => {
+          const out = fr.map((p) => [...p] as [number, number, number]);
+          /* ② 던지는 팔(오른팔) 손목 · 손 · 팔꿈치에 장면마다 잡음 ±30mm */
+          if (k >= ev.footPlant - 5 && k <= ev.release + 25) {
+            const w = [rnd() * 60, rnd() * 60, rnd() * 60];
+            for (const j of [V2J.rWr, V2J.rHandMid, V2J.rHandIdx, V2J.rHandPinky]) out[j] = [out[j][0] + w[0], out[j][1] + w[1], out[j][2] + w[2]];
+            out[V2J.rEl] = [out[V2J.rEl][0] + rnd() * 30, out[V2J.rEl][1] + rnd() * 30, out[V2J.rEl][2] + rnd() * 30];
+          }
+          return out;
+        }),
+      };
+      const odd = mannequinOddities(bad, mR.dt);
+      check(`팔 잡음을 넣어도 인형 던지는 팔이 꺾이지 않는다(꺾임 ${odd.kink} · 1 이하 — 곡선 맞춤을 끄면 3)`, odd.kink <= 1);
+      /* ① 착지 맞춤 앞(화면 트랙)에서 앞발이 착지 직전까지 110° 옆을 보다 착지부터 디딘 방향(위 축 = y) — 그 사이 돌림은 착지 맞춤이 그린다 */
+      const late = tr.frames.map((fr, k) => {
+        const out = fr.map((p) => [...p] as Vec3);
+        const th = k < fc ? (110 * Math.PI) / 180 : 0;
+        const an = out[V2J.lAn];
+        for (const j of [V2J.lHe, V2J.lTo]) {
+          const dx = out[j][0] - an[0];
+          const dz = out[j][2] - an[2];
+          out[j] = [an[0] + dx * Math.cos(th) - dz * Math.sin(th), out[j][1], an[2] + dx * Math.sin(th) + dz * Math.cos(th)];
+        }
+        return out;
+      });
+      const S1 = smoothForMannequin(late, result, H);
+      const dirL = (f: Vec3[]) => normalize(sub(f[V2J.lTo], f[V2J.lHe]));
+      let turn = 0;
+      for (let q = Math.max(1, fc - 40); q <= Math.min(S1.length - 1, fc); q++)
+        turn = Math.max(turn, (Math.acos(Math.max(-1, Math.min(1, dot(dirL(S1[q - 1]), dirL(S1[q]))))) * 180) / Math.PI / mR.dt);
+      check(`앞발이 늦게 돌아도 인형 앞발이 휙 돌지 않는다(착지 앞 가장 빠른 돌림 ${turn.toFixed(0)}°/초 · 1500 안)`, turn < 1500);
+    }
     /* 착지 맞춤이 앞발목을 옮겨도 앞 넙다리 길이는 그대로(무릎을 두 마디로 다시 접는다 — 예전엔 무릎을 발목만큼 옮겨 넙다리가 늘었다) */
     {
       const S0 = smoothForMannequin(tr.frames, result, H);
