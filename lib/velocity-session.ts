@@ -86,15 +86,18 @@ export function judgeBySession<T extends Result>(
   const c = stdCorrection(list, source);
   return c?.apply ? rejudgeSize(result, c.m) : result;
 }
-/** 저장할 세션의 거리 · 출처 — 줄자가 이기고, 기준 20m 세션은 보정이 걸렸으면 그 가운데 값(엔진 2.4 1단계) */
+/**
+ * 저장할 세션의 거리 · 출처 — 줄자가 이기고, 공마다 공 크기로 잰 공이 있으면 'auto'(2.8.0 — 화각을 모르는 폰은 엔진이 기준 20m 로 재서 없다),
+ * 기준 20m 세션은 보정이 걸렸으면 그 가운데 값(엔진 2.4 1단계)
+ */
 export function sessionDistanceOf(
   list: SessionPitchCore[],
-  s: { cameraPos: string; distAuto: boolean; distTape: boolean; targetDistM: number }
+  s: { cameraPos: string; distTape: boolean; targetDistM: number }
 ): { distanceM: number | null; distanceSource: string | null } {
   if (s.cameraPos !== 'behind-pitcher')
     return { distanceM: null, distanceSource: null };
-  if (s.distAuto) return { distanceM: null, distanceSource: 'auto' };
   if (s.distTape) return { distanceM: s.targetDistM, distanceSource: 'tape' };
+  if (list.some((p) => p.dist?.auto)) return { distanceM: null, distanceSource: 'auto' };
   const c = stdCorrection(list, 'camera') ?? stdCorrection(list, 'file');
   return c?.apply
     ? { distanceM: c.m, distanceSource: 'session-size' }
@@ -178,7 +181,7 @@ export function lowConfidenceFix(
   const d = r.distance;
   if (approaching)
     return '포수 뒤에서는 정확하게 잴 수 없어요. 투수 뒤에 폰을 두고 재 주세요.';
-  /* 공 크기 거리가 넣은 거리와 15% 넘게 다르다(엔진 size-mismatch) — '18~22m' 를 골랐으면 그 밖이니 줄자로(2026-10-19 김민 결정) */
+  /* 공 크기 거리가 넣은 거리와 15% 넘게 다르다(엔진 size-mismatch) — '자동'인데 기준 20m 로 잰 폰(화각 모름)이면 줄자로(2026-10-19 김민 결정) */
   if (d?.why === 'size-mismatch') return tape ? TAPE_MISMATCH_FIX : OUT_OF_RANGE_FIX;
   if (d?.shaky) return '폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.';
   /* 흰 과녁 천 · 밝은 벽 앞에서는 공이 끝에서 배경에 묻혀 엔진이 끝을 짐작으로 잇는다(10-09 실내 14구 중 12구) — 흰 배경 앞은 재지 않는다 */

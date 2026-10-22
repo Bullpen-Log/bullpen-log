@@ -75,7 +75,7 @@ for (const s of S) {
     const seed = ${s.seed ?? 'null'};
     const range = seed != null ? { startSec: Math.max(0, seed - 0.25), endSec: seed + 1.45, seedT: seed } : {};
     try {
-      const res = await AV.analyzeVideo({ file, ...range, fps: 60, fovDeg: fov, approach: 'receding', distanceM: ${s.dist ?? BASE}, distanceAuto: false, tiltRad: ${TILT} });
+      const res = await AV.analyzeVideo({ file, ...range, fps: 60, fovDeg: fov, approach: 'receding', distanceM: ${s.dist ?? BASE}, distanceAuto: ${argOf('auto', '0') === '1'}, fovKnown: ${s.fov != null}, tiltRad: ${TILT} });
       const m = res.measure, d = res.distance ?? {};
       return { ok: m.ok, code: m.ok ? null : m.code, kmh: m.ok ? m.kmh : null, conf: m.ok ? m.confidence : null, frames: m.ok ? m.detail.frames : null,
         preConf: d.preSize?.confidence ?? null, why: d.why ?? null, size: d.sizeDistM ?? null, slope: d.sizeSlope ?? null, ext: d.extended ?? 0,

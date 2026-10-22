@@ -44,8 +44,6 @@ import {
 import { isCalibratedCamera, readVideoLens, videoFovInfo } from './video-lens.ts';
 import {
   analyzeByDistance,
-  AUTO_FOV_GUESS_NOTE,
-  AUTO_FOV_GUESS_SIGMA_REL,
   type DistanceReport,
 } from './analyze-distance.ts';
 import {
@@ -727,7 +725,10 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
                   ? { t: options.seedT }
                   : null,
               shakePx,
-              autoDistance: options.distanceAuto ?? false,
+              /* 화각을 알 때만 공 크기로 거리를 어림한다 — 모르면 기준 거리 + 세션 보정(2.8.0, 공 크기 거리는 초점거리에 비례) */
+              autoDistance:
+                (options.distanceAuto ?? false) &&
+                (options.fovKnown ?? (videoFovInfo(lensInfo) != null || !!focalPerLongSide)),
             })
           : analyzeFrames(input);
         timing.analyzeMs += now() - a0;
@@ -761,17 +762,6 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
       const d = (result as { distance?: DistanceReport }).distance;
       if (result.measure.ok && d && d.extended > 0)
         notes.push('공이 그물 · 미트 앞에서 흐려져 끝을 이어 찾아 쟀어요. 값이 조금 어긋날 수 있어요.');
-      /*
-       * 공 크기로 어림한 거리는 초점거리에 비례한다 — 렌즈 정보(아이폰 메인 센서)도 렌즈 보정도 없으면 화각을 짐작한 만큼 틀린다.
-       * ± 를 넓히고 믿음을 '낮음'으로, 거리를 재서 넣게 권한다.
-       */
-      const fovKnown = options.fovKnown ?? (videoFovInfo(lensInfo) != null || !!focalPerLongSide);
-      if (result.measure.ok && d?.distanceSource === 'ball' && !fovKnown) {
-        const m = result.measure;
-        m.errorKmh = Math.round(1.645 * m.kmh * Math.hypot(m.errorKmh / 1.645 / m.kmh, AUTO_FOV_GUESS_SIGMA_REL) * 10) / 10;
-        m.confidence = 'low';
-        notes.push(AUTO_FOV_GUESS_NOTE);
-      }
     } else if (hdr) {
       notes.push(HDR_NOTE);
       /* 믿음은 '낮음(참고용)' — 값은 그대로 보인다(± 는 analyzeFrames 가 HDR_SIGMA_REL 로 넓혔다) */

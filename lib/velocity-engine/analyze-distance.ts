@@ -94,6 +94,14 @@ export type DistanceInput = {
  * 23.0m 로 세션 거리 보정 뒤 평균 +2.5km/h, 1.163 이면 22.6m · 스피드건에 맞는 거리(22.4~22.5m)와 1% 안.
  */
 export const BLOB_SIZE_RATIO = 1.163;
+/*
+ * 공마다 공 크기로 거리를 어림할 때(autoDistance, 2.8.0)의 배율 — 1.163 ÷ 1.03. 앱 카메라 영상(1080p · 2배)의 스피드건 짝 묶음 일곱에서 공마다
+ * 어림한 거리가 스피드건이 말하는 거리보다 고르게 1.005 ~ 1.058 배(가운데 1.03) 길었다 — 묶음 하나씩 빼고 정해도 1.026 ~ 1.033. 이 값이면 기록한
+ * 24구 평균 차이 +0.1%. 기준 20m 의 세션 거리 보정(깨끗한 공만 · 3% 넘을 때만)은 1.163 에 맞춰져 있어 그쪽은 그대로 둔다(1.129 로 바꾸면 스피드건 짝
+ * MAE 4.6 → 5.2km/h).
+ * ponytail: 같은 덩어리에 배율 둘 — 공마다 거리와 세션 보정이 어긋나는 까닭(공 고르기의 치우침으로 봄)을 자료로 가리면 하나로 합친다.
+ */
+export const AUTO_BLOB_SIZE_RATIO = 1.129;
 /**
  * 거리를 바꿀 때 구속이 바뀌는 지수 — 구속 ∝ D^1.076. 거리만큼 배율이 바뀌고(1), 공기저항 배율(dragScaleM = D)이 함께 바뀌어 되돌린
  * 릴리스 속력이 조금 더 붙는다(밖 · 실내 6개를 20m · 22.8m 로 재 견줌, 영상마다 1.075~1.078). 화면이 세션 거리로 값을 옮길 때 쓴다.
@@ -101,6 +109,13 @@ export const BLOB_SIZE_RATIO = 1.163;
 export const SPEED_DISTANCE_EXPONENT = 1.076;
 /** 공 크기로 어림한 거리의 σ(비율) — 위 흩어짐 2~3% 와 길마다 갈리는 1% 남짓 */
 export const AUTO_DISTANCE_SIGMA_REL = 0.03;
+/**
+ * 공 크기로 거리를 어림할 때(autoDistance) '낮음'으로 두는 경우(2.8.0) — 이어 찾은 장면이 이만큼 넘거나(그 장면의 덩어리가 그물 · 미트와 섞여 크기가
+ * 흔들림 — 10-09 실내 14 ~ 27장인 공이 +8 ~ +13%, 10-21 밤 녹화 9 ~ 12장인 공이 175.6km/h), 끝 덩어리가 그 거리 공의 이만큼 배를 넘으면(튕김을
+ * 봤어도 — 끝에서 덩어리가 미트와 합쳐짐, 1.63 배인 공이 +17%).
+ */
+export const AUTO_MAX_EXTENDED = 8;
+export const AUTO_MAX_END_SIZE = 1.5;
 /** 튕김을 못 본 끝(impact 'end')을 믿는 공 크기 거리 · 넣은 거리 차이 — 10-12 밖 그런 공 둘은 3 · 5% 였다 */
 export const END_SIZE_AGREE = 0.1;
 /** 믿음 '높음'의 맞춤 잔차 상한(σ 배 — 1080 기준 px, 분석 720 이면 1.0px). 2.7.3 까지 1.2 */
@@ -719,7 +734,8 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
         if (z > 0) r.push(dAtDm / z / o.diam);
       }
       r.sort((x, y) => x - y);
-      const sized = r.length >= 8 ? BLOB_SIZE_RATIO * Dm * r[r.length >> 1] : NaN;
+      const blob = input.autoDistance ? AUTO_BLOB_SIZE_RATIO : BLOB_SIZE_RATIO;
+      const sized = r.length >= 8 ? blob * Dm * r[r.length >> 1] : NaN;
       report.sizeDistM = sized >= 3 && sized <= 60 ? round1(sized) : null;
     }
     const slope = sizeSlopeOf(used, fit);
@@ -826,18 +842,17 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      * 이어 찾은 끝이 공 크기로 18% 넘게 멀면 이어 찾기 없이 다시 맞춤 · 세션 · 줄자 거리면 공 크기 10% 판정)가 그물 자국을 붙이는 것을 막는다. 스피드건 짝에서
      * 이어 찾은 공 9구가 묶음 거리를 맞춘 뒤 오차 가운데 2.3% · 최대 6.6% 로 '높음'(2.2% · 17%)과 같았다. 오차 폭에 3% 를 더하는 것은 그대로.
      */
-    if (
-      approach === 'approaching' ||
-      (report.impact === 'end' && auto) ||
-      (report.shaky && !report.stabilized)
-    )
-      confidence = 'low';
+    /*
+     * 공 크기로 어림한 거리(auto)여도 끝에서 튕김을 못 봤다는 것만으로 '낮음'에 두지 않는다(2.8.0) — 크기 거리는 끊긴 자리의 공 크기로 깊이를 잡아
+     * 끝이 미트 앞이어도 스스로 맞는다(스피드건 짝 'end' 공 11구 −6.7 ~ +6.2%). 대신 이어 찾기가 많거나 끝 덩어리가 크면 '낮음'(아래).
+     */
+    if (approach === 'approaching' || (report.shaky && !report.stabilized)) confidence = 'low';
     /*
      * 공 크기로 어림한 거리는 줄자보다 덜 믿는다 — '보통'까지. 잔차 문턱 1.2 → 1.5σ(2.7.4, 2026-10-21 김민): 10-21 밖 캐치볼에서
      * 0.84~0.94px(문턱 0.8px · 분석 720)인 공 셋이 높음 공 둘과 같은 95~102km/h 인데 측정 불가로 빠졌다. 스피드건 짝 0.8~1.0px 3구
      * 평균 오차 4.0km/h(0.8px 밑 45구 5.3), 1.0px 넘으면 16km/h.
      */
-    else if (!auto && !report.shaky && used.length * dt >= minFlight && fit.rms <= HIGH_RMS * s)
+    else if (!report.shaky && used.length * dt >= minFlight && fit.rms <= HIGH_RMS * s)
       confidence = 'high';
     /*
      * 손에 든 폰(흔들림)인데 공답지 않은 줄(팔 · 몸)을 건너뛰고 고른 공이면 '보통'으로 받지 않는다(2.7.6) — 10-06 손에 든 119 가 그렇게 고른 줄의
@@ -851,9 +866,12 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     const endEarly = report.impact === 'end' && (report.endSizeRatio ?? 0) > END_EARLY_SIZE;
     const speedUnsure = relSe > HIGH_MAX_SE_REL;
     const lateStart = approach === 'receding' && (report.firstDepthM ?? 0) > LATE_START_M;
-    if (endEarly || speedUnsure || lateStart) {
+    /* 공 크기 거리일 때만(2.8.0) — 이어 찾기가 많거나 끝 덩어리가 크면 크기 거리가 흔들린다 */
+    const autoExtended = auto && extended > AUTO_MAX_EXTENDED;
+    const autoEndBig = auto && (report.endSizeRatio ?? 0) > AUTO_MAX_END_SIZE;
+    if (endEarly || speedUnsure || lateStart || autoExtended || autoEndBig) {
       confidence = 'low';
-      report.why = endEarly ? 'end-early' : speedUnsure ? 'speed-unsure' : 'late-start';
+      report.why = endEarly || autoEndBig ? 'end-early' : speedUnsure ? 'speed-unsure' : lateStart ? 'late-start' : 'extended';
     } else if (report.why === 'end-early' || report.why === 'speed-unsure' || report.why === 'late-start') report.why = undefined;
     /* 보통이면 왜 높음이 못 됐나 — 화면이 측정 불가 까닭을 말한다(judgeSize 가 why 로 옮긴다) */
     report.soft =

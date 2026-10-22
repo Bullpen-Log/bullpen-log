@@ -82,12 +82,10 @@ import { Press } from '~/shell/press';
  * ABS 모드는 존 다음에 제 설정 단계(abs — 홈플레이트 찾기 · 타자 신장 · 규칙, velocity/abs/use-abs.ts)가 하나 더 있고 측정 중에 타자 칩이 뜬다.
  * 공마다 판정 · 세션 요약은 다음 단계(설계 4~5단계).
  */
-const SETTINGS: Omit<MeasureSettings, 'tiltRad'> = {
+const SETTINGS: Omit<MeasureSettings, 'tiltRad' | 'distanceM' | 'distanceAuto'> = {
   approach: 'receding',
   focalPerLongSide: null,
   releaseDistanceM: null,
-  distanceM: 20,
-  distanceAuto: false,
   /* 앱이 화각을 못 주면 — 15 Pro Max 2배 · 손떨림 보정의 긴 변 화각(실험대 38.3°) */
   fallbackFovDeg: 38.3,
 };
@@ -165,12 +163,15 @@ export default function VelocityScreen() {
   const [sessionDate, setSessionDate] = useState<string | null>(null);
   /* 측정 시작 셔터를 눌렀나 — 웹처럼 카메라 화면에서 빨간 단추로 시작 */
   const [live, setLive] = useState(false);
-  /* 폰에서 미트까지 — 기준 20m 또는 줄자(웹과 같다, 줄자가 이긴다) */
+  /*
+   * 폰에서 미트까지 — 줄자를 안 넣으면 공마다 공 크기로 거리를 어림한다(엔진 2.8.0, 2026-10-22 김민 "SmartScout 처럼 간편하지만 정확하게").
+   * 화각을 모르는 폰은 엔진이 기준 20m + 세션 보정으로 잰다. 줄자가 이긴다.
+   */
   const [distTape, setDistTape] = useState(false);
   const [targetDistM, setTargetDistM] = useState(STANDARD_TARGET_DIST_M);
-  const distRef = useRef(STANDARD_TARGET_DIST_M);
+  const distRef = useRef({ m: STANDARD_TARGET_DIST_M, auto: true });
   useEffect(() => {
-    distRef.current = distTape ? targetDistM : STANDARD_TARGET_DIST_M;
+    distRef.current = { m: distTape ? targetDistM : STANDARD_TARGET_DIST_M, auto: !distTape };
   }, [distTape, targetDistM]);
   /* 주의사항 카드 — 몇 번째 장(null = 닫힘). 설정을 마치면 한 번 뜬다(오늘은 보지 않기면 안 뜸) */
   const [tipsAt, setTipsAt] = useState<number | null>(null);
@@ -321,7 +322,7 @@ export default function VelocityScreen() {
     const myGen = ++cameraGen;
     const capture = new AppCapture(
       () => engine.current,
-      () => ({ ...SETTINGS, distanceM: distRef.current, tiltRad: tiltRef.current }),
+      () => ({ ...SETTINGS, distanceM: distRef.current.m, distanceAuto: distRef.current.auto, tiltRad: tiltRef.current }),
       {
         onResult: (result, meta) => {
           const a = absRef.current;
@@ -873,7 +874,7 @@ export default function VelocityScreen() {
               subtitle="던지는 방향을 정면으로 보게 둬요. 너무 붙으면 팔 · 몸이 공을 가리고, 멀면 공이 작아요."
               footer={<CardButton label="다음" onPress={() => setStep('level')} />}
             >
-              {/* 폰에서 미트까지 — '18~22m'(기준 20m 로 재고 세션마다 공 크기로 맞춤) 또는 줄자(웹과 같은 글, lib/velocity-setup.ts TAPE_MODES) */}
+              {/* 폰에서 미트까지 — '자동'(공 크기로 거리 어림) 또는 줄자(웹과 같은 글, lib/velocity-setup.ts TAPE_MODES) */}
               <Text style={styles.cardLabel}>폰에서 포수 미트까지</Text>
               <Segmented
                 items={TAPE_MODES.map((m) => ({ value: m.value, label: m.label }))}

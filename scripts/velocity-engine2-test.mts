@@ -9,6 +9,8 @@
  */
 import {
   analyzeByDistance,
+  AUTO_BLOB_SIZE_RATIO,
+  BLOB_SIZE_RATIO,
   rejudgeSize,
   SPEED_DISTANCE_EXPONENT,
 } from '../lib/velocity-engine/analyze-distance.ts';
@@ -298,7 +300,8 @@ function run(name: string, sc: Scene, tolRel: number) {
   );
   if (autoCheck) {
     autoCheck = false;
-    /* 자동 — 첫 어림을 크게 틀려도(15m) 공 크기 거리로 다시 맞춰, 그 거리로 잰 값과 같아야 한다 */
+    /* 자동 — 첫 어림을 크게 틀려도(15m) 공 크기 거리로 다시 맞춰, 그 거리로 잰 값과 같아야 한다(자동은 덩어리 배율이 AUTO_BLOB_SIZE_RATIO, 2.8.0) */
+    const autoD = ((res.distance.sizeDistM ?? NaN) * AUTO_BLOB_SIZE_RATIO) / BLOB_SIZE_RATIO;
     const auto = analyzeByDistance({
       frames,
       width: W,
@@ -311,11 +314,11 @@ function run(name: string, sc: Scene, tolRel: number) {
       fps: FPS,
       autoDistance: true,
     });
-    const want = m.kmh * ((res.distance.sizeDistM ?? NaN) / sc.D) ** 1.076;
+    const want = m.kmh * (autoD / sc.D) ** 1.076;
     check(
       auto.measure.ok &&
         auto.distance.distanceSource === 'ball' &&
-        Math.abs(auto.distance.distanceM - (res.distance.sizeDistM ?? NaN)) <= 0.3 &&
+        Math.abs(auto.distance.distanceM - autoD) <= 0.3 &&
         Math.abs(auto.measure.kmh / want - 1) <= 0.01,
       `자동 거리 — 첫 어림 15m 에서 ${auto.distance.distanceM}m(${auto.distance.distanceSource})로 다시 맞춰 ${auto.measure.ok ? auto.measure.kmh : auto.measure.code}km/h(기대 ${want.toFixed(1)})`
     );

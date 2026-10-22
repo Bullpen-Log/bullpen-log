@@ -236,7 +236,6 @@ export async function saveSession(input: {
       releaseDistM: null,
       ...sessionDistanceOf(pitches, {
         cameraPos: ctx.cameraPos,
-        distAuto: false,
         distTape: ctx.tape,
         targetDistM: ctx.tape ? ctx.distM : STANDARD_TARGET_DIST_M,
       }),
