@@ -3,6 +3,7 @@ import { MEDICAL_NOTICE } from '@/components/site-footer';
 import { SettingsInfoRows } from '@/components/settings-info';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UnitToggle } from '@/components/unit-toggle';
+import { DevicePrefsRows } from '@/components/device-prefs-rows';
 
 /**
  * 설정 — 톱니를 누르면 뜨는 창의 알맹이.
@@ -28,6 +29,12 @@ export function SettingsPanel() {
       <Section title="단위">
         <div className={CARD}>
           <UnitToggle />
+        </div>
+      </Section>
+
+      <Section title="기기">
+        <div className={CARD}>
+          <DevicePrefsRows />
         </div>
       </Section>
 

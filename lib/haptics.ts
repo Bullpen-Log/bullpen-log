@@ -1,3 +1,4 @@
+import { hapticsOff } from '@/lib/device-prefs';
 /**
  * 떨기 — 안드로이드 · 크롬은 navigator.vibrate, 아이폰 앱은 앱의 진동(@capacitor/haptics — mobile/). 아이폰 웹(사파리)은
  * 진동을 쓸 수 없어 아무 일도 없다.
@@ -24,6 +25,8 @@ const NATIVE_GAP_MS = 500;
 
 export function buzz(pattern: number | readonly number[]) {
   if (typeof window === 'undefined') return;
+  /* 설정에서 진동을 껐으면(lib/device-prefs.ts) 아무것도 안 한다 */
+  if (hapticsOff()) return;
   const cap = (window as Window & { Capacitor?: NativeBridge }).Capacitor;
   const native = cap?.nativePromise;
   if (native && cap.isPluginAvailable?.('Haptics')) {
@@ -77,6 +80,8 @@ let selectionReady = false;
 
 export function haptic(kind: HapticKind) {
   if (typeof window === 'undefined') return;
+  /* 설정에서 진동을 껐으면(lib/device-prefs.ts) 아무것도 안 한다 */
+  if (hapticsOff()) return;
   const cap = (window as Window & { Capacitor?: NativeBridge }).Capacitor;
   const native = cap?.nativePromise;
   if (native && cap.isPluginAvailable?.('Haptics')) {

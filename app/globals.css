@@ -3836,6 +3836,17 @@ html[data-dualcam] [data-finder] > video {
     scroll-behavior: auto !important;
   }
 }
+/* 설정의 '움직임 줄이기'(lib/device-prefs.ts) — 기기 설정과 상관없이 같은 안전망을 켠다 */
+html[data-reduce-motion] *:not(.animate-spin):not([data-motion-keep]),
+html[data-reduce-motion] *::before,
+html[data-reduce-motion] *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
+}
 
 /*
  * Expo 앱 탭 — 새 아이폰 앱(native/, <html data-shell="expo">, lib/native-app.ts)은 아래 탭 막대를 앱이 그린다(투구 탭은 앱 화면,
