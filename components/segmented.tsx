@@ -189,7 +189,7 @@ export function Segmented<V extends string>({
         ref={thumbRef}
         data-thumb
         aria-hidden
-        className="pointer-events-none absolute left-0 top-0 rounded-2xl desk:rounded-lg bg-raised shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.04)]"
+        className="pointer-events-none absolute left-0 top-0 rounded-2xl desk:rounded-lg bg-raised shadow-[0_4px_12px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.08)]"
         style={thumbStyle({ box, visible, animate })}
       />
       {options.map((option, index) => {

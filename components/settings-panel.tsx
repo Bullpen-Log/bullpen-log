@@ -21,9 +21,8 @@ export function SettingsPanel() {
   return (
     <div className="space-y-6">
       <Section title="테마">
-        <div className={CARD}>
-          <ThemeToggle />
-        </div>
+        {/* 고르개 자체가 회색 판이라 카드로 또 두르지 않는다(2026-10-22 금윤호 "두르고 있는 사각형은 없어도 돼") */}
+        <ThemeToggle />
       </Section>
 
       <Section title="단위">
