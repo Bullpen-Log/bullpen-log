@@ -109,6 +109,7 @@ const ROUND: Partial<Record<string, RoundIconName>> = {
   radar: 'radar',
   zone: 'zone',
   pitcher: 'pitcher',
+  batter: 'batter',
   'person-standing': 'pitcher',
   'life-buoy': 'support',
   /*
@@ -152,6 +153,7 @@ export type IconName =
   | keyof typeof ICONS
   | 'zone'
   | 'pitcher'
+  | 'batter'
   | 'back'
   | 'log'
   | 'armcare'

@@ -3,7 +3,8 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, Film, Rotate3d, Upload } from '@/components/icon';
+import { ChevronRight, Film, Upload } from '@/components/icon';
+import { RoundBatter } from '@/components/round-icon';
 import { BackLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { ErrorLine } from '@/components/error-line';
@@ -86,7 +87,7 @@ export function Dev3dClient({
       <UploadCard key={tab} marker={tab === 'marker'} defaultHeightCm={defaultHeightCm} defaultHand={defaultHand} />
       {shown.length === 0 ? (
         <EmptyState
-          icon={<Rotate3d />}
+          icon={<RoundBatter />}
           title="아직 올린 영상이 없어요"
           description={`같은 스윙을 정면(${swingFrontBase(defaultHand)} 쪽)과 포수 뒤에서 찍은 영상을 짝으로 올려 주세요.`}
         />

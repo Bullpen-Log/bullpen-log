@@ -5,7 +5,8 @@ import { expoLevel } from '@/lib/app-env';
 import { can } from '@/lib/permissions';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { BackLink, ButtonLink, Card, EmptyState, PageHeading } from '@/components/ui';
-import { ChevronRight, Rotate3d } from '@/components/icon';
+import { ChevronRight } from '@/components/icon';
+import { RoundBatter } from '@/components/round-icon';
 import { loadAppSwingList } from '@/app/actions/swing-lab';
 import { SWING_REPORT_SOON, swingFrontBase } from '@/lib/swing-lab-meta';
 import { SwingRows } from './swing-rows';
@@ -29,7 +30,7 @@ export default async function SwingLabPage() {
       <Card className="space-y-3">
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-tint text-sky-strong">
-            <Rotate3d aria-hidden className="h-5 w-5" />
+            <RoundBatter aria-hidden className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-base font-semibold text-ink">
@@ -56,7 +57,7 @@ export default async function SwingLabPage() {
         <h2 className="px-1 text-xs font-semibold text-muted">내 스윙</h2>
         {list.samples.length === 0 ? (
           <EmptyState
-            icon={<Rotate3d />}
+            icon={<RoundBatter />}
             title="아직 올린 스윙이 없어요"
             description={`같은 스윙을 정면(${swingFrontBase(list.hand)} 쪽)과 포수 뒤에서 동시에 찍어 두세요. 리포트가 열리면 바로 올릴 수 있어요.`}
             action={

@@ -1,4 +1,4 @@
-import { SymbolView } from 'expo-symbols';
+import { Icon } from '~/shell/icon';
 import { useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { ScrollView, Text, View } from 'react-native';
@@ -27,7 +27,7 @@ export default function SwingSampleScreen() {
           {data.chips.length > 0 ? <Text style={[s.meta, { color: c.muted, paddingHorizontal: 4 }]}>{data.chips.join(' · ')}</Text> : null}
           {data.memo ? <Text style={{ color: c.ink, fontSize: 15, paddingHorizontal: 4 }}>{data.memo}</Text> : null}
           <View style={{ borderRadius: 16, padding: 20, gap: 8, alignItems: 'center', backgroundColor: '#151722' }}>
-            <SymbolView name="rotate.3d" size={26} tintColor="#8b93a7" />
+            <Icon name="batter" size={26} color="#8b93a7" />
             <Text style={{ color: '#e8eef7', fontSize: 17, fontWeight: '600', textAlign: 'center' }}>3D 스윙 모델을 만드는 중이에요</Text>
             <Text style={{ color: '#9aa3b8', fontSize: 15, textAlign: 'center' }}>영상은 그대로 두세요. 모델이 열리면 이 스윙으로 리포트를 받을 수 있어요.</Text>
           </View>
