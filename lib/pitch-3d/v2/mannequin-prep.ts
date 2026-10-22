@@ -1,5 +1,5 @@
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
-import { V2_JOINTS, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
+import { V2_JOINTS, plantFrame, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import type { DisplayTrack } from '@/lib/pitch-3d/v2/display';
 import { aiTrunkInputs, trunkTrack } from '@/lib/pitch-3d/v2/trunk';
 
@@ -44,6 +44,8 @@ export type MannequinTrack = {
 const NAMES: string[] = V2_JOINTS.map((j) => j.name);
 const IX = (nm: string) => NAMES.indexOf(nm);
 const HAND_PARTS = ['Wr', 'HandMid', 'HandIdx', 'HandPinky'];
+/** 앞발이 착지로 내려오는 장면 수(엔진 발이 그보다 늦게 내려올 때 — 120fps 로 약 50ms) */
+const LAND_EASE = 6;
 
 /** 관절별 가우스 폭(장면) */
 function sigmaOf(nm: string, glove: string, throwing: string, lead: string): number {
@@ -65,24 +67,44 @@ export function smoothForMannequin(frames: Vec3[][], result: Pick<Pitch3dV2Ok, '
   const fp = result.events.footPlant;
   const dist = (a: Vec3, b: Vec3) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
   let lockAt = -1;
+  /* 멈춘 장면 — 20장면 동안 1mm 안. 그런 장면이 없으면(디딘 발이 화면 모델에서 뒤꿈치 → 발바닥으로 구르며 1~3cm 움직임, 10-21 마커 8구 중 7구)
+   * 착지 ~ 릴리스에서 가장 덜 움직인 장면 — 예전엔 못 찾으면 잇기를 건너뛰어 '착지' 단추에 인형 발이 9cm 떠 있었다 */
+  let calm = -1;
+  let calmMove = Infinity;
   for (let i = Math.max(0, fp); i < n - 5 && lockAt < 0; i++) {
-    let still = true;
-    for (let j = i; j < Math.min(n, i + 20); j++) if (dist(F[i][an], F[j][an]) >= 0.001) still = false;
-    if (still) lockAt = i;
+    let move = 0;
+    for (let j = i; j < Math.min(n, i + 20); j++) move = Math.max(move, dist(F[i][an], F[j][an]));
+    if (move < 0.001) lockAt = i;
+    else if (i <= result.events.release && move < calmMove) {
+      calmMove = move;
+      calm = i;
+    }
   }
+  if (lockAt < 0) lockAt = calm;
   if (lockAt > 0) {
+    /*
+     * 발이 땅에 닿는 장면 = 착지(첫 닿음 footContact — 화면의 '착지' 단추 · 옆 영상 2D 로 잰 순간). 엔진 앞발은 닿은 뒤에도 50~90ms 더 떠 있다가
+     * 묶여(뒤 영상에서 축다리에 가려 높이를 늦게 받음), 예전처럼 발이 멈춘 장면(lockAt)까지 이으면 '착지' 단추에 인형 발이 8cm 떠 있었다
+     * (2026-10-22 마커 4차: 세 · 네 대 교차 정답은 단추 ±20ms 에 땅). 그래서 착지까지 내려 그 자리에 두고, 무릎은 발목과 같이 옮긴다.
+     */
+    const arrive = Math.max(0, Math.min(lockAt, plantFrame(result.events)));
     const zLock = F[lockAt][an][1];
     let from = Math.max(0, fp - 15);
     while (from < lockAt && F[from][an][1] > zLock + 0.05) from++;
+    from = Math.min(from, Math.max(0, arrive - LAND_EASE));
     const ease = (u: number) => u * u * (3 - 2 * u);
-    for (const nm of ['An', 'He', 'To', 'Kn']) {
-      const j = IX(`${lead}${nm}`);
-      const a = F[from][j];
-      const b = F[lockAt][j];
-      for (let i = from + 1; i < lockAt; i++) {
-        const u = ease((i - from) / (lockAt - from));
-        F[i][j] = [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+    const B = (j: number) => F[lockAt][j];
+    for (let i = from + 1; i < lockAt; i++) {
+      const u = i >= arrive ? 1 : ease((i - from) / Math.max(1, arrive - from));
+      const ja = IX(`${lead}An`);
+      const d: Vec3 = [(B(ja)[0] - F[i][ja][0]) * u, (B(ja)[1] - F[i][ja][1]) * u, (B(ja)[2] - F[i][ja][2]) * u];
+      for (const nm of ['An', 'He', 'To']) {
+        const j = IX(`${lead}${nm}`);
+        const a = F[from][j];
+        F[i][j] = i >= arrive ? [...B(j)] as Vec3 : [a[0] + (B(j)[0] - a[0]) * u, a[1] + (B(j)[1] - a[1]) * u, a[2] + (B(j)[2] - a[2]) * u];
       }
+      const kn = IX(`${lead}Kn`);
+      F[i][kn] = [F[i][kn][0] + d[0], F[i][kn][1] + d[1], F[i][kn][2] + d[2]];
     }
   }
   /* 2 관절마다 가우스 */

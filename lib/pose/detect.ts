@@ -84,6 +84,8 @@ const PLANT_AIR_GATE = 0.08;
  * 비율은 장면 수로 다듬은 속도라 fps 가 오르면 이르게 잡힌다(60fps −6 · 120fps −22ms) — 서버의 순간 찾기는 늘 거친 30fps.
  */
 const CONTACT_SPEED_RATIO = 0.5;
+/** 내딛기 최고 속도를 찾는 끝 — 릴리스 이만큼(초) 앞까지 */
+const STRIDE_PEAK_GAP = 0.08;
 
 /** 투구로 인정할 최소 팔 전방 신전 (몸통 길이 배수) */
 const MIN_THROW_EXT = 0.4;
@@ -94,9 +96,9 @@ const MIN_WRIST_SPEED = 3;
  * 옆에서 찍은 영상으로 인정할 최소 양발 벌어짐 (몸통 길이 배수).
  * 스트라이드가 화면 좌우로 담기면 이 값이 크고, 카메라가 투구 방향
  * 앞뒤에 있으면 동작이 깊이 방향으로 가려 작아진다.
- * (실측: 측면 영상 2.5~2.7 vs 뒤에서 찍은 영상 1.47)
+ * (실측: 측면 영상 2.5~2.7 vs 뒤에서 찍은 영상 1.47. 2026-10-22 마커 4차 옆 카메라는 2.26~2.42 · 한 구 1.96 이라 2.0 에 걸려 1.8 로)
  */
-const MIN_SIDE_VIEW_SPREAD = 2.0;
+const MIN_SIDE_VIEW_SPREAD = 1.8;
 
 type Pt = { x: number; y: number; v: number };
 
@@ -372,15 +374,32 @@ export function detectPitchEvents(
     return false;
   };
   let thrown: ReturnType<typeof throwAt> = null;
+  let found = false;
+  const cands: NonNullable<ReturnType<typeof throwAt>>[] = [];
   for (const whip of whips.length ? whips : [-1]) {
     const t = throwAt(whip);
     if (!t) continue;
+    cands.push(t);
     thrown ??= t;
     if (t.leadSide !== wristSide && strode(t)) {
       thrown = t;
+      found = true;
       break;
     }
   }
+  /*
+   * 다 아니면, 릴리스 장면 위치로 고른 앞발이 던지는 손 쪽이고 반대쪽 발은 내디딘 후보(빠른 차례) — 릴리스 한 장면에서 2D 가 두 발목 이름을
+   * 바꿔 찍으면 축발을 앞발로 잡아 착지를 못 찾았다(2026-10-22 마커 4차 10구, 거친 30 · 60fps). 맞는 후보가 있을 때 먼저 쓰면 슬로모 화면
+   * 녹화 샘플이 던진 뒤 팔 흔들기를 릴리스로 잡았다(실험실 샘플 3). 내디딘 거리로 늘 고르면 실험실 샘플 2 가 거꾸로 골라졌다.
+   */
+  if (!found)
+    for (const t of cands) {
+      const other = { ...t, leadSide: t.leadSide === 'left' ? ('right' as const) : ('left' as const) };
+      if (t.leadSide === wristSide && strode(other)) {
+        thrown = other;
+        break;
+      }
+    }
   if (!thrown) return empty(wristSide);
   const { direction, releaseIdx, leadSide } = thrown;
   const release: PitchEvent = {
@@ -436,9 +455,15 @@ export function detectPitchEvents(
     }
   }
 
+  /*
+   * 내딛기 최고 속도는 릴리스 STRIDE_PEAK_GAP 초 앞까지만 — 착지는 릴리스 약 0.15초 앞이라 최고 속도는 그보다 앞이다. 거친 30 · 60fps 에서 릴리스 바로
+   * 앞 앞발 점이 한 번 튀어(다리가 겹침) 그 장면을 최고로 잡아 착지를 못 찾았다(2026-10-22 마커 4차 10구 — 서버 2D 로는 됐고 120fps 는 됨).
+   */
+  let peakEnd = releaseIdx;
+  while (peakEnd > strideFrom && frames[releaseIdx].t - frames[peakEnd - 1].t < STRIDE_PEAK_GAP) peakEnd--;
   let peakV = 0;
   let peakIdx = -1;
-  for (let i = strideFrom; i < releaseIdx; i++) {
+  for (let i = strideFrom; i < peakEnd; i++) {
     const v = forwardV[i];
     if (v != null && v > peakV) {
       peakV = v;

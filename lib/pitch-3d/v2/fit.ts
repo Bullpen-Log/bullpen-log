@@ -142,6 +142,8 @@ const LEG_HAMPEL = [4, 2] as const;
 const LEG_SIGMA = 1.5;
 /** 착지 무렵 앞다리 다시 놓기의 다리 길이 배율 범위 · 시간 다듬기 폭(장면) · 구간 앞뒤로 섞는 장면 수 — 마커 13구 배율 0.9~1.0 */
 const LEG_SCALE_RANGE = [0.85, 1.05] as const;
+/** 안 묶인 장면(착지 무렵) 배율 상한 — 착지 순간 2D 발목이 미끄러져 다리가 길게 잡힌다(세 대 교차 정답도 정강이 0.42 → 0.53m) */
+const LEG_SCALE_FREE_MAX = 1.3;
 const LEG_SCALE_SIGMA = 2;
 const LEG_SCALE_EASE = 4;
 /** 몸통 · 머리 점 다듬기 폭 — 착지 → 릴리스 장면 수의 비(그 구간 ≈ 0.17초라 0.06 ≈ 10ms) */
@@ -358,8 +360,12 @@ const BONES: Bone[] = [
   { a: V2J.rSh, b: V2J.rHip, key: 'trunkSide', def: 0.29, soft: 0.08 },
 ];
 const RIGID = BONES.filter((b) => !b.soft);
-/** 골반 폭 ÷ 어깨 폭 상한(관절 모델의 엉덩이 · 어깨 점 기준 — 사람 대부분 0.6~0.7, 마커 촬영 0.645) */
-const HIP_TO_SHOULDER_MAX = 0.72;
+/**
+ * 골반 폭 ÷ 어깨 폭 상한(관절 모델의 엉덩이 · 어깨 점 기준 — 사람 대부분 0.6~0.7). 두 마커 촬영의 네 대 교차: 김민 0.645 · 정강민 0.60.
+ * 두 영상으로 잰 엉덩이 거리는 늘 길게 나와(아래 주석) 거의 늘 이 상한이 골반 폭이 된다 — 0.72 일 때 두 사람 골반이 1.06 · 1.23 배 넓었다.
+ * 0.62(두 사람 가운데)로 낮추니 엉덩이 오차 4.49 → 4.40 · 5.23 → 4.58cm, 전체 3.37 → 3.35 · 3.80 → 3.73cm(2026-10-22, selfcal README '4차 촬영').
+ */
+const HIP_TO_SHOULDER_MAX = 0.62;
 
 /** 부모(채우기 차례 — 부모가 먼저 온다) */
 const FILL_ORDER: number[] = [
@@ -605,8 +611,14 @@ function fitOnce(raw: V2Input): {
         X = T && agrees(cal, T, a, b, core.side.person, core.back.person) ? T : null;
       }
       row.push(X);
+      /*
+       * 착지 무렵 앞다리(core.leadPlaced)는 core 가 옆 시선 × 뒤 영상 가로로 놓았다 — 높이는 옆 영상이 정한다. 뒤 영상에서 축다리에 가려 확신이
+       * 0.2 로 떨어져 무게가 0.3 이 되면 시간 다듬기가 거의 앞뒤 장면 가운데로 채워, 앞발이 내려오지 않고 60ms 떠 있었다(2026-10-22 마커 4차:
+       * 두 영상 교차 · 정답은 착지 단추 +20ms 에 땅인데 엔진은 +80~100ms, 인형 앞발이 단추 때 8cm 떠 있음). 그래서 옆 확신을 무게로.
+       */
+      const lead = X && j < N_JOINTS && core.leadPlaced[k][j];
       w.push(
-        X ? (both ? Math.min(a.v, b.v) : Math.max(a.v, b.v) >= SURE ? 0.3 : 0.15) : 0
+        X ? (lead ? a.v : both ? Math.min(a.v, b.v) : Math.max(a.v, b.v) >= SURE ? 0.3 : 0.15) : 0
       );
     }
     obs3.push(row);
@@ -1273,9 +1285,7 @@ function fitOnce(raw: V2Input): {
   }
 
   const leadL = core.hand !== 'L';
-  const [ldHip, ldKn, ldAn, ldHe, ldTo] = leadL
-    ? [V2J.lHip, V2J.lKn, V2J.lAn, V2J.lHe, V2J.lTo]
-    : [V2J.rHip, V2J.rKn, V2J.rAn, V2J.rHe, V2J.rTo];
+  const [ldHip, ldKn, ldAn] = leadL ? [V2J.lHip, V2J.lKn, V2J.lAn] : [V2J.rHip, V2J.rKn, V2J.rAn];
 
   /*
    * ── 자리 기반 맞추기 ──
@@ -1345,7 +1355,7 @@ function fitOnce(raw: V2Input): {
   fixHingeFlips(X, U);
 
   /*
-   * 착지 무렵 앞다리 다시 놓기(맞춘 뒤) — 엉덩이 · 몸통 · 팔은 그대로 두고 앞무릎 · 앞발목만, 무릎 각도를 관찰(observed — 앞발을 묶기 전 목표의 넙다리 ·
+   * 착지 무렵 앞무릎 다시 접기(맞춘 뒤) — 엉덩이 · 몸통 · 팔 · 앞발목은 그대로 두고 앞무릎만, 무릎 각도를 관찰(observed — 앞발을 묶기 전 목표의 넙다리 ·
    * 정강이 방향)대로.
    * - 묶인 앞발 장면: 무릎 각도는 '엉덩이 ↔ 묶인 앞발 거리'와 넙다리 · 정강이 길이로만 정해진다. 뼈 길이는 클립 전체(다리 들기 · 내딛기가 대부분)에서
    *   재는데, 2D 모델 점이 관절 중심이 아니라 자세마다 조금씩 달라 디딘 앞다리에서는 6% 길었다(마커 13구: 엉덩이 ↔ 발목 0.682 vs 정답 0.678m 로 맞는데
@@ -1353,8 +1363,10 @@ function fitOnce(raw: V2Input): {
    *   시간으로 다듬고(LEG_SCALE_RANGE 안) 무릎만 두 뼈 IK 로 놓는다(구부러지는 쪽은 관찰 무릎 쪽). 배율 하나로는 릴리스에 엉덩이가 앞발에서 멀어져
    *   무릎이 펴졌고, 맞추기 안에서 길이를 바꾸면 골반이 4cm 끌려 몸통 축이 바뀌어 레이백이 1~4° 따라 움직였다(10-12 마커).
    * - 아직 안 묶인 장면(착지 무렵): 관찰 다리가 뼈보다 길면(착지 순간 2D 발목 점이 미끄러짐 — 세 대 교차 정답도 정강이가 0.42 → 0.53m) 맞추기가 무릎을
-   *   펴서 착지 무릎이 8° 펴졌다 — 엉덩이에서 관찰 방향으로 넙다리 · 정강이를 이어 발목을 놓는다(배율은 묶인 장면들의 가운데값).
-   * 구간은 core 의 앞다리 규칙 구간 ~ 릴리스 뒤 (착지 → 릴리스)의 절반, 앞뒤 LEG_SCALE_EASE 장면에 걸쳐 섞는다. 뒤꿈치 · 발끝은 발목과 같이 옮긴다.
+   *   펴서 착지 무릎이 8° 펴졌다 — 그 장면의 배율(LEG_SCALE_FREE_MAX 까지)로 무릎만 접는다. 예전엔 엉덩이에서 관찰 방향으로 넙다리 · 정강이를 이어
+   *   발목을 놓았는데(배율은 묶인 장면들의 가운데값), 그만큼 앞발이 들려 착지 순간 7cm 떠 있었다(2026-10-22 마커 4차 — 땅에 닿는 때가 정답보다
+   *   50~90ms 늦음, 착지 무릎 각도 오차는 두 방법이 같음).
+   * 구간은 core 의 앞다리 규칙 구간 ~ 릴리스 뒤 (착지 → 릴리스)의 절반, 앞뒤 LEG_SCALE_EASE 장면에 걸쳐 섞는다.
    */
   {
     let from = -1;
@@ -1394,21 +1406,15 @@ function fitOnce(raw: V2Input): {
         const sm = gaussSmooth(raw.map((v) => (v == null ? runC : clamp(v))), LEG_SCALE_SIGMA);
         for (let k = k0; k <= k1; k++) {
           const w = k < from ? 1 - (from - k) / (E + 1) : k > to ? 1 - (k - to) / (E + 1) : 1;
-          const c = 1 + (sm[k - k0] - 1) * w;
-          const l1 = L1 * c;
-          const l2 = L2 * c;
           const fr = X[k];
           const Hp = fr[ldHip];
           const [dT, dS] = dirs(k);
-          const A = pinned[k][ldAn]
-            ? fr[ldAn]
-            : add(fr[ldAn], scale(sub(add(Hp, add(scale(dT, l1), scale(dS, l2))), fr[ldAn]), w));
-          const dA = sub(A, fr[ldAn]);
-          const K = kneeIk(Hp, A, l1, l2, dT);
+          /* 안 묶인 장면(착지 무렵)은 그 장면의 배율 — 발목이 그대로라 관찰 각도가 나오게(아래 주석의 2026-10-22) */
+          const c = !pinned[k][ldAn]
+            ? Math.max(LEG_SCALE_RANGE[0], Math.min(LEG_SCALE_FREE_MAX, norm(sub(fr[ldAn], Hp)) / Math.max(1e-9, norm(add(scale(dT, L1), scale(dS, L2))))))
+            : 1 + (sm[k - k0] - 1) * w;
+          const K = kneeIk(Hp, fr[ldAn], L1 * c, L2 * c, dT);
           fr[ldKn] = add(fr[ldKn], scale(sub(K, fr[ldKn]), w));
-          fr[ldAn] = A;
-          fr[ldHe] = add(fr[ldHe], dA);
-          fr[ldTo] = add(fr[ldTo], dA);
         }
       }
     }
