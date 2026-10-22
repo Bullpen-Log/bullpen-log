@@ -13,6 +13,9 @@ import { AppLauncher } from '@/components/dugout/app-launcher';
 import { countUnread } from '@/lib/market/load';
 import { countUnreadNotifications } from '@/lib/notify';
 import { LessonFeedCard } from '@/components/dugout/lesson-feed-card';
+import { HomeBrowse } from '@/components/dugout/home-browse';
+import { HomeMeColumn } from '@/components/dugout/home-me-column';
+import { loadSinkerSummary } from '@/lib/org/sinker-summary';
 import { loadLessonFeed } from '@/lib/org/lesson-feed';
 import { usesSinker } from '@/lib/brand';
 import { loadLatestListings, loadPublicPosts } from '@/lib/market/load';
@@ -38,11 +41,15 @@ export default async function DugoutHome({
   const native = isNativeUserAgent((await headers()).get('user-agent'));
   if (native && !(await searchParams).dugout) redirect(user ? '/today' : '/login');
   const viewer = user ? { id: user.id, role: user.role } : null;
-  const [listings, posts, unread, alerts] = await Promise.all([
+  const sinkerUser = !!user && usesSinker(user);
+  /* 한 번만 읽어 휴대폰 쌓은 판 · PC 두 칸이 같이 쓴다 */
+  const [listings, posts, unread, alerts, lessons, sinkerCells] = await Promise.all([
     loadLatestListings(8, viewer),
     loadPublicPosts(8),
     user ? countUnread(user.id) : 0,
     user ? countUnreadNotifications(user.id) : 0,
+    user ? loadLessonFeed(user.id, 3) : [],
+    user && sinkerUser ? loadSinkerSummary(user.id) : null,
   ]);
   const now = new Date();
 
@@ -53,19 +60,24 @@ export default async function DugoutHome({
         user={user ? { nickname: user.nickname } : null}
         unread={unread}
         alerts={alerts}
-        sinker={!!user && usesSinker(user)}
+        sinker={sinkerUser}
         native={native}
       />
-      {/* 로그인한 싱커 사용자 — 오늘 체크인 · 이번 주 투구 · 마지막 등판 한 줄(2단계 2-5) */}
-      {user && usesSinker(user) && <SinkerStrip userId={user.id} />}
-      {/* 코치가 쓴 레슨 노트 — 선수 쪽 레슨 줄(3단계 3-4) */}
+      {/*
+        PC 이면서 로그인(2026-10-22) — 위 막대가 이미 메뉴라 바로가기 판 · 소개 문구 · 설명 카드를 빼고, 왼쪽 '둘러보기'(장터 · 커뮤니티 · 레슨)와
+        오른쪽 '나'(내 싱커 · 내 소식, 위 막대 밑에 붙음) 두 칸. 휴대폰 · 앱 웹뷰는 desk 가 아니라 아래 쌓은 판 그대로(거기서는 바로가기가 메뉴다).
+      */}
       {user && (
-        <LessonFeedCard
-          items={await loadLessonFeed(user.id, 3)}
-          compact
-          title="최근 레슨"
-        />
+        <div className="hidden gap-6 desk:grid desk:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <HomeBrowse listings={listings} posts={posts} now={now} />
+          <HomeMeColumn sinker={sinkerCells} unread={unread} alerts={alerts} lessons={lessons} />
+        </div>
       )}
+      <div className={`space-y-10 ${user ? 'desk:hidden' : ''}`}>
+      {/* 로그인한 싱커 사용자 — 오늘 체크인 · 이번 주 투구 · 마지막 등판 한 줄(2단계 2-5) */}
+      {sinkerCells && <SinkerStrip cells={sinkerCells} />}
+      {/* 코치가 쓴 레슨 노트 — 선수 쪽 레슨 줄(3단계 3-4) */}
+      {user && <LessonFeedCard items={lessons} compact title="최근 레슨" />}
       {/* 첫 줄 — 무엇을 하는 곳인지 한 문장, 바로가기 */}
       <section className="space-y-5">
         <div className="space-y-2">
@@ -78,13 +90,10 @@ export default async function DugoutHome({
             기록은 싱커에서.
           </p>
         </div>
-        {/* 바로가기(2026-10-21 — 검색 대신) */}
-        <AppLauncher
-          loggedIn={!!user}
-          sinker={!!user && usesSinker(user)}
-          native={native}
-          size="sm"
-        />
+        {/* 바로가기(2026-10-21 — 검색 대신). PC 는 위 막대가 같은 메뉴라 숨긴다(2026-10-22) */}
+        <div className="desk:hidden">
+          <AppLauncher loggedIn={!!user} sinker={sinkerUser} native={native} size="sm" />
+        </div>
         <div className="flex flex-wrap gap-2">
           {CATEGORIES.slice(0, 6).map((c) => (
             <Link
@@ -191,8 +200,8 @@ export default async function DugoutHome({
         )}
       </section>
 
-      {/* 레슨 · 장소 · 장비 고르기 */}
-      <section className="grid gap-3 sm:grid-cols-3">
+      {/* 레슨 · 장소 · 장비 고르기 — 위 막대와 같은 길이라 PC 에서는 숨긴다(2026-10-22) */}
+      <section className="grid gap-3 sm:grid-cols-3 desk:hidden">
         <Link
           href="/lessons"
           className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-sky-soft"
@@ -258,6 +267,7 @@ export default async function DugoutHome({
           </Link>
         </section>
       )}
+      </div>
     </div>
   );
 }

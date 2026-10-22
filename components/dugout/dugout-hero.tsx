@@ -13,6 +13,9 @@ import { RoundBack, RoundChat, RoundMenu } from '@/components/round-icon';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
 import { AppLauncher } from '@/components/dugout/app-launcher';
 import { splashScale } from '@/lib/brand';
+import { DESK_MEDIA } from '@/lib/nav';
+
+const INTRO_SEEN_KEY = 'bullpen-dugout-intro-day';
 import { Wordmark } from '@/components/logo';
 
 /**
@@ -111,6 +114,22 @@ export function DugoutHero({
     )
       go('hero');
   }, []);
+
+  /*
+   * PC 의 로그인한 사람은 큰 로고(splash)를 하루 한 번만(2026-10-22) — 매번 0.5초 기다리게 하지 않는다. 싱커에서 넘어올 때(변형)는 그대로.
+   * 기록은 이 기기의 localStorage(막힌 창이면 늘 보인다).
+   */
+  useEffect(() => {
+    if (!user || fromSinker.current || stageRef.current !== 'splash') return;
+    if (!window.matchMedia(DESK_MEDIA).matches) return;
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      if (localStorage.getItem(INTRO_SEEN_KEY) === today) queueMicrotask(() => go('hero'));
+      else localStorage.setItem(INTRO_SEEN_KEY, today);
+    } catch {
+      /* 저장이 막힌 창 — 그대로 보인다 */
+    }
+  }, [user]);
 
   /* splash 는 0.5초(싱커에서 오면 0.25초) 뒤 hero 로 */
   useEffect(() => {
