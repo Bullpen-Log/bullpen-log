@@ -18,7 +18,7 @@ import type { Vec3 } from '@/lib/pitch-3d/linalg';
 import { shownEvents, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { displayTrack } from '@/lib/pitch-3d/v2/display';
 import type { LabGround } from '@/lib/pitch-lab-meta';
-import { canonicalFrames, mannequinFrames } from '@/lib/pitch-3d/v2/mannequin-frames';
+import { blendMannequin, canonicalFrames, mannequinFrames } from '@/lib/pitch-3d/v2/mannequin-frames';
 import { labelText, labelValues, measureAngles, momentOf, type Label } from '@/lib/pitch-3d/v2/mannequin-measure';
 import { anaMaterials, LEGEND, placeLabels, projectToScreen } from '@/lib/pitch-3d/v2/mannequin-pause';
 import { mannequinTrack } from '@/lib/pitch-3d/v2/mannequin-prep';
@@ -570,6 +570,14 @@ export const Body3D = forwardRef<
           if (wrapped) clock = t0;
           const k = frameAt(clock);
           if (k !== cur) show(k);
+          /* 장면 사이도 그린다 — 데이터 장면만 이어 붙이면 느린 재생 · 슬로모 영상에서 끊겨 보였다(blendMannequin) */
+          const k1 = Math.min(n - 1, k + 1);
+          const u = k1 > k ? Math.min(1, Math.max(0, (clock - result.t[k]) / (result.t[k1] - result.t[k] || 1))) : 0;
+          if (u > 0) {
+            const b = blendMannequin(mann.joints, mann.frames, k, u);
+            fig.update(b.J, b.F);
+            dirty = true;
+          }
           /* 릴리스(주 문제 장면)에서 멈추지 않고 끝까지 · 되풀이(2026-10-22 김민: "끝까지 이어서 재생") — 멈춘 장면은 움직임 줄이기 때만 */
           if (wrapped) {
             lastTick = now;

@@ -115,6 +115,65 @@ export function slerp(a: Quat, b: Quat, t: number): Quat {
   return [a[0] * ra + bx * rb, a[1] * ra + by * rb, a[2] * ra + bz * rb, a[3] * ra + bw * rb];
 }
 
+/* ───────────────────────────── 장면 사이 ───────────────────────────── */
+
+/**
+ * 재생 때 장면 k 와 k + 1 사이(u 0~1)를 그린다 — 관절 자리는 앞뒤 넷으로 캐트멀-롬 곡선(u 0 · 1 에서는 그 장면 그대로), 틀은 회전(q)은 구면으로,
+ * 방향(길이 1)은 섞어 다시 1 로, 자리 · 수는 곧게. 예전엔 재생이 데이터 장면만 이어 붙여 ½× · ¼× · 슬로모 영상에서 한 장면이 화면 몇 번씩 멈췄다
+ * 넘어가 끊겨 보였다(2026-10-22 김민: "원래가 30프레임이면 60프레임 같은 걸 원한 거지"). 찍은 장면의 자세는 바꾸지 않는다.
+ */
+export function blendMannequin(
+  Js: MannequinJoints[],
+  Fs: MannequinFrame[],
+  k: number,
+  u: number
+): { J: MannequinJoints; F: MannequinFrame } {
+  const n = Js.length;
+  const k1 = Math.min(n - 1, k + 1);
+  if (u <= 0 || k1 === k) return { J: Js[k], F: Fs[k] };
+  if (u >= 1) return { J: Js[k1], F: Fs[k1] };
+  const k0 = Math.max(0, k - 1);
+  const k2 = Math.min(n - 1, k + 2);
+  const u2 = u * u;
+  const u3 = u2 * u;
+  const cr = (p0: number, p1: number, p2: number, p3: number) =>
+    0.5 * (2 * p1 + (p2 - p0) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (3 * p1 - p0 - 3 * p2 + p3) * u3);
+  const J = {} as Record<string, Vec3>;
+  for (const key of Object.keys(Js[k]) as (keyof MannequinJoints)[]) {
+    const a = Js[k][key];
+    const b = Js[k1][key];
+    if (!a || !b) {
+      if (a) J[key] = a;
+      continue;
+    }
+    const p0 = Js[k0][key] ?? a;
+    const p3 = Js[k2][key] ?? b;
+    J[key] = [0, 1, 2].map((i) => cr(p0[i], a[i], b[i], p3[i])) as Vec3;
+  }
+  return { J: J as MannequinJoints, F: blendTree(Fs[k], Fs[k1], u) as MannequinFrame };
+}
+
+function blendTree(a: unknown, b: unknown, u: number, key = ''): unknown {
+  if (typeof a === 'number' && typeof b === 'number') return a + (b - a) * u;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (key === 'q' && a.length === 4) return slerp(a as Quat, b as Quat, u);
+    const v = a.map((x, i) => (x as number) + ((b[i] as number) - (x as number)) * u);
+    const unitA = Math.abs(Math.hypot(...(a as number[])) - 1) < 1e-3;
+    const unitB = Math.abs(Math.hypot(...(b as number[])) - 1) < 1e-3;
+    if (unitA && unitB) {
+      const l = Math.hypot(...v) || 1;
+      return v.map((x) => x / l);
+    }
+    return v;
+  }
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [kk, va] of Object.entries(a)) out[kk] = kk in (b as object) ? blendTree(va, (b as Record<string, unknown>)[kk], u, kk) : va;
+    return out;
+  }
+  return a;
+}
+
 /* ───────────────────────────── 틀 ───────────────────────────── */
 
 export const smooth01 = (x: number) => {

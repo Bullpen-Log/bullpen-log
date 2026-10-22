@@ -66,6 +66,7 @@ import { blendAi, despike, displayTrack, readAiGate, readAiJoints, readAiMiss } 
 import { mannequinTrack, smoothForMannequin, type MannequinJoints, type MannequinTrack } from '../lib/pitch-3d/v2/mannequin-prep.ts';
 import {
   basis,
+  blendMannequin,
   canonicalFrames,
   frame as mannequinFrame,
   mannequinFrames,
@@ -1964,6 +1965,19 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
     const F = mannequinFrames(fr, H);
     const k = H / 1.8;
     check('틀: 우투는 우투 꼴 그대로', fr === mR.frames && F.length === mR.frames.length);
+    /* 장면 사이 그리기 — 끝(u 0 · 1)은 그 장면 그대로, 가운데는 두 장면 사이 · 회전은 길이 1 */
+    {
+      const kk = Math.floor(fr.length / 2);
+      const b0 = blendMannequin(fr, F, kk, 0);
+      const b1 = blendMannequin(fr, F, kk, 1);
+      const bm = blendMannequin(fr, F, kk, 0.5);
+      const between = (x: Vec3, a: Vec3, c: Vec3) => norm(sub(x, scale(add(a, c), 0.5))) <= norm(sub(a, c)) * 0.6 + 1e-9;
+      check(
+        '장면 사이: u 0 · 1 은 그 장면, 0.5 는 두 장면 사이(손목 · 발목) · 틀 회전 길이 1',
+        b0.J === fr[kk] && b1.J === fr[kk + 1] && between(bm.J.wr, fr[kk].wr, fr[kk + 1].wr) && between(bm.J.la, fr[kk].la, fr[kk + 1].la) &&
+          Math.abs(Math.hypot(...bm.F.chest.q) - 1) < 1e-6 && Math.abs(norm(bm.F.throwing.hd) - 1) < 1e-6
+      );
+    }
     /* 같은 몸을 y 로 뒤집고 좌투라고 하면 — 우투 꼴로 돌아와 모든 틀이 같다(거울 규칙의 핵심) */
     const mL: MannequinTrack = {
       ...mR,
