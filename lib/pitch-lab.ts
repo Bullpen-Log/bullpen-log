@@ -2,7 +2,7 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { createPlaybackUrls, videoBucket } from '@/lib/storage';
 import { readLabGuard, type LabGuard } from '@/lib/pitch-lab-guard';
-import { readMoov, videoEditShift } from '@/lib/pitch-lab-file';
+import { readLabFileFacts, readMoov, videoEditShift, type ByteReader, type LabFileFacts } from '@/lib/pitch-lab-file';
 import {
   LAB_VIEWS,
   readLabMeta,
@@ -13,6 +13,7 @@ import {
 } from '@/lib/pitch-lab-meta';
 import {
   isV2JobId,
+  clientJob,
   readPitch3dV2Job,
   type Pitch3dV2Job,
 } from '@/lib/pitch-3d/v2/contract';
@@ -219,16 +220,62 @@ export async function labVideoUrls(
 const shiftCache = new Map<string, number>();
 
 async function urlShift(url: string): Promise<number> {
-  const signal = AbortSignal.timeout(5_000);
-  const moov = await readMoov({
-    size: Number.POSITIVE_INFINITY,
+  const moov = await readMoov(rangeReader(url, Number.POSITIVE_INFINITY, AbortSignal.timeout(5_000)));
+  return moov ? videoEditShift(moov) : 0;
+}
+
+/** 서명 주소의 바이트 범위 읽기 — size 를 모르면 Infinity(머리 상자만 훑는 readMoov 는 그래도 된다) */
+function rangeReader(url: string, size: number, signal: AbortSignal): ByteReader {
+  return {
+    size,
     read: async (start, end) => {
       const r = await fetch(url, { headers: { Range: `bytes=${start}-${end - 1}` }, signal });
       if (!r.ok) throw new Error(`range ${r.status}`);
       return new Uint8Array(await r.arrayBuffer());
     },
+  };
+}
+
+export type LabServerFacts = Partial<Record<(typeof LAB_VIEWS)[number], { fp: string; facts: LabFileFacts | null }>>;
+
+/**
+ * 올라간 옆 · 뒤 영상에서 서버가 직접 읽은 지문 · 찍은 시각 — 분석을 걸 때(app/actions/pitch-lab.ts requestPitch3dV2) 화면이 meta.json 에 적어 보낸
+ * 값 대신 쓴다(2026-10-22 검토: 지문을 빼거나 시각을 맞춰 보내면 같은 영상 막기 · 따로 찍은 짝 막기가 풀렸다). 지문은 폰과 같은 식
+ * (lib/pitch-lab-guard.ts fileFingerprint — 크기 + 앞 1MB + 뒤 1MB 의 SHA-256)이라 예전 실패 기록과도 맞는다. 범위 요청 몇 번.
+ */
+export async function labServerFacts(userId: string, id: string): Promise<LabServerFacts> {
+  const dir = folder(userId, id);
+  const { data: files, error } = await videoBucket().list(dir, { limit: FOLDER_LIMIT });
+  if (error) throw new Error(error.message);
+  const picked = LAB_VIEWS.flatMap((view) => {
+    const f = (files ?? []).find((x) => x.name.startsWith(`${view}.`));
+    const size = Number((f?.metadata as { size?: unknown } | null)?.size);
+    return f && Number.isFinite(size) && size > 0 ? [{ view, path: `${dir}/${f.name}`, size }] : [];
   });
-  return moov ? videoEditShift(moov) : 0;
+  const urls = await createPlaybackUrls(picked.map((p) => p.path));
+  const signal = AbortSignal.timeout(10_000);
+  const MB = 1 << 20;
+  const out: LabServerFacts = {};
+  await Promise.all(
+    picked.map(async ({ view, path, size }) => {
+      const url = urls[path];
+      if (!url) return;
+      const rd = rangeReader(url, size, signal);
+      const head = await rd.read(0, Math.min(MB, size));
+      const tail = size > MB ? await rd.read(Math.max(MB, size - MB), size) : new Uint8Array();
+      const pre = new TextEncoder().encode(String(size));
+      const buf = new Uint8Array(pre.length + head.length + tail.length);
+      buf.set(pre);
+      buf.set(head, pre.length);
+      buf.set(tail, pre.length + head.length);
+      const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', buf));
+      out[view] = {
+        fp: Array.from(hash, (b) => b.toString(16).padStart(2, '0')).join(''),
+        facts: await readLabFileFacts(rd),
+      };
+    })
+  );
+  return out;
 }
 
 export async function labVideoShifts(sample: LabSample): Promise<LabShifts> {
@@ -278,7 +325,7 @@ async function readSample(userId: string, id: string, sport: LabSport = 'pitch')
     meta,
     videos: scan.videos,
     extras: scan.extras,
-    v2: { job: readPitch3dV2Job(jobRaw), resultIds: scan.resultIds },
+    v2: { job: clientJob(readPitch3dV2Job(jobRaw)), resultIds: scan.resultIds },
   };
 }
 
@@ -328,6 +375,11 @@ async function isMarkerFolder(uid: string, id: string, sport: LabSport = 'pitch'
   return raw?.kind === 'marker';
 }
 
+async function isPersonalFolder(uid: string, id: string, sport: LabSport): Promise<boolean> {
+  const raw = (await loadLabMetaRaw(uid, id, sport).catch(() => null)) as { personal?: unknown } | null;
+  return raw?.personal === true;
+}
+
 /** 그 샘플이 든 폴더의 주인(보는 사람이 볼 수 있는 폴더 안에서) — 없으면 null. 자기 폴더를 먼저 본다 */
 export async function findLabOwner(id: string, viewer: LabViewer, sport: LabSport = 'pitch'): Promise<string | null> {
   const order = await ownerIds(viewer);
@@ -335,6 +387,8 @@ export async function findLabOwner(id: string, viewer: LabViewer, sport: LabSpor
     const { data, error } = await videoBucket().list(folder(uid, id, sport), { limit: 1 });
     if (!error && (data ?? []).length > 0) {
       if (!seesMarkers(viewer, sport) && (await isMarkerFolder(uid, id, sport))) return null;
+      /* 다른 계정에 넣은 '내 리포트 전용' 사본(meta.personal)은 그 사람만 — 목록에서 빼는 것만으로는 번호를 아는 관리자가 열 수 있었다(2026-10-22 검토) */
+      if (uid !== viewer.id && (await isPersonalFolder(uid, id, sport))) return null;
       return uid;
     }
   }

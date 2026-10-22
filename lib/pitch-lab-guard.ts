@@ -13,11 +13,22 @@
  *   - 옆 · 뒤가 같은 파일이면 막는다, 찍은 시각이 영상 길이보다 멀면(따로 찍음) 막는다(labPairBlock)
  *   - 촬영 정보의 '한 대로 나눠' · '화면 녹화' 고르기는 없앴고, 서버(saveLabSample)도 그 둘이 오면 받지 않는다
  * 시각 · 렌즈는 lib/pitch-lab-file.ts 가 파일 머리에서 읽는다.
+ *
+ * 2026-10-22 검토: 실패만 세서(그것도 화면이 상태를 물을 때만) 성공하는 분석 · 상태를 안 묻는 스크립트는 끝없이 GPU 를 걸 수 있었다 → 넷:
+ *   4 하루 요청 상한 · 5 동시 작업 상한 — 걸 때 센다(recordRequest), 끝나면 뺀다(finishRequest). 관리자는 안 센다(마커 묶음 다시 분석)
+ *   6 지문 · 찍은 시각은 서버가 올라간 파일에서 직접 읽는다(lib/pitch-lab.ts labServerFacts) — 화면이 보낸 값은 믿지 않는다
  */
 import { V2_VIDEO_FAULT, type V2FailCode } from '@/lib/pitch-3d/v2/contract';
 import { LAB_VIEWS, type LabFile, type LabMeta } from '@/lib/pitch-lab-meta';
+import type { LabFileFacts } from '@/lib/pitch-lab-file';
 
 export const DAILY_FAIL_LIMIT = 10;
+/** 하루(한국 날짜) 분석 요청 상한 — 성공 · 실패 모두. 한 사람이 하루에 찍는 투구보다 넉넉히 */
+export const DAILY_REQUEST_LIMIT = 30;
+/** 한 사람이 동시에 돌릴 수 있는 분석 수 */
+export const MAX_ACTIVE = 2;
+/** 끝났다는 소식 없이 이만큼 지난 작업은 끝난 것으로 본다(GPU 제한 15분 + 여유) */
+export const ACTIVE_TTL_MS = 20 * 60_000;
 /** 지문을 몇 개까지 기억하나(오래된 것부터 버린다) */
 const MAX_FAILED = 200;
 
@@ -126,6 +137,18 @@ const captureOf = (f: LabFile | undefined): LabCapture => ({
 
 export const SPLIT_TEXT = '두 폰으로 같은 공을 동시에 찍은 영상만 올릴 수 있어요.';
 
+type ServerView = { fp: string; facts: LabFileFacts | null } | undefined;
+/** 서버가 올라간 파일에서 읽은 지문 · 시각으로 짝 검사를 다시(lib/pitch-lab.ts labServerFacts) — 화면이 보낸 값은 믿지 않는다 */
+export function serverPairBlock(f: { side?: ServerView; back?: ServerView }): string | null {
+  const cap = (x: ServerView): LabCapture => ({
+    fp: x?.fp ?? null,
+    startMs: x?.facts?.startMs ?? null,
+    timeSource: x?.facts?.timeSource ?? null,
+    durationSec: x?.facts?.durationSec ?? null,
+  });
+  return labPairBlock(cap(f.side), cap(f.back));
+}
+
 /**
  * 서버(saveLabSample)가 저장 전에 한 번 더 — 화면을 거치지 않은 요청 · 고치기 전 화면(그때는 '한 대로 나눠' · '화면 녹화'를 고를 수
  * 있었다)이 보낸 정보도 막는다. raw 는 화면이 보낸 그대로(readLabMeta 는 빈 칸을 '화면 녹화'로 읽어서 고르기 전 값을 본다).
@@ -155,11 +178,15 @@ export async function fileFingerprint(file: Blob): Promise<string> {
 
 
 export type LabGuard = {
-  /** 한국 날짜 'YYYY-MM-DD' — fails 가 센 날 */
+  /** 한국 날짜 'YYYY-MM-DD' — fails · reqs 가 센 날 */
   day: string;
   fails: number;
+  /** 그날 건 분석 수 */
+  reqs: number;
   /** 영상 탓으로 실패한 파일 지문과 그때 엔진 판 */
   failed: { fp: string; engine: string }[];
+  /** 돌고 있는 작업 — 건 시각(ms) · 서버가 읽은 지문(실패를 셀 때 쓴다) */
+  active: { id: string; jobId: string; at: number; fps: string[] }[];
 };
 
 /** 한국 날짜(서버는 UTC) */
@@ -176,20 +203,42 @@ export function readLabGuard(raw: unknown): LabGuard {
           : []
       )
     : [];
+  const count = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
+  const active = Array.isArray(r.active)
+    ? r.active.flatMap((x) =>
+        x && typeof x === 'object' && typeof x.id === 'string' && typeof x.jobId === 'string' && typeof x.at === 'number'
+          ? [{ id: x.id, jobId: x.jobId, at: x.at, fps: Array.isArray(x.fps) ? x.fps.filter((f: unknown) => typeof f === 'string') : [] }]
+          : []
+      )
+    : [];
   return {
     day: typeof r.day === 'string' ? r.day : '',
-    fails: typeof r.fails === 'number' && Number.isFinite(r.fails) && r.fails >= 0 ? r.fails : 0,
+    fails: count(r.fails),
+    reqs: count(r.reqs),
     failed: failed.slice(-MAX_FAILED),
+    active: active.slice(-MAX_ACTIVE * 4),
   };
+}
+
+/** 오늘로 맞춘 기록 — 날이 바뀌었으면 셈을 0 으로, 오래된 작업은 끝난 것으로 */
+function today(g: LabGuard, nowMs: number): LabGuard {
+  const day = seoulDay(nowMs);
+  const active = g.active.filter((a) => nowMs - a.at < ACTIVE_TTL_MS);
+  return g.day === day ? { ...g, active } : { ...g, day, fails: 0, reqs: 0, active };
 }
 
 /** 분석을 걸기 전 — 막는 까닭 또는 null */
 export function guardBlock(
   g: LabGuard,
-  input: { nowMs: number; fps: string[]; engine: string }
+  input: { nowMs: number; fps: string[]; engine: string; staff?: boolean }
 ): string | null {
-  if (g.day === seoulDay(input.nowMs) && g.fails >= DAILY_FAIL_LIMIT)
+  const t = today(g, input.nowMs);
+  if (t.fails >= DAILY_FAIL_LIMIT)
     return `오늘 분석이 ${DAILY_FAIL_LIMIT}번 실패했어요. 촬영 안내대로 다시 찍어 내일 해 주세요.`;
+  if (!input.staff && t.reqs >= DAILY_REQUEST_LIMIT)
+    return `오늘은 분석을 ${DAILY_REQUEST_LIMIT}번 했어요. 내일 다시 해 주세요.`;
+  if (!input.staff && t.active.length >= MAX_ACTIVE)
+    return `분석이 ${t.active.length}개 돌고 있어요. 끝난 뒤에 다시 해 주세요.`;
   if (input.fps.some((fp) => g.failed.some((f) => f.fp === fp && f.engine === input.engine)))
     return '이 영상은 전에 분석하지 못했어요. 같은 영상으로는 또 실패해요. 다시 찍어 올려 주세요.';
   return null;
@@ -206,13 +255,32 @@ export function recordFail(
   input: { nowMs: number; code: V2FailCode; fps: string[]; engine: string }
 ): LabGuard {
   if (!countsAsFail(input.code)) return g;
-  const day = seoulDay(input.nowMs);
-  const fails = (g.day === day ? g.fails : 0) + 1;
+  const t = today(g, input.nowMs);
   const failed = V2_VIDEO_FAULT.has(input.code)
     ? [
-        ...g.failed.filter((f) => !input.fps.includes(f.fp)),
+        ...t.failed.filter((f) => !input.fps.includes(f.fp)),
         ...input.fps.map((fp) => ({ fp, engine: input.engine })),
       ].slice(-MAX_FAILED)
-    : g.failed;
-  return { day, fails, failed };
+    : t.failed;
+  return { ...t, fails: t.fails + 1, failed };
+}
+
+/** 분석을 건다 — GPU 를 부르기 전에 센다(상태를 안 묻는 요청도 세지게) */
+export function recordRequest(g: LabGuard, input: { nowMs: number; id: string; jobId: string; fps: string[] }): LabGuard {
+  const t = today(g, input.nowMs);
+  return {
+    ...t,
+    reqs: t.reqs + 1,
+    active: [...t.active.filter((a) => a.id !== input.id), { id: input.id, jobId: input.jobId, at: input.nowMs, fps: input.fps }],
+  };
+}
+
+/** 작업이 끝났다 — 돌고 있는 목록에서 빼고, 실패면 센다(지문은 걸 때 서버가 읽은 것). 그 작업이 목록에 없으면 fallbackFps */
+export function finishRequest(
+  g: LabGuard,
+  input: { nowMs: number; jobId: string; fail: V2FailCode | null; engine: string; fallbackFps: string[] }
+): LabGuard {
+  const hit = g.active.find((a) => a.jobId === input.jobId);
+  const t = { ...g, active: g.active.filter((a) => a.jobId !== input.jobId) };
+  return input.fail ? recordFail(t, { nowMs: input.nowMs, code: input.fail, fps: hit?.fps ?? input.fallbackFps, engine: input.engine }) : t;
 }

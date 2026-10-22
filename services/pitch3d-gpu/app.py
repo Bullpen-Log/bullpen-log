@@ -116,7 +116,10 @@ class AiHelper:
         return ai_parallel.helper_loop(q, name, helper_frames, lambda frames, chunk: sam3d.infer_items(est, frames, chunk))
 
 
-@app.function(gpu=GPU, timeout=TIMEOUT_SEC, memory=16384, volumes={"/cache/hf": hf_cache}, secrets=hf_secret)
+# 동시에 뜨는 분석 GPU 상한 — 넘는 작업은 줄을 서서 기다린다(2026-10-22 검토: 스크립트로 끝없이 걸면 L4 가 끝없이 떴다). 사람마다 상한은 웹(lib/pitch-lab-guard.ts)
+MAX_CONTAINERS = int(os.environ.get("PITCH3D_MAX_CONTAINERS", "6"))
+
+@app.function(gpu=GPU, timeout=TIMEOUT_SEC, memory=16384, volumes={"/cache/hf": hf_cache}, secrets=hf_secret, max_containers=MAX_CONTAINERS)
 def analyze(job: dict) -> dict:
     """한 작업 — 결과는 저장소에 올리고, 상태는 progress[call_id] 에."""
     from pitch3d_gpu.ai_parallel import Coordinator

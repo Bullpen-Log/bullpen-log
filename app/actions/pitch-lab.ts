@@ -8,6 +8,7 @@ import {
   deleteLabSample,
   deleteUnsavedLabSample,
   findLabOwner,
+  labServerFacts,
   labVideoShifts,
   seesMarkerSamples,
   labVideoUrls,
@@ -22,10 +23,11 @@ import {
   saveLabJob,
   saveLabMeta,
 } from '@/lib/pitch-lab';
-import { guardBlock, labMetaBlock, readLabGuard, recordFail } from '@/lib/pitch-lab-guard';
+import { finishRequest, guardBlock, labMetaBlock, readLabGuard, recordRequest, serverPairBlock } from '@/lib/pitch-lab-guard';
 import {
   applyGpuStatus,
   canRequestV2,
+  clientJob,
   engineKeyOf,
   failV2Job,
   isV2JobId,
@@ -231,6 +233,9 @@ export async function requestPitch3dV2(input: {
     return { error: STORAGE_ERROR };
   }
   if (!urls) return { error: '옆 · 뒤 영상이 다 있어야 해요.' };
+  /* 관리자는 비용 상한 · 촬영 검사를 안 거친다(마커 묶음 다시 분석) — 그 밖은 촬영 정보가 꼭 있어야 한다(없으면 검사를 다 건너뛰었다) */
+  const staff = user.role === 'ADMIN';
+  if (!staff && metaRaw == null) return { error: '촬영 정보가 없어요. 영상을 다시 올려 주세요.' };
   const now = Date.now();
   const can = canRequestV2(prev, now);
   if ('error' in can) return can;
@@ -247,12 +252,17 @@ export async function requestPitch3dV2(input: {
   )
     return { error: '이 영상은 분석하지 못했어요. 같은 영상으로는 또 실패해요. 촬영 안내대로 다시 찍어 올려 주세요.' };
   const meta = readLabMeta(metaRaw, new Date(now).toISOString());
-  const fps = Object.values(meta.files).flatMap((f) => (f?.fp ? [f.fp] : []));
-  const blocked = guardBlock(await loadLabGuard(user.id).catch(() => readLabGuard(null)), {
-    nowMs: now,
-    fps,
-    engine,
-  });
+  /* 지문 · 찍은 시각은 서버가 올라간 파일에서 직접(2026-10-22 검토) — 못 읽으면 화면이 적은 값 */
+  const server = await labServerFacts(owner, input.id).catch(() => null);
+  const fps = server
+    ? LAB_VIEWS.flatMap((v) => (server[v] ? [server[v].fp] : []))
+    : Object.values(meta.files).flatMap((f) => (f?.fp ? [f.fp] : []));
+  if (!staff) {
+    const why = labMetaBlock(metaRaw, meta) ?? (server ? serverPairBlock(server) : null);
+    if (why) return { error: why };
+  }
+  const guard = await loadLabGuard(user.id).catch(() => readLabGuard(null));
+  const blocked = guardBlock(guard, { nowMs: now, fps, engine, staff });
   if (blocked) return { error: blocked };
 
   const nowIso = new Date(now).toISOString();
@@ -281,6 +291,15 @@ export async function requestPitch3dV2(input: {
     return { error: STORAGE_ERROR };
   }
 
+  /*
+   * 같은 샘플에 요청 둘이 같은 순간 오면 둘 다 위 검사를 지나 GPU 가 두 번 돈다 — 적은 뒤 다시 읽어 내 작업 번호가 아니면 물러난다.
+   * ponytail: 저장소에 '없을 때만 쓰기'가 없어 좁은 틈은 남는다 — 동시 작업 상한(MAX_ACTIVE)과 Modal max_containers 가 두 번째 벽.
+   */
+  const mine = await loadLabJob(owner, input.id).catch(() => null);
+  if (mine?.jobId !== job.jobId) return { error: '이미 분석하고 있어요. 잠시 뒤에 결과를 확인해 주세요.' };
+  /* GPU 를 부르기 전에 센다 — 상태를 묻지 않는 요청도 하루 상한 · 동시 상한에 걸리게 */
+  await saveLabGuard(user.id, recordRequest(guard, { nowMs: now, id: input.id, jobId: job.jobId, fps })).catch(() => undefined);
+
   /* 샘플의 촬영 정보(던지는 손 · 슬로모 · 화면 녹화 · 키, 위 meta) — 예전엔 null 로 읽어 늘 기본값(오른손 · 화면 녹화 · 슬로모 모름)이 갔다 */
   const started = await startGpuJob({
     jobId: job.jobId,
@@ -299,6 +318,7 @@ export async function requestPitch3dV2(input: {
     'error' in started
       ? failV2Job(job, started.error, Date.now())
       : { ...job, gpuCallId: started.callId };
+  if (job.status === 'failed') await settleGuard(owner, input.id, job, Date.now());
   try {
     await retryOnce(() => saveLabJob(owner, input.id, job));
   } catch {
@@ -306,7 +326,7 @@ export async function requestPitch3dV2(input: {
     return { error: STORAGE_ERROR };
   }
   revalidatePath(LAB_PATH);
-  return { ok: true, job };
+  return { ok: true, job: clientJob(job)! };
 }
 
 /**
@@ -326,7 +346,7 @@ export async function checkPitch3dV2(input: {
   } catch {
     return { error: '작업 상태를 읽지 못했어요.' };
   }
-  if (!job || job.status === 'done' || job.status === 'failed') return { job };
+  if (!job || job.status === 'done' || job.status === 'failed') return { job: clientJob(job) };
 
   const now = Date.now();
   let status: GpuStatus = job.gpuCallId
@@ -352,26 +372,27 @@ export async function checkPitch3dV2(input: {
     } catch {
       return { error: '작업 상태를 저장하지 못했어요.' };
     }
-    if (next.status === 'failed' && next.fail) await countFail(owner, input.id, next, now);
+    if (next.status === 'done' || next.status === 'failed') await settleGuard(owner, input.id, next, now);
     revalidatePath(LAB_PATH);
   }
-  return { job: next };
+  return { job: clientJob(next) };
 }
 
 /**
- * 실패를 요청한 사람의 기록에 센다(하루 상한 · 영상 탓이면 파일 지문). 못 적어도 분석 흐름은 막지 않는다.
+ * 작업이 끝났다 — 요청한 사람의 기록에서 '돌고 있음'을 빼고, 실패면 센다(하루 상한 · 영상 탓이면 걸 때 서버가 읽은 지문). 못 적어도 분석 흐름은 막지 않는다.
  * ponytail: 두 화면이 같은 순간에 상태를 물으면 한 실패가 두 번 셀 수 있다 — 상한이 넉넉해(10) 둔다, 잦으면 job 에 '셌음' 표시를 둔다.
  */
-async function countFail(owner: string, id: string, job: Pitch3dV2Job, nowMs: number) {
-  if (!job.fail) return;
+async function settleGuard(owner: string, id: string, job: Pitch3dV2Job, nowMs: number) {
   try {
-    const meta = readLabMeta(await loadLabMetaRaw(owner, id), new Date(nowMs).toISOString());
-    const fps = Object.values(meta.files).flatMap((f) => (f?.fp ? [f.fp] : []));
     const g = await loadLabGuard(job.requestedBy);
-    const next = recordFail(g, { nowMs, code: job.fail.code, fps, engine: job.engine });
-    if (next !== g) await saveLabGuard(job.requestedBy, next);
+    /* 걸 때 기록이 없는 옛 작업만 촬영 정보의 지문으로 */
+    const fallbackFps = g.active.some((a) => a.jobId === job.jobId)
+      ? []
+      : Object.values(readLabMeta(await loadLabMetaRaw(owner, id), new Date(nowMs).toISOString()).files).flatMap((f) => (f?.fp ? [f.fp] : []));
+    const fail = job.status === 'failed' && job.fail ? job.fail.code : null;
+    await saveLabGuard(job.requestedBy, finishRequest(g, { nowMs, jobId: job.jobId, fail, engine: job.engine, fallbackFps }));
   } catch {
-    /* 기록 못 함 — 다음 실패에 다시 */
+    /* 기록 못 함 — 돌고 있음은 ACTIVE_TTL_MS 뒤에 저절로 빠진다 */
   }
 }
 

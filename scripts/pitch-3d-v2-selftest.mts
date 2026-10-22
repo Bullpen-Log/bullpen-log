@@ -38,9 +38,15 @@ import { add, cross, dot, norm, normalize, scale, sub, type Vec3 } from '../lib/
 import { pickSegment, readV2Events, runFit, segmentWindow } from '../lib/pitch-3d/v2/run-node.ts';
 import { toPoseTrack } from '../lib/pitch-3d/v2/track.ts';
 import {
+  ACTIVE_TTL_MS,
   DAILY_FAIL_LIMIT,
+  DAILY_REQUEST_LIMIT,
+  MAX_ACTIVE,
   fileFingerprint,
+  finishRequest,
   guardBlock,
+  recordRequest,
+  serverPairBlock,
   labMetaBlock,
   labPairBlock,
   labVideoBlock,
@@ -3080,6 +3086,29 @@ console.log('■ 점검 카드 드릴 고르기(drillPicksFor) — 쉬운 단계
   check(
     '지문: 같은 파일 같음 · 끝 1바이트가 다르면 다름 · 64자',
     f1 === (await fileFingerprint(new Blob([big]))) && f1 !== (await fileFingerprint(new Blob([big2]))) && f1.length === 64
+  );
+
+  /* 2026-10-22 검토 — 걸 때 세는 하루 요청 · 동시 작업 상한, 서버가 읽은 값으로 짝 검사 */
+  const E = '2.0.0';
+  let r = readLabGuard(null);
+  for (let i = 0; i < MAX_ACTIVE; i++) r = recordRequest(r, { nowMs: t0, id: `s${i}`, jobId: `j${i}`, fps: [] });
+  check('동시 작업 상한 — 돌고 있는 게 꽉 차면 막음 · 관리자는 안 막음', guardBlock(r, { nowMs: t0, fps: [], engine: E }) !== null && guardBlock(r, { nowMs: t0, fps: [], engine: E, staff: true }) === null);
+  check('끝난 작업은 빼서 다시 걸 수 있음', guardBlock(finishRequest(r, { nowMs: t0, jobId: 'j0', fail: null, engine: E, fallbackFps: [] }), { nowMs: t0, fps: [], engine: E }) === null);
+  check('소식 없는 작업은 ACTIVE_TTL_MS 뒤 끝난 것으로', guardBlock(r, { nowMs: t0 + ACTIVE_TTL_MS + 1, fps: [], engine: E }) === null);
+  let q = readLabGuard(null);
+  for (let i = 0; i < DAILY_REQUEST_LIMIT; i++)
+    q = finishRequest(recordRequest(q, { nowMs: t0, id: 's', jobId: `j${i}`, fps: [] }), { nowMs: t0, jobId: `j${i}`, fail: null, engine: E, fallbackFps: [] });
+  check('하루 요청 상한 — 성공한 분석도 센다 · 다음 날 다시', q.reqs === DAILY_REQUEST_LIMIT && guardBlock(q, { nowMs: t0, fps: [], engine: E }) !== null && guardBlock(q, { nowMs: t0 + 3600_000, fps: [], engine: E }) === null);
+  const w = finishRequest(recordRequest(readLabGuard(null), { nowMs: t0, id: 's', jobId: 'jx', fps: [fp] }), { nowMs: t0, jobId: 'jx', fail: 'events', engine: E, fallbackFps: [] });
+  check('실패는 걸 때 적은 지문으로 센다', w.fails === 1 && guardBlock(w, { nowMs: t0 + 86400_000, fps: [fp], engine: E }) !== null && w.active.length === 0);
+  check('옛 기록(reqs · active 없음)도 읽는다', readLabGuard({ day: '2026-10-14', fails: 2, failed: [] }).reqs === 0 && readLabGuard({ day: '2026-10-14', fails: 2, failed: [] }).active.length === 0);
+  const at = (ms: number) => ({ startMs: ms, timeSource: 'apple' as const, durationSec: 6, hasLens: true, make: null, model: null });
+  check(
+    '서버 짝 검사 — 같은 파일 · 따로 찍음은 막고, 같이 찍은 짝 · 못 읽은 값은 통과',
+    serverPairBlock({ side: { fp, facts: at(t0) }, back: { fp, facts: at(t0) } }) !== null &&
+      serverPairBlock({ side: { fp, facts: at(t0) }, back: { fp: 'b'.repeat(64), facts: at(t0 + 120_000) } }) !== null &&
+      serverPairBlock({ side: { fp, facts: at(t0) }, back: { fp: 'b'.repeat(64), facts: at(t0 + 1_000) } }) === null &&
+      serverPairBlock({ side: { fp, facts: null }, back: { fp: 'b'.repeat(64), facts: null } }) === null
   );
 }
 

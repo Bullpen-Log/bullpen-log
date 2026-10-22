@@ -1,6 +1,7 @@
 /**
  * 3D 동작 분석 샘플 하나를 다른 사람 계정의 실험실로 복사한다 — 2026-10-22 김민: "마커 샘플 42 하나만 정강식 계정에 넣어 줘"(찍힌 본인이 자기 화면에서 보게).
  * 원본은 그대로 두고 폴더째(영상 · cam3/4 · meta.json · job.json · 결과 파일) 새 번호로 복사한다(관리자 목록에서 원본과 번호가 겹치지 않게).
+ * job.json 은 끝난 작업만, 요청한 사람을 받는 사람으로 바꿔 넣는다.
  * 받는 계정은 마커 샘플을 못 보므로(lib/pitch-lab.ts seesMarkers) 복사본의 meta.kind 는 'sample', subject 는 받는 사람 이름,
  * personal 을 달아 관리자 샘플 목록에서 빼고 그 사람의 '내 리포트'(앱 /lab)에만 보이게 한다(2026-10-22 김민).
  * 번호는 마커를 보는 계정(MARKER_VIEWER_ID)이 실험실 목록에서 보는 차례(오래된 것이 1 — set-subjects.mjs 와 같다).
@@ -91,6 +92,20 @@ for (const f of files) {
       contentType: 'application/json',
     });
     if (error) throw new Error(`meta.json: ${error.message}`);
+  } else if (f.name === 'job.json') {
+    /* 작업 기록은 끝난 것만, 요청한 사람을 받는 사람으로(원본 관리자 번호가 보이고, 도는 중이면 받는 사람의 상태 묻기가 원본 작업을 실패로 셌다) */
+    const { data } = await bucket.download(`${from}/job.json`);
+    const job = data ? JSON.parse(await data.text()) : null;
+    if (job?.status !== 'done') {
+      console.log('  job.json — 끝나지 않은 작업이라 옮기지 않아요(받는 사람이 다시 분석)');
+      continue;
+    }
+    const { error } = await bucket.upload(
+      `${dest}/job.json`,
+      new Blob([JSON.stringify({ ...job, requestedBy: toId, gpuCallId: null })], { type: 'application/json' }),
+      { upsert: false, contentType: 'application/json' }
+    );
+    if (error) throw new Error(`job.json: ${error.message}`);
   } else {
     const { error } = await bucket.copy(`${from}/${f.name}`, `${dest}/${f.name}`);
     if (error) throw new Error(`${f.name}: ${error.message}`);
