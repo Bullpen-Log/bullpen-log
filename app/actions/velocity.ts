@@ -27,11 +27,7 @@ import {
 import { isRestSession, validateSessionType } from '@/lib/session-type';
 import { readEffortInput } from '@/lib/pitch-effort';
 import { fitCalibration, type CalFit, type CalPair } from '@/lib/velocity-calibration';
-import {
-  CALIBRATION_FAMILY,
-  VELOCITY_ENGINE_VERSION,
-} from '@/lib/velocity-engine/version';
-import { END_EARLY_SIZE, HIGH_MAX_SE_REL } from '@/lib/velocity-engine/analyze-distance';
+import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
 import {
   PITCH_RESULT_KEYS,
   PITCH_TYPE_KEYS,
@@ -75,8 +71,6 @@ async function recentSameSession(userId: string, date: Date, rawKmhs: number[]) 
   );
 }
 const MEMO_MAX = 500;
-/** 보정식을 맞출 때 보는 최근 짝 수 */
-const CAL_PAIR_LIMIT = 200;
 
 export type SavePitchInput = {
   rawKmh: number;
@@ -180,81 +174,13 @@ function checkEdit(edit: PitchEdit): { error: string } | PitchEdit {
 }
 
 /** 그 사람의 스피드건 짝으로 맞춘 보정식 — 화면이 처음 열 때와 저장할 때 */
-/** 보정 짝의 거리를 믿을 만한가 — 공 크기 거리가 줄자 거리와 이만큼 안(2.7.7) */
-const CAL_TAPE_AGREE = 0.05;
-
 /**
- * 보정 짝으로 쓸 공인가(2.7.7) — 비율은 카메라의 고른 치우침을 고치려는 것인데, 거리를 모르는 세션(기준 20m)의 짝은 거리 오차까지 품는다
- * (10-21 아침 실제 약 21.4m 를 20m 로 잰 공 넷이 비율 1.065 를 만들어 줄자로 잰 밤 세션까지 6.5% 올렸다). 줄자로 쟀고 공 크기 거리가 줄자와
- * CAL_TAPE_AGREE 안인 공만 쓴다. 속력이 흔들렸거나(속력 표준오차 3% 넘음) 끝을 일찍 잡은 공(엔진 2.7.7 이 '낮음'으로 내리는 공 — 그 전에
- * 저장된 공도)은 뺀다.
+ * 스피드건 보정은 끔(2026-10-22 김민 "꺼줘") — 늘 ×1 +0. 거리만 맞으면 엔진 원값이 스피드건과 ±2% 안이고(지난 짝 55개 가운데 1.020), 보정 비율은
+ * 실제로는 거리 오차를 메우는 데 쓰여 거리 조건이 섞이면 해가 됐다(10-21 아침 20m 기본 세션의 실제 21.4m 가 비율 1.065 를 만들어 밤 줄자 세션까지
+ * 6.5% 올림). 스피드건 값은 관리자 화면에서 견주기용으로만 쓴다(velocity-admin 의 보정식 미리 보기는 그대로). 이미 저장된 공의 값은 그대로다.
  */
-function knownDistance(r: {
-  analysis: unknown;
-  session: { distanceSource: string | null } | null;
-}): boolean {
-  if (r.session?.distanceSource !== 'tape') return false;
-  const a = r.analysis as {
-    startKmh?: unknown;
-    startSeKmh?: unknown;
-    distance?: { inputDistM?: unknown; sizeDistM?: unknown; impact?: unknown; endSizeRatio?: unknown } | null;
-  } | null;
-  const d = a?.distance;
-  const input = typeof d?.inputDistM === 'number' ? d.inputDistM : null;
-  const size = typeof d?.sizeDistM === 'number' ? d.sizeDistM : null;
-  if (!input || !size || Math.abs(size / input - 1) > CAL_TAPE_AGREE) return false;
-  const start = typeof a?.startKmh === 'number' ? a.startKmh : null;
-  const se = typeof a?.startSeKmh === 'number' ? a.startSeKmh : null;
-  if (start && se != null && se / start > HIGH_MAX_SE_REL) return false;
-  if (d?.impact === 'end' && typeof d.endSizeRatio === 'number' && d.endSizeRatio > END_EARLY_SIZE) return false;
-  return true;
-}
-
 export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[] }> {
-  const user = await getCurrentUser();
-  if (!user) return { fit: fitCalibration([]), pairs: [] };
-  const rows = await prisma.velocityPitch.findMany({
-    /*
-     * 수기 공은 카메라 값이 없어(스피드건 값 복사) 짝이 아니다. 옛 모델로 잰 공도 뺀다 — 모델이 고쳐진
-     * 뒤에도 옛 편향을 되풀이해 보정하면 두 번 고치는 셈이다(관리자가 다시 재서 채우면 지금 모델이 된다).
-     * 작은 자리 손질(1.8.0 → 1.8.1)은 재는 방법이 같아 짝을 그대로 쓴다 — 같은 묶음(CALIBRATION_FAMILY)이면 짝.
-     * 관리자가 '보정에서 빼기'를 한 공(잘못 적은 건 값 등)도 뺀다 — 관리자 통계(isPair)만 빼고 여기는 쓰고 있었다.
-     */
-    where: {
-      userId: user.id,
-      gunKmh: { not: null },
-      manual: false,
-      calibExclude: false,
-      engineVersion: { startsWith: CALIBRATION_FAMILY },
-      /* 믿음 높은 공만 — 믿음 낮은 공의 짝이 보정식을 기울였다(2026-10-12, lib/velocity-calibration.ts fitCalibration) */
-      confidence: 'high',
-    },
-    orderBy: { createdAt: 'desc' },
-    take: CAL_PAIR_LIMIT,
-    select: { rawKmh: true, gunKmh: true, analysis: true, session: { select: { distanceSource: true } } },
-  });
-  /*
-   * 밝은 배경 앞의 어두운 공(모델 1.8.0 의 두 번째 길 — analysis.polarity 'dark' · 'mixed')은 다른 자로 쟀다(확인 전) — 짝에서 뺀다.
-   * 대비 길(모델 1.9.0 — analysis.fallback 'close' · 'center', 밖 · 표적 그물 앞)로 잰 공도 뺀다 — 2배 줌 · 밖 짝 13개가 평균
-   * 2.6~3.5km/h 낮게 읽혀 아직 맞추지 않은 조건이다. 밖에서 스피드건 짝이 쌓이면 이 공들만 따로 맞춰 본다.
-   * 기준 조건(1080p · 60fps · 2배가 진짜 줌 · 손떨림 보정) 밖에서 잰 공(analysis.offStandard — 웹 카메라 · 디지털 줌 · 초당 장면이
-   * 모자람)도 뺀다 — 같은 영상도 조건만 바꾸면 값이 달라져, 섞이면 기준 조건 공의 보정까지 틀어진다(2026-10-08 사용자 원칙).
-   */
-  const pairs = rows
-    .filter((r) => {
-      const a = r.analysis as {
-        polarity?: unknown;
-        fallback?: unknown;
-        offStandard?: unknown;
-        distance?: { calibEligible?: unknown } | null;
-      } | null;
-      const offStandard = Array.isArray(a?.offStandard) && a.offStandard.length > 0;
-      /* 엔진이 짝으로 못 쓴다고 본 공(이어 찾기 · 끝 못 봄 · 공 크기 거리 불일치 · 거리 자동 — 2.4.1 calibEligible)도 뺀다 */
-      const eligible = a?.distance?.calibEligible !== false;
-      return a?.polarity !== 'dark' && a?.polarity !== 'mixed' && a?.fallback == null && !offStandard && eligible && knownDistance(r);
-    })
-    .map((r) => ({ measured: r.rawKmh, gun: r.gunKmh as number }));
-  return { fit: fitCalibration(pairs), pairs };
+  return { fit: fitCalibration([]), pairs: [] };
 }
 
 /**
