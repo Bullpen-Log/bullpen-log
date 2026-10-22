@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { RoundBack } from '@/components/round-icon';
+import { LessonFrame } from '@/components/dugout/lesson-frame';
 import { Badge, ButtonLink, Card } from '@/components/ui';
 import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
 import { LessonBookForm } from '@/components/dugout/lesson-book-form';
@@ -42,14 +42,8 @@ export default async function BookPage({
   const audience = isAudience(rawA) ? rawA : null;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
-      <Link href={`/lessons/${c.id}`} className="inline-flex items-center gap-1 text-sm font-semibold text-sky">
-        <RoundBack className="h-4 w-4" /> {c.coach} 코치
-      </Link>
-      <div>
-        <h1 className="text-2xl font-black text-ink">레슨 요청</h1>
-        <p className="mt-1 text-sm text-muted">원하는 때를 고르면 코치가 하나를 확정해요. 레슨비는 레슨이 끝난 뒤 결제돼요.</p>
-      </div>
+    <LessonFrame back={`/lessons/${c.id}`} backLabel={`${c.coach} 코치`} title="레슨 요청">
+      <p className="text-xs text-muted">원하는 때를 고르면 코치가 하나를 확정해요. 레슨비는 레슨이 끝난 뒤 결제돼요.</p>
       <Card className="flex items-center gap-3">
         <CoachAvatar name={c.coach} />
         <div className="min-w-0 flex-1">
@@ -104,6 +98,6 @@ export default async function BookPage({
           initialAudience={audience}
         />
       )}
-    </div>
+    </LessonFrame>
   );
 }

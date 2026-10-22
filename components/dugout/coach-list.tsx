@@ -19,7 +19,7 @@ export function CoachList({ coaches, bookQuery }: { coaches: CoachCardData[]; bo
   const full = picked.length >= COMPARE_MAX;
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
         {coaches.map((c) => {
           const on = picked.includes(c.id);
           return (

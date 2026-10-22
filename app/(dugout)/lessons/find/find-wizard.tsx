@@ -66,7 +66,7 @@ export function FindWizard() {
     }`;
 
   return (
-    <div className="mx-auto max-w-xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -86,8 +86,8 @@ export function FindWizard() {
         </span>
       </div>
 
-      <div key={step} className="space-y-1 motion-safe:animate-fade-in">
-        <h1 className="text-2xl font-black text-ink">{TITLES[step].q}</h1>
+      <div key={step} className="space-y-1">
+        <h1 className="text-xl font-bold text-ink">{TITLES[step].q}</h1>
         <p className="text-sm text-muted">{TITLES[step].hint}</p>
       </div>
 

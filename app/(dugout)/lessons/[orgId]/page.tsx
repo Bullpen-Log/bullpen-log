@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { RoundBack, RoundStar } from '@/components/round-icon';
+import { RoundStar } from '@/components/round-icon';
+import { LessonFrame } from '@/components/dugout/lesson-frame';
 import { Badge, Card } from '@/components/ui';
 import { CoachAvatar, CoachBadges, Stars } from '@/components/dugout/coach-card';
 import { ConfirmButton } from '@/components/master/confirm-button';
@@ -41,17 +42,15 @@ export default async function CoachPage({
   const priceText = c.priceFrom != null ? `${formatPrice(c.priceFrom)}~` : '가격 문의';
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 pb-24">
-      <Link href="/lessons/list" className="inline-flex items-center gap-1 text-sm font-semibold text-sky">
-        <RoundBack className="h-4 w-4" /> 코치 목록
-      </Link>
+    <LessonFrame back="/lessons/list" backLabel="코치 목록" title={`${c.coach} 코치`}>
+      <div className="space-y-6 pb-24">
 
       {/* 머리 */}
       <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-start sm:text-left">
         <CoachAvatar name={c.coach} size="xl" />
         <div className="min-w-0 flex-1">
           <p className="text-sm text-muted">{c.name}</p>
-          <h1 className="text-2xl font-black text-ink">{c.coach} 코치</h1>
+          <p className="text-2xl font-black text-ink">{c.coach} 코치</p>
           <p className="mt-1 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
             <Stars rating={c.rating} reviews={c.reviews} className="text-sm" />
             {c.career && <span className="text-xs text-muted">{c.career}</span>}
@@ -223,7 +222,7 @@ export default async function CoachPage({
 
       {/* 아래 고정 막대 — 닥터나우 '홍상영 의사에게 진료받기' */}
       <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--tab-bar-top,0px)+0.75rem)] z-30 px-4 md:bottom-6">
-        <div className="pointer-events-auto mx-auto flex max-w-3xl items-center gap-3 rounded-2xl border border-line bg-surface/95 p-3 shadow-lg backdrop-blur">
+        <div className="pointer-events-auto mx-auto flex max-w-2xl items-center gap-3 rounded-2xl border border-line bg-surface/95 p-3 shadow-lg backdrop-blur">
           <span className="min-w-0 pl-1">
             <span className="block text-[11px] text-muted">레슨 1회</span>
             <span className="block text-base font-black text-ink">{priceText}</span>
@@ -253,6 +252,7 @@ export default async function CoachPage({
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </LessonFrame>
   );
 }

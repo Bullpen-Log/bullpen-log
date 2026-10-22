@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { RoundBack } from '@/components/round-icon';
+import { LessonFrame } from '@/components/dugout/lesson-frame';
 import { Badge, ButtonLink, EmptyState } from '@/components/ui';
 import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
 import { loadCoachesByIds } from '@/lib/market/lesson-load';
@@ -78,14 +78,8 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
   ];
 
   return (
-    <div className="space-y-5">
-      <Link href="/lessons/list" className="inline-flex items-center gap-1 text-sm font-semibold text-sky">
-        <RoundBack className="h-4 w-4" /> 코치 목록
-      </Link>
-      <div>
-        <h1 className="text-2xl font-black text-ink">코치 비교</h1>
-        <p className="mt-1 text-sm text-muted">나란히 보고 고르세요. 열 아래 단추로 바로 예약해요.</p>
-      </div>
+    <LessonFrame back="/lessons/list" backLabel="코치 목록" title="코치 비교" wide>
+      <p className="text-xs text-muted">나란히 보고 고르세요. 열 아래 단추로 바로 예약해요.</p>
       {coaches.length < 2 ? (
         <EmptyState
           title="비교할 코치를 둘 이상 담아 주세요"
@@ -138,6 +132,6 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
           </table>
         </div>
       )}
-    </div>
+    </LessonFrame>
   );
 }

@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { RoundBack, RoundLesson } from '@/components/round-icon';
+import { RoundLesson } from '@/components/round-icon';
+import { LessonFrame } from '@/components/dugout/lesson-frame';
 import { EmptyState } from '@/components/ui';
 import { CoachList } from '@/components/dugout/coach-list';
 import { appNow } from '@/lib/clock';
 import { loadCoaches } from '@/lib/market/lesson-load';
 import {
-  AUDIENCES,
   PREFS,
   SORTS,
   SPECIALTIES,
@@ -88,22 +88,10 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
   ).toString();
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <Link href="/lessons" className="inline-flex items-center gap-1 text-sm font-semibold text-sky">
-          <RoundBack className="h-4 w-4" /> 레슨
-        </Link>
-      </div>
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-black text-ink">
-            {asked ? '맞는 코치' : '모든 코치'} <span className="text-base font-semibold text-muted">{coaches.length}명</span>
-          </h1>
-          {asked && sort === 'match' && (
-            <p className="mt-1 text-xs text-muted">고른 조건에 가까운 코치부터 — 카드 위 파란 칩이 그 까닭이에요.</p>
-          )}
-        </div>
-        <Link href="/lessons/find" className="text-xs font-semibold text-sky">
+    <LessonFrame back="/lessons" backLabel="레슨" title={asked ? `맞는 코치 ${coaches.length}명` : `모든 코치 ${coaches.length}명`}>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+        <span>{asked && sort === 'match' ? '고른 조건에 가까운 코치부터. 줄 위 파란 칩이 그 까닭이에요.' : '코치를 눌러 자세히 보거나, 둘 이상 담아 비교해요.'}</span>
+        <Link href="/lessons/find" className="font-semibold text-sky">
           조건 다시 고르기 ›
         </Link>
       </div>
@@ -175,11 +163,9 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
         <CoachList coaches={coaches} bookQuery={bookQuery} />
       )}
       <p className="text-xs text-muted">
-        {AUDIENCES.length > 0 && audience
-          ? `‘${audienceLabel(audience)}’ 레슨으로 요청이 가요. `
-          : ''}
+        {audience ? `‘${audienceLabel(audience)}’ 레슨으로 요청이 가요. ` : ''}
         요청을 보내면 코치가 확정하고, 레슨비는 레슨이 끝난 뒤 결제돼요(결제는 준비 중).
       </p>
-    </div>
+    </LessonFrame>
   );
 }

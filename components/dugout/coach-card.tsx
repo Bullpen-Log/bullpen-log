@@ -72,25 +72,24 @@ export function CoachBadges({ c, admin = false }: { c: CoachCardData; admin?: bo
 }
 
 /**
- * 코치 카드(닥터나우 의사 카드 재해석) — 왼쪽 글(레슨장 · 이름 · 별점 · 전문 · 가격 · 다음 가능), 오른쪽 아바타.
+ * 코치 한 줄(닥터나우 의사 목록 줄) — 왼쪽 글(레슨장 · 이름 ★ · 전문 칩 · 가격 · 지역 · 다음 가능), 오른쪽 아바타.
+ * 줄들은 한 카드 안에 가로선으로 나뉘어 쌓인다(`<Card className="divide-y p-0">`) — 모든 줄이 같은 폭 · 같은 높이 꼴이라 크기가 맞는다.
  * 찾기 조건으로 열었으면 '왜 추천' 칩이 위에 한 줄. `aside` 는 오른쪽 위 자리(비교 체크 같은 것).
  */
 export function CoachCard({
   c,
   href,
   aside,
-  compact = false,
 }: {
   c: CoachCardData;
   href?: string;
   aside?: ReactNode;
-  compact?: boolean;
 }) {
   const body = (
-    <div className="flex items-start gap-3">
-      <div className="min-w-0 flex-1">
+    <div className="flex items-start gap-4 px-4 py-4">
+      <div className="min-w-0 flex-1 space-y-1.5">
         {c.match && c.match.reasons.length > 0 && (
-          <p className="mb-1.5 flex flex-wrap gap-1">
+          <p className="flex flex-wrap gap-1">
             {c.match.reasons.map((r) => (
               <span key={r} className="rounded-full bg-sky/10 px-2 py-0.5 text-[11px] font-semibold text-sky-strong">
                 {r}
@@ -99,18 +98,17 @@ export function CoachCard({
           </p>
         )}
         <p className="truncate text-xs text-muted">{c.name}</p>
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="text-base font-bold text-ink">{c.coach} 코치</span>
           <Stars rating={c.rating} reviews={c.reviews} />
         </p>
-        <p className="mt-1 flex flex-wrap gap-1">
-          {c.specialties.slice(0, compact ? 3 : 5).map((s) => (
+        <p className="flex flex-wrap gap-1">
+          {c.specialties.slice(0, 4).map((s) => (
             <Badge key={s}>{specialtyLabel(s)}</Badge>
           ))}
           <CoachBadges c={c} />
         </p>
-        {!compact && c.intro && <p className="mt-2 line-clamp-2 text-sm text-ink">{c.intro}</p>}
-        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-xs text-muted">
           <span className="font-semibold text-ink">
             {c.priceFrom != null ? `${formatPrice(c.priceFrom)}~` : '가격 문의'}
           </span>
@@ -122,17 +120,15 @@ export function CoachCard({
       </div>
       <div className="flex shrink-0 flex-col items-end gap-2">
         {aside}
-        <CoachAvatar name={c.coach} size={compact ? 'md' : 'lg'} />
+        <CoachAvatar name={c.coach} size="lg" />
       </div>
     </div>
   );
-  const cls =
-    'block rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-sky-soft';
   return href ? (
-    <Link href={href} className={cls}>
+    <Link href={href} className="block transition-colors hover:bg-ink/3">
       {body}
     </Link>
   ) : (
-    <div className={cls}>{body}</div>
+    <div>{body}</div>
   );
 }
