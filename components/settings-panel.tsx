@@ -1,4 +1,4 @@
-import { Info, Monitor, Ruler } from '@/components/icon';
+import type { ReactNode } from 'react';
 import { MEDICAL_NOTICE } from '@/components/site-footer';
 import { SettingsInfoRows } from '@/components/settings-info';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -7,84 +7,51 @@ import { UnitToggle } from '@/components/unit-toggle';
 /**
  * 설정 — 톱니를 누르면 뜨는 창의 알맹이.
  *
- * 어쩌다 한 번 고치는 것만 둔다. 화면을 밝게 볼지 어둡게 볼지 · 단위 · 정보.
+ * 어쩌다 한 번 고치는 것만 둔다. 테마 · 단위 · 정보.
  * 웨이트 경력 · 장비는 트레이닝 탭의 '트레이닝 설정'에만 둔다(2026-10-15 김민 — 같은 칸이 두 곳에 있었다).
  *
  * 몸에 대한 값(키·생년월일·목표 구속·평소 문진)과 계정은 여기 없다. 그것은
  * '내 정보' 창이 통째로 맡는다 — 성격이 다른 둘을 한 창에 밀어 넣으면 무엇을
  * 고치러 왔는지와 상관없이 매번 전부를 지나야 한다.
+ *
+ * 모양(2026-10-22 금윤호: "설명은 없애고 '화면'은 '테마'로, 설정도 우리 UI 에 맞춰") — 덕아웃 레슨 화면처럼
+ * 작은 굵은 제목 한 줄 + 흰 카드 하나. 칸 설명 · 색 네모 아이콘은 뺐다.
  */
 export function SettingsPanel() {
   return (
-    <div className="space-y-8 desk:space-y-6">
-      {/* ── 화면 ────────────────────────────────── */}
-      <section className="space-y-3">
-        <SectionHead
-          icon={<Monitor className="h-4 w-4" />}
-          title="화면"
-          desc="밝게 볼지 어둡게 볼지 골라요. 자동은 기기 설정을 따라요. 이 기기에만 적용돼요."
-        />
-        <ThemeToggle />
-      </section>
+    <div className="space-y-6">
+      <Section title="테마">
+        <div className={CARD}>
+          <ThemeToggle />
+        </div>
+      </Section>
 
-      {/* ── 단위 ────────────────────────────────── */}
-      <section className={SECTION}>
-        <SectionHead
-          icon={<Ruler className="h-4 w-4" />}
-          title="단위"
-          desc="보여주는 방식만 바뀌어요. 저장은 늘 cm · kg 이라 지난 기록도 그대로예요."
-        />
-        <UnitToggle />
-      </section>
+      <Section title="단위">
+        <div className={CARD}>
+          <UnitToggle />
+        </div>
+      </Section>
 
       {/*
-        ── 정보 ── 휴대폰은 화면마다 붙던 꼬리말을 뺐으므로(components/site-footer.tsx) 약관 · 문의 · 의료 안내가
-        여기 있다 — 아이폰 앱의 '설정 › 정보'처럼(2026-10-01 사용자 '애플처럼'). 묶은 줄은 아이폰 설정 목록 모양.
-        약관 · 3D 출처는 넘어가지 않고 창으로 뜬다(components/settings-info.tsx, 2026-10-04 '앱 안에 머물기').
+        정보 — 휴대폰은 화면마다 붙던 꼬리말을 뺐으므로(components/site-footer.tsx) 약관 · 문의 · 의료 안내가 여기 있다.
+        약관 · 3D 출처는 넘어가지 않고 창으로 뜬다(components/settings-info.tsx).
       */}
-      <section className={SECTION}>
-        <SectionHead
-          icon={<Info className="h-4 w-4" />}
-          title="정보"
-          desc="약관 · 출처 · 문의는 여기에 있어요."
-        />
+      <Section title="정보">
         <SettingsInfoRows />
-        <p className="break-keep text-xs leading-relaxed text-muted">
-          {MEDICAL_NOTICE}
-        </p>
-      </section>
+        <p className="px-1 break-keep text-xs leading-relaxed text-muted">{MEDICAL_NOTICE}</p>
+      </Section>
     </div>
   );
 }
 
-/**
- * 칸 하나 — 휴대폰은 선 없이 넉넉한 틈으로 가른다(아이폰 설정처럼), PC 는 예전 위 선.
- * 첫 칸(화면)은 위 선이 없다.
- */
-const SECTION = 'space-y-3 desk:border-t desk:border-line desk:pt-6';
+/** 흰 카드 — 덕아웃 레슨 화면의 카드와 같은 모양 */
+const CARD = 'rounded-2xl border border-line bg-surface p-3';
 
-/**
- * 칸마다 붙는 제목 한 줄 — 아이콘 · 이름 · 설명. 휴대폰의 아이콘은 아이폰 설정처럼 칠한 둥근 네모(색은 하나),
- * PC 는 예전 테두리 네모.
- */
-function SectionHead({
-  icon,
-  title,
-  desc,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-}) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[28%] bg-sky text-white desk:rounded-lg desk:border desk:border-line-strong desk:bg-transparent desk:text-muted">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <h3 className="text-base font-bold text-ink desk:text-sm">{title}</h3>
-        <p className="mt-0.5 text-xs leading-relaxed break-keep text-muted">{desc}</p>
-      </div>
-    </div>
+    <section className="space-y-2.5">
+      <h3 className="px-1 text-sm font-bold text-ink">{title}</h3>
+      {children}
+    </section>
   );
 }

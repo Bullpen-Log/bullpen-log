@@ -37,7 +37,7 @@ export function SettingsInfoRows() {
   const legal = sheet.content === 'credit' ? null : sheet.content;
   return (
     <>
-      <div className="divide-y divide-line overflow-hidden rounded-xl bg-surface-2">
+      <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
         <button type="button" className={ROW} onClick={(e) => sheet.show('terms', e)}>
           이용약관
           <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted/70" />

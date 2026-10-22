@@ -34,7 +34,7 @@ export function UnitToggle() {
   const speed = useSyncExternalStore(subscribeUnits, readSpeedUnit, serverSpeedUnit);
 
   return (
-    <div className="space-y-2.5">
+    <div className="divide-y divide-line [&>*]:py-2 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
       <Row
         label="길이"
         hint="키 · 윙스팬"
