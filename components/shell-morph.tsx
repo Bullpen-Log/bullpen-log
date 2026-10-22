@@ -216,6 +216,7 @@ export function SinkerIntro() {
   const word = useRef<HTMLSpanElement>(null);
   const mark = useRef<SVGSVGElement>(null);
   const row = useRef<HTMLSpanElement>(null);
+  const ink = useRef<HTMLSpanElement>(null);
   const letters = useRef<(HTMLSpanElement | null)[]>([]);
   const running = useRef(false);
 
@@ -239,8 +240,9 @@ export function SinkerIntro() {
     const w = word.current;
     const m = mark.current;
     const r = row.current;
+    const k = ink.current;
     const v = veil.current;
-    if (!w || !m || !r || !v) return;
+    if (!w || !m || !r || !k || !v) return;
     const timers: number[] = [];
     const later = (fn: () => void, ms: number) => timers.push(window.setTimeout(fn, ms));
     let mo: MutationObserver | null = null;
@@ -248,16 +250,20 @@ export function SinkerIntro() {
 
     /*
      * 줄(표시 + 글자)을 옮겨 표시를 한가운데에 둔다 — 이름 칸 기준으로 잰다(이 판의 글자 크기가 화면 폭을 따라서).
-     * 글자는 표시 오른쪽 가장자리에서 잘리는 칸 안에 있어 표시 뒤에 숨어 있다가 밀려 나온다(2026-10-22 금윤호 "로고 뒤에서 나오는 것처럼").
+     * INKER 는 한 덩어리로 표시 뒤에서 밀려 나온다(2026-10-22 금윤호 "흐림 효과를 적절히 써서 S 로고 뒤에서 나오는 것처럼").
+     *   - 표시가 글자 위에 그려지고(z-10), 글자 칸은 표시 오른쪽 끝 0.35em 안쪽부터 옅어지는 가림막(mask)이라 S 밑으로 스며 나오듯 보인다
+     *   - 글자는 흐릿하고 옅은 채로 출발해 한 글자씩 또렷해진다(0.075초 간격) — 글자끼리 겹치지 않는다
      * 칸은 줄과 같이 움직이니 줄이 왼쪽으로 가는 동안에도 늘 표시 뒤에서 나온다.
      */
     const wr = w.getBoundingClientRect();
     const mr = m.getBoundingClientRect();
     const centered = `translateX(${wr.left + wr.width / 2 - (mr.left + mr.width / 2)}px)`;
     r.style.transform = centered;
-    const hidden = letters.current.map((el) => (el ? `translateX(${-(el.offsetLeft + el.offsetWidth)}px)` : 'none'));
-    letters.current.forEach((el, i) => {
-      if (el) el.style.transform = hidden[i];
+    const hidden = `translateX(${-(k.offsetLeft + k.offsetWidth)}px)`;
+    k.style.transform = hidden;
+    const BLUR = 'blur(0.08em)';
+    letters.current.forEach((el) => {
+      if (el) Object.assign(el.style, { filter: BLUR, opacity: '0.25' });
     });
 
     /* mark — 판이 덮이고 표시가 이름 속 크기 그대로 뜬다 */
@@ -268,8 +274,14 @@ export function SinkerIntro() {
     const nameAt = MARK_IN_MS + MARK_HOLD_MS;
     later(() => {
       r.animate([{ transform: centered }, { transform: 'none' }], { duration: NAME_IN_MS, easing: EASE, fill: 'forwards' });
+      k.animate([{ transform: hidden }, { transform: 'none' }], {
+        duration: NAME_DONE_MS - LETTER_AT_MS,
+        delay: LETTER_AT_MS,
+        easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        fill: 'forwards',
+      });
       letters.current.forEach((el, i) =>
-        el?.animate([{ transform: hidden[i] }, { transform: 'none' }], {
+        el?.animate([{ filter: BLUR, opacity: 0.25 }, { filter: 'blur(0)', opacity: 1 }], {
           duration: LETTER_MS,
           delay: LETTER_AT_MS + i * LETTER_GAP_MS,
           easing: LETTER_EASE,
@@ -359,7 +371,7 @@ export function SinkerIntro() {
         >
           <span ref={row} className="inline-flex items-baseline">
           {/* 칸이 S 아래 막대를 기준선에 맞추고(components/logo.tsx Wordmark 와 같다), 안의 표시만 움직인다 */}
-          <span className="mr-[0.05em] inline-block h-[0.794em] w-[0.798em] shrink-0 translate-y-[0.094em]">
+          <span className="relative z-10 mr-[0.05em] inline-block h-[0.794em] w-[0.798em] shrink-0 translate-y-[0.094em]">
             <svg
               ref={mark}
               viewBox={MARK_VIEWBOX}
@@ -369,8 +381,18 @@ export function SinkerIntro() {
               <path d={MARK_PATH} />
             </svg>
           </span>
-          {/* 글자 칸 — 왼쪽(표시 쪽)만 잘라 표시 뒤에 숨긴다. 위 · 아래 · 오른쪽은 넉넉히 둬 글자가 잘리지 않게 */}
-          <span className="relative inline-flex items-baseline [clip-path:inset(-0.5em_-1em_-0.5em_0)]">
+          {/*
+            * 글자 칸 — 표시 밑으로 0.35em 들어가(-ml · pl 로 글자 자리는 그대로) 그 구간에서 옅어지는 가림막. 칸 왼쪽 밖은 보이지 않아
+            * 출발할 때 글자는 모두 표시 뒤에 숨어 있다. 위 · 아래로 넉넉히(py) 둬 글자가 잘리지 않게.
+            */}
+          <span
+            className="relative -my-[0.3em] -ml-[0.35em] inline-flex items-baseline py-[0.3em] pl-[0.35em]"
+            style={{
+              maskImage: 'linear-gradient(to right, transparent, #000 0.35em)',
+              WebkitMaskImage: 'linear-gradient(to right, transparent, #000 0.35em)',
+            }}
+          >
+            <span ref={ink} className="inline-flex items-baseline">
             {LETTERS.map((ch, i) => (
               <span
                 key={i}
@@ -382,6 +404,7 @@ export function SinkerIntro() {
                 {ch}
               </span>
             ))}
+            </span>
           </span>
           </span>
         </span>
