@@ -27,7 +27,7 @@ import type { AbsJudgeSource } from './abs/use-abs';
 
 /**
  * 앱 구속 측정 세션 — 잰 공을 받을지 · 세션 거리 보정 · 저장. 규칙은 웹 측정 화면과 같은 lib/velocity-session.ts(웹 velocity-screen.tsx
- * addResult · save 를 옮김). 앱이 웹과 다른 것: 늘 앱 카메라 · 기준 20m 또는 줄자(공마다 공 크기 거리 없음) · 관리자 '정확도 보정용 저장' 없음.
+ * addResult · save 를 옮김). 앱이 웹과 다른 것: 늘 앱 카메라 · '자동'이면 공마다 공 크기 거리(엔진 2.8.0, 화각을 아는 폰) 또는 줄자 · 관리자 '정확도 보정용 저장' 없음.
  */
 
 type Result = AnalyzeResult & { distance?: DistanceReport };
@@ -52,7 +52,7 @@ export type SessionCtx = {
   info: StartInfo | null;
   /** 줄자로 잰 거리인가 — 그러면 세션 거리 보정을 안 한다(줄자가 이긴다, 웹과 같다) */
   tape: boolean;
-  /** 폰에서 미트까지(m) — 기준 20m 또는 줄자 값 */
+  /** 폰에서 미트까지(m) — 줄자 값, '자동'이면 기준 20m(엔진의 첫 어림) */
   distM: number;
 };
 
@@ -178,7 +178,7 @@ function trailOf(result: Result): number[][] | null {
     .map(([t, x, y, d]) => [r(t, 1e4), r(x / width, 1e5), r(y / height, 1e5), r(d / width, 1e5)]);
 }
 
-/** 보여 줄 구속 — 그 사람의 스피드건 짝 보정식(웹과 같이 늘 켬) */
+/** 보여 줄 구속 — 스피드건 짝 보정식(2026-10-22 부터 늘 빈 식이라 원값 그대로) */
 export const shownKmh = (p: { rawKmh: number }, fit: CalFit) =>
   fit.n > 0 ? applyCalibration(p.rawKmh, fit) : p.rawKmh;
 

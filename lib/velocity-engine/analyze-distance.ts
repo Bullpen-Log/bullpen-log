@@ -674,6 +674,8 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
    */
   const finish = (Dm: number, auto: boolean): DistanceResult => {
     const dAtDm = (cam.f * BALL_DIAMETER_M) / Dm;
+    /* 까닭은 이 맞춤의 것만 — 공 크기 거리로 다시 맞출 때 첫 맞춤(넣은 거리)의 까닭이 남지 않게(2.8.0) */
+    report.why = undefined;
     report.distanceM = Dm;
     report.distanceSource = auto ? 'ball' : 'input';
     report.path = [];
@@ -874,18 +876,16 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     if (endEarly || speedUnsure || lateStart || autoExtended || autoEndBig) {
       confidence = 'low';
       report.why = endEarly || autoEndBig ? 'end-early' : speedUnsure ? 'speed-unsure' : lateStart ? 'late-start' : 'extended';
-    } else if (report.why === 'end-early' || report.why === 'speed-unsure' || report.why === 'late-start') report.why = undefined;
+    }
     /* 보통이면 왜 높음이 못 됐나 — 화면이 측정 불가 까닭을 말한다(judgeSize 가 why 로 옮긴다) */
     report.soft =
       confidence !== 'medium'
         ? undefined
-        : auto
-          ? 'auto-distance'
-          : report.shaky
-            ? 'stabilized'
-            : used.length * dt < minFlight
-              ? 'short-flight'
-              : 'fit-rms';
+        : report.shaky
+          ? 'stabilized'
+          : used.length * dt < minFlight
+            ? 'short-flight'
+            : 'fit-rms';
     report.timingMs = Math.round(now() - t0);
     const kmhEnd = Math.hypot(...fit.velocityAt(used[used.length - 1].t)) * Dm * 3.6;
     return {
@@ -932,7 +932,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     report.sizeDistM != null &&
     report.sizeDistM / D > 1.18
   ) {
-    const keep = { prep, out, report: { ...report, path: report.path } };
+    const keep = { prep, out, report: { ...report, path: report.path, why: report.why } };
     prep = prepare(
       best.seg.map((o) => ({ ...o })),
       0
@@ -958,12 +958,30 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
    * 부른다(거리 출처가 'ball' 이어야 화면이 공 크기 거리 공으로 센다 — 2.8.0 전에는 0.2% 안이면 건너뛰어 세션 보정에 '넣은 거리' 공으로 섞였다).
    */
   const sized = report.sizeDistM;
-  if (input.autoDistance && sized != null && (out.measure.ok || out.measure.code === 'IMPLAUSIBLE_SPEED'))
+  if (input.autoDistance && sized != null && (out.measure.ok || out.measure.code === 'IMPLAUSIBLE_SPEED')) {
     out = finish(sized, true);
-  else if (input.autoDistance && out.measure.ok) {
-    /* 공 크기 거리를 못 냈다(크기를 잰 장면 8장 밑) — 거리를 모른 채 넣은 거리로 잰 값이라 믿지 않는다(2.8.0) */
+    /*
+     * 첫 맞춤의 공 크기 거리는 맞춘 거리(공기저항 배율)에 조금 끌린다 — 첫 어림 20m 가 실제 14m 면 1.4% 낮게, 실제 25m 면 0.5% 높게 나왔다(합성 공: 첫 어림
+     * 10 → 40m 에 138.4 → 133.0km/h, 다시 맞춘 쪽의 공 크기 거리는 늘 21m). 거리와 공 크기 거리가 0.5% 안에서 맞을 때까지 두 번까지 더 맞춘다(2.8.0).
+     */
+    for (let k = 0; k < 2 && out.measure.ok; k++) {
+      const again = report.sizeDistM;
+      if (again == null || Math.abs(again / report.distanceM - 1) <= 0.005) break;
+      out = finish(again, true);
+    }
+    /* 판정 전 값 · 까닭을 이 맞춤으로(견줄 기준 거리는 없다) — 첫 맞춤의 것이 남으면 세션 다시 판정이나 화면 까닭이 엉뚱해진다 */
+    if (out.measure.ok) {
+      report.preSize = { confidence: out.measure.confidence, errorKmh: out.measure.errorKmh, why: report.why ?? null };
+      judgeSize(out, null);
+    }
+  } else if (input.autoDistance && out.measure.ok) {
+    /*
+     * 공 크기 거리를 못 냈다(크기를 잰 장면 8장 밑 · 3~60m 밖) — 거리를 모른 채 넣은 거리로 잰 값이라 믿지 않는다(2.8.0). 판정 전 값도 '낮음'으로 둬
+     * 세션 다시 판정(rejudgeSize)이 첫 맞춤의 '높음'을 되살리지 않게. 이미 '낮음'인 까닭(속력 흔들림 등)이 있으면 그것을 둔다.
+     */
+    if (out.measure.confidence !== 'low' || !report.why) report.why = 'no-size';
     out.measure.confidence = 'low';
-    out.distance.why = 'no-size';
+    report.preSize = { confidence: 'low', errorKmh: out.measure.errorKmh, why: report.why ?? null };
   }
   return out;
 }

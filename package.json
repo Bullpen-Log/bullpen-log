@@ -42,6 +42,7 @@
     "armcare-map:test": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/armcare-map-selftest.mts",
     "velocity:test": "node scripts/velocity-selftest.mts",
     "velocity:engine2-test": "node scripts/velocity-engine2-test.mts",
+    "velocity:session-test": "node --import ./scripts/alias-register.mjs scripts/velocity-session-selftest.mts",
     "app-update:test": "node --import ./scripts/alias-loader.mjs scripts/app-update-selftest.mts",
     "velocity:queue-test": "node scripts/velocity-engine-queue-test.mts",
     "velocity:detect-test": "node scripts/velocity-detect-test.mts",

@@ -10,6 +10,7 @@ import {
   type DistanceReport,
 } from '@/lib/velocity-engine/analyze-distance';
 import {
+  medianOf,
   sessionCorrection,
   sessionDistOf,
   type DistMemory,
@@ -102,7 +103,8 @@ export function sessionDistanceOf(
   if (s.cameraPos !== 'behind-pitcher')
     return { distanceM: null, distanceSource: null };
   if (s.distTape) return { distanceM: s.targetDistM, distanceSource: 'tape' };
-  if (list.some((p) => p.dist?.auto)) return { distanceM: null, distanceSource: 'auto' };
+  const autoM = list.filter((p) => p.dist?.auto).map((p) => p.dist!.m);
+  if (autoM.length) return { distanceM: Math.round(medianOf(autoM) * 10) / 10, distanceSource: 'auto' };
   const c = stdCorrection(list, 'camera') ?? stdCorrection(list, 'file');
   return c?.apply
     ? { distanceM: c.m, distanceSource: 'session-size' }
@@ -133,9 +135,10 @@ export function withSessionDistance<T extends SessionPitchCore>(
     if (p.std) {
       const c = corr[p.source];
       const on = c != null && c.apply;
-      const use = on ? c.m : STANDARD_TARGET_DIST_M;
-      const k = on ? c.k : 1;
       const distance = p.analysis?.distance;
+      /* 보정이 안 걸리면 값을 낸 거리 그대로 — 줄자 세션이면 줄자 값(예전엔 늘 20m 로 적어 줄자 18m 세션의 공이 '20m' 로 저장 · 관리자 다시 재기도 20m) */
+      const use = on ? c.m : (distance?.inputDistM ?? STANDARD_TARGET_DIST_M);
+      const k = on ? c.k : 1;
       return {
         ...p,
         rawKmh: r1(p.std.kmh * k),
@@ -189,9 +192,6 @@ export function lowConfidenceFix(
   /* 공 크기 거리가 넣은 거리와 15% 넘게 다르다(엔진 size-mismatch) — '자동'인데 기준 20m 로 잰 폰(화각 모름)이면 줄자로(2026-10-19 김민 결정) */
   if (d?.why === 'size-mismatch') return tape ? TAPE_MISMATCH_FIX : OUT_OF_RANGE_FIX;
   if (d?.shaky) return '폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.';
-  /* 흰 과녁 천 · 밝은 벽 앞에서는 공이 끝에서 배경에 묻혀 엔진이 끝을 짐작으로 잇는다(10-09 실내 14구 중 12구) — 흰 배경 앞은 재지 않는다 */
-  if ((d?.extended ?? 0) > 0)
-    return '흰 배경 앞에서는 공이 끝에서 배경에 묻혀 잴 수 없어요. 공 뒤에 어두운 천을 두거나 어두운 쪽을 향해 던져 주세요.';
   /*
    * 잡힌 끝(impact 'end')만으로는 까닭이 아니다 — 포수가 받으면 늘 'end' 다. 끝을 못 봤고 거리 판독도 어긋날 때(end-unseen)만 이 말(2.7.4,
    * 10-21: 잔차로 '보통'이 된 캐치볼 공 셋이 엉뚱하게 '닿는 곳이 안 보였어요'를 들었다)
@@ -215,9 +215,15 @@ export function lowConfidenceFix(
   if (d?.why === 'end-unseen')
     return '공이 닿는 순간이 화면에서 안 보였어요. 미트 · 그물까지 화면에 들어오게 해 주세요.';
   if (d?.why === 'short-flight')
-    return '공이 날아가는 모습이 너무 짧게 잡혔어요. 폰을 던지는 사람 바로 뒤에 두고, 공이 화면 가운데로 길게 지나가게 해 주세요.';
+    return '공이 날아가는 모습이 너무 짧게 잡혔어요. 폰을 던지는 사람 1.5~2m 뒤에 두고, 공이 화면 가운데로 길게 지나가게 해 주세요.';
   if (d?.why === 'fit-rms' || d?.why === 'fit-quality')
     return '공 길이 고르게 잡히지 않았어요(흐림 · 그림자 · 배경). 초점을 다시 맞추고 공 뒤 배경이 단순한 쪽으로 던져 주세요.';
+  /*
+   * 흰 과녁 천 · 밝은 벽 앞에서는 공이 끝에서 배경에 묻혀 엔진이 끝을 짐작으로 잇는다(10-09 실내 14구 중 12구) — 흰 배경 앞은 재지 않는다. 2.7.9 부터
+   * 이어 찾기만으로는 '낮음'이 아니라, 다른 까닭(속력 흔들림 · 늦게 잡힘 …)이 있으면 그 말이 먼저다(이 줄이 위에 있어 다 '흰 배경'으로 들렸다).
+   */
+  if (d?.why === 'extended' || (d?.extended ?? 0) > 0)
+    return '흰 배경 앞에서는 공이 끝에서 배경에 묻혀 잴 수 없어요. 공 뒤에 어두운 천을 두거나 어두운 쪽을 향해 던져 주세요.';
   if (source === 'file')
     return '공이 잡힌 구간이 짧거나 흐려요. 60fps 이상, 공이 닿는 곳까지 찍힌 영상으로 다시 재 주세요.';
   return '공이 잡힌 구간이 짧거나 흐렸어요. 초점과 밝기를 확인하고 다시 던져 주세요.';

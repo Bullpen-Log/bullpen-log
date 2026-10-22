@@ -322,6 +322,43 @@ function run(name: string, sc: Scene, tolRel: number) {
         Math.abs(auto.measure.kmh / want - 1) <= 0.01,
       `자동 거리 — 첫 어림 15m 에서 ${auto.distance.distanceM}m(${auto.distance.distanceSource})로 다시 맞춰 ${auto.measure.ok ? auto.measure.kmh : auto.measure.code}km/h(기대 ${want.toFixed(1)})`
     );
+    /* 2.8.0 — 공 크기 거리여도 깨끗한 공은 '높음'까지(예전엔 늘 '보통'이라 앱이 기록하지 않았다), 판정 전 값 · 까닭도 이 맞춤의 것 */
+    check(
+      auto.measure.ok &&
+        auto.measure.confidence === 'high' &&
+        auto.distance.preSize?.confidence === 'high' &&
+        auto.distance.why == null,
+      `자동 거리 깨끗한 공은 높음 — ${auto.measure.ok ? auto.measure.confidence : '-'} · 판정 전 ${auto.distance.preSize?.confidence} · 까닭 ${auto.distance.why ?? '없음'}`
+    );
+    /* 첫 어림 거리에 매이지 않는다 — 10 ~ 40m 어디서 시작해도 같은 값(공 크기 거리와 맞춘 거리가 맞을 때까지 다시 맞춤, 2.8.0) */
+    const byGuess = [10, 14, 20, 26, 30, 40].map((guess) => {
+      const g = analyzeByDistance({ frames, width: W, height: H, sourceWidth: 1080, sourceHeight: 1920, focalPx: (F * 1080) / W, distanceM: guess, tiltRad: (sc.tiltDeg * Math.PI) / 180, fps: FPS, autoDistance: true });
+      return g.measure.ok ? g.measure.kmh : NaN;
+    });
+    check(
+      Math.max(...byGuess) / Math.min(...byGuess) - 1 <= 0.01,
+      `자동 거리 — 첫 어림 10 ~ 40m 에서 값이 1% 안: ${byGuess.join(' · ')}`
+    );
+    /* 첫 어림이 크게 틀려(60m) 그럴 수 없는 구속이면 첫 맞춤은 실패한다 — 공 크기로 다시 맞춘 값이 판정 전 값까지 제 것을 가져야 세션 다시 판정이 맞다 */
+    const far = analyzeByDistance({
+      frames,
+      width: W,
+      height: H,
+      sourceWidth: 1080,
+      sourceHeight: 1920,
+      focalPx: (F * 1080) / W,
+      distanceM: 60,
+      tiltRad: (sc.tiltDeg * Math.PI) / 180,
+      fps: FPS,
+      autoDistance: true,
+    });
+    check(
+      far.measure.ok &&
+        far.distance.distanceSource === 'ball' &&
+        Math.abs(far.measure.kmh / want - 1) <= 0.01 &&
+        far.distance.preSize?.confidence === far.measure.confidence,
+      `자동 거리 — 첫 어림 60m(그럴 수 없는 구속)에서도 ${far.measure.ok ? far.measure.kmh : far.measure.code}km/h · 판정 전 ${far.distance.preSize?.confidence ?? '없음'}`
+    );
   }
   /*
    * 결과 화면이 따라 그릴 길(distance.path) — 공이 처음 보인 장면(릴리스 t=0 에서 5장 안 — 카메라 1m 앞 공은 지름 160px 라 몇 장 뒤에
