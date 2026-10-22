@@ -24,14 +24,15 @@ export default function manifest(): MetadataRoute.Manifest {
     name: '덕아웃',
     /* 홈 화면 아이콘 밑 글자. 길면 잘리는데 11자라 들어간다. */
     short_name: '덕아웃',
-    description: '투수를 위한 트레이닝 · 투구 기록',
+    description: '야구인의 커뮤니티 · 장터 · 레슨 · 연습장, 기록은 싱커에서',
     lang: 'ko',
     /*
      * 앱으로 열면 곧장 홈(/today)이다. '/'는 처음 온 사람을 위한 소개 화면이라,
      * 앱을 열 때마다 소개부터 보게 된다. 로그인 전이면 /today 가 알아서 로그인
      * 화면으로 보낸다.
      */
-    start_url: '/today',
+    /* 사이트의 기본은 덕아웃(2026-10-22 금윤호 "처음 접속하면 바로 덕아웃 홈") — 싱커는 덕아웃 위 막대의 '싱커'로 들어간다 */
+    start_url: '/',
     scope: '/',
     display: 'standalone',
     /* 앱이 뜨기 전 잠깐 보이는 바탕 — 밝은 화면의 바탕색(app/globals.css) */
@@ -39,20 +40,20 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#f2f2f7',
     icons: [
       {
-        src: '/icons/icon-192.png',
+        src: '/brand/dugout-s1-192.png',
         sizes: '192x192',
         type: 'image/png',
         purpose: 'any',
       },
       {
-        src: '/icons/icon-512.png',
+        src: '/brand/dugout-s1-512.png',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any',
       },
       /* 안드로이드가 원·둥근 네모로 잘라 쓰는 판 — 공이 가운데 62% 안에 있다 */
       {
-        src: '/icons/icon-maskable-512.png',
+        src: '/brand/dugout-s1-maskable-512.png',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'maskable',
