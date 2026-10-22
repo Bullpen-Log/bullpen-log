@@ -337,7 +337,8 @@ export function DugoutHero({
         )}
 
       {/* 가운데 — 로고 · 검색 · 단추 */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center px-4">
+      {/* 가운데보다 조금 위로(2026-10-22 금윤호 "덕아웃 · 아이콘이 좀 밑에 있어 — 올려줘") — 숨은 위 막대만큼 판이 밀린 것도 덜어 낸다 */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center px-4 pb-[12vh]">
         {/* 바깥 칸은 홈 자리 그대로(재는 기준), 안쪽만 움직인다 */}
         <div ref={logoBox} className="flex flex-col items-center">
           <div
