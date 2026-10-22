@@ -794,6 +794,13 @@ function Scrubber({
   const want = useRef<number | null>(null);
   const sent = useRef(-1);
   const raf = useRef(0);
+  /*
+   * 끄는 동안 손잡이 · 채운 막대는 손가락 자리를 바로 따른다(2026-10-22 김민: "재생바 터치가 한 타이밍 늦게 따라옴") — 예전엔 frame 을 따라
+   * 그려서, 장면 고르기(한 화면 뒤) → 3D 다시 그리기 → setFrame 을 기다려 손보다 한 박자 늦었다. 손을 떼면 다시 frame 을 따른다.
+   */
+  const [dragU, setDragU] = useState<number | null>(null);
+  const fillRef = useRef<HTMLSpanElement>(null);
+  const thumbRef = useRef<HTMLSpanElement>(null);
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
   const flush = () => {
     raf.current = 0;
@@ -808,6 +815,10 @@ function Scrubber({
     const r = el.getBoundingClientRect();
     const u = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
     want.current = Math.round(u * (n - 1));
+    /* React 를 기다리지 않고 이 장면에 바로 옮긴다 — 다음 그리기도 같은 값(dragU)이라 되돌아가지 않는다 */
+    if (fillRef.current) fillRef.current.style.width = `${u * 100}%`;
+    if (thumbRef.current) thumbRef.current.style.left = `${u * 100}%`;
+    setDragU(u);
     if (now) {
       cancelAnimationFrame(raf.current);
       flush();
@@ -833,7 +844,9 @@ function Scrubber({
       }}
       onPointerUp={(e) => {
         if (e.currentTarget.hasPointerCapture(e.pointerId)) pick(e, true);
+        setDragU(null);
       }}
+      onPointerCancel={() => setDragU(null)}
       className="relative min-w-0 flex-1 touch-none select-none py-5"
     >
       <div className="relative h-1.5 overflow-hidden rounded-full bg-ink/10">
@@ -846,9 +859,10 @@ function Scrubber({
           />
         ))}
         <span
+          ref={fillRef}
           aria-hidden
           className="absolute inset-y-0 left-0 bg-sky"
-          style={{ width: `${pct(frame)}%` }}
+          style={{ width: dragU != null ? `${dragU * 100}%` : `${pct(frame)}%` }}
         />
       </div>
       {(['kneeUp', 'footPlant', 'release'] as const).map((k) => {
@@ -864,9 +878,10 @@ function Scrubber({
         );
       })}
       <span
+        ref={thumbRef}
         aria-hidden
         className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky shadow-[0_1px_3px_rgba(0,0,0,0.35)]"
-        style={{ left: `${pct(frame)}%` }}
+        style={{ left: dragU != null ? `${dragU * 100}%` : `${pct(frame)}%` }}
       />
     </div>
   );
