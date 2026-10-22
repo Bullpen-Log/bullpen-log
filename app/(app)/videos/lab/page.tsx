@@ -22,7 +22,9 @@ export default async function PitchLabPage() {
   if (featureLocks(user).pitch) redirect(SETUP_PATH.pitch);
   /* 새 아이폰 앱(판 9~)은 앱 화면(native/src/app/lab/index.tsx)으로 */
   if (expoLevel((await headers()).get('user-agent')) >= 9) return <OpenNative path="/lab" cover={false} />;
-  const samples = await listLabSamples(user);
+  const all = await listLabSamples(user);
+  /* 관리자에게 이 화면은 샘플 목록이라 내 리포트 전용(meta.personal)은 뺀다 — 앱에서는 '내 리포트'(app/lab)에 보인다 */
+  const samples = user.role === 'ADMIN' ? all.filter((s) => !s.meta?.personal) : all;
   return (
     <LabClient
       samples={samples}

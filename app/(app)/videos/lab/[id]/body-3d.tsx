@@ -40,7 +40,7 @@ const REF_HEIGHT_M = 2.0;
  *     바닥 · 뼈 → 인형 깊이만 → 인형 맨 앞 겉면 → 잰 선(예시 render). 예전엔 재생 중엔 인형만 보이고 멈추면 이 보기였는데('각도' 칩으로 끔),
  *     사용자(2026-10-13): "인형만 보이면 투구 동작이 너무 부자연스럽다" — 이 보기를 기본이자 하나로. 순간(착지 · 릴리스) 이름표는 결과 표의 값.
  *
- *   - 3D 가 기준 시계(결정 12): 1× · ½× · ¼×. 처음 열면 ½× 로 한 번 틀고 릴리스에서 멈춤(결정 9), 그 뒤 재생은 되풀이. 움직임 줄이기면 자동 재생 없음.
+ *   - 3D 가 기준 시계(결정 12): 1× · ½× · ¼×. 처음 열면 ¼× 로 끝까지 되풀이해 튼다(2026-10-22 김민 — 예전엔 ½× 로 틀고 릴리스에서 멈춤). 움직임 줄이기면 자동 재생 없음.
  *   - 고정 카메라 4각도(결정 10): 옆(3루 쪽) · 뒤(2루 쪽) · 포수(홈 쪽 가슴 높이) · 위(70°). 끌기 = 좌우 돌리기(위아래 5~80°), Ctrl + 휠 · 두 손가락 = 확대, 시점을 누르면 되돌림.
  *   - 재생 막대에 확신 낮은 구간은 엷은 회색(결정 13), 그 안이면 '이 구간은 영상에서 잘 안 보였어요.'
  *   - 키보드(결정 16): 칸에 초점이 있을 때만 스페이스 재생/멈춤 · ←/→ 한 장면 · Shift 10장면.
@@ -108,7 +108,7 @@ export const Body3D = forwardRef<
     heightCm?: number | null;
     /** AI 스켈레톤 보정을 섞을지(결과에 AI 관절이 있을 때만 효과) */
     ai?: boolean;
-    /** 처음 재생이 멈출 장면(리포트의 주 문제 장면) — 없으면 릴리스 */
+    /** 리포트의 주 문제 장면 — 움직임 줄이기면 이 장면에 서 있는다(자동 재생 때는 멈추지 않는다, 없으면 릴리스) */
     stopFrame?: number | null;
   }
 >(function Body3D({ result, onTransport, ground = 'mound', heightCm, ai = false, stopFrame = null }, ref) {
@@ -119,7 +119,8 @@ export const Body3D = forwardRef<
   const firstStop = stopFrame != null && stopFrame >= 0 && stopFrame < result.t.length ? stopFrame : result.events.release;
   const [frame, setFrame] = useState(firstStop);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState<Speed>(0.5);
+  /* 처음 ¼× (2026-10-22 김민: "기본 속도 1/4") */
+  const [speed, setSpeed] = useState<Speed>(0.25);
   const [view, setView] = useState<ViewName>('side');
   const [retry, setRetry] = useState(0);
   /* 읽어 주는 글(스크린 리더용 잰 값 다섯, 멈췄을 때) */
@@ -370,8 +371,7 @@ export const Body3D = forwardRef<
       let cur = reduced ? firstStop : 0;
       let clock = result.t[cur];
       let isPlaying = !reduced;
-      let spd: Speed = 0.5;
-      let stopAtRelease = !reduced;
+      let spd: Speed = 0.25;
       let lastTick = 0;
 
       /*
@@ -427,7 +427,6 @@ export const Body3D = forwardRef<
       ctrl.current = {
         seek: (k) => {
           isPlaying = false;
-          stopAtRelease = false;
           setPlaying(false);
           show(k);
           clock = result.t[cur];
@@ -435,7 +434,6 @@ export const Body3D = forwardRef<
         },
         play: (on) => {
           isPlaying = on;
-          stopAtRelease = false;
           setPlaying(on);
           if (on && cur >= n - 1) {
             show(0);
@@ -572,12 +570,8 @@ export const Body3D = forwardRef<
           if (wrapped) clock = t0;
           const k = frameAt(clock);
           if (k !== cur) show(k);
-          if (stopAtRelease && cur >= firstStop) {
-            isPlaying = false;
-            stopAtRelease = false;
-            setPlaying(false);
-            emit('toggle');
-          } else if (wrapped) {
+          /* 릴리스(주 문제 장면)에서 멈추지 않고 끝까지 · 되풀이(2026-10-22 김민: "끝까지 이어서 재생") — 멈춘 장면은 움직임 줄이기 때만 */
+          if (wrapped) {
             lastTick = now;
             emit('seek');
           } else if (now - lastTick > 100) {

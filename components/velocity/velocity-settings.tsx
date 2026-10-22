@@ -5,10 +5,7 @@ import { useMemo, useState, useSyncExternalStore } from 'react';
 import { AlertTriangle, Settings2 } from 'lucide-react';
 import { Segmented } from '@/components/segmented';
 import { Switch } from '@/components/switch';
-import {
-  calibrationText,
-  type CalFit,
-} from '@/lib/velocity-calibration';
+import { type CalFit } from '@/lib/velocity-calibration';
 import { DEFAULT_FOV_DEG } from '@/lib/velocity-engine/analyze-frames';
 import {
   CAMERA_OPTIONS,
@@ -64,16 +61,15 @@ export { TAPE_MODES };
 export function VelocitySettingsFields({
   values,
   onChange,
-  calibration,
   showChoices = true,
-  isAdmin = false,
 }: {
   values: SettingsValues;
   onChange: (patch: Partial<SettingsValues>) => void;
-  calibration: CalFit;
+  /** 쓰지 않음 — 스피드건 보정을 끈 뒤(2026-10-22) 부르는 쪽이 아직 넘긴다 */
+  calibration?: CalFit;
   /** 녹화 종류 · 카메라 위치 · 네트도 여기서 바꿀까 — 측정 중에는 숨긴다 */
   showChoices?: boolean;
-  /** 관리자 — '스피드건 보정 적용' 줄(일반 사용자는 스피드건 짝을 안 쓴다, 2026-10-15) */
+  /** 쓰지 않음 — '스피드건 보정 적용' 줄을 걷었다(2026-10-22) */
   isAdmin?: boolean;
 }) {
   /* 구속 단위 — 앱 전체의 단위 설정(내 정보 · 투구 기록)과 같은 값. 여기서 바꾸면 거기도 바뀐다 */
@@ -122,19 +118,7 @@ export function VelocitySettingsFields({
             onChange={(clipZone) => onChange({ clipZone })}
           />
           {/* 광각 영상도 같이 저장은 없앴다 — 늘 끔(2026-10-08 사용자: 광각과 함께면 측정 카메라가 720p 로 떨어진다) */}
-          {isAdmin && (
-            <ToggleRow
-              title="스피드건 보정 적용"
-              hint={
-                calibration.n > 0
-                  ? `스피드건 짝 ${calibration.n}개 · ${calibrationText(calibration)}`
-                  : '공에 스피드건 값을 적고 저장하면 쌓여요.'
-              }
-              checked={values.useCal && calibration.n > 0}
-              disabled={calibration.n === 0}
-              onChange={(useCal) => onChange({ useCal })}
-            />
-          )}
+          {/* '스피드건 보정 적용' 줄은 걷었다 — 보정은 늘 끔(2026-10-22, app/actions/velocity.ts loadCalibration) */}
           {/* 투수 뒤 거리는 기준 20m 고정(lib/velocity-setup.ts STANDARD_TARGET_DIST_M) — 관리자는 측정의 '폰 자리' 단계에서 바꾼다 */}
           <label className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
             <span className="min-w-0">
