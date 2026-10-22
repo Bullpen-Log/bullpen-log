@@ -6,6 +6,7 @@ import { DUGOUT_METADATA } from '@/lib/brand-metadata';
 import { SITE_URL } from '@/lib/site-url';
 import { Bebas_Neue } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
+import { PREFS_INIT_SCRIPT } from '@/lib/device-prefs';
 import { APP_INIT_SCRIPT } from '@/lib/native-app';
 import { PressFeedback } from '@/components/press-feedback';
 import { HapticFeedback } from '@/components/haptic-feedback';
@@ -114,6 +115,7 @@ export default async function RootLayout({
           <script dangerouslySetInnerHTML={{ __html: simClockScript(simOffset) }} />
         )}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: PREFS_INIT_SCRIPT }} />
         {/*
          * 아이폰 앱 안에서만 — 앱 표시(data-app) · 상태바 글자색 · 로딩 화면 걷기(lib/native-app.ts).
          * 테마 스크립트 뒤라야 고른 테마(data-theme)를 보고 상태바 색을 맞춘다.

@@ -8,7 +8,6 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { X } from '@/components/icon';
 import { DESK_MEDIA } from '@/lib/nav';
 
 /** 휴대폰 틀인가 — 휴대폰의 창은 아래에서 올라오는 시트다(globals.css 의 dialog[data-sheet]) */
@@ -463,17 +462,18 @@ export function Modal({
               type="button"
               onClick={onClose}
               aria-label="닫기"
-              /* 폰은 손가락 크기(44px) — 28px 라 창마다 닫기가 잘 안 눌렸다. PC 는 예전 크기 */
+              /*
+               * 폰은 손가락 크기(44px). 2026-10-22 금윤호: "설정의 X 를 우리 느낌의 아이콘으로, 크기도 조금 더" — 싱커 → 덕아웃 뒤로 단추처럼
+               * 옅은 회색 원 안에 굵고 끝이 둥근 X(둥근 야구 아이콘과 같은 결). 모든 창의 닫기가 같은 모양이다.
+               */
               className={
                 bigClose
-                  ? '-mr-3 -mt-3 grid h-12 w-12 shrink-0 place-items-center rounded-xl text-muted transition-colors hover:bg-surface-2 hover:text-ink desk:-mr-2 desk:-mt-2 desk:h-10 desk:w-10'
-                  : '-mr-3 -mt-3 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink desk:-mr-1 desk:-mt-1 desk:h-7 desk:w-7'
+                  ? '-mr-2 -mt-2 grid h-12 w-12 shrink-0 place-items-center rounded-full bg-ink/6 text-ink transition-[background-color,transform] hover:bg-ink/10 motion-safe:active:scale-95 desk:-mr-1 desk:-mt-1 desk:h-11 desk:w-11'
+                  : '-mr-2 -mt-2 grid h-11 w-11 shrink-0 place-items-center rounded-full bg-ink/6 text-ink transition-[background-color,transform] hover:bg-ink/10 motion-safe:active:scale-95 desk:-mr-1 desk:-mt-1 desk:h-10 desk:w-10'
               }
             >
-              <X
-                className={
-                  bigClose ? 'h-7 w-7 desk:h-6 desk:w-6' : 'h-5 w-5 desk:h-4 desk:w-4'
-                }
+              <CloseGlyph
+                className={bigClose ? 'h-6 w-6 desk:h-[22px] desk:w-[22px]' : 'h-5 w-5 desk:h-[18px] desk:w-[18px]'}
               />
             </button>
           </div>
@@ -582,5 +582,14 @@ function FolderFrame({
         </div>
       </div>
     </div>
+  );
+}
+
+/** 닫기 X — 둥근 야구 아이콘(lib/round-icons.ts)과 같은 결: 굵고 끝이 둥근 두 획 */
+function CloseGlyph({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className={className}>
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
   );
 }
