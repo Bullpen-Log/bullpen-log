@@ -259,3 +259,9 @@ export function groupLabSamples<T>(
         : Number(a.name === LAB_OTHER_SUBJECT) - Number(b.name === LAB_OTHER_SUBJECT)
     );
 }
+
+/**
+ * 마커 샘플의 ③ · ④ 카메라 이름 — 웹 목록 · 결과 화면 · 앱 결과 화면이 같이 쓴다. 실제 자리는 정답지 계산으로 확인
+ * (scripts/pitch-lab/markers/selfcal/README.md — ③ 홈 쪽 정면 · ④ 1루 쪽, 기종은 샘플 메모에).
+ */
+export const LAB_EXTRA_LABEL: Record<'cam3' | 'cam4', string> = { cam3: '③ 홈 쪽 정면', cam4: '④ 1루 쪽' };

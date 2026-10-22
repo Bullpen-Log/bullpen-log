@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { BackLink, PageHeading } from '@/components/ui';
 import { ErrorLine } from '@/components/error-line';
 import type { LabSample } from '@/lib/pitch-lab';
-import { LAB_VIEWS, labViewLabel, type LabGround, type LabView } from '@/lib/pitch-lab-meta';
+import { LAB_EXTRA_LABEL, LAB_VIEWS, labViewLabel, type LabGround, type LabView } from '@/lib/pitch-lab-meta';
 import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { labHandNote, labTitle, metricRows, type LabMetricRow } from '@/lib/pitch-3d/v2/lab-summary';
 import { buildReport, type FocusProgress, type ReportDrill } from '@/lib/pitch-3d/v2/report';
@@ -21,7 +21,7 @@ const Body3D = dynamic(() => import('./body-3d').then((m) => m.Body3D), { ssr: f
 
 /**
  * 투구 진단 리포트 /videos/lab/[id](설계 docs/designs/pitch-3d-report.md 5-4 · 5-9절, 2026-10-21 김민: 결과 화면을 리포트로) — 위에서부터
- * 결론(어두운 3D 무대 + 결론 두 줄, 원본 영상은 누르면 펼침) → 투구의 흐름(여섯 요소 사슬 · 기준 띠) → 처방(3주) → 접힌 '분석 자세히'(숫자 · 다시 분석).
+ * 결론(어두운 3D 무대 + 결론 두 줄) · 그 밑에 원본 영상(늘 보임, 마커 샘플은 ③ · ④ 까지) → 투구의 흐름(여섯 요소 사슬 · 기준 띠) → 처방(3주) → 접힌 '분석 자세히'(숫자 · 다시 분석).
  * PC(desk)는 왼쪽 결론(폭 60%, 스크롤해도 멈춰 있음) · 오른쪽 흐름 · 처방 · 자세히. 결과가 없으면 왼쪽에 기다림 · 분석 걸기.
  * 원본 영상은 펼쳤을 때 3D 시계를 따라간다(lib/pitch-3d/v2/video-sync.ts). 흐름의 점을 고르면 3D 가 그 순간으로 간다.
  */
@@ -183,8 +183,30 @@ export function LabDetail({
             </div>
           );
         })}
+        {/* 마커 샘플의 ③ · ④ 카메라 — 3D 시계와 맞출 시각 정보가 없어 따로 튼다(조작 막대) */}
+        {sample.extras.map((x) => (
+          <div key={x.key} className="space-y-1">
+            <p className="text-xs text-muted">{LAB_EXTRA_LABEL[x.key]}</p>
+            {x.url ? (
+              <video
+                src={`${x.url}#t=0.001`}
+                playsInline
+                muted
+                controls
+                preload="metadata"
+                className="h-[180px] w-full rounded-xl bg-black object-contain desk:h-[min(300px,36vh)]"
+              />
+            ) : (
+              <div className="grid h-[180px] w-full place-items-center rounded-xl bg-ink/5 text-xs text-muted desk:h-[min(300px,36vh)]">
+                영상 없음
+              </div>
+            )}
+          </div>
+        ))}
       </div>
-      <p className="text-xs text-muted">영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.</p>
+      <p className="text-xs text-muted">
+        옆 · 뒤 영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.{sample.extras.length > 0 ? ' ③ · ④ 는 따로 틀어요.' : ''}
+      </p>
     </div>
   );
 
@@ -218,7 +240,6 @@ export function LabDetail({
                   stopFrame={report.headline.frame}
                 />
               }
-              videos={sources}
             />
           ) : (
             <>
@@ -233,11 +254,13 @@ export function LabDetail({
               {request}
             </>
           )}
+          {/* 원본 영상은 결과 바로 밑에 늘 보인다(2026-10-22 김민: "결과 밑에 원본 영상도 안 나와" — 예전엔 '원본 영상 보기'를 눌러야 폈다) */}
+          {sources}
           {v2.offline && <ErrorLine>연결을 확인해 주세요. 마지막 상태를 보고 있어요.</ErrorLine>}
         </div>
 
         <div className="stack-block">
-          {report && <VerdictCard report={report} videos={sources} />}
+          {report && <VerdictCard report={report} />}
           {report && (
             <FlowCard
               report={report}

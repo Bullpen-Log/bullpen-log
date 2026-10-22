@@ -25,8 +25,7 @@ import { leaveTo } from '~/shell/web-nav';
 export const STAGE_BG = '#151722';
 const ON_STAGE = { ink: '#f5f5f7', muted: '#9aa3b8', warn: '#fcd34d', sky: '#4aa8ff' };
 
-export function ReportHero({ report, stage, videos }: { report: PitchReport; stage: ReactNode; videos: ReactNode }) {
-  const [open, setOpen] = useState(false);
+export function ReportHero({ report, stage }: { report: PitchReport; stage: ReactNode }) {
   const h = report.headline;
   return (
     <View style={[s.hero, { backgroundColor: STAGE_BG }]}>
@@ -49,10 +48,6 @@ export function ReportHero({ report, stage, videos }: { report: PitchReport; sta
         ) : null}
         <Text style={[s.verdict, { color: ON_STAGE.ink }]}>{h.title}</Text>
         {h.why ? <Text style={[TYPE.body, { color: ON_STAGE.muted, lineHeight: 21 }]}>{h.why}</Text> : null}
-        <Pressable onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={s.link}>
-          <Text style={[s.linkText, { color: ON_STAGE.sky }]}>{open ? '원본 영상 접기' : '원본 영상 보기'}</Text>
-        </Pressable>
-        {open ? videos : null}
       </View>
     </View>
   );

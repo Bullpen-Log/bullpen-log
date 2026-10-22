@@ -27,6 +27,7 @@ import { removeLabSample, saveLabSample } from '@/app/actions/pitch-lab';
 import {
   LAB_GROUND_OPTIONS,
   LAB_OTHER_SUBJECT,
+  LAB_EXTRA_LABEL,
   LAB_SUBJECT_FOLDERS,
   groupLabSamples,
   LAB_MAX_VIDEO_BYTES,
@@ -719,7 +720,7 @@ function SampleCard({
        * 실제 자리는 정답지 계산으로 확인(scripts/pitch-lab/markers/selfcal/README.md) — 10-12 는 cam3 아이폰 11 · 10-16(세 대)은 cam3 15 Pro Max 가
        * 홈 쪽 정면(김민 — 계획서의 대각이 아니라 정면에 둠), cam4 SE2 가 1루 쪽. 기종 · 자리는 샘플 메모에.
        */
-      label: x.key === 'cam3' ? '③ 홈 쪽 정면' : '④ 1루 쪽',
+      label: LAB_EXTRA_LABEL[x.key],
       url: x.url,
     })),
   ];

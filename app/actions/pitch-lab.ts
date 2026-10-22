@@ -52,6 +52,7 @@ import {
   labHandOf,
   labMetaChips,
   labViewLabel,
+  LAB_EXTRA_LABEL,
   readLabMeta,
 } from '@/lib/pitch-lab-meta';
 import { MECH_FOCUS_POINTS } from '@/lib/pitch-3d/v2/mech-judge';
@@ -412,7 +413,8 @@ export type AppLabDetail = {
   title: string;
   chips: string[];
   status: { text: string; tone: 'sky' | 'muted' | 'warn' } | null;
-  videos: { view: 'side' | 'back'; label: string; url: string | null }[];
+  /** 원본 영상 — 옆 · 뒤(3D 시계를 따라감), 마커 샘플이면 ③ · ④ 카메라까지 최대 넷(2026-10-22 김민: "샘플에서는 최대 4개까지") */
+  videos: { view: 'side' | 'back' | 'cam3' | 'cam4'; label: string; url: string | null }[];
   /** 보여 줄 결과가 있으면 그 둘레(3D 는 embed 가 같은 결과를 그린다) */
   result: {
     handNote: string | null;
@@ -512,11 +514,14 @@ export async function loadAppLabDetail(input: {
     title: labTitle(meta?.createdAt),
     chips: meta ? labMetaChips(meta) : [],
     status: labStatusLabel(job, now),
-    videos: LAB_VIEWS.map((view) => ({
-      view,
-      label: labViewLabel(view, hand),
-      url: sample.videos[view]?.url ?? null,
-    })),
+    videos: [
+      ...LAB_VIEWS.map((view) => ({
+        view,
+        label: labViewLabel(view, hand),
+        url: sample.videos[view]?.url ?? null,
+      })),
+      ...sample.extras.map((x) => ({ view: x.key, label: LAB_EXTRA_LABEL[x.key], url: x.url })),
+    ],
     result: summary,
     waiting: result ? null : labWaitingText(job, now, hasVideos),
     request: (() => {

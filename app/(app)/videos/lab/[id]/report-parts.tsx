@@ -24,13 +24,10 @@ import {
 export function ReportHero({
   report,
   stage,
-  videos,
 }: {
   report: PitchReport;
   /** 3D 인형 칸 */
   stage: ReactNode;
-  /** 원본 영상 두 칸 — 누르면 펼친다 */
-  videos: ReactNode;
 }) {
   const h = report.headline;
   return (
@@ -43,23 +40,22 @@ export function ReportHero({
       </div>
       {/* PC 는 결론이 3D 밑으로 밀려 안 보여 오른쪽 위(VerdictCard)로 */}
       <div className="px-5 pb-5 pt-1 desk:hidden">
-        <Verdict report={report} videos={videos} />
+        <Verdict report={report} />
       </div>
     </section>
   );
 }
 
 /** PC 오른쪽 맨 위의 결론 — 휴대폰은 ReportHero 안에 */
-export function VerdictCard({ report, videos }: { report: PitchReport; videos: ReactNode }) {
+export function VerdictCard({ report }: { report: PitchReport }) {
   return (
     <section className="theme-dark hidden rounded-3xl bg-page p-6 text-ink desk:block">
-      <Verdict report={report} videos={videos} />
+      <Verdict report={report} />
     </section>
   );
 }
 
-function Verdict({ report, videos }: { report: PitchReport; videos: ReactNode }) {
-  const [open, setOpen] = useState(false);
+function Verdict({ report }: { report: PitchReport }) {
   const h = report.headline;
   return (
     <div className="space-y-2.5">
@@ -74,15 +70,6 @@ function Verdict({ report, videos }: { report: PitchReport; videos: ReactNode })
       )}
       <p className="whitespace-pre-line text-xl font-semibold leading-snug break-keep">{h.title}</p>
       {h.why && <p className="text-sm leading-relaxed text-muted break-keep">{h.why}</p>}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="min-h-10 text-footnote font-semibold text-sky"
-      >
-        {open ? '원본 영상 접기' : '원본 영상 보기'}
-      </button>
-      {open && videos}
     </div>
   );
 }

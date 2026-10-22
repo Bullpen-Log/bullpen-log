@@ -161,23 +161,32 @@ export default function LabScreen() {
   const sub = report
     ? `${when} · ${report.ground === 'flat' ? '평지' : '마운드'} · ${report.hand === 'L' ? '왼손' : '오른손'} · 이 한 구 기준`
     : [when, ...data.chips].join(' · ');
+  /*
+   * 원본 영상 — 결과 바로 밑에 늘 보인다(2026-10-22 김민: "결과 밑에 원본 영상도 안 나와" — 예전엔 '원본 영상 보기'를 눌러야 폈다).
+   * 두 칸씩 줄을 바꿔 마커 샘플은 ③ · ④ 까지 넷. 옆 · 뒤는 3D 시계를 따라가고, ③ · ④ 는 맞출 시각 정보가 없어 따로 튼다(조작 막대).
+   */
+  const extras = data.videos.some((v) => v.view === 'cam3' || v.view === 'cam4');
   const sources = (
     <View style={{ gap: 8 }}>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {data.videos.map((v) => (
-          <View key={v.view} style={{ flex: 1, gap: 4 }}>
-            <Text style={[s.small, { color: '#9aa3b8' }]}>{v.label}</Text>
-            {v.url ? (
-              <SourceVideo uri={v.url} view={v.view} onPlayer={register} />
-            ) : (
+          <View key={v.view} style={{ width: '48.5%', flexGrow: 1, gap: 4 }}>
+            <Text style={[s.small, { color: c.muted }]}>{v.label}</Text>
+            {!v.url ? (
               <View style={[s.video, s.centerBox]}>
                 <Text style={[s.small, { color: '#9aa3b8' }]}>영상 없음</Text>
               </View>
+            ) : v.view === 'side' || v.view === 'back' ? (
+              <SourceVideo uri={v.url} view={v.view} onPlayer={register} />
+            ) : (
+              <ExtraVideo uri={v.url} />
             )}
           </View>
         ))}
       </View>
-      <Text style={[s.small, { color: '#9aa3b8' }]}>영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.</Text>
+      <Text style={[s.small, { color: c.muted }]}>
+        {extras ? '옆 · 뒤 영상은 3D 를 따라가요. ③ · ④ 는 따로 틀어요.' : '영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.'}
+      </Text>
     </View>
   );
   const request = !active && typeof id === 'string' && (
@@ -208,7 +217,6 @@ export default function LabScreen() {
                 <ReportHero
                   report={report}
                   stage={<Lab3D ref={lab} id={data.id} width={boxW} bg={STAGE_BG} onTransport={onTransport} stop={report.headline.frame} dark />}
-                  videos={sources}
                 />
               ) : (
                 <>
@@ -216,6 +224,7 @@ export default function LabScreen() {
                   {request}
                 </>
               )}
+              {sources}
             </View>
           }
           right={
@@ -325,6 +334,15 @@ function SourceVideo({
     return () => onPlayer(view, null);
   }, [player, view, onPlayer]);
   return <VideoView player={player} style={s.video} contentFit="contain" nativeControls={false} pointerEvents="none" />;
+}
+
+/** 마커 샘플의 ③ · ④ 원본 — 3D 시계와 맞출 시각이 없어 조작 막대로 따로 튼다 */
+function ExtraVideo({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.muted = true;
+    p.loop = false;
+  });
+  return <VideoView player={player} style={s.video} contentFit="contain" nativeControls />;
 }
 
 /** 결과가 없을 때 3D 칸 — 분석 전 · 기다림 · 실패(웹 V2EmptyWell 과 같은 말). 분석 걸기는 밑의 RequestPanel */
