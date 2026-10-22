@@ -1983,6 +1983,17 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
         b0.J === fr[kk] && b1.J === fr[kk + 1] && between(bm.J.wr, fr[kk].wr, fr[kk + 1].wr) && between(bm.J.la, fr[kk].la, fr[kk + 1].la) &&
           Math.abs(Math.hypot(...bm.F.chest.q) - 1) < 1e-6 && Math.abs(norm(bm.F.throwing.hd) - 1) < 1e-6
       );
+      /* 손 · 발이 팔다리 끝에 붙는다 — 릴리스 근처 장면 사이마다 손 가운데 = 손목 + 손 방향 4.5%(handFrame), 발목 = 정강이 끝 */
+      let worstHand = 0;
+      let worstAnkle = 0;
+      for (let q = Math.max(1, mR.events.release - 15); q < Math.min(fr.length - 2, mR.events.release + 15); q++)
+        for (const uu of [0.25, 0.5, 0.75]) {
+          const b = blendMannequin(fr, F, q, uu);
+          worstHand = Math.max(worstHand, norm(sub(b.F.throwing.hc, add(b.J.wr, scale(b.F.throwing.hd, 0.045 * k)))));
+          worstAnkle = Math.max(worstAnkle, norm(sub(b.F.lead.ankle, b.J.la)) - norm(sub(F[q].lead.ankle, fr[q].la)) - norm(sub(F[q + 1].lead.ankle, fr[q + 1].la)));
+        }
+      check(`장면 사이: 손 가운데가 손목에 붙어 있다(릴리스 앞뒤, 가장 큰 차 ${(worstHand * 1000).toFixed(2)}mm · 1mm 안)`, worstHand < 1e-3);
+      check(`장면 사이: 앞발목이 정강이 끝에서 장면보다 더 떨어지지 않는다(${(worstAnkle * 1000).toFixed(2)}mm)`, worstAnkle < 1e-3);
     }
     /* 같은 몸을 y 로 뒤집고 좌투라고 하면 — 우투 꼴로 돌아와 모든 틀이 같다(거울 규칙의 핵심) */
     const mL: MannequinTrack = {

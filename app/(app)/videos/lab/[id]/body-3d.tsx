@@ -392,21 +392,27 @@ export const Body3D = forwardRef<
         ov.setAna(a);
         if (legendRef.current) legendRef.current.style.opacity = String(a);
       };
-      const refreshOverlay = () => {
-        const J = mann.joints[cur];
-        labels = ov.update(J, mann.frames[cur], labelValues(measureAngles(J), momentOf(cur, shownEvents(result.events)), result.metrics));
+      /*
+       * 자세 하나 그리기 — 장면 k 와 k+1 사이 u(재생 중, blendMannequin). 인형 · 속 뼈 · 잰 선 · 이름표가 같은 자세를 따른다(예전엔 인형만
+       * 장면 사이를 그려 뼈 · 선이 장면마다 끊기며 따라왔고, 멈추면 인형만 사이 자세에 남았다 — 2026-10-22 검토). u = 0 이면 데이터 장면 그대로.
+       */
+      let posed = '';
+      const pose = (k: number, u: number) => {
+        const key = `${k}:${Math.round(u * 1000)}`;
+        if (key === posed) return;
+        posed = key;
+        const { J, F } = blendMannequin(mann.joints, mann.frames, k, u);
+        fig.update(J, F);
+        labels = ov.update(J, F, labelValues(measureAngles(J), momentOf(k, shownEvents(result.events)), result.metrics));
         labelsVersion++;
         if (!isPlaying) setSaid(labels.map((l) => `${l.name} ${labelText(l.key, l.value)}${l.off && l.table != null ? ` (결과 표 ${Math.round(l.table)}°)` : ''}`));
+        dirty = true;
       };
       /* 효과가 다시 돌 때(새 결과) 범례 · 재질을 비침으로 */
       applyAna(1);
       setSaid([]);
       /* 장면 — 인형은 자리 · 회전 · 배율만 바꾼다(도형은 안 만든다). 장면 틀은 useMemo 로 한 번 계산해 둔 것 */
-      const applyFrame = (k: number) => {
-        fig.update(mann.joints[k], mann.frames[k]);
-        refreshOverlay();
-        dirty = true;
-      };
+
       const emit = (reason: Transport['reason']) =>
         transport.current?.({ frame: cur, time: clock, playing: isPlaying, speed: spd, reason });
       const frameAt = (time: number) => {
@@ -421,7 +427,7 @@ export const Body3D = forwardRef<
       };
       const show = (k: number) => {
         cur = Math.max(0, Math.min(n - 1, k));
-        applyFrame(cur);
+        pose(cur, 0);
         setFrame(cur);
       };
       ctrl.current = {
@@ -438,6 +444,10 @@ export const Body3D = forwardRef<
           if (on && cur >= n - 1) {
             show(0);
             clock = t0;
+          } else if (!on) {
+            /* 멈추면 데이터 장면으로 — 장면 사이 자세에 남으면 숫자 · 이름표(데이터 장면)와 어긋난다 */
+            posed = '';
+            show(cur);
           }
           emit('toggle');
         },
@@ -569,15 +579,13 @@ export const Body3D = forwardRef<
           const wrapped = clock > tEnd;
           if (wrapped) clock = t0;
           const k = frameAt(clock);
-          if (k !== cur) show(k);
+          if (k !== cur) {
+            cur = k;
+            setFrame(k);
+          }
           /* 장면 사이도 그린다 — 데이터 장면만 이어 붙이면 느린 재생 · 슬로모 영상에서 끊겨 보였다(blendMannequin) */
           const k1 = Math.min(n - 1, k + 1);
-          const u = k1 > k ? Math.min(1, Math.max(0, (clock - result.t[k]) / (result.t[k1] - result.t[k] || 1))) : 0;
-          if (u > 0) {
-            const b = blendMannequin(mann.joints, mann.frames, k, u);
-            fig.update(b.J, b.F);
-            dirty = true;
-          }
+          pose(k, k1 > k ? Math.min(1, Math.max(0, (clock - result.t[k]) / (result.t[k1] - result.t[k] || 1))) : 0);
           /* 릴리스(주 문제 장면)에서 멈추지 않고 끝까지 · 되풀이(2026-10-22 김민: "끝까지 이어서 재생") — 멈춘 장면은 움직임 줄이기 때만 */
           if (wrapped) {
             lastTick = now;
