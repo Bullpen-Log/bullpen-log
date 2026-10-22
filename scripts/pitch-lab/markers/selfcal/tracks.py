@@ -14,6 +14,13 @@ GROUPS = {
     "L": {"head": [3], "shoulder": [5], "elbow": [7], "wrist": [9, 100], "hip": [11], "knee": [13], "foot": [15, 17, 19]},
     "R": {"head": [4], "shoulder": [6], "elbow": [8], "wrist": [10, 121], "hip": [12], "knee": [14], "foot": [16, 20, 22]},
 }
+# 스티커 묶음 — 'v4' 는 10-21 4차(11개: 골반 앞 · 허리 뒤 · 어깨 봉우리 · 어깨 뒤 좌우, 던지는 오른팔의 팔꿈치 밖 · 손목 둘).
+# 머리 · 무릎 · 발 무리는 없다(그 자리에 잡히는 것은 입술 · 신발 무늬), 왼팔에도 없다(글러브 팔).
+MARKER_SET = os.environ.get("MARKER_SET", "v1")
+if MARKER_SET == "v4":
+    GROUPS = {"L": {"shoulder": [5], "hip": [11]}, "R": {"shoulder": [6], "elbow": [8], "wrist": [10, 121], "hip": [12]}}
+# 궤적 보간에서 허락하는 장면 사이 — 15 Pro Max 는 240 설정에서도 장면을 빠뜨려 사이가 12.5ms 까지 벌어진다(10-21)
+MAX_GAP = float(os.environ.get("MAX_GAP_FRAMES", "2.5")) / 240
 SIDE = {"yellow": "L", "pink": "R"}
 
 
@@ -29,6 +36,8 @@ def load_kp_full(p, c):
 def group_of(xy, kp, sc, side, scale):
     """가장 가까운 무리 관절(확신 0.3↑) — 몸 크기(어깨 가운데~엉덩이 가운데)의 0.45 안일 때만."""
     best, bd = None, 0.45 * scale
+    if MARKER_SET == "v4" and sc[0] >= 0.3 and np.hypot(*(kp[0] - xy)) < 0.3 * scale:
+        return None  # 얼굴(입술 · 볼)의 분홍 — 코 둘레는 스티커가 아니다
     for g, js in GROUPS[side].items():
         for j in js:
             if sc[j] < 0.3:
@@ -94,7 +103,7 @@ def build(p, c, max_jump=0.12):
     return out
 
 
-def at(tr, tq, maxgap=2.5 / 240):
+def at(tr, tq, maxgap=MAX_GAP):
     """궤적을 시각들에서 선형 보간 — 범위 밖이거나 사이가 너무 비면 nan."""
     t = tr["t"]
     i = np.clip(np.searchsorted(t, tq) - 1, 0, len(t) - 2)

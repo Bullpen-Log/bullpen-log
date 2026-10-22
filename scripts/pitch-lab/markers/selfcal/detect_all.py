@@ -4,7 +4,8 @@ import numpy as np, cv2
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mk import markers
 import blobs_v2  # DET_V2=1 이면 2판 찾기(색 넓힘 + top-hat)
-FIND = blobs_v2.find_blobs if os.environ.get("DET_V2") else markers.find_blobs
+import blobs_v3  # DET_V3=1 이면 3판(2판 + 먼 카메라의 하얗게 뜬 분홍, 10-21 4차)
+FIND = blobs_v3.find_blobs if os.environ.get("DET_V3") else blobs_v2.find_blobs if os.environ.get("DET_V2") else markers.find_blobs
 from multiprocessing import Pool
 
 WORK = os.environ.get("MARKER_WORK", os.path.join(os.getcwd(), "work"))  # 영상 · 찾은 자료 폴더(저장소 밖) — 기본은 지금 폴더/work
@@ -34,6 +35,7 @@ def run(path):
     return name, f"{len(frames)} 장면 · {time.time() - t0:.0f}초"
 
 if __name__ == "__main__":
+    os.makedirs(OUT, exist_ok=True)  # 새 세션 폴더에서 처음 돌릴 때(없으면 다 찾고 저장에서 넘어진다)
     vids = sorted(glob.glob(os.path.join(WORK, "..", "videos", "*.mov")))
     if len(sys.argv) > 1:
         vids = [v for v in vids if any(k in os.path.basename(v) for k in sys.argv[1:])]
