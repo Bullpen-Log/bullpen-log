@@ -129,10 +129,19 @@ writeFileSync('public/icons/icon-512.png', await home(512));
 writeFileSync('public/icons/icon-maskable-512.png', await home(512, 0.42));
 
 /* 브라우저 탭 · 아이폰 홈 화면 — 구역마다(app/layout.tsx · app/(app)/layout.tsx 의 metadata.icons) */
-writeFileSync('public/icons/sinker-tab.png', await tabIcon(64));
-writeFileSync('public/icons/sinker-apple.png', await home(180));
-writeFileSync('public/icons/dugout-tab.png', await clearPng(dugoutSvg(64, 0.94)));
-writeFileSync('public/icons/dugout-apple.png', await flatPng(dugoutSvg(180, 0.62, '#ffffff'), 180));
+/*
+ * 파일 이름에 그림 판(-s1)을 넣는다 — 사파리는 탭 아이콘을 주소째 오래 붙들어, 같은 이름(?v= 를 달아도)이면 옛 B 를 계속 보였다(2026-10-22).
+ * 그림을 바꾸면 판을 올리고 lib/brand-metadata.ts 의 이름도 같이 바꾼다. SVG 는 어느 크기에서도 또렷하게(사파리 · 크롬 둘 다 읽는다).
+ */
+mkdirSync('public/brand', { recursive: true });
+writeFileSync('public/brand/sinker-s1.svg', svg(64, 0.88));
+writeFileSync('public/brand/sinker-s1-32.png', await tabIcon(32));
+writeFileSync('public/brand/sinker-s1-64.png', await tabIcon(64));
+writeFileSync('public/brand/sinker-s1-apple.png', await home(180));
+writeFileSync('public/brand/dugout-s1.svg', dugoutSvg(64, 0.94));
+writeFileSync('public/brand/dugout-s1-32.png', await clearPng(dugoutSvg(32, 0.94)));
+writeFileSync('public/brand/dugout-s1-64.png', await clearPng(dugoutSvg(64, 0.94)));
+writeFileSync('public/brand/dugout-s1-apple.png', await flatPng(dugoutSvg(180, 0.62, '#ffffff'), 180));
 
 /* 링크 없이 /favicon.ico 를 묻는 곳(옛 브라우저 · 북마크)에 줄 것 — 바깥 첫 화면이 덕아웃이라 덕아웃 */
 const tab = await Promise.all(
@@ -140,4 +149,4 @@ const tab = await Promise.all(
 );
 writeFileSync('public/favicon.ico', ico(tab));
 
-console.log('아이콘 아홉 개를 만들었습니다.');
+console.log('아이콘을 만들었습니다(public/icons · public/brand).');
