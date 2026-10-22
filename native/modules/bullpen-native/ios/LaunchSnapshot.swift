@@ -9,7 +9,7 @@ import UIKit
 /// 공식 기능이 아니라 iOS 판이 바뀌면 안 먹을 수 있다 — 그래서 셋을 지킨다(2026-10-22 김민: "그 위험을 해결"):
 ///  ① 쓴 그림을 다시 읽어 크기 · 바탕색이 맞을 때만 바꿔 끼운다(깨진 파일로 검은 시작 화면이 되지 않게)
 ///  ② iOS 가 우리 그림을 또 되돌리면(지문이 바뀜) 세다가 두 번이면 그 iOS 판에서는 그만둔다(판이 바뀌면 다시 해 본다)
-///  ③ 안 먹은 때는 LaunchStyleSubscriber 가 iOS 가 보인 장면을 덮었다 걷어 스르르 넘어간다(shownThemed 가 그 판단)
+///  ③ LaunchStyleSubscriber 가 iOS 가 실제로 보인 그림(shownImage)을 덮었다 걷는다 — 먹었으면 테마 그림이라 티가 안 나고, 안 먹었으면 스르르
 /// '자동'으로 돌리면 바꿔 둔 파일을 지운다(iOS 가 스토리보드에서 다시 찍는다). 앱을 새로 깔면 iOS 가 새로 찍어 지문이 달라져 다시 칠한다.
 enum LaunchSnapshot {
     /// 마지막으로 칠한 테마 + 파일 지문 — 같으면 다시 안 칠한다(앱을 켤 때마다 불린다)
@@ -18,10 +18,21 @@ enum LaunchSnapshot {
     private static let revertKey = "bullpen-launch-snapshot-reverts"
     private static let maxReverts = 2
 
-    /// 이번 시작의 첫 장면이 이 테마로 칠한 그림이었나 — 칠한 기록의 테마가 같고 파일 지문이 그대로면(iOS 가 안 바꿨으면) 그렇다
-    static func shownThemed(_ pick: String) -> Bool {
-        guard let done = UserDefaults.standard.string(forKey: doneKey) else { return false }
-        return done == signature(pick, snapshotFiles())
+    /**
+     * 이번 시작에 iOS 가 보인 그림 — 기록으로 짐작하지 않고 파일을 그대로 읽는다(2026-10-23 김민 녹화: 우회는 먹어 네이비로 떴는데
+     * 기록 짐작이 틀려 흰 덮개를 얹어 흰색이 한 번 번쩍였다). 기기가 라이트면 두 장 중 밝은 쪽, 다크면 어두운 쪽 — 안 칠한 두 장(라이트 · 다크),
+     * 다 칠한 두 장(같은 그림), 한 장만 칠한 경우 모두 iOS 가 고른 그림과 같다(네이비는 검정보다 밝고 라이트보다 어둡다).
+     */
+    static func shownImage() -> CGImage? {
+        let images = snapshotFiles().compactMap { url -> (CGImage, Int)? in
+            guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let img = CGImageSourceCreateImageAtIndex(src, 0, nil),
+                  let c = corner(img)
+            else { return nil }
+            return (img, c.reduce(0) { $0 + Int($1) })
+        }
+        let light = UIScreen.main.traitCollection.userInterfaceStyle != .dark
+        return (light ? images.max { $0.1 < $1.1 } : images.min { $0.1 < $1.1 })?.0
     }
     /// 네이비 바탕 — lib/ui.ts page(navy) · LaunchStyleSubscriber 와 같은 값
     private static let navy = UIColor(red: 11 / 255, green: 18 / 255, blue: 32 / 255, alpha: 1)
@@ -57,8 +68,15 @@ enum LaunchSnapshot {
             }
             guard jobs.count == files.count else { return }
             DispatchQueue.global(qos: .utility).async {
-                let ok = jobs.allSatisfy { write($0.2, to: $0.0, type: $0.1) }
-                guard ok else { return }
+                /* 모두 옆에 써서 다 맞을 때만 한꺼번에 바꿔 끼운다 — 한 장만 바뀌어 라이트 · 다크가 엇갈리지 않게 */
+                let staged = jobs.compactMap { job in stage(job.2, type: job.1).map { (job.0, $0) } }
+                guard staged.count == jobs.count else {
+                    staged.forEach { try? FileManager.default.removeItem(at: $0.1) }
+                    return
+                }
+                for (url, tmp) in staged {
+                    if (try? FileManager.default.replaceItemAt(url, withItemAt: tmp)) == nil { try? FileManager.default.removeItem(at: tmp) }
+                }
                 DispatchQueue.main.async { defaults.set(signature(pick, snapshotFiles()), forKey: doneKey) }
             }
         }
@@ -113,22 +131,16 @@ enum LaunchSnapshot {
         return UIGraphicsImageRenderer(size: size, format: format).image { ctx in view.layer.render(in: ctx.cgContext) }.cgImage
     }
 
-    /// 같은 형식으로 옆에 쓰고, 다시 읽어 맞는지 본 뒤 바꿔 끼운다 — 쓰다 끊겨도 · 형식이 어긋나도 원래 그림이 남게
-    private static func write(_ image: CGImage, to url: URL, type: CFString) -> Bool {
+    /// 같은 형식으로 옆에 쓰고 다시 읽어 맞는지 본다 — 맞으면 그 임시 파일, 아니면 nil(원래 그림은 그대로)
+    private static func stage(_ image: CGImage, type: CFString) -> URL? {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("launch-\(UUID().uuidString)")
-        guard let dest = CGImageDestinationCreateWithURL(tmp as CFURL, type, 1, nil) else { return false }
+        guard let dest = CGImageDestinationCreateWithURL(tmp as CFURL, type, 1, nil) else { return nil }
         CGImageDestinationAddImage(dest, image, nil)
         guard CGImageDestinationFinalize(dest), readsBack(tmp, like: image) else {
             try? FileManager.default.removeItem(at: tmp)
-            return false
+            return nil
         }
-        do {
-            _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
-            return true
-        } catch {
-            try? FileManager.default.removeItem(at: tmp)
-            return false
-        }
+        return tmp
     }
 
     /// 쓴 파일을 다시 풀어 크기와 모서리 바탕색이 그린 그림과 같은지(글자 · 그림이 없는 곳이라 바탕만 본다)
@@ -138,7 +150,7 @@ enum LaunchSnapshot {
               back.width == image.width, back.height == image.height,
               let a = corner(back), let b = corner(image)
         else { return false }
-        return zip(a, b).allSatisfy { abs(Int($0) - Int($1)) <= 6 }
+        return zip(a, b).allSatisfy { abs(Int($0) - Int($1)) <= 12 }
     }
 
     private static func corner(_ image: CGImage) -> [UInt8]? {
