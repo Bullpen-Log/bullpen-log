@@ -11,6 +11,19 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — 덕아웃 레슨 코치 찾기 3판(닥터나우식) · **받으면 `npx prisma generate`**
+
+받은 뒤 할 일: **`npx prisma generate`** — `Org` 에 `coachName · lessonSlots(Json) · slotMin · trialPrice · sinkerReview · dummy`, `LessonBooking` 에 `specialty · audience · payMethod · confirmedAt`,
+`LessonReview.tags` 를 더했다(마이그레이션 `20261022110000_lesson_coach_finder`, 공유 DB 에 적용함 — 더하기만, 백업 `db-2026-10-22-10-37.json`). 옛 코드도 돈다.
+금윤호: "레슨 코치 찾기를 닥터나우처럼 — 비교 · 추천 · 간편 예약, 직접 검색, 결제는 껍데기, 관리자가 코치 관리 · 더미 코치". 네 영역은 안 건드렸다(앱 · 엔진 그대로, 메뉴 아이콘도 있는 'users' 를 씀).
+- **화면(덕아웃)**: `/lessons` 허브(검색 · 맞춤 찾기 · 종목 줄 · 내 레슨 · 추천 코치 · 오늘/내일 가능 · 레슨장 찾기) → `/lessons/find`(무엇을 · 누가 · 언제 · 어디서 · 선호, 한 화면 한 질문) →
+  `/lessons/list`(조건 칩 · 정렬 · 비교함 셋 → `/lessons/compare?ids=`) → `/lessons/[id]`(별 분포 · 좋았던 점 집계 · 주간 시간표 · 아래 고정 '레슨 요청') → `/lessons/[id]/book`
+  (날짜 띠 14일 · 코치 시간 칸 · 원하는 때 둘 · 누가 · 결제 수단 **저장만**). 규칙은 `lib/market/lessons.ts`(AUDIENCES · PREFS · 추천 점수 `matchCoach` · `reviewSummary` · `nextOpenLabel`), 읽기 `lib/market/lesson-load.ts`.
+- **코치 쪽**: 설정의 코치 프로필(`components/master/coach-profile-form.tsx`)에 코치 이름 · 체험가 · 레슨 길이 · 요일별 레슨 시간(연습장과 같은 JSON) · 싱커 기록 봐 줌. 요청 화면에 무엇을 · 누가 · 결제 수단 배지.
+- **관리자**: `/admin/coaches`(관리자 첫 화면 카드 · 메뉴 '코치 관리') — 공개 켜고 끄기 · 편집 · 더미 코치 넣기(1~10명, 관리자 계정이 주인 · 끝난 예약 + 후기 같이) · 더미 지우기. 더미는 목록에 바로 뜨고 관리자에게만 '더미' 칩.
+  **지금 공유 DB 에 더미 코치 5명이 들어 있다**(시험하며 넣음 — 다 보면 '더미 모두 지우기'). 더미에 딸린 가짜 예약 · 후기는 내 계정 이름이라 후기 이름을 닥터나우처럼 가렸다(`maskName`, 모든 후기).
+- 시험 `npm run dugout:test`(73) · org:test · native-api:test 통과. 확인은 PC · 휴대폰 375(내장 브라우저)만 — 폰 · 사파리는 아직.
+
 ## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — 덕아웃 → 싱커 시작 판(로고 0.1초 → 풀네임 0.2초 → 로고 자리로) · 네 앱 틀 로고에 표시 하나
 
 받은 뒤 할 일 없음. `components/shell-morph.tsx SinkerIntro` 를 뿌리 레이아웃(app/layout.tsx)에 붙였다 — 두 틀이 바뀌어도 판이 남는다. 싱커 틀의 MorphIn 은

@@ -1441,6 +1441,11 @@
   마이그레이션 `20261020230000_dugout_market` 은 공유 DB 에 걸었다(사용자 허락 패턴). 다음은 2판 레슨 예약(코치 프로필 공개 스위치 · 예약 표).
 - **덕아웃 2 · 3 · 5판(2026-10-21 새벽)** — 레슨 예약 · 장소 예약 · 장비 고르기. 규칙은 `lib/market/{lessons,venues,gear}.ts`(순수), 읽기 `lesson-load` · `venue-load`, 동작 `app/actions/{lessons,venues}.ts`.
   코치 쪽은 마스터 화면(`/master/bookings` · `/master/venues` · 설정의 코치 프로필). 결제(4판)는 계약 뒤. 마이그레이션은 공유 DB 에 걸었다.
+- **덕아웃 레슨 코치 찾기 3판(2026-10-22, 닥터나우 재해석 — 사용자: "기능 · 느낌은 닥터나우, 인터페이스는 우리 방식, 비교 · 추천 · 간편 예약 · 직접 검색, 결제는 기능만, 관리자 코치 관리 · 더미").**
+  허브 `/lessons` → 찾기 `/lessons/find`(한 화면 한 질문 다섯) → 목록 `/lessons/list`(조건은 주소에, 추천 점수 `lib/market/lessons.ts matchCoach` 가 차례 · '왜 추천' 칩) → 비교 `/lessons/compare` →
+  상세 `/lessons/[id]`(아래 고정 CTA) → 예약 `/lessons/[id]/book`(코치의 요일별 시간 `lessonSlots` 를 `lib/market/venues.ts slotsOf` 로 자름 — 연습장과 같은 JSON). 결제 수단은 `LessonBooking.payMethod` 에 저장만.
+  관리자 `/admin/coaches`(공개 · 편집 · 더미 — `lib/market/lesson-dummy.ts makeDummyCoach` 씨앗 생성, 끝난 예약 + 후기를 관리자 계정으로 만들고 `DUMMY_BOOKING_NOTE` 로 '내 것'에서 뺀다).
+  더미 코치는 주인(관리자)도 예약해 본다. 후기 이름은 `maskName`. 남은 것: 폰 · 사파리 확인, 코치 사진(지금은 이름 첫 글자 원), 결제 연동(pay-shell 그대로).
 - **덕아웃 4판 결제는 껍데기(2026-10-21)** — 사용자 지시 "겉만, 결제만 안 되게". `components/dugout/pay-shell.tsx` 하나가 모든 결제 화면의 틀(단추 disabled + '준비 중' 안내), 수수료율은 `lib/market/pay.ts` 상수 셋(가정값).
   화면 다섯(`/dugout/pay/{listing,lesson,venue}/[id]` · `/dugout/me/payments` · `/master/payouts`). 계약 뒤 연동할 때 표(결제 기록)와 단추 동작만 더한다 — 화면은 안 바꾼다.
 - **싱커 · 덕아웃 개편(2026-10-21)** — 계획 `docs/designs/sinker-dugout.md`(결정 9절 · 파트 10절 · 단계 11~12절). 1단계 끝: `lib/brand.ts` · `surfaceOf`(lib/app-env.ts) · `Wordmark brand=` · `[data-brand='dugout']`(globals.css 끝).

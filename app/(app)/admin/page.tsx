@@ -3,7 +3,7 @@ import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import Link from 'next/link';
 import { ChevronRight, Clapperboard, Gauge, ScrollText } from '@/components/icon';
-import { RoundBatter } from '@/components/round-icon';
+import { RoundBatter, RoundLesson } from '@/components/round-icon';
 import { prisma } from '@/lib/prisma';
 import { requirePermission } from '@/lib/dal';
 import { can, isOwner, parseRole } from '@/lib/permissions';
@@ -189,6 +189,21 @@ export default async function AdminPage() {
         콘텐츠 현황 바로 밑에 둔다 — 위 숫자가 '지금 무엇이 있나'이고 이쪽은
         '이 프로그램이 어떻게 여기까지 왔나'라서 이어 읽힌다.
       */}
+      {/* 덕아웃 레슨 코치 관리(2026-10-22) — 공개 · 편집 · 더미 코치 */}
+      <Link
+        href="/admin/coaches"
+        className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-strong text-muted">
+          <RoundLesson aria-hidden className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-ink">코치 관리</span>
+          <span className="block text-xs text-muted">덕아웃 레슨 코치 공개 · 편집 · 더미 코치 넣기</span>
+        </span>
+        <ChevronRight aria-hidden className="h-4 w-4 text-muted" />
+      </Link>
+
       <Link
         href="/admin/patch-notes"
         className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"

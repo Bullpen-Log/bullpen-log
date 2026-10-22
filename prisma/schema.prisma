@@ -1851,6 +1851,15 @@ model Org {
   priceFrom     Int?
   priceNote     String?
   lessonHours   String?
+  /// 레슨 코치 찾기 3판(2026-10-22, 닥터나우식) — 모두 비워 둘 수 있다(더하기만).
+  /// coachName: 코치 이름(비면 마스터 닉네임 — 더미 코치 · 대리 등록용). lessonSlots: 요일별 레슨 가능 시간(lib/market/venues.ts VenueHours 와 같은 JSON),
+  /// slotMin: 한 레슨 길이(분). trialPrice: 첫 레슨 체험가(원). sinkerReview: 싱커 기록 · 영상을 보고 레슨한다. dummy: 관리자가 넣은 더미 코치(한 번에 지운다)
+  coachName     String?
+  lessonSlots   Json?
+  slotMin       Int      @default(60)
+  trialPrice    Int?
+  sinkerReview  Boolean  @default(false)
+  dummy         Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2136,6 +2145,11 @@ model LessonBooking {
   reply     String?   @db.Text
   /// 확정될 때 만든 시간표 줄(OrgEvent.id)
   eventId   String?
+  /// 3판(2026-10-22) — 무엇을(lib/market/lessons.ts SPECIALTIES) · 누가 받나(AUDIENCES) · 결제 수단(PAY_METHODS, 저장만 — 결제는 아직) · 확정한 때(확정 속도 셈)
+  specialty   String?
+  audience    String?
+  payMethod   String?
+  confirmedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -2156,6 +2170,8 @@ model LessonReview {
   /// 1~5
   rating    Int
   body      String   @db.Text
+  /// 좋았던 점 칩(lib/market/lessons.ts REVIEW_TAGS 의 key, 3판)
+  tags      String[] @default([])
   createdAt DateTime @default(now())
 
   org     Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)

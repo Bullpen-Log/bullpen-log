@@ -5,7 +5,7 @@ import { useFormStatus } from 'react-dom';
 import { writeReview, type LessonState } from '@/app/actions/lessons';
 import { Button, FormError, Textarea } from '@/components/ui';
 import { guardFormAction } from '@/lib/action-offline';
-import { REVIEW_MAX } from '@/lib/market/lessons';
+import { REVIEW_MAX, REVIEW_TAGS } from '@/lib/market/lessons';
 
 /** 레슨 후기 — 끝난 예약에만. 별 다섯 중 고르고 한마디 */
 export function ReviewForm({ bookingId }: { bookingId: string }) {
@@ -32,6 +32,18 @@ export function ReviewForm({ bookingId }: { bookingId: string }) {
           >
             ★
           </button>
+        ))}
+      </div>
+      {/* 좋았던 점 칩(3판) — 코치 상세에 몇 명이 골랐는지 모인다 */}
+      <div className="flex flex-wrap gap-1.5">
+        {REVIEW_TAGS.map((t) => (
+          <label
+            key={t.key}
+            className="inline-flex min-h-8 cursor-pointer items-center rounded-full border border-line px-3 text-xs font-semibold text-ink has-checked:border-sky has-checked:bg-sky/10 has-checked:text-sky-strong"
+          >
+            <input type="checkbox" name={`tag-${t.key}`} className="sr-only" />
+            {t.label}
+          </label>
         ))}
       </div>
       <Textarea
