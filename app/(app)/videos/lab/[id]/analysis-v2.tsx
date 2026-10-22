@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Rotate3d } from '@/components/icon';
+import { RoundPitcher } from '@/components/round-icon';
 import Link from 'next/link';
 import { Badge } from '@/components/ui';
 import { ErrorLine } from '@/components/error-line';
@@ -95,7 +95,7 @@ export function V2EmptyWell({
       className="flex aspect-[4/5] max-h-[60vh] w-full flex-col items-center justify-center gap-2 rounded-2xl bg-[#151722] px-6 text-center"
       aria-live="polite"
     >
-      <Rotate3d aria-hidden className="h-7 w-7 text-[#8b93a7]" />
+      <RoundPitcher aria-hidden className="h-7 w-7 text-[#8b93a7]" />
       <p className="text-sm font-semibold text-[#e8eef7] break-keep">{title}</p>
       {line && (
         <p className="max-w-sm text-xs leading-relaxed text-[#9aa3b8] break-keep">

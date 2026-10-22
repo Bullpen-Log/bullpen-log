@@ -6,7 +6,7 @@ import { TAB_SWIPE } from '@/lib/transition-types';
 /* 탭 쓸기(TAB_SWIPE)로 오갈 때는 화면 전환을 걸지 않는다(lib/transition-types.ts) */
 const SWIPE_OFF = { [TAB_SWIPE]: 'none', default: 'auto' };
 import { useRouter } from 'next/navigation';
-import { Rotate3d } from '@/components/icon';
+import { RoundPitcher } from '@/components/round-icon';
 import { RoundRadar, RoundZone } from '@/components/round-icon';
 import { PageHeading } from '@/components/ui';
 import { BullpenWordmark } from '@/components/logo';
@@ -114,7 +114,7 @@ function PitchTools({ canMeasure, canAbs }: { canMeasure: boolean; canAbs: boole
         aria-label="3D 동작 분석"
         className={TOOL_CHIP}
       >
-        <Rotate3d aria-hidden className="h-4 w-4 text-sky-strong" />
+        <RoundPitcher aria-hidden className="h-4 w-4 text-sky-strong" />
         <span aria-hidden className="hidden pad:inline desk:inline">
           3D 동작 분석
         </span>

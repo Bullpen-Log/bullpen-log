@@ -1,5 +1,5 @@
 import { type Href, router } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
+import { Icon } from '~/shell/icon';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppLabList } from '@/app/actions/pitch-lab';
@@ -39,7 +39,7 @@ export default function LabHomeScreen() {
           <View style={{ borderRadius: 20, padding: 20, gap: 14, backgroundColor: c.card, boxShadow: c.float }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: c.skyTint }}>
-                <SymbolView name="figure.baseball" size={24} tintColor={c.skyStrong} />
+                <Icon name="pitcher" size={24} color={c.skyStrong} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>

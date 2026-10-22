@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { ScrollLockScope } from '~/shell/scroll-lock';
 import { SymbolView } from 'expo-symbols';
+import { Icon } from '~/shell/icon';
 import { type Href, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -349,7 +350,7 @@ function ExtraVideo({ uri }: { uri: string }) {
 function Waiting({ waiting }: { waiting: NonNullable<AppLabDetail['waiting']> }) {
   return (
     <View style={[s.well]} accessibilityLiveRegion="polite">
-      {waiting.active ? <ActivityIndicator color="#c7cfdd" /> : <SymbolView name="rotate.3d" size={26} tintColor="#8b93a7" />}
+      {waiting.active ? <ActivityIndicator color="#c7cfdd" /> : <Icon name="pitcher" size={26} color="#8b93a7" />}
       <Text style={[s.bodyBold, s.center, { color: '#e8eef7' }]}>{waiting.title}</Text>
       {waiting.line && <Text style={[s.small, s.center, { color: '#9aa3b8' }]}>{waiting.line}</Text>}
     </View>

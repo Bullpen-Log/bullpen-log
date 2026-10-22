@@ -3,7 +3,8 @@
 import { Fragment, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Camera, ChevronDown, ChevronRight, Film, Folder, Play, Rotate3d, Trash2, Upload } from '@/components/icon';
+import { Camera, ChevronDown, ChevronRight, Film, Folder, Play, Trash2, Upload } from '@/components/icon';
+import { RoundPitcher } from '@/components/round-icon';
 import { BackLink, ButtonLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { DisclosureButton } from '@/components/disclosure';
@@ -183,7 +184,7 @@ export function LabClient({
       )}
       {shown.length === 0 ? (
         <EmptyState
-          icon={<Rotate3d />}
+          icon={<RoundPitcher />}
           title="아직 올린 영상이 없어요"
           description={`같은 공을 옆(${labSideBase(defaultHand)} 쪽)과 뒤(2루 쪽)에서 찍은 영상을 짝으로 올려 주세요.`}
           action={
