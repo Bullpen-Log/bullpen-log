@@ -15,7 +15,8 @@ import { haptic } from '@/lib/haptics';
 import { toast } from '@/components/toast';
 import { dateKeyLabel, weekStartKey } from '@/lib/pitch-stats';
 import { SPORT_LOG_VIEW } from '@/lib/nav';
-import { Film, Rotate3d, Target } from '@/components/icon';
+import { Film, Target } from '@/components/icon';
+import { RoundBatter } from '@/components/round-icon';
 import { HITTING_TYPES, hittingLine, type HittingType } from '@/lib/hitting-log';
 import { deleteHittingLog, saveHittingLog } from '@/app/actions/hitting-log';
 
@@ -274,7 +275,7 @@ export function HittingClient({ today, rows }: { today: string; rows: HittingRow
               <span className="text-footnote font-semibold text-ink">타격 드릴</span>
             </Link>
             <Link href="/hitting/lab" className="flex min-h-18 flex-col items-center justify-center gap-1.5 rounded-2xl border border-line bg-surface px-2">
-              <Rotate3d aria-hidden className="size-5.5 text-sky" />
+              <RoundBatter aria-hidden className="size-5.5 text-sky" />
               <span className="text-footnote font-semibold text-ink">3D 스윙 분석</span>
             </Link>
           </div>

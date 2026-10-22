@@ -4,7 +4,7 @@ import { requireUser } from '@/lib/dal';
 import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { BackLink, PageHeading } from '@/components/ui';
-import { Rotate3d } from '@/components/icon';
+import { RoundBatter } from '@/components/round-icon';
 import { loadAppSwingDetail } from '@/app/actions/swing-lab';
 
 /**
@@ -25,7 +25,7 @@ export default async function SwingSamplePage({ params }: { params: Promise<{ id
       </div>
       {d.memo && <p className="text-sm break-keep text-ink">{d.memo}</p>}
       <div className="flex flex-col items-center gap-2 rounded-2xl bg-[#151722] px-5 py-6 text-center">
-        <Rotate3d aria-hidden className="h-6 w-6 text-[#8b93a7]" />
+        <RoundBatter aria-hidden className="h-6 w-6 text-[#8b93a7]" />
         <p className="text-base font-semibold text-[#e8eef7]">3D 스윙 모델을 만드는 중이에요</p>
         <p className="text-sm break-keep text-[#9aa3b8]">영상은 그대로 두세요. 모델이 열리면 이 스윙으로 리포트를 받을 수 있어요.</p>
       </div>

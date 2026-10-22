@@ -109,3 +109,4 @@ export const RoundShield = make('shield');
 export const RoundPeople = make('people');
 export const RoundFlame = make('flame');
 export const RoundBook = make('book');
+export const RoundBatter = make('batter');

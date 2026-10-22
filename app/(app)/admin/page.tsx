@@ -2,7 +2,8 @@ import { headers } from 'next/headers';
 import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import Link from 'next/link';
-import { ChevronRight, Clapperboard, Gauge, Rotate3d, ScrollText } from '@/components/icon';
+import { ChevronRight, Clapperboard, Gauge, ScrollText } from '@/components/icon';
+import { RoundBatter } from '@/components/round-icon';
 import { prisma } from '@/lib/prisma';
 import { requirePermission } from '@/lib/dal';
 import { can, isOwner, parseRole } from '@/lib/permissions';
@@ -252,7 +253,7 @@ export default async function AdminPage() {
         className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
       >
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-strong text-muted">
-          <Rotate3d aria-hidden className="h-4 w-4" />
+          <RoundBatter aria-hidden className="h-4 w-4" />
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold text-ink">3D 개발 관리자</span>

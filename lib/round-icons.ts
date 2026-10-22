@@ -10,7 +10,9 @@ export type RoundIconName =
   | 'market' | 'lesson' | 'venue' | 'gear' | 'chat' | 'search' | 'plus' | 'heart' | 'star' | 'back' | 'pencil' | 'trash' | 'flag'
   | 'photo-plus' | 'lock' | 'eye-off' | 'user' | 'log' | 'armcare' | 'video' | 'clapper' | 'gauge' | 'shield' | 'people' | 'flame' | 'book'
   /* 20px 밑 작은 자리용 단순판(디자이너 제공 simpler-variants) — 레슨 공 실밥 · 글러브 손가락 · 암케어 맥박을 뺐다 */
-  | 'lesson-simple' | 'gear-simple' | 'armcare-simple';
+  | 'lesson-simple' | 'gear-simple' | 'armcare-simple'
+  /* 배트를 든 타자 — 3D 스윙 분석(2026-10-22). 굵은 선으로 그린 몸(둥근 끝)이라 테두리형은 마스크로 속을 비워 만든다 */
+  | 'batter';
 
 export const ROUND_ICONS: Record<RoundIconName, { outline: string; filled: string }> = {
   home: {
@@ -183,6 +185,11 @@ export const ROUND_ICONS: Record<RoundIconName, { outline: string; filled: strin
     outline: "<g fill=\"none\" stroke=\"currentColor\" stroke-width=\"{{W}}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10 53V31Q10 21 20 21Q29 21 29 31V39H43V27H40Q37 27 37 24V15Q37 9 43 9H48Q54 9 54 15V41Q54 54 41 54H14Q10 54 10 53Z\"/></g>",
     filled: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"black\"><g fill=\"none\" stroke=\"black\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"></g></g></mask></defs><g fill=\"currentColor\" mask=\"url(#{{ID}})\"><path d=\"M10 53V31Q10 21 20 21Q29 21 29 31V39H43V27H40Q37 27 37 24V15Q37 9 43 9H48Q54 9 54 15V41Q54 54 41 54H14Q10 54 10 53Z\"/></g>",
   },
+  batter: {
+    outline: "<defs><mask id=\"{{ID}}\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"64\" height=\"64\"><rect width=\"64\" height=\"64\" fill=\"white\"/><g fill=\"none\" stroke=\"black\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M30 24L31 38\" stroke-width=\"{{I10}}\"/><path d=\"M31 38L21 56\" stroke-width=\"{{I8}}\"/><path d=\"M31 38L43 56\" stroke-width=\"{{I8}}\"/><path d=\"M31 25L39 21\" stroke-width=\"{{I7}}\"/><path d=\"M39 21L50 9\" stroke-width=\"{{I5}}\"/><path d=\"M47 12L54 5\" stroke-width=\"{{I9}}\"/></g></mask></defs><g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><g mask=\"url(#{{ID}})\"><path d=\"M30 24L31 38\" stroke-width=\"{{O10}}\"/><path d=\"M31 38L21 56\" stroke-width=\"{{O8}}\"/><path d=\"M31 38L43 56\" stroke-width=\"{{O8}}\"/><path d=\"M31 25L39 21\" stroke-width=\"{{O7}}\"/><path d=\"M39 21L50 9\" stroke-width=\"{{O5}}\"/><path d=\"M47 12L54 5\" stroke-width=\"{{O9}}\"/></g><circle cx=\"30\" cy=\"10\" r=\"5\" stroke-width=\"{{W}}\"/></g>",
+    filled: "<g fill=\"currentColor\"><g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M30 24L31 38\" stroke-width=\"10\"/><path d=\"M31 38L21 56\" stroke-width=\"8\"/><path d=\"M31 38L43 56\" stroke-width=\"8\"/><path d=\"M31 25L39 21\" stroke-width=\"7\"/><path d=\"M39 21L50 9\" stroke-width=\"5\"/><path d=\"M47 12L54 5\" stroke-width=\"9\"/></g><circle cx=\"30\" cy=\"10\" r=\"5.6\"/></g>",
+  },
+
 };
 
 /** 64 칸 선 굵기 — 원본(2.4)은 큰 그림용이라 메뉴 크기(20~28px)에서 가늘어 lucide(24 칸 2.5 ≈ 64 칸 6.7)와 맞춰 굵게 */
@@ -213,5 +220,9 @@ export function roundIconMarkup(name: RoundIconName, filled: boolean, id: string
   const icon = ROUND_ICONS[name];
   if (filled) return icon.filled.split('{{ID}}').join(id);
   const w = Math.round(stroke * (ROUND_ICON_WEIGHT[name] ?? 1) * 100) / 100;
-  return icon.outline.split('{{W}}').join(String(w));
+  /* {{O8}} · {{I8}} = 굵은 선(두께 8)의 바깥 · 안쪽 지름(두께 ± 선 굵기) — 속을 비운 굵은 몸 그림(batter)용 */
+  return icon.outline
+    .replace(/\{\{([OI])(\d+)\}\}/g, (_, k: string, n: string) => String(Math.max(0, Number(n) + (k === 'O' ? w : -w))))
+    .split('{{ID}}').join(id)
+    .split('{{W}}').join(String(w));
 }
