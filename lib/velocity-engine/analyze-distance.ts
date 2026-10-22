@@ -123,6 +123,12 @@ export const HIGH_MAX_SE_REL = 0.03;
  */
 export const END_EARLY_SIZE = 1.3;
 /**
+ * 투수 뒤인데 공이 카메라에서 이만큼(m) 넘게 가서야 처음 잡혔으면 '낮음'(2.7.8) — 손을 떠난 앞부분이 던지는 사람 몸 · 팔에 가려 궤적의 뒷부분만
+ * 남아 속력이 흔들린다. 10-21 밤 녹화(폰이 던지는 사람 바로 뒤): 4.6m 에서 처음 잡힌 공이 158km/h '높음'(그날 투수 130~140). 스피드건 짝 80구에서
+ * 4.2m 넘게 처음 잡힌 공은 모두 이미 '낮음'이었고 −17 ~ +45% 틀렸다. 잘 잰 '높음'은 3.8m 까지(16m 자리).
+ */
+export const LATE_START_M = 4.2;
+/**
  * 공 크기 거리는 초점거리에 비례한다 — 화각을 짐작했으면(렌즈 정보 · 렌즈 보정 · 앱 카메라 값 없음) 그만큼 더 틀린다. 아이폰 영상 · 웹
  * 카메라의 화각은 짐작과 8% 안팎 갈린다. 부르는 쪽(analyze-video · live-meter)이 ± 에 더하고 이 알림을 붙인다.
  */
@@ -832,13 +838,17 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      * 끝을 일찍 잡아 155.1 로 기록됐다. 삼각대(흔들림 없음)는 '높음' 조건 그대로.
      */
     if (confidence === 'medium' && report.shaky && skipped > 0) confidence = 'low';
-    /* 속력이 흔들리거나(HIGH_MAX_SE_REL) 끝을 일찍 잡았으면(END_EARLY_SIZE) '낮음' — 화면이 까닭을 말한다(2.7.7) */
+    /*
+     * 속력이 흔들리거나(HIGH_MAX_SE_REL) 끝을 일찍 잡았거나(END_EARLY_SIZE) 공이 늦게 잡히기 시작했으면(LATE_START_M) '낮음' — 화면이 까닭을
+     * 말한다(2.7.7 · 2.7.8)
+     */
     const endEarly = report.impact === 'end' && (report.endSizeRatio ?? 0) > END_EARLY_SIZE;
     const speedUnsure = relSe > HIGH_MAX_SE_REL;
-    if (endEarly || speedUnsure) {
+    const lateStart = approach === 'receding' && (report.firstDepthM ?? 0) > LATE_START_M;
+    if (endEarly || speedUnsure || lateStart) {
       confidence = 'low';
-      report.why = endEarly ? 'end-early' : 'speed-unsure';
-    } else if (report.why === 'end-early' || report.why === 'speed-unsure') report.why = undefined;
+      report.why = endEarly ? 'end-early' : speedUnsure ? 'speed-unsure' : 'late-start';
+    } else if (report.why === 'end-early' || report.why === 'speed-unsure' || report.why === 'late-start') report.why = undefined;
     /* 보통이면 왜 높음이 못 됐나 — 화면이 측정 불가 까닭을 말한다(judgeSize 가 why 로 옮긴다) */
     report.soft =
       confidence !== 'medium'
