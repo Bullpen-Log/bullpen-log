@@ -106,6 +106,12 @@ export type LabMeta = {
    */
   personal?: true;
   /**
+   * 마커 샘플 ③ · ④ 카메라가 옆 영상보다 몇 초 늦게 같은 순간에 닿는가(cam 시각 = 옆 시각 + 이 값, 편집 목록 앞머리는 따로) — 3D 를 따라 틀려고
+   * (2026-10-22 김민: "대각선 방향은 아예 재생이 안 됨"). 없으면 0(같은 순간에서 잘랐다고 본다 — 10-12 · 10-16 마커). 10-21 4차는 메모의 공 놓는 때로 채웠다
+   * (scripts/pitch-lab/set-extra-offsets.mjs).
+   */
+  extraOffsets?: Partial<Record<'cam3' | 'cam4', number>>;
+  /**
    * 올린 파일 이름 · 크기(분석 때 원본을 가려내려고) · 지문(lib/pitch-lab-guard.ts — 영상 탓으로 실패한 파일을 다시 안 돌리려고, 옛 샘플은 없다) ·
    * 찍은 시각 · 그 출처 · 길이(lib/pitch-lab-file.ts — 따로 찍은 짝을 서버가 한 번 더 막으려고, 2026-10-15 부터 · 못 읽었으면 없다)
    */
@@ -177,6 +183,13 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
     if (m != null) distances[view] = m;
   }
   const subject = text(v.subject, 20);
+  const rawOff = (v.extraOffsets && typeof v.extraOffsets === 'object' ? v.extraOffsets : {}) as Record<string, unknown>;
+  const offs: Partial<Record<'cam3' | 'cam4', number>> = {};
+  for (const key of ['cam3', 'cam4'] as const) {
+    const x = rawOff[key];
+    if (typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= 30) offs[key] = x;
+  }
+  const extraOffsets = Object.keys(offs).length ? offs : null;
   return {
     synced: v.synced !== false,
     slowmoFps: v.slowmoFps === 120 || v.slowmoFps === 240 ? v.slowmoFps : null,
@@ -189,6 +202,7 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
     memo: text(v.memo, 500),
     ...(subject ? { subject } : {}),
     ...(v.personal === true ? { personal: true as const } : {}),
+    ...(extraOffsets ? { extraOffsets } : {}),
     files,
     kind: v.kind === 'marker' ? 'marker' : 'sample',
     ...(isLabBat(v.bat) ? { bat: v.bat } : {}),
@@ -271,3 +285,6 @@ export function groupLabSamples<T>(
  * (scripts/pitch-lab/markers/selfcal/README.md — ③ 홈 쪽 정면 · ④ 1루 쪽, 기종은 샘플 메모에).
  */
 export const LAB_EXTRA_LABEL: Record<'cam3' | 'cam4', string> = { cam3: '③ 홈 쪽 정면', cam4: '④ 1루 쪽' };
+
+/** 원본 영상마다 3D 시각에 더할 값(초) — 옆 · 뒤는 편집 목록 앞머리, ③ · ④ 는 옆 시각 기준 차이 + 그 파일 앞머리(있는 것만) */
+export type LabShifts = Record<LabView, number> & Partial<Record<'cam3' | 'cam4', number>>;
