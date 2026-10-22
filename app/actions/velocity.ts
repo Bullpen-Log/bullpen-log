@@ -180,6 +180,8 @@ function checkEdit(edit: PitchEdit): { error: string } | PitchEdit {
  * 6.5% 올림). 스피드건 값은 관리자 화면에서 견주기용으로만 쓴다(velocity-admin 의 보정식 미리 보기는 그대로). 이미 저장된 공의 값은 그대로다.
  */
 export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[] }> {
+  /* 서버 동작은 모두 로그인 확인을 거친다(통합 시험) — 늘 빈 식이지만 들머리 규칙은 지킨다 */
+  await getCurrentUser();
   return { fit: fitCalibration([]), pairs: [] };
 }
 

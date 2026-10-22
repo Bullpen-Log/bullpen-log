@@ -209,7 +209,7 @@ export const TAPE_MODES = [
   { value: 'tape', label: '줄자로 쟀어요' },
 ] as const;
 /** '자동'을 골랐을 때 밑의 안내 */
-export const STANDARD_DIST_HINT = '거리는 공 크기로 알아서 재요. 줄자로 쟀으면 넣어도 돼요.';
+export const STANDARD_DIST_HINT = '거리는 공 크기로 알아서 맞춰요. 줄자로 쟀으면 넣어도 돼요.';
 /** 기준 20m 로 재는 폰(화각 모름)에서 공 크기 거리가 기준과 15% 넘게 다를 때(엔진 size-mismatch → '낮음' → 기록 안 함) */
 export const OUT_OF_RANGE_FIX = `폰에서 받는 곳까지가 ${STANDARD_TARGET_DIST_M}m 와 많이 달라 보여요. 줄자로 재서 넣어 주세요.`;
 /**

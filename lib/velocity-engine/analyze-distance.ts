@@ -97,9 +97,11 @@ export const BLOB_SIZE_RATIO = 1.163;
 /*
  * 공마다 공 크기로 거리를 어림할 때(autoDistance, 2.8.0)의 배율 — 1.163 ÷ 1.03. 앱 카메라 영상(1080p · 2배)의 스피드건 짝 묶음 일곱에서 공마다
  * 어림한 거리가 스피드건이 말하는 거리보다 고르게 1.005 ~ 1.058 배(가운데 1.03) 길었다 — 묶음 하나씩 빼고 정해도 1.026 ~ 1.033. 이 값이면 기록한
- * 24구 평균 차이 +0.1%. 기준 20m 의 세션 거리 보정(깨끗한 공만 · 3% 넘을 때만)은 1.163 에 맞춰져 있어 그쪽은 그대로 둔다(1.129 로 바꾸면 스피드건 짝
- * MAE 4.6 → 5.2km/h).
- * ponytail: 같은 덩어리에 배율 둘 — 공마다 거리와 세션 보정이 어긋나는 까닭(공 고르기의 치우침으로 봄)을 자료로 가리면 하나로 합친다.
+ * 24구 평균 차이 +0.1%. 배율은 거리 · 덩어리 크기가 아니라 영상 출처를 따른다 — 공마다 관측(덩어리 지름 × 맞춘 깊이)으로 보니 앱 카메라 묶음은
+ * 밖(10-21 낮 · 녹화 둘) · 실내(10-21 밤) 모두 1.129 에서 평균 차이 ±0.4% 안이고, 1.163 을 맞춘 10-03 밖 카메라 앱 파일만 1.163 이 맞다(덩어리 지름은
+ * 어느 묶음이나 13 ~ 15px — '지름 + c' 꼴로도 안 갈림). 기준 20m 의 세션 보정은 앱 카메라 묶음에서 두 값이 같게 맞고(3% 넘을 때만 · 깨끗한 공만이라
+ * 무디다) 10-03 에서 1.163 이 나아 그대로 둔다.
+ * ponytail: 출처마다 배율 둘 — 카메라 앱 파일도 많이 재게 되면 출처(렌즈 정보가 있는 파일 · 앱 카메라)로 고르는 표 하나로.
  */
 export const AUTO_BLOB_SIZE_RATIO = 1.129;
 /**
@@ -951,15 +953,18 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     };
     judgeSize(out, input.autoDistance ? null : D);
   }
-  /* 자동이면 공 크기로 어림한 거리로 다시 — 넣은 거리로 잰 값이 그럴 수 없는 구속이어도(거리가 크게 틀림) 다시 본다 */
+  /*
+   * 자동이면 공 크기로 어림한 거리로 다시 — 넣은 거리로 잰 값이 그럴 수 없는 구속이어도(거리가 크게 틀림) 다시 본다. 어림이 넣은 거리와 같아도 다시
+   * 부른다(거리 출처가 'ball' 이어야 화면이 공 크기 거리 공으로 센다 — 2.8.0 전에는 0.2% 안이면 건너뛰어 세션 보정에 '넣은 거리' 공으로 섞였다).
+   */
   const sized = report.sizeDistM;
-  if (
-    input.autoDistance &&
-    sized != null &&
-    Math.abs(sized / D - 1) > 0.002 &&
-    (out.measure.ok || out.measure.code === 'IMPLAUSIBLE_SPEED')
-  )
+  if (input.autoDistance && sized != null && (out.measure.ok || out.measure.code === 'IMPLAUSIBLE_SPEED'))
     out = finish(sized, true);
+  else if (input.autoDistance && out.measure.ok) {
+    /* 공 크기 거리를 못 냈다(크기를 잰 장면 8장 밑) — 거리를 모른 채 넣은 거리로 잰 값이라 믿지 않는다(2.8.0) */
+    out.measure.confidence = 'low';
+    out.distance.why = 'no-size';
+  }
   return out;
 }
 
