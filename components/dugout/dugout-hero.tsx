@@ -30,7 +30,7 @@ type Stage = 'splash' | 'hero' | 'home';
 /** 로고만 떠 있는 시간(2026-10-21 금윤호: 1초 → "0.5초로") */
 const SPLASH_MS = 500;
 /** 싱커에서 돌아올 때 — 가운데 로고가 이미 커지며 보였으니 바로 줄어든다(2026-10-21 금윤호 "로고가 떠 있는 시간이 너무 길다") */
-const SPLASH_FROM_SINKER_MS = 250;
+const SPLASH_FROM_SINKER_MS = 100; // 2026-10-22 금윤호 "0.1초로, 그다음 바로 작아지게"
 const COLLAPSE_MS = 620;
 
 export function DugoutHero({
