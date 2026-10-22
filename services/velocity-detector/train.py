@@ -46,6 +46,7 @@ vol = modal.Volume.from_name(f"{APP_NAME}-data", create_if_missing=True)
 CROP = 384  # 학습 조각 한 변(px) — 그림은 긴 변 960
 STRIDE = 4
 MIN_R = 6.0  # 맞았다고 볼 반지름 바닥(px) — 먼 공 지름 6px 쯤
+SIZE_NB = 0  # 크기 감독 칸 반경 — 0 이면 가운데 한 칸(1판), 1 이면 3×3(3판, train(size_nb=1))
 
 
 def load_labels(root: str):
@@ -69,12 +70,22 @@ def split_clips(clips, test_frac=0.2, seed=7):
     return train, test
 
 
+def split_groups(clips, test_groups: str):
+    """3판 — 그룹(날짜 · 녹화)째 떼어 시험. 같은 자리 · 같은 빛의 공이 양쪽에 섞이면 크기를 외워 버린다"""
+    want = {g for g in test_groups.split(",") if g}
+    test = [c for c in clips if c.get("group", c["date"]) in want]
+    return [c for c in clips if c not in test], test
+
+
 def samples_of(clips, root: str):
-    """장면 하나 = (그림 셋 경로(t−2 · t−1 · t), 공 [x, y, d] 또는 None). 앞 두 장면이 없는 첫 둘은 뺀다"""
+    """장면 하나 = (그림 셋 경로(t−2 · t−1 · t), 공 [x, y, d] 또는 None). 앞 두 장면이 없는 첫 둘은 뺀다.
+    3판의 skip 장면(라벨을 맞추다 공 길 밖으로 밀린 끝 장면 — 공이 있는지 모른다)도 뺀다"""
     out = []
     for c in clips:
         fr = c["frames"]
         for i in range(2, len(fr)):
+            if fr[i].get("skip"):
+                continue
             paths = [os.path.join(root, "images", c["id"], fr[j]["file"]) for j in (i - 2, i - 1, i)]
             out.append({"paths": paths, "ball": fr[i]["ball"], "clip": c["id"], "w": c["w"], "h": c["h"], "t": fr[i]["t"]})
     return out
@@ -143,8 +154,12 @@ def make_torch_bits():
                 ix, iy = int(round(gx)), int(round(gy))
                 if 0 <= ix < hm.shape[2] and 0 <= iy < hm.shape[1]:
                     hm[0, iy, ix] = 1.0
-                    sz[0, iy, ix] = math.log(max(2.0, b[2]))
-                    msk[0, iy, ix] = 1.0
+                    for dy in range(-SIZE_NB, SIZE_NB + 1):
+                        for dx in range(-SIZE_NB, SIZE_NB + 1):
+                            jx, jy = ix + dx, iy + dy
+                            if 0 <= jx < hm.shape[2] and 0 <= jy < hm.shape[1]:
+                                sz[0, jy, jx] = math.log(max(2.0, b[2]))
+                                msk[0, jy, jx] = 1.0
             return x, hm, sz, msk, torch.tensor([b[0], b[1], b[2]] if b else [-1.0, -1.0, -1.0])
 
     class Net(nn.Module):
@@ -209,8 +224,18 @@ def evaluate(model, samples, device, thr=0.5):
             px, py = (ix + 0.5) * STRIDE, (iy + 0.5) * STRIDE
             bx, by, bd = (float(v) for v in b)
             has = bx >= 0
+            d_gt = d_near = s_near = None
+            if has:
+                gx, gy = min(score.shape[1] - 1, max(0, int(bx / STRIDE))), min(score.shape[0] - 1, max(0, int(by / STRIDE)))
+                d_gt = float(torch.exp(out[1, gy, gx]))
+                rad = max(2, int(math.ceil(max(MIN_R, bd) / STRIDE)))
+                y0, y1, x0, x1 = max(0, gy - rad), min(score.shape[0], gy + rad + 1), max(0, gx - rad), min(score.shape[1], gx + rad + 1)
+                win = score[y0:y1, x0:x1]
+                jy, jx = divmod(int(win.argmax()), win.shape[1])
+                s_near = float(win[jy, jx])
+                d_near = float(torch.exp(out[1, y0 + jy, x0 + jx]))
             hit = bool(has and math.hypot(px - bx, py - by) <= max(MIN_R, bd))
-            rows.append({"clip": samples[k]["clip"], "t": samples[k]["t"], "has": has, "d": bd if has else None, "score": s, "hit": hit, "dist": math.hypot(px - bx, py - by) if has else None, "d_pred": d_pred})
+            rows.append({"clip": samples[k]["clip"], "t": samples[k]["t"], "has": has, "d": bd if has else None, "score": s, "hit": hit, "dist": math.hypot(px - bx, py - by) if has else None, "d_pred": d_pred, "d_gt": d_gt, "d_near": d_near, "s_near": s_near})
     pos = [r for r in rows if r["has"]]
     neg = [r for r in rows if not r["has"]]
     bins = [("<8", lambda d: d < 8), ("8~15", lambda d: 8 <= d < 15), ("15+", lambda d: d >= 15)]
@@ -242,22 +267,41 @@ def evaluate(model, samples, device, thr=0.5):
 
 
 @app.function(gpu=GPU, volumes={DATA: vol}, timeout=3 * 3600)
-def train(epochs: int = 30, limit: int = 0, batch: int = 16, lr: float = 1e-3, tag: str = "v1", dataset: str = "detector-v1"):
+def train(epochs: int = 30, limit: int = 0, batch: int = 16, lr: float = 1e-3, tag: str = "v1", dataset: str = "detector-v1",
+          test_groups: str = "", init: str = "", size_w: float = 0.5, size_nb: int = 0, max_engine_err: float = 0.0):
+    import tarfile
+
+    global SIZE_NB
+    SIZE_NB = size_nb  # 자료 일꾼(fork)이 물려받는다
+
     import torch
     from torch.utils.data import DataLoader
 
     root = os.path.join(DATA, dataset)
+    if not os.path.exists(os.path.join(root, "labels.json")) and os.path.exists(f"{root}.tar"):
+        # 작은 파일 수천 개를 올리면 modal volume put 이 멈춰서(10-22) 묶음 하나로 올리고 여기서 푼다
+        with tarfile.open(f"{root}.tar") as tf:
+            tf.extractall(DATA)
+        vol.commit()
     L = load_labels(root)
     clips = L["clips"]
     if limit:
         clips = clips[:limit]
-    tr_clips, te_clips = split_clips(clips)
+    tr_clips, te_clips = split_groups(clips, test_groups) if test_groups else split_clips(clips)
+    if max_engine_err > 0:
+        # 3판 — 엔진 구속이 스피드건과 크게 다른 공은 궤적 모양부터 틀려 '진짜 지름' 라벨도 틀린다. 학습에서만 뺀다(시험은 그대로)
+        keep = [c for c in tr_clips if c.get("gun") and c.get("kmh") and abs(c["kmh"] / c["gun"] - 1) <= max_engine_err]
+        print(f"라벨 믿음 거르기 — 학습 클립 {len(tr_clips)} → {len(keep)}(엔진 · 건 차이 {max_engine_err:.0%} 안)")
+        tr_clips = keep
     tr = samples_of(tr_clips, root)
     te = samples_of(te_clips, root)
     Crops, Net, focal_loss, _ = make_torch_bits()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"장치 {device} · 학습 클립 {len(tr_clips)} 장면 {len(tr)}(공 {sum(1 for s in tr if s['ball'])}) · 시험 클립 {len(te_clips)} 장면 {len(te)}")
     model = Net().to(device)
+    if init:
+        model.load_state_dict(torch.load(os.path.join(DATA, "out", init, "model.pt"), map_location=device))
+        print(f"시작 무게 /out/{init}")
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=lr, total_steps=max(1, epochs * math.ceil(len(tr) / batch)))
     dl = DataLoader(Crops(tr, train=True), batch_size=batch, shuffle=True, num_workers=6, drop_last=True, persistent_workers=True)
@@ -270,7 +314,7 @@ def train(epochs: int = 30, limit: int = 0, batch: int = 16, lr: float = 1e-3, t
             out = model(x)
             loss_hm = focal_loss(out[:, :1], hm)
             loss_sz = ((out[:, 1:] - sz).abs() * msk).sum() / msk.sum().clamp(min=1)
-            loss = loss_hm + 0.5 * loss_sz
+            loss = loss_hm + size_w * loss_sz
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()
@@ -322,6 +366,7 @@ def export_onnx(tag: str = "v1"):
 
 
 @app.local_entrypoint()
-def main(epochs: int = 30, limit: int = 0, batch: int = 16, lr: float = 1e-3, tag: str = "v1", dataset: str = "detector-v1"):
-    rep = train.remote(epochs=epochs, limit=limit, batch=batch, lr=lr, tag=tag, dataset=dataset)
+def main(epochs: int = 30, limit: int = 0, batch: int = 16, lr: float = 1e-3, tag: str = "v1", dataset: str = "detector-v1",
+         test_groups: str = "", init: str = "", size_w: float = 0.5, size_nb: int = 0, max_engine_err: float = 0.0):
+    rep = train.remote(epochs=epochs, limit=limit, batch=batch, lr=lr, tag=tag, dataset=dataset, test_groups=test_groups, init=init, size_w=size_w, size_nb=size_nb, max_engine_err=max_engine_err)
     print(f"끝 — 재현율 {rep['recall']:.3f} · 헛 알림 {rep['false_alarm']:.3f} · {rep['seconds']}초 · 결과 /out/{tag}")
