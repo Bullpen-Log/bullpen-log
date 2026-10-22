@@ -1,6 +1,7 @@
 import { ensureSim, simOffsetMs } from '@/lib/clock-server';
 import { SimClockSync } from '@/components/sim-clock-sync';
 import type { Metadata, Viewport } from 'next';
+import { SinkerIntro } from '@/components/shell-morph';
 import { DUGOUT_METADATA } from '@/lib/brand-metadata';
 import { SITE_URL } from '@/lib/site-url';
 import { Bebas_Neue } from 'next/font/google';
@@ -132,6 +133,8 @@ export default async function RootLayout({
         <link rel="stylesheet" href="/fonts/pretendard/pretendard.css" />
       </head>
       <body className="min-h-full font-sans">
+        {/* 덕아웃 → 싱커 시작 판 — 두 틀이 바뀌어도 남도록 뿌리에(components/shell-morph.tsx) */}
+        <SinkerIntro />
         {children}
         {/* 손가락으로 누른 것을 옅게 — 아이폰 단추처럼(globals.css '손가락으로 눌렀을 때') */}
         <PressFeedback />

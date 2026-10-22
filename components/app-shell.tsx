@@ -1127,7 +1127,7 @@ export function AppNav({
         data-morph-side
         className="ui-chrome fixed left-6 top-6 z-40 hidden items-center gap-2 desk:flex"
       >
-        <Wordmark className="text-2xl text-ink" />
+        <Wordmark morphTarget className="text-2xl text-ink" />
       </Link>
 
       {/*

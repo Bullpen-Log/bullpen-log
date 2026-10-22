@@ -2927,7 +2927,10 @@ html[data-splash-skip] .app-splash {
 /* S 칸 — 로고 높이는 대문자 높이 0.7em, 바닥을 기준선에(components/logo.tsx Wordmark 와 같다). 보이지 않고 자리만 */
 .app-splash__slot {
   display: inline-block;
-  height: 0.7em;
+  /* S 몸통이 대문자 높이, 화살표만 기준선 밑으로(components/logo.tsx Wordmark 와 같은 0.794em · 0.094em) */
+  position: relative;
+  top: 0.094em;
+  height: 0.794em;
   margin-right: 0.05em;
   visibility: hidden;
 }
@@ -3906,6 +3909,16 @@ html[data-morph='to-sinker-out'] [data-morph-main] {
 }
 html[data-morph='in'] [data-morph-main] {
   animation: morph-main-in 440ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+/*
+ * 덕아웃 → 싱커(components/shell-morph.tsx SinkerIntro) — 새 싱커 틀이 붙어도 시작 판이 이름을 다 보일 때까지는 숨은 채 기다린다(to-sinker-wait),
+ * 그다음 'in' 으로 펴진다. 이름이 왼쪽 위 로고 자리로 날아오는 동안 진짜 로고는 숨긴다(html[data-morph-fly]) — 두 개가 겹쳐 보이지 않게.
+ */
+html[data-morph='to-sinker-wait'] :is([data-morph-main], [data-morph-chrome] > *, [data-morph-side]) {
+  opacity: 0;
+}
+html[data-morph-fly] [data-morph-logo] {
+  opacity: 0;
 }
 html[data-morph='to-sinker-out'] [data-morph-chrome] > * {
   animation: morph-chrome-out 240ms ease-in forwards;

@@ -12,6 +12,12 @@ const MARK_PATH =
 const BRAND = '#0297e4';
 /** 로고 너비 ÷ 높이(웹 MARK_VIEWBOX 0 0 1006 1001) — 시작 연출이 칸 너비를 셀 때 쓴다 */
 export const MARK_ASPECT = 1006 / 1001;
+/**
+ * 로고 높이 · 내림(2026-10-22 금윤호 "S 로고와 INKER 의 아래 끝이 안 맞는다") — 로고 전체(1001칸) 중 S 몸통(위 ~ 아래 막대, 882칸)이 글자 높이(0.7em)와 같고,
+ * 밑의 화살표 끝(119칸)만 기준선 밑으로 내려간다(글자의 내림처럼). 그래서 전체 높이 0.7 × 1001/882 ≈ 0.794em, 기준선 밑으로 0.094em.
+ */
+export const MARK_EM = 0.7 * (1001 / 882);
+export const MARK_DROP = MARK_EM - 0.7;
 
 export function SinkerMark({ height }: { height: number }) {
   return (
@@ -21,13 +27,13 @@ export function SinkerMark({ height }: { height: number }) {
   );
 }
 
-/** size = 글자 크기(웹 text-2xl = 24) — 로고는 대문자 높이(0.7em)로, 바닥을 글자 기준선에 붙인다 */
+/** size = 글자 크기(웹 text-2xl = 24) — S 몸통이 대문자 높이(0.7em), 아래 막대가 기준선에 앉고 화살표만 밑으로(MARK_EM · MARK_DROP) */
 export function Wordmark({ size = 24, color }: { size?: number; color: string }) {
   return (
     <View accessible accessibilityRole="header" accessibilityLabel="싱커" style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
       {/* DIN Condensed 의 글자 상자 밑은 기준선보다 0.3em 쯤 아래(시작 연출 화면에서 잼) — 그만큼 띄워 로고 바닥을 기준선에 */}
-      <View style={{ marginRight: size * 0.05, marginBottom: size * 0.3 }}>
-        <SinkerMark height={size * 0.7} />
+      <View style={{ marginRight: size * 0.05, marginBottom: size * (0.3 - MARK_DROP) }}>
+        <SinkerMark height={size * MARK_EM} />
       </View>
       <Text style={{ fontFamily: 'DINCondensed-Bold', fontSize: size, color, letterSpacing: size * 0.02, lineHeight: size }}>INKER</Text>
     </View>

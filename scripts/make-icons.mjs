@@ -123,10 +123,6 @@ const clearPng = (markup) => sharp(Buffer.from(markup)).png().toBuffer();
 
 mkdirSync('public/icons', { recursive: true });
 
-/* 홈 화면에 앱으로 추가(PWA, app/manifest.ts) — 싱커(첫 화면이 /today) */
-writeFileSync('public/icons/icon-192.png', await home(192));
-writeFileSync('public/icons/icon-512.png', await home(512));
-writeFileSync('public/icons/icon-maskable-512.png', await home(512, 0.42));
 
 /* 브라우저 탭 · 아이폰 홈 화면 — 구역마다(app/layout.tsx · app/(app)/layout.tsx 의 metadata.icons) */
 /*
@@ -142,6 +138,10 @@ writeFileSync('public/brand/dugout-s1.svg', dugoutSvg(64, 0.94));
 writeFileSync('public/brand/dugout-s1-32.png', await clearPng(dugoutSvg(32, 0.94)));
 writeFileSync('public/brand/dugout-s1-64.png', await clearPng(dugoutSvg(64, 0.94)));
 writeFileSync('public/brand/dugout-s1-apple.png', await flatPng(dugoutSvg(180, 0.62, '#ffffff'), 180));
+/* 홈 화면에 앱으로 추가(PWA, app/manifest.ts) — 사이트의 기본 얼굴은 덕아웃(2026-10-22 금윤호), 첫 화면도 덕아웃 홈(/) */
+writeFileSync('public/brand/dugout-s1-192.png', await flatPng(dugoutSvg(192, 0.62, '#ffffff'), 192));
+writeFileSync('public/brand/dugout-s1-512.png', await flatPng(dugoutSvg(512, 0.62, '#ffffff'), 512));
+writeFileSync('public/brand/dugout-s1-maskable-512.png', await flatPng(dugoutSvg(512, 0.5, '#ffffff'), 512));
 
 /* 링크 없이 /favicon.ico 를 묻는 곳(옛 브라우저 · 북마크)에 줄 것 — 바깥 첫 화면이 덕아웃이라 덕아웃 */
 const tab = await Promise.all(

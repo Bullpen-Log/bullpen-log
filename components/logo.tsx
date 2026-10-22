@@ -14,7 +14,7 @@ export const MARK_PATH =
 /** 싱커 로고 하나 — 크기는 바깥에서 className 으로(높이만 주면 너비는 따라온다) */
 export function SinkerMark({ className = '' }: { className?: string }) {
   return (
-    <svg viewBox={MARK_VIEWBOX} aria-hidden className={`w-auto shrink-0 fill-brand ${className}`}>
+    <svg viewBox={MARK_VIEWBOX} aria-hidden className={`shrink-0 fill-brand ${className}`}>
       <path d={MARK_PATH} />
     </svg>
   );
@@ -45,14 +45,24 @@ export function DugoutMark({ className = '' }: { className?: string }) {
 export function Wordmark({
   className = '',
   brand = 'sinker',
+  morphTarget = false,
 }: {
   className?: string;
   brand?: 'sinker' | 'dugout';
+  /** 덕아웃 → 싱커 시작 판(components/shell-morph.tsx SinkerIntro)의 이름이 날아와 앉을 자리 */
+  morphTarget?: boolean;
 }) {
   if (brand === 'sinker') {
     return (
-      <span className={`text-display inline-flex items-baseline whitespace-nowrap leading-none ${className}`}>
-        <SinkerMark className="mr-[0.05em] h-[0.7em]" />
+      <span
+        data-morph-logo={morphTarget || undefined}
+        className={`text-display inline-flex items-baseline whitespace-nowrap leading-none ${className}`}
+      >
+        {/*
+          * S 아래 막대(1001칸 중 882칸)를 글자 기준선에 — 몸통이 대문자 높이 0.7em, 화살표만 밑으로(2026-10-22 금윤호 "s로고 밑의 평평한 부분으로 높이를 맞춰").
+          * 크기는 높이 · 폭 둘 다 적고(w-auto 는 사파리 플렉스에서 0 이 되어 로고가 사라졌다) 내림은 transform 으로(position 을 바꾸지 않는다).
+          */}
+        <SinkerMark className="mr-[0.05em] h-[0.794em] w-[0.798em] translate-y-[0.094em]" />
         <span aria-hidden>INKER</span>
         <span className="sr-only">싱커</span>
       </span>

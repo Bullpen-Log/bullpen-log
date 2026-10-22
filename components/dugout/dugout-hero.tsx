@@ -81,9 +81,14 @@ export function DugoutHero({
     const measure = () => {
       const r = logoBox.current?.getBoundingClientRect();
       if (!r) return;
+      /*
+       * 화면 가운데는 스크롤 막대를 뺀 폭(clientWidth)으로 — 싱커에서 올 때의 가운데 로고(shell-morph MorphOverlay, fixed 판)와 같은 셈.
+       * innerWidth 로 재면 스크롤 막대 반만큼(약 5px) 옆으로 어긋나 로고가 넘겨받을 때 툭 움직였다(2026-10-22 금윤호 "덕아웃 로고 위치가 맞지 않고").
+       */
+      const root = document.documentElement;
       setCenter({
-        x: window.innerWidth / 2 - (r.left + r.width / 2),
-        y: window.innerHeight / 2 - (r.top + r.height / 2),
+        x: root.clientWidth / 2 - (r.left + r.width / 2),
+        y: root.clientHeight / 2 - (r.top + r.height / 2),
         /* 크기는 lib/brand.ts splashScale — 싱커에서 돌아올 때의 가운데 로고와 같은 값 */
         scale: splashScale(r.width, window.innerWidth),
       });
@@ -241,10 +246,16 @@ export function DugoutHero({
           <div
             inert={splash || home}
             data-brand="dugout"
-            className={`fixed inset-x-0 top-0 z-30 flex items-center justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-3 pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] text-[15px] transition-opacity duration-700 md:px-10 lg:px-14 ${
+            /* 싱커로 넘어갈 때 덕아웃 위 막대 칸들과 같이 접힌다(globals.css 'to-sinker-out') — 예전엔 빈 화면 위에 남았다가 툭 사라졌다 */
+            data-morph-chrome
+            /*
+             * 들어올 때는 로고가 제자리로 줄어드는 동안 위에서 살짝 내려오며 옅게 나타난다(2026-10-22 금윤호 "우상단 · 좌상단이 뿅 하고 튀어나온다") —
+             * 예전엔 투명도만 0.7초 늦게 바뀌어 다 늦게 한꺼번에 생겼다.
+             */
+            className={`fixed inset-x-0 top-0 z-30 flex items-center justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-3 pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] text-[15px] transition-[opacity,transform] duration-[600ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] md:px-10 lg:px-14 ${
               splash || home
-                ? 'pointer-events-none opacity-0'
-                : 'opacity-100 delay-[450ms]'
+                ? 'pointer-events-none -translate-y-2 opacity-0'
+                : 'translate-y-0 opacity-100 delay-[250ms]'
             }`}
           >
             <nav className="flex items-center gap-6 font-medium text-muted">

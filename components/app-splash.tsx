@@ -79,7 +79,13 @@ function seenOnClientMount() {
 const noSubscribe = () => () => {};
 
 export function AppSplash() {
-  const [show, setShow] = useState(() => !played && !seenOnClientMount());
+  /* 덕아웃에서 넘어오는 중이면(html[data-morph]) 틀지 않는다 — 시작 판(components/shell-morph.tsx SinkerIntro)이 같은 일을 이미 한다 */
+  const [show, setShow] = useState(
+    () =>
+      !played &&
+      !seenOnClientMount() &&
+      !(typeof document !== 'undefined' && document.documentElement.dataset.morph)
+  );
   /* 서버 HTML 을 그리거나 붙는(hydration) 중인가 — 클라이언트 이동으로 새로 그릴 때는 <script> 가 돌지 않고 React 가 콘솔 오류만
      낸다(체크인 건너뛰기 → 홈, 2026-10-17 QA). 그때 표시는 아래 효과가 단다 */
   const fromServer = useSyncExternalStore(noSubscribe, () => false, () => true);
