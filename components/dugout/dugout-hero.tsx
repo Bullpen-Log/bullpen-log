@@ -338,7 +338,7 @@ export function DugoutHero({
 
       {/* 가운데 — 로고 · 검색 · 단추 */}
       {/* 가운데보다 조금 위로(2026-10-22 금윤호 "덕아웃 · 아이콘이 좀 밑에 있어 — 올려줘") — 숨은 위 막대만큼 판이 밀린 것도 덜어 낸다 */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center px-4 pb-[12vh]">
+      <div className="absolute inset-0 flex flex-col items-center justify-center px-4 pb-[20vh]">
         {/* 바깥 칸은 홈 자리 그대로(재는 기준), 안쪽만 움직인다 */}
         <div ref={logoBox} className="flex flex-col items-center">
           <div
@@ -378,7 +378,14 @@ export function DugoutHero({
       <button
         type="button"
         onClick={() => stage === 'hero' && go('home')}
-        className={`fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-10 mx-auto flex w-fit flex-col items-center gap-0 px-4 pt-2 text-xs font-medium text-muted transition-opacity duration-700 hover:text-ink ${splash || home ? 'pointer-events-none opacity-0' : 'opacity-100 delay-[900ms]'}`}
+        className={`fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-10 mx-auto flex w-fit flex-col items-center gap-0 px-4 pt-2 text-xs font-medium text-muted hover:text-ink ${splash || home ? 'pointer-events-none opacity-0' : 'opacity-100'}`}
+        /* 접힐 때 첫 화면 판과 같이 위로 올라간다(같은 시간 · 같은 곡선) — 제자리에 남아 옅어지기만 하면 따로 노는 것 같았다(2026-10-22 금윤호) */
+        style={{
+          transform: home ? 'translateY(calc(-1 * var(--vvh, 100dvh)))' : 'none',
+          transition: home
+            ? `transform ${COLLAPSE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity ${COLLAPSE_MS}ms ease-in`
+            : 'transform 0s, opacity 700ms ease 900ms',
+        }}
       >
         <span>아래로 스크롤</span>
         <span data-motion-keep aria-hidden className="block animate-[scroll-hint_1.6s_ease-in-out_infinite]">
