@@ -105,6 +105,7 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   'sinker-log': sinkerLog,
   sharing: sharing,
   push: push,
+  /* 알림 종 창(2026-10-22 — 앱 홈 종 · 웹 싱커 · 덕아웃 종이 같은 목록) */
   notifications: notifications,
   'login-ticket': loginTicket,
   mechanics: mechanics,

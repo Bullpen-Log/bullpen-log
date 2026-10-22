@@ -5,13 +5,14 @@ import { usePathname } from 'next/navigation';
 import { RoundPlus } from '@/components/round-icon';
 import { Wordmark } from '@/components/logo';
 import { MorphLink } from '@/components/shell-morph';
+import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
 
 /**
  * 덕아웃 위 막대(2026-10-21 2단계, docs/designs/sinker-dugout.md 5-1) — 웹사이트 전체의 공용 머리. 덕아웃 바깥 공간(components/dugout/dugout-shell) ·
  * PC 브라우저의 선수 화면(app/(app)/layout.tsx, brand 'sinker') · 관리(app/(master)/layout.tsx) 모두 이것 하나를 맨 위에 둔다.
  *
  * 오른쪽의 '싱커'(2026-10-21 금윤호: "내 싱커가 아니라 싱커를 누르면 싱커의 홈으로")는 싱커 홈(/today)으로 변형하며 넘어간다(components/shell-morph.tsx).
- * '관리'(/manage)는 팀 · 레슨장 계정 · 관리자에게. brand 'sinker' 면 싱커 틀의 머리 — 덕아웃 메뉴 없이 SINKER 이름표 · 알림 · 관리만(덕아웃으로 돌아가는 길은
+ * '관리'(/manage)는 팀 · 레슨장 계정 · 관리자에게. 맨 오른쪽은 알림(종 밑 작은 창) · 설정(2026-10-22). brand 'sinker' 면 싱커 틀의 머리 — 덕아웃 메뉴 없이 SINKER 이름표 · 알림 · 관리만(덕아웃으로 돌아가는 길은
  * 홈 아이콘 왼쪽의 원형 뒤로가기, components/app-shell.tsx · mobile-tabs.tsx).
  */
 export function DugoutTopBar({
@@ -56,7 +57,6 @@ export function DugoutTopBar({
         { href: '/venues', label: '연습장' },
         { href: '/gear', label: '장비' },
         { href: '/chat', label: '채팅', badge: unread },
-        ...(user ? [{ href: '/notifications', label: '알림', badge: alerts }] : []),
       ];
   const active = (href: string, exact?: boolean) =>
     inDugout &&
@@ -121,11 +121,6 @@ export function DugoutTopBar({
           )}
           {user ? (
             <>
-              {isSinkerBar && (
-                <Link href="/notifications" className={item(false)}>
-                  알림{badge(alerts)}
-                </Link>
-              )}
               {sinker &&
                 !isSinkerBar &&
                 (native ? (
@@ -151,6 +146,8 @@ export function DugoutTopBar({
                   {user.nickname}
                 </Link>
               )}
+              {/* 알림은 종 밑 작은 창으로(2026-10-22 — 예전 '알림' 메뉴는 /notifications 로 옮겨 갔다), 설정은 맨 오른쪽 위 */}
+              <DugoutBell initial={alerts} />
             </>
           ) : (
             <>
@@ -168,6 +165,7 @@ export function DugoutTopBar({
               </Link>
             </>
           )}
+          <DugoutSettings />
         </div>
       </div>
     </header>

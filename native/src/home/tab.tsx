@@ -25,6 +25,7 @@ import { FeedCard } from './feed';
 import { RingsCard } from './rings';
 import { AllDone } from './all-done';
 import { CameraSwipe } from './camera-swipe';
+import { useUnreadNotifications } from './notifications';
 import { READABLE } from '~/lib/layout';
 import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 
@@ -216,8 +217,8 @@ export function HomeTab({
       pathname: '/notice' as Href as never,
       params: { date: today, checkin: home?.checkinDone ? '1' : '0', pitch: home?.pitchDone ? '1' : '0', locked: home?.pitchLocked ? '1' : '0' },
     });
-  /* 종의 주황 점 — 체크인 · 오늘 투구 중 남은 것이 있으면(웹 notice-bell pendingCount) */
-  const pending = home ? (home.checkinDone ? 0 : 1) + (home.pitchDone || home.pitchLocked ? 0 : 1) : 0;
+  /* 종의 점 — 안 읽은 진짜 알림(2026-10-22 금윤호 "진짜 알림으로" — 웹 notice-bell 과 같게). 오늘 할 일은 종 창 안에만 */
+  const pending = useUnreadNotifications();
 
   return (
     <CameraSwipe enabled={!home?.pitchLocked}>
@@ -351,7 +352,7 @@ export function HomeTab({
         <Wordmark color={c.ink} />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={pending > 0 ? `알림, 오늘 할 일 ${pending}개` : '알림'}
+          accessibilityLabel={pending > 0 ? `알림, 안 읽은 알림 ${pending}개` : '알림'}
           onPress={openNotice}
           hitSlop={6}
           style={({ pressed }) => [styles.bell, pressed && { backgroundColor: c.chip }]}

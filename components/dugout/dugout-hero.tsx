@@ -9,7 +9,8 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { RoundBell, RoundChat, RoundMenu } from '@/components/round-icon';
+import { RoundChat, RoundMenu } from '@/components/round-icon';
+import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
 import { AppLauncher } from '@/components/dugout/app-launcher';
 import { splashScale } from '@/lib/brand';
 import { Wordmark } from '@/components/logo';
@@ -132,6 +133,10 @@ export function DugoutHero({
       if (busy.current || stageRef.current !== 'hero') return;
       busy.current = true;
       go('home');
+      /*
+       * 굴려서 접혔으면 그만큼 내려간 채라 홈 맨 위('내 싱커' 띠)가 위 막대 밑에 숨었다(2026-10-22 금윤호 "화면이 잘린다") — 접히면 맨 위에서 시작
+       */
+      window.scrollTo({ top: 0, behavior: 'instant' });
       window.setTimeout(() => (busy.current = false), COLLAPSE_MS);
     };
     const expand = () => {
@@ -224,8 +229,10 @@ export function DugoutHero({
       className="relative -mx-4 -mt-5 overflow-hidden md:-mx-6 md:-mt-8"
       style={{
         height: home ? 0 : 'calc(var(--vvh, 100dvh))',
+        /* 접히면 틀의 본문 여백(위)을 돌려줘 홈 내용이 위 막대에 붙지 않게 — 예전엔 0 간격이라 조금만 굴려도 잘렸다 */
+        marginTop: home ? 0 : undefined,
         marginBottom: home ? 0 : undefined,
-        transition: `height ${COLLAPSE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1)`,
+        transition: `height ${COLLAPSE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1), margin ${COLLAPSE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1)`,
       }}
     >
       {/* 구글식 작은 링크 — 왼쪽 위 · 오른쪽 위. body 로 옮겨 그린다(본문 연출의 변형에 안 끌려가게). splash · home 에서는 숨는다 */}
@@ -261,16 +268,8 @@ export function DugoutHero({
                       <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-danger" />
                     )}
                   </Link>
-                  <Link
-                    href="/notifications"
-                    className="relative grid h-12 w-12 place-items-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
-                    aria-label="알림"
-                  >
-                    <RoundBell className="h-6 w-6" />
-                    {alerts > 0 && (
-                      <span className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-danger" />
-                    )}
-                  </Link>
+                  {/* 알림은 종 밑 작은 창(2026-10-22 — 위 막대와 같은 부품) */}
+                  <DugoutBell initial={alerts} large />
                 </>
               ) : (
                 <Link
@@ -289,6 +288,8 @@ export function DugoutHero({
               >
                 <RoundMenu className="h-6 w-6" />
               </button>
+              {/* 설정(2026-10-22 금윤호 "덕아웃 메인화면 우측 상단에 설정") — 싱커와 같은 설정 창 */}
+              <DugoutSettings />
               {user ? (
                 <Link
                   href="/me"

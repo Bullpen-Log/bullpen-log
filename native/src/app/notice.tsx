@@ -9,9 +9,10 @@ import { ApiError, call } from '~/pitch/api';
 import { openCheckin } from '~/shell/web-nav';
 import { usePalette, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
+import { NotificationList } from '~/home/notifications';
 
 /**
- * 알림 종의 '오늘 할 일' — 웹 휴대폰 위 막대 종의 아래 시트(components/notice-bell.tsx NoticePanel variant sheet)와 같은 칸:
+ * 알림 종의 창 — 맨 위는 진짜 알림(~/home/notifications.tsx, 2026-10-22), 그 밑 '오늘 할 일'은 웹 휴대폰 위 막대 종의 아래 시트(components/notice-bell.tsx NoticePanel variant sheet)와 같은 칸:
  * 체크인을 안 했으면 [체크인하기], 투구 기록이 없으면 [기록하기][오늘 안 던졌어요](잠겼으면 [투구 기록 설정하기]), 다 했으면 '알림이 없어요',
  * 맨 밑에 고치기 줄. 홈(home/tab.tsx)이 오늘 날짜 · 한 것을 넘겨 연다. 닫으면 홈이 다시 받는다(useFocusEffect).
  */
@@ -62,22 +63,17 @@ export default function NoticeScreen() {
       {/* 머리 — 웹 Modal 시트: 제목 17 굵게 + 오른쪽 닫기 ✕(44) */}
       <View style={styles.head}>
         <Text accessibilityRole="header" style={[styles.title, { color: c.ink }]}>
-          오늘 할 일
+          알림
         </Text>
         <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={() => router.back()} hitSlop={6} style={({ pressed }) => [styles.close, { backgroundColor: c.chip }, pressed && { opacity: 0.55 }]}>
           <Icon name="x" size={18} color={c.muted} />
         </Pressable>
       </View>
-      <Text style={{ color: c.muted, fontSize: 15, marginTop: -8 }}>{spokenDay(p.date)}</Text>
+      {/* 진짜 알림(2026-10-22 금윤호) — 있으면 목록, 없으면 '알림이 없습니다'. 오늘 할 일은 남은 것이 있을 때만 그 밑에 */}
+      <NotificationList c={c} />
 
-      {allDone ? (
-        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 12 }}>
-          <Icon name="circle-check" color={c.ok} size={22} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>지금은 알림이 없어요</Text>
-            <Text style={{ color: c.muted, fontSize: 13, marginTop: 2 }}>오늘 체크인과 투구 기록을 다 남겼어요.</Text>
-          </View>
-        </View>
+      {!allDone ? (
+        <Text style={{ color: c.muted, fontSize: 15, fontWeight: '600', marginTop: 8 }}>{spokenDay(p.date)} · 오늘 할 일</Text>
       ) : null}
 
       {!checkinDone ? (

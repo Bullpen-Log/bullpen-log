@@ -43,25 +43,28 @@ export async function SinkerStrip({ userId }: { userId: string }) {
     },
   ];
   return (
-    <section className="rounded-2xl border border-sky-soft/60 bg-sky-tint px-4 py-3 md:px-5">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+    /* 한 줄에 다 밀어 넣던 것을 머리 줄 + 칸 넷으로(2026-10-22 금윤호 "보기 편하게") — 휴대폰 두 칸 · PC 네 칸, 긴 글(팔 상태)은 칸 안에서 줄바꿈 */
+    <section className="rounded-2xl border border-sky-soft/60 bg-sky-tint p-4 md:p-5">
+      <div className="mb-3 flex items-center justify-between">
         <span className="text-sm font-bold text-sky-strong">내 싱커</span>
+        <Link
+          href="/sinker"
+          className="inline-flex min-h-8 items-center gap-0.5 text-sm font-semibold text-sky-strong"
+        >
+          대시보드 <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         {cells.map((c) => (
           <Link
             key={c.label}
             href={c.href}
-            className="flex items-baseline gap-1.5 text-sm"
+            className="flex min-w-0 flex-col gap-1 rounded-xl bg-surface/80 px-3 py-2.5 transition-colors hover:bg-surface"
           >
             <span className="text-xs text-muted">{c.label}</span>
-            <span className="font-semibold text-ink">{c.value}</span>
+            <span className="text-sm leading-snug font-semibold break-keep text-ink">{c.value}</span>
           </Link>
         ))}
-        <Link
-          href="/sinker"
-          className="ml-auto inline-flex items-center gap-0.5 text-sm font-semibold text-sky-strong"
-        >
-          대시보드 <ArrowRight className="h-4 w-4" />
-        </Link>
       </div>
     </section>
   );

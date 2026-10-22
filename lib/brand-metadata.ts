@@ -6,10 +6,15 @@ import type { Metadata } from 'next';
  * (app/(session))이 싱커로 덮는다. 그림은 scripts/make-icons.mjs 가 만든다(public/icons/*-tab.png · *-apple.png).
  * 파일 규칙(app/favicon.ico · app/apple-icon.png)은 쓰지 않는다 — 사이트에 하나뿐이고 metadata 보다 이겨서 둘로 못 가른다.
  */
+/**
+ * 사파리는 탭 아이콘을 사이트마다 오래 붙들어(옛 B 가 남았다, 2026-10-22) — 그림을 바꾸면 이 판을 올려 주소를 새로 한다.
+ */
+const V = '?v=2';
+
 export const DUGOUT_METADATA: Pick<Metadata, 'icons' | 'appleWebApp'> = {
   icons: {
-    icon: [{ url: '/icons/dugout-tab.png', type: 'image/png', sizes: '64x64' }],
-    apple: [{ url: '/icons/dugout-apple.png', sizes: '180x180' }],
+    icon: [{ url: `/icons/dugout-tab.png${V}`, type: 'image/png', sizes: '64x64' }],
+    apple: [{ url: `/icons/dugout-apple.png${V}`, sizes: '180x180' }],
   },
   appleWebApp: { title: '덕아웃', statusBarStyle: 'default' },
 };
@@ -17,8 +22,8 @@ export const DUGOUT_METADATA: Pick<Metadata, 'icons' | 'appleWebApp'> = {
 export const SINKER_METADATA: Metadata = {
   title: { default: '싱커', template: '%s · 싱커' },
   icons: {
-    icon: [{ url: '/icons/sinker-tab.png', type: 'image/png', sizes: '64x64' }],
-    apple: [{ url: '/icons/sinker-apple.png', sizes: '180x180' }],
+    icon: [{ url: `/icons/sinker-tab.png${V}`, type: 'image/png', sizes: '64x64' }],
+    apple: [{ url: `/icons/sinker-apple.png${V}`, sizes: '180x180' }],
   },
   appleWebApp: { title: '싱커', statusBarStyle: 'default' },
 };

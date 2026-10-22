@@ -2,11 +2,12 @@
 
 import { useRef, useState, type RefObject } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, ChevronRight, ClipboardList, Target } from '@/components/icon';
+import { ChevronRight, ClipboardList, Target } from '@/components/icon';
 import { RoundBell } from '@/components/round-icon';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 import { SETUP_PATH } from '@/lib/feature-locks';
 import { LinkPending } from '@/components/link-pending';
+import { NotificationList, useUnreadNotifications } from '@/components/notification-list';
 
 /**
  * 오른쪽 위 알림(종) — 오늘 아직 안 한 것을 알려 준다.
@@ -114,7 +115,9 @@ export function NoticeBellButton({
   /** 휴대폰 위 막대 — 누를 때 색이 바뀐다(마우스 올림이 없다) */
   touch?: boolean;
 }) {
-  const count = pendingCount(state);
+  /* 점 = 안 읽은 진짜 알림(2026-10-22 금윤호 "진짜 알림으로") — 오늘 할 일(체크인 · 투구 기록)은 창 안에만 남고 점은 켜지 않는다 */
+  void state;
+  const count = useUnreadNotifications();
   const idle = touch
     ? 'text-muted active:bg-surface-2 active:text-ink'
     : 'text-muted hover:bg-ink/6 hover:text-ink';
@@ -128,7 +131,7 @@ export function NoticeBellButton({
       aria-expanded={open}
       /* 창이 열려 있을 때만 가리킨다 — 닫혀 있으면 그 이름의 창이 없다 */
       aria-controls={open ? panelId : undefined}
-      aria-label={count > 0 ? `알림, 오늘 할 일 ${count}개` : '알림'}
+      aria-label={count > 0 ? `알림, 안 읽은 알림 ${count}개` : '알림'}
       className={`relative flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-75 before:absolute before:-inset-1.5 before:rounded-full ${
         open ? 'bg-sky/15 text-sky' : idle
       }`}
@@ -211,7 +214,7 @@ export function NoticePanel({
       ref={root}
       id={id}
       role={sheet ? undefined : 'dialog'}
-      aria-label={sheet ? undefined : '오늘 할 일'}
+      aria-label={sheet ? undefined : '알림'}
       tabIndex={-1}
       className={
         sheet
@@ -222,25 +225,22 @@ export function NoticePanel({
       <p role="status" className="sr-only">
         {said}
       </p>
-      {sheet ? (
-        <p className="-mt-1 text-sm text-muted">{spokenDay(day)}</p>
-      ) : (
-        <p className="px-1 text-[11px] font-semibold text-ink/65">
+      {/* 진짜 알림(Notification 표) — 있으면 목록, 없으면 '알림이 없습니다'(2026-10-22). 오늘 할 일은 그 밑에 남은 것이 있을 때만 */}
+      <NotificationList onNavigate={onNavigate} sheet={sheet} />
+
+      {!allDone && (
+        <p
+          className={
+            sheet
+              ? 'mt-5 text-sm font-semibold text-muted'
+              : 'mt-2 border-t border-line px-1 pt-2 text-[11px] font-semibold text-ink/65'
+          }
+        >
           {spokenDay(day)} · 오늘 할 일
         </p>
       )}
 
-      {allDone ? (
-        <div className="flex items-center gap-2.5 px-1 py-3">
-          <CheckCircle2 aria-hidden className="h-5 w-5 shrink-0 text-ok" />
-          <div>
-            <p className="text-sm font-semibold text-ink">지금은 알림이 없어요</p>
-            <p className="mt-0.5 text-xs text-muted">
-              오늘 체크인과 투구 기록을 다 남겼어요.
-            </p>
-          </div>
-        </div>
-      ) : (
+      {allDone ? null : (
         /* 할 일 단추 · 맨 밑 고치기 줄은 휴대폰에서 높이 44px(2026-10-03 아이폰 점검 — 28~36px 라 잘 안 눌렸다). PC 는 예전 크기 */
         <ul className={sheet ? 'mt-4 space-y-3' : 'mt-2 space-y-1.5'}>
           {!checkinDone && (

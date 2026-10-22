@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — 알림 종이 진짜 알림을 보인다(웹 싱커 · 덕아웃 · 앱 홈) · 덕아웃 위 막대에 종 창 · 설정 — 네 앱 종 창을 고쳤다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로 — Notification 표는 이미 있다). 금윤호: "알림을 진짜 알림으로 — 있으면 표시, 없으면 '알림이 없습니다', 싱커와 덕아웃 둘 다",
+"덕아웃 알림은 따로 이동하지 말고 알림 아이콘 밑 팝업으로", "덕아웃 우측 상단에 설정".
+- 서버: `app/actions/notifications.ts` 에 `loadBellNotifications` · `countBellNotifications` · `readBellNotifications(id?)`(rpc 'notifications.*' — native-api 모양 셋 더함, 레벨 그대로).
+- 웹: 공용 목록 `components/notification-list.tsx`(목록 · 모두 읽음 · 누르면 읽음 + 그 주소, 비면 '알림이 없습니다' · `useUnreadNotifications`). 싱커 종(`notice-bell.tsx`)은 창 맨 위가 이 목록,
+  오늘 할 일(체크인 · 투구 기록)은 남았을 때만 그 밑. **종의 점은 이제 안 읽은 진짜 알림만**(예전엔 오늘 할 일이 남으면 늘 켜졌다). 덕아웃 위 막대 · 첫 화면 모서리의 '알림' 링크는
+  종 + 작은 창(`components/dugout/dugout-header-tools.tsx`), 맨 오른쪽에 설정(싱커와 같은 설정 창). `/notifications` 화면은 그대로 둔다.
+- **네 앱**: `native/src/app/notice.tsx` 제목 '알림' · 맨 위 진짜 알림(`native/src/home/notifications.tsx` — 누르면 `leaveTo(link)`), 그 밑 오늘 할 일(남았을 때만).
+  홈 종의 점(`home/tab.tsx`)도 안 읽은 알림 수. 앱 tsc · lint 통과, **폰에서는 아직 안 봤다.**
+- 덕아웃 홈: 첫 화면이 굴려서 접히면 맨 위로 돌아가고 '내 싱커' 띠가 위 막대 밑에 숨지 않게(`dugout-hero.tsx`), 띠는 칸 넷(`sinker-strip.tsx`).
+
 ## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — 탭 이름 · 아이콘이 구역마다(싱커 / 덕아웃) · 남은 자리도 둥근 아이콘으로 — 네 앱 화면 여럿을 고쳤다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호: "싱커에 들어갔으면 싱커 로고에 싱커, 덕아웃에 들어갔으면 덕아웃 로고에 덕아웃 · 내가 준 아이콘으로 안 바뀐 곳 맞추고, 타자 자리에 투수 아이콘 들어간 것 고쳐".
