@@ -36,7 +36,7 @@ export type MannequinJoints = {
 export type MannequinTrack = {
   frames: MannequinJoints[];
   heightM: number;
-  /** 장면 사이 실제 초(착지 → 릴리스를 0.15초로 본다 — 슬로모 배수를 몰라도 실제 빠르기로 재생) */
+  /** 장면 사이 실제 초(mannequinFrameDt — 첫 닿음 → 릴리스를 0.15초로). 재생은 영상 시각(result.t)을 따르고, 이 값은 시간 상수 · 빠르기 재기에 쓴다 */
   dt: number;
   events: { kneeUp: number | null; footPlant: number; release: number };
   hand: 'R' | 'L';
@@ -52,6 +52,19 @@ const LAND_EASE_S = 0.05;
 const TOE_ROLL_S = 0.04;
 /** 앞발 방향이 디딘 방향으로 도는 시간(착지 전, 초) */
 const FOOT_TURN_S = 0.18;
+/** 발 방향 돌림을 시작하는 발목 높이(디딘 높이 위, 키 = 1.8m 기준 m) */
+const FOOT_TURN_HIGH = 0.15;
+
+/** 첫 닿음 → 릴리스의 실제 시간 어림(초) — 실제 투수 0.14~0.16초 */
+const CONTACT_TO_RELEASE_S = 0.15;
+/**
+ * 인형의 장면 사이 실제 초 — 첫 닿음(plantFrame · 화면의 '착지') → 릴리스를 CONTACT_TO_RELEASE_S 로 본다. 슬로모 배수를 몰라도 시간 상수(착지 맞춤 ·
+ * 발 돌림)가 같은 실제 시간이 된다. 예전엔 발이 묶인 장면(footPlant — 첫 닿음보다 50~90ms 늦다)으로 세어 어떤 투구는 착지 → 릴리스가 7장면이라
+ * 시간이 두 배 넘게 틀렸다(2026-10-22 검토).
+ */
+export function mannequinFrameDt(events: Pick<Pitch3dV2Ok['events'], 'footPlant' | 'release' | 'footContact'>): number {
+  return CONTACT_TO_RELEASE_S / Math.max(1, events.release - plantFrame(events));
+}
 
 /** 관절별 가우스 폭(장면) */
 function sigmaOf(nm: string, glove: string, throwing: string, lead: string): number {
@@ -95,8 +108,8 @@ export function smoothForMannequin(frames: Vec3[][], result: Pick<Pitch3dV2Ok, '
      */
     const arrive = Math.max(0, Math.min(lockAt, plantFrame(result.events)));
     const zLock = F[lockAt][an][1];
-    /* 실제 1초의 장면 수 — mannequinTrack 의 dt(착지 → 릴리스 0.15초)와 같게. 장면 수로만 잡으면 슬로모 샘플에서 6장면이 20ms 라 발이 한 번에 꺾였다 */
-    const perS = Math.max(1, result.events.release - result.events.footPlant) / 0.15;
+    /* 실제 1초의 장면 수 — mannequinTrack 의 dt 와 같게(mannequinFrameDt). 장면 수로만 잡으면 슬로모 샘플에서 6장면이 20ms 라 발이 한 번에 꺾였다 */
+    const perS = 1 / mannequinFrameDt(result.events);
     let from = Math.max(0, fp - 15);
     while (from < lockAt && F[from][an][1] > zLock + 0.05) from++;
     from = Math.min(from, Math.max(0, arrive - Math.max(LAND_EASE, Math.round(LAND_EASE_S * perS))));
@@ -106,7 +119,9 @@ export function smoothForMannequin(frames: Vec3[][], result: Pick<Pitch3dV2Ok, '
      * 앞발은 내딛는 동안 열리며 닿는다. 뒤꿈치는 착지에, 발끝은 그 뒤 TOE_ROLL_S 동안 마저 내려온다(뒤꿈치 → 발바닥).
      */
     const toeAt = Math.min(lockAt, arrive + Math.round(TOE_ROLL_S * perS));
-    const turnFrom = Math.max(0, Math.min(from, arrive - Math.round(FOOT_TURN_S * perS)));
+    /* 발이 내려와 땅 가까이(FOOT_TURN_HIGH 안) 온 뒤부터 — 높이 든 발까지 섞으면 발 축이 정강이를 지나 발등이 두 장면에 60° 뒤집혔다(s9) */
+    let turnFrom = Math.max(0, Math.min(from, arrive - Math.round(FOOT_TURN_S * perS)));
+    while (turnFrom < from && F[turnFrom][an][1] > zLock + FOOT_TURN_HIGH) turnFrom++;
     const ease = (u: number) => u * u * (3 - 2 * u);
     const B = (j: number) => F[lockAt][j];
     const ja = IX(`${lead}An`);
@@ -133,7 +148,9 @@ export function smoothForMannequin(frames: Vec3[][], result: Pick<Pitch3dV2Ok, '
         const at = nm === 'To' ? toeAt : arrive;
         const v = i >= at ? 1 : ease((i - turnFrom) / Math.max(1, at - turnFrom));
         const o = blend(off0[q], off1[q], v);
-        F[i][IX(`${lead}${nm}`)] = [A[0] + o[0], A[1] + o[1], A[2] + o[2]];
+        /* 디딘 높이 밑으로는 안 내려간다 — 내려오며 발끝이 아래를 보면 착지 단추에 발끝이 땅에 3cm 묻혔다 */
+        const j = IX(`${lead}${nm}`);
+        F[i][j] = [A[0] + o[0], Math.max(A[1] + o[1], i >= from ? B(j)[1] : -Infinity), A[2] + o[2]];
       });
       /* 무릎은 엉덩이를 둔 채 두 마디로 다시 접는다(길이 그대로) — 발목이 옮긴 만큼 무릎도 옮기면 넙다리가 몇 cm 늘었다(2026-10-22 검토) */
       const kn = IX(`${lead}Kn`);
@@ -193,7 +210,7 @@ export function mannequinTrack(
       ...trunkFields(TR[k]),
     };
   });
-  return { frames, heightM, dt: 0.15 / Math.max(1, ev.release - ev.footPlant), events: ev, hand: result.hand };
+  return { frames, heightM, dt: mannequinFrameDt(ev), events: ev, hand: result.hand };
 }
 
 /** 몸통 마디(보기 축) → 인형 관절의 점 여섯(인형 축: x 앞 · y 왼쪽 · z 위) */

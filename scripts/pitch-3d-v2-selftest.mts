@@ -1994,7 +1994,7 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
           return out;
         }),
       };
-      const odd = mannequinOddities(bad, mR.dt);
+      const odd = mannequinOddities(bad);
       check(`팔 잡음을 넣어도 인형 던지는 팔이 꺾이지 않는다(꺾임 ${odd.kink} · 1 이하 — 곡선 맞춤을 끄면 3)`, odd.kink <= 1);
       /* ① 착지 맞춤 앞(화면 트랙)에서 앞발이 착지 직전까지 110° 옆을 보다 착지부터 디딘 방향(위 축 = y) — 그 사이 돌림은 착지 맞춤이 그린다 */
       const late = tr.frames.map((fr, k) => {

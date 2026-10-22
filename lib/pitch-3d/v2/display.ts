@@ -335,6 +335,14 @@ const LEAD_HIDDEN_CONF = 40;
 /** 다리를 엔진의 엉덩이 → 발목 거리보다 더 펴도 되는 몫(키 1 기준, 0.5%) */
 const REACH_SLACK = 0.005;
 
+/** 화면 모델의 장면 사이 실제 초 — 영상 시간 그대로, 다만 착지 → 릴리스가 PLANT_TO_RELEASE_MAX_S 를 넘으면(슬로모 · 화면 녹화) 그만큼 줄인다(떨림 검사도 이것) */
+export function displayFrameDt(result: Pick<Pitch3dV2Ok, 't' | 'events'>): number {
+  const n = result.t.length;
+  const dtMedia = median(result.t.slice(1).map((t, k) => t - result.t[k]));
+  const spanMedia = result.t[Math.min(n - 1, result.events.release)] - result.t[Math.min(n - 1, result.events.footPlant)];
+  return dtMedia * (spanMedia > PLANT_TO_RELEASE_MAX_S ? PLANT_TO_RELEASE_MAX_S / spanMedia : 1);
+}
+
 /**
  * 보기용 관절 — 결과 하나와 던진 곳(마운드 · 평지) · 키(m).
  */
@@ -357,10 +365,7 @@ export function displayTrack(
    * 그만큼 줄인다(원본 속도 영상은 그대로). 사람 최대 빠르기(KIN_SPEED)를 영상 시간으로 재면 슬로모에서 4~6배 넉넉해져, 착지 직후 골반 · 어깨가
    * 6장면에 60° 넘게 '휙' 도는 엔진 결과가 그대로 보였다(좌투 샘플).
    */
-  const dtMedia = median(result.t.slice(1).map((t, k) => t - result.t[k]));
-  const spanMedia =
-    result.t[Math.min(n - 1, result.events.release)] - result.t[Math.min(n - 1, result.events.footPlant)];
-  const dt = dtMedia * (spanMedia > PLANT_TO_RELEASE_MAX_S ? PLANT_TO_RELEASE_MAX_S / spanMedia : 1);
+  const dt = displayFrameDt(result);
   /*
    * 걸름은 관절 각도 모델 앞(엔진 원본)에 — 뒤에 두면 팔꿈치만 옮겨 위팔 · 아래팔 길이가 한 장면에 5~10% 바뀌었다(2026-10-10 샘플 1 글러브 팔).
    * 앞에 두면 엔진이 한 장면 옮긴 관절(팔꿈치 79mm)을 먼저 걷고, 뼈 길이는 각도 모델이 고정한다.

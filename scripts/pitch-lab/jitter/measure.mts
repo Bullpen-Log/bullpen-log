@@ -4,7 +4,7 @@
  * 잔떨림 = 그 장면 자리 − 앞뒤 9장면 가우스(σ 3) 평균. 빠른 팔은 진짜 움직임 몫도 섞이니 절댓값보다 기준과의 변화 · 원 결과와의 차이로 본다.
  */
 import { readFileSync } from 'node:fs';
-import { displayTrack } from '@/lib/pitch-3d/v2/display';
+import { displayFrameDt, displayTrack } from '@/lib/pitch-3d/v2/display';
 import { V2J } from '@/lib/pitch-3d/v2/contract';
 import { mannequinTrack } from '@/lib/pitch-3d/v2/mannequin-prep';
 import { canonicalFrames, mannequinFrames } from '@/lib/pitch-3d/v2/mannequin-frames';
@@ -30,9 +30,13 @@ const p90 = (xs: number[]) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.fl
 const round = (v: number) => Math.round(v * 100) / 100;
 
 /** 구간 → 관절 이름 → [화면, 원] */
-export function measure(r: Parameters<typeof displayTrack>[0]) {
+type Result = Parameters<typeof displayTrack>[0];
+type Track = ReturnType<typeof displayTrack>;
+const trackOf = (r: Result): Track => displayTrack(r, { ground: 'mound', heightM: 1.8 });
+
+export function measure(r: Result, tr: Track = trackOf(r)) {
   const heightM = 1.8;
-  const disp = displayTrack(r, { ground: 'mound', heightM }).frames as Frames;
+  const disp = tr.frames as Frames;
   const raw = r.joints.map((f) => f.map((p) => p.map((v) => v / 1000))) as Frames;
   const { kneeUp, footPlant, release } = r.events;
   const phaseOf = (k: number) => (kneeUp != null && k < kneeUp ? 0 : k < footPlant ? 1 : k <= release ? 2 : 3);
@@ -159,11 +163,11 @@ const turn = (a: [number[], number[]], b: [number[], number[]]) => Math.max(angl
 /*
  * 꺾임 — 마디 방향이 국소 3차 곡선(앞뒤 KINK_HALF 장면 최소제곱)에서 KINK_DEG 넘게 벗어난 구간 수. 빠르지만 매끈한 움직임(던지는 팔의 가속)은
  * 곡선이 따라가 안 세고, 갑자기 꺾이는 것만 센다 — 2026-10-22 김민 "짧은 시간에 관절이 사람이 못 하는 각도로 팍팍 튄다"(던지는 손 · 아래팔,
- * 착지 ~ 릴리스 뒤). 앞발 휘두름 — 인형 앞발이 인형 시계(착지 → 릴리스 0.15초)로 FOOT_WHIP °/초 넘게 도는 장면 수(착지 앞뒤 발 돌림).
+ * 착지 ~ 릴리스 뒤). 앞발 휘두름 — 인형 앞발이 FOOT_WHIP °/초 넘게 도는 장면 수(착지 앞뒤 발 돌림 — 실험실 8샘플 지금 가장 큰 1275, 고치기 전 판 4샘플이 1768~2821).
  */
 const KINK_DEG = 6;
 const KINK_HALF = 6;
-const FOOT_WHIP = 2500;
+const FOOT_WHIP = 1500;
 const KINK_W = (() => {
   const xs = Array.from({ length: 2 * KINK_HALF + 1 }, (_, i) => i - KINK_HALF);
   const A = [0, 1, 2, 3].map((i) => [0, 1, 2, 3].map((j) => xs.reduce((a, x) => a + x ** (i + j), 0)));
@@ -196,9 +200,14 @@ function kinkRuns(d: number[][]): number {
   return runs;
 }
 
-export function mannequinOddities(r: Parameters<typeof displayTrack>[0], dt: number) {
-  const tr = displayTrack(r, { ground: 'mound', heightM: 1.8 });
+/*
+ * 인형 셈의 시계는 화면 모델과 같은 displayFrameDt 하나(영상 시간, 슬로모만 착지 → 릴리스 0.25초로 줄임). 예전엔 빠르기는 이 시계, 앞발 휘두름은
+ * 인형 시계(첫 닿음 → 릴리스 0.15초)라 슬로모에서 1.67배 달랐다. 0.15초 시계로 모두 재면 실제 120fps 마커 투구(첫 닿음 → 릴리스 약 0.21초)도
+ * 사람 한계를 넘는 것으로 잘못 세어(샘플마다 13~75장면) 이쪽으로 맞췄다(2026-10-22 검토).
+ */
+export function mannequinOddities(r: Result, tr: Track = trackOf(r)) {
   const mt = mannequinTrack(tr, r, 1.8);
+  const dt = displayFrameDt(r);
   const C = canonicalFrames(mt);
   const M = mannequinFrames(C, 1.8);
   const out = { pop: 0, speed: 0, kink: 0, whip: 0, where: {} as Record<string, number> };
@@ -217,7 +226,7 @@ export function mannequinOddities(r: Parameters<typeof displayTrack>[0], dt: num
   }
   const lead = M.map((f) => nz(f.lead.toe.map((x, i) => x - f.lead.heel[i])));
   for (let k = 1; k + 1 < lead.length; k++)
-    if (angle(lead[k - 1], lead[k + 1]) / (2 * mt.dt) > FOOT_WHIP) {
+    if (angle(lead[k - 1], lead[k + 1]) / (2 * dt) > FOOT_WHIP) {
       out.whip++;
       out.where['whip:앞발'] = (out.where['whip:앞발'] ?? 0) + 1;
     }
@@ -240,15 +249,6 @@ export function mannequinOddities(r: Parameters<typeof displayTrack>[0], dt: num
   return out;
 }
 
-/** 화면 모델과 같은 실제 장면 간격 — 슬로모 · 화면 녹화는 착지 → 릴리스를 0.25초 안으로(display.ts) */
-function realDt(r: Parameters<typeof displayTrack>[0]) {
-  const n = r.t.length;
-  const gaps = r.t.slice(1).map((t, k) => t - r.t[k]).sort((a, b) => a - b);
-  const dtMedia = gaps[gaps.length >> 1];
-  const span = r.t[Math.min(n - 1, r.events.release)] - r.t[Math.min(n - 1, r.events.footPlant)];
-  return dtMedia * (span > 0.25 ? 0.25 / span : 1);
-}
-
 /* 결과 파일마다 한 줄 — { phases(떨림), odd: { disp, raw }(이상한 움직임) } */
 for (const path of process.argv.slice(2)) {
   const r = JSON.parse(readFileSync(path, 'utf8'));
@@ -256,8 +256,9 @@ for (const path of process.argv.slice(2)) {
     console.log(JSON.stringify({ failed: r.code ?? 'fail' }));
     continue;
   }
-  const dt = realDt(r);
-  const disp = displayTrack(r, { ground: 'mound', heightM: 1.8 }).frames as F3;
+  const dt = displayFrameDt(r);
+  const tr = trackOf(r);
+  const disp = tr.frames as F3;
   const raw = r.joints.map((f: number[][]) => f.map((p) => p.map((v) => v / 1000))) as F3;
-  console.log(JSON.stringify({ phases: measure(r), odd: { disp: oddities(disp, dt), raw: oddities(raw, dt), man: mannequinOddities(r, dt) } }));
+  console.log(JSON.stringify({ phases: measure(r, tr), odd: { disp: oddities(disp, dt), raw: oddities(raw, dt), man: mannequinOddities(r, tr) } }));
 }
