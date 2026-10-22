@@ -9,8 +9,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { RoundChat, RoundMenu } from '@/components/round-icon';
-import { ChevronDown } from '@/components/icon';
+import { RoundBack, RoundChat, RoundMenu } from '@/components/round-icon';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
 import { AppLauncher } from '@/components/dugout/app-launcher';
 import { splashScale } from '@/lib/brand';
@@ -371,16 +370,19 @@ export function DugoutHero({
       </div>
 
       {/*
-        아래 안내 — 내리면 홈(2026-10-22 금윤호: "글씨가 잘려 안 보이고 홈이 나오는지 모르겠어 — '아래로 스크롤'로 간단히, 작은 화살표가 간격을 두고
-        가볍게 아래로"). 화면 바닥에 붙여(fixed — 첫 화면 판은 숨은 위 막대 높이만큼 밑으로 밀려 있어 absolute 면 잘렸다) 넉넉히 띄우고, 화살표는 globals.css 'scroll-hint' 로 1.8초마다 한 번 내려갔다 옅어진다.
+        아래 안내 — 내리면 홈(2026-10-22 금윤호: "'아래로 스크롤' · 싱커 → 덕아웃 뒤로 단추 아이콘을 아래로 돌려서 · 사용자를 아래로 이끌듯 움직이게 ·
+        조금 더 크게 · 화면 정중앙 맨 밑에"). 화면 바닥에 붙인다(fixed — 첫 화면 판은 숨은 위 막대 높이만큼 밑으로 밀려 있어 absolute 면 잘렸다).
+        화살표는 globals.css 'scroll-hint' — 기기의 '움직임 줄이기'를 켜도 이 작은 안내는 움직인다(data-motion-keep, 안전망에서 뺌).
       */}
       <button
         type="button"
         onClick={() => stage === 'hero' && go('home')}
-        className={`fixed inset-x-0 bottom-[max(2.5rem,calc(env(safe-area-inset-bottom)+1.5rem))] z-10 mx-auto flex w-fit flex-col items-center gap-1 px-4 py-2 text-sm font-medium text-muted transition-opacity duration-700 hover:text-ink ${splash || home ? 'pointer-events-none opacity-0' : 'opacity-100 delay-[900ms]'}`}
+        className={`fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-10 mx-auto flex w-fit flex-col items-center gap-0.5 px-4 pt-2 text-sm font-medium text-muted transition-opacity duration-700 hover:text-ink ${splash || home ? 'pointer-events-none opacity-0' : 'opacity-100 delay-[900ms]'}`}
       >
         <span>아래로 스크롤</span>
-        <ChevronDown aria-hidden className="h-4 w-4 motion-safe:animate-[scroll-hint_1.8s_ease-in-out_infinite]" />
+        <span data-motion-keep aria-hidden className="block animate-[scroll-hint_1.6s_ease-in-out_infinite]">
+          <RoundBack className="h-9 w-9 -rotate-90" {...({ filled: true } as object)} />
+        </span>
       </button>
     </div>
   );

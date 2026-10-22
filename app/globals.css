@@ -3825,7 +3825,7 @@ html[data-dualcam] [data-finder] > video {
  * JS 로 움직이는 것(판 넘기기 · 렌즈 · 시트 · 숫자 올라가기)은 각자 움직임 줄이기를 본다. 화면 전환(::view-transition)은 위 규칙이 따로 끈다.
  */
 @media (prefers-reduced-motion: reduce) {
-  *:not(.animate-spin),
+  *:not(.animate-spin):not([data-motion-keep]),
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
@@ -4100,8 +4100,8 @@ html[data-morph='to-dugout-out'] [data-morph-chrome] {
 
 /* 덕아웃 첫 화면의 '아래로 스크롤' 화살표(components/dugout/dugout-hero.tsx) — 쉬었다가 가볍게 한 번 내려가며 옅어지고 제자리에서 다시 */
 @keyframes scroll-hint {
-  0%, 35% { transform: translateY(0); opacity: 1; }
-  70% { transform: translateY(6px); opacity: 0; }
-  71% { transform: translateY(-3px); opacity: 0; }
+  0%, 30% { transform: translateY(0); opacity: 1; }
+  65% { transform: translateY(10px); opacity: 0; }
+  66% { transform: translateY(-6px); opacity: 0; }
   100% { transform: translateY(0); opacity: 1; }
 }
