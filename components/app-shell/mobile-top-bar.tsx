@@ -161,7 +161,7 @@ export function MobileTopBar({
 
           {/* 홈은 로고가 가운데(2026-10-14 사용자 "인스타처럼 로고를 가운데로"). 그 밖은 큰 제목이 막대 밑으로 가려졌을 때만 작은 제목 */}
           {!back && home ? (
-            <Wordmark className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-2xl text-ink" />
+            <Wordmark morphTarget className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-2xl text-ink" />
           ) : (
             <p
               aria-hidden

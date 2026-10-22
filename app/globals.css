@@ -3907,6 +3907,16 @@ html[data-morph='to-sinker-out'] [data-morph-main] {
 html[data-morph='in'] [data-morph-main] {
   animation: morph-main-in 440ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+/*
+ * 덕아웃 → 싱커(components/shell-morph.tsx SinkerIntro) — 새 싱커 틀이 붙어도 시작 판이 이름을 다 보일 때까지는 숨은 채 기다린다(to-sinker-wait),
+ * 그다음 'in' 으로 펴진다. 이름이 왼쪽 위 로고 자리로 날아오는 동안 진짜 로고는 숨긴다(html[data-morph-fly]) — 두 개가 겹쳐 보이지 않게.
+ */
+html[data-morph='to-sinker-wait'] :is([data-morph-main], [data-morph-chrome] > *, [data-morph-side]) {
+  opacity: 0;
+}
+html[data-morph-fly] [data-morph-logo] {
+  opacity: 0;
+}
 html[data-morph='to-sinker-out'] [data-morph-chrome] > * {
   animation: morph-chrome-out 240ms ease-in forwards;
 }

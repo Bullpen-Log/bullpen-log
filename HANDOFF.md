@@ -11,6 +11,12 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — 덕아웃 → 싱커 시작 판(로고 0.1초 → 풀네임 0.2초 → 로고 자리로) · 네 앱 틀 로고에 표시 하나
+
+받은 뒤 할 일 없음. `components/shell-morph.tsx SinkerIntro` 를 뿌리 레이아웃(app/layout.tsx)에 붙였다 — 두 틀이 바뀌어도 판이 남는다. 싱커 틀의 MorphIn 은
+'to-sinker-out' 이면 'to-sinker-wait'(새 틀 숨김)으로만 두고, 판이 이름을 다 보인 뒤 'in' 으로 편다. **네 영역**: `app-shell.tsx`(PC 왼쪽 위) · `mobile-top-bar.tsx`(홈 가운데)의
+`Wordmark` 에 `morphTarget`(=`data-morph-logo`, 이름이 날아와 앉는 자리), `app-splash.tsx` 는 넘어오는 중(html[data-morph])이면 안 튼다.
+
 ## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — 알림 종이 진짜 알림을 보인다(웹 싱커 · 덕아웃 · 앱 홈) · 덕아웃 위 막대에 종 창 · 설정 — 네 앱 종 창을 고쳤다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로 — Notification 표는 이미 있다). 금윤호: "알림을 진짜 알림으로 — 있으면 표시, 없으면 '알림이 없습니다', 싱커와 덕아웃 둘 다",

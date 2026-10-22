@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
-import { Wordmark } from '@/components/logo';
+import { MARK_PATH, MARK_VIEWBOX, Wordmark } from '@/components/logo';
 import { splashScale } from '@/lib/brand';
 
 /**
@@ -43,7 +43,12 @@ export function morphTo(
   if (html.dataset.morph?.endsWith('-out')) return;
   if (dir === 'to-dugout') markSides();
   html.dataset.morph = `${dir}-out`;
-  window.setTimeout(() => router.push(href), OUT_MS);
+  /*
+   * 싱커로 갈 때는 판(SinkerIntro)이 곧바로 덮으니 덮이자마자 옮겨 새 틀을 그동안 받는다 — 로고 · 이름이 보이는 동안 로딩이 끝난다.
+   * 끝내 안 오면 SinkerIntro 가 6초 뒤 걷는다.
+   */
+  window.setTimeout(() => router.push(href), dir === 'to-sinker' ? INTRO_PUSH_MS : OUT_MS);
+  if (dir === 'to-sinker') return;
   /* 새 틀이 끝내 안 오면(막힘 · 오류) 본문이 숨은 채 남지 않게 */
   window.setTimeout(() => {
     if (html.dataset.morph?.endsWith('-out')) delete html.dataset.morph;
@@ -116,6 +121,11 @@ export function MorphIn() {
   useEffect(() => {
     const html = document.documentElement;
     if (!html.dataset.morph?.endsWith('-out')) return;
+    /* 싱커로 오는 중 — 펴기는 시작 판(SinkerIntro)이 이름을 다 보인 뒤에 한다. 그때까지 새 틀은 숨은 채 기다린다 */
+    if (html.dataset.morph === 'to-sinker-out') {
+      html.dataset.morph = 'to-sinker-wait';
+      return;
+    }
     html.dataset.morph = html.dataset.morph === 'to-dugout-out' ? 'in-dugout' : 'in';
     /* 정리 타이머는 지우지 않는다 — 효과가 두 번 돌거나(개발 모드) 틀이 곧바로 바뀌면 'in' 이 html 에 남아 새로 붙는 칸마다 연출이 다시 돌았다 */
     window.setTimeout(() => {
@@ -169,5 +179,197 @@ export function MorphLink({
     >
       {children}
     </a>
+  );
+}
+
+/*
+ * 덕아웃 → 싱커 시작 판(2026-10-22 금윤호: "싱커 진입 로고가 0.1초 뜨고, 싱커 풀네임 보여 주는 게 0.2초, 그리고 자연스럽게 진입하는 애니메이션과 함께").
+ * 뿌리 레이아웃(app/layout.tsx)에 하나 — 두 틀(덕아웃 · 싱커)이 바뀌어도 이 판은 그대로 남아 한 장면으로 이어진다(예전엔 덕아웃 틀이 떨어진 뒤 빈 화면이 비쳤다).
+ *   mark  판이 덮이고 가운데에 싱커 표시(S)만 커지며 뜬다 — 0.1초 머문다
+ *   name  표시가 제자리(이름의 S 칸)로 가며 INKER 가 뒤에서 밀려 나온다 — 풀네임 0.2초
+ *   fly   새 틀이 붙었으면(html[data-morph='to-sinker-wait'], MorphIn) 이름이 싱커 왼쪽 위 로고 자리([data-morph-logo])로 줄어들며 날아가고
+ *         판은 걷히며 본문은 아래에서 올라오고 칸들은 펴진다(html[data-morph='in'] — 위의 연출 그대로). 로고 자리가 없으면(휴대폰 하위 화면) 이름은 옅어진다.
+ */
+const INTRO_PUSH_MS = 140;
+const MARK_IN_MS = 140;
+const MARK_HOLD_MS = 100;
+const NAME_IN_MS = 160;
+const NAME_HOLD_MS = 200;
+const FLY_MS = 520;
+const INTRO_SAFETY_MS = 6000;
+const LETTERS = ['I', 'N', 'K', 'E', 'R'];
+const EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
+
+export function SinkerIntro() {
+  const [on, setOn] = useState(false);
+  const veil = useRef<HTMLDivElement>(null);
+  const word = useRef<HTMLSpanElement>(null);
+  const mark = useRef<SVGSVGElement>(null);
+  const letters = useRef<(HTMLSpanElement | null)[]>([]);
+  const running = useRef(false);
+
+  /* html[data-morph='to-sinker-out'] 이 되면 시작 */
+  useEffect(() => {
+    const html = document.documentElement;
+    const check = () => {
+      if (html.dataset.morph === 'to-sinker-out' && !running.current) {
+        running.current = true;
+        setOn(true);
+      }
+    };
+    const mo = new MutationObserver(check);
+    mo.observe(html, { attributes: true, attributeFilter: ['data-morph'] });
+    return () => mo.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!on) return;
+    const html = document.documentElement;
+    const w = word.current;
+    const m = mark.current;
+    const v = veil.current;
+    if (!w || !m || !v) return;
+    const timers: number[] = [];
+    const later = (fn: () => void, ms: number) => timers.push(window.setTimeout(fn, ms));
+    let mo: MutationObserver | null = null;
+    let done = false;
+
+    /* 표시를 이름 한가운데로 — 이름 칸 기준으로 잰다(이 판의 글자 크기가 화면 폭을 따라서) */
+    const wr = w.getBoundingClientRect();
+    const mr = m.getBoundingClientRect();
+    const dx = wr.left + wr.width / 2 - (mr.left + mr.width / 2);
+    const big = `translateX(${dx}px) scale(1.5)`;
+
+    /* mark — 판이 덮이고 표시만 커지며 뜬다 */
+    v.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: 'ease-out', fill: 'forwards' });
+    m.animate(
+      [
+        { transform: `translateX(${dx}px) scale(0.6)`, opacity: 0 },
+        { transform: big, opacity: 1 },
+      ],
+      { duration: MARK_IN_MS, easing: EASE, fill: 'forwards' }
+    );
+
+    /* name — 표시는 S 칸으로, 글자는 뒤에서 밀려 나온다 */
+    const nameAt = MARK_IN_MS + MARK_HOLD_MS;
+    later(() => {
+      m.animate([{ transform: big, opacity: 1 }, { transform: 'none', opacity: 1 }], {
+        duration: NAME_IN_MS,
+        easing: EASE,
+        fill: 'forwards',
+      });
+      letters.current.forEach((el, i) =>
+        el?.animate(
+          [
+            { opacity: 0, transform: 'translateX(-0.3em)' },
+            { opacity: 1, transform: 'none' },
+          ],
+          { duration: NAME_IN_MS, delay: i * 18, easing: EASE, fill: 'forwards' }
+        )
+      );
+    }, nameAt);
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      mo?.disconnect();
+      delete html.dataset.morphFly;
+      running.current = false;
+      setOn(false);
+    };
+
+    /* fly — 새 틀이 붙었고 이름을 다 보였으면 */
+    const fly = () => {
+      if (done || html.dataset.morph !== 'to-sinker-wait') return;
+      mo?.disconnect();
+      const target = [...document.querySelectorAll<HTMLElement>('[data-morph-logo]')].find(
+        (el) => el.getBoundingClientRect().width > 0
+      );
+      html.dataset.morph = 'in';
+      const from = w.getBoundingClientRect();
+      if (target) {
+        html.dataset.morphFly = '';
+        const t = target.getBoundingClientRect();
+        const s = t.width / from.width;
+        const tx = t.left + t.width / 2 - (from.left + from.width / 2);
+        const ty = t.top + t.height / 2 - (from.top + from.height / 2);
+        w.animate([{ transform: 'none' }, { transform: `translate(${tx}px, ${ty}px) scale(${s})` }], {
+          duration: FLY_MS,
+          easing: 'cubic-bezier(0.65, 0, 0.25, 1)',
+          fill: 'forwards',
+        });
+      } else {
+        w.animate([{ opacity: 1 }, { opacity: 0, transform: 'scale(0.92)' }], {
+          duration: FLY_MS * 0.6,
+          easing: 'ease-in',
+          fill: 'forwards',
+        });
+      }
+      v.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: FLY_MS * 0.7,
+        delay: FLY_MS * 0.15,
+        easing: 'ease-out',
+        fill: 'forwards',
+      });
+      later(finish, FLY_MS + 20);
+      /* 판이 걷힌 뒤(finish 가 이 효과를 정리해 later 타이머는 지워진다)에도 남아야 하는 정리 — 그냥 타이머로 */
+      window.setTimeout(() => {
+        if (html.dataset.morph === 'in') delete html.dataset.morph;
+      }, FLY_MS + IN_MS);
+    };
+    later(() => {
+      if (html.dataset.morph === 'to-sinker-wait') fly();
+      else {
+        mo = new MutationObserver(fly);
+        mo.observe(html, { attributes: true, attributeFilter: ['data-morph'] });
+      }
+    }, nameAt + NAME_IN_MS + NAME_HOLD_MS);
+
+    /* 끝내 안 오면(막힘 · 오류 · 앱 웹뷰처럼 MorphIn 이 없는 틀) 걷는다 */
+    later(() => {
+      if (done) return;
+      if (html.dataset.morph?.startsWith('to-sinker')) delete html.dataset.morph;
+      finish();
+    }, INTRO_SAFETY_MS);
+
+    return () => {
+      timers.forEach((t) => window.clearTimeout(t));
+      mo?.disconnect();
+    };
+  }, [on]);
+
+  if (!on) return null;
+  return (
+    <div aria-hidden className="pointer-events-none fixed inset-0 z-[70]">
+      <div ref={veil} className="absolute inset-0 bg-page" style={{ opacity: 0 }} />
+      <div className="absolute inset-0 grid place-items-center">
+        <span
+          ref={word}
+          className="text-display inline-flex items-baseline whitespace-nowrap leading-none text-ink"
+          style={{ fontSize: 'min(16vw, 104px)', transformOrigin: 'center' }}
+        >
+          <svg
+            ref={mark}
+            viewBox={MARK_VIEWBOX}
+            className="mr-[0.05em] h-[0.7em] w-auto shrink-0 fill-brand"
+            style={{ opacity: 0, transformOrigin: 'center' }}
+          >
+            <path d={MARK_PATH} />
+          </svg>
+          {LETTERS.map((ch, i) => (
+            <span
+              key={i}
+              ref={(el) => {
+                letters.current[i] = el;
+              }}
+              className="inline-block"
+              style={{ opacity: 0 }}
+            >
+              {ch}
+            </span>
+          ))}
+        </span>
+      </div>
+    </div>
   );
 }

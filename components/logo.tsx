@@ -45,13 +45,19 @@ export function DugoutMark({ className = '' }: { className?: string }) {
 export function Wordmark({
   className = '',
   brand = 'sinker',
+  morphTarget = false,
 }: {
   className?: string;
   brand?: 'sinker' | 'dugout';
+  /** 덕아웃 → 싱커 시작 판(components/shell-morph.tsx SinkerIntro)의 이름이 날아와 앉을 자리 */
+  morphTarget?: boolean;
 }) {
   if (brand === 'sinker') {
     return (
-      <span className={`text-display inline-flex items-baseline whitespace-nowrap leading-none ${className}`}>
+      <span
+        data-morph-logo={morphTarget || undefined}
+        className={`text-display inline-flex items-baseline whitespace-nowrap leading-none ${className}`}
+      >
         <SinkerMark className="mr-[0.05em] h-[0.7em]" />
         <span aria-hidden>INKER</span>
         <span className="sr-only">싱커</span>
