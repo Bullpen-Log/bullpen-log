@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { RoundChat, RoundMenu } from '@/components/round-icon';
+import { ChevronDown } from '@/components/icon';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
 import { AppLauncher } from '@/components/dugout/app-launcher';
 import { splashScale } from '@/lib/brand';
@@ -369,16 +370,17 @@ export function DugoutHero({
         </div>
       </div>
 
-      {/* 아래 안내 — 내리면 홈 */}
+      {/*
+        아래 안내 — 내리면 홈(2026-10-22 금윤호: "글씨가 잘려 안 보이고 홈이 나오는지 모르겠어 — '아래로 스크롤'로 간단히, 작은 화살표가 간격을 두고
+        가볍게 아래로"). 화면 바닥에 붙여(fixed — 첫 화면 판은 숨은 위 막대 높이만큼 밑으로 밀려 있어 absolute 면 잘렸다) 넉넉히 띄우고, 화살표는 globals.css 'scroll-hint' 로 1.8초마다 한 번 내려갔다 옅어진다.
+      */}
       <button
         type="button"
         onClick={() => stage === 'hero' && go('home')}
-        className={`absolute inset-x-0 bottom-6 mx-auto flex w-fit flex-col items-center gap-1 text-xs text-muted transition-opacity duration-700 ${splash || home ? 'pointer-events-none opacity-0' : 'opacity-100 delay-[900ms]'}`}
+        className={`fixed inset-x-0 bottom-[max(2.5rem,calc(env(safe-area-inset-bottom)+1.5rem))] z-10 mx-auto flex w-fit flex-col items-center gap-1 px-4 py-2 text-sm font-medium text-muted transition-opacity duration-700 hover:text-ink ${splash || home ? 'pointer-events-none opacity-0' : 'opacity-100 delay-[900ms]'}`}
       >
-        <span>아래로 내리면 장터 · 소통 · 레슨</span>
-        <span aria-hidden className="motion-safe:animate-bounce">
-          ↓
-        </span>
+        <span>아래로 스크롤</span>
+        <ChevronDown aria-hidden className="h-4 w-4 motion-safe:animate-[scroll-hint_1.8s_ease-in-out_infinite]" />
       </button>
     </div>
   );
