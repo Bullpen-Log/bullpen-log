@@ -215,6 +215,7 @@ export function SinkerIntro() {
   const veil = useRef<HTMLDivElement>(null);
   const word = useRef<HTMLSpanElement>(null);
   const mark = useRef<SVGSVGElement>(null);
+  const row = useRef<HTMLSpanElement>(null);
   const letters = useRef<(HTMLSpanElement | null)[]>([]);
   const running = useRef(false);
 
@@ -237,45 +238,43 @@ export function SinkerIntro() {
     const html = document.documentElement;
     const w = word.current;
     const m = mark.current;
+    const r = row.current;
     const v = veil.current;
-    if (!w || !m || !v) return;
+    if (!w || !m || !r || !v) return;
     const timers: number[] = [];
     const later = (fn: () => void, ms: number) => timers.push(window.setTimeout(fn, ms));
     let mo: MutationObserver | null = null;
     let done = false;
 
-    /* 표시를 이름 한가운데로 — 이름 칸 기준으로 잰다(이 판의 글자 크기가 화면 폭을 따라서) */
+    /*
+     * 줄(표시 + 글자)을 옮겨 표시를 한가운데에 둔다 — 이름 칸 기준으로 잰다(이 판의 글자 크기가 화면 폭을 따라서).
+     * 글자는 표시 오른쪽 가장자리에서 잘리는 칸 안에 있어 표시 뒤에 숨어 있다가 밀려 나온다(2026-10-22 금윤호 "로고 뒤에서 나오는 것처럼").
+     * 칸은 줄과 같이 움직이니 줄이 왼쪽으로 가는 동안에도 늘 표시 뒤에서 나온다.
+     */
     const wr = w.getBoundingClientRect();
     const mr = m.getBoundingClientRect();
-    const dx = wr.left + wr.width / 2 - (mr.left + mr.width / 2);
-    const big = `translateX(${dx}px)`;
+    const centered = `translateX(${wr.left + wr.width / 2 - (mr.left + mr.width / 2)}px)`;
+    r.style.transform = centered;
+    const hidden = letters.current.map((el) => (el ? `translateX(${-(el.offsetLeft + el.offsetWidth)}px)` : 'none'));
+    letters.current.forEach((el, i) => {
+      if (el) el.style.transform = hidden[i];
+    });
 
-    /* mark — 판이 덮이고 표시만 커지며 뜬다 */
+    /* mark — 판이 덮이고 표시가 이름 속 크기 그대로 뜬다 */
     v.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: 'ease-out', fill: 'forwards' });
-    m.animate(
-      [
-        { transform: big, opacity: 0 },
-        { transform: big, opacity: 1 },
-      ],
-      { duration: MARK_IN_MS, easing: EASE, fill: 'forwards' }
-    );
+    m.animate([{ opacity: 0 }, { opacity: 1 }], { duration: MARK_IN_MS, easing: EASE, fill: 'forwards' });
 
-    /* name — 표시는 S 칸으로, 글자는 뒤에서 밀려 나온다 */
+    /* name — 줄은 제자리로, 글자는 표시 뒤에서 밀려 나온다 */
     const nameAt = MARK_IN_MS + MARK_HOLD_MS;
     later(() => {
-      m.animate([{ transform: big, opacity: 1 }, { transform: 'none', opacity: 1 }], {
-        duration: NAME_IN_MS,
-        easing: EASE,
-        fill: 'forwards',
-      });
+      r.animate([{ transform: centered }, { transform: 'none' }], { duration: NAME_IN_MS, easing: EASE, fill: 'forwards' });
       letters.current.forEach((el, i) =>
-        el?.animate(
-          [
-            { opacity: 0, transform: 'translateX(-0.245em)' },
-            { opacity: 1, transform: 'none' },
-          ],
-          { duration: LETTER_MS, delay: LETTER_AT_MS + i * LETTER_GAP_MS, easing: LETTER_EASE, fill: 'forwards' }
-        )
+        el?.animate([{ transform: hidden[i] }, { transform: 'none' }], {
+          duration: LETTER_MS,
+          delay: LETTER_AT_MS + i * LETTER_GAP_MS,
+          easing: LETTER_EASE,
+          fill: 'forwards',
+        })
       );
     }, nameAt);
 
@@ -358,6 +357,7 @@ export function SinkerIntro() {
           className="text-display inline-flex items-baseline whitespace-nowrap leading-none text-ink"
           style={{ fontSize: 'min(16vw, 104px)', transformOrigin: 'center' }}
         >
+          <span ref={row} className="inline-flex items-baseline">
           {/* 칸이 S 아래 막대를 기준선에 맞추고(components/logo.tsx Wordmark 와 같다), 안의 표시만 움직인다 */}
           <span className="mr-[0.05em] inline-block h-[0.794em] w-[0.798em] shrink-0 translate-y-[0.094em]">
             <svg
@@ -369,18 +369,21 @@ export function SinkerIntro() {
               <path d={MARK_PATH} />
             </svg>
           </span>
-          {LETTERS.map((ch, i) => (
-            <span
-              key={i}
-              ref={(el) => {
-                letters.current[i] = el;
-              }}
-              className="inline-block"
-              style={{ opacity: 0 }}
-            >
-              {ch}
-            </span>
-          ))}
+          {/* 글자 칸 — 왼쪽(표시 쪽)만 잘라 표시 뒤에 숨긴다. 위 · 아래 · 오른쪽은 넉넉히 둬 글자가 잘리지 않게 */}
+          <span className="relative inline-flex items-baseline [clip-path:inset(-0.5em_-1em_-0.5em_0)]">
+            {LETTERS.map((ch, i) => (
+              <span
+                key={i}
+                ref={(el) => {
+                  letters.current[i] = el;
+                }}
+                className="inline-block"
+              >
+                {ch}
+              </span>
+            ))}
+          </span>
+          </span>
         </span>
       </div>
     </div>
