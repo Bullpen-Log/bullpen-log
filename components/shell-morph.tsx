@@ -186,16 +186,25 @@ export function MorphLink({
  * 덕아웃 → 싱커 시작 판(2026-10-22 금윤호: "싱커 진입 로고가 0.1초 뜨고, 싱커 풀네임 보여 주는 게 0.2초, 그리고 자연스럽게 진입하는 애니메이션과 함께").
  * 뿌리 레이아웃(app/layout.tsx)에 하나 — 두 틀(덕아웃 · 싱커)이 바뀌어도 이 판은 그대로 남아 한 장면으로 이어진다(예전엔 덕아웃 틀이 떨어진 뒤 빈 화면이 비쳤다).
  *   mark  판이 덮이고 가운데에 싱커 표시(S)만 커지며 뜬다 — 0.1초 머문다
- *   name  표시가 제자리(이름의 S 칸)로 가며 INKER 가 뒤에서 밀려 나온다 — 풀네임 0.2초
+ *   name  표시가 제자리(이름의 S 칸)로 가며 INKER 가 뒤에서 밀려 나온다 — 글자 속도는 웹 · 앱 시작 연출과 같게(0.65초씩 0.075초 간격,
+ *         금윤호 "inker 가 나오는 속도는 원래대로"), 다 나온 풀네임은 0.2초
  *   fly   새 틀이 붙었으면(html[data-morph='to-sinker-wait'], MorphIn) 이름이 싱커 왼쪽 위 로고 자리([data-morph-logo])로 줄어들며 날아가고
  *         판은 걷히며 본문은 아래에서 올라오고 칸들은 펴진다(html[data-morph='in'] — 위의 연출 그대로). 로고 자리가 없으면(휴대폰 하위 화면) 이름은 옅어진다.
  */
 const INTRO_PUSH_MS = 140;
 const MARK_IN_MS = 140;
 const MARK_HOLD_MS = 100;
-const NAME_IN_MS = 160;
+/** 표시가 가운데 → S 칸 */
+const NAME_IN_MS = 400;
+/** 글자 — 표시가 거의 자리에 닿을 때부터, 시작 연출(app/globals.css app-splash-letter)과 같은 속도 */
+const LETTER_AT_MS = 250;
+const LETTER_MS = 650;
+const LETTER_GAP_MS = 75;
+const LETTER_EASE = 'cubic-bezier(0.25, 0.1, 0.25, 1)';
+const NAME_DONE_MS = LETTER_AT_MS + LETTER_GAP_MS * 4 + LETTER_MS;
 const NAME_HOLD_MS = 200;
-const FLY_MS = 520;
+/** 로고 자리로 — 금윤호 "이동하는 애니메이션만 빠르게"(520 → 300) */
+const FLY_MS = 300;
 const INTRO_SAFETY_MS = 6000;
 const LETTERS = ['I', 'N', 'K', 'E', 'R'];
 const EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
@@ -261,10 +270,10 @@ export function SinkerIntro() {
       letters.current.forEach((el, i) =>
         el?.animate(
           [
-            { opacity: 0, transform: 'translateX(-0.3em)' },
+            { opacity: 0, transform: 'translateX(-0.245em)' },
             { opacity: 1, transform: 'none' },
           ],
-          { duration: NAME_IN_MS, delay: i * 18, easing: EASE, fill: 'forwards' }
+          { duration: LETTER_MS, delay: LETTER_AT_MS + i * LETTER_GAP_MS, easing: LETTER_EASE, fill: 'forwards' }
         )
       );
     }, nameAt);
@@ -323,7 +332,7 @@ export function SinkerIntro() {
         mo = new MutationObserver(fly);
         mo.observe(html, { attributes: true, attributeFilter: ['data-morph'] });
       }
-    }, nameAt + NAME_IN_MS + NAME_HOLD_MS);
+    }, nameAt + NAME_DONE_MS + NAME_HOLD_MS);
 
     /* 끝내 안 오면(막힘 · 오류 · 앱 웹뷰처럼 MorphIn 이 없는 틀) 걷는다 */
     later(() => {
@@ -348,14 +357,17 @@ export function SinkerIntro() {
           className="text-display inline-flex items-baseline whitespace-nowrap leading-none text-ink"
           style={{ fontSize: 'min(16vw, 104px)', transformOrigin: 'center' }}
         >
-          <svg
-            ref={mark}
-            viewBox={MARK_VIEWBOX}
-            className="relative top-[0.094em] mr-[0.05em] h-[0.794em] w-auto shrink-0 fill-brand"
-            style={{ opacity: 0, transformOrigin: 'center' }}
-          >
-            <path d={MARK_PATH} />
-          </svg>
+          {/* 칸이 S 아래 막대를 기준선에 맞추고(components/logo.tsx Wordmark 와 같다), 안의 표시만 움직인다 */}
+          <span className="mr-[0.05em] inline-block h-[0.794em] w-[0.798em] shrink-0 translate-y-[0.094em]">
+            <svg
+              ref={mark}
+              viewBox={MARK_VIEWBOX}
+              className="block h-full w-full fill-brand"
+              style={{ opacity: 0, transformOrigin: 'center' }}
+            >
+              <path d={MARK_PATH} />
+            </svg>
+          </span>
           {LETTERS.map((ch, i) => (
             <span
               key={i}
