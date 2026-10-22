@@ -2,6 +2,7 @@ import { add, cross, dot, normalize, scale, sub, type Vec3 } from '@/lib/pitch-3
 import type { Metric, MetricKey } from '@/lib/pitch-3d/metrics';
 import type { MannequinJoints } from '@/lib/pitch-3d/v2/mannequin-prep';
 import type { Frame } from '@/lib/pitch-3d/v2/mannequin-frames';
+import { rotateAbout } from '@/lib/pitch-3d/v2/kinematics';
 
 /**
  * 데생 인형 — 멈췄을 때 보이는 잰 값 다섯과 선 · 호 · 이름표 명세(설계 docs/designs/pitch-3d-mannequin.md §1). 순수 — 화면(lines.ts)과
@@ -60,11 +61,7 @@ const deg = (r: number) => (r * 180) / Math.PI;
 const flat = (v: Vec3): Vec3 => normalize([v[0], v[1], 0]);
 const mid3 = (a: Vec3, b: Vec3): Vec3 => scale(add(a, b), 0.5);
 const angle = (a: Vec3, b: Vec3) => Math.acos(Math.max(-1, Math.min(1, dot(normalize(a), normalize(b)))));
-function rotateAxis(v: Vec3, k: Vec3, th: number): Vec3 {
-  const c = Math.cos(th);
-  const s = Math.sin(th);
-  return add(add(scale(v, c), scale(cross(k, v), s)), scale(k, dot(k, v) * (1 - c)));
-}
+const rotateAxis = rotateAbout;
 
 /**
  * 잰 값 다섯(도) — 예시 page.js 와 같은 식. 상하체 분리만 부호가 있다: + = 골반이 어깨보다 더 열림(꼬임), − = 어깨가 골반을 앞지름(풀림).
@@ -195,11 +192,6 @@ export function measureSpec(
   arcs.push(ta);
 
   return { measures: measureAngles(J), segments, dots, arcs, labels };
-}
-
-/** 몸통 축(골반 가운데 → 어깨 가운데) — 화면의 뼈 · 선도 같은 것을 쓴다 */
-export function trunkAxis(J: MannequinJoints): Vec3 {
-  return normalize(sub(mid3(J.sh, J.gs), mid3(J.rh, J.lh)));
 }
 
 /** 골반 · 가슴 틀은 선 명세에 안 쓰지만, 화면이 뼈 고리를 놓을 때 같이 넘긴다 — 타입만 다시 내보냄 */

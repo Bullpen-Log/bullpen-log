@@ -44,9 +44,6 @@ export const MANNEQUIN_ROUGHNESS: Record<keyof typeof MANNEQUIN_COLOR, number> =
   buckle: 0.35,
 };
 
-/** 마운드 — 모래색(김민) · 착지 자리와 투수판 앞은 짙은 흙 · 가장자리는 어둡게 */
-export const MOUND_COLOR = { sand: 0x8d6a4c, clay: 0x7a573c, rim: 0x4a3a2e, rubber: 0xf4f2ec } as const;
-
 export type ProfileKey = readonly [number, number];
 export type Profile = readonly ProfileKey[];
 

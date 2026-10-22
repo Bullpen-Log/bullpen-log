@@ -67,7 +67,8 @@ export function mannequinFrameDt(events: Pick<Pitch3dV2Ok['events'], 'footPlant'
 }
 
 /** 관절별 가우스 폭(장면) */
-function sigmaOf(nm: string, glove: string, throwing: string, lead: string): number {
+function sigmaOf(nm: string, throwing: string, lead: string): number {
+  const glove = lead;
   if (nm === `${glove}El`) return 2.5;
   if (HAND_PARTS.some((x) => nm === `${glove}${x}`)) return 3.5;
   if (nm === `${throwing}El` || HAND_PARTS.some((x) => nm === `${throwing}${x}`)) return 0.7;
@@ -161,7 +162,7 @@ export function smoothForMannequin(frames: Vec3[][], result: Pick<Pitch3dV2Ok, '
   /* 2 관절마다 가우스 */
   const S: Vec3[][] = F.map((fr) => fr.map((p) => [...p] as Vec3));
   NAMES.forEach((nm, j) => {
-    const s = sigmaOf(nm, lead, throwing, lead);
+    const s = sigmaOf(nm, throwing, lead);
     const R = Math.ceil(3 * s);
     for (let i = 0; i < n; i++) {
       const acc = [0, 0, 0];

@@ -15,6 +15,7 @@ import {
   type Vec3,
 } from '@/lib/pitch-3d/linalg';
 import { V2J, type V2Contact } from '@/lib/pitch-3d/v2/contract';
+import { localPoly, medianFilter, outlierW, rateLimit, smooth1, smoothMulti, unwrap, weightedMedian } from '@/lib/pitch-3d/v2/series';
 
 /**
  * 관절 각도 모델(2026-10-09 김민: "관절 각도 모델로 가자" — 점 규칙으로는 어깨 · 팔꿈치 회전 · 손 · 글러브 팔 · 목이 계속 어색했다).
@@ -32,20 +33,6 @@ import { V2J, type V2Contact } from '@/lib/pitch-3d/v2/contract';
  * 땅에 닿은 발(엔진의 contacts)은 그 자리에 두고 무릎을 두 마디 길이로 다시 접는다. 순수 함수 — 시험: scripts/pitch-3d-v2-selftest.mts.
  */
 
-/**
- * 한 장면에 rate(라디안, 장면마다 다를 수 있음)까지만 바뀌게 — 앞으로 · 뒤로 한 번씩 묶어 가운데로(한쪽으로 늦지 않게).
- * 팔이 굽는 면 · 손 돌림이 한 장면에 80~90° 휙 돌던 것(편 팔꿈치에서 들고 있던 값 → 굽기 시작한 장면의 잰 값, 흐린 손 점)을 몇 장면에 걸쳐 돌게 한다.
- */
-function rateLimit(xs: number[], rate: number | number[]): number[] {
-  const r = (k: number) => (typeof rate === 'number' ? rate : rate[k]);
-  const f = [...xs];
-  for (let k = 1; k < f.length; k++) f[k] = f[k - 1] + clamp(f[k] - f[k - 1], -r(k), r(k));
-  const b = [...xs];
-  for (let k = b.length - 2; k >= 0; k--)
-    b[k] = b[k + 1] + clamp(b[k] - b[k + 1], -r(k + 1), r(k + 1));
-  return f.map((v, k) => (v + b[k]) / 2);
-}
-
 /** rateLimit 의 방향(단위 벡터)판 — 한 장면에 rate 라디안까지만 돈다 */
 function rateLimitDir(vs: Vec3[], rate: number | number[]): Vec3[] {
   const r = (k: number) => (typeof rate === 'number' ? rate : rate[k]);
@@ -53,7 +40,7 @@ function rateLimitDir(vs: Vec3[], rate: number | number[]): Vec3[] {
     const ax = cross(from, to);
     const a = Math.atan2(norm(ax), dot(from, to));
     if (a <= m) return to;
-    return norm(ax) > 1e-9 ? rot(from, normalize(ax), m) : from;
+    return norm(ax) > 1e-9 ? rotateAbout(from, normalize(ax), m) : from;
   };
   const f = [...vs];
   for (let k = 1; k < f.length; k++) f[k] = step(f[k - 1], vs[k], r(k));
@@ -63,15 +50,15 @@ function rateLimitDir(vs: Vec3[], rate: number | number[]): Vec3[] {
 }
 
 /** rateLimit 의 회전(사원수)판 */
-function rateLimitQuat(qs: Quat[], rate: number): Quat[] {
-  const step = (from: Quat, to: Quat): Quat => {
+function rateLimitQuat(qs: QuatWXYZ[], rate: number): QuatWXYZ[] {
+  const step = (from: QuatWXYZ, to: QuatWXYZ): QuatWXYZ => {
     let d = qMul(qConj(from), to);
     if (d[0] < 0) d = [-d[0], -d[1], -d[2], -d[3]];
     const a = 2 * Math.acos(clamp(d[0], -1, 1));
     const s = Math.sin(a / 2);
     if (a <= rate || s < 1e-9) return to;
     return qNorm(
-      qMul(from, [Math.cos(rate / 2), ...scale([d[1] / s, d[2] / s, d[3] / s], Math.sin(rate / 2))] as Quat)
+      qMul(from, [Math.cos(rate / 2), ...scale([d[1] / s, d[2] / s, d[3] / s], Math.sin(rate / 2))] as QuatWXYZ)
     );
   };
   const f = [...qs];
@@ -150,16 +137,18 @@ export const KIN_LIMITS = {
  * 몸통이 돌 때 고개는 홈을 보고 있어 몸통에 대한 고개 돌림이 몸통 빠르기로 바뀐다.
  */
 /** 던지는 팔이 엔진 팔 방향을 따르는 구간 — 착지 ~ 릴리스 + 착지→릴리스 시간의 이 배, 앞뒤 섞는 장면 수 */
-export const ARM_FOLLOW_POST = 0.8;
-export const ARM_FOLLOW_RAMP = 10;
+const ARM_FOLLOW_POST = 0.8;
+const ARM_FOLLOW_RAMP = 10;
 /** 글러브 팔 따르기 앞뒤 섞는 장면 수 — 릴리스 뒤 가려진 글러브 팔은 엔진이 흔들려 짧게 */
-export const GLOVE_FOLLOW_RAMP = 3;
+const GLOVE_FOLLOW_RAMP = 3;
 /** 머리 점 마지막 다듬기 폭(장면, [좁게, 넓게]) */
-export const HEAD_POST_SMOOTH: [number, number] = [3, 5];
+const HEAD_POST_SMOOTH: [number, number] = [3, 5];
 /** 따를 때 엔진 팔 방향을 살짝 다듬는 폭(장면) — 0 이면 엔진 그대로(릴리스 뒤 떨림이 원 결과만큼 커짐), 2 면 엔진에서 위팔 가운데 1~3.5° 떨어짐 */
-export const ARM_FOLLOW_SMOOTH = 1.5;
-/** 따를 때 던지는 팔 방향을 국소 3차 곡선으로 맞추는 폭(장면, 가우스 σ) — 0 이면 예전 가우스(ARM_FOLLOW_SMOOTH) */
-export const ARM_FOLLOW_POLY = 4;
+const ARM_FOLLOW_SMOOTH = 1.5;
+/** 같은 다듬기의 느릴 때 폭(장면) — 빠를수록 ARM_FOLLOW_SMOOTH 쪽(smoothMulti) */
+const ARM_FOLLOW_SMOOTH_SLOW = 3;
+/** 따를 때 던지는 팔 방향을 국소 3차 곡선으로 맞추는 폭(장면, 가우스 σ) — 그 뒤 ARM_FOLLOW_SMOOTH 다듬기를 겹친다 */
+const ARM_FOLLOW_POLY = 4;
 /*
  * ARM_FOLLOW_POLY · ARM_FOLLOW_RAMP · HAND_POLY 는 장면 수다(실제 시간 아님). 2D 잡음은 장면마다 따로라 장면 수 폭이 맞다는 쪽 — 첫 닿음 → 릴리스
  * 길이에 비례하게(기준 25 · 40 · 66장면) 바꿔 견주니 인형 ↔ 마커 정답은 그대로(던지는 팔 상위 10% 11.33~11.58cm)인데 마커 25구 12° 넘는 꺾임이
@@ -169,11 +158,11 @@ export const ARM_FOLLOW_POLY = 4;
  * 글러브 팔도 착지 앞(착지 → 릴리스 시간의 이 배)부터 릴리스까지 엔진 팔을 따른다 — 다듬기는 글러브 팔 세기(앞뒤 1.2~4장면) 그대로.
  * 2026-10-14 겹쳐 보기: 착지 무렵 엔진 글러브 팔은 옆 영상에 붙어 있는데 인형 팔만 아래로 처졌다(f046 · c4d8 위팔 차 상위 10% 28~30°).
  */
-export const GLOVE_FOLLOW_PRE = 1;
+const GLOVE_FOLLOW_PRE = 1;
 /** 글러브 팔 따르기 끝(릴리스 뒤 착지 → 릴리스 시간의 이 배) — 공 놓은 뒤엔 글러브 팔이 몸에 붙어 가려져 엔진 값이 흔들린다(뒤 떨림이 늘었다) */
-export const GLOVE_FOLLOW_POST = 0;
+const GLOVE_FOLLOW_POST = 0;
 /** 던지는 어깨가 엔진 어깨를 따를 때 옮기는 가장 큰 거리(키 1 기준) */
-export const SHOULDER_FOLLOW_CAP = 0.03;
+const SHOULDER_FOLLOW_CAP = 0.03;
 export const KIN_SPEED = {
   /**
    * 골반은 연구 최대값 가까이 — 1200 일 때 좌투 샘플 골반이 착지 직후 12장면에 97° 돌았다(뒤 영상 엉덩이 점이 엇갈려 지나가지 못하고 한 장면에
@@ -205,8 +194,8 @@ const midOf = (a: Vec3, b: Vec3): Vec3 => scale(add(a, b), 0.5);
 const unit = (v: Vec3, fallback: Vec3): Vec3 =>
   norm(v) > 1e-9 ? normalize(v) : fallback;
 
-/** 단위 축 k 둘레로 v 를 th 만큼 */
-function rot(v: Vec3, k: Vec3, th: number): Vec3 {
+/** 단위 축 k 둘레로 v 를 th 만큼(로드리게스) — 인형 틀 · 잰 선도 이것 */
+export function rotateAbout(v: Vec3, k: Vec3, th: number): Vec3 {
   const c = Math.cos(th);
   return add(
     add(scale(v, c), scale(cross(k, v), Math.sin(th))),
@@ -219,8 +208,8 @@ function rotFromTo(v: Vec3, a: Vec3, b: Vec3): Vec3 {
   const ax = cross(a, b);
   const s = norm(ax);
   const c = dot(a, b);
-  if (s < 1e-9) return c > 0 ? v : rot(v, unit(perp([1, 0, 0], a), [0, 0, 1]), Math.PI);
-  return rot(v, scale(ax, 1 / s), Math.atan2(s, c));
+  if (s < 1e-9) return c > 0 ? v : rotateAbout(v, unit(perp([1, 0, 0], a), [0, 0, 1]), Math.PI);
+  return rotateAbout(v, scale(ax, 1 / s), Math.atan2(s, c));
 }
 
 /** 축 a 둘레로 from → to 의 부호 있는 각(둘 다 a 에 수직 성분만) */
@@ -230,12 +219,12 @@ function signedAngle(from: Vec3, to: Vec3, a: Vec3): number {
 
 /* ───────────────────────────── 사원수 ───────────────────────────── */
 
-type Quat = [number, number, number, number];
+type QuatWXYZ = [number, number, number, number];
 
-function quatFromMat(m: Mat3): Quat {
+function quatFromMat(m: Mat3): QuatWXYZ {
   const [m00, m01, m02, m10, m11, m12, m20, m21, m22] = m;
   const tr = m00 + m11 + m22;
-  let q: Quat;
+  let q: QuatWXYZ;
   if (tr > 0) {
     const s = Math.sqrt(tr + 1) * 2;
     q = [0.25 * s, (m21 - m12) / s, (m02 - m20) / s, (m10 - m01) / s];
@@ -252,7 +241,7 @@ function quatFromMat(m: Mat3): Quat {
   return qNorm(q);
 }
 
-function matFromQuat([w, x, y, z]: Quat): Mat3 {
+function matFromQuat([w, x, y, z]: QuatWXYZ): Mat3 {
   return [
     1 - 2 * (y * y + z * z),
     2 * (x * y - w * z),
@@ -266,22 +255,22 @@ function matFromQuat([w, x, y, z]: Quat): Mat3 {
   ];
 }
 
-const qNorm = (q: Quat): Quat => {
+const qNorm = (q: QuatWXYZ): QuatWXYZ => {
   const n = Math.hypot(...q) || 1;
   return [q[0] / n, q[1] / n, q[2] / n, q[3] / n];
 };
-const qMul = (a: Quat, b: Quat): Quat => [
+const qMul = (a: QuatWXYZ, b: QuatWXYZ): QuatWXYZ => [
   a[0] * b[0] - a[1] * b[1] - a[2] * b[2] - a[3] * b[3],
   a[0] * b[1] + a[1] * b[0] + a[2] * b[3] - a[3] * b[2],
   a[0] * b[2] - a[1] * b[3] + a[2] * b[0] + a[3] * b[1],
   a[0] * b[3] + a[1] * b[2] - a[2] * b[1] + a[3] * b[0],
 ];
-const qConj = (q: Quat): Quat => [q[0], -q[1], -q[2], -q[3]];
+const qConj = (q: QuatWXYZ): QuatWXYZ => [q[0], -q[1], -q[2], -q[3]];
 
 /** 회전을 축 a(단위, 같은 틀) 둘레 비틀림과 나머지(기울임)로 — 각을 한계 안으로 줄여 다시 합친다 */
-function limitSwingTwist(q: Quat, a: Vec3, twistMax: number, swingMax: number): Quat {
+function limitSwingTwist(q: QuatWXYZ, a: Vec3, twistMax: number, swingMax: number): QuatWXYZ {
   const p = q[1] * a[0] + q[2] * a[1] + q[3] * a[2];
-  let twist: Quat = qNorm([q[0], a[0] * p, a[1] * p, a[2] * p]);
+  let twist: QuatWXYZ = qNorm([q[0], a[0] * p, a[1] * p, a[2] * p]);
   if (Math.hypot(twist[0], p) < 1e-9) twist = [1, 0, 0, 0];
   let swing = qMul(q, qConj(twist));
   const tw =
@@ -299,7 +288,7 @@ function limitSwingTwist(q: Quat, a: Vec3, twistMax: number, swingMax: number): 
     const s = Math.sin(sw / 2);
     if (s > 1e-9) {
       const ax: Vec3 = [swing[1] / s, swing[2] / s, swing[3] / s];
-      swing = [Math.cos(swingMax / 2), ...scale(ax, Math.sin(swingMax / 2))] as Quat;
+      swing = [Math.cos(swingMax / 2), ...scale(ax, Math.sin(swingMax / 2))] as QuatWXYZ;
     }
   }
   return qNorm(qMul(swing, twist));
@@ -307,167 +296,12 @@ function limitSwingTwist(q: Quat, a: Vec3, twistMax: number, swingMax: number): 
 
 /* ───────────────────────────── 시간 다듬기 ───────────────────────────── */
 
-/** 빠르기 기준의 바닥(라디안 · 키 / 장면) — 이보다 느린 움직임은 넓게 다듬는다 */
-const VREF_FLOOR = 0.02;
-
-/**
- * 무게(보이는 만큼) 있는 앞뒤 가우스 — 빠른 곳은 좁게, 느린 곳은 넓게. xs 는 여러 성분(벡터 · 사원수)을 한꺼번에 — 빠르기는 성분 전체로.
- *
- * 폭은 앞뒤 3장면으로 고른다 — 장면마다 폭이 크게 달라지면 이웃 장면 값이 계단처럼 튀었다(2026-10-09 좌투 샘플: 다듬은 손목이 원본보다 더
- * 떨림 0.62 → 1.08). widen 이면 주변 무게가 모자랄 때 폭을 넓혀 앞뒤에서 잇는다 — 팔을 편 장면에서 굽는 면(비틀림 · 엎침)을 못 볼 때만 쓴다.
- * 다른 값에 넓힘(폭 최대 23배)을 쓰면 흐린 장면을 멀리서 끌어와 영상과 멀어졌다.
- */
-function smoothMulti(
-  xs: number[][],
-  ws: number[],
-  sMin = 0.6,
-  sMax = 2.2,
-  widen = false
-): number[][] {
-  const n = xs.length;
-  if (n < 3) return xs.map((x) => [...x]);
-  const D = xs[0].length;
-  /*
-   * 빠르기는 한 번 넓게 다듬은 값에서 잰다 — 날 값에서 재면 잡음이 '빠름'으로 읽혀 가만있는 관절의 떨림을 못 줄였다. 기준은 그 값의
-   * 상위 10% 의 4분의 1(빠른 팔은 좁게), 다만 VREF_FLOOR 밑으로는 안 내려간다(잡음뿐인 값에서 기준까지 잡음이 되지 않게).
-   */
-  const pre = xs.map((_, k) => {
-    let sw = 0;
-    const acc = new Array<number>(D).fill(0);
-    for (let q = Math.max(0, k - 4); q <= Math.min(n - 1, k + 4); q++) {
-      const g = (ws[q] + 1e-3) * Math.exp(-((q - k) ** 2) / (2 * 1.5 * 1.5));
-      sw += g;
-      for (let d = 0; d < D; d++) acc[d] += g * xs[q][d];
-    }
-    return acc.map((v) => v / sw);
-  });
-  const speed = pre.map((_, k) => {
-    const a = pre[Math.max(0, k - 1)];
-    const b = pre[Math.min(n - 1, k + 1)];
-    let s = 0;
-    for (let d = 0; d < D; d++) s += (b[d] - a[d]) ** 2;
-    return Math.sqrt(s) / 2;
-  });
-  const sorted = [...speed].sort((a, b) => a - b);
-  const vRef = Math.max(VREF_FLOOR, 0.25 * sorted[Math.floor(sorted.length * 0.9)]);
-  const sig0 = speed.map((v) => sMin + (sMax - sMin) / (1 + (v / vRef) ** 2));
-  const sig = sig0.map((_, k) => {
-    let a = 0;
-    let c = 0;
-    for (let q = Math.max(0, k - 3); q <= Math.min(n - 1, k + 3); q++) {
-      a += sig0[q];
-      c++;
-    }
-    return a / c;
-  });
-  return xs.map((x, k) => {
-    let sigma = sig[k];
-    for (let tries = 0; tries < (widen ? 5 : 1); tries++) {
-      const r = Math.ceil(sigma * 2.5);
-      let sw = 0;
-      const acc = new Array<number>(D).fill(0);
-      for (let q = Math.max(0, k - r); q <= Math.min(n - 1, k + r); q++) {
-        const g = ws[q] * Math.exp(-((q - k) ** 2) / (2 * sigma * sigma));
-        sw += g;
-        for (let d = 0; d < D; d++) acc[d] += g * xs[q][d];
-      }
-      if (sw > 0.15 || (!widen && sw > 0)) return acc.map((v) => v / sw);
-      sigma *= 2.2;
-    }
-    return [...x];
-  });
-}
-
-/**
- * 국소 다항식 맞춤(앞뒤 가우스 무게 × 보이는 만큼 무게로 deg 차 곡선을 맞춰 가운데 값) — 가우스 다듬기는 빠른 팔의 꼭대기를 깎아 폭을 좁게
- * 둘 수밖에 없어 엔진 2D 잡음이 그대로 꺾임으로 남았다. 3차 곡선은 빠르지만 매끈한 움직임(가속까지)은 그대로 두고 갑자기 꺾이는 것만 걷는다.
- */
-function localPoly(xs: number[][], ws: number[], sigma: number, deg = 3): number[][] {
-  const n = xs.length;
-  const D = xs[0]?.length ?? 0;
-  const r = Math.ceil(sigma * 2.5);
-  const m = deg + 1;
-  return xs.map((x, k) => {
-    const A = Array.from({ length: m }, () => new Array<number>(m).fill(0));
-    const b = Array.from({ length: m }, () => new Array<number>(D).fill(0));
-    let cnt = 0;
-    for (let q = Math.max(0, k - r); q <= Math.min(n - 1, k + r); q++) {
-      const t = (q - k) / sigma;
-      const w = (ws[q] + 1e-3) * Math.exp(-(t * t) / 2);
-      const p = [1, t, t * t, t * t * t].slice(0, m);
-      for (let i = 0; i < m; i++) {
-        for (let j = 0; j < m; j++) A[i][j] += w * p[i] * p[j];
-        for (let d = 0; d < D; d++) b[i][d] += w * p[i] * xs[q][d];
-      }
-      cnt++;
-    }
-    if (cnt <= m) return [...x];
-    /* 가우스 소거 — 가운데(t = 0) 값은 첫 계수 */
-    for (let c = 0; c < m; c++) {
-      let pv = c;
-      for (let i = c + 1; i < m; i++) if (Math.abs(A[i][c]) > Math.abs(A[pv][c])) pv = i;
-      [A[c], A[pv]] = [A[pv], A[c]];
-      [b[c], b[pv]] = [b[pv], b[c]];
-      if (Math.abs(A[c][c]) < 1e-12) return [...x];
-      for (let i = 0; i < m; i++) {
-        if (i === c) continue;
-        const f = A[i][c] / A[c][c];
-        for (let j = c; j < m; j++) A[i][j] -= f * A[c][j];
-        for (let d = 0; d < D; d++) b[i][d] -= f * b[c][d];
-      }
-    }
-    return b[0].map((v) => v / A[0][0]);
-  });
-}
-
-/**
- * 각을 이어 붙인다 — 바로 앞 장면이 아니라 앞 5장면 가운데값에 가깝게. 앞 장면에만 맞추면 두세 장면 반 바퀴 튄 값(손 점 검지 · 새끼 뒤바뀜)을
- * 지나 돌아올 때 반대쪽으로 돌아 그 뒤 전체가 한 바퀴 밀렸고, 화면 손이 한 바퀴를 천천히 따라 돌다 한계에 걸려 150° 뒤집힌 채 남았다
- * (2026-10-10 샘플 4 글러브 손, 착지 ~ 끝).
- */
-function unwrap(xs: number[], at?: number[]): number[] {
-  const out = [...xs];
-  for (let k = 1; k < out.length; k++) {
-    const q0 = Math.max(0, k - 5);
-    /*
-     * at(장면 번호)을 주면 앞 장면들의 빠르기로 지금까지 이어 간 자리에 가깝게 — 팔을 쭉 편 장면(비틀림을 못 봄)을 건너뛰면 그 사이 돈 만큼이 반
-     * 바퀴 가까워, 가운데값만 보면 짧은 쪽(거꾸로)으로 이었고 다시 굽은 팔이 다듬기 한계(장면당 20°)로 8장면 동안 거꾸로 돌며 손이 떨렸다
-     * (2026-10-13 실험실 샘플 1 공 놓은 뒤: 162° → 편 팔 11장면 → −24° 를 336° 로, 화면 손목 흔들림 키의 6.7%).
-     */
-    let ref: number;
-    if (at) {
-      const steps: number[] = [];
-      for (let q = Math.max(q0 + 1, k - 4); q < k; q++) steps.push((out[q] - out[q - 1]) / (at[q] - at[q - 1]));
-      const v = steps.length ? median(steps) : 0;
-      ref = median(out.slice(q0, k).map((x, i) => x + v * (at[k] - at[q0 + i])));
-    } else ref = median(out.slice(q0, k));
-    out[k] += 2 * Math.PI * Math.round((ref - out[k]) / (2 * Math.PI));
-  }
-  return out;
-}
-
-/** 몇 장면만 튄 각(앞뒤 7장면 가운데값에서 60° 넘게)은 안 본 것으로 — 이웃 장면으로 잇게 무게를 거의 0 으로 */
-const outlierW = (xs: number[], ws: number[]) =>
-  ws.map((w, k) => {
-    const win = xs.slice(Math.max(0, k - 7), k + 8).sort((a, b) => a - b);
-    return Math.abs(xs[k] - win[win.length >> 1]) > rad(60) ? 0.001 : w;
-  });
-
-const smooth1 = (xs: number[], ws: number[], sMin?: number, sMax?: number, widen = false) =>
-  smoothMulti(
-    xs.map((x) => [x]),
-    ws,
-    sMin,
-    sMax,
-    widen
-  ).map((v) => v[0]);
-
 function smoothUnit(vs: Vec3[], ws: number[]): Vec3[] {
   return smoothMulti(vs as number[][], ws).map((v) => unit(v as Vec3, [0, -1, 0]));
 }
 
-function smoothQuat(qs: Quat[], ws: number[], sMin?: number, sMax?: number): Quat[] {
-  const c = qs.map((q) => [...q] as Quat);
+function smoothQuat(qs: QuatWXYZ[], ws: number[], sMin?: number, sMax?: number): QuatWXYZ[] {
+  const c = qs.map((q) => [...q] as QuatWXYZ);
   for (let k = 1; k < c.length; k++)
     if (
       c[k][0] * c[k - 1][0] +
@@ -477,14 +311,7 @@ function smoothQuat(qs: Quat[], ws: number[], sMin?: number, sMax?: number): Qua
       0
     )
       c[k] = [-c[k][0], -c[k][1], -c[k][2], -c[k][3]];
-  return smoothMulti(c, ws, sMin, sMax).map((q) => qNorm(q as Quat));
-}
-
-/** 무게 있는 가운데값(각 — 이어 붙인 값으로) */
-function weightedMedian(xs: number[], ws: number[]): number {
-  const pairs = xs.map((x, i) => [x, ws[i]] as const).filter(([, w]) => w > 0.2);
-  if (!pairs.length) return median(xs);
-  return median(pairs.map(([x]) => x));
+  return smoothMulti(c, ws, sMin, sMax).map((q) => qNorm(q as QuatWXYZ));
 }
 
 /* ───────────────────────────── 틀 ───────────────────────────── */
@@ -527,18 +354,6 @@ type Limb = {
 
 /** 두 마디(어깨 → 팔꿈치 → 손목, 엉덩이 → 무릎 → 발목)를 방향 · 비틀림 · 굽힘으로 */
 /**
- * 앞뒤 half 장면의 가운데값 — 몇 장면만 튄 값을 걷는다. 양 끝은 창을 앞뒤 같게 줄인다(한쪽만 보면 고르게 움직이는 값이 끝에서 늦었다 —
- * 끝 장면까지 고르게 도는 다리가 1.5장면 늦어 발목이 키의 2.7% 어긋남).
- */
-function medianFilter(xs: number[], half: number): number[] {
-  return xs.map((_, k) => {
-    const h = Math.min(half, k, xs.length - 1 - k);
-    const w = xs.slice(k - h, k + h + 1).sort((a, b) => a - b);
-    return w[w.length >> 1];
-  });
-}
-
-/**
  * 글러브 손의 손목 굽힘 · 손바닥 돌림 한 장면 상한 배율 — 글러브 손은 던지는 손보다 훨씬 느린데 같은 상한(12 · 8°)을 한 장면에 다 써 손이
  * 7~25° 튀어 보였다(2026-10-10 샘플 다섯). 던지는 손은 릴리스 앞뒤로 진짜 빨라 그대로.
  */
@@ -548,7 +363,7 @@ const GLOVE_HAND_RATE = 0.5;
  * 회전 빠르기 변화 상위 10% 손 4~5° · 몸통 0.4°). 빠른 장면(던지는 손 릴리스)은 다듬기가 저절로 좁아진다(smoothMulti).
  */
 const HAND_SMOOTH: [number, number] = [1.2, 4.5];
-/** 던지는 손 각도(엎침 · 손목 굽힘 · 옆)를 국소 3차 곡선으로 맞추는 폭(장면, 가우스 σ) — 0 이면 HAND_SMOOTH */
+/** 던지는 손 각도(엎침 · 손목 굽힘 · 옆)를 국소 3차 곡선으로 맞추는 폭(장면, 가우스 σ) — 그 뒤 HAND_SMOOTH 다듬기를 겹친다 */
 const HAND_POLY = 5;
 
 /*
@@ -723,7 +538,7 @@ export function kneeTowardToes(hip: Vec3, knee: Vec3, ankle: Vec3, toeDir: Vec3)
   const bend = Math.acos(clamp(dot(unit(v, e), unit(sub(ankle, knee), e)), -1, 1));
   const w = clamp((rad(70) - bend) / rad(20), 0, 1);
   if (w <= 0) return knee;
-  return add(add(hip, scale(e, along)), scale(rot(scale(off, 1 / r), e, (want - th) * w), r));
+  return add(add(hip, scale(e, along)), scale(rotateAbout(scale(off, 1 / r), e, (want - th) * w), r));
 }
 
 export type KinematicTrack = {
@@ -824,7 +639,7 @@ export function kinematicTrack(
       if (norm(plH) < 1e-6) continue;
       const th = signedAngle(normalize(plH), tl, T);
       if (Math.abs(th) <= lim) continue;
-      const pl2 = rot(pl, T, th - Math.sign(th) * lim);
+      const pl2 = rotateAbout(pl, T, th - Math.sign(th) * lim);
       const up = unit(perp(T, pl2), T);
       pelvisM[k] = frameOf(normalize(pl2), up);
     }
@@ -843,7 +658,7 @@ export function kinematicTrack(
    * 고개'가 0 이 되어 그대로 보였다. 돌림은 투수가 홈을 보느라 몸통에 대해 크게 돌아 있어 가운데에서 잰다.
    */
   const neckRaw = frames.map((_, k) => quatFromMat(mul3(transpose(trunkM[k]), headM[k])));
-  const mid0 = smoothQuat(neckRaw, wHead, 50, 50)[Math.floor(n / 2)] ?? ([1, 0, 0, 0] as Quat);
+  const mid0 = smoothQuat(neckRaw, wHead, 50, 50)[Math.floor(n / 2)] ?? ([1, 0, 0, 0] as QuatWXYZ);
   const yaw0 = qNorm([mid0[0], 0, mid0[2], 0]);
   /* 릴리스 전은 고개 끄덕임 · 옆 기울임을 좁게(neckSwingPre) — 릴리스 뒤 6장면에 걸쳐 넓힌다 */
   const preRelease = (k: number) =>
@@ -985,7 +800,7 @@ export function kinematicTrack(
    * 꺼질 때 머리가 인형 어깨를 따라 꺾여, 실험실 샘플 넷(c4d8 · f046 · s1 · s3)에서 머리가 원 결과보다 더 떨렸다. 처음엔 어깨 가운데 기준 자리를 다듬었는데
    * 그러면 머리가 인형 어깨의 흔들림을 그대로 탔다(원 결과보다 키의 0.3~0.46%p 더 떪). 세상 자리로 다듬으니 0.1%p 안 · 목 길이 범위는 그대로(2026-10-14).
    */
-  if (HEAD_POST_SMOOTH[1] > 0) {
+  {
     /* 머리 모양(코 · 귀의 귀 가운데 기준 자리)은 그대로, 귀 가운데만 — 점마다 다듬으면 고개를 빨리 돌릴 때 머리가 안쪽으로 오그라들어 밀렸다(시험) */
     const em = out.map((fr) => midOf(fr[V2J.lEar], fr[V2J.rEar]));
     const emS = smoothMulti(em as number[][], frames.map(() => 1), HEAD_POST_SMOOTH[0], HEAD_POST_SMOOTH[1]) as Vec3[];
@@ -1022,8 +837,8 @@ export function kinematicTrack(
       const lim = rad(KIN_LIMITS.shoulderBack);
       if (back <= lim) return u;
       backOver[k] = back - lim;
-      const r1 = rot(u, [0, 1, 0], back - lim);
-      const r2 = rot(u, [0, 1, 0], lim - back);
+      const r1 = rotateAbout(u, [0, 1, 0], back - lim);
+      const r2 = rotateAbout(u, [0, 1, 0], lim - back);
       return Math.atan2(-r1[2], dot(r1, outAx)) < Math.atan2(-r2[2], dot(r2, outAx))
         ? r1
         : r2;
@@ -1073,10 +888,10 @@ export function kinematicTrack(
      * 큰 장면(상위 10%) 4~18 → 2~10°(c4d8 겹쳐 보기 그림). 엔진 어깨까지 따르게 하면 분리 75° 넘는 장면이 늘어 어깨는 몸통 모델 그대로 둔다.
      */
     const armEng = new Array<number>(n).fill(0);
-    const [fMin, fMax] = throwing ? [ARM_FOLLOW_SMOOTH, 3] : [gMin, gMax];
+    const [fMin, fMax] = throwing ? [ARM_FOLLOW_SMOOTH, ARM_FOLLOW_SMOOTH_SLOW] : [gMin, gMax];
     const smDir = (vs: Vec3[]) =>
       smoothMulti(
-        throwing && ARM_FOLLOW_POLY > 0 ? localPoly(vs as number[][], limb.flexW, ARM_FOLLOW_POLY) : (vs as number[][]),
+        throwing ? localPoly(vs as number[][], limb.flexW, ARM_FOLLOW_POLY) : (vs as number[][]),
         limb.flexW,
         fMin,
         fMax
@@ -1152,7 +967,7 @@ export function kinematicTrack(
     /* 던지는 손 각도 — 국소 3차 곡선(HAND_POLY). 손은 릴리스 앞뒤로 진짜 빨라 가우스 폭이 1.2 장면까지 좁아져 손 점 잡음이 그대로 꺾임이 됐다 */
     const handSmooth = (xs: number[], ws: number[], widen = false): number[] =>
       smooth1(
-        throwing && HAND_POLY > 0 ? localPoly(xs.map((v) => [v]), ws, HAND_POLY).map((v) => v[0]) : xs,
+        throwing ? localPoly(xs.map((v) => [v]), ws, HAND_POLY).map((v) => v[0]) : xs,
         ws,
         HAND_SMOOTH[0],
         HAND_SMOOTH[1],
@@ -1228,8 +1043,8 @@ export function kinematicTrack(
       const S = out[k][Sh];
       const u = dirS[k];
       const nRef = elbowRef(u);
-      const nb = rot(nRef, u, twistS[k]);
-      const f = rot(u, nb, flexS[k]);
+      const nb = rotateAbout(nRef, u, twistS[k]);
+      const f = rotateAbout(u, nb, flexS[k]);
       const E0 = add(S, scale(toWorld(M, u), Lu));
       const fw0 = toWorld(M, f);
       const W0 = add(E0, scale(fw0, Lf));
@@ -1423,8 +1238,8 @@ export function kinematicTrack(
       const Hpt = out[k][Hp];
       const u = dirS[k];
       const nRef = kneeRef(u);
-      const nb = rot(nRef, u, twistS[k]);
-      const s = rot(u, nb, flexS[k]);
+      const nb = rotateAbout(nRef, u, twistS[k]);
+      const s = rotateAbout(u, nb, flexS[k]);
       const uw = toWorld(M, u);
       let nw = toWorld(M, nb);
       let sw = toWorld(M, s);
