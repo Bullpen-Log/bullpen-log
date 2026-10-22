@@ -339,6 +339,15 @@ export const NAV_GROUPS: NavGroup[] = [
         adminOnly: true,
         perm: 'dev3d',
       },
+      /* 덕아웃 레슨 코치 관리 — 공개 · 편집 · 더미 코치(2026-10-22, 대표관리자만) */
+      {
+        href: '/admin/coaches',
+        label: '코치 관리',
+        /* 새 아이콘 이름을 더하면 앱(native/src/app/more.tsx)도 알아야 해서, 있는 'users'(사람들)로 */
+        icon: 'users',
+        tone: 'armcare',
+        adminOnly: true,
+      },
       /* 1:1 문의 답하기 · 공지 쓰기 · 커뮤니티 신고 처리(2026-10-17) */
       {
         href: '/admin/support',

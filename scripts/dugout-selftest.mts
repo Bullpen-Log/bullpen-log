@@ -24,7 +24,16 @@ import {
   canReview,
   parseSlot,
   slotParts,
+  matchCoach,
+  medianHours,
+  nextOpenLabel,
+  openInBand,
+  reviewSummary,
+  readPrefs,
+  weekdaysOfWhen,
+  listHref,
 } from '@/lib/market/lessons';
+import { makeDummyCoach } from '@/lib/market/lesson-dummy';
 import {
   parseHours,
   readHours,
@@ -208,10 +217,11 @@ console.log(
         name: m[1],
         body: text.slice(m.index, heads[i + 1]?.index ?? text.length),
       }))
-      .filter((x) => !/requireUser\(/.test(x.body))
+      /* 종의 읽기 둘(loadBell · countBell, 2026-10-22)은 getCurrentUser — 로그인 전이면 빈 목록 · 0 을 돌려 종이 그냥 비어 보인다 */
+      .filter((x) => !/requireUser\(|getCurrentUser\(/.test(x.body))
       .map((x) => x.name);
     check(
-      `app/actions/${f}.ts 의 동작 ${heads.length}개가 모두 requireUser 를 거친다`,
+      `app/actions/${f}.ts 의 동작 ${heads.length}개가 모두 로그인 사용자 기준이다`,
       heads.length >= 2 && bare.length === 0,
       bare.join(', ')
     );
@@ -438,9 +448,10 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
   for (const f of ['push', 'notifications']) {
     const body = src(`app/actions/${f}.ts`);
     const heads = (body.match(/export async function /g) ?? []).length;
-    const guarded = (body.match(/await requireUser\(/g) ?? []).length;
+    /* 종의 읽기(loadBell · countBell, 2026-10-22)는 getCurrentUser — 로그인 전이면 빈 목록 · 0 */
+    const guarded = (body.match(/await (requireUser|getCurrentUser)\(/g) ?? []).length;
     check(
-      `app/actions/${f}.ts 의 동작 ${heads}개가 모두 requireUser 를 거친다`,
+      `app/actions/${f}.ts 의 동작 ${heads}개가 모두 로그인 사용자 기준이다`,
       heads >= 1 && guarded === heads
     );
   }
@@ -495,6 +506,84 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
     /disallow:[\s\S]*'\/sinker'/.test(src('app/robots.ts')) &&
       existsSync(join(ROOT, 'app/sitemap.ts'))
   );
+  /* 레슨 코치 찾기 3판(2026-10-22) — 추천 점수 · 까닭 · 시간대 · 후기 요약 · 더미 코치 */
+  {
+    const base = {
+      specialties: ['pitching'],
+      region: '서울 강남',
+      rating: 4.8,
+      reviews: 12,
+      confirmHours: 3,
+      sinkerReview: true,
+      trialPrice: 30000,
+      priceFrom: 50000,
+      slots: { '1': { open: '18:00', close: '22:00' }, '6': { open: '09:00', close: '13:00' } },
+    };
+    const m = matchCoach(base, { specialty: 'pitching', prefs: ['rated', 'quick', 'sinker'], band: 'evening', weekday: 1 });
+    check(
+      '추천 점수 — 전문 · 후기 · 빠른 확정 · 싱커 · 저녁 가능이 까닭으로(셋까지)',
+      m.score > 60 && m.reasons.length === 3 && m.reasons[0] === '투구 전문' && m.reasons.includes('후기 4.8'),
+      m.reasons.join(',')
+    );
+    const weak = matchCoach(
+      { ...base, rating: null, reviews: 0, confirmHours: null, sinkerReview: false, trialPrice: null, specialties: ['hitting'] },
+      { specialty: 'pitching', prefs: ['rated'] }
+    );
+    check('추천 점수 — 조건에 안 맞는 새 코치는 낮고 까닭이 없다', weak.score < m.score && weak.reasons.length === 0);
+    check(
+      '시간대 겹침 — 월 저녁은 되고 월 오전은 안 되고, 쉬는 요일은 안 된다',
+      openInBand(base.slots, 1, 'evening') && !openInBand(base.slots, 1, 'morning') && !openInBand(base.slots, 2, 'evening')
+    );
+    check(
+      "'언제' → 요일 — 오늘(월)은 [1], 주말은 [6,0], 상관없으면 일곱",
+      weekdaysOfWhen('today', 1).join() === '1' && weekdaysOfWhen('weekend', 1).join() === '6,0' && weekdaysOfWhen('any', 1).length === 7
+    );
+    check(
+      '다음 가능 한 줄 — 월 17:00 이면 "오늘 18:00부터", 19:00 이면 "오늘 지금", 23:00 이면 토요일, 시간을 안 적으면 null',
+      nextOpenLabel(base.slots, 1, 17 * 60) === '오늘 18:00부터' &&
+        nextOpenLabel(base.slots, 1, 19 * 60) === '오늘 지금' &&
+        nextOpenLabel(base.slots, 1, 23 * 60) === '토요일 09:00부터' &&
+        nextOpenLabel(null, 1, 600) === null,
+      `${nextOpenLabel(base.slots, 1, 17 * 60)} / ${nextOpenLabel(base.slots, 1, 23 * 60)}`
+    );
+    const t0 = new Date('2026-10-20T00:00:00Z');
+    const h = (n: number) => new Date(t0.getTime() + n * 3_600_000);
+    check(
+      '확정 속도 가운데 값 — 2 · 10 · 40시간이면 10, 없으면 null',
+      medianHours([
+        { createdAt: t0, confirmedAt: h(2) },
+        { createdAt: t0, confirmedAt: h(40) },
+        { createdAt: t0, confirmedAt: h(10) },
+        { createdAt: t0, confirmedAt: null },
+      ]) === 10 && medianHours([]) === null
+    );
+    const sum = reviewSummary([
+      { rating: 5, tags: ['kind', 'clear'] },
+      { rating: 4, tags: ['kind'] },
+      { rating: 5, tags: [] },
+    ]);
+    check(
+      '후기 요약 — 별 분포(5점 2개 67%)와 좋았던 점 집계(친절 2 · 설명 1)',
+      sum.dist[0].n === 2 && sum.dist[0].pct === 67 && sum.tags[0].key === 'kind' && sum.tags[0].n === 2 && sum.tags.length === 2
+    );
+    check('선호 조건 읽기 — 모르는 값은 버린다', readPrefs('rated,xx,quick').join() === 'rated,quick' && readPrefs(undefined).length === 0);
+    check('목록 주소 — 빈 값은 빠진다', listHref({ specialty: 'pitching', region: undefined }) === '/lessons/list?specialty=pitching' && listHref({}) === '/lessons/list');
+    const d1 = makeDummyCoach(7);
+    const d2 = makeDummyCoach(7);
+    const d3 = makeDummyCoach(8);
+    check(
+      '더미 코치 — 같은 씨앗이면 같고 다른 씨앗이면 다르며, 모양이 맞다(전문 1~3 · 가격 3~10만 · 시간 7요일 · 후기 0~8)',
+      JSON.stringify(d1) === JSON.stringify(d2) &&
+        JSON.stringify(d1) !== JSON.stringify(d3) &&
+        d1.specialties.length >= 1 &&
+        d1.specialties.length <= 3 &&
+        d1.priceFrom >= 30000 &&
+        d1.priceFrom <= 100000 &&
+        Object.keys(d1.slots).length === 7 &&
+        d1.reviews.length <= 8 &&
+        d1.reviews.every((r) => r.rating >= 3 && r.rating <= 5 && r.tags.length <= 2)
+    );
+  }
   const picks = recommend('u13', 'pitcher', 'L');
   check(
     '장비 추천 다섯 — 글러브가 포지션 · 손을 품는다',

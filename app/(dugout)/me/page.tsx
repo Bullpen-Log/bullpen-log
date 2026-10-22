@@ -7,7 +7,7 @@ import { getCurrentUser } from '@/lib/dal';
 import { loadFavorites, loadMyListings } from '@/lib/market/load';
 import { loadMyBookings } from '@/lib/market/lesson-load';
 import { loadMyVenueBookings } from '@/lib/market/venue-load';
-import { bookingStatusLabel, canReview, formatSlot } from '@/lib/market/lessons';
+import { audienceLabel, bookingStatusLabel, canReview, formatSlot, payMethodLabel } from '@/lib/market/lessons';
 import { minToTime, venueBookingStatusLabel } from '@/lib/market/venues';
 import { cancelBooking } from '@/app/actions/lessons';
 import { cancelVenueBooking } from '@/app/actions/venues';
@@ -185,6 +185,11 @@ export default async function MePage() {
                       : `${formatSlot(b.slot1)}${b.slot2 ? ` 또는 ${formatSlot(b.slot2)}` : ''}`}
                   </span>
                 </p>
+                {(b.audience || b.payMethod) && (
+                  <p className="text-xs text-muted">
+                    {[audienceLabel(b.audience), payMethodLabel(b.payMethod) && `${payMethodLabel(b.payMethod)}(결제 준비 중)`].filter(Boolean).join(' · ')}
+                  </p>
+                )}
                 {b.reply && <p className="text-xs text-muted">코치: {b.reply}</p>}
                 {['REQUESTED', 'CONFIRMED'].includes(b.status) && (
                   <ConfirmButton

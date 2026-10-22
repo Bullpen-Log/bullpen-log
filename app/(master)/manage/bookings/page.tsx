@@ -5,7 +5,7 @@ import { BookingActions } from '@/components/master/booking-actions';
 import { requireMaster } from '@/lib/dal';
 import { requireCurrentOrg } from '@/lib/org/access';
 import { loadOrgBookings } from '@/lib/market/lesson-load';
-import { bookingStatusLabel, formatSlot } from '@/lib/market/lessons';
+import { audienceLabel, bookingStatusLabel, formatSlot, payMethodLabel, specialtyLabel } from '@/lib/market/lessons';
 
 /** 덕아웃 레슨 요청(코치 쪽, 2판) — 요청부터. 확정하면 회원 · 시간표에 들어간다 */
 export default async function BookingsPage() {
@@ -38,6 +38,13 @@ export default async function BookingsPage() {
                 <span className="text-xs text-muted">투구 기록 {b.player.records}건</span>
                 <span className="ml-auto text-xs text-muted">{b.chosen ? formatSlot(b.chosen) : `${formatSlot(b.slot1)}${b.slot2 ? ` 또는 ${formatSlot(b.slot2)}` : ''}`}</span>
               </div>
+              {(b.specialty || b.audience || b.payMethod) && (
+                <p className="flex flex-wrap gap-1 text-xs">
+                  {b.specialty && <Badge>{specialtyLabel(b.specialty)}</Badge>}
+                  {b.audience && <Badge>{audienceLabel(b.audience)}</Badge>}
+                  {b.payMethod && <Badge>{payMethodLabel(b.payMethod)} · 결제 준비 중</Badge>}
+                </p>
+              )}
               {b.note && <p className="text-sm text-ink">“{b.note}”</p>}
               {b.reply && <p className="text-xs text-muted">내 답: {b.reply}</p>}
               <BookingActions id={b.id} status={b.status} slot1={b.slot1.toISOString()} slot2={b.slot2?.toISOString() ?? null} />
