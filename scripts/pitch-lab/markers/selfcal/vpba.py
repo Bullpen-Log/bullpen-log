@@ -11,6 +11,10 @@ from sba import collect
 from cams import CAMS, FREE
 
 NF = len(FREE)
+# 초점 사전(kpba 와 같은 FOCALS · FOCAL_W) — 스티커 짝이 적을 때 초점 · 거리가 서로 미끄러지는 것을 막는다(10-21)
+FOC = {k: float(v) for k, v in (x.split(":") for x in os.environ.get("FOCALS", "").split(",") if x)}
+FOCAL_W = float(os.environ.get("FOCAL_W", "0"))
+PCS = [c for c in CAMS if FOCAL_W and c in FOC]
 
 
 def rmat(r):
@@ -91,6 +95,7 @@ class VP:
             d = np.linalg.norm(X[ka] - X[kb], axis=1)
             m = np.bincount(pid, d) / np.bincount(pid)
             out = np.r_[out, w * (d / m[pid] - 1)]  # 비율 — 장면을 줄여서 벌점을 피할 수 없게
+        out = np.r_[out, [FOCAL_W * (cs[c]["f"] / FOC[c] - 1) for c in PCS]]
         return (out, X) if want_X else out
 
     def jac(self, x):
@@ -110,6 +115,7 @@ class VP:
             rowp = np.r_[np.repeat(self.pi, 2), -1]
             if getattr(self, "rig", None) is not None:
                 rowp = np.r_[rowp, self.rig_p]
+            rowp = np.r_[rowp, -np.ones(len(PCS))]
             for j, k in enumerate(ks):
                 J[:, k] = np.where(rowp == j, d, 0.0)
         return J

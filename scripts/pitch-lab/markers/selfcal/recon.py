@@ -2,6 +2,7 @@
 
 이름: L/R + 번호(안내서) — 1 귀 · 2 어깨 · 3 팔꿈치 밖 · 4 팔꿈치 안 · 5 손목 엄지 쪽 · 6 손목 새끼 쪽 · 7 손등(R) · 8 큰돌기 ·
       9 무릎 밖 · 10 무릎 안 · 11 발목 밖 · 12 발목 안 · 13 뒤꿈치 · 14 발끝 · ASIS · PSIS.
+      MARKER_SET=v4(10-21 4차 11개): L/R 2 · L/R SB(어깨 뒤) · L/R ASIS · L/R PSIS · R3 · R5 · R6.
   py work/recon.py 보정.json 1 출력.npz
 """
 import os, sys, json
@@ -10,6 +11,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tracks import build, load_kp_full, at
 from match import track_edges, points, CAMS
+from tracks import MARKER_SET
 from kpba import tri
 
 KP = {"ear": (3, 4), "sho": (5, 6), "elb": (7, 8), "wri": (9, 10), "hip": (11, 12), "kne": (13, 14), "ank": (15, 16),
@@ -51,7 +53,16 @@ def label_scores(g, side, X, K, k):
     if g == "head":
         return {"1": 1.0}
     if g == "shoulder":
-        return {"2": 1.0}
+        if MARKER_SET != "v4":
+            return {"2": 1.0}
+        # 4차: 봉우리(2) · 어깨 뒤(SB, 봉우리에서 등 쪽으로 손가락 세 마디) — 몸통 앞뒤 축으로 가른다
+        hl, hr, sl, sr = K[("hip", "L")][k], K[("hip", "R")][k], K[("sho", "L")][k], K[("sho", "R")][k]
+        if np.isnan([hl, hr, sl, sr]).any():
+            return {}
+        right = unit(sr - sl); up = unit((sl + sr) / 2 - (hl + hr) / 2)
+        fwd = unit(np.cross(up, right))
+        d = X - J("sho")
+        return {"2": float(d @ fwd + 0.5 * d @ up), "SB": float(-d @ fwd)}
     if g == "elbow":
         u, v = J("elb") - J("sho"), J("wri") - J("elb")
         n = np.cross(u, v)
@@ -59,14 +70,14 @@ def label_scores(g, side, X, K, k):
             return {}
         lat = s * unit(n)  # 오른팔 바깥 = +n, 왼팔 = -n
         d = float((X - J("elb")) @ lat)
-        return {"3": d, "4": -d}
+        return {"3": d, "4": -d} if MARKER_SET != "v4" else {"3": 1.0}  # 4차는 팔꿈치 밖 하나
     if g == "wrist":
         w, th, pk, md = J("wri"), J("thumb"), J("pinky"), J("mid")
         if np.isnan([w, th, pk, md]).any():
             return {}
         rad = unit(th - pk)
         out = {"5": float((X - w) @ rad), "6": float(-(X - w) @ rad)}
-        if side == "R":
+        if side == "R" and MARKER_SET != "v4":  # 4차는 손등 스티커가 없다
             out["7"] = float((X - w) @ unit(md - w)) - 0.5 * abs(out["5"])
         return out
     if g == "hip":
@@ -77,7 +88,10 @@ def label_scores(g, side, X, K, k):
         fwd = unit(np.cross(up, right))
         c = (hl + hr) / 2
         d = X - c
-        return {"ASIS": float(d @ fwd + 0.5 * d @ up), "PSIS": float(-d @ fwd + 0.5 * d @ up), "8": float(-d @ up + 0.3 * s * d @ right)}
+        out = {"ASIS": float(d @ fwd + 0.5 * d @ up), "PSIS": float(-d @ fwd + 0.5 * d @ up), "8": float(-d @ up + 0.3 * s * d @ right)}
+        if MARKER_SET == "v4":
+            out.pop("8")  # 4차는 큰돌기 스티커가 없다
+        return out
     if g == "knee":
         u, v = J("kne") - J("hip"), J("ank") - J("kne")
         n = np.cross(u, v)
@@ -112,7 +126,7 @@ def run(p, cal, step=1 / 240, tol=2.0):
     trs = {c: build(p, c) for c in CAMS}
     info = {(c, t["id"]): (t["color"], t["group"]) for c in CAMS for t in trs[c]}
     E = track_edges(trs, cams, off, tol=tol)
-    tq = np.arange(-0.3, 4.3, step)
+    tq = np.arange(-0.3, float(os.environ.get("TQ_END", "4.3")), step)  # 기준 시각 범위 — 10-21 은 영상이 5~6초라 TQ_END=6
     P = points(trs, cams, off, E, tq, tol=tol)
     # 3D 궤적: 같은 2D 궤적을 쓰는 점끼리
     parent = {}

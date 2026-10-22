@@ -13,6 +13,9 @@ from kpcal import load_kp, sample, sync_pair
 from cams import CAMS, FREE, PAIRS
 
 F0 = 1600.0
+# 카메라별 초점 첫 값 · 사전(px) — FOCALS="1:1375,2:1527,3:1629"(기종 35mm 환산 × 대각선 ÷ 43.27). FOCAL_W: 1% 벗어남 = FOCAL_W/100 px 벌점
+FOC = {k: float(v) for k, v in (x.split(":") for x in os.environ.get("FOCALS", "").split(",") if x)}
+FOCAL_W = float(os.environ.get("FOCAL_W", "0"))
 
 
 def proj(cam, X):
@@ -59,7 +62,7 @@ def gather(ds, offs, step=2, thr=0.55):
 
 def init_cams(ds, offs):
     wh = {c: ds[min(ds)][c]["wh"] for c in CAMS}
-    cams = {c: {"r": np.zeros(3), "t": np.zeros(3), "f": F0, "cx": wh[c][0] / 2, "cy": wh[c][1] / 2} for c in CAMS}
+    cams = {c: {"r": np.zeros(3), "t": np.zeros(3), "f": FOC.get(c, F0), "cx": wh[c][0] / 2, "cy": wh[c][1] / 2} for c in CAMS}
     rows, n = gather(ds, offs)
     obs = {}
     for k, c, u, v in rows:
@@ -67,11 +70,12 @@ def init_cams(ds, offs):
     # 1 · 2 로 시작(E), 나머지는 PnP
     ks = [k for k in obs if "1" in obs[k] and "2" in obs[k]]
     a = np.array([obs[k]["1"] for k in ks]); b = np.array([obs[k]["2"] for k in ks])
-    K1 = np.array([[F0, 0, cams["1"]["cx"]], [0, F0, cams["1"]["cy"]], [0, 0, 1]])
-    K2 = np.array([[F0, 0, cams["2"]["cx"]], [0, F0, cams["2"]["cy"]], [0, 0, 1]])
+    f1, f2 = cams["1"]["f"], cams["2"]["f"]
+    K1 = np.array([[f1, 0, cams["1"]["cx"]], [0, f1, cams["1"]["cy"]], [0, 0, 1]])
+    K2 = np.array([[f2, 0, cams["2"]["cx"]], [0, f2, cams["2"]["cy"]], [0, 0, 1]])
     na = cv2.undistortPoints(a.reshape(-1, 1, 2), K1, None).reshape(-1, 2)
     nb = cv2.undistortPoints(b.reshape(-1, 1, 2), K2, None).reshape(-1, 2)
-    E, m = cv2.findEssentialMat(na, nb, np.eye(3), cv2.RANSAC, 0.999, 4.0 / F0)
+    E, m = cv2.findEssentialMat(na, nb, np.eye(3), cv2.RANSAC, 0.999, 4.0 / f1)
     _, R, t, m2 = cv2.recoverPose(E, na, nb, np.eye(3), mask=m)
     cams["2"]["r"] = cv2.Rodrigues(R)[0].ravel(); cams["2"]["t"] = t.ravel()
     print(f"  E 1-2: {int(m.sum())}/{len(ks)} 들어맞음")
@@ -79,10 +83,10 @@ def init_cams(ds, offs):
     for k in obs:
         if "1" in obs[k] and "2" in obs[k]:
             X[k] = tri(cams, [("1", obs[k]["1"]), ("2", obs[k]["2"])])
-    for c in "34":
+    for c in CAMS[2:]:
         ks = [k for k in X if c in obs[k]]
         P3 = np.array([X[k] for k in ks]); p2 = np.array([obs[k][c] for k in ks])
-        K = np.array([[F0, 0, cams[c]["cx"]], [0, F0, cams[c]["cy"]], [0, 0, 1]])
+        K = np.array([[cams[c]["f"], 0, cams[c]["cx"]], [0, cams[c]["f"], cams[c]["cy"]], [0, 0, 1]])
         ok, r, t, inl = cv2.solvePnPRansac(P3, p2, K, None, reprojectionError=12.0, iterationsCount=3000)
         cams[c]["r"], cams[c]["t"] = r.ravel(), t.ravel()
         print(f"  PnP {c}: {0 if inl is None else len(inl)}/{len(ks)}")
@@ -121,11 +125,15 @@ def ba(cams, rows, npts, fix="1", loss_scale=6.0):
             res[m] = proj(cs[c], X[pk[m]]) - uv[m]
         C1 = -cv2.Rodrigues(cs["1"]["r"])[0].T @ cs["1"]["t"]
         C2 = -cv2.Rodrigues(cs["2"]["r"])[0].T @ cs["2"]["t"]
-        return np.r_[res.ravel(), 100.0 * (np.linalg.norm(C2 - C1) - d12)]
+        pri = [FOCAL_W * (cs[c]["f"] / FOC[c] - 1) for c in cl if FOCAL_W and c in FOC]
+        return np.r_[res.ravel(), 100.0 * (np.linalg.norm(C2 - C1) - d12), pri]
 
     x0 = np.r_[np.concatenate([np.r_[cams[c]["r"], cams[c]["t"], cams[c]["f"] / 1000.0] for c in free]), cams[fix]["f"] / 1000.0, X0.ravel()]
     nc = len(free) * 7 + 1
-    A = lil_matrix((len(obs) * 2 + 1, len(x0)), dtype=int)
+    pcs = [c for c in cl if FOCAL_W and c in FOC]
+    A = lil_matrix((len(obs) * 2 + 1 + len(pcs), len(x0)), dtype=int)
+    for q, c in enumerate(pcs):
+        A[len(obs) * 2 + 1 + q, free.index(c) * 7 + 6 if c in free else nc - 1] = 1
     idx = np.arange(len(obs))
     for i, c in enumerate(cl):
         m = idx[pc == i]
@@ -139,10 +147,10 @@ def ba(cams, rows, npts, fix="1", loss_scale=6.0):
         A[2 * idx, nc + pk * 3 + q] = 1; A[2 * idx + 1, nc + pk * 3 + q] = 1
     A[len(obs) * 2, :nc] = 1
     t0 = time.time()
-    r = least_squares(fun, x0, jac_sparsity=A, x_scale="jac", loss="huber", f_scale=loss_scale, method="trf", tr_solver="lsmr", max_nfev=200, xtol=1e-12, ftol=1e-10, verbose=0)
+    r = least_squares(fun, x0, jac_sparsity=A, x_scale="jac", loss="huber", f_scale=loss_scale, method="trf", tr_solver="lsmr", max_nfev=int(os.environ.get("NFEV", "200")), xtol=1e-12, ftol=1e-10, verbose=0)
     print(f"  [ls] nfev {r.nfev} status {r.status} cost {0.5*np.sum(fun(x0)**2):.0f}->{r.cost:.0f} {r.message}")
     cs, X = unpack(r.x)
-    e = np.linalg.norm(r.fun[:-1].reshape(-1, 2), axis=1)
+    e = np.linalg.norm(r.fun[:2 * len(obs)].reshape(-1, 2), axis=1)
     per = {c: float(np.median(e[pc == i])) for i, c in enumerate(cl)}
     print(f"  BA {time.time() - t0:.0f}초 · 다시 비춤 가운데값 {np.median(e):.2f}px · 카메라별 {json.dumps({k: round(v, 2) for k, v in per.items()})}")
     return cs, X, e
@@ -198,14 +206,21 @@ if __name__ == "__main__":
     out = sys.argv[2]
     ds = {p: {c: load_kp(p, c) for c in CAMS} for p in pitches}
     offs = {}
-    for p in pitches:
+    for p in ([] if os.environ.get("INIT") else pitches):
         pr = {}
         for a, b in PAIRS:
             pr[a + b] = sync_pair(ds[p][a], ds[p][b], lo=-1.2, hi=1.2, coarse=1 / 60)[0]
         offs[p] = solve_offsets(pr)
         print(f"투구 {p} 짝 어긋남 → {json.dumps({k: round(v, 4) for k, v in offs[p].items()})}", flush=True)
-    cams = init_cams(ds, offs)
-    for it in range(4):
+    if os.environ.get("INIT"):  # 이어서 풀기: 앞 보정(carry.py · kpba 출력)에서 시작 — 짝 어긋남도 그 값으로
+        ini = json.load(open(os.environ["INIT"]))
+        cams = {c: {k: (np.array(v) if isinstance(v, list) else v) for k, v in ini["cams"][c].items()} for c in CAMS}
+        offs = {p: ini["offsets"][str(p)] for p in pitches if str(p) in ini.get("offsets", {})} or offs
+        for c in FOC:  # FOCALS 를 주면 앞 보정의 초점 대신 그 값에서 시작
+            cams[c]["f"] = FOC[c]
+    else:
+        cams = init_cams(ds, offs)
+    for it in range(int(os.environ.get("ITERS", "4"))):
         rows, n = gather(ds, offs)
         cams, X, e = ba(cams, rows, n)
         print(f"  초점 {json.dumps({c: round(cams[c]['f']) for c in CAMS})}", flush=True)
