@@ -1446,6 +1446,11 @@
   상세 `/lessons/[id]`(아래 고정 CTA) → 예약 `/lessons/[id]/book`(코치의 요일별 시간 `lessonSlots` 를 `lib/market/venues.ts slotsOf` 로 자름 — 연습장과 같은 JSON). 결제 수단은 `LessonBooking.payMethod` 에 저장만.
   관리자 `/admin/coaches`(공개 · 편집 · 더미 — `lib/market/lesson-dummy.ts makeDummyCoach` 씨앗 생성, 끝난 예약 + 후기를 관리자 계정으로 만들고 `DUMMY_BOOKING_NOTE` 로 '내 것'에서 뺀다).
   더미 코치는 주인(관리자)도 예약해 본다. 후기 이름은 `maskName`. 남은 것: 폰 · 사파리 확인, 코치 사진(지금은 이름 첫 글자 원), 결제 연동(pay-shell 그대로).
+- **덕아웃 겉모양 기준(2026-10-23, 사용자: "숨고 · 번개장터 · 당근 느낌을 섞고 우리 색만 조금, 장터는 번개장터 최대한").** 위 막대는 번개장터식 두 줄(로고 · 넓은 검색 · 내 것 | ≡ 카테고리 · 굵은 메뉴 · 물건 올리기, `dugout-topbar.tsx`, 본문 폭 max-w-6xl),
+  홈(큰 로고 첫 화면 밑)은 숨고 첫 화면 차례 그대로(같은 날 사용자 "홈은 숨고처럼" — `app/(dugout)/page.tsx` · `home-services.tsx`): '[지역 ∨] 에서 무엇이 필요하세요?' + 회색 검색 →
+  [중고거래 | 레슨 · 예약] 탭 아이콘 줄 → 얇은 검은 띠 → 방금 올라온 물건 → 추천 코치 → 한 번에 카드 넷 → 인기글 두 칸. 위 막대 · 아래 탭 '홈'은 `/?home=1`(작은 로고 홈),
+  위 막대 로고는 `/`(큰 로고 첫 화면 — 막대 로고 자리에서 커지며 가운데로, `components/dugout/logo-fly.ts` · hero 의 stage 'fly'),
+  장터 목록은 굵은 품목 줄 + 회색 알약 거르기 + 6열 격자(`market/page.tsx` · `listing-card.tsx`), 상세는 왼쪽 사진 · 오른쪽 가격 · 찜 | 채팅하기 | 안전결제(`market/[id]/page.tsx`). 레슨은 닥터나우식 그대로.
 - **덕아웃 4판 결제는 껍데기(2026-10-21)** — 사용자 지시 "겉만, 결제만 안 되게". `components/dugout/pay-shell.tsx` 하나가 모든 결제 화면의 틀(단추 disabled + '준비 중' 안내), 수수료율은 `lib/market/pay.ts` 상수 셋(가정값).
   화면 다섯(`/dugout/pay/{listing,lesson,venue}/[id]` · `/dugout/me/payments` · `/master/payouts`). 계약 뒤 연동할 때 표(결제 기록)와 단추 동작만 더한다 — 화면은 안 바꾼다.
 - **싱커 · 덕아웃 개편(2026-10-21)** — 계획 `docs/designs/sinker-dugout.md`(결정 9절 · 파트 10절 · 단계 11~12절). 1단계 끝: `lib/brand.ts` · `surfaceOf`(lib/app-env.ts) · `Wordmark brand=` · `[data-brand='dugout']`(globals.css 끝).

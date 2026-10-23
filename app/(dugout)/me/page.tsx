@@ -289,7 +289,7 @@ export default async function MePage() {
         )}
       </section>
 
-      <section className="space-y-3">
+      <section id="favorites" className="scroll-mt-28 space-y-3">
         <h2 className="inline-flex items-center gap-1.5 text-lg font-bold text-ink">
           <RoundHeart className="h-4 w-4" /> 찜 {favorites.length}
         </h2>
