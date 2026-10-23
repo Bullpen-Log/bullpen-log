@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { MouseEvent } from 'react';
 import { RoundMenu, RoundPlus, RoundSearch } from '@/components/round-icon';
 import { Wordmark } from '@/components/logo';
 import { MorphLink } from '@/components/shell-morph';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
+import { startLogoFly } from '@/components/dugout/logo-fly';
 
 /**
  * 덕아웃 위 막대(2026-10-21 2단계, docs/designs/sinker-dugout.md 5-1) — 웹사이트 전체의 공용 머리. 덕아웃 바깥 공간(components/dugout/dugout-shell) ·
@@ -46,7 +48,21 @@ export function DugoutTopBar({
   const pathname = usePathname();
   const inDugout = current === null;
   const isSinkerBar = brand === 'sinker';
-  const homeHref = isSinkerBar ? '/today' : native ? '/?dugout=1' : '/';
+  /*
+   * 로고 = 큰 로고 첫 화면(누르면 로고가 커지며 가운데로 — components/dugout/logo-fly.ts), '홈' = 작은 로고 홈(?home=1)(2026-10-23 금윤호).
+   */
+  const bigHref = isSinkerBar ? '/today' : native ? '/?dugout=1' : '/';
+  const homeHref = isSinkerBar ? '/today' : native ? '/?dugout=1&home=1' : '/?home=1';
+  const onLogo = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (isSinkerBar || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const mark = e.currentTarget.querySelector('[data-wordmark]') ?? e.currentTarget;
+    startLogoFly(mark);
+    /* 이미 덕아웃 홈('/')이면 페이지를 다시 받지 않고 그 자리에서 펼친다 */
+    if (pathname === '/') {
+      e.preventDefault();
+      if (`${location.pathname}${location.search}` !== bigHref) window.history.pushState(null, '', bigHref);
+    }
+  };
   const nav = isSinkerBar
     ? []
     : [
@@ -104,8 +120,17 @@ export function DugoutTopBar({
         둘째 줄은 '≡ 카테고리' 와 굵은 메뉴, 오른쪽 끝 '물건 올리기'. 휴대폰 · 싱커 틀은 한 줄 그대로.
       */}
       <div className="mx-auto flex min-h-14 w-full max-w-6xl items-center gap-4 px-4 md:px-6">
-        <Link href={homeHref} data-morph-side className="flex shrink-0 items-baseline gap-2">
-          <Wordmark brand={brand} className="text-2xl text-ink" />
+        <Link
+          href={bigHref}
+          onClick={onLogo}
+          aria-label={isSinkerBar ? undefined : '덕아웃 첫 화면'}
+          data-morph-side
+          data-bar-logo
+          className="flex shrink-0 items-baseline gap-2"
+        >
+          <span data-wordmark className="inline-flex">
+            <Wordmark brand={brand} className="text-2xl text-ink" />
+          </span>
         </Link>
         {!isSinkerBar && search}
         <div data-morph-chrome className="ml-auto flex shrink-0 items-center gap-2">

@@ -4116,3 +4116,9 @@ html[data-morph='to-dugout-out'] [data-morph-chrome] {
   66% { transform: translateY(-6px); opacity: 0; }
   100% { transform: translateY(0); opacity: 1; }
 }
+
+/* 막대 로고를 눌러 첫 화면으로 날아갈 때(components/dugout/logo-fly.ts) — 막대의 로고는 곧바로 비운다(날아가는 로고와 둘로 보이지 않게) */
+body:has([data-dugout-hero][data-stage='fly']) [data-bar-logo] {
+  opacity: 0;
+  transition: none;
+}

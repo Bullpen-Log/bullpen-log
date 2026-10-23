@@ -9,11 +9,13 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'next/navigation';
 import { RoundBack, RoundChat, RoundMenu } from '@/components/round-icon';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
 import { AppLauncher } from '@/components/dugout/app-launcher';
 import { splashScale } from '@/lib/brand';
 import { DESK_MEDIA } from '@/lib/nav';
+import { LOGO_FLY_EVENT, peekLogoFly, takeLogoFly, type LogoRect } from '@/components/dugout/logo-fly';
 
 const INTRO_SEEN_KEY = 'bullpen-dugout-intro-day';
 import { Wordmark } from '@/components/logo';
@@ -26,10 +28,16 @@ import { Wordmark } from '@/components/logo';
  *   splash  로고 · 이름만 화면 정중앙에 크게(들어올 때마다), 나머지는 아무것도 없다 → 1초 뒤 hero(로고가 줄며 제자리로, 바로가기 · 모서리 · 안내가 스르륵)
  *   hero    구글식 홈 — 작은 링크 · 큰 로고 · 검색창 · 단추 둘. 위 막대는 숨는다. 바퀴 · 손가락 · 키로 조금만 내리면 home
  *   home    로고가 작아지며 위로(위 막대가 떠오름) · 이 판이 접히며 밑의 덕아웃 홈이 올라온다. 맨 위에서 다시 올리면 hero 로
+ *   fly     위 막대 로고를 눌렀을 때(2026-10-23) — 막대 로고 자리에서 시작해 커지며 가운데로(→ hero). components/dugout/logo-fly.ts
+ *
+ * 위 막대 · 아래 탭의 '홈'은 /?home=1 — 큰 로고 없이 home 으로 바로 열린다(2026-10-23 금윤호 "홈을 누르면 작은 로고 홈으로").
+ * 그렇게 연 홈은 맨 위에서 올려도 큰 로고로 안 펴진다(로고를 눌러야).
  */
 const noopSubscribe = () => () => {};
 
-type Stage = 'splash' | 'hero' | 'home';
+type Stage = 'splash' | 'hero' | 'home' | 'fly';
+/** 막대 로고가 가운데로 커지는 시간 */
+const FLY_MS = 720;
 /** 로고만 떠 있는 시간(2026-10-21 금윤호: 1초 → "0.5초로") */
 const SPLASH_MS = 500;
 /** 싱커에서 돌아올 때 — 가운데 로고가 이미 커지며 보였으니 바로 줄어든다(2026-10-21 금윤호 "로고가 떠 있는 시간이 너무 길다") */
@@ -42,7 +50,10 @@ export function DugoutHero({
   alerts = 0,
   sinker = false,
   native = false,
+  start = 'big',
 }: {
+  /** 'home' = 큰 로고 없이 작은 로고 홈으로 바로(?home=1) */
+  start?: 'big' | 'home';
   user: { nickname: string } | null;
   unread?: number;
   alerts?: number;
@@ -51,8 +62,16 @@ export function DugoutHero({
   native?: boolean;
 }) {
   /* 서버 그림부터 splash(로고 크게) — 첫 칠에 위 막대가 비쳤다 사라지는 일이 없다. 이미 본 세션이면 수화 뒤 바로 hero 로 줄어든다 */
-  const [stage, setStage] = useState<Stage>('splash');
-  const stageRef = useRef<Stage>('splash');
+  const first: Stage = peekLogoFly() ? 'fly' : start === 'home' ? 'home' : 'splash';
+  const [stage, setStage] = useState<Stage>(first);
+  const stageRef = useRef<Stage>(first);
+  /* '홈'으로 연 화면은 맨 위에서 올려도 큰 로고로 안 펴진다 */
+  const noExpand = useRef(start === 'home');
+  /* 막대 로고 자리 · 거기서 시작하는 변형 · 날아온 뒤 hero 로 가는 시간 */
+  const flySrc = useRef<LogoRect | null>(null);
+  const [flyT, setFlyT] = useState<string | null>(null);
+  const [flew, setFlew] = useState(false);
+  const wantHome = useSearchParams().get('home') === '1';
   /* 맨 위에 닿은 때 — 관성으로 굴러 올라와 닿자마자 첫 화면이 다시 펴지지 않게(0.35초는 맨 위에 머물러야 편다) */
   const topSince = useRef<number>(0);
   const busy = useRef(false);
@@ -105,6 +124,67 @@ export function DugoutHero({
     stageRef.current = next;
     setStage(next);
   }
+
+  /*
+   * fly — 막대 로고 자리(누른 순간의 화면 좌표)에서 로고를 같은 크기로 그려 두고, 두 장면 뒤 hero 로 넘기면 transition 이 가운데로 키운다.
+   * 홈 내용은 그 사이 화면 밖으로 밀리고(판이 바로 화면 높이), 모서리 · 바로가기는 hero 의 늦춤대로 스르륵 나온다.
+   */
+  useLayoutEffect(() => {
+    if (stage !== 'fly') return;
+    flySrc.current ??= takeLogoFly();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    const src = flySrc.current;
+    const r = logoBox.current?.getBoundingClientRect();
+    if (!src || !r || !r.width || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      flySrc.current = null;
+      go('hero');
+      return;
+    }
+    setFlyT(
+      `translate(${src.x + src.w / 2 - (r.left + r.width / 2)}px, ${src.y + src.h / 2 - (r.top + r.height / 2)}px) scale(${src.w / r.width})`
+    );
+  }, [stage]);
+  useEffect(() => {
+    if (stage !== 'fly' || !flyT) return;
+    let id = requestAnimationFrame(() => {
+      id = requestAnimationFrame(() => {
+        flySrc.current = null;
+        setFlew(true);
+        go('hero');
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [stage, flyT]);
+  useEffect(() => {
+    if (!flew) return;
+    const t = window.setTimeout(() => {
+      setFlew(false);
+      setFlyT(null);
+    }, FLY_MS + 100);
+    return () => window.clearTimeout(t);
+  }, [flew]);
+
+  /* 이미 '/' 에서 막대 로고를 누르면(접힌 home) 알림으로 받는다 */
+  useEffect(() => {
+    const onFly = () => {
+      if (stageRef.current !== 'home') {
+        takeLogoFly();
+        return;
+      }
+      noExpand.current = false;
+      go('fly');
+    };
+    window.addEventListener(LOGO_FLY_EVENT, onFly);
+    return () => window.removeEventListener(LOGO_FLY_EVENT, onFly);
+  }, []);
+
+  /* 뒤로가기 등으로 ?home=1 이 되면 작은 로고 홈으로 */
+  useEffect(() => {
+    if (!wantHome || stageRef.current === 'home') return;
+    noExpand.current = true;
+    go('home');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [wantHome]);
 
   /* 움직임 줄이기면 splash 를 건너뛴다 */
   useEffect(() => {
@@ -164,7 +244,8 @@ export function DugoutHero({
       window.setTimeout(() => (busy.current = false), COLLAPSE_MS);
     };
     const expand = () => {
-      if (busy.current || stageRef.current !== 'home' || window.scrollY > 0) return;
+      if (busy.current || noExpand.current || stageRef.current !== 'home' || window.scrollY > 0)
+        return;
       if (performance.now() - topSince.current < 350) return;
       busy.current = true;
       go('hero');
@@ -230,7 +311,9 @@ export function DugoutHero({
     };
   }, []);
 
-  const splash = stage === 'splash';
+  /* fly 동안은 splash 처럼 로고만 — 모서리 · 바로가기 · 안내는 hero 에서 나온다 */
+  const splash = stage === 'splash' || stage === 'fly';
+  const fly = stage === 'fly';
   const home = stage === 'home';
   const [gridOpen, setGridOpen] = useState(false);
   const apps = [
@@ -256,7 +339,9 @@ export function DugoutHero({
         /* 접히면 틀의 본문 여백(위)을 돌려줘 홈 내용이 위 막대에 붙지 않게 — 예전엔 0 간격이라 조금만 굴려도 잘렸다 */
         marginTop: home ? 0 : undefined,
         marginBottom: home ? 0 : undefined,
-        transition: `height ${COLLAPSE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1), margin ${COLLAPSE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1)`,
+        transition: fly
+          ? 'none'
+          : `height ${COLLAPSE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1), margin ${COLLAPSE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1)`,
       }}
     >
       {/* 구글식 작은 링크 — 왼쪽 위 · 오른쪽 위. body 로 옮겨 그린다(본문 연출의 변형에 안 끌려가게). splash · home 에서는 숨는다 */}
@@ -363,13 +448,16 @@ export function DugoutHero({
           <div
             className="flex flex-col items-center transition-[transform,opacity] duration-[900ms] ease-[cubic-bezier(0.65,0,0.25,1)]"
             style={{
-              transform: splash
-                ? `translate(${center?.x ?? 0}px, ${center?.y ?? 0}px) scale(${center?.scale ?? 1.6})`
-                : home
-                  ? 'translateY(-40vh) scale(0.35)'
-                  : 'translateY(-16px) scale(1)',
-              opacity: splash && !center ? 0 : 1,
-              transitionDuration: splash ? '0ms' : undefined,
+              transform: fly
+                ? (flyT ?? 'none')
+                : splash
+                  ? `translate(${center?.x ?? 0}px, ${center?.y ?? 0}px) scale(${center?.scale ?? 1.6})`
+                  : home
+                    ? 'translateY(-40vh) scale(0.35)'
+                    : 'translateY(-16px) scale(1)',
+              opacity: fly ? (flyT ? 1 : 0) : splash && !center ? 0 : 1,
+              transitionDuration: splash ? '0ms' : flew ? `${FLY_MS}ms` : undefined,
+              transitionTimingFunction: flew ? 'cubic-bezier(0.22, 1, 0.36, 1)' : undefined,
             }}
           >
             <Wordmark brand="dugout" className="text-6xl text-ink md:text-8xl" />

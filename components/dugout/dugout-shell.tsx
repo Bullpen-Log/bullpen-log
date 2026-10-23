@@ -32,14 +32,15 @@ export function DugoutShell({
 }) {
   const pathname = usePathname();
   const tabs = [
-    { href: '/', label: '홈', icon: RoundHome, exact: true },
+    /* 홈 = 작은 로고 홈(큰 로고 첫 화면은 위 막대 로고로, 2026-10-23) */
+    { href: native ? '/?dugout=1&home=1' : '/?home=1', label: '홈', icon: RoundHome, exact: true },
     { href: '/market', label: '장터', icon: RoundMarket },
     { href: '/market/new', label: '올리기', icon: RoundPlus, plus: true },
     { href: '/chat', label: '채팅', icon: RoundChat, badge: unread },
     { href: '/me', label: '내 것', icon: RoundUser },
   ];
   const active = (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+    exact ? pathname === href.split('?')[0] : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <div
