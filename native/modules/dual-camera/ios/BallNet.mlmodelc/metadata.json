@@ -1,0 +1,69 @@
+[
+  {
+    "metadataOutputVersion" : "3.0",
+    "shortDescription" : "불펜로그 공 감지 v1 — 연속 세 장면 밝기(0~1) → 공 중심 열지도(로짓) · 지름 log, 걸음 4",
+    "outputSchema" : [
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 2 × 184 × 104)",
+        "shortDescription" : "",
+        "shape" : "[1, 2, 184, 104]",
+        "name" : "heat_size",
+        "type" : "MultiArray"
+      }
+    ],
+    "storagePrecision" : "Float16",
+    "modelParameters" : [
+
+    ],
+    "specificationVersion" : 7,
+    "mlProgramOperationTypeHistogram" : {
+      "Ios16.sigmoidHard" : 4,
+      "Ios16.mul" : 5,
+      "Ios16.add" : 1,
+      "Ios16.upsampleBilinear" : 1,
+      "Ios16.relu" : 6,
+      "Ios16.sub" : 1,
+      "Ios16.reduceMean" : 1,
+      "Ios16.thresholdedRelu" : 3,
+      "Ios16.conv" : 14
+    },
+    "computePrecision" : "Mixed (Float16, Float32, Int32)",
+    "isUpdatable" : "0",
+    "stateSchema" : [
+
+    ],
+    "availability" : {
+      "macOS" : "13.0",
+      "tvOS" : "16.0",
+      "visionOS" : "1.0",
+      "watchOS" : "9.0",
+      "iOS" : "16.0",
+      "macCatalyst" : "16.0"
+    },
+    "modelType" : {
+      "name" : "MLModelType_mlProgram"
+    },
+    "inputSchema" : [
+      {
+        "hasShapeFlexibility" : "0",
+        "isOptional" : "0",
+        "dataType" : "Float16",
+        "formattedType" : "MultiArray (Float16 1 × 3 × 736 × 416)",
+        "shortDescription" : "",
+        "shape" : "[1, 3, 736, 416]",
+        "name" : "frames",
+        "type" : "MultiArray"
+      }
+    ],
+    "userDefinedMetadata" : {
+      "com.github.apple.coremltools.source_dialect" : "TorchScript",
+      "com.github.apple.coremltools.version" : "8.3.0",
+      "com.github.apple.coremltools.source" : "torch==2.5.1+cpu"
+    },
+    "generatedClassName" : "BallNet",
+    "method" : "predict"
+  }
+]

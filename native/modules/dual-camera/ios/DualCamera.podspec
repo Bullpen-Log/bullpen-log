@@ -16,4 +16,6 @@ Pod::Spec.new do |s|
   }
 
   s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
+  # 학습 모델 공 알림(BallNetTrigger) — xcrun coremlcompiler compile BallNet.mlpackage . --platform iOS --deployment-target 16.4 로 만든 것
+  s.resources = ['BallNet.mlmodelc']
 end

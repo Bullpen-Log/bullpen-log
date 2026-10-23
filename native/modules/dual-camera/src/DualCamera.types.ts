@@ -46,7 +46,8 @@ export type Clip = {
   fpsActual?: number;
 };
 
-export type ThrowEvent = { atSec: number; strength: number; kind: 'ball' | 'seed' | 'motion' | 'skip'; thermal: number };
+/** kind 'net' — 학습 모델 공 알림(SPEC-detect D3, strength = 첫 표본 점수 0~1). 지금은 그림자 — 시도 기록에만 남긴다 */
+export type ThrowEvent = { atSec: number; strength: number; kind: 'ball' | 'seed' | 'motion' | 'skip' | 'net'; thermal: number };
 /**
  * 1초마다 — thermal 0~3(ProcessInfo.ThermalState) · feedMs 장면당 공 찾기 시간(ms) · feedSkipped 공 찾기가 밀려 건너뛴 장면 수(셋은 2026-10-20 판부터).
  * droppedLate · droppedBuffers 버린 장면의 까닭(늦음 · 버퍼 모자람), writerSkipped 인코더가 안 받아 클립에 빠진 장면, writerResets 깨진 녹화기를 새로 연 횟수(같은 날 밤 판부터)
@@ -67,6 +68,8 @@ export type FpsEvent = {
   writerResets?: number;
   /** 아이폰 화면 기록(또는 미러링)이 켜져 있나 — 장면이 빠져 공을 놓친다 */
   screenCaptured?: boolean;
+  /** 장면당 학습 모델 공 알림 시간(ms) — 모델이 있는 판부터 */
+  netMs?: number;
 };
 
 export type DualCameraEvents = {

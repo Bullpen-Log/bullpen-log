@@ -75,7 +75,7 @@ scripts/velocity-bench/detect.mjs                     문 — '모델 알림' �
 | --- | --- | --- | --- |
 | D1 | **끝(10-23)** CoreML 내보내기(`train.py::export_coreml`, 110KB) + 맥 시험대 `--net`(`ballnet.swift`) + detect.mjs 칸 — **19/19 · 헛 0.8/분 · 지연 0.08초** | 아니요 | 3~5시간 |
 | D2 | 4판 모델(라벨 더함 · 확인용 뺌) — D1 숫자가 목표 밑일 때 → **미룸**(D1 통과) | 아니요 | 2~4시간 + Modal |
-| D3 | 앱에 넣기(설정 스위치 뒤, 처음엔 켜 둔 채 MotionTrigger 와 둘 다 기록만) → 폰에서 열 · 장면 버림 · 실제 알림 | 예(김민 폰) | 3~4시간 + 굽기 |
+| D3 | 앱에 넣기 — **코드 끝(10-23)**: `DualCameraCore.swift` 의 `BALL_NET` 구간(`BallNetTrigger`, vImage 줄이기 · CoreML) · 앱 안 `BallNet.mlmodelc`(podspec resources) · 알림 'net' 은 **그림자**(capture.ts 가 시도 기록에만 — `kind 'net'`, why `net-shadow`) · 통계 `netMs`. 맥 시험대가 같은 구간을 떼어 씀. 남은 것: 폰에서 열 · 장면 버림 · 실제 알림 | 예(김민 폰) | 3~4시간 + 굽기 |
 | D4 | 알림을 모델로 바꾸고 MotionTrigger 걷기 · 훑기 쉼 빼기 | 예 | 1~2시간 |
 | D5 | 클립 안 공 길을 모델 상자로 · 손 감지 — `speed` 스펙과 같이 | — | 뒤에 |
 
