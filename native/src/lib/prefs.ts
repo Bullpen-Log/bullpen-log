@@ -64,6 +64,9 @@ export async function reloadPrefs(): Promise<void> {
     emit();
   }
 }
+/** 지금 값 — 약속(prefsReady)을 기다린 뒤 그때의 값을 볼 때 */
+export const currentPrefs = () => prefs;
+
 /** 앱을 켤 때 처음 읽기 — 끝나기 전엔 테마가 기본값(라이트)이라, 시작 연출 · 시작 화면 테마는 이걸 기다린다 */
 export const prefsReady: Promise<void> = reloadPrefs();
 
