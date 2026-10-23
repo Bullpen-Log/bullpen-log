@@ -61,6 +61,9 @@ export type Transport = {
 };
 export type Body3DHandle = { seek: (frame: number) => void };
 
+/** 재생 중 자세를 다시 짓는 가장 짧은 간격(ms) — 초당 60번쯤. 120Hz 화면에서도 두 장면에 한 번 */
+const POSE_MIN_MS = 15;
+
 /** 각도 이름표의 짧은 이름 — 상자를 작게(긴 이름은 이름표에 마우스를 대면 · 결과 표에서) */
 /** 화면 속 몸 키(px)가 이보다 작으면 이름표는 숫자만 */
 const LABEL_FULL_BODY_PX = 420;
@@ -378,7 +381,6 @@ export const Body3D = forwardRef<
        * 뼈 · 각도 보기 — 늘 켬(인형 비침 + 속 뼈 · 잰 선 · 이름표). 뼈 · 선 자리는 장면이 바뀔 때만 다시 잡는다(rAF 마다가 아니다).
        */
       let labels: Label[] = [];
-      let labelsVersion = 0;
       const applyAna = (a: number) => {
         const m = anaMaterials(a);
         for (const [key, mat] of Object.entries(fig.materials)) {
@@ -404,7 +406,6 @@ export const Body3D = forwardRef<
         const { J, F } = blendMannequin(mann.joints, mann.frames, k, u);
         fig.update(J, F);
         labels = ov.update(J, F, labelValues(measureAngles(J), momentOf(k, shownEvents(result.events)), result.metrics));
-        labelsVersion++;
         if (!isPlaying) setSaid(labels.map((l) => `${l.name} ${labelText(l.key, l.value)}${l.off && l.table != null ? ` (결과 표 ${Math.round(l.table)}°)` : ''}`));
         dirty = true;
       };
@@ -509,14 +510,17 @@ export const Body3D = forwardRef<
            * 값은 늘 그림(보기용 관절)의 각도. 순간에 결과 표 값과 8° 넘게 벌어지면 흐리게 하고, 누르면 표 값 한 줄을 펼친다
            * (2026-10-12 김민 — 숫자 칸이 공식 값, 이름표는 보이는 각도).
            */
-          const key = `${labelsVersion}:${el.dataset.open ?? ''}:${brief ? 1 : 0}`;
+          /* 글이 바뀔 때만 다시 쓰고 크기를 잰다 — 재생 중 장면마다 쓰고 재면 페이지 전체를 다시 배치했다(2026-10-23) */
+          const open = L.off && el.dataset.open === '1';
+          const html = `${brief ? '' : `<span class="font-normal text-[#c7cfdd]">${SHORT_NAME[L.key] ?? L.name}</span> `}${labelText(L.key, L.value)}${
+            open && L.table != null ? `<span class="ml-1 text-[#9aa5b4]">· 표 ${Math.round(L.table)}°</span>` : ''
+          }`;
+          const key = `${html}|${L.off ? 1 : 0}|${L.table ?? ''}|${L.name}`;
           if (el.dataset.v !== key) {
             el.dataset.v = key;
+            el.dataset.w = '';
             el.style.borderLeftColor = measureHex(L.key);
-            const open = L.off && el.dataset.open === '1';
-            el.innerHTML = `${brief ? '' : `<span class="font-normal text-[#c7cfdd]">${SHORT_NAME[L.key] ?? L.name}</span> `}${labelText(L.key, L.value)}${
-              open && L.table != null ? `<span class="ml-1 text-[#9aa5b4]">· 표 ${Math.round(L.table)}°</span>` : ''
-            }`;
+            el.innerHTML = html;
             el.style.pointerEvents = L.off ? 'auto' : 'none';
             el.style.cursor = L.off ? 'pointer' : '';
             el.title =
@@ -524,10 +528,15 @@ export const Body3D = forwardRef<
                 ? `${L.name} · 결과 표 값 ${Math.round(L.table)}° · 화면 자세와 ${Math.round(Math.abs(L.value - L.table))}° 달라요`
                 : L.name;
           }
-          el.style.display = '';
+          if (el.style.display === 'none') {
+            el.style.display = '';
+            el.dataset.w = '';
+          }
           el.style.opacity = L.off ? '0.55' : '1';
+          if (!el.dataset.w) el.dataset.w = `${el.offsetWidth} ${el.offsetHeight}`;
+          const [bw, bh] = el.dataset.w.split(' ').map(Number);
           const s = projectToScreen([v.x, v.y, v.z], w, h);
-          boxes.push({ i, x: s.x, y: s.y, w: el.offsetWidth + 6, h: el.offsetHeight + 4 });
+          boxes.push({ i, x: s.x, y: s.y, w: bw + 6, h: bh + 4 });
         });
         const at = placeLabels(boxes, w, h);
         boxes.forEach((b, j) => {
@@ -568,6 +577,7 @@ export const Body3D = forwardRef<
       };
 
       let last = performance.now();
+      let lastPose = 0;
       let raf = 0;
       const loop = (now: number) => {
         raf = requestAnimationFrame(loop);
@@ -583,9 +593,15 @@ export const Body3D = forwardRef<
             cur = k;
             setFrame(k);
           }
-          /* 장면 사이도 그린다 — 데이터 장면만 이어 붙이면 느린 재생 · 슬로모 영상에서 끊겨 보였다(blendMannequin) */
-          const k1 = Math.min(n - 1, k + 1);
-          pose(k, k1 > k ? Math.min(1, Math.max(0, (clock - result.t[k]) / (result.t[k1] - result.t[k] || 1))) : 0);
+          /*
+           * 장면 사이도 그린다 — 데이터 장면만 이어 붙이면 느린 재생 · 슬로모 영상에서 끊겨 보였다(blendMannequin). 다만 초당 60번까지만:
+           * 자세 하나(인형 · 속 뼈 · 선)를 짓고 네 번 그리는 데 장면마다 수 ms 라, 120Hz 화면에서 매 장면 하면 페이지 전체가 버벅였다(2026-10-23).
+           */
+          if (now - lastPose >= POSE_MIN_MS) {
+            lastPose = now;
+            const k1 = Math.min(n - 1, k + 1);
+            pose(k, k1 > k ? Math.min(1, Math.max(0, (clock - result.t[k]) / (result.t[k1] - result.t[k] || 1))) : 0);
+          }
           /* 릴리스(주 문제 장면)에서 멈추지 않고 끝까지 · 되풀이(2026-10-22 김민: "끝까지 이어서 재생") — 멈춘 장면은 움직임 줄이기 때만 */
           if (wrapped) {
             lastTick = now;

@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { Appearance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { prefsReady, usePrefs } from '~/lib/prefs';
+import { currentPrefs, prefsReady, usePrefs } from '~/lib/prefs';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { useTheme } from '~/lib/ui';
 import { useAppUpdateOnReturn } from '~/shell/app-update';
@@ -56,9 +56,12 @@ export default function RootLayout() {
   const pick = usePrefs().theme;
   useEffect(() => {
     Appearance.setColorScheme(pick === 'system' ? 'unspecified' : pick === 'light' ? 'light' : 'dark');
-    /* 다음 시작 화면도 이 테마로(처음 읽기 전의 기본값은 기억하지 않는다) */
+    /* 다음 시작 화면도 이 테마로. 처음 읽기 전의 기본값(라이트)은 넘기지 않는다 — 읽은 값이 오면 이 효과가 다시 돈다.
+       예전엔 라이트 · 네이비를 잇달아 넘겨 시작 그림이 켤 때마다 흰색 · 네이비로 번갈았다(2026-10-23 김민 폰) */
     /* 옛 앱(부품에 이 기능이 없음)은 건너뛴다 */
-    void prefsReady.then(() => BullpenNative.setLaunchStyle?.(pick));
+    void prefsReady.then(() => {
+      if (currentPrefs().theme === pick) BullpenNative.setLaunchStyle?.(pick);
+    });
   }, [pick]);
   return (
     /* 밀어서 하기(shell/swipe-row.tsx) 같은 손가락 동작 부품은 이 뿌리 안에서만 돈다 */

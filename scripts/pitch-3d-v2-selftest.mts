@@ -17,6 +17,7 @@ import {
   PITCH3D_V2_VERSION,
   readPitch3dV2Job,
   readPitch3dV2Result,
+  heelContact,
   RTMW_INDEX,
   storedV2ResultJson,
   V2_FAIL_TEXT,
@@ -111,6 +112,7 @@ import {
   boneEnds,
   boneSpec,
   BONE_TABLE,
+  compactSkeleton,
   fitSkeleton,
   prepareSkeleton,
   skeletonT,
@@ -211,7 +213,7 @@ const good = (): Pitch3dV2Ok => {
       Array.from({ length: N_V2_JOINTS }, () => 90)
     ),
     lowConf: [[30, 33]],
-    events: { kneeUp: 2, footPlant: 20, release: 30 },
+    events: { kneeUp: 2, footPlant: 20, release: 30, contactBy: 'heel' },
     metrics: [
       { key: 'trunkForwardTilt', value: 30.1, unit: 'deg', pm: 3, trust: 'high' },
     ],
@@ -262,6 +264,30 @@ const good = (): Pitch3dV2Ok => {
 {
   const g = good();
   check('좋은 결과 통과', readPitch3dV2Result(g) === g);
+  /*
+   * '착지'(heelContact) — 뒤꿈치가 디딘 높이(묶인 뒤 가장 낮음) + 키 4/180 안에 처음 들어온 장면, 2D 첫 닿음 앞으로는 안 간다, 끝까지 안 들어오면 발 묶임.
+   * 옛 결과(contactBy 없음)는 읽을 때 같은 규칙으로 '착지'를 고른다.
+   */
+  {
+    const heel = Array.from({ length: 40 }, (_, k) => (k < 10 ? 0.2 : k < 20 ? 0.2 - (k - 10) * 0.02 : 0.02));
+    const ev = { kneeUp: 2, footPlant: 20, footContact: 8 };
+    const k1 = heelContact(heel, ev);
+    const k2 = heelContact(heel, { ...ev, footContact: 19 });
+    const k3 = heelContact(heel.map((h, k) => (k <= 20 ? 0.5 : h)), ev);
+    const k4 = heelContact(heel.map(() => 0.02), ev);
+    check(
+      `착지: 뒤꿈치가 디딘 높이 4cm 안에 처음 든 장면(${k1} · 18) · 2D 첫 닿음 앞으로 안 감(${k2} · 19) · 못 들면 발 묶임(${k3} · 20) · 이미 땅이면 첫 닿음(${k4} · 8)`,
+      k1 === 18 && k2 === 19 && k3 === 20 && k4 === 8
+    );
+    const old = { ...g, events: { kneeUp: 2, footPlant: 20, footContact: 8, release: 30 } };
+    const hj = V2J.lHe;
+    old.joints = old.joints.map((fr, k) => fr.map((p, j) => (j === hj ? [p[0], Math.round(heel[k] * 1000), p[2]] : p)));
+    const r = readPitch3dV2Result(old);
+    check(
+      `옛 결과는 읽을 때 '착지'를 뒤꿈치로 고른다(${r?.ok ? r.events.footContact : '?'} · 18) · 엔진이 고른 결과는 그대로`,
+      !!r?.ok && r.events.footContact === 18 && r.events.contactBy === undefined && readPitch3dV2Result({ ...old, events: { ...old.events, contactBy: 'heel' } })?.ok === true
+    );
+  }
   check(
     '실패 결과 — 까닭 글은 코드로 다시(저장된 글을 믿지 않음)',
     (() => {
@@ -2015,15 +2041,37 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
         turn = Math.max(turn, (Math.acos(Math.max(-1, Math.min(1, dot(dirL(S1[q - 1]), dirL(S1[q]))))) * 180) / Math.PI / mR.dt);
       check(`앞발이 늦게 돌아도 인형 앞발이 휙 돌지 않는다(착지 앞 가장 빠른 돌림 ${turn.toFixed(0)}°/초 · 1500 안)`, turn < 1500);
     }
-    /* 착지 맞춤이 앞발목을 옮겨도 앞 넙다리 길이는 그대로(무릎을 두 마디로 다시 접는다 — 예전엔 무릎을 발목만큼 옮겨 넙다리가 늘었다) */
+    /*
+     * 착지 단추 순간 엔진 앞발이 아직 떠 있어도(실제 결과 대부분 — 뒤꿈치 2~35cm) 인형 앞다리가 늘거나 쭉 펴지지 않는다. 예전 착지 맞춤은 발목을 발이 멈춘 장면
+     * 자리로 끌어 엉덩이 → 발목이 다리 길이의 1.06~1.38배, 정강이가 5~34cm 늘었다(2026-10-23 김민 사진). 합성: 몸 전체를 착지 단추 앞뒤에 25cm 뒤로
+     * 둔다(관절 사이 길이 그대로) — 실제 엔진처럼 발이 그 뒤 묶일 자리까지 나아가며 내려온다(정답도 첫 닿음 → 묶임에 발목 8~21cm).
+     */
     {
-      const S0 = smoothForMannequin(tr.frames, result, H);
-      const len = (f: Vec3[]) => norm(sub(f[V2J.lKn], f[V2J.lHip]));
-      const fc = Math.round(result.events.footContact ?? result.events.footPlant);
-      const ref = len(S0[Math.max(0, fc - 40)]);
-      let worst = 0;
-      for (let q = Math.max(0, fc - 30); q < Math.min(S0.length, fc + 40); q++) worst = Math.max(worst, Math.abs(len(S0[q]) - ref));
-      check(`착지 맞춤: 앞 넙다리 길이 그대로(착지 앞뒤 가장 큰 변화 ${(worst * 100).toFixed(1)}cm · 0.5cm 안 — 고치기 전 합성 1.5 · 실제 가운데 11cm)`, worst < 0.005);
+      const ev = result.events;
+      const fc = Math.round(ev.footContact ?? ev.footPlant);
+      const fp = Math.max(fc + 6, ev.footPlant);
+      const D = 0.25 / H;
+      const air = tr.frames.map((fr, k) => {
+        const w = k < fc - 8 || k >= fp ? 0 : k <= fc ? (k - fc + 8) / 8 : (fp - k) / (fp - fc);
+        return fr.map((p) => [p[0] - D * w, p[1], p[2]] as Vec3);
+      });
+      const S0 = smoothForMannequin(air, result, H);
+      const hip = (f: Vec3[]) => f[V2J.lHip];
+      const thigh = (f: Vec3[]) => norm(sub(f[V2J.lKn], hip(f)));
+      const shank = (f: Vec3[]) => norm(sub(f[V2J.lAn], f[V2J.lKn]));
+      const r0 = S0[Math.max(0, fc - 40)];
+      let thighW = 0;
+      let shankW = 0;
+      let reach = 0;
+      for (let q = Math.max(0, fc - 30); q < Math.min(S0.length, fc + 40); q++) {
+        thighW = Math.max(thighW, Math.abs(thigh(S0[q]) - thigh(r0)));
+        shankW = Math.max(shankW, Math.abs(shank(S0[q]) - shank(r0)));
+        reach = Math.max(reach, norm(sub(S0[q][V2J.lAn], hip(S0[q]))) / (thigh(r0) + shank(r0)));
+      }
+      check(
+        `착지 맞춤: 착지 단추에 발이 떠 있어도 앞다리 길이 그대로(정강이 ${(shankW * 100).toFixed(1)}cm · 1cm 안 · 넙다리 ${(thighW * 100).toFixed(1)}cm · 1.5 안, 엉덩이 → 발목 다리 길이의 ${reach.toFixed(3)}배 · 1.01 안 — 예전 착지 맞춤 3.3cm · 1.043배)`,
+        thighW < 0.015 && shankW < 0.01 && reach < 1.01
+      );
     }
     /* 장면 사이 그리기 — 끝(u 0 · 1)은 그 장면 그대로, 가운데는 두 장면 사이 · 회전은 길이 1 */
     {
@@ -2451,6 +2499,29 @@ console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부
         const n = torsoN(t);
         worst = Math.max(worst, ((Math.abs(x) / T.width(t)) ** n + (Math.abs(yv) / (yv > 0 ? T.front(t) : T.back(t))) ** n) ** (1 / n));
         if (pos[v * 3] < -0.2 && dot(q, sub(J.rh, J.lh)) <= 0) rightOk = false;
+      }
+      /* 펼친 꼭짓점을 원래 정점 하나로 줄여 얹어도(색인) 꼭짓점마다 자리 · 법선이 펼친 것과 같다 — 재생 중 뼈대 계산이 대여섯 배 줄었다 */
+      {
+        const nv = pos.length / 3;
+        const ids: number[] = [];
+        for (let v = 0; v + 2 < nv; v++) ids.push(v, v + 1, v + 2, v + 2, v + 1, (v + 7) % nv);
+        const P = Float32Array.from(ids.flatMap((v) => [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]]));
+        const Nn = Float32Array.from(ids.flatMap((v) => [Math.cos(v), 0.3, Math.sin(v)]));
+        const full = prepareSkeleton(P, Nn);
+        const { prep: small, index } = compactSkeleton(full, ids);
+        const hh = norm(sub(J.rh, J.lh)) / 2;
+        const sh = norm(sub(J.sh, J.gs)) / 2;
+        const o1 = new Float32Array(P.length);
+        const n1 = new Float32Array(P.length);
+        fitSkeleton(full, T, k, hh, sh, o1, n1);
+        const o2 = new Float32Array(small.t.length * 3);
+        const n2 = new Float32Array(small.t.length * 3);
+        fitSkeleton(small, T, k, hh, sh, o2, n2);
+        let diff = 0;
+        for (let i = 0; i < ids.length; i++)
+          for (let a = 0; a < 3; a++)
+            diff = Math.max(diff, Math.abs(o1[i * 3 + a] - o2[index[i] * 3 + a]), Math.abs(n1[i * 3 + a] - n2[index[i] * 3 + a]));
+        check('뼈대 정점 줄이기: 색인으로 그린 자리 · 법선이 펼친 것과 같고 정점이 줄어든다', diff === 0 && small.t.length === nv && index.length === ids.length, `차 ${diff} · 정점 ${small.t.length}/${ids.length}`);
       }
       const keys = skeletonT(0.9).t === TORSO_KEYS[1] && skeletonT(1.37).t === TORSO_KEYS[5] && skeletonT(0.7).t === 0 && skeletonT(0.7).dy < 0 && skeletonT(1.6).dy > 0;
       check(

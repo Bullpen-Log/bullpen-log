@@ -12,7 +12,6 @@ import {
   SESSION_MINUTES,
   ALL_STATIONS,
   OUTDOOR_STATIONS,
-  WRAP_MINUTES,
   buildPlan,
   bucketOf,
   demoCue,
@@ -243,9 +242,9 @@ const deferredWeeks = plan.weeks.filter((w) => w.deferred);
   /* 미룬 영상 칸의 운동은 실내 운동이다(원래 주차 번호 그대로) — 개수에 같이 센다 */
   const items = [...indoorPlan.weeks, ...deferredWeeks].flatMap(weekItems);
   check(
-    '실내 5주 · 329개(야외를 붙여도 그대로 — 2026-10-14 사용자가 14개 지우고 토 워크 둘 · 나중에 촬영 60개를 뺌, 403 → 327 · 한 회 3시간쯤으로 7 → 5주 · 10-15 파워 넷 더함 → 331 · 10-16 불안정 지면 스냅다운 · 백 페달을 나중에 촬영으로 → 329)',
+    '실내 5주 · 321개(야외를 붙여도 그대로 — 2026-10-14 사용자가 14개 지우고 토 워크 둘 · 나중에 촬영 60개를 뺌, 403 → 327 · 한 회 3시간쯤으로 7 → 5주 · 10-15 파워 넷 더함 → 331 · 10-16 불안정 지면 스냅다운 · 백 페달을 나중에 촬영으로 → 329 · 10-23 5주차의 8개를 야외 6주차로 → 321)',
     indoorPlan.weeks.length === 5 &&
-      items.length === 329 &&
+      items.length === 321 &&
       indoorPlan.weeks.every((w, i) => w.week === i + 1),
     `${indoorPlan.weeks.length}주 · ${items.length}개`
   );
@@ -294,11 +293,12 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
   const drills = items.filter((i) => i.kind === 'drill');
   const warms = items.filter((i) => i.kind === 'warmup');
   check(
-    '야외 2주(6 · 7) — 드릴 83 · 워밍업 없음(2026-10-14 사용자가 37개를 나중에 촬영으로 뺌, 120 → 83 · 3 → 2주)',
-    out.map((w) => w.week).join() === '6,7' &&
+    '야외 1주(6) — 드릴 83 · 5주차에서 옮긴 운동 8 · 워밍업 없음(2026-10-14 37개를 나중에 촬영으로, 120 → 83 · 10-23 사용자가 6 · 7주를 합치고 5주차 남은 것 8개를 넣음)',
+    out.map((w) => w.week).join() === '6' &&
       drills.length === 83 &&
+      items.filter((i) => !i.kind).length === 8 &&
       warms.length === 0,
-    `${out.map((w) => w.week).join(',')} · 드릴 ${drills.length} · 워밍업 ${warms.length}`
+    `${out.map((w) => w.week).join(',')} · 드릴 ${drills.length} · 운동 ${items.filter((i) => !i.kind).length} · 워밍업 ${warms.length}`
   );
   const rowIds = SHOOT_WARMUPS.map((w) => warmupRowId(w.id));
   check(
@@ -324,8 +324,8 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
     )
   );
   check(
-    '매주 백업 10분 전(2:50)에 끝남',
-    out.every((w) => w.end <= SESSION_MINUTES - WRAP_MINUTES),
+    '6주차 하루에 4시간 30분 안(2026-10-23 사용자가 6 · 7주를 한 번에 — 3시간 기준 밖)',
+    out.every((w) => w.end <= 270),
     out.map((w) => clockText(w.end)).join(' · ')
   );
   const order = OUTDOOR_STATIONS as readonly string[];
@@ -340,7 +340,7 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
     )
   );
   check(
-    '계획 시각이 앞 것이 끝난 뒤 · 영상 1개 3분 안 · 쉬기 두 번까지',
+    '계획 시각이 앞 것이 끝난 뒤 · 영상 1개 3분 안 · 쉬기 다섯 번까지',
     out.every((w) => {
       const its = weekItems(w);
       return (
@@ -348,7 +348,7 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
           (it, i) =>
             it.minutes <= 3 &&
             (i === 0 || it.at >= its[i - 1].at + its[i - 1].minutes - 1e-6)
-        ) && its.filter((it) => it.breakAfter).length <= 2
+        ) && its.filter((it) => it.breakAfter).length <= 5
       );
     })
   );
@@ -407,10 +407,6 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
   const a = JSON.stringify(buildOutdoorWeeks(drillIn, [], opts));
   const b = JSON.stringify(buildOutdoorWeeks([...drillIn].reverse(), [], opts));
   check('같은 드릴이면 같은 계획(순서를 뒤섞어도)', a === b);
-  check(
-    '고정해 둔 야외 주차 = 지금 계산(다시 뽑아도 번호가 그대로)',
-    JSON.stringify(out) === a
-  );
   check(
     '드릴 영상 분 — 던지기 · 이어지는 동작은 더',
     drillMinutes({

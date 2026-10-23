@@ -230,7 +230,8 @@ export type Pitch3dV2Ok = {
    * footPlant = 앞발 발목이 디딘 높이로 내려온 장면(엔진 · 화면 모델이 발을 묶는 기준), footContact = 앞발이 처음 닿은 장면(사용자에게 보이는
    * '착지' · 착지 지표 · 점검, footPlant 와 같거나 앞). footContact 가 없는 옛 결과는 footPlant 로 본다(plantFrame) — 10-15 판의 footFlat 은 안 읽는다.
    */
-  events: { kneeUp: number | null; footPlant: number; footContact?: number; release: number };
+  /** contactBy = 'heel' 이면 엔진이 footContact 를 앞 뒤꿈치로 고른 결과(heelContact) — 없으면 옛 결과라 읽을 때 같은 규칙으로 고른다 */
+  events: { kneeUp: number | null; footPlant: number; footContact?: number; release: number; contactBy?: 'heel' };
   /** v1 정의 그대로(0-3절 결정 ④ 대기) */
   metrics: Metric[];
   quality: Pitch3dQuality;
@@ -365,7 +366,8 @@ export function readPitch3dV2Result(raw: unknown): Pitch3dV2Result | null {
     !okIdx(e.footPlant) ||
     !(e.footContact === undefined || okIdx(e.footContact)) ||
     !okIdx(e.release) ||
-    !(e.kneeUp === null || okIdx(e.kneeUp))
+    !(e.kneeUp === null || okIdx(e.kneeUp)) ||
+    !(e.contactBy === undefined || e.contactBy === 'heel')
   )
     return null;
   if (!Array.isArray(r.lowConf)) return null;
@@ -411,7 +413,11 @@ export function readPitch3dV2Result(raw: unknown): Pitch3dV2Result | null {
   const seg = r.segment as Record<string, unknown> | undefined;
   if (!seg || !isNum(seg.fromSec) || !isNum(seg.toSec) || seg.toSec < seg.fromSec)
     return null;
-  return raw as Pitch3dV2Ok;
+  const ok = raw as Pitch3dV2Ok;
+  if (ok.events.contactBy === 'heel') return ok;
+  /* 옛 결과 — '착지'를 같은 뒤꿈치 규칙으로 고른다. 착지 지표(metrics)는 엔진이 그때 셈한 그대로다(다시 분석하면 같은 순간이 된다) */
+  const he = V2J[ok.hand === 'L' ? 'rHe' : 'lHe'];
+  return { ...ok, events: { ...ok.events, footContact: heelContact(ok.joints.map((fr) => fr[he][1] / 1000), ok.events) } };
 }
 
 /** 저장할 문자열로 — 모양 검사를 통과하고 상한 안일 때만(서버 동작 · GPU 둘 다) */
@@ -652,6 +658,26 @@ export function v2WaitingText(job: Pitch3dV2Job, nowMs: number): string {
       : '분석 중이에요. 보통 1~2분 걸려요.';
   if (min < 10) return '조금 더 걸리고 있어요. 화면을 떠나도 분석은 계속돼요.';
   return '15분이 지나면 멈추고 다시 할 수 있어요.';
+}
+
+/** 첫 닿음 문턱 — 앞 뒤꿈치가 디딘 높이에서 키의 이만큼 안(키 1.8m 에 4cm) */
+export const HEEL_CONTACT_UP = 0.04 / 1.8;
+/**
+ * '착지'(첫 닿음) — 옆 영상 2D 로 고른 첫 닿음(footContact) ~ 발 묶임(footPlant) 사이에서 앞 뒤꿈치가 디딘 높이(묶인 뒤 30장면의 가장 낮은 높이)
+ * + HEEL_CONTACT_UP 안에 처음 들어온 장면, 끝까지 안 들어오면 발 묶임. heel = 장면마다 앞 뒤꿈치 높이(키 = 1).
+ * 2D 로 고른 첫 닿음은 마커 정답(네 대 교차 발뒤꿈치 · 발끝이 땅 2cm 안) 25구에서 가운데 49ms 이르고 절대 평균 54ms 어긋나 '착지' 단추에 발이
+ * 떠 있었다(2026-10-23 김민 "단추랑 시점도 맞췄으면"). 이 규칙은 가운데 +4 · 절대 평균 25ms(10-12 묶음 32 · 10-21 묶음 15).
+ */
+export function heelContact(
+  heel: ArrayLike<number>,
+  e: { kneeUp: number | null; footPlant: number; footContact?: number }
+): number {
+  const fp = e.footPlant;
+  let low = Infinity;
+  for (let k = fp; k < Math.min(heel.length, fp + 30); k++) low = Math.min(low, heel[k]);
+  const from = Math.min(fp, Math.max(e.footContact ?? fp, (e.kneeUp ?? -1) + 1));
+  for (let k = from; k <= fp; k++) if (heel[k] - low <= HEEL_CONTACT_UP) return k;
+  return fp;
 }
 
 /** 사용자에게 보이는 '착지' 장면 — 앞발이 처음 닿은 장면(옛 결과는 발목이 닿은 장면) */

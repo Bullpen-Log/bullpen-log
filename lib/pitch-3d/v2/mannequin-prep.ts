@@ -1,7 +1,6 @@
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
 import { V2_JOINTS, plantFrame, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import type { DisplayTrack } from '@/lib/pitch-3d/v2/display';
-import { twoBoneIk } from '@/lib/pitch-3d/v2/kinematics';
 import { aiTrunkInputs, trunkTrack } from '@/lib/pitch-3d/v2/trunk';
 
 /**
@@ -102,11 +101,7 @@ export function smoothForMannequin(frames: Vec3[][], result: Pick<Pitch3dV2Ok, '
   }
   if (lockAt < 0) lockAt = calm;
   if (lockAt > 0) {
-    /*
-     * 발이 땅에 닿는 장면 = 착지(첫 닿음 footContact — 화면의 '착지' 단추 · 옆 영상 2D 로 잰 순간). 엔진 앞발은 닿은 뒤에도 50~90ms 더 떠 있다가
-     * 묶여(뒤 영상에서 축다리에 가려 높이를 늦게 받음), 예전처럼 발이 멈춘 장면(lockAt)까지 이으면 '착지' 단추에 인형 발이 8cm 떠 있었다
-     * (2026-10-22 마커 4차: 세 · 네 대 교차 정답은 단추 ±20ms 에 땅). 그래서 착지까지 내려 그 자리에 두고, 무릎은 발목과 같이 옮긴다.
-     */
+    /* 착지(첫 닿음 footContact — 화면의 '착지' 단추) — 뒤꿈치가 디딘 방향이 되는 장면. 발 자리는 엔진 그대로(아래 고리) */
     const arrive = Math.max(0, Math.min(lockAt, plantFrame(result.events)));
     const zLock = F[lockAt][an][1];
     /* 실제 1초의 장면 수 — mannequinTrack 의 dt 와 같게(mannequinFrameDt). 장면 수로만 잡으면 슬로모 샘플에서 6장면이 20ms 라 발이 한 번에 꺾였다 */
@@ -142,21 +137,19 @@ export function smoothForMannequin(frames: Vec3[][], result: Pick<Pitch3dV2Ok, '
       return [0, 1, 2].map((i) => (ua[i] * wa + ub[i] * wb) * L) as Vec3;
     };
     for (let i = turnFrom + 1; i < lockAt; i++) {
-      const u = i >= arrive ? 1 : i <= from ? 0 : ease((i - from) / Math.max(1, arrive - from));
-      const d: Vec3 = [(B(ja)[0] - F[i][ja][0]) * u, (B(ja)[1] - F[i][ja][1]) * u, (B(ja)[2] - F[i][ja][2]) * u];
-      const A: Vec3 = i >= arrive ? [...B(ja)] as Vec3 : [F[i][ja][0] + d[0], F[i][ja][1] + d[1], F[i][ja][2] + d[2]];
+      /*
+       * 발목 자리는 엔진 그대로 — 방향(발목 → 뒤꿈치 · 발끝)만 돌린다. 예전엔 착지 단추(첫 닿음)에 발을 땅으로 끌어내려(처음엔 발이 멈춘 장면 자리로 통째로)
+       * 아직 뒤 · 위에 있는 엉덩이에서 다리가 길이의 1.06~1.38배로 쭉 펴지고 정강이가 5~34cm 늘었다(2026-10-23 김민 사진 — 모든 결과). 마커 정답으로
+       * 보면 착지 단추 순간 뒤꿈치는 0~15cm 떠 있을 때가 많고(10-12 15구 — 엔진 2~12cm 와 비슷), 무릎은 8~55° 굽음(엔진 원 무릎이 이와 맞다)이다.
+       */
+      const A = F[i][ja];
       ['He', 'To'].forEach((nm, q) => {
         const at = nm === 'To' ? toeAt : arrive;
-        const v = i >= at ? 1 : ease((i - turnFrom) / Math.max(1, at - turnFrom));
-        const o = blend(off0[q], off1[q], v);
+        const o = blend(off0[q], off1[q], i >= at ? 1 : ease((i - turnFrom) / Math.max(1, at - turnFrom)));
         /* 디딘 높이 밑으로는 안 내려간다 — 내려오며 발끝이 아래를 보면 착지 단추에 발끝이 땅에 3cm 묻혔다 */
         const j = IX(`${lead}${nm}`);
         F[i][j] = [A[0] + o[0], Math.max(A[1] + o[1], i >= from ? B(j)[1] : -Infinity), A[2] + o[2]];
       });
-      /* 무릎은 엉덩이를 둔 채 두 마디로 다시 접는다(길이 그대로) — 발목이 옮긴 만큼 무릎도 옮기면 넙다리가 몇 cm 늘었다(2026-10-22 검토) */
-      const kn = IX(`${lead}Kn`);
-      if (d[0] || d[1] || d[2]) F[i][kn] = twoBoneIk(F[i][IX(`${lead}Hip`)], F[i][kn], F[i][ja], A);
-      F[i][ja] = A;
     }
   }
   /* 2 관절마다 가우스 */

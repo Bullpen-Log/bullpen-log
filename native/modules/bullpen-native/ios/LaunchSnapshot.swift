@@ -9,7 +9,7 @@ import UIKit
 /// 공식 기능이 아니라 iOS 판이 바뀌면 안 먹을 수 있다 — 그래서 셋을 지킨다(2026-10-22 김민: "그 위험을 해결"):
 ///  ① 쓴 그림을 다시 읽어 크기 · 바탕색이 맞을 때만 바꿔 끼운다(깨진 파일로 검은 시작 화면이 되지 않게)
 ///  ② iOS 가 우리 그림을 또 되돌리면(지문이 바뀜) 세다가 두 번이면 그 iOS 판에서는 그만둔다(판이 바뀌면 다시 해 본다)
-///  ③ LaunchStyleSubscriber 가 iOS 가 실제로 보인 그림(shownImage)을 덮었다 걷는다 — 먹었으면 테마 그림이라 티가 안 나고, 안 먹었으면 스르르
+///  ③ 안 먹었으면(iOS 가 보인 그림이 테마 색이 아니면) LaunchStyleSubscriber 가 그 그림을 덮었다가 앱이 화면에 뜬 뒤 스르르 걷는다
 /// '자동'으로 돌리면 바꿔 둔 파일을 지운다(iOS 가 스토리보드에서 다시 찍는다). 앱을 새로 깔면 iOS 가 새로 찍어 지문이 달라져 다시 칠한다.
 enum LaunchSnapshot {
     /// 마지막으로 칠한 테마 + 파일 지문 — 같으면 다시 안 칠한다(앱을 켤 때마다 불린다)
@@ -37,47 +37,67 @@ enum LaunchSnapshot {
     /// 네이비 바탕 — lib/ui.ts page(navy) · LaunchStyleSubscriber 와 같은 값
     private static let navy = UIColor(red: 11 / 255, green: 18 / 255, blue: 32 / 255, alpha: 1)
 
+    /// 칠하는 중이면 끝난 뒤 마지막으로 고른 것으로 한 번 더 — 둘이 겨루면 늦게 끝난 쪽(흰 그림)이 네이비를 덮었다(2026-10-23)
+    private static var busy = false
+    private static var pending: String?
+
     static func refresh(_ pick: String) {
         DispatchQueue.main.async {
-            let files = snapshotFiles()
-            guard !files.isEmpty else { return }
-            let defaults = UserDefaults.standard
-            let done = defaults.string(forKey: doneKey)
-            if done == signature(pick, files) { return }
-            /* 같은 테마로 칠했는데 지문이 바뀌었다 = iOS 가 되돌렸다. 이 iOS 판에서 두 번이면 그만둔다 */
-            /* 판 = iOS 판 + 앱 빌드 — 앱을 새로 깔면 iOS 가 새로 찍는 것도 '되돌림'이라, 빌드가 바뀌면 다시 센다 */
-            let os = UIDevice.current.systemVersion + "|" + (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "")
-            var reverts = defaults.dictionary(forKey: revertKey) as? [String: Int] ?? [:]
-            if let done, done.hasPrefix(pick + "|") { reverts[os, default: 0] += 1; defaults.set(reverts, forKey: revertKey) }
-            if reverts[os, default: 0] >= maxReverts { return }
-            if pick == "system" {
-                /* 우리가 칠한 적이 있을 때만 — 지우면 iOS 가 스토리보드(기기 밝기)로 다시 찍는다 */
-                guard defaults.string(forKey: doneKey) != nil else { return }
-                for f in files { try? FileManager.default.removeItem(at: f) }
-                defaults.removeObject(forKey: doneKey)
-                return
+            if busy { pending = pick } else { paint(pick) }
+        }
+    }
+
+    private static func finish() {
+        busy = false
+        if let next = pending {
+            pending = nil
+            paint(next)
+        }
+    }
+
+    private static func paint(_ pick: String) {
+        let files = snapshotFiles()
+        guard !files.isEmpty else { return }
+        let defaults = UserDefaults.standard
+        let done = defaults.string(forKey: doneKey)
+        if done == signature(pick, files) { return }
+        /* 같은 테마로 칠했는데 지문이 바뀌었다 = iOS 가 되돌렸다. 이 iOS 판에서 두 번이면 그만둔다 */
+        /* 판 = iOS 판 + 앱 빌드 — 앱을 새로 깔면 iOS 가 새로 찍는 것도 '되돌림'이라, 빌드가 바뀌면 다시 센다 */
+        let os = UIDevice.current.systemVersion + "|" + (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "")
+        var reverts = defaults.dictionary(forKey: revertKey) as? [String: Int] ?? [:]
+        if let done, done.hasPrefix(pick + "|") { reverts[os, default: 0] += 1; defaults.set(reverts, forKey: revertKey) }
+        if reverts[os, default: 0] >= maxReverts { return }
+        if pick == "system" {
+            /* 우리가 칠한 적이 있을 때만 — 지우면 iOS 가 스토리보드(기기 밝기)로 다시 찍는다 */
+            guard defaults.string(forKey: doneKey) != nil else { return }
+            for f in files { try? FileManager.default.removeItem(at: f) }
+            defaults.removeObject(forKey: doneKey)
+            return
+        }
+        /* 그리기(UIKit)는 여기 메인에서, 압축 · 쓰기는 뒤에서 */
+        let jobs: [(URL, CFString, CGImage)] = files.compactMap { url in
+            guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let type = CGImageSourceGetType(src),
+                  let old = CGImageSourceCreateImageAtIndex(src, 0, nil),
+                  let img = render(width: old.width, height: old.height, pick: pick)
+            else { return nil }
+            return (url, type, img)
+        }
+        guard jobs.count == files.count else { return }
+        busy = true
+        DispatchQueue.global(qos: .utility).async {
+            /* 모두 옆에 써서 다 맞을 때만 한꺼번에 바꿔 끼운다 — 한 장만 바뀌어 라이트 · 다크가 엇갈리지 않게 */
+            let staged = jobs.compactMap { job in stage(job.2, type: job.1).map { (job.0, $0) } }
+            guard staged.count == jobs.count else {
+                staged.forEach { try? FileManager.default.removeItem(at: $0.1) }
+                return DispatchQueue.main.async(execute: finish)
             }
-            /* 그리기(UIKit)는 여기 메인에서, 압축 · 쓰기는 뒤에서 */
-            let jobs: [(URL, CFString, CGImage)] = files.compactMap { url in
-                guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
-                      let type = CGImageSourceGetType(src),
-                      let old = CGImageSourceCreateImageAtIndex(src, 0, nil),
-                      let img = render(width: old.width, height: old.height, pick: pick)
-                else { return nil }
-                return (url, type, img)
+            for (url, tmp) in staged {
+                if (try? FileManager.default.replaceItemAt(url, withItemAt: tmp)) == nil { try? FileManager.default.removeItem(at: tmp) }
             }
-            guard jobs.count == files.count else { return }
-            DispatchQueue.global(qos: .utility).async {
-                /* 모두 옆에 써서 다 맞을 때만 한꺼번에 바꿔 끼운다 — 한 장만 바뀌어 라이트 · 다크가 엇갈리지 않게 */
-                let staged = jobs.compactMap { job in stage(job.2, type: job.1).map { (job.0, $0) } }
-                guard staged.count == jobs.count else {
-                    staged.forEach { try? FileManager.default.removeItem(at: $0.1) }
-                    return
-                }
-                for (url, tmp) in staged {
-                    if (try? FileManager.default.replaceItemAt(url, withItemAt: tmp)) == nil { try? FileManager.default.removeItem(at: tmp) }
-                }
-                DispatchQueue.main.async { defaults.set(signature(pick, snapshotFiles()), forKey: doneKey) }
+            DispatchQueue.main.async {
+                defaults.set(signature(pick, snapshotFiles()), forKey: doneKey)
+                finish()
             }
         }
     }
@@ -153,7 +173,7 @@ enum LaunchSnapshot {
         return zip(a, b).allSatisfy { abs(Int($0) - Int($1)) <= 12 }
     }
 
-    private static func corner(_ image: CGImage) -> [UInt8]? {
+    static func corner(_ image: CGImage) -> [UInt8]? {
         var px = [UInt8](repeating: 0, count: 4)
         let ok = px.withUnsafeMutableBytes { buf -> Bool in
             guard let ctx = CGContext(data: buf.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,

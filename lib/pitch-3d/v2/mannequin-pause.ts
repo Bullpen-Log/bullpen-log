@@ -132,6 +132,31 @@ export function prepareSkeleton(pos: Float32Array, nor: Float32Array): SkeletonP
 }
 
 /**
+ * 펼친 삼각형으로 만든 재료(prepareSkeleton — 꼭짓점마다 한 줄)를 원래 정점 하나에 한 줄로 줄이고 삼각형 색인을 돌려준다.
+ * ids[i] = i 번째 꼭짓점의 원래 정점 번호. 같은 정점의 꼭짓점은 재료가 같아(같은 자리 · 법선) 첫 것만 남긴다 — 그려지는 모양은 그대로.
+ * 펼친 채로는 정점 하나를 대여섯 번 얹어(장면마다 3.3ms) 재생 중 화면이 버벅였다(2026-10-23 김민 "페이지 전체가 렉").
+ * 고리 표본(halfW · depth)은 펼친 꼭짓점으로 센 것을 그대로 둔다.
+ */
+export function compactSkeleton(P: SkeletonPrep, ids: ArrayLike<number>): { prep: SkeletonPrep; index: Uint32Array } {
+  const at = new Map<number, number>();
+  const first: number[] = [];
+  const index = new Uint32Array(ids.length);
+  for (let i = 0; i < ids.length; i++) {
+    let c = at.get(ids[i]);
+    if (c === undefined) {
+      c = first.length;
+      at.set(ids[i], c);
+      first.push(i);
+    }
+    index[i] = c;
+  }
+  const pick = (a: Float32Array) => Float32Array.from(first, (i) => a[i]);
+  const nor = new Float32Array(first.length * 3);
+  first.forEach((i, c) => nor.set(P.nor.subarray(i * 3, i * 3 + 3), c * 3));
+  return { prep: { t: pick(P.t), dy: pick(P.dy), x: pick(P.x), z: pick(P.z), nor, halfW: P.halfW, depth: P.depth }, index };
+}
+
+/**
  * 장면마다 뼈 정점을 인형 고리에 얹는다(out 위치 · 법선). 표본 고리(SKELETON.samples + 1)를 한 번 세고 정점은 둘 사이를 섞는다.
  * 옆 배율은 엉덩이 → 어깨로 우리 엉덩이 · 어깨 반폭(hipHalf · shoulderHalf)에 맞춘 배율(키 배율의 0.7~1.4배 — 골반 절구가 넙다리 머리에,
  * 빗장뼈 끝이 어깨에 닿게)을 섞되 FIT·인형 반폭 / 뼈 반폭을 넘지 않게, 앞뒤는 min(키 배율, FIT·인형 두께 / 뼈 두께) — 이웃 고리와 [1 2 1] 로 고른다.
