@@ -5,7 +5,6 @@ import { RoundIcon, RoundSearch } from '@/components/round-icon';
 import { ListingCard } from '@/components/dugout/listing-card';
 import { getCurrentUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
-import { SinkerStrip } from '@/components/dugout/sinker-strip';
 import { DugoutHero } from '@/components/dugout/dugout-hero';
 import { HomeServices } from '@/components/dugout/home-services';
 import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
@@ -17,7 +16,6 @@ import { loadBaseballNews, loadLeagueBoard } from '@/lib/baseball-feed';
 import { relativeTime } from '@/components/community/community-format';
 import { countUnreadNotifications } from '@/lib/notify';
 import { LessonFeedCard } from '@/components/dugout/lesson-feed-card';
-import { loadSinkerSummary } from '@/lib/org/sinker-summary';
 import { loadLessonFeed } from '@/lib/org/lesson-feed';
 import { usesSinker } from '@/lib/brand';
 import { CATEGORIES, REGIONS, filterHref, formatPrice } from '@/lib/market/specs';
@@ -43,14 +41,13 @@ export default async function DugoutHome({
   if (native && !sp.dugout) redirect(user ? '/today' : '/login');
   const viewer = user ? { id: user.id, role: user.role } : null;
   const sinkerUser = !!user && usesSinker(user);
-  const [listings, posts, coaches, unread, alerts, lessons, sinkerCells, kbo, mlb, news] = await Promise.all([
+  const [listings, posts, coaches, unread, alerts, lessons, kbo, mlb, news] = await Promise.all([
     loadLatestListings(6, viewer),
     loadPublicPosts(30),
     loadRecommendedCoaches(3),
     user ? countUnread(user.id) : 0,
     user ? countUnreadNotifications(user.id) : 0,
     user ? loadLessonFeed(user.id, 3) : [],
-    user && sinkerUser ? loadSinkerSummary(user.id) : null,
     /* 야구 소식 — 밖 서버가 느리거나 막혀도 홈은 뜬다(실패는 빈 목록 · null) */
     loadLeagueBoard('kbo'),
     loadLeagueBoard('mlb'),
@@ -167,13 +164,8 @@ export default async function DugoutHome({
             </div>
           </section>
 
-          {/* 로그인한 사람 — 내 싱커 · 최근 레슨(숨고엔 없지만 우리는 기록이 본업) */}
-          {(sinkerCells || lessons.length > 0) && (
-            <section className="space-y-4">
-              {sinkerCells && <SinkerStrip cells={sinkerCells} />}
-              {lessons.length > 0 && <LessonFeedCard items={lessons} compact title="최근 레슨" />}
-            </section>
-          )}
+          {/* 로그인한 사람 — 최근 레슨(내 싱커 띠는 2026-10-23 금윤호 "덕아웃에서 내 싱커 블록도 없애줘") */}
+          {lessons.length > 0 && <LessonFeedCard items={lessons} compact title="최근 레슨" />}
 
           <MarketHero slides={slides} slim label="덕아웃 소식" />
 
