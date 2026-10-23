@@ -92,6 +92,17 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     private var netWasArmed = false
     /// 이번 1초 동안 모델 알림에 든 시간 합(ms) — statLock
     private var netAcc = 0.0
+    /*
+     * 모델 알림 · 1초 통계를 콘솔에 — 정식 판(Release)도 맥에서 `devicectl … process launch --console … com.bullpenlog.app -netLog YES` 로 켰을 때만
+     * (폰 시험 — SPEC-detect D3). 개발용 판은 늘.
+     */
+    private let netLog: Bool = {
+        #if DEBUG
+        return true
+        #else
+        return UserDefaults.standard.bool(forKey: "netLog")
+        #endif
+    }()
     /// 알림 — 시각 · 세기 · 종류('ball' · 'motion' · 'skip' = 발열로 쉰 움직임 · 'net' = 학습 모델) · 폰 발열 상태(ProcessInfo.ThermalState rawValue)
     var onThrow: ((Double, Double, String, Int) -> Void)?
     var onError: ((String) -> Void)?
@@ -255,6 +266,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             if !netLoaded {
                 net = BallNetTrigger.bundled()
                 netLoaded = true
+                if netLog { print("[net] model \(net == nil ? "못 읽음" : "읽음")") }
             }
         }
         /* 광각도 같이면 두 카메라 세션 — 못 하는 아이폰은 configure 가 '안 됨'(multicam)으로 끝낸다 */
@@ -889,9 +901,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             netAcc += netTook
             statLock.unlock()
             if let a = alert {
-                #if DEBUG
-                print(String(format: "[cam] net at %.2f n %d score %.2f", a.atSec, a.n, a.first.score))
-                #endif
+                if netLog { print(String(format: "[net] alert at %.2f n %d score %.2f", a.atSec, a.n, a.first.score)) }
                 onThrow?(a.atSec, Double(a.first.score), "net", ProcessInfo.processInfo.thermalState.rawValue)
             }
         } else {
@@ -1110,6 +1120,11 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             "feedSkipped": skipped, "writerSkipped": writer.skipped, "writerResets": writer.resets,
             "screenCaptured": captured, "netMs": netMs / Double(max(1, fpsCount - 1 - skipped)),
         ])
+        if netLog {
+            print(String(format: "[net] fps %.1f drop %d thermal %d feed %.2fms skip %d net %.2fms",
+                         Double(fpsCount - 1) / (t - fpsSince), fpsDropped, ProcessInfo.processInfo.thermalState.rawValue,
+                         feed / Double(max(1, fpsCount - 1 - skipped)), skipped, netMs / Double(max(1, fpsCount - 1 - skipped))))
+        }
         fpsSince = t
         fpsCount = 1
         fpsDropped = 0
