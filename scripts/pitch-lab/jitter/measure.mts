@@ -168,6 +168,8 @@ const turn = (a: [number[], number[]], b: [number[], number[]]) => Math.max(angl
 const KINK_DEG = 6;
 const KINK_HALF = 6;
 const FOOT_WHIP = 1500;
+/** 다리 늘어남 — 넙다리 · 정강이 길이가 그 마디 가운데 길이에서 이만큼(m, 키 1.8m) 넘게 벗어난 장면 수(2026-10-23 착지 맞춤이 앞정강이를 5~34cm 늘였다) */
+const LIMB_STRETCH_M = 0.03;
 const KINK_W = (() => {
   const xs = Array.from({ length: 2 * KINK_HALF + 1 }, (_, i) => i - KINK_HALF);
   const A = [0, 1, 2, 3].map((i) => [0, 1, 2, 3].map((j) => xs.reduce((a, x) => a + x ** (i + j), 0)));
@@ -210,7 +212,20 @@ export function mannequinOddities(r: Result, tr: Track = trackOf(r)) {
   const dt = displayFrameDt(r);
   const C = canonicalFrames(mt);
   const M = mannequinFrames(C, 1.8);
-  const out = { pop: 0, speed: 0, kink: 0, whip: 0, where: {} as Record<string, number> };
+  const out = { pop: 0, speed: 0, kink: 0, whip: 0, stretch: 0, where: {} as Record<string, number> };
+  const len = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  const LEGS: [string, (k: number) => number][] = [
+    ['앞넙다리', (k) => len(C[k].lh, C[k].lk)], ['앞정강이', (k) => len(C[k].lk, C[k].la)],
+    ['뒷넙다리', (k) => len(C[k].rh, C[k].rk)], ['뒷정강이', (k) => len(C[k].rk, C[k].ra)],
+  ];
+  for (const [name, f] of LEGS) {
+    const L = C.map((_, k) => f(k));
+    const mid = [...L].sort((a, b) => a - b)[L.length >> 1];
+    const n = L.filter((x) => Math.abs(x - mid) > LIMB_STRETCH_M).length;
+    if (!n) continue;
+    out.stretch += n;
+    out.where[`stretch:${name}`] = n;
+  }
   const seg = (a: number[], b: number[]) => nz(b.map((x, i) => x - a[i]));
   const LIMBS: [string, (k: number) => number[]][] = [
     ['던지는위팔', (k) => seg(C[k].sh, C[k].el)], ['던지는아래팔', (k) => seg(C[k].el, C[k].wr)], ['던지는손', (k) => M[k].throwing.hd],

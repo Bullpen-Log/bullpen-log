@@ -2016,15 +2016,37 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
         turn = Math.max(turn, (Math.acos(Math.max(-1, Math.min(1, dot(dirL(S1[q - 1]), dirL(S1[q]))))) * 180) / Math.PI / mR.dt);
       check(`앞발이 늦게 돌아도 인형 앞발이 휙 돌지 않는다(착지 앞 가장 빠른 돌림 ${turn.toFixed(0)}°/초 · 1500 안)`, turn < 1500);
     }
-    /* 착지 맞춤이 앞발목을 옮겨도 앞 넙다리 길이는 그대로(무릎을 두 마디로 다시 접는다 — 예전엔 무릎을 발목만큼 옮겨 넙다리가 늘었다) */
+    /*
+     * 착지 단추 순간 엔진 앞발이 아직 떠 있어도(실제 결과 대부분 — 뒤꿈치 2~35cm) 인형 앞다리가 늘거나 쭉 펴지지 않는다. 예전 착지 맞춤은 발목을 발이 멈춘 장면
+     * 자리로 끌어 엉덩이 → 발목이 다리 길이의 1.06~1.38배, 정강이가 5~34cm 늘었다(2026-10-23 김민 사진). 합성: 몸 전체를 착지 단추 앞뒤에 25cm 뒤로
+     * 둔다(관절 사이 길이 그대로) — 실제 엔진처럼 발이 그 뒤 묶일 자리까지 나아가며 내려온다(정답도 첫 닿음 → 묶임에 발목 8~21cm).
+     */
     {
-      const S0 = smoothForMannequin(tr.frames, result, H);
-      const len = (f: Vec3[]) => norm(sub(f[V2J.lKn], f[V2J.lHip]));
-      const fc = Math.round(result.events.footContact ?? result.events.footPlant);
-      const ref = len(S0[Math.max(0, fc - 40)]);
-      let worst = 0;
-      for (let q = Math.max(0, fc - 30); q < Math.min(S0.length, fc + 40); q++) worst = Math.max(worst, Math.abs(len(S0[q]) - ref));
-      check(`착지 맞춤: 앞 넙다리 길이 그대로(착지 앞뒤 가장 큰 변화 ${(worst * 100).toFixed(1)}cm · 0.5cm 안 — 고치기 전 합성 1.5 · 실제 가운데 11cm)`, worst < 0.005);
+      const ev = result.events;
+      const fc = Math.round(ev.footContact ?? ev.footPlant);
+      const fp = Math.max(fc + 6, ev.footPlant);
+      const D = 0.25 / H;
+      const air = tr.frames.map((fr, k) => {
+        const w = k < fc - 8 || k >= fp ? 0 : k <= fc ? (k - fc + 8) / 8 : (fp - k) / (fp - fc);
+        return fr.map((p) => [p[0] - D * w, p[1], p[2]] as Vec3);
+      });
+      const S0 = smoothForMannequin(air, result, H);
+      const hip = (f: Vec3[]) => f[V2J.lHip];
+      const thigh = (f: Vec3[]) => norm(sub(f[V2J.lKn], hip(f)));
+      const shank = (f: Vec3[]) => norm(sub(f[V2J.lAn], f[V2J.lKn]));
+      const r0 = S0[Math.max(0, fc - 40)];
+      let thighW = 0;
+      let shankW = 0;
+      let reach = 0;
+      for (let q = Math.max(0, fc - 30); q < Math.min(S0.length, fc + 40); q++) {
+        thighW = Math.max(thighW, Math.abs(thigh(S0[q]) - thigh(r0)));
+        shankW = Math.max(shankW, Math.abs(shank(S0[q]) - shank(r0)));
+        reach = Math.max(reach, norm(sub(S0[q][V2J.lAn], hip(S0[q]))) / (thigh(r0) + shank(r0)));
+      }
+      check(
+        `착지 맞춤: 착지 단추에 발이 떠 있어도 앞다리 길이 그대로(정강이 ${(shankW * 100).toFixed(1)}cm · 1cm 안 · 넙다리 ${(thighW * 100).toFixed(1)}cm · 1.5 안, 엉덩이 → 발목 다리 길이의 ${reach.toFixed(3)}배 · 1.01 안 — 예전 착지 맞춤 3.3cm · 1.043배)`,
+        thighW < 0.015 && shankW < 0.01 && reach < 1.01
+      );
     }
     /* 장면 사이 그리기 — 끝(u 0 · 1)은 그 장면 그대로, 가운데는 두 장면 사이 · 회전은 길이 1 */
     {
