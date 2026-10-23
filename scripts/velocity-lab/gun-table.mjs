@@ -11,20 +11,12 @@
  *   --live  : <날짜>/live + manifest.json + .analysis.json(download.mjs --live — 앱 카메라 클립, 씨앗 = 공 알림 시각 clipEventSec)
  *   --rec   : download-recording.mjs 로 받은 녹화 폴더(cuts.json — 조각 파일 · 손에서 떠난 때 · 스피드건)
  *
- * 화면 규칙은 앱(velocity-screen.tsx)을 따라 묶음(날짜 · 녹화) 하나를 한 세션으로 본다. 세션 거리는 깨끗한 공 셋부터의 가운데 값이고, 공을
- * 받은 차례로 걸리는 앱과 달리 끝의 값으로 한 번에 옮긴다(견주는 도구다).
- * --auto=1(공마다 공 크기 거리, 2.8.0)이면 공 크기로 잰 공은 앱 lib/velocity-session.ts 규칙 그대로 — 받은 차례로 앞 공 셋 넘게의 공 크기 가운데에서
- * 9% 넘게 튀면 빼고(sizeOutlier), 끝이 깨끗한 공(튕김 · 이어 찾기 없음)의 가운데 거리에서 5% 안이면 그 거리로 옮긴다(withSessionDistance).
+ * 화면 규칙(묶음 하나 = 한 세션)은 scripts/velocity-bench/app-rules.mjs(시험대와 같이 씀). --auto=1 이면 공마다 공 크기 거리(2.8.0).
  */
-/** lib/velocity-session.ts 의 SESSION_DIST_TOL · SESSION_SIZE_SPREAD — 그 파일은 '@/' 를 써서 노드가 못 읽는다 */
-const AUTO_SESSION_TOL = 0.05;
-const AUTO_SIZE_SPREAD = 0.09;
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { open, LAB, argOf } from './cdp.mjs';
-import { sessionCorrection, sessionDistOf } from '../../lib/velocity-session-distance.ts';
-import { SPEED_DISTANCE_EXPONENT, END_SIZE_AGREE } from '../../lib/velocity-engine/analyze-distance.ts';
-import { INPUT_SIZE_MISMATCH } from '../../lib/velocity-engine/validate.ts';
+import { screenSession } from '../velocity-bench/app-rules.mjs';
 
 const list = (k) => argOf(k, '').split(',').filter(Boolean);
 const TILT = Number(argOf('tilt', '0.035'));
@@ -107,39 +99,8 @@ let rec = 0;
 console.log('\n묶음별(세션 거리 보정 · 기록 규칙 적용, 차이 = 화면 값 − 건)');
 for (const g of [...new Set(out.map((o) => o.group))]) {
   const rs = out.filter((o) => o.group === g);
-  const tape = rs.some((o) => o.tape);
-  const isAuto = (o) => o.source === 'ball';
-  const corr = tape ? null : sessionCorrection(
-    rs.filter((o) => o.ok && !isAuto(o)).map((o) => ({ sizeDistM: o.size, sizeSlope: o.slope, extended: o.ext, impact: o.impact, confidence: o.preConf ?? o.conf, frames: o.frames })),
-    BASE,
-    SPEED_DISTANCE_EXPONENT
-  );
-  const ref = tape ? rs[0].dist : corr?.apply ? corr.m : BASE;
-  const errs = [];
-  /* 공 크기 거리로 잰 공 — 앱처럼 받은 차례로 */
-  const kept = [];
-  for (const o of rs) {
-    if (!o.ok || !isAuto(o) || !(o.conf === 'high' || (o.conf === 'medium' && o.stab))) continue;
-    const prior = kept.map((p) => p.size).filter((v) => v > 0).sort((a, b) => a - b);
-    const n = prior.length;
-    const mid = n % 2 ? prior[(n - 1) / 2] : (prior[n / 2 - 1] + prior[n / 2]) / 2;
-    if (o.size > 0 && n >= 3 && Math.abs(o.size / mid - 1) > AUTO_SIZE_SPREAD) continue;
-    kept.push(o);
-  }
-  const clean = (o) => o.impact === 'rebound' && o.ext === 0;
-  const sess = sessionDistOf(kept.filter(clean).map((o) => o.usedDist), null);
-  for (const o of kept) {
-    const on = sess && clean(o) && Math.abs(o.usedDist / sess.m - 1) <= AUTO_SESSION_TOL;
-    errs.push(o.kmh * (on ? (sess.m / o.usedDist) ** SPEED_DISTANCE_EXPONENT : 1) - o.gun);
-  }
-  for (const o of rs) {
-    if (!o.ok || isAuto(o)) continue;
-    let conf = o.preConf ?? o.conf;
-    const off = o.size ? Math.abs(o.size / ref - 1) : 0;
-    /* 세션 거리가 걸렸으면 그 기준은 믿을 만하다 — 튕긴 공도 10%(엔진 judgeSize strict, 2.7.6) */
-    if (off > INPUT_SIZE_MISMATCH || ((tape || corr?.apply) && off > END_SIZE_AGREE) || (o.impact === 'end' && (o.size == null || off > END_SIZE_AGREE))) conf = 'low';
-    if (conf === 'high' || (conf === 'medium' && o.stab)) errs.push(o.kmh * (corr?.k ?? 1) - o.gun);
-  }
+  const { shown, corr, sess } = screenSession(rs);
+  const errs = shown.map((x) => x.kmh - x.row.gun);
   rec += errs.length;
   all.push(...errs);
   const mae = errs.length ? errs.reduce((a, e) => a + Math.abs(e), 0) / errs.length : NaN;

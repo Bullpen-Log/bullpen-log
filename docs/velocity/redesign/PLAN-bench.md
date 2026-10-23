@@ -11,7 +11,7 @@
 ## 설계 결정
 
 - **엔진은 디렉터리로 갈아 끼운다.** `cdp.mjs open({ engine })` 이 이미 엔진 폴더를 받는다. 옛 판은 `git archive <커밋> lib/velocity-engine` 을
-  `scripts/velocity-bench/engines/<판>/` 에 풀어 쓴다(작업 트리 · 가지를 안 건드림, .gitignore).
+  `~/bullpen-velocity-lab/bench/engines/<커밋>/` 에 풀어 쓴다(저장소 밖 — 작업 트리 · 가지를 안 건드림).
 - **판마다 옵션 차이는 실행기의 얇은 층 하나에서.** 엔진 판마다 `analyzeVideo` 옵션이 달라졌다(1.9 는 `distanceM` 이 없고 2.8 은 `distanceAuto`).
   실행기는 '앱이 그 판일 때 넘기던 옵션'을 판 번호로 고른다 — 엔진 코드는 안 고친다.
 - **앱 화면 규칙은 한 곳으로.** `gun-table.mjs` 의 세션 규칙(세션 거리 · 공 크기 튐 · 기록 규칙)을 `scripts/velocity-bench/app-rules.mjs` 로 옮기고
