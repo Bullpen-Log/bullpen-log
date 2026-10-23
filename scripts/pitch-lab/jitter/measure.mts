@@ -5,7 +5,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { displayFrameDt, displayTrack } from '@/lib/pitch-3d/v2/display';
-import { V2J } from '@/lib/pitch-3d/v2/contract';
+import { readPitch3dV2Result, V2J } from '@/lib/pitch-3d/v2/contract';
 import { mannequinTrack } from '@/lib/pitch-3d/v2/mannequin-prep';
 import { canonicalFrames, mannequinFrames } from '@/lib/pitch-3d/v2/mannequin-frames';
 
@@ -266,7 +266,9 @@ export function mannequinOddities(r: Result, tr: Track = trackOf(r)) {
 
 /* 결과 파일마다 한 줄 — { phases(떨림), odd: { disp, raw }(이상한 움직임) } */
 for (const path of process.argv.slice(2)) {
-  const r = JSON.parse(readFileSync(path, 'utf8'));
+  /* 앱처럼 결과 읽기를 거친다 — 옛 결과의 '착지'(heelContact)도 화면과 같게 */
+  const file = JSON.parse(readFileSync(path, 'utf8'));
+  const r = (file.ok ? readPitch3dV2Result(file) : null) ?? file;
   if (!r.ok) {
     console.log(JSON.stringify({ failed: r.code ?? 'fail' }));
     continue;

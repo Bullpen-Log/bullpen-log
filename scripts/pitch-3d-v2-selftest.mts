@@ -17,6 +17,7 @@ import {
   PITCH3D_V2_VERSION,
   readPitch3dV2Job,
   readPitch3dV2Result,
+  heelContact,
   RTMW_INDEX,
   storedV2ResultJson,
   V2_FAIL_TEXT,
@@ -212,7 +213,7 @@ const good = (): Pitch3dV2Ok => {
       Array.from({ length: N_V2_JOINTS }, () => 90)
     ),
     lowConf: [[30, 33]],
-    events: { kneeUp: 2, footPlant: 20, release: 30 },
+    events: { kneeUp: 2, footPlant: 20, release: 30, contactBy: 'heel' },
     metrics: [
       { key: 'trunkForwardTilt', value: 30.1, unit: 'deg', pm: 3, trust: 'high' },
     ],
@@ -263,6 +264,30 @@ const good = (): Pitch3dV2Ok => {
 {
   const g = good();
   check('좋은 결과 통과', readPitch3dV2Result(g) === g);
+  /*
+   * '착지'(heelContact) — 뒤꿈치가 디딘 높이(묶인 뒤 가장 낮음) + 키 4/180 안에 처음 들어온 장면, 2D 첫 닿음 앞으로는 안 간다, 끝까지 안 들어오면 발 묶임.
+   * 옛 결과(contactBy 없음)는 읽을 때 같은 규칙으로 '착지'를 고른다.
+   */
+  {
+    const heel = Array.from({ length: 40 }, (_, k) => (k < 10 ? 0.2 : k < 20 ? 0.2 - (k - 10) * 0.02 : 0.02));
+    const ev = { kneeUp: 2, footPlant: 20, footContact: 8 };
+    const k1 = heelContact(heel, ev);
+    const k2 = heelContact(heel, { ...ev, footContact: 19 });
+    const k3 = heelContact(heel.map((h, k) => (k <= 20 ? 0.5 : h)), ev);
+    const k4 = heelContact(heel.map(() => 0.02), ev);
+    check(
+      `착지: 뒤꿈치가 디딘 높이 4cm 안에 처음 든 장면(${k1} · 18) · 2D 첫 닿음 앞으로 안 감(${k2} · 19) · 못 들면 발 묶임(${k3} · 20) · 이미 땅이면 첫 닿음(${k4} · 8)`,
+      k1 === 18 && k2 === 19 && k3 === 20 && k4 === 8
+    );
+    const old = { ...g, events: { kneeUp: 2, footPlant: 20, footContact: 8, release: 30 } };
+    const hj = V2J.lHe;
+    old.joints = old.joints.map((fr, k) => fr.map((p, j) => (j === hj ? [p[0], Math.round(heel[k] * 1000), p[2]] : p)));
+    const r = readPitch3dV2Result(old);
+    check(
+      `옛 결과는 읽을 때 '착지'를 뒤꿈치로 고른다(${r?.ok ? r.events.footContact : '?'} · 18) · 엔진이 고른 결과는 그대로`,
+      !!r?.ok && r.events.footContact === 18 && r.events.contactBy === undefined && readPitch3dV2Result({ ...old, events: { ...old.events, contactBy: 'heel' } })?.ok === true
+    );
+  }
   check(
     '실패 결과 — 까닭 글은 코드로 다시(저장된 글을 믿지 않음)',
     (() => {

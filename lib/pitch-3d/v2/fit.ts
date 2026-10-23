@@ -39,6 +39,7 @@ import {
   PITCH3D_V2_VERSION,
   V2_PAIRS,
   V2J,
+  heelContact,
   v2Fail,
   type Pitch3dV2Ok,
   type Pitch3dV2Result,
@@ -1506,23 +1507,39 @@ function fitOnce(raw: V2Input): {
   )
     return { result: v2Fail(jobId, 'fit', 'fit', core.quality) };
 
+  /*
+   * ── 첫 닿음을 맞춘 앞 뒤꿈치로 다시 고른다(heelContact) — 옆 영상 2D 로 고른 첫 닿음은 실제보다 가운데 49ms 일러 '착지'와 착지 지표가 발이 아직
+   * 뜬 자세였다. 착지 → 릴리스 시간(plantMs)도 같은 비율로 줄인다 ──
+   */
+  const { origin, ground, R3, axes } = core;
+  const leadHe = core.hand === 'L' ? V2J.rHe : V2J.lHe;
+  const footContact = heelContact(
+    X.map((fr) => (dot(sub(fr[leadHe], origin), axes.U) - ground) / H),
+    core.evIdx
+  );
+  const evIdx = { ...core.evIdx, footContact };
+  const spanOld = synced[evIdx.release].t - synced[core.evIdx.footContact].t;
+  const plantMs =
+    core.plantMs == null || !(spanOld > 0)
+      ? core.plantMs
+      : (core.plantMs * (synced[evIdx.release].t - synced[footContact].t)) / spanOld;
+
   /* ── 지표(v1 정의, 맞춘 17관절로) ── */
   const fitted17: Frame3[] = X.map((fr) => fr.slice(0, N_JOINTS));
   const metrics = computeMetrics(
     fitted17,
     { ...core.axes, hand: core.hand, height: H },
-    { ...core.evIdx, footPlant: core.evIdx.footContact },
+    { ...evIdx, footPlant: evIdx.footContact },
     core.factors,
-    core.plantMs
+    plantMs
   );
 
   /* ── 결과 좌표 [앞, 위, 오른쪽] · 키 = 1000mm ── */
-  const { origin, ground, R3, axes } = core;
   const keep = decimate(n, MAX_V2_FRAMES, [
-    core.evIdx.footPlant,
-    core.evIdx.footContact,
-    core.evIdx.release,
-    core.evIdx.kneeUp,
+    evIdx.footPlant,
+    evIdx.footContact,
+    evIdx.release,
+    evIdx.kneeUp,
   ]);
   const mm = (v: number) => Math.round((v / H) * 1000);
   const toRes = (P: Vec3): [number, number, number] => {
@@ -1572,10 +1589,11 @@ function fitOnce(raw: V2Input): {
       })
       .filter((s): s is [number, number] => s != null),
     events: {
-      kneeUp: remap(core.evIdx.kneeUp),
-      footPlant: remap(core.evIdx.footPlant)!,
-      footContact: remap(core.evIdx.footContact)!,
-      release: remap(core.evIdx.release)!,
+      kneeUp: remap(evIdx.kneeUp),
+      footPlant: remap(evIdx.footPlant)!,
+      footContact: remap(evIdx.footContact)!,
+      release: remap(evIdx.release)!,
+      contactBy: 'heel',
     },
     metrics,
     quality: core.quality,
