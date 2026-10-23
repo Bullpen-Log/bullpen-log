@@ -7,15 +7,18 @@
  *   app   — 앱이 그날 실제로 남긴 시도 기록(cuts.json attempts, 녹화 시각) — 공 알림(ball) · 후보(seed) · 움직임(motion) · 훑기(sweep)
  *   trig  — 폰 공 알림(MotionTrigger)을 맥 시험대(scripts/velocity-lab/ball-trigger)로 — 조각을 한 흐름으로 이어 먹인다
  *   net   — 학습 모델 훑기(locateThrow 'net', public/velocity-detector/ball-v1.onnx)를 조각마다 — 앱 훑기는 5초마다 지난 창이라 비슷하다
+ *   live  — 학습 모델 알림을 늘 켬(SPEC-detect D1 — CoreML, 맥 시험대 ball-trigger --net, 장면 둘에 하나). --model=<.mlmodelc>(기본
+ *           ~/bullpen-velocity-lab/models/v1/BallNet.mlmodelc, 없으면 이 칸 없이). 지연 = 알림 시각 − 던진 때.
  * 알림이 던진 때 ±MATCH_SEC 안이면 찾음, 어느 던짐과도 안 맞으면 헛 알림.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { open, LAB, REPO, argOf } from '../velocity-lab/cdp.mjs';
 import { FIXTURES, recDirs } from './fixtures.mjs';
 
 const MATCH_SEC = 0.6;
+const MODEL = argOf('model', join(LAB, 'models/v1/BallNet.mlmodelc'));
 const groups = argOf('group', '1023').split(',');
 const recs = FIXTURES.groups.filter((g) => groups.includes(g.id) && g.kind === 'rec').flatMap((g) => recDirs(g));
 
@@ -35,7 +38,18 @@ for (const dir of recs) {
     return { t: p.offsetSec + cut.eventSec, gun: cut.gun };
   });
   /* 폰 공 알림 — 조각을 이어 한 흐름으로 */
-  const trigOut = execFileSync(join(REPO, 'scripts/velocity-lab/ball-trigger/run.sh'), ['--concat', ...parts.map((p) => `${join(LAB, dir, p.file)}@${p.offsetSec}`)], { encoding: 'utf8' });
+  const useLive = existsSync(MODEL);
+  const trigOut = execFileSync(
+    join(REPO, 'scripts/velocity-lab/ball-trigger/run.sh'),
+    ['--concat', ...(useLive ? [`--net=${MODEL}`] : []), ...parts.map((p) => `${join(LAB, dir, p.file)}@${p.offsetSec}`)],
+    { encoding: 'utf8', maxBuffer: 1 << 26 }
+  );
+  const live = trigOut
+    .split('\n')
+    .map((l) => l.match(/^NET ([\d.-]+) (\d+) ([\d.]+)/))
+    .filter(Boolean)
+    .map((m) => ({ t: Number(m[1]), n: Number(m[2]), score: Number(m[3]) }));
+  const liveMs = trigOut.match(/^NETMS ([\d.]+)/m)?.[1];
   const trig = trigOut
     .split('\n')
     .map((l) => l.match(/^HIT (\w+) ([\d.-]+)/))
@@ -61,6 +75,8 @@ for (const dir of recs) {
     app: near(app, th.t).map((h) => h.kind + (h.ok ? '✓' : '')).join(',') || '-',
     trig: near(trig, th.t).map((h) => h.kind).join(',') || '-',
     net: near(netU, th.t).length ? '공' : '-',
+    live: useLive ? (near(live, th.t).length ? '공' : '-') : null,
+    liveLag: useLive ? (near(live, th.t)[0]?.t ?? NaN) - th.t : null,
   }));
   const stray = (hs) => hs.filter((h) => !throws.some((th) => Math.abs(h.t - th.t) <= MATCH_SEC)).length;
   const rec = {
@@ -72,20 +88,27 @@ for (const dir of recs) {
       trigBall: rows.filter((r) => /ball|seed/.test(r.trig)).length,
       trigAny: rows.filter((r) => r.trig !== '-').length,
       net: rows.filter((r) => r.net !== '-').length,
+      live: rows.filter((r) => r.live === '공').length,
     },
-    stray: { app: stray(app), trig: stray(trig), net: stray(netU) },
+    stray: { app: stray(app), trig: stray(trig), net: stray(netU), live: useLive ? stray(live) : 0 },
+    lags: rows.map((r) => r.liveLag).filter((v) => Number.isFinite(v)),
+    liveMs: liveMs ? Number(liveMs) : null,
   };
   out.push(rec);
   console.log(`\n${dir} — ${rec.seconds}초 · 던짐 ${rows.length}`);
-  for (const r of rows) console.log(`  ${r.t.toFixed(1).padStart(6)}초 건 ${String(r.gun ?? '-').padStart(3)} | 앱 ${r.app.padEnd(12)} 공 알림 ${r.trig.padEnd(12)} 모델 ${r.net}`);
-  console.log(`  찾음 — 앱 ${rec.found.app} · 공 알림(공 · 후보) ${rec.found.trigBall} · 공 알림(움직임 포함) ${rec.found.trigAny} · 모델 ${rec.found.net} | 헛 알림 — 앱 ${rec.stray.app} · 공 알림 ${rec.stray.trig} · 모델 ${rec.stray.net}`);
+  for (const r of rows)
+    console.log(`  ${r.t.toFixed(1).padStart(6)}초 건 ${String(r.gun ?? '-').padStart(3)} | 앱 ${r.app.padEnd(12)} 공 알림 ${r.trig.padEnd(12)} 모델 훑기 ${r.net}${useLive ? ` · 모델 알림 ${r.live}${Number.isFinite(r.liveLag) ? ` ${r.liveLag >= 0 ? '+' : ''}${r.liveLag.toFixed(2)}초` : ''}` : ''}`);
+  console.log(`  찾음 — 앱 ${rec.found.app} · 공 알림(공 · 후보) ${rec.found.trigBall} · 공 알림(움직임 포함) ${rec.found.trigAny} · 모델 훑기 ${rec.found.net}${useLive ? ` · 모델 알림 ${rec.found.live}` : ''} | 헛 알림 — 앱 ${rec.stray.app} · 공 알림 ${rec.stray.trig} · 모델 훑기 ${rec.stray.net}${useLive ? ` · 모델 알림 ${rec.stray.live}` : ''}`);
 }
 await c.close();
 const sum = (k, s) => out.reduce((a, r) => a + r[k][s], 0);
 const n = out.reduce((a, r) => a + r.throws.length, 0);
 const min = out.reduce((a, r) => a + r.seconds, 0) / 60;
-console.log(`\n전체 던짐 ${n} · ${min.toFixed(1)}분 | 찾음 — 앱 ${sum('found', 'app')} · 공 알림(공 · 후보) ${sum('found', 'trigBall')} · 공 알림(움직임 포함) ${sum('found', 'trigAny')} · 모델 ${sum('found', 'net')}`);
-console.log(`헛 알림(분당) — 앱 ${(sum('stray', 'app') / min).toFixed(1)} · 공 알림 ${(sum('stray', 'trig') / min).toFixed(1)} · 모델 ${(sum('stray', 'net') / min).toFixed(1)}`);
+console.log(`\n전체 던짐 ${n} · ${min.toFixed(1)}분 | 찾음 — 앱 ${sum('found', 'app')} · 공 알림(공 · 후보) ${sum('found', 'trigBall')} · 공 알림(움직임 포함) ${sum('found', 'trigAny')} · 모델 훑기 ${sum('found', 'net')} · 모델 알림 ${sum('found', 'live')}`);
+console.log(`헛 알림(분당) — 앱 ${(sum('stray', 'app') / min).toFixed(1)} · 공 알림 ${(sum('stray', 'trig') / min).toFixed(1)} · 모델 훑기 ${(sum('stray', 'net') / min).toFixed(1)} · 모델 알림 ${(sum('stray', 'live') / min).toFixed(1)}`);
+const lags = out.flatMap((r) => r.lags).sort((a, b) => a - b);
+if (lags.length)
+  console.log(`모델 알림 지연(알림 − 던진 때) — 가운데 ${lags[lags.length >> 1].toFixed(2)}초 · 90% ${lags[Math.min(lags.length - 1, Math.ceil(lags.length * 0.9) - 1)].toFixed(2)}초 · 모델 한 번 ${out.find((r) => r.liveMs)?.liveMs ?? '-'}ms(이 맥)`);
 const jsonOut = argOf('json', '');
 if (jsonOut) writeFileSync(jsonOut, JSON.stringify(out, null, 1));
 process.exit(0);
