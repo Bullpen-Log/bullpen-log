@@ -12,6 +12,9 @@ import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
 import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
 import { countUnread, loadLatestListings, loadPublicPosts } from '@/lib/market/load';
 import { loadRecommendedCoaches } from '@/lib/market/lesson-load';
+import { BaseballBoard } from '@/components/dugout/baseball-board';
+import { loadBaseballNews, loadLeagueBoard } from '@/lib/baseball-feed';
+import { relativeTime } from '@/components/community/community-format';
 import { countUnreadNotifications } from '@/lib/notify';
 import { LessonFeedCard } from '@/components/dugout/lesson-feed-card';
 import { loadSinkerSummary } from '@/lib/org/sinker-summary';
@@ -40,7 +43,7 @@ export default async function DugoutHome({
   if (native && !sp.dugout) redirect(user ? '/today' : '/login');
   const viewer = user ? { id: user.id, role: user.role } : null;
   const sinkerUser = !!user && usesSinker(user);
-  const [listings, posts, coaches, unread, alerts, lessons, sinkerCells] = await Promise.all([
+  const [listings, posts, coaches, unread, alerts, lessons, sinkerCells, kbo, mlb, news] = await Promise.all([
     loadLatestListings(6, viewer),
     loadPublicPosts(30),
     loadRecommendedCoaches(3),
@@ -48,8 +51,14 @@ export default async function DugoutHome({
     user ? countUnreadNotifications(user.id) : 0,
     user ? loadLessonFeed(user.id, 3) : [],
     user && sinkerUser ? loadSinkerSummary(user.id) : null,
+    /* 야구 소식 — 밖 서버가 느리거나 막혀도 홈은 뜬다(실패는 빈 목록 · null) */
+    loadLeagueBoard('kbo'),
+    loadLeagueBoard('mlb'),
+    loadBaseballNews(8),
   ]);
   const now = new Date();
+  const today = new Date(now.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
+  const newsRows = news?.map((n) => ({ ...n, ago: relativeTime(new Date(n.at), now) })) ?? null;
 
   /* 인기글 — 이번 주 글 가운데 좋아요 + 댓글 많은 차례(이번 주 글이 모자라면 최근 글로 채움) */
   const weekAgo = now.getTime() - 7 * 86_400_000;
@@ -167,6 +176,9 @@ export default async function DugoutHome({
           )}
 
           <MarketHero slides={slides} slim label="덕아웃 소식" />
+
+          {/* 야구 소식 — 경기 결과(KBO · MLB) · 야구 뉴스 */}
+          <BaseballBoard boards={[kbo, mlb]} news={newsRows} today={today} />
 
           {/* 장터 */}
           <section className="space-y-4">
