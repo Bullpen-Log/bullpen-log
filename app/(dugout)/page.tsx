@@ -67,13 +67,35 @@ export default async function DugoutHome({
         PC 이면서 로그인(2026-10-22) — 위 막대가 이미 메뉴라 바로가기 판 · 소개 문구 · 설명 카드를 빼고, 왼쪽 '둘러보기'(장터 · 커뮤니티 · 레슨)와
         오른쪽 '나'(내 싱커 · 내 소식, 위 막대 밑에 붙음) 두 칸. 휴대폰 · 앱 웹뷰는 desk 가 아니라 아래 쌓은 판 그대로(거기서는 바로가기가 메뉴다).
       */}
-      {user && (
-        <div className="hidden gap-6 desk:grid desk:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <HomeBrowse listings={listings} posts={posts} now={now} />
+      <div className="hidden gap-6 desk:grid desk:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <HomeBrowse listings={listings} posts={posts} now={now} loggedIn={!!user} />
+        {user ? (
           <HomeMeColumn sinker={sinkerCells} unread={unread} alerts={alerts} lessons={lessons} />
-        </div>
-      )}
-      <div className={`space-y-10 ${user ? 'desk:hidden' : ''}`}>
+        ) : (
+          /* 로그인 전 PC — 오른쪽 칸은 시작하기 카드 하나(2026-10-23) */
+          <aside className="desk:sticky desk:top-28 desk:self-start">
+            <section className="rounded-2xl bg-ink px-5 py-6 text-white">
+              <p className="flex items-center gap-2 text-xs font-semibold text-white/70">
+                <CalendarDays className="h-4 w-4" /> 싱커
+              </p>
+              <p className="mt-2 text-lg font-bold break-keep">던진 만큼 적으면, 오늘 할 일을 정해 줘요</p>
+              <p className="mt-1 text-sm break-keep text-white/70">
+                투구수 · 구속 · 몸 상태를 남기면 팔 상태를 알려 주고 운동을 골라 줘요.
+              </p>
+              <Link
+                href="/login?signup=1"
+                className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-white px-5 text-sm font-bold text-ink"
+              >
+                무료로 시작하기
+              </Link>
+              <Link href="/login" className="mt-2 block text-xs font-semibold text-white/70">
+                이미 계정이 있어요 ›
+              </Link>
+            </section>
+          </aside>
+        )}
+      </div>
+      <div className="space-y-10 desk:hidden">
       {/* 로그인한 싱커 사용자 — 오늘 체크인 · 이번 주 투구 · 마지막 등판 한 줄(2단계 2-5) */}
       {sinkerCells && <SinkerStrip cells={sinkerCells} />}
       {/* 코치가 쓴 레슨 노트 — 선수 쪽 레슨 줄(3단계 3-4) */}

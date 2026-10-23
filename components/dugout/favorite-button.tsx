@@ -23,7 +23,7 @@ export function FavoriteButton({
     return (
       <a
         href={`/login?next=/market/${listingId}`}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line px-4 text-sm font-semibold text-ink"
+        className="inline-flex min-h-12 items-center gap-1.5 rounded-xl border border-line px-4 text-sm font-semibold text-ink"
       >
         <RoundIcon name="heart" outline className="h-4 w-4" /> 찜 {count}
       </a>
@@ -44,7 +44,7 @@ export function FavoriteButton({
       <button
         type="submit"
         aria-pressed={shown.favorite}
-        className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-4 text-sm font-semibold transition-colors ${
+        className={`inline-flex min-h-12 items-center gap-1.5 rounded-xl border px-4 text-sm font-semibold transition-colors ${
           shown.favorite
             ? 'border-danger/40 bg-danger/10 text-danger'
             : 'border-line text-ink hover:border-sky-soft'

@@ -65,8 +65,121 @@ export default async function ListingPage({
   const lines = specLines(item.category, item.specs);
   const isAdmin = user?.role === 'ADMIN';
 
+  /* 사진 — 번개장터처럼 왼쪽에 큰 정사각 하나 + 밑에 작은 띠(두 장 이상일 때). 사진끼리 넘기는 것은 큰 칸을 옆으로 미는 것으로 */
+  const photos = (
+    <div className="space-y-2">
+      {item.images.length > 0 ? (
+        <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto rounded-2xl">
+          {item.images.map((url, i) => (
+            // eslint-disable-next-line @next/next/no-img-element -- 저장소 서명 주소
+            <img
+              key={url}
+              src={url}
+              alt={`${item.title} 사진 ${i + 1}`}
+              className="aspect-square w-full shrink-0 snap-center rounded-2xl bg-surface-2 object-cover"
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="grid aspect-square place-items-center rounded-2xl bg-surface-2 text-sm text-muted">
+          사진 없음
+        </div>
+      )}
+      {item.images.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto">
+          {item.images.map((url, i) => (
+            // eslint-disable-next-line @next/next/no-img-element -- 저장소 서명 주소
+            <img key={url} src={url} alt="" className="h-16 w-16 shrink-0 rounded-lg bg-surface-2 object-cover" title={`사진 ${i + 1}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  /* 하는 일 — 번개장터 오른쪽 칸: 찜 · 채팅하기 · 안전결제를 가로 한 줄로 꽉 채운다 */
+  const actions = item.mine ? (
+    <Card className="space-y-3">
+      <p className="text-xs font-medium text-muted">내 물건 — 상태</p>
+      <div className="flex flex-wrap gap-2">
+        {STATUSES.map((s) => (
+          <SafeForm
+            key={s.key}
+            action={setListingStatus}
+            doneToast={`${s.label}(으)로 바꿨어요.`}
+          >
+            <input type="hidden" name="id" value={item.id} />
+            <input type="hidden" name="status" value={s.key} />
+            <Button
+              type="submit"
+              size="sm"
+              variant={item.status === s.key ? 'primary' : 'secondary'}
+            >
+              {s.label}
+            </Button>
+          </SafeForm>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          href={`/market/${item.id}/edit`}
+          className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-line px-3 text-sm font-semibold text-ink"
+        >
+          <RoundPencil className="h-4 w-4" /> 고치기
+        </Link>
+        <ConfirmButton
+          action={deleteListing}
+          fields={{ id: item.id }}
+          message="이 물건을 지울까요? 사진과 채팅방의 연결도 사라져요."
+          variant="danger"
+        >
+          지우기
+        </ConfirmButton>
+      </div>
+    </Card>
+  ) : (
+    <div className="space-y-2">
+      <div className="flex items-stretch gap-2">
+        <FavoriteButton
+          listingId={item.id}
+          favorite={item.favorite}
+          count={item.favorites}
+          loggedIn={!!user}
+        />
+        {user ? (
+          <SafeForm action={openConversation} className="flex-1">
+            <input type="hidden" name="listingId" value={item.id} />
+            <Button type="submit" size="lg" className="w-full gap-1.5">
+              <RoundChat className="h-4 w-4" />{' '}
+              {item.chatId ? '채팅 이어서' : '채팅하기'}
+            </Button>
+          </SafeForm>
+        ) : (
+          <Link
+            href={`/login?next=/market/${item.id}`}
+            className="inline-flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl bg-sky px-5 text-base font-semibold text-white"
+          >
+            <RoundChat className="h-4 w-4" /> 로그인하고 채팅하기
+          </Link>
+        )}
+      </div>
+      {item.status === 'ACTIVE' && (
+        <Link
+          href={user ? `/pay/listing/${item.id}` : `/login?next=/pay/listing/${item.id}`}
+          className="flex min-h-12 items-center justify-center rounded-xl border border-sky text-base font-semibold text-sky-strong"
+        >
+          안전결제
+        </Link>
+      )}
+      {user && (
+        <div className="flex justify-end">
+          <ReportListingForm listingId={item.id} />
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="space-y-6">
       <Link
         href="/market"
         className="inline-flex items-center gap-1 text-sm font-semibold text-sky"
@@ -81,149 +194,62 @@ export default async function ListingPage({
         </p>
       )}
 
-      {/* 사진 */}
-      {item.images.length > 0 ? (
-        <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
-          {item.images.map((url, i) => (
-            // eslint-disable-next-line @next/next/no-img-element -- 저장소 서명 주소
-            <img
-              key={url}
-              src={url}
-              alt={`${item.title} 사진 ${i + 1}`}
-              className="aspect-square w-[80%] shrink-0 snap-center rounded-2xl bg-surface-2 object-cover sm:w-[48%]"
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="grid aspect-video place-items-center rounded-2xl bg-surface-2 text-sm text-muted">
-          사진 없음
-        </div>
-      )}
+      {/* 번개장터 상세(2026-10-23) — PC 는 왼쪽 사진 · 오른쪽 가격 · 제목 · 하는 일 두 칸, 휴대폰은 위아래 */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-10">
+        {photos}
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <p className="text-3xl font-black text-ink">{formatPrice(item.price)}</p>
+            <h1 className="text-xl font-bold text-ink">{item.title}</h1>
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+              <span>{relativeTime(item.createdAt, now)}</span>
+              <span>조회 {item.views}</span>
+              <span>찜 {item.favorites}</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Badge>{categoryLabel(item.category)}</Badge>
+              <Badge>{conditionLabel(item.condition)}</Badge>
+              <Badge>{item.region}</Badge>
+              {item.status !== 'ACTIVE' && (
+                <Badge className="text-warn">{statusLabel(item.status)}</Badge>
+              )}
+            </div>
+          </div>
 
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge>{categoryLabel(item.category)}</Badge>
-          <Badge>{conditionLabel(item.condition)}</Badge>
-          {item.status !== 'ACTIVE' && (
-            <Badge className="text-warn">{statusLabel(item.status)}</Badge>
+          {lines.length > 0 && (
+            <dl className="divide-y divide-line border-y border-line">
+              {lines.map((l) => (
+                <div key={l.label} className="flex items-center gap-4 py-2.5 text-sm">
+                  <dt className="w-24 shrink-0 text-muted">{l.label}</dt>
+                  <dd className="font-semibold text-ink">{l.value}</dd>
+                </div>
+              ))}
+            </dl>
           )}
-          <span className="ml-auto text-xs text-muted">
-            {item.region} · {relativeTime(item.createdAt, now)} · 조회 {item.views}
-          </span>
+
+          {actions}
+
+          {/* 판매자 */}
+          <Card className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-sky/12 text-sm font-bold text-sky-strong">
+              {item.seller.nickname.slice(0, 1)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-ink">{item.seller.nickname}</p>
+              <p className="text-xs text-muted">
+                가입 {formatDateTime(item.seller.since).slice(0, 8)} · 투구 기록{' '}
+                {item.seller.records}건 · 올린 물건 {item.seller.listings}개
+              </p>
+            </div>
+          </Card>
         </div>
-        <h1 className="text-2xl font-black text-ink">{item.title}</h1>
-        <p className="text-3xl font-black text-ink">{formatPrice(item.price)}</p>
       </div>
 
-      {lines.length > 0 && (
-        <Card className="p-0">
-          <dl className="grid grid-cols-2 divide-y divide-line sm:grid-cols-3">
-            {lines.map((l) => (
-              <div key={l.label} className="px-4 py-3">
-                <dt className="text-[11px] text-muted">{l.label}</dt>
-                <dd className="text-sm font-semibold text-ink">{l.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
-      )}
-
       {item.body && (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">
-          {item.body}
-        </p>
-      )}
-
-      {/* 판매자 */}
-      <Card className="flex items-center gap-3">
-        <span className="grid h-10 w-10 place-items-center rounded-full bg-sky/12 text-sm font-bold text-sky-strong">
-          {item.seller.nickname.slice(0, 1)}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-ink">{item.seller.nickname}</p>
-          <p className="text-xs text-muted">
-            가입 {formatDateTime(item.seller.since).slice(0, 8)} · 투구 기록{' '}
-            {item.seller.records}건 · 올린 물건 {item.seller.listings}개
-          </p>
-        </div>
-      </Card>
-
-      {/* 하는 일 */}
-      {item.mine ? (
-        <Card className="space-y-3">
-          <p className="text-xs font-medium text-muted">내 물건 — 상태</p>
-          <div className="flex flex-wrap gap-2">
-            {STATUSES.map((s) => (
-              <SafeForm
-                key={s.key}
-                action={setListingStatus}
-                doneToast={`${s.label}(으)로 바꿨어요.`}
-              >
-                <input type="hidden" name="id" value={item.id} />
-                <input type="hidden" name="status" value={s.key} />
-                <Button
-                  type="submit"
-                  size="sm"
-                  variant={item.status === s.key ? 'primary' : 'secondary'}
-                >
-                  {s.label}
-                </Button>
-              </SafeForm>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={`/market/${item.id}/edit`}
-              className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-line px-3 text-sm font-semibold text-ink"
-            >
-              <RoundPencil className="h-4 w-4" /> 고치기
-            </Link>
-            <ConfirmButton
-              action={deleteListing}
-              fields={{ id: item.id }}
-              message="이 물건을 지울까요? 사진과 채팅방의 연결도 사라져요."
-              variant="danger"
-            >
-              지우기
-            </ConfirmButton>
-          </div>
-        </Card>
-      ) : (
-        <div className="flex flex-wrap items-center gap-2">
-          {user ? (
-            <SafeForm action={openConversation}>
-              <input type="hidden" name="listingId" value={item.id} />
-              <Button type="submit" size="lg" className="gap-1.5">
-                <RoundChat className="h-4 w-4" />{' '}
-                {item.chatId ? '채팅 이어서' : '채팅하기'}
-              </Button>
-            </SafeForm>
-          ) : (
-            <Link
-              href={`/login?next=/market/${item.id}`}
-              className="inline-flex min-h-12 items-center gap-1.5 rounded-xl bg-sky px-5 text-base font-semibold text-white"
-            >
-              <RoundChat className="h-4 w-4" /> 로그인하고 채팅하기
-            </Link>
-          )}
-          {item.status === 'ACTIVE' && (
-            <Link
-              href={
-                user ? `/pay/listing/${item.id}` : `/login?next=/pay/listing/${item.id}`
-              }
-              className="inline-flex min-h-11 items-center rounded-xl border border-sky px-4 text-sm font-semibold text-sky-strong"
-            >
-              안전결제
-            </Link>
-          )}
-          <FavoriteButton
-            listingId={item.id}
-            favorite={item.favorite}
-            count={item.favorites}
-            loggedIn={!!user}
-          />
-          {user && <ReportListingForm listingId={item.id} />}
-        </div>
+        <section className="space-y-2">
+          <h2 className="text-base font-bold text-ink">상품 설명</h2>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{item.body}</p>
+        </section>
       )}
 
       {isAdmin && !item.mine && (

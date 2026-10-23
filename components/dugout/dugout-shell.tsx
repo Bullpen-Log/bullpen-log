@@ -59,7 +59,7 @@ export function DugoutShell({
       <MorphIn />
       <main
         data-morph-main
-        className="mx-auto w-full max-w-5xl flex-1 px-4 pt-5 pb-28 md:px-6 md:pt-8 md:pb-16"
+        className="mx-auto w-full max-w-6xl flex-1 px-4 pt-5 pb-28 md:px-6 md:pt-8 md:pb-16"
       >
         {children}
       </main>
