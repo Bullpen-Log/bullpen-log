@@ -188,6 +188,7 @@ export function Segmented<V extends string>({
       <span
         ref={thumbRef}
         data-thumb
+        data-seg-thumb
         aria-hidden
         className="pointer-events-none absolute left-0 top-0 rounded-2xl desk:rounded-lg"
         style={thumbStyle({ box, visible, animate })}

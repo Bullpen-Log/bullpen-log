@@ -4063,11 +4063,11 @@ html[data-morph='to-dugout-out'] [data-morph-chrome] {
 :root:not([data-theme='dark']):not([data-theme='navy']) [data-brand='dugout'] .ri-f { display: inline; }
 
 /*
- * 고르개의 고른 블록([data-thumb], components/segmented.tsx) — 싱커 하단 탭 막대의 유리 렌즈([data-tab-lens])와 같은 유리 조각
+ * 고르개의 고른 블록([data-seg-thumb], components/segmented.tsx — 위 막대 동그라미 등 다른 [data-thumb] 는 빼야 한다) — 싱커 하단 탭 막대의 유리 렌즈([data-tab-lens])와 같은 유리 조각
  * (2026-10-22 금윤호: "cm · kg · km/h 블록들을 하단 메뉴바처럼 유리 느낌으로 볼록 튀어나오게"). 위가 밝은 반투명 유리 · 가는 빛 테두리 ·
  * 위 1px 빛 · 안쪽 밑 그늘 · 밑 그림자, 뒤를 살짝 흐린다. 색은 테마마다(--lens-ink · --tab-dim 을 탭 막대와 같은 값으로).
  */
-[data-thumb] {
+[data-seg-thumb] {
   --lens-ink: 20 30 50;
   --tab-dim: 20 30 50;
   background:
@@ -4082,7 +4082,7 @@ html[data-morph='to-dugout-out'] [data-morph-chrome] {
   backdrop-filter: blur(10px) saturate(1.2);
   -webkit-backdrop-filter: blur(10px) saturate(1.2);
 }
-:root[data-theme='dark'] [data-thumb] {
+:root[data-theme='dark'] [data-seg-thumb] {
   --lens-ink: 255 255 255;
   --tab-dim: 0 0 0;
   background:
@@ -4095,7 +4095,7 @@ html[data-morph='to-dugout-out'] [data-morph-chrome] {
     0 8px 18px -6px rgb(0 0 0 / 0.6),
     0 1px 2px rgb(0 0 0 / 0.3);
 }
-:root[data-theme='navy'] [data-thumb] {
+:root[data-theme='navy'] [data-seg-thumb] {
   --lens-ink: 200 220 255;
   --tab-dim: 3 8 18;
   background:
