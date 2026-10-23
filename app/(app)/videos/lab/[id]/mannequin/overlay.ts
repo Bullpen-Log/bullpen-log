@@ -21,6 +21,7 @@ import {
   BONE_SIZES,
   BONE_TABLE,
   LINE_W,
+  compactSkeleton,
   fitSkeleton,
   prepareSkeleton,
   type SkeletonPrep,
@@ -57,8 +58,8 @@ const TUBE_K = 6;
  * 몸통 · 골반의 실제 뼈대 조각(body-full.glb 뼈 메시 → skeleton-parts.json 의 pelvis · trunk) — 화면을 여러 번 열어도 한 번만 받는다.
  * 두 조각을 펼친 삼각형 하나로 모아 인형 고리에 얹을 재료(prepareSkeleton)로 바꿔 둔다.
  */
-let skeletonData: Promise<SkeletonPrep> | null = null;
-function loadSkeletonData(): Promise<SkeletonPrep> {
+let skeletonData: Promise<{ prep: SkeletonPrep; index: Uint32Array }> | null = null;
+function loadSkeletonData(): Promise<{ prep: SkeletonPrep; index: Uint32Array }> {
   if (!skeletonData) {
     skeletonData = (async () => {
       const [{ GLTFLoader }, raw] = await Promise.all([
@@ -95,7 +96,7 @@ function loadSkeletonData(): Promise<SkeletonPrep> {
         P.set([pos.getX(v), pos.getY(v), pos.getZ(v)], i * 3);
         N.set([nor.getX(v), nor.getY(v), nor.getZ(v)], i * 3);
       });
-      return prepareSkeleton(P, N);
+      return compactSkeleton(prepareSkeleton(P, N), ids);
     })();
     skeletonData.catch(() => {
       skeletonData = null;
@@ -178,9 +179,10 @@ export function createOverlay(THREE: ThreeNS, opts: { heightM: number; onReady?:
   };
   let disposed = false;
   loadSkeletonData()
-    .then((prep) => {
+    .then(({ prep, index }) => {
       if (disposed) return;
       const g = keep(new THREE.BufferGeometry());
+      g.setIndex(new THREE.BufferAttribute(index, 1));
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(prep.t.length * 3), 3).setUsage(THREE.DynamicDrawUsage));
       g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(prep.t.length * 3), 3).setUsage(THREE.DynamicDrawUsage));
       const m = mesh(bones, g, bm.bone);

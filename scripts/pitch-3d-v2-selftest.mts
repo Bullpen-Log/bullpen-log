@@ -111,6 +111,7 @@ import {
   boneEnds,
   boneSpec,
   BONE_TABLE,
+  compactSkeleton,
   fitSkeleton,
   prepareSkeleton,
   skeletonT,
@@ -2451,6 +2452,29 @@ console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부
         const n = torsoN(t);
         worst = Math.max(worst, ((Math.abs(x) / T.width(t)) ** n + (Math.abs(yv) / (yv > 0 ? T.front(t) : T.back(t))) ** n) ** (1 / n));
         if (pos[v * 3] < -0.2 && dot(q, sub(J.rh, J.lh)) <= 0) rightOk = false;
+      }
+      /* 펼친 꼭짓점을 원래 정점 하나로 줄여 얹어도(색인) 꼭짓점마다 자리 · 법선이 펼친 것과 같다 — 재생 중 뼈대 계산이 대여섯 배 줄었다 */
+      {
+        const nv = pos.length / 3;
+        const ids: number[] = [];
+        for (let v = 0; v + 2 < nv; v++) ids.push(v, v + 1, v + 2, v + 2, v + 1, (v + 7) % nv);
+        const P = Float32Array.from(ids.flatMap((v) => [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]]));
+        const Nn = Float32Array.from(ids.flatMap((v) => [Math.cos(v), 0.3, Math.sin(v)]));
+        const full = prepareSkeleton(P, Nn);
+        const { prep: small, index } = compactSkeleton(full, ids);
+        const hh = norm(sub(J.rh, J.lh)) / 2;
+        const sh = norm(sub(J.sh, J.gs)) / 2;
+        const o1 = new Float32Array(P.length);
+        const n1 = new Float32Array(P.length);
+        fitSkeleton(full, T, k, hh, sh, o1, n1);
+        const o2 = new Float32Array(small.t.length * 3);
+        const n2 = new Float32Array(small.t.length * 3);
+        fitSkeleton(small, T, k, hh, sh, o2, n2);
+        let diff = 0;
+        for (let i = 0; i < ids.length; i++)
+          for (let a = 0; a < 3; a++)
+            diff = Math.max(diff, Math.abs(o1[i * 3 + a] - o2[index[i] * 3 + a]), Math.abs(n1[i * 3 + a] - n2[index[i] * 3 + a]));
+        check('뼈대 정점 줄이기: 색인으로 그린 자리 · 법선이 펼친 것과 같고 정점이 줄어든다', diff === 0 && small.t.length === nv && index.length === ids.length, `차 ${diff} · 정점 ${small.t.length}/${ids.length}`);
       }
       const keys = skeletonT(0.9).t === TORSO_KEYS[1] && skeletonT(1.37).t === TORSO_KEYS[5] && skeletonT(0.7).t === 0 && skeletonT(0.7).dy < 0 && skeletonT(1.6).dy > 0;
       check(
