@@ -19,8 +19,19 @@ import { join, resolve } from 'node:path';
 export const REPO = resolve(import.meta.dirname, '../..');
 /** 작업 폴더 — 환경변수 VELOCITY_LAB 로 바꿀 수 있다 */
 export const LAB = process.env.VELOCITY_LAB ?? join(homedir(), 'bullpen-velocity-lab');
+/** 크롬 — CHROME_PATH, 없으면 윈도 크롬 · 맥의 Playwright 크롬(ms-playwright 캐시) 중 있는 것 */
 const CHROME =
-  process.env.CHROME_PATH ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+  process.env.CHROME_PATH ??
+  [
+    'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    ...(existsSync(join(homedir(), 'Library/Caches/ms-playwright'))
+      ? readdirSync(join(homedir(), 'Library/Caches/ms-playwright'))
+          .filter((d) => /^chromium-\d+$/.test(d))
+          .sort()
+          .reverse()
+          .map((d) => join(homedir(), 'Library/Caches/ms-playwright', d, 'chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'))
+      : []),
+  ].find((p) => existsSync(p));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** 명령줄 '--이름=값' */
@@ -65,7 +76,7 @@ export async function open({
   port = 9461,
   engine = join(REPO, 'lib', 'velocity-engine'),
 } = {}) {
-  if (!existsSync(CHROME))
+  if (!CHROME || !existsSync(CHROME))
     throw new Error(
       `크롬을 못 찾았어요: ${CHROME} — 환경변수 CHROME_PATH 로 알려 주세요.`
     );

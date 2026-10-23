@@ -1,0 +1,75 @@
+{
+  "about": "구속 시험대 자료 목록(docs/velocity/redesign/SPEC-bench.md). 묶음마다 받는 곳(~/bullpen-velocity-lab) · 나눔 · 실제 거리. 공 하나하나는 받아 둔 manifest · cuts.json 에서 펼친다(fixtures.mjs). trueDistM = 폰 → 받는 면(줄자 · 김민 말), 모르면 null. split: holdout(확인용 — 문) · tune(맞추기용) · diag(진단용 — 앱 길이 아님, 문에 안 씀).",
+  "groups": [
+    {
+      "id": "1023",
+      "label": "10-23 세션 녹화(밖 · 망)",
+      "kind": "rec",
+      "recs": ["b6b85fa7", "0261203d", "3acfcf85", "f53279ad", "df00ada4"],
+      "fovDeg": 38.33,
+      "trueDistM": 20.5,
+      "split": "holdout",
+      "note": "투수판 → 망 20m · 폰은 투수판 뒤 0.5m(김민). 던진 19구 중 스피드건 17. 화각은 그날 앱이 잰 공의 focalPx."
+    },
+    {
+      "id": "1021-16",
+      "label": "10-21 줄자 16m",
+      "kind": "live",
+      "date": "2026-10-21",
+      "inputDistM": 16,
+      "trueDistM": 16,
+      "split": "holdout"
+    },
+    {
+      "id": "1021-18",
+      "label": "10-21 줄자 18m",
+      "kind": "live",
+      "date": "2026-10-21",
+      "inputDistM": 18,
+      "trueDistM": 18,
+      "split": "holdout"
+    },
+    {
+      "id": "1021",
+      "label": "10-21 앱 클립(기준 20m)",
+      "kind": "live",
+      "date": "2026-10-21",
+      "inputDistM": 20,
+      "trueDistM": null,
+      "split": "tune"
+    },
+    {
+      "id": "1009",
+      "label": "10-09 앱 클립(실내)",
+      "kind": "live",
+      "date": "2026-10-09",
+      "inputDistM": 20,
+      "trueDistM": 18.5,
+      "split": "tune",
+      "note": "투수판 → 미트 17.5m · 폰 1m 뒤(김민)."
+    },
+    {
+      "id": "1007",
+      "label": "10-07 앱 클립",
+      "kind": "live",
+      "date": "2026-10-07",
+      "inputDistM": 20,
+      "trueDistM": null,
+      "split": "tune"
+    },
+    { "id": "rec49", "label": "10-16 녹화 49def374", "kind": "rec", "recs": ["49def374"], "trueDistM": null, "split": "tune" },
+    { "id": "gA", "label": "녹화 gA", "kind": "rec", "dirs": ["rec-gA"], "trueDistM": null, "split": "tune" },
+    { "id": "gB", "label": "녹화 gB", "kind": "rec", "dirs": ["rec-gB"], "trueDistM": null, "split": "tune" },
+    {
+      "id": "1003",
+      "label": "10-03 카메라 앱 파일(밖)",
+      "kind": "files",
+      "date": "2026-10-03",
+      "fetch": ["--manual"],
+      "trueDistM": 20.5,
+      "split": "diag"
+    },
+    { "id": "1006", "label": "10-06 카메라 앱 파일", "kind": "files", "date": "2026-10-06", "trueDistM": 18.5, "split": "diag" },
+    { "id": "0928", "label": "09-28 카메라 앱 파일(실내)", "kind": "files", "date": "2026-09-28", "trueDistM": null, "split": "diag" }
+  ]
+}
