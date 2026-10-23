@@ -5,6 +5,7 @@
  *
  *   node scripts/velocity-lab/gun-table.mjs --files=2026-10-03,2026-10-06 --live=2026-10-07,2026-10-09 --rec=rec-49def374
  *   … --trig=<ball-trigger 출력 파일>(카메라 앱 영상의 공 · 후보 알림 시각을 씨앗으로) --engine=<복사본> --json=<파일> --tilt=0.035
+ *   --dump=1 이면 JSON 에 공 관측(track) · 궤적 스냅샷(fit) · 분석 크기도 싣는다(공 크기 정답 만들기 · 크기 깊이 시험용)
  *
  *   --files : <날짜>/clips + manifest.json(download.mjs — 폰 카메라 앱으로 찍어 올린 파일, 화각은 파일의 렌즈 정보)
  *   --live  : <날짜>/live + manifest.json + .analysis.json(download.mjs --live — 앱 카메라 클립, 씨앗 = 공 알림 시각 clipEventSec)
@@ -85,7 +86,8 @@ for (const s of S) {
       return { ok: m.ok, code: m.ok ? null : m.code, kmh: m.ok ? m.kmh : null, conf: m.ok ? m.confidence : null, frames: m.ok ? m.detail.frames : null,
         preConf: d.preSize?.confidence ?? null, why: d.why ?? null, size: d.sizeDistM ?? null, slope: d.sizeSlope ?? null, ext: d.extended ?? 0,
         impact: d.impact ?? null, stab: !!d.stabilized, decoded: res.video?.timing?.decoded ?? null,
-        se: m.ok ? m.detail.startSeKmh : null, start: m.ok ? m.detail.startKmh : null, endSize: d.endSizeRatio ?? null, first: d.firstDepthM ?? null, shaky: !!d.shaky, source: d.distanceSource ?? null, usedDist: d.distanceM ?? null };
+        se: m.ok ? m.detail.startSeKmh : null, start: m.ok ? m.detail.startKmh : null, endSize: d.endSizeRatio ?? null, first: d.firstDepthM ?? null, shaky: !!d.shaky, source: d.distanceSource ?? null, usedDist: d.distanceM ?? null,
+        ...(${argOf('dump', '0') === '1'} && m.ok ? { track: res.track, fit: d.fit ?? null, aw: res.analyzeSize?.width ?? null, ah: res.analyzeSize?.height ?? null, sw: res.sourceSize?.width ?? null, sh: res.sourceSize?.height ?? null } : {}) };
     } catch (e) { return { error: String(e?.message ?? e) }; }
   })()`);
   const o = { ...s, ...r };

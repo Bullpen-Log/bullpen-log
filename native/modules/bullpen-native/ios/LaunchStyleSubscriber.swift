@@ -3,8 +3,8 @@ import UIKit
 
 /// 시작 화면을 앱 테마로 — 뿌리 화면을 만드는 그 순간에 칠한다. 예전엔 모듈 OnCreate(JS 가 뜬 뒤)에서 칠해, 네이비 · 다크를 골라도
 /// 흰 시작 화면이 1초쯤 보인 뒤에 바뀌었다(2026-10-21 김민).
-/// 그 앞의 첫 장면(iOS 가 찍어 둔 그림)은 LaunchSnapshot 이 테마 그림으로 바꿔 둔다. 그게 안 먹은 때(iOS 판 · 처음 켬)는 iOS 가 보인
-/// 장면 그대로를 맨 위에 얹었다가 걷어, 흰 → 네이비가 뚝 바뀌지 않고 스르르 넘어간다(2026-10-22 김민: "안 먹을 수 있다는 위험을 해결").
+/// 그 앞의 첫 장면(iOS 가 찍어 둔 그림)은 LaunchSnapshot 이 테마 그림으로 바꿔 둔다. iOS 가 방금 보인 그 그림(LaunchSnapshot.shownImage)을
+/// 맨 위에 얹었다가 걷는다 — 우회가 먹었으면 같은 테마 그림이라 아무 일 없고, 안 먹었으면(iOS 판 · 처음 켬) 흰 → 네이비가 스르르 넘어간다.
 /// 시작 화면 색 묶음(SplashScreenBackground)은 라이트 · 다크 둘뿐이라, 네이비는 그 판 바탕만 앱 네이비(lib/ui.ts page #0b1220)로 덮는다.
 public class LaunchStyleSubscriber: ExpoAppDelegateSubscriber {
   /// 넘어가는 시간 — 나가는 것은 빠르게(디자인 규칙 120~200ms), 첫 장면이라 조금 길게
@@ -27,19 +27,27 @@ public class LaunchStyleSubscriber: ExpoAppDelegateSubscriber {
     }
   }
 
-  /// 덮개가 필요한가 — iOS 가 보인 첫 장면(기기 밝기의 스토리보드)과 테마 바탕이 다르고, 첫 장면이 우리 테마 그림이 아니었을 때
+  /// 덮개가 필요한가 — 기기 밝기의 시작 화면과 테마 바탕이 다를 때만(같으면 무엇을 보였든 그대로라 안 얹는다)
   private static func needsVeil(_ pick: String) -> Bool {
-    guard pick != "system", !LaunchSnapshot.shownThemed(pick), let splash = UIColor(named: "SplashScreenBackground") else { return false }
+    guard pick != "system", let splash = UIColor(named: "SplashScreenBackground") else { return false }
     let shown = splash.resolvedColor(with: UIScreen.main.traitCollection)
     let themed = pick == "navy" ? navy : splash.resolvedColor(with: UITraitCollection(userInterfaceStyle: pick == "light" ? .light : .dark))
     return !shown.isEqual(themed)
   }
 
-  /// iOS 가 막 보인 장면과 같은 것(기기 밝기의 시작 스토리보드)을 맨 위에 — zPosition 이라 나중에 붙는 시작 판보다도 위
+  /// iOS 가 막 보인 장면을 맨 위에 — 찍어 둔 그림 파일 그대로, 못 읽으면 기기 밝기의 시작 스토리보드. zPosition 이라 나중에 붙는 시작 판보다도 위
   private static func launchVeil(over root: UIView) -> UIView? {
-    let name = Bundle.main.object(forInfoDictionaryKey: "UILaunchStoryboardName") as? String ?? "SplashScreen"
-    guard let veil = UIStoryboard(name: name, bundle: .main).instantiateInitialViewController()?.view else { return nil }
-    veil.overrideUserInterfaceStyle = UIScreen.main.traitCollection.userInterfaceStyle
+    let veil: UIView
+    if let shown = LaunchSnapshot.shownImage() {
+      let iv = UIImageView(image: UIImage(cgImage: shown))
+      iv.contentMode = .scaleAspectFill
+      veil = iv
+    } else {
+      let name = Bundle.main.object(forInfoDictionaryKey: "UILaunchStoryboardName") as? String ?? "SplashScreen"
+      guard let board = UIStoryboard(name: name, bundle: .main).instantiateInitialViewController()?.view else { return nil }
+      board.overrideUserInterfaceStyle = UIScreen.main.traitCollection.userInterfaceStyle
+      veil = board
+    }
     veil.frame = root.bounds
     veil.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     veil.isUserInteractionEnabled = false

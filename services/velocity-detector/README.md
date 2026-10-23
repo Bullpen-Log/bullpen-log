@@ -52,6 +52,12 @@ SmartScout · PitchLab 처럼 **학습한 모델로 공을 찾는다.** 지금 �
   클립 앞의 두 장면은 안 찍은 것(ball null)인데 train.py 가 i ≥ 2 만 표본으로 쓰니 상관없다.
 - 1판 · 2판 자료를 합쳐 학습하려면 두 labels.json 의 clips 를 이어 붙인 폴더를 하나 더 만들면 된다(images 는 클립 id 가 달라 겹치지 않는다).
 
+## 3판 자료 — 스피드건으로 되짚은 진짜 지름(2026-10-22)
+
+1 · 2판 지름 라벨은 엔진 덩어리라 진짜보다 1.08~1.18배 부풀었다. 3판은 스피드건 짝의 궤적을 스피드건 값으로 되짚어 장면마다 진짜 지름을 만든다
+(`build-truth-dataset.mjs` → `align-truth.py` → `train.py --test-groups … --max-engine-err 0.08` → `truth-eval.mjs`). 결과 · 명령은
+`docs/velocity/size-model-2026-10-22.md`. 아직 앱 · 사이트에는 안 붙였다.
+
 ## 비용
 
 T4 시간당 약 0.6달러 — 1판 학습 한 번 15분 = 150원쯤. 자료 올리기 · 보관은 무료 한도 안.
