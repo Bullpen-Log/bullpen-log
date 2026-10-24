@@ -1,12 +1,15 @@
 import Link from 'next/link';
-import { RoundChat, RoundCommunity, RoundEyeOff, RoundHeart } from '@/components/round-icon';
+import { RoundChat, RoundCommunity, RoundEyeOff, RoundHeart, RoundVideo } from '@/components/round-icon';
 import { getCurrentUser } from '@/lib/dal';
 import { loadCommunityList } from '@/lib/community-load';
 import {
   POST_CATEGORIES,
   POST_SORTS,
+  POST_TAGS,
   isPostCategory,
+  isPostTag,
   postCategoryLabel,
+  postTagLabel,
   type PostSort,
 } from '@/lib/community';
 import { Badge, ButtonLink, EmptyState, PageHeading } from '@/components/ui';
@@ -19,10 +22,11 @@ type Search = { [key: string]: string | string[] | undefined };
 const one = (v: string | string[] | undefined) =>
   typeof v === 'string' ? v : undefined;
 
-/** 목록 주소 — 게시판 · 정렬 · 장을 바꿔도 나머지는 그대로 */
-function listHref(q: { category?: string; sort: PostSort; page?: number }) {
+/** 목록 주소 — 게시판 · 말머리 · 정렬 · 장을 바꿔도 나머지는 그대로 */
+function listHref(q: { category?: string; tag?: string; sort: PostSort; page?: number }) {
   const sp = new URLSearchParams();
   if (q.category) sp.set('category', q.category);
+  if (q.category && q.tag) sp.set('tag', q.tag);
   if (q.sort !== 'new') sp.set('sort', q.sort);
   if (q.page && q.page > 1) sp.set('page', String(q.page));
   const s = sp.toString();
@@ -40,17 +44,21 @@ export default async function CommunityPage({
   searchParams: Promise<Search>;
 }) {
   const user = await getCurrentUser();
-  /* 글쓰기는 로그인 — 안 했으면 로그인 뒤 글쓰기로 */
-  const writeHref = user ? '/community/new' : '/login?next=/community/new';
   const sp = await searchParams;
 
   const rawCategory = one(sp.category);
   const category = isPostCategory(rawCategory) ? rawCategory : undefined;
+  const rawTag = one(sp.tag);
+  const tag = category && isPostTag(category, rawTag) ? rawTag : undefined;
   const sort: PostSort = one(sp.sort) === 'hot' ? 'hot' : 'new';
   const page = Math.max(1, Number.parseInt(one(sp.page) ?? '1', 10) || 1);
 
-  /* 읽기는 앱 화면과 같은 곳(lib/community-load.ts) — 가린 글은 관리자에게만 */
-  const { posts, hasMore } = await loadCommunityList(user, { category, sort, page });
+  /* 글쓰기는 로그인 — 안 했으면 로그인 뒤 글쓰기로. 게시판을 보고 있으면 그 게시판을 골라 둔다 */
+  const newHref = category ? `/community/new?board=${category}` : '/community/new';
+  const writeHref = user ? newHref : `/login?next=${encodeURIComponent(newHref)}`;
+
+  /* 읽기는 앱 화면과 같은 곳(lib/community-load.ts) — 가린 글은 관리자에게만, 차단한 사람 글은 빼고 */
+  const { posts, hasMore } = await loadCommunityList(user, { category, tag, sort, page });
 
   const chipClass = (active: boolean) =>
     `inline-flex min-h-9 shrink-0 items-center rounded-full px-4 text-sm font-semibold whitespace-nowrap transition-colors ${
@@ -68,7 +76,7 @@ export default async function CommunityPage({
       />
 
       {/* 거르기 — 구분 칩은 옆으로 미끄러지고(휴대폰), 정렬은 오른쪽 끝의 작은 둘 */}
-      <div className="flex flex-col gap-3 desk:flex-row desk:items-center desk:justify-between">
+      <div className="flex flex-col gap-3 desk:flex-row desk:flex-wrap desk:items-center desk:justify-between">
         <nav
           aria-label="게시판"
           className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 desk:mx-0 desk:flex-wrap desk:px-0"
@@ -91,6 +99,27 @@ export default async function CommunityPage({
             </Link>
           ))}
         </nav>
+        {category && (
+          <nav
+            aria-label="말머리"
+            className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 desk:order-last desk:mx-0 desk:w-full desk:flex-wrap desk:px-0"
+          >
+            {[{ key: '', label: '전체' }, ...POST_TAGS[category]].map((t) => (
+              <Link
+                key={t.key}
+                href={listHref({ category, tag: t.key || undefined, sort })}
+                aria-current={(tag ?? '') === t.key ? 'page' : undefined}
+                className={`inline-flex min-h-8 shrink-0 items-center rounded-full px-3 text-xs font-semibold whitespace-nowrap transition-colors ${
+                  (tag ?? '') === t.key
+                    ? 'bg-ink text-page'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </nav>
+        )}
         <div
           role="group"
           aria-label="정렬"
@@ -100,7 +129,7 @@ export default async function CommunityPage({
             <span key={s.key} className="flex items-center gap-1">
               {i > 0 && <span className="text-line-strong">|</span>}
               <Link
-                href={listHref({ category, sort: s.key })}
+                href={listHref({ category, tag, sort: s.key })}
                 aria-current={sort === s.key ? 'page' : undefined}
                 className={`rounded-full px-2 py-1 transition-colors ${
                   sort === s.key
@@ -122,7 +151,9 @@ export default async function CommunityPage({
             page > 1
               ? '여기까지예요'
               : category
-                ? '이 게시판에는 아직 글이 없어요'
+                ? tag
+                  ? '이 말머리에는 아직 글이 없어요'
+                  : '이 게시판에는 아직 글이 없어요'
                 : '아직 글이 없어요'
           }
           description={
@@ -132,7 +163,7 @@ export default async function CommunityPage({
           }
           action={
             page > 1 ? (
-              <ButtonLink href={listHref({ category, sort })} variant="secondary">
+              <ButtonLink href={listHref({ category, tag, sort })} variant="secondary">
                 처음으로
               </ButtonLink>
             ) : (
@@ -154,12 +185,21 @@ export default async function CommunityPage({
               >
                 <Link
                   href={`/community/${post.id}`}
-                  className="group flex flex-col gap-2.5 px-(--block-pad) py-4 transition-colors hover:bg-surface-2 active:bg-ink/6"
+                  className="group flex gap-3 px-(--block-pad) py-4 transition-colors hover:bg-surface-2 active:bg-ink/6"
                 >
+                  <div className="flex min-w-0 flex-1 flex-col gap-2.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge className={categoryBadgeClass(post.category)}>
                       {postCategoryLabel(post.category)}
                     </Badge>
+                    {postTagLabel(post.category, post.tag) && (
+                      <span className="text-xs font-semibold text-muted">
+                        {postTagLabel(post.category, post.tag)}
+                      </span>
+                    )}
+                    {post.solved && (
+                      <Badge className="border-ok/40 bg-ok/10 text-ok desk:bg-transparent">해결됨</Badge>
+                    )}
                     {hidden && (
                       <Badge className="gap-1 border-danger-line bg-danger-bg text-danger desk:bg-transparent">
                         <RoundEyeOff aria-hidden className="h-3 w-3" />
@@ -174,7 +214,10 @@ export default async function CommunityPage({
                     {post.preview}
                   </p>
                   <div className="flex items-center gap-3 text-xs text-muted">
-                    <span className="text-ink/80">{post.nickname}</span>
+                    <span className="text-ink/80">
+                      {post.nickname}
+                      {post.coach && <span className="ml-1 font-semibold text-sky">코치</span>}
+                    </span>
                     <span>{relativeTime(post.createdAt)}</span>
                     <span className="ml-auto flex items-center gap-3 tabular-nums">
                       <span className="flex items-center gap-1">
@@ -189,6 +232,21 @@ export default async function CommunityPage({
                       </span>
                     </span>
                   </div>
+                  </div>
+                  {(post.thumb || post.hasVideo) && (
+                    <div className="relative h-18 w-18 shrink-0 self-center overflow-hidden rounded-xl bg-surface-2">
+                      {post.thumb && (
+                        /* eslint-disable-next-line @next/next/no-img-element -- 저장소 서명 주소 */
+                        <img src={post.thumb} alt="" className="h-full w-full object-cover" />
+                      )}
+                      {post.hasVideo && (
+                        <RoundVideo
+                          aria-label="영상 있음"
+                          className={`absolute h-5 w-5 ${post.thumb ? 'right-1 bottom-1 text-white drop-shadow' : 'inset-0 m-auto text-muted'}`}
+                        />
+                      )}
+                    </div>
+                  )}
                 </Link>
               </li>
             );
@@ -201,7 +259,7 @@ export default async function CommunityPage({
         <div className="flex items-center justify-center gap-3">
           {page > 1 && (
             <ButtonLink
-              href={listHref({ category, sort, page: page - 1 })}
+              href={listHref({ category, tag, sort, page: page - 1 })}
               variant="secondary"
             >
               이전 장
@@ -209,13 +267,20 @@ export default async function CommunityPage({
           )}
           {hasMore && (
             <ButtonLink
-              href={listHref({ category, sort, page: page + 1 })}
+              href={listHref({ category, tag, sort, page: page + 1 })}
               variant="secondary"
             >
               더 보기
             </ButtonLink>
           )}
         </div>
+      )}
+      {user && (
+        <p className="text-center">
+          <Link href="/community/blocked" className="text-xs text-muted hover:text-ink">
+            차단한 사람
+          </Link>
+        </p>
       )}
     </div>
   );

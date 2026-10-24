@@ -20,6 +20,63 @@ export function isPostCategory(v: unknown): v is PostCategory {
 export function postCategoryLabel(key: string) {
   return POST_CATEGORIES.find((c) => c.key === key)?.label ?? '자유';
 }
+/** 말머리 — 게시판 안에서 가른다(김민 2026-10-24). '봐 주세요'는 질문 · 답변의 '내 폼 봐 주세요'로 합쳤다. */
+export const POST_TAGS: Record<PostCategory, readonly { key: string; label: string }[]> = {
+  free: [
+    { key: 'chat', label: '잡담' },
+    { key: 'record', label: '내 기록' },
+    { key: 'kbo', label: 'KBO' },
+    { key: 'mlb', label: 'MLB' },
+    { key: 'amateur', label: '아마추어' },
+    { key: 'gear', label: '장비' },
+  ],
+  question: [
+    { key: 'pitch', label: '투구' },
+    { key: 'bat', label: '타격' },
+    { key: 'field', label: '수비' },
+    { key: 'gear', label: '장비' },
+    { key: 'injury', label: '부상' },
+    { key: 'rule', label: '규칙' },
+    { key: 'form', label: '내 폼 봐 주세요' },
+  ],
+  meetup: [
+    { key: 'catch', label: '캐치볼' },
+    { key: 'batting', label: '배팅' },
+    { key: 'fungo', label: '펑고' },
+    { key: 'game', label: '같이 경기' },
+  ],
+  team: [
+    { key: 'promo', label: '팀 홍보' },
+    { key: 'recruit', label: '팀원 모집' },
+    { key: 'merc', label: '용병' },
+    { key: 'scrim', label: '연습경기 상대' },
+    { key: 'seek', label: '팀 구해요' },
+  ],
+};
+export function isPostTag(category: string, tag: unknown): tag is string {
+  return isPostCategory(category) && POST_TAGS[category].some((t) => t.key === tag);
+}
+export function postTagLabel(category: string, tag: string | null | undefined) {
+  if (!tag || !isPostCategory(category)) return null;
+  return POST_TAGS[category].find((t) => t.key === tag)?.label ?? null;
+}
+
+/** 부상 질문에 붙는 안내 — 의료 조언이 아니다 */
+export const INJURY_NOTE = '부상 이야기는 의료 조언이 아니에요. 아프면 던지지 말고 병원 진료를 먼저 받아요.';
+
+/** 사진 · 영상 — 글 하나에 4개, 영상은 저장소 한도(50MB)까지. 경로는 {userId}/{uuid}.확장자 */
+export const MEDIA_MAX = 4;
+export const MEDIA_VIDEO_MAX_MB = 50;
+export const MEDIA_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+};
+export const isVideoPath = (path: string) => /\.(mp4|mov)$/i.test(path);
+export const isMediaPath = (path: string) => /\.(jpg|png|webp|mp4|mov)$/i.test(path);
+
 /** 예전 갈래(기록 자랑 · 팁)는 자유로 — 아직 옛 앱이 보낼 수 있다(10-24 까지 글 0개라 옮길 글은 없다) */
 export function normalizeCategory(v: unknown): PostCategory | null {
   if (v === 'record' || v === 'tip') return 'free';

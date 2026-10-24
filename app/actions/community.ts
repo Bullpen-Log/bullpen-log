@@ -7,14 +7,19 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { appNow } from '@/lib/clock';
 import { loadCommunityList, loadCommunityPost } from '@/lib/community-load';
+import { deleteVideos, isOwnedBy } from '@/lib/storage';
 import { formatDateTime, relativeTime } from '@/components/community/community-format';
 import { withInput, type FormValues } from '@/lib/form-values';
+import { notify } from '@/lib/notify';
 import {
   REPORT_DETAIL_MAX,
   COMMENT_BODY_MAX,
   POST_BODY_MAX,
   POST_TITLE_MAX,
+  MEDIA_MAX,
+  isMediaPath,
   isPostCategory,
+  isPostTag,
   isReportReason,
   maskContacts,
   normalizeCategory,
@@ -68,6 +73,14 @@ async function tryCreatePost(
   const body = maskContacts(field(formData, 'body'));
 
   if (!category) return { error: '게시판을 골라 주세요.' };
+  const rawTag = field(formData, 'tag');
+  if (rawTag && !isPostTag(category, rawTag)) return { error: '말머리를 다시 골라 주세요.' };
+  const tag = rawTag || null;
+  /* 사진 · 영상은 내 폴더에 올린 것만(남의 경로를 걸어 두면 그 사람 파일을 글과 함께 지울 수 있다) */
+  const media = formData.getAll('media').map(String).filter(Boolean);
+  if (media.length > MEDIA_MAX) return { error: `사진 · 영상은 ${MEDIA_MAX}개까지 올릴 수 있어요.` };
+  if (media.some((m) => !isOwnedBy(m, user.id) || !isMediaPath(m)))
+    return { error: '사진 · 영상을 다시 올려 주세요.' };
   if (!title || !body) return { error: '제목과 내용을 적어 주세요.' };
   if (title.length > POST_TITLE_MAX)
     return { error: `제목은 ${POST_TITLE_MAX}자까지 적을 수 있어요.` };
@@ -91,7 +104,7 @@ async function tryCreatePost(
   if (same) return { id: same.id };
 
   const post = await prisma.communityPost.create({
-    data: { userId: user.id, category, title, body },
+    data: { userId: user.id, category, tag, title, body, media },
     select: { id: true },
   });
 
@@ -109,12 +122,14 @@ async function removePost(user: Me, id: string) {
   if (!id) return false;
   const post = await prisma.communityPost.findUnique({
     where: { id },
-    select: { userId: true },
+    select: { userId: true, media: true },
   });
-  /* 글쓴이 본인이거나 관리자만 — 댓글 · 좋아요 · 신고는 Prisma 가 이어서 지운다(relationMode prisma) */
+  /* 글쓴이 본인이거나 관리자만 — 댓글 · 좋아요 · 신고 · 참가 · 대화는 Prisma 가 이어서 지운다(relationMode prisma) */
   if (!post || (post.userId !== user.id && user.role !== 'ADMIN')) return false;
 
   await prisma.communityPost.delete({ where: { id } });
+  /* 사진 · 영상 파일도 — 글이 지워진 뒤에(실패해도 글 지우기는 막지 않는다) */
+  await deleteVideos(post.media.filter((m) => isOwnedBy(m, post.userId)));
   revalidatePost(id);
   return true;
 }
@@ -177,7 +192,7 @@ async function tryAddComment(formData: FormData): Promise<CommunityState> {
 
   const post = await prisma.communityPost.findUnique({
     where: { id: postId },
-    select: { hiddenAt: true },
+    select: { hiddenAt: true, userId: true, category: true, title: true },
   });
   if (!post || (post.hiddenAt && user.role !== 'ADMIN'))
     return { error: '글을 찾지 못했어요.' };
@@ -192,8 +207,17 @@ async function tryAddComment(formData: FormData): Promise<CommunityState> {
     },
     select: { id: true },
   });
-  if (!same)
+  if (!same) {
     await prisma.communityComment.create({ data: { postId, userId: user.id, body } });
+    /* 글쓴이에게 알림(내 글에 내가 단 댓글은 빼고) — 질문이면 '답이 달렸어요' */
+    if (post.userId !== user.id)
+      await notify(post.userId, {
+        kind: 'community',
+        title: post.category === 'question' ? '내 질문에 답이 달렸어요' : '내 글에 댓글이 달렸어요',
+        body: post.title,
+        link: `/community/${postId}`,
+      });
+  }
   revalidatePath('/community');
   revalidatePath(`/community/${postId}`);
   return undefined;
@@ -213,6 +237,62 @@ export async function deleteComment(formData: FormData) {
 
   await prisma.communityComment.delete({ where: { id } });
   revalidatePost(comment.postId);
+}
+
+// ── 질문 채택 ──────────────────────────────────────────────────────────────
+
+/** 질문 글쓴이가 남의 답(댓글)을 채택한다 — 다시 누르면 풀린다. 채택되면 목록 · 글에 '해결됨' */
+export async function acceptComment(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) return;
+  const id = field(formData, 'id');
+  if (!id) return;
+  const comment = await prisma.communityComment.findUnique({
+    where: { id },
+    select: {
+      userId: true,
+      hiddenAt: true,
+      post: { select: { id: true, userId: true, category: true, hiddenAt: true, acceptedCommentId: true } },
+    },
+  });
+  const post = comment?.post;
+  if (!comment || !post || post.category !== 'question' || post.userId !== user.id) return;
+  if (comment.userId === user.id || comment.hiddenAt || post.hiddenAt) return;
+
+  const accepting = post.acceptedCommentId !== id;
+  await prisma.communityPost.update({
+    where: { id: post.id },
+    data: { acceptedCommentId: accepting ? id : null },
+  });
+  if (accepting)
+    await notify(comment.userId, {
+      kind: 'community',
+      title: '내 답변이 채택됐어요',
+      link: `/community/${post.id}`,
+    });
+  revalidatePost(post.id);
+}
+
+// ── 차단 ──────────────────────────────────────────────────────────────────
+
+/** 사용자 차단 · 풀기 — 막은 사람의 글 · 댓글이 내 화면에서 안 보인다(상대는 모른다). userId · block('1' | '0') · back(돌아갈 주소) */
+export async function setBlocked(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) return;
+  const target = field(formData, 'userId');
+  if (!target || target === user.id) return;
+  if (field(formData, 'block') === '1') {
+    const exists = await prisma.user.findUnique({ where: { id: target }, select: { id: true } });
+    if (!exists) return;
+    await prisma.communityBlock.upsert({
+      where: { blockerId_blockedId: { blockerId: user.id, blockedId: target } },
+      create: { blockerId: user.id, blockedId: target },
+      update: {},
+    });
+  } else {
+    await prisma.communityBlock.deleteMany({ where: { blockerId: user.id, blockedId: target } });
+  }
+  revalidatePath('/community', 'layout');
 }
 
 // ── 신고 ──────────────────────────────────────────────────────────────────
@@ -353,9 +433,17 @@ export async function loadAppCommunity(
   return {
     ok: true as const,
     hasMore: list.hasMore,
-    posts: list.posts.map(({ createdAt, ...p }) => ({
-      ...p,
-      ago: relativeTime(createdAt),
+    /* 앱 입구 모양은 예전 그대로(scripts/native-api-shapes.json) — 새 칸(말머리 · 사진 …)은 웹 화면만 쓴다 */
+    posts: list.posts.map((p) => ({
+      id: p.id,
+      category: p.category,
+      title: p.title,
+      preview: p.preview,
+      hidden: p.hidden,
+      nickname: p.nickname,
+      likes: p.likes,
+      comments: p.comments,
+      ago: relativeTime(p.createdAt),
     })),
   };
 }
@@ -366,15 +454,34 @@ export async function loadAppCommunityPost(id: unknown) {
   if (!user) return TO_LOGIN;
   const post = await loadCommunityPost(user, String(id ?? ''));
   if (!post) return { ok: true as const, post: null };
-  const { createdAt, comments, ...rest } = post;
+  /* 앱 입구 모양은 예전 그대로(목록과 같은 까닭) */
   return {
     ok: true as const,
     post: {
-      ...rest,
-      at: formatDateTime(createdAt),
-      comments: comments.map(({ createdAt: at, ...c }) => ({
-        ...c,
-        ago: relativeTime(at),
+      id: post.id,
+      category: post.category,
+      title: post.title,
+      body: post.body,
+      nickname: post.nickname,
+      hidden: post.hidden,
+      isAdmin: post.isAdmin,
+      liked: post.liked,
+      likes: post.likes,
+      commentCount: post.commentCount,
+      canLike: post.canLike,
+      canComment: post.canComment,
+      canDelete: post.canDelete,
+      canReport: post.canReport,
+      at: formatDateTime(post.createdAt),
+      comments: post.comments.map((c) => ({
+        id: c.id,
+        body: c.body,
+        nickname: c.nickname,
+        hidden: c.hidden,
+        mine: c.mine,
+        canDelete: c.canDelete,
+        canReport: c.canReport,
+        ago: relativeTime(c.createdAt),
       })),
     },
   };
