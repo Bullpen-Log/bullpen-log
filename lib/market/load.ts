@@ -233,7 +233,8 @@ export async function loadFavorites(userId: string): Promise<ListingCard[]> {
 
 export type ConversationRow = {
   id: string;
-  other: { id: string; nickname: string };
+  /** avatarUrl — 프로필 사진(서명 주소), 없으면 null(채팅 목록 · 방 머리, 2026-10-24) */
+  other: { id: string; nickname: string; avatarUrl: string | null };
   listing: {
     id: string;
     title: string;
@@ -261,15 +262,18 @@ export async function loadConversations(userId: string): Promise<ConversationRow
       lastAt: true,
       buyerReadAt: true,
       sellerReadAt: true,
-      buyer: { select: { id: true, nickname: true } },
-      seller: { select: { id: true, nickname: true } },
+      buyer: { select: { id: true, nickname: true, avatarPath: true } },
+      seller: { select: { id: true, nickname: true, avatarPath: true } },
       listing: {
         select: { id: true, title: true, price: true, images: true, status: true },
       },
     },
   });
   const urls = await urlsOf(
-    rows.flatMap((r) => (r.listing?.images[0] ? [r.listing.images[0]] : []))
+    rows.flatMap((r) => [
+      ...(r.listing?.images[0] ? [r.listing.images[0]] : []),
+      ...(r.buyerId === userId ? [r.seller.avatarPath] : [r.buyer.avatarPath]).filter((p): p is string => !!p),
+    ])
   );
   const unreadCounts = await Promise.all(
     rows.map((r) => {
@@ -286,9 +290,10 @@ export async function loadConversations(userId: string): Promise<ConversationRow
   );
   return rows.map((r, i) => {
     const mine = r.buyerId === userId;
+    const o = mine ? r.seller : r.buyer;
     return {
       id: r.id,
-      other: mine ? r.seller : r.buyer,
+      other: { id: o.id, nickname: o.nickname, avatarUrl: o.avatarPath ? (urls[o.avatarPath] ?? null) : null },
       listing: r.listing
         ? {
             id: r.listing.id,
@@ -324,8 +329,8 @@ export async function loadConversation(
       sellerId: true,
       lastText: true,
       lastAt: true,
-      buyer: { select: { id: true, nickname: true } },
-      seller: { select: { id: true, nickname: true } },
+      buyer: { select: { id: true, nickname: true, avatarPath: true } },
+      seller: { select: { id: true, nickname: true, avatarPath: true } },
       listing: {
         select: { id: true, title: true, price: true, images: true, status: true },
       },
@@ -342,10 +347,14 @@ export async function loadConversation(
     where: { id },
     data: mine ? { buyerReadAt: new Date() } : { sellerReadAt: new Date() },
   });
-  const urls = await urlsOf(r.listing?.images[0] ? [r.listing.images[0]] : []);
+  const o = mine ? r.seller : r.buyer;
+  const urls = await urlsOf([
+    ...(r.listing?.images[0] ? [r.listing.images[0]] : []),
+    ...(o.avatarPath ? [o.avatarPath] : []),
+  ]);
   return {
     id: r.id,
-    other: mine ? r.seller : r.buyer,
+    other: { id: o.id, nickname: o.nickname, avatarUrl: o.avatarPath ? (urls[o.avatarPath] ?? null) : null },
     listing: r.listing
       ? {
           id: r.listing.id,

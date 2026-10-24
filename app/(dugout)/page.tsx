@@ -8,7 +8,7 @@ import { isNativeUserAgent } from '@/lib/app-env';
 import { DugoutMain } from '@/components/dugout/dugout-main';
 import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
 import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
-import { loadLatestListings, loadPublicPosts } from '@/lib/market/load';
+import { countUnread, loadLatestListings, loadPublicPosts } from '@/lib/market/load';
 import { loadRecommendedCoaches } from '@/lib/market/lesson-load';
 import { GamesPanel } from '@/components/dugout/games-panel';
 import { BaseballNews } from '@/components/dugout/baseball-news';
@@ -44,7 +44,7 @@ export default async function DugoutHome({
   if (native && !sp.dugout) redirect(user ? '/today' : '/login');
   const viewer = user ? { id: user.id, role: user.role } : null;
   const sinkerUser = !!user && usesSinker(user);
-  const [listings, posts, coaches, alerts, lessons, games, news, avatarUrl] = await Promise.all([
+  const [listings, posts, coaches, alerts, lessons, games, news, avatarUrl, unread] = await Promise.all([
     loadLatestListings(6, viewer),
     loadPublicPosts(30),
     loadRecommendedCoaches(3),
@@ -54,6 +54,7 @@ export default async function DugoutHome({
     loadHomeGames(),
     loadBaseballNews(8),
     user ? createAvatarUrl(user.avatarPath).catch(() => null) : null,
+    user ? countUnread(user.id) : 0,
   ]);
   const now = new Date();
   const today = kstDateKey(0);
@@ -109,6 +110,7 @@ export default async function DugoutHome({
           user={user ? { nickname: user.nickname } : null}
           avatarUrl={avatarUrl}
           alerts={alerts}
+          unread={unread}
           sinker={sinkerUser}
           native={native}
         />
