@@ -193,8 +193,8 @@ export const NAV_GROUPS: NavGroup[] = [
    * 잠금 없음 — 가입하면 바로 열린다. 고객센터는 아래 '소통'에 남는다.
    */
   {
-    /* 싱커 앱 안에서는 '커뮤니티'(2026-10-24 김민 — 덕아웃 가운데 싱커와 이어진 커뮤니티 · 레슨 · 연습장 · 채팅만, lib/sinker-dugout.ts) */
-    items: [{ href: DUGOUT_HREF, label: '커뮤니티', icon: 'community' }],
+    /* 싱커 앱 안의 덕아웃은 싱커와 이어진 커뮤니티 · 레슨 · 연습장 · 채팅만(2026-10-24 김민, lib/sinker-dugout.ts) — 탭 이름은 '덕아웃' 그대로 */
+    items: [{ href: DUGOUT_HREF, label: '덕아웃', icon: 'community' }],
   },
   /* 투구 기록 · 트레이닝 · 영양 · 구속 측정은 처음 가입한 사람에게 잠겨 있다(lock — 위 NavItem.lock) */
   {
@@ -520,7 +520,7 @@ export const NAV_ALSO: Record<string, readonly string[]> = {
 /** 차례 홈 · 덕아웃 · 투구 · 타격 · 더보기(2026-10-21 김민). 트레이닝은 투구 · 타격 종목 하단바 안(아래 SPORT_BARS), 영양은 더보기 */
 export const MOBILE_TABS: NavItem[] = [
   { href: '/today', label: '홈', icon: 'home' },
-  { href: DUGOUT_HREF, label: '커뮤니티', icon: 'community' },
+  { href: DUGOUT_HREF, label: '덕아웃', icon: 'community' },
   {
     href: '/videos',
     label: '투구',
