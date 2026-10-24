@@ -107,12 +107,11 @@ export function DugoutTopBar({
         <Link
           href={homeHref}
           aria-label={isSinkerBar ? undefined : '덕아웃 첫 화면'}
+          data-dugout-logo={isSinkerBar ? undefined : ''}
           data-morph-side
           className="flex shrink-0 items-baseline gap-2"
         >
-          <span data-wordmark className="inline-flex">
-            <Wordmark brand={brand} className="text-2xl text-ink" />
-          </span>
+          <Wordmark brand={brand} className="text-2xl text-ink" />
         </Link>
         {!isSinkerBar && search}
         <div data-morph-chrome className="ml-auto flex shrink-0 items-center gap-2">

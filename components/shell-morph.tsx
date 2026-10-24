@@ -73,24 +73,49 @@ function markSides() {
 }
 
 /**
- * 싱커 → 덕아웃의 가운데 로고(2026-10-21 금윤호: "중앙에서 덕아웃 로고가 빠르게 커지면서 나오고, 방금 만든 화면의 로고가 작아지고") — 싱커 틀에 하나.
- * 칸들이 양옆으로 빠지는 동안 바탕이 덮이고 로고가 작게 → 덕아웃 시작 화면의 큰 로고와 같은 크기(components/dugout/dugout-hero.tsx 와 같은 셈)로 커진다.
- * 덕아웃 홈이 붙으면 그 시작 화면이 같은 자리 · 같은 크기에서 이어받아 줄어든다 — 끊김 없이 한 로고로 읽힌다.
+ * 싱커 → 덕아웃의 가운데 로고(2026-10-21 금윤호: "중앙에서 덕아웃 로고가 빠르게 커지면서 나오고") — 뿌리 레이아웃(app/layout.tsx)에 하나.
+ * 칸들이 양옆으로 빠지는 동안 바탕이 덮이고 로고가 작게 → 크게(to-dugout-out). 덕아웃 틀이 붙으면(in-dugout) 그 로고가 덕아웃 화면의 로고 자리
+ * ([data-dugout-logo] — 첫 화면 모서리, 없으면 위 막대)로 줄어들며 날아가 앉고 바탕은 옅어진다(2026-10-24 금윤호 "잠깐 떴다가 갑자기 사라지지 말고
+ * 원래 로고가 있는 위치로 이동하게"). 예전엔 싱커 틀에 붙어 있어 틀이 바뀌는 순간 같이 사라졌다.
  */
+const LAND_MS = 560;
+const LAND_SAFETY_MS = 1600;
+
+function landingTarget(): HTMLElement | null {
+  const list = [...document.querySelectorAll<HTMLElement>('[data-dugout-logo]')];
+  /* 첫 화면의 모서리 로고가 있으면 그것(그때 위 막대는 숨어 있다), 아니면 위 막대 로고 */
+  const pick = list.find((el) => el.closest('[data-dugout-main]')) ?? list[0];
+  const mark = (pick?.firstElementChild as HTMLElement | null) ?? pick ?? null;
+  if (!mark) return null;
+  const r = mark.getBoundingClientRect();
+  return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight ? mark : null;
+}
+
 export function MorphOverlay() {
-  const [on, setOn] = useState(false);
+  const [phase, setPhase] = useState<'out' | 'land' | null>(null);
+  const phaseRef = useRef<'out' | 'land' | null>(null);
   const logo = useRef<HTMLDivElement>(null);
+  const veil = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const html = document.documentElement;
-    const mo = new MutationObserver(() =>
-      setOn(html.dataset.morph === 'to-dugout-out')
-    );
+    const sync = () => {
+      const m = html.dataset.morph;
+      if (m === 'to-dugout-out') {
+        phaseRef.current = 'out';
+        setPhase('out');
+      } else if (phaseRef.current === 'out') {
+        /* 덕아웃 틀이 붙었다(in-dugout) — 또는 막혀서 지워졌다. 어느 쪽이든 내려앉는다 */
+        phaseRef.current = 'land';
+        setPhase('land');
+      }
+    };
+    const mo = new MutationObserver(sync);
     mo.observe(html, { attributes: true, attributeFilter: ['data-morph'] });
     return () => mo.disconnect();
   }, []);
   useLayoutEffect(() => {
     const el = logo.current;
-    if (!on || !el) return;
+    if (phase !== 'out' || !el) return;
     const w = el.getBoundingClientRect().width;
     const big = splashScale(w, window.innerWidth);
     el.animate(
@@ -100,16 +125,66 @@ export function MorphOverlay() {
       ],
       { duration: 360, easing: 'cubic-bezier(0.2, 0.9, 0.25, 1)', fill: 'forwards' }
     );
-  }, [on]);
-  if (!on) return null;
+  }, [phase]);
+  useEffect(() => {
+    if (phase !== 'land') return;
+    const el = logo.current;
+    const bg = veil.current;
+    let done = false;
+    let hidden: HTMLElement | null = null;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      if (hidden) hidden.style.visibility = '';
+      phaseRef.current = null;
+      setPhase(null);
+    };
+    const safety = window.setTimeout(finish, LAND_SAFETY_MS);
+    /* 새 화면이 자리를 잡을 한 장면을 기다린 뒤 잰다 */
+    const raf = requestAnimationFrame(() => {
+      if (!el || !bg) return finish();
+      const target = landingTarget();
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const fade = bg.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: target && !reduce ? LAND_MS : 220,
+        easing: 'ease-out',
+        fill: 'forwards',
+      });
+      if (!target || reduce) {
+        el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' });
+        fade.finished.then(finish, finish);
+        return;
+      }
+      const from = el.getBoundingClientRect();
+      const t = target.getBoundingClientRect();
+      const natural = el.offsetWidth || from.width;
+      const dx = t.left + t.width / 2 - (from.left + from.width / 2);
+      const dy = t.top + t.height / 2 - (from.top + from.height / 2);
+      const current = getComputedStyle(el).transform;
+      /* 날아가는 동안 진짜 로고는 비워 둔다(둘로 보이지 않게) — 내려앉는 순간 되살린다 */
+      hidden = target;
+      target.style.visibility = 'hidden';
+      el.getAnimations().forEach((a) => a.cancel());
+      const fly = el.animate(
+        [
+          { transform: current === 'none' ? 'none' : current, opacity: 1 },
+          { transform: `translate(${dx}px, ${dy}px) scale(${t.width / natural})`, opacity: 1 },
+        ],
+        { duration: LAND_MS, easing: 'cubic-bezier(0.65, 0, 0.25, 1)', fill: 'forwards' }
+      );
+      fly.finished.then(finish, finish);
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(safety);
+      if (hidden) hidden.style.visibility = '';
+    };
+  }, [phase]);
+  if (!phase) return null;
   return (
-    <div
-      aria-hidden
-      data-brand="dugout"
-      data-morph-veil
-      className="pointer-events-none fixed inset-0 z-30 grid place-items-center bg-page"
-    >
-      <div ref={logo} style={{ opacity: 0 }}>
+    <div aria-hidden data-brand="dugout" className="pointer-events-none fixed inset-0 z-30 grid place-items-center">
+      <div ref={veil} data-morph-veil className="absolute inset-0 bg-page" />
+      <div ref={logo} className="relative" style={{ opacity: phase === 'out' ? 0 : undefined }}>
         <Wordmark brand="dugout" className="text-6xl text-ink md:text-8xl" />
       </div>
     </div>

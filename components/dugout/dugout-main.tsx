@@ -81,7 +81,7 @@ export function DugoutMain({
     >
       {/* 모서리 줄 — 위 막대가 숨은 동안의 길 */}
       <div className="flex items-center justify-between pt-[max(1rem,env(safe-area-inset-top))] pb-2 md:pt-6">
-        <Link href={native ? '/?dugout=1' : '/'} aria-label="덕아웃 첫 화면">
+        <Link href={native ? '/?dugout=1' : '/'} aria-label="덕아웃 첫 화면" data-dugout-logo className="inline-flex">
           <Wordmark brand="dugout" className="text-2xl text-ink" />
         </Link>
         <div className="flex items-center gap-2">
