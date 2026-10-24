@@ -16,6 +16,8 @@ import {
   POST_TITLE_MAX,
   isPostCategory,
   isReportReason,
+  maskContacts,
+  normalizeCategory,
 } from '@/lib/community';
 
 /**
@@ -60,11 +62,12 @@ async function tryCreatePost(
 ): Promise<{ error: string } | { id: string }> {
   if (!user) return { error: LOGIN_NEEDED };
 
-  const category = field(formData, 'category');
-  const title = field(formData, 'title');
-  const body = field(formData, 'body');
+  const category = normalizeCategory(field(formData, 'category'));
+  /* 전화번호 · 카톡 아이디는 올릴 때 가린다(lib/community.ts maskContacts — 1:1 쪽지가 없는 곳, 미성년 보호) */
+  const title = maskContacts(field(formData, 'title'));
+  const body = maskContacts(field(formData, 'body'));
 
-  if (!isPostCategory(category)) return { error: '글 구분을 골라 주세요.' };
+  if (!category) return { error: '게시판을 골라 주세요.' };
   if (!title || !body) return { error: '제목과 내용을 적어 주세요.' };
   if (title.length > POST_TITLE_MAX)
     return { error: `제목은 ${POST_TITLE_MAX}자까지 적을 수 있어요.` };
@@ -166,7 +169,7 @@ async function tryAddComment(formData: FormData): Promise<CommunityState> {
   if (!user) return { error: LOGIN_NEEDED };
 
   const postId = field(formData, 'postId');
-  const body = field(formData, 'body');
+  const body = maskContacts(field(formData, 'body'));
   if (!postId) return { error: '글을 찾지 못했어요.' };
   if (!body) return { error: '댓글을 적어 주세요.' };
   if (body.length > COMMENT_BODY_MAX)

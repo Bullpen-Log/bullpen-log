@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { RoundChat, RoundCommunity, RoundEyeOff, RoundHeart } from '@/components/round-icon';
 import { getCurrentUser } from '@/lib/dal';
@@ -20,7 +19,7 @@ type Search = { [key: string]: string | string[] | undefined };
 const one = (v: string | string[] | undefined) =>
   typeof v === 'string' ? v : undefined;
 
-/** 목록 주소 — 구분 · 정렬 · 장을 바꿔도 나머지는 그대로 */
+/** 목록 주소 — 게시판 · 정렬 · 장을 바꿔도 나머지는 그대로 */
 function listHref(q: { category?: string; sort: PostSort; page?: number }) {
   const sp = new URLSearchParams();
   if (q.category) sp.set('category', q.category);
@@ -31,7 +30,7 @@ function listHref(q: { category?: string; sort: PostSort; page?: number }) {
 }
 
 /**
- * 커뮤니티 목록(2026-10-17 1판 — 틀). 구분 칩 · 최신/인기 · 더 보기. 가린 글은 관리자에게만 흐리게 보인다.
+ * 커뮤니티 목록(2026-10-17 1판 — 틀). 게시판 칩 · 최신/인기 · 더 보기. 가린 글은 관리자에게만 흐리게 보인다.
  *
  * 2026-10-21 부터 덕아웃 안(/community, app/(dugout)) — 싱커의 커뮤니티 판은 걷었다. 장터 · 채팅은 덕아웃 위 막대에 있어 여기 길 카드는 뺐다.
  */
@@ -41,7 +40,8 @@ export default async function CommunityPage({
   searchParams: Promise<Search>;
 }) {
   const user = await getCurrentUser();
-  if (!user) redirect('/login?next=/community');
+  /* 글쓰기는 로그인 — 안 했으면 로그인 뒤 글쓰기로 */
+  const writeHref = user ? '/community/new' : '/login?next=/community/new';
   const sp = await searchParams;
 
   const rawCategory = one(sp.category);
@@ -64,13 +64,13 @@ export default async function CommunityPage({
       <PageHeading
         title="커뮤니티"
         inlineAction
-        action={<ButtonLink href="/community/new">글쓰기</ButtonLink>}
+        action={<ButtonLink href={writeHref}>글쓰기</ButtonLink>}
       />
 
       {/* 거르기 — 구분 칩은 옆으로 미끄러지고(휴대폰), 정렬은 오른쪽 끝의 작은 둘 */}
       <div className="flex flex-col gap-3 desk:flex-row desk:items-center desk:justify-between">
         <nav
-          aria-label="글 구분"
+          aria-label="게시판"
           className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 desk:mx-0 desk:flex-wrap desk:px-0"
         >
           <Link
@@ -122,13 +122,13 @@ export default async function CommunityPage({
             page > 1
               ? '여기까지예요'
               : category
-                ? '이 구분에는 아직 글이 없어요'
+                ? '이 게시판에는 아직 글이 없어요'
                 : '아직 글이 없어요'
           }
           description={
             page > 1
               ? '앞 장으로 돌아가 보세요.'
-              : '훈련 이야기, 궁금한 것, 오늘의 기록. 무엇이든 첫 글을 남겨 보세요.'
+              : '야구 이야기, 궁금한 것, 같이 할 사람. 무엇이든 첫 글을 남겨 보세요.'
           }
           action={
             page > 1 ? (
@@ -136,7 +136,7 @@ export default async function CommunityPage({
                 처음으로
               </ButtonLink>
             ) : (
-              <ButtonLink href="/community/new" variant="secondary">
+              <ButtonLink href={writeHref} variant="secondary">
                 첫 글 쓰기
               </ButtonLink>
             )

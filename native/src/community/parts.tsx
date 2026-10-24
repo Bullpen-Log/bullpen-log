@@ -181,7 +181,7 @@ export function LoadState({ error, onRetry, c }: { error: string | null; onRetry
 
 /** 글 구분마다 다른 색 — 웹 community-format.ts CATEGORY_BADGE 와 같은 뜻(질문 하늘 · 기록 주의 · 팁 초록, 자유는 회색) */
 export function categoryColor(category: string, c: Palette) {
-  return category === 'question' ? c.sky : category === 'record' ? c.warn : category === 'tip' ? c.ok : undefined;
+  return category === 'question' ? c.sky : category === 'meetup' ? c.warn : category === 'team' ? c.ok : undefined;
 }
 
 /** 작은 알약 — 구분 · 가림 · 상태 */

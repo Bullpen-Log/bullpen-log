@@ -176,7 +176,7 @@ function PostList({ sort, first }: { sort: PostSort; first: PostCategory | null 
           }}
           ListEmptyComponent={
             <View style={{ padding: 24, gap: 12, alignItems: 'center' }}>
-              <Text style={[s.title, { color: c.ink }]}>{category ? '이 구분에는 아직 글이 없어요' : '아직 글이 없어요'}</Text>
+              <Text style={[s.title, { color: c.ink }]}>{category ? '이 게시판에는 아직 글이 없어요' : '아직 글이 없어요'}</Text>
               <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center' }}>훈련 이야기, 궁금한 것, 오늘의 기록. 무엇이든 첫 글을 남겨 보세요.</Text>
               <Pressable accessibilityRole="button" onPress={() => router.push('/community/new' as Href)} style={[s.pill, { backgroundColor: c.sky }]}>
                 <Text style={s.primaryText}>첫 글 쓰기</Text>

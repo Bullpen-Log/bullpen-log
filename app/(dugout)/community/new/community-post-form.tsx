@@ -17,7 +17,7 @@ function SubmitButton() {
   );
 }
 
-/** 글쓰기 폼 — 구분은 칩처럼 보이는 라디오(눌린 것만 파랑), 제목 · 내용 */
+/** 글쓰기 폼 — 게시판은 칩처럼 보이는 라디오(눌린 것만 파랑), 제목 · 내용 */
 export function CommunityPostForm() {
   const [state, formAction] = useActionState<CommunityState, FormData>(
     /* 신호가 끊겨도 오류 화면으로 넘어가지 않고 한 줄로 알린다(lib/action-offline.ts) */
@@ -36,7 +36,7 @@ export function CommunityPostForm() {
       <FormError>{state?.error}</FormError>
 
       <fieldset className="space-y-2">
-        <legend className="block text-xs font-medium text-muted">구분</legend>
+        <legend className="block text-xs font-medium text-muted">게시판</legend>
         <div className="flex flex-wrap gap-2">
           {POST_CATEGORIES.map((c) => (
             <label key={c.key} className="cursor-pointer">
@@ -67,7 +67,7 @@ export function CommunityPostForm() {
 
       <Field
         label="내용"
-        hint={`${POST_BODY_MAX}자까지 적을 수 있어요. 선수 · 팀 이름은 적지 않아요.`}
+        hint={`${POST_BODY_MAX}자까지 적을 수 있어요. 전화번호 · 카톡 아이디는 가려져요. 연락은 댓글로 해요.`}
       >
         <Textarea
           name="body"

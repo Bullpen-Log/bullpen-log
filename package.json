@@ -37,6 +37,7 @@
     "calendar:test": "node --import ./scripts/alias-register.mjs scripts/calendar-event-selftest.mts",
     "org:test": "node --import ./scripts/alias-register.mjs scripts/org-selftest.mts",
     "dugout:test": "node --import ./scripts/alias-register.mjs scripts/dugout-selftest.mts",
+    "community:test": "node --import ./scripts/alias-register.mjs scripts/community-selftest.mts",
     "good-days:test": "node --import ./scripts/alias-register.mjs scripts/good-days-selftest.mts",
     "mechanics:test": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/mechanics-selftest.mts",
     "armcare-map:test": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/armcare-map-selftest.mts",

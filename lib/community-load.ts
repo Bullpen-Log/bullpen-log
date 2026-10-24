@@ -7,6 +7,7 @@ import { POSTS_PER_PAGE, type PostCategory, type PostSort } from '@/lib/communit
  * 커뮤니티 목록 · 글 하나를 읽는다 — 웹 화면(app/(app)/community)과 아이폰 앱 화면(app/actions/community.ts loadApp… →
  * native/src/app/community)이 같이 쓴다. 누가 무엇을 볼 · 누를 수 있는지(가린 글 · 지우기 · 신고 · 좋아요)를 여기서 한 번 정해
  * 두 화면이 어긋나지 않게 한다. 실제 막기는 서버 동작(app/actions/community.ts)이 한 번 더 한다.
+ * 보기는 로그인 없이(2026-10-24 김민 — 휴대폰 브라우저로 온 사람도 읽는다): user 가 null 이면 가린 글은 빼고, 누르는 것은 모두 못 한다.
  * 'use server' 파일에 두지 않는다 — user 를 받는 함수가 거기 있으면 누구나 부를 수 있는 입구가 된다.
  */
 type CommunityUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
@@ -16,10 +17,10 @@ const MAX_PAGES = 10;
 
 /** 목록 — page 장부터 pages 장만큼(웹은 한 장씩, 앱은 더 보기로 이어 붙인 만큼). 가린 글은 관리자에게만. */
 export async function loadCommunityList(
-  user: CommunityUser,
+  user: CommunityUser | null,
   q: { category?: PostCategory; sort: PostSort; page: number; pages?: number }
 ) {
-  const isAdmin = user.role === 'ADMIN';
+  const isAdmin = user?.role === 'ADMIN';
   const take = POSTS_PER_PAGE * Math.min(MAX_PAGES, Math.max(1, q.pages ?? 1));
   /* 한 장보다 하나 더 읽어 다음 장이 있는지만 안다 — count 쿼리 하나를 아낀다 */
   const rows = await prisma.communityPost.findMany({
@@ -67,14 +68,16 @@ export async function loadCommunityList(
  * 글 하나 — 없거나 볼 수 없으면 null. 가린 글은 관리자와 글쓴이만(글쓴이는 왜 안 보이는지 알아야 한다). 가린 댓글은 관리자에게만.
  * 가린 글은 글쓴이도 좋아요 · 댓글을 못 한다(아무도 못 보는 글이다) — 서버 toggleLike · addComment 가 거절하는 것과 같은 조건.
  */
-export async function loadCommunityPost(user: CommunityUser, id: string) {
-  const isAdmin = user.role === 'ADMIN';
+export async function loadCommunityPost(user: CommunityUser | null, id: string) {
+  const isAdmin = user?.role === 'ADMIN';
+  /* 로그인 안 한 사람은 누구의 글도 아니다 — 빈 id 로 견주면 '내 것'이 하나도 안 걸린다 */
+  const me = user?.id ?? '';
   const post = await prisma.communityPost.findUnique({
     where: { id },
     include: {
       user: { select: { nickname: true } },
       /* 내가 눌렀는지만 — 전체 수는 _count 로 */
-      likes: { where: { userId: user.id }, select: { userId: true } },
+      likes: { where: { userId: me }, select: { userId: true } },
       _count: { select: { likes: true } },
       comments: {
         where: isAdmin ? {} : { hiddenAt: null },
@@ -83,11 +86,11 @@ export async function loadCommunityPost(user: CommunityUser, id: string) {
       },
     },
   });
-  if (!post || (post.hiddenAt && !isAdmin && post.userId !== user.id)) return null;
+  if (!post || (post.hiddenAt && !isAdmin && post.userId !== me)) return null;
 
-  const isOwner = post.userId === user.id;
+  const isOwner = post.userId === me;
   const hidden = post.hiddenAt !== null;
-  const open = !(hidden && !isAdmin);
+  const open = user !== null && !(hidden && !isAdmin);
   return {
     id: post.id,
     category: post.category,
@@ -105,9 +108,9 @@ export async function loadCommunityPost(user: CommunityUser, id: string) {
     canComment: open,
     canDelete: isOwner || isAdmin,
     /* 내 글은 신고하지 않는다 · 가린 글은 이미 운영자가 본 글 */
-    canReport: !isOwner && !hidden,
+    canReport: user !== null && !isOwner && !hidden,
     comments: post.comments.map((c) => {
-      const mine = c.userId === user.id;
+      const mine = c.userId === me;
       return {
         id: c.id,
         body: c.body,
@@ -116,7 +119,7 @@ export async function loadCommunityPost(user: CommunityUser, id: string) {
         hidden: c.hiddenAt !== null,
         mine,
         canDelete: mine || isAdmin,
-        canReport: !mine,
+        canReport: user !== null && !mine,
       };
     }),
   };

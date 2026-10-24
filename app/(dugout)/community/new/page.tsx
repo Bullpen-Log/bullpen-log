@@ -1,19 +1,14 @@
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
 import { getCurrentUser } from '@/lib/dal';
-import { expoLevel } from '@/lib/app-env';
-import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { BackLink, PageHeading } from '@/components/ui';
 import { CommunityPostForm } from './community-post-form';
 
-/** 글쓰기 — 가입한 누구나(자료실과 달리 관리자 전용이 아니다) */
+/**
+ * 글쓰기 — 가입한 누구나(자료실과 달리 관리자 전용이 아니다). 앱 웹뷰에서도 이 화면 그대로(2026-10-24 — 커뮤니티는 웹 하나로,
+ * 앱 화면으로 넘기던 OpenNative 를 걷었다. 게시판 · 말머리 같은 새 기능을 두 곳에 만들지 않게).
+ */
 export default async function NewCommunityPostPage() {
   if (!(await getCurrentUser())) redirect('/login?next=/community/new');
-
-  /* 새 아이폰 앱(Expo)이 커뮤니티를 아는 판(BullpenNative/6 부터)이면 앱 화면으로 연다(native/src/app/community/new.tsx) */
-  if (expoLevel((await headers()).get('user-agent')) >= 6) {
-    return <OpenNative path="/community/new" cover={false} />;
-  }
 
   return (
     <div className="stack-page mx-auto max-w-3xl">

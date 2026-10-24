@@ -1,14 +1,11 @@
-import { headers } from 'next/headers';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { Eye, EyeOff } from '@/components/icon';
 import { RoundChat, RoundEyeOff, RoundHeart, RoundTrash } from '@/components/round-icon';
 import { getCurrentUser } from '@/lib/dal';
-import { expoLevel } from '@/lib/app-env';
 import { loadCommunityPost } from '@/lib/community-load';
-import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { postCategoryLabel } from '@/lib/community';
 import { deleteComment, deletePost, setHidden } from '@/app/actions/community';
-import { BackLink, Badge, Button } from '@/components/ui';
+import { BackLink, Badge, Button, ButtonLink } from '@/components/ui';
 import { ConfirmDeleteForm } from '@/components/confirm-delete';
 import { SafeForm } from '@/components/safe-form';
 import { CommunityLikeButton } from '@/components/community/community-like-button';
@@ -59,13 +56,11 @@ export default async function CommunityPostPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  /*
+   * 보기는 로그인 없이(2026-10-24 김민 — 휴대폰 브라우저로 온 사람도 읽는다). 앱 웹뷰도 이 화면 그대로 — 앱 화면으로 넘기던
+   * OpenNative 를 걷었다(커뮤니티는 웹 하나로).
+   */
   const user = await getCurrentUser();
-  if (!user) redirect(`/login?next=/community/${id}`);
-
-  /* 새 아이폰 앱(Expo)이 커뮤니티를 아는 판(BullpenNative/6 부터)이면 앱 화면으로 연다(native/src/app/community/[id].tsx) */
-  if (expoLevel((await headers()).get('user-agent')) >= 6) {
-    return <OpenNative path={`/community/${encodeURIComponent(id)}`} cover={false} />;
-  }
 
   /*
    * 읽기 · 누가 무엇을 누를 수 있나는 앱 화면과 같은 곳(lib/community-load.ts). 가린 글은 관리자와 글쓴이만 — 글쓴이는 왜 안 보이는지
@@ -228,6 +223,14 @@ export default async function CommunityPostPage({
 
         {/* 가린 글에는 글쓴이도 댓글을 못 단다 — 아무도 못 보는 글이다 */}
         {post.canComment && <CommunityCommentForm postId={post.id} />}
+        {!user && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface-2 px-(--block-pad) py-4">
+            <p className="text-sm text-muted">로그인하면 댓글 · 좋아요를 남길 수 있어요.</p>
+            <ButtonLink href={`/login?next=/community/${encodeURIComponent(post.id)}`} size="sm">
+              로그인
+            </ButtonLink>
+          </div>
+        )}
       </section>
     </div>
   );
