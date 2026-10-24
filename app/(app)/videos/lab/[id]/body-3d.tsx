@@ -63,6 +63,8 @@ export type Body3DHandle = { seek: (frame: number) => void };
 
 /** 재생 중 자세를 다시 짓는 가장 짧은 간격(ms) — 초당 60번쯤. 120Hz 화면에서도 두 장면에 한 번 */
 const POSE_MIN_MS = 15;
+/** 재생 중 재생 막대 · 장면 글을 다시 그리는 간격(ms) — 초당 20번 */
+const FRAME_UI_MS = 50;
 
 /** 각도 이름표의 짧은 이름 — 상자를 작게(긴 이름은 이름표에 마우스를 대면 · 결과 표에서) */
 /** 화면 속 몸 키(px)가 이보다 작으면 이름표는 숫자만 */
@@ -135,6 +137,8 @@ export const Body3D = forwardRef<
   /* 무대에 내리는 명령(렌더 루프가 읽는다) */
   const ctrl = useRef<{
     seek: (k: number) => void;
+    /** 무대가 보이는 장면(재생 중엔 화면 글보다 앞선다 — FRAME_UI_MS) */
+    frame: () => number;
     play: (on: boolean) => void;
     speed: (s: Speed) => void;
     view: (v: ViewName, animate: boolean) => void;
@@ -428,12 +432,17 @@ export const Body3D = forwardRef<
         }
         return time >= tp[hi] ? hi : lo;
       };
+      /* 화면(재생 막대 · 장면 글)에 마지막으로 알린 장면 · 때 — 재생 중엔 FRAME_UI_MS 마다만 React 를 다시 그린다 */
+      let uiFrame = cur;
+      let uiAt = 0;
       const show = (k: number) => {
         cur = Math.max(0, Math.min(n - 1, k));
         pose(cur, 0);
+        uiFrame = cur;
         setFrame(cur);
       };
       ctrl.current = {
+        frame: () => cur,
         seek: (k) => {
           isPlaying = false;
           setPlaying(false);
@@ -591,8 +600,14 @@ export const Body3D = forwardRef<
           const wrapped = clock > tEnd;
           if (wrapped) clock = t0;
           const k = frameAt(clock);
-          if (k !== cur) {
-            cur = k;
+          cur = k;
+          /*
+           * 재생 막대 · 장면 글은 초당 FRAME_UI_MS 번까지만 — 장면이 바뀔 때마다 알리면 1× 에서 화면 한 장마다(초당 최대 120번) Body3D 를 통째로 다시 그려
+           * 폰에서 장면이 빠졌다(2026-10-24). 3D 는 아래에서 매 장면 그대로 그린다.
+           */
+          if (k !== uiFrame && (now - uiAt >= FRAME_UI_MS || wrapped)) {
+            uiFrame = k;
+            uiAt = now;
             setFrame(k);
           }
           /*
@@ -662,7 +677,7 @@ export const Body3D = forwardRef<
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();
       const step = (e.shiftKey ? 10 : 1) * (e.key === 'ArrowLeft' ? -1 : 1);
-      seek(frame + step);
+      seek((ctrl.current?.frame() ?? frame) + step);
     }
   };
 
