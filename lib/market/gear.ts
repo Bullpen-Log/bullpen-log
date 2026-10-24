@@ -1,5 +1,7 @@
 /**
- * 장비 고르기 안내(5판, 2026-10-21) — 초보 · 학부모가 '뭘 사야 하나'에 답한다. 포지션 · 나이대 · 던지는 손으로 권하는 규격과 바깥 구매 검색 링크.
+ * 장비 추천(5판, 2026-10-21) — 초보 · 학부모가 '뭘 사야 하나'에 답한다. 포지션 · 나이대 · 던지는 손으로 권하는 규격과 바깥 구매 검색 링크.
+ * 2026-10-23 금윤호: "장비는 따로 빠져 있을 필요가 없다 — 장터 안에 녹여서 잘 모르는 사람만" → 따로 된 /gear 화면 대신 장터의 팝업
+ * (components/dugout/gear-guide.tsx). 순수 규칙이라 화면(브라우저)에서도 그대로 부른다.
  * 제휴(쿠팡 파트너스 등)는 계약 뒤 NEXT_PUBLIC_SHOP_SEARCH 로 바꾼다 — 지금은 네이버 쇼핑 검색.
  */
 
@@ -57,7 +59,8 @@ export function isPositionKey(v: unknown): v is PositionKey {
   return POSITIONS.some((p) => p.key === v);
 }
 
-export type GearPick = { item: string; spec: string; why: string; query: string };
+/** category = 덕아웃 장터의 품목(lib/market/specs.ts CATEGORIES) — '장터에서 보기'가 그 품목으로 연다 */
+export type GearPick = { item: string; spec: string; why: string; query: string; category: string };
 
 /** 권하는 장비 다섯 — 규격 · 까닭 · 검색어 */
 export function recommend(
@@ -74,18 +77,21 @@ export function recommend(
       spec: `${p.glove} · ${a.glove} · ${handWord}`,
       why: '포지션마다 포켓 깊이가 다르고, 손에 맞는 크기여야 공을 잡는다',
       query: `야구 글러브 ${p.label} ${hand === 'L' ? '좌투' : '우투'}`,
+      category: 'glove',
     },
     {
       item: '배트',
       spec: a.bat,
       why: '길고 무거운 배트는 스윙이 늦는다. 가볍게 시작해서 늘린다',
       query: `야구 배트 ${a.label}`,
+      category: 'bat',
     },
     {
       item: '스파이크',
       spec: a.shoe,
       why: '징 종류는 리그 · 구장 규정을 따른다',
       query: `야구 스파이크 ${a.shoe.split(' ')[0]}`,
+      category: 'spikes',
     },
     {
       item: '배팅 장갑 · 보호구',
@@ -95,12 +101,14 @@ export function recommend(
           : '배팅 장갑, 타격 시 암가드',
       why: '손 물집과 타구 맞음을 막는다',
       query: position === 'catcher' ? '포수 장비 세트' : '야구 배팅 장갑',
+      category: 'protector',
     },
     {
       item: '공 · 가방',
       spec: '연습구 6개 이상 · 장비 가방',
       why: '캐치볼 · 티배팅은 공이 여러 개 있어야 끊기지 않는다',
       query: '야구 연습구',
+      category: 'ball',
     },
   ];
 }

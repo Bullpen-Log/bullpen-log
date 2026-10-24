@@ -321,7 +321,6 @@ export function DugoutHero({
     { href: '/community', label: '커뮤니티' },
     { href: '/lessons', label: '레슨' },
     { href: '/venues', label: '연습장' },
-    { href: '/gear', label: '장비' },
     { href: user ? '/me' : '/login', label: user ? '내 것' : '로그인' },
   ];
 

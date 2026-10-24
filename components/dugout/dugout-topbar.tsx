@@ -71,7 +71,6 @@ export function DugoutTopBar({
         { href: '/market', label: '장터' },
         { href: '/lessons', label: '레슨' },
         { href: '/venues', label: '연습장' },
-        { href: '/gear', label: '장비' },
         { href: '/chat', label: '채팅', badge: unread },
       ];
   const active = (href: string, exact?: boolean) =>

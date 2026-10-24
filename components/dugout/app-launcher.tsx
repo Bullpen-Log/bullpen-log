@@ -3,7 +3,7 @@
 import { useState, type ComponentType, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Baseball } from '@/components/icon';
-import { RoundChat, RoundCommunity, RoundGear, RoundLesson, RoundMarket, RoundPlus, RoundUser, RoundVenue } from '@/components/round-icon';
+import { RoundBell, RoundChat, RoundCommunity, RoundLesson, RoundMarket, RoundPlus, RoundUser, RoundVenue } from '@/components/round-icon';
 import { morphTo } from '@/components/shell-morph';
 
 /**
@@ -47,7 +47,8 @@ export function AppLauncher({
     { href: '/market/new', label: '물건 올리기', icon: RoundPlus },
     { href: '/lessons', label: '레슨', icon: RoundLesson },
     { href: '/venues', label: '연습장', icon: RoundVenue },
-    { href: '/gear', label: '장비 고르기', icon: RoundGear },
+    /* 장비 고르기는 장터 안 팝업으로 들어갔다(2026-10-23) — 그 칸은 알림 */
+    { href: '/notifications', label: '알림', icon: RoundBell },
     { href: '/chat', label: '채팅', icon: RoundChat },
     sinker
       ? {

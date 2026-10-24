@@ -80,7 +80,7 @@ export default async function DugoutHome({
   ];
 
   const needs: { kicker: string; title: string; foot: string; href: string; icon: 'gear' | 'lesson' | 'venue' | 'plus' }[] = [
-    { kicker: '처음 시작한다면', title: '장비 고르기', foot: '나이 · 포지션으로 골라요', href: '/gear', icon: 'gear' },
+    { kicker: '처음 시작한다면', title: '장비 추천', foot: '나이 · 포지션으로 골라요', href: '/market?guide=1', icon: 'gear' },
     { kicker: '실력을 올리고 싶다면', title: '레슨 찾기', foot: '코치 비교하기', href: '/lessons/find', icon: 'lesson' },
     { kicker: '던질 곳이 필요하면', title: '연습장 예약', foot: '빈 시간 보기', href: '/venues', icon: 'venue' },
     { kicker: '쓰던 장비 정리', title: '물건 팔기', foot: '30초 만에 올리기', href: '/market/new', icon: 'plus' },
