@@ -13,7 +13,6 @@ import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
 import { countUnread, loadLatestListings, loadPublicPosts } from '@/lib/market/load';
 import { loadRecommendedCoaches } from '@/lib/market/lesson-load';
 import { GamesPanel } from '@/components/dugout/games-panel';
-import { MatchHeight } from '@/components/dugout/match-height';
 import { BaseballNews } from '@/components/dugout/baseball-news';
 import { kstDateKey, loadBaseballNews, loadHomeGames } from '@/lib/baseball-feed';
 import { relativeTime } from '@/components/community/community-format';
@@ -131,6 +130,12 @@ export default async function DugoutHome({
         */}
         {/* 두 칸 스크롤(첫 화면 ↔ 본문) — components/dugout/home-snap.tsx 가 이 칸을 위 막대 바로 밑에 세운다(scroll-margin 이 그 틈) */}
         <HomeSnap />
+        {/* 홈 띠 — 오른쪽 경기 칸 자리까지 한 줄 넓이(2026-10-24 금윤호 "키운 띠를 오늘의 경기까지의 길이로"). 경기 칸은 그 밑, 내렸을 때 뜬다 */}
+        {!sinkerApp && (
+          <div className="mx-auto mb-16 max-w-6xl">
+            <MarketHero slides={slides} slim label="덕아웃 소식" />
+          </div>
+        )}
         <div
           data-dugout-content
           className={`mx-auto grid max-w-6xl scroll-mt-3 gap-6 pb-6 md:scroll-mt-5 ${sinkerApp ? '' : 'md:grid-cols-[minmax(0,1fr)_220px] lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8'}`}
@@ -158,12 +163,6 @@ export default async function DugoutHome({
           )}
 
           {lessons.length > 0 && <LessonFeedCard items={lessons} compact title="최근 레슨" />}
-
-          {!sinkerApp && (
-            <MatchHeight target="[data-games-aside] [aria-label='오늘의 경기']">
-              <MarketHero slides={slides} slim label="덕아웃 소식" />
-            </MatchHeight>
-          )}
 
           {/* 휴대폰 · 태블릿의 경기 칸 — 오른쪽으로 붙은 작은 카드(PC 는 오른쪽 칸) */}
           <div className={sinkerApp ? 'hidden' : 'flex justify-end md:hidden'}>
@@ -307,7 +306,7 @@ export default async function DugoutHome({
           </section>
         </div>
         <aside data-games-aside className={sinkerApp ? 'hidden' : 'hidden md:block'}>
-          <div className="sticky top-24">
+          <div className="sticky top-[calc(var(--dugout-bar-h)+1.2rem)]">
             <GamesPanel games={games} today={today} />
           </div>
         </aside>
