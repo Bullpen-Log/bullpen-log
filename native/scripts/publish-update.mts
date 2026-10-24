@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileKeyOf, type StoredAsset, type StoredUpdate } from '../../lib/app-update.ts';
 
-const SITE = process.env.BP_SITE_URL ?? 'https://bullpen-log.vercel.app';
+const SITE = process.env.BP_SITE_URL ?? 'https://dugout-baseball.com';
 const token = process.env.APP_UPDATE_TOKEN || process.env.LIBRARY_BUNDLE_TOKEN;
 const [cmd, ...rest] = process.argv.slice(2);
 const arg = (name: string) => {

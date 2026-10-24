@@ -5,7 +5,7 @@
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-const SITE = 'https://bullpen-log.vercel.app';
+const SITE = 'https://dugout-baseball.com';
 const token = process.env.LIBRARY_BUNDLE_TOKEN;
 const out = new URL('../LibraryVideos', import.meta.url).pathname;
 const warn = (msg) => console.log(`::warning title=운동 영상::${msg}`);

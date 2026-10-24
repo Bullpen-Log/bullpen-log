@@ -7,7 +7,7 @@
       "policy": "fingerprint"
     },
     "updates": {
-      "url": "https://bullpen-log.vercel.app/api/app-update",
+      "url": "https://dugout-baseball.com/api/app-update",
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 1500

@@ -7,7 +7,7 @@
  *
  * 개발 중에 내 컴퓨터 서버를 띄우려면 EXPO_PUBLIC_SITE_URL=http://<맥 IP>:3000 으로 켠다(시뮬레이터는 http://localhost:3000).
  */
-export const SITE_URL = (process.env.EXPO_PUBLIC_SITE_URL ?? 'https://bullpen-log.vercel.app').replace(/\/$/, '');
+export const SITE_URL = (process.env.EXPO_PUBLIC_SITE_URL ?? 'https://dugout-baseball.com').replace(/\/$/, '');
 
 export const SITE_HOST = new URL(SITE_URL).host;
 
