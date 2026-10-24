@@ -94,11 +94,17 @@ export default function PitchEditScreen() {
   }>();
   const c = usePalette();
   const { logs, error, loading, reload } = useMonth(monthOf(date));
+  /* 이 화면에서 그 달을 한 번 다 받았는가 — 받아 둔 옛 달만 보고 '못 찾음'을 내지 않게(처음 그림에서는 아직 받는 중이 안 켜졌다) */
+  const [fetched, setFetched] = useState(false);
+  useEffect(() => {
+    if (!loading) return;
+    return () => setFetched(true);
+  }, [loading]);
   const editing = id ? (logs ?? []).find((l) => l.id === id) : undefined;
   /* 고치기인데 그 달을 아직 못 받았으면 잠깐 기다린다 — 폼은 처음 값으로 한 번만 채운다 */
   if (id && !editing) {
     /* 다 받았는데 없거나(다른 기기에서 지움) 못 받았으면 — 끝없이 돌지 않고 알린다 */
-    const missing = !loading && (logs != null || error != null);
+    const missing = fetched && !loading && (logs != null || error != null);
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24 }}>
         {missing ? (

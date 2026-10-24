@@ -58,7 +58,6 @@ const READ_ACTIONS = new Set([
   'content.exerciseDescription',
   'content.guideDescription',
   'training-days.trainingMarkedDays',
-  'workout.swapChoices',
   'auth.checkSignupEmail',
 ]);
 export const lastWriteAt = () => wroteAt;
