@@ -17,6 +17,7 @@ import { SafeForm } from '@/components/safe-form';
 import { CommunityLikeButton } from '@/components/community/community-like-button';
 import { CommunityReportForm } from '@/components/community/community-report-form';
 import { CommunityCommentForm } from '@/components/community/community-comment-form';
+import { CommunityRecordCard } from '@/components/community/community-record-card';
 import {
   categoryBadgeClass,
   formatDateTime,
@@ -156,6 +157,8 @@ export default async function CommunityPostPage({
         <div className="whitespace-pre-wrap text-subhead leading-[1.9] text-ink/90">
           {post.body}
         </div>
+
+        {post.card && <CommunityRecordCard card={post.card} videoUrl={post.cardVideoUrl} />}
 
         {post.media.length > 0 && (
           <div className="grid gap-2 sm:grid-cols-2">

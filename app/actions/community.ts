@@ -8,6 +8,7 @@ import { getCurrentUser } from '@/lib/dal';
 import { appNow } from '@/lib/clock';
 import { loadCommunityList, loadCommunityPost } from '@/lib/community-load';
 import { deleteVideos, isOwnedBy } from '@/lib/storage';
+import { buildCard } from '@/lib/community-cards';
 import { formatDateTime, relativeTime } from '@/components/community/community-format';
 import { withInput, type FormValues } from '@/lib/form-values';
 import { notify } from '@/lib/notify';
@@ -82,6 +83,10 @@ async function tryCreatePost(
   if (media.some((m) => !isOwnedBy(m, user.id) || !isMediaPath(m)))
     return { error: '사진 · 영상을 다시 올려 주세요.' };
   if (!title || !body) return { error: '제목과 내용을 적어 주세요.' };
+  /* 싱커 기록 카드 — 화면은 ref 만 보내고, 카드는 내 기록에서 다시 만든다(남의 기록 · 고친 숫자를 못 붙이게) */
+  const cardRef = field(formData, 'card');
+  const card = cardRef ? await buildCard(user.id, cardRef, field(formData, 'cardHide') === '1') : null;
+  if (cardRef && !card) return { error: '붙인 기록을 찾지 못했어요. 다시 골라 주세요.' };
   if (title.length > POST_TITLE_MAX)
     return { error: `제목은 ${POST_TITLE_MAX}자까지 적을 수 있어요.` };
   if (body.length > POST_BODY_MAX)
@@ -104,7 +109,15 @@ async function tryCreatePost(
   if (same) return { id: same.id };
 
   const post = await prisma.communityPost.create({
-    data: { userId: user.id, category, tag, title, body, media },
+    data: {
+      userId: user.id,
+      category,
+      tag,
+      title,
+      body,
+      media,
+      ...(card ? { card: card as unknown as Prisma.InputJsonValue } : {}),
+    },
     select: { id: true },
   });
 

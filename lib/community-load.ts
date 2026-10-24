@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import type { getCurrentUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
 import { POSTS_PER_PAGE, isVideoPath, type PostCategory, type PostSort } from '@/lib/community';
+import { readCard } from '@/lib/community-cards';
 
 /**
  * 커뮤니티 목록 · 글 하나를 읽는다 — 웹 화면(app/(dugout)/community)과 아이폰 앱 화면(app/actions/community.ts loadApp… →
@@ -83,6 +84,7 @@ export async function loadCommunityList(
       title: true,
       body: true,
       media: true,
+      card: true,
       acceptedCommentId: true,
       region: true,
       meetAt: true,
@@ -119,6 +121,7 @@ export async function loadCommunityList(
         preview: p.body.length > 160 ? `${p.body.slice(0, 160)}…` : p.body,
         thumb: image ? (urls[image] ?? null) : null,
         hasVideo: p.media.some(isVideoPath),
+        hasCard: p.card !== null,
         solved: p.acceptedCommentId !== null,
         region: p.region,
         meetAt: p.meetAt,
@@ -165,8 +168,10 @@ export async function loadCommunityPost(user: CommunityUser | null, id: string) 
 
   const blockedSet = new Set(blocked);
   const comments = post.comments.filter((c) => !blockedSet.has(c.userId));
+  const card = readCard(post.card);
+  const cardVideo = card?.kind === 'pitch' ? card.video : null;
   const [urls, coaches] = await Promise.all([
-    createPlaybackUrls(post.media),
+    createPlaybackUrls(cardVideo ? [...post.media, cardVideo] : post.media),
     coachIdsOf([post.userId, ...comments.map((c) => c.userId)]),
   ]);
 
@@ -185,7 +190,9 @@ export async function loadCommunityPost(user: CommunityUser | null, id: string) 
     media: post.media
       .filter((m) => urls[m])
       .map((m) => ({ url: urls[m], video: isVideoPath(m) })),
-    card: post.card,
+    card,
+    /* 투구 기록 카드의 영상 — 기록을 지웠으면 없다 */
+    cardVideoUrl: cardVideo ? (urls[cardVideo] ?? null) : null,
     form: post.form,
     region: post.region,
     meetAt: post.meetAt,

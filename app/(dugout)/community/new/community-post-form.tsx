@@ -16,6 +16,8 @@ import {
 } from '@/lib/community';
 import { Button, ButtonLink, Field, FormError, Input, Textarea } from '@/components/ui';
 import { CommunityMediaPicker } from '@/components/community/community-media-picker';
+import { CommunityCardPicker } from '@/components/community/community-card-picker';
+import type { CardOption } from '@/lib/community-cards';
 
 function SubmitButton({ busy }: { busy: boolean }) {
   const { pending } = useFormStatus();
@@ -40,7 +42,17 @@ const PLACEHOLDER: Record<PostCategory, string> = {
  * 글쓰기 폼 — 게시판을 먼저 고르면 그 게시판의 말머리가 나온다(docs/designs/dugout-community.md). 제목 · 내용 · 사진 · 영상.
  * 게시판 · 말머리는 칩처럼 보이는 라디오(눌린 것만 파랑).
  */
-export function CommunityPostForm({ initialCategory }: { initialCategory?: string }) {
+export function CommunityPostForm({
+  initialCategory,
+  cardOptions = [],
+  initialCard,
+}: {
+  initialCategory?: string;
+  /** '싱커 기록 붙이기' 목록(lib/community-cards.ts recentCardOptions) */
+  cardOptions?: CardOption[];
+  /** 싱커 결과 화면의 '덕아웃에 올리기'로 왔을 때 붙여 둘 기록(?card=velocity:… 등) */
+  initialCard?: string;
+}) {
   const [state, formAction] = useActionState<CommunityState, FormData>(
     /* 신호가 끊겨도 오류 화면으로 넘어가지 않고 한 줄로 알린다(lib/action-offline.ts) */
     guardFormAction(createPost),
@@ -56,7 +68,10 @@ export function CommunityPostForm({ initialCategory }: { initialCategory?: strin
         ? initialCategory
         : POST_CATEGORIES[0].key
   );
-  const [tag, setTag] = useState(kept(before, 'tag') ?? '');
+  /* 기록을 붙여 왔으면 자유는 '내 기록', 질문은 '내 폼 봐 주세요'로 시작 */
+  const cardTag = (c: PostCategory) => (c === 'free' ? 'record' : c === 'question' ? 'form' : '');
+  const startCard = cardOptions.some((o) => o.ref === initialCard) ? initialCard : undefined;
+  const [tag, setTag] = useState(kept(before, 'tag') ?? (startCard ? cardTag(category) : ''));
   const [busy, setBusy] = useState(false);
 
   return (
@@ -137,6 +152,14 @@ export function CommunityPostForm({ initialCategory }: { initialCategory?: strin
           required
         />
       </Field>
+
+      <CommunityCardPicker
+        options={cardOptions}
+        initialRef={startCard}
+        onPick={(ref) => {
+          if (ref && !tag) setTag(cardTag(category));
+        }}
+      />
 
       <CommunityMediaPicker onBusy={setBusy} />
 

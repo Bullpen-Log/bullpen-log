@@ -197,6 +197,9 @@ export default async function CommunityPage({
                         {postTagLabel(post.category, post.tag)}
                       </span>
                     )}
+                    {post.hasCard && (
+                      <span className="text-xs font-semibold text-sky">싱커 기록</span>
+                    )}
                     {post.solved && (
                       <Badge className="border-ok/40 bg-ok/10 text-ok desk:bg-transparent">해결됨</Badge>
                     )}
