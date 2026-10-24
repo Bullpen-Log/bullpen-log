@@ -56,7 +56,7 @@ import {
   seoulDay,
 } from '../lib/pitch-lab-guard.ts';
 import { parseAppleDate, readLabFileFacts, videoEditShift } from '../lib/pitch-lab-file.ts';
-import { followStep, sourceTimesAt, FOLLOW_SEEK_S } from '../lib/pitch-3d/v2/video-sync.ts';
+import { followStep, followTick, sourceTimesAt, FOLLOW_SEEK_S, FOLLOW_SEEK_COOLDOWN_S } from '../lib/pitch-3d/v2/video-sync.ts';
 import { readLabMeta } from '../lib/pitch-lab-meta.ts';
 import {
   base,
@@ -3501,6 +3501,29 @@ console.log('■ 점검 카드 드릴 고르기(drillPicksFor) — 쉬운 단계
   check('따라가기: 많이 벌어지면 옮김', followStep(1, 1 + FOLLOW_SEEK_S + 0.01, 0.5).seek);
   check('따라가기: 앞서면 느리게 · 뒤처지면 빠르게', followStep(1.05, 1, 0.5).rate < 0.5 && followStep(0.95, 1, 0.5).rate > 0.5);
   check('따라가기: ¼× 에서도 바닥 위', followStep(1.1, 1, 0.25).rate >= 0.0625);
+  {
+    /* followTick — 받는 중이면 안 건드림 · 옮긴 뒤 잠깐 안 옮김 · 맞는 띠 안이면 3D 빠르기로 · 작은 빠르기 차이는 그대로(2026-10-24 렉) */
+    const v = (o: Partial<{ time: number; rate: number; ready: boolean; sinceSeekS: number }>) => ({ time: 1, rate: 0.25, ready: true, sinceSeekS: 9, ...o });
+    const loading = followTick(v({ time: 0 }), 1, 0.25);
+    const cool = followTick(v({ time: 0, sinceSeekS: FOLLOW_SEEK_COOLDOWN_S / 2 }), 1, 0.25);
+    const seek = followTick(v({ time: 0, rate: 0.3 }), 1, 0.25);
+    const still = followTick(v({ time: 1.01 }), 1, 0.25);
+    const snap = followTick(v({ time: 1.01, rate: 0.2 }), 1, 0.25);
+    const small = followTick(v({ time: 1.05, rate: 0.16 }), 1, 0.25);
+    check(
+      '따라가기 한 번: 받는 중 안 건드림 · 옮긴 뒤 잠깐 안 옮김 · 벌어지면 옮기고 빠르기 되돌림 · 맞으면 그대로 · 띠 안이면 3D 빠르기로 · 작은 차이 그대로',
+      followTick(v({ time: 0, ready: false }), 1, 0.25).seek === null &&
+        loading.seek === 1 &&
+        cool.seek === null &&
+        cool.rate === null &&
+        seek.seek === 1 &&
+        seek.rate === 0.25 &&
+        still.seek === null &&
+        still.rate === null &&
+        snap.rate === 0.25 &&
+        small.rate === null
+    );
+  }
 }
 
 

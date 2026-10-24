@@ -14,7 +14,7 @@ import { FlowCard, ReportHero, RxCard, VerdictCard } from './report-parts';
 import type { Body3DHandle, Transport } from './body-3d';
 import { useV2Analysis } from './use-v2-analysis';
 import { loadLabVideoShifts } from '@/app/actions/pitch-lab';
-import { followStep, sourceTimesAt } from '@/lib/pitch-3d/v2/video-sync';
+import { followTick, sourceTimesAt } from '@/lib/pitch-3d/v2/video-sync';
 
 /** 3D 보기는 결과가 있을 때만 받는다(three 를 안 여는 화면에 실리지 않게) */
 const Body3D = dynamic(() => import('./body-3d').then((m) => m.Body3D), { ssr: false });
@@ -71,6 +71,9 @@ export function LabDetail({
    * 받는 사이 멈춰 있던 영상은 마지막 알림을 다시 따라가게 한다.
    */
   const shifts = useRef<LabShifts>({ side: 0, back: 0 });
+  /* 영상마다 마지막으로 옮긴 때(performance.now) — followTick 이 옮긴 뒤 잠깐은 다시 안 옮긴다 */
+  const seekedAt = useRef<Partial<Record<string, number>>>({});
+  const [extrasOn, setExtrasOn] = useState(false);
   const lastT = useRef<Transport | null>(null);
 
   /* 원본 영상이 3D 시계를 따라간다 */
@@ -87,10 +90,23 @@ export function LabDetail({
         if (shift == null) continue;
         const want = Math.max(0, (view === 'back' ? src.back : src.side) + shift);
         if (t.reason === 'tick') {
-          if (v.seeking) continue;
-          const step = followStep(v.currentTime, want, t.speed);
-          if (step.seek) v.currentTime = want;
-          if (Math.abs(v.playbackRate - step.rate) > 0.005) v.playbackRate = step.rate;
+          const now = performance.now();
+          const step = followTick(
+            {
+              time: v.currentTime,
+              rate: v.playbackRate,
+              /* 옮기는 중 · 다음 장면을 아직 못 받음(HAVE_FUTURE_DATA 밑)이면 안 건드린다 */
+              ready: !v.seeking && v.readyState >= 3,
+              sinceSeekS: (now - (seekedAt.current[view] ?? -1e9)) / 1000,
+            },
+            want,
+            t.speed
+          );
+          if (step.seek != null) {
+            v.currentTime = step.seek;
+            seekedAt.current[view] = now;
+          }
+          if (step.rate != null) v.playbackRate = step.rate;
           continue;
         }
         v.playbackRate = t.speed;
@@ -186,8 +202,20 @@ export function LabDetail({
             </div>
           );
         })}
-        {/* 마커 샘플의 ③ · ④ 카메라 — 옆 · 뒤처럼 3D 시계를 따라간다(서버가 옆 시각과의 차이를 줄 때, 2026-10-22) */}
-        {sample.extras.map((x) => (
+        {/*
+          마커 샘플의 ③ · ④ 카메라 — 옆 · 뒤처럼 3D 시계를 따라간다(서버가 옆 시각과의 차이를 줄 때, 2026-10-22). 누를 때만 받는다 — 240fps 원본 셋 넷을
+          한꺼번에 받고 풀면 화면 전체가 버벅였다(2026-10-24 김민 "렉이 많이 걸려").
+        */}
+        {sample.extras.length > 0 && !extrasOn && (
+          <button
+            type="button"
+            onClick={() => setExtrasOn(true)}
+            className="col-span-2 min-h-11 rounded-xl bg-ink/5 text-sm font-semibold text-ink"
+          >
+            {sample.extras.map((x) => LAB_EXTRA_LABEL[x.key]).join(' · ')} 영상 보기
+          </button>
+        )}
+        {extrasOn && sample.extras.map((x) => (
           <div key={x.key} className="space-y-1">
             <p className="text-xs text-muted">{LAB_EXTRA_LABEL[x.key]}</p>
             {x.url ? (

@@ -33,6 +33,10 @@ export function sourceTimesAt(
 export const FOLLOW_SEEK_S = 0.15;
 /** 벌어진 만큼을 이 시간(실제 초) 안에 메우는 빠르기로 */
 const FOLLOW_CATCH_S = 0.5;
+/** 이만큼(초) 안으로 맞으면 빠르기를 3D 그대로 — 예전엔 조금만 벌어져도 0.1초마다 빠르기를 바꿔 영상 셋이 초당 27번 바뀌었다 */
+const FOLLOW_DEADBAND_S = 0.04;
+/** 한 번 옮긴 영상은 이 시간(실제 초) 동안 다시 안 옮긴다 — 옮기는 동안 영상이 멈춰 또 벌어지고 또 옮기는 되풀이를 끊는다 */
+export const FOLLOW_SEEK_COOLDOWN_S = 0.6;
 
 /**
  * 재생 중 한 번(0.1초마다) — 지금 영상 시각 · 있어야 할 시각 · 3D 빠르기 → 옮길지와 영상 빠르기.
@@ -45,7 +49,27 @@ export function followStep(
 ): { seek: boolean; rate: number } {
   const ahead = current - want;
   if (Math.abs(ahead) > FOLLOW_SEEK_S) return { seek: true, rate: speed };
+  if (Math.abs(ahead) < FOLLOW_DEADBAND_S) return { seek: false, rate: speed };
   const rate = speed - ahead / FOLLOW_CATCH_S;
   return { seek: false, rate: Math.max(0.0625, speed * 0.4, Math.min(speed * 2, rate)) };
 }
 
+
+/**
+ * 재생 중 0.1초마다 영상 하나를 어떻게 건드릴지(웹 lab-detail.tsx · 앱 native/src/app/lab/[id].tsx 가 같이 쓴다). 2026-10-24 김민: "분석 결과 화면이 렉이 많이 걸려".
+ * 받는 중 · 옮기는 중(ready=false)이면 안 건드린다 — 예전엔 앱이 영상이 받느라 멈춰 벌어지면 0.1초마다 다시 옮겨, 옮기기 → 멈춤 → 또 옮기기가 되풀이되며
+ * 화면 전체가 버벅였다(마커 영상 셋 125MB). 옮긴 뒤 FOLLOW_SEEK_COOLDOWN_S 안에는 다시 안 옮기고, 빠르기는 3D 빠르기의 10% 넘게 다를 때만 바꾼다.
+ */
+export function followTick(
+  v: { time: number; rate: number; ready: boolean; sinceSeekS: number },
+  want: number,
+  speed: number
+): { seek: number | null; rate: number | null } {
+  if (!v.ready) return { seek: null, rate: null };
+  const step = followStep(v.time, want, speed);
+  if (step.seek && v.sinceSeekS < FOLLOW_SEEK_COOLDOWN_S) return { seek: null, rate: null };
+  /* 맞는 띠 안(빠르기 = 3D)이면 3D 빠르기로 되돌리고, 따라붙는 중이면 10% 넘게 다를 때만 바꾼다 */
+  const back = step.rate === speed && Math.abs(v.rate - speed) > 0.005;
+  const rate = back || Math.abs(v.rate - step.rate) > 0.1 * speed ? step.rate : null;
+  return { seek: step.seek ? want : null, rate };
+}

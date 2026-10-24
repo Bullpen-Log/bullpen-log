@@ -18,7 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AppLabDetail } from '@/app/actions/pitch-lab';
 import { CONSENT_TEXT } from '@/lib/pitch-3d/v2/lab-summary';
-import { followStep } from '@/lib/pitch-3d/v2/video-sync';
+import { followTick } from '@/lib/pitch-3d/v2/video-sync';
 import { Lab3D, type Lab3DHandle, type LabTransport } from '~/lab/lab-3d';
 import { FlowCard, ReportHero, RxCard, STAGE_BG } from '~/lab/report';
 import { rpc, RpcError } from '~/lib/rpc';
@@ -90,6 +90,9 @@ export default function LabScreen() {
   }, [active, id]);
 
   const players = useRef<Partial<Record<SourceView, VideoPlayer>>>({});
+  /* 영상마다 마지막으로 옮긴 때(ms) — followTick 이 옮긴 뒤 잠깐은 다시 안 옮긴다 */
+  const seekedAt = useRef<Partial<Record<SourceView, number>>>({});
+  const [extrasOn, setExtrasOn] = useState(false);
   const register = useCallback((view: SourceView, p: VideoPlayer | null) => {
     if (p) players.current[view] = p;
     else delete players.current[view];
@@ -103,9 +106,18 @@ export default function LabScreen() {
       const want = t[view];
       if (want == null || !Number.isFinite(want)) continue;
       if (t.reason === 'tick') {
-        const step = followStep(p.currentTime, want, t.speed);
-        if (step.seek) p.currentTime = want;
-        if (Math.abs(p.playbackRate - step.rate) > 0.005) p.playbackRate = step.rate;
+        const now = Date.now();
+        /* 받는 중(status 'loading')이면 안 건드린다 — 예전엔 0.1초마다 다시 옮겨 옮기기 → 멈춤이 되풀이되며 화면 전체가 버벅였다(웹과 같은 followTick) */
+        const step = followTick(
+          { time: p.currentTime, rate: p.playbackRate, ready: p.status === 'readyToPlay', sinceSeekS: (now - (seekedAt.current[view] ?? -1e12)) / 1000 },
+          want,
+          t.speed
+        );
+        if (step.seek != null) {
+          p.currentTime = step.seek;
+          seekedAt.current[view] = now;
+        }
+        if (step.rate != null) p.playbackRate = step.rate;
         continue;
       }
       p.playbackRate = t.speed;
@@ -170,10 +182,12 @@ export default function LabScreen() {
    * 원본 영상 — 결과 바로 밑에 늘 보인다(2026-10-22 김민: "결과 밑에 원본 영상도 안 나와" — 예전엔 '원본 영상 보기'를 눌러야 폈다).
    * 두 칸씩 줄을 바꿔 마커 샘플은 ③ · ④ 까지 넷. 넷 다 3D 시계를 따라간다(③ · ④ 는 사이트가 옆 시각 + 그 카메라 몫으로 보낸다, 2026-10-22).
    */
+  const extras = data.videos.filter((v) => (v.view === 'cam3' || v.view === 'cam4') && v.url);
   const sources = (
     <View style={{ gap: 8 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {data.videos.map((v) => (
+        {/* ③ · ④ 는 누를 때만 받는다 — 240fps 원본 셋 넷을 한꺼번에 받고 풀면 화면 전체가 버벅였다(2026-10-24 김민 "렉이 많이 걸려") */}
+        {data.videos.filter((v) => extrasOn || (v.view !== 'cam3' && v.view !== 'cam4')).map((v) => (
           <View key={v.view} style={{ width: '48.5%', flexGrow: 1, gap: 4 }}>
             <Text style={[s.small, { color: c.muted }]}>{v.label}</Text>
             {!v.url ? (
@@ -186,6 +200,11 @@ export default function LabScreen() {
           </View>
         ))}
       </View>
+      {!extrasOn && extras.length > 0 && (
+        <Pressable onPress={() => setExtrasOn(true)} accessibilityRole="button" style={({ pressed }) => [s.pill, { backgroundColor: c.card }, pressed && { opacity: 0.6 }]}>
+          <Text style={[s.bodyBold, { color: c.ink }]}>{extras.map((v) => v.label).join(' · ')} 영상 보기</Text>
+        </Pressable>
+      )}
       <Text style={[s.small, { color: c.muted }]}>
         영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.
       </Text>
