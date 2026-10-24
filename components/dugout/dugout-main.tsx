@@ -74,7 +74,8 @@ export function DugoutMain({
     return () => io.disconnect();
   }, []);
 
-  const items = FEATURES.filter((f) => f.group === tab);
+  /* 알림은 모서리 종이 있어 아이콘 줄에서는 뺀다(10칸) */
+  const items = FEATURES.filter((f) => f.group === tab && f.href !== '/notifications');
 
   return (
     <section
