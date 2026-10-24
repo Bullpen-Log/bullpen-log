@@ -118,9 +118,8 @@ export function DugoutMain({
         </div>
       </div>
 
-      <div
-        className={`mx-auto max-w-6xl pt-10 md:pt-16 ${aside ? 'md:grid md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-6 lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8' : ''}`}
-      >
+      <div className="mx-auto max-w-6xl pt-10 md:pt-16">
+        {/* 로고 · 통합검색 · 아이콘 줄은 화면 가운데 온 폭 그대로 — 경기 칸이 이 자리를 좁히지 않는다(2026-10-24 금윤호) */}
         <div className="min-w-0">
           <h1 className="flex justify-center">
             <Link
@@ -173,19 +172,24 @@ export function DugoutMain({
               </li>
             ))}
           </ul>
-
-          {/* 덕아웃 소식 · 나중에 광고 자리 — 아이콘 줄 밑(2026-10-24 분석: 검색 ↔ 아이콘은 붙여 두고, 첫 화면 끝에서 보이게. 네이버 첫 화면과 같은 차례) */}
-          {slides && (
-            <div className="mt-10">
-              <MarketHero slides={slides} slim label="덕아웃 소식" />
-            </div>
-          )}
         </div>
+
         {/*
-          오늘의 경기 — 첫 화면 오른쪽 세로 칸(2026-10-24 금윤호 "처음 접속했을 때 오른쪽에 세로로"). 밑 본문의 경기 칸과 같은 줄(같은 폭 · 같은 틈)에 둬서
-          한 번 굴려 본문으로 가도 같은 자리에 같은 칸이 이어지는 것처럼 보인다. 휴대폰은 본문 쪽 카드가 맡는다.
+          덕아웃 소식(나중에 광고 자리) + 오늘의 경기 — 아이콘 줄 밑 한 줄을 밑 본문과 같은 두 칸(왼쪽 · 오른쪽 240px)으로 나눠, 왼쪽은 띠 · 오른쪽은 경기 세로 카드.
+          검색 ↔ 아이콘(첫 화면의 두 할 일)은 붙어 있고, 띠는 첫 화면 끝에서 보이며(네이버 첫 화면과 같은 차례), 경기 칸은 밑 본문의 경기 칸과 같은 줄이라
+          한 번 굴려 본문으로 가도 같은 자리에 같은 칸이 이어진다. 휴대폰은 띠만(경기는 본문 쪽 카드).
         */}
-        {aside && <aside className="hidden md:block">{aside}</aside>}
+        {(slides || aside) && (
+          <div
+            className={`mt-10 ${aside ? 'md:grid md:grid-cols-[minmax(0,1fr)_220px] md:gap-6 lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8' : ''}`}
+          >
+            {/* 띠는 옆 경기 카드와 같은 높이(2026-10-24 금윤호 '오늘의 경기랑 크기 맞춰') — 칸 높이를 띠 · 넘기는 줄까지 채운다 */}
+            <div className="min-w-0 md:[&>section]:h-full md:[&>section>div]:h-full">
+              {slides && <MarketHero slides={slides} slim label="덕아웃 소식" />}
+            </div>
+            {aside && <aside className="hidden md:block">{aside}</aside>}
+          </div>
+        )}
       </div>
     </section>
   );
