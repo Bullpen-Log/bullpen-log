@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
 import { setBlocked } from '@/app/actions/community';
-import { BackLink, Button, PageHeading } from '@/components/ui';
+import { BackLink, Button } from '@/components/ui';
+import { DugoutPageHeader } from '@/components/dugout/ui';
 import { SafeForm } from '@/components/safe-form';
 
 /** 차단한 사람 — 풀면 그 사람 글 · 댓글이 다시 보인다(커뮤니티 목록 맨 밑 '차단한 사람') */
@@ -18,7 +19,7 @@ export default async function BlockedPage() {
   return (
     <div className="stack-page mx-auto max-w-3xl">
       <BackLink href="/community">커뮤니티</BackLink>
-      <PageHeading title="차단한 사람" />
+      <DugoutPageHeader title="차단한 사람" />
       {rows.length === 0 ? (
         <p className="empty-well px-(--block-pad) py-8 text-center text-sm text-muted">차단한 사람이 없어요.</p>
       ) : (

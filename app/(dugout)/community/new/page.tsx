@@ -3,7 +3,8 @@ import { getCurrentUser } from '@/lib/dal';
 import { recentCardOptions } from '@/lib/community-cards';
 import { prisma } from '@/lib/prisma';
 import { COMMUNITY_REGIONS } from '@/lib/community';
-import { BackLink, PageHeading } from '@/components/ui';
+import { BackLink } from '@/components/ui';
+import { DugoutPageHeader } from '@/components/dugout/ui';
 import { CommunityPostForm } from './community-post-form';
 
 /**
@@ -49,7 +50,7 @@ export default async function NewCommunityPostPage({
   return (
     <div className="stack-page mx-auto max-w-3xl">
       <BackLink href="/community">커뮤니티</BackLink>
-      <PageHeading title="글쓰기" />
+      <DugoutPageHeader title="글쓰기" />
       <CommunityPostForm
         initialCategory={initialCategory}
         cardOptions={cardOptions}

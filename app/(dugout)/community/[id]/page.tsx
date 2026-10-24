@@ -13,6 +13,7 @@ import {
   setHidden,
 } from '@/app/actions/community';
 import { BackLink, Badge, Button, ButtonLink } from '@/components/ui';
+import { DugoutPageHeader, SectionHead } from '@/components/dugout/ui';
 import { ConfirmDeleteForm } from '@/components/confirm-delete';
 import { SafeForm } from '@/components/safe-form';
 import { CommunityLikeButton } from '@/components/community/community-like-button';
@@ -165,7 +166,7 @@ export default async function CommunityPostPage({
               </Badge>
             )}
           </div>
-          <h1 className="text-heading page-title text-ink">{post.title}</h1>
+          <DugoutPageHeader title={post.title} />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
             <span className="font-medium text-ink">{post.nickname}</span>
             {post.coach && <Badge className="min-h-0 border-sky-soft/60 bg-sky-tint px-2 py-0.5 text-sky-strong desk:bg-transparent">코치</Badge>}
@@ -317,10 +318,8 @@ export default async function CommunityPostPage({
       </article>
 
       {room && (
-        <section className="space-y-3" aria-labelledby="room-heading">
-          <h2 id="room-heading" className="text-base font-semibold text-ink">
-            {post.meetup ? '참가자 대화방' : post.isOwner ? '신청자와 대화' : '팀과 대화'}
-          </h2>
+        <section className="space-y-4" aria-label="대화">
+          <SectionHead title={post.meetup ? '참가자 대화방' : post.isOwner ? '신청자와 대화' : '팀과 대화'} />
           {post.team && post.isOwner && post.joiners.length > 1 && (
             <nav aria-label="신청자" className="no-scrollbar flex gap-1.5 overflow-x-auto">
               {post.joiners.map((j) => (
@@ -356,10 +355,8 @@ export default async function CommunityPostPage({
       )}
 
       {/* 댓글 */}
-      <section className="space-y-4" aria-labelledby="comments-heading">
-        <h2 id="comments-heading" className="text-base font-semibold text-ink">
-          댓글 <span className="text-muted tabular-nums">{visibleComments}</span>
-        </h2>
+      <section className="space-y-4" aria-label="댓글">
+        <SectionHead title="댓글" count={visibleComments} />
 
         {post.comments.length > 0 && (
           <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">

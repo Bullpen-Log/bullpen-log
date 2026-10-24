@@ -13,7 +13,8 @@ import {
   postTagLabel,
   type PostSort,
 } from '@/lib/community';
-import { Badge, ButtonLink, EmptyState, PageHeading } from '@/components/ui';
+import { Badge, ButtonLink } from '@/components/ui';
+import { CategoryRow, ChipLink, ChipRow, DugoutEmpty, DugoutPageHeader } from '@/components/dugout/ui';
 import {
   categoryBadgeClass,
   meetAtText,
@@ -86,65 +87,34 @@ export default async function CommunityPage({
     page,
   });
 
-  const chipClass = (active: boolean) =>
-    `inline-flex min-h-9 shrink-0 items-center rounded-full px-4 text-sm font-semibold whitespace-nowrap transition-colors ${
-      active
-        ? 'bg-sky text-white'
-        : 'bg-ink/6 text-ink hover:text-sky desk:bg-surface-2'
-    }`;
-
   return (
-    <div className="stack-page">
-      <PageHeading
+    <div className="space-y-6">
+      <DugoutPageHeader
         title="커뮤니티"
-        inlineAction
-        action={<ButtonLink href={writeHref}>글쓰기</ButtonLink>}
+        subtitle="야구 이야기 · 질문 · 같이 할 사람, 모든 야구인의 게시판이에요."
+        actions={<ButtonLink href={writeHref}>글쓰기</ButtonLink>}
+      />
+
+      {/* 게시판 — 장터 품목과 같은 밑줄 줄(2026-10-24 UI 통일) */}
+      <CategoryRow
+        label="게시판"
+        items={[
+          { key: 'all', label: '전체', href: listHref({ sort }), on: !category },
+          ...POST_CATEGORIES.map((c) => ({ key: c.key, label: c.label, href: listHref({ category: c.key, sort }), on: category === c.key })),
+        ]}
       />
 
       {/* 거르기 — 구분 칩은 옆으로 미끄러지고(휴대폰), 정렬은 오른쪽 끝의 작은 둘 */}
       <div className="flex flex-col gap-3 desk:flex-row desk:flex-wrap desk:items-center desk:justify-between">
-        <nav
-          aria-label="게시판"
-          className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 desk:mx-0 desk:flex-wrap desk:px-0"
-        >
-          <Link
-            href={listHref({ sort })}
-            aria-current={!category ? 'page' : undefined}
-            className={chipClass(!category)}
-          >
-            전체
-          </Link>
-          {POST_CATEGORIES.map((c) => (
-            <Link
-              key={c.key}
-              href={listHref({ category: c.key, sort })}
-              aria-current={category === c.key ? 'page' : undefined}
-              className={chipClass(category === c.key)}
-            >
-              {c.label}
-            </Link>
-          ))}
-        </nav>
+        {!category && <span className="hidden desk:block" />}
         {category && (
-          <nav
-            aria-label="말머리"
-            className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 desk:order-last desk:mx-0 desk:w-full desk:flex-wrap desk:px-0"
-          >
+          <ChipRow label="말머리" className="desk:flex-1">
             {[{ key: '', label: '전체' }, ...POST_TAGS[category]].map((t) => (
-              <Link
-                key={t.key}
-                href={listHref({ ...keep, tag: t.key || undefined, sort })}
-                aria-current={(tag ?? '') === t.key ? 'page' : undefined}
-                className={`inline-flex min-h-8 shrink-0 items-center rounded-full px-3 text-xs font-semibold whitespace-nowrap transition-colors ${
-                  (tag ?? '') === t.key
-                    ? 'bg-ink text-page'
-                    : 'text-muted hover:text-ink'
-                }`}
-              >
+              <ChipLink key={t.key} on={(tag ?? '') === t.key} href={listHref({ ...keep, tag: t.key || undefined, sort })}>
                 {t.label}
-              </Link>
+              </ChipLink>
             ))}
-          </nav>
+          </ChipRow>
         )}
         <div className="flex items-center gap-2 self-end desk:self-auto">
           {local && (
@@ -182,7 +152,7 @@ export default async function CommunityPage({
       </div>
 
       {posts.length === 0 ? (
-        <EmptyState
+        <DugoutEmpty
           icon={<RoundCommunity />}
           title={
             page > 1
@@ -206,9 +176,7 @@ export default async function CommunityPage({
                 처음으로
               </ButtonLink>
             ) : (
-              <ButtonLink href={writeHref} variant="secondary">
-                첫 글 쓰기
-              </ButtonLink>
+              <ButtonLink href={writeHref}>첫 글 쓰기</ButtonLink>
             )
           }
         />
