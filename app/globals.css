@@ -3884,6 +3884,10 @@ html[data-shell='expo'][data-pager] dialog[data-sheet] [data-sheet-end] {
   --color-sky-soft: #1c5a38;
   --color-sky-tint: #0b2417;
 }
+/* 덕아웃 틀 안의 싱커 이름표(위 막대 · 첫 화면의 '싱커' 단추) — 초록으로 바뀐 brand 를 싱커 파랑(:root 의 --color-brand)으로 되돌린다 */
+[data-brand='dugout'] [data-brand='sinker'] {
+  --color-brand: #0297e4;
+}
 
 /*
  * 덕아웃 ↔ 싱커 변형(2026-10-21, components/shell-morph.tsx) — 페이지가 바뀌는 느낌 대신 한 화면이 다른 화면으로 바뀌는 느낌.

@@ -198,7 +198,12 @@ export function DugoutTopBar({
  * 위 막대와 덕아웃 첫 화면의 모서리가 같이 쓴다. 웹은 싱커로 변형하며 넘어가고(MorphLink), 앱 웹뷰는 그냥 이동.
  */
 export function SinkerButton({ native = false, className = '' }: { native?: boolean; className?: string }) {
-  const mark = <Wordmark brand="sinker" className="text-[17px] leading-none text-ink" />;
+  /* 덕아웃 틀 안이라 brand 가 초록으로 바뀌는데, 싱커 이름표는 싱커 파랑 그대로(2026-10-24 금윤호 "싱커 로고가 왜 초록색이 됐어") — globals.css [data-brand='sinker'] */
+  const mark = (
+    <span data-brand="sinker" className="inline-flex">
+      <Wordmark brand="sinker" className="text-[17px] leading-none text-ink" />
+    </span>
+  );
   return native ? (
     <Link href="/today" aria-label="싱커" className={className}>
       {mark}
