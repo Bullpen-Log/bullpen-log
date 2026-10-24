@@ -184,14 +184,17 @@ export async function createV2ResultUploadUrl(
  */
 export async function createLabPreviewUploadUrls(
   userId: string,
-  id: string
-): Promise<{ side: string; back: string } | null> {
-  const one = async (view: LabView) => {
+  id: string,
+  extras: readonly ('cam3' | 'cam4')[] = []
+): Promise<({ side: string; back: string } & Partial<Record<'cam3' | 'cam4', string>>) | null> {
+  const one = async (view: LabUploadView) => {
     const { data, error } = await videoBucket().createSignedUploadUrl(`${folder(userId, id)}/${PREVIEW_PREFIX}${view}.mp4`, { upsert: true });
     return error || !data ? null : data.signedUrl;
   };
-  const [side, back] = await Promise.all([one('side'), one('back')]);
-  return side && back ? { side, back } : null;
+  const [side, back, ...rest] = await Promise.all([one('side'), one('back'), ...extras.map(one)]);
+  if (!side || !back) return null;
+  /* 마커 샘플의 ③ · ④ 도(2026-10-24 김민 "3, 4까지 굽게") — 못 만든 칸은 빼고 */
+  return { side, back, ...Object.fromEntries(extras.flatMap((k, i) => (rest[i] ? [[k, rest[i]]] : []))) };
 }
 
 /** 폴더 파일 목록 → 영상 경로 · v1 결과 · v2 작업 번호들 */
@@ -230,14 +233,15 @@ async function scanFolder(userId: string, id: string, sport: LabSport = 'pitch')
 export async function labVideoUrls(
   userId: string,
   id: string
-): Promise<{ side: string; back: string } | null> {
-  const { videos } = await scanFolder(userId, id);
+): Promise<{ side: string; back: string; extras: Partial<Record<'cam3' | 'cam4', string>> } | null> {
+  const { videos, extras } = await scanFolder(userId, id);
   const s = videos.side?.path;
   const b = videos.back?.path;
   if (!s || !b) return null;
-  const urls = await createPlaybackUrls([s, b]);
+  const urls = await createPlaybackUrls([s, b, ...extras.map((x) => x.path)]);
   if (!urls[s] || !urls[b]) return null;
-  return { side: urls[s], back: urls[b] };
+  /* 마커 샘플의 ③ · ④ — 분석은 안 쓰고 결과 화면용 가벼운 영상만 굽는다 */
+  return { side: urls[s], back: urls[b], extras: Object.fromEntries(extras.flatMap((x) => (urls[x.path] ? [[x.key, urls[x.path]]] : []))) };
 }
 
 /*

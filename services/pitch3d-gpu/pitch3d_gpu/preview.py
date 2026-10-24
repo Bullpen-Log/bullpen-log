@@ -85,7 +85,8 @@ def make_preview(src: str, out: str) -> dict:
 
 
 def run_previews(job: dict) -> dict:
-    """작업 하나의 옆 · 뒤 가벼운 영상을 굽고 job["previews"] 의 서명 주소로 올린다(app.py previews — GPU 없는 함수). 칸마다 따로, 실패는 적고 넘어간다."""
+    """작업 하나의 가벼운 영상(옆 · 뒤, 마커 샘플은 ③ · ④ 도)을 굽고 job["previews"] 의 서명 주소로 올린다(app.py previews — GPU 없는 함수).
+    칸마다 따로, 원본 주소(job[칸]["url"])와 올리기 주소가 둘 다 있는 칸만. 실패는 적고 넘어간다."""
     import os
     import tempfile
     import time
@@ -97,9 +98,9 @@ def run_previews(job: dict) -> dict:
     out: dict = {}
     urls = job.get("previews") or {}
     with tempfile.TemporaryDirectory() as d:
-        for view in ("side", "back"):
+        for view in ("side", "back", "cam3", "cam4"):
             put = urls.get(view)
-            if not put:
+            if not put or not (job.get(view) or {}).get("url"):
                 continue
             t = time.time()
             try:

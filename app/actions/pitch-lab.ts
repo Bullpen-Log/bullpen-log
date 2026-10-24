@@ -221,7 +221,7 @@ export async function requestPitch3dV2(input: {
   if (!owner) return { error: '샘플을 찾지 못했어요.' };
 
   let prev: Pitch3dV2Job | null;
-  let urls: { side: string; back: string } | null;
+  let urls: Awaited<ReturnType<typeof labVideoUrls>>;
   let metaRaw: unknown;
   let build: string | null;
   try {
@@ -304,6 +304,7 @@ export async function requestPitch3dV2(input: {
   await saveLabGuard(user.id, recordRequest(guard, { nowMs: now, id: input.id, jobId: job.jobId, fps })).catch(() => undefined);
 
   /* 샘플의 촬영 정보(던지는 손 · 슬로모 · 화면 녹화 · 키, 위 meta) — 예전엔 null 로 읽어 늘 기본값(오른손 · 화면 녹화 · 슬로모 모름)이 갔다 */
+  const extraKeys = (['cam3', 'cam4'] as const).filter((k) => urls.extras[k]);
   const started = await startGpuJob({
     jobId: job.jobId,
     engine: PITCH3D_V2_VERSION,
@@ -317,7 +318,8 @@ export async function requestPitch3dV2(input: {
     },
     result: { uploadUrl },
     /* 결과 화면용 가벼운 영상(분석 서버가 GPU 없이 따로 굽는다) — 주소를 못 만들면 빼고 분석만 */
-    previews: (await createLabPreviewUploadUrls(owner, input.id).catch(() => null)) ?? undefined,
+    previews: (await createLabPreviewUploadUrls(owner, input.id, extraKeys).catch(() => null)) ?? undefined,
+    ...(extraKeys.length ? { extras: Object.fromEntries(extraKeys.map((k) => [k, { url: urls.extras[k]! }])) } : {}),
   });
   job =
     'error' in started
