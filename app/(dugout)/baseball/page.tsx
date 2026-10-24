@@ -115,7 +115,6 @@ export default async function BaseballPage({ searchParams }: { searchParams: Pro
         </ul>
       )}
 
-      <p className="text-xs text-muted">경기 정보 · 네이버 스포츠. 시각은 한국 시각이에요.</p>
     </div>
   );
 }

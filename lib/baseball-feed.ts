@@ -64,7 +64,7 @@ export function addDays(key: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-async function fetchJson(url: string, init: RequestInit & { next?: { revalidate: number } }) {
+export async function fetchJson(url: string, init: RequestInit & { next?: { revalidate: number } }) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
@@ -78,7 +78,7 @@ async function fetchJson(url: string, init: RequestInit & { next?: { revalidate:
   }
 }
 
-type RawGame = {
+export type RawGame = {
   gameId?: string;
   gameDateTime?: string;
   stadium?: string | null;
@@ -100,7 +100,7 @@ type RawGame = {
 
 const name = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
 
-function toGame(g: RawGame, league: League): Game | null {
+export function toGame(g: RawGame, league: League): Game | null {
   if (!g.gameId || !g.gameDateTime || !g.homeTeamName || !g.awayTeamName) return null;
   const cancel = g.cancel === true || g.statusCode === 'CANCEL';
   const status: Game['status'] = cancel

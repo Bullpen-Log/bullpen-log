@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { RoundMenu, RoundPlus, RoundSearch } from '@/components/round-icon';
+import { RoundChat, RoundMenu, RoundPlus, RoundSearch } from '@/components/round-icon';
 import { SinkerMark, Wordmark } from '@/components/logo';
 import { MorphLink } from '@/components/shell-morph';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
@@ -60,7 +60,6 @@ export function DugoutTopBar({
         { href: '/lessons', label: '레슨' },
         { href: '/venues', label: '연습장' },
         { href: '/baseball', label: '경기' },
-        { href: '/chat', label: '채팅', badge: unread },
       ];
   const active = (href: string, exact?: boolean) =>
     inDugout &&
@@ -76,13 +75,6 @@ export function DugoutTopBar({
     `flex min-h-10 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition-colors ${
       on ? 'bg-ink text-white' : 'border border-line text-ink hover:border-sky-soft'
     }`;
-  const badge = (n: number) =>
-    n ? (
-      <span className="ml-1.5 rounded-full bg-danger px-1.5 text-[10px] font-bold text-white">
-        {n}
-      </span>
-    ) : null;
-
   /* 가운데 검색 — 덕아웃 통합검색(2026-10-24 — 물건 · 글 · 코치 · 연습장 · 기능을 한 번에, app/(dugout)/search) */
   const search = (
     <form method="get" action="/search" role="search" className="relative hidden min-w-0 flex-1 md:block">
@@ -132,6 +124,7 @@ export function DugoutTopBar({
                 </Link>
               )}
               {/* 알림은 종 밑 작은 창으로(2026-10-22 — 예전 '알림' 메뉴는 /notifications 로 옮겨 갔다), 설정은 맨 오른쪽 위 */}
+              <ChatButton unread={unread} />
               <DugoutBell initial={alerts} />
             </>
           ) : (
@@ -173,7 +166,6 @@ export function DugoutTopBar({
                   className={item(on)}
                 >
                   {t.label}
-                  {badge(t.badge ?? 0)}
                 </Link>
               );
             })}
@@ -225,6 +217,25 @@ export function ProfileButton({ nickname, avatarUrl }: { nickname: string; avata
       ) : (
         <span className="grid h-9 w-9 place-items-center rounded-full bg-sky text-sm font-bold text-white">
           {nickname.slice(0, 1)}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+/** 오른쪽 위 채팅 아이콘(2026-10-24 금윤호 "채팅은 우측 상단에 채팅 아이콘을 따로") — 안 읽은 말이 있으면 빨간 수. 누르면 채팅(인스타 DM 같은 두 칸) */
+export function ChatButton({ unread = 0 }: { unread?: number }) {
+  return (
+    <Link
+      href="/chat"
+      aria-label={unread ? `채팅 · 안 읽은 ${unread}개` : '채팅'}
+      title="채팅"
+      className="relative grid h-10 w-10 place-items-center rounded-full text-ink transition-colors hover:bg-ink/5"
+    >
+      <RoundChat className="h-5.5 w-5.5" />
+      {unread > 0 && (
+        <span className="absolute top-1 right-0.5 min-w-4 rounded-full bg-danger px-1 text-center text-[10px] leading-4 font-bold text-white">
+          {unread > 99 ? '99+' : unread}
         </span>
       )}
     </Link>

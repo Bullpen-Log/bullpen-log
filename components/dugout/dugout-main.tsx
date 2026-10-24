@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { RoundIcon, RoundSearch } from '@/components/round-icon';
 import { Wordmark } from '@/components/logo';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
-import { ProfileButton, SinkerButton } from '@/components/dugout/dugout-topbar';
+import { ChatButton, ProfileButton, SinkerButton } from '@/components/dugout/dugout-topbar';
 import { FEATURES } from '@/lib/dugout-features';
 
 /**
@@ -18,28 +18,31 @@ import { FEATURES } from '@/lib/dugout-features';
  *   이 판이 화면에 보이는 동안 위 막대는 숨고(data-top), 내려서 판이 다 지나가면 위에서 스르륵 내려온다(globals.css '덕아웃 첫 화면').
  *   위 막대 대신 판 맨 위에 작은 모서리 줄 — 왼쪽 DUGOUT, 오른쪽 싱커(S 로고) · 알림 · 설정 · 로그인.
  */
-const TABS = [
-  { key: 'dugout', label: '덕아웃' },
-  { key: 'sinker', label: '싱커' },
-] as const;
+/*
+ * 아이콘 줄 — 덕아웃 기능 다섯만(2026-10-24 금윤호: "싱커 탭은 아예 빼고, 물건 올리기 · 맞춤 코치 · 채팅 · 장비 추천 · 내 것은 필요 없다").
+ * 채팅은 모서리의 채팅 아이콘으로 간다.
+ */
+const HOME_ICONS = ['/community', '/market', '/lessons', '/venues', '/baseball'];
 
 export function DugoutMain({
   user,
   avatarUrl = null,
   alerts = 0,
+  unread = 0,
   sinker = false,
   native = false,
 }: {
   user: { nickname: string } | null;
   avatarUrl?: string | null;
   alerts?: number;
+  /** 안 읽은 채팅 수 — 모서리 채팅 아이콘의 점 */
+  unread?: number;
   sinker?: boolean;
   native?: boolean;
 }) {
   const box = useRef<HTMLElement>(null);
   /* 서버 그림부터 '판이 보임' — 첫 칠에 위 막대가 비쳤다 사라지지 않게 */
   const [top, setTop] = useState(true);
-  const [tab, setTab] = useState<(typeof TABS)[number]['key']>('dugout');
 
   /*
    * 다른 화면 · 싱커에서 넘어와 붙을 때 — 앞 화면의 위 막대가 보이는 채로 넘어와 0.5초 동안 옅어지며 남았다(2026-10-24 금윤호 "기본 홈에서 이게 안 보이게").
@@ -74,8 +77,7 @@ export function DugoutMain({
     return () => io.disconnect();
   }, []);
 
-  /* 알림은 모서리 종이 있어 아이콘 줄에서는 뺀다(10칸) */
-  const items = FEATURES.filter((f) => f.group === tab && f.href !== '/notifications');
+  const items = HOME_ICONS.map((h) => FEATURES.find((f) => f.href === h)).filter((f) => !!f);
 
   return (
     <section
@@ -90,7 +92,10 @@ export function DugoutMain({
         <div className="flex items-center gap-2">
           {sinker && <SinkerButton native={native} />}
           {user ? (
-            <DugoutBell initial={alerts} />
+            <>
+              <ChatButton unread={unread} />
+              <DugoutBell initial={alerts} />
+            </>
           ) : (
             <>
               <Link href="/login" className="flex min-h-10 items-center px-2 text-sm font-semibold text-muted hover:text-ink">
@@ -141,43 +146,19 @@ export function DugoutMain({
           </div>
         </form>
 
-        {/* [덕아웃 | 싱커] — 우리 탭 · 사이트로 가는 아이콘 줄 */}
-        <div className="mt-10">
-          <div role="tablist" aria-label="이동할 곳" className="flex justify-center border-b border-line">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                role="tab"
-                aria-selected={t.key === tab}
-                onClick={() => setTab(t.key)}
-                className={`relative min-h-12 w-40 text-[15px] font-bold transition-colors md:w-44 ${
-                  t.key === tab
-                    ? 'text-ink after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-ink'
-                    : 'text-muted hover:text-ink'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <ul
-            key={tab}
-            role="tabpanel"
-            className="mt-6 grid grid-cols-5 gap-y-5 motion-safe:animate-[launcher-in_240ms_ease-out] md:flex md:justify-between"
-          >
-            {items.map((it) => (
-              <li key={it.href} className="min-w-0">
-                <Link href={it.href} className="group flex flex-col items-center gap-2 rounded-xl px-1 py-1 md:w-20">
-                  <span className="grid h-11 w-11 place-items-center text-sky transition-transform group-hover:-translate-y-0.5">
-                    <RoundIcon name={it.icon} filled className="h-9 w-9" />
-                  </span>
-                  <span className="truncate text-center text-[13px] text-ink">{it.label}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {/* 덕아웃 기능으로 가는 아이콘 줄 */}
+        <ul className="mt-12 flex flex-wrap justify-center gap-x-6 gap-y-5 sm:gap-x-12 md:gap-x-16">
+          {items.map((it) => (
+            <li key={it.href}>
+              <Link href={it.href} className="group flex w-16 flex-col items-center gap-2 rounded-xl py-1 md:w-20">
+                <span className="grid h-12 w-12 place-items-center text-sky transition-transform group-hover:-translate-y-0.5">
+                  <RoundIcon name={it.icon} filled className="h-10 w-10" />
+                </span>
+                <span className="truncate text-center text-[13px] text-ink">{it.label}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

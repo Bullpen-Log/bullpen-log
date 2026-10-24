@@ -60,7 +60,6 @@ export function GamesPanel({ games, today }: { games: Record<League, Game[]>; to
           ))}
         </div>
       )}
-      <p className="border-t border-line px-4 py-2 text-[10px] text-muted">경기 정보 · 네이버 스포츠</p>
     </section>
   );
 }
