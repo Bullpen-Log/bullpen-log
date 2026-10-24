@@ -11,6 +11,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-24 · 김민(Claude, 커뮤니티 세션) — 커뮤니티 게시판 넷 · 칸 더함 · **받으면 `npx prisma generate`**
+
+받은 뒤 할 일: **`npx prisma generate`** — `CommunityPost` 에 `tag · media · acceptedCommentId · card · form · region · meetAt · closedAt`, 새 표 `CommunityBlock · CommunityJoin · CommunityMessage`
+(마이그레이션 `20261024190000_community_boards`, 공유 DB 에 적용함 — 더하기만, 백업 `db-2026-10-24-09-45.json`). 옛 코드도 돈다.
+김민: "커뮤니티는 모든 야구인 토론장 · 게시판 넷(자유 · 질문 · 답변 · 번개 · 팀 홍보 · 선수 모집) · 덕아웃은 휴대폰 브라우저에서도". 설계 `docs/designs/dugout-community.md`.
+- **'커뮤니티는 로그인한 사람만'(10-21 네 결정)을 바꿨다** — 목록 · 글은 로그인 없이 보이고 쓰기 · 댓글 · 좋아요 · 신고만 로그인(128bb368). 글 · 글쓰기의 OpenNative 도 걷었다(커뮤니티는 웹 하나로).
+- 로그인 화면의 덕아웃 문구는 네 몫이라 안 건드렸다. 휴대폰 브라우저 로그인(`proxy.ts` OPEN)은 1번 세션에 보고로 넘겼다.
+
 ## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 경기 상세 · 경기 댓글 — **받으면 `npx prisma generate`**
 
 받은 뒤 할 일: **`npx prisma generate`** — 새 표 `GameComment`(경기 댓글, 더하기만, 마이그레이션 `20261024170000_game_comment`). 옛 코드도 돈다.
