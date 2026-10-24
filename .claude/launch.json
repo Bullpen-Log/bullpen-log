@@ -23,6 +23,20 @@
         "8081"
       ],
       "port": 8081
+    },
+    {
+      "name": "bullpen-log-sub1",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        ".claude/worktrees/sub1",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3001"
+      ],
+      "port": 3001
     }
   ]
 }

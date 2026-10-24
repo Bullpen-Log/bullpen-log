@@ -30,11 +30,14 @@ function TeamLine({
   win,
   lose,
   big = false,
+  starter,
 }: {
   team: Game['home'];
   win: boolean;
   lose: boolean;
   big?: boolean;
+  /** 예정 경기의 선발 — 팀 이름 바로 옆에 */
+  starter?: string;
 }) {
   return (
     <span className={`flex min-w-0 items-center gap-2 ${lose ? 'text-muted' : 'text-ink'}`}>
@@ -45,6 +48,7 @@ function TeamLine({
       </span>
       <span className={`min-w-0 flex-1 truncate ${big ? 'text-[15px]' : 'text-[13px]'} ${win ? 'font-bold' : 'font-medium'}`}>
         {team.name}
+        {starter && <span className="ml-1.5 text-[11px] font-normal text-muted">선발 {starter}</span>}
       </span>
       {team.score != null && (
         <span className={`tabular-nums ${big ? 'text-lg' : 'text-[14px]'} ${win ? 'font-black' : 'font-semibold'}`}>
@@ -57,10 +61,7 @@ function TeamLine({
 
 /** 작은 한 줄(홈 오른쪽 칸) */
 export function GameRow({ g }: { g: Game }) {
-  const starters =
-    g.status === 'before' && (g.away.starter || g.home.starter)
-      ? `선발 ${g.away.starter ?? '미정'} · ${g.home.starter ?? '미정'}`
-      : null;
+  const pre = g.status === 'before' && !!(g.away.starter || g.home.starter);
   return (
     <li>
       <Link href={`/baseball/${g.id}`} className="-mx-2 block space-y-1 rounded-lg px-2 py-2.5 transition-colors hover:bg-ink/4">
@@ -70,9 +71,8 @@ export function GameRow({ g }: { g: Game }) {
         </span>
         {g.stadium && <span className="truncate">· {g.stadium}</span>}
       </p>
-      <TeamLine team={g.away} win={g.winner === 'away'} lose={g.winner === 'home'} />
-      <TeamLine team={g.home} win={g.winner === 'home'} lose={g.winner === 'away'} />
-      {starters && <p className="truncate pl-7 text-[11px] text-muted">{starters}</p>}
+      <TeamLine team={g.away} win={g.winner === 'away'} lose={g.winner === 'home'} starter={pre ? (g.away.starter ?? '미정') : undefined} />
+      <TeamLine team={g.home} win={g.winner === 'home'} lose={g.winner === 'away'} starter={pre ? (g.home.starter ?? '미정') : undefined} />
       </Link>
     </li>
   );
