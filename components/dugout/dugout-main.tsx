@@ -1,17 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, type ReactNode } from 'react';
 import { RoundIcon, RoundSearch } from '@/components/round-icon';
 import { Wordmark } from '@/components/logo';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
-import { ChatButton, ProfileButton, SinkerButton } from '@/components/dugout/dugout-topbar';
+import {
+  ChatButton,
+  ProfileButton,
+  SinkerButton,
+} from '@/components/dugout/dugout-topbar';
 import { FEATURES } from '@/lib/dugout-features';
 import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
 
 /**
  * 2026-10-24 금윤호(둘째): "'전국 에서 무엇이 필요하세요?' 글을 지우고 덕아웃 로고를 · 검색창은 '통합검색'만 · 우측 상단 싱커는 S 로고만 · 맨 끝엔 프로필".
- *   그래서 가운데 큰 덕아웃 로고([data-dugout-logo] — 싱커에서 돌아올 때 가운데 로고가 여기로 내려앉는다) → 통합검색 → 덕아웃 소식 띠(2026-10-24 금윤호 '통합검색 밑으로') → 아이콘 줄.
+ *   그래서 가운데 큰 덕아웃 로고([data-dugout-logo] — 싱커에서 돌아올 때 가운데 로고가 여기로 내려앉는다) → 통합검색 → 아이콘 줄 → 덕아웃 소식 띠(나중에 광고 자리), 오른쪽에 오늘의 경기 세로 칸.
  *   모서리 줄은 오른쪽만(싱커 S · 알림 · 설정 · 프로필).
  *
  * 덕아웃 첫 화면(2026-10-24 금윤호: "메인 화면을 그냥 이거로 — 덕아웃의 처음 시작화면은 이거") — 예전 큰 로고 화면(dugout-hero) 대신 이것.
@@ -36,7 +40,10 @@ export function DugoutMain({
   native = false,
   sinkerApp = false,
   slides,
+  aside,
 }: {
+  /** 첫 화면 오른쪽 칸(오늘의 경기) — PC · 패드만 */
+  aside?: ReactNode;
   /** 덕아웃 소식 띠 — 로고 밑 · 통합검색 위(2026-10-24 금윤호). 싱커 앱은 없다 */
   slides?: readonly BannerSlide[];
   user: { nickname: string } | null;
@@ -49,7 +56,6 @@ export function DugoutMain({
   /** 싱커 앱 안 — 통합검색(장터까지 찾는다) · 싱커 S · 설정 · 프로필은 빼고 아이콘은 넷(커뮤니티 · 레슨 · 연습장 · 채팅) */
   sinkerApp?: boolean;
 }) {
-
   /*
    * 다른 화면 · 싱커에서 넘어와 붙을 때 — 앞 화면의 위 막대가 보이는 채로 넘어와 0.5초 동안 옅어지며 남았다(2026-10-24 금윤호 "기본 홈에서 이게 안 보이게").
    * 붙는 순간(그리기 전)에 숨김을 html 에 적고 그 한 번은 transition 없이 — 나타날 때(내려서 판이 지나갈 때)만 스르륵.
@@ -91,7 +97,10 @@ export function DugoutMain({
             </>
           ) : (
             <>
-              <Link href="/login" className="flex min-h-10 items-center px-2 text-sm font-semibold text-muted hover:text-ink">
+              <Link
+                href="/login"
+                className="flex min-h-10 items-center px-2 text-sm font-semibold text-muted hover:text-ink"
+              >
                 로그인
               </Link>
               <Link
@@ -103,12 +112,17 @@ export function DugoutMain({
             </>
           )}
           {!sinkerApp && <DugoutSettings />}
-          {user && !sinkerApp && <ProfileButton nickname={user.nickname} avatarUrl={avatarUrl} />}
+          {user && !sinkerApp && (
+            <ProfileButton nickname={user.nickname} avatarUrl={avatarUrl} />
+          )}
         </div>
       </div>
 
-      <div className="mx-auto max-w-6xl pt-10 md:pt-16">
-        <h1 className="flex justify-center">
+      <div
+        className={`mx-auto max-w-6xl pt-10 md:pt-16 ${aside ? 'md:grid md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-6 lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8' : ''}`}
+      >
+        <div className="min-w-0">
+          <h1 className="flex justify-center">
             <Link
               href={native ? '/?dugout=1' : '/'}
               aria-label="덕아웃"
@@ -117,46 +131,61 @@ export function DugoutMain({
             >
               <Wordmark brand="dugout" className="text-5xl text-ink md:text-7xl" />
             </Link>
-        </h1>
-        <form action="/search" method="get" role="search" className="mt-6">
-          <div className={`mx-auto max-w-3xl items-center gap-2 ${sinkerApp ? 'hidden' : 'flex'}`}>
-            <label className="relative min-w-0 flex-1">
-              <RoundSearch className="pointer-events-none absolute top-1/2 left-4 h-4.5 w-4.5 -translate-y-1/2 text-muted" />
-              <input
-                name="q"
-                type="search"
-                placeholder="통합검색"
-                aria-label="덕아웃 통합검색"
-                className="min-h-11 w-full appearance-none rounded-xl bg-ink/6 pr-4 pl-11 text-[15px] text-ink placeholder:text-muted/70 focus:bg-surface focus:ring-2 focus:ring-sky focus:outline-none"
-              />
-            </label>
-            <button
-              type="submit"
-              className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-ink px-5 text-sm font-bold text-page"
+          </h1>
+          <form action="/search" method="get" role="search" className="mt-6">
+            <div
+              className={`mx-auto max-w-3xl items-center gap-2 ${sinkerApp ? 'hidden' : 'flex'}`}
             >
-              찾기
-            </button>
-          </div>
-        </form>
-        {slides && (
-          <div className="mt-8">
-            <MarketHero slides={slides} slim label="덕아웃 소식" />
-          </div>
-        )}
+              <label className="relative min-w-0 flex-1">
+                <RoundSearch className="pointer-events-none absolute top-1/2 left-4 h-4.5 w-4.5 -translate-y-1/2 text-muted" />
+                <input
+                  name="q"
+                  type="search"
+                  placeholder="통합검색"
+                  aria-label="덕아웃 통합검색"
+                  className="min-h-11 w-full appearance-none rounded-xl bg-ink/6 pr-4 pl-11 text-[15px] text-ink placeholder:text-muted/70 focus:bg-surface focus:ring-2 focus:ring-sky focus:outline-none"
+                />
+              </label>
+              <button
+                type="submit"
+                className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-ink px-5 text-sm font-bold text-page"
+              >
+                찾기
+              </button>
+            </div>
+          </form>
 
-        {/* 덕아웃 기능으로 가는 아이콘 줄 */}
-        <ul className="mt-9 flex flex-wrap justify-center gap-x-5 gap-y-4 sm:gap-x-10 md:gap-x-12">
-          {items.map((it) => (
-            <li key={it.href}>
-              <Link href={it.href} className="group flex w-16 flex-col items-center gap-2 rounded-xl py-1 md:w-20">
-                <span className="grid h-10 w-10 place-items-center text-sky transition-transform group-hover:-translate-y-0.5">
-                  <RoundIcon name={it.icon} filled className="h-8 w-8" />
-                </span>
-                <span className="truncate text-center text-xs text-ink">{it.label}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+          {/* 덕아웃 기능으로 가는 아이콘 줄 */}
+          <ul className="mt-9 flex flex-wrap justify-center gap-x-5 gap-y-4 sm:gap-x-10 md:gap-x-12">
+            {items.map((it) => (
+              <li key={it.href}>
+                <Link
+                  href={it.href}
+                  className="group flex w-16 flex-col items-center gap-2 rounded-xl py-1 md:w-20"
+                >
+                  <span className="grid h-10 w-10 place-items-center text-sky transition-transform group-hover:-translate-y-0.5">
+                    <RoundIcon name={it.icon} filled className="h-8 w-8" />
+                  </span>
+                  <span className="truncate text-center text-xs text-ink">
+                    {it.label}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          {/* 덕아웃 소식 · 나중에 광고 자리 — 아이콘 줄 밑(2026-10-24 분석: 검색 ↔ 아이콘은 붙여 두고, 첫 화면 끝에서 보이게. 네이버 첫 화면과 같은 차례) */}
+          {slides && (
+            <div className="mt-10">
+              <MarketHero slides={slides} slim label="덕아웃 소식" />
+            </div>
+          )}
+        </div>
+        {/*
+          오늘의 경기 — 첫 화면 오른쪽 세로 칸(2026-10-24 금윤호 "처음 접속했을 때 오른쪽에 세로로"). 밑 본문의 경기 칸과 같은 줄(같은 폭 · 같은 틈)에 둬서
+          한 번 굴려 본문으로 가도 같은 자리에 같은 칸이 이어지는 것처럼 보인다. 휴대폰은 본문 쪽 카드가 맡는다.
+        */}
+        {aside && <aside className="hidden md:block">{aside}</aside>}
       </div>
     </section>
   );

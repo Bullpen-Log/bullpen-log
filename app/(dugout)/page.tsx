@@ -124,6 +124,7 @@ export default async function DugoutHome({
           native={native}
           sinkerApp={sinkerApp}
           slides={sinkerApp ? undefined : slides}
+          aside={sinkerApp ? undefined : <GamesPanel games={games} today={today} />}
         />
         {/*
           경기 칸은 오른쪽에 작게 따로(2026-10-24 금윤호 "야구 일정 결과를 우측으로 작게 빼 달라고") — 휴대폰이 아니면(768px~) 본문 오른쪽의 좁은 칸(220~240px)에 떠서

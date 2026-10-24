@@ -8,7 +8,7 @@ import type { RoundIconName } from '@/lib/round-icons';
 /**
  * 장터 맨 위 큰 띠(2026-10-23 금윤호: "장터는 번개장터 느낌을 최대한") — 번개장터 첫 화면의 검은 둥근 띠처럼 한 장씩 넘어간다.
  * 5초마다 다음 장, 좌우 단추(휴대폰은 쓸기) · 오른쪽 아래 'n/3'. 움직임 줄이기면 저절로 안 넘긴다. 사진 대신 우리 둥근 아이콘을 크게.
- * slim 은 덕아웃 홈의 띠(숨고 첫 화면의 '휴대폰 바꿀 때도…' 띠처럼) — 한 줄 글 · 장 전체가 링크. 2026-10-24 금윤호 '크기 키워줘'로 높이 · 글 · 동그라미를 키움.
+ * slim 은 덕아웃 홈의 띠(숨고 첫 화면의 '휴대폰 바꿀 때도…' 띠처럼) — 한 줄 글 · 장 전체가 링크. 나중에 광고가 들어갈 자리(2026-10-24 금윤호) — 높이를 미리 고정해 늦게 뜬 광고가 밑을 밀지 않게, 광고면 ad 로 '광고' 표시.
  */
 export type BannerSlide = {
   kicker: string;
@@ -17,6 +17,8 @@ export type BannerSlide = {
   href: string;
   /** 이름으로 받는다 — 서버 페이지가 장을 넘길 수 있게(함수는 못 넘긴다) */
   icon: RoundIconName;
+  /** 광고 장 — 왼쪽 위에 '광고' 표시(공정위 추천 · 보증 심사지침: 광고임을 분명히) */
+  ad?: boolean;
 };
 
 const SLIDES: readonly BannerSlide[] = [
@@ -58,9 +60,10 @@ export function MarketHero({
   const [paused, setPaused] = useState(false);
   useEffect(() => {
     if (paused || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const t = window.setInterval(() => setI((n) => (n + 1) % count), 5000);
+    /* 홈 띠는 광고 자리라 천천히(7초 — 읽기 전에 넘어가지 않게), 장터 큰 띠는 5초 */
+    const t = window.setInterval(() => setI((n) => (n + 1) % count), slim ? 7000 : 5000);
     return () => window.clearInterval(t);
-  }, [paused, count]);
+  }, [paused, count, slim]);
   const go = (d: number) => setI((n) => (n + d + SLIDES.length) % SLIDES.length);
   // 휴대폰은 좌우 단추 대신 손가락으로 쓸어 넘긴다(옆으로 40px 넘게, 세로보다 많이)
   const touch = useRef<{ x: number; y: number } | null>(null);
@@ -93,16 +96,19 @@ export function MarketHero({
                 href={s.href}
                 aria-hidden={n !== i}
                 tabIndex={n === i ? 0 : -1}
-                className="flex min-h-32 w-full shrink-0 items-center justify-between gap-5 px-6 md:min-h-44 md:px-16"
+                className="flex min-h-28 w-full shrink-0 items-center justify-between gap-5 px-6 md:min-h-36 md:px-16"
               >
                 <span className="min-w-0">
-                  <span className="block text-sm font-bold text-white/60 md:text-base">{s.kicker}</span>
-                  <span className="mt-1.5 block text-xl leading-snug font-black break-keep md:text-3xl">
+                  <span className="flex items-center gap-2 text-sm font-bold text-white/60">
+                    {s.ad && <span className="rounded bg-white/15 px-1.5 py-px text-[11px] font-bold text-white/80">광고</span>}
+                    {s.kicker}
+                  </span>
+                  <span className="mt-1 block text-lg leading-snug font-black break-keep md:text-2xl">
                     {s.title.join(' ')}
                   </span>
                 </span>
-                <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-sky text-white md:h-24 md:w-24">
-                  <RoundIcon name={s.icon} filled className="h-9 w-9 md:h-12 md:w-12" />
+                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-sky text-white md:h-20 md:w-20">
+                  <RoundIcon name={s.icon} filled className="h-8 w-8 md:h-10 md:w-10" />
                 </span>
               </Link>
             );
