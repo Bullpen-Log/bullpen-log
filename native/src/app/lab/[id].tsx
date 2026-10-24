@@ -218,7 +218,7 @@ export default function LabScreen() {
               {r && report ? (
                 <ReportHero
                   report={report}
-                  stage={<Lab3D ref={lab} id={data.id} width={boxW} bg={STAGE_BG} onTransport={onTransport} stop={report.headline.frame} dark />}
+                  stage={<Lab3D key={data.shown ?? ''} ref={lab} id={data.id} width={boxW} bg={STAGE_BG} onTransport={onTransport} stop={report.headline.frame} dark />}
                 />
               ) : (
                 <>
