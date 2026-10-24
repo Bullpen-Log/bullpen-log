@@ -1,16 +1,16 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { RoundStar } from '@/components/round-icon';
+import { RoundStar, RoundVenue } from '@/components/round-icon';
 import { LessonFrame } from '@/components/dugout/lesson-frame';
 import { Badge, Card } from '@/components/ui';
 import { CoachAvatar, CoachBadges, Stars } from '@/components/dugout/coach-card';
 import { ConfirmButton } from '@/components/master/confirm-button';
 import { cancelBooking } from '@/app/actions/lessons';
 import { getCurrentUser } from '@/lib/dal';
-import { loadCoach } from '@/lib/market/lesson-load';
+import { loadCoach, loadCoachDays } from '@/lib/market/lesson-load';
 import { bookingStatusLabel, formatSlot, reviewTagLabel, specialtyLabel } from '@/lib/market/lessons';
 import { formatPrice } from '@/lib/market/specs';
-import { WEEKDAYS } from '@/lib/market/venues';
+import { WEEKDAYS, weekdayOf } from '@/lib/market/venues';
 import { relativeTime } from '@/components/community/community-format';
 
 type SP = { [key: string]: string | string[] | undefined };
@@ -18,6 +18,7 @@ type SP = { [key: string]: string | string[] | undefined };
 /**
  * 코치 하나(3판, 닥터나우 의사 상세 재해석) — 아바타 · 레슨장 · 이름 · 별점 · 특징, 칸 셋(가격 · 후기 · 회원), 소개 · 가격 · 레슨 시간 · 후기 요약(별 분포 + 좋았던 점) ·
  * 후기 목록. 아래 고정 막대 '가격 · 레슨 요청하기'(/lessons/[id]/book). 이미 살아 있는 요청이 있으면 그 상태와 취소.
+ * PC(lg, 2026-10-24): 왼쪽 본문 · 오른쪽 따라오는 예약 판(가격 · 앞으로 7일 빈 칸 · 요청 단추 · 확정 속도). 아래 고정 막대는 휴대폰 · 패드만.
  */
 export default async function CoachPage({
   params,
@@ -40,17 +41,60 @@ export default async function CoachPage({
   ).toString();
   const bookHref = `/lessons/${c.id}/book${bookQuery ? `?${bookQuery}` : ''}`;
   const priceText = c.priceFrom != null ? `${formatPrice(c.priceFrom)}~` : '가격 문의';
+  const week = await loadCoachDays(c, 7);
+  const confirmText =
+    c.confirmHours == null
+      ? null
+      : c.confirmHours < 1
+        ? '1시간 안'
+        : c.confirmHours <= 24
+          ? `${Math.round(c.confirmHours)}시간 안`
+          : `${Math.round(c.confirmHours / 24)}일쯤`;
+
+  /* 요청 단추 — 아래 고정 막대(휴대폰)와 오른쪽 예약 판(PC)이 같이 쓴다. full 이면 판 폭을 꽉 채운다 */
+  const cta = (full: boolean) =>
+    c.mine ? (
+      <Link href="/manage/settings#coach" className={`${full ? 'w-full justify-center' : 'ml-auto'} inline-flex min-h-12 items-center rounded-full bg-ink/6 px-5 text-sm font-semibold text-ink`}>
+        내 프로필 고치기
+      </Link>
+    ) : !user ? (
+      <Link href={`/login?next=${encodeURIComponent(bookHref)}`} className={`${full ? 'w-full justify-center' : 'ml-auto'} inline-flex min-h-12 items-center rounded-full bg-sky px-5 text-base font-bold text-white`}>
+        로그인하고 요청하기
+      </Link>
+    ) : c.myBooking ? (
+      <span className={`${full ? 'w-full flex-wrap justify-between' : 'ml-auto'} flex items-center gap-2 text-sm`}>
+        <Badge className="text-sky-strong">{bookingStatusLabel(c.myBooking.status)}</Badge>
+        <span className={`${full ? '' : 'hidden sm:inline'} text-xs text-muted`}>
+          {c.myBooking.chosen ? formatSlot(c.myBooking.chosen) : formatSlot(c.myBooking.slot1)}
+        </span>
+        <ConfirmButton action={cancelBooking} fields={{ id: c.myBooking.id }} message="이 요청을 취소할까요?" doneToast="취소했어요.">
+          취소
+        </ConfirmButton>
+      </span>
+    ) : (
+      <Link href={bookHref} className={`${full ? 'w-full justify-center' : 'ml-auto'} inline-flex min-h-12 items-center rounded-full bg-sky px-6 text-base font-bold text-white transition-colors hover:bg-sky-strong`}>
+        {c.coach} 코치에게 레슨 요청
+      </Link>
+    );
 
   return (
-    <LessonFrame back="/lessons/list" backLabel="코치 목록" title={`${c.coach} 코치`}>
-      <div className="space-y-6 pb-24">
+    <LessonFrame
+      back="/lessons/list"
+      backLabel="코치 목록"
+      title={`${c.coach} 코치`}
+      crumbs={[{ label: '레슨', href: '/lessons' }, { label: '코치 목록', href: '/lessons/list' }, { label: `${c.coach} 코치` }]}
+      subtitle={[c.name, c.region].filter(Boolean).join(' · ')}
+    >
+      <div className="space-y-6 pb-24 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-10 lg:space-y-0 lg:pb-0">
+      <div className="space-y-6 lg:space-y-8">
 
       {/* 머리 */}
-      <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-start sm:text-left">
+      <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-start sm:text-left lg:items-center">
         <CoachAvatar name={c.coach} size="xl" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm text-muted">{c.name}</p>
-          <p className="text-2xl font-black text-ink">{c.coach} 코치</p>
+          {/* PC 는 위 머리에 이름 · 레슨장이 있어 여기서는 뺀다 */}
+          <p className="text-sm text-muted lg:hidden">{c.name}</p>
+          <p className="text-2xl font-black text-ink lg:hidden">{c.coach} 코치</p>
           <p className="mt-1 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
             <Stars rating={c.rating} reviews={c.reviews} className="text-sm" />
             {c.career && <span className="text-xs text-muted">{c.career}</span>}
@@ -109,6 +153,21 @@ export default async function CoachPage({
         <h2 className="text-sm font-bold text-ink">소개</h2>
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{c.intro ?? '소개를 준비 중이에요.'}</p>
         {c.region && <p className="text-xs text-muted">지역 · {c.region}</p>}
+        {c.address && (
+          <Link
+            href="/venues?kind=lesson"
+            className="mt-1 flex items-center gap-3 rounded-2xl border border-line bg-surface p-3 transition-colors hover:border-sky-soft"
+          >
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky/12 text-sky-strong">
+              <RoundVenue className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-ink">{c.address}</span>
+              <span className="block text-xs text-muted">{c.located ? '레슨장 지도에서 위치 보기' : '레슨장 지도 보기'}</span>
+            </span>
+            <span className="text-muted">›</span>
+          </Link>
+        )}
       </section>
 
       <section id="price" className="scroll-mt-24 space-y-2">
@@ -220,36 +279,64 @@ export default async function CoachPage({
         )}
       </section>
 
-      {/* 아래 고정 막대 — 닥터나우 '홍상영 의사에게 진료받기' */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--tab-bar-top,0px)+0.75rem)] z-30 px-4 md:bottom-6">
+      </div>
+
+      {/* PC 예약 판 — 머리 밑에 붙어 따라온다 */}
+      <aside className="hidden lg:sticky lg:top-24 lg:block">
+        <div className="space-y-4 rounded-2xl border border-line bg-surface p-5 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.25)]">
+          <div>
+            <p className="text-xs text-muted">레슨 1회 · {c.slotMin}분</p>
+            <p className="text-2xl font-black text-ink">{priceText}</p>
+            {c.trialPrice != null && <p className="mt-0.5 text-xs font-semibold text-ok">첫 레슨 체험 {formatPrice(c.trialPrice)}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <p className="flex items-baseline justify-between text-xs">
+              <span className="font-bold text-ink">앞으로 7일</span>
+              <span className="text-muted">빈 칸 수</span>
+            </p>
+            <ol className="grid grid-cols-7 gap-1 text-center">
+              {week.byDay.map((d) => {
+                const open = d.slots.filter((x) => !x.taken && !x.past).length;
+                const wd = weekdayOf(d.dateKey);
+                return (
+                  <li
+                    key={d.dateKey}
+                    className={`rounded-lg py-1.5 ${open ? 'bg-sky/8' : 'bg-ink/4'}`}
+                    title={open ? `${open}칸 비어 있어요` : '빈 칸 없음'}
+                  >
+                    <span className={`block text-[10px] ${wd === 0 ? 'text-danger' : wd === 6 ? 'text-sky' : 'text-muted'}`}>
+                      {d.dateKey === week.todayKey ? '오늘' : WEEKDAYS[wd]}
+                    </span>
+                    <span className="block text-sm font-bold text-ink tabular-nums">{Number(d.dateKey.slice(8))}</span>
+                    <span className={`block text-[10px] font-semibold tabular-nums ${open ? 'text-sky-strong' : 'text-muted/50'}`}>
+                      {open || '–'}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+            {c.nextOpen && <p className="text-xs font-semibold text-ok">가장 빠른 시간 · {c.nextOpen}</p>}
+          </div>
+
+          {cta(true)}
+
+          <ul className="space-y-1 border-t border-line pt-3 text-xs text-muted">
+            <li>· 원하는 때를 둘까지 고르면 코치가 하나를 확정해요.</li>
+            {confirmText && <li>· 확정까지 보통 {confirmText}</li>}
+            <li>· 레슨이 끝나기 전에는 결제되지 않아요(결제는 준비 중).</li>
+          </ul>
+        </div>
+      </aside>
+
+      {/* 아래 고정 막대 — 닥터나우 '홍상영 의사에게 진료받기'(휴대폰 · 패드) */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--tab-bar-top,0px)+0.75rem)] z-30 px-4 md:bottom-6 lg:hidden">
         <div className="pointer-events-auto mx-auto flex max-w-2xl items-center gap-3 rounded-2xl border border-line bg-surface/95 p-3 shadow-lg backdrop-blur">
           <span className="min-w-0 pl-1">
             <span className="block text-[11px] text-muted">레슨 1회</span>
             <span className="block text-base font-black text-ink">{priceText}</span>
           </span>
-          {c.mine ? (
-            <Link href="/manage/settings#coach" className="ml-auto inline-flex min-h-12 items-center rounded-full bg-ink/6 px-5 text-sm font-semibold text-ink">
-              내 프로필 고치기
-            </Link>
-          ) : !user ? (
-            <Link href={`/login?next=${encodeURIComponent(bookHref)}`} className="ml-auto inline-flex min-h-12 items-center rounded-full bg-sky px-5 text-base font-bold text-white">
-              로그인하고 요청하기
-            </Link>
-          ) : c.myBooking ? (
-            <span className="ml-auto flex items-center gap-2 text-sm">
-              <Badge className="text-sky-strong">{bookingStatusLabel(c.myBooking.status)}</Badge>
-              <span className="hidden text-xs text-muted sm:inline">
-                {c.myBooking.chosen ? formatSlot(c.myBooking.chosen) : formatSlot(c.myBooking.slot1)}
-              </span>
-              <ConfirmButton action={cancelBooking} fields={{ id: c.myBooking.id }} message="이 요청을 취소할까요?" doneToast="취소했어요.">
-                취소
-              </ConfirmButton>
-            </span>
-          ) : (
-            <Link href={bookHref} className="ml-auto inline-flex min-h-12 items-center rounded-full bg-sky px-6 text-base font-bold text-white transition-colors hover:bg-sky-strong">
-              {c.coach} 코치에게 레슨 요청
-            </Link>
-          )}
+          {cta(false)}
         </div>
       </div>
       </div>

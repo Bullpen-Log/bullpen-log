@@ -292,6 +292,9 @@ export type CoachDetail = CoachCard & {
   } | null;
   /** 보는 사람이 이 레슨장의 주인인가 */
   mine: boolean;
+  /** 레슨장 주소 · 지도에 뜨는지(좌표가 있는지, 2026-10-24 덕아웃 지도) */
+  address: string | null;
+  located: boolean;
 };
 
 export async function loadCoach(
@@ -306,6 +309,8 @@ export async function loadCoach(
       ...COACH_SELECT,
       kind: true,
       ownerId: true,
+      address: true,
+      lat: true,
       reviews: {
         orderBy: { createdAt: 'desc' },
         take: 50,
@@ -343,6 +348,8 @@ export async function loadCoach(
     myBooking,
     /* 더미 코치는 주인(관리자)도 예약해 본다 — 화면을 끝까지 눌러 보려고 */
     mine: !!viewerId && o.ownerId === viewerId && !o.dummy,
+    address: o.address,
+    located: o.lat != null,
   };
 }
 
