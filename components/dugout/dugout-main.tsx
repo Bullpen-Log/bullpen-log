@@ -114,7 +114,7 @@ export function DugoutMain({
         </div>
       </div>
 
-      <div className="mx-auto max-w-5xl pt-10 md:pt-16">
+      <div className="mx-auto max-w-6xl pt-10 md:pt-16">
         <form action="/search" method="get" role="search" className="space-y-8">
           <h1 className="flex justify-center">
             <Link
@@ -126,7 +126,7 @@ export function DugoutMain({
               <Wordmark brand="dugout" className="text-6xl text-ink md:text-8xl" />
             </Link>
           </h1>
-          <div className="mx-auto flex max-w-xl items-center gap-2">
+          <div className="flex items-center gap-2">
             <label className="relative min-w-0 flex-1">
               <RoundSearch className="pointer-events-none absolute top-1/2 left-4 h-4.5 w-4.5 -translate-y-1/2 text-muted" />
               <input
