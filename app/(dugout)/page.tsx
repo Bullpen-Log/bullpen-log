@@ -113,23 +113,18 @@ export default async function DugoutHome({
           native={native}
         />
         {/*
-          본문은 예전 폭 · 자리 그대로(가운데 max-w-5xl). 경기 칸은 본문을 밀지 않는다(2026-10-24 금윤호 "야구 일정이 메인이 되고 덕아웃 기능이 밀려났다") —
-          화면이 넓으면(1600px~) 본문 오른쪽 빈 곳에 떠서 내려도 따라오고(sticky), 그보다 좁으면 띠 밑에 오른쪽으로 붙은 작은 카드.
+          경기 칸은 오른쪽에 작게 따로(2026-10-24 금윤호 "야구 일정 결과를 우측으로 작게 빼 달라고") — PC(1024px~)는 본문 오른쪽의 좁은 칸(240px)에 떠서
+          내려도 따라오고(sticky), 본문은 왼쪽 넓은 칸 그대로 먼저. 휴대폰 · 태블릿은 띠 밑에 오른쪽으로 붙은 작은 카드(본문 맨 위로 올라오지 않게).
         */}
-        <div className="relative mx-auto max-w-5xl pb-6">
-        <aside className="absolute top-0 left-full ml-8 hidden h-full w-[260px] min-[1600px]:block">
-          <div className="sticky top-24">
-            <GamesPanel games={games} today={today} />
-          </div>
-        </aside>
+        <div className="mx-auto grid max-w-6xl gap-8 pb-6 lg:grid-cols-[minmax(0,1fr)_240px]">
         <div className="min-w-0 space-y-16">
           {/* 로그인한 사람 — 최근 레슨(내 싱커 띠는 2026-10-23 금윤호 "덕아웃에서 내 싱커 블록도 없애줘") */}
           {lessons.length > 0 && <LessonFeedCard items={lessons} compact title="최근 레슨" />}
 
           <MarketHero slides={slides} slim label="덕아웃 소식" />
 
-          {/* 좁은 화면의 경기 칸 — 오른쪽으로 붙은 작은 카드(넓은 화면은 본문 밖 오른쪽에 뜬다) */}
-          <div className="flex justify-end min-[1600px]:hidden">
+          {/* 휴대폰 · 태블릿의 경기 칸 — 오른쪽으로 붙은 작은 카드(PC 는 오른쪽 칸) */}
+          <div className="flex justify-end lg:hidden">
             <div className="w-full sm:w-80">
               <GamesPanel games={games} today={today} />
             </div>
@@ -153,7 +148,7 @@ export default async function DugoutHome({
                 </Link>
               </p>
             ) : (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-6">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3">
                 {listings.map((item) => (
                   <ListingCard key={item.id} item={item} now={now} />
                 ))}
@@ -269,6 +264,11 @@ export default async function DugoutHome({
             )}
           </section>
         </div>
+        <aside className="hidden lg:block">
+          <div className="sticky top-24">
+            <GamesPanel games={games} today={today} />
+          </div>
+        </aside>
         </div>
       </div>
     </div>
