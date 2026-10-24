@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MapPlace } from '@/lib/market/map-load';
+import { coachTone } from '@/components/dugout/coach-card';
 
 /**
  * 덕아웃 지도(2026-10-24, 네이버 지도 · 카카오맵처럼) — 왼쪽 목록 · 오른쪽 지도(휴대폰은 지도 위 · 목록 밑).
@@ -152,7 +153,7 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
           <div className="absolute inset-0 grid place-items-center p-6 text-center">
             <div className="space-y-1">
               <p className="text-sm font-semibold text-ink">지도를 불러오지 못했어요</p>
-              <p className="text-xs text-muted">{KEY ? '잠시 뒤 다시 열어 주세요.' : '지도 열쇠를 넣으면 여기에 지도가 떠요. 목록은 그대로 볼 수 있어요.'}</p>
+              <p className="text-xs text-muted">목록에서 골라 주세요.</p>
             </div>
           </div>
         )}
@@ -188,17 +189,18 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
             <button
               type="button"
               onClick={() => (p.lat != null ? setPick(p.id) : undefined)}
-              className={`flex w-full gap-3 p-3 text-left transition-colors hover:bg-ink/3 ${pick === p.id ? 'bg-ink/5' : ''}`}
+              className={`flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-ink/3 ${pick === p.id ? 'bg-ink/5' : ''}`}
             >
-              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-surface-2">
-                {p.image && (
-                  // eslint-disable-next-line @next/next/no-img-element -- 저장소 서명 주소
-                  <img src={p.image} alt="" className="h-full w-full object-cover" loading="lazy" />
-                )}
-              </div>
+              {p.image ? (
+                // eslint-disable-next-line @next/next/no-img-element -- 저장소 서명 주소
+                <img src={p.image} alt="" className="h-14 w-14 shrink-0 rounded-xl bg-surface-2 object-cover" loading="lazy" />
+              ) : (
+                <span aria-hidden className={`grid h-14 w-14 shrink-0 place-items-center rounded-xl text-lg font-black ${coachTone(p.name)}`}>
+                  {p.name.slice(0, 1)}
+                </span>
+              )}
               <div className="min-w-0 flex-1">
                 <PlaceSummary p={p} />
-                {p.lat == null && <p className="mt-0.5 text-[11px] text-muted/70">지도 위치 없음</p>}
               </div>
             </button>
           </li>
@@ -211,19 +213,19 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
 function PlaceSummary({ p }: { p: MapPlace }) {
   return (
     <div className="min-w-0 space-y-0.5 pr-6">
-      <p className="flex items-center gap-1.5">
-        <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${p.type === 'lesson' ? 'bg-violet-500/12 text-violet-700' : 'bg-sky/12 text-sky-strong'}`}>
-          {p.kindLabel}
-        </span>
-        <span className="truncate text-sm font-semibold text-ink">{p.name}</span>
+      <p className="truncate text-[15px] font-semibold text-ink">{p.name}</p>
+      <p className="truncate text-[13px] text-muted">
+        {p.kindLabel}
+        {p.region || p.address ? ` · ${p.region ?? p.address}` : ''}
       </p>
-      {p.rating != null && (
-        <p className="text-xs text-ink">
-          ★ {p.rating} <span className="text-muted">후기 {p.reviews}</span>
-        </p>
-      )}
-      <p className="truncate text-xs text-muted">{p.address ?? p.region ?? '주소 없음'}</p>
-      {p.sub && <p className="truncate text-xs text-muted">{p.sub}</p>}
+      <p className="flex items-center gap-1.5 truncate text-[13px] text-ink">
+        {p.rating != null && (
+          <span className="shrink-0">
+            <span className="text-warn">★</span> {p.rating}
+          </span>
+        )}
+        <span className="truncate">{p.sub}</span>
+      </p>
     </div>
   );
 }

@@ -35,7 +35,6 @@ export default async function VenuesPage({ searchParams }: { searchParams: Promi
     <div className="space-y-4">
       <DugoutPageHeader
         title="연습장 · 레슨장"
-        subtitle="지도에서 찾고, 빈 시간을 보고 바로 예약해요."
         actions={
           <form method="get" action="/venues" className="flex w-full gap-2 sm:w-auto">
             {kind && <input type="hidden" name="kind" value={kind} />}
@@ -54,9 +53,6 @@ export default async function VenuesPage({ searchParams }: { searchParams: Promi
       />
       <CategoryRow label="장소 종류" items={kinds} keepScroll />
       <PlaceMap places={places} />
-      <p className="text-[11px] text-muted">
-        장소를 운영한다면 팀 · 레슨장 계정의 관리 화면에서 등록해요. 주소를 적으면 지도에 떠요.
-      </p>
     </div>
   );
 }
