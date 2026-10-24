@@ -323,13 +323,17 @@ export const s = StyleSheet.create({
 export function useBusy() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /* 상태는 다음 그림에서야 바뀌어 빠르게 두 번 누르면 둘 다 지나갔다 — 같은 그림 안에서도 막게 ref 로 본다 */
+  const running = useRef(false);
   const run = async (fn: () => Promise<string | null>) => {
-    if (busy) return;
+    if (running.current) return;
+    running.current = true;
     setBusy(true);
     setError(null);
     try {
       setError(await fn());
     } finally {
+      running.current = false;
       setBusy(false);
     }
   };

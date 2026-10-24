@@ -3,7 +3,7 @@
 import { scrollToTop } from '@/lib/scroller';
 import { useEffect, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { DUGOUT_HREF, MORE_HREF, type NavGroup, type NavItem, type SportKey } from '@/lib/nav';
+import { MORE_HREF, type NavGroup, type NavItem, type SportKey } from '@/lib/nav';
 import { slideToTab } from '@/components/tab-pager';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { applyTheme, THEME_CHOICES, type ThemeChoice } from '@/lib/theme';
@@ -98,12 +98,8 @@ export function ExpoTabBridge({
 
   useEffect(() => {
     if (!isExpo()) return;
-    /*
-     * 앱 아래 탭의 덕아웃은 작은 로고 홈(?home=1)으로 — 큰 로고 첫 화면은 휴대폰에서 매번 0.5초 연출을 틀고 한 번 더 쓸어 내려야 홈이었다
-     * (2026-10-24 전체 검토). 덕아웃 틀 안의 '홈' 칸(dugout-shell)과 같은 주소
-     */
     const shell = (t: NavItem) => ({
-      href: t.href === DUGOUT_HREF ? `${DUGOUT_HREF}&home=1` : t.href,
+      href: t.href,
       label: t.short ?? t.label,
       icon: t.icon,
       locked: !!t.locked,
@@ -179,5 +175,29 @@ export function ExpoTabBridge({
     return () => rn()?.postMessage(JSON.stringify({ t: 'tabbar', on: false }));
   }, []);
 
+  return null;
+}
+
+/**
+ * 덕아웃 틀(app/(dugout))의 앱 다리 — 그 틀에는 ExpoTabBridge 가 없어, 앱 아래 탭의 '덕아웃'을 누르면 (app) 틀이 떨어지며 보낸
+ * tabbar:false 로 앱 막대가 사라지고 돌아올 길이 없었다. 주소도 안 알려 앱이 웹 도착을 1.5초 기다렸다(2026-10-24 두 번째 검토).
+ * 막대를 켜 두고 주소를 알리고, 앱이 탭을 누르면 이 틀에서 옮겨 간다.
+ */
+export function DugoutAppBridge() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const search = useSearchParams().toString();
+  useEffect(() => {
+    if (!isExpo()) return;
+    const w = window as unknown as { __bpTab?: (href: string) => void; __bpRefresh?: () => void };
+    w.__bpTab = (href) => router.push(href);
+    w.__bpRefresh = () => quietRefresh(router);
+    rn()?.postMessage(JSON.stringify({ t: 'tabbar', on: true }));
+    return () => rn()?.postMessage(JSON.stringify({ t: 'tabbar', on: false }));
+  }, [router]);
+  useEffect(() => {
+    if (!isExpo()) return;
+    rn()?.postMessage(JSON.stringify({ t: 'path', path: pathname, search }));
+  }, [pathname, search]);
   return null;
 }

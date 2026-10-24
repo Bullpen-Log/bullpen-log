@@ -79,6 +79,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   /* 홈 그날 칸의 '영양 탭에서 자세히' — 그날로 연다(웹 /nutrition?date=) */
   useTabIntent('nutrition', (d) => setDate(d));
   const [busy, setBusy] = useState(false);
+  const running = useRef(false);
   /* 펴 둔 끼니(휴대폰 웹처럼 한 줄로 접어 두고 누르면 편다) */
   const [openMeals, setOpenMeals] = useState<MealKey[]>([]);
   /* 체중 권유 '그대로 둘게요'(통계 화면이 폰에 남김) — 통계에서 돌아올 때마다 다시 읽는다 */
@@ -115,12 +116,20 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   const oldest = shiftDateKey(today, -BACK_DAYS);
   const [, m, d] = date.split('-').map(Number);
 
+  /* 같은 그림 안에서 두 번 누른 것도 막게 ref 로 본다 · 던져도 잠금이 풀리게 finally */
   const run = async (job: () => Promise<string | null>): Promise<boolean> => {
-    if (busy) return false;
+    if (running.current) return false;
+    running.current = true;
     setBusy(true);
-    const err = await job();
-    setBusy(false);
-    if (err) Alert.alert('저장하지 못했어요', err);
+    try {
+      const err = await job();
+      if (err) Alert.alert('저장하지 못했어요', err);
+    } catch {
+      Alert.alert('저장하지 못했어요', '신호를 확인하고 다시 해 주세요.');
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
     return true;
   };
 
@@ -149,7 +158,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
       return;
     }
     /* 다른 저장이 도는 중이면 초안을 버리지 않고 편집을 그대로 둔다(예전엔 말없이 사라졌다) */
-    if (busy) {
+    if (running.current) {
       Alert.alert('잠깐만요', '다른 저장이 끝나면 다시 완료를 눌러 주세요.');
       return;
     }

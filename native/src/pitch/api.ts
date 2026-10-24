@@ -75,12 +75,17 @@ export async function call<T>(path: string, init: { method: string; body?: unkno
 export type Me = { userId: string; nickname: string; isAdmin: boolean; today: string; locks: { pitch: boolean } };
 let meCache: Promise<Me> | null = null;
 export function loadMe(): Promise<Me> {
-  meCache ??= rpc<({ ok: true } & Me) | { ok: false; error: string }>('app.loadAppMe').then((r) => {
+  if (meCache) return meCache;
+  const p = rpc<({ ok: true } & Me) | { ok: false; error: string }>('app.loadAppMe').then((r) => {
     if (!r.ok) throw new ApiError(r.error);
     return r;
   });
-  meCache.catch(() => (meCache = null));
-  return meCache;
+  meCache = p;
+  /* 그새 새로 물었으면(로그아웃 → 로그인) 새 물음은 지우지 않는다 */
+  p.catch(() => {
+    if (meCache === p) meCache = null;
+  });
+  return p;
 }
 /** 다시 묻게 — 로그아웃했거나 앱을 다시 볼 때(날이 바뀌었을 수 있다) */
 export const resetMe = () => {

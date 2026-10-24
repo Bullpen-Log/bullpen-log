@@ -67,6 +67,12 @@ export function HomeTab({
   const [home, setHome] = useState<AppHome | null>(() => (cached?.today === today ? cached : null));
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState(monthOf(today));
+  /* 자정에 달이 바뀌면 보던 달(그때의 이번 달)도 따라 넘긴다 — 지난 달을 일부러 보던 중이면 그대로 */
+  const [monthToday, setMonthToday] = useState(today);
+  if (monthToday !== today) {
+    setMonthToday(today);
+    if (month === monthOf(monthToday)) setMonth(monthOf(today));
+  }
   /* 고른 날 — 처음엔 없다(웹 홈처럼 날짜를 누르면 밑에 그날 칸이 펴지고 X 로 닫는다) */
   const [selected, setSelected] = useState<string | null>(null);
   const { logs, reload } = useMonth(month);
