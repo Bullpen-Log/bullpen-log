@@ -251,8 +251,9 @@ export async function loadRecommendedCoaches(n = 6): Promise<CoachCard[]> {
 }
 
 /** 허브의 '빠른 예약' — 오늘 · 내일 레슨 시간이 열린 코치 */
-export async function loadQuickCoaches(n = 6): Promise<CoachCard[]> {
-  const all = await loadCoaches({});
+export async function loadQuickCoaches(n = 6, loaded?: CoachCard[]): Promise<CoachCard[]> {
+  /* 이미 읽은 전체 목록이 있으면 다시 읽지 않는다(허브 PC 의 숫자 판이 같은 목록을 쓴다) */
+  const all = loaded ?? (await loadCoaches({}));
   return all
     .filter((c) => c.nextOpen && /^(오늘|내일)/.test(c.nextOpen))
     .map((c) => ({ ...c, match: null }))

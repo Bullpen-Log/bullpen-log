@@ -132,3 +132,73 @@ export function CoachCard({
     <div>{body}</div>
   );
 }
+
+/**
+ * 코치 카드(PC, 2026-10-24) — 격자 칸에 들어가는 세로 카드. 휴대폰 줄(CoachCard)과 같은 자료 · 같은 순서(왜 추천 → 이름 ★ → 전문 → 가격 · 다음 가능),
+ * 카드 전체가 상세로 가는 링크(이름 링크를 카드 크기로 덮는다 — 안쪽 단추와 링크가 겹치지 않게). `actions` 는 카드 아래 오른쪽(비교 담기 같은 것).
+ * 손가락이 아닌 PC 에서만 올리면 살짝 떠오른다.
+ */
+export function CoachTile({
+  c,
+  href,
+  actions,
+  admin = false,
+}: {
+  c: CoachCardData;
+  href: string;
+  actions?: ReactNode;
+  admin?: boolean;
+}) {
+  return (
+    <article className="group relative flex h-full flex-col rounded-2xl border border-line bg-surface p-5 transition-[border-color,box-shadow,transform] duration-200 ease-out focus-within:border-sky-soft desk:hover:-translate-y-0.5 desk:hover:border-ink/15 desk:hover:shadow-[0_10px_30px_-12px_rgba(0,0,0,0.18)] motion-reduce:transform-none">
+      <div className="flex items-start gap-3">
+        <CoachAvatar name={c.coach} size="lg" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs text-muted">{c.name}</p>
+          <Link
+            href={href}
+            className="block truncate text-base font-bold text-ink after:absolute after:inset-0 after:rounded-2xl after:content-[''] focus-visible:outline-none"
+          >
+            {c.coach} 코치
+          </Link>
+          <Stars rating={c.rating} reviews={c.reviews} className="mt-0.5" />
+        </div>
+      </div>
+
+      {c.match && c.match.reasons.length > 0 && (
+        <p className="mt-3 flex flex-wrap gap-1">
+          {c.match.reasons.map((r) => (
+            <span key={r} className="rounded-full bg-sky/10 px-2 py-0.5 text-[11px] font-semibold text-sky-strong">
+              {r}
+            </span>
+          ))}
+        </p>
+      )}
+
+      <p className="mt-3 flex flex-wrap gap-1">
+        {c.specialties.slice(0, 4).map((s) => (
+          <Badge key={s}>{specialtyLabel(s)}</Badge>
+        ))}
+        <CoachBadges c={c} admin={admin} />
+      </p>
+
+      {c.intro && <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-muted">{c.intro}</p>}
+
+      <div className="mt-auto flex items-end justify-between gap-3 border-t border-line pt-3">
+        <div className="min-w-0 space-y-0.5">
+          <p className="text-sm font-bold text-ink">
+            {c.priceFrom != null ? `${formatPrice(c.priceFrom)}~` : '가격 문의'}
+            <span className="ml-1 text-xs font-normal text-muted">· {c.slotMin}분</span>
+          </p>
+          <p className="truncate text-xs text-muted">
+            {c.region && <span>{c.region} · </span>}
+            <span className={c.nextOpen?.startsWith('오늘') ? 'font-semibold text-ok' : ''}>
+              {c.nextOpen ?? c.hours ?? '시간 문의'}
+            </span>
+          </p>
+        </div>
+        {actions && <div className="relative z-10 flex shrink-0 items-center gap-2">{actions}</div>}
+      </div>
+    </article>
+  );
+}
