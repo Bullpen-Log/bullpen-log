@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect } from 'react';
 import { RoundIcon, RoundSearch } from '@/components/round-icon';
 import { Wordmark } from '@/components/logo';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
@@ -15,7 +15,7 @@ import { FEATURES } from '@/lib/dugout-features';
  *
  * 덕아웃 첫 화면(2026-10-24 금윤호: "메인 화면을 그냥 이거로 — 덕아웃의 처음 시작화면은 이거") — 예전 큰 로고 화면(dugout-hero) 대신 이것.
  *   '[지역 ∨] 에서 무엇이 필요하세요?' + 통합검색(→ /search) · [덕아웃 | 싱커] 탭과 우리 기능으로 가는 아이콘 줄(lib/dugout-features.ts).
- *   이 판이 화면에 보이는 동안 위 막대는 숨고(data-top), 내려서 판이 다 지나가면 위에서 스르륵 내려온다(globals.css '덕아웃 첫 화면').
+ *   이 판이 첫 자리(A)인 동안 위 막대는 숨고, 한 번 굴리면 본문 자리(B)로 미끄러지며 막대가 내려앉는다(home-snap.tsx · globals.css '덕아웃 첫 화면').
  *   위 막대 대신 판 맨 위에 작은 모서리 줄 — 왼쪽 DUGOUT, 오른쪽 싱커(S 로고) · 알림 · 설정 · 로그인.
  */
 /*
@@ -45,9 +45,6 @@ export function DugoutMain({
   /** 싱커 앱 안 — 통합검색(장터까지 찾는다) · 싱커 S · 설정 · 프로필은 빼고 아이콘은 넷(커뮤니티 · 레슨 · 연습장 · 채팅) */
   sinkerApp?: boolean;
 }) {
-  const box = useRef<HTMLElement>(null);
-  /* 서버 그림부터 '판이 보임' — 첫 칠에 위 막대가 비쳤다 사라지지 않게 */
-  const [top, setTop] = useState(true);
 
   /*
    * 다른 화면 · 싱커에서 넘어와 붙을 때 — 앞 화면의 위 막대가 보이는 채로 넘어와 0.5초 동안 옅어지며 남았다(2026-10-24 금윤호 "기본 홈에서 이게 안 보이게").
@@ -67,30 +64,15 @@ export function DugoutMain({
     };
   }, []);
 
-  useEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      ([e]) => {
-        setTop(e.isIntersecting);
-        if (e.isIntersecting) document.documentElement.dataset.dugoutTop = '';
-        else delete document.documentElement.dataset.dugoutTop;
-      },
-      { threshold: 0 }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
   const items = (sinkerApp ? SINKER_APP_ICONS : HOME_ICONS)
     .map((h) => FEATURES.find((f) => f.href === h))
     .filter((f) => !!f);
 
   return (
     <section
-      ref={box}
       data-dugout-main
-      data-top={top ? '' : undefined}
+      /* 서버 그림부터 '판이 보임' — 첫 칠에 위 막대가 비치지 않게. 붙은 뒤에는 두 칸 스크롤(home-snap.tsx)이 html[data-dugout-top] 으로 맡는다 */
+      data-top=""
       aria-label="덕아웃 시작"
       className="relative -mx-4 -mt-5 px-4 pb-14 md:-mx-6 md:-mt-8 md:px-6 md:pb-20"
     >
