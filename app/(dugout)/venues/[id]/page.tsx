@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DugoutPageHeader, SectionHead } from '@/components/dugout/ui';
 import { notFound } from 'next/navigation';
 import { RoundBack, RoundVenue } from '@/components/round-icon';
 import { Badge, Card } from '@/components/ui';
@@ -31,7 +32,7 @@ export default async function VenuePage({ params, searchParams }: { params: Prom
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <Link href="/venues" className="inline-flex items-center gap-1 text-sm font-semibold text-sky">
+      <Link href="/venues" className="inline-flex items-center gap-1 text-sm font-semibold text-sky lg:hidden">
         <RoundBack className="h-4 w-4" /> 연습장 · 구장
       </Link>
       {v.images.length > 0 && (
@@ -48,7 +49,11 @@ export default async function VenuePage({ params, searchParams }: { params: Prom
           <Badge>{v.approval ? '승인 예약' : '즉시 예약'}</Badge>
           {v.mine && <Badge className="text-sky-strong">내 장소</Badge>}
         </p>
-        <h1 className="text-2xl font-black text-ink">{v.name}</h1>
+        <DugoutPageHeader
+          title={v.name}
+          crumbs={[{ label: '덕아웃', href: '/' }, { label: '연습장 · 레슨장', href: '/venues' }, { label: v.name }]}
+          className="[&_nav]:hidden lg:[&_nav]:flex"
+        />
         <p className="inline-flex items-center gap-1 text-sm text-muted">
           <RoundVenue className="h-4 w-4" /> {v.region}
           {v.address ? ` · ${v.address}` : ''}
@@ -71,21 +76,21 @@ export default async function VenuePage({ params, searchParams }: { params: Prom
         </dl>
       </Card>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-bold text-ink">날짜</h2>
+      <section className="space-y-4">
+        <SectionHead title="날짜" />
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
           {days.map((d) => {
             const on = d === dateKey;
             const wd = weekdayOf(d);
             return (
-              <Link key={d} href={`/venues/${v.id}?date=${d}`} aria-current={on ? 'date' : undefined} className={`flex min-w-14 shrink-0 flex-col items-center rounded-xl border px-2 py-2 text-xs ${on ? 'border-sky bg-sky text-white' : v.hours[wd] ? 'border-line bg-surface text-ink' : 'border-line bg-surface-2 text-muted/60'}`}>
+              <Link key={d} href={`/venues/${v.id}?date=${d}`} aria-current={on ? 'date' : undefined} className={`flex min-w-14 shrink-0 flex-col items-center rounded-xl border px-2 py-2 text-xs ${on ? 'border-ink bg-ink text-page' : v.hours[wd] ? 'border-line bg-surface text-ink' : 'border-line bg-surface-2 text-muted/60'}`}>
                 <span>{WEEKDAYS[wd]}</span>
                 <span className="text-base font-bold">{Number(d.slice(8))}</span>
               </Link>
             );
           })}
         </div>
-        <h2 className="text-sm font-bold text-ink">{Number(dateKey.slice(5, 7))}월 {Number(dateKey.slice(8))}일 빈 칸</h2>
+        <SectionHead title={`${Number(dateKey.slice(5, 7))}월 ${Number(dateKey.slice(8))}일 빈 칸`} />
         {v.mine ? <p className="text-sm text-muted">내 장소예요. 예약 관리는 관리 화면의 ‘장소’에서.</p> : <VenueBooking venueId={v.id} dateKey={dateKey} slots={slots} loggedIn={!!user} approval={v.approval} />}
       </section>
       <p className="text-xs text-muted">운영: {v.owner}</p>

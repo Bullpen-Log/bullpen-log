@@ -48,7 +48,7 @@ export function DugoutPageHeader({
         <h1 className="text-[26px] leading-tight font-black tracking-tight text-ink">{title}</h1>
         {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2 has-[form]:w-full sm:has-[form]:w-auto">{actions}</div>}
     </div>
   );
 }

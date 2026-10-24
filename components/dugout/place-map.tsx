@@ -188,7 +188,7 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
             <button
               type="button"
               onClick={() => (p.lat != null ? setPick(p.id) : undefined)}
-              className={`flex w-full gap-3 p-3 text-left transition-colors hover:bg-ink/3 ${pick === p.id ? 'bg-sky/8' : ''}`}
+              className={`flex w-full gap-3 p-3 text-left transition-colors hover:bg-ink/3 ${pick === p.id ? 'bg-ink/5' : ''}`}
             >
               <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-surface-2">
                 {p.image && (

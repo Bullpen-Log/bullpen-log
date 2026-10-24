@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { PlaceMap } from '@/components/dugout/place-map';
+import { CategoryRow, DugoutPageHeader } from '@/components/dugout/ui';
 import { loadMapPlaces } from '@/lib/market/map-load';
 import { VENUE_KINDS, isVenueKind } from '@/lib/market/venues';
 
@@ -24,45 +24,35 @@ export default async function VenuesPage({ searchParams }: { searchParams: Promi
     const s = new URLSearchParams(Object.entries({ kind: k, q }).filter(([, v]) => v) as [string, string][]);
     return `/venues${s.size ? `?${s}` : ''}`;
   };
-  const chip = (k: string | undefined, label: string) => (
-    <Link
-      key={label}
-      href={href(k)}
-      scroll={false}
-      data-nav="none"
-      aria-current={kind === k ? 'page' : undefined}
-      className={`inline-flex min-h-9 shrink-0 items-center rounded-full px-3.5 text-xs font-semibold whitespace-nowrap ${kind === k ? 'bg-ink text-page' : 'border border-line bg-surface text-ink hover:border-ink/30'}`}
-    >
-      {label}
-    </Link>
-  );
+  const kinds = [{ key: undefined, label: '전체' }, { key: 'lesson', label: '레슨장' }, ...VENUE_KINDS].map((k) => ({
+    key: k.key ?? 'all',
+    label: k.label,
+    href: href(k.key),
+    on: kind === k.key,
+  }));
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-ink">연습장 · 레슨장</h1>
-          <p className="mt-1 text-sm text-muted">지도에서 찾고, 빈 시간을 보고 바로 예약해요.</p>
-        </div>
-        <form method="get" action="/venues" className="flex w-full gap-2 sm:w-auto">
-          {kind && <input type="hidden" name="kind" value={kind} />}
-          <input
-            name="q"
-            type="search"
-            defaultValue={q ?? ''}
-            placeholder="이름 · 동네 · 주소"
-            className="min-h-10 min-w-0 flex-1 rounded-xl border border-line bg-surface px-4 text-sm text-ink focus:border-sky focus:outline-none sm:w-64"
-          />
-          <button type="submit" className="min-h-10 rounded-xl bg-ink px-4 text-sm font-bold text-page">
-            찾기
-          </button>
-        </form>
-      </div>
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
-        {chip(undefined, '전체')}
-        {chip('lesson', '레슨장')}
-        {VENUE_KINDS.map((k) => chip(k.key, k.label))}
-      </div>
+      <DugoutPageHeader
+        title="연습장 · 레슨장"
+        subtitle="지도에서 찾고, 빈 시간을 보고 바로 예약해요."
+        actions={
+          <form method="get" action="/venues" className="flex w-full gap-2 sm:w-auto">
+            {kind && <input type="hidden" name="kind" value={kind} />}
+            <input
+              name="q"
+              type="search"
+              defaultValue={q ?? ''}
+              placeholder="이름 · 동네 · 주소"
+              className="min-h-10 min-w-0 flex-1 rounded-xl border border-line bg-surface px-4 text-sm text-ink focus:border-sky focus:outline-none sm:w-64"
+            />
+            <button type="submit" className="min-h-10 rounded-xl bg-ink px-4 text-sm font-bold text-page">
+              찾기
+            </button>
+          </form>
+        }
+      />
+      <CategoryRow label="장소 종류" items={kinds} keepScroll />
       <PlaceMap places={places} />
       <p className="text-[11px] text-muted">
         장소를 운영한다면 팀 · 레슨장 계정의 관리 화면에서 등록해요. 주소를 적으면 지도에 떠요.
