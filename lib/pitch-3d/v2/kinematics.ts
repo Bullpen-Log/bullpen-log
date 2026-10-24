@@ -517,6 +517,12 @@ function reachCap(hip: Vec3, target: Vec3, reach: number): Vec3 {
 /** 무릎이 굽는 쪽이 발끝 방향에서 벗어날 수 있는 만큼 — 경첩이라 정강이 돌림 · 발끝 벌림만큼만 */
 const KNEE_TOE_MAX = 60;
 /**
+ * 발끝 방향의 '다리 축에 수직인 몫'(0~1)이 이 사이면 묶음을 풀어 준다 — 발끝으로 선 발(뒤꿈치 → 발끝이 다리 축과 거의 나란함)은 발끝이 무릎
+ * 기준이 못 된다. 2026-10-24 김민 "마커 39 애니메이션이 조금씩 끊긴다": 릴리스 뒤 축발이 발끝으로 서(다리 축과 18~31°, 수직 몫 0.32~0.49)
+ * 원 결과 무릎이 발끝에서 71 → 85° 로 도는 8장면 동안 묶였다 풀려, 화면 무릎이 옆으로 4cm 끌렸다 돌아왔다(넙다리 각속도가 앞뒤의 3~4배).
+ */
+const KNEE_TOE_FLAT = [0.4, 0.7] as const;
+/**
  * 무릎을 발끝 쪽으로 — 엉덩이 → 발목 축 둘레에서 무릎이 굽은 쪽(발끝 방향에서 잰 각 θ)을, 뒤로 간 만큼은 발끝 쪽으로 거울처럼 접고(|θ| > 90°
  * 면 180° − |θ|) ±KNEE_TOE_MAX 로 묶는다(굽힘 · 길이 그대로). 다듬은 굽는 축으로 무릎을 다시 접으면 축이 반 바퀴 틀린 장면에 무릎이 발끝 반대로
  * 꺾였다(2026-10-13 실험실 기아 샘플 공 놓은 뒤 15장면 · 샘플 10 착지 전: 원 결과는 거의 편 다리인데 화면은 22° 를 발끝 반대로). 접지 않고
@@ -534,9 +540,10 @@ export function kneeTowardToes(hip: Vec3, knee: Vec3, ankle: Vec3, toeDir: Vec3)
   const folded = Math.abs(th) <= Math.PI / 2 ? th : Math.sign(th) * (Math.PI - Math.abs(th));
   const want = clamp(folded, -rad(KNEE_TOE_MAX), rad(KNEE_TOE_MAX));
   if (Math.abs(want - th) < 1e-9) return knee;
-  /* 많이 굽힌 무릎(다리 들기)은 발이 아래로 처져 발끝이 기준이 못 된다 — 굽힘 50° 까지 묶고 70° 까지 풀어 준다 */
+  /* 많이 굽힌 무릎(다리 들기)은 발이 아래로 처져 발끝이 기준이 못 된다 — 굽힘 50° 까지 묶고 70° 까지 풀어 준다. 발끝으로 선 발도(KNEE_TOE_FLAT) */
   const bend = Math.acos(clamp(dot(unit(v, e), unit(sub(ankle, knee), e)), -1, 1));
-  const w = clamp((rad(70) - bend) / rad(20), 0, 1);
+  const flat = clamp((norm(fwd) / norm(toeDir) - KNEE_TOE_FLAT[0]) / (KNEE_TOE_FLAT[1] - KNEE_TOE_FLAT[0]), 0, 1);
+  const w = clamp((rad(70) - bend) / rad(20), 0, 1) * flat;
   if (w <= 0) return knee;
   return add(add(hip, scale(e, along)), scale(rotateAbout(scale(off, 1 / r), e, (want - th) * w), r));
 }
