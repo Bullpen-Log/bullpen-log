@@ -3987,10 +3987,15 @@ body:has([data-dugout-main]) [data-morph-bar] {
   inset-inline: 0;
   top: 0;
 }
+html[data-dugout-top] [data-morph-bar],
 body:has([data-dugout-main][data-top]) [data-morph-bar] {
   opacity: 0;
   transform: translateY(-100%);
   pointer-events: none;
+}
+/* 홈에 막 붙은 그 순간은 바로 숨긴다(옅어지는 동안 보이지 않게) */
+html[data-dugout-instant] [data-morph-bar] {
+  transition: none;
 }
 
 /* 덕아웃 아이콘 줄(components/dugout/dugout-main.tsx) — 탭을 바꾸면 아이콘이 살짝 떠오르며 들어온다 */

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { RoundIcon, RoundSearch } from '@/components/round-icon';
 import { Wordmark } from '@/components/logo';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
@@ -36,10 +36,35 @@ export function DugoutMain({
   const [top, setTop] = useState(true);
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('dugout');
 
+  /*
+   * 다른 화면 · 싱커에서 넘어와 붙을 때 — 앞 화면의 위 막대가 보이는 채로 넘어와 0.5초 동안 옅어지며 남았다(2026-10-24 금윤호 "기본 홈에서 이게 안 보이게").
+   * 붙는 순간(그리기 전)에 숨김을 html 에 적고 그 한 번은 transition 없이 — 나타날 때(내려서 판이 지나갈 때)만 스르륵.
+   */
+  useLayoutEffect(() => {
+    const html = document.documentElement;
+    html.dataset.dugoutTop = '';
+    html.dataset.dugoutInstant = '';
+    let id = requestAnimationFrame(() => {
+      id = requestAnimationFrame(() => delete html.dataset.dugoutInstant);
+    });
+    return () => {
+      cancelAnimationFrame(id);
+      delete html.dataset.dugoutTop;
+      delete html.dataset.dugoutInstant;
+    };
+  }, []);
+
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const io = new IntersectionObserver(([e]) => setTop(e.isIntersecting), { threshold: 0 });
+    const io = new IntersectionObserver(
+      ([e]) => {
+        setTop(e.isIntersecting);
+        if (e.isIntersecting) document.documentElement.dataset.dugoutTop = '';
+        else delete document.documentElement.dataset.dugoutTop;
+      },
+      { threshold: 0 }
+    );
     io.observe(el);
     return () => io.disconnect();
   }, []);
