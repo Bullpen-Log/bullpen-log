@@ -19,8 +19,10 @@ export function DugoutShell({
   sinker = false,
   manage = false,
   native = false,
+  avatarUrl = null,
   children,
 }: {
+  avatarUrl?: string | null;
   user: { nickname: string } | null;
   unread: number;
   alerts?: number;
@@ -54,6 +56,7 @@ export function DugoutShell({
         sinker={sinker}
         manage={manage}
         native={native}
+        avatarUrl={avatarUrl}
       />
 
       <MorphIn />

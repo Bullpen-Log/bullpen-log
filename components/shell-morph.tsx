@@ -219,10 +219,13 @@ export function MorphLink({
   children,
   'aria-label': ariaLabel,
   title,
+  fromMark = false,
   ...rest
 }: {
   href: string;
   dir: MorphDir;
+  /** 싱커 시작 판의 S 가 이 단추 안의 [data-intro-from] 자리에서 출발한다(2026-10-24 — 누르면 S 가 화면 가운데로 날아오며 싱커로) */
+  fromMark?: boolean;
   className?: string;
   children: ReactNode;
   'aria-label'?: string;
@@ -241,6 +244,11 @@ export function MorphLink({
     )
       return;
     e.preventDefault();
+    if (fromMark) {
+      const el = e.currentTarget.querySelector('[data-intro-from]') ?? e.currentTarget;
+      const r = el.getBoundingClientRect();
+      introFrom = { x: r.left, y: r.top, w: r.width, h: r.height };
+    }
     morphTo(href, dir, router);
   };
   return (
@@ -268,6 +276,10 @@ export function MorphLink({
  *         로고 자리가 없으면(휴대폰 하위 화면) 이름은 옅어진다.
  */
 const INTRO_PUSH_MS = 140;
+/** 단추의 S 자리 — 있으면 시작 판의 S 가 거기서 가운데로 날아온다(MorphLink fromMark) */
+let introFrom: { x: number; y: number; w: number; h: number } | null = null;
+/** 단추 → 가운데 — 빠르게(2026-10-24 금윤호 "누르는 순간 빠르게 화면 정중앙으로") */
+const MARK_FROM_MS = 320;
 const MARK_IN_MS = 140;
 const MARK_HOLD_MS = 0;
 /** 표시가 가운데 → S 칸 */
@@ -341,12 +353,32 @@ export function SinkerIntro() {
       if (el) Object.assign(el.style, { filter: BLUR, opacity: '0.25' });
     });
 
-    /* mark — 판이 덮이고 표시가 이름 속 크기 그대로 뜬다 */
+    /*
+     * mark — 판이 덮이고 표시가 이름 속 크기 그대로 뜬다. 단추(S)를 눌러 왔으면 그 단추 자리 · 크기에서 출발해 가운데로 빠르게 날아온다.
+     */
     v.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: 'ease-out', fill: 'forwards' });
-    m.animate([{ opacity: 0 }, { opacity: 1 }], { duration: MARK_IN_MS, easing: EASE, fill: 'forwards' });
+    const src = introFrom;
+    introFrom = null;
+    let markMs = MARK_IN_MS;
+    if (src && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const at = m.getBoundingClientRect();
+      const dx = src.x + src.w / 2 - (at.left + at.width / 2);
+      const dy = src.y + src.h / 2 - (at.top + at.height / 2);
+      const sc = src.w / Math.max(1, at.width);
+      m.animate(
+        [
+          { opacity: 1, transform: `translate(${dx}px, ${dy}px) scale(${sc})` },
+          { opacity: 1, transform: 'none' },
+        ],
+        { duration: MARK_FROM_MS, easing: 'cubic-bezier(0.2, 0.9, 0.25, 1)', fill: 'forwards' }
+      );
+      markMs = MARK_FROM_MS;
+    } else {
+      m.animate([{ opacity: 0 }, { opacity: 1 }], { duration: MARK_IN_MS, easing: EASE, fill: 'forwards' });
+    }
 
     /* name — 줄은 제자리로, 글자는 표시 뒤에서 밀려 나온다 */
-    const nameAt = MARK_IN_MS + MARK_HOLD_MS;
+    const nameAt = markMs + MARK_HOLD_MS;
     later(() => {
       r.animate([{ transform: centered }, { transform: 'none' }], { duration: NAME_IN_MS, easing: EASE, fill: 'forwards' });
       k.animate([{ transform: hidden }, { transform: 'none' }], {

@@ -6,6 +6,7 @@ import { countUnread } from '@/lib/market/load';
 import { DugoutShell } from '@/components/dugout/dugout-shell';
 import { usesSinker } from '@/lib/brand';
 import { countUnreadNotifications } from '@/lib/notify';
+import { createAvatarUrl } from '@/lib/storage';
 
 export const metadata: Metadata = {
   title: { default: '덕아웃', template: '%s · 덕아웃' },
@@ -24,12 +25,17 @@ export default async function DugoutLayout({
   const user = await getCurrentUser();
   /* 싱커 앱(웹뷰)의 덕아웃 탭으로 왔나 — 아래 탭은 앱 것이 서고, 홈은 ?dugout=1, '내 싱커'는 /today */
   const native = isNativeUserAgent((await headers()).get('user-agent'));
-  const [unread, alerts] = user
-    ? await Promise.all([countUnread(user.id), countUnreadNotifications(user.id)])
-    : [0, 0];
+  const [unread, alerts, avatarUrl] = user
+    ? await Promise.all([
+        countUnread(user.id),
+        countUnreadNotifications(user.id),
+        createAvatarUrl(user.avatarPath).catch(() => null),
+      ])
+    : [0, 0, null];
   return (
     <DugoutShell
       user={user ? { nickname: user.nickname } : null}
+      avatarUrl={avatarUrl}
       unread={unread}
       alerts={alerts}
       sinker={!!user && usesSinker(user)}

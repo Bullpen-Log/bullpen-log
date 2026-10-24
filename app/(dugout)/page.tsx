@@ -17,6 +17,7 @@ import { countUnreadNotifications } from '@/lib/notify';
 import { LessonFeedCard } from '@/components/dugout/lesson-feed-card';
 import { loadLessonFeed } from '@/lib/org/lesson-feed';
 import { usesSinker } from '@/lib/brand';
+import { createAvatarUrl } from '@/lib/storage';
 import { CATEGORIES, filterHref, formatPrice } from '@/lib/market/specs';
 import { SPECIALTIES, specialtyLabel } from '@/lib/market/lessons';
 
@@ -42,7 +43,7 @@ export default async function DugoutHome({
   if (native && !sp.dugout) redirect(user ? '/today' : '/login');
   const viewer = user ? { id: user.id, role: user.role } : null;
   const sinkerUser = !!user && usesSinker(user);
-  const [listings, posts, coaches, alerts, lessons, kbo, mlb, news] = await Promise.all([
+  const [listings, posts, coaches, alerts, lessons, kbo, mlb, news, avatarUrl] = await Promise.all([
     loadLatestListings(6, viewer),
     loadPublicPosts(30),
     loadRecommendedCoaches(3),
@@ -52,6 +53,7 @@ export default async function DugoutHome({
     loadLeagueBoard('kbo'),
     loadLeagueBoard('mlb'),
     loadBaseballNews(8),
+    user ? createAvatarUrl(user.avatarPath).catch(() => null) : null,
   ]);
   const now = new Date();
   const today = new Date(now.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
@@ -105,6 +107,7 @@ export default async function DugoutHome({
         {/* 첫 화면 — 통합검색 · 우리 기능 아이콘 줄(이게 보이는 동안 위 막대는 숨는다) */}
         <DugoutMain
           user={user ? { nickname: user.nickname } : null}
+          avatarUrl={avatarUrl}
           alerts={alerts}
           sinker={sinkerUser}
           native={native}
