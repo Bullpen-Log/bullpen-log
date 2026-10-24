@@ -49,7 +49,7 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
       />
 
       {/* 점수 머리 */}
-      <section className="rounded-3xl border border-line bg-surface p-6">
+      <section className="rounded-2xl bg-surface-2 p-6">
         <p className="text-center text-xs text-muted">
           {LEAGUE_LABEL[g.league]} · {dayName(g.date, today)} {g.time}
           {g.stadium ? ` · ${g.stadium}` : ''}

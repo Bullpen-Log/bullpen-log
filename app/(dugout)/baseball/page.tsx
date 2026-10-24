@@ -31,7 +31,7 @@ export default async function BaseballPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-6 pb-10">
-      <DugoutPageHeader title="경기 일정 · 결과" subtitle="KBO · MLB · NPB 경기를 날짜별로 봐요." />
+      <DugoutPageHeader title="경기 일정 · 결과" />
 
       <CategoryRow
         label="리그"
@@ -96,7 +96,7 @@ export default async function BaseballPage({ searchParams }: { searchParams: Pro
       />
 
       {ofDay.length === 0 ? (
-        <DugoutEmpty compact title={`이날은 ${LEAGUES.find((l) => l.key === league)?.label} 경기가 없어요`} description="날짜 띠에서 다른 날을 골라 보세요." />
+        <DugoutEmpty compact title={`이날은 ${LEAGUES.find((l) => l.key === league)?.label} 경기가 없어요`} />
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {ofDay.map((g) => (

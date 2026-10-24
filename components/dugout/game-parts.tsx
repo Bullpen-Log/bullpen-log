@@ -84,22 +84,16 @@ export function GameCard({ g }: { g: Game }) {
     <li>
       <Link
         href={`/baseball/${g.id}`}
-        className="block h-full rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-ink/30"
+        className="block h-full rounded-2xl bg-surface-2 p-4 transition-colors hover:bg-ink/6"
       >
-      <p className="mb-3 flex items-center gap-2 text-xs text-muted">
-        <span
-          className={`rounded-full px-2 py-0.5 font-semibold ${
-            g.status === 'live'
-              ? 'bg-danger text-white'
-              : g.status === 'result'
-                ? 'bg-ink/6 text-ink'
-                : g.status === 'cancel'
-                  ? 'bg-warn/15 text-warn'
-                  : 'bg-sky/12 text-sky-strong'
-          }`}
-        >
-          {g.status === 'before' ? '예정' : g.status === 'live' ? '진행 중' : g.status === 'cancel' ? g.info || '취소' : '종료'}
-        </span>
+      <p className="mb-3 flex items-center gap-2 text-[13px] text-muted">
+        {g.status === 'live' ? (
+          <span className="rounded-full bg-danger px-2 py-0.5 font-semibold text-white">진행 중</span>
+        ) : g.status === 'cancel' ? (
+          <span className="font-semibold text-warn">{g.info || '취소'}</span>
+        ) : (
+          <span className="font-semibold text-ink">{g.status === 'before' ? '예정' : '종료'}</span>
+        )}
         <span>{g.time}</span>
         {g.stadium && <span>· {g.stadium}</span>}
         {g.status === 'live' && g.info && <span className="font-semibold text-danger">· {g.info}</span>}
@@ -109,13 +103,13 @@ export function GameCard({ g }: { g: Game }) {
         <TeamLine team={g.home} win={g.winner === 'home'} lose={g.winner === 'away'} big />
       </div>
       {g.status === 'before' && (g.away.starter || g.home.starter) && (
-        <p className="mt-3 border-t border-line pt-3 text-xs text-muted">
+        <p className="mt-3 text-[13px] text-muted">
           선발 <span className="font-semibold text-ink">{g.away.starter ?? '미정'}</span> vs{' '}
           <span className="font-semibold text-ink">{g.home.starter ?? '미정'}</span>
         </p>
       )}
       {g.status === 'result' && (g.winPitcher || g.losePitcher) && (
-        <p className="mt-3 border-t border-line pt-3 text-xs text-muted">
+        <p className="mt-3 text-[13px] text-muted">
           {g.winPitcher && (
             <>
               승 <span className="font-semibold text-ink">{g.winPitcher}</span>
