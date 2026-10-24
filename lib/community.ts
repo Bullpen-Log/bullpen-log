@@ -1,3 +1,5 @@
+import { REGIONS } from '@/lib/market/specs';
+
 /**
  * 커뮤니티(/community, 2026-10-17 1판 — 틀) — 글 · 댓글 · 좋아요 · 신고. 구분 값 · 한도는 여기 한 곳.
  * 화면은 app/(dugout)/community, 관리자(신고 · 가리기)는 app/(app)/admin/community, 동작은 app/actions/community.ts.
@@ -127,3 +129,148 @@ export const POST_SORTS = [
   { key: 'hot', label: '인기' },
 ] as const;
 export type PostSort = (typeof POST_SORTS)[number]['key'];
+
+/* ───────────── 번개 · 팀 홍보 · 선수 모집 양식(docs/designs/dugout-community.md 4단계) ───────────── */
+
+/** 우리 동네 — 장터와 같은 시 · 도(택배 칸은 뺀다) */
+export const COMMUNITY_REGIONS = REGIONS.filter((r) => r !== '전국(택배)');
+export const isCommunityRegion = (v: unknown): v is string =>
+  (COMMUNITY_REGIONS as readonly string[]).includes(v as string);
+
+export const MEET_LEVELS = [
+  { key: 'any', label: '누구나' },
+  { key: 'new', label: '처음이에요' },
+  { key: 'mid', label: '중급' },
+  { key: 'high', label: '상급' },
+] as const;
+export const MEET_AGES = [
+  { key: 'teen', label: '청소년 환영' },
+  { key: 'adult', label: '성인만' },
+] as const;
+export const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'] as const;
+/** 낯선 사람끼리 만나는 번개 참가 · 팀 신청은 만 14세부터(김민 확정 대기 — 바꾸면 이 줄만), '성인만'은 만 19세부터 */
+export const MEET_MIN_AGE = 14;
+export const ADULT_AGE = 19;
+export const MEET_CAPACITY_MAX = 30;
+/** 번개 대화방은 모임 다음 날 닫힌다(모임 시각 + 하루) */
+export const ROOM_OPEN_MS = 24 * 60 * 60 * 1000;
+/** 번개 날짜는 오늘부터 60일 안 */
+const MEET_AHEAD_MS = 60 * 24 * 60 * 60 * 1000;
+export const ROOM_MESSAGE_MAX = 1000;
+
+export type MeetupForm = {
+  place: string;
+  capacity: number;
+  level: (typeof MEET_LEVELS)[number]['key'];
+  gear: string;
+  cost: string;
+  age: (typeof MEET_AGES)[number]['key'];
+};
+export type TeamForm = { team: string; league: string; days: string[]; fee: string; ages: string };
+
+const short = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+/** 저장된 번개 양식 읽기 — 모양이 틀리면 null */
+export function readMeetupForm(raw: unknown): MeetupForm | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const f = raw as Record<string, unknown>;
+  const capacity = Number(f.capacity);
+  if (!short(f.place) || !Number.isInteger(capacity)) return null;
+  return {
+    place: short(f.place),
+    capacity,
+    level: MEET_LEVELS.some((l) => l.key === f.level) ? (f.level as MeetupForm['level']) : 'any',
+    gear: short(f.gear),
+    cost: short(f.cost),
+    age: f.age === 'adult' ? 'adult' : 'teen',
+  };
+}
+export function readTeamForm(raw: unknown): TeamForm | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const f = raw as Record<string, unknown>;
+  return {
+    team: short(f.team, 40),
+    league: short(f.league),
+    days: Array.isArray(f.days) ? WEEKDAYS.filter((d) => (f.days as unknown[]).includes(d)) : [],
+    fee: short(f.fee),
+    ages: short(f.ages),
+  };
+}
+
+/** 'YYYY-MM-DDTHH:mm'(datetime-local, 한국 시각) → Date. 형식이 틀리면 null */
+export function kstDateTime(v: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) return null;
+  const d = new Date(`${v}:00+09:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+type Fields = (name: string) => string;
+
+/** 번개 양식 검사 — 언제 · 어디 · 지역 · 몇 명은 꼭 */
+export function parseMeetup(
+  get: Fields,
+  now: Date
+): { error: string } | { form: MeetupForm; meetAt: Date; region: string } {
+  const meetAt = kstDateTime(get('meetAt'));
+  if (!meetAt) return { error: '언제 모이는지 골라 주세요.' };
+  if (meetAt.getTime() < now.getTime()) return { error: '지난 시각이에요. 모일 때를 다시 골라 주세요.' };
+  if (meetAt.getTime() > now.getTime() + MEET_AHEAD_MS) return { error: '번개는 60일 안의 날짜만 잡을 수 있어요.' };
+  const place = short(get('place'));
+  if (!place) return { error: '어디서 모이는지 적어 주세요.' };
+  const region = get('region');
+  if (!isCommunityRegion(region)) return { error: '지역을 골라 주세요.' };
+  const capacity = Number(get('capacity'));
+  if (!Number.isInteger(capacity) || capacity < 2 || capacity > MEET_CAPACITY_MAX)
+    return { error: `몇 명이 모일지 2~${MEET_CAPACITY_MAX}명으로 적어 주세요.` };
+  return {
+    meetAt,
+    region,
+    form: readMeetupForm({
+      place,
+      capacity,
+      level: get('level'),
+      gear: get('gear'),
+      cost: get('cost'),
+      age: get('age'),
+    })!,
+  };
+}
+
+/** 팀 양식 검사 — 지역만 꼭(팀 구해요 글도 같은 양식) */
+export function parseTeam(
+  get: Fields,
+  days: string[]
+): { error: string } | { form: TeamForm; region: string } {
+  const region = get('region');
+  if (!isCommunityRegion(region)) return { error: '지역을 골라 주세요.' };
+  return {
+    region,
+    form: readTeamForm({
+      team: get('team'),
+      league: get('league'),
+      days,
+      fee: get('fee'),
+      ages: get('ages'),
+    })!,
+  };
+}
+
+/**
+ * 번개 참가 · 팀 신청을 막는 까닭(없으면 null). 나이를 모르면(생년월일 없음) 막는다 — 낯선 사람과 만나는 일이라.
+ */
+export function joinBlockReason(q: {
+  age: number | null;
+  adultOnly: boolean;
+  isAuthor: boolean;
+  closed: boolean;
+  full: boolean;
+  past: boolean;
+}): string | null {
+  if (q.isAuthor) return '내 글이에요.';
+  if (q.past) return '지난 번개예요.';
+  if (q.closed || q.full) return '마감됐어요.';
+  if (q.age === null) return '내 정보에 생년월일을 넣으면 참가할 수 있어요.';
+  if (q.age < MEET_MIN_AGE) return `만 ${MEET_MIN_AGE}세부터 참가할 수 있어요.`;
+  if (q.adultOnly && q.age < ADULT_AGE) return '성인만 참가하는 번개예요.';
+  return null;
+}

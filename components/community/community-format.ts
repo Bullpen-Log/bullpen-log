@@ -47,3 +47,14 @@ export const CATEGORY_BADGE: Record<PostCategory, string> = {
 
 export const categoryBadgeClass = (category: string) =>
   CATEGORY_BADGE[category as PostCategory] ?? '';
+
+const meetFmt = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  month: 'long',
+  day: 'numeric',
+  weekday: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+/** 번개 시각 — '10월 25일 (토) 오전 10:00' */
+export const meetAtText = (date: Date) => meetFmt.format(date);

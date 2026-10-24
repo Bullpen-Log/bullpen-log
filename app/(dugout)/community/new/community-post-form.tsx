@@ -18,6 +18,10 @@ import { Button, ButtonLink, Field, FormError, Input, Textarea } from '@/compone
 import { CommunityMediaPicker } from '@/components/community/community-media-picker';
 import { CommunityCardPicker } from '@/components/community/community-card-picker';
 import type { CardOption } from '@/lib/community-cards';
+import {
+  CommunityFormFields,
+  type TeamPrefill,
+} from '@/components/community/community-form-fields';
 
 function SubmitButton({ busy }: { busy: boolean }) {
   const { pending } = useFormStatus();
@@ -46,12 +50,15 @@ export function CommunityPostForm({
   initialCategory,
   cardOptions = [],
   initialCard,
+  teamPrefill = null,
 }: {
   initialCategory?: string;
   /** '싱커 기록 붙이기' 목록(lib/community-cards.ts recentCardOptions) */
   cardOptions?: CardOption[];
   /** 싱커 결과 화면의 '덕아웃에 올리기'로 왔을 때 붙여 둘 기록(?card=velocity:… 등) */
   initialCard?: string;
+  /** 팀 관리의 내 팀 정보 — 팀 홍보 · 선수 모집 양식을 미리 채운다 */
+  teamPrefill?: TeamPrefill;
 }) {
   const [state, formAction] = useActionState<CommunityState, FormData>(
     /* 신호가 끊겨도 오류 화면으로 넘어가지 않고 한 줄로 알린다(lib/action-offline.ts) */
@@ -128,6 +135,8 @@ export function CommunityPostForm({
           <p className="rounded-xl bg-warn-bg px-3 py-2 text-xs text-warn">{INJURY_NOTE}</p>
         )}
       </fieldset>
+
+      <CommunityFormFields category={category} before={before} teamPrefill={teamPrefill} />
 
       <Field label="제목" hint={`${POST_TITLE_MAX}자까지 적을 수 있어요.`}>
         <Input

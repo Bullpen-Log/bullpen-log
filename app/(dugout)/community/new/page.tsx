@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/dal';
 import { recentCardOptions } from '@/lib/community-cards';
+import { prisma } from '@/lib/prisma';
+import { COMMUNITY_REGIONS } from '@/lib/community';
 import { BackLink, PageHeading } from '@/components/ui';
 import { CommunityPostForm } from './community-post-form';
 
@@ -27,7 +29,22 @@ export default async function NewCommunityPostPage({
     redirect(`/login?next=${encodeURIComponent(back)}`);
   }
   /* 기록을 못 읽어도 글쓰기는 연다 — 카드 칸만 빈다 */
-  const cardOptions = await recentCardOptions(user.id, initialCard).catch(() => []);
+  const [cardOptions, team] = await Promise.all([
+    recentCardOptions(user.id, initialCard).catch(() => []),
+    /* 팀 관리를 쓰는 팀이면 팀 양식을 미리 채운다(지역은 '서울 강남' 같은 자유 글의 앞말로 시 · 도를 맞춘다) */
+    prisma.org.findFirst({
+      where: { kind: 'TEAM', ownerId: user.id },
+      orderBy: { createdAt: 'asc' },
+      select: { name: true, region: true, note: true },
+    }),
+  ]);
+  const teamPrefill = team
+    ? {
+        team: team.name,
+        region: COMMUNITY_REGIONS.find((r) => team.region?.startsWith(r)) ?? '',
+        ages: team.note ?? '',
+      }
+    : null;
 
   return (
     <div className="stack-page mx-auto max-w-3xl">
@@ -37,6 +54,7 @@ export default async function NewCommunityPostPage({
         initialCategory={initialCategory}
         cardOptions={cardOptions}
         initialCard={initialCard}
+        teamPrefill={teamPrefill}
       />
     </div>
   );

@@ -2,7 +2,18 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import type { getCurrentUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
-import { POSTS_PER_PAGE, isVideoPath, type PostCategory, type PostSort } from '@/lib/community';
+import {
+  POSTS_PER_PAGE,
+  ROOM_OPEN_MS,
+  isVideoPath,
+  joinBlockReason,
+  readMeetupForm,
+  readTeamForm,
+  type PostCategory,
+  type PostSort,
+} from '@/lib/community';
+import { ageFromBirthDate } from '@/lib/profile';
+import { appNow } from '@/lib/clock';
 import { readCard } from '@/lib/community-cards';
 
 /**
@@ -53,6 +64,8 @@ export async function loadCommunityList(
     category?: PostCategory;
     tag?: string;
     region?: string;
+    /** 번개 게시판 — 다가오는 번개만(모일 때 순) 또는 지난 번개만 */
+    when?: 'upcoming' | 'past';
     sort: PostSort;
     page: number;
     pages?: number;
@@ -67,13 +80,18 @@ export async function loadCommunityList(
       ...(q.category ? { category: q.category } : {}),
       ...(q.tag ? { tag: q.tag } : {}),
       ...(q.region ? { region: q.region } : {}),
+      ...(q.when === 'upcoming' ? { meetAt: { gte: appNow() } } : q.when === 'past' ? { meetAt: { lt: appNow() } } : {}),
       ...(isAdmin ? {} : { hiddenAt: null }),
       ...(blocked.length > 0 ? { userId: { notIn: blocked } } : {}),
     },
     orderBy:
-      q.sort === 'hot'
-        ? [{ likes: { _count: 'desc' } }, { createdAt: 'desc' }]
-        : [{ createdAt: 'desc' }],
+      q.when === 'upcoming'
+        ? [{ meetAt: 'asc' }]
+        : q.when === 'past'
+          ? [{ meetAt: 'desc' }]
+          : q.sort === 'hot'
+            ? [{ likes: { _count: 'desc' } }, { createdAt: 'desc' }]
+            : [{ createdAt: 'desc' }],
     skip: (q.page - 1) * POSTS_PER_PAGE,
     take: take + 1,
     select: {
@@ -85,6 +103,7 @@ export async function loadCommunityList(
       body: true,
       media: true,
       card: true,
+      form: true,
       acceptedCommentId: true,
       region: true,
       meetAt: true,
@@ -125,6 +144,7 @@ export async function loadCommunityList(
         solved: p.acceptedCommentId !== null,
         region: p.region,
         meetAt: p.meetAt,
+        capacity: p.category === 'meetup' ? (readMeetupForm(p.form)?.capacity ?? null) : null,
         closed: p.closedAt !== null,
         joins: p._count.joins,
         hidden: p.hiddenAt !== null,
@@ -160,6 +180,10 @@ export async function loadCommunityPost(user: CommunityUser | null, id: string) 
           orderBy: { createdAt: 'asc' },
           include: { user: { select: { nickname: true } } },
         },
+        joins: {
+          orderBy: { createdAt: 'asc' },
+          select: { userId: true, user: { select: { nickname: true } } },
+        },
       },
     }),
     blockedIdsOf(user),
@@ -179,6 +203,26 @@ export async function loadCommunityPost(user: CommunityUser | null, id: string) 
   const hidden = post.hiddenAt !== null;
   const open = user !== null && !(hidden && !isAdmin);
   const question = post.category === 'question';
+
+  /* 번개 · 팀 — 참가 · 신청 상태. 참가자 이름은 글쓴이와 참가자에게만, 남에게는 수만 */
+  const meetup = post.category === 'meetup' ? readMeetupForm(post.form) : null;
+  const team = post.category === 'team' ? readTeamForm(post.form) : null;
+  const joinable = post.category === 'meetup' || post.category === 'team';
+  const joined = post.joins.some((j) => j.userId === me);
+  const now = appNow().getTime();
+  const past = post.meetAt !== null && post.meetAt.getTime() < now;
+  const full = meetup !== null && post.joins.length >= meetup.capacity;
+  const joinBlock =
+    !joinable || !user || joined
+      ? null
+      : joinBlockReason({
+          age: user.birthDate ? ageFromBirthDate(user.birthDate) : null,
+          adultOnly: meetup?.age === 'adult',
+          isAuthor: isOwner,
+          closed: post.closedAt !== null,
+          full,
+          past,
+        });
   return {
     id: post.id,
     userId: post.userId,
@@ -193,8 +237,20 @@ export async function loadCommunityPost(user: CommunityUser | null, id: string) 
     card,
     /* 투구 기록 카드의 영상 — 기록을 지웠으면 없다 */
     cardVideoUrl: cardVideo ? (urls[cardVideo] ?? null) : null,
-    form: post.form,
+    meetup,
+    team,
     region: post.region,
+    joinable,
+    joined,
+    joinCount: post.joins.length,
+    full,
+    past,
+    /* 참가 · 신청 단추를 막는 까닭(로그인 안 했거나 이미 참가했으면 null) */
+    joinBlock,
+    /* 참가자(번개) · 신청자(팀) — 글쓴이 · 참가자에게만 */
+    joiners: isOwner || joined ? post.joins.map((j) => ({ userId: j.userId, nickname: j.user.nickname })) : [],
+    /* 번개 대화방은 모임 다음 날 닫힌다 */
+    roomOpen: post.meetAt === null || now <= post.meetAt.getTime() + ROOM_OPEN_MS,
     meetAt: post.meetAt,
     closed: post.closedAt !== null,
     acceptedCommentId: post.acceptedCommentId,
@@ -234,5 +290,44 @@ export async function loadCommunityPost(user: CommunityUser | null, id: string) 
         canAccept: question && isOwner && !mine && open,
       };
     }),
+  };
+}
+
+/**
+ * 글에 묶인 대화 — 번개는 글쓴이 · 참가자 한 방, 팀은 신청자와 글쓴이 둘만(글쓴이는 ?thread=신청자 로 고른다). 볼 수 없으면 null.
+ */
+export async function loadCommunityRoom(
+  user: CommunityUser | null,
+  post: { id: string; category: string; userId: string; joiners: { userId: string }[]; joined: boolean },
+  threadParam?: string
+) {
+  if (!user) return null;
+  const isAuthor = post.userId === user.id;
+  let thread: string | null = null;
+  if (post.category === 'meetup') {
+    if (!isAuthor && !post.joined) return null;
+  } else if (post.category === 'team') {
+    if (isAuthor) {
+      thread = post.joiners.find((j) => j.userId === threadParam)?.userId ?? post.joiners[0]?.userId ?? null;
+      if (!thread) return null;
+    } else if (post.joined) thread = user.id;
+    else return null;
+  } else return null;
+
+  const rows = await prisma.communityMessage.findMany({
+    where: { postId: post.id, threadUserId: thread },
+    orderBy: { createdAt: 'asc' },
+    take: 300,
+    select: { id: true, senderId: true, body: true, createdAt: true, sender: { select: { nickname: true } } },
+  });
+  return {
+    thread,
+    messages: rows.map((m) => ({
+      id: m.id,
+      mine: m.senderId === user.id,
+      nickname: m.sender.nickname,
+      body: m.body,
+      createdAt: m.createdAt,
+    })),
   };
 }

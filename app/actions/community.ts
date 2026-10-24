@@ -9,6 +9,7 @@ import { appNow } from '@/lib/clock';
 import { loadCommunityList, loadCommunityPost } from '@/lib/community-load';
 import { deleteVideos, isOwnedBy } from '@/lib/storage';
 import { buildCard } from '@/lib/community-cards';
+import { ageFromBirthDate } from '@/lib/profile';
 import { formatDateTime, relativeTime } from '@/components/community/community-format';
 import { withInput, type FormValues } from '@/lib/form-values';
 import { notify } from '@/lib/notify';
@@ -18,7 +19,13 @@ import {
   POST_BODY_MAX,
   POST_TITLE_MAX,
   MEDIA_MAX,
+  ROOM_MESSAGE_MAX,
+  ROOM_OPEN_MS,
   isMediaPath,
+  joinBlockReason,
+  parseMeetup,
+  parseTeam,
+  readMeetupForm,
   isPostCategory,
   isPostTag,
   isReportReason,
@@ -87,6 +94,15 @@ async function tryCreatePost(
   const cardRef = field(formData, 'card');
   const card = cardRef ? await buildCard(user.id, cardRef, field(formData, 'cardHide') === '1') : null;
   if (cardRef && !card) return { error: '붙인 기록을 찾지 못했어요. 다시 골라 주세요.' };
+  /* 번개 · 팀 홍보 · 선수 모집 양식 — 우리 동네 · 날짜로 거르는 칸은 따로(region · meetAt) */
+  const get = (name: string) => field(formData, name);
+  const extra =
+    category === 'meetup'
+      ? parseMeetup(get, appNow())
+      : category === 'team'
+        ? parseTeam(get, formData.getAll('days').map(String))
+        : null;
+  if (extra && 'error' in extra) return { error: extra.error };
   if (title.length > POST_TITLE_MAX)
     return { error: `제목은 ${POST_TITLE_MAX}자까지 적을 수 있어요.` };
   if (body.length > POST_BODY_MAX)
@@ -117,6 +133,13 @@ async function tryCreatePost(
       body,
       media,
       ...(card ? { card: card as unknown as Prisma.InputJsonValue } : {}),
+      ...(extra
+        ? {
+            form: extra.form as unknown as Prisma.InputJsonValue,
+            region: extra.region,
+            meetAt: 'meetAt' in extra ? extra.meetAt : null,
+          }
+        : {}),
     },
     select: { id: true },
   });
@@ -306,6 +329,142 @@ export async function setBlocked(formData: FormData) {
     await prisma.communityBlock.deleteMany({ where: { blockerId: user.id, blockedId: target } });
   }
   revalidatePath('/community', 'layout');
+}
+
+// ── 번개 참가 · 팀 신청 · 마감 · 글에 묶인 대화 ─────────────────────────────
+
+/** 같은 글의 알림이 아직 안 읽힌 채 있으면 또 안 보낸다(대화가 잦아도 알림은 하나) */
+async function notifyOnce(userIds: string[], input: Parameters<typeof notify>[1]) {
+  for (const id of new Set(userIds)) {
+    const waiting = await prisma.notification.findFirst({
+      where: { userId: id, link: input.link ?? null, readAt: null },
+      select: { id: true },
+    });
+    if (!waiting) await notify(id, input);
+  }
+}
+
+/** 참가(번개) · 신청(팀)과 그 취소 — 한 단추로. 막히면 까닭을 돌려준다 */
+export async function toggleJoin(_prev: CommunityState, formData: FormData): Promise<CommunityState> {
+  const user = await getCurrentUser();
+  if (!user) return { error: LOGIN_NEEDED };
+  const postId = field(formData, 'postId');
+  const post = await prisma.communityPost.findUnique({
+    where: { id: postId },
+    select: {
+      userId: true,
+      category: true,
+      title: true,
+      form: true,
+      meetAt: true,
+      closedAt: true,
+      hiddenAt: true,
+      joins: { where: { userId: user.id }, select: { userId: true } },
+      _count: { select: { joins: true } },
+    },
+  });
+  if (!post || post.hiddenAt || (post.category !== 'meetup' && post.category !== 'team'))
+    return { error: '글을 찾지 못했어요.' };
+  const now = appNow();
+  const past = post.meetAt !== null && post.meetAt.getTime() < now.getTime();
+
+  if (post.joins.length > 0) {
+    if (past) return { error: '지난 번개는 취소할 수 없어요.' };
+    await prisma.communityJoin.deleteMany({ where: { postId, userId: user.id } });
+    revalidatePost(postId);
+    return undefined;
+  }
+
+  const meetup = readMeetupForm(post.form);
+  const reason = joinBlockReason({
+    age: user.birthDate ? ageFromBirthDate(user.birthDate) : null,
+    adultOnly: meetup?.age === 'adult',
+    isAuthor: post.userId === user.id,
+    closed: post.closedAt !== null,
+    full: post.category === 'meetup' && meetup !== null && post._count.joins >= meetup.capacity,
+    past,
+  });
+  if (reason) return { error: reason };
+  try {
+    await prisma.communityJoin.create({ data: { postId, userId: user.id } });
+  } catch (e) {
+    if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e;
+  }
+  await notify(post.userId, {
+    kind: 'community',
+    title: post.category === 'meetup' ? `${user.nickname} 님이 번개에 참가했어요` : `${user.nickname} 님이 신청했어요`,
+    body: post.title,
+    link: `/community/${postId}`,
+  });
+  revalidatePost(postId);
+  return undefined;
+}
+
+/** 마감 · 다시 열기 — 글쓴이만 */
+export async function setClosed(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) return;
+  const id = field(formData, 'id');
+  const post = await prisma.communityPost.findUnique({ where: { id }, select: { userId: true } });
+  if (!post || post.userId !== user.id) return;
+  await prisma.communityPost.update({
+    where: { id },
+    data: { closedAt: field(formData, 'closed') === '1' ? appNow() : null },
+  });
+  revalidatePost(id);
+}
+
+/**
+ * 글에 묶인 대화에 말하기 — 번개는 글쓴이 + 참가자 한 방(모임 다음 날 닫힘), 팀은 신청자마다 글쓴이와 둘만(thread = 신청자).
+ * 이 방은 연락을 나누는 곳이라 연락처를 가리지 않는다.
+ */
+export async function sendRoomMessage(_prev: CommunityState, formData: FormData): Promise<CommunityState> {
+  const user = await getCurrentUser();
+  if (!user) return { error: LOGIN_NEEDED };
+  const postId = field(formData, 'postId');
+  const body = field(formData, 'body');
+  if (!body) return { error: '말을 적어 주세요.' };
+  if (body.length > ROOM_MESSAGE_MAX) return { error: `${ROOM_MESSAGE_MAX}자까지 적을 수 있어요.` };
+  const post = await prisma.communityPost.findUnique({
+    where: { id: postId },
+    select: {
+      userId: true,
+      category: true,
+      title: true,
+      meetAt: true,
+      hiddenAt: true,
+      joins: { select: { userId: true } },
+    },
+  });
+  if (!post || post.hiddenAt) return { error: '글을 찾지 못했어요.' };
+  const joined = post.joins.map((j) => j.userId);
+  const isAuthor = post.userId === user.id;
+  const link = `/community/${postId}`;
+
+  if (post.category === 'meetup') {
+    if (!isAuthor && !joined.includes(user.id)) return { error: '참가한 사람만 말할 수 있어요.' };
+    if (post.meetAt && appNow().getTime() > post.meetAt.getTime() + ROOM_OPEN_MS)
+      return { error: '대화방이 닫혔어요.' };
+    await prisma.communityMessage.create({ data: { postId, senderId: user.id, body } });
+    await notifyOnce(
+      [post.userId, ...joined].filter((id) => id !== user.id),
+      { kind: 'community', title: '번개 대화방에 새 말이 있어요', body: post.title, link }
+    );
+  } else if (post.category === 'team') {
+    const thread = isAuthor ? field(formData, 'thread') : user.id;
+    if (!joined.includes(thread)) return { error: isAuthor ? '신청한 사람을 찾지 못했어요.' : '먼저 신청해 주세요.' };
+    await prisma.communityMessage.create({ data: { postId, threadUserId: thread, senderId: user.id, body } });
+    await notifyOnce([isAuthor ? thread : post.userId], {
+      kind: 'community',
+      title: isAuthor ? '팀에서 답이 왔어요' : `${user.nickname} 님이 말을 보냈어요`,
+      body: post.title,
+      link: isAuthor ? link : `${link}?thread=${user.id}`,
+    });
+  } else {
+    return { error: '대화가 없는 글이에요.' };
+  }
+  revalidatePath(`/community/${postId}`);
+  return undefined;
 }
 
 // ── 신고 ──────────────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ import {
   POST_CATEGORIES,
   POST_SORTS,
   POST_TAGS,
+  isCommunityRegion,
   isPostCategory,
   isPostTag,
   postCategoryLabel,
@@ -15,18 +16,29 @@ import {
 import { Badge, ButtonLink, EmptyState, PageHeading } from '@/components/ui';
 import {
   categoryBadgeClass,
+  meetAtText,
   relativeTime,
 } from '@/components/community/community-format';
+import { CommunityRegionFilter } from '@/components/community/community-region-filter';
 
 type Search = { [key: string]: string | string[] | undefined };
 const one = (v: string | string[] | undefined) =>
   typeof v === 'string' ? v : undefined;
 
 /** 목록 주소 — 게시판 · 말머리 · 정렬 · 장을 바꿔도 나머지는 그대로 */
-function listHref(q: { category?: string; tag?: string; sort: PostSort; page?: number }) {
+function listHref(q: {
+  category?: string;
+  tag?: string;
+  region?: string;
+  past?: boolean;
+  sort: PostSort;
+  page?: number;
+}) {
   const sp = new URLSearchParams();
   if (q.category) sp.set('category', q.category);
   if (q.category && q.tag) sp.set('tag', q.tag);
+  if (q.region && (q.category === 'meetup' || q.category === 'team')) sp.set('region', q.region);
+  if (q.past && q.category === 'meetup') sp.set('past', '1');
   if (q.sort !== 'new') sp.set('sort', q.sort);
   if (q.page && q.page > 1) sp.set('page', String(q.page));
   const s = sp.toString();
@@ -52,13 +64,27 @@ export default async function CommunityPage({
   const tag = category && isPostTag(category, rawTag) ? rawTag : undefined;
   const sort: PostSort = one(sp.sort) === 'hot' ? 'hot' : 'new';
   const page = Math.max(1, Number.parseInt(one(sp.page) ?? '1', 10) || 1);
+  /* 우리 동네 · 지난 번개는 번개 · 팀 게시판에서만 */
+  const local = category === 'meetup' || category === 'team';
+  const rawRegion = one(sp.region);
+  const region = local && isCommunityRegion(rawRegion) ? rawRegion : undefined;
+  const past = category === 'meetup' && one(sp.past) === '1';
+  /* 지금 거르기를 지키는 주소 조각 — 게시판을 바꾸면 버린다 */
+  const keep = { category, tag, region, past };
 
   /* 글쓰기는 로그인 — 안 했으면 로그인 뒤 글쓰기로. 게시판을 보고 있으면 그 게시판을 골라 둔다 */
   const newHref = category ? `/community/new?board=${category}` : '/community/new';
   const writeHref = user ? newHref : `/login?next=${encodeURIComponent(newHref)}`;
 
   /* 읽기는 앱 화면과 같은 곳(lib/community-load.ts) — 가린 글은 관리자에게만, 차단한 사람 글은 빼고 */
-  const { posts, hasMore } = await loadCommunityList(user, { category, tag, sort, page });
+  const { posts, hasMore } = await loadCommunityList(user, {
+    category,
+    tag,
+    region,
+    when: category === 'meetup' ? (past ? 'past' : 'upcoming') : undefined,
+    sort,
+    page,
+  });
 
   const chipClass = (active: boolean) =>
     `inline-flex min-h-9 shrink-0 items-center rounded-full px-4 text-sm font-semibold whitespace-nowrap transition-colors ${
@@ -107,7 +133,7 @@ export default async function CommunityPage({
             {[{ key: '', label: '전체' }, ...POST_TAGS[category]].map((t) => (
               <Link
                 key={t.key}
-                href={listHref({ category, tag: t.key || undefined, sort })}
+                href={listHref({ ...keep, tag: t.key || undefined, sort })}
                 aria-current={(tag ?? '') === t.key ? 'page' : undefined}
                 className={`inline-flex min-h-8 shrink-0 items-center rounded-full px-3 text-xs font-semibold whitespace-nowrap transition-colors ${
                   (tag ?? '') === t.key
@@ -120,27 +146,38 @@ export default async function CommunityPage({
             ))}
           </nav>
         )}
-        <div
-          role="group"
-          aria-label="정렬"
-          className="flex items-center gap-1 self-end text-sm desk:self-auto"
-        >
-          {POST_SORTS.map((s, i) => (
-            <span key={s.key} className="flex items-center gap-1">
-              {i > 0 && <span className="text-line-strong">|</span>}
-              <Link
-                href={listHref({ category, tag, sort: s.key })}
-                aria-current={sort === s.key ? 'page' : undefined}
-                className={`rounded-full px-2 py-1 transition-colors ${
-                  sort === s.key
-                    ? 'font-semibold text-ink'
-                    : 'text-muted hover:text-ink'
-                }`}
-              >
-                {s.label}
-              </Link>
-            </span>
-          ))}
+        <div className="flex items-center gap-2 self-end desk:self-auto">
+          {local && (
+            <CommunityRegionFilter base={listHref({ ...keep, region: undefined, sort })} region={region} />
+          )}
+          {/* 번개는 모일 때 순 — 최신 · 인기 대신 다가오는 · 지난 */}
+          <div role="group" aria-label={category === 'meetup' ? '번개 때' : '정렬'} className="flex items-center gap-1 text-sm">
+            {(category === 'meetup'
+              ? [
+                  { key: 'up', label: '다가오는', href: listHref({ ...keep, past: false, sort }), on: !past },
+                  { key: 'past', label: '지난', href: listHref({ ...keep, past: true, sort }), on: past },
+                ]
+              : POST_SORTS.map((o) => ({
+                  key: o.key,
+                  label: o.label,
+                  href: listHref({ ...keep, sort: o.key }),
+                  on: sort === o.key,
+                }))
+            ).map((o, i) => (
+              <span key={o.key} className="flex items-center gap-1">
+                {i > 0 && <span className="text-line-strong">|</span>}
+                <Link
+                  href={o.href}
+                  aria-current={o.on ? 'page' : undefined}
+                  className={`rounded-full px-2 py-1 transition-colors ${
+                    o.on ? 'font-semibold text-ink' : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  {o.label}
+                </Link>
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -159,11 +196,13 @@ export default async function CommunityPage({
           description={
             page > 1
               ? '앞 장으로 돌아가 보세요.'
+              : category === 'meetup' && !past
+                ? '다가오는 번개가 없어요. 캐치볼 · 배팅 할 사람을 먼저 모아 보세요.'
               : '야구 이야기, 궁금한 것, 같이 할 사람. 무엇이든 첫 글을 남겨 보세요.'
           }
           action={
             page > 1 ? (
-              <ButtonLink href={listHref({ category, tag, sort })} variant="secondary">
+              <ButtonLink href={listHref({ ...keep, sort })} variant="secondary">
                 처음으로
               </ButtonLink>
             ) : (
@@ -213,6 +252,20 @@ export default async function CommunityPage({
                   <h2 className="font-semibold leading-snug text-ink transition-colors group-hover:text-sky">
                     {post.title}
                   </h2>
+                  {(post.meetAt || post.region) && (
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-ink/80">
+                      {post.meetAt && <span>{meetAtText(post.meetAt)}</span>}
+                      {post.region && <span className="text-muted">{post.region}</span>}
+                      {post.capacity !== null && (
+                        <span className="text-muted tabular-nums">
+                          {post.joins} / {post.capacity}명
+                        </span>
+                      )}
+                      {(post.closed || (post.capacity !== null && post.joins >= post.capacity)) && (
+                        <span className="rounded-full bg-ink/8 px-2 py-0.5 text-muted">마감</span>
+                      )}
+                    </p>
+                  )}
                   <p className="line-clamp-2 text-sm leading-relaxed text-muted">
                     {post.preview}
                   </p>
@@ -262,7 +315,7 @@ export default async function CommunityPage({
         <div className="flex items-center justify-center gap-3">
           {page > 1 && (
             <ButtonLink
-              href={listHref({ category, tag, sort, page: page - 1 })}
+              href={listHref({ ...keep, sort, page: page - 1 })}
               variant="secondary"
             >
               이전 장
@@ -270,7 +323,7 @@ export default async function CommunityPage({
           )}
           {hasMore && (
             <ButtonLink
-              href={listHref({ category, tag, sort, page: page + 1 })}
+              href={listHref({ ...keep, sort, page: page + 1 })}
               variant="secondary"
             >
               더 보기

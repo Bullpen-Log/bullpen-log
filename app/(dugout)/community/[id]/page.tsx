@@ -2,13 +2,14 @@ import { notFound } from 'next/navigation';
 import { Check, Eye, EyeOff, UserMinus } from '@/components/icon';
 import { RoundChat, RoundEyeOff, RoundHeart, RoundTrash } from '@/components/round-icon';
 import { getCurrentUser } from '@/lib/dal';
-import { loadCommunityPost } from '@/lib/community-load';
-import { INJURY_NOTE, postCategoryLabel, postTagLabel } from '@/lib/community';
+import { loadCommunityPost, loadCommunityRoom } from '@/lib/community-load';
+import { INJURY_NOTE, MEET_AGES, MEET_LEVELS, postCategoryLabel, postTagLabel } from '@/lib/community';
 import {
   acceptComment,
   deleteComment,
   deletePost,
   setBlocked,
+  setClosed,
   setHidden,
 } from '@/app/actions/community';
 import { BackLink, Badge, Button, ButtonLink } from '@/components/ui';
@@ -18,9 +19,13 @@ import { CommunityLikeButton } from '@/components/community/community-like-butto
 import { CommunityReportForm } from '@/components/community/community-report-form';
 import { CommunityCommentForm } from '@/components/community/community-comment-form';
 import { CommunityRecordCard } from '@/components/community/community-record-card';
+import { CommunityJoinButton } from '@/components/community/community-join-button';
+import { CommunityRoom } from '@/components/community/community-room';
+import Link from 'next/link';
 import {
   categoryBadgeClass,
   formatDateTime,
+  meetAtText,
   relativeTime,
 } from '@/components/community/community-format';
 
@@ -75,12 +80,28 @@ function BlockButton({ userId, nickname, compact }: { userId: string; nickname: 
 /**
  * 글 하나(2026-10-17 1판 — 틀) — 본문 · 좋아요 · 신고 · 댓글. 가린 글 · 댓글은 관리자에게만 흐리게 보인다.
  */
+/** 양식 한 줄 — 비어 있으면 안 그린다 */
+function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
+  return (
+    <div className="flex gap-3 text-sm">
+      <dt className="w-16 shrink-0 text-muted">{label}</dt>
+      <dd className="min-w-0 text-ink">{value}</dd>
+    </div>
+  );
+}
+
+const timeText = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' });
+
 export default async function CommunityPostPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ thread?: string | string[] }>;
 }) {
   const { id } = await params;
+  const { thread: threadParam } = await searchParams;
   /*
    * 보기는 로그인 없이(2026-10-24 김민 — 휴대폰 브라우저로 온 사람도 읽는다). 앱 웹뷰도 이 화면 그대로 — 앱 화면으로 넘기던
    * OpenNative 를 걷었다(커뮤니티는 웹 하나로).
@@ -98,6 +119,10 @@ export default async function CommunityPostPage({
   const postHidden = post.hidden;
   const visibleComments = post.commentCount;
   const tagLabel = postTagLabel(post.category, post.tag);
+  /* 글에 묶인 대화 — 글쓴이 · 참가자(번개) · 신청자(팀)만 */
+  const room = post.joinable
+    ? await loadCommunityRoom(user, post, typeof threadParam === 'string' ? threadParam : undefined)
+    : null;
 
   if (post.authorBlocked) {
     return (
@@ -157,6 +182,63 @@ export default async function CommunityPostPage({
         <div className="whitespace-pre-wrap text-subhead leading-[1.9] text-ink/90">
           {post.body}
         </div>
+
+        {(post.meetup || post.team) && (
+          <section aria-label={post.meetup ? '번개 정보' : '팀 정보'} className="space-y-4 rounded-2xl bg-surface-2 p-(--block-pad)">
+            <dl className="space-y-2">
+              {post.meetup && (
+                <>
+                  <InfoRow label="언제" value={post.meetAt ? meetAtText(post.meetAt) : null} />
+                  <InfoRow label="어디서" value={`${post.region ?? ''} · ${post.meetup.place}`} />
+                  <InfoRow label="인원" value={`${post.joinCount} / ${post.meetup.capacity}명 참가`} />
+                  <InfoRow label="실력" value={MEET_LEVELS.find((l) => l.key === post.meetup?.level)?.label} />
+                  <InfoRow label="누가" value={MEET_AGES.find((a) => a.key === post.meetup?.age)?.label} />
+                  <InfoRow label="준비물" value={post.meetup.gear} />
+                  <InfoRow label="비용" value={post.meetup.cost} />
+                </>
+              )}
+              {post.team && (
+                <>
+                  <InfoRow label="팀" value={post.team.team} />
+                  <InfoRow label="지역" value={post.region} />
+                  <InfoRow label="리그" value={post.team.league} />
+                  <InfoRow label="연습" value={post.team.days.length ? `${post.team.days.join(' · ')}요일` : null} />
+                  <InfoRow label="회비" value={post.team.fee} />
+                  <InfoRow label="연령대" value={post.team.ages} />
+                  <InfoRow label="신청" value={`${post.joinCount}명`} />
+                </>
+              )}
+            </dl>
+            <div className="flex flex-wrap items-center gap-2">
+              {(post.past || post.closed || post.full) && (
+                <Badge className="border-line-strong text-muted">{post.past ? '지난 번개' : '마감'}</Badge>
+              )}
+              {!user && (
+                <ButtonLink href={`/login?next=${encodeURIComponent(`/community/${post.id}`)}`} size="sm">
+                  로그인하고 {post.meetup ? '참가하기' : '신청하기'}
+                </ButtonLink>
+              )}
+              {user && !post.isOwner && (post.joined || !post.joinBlock) && (
+                <CommunityJoinButton postId={post.id} meetup={post.meetup !== null} joined={post.joined} />
+              )}
+              {user && !post.isOwner && !post.joined && post.joinBlock && (
+                <p className="text-sm text-muted">{post.joinBlock}</p>
+              )}
+              {post.isOwner && !post.past && (
+                <SafeForm action={setClosed}>
+                  <input type="hidden" name="id" value={post.id} />
+                  <input type="hidden" name="closed" value={post.closed ? '0' : '1'} />
+                  <Button type="submit" variant="secondary" size="sm">
+                    {post.closed ? '다시 열기' : '마감하기'}
+                  </Button>
+                </SafeForm>
+              )}
+            </div>
+            {post.joiners.length > 0 && post.meetup && (
+              <p className="text-xs text-muted">참가: {post.joiners.map((j) => j.nickname).join(' · ')}</p>
+            )}
+          </section>
+        )}
 
         {post.card && <CommunityRecordCard card={post.card} videoUrl={post.cardVideoUrl} />}
 
@@ -233,6 +315,45 @@ export default async function CommunityPostPage({
         {/* 신고 폼은 펼치면 폭을 다 쓰므로 동작 줄 밑에 따로 — 내 글은 신고하지 않는다 */}
         {post.canReport && <CommunityReportForm postId={post.id} />}
       </article>
+
+      {room && (
+        <section className="space-y-3" aria-labelledby="room-heading">
+          <h2 id="room-heading" className="text-base font-semibold text-ink">
+            {post.meetup ? '참가자 대화방' : post.isOwner ? '신청자와 대화' : '팀과 대화'}
+          </h2>
+          {post.team && post.isOwner && post.joiners.length > 1 && (
+            <nav aria-label="신청자" className="no-scrollbar flex gap-1.5 overflow-x-auto">
+              {post.joiners.map((j) => (
+                <Link
+                  key={j.userId}
+                  href={`/community/${post.id}?thread=${j.userId}`}
+                  scroll={false}
+                  data-nav="none"
+                  aria-current={room.thread === j.userId ? 'page' : undefined}
+                  className={`inline-flex min-h-9 shrink-0 items-center rounded-full px-3.5 text-sm font-semibold ${
+                    room.thread === j.userId ? 'bg-sky text-white' : 'bg-ink/6 text-ink'
+                  }`}
+                >
+                  {j.nickname}
+                </Link>
+              ))}
+            </nav>
+          )}
+          <CommunityRoom
+            postId={post.id}
+            thread={post.team && post.isOwner ? room.thread : null}
+            open={post.meetup ? post.roomOpen : true}
+            empty={post.meetup ? '참가한 사람끼리 이야기하는 곳이에요. 모일 곳 · 시각을 맞춰 보세요.' : '궁금한 것을 물어보세요.'}
+            messages={room.messages.map((m) => ({
+              id: m.id,
+              mine: m.mine,
+              nickname: m.nickname,
+              body: m.body,
+              time: timeText.format(m.createdAt),
+            }))}
+          />
+        </section>
+      )}
 
       {/* 댓글 */}
       <section className="space-y-4" aria-labelledby="comments-heading">
