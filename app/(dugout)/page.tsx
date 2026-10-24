@@ -13,6 +13,7 @@ import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
 import { countUnread, loadLatestListings, loadPublicPosts } from '@/lib/market/load';
 import { loadRecommendedCoaches } from '@/lib/market/lesson-load';
 import { GamesPanel } from '@/components/dugout/games-panel';
+import { MatchHeight } from '@/components/dugout/match-height';
 import { BaseballNews } from '@/components/dugout/baseball-news';
 import { kstDateKey, loadBaseballNews, loadHomeGames } from '@/lib/baseball-feed';
 import { relativeTime } from '@/components/community/community-format';
@@ -158,7 +159,11 @@ export default async function DugoutHome({
 
           {lessons.length > 0 && <LessonFeedCard items={lessons} compact title="최근 레슨" />}
 
-          {!sinkerApp && <MarketHero slides={slides} slim label="덕아웃 소식" />}
+          {!sinkerApp && (
+            <MatchHeight target="[data-games-aside] [aria-label='오늘의 경기']">
+              <MarketHero slides={slides} slim label="덕아웃 소식" />
+            </MatchHeight>
+          )}
 
           {/* 휴대폰 · 태블릿의 경기 칸 — 오른쪽으로 붙은 작은 카드(PC 는 오른쪽 칸) */}
           <div className={sinkerApp ? 'hidden' : 'flex justify-end md:hidden'}>
@@ -301,7 +306,7 @@ export default async function DugoutHome({
             )}
           </section>
         </div>
-        <aside className={sinkerApp ? 'hidden' : 'hidden md:block'}>
+        <aside data-games-aside className={sinkerApp ? 'hidden' : 'hidden md:block'}>
           <div className="sticky top-24">
             <GamesPanel games={games} today={today} />
           </div>

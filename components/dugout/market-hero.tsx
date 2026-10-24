@@ -93,7 +93,7 @@ export function MarketHero({
                 href={s.href}
                 aria-hidden={n !== i}
                 tabIndex={n === i ? 0 : -1}
-                className="flex min-h-32 w-full shrink-0 items-center justify-between gap-5 px-6 md:min-h-44 md:px-16"
+                className="flex min-h-32 w-full shrink-0 items-center justify-between gap-5 px-6 md:min-h-[var(--match-h,11rem)] md:px-16"
               >
                 <span className="min-w-0">
                   <span className="block text-sm font-bold text-white/60 md:text-base">{s.kicker}</span>
