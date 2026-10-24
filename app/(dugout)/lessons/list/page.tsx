@@ -100,7 +100,7 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
             scroll={false}
             data-nav="none"
             aria-current={on ? 'page' : undefined}
-            className={`rounded-full px-2.5 py-1 font-semibold ${on ? 'bg-ink text-white' : 'text-muted hover:text-ink'}`}
+            className={`rounded-full px-2.5 py-1 font-semibold ${on ? 'bg-ink text-page' : 'text-muted hover:text-ink'}`}
           >
             {s.label}
           </Link>
@@ -139,7 +139,7 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
     >
       <div className="lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start lg:gap-8">
         {/* PC 거르기 판 — 머리 밑에 붙어 따라온다 */}
-        <aside className="hidden lg:sticky lg:top-24 lg:block lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain">
+        <aside className="hidden lg:sticky lg:top-28 lg:block lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:overscroll-contain">
           <LessonFilterRail current={current} prefs={prefs} />
         </aside>
 

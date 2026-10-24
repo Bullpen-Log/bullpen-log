@@ -22,9 +22,11 @@ import { REGIONS } from '@/lib/market/specs';
 /**
  * 맞춤 코치 찾기 흐름 — 한 화면에 한 질문(토스식), 다섯 질문: 무엇을 → 누가 받나 → 언제 → 어디서 → 선호 조건.
  * 어느 질문이든 건너뛸 수 있고, 끝나면 답이 목록 주소가 된다(거르기는 전문 · 지역, 나머지는 추천 점수 · 까닭).
+ * PC(lg, 2026-10-24): 왼쪽에 다섯 단계와 지금까지의 답(누르면 그 질문으로), 오른쪽 가운데 카드에 질문 하나.
  */
 const STEPS = ['what', 'who', 'when', 'where', 'prefs'] as const;
 type Step = (typeof STEPS)[number];
+const SHORT: Record<Step, string> = { what: '무엇을', who: '누가', when: '언제', where: '어디서', prefs: '선호' };
 const TITLES: Record<Step, { q: string; hint: string }> = {
   what: { q: '무엇을 배우고 싶어요?', hint: '한 가지를 고르면 그 전문 코치부터 보여요' },
   who: { q: '누가 레슨을 받나요?', hint: '코치가 요청을 볼 때 참고해요' },
@@ -60,13 +62,60 @@ export function FindWizard() {
   const next = () => (last ? finish() : setI(i + 1));
   const back = () => (i === 0 ? router.push('/lessons') : setI(i - 1));
 
+  /* PC 왼쪽 단계 판의 답 한 줄 */
+  const answers: Record<Step, string | null> = {
+    what: SPECIALTIES.find((x) => x.key === specialty)?.label ?? null,
+    who: AUDIENCES.find((x) => x.key === audience)?.label ?? null,
+    when:
+      [WHEN_OPTIONS.find((x) => x.key === when)?.label, TIME_BANDS.find((x) => x.key === band)?.label]
+        .filter(Boolean)
+        .join(' · ') || null,
+    where: region,
+    prefs: prefs.length ? prefs.map((k) => PREFS.find((p) => p.key === k)?.label).join(' · ') : null,
+  };
+
   const chip = (on: boolean) =>
     `flex min-h-12 items-center justify-between gap-2 rounded-2xl border px-4 text-left text-sm font-semibold transition-colors ${
       on ? 'border-sky bg-sky/10 text-sky-strong' : 'border-line bg-surface text-ink hover:border-sky-soft'
     }`;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-2xl lg:grid lg:max-w-5xl lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-10">
+      {/* PC 단계 판 */}
+      <nav aria-label="찾기 단계" className="hidden lg:sticky lg:top-28 lg:block">
+        <p className="mb-1 text-xs text-muted">나에게 맞는 코치 찾기</p>
+        <p className="mb-5 text-xl font-black tracking-tight text-ink">다섯 질문이면 돼요</p>
+        <ol className="space-y-1">
+          {STEPS.map((s, k) => {
+            const now = k === i;
+            const done = k < i;
+            return (
+              <li key={s}>
+                <button
+                  type="button"
+                  onClick={() => setI(k)}
+                  aria-current={now ? 'step' : undefined}
+                  className={`flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${now ? 'bg-sky/10' : 'hover:bg-ink/4'}`}
+                >
+                  <span
+                    className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold transition-colors ${
+                      now ? 'bg-sky text-white' : done ? 'bg-ink text-page' : 'bg-ink/8 text-muted'
+                    }`}
+                  >
+                    {done ? '✓' : k + 1}
+                  </span>
+                  <span className="min-w-0">
+                    <span className={`block text-sm font-semibold ${now ? 'text-sky-strong' : 'text-ink'}`}>{SHORT[s]}</span>
+                    <span className="block truncate text-xs text-muted">{answers[s] ?? (done ? '건너뜀' : '아직')}</span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
+
+      <div className="space-y-6 lg:rounded-3xl lg:border lg:border-line lg:bg-surface lg:p-8 lg:shadow-[0_10px_30px_-18px_rgba(0,0,0,0.2)]">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -86,7 +135,7 @@ export function FindWizard() {
         </span>
       </div>
 
-      <div key={step} className="space-y-1">
+      <div key={step} className="space-y-1 motion-safe:animate-fade-in">
         <h1 className="text-xl font-bold text-ink">{TITLES[step].q}</h1>
         <p className="text-sm text-muted">{TITLES[step].hint}</p>
       </div>
@@ -201,6 +250,7 @@ export function FindWizard() {
         <Button type="button" size="lg" onClick={next} className="ml-auto min-w-40">
           {last ? '맞는 코치 보기' : '다음'}
         </Button>
+      </div>
       </div>
     </div>
   );

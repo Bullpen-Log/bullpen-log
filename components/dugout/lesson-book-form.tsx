@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useFormStatus } from 'react-dom';
 import { requestBooking, type LessonState } from '@/app/actions/lessons';
 import { Button, ButtonLink, Card, FormError, Textarea } from '@/components/ui';
+import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
 import { guardFormAction } from '@/lib/action-offline';
 import type { DaySlots } from '@/lib/market/lesson-load';
 import {
@@ -25,6 +26,7 @@ const key = (p: Pick) => `${p.dateKey}T${minToTime(p.startMin)}`;
 /**
  * 레슨 요청 폼 — ① 날짜 띠 · 그날 칸(둘까지, 첫째가 1순위) ② 무엇을 · 누가 ③ 한마디 ④ 결제 수단(저장만) → 요청 보내기.
  * 보낸 뒤에는 확인 카드(코치가 확정하면 알림 · 내 것에서 보기).
+ * PC(lg, 2026-10-24): 왼쪽은 단계마다 카드, 날짜는 두 주 달력 칸. 오른쪽에 따라오는 요약 판(코치 · 고른 때 · 무엇을 · 결제 수단 · 예상 레슨비 · 보내기).
  */
 export function LessonBookForm({
   coach,
@@ -42,6 +44,10 @@ export function LessonBookForm({
     priceFrom: number | null;
     trialPrice: number | null;
     hasSlots: boolean;
+    /** PC 요약 판 머리 */
+    org?: string;
+    rating?: number | null;
+    reviews?: number;
   };
   todayKey: string;
   days: string[];
@@ -97,9 +103,12 @@ export function LessonBookForm({
     });
   };
   const price = coach.trialPrice ?? coach.priceFrom;
+  const card = 'lg:rounded-2xl lg:border lg:border-line lg:bg-surface lg:p-5';
+  const pickText = (p: Pick) =>
+    `${Number(p.dateKey.slice(5, 7))}월 ${Number(p.dateKey.slice(8))}일 (${WEEKDAYS[weekdayOf(p.dateKey)]}) ${minToTime(p.startMin)}`;
 
   return (
-    <form action={action} className="space-y-6">
+    <form action={action} className="space-y-6 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-10 lg:space-y-0">
       <input type="hidden" name="orgId" value={coach.id} />
       {picks[0] && <input type="hidden" name="slot1" value={key(picks[0])} />}
       {picks[1] && <input type="hidden" name="slot2" value={key(picks[1])} />}
@@ -107,8 +116,9 @@ export function LessonBookForm({
       {audience && <input type="hidden" name="audience" value={audience} />}
       <input type="hidden" name="payMethod" value={pay} />
 
+      <div className="space-y-6 lg:space-y-4">
       {/* ① 언제 */}
-      <section className="space-y-3">
+      <section className={`space-y-3 ${card}`}>
         <div>
           <h2 className="text-sm font-bold text-ink">① 언제 받을까요</h2>
           <p className="text-xs text-muted">
@@ -116,7 +126,7 @@ export function LessonBookForm({
             원하는 때를 둘까지 고르면 코치가 하나를 확정해요.
           </p>
         </div>
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0 lg:grid lg:grid-cols-7 lg:overflow-visible">
           {days.map((d) => {
             const on = d === dateKey;
             const wd = weekdayOf(d);
@@ -128,7 +138,7 @@ export function LessonBookForm({
                 type="button"
                 onClick={() => setDateKey(d)}
                 aria-pressed={on}
-                className={`relative flex min-w-14 shrink-0 flex-col items-center rounded-xl border px-2 py-2 text-xs ${
+                className={`relative flex min-w-14 shrink-0 flex-col items-center rounded-xl border px-2 py-2 text-xs transition-colors ${
                   on ? 'border-sky bg-sky text-white' : open ? 'border-line bg-surface text-ink' : 'border-line bg-surface-2 text-muted/60'
                 }`}
               >
@@ -195,7 +205,7 @@ export function LessonBookForm({
       </section>
 
       {/* ② 무엇을 · 누가 */}
-      <section className="space-y-3">
+      <section className={`space-y-3 ${card}`}>
         <h2 className="text-sm font-bold text-ink">② 무엇을 · 누가</h2>
         <div className="flex flex-wrap gap-2">
           {(coach.specialties.length ? coach.specialties : SPECIALTIES.map((s) => s.key)).map((s) => (
@@ -227,13 +237,13 @@ export function LessonBookForm({
       </section>
 
       {/* ③ 한마디 */}
-      <section className="space-y-2">
+      <section className={`space-y-2 ${card}`}>
         <h2 className="text-sm font-bold text-ink">③ 코치에게 한마디 <span className="font-normal text-muted">(선택)</span></h2>
         <Textarea name="note" rows={3} maxLength={BOOKING_NOTE_MAX} placeholder="중2 투수, 구속보다 제구가 고민이에요. 싱커 기록 같이 봐 주세요." />
       </section>
 
       {/* ④ 결제 수단 */}
-      <section className="space-y-2">
+      <section className={`space-y-2 ${card}`}>
         <h2 className="text-sm font-bold text-ink">④ 결제 수단</h2>
         <div className="grid grid-cols-3 gap-2">
           {PAY_METHODS.map((m) => (
@@ -256,8 +266,60 @@ export function LessonBookForm({
         </p>
       </section>
 
-      <FormError>{state?.error}</FormError>
-      <Submit ready={picks.length > 0} coachName={coach.coach} />
+      {/* 보내기 — 휴대폰 · 패드(PC 는 오른쪽 판) */}
+      <div className="space-y-6 lg:hidden">
+        <FormError>{state?.error}</FormError>
+        <Submit ready={picks.length > 0} coachName={coach.coach} />
+      </div>
+      </div>
+
+      {/* PC 요약 판 */}
+      <aside className="hidden lg:sticky lg:top-28 lg:block">
+        <div className="space-y-4 rounded-2xl border border-line bg-surface p-5 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.25)]">
+          <div className="flex items-center gap-3">
+            <CoachAvatar name={coach.coach} />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-ink">{coach.coach} 코치</p>
+              {coach.org && <p className="truncate text-xs text-muted">{coach.org}</p>}
+              {coach.reviews != null && <Stars rating={coach.rating ?? null} reviews={coach.reviews} />}
+            </div>
+          </div>
+          <dl className="space-y-3 border-t border-line pt-3 text-sm">
+            <div>
+              <dt className="text-xs text-muted">원하는 때</dt>
+              <dd className="mt-1 space-y-1">
+                {picks.length === 0 ? (
+                  <span className="text-xs text-muted/80">왼쪽에서 둘까지 골라요</span>
+                ) : (
+                  picks.map((p, i) => (
+                    <span key={key(p)} className="flex items-center gap-2 motion-safe:animate-row-in">
+                      <span className="rounded-full bg-sky/10 px-2 py-0.5 text-[10px] font-bold text-sky-strong">{i + 1}순위</span>
+                      <span className="font-semibold text-ink">{pickText(p)}</span>
+                    </span>
+                  ))
+                )}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-xs text-muted">무엇을 · 누가</dt>
+              <dd className="text-right text-xs font-semibold text-ink">
+                {[specialty ? specialtyLabel(specialty) : null, AUDIENCES.find((a) => a.key === audience)?.label].filter(Boolean).join(' · ') || '—'}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-xs text-muted">결제 수단</dt>
+              <dd className="text-xs font-semibold text-ink">{PAY_METHODS.find((m) => m.key === pay)?.label}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 border-t border-line pt-3">
+              <dt className="text-xs text-muted">예상 레슨비 · {coach.slotMin}분</dt>
+              <dd className="text-lg font-black text-ink">{price != null ? formatPrice(price) : '문의'}</dd>
+            </div>
+          </dl>
+          <FormError>{state?.error}</FormError>
+          <Submit ready={picks.length > 0} coachName={coach.coach} />
+          <p className="text-[11px] leading-relaxed text-muted">레슨이 끝나기 전에는 결제되지 않아요. 코치가 하나를 확정하면 알림으로 알려 드려요.</p>
+        </div>
+      </aside>
     </form>
   );
 }

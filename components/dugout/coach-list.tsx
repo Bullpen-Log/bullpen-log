@@ -68,7 +68,7 @@ export function CoachList({ coaches, bookQuery }: { coaches: CoachCardData[]; bo
 
       {picked.length > 0 && (
         <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--tab-bar-top,0px)+0.75rem)] z-30 px-4 md:bottom-6">
-          <div className="pointer-events-auto mx-auto flex max-w-md items-center gap-3 rounded-full bg-ink px-4 py-2 text-white shadow-lg motion-safe:animate-sheet-up lg:max-w-xl lg:py-2.5 lg:pl-3">
+          <div className="pointer-events-auto mx-auto flex max-w-md items-center gap-3 rounded-full bg-ink px-4 py-2 text-page shadow-lg motion-safe:animate-sheet-up lg:max-w-xl lg:py-2.5 lg:pl-3">
             {/* PC — 담은 코치 얼굴 */}
             <span className="hidden -space-x-2 lg:flex">
               {pickedCoaches.map((c) => (
@@ -77,12 +77,12 @@ export function CoachList({ coaches, bookQuery }: { coaches: CoachCardData[]; bo
             </span>
             <span className="text-sm font-semibold">
               {picked.length}명 담음
-              <span className="ml-1 text-xs font-normal text-white/70">(최대 {COMPARE_MAX}명)</span>
+              <span className="ml-1 text-xs font-normal text-page/70">(최대 {COMPARE_MAX}명)</span>
             </span>
             <button
               type="button"
               onClick={() => setPicked([])}
-              className="text-xs text-white/70 hover:text-white"
+              className="text-xs text-page/70 hover:text-page"
             >
               비우기
             </button>
@@ -90,7 +90,7 @@ export function CoachList({ coaches, bookQuery }: { coaches: CoachCardData[]; bo
               href={`/lessons/compare?ids=${picked.join(',')}${bookQuery ? `&${bookQuery}` : ''}`}
               aria-disabled={picked.length < 2}
               className={`ml-auto inline-flex min-h-10 items-center rounded-full px-4 text-sm font-bold ${
-                picked.length < 2 ? 'pointer-events-none bg-white/20 text-white/60' : 'bg-white text-ink'
+                picked.length < 2 ? 'pointer-events-none bg-page/20 text-page/60' : 'bg-page text-ink'
               }`}
             >
               비교하기
