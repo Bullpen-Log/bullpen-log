@@ -8,7 +8,7 @@ import { getCurrentUser } from '@/lib/dal';
 import { isNativeUserAgent, surfaceOf } from '@/lib/app-env';
 import { DugoutMain } from '@/components/dugout/dugout-main';
 import { HomeSnap } from '@/components/dugout/home-snap';
-import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
+import { type BannerSlide } from '@/components/dugout/market-hero';
 import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
 import { countUnread, loadLatestListings, loadPublicPosts } from '@/lib/market/load';
 import { loadRecommendedCoaches } from '@/lib/market/lesson-load';
@@ -123,6 +123,7 @@ export default async function DugoutHome({
           sinker={sinkerUser}
           native={native}
           sinkerApp={sinkerApp}
+          slides={sinkerApp ? undefined : slides}
         />
         {/*
           경기 칸은 오른쪽에 작게 따로(2026-10-24 금윤호 "야구 일정 결과를 우측으로 작게 빼 달라고") — 휴대폰이 아니면(768px~) 본문 오른쪽의 좁은 칸(220~240px)에 떠서
@@ -130,12 +131,6 @@ export default async function DugoutHome({
         */}
         {/* 두 칸 스크롤(첫 화면 ↔ 본문) — components/dugout/home-snap.tsx 가 이 칸을 위 막대 바로 밑에 세운다(scroll-margin 이 그 틈) */}
         <HomeSnap />
-        {/* 홈 띠 — 오른쪽 경기 칸 자리까지 한 줄 넓이(2026-10-24 금윤호 "키운 띠를 오늘의 경기까지의 길이로"). 경기 칸은 그 밑, 내렸을 때 뜬다 */}
-        {!sinkerApp && (
-          <div className="mx-auto mb-16 max-w-6xl">
-            <MarketHero slides={slides} slim label="덕아웃 소식" />
-          </div>
-        )}
         <div
           data-dugout-content
           className={`mx-auto grid max-w-6xl scroll-mt-3 gap-6 pb-6 md:scroll-mt-5 ${sinkerApp ? '' : 'md:grid-cols-[minmax(0,1fr)_220px] lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8'}`}

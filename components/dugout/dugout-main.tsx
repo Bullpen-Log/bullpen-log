@@ -7,10 +7,11 @@ import { Wordmark } from '@/components/logo';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
 import { ChatButton, ProfileButton, SinkerButton } from '@/components/dugout/dugout-topbar';
 import { FEATURES } from '@/lib/dugout-features';
+import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
 
 /**
  * 2026-10-24 금윤호(둘째): "'전국 에서 무엇이 필요하세요?' 글을 지우고 덕아웃 로고를 · 검색창은 '통합검색'만 · 우측 상단 싱커는 S 로고만 · 맨 끝엔 프로필".
- *   그래서 가운데 큰 덕아웃 로고([data-dugout-logo] — 싱커에서 돌아올 때 가운데 로고가 여기로 내려앉는다) → 통합검색 → 아이콘 줄.
+ *   그래서 가운데 큰 덕아웃 로고([data-dugout-logo] — 싱커에서 돌아올 때 가운데 로고가 여기로 내려앉는다) → 통합검색 → 덕아웃 소식 띠(2026-10-24 금윤호 '통합검색 밑으로') → 아이콘 줄.
  *   모서리 줄은 오른쪽만(싱커 S · 알림 · 설정 · 프로필).
  *
  * 덕아웃 첫 화면(2026-10-24 금윤호: "메인 화면을 그냥 이거로 — 덕아웃의 처음 시작화면은 이거") — 예전 큰 로고 화면(dugout-hero) 대신 이것.
@@ -34,7 +35,10 @@ export function DugoutMain({
   sinker = false,
   native = false,
   sinkerApp = false,
+  slides,
 }: {
+  /** 덕아웃 소식 띠 — 로고 밑 · 통합검색 위(2026-10-24 금윤호). 싱커 앱은 없다 */
+  slides?: readonly BannerSlide[];
   user: { nickname: string } | null;
   avatarUrl?: string | null;
   alerts?: number;
@@ -104,8 +108,7 @@ export function DugoutMain({
       </div>
 
       <div className="mx-auto max-w-6xl pt-10 md:pt-16">
-        <form action="/search" method="get" role="search" className="space-y-6">
-          <h1 className="flex justify-center">
+        <h1 className="flex justify-center">
             <Link
               href={native ? '/?dugout=1' : '/'}
               aria-label="덕아웃"
@@ -114,7 +117,8 @@ export function DugoutMain({
             >
               <Wordmark brand="dugout" className="text-5xl text-ink md:text-7xl" />
             </Link>
-          </h1>
+        </h1>
+        <form action="/search" method="get" role="search" className="mt-6">
           <div className={`mx-auto max-w-3xl items-center gap-2 ${sinkerApp ? 'hidden' : 'flex'}`}>
             <label className="relative min-w-0 flex-1">
               <RoundSearch className="pointer-events-none absolute top-1/2 left-4 h-4.5 w-4.5 -translate-y-1/2 text-muted" />
@@ -134,6 +138,11 @@ export function DugoutMain({
             </button>
           </div>
         </form>
+        {slides && (
+          <div className="mt-8">
+            <MarketHero slides={slides} slim label="덕아웃 소식" />
+          </div>
+        )}
 
         {/* 덕아웃 기능으로 가는 아이콘 줄 */}
         <ul className="mt-9 flex flex-wrap justify-center gap-x-5 gap-y-4 sm:gap-x-10 md:gap-x-12">
