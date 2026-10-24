@@ -25,7 +25,8 @@ import {
   nextRecordCut,
   nextSweepWindow,
 } from '../lib/velocity-engine/sweep.ts';
-import { findThrowRun, netFlight, netInputSize, type NetPoint } from '../lib/velocity-engine/ball-net.ts';
+import { findThrowRun, netInputSize } from '../lib/velocity-engine/ball-net.ts';
+import { netFlight, type NetPoint } from '../lib/velocity-engine/net-flight.ts';
 import { fitBallRadius, renderBall } from '../lib/velocity-engine/ball-radius.ts';
 import { alignTrail, type TrailPoint } from '../lib/velocity-tracer.ts';
 import {

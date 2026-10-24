@@ -34,7 +34,7 @@ import {
   type TrajectoryFit,
 } from './trajectory-fit.ts';
 import { motionAt, refToFrame, stabilize } from './stabilize.ts';
-import { netFlight, type NetPoint } from './ball-net.ts';
+import { netFlight, type NetPoint } from './net-flight.ts';
 import {
   blobTrack,
   consistentPrefix,
@@ -84,7 +84,7 @@ export type DistanceInput = {
   /** 흔들림을 바로잡나(기본 켬) — 끄면 받은 장면 그대로(시험 · 견주기용) */
   stabilize?: boolean;
   /**
-   * 장면마다 공 감지 모델의 봉우리(분석 px · 영상 시각, ball-net.ts NetPoint) — 있으면 날아가는 공 길(netFlight)을 씨앗과 안내로 써
+   * 장면마다 공 감지 모델의 봉우리(분석 px · 영상 시각, net-flight.ts NetPoint) — 있으면 날아가는 공 길(netFlight)을 씨앗과 안내로 써
    * 덩어리를 찾는다. 밝기 덩어리만으로는 그물 앞 · 작은 공의 씨앗을 못 잡고 끝 전에 놓쳤다(10-23 · 10-24, 30구 중 12구 못 잼 — 모델은 30구 다 봄).
    * 모델 길에서 못 찾으면 예전 길 그대로.
    */
