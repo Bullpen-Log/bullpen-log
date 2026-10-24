@@ -6,7 +6,7 @@ import { useEffect } from 'react';
  * 덕아웃 홈 두 칸 스크롤(2026-10-24 금윤호: "첫 화면에서 한 번 굴리면 바로 본문으로, 위로 굴리면 다시 첫 화면 — 부드러운 움직임이 중요").
  * 설계는 docs/designs/dugout-home-snap-prompt.md.
  *
- * 홈에는 위쪽에 두 자리만 있다 — A(맨 위, 찾기 판 · 위 막대 숨김), B(본문 [data-dugout-content] 가 위 막대 바로 밑 · 막대 보임).
+ * 홈에는 위쪽에 두 자리만 있다 — A(맨 위, 찾기 판 · 위 막대 숨김), B(장터 묶음 [data-dugout-snap] 이 위 막대 바로 밑 · 막대 보임, 띠는 지나서).
  * A 에서 아래로 가려는 손짓(바퀴 한 칸 · 트랙패드 한 번 · 손가락 한 번 · PageDown · Space · ↓)은 B 로 한 번에 미끄러지고, B 에서 위로는 A 로.
  * B 밑은 여느 스크롤 그대로. A 와 B 사이에는 절대 멈추지 않는다(밑에서 올라오다 그 사이로 들어오면 마저 데려다준다).
  *
@@ -68,7 +68,11 @@ export function HomeSnap() {
     let touchY: number | null = null;
     let touchDone = false;
 
-    const content = () => document.querySelector<HTMLElement>('[data-dugout-content]');
+    /* 본문 자리(B)의 기준 — 장터 묶음([data-dugout-snap]), 안 보이면(싱커 앱) 본문 칸 맨 위 */
+    const content = () => {
+      const snap = document.querySelector<HTMLElement>('[data-dugout-snap]');
+      return snap && snap.offsetParent ? snap : document.querySelector<HTMLElement>('[data-dugout-content]');
+    };
     const bar = () => document.querySelector<HTMLElement>('[data-morph-bar]');
     const maxScroll = () => document.documentElement.scrollHeight - innerHeight;
 
@@ -266,9 +270,9 @@ export function HomeSnap() {
 
     const ro = new ResizeObserver(() => measure());
     const main = document.querySelector('[data-dugout-main]');
-    const el = content();
+    const grid = document.querySelector('[data-dugout-content]');
     if (main) ro.observe(main);
-    if (el) ro.observe(el);
+    if (grid) ro.observe(grid);
     document.fonts?.ready.then(measure).catch(() => {});
 
     window.addEventListener('wheel', onWheel, { passive: false });

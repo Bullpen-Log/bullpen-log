@@ -170,8 +170,8 @@ export default async function DugoutHome({
           {/* 야구 뉴스 — 네이버 검색 열쇠가 있을 때만(경기 결과는 오른쪽 칸) */}
           {newsRows && newsRows.length > 0 && <BaseballNews news={newsRows} />}
 
-          {/* 장터 — 싱커 앱에는 없다 */}
-          <section className={sinkerApp ? 'hidden' : 'space-y-4'}>
+          {/* 장터 — 싱커 앱에는 없다. 두 칸 스크롤의 본문 자리(B)는 이 묶음이 위 막대 바로 밑에 오는 곳(2026-10-24 금윤호 — 띠는 지나서) */}
+          <section data-dugout-snap className={sinkerApp ? 'hidden' : 'scroll-mt-4 space-y-4 md:scroll-mt-6'}>
             <SectionHead kicker="덕아웃 장터에서" title="방금 올라온 물건" href="/market" />
             <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
               {chip('/market', '전체', true)}
