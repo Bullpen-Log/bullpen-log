@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { RoundIcon } from '@/components/round-icon';
 import { ListingCard } from '@/components/dugout/listing-card';
+import { SectionHead, chipClass } from '@/components/dugout/ui';
 import { getCurrentUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
 import { DugoutMain } from '@/components/dugout/dugout-main';
@@ -93,9 +94,7 @@ export default async function DugoutHome({
     <Link
       key={href + label}
       href={href}
-      className={`inline-flex min-h-9 shrink-0 items-center rounded-full px-3.5 text-[13px] font-semibold whitespace-nowrap transition-colors ${
-        on ? 'bg-ink text-page' : 'border border-line text-ink hover:border-ink/40'
-      }`}
+      className={chipClass(on, 'md')}
     >
       {label}
     </Link>
@@ -103,8 +102,8 @@ export default async function DugoutHome({
 
   return (
     <div className="space-y-10">
-      {/* 홈 — 흰 바탕을 화면 끝까지(장터와 같은 틀) */}
-      <div className="relative isolate before:absolute before:-top-10 before:-bottom-40 before:left-1/2 before:-z-10 before:w-screen before:-translate-x-1/2 before:bg-surface">
+      {/* 홈 — 흰 바탕은 덕아웃 틀이 준다(2026-10-24 UI 통일) */}
+      <div>
         {/* 첫 화면 — 통합검색 · 우리 기능 아이콘 줄(이게 보이는 동안 위 막대는 숨는다) */}
         <DugoutMain
           user={user ? { nickname: user.nickname } : null}
@@ -137,7 +136,7 @@ export default async function DugoutHome({
 
           {/* 장터 */}
           <section className="space-y-4">
-            <Head kicker="덕아웃 장터에서" title="방금 올라온 물건" href="/market" />
+            <SectionHead kicker="덕아웃 장터에서" title="방금 올라온 물건" href="/market" />
             <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
               {chip('/market', '전체', true)}
               {CATEGORIES.slice(0, 8).map((c) => chip(filterHref({ category: c.key }), c.label))}
@@ -160,7 +159,7 @@ export default async function DugoutHome({
 
           {/* 추천 코치 — 숨고 '오늘의 추천 고수' */}
           <section className="space-y-4">
-            <Head title="오늘의 추천 코치" href="/lessons/list" />
+            <SectionHead title="오늘의 추천 코치" href="/lessons/list" />
             <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
               {chip('/lessons/list', '전체', true)}
               {SPECIALTIES.map((s) => chip(`/lessons/list?specialty=${s.key}`, s.label))}
@@ -207,7 +206,7 @@ export default async function DugoutHome({
 
           {/* 지금 필요한 것 — 숨고 '지금 필요한 서비스, 한번에 견적 받기' */}
           <section className="space-y-4">
-            <Head title="지금 필요한 것, 한 번에" />
+            <SectionHead title="지금 필요한 것, 한 번에" />
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
               {needs.map((n) => (
                 <Link
@@ -235,7 +234,7 @@ export default async function DugoutHome({
 
           {/* 인기글 — 숨고 '이번 주 강남구 주변 인기글' */}
           <section className="space-y-4">
-            <Head title="이번 주 인기글" href={user ? '/community' : '/login?next=/community'} />
+            <SectionHead title="이번 주 인기글" href={user ? '/community' : '/login?next=/community'} />
             {hot.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted">
                 아직 글이 없어요 ·{' '}
@@ -273,22 +272,6 @@ export default async function DugoutHome({
         </aside>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Head({ kicker, title, href }: { kicker?: string; title: string; href?: string }) {
-  return (
-    <div className="flex items-end justify-between gap-3">
-      <div className="min-w-0">
-        {kicker && <p className="text-[13px] text-muted">{kicker}</p>}
-        <h2 className="mt-0.5 text-xl font-bold text-ink">{title}</h2>
-      </div>
-      {href && (
-        <Link href={href} className="shrink-0 text-sm text-muted hover:text-ink">
-          더보기 ›
-        </Link>
-      )}
     </div>
   );
 }
