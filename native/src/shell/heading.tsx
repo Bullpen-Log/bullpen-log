@@ -79,7 +79,12 @@ export function Segmented<V extends string>({
   flow?: boolean;
 }) {
   const c = usePalette();
-  const [w, setW] = useState(0);
+  /* 지난번 잰 폭부터 — 0 으로 두면 판을 오갈 때마다 흰 표시가 한 장면 늦게 떴다(2026-10-24 두 번째 검토) */
+  const [w, setWRaw] = useState(() => SEG_WIDTH.get(label) ?? 0);
+  const setW = (v: number) => {
+    SEG_WIDTH.set(label, v);
+    setWRaw(v);
+  };
   const found = options.findIndex((o) => o.value === value);
   const index = Math.max(0, found);
   const cell = w > 0 ? (w - PAD * 2 - GAP * (options.length - 1)) / options.length : 0;
@@ -127,6 +132,8 @@ export function Segmented<V extends string>({
 
 const PAD = 4;
 const GAP = 4;
+/** 고르개마다(이름표로) 잰 폭 */
+const SEG_WIDTH = new Map<string, number>();
 const st = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   section: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 32, paddingHorizontal: 4 },

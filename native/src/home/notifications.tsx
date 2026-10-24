@@ -36,8 +36,24 @@ function ago(iso: string, now: number) {
   return `${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
+/*
+ * 지난번 목록 — 알림 창(formSheet · 내용만큼 높이)을 다시 열면 이것부터 보이고 새로 받는다. 예전엔 열 때마다 돌개(작은 창) → 목록으로 창 높이가
+ * 튀었다(2026-10-24 두 번째 검토). 로그아웃하면 비운다(app/index resetAccount)
+ */
+let lastItems: BellNotification[] | null = null;
+export const resetNotificationList = () => {
+  lastItems = null;
+};
+
 export function NotificationList({ c }: { c: Palette }) {
-  const [items, setItems] = useState<BellNotification[] | null>(null);
+  const [items, setItemsRaw] = useState<BellNotification[] | null>(lastItems);
+  const setItems = useCallback((next: BellNotification[] | null | ((l: BellNotification[] | null) => BellNotification[] | null)) => {
+    setItemsRaw((l) => {
+      const v = typeof next === 'function' ? next(l) : next;
+      lastItems = v;
+      return v;
+    });
+  }, []);
   const [failed, setFailed] = useState(false);
   const [now] = useState(() => Date.now());
 
@@ -46,7 +62,7 @@ export function NotificationList({ c }: { c: Palette }) {
       rpc<{ items: BellNotification[]; unread: number }>('notifications.loadBellNotifications')
         .then((r) => setItems(r.items))
         .catch(() => setFailed(true)),
-    []
+    [setItems]
   );
   useEffect(() => {
     void fetchList();
@@ -75,7 +91,7 @@ export function NotificationList({ c }: { c: Palette }) {
           </Pressable>
         ) : null}
       </View>
-      {failed ? (
+      {failed && items == null ? (
         <Pressable
           accessibilityRole="button"
           onPress={() => {

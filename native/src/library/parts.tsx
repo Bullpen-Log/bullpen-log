@@ -2,7 +2,8 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useState, type ReactNode } from 'react';
 import { router, type Href } from 'expo-router';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Thumb } from '~/lib/thumb';
 import type { LibraryExercise } from '@/lib/library-load';
 import type { GuideItem } from '@/app/(app)/library/mechanics/mechanics-client';
 import { act } from '~/mechanics/parts';
@@ -102,7 +103,7 @@ export function ItemRow({
     >
       <View style={[st.thumb, { backgroundColor: c.chip }]}>
         {thumbUrl ? (
-          <Image source={{ uri: thumbUrl }} resizeMode="cover" style={StyleSheet.absoluteFill} />
+          <Thumb uri={thumbUrl} style={StyleSheet.absoluteFill} />
         ) : (
           <SymbolView name="film" size={20} tintColor={c.muted} />
         )}
@@ -172,7 +173,7 @@ export function LibraryTile({ title, thumbUrl, favorite, onPress, c }: { title: 
       <View style={[st.tileThumb, { backgroundColor: c.chip }]}>
         {thumbUrl ? (
           <>
-            <Image source={{ uri: thumbUrl }} resizeMode="cover" style={StyleSheet.absoluteFill} />
+            <Thumb uri={thumbUrl} style={StyleSheet.absoluteFill} />
             <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.35)' }]} />
           </>
         ) : null}

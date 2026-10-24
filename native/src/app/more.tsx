@@ -2,11 +2,11 @@ import type { BlurView as BlurViewType } from 'expo-blur';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { type Href, router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useRef } from 'react';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { Easing, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, runOnJS, useAnimatedProps, useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useTheme } from '~/lib/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, type IconName } from '~/shell/icon';
@@ -75,6 +75,8 @@ const BlurView: typeof BlurViewType | null = requireOptionalNativeModule('ExpoBl
   ? // eslint-disable-next-line @typescript-eslint/no-require-imports
     (require('expo-blur') as typeof import('expo-blur')).BlurView
   : null;
+/* 흐림은 투명도로 옅게 하면 iOS 가 흐림을 끊어 그려(옅어지는 동안 흐림이 사라졌다 뒤늦게 켜짐) 세기(intensity)로 움직인다 */
+const AnimatedBlur = BlurView ? Animated.createAnimatedComponent(BlurView) : null;
 /* 폴더가 떠 보이는 그림자 — 가까운 것 · 먼 것 두 겹 */
 const FOLDER_SHADOW = '0 2px 6px rgba(0,0,0,0.12), 0 24px 60px -12px rgba(0,0,0,0.38)';
 /* 끌어내려 닫기 — 웹 detail-menu startDrag: 12px 넘게 거의 세로로 움직이면 끌기, 100px(빠르면 48px) 넘으면 닫힘 */
@@ -113,19 +115,29 @@ export default function MoreScreen() {
    */
   const grow = useSharedValue(0);
   const dragY = useSharedValue(0);
-  const [box, setBox] = useState({ w: 0, h: 0 });
-  useEffect(() => {
+  /*
+   * 폴더 크기는 잰 뒤에 부풀기 시작한다 — 크기를 모르는 첫 장면들은 한가운데에서 부풀다가 크기가 오면 더보기 자리로 튀었다(2026-10-24 두 번째 검토)
+   */
+  const box = useSharedValue({ w: 0, h: 0 });
+  const started = useRef(false);
+  const measured = (w: number, h: number) => {
+    box.set({ w, h });
+    if (started.current) return;
+    started.current = true;
     grow.set(withTiming(1, { duration: reduce ? 0 : 320, easing: Easing.bezier(0.2, 0.9, 0.3, 1.05) }));
-  }, [grow, reduce]);
+  };
   const folderStyle = useAnimatedStyle(() => {
     const g = grow.value;
     const sc = 0.55 + 0.45 * g;
+    const b = box.value;
     return {
       opacity: Math.min(1, g * 1.6),
-      transform: [{ translateX: 0.38 * box.w * (1 - sc) }, { translateY: 0.5 * box.h * (1 - sc) + dragY.value }, { scale: sc }],
+      transform: [{ translateX: 0.38 * b.w * (1 - sc) }, { translateY: 0.5 * b.h * (1 - sc) + dragY.value }, { scale: sc }],
     };
   });
-  const scrimStyle = useAnimatedStyle(() => ({ opacity: Math.min(1, grow.value) * (1 - Math.min(1, dragY.value / 400)) }));
+  const fade = useDerivedValue(() => Math.min(1, grow.value) * (1 - Math.min(1, dragY.value / 400)));
+  const scrimStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
+  const blurProps = useAnimatedProps(() => ({ intensity: BACKDROP_BLUR * fade.value }));
 
   const gone = () => router.back();
   const close = () => {
@@ -225,18 +237,22 @@ export default function MoreScreen() {
   return (
     <GestureDetector gesture={drag}>
       <View style={{ flex: 1 }}>
+        {AnimatedBlur ? (
+          <AnimatedBlur
+            pointerEvents="none"
+            animatedProps={blurProps}
+            tint={theme === 'light' ? 'systemThinMaterialLight' : 'systemThinMaterialDark'}
+            style={StyleSheet.absoluteFill}
+          />
+        ) : null}
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, scrimStyle]}>
-          {BlurView ? (
-            <BlurView intensity={BACKDROP_BLUR} tint={theme === 'light' ? 'systemThinMaterialLight' : 'systemThinMaterialDark'} style={StyleSheet.absoluteFill} />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: L.scrim }]} />
-          )}
+          {!AnimatedBlur ? <View style={[StyleSheet.absoluteFill, { backgroundColor: L.scrim }]} /> : null}
           <View style={[StyleSheet.absoluteFill, { backgroundColor: L.scrim }]} />
         </Animated.View>
         {/* 하단 탭 자리만큼 비운다 — 폴더가 탭 막대 위에 선다(웹 inset.bottom + 72) */}
         <Pressable accessibilityLabel="메뉴 닫기" onPress={close} style={[styles.scrim, { paddingTop: inset.top, paddingBottom: inset.bottom + 72 }]}>
           {/* 폴더 안을 눌러도 닫히지 않게 — 안쪽 Pressable 이 누름을 먼저 받는다 */}
-          <Animated.View style={[styles.folderWrap, folderStyle]} onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+          <Animated.View style={[styles.folderWrap, folderStyle]} onLayout={(e) => measured(e.nativeEvent.layout.width, e.nativeEvent.layout.height)}>
             {/* 폴더 위 큰 제목 — 아이폰 폴더 이름처럼 흰 글자(뒤가 어두워져 늘 읽힌다) */}
             <Text accessibilityRole="header" style={styles.title}>
               메뉴
