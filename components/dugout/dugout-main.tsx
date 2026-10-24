@@ -126,7 +126,7 @@ export function DugoutMain({
               <Wordmark brand="dugout" className="text-6xl text-ink md:text-8xl" />
             </Link>
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="mx-auto flex max-w-4xl items-center gap-2">
             <label className="relative min-w-0 flex-1">
               <RoundSearch className="pointer-events-none absolute top-1/2 left-4 h-4.5 w-4.5 -translate-y-1/2 text-muted" />
               <input
