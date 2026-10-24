@@ -30,8 +30,8 @@ const SLIDES: readonly BannerSlide[] = [
   {
     kicker: '처음이라면',
     title: ['나이 · 포지션 · 손만 고르면', '맞는 장비를 골라 드려요'],
-    cta: '장비 고르기',
-    href: '/gear',
+    cta: '장비 추천받기',
+    href: '/market?guide=1',
     icon: 'gear',
   },
   {
