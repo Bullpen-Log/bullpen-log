@@ -255,7 +255,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         </div>
 
         {/* 오른쪽 — 많이 찾는 검색어(당근 '인기 검색어' 자리) */}
-        <aside className="lg:sticky lg:top-32 lg:self-start">
+        <aside className="lg:sticky lg:top-[calc(var(--dugout-bar-h)+1.5rem)] lg:self-start">
           <section className="rounded-2xl border border-line bg-surface p-5">
             <h2 className="flex items-center gap-1.5 text-base font-bold text-ink">
               <RoundSearch className="h-4.5 w-4.5" /> 많이 찾는 검색어

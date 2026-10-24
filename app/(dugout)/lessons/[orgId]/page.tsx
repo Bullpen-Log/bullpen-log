@@ -282,7 +282,7 @@ export default async function CoachPage({
       </div>
 
       {/* PC 예약 판 — 머리 밑에 붙어 따라온다 */}
-      <aside className="hidden lg:sticky lg:top-28 lg:block">
+      <aside className="hidden lg:sticky lg:top-[calc(var(--dugout-bar-h)+1rem)] lg:block">
         <div className="space-y-4 rounded-2xl border border-line bg-surface p-5 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.25)]">
           <div>
             <p className="text-xs text-muted">레슨 1회 · {c.slotMin}분</p>

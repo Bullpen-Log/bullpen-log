@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { RoundChat, RoundMenu, RoundPlus, RoundSearch } from '@/components/round-icon';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { RoundChat, RoundPlus, RoundSearch } from '@/components/round-icon';
 import { SinkerMark, Wordmark } from '@/components/logo';
 import { MorphLink } from '@/components/shell-morph';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
@@ -72,25 +73,22 @@ export function DugoutTopBar({
     (exact
       ? pathname === href.split('?')[0]
       : pathname === href || pathname.startsWith(`${href}/`));
-  /* 둘째 줄 메뉴 — 번개장터처럼 굵은 글, 지금 보는 곳만 초록 */
+  /* 둥근 알약 한 줄(2026-10-24 금윤호 "둥글둥글하고 심플하게") — 칸은 모두 높이 40px 둥근 단추, 지금 보는 곳은 뒤에서 미끄러지는 옅은 알약 */
   const item = (on: boolean) =>
-    `relative flex min-h-10 items-center rounded-full px-3 text-[15px] font-bold transition-colors ${
-      on ? 'text-sky-strong' : 'text-ink hover:bg-ink/5'
+    `relative z-10 flex h-10 items-center rounded-full px-3.5 text-[15px] whitespace-nowrap transition-colors ${
+      on ? 'font-bold text-ink' : 'font-semibold text-ink/65 hover:text-ink'
     }`;
-  const side = (on: boolean) =>
-    `flex min-h-10 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition-colors ${
-      on ? 'bg-ink text-white' : 'border border-line text-ink hover:border-sky-soft'
-    }`;
-  /* 가운데 검색 — 덕아웃 통합검색(2026-10-24 — 물건 · 글 · 코치 · 연습장 · 기능을 한 번에, app/(dugout)/search) */
+  const ghost = 'flex h-10 items-center rounded-full px-3.5 text-sm font-semibold text-ink transition-colors hover:bg-ink/6';
+  /* 가운데 검색 — 덕아웃 통합검색(물건 · 글 · 코치 · 연습장 · 기능을 한 번에, app/(dugout)/search). 누르면 넓어진다 */
   const search = (
-    <form method="get" action="/search" role="search" className="relative hidden min-w-0 flex-1 md:block">
-      <RoundSearch className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-muted" />
+    <form method="get" action="/search" role="search" className="relative hidden shrink-0 xl:block">
+      <RoundSearch className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted" />
       <input
         name="q"
         type="search"
-        placeholder="덕아웃 통합검색"
+        placeholder="통합검색"
         aria-label="통합검색"
-        className="min-h-11 w-full appearance-none rounded-full border border-transparent bg-ink/6 pr-4 pl-11 text-sm text-ink placeholder:text-muted/70 focus:border-sky focus:bg-surface focus:outline-none"
+        className="h-10 w-56 appearance-none rounded-full bg-ink/6 pr-4 pl-10 text-sm text-ink transition-[width,background-color] duration-200 ease-out placeholder:text-muted/70 focus:w-80 focus:bg-surface focus:ring-2 focus:ring-sky focus:outline-none"
       />
     </form>
   );
@@ -99,95 +97,126 @@ export function DugoutTopBar({
     <header
       data-brand={isSinkerBar ? undefined : 'dugout'}
       data-morph-bar
-      /* 앱 웹뷰는 화면 끝(시계 자리)까지 그린다 — 막대가 그만큼 비운다(틀이 data-safe-area 라 몸이 대신 비우지 않는다) */
-      className={`${sticky ? 'sticky top-0' : ''} z-20 border-b border-line bg-surface/92 backdrop-blur ${native ? 'pt-[env(safe-area-inset-top)]' : ''} ${className}`}
+      /* 떠 있는 알약 — 바깥 띠는 위에서 아래로 옅어지는 흰 면이라 알약 위 틈으로 밑 글자가 또렷이 비치지 않는다. 앱 웹뷰는 화면 끝(시계 자리)까지 그려 그만큼 비운다 */
+      className={`${sticky ? 'sticky top-0' : ''} pointer-events-none z-20 bg-gradient-to-b from-30% ${isSinkerBar ? 'from-page to-page/0' : 'from-surface to-surface/0'} ${native ? 'pt-[calc(env(safe-area-inset-top)+0.5rem)]' : 'pt-2 md:pt-3'} ${className}`}
     >
-      {/*
-        번개장터식 두 줄(2026-10-23 금윤호: "숨고 · 번개장터 · 당근을 섞되 장터는 번개장터 느낌을 최대한") — 첫 줄은 로고 · 넓은 검색 · 내 것(싱커 · 관리 · 종 · 설정),
-        둘째 줄은 '≡ 카테고리' 와 굵은 메뉴, 오른쪽 끝 '물건 올리기'. 휴대폰 · 싱커 틀은 한 줄 그대로.
-      */}
-      <div className="mx-auto flex min-h-14 w-full max-w-6xl items-center gap-4 px-4 md:px-6">
-        <Link
-          href={homeHref}
-          aria-label={isSinkerBar ? undefined : '덕아웃 첫 화면'}
-          data-dugout-logo={isSinkerBar ? undefined : ''}
-          data-morph-side
-          className="flex shrink-0 items-baseline gap-2"
-        >
-          <Wordmark brand={brand} className="text-2xl text-ink" />
-        </Link>
-        {!isSinkerBar && !slim && search}
-        <div data-morph-chrome className="ml-auto flex shrink-0 items-center gap-2">
-          {user ? (
-            <>
-              {sinker && !isSinkerBar && !slim && <SinkerButton native={native} />}
-              {manage && !slim && (
-                <Link
-                  href="/manage"
-                  aria-current={current === 'manage' ? 'page' : undefined}
-                  className={side(current === 'manage')}
-                >
-                  관리
-                </Link>
+      <div className="mx-auto w-full max-w-6xl px-3 md:px-6">
+        <div className="pointer-events-auto flex h-14 items-center gap-1 rounded-full bg-surface/85 px-2 shadow-[0_10px_30px_-14px_rgba(0,0,0,0.22)] ring-1 ring-line/70 backdrop-blur-xl desk:h-16">
+          <Link
+            href={homeHref}
+            aria-label={isSinkerBar ? undefined : '덕아웃 첫 화면'}
+            data-dugout-logo={isSinkerBar ? undefined : ''}
+            data-morph-side
+            className="flex h-10 shrink-0 items-center rounded-full px-3 transition-colors hover:bg-ink/5"
+          >
+            <Wordmark brand={brand} className="text-xl text-ink" />
+          </Link>
+          {nav.length > 0 && !slim && <NavPills nav={nav} active={active} item={item} />}
+          <div className="ml-auto flex min-w-0 items-center gap-1">
+            {!isSinkerBar && !slim && search}
+            {!isSinkerBar && !slim && (
+              <Link href="/search" aria-label="통합검색" title="통합검색" className={`${ICON} hidden md:grid xl:hidden`}>
+                <RoundSearch className="h-5 w-5" />
+              </Link>
+            )}
+            <div data-morph-chrome className="flex shrink-0 items-center gap-1">
+              {user ? (
+                <>
+                  {inDugout && !isSinkerBar && !slim && (
+                    <Link href="/market/new" aria-label="물건 올리기" title="물건 올리기" className={`${ICON} hidden lg:grid`}>
+                      <RoundPlus className="h-5 w-5" />
+                    </Link>
+                  )}
+                  {sinker && !isSinkerBar && !slim && <SinkerButton native={native} />}
+                  {manage && !slim && (
+                    <Link
+                      href="/manage"
+                      aria-current={current === 'manage' ? 'page' : undefined}
+                      className={current === 'manage' ? `${ghost} bg-ink text-page hover:bg-ink` : ghost}
+                    >
+                      관리
+                    </Link>
+                  )}
+                  <ChatButton unread={unread} />
+                  <DugoutBell initial={alerts} />
+                </>
+              ) : (
+                <>
+                  <Link href="/login" className={`${ghost} text-muted hover:text-ink`}>
+                    로그인
+                  </Link>
+                  <Link
+                    href="/login?signup=1"
+                    className="flex h-10 items-center rounded-full bg-sky px-4 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+                  >
+                    시작하기
+                  </Link>
+                </>
               )}
-              {/* 알림은 종 밑 작은 창으로(2026-10-22 — 예전 '알림' 메뉴는 /notifications 로 옮겨 갔다), 설정은 맨 오른쪽 위 */}
-              <ChatButton unread={unread} />
-              <DugoutBell initial={alerts} />
-            </>
-          ) : (
-            <>
-              <Link
-                href="/login"
-                className="flex min-h-10 items-center px-2 text-sm font-semibold text-muted hover:text-ink"
-              >
-                로그인
-              </Link>
-              <Link
-                href="/login?signup=1"
-                className="flex min-h-10 items-center rounded-full bg-sky px-4 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
-              >
-                시작하기
-              </Link>
-            </>
-          )}
-          {!slim && <DugoutSettings />}
-          {user && !isSinkerBar && !slim && <ProfileButton nickname={user.nickname} avatarUrl={avatarUrl} />}
+              {!slim && <DugoutSettings />}
+              {user && !isSinkerBar && !slim && <ProfileButton nickname={user.nickname} avatarUrl={avatarUrl} />}
+            </div>
+          </div>
         </div>
       </div>
-      {nav.length > 0 && !slim && (
-        <div className="mx-auto hidden w-full max-w-6xl items-center gap-1 px-4 pb-1 md:flex md:px-6">
-          <Link
-            href="/market"
-            className="mr-1 flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-ink hover:bg-ink/5"
-          >
-            <RoundMenu className="h-4 w-4" /> 카테고리
-          </Link>
-          <nav aria-label="덕아웃" data-morph-chrome className="flex items-center gap-1">
-            {nav.map((t) => {
-              const on = active(t.href, t.exact);
-              return (
-                <Link
-                  key={t.href}
-                  href={t.href}
-                  aria-current={on ? 'page' : undefined}
-                  className={item(on)}
-                >
-                  {t.label}
-                </Link>
-              );
-            })}
-          </nav>
-          {inDugout && (
-            <Link
-              href="/market/new"
-              className="ml-auto flex min-h-10 items-center gap-1.5 rounded-full border border-line px-3.5 text-sm font-semibold text-ink transition-colors hover:border-sky-soft"
-            >
-              <RoundPlus className="h-4 w-4" /> 물건 올리기
-            </Link>
-          )}
-        </div>
-      )}
     </header>
+  );
+}
+
+/** 위 막대의 동그란 아이콘 단추 — 모두 같은 40px 원, 테두리 없이 올리면 옅게 */
+const ICON = 'grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink transition-colors hover:bg-ink/6';
+
+/**
+ * 메뉴 알약 줄 — 지금 보는 곳 뒤에 옅은 알약 하나가 깔리고, 다른 곳으로 가면 그 알약이 미끄러져 간다(첫 칠은 그 자리에 바로, 움직임 줄이기면 안 미끄러짐).
+ * 자리는 그려진 뒤 재서 transform · width 로만 옮긴다.
+ */
+function NavPills({
+  nav,
+  active,
+  item,
+}: {
+  nav: { href: string; label: string; exact?: boolean }[];
+  active: (href: string, exact?: boolean) => boolean;
+  item: (on: boolean) => string;
+}) {
+  const box = useRef<HTMLElement>(null);
+  const [pill, setPill] = useState<{ x: number; w: number; ready: boolean; move: boolean } | null>(null);
+  const onIndex = nav.findIndex((t) => active(t.href, t.exact));
+
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const place = (move: boolean) => {
+      const on = el.querySelector<HTMLElement>('a[aria-current="page"]');
+      if (!on) return setPill((p) => (p ? { ...p, ready: false } : null));
+      setPill((p) => ({ x: on.offsetLeft, w: on.offsetWidth, ready: true, move: move && !!p?.ready }));
+    };
+    place(true);
+    const ro = new ResizeObserver(() => place(false));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [onIndex]);
+
+  return (
+    <nav ref={box} aria-label="덕아웃" data-morph-chrome className="relative ml-1 hidden items-center md:flex">
+      <span
+        aria-hidden
+        className={`absolute top-0 left-0 h-10 rounded-full bg-ink/7 ${pill?.move ? 'transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]' : ''}`}
+        style={{
+          width: pill?.w ?? 0,
+          transform: `translateX(${pill?.x ?? 0}px)`,
+          opacity: pill?.ready ? 1 : 0,
+        }}
+      />
+      {nav.map((t) => {
+        const on = active(t.href, t.exact);
+        return (
+          <Link key={t.href} href={t.href} aria-current={on ? 'page' : undefined} className={item(on)}>
+            {t.label}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -197,7 +226,7 @@ export function DugoutTopBar({
  * 덕아웃 틀 안이라 brand 가 초록인데 S 는 싱커 파랑 그대로(globals.css [data-brand='sinker']).
  */
 export function SinkerButton({ native = false, className = '' }: { native?: boolean; className?: string }) {
-  const box = `grid h-10 w-10 place-items-center rounded-full border border-line transition-colors hover:border-sky-soft ${className}`;
+  const box = `grid h-10 w-10 shrink-0 place-items-center rounded-full transition-colors hover:bg-ink/6 ${className}`;
   const mark = (
     <span data-brand="sinker" data-intro-from className="inline-flex">
       <SinkerMark className="h-5 w-5" />
@@ -220,9 +249,9 @@ export function ProfileButton({ nickname, avatarUrl }: { nickname: string; avata
     <Link href="/me" aria-label={`내 프로필 · ${nickname}`} title={nickname} className="grid h-10 w-10 shrink-0 place-items-center rounded-full">
       {avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- 서명 주소(저장소)
-        <img src={avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover ring-1 ring-line" />
+        <img src={avatarUrl} alt="" className="h-[34px] w-[34px] rounded-full object-cover ring-1 ring-line" />
       ) : (
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-sky text-sm font-bold text-white">
+        <span className="grid h-[34px] w-[34px] place-items-center rounded-full bg-sky text-sm font-bold text-white">
           {nickname.slice(0, 1)}
         </span>
       )}
@@ -237,7 +266,7 @@ export function ChatButton({ unread = 0 }: { unread?: number }) {
       href="/chat"
       aria-label={unread ? `채팅 · 안 읽은 ${unread}개` : '채팅'}
       title="채팅"
-      className="relative grid h-10 w-10 place-items-center rounded-full text-ink transition-colors hover:bg-ink/5"
+      className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink transition-colors hover:bg-ink/6"
     >
       <RoundChat className="h-5.5 w-5.5" />
       {unread > 0 && (

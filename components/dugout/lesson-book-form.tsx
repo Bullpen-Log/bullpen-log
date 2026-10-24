@@ -274,7 +274,7 @@ export function LessonBookForm({
       </div>
 
       {/* PC 요약 판 */}
-      <aside className="hidden lg:sticky lg:top-28 lg:block">
+      <aside className="hidden lg:sticky lg:top-[calc(var(--dugout-bar-h)+1rem)] lg:block">
         <div className="space-y-4 rounded-2xl border border-line bg-surface p-5 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.25)]">
           <div className="flex items-center gap-3">
             <CoachAvatar name={coach.coach} />

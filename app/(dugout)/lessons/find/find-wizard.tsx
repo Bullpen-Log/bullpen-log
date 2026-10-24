@@ -82,7 +82,7 @@ export function FindWizard() {
   return (
     <div className="mx-auto max-w-2xl lg:grid lg:max-w-5xl lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-10">
       {/* PC 단계 판 */}
-      <nav aria-label="찾기 단계" className="hidden lg:sticky lg:top-28 lg:block">
+      <nav aria-label="찾기 단계" className="hidden lg:sticky lg:top-[calc(var(--dugout-bar-h)+1rem)] lg:block">
         <p className="mb-1 text-xs text-muted">나에게 맞는 코치 찾기</p>
         <p className="mb-5 text-xl font-black tracking-tight text-ink">다섯 질문이면 돼요</p>
         <ol className="space-y-1">

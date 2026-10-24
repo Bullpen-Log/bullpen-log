@@ -139,7 +139,7 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
     >
       <div className="lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start lg:gap-8">
         {/* PC 거르기 판 — 머리 밑에 붙어 따라온다 */}
-        <aside className="hidden lg:sticky lg:top-28 lg:block lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:overscroll-contain">
+        <aside className="hidden lg:sticky lg:top-[calc(var(--dugout-bar-h)+1rem)] lg:block lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:overscroll-contain">
           <LessonFilterRail current={current} prefs={prefs} />
         </aside>
 
