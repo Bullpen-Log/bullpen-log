@@ -4,6 +4,7 @@ import { RoundLesson } from '@/components/round-icon';
 import { LessonFrame } from '@/components/dugout/lesson-frame';
 import { EmptyState } from '@/components/ui';
 import { CoachList } from '@/components/dugout/coach-list';
+import { LessonFilterRail } from '@/components/dugout/lesson-filter-rail';
 import { appNow } from '@/lib/clock';
 import { loadCoaches } from '@/lib/market/lesson-load';
 import {
@@ -33,6 +34,7 @@ const one = (v: string | string[] | undefined) =>
 /**
  * 코치 목록(3판) — 찾기 흐름의 답 · 검색 · 종목으로 거른 코치. 조건은 모두 주소에(공유 · 뒤로가기가 된다).
  * 위: 조건 칩(누르면 그 조건만 빠짐) · 정렬. 목록: 코치 카드 + 비교 체크(최대 셋) → 아래 '비교하기' 막대(components/dugout/coach-list.tsx).
+ * PC(lg, 2026-10-24): 왼쪽 늘 보이는 거르기 판(components/dugout/lesson-filter-rail.tsx) · 가운데 머리 줄(결과 수 · 켠 조건 · 정렬) · 두 칸 카드 격자.
  */
 export default async function CoachListPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
@@ -87,17 +89,70 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
     Object.entries({ specialty, audience }).filter(([, v]) => v) as [string, string][]
   ).toString();
 
+  const sortLinks = (
+    <div className="flex gap-1 text-xs">
+      {SORTS.map((s) => {
+        const on = sort === s.key;
+        return (
+          <Link
+            key={s.key}
+            href={listHref({ ...current, sort: s.key === 'match' ? undefined : s.key })}
+            scroll={false}
+            data-nav="none"
+            aria-current={on ? 'page' : undefined}
+            className={`rounded-full px-2.5 py-1 font-semibold ${on ? 'bg-ink text-white' : 'text-muted hover:text-ink'}`}
+          >
+            {s.label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+  const chipLinks = chips.map((c) => (
+    <Link
+      key={c.label}
+      href={c.href}
+      scroll={false}
+      data-nav="none"
+      className="inline-flex min-h-8 items-center gap-1 rounded-full bg-ink/6 px-3 text-xs font-semibold text-ink hover:bg-ink/10"
+    >
+      {c.label} <span aria-hidden className="text-muted">×</span>
+      <span className="sr-only">조건 빼기</span>
+    </Link>
+  ));
+
   return (
-    <LessonFrame back="/lessons" backLabel="레슨" title={asked ? `맞는 코치 ${coaches.length}명` : `모든 코치 ${coaches.length}명`}>
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+    <LessonFrame
+      back="/lessons"
+      backLabel="레슨"
+      title={asked ? `맞는 코치 ${coaches.length}명` : `모든 코치 ${coaches.length}명`}
+      crumbs={[{ label: '덕아웃', href: '/' }, { label: '레슨', href: '/lessons' }, { label: '코치 목록' }]}
+      subtitle={asked && sort === 'match' ? '고른 조건에 가까운 코치부터 보여요. 카드 위 파란 칩이 그 까닭이에요.' : '코치를 눌러 자세히 보거나, 둘 이상 담아 비교해요.'}
+      actions={
+        <Link
+          href="/lessons/find"
+          className="inline-flex min-h-10 items-center rounded-full bg-sky px-4 text-sm font-bold text-white transition-colors hover:bg-sky-strong"
+        >
+          맞춤 찾기
+        </Link>
+      }
+    >
+      <div className="lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start lg:gap-8">
+        {/* PC 거르기 판 — 머리 밑에 붙어 따라온다 */}
+        <aside className="hidden lg:sticky lg:top-24 lg:block lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:overscroll-contain">
+          <LessonFilterRail current={current} prefs={prefs} />
+        </aside>
+
+        <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted lg:hidden">
         <span>{asked && sort === 'match' ? '고른 조건에 가까운 코치부터. 줄 위 파란 칩이 그 까닭이에요.' : '코치를 눌러 자세히 보거나, 둘 이상 담아 비교해요.'}</span>
         <Link href="/lessons/find" className="font-semibold text-sky">
           조건 다시 고르기 ›
         </Link>
       </div>
 
-      {/* 종목 줄 — 바로 바꾸기 */}
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
+      {/* 종목 줄 — 바로 바꾸기(휴대폰 · 패드, PC 는 왼쪽 판) */}
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0 lg:hidden">
         {[{ key: '', label: '전체' }, ...SPECIALTIES].map((s) => {
           const on = (specialty ?? '') === s.key;
           return (
@@ -113,33 +168,19 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
         })}
       </div>
 
-      {/* 조건 칩 · 정렬 */}
-      <div className="flex flex-wrap items-center gap-2">
-        {chips.map((c) => (
-          <Link
-            key={c.label}
-            href={c.href}
-            className="inline-flex min-h-8 items-center gap-1 rounded-full bg-ink/6 px-3 text-xs font-semibold text-ink hover:bg-ink/10"
-          >
-            {c.label} <span aria-hidden className="text-muted">×</span>
-            <span className="sr-only">조건 빼기</span>
-          </Link>
-        ))}
-        <div className="ml-auto flex gap-1 text-xs">
-          {SORTS.map((s) => {
-            const on = sort === s.key;
-            return (
-              <Link
-                key={s.key}
-                href={listHref({ ...current, sort: s.key === 'match' ? undefined : s.key })}
-                aria-current={on ? 'page' : undefined}
-                className={`rounded-full px-2.5 py-1 font-semibold ${on ? 'bg-ink text-white' : 'text-muted hover:text-ink'}`}
-              >
-                {s.label}
-              </Link>
-            );
-          })}
-        </div>
+      {/* 조건 칩 · 정렬 — 휴대폰 */}
+      <div className="flex flex-wrap items-center gap-2 lg:hidden">
+        {chipLinks}
+        <div className="ml-auto">{sortLinks}</div>
+      </div>
+
+      {/* PC 머리 줄 — 결과 수 · 켠 조건 · 정렬 */}
+      <div className="hidden items-center gap-3 lg:flex">
+        <p className="shrink-0 text-sm font-bold text-ink">
+          코치 <span className="tabular-nums">{coaches.length}</span>명
+        </p>
+        <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">{chipLinks}</div>
+        <div className="shrink-0 rounded-full bg-ink/5 p-1">{sortLinks}</div>
       </div>
 
       {coaches.length === 0 ? (
@@ -166,6 +207,8 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
         {audience ? `‘${audienceLabel(audience)}’ 레슨으로 요청이 가요. ` : ''}
         요청을 보내면 코치가 확정하고, 레슨비는 레슨이 끝난 뒤 결제돼요(결제는 준비 중).
       </p>
+        </div>
+      </div>
     </LessonFrame>
   );
 }
