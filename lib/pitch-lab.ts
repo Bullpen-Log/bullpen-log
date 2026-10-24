@@ -54,15 +54,24 @@ const folder = (userId: string, id: string, sport: LabSport = 'pitch') => `${use
 /** 올릴 수 있는 영상 자리 — 짝 둘(side · back) + 마커 샘플의 ③ · ④ 카메라(타자 마커 샘플은 앱 · 웹에서 올린다) */
 export type LabUploadView = LabView | 'cam3' | 'cam4';
 
+export type LabVideoFile = { path: string; url: string | null; previewPath?: string; previewUrl?: string | null };
+
+/** 결과 화면용 가벼운 영상 이름 앞머리 — preview-side.mp4 · preview-back.mp4 · preview-cam3.mp4 */
+const PREVIEW_PREFIX = 'preview-';
+
 export type LabSample = {
   id: string;
   /** 샘플이 든 폴더의 관리자(올린 사람) */
   ownerId: string;
   /** 올리다 멈춰 정보가 없으면 null — 목록에서 지울 수 있게 보인다 */
   meta: LabMeta | null;
-  videos: Partial<Record<LabView, { path: string; url: string | null }>>;
+  /**
+   * url = 원본 재생 주소. previewUrl = 결과 화면용 가벼운 영상(preview-<칸>.mp4, 있을 때만) — 결과 화면은 이것을 먼저 쓰고, 시각은 원본 트랙 시각이라
+   * 편집 목록 앞머리를 더하지 않는다(labVideoShifts).
+   */
+  videos: Partial<Record<LabView, LabVideoFile>>;
   /** 마커 샘플의 ③ · ④ 카메라(cam3.* · cam4.*) — 분석은 옆 · 뒤만 쓰고, 이것은 보기 · 정답지용 */
-  extras: { key: 'cam3' | 'cam4'; path: string; url: string | null }[];
+  extras: ({ key: 'cam3' | 'cam4' } & LabVideoFile)[];
   /** v2(서버) — 작업 상태와 결과 파일이 있는 작업 번호들 */
   v2: { job: Pitch3dV2Job | null; resultIds: string[] };
 };
@@ -88,6 +97,8 @@ export async function createLabUploadTarget(
   });
   if (error || !data)
     throw new Error(error?.message ?? '업로드 주소를 만들지 못했어요.');
+  /* 영상을 바꾸면 그 칸의 가벼운 영상은 옛 것이라 지운다(다시 분석하면 새로 굽는다) — 못 지워도 올리기는 그대로 */
+  await videoBucket().remove([`${folder(userId, id, sport)}/${PREVIEW_PREFIX}${view}.mp4`]).catch(() => undefined);
   return { path: data.path, signedUrl: data.signedUrl, token: data.token };
 }
 
@@ -167,6 +178,22 @@ export async function createV2ResultUploadUrl(
   return data.signedUrl;
 }
 
+/**
+ * 결과 화면용 가벼운 영상(preview-<칸>.mp4 — services/pitch3d-gpu/pitch3d_gpu/preview.py)을 분석 서버가 PUT 할 서명 주소. 못 만들면 null(분석은 그대로).
+ * 2026-10-24 김민 "결과 화면 렉" — 원본(마커 125MB)을 그대로 돌리던 것을 짧은 변 720 · H.264 · 원본 트랙 시각으로(13MB).
+ */
+export async function createLabPreviewUploadUrls(
+  userId: string,
+  id: string
+): Promise<{ side: string; back: string } | null> {
+  const one = async (view: LabView) => {
+    const { data, error } = await videoBucket().createSignedUploadUrl(`${folder(userId, id)}/${PREVIEW_PREFIX}${view}.mp4`, { upsert: true });
+    return error || !data ? null : data.signedUrl;
+  };
+  const [side, back] = await Promise.all([one('side'), one('back')]);
+  return side && back ? { side, back } : null;
+}
+
 /** 폴더 파일 목록 → 영상 경로 · v1 결과 · v2 작업 번호들 */
 async function scanFolder(userId: string, id: string, sport: LabSport = 'pitch') {
   const dir = folder(userId, id, sport);
@@ -176,14 +203,15 @@ async function scanFolder(userId: string, id: string, sport: LabSport = 'pitch')
   if (error) throw new Error(error.message);
   const names = (files ?? []).map((f) => f.name);
   const videos: LabSample['videos'] = {};
+  const preview = (key: string) => (names.includes(`${PREVIEW_PREFIX}${key}.mp4`) ? `${dir}/${PREVIEW_PREFIX}${key}.mp4` : undefined);
   for (const view of LAB_VIEWS) {
     const f = names.find((x) => x.startsWith(`${view}.`));
-    if (f) videos[view] = { path: `${dir}/${f}`, url: null };
+    if (f) videos[view] = { path: `${dir}/${f}`, url: null, previewPath: preview(view) };
   }
   const extras: LabSample['extras'] = [];
   for (const key of ['cam3', 'cam4'] as const) {
     const f = names.find((x) => x.startsWith(`${key}.`));
-    if (f) extras.push({ key, path: `${dir}/${f}`, url: null });
+    if (f) extras.push({ key, path: `${dir}/${f}`, url: null, previewPath: preview(key) });
   }
   const resultIds = names
     .filter((n) => n.startsWith(V2_PREFIX) && n.endsWith('.json'))
@@ -293,13 +321,16 @@ export async function labVideoShifts(sample: LabSample): Promise<LabShifts> {
     }
   };
   await Promise.all([
+    /* 가벼운 영상(previewUrl)이 있으면 그 영상은 원본 트랙 시각 그대로라 앞머리 0 — 결과 화면이 그 영상을 먼저 쓴다(같은 규칙: shownVideoUrl) */
     ...LAB_VIEWS.map(async (view) => {
       const v = sample.videos[view];
-      if (v?.url) out[view] = await editShift(v.path, v.url);
+      if (v?.previewUrl) out[view] = 0;
+      else if (v?.url) out[view] = await editShift(v.path, v.url);
     }),
     /* 마커 샘플 ③ · ④ — 옆 시각 기준 차이(meta.extraOffsets, 없으면 0) + 그 파일 앞머리. 받는 쪽은 옆 시각(편집 앞머리 전)에 이 값을 더한다 */
     ...sample.extras.map(async (x) => {
-      if (x.url) out[x.key] = (sample.meta?.extraOffsets?.[x.key] ?? 0) + (await editShift(x.path, x.url));
+      const head = x.previewUrl ? 0 : x.url ? await editShift(x.path, x.url) : null;
+      if (head != null) out[x.key] = (sample.meta?.extraOffsets?.[x.key] ?? 0) + head;
     }),
   ]);
   return out;
@@ -330,14 +361,11 @@ async function readSample(userId: string, id: string, sport: LabSport = 'pitch')
 }
 
 async function attachUrls(samples: LabSample[]) {
-  const paths = samples.flatMap((s) => [
-    ...Object.values(s.videos).map((v) => v.path),
-    ...s.extras.map((v) => v.path),
-  ]);
-  const urls = await createPlaybackUrls(paths);
-  for (const s of samples) {
-    for (const v of Object.values(s.videos)) v.url = urls[v.path] ?? null;
-    for (const v of s.extras) v.url = urls[v.path] ?? null;
+  const files = samples.flatMap((s) => [...Object.values(s.videos), ...s.extras]);
+  const urls = await createPlaybackUrls(files.flatMap((v) => (v.previewPath ? [v.path, v.previewPath] : [v.path])));
+  for (const v of files) {
+    v.url = urls[v.path] ?? null;
+    if (v.previewPath) v.previewUrl = urls[v.previewPath] ?? null;
   }
 }
 
@@ -496,3 +524,6 @@ export async function deleteLabSample(userId: string, id: string, sport: LabSpor
   const removed = await bucket.remove(paths);
   if (removed.error) throw new Error(removed.error.message);
 }
+
+/** 결과 화면이 돌릴 영상 주소 — 가벼운 영상이 있으면 그것(시각 차는 labVideoShifts 가 같은 규칙으로) */
+export const shownVideoUrl = (v: LabVideoFile | undefined): string | null => v?.previewUrl ?? v?.url ?? null;

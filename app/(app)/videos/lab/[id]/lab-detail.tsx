@@ -179,16 +179,18 @@ export function LabDetail({
       <div className="grid grid-cols-2 gap-2">
         {LAB_VIEWS.map((view) => {
           const v = sample.videos[view];
+          /* 결과 화면용 가벼운 영상이 있으면 그것(시각 차는 서버 labVideoShifts 가 같은 규칙으로) */
+          const src = v?.previewUrl ?? v?.url;
           return (
             <div key={view} className="space-y-1">
               <p className="text-xs text-muted">{labViewLabel(view, hand)}</p>
-              {v?.url ? (
+              {src ? (
                 <video
                   ref={(el) => {
                     videos.current[view] = el;
                     if (el && lastT.current) follow.current({ ...lastT.current, reason: 'seek' });
                   }}
-                  src={`${v.url}#t=0.001`}
+                  src={`${src}#t=0.001`}
                   playsInline
                   muted
                   preload="auto"
@@ -218,13 +220,13 @@ export function LabDetail({
         {extrasOn && sample.extras.map((x) => (
           <div key={x.key} className="space-y-1">
             <p className="text-xs text-muted">{LAB_EXTRA_LABEL[x.key]}</p>
-            {x.url ? (
+            {(x.previewUrl ?? x.url) ? (
               <video
                 ref={(el) => {
                   videos.current[x.key] = el;
                   if (el && lastT.current) follow.current({ ...lastT.current, reason: 'seek' });
                 }}
-                src={`${x.url}#t=0.001`}
+                src={`${x.previewUrl ?? x.url}#t=0.001`}
                 playsInline
                 muted
                 preload="auto"
