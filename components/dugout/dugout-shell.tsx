@@ -7,6 +7,7 @@ import { RoundChat, RoundHome, RoundMarket, RoundPlus, RoundUser } from '@/compo
 import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
 import { MorphIn } from '@/components/shell-morph';
 import { DugoutAppBridge } from '@/components/app-shell/expo-tabs';
+import { inSinkerDugout } from '@/lib/sinker-dugout';
 
 /**
  * 덕아웃 껍데기(2026-10-20, docs/designs/baseball-hub.md) — 로그인 없이 보는 야구인의 공간. 선수 껍데기(components/app-shell)와 별개.
@@ -20,6 +21,7 @@ export function DugoutShell({
   sinker = false,
   manage = false,
   native = false,
+  sinkerApp = false,
   avatarUrl = null,
   children,
 }: {
@@ -31,9 +33,27 @@ export function DugoutShell({
   manage?: boolean;
   /** 싱커 앱 웹뷰 안 — 아래 탭은 앱 것이 대신 선다 */
   native?: boolean;
+  /**
+   * 싱커 앱의 '커뮤니티' 탭(2026-10-24 김민: "싱커와 연관 있는 것만 · 싱커 안에 덕아웃 앱이 있는 느낌 말고 자연스럽게") — 덕아웃 위 막대 · 초록 · 로고 없이
+   * 싱커 화면처럼 그리고, 싱커에 없어도 되는 화면(장터 · 경기 일정 · 검색 …)은 안내로 바꾼다(lib/sinker-dugout.ts). 덕아웃 앱은 native 만 켜고 이것은 끈다.
+   */
+  sinkerApp?: boolean;
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  if (sinkerApp) {
+    return (
+      <div data-safe-area className="flex min-h-[var(--vvh,100dvh)] flex-col bg-page text-ink">
+        <Suspense fallback={null}>
+          <DugoutAppBridge />
+        </Suspense>
+        {/* 싱커 탭 화면과 같은 여백(app/(app)/layout.tsx 의 main) — 큰 제목이 다른 탭과 같은 높이에 선다 */}
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-28 sm:px-6">
+          {inSinkerDugout(pathname) ? children : <SinkerAway />}
+        </main>
+      </div>
+    );
+  }
   const tabs = [
     { href: native ? '/?dugout=1' : '/', label: '홈', icon: RoundHome, exact: true },
     { href: '/market', label: '장터', icon: RoundMarket },
@@ -119,6 +139,22 @@ export function DugoutShell({
           </ul>
         </nav>
       )}
+    </div>
+  );
+}
+
+/** 싱커 앱에서 뺀 덕아웃 화면(장터 · 경기 일정 · 검색 …)에 알림 · 링크로 왔을 때 */
+function SinkerAway() {
+  return (
+    <div className="space-y-4 rounded-2xl bg-surface-2 px-(--block-pad) py-10 text-center">
+      <p className="text-base font-semibold text-ink">이 화면은 덕아웃에서 볼 수 있어요</p>
+      <p className="text-sm text-muted">장터 · 경기 일정은 PC 나 덕아웃 앱에서 열어 주세요.</p>
+      <Link
+        href="/community"
+        className="inline-flex min-h-10 items-center rounded-full bg-sky px-5 text-sm font-semibold text-white"
+      >
+        커뮤니티로
+      </Link>
     </div>
   );
 }

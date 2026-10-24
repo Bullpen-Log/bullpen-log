@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
+import { surfaceOf } from '@/lib/app-env';
 import { redirect } from 'next/navigation';
 import { RoundHeart, RoundMarket, RoundPlus } from '@/components/round-icon';
 import { Card, EmptyState } from '@/components/ui';
@@ -33,6 +35,8 @@ export default async function MePage() {
     loadLessonFeed(user.id, 10),
   ]);
   const sinker = usesSinker(user);
+  /* 싱커 앱 안 — 레슨 · 연습장 예약만(장터 물건 · 찜 · 결제는 덕아웃 웹 · 덕아웃 앱, lib/sinker-dugout.ts) */
+  const sinkerApp = surfaceOf((await headers()).get('user-agent')) === 'sinker-app';
   const shown = new Set(user.publicSinker ?? []);
   const now = new Date();
   return (
@@ -40,14 +44,18 @@ export default async function MePage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black text-ink">{user.nickname}</h1>
-          <p className="text-sm text-muted">
-            덕아웃에서 올린 물건과 찜 ·{' '}
-            <Link href="/me/payments" className="font-semibold text-sky">
-              결제
-            </Link>
-          </p>
+          {sinkerApp ? (
+            <p className="text-sm text-muted">레슨 · 연습장 예약</p>
+          ) : (
+            <p className="text-sm text-muted">
+              덕아웃에서 올린 물건과 찜 ·{' '}
+              <Link href="/me/payments" className="font-semibold text-sky">
+                결제
+              </Link>
+            </p>
+          )}
         </div>
-        {sinker ? (
+        {sinkerApp ? null : sinker ? (
           <Link
             href="/today"
             className="inline-flex min-h-10 items-center rounded-xl bg-sky px-4 text-sm font-semibold text-white"
@@ -118,6 +126,7 @@ export default async function MePage() {
         </Card>
       </section>
 
+      {!sinkerApp && (
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="inline-flex items-center gap-1.5 text-lg font-bold text-ink">
@@ -145,7 +154,9 @@ export default async function MePage() {
         )}
       </section>
 
-      <section className="space-y-3">
+      )}
+
+      <section id="bookings" className="scroll-mt-28 space-y-3">
         <h2 className="text-lg font-bold text-ink">레슨 예약 {bookings.length}</h2>
         {bookings.length === 0 ? (
           <Card>
@@ -289,6 +300,7 @@ export default async function MePage() {
         )}
       </section>
 
+      {!sinkerApp && (
       <section id="favorites" className="scroll-mt-28 space-y-3">
         <h2 className="inline-flex items-center gap-1.5 text-lg font-bold text-ink">
           <RoundHeart className="h-4 w-4" /> 찜 {favorites.length}
@@ -307,6 +319,7 @@ export default async function MePage() {
           </div>
         )}
       </section>
+      )}
     </div>
   );
 }

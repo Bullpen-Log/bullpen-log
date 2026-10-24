@@ -24,7 +24,8 @@ export default async function DugoutLayout({
 }) {
   const user = await getCurrentUser();
   /* 앱 웹뷰인가 — 싱커 앱의 덕아웃 탭 · 덕아웃 앱(DugoutApp, 2026-10-24). 아래 탭은 앱 것이 서고, 홈은 ?dugout=1, '내 싱커'는 /today */
-  const native = surfaceOf((await headers()).get('user-agent')) !== 'web';
+  const surface = surfaceOf((await headers()).get('user-agent'));
+  const native = surface !== 'web';
   const [unread, alerts, avatarUrl] = user
     ? await Promise.all([
         countUnread(user.id),
@@ -41,6 +42,7 @@ export default async function DugoutLayout({
       sinker={!!user && usesSinker(user)}
       manage={!!user && (user.accountType === 'MASTER' || user.role === 'ADMIN')}
       native={native}
+      sinkerApp={surface === 'sinker-app'}
     >
       {children}
     </DugoutShell>

@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { RoundIcon } from '@/components/round-icon';
 import { ListingCard } from '@/components/dugout/listing-card';
 import { getCurrentUser } from '@/lib/dal';
-import { isNativeUserAgent } from '@/lib/app-env';
+import { isNativeUserAgent, surfaceOf } from '@/lib/app-env';
 import { DugoutMain } from '@/components/dugout/dugout-main';
 import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
 import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
@@ -40,8 +40,11 @@ export default async function DugoutHome({
   const sp = await searchParams;
   const user = await getCurrentUser();
   /* 앱(싱커 웹뷰)의 / 는 예전처럼 싱커로 — 단 덕아웃 탭(?dugout=1)으로 온 것은 덕아웃(2026-10-21) */
-  const native = isNativeUserAgent((await headers()).get('user-agent'));
+  const ua = (await headers()).get('user-agent');
+  const native = isNativeUserAgent(ua);
   if (native && !sp.dugout) redirect(user ? '/today' : '/login');
+  /* 싱커 앱의 '커뮤니티' 탭 첫 화면은 커뮤니티 — 장터 · 경기 칸이 든 덕아웃 홈은 웹 · 덕아웃 앱만(2026-10-24 김민, lib/sinker-dugout.ts) */
+  if (surfaceOf(ua) === 'sinker-app') redirect('/community');
   const viewer = user ? { id: user.id, role: user.role } : null;
   const sinkerUser = !!user && usesSinker(user);
   const [listings, posts, coaches, alerts, lessons, games, news, avatarUrl, unread] = await Promise.all([
