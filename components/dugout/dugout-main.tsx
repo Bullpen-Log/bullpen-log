@@ -181,10 +181,10 @@ export function DugoutMain({
         */}
         {(slides || aside) && (
           <div
-            className={`mt-10 ${aside ? 'md:grid md:grid-cols-[minmax(0,1fr)_220px] md:gap-6 lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8' : ''}`}
+            className={`mt-10 ${aside ? 'md:grid md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-6 lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8' : ''}`}
           >
-            {/* 띠는 옆 경기 카드와 같은 높이(2026-10-24 금윤호 '오늘의 경기랑 크기 맞춰') — 칸 높이를 띠 · 넘기는 줄까지 채운다 */}
-            <div className="min-w-0 md:[&>section]:h-full md:[&>section>div]:h-full">
+            {/* 띠 높이는 그대로(2026-10-24 금윤호 — 경기 카드가 길어져도 띠는 따라 늘지 않는다, 광고 자리라 높이 고정) */}
+            <div className="min-w-0">
               {slides && <MarketHero slides={slides} slim label="덕아웃 소식" />}
             </div>
             {aside && <aside className="hidden md:block">{aside}</aside>}
