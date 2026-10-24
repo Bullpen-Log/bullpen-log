@@ -1,15 +1,14 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { RoundIcon, RoundSearch } from '@/components/round-icon';
+import { RoundIcon } from '@/components/round-icon';
 import { ListingCard } from '@/components/dugout/listing-card';
 import { getCurrentUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
-import { DugoutHero } from '@/components/dugout/dugout-hero';
-import { HomeServices } from '@/components/dugout/home-services';
+import { DugoutMain } from '@/components/dugout/dugout-main';
 import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
 import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
-import { countUnread, loadLatestListings, loadPublicPosts } from '@/lib/market/load';
+import { loadLatestListings, loadPublicPosts } from '@/lib/market/load';
 import { loadRecommendedCoaches } from '@/lib/market/lesson-load';
 import { BaseballBoard } from '@/components/dugout/baseball-board';
 import { loadBaseballNews, loadLeagueBoard } from '@/lib/baseball-feed';
@@ -18,21 +17,23 @@ import { countUnreadNotifications } from '@/lib/notify';
 import { LessonFeedCard } from '@/components/dugout/lesson-feed-card';
 import { loadLessonFeed } from '@/lib/org/lesson-feed';
 import { usesSinker } from '@/lib/brand';
-import { CATEGORIES, REGIONS, filterHref, formatPrice } from '@/lib/market/specs';
+import { CATEGORIES, filterHref, formatPrice } from '@/lib/market/specs';
 import { SPECIALTIES, specialtyLabel } from '@/lib/market/lessons';
 
 /**
- * 덕아웃 홈(2026-10-20) — 맨 위는 큰 로고 첫 화면(components/dugout/dugout-hero.tsx), 접히면 이 홈.
+ * 덕아웃 홈(2026-10-20).
  * 2026-10-23 금윤호: "홈화면을 숨고처럼" — 숨고 첫 화면 차례 그대로 옮겼다.
  *   '[지역 ∨] 에서 무엇이 필요하세요?' + 넓은 회색 검색 · 옆 단추 → [중고거래 | 레슨 · 예약] 탭과 아이콘 줄 → 얇은 검은 띠(넘어감) →
  *   '방금 올라온 물건'(작은 윗글 · 큰 제목 · 더보기 › · 검은 알약 칩 · 6열 사진) → '오늘의 추천 코치'(테두리 카드) →
  *   '지금 필요한 것, 한 번에'(회색 윗칸 + 아랫줄 카드 넷) → '이번 주 인기글'(두 칸 번호 목록).
- * 흰 바탕 · 가운데 좁은 폭(숨고 960px 쯤). 위 막대 · 아래 탭의 '홈'은 ?home=1 — 큰 로고 없이 이 홈부터.
+ * 흰 바탕 · 가운데 좁은 폭(숨고 960px 쯤).
+ * 2026-10-24 금윤호: "처음 메인 시작화면은 이거로" — 큰 로고 화면(dugout-hero)을 걷고 찾기 판(components/dugout/dugout-main.tsx)이 첫 화면.
+ *   검색은 통합검색(/search), 아이콘 줄은 [덕아웃 | 싱커] 기능으로 가는 길. 판이 보이는 동안 위 막대는 숨는다.
  */
 export default async function DugoutHome({
   searchParams,
 }: {
-  searchParams: Promise<{ dugout?: string; home?: string }>;
+  searchParams: Promise<{ dugout?: string }>;
 }) {
   const sp = await searchParams;
   const user = await getCurrentUser();
@@ -41,11 +42,10 @@ export default async function DugoutHome({
   if (native && !sp.dugout) redirect(user ? '/today' : '/login');
   const viewer = user ? { id: user.id, role: user.role } : null;
   const sinkerUser = !!user && usesSinker(user);
-  const [listings, posts, coaches, unread, alerts, lessons, kbo, mlb, news] = await Promise.all([
+  const [listings, posts, coaches, alerts, lessons, kbo, mlb, news] = await Promise.all([
     loadLatestListings(6, viewer),
     loadPublicPosts(30),
     loadRecommendedCoaches(3),
-    user ? countUnread(user.id) : 0,
     user ? countUnreadNotifications(user.id) : 0,
     user ? loadLessonFeed(user.id, 3) : [],
     /* 야구 소식 — 밖 서버가 느리거나 막혀도 홈은 뜬다(실패는 빈 목록 · null) */
@@ -100,70 +100,16 @@ export default async function DugoutHome({
 
   return (
     <div className="space-y-10">
-      <DugoutHero
-        start={sp.home === '1' ? 'home' : 'big'}
-        user={user ? { nickname: user.nickname } : null}
-        unread={unread}
-        alerts={alerts}
-        sinker={sinkerUser}
-        native={native}
-      />
-
       {/* 홈 — 흰 바탕을 화면 끝까지(장터와 같은 틀) */}
       <div className="relative isolate before:absolute before:-top-10 before:-bottom-40 before:left-1/2 before:-z-10 before:w-screen before:-translate-x-1/2 before:bg-surface">
+        {/* 첫 화면 — 통합검색 · 우리 기능 아이콘 줄(이게 보이는 동안 위 막대는 숨는다) */}
+        <DugoutMain
+          user={user ? { nickname: user.nickname } : null}
+          alerts={alerts}
+          sinker={sinkerUser}
+          native={native}
+        />
         <div className="mx-auto max-w-5xl space-y-16 pb-6">
-          {/* 찾기 — 숨고 '강남구 ∨ 에서 어떤 서비스가 필요하세요?' */}
-          <section className="pt-4 md:pt-10">
-            <form action="/market" method="get" role="search" className="space-y-6">
-              <h1 className="flex flex-wrap items-center justify-center gap-x-1.5 text-center text-[22px] font-bold text-ink md:text-[28px]">
-                <span className="relative inline-flex items-center">
-                  <select
-                    name="region"
-                    aria-label="지역"
-                    defaultValue=""
-                    className="cursor-pointer appearance-none bg-transparent pr-6 [font:inherit] text-ink focus:outline-none"
-                  >
-                    <option value="">전국</option>
-                    {REGIONS.filter((r) => r !== '전국(택배)').map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                  <RoundIcon
-                    name="back"
-                    aria-hidden
-                    className="pointer-events-none absolute right-0 h-4 w-4 -rotate-90 text-ink"
-                  />
-                </span>
-                <span>에서 무엇이 필요하세요?</span>
-              </h1>
-              <div className="mx-auto flex max-w-xl items-center gap-2">
-                <label className="relative min-w-0 flex-1">
-                  <RoundSearch className="pointer-events-none absolute top-1/2 left-4 h-4.5 w-4.5 -translate-y-1/2 text-muted" />
-                  <input
-                    name="q"
-                    type="search"
-                    placeholder="글러브, 배트, 찾는 물건"
-                    aria-label="찾는 물건"
-                    className="min-h-12 w-full appearance-none rounded-xl bg-ink/6 pr-4 pl-11 text-[15px] text-ink placeholder:text-muted/70 focus:bg-surface focus:ring-2 focus:ring-sky focus:outline-none"
-                  />
-                </label>
-                <Link
-                  href="/lessons/find"
-                  className="inline-flex min-h-12 shrink-0 items-center gap-1.5 rounded-xl bg-ink/6 px-4 text-sm font-bold text-ink transition-colors hover:bg-ink/10"
-                >
-                  <RoundIcon name="lesson" filled className="h-4.5 w-4.5 text-sky" />
-                  <span className="hidden sm:inline">맞춤 코치 찾기</span>
-                  <span className="sm:hidden">코치</span>
-                </Link>
-              </div>
-            </form>
-            <div className="mt-8">
-              <HomeServices />
-            </div>
-          </section>
-
           {/* 로그인한 사람 — 최근 레슨(내 싱커 띠는 2026-10-23 금윤호 "덕아웃에서 내 싱커 블록도 없애줘") */}
           {lessons.length > 0 && <LessonFeedCard items={lessons} compact title="최근 레슨" />}
 

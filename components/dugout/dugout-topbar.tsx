@@ -2,12 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { MouseEvent } from 'react';
 import { RoundMenu, RoundPlus, RoundSearch } from '@/components/round-icon';
 import { Wordmark } from '@/components/logo';
 import { MorphLink } from '@/components/shell-morph';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
-import { startLogoFly } from '@/components/dugout/logo-fly';
 
 /**
  * 덕아웃 위 막대(2026-10-21 2단계, docs/designs/sinker-dugout.md 5-1) — 웹사이트 전체의 공용 머리. 덕아웃 바깥 공간(components/dugout/dugout-shell) ·
@@ -48,21 +46,8 @@ export function DugoutTopBar({
   const pathname = usePathname();
   const inDugout = current === null;
   const isSinkerBar = brand === 'sinker';
-  /*
-   * 로고 = 큰 로고 첫 화면(누르면 로고가 커지며 가운데로 — components/dugout/logo-fly.ts), '홈' = 작은 로고 홈(?home=1)(2026-10-23 금윤호).
-   */
-  const bigHref = isSinkerBar ? '/today' : native ? '/?dugout=1' : '/';
-  const homeHref = isSinkerBar ? '/today' : native ? '/?dugout=1&home=1' : '/?home=1';
-  const onLogo = (e: MouseEvent<HTMLAnchorElement>) => {
-    if (isSinkerBar || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    const mark = e.currentTarget.querySelector('[data-wordmark]') ?? e.currentTarget;
-    startLogoFly(mark);
-    /* 이미 덕아웃 홈('/')이면 페이지를 다시 받지 않고 그 자리에서 펼친다 */
-    if (pathname === '/') {
-      e.preventDefault();
-      if (`${location.pathname}${location.search}` !== bigHref) window.history.pushState(null, '', bigHref);
-    }
-  };
+  /* 로고 · '홈' = 덕아웃 첫 화면(2026-10-24 — 큰 로고 화면 없이 찾기 화면이 첫 화면) */
+  const homeHref = isSinkerBar ? '/today' : native ? '/?dugout=1' : '/';
   const nav = isSinkerBar
     ? []
     : [
@@ -94,15 +79,15 @@ export function DugoutTopBar({
       </span>
     ) : null;
 
-  /* 가운데 검색 — 번개장터처럼 머리 한가운데 넓게. 지금은 장터를 찾는다(코치 · 글 찾기는 그 화면의 검색으로) */
+  /* 가운데 검색 — 덕아웃 통합검색(2026-10-24 — 물건 · 글 · 코치 · 연습장 · 기능을 한 번에, app/(dugout)/search) */
   const search = (
-    <form method="get" action="/market" role="search" className="relative hidden min-w-0 flex-1 md:block">
+    <form method="get" action="/search" role="search" className="relative hidden min-w-0 flex-1 md:block">
       <RoundSearch className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-muted" />
       <input
         name="q"
         type="search"
-        placeholder="찾는 물건 · 장비 이름"
-        aria-label="장터에서 찾기"
+        placeholder="덕아웃 통합검색"
+        aria-label="통합검색"
         className="min-h-11 w-full appearance-none rounded-full border border-transparent bg-ink/6 pr-4 pl-11 text-sm text-ink placeholder:text-muted/70 focus:border-sky focus:bg-surface focus:outline-none"
       />
     </form>
@@ -120,11 +105,9 @@ export function DugoutTopBar({
       */}
       <div className="mx-auto flex min-h-14 w-full max-w-6xl items-center gap-4 px-4 md:px-6">
         <Link
-          href={bigHref}
-          onClick={onLogo}
+          href={homeHref}
           aria-label={isSinkerBar ? undefined : '덕아웃 첫 화면'}
           data-morph-side
-          data-bar-logo
           className="flex shrink-0 items-baseline gap-2"
         >
           <span data-wordmark className="inline-flex">
@@ -135,17 +118,7 @@ export function DugoutTopBar({
         <div data-morph-chrome className="ml-auto flex shrink-0 items-center gap-2">
           {user ? (
             <>
-              {sinker &&
-                !isSinkerBar &&
-                (native ? (
-                  <Link href="/today" className={side(false)}>
-                    싱커
-                  </Link>
-                ) : (
-                  <MorphLink href="/today" dir="to-sinker" className={side(false)}>
-                    싱커
-                  </MorphLink>
-                ))}
+              {sinker && !isSinkerBar && <SinkerButton native={native} className={side(false)} />}
               {manage && (
                 <Link
                   href="/manage"
@@ -217,5 +190,22 @@ export function DugoutTopBar({
         </div>
       )}
     </header>
+  );
+}
+
+/**
+ * '싱커'로 넘어가는 단추(2026-10-24 금윤호: "우상단의 싱커를 우리 S 로고와 영어로 나머지가 써 있는 느낌으로") — 글자 대신 싱커 이름표(S 로고 + INKER).
+ * 위 막대와 덕아웃 첫 화면의 모서리가 같이 쓴다. 웹은 싱커로 변형하며 넘어가고(MorphLink), 앱 웹뷰는 그냥 이동.
+ */
+export function SinkerButton({ native = false, className = '' }: { native?: boolean; className?: string }) {
+  const mark = <Wordmark brand="sinker" className="text-[17px] leading-none text-ink" />;
+  return native ? (
+    <Link href="/today" aria-label="싱커" className={className}>
+      {mark}
+    </Link>
+  ) : (
+    <MorphLink href="/today" dir="to-sinker" aria-label="싱커" className={className}>
+      {mark}
+    </MorphLink>
   );
 }

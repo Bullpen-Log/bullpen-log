@@ -3971,8 +3971,8 @@ html[data-morph] [data-morph-chrome] > :nth-child(n + 8) {
 }
 
 /*
- * 덕아웃 첫 화면(components/dugout/dugout-hero.tsx) — splash · hero 동안 위 막대와 휴대폰 아래 탭은 숨고, 접힐 때(home) 떠오른다.
- * 로고가 작아지며 위로 가는 것과 같은 시간(0.6초)으로 맞춰 '로고가 위 막대로 들어가는' 느낌.
+ * 덕아웃 첫 화면(components/dugout/dugout-main.tsx, 2026-10-24) — 찾기 판이 화면에 보이는 동안 위 막대는 위로 숨고, 판이 다 지나가면 스르륵 내려온다.
+ * 덕아웃 홈에서만 막대가 자리를 차지하지 않게(fixed) 떠 있다 — 그래서 판이 화면 맨 위부터 시작한다. data-top 은 서버 그림부터 있어 첫 칠에 막대가 안 비친다.
  */
 [data-morph-bar],
 [aria-label='덕아웃 탭'] {
@@ -3982,21 +3982,18 @@ html[data-morph] [data-morph-chrome] > :nth-child(n + 8) {
     background-color 360ms ease,
     border-color 360ms ease;
 }
-/* 서버가 그린 첫 칠부터 숨긴다(:has — splash · hero 단계의 첫 화면 판이 있으면). html[data-hero] 는 :has 가 없는 옛 브라우저용 */
-html[data-hero] [data-morph-bar],
-body:has([data-dugout-hero]:not([data-stage='home'])) [data-morph-bar] {
-  opacity: 0;
-  transform: translateY(-8px);
-  pointer-events: none;
+body:has([data-dugout-main]) [data-morph-bar] {
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
 }
-html[data-hero] [aria-label='덕아웃 탭'],
-body:has([data-dugout-hero]:not([data-stage='home'])) [aria-label='덕아웃 탭'] {
+body:has([data-dugout-main][data-top]) [data-morph-bar] {
   opacity: 0;
-  transform: translateY(12px);
+  transform: translateY(-100%);
   pointer-events: none;
 }
 
-/* 덕아웃 바로가기(components/dugout/app-launcher.tsx) — 아이콘이 차례로 살짝 떠오르며 들어온다 */
+/* 덕아웃 아이콘 줄(components/dugout/dugout-main.tsx) — 탭을 바꾸면 아이콘이 살짝 떠오르며 들어온다 */
 @keyframes launcher-in {
   from {
     opacity: 0;
@@ -4109,16 +4106,3 @@ html[data-morph='to-dugout-out'] [data-morph-chrome] {
     0 1px 2px rgb(3 8 18 / 0.3);
 }
 
-/* 덕아웃 첫 화면의 '아래로 스크롤' 화살표(components/dugout/dugout-hero.tsx) — 쉬었다가 가볍게 한 번 내려가며 옅어지고 제자리에서 다시 */
-@keyframes scroll-hint {
-  0%, 30% { transform: translateY(0); opacity: 1; }
-  65% { transform: translateY(10px); opacity: 0; }
-  66% { transform: translateY(-6px); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
-}
-
-/* 막대 로고를 눌러 첫 화면으로 날아갈 때(components/dugout/logo-fly.ts) — 막대의 로고는 곧바로 비운다(날아가는 로고와 둘로 보이지 않게) */
-body:has([data-dugout-hero][data-stage='fly']) [data-bar-logo] {
-  opacity: 0;
-  transition: none;
-}
