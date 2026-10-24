@@ -27,8 +27,10 @@ export type GpuJobRequest = {
   };
   /** 결과 파일을 PUT 할 서명 주소(토큰 포함) */
   result: { uploadUrl: string };
-  /** 결과 화면용 가벼운 영상(preview-side · back.mp4)을 PUT 할 서명 주소 — 분석 서버가 GPU 없는 함수로 따로 굽는다(없으면 안 굽는다) */
-  previews?: { side: string; back: string };
+  /** 결과 화면용 가벼운 영상(preview-<칸>.mp4)을 PUT 할 서명 주소 — 분석 서버가 GPU 없는 함수로 따로 굽는다(없으면 안 굽는다) */
+  previews?: { side: string; back: string } & Partial<Record<'cam3' | 'cam4', string>>;
+  /** 마커 샘플의 ③ · ④ 원본(분석은 안 쓰고 가벼운 영상만 굽는다) */
+  extras?: Partial<Record<'cam3' | 'cam4', { url: string }>>;
 };
 
 const START_TIMEOUT_MS = 10_000;
