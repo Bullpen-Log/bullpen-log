@@ -25,6 +25,7 @@ export function DugoutTopBar({
   sticky = true,
   className = '',
   native = false,
+  slim = false,
   brand = 'dugout',
   avatarUrl = null,
 }: {
@@ -45,6 +46,11 @@ export function DugoutTopBar({
   native?: boolean;
   /** 어느 틀의 머리인가 — 덕아웃(초록, 메뉴 있음) · 싱커(파랑, 메뉴 없음) */
   brand?: 'dugout' | 'sinker';
+  /**
+   * 싱커 앱의 덕아웃 탭(2026-10-24 김민: "싱커와 이어진 느낌 · 덕아웃 정체성은 그대로") — DUGOUT 로고 · 채팅 · 알림만. 싱커로 가는 S · 관리 · 설정 · 프로필은
+   * 싱커 앱이 이미 가진 길이라 뺀다.
+   */
+  slim?: boolean;
 }) {
   const pathname = usePathname();
   const inDugout = current === null;
@@ -93,7 +99,8 @@ export function DugoutTopBar({
     <header
       data-brand={isSinkerBar ? undefined : 'dugout'}
       data-morph-bar
-      className={`${sticky ? 'sticky top-0' : ''} z-20 border-b border-line bg-surface/92 backdrop-blur ${className}`}
+      /* 앱 웹뷰는 화면 끝(시계 자리)까지 그린다 — 막대가 그만큼 비운다(틀이 data-safe-area 라 몸이 대신 비우지 않는다) */
+      className={`${sticky ? 'sticky top-0' : ''} z-20 border-b border-line bg-surface/92 backdrop-blur ${native ? 'pt-[env(safe-area-inset-top)]' : ''} ${className}`}
     >
       {/*
         번개장터식 두 줄(2026-10-23 금윤호: "숨고 · 번개장터 · 당근을 섞되 장터는 번개장터 느낌을 최대한") — 첫 줄은 로고 · 넓은 검색 · 내 것(싱커 · 관리 · 종 · 설정),
@@ -109,12 +116,12 @@ export function DugoutTopBar({
         >
           <Wordmark brand={brand} className="text-2xl text-ink" />
         </Link>
-        {!isSinkerBar && search}
+        {!isSinkerBar && !slim && search}
         <div data-morph-chrome className="ml-auto flex shrink-0 items-center gap-2">
           {user ? (
             <>
-              {sinker && !isSinkerBar && <SinkerButton native={native} />}
-              {manage && (
+              {sinker && !isSinkerBar && !slim && <SinkerButton native={native} />}
+              {manage && !slim && (
                 <Link
                   href="/manage"
                   aria-current={current === 'manage' ? 'page' : undefined}
@@ -143,11 +150,11 @@ export function DugoutTopBar({
               </Link>
             </>
           )}
-          <DugoutSettings />
-          {user && !isSinkerBar && <ProfileButton nickname={user.nickname} avatarUrl={avatarUrl} />}
+          {!slim && <DugoutSettings />}
+          {user && !isSinkerBar && !slim && <ProfileButton nickname={user.nickname} avatarUrl={avatarUrl} />}
         </div>
       </div>
-      {nav.length > 0 && (
+      {nav.length > 0 && !slim && (
         <div className="mx-auto hidden w-full max-w-6xl items-center gap-1 px-4 pb-1 md:flex md:px-6">
           <Link
             href="/market"

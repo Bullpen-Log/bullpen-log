@@ -1,8 +1,4 @@
 import Link from 'next/link';
-import { headers } from 'next/headers';
-import { RoundIcon } from '@/components/round-icon';
-import { surfaceOf } from '@/lib/app-env';
-import { SINKER_DUGOUT_SHORTCUTS } from '@/lib/sinker-dugout';
 import { RoundChat, RoundCommunity, RoundEyeOff, RoundHeart, RoundVideo } from '@/components/round-icon';
 import { getCurrentUser } from '@/lib/dal';
 import { loadCommunityList } from '@/lib/community-load';
@@ -61,8 +57,6 @@ export default async function CommunityPage({
 }) {
   const user = await getCurrentUser();
   const sp = await searchParams;
-  /* 싱커 앱의 '커뮤니티' 탭 — 첫 화면이 이 목록이라 레슨 · 연습장 · 채팅 · 내 예약으로 가는 줄을 머리 밑에(lib/sinker-dugout.ts) */
-  const sinkerApp = surfaceOf((await headers()).get('user-agent')) === 'sinker-app';
 
   const rawCategory = one(sp.category);
   const category = isPostCategory(rawCategory) ? rawCategory : undefined;
@@ -106,21 +100,6 @@ export default async function CommunityPage({
         inlineAction
         action={<ButtonLink href={writeHref}>글쓰기</ButtonLink>}
       />
-
-      {sinkerApp && (
-        <nav aria-label="바로가기" className="grid grid-cols-4 gap-2">
-          {SINKER_DUGOUT_SHORTCUTS.map((s) => (
-            <Link
-              key={s.href}
-              href={s.href}
-              className="flex flex-col items-center gap-1.5 rounded-2xl bg-surface py-3 text-xs font-semibold text-ink transition-colors active:bg-ink/6"
-            >
-              <RoundIcon name={s.icon} aria-hidden className="h-6 w-6 text-sky" />
-              {s.label}
-            </Link>
-          ))}
-        </nav>
-      )}
 
       {/* 거르기 — 구분 칩은 옆으로 미끄러지고(휴대폰), 정렬은 오른쪽 끝의 작은 둘 */}
       <div className="flex flex-col gap-3 desk:flex-row desk:flex-wrap desk:items-center desk:justify-between">

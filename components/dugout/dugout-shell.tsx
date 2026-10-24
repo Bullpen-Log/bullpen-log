@@ -34,26 +34,13 @@ export function DugoutShell({
   /** 싱커 앱 웹뷰 안 — 아래 탭은 앱 것이 대신 선다 */
   native?: boolean;
   /**
-   * 싱커 앱의 '커뮤니티' 탭(2026-10-24 김민: "싱커와 연관 있는 것만 · 싱커 안에 덕아웃 앱이 있는 느낌 말고 자연스럽게") — 덕아웃 위 막대 · 초록 · 로고 없이
-   * 싱커 화면처럼 그리고, 싱커에 없어도 되는 화면(장터 · 경기 일정 · 검색 …)은 안내로 바꾼다(lib/sinker-dugout.ts). 덕아웃 앱은 native 만 켜고 이것은 끈다.
+   * 싱커 앱의 덕아웃 탭(2026-10-24 김민: "싱커와 연관 있는 것만 · 따로 노는 느낌 말고 이어진 느낌 · 덕아웃 정체성은 그대로") — 덕아웃 틀 · 초록 · 로고는 그대로 두고
+   * 위 막대만 가볍게(slim), 싱커에 없어도 되는 화면(장터 · 경기 일정 · 검색 …)은 안내로 바꾼다(lib/sinker-dugout.ts). 덕아웃 앱은 native 만 켜고 이것은 끈다.
    */
   sinkerApp?: boolean;
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  if (sinkerApp) {
-    return (
-      <div data-safe-area className="flex min-h-[var(--vvh,100dvh)] flex-col bg-page text-ink">
-        <Suspense fallback={null}>
-          <DugoutAppBridge />
-        </Suspense>
-        {/* 싱커 탭 화면과 같은 여백(app/(app)/layout.tsx 의 main) — 큰 제목이 다른 탭과 같은 높이에 선다 */}
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-28 sm:px-6">
-          {inSinkerDugout(pathname) ? children : <SinkerAway />}
-        </main>
-      </div>
-    );
-  }
   const tabs = [
     { href: native ? '/?dugout=1' : '/', label: '홈', icon: RoundHome, exact: true },
     { href: '/market', label: '장터', icon: RoundMarket },
@@ -77,6 +64,7 @@ export function DugoutShell({
         sinker={sinker}
         manage={manage}
         native={native}
+        slim={sinkerApp}
         avatarUrl={avatarUrl}
       />
 
@@ -90,7 +78,7 @@ export function DugoutShell({
         data-morph-main
         className="mx-auto w-full max-w-6xl flex-1 px-4 pt-5 pb-28 md:px-6 md:pt-8 md:pb-16"
       >
-        {children}
+        {sinkerApp && !inSinkerDugout(pathname) ? <SinkerAway /> : children}
       </main>
 
       {/*
@@ -150,10 +138,10 @@ function SinkerAway() {
       <p className="text-base font-semibold text-ink">이 화면은 덕아웃에서 볼 수 있어요</p>
       <p className="text-sm text-muted">장터 · 경기 일정은 PC 나 덕아웃 앱에서 열어 주세요.</p>
       <Link
-        href="/community"
+        href="/?dugout=1"
         className="inline-flex min-h-10 items-center rounded-full bg-sky px-5 text-sm font-semibold text-white"
       >
-        커뮤니티로
+        덕아웃 홈으로
       </Link>
     </div>
   );

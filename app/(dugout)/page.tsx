@@ -19,6 +19,7 @@ import { LessonFeedCard } from '@/components/dugout/lesson-feed-card';
 import { loadLessonFeed } from '@/lib/org/lesson-feed';
 import { usesSinker } from '@/lib/brand';
 import { createAvatarUrl } from '@/lib/storage';
+import { recentCardOptions } from '@/lib/community-cards';
 import { CATEGORIES, filterHref, formatPrice } from '@/lib/market/specs';
 import { SPECIALTIES, specialtyLabel } from '@/lib/market/lessons';
 
@@ -43,21 +44,26 @@ export default async function DugoutHome({
   const ua = (await headers()).get('user-agent');
   const native = isNativeUserAgent(ua);
   if (native && !sp.dugout) redirect(user ? '/today' : '/login');
-  /* 싱커 앱의 '커뮤니티' 탭 첫 화면은 커뮤니티 — 장터 · 경기 칸이 든 덕아웃 홈은 웹 · 덕아웃 앱만(2026-10-24 김민, lib/sinker-dugout.ts) */
-  if (surfaceOf(ua) === 'sinker-app') redirect('/community');
+  /*
+   * 싱커 앱의 덕아웃 탭(2026-10-24 김민: "따로 노는 느낌 말고 이어진 느낌 · 덕아웃 정체성은 그대로") — 같은 덕아웃 홈이되 싱커와 이어진 것만:
+   * 장터 · 경기 · 뉴스 · 통합검색은 빼고(lib/sinker-dugout.ts), 맨 위에 내 싱커 기록을 덕아웃에 올리는 카드.
+   */
+  const sinkerApp = surfaceOf(ua) === 'sinker-app';
   const viewer = user ? { id: user.id, role: user.role } : null;
   const sinkerUser = !!user && usesSinker(user);
-  const [listings, posts, coaches, alerts, lessons, games, news, avatarUrl, unread] = await Promise.all([
-    loadLatestListings(6, viewer),
+  const [listings, posts, coaches, alerts, lessons, games, news, avatarUrl, unread, records] = await Promise.all([
+    sinkerApp ? [] : loadLatestListings(6, viewer),
     loadPublicPosts(30),
     loadRecommendedCoaches(3),
     user ? countUnreadNotifications(user.id) : 0,
     user ? loadLessonFeed(user.id, 3) : [],
     /* 야구 소식 — 밖 서버가 느리거나 막혀도 홈은 뜬다(실패는 빈 목록 · null) */
-    loadHomeGames(),
-    loadBaseballNews(8),
+    sinkerApp ? ({ kbo: [], mlb: [], npb: [] } as Awaited<ReturnType<typeof loadHomeGames>>) : loadHomeGames(),
+    sinkerApp ? null : loadBaseballNews(8),
     user ? createAvatarUrl(user.avatarPath).catch(() => null) : null,
     user ? countUnread(user.id) : 0,
+    /* 싱커 기록 카드로 올릴 만한 가장 최근 기록 하나(구속 · 투구 · 3D) — 못 읽어도 홈은 뜬다 */
+    sinkerApp && user ? recentCardOptions(user.id).catch(() => []) : [],
   ]);
   const now = new Date();
   const today = kstDateKey(0);
@@ -116,20 +122,41 @@ export default async function DugoutHome({
           unread={unread}
           sinker={sinkerUser}
           native={native}
+          sinkerApp={sinkerApp}
         />
         {/*
           경기 칸은 오른쪽에 작게 따로(2026-10-24 금윤호 "야구 일정 결과를 우측으로 작게 빼 달라고") — 휴대폰이 아니면(768px~) 본문 오른쪽의 좁은 칸(220~240px)에 떠서
           내려도 따라오고(sticky), 본문은 왼쪽 넓은 칸 그대로 먼저. 휴대폰만 띠 밑에 오른쪽으로 붙은 작은 카드(본문 맨 위로 올라오지 않게).
         */}
-        <div className="mx-auto grid max-w-6xl gap-6 pb-6 md:grid-cols-[minmax(0,1fr)_220px] lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8">
+        <div className={`mx-auto grid max-w-6xl gap-6 pb-6 ${sinkerApp ? '' : 'md:grid-cols-[minmax(0,1fr)_220px] lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8'}`}>
         <div className="min-w-0 space-y-16">
           {/* 로그인한 사람 — 최근 레슨(내 싱커 띠는 2026-10-23 금윤호 "덕아웃에서 내 싱커 블록도 없애줘") */}
+          {/* 싱커 → 덕아웃 — 방금 잰 기록을 카드로 붙여 글을 연다(싱커 앱 안만, docs/designs/dugout-community.md '싱커에서 올리기') */}
+          {records[0] && (
+            <Link
+              href={`/community/new?card=${encodeURIComponent(records[0].ref)}`}
+              className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors active:bg-ink/4"
+            >
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-sky text-white">
+                <RoundIcon name="community" filled className="h-6 w-6" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs text-muted">싱커 기록을 덕아웃에</span>
+                <span className="mt-0.5 block truncate text-[15px] font-bold text-ink">{records[0].title}</span>
+                <span className="block truncate text-[13px] text-muted">{records[0].detail} · 글로 올려 보세요</span>
+              </span>
+              <span aria-hidden className="text-muted">
+                ›
+              </span>
+            </Link>
+          )}
+
           {lessons.length > 0 && <LessonFeedCard items={lessons} compact title="최근 레슨" />}
 
-          <MarketHero slides={slides} slim label="덕아웃 소식" />
+          {!sinkerApp && <MarketHero slides={slides} slim label="덕아웃 소식" />}
 
           {/* 휴대폰 · 태블릿의 경기 칸 — 오른쪽으로 붙은 작은 카드(PC 는 오른쪽 칸) */}
-          <div className="flex justify-end md:hidden">
+          <div className={sinkerApp ? 'hidden' : 'flex justify-end md:hidden'}>
             <div className="w-full sm:w-80">
               <GamesPanel games={games} today={today} />
             </div>
@@ -138,8 +165,8 @@ export default async function DugoutHome({
           {/* 야구 뉴스 — 네이버 검색 열쇠가 있을 때만(경기 결과는 오른쪽 칸) */}
           {newsRows && newsRows.length > 0 && <BaseballNews news={newsRows} />}
 
-          {/* 장터 */}
-          <section className="space-y-4">
+          {/* 장터 — 싱커 앱에는 없다 */}
+          <section className={sinkerApp ? 'hidden' : 'space-y-4'}>
             <Head kicker="덕아웃 장터에서" title="방금 올라온 물건" href="/market" />
             <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
               {chip('/market', '전체', true)}
@@ -208,8 +235,8 @@ export default async function DugoutHome({
             )}
           </section>
 
-          {/* 지금 필요한 것 — 숨고 '지금 필요한 서비스, 한번에 견적 받기' */}
-          <section className="space-y-4">
+          {/* 지금 필요한 것 — 숨고 '지금 필요한 서비스, 한번에 견적 받기'(장비 · 물건 팔기가 섞여 싱커 앱에는 없다) */}
+          <section className={sinkerApp ? 'hidden' : 'space-y-4'}>
             <Head title="지금 필요한 것, 한 번에" />
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
               {needs.map((n) => (
@@ -269,7 +296,7 @@ export default async function DugoutHome({
             )}
           </section>
         </div>
-        <aside className="hidden md:block">
+        <aside className={sinkerApp ? 'hidden' : 'hidden md:block'}>
           <div className="sticky top-24">
             <GamesPanel games={games} today={today} />
           </div>
