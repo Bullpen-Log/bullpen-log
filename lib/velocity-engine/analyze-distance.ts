@@ -245,6 +245,8 @@ export type DistanceReport = {
   limbSigma?: number;
   /** 정밀 크기 거리를 못 낸 까닭(진단) */
   limbWhy?: string;
+  /** 거리 자동일 때 사용자가 고른 거리(inputDistM)로 낸 구속(km/h, 2.8.2) — 현장에서 공 크기 거리와 어느 쪽이 스피드건에 맞는지 견준다 */
+  kmhAtInput?: number;
   timingMs: number;
 };
 
@@ -1035,6 +1037,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     if (out.measure.ok) {
       report.preSize = { confidence: out.measure.confidence, errorKmh: out.measure.errorKmh, why: report.why ?? null };
       judgeSize(out, null);
+      gateAuto(out, D);
     }
   } else if (input.autoDistance && out.measure.ok) {
     /*
@@ -1046,6 +1049,23 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     report.preSize = { confidence: 'low', errorKmh: out.measure.errorKmh, why: report.why ?? null };
   }
   return out;
+}
+
+/**
+ * 거리 자동의 문(2.8.2, 2026-10-25 김민 "15% 넘으면 거리 오류로 측정 불가, 그 안은 거리를 감안해서") — 공 크기 거리가 사용자가 고른 거리(D)와 15% 넘게
+ * 다르면 '낮음' · size-mismatch(화면이 측정 불가), 안이면 공 크기 거리로 잰 값 그대로. 고른 거리로 낸 구속도 싣는다(kmhAtInput).
+ * 받아 둔 현장 29구(10-24 시험대): 고른 거리만 ±3 안 3% · 이 문 56%(정밀 크기) — 고른 거리가 '공이 멈추는 곳'이면 고른 쪽이 나을 수 있어 둘 다 남긴다.
+ */
+function gateAuto(out: DistanceResult, D: number) {
+  const m = out.measure;
+  const report = out.distance;
+  if (!m.ok || !(D > 0) || !(report.distanceM > 0)) return;
+  report.kmhAtInput = round1(m.kmh * (D / report.distanceM) ** SPEED_DISTANCE_EXPONENT);
+  const off = Math.abs(report.distanceM / D - 1);
+  if (off <= INPUT_SIZE_MISMATCH) return;
+  m.confidence = 'low';
+  m.errorKmh = Math.max(m.errorKmh, round1(m.kmh * off));
+  report.why = 'size-mismatch';
 }
 
 /**

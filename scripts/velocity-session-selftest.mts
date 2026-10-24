@@ -48,16 +48,11 @@ const std = (inputDistM: number, kmh: number, sizeDistM: number | null): Session
   },
 });
 
-console.log('\n▶ 공마다 공 크기 거리 — 세션 가운데 거리로 옮기기(5% 안 · 끝이 깨끗한 공만)');
+console.log('\n▶ 공마다 공 크기 거리 — 제 거리 그대로(엔진 2.8.2 · 세션 가운데 거리로 옮기지 않음)');
 {
   const list = withSessionDistance([auto(20, 120), auto(20.4, 121), auto(19.2, 115), auto(21.6, 130), auto(19.6, 118, false)], null);
-  /* 깨끗한 공 넷의 가운데 20.2 — 19.2(−5.0%)는 5% 안이라 옮기고, 21.6(+6.9%)은 받는 자리가 바뀐 것이라 둔다, 깨끗하지 않은 공도 둔다 */
-  check(list[0].dist?.m === 20.2 && list[0].rawKmh > 120, '20m 공은 20.2m 로 옮겨 구속이 오른다');
-  check(list[2].dist?.m === 20.2, '5% 안(19.2m)은 옮긴다');
-  check(list[3].dist?.m === 21.6 && list[3].rawKmh === 130, '5% 넘게(21.6m) 다른 공은 제 거리 그대로 — 캐치볼 받는 자리가 바뀐 공');
-  check(list[4].dist?.m === 19.6 && list[4].rawKmh === 118, '끝이 깨끗하지 않은 공은 제 거리 그대로');
-  const back = withSessionDistance(list.slice(0, 1), null);
-  check(back[0].dist?.m === 20 && back[0].rawKmh === 120, '다른 공을 지우면 처음 값으로 돌아온다');
+  check(list.every((p, i) => p.dist?.m === [20, 20.4, 19.2, 21.6, 19.6][i] && p.dist?.auto), '공마다 공 크기 거리 그대로');
+  check(list.map((p) => p.rawKmh).join() === '120,121,115,130,118', '구속도 그대로');
 }
 
 console.log('\n▶ 넣은 거리 공 — 줄자 세션은 줄자 값을 적는다');

@@ -19,7 +19,7 @@ import {
   type MissReason,
   type SessionPitchCore,
 } from '@/lib/velocity-session';
-import { OUT_OF_RANGE_FIX, STANDARD_TARGET_DIST_M, TAPE_MISMATCH_FIX, zoneOfPoint, type CameraPos, type ZoneRect } from '@/lib/velocity-setup';
+import { OUT_OF_RANGE_FIX, TAPE_MISMATCH_FIX, zoneOfPoint, type CameraPos, type ZoneRect } from '@/lib/velocity-setup';
 import { DualCamera, type Clip, type StartInfo } from '../../modules/dual-camera';
 import { LocalVideo } from '../../modules/local-video';
 import { rpc } from '~/lib/rpc';
@@ -55,7 +55,7 @@ export type SessionCtx = {
   info: StartInfo | null;
   /** 줄자로 잰 거리인가 — 그러면 세션 거리 보정을 안 한다(줄자가 이긴다, 웹과 같다) */
   tape: boolean;
-  /** 폰에서 미트까지(m) — 줄자 값, '자동'이면 기준 20m(엔진의 첫 어림) */
+  /** 폰에서 공이 멈추는 곳까지(m) — 고른 '투수판 → 멈추는 곳' + 폰 자리(lib/velocity-setup.ts phoneDistOf). 엔진의 첫 어림이자 15% 문의 기준 */
   distM: number;
 };
 
@@ -247,7 +247,7 @@ export async function saveSession(input: {
       ...sessionDistanceOf(pitches, {
         cameraPos: ctx.cameraPos,
         distTape: ctx.tape,
-        targetDistM: ctx.tape ? ctx.distM : STANDARD_TARGET_DIST_M,
+        targetDistM: ctx.distM,
       }),
       frameW: info?.mainWidth ?? null,
       frameH: info?.mainHeight ?? null,
