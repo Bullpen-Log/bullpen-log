@@ -96,6 +96,7 @@ function solve(A: number[][], g: number[]): number[] | null {
 
 /**
  * 반지름 맞추기 — img 는 S×S '장면 − 배경'(공이 가운데 근처), d0 은 짐작 지름(px), dir 은 움직임 방향. sigma 를 주면 고정, null 이면 같이 푼다.
+ * px 는 1080 짧은 변에 견준 화소 배율(4K 면 2) — 가운데 · 번짐 · 흐림 경계가 1080 화소로 맞춰져 있어 같이 키운다.
  * 레벤버그–마쿼트(수치 야코비안). 못 맞추면 null.
  */
 export function fitBallRadius(
@@ -103,7 +104,8 @@ export function fitBallRadius(
   S: number,
   d0: number,
   dir: [number, number],
-  sigma: number | null
+  sigma: number | null,
+  px = 1
 ): RadiusFit | null {
   const c = (S - 1) / 2;
   let med = 0, max = -Infinity;
@@ -113,10 +115,10 @@ export function fitBallRadius(
     max = s[s.length - 1];
   }
   const free = sigma == null;
-  const lo = [c - 6, c - 6, 0.8, 0, 0, -80, -1.5, -1.5, 0.3];
-  const hi = [c + 6, c + 6, S / 2, 40, 400, 80, 1.5, 1.5, 3];
+  const lo = [c - 6 * px, c - 6 * px, 0.8, 0, 0, -80, -1.5, -1.5, 0.3 * px];
+  const hi = [c + 6 * px, c + 6 * px, S / 2, 40 * px, 400, 80, 1.5, 1.5, 3 * px];
   const clamp = (q: number[]) => q.map((v, i) => Math.min(hi[i], Math.max(lo[i], v)));
-  let p = clamp([c, c, Math.min(S / 2 - 0.1, Math.max(1.5, (d0 / 2) * 0.8)), 2, Math.min(399, Math.max(1, max - med)), med, 0, 0, sigma ?? 1]);
+  let p = clamp([c, c, Math.min(S / 2 - 0.1, Math.max(1.5, (d0 / 2) * 0.8)), 2, Math.min(399, Math.max(1, max - med)), med, 0, 0, sigma ?? px]);
   const idx = free ? [0, 1, 2, 3, 4, 5, 6, 7, 8] : [0, 1, 2, 3, 4, 5, 6, 7];
   const buf = new Float64Array(S * S);
   const resid = (q: number[]) => {
