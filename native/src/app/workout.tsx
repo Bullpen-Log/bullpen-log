@@ -174,6 +174,33 @@ function useRestClock(since: string | null) {
   return restSeconds(since, now);
 }
 
+/*
+ * 쉬는 중인가(10분 안) — 운동 화면 전체(Run)는 이것만 본다. 예전엔 Run 이 1초 시계를 직접 들어 1,000줄짜리 화면이 쉬는 동안 1초마다
+ * 다시 그려져 굴리기 · 입력 · 시트가 둔했다(2026-10-24 전체 검토). 초는 알약(LiveRestPill)만 센다. 바뀌는 때는 10분이 다 찰 때 한 번.
+ */
+function useResting(since: string | null) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!since) return;
+    const left = Date.parse(since) + REST_CLOCK_LIMIT_SECONDS * 1000 - Date.now();
+    const timer = left > 0 ? setTimeout(() => setNow(Date.now()), left + 50) : undefined;
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') setNow(Date.now());
+    });
+    return () => {
+      clearTimeout(timer);
+      sub.remove();
+    };
+  }, [since]);
+  return restSeconds(since, now) != null;
+}
+
+/** 1초마다 다시 그리는 것은 이 알약뿐 — 위 useResting 의 짝 */
+function LiveRestPill({ since, target, c }: { since: string; target: number | null; c: Palette }) {
+  const seconds = useRestClock(since);
+  return seconds == null ? null : <RestPill seconds={seconds} target={target} c={c} />;
+}
+
 const tick = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
 /* ----------------------------- 본체 ----------------------------- */
@@ -286,13 +313,13 @@ function Run({
     return since.reduce((a, b) => (a.recordedAt > b.recordedAt ? a : b));
   }, [sets, openedAt]);
   const lastAt = lastSet?.recordedAt ?? null;
-  const idle = useRestClock(lastAt ?? openedAt);
-  const rest = lastAt ? idle : null;
+  const idle = useResting(lastAt ?? openedAt);
+  const resting = !!lastAt && idle;
   /*
    * 운동하는 동안 화면을 켜 둔다 — 세트 사이 1~3분인데 폰은 30초면 잠긴다. 10분 넘게 세트가 없으면 놓는다(휴식 시계를 거두는 때와 같다 —
    * 종료를 안 누르고 떠나면 배터리가 끝까지 닳았다). 화면을 나가면 놓는다.
    */
-  const awake = idle != null;
+  const awake = idle;
   useEffect(() => {
     void BullpenNative.keepAwake(awake).catch(() => undefined);
   }, [awake]);
@@ -308,7 +335,7 @@ function Run({
   const startedMs = Date.parse(openedAt) - priorSeconds * 1000;
   const setLine = ex.plannedSets ? `세트 ${Math.min(mine.length, ex.plannedSets)}/${ex.plannedSets}` : `${mine.length}세트`;
   useLiveActivity(
-    rest != null && lastAt
+    resting && lastAt
       ? {
           kind: 'rest',
           symbol: 'timer',
@@ -918,7 +945,7 @@ function Run({
         {/* ─────────── 아래: 누르는 곳 ─────────── 자판이 떠 있는 동안은 감춘다(메모를 쓰는 중) */}
         {!keyboard ? (
           <View style={[s.bottom, { paddingBottom: Math.max(12, inset.bottom), paddingHorizontal: barSide, backgroundColor: c.card, borderTopColor: c.line }]}>
-            {rest != null && !(pad && short) ? <RestPill seconds={rest} target={restTarget} c={c} /> : null}
+            {resting && lastAt && !(pad && short) ? <LiveRestPill since={lastAt} target={restTarget} c={c} /> : null}
             {error ? <Text style={[s.error, { color: c.danger, backgroundColor: c.danger + '14' }]}>{error}</Text> : null}
 
             {askRir && askRir.exerciseId === ex.id && editIndex < 0 ? (

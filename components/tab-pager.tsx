@@ -14,6 +14,7 @@ import { Camera } from '@/components/icon';
 import { DESK_MEDIA, DUGOUT_HREF, MORE_HREF, type NavItem } from '@/lib/nav';
 import { barSnapshot, setNavDirection } from '@/lib/nav-state';
 import { haptic } from '@/lib/haptics';
+import { isExpoUserAgent } from '@/lib/app-env';
 import { TAB_CHOSEN_EVENT } from '@/components/tab-lens';
 
 /**
@@ -180,7 +181,11 @@ export function TabPager({
       if (cur < 0 || drag.current?.on) return false;
       const i = latest.current.order.findIndex((h) => base(h) === base(href));
       if (i < 0 || i === cur) return false;
-      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      /*
+       * 앱 안에서는 바로 옮긴다 — 앱이 판을 부르는 때는 앱 화면이 웹을 덮고 있다가 걷히는 때라(투구 → 타격), 미끄러지면 밑의 웹 홈이 240ms
+       * 동안 지나가는 게 보였다(2026-10-24 전체 검토)
+       */
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches || isExpoUserAgent(navigator.userAgent);
       el.style.willChange = 'transform';
       if (reduce) slide(i, 'none', 0);
       else slide(i, `transform ${TAP_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`, TAP_MS);

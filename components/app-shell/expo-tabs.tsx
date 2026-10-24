@@ -3,8 +3,9 @@
 import { scrollToTop } from '@/lib/scroller';
 import { useEffect, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { MORE_HREF, type NavGroup, type NavItem, type SportKey } from '@/lib/nav';
+import { DUGOUT_HREF, MORE_HREF, type NavGroup, type NavItem, type SportKey } from '@/lib/nav';
 import { slideToTab } from '@/components/tab-pager';
+import { quietRefresh } from '@/lib/quiet-refresh';
 import { applyTheme, THEME_CHOICES, type ThemeChoice } from '@/lib/theme';
 import {
   applyLengthUnit,
@@ -90,14 +91,23 @@ export function ExpoTabBridge({
     };
     /*
      * 앱 화면이 서버 동작(/api/rpc)으로 저장한 뒤 — 거기서 부른 revalidatePath 는 웹뷰가 들고 있는 화면을 비우지 못한다(영양 첫 설정을 마쳐도
-     * 탭이 잠긴 채였다, 2026-10-18 점검). 틀(탭 잠금)부터 다시 받는다.
+     * 탭이 잠긴 채였다, 2026-10-18 점검). 틀(탭 잠금)부터 다시 받는다. 조용히 — 그냥 refresh 면 본문 전체가 한 번 옅어졌다 돌아왔다
      */
-    (window as unknown as { __bpRefresh?: () => void }).__bpRefresh = () => router.refresh();
+    (window as unknown as { __bpRefresh?: () => void }).__bpRefresh = () => quietRefresh(router);
   }, [onMenu, router]);
 
   useEffect(() => {
     if (!isExpo()) return;
-    const shell = (t: NavItem) => ({ href: t.href, label: t.short ?? t.label, icon: t.icon, locked: !!t.locked });
+    /*
+     * 앱 아래 탭의 덕아웃은 작은 로고 홈(?home=1)으로 — 큰 로고 첫 화면은 휴대폰에서 매번 0.5초 연출을 틀고 한 번 더 쓸어 내려야 홈이었다
+     * (2026-10-24 전체 검토). 덕아웃 틀 안의 '홈' 칸(dugout-shell)과 같은 주소
+     */
+    const shell = (t: NavItem) => ({
+      href: t.href === DUGOUT_HREF ? `${DUGOUT_HREF}&home=1` : t.href,
+      label: t.short ?? t.label,
+      icon: t.icon,
+      locked: !!t.locked,
+    });
     rn()?.postMessage(
       JSON.stringify({
         t: 'tabs',

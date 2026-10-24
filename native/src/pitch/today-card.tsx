@@ -1,4 +1,4 @@
-import { type Href, router, useFocusEffect } from 'expo-router';
+import { type Href, router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
@@ -8,7 +8,7 @@ import { usePalette, withAlpha } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { fadeIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
-import { useOnTabActive } from '~/shell/tab-pager';
+import { useFocusRefresh, useOnTabActive } from '~/shell/tab-pager';
 
 /**
  * 투구 탭 맨 위 '오늘' 카드(앱) — 웹 투구 탭 today-card.tsx 와 같은 값(app.loadAppPitchToday): 지금 팔 상태(위험 · 주의 · 안전) ·
@@ -69,11 +69,7 @@ export function PitchTodayCard({ today }: { today: string }) {
   }, []);
   /* 탭을 옮겼다 돌아와도(판은 붙어 있다) */
   useOnTabActive(() => load());
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
+  useFocusRefresh(load, { first: true });
 
   if (!data) return null;
   const tone = { danger: c.danger, caution: c.warn, safe: c.ok }[data.status.level];

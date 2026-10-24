@@ -19,8 +19,6 @@ type Item = {
   morph?: boolean;
 };
 
-const OPEN_MS = 220;
-
 export function AppLauncher({
   loggedIn,
   sinker,
@@ -84,9 +82,9 @@ export function AppLauncher({
       router.push(it.href);
       return;
     }
+    /* 여는 연출은 그대로 두고 이동은 바로 건다 — 예전엔 연출(0.22초)이 끝난 뒤에야 서버에 물어 그만큼 늦게 떴다(2026-10-24 전체 검토) */
     setOpening(it.href);
-    router.prefetch(it.href);
-    window.setTimeout(() => router.push(it.href), OPEN_MS);
+    router.push(it.href);
   };
 
   const big = size === 'lg';

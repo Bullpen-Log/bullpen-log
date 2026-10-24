@@ -363,11 +363,38 @@ export default function SiteScreen() {
   };
   const goWeb = (href: string) =>
     web.current?.injectJavaScript(`window.__bpTab && window.__bpTab(${JSON.stringify(href)});true;`);
+  /*
+   * 웹 화면으로 갈 때는 웹이 그 주소를 그렸다고 알려 온 뒤(msg 'path')에 앱 판을 걷는다 — 먼저 걷으면 밑에 깔린 웹 홈이 보였다가 그 화면으로
+   * 넘어갔다(투구 → 타격, 앱 → 암케어 · 메커니즘, 2026-10-24 전체 검토). 그동안 탭 막대 렌즈는 누른 칸에 먼저 가 있다(pressed).
+   * 같은 주소라 웹이 안 알려 오면 1.5초 뒤에 걷는다.
+   */
+  const [pressed, setPressed] = useState<string | null>(null);
+  const webWait = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const showWebWhenArrived = (href: string) => {
+    clearTimeout(webWait.current);
+    webWait.current = setTimeout(() => {
+      setPath(href.split('?')[0]);
+      setSearch(href.split('?')[1] ?? '');
+      setPressed(null);
+    }, 1500);
+  };
+  const arrived = () => {
+    clearTimeout(webWait.current);
+    setPressed(null);
+  };
+  useEffect(() => () => clearTimeout(webWait.current), []);
   const pressTab = (t: ShellTab) => {
     setWebFront(false);
+    /* 앱 판(트레이닝 첫 화면 ?view=home · last)이면 바로, 웹 트레이닝 칸(?sport= · ?view=암케어 …)이면 웹이 그린 뒤에 */
     if (t.href.startsWith('/training') && !t.locked) {
-      setPath('/training');
-      setSearch(t.href.split('?')[1] ?? '');
+      const view = new URLSearchParams(t.href.split('?')[1] ?? '').get('view');
+      if (view === 'home' || view === 'last') {
+        setPath('/training');
+        setSearch(t.href.split('?')[1] ?? '');
+      } else {
+        setPressed(t.href);
+        showWebWhenArrived(t.href);
+      }
     }
     /* 더보기는 앱 화면(사이트가 목록을 알려 준 뒤) — 웹 메뉴는 앱 화면 위에서 열면 밑에 깔려 안 보인다 */
     if (t.href === '/more' && menu.groups.length) return router.push('/more' as Href);
@@ -379,9 +406,13 @@ export default function SiteScreen() {
     /* 타격 탭(2026-10-20)은 웹 판 — 주소를 먼저 바꿔 앱 판을 바로 걷고 종목 바로 갈아 끼운다 */
     /* 종목 바의 홈 · 기록(?view=log)도 같은 판이라 ? 뒤까지 바로 맞춘다 */
     const [tabPath, tabQuery = ''] = t.href.split('?');
-    if ((tabPath === '/videos' || tabPath === '/today' || tabPath === '/nutrition' || tabPath === '/community' || tabPath === '/hitting') && !t.locked) {
+    /* 앱 판이 있는 탭은 바로 그 판으로 — 웹뿐인 탭(타격 · 덕아웃)은 웹이 그린 뒤에 앱 판을 걷는다(위 showWebWhenArrived) */
+    if ((tabPath === '/videos' || tabPath === '/today' || tabPath === '/nutrition') && !t.locked) {
       setPath(tabPath);
       setSearch(tabQuery);
+    } else if (!t.href.startsWith('/training')) {
+      setPressed(t.href);
+      showWebWhenArrived(t.href);
     }
     if (t.href === '/today') setWebHome(false);
     if (t.href === '/nutrition') setWebNutrition(false);
@@ -391,8 +422,7 @@ export default function SiteScreen() {
   const openWeb = (href: string) => {
     const native = nativeOfWeb(href);
     if (native && isNativePath(native)) return openNative(native);
-    setPath(href.split('?')[0]);
-    setSearch(href.split('?')[1] ?? '');
+    showWebWhenArrived(href);
     goWeb(href);
   };
   const goTab = (href: string) => {
@@ -538,6 +568,7 @@ export default function SiteScreen() {
       return;
     }
     if (msg.t === 'path' && typeof msg.path === 'string') {
+      arrived();
       setPath(msg.path);
       setSearch(typeof msg.search === 'string' ? msg.search : '');
       webArrived(msg.path, typeof msg.search === 'string' ? msg.search : '');
@@ -668,7 +699,7 @@ export default function SiteScreen() {
           <TabBar
             key={sport}
             tabs={sportBars[sport]}
-            active={sportActiveHref(sport, path, search)}
+            active={pressed ?? sportActiveHref(sport, path, search)}
             onPress={pressTab}
             back={() => goTab('/today')}
             enter
@@ -677,7 +708,7 @@ export default function SiteScreen() {
           <TabBar
             key="main"
             tabs={tabs}
-            active={showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : active}
+            active={pressed ?? (showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : active)}
             onPress={pressTab}
           />
         )
