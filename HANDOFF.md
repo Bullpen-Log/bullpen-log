@@ -11,6 +11,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 경기 상세 · 경기 댓글 — **받으면 `npx prisma generate`**
+
+받은 뒤 할 일: **`npx prisma generate`** — 새 표 `GameComment`(경기 댓글, 더하기만, 마이그레이션 `20261024170000_game_comment`). 옛 코드도 돈다.
+금윤호: "경기를 선택했을 때 그 경기의 기록을 자세히 보고 댓글을 달 수 있게".
+- 경기 상세 `/baseball/[id]`(점수판 · 주요 기록 · 타자 · 투수 · 댓글), 읽기 `lib/game-detail.ts`(네이버 경기 기록 /record — KBO 와 해외 리그 모양을 하나로), 댓글 `lib/game-comments.ts` · `app/actions/game-comments.ts`.
+- `User` 에 `gameComments` 관계(onDelete Cascade). 네 영역은 안 건드렸다.
+
 ## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 덕아웃 큰 로고 첫 화면을 걷었다 · 통합검색 · 네 고침 하나가 지워진 파일이라 빠졌다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호: "덕아웃 처음 시작화면은 찾기 판으로, 위 막대는 내리면 스르륵", "검색은 통합검색".

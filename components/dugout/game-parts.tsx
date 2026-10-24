@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Game } from '@/lib/baseball-feed';
 
 /**
@@ -61,7 +62,8 @@ export function GameRow({ g }: { g: Game }) {
       ? `선발 ${g.away.starter ?? '미정'} · ${g.home.starter ?? '미정'}`
       : null;
   return (
-    <li className="space-y-1 py-2.5">
+    <li>
+      <Link href={`/baseball/${g.id}`} className="-mx-2 block space-y-1 rounded-lg px-2 py-2.5 transition-colors hover:bg-ink/4">
       <p className="flex items-center gap-1.5 text-[11px] text-muted">
         <span className={g.status === 'live' ? 'font-bold text-danger' : g.status === 'cancel' ? 'font-semibold text-warn' : ''}>
           {statusText(g)}
@@ -71,6 +73,7 @@ export function GameRow({ g }: { g: Game }) {
       <TeamLine team={g.away} win={g.winner === 'away'} lose={g.winner === 'home'} />
       <TeamLine team={g.home} win={g.winner === 'home'} lose={g.winner === 'away'} />
       {starters && <p className="truncate pl-7 text-[11px] text-muted">{starters}</p>}
+      </Link>
     </li>
   );
 }
@@ -78,7 +81,11 @@ export function GameRow({ g }: { g: Game }) {
 /** 큰 한 장(전체 일정 화면) */
 export function GameCard({ g }: { g: Game }) {
   return (
-    <li className="rounded-2xl border border-line bg-surface p-4">
+    <li>
+      <Link
+        href={`/baseball/${g.id}`}
+        className="block h-full rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-ink/30"
+      >
       <p className="mb-3 flex items-center gap-2 text-xs text-muted">
         <span
           className={`rounded-full px-2 py-0.5 font-semibold ${
@@ -122,6 +129,7 @@ export function GameCard({ g }: { g: Game }) {
           )}
         </p>
       )}
+      </Link>
     </li>
   );
 }

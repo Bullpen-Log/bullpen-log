@@ -166,6 +166,7 @@ model User {
   supportNotices    SupportNotice[]   @relation("SupportNoticeAuthor")
   communityPosts    CommunityPost[]
   communityComments CommunityComment[]
+  gameComments      GameComment[]
   communityLikes    CommunityLike[]
   communityReports  CommunityReport[] @relation("CommunityReporter")
   listings          Listing[]
@@ -2271,4 +2272,19 @@ model LoginTicket {
   claimedAt DateTime?
 
   @@index([expiresAt])
+}
+
+/// 덕아웃 경기 댓글(2026-10-24 금윤호: "경기를 선택했을 때 기록을 보고 댓글을 달 수 있게") — 경기는 우리 표가 아니라 네이버 경기 번호(gameId)로 잇는다.
+model GameComment {
+  id        String    @id @default(uuid())
+  gameId    String
+  userId    String
+  body      String    @db.Text
+  hiddenAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([gameId, createdAt])
+  @@index([userId])
 }
