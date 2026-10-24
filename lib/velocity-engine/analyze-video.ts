@@ -15,7 +15,7 @@ import {
   type BallNet,
   type NetHit,
 } from './ball-net.ts';
-import { boxLumaOfSample, lumaOfSample } from './luma-plane.ts';
+import { boxLumaOfSample, cropsOfSample, lumaOfSample } from './luma-plane.ts';
 import { lumaInWorker, lumaPoolSize, warmLumaPool } from './luma-pool.ts';
 import {
   analyzeScale,
@@ -28,6 +28,8 @@ import {
   type CapturedFrame,
 } from './analyze-frames.ts';
 import { focalPxFromFov } from './geometry.ts';
+import { BALL_RADIUS_M, LIMB_MAX_RMS, LIMB_MIN_AMP, LIMB_SIZE_K, fitBallRadius } from './ball-radius.ts';
+import { trajectoryState } from './trajectory-fit.ts';
 import {
   isHdr,
   planFrameSeeks,
@@ -152,6 +154,8 @@ export type AnalyzeOptions = {
    * 앱은 폰 안 모델(CoreML)이, 시험대는 같은 모델을 미리 돌려 넘긴다.
    */
   netHits?: { t: number; x: number; y: number; d: number; score: number }[] | null;
+  /** 끝 장면 정밀 공 크기로 받는 면 깊이를 잰다(distance.limbDistM, 시험대 실험 — 1~2초 더 든다. 앱은 아직 안 켠다) */
+  limbDistance?: boolean;
   /** fovDeg 가 잰 값인가(앱 동시 촬영의 videoFieldOfView) — 안 주면 파일의 렌즈 정보 · 렌즈 보정이 있을 때만 잰 값으로 본다 */
   fovKnown?: boolean;
   /**
@@ -587,7 +591,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
     const sampleKey = (t: number) => (table ? `s${sampleIndexAt(table, t)}` : `b${t}`);
     const tried: VideoAnalysisInfo['tried'] = [];
     let duplicatesDropped = 0;
-    let first: { result: AnalyzeResult; window: AnalysisWindow } | null = null;
+    let first: { result: AnalyzeResult; window: AnalysisWindow; planned?: { seek: number; t: number }[] } | null = null;
     let firstError: unknown = null;
     const span = 0.8 - progressFrom;
     for (const [w, win] of windows.entries()) {
@@ -752,9 +756,9 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
         ok: result.measure.ok,
         code: result.measure.ok ? null : result.measure.code,
       });
-      first ??= { result, window: win };
+      first ??= { result, window: win, planned };
       if (result.measure.ok) {
-        first = { result, window: win };
+        first = { result, window: win, planned };
         break;
       }
     }
@@ -762,6 +766,17 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
     if (!first) throw firstError instanceof Error ? firstError : new Error('영상을 재지 못했어요.');
 
     const { result, window } = first;
+    /* 엔진 2.9 — 끝 장면 정밀 공 크기로 받는 면 깊이(limbDistM). 디코더 길이고 거리 엔진이 잰 공만. 값은 아직 안 바꾸고 싣기만(세션 거리가 쓴다) */
+    const dist = (result as { distance?: DistanceReport }).distance;
+    if (options.limbDistance && distanceM && dec && first.planned && result.measure.ok && dist?.fit) {
+      const l0 = now();
+      const limb = await limbDistance(dec, first.planned, result.track, dist.fit, focalPerLongSide
+        ? focalPerLongSide * Math.max(sourceW, sourceH)
+        : focalPxFromFov(Math.max(sourceW, sourceH), fovDeg), sourceW / width).catch((e) => ({ why: `throw ${e instanceof Error ? e.message : e}` }));
+      if (limb && 'distM' in limb) Object.assign(dist, { limbDistM: limb.distM, limbFrames: limb.n, limbSigma: limb.sigma });
+      else dist.limbWhy = limb?.why ?? 'error';
+      timing.analyzeMs += now() - l0;
+    }
     const notes: string[] = [];
     if (distanceM) {
       /* 엔진 2.0 은 공 지름을 쓰지 않아 HDR · 다른 카메라의 알림이 맞지 않는다 — 끝을 이어 찾았을 때만 */
@@ -799,6 +814,83 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
     URL.revokeObjectURL(url);
     dec?.dispose();
   }
+}
+
+/**
+ * 끝 장면 정밀 공 크기로 받는 면 깊이(m) — 공 길 장면마다 원본 해상도로 공 둘레와 그 자리의 6 · 8 · 10장 앞(배경)을 잘라 '장면 − 배경 가운데'에
+ * 모형을 맞추고(ball-radius.ts), 깊이 ∝ f·R/r 를 궤적의 정규 깊이로 나눠 가운데 값 ÷ LIMB_SIZE_K. 흐림 σ 는 공이 아직 큰 앞쪽 몇 장에서 같이 풀어
+ * 가운데 값으로 고정한다. 앞 1/4(손 · 큰 번짐)은 뺀다. 쓸 장면이 6장 밑이면 null.
+ */
+async function limbDistance(
+  dec: { crops(wants: { seek: number; crops: { cx: number; cy: number; half: number }[] }[]): Promise<Map<number, Float32Array[]>> },
+  planned: { seek: number; t: number }[],
+  track: { t: number; x: number; y: number; diameterPx: number }[],
+  fit: NonNullable<DistanceReport['fit']>,
+  focalSrc: number,
+  k: number
+): Promise<{ distM: number; n: number; sigma: number } | { why: string }> {
+  const pl = [...planned].sort((a, b) => a.t - b.t);
+  const n = track.length;
+  if (n < 12) return { why: 'short-track' };
+  type Row = { i: number; t: number; cx: number; cy: number; half: number; d0: number; dir: [number, number]; seeks: number[] };
+  const rows: Row[] = [];
+  for (let i = 0; i < n; i++) {
+    const o = track[i];
+    let j = -1;
+    for (let q = 0; q < pl.length; q++) if (Math.abs(pl[q].t - o.t) < 1e-3) { j = q; break; }
+    if (j < 0) continue;
+    const bg = [j - 6, j - 8, j - 10].filter((q) => q >= 0).map((q) => pl[q].seek);
+    if (bg.length < 2) continue;
+    const a = track[Math.max(0, i - 1)], b = track[Math.min(n - 1, i + 1)];
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const d0 = o.diameterPx * k;
+    rows.push({ i, t: o.t, cx: o.x * k, cy: o.y * k, half: Math.ceil(Math.max(9, 1.2 * d0)), d0, dir: [(b.x - a.x) / len, (b.y - a.y) / len], seeks: [pl[j].seek, ...bg] });
+  }
+  /* 흐림 σ — 공이 큰 앞 30% 에서 넷(맥 원형과 같은 자리). 조각은 32칸 반지름까지로 잘라 셈을 줄인다 */
+  const sigRows = rows.slice(0, Math.max(4, Math.floor(rows.length * 0.3))).map((r) => ({ ...r, half: Math.min(r.half, 32) }));
+  const pickSig = sigRows.filter((_, q) => q % Math.max(1, Math.floor(sigRows.length / 4)) === 0).slice(0, 4);
+  const useRows = rows.filter((r) => r.i >= n * 0.25);
+  const all = [...new Set([...pickSig, ...useRows])];
+  const wants = new Map<number, { cx: number; cy: number; half: number }[]>();
+  for (const r of all) for (const sk of r.seeks) (wants.get(sk) ?? wants.set(sk, []).get(sk)!).push({ cx: r.cx, cy: r.cy, half: r.half });
+  const got = await dec.crops([...wants].map(([seek, crops]) => ({ seek, crops })));
+  const cropOf = (r: Row, sk: number) => {
+    const list = wants.get(sk), imgs = got.get(sk);
+    if (!list || !imgs) return null;
+    const q = list.findIndex((c) => c.cx === r.cx && c.cy === r.cy && c.half === r.half);
+    return q >= 0 ? imgs[q] : null;
+  };
+  const diffOf = (r: Row) => {
+    const cur = cropOf(r, r.seeks[0]);
+    const bgs = r.seeks.slice(1).map((sk) => cropOf(r, sk)).filter((c): c is Float32Array => c != null);
+    if (!cur || bgs.length < 2) return null;
+    const out = new Float64Array(cur.length);
+    for (let p = 0; p < cur.length; p++) {
+      const v = bgs.map((c) => c[p]).sort((x, y) => x - y);
+      out[p] = cur[p] - (v.length === 3 ? v[1] : (v[0] + v[1]) / 2);
+    }
+    return out;
+  };
+  const sigs: number[] = [];
+  for (const r of pickSig) {
+    const img = diffOf(r);
+    const f = img && fitBallRadius(img, 2 * r.half + 1, r.d0, r.dir, null);
+    if (f && f.amp > LIMB_MIN_AMP && f.rms < LIMB_MAX_RMS * f.amp) sigs.push(f.sigma);
+  }
+  if (!sigs.length) return { why: `no-sigma rows ${rows.length} sig ${pickSig.length} use ${useRows.length} crops ${got.size}/${wants.size}` };
+  const sigma = sigs.sort((a, b) => a - b)[sigs.length >> 1];
+  const opts = { dragScaleM: fit.dragScaleM, tilt: fit.tiltRad };
+  const ds: number[] = [];
+  for (const r of useRows) {
+    const img = diffOf(r);
+    const f = img && fitBallRadius(img, 2 * r.half + 1, r.d0, r.dir, sigma);
+    if (!f || !(f.amp > LIMB_MIN_AMP) || !(f.rms < LIMB_MAX_RMS * f.amp)) continue;
+    const z = trajectoryState(fit.p, fit.te, r.t, opts)[2];
+    if (z > 0) ds.push((focalSrc * BALL_RADIUS_M) / f.r / z);
+  }
+  if (ds.length < 6) return { why: `few ${ds.length}/${useRows.length}` };
+  ds.sort((a, b) => a - b);
+  return { distM: Math.round((ds[ds.length >> 1] / LIMB_SIZE_K) * 100) / 100, n: ds.length, sigma: Math.round(sigma * 100) / 100 };
 }
 
 /**
@@ -923,6 +1015,23 @@ async function openDecoder(file: File) {
           }
         }
         for (const j of jobs) yield await j;
+      },
+      /** 원본 해상도 밝기 조각 — 짚을 시각마다 둘레 조각 여럿(정밀 반지름용). 못 꺼낸 시각은 빠진다 */
+      async crops(wants: { seek: number; crops: { cx: number; cy: number; half: number }[] }[]) {
+        const out = new Map<number, Float32Array[]>();
+        const todo = [...wants].sort((a, b) => a.seek - b.seek);
+        let i = 0;
+        for await (const sample of sink.samplesAtTimestamps(todo.map((w) => w.seek))) {
+          const w = todo[i++];
+          if (!sample) continue;
+          try {
+            const got = await cropsOfSample(sample, w.crops).catch(() => null);
+            if (got) out.set(w.seek, got);
+          } finally {
+            sample.close();
+          }
+        }
+        return out;
       },
       dispose: () => input.dispose(),
     };

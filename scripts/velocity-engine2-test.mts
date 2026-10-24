@@ -26,6 +26,7 @@ import {
   nextSweepWindow,
 } from '../lib/velocity-engine/sweep.ts';
 import { findThrowRun, netFlight, netInputSize, type NetPoint } from '../lib/velocity-engine/ball-net.ts';
+import { fitBallRadius, renderBall } from '../lib/velocity-engine/ball-radius.ts';
 import { alignTrail, type TrailPoint } from '../lib/velocity-tracer.ts';
 import {
   cleanSize,
@@ -935,6 +936,21 @@ console.log(
   const got = netFlight([...hand, ...ball, ...back].sort((a, b) => a.t - b.t), dt);
   check(got != null && got.length === 20 && got[0].t === ball[0].t, `공 길 안내 — 멀어지는 공 20장(손 · 되던진 공 빼고): ${got?.length ?? 0}장`);
   check(netFlight([...hand, ...back], dt) == null, '공 길 안내 — 날아가는 공이 없으면 null');
+}
+{
+  /* 정밀 반지름 — 번짐 · 흐림 · 아래가 어두운 공(흐린 날)을 그려 놓고 다시 맞춘다. 잡음 σ 2(밝기) */
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 2;
+  for (const [r, sigma, L, gy, S] of [[5, 1.5, 3, -0.5, 21], [9, 1.5, 6, -0.3, 29], [3.5, 1.2, 2, -0.6, 17]] as const) {
+    const truth = [(S - 1) / 2 + 0.3, (S - 1) / 2 - 0.4, r, L, 40, 2, 0.1, gy, sigma];
+    const img = Float64Array.from(renderBall(truth, S, [0.6, 0.8]), (v) => v + 2 * rnd());
+    const t0 = performance.now();
+    const freeFit = fitBallRadius(img, S, 2.6 * r, [0.6, 0.8], null);
+    const fixedFit = fitBallRadius(img, S, 2.6 * r, [0.6, 0.8], sigma);
+    const ms = performance.now() - t0;
+    check(freeFit != null && Math.abs(freeFit.r / r - 1) < 0.05, `정밀 반지름(σ 같이 풂) r ${r} → ${freeFit?.r.toFixed(2)}`);
+    check(fixedFit != null && Math.abs(fixedFit.r / r - 1) < 0.02, `정밀 반지름(σ 고정) r ${r} → ${fixedFit?.r.toFixed(2)} · 두 번 ${ms.toFixed(0)}ms`);
+  }
 }
 console.log(`\n${'═'.repeat(50)}\n통과 ${passed} / 실패 ${failed}\n${'═'.repeat(50)}`);
 if (failed) process.exit(1);
