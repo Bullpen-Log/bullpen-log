@@ -16,7 +16,7 @@ import { hasWebGL } from '@/components/three-stage';
 import { CHIP_BASE, CHIP_ON } from '@/components/velocity/kit';
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
 import { shownEvents, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
-import { displayTrack } from '@/lib/pitch-3d/v2/display';
+import { displayTrack, playbackTimes } from '@/lib/pitch-3d/v2/display';
 import type { LabGround } from '@/lib/pitch-lab-meta';
 import { blendMannequin, canonicalFrames, mannequinFrames } from '@/lib/pitch-3d/v2/mannequin-frames';
 import { labelText, labelValues, measureAngles, momentOf, type Label } from '@/lib/pitch-3d/v2/mannequin-measure';
@@ -370,6 +370,8 @@ export const Body3D = forwardRef<
       /* 시계 */
       const t0 = result.t[0];
       const tEnd = result.t[n - 1];
+      /* 재생 중 자세는 고르게 편 장면 시각으로 고른다(playbackTimes) — 시계 · 영상 맞춤 · 멈춘 장면은 result.t 그대로 */
+      const tp = playbackTimes(result.t);
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       let cur = reduced ? firstStop : 0;
       let clock = result.t[cur];
@@ -421,10 +423,10 @@ export const Body3D = forwardRef<
         let hi = n - 1;
         while (hi - lo > 1) {
           const m = (lo + hi) >> 1;
-          if (result.t[m] <= time) lo = m;
+          if (tp[m] <= time) lo = m;
           else hi = m;
         }
-        return time >= result.t[hi] ? hi : lo;
+        return time >= tp[hi] ? hi : lo;
       };
       const show = (k: number) => {
         cur = Math.max(0, Math.min(n - 1, k));
@@ -600,7 +602,7 @@ export const Body3D = forwardRef<
           if (now - lastPose >= POSE_MIN_MS) {
             lastPose = now;
             const k1 = Math.min(n - 1, k + 1);
-            pose(k, k1 > k ? Math.min(1, Math.max(0, (clock - result.t[k]) / (result.t[k1] - result.t[k] || 1))) : 0);
+            pose(k, k1 > k ? Math.min(1, Math.max(0, (clock - tp[k]) / (tp[k1] - tp[k] || 1))) : 0);
           }
           /* 릴리스(주 문제 장면)에서 멈추지 않고 끝까지 · 되풀이(2026-10-22 김민: "끝까지 이어서 재생") — 멈춘 장면은 움직임 줄이기 때만 */
           if (wrapped) {

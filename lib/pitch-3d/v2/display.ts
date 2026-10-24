@@ -335,6 +335,29 @@ const LEAD_HIDDEN_CONF = 40;
 /** 다리를 엔진의 엉덩이 → 발목 거리보다 더 펴도 되는 몫(키 1 기준, 0.5%) */
 const REACH_SLACK = 0.005;
 
+/**
+ * 재생용 장면 시각 — 장면 간격을 앞뒤 둘씩(다섯 칸) 고르게 편 것, 처음 · 끝은 그대로. 재생 중 인형 자세를 고를 때만 쓴다(영상 맞춤 · 멈춘 장면은 result.t).
+ * 240 설정에 장면이 빠진 옆 영상을 120fps 로 뽑으면 간격이 4 · 13ms 로 번갈아 오는데, 엔진 · 화면 다듬기가 장면 번호로 자리를 펴서 실제 시각으로 재생하면
+ * 몸 전체가 빨랐다 느렸다 떨렸다(2026-10-24 김민 "마커 37 · 39 몸에 떨림" — 장면 흔들림 75~80% 줄어듦, 영상과 어긋남은 10ms 안). 간격이 고르면 그대로.
+ */
+export function playbackTimes(t: readonly number[]): number[] {
+  const n = t.length;
+  if (n < 3) return t.slice();
+  const dt = t.slice(1).map((x, k) => x - t[k]);
+  const sm = dt.map((_, k) => {
+    let s = 0;
+    let c = 0;
+    for (let j = Math.max(0, k - 2); j <= Math.min(dt.length - 1, k + 2); j++, c++) s += dt[j];
+    return s / c;
+  });
+  const total = sm.reduce((a, b) => a + b, 0);
+  const sc = total > 0 ? (t[n - 1] - t[0]) / total : 1;
+  const out = [t[0]];
+  for (const d of sm) out.push(out[out.length - 1] + d * sc);
+  out[n - 1] = t[n - 1];
+  return out;
+}
+
 /** 화면 모델의 장면 사이 실제 초 — 영상 시간 그대로, 다만 착지 → 릴리스가 PLANT_TO_RELEASE_MAX_S 를 넘으면(슬로모 · 화면 녹화) 그만큼 줄인다(떨림 검사도 이것) */
 export function displayFrameDt(result: Pick<Pitch3dV2Ok, 't' | 'events'>): number {
   const n = result.t.length;
