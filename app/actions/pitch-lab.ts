@@ -30,6 +30,7 @@ import {
   clientJob,
   engineKeyOf,
   failV2Job,
+  isV2JobActive,
   isV2JobId,
   newV2Job,
   PITCH3D_V2_VERSION,
@@ -347,7 +348,21 @@ export async function checkPitch3dV2(input: {
     return { error: '작업 상태를 읽지 못했어요.' };
   }
   if (!job || job.status === 'done' || job.status === 'failed') return { job: clientJob(job) };
+  const next = await refreshV2Job(owner, input.id, job, user);
+  return 'error' in next ? next : { job: clientJob(next.job) };
+}
 
+/**
+ * 돌고 있는(queued · running) 작업을 GPU 에 한 번 물어 job.json 을 갱신한다 — 화면의 5초 묻기(checkPitch3dV2)와 앱 결과 화면을 열 때(loadAppLabDetail).
+ * 15분이 지난 작업도 GPU 가 끝냈으면 결과로 바뀐다(앱이 안 물어 '대기'에 멈춘 작업이 열면 풀린다 — 2026-10-24 마커 37 · 38).
+ */
+async function refreshV2Job(
+  owner: string,
+  id: string,
+  job: Pitch3dV2Job,
+  user: Awaited<ReturnType<typeof requireUser>>
+): Promise<{ job: Pitch3dV2Job } | { error: string }> {
+  const input = { id };
   const now = Date.now();
   let status: GpuStatus = job.gpuCallId
     ? await getGpuStatus(job.gpuCallId)
@@ -375,7 +390,7 @@ export async function checkPitch3dV2(input: {
     if (next.status === 'done' || next.status === 'failed') await settleGuard(owner, input.id, next, now);
     revalidatePath(LAB_PATH);
   }
-  return { job: clientJob(next) };
+  return { job: next };
 }
 
 /**
@@ -459,8 +474,10 @@ export type AppLabDetail = {
     /** 이 리포트의 처방이 메커니즘에서 진행 중이면 n / 9(메커니즘 세션 P2) */
     focus: FocusProgress;
   } | null;
-  /** 결과가 없을 때 3D 칸의 글 */
+  /** 결과가 없을 때 3D 칸의 글 · 다시 분석이 돌고 있을 때(active — 앱이 5초마다 묻는다) */
   waiting: ReturnType<typeof labWaitingText> | null;
+  /** 보여 주는 결과의 작업 번호 — 바뀌면 앱이 3D 웹뷰를 새로 연다(다시 분석이 끝났을 때) */
+  shown: string | null;
   /**
    * 분석 걸기(앱) — 서버 GPU 가 설정돼 있고 두 영상이 다 있을 때만. 영상 탓으로 실패했으면 다음에 고칠 것 한 줄 · 촬영 안내의 칸(lib/pitch-lab-guide.ts).
    * 검사 · 동의 · 비용 지키기는 웹과 같은 requestPitch3dV2 가 한다.
@@ -483,7 +500,12 @@ export async function loadAppLabDetail(input: {
   const sample = await loadLabSample(input.id, user);
   if (!sample) return { ok: false, to: LAB_PATH };
   const meta = sample.meta;
-  const job = sample.v2.job;
+  let job = sample.v2.job;
+  /* 돌고 있으면 열 때 한 번 묻는다 — 화면이 안 물어 '대기'에 멈춘 작업도 GPU 가 끝냈으면 바로 결과로(refreshV2Job) */
+  if (job && (job.status === 'queued' || job.status === 'running')) {
+    const r = await refreshV2Job(sample.ownerId, sample.id, job, user).catch(() => null);
+    if (r && 'job' in r) job = r.job;
+  }
   const now = Date.now();
   const shown = job?.shownJobId ?? null;
   const raw = shown ? await loadV2Result(sample.ownerId, sample.id, shown).catch(() => null) : null;
@@ -544,7 +566,12 @@ export async function loadAppLabDetail(input: {
       ...sample.extras.map((x) => ({ view: x.key, label: LAB_EXTRA_LABEL[x.key], url: x.url })),
     ],
     result: summary,
-    waiting: result ? null : labWaitingText(job, now, hasVideos),
+    /*
+     * 결과가 있어도 다시 분석 중이면 보낸다 — 앱은 waiting.active 로 5초 묻기 · '3D 분석 중' 알약을 켠다. 예전엔 결과가 있으면 늘 비워, 다시 분석을
+     * 걸면 앱이 한 번도 묻지 않아 작업이 '대기'에 멈추고 분석 중이라는 글도 안 떴다(2026-10-24 김민 마커 37 · 38). 결과가 있으면 앱은 3D 칸에 이전 결과를 그린다.
+     */
+    waiting: result && !isV2JobActive(job, now) ? null : labWaitingText(job, now, hasVideos),
+    shown: job?.shownJobId ?? null,
     request: (() => {
       const fault = job?.status === 'failed' && job.fail && V2_VIDEO_FAULT.has(job.fail.code) ? job.fail.code : null;
       const fix = fault ? LAB_FAIL_FIX[fault] : undefined;
