@@ -113,11 +113,16 @@ export function computeNormals(pos: Float32Array, index: readonly number[], out:
     const nx = aby * acz - abz * acy;
     const ny = abz * acx - abx * acz;
     const nz = abx * acy - aby * acx;
-    for (const v of [a, b, c]) {
-      out[v] += nx;
-      out[v + 1] += ny;
-      out[v + 2] += nz;
-    }
+    /* 세 꼭짓점에 그대로 더한다 — [a, b, c] 배열로 돌면 삼각형마다 배열이 생겨 재생 중 쓰레기 치우기(GC)가 잦았다(2026-10-24 폰 끊김) */
+    out[a] += nx;
+    out[a + 1] += ny;
+    out[a + 2] += nz;
+    out[b] += nx;
+    out[b + 1] += ny;
+    out[b + 2] += nz;
+    out[c] += nx;
+    out[c + 1] += ny;
+    out[c + 2] += nz;
   }
   for (let v = 0; v < out.length; v += 3) {
     const l = Math.hypot(out[v], out[v + 1], out[v + 2]) || 1;
