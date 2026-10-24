@@ -240,6 +240,13 @@ console.log(
     '휴대폰 브라우저도 덕아웃은 본다(proxy OPEN — 뿌리 주소)',
     /market\|chat\|lessons/.test(proxy) && proxy.includes(String.raw`|^\/$/`)
   );
+  check(
+    '덕아웃 앱(DugoutApp)은 /login(가입 폼)까지 열고, 덕아웃 틀이 덕아웃 앱을 앱으로 본다(웹 아래 탭 숨김)',
+    proxy.includes(String.raw`DUGOUT_APP_OPEN = /^\/login(\/|$)/`) &&
+      proxy.includes(`surfaceOf(ua) === 'dugout-app'`) &&
+      src('app/(dugout)/layout.tsx').includes(`!== 'web'`) &&
+      src('components/app-shell/expo-tabs.tsx').includes('inDugoutApp()')
+  );
   const registry = src('app/api/rpc/registry.ts');
   check(
     'rpc 허용 목록에 market · chat',

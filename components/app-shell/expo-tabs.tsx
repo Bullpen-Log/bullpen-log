@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { MORE_HREF, type NavGroup, type NavItem, type SportKey } from '@/lib/nav';
 import { slideToTab } from '@/components/tab-pager';
 import { quietRefresh } from '@/lib/quiet-refresh';
+import { DUGOUT_UA_MARK } from '@/lib/app-env';
 import { applyTheme, THEME_CHOICES, type ThemeChoice } from '@/lib/theme';
 import {
   applyLengthUnit,
@@ -181,14 +182,15 @@ export function ExpoTabBridge({
 /**
  * 덕아웃 틀(app/(dugout))의 앱 다리 — 그 틀에는 ExpoTabBridge 가 없어, 앱 아래 탭의 '덕아웃'을 누르면 (app) 틀이 떨어지며 보낸
  * tabbar:false 로 앱 막대가 사라지고 돌아올 길이 없었다. 주소도 안 알려 앱이 웹 도착을 1.5초 기다렸다(2026-10-24 두 번째 검토).
- * 막대를 켜 두고 주소를 알리고, 앱이 탭을 누르면 이 틀에서 옮겨 간다.
+ * 막대를 켜 두고 주소를 알리고, 앱이 탭을 누르면 이 틀에서 옮겨 간다. 덕아웃 앱(DugoutApp — native/src/dugout)도 같은 다리를 쓴다.
  */
+const inDugoutApp = () => typeof navigator !== 'undefined' && navigator.userAgent.includes(DUGOUT_UA_MARK);
 export function DugoutAppBridge() {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams().toString();
   useEffect(() => {
-    if (!isExpo()) return;
+    if (!isExpo() && !inDugoutApp()) return;
     const w = window as unknown as { __bpTab?: (href: string) => void; __bpRefresh?: () => void };
     w.__bpTab = (href) => router.push(href);
     w.__bpRefresh = () => quietRefresh(router);
@@ -196,7 +198,7 @@ export function DugoutAppBridge() {
     return () => rn()?.postMessage(JSON.stringify({ t: 'tabbar', on: false }));
   }, [router]);
   useEffect(() => {
-    if (!isExpo()) return;
+    if (!isExpo() && !inDugoutApp()) return;
     rn()?.postMessage(JSON.stringify({ t: 'path', path: pathname, search }));
   }, [pathname, search]);
   return null;

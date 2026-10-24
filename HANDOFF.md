@@ -26,6 +26,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 경기 상세 `/baseball/[id]`(점수판 · 주요 기록 · 타자 · 투수 · 댓글), 읽기 `lib/game-detail.ts`(네이버 경기 기록 /record — KBO 와 해외 리그 모양을 하나로), 댓글 `lib/game-comments.ts` · `app/actions/game-comments.ts`.
 - `User` 에 `gameComments` 관계(onDelete Cascade). 네 영역은 안 건드렸다.
 
+## 금윤호에게 — 2026-10-24 · 김민(Claude, 덕아웃 앱 세션) — 덕아웃 앱(따로 된 아이폰 앱) 1판 · 네 덕아웃 틀(layout)을 고쳤다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "덕아웃 웹사이트를 개별 앱으로 — 섞기 방식(앱다운 부분만 앱 화면, 나머지는 덕아웃 웹뷰)". 계획은 `docs/designs/sinker-dugout.md` 7절(B-5).
+- 앱(2cb4ae91): 같은 `native/` 를 쓰고 `native/app.config.js` 가 `APP_VARIANT=dugout` 일 때만 덕아웃 앱(`com.bullpenlog.dugout`, 홈 화면 이름 '덕아웃')으로 바꾼다.
+  화면은 `native/src/dugout/app` — 덕아웃 사이트 웹뷰 + 앱 탭(홈 · 장터 · 커뮤니티 · 채팅 · 내 것) + 앱 로그인. UA 는 `DugoutApp/1` 만(`BullpenLogApp` 을 달면 `/` 가 /today 로 간다).
+- **네 영역 고친 곳**: `app/(dugout)/layout.tsx` 의 `native` 가 `surfaceOf(ua) !== 'web'` — 싱커 앱 · 덕아웃 앱 둘 다 앱으로 보아 웹 아래 탭을 숨기고 DugoutAppBridge 를 켠다
+  (안 그러면 웹 탭이 앱 탭 밑에 겹쳐 보였다 — GitHub 시뮬레이터 스크린숏으로 확인). 덕아웃 틀에서 '앱 안'을 가르는 코드를 새로 쓸 때는 덕아웃 앱도 생각해 줘 —
+  앱 안 전체는 `surfaceOf(ua) !== 'web'`, 싱커 앱만은 `=== 'sinker-app'`(`isNativeUserAgent` 는 싱커 앱만 본다).
+- 같이 고친 곳: `proxy.ts`(덕아웃 앱은 /login 도 연다 — 가입이 아직 웹 폼), `components/app-shell/expo-tabs.tsx`(DugoutAppBridge 가 덕아웃 앱에서도 돈다), `scripts/dugout-selftest.mts`(한 줄).
+- 정하지 않은 것: 덕아웃 앱에서 싱커로 가는 길(위 막대 싱커 단추 · 홈의 싱커 카드 · 선수 가입 뒤 /today) — 지금은 휴대폰 막기의 '/phone' 이 뜬다. 싱커 앱 열기로 바꿀지 숨길지 같이 정하자.
+- 굽기: GitHub Run workflow '새 앱(Expo) 굽기' → '굽을 앱' dugout(굽기 · 시뮬레이터 스크린숏만, TestFlight 안 올림). `dugout:test` 의 '쓰기 · 채팅 · 내 것 … /login 으로' 실패 하나는 이 일 전부터다.
+
 ## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 덕아웃 큰 로고 첫 화면을 걷었다 · 통합검색 · 네 고침 하나가 지워진 파일이라 빠졌다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호: "덕아웃 처음 시작화면은 찾기 판으로, 위 막대는 내리면 스르륵", "검색은 통합검색".

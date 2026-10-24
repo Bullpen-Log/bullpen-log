@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { getCurrentUser } from '@/lib/dal';
-import { isNativeUserAgent } from '@/lib/app-env';
+import { surfaceOf } from '@/lib/app-env';
 import { countUnread } from '@/lib/market/load';
 import { DugoutShell } from '@/components/dugout/dugout-shell';
 import { usesSinker } from '@/lib/brand';
@@ -23,8 +23,8 @@ export default async function DugoutLayout({
   children: React.ReactNode;
 }) {
   const user = await getCurrentUser();
-  /* 싱커 앱(웹뷰)의 덕아웃 탭으로 왔나 — 아래 탭은 앱 것이 서고, 홈은 ?dugout=1, '내 싱커'는 /today */
-  const native = isNativeUserAgent((await headers()).get('user-agent'));
+  /* 앱 웹뷰인가 — 싱커 앱의 덕아웃 탭 · 덕아웃 앱(DugoutApp, 2026-10-24). 아래 탭은 앱 것이 서고, 홈은 ?dugout=1, '내 싱커'는 /today */
+  const native = surfaceOf((await headers()).get('user-agent')) !== 'web';
   const [unread, alerts, avatarUrl] = user
     ? await Promise.all([
         countUnread(user.id),
