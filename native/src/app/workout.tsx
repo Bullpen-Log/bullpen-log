@@ -214,6 +214,8 @@ function useResting(since: string | null) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!since) return;
+    /* 시각을 새로 잡는다 — 세트를 지워 since 가 옛 세트로 돌아가면 지난 now 로는 '쉬는 중'으로 남아 화면이 영영 안 꺼졌다(2026-10-24 검토) */
+    queueMicrotask(() => setNow(Date.now()));
     const left = Date.parse(since) + REST_CLOCK_LIMIT_SECONDS * 1000 - Date.now();
     const timer = left > 0 ? setTimeout(() => setNow(Date.now()), left + 50) : undefined;
     const sub = AppState.addEventListener('change', (st) => {

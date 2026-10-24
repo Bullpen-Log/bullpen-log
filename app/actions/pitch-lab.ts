@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentUser, requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import {
+  createLabPreviewUploadUrls,
   createV2ResultUploadUrl,
   deleteLabSample,
   deleteUnsavedLabSample,
@@ -11,6 +12,7 @@ import {
   labServerFacts,
   labVideoShifts,
   seesMarkerSamples,
+  shownVideoUrl,
   labVideoUrls,
   loadLabGuard,
   loadFocusProgress,
@@ -314,6 +316,8 @@ export async function requestPitch3dV2(input: {
       heightCm: meta.heightCm,
     },
     result: { uploadUrl },
+    /* 결과 화면용 가벼운 영상(분석 서버가 GPU 없이 따로 굽는다) — 주소를 못 만들면 빼고 분석만 */
+    previews: (await createLabPreviewUploadUrls(owner, input.id).catch(() => null)) ?? undefined,
   });
   job =
     'error' in started
@@ -561,9 +565,9 @@ export async function loadAppLabDetail(input: {
       ...LAB_VIEWS.map((view) => ({
         view,
         label: labViewLabel(view, hand),
-        url: sample.videos[view]?.url ?? null,
+        url: shownVideoUrl(sample.videos[view]),
       })),
-      ...sample.extras.map((x) => ({ view: x.key, label: LAB_EXTRA_LABEL[x.key], url: x.url })),
+      ...sample.extras.map((x) => ({ view: x.key, label: LAB_EXTRA_LABEL[x.key], url: shownVideoUrl(x) })),
     ],
     result: summary,
     /*

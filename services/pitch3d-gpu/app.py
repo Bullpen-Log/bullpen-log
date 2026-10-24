@@ -160,6 +160,14 @@ def warm() -> str:
     return "ok"
 
 
+@app.function(cpu=4.0, memory=4096, timeout=600, max_containers=MAX_CONTAINERS)
+def previews(job: dict) -> dict:
+    """결과 화면용 가벼운 영상(preview.py) — GPU 없이 분석과 나란히. 결과 화면 렉(2026-10-24 김민): 원본 125MB → 13MB."""
+    from pitch3d_gpu.preview import run_previews
+
+    return run_previews(job)
+
+
 @app.function()
 @modal.asgi_app(requires_proxy_auth=True)
 def web():
@@ -174,6 +182,8 @@ def web():
                 raise HTTPException(400, f"{k} 가 없다")
         call = analyze.spawn(body)
         progress[call.object_id] = {"status": "pending", "jobId": str(body["jobId"]), "at": time.time()}
+        if isinstance(body.get("previews"), dict):
+            previews.spawn({"side": body["side"], "back": body["back"], "previews": body["previews"]})
         return {"callId": call.object_id}
 
     @api.get("/engine")

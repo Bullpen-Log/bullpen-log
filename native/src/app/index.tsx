@@ -10,7 +10,7 @@ import {
   type ComponentType,
   type Ref,
 } from 'react';
-import { Alert, AppState, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, StyleSheet, Text, View } from 'react-native';
 import {
   WebView,
   type WebViewMessageEvent,
@@ -235,6 +235,8 @@ export default function SiteScreen() {
   /* 서버가 계정 · 오늘을 알려 줬나 — 꺼진 망이면 오늘은 폰의 한국 날짜로 두고(앱 탭이 그려지게) 8초마다 다시 묻는다 */
   const [meOk, setMeOk] = useState(false);
   const [meTry, setMeTry] = useState(0);
+  /* 계정 · 오늘을 못 받은 까닭(꺼진 망 말고) — 오늘을 모르면 앱 판이 안 서고, 새 앱은 웹 홈 · 투구 판도 그리지 않아 빈 화면이었다(2026-10-24 검토) */
+  const [meError, setMeError] = useState<string | null>(null);
   /** 폰 날짜로 둔 오늘 — 망이 끊겼다고 서버 오늘(시험 계정의 시뮬레이션 날짜)을 덮지 않게, 폰 날짜를 따르던 때만 바꾼다 */
   const deviceDay = useRef(toDateKey(new Date()));
   /*
@@ -248,10 +250,12 @@ export default function SiteScreen() {
         deviceDay.current = toDateKey(new Date());
         setToday(m.today);
         setMeOk(true);
+        setMeError(null);
         ownerKnown(m.userId);
         return true;
       },
       (e: unknown) => {
+        setMeError(e instanceof RpcError && e.code === 'update' ? '앱을 업데이트해 주세요.' : e instanceof RpcError && e.code === 'offline' ? null : '불러오지 못했어요.');
         if (e instanceof RpcError && e.code === 'offline') {
           const was = deviceDay.current;
           const now = toDateKey(new Date());
@@ -355,6 +359,7 @@ export default function SiteScreen() {
 
   /* 웹뷰를 새로 만들 때(다시 불러오기 · 프로세스 죽음) — 새 웹은 /today 인데 앱 상태가 옛 주소로 남아 탭 불 · 판이 어긋났다 */
   const resetWebState = () => {
+    arrived();
     setPath('/today');
     setSearch('');
     setWebFront(false);
@@ -384,6 +389,8 @@ export default function SiteScreen() {
   };
   useEffect(() => () => clearTimeout(webWait.current), []);
   const pressTab = (t: ShellTab) => {
+    /* 앞서 누른 웹 칸을 기다리던 것은 버린다 — 안 그러면 1.5초 뒤 옛 칸으로 되돌아가고 렌즈도 그 칸에 남았다(2026-10-24 검토) */
+    arrived();
     setWebFront(false);
     /* 앱 판(트레이닝 첫 화면 ?view=home · last)이면 바로, 웹 트레이닝 칸(?sport= · ?view=암케어 …)이면 웹이 그린 뒤에 */
     if (t.href.startsWith('/training') && !t.locked) {
@@ -410,7 +417,8 @@ export default function SiteScreen() {
     if ((tabPath === '/videos' || tabPath === '/today' || tabPath === '/nutrition') && !t.locked) {
       setPath(tabPath);
       setSearch(tabQuery);
-    } else if (!t.href.startsWith('/training')) {
+    } else if (!t.href.startsWith('/training') && t.href !== '/more') {
+      /* 더보기(메뉴가 오기 전)는 웹이 창만 열고 주소를 안 알린다 — 기다리지 않는다 */
       setPressed(t.href);
       showWebWhenArrived(t.href);
     }
@@ -420,6 +428,7 @@ export default function SiteScreen() {
   };
   /* 투구 탭(앱 화면)에서 아직 웹인 화면(투구 분석 · 3D 동작 분석)으로 — 앱 화면을 바로 걷고 웹이 그 주소로 간다 */
   const openWeb = (href: string) => {
+    arrived();
     const native = nativeOfWeb(href);
     if (native && isNativePath(native)) return openNative(native);
     /* 앱 판이 맡는 주소(투구 기록 ?view=log 등)는 바로 그 판으로 — 웹을 기다릴 까닭이 없다 */
@@ -671,6 +680,21 @@ export default function SiteScreen() {
           >
             <Text style={styles.buttonText}>다시 불러오기</Text>
           </Press>
+        </View>
+      ) : null}
+      {/* 오늘을 아직 모름 — 웹 홈 · 투구 판은 새 앱에서 비어 있어 그 자리를 앱이 채운다(받는 중 · 못 받음) */}
+      {barOn && !today && !webFront && !isCheckinPath(path) ? (
+        <View style={[StyleSheet.absoluteFill, styles.offline, dark && styles.offlineDark, { paddingBottom: 24 + TAB_BAR_HEIGHT }]}>
+          {meError ? (
+            <>
+              <Text style={[styles.body, dark && styles.mutedDark]}>{meError}</Text>
+              <Press accessibilityRole="button" style={styles.button} onPress={() => setMeTry((n) => n + 1)}>
+                <Text style={styles.buttonText}>다시 불러오기</Text>
+              </Press>
+            </>
+          ) : (
+            <ActivityIndicator />
+          )}
         </View>
       ) : null}
       {/* 탭 넷 — 나란히 두고 240ms 에 미끄러진다(웹 tab-pager). 한 번 연 판은 붙여 둬서 굴린 자리가 남는다 */}

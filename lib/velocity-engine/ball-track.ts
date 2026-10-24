@@ -619,7 +619,9 @@ export function findSeeds(
 export function blobTrack(
   fs: FrameSet,
   bg: ArrayLike<number>,
-  seed: Seed
+  seed: Seed,
+  /** 장면 i 의 모델 공 자리(맞춘 장면 px · 지름) — 있으면 짐작 자리 대신 그 둘레에서 찾는다(공 길 안내, netFlight) */
+  guide?: (i: number) => { u: number; v: number; d: number } | null
 ): TrackedBall[] {
   const s = pixelScale(fs);
   const { w, h } = fs;
@@ -630,9 +632,13 @@ export function blobTrack(
     const prev = raw.length > 1 ? raw[raw.length - 2] : null;
     const r = Math.sqrt(last.b.area / Math.PI);
     const step = prev ? Math.hypot(last.b.cx - prev.b.cx, last.b.cy - prev.b.cy) : 0;
-    const px = prev ? last.b.cx + (last.b.cx - prev.b.cx) * 0.8 : last.b.cx;
-    const py = prev ? last.b.cy + (last.b.cy - prev.b.cy) * 0.8 : last.b.cy;
-    const gate = Math.max(12 * s, 3 * r, prev ? 1.5 * step : 60 * s);
+    const g = guide?.(i) ?? null;
+    const px = g ? g.u : prev ? last.b.cx + (last.b.cx - prev.b.cx) * 0.8 : last.b.cx;
+    const py = g ? g.v : prev ? last.b.cy + (last.b.cy - prev.b.cy) * 0.8 : last.b.cy;
+    /* 모델 자리는 걸음 4(입력 px)라 분석 px 로 7px 안팎 — 그만큼 + 지름 둘레 */
+    const gate = g
+      ? Math.max(8 * s, 1.5 * g.d)
+      : Math.max(12 * s, 3 * r, prev ? 1.5 * step : 60 * s);
     const box: [number, number, number, number] = [
       Math.max(0, Math.floor(px - gate)),
       Math.max(0, Math.floor(py - gate)),
@@ -665,7 +671,8 @@ export function blobTrack(
       }
     }
     if (!best || bd > gate) {
-      if (i - last.i > 2) break;
+      /* 모델이 아직 공을 보면 덩어리를 몇 장 놓쳐도 잇는다(그물 앞 · 작은 공) */
+      if (i - last.i > (g ? 4 : 2)) break;
       continue;
     }
     raw.push({ i, b: best });

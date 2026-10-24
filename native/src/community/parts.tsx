@@ -5,7 +5,7 @@ import { ActivityIndicator, type NativeScrollEvent, type NativeSyntheticEvent, P
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INQUIRY_STATUS, inquiryCategoryLabel, type InquiryStatusKey } from '@/lib/support';
-import { rpc, RpcError } from '~/lib/rpc';
+import { lastWriteAt, rpc, RpcError } from '~/lib/rpc';
 import { cacheEpoch } from '~/lib/store';
 import type { Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
@@ -26,8 +26,23 @@ const readError = (e: unknown) =>
       ? '신호가 약해 불러오지 못했어요.'
       : '불러오지 못했어요.';
 
-/** useLoad 가 받아 둔 값 — 서버 입구 + 인자마다 하나, 로그인 세대(cacheEpoch)째 */
-const seenLoads = new Map<string, { epoch: number; data: unknown }>();
+/**
+ * useLoad 가 받아 둔 값 — 서버 입구 + 인자마다 하나, 로그인 세대(cacheEpoch)째. 읽기만 하는 목록 · 글 화면만 쓴다: 폼 화면(내 정보 · 트레이닝 설정 ·
+ * 루틴)은 처음 값을 제 칸에 옮겨 두므로, 지난 값부터 그리면 옛 값으로 열리고 저장하면 그 옛 값이 되돌려 써졌다(2026-10-24 검토).
+ * 그사이 어디서든 서버에 썼으면(lib/rpc markWrite) 버린다.
+ */
+const seenLoads = new Map<string, { epoch: number; at: number; data: unknown }>();
+const CACHED_LOADS = new Set([
+  'community.loadAppCommunity',
+  'community.loadAppCommunityPost',
+  'board.loadAppBoard',
+  'board.loadAppArticle',
+  'support.loadAppSupport',
+  'support.loadAppNotices',
+  'support.loadAppNotice',
+  'support.loadAppInquiries',
+  'support.loadAppInquiry',
+]);
 
 /**
  * 화면이 보일 때마다 읽는다(글을 쓰거나 지우고 돌아오면 새로) — 로그인이 풀렸으면({ ok: false, to }) 웹 로그인으로.
@@ -38,8 +53,8 @@ export function useLoad<R extends { ok: boolean }>(action: string, ...args: (str
   const key = JSON.stringify(args);
   /* 다시 열 때는 지난번 값부터 그린다(앱을 켠 동안 · 같은 로그인) — 예전엔 열 때마다 돌개부터였다(2026-10-24 전체 검토). 새 값은 뒤에서 받는다 */
   const [state, setState] = useState<{ key: string; data: Extract<R, { ok: true }> } | null>(() => {
-    const m = seenLoads.get(action + key);
-    return m && m.epoch === cacheEpoch() ? { key, data: m.data as Extract<R, { ok: true }> } : null;
+    const m = CACHED_LOADS.has(action) ? seenLoads.get(action + key) : undefined;
+    return m && m.epoch === cacheEpoch() && m.at >= lastWriteAt() ? { key, data: m.data as Extract<R, { ok: true }> } : null;
   });
   /* 오류도 어느 인자의 것인지 — 지난 구분의 오류가 새 구분에 남지 않게 */
   const [error, setError] = useState<{ key: string; text: string } | null>(null);
@@ -54,7 +69,7 @@ export function useLoad<R extends { ok: boolean }>(action: string, ...args: (str
         (r) => {
           if (!alive.on || latest.current !== key) return;
           if (r.ok) {
-            seenLoads.set(action + key, { epoch: cacheEpoch(), data: r });
+            if (CACHED_LOADS.has(action)) seenLoads.set(action + key, { epoch: cacheEpoch(), at: Date.now(), data: r });
             setState({ key, data: r as Extract<R, { ok: true }> });
             setError(null);
           } else leave((r as { to?: string }).to ?? '/login');
