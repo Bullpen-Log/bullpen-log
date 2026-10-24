@@ -46,7 +46,7 @@ export type Clip = {
   fpsActual?: number;
 };
 
-/** kind 'net' — 학습 모델 공 알림(SPEC-detect D3, strength = 첫 표본 점수 0~1). 지금은 그림자 — 시도 기록에만 남긴다 */
+/** kind 'net' — 학습 모델 공 알림(SPEC-detect D3, strength = 첫 표본 점수 0~1). D4 부터 앱이 이 알림으로 잰다(capture.ts) */
 export type ThrowEvent = { atSec: number; strength: number; kind: 'ball' | 'seed' | 'motion' | 'skip' | 'net'; thermal: number };
 /**
  * 1초마다 — thermal 0~3(ProcessInfo.ThermalState) · feedMs 장면당 공 찾기 시간(ms) · feedSkipped 공 찾기가 밀려 건너뛴 장면 수(셋은 2026-10-20 판부터).

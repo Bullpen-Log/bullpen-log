@@ -384,6 +384,7 @@ export default function VelocityScreen() {
     const subs = [
       DualCamera.addListener('throw', (e) => capture.onThrow(e)),
       DualCamera.addListener('fps', (e) => {
+        capture.noteNet(e.netMs);
         setFps((fpsNow.current = {
           fps: Math.round(e.fps),
           dropped: e.dropped,

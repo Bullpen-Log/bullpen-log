@@ -9,6 +9,9 @@ import { MISS_REASONS, type MissReason } from '@/lib/velocity-session';
  *
  * 사이트 lib/velocity-engine/dual-capture.ts(DualCapture)의 같은 부분을 옮겼다 — 그쪽은 window.Capacitor 로 카메라를 불러 앱에서
  * 그대로 못 쓴다(검토 D3: 카메라 다리는 만들지 않음). 규칙 · 숫자는 그쪽과 같게 둔다 — 그쪽을 고치면 여기도 본다.
+ *   - 'net' — 학습 모델 공 알림(SPEC-detect D4) → 'ball' 과 같은 길. 모델이 도는 동안(카메라 통계 netMs, noteNet)은 아래 옛 알림(스위프트 MotionTrigger)
+ *     — 'ball' · 'seed' · 'motion' · 'skip' — 을 받지 않는다. 시험대 녹화 38구: 모델 37 · 헛 알림 분당 1.2, 옛 공 알림 11 · 분당 5(bench-findings 6-1).
+ *     모델이 없는 앱 판(10-24 TestFlight 전) · 모델을 못 읽은 폰은 옛 알림 그대로.
  *   - 'ball' — 날아가는 공이 확실 → 바로 화면에 띄우고 공 시각 둘레(BALL_RANGE)만 잰다. 클립 앞 0.6 · 뒤 1.6초.
  *   - 'seed' — 공 후보 → 안 보이게 재 보고 공 길이 나오면 보인다. 다른 작업이 없을 때만 받는다.
  *   - 'motion' — 볼 자리가 크게 움직임 → 안 보이게 넓은 클립(앞 0.5 · 뒤 2.6초)을 훑어 잰다.
@@ -45,7 +48,7 @@ const SWEEP_RANGE: [number, number] = [0.7, 1.3];
 export const LOST_BALL_NOTE =
   '공을 알아챘는데 날아가는 길을 거의 못 잡았어요. 폰은 던지는 사람 1.5~2m 뒤, 손이 떠나는 자리가 화면 가운데 쪽에 오게 해 주세요.';
 
-/** 'net' — 학습 모델 공 알림(SPEC-detect D3). 지금은 그림자: 시도 기록에만, 재지 않는다 */
+/** 'net' — 학습 모델 공 알림(SPEC-detect D4) — 'ball' 처럼 잰다 */
 type ThrowKind = 'ball' | 'seed' | 'motion' | 'sweep' | 'net';
 
 /**
@@ -121,6 +124,8 @@ type Job = {
   seed?: boolean;
   /** 조용할 때 훑기가 찾은 공 — 결과에 late 표시 */
   sweep?: boolean;
+  /** 학습 모델 알림으로 세운 공 작업(ball 도 켜짐) — 시도 기록 kind 'net' */
+  net?: boolean;
   ballAt?: number;
   strength: number;
   thermal: number | null;
@@ -132,7 +137,9 @@ type Job = {
   flashUntil?: number;
 };
 
-const kindOf = (job: Job): ThrowKind => (job.ball ? 'ball' : job.seed ? 'seed' : job.sweep ? 'sweep' : 'motion');
+const kindOf = (job: Job): ThrowKind => (job.net ? 'net' : job.ball ? 'ball' : job.seed ? 'seed' : job.sweep ? 'sweep' : 'motion');
+/** 모델이 돈다고 보는 시간 — 카메라 통계(1초마다)의 netMs 가 이만큼 끊기면 옛 알림으로 돌아간다 */
+const NET_ALIVE_MS = 3000;
 
 /** 이 앱 판에서 훑기가 되나 — 카메라 시계(DualCamera.now)가 있어야 지난 창을 자른다 */
 export const canSweep = () => typeof DualCamera.now === 'function';
@@ -185,6 +192,8 @@ export class AppCapture {
   private nextId = Date.now();
   /** 마지막 던짐 알림(벽시계 ms) — 그 뒤 잠깐은 훑기를 쉰다 */
   private lastThrowAt = 0;
+  /** 학습 모델이 마지막으로 돈 때(벽시계 ms) — 카메라 통계 netMs 또는 모델 알림 */
+  private netAt = 0;
   /** 멈추거나 다시 켜면 올린다 — 그 전 작업의 결과는 버린다 */
   private gen = 0;
   private armedNow = true;
@@ -235,19 +244,16 @@ export class AppCapture {
     this.discardJob(job);
   }
 
+  /** 카메라 통계(1초마다)의 장면당 모델 시간 — 0 보다 크면 모델이 돈다 */
+  noteNet(netMs: number | null | undefined) {
+    if (netMs != null && netMs > 0) this.netAt = Date.now();
+  }
+
   onThrow(e: ThrowEvent) {
     if (!this.armedNow) return;
-    if (e.kind === 'net') {
-      /*
-       * 학습 모델 공 알림(SPEC-detect D3) — 그림자: 시도 기록에만 남긴다. 재기 · 훑기 쉼은 지금 알림(MotionTrigger) · 훑기 그대로 —
-       * 폰에서 열 · 장면 버림과 맥 시험대와 같은 때 알리는지를 본 뒤(D4) 이 알림으로 잰다.
-       */
-      this.handlers.onAttempt?.({
-        id: ++this.nextId, kind: 'net', atSec: e.atSec, strength: e.strength, ok: false, code: null,
-        why: 'net-shadow', thermal: e.thermal, trackFrames: 0, rawKmh: null, confidence: null,
-      });
-      return;
-    }
+    if (e.kind === 'net') this.netAt = Date.now();
+    /* 모델이 도는 동안 옛 알림은 버린다 — 헛 알림이 계산기 줄 · 훑기 쉼을 차지했다(SPEC-detect D4) */
+    else if (Date.now() - this.netAt < NET_ALIVE_MS) return;
     this.lastThrowAt = Date.now();
     if (e.kind === 'skip') {
       this.handlers.onAttempt?.({
@@ -261,7 +267,8 @@ export class AppCapture {
 
   /** 작업을 줄에 세운다 — 받았으면 true(pre 클립은 작업 것), 안 받았으면 false(pre 클립은 부른 쪽이 지운다) */
   private enqueue(atSec: number, kind: ThrowKind, strength: number, thermal: number | null, pre?: { clip: Clip; t0: number }): boolean {
-    const ball = kind === 'ball';
+    const net = kind === 'net';
+    const ball = kind === 'ball' || net;
     const seed = kind === 'seed';
     const sweep = kind === 'sweep';
     const covering = this.jobs.find((j) => atSec >= j.start && atSec <= j.end);
@@ -321,6 +328,7 @@ export class AppCapture {
       queuedAt: now,
       visible: ball,
       ball,
+      ...(net ? { net: true } : {}),
       ...(seed ? { seed: true, ballAt: atSec } : {}),
       ...(sweep ? { sweep: true } : {}),
       ...(pre ? { pre } : { clip: DualCamera.clip({ atSec, beforeSec: before, afterSec: after }) }),
