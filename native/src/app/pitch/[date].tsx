@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Animated from 'react-native-reanimated';
 import { fadeIn } from '~/shell/motion';
 import { ActionSheetIOS, Alert, Pressable, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
@@ -43,6 +43,14 @@ export default function PitchDayScreen() {
   const [formOpen, setFormOpen] = useState<boolean | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const addOpen = !future && (formOpen ?? (logs != null && day.length === 0));
+  /*
+   * 빈 날에 저절로 펴지는 입력 폼(800줄)은 창이 다 올라온 뒤에 그린다 — 올라오는 움직임과 겹쳐 끊겼다(2026-10-24 전체 검토). 직접 펴면 바로
+   */
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(true), 350);
+    return () => clearTimeout(t);
+  }, []);
   /* 그날 영상(쉰 날 줄 빼고) · 대표 — 웹 video-calendar DayPanel 과 같은 규칙(repOf) */
   const featured = useFeatured();
   const dayPaths = day.filter((l) => !isRestSession(l.sessionType)).flatMap((l) => l.videoPaths);
@@ -247,7 +255,11 @@ export default function PitchDayScreen() {
                       </Press>
                     ) : null}
                   </View>
-                  <EntryForm key={date} date={date} imported={[]} inline={{ onDone: () => setFormOpen(null) }} />
+                  {settled || formOpen ? (
+                    <Animated.View entering={fadeIn}>
+                      <EntryForm key={date} date={date} imported={[]} inline={{ onDone: () => setFormOpen(null) }} />
+                    </Animated.View>
+                  ) : null}
                 </View>
               ) : (
                 <Press accessibilityRole="button" onPress={() => setFormOpen(true)} style={[styles.add, { backgroundColor: c.skyTint }]}>

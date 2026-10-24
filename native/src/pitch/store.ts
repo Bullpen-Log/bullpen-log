@@ -50,8 +50,11 @@ export async function refreshMonth(month: string): Promise<void> {
   if (months.has(ALL)) void refreshAll();
   warm(month);
   const prev = months.get(month) ?? EMPTY;
-  months.set(month, { ...prev, loading: true });
-  emit();
+  /* 이미 받은 달이면 '받는 중' 알림을 안 낸다 — 그 알림마다 그 달을 보는 판(홈 · 투구, 숨어 있어도)이 다시 그려졌다(2026-10-24 그날 창이 열릴 때) */
+  if (!prev.logs) {
+    months.set(month, { ...prev, loading: true });
+    emit();
+  }
   const e = cacheEpoch();
   try {
     const logs = await loadMonth(month);

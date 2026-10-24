@@ -27,7 +27,7 @@ import { LoadTrend, TrendCardView, toneColor } from '~/analysis/charts';
 import { MiniChart } from '~/home/feed';
 import { leave } from '~/mechanics/parts';
 import { usePrefs } from '~/lib/prefs';
-import { loadJson, saveJson } from '~/lib/store';
+import { cacheEpoch, loadJson, saveJson } from '~/lib/store';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { rpc, RpcError } from '~/lib/rpc';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
@@ -46,6 +46,9 @@ import { Press } from '~/shell/press';
  * 구속 · 무게는 설정의 단위(웹 useSpeedUnit · 무게 단위와 같다).
  */
 type LoadResult = ({ ok: true } & AppAnalysis) | { ok: false; to: string };
+
+/** 마지막으로 받은 오늘 분석(투구 · 트레이닝 칸마다) — 다시 열 때 먼저 그린다 */
+const lastAnalysis = new Map<Kind, { epoch: number; data: AppAnalysis }>();
 type Kind = 'pitch' | 'training';
 
 const TITLE: Record<Kind, string> = { pitch: '투구 분석', training: '트레이닝 분석' };
@@ -58,7 +61,11 @@ export default function AnalysisScreen() {
   const view: Kind = params.view === 'training' ? 'training' : 'pitch';
   /* 보는 날 — 없으면 오늘(서버가 정한다). 그래프의 날을 톡 치면 바뀐다 */
   const [date, setDate] = useState<string | null>(typeof params.date === 'string' ? params.date : null);
-  const [data, setData] = useState<AppAnalysis | null>(null);
+  /* 다시 열 때는 지난번 분석부터(앱을 켠 동안 · 같은 로그인 · 같은 칸) — 예전엔 열 때마다 회색 뼈대부터였다(2026-10-24 전체 검토). 머리에 돌개가 돌며 새로 받는다 */
+  const [data, setData] = useState<AppAnalysis | null>(() => {
+    const m = typeof params.date === 'string' ? undefined : lastAnalysis.get(view);
+    return m && m.epoch === cacheEpoch() ? m.data : null;
+  });
   /* data 가 어느 요청(date)의 답인가 — 서버가 앞날을 오늘로 바꿔 돌려줘도 기다림이 안 끝나는 일이 없게 날짜가 아니라 요청으로 견준다 */
   const [loadedFor, setLoadedFor] = useState<string | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
@@ -75,6 +82,7 @@ export default function AnalysisScreen() {
         if (!alive) return;
         setRefreshing(false);
         if (!r.ok) return leave(r.to);
+        if (date == null) lastAnalysis.set(view, { epoch: cacheEpoch(), data: r });
         setData(r);
         setLoadedFor(date);
         setFailed(null);

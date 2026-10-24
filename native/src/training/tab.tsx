@@ -2,7 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import * as Haptics from 'expo-haptics';
 import { type Href, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CardAction, TrainingCard } from '@/lib/report/training-home-data';
 import type { TrainingWeekCounts } from '@/lib/report/training-week-counts';
@@ -10,7 +10,6 @@ import type { TrainingStripDay } from '@/lib/training-week';
 import { ThrowNoteCard } from '~/mechanics/parts';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { rpc, RpcError } from '~/lib/rpc';
-import { REST_DAY } from '~/training/rest-day';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette, withAlpha } from '~/lib/ui';
 import { fromApp, openCheckin } from '~/shell/web-nav';
@@ -46,7 +45,6 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
   const inset = useSafeAreaInsets();
   const [data, setData] = useState<Loaded | null>(() => (cached?.today === today ? cached : null));
   const [error, setError] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
   /* 이 화면을 연 뒤 서버에서 한 번 받았나 — 받아 둔 카드의 '드릴 공 남기기'는 이미 남긴 뒤일 수 있어, 새로 받은 뒤에만 보인다 */
   const [fresh, setFresh] = useState(false);
   /* 껍데기가 그릴 때마다 새 onWeb 을 넘긴다 — 불러오기가 그것에 묶이면 그릴 때마다 다시 받았다 */
@@ -96,26 +94,10 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
   useFocusRefresh(() => void load());
 
   /* [시작] — 운동 판을 연다. 서버는 판을 열고 운동 화면 · 워밍업 · 쉬는 날 화면으로 보낸다(redirect) — 운동 화면이면 앱 화면, 나머지는 웹 */
-  const startWorkout = async (a: Extract<CardAction, { kind: 'workout' }>) => {
-    if (starting) return;
-    setStarting(true);
+  /* [시작] — 운동 화면을 바로 밀고, 판을 여는 것(서버)은 그 화면이 한다(app/workout.tsx ?start=). 워밍업 · 쉬는 날 · 웹으로 보내는 것도 거기서 */
+  const startWorkout = (a: Extract<CardAction, { kind: 'workout' }>) => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      await rpc(a.program ? 'program.startProgramWorkout' : 'workout.startWorkout');
-      /* 보내는 곳 없이 끝나면(드묾) 트레이닝 화면을 다시 받는다 */
-      void load();
-    } catch (e) {
-      if (e instanceof RpcError && e.code === 'redirect' && e.to) {
-        if (e.to.startsWith('/workout/run')) router.push('/workout' as Href);
-        /* 워밍업 창도 앱 화면으로(판 7) — 웹을 거치지 않고 */
-        else if (e.to.startsWith('/workout/warmup')) router.push('/warmup' as Href);
-        /* 통증을 남긴 날 — 웹 /workout/rest 와 같은 말을 알림창으로 */
-        else if (e.to.startsWith('/workout/rest')) Alert.alert(REST_DAY.title, REST_DAY.body);
-        else onWeb(e.to);
-      } else Alert.alert('운동을 열지 못했어요', e instanceof Error ? e.message : '신호가 약해요. 잠시 뒤 다시 눌러 주세요.');
-    } finally {
-      setStarting(false);
-    }
+    router.push(`/workout?start=${a.program ? 'program' : 'daily'}` as Href);
   };
   const act = (a: CardAction) => {
     if (a.kind === 'workout') return void startWorkout(a);
@@ -196,7 +178,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
       {!data && !error ? <ActivityIndicator style={{ paddingVertical: 24 }} /> : null}
 
       {data?.cards.map((card) => (
-        <Card key={card.app} card={fresh ? card : { ...card, throwNote: null }} busy={starting} onOpen={() => openPart(card.app)} onAction={act} onWeb={onWeb} />
+        <Card key={card.app} card={fresh ? card : { ...card, throwNote: null }} busy={false} onOpen={() => openPart(card.app)} onAction={act} onWeb={onWeb} />
       ))}
       {data?.week ? <WeekLine week={data.week} c={c} /> : null}
     </ScrollView>

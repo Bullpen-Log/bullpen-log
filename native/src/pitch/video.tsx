@@ -13,6 +13,25 @@ import { isPhoneVideoPath, phoneAssetId, serverVideoUrls } from './api';
  * 투구 영상 하나 — 폰 영상(`{userId}/local-…`)은 앱 안 영상 폴더의 파일을 바로, 서버 영상은 서명 주소로 튼다. 폰에 없으면(다른 폰 · 앱을
  * 다시 깔아 지워짐) 웹과 같은 말을 보인다.
  */
+/*
+ * 같은 때 붙은 영상들의 서버 주소는 한 번에 묻는다 — 그날 창에 영상이 셋이면 예전엔 세 번 따로 물었다(2026-10-24 전체 검토)
+ */
+let waiting: { path: string; resolve: (u: string) => void; reject: (e: unknown) => void }[] = [];
+function batchedServerUrl(path: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    waiting.push({ path, resolve, reject });
+    if (waiting.length > 1) return;
+    queueMicrotask(() => {
+      const batch = waiting;
+      waiting = [];
+      serverVideoUrls([...new Set(batch.map((b) => b.path))]).then(
+        (urls) => batch.forEach((b) => (urls[b.path] ? b.resolve(urls[b.path]) : b.reject(new Error('영상을 찾지 못했어요')))),
+        (e: unknown) => batch.forEach((b) => b.reject(e))
+      );
+    });
+  });
+}
+
 /** 영상 경로 → 틀 수 있는 주소(폰 영상은 앱 안 파일, 서버 영상은 서명 주소) — 그날 화면 · 2분할 비교가 같이 쓴다 */
 export function useVideoUri(path: string | null): { uri: string | null; error: string | null } {
   const [state, setState] = useState<{ path: string | null; uri: string | null; error: string | null }>({ path: null, uri: null, error: null });
@@ -22,11 +41,7 @@ export function useVideoUri(path: string | null): { uri: string | null; error: s
     let alive = true;
     const job = isPhoneVideoPath(path)
       ? LocalVideo.fileUrl({ id: phoneAssetId(path) }).then((r) => r.url)
-      : serverVideoUrls([path]).then((urls) => {
-          const url = urls[path];
-          if (!url) throw new Error('영상을 찾지 못했어요');
-          return url;
-        });
+      : batchedServerUrl(path);
     job.then(
       (u) => alive && setState({ path, uri: u, error: null }),
       () =>
@@ -46,16 +61,25 @@ export function useVideoUri(path: string | null): { uri: string | null; error: s
   return state.path === path ? { uri: state.uri, error: state.error } : { uri: null, error: null };
 }
 
+/** 창이 올라오는 움직임 길이 어림 — ponytail: 화면 끝 알림(transitionEnd)을 받게 되면 그때 바꾼다 */
+const SETTLE_MS = 350;
+
 /** tools = 속도(¼ · ½ · 1배) · 한 장면 넘기기 줄 — 그날 기록의 영상(웹 day-record 의 PitchVideoPlayer, 처음 ½배) */
 export function PitchVideo({ path, tools }: { path: string; tools?: boolean }) {
   const { uri, error } = useVideoUri(path);
+  /* 재생기는 창이 다 올라온 뒤에 만든다 — 영상마다 재생기를 여는 일이 창이 올라오는 움직임과 겹쳐 끊겼다(2026-10-24 전체 검토) */
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(true), SETTLE_MS);
+    return () => clearTimeout(t);
+  }, []);
   if (error)
     return (
       <View style={[styles.box, styles.center]}>
         <Text style={styles.note}>{error}</Text>
       </View>
     );
-  if (!uri)
+  if (!uri || !settled)
     return (
       <View style={[styles.box, styles.center]}>
         <ActivityIndicator color="#fff" />

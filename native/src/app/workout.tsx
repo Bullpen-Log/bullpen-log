@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
-import { type Href, router, Stack } from 'expo-router';
+import { type Href, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator,
@@ -38,6 +38,8 @@ import { BullpenNative } from '../../modules/bullpen-native';
 import { rpc, RpcError } from '~/lib/rpc';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
+import { REST_DAY } from '~/training/rest-day';
+import { prefetchWorkoutDone } from '~/workout/done-prefetch';
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { drainOutbox, onSent, outbox, withPending, type ShownSet } from '~/workout/outbox';
 import { NoteBox, NumberPad, RestPill, RirQuestion, SetDots, clockText } from '~/workout/parts';
@@ -76,10 +78,32 @@ export default function WorkoutScreen() {
   const [data, setData] = useState<RunPayload | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [tries, setTries] = useState(0);
+  /*
+   * ?start=daily|program — 트레이닝 탭의 [시작]이 판을 여는 것까지 이 화면에 맡긴다. 예전엔 탭이 판을 열고(서버 한 번) 그 답을 받은 뒤에야
+   * 이 화면을 밀어 0.5~1초 아무 일 없다가 돌개가 떴다(2026-10-24 전체 검토). 이제 누르자마자 이 화면이 뜨고 그 뒤에 연다.
+   * 서버가 다른 곳으로 보내면(워밍업 · 쉬는 날 · 웹) 그리로.
+   */
+  const start = useLocalSearchParams<{ start?: string }>().start;
+  const started = useRef(false);
 
   useEffect(() => {
     let alive = true;
-    rpc<LoadResult>('app-workout.loadAppWorkout').then(
+    const opened =
+      start && !started.current
+        ? rpc(start === 'program' ? 'program.startProgramWorkout' : 'workout.startWorkout').then(
+            () => true,
+            (e: unknown) => {
+              if (e instanceof RpcError && e.code === 'redirect' && e.to?.startsWith('/workout/run')) return true;
+              throw e;
+            }
+          )
+        : Promise.resolve(true);
+    opened
+      .then(() => {
+        started.current = true;
+        return rpc<LoadResult>('app-workout.loadAppWorkout');
+      })
+      .then(
       (r) => {
         if (!alive) return;
         if (r.ok) setData(r);
@@ -87,14 +111,22 @@ export default function WorkoutScreen() {
       },
       (e: unknown) => {
         if (!alive) return;
-        if (e instanceof RpcError && e.code === 'redirect') return leave(e.to ?? '/login');
+        if (e instanceof RpcError && e.code === 'redirect') {
+          /* 워밍업 창은 앱 화면으로 바꿔 끼운다 · 통증을 남긴 날은 웹 /workout/rest 와 같은 말을 알림창으로 */
+          if (e.to?.startsWith('/workout/warmup')) return router.replace('/warmup' as Href);
+          if (e.to?.startsWith('/workout/rest')) {
+            router.back();
+            return Alert.alert(REST_DAY.title, REST_DAY.body);
+          }
+          return leave(e.to ?? '/login');
+        }
         setFailed(e instanceof RpcError && e.code === 'update' ? '앱을 업데이트해 주세요.' : '신호가 약해 운동을 불러오지 못했어요.');
       }
     );
     return () => {
       alive = false;
     };
-  }, [tries]);
+  }, [tries, start]);
 
   if (data) return <Run key={data.sessionId} {...data} c={c} />;
   return (
@@ -701,7 +733,10 @@ function Run({
         const to = e.to && !e.to.startsWith('/training') ? e.to : `/workout/done?id=${sessionId}`;
         /* 축하 화면은 앱 화면으로(판 7) — 이 화면을 바꿔서, 웹을 거치지 않고 */
         const doneId = /^\/workout\/done\?id=([\w-]+)/.exec(to)?.[1];
-        if (doneId) return router.replace(`/workout-done?id=${doneId}` as Href);
+        if (doneId) {
+          prefetchWorkoutDone(doneId);
+          return router.replace(`/workout-done?id=${doneId}` as Href);
+        }
         return leave(to);
       }
       setEnding(false);

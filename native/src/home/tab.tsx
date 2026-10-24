@@ -267,7 +267,8 @@ export function HomeTab({
           </>
         )}
 
-        <Animated.View layout={layoutMove} style={{ marginTop: SPACE.section }} onLayout={(e) => (calY.current = e.nativeEvent.layout.y)}>
+        {/* 달력 덩어리 통째로는 움직이지 않는다 — 위 칸 높이가 바뀔 때마다(불러오기 뼈대 → 링 · 요약 칸) 달력이 0.3초 미끄러졌다(2026-10-24 전체 검토) */}
+        <Animated.View style={{ marginTop: SPACE.section }} onLayout={(e) => (calY.current = e.nativeEvent.layout.y)}>
           {/* 홈 달력은 앞날 · 다음 달도 열린다 — 일정을 미리 적는 곳(엔진이 다음 등판을 읽는다, 웹 allowFuture). 날을 고르면 칸이 납작해진다(웹 compact) */}
           {/* 보기 전환은 달력 머리의 목록 그림 · 목록 머리의 달력 그림으로(웹 2026-10-16) — 바꿀 때만 옅게 떠오른다(view-swap) */}
           {calView === 'list' ? (
@@ -320,7 +321,7 @@ export function HomeTab({
 
         {/* 캘린더 밑 — 알림 카드 · 첫날 카드(웹 home-page.tsx TodayBody 와 같은 차례) */}
         {home?.firstDay || home?.goodNote ? (
-          <Animated.View layout={layoutMove} style={{ marginTop: SPACE.section, gap: SPACE.section }}>
+          <Animated.View style={{ marginTop: SPACE.section, gap: SPACE.section }}>
             {home.firstDay ? (
               <FirstDayCard today={today} status={home.firstDay} locked={home.pitchLocked} onTab={onTab} onRested={() => void refresh()} />
             ) : null}
