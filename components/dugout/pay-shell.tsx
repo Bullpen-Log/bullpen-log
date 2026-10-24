@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { RoundLock } from '@/components/round-icon';
 import { Card } from '@/components/ui';
 import { formatPrice } from '@/lib/market/specs';
+import { DugoutPageHeader } from '@/components/dugout/ui';
 
 export type PayLine = { label: string; amount: number };
 
@@ -34,10 +35,7 @@ export function PayShell({
   const total = lines.reduce((a, l) => a + l.amount, 0);
   return (
     <div className="mx-auto max-w-xl space-y-4">
-      <div>
-        <h1 className="text-2xl font-black text-ink">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
-      </div>
+      <DugoutPageHeader title={title} subtitle={subtitle} />
       <Card className="space-y-2">
         <h2 className="text-xs font-medium text-muted">결제 내용</h2>
         <dl className="divide-y divide-line text-sm">
