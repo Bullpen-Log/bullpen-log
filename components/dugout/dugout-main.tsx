@@ -117,7 +117,7 @@ export function DugoutMain({
               data-dugout-logo
               className="inline-flex"
             >
-              <Wordmark brand="dugout" className="text-5xl text-ink md:text-7xl" />
+              <Wordmark brand="dugout" className="text-7xl text-ink md:text-[8.5rem]" />
             </Link>
           </h1>
           <div className="mx-auto flex max-w-xl items-center gap-2">
