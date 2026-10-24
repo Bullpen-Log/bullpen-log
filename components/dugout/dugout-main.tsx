@@ -5,11 +5,14 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { RoundIcon, RoundSearch } from '@/components/round-icon';
 import { Wordmark } from '@/components/logo';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
-import { SinkerButton } from '@/components/dugout/dugout-topbar';
+import { ProfileButton, SinkerButton } from '@/components/dugout/dugout-topbar';
 import { FEATURES } from '@/lib/dugout-features';
-import { REGIONS } from '@/lib/market/specs';
 
 /**
+ * 2026-10-24 금윤호(둘째): "'전국 에서 무엇이 필요하세요?' 글을 지우고 덕아웃 로고를 · 검색창은 '통합검색'만 · 우측 상단 싱커는 S 로고만 · 맨 끝엔 프로필".
+ *   그래서 가운데 큰 덕아웃 로고([data-dugout-logo] — 싱커에서 돌아올 때 가운데 로고가 여기로 내려앉는다) → 통합검색 → 아이콘 줄.
+ *   모서리 줄은 오른쪽만(싱커 S · 알림 · 설정 · 프로필).
+ *
  * 덕아웃 첫 화면(2026-10-24 금윤호: "메인 화면을 그냥 이거로 — 덕아웃의 처음 시작화면은 이거") — 예전 큰 로고 화면(dugout-hero) 대신 이것.
  *   '[지역 ∨] 에서 무엇이 필요하세요?' + 통합검색(→ /search) · [덕아웃 | 싱커] 탭과 우리 기능으로 가는 아이콘 줄(lib/dugout-features.ts).
  *   이 판이 화면에 보이는 동안 위 막대는 숨고(data-top), 내려서 판이 다 지나가면 위에서 스르륵 내려온다(globals.css '덕아웃 첫 화면').
@@ -22,11 +25,13 @@ const TABS = [
 
 export function DugoutMain({
   user,
+  avatarUrl = null,
   alerts = 0,
   sinker = false,
   native = false,
 }: {
   user: { nickname: string } | null;
+  avatarUrl?: string | null;
   alerts?: number;
   sinker?: boolean;
   native?: boolean;
@@ -80,29 +85,11 @@ export function DugoutMain({
       className="relative -mx-4 -mt-5 px-4 pb-14 md:-mx-6 md:-mt-8 md:px-6 md:pb-20"
     >
       {/* 모서리 줄 — 위 막대가 숨은 동안의 길 */}
-      <div className="flex items-center justify-between pt-[max(1rem,env(safe-area-inset-top))] pb-2 md:pt-6">
-        <Link href={native ? '/?dugout=1' : '/'} aria-label="덕아웃 첫 화면" data-dugout-logo className="inline-flex">
-          <Wordmark brand="dugout" className="text-2xl text-ink" />
-        </Link>
+      <div className="flex items-center justify-end pt-[max(1rem,env(safe-area-inset-top))] pb-2 md:pt-6">
         <div className="flex items-center gap-2">
-          {sinker && (
-            <SinkerButton
-              native={native}
-              className="flex min-h-10 items-center rounded-full border border-line px-4 transition-colors hover:border-sky-soft"
-            />
-          )}
+          {sinker && <SinkerButton native={native} />}
           {user ? (
-            <>
-              <DugoutBell initial={alerts} />
-              {!sinker && (
-                <Link
-                  href="/me"
-                  className="flex min-h-10 items-center rounded-full border border-line px-4 text-sm font-semibold text-ink"
-                >
-                  {user.nickname}
-                </Link>
-              )}
-            </>
+            <DugoutBell initial={alerts} />
           ) : (
             <>
               <Link href="/login" className="flex min-h-10 items-center px-2 text-sm font-semibold text-muted hover:text-ink">
@@ -117,33 +104,21 @@ export function DugoutMain({
             </>
           )}
           <DugoutSettings />
+          {user && <ProfileButton nickname={user.nickname} avatarUrl={avatarUrl} />}
         </div>
       </div>
 
-      <div className="mx-auto max-w-5xl pt-12 md:pt-20">
-        <form action="/search" method="get" role="search" className="space-y-6">
-          <h1 className="flex flex-wrap items-center justify-center gap-x-1.5 text-center text-[22px] font-bold text-ink md:text-[30px]">
-            <span className="relative inline-flex items-center">
-              <select
-                name="region"
-                aria-label="지역"
-                defaultValue=""
-                className="cursor-pointer appearance-none bg-transparent pr-6 [font:inherit] text-ink focus:outline-none"
-              >
-                <option value="">전국</option>
-                {REGIONS.filter((r) => r !== '전국(택배)').map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-              <RoundIcon
-                name="back"
-                aria-hidden
-                className="pointer-events-none absolute right-0 h-4 w-4 -rotate-90 text-ink"
-              />
-            </span>
-            <span>에서 무엇이 필요하세요?</span>
+      <div className="mx-auto max-w-5xl pt-10 md:pt-16">
+        <form action="/search" method="get" role="search" className="space-y-8">
+          <h1 className="flex justify-center">
+            <Link
+              href={native ? '/?dugout=1' : '/'}
+              aria-label="덕아웃"
+              data-dugout-logo
+              className="inline-flex"
+            >
+              <Wordmark brand="dugout" className="text-6xl text-ink md:text-8xl" />
+            </Link>
           </h1>
           <div className="mx-auto flex max-w-xl items-center gap-2">
             <label className="relative min-w-0 flex-1">
@@ -151,7 +126,7 @@ export function DugoutMain({
               <input
                 name="q"
                 type="search"
-                placeholder="물건 · 글 · 코치 · 연습장 · 기능 통합검색"
+                placeholder="통합검색"
                 aria-label="덕아웃 통합검색"
                 className="min-h-12 w-full appearance-none rounded-xl bg-ink/6 pr-4 pl-11 text-[15px] text-ink placeholder:text-muted/70 focus:bg-surface focus:ring-2 focus:ring-sky focus:outline-none"
               />

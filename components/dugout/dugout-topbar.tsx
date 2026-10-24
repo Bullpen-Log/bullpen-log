@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { RoundMenu, RoundPlus, RoundSearch } from '@/components/round-icon';
-import { Wordmark } from '@/components/logo';
+import { SinkerMark, Wordmark } from '@/components/logo';
 import { MorphLink } from '@/components/shell-morph';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
 
@@ -26,7 +26,10 @@ export function DugoutTopBar({
   className = '',
   native = false,
   brand = 'dugout',
+  avatarUrl = null,
 }: {
+  /** 맨 오른쪽 프로필 사진(서명 주소) — 없으면 이름 첫 글자 */
+  avatarUrl?: string | null;
   user: { nickname: string } | null;
   unread?: number;
   /** 안 읽은 알림(lib/notify.ts countUnreadNotifications) */
@@ -117,7 +120,7 @@ export function DugoutTopBar({
         <div data-morph-chrome className="ml-auto flex shrink-0 items-center gap-2">
           {user ? (
             <>
-              {sinker && !isSinkerBar && <SinkerButton native={native} className={side(false)} />}
+              {sinker && !isSinkerBar && <SinkerButton native={native} />}
               {manage && (
                 <Link
                   href="/manage"
@@ -125,11 +128,6 @@ export function DugoutTopBar({
                   className={side(current === 'manage')}
                 >
                   관리
-                </Link>
-              )}
-              {!sinker && !manage && !isSinkerBar && (
-                <Link href="/me" className={side(false)}>
-                  {user.nickname}
                 </Link>
               )}
               {/* 알림은 종 밑 작은 창으로(2026-10-22 — 예전 '알림' 메뉴는 /notifications 로 옮겨 갔다), 설정은 맨 오른쪽 위 */}
@@ -152,6 +150,7 @@ export function DugoutTopBar({
             </>
           )}
           <DugoutSettings />
+          {user && !isSinkerBar && <ProfileButton nickname={user.nickname} avatarUrl={avatarUrl} />}
         </div>
       </div>
       {nav.length > 0 && (
@@ -193,23 +192,40 @@ export function DugoutTopBar({
 }
 
 /**
- * '싱커'로 넘어가는 단추(2026-10-24 금윤호: "우상단의 싱커를 우리 S 로고와 영어로 나머지가 써 있는 느낌으로") — 글자 대신 싱커 이름표(S 로고 + INKER).
- * 위 막대와 덕아웃 첫 화면의 모서리가 같이 쓴다. 웹은 싱커로 변형하며 넘어가고(MorphLink), 앱 웹뷰는 그냥 이동.
+ * '싱커'로 넘어가는 단추(2026-10-24 금윤호: "우측 상단 싱커를 S 로고만 · 누르는 순간 빠르게 화면 정중앙으로 오면서 싱커로") — 둥근 칸에 싱커 S 표시 하나.
+ * 웹은 싱커로 변형하며 넘어가고(MorphLink — 시작 판의 S 가 이 단추 자리에서 가운데로 날아온다, components/shell-morph.tsx), 앱 웹뷰는 그냥 이동.
+ * 덕아웃 틀 안이라 brand 가 초록인데 S 는 싱커 파랑 그대로(globals.css [data-brand='sinker']).
  */
 export function SinkerButton({ native = false, className = '' }: { native?: boolean; className?: string }) {
-  /* 덕아웃 틀 안이라 brand 가 초록으로 바뀌는데, 싱커 이름표는 싱커 파랑 그대로(2026-10-24 금윤호 "싱커 로고가 왜 초록색이 됐어") — globals.css [data-brand='sinker'] */
+  const box = `grid h-10 w-10 place-items-center rounded-full border border-line transition-colors hover:border-sky-soft ${className}`;
   const mark = (
-    <span data-brand="sinker" className="inline-flex">
-      <Wordmark brand="sinker" className="text-[17px] leading-none text-ink" />
+    <span data-brand="sinker" data-intro-from className="inline-flex">
+      <SinkerMark className="h-5 w-5" />
     </span>
   );
   return native ? (
-    <Link href="/today" aria-label="싱커" className={className}>
+    <Link href="/today" aria-label="싱커" title="싱커" className={box}>
       {mark}
     </Link>
   ) : (
-    <MorphLink href="/today" dir="to-sinker" aria-label="싱커" className={className}>
+    <MorphLink href="/today" dir="to-sinker" fromMark aria-label="싱커" title="싱커" className={box}>
       {mark}
     </MorphLink>
+  );
+}
+
+/** 맨 오른쪽 내 프로필(2026-10-24 금윤호 "우측 맨 끝에는 개인의 프로필") — 사진이 없으면 이름 첫 글자 원. 누르면 내 것(/me) */
+export function ProfileButton({ nickname, avatarUrl }: { nickname: string; avatarUrl?: string | null }) {
+  return (
+    <Link href="/me" aria-label={`내 프로필 · ${nickname}`} title={nickname} className="grid h-10 w-10 shrink-0 place-items-center rounded-full">
+      {avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- 서명 주소(저장소)
+        <img src={avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover ring-1 ring-line" />
+      ) : (
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-sky text-sm font-bold text-white">
+          {nickname.slice(0, 1)}
+        </span>
+      )}
+    </Link>
   );
 }
