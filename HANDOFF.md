@@ -11,17 +11,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 금윤호에게 — 2026-10-24 · 김민(Claude) — 앱 화면 전환 끊김 전체 검토 뒤 고침 · 네 영역(덕아웃 · 웹 틀) 조금
+## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 덕아웃 큰 로고 첫 화면을 걷었다 · 통합검색 · 네 고침 하나가 지워진 파일이라 빠졌다
 
-받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "앱 화면 전환이 부드럽고 빠르지 않다 → 전체 검토 → 순서대로 전부 고쳐줘". 커밋 셋(고침 1 · 2 · 3).
-- **네 영역 고친 곳**: `app/(dugout)/loading.tsx` 새로(덕아웃으로 넘어가는 동안 뼈대 — 예전엔 홈 쿼리 일곱이 끝날 때까지 옛 화면이 얼었다) ·
-  `components/dugout/app-launcher.tsx` 바로가기를 0.22초 연출 뒤가 아니라 바로 push(연출은 그대로) ·
-  `components/app-shell/expo-tabs.tsx` 앱에 보내는 덕아웃 탭 주소를 `/?dugout=1&home=1`(작은 로고 홈 — dugout-shell 의 '홈'과 같다, 큰 로고 0.5초를 매번 안 봄) ·
-  `__bpRefresh` 를 `quietRefresh` 로 · `components/tab-pager.tsx` 앱 안(Expo UA)에서는 __bpTab 의 판 넘기기가 미끄러지지 않고 바로.
-- **새 앱이면 웹 홈 · 웹 투구 판을 안 그린다**(`app/(app)/@home/*` · `@videos/*` — 앱 화면이 늘 덮어 아무도 못 보는데 매번 서버가 통째로 그렸다). 옛 앱 · 브라우저 ·
-  투구 잠김(첫 설정 전)은 그대로. 웹 홈을 앱에서 다시 보여야 할 일이 생기면 이 둘을 풀어 줘.
-- `app/(session)/checkin/loading.tsx` 새로(흐름과 같은 바탕). 앱 쪽 고침은 커밋 본문에.
-- 아직 폰에서 못 본 것: 탭을 옮긴 뒤 refresh 가 페이지 전체를 다시 불러오던 것(10-16 메모의 MPA)은 손대지 않았다 — 폰에서 재현되면 그때.
+받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호: "덕아웃 처음 시작화면은 찾기 판으로, 위 막대는 내리면 스르륵", "검색은 통합검색".
+- 큰 로고 첫 화면(`dugout-hero.tsx`) · `logo-fly.ts` · **`app-launcher.tsx` 를 지웠다** — 네 39ec2b04 의 '바로가기 바로 push' 고침은 그 파일이 없어져 합칠 때 빠졌다(쓰는 곳 없음).
+  첫 화면은 `components/dugout/dugout-main.tsx`(통합검색 + [덕아웃 | 싱커] 기능 아이콘, 판이 보이는 동안 위 막대 숨김).
+- `?home=1` 은 이제 뜻이 없다(그냥 같은 홈) — `components/app-shell/expo-tabs.tsx` 의 `&home=1` 은 두어도 되고 지워도 된다.
+- 통합검색 `/search`(`app/(dugout)/search` · `lib/search.ts`), `proxy.ts` OPEN 에 `search` 더함. 장비 고르기는 장터 안 팝업(`/market?guide=1`), `/gear` 는 거기로 넘김.
+- 싱커 → 덕아웃 가운데 로고 판(`MorphOverlay`)을 `app/(app)/layout.tsx` 에서 뿌리 `app/layout.tsx` 로 옮겼다 — 틀이 바뀐 뒤 덕아웃 로고 자리로 날아가 앉는다.
 
 ## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — 덕아웃 레슨 코치 찾기 3판(닥터나우식) · **받으면 `npx prisma generate`**
 
