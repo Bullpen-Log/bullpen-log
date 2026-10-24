@@ -34,8 +34,16 @@ const modelKeys = Prisma.dmmf.datamodel.models.map(
 );
 
 const dump = { 받은시각: new Date().toISOString() };
+const missing = [];
 for (const key of modelKeys) {
-  dump[key] = await prisma[key].findMany();
+  try {
+    dump[key] = await prisma[key].findMany();
+  } catch (e) {
+    // 스키마엔 있지만 마이그레이션을 아직 안 건 새 표(P2021) — 받을 줄이 없으니 건너뛴다(바로 그 표를 걸기 전에 백업할 때).
+    if (e?.code !== 'P2021') throw e;
+    missing.push(key);
+    dump[key] = [];
+  }
 }
 
 const dir = join(homedir(), 'bullpen-log-backups');
@@ -51,6 +59,7 @@ for (const key of modelKeys) {
   total += dump[key].length;
   console.log(`  ${key}: ${dump[key].length}건`);
 }
+if (missing.length) console.log(`\n  (DB 에 아직 없는 표: ${missing.join(', ')})`);
 console.log(`\n총 ${total}건 → ${out}`);
 
 await prisma.$disconnect();
