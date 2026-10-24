@@ -115,7 +115,7 @@ export function DugoutMain({
       </div>
 
       <div className="mx-auto max-w-6xl pt-10 md:pt-16">
-        <form action="/search" method="get" role="search" className="space-y-8">
+        <form action="/search" method="get" role="search" className="space-y-6">
           <h1 className="flex justify-center">
             <Link
               href={native ? '/?dugout=1' : '/'}
@@ -123,10 +123,10 @@ export function DugoutMain({
               data-dugout-logo
               className="inline-flex"
             >
-              <Wordmark brand="dugout" className="text-6xl text-ink md:text-8xl" />
+              <Wordmark brand="dugout" className="text-5xl text-ink md:text-7xl" />
             </Link>
           </h1>
-          <div className="mx-auto flex max-w-4xl items-center gap-2">
+          <div className="mx-auto flex max-w-3xl items-center gap-2">
             <label className="relative min-w-0 flex-1">
               <RoundSearch className="pointer-events-none absolute top-1/2 left-4 h-4.5 w-4.5 -translate-y-1/2 text-muted" />
               <input
@@ -134,12 +134,12 @@ export function DugoutMain({
                 type="search"
                 placeholder="통합검색"
                 aria-label="덕아웃 통합검색"
-                className="min-h-12 w-full appearance-none rounded-xl bg-ink/6 pr-4 pl-11 text-[15px] text-ink placeholder:text-muted/70 focus:bg-surface focus:ring-2 focus:ring-sky focus:outline-none"
+                className="min-h-11 w-full appearance-none rounded-xl bg-ink/6 pr-4 pl-11 text-[15px] text-ink placeholder:text-muted/70 focus:bg-surface focus:ring-2 focus:ring-sky focus:outline-none"
               />
             </label>
             <button
               type="submit"
-              className="inline-flex min-h-12 shrink-0 items-center gap-1.5 rounded-xl bg-ink px-5 text-sm font-bold text-page"
+              className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-ink px-5 text-sm font-bold text-page"
             >
               찾기
             </button>
@@ -147,14 +147,14 @@ export function DugoutMain({
         </form>
 
         {/* 덕아웃 기능으로 가는 아이콘 줄 */}
-        <ul className="mt-12 flex flex-wrap justify-center gap-x-6 gap-y-5 sm:gap-x-12 md:gap-x-16">
+        <ul className="mt-9 flex flex-wrap justify-center gap-x-5 gap-y-4 sm:gap-x-10 md:gap-x-12">
           {items.map((it) => (
             <li key={it.href}>
               <Link href={it.href} className="group flex w-16 flex-col items-center gap-2 rounded-xl py-1 md:w-20">
-                <span className="grid h-12 w-12 place-items-center text-sky transition-transform group-hover:-translate-y-0.5">
-                  <RoundIcon name={it.icon} filled className="h-10 w-10" />
+                <span className="grid h-10 w-10 place-items-center text-sky transition-transform group-hover:-translate-y-0.5">
+                  <RoundIcon name={it.icon} filled className="h-8 w-8" />
                 </span>
-                <span className="truncate text-center text-[13px] text-ink">{it.label}</span>
+                <span className="truncate text-center text-xs text-ink">{it.label}</span>
               </Link>
             </li>
           ))}
