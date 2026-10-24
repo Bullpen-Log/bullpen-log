@@ -70,7 +70,7 @@ import { makeV2Track } from './pitch-lab/synth-v2.mts';
 import { mannequinOddities } from './pitch-lab/jitter/measure.mts';
 import { fixShoulderSwaps } from '../lib/pitch-3d/v2/clean2d.ts';
 import { footJump, footSway, gapWristError, hipSnap, junkGloveError, leadGapJump } from './pitch-lab/gap-check.mts';
-import { blendAi, despike, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
+import { blendAi, despike, displayTrack, playbackTimes, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
 import { mannequinTrack, smoothForMannequin, type MannequinJoints, type MannequinTrack } from '../lib/pitch-3d/v2/mannequin-prep.ts';
 import {
   basis,
@@ -264,6 +264,30 @@ const good = (): Pitch3dV2Ok => {
 {
   const g = good();
   check('좋은 결과 통과', readPitch3dV2Result(g) === g);
+  /*
+   * 재생 시각(playbackTimes) — 간격이 4 · 13ms 로 번갈아 오는데 자리는 장면마다 고르게(엔진 · 화면 다듬기가 장면 번호로 폄) 놓인 움직임이,
+   * 실제 시각(result.t)으로 재생하면 빨랐다 느렸다 떨리고 고른 시각으로는 매끈하다(2026-10-24 마커 37 · 38). 간격이 고르면 시각 그대로, 처음 · 끝 그대로.
+   */
+  {
+    const t = Array.from({ length: 41 }, (_, k) => 2 + Math.floor(k / 2) * 0.017 + (k % 2) * 0.004);
+    const x = t.map((_, k) => k * 0.025);
+    const tp = playbackTimes(t);
+    /* 세 장면 직선에서 가운데가 벗어난 가장 큰 거리 — 이 시각으로 재생할 때의 떨림 */
+    const wobble = (ts: number[]) =>
+      Math.max(...ts.slice(1, -1).map((_, i) => Math.abs(x[i + 1] - (x[i] + ((x[i + 2] - x[i]) * (ts[i + 1] - ts[i])) / (ts[i + 2] - ts[i])))));
+    const even = Array.from({ length: 30 }, (_, k) => 1 + k / 60);
+    const same = playbackTimes(even).every((v, k) => Math.abs(v - even[k]) < 1e-12);
+    const shift = Math.max(...tp.map((v, k) => Math.abs(v - t[k])));
+    check(
+      `재생 시각: 번갈아 오는 간격의 떨림 ${(wobble(t) * 100).toFixed(1)} → ${(wobble(tp) * 100).toFixed(2)}cm(0.3 밑) · 영상과 어긋남 ${(shift * 1000).toFixed(1)}ms(10 밑) · 고른 간격 그대로 · 처음 끝 · 차례 그대로`,
+      wobble(tp) < 0.003 &&
+        shift < 0.01 &&
+        same &&
+        tp[0] === t[0] &&
+        tp[40] === t[40] &&
+        tp.every((v, k) => k === 0 || v > tp[k - 1])
+    );
+  }
   /*
    * '착지'(heelContact) — 뒤꿈치가 디딘 높이(묶인 뒤 가장 낮음) + 키 4/180 안에 처음 들어온 장면, 2D 첫 닿음 앞으로는 안 간다, 끝까지 안 들어오면 발 묶임.
    * 옛 결과(contactBy 없음)는 읽을 때 같은 규칙으로 '착지'를 고른다.
