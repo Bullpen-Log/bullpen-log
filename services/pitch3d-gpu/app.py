@@ -183,7 +183,13 @@ def web():
         call = analyze.spawn(body)
         progress[call.object_id] = {"status": "pending", "jobId": str(body["jobId"]), "at": time.time()}
         if isinstance(body.get("previews"), dict):
-            previews.spawn({"side": body["side"], "back": body["back"], "previews": body["previews"]})
+            pv = body["previews"]
+            previews.spawn({"side": body["side"], "back": body["back"], "previews": {k: pv[k] for k in ("side", "back") if k in pv}})
+            # 마커 샘플의 ③ · ④ 는 따로 한 번 더(옆 · 뒤와 나란히 — 한 함수에 넷이면 10분 제한에 걸릴 수 있다, 2026-10-24 김민 "3, 4까지 굽게")
+            ex = body.get("extras") if isinstance(body.get("extras"), dict) else {}
+            more = [k for k in ("cam3", "cam4") if k in pv and isinstance(ex.get(k), dict) and ex[k].get("url")]
+            if more:
+                previews.spawn({**{k: ex[k] for k in more}, "previews": {k: pv[k] for k in more}})
         return {"callId": call.object_id}
 
     @api.get("/engine")
