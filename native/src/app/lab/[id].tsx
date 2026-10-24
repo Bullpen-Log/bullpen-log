@@ -24,6 +24,7 @@ import { FlowCard, ReportHero, RxCard, STAGE_BG } from '~/lab/report';
 import { rpc, RpcError } from '~/lib/rpc';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
+import { toast } from '~/shell/toast';
 import { READABLE_WIDE, TwoColumns, useTwoColumns, WIDE_MAX } from '~/lib/layout';
 
 /**
@@ -81,7 +82,9 @@ export default function LabScreen() {
     const timer = setInterval(() => {
       rpc<{ job: { status: string } | null } | { error: string }>('pitch-lab.checkPitch3dV2', { id }).then(
         (r) => {
-          if ('job' in r && r.job && r.job.status !== 'queued' && r.job.status !== 'running') setTries((n) => n + 1);
+          if (!('job' in r) || !r.job || r.job.status === 'queued' || r.job.status === 'running') return;
+          if (r.job.status === 'done') toast('분석이 끝났어요. 새 결과예요');
+          setTries((n) => n + 1);
         },
         () => undefined
       );
@@ -234,10 +237,23 @@ export default function LabScreen() {
           left={
             <View style={{ gap: 8 }}>
               {r?.handNote && <Text style={[s.small, { color: c.muted }]}>{r.handNote}</Text>}
+              {r && report && data.waiting && !data.waiting.active && (
+                <View style={[s.notice, { backgroundColor: c.warnBg, borderColor: c.line }]} accessibilityLiveRegion="polite">
+                  <Text style={[s.small, { flex: 1, color: c.ink }]}>
+                    다시 분석이 안 됐어요. {data.waiting.title} 지금 보이는 건 이전 결과예요.
+                  </Text>
+                </View>
+              )}
               {r && report ? (
                 <ReportHero
                   report={report}
-                  stage={<Lab3D key={data.shown ?? ''} ref={lab} id={data.id} width={boxW} bg={STAGE_BG} onTransport={onTransport} stop={report.headline.frame} dark />}
+                  stage={
+                    <View>
+                      <Lab3D key={data.shown ?? ''} ref={lab} id={data.id} width={boxW} bg={STAGE_BG} onTransport={onTransport} stop={report.headline.frame} dark />
+                      {/* 다시 분석 중이면 이전 결과 위에 처음 분석처럼 판을 덮는다(2026-10-24 김민: "분석이 된 건지 전 건지 알 수가 없어") */}
+                      {active && data.waiting && <Reanalyzing waiting={data.waiting} />}
+                    </View>
+                  }
                 />
               ) : (
                 <>
@@ -358,6 +374,18 @@ function SourceVideo({
 }
 
 /** 결과가 없을 때 3D 칸 — 분석 전 · 기다림 · 실패(웹 V2EmptyWell 과 같은 말). 분석 걸기는 밑의 RequestPanel */
+/** 다시 분석 중 — 이전 결과(3D) 위를 덮는 판. 밑의 인형은 흐리게 비친다 */
+function Reanalyzing({ waiting }: { waiting: NonNullable<AppLabDetail['waiting']> }) {
+  return (
+    <View style={[StyleSheet.absoluteFill, s.centerBox, { backgroundColor: 'rgba(21,23,34,0.82)' }]} accessibilityLiveRegion="polite">
+      <ActivityIndicator color="#c7cfdd" />
+      <Text style={[s.bodyBold, s.center, { color: '#e8eef7' }]}>다시 분석 중이에요</Text>
+      <Text style={[s.small, s.center, { color: '#9aa3b8' }]}>{waiting.title}</Text>
+      <Text style={[s.small, s.center, { color: '#9aa3b8' }]}>끝나면 새 결과로 바뀌어요. 지금 보이는 건 이전 결과예요.</Text>
+    </View>
+  );
+}
+
 function Waiting({ waiting }: { waiting: NonNullable<AppLabDetail['waiting']> }) {
   return (
     <View style={[s.well]} accessibilityLiveRegion="polite">

@@ -6,7 +6,7 @@ import { BackLink, PageHeading } from '@/components/ui';
 import { ErrorLine } from '@/components/error-line';
 import type { LabSample } from '@/lib/pitch-lab';
 import { LAB_EXTRA_LABEL, LAB_VIEWS, labViewLabel, type LabGround, type LabShifts, type LabView } from '@/lib/pitch-lab-meta';
-import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
+import { isV2JobActive, v2WaitingText, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { labHandNote, labTitle, metricRows, type LabMetricRow } from '@/lib/pitch-3d/v2/lab-summary';
 import { buildReport, type FocusProgress, type ReportDrill } from '@/lib/pitch-3d/v2/report';
 import { V2EmptyWell, V2RequestRow, V2StatusBadge } from './analysis-v2';
@@ -263,18 +263,37 @@ export function LabDetail({
           {result && labHandNote(result.hand, meta?.hand) && (
             <p className="text-xs text-muted break-keep">{labHandNote(result.hand, meta?.hand)}</p>
           )}
+          {result && report && v2.job?.status === 'failed' && v2.job.fail && (
+            <p role="status" className="rounded-xl bg-warn-bg px-3 py-2.5 text-xs text-ink">
+              다시 분석이 안 됐어요. {v2.job.fail.reason} 지금 보이는 건 이전 결과예요.
+            </p>
+          )}
           {result && report ? (
             <ReportHero
               report={report}
               stage={
-                <Body3D
-                  ref={body}
-                  result={result}
-                  onTransport={onTransport}
-                  ground={ground}
-                  heightCm={heightCm}
-                  stopFrame={report.headline.frame}
-                />
+                <div className="relative">
+                  <Body3D
+                    ref={body}
+                    result={result}
+                    onTransport={onTransport}
+                    ground={ground}
+                    heightCm={heightCm}
+                    stopFrame={report.headline.frame}
+                  />
+                  {/* 다시 분석 중이면 이전 결과 위에 처음 분석처럼 판을 덮는다(2026-10-24 김민: "분석이 된 건지 전 건지 알 수가 없어") */}
+                  {v2.job && isV2JobActive(v2.job, now) && (
+                    <div
+                      role="status"
+                      className="absolute inset-0 grid place-content-center gap-1.5 bg-[#151722]/85 px-6 text-center"
+                    >
+                      <span className="mx-auto size-5 animate-spin rounded-full border-2 border-white/25 border-t-white/80" />
+                      <p className="text-sm font-semibold text-[#e8eef7]">다시 분석 중이에요</p>
+                      <p className="text-xs text-[#9aa3b8]">{v2WaitingText(v2.job, now)}</p>
+                      <p className="text-xs text-[#9aa3b8]">끝나면 새 결과로 바뀌어요. 지금 보이는 건 이전 결과예요.</p>
+                    </div>
+                  )}
+                </div>
               }
             />
           ) : (
