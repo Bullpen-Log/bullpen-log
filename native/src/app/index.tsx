@@ -422,7 +422,13 @@ export default function SiteScreen() {
   const openWeb = (href: string) => {
     const native = nativeOfWeb(href);
     if (native && isNativePath(native)) return openNative(native);
-    showWebWhenArrived(href);
+    /* 앱 판이 맡는 주소(투구 기록 ?view=log 등)는 바로 그 판으로 — 웹을 기다릴 까닭이 없다 */
+    const [p, q = ''] = href.split('?');
+    const view = new URLSearchParams(q).get('view');
+    if (p === '/videos' || p === '/today' || p === '/nutrition' || (p === '/training' && (view === 'home' || view === 'last'))) {
+      setPath(p);
+      setSearch(q);
+    } else showWebWhenArrived(href);
     goWeb(href);
   };
   const goTab = (href: string) => {

@@ -1,4 +1,6 @@
 import { Suspense } from 'react';
+import { headers } from 'next/headers';
+import { isExpoUserAgent } from '@/lib/app-env';
 import { requireUser } from '@/lib/dal';
 import { featureLocks } from '@/lib/feature-locks';
 import { TabLocked } from '@/components/tab-locked';
@@ -9,6 +11,8 @@ import Loading from '@/app/(app)/@videos/videos/loading';
 export default async function VideosSlotDefault() {
   const user = await requireUser();
   if (featureLocks(user).pitch) return <TabLocked feature="pitch" />;
+  /* 새 앱은 앱 투구 화면이 덮는다 — @videos/videos/page.tsx 와 같은 까닭으로 안 그린다 */
+  if (isExpoUserAgent((await headers()).get('user-agent'))) return null;
   return (
     <Suspense fallback={<Loading />}>
       <VideosPage searchParams={Promise.resolve({})} />
