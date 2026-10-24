@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Badge, Card, EmptyState } from '@/components/ui';
+import { Badge, Card } from '@/components/ui';
+import { DugoutEmpty, DugoutPageHeader } from '@/components/dugout/ui';
 import { SafeForm } from '@/components/safe-form';
 import { getCurrentUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
@@ -29,22 +30,25 @@ export default async function NotificationsPage() {
   const unread = items.filter((n) => !n.readAt).length;
   const now = new Date();
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-black text-ink">알림</h1>
-        {unread > 0 && (
-          <SafeForm action={markNotificationsRead}>
-            <button
-              type="submit"
-              className="min-h-9 rounded-lg border border-line px-3 text-sm font-semibold text-ink"
-            >
-              모두 읽음
-            </button>
-          </SafeForm>
-        )}
-      </div>
+    <div className="max-w-3xl space-y-6">
+      <DugoutPageHeader
+        title="알림"
+        subtitle={unread > 0 ? `안 읽은 알림 ${unread}개` : undefined}
+        actions={
+          unread > 0 ? (
+            <SafeForm action={markNotificationsRead}>
+              <button
+                type="submit"
+                className="min-h-9 rounded-full border border-line px-3.5 text-[13px] font-semibold text-ink hover:border-ink/40"
+              >
+                모두 읽음
+              </button>
+            </SafeForm>
+          ) : undefined
+        }
+      />
       {items.length === 0 ? (
-        <EmptyState
+        <DugoutEmpty
           title="아직 알림이 없어요"
           description="채팅 · 예약 · 레슨 기록이 오면 여기 쌓여요."
         />

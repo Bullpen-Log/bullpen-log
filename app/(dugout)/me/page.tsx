@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { surfaceOf } from '@/lib/app-env';
 import { redirect } from 'next/navigation';
-import { RoundHeart, RoundMarket, RoundPlus } from '@/components/round-icon';
-import { Card, EmptyState } from '@/components/ui';
+import { RoundHeart, RoundPlus } from '@/components/round-icon';
+import { Card } from '@/components/ui';
+import { DugoutEmpty, DugoutPageHeader, SectionHead } from '@/components/dugout/ui';
 import { ListingCard } from '@/components/dugout/listing-card';
 import { getCurrentUser } from '@/lib/dal';
 import { loadFavorites, loadMyListings } from '@/lib/market/load';
@@ -40,34 +41,36 @@ export default async function MePage() {
   const shown = new Set(user.publicSinker ?? []);
   const now = new Date();
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-ink">{user.nickname}</h1>
-          {sinkerApp ? (
-            <p className="text-sm text-muted">레슨 · 연습장 예약</p>
+    <div className="space-y-10">
+      <DugoutPageHeader
+        title={user.nickname}
+        subtitle={
+          sinkerApp ? (
+            '레슨 · 연습장 예약'
           ) : (
-            <p className="text-sm text-muted">
+            <>
               덕아웃에서 올린 물건과 찜 ·{' '}
               <Link href="/me/payments" className="font-semibold text-sky">
                 결제
               </Link>
+            </>
+          )
+        }
+        actions={
+          sinkerApp ? undefined : sinker ? (
+            <Link
+              href="/today"
+              className="inline-flex min-h-10 items-center rounded-xl bg-sky px-4 text-sm font-semibold text-white"
+            >
+              싱커
+            </Link>
+          ) : (
+            <p className="max-w-xs text-right text-xs text-muted">
+              레슨을 받고 코치가 기록을 남기면 ‘내 싱커’가 열려요.
             </p>
-          )}
-        </div>
-        {sinkerApp ? null : sinker ? (
-          <Link
-            href="/today"
-            className="inline-flex min-h-10 items-center rounded-xl bg-sky px-4 text-sm font-semibold text-white"
-          >
-            싱커
-          </Link>
-        ) : (
-          <p className="max-w-xs text-right text-xs text-muted">
-            레슨을 받고 코치가 기록을 남기면 ‘내 싱커’가 열려요.
-          </p>
-        )}
-      </div>
+          )
+        }
+      />
 
       {/* 레슨 기록(3단계 3-4) — 코치가 쓴 노트가 그대로 */}
       <div id="lessons">
@@ -83,16 +86,8 @@ export default async function MePage() {
       </div>
 
       {/* 공개 프로필(3단계 3-6) — 기본은 전부 숨김 */}
-      <section className="space-y-3">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-lg font-bold text-ink">공개 프로필</h2>
-          <Link
-            href={profileHref(user.nickname)}
-            className="text-sm font-semibold text-sky"
-          >
-            내 프로필 보기
-          </Link>
-        </div>
+      <section className="space-y-4">
+        <SectionHead title="공개 프로필" href={profileHref(user.nickname)} more="내 프로필 보기 ›" />
         <Card>
           <SafeForm
             action={setPublicSinker}
@@ -127,18 +122,16 @@ export default async function MePage() {
       </section>
 
       {!sinkerApp && (
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="inline-flex items-center gap-1.5 text-lg font-bold text-ink">
-            <RoundMarket className="h-4 w-4" /> 내 물건 {mine.length}
-          </h2>
-          <Link
-            href="/market/new"
-            className="inline-flex items-center gap-1 text-sm font-semibold text-sky"
-          >
-            <RoundPlus className="h-4 w-4" /> 올리기
-          </Link>
-        </div>
+      <section className="space-y-4">
+        <SectionHead
+          title="내 물건"
+          count={mine.length}
+          action={
+            <Link href="/market/new" className="inline-flex items-center gap-1 text-sm font-semibold text-sky">
+              <RoundPlus className="h-4 w-4" /> 올리기
+            </Link>
+          }
+        />
         {mine.length === 0 ? (
           <Card>
             <p className="text-sm text-muted">
@@ -156,8 +149,8 @@ export default async function MePage() {
 
       )}
 
-      <section id="bookings" className="scroll-mt-28 space-y-3">
-        <h2 className="text-lg font-bold text-ink">레슨 예약 {bookings.length}</h2>
+      <section id="bookings" className="scroll-mt-28 space-y-4">
+        <SectionHead title="레슨 예약" count={bookings.length} />
         {bookings.length === 0 ? (
           <Card>
             <p className="text-sm text-muted">
@@ -230,8 +223,8 @@ export default async function MePage() {
         )}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-bold text-ink">장소 예약 {venueBookings.length}</h2>
+      <section className="space-y-4">
+        <SectionHead title="장소 예약" count={venueBookings.length} />
         {venueBookings.length === 0 ? (
           <Card>
             <p className="text-sm text-muted">
@@ -301,12 +294,11 @@ export default async function MePage() {
       </section>
 
       {!sinkerApp && (
-      <section id="favorites" className="scroll-mt-28 space-y-3">
-        <h2 className="inline-flex items-center gap-1.5 text-lg font-bold text-ink">
-          <RoundHeart className="h-4 w-4" /> 찜 {favorites.length}
-        </h2>
+      <section id="favorites" className="scroll-mt-28 space-y-4">
+        <SectionHead title="찜" count={favorites.length} />
         {favorites.length === 0 ? (
-          <EmptyState
+          <DugoutEmpty
+            compact
             icon={<RoundHeart />}
             title="찜한 물건이 없어요"
             description="장터에서 하트를 누르면 여기 모여요."

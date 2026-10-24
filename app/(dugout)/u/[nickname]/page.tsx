@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DugoutPageHeader, SectionHead } from '@/components/dugout/ui';
 import { notFound } from 'next/navigation';
 import { Badge, Card } from '@/components/ui';
 import { prisma } from '@/lib/prisma';
@@ -58,18 +59,20 @@ export default async function PublicProfilePage({
   if (pitchDays != null) facts.push({ label: '투구 기록', value: `${pitchDays}회` });
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="max-w-3xl space-y-8">
       <header className="flex items-center gap-4">
-        <span className="grid h-16 w-16 place-items-center rounded-full bg-sky/12 text-2xl font-black text-sky-strong">
+        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-sky/12 text-2xl font-black text-sky-strong">
           {user.nickname.slice(0, 1)}
         </span>
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-black text-ink">{user.nickname}</h1>
-          <p className="text-sm text-muted">
-            <Badge>{ACCOUNT_LABEL[user.accountType] ?? '회원'}</Badge> 덕아웃{' '}
-            {formatDateTime(user.createdAt).slice(0, 8)}부터
-          </p>
-        </div>
+        <DugoutPageHeader
+          className="min-w-0 flex-1"
+          title={user.nickname}
+          subtitle={
+            <>
+              <Badge>{ACCOUNT_LABEL[user.accountType] ?? '회원'}</Badge> 덕아웃 {formatDateTime(user.createdAt).slice(0, 8)}부터
+            </>
+          }
+        />
       </header>
 
       {facts.length > 0 && (
@@ -85,8 +88,8 @@ export default async function PublicProfilePage({
         </Card>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-bold text-ink">판매 중인 물건 {listings.length}</h2>
+      <section className="space-y-4">
+        <SectionHead title="판매 중인 물건" count={listings.length} />
         {listings.length === 0 ? (
           <p className="text-sm text-muted">지금 올린 물건이 없어요.</p>
         ) : (
