@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { RoundLesson } from '@/components/round-icon';
 import { LessonFrame } from '@/components/dugout/lesson-frame';
-import { EmptyState } from '@/components/ui';
+import { ChipLink, ChipRow, DugoutEmpty, chipClass } from '@/components/dugout/ui';
 import { CoachList } from '@/components/dugout/coach-list';
 import { LessonFilterRail } from '@/components/dugout/lesson-filter-rail';
 import { appNow } from '@/lib/clock';
@@ -114,9 +114,9 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
       href={c.href}
       scroll={false}
       data-nav="none"
-      className="inline-flex min-h-8 items-center gap-1 rounded-full bg-ink/6 px-3 text-xs font-semibold text-ink hover:bg-ink/10"
+      className={chipClass(true)}
     >
-      {c.label} <span aria-hidden className="text-muted">×</span>
+      {c.label} <span aria-hidden className="opacity-60">×</span>
       <span className="sr-only">조건 빼기</span>
     </Link>
   ));
@@ -127,7 +127,7 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
       backLabel="레슨"
       title={asked ? `맞는 코치 ${coaches.length}명` : `모든 코치 ${coaches.length}명`}
       crumbs={[{ label: '덕아웃', href: '/' }, { label: '레슨', href: '/lessons' }, { label: '코치 목록' }]}
-      subtitle={asked && sort === 'match' ? '고른 조건에 가까운 코치부터 보여요. 카드 위 파란 칩이 그 까닭이에요.' : '코치를 눌러 자세히 보거나, 둘 이상 담아 비교해요.'}
+      subtitle={asked && sort === 'match' ? '고른 조건에 가까운 코치부터 보여요. 카드 위 초록 칩이 그 까닭이에요.' : '코치를 눌러 자세히 보거나, 둘 이상 담아 비교해요.'}
       actions={
         <Link
           href="/lessons/find"
@@ -145,28 +145,20 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
 
         <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted lg:hidden">
-        <span>{asked && sort === 'match' ? '고른 조건에 가까운 코치부터. 줄 위 파란 칩이 그 까닭이에요.' : '코치를 눌러 자세히 보거나, 둘 이상 담아 비교해요.'}</span>
+        <span>{asked && sort === 'match' ? '고른 조건에 가까운 코치부터. 줄 위 초록 칩이 그 까닭이에요.' : '코치를 눌러 자세히 보거나, 둘 이상 담아 비교해요.'}</span>
         <Link href="/lessons/find" className="font-semibold text-sky">
           조건 다시 고르기 ›
         </Link>
       </div>
 
       {/* 종목 줄 — 바로 바꾸기(휴대폰 · 패드, PC 는 왼쪽 판) */}
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0 lg:hidden">
-        {[{ key: '', label: '전체' }, ...SPECIALTIES].map((s) => {
-          const on = (specialty ?? '') === s.key;
-          return (
-            <Link
-              key={s.key}
-              href={listHref({ ...current, specialty: s.key || undefined })}
-              aria-current={on ? 'page' : undefined}
-              className={`inline-flex min-h-9 shrink-0 items-center rounded-full px-3.5 text-xs font-semibold whitespace-nowrap ${on ? 'bg-sky text-white' : 'border border-line bg-surface text-ink hover:border-sky-soft'}`}
-            >
-              {s.label}
-            </Link>
-          );
-        })}
-      </div>
+      <ChipRow label="종목" className="lg:hidden">
+        {[{ key: '', label: '전체' }, ...SPECIALTIES].map((s) => (
+          <ChipLink key={s.key} size="md" on={(specialty ?? '') === s.key} href={listHref({ ...current, specialty: s.key || undefined })}>
+            {s.label}
+          </ChipLink>
+        ))}
+      </ChipRow>
 
       {/* 조건 칩 · 정렬 — 휴대폰 */}
       <div className="flex flex-wrap items-center gap-2 lg:hidden">
@@ -184,7 +176,7 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
       </div>
 
       {coaches.length === 0 ? (
-        <EmptyState
+        <DugoutEmpty
           icon={<RoundLesson />}
           title={asked ? '조건에 맞는 코치가 없어요' : '아직 공개한 코치가 없어요'}
           description={
@@ -194,7 +186,7 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
           }
           action={
             asked ? (
-              <Link href="/lessons/list" className="text-sm font-semibold text-sky">
+              <Link href="/lessons/list" className="inline-flex min-h-11 items-center rounded-full bg-sky px-5 text-sm font-bold text-white transition-colors hover:bg-sky-strong">
                 조건 없이 전체 보기
               </Link>
             ) : undefined

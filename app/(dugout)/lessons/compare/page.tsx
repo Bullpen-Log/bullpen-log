@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { LessonFrame } from '@/components/dugout/lesson-frame';
-import { Badge, ButtonLink, EmptyState } from '@/components/ui';
+import { Badge, ButtonLink } from '@/components/ui';
+import { DugoutEmpty } from '@/components/dugout/ui';
 import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
 import { loadCoachesByIds } from '@/lib/market/lesson-load';
 import { COMPARE_MAX, specialtyLabel } from '@/lib/market/lessons';
@@ -106,10 +107,11 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
     >
       <p className="text-xs text-muted lg:hidden">나란히 보고 고르세요. 열 아래 단추로 바로 예약해요.</p>
       {coaches.length < 2 ? (
-        <EmptyState
+        <DugoutEmpty
           title="비교할 코치를 둘 이상 담아 주세요"
           description="코치 목록에서 카드의 ‘비교’를 눌러 담아요."
-          action={<ButtonLink href="/lessons/list">코치 목록</ButtonLink>}
+          href="/lessons/list"
+          cta="코치 목록"
         />
       ) : (
         <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-line lg:bg-surface">

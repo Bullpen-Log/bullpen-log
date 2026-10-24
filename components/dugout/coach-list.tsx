@@ -26,7 +26,7 @@ export function CoachList({ coaches, bookQuery }: { coaches: CoachCardData[]; bo
         onClick={(e) => e.stopPropagation()}
         className={`inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-semibold transition-colors ${
           on
-            ? 'border-sky bg-sky text-white'
+            ? 'border-ink bg-ink text-page'
             : full
               ? 'border-line text-muted/50'
               : 'border-line bg-surface text-muted hover:border-sky-soft hover:text-ink'

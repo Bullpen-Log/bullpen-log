@@ -76,7 +76,7 @@ export function FindWizard() {
 
   const chip = (on: boolean) =>
     `flex min-h-12 items-center justify-between gap-2 rounded-2xl border px-4 text-left text-sm font-semibold transition-colors ${
-      on ? 'border-sky bg-sky/10 text-sky-strong' : 'border-line bg-surface text-ink hover:border-sky-soft'
+      on ? 'border-ink bg-ink/5 text-ink ring-1 ring-ink' : 'border-line bg-surface text-ink hover:border-ink/40'
     }`;
 
   return (

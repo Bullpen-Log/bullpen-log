@@ -15,6 +15,7 @@ import {
 import { Badge, Card } from '@/components/ui';
 import { CoachAvatar, CoachCard, CoachTile } from '@/components/dugout/coach-card';
 import { LessonFrame, SectionTitle } from '@/components/dugout/lesson-frame';
+import { ShortcutTiles } from '@/components/dugout/ui';
 import { getCurrentUser } from '@/lib/dal';
 import {
   loadCoaches,
@@ -189,37 +190,21 @@ export default async function LessonsHubPage() {
       </aside>
       </div>
 
-      {/* 종목 줄 — 닥터나우 '비대면 진료 시작하기'. 한 줄에 가지런히(휴대폰은 옆으로 밂) */}
-      <section className="space-y-3">
+      {/* 종목 줄 — 장터의 기능 바로가기와 같은 72px 둥근 네모(2026-10-24 UI 통일) */}
+      <section className="space-y-4">
         <SectionTitle>종목으로 바로 보기</SectionTitle>
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 lg:grid lg:grid-cols-9 lg:gap-3">
-          {SPECIALTIES.map((s) => {
-            const Icon = SPECIALTY_ICONS[s.key];
-            return (
-              <Link
-                key={s.key}
-                href={listHref({ specialty: s.key })}
-                className="group flex w-[4.25rem] shrink-0 flex-col items-center gap-1.5 text-xs text-ink lg:w-auto lg:rounded-2xl lg:border lg:border-line lg:bg-surface lg:py-4 lg:text-sm lg:font-semibold lg:transition-[border-color,transform] lg:duration-200 desk:hover:-translate-y-0.5 desk:hover:border-sky-soft motion-reduce:transform-none"
-              >
-                <span className="grid h-14 w-14 place-items-center rounded-2xl bg-surface text-sky-strong shadow-[0_1px_2px_rgba(0,0,0,0.06)] transition-transform hover:scale-105 lg:h-12 lg:w-12 lg:bg-sky/10 lg:shadow-none lg:hover:scale-100">
-                  <Icon className="h-6 w-6" />
-                </span>
-                {s.label}
-                <span className="hidden text-[11px] font-normal text-muted lg:block">코치 {bySpecialty(s.key)}명</span>
-              </Link>
-            );
-          })}
-          <Link
-            href="/lessons/list"
-            className="flex w-[4.25rem] shrink-0 flex-col items-center gap-1.5 text-xs text-ink lg:w-auto lg:rounded-2xl lg:border lg:border-line lg:bg-surface lg:py-4 lg:text-sm lg:font-semibold lg:transition-[border-color,transform] lg:duration-200 desk:hover:-translate-y-0.5 desk:hover:border-sky-soft motion-reduce:transform-none"
-          >
-            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-surface text-lg font-bold text-muted shadow-[0_1px_2px_rgba(0,0,0,0.06)] lg:h-12 lg:w-12 lg:bg-ink/5 lg:shadow-none">
-              …
-            </span>
-            전체 보기
-            <span className="hidden text-[11px] font-normal text-muted lg:block">코치 {all.length}명</span>
-          </Link>
-        </div>
+        <ShortcutTiles
+          label="종목으로 바로 보기"
+          items={[
+            ...SPECIALTIES.map((s) => ({
+              href: listHref({ specialty: s.key }),
+              label: s.label,
+              icon: SPECIALTY_ICONS[s.key],
+              sub: `코치 ${bySpecialty(s.key)}명`,
+            })),
+            { href: '/lessons/list', label: '전체 보기', icon: RoundLesson, sub: `코치 ${all.length}명` },
+          ]}
+        />
       </section>
 
       {/* 내 레슨 — 휴대폰(PC 는 위 오른쪽 칸) */}

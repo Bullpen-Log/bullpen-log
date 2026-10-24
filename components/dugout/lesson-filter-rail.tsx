@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { chipClass } from '@/components/dugout/ui';
 import type { ReactNode } from 'react';
 import {
   AUDIENCES,
@@ -47,9 +48,7 @@ function Opt({ href, on, children }: { href: string; on: boolean; children: Reac
       scroll={false}
       data-nav="none"
       aria-current={on ? 'true' : undefined}
-      className={`inline-flex min-h-8 items-center justify-center rounded-lg px-2.5 text-xs font-semibold transition-colors ${
-        on ? 'bg-ink text-page' : 'bg-ink/5 text-ink hover:bg-ink/10'
-      }`}
+      className={chipClass(on)}
     >
       {children}
     </Link>
@@ -142,7 +141,7 @@ export function LessonFilterRail({ current, prefs }: { current: ListQuery; prefs
                   <span
                     aria-hidden
                     className={`grid h-4 w-4 shrink-0 place-items-center rounded border text-[10px] leading-none transition-colors ${
-                      on ? 'border-sky bg-sky text-white' : 'border-line bg-surface text-transparent'
+                      on ? 'border-ink bg-ink text-page' : 'border-line bg-surface text-transparent'
                     }`}
                   >
                     ✓
