@@ -50,6 +50,8 @@ export class ApiError extends Error {}
 /** 서버에 닿지 못함(신호 끊김) — 폼이 적은 것을 폰에 남겨 둘 때 가른다 */
 export class OfflineError extends ApiError {}
 
+const READ_ONLY_POSTS = new Set(['/api/pitch-log/video-url', '/api/pitch-log/thumb-url']);
+
 export async function call<T>(path: string, init: { method: string; body?: unknown }): Promise<T> {
   await syncSession();
   let res: Response;
@@ -65,7 +67,8 @@ export async function call<T>(path: string, init: { method: string; body?: unkno
   }
   const body = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
   if (!res.ok) throw new ApiError(body?.error ?? '서버에서 처리하지 못했어요.');
-  if (init.method !== 'GET') markWrite();
+  /* 주소를 묻기만 하는 POST(영상 · 장면 그림 서명 주소)는 쓰기가 아니다 — 쓰기로 세면 영상을 본 뒤 돌아올 때 판 넷이 다 다시 받았다(2026-10-24) */
+  if (init.method !== 'GET' && !READ_ONLY_POSTS.has(path)) markWrite();
   return body as T;
 }
 

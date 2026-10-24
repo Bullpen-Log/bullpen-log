@@ -22,7 +22,7 @@ import { SNOOZE_KEY, clearPlan, eatPlan, editEntries, isSnoozed, makePlan, useNu
 import { cacheGet } from '~/lib/store';
 import { READABLE } from '~/lib/layout';
 import { NutritionCheckinCard } from './checkin-card';
-import { useOnTabActive, useRetapTop, useTabActive } from '~/shell/tab-pager';
+import { useFocusRefresh, useOnTabActive, useRetapTop, useTabActive } from '~/shell/tab-pager';
 
 /**
  * 영양 탭(앱 화면) — 웹 영양 탭의 '기록' 쪽: 오늘 먹은 것과 목표(kcal · 탄 · 단 · 지) · 끼니마다 담은 음식(양 바꾸기 · 지우기). 체중은 웹처럼 통계(/nutrition/stats).
@@ -69,13 +69,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     activeRef.current = tabActive;
     reloadRef.current = reload;
   });
-  const focusedOnce = useRef(false);
-  useFocusEffect(
-    useCallback(() => {
-      if (focusedOnce.current && activeRef.current) void reloadRef.current();
-      focusedOnce.current = true;
-    }, [])
-  );
+  useFocusRefresh(() => void reloadRef.current());
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
       if (st === 'active' && activeRef.current) void reloadRef.current();

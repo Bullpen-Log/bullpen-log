@@ -12,6 +12,7 @@ import { EFFORT_LEVELS, effortOf, type EffortKey } from '@/lib/workout/effort';
 import type { NewRecord } from '@/lib/workout/bests';
 import type { WorkoutDone } from '@/lib/workout/done-load';
 import { rpc, RpcError } from '~/lib/rpc';
+import { takeWorkoutDone } from '~/workout/done-prefetch';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { leaveTo } from '~/shell/web-nav';
@@ -48,7 +49,7 @@ export default function WorkoutDoneScreen() {
 
   useEffect(() => {
     let alive = true;
-    rpc<Loaded>('app-workout.loadAppWorkoutDone', id ?? '').then(
+    (takeWorkoutDone<Loaded>(id ?? '') ?? rpc<Loaded>('app-workout.loadAppWorkoutDone', id ?? '')).then(
       (r) => {
         if (!alive) return;
         if (r.ok) setData(r);

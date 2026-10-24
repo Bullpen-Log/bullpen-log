@@ -62,8 +62,9 @@ enum LaunchSnapshot {
         let done = defaults.string(forKey: doneKey)
         if done == signature(pick, files) { return }
         /* 같은 테마로 칠했는데 지문이 바뀌었다 = iOS 가 되돌렸다. 이 iOS 판에서 두 번이면 그만둔다 */
-        /* 판 = iOS 판 + 앱 빌드 — 앱을 새로 깔면 iOS 가 새로 찍는 것도 '되돌림'이라, 빌드가 바뀌면 다시 센다 */
-        let os = UIDevice.current.systemVersion + "|" + (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "")
+        /* 판 = iOS 판 + 이번 설치(앱 묶음 폴더 이름 — 깔 때마다 새 UUID) — 앱을 새로 깔면 iOS 가 새로 찍는 것도 '되돌림'이라, 새로 깔면 다시 센다.
+           빌드 번호로 세면 이 맥에서 구운 판(늘 '1')을 다시 깔 때마다 쌓여 영영 막혔다(2026-10-24 김민 폰). 묶음 날짜는 iOS 가 0 으로 둬서 못 쓴다 */
+        let os = UIDevice.current.systemVersion + "|" + Bundle.main.bundleURL.deletingLastPathComponent().lastPathComponent
         var reverts = defaults.dictionary(forKey: revertKey) as? [String: Int] ?? [:]
         if let done, done.hasPrefix(pick + "|") { reverts[os, default: 0] += 1; defaults.set(reverts, forKey: revertKey) }
         if reverts[os, default: 0] >= maxReverts { return }

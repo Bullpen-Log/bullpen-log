@@ -49,6 +49,18 @@ export function rpcForm<T>(action: string, fields: Record<string, string | null 
  * 시작하면 읽기, 나머지는 쓰기로 본다(쓰기를 읽기로 잘못 보면 다른 탭이 30초까지 옛 값이라, 모르는 이름은 쓰기 쪽으로).
  */
 let wroteAt = 0;
+/*
+ * 이름은 load · fetch · get 이 아니지만 읽기만 하는 것 — 쓰기로 세면 홈 종(알림 수)을 볼 때마다 판 넷이 '쓴 것 있음'으로 다시 받았다
+ * (2026-10-24 전체 검토). 새 읽기 동작을 load… 로 짓지 못하면 여기에 더한다.
+ */
+const READ_ACTIONS = new Set([
+  'notifications.countBellNotifications',
+  'content.exerciseDescription',
+  'content.guideDescription',
+  'training-days.trainingMarkedDays',
+  'workout.swapChoices',
+  'auth.checkSignupEmail',
+]);
 export const lastWriteAt = () => wroteAt;
 export const markWrite = () => {
   wroteAt = Date.now();
@@ -75,6 +87,6 @@ async function call<T>(action: string, payload: string | FormData, headers: Reco
   if (res.status === 426) throw new RpcError('앱을 업데이트해 주세요.', 'update');
   if (!body || !body.ok) throw new RpcError('서버에서 처리하지 못했어요.', body?.error ?? 'server');
   if ('redirect' in body) throw new RpcError('다시 로그인해 주세요.', 'redirect', body.redirect);
-  if (!/\.(load|fetch|get)[A-Z]/.test(action)) markWrite();
+  if (!/\.(load|fetch|get)[A-Z]/.test(action) && !READ_ACTIONS.has(action)) markWrite();
   return body.result;
 }

@@ -1,4 +1,4 @@
-import { type Href, router, useFocusEffect } from 'expo-router';
+import { type Href, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, FadeOut, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -27,7 +27,7 @@ import { AllDone } from './all-done';
 import { CameraSwipe } from './camera-swipe';
 import { useUnreadNotifications } from './notifications';
 import { READABLE } from '~/lib/layout';
-import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
+import { useFocusRefresh, useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 
 /**
  * 홈 탭(앱 화면) — 웹 홈(app/(app)/today/home-page.tsx)과 같은 차례: 링 넷 → 요약 칸 → (알림 카드) → 투구 달력 → 고른 날 칸.
@@ -126,13 +126,7 @@ export function HomeTab({
   /* 위에 쌓인 앱 화면(체크인 · 투구 기록 · 운동)에서 돌아오면 다시 받는다 — 링이 방금 남긴 것을 따라오게(처음 한 번은 위 효과가 받는다) */
   /* 탭을 옮겼다 돌아오면(판은 붙어 있다) 새로 받는다 — 다른 탭에서 남긴 것이 링 · 달력에 바로 */
   useOnTabActive(() => void Promise.all([refresh(), reload(), reloadEvents(), reloadVelocityDays(), reloadFeatured()]));
-  const focused = useRef(false);
-  useFocusEffect(
-    useCallback(() => {
-      if (focused.current) void refresh();
-      focused.current = true;
-    }, [refresh])
-  );
+  useFocusRefresh(() => void refresh());
 
   /*
    * 당겨서 새로고침은 없다 — 웹이 일부러 뺐다(2026-10-15, 판 넘기기 · 위 막대와 부딪혔다). 대신 앱을 5분 넘게 떠났다 돌아오면 새로 받는다(웹과 같다).
@@ -273,7 +267,8 @@ export function HomeTab({
           </>
         )}
 
-        <Animated.View layout={layoutMove} style={{ marginTop: SPACE.section }} onLayout={(e) => (calY.current = e.nativeEvent.layout.y)}>
+        {/* 달력 덩어리 통째로는 움직이지 않는다 — 위 칸 높이가 바뀔 때마다(불러오기 뼈대 → 링 · 요약 칸) 달력이 0.3초 미끄러졌다(2026-10-24 전체 검토) */}
+        <Animated.View style={{ marginTop: SPACE.section }} onLayout={(e) => (calY.current = e.nativeEvent.layout.y)}>
           {/* 홈 달력은 앞날 · 다음 달도 열린다 — 일정을 미리 적는 곳(엔진이 다음 등판을 읽는다, 웹 allowFuture). 날을 고르면 칸이 납작해진다(웹 compact) */}
           {/* 보기 전환은 달력 머리의 목록 그림 · 목록 머리의 달력 그림으로(웹 2026-10-16) — 바꿀 때만 옅게 떠오른다(view-swap) */}
           {calView === 'list' ? (
@@ -326,7 +321,7 @@ export function HomeTab({
 
         {/* 캘린더 밑 — 알림 카드 · 첫날 카드(웹 home-page.tsx TodayBody 와 같은 차례) */}
         {home?.firstDay || home?.goodNote ? (
-          <Animated.View layout={layoutMove} style={{ marginTop: SPACE.section, gap: SPACE.section }}>
+          <Animated.View style={{ marginTop: SPACE.section, gap: SPACE.section }}>
             {home.firstDay ? (
               <FirstDayCard today={today} status={home.firstDay} locked={home.pitchLocked} onTab={onTab} onRested={() => void refresh()} />
             ) : null}

@@ -1,5 +1,5 @@
-import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
+import { useFocusRefresh } from '~/shell/tab-pager';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import type { BellNotification } from '@/app/actions/notifications';
 import { KIND_LABEL, type NotifyKind } from '@/lib/notify-rules';
@@ -15,16 +15,13 @@ import { leaveTo } from '~/shell/web-nav';
 /** 홈 종의 점 — 안 읽은 알림 수. 화면에 돌아올 때마다 다시 묻는다 */
 export function useUnreadNotifications(): number {
   const [count, setCount] = useState(0);
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      rpc<number>('notifications.countBellNotifications')
-        .then((n) => alive && setCount(n))
-        .catch(() => {});
-      return () => {
-        alive = false;
-      };
-    }, [])
+  /* 돌아올 때마다 · 닫히는 움직임 중에 묻지 않게 — 판 공통 규칙(30초 · 쓴 것 있음, shell/tab-pager) */
+  useFocusRefresh(
+    () =>
+      void rpc<number>('notifications.countBellNotifications')
+        .then(setCount)
+        .catch(() => {}),
+    { first: true }
   );
   return count;
 }

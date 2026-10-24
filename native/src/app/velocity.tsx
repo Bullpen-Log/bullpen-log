@@ -399,6 +399,7 @@ export default function VelocityScreen() {
           shutterDen: e.shutter > 0 ? Math.round(1 / e.shutter) : null,
           iso: e.iso > 0 ? Math.round(e.iso) : null,
           shutterCap: e.shutterCap ?? null,
+          netMs: e.netMs ?? null,
         }));
         /* 장면이 다시 흐른다 = 카메라가 산다 — 전화 · 컨트롤센터로 잠깐 끊겼을 때 온 'error' 를 걷는다(안 걷으면 설정 카드가 오류 카드에 가려 못 갔다) */
         setError((prev) => (prev ? null : prev));
@@ -1180,6 +1181,8 @@ type FpsState = {
   shutterDen: number | null;
   iso: number | null;
   shutterCap: number | null;
+  /** 장면당 학습 모델 공 알림 시간(ms, SPEC-detect D3) — 모델이 있는 판부터 */
+  netMs: number | null;
 };
 const THERMAL_TEXT: Record<number, string> = { 0: '보통', 1: '따뜻', 2: '뜨거움', 3: '아주 뜨거움' };
 

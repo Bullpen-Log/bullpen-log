@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
-import { type Href, router, Stack } from 'expo-router';
+import { type Href, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator,
@@ -38,6 +38,8 @@ import { BullpenNative } from '../../modules/bullpen-native';
 import { rpc, RpcError } from '~/lib/rpc';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
+import { REST_DAY } from '~/training/rest-day';
+import { prefetchWorkoutDone } from '~/workout/done-prefetch';
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { drainOutbox, onSent, outbox, withPending, type ShownSet } from '~/workout/outbox';
 import { NoteBox, NumberPad, RestPill, RirQuestion, SetDots, clockText } from '~/workout/parts';
@@ -76,10 +78,32 @@ export default function WorkoutScreen() {
   const [data, setData] = useState<RunPayload | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [tries, setTries] = useState(0);
+  /*
+   * ?start=daily|program — 트레이닝 탭의 [시작]이 판을 여는 것까지 이 화면에 맡긴다. 예전엔 탭이 판을 열고(서버 한 번) 그 답을 받은 뒤에야
+   * 이 화면을 밀어 0.5~1초 아무 일 없다가 돌개가 떴다(2026-10-24 전체 검토). 이제 누르자마자 이 화면이 뜨고 그 뒤에 연다.
+   * 서버가 다른 곳으로 보내면(워밍업 · 쉬는 날 · 웹) 그리로.
+   */
+  const start = useLocalSearchParams<{ start?: string }>().start;
+  const started = useRef(false);
 
   useEffect(() => {
     let alive = true;
-    rpc<LoadResult>('app-workout.loadAppWorkout').then(
+    const opened =
+      start && !started.current
+        ? rpc(start === 'program' ? 'program.startProgramWorkout' : 'workout.startWorkout').then(
+            () => true,
+            (e: unknown) => {
+              if (e instanceof RpcError && e.code === 'redirect' && e.to?.startsWith('/workout/run')) return true;
+              throw e;
+            }
+          )
+        : Promise.resolve(true);
+    opened
+      .then(() => {
+        started.current = true;
+        return rpc<LoadResult>('app-workout.loadAppWorkout');
+      })
+      .then(
       (r) => {
         if (!alive) return;
         if (r.ok) setData(r);
@@ -87,14 +111,22 @@ export default function WorkoutScreen() {
       },
       (e: unknown) => {
         if (!alive) return;
-        if (e instanceof RpcError && e.code === 'redirect') return leave(e.to ?? '/login');
+        if (e instanceof RpcError && e.code === 'redirect') {
+          /* 워밍업 창은 앱 화면으로 바꿔 끼운다 · 통증을 남긴 날은 웹 /workout/rest 와 같은 말을 알림창으로 */
+          if (e.to?.startsWith('/workout/warmup')) return router.replace('/warmup' as Href);
+          if (e.to?.startsWith('/workout/rest')) {
+            router.back();
+            return Alert.alert(REST_DAY.title, REST_DAY.body);
+          }
+          return leave(e.to ?? '/login');
+        }
         setFailed(e instanceof RpcError && e.code === 'update' ? '앱을 업데이트해 주세요.' : '신호가 약해 운동을 불러오지 못했어요.');
       }
     );
     return () => {
       alive = false;
     };
-  }, [tries]);
+  }, [tries, start]);
 
   if (data) return <Run key={data.sessionId} {...data} c={c} />;
   return (
@@ -172,6 +204,33 @@ function useRestClock(since: string | null) {
     };
   }, [since]);
   return restSeconds(since, now);
+}
+
+/*
+ * 쉬는 중인가(10분 안) — 운동 화면 전체(Run)는 이것만 본다. 예전엔 Run 이 1초 시계를 직접 들어 1,000줄짜리 화면이 쉬는 동안 1초마다
+ * 다시 그려져 굴리기 · 입력 · 시트가 둔했다(2026-10-24 전체 검토). 초는 알약(LiveRestPill)만 센다. 바뀌는 때는 10분이 다 찰 때 한 번.
+ */
+function useResting(since: string | null) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!since) return;
+    const left = Date.parse(since) + REST_CLOCK_LIMIT_SECONDS * 1000 - Date.now();
+    const timer = left > 0 ? setTimeout(() => setNow(Date.now()), left + 50) : undefined;
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') setNow(Date.now());
+    });
+    return () => {
+      clearTimeout(timer);
+      sub.remove();
+    };
+  }, [since]);
+  return restSeconds(since, now) != null;
+}
+
+/** 1초마다 다시 그리는 것은 이 알약뿐 — 위 useResting 의 짝 */
+function LiveRestPill({ since, target, c }: { since: string; target: number | null; c: Palette }) {
+  const seconds = useRestClock(since);
+  return seconds == null ? null : <RestPill seconds={seconds} target={target} c={c} />;
 }
 
 const tick = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -286,13 +345,13 @@ function Run({
     return since.reduce((a, b) => (a.recordedAt > b.recordedAt ? a : b));
   }, [sets, openedAt]);
   const lastAt = lastSet?.recordedAt ?? null;
-  const idle = useRestClock(lastAt ?? openedAt);
-  const rest = lastAt ? idle : null;
+  const idle = useResting(lastAt ?? openedAt);
+  const resting = !!lastAt && idle;
   /*
    * 운동하는 동안 화면을 켜 둔다 — 세트 사이 1~3분인데 폰은 30초면 잠긴다. 10분 넘게 세트가 없으면 놓는다(휴식 시계를 거두는 때와 같다 —
    * 종료를 안 누르고 떠나면 배터리가 끝까지 닳았다). 화면을 나가면 놓는다.
    */
-  const awake = idle != null;
+  const awake = idle;
   useEffect(() => {
     void BullpenNative.keepAwake(awake).catch(() => undefined);
   }, [awake]);
@@ -308,7 +367,7 @@ function Run({
   const startedMs = Date.parse(openedAt) - priorSeconds * 1000;
   const setLine = ex.plannedSets ? `세트 ${Math.min(mine.length, ex.plannedSets)}/${ex.plannedSets}` : `${mine.length}세트`;
   useLiveActivity(
-    rest != null && lastAt
+    resting && lastAt
       ? {
           kind: 'rest',
           symbol: 'timer',
@@ -674,7 +733,10 @@ function Run({
         const to = e.to && !e.to.startsWith('/training') ? e.to : `/workout/done?id=${sessionId}`;
         /* 축하 화면은 앱 화면으로(판 7) — 이 화면을 바꿔서, 웹을 거치지 않고 */
         const doneId = /^\/workout\/done\?id=([\w-]+)/.exec(to)?.[1];
-        if (doneId) return router.replace(`/workout-done?id=${doneId}` as Href);
+        if (doneId) {
+          prefetchWorkoutDone(doneId);
+          return router.replace(`/workout-done?id=${doneId}` as Href);
+        }
         return leave(to);
       }
       setEnding(false);
@@ -918,7 +980,7 @@ function Run({
         {/* ─────────── 아래: 누르는 곳 ─────────── 자판이 떠 있는 동안은 감춘다(메모를 쓰는 중) */}
         {!keyboard ? (
           <View style={[s.bottom, { paddingBottom: Math.max(12, inset.bottom), paddingHorizontal: barSide, backgroundColor: c.card, borderTopColor: c.line }]}>
-            {rest != null && !(pad && short) ? <RestPill seconds={rest} target={restTarget} c={c} /> : null}
+            {resting && lastAt && !(pad && short) ? <LiveRestPill since={lastAt} target={restTarget} c={c} /> : null}
             {error ? <Text style={[s.error, { color: c.danger, backgroundColor: c.danger + '14' }]}>{error}</Text> : null}
 
             {askRir && askRir.exerciseId === ex.id && editIndex < 0 ? (

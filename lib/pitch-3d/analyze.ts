@@ -1225,8 +1225,12 @@ function repairLabels(
         throwArm.some((j) => o[j].v < REPAIR_OTHER_MIN) &&
         throwArm.every((j) => f.p[j].v >= REPAIR_SELF_SURE);
       const smoother = !(fast || otherBlur) || pairs !== ARM_PAIRS || jk == null || js == null || js < jk;
-      /* 어느 구간에서든 팔을 뒤집은 쪽이 앞뒤와 크게 끊기면 뒤집지 않는다(REPAIR_MAX_JUMP) */
-      const jumps = pairs === ARM_PAIRS && jk != null && js != null && js > REPAIR_MAX_JUMP * Math.max(jk, 1);
+      /*
+       * 어느 구간에서든 뒤집은 쪽이 앞뒤와 크게 끊기면 뒤집지 않는다(REPAIR_MAX_JUMP) — 다리도. 다리는 예전엔 비율만 봐서, 내딛는 앞다리가 뒤 영상에서
+       * 앞뒤 장면과 5px 로 이어지는데 뒤집으면 150px 튀는데도 8장면을 디딘 다리 쪽으로 바꿨다 — 3D 앞발목이 옆으로 33cm 휘었다 돌아오고 땅에 끌렸다
+       * (2026-10-24 마커 38 · 정강민 5구, 옛 엔진도 같음). 2D 모델이 다리 이름을 몇 장면 바꿔 찍은 것은 원래 이름이 끊기니(jk 큼) 그대로 고친다.
+       */
+      const jumps = jk != null && js != null && js > REPAIR_MAX_JUMP * Math.max(jk, 1);
       /*
        * 손을 모은 세트 자세에서는 두 팔 점이 겹쳐 그대로 · 뒤집음의 다시 비춤이 둘 다 아주 작다(사람 키의 0.4~0.8%) — 비율(30%)만 보면 잡음에도
        * 뒤집혀, 장면마다 이름이 바뀌어 3D 두 손이 번갈아 튀었다(2026-10-13 실험실 샘플 1 세트: 0.007 → 0.004 로 뒤집기, 화면 손 떨림 키의 2.7%).

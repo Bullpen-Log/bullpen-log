@@ -83,7 +83,27 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     /// 광각도 같이면 AVCaptureMultiCamSession, 일반만이면 AVCaptureSession — start 가 정한다
     private(set) var session = AVCaptureSession()
     let trigger = MotionTrigger()
-    /// 알림 — 시각 · 세기 · 종류('ball' · 'motion' · 'skip' = 발열로 쉰 움직임) · 폰 발열 상태(ProcessInfo.ThermalState rawValue)
+    /*
+     * 학습 모델 공 알림(SPEC-detect D3) — 지금은 그림자: 'net' 알림을 시도 기록에만 남기고 재는 일은 MotionTrigger · 훑기 그대로(D4 에서 바꾼다).
+     * 공 찾기 줄(triggerQueue)에서만 만지고, 켤 때 한 번 읽어 둔다(모델 읽기 50~100ms 가 첫 장면을 막지 않게). 못 읽으면 nil — 지금처럼만 돈다.
+     */
+    private var net: BallNetTrigger?
+    private var netLoaded = false
+    private var netWasArmed = false
+    /// 이번 1초 동안 모델 알림에 든 시간 합(ms) — statLock
+    private var netAcc = 0.0
+    /*
+     * 모델 알림 · 1초 통계를 콘솔에 — 정식 판(Release)도 맥에서 `devicectl … process launch --console … com.bullpenlog.app -netLog YES` 로 켰을 때만
+     * (폰 시험 — SPEC-detect D3). 개발용 판은 늘.
+     */
+    private let netLog: Bool = {
+        #if DEBUG
+        return true
+        #else
+        return UserDefaults.standard.bool(forKey: "netLog")
+        #endif
+    }()
+    /// 알림 — 시각 · 세기 · 종류('ball' · 'motion' · 'skip' = 발열로 쉰 움직임 · 'net' = 학습 모델) · 폰 발열 상태(ProcessInfo.ThermalState rawValue)
     var onThrow: ((Double, Double, String, Int) -> Void)?
     var onError: ((String) -> Void)?
     /// 실제로 받은 초당 장면 수 · 그 사이 버린 장면 수 — 1초마다. 약속한 60 과 달리 처리가 밀리면 장면을 버린다(구형 폰 · 개발용 빌드)
@@ -242,6 +262,13 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         completion: @escaping (Result<[String: Any], DualCameraError>) -> Void
     ) {
         trigger.update(armed: config.armed, roi: config.roi)
+        triggerQueue.async { [self] in
+            if !netLoaded {
+                net = BallNetTrigger.bundled()
+                netLoaded = true
+                if netLog { print("[net] model \(net == nil ? "못 읽음" : "읽음")") }
+            }
+        }
         /* 광각도 같이면 두 카메라 세션 — 못 하는 아이폰은 configure 가 '안 됨'(multicam)으로 끝낸다 */
         session = config.wide && AVCaptureMultiCamSession.isMultiCamSupported
             ? AVCaptureMultiCamSession() : AVCaptureSession()
@@ -861,6 +888,25 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
                     onThrow?(hit.atSec, hit.strength, skip ? "skip" : hit.kind, heat)
                 }
             }
+        /* 학습 모델 알림 — 알아채기가 켜진 동안만(측정 단계), 켜질 때 지난 장면을 버린다 */
+        if let net, trigger.isArmed {
+            if !netWasArmed {
+                net.reset()
+                netWasArmed = true
+            }
+            let netStart = CACurrentMediaTime()
+            let alert = net.feed(sampleBuffer)
+            let netTook = (CACurrentMediaTime() - netStart) * 1000
+            statLock.lock()
+            netAcc += netTook
+            statLock.unlock()
+            if let a = alert {
+                if netLog { print(String(format: "[net] alert at %.2f n %d score %.2f", a.atSec, a.n, a.first.score)) }
+                onThrow?(a.atSec, Double(a.first.score), "net", ProcessInfo.processInfo.thermalState.rawValue)
+            }
+        } else {
+            netWasArmed = false
+        }
     }
 
     /// 렌즈 값(intrinsics) — 장면에 실려 오면 긴 변 화각으로 바꿔 둔다. 보정이 자리 잡은 뒤(15장째부터) 1.5초 안에 한 번
@@ -1057,8 +1103,10 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         let feed = feedAcc
         let skipped = feedSkipped
         let captured = screenCaptured
+        let netMs = netAcc
         feedAcc = 0
         feedSkipped = 0
+        netAcc = 0
         statLock.unlock()
         DispatchQueue.main.async { [weak self] in self?.readScreenCaptured() }
         let writer = mainRecorder.takeStats()
@@ -1070,8 +1118,13 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             "shutterCap": Double(Self.SHUTTER_CAPS[shutterStep]),
             "thermal": ProcessInfo.processInfo.thermalState.rawValue, "feedMs": feed / Double(max(1, fpsCount - 1 - skipped)),
             "feedSkipped": skipped, "writerSkipped": writer.skipped, "writerResets": writer.resets,
-            "screenCaptured": captured,
+            "screenCaptured": captured, "netMs": netMs / Double(max(1, fpsCount - 1 - skipped)),
         ])
+        if netLog {
+            print(String(format: "[net] fps %.1f drop %d thermal %d feed %.2fms skip %d net %.2fms",
+                         Double(fpsCount - 1) / (t - fpsSince), fpsDropped, ProcessInfo.processInfo.thermalState.rawValue,
+                         feed / Double(max(1, fpsCount - 1 - skipped)), skipped, netMs / Double(max(1, fpsCount - 1 - skipped))))
+        }
         fpsSince = t
         fpsCount = 1
         fpsDropped = 0
@@ -2379,3 +2432,148 @@ final class MotionTrigger {
     }
 }
 // BALL_TRIGGER_END
+
+// BALL_NET_BEGIN — 학습 모델 공 알림(docs/velocity/redesign/SPEC-detect.md). 맥 시험대(scripts/velocity-lab/ball-trigger --net)가 이 구간을 그대로 떼어 쓴다.
+import Accelerate
+import CoreML
+import CoreMedia
+import QuartzCore
+
+/// 폰 안 공 알림(학습 모델, SPEC-detect) — 카메라 장면(가로 밝기 면 · 화면에는 시계 방향으로 돌려 세움)을 사이트 훑기와 같은 입력으로 —
+/// 세로 416×736(netInputSize), 연속 세 장면 밝기 0~1 — 장면 둘에 하나(30Hz) 모델에 넣고, 사이트 findThrowRun(lib/velocity-engine/ball-net.ts)과
+/// 같은 묶음 규칙으로 '날아가는 공'이면 알린다. 10-23 세션 녹화(배운 적 없는 날)에서 던짐 19/19 · 헛 알림 분당 0.8 · 지연 가운데 0.08초(맥 시험대).
+/// 모델은 services/velocity-detector/train.py::export_coreml 이 만든 BallNet(mlprogram · fp16, 110KB) — 앱 안 BallNet.mlmodelc.
+final class BallNetTrigger {
+    struct Hit { let t: Double; let x: Float; let y: Float; let d: Float; let score: Float }
+    struct Alert { let atSec: Double; let n: Int; let first: Hit; let last: Hit }
+
+    /// 사이트와 같은 값(ball-net.ts)
+    static let threshold: Float = 0.5
+    static let runGapSec = 0.45
+    static let runMinMovePxPerSec: Float = 30
+    static let runMinMoveFloorPx: Float = 2
+    static let runMinHits = 3
+    /// 한 공에 알림 하나 — 알린 뒤 이만큼은 새 묶음을 안 받는다(공이 받는 면에 닿는 0.6초 + 여유)
+    static let cooldownSec = 1.2
+
+    let inW = 416, inH = 736
+    private let model: MLModel
+    private let input: MLMultiArray
+    /// 세 장면 고리(세로 0~1) · 그 시각 — 장면이 빠지면(1.5장 넘게 벌어지면) 비우고 다시 모은다(모델은 이어진 세 장면을 배웠다)
+    private var ring: [[Float]]
+    private var ringT: [Double] = []
+    private var head = 0
+    private var land: [UInt8]
+    private var port: [UInt8]
+    private var frames = 0
+    private var run: [Hit] = []
+    private var cooldownUntil = -Double.infinity
+    /// 모델 한 번 시간(ms) 합 · 횟수
+    private(set) var predictMs = 0.0
+    private(set) var predicts = 0
+
+    /// 앱 안 모델(BallNet.mlmodelc — native/modules/dual-camera/ios, podspec resources). 못 읽으면 nil(알림 없이 지금처럼)
+    static func bundled() -> BallNetTrigger? {
+        let url = Bundle(for: BallNetTrigger.self).url(forResource: "BallNet", withExtension: "mlmodelc")
+            ?? Bundle.main.url(forResource: "BallNet", withExtension: "mlmodelc")
+        guard let url else { return nil }
+        return try? BallNetTrigger(modelURL: url)
+    }
+
+    init(modelURL: URL) throws {
+        let cfg = MLModelConfiguration()
+        cfg.computeUnits = .all
+        model = try MLModel(contentsOf: modelURL, configuration: cfg)
+        input = try MLMultiArray(shape: [1, 3, NSNumber(value: inH), NSNumber(value: inW)], dataType: .float32)
+        ring = Array(repeating: [Float](repeating: 0, count: inW * inH), count: 3)
+        land = [UInt8](repeating: 0, count: inW * inH)
+        port = [UInt8](repeating: 0, count: inW * inH)
+    }
+
+    /// 새로 켤 때 — 지난 장면 · 묶음을 버린다
+    func reset() {
+        ringT = []
+        head = 0
+        run = []
+        frames = 0
+        cooldownUntil = -.infinity
+    }
+
+    /// 가로 밝기 면(w × h) → 가로 inH × inW 로 줄이고(vImage) 시계 방향으로 돌려 세로 inW × inH, 0~1 로 고리 칸에
+    private func shrink(_ luma: UnsafePointer<UInt8>, _ w: Int, _ h: Int, _ stride: Int, into slot: Int) {
+        land.withUnsafeMutableBytes { lb in
+            port.withUnsafeMutableBytes { pb in
+                var src = vImage_Buffer(data: UnsafeMutableRawPointer(mutating: luma), height: vImagePixelCount(h), width: vImagePixelCount(w), rowBytes: stride)
+                var dl = vImage_Buffer(data: lb.baseAddress, height: vImagePixelCount(inW), width: vImagePixelCount(inH), rowBytes: inH)
+                var dp = vImage_Buffer(data: pb.baseAddress, height: vImagePixelCount(inH), width: vImagePixelCount(inW), rowBytes: inW)
+                vImageScale_Planar8(&src, &dl, nil, vImage_Flags(kvImageNoFlags))
+                vImageRotate90_Planar8(&dl, &dp, UInt8(kRotate90DegreesClockwise), 0, vImage_Flags(kvImageNoFlags))
+            }
+        }
+        let n = vDSP_Length(inW * inH)
+        var k: Float = 1 / 255
+        ring[slot].withUnsafeMutableBufferPointer { out in
+            vDSP_vfltu8(port, 1, out.baseAddress!, 1, n)
+            vDSP_vsmul(out.baseAddress!, 1, &k, out.baseAddress!, 1, n)
+        }
+    }
+
+    private func detect(t: Double) -> Hit? {
+        let n = inW * inH
+        let p = input.dataPointer.assumingMemoryBound(to: Float.self)
+        for c in 0..<3 {
+            let slot = (head + c) % 3  // 가장 오래된 장면부터(t−2 · t−1 · t)
+            ring[slot].withUnsafeBufferPointer { p.advanced(by: c * n).update(from: $0.baseAddress!, count: n) }
+        }
+        let t0 = CACurrentMediaTime()
+        guard let out = try? model.prediction(from: MLDictionaryFeatureProvider(dictionary: ["frames": MLFeatureValue(multiArray: input)])),
+              let hs = out.featureValue(for: "heat_size")?.multiArrayValue
+        else { return nil }
+        predictMs += (CACurrentMediaTime() - t0) * 1000
+        predicts += 1
+        let hh = hs.shape[2].intValue, hw = hs.shape[3].intValue, plane = hh * hw
+        var best = -Float.infinity, bi = 0
+        func at(_ i: Int) -> Float {
+            hs.dataType == .float32 ? hs.dataPointer.assumingMemoryBound(to: Float.self)[i] : hs[i].floatValue
+        }
+        for i in 0..<plane { let v = at(i); if v > best { best = v; bi = i } }
+        let iy = bi / hw, ix = bi - iy * hw
+        return Hit(t: t, x: (Float(ix) + 0.5) * 4, y: (Float(iy) + 0.5) * 4, d: exp(at(plane + bi)), score: 1 / (1 + exp(-best)))
+    }
+
+    /// 카메라 장면 하나(60fps)
+    func feed(_ sampleBuffer: CMSampleBuffer) -> Alert? {
+        guard let px = CMSampleBufferGetImageBuffer(sampleBuffer) else { return nil }
+        let t = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
+        CVPixelBufferLockBaseAddress(px, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(px, .readOnly) }
+        guard CVPixelBufferGetPlaneCount(px) >= 1, let base = CVPixelBufferGetBaseAddressOfPlane(px, 0) else { return nil }
+        return feed(luma: base.assumingMemoryBound(to: UInt8.self), width: CVPixelBufferGetWidthOfPlane(px, 0),
+                    height: CVPixelBufferGetHeightOfPlane(px, 0), stride: CVPixelBufferGetBytesPerRowOfPlane(px, 0), t: t)
+    }
+
+    /// 장면 하나(60fps) — 둘에 하나만 모델에 넣는다. 알릴 공이면 Alert(시각 = 묶음의 첫 표본)
+    func feed(luma: UnsafePointer<UInt8>, width: Int, height: Int, stride: Int, t: Double) -> Alert? {
+        if let last = ringT.last, t - last > 1.5 / 60 { ringT = []; head = 0 }
+        let slot = ringT.count < 3 ? ringT.count : head
+        shrink(luma, width, height, stride, into: slot)
+        if ringT.count < 3 { ringT.append(t) } else { ringT.removeFirst(); ringT.append(t); head = (head + 1) % 3 }
+        frames += 1
+        guard ringT.count == 3, frames % 2 == 0, let h = detect(t: t) else { return nil }
+        if let last = run.last, t - last.t > Self.runGapSec { run = [] }
+        guard h.score >= Self.threshold, t >= cooldownUntil else { return nil }
+        if let p = run.last {
+            let dt = Float(h.t - p.t)
+            let moved = hypot(h.x - p.x, h.y - p.y) >= max(Self.runMinMoveFloorPx, Self.runMinMovePxPerSec * dt)
+            if moved && h.d <= p.d * 1.35 { run.append(h) } else { run = [h] }
+        } else {
+            run = [h]
+        }
+        guard run.count >= Self.runMinHits else { return nil }
+        let a = Alert(atSec: run[0].t, n: run.count, first: run[0], last: h)
+        run = []
+        cooldownUntil = t + Self.cooldownSec
+        return a
+    }
+}
+// BALL_NET_END

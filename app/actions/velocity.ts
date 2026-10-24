@@ -610,8 +610,8 @@ export async function attachClip(
 export type AttemptInput = {
   /** YYYY-MM-DD */
   date: string;
-  /** 'seed' = 앱의 공 후보(2026-10-16) · 'sweep' = 조용할 때 훑기가 뒤늦게 찾은 공(2.7) */
-  kind: 'ball' | 'motion' | 'seed' | 'sweep';
+  /** 'seed' = 앱의 공 후보(2026-10-16) · 'sweep' = 조용할 때 훑기가 뒤늦게 찾은 공(2.7) · 'net' = 학습 모델 공 알림(그림자, SPEC-detect D3) */
+  kind: 'ball' | 'motion' | 'seed' | 'sweep' | 'net';
   /** 알림 시각(앱 카메라 시계 초) · 세기 */
   atSec: number | null;
   strength: number | null;
@@ -652,7 +652,7 @@ function sanitizeNumbers(v: unknown, keys: readonly string[]): Record<string, nu
   return Object.keys(out).length ? out : undefined;
 }
 const TIMING_KEYS = ['queueMs', 'clipMs', 'readMs', 'engineMs', 'totalMs', 'bytes', 'fpsActual'] as const;
-const CAMERA_KEYS = ['fps', 'dropped', 'droppedLate', 'droppedBuffers', 'writerSkipped', 'writerResets', 'feedMs', 'feedSkipped', 'thermal', 'screenCaptured', 'shutterDen', 'iso', 'shutterCap'] as const;
+const CAMERA_KEYS = ['fps', 'dropped', 'droppedLate', 'droppedBuffers', 'writerSkipped', 'writerResets', 'feedMs', 'feedSkipped', 'thermal', 'screenCaptured', 'shutterDen', 'iso', 'shutterCap', 'netMs'] as const;
 
 /**
  * 공 · 움직임 알림 하나를 시도로 남긴다 — 쟀든 못 쟀든(2026-10-12: 못 잰 공이 어디에도 안 남아 빠른 공의 실패를 구간별로 셀 수
@@ -675,7 +675,7 @@ export async function recordVelocityAttempt(
       userId: user.id,
       date: at,
       kind:
-        input.kind === 'ball' || input.kind === 'seed' || input.kind === 'sweep'
+        input.kind === 'ball' || input.kind === 'seed' || input.kind === 'sweep' || input.kind === 'net'
           ? input.kind
           : 'motion',
       atSec: optional(input.atSec, 0, 1_000_000),

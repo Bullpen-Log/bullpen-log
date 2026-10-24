@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import { useIsFocused } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -68,8 +69,9 @@ export function FeedCard({ items, onOpen }: { items: FeedItem[]; onOpen: (item: 
   }, [w]);
 
   /* 저절로 넘기기 */
-  /* 다른 탭을 보는 동안은 멈춘다(웹 판의 data-active 가 빠지면 멈춤) */
-  const tabActive = useTabActive();
+  /* 다른 탭을 보는 동안 · 위에 앱 화면(운동 · 투구 기록 …)이 떠 있는 동안은 멈춘다(웹 판의 data-active 가 빠지면 멈춤) */
+  const focused = useIsFocused();
+  const tabActive = useTabActive() && focused;
   useEffect(() => {
     if (n < 2 || !w || reduce || manual || held || moving != null || !tabActive) return;
     const dwell = items[at(pos)]?.tone === 'none' ? DWELL_NONE_MS : DWELL_MS;

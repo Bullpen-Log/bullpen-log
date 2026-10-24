@@ -365,6 +365,50 @@ def export_onnx(tag: str = "v1"):
     return os.path.getsize(path)
 
 
+coreml_image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install("torch==2.5.1", "torchvision==0.20.1", extra_index_url="https://download.pytorch.org/whl/cpu")
+    .pip_install("coremltools==8.3.0", "numpy>=1.26,<2.2", "pillow>=10")
+    .run_commands(
+        "python -c \"import torchvision; torchvision.models.mobilenet_v3_small(weights='IMAGENET1K_V1')\""
+    )
+)
+
+
+@app.function(image=coreml_image, gpu=None, volumes={DATA: vol}, timeout=900)
+def export_coreml(tag: str = "v1", w: int = 416, h: int = 736):
+    """저장한 무게 → CoreML(mlprogram · fp16, 입력 고정 1×3×h×w — 세로 1080×1920 을 긴 변 736 으로 줄인 크기, 사이트 netInputSize 와 같음).
+    앱의 폰 안 공 알림(docs/velocity/redesign/SPEC-detect.md)과 맥 시험대(scripts/velocity-lab/ball-trigger --net)가 쓴다.
+    받기: modal volume get bullpen-ball-detector-data /out/<tag>/BallNet.mlpackage <폴더>"""
+    import shutil
+
+    import coremltools as ct
+    import torch
+
+    _, Net, _, _ = make_torch_bits()
+    out_dir = os.path.join(DATA, "out", tag)
+    model = Net()
+    model.load_state_dict(torch.load(os.path.join(out_dir, "model.pt"), map_location="cpu"))
+    model.eval()
+    traced = torch.jit.trace(model, torch.zeros(1, 3, h, w))
+    ml = ct.convert(
+        traced,
+        inputs=[ct.TensorType(name="frames", shape=(1, 3, h, w))],
+        outputs=[ct.TensorType(name="heat_size")],
+        convert_to="mlprogram",
+        compute_precision=ct.precision.FLOAT16,
+        minimum_deployment_target=ct.target.iOS16,
+    )
+    ml.short_description = f"불펜로그 공 감지 {tag} — 연속 세 장면 밝기(0~1) → 공 중심 열지도(로짓) · 지름 log, 걸음 4"
+    path = os.path.join(out_dir, "BallNet.mlpackage")
+    shutil.rmtree(path, ignore_errors=True)
+    ml.save(path)
+    vol.commit()
+    size = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(path) for f in fs)
+    print(f"CoreML 저장 {path} · {size / 1024:.0f}KB")
+    return size
+
+
 @app.local_entrypoint()
 def main(epochs: int = 30, limit: int = 0, batch: int = 16, lr: float = 1e-3, tag: str = "v1", dataset: str = "detector-v1",
          test_groups: str = "", init: str = "", size_w: float = 0.5, size_nb: int = 0, max_engine_err: float = 0.0):

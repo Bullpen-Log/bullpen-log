@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-24 · 김민(Claude) — 앱 화면 전환 끊김 전체 검토 뒤 고침 · 네 영역(덕아웃 · 웹 틀) 조금
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "앱 화면 전환이 부드럽고 빠르지 않다 → 전체 검토 → 순서대로 전부 고쳐줘". 커밋 셋(고침 1 · 2 · 3).
+- **네 영역 고친 곳**: `app/(dugout)/loading.tsx` 새로(덕아웃으로 넘어가는 동안 뼈대 — 예전엔 홈 쿼리 일곱이 끝날 때까지 옛 화면이 얼었다) ·
+  `components/dugout/app-launcher.tsx` 바로가기를 0.22초 연출 뒤가 아니라 바로 push(연출은 그대로) ·
+  `components/app-shell/expo-tabs.tsx` 앱에 보내는 덕아웃 탭 주소를 `/?dugout=1&home=1`(작은 로고 홈 — dugout-shell 의 '홈'과 같다, 큰 로고 0.5초를 매번 안 봄) ·
+  `__bpRefresh` 를 `quietRefresh` 로 · `components/tab-pager.tsx` 앱 안(Expo UA)에서는 __bpTab 의 판 넘기기가 미끄러지지 않고 바로.
+- **새 앱이면 웹 홈 · 웹 투구 판을 안 그린다**(`app/(app)/@home/*` · `@videos/*` — 앱 화면이 늘 덮어 아무도 못 보는데 매번 서버가 통째로 그렸다). 옛 앱 · 브라우저 ·
+  투구 잠김(첫 설정 전)은 그대로. 웹 홈을 앱에서 다시 보여야 할 일이 생기면 이 둘을 풀어 줘.
+- `app/(session)/checkin/loading.tsx` 새로(흐름과 같은 바탕). 앱 쪽 고침은 커밋 본문에.
+- 아직 폰에서 못 본 것: 탭을 옮긴 뒤 refresh 가 페이지 전체를 다시 불러오던 것(10-16 메모의 MPA)은 손대지 않았다 — 폰에서 재현되면 그때.
+
 ## 김민에게 — 2026-10-22 · 금윤호(Claude, 윤호 맥북) — 덕아웃 레슨 코치 찾기 3판(닥터나우식) · **받으면 `npx prisma generate`**
 
 받은 뒤 할 일: **`npx prisma generate`** — `Org` 에 `coachName · lessonSlots(Json) · slotMin · trialPrice · sinkerReview · dummy`, `LessonBooking` 에 `specialty · audience · payMethod · confirmedAt`,

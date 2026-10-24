@@ -85,12 +85,12 @@
 찾은 수 · 헛 알림 수.
 
 **완료 조건:**
-- [ ] 녹화마다 찾음 / 놓침 / 헛 알림 표, 앱이 실제로 남긴 시도 기록과 견줌
+- [x] 녹화마다 찾음 / 놓침 / 헛 알림 표, 앱이 실제로 남긴 시도 기록과 견줌 — 공 알림 0/19 · 앱 10/19 · 모델 16/19(`bench-findings.md` 5절)
 
 **확인:**
-- [ ] 앱 시도 기록(10-23 sweep 11 · motion 7 · seed 2)과 시험대 결과가 같은 시각대에서 맞는다
+- [x] 앱 시도 기록과 시험대가 같은 시각대에서 맞는다(앱도 공 알림 없이 훑기로만 찾음 — 시험대 공 알림도 0)
 
-**기대는 것:** Task 3 · **파일:** `scripts/velocity-bench/detect.mjs` · **크기:** M
+**기대는 것:** Task 3 · **파일:** `scripts/velocity-bench/detect.mjs` · `scripts/velocity-lab/ball-trigger/main.swift`(`--concat`) · `download-recording.mjs`(attempts) · **크기:** M
 
 ## Task 7: WebKit 실행
 

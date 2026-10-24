@@ -45,7 +45,8 @@ const SWEEP_RANGE: [number, number] = [0.7, 1.3];
 export const LOST_BALL_NOTE =
   '공을 알아챘는데 날아가는 길을 거의 못 잡았어요. 폰은 던지는 사람 1.5~2m 뒤, 손이 떠나는 자리가 화면 가운데 쪽에 오게 해 주세요.';
 
-type ThrowKind = 'ball' | 'seed' | 'motion' | 'sweep';
+/** 'net' — 학습 모델 공 알림(SPEC-detect D3). 지금은 그림자: 시도 기록에만, 재지 않는다 */
+type ThrowKind = 'ball' | 'seed' | 'motion' | 'sweep' | 'net';
 
 /**
  * 한 작업의 단계별 시간(ms) — 콘솔 '[velo] …' 한 줄 · 관리자 진단(2026-10-20: 10-20 세션에서 30초가 어디서 가는지 알 길이 없었다).
@@ -236,6 +237,17 @@ export class AppCapture {
 
   onThrow(e: ThrowEvent) {
     if (!this.armedNow) return;
+    if (e.kind === 'net') {
+      /*
+       * 학습 모델 공 알림(SPEC-detect D3) — 그림자: 시도 기록에만 남긴다. 재기 · 훑기 쉼은 지금 알림(MotionTrigger) · 훑기 그대로 —
+       * 폰에서 열 · 장면 버림과 맥 시험대와 같은 때 알리는지를 본 뒤(D4) 이 알림으로 잰다.
+       */
+      this.handlers.onAttempt?.({
+        id: ++this.nextId, kind: 'net', atSec: e.atSec, strength: e.strength, ok: false, code: null,
+        why: 'net-shadow', thermal: e.thermal, trackFrames: 0, rawKmh: null, confidence: null,
+      });
+      return;
+    }
     this.lastThrowAt = Date.now();
     if (e.kind === 'skip') {
       this.handlers.onAttempt?.({
