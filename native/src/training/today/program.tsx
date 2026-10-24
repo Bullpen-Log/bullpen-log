@@ -1,7 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
-import { Alert, Image, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Thumb } from '~/lib/thumb';
 import { withJosa } from '@/lib/korean';
 import type { ProgramCardProps, ProgramResult } from '@/lib/program/load';
 import { sessionTitle } from '@/lib/program/program';
@@ -319,7 +320,7 @@ function Upcoming({ sessions, c }: { sessions: ProgramCardProps['upcoming']; c: 
                     >
                       <View style={s.row}>
                         {it.thumbUrl ? (
-                          <Image source={{ uri: it.thumbUrl }} style={[st.thumb, { backgroundColor: c.line }]} />
+                          <Thumb uri={it.thumbUrl} style={[st.thumb, { backgroundColor: c.line }]} />
                         ) : (
                           <View style={[st.thumb, { backgroundColor: c.chip }]} />
                         )}

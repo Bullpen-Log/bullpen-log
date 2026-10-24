@@ -2,7 +2,8 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Thumb } from '~/lib/thumb';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { WarmupCard } from '@/app/(session)/workout/warmup/warmup-client';
 import { BullpenNative } from '../../modules/bullpen-native';
@@ -167,7 +168,7 @@ export default function WarmupScreen() {
                         <Text style={[s.bodyBold, { color: on ? c.sky : c.ink }]}>{ex.title}</Text>
                         {ex.note ? <Text style={[s.small, { color: on ? c.sky : c.muted }]}>{ex.note}</Text> : null}
                       </View>
-                      {ex.thumbUrl ? <Image source={{ uri: ex.thumbUrl }} style={[st.thumb, { borderColor: c.line }]} resizeMode="cover" /> : null}
+                      {ex.thumbUrl ? <Thumb uri={ex.thumbUrl} style={[st.thumb, { borderColor: c.line }]} /> : null}
                     </Press>
                     {hasMore ? (
                       <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }}>

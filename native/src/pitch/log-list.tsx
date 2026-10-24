@@ -59,6 +59,10 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
   const [sort, setSort] = useState<Sort>('recent');
   const [filter, setFilter] = useState('all');
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  /*
+   * 줄이 차례로 떠오르는 움직임은 손으로 편 달에만 — 탭을 처음 열 때 · 자료가 새로 올 때까지 모든 줄이 떠올라 목록이 출렁였다(2026-10-24 두 번째 검토)
+   */
+  const [opened, setOpened] = useState<string | null>(null);
   /* 2분할 비교 — 웹처럼 목록에서 바로 A · B 를 고르고 탭 위에 뜬 막대에서 [비교하기](video-gallery selecting) */
   const { selecting, picked } = useCompare();
   const finding = isFindActive(q);
@@ -209,7 +213,10 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
             <Press
               accessibilityRole="button"
               accessibilityState={{ expanded: open }}
-              onPress={() => setToggled((t) => ({ ...t, [g.month]: !open }))}
+              onPress={() => {
+                if (!open) setOpened(g.month);
+                setToggled((t) => ({ ...t, [g.month]: !open }));
+              }}
               style={styles.monthHead}
             >
               <Text style={[styles.monthTitle, { color: c.ink }]}>
@@ -222,14 +229,14 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
               </View>
             </Press>
             {open ? (
-              <Animated.View entering={fadeIn} style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }}>
+              <Animated.View entering={opened === g.month ? fadeIn : undefined} style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }}>
                 {g.items.map((x, i) => (
                   <Animated.View
                     key={x.id}
                     ref={(el: ComponentRef<typeof View> | null) => {
                       if (el && (i === 0 || g.items[i - 1].date !== x.date)) spots.current.set(x.date, el);
                     }}
-                    entering={rowIn(Math.min(i, 8))}
+                    entering={opened === g.month ? rowIn(Math.min(i, 8)) : undefined}
                     style={[i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }, flash === x.date && { backgroundColor: c.skyTint }]}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>

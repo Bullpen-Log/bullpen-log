@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { RoundChat, RoundHome, RoundMarket, RoundPlus, RoundUser } from '@/components/round-icon';
 import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
 import { MorphIn } from '@/components/shell-morph';
+import { DugoutAppBridge } from '@/components/app-shell/expo-tabs';
 
 /**
  * 덕아웃 껍데기(2026-10-20, docs/designs/baseball-hub.md) — 로그인 없이 보는 야구인의 공간. 선수 껍데기(components/app-shell)와 별개.
@@ -60,6 +61,11 @@ export function DugoutShell({
       />
 
       <MorphIn />
+      {native && (
+        <Suspense fallback={null}>
+          <DugoutAppBridge />
+        </Suspense>
+      )}
       <main
         data-morph-main
         className="mx-auto w-full max-w-6xl flex-1 px-4 pt-5 pb-28 md:px-6 md:pt-8 md:pb-16"

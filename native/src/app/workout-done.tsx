@@ -3,6 +3,7 @@ import { SymbolView } from 'expo-symbols';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Reanimated, { Easing as REasing, useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatSeconds } from '@/lib/exercise-meta';
@@ -67,15 +68,17 @@ export default function WorkoutDoneScreen() {
   }, [id, tries]);
 
   const still = useReduceMotion();
-  const [ring] = useState(() => new Animated.Value(0));
+  /* 링은 화면 스레드에서 — JS 로 그리면(useNativeDriver: false) 화면이 막 열려 바쁜 0.7초 동안 끊겼다(2026-10-24 두 번째 검토) */
+  const ring = useSharedValue(0);
+  const ringProps = useAnimatedProps(() => ({ strokeDashoffset: RING_LEN * (1 - ring.value) }));
   /* 링이 그려지고(0.7초) 체크가 톡 뜨는 순간(0.52초 뒤)에 손에도 — 축하는 손으로도(웹과 같은 때) */
   useEffect(() => {
     if (!data) return;
     if (still) {
       pop.setValue(1);
-      ring.setValue(1);
+      ring.set(1);
     } else {
-      Animated.timing(ring, { toValue: 1, duration: 700, easing: Easing.bezier(0.65, 0, 0.35, 1), useNativeDriver: false }).start();
+      ring.set(withTiming(1, { duration: 700, easing: REasing.bezier(0.65, 0, 0.35, 1) }));
       Animated.sequence([Animated.delay(520), Animated.spring(pop, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true })]).start();
     }
     const t = setTimeout(() => void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success), still ? 0 : 550);
@@ -128,7 +131,7 @@ export default function WorkoutDoneScreen() {
                 stroke={c.sky}
                 strokeLinecap="round"
                 strokeDasharray={RING_LEN}
-                strokeDashoffset={ring.interpolate({ inputRange: [0, 1], outputRange: [RING_LEN, 0] })}
+                animatedProps={ringProps}
                 transform="rotate(-90 50 50)"
               />
             </Svg>
@@ -250,7 +253,7 @@ export default function WorkoutDoneScreen() {
   );
 }
 
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedCircle = Reanimated.createAnimatedComponent(Circle);
 /** 고리 둘레 — 반지름 46 */
 const RING_LEN = 2 * Math.PI * 46;
 

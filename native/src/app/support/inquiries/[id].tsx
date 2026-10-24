@@ -4,6 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardUp } from '~/lib/use-keyboard-up';
 import { REPLY_BODY_MAX, inquiryCategoryLabel } from '@/lib/support';
 import type { loadAppInquiry } from '@/app/actions/support';
 import { Badge, Bar, call, LoadState, s, StatusBadge, useBusy, useLoad } from '~/community/parts';
@@ -24,6 +25,7 @@ type Ok = { ok: true } | { ok: false; error: string };
 export default function InquiryScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
+  const keyboardUp = useKeyboardUp();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, error, reload } = useLoad<Loaded>('support.loadAppInquiry', id);
   const [reply, setReply] = useState('');
@@ -134,7 +136,7 @@ export default function InquiryScreen() {
       </ScrollView>
 
       {closed ? null : (
-        <View style={[styles.composer, { backgroundColor: c.page, borderTopColor: c.line, paddingBottom: inset.bottom + 8 }]}>
+        <View style={[styles.composer, { backgroundColor: c.page, borderTopColor: c.line, paddingBottom: (keyboardUp ? 0 : inset.bottom) + 8 }]}>
           {send.error ? <Text style={{ color: c.danger, fontSize: 15 }}>{send.error}</Text> : null}
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
             <TextInput

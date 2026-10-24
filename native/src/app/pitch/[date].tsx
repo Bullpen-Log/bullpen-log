@@ -12,7 +12,7 @@ import { LocalVideo } from '../../../modules/local-video';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
-import { ApiError, dateKeyOf, deleteLog, isPhoneVideoPath, phoneAssetId } from '~/pitch/api';
+import { ApiError, dateKeyOf, deleteLog, isPhoneVideoPath, loadMe, phoneAssetId } from '~/pitch/api';
 import { monthOf, refreshMonth, repOf, setFeatured, useFeatured, useMonth } from '~/pitch/store';
 import { PitchVideo } from '~/pitch/video';
 import { VelocityDay } from '~/pitch/velocity-day';
@@ -34,7 +34,15 @@ export default function PitchDayScreen() {
   const { logs, error } = useMonth(monthOf(date));
   const day = (logs ?? []).filter((l) => dateKeyOf(l.date) === date);
   const at = new Date(`${date}T00:00:00.000Z`);
-  const today = toDateKey(new Date());
+  /* 오늘은 서버 것(시험 계정은 시뮬레이션 날짜) — 앱 껍데기가 받아 둔 답이라 다시 안 묻는다. 오기 전에는 폰의 한국 날짜 */
+  const [serverToday, setServerToday] = useState<string | null>(null);
+  useEffect(() => {
+    loadMe().then(
+      (m) => setServerToday(m.today),
+      () => {}
+    );
+  }, []);
+  const today = serverToday ?? toDateKey(new Date());
   const future = date > today;
   /* 오늘이면 팔 상태 · 회복식 한 줄 — 그날 기록이 바뀌면(저장 · 지우기) 다시 받는다 */
   const now = usePitchToday(today, date === today, day.map((l) => `${l.id}:${l.pitchCount}:${l.sessionType}`).join());

@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardUp } from '~/lib/use-keyboard-up';
 import { COMMENT_BODY_MAX, REPORT_DETAIL_MAX, REPORT_REASONS, postCategoryLabel, type ReportReason } from '@/lib/community';
 import type { loadAppCommunityPost } from '@/app/actions/community';
 import { Badge, Bar, call, categoryColor, Chip, LoadState, s, useBusy, useLoad } from '~/community/parts';
@@ -26,6 +27,7 @@ type Target = { postId: string } | { commentId: string };
 export default function CommunityPostScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
+  const keyboardUp = useKeyboardUp();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data, error, reload } = useLoad<Loaded>('community.loadAppCommunityPost', id);
   const post = data?.post;
@@ -194,7 +196,7 @@ export default function CommunityPostScreen() {
 
       {/* 가린 글에는 글쓴이도 댓글을 못 단다 — 아무도 못 보는 글이다(서버도 막는다) */}
       {post.canComment ? (
-        <View style={[styles.composer, { backgroundColor: c.page, borderTopColor: c.line, paddingBottom: inset.bottom + 8 }]}>
+        <View style={[styles.composer, { backgroundColor: c.page, borderTopColor: c.line, paddingBottom: (keyboardUp ? 0 : inset.bottom) + 8 }]}>
           {send.error ? <Text style={{ color: c.danger, fontSize: 15 }}>{send.error}</Text> : null}
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
             <TextInput

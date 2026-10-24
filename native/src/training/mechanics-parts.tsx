@@ -2,7 +2,8 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Thumb } from '~/lib/thumb';
 import { josa } from '@/lib/korean';
 import { DRILL_STAGES } from '@/lib/exercise-meta';
 import { MECHANICS_ELEMENTS, MECHANICS_OVERVIEW, MECHANICS_SOURCE_NOTE, MECHANICS_SYMPTOMS, sideText, type MechanicsElement } from '@/lib/mechanics/elements';
@@ -929,7 +930,7 @@ export function DrillRow({ drill, secondary, start = 0, c }: { drill: MechanicsD
           </Text>
           <Text style={[s.small, { color: c.muted }]}>{tools.join(' · ')}</Text>
         </View>
-        {variant.thumbUrl ? <Image source={{ uri: variant.thumbUrl }} style={st.thumb} /> : null}
+        {variant.thumbUrl ? <Thumb uri={variant.thumbUrl} style={st.thumb} /> : null}
         {/* 즐겨찾기 — 고른 도구의 드릴에(웹 FavoriteButton 과 같은 서버 동작). 펼치지 않아도 보이게 줄 머리에 둔다(2026-10-20 김민) */}
         <Star key={variant.id} kind="drill" id={variant.id} initial={variant.favorite} title={drill.title} c={c} />
       </View>

@@ -1,7 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { AppState, Image, StyleSheet, Text, View } from 'react-native';
+import { AppState, StyleSheet, Text, View } from 'react-native';
+import { Thumb } from '~/lib/thumb';
 import { methodByKey, type ArmcareMethodKey } from '@/lib/armcare/methods';
 import { REHAB_FEEL_OPTIONS, REHAB_LEFTOVER_OPTIONS } from '@/lib/armcare/rehab-regions';
 import type { RehabFeel, RehabLeftover, RehabResult } from '@/lib/armcare/rehab-regions';
@@ -74,7 +75,7 @@ export function ExerciseMedia({
   if (!hasVideo && !thumbUrl) return null;
   /* ExerciseVideo 와 같은 비율 — 직접 찍은 영상은 세로, 유튜브는 가로 */
   const box = [s.media, { aspectRatio: aspectRatio ?? (path ? 9 / 16 : 16 / 9) }];
-  const thumb = thumbUrl ? <Image source={{ uri: thumbUrl }} resizeMode="cover" style={StyleSheet.absoluteFill} /> : null;
+  const thumb = thumbUrl ? <Thumb uri={thumbUrl} style={StyleSheet.absoluteFill} /> : null;
   if (!hasVideo) return <View style={box}>{thumb}</View>;
   return (
     <Press onPress={() => setPlay(true)} accessibilityRole="button" accessibilityLabel="자세 영상 틀기" style={box}>

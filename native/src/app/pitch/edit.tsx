@@ -74,6 +74,17 @@ async function dropUnsaved(videos: Video[]) {
   if (orphans?.length) await LocalVideo.remove({ ids: orphans.map(phoneAssetId) }).catch(() => undefined);
 }
 
+/** 주소에 실려 온 글자 목록 — 잘린 · 깨진 주소면 화면이 죽지 않고 빈 목록 */
+function parseList(raw?: string): string[] {
+  if (!raw) return [];
+  try {
+    const v: unknown = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function PitchEditScreen() {
   /* videos · importKey = 지난 영상 가져오기(pitch/import)가 폰에 넣은 영상 경로를 붙여 연다 — 저장하면 그 묶음을 '남김'으로 */
   /* drill · pct = 트레이닝 탭 메커니즘 카드의 '드릴로 던진 공'(웹 drillPrefill 과 같은 값 — 캐치볼 · 공 수 · 강도 · 메모로 채운다) */
@@ -127,13 +138,13 @@ export default function PitchEditScreen() {
       </View>
     );
   }
-  const imported = videos ? (JSON.parse(videos) as string[]) : [];
+  const imported = parseList(videos);
   const drillThrows = drill ? Number.parseInt(drill, 10) : NaN;
   const drillPrefill =
     !editing && Number.isFinite(drillThrows) && drillThrows > 0
       ? { pitchCount: drillThrows, effortPct: snapEffortPct(Number(pct) || 60), memo: `메커니즘 드릴 ${drillThrows}회` }
       : null;
-  const sessionIds = vsids ? (JSON.parse(vsids) as string[]) : [];
+  const sessionIds = parseList(vsids);
   const num = (v?: string) => (v && Number.isFinite(Number(v)) ? Number(v) : null);
   const velocityPrefill =
     !editing && sessionIds.length
@@ -384,7 +395,8 @@ export function EntryForm({
       savedRef.current = true;
       void saveJson(draftKey, null);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await refreshMonth(monthOf(date));
+      /* 새 달을 받은 뒤 닫는다(그날 화면에 바로 보이게) — 신호가 약하면 2.5초만 기다리고 닫는다(받기는 뒤에서 이어 간다) */
+      await Promise.race([refreshMonth(monthOf(date)), new Promise((r) => setTimeout(r, 2500))]);
       if (inline) inline.onDone();
       else router.back();
     } catch (e) {

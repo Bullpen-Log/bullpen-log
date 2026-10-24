@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { emitRetap } from './tab-pager';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { Easing, Extrapolation, interpolate, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -98,6 +98,10 @@ const GLYPH: Record<string, IconName> = {
   flame: 'flame',
   book: 'book-open',
   pencil: 'pencil',
+  /* 덕아웃 앱 탭(src/dugout/site.ts) */
+  market: 'market',
+  chat: 'chat',
+  user: 'user-round',
 };
 
 /**
@@ -120,6 +124,8 @@ const LIFT_SY = 0.28;
 const MORPH_EASE = Easing.bezier(0.32, 0.72, 0, 1);
 const BACK = ITEM_H + PAD * 2;
 const BACK_GAP = 8;
+/** 막대 줄의 가장 넓은 폭(웹 mobile-tabs max-w-md) */
+const LINE_MAX = 448;
 
 /** 테마마다 알약 · 렌즈 · 글자 색 — globals.css [data-tab-bar] 의 --tab-base · --tab-edge · --lens-ink · --tab-on · --tab-off */
 function tabColors(theme: 'light' | 'dark' | 'navy', sky: string, muted: string) {
@@ -173,7 +179,14 @@ export function TabBar({
   const gap = Math.max(inset.bottom - 13, 12);
   const index = Math.max(0, tabs.findIndex((t) => t.href === active));
   const showLens = tabs.some((t) => t.href === active);
-  const [width, setWidth] = useState(0);
+  /*
+   * 처음 폭은 화면 폭으로 셈해 둔다 — 0 으로 두면 재기 전 한 장면을 숨겨(종목 바로 갈아탈 때마다) 막대가 깜빡 사라졌다(2026-10-24 두 번째 검토).
+   * 잰 값(onLayout)이 오면 그것으로
+   */
+  const win = useWindowDimensions().width;
+  const [width, setWidth] = useState(
+    () => Math.min(win - Math.max(20, inset.left) - Math.max(20, inset.right), LINE_MAX) - (back ? BACK + BACK_GAP : 0)
+  );
   const cell = width > 0 ? (width - PAD * 2) / Math.max(1, tabs.length) : 0;
   const reduce = useReducedMotion();
   /* 갈아타기 진행(0 = 옛 막대 자리를 덮은 알약에 고른 탭 하나, 1 = 다 펴짐) */
@@ -187,8 +200,13 @@ export function TabBar({
   const leave = () => {
     if (!back) return;
     void Haptics.selectionAsync();
-    if (!reduce) open.set(withTiming(0, { duration: 220, easing: MORPH_EASE }));
-    back();
+    /* 오므라드는 움직임이 끝난 뒤에 옮긴다 — 바로 옮기면 이 막대가 그 장면에 떨어져 나가는 연출이 안 보였다 */
+    if (reduce) return back();
+    open.set(
+      withTiming(0, { duration: 220, easing: MORPH_EASE }, (done) => {
+        if (done) runOnJS(back)();
+      })
+    );
   };
 
   const pos = useSharedValue(index);
@@ -381,8 +399,7 @@ export function TabBar({
 
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { paddingBottom: gap, paddingLeft: Math.max(20, inset.left), paddingRight: Math.max(20, inset.right) }]}>
-      {/* 갈아탈 때는 폭을 잰 뒤에 보인다 — 재기 전 한 장면은 오므라든 자리를 셀 수 없다 */}
-      <View pointerEvents="box-none" style={[styles.line, enter && width === 0 && { opacity: 0 }]}>
+      <View pointerEvents="box-none" style={styles.line}>
         {back ? (
           <Animated.View style={[styles.back, { boxShadow: shadowCss }, backStyle]}>
             {glassFace}
@@ -442,7 +459,7 @@ const styles = StyleSheet.create({
   lockBadge: { position: 'absolute', right: -4, bottom: -3, width: 13, height: 13, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   wrap: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center' },
   /* 그림자는 boxShadow — 바탕 없는 칸의 shadow* 는 iOS 가 장면마다 속 그림의 모양을 다시 셈했다(유리 알약 뒤라 바탕을 못 깐다) */
-  line: { flexDirection: 'row', width: '100%', maxWidth: 448, gap: BACK_GAP },
+  line: { flexDirection: 'row', width: '100%', maxWidth: LINE_MAX, gap: BACK_GAP },
   shadow: { flex: 1, borderRadius: 999 },
   bg: { position: 'absolute', top: 0, bottom: 0, borderRadius: 999 },
   back: { width: BACK, height: BACK, borderRadius: 999 },

@@ -3,7 +3,8 @@ import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { AddToRoutine } from '~/armcare/add-to-routine';
 import { useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { Image, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Thumb } from '~/lib/thumb';
 import { ARMCARE_AREAS, ARMCARE_MUSCLES, areaOfMuscle, type ArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import type { ArmcareExerciseView } from '@/app/(app)/training/armcare-media';
 import type { AppArmcareItem, AppMyRoutine, AppRehabSummary } from '@/lib/armcare/today-load';
@@ -79,7 +80,7 @@ export function ExerciseRow({
           {/* 부위별 보강에서만(루틴 목록을 넘긴 곳) — 웹 AddToRoutine 처럼 운동 줄 안 [담기] */}
           <AddToRoutine exerciseId={ex.id} title={ex.title} c={c} />
         </View>
-        {ex.thumbUrl ? <Image source={{ uri: ex.thumbUrl }} style={st.thumb} /> : null}
+        {ex.thumbUrl ? <Thumb uri={ex.thumbUrl} style={st.thumb} /> : null}
         {fav != null ? <Star kind="exercise" id={ex.id} initial={fav} title={ex.title} c={c} /> : null}
       </View>
       <Press

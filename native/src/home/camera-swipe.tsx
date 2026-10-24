@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, type GestureType } from 'react-native-gesture-handler';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -37,10 +37,25 @@ export function CameraSwipe({ enabled, children }: { enabled: boolean; children:
   const dx = useSharedValue(0);
   const startX = useSharedValue(0);
 
+  /*
+   * 제자리로 돌리기는 홈에 다시 돌아올 때 — 예전엔 0.7초 시계로 돌려, 카메라가 늦게 뜨면 덮이기 전에 홈이 툭 돌아왔다(2026-10-24 두 번째 검토).
+   * 1.5초 안에 다른 화면이 안 덮으면(못 열림) 그때 돌린다
+   */
+  const away = useSharedValue(false);
+  useFocusEffect(
+    useCallback(() => {
+      away.set(false);
+      dx.set(0);
+      return () => {
+        away.set(true);
+      };
+    }, [dx, away])
+  );
   const open = () => {
     router.push('/velocity');
-    /* 구속 측정이 위에 덮인 뒤 제자리로(돌아오면 홈 그대로) */
-    setTimeout(() => dx.set(0), 700);
+    setTimeout(() => {
+      if (!away.get()) dx.set(withTiming(0, { duration: 200 }));
+    }, 1500);
   };
   const tick = () => void Haptics.selectionAsync();
 

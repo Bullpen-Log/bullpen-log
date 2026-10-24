@@ -27,6 +27,7 @@ import { resetLibraryItems } from '~/library/parts';
 import { resetImported } from '~/pitch/attach';
 import { resetScanned } from '~/nutrition/scanned';
 import { HomeTab, resetHomeCache } from '~/home/tab';
+import { resetNotificationList } from '~/home/notifications';
 import { NutritionTab } from '~/nutrition/tab';
 import { TrainingTab, resetTrainingCache } from '~/training/tab';
 import { resetPitchTodayCache } from '~/pitch/today-card';
@@ -39,7 +40,7 @@ import { adoptWebValues, cacheClear, loadJson, saveJson } from '~/lib/store';
 import { onPrefsChange, PREF_KEYS, reloadPrefs } from '~/lib/prefs';
 import { useTheme } from '~/lib/ui';
 import { dropDraftNotOf } from '~/velocity/draft';
-import { rpc, RpcError } from '~/lib/rpc';
+import { markWrite, rpc, RpcError } from '~/lib/rpc';
 import { toDateKey } from '@/lib/pitch-stats';
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { drainOutbox, setOutboxOwner } from '~/workout/outbox';
@@ -136,11 +137,13 @@ function tabOf(path: string, tabs: ShellTab[]): string | null {
     '/videos': ['/videos', '/pitch-log', '/admin/velocity'],
     '/training': ['/training'],
     '/nutrition': ['/nutrition'],
+    /* 덕아웃 탭(/?dugout=1) — 덕아웃 틀의 화면들(장터 · 커뮤니티 · 레슨 …)도 이 탭이다 */
+    '/': ['/market', '/community', '/lessons', '/venues', '/chat', '/me', '/search', '/notifications', '/u', '/pay', '/link'],
   };
   for (const t of tabs) {
     const base = t.href.split('?')[0];
     const roots = group[base] ?? [base];
-    if (roots.some((r) => path === r || path.startsWith(`${r}/`))) return t.href;
+    if ((base === '/' && path === '/') || roots.some((r) => path === r || path.startsWith(`${r}/`))) return t.href;
   }
   return null;
 }
@@ -153,6 +156,12 @@ const WEB_JSON_KEYS = ['bullpen-velocity-setup'];
 /** 테마 · 단위(글자 값, ~/lib/prefs) — 웹을 열 때마다 웹 값을 따른다. 앱 설정 화면에서 바꾸면 웹에도 같이 칠해 둘이 늘 같다 */
 const WEB_RAW_KEYS = Object.values(PREF_KEYS);
 const WEB_KEYS = [...WEB_JSON_KEYS, ...WEB_RAW_KEYS];
+/*
+ * 웹이 서버에 쓰거나(fetch POST · 서버 동작) 테마 · 단위를 바꾸면 앱에 알린다 — 앱 화면은 앱이 부른 쓰기(lib/rpc markWrite)만 알아서,
+ * 웹 체크인 · 투구 기록 · 설정 뒤 홈으로 돌아와도 30초 동안 옛 화면이었고, 웹 설정 창에서 바꾼 단위는 웹을 다시 열 때까지 안 따랐다
+ * (2026-10-24 두 번째 검토). 화면 처음 그릴 때 한 번만 건다(웹 안 옮겨 다니기는 같은 창이라 그대로 남는다).
+ */
+const WATCH_WEB = `(function(){if(window.__bpWatch)return;window.__bpWatch=1;var post=function(m){try{window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify(m))}catch(e){}};var f=window.fetch;if(f)window.fetch=function(i,o){var m=String((o&&o.method)||(i&&i.method)||'GET').toUpperCase();var u=String((i&&(i.url||i.href))||i||'');var p=f.apply(this,arguments);if(m!=='GET'&&m!=='HEAD'&&u.indexOf('/_vercel/')<0)p.then(function(r){if(r&&r.ok)post({t:'wrote'})},function(){});return p};var K=${JSON.stringify(WEB_RAW_KEYS)},s=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){s.apply(this,arguments);if(K.indexOf(k)>=0){var o={};o[k]=String(v);post({t:'adopt',items:o})}}})();true;`;
 const ADOPT_WEB_VALUES = `(function(){try{var o={};${JSON.stringify(WEB_KEYS)}.forEach(function(k){o[k]=localStorage.getItem(k)});window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({t:'adopt',items:o}))}catch(e){}})();true;`;
 /*
  * 옛 앱(Capacitor 웹뷰)이 웹 저장소(IndexedDB 'bullpen-velocity', lib/velocity-draft.ts)에 남긴 저장 안 한 구속 세션 · 못 올린 클립을 센다.
@@ -183,6 +192,7 @@ function resetAccount() {
   resetVelocityDayCache();
   resetImported();
   resetScanned();
+  resetNotificationList();
   /* 더보기의 이름 · 관리자 칸 — 다음 사람의 메뉴 알림이 오기 전까지 앞사람 것이 보였다 */
   setMenu({ groups: [], nickname: '' });
   setMenuTabs(DEFAULT_TABS);
@@ -243,10 +253,14 @@ export default function SiteScreen() {
    * 계정 · 오늘을 (다시) 묻는다. 됐으면 대기열 주인을 정하고 폰에 남은 운동 세트 · 암케어 체크를 보낸다(그 화면을 다시 안 열어도 — 암케어 체크는
    * 7일 지나면 버려진다. 서버가 거절한 것은 대기열이 뺀다). 로그인 전이면 막혀 그대로 남는다(다음 기회에).
    */
+  /* 늦게 온 옛 답(로그아웃 전에 보낸 물음)이 새 계정을 덮지 않게 — 마지막 물음의 답만 받는다 */
+  const askNo = useRef(0);
   const askMe = useCallback(() => {
     resetMe();
+    const no = ++askNo.current;
     return loadMe().then(
       (m) => {
+        if (no !== askNo.current) return true;
         deviceDay.current = toDateKey(new Date());
         setToday(m.today);
         setMeOk(true);
@@ -255,6 +269,7 @@ export default function SiteScreen() {
         return true;
       },
       (e: unknown) => {
+        if (no !== askNo.current) return false;
         setMeError(e instanceof RpcError && e.code === 'update' ? '앱을 업데이트해 주세요.' : e instanceof RpcError && e.code === 'offline' ? null : '불러오지 못했어요.');
         if (e instanceof RpcError && e.code === 'offline') {
           const was = deviceDay.current;
@@ -545,6 +560,7 @@ export default function SiteScreen() {
   /* 로그인 화면에 왔다 = 로그아웃 — 앞사람 기록과 함께 껍데기 상태(붙여 둔 판 · 웹 홈/영양 · 탭 · 종목 바)도 처음으로 */
   const resetShell = useCallback(() => {
     resetAccount();
+    askNo.current++;
     setToday(null);
     setMeOk(false);
     setSeen(UNSEEN);
@@ -589,6 +605,7 @@ export default function SiteScreen() {
       webArrived(msg.path, typeof msg.search === 'string' ? msg.search : '');
       return;
     }
+    if (msg.t === 'wrote') return markWrite();
     if (msg.t === 'tabbar') return setBarOn(msg.on === true);
     if (msg.t === 'adopt' && msg.items) return void adoptWebValues(msg.items, WEB_RAW_KEYS).then(reloadPrefs);
     if (msg.t === 'menu' && Array.isArray(msg.groups))
@@ -632,7 +649,7 @@ export default function SiteScreen() {
       <RefWebView
         key={load}
         ref={web}
-        injectedJavaScriptBeforeContentLoaded={CAP_SHIM}
+        injectedJavaScriptBeforeContentLoaded={CAP_SHIM + WATCH_WEB}
         injectedJavaScript={ADOPT_WEB_VALUES + OLD_VELOCITY}
         source={{ uri: `${SITE_URL}${START_PATH}` }}
         applicationNameForUserAgent={APP_UA}

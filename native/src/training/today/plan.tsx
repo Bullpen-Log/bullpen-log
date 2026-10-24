@@ -1,7 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useRef, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Thumb } from '~/lib/thumb';
 import { NO_WORKOUT_KIND, WORKOUT_KINDS } from '@/lib/checkin';
 import { findFocus, focusesFor, goalForUnchosen } from '@/lib/report/personalize';
 import { formatAmount } from '@/lib/exercise-meta';
@@ -567,7 +568,7 @@ function ExerciseRow({
                 {r.unsafe ? <Text style={[s.tiny, { color: c.warn }]}>오늘 몸 상태에는 권하지 않는 운동이에요</Text> : null}
               </View>
               {/* 사진은 오른쪽(웹 check-row 와 같다) */}
-              {r.thumbUrl ? <Image source={{ uri: r.thumbUrl }} style={[st.thumb, { backgroundColor: c.line }]} /> : null}
+              {r.thumbUrl ? <Thumb uri={r.thumbUrl} style={[st.thumb, { backgroundColor: c.line }]} /> : null}
             </Press>
           </View>
           {last || hasVideo ? (
