@@ -34,10 +34,12 @@ import {
   type TrajectoryFit,
 } from './trajectory-fit.ts';
 import { motionAt, refToFrame, stabilize } from './stabilize.ts';
+import { netFlight, type NetPoint } from './ball-net.ts';
 import {
   blobTrack,
   consistentPrefix,
   extendRansac,
+  findBlobs,
   findSeeds,
   medianBackground,
   pixelScale,
@@ -81,6 +83,12 @@ export type DistanceInput = {
   autoDistance?: boolean;
   /** 흔들림을 바로잡나(기본 켬) — 끄면 받은 장면 그대로(시험 · 견주기용) */
   stabilize?: boolean;
+  /**
+   * 장면마다 공 감지 모델의 봉우리(분석 px · 영상 시각, ball-net.ts NetPoint) — 있으면 날아가는 공 길(netFlight)을 씨앗과 안내로 써
+   * 덩어리를 찾는다. 밝기 덩어리만으로는 그물 앞 · 작은 공의 씨앗을 못 잡고 끝 전에 놓쳤다(10-23 · 10-24, 30구 중 12구 못 잼 — 모델은 30구 다 봄).
+   * 모델 길에서 못 찾으면 예전 길 그대로.
+   */
+  netHits?: NetPoint[] | null;
 };
 
 /**
@@ -226,6 +234,8 @@ export type DistanceReport = {
   /** 씨앗 후보 수 · 고른 씨앗 장면 */
   seeds: number;
   seedFrame: number | null;
+  /** 모델 공 길 안내(netHits)로 찾은 공 길인가 */
+  guided?: boolean;
   timingMs: number;
 };
 
@@ -303,9 +313,45 @@ function bestFlight(
   cam: PinholeCamera,
   dt: number,
   distanceM: number,
-  hint: DistanceInput['seedHint']
+  hint: DistanceInput['seedHint'],
+  netHits: NetPoint[] | null = null
 ) {
   const s = pixelScale(fs);
+  /*
+   * 모델 공 길 안내 — 날아가는 공 길(netFlight)의 앞 점들에서 그 둘레 덩어리를 씨앗으로 삼고, 장면마다 모델 자리 둘레에서 잇는다. 모델 자리는
+   * 흔들림을 바로잡기 전 영상 자리라 맞춘 장면과 몇 px 어긋날 수 있다 — 문(gate)이 그보다 넓다. 다가오는 공(포수 뒤)은 안 쓴다.
+   */
+  const chain = netHits && dt > 0 ? netFlight(netHits, dt) : null;
+  const frameOf = (t: number) => {
+    let k = -1;
+    for (let i = 0; i < fs.t.length; i++)
+      if (Math.abs(fs.t[i] - t) <= dt / 2 && (k < 0 || Math.abs(fs.t[i] - t) < Math.abs(fs.t[k] - t))) k = i;
+    return k;
+  };
+  const guideAt = new Map<number, NetPoint>();
+  if (chain) for (const p of chain) { const i = frameOf(p.t); if (i >= 0) guideAt.set(i, p); }
+  const guide = (i: number) => guideAt.get(i) ?? null;
+  const netSeeds: Seed[] = [];
+  for (const [i, p] of [...guideAt.entries()].sort((a, b) => a[0] - b[0]).slice(0, 6)) {
+    if (i >= fs.t.length - 1) continue;
+    const r = Math.max(2 * p.d, 12 * s);
+    const roi: [number, number, number, number] = [
+      Math.max(0, Math.floor(p.u - r)),
+      Math.max(0, Math.floor(p.v - r)),
+      Math.min(fs.w, Math.ceil(p.u + r)),
+      Math.min(fs.h, Math.ceil(p.v + r)),
+    ];
+    let pick: Seed['blob'] | null = null;
+    let bd = Math.max(1.5 * p.d, 8 * s);
+    for (const b of findBlobs(fs.luma[i], bg, fs.w, roi, 18, Math.max(2, 3 * s * s))) {
+      const d = Math.hypot(b.cx - p.u, b.cy - p.v);
+      if (d <= bd) {
+        bd = d;
+        pick = b;
+      }
+    }
+    if (pick) netSeeds.push({ i, blob: pick });
+  }
   let hinted: Seed[] = [];
   if (hint) {
     const near = fs.t
@@ -321,9 +367,10 @@ function bestFlight(
     fit: TrajectoryFit;
   } | null;
   let skipped = 0;
-  const tryAll = (list: Seed[]) => {
+  let guided = false;
+  const tryAll = (list: Seed[], withGuide = false) => {
     for (const seed of list.slice(0, 16)) {
-      const raw = blobTrack(fs, bg, seed);
+      const raw = blobTrack(fs, bg, seed, withGuide ? guide : undefined);
       if (raw.length < 8) continue;
       const inWin = toPoints(raw, s).filter((q) => q.t - raw[0].t <= 1.3);
       const pre = consistentPrefix(inWin, cam, dt, s, 8, distanceM);
@@ -345,15 +392,19 @@ function bestFlight(
       if (seg.length * Math.abs(dt) >= 0.25 && shrink >= 1.8) break;
     }
   };
-  tryAll(hinted);
-  let count = hinted.length;
+  if (netSeeds.length) {
+    tryAll(netSeeds, true);
+    guided = best != null;
+  }
+  if (!best) tryAll(hinted);
+  let count = netSeeds.length + hinted.length;
   /* 힌트 둘레 씨앗이 비행이 안 되면 나머지 씨앗도 — 판단이 멀리서야 알아챈 공은 가까운 씨앗이 힌트 앞에 있다(실내 114) */
   if (!best) {
     const rest = findSeeds(fs, bg).filter((q) => !hinted.some((h) => h.i === q.i));
     count += rest.length;
     tryAll(rest);
   }
-  return { best, seeds: count, skipped };
+  return { best, seeds: count, skipped, guided };
 }
 
 /**
@@ -528,15 +579,17 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
         }
       : fs;
   const bg = medianBackground(pickBackground(frames, stab.extra), width, height);
-  const { best, seeds, skipped } = bestFlight(
+  const { best, seeds, skipped, guided } = bestFlight(
     fsOrdered,
     bg,
     cam,
     approach === 'approaching' ? -dt : dt,
     SEL_D,
-    input.seedHint ?? null
+    input.seedHint ?? null,
+    approach === 'receding' ? (input.netHits ?? null) : null
   );
   report.seeds = seeds;
+  if (guided) report.guided = true;
   if (!best) return fail('NOT_ENOUGH_FRAMES', [], 'no-flight');
   report.seedFrame = order[best.seed.i];
   /* 장면 번호를 원래 차례로 되돌린다 */

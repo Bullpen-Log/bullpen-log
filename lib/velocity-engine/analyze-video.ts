@@ -147,6 +147,11 @@ export type AnalyzeOptions = {
   onBall?: () => void;
   /** 거리를 공 크기로 어림한다(analyze-distance autoDistance) — distanceM 은 첫 어림 */
   distanceAuto?: boolean;
+  /**
+   * 장면마다 공 감지 모델 봉우리(영상 시각 · 세운 화면 비율 0~1, 지름은 화면 폭 비율) — 있으면 거리 엔진이 공 길 안내로 쓴다(analyze-distance netHits).
+   * 앱은 폰 안 모델(CoreML)이, 시험대는 같은 모델을 미리 돌려 넘긴다.
+   */
+  netHits?: { t: number; x: number; y: number; d: number; score: number }[] | null;
   /** fovDeg 가 잰 값인가(앱 동시 촬영의 videoFieldOfView) — 안 주면 파일의 렌즈 정보 · 렌즈 보정이 있을 때만 잰 값으로 본다 */
   fovKnown?: boolean;
   /**
@@ -725,6 +730,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
                   ? { t: options.seedT }
                   : null,
               shakePx,
+              netHits: options.netHits?.map((p) => ({ t: p.t, u: p.x * width, v: p.y * height, d: p.d * width, score: p.score })) ?? null,
               /* 화각을 알 때만 공 크기로 거리를 어림한다 — 모르면 기준 거리 + 세션 보정(2.8.0, 공 크기 거리는 초점거리에 비례) */
               autoDistance:
                 (options.distanceAuto ?? false) &&

@@ -33,6 +33,9 @@ const set = argOf('set', 'holdout');
 const groups = argOf('group', '').split(',').filter(Boolean);
 const limit = Number(argOf('limit', '0'));
 const modes = argOf('modes', 'app,true').split(',');
+/* --net=<netseen.json> — 공마다 미리 돌린 모델 봉우리(bench/tools/netseen.py, 입력 416×736 px)를 엔진 공 길 안내(netHits)로 넘긴다 */
+const netFile = argOf('net', '');
+const netById = netFile ? new Map(JSON.parse(readFileSync(netFile, 'utf8')).map((r) => [r.id, r.hits.map(([t, x, y, d, score]) => ({ t, x: x / 416, y: y / 736, d: d / 416, score }))])) : null;
 const jsonOut = argOf('json', '');
 
 const MODES = {
@@ -62,6 +65,7 @@ const meta = {
   browser,
   set,
   modes,
+  ...(netFile ? { net: netFile } : {}),
   at: new Date().toISOString(),
 };
 console.log(`엔진 ${meta.version}(${meta.engine} · ${meta.commit}${meta.dirty ? ' · 고침 있음' : ''}) · ${browser} · 공 ${balls.length} · 길 ${modes.join(' ')}`);
@@ -76,14 +80,14 @@ async function measure(b, opt) {
     const range = seed != null ? { startSec: Math.max(0, seed - ${BALL_RANGE[0]}), endSec: seed + ${BALL_RANGE[1]}, seedT: seed } : {};
     const t0 = performance.now();
     try {
-      const res = await AV.analyzeVideo({ file, ...range, fps: 60, fovDeg: fov, approach: 'receding', distanceM: ${opt.distanceM}, distanceAuto: ${opt.distanceAuto}, fovKnown: ${b.fov != null ? 'true' : 'undefined'}, tiltRad: ${TILT} });
+      const res = await AV.analyzeVideo({ file, ...range, fps: 60, fovDeg: fov, approach: 'receding', distanceM: ${opt.distanceM}, distanceAuto: ${opt.distanceAuto}, fovKnown: ${b.fov != null ? 'true' : 'undefined'}, tiltRad: ${TILT}, netHits: ${JSON.stringify(netById?.get(b.id) ?? null)} });
       const m = res.measure, d = res.distance ?? {};
       const path = d.path ?? [];
       return { ok: m.ok, code: m.ok ? null : m.code, kmh: m.ok ? m.kmh : null, conf: m.ok ? m.confidence : null, frames: m.ok ? m.detail.frames : null,
         preConf: d.preSize?.confidence ?? null, why: d.why ?? null, size: d.sizeDistM ?? null, slope: d.sizeSlope ?? null, ext: d.extended ?? 0,
         impact: d.impact ?? null, te: d.te ?? null, tStart: path.length ? path[0][0] : null, flight: d.flightFrames ?? null, rms: d.rmsPx ?? null,
         stab: !!d.stabilized, shaky: !!d.shaky, first: d.firstDepthM ?? null, endSize: d.endSizeRatio ?? null, source: d.distanceSource ?? null,
-        usedDist: d.distanceM ?? null, fov, ms: Math.round(performance.now() - t0) };
+        usedDist: d.distanceM ?? null, guided: !!d.guided, fov, ms: Math.round(performance.now() - t0) };
     } catch (e) { return { ok: false, error: String(e?.message ?? e), ms: Math.round(performance.now() - t0) }; }
   })()`);
 }

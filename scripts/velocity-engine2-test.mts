@@ -25,7 +25,7 @@ import {
   nextRecordCut,
   nextSweepWindow,
 } from '../lib/velocity-engine/sweep.ts';
-import { findThrowRun, netInputSize } from '../lib/velocity-engine/ball-net.ts';
+import { findThrowRun, netFlight, netInputSize, type NetPoint } from '../lib/velocity-engine/ball-net.ts';
 import { alignTrail, type TrailPoint } from '../lib/velocity-tracer.ts';
 import {
   cleanSize,
@@ -925,6 +925,16 @@ console.log(
     Number.isFinite(base.kmh) && Math.abs(base.kmh - base.truthKmh) <= 0.9,
     `기준 90km/h(노출 2ms) — ${base.kmh} (정답 ${base.truthKmh.toFixed(1)})`
   );
+}
+{
+  /* 공 길 안내(netFlight) — 멀어지며 작아지는 공 길을 고르고, 커지는 길(되던진 공) · 제자리(손)는 안 고른다 */
+  const dt = 1 / 60;
+  const ball: NetPoint[] = Array.from({ length: 20 }, (_, k) => ({ t: 1 + k * dt, u: 300 + 3 * k, v: 500 - 4 * k, d: 24 / (1 + 0.12 * k), score: k < 12 ? 0.8 : 0.35 }));
+  const hand: NetPoint[] = Array.from({ length: 30 }, (_, k) => ({ t: 0.5 + k * dt, u: 80, v: 600, d: 10, score: 0.7 }));
+  const back: NetPoint[] = Array.from({ length: 20 }, (_, k) => ({ t: 2 + k * dt, u: 300, v: 300 + 5 * k, d: 6 * (1 + 0.15 * k), score: 0.8 }));
+  const got = netFlight([...hand, ...ball, ...back].sort((a, b) => a.t - b.t), dt);
+  check(got != null && got.length === 20 && got[0].t === ball[0].t, `공 길 안내 — 멀어지는 공 20장(손 · 되던진 공 빼고): ${got?.length ?? 0}장`);
+  check(netFlight([...hand, ...back], dt) == null, '공 길 안내 — 날아가는 공이 없으면 null');
 }
 console.log(`\n${'═'.repeat(50)}\n통과 ${passed} / 실패 ${failed}\n${'═'.repeat(50)}`);
 if (failed) process.exit(1);
