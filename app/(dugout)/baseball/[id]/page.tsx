@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { DugoutPageHeader, SectionHead } from '@/components/dugout/ui';
 import { notFound } from 'next/navigation';
 import { getCurrentUser } from '@/lib/dal';
 import { kstDateKey } from '@/lib/baseball-feed';
@@ -33,10 +34,19 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
     <div className="mx-auto max-w-4xl space-y-8 pb-12">
       <Link
         href={`/baseball?league=${g.league}${g.date === today ? '' : `&date=${g.date}`}`}
-        className="text-sm font-semibold text-muted hover:text-ink"
+        className="text-sm font-semibold text-muted hover:text-ink lg:hidden"
       >
         ‹ 경기 일정
       </Link>
+      <DugoutPageHeader
+        title={`${g.away.name} vs ${g.home.name}`}
+        crumbs={[
+          { label: '덕아웃', href: '/' },
+          { label: '경기 일정', href: `/baseball?league=${g.league}${g.date === today ? '' : `&date=${g.date}`}` },
+          { label: LEAGUE_LABEL[g.league] },
+        ]}
+        className="[&_nav]:hidden lg:[&_nav]:flex"
+      />
 
       {/* 점수 머리 */}
       <section className="rounded-3xl border border-line bg-surface p-6">
@@ -96,8 +106,8 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
       {scored && <ScoreBoard d={detail} />}
 
       {detail.notes.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-ink">주요 기록</h2>
+        <section className="space-y-4">
+          <SectionHead title="주요 기록" />
           <dl className="divide-y divide-line rounded-2xl border border-line bg-surface">
             {detail.notes.map((n) => (
               <div key={n.label} className="flex gap-4 px-5 py-3 text-sm">
@@ -110,16 +120,16 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
       )}
 
       {(detail.batters.away.length > 0 || detail.batters.home.length > 0) && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-ink">타자 기록</h2>
+        <section className="space-y-4">
+          <SectionHead title="타자 기록" />
           <Batters team={g.away.name} rows={detail.batters.away} />
           <Batters team={g.home.name} rows={detail.batters.home} />
         </section>
       )}
 
       {(detail.pitchers.away.length > 0 || detail.pitchers.home.length > 0) && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-ink">투수 기록</h2>
+        <section className="space-y-4">
+          <SectionHead title="투수 기록" />
           <Pitchers team={g.away.name} rows={detail.pitchers.away} />
           <Pitchers team={g.home.name} rows={detail.pitchers.home} />
         </section>
@@ -133,9 +143,7 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
 
       {/* 댓글 */}
       <section className="space-y-4" aria-label="댓글">
-        <h2 className="text-lg font-bold text-ink">
-          댓글 <span className="text-muted">{comments.length}</span>
-        </h2>
+        <SectionHead title="댓글" count={comments.length} />
         {comments.length > 0 && (
           <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
             {comments.map((c) => (
@@ -210,10 +218,10 @@ function ScoreBoard({ d }: { d: GameDetail }) {
     </tr>
   );
   return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-bold text-ink">점수판</h2>
+    <section className="space-y-4">
+      <SectionHead title="점수판" />
       <div className="no-scrollbar overflow-x-auto rounded-2xl border border-line bg-surface">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm whitespace-nowrap">
           <thead>
             <tr className="text-xs text-muted">
               <th className="sticky left-0 bg-surface px-3 py-2 text-left font-medium">팀</th>

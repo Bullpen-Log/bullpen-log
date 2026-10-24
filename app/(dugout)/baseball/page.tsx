@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { GameCard, dayName } from '@/components/dugout/game-parts';
+import { CategoryRow, DugoutEmpty, DugoutPageHeader, SectionHead } from '@/components/dugout/ui';
 import { LEAGUES, addDays, isLeague, kstDateKey, loadGames, type League } from '@/lib/baseball-feed';
 
 export const metadata: Metadata = { title: '경기 일정 · 결과' };
@@ -29,26 +30,14 @@ export default async function BaseballPage({ searchParams }: { searchParams: Pro
   const href = (l: League, d: string) => `/baseball?league=${l}${d === today ? '' : `&date=${d}`}`;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 pb-10">
-      <div>
-        <p className="text-[13px] text-muted">덕아웃 야구</p>
-        <h1 className="mt-0.5 text-2xl font-black text-ink">경기 일정 · 결과</h1>
-      </div>
+    <div className="space-y-6 pb-10">
+      <DugoutPageHeader title="경기 일정 · 결과" subtitle="KBO · MLB · NPB 경기를 날짜별로 봐요." />
 
-      <nav aria-label="리그" className="flex gap-2">
-        {LEAGUES.map((l) => (
-          <Link
-            key={l.key}
-            href={href(l.key, date)}
-            aria-current={l.key === league ? 'page' : undefined}
-            className={`inline-flex min-h-10 items-center rounded-full px-5 text-sm font-semibold transition-colors ${
-              l.key === league ? 'bg-ink text-page' : 'border border-line bg-surface text-ink hover:border-ink/40'
-            }`}
-          >
-            {l.label}
-          </Link>
-        ))}
-      </nav>
+      <CategoryRow
+        label="리그"
+        keepScroll
+        items={LEAGUES.map((l) => ({ key: l.key, label: l.label, href: href(l.key, date), on: l.key === league }))}
+      />
 
       {/* 날짜 띠 — 한 주, 그날 경기 수 */}
       <div className="flex items-center gap-2">
@@ -94,26 +83,28 @@ export default async function BaseballPage({ searchParams }: { searchParams: Pro
         </Link>
       </div>
 
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-bold text-ink">{dayName(date, today)}</h2>
-        {date !== today && (
-          <Link href={href(league, today)} className="text-sm font-semibold text-sky">
-            오늘로 ›
-          </Link>
-        )}
-      </div>
+      <section className="space-y-4">
+      <SectionHead
+        title={dayName(date, today)}
+        action={
+          date !== today ? (
+            <Link href={href(league, today)} className="text-sm font-semibold text-sky">
+              오늘로 ›
+            </Link>
+          ) : undefined
+        }
+      />
 
       {ofDay.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-line px-6 py-14 text-center text-sm text-muted">
-          이날은 {LEAGUES.find((l) => l.key === league)?.label} 경기가 없어요
-        </p>
+        <DugoutEmpty compact title={`이날은 ${LEAGUES.find((l) => l.key === league)?.label} 경기가 없어요`} description="날짜 띠에서 다른 날을 골라 보세요." />
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {ofDay.map((g) => (
             <GameCard key={g.id} g={g} />
           ))}
         </ul>
       )}
+      </section>
 
     </div>
   );
