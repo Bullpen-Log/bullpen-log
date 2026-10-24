@@ -10,8 +10,9 @@ import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
 import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
 import { loadLatestListings, loadPublicPosts } from '@/lib/market/load';
 import { loadRecommendedCoaches } from '@/lib/market/lesson-load';
-import { BaseballBoard } from '@/components/dugout/baseball-board';
-import { loadBaseballNews, loadLeagueBoard } from '@/lib/baseball-feed';
+import { GamesPanel } from '@/components/dugout/games-panel';
+import { BaseballNews } from '@/components/dugout/baseball-news';
+import { kstDateKey, loadBaseballNews, loadHomeGames } from '@/lib/baseball-feed';
 import { relativeTime } from '@/components/community/community-format';
 import { countUnreadNotifications } from '@/lib/notify';
 import { LessonFeedCard } from '@/components/dugout/lesson-feed-card';
@@ -43,20 +44,19 @@ export default async function DugoutHome({
   if (native && !sp.dugout) redirect(user ? '/today' : '/login');
   const viewer = user ? { id: user.id, role: user.role } : null;
   const sinkerUser = !!user && usesSinker(user);
-  const [listings, posts, coaches, alerts, lessons, kbo, mlb, news, avatarUrl] = await Promise.all([
+  const [listings, posts, coaches, alerts, lessons, games, news, avatarUrl] = await Promise.all([
     loadLatestListings(6, viewer),
     loadPublicPosts(30),
     loadRecommendedCoaches(3),
     user ? countUnreadNotifications(user.id) : 0,
     user ? loadLessonFeed(user.id, 3) : [],
     /* 야구 소식 — 밖 서버가 느리거나 막혀도 홈은 뜬다(실패는 빈 목록 · null) */
-    loadLeagueBoard('kbo'),
-    loadLeagueBoard('mlb'),
+    loadHomeGames(),
     loadBaseballNews(8),
     user ? createAvatarUrl(user.avatarPath).catch(() => null) : null,
   ]);
   const now = new Date();
-  const today = new Date(now.getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
+  const today = kstDateKey(0);
   const newsRows = news?.map((n) => ({ ...n, ago: relativeTime(new Date(n.at), now) })) ?? null;
 
   /* 인기글 — 이번 주 글 가운데 좋아요 + 댓글 많은 차례(이번 주 글이 모자라면 최근 글로 채움) */
@@ -112,14 +112,19 @@ export default async function DugoutHome({
           sinker={sinkerUser}
           native={native}
         />
-        <div className="mx-auto max-w-5xl space-y-16 pb-6">
+        {/* 본문 왼쪽 · 오른쪽 작은 경기 칸(2026-10-24 — 휴대폰은 경기 칸이 맨 위) */}
+        <div className="mx-auto grid max-w-6xl gap-8 pb-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <aside className="order-first lg:sticky lg:top-24 lg:order-last lg:self-start">
+          <GamesPanel games={games} today={today} />
+        </aside>
+        <div className="min-w-0 space-y-16">
           {/* 로그인한 사람 — 최근 레슨(내 싱커 띠는 2026-10-23 금윤호 "덕아웃에서 내 싱커 블록도 없애줘") */}
           {lessons.length > 0 && <LessonFeedCard items={lessons} compact title="최근 레슨" />}
 
           <MarketHero slides={slides} slim label="덕아웃 소식" />
 
-          {/* 야구 소식 — 경기 결과(KBO · MLB) · 야구 뉴스 */}
-          <BaseballBoard boards={[kbo, mlb]} news={newsRows} today={today} />
+          {/* 야구 뉴스 — 네이버 검색 열쇠가 있을 때만(경기 결과는 오른쪽 칸) */}
+          {newsRows && newsRows.length > 0 && <BaseballNews news={newsRows} />}
 
           {/* 장터 */}
           <section className="space-y-4">
@@ -136,7 +141,7 @@ export default async function DugoutHome({
                 </Link>
               </p>
             ) : (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-6">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3">
                 {listings.map((item) => (
                   <ListingCard key={item.id} item={item} now={now} />
                 ))}
@@ -251,6 +256,7 @@ export default async function DugoutHome({
               </ol>
             )}
           </section>
+        </div>
         </div>
       </div>
     </div>

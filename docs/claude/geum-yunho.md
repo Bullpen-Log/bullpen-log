@@ -1453,7 +1453,8 @@
   통합검색(`app/(dugout)/search` · `lib/search.ts`, 당근 검색 결과 모양): 전체 · 장터 · 커뮤니티 · 레슨 · 연습장 탭, 바로가기(기능) · 품목 이름 · 코치 전문 분야도 찾는다. 위 막대 검색도 통합검색.
   장비 고르기는 따로 된 화면 · 메뉴가 없다(10-23 사용자 "장터 안에 녹여서 잘 모르는 사람만") — 장터 주소에 `?guide=1` 이면 팝업(`components/dugout/gear-guide.tsx`), 입구는 장터 바로가기 '장비 추천' ·
   글러브 · 배트 · 스파이크 · 보호구 · 공 · 검색 화면의 옅은 한 줄 · 홈 카드. 옛 `/gear` 는 그 팝업으로 넘긴다.
-  '야구 소식' 칸(`baseball-board.tsx` · `lib/baseball-feed.ts`, 10-23): 경기 결과는 네이버 스포츠 일정(비공식 · 5분 기억, 막히면 칸이 숨음), 뉴스는 네이버 검색 API 열쇠(`NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET`)가 있어야 뜬다.
+  경기(`lib/baseball-feed.ts`, 네이버 스포츠 일정 비공식 · 5분 기억, KBO · MLB · NPB · 선발 · 승패 투수): 홈 오른쪽 작은 칸 `games-panel.tsx`(어제 · 오늘 · 내일만, 없으면 '예정 경기가 없습니다'),
+  '자세히' → `/baseball`(리그 탭 · 한 주 날짜 띠). 뉴스(`baseball-news.tsx`)는 네이버 검색 API 열쇠(`NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET`)가 있어야 뜬다.
   위 막대 로고는 `/`(큰 로고 첫 화면 — 막대 로고 자리에서 커지며 가운데로, `components/dugout/logo-fly.ts` · hero 의 stage 'fly'),
   장터 목록은 굵은 품목 줄 + 회색 알약 거르기 + 6열 격자(`market/page.tsx` · `listing-card.tsx`), 상세는 왼쪽 사진 · 오른쪽 가격 · 찜 | 채팅하기 | 안전결제(`market/[id]/page.tsx`). 레슨은 닥터나우식 그대로.
 - **덕아웃 4판 결제는 껍데기(2026-10-21)** — 사용자 지시 "겉만, 결제만 안 되게". `components/dugout/pay-shell.tsx` 하나가 모든 결제 화면의 틀(단추 disabled + '준비 중' 안내), 수수료율은 `lib/market/pay.ts` 상수 셋(가정값).

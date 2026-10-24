@@ -25,6 +25,7 @@ export const FEATURES: Feature[] = [
   { group: 'dugout', href: '/venues', label: '연습장', icon: 'venue', desc: '빈 시간 보고 바로 예약', keywords: ['구장', '대관', '예약', '실내', '배팅장'] },
   { group: 'dugout', href: '/chat', label: '채팅', icon: 'chat', desc: '장터 · 레슨 대화', keywords: ['메시지', '대화'] },
   { group: 'dugout', href: '/market?guide=1', label: '장비 추천', icon: 'gear', desc: '나이 · 포지션으로 맞는 규격 고르기', keywords: ['장비', '규격', '사이즈', '처음', '입문', '초보'] },
+  { group: 'dugout', href: '/baseball', label: '경기 일정', icon: 'baseball', desc: 'KBO · MLB · NPB 일정 · 결과', keywords: ['경기', '일정', '결과', '스코어', 'kbo', 'mlb', 'npb', '프로야구', '선발'] },
   { group: 'dugout', href: '/notifications', label: '알림', icon: 'bell', desc: '내 소식 모아 보기', keywords: ['소식'] },
   { group: 'dugout', href: '/me', label: '내 것', icon: 'user', desc: '내 물건 · 찜 · 예약', keywords: ['마이', '내 정보', '찜', '예약 내역'] },
   /* 싱커 */
