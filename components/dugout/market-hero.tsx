@@ -8,7 +8,7 @@ import type { RoundIconName } from '@/lib/round-icons';
 /**
  * 장터 맨 위 큰 띠(2026-10-23 금윤호: "장터는 번개장터 느낌을 최대한") — 번개장터 첫 화면의 검은 둥근 띠처럼 한 장씩 넘어간다.
  * 5초마다 다음 장, 좌우 단추(휴대폰은 쓸기) · 오른쪽 아래 'n/3'. 움직임 줄이기면 저절로 안 넘긴다. 사진 대신 우리 둥근 아이콘을 크게.
- * slim 은 덕아웃 홈의 얇은 띠(숨고 첫 화면의 '휴대폰 바꿀 때도…' 띠처럼) — 한 줄 글 · 장 전체가 링크.
+ * slim 은 덕아웃 홈의 띠(숨고 첫 화면의 '휴대폰 바꿀 때도…' 띠처럼) — 한 줄 글 · 장 전체가 링크. 2026-10-24 금윤호 '크기 키워줘'로 높이 · 글 · 동그라미를 키움.
  */
 export type BannerSlide = {
   kicker: string;
@@ -93,16 +93,16 @@ export function MarketHero({
                 href={s.href}
                 aria-hidden={n !== i}
                 tabIndex={n === i ? 0 : -1}
-                className="flex min-h-24 w-full shrink-0 items-center justify-between gap-4 px-6 md:min-h-[88px] md:px-16"
+                className="flex min-h-32 w-full shrink-0 items-center justify-between gap-5 px-6 md:min-h-[var(--match-h,11rem)] md:px-16"
               >
                 <span className="min-w-0">
-                  <span className="block text-xs font-bold text-white/60 md:text-sm">{s.kicker}</span>
-                  <span className="mt-1 block text-lg leading-snug font-black break-keep md:text-2xl">
+                  <span className="block text-sm font-bold text-white/60 md:text-base">{s.kicker}</span>
+                  <span className="mt-1.5 block text-xl leading-snug font-black break-keep md:text-3xl">
                     {s.title.join(' ')}
                   </span>
                 </span>
-                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-sky text-white md:h-16 md:w-16">
-                  <RoundIcon name={s.icon} filled className="h-8 w-8" />
+                <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-sky text-white md:h-24 md:w-24">
+                  <RoundIcon name={s.icon} filled className="h-9 w-9 md:h-12 md:w-12" />
                 </span>
               </Link>
             );
@@ -150,7 +150,7 @@ export function MarketHero({
       >
         ›
       </button>
-      <span className={`absolute right-5 ${slim ? 'bottom-2 hidden md:block' : 'bottom-4'} rounded-full bg-black/40 px-2.5 py-0.5 text-xs font-bold tabular-nums`}>
+      <span className={`absolute right-5 ${slim ? 'bottom-3 hidden md:block' : 'bottom-4'} rounded-full bg-black/40 px-2.5 py-0.5 text-xs font-bold tabular-nums`}>
         {i + 1}/{SLIDES.length}
       </span>
     </section>

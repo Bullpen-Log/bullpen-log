@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import { RoundSearch } from '@/components/round-icon';
 import { ChatAvatar } from '@/components/dugout/chat-avatar';
+import { DugoutPageHeader } from '@/components/dugout/ui';
 
 /**
  * 덕아웃 채팅 틀(2026-10-24 금윤호: "채팅 탭은 사진(인스타 DM)처럼 따로 상세하게") — 왼쪽 대화 목록 · 오른쪽 대화.
@@ -35,7 +36,7 @@ export function ChatShell({ rooms, children }: { rooms: ChatListItem[]; children
         className={`${active ? 'hidden md:flex' : 'flex'} w-full min-w-0 flex-col border-line md:w-[340px] md:shrink-0 md:border-r`}
       >
         <div className="space-y-3 px-5 pt-5 pb-3">
-          <h1 className="text-xl font-black text-ink">메시지</h1>
+          <DugoutPageHeader title="메시지" />
           <label className="relative block">
             <RoundSearch className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted" />
             <input

@@ -32,8 +32,8 @@
 #   plugins/library-videos 가 Xcode 에 폴더 참조로 싣는다(2026-10-20 김민: "앱 안에 넣을 거야"). 못 받으면 영상 없이 굽는다.
 #
 # ■ 덕아웃 앱(같은 native/ 의 APP_VARIANT=dugout — app.config.js)은 손으로만(Run workflow 에서 '굽을 앱' dugout · both)
-#   굽기 · 검사 · 시뮬레이터에서 켜 보기(스크린숏을 산출물 dugout-simulator 로)까지만 하고 TestFlight 에는 올리지 않는다 — App Store Connect 에
-#   com.bullpenlog.dugout 앱이 생긴 뒤 올리기를 더한다. 푸시로는 안 돈다.
+#   굽기 · 검사 · 시뮬레이터에서 켜 보기(스크린숏을 산출물 dugout-simulator 로)를 하고, '올리기' 스위치를 켜면 TestFlight 에 올린다
+#   (App Store Connect 앱 '덕아웃 DUGOUT' · 6826576447). 화면 코드 업데이트(publish)는 아직 싱커만 — 덕아웃은 새로 구워야 바뀐다. 푸시로는 안 돈다.
 #
 # 결과는 주석(annotation)으로 남긴다 — 공개 저장소의 주석은 로그인 없이 읽힌다(Checks API).
 name: 새 앱(Expo) 굽기
@@ -48,12 +48,12 @@ on:
   workflow_dispatch:
     inputs:
       app:
-        description: '굽을 앱 — 덕아웃은 굽기 · 검사만(TestFlight 에 안 올림)'
+        description: '굽을 앱'
         type: choice
         options: [sinker, dugout, both]
         default: sinker
       upload:
-        description: 'TestFlight 에 올리기 (끄면 굽기 · 검사만)'
+        description: 'TestFlight 에 올리기 — 고른 앱 모두 (끄면 굽기 · 검사만)'
         type: boolean
         default: false
       simulator_check:
@@ -451,13 +451,14 @@ jobs:
           head -n 10 "$OUT" | cut -c1-900 | sed 's/%/%25/g; s/^/::error title=실패::/'
           { echo '### 실패 — 오류 줄'; echo '```'; cat "$OUT"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
-  # 덕아웃 앱 — 굽기 · 검사 · 시뮬레이터에서 켜 보기만(올리기 없음). 싱커 굽기와 단계는 같고 이름 · 번들 ID 만 다르다(머리 주석 ■ 덕아웃)
+  # 덕아웃 앱 — 굽기 · 검사 · 시뮬레이터에서 켜 보기 · (스위치를 켜면) TestFlight 올리기. 싱커 굽기와 단계는 같고 이름 · 번들 ID 만 다르다(머리 주석 ■ 덕아웃)
   dugout:
-    name: 덕아웃 앱 굽기 · 검사(올리기 없음)
+    name: 덕아웃 앱 굽기${{ inputs.upload && ' · TestFlight 올리기' || ' · 검사' }}
     if: github.event_name == 'workflow_dispatch' && inputs.app != 'sinker'
     concurrency:
       group: ios-native-dugout-${{ github.ref }}
-      cancel-in-progress: true
+      # 올리는 중에 멈추면 안 된다 — 뒤 실행은 앞 것이 끝난 뒤
+      cancel-in-progress: false
     runs-on: macos-26
     # 아카이브(약 16분) + 시뮬레이터용 굽기(약 35분)
     timeout-minutes: 90
@@ -643,6 +644,89 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      # 여기부터는 '올리기' 스위치를 켠 실행만 — 싱커와 같은 열쇠 넷(팀 전체 열쇠라 새 앱에도 그대로)
+      - name: 애플 열쇠 확인
+        id: signing
+        if: inputs.upload
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=""
+          [ -n "$ASC_KEY_ID" ] || missing="$missing ASC_KEY_ID"
+          [ -n "$ASC_ISSUER_ID" ] || missing="$missing ASC_ISSUER_ID"
+          [ -n "$ASC_KEY_P8" ] || missing="$missing ASC_KEY_P8"
+          [ -n "$APPLE_TEAM_ID" ] || missing="$missing APPLE_TEAM_ID"
+          if [ -n "$missing" ]; then
+            echo "::error title=애플 열쇠가 빠졌다::올리기를 켰는데 GitHub Secrets 에 없는 것:$missing — mobile/APPLE-SETUP.md 5번"
+            exit 1
+          fi
+          KEY_DIR="$RUNNER_TEMP/private_keys"
+          mkdir -p "$KEY_DIR"
+          printf '%s\n' "$ASC_KEY_P8" | tr -d '\r' > "$KEY_DIR/AuthKey.p8"
+          if ! grep -q 'BEGIN PRIVATE KEY' "$KEY_DIR/AuthKey.p8" || ! openssl pkey -in "$KEY_DIR/AuthKey.p8" -noout 2>/dev/null; then
+            echo "::error title=ASC_KEY_P8 내용이 틀렸다::.p8 파일 내용 전부를 GitHub Secrets 에 붙여 넣는다"
+            exit 1
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      # 서명은 여기서만(아카이브는 서명 없이) — 자동 서명이 com.bullpenlog.dugout 배포 프로필을 만든다(번들 ID · 앱은 2026-10-24 등록)
+      - name: 배포 도장을 찍어 TestFlight 에 올리기
+        id: upload
+        if: inputs.upload && steps.signing.outputs.ready == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          set -o pipefail
+          KEY_ID=$(printf '%s' "$ASC_KEY_ID" | tr -d '[:space:]')
+          ISSUER=$(printf '%s' "$ASC_ISSUER_ID" | tr -d '[:space:]')
+          TEAM=$(printf '%s' "$APPLE_TEAM_ID" | tr -d '[:space:]')
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>destination</key>
+            <string>upload</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>teamID</key>
+            <string>$TEAM</string>
+            <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <false/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Dugout.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey.p8" \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER" \
+            2>&1 | tee "$RUNNER_TEMP/export.log"
+          MSG="TestFlight 에 올렸다 — 덕아웃 DUGOUT ($BUILD). 애플 처리(보통 5~30분)가 끝나면 App Store Connect 의 TestFlight 탭에 뜬다"
+          echo "::notice title=TestFlight 올리기 성공::$MSG"
+          echo "### $MSG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 올리기 건너뜀 알림
+        if: ${{ !inputs.upload }}
+        run: echo "::notice title=TestFlight 건너뜀::덕아웃은 굽기 · 검사만 했다. 올리려면 Run workflow 에서 'TestFlight 에 올리기'를 켠다"
+
+      - name: 열쇠 파일 지우기
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/private_keys" "$RUNNER_TEMP/ExportOptions.plist"
+
       - name: 실패 이유를 주석으로 남기기
         if: failure()
         env:
@@ -651,6 +735,7 @@ jobs:
           PODS: ${{ steps.pods.outcome }}
           XCB: ${{ steps.xcodebuild.outcome }}
           CHECK: ${{ steps.check.outcome }}
+          UPLOAD: ${{ steps.upload.outcome }}
         run: |
           OUT="$RUNNER_TEMP/errors.txt"
           {
@@ -661,6 +746,11 @@ jobs:
               LOG="$RUNNER_TEMP/xcodebuild.log"
               grep -E 'error:|\*\* (ARCHIVE|BUILD) FAILED' "$LOG" | awk '!seen[$0]++' | head -n 10
               grep -q 'error:' "$LOG" || tail -n 10 "$LOG"
+            fi
+            if [ "$UPLOAD" = failure ]; then
+              LOG="$RUNNER_TEMP/export.log"
+              grep -Ei 'error|failed|permission|agreement' "$LOG" | awk '!seen[$0]++' | head -n 10
+              grep -Eqi 'error|failed' "$LOG" || tail -n 10 "$LOG"
             fi
             if [ "$CHECK" = failure ]; then echo "만들어진 덕아웃 앱에 빠진 것이 있다 — '만들어진 앱 확인' 단계의 test 줄을 본다(싱커 화면이 묶였을 수 있다)"; fi
           } 2>/dev/null | tr -d '\r' > "$OUT" || true

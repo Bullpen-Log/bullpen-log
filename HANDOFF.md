@@ -11,6 +11,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 덕아웃 탭 겉모양 통일 · 네 커뮤니티 화면도 공용 부품으로 바꿨다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호: "각 탭 UI 가 통일이 안 돼 있다 — 홈 · 장터 느낌으로". 규칙 `docs/designs/dugout-ui-audit.md`, 부품 `components/dugout/ui`.
+- **네 영역을 고쳤다(겉모양만, 읽기 · 쓰기 · 주소 그대로)**: `app/(dugout)/community/community-page.tsx`(머리 → DugoutPageHeader, 게시판 칩 → 밑줄 줄 CategoryRow, 말머리 → 검은 칩, 빈 화면 → DugoutEmpty) ·
+  `community/[id]`(제목 26px · 대화방 · 댓글 제목 SectionHead, 대화방 고른 사람 칩 검정) · `community/new` · `community/blocked` 머리 · `me/page.tsx` 머리 · 묶음 제목. 합칠 때 `app/(dugout)/page.tsx` 의 `Head` 는 공용 `SectionHead` 로 바꿨다.
+- 덕아웃 틀 전체가 흰 면(`dugout-shell.tsx` bg-surface). 고른 칩은 초록 대신 검은 알약 — `npm run dugout:test` 의 [UI 통일] 다섯 줄이 새 화면에서도 본다(예외는 그 시험 EXCEPT 에 까닭과 함께).
+
 ## 금윤호에게 — 2026-10-24 · 김민(Claude, 커뮤니티 세션) — 커뮤니티 게시판 넷 · 칸 더함 · **받으면 `npx prisma generate`**
 
 받은 뒤 할 일: **`npx prisma generate`** — `CommunityPost` 에 `tag · media · acceptedCommentId · card · form · region · meetAt · closedAt`, 새 표 `CommunityBlock · CommunityJoin · CommunityMessage`
@@ -18,6 +25,12 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 김민: "커뮤니티는 모든 야구인 토론장 · 게시판 넷(자유 · 질문 · 답변 · 번개 · 팀 홍보 · 선수 모집) · 덕아웃은 휴대폰 브라우저에서도". 설계 `docs/designs/dugout-community.md`.
 - **'커뮤니티는 로그인한 사람만'(10-21 네 결정)을 바꿨다** — 목록 · 글은 로그인 없이 보이고 쓰기 · 댓글 · 좋아요 · 신고만 로그인(128bb368). 글 · 글쓰기의 OpenNative 도 걷었다(커뮤니티는 웹 하나로).
 - 로그인 화면의 덕아웃 문구는 네 몫이라 안 건드렸다. 휴대폰 브라우저 로그인(`proxy.ts` OPEN)은 1번 세션에 보고로 넘겼다.
+
+## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 덕아웃 연습장 · 레슨장 지도(카카오맵) · **받으면 `npx prisma generate`**
+
+받은 뒤 할 일: **`npx prisma generate`** — `Venue.lat · lng`, `Org.address · lat · lng`(마이그레이션 `20261024190000_place_map_coords`, 공유 DB 에 적용함 — 더하기만, 백업 `db-2026-10-24-09-49.json`).
+금윤호: "연습장을 네이버 지도 · 카카오맵처럼 지도로, 네이버 예약처럼 대관 예약". `/venues` 가 지도(왼쪽 목록 · 오른쪽 카카오맵, 점 → 카드 → 자세히 · 예약)다. 좌표는 저장할 때
+카카오 주소 검색으로(`lib/geocode.ts`), 레슨장은 설정의 코치 프로필에 '레슨장 주소' 칸이 생겼다. 열쇠 둘(`NEXT_PUBLIC_KAKAO_MAP_KEY` · `KAKAO_REST_API_KEY`)은 아직 없어 지도 자리엔 안내만 뜬다.
 
 ## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 경기 상세 · 경기 댓글 — **받으면 `npx prisma generate`**
 

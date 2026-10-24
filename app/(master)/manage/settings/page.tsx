@@ -55,7 +55,7 @@ export default async function SettingsPage() {
     }),
     prisma.org.findUnique({
       where: { id: org.id },
-      select: { plan: true, seats: true, planNote: true, publicProfile: true, coachIntro: true, coachCareer: true, specialties: true, priceFrom: true, priceNote: true, lessonHours: true, coachName: true, trialPrice: true, slotMin: true, sinkerReview: true, lessonSlots: true },
+      select: { plan: true, seats: true, planNote: true, publicProfile: true, coachIntro: true, coachCareer: true, specialties: true, priceFrom: true, priceNote: true, lessonHours: true, coachName: true, trialPrice: true, slotMin: true, sinkerReview: true, lessonSlots: true, address: true },
     }),
     prisma.orgMember.count({
       where: { orgId: org.id, role: 'PLAYER', status: 'ACTIVE' },
@@ -100,7 +100,7 @@ export default async function SettingsPage() {
             <p className="mt-1 text-xs text-muted">공개하면 덕아웃 ‘레슨’에 떠서 선수가 비교하고 시간을 골라 요청해요. 요청은 <a href="/manage/bookings" className="font-semibold text-sky">레슨 요청</a>에서 확정해요.</p>
           </div>
           <CoachProfileForm
-            profile={{ orgId: org.id, publicProfile: plan.publicProfile, coachIntro: plan.coachIntro, coachCareer: plan.coachCareer, specialties: plan.specialties, priceFrom: plan.priceFrom, priceNote: plan.priceNote, lessonHours: plan.lessonHours, coachName: plan.coachName, trialPrice: plan.trialPrice, slotMin: plan.slotMin, sinkerReview: plan.sinkerReview, lessonSlots: plan.lessonSlots ? parseHours(plan.lessonSlots) : null }}
+            profile={{ orgId: org.id, publicProfile: plan.publicProfile, coachIntro: plan.coachIntro, coachCareer: plan.coachCareer, specialties: plan.specialties, priceFrom: plan.priceFrom, priceNote: plan.priceNote, lessonHours: plan.lessonHours, coachName: plan.coachName, trialPrice: plan.trialPrice, slotMin: plan.slotMin, sinkerReview: plan.sinkerReview, lessonSlots: plan.lessonSlots ? parseHours(plan.lessonSlots) : null, address: plan.address }}
             canEdit={owner}
           />
         </Card>

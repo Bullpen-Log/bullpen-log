@@ -52,10 +52,11 @@ export function DugoutShell({
     exact ? pathname === href.split('?')[0] : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
+    /* 덕아웃은 흰 면 하나(2026-10-24 UI 통일 — 홈 · 장터만 흰 판을 덮던 것을 틀이 준다, docs/designs/dugout-ui-audit.md) */
     <div
       data-safe-area
       data-brand="dugout"
-      className="flex min-h-[var(--vvh,100dvh)] flex-col bg-page text-ink"
+      className="flex min-h-[var(--vvh,100dvh)] flex-col bg-surface text-ink"
     >
       <DugoutTopBar
         user={user}

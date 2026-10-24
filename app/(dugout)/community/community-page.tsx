@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { RoundChat, RoundCommunity, RoundEyeOff, RoundHeart, RoundVideo } from '@/components/round-icon';
+import { RoundChat, RoundCommunity, RoundEyeOff, RoundFlame, RoundHeart, RoundPencil, RoundPeople, RoundSearch, RoundVideo } from '@/components/round-icon';
+import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
 import { getCurrentUser } from '@/lib/dal';
 import { loadCommunityList } from '@/lib/community-load';
 import {
@@ -13,13 +14,37 @@ import {
   postTagLabel,
   type PostSort,
 } from '@/lib/community';
-import { Badge, ButtonLink, EmptyState, PageHeading } from '@/components/ui';
+import { Badge, ButtonLink } from '@/components/ui';
+import { CategoryRow, ChipLink, ChipRow, DugoutEmpty, DugoutPageHeader, ShortcutTiles } from '@/components/dugout/ui';
 import {
-  categoryBadgeClass,
   meetAtText,
   relativeTime,
 } from '@/components/community/community-format';
 import { CommunityRegionFilter } from '@/components/community/community-region-filter';
+
+const SLIDES: readonly BannerSlide[] = [
+  {
+    kicker: '덕아웃 커뮤니티',
+    title: ['야구 이야기라면', '무엇이든 남겨요'],
+    cta: '글쓰기',
+    href: '/community/new',
+    icon: 'community',
+  },
+  {
+    kicker: '질문 · 답변',
+    title: ['모르는 건 물어보면', '코치 · 선수가 답해요'],
+    cta: '질문 보기',
+    href: '/community?category=question',
+    icon: 'chat',
+  },
+  {
+    kicker: '번개',
+    title: ['캐치볼 · 배팅', '같이 할 사람을 모아요'],
+    cta: '번개 보기',
+    href: '/community?category=meetup',
+    icon: 'people',
+  },
+];
 
 type Search = { [key: string]: string | string[] | undefined };
 const one = (v: string | string[] | undefined) =>
@@ -72,6 +97,9 @@ export default async function CommunityPage({
   /* 지금 거르기를 지키는 주소 조각 — 게시판을 바꾸면 버린다 */
   const keep = { category, tag, region, past };
 
+  /* 첫 화면(전체 · 최신 · 첫 장)만 띠 · 바로가기 — 장터와 같은 규칙 */
+  const landing = !category && sort === 'new' && page === 1;
+
   /* 글쓰기는 로그인 — 안 했으면 로그인 뒤 글쓰기로. 게시판을 보고 있으면 그 게시판을 골라 둔다 */
   const newHref = category ? `/community/new?board=${category}` : '/community/new';
   const writeHref = user ? newHref : `/login?next=${encodeURIComponent(newHref)}`;
@@ -86,65 +114,52 @@ export default async function CommunityPage({
     page,
   });
 
-  const chipClass = (active: boolean) =>
-    `inline-flex min-h-9 shrink-0 items-center rounded-full px-4 text-sm font-semibold whitespace-nowrap transition-colors ${
-      active
-        ? 'bg-sky text-white'
-        : 'bg-ink/6 text-ink hover:text-sky desk:bg-surface-2'
-    }`;
-
   return (
-    <div className="stack-page">
-      <PageHeading
-        title="커뮤니티"
-        inlineAction
-        action={<ButtonLink href={writeHref}>글쓰기</ButtonLink>}
+    <div className="space-y-10">
+      {/* 게시판 — 장터 품목과 같은 밑줄 줄, 맨 위(2026-10-24 '장터처럼 덜어내') */}
+      <CategoryRow
+        label="게시판"
+        className="-mt-2"
+        items={[
+          { key: 'all', label: '전체', href: listHref({ sort }), on: !category },
+          ...POST_CATEGORIES.map((c) => ({ key: c.key, label: c.label, href: listHref({ category: c.key, sort }), on: category === c.key })),
+        ]}
+      />
+
+      {landing && (
+        <>
+          <MarketHero slides={SLIDES} label="커뮤니티 소식" />
+          <ShortcutTiles
+            label="커뮤니티 바로가기"
+            items={[
+              { href: writeHref, label: '글쓰기', icon: RoundPencil },
+              { href: listHref({ category: 'question', sort }), label: '질문 · 답변', icon: RoundSearch },
+              { href: listHref({ category: 'meetup', sort }), label: '번개', icon: RoundFlame },
+              { href: listHref({ category: 'team', sort }), label: '선수 모집', icon: RoundPeople },
+              { href: listHref({ sort: 'hot' }), label: '인기 글', icon: RoundHeart },
+              { href: '/chat', label: '채팅', icon: RoundChat },
+            ]}
+          />
+        </>
+      )}
+
+      <section className="space-y-5">
+      <DugoutPageHeader
+        title={category ? postCategoryLabel(category) : sort === 'hot' ? '인기 글' : '새 글'}
+        actions={landing ? undefined : <ButtonLink href={writeHref} size="sm">글쓰기</ButtonLink>}
       />
 
       {/* 거르기 — 구분 칩은 옆으로 미끄러지고(휴대폰), 정렬은 오른쪽 끝의 작은 둘 */}
       <div className="flex flex-col gap-3 desk:flex-row desk:flex-wrap desk:items-center desk:justify-between">
-        <nav
-          aria-label="게시판"
-          className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 desk:mx-0 desk:flex-wrap desk:px-0"
-        >
-          <Link
-            href={listHref({ sort })}
-            aria-current={!category ? 'page' : undefined}
-            className={chipClass(!category)}
-          >
-            전체
-          </Link>
-          {POST_CATEGORIES.map((c) => (
-            <Link
-              key={c.key}
-              href={listHref({ category: c.key, sort })}
-              aria-current={category === c.key ? 'page' : undefined}
-              className={chipClass(category === c.key)}
-            >
-              {c.label}
-            </Link>
-          ))}
-        </nav>
+        {!category && <span className="hidden desk:block" />}
         {category && (
-          <nav
-            aria-label="말머리"
-            className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 desk:order-last desk:mx-0 desk:w-full desk:flex-wrap desk:px-0"
-          >
+          <ChipRow label="말머리" className="desk:flex-1">
             {[{ key: '', label: '전체' }, ...POST_TAGS[category]].map((t) => (
-              <Link
-                key={t.key}
-                href={listHref({ ...keep, tag: t.key || undefined, sort })}
-                aria-current={(tag ?? '') === t.key ? 'page' : undefined}
-                className={`inline-flex min-h-8 shrink-0 items-center rounded-full px-3 text-xs font-semibold whitespace-nowrap transition-colors ${
-                  (tag ?? '') === t.key
-                    ? 'bg-ink text-page'
-                    : 'text-muted hover:text-ink'
-                }`}
-              >
+              <ChipLink key={t.key} on={(tag ?? '') === t.key} href={listHref({ ...keep, tag: t.key || undefined, sort })}>
                 {t.label}
-              </Link>
+              </ChipLink>
             ))}
-          </nav>
+          </ChipRow>
         )}
         <div className="flex items-center gap-2 self-end desk:self-auto">
           {local && (
@@ -182,7 +197,7 @@ export default async function CommunityPage({
       </div>
 
       {posts.length === 0 ? (
-        <EmptyState
+        <DugoutEmpty
           icon={<RoundCommunity />}
           title={
             page > 1
@@ -197,8 +212,8 @@ export default async function CommunityPage({
             page > 1
               ? '앞 장으로 돌아가 보세요.'
               : category === 'meetup' && !past
-                ? '다가오는 번개가 없어요. 캐치볼 · 배팅 할 사람을 먼저 모아 보세요.'
-              : '야구 이야기, 궁금한 것, 같이 할 사람. 무엇이든 첫 글을 남겨 보세요.'
+                ? '캐치볼 · 배팅 할 사람을 먼저 모아 보세요.'
+              : '첫 글을 남겨 보세요.'
           }
           action={
             page > 1 ? (
@@ -206,14 +221,12 @@ export default async function CommunityPage({
                 처음으로
               </ButtonLink>
             ) : (
-              <ButtonLink href={writeHref} variant="secondary">
-                첫 글 쓰기
-              </ButtonLink>
+              <ButtonLink href={writeHref}>첫 글 쓰기</ButtonLink>
             )
           }
         />
       ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+        <ul className="divide-y divide-line border-y border-line">
           {posts.map((post, i) => {
             const hidden = post.hidden;
             return (
@@ -224,13 +237,11 @@ export default async function CommunityPage({
               >
                 <Link
                   href={`/community/${post.id}`}
-                  className="group flex gap-3 px-(--block-pad) py-4 transition-colors hover:bg-surface-2 active:bg-ink/6"
+                  className="group flex gap-4 py-5 transition-colors active:bg-ink/6"
                 >
-                  <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge className={categoryBadgeClass(post.category)}>
-                      {postCategoryLabel(post.category)}
-                    </Badge>
+                    <span className="text-xs font-semibold text-ink">{postCategoryLabel(post.category)}</span>
                     {postTagLabel(post.category, post.tag) && (
                       <span className="text-xs font-semibold text-muted">
                         {postTagLabel(post.category, post.tag)}
@@ -249,7 +260,7 @@ export default async function CommunityPage({
                       </Badge>
                     )}
                   </div>
-                  <h2 className="font-semibold leading-snug text-ink transition-colors group-hover:text-sky">
+                  <h2 className="text-base font-semibold leading-snug text-ink group-hover:underline">
                     {post.title}
                   </h2>
                   {(post.meetAt || post.region) && (
@@ -266,7 +277,7 @@ export default async function CommunityPage({
                       )}
                     </p>
                   )}
-                  <p className="line-clamp-2 text-sm leading-relaxed text-muted">
+                  <p className="line-clamp-1 text-sm text-muted">
                     {post.preview}
                   </p>
                   <div className="flex items-center gap-3 text-xs text-muted">
@@ -309,6 +320,8 @@ export default async function CommunityPage({
           })}
         </ul>
       )}
+
+      </section>
 
       {/* 장 넘기기 — 다음 장이 있을 때만 '더 보기', 둘째 장부터는 '이전 장'도 */}
       {(hasMore || page > 1) && posts.length > 0 && (

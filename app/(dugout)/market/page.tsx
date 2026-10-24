@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import type { ComponentType, SVGProps } from 'react';
 import {
   RoundBaseball,
   RoundBat,
@@ -11,6 +10,7 @@ import {
   RoundUser,
 } from '@/components/round-icon';
 import { ListingCard } from '@/components/dugout/listing-card';
+import { CategoryRow, DugoutEmpty, DugoutPageHeader, ShortcutTiles, chipClass, type Shortcut } from '@/components/dugout/ui';
 import { MarketHero } from '@/components/dugout/market-hero';
 import { GearGuide } from '@/components/dugout/gear-guide';
 import { getCurrentUser } from '@/lib/dal';
@@ -18,7 +18,6 @@ import { loadListings } from '@/lib/market/load';
 import { CATEGORIES, CONDITIONS, REGIONS, SORTS, filterHref, readFilter } from '@/lib/market/specs';
 
 type SP = { [key: string]: string | string[] | undefined };
-type Icon = ComponentType<SVGProps<SVGSVGElement>>;
 
 /**
  * 장터(2026-10-20) — 품목 · 상태 · 지역 · 정렬 · 검색은 모두 주소에(새로 고쳐도 · 링크로 보내도 같은 목록). 로그인 없이 본다.
@@ -31,14 +30,14 @@ type Icon = ComponentType<SVGProps<SVGSVGElement>>;
 /** 규격을 몰라 망설이는 품목 — 이 화면들에만 '처음이라면' 한 줄을 띄운다 */
 const GUIDE_CATEGORIES = new Set(['glove', 'bat', 'spikes', 'protector', 'ball']);
 const withGuide = (href: string) => `${href}${href.includes('?') ? '&' : '?'}guide=1`;
-const SHORTCUTS: { href: string; label: string; icon: Icon }[] = [
+const SHORTCUTS: Shortcut[] = [
   { href: '/me#favorites', label: '찜', icon: RoundHeart },
   { href: '/market/new', label: '내 물건 팔기', icon: RoundPlus },
   { href: filterHref({ category: 'glove' }), label: '글러브', icon: RoundBaseball },
   { href: filterHref({ category: 'bat' }), label: '배트', icon: RoundBat },
   { href: filterHref({ category: 'protector' }), label: '보호구', icon: RoundShield },
   { href: filterHref({ category: 'uniform' }), label: '유니폼', icon: RoundUser },
-  { href: '/market?guide=1', label: '장비 추천', icon: RoundGear },
+  { href: '/market?guide=1', label: '장비 추천', icon: RoundGear, scroll: false },
   { href: '/chat', label: '채팅', icon: RoundChat },
 ];
 
@@ -62,70 +61,45 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
       key={href + label}
       href={href}
       aria-current={on ? 'page' : undefined}
-      className={`inline-flex min-h-8 shrink-0 items-center rounded-full px-3 text-[13px] font-semibold whitespace-nowrap transition-colors ${
-        on ? 'bg-ink text-page' : 'border border-line text-ink hover:border-ink/40'
-      }`}
+      className={chipClass(on)}
     >
       {label}
     </Link>
   );
 
   return (
-    /* 장터만 흰 바탕 — 번개장터처럼(덕아웃 틀의 회색 바탕을 화면 끝까지 덮는다) */
-    <div className="relative isolate space-y-10 before:absolute before:-top-10 before:-bottom-40 before:left-1/2 before:-z-10 before:w-screen before:-translate-x-1/2 before:bg-surface">
-      {/* 품목 줄 — 번개장터 둘째 줄처럼 굵은 큰 글 */}
-      <nav aria-label="품목" className="-mx-4 -mt-2 no-scrollbar flex items-center gap-7 overflow-x-auto border-b border-line px-4 md:mx-0 md:px-0">
-        {[{ key: undefined, label: '전체' }, ...CATEGORIES].map((c) => {
-          const on = f.category === c.key;
-          return (
-            <Link
-              key={c.label}
-              href={filterHref({ ...f, category: c.key, page: 1 })}
-              aria-current={on ? 'page' : undefined}
-              className={`relative flex min-h-12 shrink-0 items-center text-[17px] font-bold whitespace-nowrap ${
-                on ? 'text-ink after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-ink' : 'text-ink/70 hover:text-ink'
-              }`}
-            >
-              {c.label}
-            </Link>
-          );
-        })}
-      </nav>
+    <div className="space-y-10">
+      {/* 품목 줄 — 번개장터 둘째 줄처럼 굵은 큰 글(덕아웃 공용 CategoryRow) */}
+      <CategoryRow
+        label="품목"
+        className="-mt-2"
+        items={[{ key: undefined, label: '전체' }, ...CATEGORIES].map((c) => ({
+          key: c.key ?? 'all',
+          label: c.label,
+          href: filterHref({ ...f, category: c.key, page: 1 }),
+          on: f.category === c.key,
+        }))}
+      />
 
       {landing && (
         <>
           <MarketHero />
-          {/* 바로가기 — 번개장터 '찜 · 최근 본 상품 · 내폰바로팔기 …' 줄처럼 가운데 동그란 네모 */}
-          <nav aria-label="바로가기" className="no-scrollbar -mx-4 flex justify-start gap-4 overflow-x-auto px-4 md:mx-0 md:justify-center md:gap-8 md:px-0">
-            {SHORTCUTS.map((s) => {
-              const I = s.icon;
-              return (
-                <Link
-                  key={s.label}
-                  href={s.href}
-                  scroll={!s.href.includes('guide=1')}
-                  className="group flex w-20 shrink-0 flex-col items-center gap-2"
-                >
-                  <span className="grid h-[72px] w-[72px] place-items-center rounded-[22px] bg-surface-2 text-sky transition-transform group-hover:-translate-y-0.5">
-                    <I className="h-9 w-9" {...({ filled: true } as object)} />
-                  </span>
-                  <span className="text-[13px] font-semibold whitespace-nowrap text-ink">{s.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+          {/* 바로가기 — 번개장터 '찜 · 최근 본 상품 · 내폰바로팔기 …' 줄처럼 가운데 동그란 네모(덕아웃 공용 ShortcutTiles) */}
+          <ShortcutTiles items={SHORTCUTS} />
         </>
       )}
 
       <section className="space-y-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="text-[26px] font-black text-ink">{heading}</h1>
-          {f.q && (
-            <Link href="/market" className="text-sm font-semibold text-muted hover:text-ink">
-              검색 지우기
-            </Link>
-          )}
-        </div>
+        <DugoutPageHeader
+          title={heading}
+          actions={
+            f.q && (
+              <Link href="/market" className="text-sm font-semibold text-muted hover:text-ink">
+                검색 지우기
+              </Link>
+            )
+          }
+        />
         {/* 고르기 어려운 품목 · 검색에만 — 잘 모르는 사람만 보고 지나가게 옅게 */}
         {!landing && (f.q || (f.category && GUIDE_CATEGORIES.has(f.category))) && (
           <Link
@@ -164,15 +138,12 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
         )}
 
         {items.length === 0 ? (
-          <div className="space-y-3 py-20 text-center">
-            <p className="text-base font-bold text-ink">{landing ? '아직 올라온 물건이 없어요' : '맞는 물건이 없어요'}</p>
-            <p className="text-sm text-muted">
-              {landing ? '안 쓰는 글러브 · 배트를 첫 물건으로 올려 보세요.' : '거르기를 풀거나 다른 말로 찾아 보세요.'}
-            </p>
-            <Link href="/market/new" className="inline-flex min-h-11 items-center rounded-full bg-sky px-5 text-sm font-bold text-white">
-              물건 올리기
-            </Link>
-          </div>
+          <DugoutEmpty
+            title={landing ? '아직 올라온 물건이 없어요' : '맞는 물건이 없어요'}
+            description={landing ? '안 쓰는 글러브 · 배트를 첫 물건으로 올려 보세요.' : '거르기를 풀거나 다른 말로 찾아 보세요.'}
+            href="/market/new"
+            cta="물건 올리기"
+          />
         ) : (
           <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
             {items.map((item) => (

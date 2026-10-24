@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { RoundIcon, RoundSearch } from '@/components/round-icon';
 import type { RoundIconName } from '@/lib/round-icons';
 import { Badge } from '@/components/ui';
+import { CategoryRow, DugoutEmpty, DugoutPageHeader, chipClass } from '@/components/dugout/ui';
 import { ListingCard } from '@/components/dugout/listing-card';
 import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
 import { categoryBadgeClass, relativeTime } from '@/components/community/community-format';
@@ -47,9 +48,15 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const show = (t: SearchTab) => tab === 'all' || tab === t;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-10">
+    <div className="space-y-6 pb-10">
+      <DugoutPageHeader
+        title={q ? `‘${q}’ 검색 결과` : '통합검색'}
+        eyebrow={region || undefined}
+        subtitle={q ? undefined : '물건 · 글 · 코치 · 연습장 · 기능을 한 번에 찾아요.'}
+      />
+
       {/* 검색창 — 당근처럼 크게, 지운 뒤 다시 찾기 */}
-      <form action="/search" method="get" role="search" className="mx-auto max-w-2xl">
+      <form action="/search" method="get" role="search" className="max-w-3xl">
         {region && <input type="hidden" name="region" value={region} />}
         {tab !== 'all' && <input type="hidden" name="tab" value={tab} />}
         <label className="relative block">
@@ -83,40 +90,21 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       </form>
 
       {q && (
-        <nav aria-label="검색 칸" className="no-scrollbar -mx-4 flex justify-start gap-2 overflow-x-auto px-4 md:mx-0 md:justify-center md:px-0">
-          {SEARCH_TABS.map((t) => (
-            <Link
-              key={t.key}
-              href={href(t.key)}
-              aria-current={tab === t.key ? 'page' : undefined}
-              className={`inline-flex min-h-10 shrink-0 items-center rounded-full px-4 text-sm font-semibold transition-colors ${
-                tab === t.key ? 'bg-ink text-page' : 'border border-line bg-surface text-ink hover:border-ink/40'
-              }`}
-            >
-              {t.label}
-            </Link>
-          ))}
-        </nav>
+        <CategoryRow
+          label="검색 칸"
+          keepScroll
+          items={SEARCH_TABS.map((t) => ({ key: t.key, label: t.label, href: href(t.key), on: tab === t.key }))}
+        />
       )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0 space-y-4">
           {!q ? (
-            <p className="py-16 text-center text-sm text-muted">찾고 싶은 것을 적어 주세요. 오른쪽 검색어를 눌러도 돼요.</p>
+            <DugoutEmpty title="찾고 싶은 것을 적어 주세요" description="많이 찾는 검색어를 눌러도 돼요." />
           ) : (
             <>
-              <h1 className="flex flex-wrap items-baseline gap-x-2 text-xl font-bold text-ink">
-                <span className="inline-flex items-center gap-1.5">
-                  <RoundSearch className="h-5 w-5" />‘{q}’ 검색 결과
-                </span>
-                {region && <span className="text-sm font-medium text-muted">{region}</span>}
-              </h1>
-
               {total === 0 && (
-                <div className="rounded-2xl border border-line bg-surface px-6 py-14 text-center">
-                  <p className="text-base font-bold text-ink">‘{q}’에 맞는 결과가 없어요</p>
-                  <p className="mt-1 text-sm text-muted">글자를 줄이거나 다른 말로 찾아 보세요.</p>
-                </div>
+                <DugoutEmpty title={`‘${q}’에 맞는 결과가 없어요`} description="글자를 줄이거나 다른 말로 찾아 보세요." />
               )}
 
               {/* 바로가기 — 검색어가 기능 이름이면(구속 · 레슨 · 장비 …) 그 화면으로 */}
@@ -267,9 +255,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         </div>
 
         {/* 오른쪽 — 많이 찾는 검색어(당근 '인기 검색어' 자리) */}
-        <aside className="lg:sticky lg:top-32 lg:self-start">
+        <aside className="lg:sticky lg:top-[calc(var(--dugout-bar-h)+1.5rem)] lg:self-start">
           <section className="rounded-2xl border border-line bg-surface p-5">
-            <h2 className="flex items-center gap-1.5 text-[15px] font-bold text-ink">
+            <h2 className="flex items-center gap-1.5 text-base font-bold text-ink">
               <RoundSearch className="h-4.5 w-4.5" /> 많이 찾는 검색어
             </h2>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -277,9 +265,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                 <Link
                   key={w}
                   href={`/search?q=${encodeURIComponent(w)}`}
-                  className={`inline-flex min-h-8 items-center rounded-full px-3 text-[13px] font-medium transition-colors ${
-                    w === q ? 'bg-ink text-page' : 'bg-ink/5 text-ink hover:bg-ink/10'
-                  }`}
+                  className={chipClass(w === q)}
                 >
                   {w}
                 </Link>
@@ -307,7 +293,7 @@ function Panel({
 }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-surface">
-      <h2 className="flex items-center gap-2 border-b border-line px-5 py-3.5 text-[15px] font-bold text-ink">
+      <h2 className="flex items-center gap-2 border-b border-line px-5 py-3.5 text-base font-bold text-ink">
         <RoundIcon name={icon} filled className="h-5 w-5 text-sky" />
         {title}
       </h2>

@@ -42,9 +42,15 @@ export default async function BookPage({
   const audience = isAudience(rawA) ? rawA : null;
 
   return (
-    <LessonFrame back={`/lessons/${c.id}`} backLabel={`${c.coach} 코치`} title="레슨 요청">
-      <p className="text-xs text-muted">원하는 때를 고르면 코치가 하나를 확정해요. 레슨비는 레슨이 끝난 뒤 결제돼요.</p>
-      <Card className="flex items-center gap-3">
+    <LessonFrame
+      back={`/lessons/${c.id}`}
+      backLabel={`${c.coach} 코치`}
+      title="레슨 요청"
+      crumbs={[{ label: '레슨', href: '/lessons' }, { label: `${c.coach} 코치`, href: `/lessons/${c.id}` }, { label: '레슨 요청' }]}
+      subtitle="원하는 때를 고르면 코치가 하나를 확정해요. 레슨비는 레슨이 끝난 뒤 결제돼요."
+    >
+      <p className="text-xs text-muted lg:hidden">원하는 때를 고르면 코치가 하나를 확정해요. 레슨비는 레슨이 끝난 뒤 결제돼요.</p>
+      <Card className={`flex items-center gap-3 ${c.mine || c.myBooking ? '' : 'lg:hidden'}`}>
         <CoachAvatar name={c.coach} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold text-ink">
@@ -61,7 +67,7 @@ export default async function BookPage({
         <p className="text-sm text-muted">내 레슨장에는 예약할 수 없어요.</p>
       ) : c.myBooking ? (
         /* 요청을 보내면 화면이 다시 그려져 이 카드가 보인다 — 보낸 직후의 확인이기도 하다 */
-        <Card className="space-y-3 text-center">
+        <Card className="space-y-3 text-center lg:mx-auto lg:max-w-xl lg:py-10">
           <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-sky/12 text-2xl text-sky-strong">✓</span>
           <div>
             <p className="text-lg font-bold text-ink">
@@ -90,7 +96,7 @@ export default async function BookPage({
         </Card>
       ) : (
         <LessonBookForm
-          coach={{ id: c.id, coach: c.coach, specialties: c.specialties, slotMin: c.slotMin, priceFrom: c.priceFrom, trialPrice: c.trialPrice, hasSlots: !!c.slots }}
+          coach={{ id: c.id, coach: c.coach, specialties: c.specialties, slotMin: c.slotMin, priceFrom: c.priceFrom, trialPrice: c.trialPrice, hasSlots: !!c.slots, org: c.name, rating: c.rating, reviews: c.reviews }}
           todayKey={todayKey}
           days={days}
           byDay={byDay}

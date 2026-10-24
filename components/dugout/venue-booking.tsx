@@ -52,7 +52,7 @@ export function VenueBooking({
                 off
                   ? 'cursor-not-allowed border-line bg-surface-2 text-muted/50 line-through'
                   : on
-                    ? 'border-sky bg-sky text-white'
+                    ? 'border-ink bg-ink text-page'
                     : 'border-line bg-surface text-ink hover:border-sky-soft'
               }`}
             >

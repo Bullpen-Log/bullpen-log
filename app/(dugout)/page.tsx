@@ -3,14 +3,17 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { RoundIcon } from '@/components/round-icon';
 import { ListingCard } from '@/components/dugout/listing-card';
+import { SectionHead, chipClass } from '@/components/dugout/ui';
 import { getCurrentUser } from '@/lib/dal';
 import { isNativeUserAgent, surfaceOf } from '@/lib/app-env';
 import { DugoutMain } from '@/components/dugout/dugout-main';
+import { HomeSnap } from '@/components/dugout/home-snap';
 import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
 import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
 import { countUnread, loadLatestListings, loadPublicPosts } from '@/lib/market/load';
 import { loadRecommendedCoaches } from '@/lib/market/lesson-load';
 import { GamesPanel } from '@/components/dugout/games-panel';
+import { MatchHeight } from '@/components/dugout/match-height';
 import { BaseballNews } from '@/components/dugout/baseball-news';
 import { kstDateKey, loadBaseballNews, loadHomeGames } from '@/lib/baseball-feed';
 import { relativeTime } from '@/components/community/community-format';
@@ -102,9 +105,7 @@ export default async function DugoutHome({
     <Link
       key={href + label}
       href={href}
-      className={`inline-flex min-h-9 shrink-0 items-center rounded-full px-3.5 text-[13px] font-semibold whitespace-nowrap transition-colors ${
-        on ? 'bg-ink text-page' : 'border border-line text-ink hover:border-ink/40'
-      }`}
+      className={chipClass(on, 'md')}
     >
       {label}
     </Link>
@@ -112,8 +113,8 @@ export default async function DugoutHome({
 
   return (
     <div className="space-y-10">
-      {/* 홈 — 흰 바탕을 화면 끝까지(장터와 같은 틀) */}
-      <div className="relative isolate before:absolute before:-top-10 before:-bottom-40 before:left-1/2 before:-z-10 before:w-screen before:-translate-x-1/2 before:bg-surface">
+      {/* 홈 — 흰 바탕은 덕아웃 틀이 준다(2026-10-24 UI 통일) */}
+      <div>
         {/* 첫 화면 — 통합검색 · 우리 기능 아이콘 줄(이게 보이는 동안 위 막대는 숨는다) */}
         <DugoutMain
           user={user ? { nickname: user.nickname } : null}
@@ -128,7 +129,12 @@ export default async function DugoutHome({
           경기 칸은 오른쪽에 작게 따로(2026-10-24 금윤호 "야구 일정 결과를 우측으로 작게 빼 달라고") — 휴대폰이 아니면(768px~) 본문 오른쪽의 좁은 칸(220~240px)에 떠서
           내려도 따라오고(sticky), 본문은 왼쪽 넓은 칸 그대로 먼저. 휴대폰만 띠 밑에 오른쪽으로 붙은 작은 카드(본문 맨 위로 올라오지 않게).
         */}
-        <div className={`mx-auto grid max-w-6xl gap-6 pb-6 ${sinkerApp ? '' : 'md:grid-cols-[minmax(0,1fr)_220px] lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8'}`}>
+        {/* 두 칸 스크롤(첫 화면 ↔ 본문) — components/dugout/home-snap.tsx 가 이 칸을 위 막대 바로 밑에 세운다(scroll-margin 이 그 틈) */}
+        <HomeSnap />
+        <div
+          data-dugout-content
+          className={`mx-auto grid max-w-6xl scroll-mt-3 gap-6 pb-6 md:scroll-mt-5 ${sinkerApp ? '' : 'md:grid-cols-[minmax(0,1fr)_220px] lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8'}`}
+        >
         <div className="min-w-0 space-y-16">
           {/* 로그인한 사람 — 최근 레슨(내 싱커 띠는 2026-10-23 금윤호 "덕아웃에서 내 싱커 블록도 없애줘") */}
           {/* 싱커 → 덕아웃 — 방금 잰 기록을 카드로 붙여 글을 연다(싱커 앱 안만, docs/designs/dugout-community.md '싱커에서 올리기') */}
@@ -153,7 +159,11 @@ export default async function DugoutHome({
 
           {lessons.length > 0 && <LessonFeedCard items={lessons} compact title="최근 레슨" />}
 
-          {!sinkerApp && <MarketHero slides={slides} slim label="덕아웃 소식" />}
+          {!sinkerApp && (
+            <MatchHeight target="[data-games-aside] [aria-label='오늘의 경기']">
+              <MarketHero slides={slides} slim label="덕아웃 소식" />
+            </MatchHeight>
+          )}
 
           {/* 휴대폰 · 태블릿의 경기 칸 — 오른쪽으로 붙은 작은 카드(PC 는 오른쪽 칸) */}
           <div className={sinkerApp ? 'hidden' : 'flex justify-end md:hidden'}>
@@ -165,9 +175,9 @@ export default async function DugoutHome({
           {/* 야구 뉴스 — 네이버 검색 열쇠가 있을 때만(경기 결과는 오른쪽 칸) */}
           {newsRows && newsRows.length > 0 && <BaseballNews news={newsRows} />}
 
-          {/* 장터 — 싱커 앱에는 없다 */}
-          <section className={sinkerApp ? 'hidden' : 'space-y-4'}>
-            <Head kicker="덕아웃 장터에서" title="방금 올라온 물건" href="/market" />
+          {/* 장터 — 싱커 앱에는 없다. 두 칸 스크롤의 본문 자리(B)는 이 묶음이 위 막대 바로 밑에 오는 곳(2026-10-24 금윤호 — 띠는 지나서) */}
+          <section data-dugout-snap className={sinkerApp ? 'hidden' : 'scroll-mt-4 space-y-4 md:scroll-mt-6'}>
+            <SectionHead kicker="덕아웃 장터에서" title="방금 올라온 물건" href="/market" />
             <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
               {chip('/market', '전체', true)}
               {CATEGORIES.slice(0, 8).map((c) => chip(filterHref({ category: c.key }), c.label))}
@@ -190,7 +200,7 @@ export default async function DugoutHome({
 
           {/* 추천 코치 — 숨고 '오늘의 추천 고수' */}
           <section className="space-y-4">
-            <Head title="오늘의 추천 코치" href="/lessons/list" />
+            <SectionHead title="오늘의 추천 코치" href="/lessons/list" />
             <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
               {chip('/lessons/list', '전체', true)}
               {SPECIALTIES.map((s) => chip(`/lessons/list?specialty=${s.key}`, s.label))}
@@ -237,7 +247,7 @@ export default async function DugoutHome({
 
           {/* 지금 필요한 것 — 숨고 '지금 필요한 서비스, 한번에 견적 받기'(장비 · 물건 팔기가 섞여 싱커 앱에는 없다) */}
           <section className={sinkerApp ? 'hidden' : 'space-y-4'}>
-            <Head title="지금 필요한 것, 한 번에" />
+            <SectionHead title="지금 필요한 것, 한 번에" />
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
               {needs.map((n) => (
                 <Link
@@ -265,7 +275,7 @@ export default async function DugoutHome({
 
           {/* 인기글 — 숨고 '이번 주 강남구 주변 인기글' */}
           <section className="space-y-4">
-            <Head title="이번 주 인기글" href={user ? '/community' : '/login?next=/community'} />
+            <SectionHead title="이번 주 인기글" href={user ? '/community' : '/login?next=/community'} />
             {hot.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted">
                 아직 글이 없어요 ·{' '}
@@ -296,29 +306,13 @@ export default async function DugoutHome({
             )}
           </section>
         </div>
-        <aside className={sinkerApp ? 'hidden' : 'hidden md:block'}>
+        <aside data-games-aside className={sinkerApp ? 'hidden' : 'hidden md:block'}>
           <div className="sticky top-24">
             <GamesPanel games={games} today={today} />
           </div>
         </aside>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Head({ kicker, title, href }: { kicker?: string; title: string; href?: string }) {
-  return (
-    <div className="flex items-end justify-between gap-3">
-      <div className="min-w-0">
-        {kicker && <p className="text-[13px] text-muted">{kicker}</p>}
-        <h2 className="mt-0.5 text-xl font-bold text-ink">{title}</h2>
-      </div>
-      {href && (
-        <Link href={href} className="shrink-0 text-sm text-muted hover:text-ink">
-          더보기 ›
-        </Link>
-      )}
     </div>
   );
 }

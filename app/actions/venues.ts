@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { geocode } from '@/lib/geocode';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { notify } from '@/lib/notify';
@@ -29,6 +30,12 @@ import {
  * 덕아웃 장소 예약(3판, 2026-10-21) — 사장님(마스터 계정): 장소 등록 · 고치기 · 승인 · 거절(requireMaster). 선수: 예약 · 취소(requireUser).
  * 승인형 장소는 사장님이 확정해야 잡히고, 즉시형은 요청하자마자 확정. 같은 칸에 둘은 못 잡는다(요청 · 확정 모두 taken).
  */
+
+/** 주소로 지도 자리(못 찾으면 null — 지도에만 안 뜬다) */
+async function coordsOf(d: { address: string | null; region: string; name: string }) {
+  const c = await geocode(d.address ? `${d.address}` : null, d.name);
+  return { lat: c?.lat ?? null, lng: c?.lng ?? null };
+}
 
 export type VenueState = { error?: string; success?: string } | undefined;
 
@@ -102,10 +109,10 @@ export async function saveVenue(
     });
     if (!found || (found.ownerId !== user.id && user.role !== 'ADMIN'))
       return { error: '내 장소가 아니에요.' };
-    await prisma.venue.update({ where: { id }, data: read.data });
+    await prisma.venue.update({ where: { id }, data: { ...read.data, ...(await coordsOf(read.data)) } });
   } else {
     const created = await prisma.venue.create({
-      data: { ...read.data, ownerId: user.id },
+      data: { ...read.data, ...(await coordsOf(read.data)), ownerId: user.id },
       select: { id: true },
     });
     revalidatePath('/manage/venues');

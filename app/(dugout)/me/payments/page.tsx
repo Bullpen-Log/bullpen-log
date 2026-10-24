@@ -1,6 +1,7 @@
 import Link from 'next/link';
+import { DugoutPageHeader, SectionHead } from '@/components/dugout/ui';
 import { redirect } from 'next/navigation';
-import { RoundBack, RoundLock } from '@/components/round-icon';
+import { RoundLock } from '@/components/round-icon';
 import { Card } from '@/components/ui';
 import { getCurrentUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
@@ -52,17 +53,11 @@ export default async function PaymentsPage() {
     })),
   ];
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
-      <Link
-        href="/me"
-        className="inline-flex items-center gap-1 text-sm font-semibold text-sky"
-      >
-        <RoundBack className="h-4 w-4" /> 내 것
-      </Link>
-      <h1 className="text-2xl font-black text-ink">결제</h1>
+    <div className="max-w-3xl space-y-6">
+      <DugoutPageHeader title="결제" crumbs={[{ label: '내 것', href: '/me' }, { label: '결제' }]} />
 
       <Card className="space-y-3">
-        <h2 className="text-sm font-bold text-ink">결제 수단</h2>
+        <h2 className="text-base font-bold text-ink">결제 수단</h2>
         <div className="grid gap-2 opacity-60 sm:grid-cols-3">
           {['카드 등록', '계좌 등록', '간편결제 연결'].map((l) => (
             <button
@@ -80,8 +75,8 @@ export default async function PaymentsPage() {
         </p>
       </Card>
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-bold text-ink">결제 예정 · 내역</h2>
+      <section className="space-y-4">
+        <SectionHead title="결제 예정 · 내역" />
         <Card className="divide-y divide-line p-0">
           {rows.length === 0 && (
             <p className="px-4 py-4 text-xs text-muted">

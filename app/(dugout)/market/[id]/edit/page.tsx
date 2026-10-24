@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
 import { createPlaybackUrls } from '@/lib/storage';
 import type { Specs } from '@/lib/market/specs';
+import { DugoutPageHeader } from '@/components/dugout/ui';
 
 /** 내 물건 고치기 — 주인만 */
 export default async function EditListingPage({ params }: { params: Promise<{ id: string }> }) {
@@ -17,8 +18,8 @@ export default async function EditListingPage({ params }: { params: Promise<{ id
   if (!row || row.userId !== user.id) notFound();
   const urls = row.images.length ? await createPlaybackUrls(row.images).catch(() => ({}) as Record<string, string>) : {};
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <h1 className="text-2xl font-black text-ink">물건 고치기</h1>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <DugoutPageHeader title="물건 고치기" crumbs={[{ label: '장터', href: '/market' }, { label: '물건 고치기' }]} />
       <ListingForm
         initial={{
           id: row.id,
