@@ -33,6 +33,8 @@ export type CoachProfile = {
   /* 관리자 편집(이름 · 지역도 같이) */
   name?: string;
   region?: string | null;
+  /** 레슨장 주소(덕아웃 지도) — 넘길 때만 칸이 보인다(안 넘기면 저장이 주소를 안 건드림) */
+  address?: string | null;
 };
 
 /**
@@ -81,6 +83,11 @@ export function CoachProfileForm({
             <Input name="region" type="text" maxLength={40} defaultValue={profile.region ?? ''} readOnly={!canEdit} />
           </Field>
         </div>
+      )}
+      {profile.address !== undefined && (
+        <Field label="레슨장 주소" hint="적으면 덕아웃 지도에 레슨장이 떠요. 도로명 주소가 가장 잘 찾아져요">
+          <Input name="address" type="text" maxLength={120} defaultValue={profile.address ?? ''} readOnly={!canEdit} placeholder="서울 강남구 테헤란로 123" />
+        </Field>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="코치 이름" hint="비우면 계정 이름으로 보여요">

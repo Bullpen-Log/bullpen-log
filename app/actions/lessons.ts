@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { notify } from '@/lib/notify';
+import { geocode } from '@/lib/geocode';
 import { requireAdmin, requireMaster, requireUser } from '@/lib/dal';
 import { requireOrg } from '@/lib/org/access';
 import { consentDefaults } from '@/lib/org/rules';
@@ -105,9 +106,20 @@ export async function updateCoachProfile(
               .slice(0, ORG_REGION_MAX) || null,
         }
       : {};
+  /* 레슨장 주소 → 덕아웃 지도 자리(2026-10-24). 칸이 폼에 있을 때만 손댄다(옛 화면이 지우지 않게) */
+  let place = {};
+  if (formData.has('address')) {
+    const address =
+      String(formData.get('address') ?? '')
+        .trim()
+        .slice(0, 120) || null;
+    const c = await geocode(address, coachName ?? org.name);
+    place = { address, lat: c?.lat ?? null, lng: c?.lng ?? null };
+  }
   await prisma.org.update({
     where: { id: org.id },
     data: {
+      ...place,
       publicProfile,
       coachIntro,
       coachCareer,

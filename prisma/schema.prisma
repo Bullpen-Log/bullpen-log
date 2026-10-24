@@ -1834,6 +1834,10 @@ model Org {
   name      String
   /// 지역 — 자유 글(예: 서울 강남)
   region    String?
+  /// 레슨장 주소 · 지도 자리(덕아웃 지도, 2026-10-24) — 좌표는 저장할 때 카카오 주소 검색으로
+  address   String?
+  lat       Float?
+  lng       Float?
   /// 짧은 메모 — 레슨장은 코치 수, 팀은 연령대 · 리그
   note      String?
   /// 만든 마스터 계정
@@ -2191,6 +2195,9 @@ model Venue {
   kind      String
   region    String
   address   String?
+  /// 지도 자리 — 주소를 저장할 때 카카오 주소 검색으로 채운다(lib/geocode.ts). 못 찾으면 null
+  lat       Float?
+  lng       Float?
   intro     String?  @db.Text
   /// 한 칸(분) 30 · 60 · 120, 칸당 가격(원), 가격 메모
   slotMin   Int      @default(60)

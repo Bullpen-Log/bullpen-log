@@ -11,6 +11,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 덕아웃 연습장 · 레슨장 지도(카카오맵) · **받으면 `npx prisma generate`**
+
+받은 뒤 할 일: **`npx prisma generate`** — `Venue.lat · lng`, `Org.address · lat · lng`(마이그레이션 `20261024190000_place_map_coords`, 공유 DB 에 적용함 — 더하기만, 백업 `db-2026-10-24-09-49.json`).
+금윤호: "연습장을 네이버 지도 · 카카오맵처럼 지도로, 네이버 예약처럼 대관 예약". `/venues` 가 지도(왼쪽 목록 · 오른쪽 카카오맵, 점 → 카드 → 자세히 · 예약)다. 좌표는 저장할 때
+카카오 주소 검색으로(`lib/geocode.ts`), 레슨장은 설정의 코치 프로필에 '레슨장 주소' 칸이 생겼다. 열쇠 둘(`NEXT_PUBLIC_KAKAO_MAP_KEY` · `KAKAO_REST_API_KEY`)은 아직 없어 지도 자리엔 안내만 뜬다.
+- **알림**: `migrate diff` 가 이 칸들 말고도 `CommunityPost` 칸 여덟 · `CommunityBlock/Join/Message` 표를 지우라고 냈다 — 공유 DB 에 있는데 main 스키마엔 없는 것(네가 작업 중인 커뮤니티 같다). 내 마이그레이션엔 안 넣었으니, 네 스키마를 올릴 때 그 마이그레이션도 같이 올려 줘.
+
 ## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 경기 상세 · 경기 댓글 — **받으면 `npx prisma generate`**
 
 받은 뒤 할 일: **`npx prisma generate`** — 새 표 `GameComment`(경기 댓글, 더하기만, 마이그레이션 `20261024170000_game_comment`). 옛 코드도 돈다.
