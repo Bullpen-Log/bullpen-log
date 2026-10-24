@@ -127,8 +127,9 @@ const LEVEL_MAX_DEG = 35;
  * 엉덩이 점 버릇) 다리 들기 동안 위에서 본 돌림 오차가 가운데 14.6° 였다. 0.7 로 섞으면 투구를 하나씩 빼고 맞춰 봐도 4.8°.
  * 넣은 뒤(엔진 전체): 골반 돌림 오차 14.2 → 5.0° · 상하체 분리 오차 12.3 → 4.7°, 관절 오차 · 스티커 흔들림은 그대로이거나 조금 나음.
  * 내딛기부터는 어떤 단서(허벅지 · 무릎 · 어깨 · 귀)도 엉덩이선보다 낫지 않아(11°) 니업 뒤 PELVIS_FOOT_FADE 동안 줄여 끈다.
+ * 2026-10-24 축 넙다리 길이 배율(PIVOT_THIGH_*)을 넣으며 0.7 → 0.8 — 넙다리가 축 엉덩이를 끌던 몫이 없어져 다시 골랐다(0.6 · 0.7 은 돌림 · 분리가 나빠짐).
  */
-const PELVIS_FOOT_PULL = 0.7;
+const PELVIS_FOOT_PULL = 0.8;
 /** 니업 → 착지 장면 수의 비 — 이만큼 동안 섞는 몫을 0 으로(한 장면에 골반이 돌지 않게) */
 const PELVIS_FOOT_FADE = 0.25;
 /**
@@ -147,6 +148,20 @@ const LEG_SCALE_RANGE = [0.85, 1.05] as const;
 const LEG_SCALE_FREE_MAX = 1.3;
 const LEG_SCALE_SIGMA = 2;
 const LEG_SCALE_EASE = 4;
+/**
+ * 다리 들기 · 내딛기 동안 축다리 넙다리 길이를 장면마다 관찰 길이를 따라(시간 다듬기 폭 = 착지 → 릴리스 장면 수 × PIVOT_THIGH_SIGMA,
+ * PIVOT_THIGH_RANGE 안, 착지 PIVOT_THIGH_TAPER 앞부터 착지까지 1 로 줄임). 관절 모델의 엉덩이 · 무릎 점은 관절 중심이 아니라 자세마다 조금씩 달라,
+ * 다리를 들 때 축 넙다리가 클립 가운데값보다 3~8% 길게 잡힌다. 길이를 하나로 묶으면 땅에 묶인 축발에서 뼈 투영이 축 쪽 엉덩이를 키의 0.8~1.6%
+ * 끌어내려 다리 들기 골반이 더 기울었다(2026-10-24 김민: "마커 38 초반 오른쪽 골반 · 무릎이 부자연스럽다" — 엔진 −27.7° · 네 대 교차 −19.2°).
+ * 관찰(맞추기 전 목표)의 기울기는 네 대 교차와 같았고(가운데 −0.1°) 뼈 투영에서만 벌어졌다.
+ * 고른 범위: 두 다리 · 정강이까지 · 착지 뒤까지 풀면 골반 기울기는 더 맞지만(−0.1°) 착지 뒤 몸통이 바뀌어 레이백 오차 4.8 → 7.9° ·
+ * 스티커 흔들림 1.21 → 1.26cm 로 나빠졌다. 축 넙다리 · 착지 전만이 두 촬영의 모든 채점을 지킨다(위 PELVIS_FOOT_PULL 0.7 → 0.8 과 함께 고름).
+ * 마커 10-21 10구: 다리 들기 골반 옆 기울기 오차(네 대 교차 대비) 가운데 −3.5 → −1.8° · |차| 4.0 → 2.3° · 상위 10% 8.2 → 6.8°, 5구(앱의 마커 샘플 38) −7.5 → −2.9°.
+ * 10-12 15구: −4.0 → (아래 결과 절), 골반 돌림 5.09 → 4.36° · 상하체 분리 4.61 → 4.15°(스티커 정답).
+ */
+const PIVOT_THIGH_SIGMA = 0.5;
+const PIVOT_THIGH_TAPER = 0.5;
+const PIVOT_THIGH_RANGE = [0.9, 1.12] as const;
 /** 몸통 · 머리 점 다듬기 폭 — 착지 → 릴리스 장면 수의 비(그 구간 ≈ 0.17초라 0.06 ≈ 10ms) */
 const TRUNK_SIGMA = 0.06;
 const TRUNK_JOINTS = [
@@ -1288,6 +1303,26 @@ function fitOnce(raw: V2Input): {
   const leadL = core.hand !== 'L';
   const [ldHip, ldKn, ldAn] = leadL ? [V2J.lHip, V2J.lKn, V2J.lAn] : [V2J.rHip, V2J.rKn, V2J.rAn];
 
+  /* 축 넙다리 길이 배율(장면마다, PIVOT_THIGH_*) — 관찰(목표) 길이 ÷ 뼈 길이를 시간으로 다듬고 착지 앞에서 1 로. 안 보인 장면은 1 */
+  const pivotThigh = BONES.find((b) => b.key === 'thigh' && b.a === (core.hand === 'L' ? V2J.lKn : V2J.rKn))!;
+  const pivotThighScale = (() => {
+    const span = Math.max(1, core.evIdx.release - core.evIdx.footPlant);
+    const fp = core.evIdx.footPlant;
+    const taper = Math.max(2, Math.round(PIVOT_THIGH_TAPER * span));
+    const Lb = L(pivotThigh);
+    const r = target.map((fr, k) =>
+      dataW[k][pivotThigh.a] > 0 && dataW[k][pivotThigh.b] > 0
+        ? norm(sub(fr[pivotThigh.a], fr[pivotThigh.b])) / Lb
+        : 1
+    );
+    return gaussSmooth(r, Math.max(1, PIVOT_THIGH_SIGMA * span)).map((v, k) => {
+      const w = k <= fp - taper ? 1 : k >= fp ? 0 : (fp - k) / taper;
+      const c = Math.max(PIVOT_THIGH_RANGE[0], Math.min(PIVOT_THIGH_RANGE[1], v));
+      return 1 + (c - 1) * w;
+    });
+  })();
+  const lenAt = (b: Bone, k: number) => (b === pivotThigh ? L(b) * pivotThighScale[k] : L(b));
+
   /*
    * ── 자리 기반 맞추기 ──
    * 되풀이마다 관찰로 당김 → 시간 매끈 → 뼈 길이 투영(앞 · 뒤 두 번 훑음) 차례 — 뼈 투영이 마지막이라 매 되풀이 끝에 길이가 맞는다
@@ -1302,7 +1337,7 @@ function fitOnce(raw: V2Input): {
       const d = sub(A, B);
       const len = norm(d);
       if (len < 1e-9) return;
-      const Lb = L(b);
+      const Lb = lenAt(b, k);
       let want = Lb;
       if (b.soft) {
         const lo = Lb * (1 - b.soft);
@@ -1488,8 +1523,9 @@ function fitOnce(raw: V2Input): {
   for (const s of spans) if (s[1] - s[0] >= 2) lowConf.push(s);
 
   /* ── 품질 ── */
+  /* 축 넙다리는 장면마다 정한 길이(lenAt)에 견준다 — 뜻한 길이 변화는 흔들림이 아니다 */
   const cvs = RIGID.map((b) =>
-    robustCv(X.map((fr) => norm(sub(fr[b.a], fr[b.b]))))
+    robustCv(X.map((fr, k) => norm(sub(fr[b.a], fr[b.b])) * (L(b) / lenAt(b, k))))
   ).filter(Number.isFinite);
   const boneCvPct = cvs.length
     ? Math.round((cvs.reduce((a, c) => a + c, 0) / cvs.length) * 1000) / 10

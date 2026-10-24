@@ -36,14 +36,25 @@ export function relativeTime(date: Date, now: Date = new Date()) {
 }
 
 /**
- * 구분마다 다른 색 — 목록에서 질문 · 기록 · 팁이 한눈에 갈리게. 앱의 상태색 토큰만 쓴다(원색 클래스는 흰 바탕에서 안 읽힌다).
+ * 게시판마다 다른 색 — 목록에서 질문 · 번개 · 팀 글이 한눈에 갈리게. 앱의 상태색 토큰만 쓴다(원색 클래스는 흰 바탕에서 안 읽힌다).
  */
 export const CATEGORY_BADGE: Record<PostCategory, string> = {
   free: '',
   question: 'border-sky-soft/60 bg-sky-tint text-sky-strong desk:bg-transparent',
-  record: 'border-warn-line bg-warn-bg text-warn desk:bg-transparent',
-  tip: 'border-ok/40 bg-ok/10 text-ok desk:bg-transparent',
+  meetup: 'border-warn-line bg-warn-bg text-warn desk:bg-transparent',
+  team: 'border-ok/40 bg-ok/10 text-ok desk:bg-transparent',
 };
 
 export const categoryBadgeClass = (category: string) =>
   CATEGORY_BADGE[category as PostCategory] ?? '';
+
+const meetFmt = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  month: 'long',
+  day: 'numeric',
+  weekday: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+/** 번개 시각 — '10월 25일 (토) 오전 10:00' */
+export const meetAtText = (date: Date) => meetFmt.format(date);

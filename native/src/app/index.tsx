@@ -76,7 +76,6 @@ const NATIVE_ROUTES = [
   /^\/workout$/,
   /^\/armcare\/[\w-]+(\?[\w=&%.-]*)?$/,
   /^\/(mechanics|analysis)(\?[\w=&%.-]*)?$/,
-  /^\/community(\/[\w-]+)?(\?[\w=&%.-]*)?$/,
   /^\/support(\/notices(\/[\w-]+)?|\/inquiries(\/[\w-]+)?)?$/,
   /^\/library\/(training|mechanics|warmup)$/,
   /^\/board(\/[\w-]+)?$/,
@@ -420,11 +419,6 @@ export default function SiteScreen() {
     }
     /* 더보기는 앱 화면(사이트가 목록을 알려 준 뒤) — 웹 메뉴는 앱 화면 위에서 열면 밑에 깔려 안 보인다 */
     if (t.href === '/more' && menu.groups.length) return router.push('/more' as Href);
-    /*
-     * 커뮤니티는 앱 화면(app/community/index.tsx) — 들어가면 하단바가 커뮤니티 것으로 갈아 끼워진다(토스 '증권'처럼, ← 로 돌아옴).
-     * 웹 판을 띄우면 커뮤니티 하단바가 안 나왔다(2026-10-20 김민: "반영이 안 됐다").
-     */
-    if (t.href === '/community' && !t.locked) return openNative('/community');
     /* 타격 탭(2026-10-20)은 웹 판 — 주소를 먼저 바꿔 앱 판을 바로 걷고 종목 바로 갈아 끼운다 */
     /* 종목 바의 홈 · 기록(?view=log)도 같은 판이라 ? 뒤까지 바로 맞춘다 */
     const [tabPath, tabQuery = ''] = t.href.split('?');

@@ -7,6 +7,7 @@ import {
   requestPitch3dV2,
 } from '@/app/actions/pitch-lab';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
+import { toast } from '@/components/toast';
 import {
   isV2JobActive,
   V2_POLL_MS,
@@ -62,9 +63,12 @@ export function useV2Analysis(
     };
   }, [preview, sampleId, shownId, loadedFor]);
 
-  /* 돌고 있는 동안 묻기 */
+  /*
+   * 돌고 있는 동안 묻기 — 15분이 지나 멈춘 작업(queued · running)도 한 번은 묻는다: GPU 가 끝냈으면 결과로, 아니면 시간 초과로 바뀐다
+   * (예전엔 화면을 닫아 아무도 안 물은 작업이 영영 '대기'로 남았다 — 2026-10-24 마커 37)
+   */
   useEffect(() => {
-    if (preview || !job || !isV2JobActive(job, Date.now())) return;
+    if (preview || !job || (job.status !== 'queued' && job.status !== 'running')) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const tick = async () => {
@@ -85,6 +89,7 @@ export function useV2Analysis(
         return;
       }
       setOffline(false);
+      if (r.job?.status === 'done' && r.job.jobId === job.jobId) toast('분석이 끝났어요. 새 결과예요');
       setJob(r.job);
       if (r.job && isV2JobActive(r.job, Date.now()))
         timer = setTimeout(tick, V2_POLL_MS);

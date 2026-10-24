@@ -118,3 +118,39 @@ export async function boxLumaOfSample(sample: LumaSource, W: number, H: number):
   }
   return out;
 }
+
+/**
+ * 원본 해상도 밝기 조각 — 세운 화면 자리 (cx, cy) 둘레 (2·half+1)² 칸을 줄이지 않고(범위만 펴고 돌림 반영) 꺼낸다. 정밀 반지름(ball-radius.ts)용 —
+ * 분석 크기(720)로 줄이면 끝의 공(반지름 4~5px)이 줄어 두 날 사이 깊이가 4.5% 갈렸다(1080 이면 1.5%). 화면 밖 칸은 가장자리 값. 다른 형식이면 null.
+ */
+export async function cropsOfSample(
+  sample: LumaSource,
+  crops: { cx: number; cy: number; half: number }[]
+): Promise<Float32Array[] | null> {
+  if (sample.format !== 'NV12' && sample.format !== 'I420') return null;
+  const need = sample.allocationSize();
+  if (yBuffer.length < need) yBuffer = new Uint8Array(need);
+  const layout = await sample.copyTo(yBuffer);
+  const { offset, stride } = layout[0];
+  const { left, top, width: w, height: h } = sample.visibleRect;
+  const lut = sample.colorSpace.fullRange ? FULL_RANGE : VIDEO_RANGE;
+  const rot = ((sample.rotation % 360) + 360) % 360;
+  const PW = rot === 90 || rot === 270 ? h : w;
+  const PH = rot === 90 || rot === 270 ? w : h;
+  const col = (x: number) =>
+    rot === 0 ? x : rot === 90 ? (h - 1 - x) * stride : rot === 180 ? w - 1 - x : x * stride;
+  const row = (y: number) =>
+    rot === 0 ? y * stride : rot === 90 ? y : rot === 180 ? (h - 1 - y) * stride : w - 1 - y;
+  const base = offset + top * stride + left;
+  return crops.map(({ cx, cy, half }) => {
+    const S = 2 * half + 1;
+    const out = new Float32Array(S * S);
+    const x0 = Math.round(cx) - half;
+    const y0 = Math.round(cy) - half;
+    for (let j = 0; j < S; j++) {
+      const r = base + row(Math.min(PH - 1, Math.max(0, y0 + j)));
+      for (let i = 0; i < S; i++) out[j * S + i] = lut[yBuffer[r + col(Math.min(PW - 1, Math.max(0, x0 + i)))]];
+    }
+    return out;
+  });
+}

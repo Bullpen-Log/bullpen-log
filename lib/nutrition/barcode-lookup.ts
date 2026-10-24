@@ -15,7 +15,7 @@ export type BarcodeLookup =
 
 const OFF_URL = 'https://world.openfoodfacts.org/api/v2/product';
 /* Open Food Facts 는 쓰는 앱 이름을 User-Agent 로 밝혀 달라고 한다 */
-const USER_AGENT = 'BullpenLog/1.0 (https://bullpen-log.vercel.app)';
+const USER_AGENT = 'BullpenLog/1.0 (https://dugout-baseball.com)';
 const WEEK = 60 * 60 * 24 * 7;
 const FAILED = '바코드 자료에 닿지 못했어요. 잠시 뒤에 다시 해 주세요.';
 

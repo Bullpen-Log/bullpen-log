@@ -193,6 +193,7 @@ export const NAV_GROUPS: NavGroup[] = [
    * 잠금 없음 — 가입하면 바로 열린다. 고객센터는 아래 '소통'에 남는다.
    */
   {
+    /* 싱커 앱 안의 덕아웃은 싱커와 이어진 커뮤니티 · 레슨 · 연습장 · 채팅만(2026-10-24 김민, lib/sinker-dugout.ts) — 탭 이름은 '덕아웃' 그대로 */
     items: [{ href: DUGOUT_HREF, label: '덕아웃', icon: 'community' }],
   },
   /* 투구 기록 · 트레이닝 · 영양 · 구속 측정은 처음 가입한 사람에게 잠겨 있다(lock — 위 NavItem.lock) */

@@ -236,6 +236,15 @@ export type DistanceReport = {
   seedFrame: number | null;
   /** 모델 공 길 안내(netHits)로 찾은 공 길인가 */
   guided?: boolean;
+  /**
+   * 끝 장면 정밀 공 크기로 잰 받는 면 깊이(m, 엔진 2.9 — analyze-video limbDistance) · 쓴 장면 수 · 흐림 σ(원본 px). 디코더 길에서만 실린다.
+   * 공 크기 거리(sizeDistM, 덩어리 지름 × 상수)와 달리 상수를 날마다 맞추지 않는다 — 세션 거리가 이것을 쓴다.
+   */
+  limbDistM?: number;
+  limbFrames?: number;
+  limbSigma?: number;
+  /** 정밀 크기 거리를 못 낸 까닭(진단) */
+  limbWhy?: string;
   timingMs: number;
 };
 

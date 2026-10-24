@@ -169,6 +169,11 @@ model User {
   gameComments      GameComment[]
   communityLikes    CommunityLike[]
   communityReports  CommunityReport[] @relation("CommunityReporter")
+  communityBlocks   CommunityBlock[]  @relation("CommunityBlocker")
+  communityBlockedBy CommunityBlock[] @relation("CommunityBlocked")
+  communityJoins    CommunityJoin[]
+  communityMessages CommunityMessage[] @relation("CommunityMessageSender")
+  communityThreads  CommunityMessage[] @relation("CommunityMessageThread")
   listings          Listing[]
   listingFavorites  ListingFavorite[]
   buyingChats       Conversation[]    @relation("ConversationBuyer")
@@ -1700,9 +1705,26 @@ model SupportReply {
 model CommunityPost {
   id        String    @id @default(uuid())
   userId    String
+  /// 게시판 — free · question · meetup · team(lib/community.ts POST_CATEGORIES)
   category  String
+  /// 말머리 — 게시판마다 다름(lib/community.ts POST_TAGS)
+  tag       String?
   title     String
   body      String    @db.Text
+  /// 사진 · 영상 경로(비공개 저장소 {userId}/community/…), 4개까지
+  media     String[]  @default([])
+  /// 질문 · 답변의 채택 답변(댓글 id) — 있으면 '해결됨'
+  acceptedCommentId String?
+  /// 싱커 기록 카드(구속 · 3D · 기록 갱신 · 투구 영상) — 글 쓸 때 찍어 둔 값
+  card      Json?
+  /// 번개 · 팀 홍보 · 선수 모집 양식(언제 · 어디 · 몇 명 · 실력 · 회비 …)
+  form      Json?
+  /// 우리 동네 거르기(시 · 도 + 시 · 군 · 구 한 줄)
+  region    String?
+  /// 번개 날짜 · 시각 — 지나면 목록에서 내려가고 다음 날 대화방이 닫힌다
+  meetAt    DateTime?
+  /// 마감(글쓴이가 닫거나 다 참) — 더 참가 · 신청을 안 받는다
+  closedAt  DateTime?
   hiddenAt  DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -1711,6 +1733,8 @@ model CommunityPost {
   comments CommunityComment[]
   likes    CommunityLike[]
   reports  CommunityReport[]
+  joins    CommunityJoin[]
+  messages CommunityMessage[]
 
   @@index([createdAt])
   @@index([category, createdAt])
@@ -1744,6 +1768,50 @@ model CommunityLike {
 
   @@id([postId, userId])
   @@index([userId])
+}
+
+/// 사용자 차단 — 막은 사람의 글 · 댓글이 내 화면에서 안 보인다(상대는 모른다)
+model CommunityBlock {
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("CommunityBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("CommunityBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+/// 번개 참가 · 팀 신청 — 한 사람이 한 글에 한 번
+model CommunityJoin {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@index([userId])
+}
+
+/// 글에 묶인 대화 — 번개는 글쓴이 + 참가자 한 방(threadUserId 없음), 팀은 신청자마다 글쓴이와 둘만(threadUserId = 신청자)
+model CommunityMessage {
+  id           String   @id @default(uuid())
+  postId       String
+  threadUserId String?
+  senderId     String
+  body         String   @db.Text
+  createdAt    DateTime @default(now())
+
+  post   CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  thread User?         @relation("CommunityMessageThread", fields: [threadUserId], references: [id], onDelete: Cascade)
+  sender User          @relation("CommunityMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([postId, threadUserId, createdAt])
+  @@index([threadUserId])
+  @@index([senderId])
 }
 
 /// 신고 — 글 또는 댓글 하나(둘 중 하나만 채운다). reason 은 lib/community.ts REPORT_REASONS 의 key. resolvedAt 은 운영자가 처리한 때.

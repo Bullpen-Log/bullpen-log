@@ -345,28 +345,29 @@ export async function checkPitch3dV2(input: {
   if (!isLabId(input.id)) return { error: '샘플을 찾지 못했어요.' };
   const owner = await findLabOwner(input.id, user).catch(() => null);
   if (!owner) return { job: null };
-  let job: Pitch3dV2Job | null;
-  try {
-    job = await loadLabJob(owner, input.id);
-  } catch {
-    return { error: '작업 상태를 읽지 못했어요.' };
-  }
-  if (!job || job.status === 'done' || job.status === 'failed') return { job: clientJob(job) };
-  const next = await refreshV2Job(owner, input.id, job, user);
-  return 'error' in next ? next : { job: clientJob(next.job) };
+  const r = await refreshV2Job(owner, input.id, user);
+  return 'error' in r ? r : { job: clientJob(r.job) };
 }
 
 /**
  * 돌고 있는(queued · running) 작업을 GPU 에 한 번 물어 job.json 을 갱신한다 — 화면의 5초 묻기(checkPitch3dV2)와 앱 결과 화면을 열 때(loadAppLabDetail).
  * 15분이 지난 작업도 GPU 가 끝냈으면 결과로 바뀐다(앱이 안 물어 '대기'에 멈춘 작업이 열면 풀린다 — 2026-10-24 마커 37 · 38).
+ * 작업은 늘 저장소에서 새로 읽는다 — 화면용 사본(clientJob)은 GPU 호출 번호가 지워져 있어, 그것으로 물으면 2초 만에 'gpu' 실패로 적혔다
+ * (2026-10-24 마커 38: 다시 분석을 걸자 앱이 다시 읽으며 실패로 덮어 GPU 가 올린 새 결과가 안 보였다).
  */
 async function refreshV2Job(
   owner: string,
   id: string,
-  job: Pitch3dV2Job,
   user: Awaited<ReturnType<typeof requireUser>>
-): Promise<{ job: Pitch3dV2Job } | { error: string }> {
+): Promise<{ job: Pitch3dV2Job | null } | { error: string }> {
   const input = { id };
+  let job: Pitch3dV2Job | null;
+  try {
+    job = await loadLabJob(owner, id);
+  } catch {
+    return { error: '작업 상태를 읽지 못했어요.' };
+  }
+  if (!job || job.status === 'done' || job.status === 'failed') return { job };
   const now = Date.now();
   let status: GpuStatus = job.gpuCallId
     ? await getGpuStatus(job.gpuCallId)
@@ -507,8 +508,8 @@ export async function loadAppLabDetail(input: {
   let job = sample.v2.job;
   /* 돌고 있으면 열 때 한 번 묻는다 — 화면이 안 물어 '대기'에 멈춘 작업도 GPU 가 끝냈으면 바로 결과로(refreshV2Job) */
   if (job && (job.status === 'queued' || job.status === 'running')) {
-    const r = await refreshV2Job(sample.ownerId, sample.id, job, user).catch(() => null);
-    if (r && 'job' in r) job = r.job;
+    const r = await refreshV2Job(sample.ownerId, sample.id, user).catch(() => null);
+    if (r && 'job' in r) job = clientJob(r.job);
   }
   const now = Date.now();
   const shown = job?.shownJobId ?? null;
@@ -571,10 +572,10 @@ export async function loadAppLabDetail(input: {
     ],
     result: summary,
     /*
-     * 결과가 있어도 다시 분석 중이면 보낸다 — 앱은 waiting.active 로 5초 묻기 · '3D 분석 중' 알약을 켠다. 예전엔 결과가 있으면 늘 비워, 다시 분석을
+     * 결과가 있어도 다시 분석이 돌거나 실패했으면 보낸다(실패면 앱이 '다시 분석이 안 됐어요 · 이전 결과예요' 띠) — 앱은 waiting.active 로 5초 묻기 · '3D 분석 중' 알약을 켠다. 예전엔 결과가 있으면 늘 비워, 다시 분석을
      * 걸면 앱이 한 번도 묻지 않아 작업이 '대기'에 멈추고 분석 중이라는 글도 안 떴다(2026-10-24 김민 마커 37 · 38). 결과가 있으면 앱은 3D 칸에 이전 결과를 그린다.
      */
-    waiting: result && !isV2JobActive(job, now) ? null : labWaitingText(job, now, hasVideos),
+    waiting: result && !isV2JobActive(job, now) && job?.status !== 'failed' ? null : labWaitingText(job, now, hasVideos),
     shown: job?.shownJobId ?? null,
     request: (() => {
       const fault = job?.status === 'failed' && job.fail && V2_VIDEO_FAULT.has(job.fail.code) ? job.fail.code : null;

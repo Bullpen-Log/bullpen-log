@@ -23,6 +23,8 @@ import { FEATURES } from '@/lib/dugout-features';
  * 채팅은 모서리의 채팅 아이콘으로 간다.
  */
 const HOME_ICONS = ['/community', '/market', '/lessons', '/venues', '/baseball'];
+/** 싱커 앱의 덕아웃 탭 — 싱커와 이어진 넷만(2026-10-24 김민, lib/sinker-dugout.ts) */
+const SINKER_APP_ICONS = ['/community', '/lessons', '/venues', '/chat'];
 
 export function DugoutMain({
   user,
@@ -31,6 +33,7 @@ export function DugoutMain({
   unread = 0,
   sinker = false,
   native = false,
+  sinkerApp = false,
 }: {
   user: { nickname: string } | null;
   avatarUrl?: string | null;
@@ -39,6 +42,8 @@ export function DugoutMain({
   unread?: number;
   sinker?: boolean;
   native?: boolean;
+  /** 싱커 앱 안 — 통합검색(장터까지 찾는다) · 싱커 S · 설정 · 프로필은 빼고 아이콘은 넷(커뮤니티 · 레슨 · 연습장 · 채팅) */
+  sinkerApp?: boolean;
 }) {
   const box = useRef<HTMLElement>(null);
   /* 서버 그림부터 '판이 보임' — 첫 칠에 위 막대가 비쳤다 사라지지 않게 */
@@ -77,7 +82,9 @@ export function DugoutMain({
     return () => io.disconnect();
   }, []);
 
-  const items = HOME_ICONS.map((h) => FEATURES.find((f) => f.href === h)).filter((f) => !!f);
+  const items = (sinkerApp ? SINKER_APP_ICONS : HOME_ICONS)
+    .map((h) => FEATURES.find((f) => f.href === h))
+    .filter((f) => !!f);
 
   return (
     <section
@@ -90,7 +97,7 @@ export function DugoutMain({
       {/* 모서리 줄 — 위 막대가 숨은 동안의 길 */}
       <div className="flex items-center justify-end pt-[max(1rem,env(safe-area-inset-top))] pb-2 md:pt-6">
         <div className="flex items-center gap-2">
-          {sinker && <SinkerButton native={native} />}
+          {sinker && !sinkerApp && <SinkerButton native={native} />}
           {user ? (
             <>
               <ChatButton unread={unread} />
@@ -109,8 +116,8 @@ export function DugoutMain({
               </Link>
             </>
           )}
-          <DugoutSettings />
-          {user && <ProfileButton nickname={user.nickname} avatarUrl={avatarUrl} />}
+          {!sinkerApp && <DugoutSettings />}
+          {user && !sinkerApp && <ProfileButton nickname={user.nickname} avatarUrl={avatarUrl} />}
         </div>
       </div>
 
@@ -126,7 +133,7 @@ export function DugoutMain({
               <Wordmark brand="dugout" className="text-5xl text-ink md:text-7xl" />
             </Link>
           </h1>
-          <div className="mx-auto flex max-w-3xl items-center gap-2">
+          <div className={`mx-auto max-w-3xl items-center gap-2 ${sinkerApp ? 'hidden' : 'flex'}`}>
             <label className="relative min-w-0 flex-1">
               <RoundSearch className="pointer-events-none absolute top-1/2 left-4 h-4.5 w-4.5 -translate-y-1/2 text-muted" />
               <input

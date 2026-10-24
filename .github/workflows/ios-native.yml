@@ -31,6 +31,10 @@
 # ■ 운동 · 드릴 영상(720p HEVC)을 앱 안에 — prebuild 전에 native/LibraryVideos 로 받고(LIBRARY_BUNDLE_TOKEN), prebuild 의
 #   plugins/library-videos 가 Xcode 에 폴더 참조로 싣는다(2026-10-20 김민: "앱 안에 넣을 거야"). 못 받으면 영상 없이 굽는다.
 #
+# ■ 덕아웃 앱(같은 native/ 의 APP_VARIANT=dugout — app.config.js)은 손으로만(Run workflow 에서 '굽을 앱' dugout · both)
+#   굽기 · 검사 · 시뮬레이터에서 켜 보기(스크린숏을 산출물 dugout-simulator 로)까지만 하고 TestFlight 에는 올리지 않는다 — App Store Connect 에
+#   com.bullpenlog.dugout 앱이 생긴 뒤 올리기를 더한다. 푸시로는 안 돈다.
+#
 # 결과는 주석(annotation)으로 남긴다 — 공개 저장소의 주석은 로그인 없이 읽힌다(Checks API).
 name: 새 앱(Expo) 굽기
 
@@ -43,6 +47,11 @@ on:
       - '.github/workflows/ios-native.yml'
   workflow_dispatch:
     inputs:
+      app:
+        description: '굽을 앱 — 덕아웃은 굽기 · 검사만(TestFlight 에 안 올림)'
+        type: choice
+        options: [sinker, dugout, both]
+        default: sinker
       upload:
         description: 'TestFlight 에 올리기 (끄면 굽기 · 검사만)'
         type: boolean
@@ -116,8 +125,8 @@ jobs:
 
   build:
     needs: plan
-    # 바닥 판이 새것일 때만(그 판 앱이 TestFlight 에 없다) — 같은 판이면 publish 로 끝난다. 손으로 돌리면 늘 굽는다
-    if: github.event_name == 'workflow_dispatch' || needs.plan.outputs.built != 'true'
+    # 바닥 판이 새것일 때만(그 판 앱이 TestFlight 에 없다) — 같은 판이면 publish 로 끝난다. 손으로 돌리면 늘 굽는다(덕아웃만 고른 실행은 빼고)
+    if: (github.event_name == 'workflow_dispatch' && inputs.app != 'dugout') || (github.event_name == 'push' && needs.plan.outputs.built != 'true')
     name: 굽기${{ (github.event_name == 'push' || inputs.upload) && ' · TestFlight 올리기' || '' }}
     # 긴 굽기는 뒤 푸시가 와도 멈추지 않는다 — 멈추면 TestFlight 에 영영 못 올라간다. 뒤 것은 앞 굽기가 끝나면 이어서
     concurrency:
@@ -441,3 +450,219 @@ jobs:
           } 2>/dev/null | tr -d '\r' > "$OUT" || true
           head -n 10 "$OUT" | cut -c1-900 | sed 's/%/%25/g; s/^/::error title=실패::/'
           { echo '### 실패 — 오류 줄'; echo '```'; cat "$OUT"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  # 덕아웃 앱 — 굽기 · 검사 · 시뮬레이터에서 켜 보기만(올리기 없음). 싱커 굽기와 단계는 같고 이름 · 번들 ID 만 다르다(머리 주석 ■ 덕아웃)
+  dugout:
+    name: 덕아웃 앱 굽기 · 검사(올리기 없음)
+    if: github.event_name == 'workflow_dispatch' && inputs.app != 'sinker'
+    concurrency:
+      group: ios-native-dugout-${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: macos-26
+    # 아카이브(약 16분) + 시뮬레이터용 굽기(약 35분)
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: native
+    env:
+      NO_COLOR: '1'
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      LANG: en_US.UTF-8
+      # prebuild · Xcode 의 화면 코드 묶기 · 바닥 판 셈이 모두 이 값으로 덕아웃 설정을 읽는다
+      APP_VARIANT: dugout
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: native/package-lock.json
+
+      - name: 앱 패키지 설치
+        id: npm
+        run: |
+          set -o pipefail
+          npm ci --no-audit --no-fund 2>&1 | tee "$RUNNER_TEMP/npm.log"
+
+      - name: iOS 프로젝트 만들기 (expo prebuild)
+        id: prebuild
+        run: |
+          set -o pipefail
+          npx expo prebuild -p ios --no-install 2>&1 | tee "$RUNNER_TEMP/prebuild.log"
+          test -d ios/Dugout.xcodeproj
+
+      - name: CocoaPods 설치
+        id: pods
+        run: |
+          set -o pipefail
+          (cd ios && pod install 2>&1) | tee "$RUNNER_TEMP/pods.log"
+          test -d ios/Dugout.xcworkspace
+
+      - name: 빌드 번호 정하기
+        id: version
+        run: |
+          NOW=$(date -u +%Y%m%d%H%M%S)
+          BUILD="${NOW:0:8}.$((10#${NOW:8:6}))"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" ios/Dugout/Info.plist
+
+      - name: 앱 굽기 — 서명 없이 아카이브
+        id: xcodebuild
+        env:
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -workspace ios/Dugout.xcworkspace \
+            -scheme Dugout \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Dugout.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CURRENT_PROJECT_VERSION="$BUILD" \
+            2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
+
+      - name: 만들어진 앱 확인
+        id: check
+        env:
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          APP="$RUNNER_TEMP/Dugout.xcarchive/Products/Applications/Dugout.app"
+          plist() { /usr/libexec/PlistBuddy -c "Print :$1" "$APP/Info.plist"; }
+          test -f "$APP/Assets.car"
+          test -f "$APP/main.jsbundle"
+          # 화면 코드가 덕아웃 것인가 — 싱커 화면이 묶였으면(APP_VARIANT 가 Xcode 까지 안 간 것) 여기서 막는다
+          strings -a "$APP/main.jsbundle" | grep -qF 'DugoutApp/1'
+          if strings -a "$APP/main.jsbundle" | grep -qF './velocity.tsx'; then echo "::error title=싱커 화면이 묶였다::덕아웃 앱에 싱커 화면(src/app)이 들어갔다"; exit 1; fi
+          # .strings 는 Xcode 가 이진 plist 로 바꿔 담을 수 있어 plutil 로 읽는다
+          plutil -p "$APP/ko.lproj/InfoPlist.strings" | grep -q '덕아웃'
+          test "$(plist CFBundleIdentifier)" = "com.bullpenlog.dugout"
+          test "$(plist CFBundleVersion)" = "$BUILD"
+          MSG="덕아웃 앱이 만들어졌다 — $(plist CFBundleShortVersionString) ($BUILD) · $(plist CFBundleIdentifier) · 최소 iOS $(plist MinimumOSVersion) · $(du -sh "$APP" | cut -f1)"
+          echo "::notice title=굽기 성공::$MSG"
+          echo "### $MSG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 앱 안 부품 확인
+        id: frameworks
+        run: |
+          APP="$RUNNER_TEMP/Dugout.xcarchive/Products/Applications/Dugout.app"
+          NEED=""
+          for bin in "$APP/Dugout" "$APP"/Frameworks/*.framework/*; do
+            [ -f "$bin" ] && file "$bin" | grep -q 'Mach-O' || continue
+            NEED="$NEED $(otool -L "$bin" | awk 'NR>1{print $1}' | grep '^@rpath/' | sed 's#^@rpath/##' | tr '\n' ' ')"
+          done
+          MISSING=""
+          for n in $(echo $NEED | tr ' ' '\n' | sort -u); do [ -e "$APP/Frameworks/$n" ] || MISSING="$MISSING $n"; done
+          if [ -n "$MISSING" ]; then
+            echo "::error title=앱 안 부품이 빠졌다::폰에서 켜는 순간 이것을 못 찾아 꺼진다:$MISSING"
+            exit 1
+          fi
+
+      # 켜고 3 · 10 · 25초에 화면을 찍고, 앱 로그 · 종료 까닭(runningboard · frontboard)을 켜기 전부터 받아 산출물 dugout-simulator 로 남긴다.
+      # 꺼지면 충돌 기록(.ips)도 담고 요약을 주석으로 — 로컬 시뮬레이터 없이 까닭을 보려고(2026-10-24 김민: 맥 발열, 두 번째 실행에서 25초 뒤 앱이 없었다)
+      - name: 시뮬레이터에서 켜 보기
+        id: simlaunch
+        if: inputs.simulator_check
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          OUT="$RUNNER_TEMP/shots"
+          mkdir -p "$OUT"
+          if ! xcodebuild build -workspace ios/Dugout.xcworkspace -scheme Dugout -configuration Release \
+               -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+               -derivedDataPath "$RUNNER_TEMP/sim" CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/sim-build.log" 2>&1; then
+            grep -E 'error:' "$RUNNER_TEMP/sim-build.log" | awk '!seen[$0]++' | head -n 8 | cut -c1-900 \
+              | sed 's/%/%25/g; s/^/::warning title=시뮬레이터용 굽기 실패::/'
+            exit 1
+          fi
+          SIMAPP="$RUNNER_TEMP/sim/Build/Products/Release-iphonesimulator/Dugout.app"
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          ios = sorted((k for k in d if "iOS" in k), reverse=True)
+          print(next(x["udid"] for k in ios for x in d[k] if x["name"].startswith("iPhone")))
+          ')
+          xcrun simctl boot "$UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$UDID" -b > /dev/null
+          xcrun simctl install "$UDID" "$SIMAPP"
+          xcrun simctl spawn "$UDID" log stream --style compact --level debug \
+            --predicate 'process == "Dugout" OR eventMessage CONTAINS[c] "com.bullpenlog.dugout"' > "$OUT/app.log" 2>&1 &
+          LOG_PID=$!
+          sleep 2
+          # --console 은 쓰지 않는다 — 파일로 돌리면 출력이 버퍼에 남아 꺼져도 아무것도 안 보였다(두 번째 실행)
+          LAUNCH=$(xcrun simctl launch "$UDID" com.bullpenlog.dugout 2>&1) || true
+          echo "$LAUNCH" > "$OUT/launch.txt"
+          APP_PID=$(echo "$LAUNCH" | grep -Eo ': [0-9]+' | grep -Eo '[0-9]+' | head -n 1 || true)
+          GONE=""
+          shot() {
+            xcrun simctl io "$UDID" screenshot "$OUT/dugout-$1s.png" > /dev/null 2>&1 || true
+            if [ -z "$GONE" ] && { [ -z "$APP_PID" ] || ! kill -0 "$APP_PID" 2>/dev/null; }; then GONE="$1초 찍을 때 이미 없음"; fi
+          }
+          sleep 3; shot 3
+          sleep 7; shot 10
+          sleep 15; shot 25
+          if [ -z "$GONE" ]; then
+            kill "$LOG_PID" 2>/dev/null || true
+            echo "::notice title=시뮬레이터에서 켜짐::25초 동안 꺼지지 않았다(pid $APP_PID) — 화면 · 로그는 산출물 dugout-simulator"
+            exit 0
+          fi
+          # 꺼졌다(또는 안 켜졌다) — 충돌 기록 · 로그를 모아 요약을 주석으로
+          set +e +o pipefail
+          sleep 5
+          kill "$LOG_PID" 2>/dev/null
+          for r in ~/Library/Logs/DiagnosticReports/Dugout*.ips ~/Library/Logs/DiagnosticReports/*/Dugout*.ips; do [ -f "$r" ] && cp "$r" "$OUT/"; done
+          REPORT=$(ls -t "$OUT"/*.ips 2>/dev/null | head -n 1)
+          {
+            echo "켜기 답: ${LAUNCH:-없음} / ${GONE} / 충돌 기록: ${REPORT:-없음}"
+            [ -n "$REPORT" ] && python3 -c '
+          import json, sys
+          b = json.loads(open(sys.argv[1], encoding="utf-8", errors="replace").read().partition("\n")[2])
+          ex = b.get("exception") or {}
+          print("예외:", ex.get("type"), ex.get("signal"), ex.get("subtype") or "")
+          t = b.get("termination") or {}
+          r = t.get("reasons") or []
+          print("종료:", t.get("namespace"), t.get("indicator") or "", " / ".join([r] if isinstance(r, str) else r)[:600])
+          for k, v in (b.get("asi") or {}).items():
+              print("asi:", k, " ".join(v if isinstance(v, list) else [str(v)])[:600])
+          th = next((x for x in b.get("threads", []) if x.get("triggered")), None)
+          if th:
+              print("멈춘 곳:", " < ".join(f.get("symbol", "?") for f in th.get("frames", [])[:8]))
+          ' "$REPORT"
+            grep -Ei 'fatal|exception|terminat|watchdog|crash|killed|jsi|hermes|error' "$OUT/app.log" | tail -n 5
+          } | tr -d '\r' | head -n 12 | cut -c1-900 | sed 's/%/%25/g; s/^/::warning title=시뮬레이터에서 꺼짐::/'
+          exit 1
+
+      - name: 시뮬레이터 화면 남기기
+        if: always() && steps.simlaunch.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dugout-simulator
+          path: ${{ runner.temp }}/shots/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: 실패 이유를 주석으로 남기기
+        if: failure()
+        env:
+          NPM: ${{ steps.npm.outcome }}
+          PREBUILD: ${{ steps.prebuild.outcome }}
+          PODS: ${{ steps.pods.outcome }}
+          XCB: ${{ steps.xcodebuild.outcome }}
+          CHECK: ${{ steps.check.outcome }}
+        run: |
+          OUT="$RUNNER_TEMP/errors.txt"
+          {
+            if [ "$NPM" = failure ]; then tail -n 10 "$RUNNER_TEMP/npm.log"; fi
+            if [ "$PREBUILD" = failure ]; then tail -n 10 "$RUNNER_TEMP/prebuild.log"; fi
+            if [ "$PODS" = failure ]; then grep -Ei 'error|\[!\]' "$RUNNER_TEMP/pods.log" | head -n 8; tail -n 5 "$RUNNER_TEMP/pods.log"; fi
+            if [ "$XCB" = failure ]; then
+              LOG="$RUNNER_TEMP/xcodebuild.log"
+              grep -E 'error:|\*\* (ARCHIVE|BUILD) FAILED' "$LOG" | awk '!seen[$0]++' | head -n 10
+              grep -q 'error:' "$LOG" || tail -n 10 "$LOG"
+            fi
+            if [ "$CHECK" = failure ]; then echo "만들어진 덕아웃 앱에 빠진 것이 있다 — '만들어진 앱 확인' 단계의 test 줄을 본다(싱커 화면이 묶였을 수 있다)"; fi
+          } 2>/dev/null | tr -d '\r' > "$OUT" || true
+          head -n 10 "$OUT" | cut -c1-900 | sed 's/%/%25/g; s/^/::error title=덕아웃 실패::/'
+          { echo '### 덕아웃 실패 — 오류 줄'; echo '```'; cat "$OUT"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

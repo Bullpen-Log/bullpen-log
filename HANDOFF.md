@@ -11,12 +11,19 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-24 · 김민(Claude, 커뮤니티 세션) — 커뮤니티 게시판 넷 · 칸 더함 · **받으면 `npx prisma generate`**
+
+받은 뒤 할 일: **`npx prisma generate`** — `CommunityPost` 에 `tag · media · acceptedCommentId · card · form · region · meetAt · closedAt`, 새 표 `CommunityBlock · CommunityJoin · CommunityMessage`
+(마이그레이션 `20261024190000_community_boards`, 공유 DB 에 적용함 — 더하기만, 백업 `db-2026-10-24-09-45.json`). 옛 코드도 돈다.
+김민: "커뮤니티는 모든 야구인 토론장 · 게시판 넷(자유 · 질문 · 답변 · 번개 · 팀 홍보 · 선수 모집) · 덕아웃은 휴대폰 브라우저에서도". 설계 `docs/designs/dugout-community.md`.
+- **'커뮤니티는 로그인한 사람만'(10-21 네 결정)을 바꿨다** — 목록 · 글은 로그인 없이 보이고 쓰기 · 댓글 · 좋아요 · 신고만 로그인(128bb368). 글 · 글쓰기의 OpenNative 도 걷었다(커뮤니티는 웹 하나로).
+- 로그인 화면의 덕아웃 문구는 네 몫이라 안 건드렸다. 휴대폰 브라우저 로그인(`proxy.ts` OPEN)은 1번 세션에 보고로 넘겼다.
+
 ## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 덕아웃 연습장 · 레슨장 지도(카카오맵) · **받으면 `npx prisma generate`**
 
 받은 뒤 할 일: **`npx prisma generate`** — `Venue.lat · lng`, `Org.address · lat · lng`(마이그레이션 `20261024190000_place_map_coords`, 공유 DB 에 적용함 — 더하기만, 백업 `db-2026-10-24-09-49.json`).
 금윤호: "연습장을 네이버 지도 · 카카오맵처럼 지도로, 네이버 예약처럼 대관 예약". `/venues` 가 지도(왼쪽 목록 · 오른쪽 카카오맵, 점 → 카드 → 자세히 · 예약)다. 좌표는 저장할 때
 카카오 주소 검색으로(`lib/geocode.ts`), 레슨장은 설정의 코치 프로필에 '레슨장 주소' 칸이 생겼다. 열쇠 둘(`NEXT_PUBLIC_KAKAO_MAP_KEY` · `KAKAO_REST_API_KEY`)은 아직 없어 지도 자리엔 안내만 뜬다.
-- **알림**: `migrate diff` 가 이 칸들 말고도 `CommunityPost` 칸 여덟 · `CommunityBlock/Join/Message` 표를 지우라고 냈다 — 공유 DB 에 있는데 main 스키마엔 없는 것(네가 작업 중인 커뮤니티 같다). 내 마이그레이션엔 안 넣었으니, 네 스키마를 올릴 때 그 마이그레이션도 같이 올려 줘.
 
 ## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 경기 상세 · 경기 댓글 — **받으면 `npx prisma generate`**
 
@@ -24,6 +31,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 금윤호: "경기를 선택했을 때 그 경기의 기록을 자세히 보고 댓글을 달 수 있게".
 - 경기 상세 `/baseball/[id]`(점수판 · 주요 기록 · 타자 · 투수 · 댓글), 읽기 `lib/game-detail.ts`(네이버 경기 기록 /record — KBO 와 해외 리그 모양을 하나로), 댓글 `lib/game-comments.ts` · `app/actions/game-comments.ts`.
 - `User` 에 `gameComments` 관계(onDelete Cascade). 네 영역은 안 건드렸다.
+
+## 금윤호에게 — 2026-10-24 · 김민(Claude, 덕아웃 앱 세션) — 덕아웃 앱(따로 된 아이폰 앱) 1판 · 네 덕아웃 틀(layout)을 고쳤다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "덕아웃 웹사이트를 개별 앱으로 — 섞기 방식(앱다운 부분만 앱 화면, 나머지는 덕아웃 웹뷰)". 계획은 `docs/designs/sinker-dugout.md` 7절(B-5).
+- 앱(2cb4ae91): 같은 `native/` 를 쓰고 `native/app.config.js` 가 `APP_VARIANT=dugout` 일 때만 덕아웃 앱(`com.bullpenlog.dugout`, 홈 화면 이름 '덕아웃')으로 바꾼다.
+  화면은 `native/src/dugout/app` — 덕아웃 사이트 웹뷰 + 앱 탭(홈 · 장터 · 커뮤니티 · 채팅 · 내 것) + 앱 로그인. UA 는 `DugoutApp/1` 만(`BullpenLogApp` 을 달면 `/` 가 /today 로 간다).
+- **네 영역 고친 곳**: `app/(dugout)/layout.tsx` 의 `native` 가 `surfaceOf(ua) !== 'web'` — 싱커 앱 · 덕아웃 앱 둘 다 앱으로 보아 웹 아래 탭을 숨기고 DugoutAppBridge 를 켠다
+  (안 그러면 웹 탭이 앱 탭 밑에 겹쳐 보였다 — GitHub 시뮬레이터 스크린숏으로 확인). 덕아웃 틀에서 '앱 안'을 가르는 코드를 새로 쓸 때는 덕아웃 앱도 생각해 줘 —
+  앱 안 전체는 `surfaceOf(ua) !== 'web'`, 싱커 앱만은 `=== 'sinker-app'`(`isNativeUserAgent` 는 싱커 앱만 본다).
+- 같이 고친 곳: `proxy.ts`(덕아웃 앱은 /login 도 연다 — 가입이 아직 웹 폼), `components/app-shell/expo-tabs.tsx`(DugoutAppBridge 가 덕아웃 앱에서도 돈다), `scripts/dugout-selftest.mts`(한 줄).
+- 정하지 않은 것: 덕아웃 앱에서 싱커로 가는 길(위 막대 싱커 단추 · 홈의 싱커 카드 · 선수 가입 뒤 /today) — 지금은 휴대폰 막기의 '/phone' 이 뜬다. 싱커 앱 열기로 바꿀지 숨길지 같이 정하자.
+- 굽기: GitHub Run workflow '새 앱(Expo) 굽기' → '굽을 앱' dugout(굽기 · 시뮬레이터 스크린숏만, TestFlight 안 올림). `dugout:test` 의 '쓰기 · 채팅 · 내 것 … /login 으로' 실패 하나는 이 일 전부터다.
 
 ## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 덕아웃 큰 로고 첫 화면을 걷었다 · 통합검색 · 네 고침 하나가 지워진 파일이라 빠졌다
 
