@@ -26,7 +26,7 @@ export function DugoutMark({ className = '' }: { className?: string }) {
     <svg
       viewBox="0 0 64 64"
       aria-hidden
-      className={`w-auto shrink-0 fill-dugout text-dugout ${className}`}
+      className={`shrink-0 fill-dugout text-dugout ${className}`}
     >
       {/* 2026-10-22 금윤호가 준 새 덕아웃 로고 — 둥근 지붕 + 벤치(덕아웃 의자) */}
       <path d="M6.9 29.2 32.1 15.6 57.4 29.2" fill="none" stroke="currentColor" strokeWidth="7.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -72,7 +72,11 @@ export function Wordmark({
     <span
       className={`text-display inline-flex items-baseline gap-[0.18em] whitespace-nowrap leading-none ${className}`}
     >
-      <DugoutMark className="h-[0.78em] self-center" />
+      {/*
+        * 높이 · 폭을 둘 다 적는다(그림이 정사각형). w-auto 였을 때 사파리 플렉스에서 폭이 0 으로 잡혀 지붕 그림이 잠깐 사라졌다 나타났다
+        * (2026-10-24 금윤호 화면 기록 — 싱커 → 덕아웃으로 로고가 내려앉은 직후 깜빡임). 싱커 표시도 같은 까닭으로 둘 다 적는다.
+        */}
+      <DugoutMark className="h-[0.78em] w-[0.78em] self-center" />
       <span aria-hidden>DUGOUT</span>
       <span className="sr-only">덕아웃</span>
     </span>

@@ -29,12 +29,16 @@ const OUT_MS = 340;
 const IN_MS = 560;
 const SAFETY_MS = 1800;
 
+/** 지금 넘어가는 곳 — 싱커 → 덕아웃의 가운데 로고가 어디에 내려앉을지 정할 때 본다(첫 화면이면 가운데 큰 로고를 기다린다) */
+let morphHref: string | null = null;
+
 export function morphTo(
   href: string,
   dir: MorphDir,
   router: { push: (href: string) => void }
 ) {
   const html = document.documentElement;
+  morphHref = href;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     router.push(href);
     return;
@@ -79,16 +83,41 @@ function markSides() {
  * 원래 로고가 있는 위치로 이동하게"). 예전엔 싱커 틀에 붙어 있어 틀이 바뀌는 순간 같이 사라졌다.
  */
 const LAND_MS = 560;
-const LAND_SAFETY_MS = 1600;
+const LAND_SAFETY_MS = 2600;
+/** 내려앉을 자리를 기다리는 최대 시간 — 첫 화면이 스트리밍으로 늦게 붙어도 이 안에는 온다. 넘으면 로고는 옅어지기만 한다 */
+const LAND_WAIT_MS = 1200;
 
+/** 덕아웃 첫 화면으로 가는 중인가 — '/' · '/?dugout=1' */
+function toDugoutHome(): boolean {
+  if (!morphHref) return false;
+  try {
+    return new URL(morphHref, window.location.href).pathname === '/';
+  } catch {
+    return false;
+  }
+}
+
+/** 눈에 보이는가 — 크기가 있고 화면 안이고, 위로 몇 겹 안에 투명(opacity 0) · 숨김이 없다(첫 화면에서 위로 숨은 막대 로고를 거른다) */
+function isShown(el: HTMLElement): boolean {
+  const r = el.getBoundingClientRect();
+  if (!(r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight)) return false;
+  for (let n: HTMLElement | null = el, i = 0; n && i < 8; n = n.parentElement, i++) {
+    const cs = getComputedStyle(n);
+    if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05) return false;
+  }
+  return true;
+}
+
+/**
+ * 내려앉을 자리 — 첫 화면으로 가면 찾기 판의 가운데 큰 로고만(판이 아직 안 붙었으면 null → 기다린다),
+ * 다른 화면이면 보이는 위 막대 로고. 예전엔 판이 늦게 붙으면 그 사이 보이던 위 막대 로고(왼쪽 위)로 날아가 '로고가 왼쪽으로 가는' 일이 있었다.
+ */
 function landingTarget(): HTMLElement | null {
   const list = [...document.querySelectorAll<HTMLElement>('[data-dugout-logo]')];
-  /* 첫 화면의 모서리 로고가 있으면 그것(그때 위 막대는 숨어 있다), 아니면 위 막대 로고 */
-  const pick = list.find((el) => el.closest('[data-dugout-main]')) ?? list[0];
+  const home = list.find((el) => el.closest('[data-dugout-main]'));
+  const pick = toDugoutHome() ? home : (home ?? list.find((el) => isShown(el)));
   const mark = (pick?.firstElementChild as HTMLElement | null) ?? pick ?? null;
-  if (!mark) return null;
-  const r = mark.getBoundingClientRect();
-  return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight ? mark : null;
+  return mark && isShown(mark) ? mark : null;
 }
 
 export function MorphOverlay() {
@@ -140,10 +169,26 @@ export function MorphOverlay() {
       setPhase(null);
     };
     const safety = window.setTimeout(finish, LAND_SAFETY_MS);
-    /* 새 화면이 자리를 잡을 한 장면을 기다린 뒤 잰다 */
-    const raf = requestAnimationFrame(() => {
+    /*
+     * 새 화면이 자리를 잡을 때까지 기다린 뒤 잰다 — 자리가 보이고, 두 장면 연달아 같은 곳 · 같은 크기일 때(글꼴 · 스트리밍으로 아직 움직이는 중이면 기다린다).
+     * 기다리는 동안 바탕은 그대로 덮여 있어 새 화면이 붙는 모습(빈 칸 · 뼈대)이 비치지 않는다.
+     */
+    const started = performance.now();
+    /* 그리기 장면(requestAnimationFrame) 대신 짧은 타이머로 본다 — 뒤에 깔린 탭처럼 장면이 멈춘 곳에서도 기다림이 끝나게 */
+    let poll = 0;
+    let last: DOMRect | null = null;
+    const settle = () => {
+      const t = landingTarget();
+      const r = t?.getBoundingClientRect() ?? null;
+      const same =
+        !!r && !!last && Math.abs(r.left - last.left) < 0.5 && Math.abs(r.top - last.top) < 0.5 && Math.abs(r.width - last.width) < 0.5;
+      last = r;
+      if (t && same) return land(t);
+      if (performance.now() - started > LAND_WAIT_MS) return land(null);
+      poll = window.setTimeout(settle, 16);
+    };
+    const land = (target: HTMLElement | null) => {
       if (!el || !bg) return finish();
-      const target = landingTarget();
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const fade = bg.animate([{ opacity: 1 }, { opacity: 0 }], {
         duration: target && !reduce ? LAND_MS : 220,
@@ -173,9 +218,10 @@ export function MorphOverlay() {
         { duration: LAND_MS, easing: 'cubic-bezier(0.65, 0, 0.25, 1)', fill: 'forwards' }
       );
       fly.finished.then(finish, finish);
-    });
+    };
+    poll = window.setTimeout(settle, 16);
     return () => {
-      cancelAnimationFrame(raf);
+      window.clearTimeout(poll);
       window.clearTimeout(safety);
       if (hidden) hidden.style.visibility = '';
     };
@@ -413,11 +459,12 @@ export function SinkerIntro() {
       const target = [...document.querySelectorAll<HTMLElement>('[data-morph-logo]')].find(
         (el) => el.getBoundingClientRect().width > 0
       );
+      /* 자리는 'in' 을 걸기 전에 잰다 — 걸고 나서 재면 막대 칸이 펴지는 연출의 첫 장면(아래로 · 작게)에서 재어 조금 어긋난 곳에 앉았다 */
+      const t = target?.getBoundingClientRect() ?? null;
       html.dataset.morph = 'in';
       const from = w.getBoundingClientRect();
-      if (target) {
+      if (target && t) {
         html.dataset.morphFly = '';
-        const t = target.getBoundingClientRect();
         const s = t.width / from.width;
         const tx = t.left + t.width / 2 - (from.left + from.width / 2);
         const ty = t.top + t.height / 2 - (from.top + from.height / 2);
