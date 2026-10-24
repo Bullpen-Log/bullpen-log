@@ -1459,6 +1459,9 @@
   장터 목록은 굵은 품목 줄 + 회색 알약 거르기 + 6열 격자(`market/page.tsx` · `listing-card.tsx`), 상세는 왼쪽 사진 · 오른쪽 가격 · 찜 | 채팅하기 | 안전결제(`market/[id]/page.tsx`). 레슨은 닥터나우식 그대로.
 - **덕아웃 4판 결제는 껍데기(2026-10-21)** — 사용자 지시 "겉만, 결제만 안 되게". `components/dugout/pay-shell.tsx` 하나가 모든 결제 화면의 틀(단추 disabled + '준비 중' 안내), 수수료율은 `lib/market/pay.ts` 상수 셋(가정값).
   화면 다섯(`/dugout/pay/{listing,lesson,venue}/[id]` · `/dugout/me/payments` · `/master/payouts`). 계약 뒤 연동할 때 표(결제 기록)와 단추 동작만 더한다 — 화면은 안 바꾼다.
+- **덕아웃 겉모양은 공용 부품으로(2026-10-24 UI 통일, 규칙 `docs/designs/dugout-ui-audit.md`)** — 새 덕아웃 화면은 `components/dugout/ui` 의 `DugoutPageHeader`(26px 쪽 머리 · 깊은 화면은 crumbs) ·
+  `SectionHead`(묶음 제목 + 수 · 더보기 ›) · `CategoryRow`(목록 종류 밑줄 줄) · `ShortcutTiles`(72px 기능 바로가기) · `chipClass` · `ChipLink` · `ChipRow`(고름 검은 알약 · 안 고름 테두리, 초록 고름 금지) ·
+  `DugoutEmpty` 를 쓴다. 틀 전체가 흰 면(dugout-shell), 폭은 틀의 6xl(폼 2xl · 좁은 읽기 3xl 은 왼쪽 맞춤). `npm run dugout:test` 의 [UI 통일] 다섯 줄이 지킨다 — 예외는 그 시험의 EXCEPT 에 까닭과 함께.
 - **싱커 · 덕아웃 개편(2026-10-21)** — 계획 `docs/designs/sinker-dugout.md`(결정 9절 · 파트 10절 · 단계 11~12절). 1단계 끝: `lib/brand.ts` · `surfaceOf`(lib/app-env.ts) · `Wordmark brand=` · `[data-brand='dugout']`(globals.css 끝).
   바꾸지 않는 것: 번들 ID · UA `BullpenLogApp` · vercel 주소 · 저장소 이름. 다음 2단계는 PC 를 덕아웃 틀 하나로(/master → /manage, /dugout/* → 뿌리).
   **2~5 · 7단계(웹)도 10-21 에 끝냈다(로컬 커밋 8개, 안 올림)** — `/` = 덕아웃 홈 · 뿌리 주소 · `/manage` · 공용 위 막대 `components/dugout/dugout-topbar.tsx` · MEMBER 회원 · 레슨 노트 '한 일'(`lib/org/lesson-work.ts`) → 선수 레슨 줄(`lib/org/lesson-feed.ts`) ·

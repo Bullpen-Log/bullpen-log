@@ -19,6 +19,7 @@ import {
   categoryOf,
   type Specs,
 } from '@/lib/market/specs';
+import { chipClass } from '@/components/dugout/ui';
 
 export type ListingFormInitial = {
   id?: string;
@@ -177,11 +178,7 @@ export function ListingForm({
           {CATEGORIES.map((c) => (
             <label
               key={c.key}
-              className={`inline-flex min-h-9 cursor-pointer items-center rounded-full px-3.5 text-xs font-semibold transition-colors ${
-                category === c.key
-                  ? 'bg-sky text-white'
-                  : 'bg-ink/6 text-ink hover:text-sky desk:bg-surface-2'
-              }`}
+              className={`${chipClass(category === c.key, 'md')} cursor-pointer`}
             >
               <input
                 type="radio"

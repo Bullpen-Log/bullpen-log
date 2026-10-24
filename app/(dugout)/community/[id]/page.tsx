@@ -330,7 +330,7 @@ export default async function CommunityPostPage({
                   data-nav="none"
                   aria-current={room.thread === j.userId ? 'page' : undefined}
                   className={`inline-flex min-h-9 shrink-0 items-center rounded-full px-3.5 text-sm font-semibold ${
-                    room.thread === j.userId ? 'bg-sky text-white' : 'bg-ink/6 text-ink'
+                    room.thread === j.userId ? 'bg-ink text-page' : 'bg-ink/6 text-ink'
                   }`}
                 >
                   {j.nickname}

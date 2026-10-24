@@ -139,7 +139,7 @@ export function LessonBookForm({
                 onClick={() => setDateKey(d)}
                 aria-pressed={on}
                 className={`relative flex min-w-14 shrink-0 flex-col items-center rounded-xl border px-2 py-2 text-xs transition-colors ${
-                  on ? 'border-sky bg-sky text-white' : open ? 'border-line bg-surface text-ink' : 'border-line bg-surface-2 text-muted/60'
+                  on ? 'border-ink bg-ink text-page' : open ? 'border-line bg-surface text-ink' : 'border-line bg-surface-2 text-muted/60'
                 }`}
               >
                 <span className={wd === 0 && !on ? 'text-danger' : wd === 6 && !on ? 'text-sky' : ''}>
@@ -174,7 +174,7 @@ export function LessonBookForm({
                     off
                       ? 'cursor-not-allowed border-line bg-surface-2 text-muted/50 line-through'
                       : on
-                        ? 'border-sky bg-sky text-white'
+                        ? 'border-ink bg-ink text-page'
                         : 'border-line bg-surface text-ink hover:border-sky-soft'
                   }`}
                 >
@@ -214,7 +214,7 @@ export function LessonBookForm({
               type="button"
               aria-pressed={specialty === s}
               onClick={() => setSpecialty(specialty === s ? null : s)}
-              className={`min-h-9 rounded-full border px-3.5 text-xs font-semibold ${specialty === s ? 'border-sky bg-sky text-white' : 'border-line bg-surface text-ink'}`}
+              className={`min-h-9 rounded-full border px-3.5 text-xs font-semibold ${specialty === s ? 'border-ink bg-ink text-page' : 'border-line bg-surface text-ink'}`}
             >
               {specialtyLabel(s)}
             </button>

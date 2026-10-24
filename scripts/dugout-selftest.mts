@@ -600,6 +600,49 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
   );
 }
 
+console.log('\n[UI 통일] 덕아웃 화면이 같은 겉모양을 쓰는지(소스 읽기 — docs/designs/dugout-ui-audit.md)');
+{
+  const pages = walk(join(ROOT, 'app', '(dugout)')).filter((p) => /page\.tsx$/.test(p));
+  const rel = (p: string) => p.replace(/\\/g, '/').split('/app/(dugout)/')[1];
+  /* 공용 쪽 머리 — 바로 쓰거나, 머리를 품은 틀(레슨 · 결제)을 쓴다. 아래는 까닭이 있는 예외 */
+  const EXCEPT: Record<string, string> = {
+    'page.tsx': '홈 — 큰 로고 찾기 판이 머리',
+    'gear/page.tsx': '장터 장비 추천 팝업으로 넘기기만',
+    'chat/page.tsx': '채팅 — 머리는 두 칸 틀(chat-shell)에',
+    'chat/[id]/page.tsx': '채팅 — 머리는 두 칸 틀(chat-shell)에',
+    'market/[id]/page.tsx': '물건 상세 — 사진 옆 물건 이름이 머리(번개장터식)',
+    'link/[code]/page.tsx': 'PC 로그인 승인 — 가운데 작은 카드',
+    'lessons/find/page.tsx': '맞춤 찾기 흐름 — 한 화면 한 질문',
+  };
+  const VIA: Record<string, string> = { 'community/page.tsx': 'app/(dugout)/community/community-page.tsx' };
+  const missing = pages
+    .map(rel)
+    .filter((r) => !EXCEPT[r])
+    .filter((r) => !/DugoutPageHeader|LessonFrame|PayShell/.test(src(VIA[r] ?? `app/(dugout)/${r}`)));
+  check('덕아웃 화면은 공용 쪽 머리(DugoutPageHeader · 레슨 틀 · 결제 틀)를 쓴다', missing.length === 0, missing.join(', '));
+  const ALLOWED_W = new Set(['xs', 'sm', 'xl', '2xl', '3xl', '4xl', '6xl']);
+  const badW = pages.flatMap((p) =>
+    [...readFileSync(p, 'utf8').matchAll(/max-w-([a-z0-9]+)/g)].filter((m) => !ALLOWED_W.has(m[1])).map((m) => `${rel(p)}:${m[0]}`)
+  );
+  check('덕아웃 화면 폭은 정한 것만(6xl 틀 · 폼 2xl · 읽기 3xl · 경기 상세 4xl · 작은 글 xs~xl)', badW.length === 0, badW.join(', '));
+  const rawH = pages.filter((p) => /<h[12][^>]*text-\[\d+px\]/.test(readFileSync(p, 'utf8'))).map(rel);
+  check('쪽 · 묶음 제목에 대괄호 글자 크기를 직접 쓰지 않는다(공용 머리 · SectionHead 로)', rawH.length === 0, rawH.join(', '));
+  const greenPick = [
+    ...walk(join(ROOT, 'app', '(dugout)')),
+    ...walk(join(ROOT, 'components', 'dugout')),
+  ]
+    .filter((p) => /\.tsx$/.test(p))
+    .filter((p) => !/chat-room\.tsx$|find-wizard\.tsx$/.test(p)) // 내 말풍선 · 지금 단계 표시는 상태라 초록
+    .filter((p) => /\? ['"`](border-sky )?bg-sky text-white/.test(readFileSync(p, 'utf8')))
+    .map((p) => p.replace(/\\/g, '/').split(`${ROOT.replace(/\\/g, '/')}/`)[1] ?? p);
+  check('고른 칩 · 칸은 초록이 아니라 검은 칸(초록은 주요 단추 · 상태에만)', greenPick.length === 0, greenPick.join(', '));
+  const ui = src('components/dugout/ui/index.ts');
+  check(
+    '공용 부품이 한 곳에 있다(쪽 머리 · 묶음 제목 · 칩 · 종류 줄 · 바로가기 · 빈 화면)',
+    ['DugoutPageHeader', 'SectionHead', 'chipClass', 'CategoryRow', 'ShortcutTiles', 'DugoutEmpty'].every((n) => ui.includes(n))
+  );
+}
+
 console.log(
   `\n${pass} 통과${fails.length ? `, ${fails.length} 실패:\n  - ${fails.join('\n  - ')}` : ''}`
 );

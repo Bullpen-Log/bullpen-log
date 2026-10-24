@@ -11,6 +11,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 덕아웃 탭 겉모양 통일 · 네 커뮤니티 화면도 공용 부품으로 바꿨다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호: "각 탭 UI 가 통일이 안 돼 있다 — 홈 · 장터 느낌으로". 규칙 `docs/designs/dugout-ui-audit.md`, 부품 `components/dugout/ui`.
+- **네 영역을 고쳤다(겉모양만, 읽기 · 쓰기 · 주소 그대로)**: `app/(dugout)/community/community-page.tsx`(머리 → DugoutPageHeader, 게시판 칩 → 밑줄 줄 CategoryRow, 말머리 → 검은 칩, 빈 화면 → DugoutEmpty) ·
+  `community/[id]`(제목 26px · 대화방 · 댓글 제목 SectionHead, 대화방 고른 사람 칩 검정) · `community/new` · `community/blocked` 머리 · `me/page.tsx` 머리 · 묶음 제목. 합칠 때 `app/(dugout)/page.tsx` 의 `Head` 는 공용 `SectionHead` 로 바꿨다.
+- 덕아웃 틀 전체가 흰 면(`dugout-shell.tsx` bg-surface). 고른 칩은 초록 대신 검은 알약 — `npm run dugout:test` 의 [UI 통일] 다섯 줄이 새 화면에서도 본다(예외는 그 시험 EXCEPT 에 까닭과 함께).
+
 ## 금윤호에게 — 2026-10-24 · 김민(Claude, 커뮤니티 세션) — 커뮤니티 게시판 넷 · 칸 더함 · **받으면 `npx prisma generate`**
 
 받은 뒤 할 일: **`npx prisma generate`** — `CommunityPost` 에 `tag · media · acceptedCommentId · card · form · region · meetAt · closedAt`, 새 표 `CommunityBlock · CommunityJoin · CommunityMessage`
