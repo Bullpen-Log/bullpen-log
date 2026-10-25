@@ -4,6 +4,10 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   REPORT_STATUS_TEXT,
+  REPORT_CRITERIA,
+  measurementText,
+  coverageText,
+  prescriptionMessage,
   rxAction,
   type ElementRx,
   type FocusProgress,
@@ -96,7 +100,16 @@ function Gauge({ c, g, muted }: { c: Palette; g: ReportGauge; muted: boolean }) 
   const b = x(g.edgeEnd);
   const cc = x(g.fairEnd);
   const seg = (from: number, to: number, color: string) => (
-    <View style={{ position: 'absolute', top: 0, bottom: 0, left: `${Math.min(from, to)}%`, width: `${Math.abs(to - from)}%`, backgroundColor: color }} />
+    <View
+      style={{
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        left: `${Math.min(from, to)}%`,
+        width: `${Math.abs(to - from)}%`,
+        backgroundColor: muted ? c.line : color,
+      }}
+    />
   );
   const bad = `${c.warn}70`;
   const edge = `${c.warn}26`;
@@ -121,7 +134,7 @@ function Gauge({ c, g, muted }: { c: Palette; g: ReportGauge; muted: boolean }) 
         )}
       </View>
       <View style={[s.marker, { left: `${x(g.value)}%`, backgroundColor: c.ink, borderColor: c.card }]} />
-      <Text style={[s.cut, { left: `${a}%`, color: c.warn }]}>문턱</Text>
+      <Text style={[s.cut, { left: `${a}%`, color: muted ? c.muted : c.warn }]}>{muted ? '참고선' : '문턱'}</Text>
     </View>
   );
 }
@@ -133,6 +146,7 @@ export function FlowCard({ c, report, onPick }: { c: Palette; report: PitchRepor
   return (
     <View style={{ gap: 8 }}>
       <Text style={[TYPE.sub, s.secLabel, { color: c.muted }]}>투구의 흐름</Text>
+      <Text style={[TYPE.sub, { color: c.muted }]}>{coverageText(report.coverage)}</Text>
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
         <View>
           <View style={[s.chainLine, { backgroundColor: c.line }]} />
@@ -167,6 +181,8 @@ export function FlowCard({ c, report, onPick }: { c: Palette; report: PitchRepor
             <StatusTag c={c} status={it.status} />
           </View>
           <Text style={[TYPE.body, { color: c.ink, lineHeight: 21 }]}>{it.line}</Text>
+          <Text style={[TYPE.sub, { color: c.muted }]}>{measurementText(it)}</Text>
+          {it.metricNote ? <Text style={[TYPE.sub, { color: c.muted }]}>{it.metricNote}</Text> : null}
           {it.value ? (
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
               <Text style={[TYPE.num, { fontSize: 32, color: c.ink }]}>{it.value}</Text>
@@ -246,20 +262,16 @@ export function RxCard({
   mine: boolean;
   focus: FocusProgress;
 }) {
-  if (report.rx.length === 0) return null;
+  if (report.criteria !== REPORT_CRITERIA || report.rx.length === 0)
+    return (
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 8 }]}>
+        <Text style={[TYPE.card, { color: c.ink }]}>자동 처방 안내</Text>
+        <Text style={[TYPE.body, { color: c.muted }]}>{prescriptionMessage(report)}</Text>
+      </View>
+    );
   const main = report.rx[0];
   const cta = rxAction(mine, focus);
-  const weeks: [string, string][] =
-    main.level === 'improve'
-      ? [
-          ['1주', '기초'],
-          ['2주', '연결'],
-          ['3주', '통합'],
-        ]
-      : [
-          ['1주', '연결'],
-          ['2~3주', '통합'],
-        ];
+  const weeks = main.weeks.map((w) => [w.label, w.stage]);
   return (
     <View style={{ gap: 8 }}>
       <Text style={[TYPE.sub, s.secLabel, { color: c.muted }]}>처방 · 3주 · 주 3번</Text>
@@ -275,9 +287,7 @@ export function RxCard({
         {report.rx.map((rx) => (
           <RxBlock key={rx.element} c={c} rx={rx} />
         ))}
-        {report.later.length > 0 ? (
-          <Text style={[TYPE.sub, { color: c.muted }]}>다음 차례 · {report.later.join(' · ')}</Text>
-        ) : null}
+        {report.later.length > 0 ? <Text style={[TYPE.sub, { color: c.muted }]}>다음 차례 · {report.later.join(' · ')}</Text> : null}
         <View style={{ gap: 8 }}>
           <Pressable
             onPress={() => {

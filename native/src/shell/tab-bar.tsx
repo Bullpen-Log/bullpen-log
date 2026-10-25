@@ -278,7 +278,9 @@ export function TabBar({
     offset: number; moved: boolean; lastX: number; lastAt: number;
   } | null>(null);
   const tick = () => void Haptics.selectionAsync();
-  const resetTouch = (settle = committed.get()) => {
+  /* 기본 인자에 committed.get() 을 두면 React 컴파일러가 TabBar 전체를 건너뛰어(부를 때마다 막대 전체를 다시 그림) 안에서 고른다 */
+  const resetTouch = (to?: number) => {
+    const settle = to ?? committed.get();
     contact.current = null;
     touching.set(false);
     preview.set(settle);

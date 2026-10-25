@@ -1,8 +1,11 @@
 import 'server-only';
+import { REPORT_CRITERIA, LEGACY_FOCUS_NOTE } from '@/lib/pitch-3d/v2/report-policy';
+import { mechanicsPlanKey } from '@/lib/mechanics/store';
 
 import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 import { favoriteDrillIds } from '@/lib/favorites';
 import { allGuides, trainingGuides } from '@/lib/library-cache';
 import { createPlaybackUrls } from '@/lib/storage';
@@ -45,6 +48,7 @@ export type SessionDrillView = SessionItem & {
 };
 
 export type MechanicsProgramView = {
+  planKey: string;
   /** 고른 수준 — 안 골랐으면 null(수준 고르기 화면) */
   level: LevelKey | null;
   /** 이 수준에서 마친 세션 수(0~12) */
@@ -71,10 +75,10 @@ export type MechanicsProgramView = {
  * 오늘 체크인 없음 · 오늘 · 어제 등판 답)과 오늘 투구 기록(경기 · 세게 던진 날). 오늘 상태 한 장(facts 45일)을 모으면 화면이 무거워져 이 둘만
  * 읽는다 — 판정은 중재(lib/engine/arbiter.ts)와 같은 규칙 · 같은 차례(자체 시험이 견준다).
  */
-function foldInputs(userId: string, todayKey: string) {
+function foldInputs(userId: string, todayKey: string, db: Prisma.TransactionClient = prisma) {
   const from = dbDate(shiftDateKey(todayKey, -(MECHANICS_PAIN_WINDOW_DAYS - 1)));
   return Promise.all([
-    prisma.dailyCheckin.findMany({
+    db.dailyCheckin.findMany({
       where: { userId, date: { gte: from, lte: dbDate(todayKey) } },
       select: {
         date: true,
@@ -86,11 +90,27 @@ function foldInputs(userId: string, todayKey: string) {
         throwPlan: true,
       },
     }),
-    prisma.pitchLog.findMany({
+    db.pitchLog.findMany({
       where: { userId, date: dbDate(todayKey) },
       select: { sessionType: true, pitchCount: true, intensity: true, effortPct: true },
     }),
   ]);
+}
+
+/** 저장 트랜잭션에서도 최신 체크인·투구량을 확인한다. 별도 DB 연결을 기다리지 않는다. */
+export async function loadCurrentMechanicsFold(userId: string, db: Prisma.TransactionClient) {
+  const now = appNow();
+  const todayKey = toDateKey(now);
+  const [[checkins, logsToday], user] = await Promise.all([
+    foldInputs(userId, todayKey, db),
+    db.user.findUnique({ where: { id: userId }, select: { birthDate: true } }),
+  ]);
+  return mechanicsFoldOf({
+    todayKey,
+    logsToday,
+    checkins: checkins.map((c) => ({ ...c, date: keyOfDbDate(c.date) })),
+    age: user?.birthDate ? ageFromBirthDate(user.birthDate, now) : null,
+  });
 }
 
 /**
@@ -105,7 +125,7 @@ function foldInputs(userId: string, todayKey: string) {
 export async function loadMechanicsProgram(userId: string): Promise<{
   program: MechanicsProgramView | null;
   session: SessionDrillView[];
-  /** 오늘 '했다'로 남은 드릴 id — 따라 하기를 이어서 할 때 건너뛴다 */
+  /** 오늘 진행 중인 세션에서 수행한 드릴 id — 날짜별 체크를 다음 세션에 재사용하지 않는다 */
   doneToday: string[];
   /** 오늘 팔에 싣는 드릴을 접는가(까닭 · 펼칠 수 있나 포함) — 아니면 null */
   painFold: MechanicsPainFold | null;
@@ -131,7 +151,17 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     prisma.user.findUnique({
       where: { id: userId },
       /* 생년월일 — 성장기(만 16세 미만)의 통증 날은 못 펼친다(lib/mechanics/fold.ts) */
-      select: { id: true, nickname: true, heightCm: true, baselineFreq: true, baselineVolume: true, baselineIntensity: true, trainingLevel: true, ownedEquipment: true, birthDate: true },
+      select: {
+        id: true,
+        nickname: true,
+        heightCm: true,
+        baselineFreq: true,
+        baselineVolume: true,
+        baselineIntensity: true,
+        trainingLevel: true,
+        ownedEquipment: true,
+        birthDate: true,
+      },
     }),
     /* 트레이닝처럼 오늘 쓸 수 있는 장비(오늘 안 골랐으면 가진 것 전부) */
     prisma.dailyTrainingSetup.findUnique({
@@ -140,16 +170,22 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     }),
   ]);
   const [checkins, pitchesToday] = await foldRead;
-  if (!row) return { program: null, session: [], doneToday: [], painFold: null, throwNote: null };
+  if (!row)
+    return {
+      program: null,
+      session: [],
+      doneToday: [],
+      painFold: null,
+      throwNote: null,
+    };
 
-  const ownThumbs = await createPlaybackUrls(
-    guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string)
-  );
+  const ownThumbs = await createPlaybackUrls(guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string));
   const drills = groupDrills(guides, favorites, ownThumbs);
   const state = readProgramState(row.progress);
   const gathered = user ? await gatherFactsAndPlan(user, now) : null;
   const plan = state.level ? levelSession(state.level, state.index) : null;
   const program: MechanicsProgramView = {
+    planKey: mechanicsPlanKey(row.id, row.sessionsDone, state),
     level: state.level,
     index: state.index,
     week: plan?.week ?? null,
@@ -172,16 +208,34 @@ export async function loadMechanicsProgram(userId: string): Promise<{
   });
   const items = buildProgramSession({ drills, state, owned });
   const commonFold = mechanicsFoldOf({
-    todayKey, checkins: checkins.map((c) => ({ ...c, date: keyOfDbDate(c.date) })),
-    logsToday: pitchesToday, age: user?.birthDate ? ageFromBirthDate(user.birthDate, now) : null,
+    todayKey,
+    checkins: checkins.map((c) => ({ ...c, date: keyOfDbDate(c.date) })),
+    logsToday: pitchesToday,
+    age: user?.birthDate ? ageFromBirthDate(user.birthDate, now) : null,
   });
   const painfulPractice = state.practice?.some((p) => p.on === todayKey && p.response === 'pain');
-  const blocked = !gathered || gathered.plan.halted || !gathered.plan.today?.throwing || gathered.state.hard.needsCheckin || gathered.state.hard.armFatigueHigh || painfulPractice;
-  const painFold: MechanicsPainFold | null = commonFold ?? (blocked ? {
-    joints: [], label: '', because: 'painUnknown', canUnfold: false, cause: '오늘 투구 계획에 따라',
-    reason: painfulPractice ? '드릴 중 통증을 기록했어요. 오늘 던지기는 멈추고, 통증이 이어지면 진료를 받아보세요.' : '오늘 투구 계획·체크인·피로 상태를 확인하기 전에는 던지기 드릴을 쉬어요.',
-  } : null);
-  const session = items.flatMap((item): SessionDrillView[] => {
+  const blocked =
+    !gathered ||
+    gathered.plan.halted ||
+    !gathered.plan.today?.throwing ||
+    gathered.state.hard.needsCheckin ||
+    gathered.state.hard.armFatigueHigh ||
+    painfulPractice;
+  const painFold: MechanicsPainFold | null =
+    commonFold ??
+    (blocked
+      ? {
+          joints: [],
+          label: '',
+          because: 'painUnknown',
+          canUnfold: false,
+          cause: '오늘 투구 계획에 따라',
+          reason: painfulPractice
+            ? '드릴 중 통증을 기록했어요. 오늘 던지기는 멈추고, 통증이 이어지면 진료를 받아보세요.'
+            : '오늘 투구 계획·체크인·피로 상태를 확인하기 전에는 던지기 드릴을 쉬어요.',
+        }
+      : null);
+  const rebuiltSession = items.flatMap((item): SessionDrillView[] => {
     const variant = variants.get(item.guideId);
     const drill = byTitle.get(item.title);
     if (!variant || !drill) return [];
@@ -196,7 +250,9 @@ export async function loadMechanicsProgram(userId: string): Promise<{
   });
 
   /* 따라 하기에서 도구나 드릴을 바꿔 했어도 그 자리는 한 것으로 — 화면들은 item.guideId 로 본다 */
-  const done = new Set(logs.map((l) => l.guideId));
+  const active = state.attempt && !state.attempt.completed && state.attempt.on === todayKey && state.attempt.planKey === program.planKey ? state.attempt : null;
+  const session = active?.items ?? rebuiltSession;
+  const done = new Set(active?.doneIds ?? []);
   const doneToday = [...done];
   for (const item of session) {
     const ids = item.alternatives.flatMap((a) => a.variants.map((v) => v.id));
@@ -211,7 +267,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
       throwLog: state.throwLog,
       practice: state.practice,
       todayKey,
-      doneToday: [...done].flatMap((id) => {
+      doneToday: logs.map((l) => l.guideId).flatMap((id) => {
         const g = guideById.get(id);
         return g ? [{ category: g.category, stage: g.stage }] : [];
       }),
@@ -223,6 +279,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
 
 /** 요소별 드릴 칸이 보이는 내 처방 — 요소 칩의 점 · 요소 카드 맨 위 한 줄과 처방 드릴(docs/designs/pitch-3d-report.md 6-4절) */
 export type ElementReportView = {
+  criteriaNote?: string | null;
   element: string;
   level: 'improve' | 'edge';
   target: { label: string; now: string; goal: string } | null;
@@ -250,7 +307,13 @@ export async function loadElementReport(userId: string): Promise<ElementReportVi
     const titles = r.weeks.flatMap((w) =>
       w.drills.flatMap((d) => (seen.has(d.title) ? [] : (seen.add(d.title), [{ title: d.title, stage: w.stage }])))
     );
-    return { element: r.element, level: r.level, target: r.target, titles };
+    return {
+      element: r.element,
+      level: r.level,
+      target: r.target,
+      titles,
+      criteriaNote: focus.criteria === REPORT_CRITERIA ? null : LEGACY_FOCUS_NOTE,
+    };
   });
 }
 

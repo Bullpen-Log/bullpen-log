@@ -4,6 +4,10 @@ import { useState, type ReactNode } from 'react';
 import { ButtonLink } from '@/components/ui';
 import {
   REPORT_STATUS_TEXT,
+  REPORT_CRITERIA,
+  measurementText,
+  coverageText,
+  prescriptionMessage,
   rxAction,
   type FocusProgress,
   type RxAction,
@@ -34,9 +38,7 @@ export function ReportHero({
     <section className="theme-dark overflow-hidden rounded-3xl bg-page text-ink">
       <div className="relative">
         {stage}
-        {h.moment && (
-          <span className="pointer-events-none absolute right-4 top-3 text-caption text-muted">{h.moment}</span>
-        )}
+        {h.moment && <span className="pointer-events-none absolute right-4 top-3 text-caption text-muted">{h.moment}</span>}
       </div>
       {/* PC 는 결론이 3D 밑으로 밀려 안 보여 오른쪽 위(VerdictCard)로 */}
       <div className="px-5 pb-5 pt-1 desk:hidden">
@@ -98,9 +100,7 @@ function StatusTag({ status }: { status: ReportStatus }) {
     unsure: 'border border-dashed border-line-strong text-muted',
   };
   return (
-    <span className={`inline-flex shrink-0 rounded-full px-2.5 py-0.5 text-footnote ${cls[status]}`}>
-      {REPORT_STATUS_TEXT[status]}
-    </span>
+    <span className={`inline-flex shrink-0 rounded-full px-2.5 py-0.5 text-footnote ${cls[status]}`}>{REPORT_STATUS_TEXT[status]}</span>
   );
 }
 
@@ -112,7 +112,7 @@ export function Gauge({ g, muted = false }: { g: ReportGauge; muted?: boolean })
   const c = x(g.fairEnd);
   const seg = (from: number, to: number, cls: string) => (
     <span
-      className={`absolute inset-y-0 ${cls}`}
+      className={`absolute inset-y-0 ${muted ? 'bg-line' : cls}`}
       style={{ left: `${Math.min(from, to)}%`, width: `${Math.abs(to - from)}%` }}
     />
   );
@@ -139,8 +139,8 @@ export function Gauge({ g, muted = false }: { g: ReportGauge; muted?: boolean })
         className="absolute top-1 size-4 -translate-x-1/2 rounded-full border-[3px] border-surface bg-ink"
         style={{ left: `${x(g.value)}%` }}
       />
-      <span className="absolute top-5 -translate-x-1/2 text-caption text-warn" style={{ left: `${a}%` }}>
-        문턱
+      <span className={`absolute top-5 -translate-x-1/2 text-caption ${muted ? 'text-muted' : 'text-warn'}`} style={{ left: `${a}%` }}>
+        {muted ? '참고선' : '문턱'}
       </span>
     </div>
   );
@@ -160,6 +160,7 @@ export function FlowCard({
   return (
     <section className="space-y-2">
       <h2 className="px-1 text-footnote text-muted">투구의 흐름</h2>
+      <p className="px-1 text-caption text-muted">{coverageText(report.coverage)}</p>
       <div className="rounded-2xl bg-surface p-(--block-pad)">
         <div className="relative">
           <div className="absolute inset-x-5 top-2 h-px bg-line" />
@@ -179,9 +180,7 @@ export function FlowCard({
                   className="flex w-12 flex-col items-center gap-1.5"
                 >
                   <Dot status={i.status} />
-                  <span className={`text-caption whitespace-nowrap ${on ? 'font-semibold text-ink' : 'text-muted'}`}>
-                    {i.element}
-                  </span>
+                  <span className={`text-caption whitespace-nowrap ${on ? 'font-semibold text-ink' : 'text-muted'}`}>{i.element}</span>
                 </button>
               );
             })}
@@ -193,6 +192,8 @@ export function FlowCard({
             <StatusTag status={it.status} />
           </div>
           <p className="text-sm leading-relaxed text-ink break-keep">{it.line}</p>
+          <p className="text-caption text-muted">{measurementText(it)}</p>
+          {it.metricNote && <p className="text-caption text-muted">{it.metricNote}</p>}
           {it.value && (
             <div className="flex items-baseline gap-2">
               <span className="text-numeric text-3xl font-semibold tracking-tight text-ink">{it.value}</span>
@@ -272,32 +273,18 @@ const RX_HREF = (kind: RxAction['kind'], reportId: string, elementKey: string) =
         ? '/videos/lab'
         : `/training?view=mechanics&tab=elements&el=${elementKey}`;
 
-export function RxCard({
-  report,
-  reportId,
-  mine,
-  focus,
-}: {
-  report: PitchReport;
-  reportId: string;
-  mine: boolean;
-  focus: FocusProgress;
-}) {
-  if (report.rx.length === 0) return null;
+export function RxCard({ report, reportId, mine, focus }: { report: PitchReport; reportId: string; mine: boolean; focus: FocusProgress }) {
+  if (report.criteria !== REPORT_CRITERIA || report.rx.length === 0)
+    return (
+      <section className="space-y-2 rounded-2xl bg-surface p-(--block-pad)">
+        <h2 className="font-semibold text-ink">자동 처방 안내</h2>
+        <p className="text-sm text-muted">{prescriptionMessage(report)}</p>
+      </section>
+    );
   const main = report.rx[0];
   const cta = rxAction(mine, focus);
   const href = RX_HREF(cta.kind, reportId, main.key);
-  const weeks =
-    main.level === 'improve'
-      ? [
-          ['1주', '기초'],
-          ['2주', '연결'],
-          ['3주', '통합'],
-        ]
-      : [
-          ['1주', '연결'],
-          ['2~3주', '통합'],
-        ];
+  const weeks = main.weeks.map((w) => [w.label, w.stage]);
   return (
     <section className="space-y-2">
       <h2 className="px-1 text-footnote text-muted">처방 · 3주 · 주 3번</h2>
@@ -313,9 +300,7 @@ export function RxCard({
         {report.rx.map((rx) => (
           <RxBlock key={rx.element} rx={rx} />
         ))}
-        {report.later.length > 0 && (
-          <p className="text-caption text-muted break-keep">다음 차례 · {report.later.join(' · ')}</p>
-        )}
+        {report.later.length > 0 && <p className="text-caption text-muted break-keep">다음 차례 · {report.later.join(' · ')}</p>}
         <div className="space-y-2">
           <ButtonLink href={href} size="lg" className="w-full">
             {cta.label}

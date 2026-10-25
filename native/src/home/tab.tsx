@@ -141,7 +141,8 @@ export function HomeTab({
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
       if (st !== 'active') {
-        leftAt.current ??= Date.now();
+        /* ??= 를 쓰면 React 컴파일러가 홈 탭 전체를 건너뛴다 */
+        if (leftAt.current == null) leftAt.current = Date.now();
         return;
       }
       const away = leftAt.current;
@@ -422,15 +423,15 @@ function FirstDayCard({
     busy.current = true;
     setSaving(true);
     setErr(null);
+    /* finally 대신 뒤에 — catch 가 다 받아 늘 이어지고, finally 는 React 컴파일러가 이 칸을 건너뛰게 한다 */
     try {
       await call('/api/pitch-log', { method: 'POST', body: { date: today, sessionType: REST_SESSION_TYPE, videoPaths: [] } });
       onRested();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : '인터넷 연결을 확인한 뒤 다시 눌러 주세요.');
-    } finally {
-      busy.current = false;
-      setSaving(false);
     }
+    busy.current = false;
+    setSaving(false);
   };
   return (
     <View style={[styles.card, { backgroundColor: c.skyTint, gap: 12 }]}>

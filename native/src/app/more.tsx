@@ -2,9 +2,9 @@ import type { BlurView as BlurViewType } from 'expo-blur';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { type Href, router } from 'expo-router';
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { Easing, runOnJS, useAnimatedProps, useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useTheme } from '~/lib/ui';
@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, type IconName } from '~/shell/icon';
 import { useMenu, type MenuGroup } from '~/shell/menu-store';
 import type { ShellTab } from '~/shell/tab-bar';
-import { leaveTo } from '~/shell/web-nav';
+import { destinationOf, leaveTo, leaveWhenShown, openWebAfter } from '~/shell/web-nav';
 
 /**
  * 더보기(앱) — 아이폰 홈 화면 폴더처럼: 뒤 화면을 흐리고 어둡게 가라앉히고(expo-blur), 그 위에 '메뉴' 큰 제목과 반투명 유리 폴더가
@@ -98,6 +98,16 @@ function folderGroups(groups: MenuGroup[], tabs: ShellTab[]): MenuGroup[] {
   return out;
 }
 
+/** 웹이 그리기를 기다리는 더보기 닫기(open) — 화면이 먼저 닫히면 그만둔다 */
+let stopLeave: (() => void) | null = null;
+const holdLeave = (stop: () => void) => {
+  stopLeave = stop;
+};
+const dropLeave = () => {
+  stopLeave?.();
+  stopLeave = null;
+};
+
 export default function MoreScreen() {
   const inset = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -163,13 +173,32 @@ export default function MoreScreen() {
       }
     });
 
-  const open = (href: string) => leaveTo(href);
+  /*
+   * 폴더는 가는 곳이 보일 때 닫는다 — 예전엔 누르자마자 폴더를 걷고 웹을 옮겨, 웹이 새 화면을 그리는 동안 밑의 옛 화면(앱 판 · 옛 웹)이 보였다가
+   * 넘어갔다(2026-10-25 화면 전환 점검). 앱 화면은 예전처럼 다 걷고 연다(먼저 알리면 새로 연 화면까지 같이 걷힌다), 앱 판 · 이미 그 자리인 웹은
+   * 밑이 바로 바뀌니 알리고 줄어들며 닫고, 웹 화면은 웹이 그렸다고 알려 온 뒤에 줄어들며 닫는다. 기다리는 동안 누른 칸에 돌개 · 다른 칸은 막는다
+   */
+  const [leaving, setLeaving] = useState<string | null>(null);
+  /* 기다리는 중에 끌어내려 · 막을 눌러 먼저 닫으면 기다림을 그만둔다(router.back 이 두 번이면 밑 화면까지 걷힌다) */
+  useEffect(() => dropLeave, []);
+  const open = (href: string) => {
+    if (leaving) return;
+    const to = destinationOf(href);
+    if (to === 'native') return leaveTo(href);
+    setLeaving(href);
+    if (to === 'now') {
+      openWebAfter(href);
+      close();
+    } else holdLeave(leaveWhenShown(href, close));
+  };
   const tileOf = (key: string, label: string, icon: IconName, onPress: () => void, locked = false) => (
     <Pressable
       key={key}
       accessibilityRole="button"
       accessibilityLabel={locked ? `${label}(설정 전)` : label}
       onPress={onPress}
+      disabled={leaving != null}
+      accessibilityState={{ busy: leaving === key, disabled: leaving != null }}
       style={({ pressed }) => [styles.tile, pressed && { transform: [{ scale: 0.95 }] }]}
     >
       <View
@@ -187,7 +216,7 @@ export default function MoreScreen() {
           },
         ]}
       >
-        <Icon name={icon} size={tile * 0.5} color={L.glyph} />
+        {leaving === key ? <ActivityIndicator color={L.glyph} /> : <Icon name={icon} size={tile * 0.5} color={L.glyph} />}
         {locked ? (
           <View style={[styles.lock, { backgroundColor: L.tile }]}>
             <Icon name="lock" size={11} color={L.glyph} />

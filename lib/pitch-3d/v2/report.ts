@@ -5,13 +5,13 @@
  * 값은 mechChecks(lib/pitch-3d/v2/mech-checks.ts), 기준은 드라이브라인 공개 자료를 우리 식으로 다시 센 것(scripts/pitch-lab/obp/elements.py,
  * 마운드 · 100명 402구), 엔진 오차는 마커 15구(scripts/pitch-lab/markers/selfcal/element_score.py, 10-15 엔진). 문턱 여유는 2 × σ(1구).
  *
- * 등급(3-1절): 드리프트 A · 드롭 · 브레이크 · 몸통 회전 · 착지 때 상체 'A 후보'(P0 마커 촬영 전) · 스로잉 B. A 만 고칠 점, A 후보는 경계까지
+ * 등급(3-1절): 드리프트 A · 드롭 · 브레이크 · 몸통 회전 · 착지 때 상체 'A 후보'(P0 마커 촬영 전) · 스로잉 B. A 만 고칠 점, A 후보와 B는 참고로만
  * (2026-10-21 — 실험실 실제 샘플 8개 중 4개가 브레이크 '고칠 점'으로 나왔는데 엔진 앞다리 정확도를 아직 한 사람 · 한 번만 쟀다), B 는 '참고'까지.
- * P0 에서 등급이 바뀌면 ELEMENT_GRADE 한 줄만 고친다.
- * 글은 해요체 · 줄표 없이 · 코칭 기관 이름 없이(2026-10-09 규칙). 결론에는 숫자를 안 쓴다.
+ * 2026-10-26: 검증 수준·영상 신뢰도·기준상 수치 위치를 분리하고 A?와 B는 자동 처방에서 제외한다.
+ * 결론은 확인한 지표의 범위만 설명하고 평가·참고·미판정 개수를 함께 표시한다.
  */
+import { REPORT_CRITERIA, RX_START_STAGE } from '@/lib/pitch-3d/v2/report-policy';
 import { DRILL_STAGE_NAMES, type FOCUS_POINTS } from '@/lib/exercise-meta';
-import { withJosa } from '@/lib/korean';
 import type { MechanicsDrillView } from '@/lib/mechanics/drills';
 import { mechanicsElement } from '@/lib/mechanics/elements';
 import { doseOf, doseText } from '@/lib/mechanics/program';
@@ -24,11 +24,11 @@ type ElementName = (typeof FOCUS_POINTS)[number];
 type DrillStage = (typeof DRILL_STAGE_NAMES)[number];
 
 /** 기준 판 — 문턱 · 기준표 · 글을 바꾸면 올린다(리포트 요약이 옛 판이면 다시 셈) */
-export const REPORT_CRITERIA = '2026-10-21';
+export { REPORT_CRITERIA };
 /**
  * 이 확신(0~100, 그 지표가 쓴 관절 · 장면 평균) 밑이면 판정하지 않는다 — 지금 점검 카드와 같은 30(mech-judge MECH_CONF_MIN).
  * 설계 3-2절은 한 구라 45 로 올리자 했지만, 실험실 실제 샘플 8개의 확신이 25~57 이라 45 면 8개 중 6개가 '판정 못 함'이 됐다(2026-10-21).
- * 한 구의 큰 오류는 확신 대신 엔진 오류값 거르기(브레이크 더 굽음 40° · 골반 감속 115%)로 막는다. 확신이 없는 옛 결과는 그대로 판정.
+ * 한 구의 큰 오류는 확신 대신 엔진 오류값 거르기(브레이크 더 굽음 40° · 골반 감속 115%)로 막는다. 확신이 없는 옛 결과는 수치만 참고하고 자동 판정하지 않는다.
  */
 export const REPORT_CONF_MIN = MECH_CONF_MIN;
 /** 성장기(만 16세 미만, 트레이닝과 같은 선) — 크기 지표는 참고로만(4절 4번) */
@@ -36,17 +36,18 @@ export const REPORT_YOUTH_AGE = 16;
 
 export type ReportStatus = 'improve' | 'edge' | 'fair' | 'good' | 'note' | 'unsure';
 export type FaultKey =
-  | 'drift.stuck'
-  | 'drop.float'
-  | 'drop.shallow'
-  | 'sep.openAtPlant'
-  | 'block.collapse'
-  | 'block.soft'
-  | 'trunk.upright'
-  | 'arm.late';
+  'drift.stuck' | 'drop.float' | 'drop.shallow' | 'sep.openAtPlant' | 'block.collapse' | 'block.soft' | 'trunk.upright' | 'arm.late';
 type Grade = 'A' | 'A?' | 'B';
+type Assessment = 'improve' | 'edge' | 'fair' | 'good';
+export type ReportMeasurement = {
+  confidence: number | null;
+  quality: 'sufficient' | 'low' | 'missing' | 'invalid' | 'unavailable';
+  validation: 'supported' | 'provisional' | 'reference';
+  applicability: 'supported' | 'flat' | 'youth';
+};
+export type ReportCoverage = { evaluated: number; reference: number; unavailable: number; total: number };
 
-/** 등급(3-1절) — 'A?' = A 후보(P0 전, 경계까지). B 는 경계 · 고칠 점을 안 낸다 */
+/** 등급(3-1절) — 'A?' = A 후보(P0 전, 자동 처방 보류). B 는 경계 · 고칠 점을 안 낸다 */
 export const ELEMENT_GRADE: Record<ElementName, Grade> = {
   드리프트: 'A',
   드롭: 'A?',
@@ -103,10 +104,15 @@ export type ReportItem = {
   /** 요소별 드릴 칸 키(/training?view=mechanics&tab=elements&el=) */
   key: string;
   status: ReportStatus;
+  /** 수치의 기준상 위치. 측정 신뢰도와 처방 단계로 사용하지 않는다. */
+  assessment: Assessment | null;
+  measurement: ReportMeasurement;
+  prescriptionEligible: boolean;
+  metricNote: string | null;
   /** 경계 · 고칠 점일 때 문제 종류(6-1절) */
   fault: FaultKey | null;
   /** 참고 · 판정 안 함의 까닭 */
-  why: 'gradeB' | 'flat' | 'youth' | 'lowConf' | 'implausible' | 'notMeasured' | null;
+  why: 'validation' | 'confidenceMissing' | 'gradeB' | 'flat' | 'youth' | 'lowConf' | 'implausible' | 'notMeasured' | null;
   /** 한 줄(해요체) */
   line: string;
   /** 큰 숫자와 그 이름 — 판정 안 함이면 null */
@@ -139,7 +145,7 @@ export const reportDrillsOf = (views: MechanicsDrillView[]): ReportDrill[] =>
     thumbUrl: d.variants.find((v) => v.thumbUrl)?.thumbUrl ?? null,
   }));
 
-/** 처방 한 장(6-1절) — 요소마다 */
+/** 처방 한 장 — 판정과 시작 단계를 분리하며 새 처방은 기초부터 */
 export type ElementRx = {
   element: ElementName;
   key: string;
@@ -161,6 +167,7 @@ export type PitchReport = {
   ground: 'mound' | 'flat';
   hand: 'R' | 'L';
   youth: boolean;
+  coverage: ReportCoverage;
   /** 여섯 요소, 흐름 차례 */
   items: ReportItem[];
   /** 주 문제 요소(없으면 null) — 처음 골라 둘 점 */
@@ -191,6 +198,7 @@ export type ReportSummary = {
   bad: { element: ElementName; level: 'improve' | 'edge' }[];
   /** 판정한 요소가 하나라도 있나 */
   judged: boolean;
+  coverage?: ReportCoverage;
 };
 
 export type ReportContext = {
@@ -205,6 +213,8 @@ export type ReportContext = {
 
 const UNSURE_LINE = '영상에서 이 부분이 잘 안 보여 판정하지 않았어요.';
 const WHY_LINE: Record<NonNullable<ReportItem['why']>, string> = {
+  validation: '이 지표는 검증 중이라 수치를 참고로만 확인해요. 이 값만으로 교정 운동을 정하지 않아요.',
+  confidenceMissing: '이전 분석에는 측정 신뢰도 정보가 없어 판정하지 않았어요. 다시 촬영해 확인해 주세요.',
   gradeB: '이 지표는 아직 정확도를 확인하는 중이라 참고로만 봐요.',
   flat: '평지에서 던진 영상이라 참고로만 봐요. 기준이 마운드 투구예요.',
   youth: '성장기는 크기보다 순서를 먼저 봐서 참고로만 봐요.',
@@ -303,11 +313,11 @@ const STATUS_FOOT: Record<'improve' | 'edge' | 'fair' | 'good', string> = {
 
 /* ───────────────────────────── 판정 ───────────────────────────── */
 
-const okConf = (c: number | null | undefined) => c == null || c >= REPORT_CONF_MIN;
+const okConf = (c: number | null | undefined) => c == null || (Number.isFinite(c) && c >= REPORT_CONF_MIN && c <= 100);
 const fmtDeg = (v: number) => `${Math.round(v)}°`;
 const fmtPct = (v: number) => `${Math.round(v * 100)}%`;
 
-type Draft = Omit<ReportItem, 'element' | 'key'>;
+type Draft = Omit<ReportItem, 'element' | 'key' | 'assessment' | 'measurement' | 'prescriptionEligible' | 'metricNote'>;
 
 function judged(
   name: ElementName,
@@ -349,8 +359,7 @@ const reference = (why: NonNullable<ReportItem['why']>, value: string | null, va
 
 /** 등급 B · 평지 · 성장기면 참고로(값 · 띠는 그대로 보이고 경계 · 고칠 점 · 처방은 없다) */
 function capped(name: ElementName, d: Draft, why: ReportItem['why']): Draft {
-  if (ELEMENT_GRADE[name] === 'B') return reference('gradeB', d.value, d.valueLabel, d.gauge, d.frame);
-  return why ? reference(why, d.value, d.valueLabel, d.gauge, d.frame) : d;
+  return { ...d, why: why ?? (ELEMENT_GRADE[name] === 'B' ? 'gradeB' : null) };
 }
 
 /** 여섯 요소 판정(흐름 차례) — mechChecks 값으로 */
@@ -369,7 +378,16 @@ export function judgeElements(
     const v = m.drift.aheadAtKneeUp;
     const value = m.drift.aheadAtKneeUpCm != null ? `${Math.round(m.drift.aheadAtKneeUpCm)}cm` : `키의 ${Math.round(v * 100)}%`;
     const goal = ctx.heightCm ? `${Math.round(DRIFT_GOOD * ctx.heightCm)}cm 위` : `키의 ${Math.round(DRIFT_GOOD * 100)}% 위`;
-    out['드리프트'] = judged('드리프트', 'drift.stuck', bandOf(v, DRIFT_BAND), value, '니업 때 골반이 축발보다 앞', { ...DRIFT_BAND, value: v }, frames.kneeUp, goal);
+    out['드리프트'] = judged(
+      '드리프트',
+      'drift.stuck',
+      bandOf(v, DRIFT_BAND),
+      value,
+      '니업 때 골반이 축발보다 앞',
+      { ...DRIFT_BAND, value: v },
+      frames.kneeUp,
+      goal
+    );
   }
 
   /* 드롭 — '거의 안 가라앉음 · 뜸'은 어디서든 고칠 점, 그 밖은 마운드만(평지 · 성장기는 참고) */
@@ -396,7 +414,16 @@ export function judgeElements(
     else {
       const b = sepBand(m.hand);
       const value = `${Math.round(Math.abs(v))}° ${v >= 0 ? '열림' : '닫힘'}`;
-      out['상하체 분리'] = judged('상하체 분리', 'sep.openAtPlant', bandOf(v, b), value, '착지 때 상체(어깨선)', { ...b, value: v }, frames.plant, `${Math.round(Math.abs(b.edgeEnd))}° 닫힘보다 닫힘`);
+      out['상하체 분리'] = judged(
+        '상하체 분리',
+        'sep.openAtPlant',
+        bandOf(v, b),
+        value,
+        '착지 때 상체(어깨선)',
+        { ...b, value: v },
+        frames.plant,
+        `${Math.round(Math.abs(b.edgeEnd))}° 닫힘보다 닫힘`
+      );
     }
   }
 
@@ -414,7 +441,16 @@ export function judgeElements(
       out['브레이크'] = capped(
         '브레이크',
         useSink
-          ? judged('브레이크', 'block.collapse', sink, fmtDeg(bl.kneeCollapseDeg), '착지 뒤 앞무릎이 더 굽은 각', { ...SINK_BAND, value: bl.kneeCollapseDeg }, frames.release, `${Math.round(SINK_BAND.fairEnd)}° 밑`)
+          ? judged(
+              '브레이크',
+              'block.collapse',
+              sink,
+              fmtDeg(bl.kneeCollapseDeg),
+              '착지 뒤 앞무릎이 더 굽은 각',
+              { ...SINK_BAND, value: bl.kneeCollapseDeg },
+              frames.release,
+              `${Math.round(SINK_BAND.fairEnd)}° 밑`
+            )
           : judged(
               '브레이크',
               'block.soft',
@@ -437,7 +473,16 @@ export function judgeElements(
     else
       out['몸통 회전'] = capped(
         '몸통 회전',
-        judged('몸통 회전', 'trunk.upright', bandOf(t.forwardDeg, TRUNK_BAND), fmtDeg(t.forwardDeg), '릴리스 때 몸통 앞 기울기', { ...TRUNK_BAND, value: t.forwardDeg }, frames.release, `${Math.round(TRUNK_BAND.fairEnd)}° 위`),
+        judged(
+          '몸통 회전',
+          'trunk.upright',
+          bandOf(t.forwardDeg, TRUNK_BAND),
+          fmtDeg(t.forwardDeg),
+          '릴리스 때 몸통 앞 기울기',
+          { ...TRUNK_BAND, value: t.forwardDeg },
+          frames.release,
+          `${Math.round(TRUNK_BAND.fairEnd)}° 위`
+        ),
         flat ? 'flat' : ctx.youth ? 'youth' : null
       );
   }
@@ -449,28 +494,134 @@ export function judgeElements(
     else
       out['스로잉'] = capped(
         '스로잉',
-        judged('스로잉', 'arm.late', bandOf(a.abductionAtPlantDeg, ARM_BAND), fmtDeg(a.abductionAtPlantDeg), '착지 때 어깨 벌림(90° = 팔꿈치가 어깨 높이)', { ...ARM_BAND, value: a.abductionAtPlantDeg }, frames.plant, `${Math.round(ARM_BAND.fairEnd)}° 위`),
+        judged(
+          '스로잉',
+          'arm.late',
+          bandOf(a.abductionAtPlantDeg, ARM_BAND),
+          fmtDeg(a.abductionAtPlantDeg),
+          '착지 때 어깨 벌림(90° = 팔꿈치가 어깨 높이)',
+          { ...ARM_BAND, value: a.abductionAtPlantDeg },
+          frames.plant,
+          `${Math.round(ARM_BAND.fairEnd)}° 위`
+        ),
         null
       );
   }
 
-  return CHAIN.map((name) => ({ element: name, key: mechanicsElement(name)?.key ?? '', ...candidateCap(name, out[name]) }));
+  const confidence: Record<ElementName, number | null | undefined> = {
+    드리프트: m.drift?.conf,
+    드롭: m.drop?.conf,
+    '상하체 분리': m.separation.trunkConf,
+    브레이크: m.block.conf,
+    '몸통 회전': m.trunkTilt.conf,
+    스로잉: m.arm.conf,
+  };
+  return CHAIN.map((name) => {
+    const d = out[name];
+    const conf = confidence[name];
+    const validation: ReportMeasurement['validation'] =
+      ELEMENT_GRADE[name] === 'A' ? 'supported' : ELEMENT_GRADE[name] === 'A?' ? 'provisional' : 'reference';
+    const invalid =
+      d.why === 'implausible' ||
+      (d.gauge != null && !Number.isFinite(d.gauge.value)) ||
+      (conf != null && (!Number.isFinite(conf) || conf < 0 || conf > 100));
+    const quality: ReportMeasurement['quality'] = invalid
+      ? 'invalid'
+      : d.why === 'notMeasured'
+        ? 'unavailable'
+        : conf == null
+          ? 'missing'
+          : !okConf(conf)
+            ? 'low'
+            : 'sufficient';
+    const applicability: ReportMeasurement['applicability'] =
+      flat && (name === '드롭' || name === '몸통 회전')
+        ? 'flat'
+        : ctx.youth && ['드롭', '브레이크', '몸통 회전'].includes(name)
+          ? 'youth'
+          : 'supported';
+    const assessment = quality === 'sufficient' && d.status !== 'note' && d.status !== 'unsure' ? d.status : null;
+    const why: ReportItem['why'] =
+      quality === 'invalid'
+        ? 'implausible'
+        : quality === 'unavailable'
+          ? 'notMeasured'
+          : quality === 'missing'
+            ? 'confidenceMissing'
+            : quality === 'low'
+              ? 'lowConf'
+              : applicability !== 'supported'
+                ? applicability
+                : validation === 'provisional'
+                  ? 'validation'
+                  : validation === 'reference'
+                    ? 'gradeB'
+                    : null;
+    const status: ReportStatus = quality !== 'sufficient' ? 'unsure' : why ? 'note' : d.status;
+    const prescriptionEligible =
+      quality === 'sufficient' &&
+      validation === 'supported' &&
+      applicability === 'supported' &&
+      (assessment === 'improve' || assessment === 'edge') &&
+      d.fault != null;
+    return {
+      ...d,
+      element: name,
+      key: mechanicsElement(name)?.key ?? '',
+      status,
+      assessment,
+      measurement: { confidence: conf != null && Number.isFinite(conf) ? conf : null, quality, validation, applicability },
+      prescriptionEligible,
+      fault: prescriptionEligible ? d.fault : null,
+      why,
+      line: why ? WHY_LINE[why] : d.line,
+      value: invalid ? null : d.value,
+      gauge: invalid ? null : d.gauge,
+      foot: why ? null : d.foot,
+      goal: prescriptionEligible ? d.goal : null,
+      metricNote: METRIC_NOTES[name] ?? null,
+    };
+  });
 }
 
-/** A 후보는 경계까지 — 고칠 점을 경계로 내리고 그 까닭을 띠 밑에 */
-function candidateCap(name: ElementName, d: Draft): Draft {
-  if (ELEMENT_GRADE[name] !== 'A?' || d.status !== 'improve' || !d.fault) return d;
+const METRIC_NOTES: Partial<Record<ElementName, string>> = {
+  '상하체 분리': '착지 때 어깨선이 열린 각도를 확인해요. 상하체 분리 전체를 평가한 값은 아니에요.',
+  '몸통 회전': '릴리스 때 몸통의 앞 기울기를 확인해요. 몸통 회전량이나 회전 속도를 평가한 값은 아니에요.',
+  스로잉: '착지 때 어깨가 벌어진 각도를 확인해요. 팔의 전체 타이밍을 평가한 값은 아니에요.',
+};
+
+export function measurementText(item: ReportItem): string {
+  if (!item.measurement) return '이전 판정 기준의 리포트예요. 다시 불러와 확인해 주세요.';
+  if (item.measurement.quality !== 'sufficient') return '측정 확인 필요';
+  if (item.measurement.applicability !== 'supported') return '수치 확인 · 촬영 조건 참고';
+  return item.measurement.validation === 'supported' ? '수치 확인 · 판정 가능' : '수치 확인 · 지표 검증 중';
+}
+
+export function coverageOf(items: ReportItem[]): ReportCoverage {
   return {
-    ...d,
-    status: 'edge',
-    line: LINES[d.fault].edge ?? d.line,
-    foot: `경계 · 기준 밑이에요. 정확도를 확인하는 중이라 경계까지만 내요${d.goal ? ` · 좋아요는 ${d.goal}` : ''}`,
+    evaluated: items.filter((i) => i.status !== 'note' && i.status !== 'unsure').length,
+    reference: items.filter((i) => i.status === 'note').length,
+    unavailable: items.filter((i) => i.status === 'unsure').length,
+    total: items.length,
   };
+}
+export const coverageText = (c: ReportCoverage | undefined) =>
+  c
+    ? `평가 ${c.evaluated}개 · 참고 ${c.reference}개 · 미판정 ${c.unavailable}개`
+    : '이전 판정 기준의 리포트예요. 다시 불러와 확인해 주세요.';
+export function prescriptionMessage(report: PitchReport): string {
+  if (report.criteria !== REPORT_CRITERIA || !report.coverage)
+    return '리포트 기준을 업데이트하고 있어요. 다시 불러온 뒤 처방을 확인해 주세요.';
+  if (report.rx.length === 0 && report.items.some((i) => i.prescriptionEligible)) return '기초 단계의 드릴을 구성할 수 없어 자동 처방을 보류했어요. 사용할 수 있는 드릴을 확인해 주세요.';
+  if (report.coverage.reference || report.coverage.unavailable)
+    return '참고·미판정 항목은 자동 처방의 근거로 쓰지 않아요. 영상 확인이 어려운 항목은 다시 촬영하고, 검증 중인 수치는 참고로 확인해 주세요.';
+  return '확인한 지표에서 자동 처방할 항목이 없어요. 이 결과가 투구 동작 전체를 평가한 것은 아니에요.';
 }
 
 /* ───────────────────────────── 처방 ───────────────────────────── */
 
-const isBad = (i: ReportItem) => i.status === 'improve' || i.status === 'edge';
+const isBad = (i: ReportItem): i is ReportItem & { status: 'improve' | 'edge'; fault: FaultKey } =>
+  i.prescriptionEligible && i.fault != null && (i.status === 'improve' || i.status === 'edge');
 
 /** 주 문제 · 다음 문제 · 다음 차례(4절 · 6-2절) — 고칠 점이 있으면 그중 가장 앞, 없으면 경계 중 가장 앞 */
 export function pickProblems(items: ReportItem[]): { primary: ReportItem | null; next: ReportItem | null; later: ReportItem[] } {
@@ -506,22 +657,17 @@ function prescribed(drills: ReportDrill[], item: ReportItem & { fault: FaultKey 
 }
 
 function rxOf(item: ReportItem, drills: ReportDrill[], slots: 1 | 2): ElementRx | null {
-  if (!item.fault || (item.status !== 'improve' && item.status !== 'edge')) return null;
-  /* 고칠 점 = 1주 기초 · 2주 연결 · 3주 통합, 경계 = 1주 연결 · 2~3주 통합(기초 건너뜀) */
-  const plan: { week: 1 | 2 | 3; label: string; stage: DrillStage }[] =
-    item.status === 'improve'
-      ? [
-          { week: 1, label: '1주', stage: '기초' },
-          { week: 2, label: '2주', stage: '연결' },
-          { week: 3, label: '3주', stage: '통합' },
-        ]
-      : [
-          { week: 1, label: '1주', stage: '연결' },
-          { week: 2, label: '2~3주', stage: '통합' },
-        ];
+  if (!item.prescriptionEligible || !item.fault || (item.status !== 'improve' && item.status !== 'edge')) return null;
+  // 시작 단계는 판정의 심각도·신뢰도로 올리지 않는다. 검증된 수행 이력이 없으면 기초부터.
+  const plan: { week: 1 | 2 | 3; label: string; stage: DrillStage }[] = [
+    { week: 1, label: '1주', stage: RX_START_STAGE },
+    { week: 2, label: '2주', stage: '연결' },
+    { week: 3, label: '3주', stage: '통합' },
+  ];
   const weeks = plan
     .map((w) => ({ ...w, drills: prescribed(drills, { ...item, fault: item.fault! }, w.stage, slots) }))
     .filter((w) => w.drills.length > 0);
+  if (!weeks.some((w) => w.week === 1 && w.stage === RX_START_STAGE)) return null;
   const g = item.gauge;
   return {
     element: item.element,
@@ -563,7 +709,8 @@ export function buildReport(result: Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' 
       )
     : [];
 
-  const anyJudged = items.some((i) => i.status !== 'unsure' && i.status !== 'note');
+  const coverage = coverageOf(items);
+  const evaluated = items.filter((i) => i.status !== 'unsure' && i.status !== 'note');
   let headline: PitchReport['headline'];
   if (primary?.fault) {
     const improve = primary.status === 'improve';
@@ -572,17 +719,20 @@ export function buildReport(result: Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' 
       tag: `${primary.element} · ${improve ? '고칠 점' : '경계'}`,
       title: improve
         ? `${FAULT_TEXT[primary.fault]}\n여기부터 고쳐요.`
-        : `동작이 좋아요.\n${withJosa(primary.element, '을/를')} 다듬으면 더 좋아져요.`,
+        : `확인한 ${primary.element} 지표가 경계에 있어요.\n기초 동작부터 확인해요.`,
       why: WHY_SHORT[primary.element],
       frame: primary.frame,
       moment: momentName(result, primary.frame),
     };
-  } else if (anyJudged) {
+  } else if (evaluated.length > 0) {
     headline = {
-      tone: 'good',
+      tone: coverage.evaluated === coverage.total ? 'good' : 'unsure',
       tag: null,
-      title: '지금 동작을 지켜요.\n흐름에서 크게 고칠 곳이 없어요.',
-      why: '같은 자리에서 가끔 다시 찍어 지금 모습을 지키는지 봐요.',
+      title:
+        evaluated.length === 1
+          ? `${evaluated[0].element} 지표는 ${evaluated[0].status === 'good' ? '좋아요' : '보통이에요'}.\n나머지 ${coverage.total - 1}개 요소는 추가 확인이 필요해요.`
+          : `확인한 ${coverage.evaluated}개 지표에서 처방할 항목이 없어요.`,
+      why: '이 결과는 확인한 지표의 평가예요. 투구 동작 전체에 대한 결론은 아니에요.',
       frame: result.events.release,
       moment: momentName(result, result.events.release),
     };
@@ -590,8 +740,10 @@ export function buildReport(result: Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' 
     headline = {
       tone: 'unsure',
       tag: null,
-      title: '이 영상으로는 판정이 어려워요.',
-      why: '몸이 잘 보이게 다시 찍으면 리포트를 드려요.',
+      title: coverage.reference ? '수치는 참고로 확인해요.\n자동 처방은 보류해요.' : '이 영상으로는 판정이 어려워요.',
+      why: coverage.reference
+        ? '검증 중인 지표와 촬영 조건을 확인해 주세요. 이 결과만으로 교정 운동을 정하지 않아요.'
+        : '몸이 잘 보이게 다시 찍어 측정 가능한지 확인해 주세요.',
       frame: null,
       moment: null,
     };
@@ -604,6 +756,7 @@ export function buildReport(result: Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' 
     ground: ctx.ground,
     hand: result.hand,
     youth: ctx.youth,
+    coverage,
     items,
     primary: primary?.element ?? null,
     headline,
@@ -613,13 +766,14 @@ export function buildReport(result: Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' 
 }
 
 export function reportSummary(report: PitchReport): ReportSummary {
-  const p = report.primary ? report.items.find((i) => i.element === report.primary) : null;
+  const p = report.primary ? report.items.find((i) => i.element === report.primary && isBad(i)) : null;
   return {
     v: 1,
     criteria: report.criteria,
     primary: p && (p.status === 'improve' || p.status === 'edge') ? { element: p.element, level: p.status } : null,
-    bad: report.items.flatMap((i) => (i.status === 'improve' || i.status === 'edge' ? [{ element: i.element, level: i.status }] : [])),
+    bad: report.items.flatMap((i) => (isBad(i) ? [{ element: i.element, level: i.status }] : [])),
     judged: report.items.some((i) => i.status !== 'unsure' && i.status !== 'note'),
+    coverage: coverageOf(report.items),
   };
 }
 
@@ -643,7 +797,13 @@ export function readReportSummary(raw: unknown): ReportSummary | null {
     : primary
       ? [primary]
       : [];
-  return { v: 1, criteria: r.criteria, primary, bad, judged: r.judged };
+  const c = r.coverage as ReportCoverage | undefined;
+  const validCoverage =
+    c &&
+    [c.evaluated, c.reference, c.unavailable, c.total].every((n) => Number.isInteger(n) && n >= 0) &&
+    c.total === CHAIN.length &&
+    c.evaluated + c.reference + c.unavailable === c.total;
+  return { v: 1, criteria: r.criteria, primary, bad, judged: r.judged, ...(validCoverage ? { coverage: c } : {}) };
 }
 
 /** 작업 기록(job.json)에 남기는 모양 — 결과 작업 번호와 함께 */
@@ -653,14 +813,17 @@ export const jobReport = (jobId: string, s: ReportSummary) => ({ ...s, jobId });
 export function jobReportSummary(job: { report?: unknown; shownJobId: string | null } | null): ReportSummary | null {
   if (!job?.shownJobId || !job.report || (job.report as { jobId?: unknown }).jobId !== job.shownJobId) return null;
   const s = readReportSummary(job.report);
-  return s && s.criteria === REPORT_CRITERIA ? s : null;
+  return s && s.criteria === REPORT_CRITERIA && s.coverage ? s : null;
 }
 
 /** 목록 줄의 꼬리표 — '브레이크 · 고칠 점' · '좋아요' · '판정 못 함' */
 export function summaryChip(s: ReportSummary | null): { text: string; tone: 'improve' | 'edge' | 'good' | 'muted' } | null {
   if (!s) return null;
   if (s.primary) return { text: `${s.primary.element}${s.primary.level === 'improve' ? '' : ' · 경계'}`, tone: s.primary.level };
-  return s.judged ? { text: '좋아요', tone: 'good' } : { text: '판정 못 함', tone: 'muted' };
+  if (!s.judged && s.coverage?.reference) return { text: `참고 ${s.coverage.reference}개`, tone: 'muted' };
+  return s.judged
+    ? { text: s.coverage ? `평가 ${s.coverage.evaluated}/${s.coverage.total}` : '확인 범위 보기', tone: 'muted' }
+    : { text: '판정 못 함', tone: 'muted' };
 }
 
 /** 이 리포트의 처방이 메커니즘에서 진행 중이면 마친 세션 수 / 전체(메커니즘 세션 P2 — MechanicsProgram.progress.focus) */

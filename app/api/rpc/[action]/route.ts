@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { APP_API_HEADER, MIN_APP_API, appApiLevelOf } from '@/lib/app-api';
+import { APP_API_HEADER, MIN_APP_API, appApiLevelOf, minAppApiForAction } from '@/lib/app-api';
 import { RPC_MODULES } from '../registry';
 import { runWithRequestCache } from '@/lib/request-cache';
 
@@ -33,6 +33,9 @@ export async function POST(
     );
 
   const { action } = await ctx.params;
+  const actionMin = minAppApiForAction(action);
+  if (level < actionMin)
+    return NextResponse.json({ ok: false, error: 'update', min: actionMin }, { status: 426 });
   const fn = lookup(action);
   if (!fn)
     return NextResponse.json({ ok: false, error: 'unknown-action' }, { status: 404 });

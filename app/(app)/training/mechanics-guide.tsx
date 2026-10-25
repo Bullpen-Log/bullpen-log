@@ -280,6 +280,7 @@ function ElementCard({
                   </span>
                 )}
               </p>
+              {report.criteriaNote && <p className="text-caption text-warn">{report.criteriaNote}</p>}
               {report.titles.length > 0 && (
                 <ol className="space-y-1">
                   {report.titles.map((t, i) => (

@@ -3548,7 +3548,7 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   const st = (m: MechChecks, ctx = mound) => Object.fromEntries(judgeElements(m, ctx, fr).map((i) => [i.element, i.status]));
 
   const good = st(base());
-  check('기준 투수: 다섯 요소 좋아요 · 스로잉은 참고(B)', ['드리프트', '드롭', '상하체 분리', '브레이크', '몸통 회전'].every((e) => good[e] === 'good') && good['스로잉'] === 'note', JSON.stringify(good));
+  check('기준 수치: 드리프트 평가 · 검증 중인 다섯 요소는 참고', good['드리프트'] === 'good' && ['드롭', '상하체 분리', '브레이크', '몸통 회전', '스로잉'].every((e) => good[e] === 'note'), JSON.stringify(good));
 
   const m1 = base();
   m1.drift!.aheadAtKneeUp = 0.04;
@@ -3559,31 +3559,31 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   const m2 = base();
   m2.block.kneeCollapseDeg = 25;
   m2.block.kneeExtensionDeg = -20;
-  check('브레이크(A 후보) 무너짐은 경계까지', st(m2)['브레이크'] === 'edge');
+  check('브레이크(A 후보) 무너짐은 참고로 분리', st(m2)['브레이크'] === 'note');
   const it2 = judgeElements(m2, mound, fr).find((i) => i.element === '브레이크')!;
-  check('브레이크 경계 · 문제 = 무너짐 · 띠 밑에 까닭', it2.fault === 'block.collapse' && /확인하는 중/.test(it2.foot ?? ''));
+  check('브레이크 수치상 문제는 보존 · 검증 중이라 자동 처방 보류', it2.assessment === 'improve' && it2.fault === null && !it2.prescriptionEligible && it2.why === 'validation');
   m2.block.kneeCollapseDeg = 45;
   check('브레이크 더 굽음 40° 넘으면 엔진 오류로 판정 안 함', st(m2)['브레이크'] === 'unsure');
 
   const m3 = base();
   m3.drop!.pelvisDrop = 0.27;
-  check('드롭 0.26~0.31 은 보통', st(m3)['드롭'] === 'fair');
+  check('드롭 0.26~0.31 수치상 보통 · 검증 중이라 참고', judgeElements(m3, mound, fr).find((i) => i.element === '드롭')?.assessment === 'fair' && st(m3)['드롭'] === 'note');
   m3.drop!.pelvisDrop = 0.02;
-  check('드롭 거의 안 가라앉음 → 마운드 경계(A 후보)', st(m3)['드롭'] === 'edge');
+  check('드롭 거의 안 가라앉음도 검증 중이면 참고', st(m3)['드롭'] === 'note');
   const flatDrop = judgeElements(m3, { ...mound, ground: 'flat' }, fr).find((i) => i.element === '드롭')!;
-  check('드롭 거의 안 가라앉음은 평지에서도 문제(뜸)', flatDrop.status === 'edge' && flatDrop.fault === 'drop.float');
+  check('평지 드롭은 작은 값도 참고 · 처방 보류', flatDrop.status === 'note' && flatDrop.fault === null && flatDrop.why === 'flat');
   m3.drop!.pelvisDrop = 0.24;
   check('평지 드롭 크기는 참고(평지)', judgeElements(m3, { ...mound, ground: 'flat' }, fr).find((i) => i.element === '드롭')!.why === 'flat');
 
   const m4 = base();
   m4.trunkTilt.forwardDeg = 15;
-  check('몸통 앞 기울기 13~17.6 은 경계', st(m4)['몸통 회전'] === 'edge');
+  check('몸통 앞 기울기 13~17.6 수치상 경계 · 검증 중이라 참고', judgeElements(m4, mound, fr).find((i) => i.element === '몸통 회전')?.assessment === 'edge' && st(m4)['몸통 회전'] === 'note');
   check('평지 몸통 앞 기울기는 참고', st(m4, { ...mound, ground: 'flat' })['몸통 회전'] === 'note');
   check('성장기 몸통 앞 기울기는 참고', st(m4, { ...mound, youth: true })['몸통 회전'] === 'note');
 
   const m5 = base();
   m5.separation.trunkOpenAtPlantDeg = 0;
-  check('착지 때 상체 위 10% 넘게 열림 → 경계(A 후보)', st(m5)['상하체 분리'] === 'edge');
+  check('착지 때 상체 열림은 검증 중이라 참고', st(m5)['상하체 분리'] === 'note');
   m5.separation.trunkConf = 20;
   check('확신 30 밑은 판정 안 함', st(m5)['상하체 분리'] === 'unsure');
 
@@ -3598,11 +3598,11 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   m7.drift!.aheadAtKneeUp = 0.04;
   const items7 = judgeElements(m7, mound, fr);
   const p7 = pickProblems(items7);
-  check('주 문제 = 고칠 점(드리프트), 다음 = 흐름 차례 경계(브레이크), 그 뒤 다음 차례', p7.primary?.element === '드리프트' && p7.next?.element === '브레이크' && p7.later.map((i) => i.element).join() === '몸통 회전');
+  check('처방 주 문제는 평가 가능한 드리프트만 · 참고 요소는 다음 처방에서도 제외', p7.primary?.element === '드리프트' && p7.next === null && p7.later.length === 0);
   const m8 = base();
   m8.trunkTilt.forwardDeg = 15;
   m8.block.kneeCollapseDeg = 13;
-  check('고칠 점이 없으면 흐름 앞쪽 경계가 주 문제', pickProblems(judgeElements(m8, mound, fr)).primary?.element === '브레이크');
+  check('참고 수치만 경계를 벗어나면 자동 주 문제 없음', pickProblems(judgeElements(m8, mound, fr)).primary === null);
 
   /* 요약 · 목록 꼬리표 */
   const fake = { criteria: 'x', items: items7, primary: '드리프트' } as unknown as PitchReport;
@@ -3610,7 +3610,7 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   check('요약: 주 문제 · 고칠 점', sum.primary?.element === '드리프트' && sum.primary.level === 'improve' && sum.judged);
   check('요약 읽기: 모양이 맞으면 그대로 · 틀리면 null', JSON.stringify(readReportSummary(JSON.parse(JSON.stringify(sum)))) === JSON.stringify(sum) && readReportSummary({ v: 1, criteria: 'x', judged: true, primary: { element: '없는 요소', level: 'improve' } }) === null);
   check('목록 꼬리표', summaryChip(sum)?.text === '드리프트' && summaryChip({ v: 1, criteria: 'x', judged: false, primary: null, bad: [] })?.text === '판정 못 함');
-  check('요약: 경계 이상 요소 모두(흐름 차례) · 옛 요약은 주 문제 하나로', sum.bad.map((b) => b.element).join() === '드리프트,브레이크,몸통 회전' && readReportSummary({ v: 1, criteria: 'x', judged: true, primary: { element: '드롭', level: 'edge' } })?.bad.length === 1);
+  check('요약: 경계 이상 요소 모두(흐름 차례) · 옛 요약은 주 문제 하나로', sum.bad.map((b) => b.element).join() === '드리프트' && readReportSummary({ v: 1, criteria: 'x', judged: true, primary: { element: '드롭', level: 'edge' } })?.bad.length === 1);
 
 }
 

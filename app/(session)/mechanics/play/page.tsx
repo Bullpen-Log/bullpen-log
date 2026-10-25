@@ -42,6 +42,8 @@ export default async function MechanicsPlayPage({
       startAt={play.startAt}
       label={play.label}
       sessionNumber={play.sessionNumber}
+      attemptId={play.attemptId}
+      doneGuideIds={play.doneGuideIds}
       isAdmin={play.isAdmin}
       partial={play.partial}
       painLabel={play.painLabel}

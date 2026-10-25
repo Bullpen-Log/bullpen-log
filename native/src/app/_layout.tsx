@@ -1,4 +1,5 @@
 import { router, Stack, usePathname } from 'expo-router';
+import { noteTransition } from '~/shell/transition';
 import { Toaster } from '~/shell/toast';
 import { Intro, markAppReady } from '~/shell/intro';
 import * as SplashScreen from 'expo-splash-screen';
@@ -68,7 +69,14 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       {/* 상태바 글자색 — 설정 테마를 따른다(기기 밝기가 아니라) */}
       <StatusBar style={theme === 'light' ? 'dark' : 'light'} />
-      <Stack screenOptions={{ headerShown: false }}>
+      {/* 화면 넘김 알림 — 무거운 일(돌아온 탭 새로 받기 · 그날 창 영상)을 움직임이 끝난 뒤에 하게 적어 둔다(shell/transition.ts) */}
+      <Stack
+        screenOptions={{ headerShown: false }}
+        screenListeners={{
+          transitionStart: (e) => e.target && noteTransition(e.target, 'start', e.data.closing),
+          transitionEnd: (e) => e.target && noteTransition(e.target, 'end', e.data.closing),
+        }}
+      >
         {/* 구속 측정 — 웹은 멀리서 튀어나오는 zoom 전환. 앱은 옅어지며 들어온다(홈 쓸기의 검은 판 위로 이어짐) */}
         <Stack.Screen name="velocity" options={{ animation: 'fade', animationDuration: 220 }} />
         {/* 그날 화면 — 웹 휴대폰처럼 아래에서 올라오는 창(끌어내려 닫기) */}

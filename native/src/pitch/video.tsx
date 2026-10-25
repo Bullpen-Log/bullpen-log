@@ -1,6 +1,9 @@
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ComponentRef, type RefObject } from 'react';
+import { ActivityIndicator, Dimensions, StyleSheet, Text, View } from 'react-native';
+import { useScreenSettled } from '~/shell/transition';
+import { useTabActive } from '~/shell/tab-pager';
 import { usePalette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
@@ -60,31 +63,81 @@ export function useVideoUri(path: string | null): { uri: string | null; error: s
   return state.path === path ? { uri: state.uri, error: state.error } : { uri: null, error: null };
 }
 
-/** 창이 올라오는 움직임 길이 어림 — ponytail: 화면 끝 알림(transitionEnd)을 받게 되면 그때 바꾼다 */
-const SETTLE_MS = 350;
+/*
+ * 영상이 많은 창(그날 기록)에서 화면 가까이 온 영상만 재생기를 만든다 — 예전엔 창이 올라온 뒤 영상마다 재생기를 한꺼번에 열어(영상 셋이면 셋 다
+ * 받기 시작) 그때 굴림이 끊겼다(2026-10-25 화면 전환 점검). 창이 ViewportWatch 를 주고 굴릴 때 emit 하면, 영상은 화면 위아래 한 화면 안에 들 때
+ * 재생기를 만들고(한 번 만들면 둔다) 멀어지면 멈춘다. 감시가 없는 곳(홈 그날 칸 · 구속 칸)은 늘 가까운 것으로 본다.
+ */
+export type ViewportWatch = { emit: () => void; subscribe: (f: () => void) => () => void };
+function makeWatch(): ViewportWatch {
+  const subs = new Set<() => void>();
+  return {
+    emit: () => subs.forEach((f) => f()),
+    subscribe: (f) => {
+      subs.add(f);
+      return () => {
+        subs.delete(f);
+      };
+    },
+  };
+}
+const ViewportCtx = createContext<ViewportWatch | null>(null);
+export const ViewportProvider = ViewportCtx.Provider;
+/** 영상 여럿을 굴리는 창이 하나 만든다 — ScrollView onScroll 에 emit, 감싸는 곳에 ViewportProvider */
+export function useViewportWatch(): ViewportWatch {
+  const [w] = useState(makeWatch);
+  return w;
+}
+
+/** 이 칸이 화면 가까이 있나 — near 는 한 번 true 면 그대로(재생기를 둔다), far 는 지금 멀리 있나(멈춤) */
+function useNearViewport(box: RefObject<ComponentRef<typeof View> | null>, ready: boolean): { near: boolean; far: boolean } {
+  const watch = useContext(ViewportCtx);
+  const [near, setNear] = useState(watch == null);
+  const [far, setFar] = useState(false);
+  useEffect(() => {
+    if (!watch || !ready) return;
+    const screen = Dimensions.get('window').height;
+    const check = () =>
+      box.current?.measureInWindow((_x, y, _w, h) => {
+        if (h <= 0) return;
+        const close = y < screen * 2 && y + h > -screen;
+        if (close) setNear(true);
+        setFar(!close);
+      });
+    check();
+    return watch.subscribe(check);
+  }, [watch, ready, box]);
+  return { near, far };
+}
 
 /** tools = 속도(¼ · ½ · 1배) · 한 장면 넘기기 줄 — 그날 기록의 영상(웹 day-record 의 PitchVideoPlayer, 처음 ½배) */
 export function PitchVideo({ path, tools }: { path: string; tools?: boolean }) {
   const { uri, error } = useVideoUri(path);
-  /* 재생기는 창이 다 올라온 뒤에 만든다 — 영상마다 재생기를 여는 일이 창이 올라오는 움직임과 겹쳐 끊겼다(2026-10-24 전체 검토) */
-  const [settled, setSettled] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setSettled(true), SETTLE_MS);
-    return () => clearTimeout(t);
-  }, []);
-  if (error)
-    return (
-      <View style={[styles.box, styles.center]}>
-        <Text style={styles.note}>{error}</Text>
-      </View>
-    );
-  if (!uri || !settled)
-    return (
-      <View style={[styles.box, styles.center]}>
-        <ActivityIndicator color="#fff" />
-      </View>
-    );
-  return tools ? <ToolPlayer uri={uri} /> : <Player uri={uri} />;
+  /*
+   * 재생기는 창이 다 올라온 뒤에 만든다 — 영상마다 재생기를 여는 일이 창이 올라오는 움직임과 겹쳐 끊겼다(2026-10-24 전체 검토). 끝은 화면 넘김
+   * 알림으로 본다(shell/transition.ts, 예전 350ms 어림)
+   */
+  const settled = useScreenSettled();
+  const box = useRef<ComponentRef<typeof View>>(null);
+  const { near, far } = useNearViewport(box, settled);
+  /* 자리를 재는 칸은 늘 같은 View — 재생기가 생긴 뒤에도 멀어졌는지 잰다(collapsable: 납작해지면 잴 수 없다) */
+  return (
+    <View ref={box} collapsable={false}>
+      {error ? (
+        <View style={[styles.box, styles.center]}>
+          <Text style={styles.note}>{error}</Text>
+        </View>
+      ) : !uri || !settled || !near ? (
+        <View style={[styles.box, styles.center]}>
+          <ActivityIndicator color="#fff" />
+        </View>
+      ) : tools ? (
+        <ToolPlayer uri={uri} far={far} />
+      ) : (
+        <Player uri={uri} far={far} />
+      )}
+    </View>
+  );
 }
 
 /** 이미 받은 주소(서명 주소 등)를 바로 튼다 */
@@ -93,13 +146,14 @@ export function UrlVideo({ uri, start, autoPlay }: { uri: string; start?: number
   return <Player uri={uri} start={start} autoPlay={autoPlay} />;
 }
 
-function Player({ uri, start, autoPlay }: { uri: string; start?: number | null; autoPlay?: boolean }) {
+function Player({ uri, start, autoPlay, far }: { uri: string; start?: number | null; autoPlay?: boolean; far?: boolean }) {
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;
     p.loop = true;
     if (start != null && start > 0) p.currentTime = start;
     if (autoPlay) p.play();
   });
+  usePauseWhenHidden(player, far === true);
   return <VideoView player={player} style={styles.box} nativeControls contentFit="contain" />;
 }
 
@@ -112,7 +166,46 @@ function setPlayerRate(p: VideoPlayer, r: number) {
   p.playbackRate = r;
 }
 function pausePlayer(p: VideoPlayer) {
-  p.pause();
+  /* 화면이 닫힐 때는 재생기가 먼저 놓였을 수 있다 */
+  try {
+    p.pause();
+  } catch {}
+}
+function playPlayer(p: VideoPlayer) {
+  try {
+    p.play();
+  } catch {}
+}
+function isPlaying(p: VideoPlayer): boolean {
+  try {
+    return p.playing;
+  } catch {
+    return false;
+  }
+}
+
+/*
+ * 안 보이는 영상은 멈춘다 — 위에 다른 화면이 쌓이면(가려짐) 멈췄다가 돌아오면 다시 틀고, 다른 탭 판으로 옮기거나 멀리 굴려 가면 멈춘다.
+ * 예전엔 소리 없는 되풀이 영상이 가려진 뒤에도 계속 돌았다(2026-10-25 화면 전환 점검).
+ */
+function usePauseWhenHidden(player: VideoPlayer, far: boolean) {
+  const active = useTabActive();
+  const resume = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (resume.current) {
+        resume.current = false;
+        playPlayer(player);
+      }
+      return () => {
+        resume.current = isPlaying(player);
+        pausePlayer(player);
+      };
+    }, [player])
+  );
+  useEffect(() => {
+    if (far || !active) pausePlayer(player);
+  }, [far, active, player]);
 }
 const RATES = [0.25, 0.5, 1] as const;
 const RATE_TEXT: Record<(typeof RATES)[number], string> = { 0.25: '¼×', 0.5: '½×', 1: '1×' };
@@ -121,7 +214,7 @@ const RATE_TEXT: Record<(typeof RATES)[number], string> = { 0.25: '¼×', 0.5: '
  * 분석용 — 웹 PitchVideoPlayer 의 속도 · 프레임 넘기기 · 측정(선 · 각도 그리기, pitch/video-draw.tsx). 한 장면 = 1/60초(대부분 60fps 로
  * 찍는다 — 2분할 비교와 같다). 측정을 켜면 멈추고 기본 재생 단추를 끈다(손가락이 그림으로 가게). 크게 보기는 기본 재생기의 전체 화면 단추.
  */
-function ToolPlayer({ uri }: { uri: string }) {
+function ToolPlayer({ uri, far }: { uri: string; far: boolean }) {
   const c = usePalette();
   const [rate, setRate] = useState<number>(0.5);
   const player = useVideoPlayer(uri, (p) => {
@@ -129,6 +222,7 @@ function ToolPlayer({ uri }: { uri: string }) {
     p.loop = true;
     p.playbackRate = 0.5;
   });
+  usePauseWhenHidden(player, far);
   const step = (dir: 1 | -1) => stepFrame(player, dir);
   const [drawing, setDrawing] = useState(false);
   const [tool, setTool] = useState<ToolKind>('tilt');

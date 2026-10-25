@@ -33,7 +33,9 @@ import { TrainingTab, resetTrainingCache } from '~/training/tab';
 import { resetPitchTodayCache } from '~/pitch/today-card';
 import { resetVelocityDayCache } from '~/pitch/velocity-day';
 import { resetNutritionStore } from '~/nutrition/api';
-import { useWebNav, webArrived } from '~/shell/web-nav';
+import { WEB_WAIT_MS, setDestinationOf, useWebNav, webArrived } from '~/shell/web-nav';
+import { createWebRoute, locOf } from '~/shell/web-route';
+import { whenStill } from '~/shell/transition';
 import { resetFavorites } from '~/training/favorites';
 import { setMenu, setMenuTabs, useMenu, type MenuGroup } from '~/shell/menu-store';
 import { adoptWebValues, cacheClear, loadJson, saveJson } from '~/lib/store';
@@ -180,6 +182,25 @@ const OLD_VELOCITY = `(function(){try{var r=indexedDB.open('bullpen-velocity');r
 const OLD_VELOCITY_SNOOZE = 'bullpen-old-velocity-snooze';
 let askedOldVelocity = false;
 
+/** 앱이 웹에 보낸 이동 ↔ 웹의 '그렸어요' 짝짓기(아래 SiteScreen goWeb · onMessage) — 껍데기는 하나라 여기 둔다(lastOpen 과 같다) */
+const route = createWebRoute();
+/** 앱 판이 맡는 주소 — 홈 · 투구(?view=log 포함) · 영양 · 트레이닝 첫 화면(?view=home · last). 여기면 웹을 기다리지 않고 바로 판을 바꾼다 */
+function isAppPage(href: string): boolean {
+  const { path, search } = locOf(href);
+  if (path === '/videos' || path === '/today' || path === '/nutrition') return true;
+  const view = new URLSearchParams(search).get('view');
+  return path === '/training' && (view === 'home' || view === 'last');
+}
+/*
+ * 더보기 같은 앱 화면이 웹 주소를 열 때 '언제 보이나'를 알려 준다(shell/web-nav.ts destinationOf) — 아래 navTo 와 같은 갈래: 앱 화면이면 새로 열고,
+ * 앱 판 · 웹이 이미 그 자리면 바로 보이고, 나머지는 웹이 그린 뒤에 보인다. 잠긴 앱 판(첫 설정으로 가는 탭)은 'now' 로 보지만 웹이 첫 설정으로 보낸다
+ */
+setDestinationOf((href) => {
+  if (href.startsWith('#')) return 'now';
+  if (nativeOfWeb(href) != null) return 'native';
+  return isAppPage(href) || route.at(href) ? 'now' : 'web';
+});
+
 const isLoginPath = (p: string) => p === '/login' || p.startsWith('/login/') || p === '/signup';
 /** 웹 체크인 흐름(app/(session)/checkin) — 탭 막대가 없는 화면 */
 const isCheckinPath = (p: string) => p === '/checkin' || p.startsWith('/checkin/');
@@ -220,6 +241,7 @@ function ownerKnown(userId: string) {
 /** 다음 한국 자정까지(ms) — 한국은 서머타임이 없어 UTC+9 고정. 1초 넉넉히 */
 const untilKstMidnight = () => 86_400_000 - ((Date.now() + 9 * 3_600_000) % 86_400_000) + 1000;
 const UNSEEN = { home: false, pitch: false, training: false, nutrition: false };
+const PAGER_KEYS = ['home', 'pitch', 'training', 'nutrition'] as const;
 
 /** 폰에 남은 운동 세트 · 암케어 체크를 보낸다 — 체크를 하나라도 보냈으면 사이트의 트레이닝 목록 · 홈을 새로 그리게(따라 하기 화면과 같다) */
 function drainQueues() {
@@ -335,6 +357,7 @@ export default function SiteScreen() {
   const menu = useMenu();
   /* 영양 첫 화면도 앱 화면(오늘 먹은 것 · 담기 · 체중) — '식단 · 목표 · 통계'를 누르면 영양을 다시 열 때까지 웹 영양 */
   const [webNutrition, setWebNutrition] = useState(false);
+  const openWebNutrition = useCallback(() => setWebNutrition(true), []);
   /* 2026-10-20 영양은 하단 탭에서 더보기로(넷째 탭은 커뮤니티) — 잠김은 더보기 목록(사이트가 보낸 메뉴)에서 읽는다 */
   const nutritionTab =
     tabs.find((t) => t.href === '/nutrition') ?? menu.groups.flatMap((g) => g.items).find((i) => i.href.split('?')[0] === '/nutrition' || i.icon === 'utensils');
@@ -355,107 +378,121 @@ export default function SiteScreen() {
   const [seen, setSeen] = useState(UNSEEN);
   if ((showHome && !seen.home) || (showPitch && !seen.pitch) || (showTraining && !seen.training) || (showNutrition && !seen.nutrition))
     setSeen({ home: seen.home || showHome, pitch: seen.pitch || showPitch, training: seen.training || showTraining, nutrition: seen.nutrition || showNutrition });
-  /*
-   * 웹처럼 판 넷을 다 띄워 둔다(웹 @home · @videos · @training · @nutrition 이 늘 떠 있다 — 판 사이를 넘길 때 옆 판이 비지 않게).
-   * 처음 연 판이 먼저 그려진 뒤 1.2초에 나머지를 붙인다(첫 화면을 늦추지 않게). 잠긴 탭은 붙이지 않는다(웹은 잠금 판).
-   */
-  useEffect(() => {
-    if (!pagerOn || (seen.home && seen.pitch && seen.training && seen.nutrition)) return;
-    const t = setTimeout(
-      () =>
-        setSeen((s) => {
-          const next = {
-            home: true,
-            pitch: s.pitch || !pitchTab?.locked,
-            training: s.training || !trainingTab?.locked,
-            /* 메뉴가 오기 전에는 잠겼는지 몰라 붙이지 않는다 */
-            nutrition: s.nutrition || nutritionLocked === false,
-          };
-          /* 바뀐 게 없으면 그대로 — 새 객체를 돌려주면 잠긴 탭이 있는 동안 1.2초마다 영영 다시 그렸다 */
-          return next.home === s.home && next.pitch === s.pitch && next.training === s.training && next.nutrition === s.nutrition ? s : next;
-        }),
-      1200
-    );
-    return () => clearTimeout(t);
-  }, [pagerOn, seen, pitchTab?.locked, trainingTab?.locked, nutritionLocked]);
 
   /* 웹뷰를 새로 만들 때(다시 불러오기 · 프로세스 죽음) — 새 웹은 /today 인데 앱 상태가 옛 주소로 남아 탭 불 · 판이 어긋났다 */
   const resetWebState = () => {
     arrived();
+    route.reset();
     setPath('/today');
     setSearch('');
     setWebFront(false);
     setWebHome(false);
     setWebNutrition(false);
   };
-  const goWeb = (href: string) =>
-    web.current?.injectJavaScript(`window.__bpTab && window.__bpTab(${JSON.stringify(href)});true;`);
   /*
-   * 웹 화면으로 갈 때는 웹이 그 주소를 그렸다고 알려 온 뒤(msg 'path')에 앱 판을 걷는다 — 먼저 걷으면 밑에 깔린 웹 홈이 보였다가 그 화면으로
+   * 앱이 웹에 보낸 이동과 웹의 '그렸어요'(msg 'path')를 짝짓는다(shell/web-route.ts) — 탭을 A → B 로 빨리 옮기면 A 의 알림이 늦게 와 B 를
+   * 덮었다(화면 · 탭 불이 A 로 갔다가 B 로, 2026-10-25 화면 전환 점검). 웹이 이미 그 자리면 알림이 안 오니 goWeb 이 '기다릴 것 없음'을 돌려준다.
+   * track = false 는 알림이 안 오는 부름(더보기 — 웹은 창만 연다).
+   */
+  /* 판(탭 화면)에 넘기는 openWeb · goTab 이 늘 같은 함수여야 탭을 옮길 때 붙어 있는 판 넷이 다시 그려지지 않는다 — 컴파일러가 이 함수를 옆 효과와
+     한 묶음으로 기억해 판이 붙을 때마다 바뀌었다(2026-10-25 점검). 손으로 묶는다 */
+  const goWeb = useCallback(
+    (href: string, track = true) => {
+      const waits = track && route.send(href);
+      web.current?.injectJavaScript(`window.__bpTab && window.__bpTab(${JSON.stringify(href)});true;`);
+      return waits;
+    },
+    []
+  );
+  /*
+   * 웹 화면으로 갈 때는 웹이 그 주소를 그렸다고 알려 온 뒤(msg 'path')에 앱 판을 걷는다 — 먼저 걷으면 밑에 깔린 옛 웹 화면이 보였다가 그 화면으로
    * 넘어갔다(투구 → 타격, 앱 → 암케어 · 메커니즘, 2026-10-24 전체 검토). 그동안 탭 막대 렌즈는 누른 칸에 먼저 가 있다(pressed).
-   * 같은 주소라 웹이 안 알려 오면 1.5초 뒤에 걷는다.
+   * 'path' 알림은 Next 가 새 주소를 화면에 붙인 뒤(usePathname 이 바뀐 뒤)에 온다 — 그 화면의 불러오는 판(loading)일 수는 있어도 옛 화면은 아니다.
+   * 웹이 이미 그 자리면(알림이 안 옴) 바로 걷는다. 알림을 못 받으면(느린 망 · 웹 다리 없는 화면) WEB_WAIT_MS 뒤에 걷는다 — 예전 1.5초는 느린 망에서
+   * 새 화면이 오기 전에 옛 웹 화면을 보였다.
    */
   const [pressed, setPressed] = useState<string | null>(null);
   const webWait = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const showWebWhenArrived = (href: string) => {
+  const showWeb = (href: string, waits: boolean) => {
     clearTimeout(webWait.current);
-    webWait.current = setTimeout(() => {
-      setPath(href.split('?')[0]);
-      setSearch(href.split('?')[1] ?? '');
+    const loc = locOf(href);
+    if (!waits) {
+      setPath(loc.path);
+      setSearch(loc.search);
       setPressed(null);
-    }, 1500);
+      return;
+    }
+    setPressed(href);
+    webWait.current = setTimeout(() => {
+      setPath(loc.path);
+      setSearch(loc.search);
+      setPressed(null);
+    }, WEB_WAIT_MS);
   };
-  const arrived = () => {
+  const arrived = useCallback(() => {
     clearTimeout(webWait.current);
     setPressed(null);
-  };
+  }, []);
   useEffect(() => () => clearTimeout(webWait.current), []);
+  /*
+   * 웹처럼 판 넷을 다 띄워 둔다(웹 @home · @videos · @training · @nutrition 이 늘 떠 있다 — 판 사이를 넘길 때 옆 판이 비지 않게).
+   * 예전엔 처음 연 판 뒤 1.2초에 나머지 셋을 한꺼번에 붙여, 셋이 같은 순간에 그리고 서버를 불러 그때 누른 탭 · 쓸기가 끊겼다(2026-10-25 화면 전환 점검).
+   * 이제 하나씩 — 지금 탭에서 가까운 판부터, 첫 판은 1.2초 뒤 · 다음은 0.7초 간격. 웹 이동을 기다리는 동안(pressed) · 화면이 넘어가는 동안
+   * (whenStill)은 미룬다. 잠긴 탭은 붙이지 않는다(웹은 잠금 판), 영양은 메뉴가 와서 안 잠긴 걸 안 뒤에.
+   */
+  useEffect(() => {
+    if (!pagerOn || pressed) return;
+    const can = { home: true, pitch: !pitchTab?.locked, training: !trainingTab?.locked, nutrition: nutritionLocked === false };
+    const next = PAGER_KEYS.map((k, i) => ({ k, d: Math.abs(i - pagerIndex) }))
+      .sort((a, b) => a.d - b.d)
+      .find(({ k }) => !seen[k] && can[k])?.k;
+    if (!next) return;
+    const mounted = PAGER_KEYS.filter((k) => seen[k]).length;
+    let stop: (() => void) | undefined;
+    const t = setTimeout(
+      () => {
+        stop = whenStill(() => setSeen((s) => (s[next] ? s : { ...s, [next]: true })), { grace: 0, cap: 1500 });
+      },
+      mounted <= 1 ? 1200 : 700
+    );
+    return () => {
+      clearTimeout(t);
+      stop?.();
+    };
+  }, [pagerOn, pressed, pagerIndex, seen, pitchTab?.locked, trainingTab?.locked, nutritionLocked]);
   const pressTab = (t: ShellTab) => {
-    /* 앞서 누른 웹 칸을 기다리던 것은 버린다 — 안 그러면 1.5초 뒤 옛 칸으로 되돌아가고 렌즈도 그 칸에 남았다(2026-10-24 검토) */
+    /* 앞서 누른 웹 칸을 기다리던 것은 버린다 — 안 그러면 옛 칸으로 되돌아가고 렌즈도 그 칸에 남았다(2026-10-24 검토) */
     arrived();
     setWebFront(false);
-    /* 앱 판(트레이닝 첫 화면 ?view=home · last)이면 바로, 웹 트레이닝 칸(?sport= · ?view=암케어 …)이면 웹이 그린 뒤에 */
-    if (t.href.startsWith('/training') && !t.locked) {
-      const view = new URLSearchParams(t.href.split('?')[1] ?? '').get('view');
-      if (view === 'home' || view === 'last') {
-        setPath('/training');
-        setSearch(t.href.split('?')[1] ?? '');
-      } else {
-        setPressed(t.href);
-        showWebWhenArrived(t.href);
-      }
-    }
     /* 더보기는 앱 화면(사이트가 목록을 알려 준 뒤) — 웹 메뉴는 앱 화면 위에서 열면 밑에 깔려 안 보인다 */
     if (t.href === '/more' && menu.groups.length) return router.push('/more' as Href);
-    /* 타격 탭(2026-10-20)은 웹 판 — 주소를 먼저 바꿔 앱 판을 바로 걷고 종목 바로 갈아 끼운다 */
-    /* 종목 바의 홈 · 기록(?view=log)도 같은 판이라 ? 뒤까지 바로 맞춘다 */
-    const [tabPath, tabQuery = ''] = t.href.split('?');
-    /* 앱 판이 있는 탭은 바로 그 판으로 — 웹뿐인 탭(타격 · 덕아웃)은 웹이 그린 뒤에 앱 판을 걷는다(위 showWebWhenArrived) */
-    if ((tabPath === '/videos' || tabPath === '/today' || tabPath === '/nutrition') && !t.locked) {
-      setPath(tabPath);
-      setSearch(tabQuery);
-    } else if (!t.href.startsWith('/training') && t.href !== '/more') {
-      /* 더보기(메뉴가 오기 전)는 웹이 창만 열고 주소를 안 알린다 — 기다리지 않는다 */
-      setPressed(t.href);
-      showWebWhenArrived(t.href);
-    }
+    /* 더보기(메뉴가 오기 전)는 웹이 창만 열고 주소를 안 알린다 — 기다리지 않는다 */
+    if (t.href === '/more') return void goWeb(t.href, false);
     if (t.href === '/today') setWebHome(false);
     if (t.href === '/nutrition') setWebNutrition(false);
-    goWeb(t.href);
+    const waits = goWeb(t.href);
+    /*
+     * 앱 판이 있는 탭(홈 · 투구 · 영양 · 트레이닝 첫 화면 ?view=home · last)은 바로 그 판으로 — 종목 바의 홈 · 기록(?view=log)도 같은 판이라
+     * ? 뒤까지 바로 맞춘다. 웹뿐인 탭(타격 · 덕아웃 · 웹 트레이닝 칸 ?sport= · ?view=암케어 …)은 웹이 그린 뒤에 앱 판을 걷는다(showWeb)
+     */
+    if (isAppPage(t.href) && !t.locked) {
+      const loc = locOf(t.href);
+      setPath(loc.path);
+      setSearch(loc.search);
+    } else showWeb(t.href, waits);
   };
   /* 투구 탭(앱 화면)에서 아직 웹인 화면(투구 분석 · 3D 동작 분석)으로 — 앱 화면을 바로 걷고 웹이 그 주소로 간다 */
   const openWeb = (href: string) => {
     arrived();
     const native = nativeOfWeb(href);
     if (native && isNativePath(native)) return openNative(native);
+    const waits = goWeb(href);
     /* 앱 판이 맡는 주소(투구 기록 ?view=log 등)는 바로 그 판으로 — 웹을 기다릴 까닭이 없다 */
-    const [p, q = ''] = href.split('?');
-    const view = new URLSearchParams(q).get('view');
-    if (p === '/videos' || p === '/today' || p === '/nutrition' || (p === '/training' && (view === 'home' || view === 'last'))) {
-      setPath(p);
-      setSearch(q);
-    } else showWebWhenArrived(href);
-    goWeb(href);
+    if (isAppPage(href)) {
+      const loc = locOf(href);
+      setPath(loc.path);
+      setSearch(loc.search);
+    } else showWeb(href, waits);
   };
   const goTab = (href: string) => {
     /*
@@ -601,10 +638,13 @@ export default function SiteScreen() {
       return;
     }
     if (msg.t === 'path' && typeof msg.path === 'string') {
+      const loc = { path: msg.path, search: typeof msg.search === 'string' ? msg.search : '' };
+      webArrived(loc.path, loc.search);
+      /* 더 새 이동이 가는 중에 늦게 온 옛 이동의 답 — 화면 · 탭 불을 그쪽으로 돌리지 않는다 */
+      if (route.arrive(loc) === 'stale') return;
       arrived();
-      setPath(msg.path);
-      setSearch(typeof msg.search === 'string' ? msg.search : '');
-      webArrived(msg.path, typeof msg.search === 'string' ? msg.search : '');
+      setPath(loc.path);
+      setSearch(loc.search);
       return;
     }
     if (msg.t === 'wrote') return markWrite();
@@ -629,7 +669,7 @@ export default function SiteScreen() {
       (script) => web.current?.injectJavaScript(script),
       (t) => t.color && setPageColor(t.color)
     );
-  }, [resetShell]);
+  }, [resetShell, arrived]);
 
   const onNav = useCallback((nav: WebViewNavigation) => {
     if (!nav.loading) setFailed(false);
@@ -647,6 +687,17 @@ export default function SiteScreen() {
      */
     if (!nav.loading && (pathname === '/manage' || pathname.startsWith('/manage/')) && !/[?&]web=1\b/.test(nav.url)) openNative('/org');
   }, [resetShell]);
+
+  /*
+   * 판 넷 — 하나씩 따로 만들어 둔다. 한 덩어리로 쓰면 컴파일러가 판 넷을 한 묶음으로 기억해, 탭을 옮길 때(pagerIndex) · 판 하나가 붙을 때마다
+   * 붙어 있는 판이 모두 다시 그려졌다(2026-10-25 화면 전환 점검). 따로 두면 바뀐 판만 새로 만든다
+   */
+  const pitchLog = showPitch && new URLSearchParams(search).get('view') === 'log';
+  const { home: seenHome, pitch: seenPitch, training: seenTraining, nutrition: seenNutrition } = seen;
+  const homeSlot = today && seenHome ? <HomeTab key="home" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} onTab={goTab} /> : null;
+  const pitchSlot = today && seenPitch ? <PitchTab key="pitch" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} log={pitchLog} /> : null;
+  const trainingSlot = today && seenTraining ? <TrainingTab key="training" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} /> : null;
+  const nutritionSlot = today && seenNutrition ? <NutritionTab key="nutrition" today={today} bottom={TAB_BAR_HEIGHT} onWebNutrition={openWebNutrition} /> : null;
 
   /* 웹을 못 불러와도(꺼진 망에서 켬) 탭 막대 · 앱 탭은 그대로 쓴다 — 사이트가 '막대 켬'을 못 알려 주니 실패면 켠 것으로 본다 */
   const barShown = (barOn || failed) && !webFront && !isCheckinPath(path);
@@ -722,18 +773,7 @@ export default function SiteScreen() {
         </View>
       ) : null}
       {/* 탭 넷 — 나란히 두고 240ms 에 미끄러진다(웹 tab-pager). 한 번 연 판은 붙여 둬서 굴린 자리가 남는다 */}
-      {today ? (
-        <TabPager
-          index={pagerIndex}
-          visible={pagerOn}
-          slots={[
-            seen.home ? <HomeTab key="home" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} onTab={goTab} /> : null,
-            seen.pitch ? <PitchTab key="pitch" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} log={showPitch && new URLSearchParams(search).get('view') === 'log'} /> : null,
-            seen.training ? <TrainingTab key="training" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} /> : null,
-            seen.nutrition ? <NutritionTab key="nutrition" today={today} bottom={TAB_BAR_HEIGHT} onWebNutrition={() => setWebNutrition(true)} /> : null,
-          ]}
-        />
-      ) : null}
+      {today ? <TabPager index={pagerIndex} visible={pagerOn} slots={[homeSlot, pitchSlot, trainingSlot, nutritionSlot]} /> : null}
       {/* 홈 밖의 탭은 위 막대가 없어 시계 자리를 막으로 덮는다(웹 data-top-veil) */}
       {today && pagerOn && pagerIndex !== 0 ? <ClockVeil /> : null}
       {/*

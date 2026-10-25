@@ -725,6 +725,7 @@ function FocusCard({ focus }: { focus: FocusView }) {
         <span className="text-xs text-muted">{dayText(focus.startedOn)} 시작</span>
       </div>
       <RxChips rx={focus.rx} />
+      {focus.criteriaNote && <p className="text-sm text-warn">{focus.criteriaNote}</p>}
       {focus.finished ? (
         <>
           <p className="text-sm leading-relaxed break-keep text-ink">

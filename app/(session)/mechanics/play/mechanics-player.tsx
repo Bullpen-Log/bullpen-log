@@ -12,14 +12,7 @@ import { useWakeLock } from '@/components/use-wake-lock';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { mechanicsElement } from '@/lib/mechanics/elements';
 import { mechanicsLevel } from '@/lib/mechanics/levels';
-import {
-  FEELS,
-  MECHANICS_FOLD_TEXT,
-  filmPrompt,
-  isArmLoaded,
-  levelAdvice,
-  type DrillFeel,
-} from '@/lib/mechanics/program';
+import { FEELS, MECHANICS_FOLD_TEXT, filmPrompt, isArmLoaded, isThrowingDrill, levelAdvice, type DrillFeel } from '@/lib/mechanics/program';
 import type { PlayerVariant, SessionDrillView } from '@/lib/mechanics/load';
 import {
   finishMechanicsSession,
@@ -45,6 +38,8 @@ export function MechanicsPlayer({
   startAt,
   label,
   sessionNumber,
+  attemptId,
+  doneGuideIds,
   isAdmin,
   partial = false,
   painLabel = null,
@@ -57,6 +52,8 @@ export function MechanicsPlayer({
   label: string;
   /** 수준과 상관없이 몇 번째 세션인가 — 여섯 번째마다 찍어서 견주라고 한다 */
   sessionNumber: number;
+  attemptId: string;
+  doneGuideIds: string[];
   isAdmin: boolean;
   /**
    * 어깨 · 팔꿈치 통증으로 던지기 · 메디신볼 드릴을 접고 무브먼트만 하는 날(2판 P6-5, D5) — 마쳐도 세션 수를 안 올리고
@@ -69,12 +66,14 @@ export function MechanicsPlayer({
   focus?: { number: number; total: number } | null;
 }) {
   const [index, setIndex] = useState(startAt);
-  const [done, setDone] = useState<boolean[]>(() => items.map((_, i) => i < startAt));
+  const [done, setDone] = useState<boolean[]>(() => items.map((item) => doneGuideIds.includes(item.guideId)));
   /* 세션을 마친 뒤 서버가 돌려준 권하기 — 끝 화면이 단추와 함께 보인다 */
   const [advice, setAdvice] = useState<ReturnType<typeof levelAdvice>>(null);
   /* 드릴로 던진 공을 투구 기록에 남기라는 카드(2026-10-16) — 마친 뒤 서버가 셈한다 */
   const [throwNote, setThrowNote] = useState<DrillThrowNote | null>(null);
   const [finished, setFinished] = useState(false);
+  const [finishPartial, setFinishPartial] = useState(false);
+  const [finishMessage, setFinishMessage] = useState<string | null>(null);
   /* 마치기 저장이 실패했나 — 끝 화면 대신 다시 저장 단추를 둔다(안 그러면 세션 수가 안 올라 같은 세션이 또 나왔다) */
   const [finishFailed, setFinishFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,30 +89,67 @@ export function MechanicsPlayer({
   const item = items[index];
   const view = viewOf(item, choices[index]);
   const counted = Math.min(setsDone, view.sets);
-  const choose = (next: { alt: number; variantId: string }) =>
+  const choose = (next: { alt: number; variantId: string }) => {
     setChoices((c) => c.map((v, i) => (i === index ? next : v)));
+    setPractice(emptyPractice());
+    setSetsDone(0);
+    setDone((list) => list.map((v, i) => (i === index ? false : v)));
+  };
 
   const record = (feel: DrillFeel) =>
     startTransition(async () => {
       setError(null);
-      if (!practice.throws.trim() || !practice.effort.trim() || !practice.response) {
+      if (finishFailed) {
+        await finish();
+        return;
+      }
+      if (done[index]) {
+        if (index + 1 < items.length) {
+          setIndex(index + 1);
+          setSetsDone(0);
+          setPractice(emptyPractice());
+        } else await finish();
+        return;
+      }
+      if (!practice.count.trim() || !practice.effort.trim() || !practice.response) {
         setError('실제 횟수·체감 강도·통증 여부를 먼저 적어 주세요.');
         return;
       }
       const res = await orOffline(
-        recordMechanicsDrill({ guideId: view.guideId, element: item.element, feel, practice: { throws: Number(practice.throws), effortPct: Number(practice.effort), response: practice.response, alreadyLogged: practice.alreadyLogged } }),
+        recordMechanicsDrill({
+          attemptId,
+          requestId: `${practice.requestId}:${feel}`,
+          guideId: view.guideId,
+          element: item.element,
+          feel,
+          practice: {
+            ...(isThrowingDrill(view.variant.category) ? { throws: Number(practice.count) } : { reps: Number(practice.count) }),
+            effortPct: Number(practice.effort),
+            response: practice.response,
+            alreadyLogged: practice.alreadyLogged,
+          },
+        }),
         { error: OFFLINE_MESSAGE }
       );
       if ('error' in res) {
         setError(res.error);
         return;
       }
-      if (practice.response === 'pain') { window.location.assign(backHref); return; }
+      const stopReason = res.stopReason;
+      if (practice.response === 'pain') {
+        window.location.assign(backHref);
+        return;
+      }
       setDone((d) => d.map((v, i) => (i === index ? true : v)));
+      if (stopReason && index + 1 < items.length) {
+        await finish();
+        setFinishMessage(`${stopReason} 수행한 드릴은 저장했어요. 남은 드릴은 다음에 이어서 해요.`);
+        return;
+      }
       if (index + 1 < items.length) {
         setIndex(index + 1);
         setSetsDone(0);
-    setPractice(emptyPractice());
+        setPractice(emptyPractice());
         scroller.current?.scrollTo({ top: 0 });
       } else {
         await finish();
@@ -122,7 +158,7 @@ export function MechanicsPlayer({
 
   /** 세션을 마친다 — 실패하면 끝 화면으로 넘어가지 않고 다시 저장하게 한다 */
   const finish = async () => {
-    const res = await orOffline(finishMechanicsSession({ partial, session: sessionNumber }), {
+    const res = await orOffline(finishMechanicsSession({ partial, session: sessionNumber, attemptId }), {
       error: OFFLINE_MESSAGE,
     });
     if ('error' in res) {
@@ -131,6 +167,8 @@ export function MechanicsPlayer({
       return;
     }
     setFinishFailed(false);
+    setFinishPartial(res.status === 'partial');
+    setFinishMessage(res.message);
     setAdvice(res.advice);
     setThrowNote(res.throwNote);
     setFinished(true);
@@ -149,7 +187,7 @@ export function MechanicsPlayer({
     if (index + 1 < items.length) {
       setIndex(index + 1);
       setSetsDone(0);
-    setPractice(emptyPractice());
+      setPractice(emptyPractice());
       scroller.current?.scrollTo({ top: 0 });
     } else if (!done.some(Boolean)) {
       router.push(backHref);
@@ -160,6 +198,21 @@ export function MechanicsPlayer({
       });
     }
   };
+
+  if (!finished && done.every(Boolean)) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="font-semibold">드릴 수행 기록은 저장됐어요.</p>
+        <p className="text-sm text-muted">다시 운동할 필요 없이 세션 완료를 확인해 주세요.</p>
+        {error && <ErrorLine>{error}</ErrorLine>}
+        <button type="button" disabled={pending} onClick={() => startTransition(async () => { await finish(); })}
+          className="min-h-11 rounded-xl bg-sky px-5 text-white disabled:opacity-60">
+          {pending ? '완료 확인 중' : '세션 완료 확인'}
+        </button>
+        <Link href={backHref} className="p-3 text-sm text-muted">닫기</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -172,9 +225,7 @@ export function MechanicsPlayer({
           >
             <X className="h-5 w-5" />
           </Link>
-          <p className="min-w-0 flex-1 truncate text-base font-bold text-ink">
-            메커니즘 · {label}
-          </p>
+          <p className="min-w-0 flex-1 truncate text-base font-bold text-ink">메커니즘 · {label}</p>
           <span className="shrink-0 text-sm font-semibold text-muted tabular-nums">
             {finished ? items.length : index + 1} / {items.length}
           </span>
@@ -183,9 +234,7 @@ export function MechanicsPlayer({
           {items.map((it, i) => (
             <span
               key={it.guideId}
-              className={`h-1.5 flex-1 rounded-full ${
-                done[i] ? 'bg-sky' : i === index && !finished ? 'bg-sky/40' : 'bg-surface-2'
-              }`}
+              className={`h-1.5 flex-1 rounded-full ${done[i] ? 'bg-sky' : i === index && !finished ? 'bg-sky/40' : 'bg-surface-2'}`}
             />
           ))}
         </div>
@@ -198,7 +247,8 @@ export function MechanicsPlayer({
           sessionNumber={sessionNumber}
           backHref={backHref}
           count={done.filter(Boolean).length}
-          partial={partial}
+          partial={finishPartial}
+          message={finishMessage}
           focus={focus}
         />
       ) : (
@@ -213,7 +263,9 @@ export function MechanicsPlayer({
               isAdmin={isAdmin}
               painLabel={painLabel}
             />
-            <div className="mx-auto max-w-xl px-4 pb-4"><PracticeInput value={practice} onChange={setPractice} /></div>
+            <div className="mx-auto max-w-xl px-4 pb-4">
+              <PracticeInput category={view.variant.category} value={practice} onChange={(value) => setPractice({ ...value, requestId: emptyPractice().requestId })} />
+            </div>
           </div>
 
           <div className="border-t border-line bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -281,11 +333,7 @@ export function MechanicsPlayer({
                   disabled={pending}
                   className="mx-auto flex min-h-11 items-center px-3 text-xs font-semibold text-muted hover:text-ink"
                 >
-                  {index + 1 < items.length
-                    ? '이번 드릴은 건너뛰기'
-                    : done.some(Boolean)
-                      ? '건너뛰고 세션 마치기'
-                      : '오늘은 그만하기'}
+                  {index + 1 < items.length ? '이번 드릴은 건너뛰기' : done.some(Boolean) ? '건너뛰고 세션 마치기' : '오늘은 그만하기'}
                 </button>
               )}
             </div>
@@ -347,19 +395,14 @@ function DrillView({
   return (
     <div className="mx-auto max-w-xl space-y-4 px-4 py-5">
       {caution && (
-        <p
-          role="status"
-          className="flex items-start gap-2 rounded-2xl bg-warn-bg px-4 py-3 text-sm font-semibold break-keep text-warn"
-        >
+        <p role="status" className="flex items-start gap-2 rounded-2xl bg-warn-bg px-4 py-3 text-sm font-semibold break-keep text-warn">
           <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{MECHANICS_FOLD_TEXT.loadedDrill(painLabel)}</span>
         </p>
       )}
       <div className="space-y-1.5">
         <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
-          {item.rx && (
-            <span className="rounded-full bg-sky px-2.5 py-0.5 text-white">처방 · {item.rx.element}</span>
-          )}
+          {item.rx && <span className="rounded-full bg-sky px-2.5 py-0.5 text-white">처방 · {item.rx.element}</span>}
           <span className="rounded-full bg-sky-tint px-2.5 py-0.5 text-sky-strong">{item.element}</span>
           <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-ink">{item.stage}</span>
           {view.variants.length < 2 && <span className="text-muted">{view.tool}</span>}
@@ -399,11 +442,7 @@ function DrillView({
                 onClick={() => onChoose({ alt, variantId: v.id })}
                 /* 가진 장비에 없는 도구는 점선 — 골라도 되지만(오늘 빌린 공) 처음엔 안 고른다 */
                 className={`min-h-10 rounded-full px-3.5 text-sm font-semibold transition-colors ${
-                  on
-                    ? 'bg-sky text-white'
-                    : v.owned
-                      ? 'bg-surface text-ink'
-                      : 'border border-dashed border-line text-muted'
+                  on ? 'bg-sky text-white' : v.owned ? 'bg-surface text-ink' : 'border border-dashed border-line text-muted'
                 }`}
               >
                 {v.tool}
@@ -425,11 +464,7 @@ function DrillView({
         )
       )}
 
-      {item.cue && (
-        <p className="rounded-2xl bg-sky-tint/60 px-4 py-3 text-sm font-semibold break-keep text-sky-strong">
-          “{item.cue}”
-        </p>
-      )}
+      {item.cue && <p className="rounded-2xl bg-sky-tint/60 px-4 py-3 text-sm font-semibold break-keep text-sky-strong">“{item.cue}”</p>}
 
       {(view.variant.videoPath || view.variant.referenceVideoId) && (
         <LibraryVideo
@@ -487,10 +522,7 @@ function Description({ guideId }: { guideId: string }) {
       >
         <Info aria-hidden className="h-4 w-4 text-muted" />
         <span className="flex-1">자세 설명</span>
-        <ChevronDown
-          aria-hidden
-          className={`h-4 w-4 text-muted transition-transform ${open ? 'rotate-180' : ''}`}
-        />
+        <ChevronDown aria-hidden className={`h-4 w-4 text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div className="px-4 pb-4">
@@ -499,11 +531,7 @@ function Description({ guideId }: { guideId: string }) {
           ) : failed ? (
             <p className="text-xs text-muted">
               설명을 불러오지 못했어요.{' '}
-              <button
-                type="button"
-                onClick={load}
-                className="font-semibold text-sky-strong"
-              >
+              <button type="button" onClick={load} className="font-semibold text-sky-strong">
                 다시 받기
               </button>
             </p>
@@ -524,6 +552,7 @@ function FinishView({
   backHref,
   count,
   partial,
+  message,
   focus,
 }: {
   advice: ReturnType<typeof levelAdvice>;
@@ -535,6 +564,7 @@ function FinishView({
   count: number;
   /** 아픈 날 무브먼트만 하고 마침 — 세션 수가 안 올랐으니 권하기 · 찍기는 띄우지 않는다 */
   partial: boolean;
+  message: string | null;
   /** 3D 리포트 처방 중 — '처방 N / 9 마쳤어요', 찍기 권유는 처방 카드가 맡아 안 띄운다 */
   focus: { number: number; total: number } | null;
 }) {
@@ -551,13 +581,10 @@ function FinishView({
             {partial ? '오늘 드릴을 마쳤어요' : '세션을 마쳤어요'}
           </h1>
           <p className="text-sm text-muted">
-            {focus && !partial ? `처방 ${focus.number} / ${focus.total} 마쳤어요 · ` : ''}드릴 {count}개를 했어요.
+            {focus && !partial ? `처방 ${focus.number} / ${focus.total} 마쳤어요 · ` : ''}
+            드릴 {count}개를 했어요.
           </p>
-          {partial && (
-            <p className="text-sm leading-relaxed break-keep text-muted">
-              {MECHANICS_FOLD_TEXT.partialFinish}
-            </p>
-          )}
+          {partial && <p className="text-sm leading-relaxed break-keep text-muted">{message ?? MECHANICS_FOLD_TEXT.partialFinish}</p>}
         </div>
 
         {throwNote && <DrillThrowNoteCard note={throwNote} plainLink />}
@@ -568,8 +595,7 @@ function FinishView({
           <div className="space-y-3 rounded-2xl bg-surface p-(--block-pad)">
             <p className="text-base font-bold break-keep text-ink">세션 {sessionNumber}번 · 찍어서 견줘 볼 때예요</p>
             <p className="text-sm break-keep text-muted">
-              같은 자리에서 다시 찍어 처음 영상과 2분할로 견줘 보세요. 구속도 재 두면
-              효과를 알 수 있어요.
+              같은 자리에서 다시 찍어 처음 영상과 2분할로 견줘 보세요. 구속도 재 두면 효과를 알 수 있어요.
             </p>
             <Link
               href="/videos?compare=1"
@@ -634,7 +660,9 @@ function LevelOffer({ kind, to }: { kind: 'done' | 'up' | 'down'; to: Parameters
               onClick={() =>
                 startTransition(async () => {
                   setError(null);
-                  const res = await orOffline(startMechanicsProgram(to), { error: OFFLINE_MESSAGE });
+                  const res = await orOffline(startMechanicsProgram(to), {
+                    error: OFFLINE_MESSAGE,
+                  });
                   if ('error' in res) setError(res.error);
                   else setState('changed');
                 })
