@@ -11,7 +11,7 @@ import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
  * 계산기가 아는 기능 — 'ready' 에 실어 앱이 시도 기록(analysis.versions)에 남기고, 없는 기능은 쓰지 않는다(2026-10-25 설계안 작업 A · B).
  * schema 는 이 약속의 판(칸을 더하면 올린다). netHits 는 재기 옵션의 모델 후보(MeasureOpts.netHits)를 analyzeVideo 에 넘기나.
  */
-export const ENGINE_CAPS = { schema: 1, netHits: false } as const;
+export const ENGINE_CAPS = { schema: 1, netHits: true } as const;
 
 /**
  * 앱 ↔ 계산기 약속(native/src/velocity/engine.tsx 와 같이 고친다).
@@ -47,6 +47,11 @@ export type MeasureOpts = {
   /** 고른 거리로 값을 내고 공 크기는 15% 문으로만(엔진 2.9.0 chosenDistance) — 옛 앱은 안 보낸다 */
   distanceChosen?: boolean;
   tiltRad: number | null;
+  /**
+   * 카메라 모듈이 클립에 실은 학습 모델 후보(Clip.hits → 2026-10-25 설계안 작업 B) — 클립 시각(초) · 세운 화면 비율 x · y · d(화면 폭 비율) · 점수.
+   * 엔진이 공 길 안내(analyze-distance netHits → net-flight.ts)로 쓴다. 계산기가 받을 수 있을 때만(ready caps.netHits) 보낸다
+   */
+  netHits?: { t: number; x: number; y: number; d: number; score: number }[] | null;
 };
 
 /** 훑기 옵션 — 사이트 dual-capture.ts sweep 이 locateThrow 에 넘기는 것과 같다. fps 를 알면 모델 입력 장면 간격(1/fps)으로 */
@@ -108,6 +113,7 @@ export function EngineClient() {
             distanceAuto: opts.distanceAuto,
             distanceChosen: opts.distanceChosen,
             tiltRad: opts.tiltRad,
+            netHits: opts.netHits ?? null,
             onBall: () => send({ t: 'ball', id }),
           });
           send({ t: 'result', id, result, ms: Math.round(performance.now() - t0) });

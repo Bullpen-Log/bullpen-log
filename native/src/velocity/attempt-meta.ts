@@ -15,9 +15,12 @@ export function attemptSettings(
   opts: MeasureOpts | undefined,
   ctx: SessionCtx,
   dist: { m: number; auto: boolean },
-  chosen: boolean
+  chosen: boolean,
+  /** 클립에 실려 온 모델 후보 수(작업 B) — 계산기에 넘긴 수는 opts.netHits */
+  hitsAvail?: number
 ) {
   return {
+    ...(hitsAvail != null ? { hitsAvail } : {}),
     cameraPos: ctx.cameraPos,
     tape: ctx.tape,
     /** 고른 '투수판 → 멈추는 곳' + 폰 자리(m) — 15% 문의 기준 */
@@ -33,6 +36,7 @@ export function attemptSettings(
           fovKnown: opts.fovKnown,
           tiltRad: opts.tiltRad,
           ...(opts.ballRange ? { rangeStart: opts.ballRange.startSec, rangeEnd: opts.ballRange.endSec, seedT: opts.ballRange.seedT } : {}),
+          netHits: opts.netHits?.length ?? 0,
         }
       : {}),
   };

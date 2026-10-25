@@ -42,6 +42,13 @@ struct DualClip {
     let stabilized: Bool
     /// 클립에 실제로 담긴 장면 수 — 약속한 fps × 길이보다 적으면 캡처가 늦은 장면을 버린 것(2026-10-20: Debug 빌드에서 반을 버렸다)
     let frames: Int
+    /**
+     * 이 클립 구간의 학습 모델 후보(BallNetTrigger 가 장면 둘에 하나씩 낸 봉우리 — 알림 전후 모두, 2026-10-25 설계안 작업 B).
+     * 줄 하나 = [클립 시각(초), x, y, d, 점수] — x · y 는 세운 화면 비율(0~1, 모델 입력 416×736 기준 = 클립 영상과 같은 방향: 가로 센서 장면을 시계 방향으로
+     * 돌린 것), d 는 모델 크기 머리(화면 폭 비율 — 416px 입력의 거친 어림이라 지름으로 믿지 말고 안내로만, lib/velocity-engine/net-flight.ts).
+     * 시각은 녹화 PTS 그대로라 클립 시작(cut.start)을 빼면 클립 시각이 된다. 모델이 없는 폰(BallNet 못 읽음)은 빈 배열.
+     */
+    let hits: [[Double]]
 
     var json: [String: Any] {
         [
@@ -49,6 +56,7 @@ struct DualClip {
             "fps": Int(fps), "width": width, "height": height, "fovDeg": fovDeg,
             "fovSource": fovSource, "stabilized": stabilized,
             "frames": frames, "fpsActual": durationSec > 0 ? Double(frames) / durationSec : 0,
+            "hits": hits, "hitsSchema": BallNetTrigger.hitsSchema, "hitsFrame": ["w": BallNetTrigger.inputW, "h": BallNetTrigger.inputH],
         ]
     }
 }
@@ -502,6 +510,8 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             "debugBuild": DualCameraController.debugBuild,
             "appVersion": (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "",
             "appBuild": (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "",
+            /* 클립에 싣는 모델 후보(DualClip.hits)의 약속 판 — 앱이 시도 기록 versions.module 에 적는다(2026-10-25 설계안 작업 B) */
+            "hitsSchema": BallNetTrigger.hitsSchema,
             "stabilization": stabilized ? "standard" : "off",
             /*
              * 기준 조건(모든 사용자 같게 — 2026-10-08 사용자: "폰 기종에 상관없이 일관성 있게") — 1080p · 60fps · 2배가 진짜 줌 · 손떨림
@@ -1261,10 +1271,12 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
                 Thread.sleep(forTimeInterval: 0.1)
             }
             let fov = self.clipFov()
+            /* 이 구간의 모델 후보(알림 전후 모두 — 후보 버퍼는 PTS 열쇠, 클립 시각으로는 write 가 옮긴다). 모델이 없으면 빈 배열 */
+            let hits = self.net?.hits(from: at - before, to: until) ?? []
             guard let main = self.main,
                   let mainClip = self.write(
                     self.mainRecorder, from: at - before, to: until, event: at, label: "main", picked: main,
-                    fov: fov.deg, fovSource: fov.source, stabilized: fov.stabilized
+                    fov: fov.deg, fovSource: fov.source, stabilized: fov.stabilized, hits: hits
                   )
             else {
                 completion(.failure(DualCameraError(code: "clip", message: "그 순간의 영상이 없어요(너무 오래됐거나 아직 안 찍혔어요).")))
@@ -1273,7 +1285,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             let wideClip = self.wide.flatMap {
                 self.write(
                     self.wideRecorder, from: at - before, to: until, event: at, label: "wide", picked: $0,
-                    fov: self.wideFov, fovSource: "format", stabilized: false
+                    fov: self.wideFov, fovSource: "format", stabilized: false, hits: []
                 )
             }
             #if DEBUG
@@ -1285,9 +1297,15 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
 
     private func write(
         _ recorder: SegmentRecorder, from: Double, to: Double, event: Double, label: String, picked: Picked,
-        fov: Double, fovSource: String, stabilized: Bool
+        fov: Double, fovSource: String, stabilized: Bool, hits: [BallNetTrigger.Hit]
     ) -> DualClip? {
         guard let cut = recorder.clip(from: from, to: to) else { return nil }
+        /* 실제로 잘린 구간 안의 후보만, 클립 시각으로 — 모델 입력 px → 세운 화면 비율(0~1) */
+        let w = Double(BallNetTrigger.inputW), h = Double(BallNetTrigger.inputH)
+        let rows: [[Double]] = hits.filter { $0.t >= cut.start && $0.t <= cut.end }.map {
+            [(($0.t - cut.start) * 1e4).rounded() / 1e4, (Double($0.x) / w * 1e4).rounded() / 1e4, (Double($0.y) / h * 1e4).rounded() / 1e4,
+             (Double($0.d) / w * 1e4).rounded() / 1e4, (Double($0.score) * 1e3).rounded() / 1e3]
+        }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("bullpen-dualcam", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("\(UUID().uuidString)-\(label).mp4")
@@ -1307,7 +1325,8 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             fovDeg: fov,
             fovSource: fovSource,
             stabilized: stabilized,
-            frames: cut.frames
+            frames: cut.frames,
+            hits: rows
         )
     }
 }
@@ -2447,6 +2466,20 @@ final class BallNetTrigger {
     struct Hit { let t: Double; let x: Float; let y: Float; let d: Float; let score: Float }
     struct Alert { let atSec: Double; let n: Int; let first: Hit; let last: Hit }
 
+    /// 클립에 싣는 후보(DualClip.hits)의 약속 판 — 줄 모양(시각 · x · y · d · 점수)이나 좌표 뜻이 바뀌면 올린다
+    static let hitsSchema = 1
+    /// 모델 입력 크기(세로) — 후보 좌표의 기준. 인스턴스 inW · inH 와 같다
+    static let inputW = 416, inputH = 736
+    /**
+     * 후보 버퍼(2026-10-25 설계안 작업 B) — 알림(Alert)은 묶음의 첫 표본 하나만 알려 그 뒤 날아가는 공의 자리를 엔진이 받지 못했다. 모델이 낸 봉우리를
+     * PTS 열쇠로 이만큼 쥐고 있다가, 클립을 자를 때 그 구간(알림 전후 모두)을 통째로 싣는다(hits(from:to:)). 낮은 점수도 keepHitsMinScore 까지 —
+     * 엔진(net-flight.ts)이 센 점(0.5) 사이를 약한 점(0.3)으로 잇는다. 세션을 새로 켜면(reset) 비운다 — 지난 세션 후보가 섞이지 않게.
+     */
+    static let keepHitsSec = 10.0
+    static let keepHitsMinScore: Float = 0.1
+    private let hitLock = NSLock()
+    private var recentHits: [Hit] = []
+
     /// 사이트와 같은 값(ball-net.ts)
     static let threshold: Float = 0.5
     static let runGapSec = 0.45
@@ -2490,13 +2523,33 @@ final class BallNetTrigger {
         port = [UInt8](repeating: 0, count: inW * inH)
     }
 
-    /// 새로 켤 때 — 지난 장면 · 묶음을 버린다
+    /// 새로 켤 때 — 지난 장면 · 묶음 · 후보 버퍼를 버린다
     func reset() {
         ringT = []
         head = 0
         run = []
         frames = 0
         cooldownUntil = -.infinity
+        hitLock.lock()
+        recentHits = []
+        hitLock.unlock()
+    }
+
+    /// 후보 버퍼에 넣고 오래된 것은 비운다(공 찾기 줄에서)
+    private func remember(_ h: Hit) {
+        guard h.score >= Self.keepHitsMinScore else { return }
+        hitLock.lock()
+        recentHits.append(h)
+        let floor = h.t - Self.keepHitsSec
+        if let first = recentHits.first, first.t < floor { recentHits.removeAll { $0.t < floor } }
+        hitLock.unlock()
+    }
+
+    /// [from, to] 구간의 후보(PTS 시각순) — 클립을 자르는 줄(clipQueue)에서 부른다
+    func hits(from: Double, to: Double) -> [Hit] {
+        hitLock.lock()
+        defer { hitLock.unlock() }
+        return recentHits.filter { $0.t >= from && $0.t <= to }
     }
 
     /// 가로 밝기 면(w × h) → 가로 inH × inW 로 줄이고(vImage) 시계 방향으로 돌려 세로 inW × inH, 0~1 로 고리 칸에
@@ -2560,6 +2613,7 @@ final class BallNetTrigger {
         if ringT.count < 3 { ringT.append(t) } else { ringT.removeFirst(); ringT.append(t); head = (head + 1) % 3 }
         frames += 1
         guard ringT.count == 3, frames % 2 == 0, let h = detect(t: t) else { return nil }
+        remember(h)
         if let last = run.last, t - last.t > Self.runGapSec { run = [] }
         guard h.score >= Self.threshold, t >= cooldownUntil else { return nil }
         if let p = run.last {

@@ -379,7 +379,7 @@ export default function VelocityScreen() {
         onTiming: (t) => {
           timings.current = [...timings.current.slice(-5), t];
         },
-        onAttempt: ({ opts, ...a }) => {
+        onAttempt: ({ opts, hitsAvail, ...a }) => {
           const date = sessionDateRef.current ?? todayRef.current;
           if (!date) return;
           /* 설정 · 판도 같이(설계안 작업 A) — 잰 작업은 계산기에 넘긴 옵션 그대로, 못 잰 알림은 지금 설정 */
@@ -390,7 +390,7 @@ export default function VelocityScreen() {
               date,
               ...a,
               camera: fpsNow.current,
-              settings: attemptSettings(opts, ctx, distRef.current, SETTINGS.distanceChosen === true),
+              settings: attemptSettings(opts, ctx, distRef.current, SETTINGS.distanceChosen === true, hitsAvail),
               versions: attemptVersions(ctx.info, engine.current?.info() ?? null, updateIdRef.current),
             })
               .then((r) => (r.ok ? r.id : null))

@@ -26,6 +26,11 @@ export type MeasureOpts = {
   /** 고른 거리로 값을 내고 공 크기는 15% 문으로만(엔진 2.9.0 chosenDistance) — 옛 앱은 안 보낸다 */
   distanceChosen?: boolean;
   tiltRad: number | null;
+  /**
+   * 카메라 모듈이 클립에 실은 학습 모델 후보(Clip.hits → 2026-10-25 설계안 작업 B) — 클립 시각(초) · 세운 화면 비율 x · y · d(화면 폭 비율) · 점수.
+   * 엔진이 공 길 안내(analyze-distance netHits → net-flight.ts)로 쓴다. 계산기가 받을 수 있을 때만(ready caps.netHits) 보낸다
+   */
+  netHits?: { t: number; x: number; y: number; d: number; score: number }[] | null;
 };
 
 /** engine-client.tsx LocateOpts 와 같다 — 조용할 때 훑기(2.7)가 클립에서 공 시각만 찾을 때 */

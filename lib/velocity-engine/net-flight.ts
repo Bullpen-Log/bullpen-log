@@ -19,8 +19,14 @@ export const NET_FLIGHT_MIN_SHRINK = 1.6;
  * 있고 지름이 크게 되돌아 커지지 않는(×1.35) 점을 NET_FLIGHT_MAX_GAP 장까지 건너뛰며 잇는다. 센 점이 셋 넘고 지름이 NET_FLIGHT_MIN_SHRINK 배
  * 넘게 준 길만(멀어지는 공) — 팔 · 손에 쥔 공 · 되던진 공(커짐)은 여기서 빠진다. 없으면 null.
  * dt = 한 장 간격(초).
+ *
+ * 지름을 모르는 후보(d ≤ 0 — 2026-10-25 설계안 작업 B: 열지도 봉우리 폭 · 거친 크기 머리를 지름으로 믿지 않을 때)는 따로 잇는다 — 둘레 문은
+ * minGatePx(분석 px, 부르는 쪽이 화면 크기로 정한다) + 한 장 움직임, 지름 규칙(되돌아 커짐 · 줄어듦)은 안 보고 대신 넷 넘게 이어지고 처음 → 끝이
+ * 둘레 문의 세 배는 움직인 길만(제자리 손 · 쥔 공을 가른다).
+ * d 를 모두 아는 입력에서는 결과가 예전과 글자까지 같다(minGatePx 는 d ≤ 0 인 점에만 쓴다).
  */
-export function netFlight(points: NetPoint[], dt: number): NetPoint[] | null {
+export const NET_FLIGHT_MIN_RUN_NO_D = 4;
+export function netFlight(points: NetPoint[], dt: number, minGatePx = 0): NetPoint[] | null {
   const pts = points.filter((p) => p.score >= NET_FLIGHT_WEAK);
   let best: NetPoint[] | null = null;
   const used = new Set<NetPoint>();
@@ -33,12 +39,21 @@ export function netFlight(points: NetPoint[], dt: number): NetPoint[] | null {
       if (p.t - q.t > (NET_FLIGHT_MAX_GAP + 0.5) * dt) break;
       const prev = run.length > 1 ? run[run.length - 2] : null;
       const step = prev ? Math.hypot(q.u - prev.u, q.v - prev.v) / Math.max(dt, q.t - prev.t) : 0;
-      const gate = 2 * q.d + step * (p.t - q.t) * 1.5;
-      if (Math.hypot(p.u - q.u, p.v - q.v) <= gate && p.d <= q.d * 1.35) run.push(p);
+      const sized = p.d > 0 && q.d > 0;
+      const gate = (q.d > 0 ? 2 * q.d : minGatePx) + step * (p.t - q.t) * 1.5;
+      if (Math.hypot(p.u - q.u, p.v - q.v) <= gate && (!sized || p.d <= q.d * 1.35)) run.push(p);
     }
     for (const p of run) used.add(p);
     const strong = run.filter((p) => p.score >= NET_FLIGHT_STRONG).length;
-    if (strong < 3 || !(run[0].d >= NET_FLIGHT_MIN_SHRINK * run[run.length - 1].d)) continue;
+    if (strong < 3) continue;
+    const allSized = run.every((p) => p.d > 0);
+    if (allSized) {
+      if (!(run[0].d >= NET_FLIGHT_MIN_SHRINK * run[run.length - 1].d)) continue;
+    } else {
+      /* 지름이 없으면 줄어듦을 못 본다 — 대신 넷 넘게 이어지고 처음에서 끝까지 둘레 문의 세 배는 움직인 길만(제자리 손 · 쥔 공은 빠진다) */
+      const first = run[0], last = run[run.length - 1];
+      if (run.length < NET_FLIGHT_MIN_RUN_NO_D || Math.hypot(last.u - first.u, last.v - first.v) < 3 * minGatePx) continue;
+    }
     if (!best || run.length > best.length) best = run;
   }
   return best;

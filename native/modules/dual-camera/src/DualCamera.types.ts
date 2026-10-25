@@ -46,6 +46,13 @@ export type Clip = {
   /** 클립에 실제로 담긴 장면 수 · 그로 셈한 초당 장면 수 — 약속한 fps 보다 많이 모자라면 캡처가 장면을 버린 것(옛 앱 판에는 없다) */
   frames?: number;
   fpsActual?: number;
+  /**
+   * 이 클립 구간의 학습 모델 후보(2026-10-25 설계안 작업 B, 옛 모듈 판에는 없다) — 줄 하나 = [클립 시각(초), x, y, d, 점수]. x · y 는 세운 화면 비율 0~1,
+   * d 는 모델 크기 머리(화면 폭 비율 — 거친 어림, 지름으로 믿지 않는다). hitsSchema 는 이 줄 모양의 판, hitsFrame 은 모델 입력 크기(416×736).
+   */
+  hits?: number[][];
+  hitsSchema?: number;
+  hitsFrame?: { w: number; h: number };
 };
 
 /** kind 'net' — 학습 모델 공 알림(SPEC-detect D3, strength = 첫 표본 점수 0~1). D4 부터 앱이 이 알림으로 잰다(capture.ts) */

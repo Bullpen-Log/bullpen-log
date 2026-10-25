@@ -79,6 +79,21 @@ export function timingLine(t: JobTiming): string {
   return `#${t.id} ${t.kind} 큐 ${t.queueMs} · 자르기 ${t.clipMs} · 읽기 ${t.readMs}(${(t.bytes / 1e6).toFixed(1)}MB${fps}) · 계산 ${t.engineMs}${inner} · 합 ${t.totalMs}ms → ${t.outcome}`;
 }
 
+/**
+ * 클립에 실린 모델 후보(Clip.hits 줄 [t, x, y, d, score]) → 계산기 옵션 netHits. 모양이 어긋난 줄은 뺀다. 좌표 변환은 하지 않는다 — 모듈이 이미
+ * 세운 화면 비율로 준다(DualCameraCore.swift DualClip.hits, 약속 판 hitsSchema 1). 판이 다르면(모듈이 새 뜻으로 바뀜) 안 쓴다 — 조용히 옛 뜻으로 읽지 않게
+ */
+export function netHitsOf(clip: Clip): NonNullable<MeasureOpts['netHits']> | null {
+  if (clip.hitsSchema !== 1 || !Array.isArray(clip.hits) || clip.hits.length === 0) return null;
+  const out: NonNullable<MeasureOpts['netHits']> = [];
+  for (const row of clip.hits) {
+    if (!Array.isArray(row) || row.length < 5 || !row.every((v) => typeof v === 'number' && Number.isFinite(v))) continue;
+    const [t, x, y, d, score] = row;
+    out.push({ t, x, y, d, score });
+  }
+  return out.length ? out : null;
+}
+
 /** 계산기 안 시간 나눔 — 결과에 timing 이 실려 올 때만 */
 function innerTimingOf(result: EngineResult): JobTiming['inner'] {
   const t = (result as { timing?: { framesMs?: unknown; analyzeMs?: unknown; coarseMs?: unknown } }).timing;
@@ -179,6 +194,8 @@ export type CaptureHandlers = {
     timing?: JobTiming;
     /** 계산기에 넘긴 옵션 그대로(잰 작업만) — 화면이 설정 칸(analysis.settings)으로 옮겨 적는다(2026-10-25 설계안 작업 A) */
     opts?: MeasureOpts;
+    /** 클립에 실려 온 모델 후보 수(모듈이 준 것 — 계산기가 못 받으면 opts.netHits 는 없고 이것만 남는다, 작업 B) */
+    hitsAvail?: number;
   }): void;
 };
 
@@ -494,6 +511,12 @@ export class AppCapture {
           ? main.eventSec + (job.ballAt - job.at)
           : null;
     const range = job.pre ? SWEEP_RANGE : BALL_RANGE;
+    /*
+     * 클립에 실린 모델 후보 → 공 길 안내(작업 B). 계산기(사이트)가 받을 수 있다고 알렸을 때만(ready caps.netHits) — 옛 사이트에 보내면 모르는 칸이라
+     * 버려지는데, 그걸 '보냈다'고 적으면 안 되니 시도 기록에는 받은 쪽 수(netHits)와 모듈이 준 수(hitsAvail)를 따로 남긴다
+     */
+    const hits = netHitsOf(main);
+    const netHits = hits && engine.info()?.caps.netHits === true ? hits : null;
     const opts: MeasureOpts = {
       fps: main.fps,
       fovDeg: main.fovDeg > 0 ? main.fovDeg : s.fallbackFovDeg,
@@ -515,6 +538,7 @@ export class AppCapture {
       distanceAuto: s.distanceAuto,
       distanceChosen: s.distanceChosen,
       tiltRad: s.tiltRad,
+      ...(netHits ? { netHits } : {}),
     };
     job.analyzing = true;
     if (gen === this.gen) this.sync();
@@ -590,6 +614,7 @@ export class AppCapture {
       distance: result.distance,
       timing,
       opts,
+      hitsAvail: hits?.length ?? 0,
     });
     this.report(timing);
     if (!verdict.kept) drop([main.path]);

@@ -341,7 +341,8 @@ function bestFlight(
    * 모델 공 길 안내 — 날아가는 공 길(netFlight)의 앞 점들에서 그 둘레 덩어리를 씨앗으로 삼고, 장면마다 모델 자리 둘레에서 잇는다. 모델 자리는
    * 흔들림을 바로잡기 전 영상 자리라 맞춘 장면과 몇 px 어긋날 수 있다 — 문(gate)이 그보다 넓다. 다가오는 공(포수 뒤)은 안 쓴다.
    */
-  const chain = netHits && dt > 0 ? netFlight(netHits, dt) : null;
+  /* 지름을 모르는 후보(d ≤ 0)의 둘레 문은 짧은 변의 2%(720px 에서 14px) — d 를 아는 후보는 예전처럼 지름으로(net-flight.ts) */
+  const chain = netHits && dt > 0 ? netFlight(netHits, dt, 0.02 * Math.min(fs.w, fs.h)) : null;
   const frameOf = (t: number) => {
     let k = -1;
     for (let i = 0; i < fs.t.length; i++)

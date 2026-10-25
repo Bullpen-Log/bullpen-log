@@ -659,7 +659,7 @@ function sanitizeNumbers(v: unknown, keys: readonly string[]): Record<string, nu
 }
 const TIMING_KEYS = ['queueMs', 'clipMs', 'readMs', 'engineMs', 'totalMs', 'bytes', 'fpsActual'] as const;
 /** 설정 칸 — 숫자(음수 허용: tiltRad) · 켬끔 · 짧은 글(approach · cameraPos) */
-const SETTINGS_NUM_KEYS = ['fps', 'fovDeg', 'distanceM', 'rubberDistM', 'tiltRad', 'releaseDistanceM', 'focalPerLongSide', 'rangeStart', 'rangeEnd', 'seedT', 'netHits'] as const;
+const SETTINGS_NUM_KEYS = ['fps', 'fovDeg', 'distanceM', 'rubberDistM', 'tiltRad', 'releaseDistanceM', 'focalPerLongSide', 'rangeStart', 'rangeEnd', 'seedT', 'netHits', 'hitsAvail'] as const;
 const SETTINGS_BOOL_KEYS = ['fovKnown', 'distanceAuto', 'distanceChosen', 'tape'] as const;
 const SETTINGS_STR_KEYS = ['approach', 'cameraPos'] as const;
 /** 판 칸 — 글만(앱 판 · 빌드 · UA · OTA 갱신 번호 · 계산기 엔진 판 · 카메라 모듈 후보 약속 · 모델 이름), debug 는 켬끔 */
