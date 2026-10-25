@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import type { loadMyMembership, MySpace } from '@/app/actions/app-org';
 import type { loadMyHomework } from '@/app/actions/app-lesson';
 import { HomeworkList } from '~/org/homework';
+import { TalkToggle } from '~/org/thread';
 import { LoadState, useLoad } from '~/community/parts';
 import { TYPE, usePalette } from '~/lib/ui';
 import { Card, Empty, GroupTitle, KIND_WORD, Primary, dayLabel, scopeText } from '~/org/parts';
@@ -85,6 +86,12 @@ export function PlayerSpace({ space }: { space: MySpace }) {
                   {n.homework}
                 </Text>
               ) : null}
+              {n.pitchLog ? (
+                <Text style={[TYPE.sub, { color: c.muted }]}>
+                  던진 공 {n.pitchCount}구 · {n.pitchLog === 'own' ? '코치가 내 투구 기록에 남겼어요' : '내 투구 기록에 이었어요'}
+                </Text>
+              ) : null}
+              {!data.left ? <TalkToggle kind="note" id={n.id} talk={n.talk} who={{ role: 'player', memberId: space.memberId! }} c={c} /> : null}
             </Card>
           ))
         )}

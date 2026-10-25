@@ -3,12 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { appNow } from '@/lib/clock';
-import { notify } from '@/lib/notify';
+import { notify, notifyMany } from '@/lib/notify';
 import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
 import { isDateKey } from '@/lib/org/rules';
 import { trainingGuides, visibleExercises, allExercises, allGuides } from '@/lib/library-cache';
 import { coachOrg, myMember } from '@/lib/org/app-access';
+import { commentCounts } from '@/lib/org/comment-load';
 import {
   COACH_STATUSES,
   PLAYER_STATUSES,
@@ -21,6 +22,7 @@ import {
   type HomeworkStatus,
 } from '@/lib/org/homework';
 import { addToTodayPlan } from '@/app/actions/plan-edit';
+import { COMMENT_KIND_LABEL, cleanCommentBody, isPlayerCommentKind, commentTarget, type CommentKind, type CommentTarget } from '@/lib/org/comments';
 
 /**
  * 팀 · 레슨장 2단계(docs/designs/sinker-team-lesson-contract.md 3절)의 앱 동작 — 숙제(OrgAssignment). JSON 인자 · JSON 답, /api/rpc/app-lesson.<함수>.
@@ -40,6 +42,8 @@ export type HomeworkView = {
   lines: HomeworkLine[];
   /** 오늘 운동에 넣을 수 있는 운동이 있나(드릴만이면 없음) */
   hasExercise: boolean;
+  /** 이 숙제에 단 말 수 · 회원이 쓴 안 푼 말 수 */
+  talk: { total: number; open: number };
 };
 
 /** 숙제 고르기용 라이브러리 — 트레이닝이 고를 수 있는 운동 · 드릴만(숨김 · '나중에 촬영' 뺌) */
@@ -151,7 +155,14 @@ async function homeworkOf(memberId: string, userId: string | null): Promise<Home
     select: { id: true, status: true, createdAt: true, items: true, dueDate: true, doneAt: true },
   });
   const changed = await settleHomework(userId, rows);
-  const [ex, gd] = await Promise.all([allExercises(), allGuides()]);
+  const [ex, gd, talk] = await Promise.all([
+    allExercises(),
+    allGuides(),
+    commentCounts(
+      rows.map((r) => ({ assignmentId: r.id })),
+      userId
+    ),
+  ]);
   const exName = new Map(ex.map((e) => [e.id, e.title]));
   const gName = new Map(gd.map((g) => [g.id, g.title]));
   return rows.map((r) => {
@@ -166,6 +177,7 @@ async function homeworkOf(memberId: string, userId: string | null): Promise<Home
       due: r.dueDate ? toDateKey(r.dueDate) : null,
       doneKey: doneAt ? toDateKey(doneAt) : null,
       hasExercise: items.some((i) => i.exerciseId),
+      talk: talk.get(r.id) ?? { total: 0, open: 0 },
       lines: items.map((i) => ({
         name: (i.exerciseId ? exName.get(i.exerciseId) : i.guideId ? gName.get(i.guideId) : null) ?? '지운 운동',
         dose: homeworkDose(i),
@@ -221,4 +233,163 @@ export async function homeworkToToday(memberId: string, id: string): Promise<{ o
   }
   if (a.status === 'assigned') await prisma.orgAssignment.update({ where: { id }, data: { status: 'in_progress' } });
   return { ok: true, added };
+}
+
+/* ── 일지 · 숙제에 다는 말 · 코치 '받은 것'(2단계) ── */
+
+export type CommentView = {
+  id: string;
+  kind: CommentKind;
+  body: string;
+  key: string;
+  byCoach: boolean;
+  author: string | null;
+  mine: boolean;
+  resolved: boolean;
+};
+
+/** 그 자리가 이 회원(조직)의 것인가 — 회원 id · 조직 id 를 돌려준다 */
+async function targetOwner(t: CommentTarget): Promise<{ memberId: string; orgId: string; userId: string | null } | null> {
+  if ('noteId' in t) {
+    const n = await prisma.lessonNote.findUnique({ where: { id: t.noteId }, select: { memberId: true, member: { select: { orgId: true, userId: true } } } });
+    return n ? { memberId: n.memberId, orgId: n.member.orgId, userId: n.member.userId } : null;
+  }
+  const a = await prisma.orgAssignment.findUnique({ where: { id: t.assignmentId }, select: { memberId: true, orgId: true } });
+  if (!a) return null;
+  const m = await prisma.orgMember.findUnique({ where: { id: a.memberId }, select: { userId: true } });
+  return { memberId: a.memberId, orgId: a.orgId, userId: m?.userId ?? null };
+}
+
+async function threadOf(t: CommentTarget, memberUserId: string | null, viewerId: string): Promise<CommentView[]> {
+  const rows = await prisma.orgComment.findMany({
+    where: 'noteId' in t ? { noteId: t.noteId } : { assignmentId: t.assignmentId },
+    orderBy: { createdAt: 'asc' },
+    take: 100,
+    select: { id: true, kind: true, body: true, createdAt: true, authorId: true, resolvedAt: true },
+  });
+  const authors = await prisma.user.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.authorId))] } }, select: { id: true, nickname: true } });
+  const nameOf = new Map(authors.map((a) => [a.id, a.nickname]));
+  return rows.map((r) => ({
+    id: r.id,
+    kind: (r.kind in COMMENT_KIND_LABEL ? r.kind : 'comment') as CommentKind,
+    body: r.body,
+    key: toDateKey(r.createdAt),
+    byCoach: r.authorId !== memberUserId,
+    author: nameOf.get(r.authorId) ?? null,
+    mine: r.authorId === viewerId,
+    resolved: r.resolvedAt != null,
+  }));
+}
+
+/** 코치: 일지 · 숙제 하나의 말 */
+export async function loadCoachThread(orgId: string, kind: unknown, id: unknown): Promise<{ ok: false; to: string } | { ok: true; comments: CommentView[] }> {
+  const c = await coachOrg(orgId);
+  const t = commentTarget(kind, id);
+  if (!c || !t) return NO_ACCESS;
+  const owner = await targetOwner(t);
+  if (!owner || owner.orgId !== orgId) return NO_ACCESS;
+  return { ok: true, comments: await threadOf(t, owner.userId, c.user.id) };
+}
+
+/** 선수: 내 일지 · 숙제 하나의 말 */
+export async function loadMyThread(memberId: string, kind: unknown, id: unknown): Promise<{ ok: false; to: string } | { ok: true; comments: CommentView[] }> {
+  const r = await myMember(memberId);
+  const t = commentTarget(kind, id);
+  if (!r || !t) return NO_ACCESS;
+  const owner = await targetOwner(t);
+  if (!owner || owner.memberId !== r.m.id) return NO_ACCESS;
+  return { ok: true, comments: await threadOf(t, r.user.id, r.user.id) };
+}
+
+/** 코치가 말 달기 — 그 자리에서 안 푼 회원 말은 답한 것으로 푼다 */
+export async function addCoachComment(orgId: string, kind: unknown, id: unknown, body: unknown): Promise<{ ok: boolean; error?: string }> {
+  const c = await coachOrg(orgId);
+  const t = commentTarget(kind, id);
+  const text = cleanCommentBody(body);
+  if (!c || !t) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
+  if (!text) return { ok: false, error: '할 말을 적어 주세요.' };
+  const owner = await targetOwner(t);
+  if (!owner || owner.orgId !== orgId) return { ok: false, error: '일지 · 숙제를 찾을 수 없어요.' };
+  const where = 'noteId' in t ? { noteId: t.noteId } : { assignmentId: t.assignmentId };
+  await prisma.$transaction([
+    prisma.orgComment.create({ data: { orgId, memberId: owner.memberId, ...where, authorId: c.user.id, kind: 'comment', body: text } }),
+    ...(owner.userId ? [prisma.orgComment.updateMany({ where: { ...where, authorId: owner.userId, resolvedAt: null }, data: { resolvedAt: appNow() } })] : []),
+  ]);
+  if (owner.userId) await notify(owner.userId, { kind: 'lesson', title: '코치가 답을 남겼어요', body: text.slice(0, 60), link: '/me#lessons' });
+  return { ok: true };
+}
+
+/** 선수가 질문 · 정정 요청 — 떠난 곳은 못 쓴다. 조직 대표와 그 일지를 쓴 코치에게 알림 */
+export async function addMyComment(memberId: string, place: unknown, id: unknown, kind: unknown, body: unknown): Promise<{ ok: boolean; error?: string }> {
+  const r = await myMember(memberId);
+  const t = commentTarget(place, id);
+  const text = cleanCommentBody(body);
+  if (!r || !t || r.m.status !== 'ACTIVE') return { ok: false, error: '말을 남길 수 없어요.' };
+  if (!isPlayerCommentKind(kind)) return { ok: false, error: '질문인지 정정 요청인지 골라 주세요.' };
+  if (!text) return { ok: false, error: '할 말을 적어 주세요.' };
+  const owner = await targetOwner(t);
+  if (!owner || owner.memberId !== r.m.id) return { ok: false, error: '일지 · 숙제를 찾을 수 없어요.' };
+  const where = 'noteId' in t ? { noteId: t.noteId } : { assignmentId: t.assignmentId };
+  await prisma.orgComment.create({ data: { orgId: owner.orgId, memberId: r.m.id, ...where, authorId: r.user.id, kind, body: text } });
+  const [org, note] = await Promise.all([
+    prisma.org.findUnique({ where: { id: owner.orgId }, select: { ownerId: true } }),
+    'noteId' in t ? prisma.lessonNote.findUnique({ where: { id: t.noteId }, select: { authorId: true } }) : null,
+  ]);
+  await notifyMany([org?.ownerId, note?.authorId].filter((x): x is string => !!x), {
+    kind: 'lesson',
+    title: kind === 'fix' ? '회원이 정정을 요청했어요' : '회원이 질문을 남겼어요',
+    body: text.slice(0, 60),
+    link: '/manage',
+  });
+  return { ok: true };
+}
+
+/** 코치: 받은 것 하나 풀기(답 없이 처리했을 때) */
+export async function resolveComment(orgId: string, id: string): Promise<{ ok: boolean; error?: string }> {
+  const c = await coachOrg(orgId);
+  if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
+  const r = await prisma.orgComment.updateMany({ where: { id, orgId, resolvedAt: null }, data: { resolvedAt: appNow() } });
+  return r.count ? { ok: true } : { ok: false, error: '이미 풀었거나 없는 말이에요.' };
+}
+
+export type InboxItem = {
+  id: string;
+  memberId: string;
+  nickname: string;
+  kind: CommentKind;
+  body: string;
+  key: string;
+  /** 어디에 단 말인가 — 일지(날짜) · 숙제 */
+  where: string;
+};
+
+/** 코치 '받은 것' — 회원이 쓴 말 가운데 안 푼 것, 새 것부터 30 */
+export async function loadInbox(orgId: string): Promise<{ ok: false; to: string } | { ok: true; items: InboxItem[] }> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const members = await prisma.orgMember.findMany({ where: { orgId, role: 'PLAYER', userId: { not: null } }, select: { id: true, userId: true, nickname: true } });
+  const players = members.map((m) => m.userId!);
+  const rows = players.length
+    ? await prisma.orgComment.findMany({
+        where: { orgId, resolvedAt: null, authorId: { in: players } },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        select: { id: true, memberId: true, kind: true, body: true, createdAt: true, noteId: true, assignmentId: true },
+      })
+    : [];
+  const notes = await prisma.lessonNote.findMany({ where: { id: { in: rows.map((r) => r.noteId).filter((x): x is string => !!x) } }, select: { id: true, date: true } });
+  const noteDay = new Map(notes.map((n) => [n.id, toDateKey(n.date)]));
+  const nameOf = new Map(members.map((m) => [m.id, m.nickname]));
+  return {
+    ok: true,
+    items: rows.map((r) => ({
+      id: r.id,
+      memberId: r.memberId,
+      nickname: nameOf.get(r.memberId) ?? '떠난 회원',
+      kind: (r.kind in COMMENT_KIND_LABEL ? r.kind : 'question') as CommentKind,
+      body: r.body,
+      key: toDateKey(r.createdAt),
+      where: r.noteId ? `${noteDay.get(r.noteId) ?? ''} 일지` : r.assignmentId ? '숙제' : '',
+    })),
+  };
 }

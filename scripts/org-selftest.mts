@@ -40,6 +40,7 @@ import {
 import { armUnknown, coachArmStatusOf } from '@/lib/org/arm-view';
 import { EVENT_STATUSES, isEventStatus, noteKey, planNotePitch } from '@/lib/org/lesson-pitch';
 import { COACH_STATUSES, PLAYER_STATUSES, cleanHomeworkItems, homeworkDose, homeworkProgress } from '@/lib/org/homework';
+import { cleanCommentBody, commentTarget, isPlayerCommentKind } from '@/lib/org/comments';
 import type { ReportFacts } from '@/lib/report/facts';
 
 let pass = 0;
@@ -586,6 +587,20 @@ console.log(
   check('완료는 코치가 못 정함', !COACH_STATUSES.includes('done') && PLAYER_STATUSES.includes('done'));
   const reg = src('app/api/rpc/registry.ts');
   check('앱 숙제 동작이 허용 목록에', reg.includes("'app-lesson': appLesson"));
+}
+
+/* ─────────────────────── 12. 2단계 — 일지 · 숙제에 다는 말 · 받은 것 ─────────────────────── */
+
+{
+  check('말 자리 읽기', JSON.stringify(commentTarget('note', 'n1')) === '{"noteId":"n1"}' && JSON.stringify(commentTarget('homework', 'a1')) === '{"assignmentId":"a1"}');
+  check('모르는 자리는 막음', commentTarget('x', 'n1') === null && commentTarget('note', '') === null);
+  check('회원은 질문 · 정정 요청만', isPlayerCommentKind('question') && isPlayerCommentKind('fix') && !isPlayerCommentKind('comment'));
+  check('빈 말은 막고 길면 자름', cleanCommentBody('   ') === null && (cleanCommentBody('가'.repeat(600)) ?? '').length === 500);
+  /* 'use server' 파일의 내보낸 함수는 누구나 부를 수 있다 — 하나도 빠짐없이 코치(coachOrg) · 선수(myMember) 확인부터 */
+  const lesson = src('app/actions/app-lesson.ts');
+  const fns = [...lesson.matchAll(/export async function (\w+)\([^]*?\n\}/g)];
+  check('app-lesson 동작이 있다', fns.length >= 10);
+  for (const m of fns) check(`app-lesson.${m[1]} 이 권한부터 본다`, /coachOrg\(|myMember\(/.test(m[0]));
 }
 
 console.log(

@@ -12,6 +12,8 @@ import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { dayWithWeekday } from '~/org/forms';
 import { EVENT_STATUS_LABEL } from '@/lib/org/lesson-pitch';
+import { COMMENT_KIND_LABEL } from '@/lib/org/comments';
+import type { loadInbox } from '@/app/actions/app-lesson';
 import { Card, Empty, GroupTitle, KIND_WORD, Primary, armLook, dayLabel, st } from '~/org/parts';
 
 /**
@@ -107,6 +109,8 @@ function TodayTab({ space, c }: { space: MySpace; c: Palette }) {
           )}
         </Card>
       </View>
+
+      <Inbox space={space} c={c} />
 
       <View style={{ gap: 6 }}>
         <GroupTitle title={who} c={c} />
@@ -384,6 +388,40 @@ function InviteCard({
             {busy ? '만드는 중…' : invite ? '새 코드 만들기' : '코드 만들기'}
           </Text>
         </Pressable>
+      </Card>
+    </View>
+  );
+}
+
+/** 받은 것(2단계) — 회원이 일지 · 숙제에 남긴 질문 · 정정 요청 가운데 안 푼 것. 누르면 회원 카드, 답 없이 처리했으면 '풀었어요' */
+function Inbox({ space, c }: { space: MySpace; c: Palette }) {
+  const { data, error, reload } = useLoad<Awaited<ReturnType<typeof loadInbox>>>('app-lesson.loadInbox', space.orgId);
+  const resolve = async (id: string) => {
+    const r = await call<{ ok: boolean; error?: string }>('app-lesson.resolveComment', space.orgId, id);
+    if (!r.ok) return toast(('error' in r && r.error) || '처리하지 못했어요.', 'error');
+    void reload();
+  };
+  if (!data) return <LoadState error={error} onRetry={() => void reload()} c={c} />;
+  if (data.items.length === 0) return null;
+  return (
+    <View style={{ gap: 6 }}>
+      <GroupTitle title={`받은 것 ${data.items.length}`} c={c} />
+      <Card c={c}>
+        {data.items.map((m) => (
+          <View key={m.id} style={{ gap: 4, paddingVertical: 4 }}>
+            <Pressable accessibilityRole="button" onPress={() => openMember(space, m.memberId)} style={({ pressed }) => [{ gap: 2 }, pressed && { opacity: 0.6 }]}>
+              <Text style={[TYPE.sub, { color: m.kind === 'fix' ? c.warn : c.link, fontWeight: '600' }]}>
+                {m.nickname} · {COMMENT_KIND_LABEL[m.kind]} · {m.where}
+              </Text>
+              <Text style={[TYPE.body, { color: c.ink }]} numberOfLines={3}>
+                {m.body}
+              </Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => void resolve(m.id)} hitSlop={6} style={{ alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center' }}>
+              <Text style={[TYPE.sub, { color: c.muted, fontWeight: '600' }]}>풀었어요</Text>
+            </Pressable>
+          </View>
+        ))}
       </Card>
     </View>
   );

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadMemberCard, makeInvite } from '@/app/actions/app-org';
 import type { loadMemberHomework } from '@/app/actions/app-lesson';
 import { HomeworkList } from '~/org/homework';
+import { TalkToggle } from '~/org/thread';
 import { Bar, call, LoadState, useLoad } from '~/community/parts';
 import { toast } from '~/shell/toast';
 import { DangerLink, formCall } from '~/org/forms';
@@ -224,6 +225,7 @@ function Body({ data, org, c, onChanged }: { data: Ok; org: string; c: Palette; 
                   </Pressable>
                 ) : null}
               </View>
+              <TalkToggle kind="note" id={n.id} talk={n.talk} who={{ role: 'coach', orgId: org }} c={c} />
             </View>
           ))
         )}

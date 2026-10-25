@@ -260,8 +260,14 @@ console.log('\n[6] 기능 잠금 ↔ 메뉴 — 잠금 표 하나를 메뉴 · �
 /* ─────────────────────── 7. 서버 동작 — 주인 확인 ─────────────────────── */
 console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한 사람을 확인하는가');
 {
+  /* coachOrg · myMember 는 lib/org/app-access.ts 의 앱 팀 · 레슨장 권한(getCurrentUser 를 부른다 — 바로 밑에서 확인) */
   const AUTH =
-    /\b(getCurrentUser|requireUser|requireAdmin|assertAdmin|requireAdminUser|requireMaster)\(/;
+    /\b(getCurrentUser|requireUser|requireAdmin|assertAdmin|requireAdminUser|requireMaster|coachOrg|myMember)\(/;
+  const appAccess = src('lib/org/app-access.ts');
+  check(
+    '앱 팀 · 레슨장 권한(coachOrg · myMember)이 로그인을 본다',
+    (appAccess.match(/getCurrentUser\(\)/g) ?? []).length >= 2 && appAccess.includes('isMasterUser(user)')
+  );
   /* 로그인 전에 부르는 것 — 가입 · 로그인 · 로그아웃 */
   const PUBLIC = new Set([
     'auth.ts:checkSignupEmail',

@@ -13,6 +13,7 @@ import { joinWithCode } from '@/lib/org/join';
 import { createInviteCode } from '@/lib/org/invite';
 import { loadMember, loadPlayers, memberCardOf, pitcherBoardOf, type MemberCard } from '@/lib/org/player-data';
 import { coachOrg, myMember } from '@/lib/org/app-access';
+import { commentCounts } from '@/lib/org/comment-load';
 import { formatExercise, readExercises } from '@/lib/org/lesson-work';
 import { noteKey } from '@/lib/org/lesson-pitch';
 
@@ -198,9 +199,11 @@ export type LessonNoteView = {
   mine: boolean;
   /** 던진 공이 선수 투구 기록에 어떻게 들어갔나(2단계) — 'own' 일지가 남김 · 'link' 선수 기록에 이음 · null 안 들어감 */
   pitchLog: 'own' | 'link' | null;
+  /** 이 일지에 단 말 수 · 회원이 쓴 안 푼 말 수(2단계) */
+  talk: { total: number; open: number };
 };
 
-async function notesOf(memberId: string, take: number, viewerId: string): Promise<LessonNoteView[]> {
+async function notesOf(memberId: string, take: number, viewerId: string, memberUserId: string | null): Promise<LessonNoteView[]> {
   const notes = await prisma.lessonNote.findMany({
     where: { memberId },
     orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
@@ -208,7 +211,7 @@ async function notesOf(memberId: string, take: number, viewerId: string): Promis
     select: { id: true, date: true, body: true, homework: true, pitchCount: true, intensity: true, authorId: true, eventId: true },
   });
   const events = notes.map((n) => n.eventId).filter((e): e is string => !!e);
-  const [authors, logs] = await Promise.all([
+  const [authors, logs, talk] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: [...new Set(notes.map((n) => n.authorId))] } },
       select: { id: true, nickname: true },
@@ -217,6 +220,10 @@ async function notesOf(memberId: string, take: number, viewerId: string): Promis
       where: { OR: [{ clientKey: { in: notes.map((n) => noteKey(n.id)) } }, ...(events.length ? [{ orgEventId: { in: events }, enteredById: null }] : [])] },
       select: { clientKey: true, orgEventId: true },
     }),
+    commentCounts(
+      notes.map((n) => ({ noteId: n.id })),
+      memberUserId
+    ),
   ]);
   const nameOf = new Map(authors.map((a) => [a.id, a.nickname]));
   const ownKeys = new Set(logs.map((l) => l.clientKey));
@@ -233,6 +240,7 @@ async function notesOf(memberId: string, take: number, viewerId: string): Promis
     author: nameOf.get(n.authorId) ?? null,
     mine: n.authorId === viewerId,
     pitchLog: pitchLogOf(n),
+    talk: talk.get(n.id) ?? { total: 0, open: 0 },
   }));
 }
 
@@ -255,7 +263,7 @@ export async function loadMemberCard(
   if (!c) return NO_ACCESS;
   const member = await loadMember(orgId, memberId);
   if (!member || member.role !== 'PLAYER' || member.status !== 'ACTIVE') return NO_ACCESS;
-  const [card, notes] = await Promise.all([memberCardOf(member, appNow()), notesOf(member.id, 20, c.user.id)]);
+  const [card, notes] = await Promise.all([memberCardOf(member, appNow()), notesOf(member.id, 20, c.user.id, member.user?.id ?? null)]);
   return {
     ok: true,
     kind: c.org.kind,
@@ -555,7 +563,7 @@ export async function loadMyMembership(memberId: string): Promise<
     left: r.m.status === 'LEFT',
     consentPending: r.m.status === 'ACTIVE' && !r.m.consent,
     scope: r.m.consent,
-    notes: await notesOf(r.m.id, 50, r.user.id),
+    notes: await notesOf(r.m.id, 50, r.user.id, r.user.id),
     notices: await noticesOf(r.m.org.id, 10),
   };
 }

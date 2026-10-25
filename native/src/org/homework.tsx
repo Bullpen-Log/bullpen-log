@@ -5,6 +5,7 @@ import { call } from '~/community/parts';
 import { TYPE, type Palette } from '~/lib/ui';
 import { toast } from '~/shell/toast';
 import { Card, Empty, dayLabel } from '~/org/parts';
+import { TalkToggle } from '~/org/thread';
 
 /**
  * 숙제 목록(2단계) — 코치 회원 카드와 선수 공간이 같이 쓴다. 코치는 누르면 면제 · 취소 · 되돌리기, 선수는 '오늘 운동에 넣기' · '했어요'.
@@ -42,6 +43,7 @@ export function HomeworkList({ items, who, onChanged, c }: { items: HomeworkView
             </View>
           ))}
           <Actions h={h} who={who} onChanged={onChanged} c={c} />
+          <TalkToggle kind="homework" id={h.id} talk={h.talk} who={who.role === 'coach' ? who : { role: 'player', memberId: who.memberId }} c={c} />
         </Card>
       ))}
     </>
