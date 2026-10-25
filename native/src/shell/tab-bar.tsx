@@ -4,15 +4,15 @@ import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { Easing, Extrapolation, interpolate, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
+import Animated, { Easing, Extrapolation, interpolate, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette, useTheme, withAlpha } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
+import { TAB_MOTION, tabDragPosition, tabIndexAt, tabReleaseIndex } from './tab-bar-motion';
 
 /**
- * 앱 아래 탭 막대 — 웹 휴대폰 탭 막대(components/app-shell/mobile-tabs.tsx · app/globals.css [data-tab-bar] · components/tab-lens.ts)와 같은 모양 ·
- * 같은 움직임(2026-10-18 김민: "하단 바도 다르고 느낌이 다르다"). 바닥에서 떠 있는 둥근 유리 알약(양옆 20 · 칸 52 · 알약 62 · 밑 틈은 홈 막대 자리에
- * 13 걸쳐), 지금 탭 뒤의 캡슐(렌즈)이 스프링으로 옮겨 가고 옮기는 동안 살짝 부푼다. 테마마다 그 색의 유리 — 라이트: 흰 유리 · 고른 칸 파랑,
+ * 앱 아래 탭 막대 — 2026-10-25 App Store 참고 영상의 잡기·끌기·놓기를 따른다. 바닥에서 떠 있는 둥근 유리 알약(양옆 20 · 칸 52 · 알약 62 · 밑 틈은 홈 막대 자리에
+ * 13 걸쳐), 짧은 탭은 선택판이 미끄러지고 잡은 채 끌 때는 큰 유리 렌즈가 손가락을 따른다. 테마마다 그 색의 유리 — 라이트: 흰 유리 · 고른 칸 파랑,
  * 다크: 검은 유리 · 흰 글자, 네이비: 남색 유리. iOS 26 이면 진짜 유리(GlassView), 아니면 웹 CSS 의 반투명 색.
  * 탭 이름 · 주소 · 잠김은 사이트가 알려 준다(components/app-shell/expo-tabs.tsx).
  */
@@ -110,13 +110,11 @@ const GLYPH: Record<string, IconName> = {
  */
 export const TAB_BAR_HEIGHT = 49;
 
-const ITEM_H = 52;
+const ITEM_H = TAB_MOTION.height;
 const PAD = 4;
-/** 웹 tab-lens.ts 의 스프링(자리 k 290 · c 25.5, 부풂 k 420 · c 34) */
-const POS_SPRING = { stiffness: 290, damping: 25.5, mass: 1 };
-const LIFT_SPRING = { stiffness: 420, damping: 34, mass: 1 };
-const LIFT_SX = 0.22;
-const LIFT_SY = 0.28;
+// 손을 놓을 때만 칸 중심으로 스프링. 끌 때는 손가락 좌표를 그대로 따른다.
+const POS_SPRING = TAB_MOTION.positionSpring;
+const LIFT_SPRING = TAB_MOTION.liftSpring;
 /*
  * 딴 하단바로 갈아타기 — 토스뱅크 '증권'(2026-10-20 김민 화면 녹화)처럼 들어오는 순간 옛 막대 자리를 덮은 알약에 고른 탭 하나만 남고,
  * 가운데로 오므라들었다가 왼쪽의 동그란 ← 와 새 탭들로 펴진다(약 0.38초). ← 를 누르면 거꾸로 오므라들며 앞 화면으로.
@@ -151,7 +149,7 @@ function tabColors(theme: 'light' | 'dark' | 'navy', sky: string, muted: string,
       glassRim: 'inset 0 1px 1px rgba(220,235,255,0.55), inset 0 0 0 1px rgba(200,225,255,0.22), 0 8px 22px rgba(0,0,0,0.45)',
     };
   return {
-    base: `rgba(255,255,255,${0.92 + more / 2})`, edge: 'rgba(255,255,255,0.9)', lens: 'rgba(120,130,150,0.16)', on: accent?.light ?? sky, off: muted, shadow: '#141e32',
+    base: `rgba(255,255,255,${0.92 + more / 2})`, edge: 'rgba(255,255,255,0.9)', lens: 'rgba(120,130,150,0.16)', on: accent?.light ?? sky, off: '#26262a', shadow: '#141e32',
     tint: `rgba(255,255,255,${0.55 + more})`, rim: 'inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.35), inset 0 0 0 0.5px rgba(255,255,255,0.6)',
     lensRim: 'inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 4px rgba(20,30,50,0.1)', drop: 0.3,
     glassRim: 'inset 0 1px 1px rgba(255,255,255,0.95), inset 0 -1px 1px rgba(255,255,255,0.5), inset 0 0 0 1px rgba(255,255,255,0.6), 0 6px 18px rgba(20,30,50,0.18)',
@@ -176,7 +174,7 @@ export function TabBar({
   enter?: boolean;
   accent?: TabAccent;
   /**
-   * 젖빛 유리(글래스모피즘) — 뒤를 흐리게 거르는 'regular' 유리에 색을 조금 더(+0.06). 기본 'clear' 는 뒤가 그대로 비쳐, 흰 덕아웃 화면 위에서는
+   * 젖빛 유리(글래스모피즘) — 뒤를 흐리게 거르는 'regular' 유리에 색을 조금 더(+0.06). 예전 'clear' 는 뒤가 그대로 비쳐, 흰 덕아웃 화면 위에서는
    * 유리가 안 보이고 막대가 묽었다(2026-10-25 김민: "글라스모피즘 효과 · 아주 조금만 더 불투명하게"). 덕아웃 앱만 켠다
    */
   frosted?: boolean;
@@ -221,115 +219,170 @@ export function TabBar({
   };
 
   const pos = useSharedValue(index);
+  const preview = useSharedValue(index);
+  const committed = useSharedValue(index);
   const lift = useSharedValue(0);
+  const dragY = useSharedValue(0);
+  const speed = useSharedValue(0);
+  const touching = useSharedValue(false);
+  const moved = useSharedValue(false);
+  const ended = useSharedValue(false);
+  const recognized = useSharedValue(false);
+  const grabOffset = useSharedValue(0);
+  const touchX = useSharedValue(0);
+  const touchY = useSharedValue(0);
+  const lastTouchEnd = useSharedValue(0);
+  const revision = useSharedValue(0);
+  const beganAtRevision = useSharedValue(0);
   const shown = useSharedValue(showLens ? 1 : 0);
-  const first = useRef(true);
-  /*
-   * 유리 렌즈 — iOS 26 탭 막대처럼 누르거나 옮기는 동안 고른 칸이 투명한 유리(확대 · 가장자리 빛 굴절)로 바뀌어 막대 밖으로 부푼다(2026-10-19 김민
-   * 화면 녹화). 유리는 알파로 숨기면 효과가 꺼져서, 스타일을 'none' ↔ 'clear' 로 바꾸고 iOS 가 맺히고 사라지는 움직임을 그린다.
-   */
-  /* 유리 렌즈는 길게 눌러 끄는 동안만(iOS 와 같다) — 짧게 누르면 캡슐만 미끄러진다(2026-10-19 김민: 누를 때마다 렌즈가 튀어 부자연스러움) */
-  const [lensGlass, setHold] = useState(false);
+  const [lensGlass, setLensGlass] = useState(false);
+  const pending = useRef<string | null>(null);
+  const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latest = useRef({ tabs, active, onPress, index, showLens });
+  const keys = JSON.stringify(tabs.map((t) => t.href));
   useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      pos.set(index);
-      return;
-    }
-    pos.set(withSpring(index, POS_SPRING));
-    /* 옮기는 동안 렌즈로 부풀었다 닿으면 가라앉는다(웹 영상의 '약간의 탄성') */
-    lift.set(withSequence(withSpring(1, LIFT_SPRING), withDelay(160, withSpring(0, LIFT_SPRING))));
-  }, [index, pos, lift]);
-  useEffect(() => {
-    shown.set(withSpring(showLens ? 1 : 0, LIFT_SPRING));
-  }, [showLens, shown]);
+    revision.set(revision.get() + 1);
+  }, [keys, cell, revision]);
 
-  /*
-   * 눌러 옆으로 밀기 — iOS 26 앱 스토어 탭 막대(2026-10-19 김민 참고 영상)처럼 밀자마자 유리 렌즈가 부푼 채 손가락을 따라오고
-   * (칸을 넘을 때마다 톡), 놓은 칸으로 간다. 짧게 누르기 · 지금 탭 다시 누르기는 그대로.
-   */
-  const under = useSharedValue(-1);
-  const haptic = (kind: 'medium' | 'selection' | 'light') =>
-    void (kind === 'selection' ? Haptics.selectionAsync() : Haptics.impactAsync(kind === 'medium' ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light));
-  const drop = (i: number) => {
-    const t = tabs[i];
-    if (!t || t.href === active) {
-      pos.set(withSpring(index, POS_SPRING));
+  useEffect(() => {
+    latest.current = { tabs, active, onPress, index, showLens };
+  });
+  useEffect(() => () => {
+    if (pendingTimer.current) clearTimeout(pendingTimer.current);
+  }, []);
+
+  // 웹 화면 응답을 기다리는 동안 선택판이 이전 탭으로 튕겨 돌아가지 않게 한다.
+  useEffect(() => {
+    committed.set(index);
+    shown.set(reduce ? (showLens ? 1 : 0) : withTiming(showLens ? 1 : 0, { duration: 120 }));
+    if (pending.current && pending.current !== active && (JSON.parse(keys) as string[]).includes(pending.current)) return;
+    pending.current = null;
+    if (pendingTimer.current) clearTimeout(pendingTimer.current);
+    if (!touching.get()) {
+      preview.set(index);
+      pos.set(reduce ? index : withSpring(index, POS_SPRING));
+    }
+  }, [active, index, showLens, keys, cell, reduce, committed, shown, touching, preview, pos]);
+
+  const choose = (href: string, retap: boolean) => {
+    const now = latest.current;
+    const i = now.tabs.findIndex((t) => t.href === href);
+    if (i < 0) return;
+    if (pendingTimer.current) clearTimeout(pendingTimer.current);
+    if (href === now.active) {
+      pending.current = null;
+      if (retap) emitRetap();
       return;
     }
-    haptic('light');
-    onPress(t);
+    pending.current = href;
+    pendingTimer.current = setTimeout(() => {
+      pending.current = null;
+      const current = latest.current;
+      if (touching.get()) return;
+      preview.set(current.index);
+      pos.set(reduce ? current.index : withSpring(current.index, POS_SPRING));
+    }, TAB_MOTION.acknowledgeMs);
+    now.onPress(now.tabs[i]);
   };
+  const beginPress = () => {
+    if (pendingTimer.current) clearTimeout(pendingTimer.current);
+    pending.current = null;
+    setLensGlass(!reduce);
+  };
+  const tick = () => void Haptics.selectionAsync();
   const n = tabs.length;
-  const cellAt = (x: number) => {
-    'worklet';
-    return Math.max(0, Math.min(n - 1, x / Math.max(1, cell) - 0.5));
-  };
   const drag = Gesture.Pan()
-    .enabled(cell > 0)
-    /* 눌러서 옆으로 밀면 바로(앱 스토어 탭 막대처럼) — 세로로 밀거나 짧게 누르는 것은 탭 누르기 그대로 */
-    .activeOffsetX([-6, 6])
-    .failOffsetY([-14, 14])
-    .onStart((e) => {
-      const p = cellAt(e.x);
-      under.set(Math.round(p));
-      pos.set(p);
-      lift.set(withSpring(1, LIFT_SPRING));
-      runOnJS(setHold)(true);
-      runOnJS(haptic)('medium');
+    .enabled(cell > 0 && n > 0)
+    .maxPointers(1)
+    .minDistance(0)
+    .shouldCancelWhenOutside(false)
+    .cancelsTouchesInView(true)
+    // RNGH는 이 콜백을 렌더가 아니라 UI 스레드의 터치 시작 때 실행한다.
+    // eslint-disable-next-line react-hooks/refs
+    .onBegin((e) => {
+      const target = tabIndexAt(e.x, cell, n);
+      if (target < 0) return;
+      touching.set(true);
+      moved.set(false);
+      ended.set(false);
+      recognized.set(false);
+      lastTouchEnd.set(0);
+      beganAtRevision.set(revision.get());
+      touchX.set(e.x);
+      touchY.set(e.y);
+      grabOffset.set(e.x - (target + 0.5) * cell);
+      preview.set(target);
+      pos.set(reduce ? target : withSpring(target, POS_SPRING));
+      // 짧은 탭은 작은 반응, 누르고 있으면 큰 렌즈로 부푼다.
+      lift.set(reduce ? 0 : withTiming(1, { duration: TAB_MOTION.liftDuration }));
+      shown.set(1);
+      runOnJS(beginPress)();
     })
+    .onStart(() => recognized.set(true))
     .onUpdate((e) => {
-      const p = cellAt(e.x);
-      pos.set(p);
-      if (Math.round(p) !== under.get()) {
-        under.set(Math.round(p));
-        runOnJS(haptic)('selection');
+      if (!touching.get() || beganAtRevision.get() !== revision.get()) return;
+      if (!moved.get() && Math.hypot(e.x - touchX.get(), e.y - touchY.get()) < TAB_MOTION.dragThreshold) return;
+      moved.set(true);
+      const next = tabDragPosition(e.x, grabOffset.get(), cell, n);
+      pos.set(next);
+      if (!reduce) {
+        dragY.set(Math.max(-10, Math.min(10, (e.y - touchY.get()) * 0.18)));
+        speed.set(Math.min(1, Math.abs(e.velocityX) / 1800));
+      }
+      const target = Math.max(0, Math.min(n - 1, Math.round(next)));
+      if (target !== preview.get()) {
+        preview.set(target);
+        runOnJS(tick)();
       }
     })
-    .onEnd((e, ok) => {
-      const i = Math.round(cellAt(e.x));
-      lift.set(withSpring(0, LIFT_SPRING));
-      runOnJS(setHold)(false);
-      pos.set(withSpring(ok ? i : index, POS_SPRING));
-      if (ok) runOnJS(drop)(i);
+    // 선택 처리의 ref는 UI 이벤트가 JS로 전달된 뒤에만 읽힌다.
+    // eslint-disable-next-line react-hooks/refs
+    .onEnd((e, success) => {
+      if (ended.get()) return;
+      const target = success && beganAtRevision.get() === revision.get()
+        ? tabReleaseIndex(e.x, e.y, moved.get() ? pos.get() : tabIndexAt(e.x, cell, n), cell, n)
+        : -1;
+      ended.set(true);
+      // 화면 전환은 손을 놓을 때 한 번만. 지나가는 탭은 색만 미리 보여준다.
+      const settle = target >= 0 ? target : committed.get();
+      preview.set(settle);
+      pos.set(reduce ? settle : withSpring(settle, TAB_MOTION.releaseSpring));
+      if (target >= 0) {
+        if (!moved.get() && target !== committed.get()) runOnJS(tick)();
+        runOnJS(choose)(tabs[target].href, !moved.get());
+      }
+    })
+    .onFinalize(() => {
+      if (!ended.get()) {
+        preview.set(committed.get());
+        pos.set(reduce ? committed.get() : withSpring(committed.get(), TAB_MOTION.releaseSpring));
+      }
+      touching.set(false);
+      // Pan이 활성화되지 않은 초단기 탭은 Pressable 폴백이 처리할 수 있다.
+      // UI 스레드 제스처 이벤트의 시각이며 렌더에서는 실행되지 않는다.
+      // eslint-disable-next-line react-hooks/purity
+      if (ended.get() || recognized.get()) lastTouchEnd.set(Date.now());
+      lift.set(reduce ? 0 : withSpring(0, LIFT_SPRING));
+      dragY.set(reduce ? 0 : withSpring(0, LIFT_SPRING));
+      speed.set(reduce ? 0 : withTiming(0, { duration: 120 }));
+      shown.set(showLens ? 1 : 0);
+      runOnJS(setLensGlass)(false);
     });
 
-  /* 유리 렌즈 — 막대 밖으로 더 크게 부푼다(영상처럼 위아래로 삐져나옴) */
   const glassLensStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: pos.value * cell },
-      { scaleX: 1 + 0.32 * lift.value },
-      { scaleY: 1 + 0.55 * lift.value },
+      { translateY: dragY.value },
+      { scaleX: 1 + (TAB_MOTION.liftX + 0.06 * speed.value) * lift.value },
+      { scaleY: 1 + (TAB_MOTION.liftY - 0.08 * speed.value) * lift.value },
     ],
   }));
+  const fallbackLensStyle = useAnimatedStyle(() => ({ opacity: lift.value * shown.value }));
   const lensStyle = useAnimatedStyle(() => ({
-    /* 유리 렌즈가 뜨는 동안 회색 캡슐은 옅어진다 · 갈아타는 동안은 다 펴진 뒤에 */
-    opacity: shown.value * (glass ? 1 - 0.85 * lift.value : 1) * interpolate(open.value, [0.7, 1], [0, 1], Extrapolation.CLAMP),
-    transform: [
-      { translateX: pos.value * cell },
-      { scaleX: 1 + LIFT_SX * lift.value },
-      { scaleY: 1 + LIFT_SY * lift.value },
-    ],
+    opacity: shown.value * (1 - lift.value) * interpolate(open.value, [0.7, 1], [0, 1], Extrapolation.CLAMP),
+    transform: [{ translateX: pos.value * cell }],
   }));
 
-  /* 칸 하나의 그림 + 이름 — 아이콘 줄과 유리 렌즈 안(확대돼 보이는 한 벌)이 같이 쓴다 */
-  const face = (t: ShellTab, on: boolean) => {
-    const color = on ? col.on : col.off;
-    return (
-      <>
-        <View>
-          <Icon name={GLYPH[t.icon] ?? 'house'} size={26} color={color} filled={on} />
-          {/* 잠긴 탭 — 그림 오른쪽 아래 12px 자물쇠(웹 glyphs NavGlyph) */}
-          {t.locked ? (
-            <View style={[styles.lockBadge, { backgroundColor: col.lens }]}>
-              <Icon name="lock" size={9} color={color} strokeWidth={3} />
-            </View>
-          ) : null}
-        </View>
-        <Text style={[styles.label, { color, fontWeight: on ? '600' : '500' }]}>{t.label}</Text>
-      </>
-    );
-  };
   /* 갈아타기 — 알약 판은 옛 막대 자리(← 자리까지) → 가운데로 오므라듦 → 제자리, ← 는 펴질 때 옆에서 나온다 */
   const bgStyle = useAnimatedStyle(() => {
     const half = Math.max(ITEM_H, width * 0.25);
@@ -351,7 +404,7 @@ export function TabBar({
     <>
       {glass ? (
         /* iOS 26 진짜 유리 — 테마 색을 살짝 얹는다 */
-        <GlassView glassEffectStyle={frosted ? 'regular' : 'clear'} tintColor={col.tint} colorScheme={theme === 'light' ? 'light' : 'dark'} style={[StyleSheet.absoluteFill, { borderRadius: 999 }]} />
+        <GlassView glassEffectStyle="regular" tintColor={col.tint} colorScheme={theme === 'light' ? 'light' : 'dark'} style={[StyleSheet.absoluteFill, { borderRadius: 999 }]} />
       ) : (
         <View style={[StyleSheet.absoluteFill, { borderRadius: 999, backgroundColor: col.base, borderColor: col.edge, borderWidth: 1 }]} />
       )}
@@ -359,9 +412,6 @@ export function TabBar({
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: 999, boxShadow: col.rim }]} />
     </>
   );
-
-  /* 렌즈 안의 아이콘 한 벌 — 렌즈가 옮긴 만큼 거꾸로 밀어 밑의 줄과 겹치게, 렌즈가 부풀면 같이 커져 확대돼 보인다. 렌즈 속은 늘 고른 색(파랑) */
-  const lensFacesStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -pos.value * cell }] }));
 
   const body = (
     <>
@@ -376,24 +426,18 @@ export function TabBar({
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
             accessibilityLabel={t.locked ? `${t.label}(설정 전)` : t.label}
-            onPressIn={() => {
-              if (!on) lift.set(withSpring(0.3, LIFT_SPRING));
-            }}
-            onPressOut={() => {
-              if (!on) lift.set(withSpring(0, LIFT_SPRING));
-            }}
             onPress={() => {
-              /* 떨림은 탭을 옮길 때만(웹 mobile-tabs) — 지금 탭을 다시 누르면 맨 위로 굴린다 */
-              if (!on) void Haptics.selectionAsync();
-              else emitRetap();
-              onPress(t);
+              // 실제 터치는 Pan이 처리한다. 이 경로는 VoiceOver/키보드 활성화와 폴백용이다.
+              if (touching.get() || Date.now() - lastTouchEnd.get() < 100) return;
+              if (!on) tick();
+              preview.set(k);
+              pos.set(reduce ? k : withSpring(k, POS_SPRING));
+              choose(t.href, true);
             }}
-            style={({ pressed }) => [styles.item, t.locked && { opacity: 0.55 }, pressed && { transform: [{ scale: 0.94 }] }]}
+            style={[styles.item, t.locked && { opacity: 0.55 }]}
           >
             <Morph open={open} on={on} shift={mid - (PAD + cell * (k + 0.5))}>
-              <UnderLens i={k} pos={pos} lift={lift} active={glass && lensGlass}>
-                {face(t, on)}
-              </UnderLens>
+              <TabFace tab={t} i={k} preview={preview} lift={lift} onColor={col.on} offColor={col.off} />
             </Morph>
           </Pressable>
         );
@@ -428,38 +472,40 @@ export function TabBar({
         ) : null}
         <View style={styles.shadow} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
           {/*
-           * 층 차례(밑에서 위로): 유리 판 → 가장자리 빛 → 유리 렌즈 → 아이콘 줄. 렌즈가 아이콘 위에 오면 아이콘이 굴절돼 일그러졌다
-           * (2026-10-19 김민 화면 녹화) — iOS 26 탭 막대처럼 렌즈는 아이콘 밑에 깔리고 아이콘은 또렷하게 위에.
+           * 층 차례(밑에서 위로): 유리 판 → 가장자리 빛 → 아이콘 줄 → 잡은 유리 렌즈.
+           * 참고 영상처럼 원래 아이콘 위에서 굴절시키며, 복제 아이콘을 확대해서 덮지 않는다.
            * 떠 있는 겹 그림자(접촉 · 가까운 · 먼 그림자)는 판에 — 갈아탈 때 판과 같이 오므라든다.
            */}
           <Animated.View pointerEvents="none" style={[styles.bg, { boxShadow: shadowCss }, bgStyle]}>
             {glassFace}
           </Animated.View>
-          {/* 유리 렌즈 — 고른 칸 밑에서 막대 밖으로 부푼다(누르기는 그대로 지나간다) */}
-          {glass && cell > 0 ? (
+          <View style={[styles.pill, { zIndex: 2 }]}>{row}</View>
+          {/* 아이콘은 한 벌만 그린다. 렌즈를 그 위에 올려 iOS의 실제 굴절을 사용한다. */}
+          {cell > 0 ? (
             <Animated.View
               pointerEvents="none"
-              style={[styles.glassLens, { width: cell, zIndex: 1 }, lensGlass && { boxShadow: col.glassRim }, glassLensStyle]}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={[
+                styles.glassLens,
+                { width: cell, zIndex: 3 },
+                lensGlass && { boxShadow: col.glassRim },
+                glassLensStyle,
+                !glass && fallbackLensStyle,
+              ]}
             >
-              <GlassView
-                glassEffectStyle={{ style: lensGlass ? 'clear' : 'none', animate: true, animationDuration: 0.22 }}
-                colorScheme={theme === 'light' ? 'light' : 'dark'}
-                style={[StyleSheet.absoluteFill, { borderRadius: 999, overflow: 'hidden' }]}
-              >
-                {/* iOS 유리는 형제 층보다 위에 그려져 밑의 아이콘이 뭉개진다 — 유리 안에 아이콘을 한 벌 그려 또렷하게(확대) */}
-                {lensGlass ? (
-                  <Animated.View style={[styles.lensFaces, { width: cell * tabs.length }, lensFacesStyle]}>
-                    {tabs.map((t) => (
-                      <View key={t.href} style={[styles.item, { width: cell, flex: 0 }]}>
-                        {face(t, true)}
-                      </View>
-                    ))}
-                  </Animated.View>
-                ) : null}
-              </GlassView>
+              {glass ? (
+                <GlassView
+                  glassEffectStyle={{ style: lensGlass ? 'clear' : 'none', animate: true, animationDuration: 0.14 }}
+                  isInteractive={false}
+                  colorScheme={theme === 'light' ? 'light' : 'dark'}
+                  style={[StyleSheet.absoluteFill, { borderRadius: 999 }]}
+                />
+              ) : (
+                <View style={[StyleSheet.absoluteFill, { borderRadius: 999, backgroundColor: col.lens, borderWidth: 1, borderColor: col.edge }]} />
+              )}
             </Animated.View>
           ) : null}
-          <View style={[styles.pill, { zIndex: 2 }]}>{row}</View>
         </View>
       </View>
     </View>
@@ -478,20 +524,43 @@ const styles = StyleSheet.create({
   pill: { flexDirection: 'row', padding: PAD, borderRadius: 999 },
   row: { flex: 1, flexDirection: 'row' },
   lens: { position: 'absolute', top: 0, left: 0, height: ITEM_H, borderRadius: 999 },
-  lensFaces: { position: 'absolute', top: 0, left: 0, height: ITEM_H, flexDirection: 'row' },
   glassLens: { position: 'absolute', top: PAD, left: PAD, height: ITEM_H, borderRadius: 999 },
   item: { flex: 1, height: ITEM_H, alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 2, borderRadius: 999 },
   label: { fontSize: 10 },
+  face: { alignItems: 'center', justifyContent: 'center', gap: 2 },
 });
 
-/** 렌즈 밑의 원래 아이콘 — 렌즈가 떠 있는 동안 그 칸만 감춘다(렌즈 안에 확대된 한 벌이 있어, 둘이 겹쳐 이름이 두 번 보였다) */
-function UnderLens({ i, pos, lift, active, children }: { i: number; pos: SharedValue<number>; lift: SharedValue<number>; active: boolean; children: ReactNode }) {
-  const style = useAnimatedStyle(() => {
-    if (!active) return { opacity: 1 };
-    const near = Math.max(0, 1 - Math.abs(i - pos.value) * 1.4);
-    return { opacity: 1 - near * Math.min(1, lift.value * 1.5) };
-  });
-  return <Animated.View style={[{ alignItems: 'center', gap: 2 }, style]}>{children}</Animated.View>;
+/** 선택 색만 교차한다. 렌즈 안에 복제된 가로 아이콘 띠를 두지 않는다. */
+function TabFace({ tab, i, preview, lift, onColor, offColor }: {
+  tab: ShellTab;
+  i: number;
+  preview: SharedValue<number>;
+  lift: SharedValue<number>;
+  onColor: string;
+  offColor: string;
+}) {
+  const neutral = useAnimatedStyle(() => ({ opacity: preview.value === i ? 0 : 1 }));
+  const selected = useAnimatedStyle(() => ({ opacity: preview.value === i ? 1 : 0 }));
+  const zoom = useAnimatedStyle(() => ({ transform: [{ scale: preview.value === i ? 1 + 0.10 * lift.value : 1 }] }));
+  const face = (on: boolean) => (
+    <>
+      <View>
+        <Icon name={GLYPH[tab.icon] ?? 'house'} size={26} color={on ? onColor : offColor} filled={on} />
+        {tab.locked ? (
+          <View style={styles.lockBadge}>
+            <Icon name="lock" size={9} color={on ? onColor : offColor} strokeWidth={3} />
+          </View>
+        ) : null}
+      </View>
+      <Text style={[styles.label, { color: on ? onColor : offColor, fontWeight: on ? '600' : '500' }]}>{tab.label}</Text>
+    </>
+  );
+  return (
+    <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={zoom}>
+      <Animated.View style={[styles.face, neutral]}>{face(false)}</Animated.View>
+      <Animated.View style={[StyleSheet.absoluteFill, styles.face, selected]}>{face(true)}</Animated.View>
+    </Animated.View>
+  );
 }
 
 /** 갈아타기 중 칸 하나 — 고른 탭은 가운데에 모였다가 제자리로, 나머지는 펴질 때 나타난다 */
