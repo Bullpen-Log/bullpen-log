@@ -3,6 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { usePalette } from '~/lib/ui';
 import { lastWriteAt } from '~/lib/rpc';
+import { whenStill } from '~/shell/transition';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 /**
@@ -45,9 +46,9 @@ export function useOnTabActive(cb: () => void) {
 /*
  * 위에 쌓인 앱 화면(체크인 · 투구 기록 · 운동 · 설정 · 더보기)을 닫고 돌아올 때 — 판 넷이 다 붙어 있어 예전엔 닫을 때마다 넷이 함께 서버를
  * 4~6번 불렀고, 그것도 닫히는 움직임 한가운데였다(뒤로 쓸 때 끊기고 닫힌 뒤 홈이 튐, 2026-10-24 전체 검토). 이제 보이는 판만, 30초 안 ·
- * 쓴 것 없음이면 건너뛰고, 닫히는 움직임이 끝난 뒤에 받는다. first 면 처음 붙을 때도 받는다(그 화면이 스스로 안 받을 때).
+ * 쓴 것 없음이면 건너뛰고, 닫히는 움직임이 끝난 뒤에 받는다 — 끝은 화면 넘김 알림으로 본다(shell/transition.ts whenStill, 예전엔 400ms 어림).
+ * 뒤로 쓸다 그만두면 돌아온 것(focus)이 아니라 부르지 않는다. first 면 처음 붙을 때도 받는다(그 화면이 스스로 안 받을 때).
  */
-const POP_MS = 400;
 export function useFocusRefresh(cb: () => void, { first = false }: { first?: boolean } = {}) {
   const active = useTabActive();
   const latest = useRef(cb);
@@ -71,12 +72,10 @@ export function useFocusRefresh(cb: () => void, { first = false }: { first?: boo
         return;
       }
       if (!activeRef.current || (Date.now() - ranAt.current < STALE_MS && lastWriteAt() <= ranAt.current)) return;
-      /* ponytail: 닫히는 움직임 길이를 400ms 로 어림 — 화면마다 끝 알림(transitionEnd)을 받으려면 그때 바꾼다 */
-      const t = setTimeout(() => {
+      return whenStill(() => {
         ranAt.current = Date.now();
         latest.current();
-      }, POP_MS);
-      return () => clearTimeout(t);
+      });
     }, [first])
   );
 }

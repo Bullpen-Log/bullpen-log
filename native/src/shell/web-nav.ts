@@ -6,6 +6,19 @@ import { useEffect } from 'react';
  * 예: 운동을 마치면 router.back() 하고 openWebAfter('/workout/done') — 껍데기가 웹을 그 주소로 옮긴다.
  */
 const subs = new Set<(href: string) => void>();
+/** 웹이 새 주소를 그리기를 기다리는 가장 긴 시간 — 껍데기(index.tsx)와 leaveWhenShown 이 같이 쓴다(느린 망에서 옛 웹 화면을 보이지 않게) */
+export const WEB_WAIT_MS = 4000;
+
+/**
+ * 그 주소가 어디서 보이나 — 'native' 앱 화면을 새로 연다, 'now' 바로 보인다(앱 판 · 웹이 이미 그 자리), 'web' 웹이 새로 그려야 한다.
+ * 껍데기가 정해 등록한다(주소 → 앱 화면 짝은 거기 있다). 더보기가 폴더를 언제 닫을지 고를 때 쓴다.
+ */
+export type Destination = 'native' | 'now' | 'web';
+let classify: (href: string) => Destination = () => 'web';
+export const setDestinationOf = (f: (href: string) => Destination) => {
+  classify = f;
+};
+export const destinationOf = (href: string) => classify(href);
 export const openWebAfter = (href: string) => subs.forEach((f) => f(href));
 export function useWebNav(handler: (href: string) => void) {
   useEffect(() => {
@@ -47,9 +60,13 @@ export const webArrived = (path: string, search: string) => arrived.forEach((f) 
 /**
  * leaveTo 와 같지만 앱 화면을 웹이 그 주소를 그린 뒤에 걷는다 — 먼저 걷으면 웹이 옮겨 가는 동안 밑의 옛 웹 화면(트레이닝 첫 화면)이 잠깐
  * 보였다(2026-10-20 김민: "3D 근육 지도를 누르면 트레이닝 첫 화면에 갔다가 넘어간다"). 웹 주소일 때만 쓴다 — 앱 화면 주소면 새로 연 화면까지 걷힌다.
- * 웹이 알려 오지 않으면(같은 주소 · 느린 망) 2.5초 뒤에 걷는다.
+ * 웹이 알려 오지 않으면(같은 주소 · 느린 망) WEB_WAIT_MS 뒤에 걷는다(껍데기가 웹을 기다리는 시간과 같게 — 예전 2.5초는 껍데기가 아직 옛 화면을
+ * 보일 때 걷었다). dismiss = 걷는 방법(더보기는 폴더가 줄어드는 움직임으로 닫는다) — 없으면 쌓인 화면을 다 걷는다.
+ * 돌려준 함수로 그만둔다(기다리는 동안 그 화면이 먼저 닫히면 — 안 그러면 한 번 더 걷어 밑 화면까지 걷힌다).
  */
-export function leaveWhenShown(href: string) {
+export function leaveWhenShown(href: string, dismiss?: () => void): () => void {
+  /* 웹이 이미 그 자리 · 앱 판이면 알림이 안 오니 기다리지 않는다(옮기기 전에 묻는다 — 옮기면 '가는 중'이 된다) */
+  const shownNow = destinationOf(href) === 'now';
   const [path, query = ''] = href.split('?');
   const want = new URLSearchParams(query);
   let done = false;
@@ -58,6 +75,7 @@ export function leaveWhenShown(href: string) {
     done = true;
     arrived.delete(on);
     clearTimeout(timer);
+    if (dismiss) return dismiss();
     if (router.canDismiss()) router.dismissAll();
     else if (router.canGoBack()) router.back();
   };
@@ -66,6 +84,12 @@ export function leaveWhenShown(href: string) {
     if (p === path && [...want].every(([k, v]) => got.get(k) === v)) finish();
   };
   arrived.add(on);
-  const timer = setTimeout(finish, 2500);
+  const timer = setTimeout(finish, WEB_WAIT_MS);
   openWebAfter(href);
+  if (shownNow) finish();
+  return () => {
+    done = true;
+    arrived.delete(on);
+    clearTimeout(timer);
+  };
 }

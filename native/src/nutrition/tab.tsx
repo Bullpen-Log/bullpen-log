@@ -115,7 +115,10 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   const oldest = shiftDateKey(today, -BACK_DAYS);
   const [, m, d] = date.split('-').map(Number);
 
-  /* 같은 그림 안에서 두 번 누른 것도 막게 ref 로 본다 · 던져도 잠금이 풀리게 finally */
+  /*
+   * 같은 그림 안에서 두 번 누른 것도 막게 ref 로 본다 · 던져도 잠금이 풀리게 — catch 가 다 받아 뒤의 풀기가 늘 돈다(finally 는 React 컴파일러가
+   * 영양 탭 전체를 건너뛰게 해 뺐다)
+   */
   const run = async (job: () => Promise<string | null>): Promise<boolean> => {
     if (running.current) return false;
     running.current = true;
@@ -125,10 +128,9 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
       if (err) Alert.alert('저장하지 못했어요', err);
     } catch {
       Alert.alert('저장하지 못했어요', '신호를 확인하고 다시 해 주세요.');
-    } finally {
-      running.current = false;
-      setBusy(false);
     }
+    running.current = false;
+    setBusy(false);
     return true;
   };
 
