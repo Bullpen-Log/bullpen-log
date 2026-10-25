@@ -6,7 +6,7 @@ import { groupDrills } from '@/lib/mechanics/drills';
 import { findLabOwner, loadLabJob, loadLabMetaRaw, loadV2Result } from '@/lib/pitch-lab';
 import { isLabId, readLabMeta } from '@/lib/pitch-lab-meta';
 import { readPitch3dV2Result } from '@/lib/pitch-3d/v2/contract';
-import { buildReport, isYouth, reportDrillsOf, type ElementRx } from '@/lib/pitch-3d/v2/report';
+import { buildReport, isYouth, prescriptionMessage, REPORT_CRITERIA, reportDrillsOf, type ElementRx } from '@/lib/pitch-3d/v2/report';
 
 /**
  * 3D 리포트의 처방 한 장들(ElementRx[]) — 메커니즘의 [처방 시작] 확인 시트 · 시작 동작이 읽는다(docs/designs/pitch-3d-report.md 6-4절).
@@ -15,6 +15,7 @@ import { buildReport, isYouth, reportDrillsOf, type ElementRx } from '@/lib/pitc
  * 시작할 때 한 번 베끼고 그 뒤로는 다시 안 읽는다(lib/mechanics/program.ts ProgramFocus).
  */
 export type FocusOffer = {
+  criteria: string;
   reportId: string;
   jobId: string;
   rx: ElementRx[];
@@ -32,7 +33,9 @@ export async function loadFocusOffer(viewer: Viewer, reportId: unknown): Promise
   if (!jobId || !parsed?.ok) return { error: '분석이 끝난 리포트가 아니에요.' };
   const now = appNow();
   const [meta, guides] = await Promise.all([
-    loadLabMetaRaw(owner, reportId).then((raw) => readLabMeta(raw, now.toISOString())).catch(() => null),
+    loadLabMetaRaw(owner, reportId)
+      .then((raw) => readLabMeta(raw, now.toISOString()))
+      .catch(() => null),
     trainingGuides(),
   ]);
   const report = buildReport(parsed, {
@@ -41,6 +44,6 @@ export async function loadFocusOffer(viewer: Viewer, reportId: unknown): Promise
     youth: isYouth(viewer.birthDate, now),
     drills: reportDrillsOf(groupDrills(guides)),
   });
-  if (report.rx.length === 0) return { error: '이 리포트에는 처방할 드릴이 없어요. 지금 동작을 지켜요.' };
-  return { reportId, jobId, rx: report.rx };
+  if (report.rx.length === 0) return { error: prescriptionMessage(report) };
+  return { reportId, jobId, rx: report.rx, criteria: REPORT_CRITERIA };
 }

@@ -5,6 +5,7 @@
  * 다른 동작을 같은 요소라는 이유만으로 대체하지 않는다.
  * 진도·수행·영상 비교는 기존 JSON 안에서 보존한다(DB 구조 변경 없음).
  */
+import { REPORT_CRITERIA, LEGACY_FOCUS_NOTE } from '@/lib/pitch-3d/v2/report-policy';
 import type { SessionDrillView } from '@/lib/mechanics/load';
 import {
   ARM_PAIN_ROUTINE_MIN_AGE,
@@ -176,6 +177,7 @@ function readPractice(value: unknown): PracticeRecord[] {
  * 메커니즘은 리포트 파일을 다시 읽지 않는다. 리포트 번호는 지금 샘플 번호(리포트가 분석 결과로 셈해서 — 3D 세션).
  */
 export type ProgramFocus = {
+  criteria?: string | null;
   reportId: string;
   /** 처방을 뽑은 분석 결과의 작업 번호 — 같은 샘플을 다시 분석하면 리포트가 바뀌어 견줄 때 쓴다 */
   jobId: string | null;
@@ -304,7 +306,14 @@ function readFocus(raw: unknown): ProgramFocus | null {
   const startedOn = dayOf(v.startedOn);
   const rx = (Array.isArray(v.rx) ? v.rx : []).map(readRx).filter((r): r is ElementRx => r != null);
   if (!reportId || !startedOn || rx.length === 0) return null;
-  return { reportId, jobId: str(v.jobId), rx: rx.slice(0, 2), startedOn, done: countOf(v.done, FOCUS_SESSIONS) };
+  return {
+    reportId,
+    jobId: str(v.jobId),
+    ...(str(v.criteria) ? { criteria: str(v.criteria) } : {}),
+    rx: rx.slice(0, 2),
+    startedOn,
+    done: countOf(v.done, FOCUS_SESSIONS),
+  };
 }
 
 export function readProgramState(json: unknown): ProgramState {
@@ -695,7 +704,19 @@ export function rxWeek(rx: ElementRx, week: number): ElementRx['weeks'][number] 
  *   칸이 모자라면 앞 차례가 먼저, 남으면 지금 수준 드릴로 채우고, 투구 차례(여섯 요소 차례)로 다시 놓는다.
  * 처방 드릴 이름은 리포트가 넘긴 것 그대로(lib/mechanics/prescriptions.ts 로 리포트가 고른 것) — 라이브러리에 없으면 itemsFromTitles 가 건너뛴다.
  */
-export function focusPlan({ rx, done, base, drills }: { rx: ElementRx[]; done: number; base: string[]; drills: ProgramDrill[] }): {
+export function focusPlan({
+  rx,
+  done,
+  base,
+  drills,
+  criteria,
+}: {
+  rx: ElementRx[];
+  done: number;
+  base: string[];
+  drills: ProgramDrill[];
+  criteria?: string | null;
+}): {
   titles: string[];
   tags: Map<string, RxTag>;
 } {
@@ -712,7 +733,7 @@ export function focusPlan({ rx, done, base, drills }: { rx: ElementRx[]; done: n
     const w = rxWeek(next, week);
     add(w?.drills.find((d) => !picks.some((p) => p.title === d.title))?.title, next);
   }
-  if (main) {
+  if (main && (criteria !== REPORT_CRITERIA || rxWeek(main, week)?.stage === '통합')) {
     const both = drills.find(
       (d) =>
         d.stage === '통합' &&
@@ -724,7 +745,17 @@ export function focusPlan({ rx, done, base, drills }: { rx: ElementRx[]; done: n
     add(next ? (both?.title ?? own?.title) : own?.title, main);
   }
   const tags = new Map(picks.map((p) => [p.title, p.tag] as const));
-  const titles = [...picks.map((p) => p.title), ...base.filter((t) => !tags.has(t))].slice(0, slots);
+  const stageOrder = ['기초', '연결', '통합'];
+  const allowedStage = (title: string) => {
+    if (criteria !== REPORT_CRITERIA) return true;
+    const drill = drills.find((d) => d.title === title);
+    return !rx.some(
+      (r) =>
+        drill?.focusPoints.includes(r.element) &&
+        stageOrder.indexOf(drill.stage ?? '') > stageOrder.indexOf(rxWeek(r, week)?.stage ?? '기초')
+    );
+  };
+  const titles = [...picks.map((p) => p.title), ...base.filter((t) => !tags.has(t) && allowedStage(t))].slice(0, slots);
   const order = (t: string) => {
     const el = tags.get(t)?.element ?? drills.find((d) => d.title === t)?.focusPoints[0];
     const i = ELEMENT_NAMES.indexOf(el as MechanicsElementName);
@@ -746,6 +777,7 @@ export const RX_LEVEL_TEXT = { improve: '집중', edge: '보조' } as const;
 export const RX_REPORT_TEXT = { improve: '고칠 점', edge: '경계' } as const;
 
 export type FocusView = {
+  criteriaNote: string | null;
   reportId: string;
   startedOn: string;
   /** 마친 처방 세션 수 · 모두 몇 번 */
@@ -767,6 +799,7 @@ export function focusView(focus: ProgramFocus): FocusView {
   const week = focusWeek(focus.done);
   return {
     reportId: focus.reportId,
+    criteriaNote: focus.criteria === REPORT_CRITERIA ? null : LEGACY_FOCUS_NOTE,
     startedOn: focus.startedOn,
     done: Math.min(focus.done, FOCUS_SESSIONS),
     total: FOCUS_SESSIONS,
@@ -796,7 +829,7 @@ export function buildProgramSession({
   if (!focusActive(state.focus)) return buildLevelSession({ drills, level: state.level, index: state.index, owned });
   const index = Math.min(state.index, SESSIONS_PER_LEVEL - 1);
   const base = levelSession(state.level, index)?.titles ?? [];
-  const { titles, tags } = focusPlan({ rx: state.focus.rx, done: state.focus.done, base, drills });
+  const { titles, tags } = focusPlan({ rx: state.focus.rx, done: state.focus.done, base, drills, criteria: state.focus.criteria });
   return itemsFromTitles({ drills, titles, index, owned, tags });
 }
 

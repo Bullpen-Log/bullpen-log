@@ -369,6 +369,7 @@ export function FocusCard({ focus, reload, c }: { focus: FocusView; reload: Relo
         <Text style={[s.tiny, { color: c.muted }]}>{dayText(focus.startedOn)} 시작</Text>
       </View>
       <RxChips rx={focus.rx} c={c} />
+      {focus.criteriaNote ? <Text style={[s.tiny, { color: c.warn }]}>{focus.criteriaNote}</Text> : null}
       {focus.finished ? (
         <>
           <Text style={[s.body, { color: c.ink }]}>처방을 마쳤어요. 같은 자리에서 다시 찍어 리포트와 견줘요.</Text>
@@ -852,6 +853,7 @@ export function ElementCard({
                 내 리포트: {RX_REPORT_TEXT[report.level]}
                 {report.target ? ` · ${report.target.label} ${report.target.now}` : ''}
               </Text>
+              {report.criteriaNote ? <Text style={[s.tiny, { color: c.warn }]}>{report.criteriaNote}</Text> : null}
               {report.titles.map((t, i) => (
                 <Text key={t.title} style={[s.small, { color: c.ink }]}>
                   <Text style={{ color: c.sky, fontWeight: '700' }}>{i + 1}</Text> {t.title} · {t.stage}

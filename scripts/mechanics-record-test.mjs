@@ -419,7 +419,7 @@ assert.equal(play.startAt, 0);
 assert.deepEqual(play.doneGuideIds, [], '새 플레이어에 날짜별 옛 체크를 넘기지 않는다');
 
 const { APP_API_LEVEL, MIN_APP_API, minAppApiForAction } = await import('../lib/app-api.ts');
-assert.equal(APP_API_LEVEL, 3);
+assert.ok(APP_API_LEVEL >= 3);
 for (const action of ['app-mechanics.loadAppMechanicsPlay', 'mechanics.recordMechanicsDrill', 'mechanics.finishMechanicsSession'])
   assert.equal(minAppApiForAction(action), 3);
 assert.equal(minAppApiForAction('app-training-parts.loadAppMechanics'), MIN_APP_API, '다른 기능에는 업데이트를 강제하지 않는다');

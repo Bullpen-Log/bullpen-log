@@ -108,6 +108,7 @@ export async function startMechanicsFocus(input: { reportId: string; level?: str
         ...base,
         attempt: null,
         focus: {
+          criteria: offer.criteria,
           reportId: offer.reportId,
           jobId: offer.jobId,
           rx: offer.rx,

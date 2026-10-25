@@ -1,4 +1,5 @@
 import 'server-only';
+import { REPORT_CRITERIA, LEGACY_FOCUS_NOTE } from '@/lib/pitch-3d/v2/report-policy';
 import { mechanicsPlanKey } from '@/lib/mechanics/store';
 
 import { gatherFactsAndPlan } from '@/lib/report/gather';
@@ -278,6 +279,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
 
 /** 요소별 드릴 칸이 보이는 내 처방 — 요소 칩의 점 · 요소 카드 맨 위 한 줄과 처방 드릴(docs/designs/pitch-3d-report.md 6-4절) */
 export type ElementReportView = {
+  criteriaNote?: string | null;
   element: string;
   level: 'improve' | 'edge';
   target: { label: string; now: string; goal: string } | null;
@@ -305,7 +307,13 @@ export async function loadElementReport(userId: string): Promise<ElementReportVi
     const titles = r.weeks.flatMap((w) =>
       w.drills.flatMap((d) => (seen.has(d.title) ? [] : (seen.add(d.title), [{ title: d.title, stage: w.stage }])))
     );
-    return { element: r.element, level: r.level, target: r.target, titles };
+    return {
+      element: r.element,
+      level: r.level,
+      target: r.target,
+      titles,
+      criteriaNote: focus.criteria === REPORT_CRITERIA ? null : LEGACY_FOCUS_NOTE,
+    };
   });
 }
 
