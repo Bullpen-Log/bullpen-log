@@ -1,3 +1,4 @@
+import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
@@ -81,7 +82,7 @@ export function ExerciseMedia({
     <Press onPress={() => setPlay(true)} accessibilityRole="button" accessibilityLabel="자세 영상 틀기" style={box}>
       {thumb}
       <View style={s.playMark}>
-        <SymbolView name="play.fill" size={16} tintColor="#fff" />
+        <Icon name="play" size={16} color="#fff" />
       </View>
     </Press>
   );
@@ -135,7 +136,7 @@ export function HowTo({
         accessibilityState={{ expanded: open }}
         style={s.howToHead}
       >
-        <SymbolView name="info.circle" size={14} tintColor={c.muted} />
+        <Icon name="info" size={14} color={c.muted} />
         <Text style={[s.smallBold, { color: c.muted, flex: 1 }]}>자세 설명</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
       </Press>}
@@ -146,7 +147,7 @@ export function HowTo({
           ) : got?.failed ? (
             <Press onPress={load} accessibilityRole="button" style={s.textBtn}>
               <Text style={[s.small, { color: c.muted }]}>
-                설명을 불러오지 못했어요. <Text style={{ color: c.sky, fontWeight: '700' }}>다시 받기</Text>
+                설명을 불러오지 못했어요. <Text style={{ color: c.link, fontWeight: '700' }}>다시 받기</Text>
               </Text>
             </Press>
           ) : got ? (
@@ -159,8 +160,8 @@ export function HowTo({
             )
           ) : null}
           {m ? (
-            <View style={[s.method, { borderColor: c.sky + '40', backgroundColor: c.sky + '0f' }]}>
-              <Text style={[s.smallBold, { color: c.sky }]}>
+            <View style={[s.method, { borderColor: c.sky + '40', backgroundColor: c.action + '0f' }]}>
+              <Text style={[s.smallBold, { color: c.link }]}>
                 {m.label} 방식 <Text style={{ color: c.muted, fontWeight: '400' }}>· {m.cue}</Text>
               </Text>
               {[
@@ -170,7 +171,7 @@ export function HowTo({
                 ['멈출 때', m.stop],
               ].map(([k, v]) => (
                 <View key={k} style={s.methodRow}>
-                  <Text style={[s.smallBold, s.methodKey, { color: c.sky }]}>{k}</Text>
+                  <Text style={[s.smallBold, s.methodKey, { color: c.link }]}>{k}</Text>
                   <Text style={[s.small, { color: c.ink, flex: 1 }]}>{v}</Text>
                 </View>
               ))}
@@ -196,7 +197,7 @@ function Chip({ label, on, onPress, c }: { label: string; on: boolean; onPress: 
       accessibilityState={{ selected: on }}
       style={[s.chip, { backgroundColor: on ? c.sky + '1a' : c.chip, borderColor: on ? c.sky : 'transparent' }]}
     >
-      <Text style={[s.small, { color: on ? c.sky : c.ink, fontWeight: on ? '700' : '400' }]}>{label}</Text>
+      <Text style={[s.small, { color: on ? c.link : c.ink, fontWeight: on ? '700' : '400' }]}>{label}</Text>
     </Press>
   );
 }
@@ -260,7 +261,7 @@ export function RehabCheck({
     return (
       <Text
         accessibilityRole="alert"
-        style={[s.result, warn ? { color: c.warn, backgroundColor: c.warnBg } : { color: c.ink, backgroundColor: c.sky + '14' }]}
+        style={[s.result, warn ? { color: c.warn, backgroundColor: c.warnBg } : { color: c.ink, backgroundColor: c.action + '14' }]}
       >
         {result.text}
       </Text>
@@ -301,7 +302,7 @@ export function RehabCheck({
         onPress={() => void submit()}
         disabled={!ready || !settled || pending}
         accessibilityRole="button"
-        style={[s.submit, { backgroundColor: c.sky, opacity: !ready || !settled || pending ? 0.5 : 1 }]}
+        style={[s.submit, { backgroundColor: c.action, opacity: !ready || !settled || pending ? 0.5 : 1 }]}
       >
         <Text style={s.submitText}>{pending ? '남기는 중…' : !settled ? '체크를 남기는 중…' : '남기기'}</Text>
       </Press>

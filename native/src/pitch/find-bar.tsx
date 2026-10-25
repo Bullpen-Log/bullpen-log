@@ -37,7 +37,7 @@ export function FindBar({
       onPress={onPress}
       style={[
         styles.chip,
-        on ? (outline ? { borderWidth: 1, borderColor: c.sky } : { backgroundColor: c.sky }) : { backgroundColor: withAlpha(c.ink, 0.06) },
+        on ? (outline ? { borderWidth: 1, borderColor: c.sky } : { backgroundColor: c.action }) : { backgroundColor: withAlpha(c.ink, 0.06) },
       ]}
     >
       <Text style={[styles.chipText, { color: on ? (outline ? c.skyStrong : '#fff') : withAlpha(c.ink, 0.8) }]}>{label}</Text>
@@ -102,13 +102,13 @@ export function FindBar({
 
 const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  search: { flex: 1, minWidth: 0, height: 40, borderRadius: 20, flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 6, gap: 6 },
-  input: { flex: 1, height: 40, fontSize: 15 },
-  clear: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  search: { flex: 1, minWidth: 0, height: 44, borderRadius: 20, flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 6, gap: 6 },
+  input: { flex: 1, height: 44, fontSize: 15 },
+  clear: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   row: { gap: 6, alignItems: 'center', paddingVertical: 2 },
-  chip: { minHeight: 36, paddingHorizontal: 14, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 4 },
   chipText: { fontSize: 13, fontWeight: '400' },
   chipSub: { fontSize: 11, opacity: 0.8 },
   sep: { width: 1, height: 20, marginHorizontal: 2 },
-  reset: { minHeight: 36, paddingHorizontal: 10, justifyContent: 'center' },
+  reset: { minHeight: 44, paddingHorizontal: 10, justifyContent: 'center' },
 });

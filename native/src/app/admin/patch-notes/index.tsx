@@ -115,7 +115,7 @@ export default function PatchNotesScreen() {
                 <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
                   {g.list.map((n, i) => (
                     <Row key={n.id} onPress={() => router.push(`/admin/patch-notes/${n.id}` as Href)} last={i === g.list.length - 1} c={c}>
-                      <Text style={[s.meta, { color: c.sky, fontWeight: '600' }]}>
+                      <Text style={[s.meta, { color: c.link, fontWeight: '600' }]}>
                         {n.author} · {n.day}
                         {n.hasNote ? ' · 메모' : ''}
                       </Text>

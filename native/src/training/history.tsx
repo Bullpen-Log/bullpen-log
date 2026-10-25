@@ -145,7 +145,7 @@ export function HistoryPanel({
             <Text style={[s.tiny, { color: c.muted }]}>
               {picked ? dayLabel(picked.date) : `${kind === 'weight' ? '볼륨(무게×횟수)' : kind === 'reps' ? '횟수 합' : '버틴 시간 합'} · 최근 ${trend.length}번`}
             </Text>
-            <Text style={[s.tiny, { color: picked ? c.sky : c.muted, fontWeight: picked ? '700' : '400' }]}>
+            <Text style={[s.tiny, { color: picked ? c.link : c.muted, fontWeight: picked ? '700' : '400' }]}>
               {picked ? volumeText(kind, picked.volume, unit) : `가장 많이 ${volumeText(kind, peak.volume, unit)}`}
             </Text>
           </View>
@@ -164,7 +164,7 @@ export function HistoryPanel({
                 <View
                   style={[
                     st.barFill,
-                    { height: `${Math.max(4, (x.volume / max) * 100)}%`, backgroundColor: c.sky, opacity: hover != null && hover !== i ? 0.35 : 1 },
+                    { height: `${Math.max(4, (x.volume / max) * 100)}%`, backgroundColor: c.action, opacity: hover != null && hover !== i ? 0.35 : 1 },
                   ]}
                 />
               </Press>
@@ -200,7 +200,7 @@ export function HistoryPanel({
         </View>
         {!more && days.length > SHOWN ? (
           <Press onPress={() => setMore(true)} accessibilityRole="button" style={[s.textBtn, { alignSelf: 'center' }]}>
-            <Text style={[s.smallBold, { color: c.sky }]}>{days.length - SHOWN}번 더 보기</Text>
+            <Text style={[s.smallBold, { color: c.link }]}>{days.length - SHOWN}번 더 보기</Text>
           </Press>
         ) : null}
       </View>

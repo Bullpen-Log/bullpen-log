@@ -58,7 +58,7 @@ export function BigButton({
       accessibilityRole="button"
       disabled={busy || disabled}
       onPress={onPress}
-      style={({ pressed }) => [s.big, { backgroundColor: c.sky }, (pressed || busy || disabled) && { opacity: 0.6 }]}
+      style={({ pressed }) => [s.big, { backgroundColor: c.action }, (pressed || busy || disabled) && { opacity: 0.6 }]}
     >
       {busy ? <ActivityIndicator color="#fff" /> : icon ? <SymbolView name={icon} size={16} tintColor="#fff" /> : null}
       <Text style={s.bigText}>{label}</Text>
@@ -70,7 +70,7 @@ export function BigButton({
 export function LinkRow({ c, label, onPress, danger = false }: { c: Palette; label: string; onPress: () => void; danger?: boolean }) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [s.linkRow, pressed && { opacity: 0.6 }]}>
-      <Text style={[s.bodyBold, { flex: 1, color: danger ? c.danger : c.sky }]}>{label}</Text>
+      <Text style={[s.bodyBold, { flex: 1, color: danger ? c.danger : c.link }]}>{label}</Text>
       {danger ? null : <Text style={{ color: c.muted, fontSize: 18 }}>›</Text>}
     </Pressable>
   );

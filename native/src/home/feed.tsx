@@ -1,5 +1,4 @@
 import * as Haptics from 'expo-haptics';
-import { useIsFocused } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -10,7 +9,6 @@ import type { HighlightChart } from '@/lib/report/highlights';
 import { formatSpeed } from '@/lib/units';
 import { usePrefs } from '~/lib/prefs';
 import { usePalette, withAlpha, type Palette } from '~/lib/ui';
-import { useTabActive } from '~/shell/tab-pager';
 import { Icon } from '~/shell/icon';
 import { useHomeSwipe } from './camera-swipe';
 
@@ -18,13 +16,10 @@ import { useHomeSwipe } from './camera-swipe';
  * 홈 요약 칸 — 웹 app/(app)/today/feed-card.tsx 와 같은 꼴 · 같은 움직임.
  * - 위 이름표 줄(그림 · 하늘색 이름 · '지난 기록' 알약)은 고정, 밑의 장만 민다. 넘어가는 동안 이름표는 다음 장 것.
  * - 장 셋(앞 · 지금 · 다음)을 나란히 두고 끝없이 돈다 — 마지막에서 처음으로 휙 되감지 않는다(웹과 같다).
- * - 3초마다(기록 없음 장은 2초) 다음 장으로 320ms 곡선 cubic-bezier(0.32, 0.72, 0, 1). 직접 한 번 넘기면 그 뒤로 저절로 안 넘긴다.
- *   누르는 동안 · 움직임 줄이기면 안 넘긴다.
+ * - 자동 전환 없이 사용자가 넘긴다. 읽거나 누르려는 내용이 시간에 따라 바뀌지 않는다.
  * - 손가락으로 6px 넘게 옆으로 끌면 따라오고, 폭의 25% 넘게 또는 빠르게 튕기면(0.45px/ms) 넘어간다.
  * - 오른쪽 아래 점: 지금 장은 긴 하늘색(20 × 8), 나머지 8 × 8 — 너비가 300ms 에 바뀐다. 누르면 그 장으로.
  */
-const DWELL_MS = 3000;
-const DWELL_NONE_MS = 2000;
 const SLIDE_MS = 320;
 const SLIDE_EASE = Easing.bezier(0.32, 0.72, 0, 1);
 const SNAP_RATIO = 0.25;
@@ -39,8 +34,6 @@ export function FeedCard({ items, onOpen }: { items: FeedItem[]; onOpen: (item: 
   /* 지금 장 자리 — 늘 늘어나기만 한다(끝없이 돌기). 장 번호 = pos mod n */
   const [pos, setPos] = useState(0);
   const [moving, setMoving] = useState<1 | -1 | null>(null);
-  const [manual, setManual] = useState(false);
-  const [held, setHeld] = useState(false);
   const x = useSharedValue(0);
   const at = useCallback((p: number) => ((p % n) + n) % n, [n]);
 
@@ -68,26 +61,13 @@ export function FeedCard({ items, onOpen }: { items: FeedItem[]; onOpen: (item: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [w]);
 
-  /* 저절로 넘기기 */
-  /* 다른 탭을 보는 동안 · 위에 앱 화면(운동 · 투구 기록 …)이 떠 있는 동안은 멈춘다(웹 판의 data-active 가 빠지면 멈춤) */
-  const focused = useIsFocused();
-  const tabActive = useTabActive() && focused;
-  useEffect(() => {
-    if (n < 2 || !w || reduce || manual || held || moving != null || !tabActive) return;
-    const dwell = items[at(pos)]?.tone === 'none' ? DWELL_NONE_MS : DWELL_MS;
-    const t = setTimeout(() => go(1), dwell);
-    return () => clearTimeout(t);
-  }, [n, w, reduce, manual, held, moving, pos, items, at, go, tabActive]);
-
   const posSV = useSharedValue(0);
   useEffect(() => {
     posSV.set(pos);
   }, [pos, posSV]);
   const onSwiped = useCallback(
     (dir: 1 | -1 | 0) => {
-      setHeld(false);
       if (dir === 0) return;
-      setManual(true);
       void Haptics.selectionAsync();
       go(dir);
     },
@@ -99,9 +79,6 @@ export function FeedCard({ items, onOpen }: { items: FeedItem[]; onOpen: (item: 
   let pan = Gesture.Pan()
     .activeOffsetX([-6, 6])
     .failOffsetY([-12, 12])
-    .onBegin(() => {
-      if (canMove) runOnJS(setHeld)(true);
-    })
     .onUpdate((e) => {
       if (!canMove) return;
       x.set(-posSV.get() * w + Math.max(-w, Math.min(w, e.translationX)));
@@ -115,8 +92,7 @@ export function FeedCard({ items, onOpen }: { items: FeedItem[]; onOpen: (item: 
         x.set(withTiming(-posSV.get() * w, { duration: 200, easing: SLIDE_EASE }));
         runOnJS(onSwiped)(0);
       }
-    })
-    .onFinalize(() => runOnJS(setHeld)(false));
+    });
   if (homeSwipe) pan = pan.blocksExternalGesture(homeSwipe);
 
   const track = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
@@ -152,7 +128,6 @@ export function FeedCard({ items, onOpen }: { items: FeedItem[]; onOpen: (item: 
               accessibilityLabel={`${i + 1}번째 장 · ${it.label}`}
               onPress={() => {
                 if (i === shown || moving != null) return;
-                setManual(true);
                 void Haptics.selectionAsync();
                 const d = (((i - shown) % n) + n) % n;
                 if (d === 1) go(1);
@@ -185,13 +160,13 @@ function Dot({ on, c }: { on: boolean; c: Palette }) {
 }
 
 function FeedLabel({ item, c }: { item: FeedItem; c: Palette }) {
-  const tone = item.warn ? c.warn : c.sky;
+  const tone = item.warn ? c.warn : c.link;
   return (
     <View style={styles.head}>
       {item.icon ? <Icon name={item.icon} size={16} color={tone} /> : null}
       <Text style={[styles.label, { color: tone }]}>{item.label}</Text>
       {item.tone === 'past' ? (
-        <View style={[styles.pastChip, { backgroundColor: 'rgba(29,29,31,0.06)' }]}>
+        <View style={[styles.pastChip, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
           <Text style={{ color: c.muted, fontSize: 11, fontWeight: '400' }}>지난 기록</Text>
         </View>
       ) : null}
@@ -229,7 +204,7 @@ function Slide({ item, lap, c, active, onPress }: { item: FeedItem; lap: number;
         </Text>
         {sub && item.tone === 'none' ? (
           <View style={[styles.addPill, { borderColor: c.lineStrong }]}>
-            <Text style={{ color: c.sky, fontSize: 13, fontWeight: '400' }}>{sub}</Text>
+            <Text style={{ color: c.link, fontSize: 13, fontWeight: '400' }}>{sub}</Text>
           </View>
         ) : sub ? (
           <Text style={[styles.sub, { color: c.muted }]} numberOfLines={2}>

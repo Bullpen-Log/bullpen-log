@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
-import { TYPE, usePalette } from '~/lib/ui';
+import { CONTROL, RADIUS, TYPE, usePalette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 
 /**
@@ -14,7 +14,7 @@ export function PageHead({ title, children }: { title: string; children?: ReactN
   const c = usePalette();
   return (
     <View style={st.head}>
-      <Text accessibilityRole="header" style={[TYPE.title, { flex: 1, color: c.ink }]} numberOfLines={1}>
+      <Text accessibilityRole="header" style={[TYPE.title, { flex: 1, color: c.ink }]}>
         {title}
       </Text>
       {children ? <View style={st.tools}>{children}</View> : null}
@@ -30,12 +30,12 @@ export function SectionHead({ title, action, onAction }: { title: string; action
   const c = usePalette();
   return (
     <View style={st.section}>
-      <Text accessibilityRole="header" style={[TYPE.section, { flex: 1, color: c.ink }]} numberOfLines={1}>
+      <Text accessibilityRole="header" style={[TYPE.section, { flex: 1, color: c.ink }]}>
         {title}
       </Text>
       {action && onAction ? (
         <Pressable accessibilityRole="button" onPress={onAction} hitSlop={8} style={({ pressed }) => pressed && { opacity: 0.5 }}>
-          <Text style={[TYPE.body, { color: c.sky }]}>{action}</Text>
+          <Text style={[TYPE.body, { color: c.link }]}>{action}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -51,7 +51,7 @@ export function AnalysisPill({ view }: { view: 'pitch' | 'training' }) {
       onPress={() => router.push(`/analysis?view=${view}` as Href)}
       style={({ pressed }) => [st.pill, { backgroundColor: c.chip }, pressed && { opacity: 0.6 }]}
     >
-      <Icon name="chart-no-axes-column" size={16} color={c.sky} />
+      <Icon name="chart-no-axes-column" size={16} color={c.link} />
       <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>분석</Text>
     </Pressable>
   );
@@ -122,7 +122,7 @@ export function Segmented<V extends string>({
             }}
             style={[st.segItem, flow && { flex: 0, minWidth: 52, paddingHorizontal: 10 }]}
           >
-            <Text style={{ color: c.ink, opacity: on ? 1 : 0.75, fontSize: size === 'md' ? 14 : 12, fontWeight: on ? '600' : '500', fontVariant: ['tabular-nums'] }}>{o.label}</Text>
+            <Text style={{ color: on ? c.ink : c.muted, opacity: 1, fontSize: size === 'md' ? 15 : 13, fontWeight: on ? '600' : '500', fontVariant: ['tabular-nums'] }}>{o.label}</Text>
           </Pressable>
         );
       })}
@@ -137,9 +137,9 @@ const SEG_WIDTH = new Map<string, number>();
 const st = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   section: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 32, paddingHorizontal: 4 },
-  tools: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  pill: { height: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tools: { flexDirection: 'row', flexShrink: 1, flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  pill: { minHeight: CONTROL.compact, borderRadius: RADIUS.pill, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
   seg: { flexDirection: 'row', padding: PAD, gap: GAP, borderRadius: 28 },
   thumb: { position: 'absolute', top: PAD, bottom: PAD, left: PAD, borderRadius: 20 },
-  segItem: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+  segItem: { flex: 1, minHeight: CONTROL.compact, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
 });

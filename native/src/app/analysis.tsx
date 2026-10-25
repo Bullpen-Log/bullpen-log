@@ -1,3 +1,4 @@
+import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
@@ -117,8 +118,8 @@ export default function AnalysisScreen() {
     <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: scrolled ? c.line : 'transparent' }]}>
       {/* 웹처럼 돌아갈 곳 이름(coach/page.tsx '‹ 투구 기록' · '‹ 트레이닝') */}
       <Press onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={`뒤로 · ${BACK[view]}`} style={[s.iconBtn, s.backBtn]}>
-        <SymbolView name="chevron.left" size={20} weight="semibold" tintColor={c.sky} />
-        <Text numberOfLines={1} style={[s.backText, { color: c.sky }]}>{BACK[view]}</Text>
+        <Icon name="chevron-left" size={20} color={c.link} />
+        <Text numberOfLines={1} style={[s.backText, { color: c.link }]}>{BACK[view]}</Text>
       </Press>
       <Text numberOfLines={1} style={[s.headTitle, { color: c.ink, opacity: scrolled ? 1 : 0 }]}>
         {TITLE[view]}
@@ -153,7 +154,7 @@ export default function AnalysisScreen() {
           {failed ? (
             <>
               <Text style={[s.body, s.center, { color: c.ink }]}>{failed}</Text>
-              <Press onPress={retry} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
+              <Press onPress={retry} accessibilityRole="button" style={[s.pill, { backgroundColor: c.action }]}>
                 <Text style={[s.bodyBold, { color: '#fff' }]}>다시 불러오기</Text>
               </Press>
             </>
@@ -191,7 +192,7 @@ export default function AnalysisScreen() {
           <View style={[s.notice, { backgroundColor: c.danger + '14' }]}>
             <Text style={[s.small, { color: c.danger, flex: 1 }]}>{failed}</Text>
             <Press onPress={retry} accessibilityRole="button" style={s.textBtn}>
-              <Text style={[s.smallBold, { color: c.sky }]}>다시 불러오기</Text>
+              <Text style={[s.smallBold, { color: c.link }]}>다시 불러오기</Text>
             </Press>
           </View>
         ) : null}
@@ -280,7 +281,7 @@ function Highlights({ items, c }: { items: Highlight[]; c: Palette }) {
             <Text style={[s.body, { color: c.ink }]}>{fill(h, speed)}</Text>
           </View>
           {h.chart ? <MiniChart chart={h.chart} warn={h.warn} /> : null}
-          {h.href ? <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} /> : null}
+          {h.href ? <Icon name="chevron-right" size={13} color={c.muted} /> : null}
         </Pressable>
       ))}
     </View>
@@ -340,7 +341,7 @@ function LoadCard({ v, notices, c }: { v: LoadView; notices?: AnalysisOverview['
             <Text style={[s.bodyBold, { color: c.ink }]}>{v.hasRecords ? '아직 지수를 낼 수 없어요' : '기록을 남기면 표시돼요'}</Text>
             {v.hasRecords && v.daysNeeded > 0 ? (
               <View style={{ gap: 6 }}>
-                <Bar value={v.historyDays / CHRONIC_WINDOW_DAYS} color={c.sky + '99'} c={c} />
+                <Bar value={v.historyDays / CHRONIC_WINDOW_DAYS} color={c.link + '99'} c={c} />
                 <Text style={[s.tiny, { color: c.muted }]}>
                   기록 {v.historyDays}일 / {CHRONIC_WINDOW_DAYS}일 · {v.daysNeeded}일 더 필요
                 </Text>
@@ -355,7 +356,7 @@ function LoadCard({ v, notices, c }: { v: LoadView; notices?: AnalysisOverview['
       {notices?.missingDays != null ? (
         <Press onPress={() => leave('/today')} accessibilityRole="link" style={[s.warnRow, { backgroundColor: c.warnBg, borderTopColor: c.warn + '40' }]}>
           <Text style={[s.small, { color: c.warn }]}>
-            기록 없는 날이 {notices.missingDays}일이라 지수가 낮게 나올 수 있어요. <Text style={[s.smallBold, { color: c.sky }]}>투구 일지</Text>에 남겨 주세요.
+            기록 없는 날이 {notices.missingDays}일이라 지수가 낮게 나올 수 있어요. <Text style={[s.smallBold, { color: c.link }]}>투구 일지</Text>에 남겨 주세요.
           </Text>
         </Press>
       ) : null}
@@ -476,7 +477,7 @@ function GoodDays({ result, c }: { result: GoodDayResult; c: Palette }) {
           <Text style={[s.body, { color: c.ink }]}>
             만족도 매긴 날 {rated}/{needed}일 · 다 차면 찾아 드려요.
           </Text>
-          <Bar value={rated / needed} color={c.sky + '73'} c={c} />
+          <Bar value={rated / needed} color={c.link + '73'} c={c} />
         </View>
       ) : patterns.length === 0 ? (
         <Text style={[s.body, s.center, s.well, { color: c.muted, backgroundColor: c.chip + '80' }]}>
@@ -534,7 +535,7 @@ function Patterns({ title, items, c }: { title: string; items: string[]; c: Pale
     <View style={{ gap: 6 }}>
       <Text style={[s.tiny, { color: c.muted, fontWeight: '700' }]}>{title}</Text>
       {items.map((text) => (
-        <Text key={text} style={[s.bodyBold, s.box, { color: c.sky, backgroundColor: c.sky + '14' }]}>
+        <Text key={text} style={[s.bodyBold, s.box, { color: c.link, backgroundColor: c.action + '14' }]}>
           {text}
         </Text>
       ))}
@@ -578,7 +579,7 @@ function Review({ review, armCareMissing, c }: { review: TrainingReview; armCare
             return (
               <View key={w.ago} style={{ gap: 6 }}>
                 <View style={s.between}>
-                  <Text style={[s.bodyBold, { color: w.ago === 0 ? c.sky : c.ink }]}>{w.label}</Text>
+                  <Text style={[s.bodyBold, { color: w.ago === 0 ? c.link : c.ink }]}>{w.label}</Text>
                   {empty ? (
                     <Text style={[s.tiny, { color: c.muted + '99' }]}>쉬었어요</Text>
                   ) : (
@@ -587,7 +588,7 @@ function Review({ review, armCareMissing, c }: { review: TrainingReview; armCare
                     </Text>
                   )}
                 </View>
-                <Bar value={w.days / Math.max(FULL_DAYS, busiest)} color={empty ? 'transparent' : w.ago === 0 ? c.sky : c.sky + '73'} c={c} />
+                <Bar value={w.days / Math.max(FULL_DAYS, busiest)} color={empty ? 'transparent' : w.ago === 0 ? c.link : c.link + '73'} c={c} />
               </View>
             );
           })}

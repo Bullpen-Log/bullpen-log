@@ -11,14 +11,14 @@ import type { Palette } from '~/lib/ui';
 function InsertCard({ icon, headline, lines, c }: { icon: SFSymbol; headline: React.ReactNode; lines: string[]; c: Palette }) {
   return (
     <View style={{ backgroundColor: c.card, borderRadius: 20, padding: 20, gap: 14 }}>
-      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.sky + '1a', alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.action + '1a', alignItems: 'center', justifyContent: 'center' }}>
         <SymbolView name={icon} size={22} tintColor={c.sky} />
       </View>
       <Text style={{ color: c.ink, fontSize: 22, fontWeight: '700', lineHeight: 29 }}>{headline}</Text>
       <View style={{ gap: 8 }}>
         {lines.map((l) => (
           <View key={l} style={{ flexDirection: 'row', gap: 8 }}>
-            <Text style={{ color: c.sky, fontSize: 15 }}>•</Text>
+            <Text style={{ color: c.link, fontSize: 15 }}>•</Text>
             <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21, flex: 1 }}>{l}</Text>
           </View>
         ))}
@@ -52,7 +52,7 @@ export function PitchCapInsert({ age, c }: { age: number | null; c: Palette }) {
       headline={
         <>
           {age === null ? '하루 ' : `만 ${age}세는 하루 `}
-          <Text style={{ color: c.sky }}>{cap}구</Text>
+          <Text style={{ color: c.link }}>{cap}구</Text>
           까지예요
         </>
       }
@@ -73,7 +73,7 @@ export function BurnInsert({ weightKg, c }: { weightKg: number | null; c: Palett
       icon="flame"
       headline={
         <>
-          운동과 투구를 적으면 쓴 만큼 <Text style={{ color: c.sky }}>더 먹어요</Text>
+          운동과 투구를 적으면 쓴 만큼 <Text style={{ color: c.link }}>더 먹어요</Text>
         </>
       }
       lines={[

@@ -317,7 +317,7 @@ export function AddSheet({ inPlanIds, onClose, c, a }: {
           })}
           {matched.length > limit ? (
             <Press onPress={() => setLimit((n) => n + PAGE)} accessibilityRole="button" style={[s.pill, { alignSelf: 'center' }]}>
-              <Text style={[s.bodyBold, { color: c.sky }]}>{matched.length - limit}개 더 보기</Text>
+              <Text style={[s.bodyBold, { color: c.link }]}>{matched.length - limit}개 더 보기</Text>
             </Press>
           ) : null}
         </>

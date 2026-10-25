@@ -103,7 +103,7 @@ export default function InquiryScreen() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={{ color: c.ink, fontSize: 13, fontWeight: '600' }}>{r.name}</Text>
-              {r.fromStaff ? <Badge text="운영자" color={c.sky} c={c} /> : null}
+              {r.fromStaff ? <Badge text="운영자" color={c.link} c={c} /> : null}
               <Text style={[s.meta, { color: c.muted, flex: 1, textAlign: 'right' }]}>{r.at}</Text>
             </View>
             <Text selectable style={{ color: c.ink, fontSize: 15, lineHeight: 24 }}>
@@ -154,7 +154,7 @@ export default function InquiryScreen() {
               accessibilityLabel={send.busy ? '보내는 중' : '보내기'}
               onPress={submit}
               disabled={send.busy || !reply.trim()}
-              style={[styles.send, { backgroundColor: c.sky, opacity: send.busy || !reply.trim() ? 0.4 : 1 }]}
+              style={[styles.send, { backgroundColor: c.action, opacity: send.busy || !reply.trim() ? 0.4 : 1 }]}
             >
               <SymbolView name="paperplane.fill" size={18} tintColor="#fff" />
             </Press>

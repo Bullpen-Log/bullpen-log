@@ -105,7 +105,7 @@ export function ItemRow({
         {thumbUrl ? (
           <Thumb uri={thumbUrl} style={StyleSheet.absoluteFill} />
         ) : (
-          <SymbolView name="film" size={20} tintColor={c.muted} />
+          <Icon name="film" size={20} color={c.muted} />
         )}
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
@@ -177,7 +177,7 @@ export function LibraryTile({ title, thumbUrl, favorite, onPress, c }: { title: 
             <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.35)' }]} />
           </>
         ) : null}
-        <View style={[st.tilePlay, { backgroundColor: c.sky + 'e6' }]}>
+        <View style={[st.tilePlay, { backgroundColor: c.action + 'e6' }]}>
           <Icon name="play" size={16} color="#fff" fill="#fff" />
         </View>
         {favorite ? (
@@ -432,11 +432,11 @@ export function LibraryTabs({ active, c }: { active: (typeof LIBRARY_TABS)[numbe
               { backgroundColor: on || pressed ? c.page : c.card },
             ]}
           >
-            <View style={[{ width: 36, height: 36, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }, on ? { borderColor: c.sky + '66', backgroundColor: c.sky + '1a' } : { borderColor: c.lineStrong }]}>
-              <Icon name={t.icon} size={16} color={on ? c.sky : c.muted} />
+            <View style={[{ width: 36, height: 36, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }, on ? { borderColor: c.sky + '66', backgroundColor: c.action + '1a' } : { borderColor: c.lineStrong }]}>
+              <Icon name={t.icon} size={16} color={on ? c.link : c.muted} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: on ? c.sky : c.ink, fontSize: 15, fontWeight: '600' }}>{t.label}</Text>
+              <Text style={{ color: on ? c.link : c.ink, fontSize: 15, fontWeight: '600' }}>{t.label}</Text>
               <Text style={{ color: c.muted, fontSize: 13, marginTop: 2 }}>{t.desc}</Text>
             </View>
           </Pressable>
@@ -506,7 +506,7 @@ export function FilterSheet({
           >
             <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>모두 지우기</Text>
           </Press>
-          <Press accessibilityRole="button" onPress={onClose} style={[st.foot, { flex: 1, backgroundColor: c.sky }]}>
+          <Press accessibilityRole="button" onPress={onClose} style={[st.foot, { flex: 1, backgroundColor: c.action }]}>
             <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{resultCount != null ? `${resultCount}개 보기` : '완료'}</Text>
           </Press>
         </View>

@@ -35,7 +35,7 @@ export function StepFrame({
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
       <View style={{ paddingTop: inset.top + 12, paddingHorizontal: 20, gap: 8 }}>
         <View style={[st.track, { backgroundColor: c.chip }]}>
-          <View style={[st.fill, { width: `${Math.round(progress * 100)}%`, backgroundColor: c.sky }]} />
+          <View style={[st.fill, { width: `${Math.round(progress * 100)}%`, backgroundColor: c.action }]} />
         </View>
         <Text style={{ color: c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>{counter}</Text>
       </View>
@@ -64,7 +64,7 @@ export function StepFrame({
             next.onPress();
           }}
           disabled={next.disabled}
-          style={({ pressed }) => [st.next, { backgroundColor: c.sky, opacity: next.disabled ? 0.5 : pressed ? 0.85 : 1 }]}
+          style={({ pressed }) => [st.next, { backgroundColor: c.action, opacity: next.disabled ? 0.5 : pressed ? 0.85 : 1 }]}
         >
           <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{next.label}</Text>
         </Pressable>
@@ -138,8 +138,8 @@ export function SummaryRows({ rows, c }: { rows: { label: string; value: string 
 /** 강조 카드 — '평소 하루 부하' 같은 큰 숫자 한 장 */
 export function BigNumber({ label, value, unit, note, c }: { label: string; value: string; unit?: string; note?: string; c: Palette }) {
   return (
-    <View style={[st.big, { borderColor: c.sky + '40', backgroundColor: c.sky + '0d' }]}>
-      <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{label}</Text>
+    <View style={[st.big, { borderColor: c.sky + '40', backgroundColor: c.action + '0d' }]}>
+      <Text style={{ color: c.link, fontSize: 13, fontWeight: '600' }}>{label}</Text>
       <Text style={{ color: c.ink, fontSize: 30, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
         {value}
         {unit ? <Text style={[TYPE.unitLg, { color: c.muted }]}> {unit}</Text> : null}

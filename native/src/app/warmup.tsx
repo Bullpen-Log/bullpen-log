@@ -1,3 +1,4 @@
+import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
@@ -103,7 +104,7 @@ export default function WarmupScreen() {
           <View style={{ padding: 24, gap: 16, alignItems: 'center' }}>
             <Text style={{ color: c.ink, fontSize: 15 }}>{failed}</Text>
             <Press accessibilityRole="button" onPress={() => (setFailed(null), setTries((n) => n + 1))} hitSlop={8}>
-              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
+              <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
             </Press>
           </View>
         ) : (
@@ -122,7 +123,7 @@ export default function WarmupScreen() {
           <Text style={[s.small, { color: c.muted }]}>{data.themeLabel}</Text>
           <Text style={[s.body, { color: c.muted }]}>
             본운동 전에 몸을 풀어요. 운동 시간은 여기를 지난 뒤부터 재요.
-            {total > 0 ? <Text style={{ color: c.sky, fontWeight: '700' }}>{`  ${done.size}/${total}`}</Text> : null}
+            {total > 0 ? <Text style={{ color: c.link, fontWeight: '700' }}>{`  ${done.size}/${total}`}</Text> : null}
           </Text>
         </View>
         {total === 0 ? (
@@ -136,7 +137,7 @@ export default function WarmupScreen() {
               <View style={[s.row, { gap: 8 }]}>
                 <Text style={[s.section, { color: c.ink }]}>{card.name}</Text>
                 {card.forToday ? (
-                  <Text style={[s.tag, { color: c.sky, backgroundColor: c.sky + '1a', fontSize: 13, fontWeight: '600' }]}>오늘 맞춤</Text>
+                  <Text style={[s.tag, { color: c.link, backgroundColor: c.action + '1a', fontSize: 13, fontWeight: '600' }]}>오늘 맞춤</Text>
                 ) : (
                   <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>공통</Text>
                 )}
@@ -162,11 +163,11 @@ export default function WarmupScreen() {
                       style={st.row}
                     >
                       <View style={[st.check, { borderColor: on ? c.sky : c.line, backgroundColor: on ? c.sky : 'transparent' }]}>
-                        {on ? <SymbolView name="checkmark" size={14} weight="bold" tintColor="#fff" /> : null}
+                        {on ? <Icon name="check" size={14} color="#fff" /> : null}
                       </View>
                       <View style={{ flex: 1, gap: 2 }}>
-                        <Text style={[s.bodyBold, { color: on ? c.sky : c.ink }]}>{ex.title}</Text>
-                        {ex.note ? <Text style={[s.small, { color: on ? c.sky : c.muted }]}>{ex.note}</Text> : null}
+                        <Text style={[s.bodyBold, { color: on ? c.link : c.ink }]}>{ex.title}</Text>
+                        {ex.note ? <Text style={[s.small, { color: on ? c.link : c.muted }]}>{ex.note}</Text> : null}
                       </View>
                       {ex.thumbUrl ? <Thumb uri={ex.thumbUrl} style={[st.thumb, { borderColor: c.line }]} /> : null}
                     </Press>
@@ -178,8 +179,8 @@ export default function WarmupScreen() {
                           onPress={() => setOpen(showing ? null : ex.id)}
                           style={st.disclose}
                         >
-                          <SymbolView name="info.circle" size={14} tintColor={showing ? c.sky : c.muted} />
-                          <Text style={[s.smallBold, { flex: 1, color: showing ? c.sky : c.muted }]}>자세·영상 보기</Text>
+                          <Icon name="info" size={14} color={showing ? c.link : c.muted} />
+                          <Text style={[s.smallBold, { flex: 1, color: showing ? c.link : c.muted }]}>자세·영상 보기</Text>
                           <SymbolView name={showing ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
                         </Press>
                         {showing ? (
@@ -207,7 +208,7 @@ export default function WarmupScreen() {
           accessibilityRole="button"
           onPress={() => void finish(false)}
           disabled={saving}
-          style={({ pressed }) => [st.main, { backgroundColor: c.sky, opacity: saving ? 0.6 : pressed ? 0.85 : 1 }]}
+          style={({ pressed }) => [st.main, { backgroundColor: c.action, opacity: saving ? 0.6 : pressed ? 0.85 : 1 }]}
         >
           <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{saving ? '여는 중' : '본운동 시작 ›'}</Text>
         </Pressable>

@@ -1,4 +1,4 @@
-import { SymbolView } from 'expo-symbols';
+import { Icon } from '~/shell/icon';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { formatPrescription } from '@/lib/exercise-meta';
@@ -46,7 +46,7 @@ export function ExerciseDetail({ item, c, onClose }: { item: Exercise; c: Palett
         </View>
         {onClose ? (
           <Press accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} hitSlop={8} style={s.iconBtn}>
-            <SymbolView name="xmark" size={18} tintColor={c.muted} />
+            <Icon name="x" size={18} color={c.muted} />
           </Press>
         ) : null}
       </View>
@@ -109,13 +109,13 @@ export function DrillDetail({ item, c, onClose }: { item: Drill; c: Palette; onC
         </View>
         {onClose ? (
           <Press accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} hitSlop={8} style={s.iconBtn}>
-            <SymbolView name="xmark" size={18} tintColor={c.muted} />
+            <Icon name="x" size={18} color={c.muted} />
           </Press>
         ) : null}
       </View>
       {main ? (
         <Text style={[s.small, { color: c.muted }]}>
-          주 요소 <Text style={{ color: c.sky, fontWeight: '700' }}>{main}</Text>
+          주 요소 <Text style={{ color: c.link, fontWeight: '700' }}>{main}</Text>
           {more.length > 0 ? ` · 함께 쓰는 요소 ${more.join(' · ')}` : ''}
         </Text>
       ) : null}

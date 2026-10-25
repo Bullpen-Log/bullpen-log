@@ -102,7 +102,7 @@ export default function DrillLibraryScreen() {
           <View style={{ padding: 24, gap: 16, alignItems: 'center' }}>
             <Text style={{ color: c.ink, fontSize: 15 }}>{state.failed}</Text>
             <Press accessibilityRole="button" onPress={() => void state.load()} hitSlop={8}>
-              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
+              <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
             </Press>
           </View>
         ) : (
@@ -128,7 +128,7 @@ export default function DrillLibraryScreen() {
                 }}
                 hitSlop={8}
               >
-                <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>조건 모두 지우기</Text>
+                <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>조건 모두 지우기</Text>
               </Press>
             </View>
           }

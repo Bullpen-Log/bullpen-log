@@ -214,7 +214,7 @@ export default function CommunityPostScreen() {
               accessibilityLabel={send.busy ? '올리는 중' : '댓글 올리기'}
               onPress={addComment}
               disabled={send.busy || !comment.trim()}
-              style={[styles.send, { backgroundColor: c.sky, opacity: send.busy || !comment.trim() ? 0.4 : 1 }]}
+              style={[styles.send, { backgroundColor: c.action, opacity: send.busy || !comment.trim() ? 0.4 : 1 }]}
             >
               <SymbolView name="paperplane.fill" size={18} tintColor="#fff" />
             </Press>
@@ -257,7 +257,7 @@ function ReportSheet({ target, c, onClose, onDone }: { target: Target; c: Palett
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
         <View style={styles.sheetBar}>
           <Press accessibilityRole="button" onPress={onClose} hitSlop={10}>
-            <Text style={{ color: c.sky, fontSize: 17 }}>취소</Text>
+            <Text style={{ color: c.link, fontSize: 17 }}>취소</Text>
           </Press>
           <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>신고</Text>
           <Press accessibilityRole="button" onPress={submit} disabled={send.busy} hitSlop={10}>

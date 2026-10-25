@@ -1,6 +1,6 @@
+import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -67,7 +67,7 @@ function Body({ initial }: { initial: Extract<Loaded, { ok: true }> }) {
                 <Text style={[st.rowTitle, { color: c.ink }]}>{l.name}</Text>
                 <Text style={[st.hint, { color: c.muted }]}>{l.desc}</Text>
               </View>
-              {on ? levelBusy ? <ActivityIndicator /> : <SymbolView name="checkmark" size={17} weight="semibold" tintColor={c.sky} /> : null}
+              {on ? levelBusy ? <ActivityIndicator /> : <Icon name="check" size={17} color={c.link} /> : null}
             </Press>
           );
         })}
@@ -75,7 +75,7 @@ function Body({ initial }: { initial: Extract<Loaded, { ok: true }> }) {
       {levelNote ? <Text style={[st.hint, { color: levelNote.endsWith('저장했어요') ? c.muted : c.danger }]}>{levelNote}</Text> : null}
 
       <Press accessibilityRole="button" onPress={() => router.back()} style={{ alignSelf: 'center', padding: 12 }}>
-        <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>닫기</Text>
+        <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>닫기</Text>
       </Press>
     </ScrollView>
   );

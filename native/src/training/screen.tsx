@@ -151,8 +151,8 @@ export function Screen<K extends string>({
       {/* 웹 휴대폰 위 막대의 '‹ 트레이닝'(back-link) — 제목은 본문 큰 제목이 맡는다 */}
       <View style={[st.bar, { paddingTop: inset.top + 4, backgroundColor: c.page }]}>
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="트레이닝으로 돌아가기" style={({ pressed }) => [st.back, pressed && { opacity: 0.6 }]}>
-          <Icon name="back" size={24} color={c.sky} />
-          <Text style={{ color: c.sky, fontSize: 17 }}>트레이닝</Text>
+          <Icon name="back" size={24} color={c.link} />
+          <Text style={{ color: c.link, fontSize: 17 }}>트레이닝</Text>
         </Pressable>
       </View>
       {/* 부위별 보강의 3D 근육 그림을 돌리는 동안 화면이 같이 굴러가지 않게(shell/scroll-lock, 2026-10-20 김민) */}
@@ -173,7 +173,7 @@ export function Screen<K extends string>({
           <View style={[s.notice, { backgroundColor: c.danger + '14' }]}>
             <Text style={[s.small, { color: c.danger, flex: 1 }]}>{state.failed}</Text>
             <Press onPress={state.load} accessibilityRole="button" style={s.textBtn}>
-              <Text style={[s.smallBold, { color: c.sky }]}>다시 불러오기</Text>
+              <Text style={[s.smallBold, { color: c.link }]}>다시 불러오기</Text>
             </Press>
           </View>
         ) : null}

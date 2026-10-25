@@ -163,7 +163,7 @@ export default function PitchDayScreen() {
                     {/* 그날의 수치 — 구속이 있으면 최고 구속을, 없으면 투구 수를 크게(웹 day-record.tsx) */}
                     <View style={styles.cardHead}>
                       <View style={{ flex: 1, gap: 12 }}>
-                        <Text style={[TYPE.num, { fontSize: 24, color: rested ? c.muted : c.sky }]}>
+                        <Text style={[TYPE.num, { fontSize: 24, color: rested ? c.muted : c.link }]}>
                           {rested ? (
                             /* 한글은 둥근 숫자 글꼴(TYPE.num)에 없어 기기 기본 글꼴로 그려졌다 — 안쪽 Text 는 Pretendard */
                             <Text>쉬는 날</Text>
@@ -208,7 +208,7 @@ export default function PitchDayScreen() {
                     {/* 그날의 느낀점 — 영상보다 위(다시 여는 까닭은 대개 '그날 뭐라고 적었더라'), 남긴 것이 없으면 그리지 않는다 */}
                     {l.memo || cues.length ? (
                       <View style={[styles.feel, { backgroundColor: c.skyTint }]}>
-                        <Text style={{ color: c.sky, fontSize: 13, fontWeight: '400' }}>그날의 느낀점</Text>
+                        <Text style={{ color: c.link, fontSize: 13, fontWeight: '400' }}>그날의 느낀점</Text>
                         {l.memo ? <Text style={[styles.memo, { color: c.ink }]}>{l.memo}</Text> : null}
                         {cues.map(([title, list]) => (
                           <Text key={title} style={{ color: c.muted, fontSize: 13 }}>
@@ -327,13 +327,13 @@ function NutritionNote({ c, line }: { c: Palette; line: { title: string; text: s
       onPress={() => leaveTo(line.href)}
       style={[styles.nudge, { backgroundColor: withAlpha(c.chip, 0.5), borderColor: c.line }]}
     >
-      <Icon name="utensils" size={16} color={c.sky} />
+      <Icon name="utensils" size={16} color={c.link} />
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={{ color: c.muted, fontSize: 13 }}>{line.title}</Text>
         <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{line.text}</Text>
         {line.example ? <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>{line.example}</Text> : null}
       </View>
-      <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>자세히 ›</Text>
+      <Text style={{ color: c.link, fontSize: 13, fontWeight: '600' }}>자세히 ›</Text>
     </Press>
   );
 }

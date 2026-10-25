@@ -47,7 +47,7 @@ export default function NoticeScreen() {
         <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', padding: 32 }}>공지를 찾지 못했어요. 지워진 공지예요.</Text>
       ) : (
         <ScrollView contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}>
-          {notice.pinned ? <Badge text="고정" color={c.sky} c={c} /> : null}
+          {notice.pinned ? <Badge text="고정" color={c.link} c={c} /> : null}
           <Text selectable style={{ color: c.ink, fontSize: 24, fontWeight: '700' }}>
             {notice.title}
           </Text>

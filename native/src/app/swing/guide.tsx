@@ -51,7 +51,7 @@ export default function SwingGuideScreen() {
           <View style={{ gap: 10 }}>
             {SWING_GUIDE_POINTS.steps.map((text, i) => (
               <View key={text} style={{ flexDirection: 'row', gap: 12 }}>
-                <View style={{ width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.sky }}>
+                <View style={{ width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.action }}>
                   <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{i + 1}</Text>
                 </View>
                 <Text style={{ flex: 1, color: c.ink, fontSize: 15, lineHeight: 22, paddingTop: 1 }}>{text}</Text>
@@ -67,7 +67,7 @@ export default function SwingGuideScreen() {
           </>
         )}
         {section('upload', <Points items={swingGuideUploadPoints(LAB_MAX_VIDEO_MB)} c={c} />)}
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={[s.primary, { backgroundColor: c.sky }]}>
+        <Pressable accessibilityRole="button" onPress={() => router.back()} style={[s.primary, { backgroundColor: c.action }]}>
           <Text style={s.primaryText}>돌아가기</Text>
         </Pressable>
       </ScrollView>

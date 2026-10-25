@@ -271,7 +271,7 @@ export default function NutritionAddScreen() {
         onPress={() => setCustomOpen((o) => !o)}
         style={[styles.customBtn, { borderColor: customOpen ? c.sky : c.line }]}
       >
-        <Text style={{ color: customOpen ? c.sky : c.muted, fontSize: 15 }}>
+        <Text style={{ color: customOpen ? c.link : c.muted, fontSize: 15 }}>
           ✎ {q.trim() ? `‘${q.trim()}’ 직접 입력` : '목록에 없으면 직접 입력'}
         </Text>
       </Press>
@@ -321,7 +321,7 @@ export default function NutritionAddScreen() {
         ) : replacing ? (
           <SymbolView name="arrow.triangle.2.circlepath" size={18} tintColor={c.sky} />
         ) : (
-          <Text style={{ color: c.sky, fontSize: 24 }}>+</Text>
+          <Text style={{ color: c.link, fontSize: 24 }}>+</Text>
         )}
       </Press>
     </Pressable>
@@ -331,13 +331,13 @@ export default function NutritionAddScreen() {
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <View style={styles.bar}>
         <Press accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
-          <Text style={[styles.barAction, { color: c.sky }]}>{added.length ? '다 했어요' : '닫기'}</Text>
+          <Text style={[styles.barAction, { color: c.link }]}>{added.length ? '다 했어요' : '닫기'}</Text>
         </Press>
         <Text style={[styles.barTitle, { color: c.ink, flexShrink: 1 }]} numberOfLines={1}>
           {replacing ? `‘${replacing.name}’ 바꾸기` : `${mealLabel(mealKey)}에 담기`}
         </Text>
         <Press accessibilityRole="button" onPress={() => router.push('/nutrition/barcode' as Href)} hitSlop={10}>
-          <Text style={[styles.barAction, { color: c.sky }]}>바코드</Text>
+          <Text style={[styles.barAction, { color: c.link }]}>바코드</Text>
         </Press>
       </View>
 
@@ -402,7 +402,7 @@ export default function NutritionAddScreen() {
                         }}
                         style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
                       >
-                        <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>찾지 못했어요 · 다시</Text>
+                        <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>찾지 못했어요 · 다시</Text>
                       </Press>
                     ) : shownMfds?.full && shownMfds.foods.length === 0 && local.length === 0 ? (
                       <Text style={{ color: c.muted, fontSize: 15, padding: 8, textAlign: 'center' }}>‘{q.trim()}’에 맞는 음식이 없어요.</Text>
@@ -537,7 +537,7 @@ export default function NutritionAddScreen() {
           <Text style={{ flex: 1, color: c.ink, fontSize: 15 }} numberOfLines={1}>
             {added.length === 1 ? `${added[0]} 담았어요` : `${added.length}번 담았어요 · ${added.at(-1)}`}
           </Text>
-          <Press accessibilityRole="button" onPress={() => router.back()} style={[styles.done, { backgroundColor: c.sky }]}>
+          <Press accessibilityRole="button" onPress={() => router.back()} style={[styles.done, { backgroundColor: c.action }]}>
             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>다 했어요</Text>
           </Press>
         </View>

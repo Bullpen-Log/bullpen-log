@@ -144,7 +144,7 @@ export default function LabScreen() {
   const header = (
     <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: c.line }]}>
       <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="뒤로" style={s.iconBtn}>
-        <SymbolView name="chevron.left" size={20} weight="semibold" tintColor={c.sky} />
+        <Icon name="chevron-left" size={20} color={c.link} />
       </Pressable>
       <Text accessibilityRole="header" numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
         3D 동작 분석
@@ -161,7 +161,7 @@ export default function LabScreen() {
           {failed ? (
             <>
               <Text style={[s.body, s.center, { color: c.ink }]}>{failed}</Text>
-              <Pressable onPress={() => setTries((n) => n + 1)} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
+              <Pressable onPress={() => setTries((n) => n + 1)} accessibilityRole="button" style={[s.pill, { backgroundColor: c.action }]}>
                 <Text style={[s.bodyBold, { color: '#fff' }]}>다시 불러오기</Text>
               </Pressable>
             </>
@@ -429,7 +429,7 @@ function RequestPanel({ id, req, hasResult, onStarted, c }: { id: string; req: A
           <Text style={[s.small, { color: c.ink }]}>{req.fix}</Text>
           {req.fixSection ? (
             <Pressable onPress={() => router.push(`/lab/guide?s=${req.fixSection}` as Href)} accessibilityRole="link" hitSlop={6}>
-              <Text style={[s.smallBold, { color: c.sky }]}>촬영 안내 보기 ›</Text>
+              <Text style={[s.smallBold, { color: c.link }]}>촬영 안내 보기 ›</Text>
             </Pressable>
           ) : null}
         </View>
@@ -444,7 +444,7 @@ function RequestPanel({ id, req, hasResult, onStarted, c }: { id: string; req: A
         style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}
       >
         <View style={{ width: 22, height: 22, borderRadius: 6, marginTop: 1, borderWidth: 2, borderColor: need ? c.danger : consent ? c.sky : c.line, backgroundColor: consent ? c.sky : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-          {consent ? <SymbolView name="checkmark" size={12} weight="bold" tintColor="#fff" /> : null}
+          {consent ? <Icon name="check" size={12} color="#fff" /> : null}
         </View>
         <Text style={[s.small, { flex: 1, color: need ? c.danger : c.ink, lineHeight: 20 }]}>{CONSENT_TEXT}</Text>
       </Pressable>
@@ -459,7 +459,7 @@ function RequestPanel({ id, req, hasResult, onStarted, c }: { id: string; req: A
             </Pressable>
           </>
         ) : (
-          <Pressable onPress={() => void submit()} disabled={busy} accessibilityRole="button" style={[s.pill, { flex: 1, backgroundColor: c.sky, opacity: busy ? 0.5 : 1 }]}>
+          <Pressable onPress={() => void submit()} disabled={busy} accessibilityRole="button" style={[s.pill, { flex: 1, backgroundColor: c.action, opacity: busy ? 0.5 : 1 }]}>
             <Text style={[s.bodyBold, { color: '#fff' }]}>{busy ? '거는 중' : hasResult ? '다시 분석' : '3D 분석(서버)'}</Text>
           </Pressable>
         )}

@@ -93,7 +93,7 @@ export function CustomFood({
           {error}
         </Text>
       ) : null}
-      <Press accessibilityRole="button" onPress={submit} disabled={busy} style={[styles.primary, { backgroundColor: c.sky }, busy && { opacity: 0.5 }]}>
+      <Press accessibilityRole="button" onPress={submit} disabled={busy} style={[styles.primary, { backgroundColor: c.action }, busy && { opacity: 0.5 }]}>
         <Text style={styles.primaryText}>{submitLabel}</Text>
       </Press>
     </View>

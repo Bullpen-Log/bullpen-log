@@ -1,8 +1,8 @@
-import { SymbolView } from 'expo-symbols';
+import { ActionButton } from '~/shell/action-button';
 import * as Haptics from 'expo-haptics';
 import { type Href, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CardAction, TrainingCard } from '@/lib/report/training-home-data';
 import type { TrainingWeekCounts } from '@/lib/report/training-week-counts';
@@ -11,7 +11,7 @@ import { ThrowNoteCard } from '~/mechanics/parts';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { rpc, RpcError } from '~/lib/rpc';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
-import { usePalette, withAlpha } from '~/lib/ui';
+import { RADIUS, SPACE, TYPE, usePalette, withAlpha } from '~/lib/ui';
 import { fromApp, openCheckin } from '~/shell/web-nav';
 import { READABLE } from '~/lib/layout';
 import { useFocusRefresh, useOnTabActive, useRetapTop } from '~/shell/tab-pager';
@@ -168,7 +168,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
             <Press
               accessibilityRole="button"
               onPress={() => void load()}
-              style={{ minHeight: 44, paddingHorizontal: 20, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: c.sky }}
+              style={{ minHeight: 44, paddingHorizontal: 20, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: c.action }}
             >
               <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
             </Press>
@@ -200,7 +200,7 @@ function Card({
 }) {
   const c = usePalette();
   const a = APP[card.app];
-  const toneColor = card.tone === 'warn' ? c.danger : card.tone === 'done' ? c.sky : c.muted;
+  const toneColor = card.tone === 'warn' ? c.danger : card.tone === 'done' ? c.ok : c.muted;
   const label =
     card.action?.kind === 'workout' ? (card.action.resume ? '이어서' : '시작') : card.action ? card.action.label : null;
   return (
@@ -218,15 +218,13 @@ function Card({
           </Text>
         </View>
         {card.action && label ? (
-          <Pressable
-            accessibilityRole="button"
+          <ActionButton
+            compact
+            label={label}
+            icon={card.action.kind === 'checkin' ? undefined : 'play'}
             disabled={busy && card.action.kind === 'workout'}
             onPress={() => onAction(card.action!)}
-            style={({ pressed }) => [styles.start, { backgroundColor: c.sky }, (pressed || (busy && card.action?.kind === 'workout')) && { opacity: 0.6 }]}
-          >
-            {card.action.kind !== 'checkin' ? <SymbolView name="play.fill" size={12} tintColor="#fff" /> : null}
-            <Text style={styles.startText}>{label}</Text>
-          </Pressable>
+          />
         ) : (
           <Text style={{ color: c.muted, fontSize: 20 }}>›</Text>
         )}
@@ -252,7 +250,7 @@ function Card({
           }
           style={styles.line}
         >
-          <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{card.gap.text} ›</Text>
+          <Text style={{ color: c.link, fontSize: 13, fontWeight: '600' }}>{card.gap.text} ›</Text>
         </Press>
       ) : null}
       {/* 웹 트레이닝 홈의 드릴 공 줄과 같은 부품(DRILL_THROW_TEXT 문구 · '이미 넣었어요' · '안 적을래요' 닫기 — mechanics.closeDrillThrowNote) */}
@@ -295,7 +293,7 @@ function WeekLine({ week, c }: { week: TrainingWeekCounts; c: ReturnType<typeof 
   ];
   const none = cells.every(([, n]) => n === 0);
   return (
-    <View style={[styles.week, { backgroundColor: c.card, boxShadow: c.float }]}>
+    <View style={[styles.week, { backgroundColor: c.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.line }]}>
       {none ? (
         <Text style={{ color: c.muted, fontSize: 15 }}>이번 주는 아직 기록이 없어요.</Text>
       ) : (
@@ -322,12 +320,10 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontSize: 34, fontWeight: '700' },
   chip: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
   chipText: { fontSize: 15, fontWeight: '600' },
-  card: { borderRadius: 20, padding: 16, gap: 12 },
+  card: { borderRadius: RADIUS.card, padding: SPACE.pad, gap: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   icon: { width: 44, height: 44, borderRadius: 12.3, alignItems: 'center', justifyContent: 'center' },
-  name: { fontSize: 17, fontWeight: '700' },
-  start: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, borderRadius: 20, paddingHorizontal: 16 },
-  startText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  name: { ...TYPE.card },
   bars: { flexDirection: 'row', gap: 2 },
   bar: { flex: 1, height: 6, borderRadius: 3 },
   line: { minHeight: 32, justifyContent: 'center' },

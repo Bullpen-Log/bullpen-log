@@ -1,3 +1,4 @@
+import { Icon } from '~/shell/icon';
 import { SymbolView } from 'expo-symbols';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
@@ -37,7 +38,7 @@ export function RestPill({ seconds, target, c }: { seconds: number; target: numb
     >
       <SymbolView name="timer" size={16} tintColor={over ? c.sky : c.muted} />
       <Text style={[s.restClock, { color: c.ink }]}>{clockText(seconds)}</Text>
-      <Text style={[s.small, { color: over ? c.sky : c.muted, fontWeight: over ? '700' : '400' }]}>
+      <Text style={[s.small, { color: over ? c.link : c.muted, fontWeight: over ? '700' : '400' }]}>
         {target == null ? '쉬는 중' : `권장 ${clockText(target)}`}
       </Text>
     </View>
@@ -59,8 +60,8 @@ export function SetDots({ planned, done, c }: { planned: number; done: number; c
       </View>
       <Pop key={`all-${all}`} on={all}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          {all ? <SymbolView name="checkmark" size={12} weight="bold" tintColor={c.sky} /> : null}
-          <Text style={[s.small, { color: all ? c.sky : c.muted, fontWeight: all ? '700' : '400' }]}>
+          {all ? <Icon name="check" size={12} color={c.link} /> : null}
+          <Text style={[s.small, { color: all ? c.link : c.muted, fontWeight: all ? '700' : '400' }]}>
             {all ? `${planned}세트 다 했어요` : `${planned}세트 중 ${done}세트`}
           </Text>
         </View>
@@ -243,7 +244,7 @@ export function NoteBox({
     return (
       <View style={[s.noteBox, { borderColor: c.sky, backgroundColor: c.card, boxShadow: c.float }]}>
         <View style={s.noteHead}>
-          <Text style={[s.smallBold, { color: c.sky, flex: 1 }]}>내 메모</Text>
+          <Text style={[s.smallBold, { color: c.link, flex: 1 }]}>내 메모</Text>
           <Press onPress={() => setDraft(null)} disabled={saving} style={s.noteBtn} accessibilityRole="button">
             <Text style={[s.smallBold, { color: c.muted }]}>취소</Text>
           </Press>
@@ -251,7 +252,7 @@ export function NoteBox({
             onPress={() => void save()}
             disabled={saving}
             accessibilityRole="button"
-            style={[s.noteBtn, { backgroundColor: c.sky, opacity: saving ? 0.6 : 1 }]}
+            style={[s.noteBtn, { backgroundColor: c.action, opacity: saving ? 0.6 : 1 }]}
           >
             <Text style={[s.smallBold, { color: '#fff' }]}>{saving ? '저장 중…' : '저장'}</Text>
           </Press>

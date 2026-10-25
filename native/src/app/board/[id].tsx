@@ -58,7 +58,7 @@ export default function ArticleScreen() {
         <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', padding: 32 }}>없는 글이에요.</Text>
       ) : (
         <ScrollView contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: inset.bottom + 40 }, READABLE]}>
-          {a.tags.length > 0 ? <Text style={{ color: c.sky, fontSize: 15 }}>{a.tags.map((t) => `#${t}`).join(' ')}</Text> : null}
+          {a.tags.length > 0 ? <Text style={{ color: c.link, fontSize: 15 }}>{a.tags.map((t) => `#${t}`).join(' ')}</Text> : null}
           <Text selectable style={{ color: c.ink, fontSize: 24, fontWeight: '700', lineHeight: 31 }}>
             {a.title}
           </Text>

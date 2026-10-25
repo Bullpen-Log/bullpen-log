@@ -151,7 +151,7 @@ export default function PitchImportScreen() {
             <Text style={{ color: c.muted, fontSize: 15, lineHeight: 22 }}>
               사진 앱의 투구 영상을 찍은 날짜로 묶어 기록으로 남겨요. 한 번에 {PICK_LIMIT}개까지 고르고, 같은 날 영상은 2개씩 한 기록이 돼요.
             </Text>
-            <Press accessibilityRole="button" onPress={pick} disabled={!!busy} style={[styles.primary, { backgroundColor: c.sky }, busy && { opacity: 0.4 }]}>
+            <Press accessibilityRole="button" onPress={pick} disabled={!!busy} style={[styles.primary, { backgroundColor: c.action }, busy && { opacity: 0.4 }]}>
               <Text style={styles.primaryText}>영상 고르기</Text>
             </Press>
           </View>
@@ -208,13 +208,13 @@ export default function PitchImportScreen() {
                     );
                   })}
                   {saved ? (
-                    <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>기록으로 남겼어요</Text>
+                    <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>기록으로 남겼어요</Text>
                   ) : (
                     <Press
                       accessibilityRole="button"
                       onPress={() => open(g)}
                       disabled={!!busy || !g.date}
-                      style={[styles.primary, { backgroundColor: c.sky }, (!g.date || busy) && { opacity: 0.4 }]}
+                      style={[styles.primary, { backgroundColor: c.action }, (!g.date || busy) && { opacity: 0.4 }]}
                     >
                       <Text style={styles.primaryText}>기록 남기기</Text>
                     </Press>

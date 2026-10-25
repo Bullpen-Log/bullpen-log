@@ -76,7 +76,7 @@ export default function BarcodeScreen() {
               <Press
                 accessibilityRole="button"
                 onPress={() => (perm.canAskAgain ? void requestPerm() : void Linking.openSettings())}
-                style={[styles.primary, { backgroundColor: c.sky }]}
+                style={[styles.primary, { backgroundColor: c.action }]}
               >
                 <Text style={styles.primaryText}>{perm.canAskAgain ? '카메라 허락하기' : '설정 열기'}</Text>
               </Press>
@@ -93,7 +93,7 @@ export default function BarcodeScreen() {
               placeholderTextColor="rgba(255,255,255,0.5)"
               style={styles.typeInput}
             />
-            <Press accessibilityRole="button" disabled={!typed.trim()} onPress={() => void look(typed)} style={[styles.small, { backgroundColor: c.sky }, !typed.trim() && { opacity: 0.4 }]}>
+            <Press accessibilityRole="button" disabled={!typed.trim()} onPress={() => void look(typed)} style={[styles.small, { backgroundColor: c.action }, !typed.trim() && { opacity: 0.4 }]}>
               <Text style={styles.primaryText}>찾기</Text>
             </Press>
           </View>
@@ -106,7 +106,7 @@ export default function BarcodeScreen() {
       ) : phase.kind === 'error' ? (
         <View style={styles.center}>
           <Text style={styles.note}>{phase.message}</Text>
-          <Press accessibilityRole="button" onPress={() => setPhase({ kind: 'scan' })} style={[styles.primary, { backgroundColor: c.sky }]}>
+          <Press accessibilityRole="button" onPress={() => setPhase({ kind: 'scan' })} style={[styles.primary, { backgroundColor: c.action }]}>
             <Text style={styles.primaryText}>다시 읽기</Text>
           </Press>
         </View>
@@ -191,7 +191,7 @@ function ManualFood({ code, name: initialName, onRescan }: { code: string; name:
         <View style={{ flex: 1 }}>{field('지방(g)', fat, setFat)}</View>
       </View>
       {error ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
-      <Press accessibilityRole="button" onPress={save} disabled={saving} style={[styles.primary, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
+      <Press accessibilityRole="button" onPress={save} disabled={saving} style={[styles.primary, { backgroundColor: c.action }, saving && { opacity: 0.5 }]}>
         <Text style={styles.primaryText}>{saving ? '저장하는 중' : '저장하고 담기'}</Text>
       </Press>
       <Press accessibilityRole="button" onPress={onRescan} style={[styles.primary, { backgroundColor: c.chip }]}>

@@ -51,7 +51,7 @@ export default function AdminSupportScreen() {
                       <Text style={{ flex: 1, color: c.ink, fontSize: 17, fontWeight: '600' }} numberOfLines={2}>
                         {q.title}
                       </Text>
-                      <Badge text={q.status} color={q.open ? c.sky : undefined} c={c} />
+                      <Badge text={q.status} color={q.open ? c.link : undefined} c={c} />
                     </View>
                     {/* 옛 서버(종류 칸 없음)면 '기타' 배지 대신 예전 글 줄 */}
                     {q.category ? (

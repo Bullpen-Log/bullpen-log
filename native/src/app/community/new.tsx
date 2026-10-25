@@ -80,7 +80,7 @@ export default function NewPostScreen() {
           accessibilityRole="button"
           onPress={submit}
           disabled={send.busy}
-          style={[s.primary, { backgroundColor: c.sky }, send.busy && { opacity: 0.5 }]}
+          style={[s.primary, { backgroundColor: c.action }, send.busy && { opacity: 0.5 }]}
         >
           <Text style={s.primaryText}>{send.busy ? '올리는 중' : '올리기'}</Text>
         </Press>

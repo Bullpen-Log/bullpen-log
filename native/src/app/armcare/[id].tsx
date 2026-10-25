@@ -1,3 +1,4 @@
+import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
@@ -72,7 +73,7 @@ export default function ArmcarePlayScreen() {
               setTries((n) => n + 1);
             }}
             accessibilityRole="button"
-            style={[s.pill, { backgroundColor: c.sky }]}
+            style={[s.pill, { backgroundColor: c.action }]}
           >
             <Text style={[s.bodyBold, { color: '#fff' }]}>다시 불러오기</Text>
           </Press>
@@ -373,7 +374,7 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
             인터넷이 끊겨 체크 {unsent}개를 아직 못 남겼어요. 폰에 담아 뒀다가 신호가 돌아오면 보내요.
           </Text>
           <Press onPress={() => void flush()} accessibilityRole="button" style={s.textBtn}>
-            <Text style={[s.smallBold, { color: c.sky }]}>다시 보내기</Text>
+            <Text style={[s.smallBold, { color: c.link }]}>다시 보내기</Text>
           </Press>
         </View>
       ) : null}
@@ -390,7 +391,7 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
       <View style={s.headRow}>
         <Press onPress={close} accessibilityRole="button" accessibilityLabel="따라하기 닫기" style={s.iconBtn}>
           <View style={[s.circle, { backgroundColor: c.chip }]}>
-            <SymbolView name="xmark" size={14} weight="semibold" tintColor={c.muted} />
+            <Icon name="x" size={14} color={c.muted} />
           </View>
         </Press>
         <Text numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
@@ -440,8 +441,8 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
     return shell(
       <ScrollView style={s.fill} contentContainerStyle={[s.finish, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE]}>
         {count > 0 ? (
-          <View style={[s.doneMark, { backgroundColor: c.sky }]}>
-            <SymbolView name="checkmark" size={36} weight="bold" tintColor="#fff" />
+          <View style={[s.doneMark, { backgroundColor: c.action }]}>
+            <Icon name="check" size={36} color="#fff" />
           </View>
         ) : null}
         <Text style={[s.finishTitle, { color: c.ink }]}>{all ? '루틴 끝!' : '오늘은 여기까지'}</Text>
@@ -454,7 +455,7 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
         {rehabCheck && count > 0 ? (
           <RehabCheck dateKey={dateKey} settled={unsaved.length === 0} initial={rehabCheck.initial} c={c} />
         ) : null}
-        <Press onPress={close} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
+        <Press onPress={close} accessibilityRole="button" style={[s.pill, { backgroundColor: c.action }]}>
           <Text style={[s.bodyBold, { color: '#fff' }]}>암케어로 돌아가기</Text>
         </Press>
       </ScrollView>
@@ -486,7 +487,7 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
           <ExerciseMedia path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
           <View style={{ gap: 6 }}>
             <Text style={[s.title, { color: c.ink }]}>{ex.title}</Text>
-            <Text style={[s.amount, { color: c.sky }]}>
+            <Text style={[s.amount, { color: c.link }]}>
               {amount}
               {it.perSide ? ' · 좌우 각각' : ''} · {it.sets}세트
             </Text>
@@ -507,7 +508,7 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
       {/* 누르는 막대 — 엄지가 닿는 아래에 */}
       <View style={[s.bottom, { paddingBottom: Math.max(12, inset.bottom), paddingHorizontal: barSide, backgroundColor: c.card, borderTopColor: c.line }]}>
         {toast ? (
-          <Text key={state.justDone?.at} accessibilityRole="alert" style={[s.bodyBold, s.center, { color: c.sky }]}>
+          <Text key={state.justDone?.at} accessibilityRole="alert" style={[s.bodyBold, s.center, { color: c.link }]}>
             ✓ {toast} 완료
           </Text>
         ) : null}
@@ -523,12 +524,12 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
             </Pressable>
           </View>
         ) : done ? (
-          <Text style={[s.bodyBold, s.center, s.doneLine, { color: c.sky }]}>✓ 오늘 이미 한 운동이에요</Text>
+          <Text style={[s.bodyBold, s.center, s.doneLine, { color: c.link }]}>✓ 오늘 이미 한 운동이에요</Text>
         ) : (
           <Pressable
             onPress={() => tap(it.holdSeconds != null ? { type: 'hold', at: Date.now() } : { type: 'set', at: Date.now() })}
             accessibilityRole="button"
-            style={({ pressed }) => [s.big, { backgroundColor: c.sky, opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [s.big, { backgroundColor: c.action, opacity: pressed ? 0.85 : 1 }]}
           >
             <SymbolView name={it.holdSeconds != null ? 'play.fill' : 'checkmark'} size={18} weight="bold" tintColor="#fff" />
             <Text style={s.bigText}>

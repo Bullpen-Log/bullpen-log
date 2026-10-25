@@ -1,6 +1,5 @@
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { useEffect, useState } from 'react';
-import { SymbolView } from 'expo-symbols';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { usePalette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
@@ -171,7 +170,7 @@ function ToolPlayer({ uri }: { uri: string }) {
           }}
           style={[styles.tool, styles.measure, { backgroundColor: drawing ? c.sky : c.chip }]}
         >
-          <SymbolView name="ruler" size={15} weight="semibold" tintColor={drawing ? '#fff' : c.ink} />
+          <Icon name="ruler" size={15} color={drawing ? '#fff' : c.ink} />
           <Text style={{ color: drawing ? '#fff' : c.ink, fontSize: 13, fontWeight: '600' }}>측정</Text>
         </Press>
         <View style={{ flex: 1 }} />

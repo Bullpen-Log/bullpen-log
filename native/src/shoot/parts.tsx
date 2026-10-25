@@ -43,7 +43,7 @@ export function StackBar({ done, redo, later, total, height = 8, c }: { done: nu
       accessibilityValue={{ min: 0, max: total, now: done }}
       style={{ flexDirection: 'row', height, borderRadius: height / 2, overflow: 'hidden', backgroundColor: c.line }}
     >
-      <View style={{ width: `${part(done)}%`, backgroundColor: c.sky }} />
+      <View style={{ width: `${part(done)}%`, backgroundColor: c.action }} />
       <View style={{ width: `${part(redo)}%`, backgroundColor: c.warn }} />
       <View style={{ width: `${part(later)}%`, backgroundColor: c.muted, opacity: 0.4 }} />
     </View>

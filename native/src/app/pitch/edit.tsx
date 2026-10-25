@@ -1,3 +1,4 @@
+import { ActionButton } from '~/shell/action-button';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
@@ -123,7 +124,7 @@ export default function PitchEditScreen() {
             <Text style={{ color: c.ink, fontSize: 15, textAlign: 'center' }}>{error && !logs ? error : '이 기록을 찾지 못했어요. 지워졌을 수 있어요.'}</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {error && !logs ? (
-                <Press accessibilityRole="button" onPress={() => void reload()} style={{ minHeight: 44, paddingHorizontal: 18, borderRadius: 22, justifyContent: 'center', backgroundColor: c.sky }}>
+                <Press accessibilityRole="button" onPress={() => void reload()} style={{ minHeight: 44, paddingHorizontal: 18, borderRadius: 22, justifyContent: 'center', backgroundColor: c.action }}>
                   <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
                 </Press>
               ) : null}
@@ -463,7 +464,7 @@ export function EntryForm({
             }}
             style={styles.restoredBtn}
           >
-            <Text style={{ color: c.sky, fontSize: 13, fontWeight: '400' }}>지우기</Text>
+            <Text style={{ color: c.link, fontSize: 13, fontWeight: '400' }}>지우기</Text>
           </Press>
         </View>
       ) : null}
@@ -580,9 +581,9 @@ export function EntryForm({
                 <Text style={{ color: withAlpha(c.muted, 0.7), fontSize: 13 }}>{SATISFACTION_ENDS.high} 5</Text>
               </View>
               <Press accessibilityRole="button" accessibilityState={{ expanded: cuesOpen }} onPress={() => setCuesOpen((o) => !o)} style={styles.cueToggle}>
-                <Text style={{ color: c.sky, fontSize: 15, fontWeight: '400' }}>느낀 점 더하기</Text>
+                <Text style={{ color: c.link, fontSize: 15, fontWeight: '400' }}>느낀 점 더하기</Text>
                 <View style={{ transform: [{ rotate: cuesOpen ? '180deg' : '0deg' }] }}>
-                  <Icon name="chevron-down" size={16} color={c.sky} />
+                  <Icon name="chevron-down" size={16} color={c.link} />
                 </View>
               </Press>
               {cuesOpen ? (
@@ -676,16 +677,12 @@ export function EntryForm({
       {error ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
       {/* 저장 — 웹 '10월 4일 기록 저장' · '수정 저장' */}
       <View style={{ gap: 8 }}>
-        <Press
-          accessibilityRole="button"
+        <ActionButton
           onPress={() => void save()}
           disabled={!!busy}
-          style={[styles.save, { backgroundColor: c.sky }, busy ? { opacity: 0.5 } : null]}
-        >
-          <Text style={styles.saveText}>
-            {busy === '저장하는 중' ? '저장 중…' : busy ? '영상 올리는 중… 끝나면 저장할 수 있어요' : editing ? '수정 저장' : `${at.getUTCMonth() + 1}월 ${at.getUTCDate()}일 기록 저장`}
-          </Text>
-        </Press>
+          busy={!!busy}
+          label={busy === '저장하는 중' ? '저장 중…' : busy ? '영상 올리는 중… 끝나면 저장할 수 있어요' : editing ? '수정 저장' : `${at.getUTCMonth() + 1}월 ${at.getUTCDate()}일 기록 저장`}
+        />
         {inline?.onCancel ? (
           <Press accessibilityRole="button" onPress={cancel} disabled={!!busy} style={[styles.cancel, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
             <Text style={{ color: c.ink, fontSize: 15, fontWeight: '400' }}>취소</Text>
@@ -702,7 +699,7 @@ export function EntryForm({
       <Stack.Screen options={{ gestureEnabled: !busy }} />
       <View style={[styles.bar, { paddingTop: 12 }]}>
         <Press accessibilityRole="button" onPress={cancel} disabled={!!busy} hitSlop={10}>
-          <Text style={[styles.barAction, { color: c.sky }]}>취소</Text>
+          <Text style={[styles.barAction, { color: c.link }]}>취소</Text>
         </Press>
         <Text style={[styles.barTitle, { color: c.ink }]}>
           {at.getUTCMonth() + 1}월 {at.getUTCDate()}일 {editing ? '기록 수정' : '기록하기'}
@@ -768,7 +765,7 @@ function IntensityGuide({ c }: { c: Palette }) {
   return (
     <View style={[styles.guide, { borderColor: c.line, backgroundColor: withAlpha(c.chip, 0.25) }]}>
       <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={styles.guideHead}>
-        <Icon name="info" size={14} color={c.sky} />
+        <Icon name="info" size={14} color={c.link} />
         <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>{PITCH_EFFORT_ASK}</Text>
         <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
           <Icon name="chevron-down" size={14} color={c.muted} />
@@ -779,7 +776,7 @@ function IntensityGuide({ c }: { c: Palette }) {
           <Text style={{ color: c.muted, fontSize: 11, lineHeight: 16 }}>{PITCH_EFFORT_INTRO}</Text>
           {PITCH_LEVELS.map((l) => (
             <View key={l.range} style={{ flexDirection: 'row', gap: 12 }}>
-              <Text style={{ width: 56, color: c.sky, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] }}>{l.range}</Text>
+              <Text style={{ width: 56, color: c.link, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] }}>{l.range}</Text>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: c.ink, fontSize: 13, fontWeight: '600' }}>{l.label}</Text>
                 <Text style={{ color: c.muted, fontSize: 11, lineHeight: 16, marginTop: 2 }}>{l.detail}</Text>

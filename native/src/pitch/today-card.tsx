@@ -1,3 +1,4 @@
+import { ActionButton } from '~/shell/action-button';
 import { type Href, router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -82,7 +83,7 @@ export function PitchTodayCard({ today }: { today: string }) {
       };
 
   return (
-    <Animated.View layout={LinearTransition.duration(260)} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
+    <Animated.View layout={LinearTransition.duration(260)} style={[styles.card, { backgroundColor: c.card, boxShadow: c.floatHero }]}>
       {/*
         지금 팔 상태 — 카드에서 가장 먼저 읽히게 색 띠 · 큰 글(2026-10-21 김민: 안전 신호가 가장 작은 글이었다).
         까닭(details)은 접어 두고 띠를 누르면 편다
@@ -119,10 +120,7 @@ export function PitchTodayCard({ today }: { today: string }) {
       {data.unloggedVelocity ? (
         <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>구속 측정 {data.unloggedVelocity}구가 아직 투구 기록에 없어요. 남겨야 팔 부하에 들어가요.</Text>
       ) : null}
-      <Press accessibilityRole="button" onPress={button.go} style={[styles.primary, { backgroundColor: c.sky }]}>
-        <Icon name="plus" size={16} color="#fff" />
-        <Text style={styles.primaryText}>{button.label}</Text>
-      </Press>
+      <ActionButton label={button.label} icon="plus" onPress={button.go} />
     </Animated.View>
   );
 }

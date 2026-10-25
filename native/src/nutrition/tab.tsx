@@ -1,4 +1,3 @@
-import { SymbolView } from 'expo-symbols';
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
@@ -94,7 +93,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     return (
       <View style={[styles.center, { backgroundColor: c.page, paddingBottom: bottom }]}>
         <Text style={{ color: c.ink, fontSize: 17, textAlign: 'center' }}>{error}</Text>
-        <Press accessibilityRole="button" onPress={onWebNutrition} style={[styles.primary, { backgroundColor: c.sky }]}>
+        <Press accessibilityRole="button" onPress={onWebNutrition} style={[styles.primary, { backgroundColor: c.action }]}>
           <Text style={styles.primaryText}>영양 설정하기</Text>
         </Press>
       </View>
@@ -182,7 +181,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
       {/* 머리 — 웹 영양 탭 휴대폰: 큰 제목 · 오른쪽 목표 단추(그림만), 밑에 날짜 띠(최근 6주) */}
       <View style={{ gap: 12 }}>
         <View style={styles.head}>
-          <Text accessibilityRole="header" style={[styles.title, { color: c.ink }]}>영양</Text>
+          <Text accessibilityRole="header" style={[TYPE.title, { color: c.ink }]}>영양</Text>
           <Press
             accessibilityRole="button"
             accessibilityLabel="영양 목표"
@@ -219,11 +218,11 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
         ) : (
           <View style={styles.dateRow}>
             <Press accessibilityLabel="전날" disabled={date <= oldest} onPress={() => setDate(shiftDateKey(date, -1))} style={[styles.arrow, date <= oldest && { opacity: 0.3 }]}>
-              <Text style={[styles.arrowText, { color: c.sky }]}>‹</Text>
+              <Text style={[styles.arrowText, { color: c.link }]}>‹</Text>
             </Press>
             <Text style={[styles.date, { color: c.ink }]}>{isToday ? '오늘' : `${m}월 ${d}일`}</Text>
             <Press accessibilityLabel="다음날" disabled={date >= today} onPress={() => setDate(shiftDateKey(date, 1))} style={[styles.arrow, date >= today && { opacity: 0.3 }]}>
-              <Text style={[styles.arrowText, { color: c.sky }]}>›</Text>
+              <Text style={[styles.arrowText, { color: c.link }]}>›</Text>
             </Press>
           </View>
         )}
@@ -247,19 +246,19 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
 
       {/* 오늘 영양 한 장(웹 TodayCard) — 링 · 남은 열량 · 균형 점수, 탄단지 세 칸, 할 일 한 줄(던지는 날은 가이드) */}
       {t ? (
-        <Animated.View entering={fadeIn} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
+        <Animated.View entering={fadeIn} style={[styles.card, { backgroundColor: c.card, boxShadow: c.floatHero }]}>
           <View style={styles.todayTop}>
             <KcalRing share={share} over={over} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ color: c.muted, fontSize: 13 }}>{!isToday ? '이날 먹은 열량' : over ? '목표보다 더 먹었어요' : '남은 열량'}</Text>
-              <Text style={{ color: over && isToday ? c.warn : c.ink, fontSize: 30, fontWeight: '700', fontVariant: ['tabular-nums'], letterSpacing: -0.5 }}>
+              <Text style={[TYPE.num, TYPE.hero, { color: over && isToday ? c.warn : c.ink }]}>
                 {/* 웹 TodayCard 와 같이 올라가며 나타남(from 0.7) */}
-                <CountUp value={round(isToday ? Math.abs(left) : eaten.kcal)} from={0.7} />
+                <CountUp value={round(isToday ? Math.abs(left) : eaten.kcal)} from={1} />
                 <Text style={[TYPE.unitLg, { color: c.muted }]}> kcal</Text>
               </Text>
               <Text style={{ color: c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>
                 {round(eaten.kcal).toLocaleString('ko-KR')} / {round(t.kcal).toLocaleString('ko-KR')}kcal
-                {t.burn > 0 ? <Text style={{ color: c.sky }}> · 운동 +{round(t.burn).toLocaleString('ko-KR')} 포함</Text> : null}
+                {t.burn > 0 ? <Text style={{ color: c.link }}> · 운동 +{round(t.burn).toLocaleString('ko-KR')} 포함</Text> : null}
                 {day?.adjust ? ` · 체중 조정 ${day.adjust > 0 ? '+' : '−'}${Math.abs(round(day.adjust)).toLocaleString('ko-KR')}` : ''}
               </Text>
             </View>
@@ -291,7 +290,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                   </Text>
                 </View>
                 <View style={[styles.macroTrack, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
-                  <View style={{ width: `${Math.min(100, goal > 0 ? (got / goal) * 100 : 0)}%`, height: '100%', borderRadius: 3, backgroundColor: c.sky }} />
+                  <View style={{ width: `${Math.min(100, goal > 0 ? (got / goal) * 100 : 0)}%`, height: '100%', borderRadius: 3, backgroundColor: c.action }} />
                 </View>
               </View>
             ))}
@@ -389,8 +388,8 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                     <Text style={[styles.mealTitle, { color: c.ink }]}>{meal.label}</Text>
                     <View style={{ flex: 1 }} />
                     <Press accessibilityRole="button" accessibilityLabel={`${meal.label}에 음식 담기`} onPress={add} style={styles.addBtn}>
-                      <Icon name="plus" size={16} color={c.sky} />
-                      <Text style={{ color: c.sky, fontSize: 15, fontWeight: '400' }}>담기</Text>
+                      <Icon name="plus" size={16} color={c.link} />
+                      <Text style={{ color: c.link, fontSize: 15, fontWeight: '400' }}>담기</Text>
                     </Press>
                   </View>
                 )}
@@ -417,7 +416,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                             <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>취소</Text>
                           </Press>
                           <Press accessibilityRole="button" onPress={() => finishEdit(editable)} style={styles.textBtn}>
-                            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>완료</Text>
+                            <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>완료</Text>
                           </Press>
                         </>
                       ) : (
@@ -432,8 +431,8 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                             <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>편집</Text>
                           </Press>
                           <Press accessibilityRole="button" accessibilityLabel={`${meal.label}에 음식 담기`} onPress={add} style={styles.addBtn}>
-                            <Icon name="plus" size={16} color={c.sky} />
-                            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '400' }}>담기</Text>
+                            <Icon name="plus" size={16} color={c.link} />
+                            <Text style={{ color: c.link, fontSize: 15, fontWeight: '400' }}>담기</Text>
                           </Press>
                         </>
                       )}
@@ -482,7 +481,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                           }
                           style={styles.textBtn}
                         >
-                          <Text style={{ color: allRemoved ? c.sky : c.danger, fontSize: 13, fontWeight: '400' }}>{allRemoved ? '모두 되살리기' : '모두 지우기'}</Text>
+                          <Text style={{ color: allRemoved ? c.link : c.danger, fontSize: 13, fontWeight: '400' }}>{allRemoved ? '모두 되살리기' : '모두 지우기'}</Text>
                         </Press>
                       </View>
                     ) : null}
@@ -605,8 +604,8 @@ function PlanCard({
         onPress={press}
         style={[styles.gridChip, on ? { borderColor: c.sky, backgroundColor: withAlpha(c.sky, 0.1) } : { backgroundColor: withAlpha(c.ink, 0.06) }]}
       >
-        {key === 'hot' && on ? <Icon name="check" size={14} color={c.sky} /> : null}
-        <Text numberOfLines={1} style={{ color: on ? c.sky : withAlpha(c.ink, 0.8), fontSize: 15, fontWeight: on ? '600' : '400' }}>
+        {key === 'hot' && on ? <Icon name="check" size={14} color={c.link} /> : null}
+        <Text numberOfLines={1} style={{ color: on ? c.link : withAlpha(c.ink, 0.8), fontSize: 15, fontWeight: on ? '600' : '400' }}>
           {label}
         </Text>
       </Press>
@@ -656,8 +655,8 @@ function PlanCard({
             onPress={() => run(() => makePlan(date, plan.context.place, plan.context.hot, plan.context.variant + 1))}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40, paddingHorizontal: 8, opacity: busy ? 0.6 : 1 }}
           >
-            <Icon name="refresh-cw" size={14} color={c.sky} />
-            <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>다른 식단으로</Text>
+            <Icon name="refresh-cw" size={14} color={c.link} />
+            <Text style={{ color: c.link, fontSize: 13, fontWeight: '600' }}>다른 식단으로</Text>
           </Press>
           <Press
             accessibilityRole="button"
@@ -676,7 +675,7 @@ function PlanCard({
             <View style={{ gap: 4 }}>
               {[...plan.context.reasons, ...(childNote ? ['성장기에는 단백질이 목표보다 조금 많아도 괜찮아요. 밥 · 반찬을 골고루 먹는 것이 먼저예요.'] : [])].map((r, i) => (
                 <Text key={i} style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>
-                  <Text style={{ color: c.sky }}>· </Text>
+                  <Text style={{ color: c.link }}>· </Text>
                   {r}
                 </Text>
               ))}
@@ -688,7 +687,7 @@ function PlanCard({
                 accessibilityRole="button"
                 disabled={busy}
                 onPress={() => run(() => makePlan(date, place, hot, plan.context.variant))}
-                style={[styles.ghostBtn, { backgroundColor: c.sky, opacity: busy ? 0.6 : 1 }]}
+                style={[styles.ghostBtn, { backgroundColor: c.action, opacity: busy ? 0.6 : 1 }]}
               >
                 <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>이 조건으로 다시 짜기</Text>
               </Press>
@@ -739,7 +738,7 @@ function PlanCard({
             accessibilityRole="button"
             disabled={busy}
             onPress={() => run(() => makePlan(date, place, hot, 0))}
-            style={[styles.primary, { backgroundColor: c.sky }, busy && { opacity: 0.5 }]}
+            style={[styles.primary, { backgroundColor: c.action }, busy && { opacity: 0.5 }]}
           >
             <Text style={styles.primaryText}>{busy ? '짜는 중…' : '식단 짜기'}</Text>
           </Press>
@@ -788,7 +787,7 @@ function PlanRows({
       ))}
       {items.length > 1 ? (
         <Press accessibilityRole="button" disabled={busy} onPress={() => onEat(items.map((p) => p.key))} style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }}>
-          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>모두 먹었어요</Text>
+          <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>모두 먹었어요</Text>
         </Press>
       ) : null}
     </View>
@@ -864,13 +863,13 @@ function EditRow({
         </Text>
         <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
           {kcalText(entry.kcal * draft.amount)}
-          {moved && !draft.remove ? <Text style={{ color: c.sky, fontWeight: '600' }}> · {mealLabel(draft.meal)}으로 옮김</Text> : null}
-          {!draft.remove ? <Text style={{ color: c.sky }}> · 바꾸기</Text> : null}
+          {moved && !draft.remove ? <Text style={{ color: c.link, fontWeight: '600' }}> · {mealLabel(draft.meal)}으로 옮김</Text> : null}
+          {!draft.remove ? <Text style={{ color: c.link }}> · 바꾸기</Text> : null}
         </Text>
       </Press>
       {draft.remove ? (
         <Press accessibilityRole="button" onPress={() => onChange({ ...draft, remove: false })} style={styles.textBtn}>
-          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>되살리기</Text>
+          <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>되살리기</Text>
         </Press>
       ) : (
         <>
@@ -886,7 +885,7 @@ function EditRow({
             </Press>
           </View>
           <Press accessibilityRole="button" accessibilityLabel={`${entry.name} 다른 끼니로 옮기기`} onPress={move} style={styles.icon}>
-            <SymbolView name="arrow.left.arrow.right" size={17} tintColor={moved ? c.sky : c.muted} />
+            <Icon name="arrow-left-right" size={18} color={moved ? c.link : c.muted} />
           </Press>
           <Press accessibilityRole="button" accessibilityLabel={`${entry.name} 지우기`} onPress={() => onChange({ ...draft, remove: true })} style={styles.icon}>
             <Icon name="trash2" size={19} color={c.muted} />

@@ -1,5 +1,4 @@
 import * as Haptics from 'expo-haptics';
-import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, Switch, Text, TextInput, View } from 'react-native';
 import { effectiveRate, paceDelta, ageRule } from '@/lib/nutrition/age';
@@ -177,9 +176,9 @@ export function OptionCards<T extends string>({
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>{o.label}</Text>
               {o.hint ? <Text style={{ color: c.muted, fontSize: 15, lineHeight: 20 }}>{o.hint}</Text> : null}
-              {o.badge ? <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{o.badge}</Text> : null}
+              {o.badge ? <Text style={{ color: c.link, fontSize: 13, fontWeight: '600' }}>{o.badge}</Text> : null}
             </View>
-            {on ? <SymbolView name="checkmark.circle.fill" size={22} tintColor={c.sky} /> : null}
+            {on ? <Icon name="circle-check" size={22} color={c.link} /> : null}
           </Pressable>
         );
       })}
@@ -298,7 +297,7 @@ function TargetStep({ ctx }: { ctx: StepCtx }) {
         c={c}
       />
       <Pressable accessibilityRole="button" onPress={() => set({ targetWeightKg: null, targetSkipped: !a.targetSkipped })} hitSlop={8} style={{ alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }}>
-        <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{a.targetSkipped ? '건너뛰기로 했어요 · 되돌리기' : '나중에 정할게요'}</Text>
+        <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>{a.targetSkipped ? '건너뛰기로 했어요 · 되돌리기' : '나중에 정할게요'}</Text>
       </Pressable>
       {a.targetSkipped ? <Text style={{ color: c.muted, fontSize: 13 }}>속도만으로 계획해요. 영양 탭에서 정할 수 있어요.</Text> : null}
     </View>
@@ -338,7 +337,7 @@ function PaceStep({ ctx }: { ctx: StepCtx }) {
       ) : null}
       {p.etaWeeks !== null && a.targetWeightKg !== null ? (
         <Text style={{ color: c.ink, fontSize: 17, lineHeight: 23 }}>
-          계획대로면 약 <Text style={{ color: c.sky, fontWeight: '700' }}>{p.etaWeeks}주</Text>, {dateText(periodDate(today, p.etaWeeks))}쯤 {kgText(a.targetWeightKg, unit)}이에요.
+          계획대로면 약 <Text style={{ color: c.link, fontWeight: '700' }}>{p.etaWeeks}주</Text>, {dateText(periodDate(today, p.etaWeeks))}쯤 {kgText(a.targetWeightKg, unit)}이에요.
         </Text>
       ) : null}
       <ChoiceChips
@@ -489,8 +488,8 @@ function Building({ lines, onDone, c }: { lines: string[]; onDone: () => void; c
     <View style={{ gap: 12 }}>
       {lines.slice(0, shown).map((l) => (
         <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: c.sky, alignItems: 'center', justifyContent: 'center' }}>
-            <SymbolView name="checkmark" size={12} weight="bold" tintColor="#fff" />
+          <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: c.action, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="check" size={12} color="#fff" />
           </View>
           <Text style={{ color: c.ink, fontSize: 17, flex: 1 }}>{l}</Text>
         </View>
@@ -503,7 +502,7 @@ function Building({ lines, onDone, c }: { lines: string[]; onDone: () => void; c
 export function MacroBar({ carbs, protein, fat, c }: { carbs: number; protein: number; fat: number; c: Palette }) {
   const s = macroSplit(carbs, protein, fat);
   const cells = [
-    { key: 'c', label: '탄수화물', g: carbs, pct: s.c, color: c.sky },
+    { key: 'c', label: '탄수화물', g: carbs, pct: s.c, color: c.link },
     { key: 'p', label: '단백질', g: protein, pct: s.p, color: c.ink + 'b3' },
     { key: 'f', label: '지방', g: fat, pct: s.f, color: c.warn },
   ];
@@ -537,7 +536,7 @@ function Stat({ label, value, sub, strong, c }: { label: string; value: number; 
       <Text numberOfLines={1} style={{ color: c.muted, fontSize: 13 }}>
         {label}
       </Text>
-      <Text style={{ color: strong ? c.sky : c.ink, fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+      <Text style={{ color: strong ? c.link : c.ink, fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
         {kcalText(value)}
         <Text style={[TYPE.unit, { color: c.muted }]}> kcal</Text>
       </Text>
@@ -601,8 +600,8 @@ function PlanStep({ ctx }: { ctx: StepCtx }) {
         </View>
       ) : (
         <Pressable accessibilityRole="button" onPress={() => setOpen(true)} hitSlop={6} style={{ alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Icon name="pencil" size={16} color={c.sky} />
-          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>하루 목표를 직접 정하기</Text>
+          <Icon name="pencil" size={16} color={c.link} />
+          <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>하루 목표를 직접 정하기</Text>
         </Pressable>
       )}
       <View style={{ gap: 8 }}>
@@ -705,7 +704,7 @@ function GramRow({
     <View style={{ gap: 4 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>{label}</Text>
-        {manual ? <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>직접 · 계산 {Math.round(auto)}g</Text> : null}
+        {manual ? <Text style={{ color: c.link, fontSize: 13, fontWeight: '600' }}>직접 · 계산 {Math.round(auto)}g</Text> : null}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: invalid ? c.danger : c.line, paddingHorizontal: 12 }}>
@@ -736,7 +735,7 @@ function GramRow({
           hitSlop={6}
           style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: manual ? 1 : 0.25 }}
         >
-          <SymbolView name="arrow.counterclockwise" size={17} tintColor={c.muted} />
+          <Icon name="rotate-ccw" size={17} color={c.muted} />
         </Pressable>
       </View>
       <Text style={{ color: c.muted, fontSize: 13, lineHeight: 17 }}>{hint}</Text>

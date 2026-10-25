@@ -254,7 +254,7 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
                       <View>
                         <ClipThumb clip={x} url={x.path ? thumbs[x.path] : undefined} />
                         {selecting && picked.some((y) => y?.id === x.id) ? (
-                          <View style={[styles.slot, { backgroundColor: c.sky }]}>
+                          <View style={[styles.slot, { backgroundColor: c.action }]}>
                             <Text style={styles.slotText}>{picked[0]?.id === x.id ? 'A' : 'B'}</Text>
                           </View>
                         ) : null}
@@ -286,7 +286,7 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
                               onPress={() => !on && x.path && void setFeatured(x.date, x.path)}
                               style={styles.star}
                             >
-                              <Icon name="star" size={16} color={on ? c.sky : c.muted} fill={on ? c.sky : 'none'} />
+                              <Icon name="star" size={16} color={on ? c.link : c.muted} fill={on ? c.sky : 'none'} />
                             </Press>
                           );
                         })()

@@ -110,7 +110,7 @@ export default function SignupScreen() {
       <Stack.Screen options={{ gestureEnabled: index === 0 }} />
       <View style={[st.bar, { paddingTop: inset.top }]}>
         <Pressable accessibilityRole="button" onPress={back} hitSlop={10} style={{ minWidth: 72 }}>
-          <Text style={{ color: c.sky, fontSize: 17 }}>‹ {index === 0 ? '로그인' : '이전'}</Text>
+          <Text style={{ color: c.link, fontSize: 17 }}>‹ {index === 0 ? '로그인' : '이전'}</Text>
         </Pressable>
         <Text style={{ color: c.muted, fontSize: 15, fontWeight: '400' }}>
           {index + 1} / {SIGNUP_STEPS.length}
@@ -118,7 +118,7 @@ export default function SignupScreen() {
         <View style={{ minWidth: 72 }} />
       </View>
       <View style={[st.track, { backgroundColor: c.chip }]}>
-        <View style={{ width: `${((index + 1) / SIGNUP_STEPS.length) * 100}%`, height: '100%', backgroundColor: c.sky, borderRadius: 2 }} />
+        <View style={{ width: `${((index + 1) / SIGNUP_STEPS.length) * 100}%`, height: '100%', backgroundColor: c.action, borderRadius: 2 }} />
       </View>
 
       <ScrollView ref={scroll} contentContainerStyle={[{ padding: 20, gap: 20, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
@@ -196,7 +196,7 @@ export default function SignupScreen() {
           </Text>
         ) : null}
 
-        <Pressable accessibilityRole="button" onPress={() => void next()} disabled={busy} style={({ pressed }) => [st.primary, { backgroundColor: c.sky, opacity: busy ? 0.6 : pressed ? 0.85 : 1 }]}>
+        <Pressable accessibilityRole="button" onPress={() => void next()} disabled={busy} style={({ pressed }) => [st.primary, { backgroundColor: c.action, opacity: busy ? 0.6 : pressed ? 0.85 : 1 }]}>
           <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>
             {busy ? (step === 'terms' ? '만드는 중…' : '확인 중…') : step === 'terms' ? '가입하고 시작하기' : '다음'}
           </Text>
@@ -269,7 +269,7 @@ function AgreeRow({ label, value, onChange, doc, strong, bad, last, c }: { label
         <Text style={{ color: bad ? c.danger : c.ink, fontSize: 17, fontWeight: strong ? '700' : '400' }}>{label}</Text>
         {doc ? (
           <Pressable accessibilityRole="link" onPress={() => void WebBrowser.openBrowserAsync(`${SITE_URL}/${doc}`).catch(() => undefined)} hitSlop={8}>
-            <Text style={{ color: c.sky, fontSize: 15 }}>읽어 보기 ›</Text>
+            <Text style={{ color: c.link, fontSize: 15 }}>읽어 보기 ›</Text>
           </Pressable>
         ) : null}
       </View>

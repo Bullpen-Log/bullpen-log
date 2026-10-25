@@ -262,7 +262,7 @@ export function DrawToolbar({
               accessibilityLabel={t.label}
               accessibilityState={{ selected: tool === t.kind }}
               onPress={() => onTool(t.kind)}
-              style={[st.tool, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: c.line }, tool === t.kind && { backgroundColor: c.sky }]}
+              style={[st.tool, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: c.line }, tool === t.kind && { backgroundColor: c.action }]}
             >
               <SymbolView name={t.icon} size={15} weight="semibold" tintColor={tool === t.kind ? '#fff' : c.muted} />
             </Press>

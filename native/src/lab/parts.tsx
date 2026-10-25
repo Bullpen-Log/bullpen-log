@@ -16,7 +16,7 @@ const toneColor = (tone: 'sky' | 'muted' | 'warn', c: Palette) => (tone === 'sky
 export function GuideLink({ label, section, hand, c }: { label: string; section: LabGuideSection; hand: LabHand; c: Palette }) {
   return (
     <Pressable accessibilityRole="link" onPress={() => router.push(`/lab/guide?hand=${hand}&s=${section}` as Href)} hitSlop={6} style={{ minHeight: 32, justifyContent: 'center' }}>
-      <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>{label}</Text>
     </Pressable>
   );
 }

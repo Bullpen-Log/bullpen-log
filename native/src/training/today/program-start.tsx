@@ -114,7 +114,7 @@ export function ProgramStartView({ ps, c, a }: { ps: TodayProgramStart; c: Palet
 
 function Badge({ c }: { c: Palette }) {
   return (
-    <View style={[st.badge, { backgroundColor: c.sky }]}>
+    <View style={[st.badge, { backgroundColor: c.action }]}>
       <Text style={[s.tiny, { color: '#fff', fontWeight: '700' }]}>추천</Text>
     </View>
   );
@@ -572,7 +572,7 @@ function PinList({
               {x.title ?? empty}
             </Text>
           </View>
-          <Text style={[s.bodyBold, { color: c.sky }]}>바꾸기</Text>
+          <Text style={[s.bodyBold, { color: c.link }]}>바꾸기</Text>
         </Press>
       ))}
     </View>

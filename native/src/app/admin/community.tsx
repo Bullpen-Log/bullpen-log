@@ -69,7 +69,7 @@ function ReportCard({ r, reload, c }: { r: Report; reload: () => void; c: Palett
   return (
     <View style={{ borderRadius: 14, padding: 14, gap: 10, backgroundColor: c.card, boxShadow: c.float, opacity: r.resolvedAt ? 0.7 : 1 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-        <Badge text={gone ? '지워짐' : r.kind === 'comment' ? '댓글' : '글'} color={r.kind === 'post' ? c.sky : undefined} c={c} />
+        <Badge text={gone ? '지워짐' : r.kind === 'comment' ? '댓글' : '글'} color={r.kind === 'post' ? c.link : undefined} c={c} />
         <Badge text={r.reason} color={c.danger} c={c} />
         {r.hidden ? <Badge text="가려짐" c={c} /> : null}
         {r.resolvedAt ? <Badge text={`처리 ${r.resolvedAt}`} color={c.ok} c={c} /> : null}
@@ -111,7 +111,7 @@ function ReportCard({ r, reload, c }: { r: Report; reload: () => void; c: Palett
             accessibilityRole="button"
             disabled={busy}
             onPress={() => void run('app-admin.resolveAppReport', r.id)}
-            style={[s.pill, { minHeight: 40, paddingHorizontal: 16, backgroundColor: c.sky }]}
+            style={[s.pill, { minHeight: 40, paddingHorizontal: 16, backgroundColor: c.action }]}
           >
             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>처리 완료</Text>
           </Pressable>
