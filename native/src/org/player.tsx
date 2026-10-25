@@ -40,6 +40,24 @@ export function PlayerSpace({ space }: { space: MySpace }) {
         </View>
       )}
 
+      {data.notices.length ? (
+        <View style={{ gap: 6 }}>
+          <GroupTitle title="공지" c={c} />
+          {data.notices.slice(0, 3).map((n) => (
+            <Card key={n.id} c={c}>
+              <Text style={[TYPE.sub, { color: n.pinned ? c.sky : c.muted }]}>
+                {n.pinned ? '고정 · ' : ''}
+                {dayLabel(n.key)}
+              </Text>
+              <Text style={[TYPE.card, { color: c.ink }]}>{n.title}</Text>
+              <Text selectable style={[TYPE.body, { color: c.ink }]}>
+                {n.body}
+              </Text>
+            </Card>
+          ))}
+        </View>
+      ) : null}
+
       <View style={{ gap: 6 }}>
         <GroupTitle title="받은 일지" c={c} />
         {data.notes.length === 0 ? (

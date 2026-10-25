@@ -87,7 +87,7 @@ export async function joinWithCode(
       update: { ...consent, byUserId: user.id },
       create: { memberId, ...consent, byUserId: user.id },
     });
-    if (invite.role !== 'PLAYER') {
+    if (invite.role !== 'PLAYER' || invite.memberId) {
       await tx.orgInvite.update({
         where: { id: invite.id },
         data: { usedById: user.id, usedAt: new Date() },

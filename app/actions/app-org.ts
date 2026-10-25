@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser, isMasterUser } from '@/lib/dal';
 import { appNow } from '@/lib/clock';
-import { toDateKey } from '@/lib/pitch-stats';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
 import { memberScope, orgsFor } from '@/lib/org/access';
 import { CONSENT_SCOPES, type Consent, type OrgKind } from '@/lib/org/rules';
@@ -164,6 +164,8 @@ export type OrgMemberRow = {
   consentPending: boolean;
   /** 투구 공유를 켠 회원만 — 나머지는 null */
   arm: ArmLine | null;
+  /** 코치가 투구를 대신 적을 수 있나 — 가입했고 투구 공유를 켬(app/actions/org-record.ts createPitchLogs 와 같은 선) */
+  pitchOk: boolean;
 };
 
 /** 코치 '회원' — 활동 중인 회원 전부, 이름순 */
@@ -182,6 +184,7 @@ export async function loadOrgMembers(orgId: string): Promise<{ ok: false; to: st
       hasUser: !!m.user,
       consentPending: !!m.user && !m.consent,
       arm: armOf.get(m.id) ?? null,
+      pitchOk: !!m.user && memberScope(m.consent, true).pitch,
     })),
   };
 }
@@ -194,9 +197,11 @@ export type LessonNoteView = {
   pitchCount: number | null;
   intensity: number | null;
   author: string | null;
+  /** 보는 사람이 쓴 일지 — 지우기는 쓴 사람만(웹 org-notes.ts deleteLessonNote 와 같은 선) */
+  mine: boolean;
 };
 
-async function notesOf(memberId: string, take: number): Promise<LessonNoteView[]> {
+async function notesOf(memberId: string, take: number, viewerId: string): Promise<LessonNoteView[]> {
   const notes = await prisma.lessonNote.findMany({
     where: { memberId },
     orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
@@ -216,6 +221,7 @@ async function notesOf(memberId: string, take: number): Promise<LessonNoteView[]
     pitchCount: n.pitchCount,
     intensity: n.intensity,
     author: nameOf.get(n.authorId) ?? null,
+    mine: n.authorId === viewerId,
   }));
 }
 
@@ -238,7 +244,7 @@ export async function loadMemberCard(
   if (!c) return NO_ACCESS;
   const member = await loadMember(orgId, memberId);
   if (!member || member.role !== 'PLAYER' || member.status !== 'ACTIVE') return NO_ACCESS;
-  const [card, notes] = await Promise.all([memberCardOf(member, appNow()), notesOf(member.id, 20)]);
+  const [card, notes] = await Promise.all([memberCardOf(member, appNow()), notesOf(member.id, 20, c.user.id)]);
   return {
     ok: true,
     kind: c.org.kind,
@@ -260,7 +266,7 @@ export type InviteView = { code: string; until: string } | null;
 
 async function liveInvite(orgId: string, role: 'PLAYER' | 'STAFF'): Promise<InviteView> {
   const invite = await prisma.orgInvite.findFirst({
-    where: { orgId, role, expiresAt: { gt: new Date() }, ...(role === 'STAFF' ? { usedAt: null } : {}) },
+    where: { orgId, role, memberId: null, expiresAt: { gt: new Date() }, ...(role === 'STAFF' ? { usedAt: null } : {}) },
     orderBy: { expiresAt: 'desc' },
     select: { code: true, expiresAt: true },
   });
@@ -287,15 +293,144 @@ export async function loadInvite(
  * 초대 코드 만들기(앱) — 웹 설정의 org.createInvite 와 같은 lib/org/invite.ts. 앱의 폼 호출(rpcForm)은 늘 앞에 지난 상태(null)를 붙여
  * 폼 하나만 받는 createInvite 를 못 불렀다(2026-10-25 팀 관리자 '코드를 만들지 못했어요') — 그래서 JSON 동작을 따로 둔다.
  */
-export async function makeInvite(orgId: string, role: unknown): Promise<{ ok: true; code: string; until: string } | { ok: false; error: string }> {
+export async function makeInvite(
+  orgId: string,
+  role: unknown,
+  /** 가입 전 자리(OrgMember.id) — 주면 그 자리를 이어받는 한 번 쓰는 회원 코드 */
+  memberId?: string | null
+): Promise<{ ok: true; code: string; until: string } | { ok: false; error: string }> {
   const c = await coachOrg(orgId);
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const r = role === 'STAFF' ? 'STAFF' : 'PLAYER';
   if (r === 'STAFF' && !canInviteCoach(c)) return { ok: false, error: '코치 초대는 대표만 할 수 있어요.' };
-  const made = await createInviteCode(orgId, r);
+  if (memberId) {
+    const spot = await prisma.orgMember.findFirst({ where: { id: memberId, orgId, userId: null, status: 'ACTIVE' }, select: { id: true } });
+    if (!spot || r !== 'PLAYER') return { ok: false, error: '가입 전 자리를 찾을 수 없어요.' };
+  }
+  const made = await createInviteCode(orgId, r, memberId ?? null);
   if (!made) return { ok: false, error: '코드를 만들지 못했어요. 다시 해 주세요.' };
   revalidatePath('/manage/settings');
   return { ok: true, code: made.code, until: toDateKey(made.expiresAt) };
+}
+
+/* ── 일정 · 공지 · 회원 한 명 · 대신 적은 투구(1.5단계 — 쓰기는 웹과 같은 폼 동작을 앱이 그대로 부른다) ── */
+
+export type OrgEventView = {
+  id: string;
+  date: string;
+  time: string | null;
+  kind: string;
+  title: string;
+  memo: string | null;
+  memberId: string | null;
+  memberName: string | null;
+};
+
+/** 코치 '일정' — from 부터 days 날(최대 42). 레슨 회원 고르기용 회원 이름도 같이 */
+export async function loadOrgEvents(
+  orgId: string,
+  fromKey: string,
+  days: number
+): Promise<{ ok: false; to: string } | { ok: true; kind: OrgKind; todayKey: string; members: { id: string; nickname: string }[]; events: OrgEventView[] }> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(fromKey) ? fromKey : toDateKey(appNow());
+  const span = Math.min(42, Math.max(1, Math.floor(Number(days) || 7)));
+  const [events, members] = await Promise.all([
+    prisma.orgEvent.findMany({
+      where: { orgId, date: { gte: dbDate(from), lte: dbDate(shiftDateKey(from, span - 1)) } },
+      orderBy: [{ date: 'asc' }, { time: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, date: true, time: true, kind: true, title: true, memo: true, memberId: true },
+    }),
+    prisma.orgMember.findMany({
+      where: { orgId, role: 'PLAYER', status: 'ACTIVE' },
+      orderBy: { nickname: 'asc' },
+      select: { id: true, nickname: true },
+    }),
+  ]);
+  const nameOf = new Map(members.map((m) => [m.id, m.nickname]));
+  return {
+    ok: true,
+    kind: c.org.kind,
+    todayKey: toDateKey(appNow()),
+    members,
+    events: events.map((e) => ({ ...e, date: toDateKey(e.date), memberName: e.memberId ? (nameOf.get(e.memberId) ?? null) : null })),
+  };
+}
+
+export type NoticeView = { id: string; title: string; body: string; pinned: boolean; key: string; author: string | null };
+
+async function noticesOf(orgId: string, take: number): Promise<NoticeView[]> {
+  const rows = await prisma.orgNotice.findMany({
+    where: { orgId },
+    orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
+    take,
+    select: { id: true, title: true, body: true, pinned: true, createdAt: true, authorId: true },
+  });
+  const authors = await prisma.user.findMany({
+    where: { id: { in: [...new Set(rows.map((r) => r.authorId).filter((a): a is string => !!a))] } },
+    select: { id: true, nickname: true },
+  });
+  const nameOf = new Map(authors.map((a) => [a.id, a.nickname]));
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    body: r.body,
+    pinned: r.pinned,
+    key: toDateKey(r.createdAt),
+    author: r.authorId ? (nameOf.get(r.authorId) ?? null) : null,
+  }));
+}
+
+/** 코치 '공지' — 고정 먼저, 새 것부터 */
+export async function loadOrgNotices(orgId: string): Promise<{ ok: false; to: string } | { ok: true; notices: NoticeView[] }> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  return { ok: true, notices: await noticesOf(orgId, 50) };
+}
+
+/** 회원 고치기 화면 — 조직 안 이름 · 태그 · 메모, 가입 전 자리인가 */
+export async function loadOrgMember(
+  orgId: string,
+  memberId: string
+): Promise<{ ok: false; to: string } | { ok: true; member: { id: string; nickname: string; tags: string[]; memo: string | null; hasUser: boolean } }> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const m = await prisma.orgMember.findFirst({
+    where: { id: memberId, orgId, role: 'PLAYER', status: 'ACTIVE' },
+    select: { id: true, nickname: true, tags: true, memo: true, userId: true },
+  });
+  if (!m) return NO_ACCESS;
+  return { ok: true, member: { id: m.id, nickname: m.nickname, tags: m.tags, memo: m.memo, hasUser: m.userId != null } };
+}
+
+/** 이 조직에서 코치가 대신 적은 투구 — 새 것부터 15줄(잘못 적었으면 지우기, 웹 org-record.ts deleteProxyPitchLog) */
+export async function loadProxyLogs(
+  orgId: string
+): Promise<{ ok: false; to: string } | { ok: true; logs: { id: string; key: string; nickname: string; sessionType: string; pitchCount: number; effortPct: number | null }[] }> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const [logs, members] = await Promise.all([
+    prisma.pitchLog.findMany({
+      where: { orgId, enteredById: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take: 15,
+      select: { id: true, userId: true, date: true, sessionType: true, pitchCount: true, effortPct: true },
+    }),
+    prisma.orgMember.findMany({ where: { orgId, userId: { not: null } }, select: { userId: true, nickname: true } }),
+  ]);
+  const nameOf = new Map(members.map((m) => [m.userId!, m.nickname]));
+  return {
+    ok: true,
+    logs: logs.map((l) => ({
+      id: l.id,
+      key: toDateKey(l.date),
+      nickname: nameOf.get(l.userId) ?? '떠난 회원',
+      sessionType: l.sessionType,
+      pitchCount: l.pitchCount,
+      effortPct: l.effortPct,
+    })),
+  };
 }
 
 /* ── 선수 쪽 ── */
@@ -325,6 +460,7 @@ export async function loadMyMembership(memberId: string): Promise<
       consentPending: boolean;
       scope: Consent | null;
       notes: LessonNoteView[];
+      notices: NoticeView[];
     }
 > {
   const r = await myMember(memberId);
@@ -335,7 +471,8 @@ export async function loadMyMembership(memberId: string): Promise<
     left: r.m.status === 'LEFT',
     consentPending: r.m.status === 'ACTIVE' && !r.m.consent,
     scope: r.m.consent,
-    notes: await notesOf(r.m.id, 50),
+    notes: await notesOf(r.m.id, 50, r.user.id),
+    notices: await noticesOf(r.m.org.id, 10),
   };
 }
 
