@@ -1,6 +1,6 @@
 import { type Href, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useCallback, useRef, useState, type ComponentType, type Ref } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentType, type Ref } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent, type WebViewNavigation, type WebViewProps } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
@@ -52,8 +52,29 @@ export default function DugoutShell() {
   /* 앱 화면(로그인)이 끝나고 웹을 옮길 때는 새로 불러온다 — 로그인 뒤 덕아웃 틀(위 막대 · 내 것)을 새 로그인으로 그리게 */
   useWebNav(useCallback((href: string) => web.current?.injectJavaScript(`location.assign(${JSON.stringify(href)});true;`), []));
 
+  /*
+   * 누른 칸 — 웹이 그 탭 주소를 알려 올 때까지(1.5초 넘으면 그만) 렌즈를 붙들어 둔다. 사이트가 옮기는 사이 옛 주소 · 거쳐 가는 주소
+   * (Next 의 replaceState · 로그인 돌려보내기)를 알려 와 렌즈가 옆 칸으로 갔다 돌아왔다(2026-10-25 김민: 홈 · 내 것). 싱커 index.tsx pressed 와 같다
+   */
+  const [pressed, setPressedState] = useState<string | null>(null);
+  /* onMessage 는 한 번 만든 함수라 지금 값을 ref 로 읽는다 */
+  const pressedRef = useRef<string | null>(null);
+  const pressWait = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const setPressed = useCallback((href: string | null) => {
+    pressedRef.current = href;
+    setPressedState(href);
+    clearTimeout(pressWait.current);
+    if (href)
+      pressWait.current = setTimeout(() => {
+        pressedRef.current = null;
+        setPressedState(null);
+      }, 1500);
+  }, []);
+  useEffect(() => () => clearTimeout(pressWait.current), []);
+
   const pressTab = (t: ShellTab) => {
     setPath(t.href);
+    setPressed(t.href);
     web.current?.injectJavaScript(`var h=${JSON.stringify(t.href)};window.__bpTab?window.__bpTab(h):location.assign(h);true;`);
   };
 
@@ -94,6 +115,7 @@ export default function DugoutShell() {
         return;
       }
       setPath(msg.path);
+      if (dugoutTabOf(msg.path) === pressedRef.current) setPressed(null);
       return;
     }
     /* 진동 · 화면 켜 두기 · 테마(상태 막대 · 웹뷰 바탕) — 싱커와 같은 작은 다리(~/lib/cap-bridge) */
@@ -102,7 +124,7 @@ export default function DugoutShell() {
       (script) => web.current?.injectJavaScript(script),
       (t) => t.color && setPageColor(t.color)
     );
-  }, []);
+  }, [setPressed]);
 
   const onNav = useCallback((nav: WebViewNavigation) => {
     if (!nav.loading) setFailed(false);
@@ -157,7 +179,7 @@ export default function DugoutShell() {
           </Press>
         </View>
       ) : null}
-      {isLoginPath(path) ? null : <TabBar tabs={DUGOUT_TABS} active={dugoutTabOf(path)} onPress={pressTab} accent={DUGOUT_TAB_ACCENT} frosted />}
+      {isLoginPath(path) ? null : <TabBar tabs={DUGOUT_TABS} active={pressed ?? dugoutTabOf(path)} onPress={pressTab} accent={DUGOUT_TAB_ACCENT} frosted />}
     </View>
   );
 }
