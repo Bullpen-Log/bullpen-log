@@ -30,7 +30,7 @@ export type NoteView = {
 };
 
 /**
- * 레슨 노트 · 숙제(4단계) — 회원 카드 아래. 레슨장은 '레슨 노트'(수강권 한 회 차감 선택), 팀은 '코치 노트'.
+ * 레슨 노트 · 숙제(4단계) — 회원 카드 아래. 레슨장은 '레슨 노트', 팀은 '코치 노트'. 수강권은 덕아웃 예약을 '끝남'으로 바꿀 때 준다(app/actions/lessons.ts finishBooking).
  * 숙제는 다음 노트를 쓸 때까지 맨 위에 보인다.
  */
 export function LessonNotes({
@@ -38,13 +38,11 @@ export function LessonNotes({
   orgKind,
   todayKey,
   notes,
-  hasPass,
 }: {
   memberId: string;
   orgKind: OrgKind;
   todayKey: string;
   notes: NoteView[];
-  hasPass: boolean;
 }) {
   const [state, action] = useActionState<OrgActionState, FormData>(
     guardFormAction(createLessonNote),
@@ -113,21 +111,6 @@ export function LessonNotes({
                 required
               />
             </Field>
-            {orgKind === 'LESSON' && (
-              <label className="flex min-h-11 items-center gap-2 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  name="countPass"
-                  defaultChecked={hasPass}
-                  disabled={!hasPass}
-                  className="h-4 w-4 accent-sky"
-                />
-                수강권 한 회 차감
-                {!hasPass && (
-                  <span className="text-xs text-muted">(쓸 수 있는 수강권 없음)</span>
-                )}
-              </label>
-            )}
           </div>
           <Field label="오늘 한 것 · 본 것">
             <Textarea

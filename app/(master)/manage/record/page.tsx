@@ -33,7 +33,7 @@ export default async function RecordPage() {
     id: p.id,
     nickname: p.nickname,
     tags: p.tags,
-    can: !p.user ? 'no-user' : memberScope(p.consent).pitch ? 'ok' : 'no-consent',
+    can: !p.user ? 'no-user' : memberScope(p.consent, true).pitch ? 'ok' : 'no-consent',
   }));
   const nameOfUser = new Map(players.filter((p) => p.user).map((p) => [p.user!.id, p.nickname]));
   const fmt = (d: Date) => new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric' }).format(d);
