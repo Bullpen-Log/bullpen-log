@@ -82,8 +82,8 @@ export type DistanceInput = {
    */
   autoDistance?: boolean;
   /**
-   * 사용자가 고른 거리로 값을 낸다(2.9.0, 새 앱 — PitchLab 방식, PLAN-pitchlab.md). autoDistance 와 같이 켜면 공 크기 거리는 문으로만 쓴다: 고른 거리(distanceM)와
-   * 15% 넘게 다르면 거리 오류('낮음' · size-mismatch), 안이면 고른 거리로 맞춘 값. 공 크기 거리로 낸 값은 kmhAtSize 에 싣는다.
+   * 사용자가 고른 거리로 값을 낸다(2.9.0, 새 앱 — PitchLab 방식, PLAN-pitchlab.md). autoDistance 와 같이 켜면 공 크기 거리는 문으로만 쓴다: 고른 거리(distanceM)보다
+   * 22% 넘게 짧거나 15% 넘게 길면 거리 오류('낮음' · size-mismatch, gateAuto), 안이면 고른 거리로 맞춘 값. 공 크기 거리로 낸 값은 kmhAtSize 에 싣는다.
    * 덩어리 크기는 빠른 공일수록 번져 거리가 짧게(120km/h 넘는 공 −8 ~ −16%) 잡혀 값이 낮았다 — 고른 거리 값은 구속과 상관없이 비율이 일정하다.
    */
   chosenDistance?: boolean;
@@ -1068,17 +1068,24 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
 }
 
 /**
- * 거리 자동의 문(2.8.2, 2026-10-25 김민 "15% 넘으면 거리 오류로 측정 불가") — 공 크기 거리(sizeD)가 사용자가 고른 거리(D)와 15% 넘게 다르면 '낮음' ·
- * size-mismatch(화면이 측정 불가). 고른 거리로 낸 구속을 싣는다(kmhAtInput — 고른 거리로 값을 내면(2.9.0) 그 값 그대로).
- * 덩어리 크기 거리는 빠른 공에서 −8 ~ −16% 짧아(10-24 시험대, 고른 거리가 맞을 때 120km/h 넘는 7구 중 15% 넘음 1 · 10% 넘음 3) 문을 15% 로 둔다.
+ * 거리 자동의 문 — 공 크기 거리(sizeD)가 사용자가 고른 거리(D)보다 SIZE_GATE_SHORT 넘게 짧거나 SIZE_GATE_LONG 넘게 길면 '낮음' · size-mismatch(화면이
+ * 거리 오류로 측정 불가, 2.8.2 · 2026-10-25 김민 "15% 넘으면 거리 오류"). 고른 거리로 낸 구속을 싣는다(kmhAtInput — 고른 거리로 값을 내면(2.9.0) 그 값 그대로).
  */
+/*
+ * 짧은 쪽만 22%(2.9.0, 김민 고름) — 덩어리 크기는 셔터가 느린 날 빠른 공일수록 번져 거리를 짧게만 잡는다(10-23 한 세션 100km/h −4% → 130km/h −17 ~ −20%).
+ * 15% 면 그날 빠른 공 16구 중 3구가 거리 오류로 빠졌다. 14m · 20m 를 잘못 고른 것(30% 넘게 차이)은 그대로 걸린다.
+ */
+export const SIZE_GATE_SHORT = 0.22;
+export const SIZE_GATE_LONG = INPUT_SIZE_MISMATCH;
+/** 공 크기 거리가 고른 거리의 문 밖인가 */
+export const sizeGateFails = (sizeD: number, D: number) => sizeD / D < 1 - SIZE_GATE_SHORT || sizeD / D > 1 + SIZE_GATE_LONG;
 function gateAuto(out: DistanceResult, D: number, sizeD: number | null) {
   const m = out.measure;
   const report = out.distance;
   if (!m.ok || !(D > 0) || !(report.distanceM > 0) || !(sizeD != null && sizeD > 0)) return;
   report.kmhAtInput = round1(m.kmh * (D / report.distanceM) ** SPEED_DISTANCE_EXPONENT);
+  if (!sizeGateFails(sizeD, D)) return;
   const off = Math.abs(sizeD / D - 1);
-  if (off <= INPUT_SIZE_MISMATCH) return;
   m.confidence = 'low';
   m.errorKmh = Math.max(m.errorKmh, round1(m.kmh * off));
   report.why = 'size-mismatch';

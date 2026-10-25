@@ -12,6 +12,7 @@ import {
   AUTO_BLOB_SIZE_RATIO,
   BLOB_SIZE_RATIO,
   rejudgeSize,
+  sizeGateFails,
   SPEED_DISTANCE_EXPONENT,
 } from '../lib/velocity-engine/analyze-distance.ts';
 import { DRAG_K } from '../lib/velocity-engine/trajectory-fit.ts';
@@ -361,6 +362,11 @@ function run(name: string, sc: Scene, tolRel: number) {
     check(
       chosenFar.measure.ok && chosenFar.measure.confidence === 'low' && chosenFar.distance.why === 'size-mismatch' && chosenFar.distance.distanceM === 15,
       `고른 거리 값 — 고른 15m(공 크기 ${chosenFar.distance.sizeDistM}m)면 ${chosenFar.measure.ok ? chosenFar.measure.confidence : '-'} · ${chosenFar.distance.why ?? '까닭 없음'} · 거리 ${chosenFar.distance.distanceM}m`
+    );
+    /* 문은 짧은 쪽 22% · 긴 쪽 15%(번짐은 공 크기 거리를 짧게만 잡는다) — 고른 20m 에 공 크기 16.5 · 22.9m 통과, 15 · 23.2m 거리 오류 */
+    check(
+      !sizeGateFails(16.5, 20) && !sizeGateFails(22.9, 20) && sizeGateFails(15, 20) && sizeGateFails(23.2, 20),
+      '문 — 짧은 쪽 22% · 긴 쪽 15%'
     );
     /* 첫 어림 거리에 매이지 않는다 — 10 ~ 40m 어디서 시작해도 같은 값(공 크기 거리와 맞춘 거리가 맞을 때까지 다시 맞춤, 2.8.0) */
     const byGuess = [10, 14, 20, 26, 30, 40].map((guess) => {

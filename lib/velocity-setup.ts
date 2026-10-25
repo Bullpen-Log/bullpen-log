@@ -215,7 +215,7 @@ export const TAPE_MODES = [
 /*
  * 새 앱의 거리 고르기(2026-10-25 김민 "PitchLab 방식으로", PLAN-pitchlab.md) — '누가 받나요' + '투수판 → 공이 멈추는 곳'(14m · 20m · 직접).
  * 망 앞면까지 거리를 넣으면 공이 망 안쪽 1~2.6m 뒤에서 멈춰 구속이 5~11% 낮았다(10-03 · 10-23 · 10-21, 미트는 맞음) — 그래서 '멈추는 곳'으로 묻는다.
- * 엔진은 공 크기 거리가 고른 거리와 15% 넘게 다르면 거리 오류로 측정 불가, 안이면 공 크기 거리로 잰다(엔진 2.8.2 gateAuto).
+ * 엔진은 고른 거리로 값을 내고, 공 크기 거리가 그보다 22% 넘게 짧거나 15% 넘게 길면 거리 오류로 측정 불가(엔진 2.9.0 gateAuto).
  */
 export const RECEIVERS = [
   { value: 'catcher', label: '포수', hint: '투수판에서 포수 미트까지예요.' },
@@ -228,8 +228,8 @@ export const RUBBER_DIST_PRESETS = [14, 20] as const;
 export const PHONE_BEHIND_RUBBER_M = 2;
 /** 엔진에 넘기는 거리(폰 → 공이 멈추는 곳) */
 export const phoneDistOf = (rubberDistM: number) => rubberDistM + PHONE_BEHIND_RUBBER_M;
-/** 거리 자동인데 공 크기 거리가 고른 거리와 15% 넘게 다를 때(엔진 2.8.2 size-mismatch → 측정 불가) */
-export const DISTANCE_MISMATCH_FIX = '거리 오류예요. 공 크기로 본 거리가 고른 거리와 15% 넘게 달라요. 투수판에서 공이 멈추는 곳까지 거리를 다시 골라 주세요.';
+/** 공 크기 거리가 고른 거리와 많이 다를 때(엔진 size-mismatch → 측정 불가) */
+export const DISTANCE_MISMATCH_FIX = '거리 오류예요. 공 크기로 본 거리가 고른 거리와 많이 달라요. 투수판에서 공이 멈추는 곳까지 거리를 다시 골라 주세요.';
 /** '자동'을 골랐을 때 밑의 안내 */
 export const STANDARD_DIST_HINT = '거리는 공 크기로 알아서 맞춰요. 줄자로 쟀으면 넣어도 돼요.';
 /** 기준 20m 로 재는 폰(화각 모름)에서 공 크기 거리가 기준과 15% 넘게 다를 때(엔진 size-mismatch → '낮음' → 기록 안 함) */
