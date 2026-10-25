@@ -653,13 +653,19 @@ model PitchLog {
   /// 코치가 대신 적은 기록(2026-10-20 팀 · 레슨장) — 적은 사람(User.id)과 그 조직. 선수가 적은 것은 둘 다 null
   enteredById String?
   orgId       String?
+  /// 조직 활동(OrgEvent.id)에서 나온 투구 — 코치가 일지로 적었거나 선수가 그 활동에 이은 것(2026-10-26 2단계, docs/designs/sinker-team-lesson-contract.md 3절)
+  orgEventId  String?
+  /// 같은 저장 요청을 다시 보내도 한 줄 — 앱 · 일지가 만든 키. 옛 줄은 null(Postgres 는 null 끼리 겹쳐도 된다)
+  clientKey   String?
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   velocitySessions VelocitySession[]
 
   // 2026-10-16 통합 검토 — 홈 · 투구 · 트레이닝이 화면마다 [userId, date] 로 십여 번 읽는데 색인이 하나도 없어 표 전체를 훑었다
+  @@unique([userId, clientKey])
   @@index([userId, date])
   @@index([orgId])
+  @@index([orgEventId])
 }
 
 /**
@@ -2021,6 +2027,9 @@ model OrgEvent {
   memo        String?  @db.Text
   /// 레슨 시간표 — 어느 회원의 레슨인가(OrgMember.id). 팀 일정은 비어 있다
   memberId    String?
+  /// 지도 활동 확인(2026-10-26 2단계) — 'planned' 예정 · 'done' 실시 · 'canceled' 취소. 출석 · 수강권과 무관(차감은 덕아웃 예약 끝남)
+  status      String    @default("planned")
+  doneAt      DateTime?
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -2056,15 +2065,68 @@ model LessonNote {
   homework  String?  @db.Text
   /// 한 일(2026-10-21 개편 3단계) — [{ name, sets, reps, note }] (lib/org/lesson-work.ts parseExercises). 선수의 레슨 줄 · 트레이닝 엔진(김민 B-3)이 읽는다
   exercises Json?
-  /// 레슨 중 던진 공 수 · 강도(1~10) — 선수 쪽 레슨 줄에 보인다
+  /// 레슨 중 던진 공 수 · 강도(1~10) — 2단계부터 저장할 때 선수 투구 기록(PitchLog, orgEventId 같음)으로도 남는다
   pitchCount Int?
   intensity  Int?
   authorId  String
+  /// 어느 지도 활동의 일지인가(OrgEvent.id) — 저장할 때 활동이 없으면 그날 'done' 레슨 활동을 만들어 잇는다(2026-10-26 2단계)
+  eventId    String?
+  /// 일지에 붙인 영상(저장소 경로) — 코치가 찍었거나 선수 투구 영상에서 고른 것
+  videoPaths String[] @default([])
+  editedById String?
   createdAt DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
 
   member OrgMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([memberId, date])
+  @@index([eventId])
+}
+
+/// 숙제(2026-10-26 2단계) — 회원 한 명에 한 줄. 'done' 이면 실제 수행 기록(운동 판 · 투구 기록)을 가리킨다
+model OrgAssignment {
+  id             String    @id @default(uuid())
+  orgId          String
+  memberId       String
+  /// 어느 일지에서 냈나(LessonNote.id)
+  noteId         String?
+  assignedById   String
+  /// [{ exerciseId?, guideId?, sets?, reps?, holdSec?, note? }] — 라이브러리 운동 · 드릴만(자유 글 운동 없음)
+  items          Json
+  dueDate        DateTime? @db.Date
+  /// 'assigned' 배정 · 'in_progress' 하는 중 · 'done' 완료 · 'excused' 면제 · 'canceled' 취소
+  status         String    @default("assigned")
+  doneSessionId  String?
+  donePitchLogId String?
+  doneAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([memberId, status])
+  @@index([orgId, createdAt])
+}
+
+/// 일지 · 숙제에 다는 말(2026-10-26 2단계) — 코치의 영상 시점 코멘트 · 회원 질문 · 정정 요청 · 숙제 영상 제출을 한 표에.
+/// 코치 '받은 것' = 회원이 쓴 줄 가운데 아직 안 푼 것(resolvedAt null)
+model OrgComment {
+  id           String    @id @default(uuid())
+  orgId        String
+  memberId     String
+  noteId       String?
+  assignmentId String?
+  authorId     String
+  /// 'comment' 말 · 'question' 질문 · 'fix' 정정 요청 · 'submit' 숙제 영상
+  kind         String    @default("comment")
+  body         String    @db.Text
+  videoPath    String?
+  /// 영상의 몇 초에 단 말인가
+  atSec        Float?
+  resolvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([noteId])
+  @@index([assignmentId])
+  @@index([orgId, resolvedAt])
 }
 
 /// 수강권(4단계) — 회원마다 '총 N회 · 쓴 M회 · 기한'. 레슨 노트를 레슨 날에 쓰면 한 회 줄고, 3회 남으면 홈이 알린다(lib/org/rules.ts passLeft)
