@@ -152,7 +152,7 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
         <Text style={[s.bodyBold, { color: c.ink }]}>준비 · 정리 · 강화</Text>
         <Text style={[s.small, { color: c.muted }]}>{ARMCARE_PURPOSE_TEXT.cooldown}</Text>
         <Text style={[s.small, { color: c.muted }]}>{ARMCARE_PURPOSE_TEXT.strength}</Text>
-        <Press onPress={() => router.push('/warmup' as Href)} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}><Text style={[s.bodyBold, { color: c.sky }]}>던지기 전 워밍업 보기 ›</Text></Press>
+        <Press onPress={() => router.push('/library/warmup' as Href)} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}><Text style={[s.bodyBold, { color: c.sky }]}>던지기 전 워밍업 보기 ›</Text></Press>
       </View>
       <View style={{ gap: 10 }}>
         {custom.kind === 'rehab' ? (

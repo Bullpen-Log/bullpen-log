@@ -274,7 +274,7 @@ export async function ArmcareSection({
           <Card className="space-y-2 text-sm">
             <p className="font-semibold">준비 · 정리 · 강화</p>
             <p>{ARMCARE_PURPOSE_TEXT.cooldown}</p><p>{ARMCARE_PURPOSE_TEXT.strength}</p>
-            <a className="inline-flex min-h-11 items-center font-semibold text-sky-strong" href="/workout/warmup">던지기 전 워밍업 보기 ›</a>
+            <a className="inline-flex min-h-11 items-center font-semibold text-sky-strong" href="/library/warmup">던지기 전 워밍업 보기 ›</a>
           </Card>
           {custom}
           {/* 들어가는 작은 줄 — 재활 중이 아닐 때만(재활 2편). 오늘 체크인의 아픈 자리 · 정도를 미리 골라 둔다 */}
