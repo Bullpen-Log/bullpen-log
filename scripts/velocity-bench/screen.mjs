@@ -10,33 +10,51 @@
  * 출력: id → { kept: true, kmh(화면 값 — 세션 거리 보정 뒤 rawKmh), distM } | { kept: false, why('engine-reject' · 'low-confidence' · 'session-size'), code }
  */
 import { analysisOf } from '../../lib/velocity-analysis.ts';
-import { measuredFields, screenPitch, withSessionDistance } from '../../lib/velocity-session.ts';
+import {
+  measuredFields,
+  screenPitch,
+  withSessionDistance,
+} from '../../lib/velocity-session.ts';
 
 export function screenGroup(balls, { tape = false } = {}) {
   let list = [];
   const out = new Map();
   for (const b of balls) {
     if (!b.result) continue;
-    const sv = screenPitch(b.result, list, { source: 'camera', tape, approaching: false });
+    const sv = screenPitch(b.result, list, {
+      source: 'camera',
+      tape,
+      approaching: false,
+    });
     if (!sv.kept) {
       out.set(b.id, { kept: false, why: sv.why, code: sv.code });
       continue;
     }
     /* 앱 decide() 가 만드는 공 칸 가운데 규칙이 읽는 것만(출처 · 숫자 · analysis) — 클립 · 존 · 알림은 화면 것 */
-    const pitch = { _id: b.id, source: 'camera', ...measuredFields(sv.result, false), analysis: analysisOf(sv.result, 'receding') };
+    const pitch = {
+      _id: b.id,
+      source: 'camera',
+      ...measuredFields(sv.result, false),
+      analysis: analysisOf(sv.result, 'receding'),
+    };
     list = withSessionDistance([...list, pitch], null, tape);
   }
-  for (const p of list) out.set(p._id, { kept: true, kmh: p.rawKmh, distM: p.dist?.m ?? null });
+  for (const p of list)
+    out.set(p._id, { kept: true, kmh: p.rawKmh, distM: p.dist?.m ?? null });
   return out;
 }
 
 /** 묶음 한 줄 요약 — 기록 수 · 기록된 공의 거리 가운데 값(m) */
 export function screenSummary(out) {
   const kept = [...out.values()].filter((o) => o.kept);
-  const ds = kept.map((o) => o.distM).filter((v) => v != null).sort((a, b) => a - b);
+  const ds = kept
+    .map((o) => o.distM)
+    .filter((v) => v != null)
+    .sort((a, b) => a - b);
   const n = ds.length;
   const distM = n ? (n % 2 ? ds[(n - 1) / 2] : (ds[n / 2 - 1] + ds[n / 2]) / 2) : null;
   const why = {};
-  for (const o of out.values()) if (!o.kept) why[o.code ?? o.why] = (why[o.code ?? o.why] ?? 0) + 1;
+  for (const o of out.values())
+    if (!o.kept) why[o.code ?? o.why] = (why[o.code ?? o.why] ?? 0) + 1;
   return { kept: kept.length, total: out.size, distM, why };
 }

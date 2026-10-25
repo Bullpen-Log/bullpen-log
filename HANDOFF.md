@@ -12,6 +12,26 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 ---
 
 
+## 김민에게 — 2026-10-25 · 금윤호(Claude, 윤호 맥북 · 서브1) — 구속 측정 설계안 첫 묶음(작업 A~D) — **네 카메라 모듈(Swift) · capture.ts · velocity.tsx 를 고쳤다 · main 에 올리면 앱이 새로 굽힌다**
+
+받은 뒤 할 일: **DB · 패키지 그대로**(prisma generate 필요 없음). `native/modules/dual-camera/ios/DualCameraCore.swift` 가 바뀌어 **main 에 올리면 ios-native.yml 이 앱을 새로 굽는다**(TestFlight) —
+그 전엔 JS 만 받아도 클립에 `hits` 가 없어(옛 모듈) 안내 없이 예전처럼 잰다(조용히 옛 길 — 시도 기록 settings.hitsAvail 0 으로 남는다). 네 설계안 PDF(`sinker-velocity-design-for-yunho-2026-10-25.pdf`)의 첫 묶음대로.
+- **작업 A(기록)**: `capture.ts` 가 줄이 차서 버린 공(QUEUE_FULL) · 막 잰 창 안 알림(DUP_WINDOW) · 재는 클립에 합친 알림(MERGED) · 비킨 작업(DROPPED · SUPERSEDED) · 끝내 버린 것(STOPPED)도
+  시도 기록으로 남긴다(시도 ≠ 투구 — 세지 말고 되짚는 데). 시도 analysis 에 `settings`(카메라 자리 · 줄자 · 고른 거리 · fps · 화각 · 기울기 · 분석창 · 후보 수) · `versions`(앱 판 · 빌드 · UA · OTA ·
+  계산기 엔진 판 · 기능) — `native/src/velocity/attempt-meta.ts`(새). 계산기 `ready` 가 `engine · caps` 를 싣고(`engine-client.tsx ENGINE_CAPS`), 앱 `engine.tsx info()` 로 읽는다.
+  **앱 · 시험대가 같은 기록 판정 함수**(`lib/velocity-session.ts screenPitch`) — 네 `session.ts decide()` 는 그 판정을 화면 글로 옮기기만. 시험대 복제 규칙 `app-rules.mjs` 는 지웠다.
+- **작업 B(모델 좌표)**: Swift `BallNetTrigger` 가 모델 봉우리를 PTS 열쇠로 10초 쥐고(`recentHits`, 점수 0.1 부터), `makeClips` 가 클립 구간(알림 전후 모두)의 후보를 `DualClip.hits`
+  ([클립 시각, x, y, d, 점수] — 세운 화면 비율, 모델 입력 416×736 = 클립 영상과 같은 방향)에 싣는다. `hitsSchema` 1(StartInfo 에도). 앱 `capture.ts netHitsOf` → `MeasureOpts.netHits` →
+  계산기가 받을 수 있을 때만(caps.netHits) → `analyze-distance netHits`. **d(모델 크기 머리)는 지름으로 믿지 않고 안내로만** — `net-flight.ts` 에 지름 없는(d ≤ 0) 후보의 연결 길을 따로 두었다.
+  Swift 는 SDK 27.1 로 typecheck 만 했다(실기기 · 시뮬레이터 굽기 전) — **좌표 방향(시계 방향 회전) · PTS 대응은 폰에서 오버레이로 봐야 한다.**
+- **작업 C(시험대)**: `npm run velocity:bench -- --net=<netseen.json> --modes=app,guided`(안내 vs 기존, 같은 영상) · `--shifts=0.05,0.1,0.2`(분석창 민감도 — 가시 구간 유지 공의 값 차이 2km/h 안 비율,
+  잘린 구간 따로) · `--dump=<폴더>` + `scripts/velocity-bench/overlay.html`(원본 위에 빨강 후보 · 주황 이은 길 · 파랑 덩어리 · 초록 궤적). 엔진 보고에 `guided · guidedWhy(no-chain · no-seed · no-flight) ·
+  netHits · netChain · seedSource(net · hint · rest)` — 안내가 실패해 옛 길로 가면 출처 · 까닭이 남는다(시도 기록 distance 에도).
+- **작업 D(라벨)**: `docs/velocity/redesign/SPEC-labels.md`(공 중심 · 릴리스 · 끝 · 가림 JSON, schema 1) · `labels.mjs` · `--labels=<폴더> --modes=app,label-link`(사람이 찍은 중심을 안내로 = 단계 ②).
+  단계 ③(사람이 찍은 중심을 관측으로 고정)은 엔진 입구가 없어 다음 묶음 — SPEC 4절. **라벨은 0구** — 30~50구는 사용자 몫.
+- 시험: session-test 36 · engine2-test 106 · 웹 · 앱 tsc 0 · eslint 0 · native-api 모양 갱신(더하기만). **시험대 실행(run.mjs)은 이 맥에 영상 자료가 없어 못 돌렸다** — 가짜 결과로 report · labels 만 확인.
+  네 맥(자료 있음)에서 `npm run velocity:bench -- --limit=3` 한 번 돌려 주면 좋겠다. 설계안의 PLAN-pitchlab 결론 셋 수정은 그 문서 머리에 적었다.
+
 ## 김민에게 — 2026-10-25 · 금윤호(Claude, 윤호 맥북) — 덕아웃 지도(카카오맵) 웹 · 앱 · **Vercel · GitHub 에 열쇠 셋을 넣어 줘(너만 할 수 있는 일)**
 
 받은 뒤 할 일 아래 1~3(DB · 패키지 그대로, 앱은 바닥 코드가 바뀌어 새로 굽힌다). 금윤호: "연습장 · 레슨장을 카카오맵 지도로, 앱은 웹뷰 말고 네이티브로". 코드는 모두 main 에 있다(6ba14b95 · a0634234).

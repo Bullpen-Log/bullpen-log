@@ -35,7 +35,13 @@ export function attemptSettings(
           fovDeg: opts.fovDeg,
           fovKnown: opts.fovKnown,
           tiltRad: opts.tiltRad,
-          ...(opts.ballRange ? { rangeStart: opts.ballRange.startSec, rangeEnd: opts.ballRange.endSec, seedT: opts.ballRange.seedT } : {}),
+          ...(opts.ballRange
+            ? {
+                rangeStart: opts.ballRange.startSec,
+                rangeEnd: opts.ballRange.endSec,
+                seedT: opts.ballRange.seedT,
+              }
+            : {}),
           netHits: opts.netHits?.length ?? 0,
         }
       : {}),
@@ -46,7 +52,11 @@ export function attemptSettings(
  * 판 — 앱(네이티브) 판 · 빌드 · 웹뷰 UA(앱 화면 판 BullpenNative/N) · OTA 갱신 번호 · JS dev/release · 계산기 엔진 판 · 계산기 기능(ENGINE_CAPS) ·
  * 카메라 모듈이 아는 후보 약속(StartInfo.hitsSchema — 작업 B 부터)
  */
-export function attemptVersions(info: StartInfo | null, engine: EngineInfo | null, update: string | null) {
+export function attemptVersions(
+  info: StartInfo | null,
+  engine: EngineInfo | null,
+  update: string | null
+) {
   const hits = info?.hitsSchema;
   return {
     app: info?.appVersion ?? undefined,
@@ -69,7 +79,9 @@ export async function loadUpdateId(): Promise<string | null> {
   if (__DEV__ || !requireOptionalNativeModule('ExpoUpdates')) return null;
   try {
     const Updates = await import('expo-updates');
-    return Updates.isEnabled && !Updates.isEmbeddedLaunch ? (Updates.updateId ?? null) : null;
+    return Updates.isEnabled && !Updates.isEmbeddedLaunch
+      ? (Updates.updateId ?? null)
+      : null;
   } catch {
     return null;
   }

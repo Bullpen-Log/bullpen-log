@@ -62,7 +62,16 @@ npm run velocity:bench -- --engine=lib/velocity-engine            # 지금 엔�
 npm run velocity:bench -- --engine=git:<커밋> --set=all --json=<파일>  # 옛 판 · 모든 묶음
 npm run velocity:bench -- --compare=<a.json>,<b.json>             # 두 결과 견주기(공마다 · 묶어서)
 npm run velocity:bench:fetch                                       # fixtures.json 의 영상을 받기(읽기만, .env)
+# 2026-10-25 설계안 첫 묶음(작업 A · C · D)
+npm run velocity:bench -- --net=<netseen.json> --modes=app,guided   # 모델 후보 안내(guided) vs 기존(app) 을 같은 영상에서 — 안내로 찾은 비율 · 실패 까닭(no-chain · no-seed · no-flight)
+npm run velocity:bench -- --shifts=0.05,0.1,0.2                     # 분석창 민감도 — 공 시각을 ±s 옮겨 다시 재고 값 차이(2km/h 안 비율 · 잘린 구간 따로)
+npm run velocity:bench -- --dump=<폴더>                             # 공마다 궤적 · 후보 · 이은 길 JSON → scripts/velocity-bench/overlay.html 로 원본 위에 겹쳐 본다(라벨 찍기도)
+npm run velocity:bench -- --labels=<폴더> --modes=app,label-link    # 사람이 찍은 중심(SPEC-labels.md)을 안내로 — 단계 B 진단
+npm run velocity:bench:report -- <결과.json> --strict               # 확인용 목표 미달이면 끝 코드 1(CI)
 ```
+
+화면 규칙(기록할 공 · 세션 거리)은 `screen.mjs` 가 **앱과 같은 함수**(`lib/velocity-session.ts screenPitch · withSessionDistance`)로 받은 차례대로 건다 — 옛 `app-rules.mjs`(복제 규칙)는
+2026-10-25 에 지웠다. lib 이 `@/` 를 써서 `velocity:bench` 는 `--import ./scripts/alias-register.mjs` 로 돈다(`gun-table.mjs` 도).
 
 ## Project Structure
 
@@ -70,8 +79,11 @@ npm run velocity:bench:fetch                                       # fixtures.js
 scripts/velocity-bench/
   fixtures.json        자료 목록(DB id · 묶음 · 스피드건 · 실제 거리 · 꼬리표)
   fetch.mjs            영상 받기(download.mjs · download-recording.mjs 를 감쌈)
-  run.mjs              엔진 하나로 모든 공 재기 → 결과 JSON
-  report.mjs           묶기 · 표 · 견주기 · 목표 대비
+  run.mjs              엔진 하나로 모든 공 재기 → 결과 JSON(길: app · guided · label-link · true · true±5 · base, --shifts · --dump)
+  screen.mjs           화면 규칙 — 앱과 같은 lib/velocity-session.ts 함수로(2026-10-25, app-rules.mjs 대신)
+  labels.mjs           사람이 찍은 공 라벨 읽기(SPEC-labels.md)
+  overlay.html         개발용 오버레이 · 라벨 찍기(정적 쪽 — 덤프 JSON + 영상)
+  report.mjs           묶기 · 표 · 견주기 · 목표 대비 · 안내 vs 기존 · 분석창 민감도 · --strict
   engines/             git:<커밋> 엔진을 꺼내 둔 곳(.gitignore)
 docs/velocity/redesign/bench-results.md   판마다 결과 표(사람이 읽는 곳)
 ```
