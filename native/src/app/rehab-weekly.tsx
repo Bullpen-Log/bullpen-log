@@ -1,3 +1,5 @@
+import { REHAB_ENABLED } from '@/lib/armcare/rehab-regions';
+import { RehabPausedScreen } from '~/armcare/rehab-paused';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
@@ -25,7 +27,7 @@ const YES_NO = [
   { value: 'no', label: '아니요' },
 ];
 
-export default function RehabWeeklyScreen() {
+function RehabWeeklyScreen() {
   const c = usePalette();
   const state = useScreenData<AppArmcareTodayTab | AppArmcareGuideTab>('app-training-parts.loadAppArmcare', 'today', 'training-armcare:today');
   const data = state.data?.tab === 'today' ? state.data : null;
@@ -185,4 +187,8 @@ function Flow({ d }: { d: AppRehabDetail }) {
       )}
     </StepFrame>
   );
+}
+
+export default function RehabRoute() {
+  return REHAB_ENABLED ? <RehabWeeklyScreen /> : <RehabPausedScreen />;
 }

@@ -3,13 +3,15 @@
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
+import { createHash } from 'node:crypto';
+import { effortFields } from '@/lib/pitch-effort';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { visibleGuides } from '@/lib/library-cache';
 import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
 import { isLevelKey } from '@/lib/mechanics/levels';
-import { loadDrillThrowNote } from '@/lib/mechanics/load';
+import { loadDrillThrowNote, loadMechanicsProgram } from '@/lib/mechanics/load';
 import { loadFocusOffer } from '@/lib/mechanics/focus-load';
 import {
   countFeel,
@@ -24,6 +26,7 @@ import {
   readProgramState,
   withFilm,
   withThrowLog,
+  practiceInput,
   type DrillThrowNote,
   type FilmNote,
 } from '@/lib/mechanics/program';
@@ -56,6 +59,7 @@ export async function startMechanicsProgram(level: string): Promise<Result> {
     programStateJson({
       ...freshState(level),
       films: prevState?.films ?? [],
+      practice: prevState?.practice ?? [],
       /* 오늘 드릴로 던진 공 알림도 지킨다 — 같은 날 수준을 바꿔도 남길 공은 그대로 */
       throwLog: prevState?.throwLog ?? null,
       /* 3D 리포트 처방도 지킨다 — 처방은 수준 세션의 드릴 칸만 바꾸는 것이라 수준을 바꿔도 이어 간다 */
@@ -133,7 +137,8 @@ export async function endMechanicsFocus(): Promise<Result> {
  * 세션 끝 화면과 프로그램 칸의 단추(app/(app)/training/film-verdict.tsx)가 부른다.
  */
 export async function recordMechanicsFilm(
-  verdict: string
+  verdict: string,
+  feedback?: { comparable?: boolean; transferred?: boolean; response?: string }
 ): Promise<{ ok: true; note: FilmNote } | { error: string }> {
   const user = await requireUser();
   if (!isFilmVerdict(verdict)) return { error: '알 수 없는 값이에요.' };
@@ -141,7 +146,10 @@ export async function recordMechanicsFilm(
   if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
   if (program.sessionsDone <= 0) return { error: '세션을 먼저 마쳐 주세요.' };
   const state = readProgramState(program.progress);
-  const note: FilmNote = { session: program.sessionsDone, on: toDateKey(appNow()), verdict };
+  const note: FilmNote = { session: program.sessionsDone, on: toDateKey(appNow()), verdict,
+    level: state.level,
+    comparable: feedback?.comparable === true, transferred: feedback?.transferred === true,
+    response: feedback?.response === 'clear' || feedback?.response === 'pain' ? feedback.response : 'unknown' };
   await prisma.mechanicsProgram.update({
     where: { userId: user.id },
     data: { progress: asJson(programStateJson({ ...state, films: withFilm(state.films, note) })) },
@@ -169,18 +177,25 @@ export async function recordMechanicsDrill(input: {
   guideId: string;
   element: string;
   feel: string;
+  practice?: unknown;
 }): Promise<Result> {
   const user = await requireUser();
   const { guideId, element, feel } = input;
   if (!isElementName(element) || !isFeel(feel)) return { error: '알 수 없는 값이에요.' };
   const guide = (await visibleGuides()).find((g) => g.id === guideId);
   if (!guide) return { error: '드릴을 찾을 수 없어요.' };
+  const actual = practiceInput(input.practice);
+  if (isThrowingDrill(guide.category) && !actual) return { error: '앱을 다시 켜서 업데이트한 뒤, 실제 횟수·체감 강도·통증 여부를 적어 주세요.' };
   const program = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id } });
   if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
 
   const today = toDateKey(appNow());
   const date = dbDate(today);
   const read = readProgramState(program.progress);
+  const previous = read.practice?.find((p) => p.on === today && p.guideId === guideId);
+  if (actual && previous && previous.throws === actual.throws && previous.effortPct === actual.effortPct && previous.response === actual.response && previous.alreadyLogged === actual.alreadyLogged) return { ok: true };
+  const current = await loadMechanicsProgram(user.id);
+  if (current.painFold && isThrowingDrill(guide.category)) return { error: current.painFold.reason };
   /*
    * 그날 처음 스로잉 드릴을 했으면 그때 투구 기록의 합을 기억한다 — 그 뒤 합이 늘면 드릴로 던진 공을 남긴 것으로 본다(drillThrowNote).
    * 아침에 불펜을 미리 적어 둔 날도 알림이 뜨게, 시각이 아니라 합으로 견준다(PitchLog 에 고친 시각이 없다).
@@ -194,8 +209,23 @@ export async function recordMechanicsDrill(input: {
             .pitchCount ?? 0
         )
       : read;
-  const next = { ...state, feels: countFeel(state.feels, element, feel, today) };
+  const practice = actual ? [
+    ...(state.practice ?? []).filter((p) => !(p.on === today && p.guideId === guideId)).slice(-89),
+    { ...actual, recorded: true, guideId, on: today },
+  ] : state.practice;
+  const next = { ...state, practice, feels: countFeel(state.feels, element, feel, today) };
+  // 날짜·드릴의 합계 하나. 재시도해도 새 투구 기록이 생기지 않는다.
+  const hash = createHash('sha256').update(`mechanics:${user.id}:${today}:${guideId}`).digest('hex').slice(0, 32);
+  const variant = (8 + (Number.parseInt(hash[16], 16) % 4)).toString(16);
+  const pitchId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-${variant}${hash.slice(17, 20)}-${hash.slice(20)}`;
+  const pitching: Prisma.PrismaPromise<unknown>[] = actual && !actual.alreadyLogged && actual.throws > 0 ? [prisma.pitchLog.upsert({
+    where: { id: pitchId },
+    create: { id: pitchId, userId: user.id, date, sessionType: '캐치볼', pitchCount: actual.throws,
+      ...effortFields(actual.effortPct), memo: `메커니즘 드릴 · ${guide.title} · 오늘 합계`, videoPaths: [] },
+    update: { pitchCount: actual.throws, ...effortFields(actual.effortPct) },
+  })] : actual ? [prisma.pitchLog.deleteMany({ where: { id: pitchId, userId: user.id } })] : [];
   await prisma.$transaction([
+    ...pitching,
     prisma.mechanicsProgram.update({
       where: { userId: user.id },
       data: { progress: asJson(programStateJson(next)) },
@@ -229,9 +259,13 @@ export async function finishMechanicsSession(opts?: {
   if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
   const state = readProgramState(program.progress);
   if (!state.level) return { error: '수준을 먼저 골라 주세요.' };
+  const current = await loadMechanicsProgram(user.id);
+  if (current.session.length === 0) return { error: '오늘 사용할 수 있는 드릴이 없어요. 장비와 투구 계획을 확인해 주세요.' };
+  // 건너뛴 칸·서버에서 제한한 칸을 완료로 세지 않는다.
+  const complete = current.session.every((s) => current.doneToday.includes(s.guideId));
   /* 끝 화면의 '드릴로 공 N회 던졌어요' 카드(2026-10-16) */
   const throwNote = await loadDrillThrowNote(user.id, state, toDateKey(appNow()));
-  if (opts?.partial === true) {
+  if (opts?.partial === true || !complete || current.painFold != null) {
     revalidatePath(PROGRAM_PATH);
     return { ok: true, advice: null, throwNote };
   }

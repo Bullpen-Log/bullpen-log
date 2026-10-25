@@ -127,7 +127,7 @@ export function MuscleMapPanel({
       <div className="space-y-2.5 rounded-2xl border border-line bg-surface p-(--block-pad)">
         {!area ? (
           <p className="text-footnote break-keep text-muted">
-            암케어 근육 {ARMCARE_MUSCLES.length}개 · 누르면 부위, 한 번 더 누르면 근육
+            암케어 근육 {ARMCARE_MUSCLES.length}개 · 누르면 부위, 한 번 더 누르면 근육. 근력·회복 상태를 측정한 지도는 아니에요.
           </p>
         ) : selection.muscle ? (
           <MuscleDetail

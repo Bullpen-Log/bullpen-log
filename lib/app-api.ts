@@ -14,7 +14,7 @@
 export const APP_API_HEADER = 'x-bullpen-app';
 
 /** 이 코드가 말하는 약속 번호 — 앱은 이 값을 보낸다 */
-export const APP_API_LEVEL = 1;
+export const APP_API_LEVEL = 2; // 메커니즘 실제 투구량·영상 비교 조건 입력
 
 /** 서버가 받는 가장 낮은 번호 */
 export const MIN_APP_API = 1;

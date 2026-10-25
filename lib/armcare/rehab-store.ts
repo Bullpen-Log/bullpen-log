@@ -41,7 +41,7 @@ export function dayStart(dateKey: string): Date {
 }
 
 const activeRow = cache(async (userId: string) => {
-  if (!REHAB_ENABLED) return null;
+  // 자동 진행이 중단돼도 기존 재활 이력의 운동 제한은 유지한다.
   return prisma.userRehabProgram.findFirst({
     where: { userId, endedAt: null },
     orderBy: { startedAt: 'desc' },
@@ -78,7 +78,9 @@ export async function loadRehabFacts(
   today: Date
 ): Promise<RehabFacts | null> {
   const active = await loadActiveRehab(userId);
-  return active ? rehabFacts(active.program, toDateKey(today)) : null;
+  if (!active) return null;
+  const facts = rehabFacts(active.program, toDateKey(today));
+  return REHAB_ENABLED ? facts : { ...facts, stage: Math.min(2, facts.stage) as 1 | 2, throwing: 'none' as const };
 }
 
 const RESULTS: readonly RehabResult[] = ['green', 'yellow', 'red', 'refer'];

@@ -1,5 +1,6 @@
 'use client';
 
+import type { ArmcareHistoryItem } from '@/lib/armcare/history';
 import { useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronRight } from '@/components/icon';
 import { ExerciseBadges } from '@/components/meta-badges';
@@ -43,12 +44,14 @@ export function ArmcareGuide({
   routines,
   map,
   pain = null,
+  history = [],
 }: {
   /**
    * 오늘 · 어제 체크인의 팔 통증(lib/armcare/coverage-load.ts). 3D 를 최근 2주 기록으로 칠하던 것(2026-10-04)과
    * '2주째 비어 있어요' 카드는 뺐다(2026-10-20 · 10-21 김민).
    */
   pain?: PainLine | null;
+  history?: ArmcareHistoryItem[];
   exercises: ArmcareExerciseView[];
   /** 내 루틴 — 운동마다 '담기'로 넣을 곳 (add-to-routine.tsx) */
   routines: RoutineChoice[];
@@ -96,7 +99,12 @@ export function ArmcareGuide({
 
           {pain && <PainNote pain={pain} onArea={showArea} />}
 
-          <MuscleMapPanel
+          <details className="rounded-2xl border border-line bg-surface p-4">
+          <summary className="min-h-11 cursor-pointer font-semibold">최근 2주 수행 기록 · 최근 20개</summary>
+          <p className="text-xs text-muted">수행 기록은 한 운동을 보여줘요. 근력·회복 상태나 부상 위험을 측정한 값은 아니에요.</p>
+          {history.length === 0 ? <p className="py-2 text-sm text-muted">남긴 수행 기록이 없어요.</p> : history.map((r, i) => <p key={`${r.on}:${i}`} className="py-2 text-sm"><b>{r.title}</b><br /><span className="text-xs text-muted">{r.on} · {r.amount}</span></p>)}
+        </details>
+        <MuscleMapPanel
             side={side}
             onSide={setPicked}
             bothHands={map.bothHands}

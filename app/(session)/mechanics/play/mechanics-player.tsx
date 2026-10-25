@@ -1,5 +1,7 @@
 'use client';
 
+import { PracticeInput, emptyPractice } from './practice-input';
+
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { unstable_rethrow, useRouter } from 'next/navigation';
@@ -13,7 +15,6 @@ import { mechanicsLevel } from '@/lib/mechanics/levels';
 import {
   FEELS,
   MECHANICS_FOLD_TEXT,
-  doseFields,
   filmPrompt,
   isArmLoaded,
   levelAdvice,
@@ -84,6 +85,7 @@ export function MechanicsPlayer({
   const [choices, setChoices] = useState(() => items.map((it) => ({ alt: 0, variantId: it.guideId })));
   /* 지금 드릴에서 마친 세트 수 — 화면 안에서만 센다(드릴을 옮기면 처음부터) */
   const [setsDone, setSetsDone] = useState(0);
+  const [practice, setPractice] = useState(emptyPractice);
 
   const item = items[index];
   const view = viewOf(item, choices[index]);
@@ -94,18 +96,24 @@ export function MechanicsPlayer({
   const record = (feel: DrillFeel) =>
     startTransition(async () => {
       setError(null);
+      if (!practice.throws.trim() || !practice.effort.trim() || !practice.response) {
+        setError('실제 횟수·체감 강도·통증 여부를 먼저 적어 주세요.');
+        return;
+      }
       const res = await orOffline(
-        recordMechanicsDrill({ guideId: view.guideId, element: item.element, feel }),
+        recordMechanicsDrill({ guideId: view.guideId, element: item.element, feel, practice: { throws: Number(practice.throws), effortPct: Number(practice.effort), response: practice.response, alreadyLogged: practice.alreadyLogged } }),
         { error: OFFLINE_MESSAGE }
       );
       if ('error' in res) {
         setError(res.error);
         return;
       }
+      if (practice.response === 'pain') { window.location.assign(backHref); return; }
       setDone((d) => d.map((v, i) => (i === index ? true : v)));
       if (index + 1 < items.length) {
         setIndex(index + 1);
         setSetsDone(0);
+    setPractice(emptyPractice());
         scroller.current?.scrollTo({ top: 0 });
       } else {
         await finish();
@@ -141,6 +149,7 @@ export function MechanicsPlayer({
     if (index + 1 < items.length) {
       setIndex(index + 1);
       setSetsDone(0);
+    setPractice(emptyPractice());
       scroller.current?.scrollTo({ top: 0 });
     } else if (!done.some(Boolean)) {
       router.push(backHref);
@@ -204,6 +213,7 @@ export function MechanicsPlayer({
               isAdmin={isAdmin}
               painLabel={painLabel}
             />
+            <div className="mx-auto max-w-xl px-4 pb-4"><PracticeInput value={practice} onChange={setPractice} /></div>
           </div>
 
           <div className="border-t border-line bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -307,7 +317,7 @@ function viewOf(item: SessionDrillView, choice: { alt: number; variantId: string
     title: alt?.title ?? item.title,
     guideId: variant.id,
     tool: variant.tool,
-    ...doseFields(variant.category, item.stage),
+    dose: item.dose, sets: item.sets, tempo: item.tempo,
     variant,
     variants,
   };

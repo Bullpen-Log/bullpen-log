@@ -1,3 +1,4 @@
+import { ARMCARE_PURPOSE_TEXT } from '@/lib/pitching-content';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type RefObject } from 'react';
@@ -147,6 +148,12 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
   const { custom } = data;
   return (
     <View style={{ gap: 20 }}>
+      <View style={[s.card, { backgroundColor: c.card, gap: 8 }]}>
+        <Text style={[s.bodyBold, { color: c.ink }]}>준비 · 정리 · 강화</Text>
+        <Text style={[s.small, { color: c.muted }]}>{ARMCARE_PURPOSE_TEXT.cooldown}</Text>
+        <Text style={[s.small, { color: c.muted }]}>{ARMCARE_PURPOSE_TEXT.strength}</Text>
+        <Press onPress={() => router.push('/warmup' as Href)} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}><Text style={[s.bodyBold, { color: c.sky }]}>던지기 전 워밍업 보기 ›</Text></Press>
+      </View>
       <View style={{ gap: 10 }}>
         {custom.kind === 'rehab' ? (
           <SectionHead title="오늘 재활" desc="아픈 곳에 맞춰 단계별로 · 맞춤 루틴 대신" c={c} />
@@ -373,10 +380,16 @@ function GuideTab({ data, scroll, c }: { data: AppArmcareGuideTab; scroll: RefOb
           </View>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>3D 근육 지도 보기</Text>
-            <Text style={[s.small, { color: c.muted }]}>근육을 눌러 그 부위 운동을 찾아요</Text>
+            <Text style={[s.small, { color: c.muted }]}>근육을 눌러 운동을 찾아요. 근력·회복 상태를 측정한 지도는 아니에요</Text>
           </View>
           <SymbolView name="chevron.right" size={14} weight="semibold" tintColor={c.muted} />
         </Pressable>
+        <View style={[s.card, { backgroundColor: c.card }]}>
+          <Fold label="최근 2주 수행 기록 · 최근 20개" c={c}>
+            <Text style={[s.small, { color: c.muted }]}>{ARMCARE_PURPOSE_TEXT.record}</Text>
+            {(data.history ?? []).length === 0 ? <Text style={[s.small, { color: c.muted }]}>남긴 수행 기록이 없어요.</Text> : (data.history ?? []).map((r, i) => <View key={`${r.on}:${i}`} style={{ paddingVertical: 6 }}><Text style={[s.bodyBold, { color: c.ink }]}>{r.title}</Text><Text style={[s.small, { color: c.muted }]}>{r.on} · {r.amount}</Text></View>)}
+          </Fold>
+        </View>
         {AREAS_BY_JOINT.flatMap(({ joint, areas }) => [
           <Text key={joint} accessibilityRole="header" style={[s.section, { color: c.ink, paddingHorizontal: 4, paddingTop: 8 }]}>
             {joint}

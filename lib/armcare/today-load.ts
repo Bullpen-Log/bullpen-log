@@ -1,4 +1,5 @@
 import 'server-only';
+import { loadArmcareHistory, type ArmcareHistoryItem } from '@/lib/armcare/history';
 import type { getCurrentUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
@@ -141,6 +142,7 @@ export type AppMyRoutine = {
 };
 
 export type AppArmcareTodayTab = {
+  rehabPaused?: boolean;
   tab: 'today';
   dateKey: string;
   custom: AppArmcareCustom;
@@ -161,6 +163,7 @@ export type AppArmcareTodayTab = {
 };
 
 export type AppArmcareGuideTab = {
+  history?: ArmcareHistoryItem[];
   tab: 'guide';
   dateKey: string;
   exercises: ArmcareExerciseView[];
@@ -187,14 +190,16 @@ export async function loadAppArmcareTab(
     const library = await visibleExercises();
     const armcareLib = library.filter((ex) => ex.category === ARMCARE_CATEGORY);
     const dateKey = toDateKey(today);
-    const [exercises, map, mine, favorites] = await Promise.all([
+    const [exercises, map, mine, favorites, history] = await Promise.all([
       toArmcareViews(armcareLib),
       loadArmcareCoverage(user.id, dateKey, library),
       loadMyRoutines(user.id),
       favoriteExerciseIds(user.id),
+      loadArmcareHistory(user.id, dateKey),
     ]);
     return {
       tab: 'guide',
+      history,
       dateKey,
       exercises,
       coverage: {
@@ -293,6 +298,7 @@ export async function loadAppArmcareTab(
 
   return {
     tab: 'today',
+    rehabPaused: !REHAB_ENABLED && data.facts.condition.rehab != null,
     dateKey: data.todayKey,
     custom,
     painView: data.armPain ? { spots: [...data.armPain.spots], level: data.armPain.level ?? null, age: data.facts.profile.age } : null,

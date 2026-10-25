@@ -48,7 +48,7 @@
  * 경계) · 오늘 상태 한 장과 날 종류의 타입. lib/report/theme.ts · daily-plan.ts · lib/program/load.ts(server-only)는 부르지 않는다 — 그쪽이
  * 이 파일을 부를 것이라 되부르면 순환이다.
  */
-import { ARM_PAIN_ROUTINE_MIN_AGE, type WorkoutKind } from '@/lib/checkin';
+import { type WorkoutKind } from '@/lib/checkin';
 import type { DayState, ProgramCommitment } from '@/lib/engine/day-state';
 import {
   isArmPlyo,
@@ -832,7 +832,6 @@ export function arbitrate(input: ArbiterInput): Arbitration {
     override = false,
     minutes,
     programDayDaily = PROGRAM_DAY_DAILY,
-    age = null,
   } = input;
   const applied = new Set<ArbiterLayer>();
   const deferred: Deferred[] = [];
@@ -1030,13 +1029,12 @@ export function arbitrate(input: ArbiterInput): Arbitration {
    * 못 펼침). 메커니즘 화면은 lib/mechanics/fold.ts mechanicsFoldOf 가 같은 차례 · 같은 규칙으로 정한다(자체 시험이 같은 답인지 본다).
    */
   const pain = state.arm.painJoints.length > 0;
-  const youth = age != null && age < ARM_PAIN_ROUTINE_MIN_AGE;
   const mechanics: Arbitration['mechanics'] = arm.spent
     ? { foldThrows: true, anyway: false, because: 'armSpent' }
     : halted
       ? { foldThrows: true, anyway: false, because: 'painUnknown' }
       : pain
-        ? { foldThrows: true, anyway: !youth, because: 'pain' }
+        ? { foldThrows: true, anyway: false, because: 'pain' }
         : { foldThrows: false, anyway: true, because: null };
 
   const order = ARBITER_LAYERS.filter((l) => applied.has(l));
