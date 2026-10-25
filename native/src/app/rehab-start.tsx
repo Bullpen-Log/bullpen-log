@@ -1,3 +1,5 @@
+import { REHAB_ENABLED } from '@/lib/armcare/rehab-regions';
+import { RehabPausedScreen } from '~/armcare/rehab-paused';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -43,7 +45,7 @@ const STEP_COUNT = 5;
 const NO_DIAGNOSIS = 'none';
 type Step = 0 | 1 | 2 | 3 | 4;
 
-export default function RehabStartScreen() {
+function RehabStartScreen() {
   const c = usePalette();
   const q = useLocalSearchParams<{ age?: string; area?: string; level?: string }>();
   const age = q.age && /^\d+$/.test(q.age) ? Number(q.age) : null;
@@ -330,4 +332,8 @@ function Blocked({ text, c }: { text: string; c: Palette }) {
       <Text style={{ color: c.warn, fontSize: 15, lineHeight: 22 }}>{text}</Text>
     </View>
   );
+}
+
+export default function RehabRoute() {
+  return REHAB_ENABLED ? <RehabStartScreen /> : <RehabPausedScreen />;
 }

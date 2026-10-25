@@ -502,7 +502,7 @@ export function AreaCard({
             ) : null}
             {AREA_DETAILS[area.key] ? (
               <>
-                <AreaSection title="이런 신호가 있으면 더 챙기세요" c={c}>
+                <AreaSection title="불편함이 있으면 확인하세요" c={c}>
                   {AREA_DETAILS[area.key].signs.map((sign) => (
                     <Text key={sign} style={[s.small, { color: c.ink }]}>
                       · {sign}

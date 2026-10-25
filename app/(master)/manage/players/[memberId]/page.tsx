@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ClipboardList } from '@/components/icon';
-import { ArmStatusNote } from '@/components/arm-status-note';
+import { CoachArmNote } from '@/components/master/coach-arm-note';
 import { Badge, Card, PageHeading } from '@/components/ui';
 import { Bars, Line } from '@/components/master/charts';
 import { MemberEditForm } from '@/components/master/member-edit-form';
@@ -101,7 +101,7 @@ export default async function MemberPage({
           {card.arm && (
             <Card className="space-y-2">
               <h2 className="text-sm font-bold text-ink">지금 팔 상태</h2>
-              <ArmStatusNote status={card.arm} bare />
+              <CoachArmNote status={card.arm} />
             </Card>
           )}
 
@@ -322,7 +322,6 @@ export default async function MemberPage({
           homework: n.homework,
           mine: n.authorId === user.id,
         }))}
-        hasPass={org.kind === 'LESSON' && passes.some((p) => p.total > p.used)}
       />
 
       {org.kind === 'LESSON' && (

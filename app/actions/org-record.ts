@@ -59,7 +59,7 @@ export async function createPitchLogs(_prev: OrgActionState, formData: FormData)
     const raw = String(formData.get(`pitch-${m.id}`) ?? '').trim();
     if (!raw && !resting) continue;
     if (resting && formData.get(`rest-${m.id}`) !== 'on') continue;
-    if (!memberScope(m.consent).pitch) return { error: `${m.nickname}은(는) 투구 기록 공유를 켜지 않았어요.` };
+    if (!memberScope(m.consent, true).pitch) return { error: `${m.nickname}은(는) 투구 기록 공유를 켜지 않았어요.` };
     let pitchCount = 0;
     if (!resting) {
       pitchCount = Number.parseInt(raw, 10);

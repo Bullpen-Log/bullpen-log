@@ -1,20 +1,9 @@
 /**
- * 투구 메커니즘 향상 프로그램의 규칙 — 순수 계산. 시험: npm run mechanics:test
- *
- * 2026-10-04 사용자분이 바꾼 틀: 세션을 저절로 짜지 않는다. 사용자가 수준(입문 · 초급 · 중급 · 고급)을 골라, 그 수준의
- * 4주 · 주 3번 · 정해진 세션을 차례로 한다(lib/mechanics/levels.ts). 쉬움이 쌓여도 저절로 올리지 않고 권하기만 한다.
- * - 드릴마다 느낌을 누른다(어려움 · 적당 · 쉬움). 요소마다 '쉬움'을 넘긴 날 · '어려움'이 이어진 날을 센다 — 하루에 몇 번을
- *   눌러도 한 번(countFeel). 여섯 요소 중 넷이 서로 다른 날 '쉬움' 세 번이면 다음 수준을, 둘이 '어려움' 두 날이면 아래
- *   수준을 권한다(levelAdvice). 12세션을 다 마치면 다음 수준을 권한다.
- * - 진행(고른 수준 · 이 수준에서 마친 세션 수 · 요소별 느낌)은 MechanicsProgram.progress(Json) 한 칸에 둔다 — DB 구조는 그대로다.
- *   옛 줄(요소마다 stage · easy 를 둔 2026-10-04 아침 모양)은 수준을 안 고른 것으로 읽는다.
- * - 가진 장비로 할 수 있는 도구를 먼저 고르고, 정해진 드릴을 할 장비가 없으면 같은 요소 · 같은 단계의 할 수 있는 드릴로 바꿔
- *   넣고 알린다(맨몸 · 야구공은 누구나). 장비를 아직 안 고른 사람은 거르지 않는다.
- * - 안전 규칙은 하나만 건다 — 오늘 체크인에서 어깨 · 팔꿈치를 '통증'이라고 한 날은 팔에 싣는 드릴(스로잉 · 메디신볼)을 접고,
- *   '그래도 하기'로 펼칠 수 있게 둔다(2026-10-13 사용자 결정 D5, 트레이닝 추천 2판 P6-5 — 아래 '팔이 아픈 날 접기'). 막지는 않는다.
- *   뻐근 · 세게 던진 다음 날 · 재활 단계는 예전처럼 걸지 않는다(2026-10-04 사용자분 결정을 D5 만큼만 좁혔다).
- * - 여섯 번째 세션마다 찍어 처음과 견준 결과(좋아짐 · 비슷 · 못 견줌)를 progress.films 에 남긴다(2026-10-09 — 그 전에는
- *   찍으라고만 하고 결과를 안 받아 드릴이 효과가 있었는지 앱에 남는 것이 없었다). 수준을 바꿔도 지킨다(세션 번호에 붙는 것).
+ * 메커니즘 연습의 공통 규칙. 2026-10-25: 기존 드릴 구성을 유지한다.
+ * 12회는 학습 순서이며 정해진 4주·주 3회·전력 투구 프로그램이 아니다.
+ * 횟수는 실제 입력을 기록하고, 통증·현재 투구 계획을 서버에서도 확인한다.
+ * 다른 동작을 같은 요소라는 이유만으로 대체하지 않는다.
+ * 진도·수행·영상 비교는 기존 JSON 안에서 보존한다(DB 구조 변경 없음).
  */
 import {
   ARM_PAIN_ROUTINE_MIN_AGE,
@@ -50,6 +39,10 @@ export type FilmNote = {
   /** 남긴 날 'YYYY-MM-DD' */
   on: string;
   verdict: FilmVerdict;
+  level?: LevelKey | null;
+  comparable?: boolean;
+  transferred?: boolean;
+  response?: 'clear' | 'pain' | 'unknown';
 };
 
 export const FILM_VERDICTS: { value: FilmVerdict; label: string }[] = [
@@ -82,7 +75,37 @@ export type ProgramState = {
   throwLog: ThrowLog | null;
   /** 3D 리포트 처방 — 진행 중이거나 마친 처방(새 처방 · 끝내기 전까지 남는다). 없으면 null */
   focus: ProgramFocus | null;
+  /** 실제 투구수. 과거 추정량은 섞지 않고 날짜·드릴마다 한 번 저장한다. */
+  practice?: PracticeRecord[];
 };
+
+export type PracticeRecord = {
+  guideId: string;
+  on: string;
+  throws: number;
+  effortPct: number;
+  response: 'clear' | 'pain';
+  alreadyLogged: boolean;
+  recorded?: boolean;
+};
+
+export function practiceInput(value: unknown): Omit<PracticeRecord, 'guideId' | 'on'> | null {
+  const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  if (typeof v.throws !== 'number' || !Number.isInteger(v.throws) || v.throws < 0 || v.throws > 1000 ||
+      typeof v.effortPct !== 'number' || !Number.isInteger(v.effortPct) || v.effortPct < 0 || v.effortPct > 100 ||
+      (v.response !== 'clear' && v.response !== 'pain') || typeof v.alreadyLogged !== 'boolean') return null;
+  return { throws: v.throws, effortPct: v.effortPct, response: v.response, alreadyLogged: v.alreadyLogged };
+}
+
+function readPractice(value: unknown): PracticeRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((x) => {
+    const v = x as Record<string, unknown>;
+    const input = practiceInput(v);
+    return input && typeof v.guideId === 'string' && dayOf(v.on)
+      ? [{ ...input, recorded: v.recorded === true, guideId: v.guideId, on: dayOf(v.on)! }] : [];
+  });
+}
 
 /**
  * 3D 리포트 처방(docs/designs/pitch-3d-report.md 6-2 · 6-4절) — [처방 시작]을 누를 때 리포트의 처방 한 장들(ElementRx[])을 그대로 베낀다.
@@ -153,7 +176,9 @@ function readFilms(raw: unknown): FilmNote[] {
     const session = countOf(v.session);
     const on = dayOf(v.on);
     if (session <= 0 || !on || !isFilmVerdict(v.verdict)) continue;
-    by.set(session, { session, on, verdict: v.verdict });
+    by.set(session, { session, on, verdict: v.verdict,
+      level: isLevelKey(v.level) ? v.level : null, comparable: v.comparable === true, transferred: v.transferred === true,
+      response: v.response === 'clear' || v.response === 'pain' ? v.response : 'unknown' });
   }
   return [...by.values()].sort((a, b) => a.session - b.session);
 }
@@ -229,6 +254,7 @@ export function readProgramState(json: unknown): ProgramState {
     films: readFilms(raw.films),
     throwLog: readThrowLog(raw.throwLog),
     focus: readFocus(raw.focus),
+    practice: readPractice(raw.practice),
   };
 }
 
@@ -242,6 +268,7 @@ export function programStateJson(state: ProgramState) {
     films: state.films,
     throwLog: state.throwLog,
     focus: state.focus,
+    practice: state.practice ?? [],
   };
 }
 
@@ -282,8 +309,7 @@ export type DrillThrowNote = {
 export function drillThrowNote({
   throwLog,
   todayKey,
-  doneToday,
-  pitchedToday,
+  practice = [],
 }: {
   throwLog: ThrowLog | null;
   todayKey: string;
@@ -291,25 +317,19 @@ export function drillThrowNote({
   doneToday: readonly { category: string; stage: string | null }[];
   /** 지금 오늘 투구 기록의 투구수 합 */
   pitchedToday: number;
+  practice?: readonly PracticeRecord[];
 }): DrillThrowNote | null {
   if (!throwLog || throwLog.on !== todayKey || throwLog.closed) return null;
-  if (pitchedToday > throwLog.base) return null;
-  const throwing = doneToday.filter((d) => isThrowingDrill(d.category));
-  if (throwing.length === 0) return null;
-  const stages = throwing.map((d) =>
-    (DRILL_STAGE_NAMES as readonly string[]).includes(d.stage ?? '') ? (d.stage as DrillStage) : '기초'
-  );
-  const throws = throwing.reduce((sum, d, i) => {
-    const dose = doseOf(d.category, stages[i]);
-    return sum + dose.sets * dose.reps;
-  }, 0);
-  const effortPct = Math.max(...stages.map((s) => DRILL_THROW_EFFORT[s]));
+  const records = practice.filter((p) => p.on === todayKey && !p.alreadyLogged && !p.recorded);
+  const throws = records.reduce((sum, p) => sum + p.throws, 0);
+  if (throws === 0) return null;
+  const effortPct = Math.round(records.reduce((sum, p) => sum + p.throws * p.effortPct, 0) / throws);
   return { throws, effortPct, href: drillThrowHref(todayKey, throws, effortPct) };
 }
 
 /** 알림 글 — 해요체 · 줄표 없이 */
 export const DRILL_THROW_TEXT = {
-  line: (n: number) => `드릴로 공을 약 ${n}회 던졌어요`,
+  line: (n: number) => `드릴에서 기록한 실제 투구 ${n}회`,
   record: '투구 기록에 남기기',
   done: '이미 넣었어요',
   skip: '안 적을래요',
@@ -359,8 +379,9 @@ export function levelAdvice(
   const hardCount = ELEMENT_NAMES.filter((n) => state.feels[n].hard >= HARD_DAYS).length;
   const easyCount = ELEMENT_NAMES.filter((n) => state.feels[n].easy >= EASY_DAYS).length;
   if (hardCount >= HARD_ELEMENTS_TO_SUGGEST_DOWN && down) return { kind: 'down', to: down.key };
-  if (state.index >= SESSIONS_PER_LEVEL) return { kind: 'done', to: up?.key ?? null };
-  if (easyCount >= EASY_ELEMENTS_TO_SUGGEST_UP && up) return { kind: 'up', to: up.key };
+  if (state.index >= SESSIONS_PER_LEVEL) return { kind: 'done', to: null };
+  const latest = state.films.at(-1);
+  if (easyCount >= EASY_ELEMENTS_TO_SUGGEST_UP && up && latest?.verdict === 'better' && latest.level === state.level && latest.comparable === true && latest.transferred === true && latest.response === 'clear') return { kind: 'up', to: up.key };
   return null;
 }
 
@@ -385,12 +406,6 @@ export function canUseVariant(
 ): boolean {
   if (!owned) return true;
   return (variant.equipment ?? []).every((e) => ALWAYS_HAVE.has(e) || owned.has(e));
-}
-
-/** 이 도구에 모자란 장비 */
-function missingGear(variant: { equipment?: string[] }, owned: ReadonlySet<string> | null): string[] {
-  if (!owned) return [];
-  return (variant.equipment ?? []).filter((e) => !ALWAYS_HAVE.has(e) && !owned.has(e));
 }
 
 /** 바꿔 할 수 있는 같은 요소 · 같은 단계의 다른 동작 — 따라 하기의 '다른 드릴' */
@@ -430,19 +445,12 @@ const STRENGTH = '근력 · 안정 드릴';
 
 export type Dose = { sets: number; reps: number };
 
-/**
- * 몇 번 · 얼마나 세게 — 드릴(MechanicsGuide)에는 세트 · 횟수가 없어서 분류마다 정한다.
- * 처음엔 트레드의 드릴 진행표(Fixing a Late Arm, lib/mechanics/elements.ts [T7])대로 모든 드릴을 2세트 × 8회로 두었다.
- * 2026-10-14 김민과 분류별로 나눴다(현장 관례로 어림한 값 — 공개 처방을 찾으면 다시 맞춘다):
- *   메디신볼 3세트 × 5회 — 파워 운동이라 적게, 매번 힘껏(2×8 이면 힘이 떨어진 채로 던지는 횟수가 생긴다)
- *   스로잉   2세트 × 10회 — 현장에서는 드릴마다 8~12구
- *   무브먼트 2세트 × 10회 — 공을 안 던져 10회 넘게도 흔하다
- * 단계가 올라도 횟수는 같고 세기와 하는 법만 바뀐다([T7] 다시 익히기 50~60% → 이어 하기 60~70% → 옮기기 60~75%, 드라이브라인도
- * 드릴은 그날 정한 세기로 — [D9]). 스로잉 드릴에도 공을 안 던지는 팔 동작이 있어 '구'가 아니라 '회'로 적는다.
+/** 분류 이름만으로 운동량을 처방하지 않는다. reps=0은 횟수를 정하지 않았다는 뜻이다.
+ * 특정 팔 타이밍 드릴의 예시는 itemsFromTitles에서 별도로 표시한다.
  */
-const MEDBALL_DOSE: Dose = { sets: 3, reps: 5 };
-const THROWING_DOSE: Dose = { sets: 2, reps: 10 };
-const MOVEMENT_DOSE: Dose = { sets: 2, reps: 10 };
+const MEDBALL_DOSE: Dose = { sets: 1, reps: 0 };
+const THROWING_DOSE: Dose = { sets: 1, reps: 0 };
+const MOVEMENT_DOSE: Dose = { sets: 1, reps: 0 };
 const DOSES: Record<string, Record<DrillStage, Dose>> = {
   [MOVEMENT]: { 기초: MOVEMENT_DOSE, 연결: MOVEMENT_DOSE, 통합: MOVEMENT_DOSE },
   [MEDBALL]: { 기초: MEDBALL_DOSE, 연결: MEDBALL_DOSE, 통합: MEDBALL_DOSE },
@@ -453,9 +461,9 @@ const DOSES: Record<string, Record<DrillStage, Dose>> = {
 
 /** 단계마다 어떻게 할지 — 따라 하기의 처방 밑 한 줄. 스로잉은 [T7] 의 세 걸음 */
 export const STAGE_TEMPO: Record<DrillStage, string> = {
-  기초: '처음 몇 번은 느린 동작으로 감을 잡고, 50~60% 힘으로 해요',
-  연결: '60~70% 힘으로, 느리게 몇 번 한 뒤 속도를 올려요',
-  통합: '60~75% 힘으로, 전체 동작에서도 같은 타이밍을 지켜요',
+  기초: '천천히 감을 잡고, 오늘 투구 계획 안에서 낮거나 중간인 세기로 해요',
+  연결: '리듬을 연결하되, 난이도가 올라도 오늘 정한 세기는 유지해요',
+  통합: '전체 동작에서도 타이밍을 지켜요. 전력으로 던지는 프로그램은 아니에요',
 };
 
 /**
@@ -488,7 +496,7 @@ export function doseOf(category: string, stage: DrillStage): Dose {
   return (DOSES[category] ?? DOSES[MOVEMENT])[stage];
 }
 
-export const doseText = (d: Dose) => `${d.sets}세트 × ${d.reps}회`;
+export const doseText = (d: Dose) => d.reps > 0 ? `${d.sets}세트 × ${d.reps}회` : '오늘 투구 계획 안에서 짧게 연습';
 
 /** 세션 한 줄의 처방 칸 — dose · sets · tempo */
 export function doseFields(category: string, stage: DrillStage) {
@@ -499,37 +507,9 @@ export function doseFields(category: string, stage: DrillStage) {
 const stageOf = (d: ProgramDrill): DrillStage =>
   (DRILL_STAGE_NAMES as readonly string[]).includes(d.stage ?? '') ? (d.stage as DrillStage) : '기초';
 
-/** 이 요소가 주(main) · 보조(sub)인 동작 — 그 단계 것만 */
-function candidates(drills: ProgramDrill[], element: MechanicsElementName, stage: DrillStage) {
-  const main = drills.filter((d) => d.stage === stage && d.focusPoints[0] === element);
-  const sub = drills.filter(
-    (d) => d.stage === stage && d.focusPoints[0] !== element && d.focusPoints.includes(element)
-  );
-  return [main, sub];
-}
-
 /** 할 수 있는 도구 중 앞의 것 — 묶음의 도구는 실제 공에 가까운 것부터 놓여 있다(drills.ts TOOL_ORDER) */
 function usableVariant(drill: ProgramDrill, owned: ReadonlySet<string> | null) {
   return drill.variants.find((v) => canUseVariant(v, owned)) ?? null;
-}
-
-/** 같은 요소 · 같은 단계에서 바꿔 할 수 있는 동작 — 주 요소인 것 먼저, 이 세션에 든 것은 빼고 */
-function swapsFor(
-  drills: ProgramDrill[],
-  element: MechanicsElementName,
-  stage: DrillStage,
-  used: Set<string>,
-  owned: ReadonlySet<string> | null
-): SessionSwap[] {
-  const out: SessionSwap[] = [];
-  for (const pool of candidates(drills, element, stage)) {
-    for (const d of pool) {
-      if (used.has(d.title) || out.length >= 4) continue;
-      const v = usableVariant(d, owned);
-      if (v) out.push({ title: d.title, guideId: v.id, category: v.category, tool: v.tool });
-    }
-  }
-  return out;
 }
 
 /** 처방 칸 꼬리표 — 드릴 이름마다(처방 칸이 아니면 없음) */
@@ -553,7 +533,6 @@ function itemsFromTitles({
   tags?: ReadonlyMap<string, RxTag>;
 }): SessionItem[] {
   const byTitle = new Map(drills.map((d) => [d.title, d] as const));
-  const used = new Set(titles);
   const picks: {
     drill: ProgramDrill;
     variant: ProgramDrill['variants'][number];
@@ -566,7 +545,6 @@ function itemsFromTitles({
     const drill = byTitle.get(title);
     if (!drill) continue;
     const tag = tags.get(title) ?? null;
-    const element = drill.focusPoints[0];
     const own = usableVariant(drill, owned);
     if (own) {
       picks.push({ drill, variant: own, replaced: null, need: [], tag });
@@ -576,19 +554,8 @@ function itemsFromTitles({
      * 이 드릴을 할 장비가 없다 — 같은 주 요소 · 같은 단계의 할 수 있는 드릴로. 보조로만 그 요소를 쓰는 드릴은 넣지 않는다 — 주 요소가 달라져
      * 세션의 투구 차례(하체 → 상체)가 깨지고 그 요소가 빠졌다(2026-10-16, 맨몸 · 야구공만인 고급 9 · 12번째). 없으면 그대로 두고 알린다.
      */
-    const need = missingGear(drill.variants[0], owned);
-    const alt = isElementName(element)
-      ? candidates(drills, element, stageOf(drill))[0].find(
-          (d) => !used.has(d.title) && usableVariant(d, owned)
-        )
-      : undefined;
-    const altVariant = alt ? usableVariant(alt, owned) : null;
-    if (alt && altVariant) {
-      used.add(alt.title);
-      picks.push({ drill: alt, variant: altVariant, replaced: drill.title, need, tag });
-    } else {
-      picks.push({ drill, variant: drill.variants[0], replaced: null, need, tag });
-    }
+    // 필요한 장비가 없으면 이 칸을 건너뛴다. 같은 요소만으로 다른 동작을 대신하지 않는다.
+    continue;
   }
 
   return picks.flatMap(({ drill, variant, replaced, need, tag }, i) => {
@@ -605,9 +572,12 @@ function itemsFromTitles({
         category: variant.category,
         tool: variant.tool,
         ...doseFields(variant.category, stage),
+        // 특정 팔 타이밍 예시 밖으로 횟수를 일반화하지 않는다.
+        dose: ['텐 토즈 스로우', '8자 리듬 로커'].includes(drill.title) ? '예시 2세트 × 8회 · 오늘 투구량 안에서 조절' : drill.title === '워킹 와인드업' ? '예시 1세트 × 8회 · 오늘 투구량 안에서 조절' : '오늘 투구 계획에 맞춰 짧게 연습',
+        sets: ['텐 토즈 스로우', '8자 리듬 로커'].includes(drill.title) ? 2 : 1,
         cue: tag?.cue || (cues.length > 0 ? cues[(index + i) % cues.length] : ''),
         gearNote: need.length > 0 ? { need: need.join(' · '), replaced } : null,
-        swaps: swapsFor(drills, element, stage, used, owned),
+        swaps: [],
         rx: tag ? { element: tag.element, level: tag.level } : null,
       },
     ];
@@ -666,10 +636,10 @@ export function focusPlan({
   drills: ProgramDrill[];
 }): { titles: string[]; tags: Map<string, RxTag> } {
   const week = focusWeek(done);
-  const slots = Math.max(3, base.length);
+  const slots = Math.max(1, base.length);
   const picks: { title: string; tag: RxTag }[] = [];
   const add = (title: string | undefined, r: ElementRx) => {
-    if (!title || picks.some((p) => p.title === title) || picks.length >= slots) return;
+    if (!title || !drills.some((d) => d.title === title) || picks.some((p) => p.title === title) || picks.length >= slots) return;
     picks.push({ title, tag: { element: r.element, level: r.level, cue: r.cue } });
   };
   const [main, next] = rx;
@@ -863,9 +833,9 @@ export function mechanicsPainFold(
     label,
     reason: youth
       ? MECHANICS_FOLD_TEXT.youthReason(label)
-      : MECHANICS_FOLD_TEXT.reason(label),
+      : `${label} 통증이 있어 던지기 드릴은 쉬어요. 통증이 이어지면 진료를 받아보세요.`,
     because: 'pain',
-    canUnfold: !youth,
+    canUnfold: false,
     cause: `${label} 통증으로`,
   };
 }
@@ -913,7 +883,7 @@ export function playItemsFor<
   fold: MechanicsPainFold | null,
   anyway: boolean
 ): { items: T[]; folded: number; partial: boolean } {
-  if (!fold || anyway) return { items: [...items], folded: 0, partial: false };
+  if (!fold || (anyway && fold.canUnfold)) return { items: [...items], folded: 0, partial: false };
   const { open, folded } = foldSession(items, fold);
   return {
     items: open.map((it) => ({

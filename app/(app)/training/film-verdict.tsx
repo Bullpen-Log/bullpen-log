@@ -26,13 +26,16 @@ export function FilmVerdictButtons({
   onSaved?: (note: FilmNote) => void;
 }) {
   const [saved, setSaved] = useState<FilmVerdict | null>(current?.verdict ?? null);
+  const [comparable, setComparable] = useState(current?.comparable === true);
+  const [transferred, setTransferred] = useState(current?.transferred === true);
+  const [response, setResponse] = useState<'clear' | 'pain' | 'unknown'>(current?.response ?? 'unknown');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const pick = (verdict: FilmVerdict) =>
     startTransition(async () => {
       setError(null);
-      const res = await orOffline(recordMechanicsFilm(verdict), { error: OFFLINE_MESSAGE });
+      const res = await orOffline(recordMechanicsFilm(verdict, { comparable, transferred, response }), { error: OFFLINE_MESSAGE });
       if ('error' in res) {
         setError(res.error);
         return;
@@ -44,6 +47,10 @@ export function FilmVerdictButtons({
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold text-muted">처음 영상과 견줘 보니 어땠나요?</p>
+      <p className="text-xs text-muted">구속 변화만으로 동작 개선을 판단하지 않아요.</p>
+      <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={comparable} onChange={(e) => setComparable(e.target.checked)} />같은 카메라 위치·거리·공·비슷한 세기로 촬영했어요</label>
+      <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={transferred} onChange={(e) => setTransferred(e.target.checked)} />드릴 밖 실제 투구에서도 유지됐어요</label>
+      <label className="block text-sm">연습 후·다음 날 팔 반응<select value={response} onChange={(e) => setResponse(e.target.value as typeof response)} className="ml-2 min-h-11 rounded-lg border border-line bg-surface p-2"><option value="unknown">아직 몰라요</option><option value="clear">통증 없었어요</option><option value="pain">통증 있었어요</option></select></label>
       <div role="group" aria-label="처음 영상과 견준 결과" className="grid grid-cols-3 gap-1.5">
         {FILM_VERDICTS.map((v) => {
           const on = saved === v.value;

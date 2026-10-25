@@ -1,13 +1,13 @@
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { ArmStatusNote } from '@/components/arm-status-note';
+import { CoachArmNote } from '@/components/master/coach-arm-note';
 import { SafeForm } from '@/components/safe-form';
 import { Badge, Button, Card, Field, FormError, Input } from '@/components/ui';
 import { Bars, Line } from '@/components/master/charts';
 import { verifyGuardianCode } from '@/app/actions/org-report';
 import { memberScope } from '@/lib/org/access';
 import {
-  armStatusFor,
+  coachArmStatusFor,
   pitchSummaryOf,
   velocitySummaryOf,
   MEMBER_SELECT,
@@ -40,7 +40,8 @@ export default async function GuardianReportPage({
       },
     },
   });
-  if (!report || report.expiresAt.getTime() < realNow().getTime()) {
+  /* 조직을 떠난 회원의 링크도 끝난 것으로 — 떠난 뒤의 기록은 조직 쪽에서 안 보인다(2026-10-25 0단계 계약) */
+  if (!report || report.expiresAt.getTime() < realNow().getTime() || report.member.status !== 'ACTIVE') {
     return (
       <Card className="space-y-1">
         <p className="text-sm font-bold text-ink">이 링크는 끝났어요</p>
@@ -90,10 +91,10 @@ export default async function GuardianReportPage({
 
   const now = appNow();
   const todayKey = toDateKey(now);
-  const scope = memberScope(member.consent);
+  const scope = memberScope(member.consent, !!member.user);
   const canPitch = !!member.user && scope.pitch;
   const [arm, pitch, velocity, notes] = await Promise.all([
-    canPitch ? armStatusFor(member.user!, now) : null,
+    canPitch ? coachArmStatusFor(member.user!, now, scope) : null,
     canPitch ? pitchSummaryOf(member.user!.id, todayKey) : null,
     canPitch ? velocitySummaryOf(member.user!.id) : null,
     prisma.lessonNote.findMany({
@@ -138,7 +139,7 @@ export default async function GuardianReportPage({
       {arm && (
         <Card className="space-y-2">
           <h2 className="text-sm font-bold text-ink">지금 팔 상태</h2>
-          <ArmStatusNote status={arm} bare />
+          <CoachArmNote status={arm} />
         </Card>
       )}
 

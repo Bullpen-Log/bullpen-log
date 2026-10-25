@@ -21,14 +21,14 @@ import {
   PASS_TOTAL_MAX,
   isDateKey,
   makeGuardianCode,
-  passUsable,
 } from '@/lib/org/rules';
 import { dbDate } from '@/lib/nutrition/days';
 import { isFutureDateKey } from '@/lib/pitch-stats';
 
 /**
  * 레슨 노트 · 숙제 · 수강권 · 보호자 리포트(4단계) — 모두 requireMaster → 그 구성원의 조직(requireOrg).
- * 노트는 가입 전 자리(userId null)에도 쓴다. 수강권은 레슨 날에 노트를 쓰면(countPass) 한 회 준다 — 쓸 수 있는 것 가운데 기한이 가까운 것부터.
+ * 노트는 가입 전 자리(userId null)에도 쓴다. 노트 저장은 수강권을 바꾸지 않는다 — 차감은 덕아웃 예약 끝남(app/actions/lessons.ts finishBooking)이
+ * 한다(2026-10-25 0단계 계약 2-1, 싱커는 지도 · 기록, 덕아웃은 예약 · 수강권).
  */
 
 export type OrgActionState = { error?: string; success?: string } | undefined;
@@ -64,7 +64,6 @@ export async function createLessonNote(
       .trim()
       .slice(0, HOMEWORK_MAX) || null;
   if (!body && !homework) return { error: '노트나 숙제를 적어 주세요.' };
-  const countPass = formData.get('countPass') === 'on';
   /* 한 일 · 공 수 · 강도(2026-10-21 개편 3단계) — 선수 쪽 레슨 줄(lib/org/lesson-feed.ts)이 읽는다 */
   const exercises = parseExercises(String(formData.get('exercises') ?? ''));
   const pitchCount = readBounded(formData.get('pitchCount'), 0, PITCH_COUNT_MAX);
@@ -93,19 +92,6 @@ export async function createLessonNote(
         where: { id: member.userId, sinkerStartedAt: null },
         data: { sinkerStartedAt: new Date() },
       });
-    if (countPass) {
-      const passes = await tx.lessonPass.findMany({
-        where: { memberId: member.id },
-        orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
-        select: { id: true, total: true, used: true, expiresAt: true },
-      });
-      const pick = passes.find((p) => passUsable(p, date));
-      if (pick)
-        await tx.lessonPass.update({
-          where: { id: pick.id },
-          data: { used: { increment: 1 } },
-        });
-    }
   });
   if (member.userId)
     await notify(member.userId, {

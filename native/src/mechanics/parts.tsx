@@ -164,13 +164,16 @@ export function ThrowNoteCard({ note, c }: { note: DrillThrowNote; c: Palette })
 /** 찍어서 견준 뒤의 한 답(웹 film-verdict.tsx) — 세션 번호와 함께 남고 프로그램 칸이 '견준 기록'으로 보인다. 다시 누르면 바꾼다. current 는 이미 남긴 답 */
 export function FilmVerdictButtons({ session, current = null, c }: { session: number; current?: FilmNote | null; c: Palette }) {
   const [saved, setSaved] = useState<FilmVerdict | null>(current?.verdict ?? null);
+  const [comparable, setComparable] = useState(current?.comparable === true);
+  const [transferred, setTransferred] = useState(current?.transferred === true);
+  const [response, setResponse] = useState<'clear' | 'pain' | 'unknown'>(current?.response ?? 'unknown');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pick = async (verdict: FilmVerdict) => {
     if (pending) return;
     setPending(true);
     setError(null);
-    const res = await act<{ ok: true }>('mechanics.recordMechanicsFilm', verdict);
+    const res = await act<{ ok: true }>('mechanics.recordMechanicsFilm', verdict, { comparable, transferred, response });
     setPending(false);
     if ('error' in res) setError(res.error);
     else {
@@ -181,6 +184,15 @@ export function FilmVerdictButtons({ session, current = null, c }: { session: nu
   return (
     <View style={{ gap: 8 }}>
       <Text style={[s.smallBold, { color: c.muted }]}>처음 영상과 견줘 보니 어땠나요?</Text>
+      <Text style={[s.small, { color: c.muted }]}>같은 카메라 위치·거리·공·비슷한 세기의 영상을 견줘요. 구속 변화만으로 동작 개선을 판단하지 않아요.</Text>
+      {[
+        { label: '같은 조건에서 촬영했어요', on: comparable, toggle: () => setComparable(!comparable) },
+        { label: '드릴 밖 실제 투구에서도 유지됐어요', on: transferred, toggle: () => setTransferred(!transferred) },
+      ].map((x) => <Press key={x.label} onPress={x.toggle} accessibilityRole="checkbox" accessibilityState={{ checked: x.on }} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={[s.small, { color: c.ink }]}>{x.on ? '☑' : '☐'} {x.label}</Text></Press>)}
+      <Text style={[s.smallBold, { color: c.muted }]}>연습 후·다음 날 팔 반응</Text>
+      <View style={s.grid}>
+        {([{ value: 'clear', label: '통증 없었어요' }, { value: 'pain', label: '통증 있었어요' }, { value: 'unknown', label: '아직 몰라요' }] as const).map((x) => <Press key={x.value} onPress={() => setResponse(x.value)} accessibilityRole="button" accessibilityState={{ selected: response === x.value }} style={[s.cell, { backgroundColor: response === x.value ? c.sky + '20' : c.chip }]}><Text style={[s.small, { color: c.ink }]}>{x.label}</Text></Press>)}
+      </View>
       <View accessibilityLabel="처음 영상과 견준 결과" style={s.grid}>
         {FILM_VERDICTS.map((v) => {
           const on = saved === v.value;
@@ -244,7 +256,7 @@ export function LevelOffer({
       ? '‘어려움’이 이어지는 요소가 있어요. 한 단계 낮은 수준에서 자세를 다지고 다시 올라와도 돼요.'
       : kind === 'up'
         ? '여러 요소에서 ‘쉬움’이 서로 다른 날 쌓였어요. 드릴이 편해졌다면 다음 수준이 더 맞을 수 있어요.'
-        : '4주 동안 12번을 다 했어요. 편하지 않았다면 프로그램 칸에서 같은 수준을 한 번 더 해도 돼요.';
+        : '12번을 다 했어요. 편하지 않았다면 프로그램 칸에서 같은 수준을 한 번 더 해도 돼요.';
   const start = async () => {
     if (pending) return;
     setPending(true);

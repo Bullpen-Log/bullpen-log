@@ -61,7 +61,7 @@ const one = tagged[0];
 /* ── 비어 있는 부위 ── */
 {
   const empty = armcareCoverage([], exercises);
-  ok(gapAreas(empty).join() === GAP_PRIORITY.slice(0, 2).join(), '기록이 없으면 차례의 앞 둘');
+  ok(gapAreas(empty).length === 0, '기록이 없다는 이유로 약한 부위를 지정하지 않음');
   const c = armcareCoverage([{ exerciseId: one.id }], exercises);
   const gaps = gapAreas(c, 8);
   ok(gaps.every((k) => c.primary[k] < GAP_BELOW), '고른 곳은 모두 기준 아래');

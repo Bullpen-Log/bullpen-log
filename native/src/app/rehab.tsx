@@ -1,3 +1,5 @@
+import { REHAB_ENABLED } from '@/lib/armcare/rehab-regions';
+import { RehabPausedScreen } from '~/armcare/rehab-paused';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
@@ -21,7 +23,7 @@ import { Press } from '~/shell/press';
  * 매주 확인 · [진단 받았어요] · [단계 직접 바꾸기] · [그만두기 / 재활 끝내기]. 자료는 암케어 화면과 같은 받기(같은 열쇠라 받아 둔 값이 바로 뜬다).
  * 단계 시험(rehab-test.tsx) · 매주 확인(rehab-weekly.tsx) · 투구 복귀표 열기(rehab-throw-open.tsx) · 던진 것 남기기(rehab-throw-log.tsx)도 앱 화면.
  */
-export default function RehabScreen() {
+function RehabScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const state = useScreenData<AppArmcareTodayTab | AppArmcareGuideTab>('app-training-parts.loadAppArmcare', 'today', 'training-armcare:today');
@@ -358,4 +360,8 @@ function Small({ label, onPress, muted, c }: { label: string; onPress: () => voi
 function shortDate(key: string): string {
   const [, m, d] = key.split('-').map(Number);
   return `${m}월 ${d}일`;
+}
+
+export default function RehabRoute() {
+  return REHAB_ENABLED ? <RehabScreen /> : <RehabPausedScreen />;
 }

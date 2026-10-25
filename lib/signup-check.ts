@@ -23,8 +23,8 @@ import {
  */
 export type SignupAnswers = {
   /**
-   * 계정 종류(2026-10-20 팀 · 레슨장 마스터) — 웹 가입의 첫 화면에서 고른다. 앱 가입(native/src/app/signup.tsx)은 아직 선수만이라
-   * null 그대로 보내고, 서버는 accountType 칸이 없으면 선수로 만든다.
+   * 계정 종류(2026-10-20 팀 · 레슨장 마스터) — 웹 가입과 싱커 앱 가입(native/src/app/signup.tsx, 2026-10-25 부터 선수 · 레슨장 · 팀)의
+   * 첫 화면에서 고른다. 서버는 accountType 칸이 없으면 선수로 만든다.
    */
   kind: SignupKind | null;
   nickname: string;
@@ -116,9 +116,8 @@ export function stepOfField(field: string): SignupStep {
 }
 
 /*
- * ── 웹 가입(app/login/auth-form.tsx)의 차례 — 종류 화면이 앞에 하나 더, 레슨장 · 팀은 선수 칸 대신 조직 화면 ──
- * SignupStep · SIGNUP_STEPS · stepOfField · checkSignupStep 은 그대로 둔다 — 앱 가입(native/src/app/signup.tsx)이 그 넷으로
- * 제 화면을 그린다(TITLES: Record<SignupStep, …>). 웹은 아래 넓은 꼴을 쓴다.
+ * ── 가입 차례 — 종류 화면이 앞에 하나 더, 레슨장 · 팀은 선수 칸 대신 조직 화면 ──
+ * 웹(app/login/auth-form.tsx)과 싱커 앱(native/src/app/signup.tsx, 2026-10-25)이 같이 쓴다. SignupStep · checkSignupStep 은 선수 화면 넷의 검사로 남는다.
  */
 export type WebSignupStep = SignupStep | 'kind' | 'org';
 

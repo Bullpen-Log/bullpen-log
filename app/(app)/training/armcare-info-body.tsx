@@ -408,7 +408,7 @@ function AreaInfo({
           </ul>
         </Section>
       )}
-      <Section title="이런 신호가 있으면 더 챙기세요">
+      <Section title="불편함이 있으면 확인하세요">
         <ul className="list-disc space-y-1 pl-5 marker:text-muted">
           {d.signs.map((sign) => (
             <li key={sign}>{sign}</li>

@@ -3,7 +3,6 @@ import { AREA_DETAILS } from '@/lib/armcare/details';
 import {
   ARM_PAIN_ROUTINE_MIN_AGE,
   armPainSpotLabel,
-  canDoPainRoutine,
 } from '@/lib/checkin';
 
 /**
@@ -67,14 +66,8 @@ export type PainAdvice = {
  */
 export function levelAdvice(
   level: number | null,
-  { spots = [], age = null }: { spots?: readonly string[]; age?: number | null } = {}
+  { age = null }: { spots?: readonly string[]; age?: number | null } = {}
 ): PainAdvice {
-  if (canDoPainRoutine({ spots, level, age })) {
-    return {
-      routine: true,
-      text: '통증 없는 범위에서 가벼운 루틴을 해요. 하다가 아프면 바로 멈추세요.',
-    };
-  }
   if (age != null && age < ARM_PAIN_ROUTINE_MIN_AGE) {
     return {
       routine: false,
@@ -93,7 +86,7 @@ export function levelAdvice(
   if (level === 1) {
     return {
       routine: false,
-      text: '아픈 곳을 고르지 않아 오늘은 팔 운동을 쉬어요. 통증이 이어지면 진료를 받아보세요.',
+      text: '던질 때만 아파도 오늘은 던지기와 팔 운동을 쉬어요. 통증이 이어지거나 다시 생기면 진료를 받아보세요.',
     };
   }
   return {

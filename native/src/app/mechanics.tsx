@@ -1,3 +1,4 @@
+import { PracticeInput, emptyPractice } from '~/mechanics/practice-input';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, Stack, useLocalSearchParams } from 'expo-router';
@@ -9,7 +10,6 @@ import { mechanicsElement } from '@/lib/mechanics/elements';
 import {
   FEELS,
   MECHANICS_FOLD_TEXT,
-  doseFields,
   filmPrompt,
   isArmLoaded,
   type DrillFeel,
@@ -115,7 +115,7 @@ function viewOf(item: SessionDrillView, choice: Choice): DrillChoiceView {
     title: alt?.title ?? item.title,
     guideId: variant.id,
     tool: variant.tool,
-    ...doseFields(variant.category, item.stage),
+    dose: item.dose, sets: item.sets, tempo: item.tempo,
     variant,
     variants,
   };
@@ -145,6 +145,7 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
   const [choices, setChoices] = useState<Choice[]>(() => items.map((it) => ({ alt: 0, variantId: it.guideId })));
   /* 지금 드릴에서 마친 세트 수 — 화면 안에서만 센다(드릴을 옮기면 처음부터) */
   const [setsDone, setSetsDone] = useState(0);
+  const [practice, setPractice] = useState(emptyPractice);
 
   /* 느낌 단추는 드릴이 바뀌어도 같은 자리다 — 한 장면에 두 번 눌리면 pending 이 그려지기 전이라 둘 다 들어간다. 그래서 상태 대신 ref 로 막는다 */
   const busy = useRef(false);
@@ -195,6 +196,7 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
   const next = () => {
     setIndex(index + 1);
     setSetsDone(0);
+    setPractice(emptyPractice());
   };
 
   /** 세션을 마친다 — 실패하면 끝 화면으로 넘어가지 않고 다시 저장하게 한다 */
@@ -216,13 +218,18 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
     run(async () => {
       tick();
       /* 마치기 저장만 실패한 뒤 느낌을 다시 누르면 같은 드릴이 두 번 기록됐다 — 이미 기록한 드릴은 건너뛰고 마치기만 */
+      if (!practice.throws.trim() || !practice.effort.trim() || !practice.response) {
+        setError('실제 횟수·체감 강도·통증 여부를 먼저 적어 주세요.');
+        return;
+      }
       if (!done[index]) {
-        const res = await act<{ ok: true }>('mechanics.recordMechanicsDrill', { guideId: view.guideId, element: item.element, feel });
+        const res = await act<{ ok: true }>('mechanics.recordMechanicsDrill', { guideId: view.guideId, element: item.element, feel, practice: { throws: Number(practice.throws), effortPct: Number(practice.effort), response: practice.response, alreadyLogged: practice.alreadyLogged } });
         if ('error' in res) {
           setError(res.error);
           return;
         }
       }
+      if (practice.response === 'pain') { close(); return; }
       setDone((d) => d.map((v, i) => (i === index ? true : v)));
       if (index + 1 < items.length) next();
       else await finish();
@@ -323,6 +330,7 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
       <ScrollView ref={scrollRef} style={s.fill} contentContainerStyle={[s.content, READABLE]}>
         {/* 드릴마다 새로 그린다(key) — 앞 드릴의 영상이 다음 드릴에서 돌고 설명 칸이 펼친 채 남지 않게 */}
         <DrillView key={item.guideId} item={item} view={view} alt={choices[index].alt} onChoose={choose} painLabel={painLabel} c={c} />
+        <PracticeInput value={practice} onChange={setPractice} c={c} />
       </ScrollView>
 
       {/* 누르는 막대 — 엄지가 닿는 아래에 */}

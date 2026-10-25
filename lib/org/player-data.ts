@@ -13,6 +13,7 @@ import { createPlaybackUrls } from '@/lib/storage';
 import { isPhoneVideoPath } from '@/lib/phone-video-path';
 import { memberScope } from '@/lib/org/access';
 import type { Consent } from '@/lib/org/rules';
+import { coachArmStatusOf, type CoachArmStatus } from '@/lib/org/arm-view';
 
 /**
  * 코치가 보는 선수(회원) 자료(2단계) — 선수 화면이 쓰는 같은 함수로 읽는다. 팔 상태는 lib/report/arm-status.ts armStatusOf(판정을 새로
@@ -161,6 +162,12 @@ export async function armStatusFor(user: UserForFacts, now: Date): Promise<ArmSt
   return armStatusOf(g.facts);
 }
 
+/** 코치 · 보호자가 보는 팔 상태 — 공유 안 한 범위는 판정에서 뺀다(lib/org/arm-view.ts) */
+export async function coachArmStatusFor(user: UserForFacts, now: Date, scope: Consent): Promise<CoachArmStatus> {
+  const g = await gatherFactsAndPlan(user, now);
+  return coachArmStatusOf(g.facts, scope, toDateKey(now));
+}
+
 /* ── 구속 ── */
 
 export type VelocitySummary = {
@@ -301,7 +308,7 @@ export async function weightSeriesOf(userId: string, todayKey: string): Promise<
 
 export type MemberCard = {
   scope: Consent;
-  arm: ArmStatus | null;
+  arm: CoachArmStatus | null;
   pitch: PitchSummary | null;
   velocity: VelocitySummary | null;
   checkin: CheckinToday | null;
@@ -310,14 +317,14 @@ export type MemberCard = {
   weight: Point[];
 };
 
-/** 가입한 회원의 카드 — 동의한 범위만 읽는다. 코치가 만든 자리(user 없음)는 null */
+/** 가입한 회원의 카드 — 동의한 범위만 읽는다. 코치가 만든 자리(user 없음) · 떠난 회원은 null(떠난 뒤의 개인 기록은 조직이 못 본다) */
 export async function memberCardOf(member: MemberWithUser, now: Date): Promise<MemberCard | null> {
-  if (!member.user) return null;
-  const scope = memberScope(member.consent);
+  if (!member.user || member.status !== 'ACTIVE') return null;
+  const scope = memberScope(member.consent, !!member.user);
   const todayKey = toDateKey(now);
   const u = member.user;
   const [arm, pitch, velocity, checkin, rehab, clips, weight] = await Promise.all([
-    scope.pitch ? armStatusFor(u, now) : null,
+    scope.pitch ? coachArmStatusFor(u, now, scope) : null,
     scope.pitch ? pitchSummaryOf(u.id, todayKey) : null,
     scope.pitch ? velocitySummaryOf(u.id) : null,
     scope.checkin ? checkinTodayOf(u.id, todayKey) : null,
@@ -334,7 +341,7 @@ export type BoardRow = {
   memberId: string;
   nickname: string;
   tags: string[];
-  status: ArmStatus;
+  status: CoachArmStatus;
   lastOuting: { key: string; pitches: number } | null;
 };
 
@@ -343,7 +350,8 @@ const RANK: Record<ArmLevel, number> = { danger: 0, caution: 1, safe: 2 };
 /** 투구 공유에 동의한 가입 선수마다 팔 상태 — 위험부터. 동시에 넷씩(연결 풀이 작다, lib/prisma.ts) */
 export async function pitcherBoardOf(orgId: string, now: Date): Promise<{ rows: BoardRow[]; hidden: number }> {
   const members = await loadPlayers(orgId);
-  const consenting = members.filter((m) => m.user && memberScope(m.consent).pitch);
+  const consenting = members.filter((m) => m.user && memberScope(m.consent, true).pitch);
+  const todayKey = toDateKey(now);
   const rows = await mapLimit(consenting, 4, async (m) => {
     const g = await gatherFactsAndPlan(m.user!, now);
     const p = g.facts.patterns;
@@ -351,7 +359,7 @@ export async function pitcherBoardOf(orgId: string, now: Date): Promise<{ rows: 
       memberId: m.id,
       nickname: m.nickname,
       tags: m.tags,
-      status: armStatusOf(g.facts),
+      status: coachArmStatusOf(g.facts, memberScope(m.consent, true), todayKey),
       lastOuting: p.lastThrowDate ? { key: p.lastThrowDate, pitches: p.lastOutingPitches ?? 0 } : null,
     };
   });

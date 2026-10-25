@@ -1,3 +1,5 @@
+import { REHAB_ENABLED } from '@/lib/armcare/rehab-regions';
+import { RehabPausedScreen } from '~/armcare/rehab-paused';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -14,7 +16,7 @@ import { useScreenData } from '~/training/screen';
  * 오늘 던진 것 남기기(앱 화면) — 웹 rehab-throwing.tsx ThrowLogFlow: 몇 칸 · 공 수(마운드 칸은 묶음) · 던질 때 통증. 저장하면 투구 기록 한 줄
  * (rehab.logRehabThrow — 캐치볼 · 불펜으로 남아 투구 부하에 들어간다).
  */
-export default function RehabThrowLogScreen() {
+function RehabThrowLogScreen() {
   const c = usePalette();
   const state = useScreenData<AppArmcareTodayTab | AppArmcareGuideTab>('app-training-parts.loadAppArmcare', 'today', 'training-armcare:today');
   const data = state.data?.tab === 'today' ? state.data : null;
@@ -82,4 +84,8 @@ export default function RehabThrowLogScreen() {
       </Text>
     </StepFrame>
   );
+}
+
+export default function RehabRoute() {
+  return REHAB_ENABLED ? <RehabThrowLogScreen /> : <RehabPausedScreen />;
 }

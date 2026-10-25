@@ -196,11 +196,11 @@ for (const [gearLabel, owned] of gearSets) {
       const items = buildLevelSession({ drills, level: lv.key, index: i, owned });
       const tag = `${gearLabel} · ${lv.name} ${i + 1}번째`;
       built += 1;
-      const per = lv.key === 'intermediate' || lv.key === 'advanced' ? 4 : 3;
+      const per = (levelSession(lv.key, i)?.titles ?? []).filter((t) => byTitle.get(t)?.variants.some((v) => canUseVariant(v, owned))).length;
       ok(items.length === per, `드릴 ${per}개 ${tag}`, `${items.length}개`);
       ok(new Set(items.map((x) => x.title)).size === items.length, `겹침 없음 ${tag}`);
       const groups = items.map((x) => groupOf(x.element));
-      ok(groups.every((g, k) => k === 0 || groups[k - 1] <= g), `차례 ${tag}`);
+      ok(items.every((it) => levelSession(lv.key, i)?.titles.includes(it.title)), `다른 목적으로 임의 대체하지 않음 ${tag}`);
       for (const it of items) {
         const v = variantOf(it.guideId);
         ok(v != null, `드릴 id ${tag}`);
@@ -216,8 +216,8 @@ for (const [gearLabel, owned] of gearSets) {
         if (owned === null) ok(it.gearNote == null, `장비를 안 골랐으면 알림 없음 ${tag}`);
         const dose = doseOf(it.category, it.stage);
         ok(
-          it.dose === `${dose.sets}세트 × ${dose.reps}회` &&
-            it.sets === dose.sets &&
+          it.dose.includes('오늘 투구') &&
+            it.sets >= 1 && it.sets <= 2 &&
             it.tempo.length > 0 &&
             it.cue.length > 0,
           `처방 · 신호 ${tag}`
@@ -292,15 +292,12 @@ ok(buildLevelSession({ drills, level: 'intro', index: 12 }).length === 0, '다 �
   ok(readProgramState({ v: 2, level: 'intro', index: 0, feels: {}, films: [] }).throwLog === null, '옛 줄은 알림 없음');
   const note = (over: Partial<Parameters<typeof drillThrowNote>[0]>) =>
     drillThrowNote({ throwLog: s1.throwLog, todayKey: T, doneToday: [throwing, throwing], pitchedToday: 30, ...over });
-  const n = note({});
-  ok(n?.throws === 40 && n.effortPct === 70 && n.href === `/pitch-log/${T}?drill=40&pct=70`, '스로잉 드릴 둘 × 2세트 × 10회 = 40회 · 연결 70%', JSON.stringify(n));
-  ok(
-    note({ doneToday: [throwing, { category: '스로잉 드릴', stage: '통합' }, { category: '메디신볼 드릴', stage: '통합' }] })?.effortPct === 75,
-    '체감 강도는 가장 높은 단계의 위쪽 끝 · 메디신볼은 안 셈'
-  );
-  ok(note({ doneToday: [{ category: '메디신볼 드릴', stage: '기초' }, { category: '무브먼트 패턴 드릴', stage: '기초' }] }) === null, '스로잉 드릴이 없으면 알림 없음');
-  ok(note({ pitchedToday: 70 }) === null, '드릴 뒤 투구 기록의 합이 늘면 사라짐(새 기록 · 더하기)');
-  ok(note({ pitchedToday: 30 }) != null, '아침에 적어 둔 불펜(합 그대로)이면 그대로 뜸');
+  ok(note({}) === null, '실제 기록이 없으면 투구수를 추정하지 않음');
+  const actual = { guideId: 'g1', on: T, throws: 7, effortPct: 55, response: 'clear' as const, alreadyLogged: false };
+  const n = note({ practice: [actual] });
+  ok(n?.throws === 7 && n.effortPct === 55, '실제 투구수와 체감 강도를 사용');
+  ok(note({ practice: [{ ...actual, alreadyLogged: true }] }) === null, '이미 투구 기록에 포함한 것은 더하지 않음');
+  ok(note({ practice: [actual], pitchedToday: 100 })?.throws === 7, '다른 불펜 기록이 늘어도 드릴의 미기록 여부를 추측하지 않음');
   ok(note({ throwLog: { ...s1.throwLog!, closed: true } }) === null, '닫았으면 사라짐');
   ok(note({ todayKey: '2026-10-17' }) === null, '다른 날 기억이면 알림 없음');
   ok(note({ throwLog: null }) === null, '스로잉 드릴을 한 기억이 없으면 알림 없음');
@@ -360,7 +357,8 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 ok(levelAdvice(freshState(null)) === null, '수준을 안 골랐으면 권하지 않음');
 ok(levelAdvice(freshState('intro')) === null, '처음엔 권하지 않음');
 ok(levelAdvice(withFeels(freshState('intro'), 3, 0)) === null, '쉬움 요소 셋은 아직');
-ok(same(levelAdvice(withFeels(freshState('intro'), 4, 0)), { kind: 'up', to: 'beginner' }), '쉬움 요소 넷이면 다음 수준');
+ok(levelAdvice(withFeels(freshState('intro'), 4, 0)) === null, '쉬움만으로 다음 수준을 권하지 않음');
+ok(levelAdvice({ ...withFeels(freshState('intro'), 4, 0), films: [{ session: 6, on: D(3), verdict: 'better', level: 'intro', comparable: true, transferred: true, response: 'clear' }] })?.kind === 'up', '같은 조건·실제 투구 전이·통증 없는 반응을 함께 확인');
 ok(levelAdvice(withFeels(freshState('advanced'), 6, 0)) === null, '고급은 더 올릴 곳이 없음');
 ok(
   same(levelAdvice(withFeels(freshState('intermediate'), 0, 2)), { kind: 'down', to: 'beginner' }),
@@ -368,7 +366,7 @@ ok(
 );
 ok(levelAdvice(withFeels(freshState('intro'), 0, 6)) === null, '입문은 더 낮출 곳이 없음');
 ok(levelAdvice(withFeels(freshState('beginner'), 4, 2))?.kind === 'down', '쉬움 · 어려움이 다 있으면 낮추기가 먼저');
-ok(same(levelAdvice({ ...freshState('beginner'), index: 12 }), { kind: 'done', to: 'intermediate' }), '12번을 다 마치면 다음 수준');
+ok(same(levelAdvice({ ...freshState('beginner'), index: 12 }), { kind: 'done', to: null }), '횟수를 마쳐도 다음 수준으로 자동 권하지 않음');
 ok(same(levelAdvice({ ...freshState('advanced'), index: 12 }), { kind: 'done', to: null }), '고급을 다 마치면 한 번 더');
 
 /* ── 장비 · 영상 ── */
@@ -432,14 +430,12 @@ console.log('\n[2판 P6-5] 어깨 · 팔꿈치 통증 날 접기 · 펼치기 ·
     '둘 다면 어깨 → 팔꿈치 차례'
   );
   ok(
-    sh?.reason ===
-      '오늘 어깨가 아파 던지기 · 메디신볼 드릴은 접었어요. 그래도 하려면 펼쳐요.',
+    sh?.reason.includes('어깨 통증') === true && sh.canUnfold === false,
     '까닭 글(어깨)',
     sh?.reason
   );
   ok(
-    el?.reason ===
-      '오늘 팔꿈치가 아파 던지기 · 메디신볼 드릴은 접었어요. 그래도 하려면 펼쳐요.',
+    el?.reason.includes('팔꿈치 통증') === true && el.canUnfold === false,
     '까닭 글(팔꿈치)',
     el?.reason
   );
@@ -580,7 +576,7 @@ console.log('\n[2판 P6-5] 어깨 · 팔꿈치 통증 날 접기 · 펼치기 ·
   {
     const p = playItemsFor(fake, both, true);
     ok(
-      same(p.items, fake) && !p.partial && p.folded === 0,
+      p.items.every((it) => !isArmLoaded(it.category)) && p.partial && p.folded === 2,
       "펼친 날('그래도 하기') — 세션 그대로, 세션 수도 오른다"
     );
   }
@@ -693,7 +689,7 @@ console.log('\n[2판 P6-5] 어깨 · 팔꿈치 통증 날 접기 · 펼치기 ·
             p.items.reduce((n, x) => n + x.alternatives.length, 0) -
             f.folded.reduce((n, x) => n + x.alternatives.length, 0);
           const anyway = playItemsFor(session, sh, true);
-          if (!same(anyway.items, session) || anyway.partial) badShape++;
+          if (anyway.items.some((it) => isArmLoaded(it.category))) badShape++;
         }
     console.log(
       `세션 ${sessions}개 · 드릴 ${items}개 — 어깨 통증 날 접힘 ${folded}개 · 다 접힌 세션 ${allFolded}개 · 남은 드릴의 바꾸기에서 뺀 동작 ${swapsDropped}개`
