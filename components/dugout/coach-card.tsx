@@ -241,3 +241,61 @@ export function CoachPhotoCard({ c, href }: { c: CoachCardData; href: string }) 
     </Link>
   );
 }
+
+/**
+ * 코치 비교 줄(PC, 2026-10-25 덕아웃 PC 개편 — docs/designs/dugout-desktop-information-design.md 레슨) — 큰 첫 글자 판 대신 작은 아바타 한 줄.
+ * 왼쪽 작은 아바타 · 이름 ★ · 레슨장 · 지역 · 전문 칩 → 오른쪽 가격 · 다음 가능 · 비교 단추. 줄들은 가로선으로 쌓여 열이 맞아 코치끼리 바로 견준다.
+ * 줄 전체가 상세로 가는 링크(이름 링크를 줄 크기로 덮는다 — 안쪽 단추는 relative z-10 으로 위에).
+ */
+export function CoachRow({
+  c,
+  href,
+  actions,
+  admin = false,
+}: {
+  c: CoachCardData;
+  href: string;
+  actions?: ReactNode;
+  admin?: boolean;
+}) {
+  const today = c.nextOpen?.startsWith('오늘');
+  return (
+    <article className="relative grid grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-4 py-4 transition-colors hover:bg-ink/3 focus-within:bg-ink/3">
+      <CoachAvatar name={c.coach} size="md" className="h-10 w-10 text-sm" />
+      <div className="min-w-0 space-y-1">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <Link
+            href={href}
+            className="text-base font-bold text-ink after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
+          >
+            {c.coach} 코치
+          </Link>
+          <Stars rating={c.rating} reviews={c.reviews} />
+        </p>
+        <p className="truncate text-[13px] text-muted">
+          {c.name}
+          {c.region ? ` · ${c.region}` : ''}
+        </p>
+        <p className="flex flex-wrap gap-1 pt-0.5">
+          {c.specialties.slice(0, 4).map((s) => (
+            <Badge key={s}>{specialtyLabel(s)}</Badge>
+          ))}
+          <CoachBadges c={c} admin={admin} />
+          {c.match?.reasons.map((r) => (
+            <span key={r} className="rounded-full bg-sky/10 px-2 py-0.5 text-[11px] font-semibold text-sky-strong">
+              {r}
+            </span>
+          ))}
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1.5 text-right">
+        <p className="text-sm font-bold text-ink">
+          {c.priceFrom != null ? `${formatPrice(c.priceFrom)}~` : '가격 문의'}
+          <span className="ml-1 text-xs font-normal text-muted">· {c.slotMin}분</span>
+        </p>
+        <p className={`text-xs ${today ? 'font-semibold text-ok' : 'text-muted'}`}>{c.nextOpen ?? c.hours ?? '시간 문의'}</p>
+        {actions && <div className="relative z-10 flex items-center gap-2 pt-0.5">{actions}</div>}
+      </div>
+    </article>
+  );
+}

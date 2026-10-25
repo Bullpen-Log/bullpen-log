@@ -2,8 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { emitRetap } from './tab-pager';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import Animated, { Easing, Extrapolation, interpolate, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette, useTheme, withAlpha } from '~/lib/ui';
@@ -225,24 +224,12 @@ export function TabBar({
   const dragY = useSharedValue(0);
   const speed = useSharedValue(0);
   const touching = useSharedValue(false);
-  const moved = useSharedValue(false);
-  const ended = useSharedValue(false);
-  const recognized = useSharedValue(false);
-  const grabOffset = useSharedValue(0);
-  const touchX = useSharedValue(0);
-  const touchY = useSharedValue(0);
-  const lastTouchEnd = useSharedValue(0);
-  const revision = useSharedValue(0);
-  const beganAtRevision = useSharedValue(0);
   const shown = useSharedValue(showLens ? 1 : 0);
   const [lensGlass, setLensGlass] = useState(false);
   const pending = useRef<string | null>(null);
   const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef({ tabs, active, onPress, index, showLens });
   const keys = JSON.stringify(tabs.map((t) => t.href));
-  useEffect(() => {
-    revision.set(revision.get() + 1);
-  }, [keys, cell, revision]);
 
   useEffect(() => {
     latest.current = { tabs, active, onPress, index, showLens };
@@ -284,90 +271,80 @@ export function TabBar({
     }, TAB_MOTION.acknowledgeMs);
     now.onPress(now.tabs[i]);
   };
-  const beginPress = () => {
+  // 한 투명 입력 면이 터치 시작부터 끝까지 소유한다. Pan/Pressable 경합이나 시간 기반 입력 차단을 두지 않는다.
+  const contact = useRef<{
+    keys: string; cell: number; count: number; hrefs: string[];
+    originX: number; originY: number; startX: number; startY: number;
+    offset: number; moved: boolean; lastX: number; lastAt: number;
+  } | null>(null);
+  const tick = () => void Haptics.selectionAsync();
+  const resetTouch = (settle = committed.get()) => {
+    contact.current = null;
+    touching.set(false);
+    preview.set(settle);
+    pos.set(reduce ? settle : withSpring(settle, TAB_MOTION.releaseSpring));
+    lift.set(reduce ? 0 : withSpring(0, LIFT_SPRING));
+    dragY.set(reduce ? 0 : withSpring(0, LIFT_SPRING));
+    speed.set(reduce ? 0 : withTiming(0, { duration: 120 }));
+    shown.set(latest.current.showLens ? 1 : 0);
+    setLensGlass(false);
+  };
+  const startTouch = (event: GestureResponderEvent) => {
+    const e = event.nativeEvent;
+    if (e.touches.length !== 1 || cell <= 0 || tabs.length === 0) return;
+    const target = tabIndexAt(e.locationX, cell, tabs.length);
+    if (target < 0) return;
     if (pendingTimer.current) clearTimeout(pendingTimer.current);
     pending.current = null;
+    contact.current = {
+      keys, cell, count: tabs.length, hrefs: tabs.map(t => t.href),
+      originX: e.pageX - e.locationX, originY: e.pageY - e.locationY,
+      startX: e.locationX, startY: e.locationY,
+      offset: e.locationX - (target + 0.5) * cell,
+      moved: false, lastX: e.pageX, lastAt: e.timestamp,
+    };
+    touching.set(true);
+    preview.set(target);
+    pos.set(reduce ? target : withSpring(target, POS_SPRING));
+    lift.set(reduce ? 0 : withTiming(1, { duration: TAB_MOTION.liftDuration }));
+    shown.set(1);
     setLensGlass(!reduce);
   };
-  const tick = () => void Haptics.selectionAsync();
-  const n = tabs.length;
-  const drag = Gesture.Pan()
-    .enabled(cell > 0 && n > 0)
-    .maxPointers(1)
-    .minDistance(0)
-    .shouldCancelWhenOutside(false)
-    .cancelsTouchesInView(true)
-    // RNGH는 이 콜백을 렌더가 아니라 UI 스레드의 터치 시작 때 실행한다.
-    // eslint-disable-next-line react-hooks/refs
-    .onBegin((e) => {
-      const target = tabIndexAt(e.x, cell, n);
-      if (target < 0) return;
-      touching.set(true);
-      moved.set(false);
-      ended.set(false);
-      recognized.set(false);
-      lastTouchEnd.set(0);
-      beganAtRevision.set(revision.get());
-      touchX.set(e.x);
-      touchY.set(e.y);
-      grabOffset.set(e.x - (target + 0.5) * cell);
-      preview.set(target);
-      pos.set(reduce ? target : withSpring(target, POS_SPRING));
-      // 짧은 탭은 작은 반응, 누르고 있으면 큰 렌즈로 부푼다.
-      lift.set(reduce ? 0 : withTiming(1, { duration: TAB_MOTION.liftDuration }));
-      shown.set(1);
-      runOnJS(beginPress)();
-    })
-    .onStart(() => recognized.set(true))
-    .onUpdate((e) => {
-      if (!touching.get() || beganAtRevision.get() !== revision.get()) return;
-      if (!moved.get() && Math.hypot(e.x - touchX.get(), e.y - touchY.get()) < TAB_MOTION.dragThreshold) return;
-      moved.set(true);
-      const next = tabDragPosition(e.x, grabOffset.get(), cell, n);
-      pos.set(next);
-      if (!reduce) {
-        dragY.set(Math.max(-10, Math.min(10, (e.y - touchY.get()) * 0.18)));
-        speed.set(Math.min(1, Math.abs(e.velocityX) / 1800));
-      }
-      const target = Math.max(0, Math.min(n - 1, Math.round(next)));
-      if (target !== preview.get()) {
-        preview.set(target);
-        runOnJS(tick)();
-      }
-    })
-    // 선택 처리의 ref는 UI 이벤트가 JS로 전달된 뒤에만 읽힌다.
-    // eslint-disable-next-line react-hooks/refs
-    .onEnd((e, success) => {
-      if (ended.get()) return;
-      const target = success && beganAtRevision.get() === revision.get()
-        ? tabReleaseIndex(e.x, e.y, moved.get() ? pos.get() : tabIndexAt(e.x, cell, n), cell, n)
-        : -1;
-      ended.set(true);
-      // 화면 전환은 손을 놓을 때 한 번만. 지나가는 탭은 색만 미리 보여준다.
-      const settle = target >= 0 ? target : committed.get();
-      preview.set(settle);
-      pos.set(reduce ? settle : withSpring(settle, TAB_MOTION.releaseSpring));
-      if (target >= 0) {
-        if (!moved.get() && target !== committed.get()) runOnJS(tick)();
-        runOnJS(choose)(tabs[target].href, !moved.get());
-      }
-    })
-    .onFinalize(() => {
-      if (!ended.get()) {
-        preview.set(committed.get());
-        pos.set(reduce ? committed.get() : withSpring(committed.get(), TAB_MOTION.releaseSpring));
-      }
-      touching.set(false);
-      // Pan이 활성화되지 않은 초단기 탭은 Pressable 폴백이 처리할 수 있다.
-      // UI 스레드 제스처 이벤트의 시각이며 렌더에서는 실행되지 않는다.
-      // eslint-disable-next-line react-hooks/purity
-      if (ended.get() || recognized.get()) lastTouchEnd.set(Date.now());
-      lift.set(reduce ? 0 : withSpring(0, LIFT_SPRING));
-      dragY.set(reduce ? 0 : withSpring(0, LIFT_SPRING));
-      speed.set(reduce ? 0 : withTiming(0, { duration: 120 }));
-      shown.set(showLens ? 1 : 0);
-      runOnJS(setLensGlass)(false);
-    });
+  const moveTouch = (event: GestureResponderEvent) => {
+    const current = contact.current;
+    if (!current) return;
+    const e = event.nativeEvent;
+    if (e.touches.length !== 1 || current.keys !== keys || current.cell !== cell) return resetTouch();
+    const x = e.pageX - current.originX;
+    const y = e.pageY - current.originY;
+    if (!current.moved && Math.hypot(x - current.startX, y - current.startY) < TAB_MOTION.dragThreshold) return;
+    current.moved = true;
+    const next = tabDragPosition(x, current.offset, current.cell, current.count);
+    pos.set(next);
+    if (!reduce) {
+      dragY.set(Math.max(-10, Math.min(10, (y - current.startY) * 0.18)));
+      speed.set(Math.min(1, Math.abs(e.pageX - current.lastX) / Math.max(1, e.timestamp - current.lastAt) / 1.8));
+    }
+    current.lastX = e.pageX;
+    current.lastAt = e.timestamp;
+    const target = Math.max(0, Math.min(current.count - 1, Math.round(next)));
+    if (target !== preview.get()) { preview.set(target); tick(); }
+  };
+  const releaseTouch = (event: GestureResponderEvent) => {
+    const current = contact.current;
+    if (!current) return;
+    const e = event.nativeEvent;
+    if (current.keys !== keys || current.cell !== cell || e.touches.length > 0) return resetTouch();
+    const x = e.pageX - current.originX;
+    const y = e.pageY - current.originY;
+    const dragged = current.moved || Math.hypot(x - current.startX, y - current.startY) >= TAB_MOTION.dragThreshold;
+    const position = dragged ? tabDragPosition(x, current.offset, current.cell, current.count) : tabIndexAt(x, current.cell, current.count);
+    const target = tabReleaseIndex(x, y, position, current.cell, current.count);
+    resetTouch(target >= 0 ? target : committed.get());
+    if (target < 0) return;
+    if (!dragged && target !== committed.get()) tick();
+    choose(current.hrefs[target], !dragged);
+  };
 
   const glassLensStyle = useAnimatedStyle(() => ({
     transform: [
@@ -427,8 +404,7 @@ export function TabBar({
             accessibilityState={{ selected: on }}
             accessibilityLabel={t.locked ? `${t.label}(설정 전)` : t.label}
             onPress={() => {
-              // 실제 터치는 Pan이 처리한다. 이 경로는 VoiceOver/키보드 활성화와 폴백용이다.
-              if (touching.get() || Date.now() - lastTouchEnd.get() < 100) return;
+              // 물리 터치는 위의 입력 면, VoiceOver/키보드는 이 버튼으로 처리한다.
               if (!on) tick();
               preview.set(k);
               pos.set(reduce ? k : withSpring(k, POS_SPRING));
@@ -445,12 +421,7 @@ export function TabBar({
     </>
   );
 
-  /* 손동작은 아이콘 줄에 — 유리 판 · 렌즈보다 위층이라 손가락이 먼저 온다 */
-  const row = (
-    <GestureDetector gesture={drag}>
-      <View collapsable={false} style={styles.row}>{body}</View>
-    </GestureDetector>
-  );
+  const row = <View style={styles.row}>{body}</View>;
 
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { paddingBottom: gap, paddingLeft: Math.max(20, inset.left), paddingRight: Math.max(20, inset.right) }]}>
@@ -472,15 +443,15 @@ export function TabBar({
         ) : null}
         <View style={styles.shadow} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
           {/*
-           * 층 차례(밑에서 위로): 유리 판 → 가장자리 빛 → 아이콘 줄 → 잡은 유리 렌즈.
-           * 참고 영상처럼 원래 아이콘 위에서 굴절시키며, 복제 아이콘을 확대해서 덮지 않는다.
+           * 층 차례(밑에서 위로): 유리 판 → 잡은 렌즈 → 아이콘 줄 → 투명 입력 면.
+           * 아이콘을 유리 위에 두어 과도한 굴절로 글자가 찌그러지지 않게 한다.
            * 떠 있는 겹 그림자(접촉 · 가까운 · 먼 그림자)는 판에 — 갈아탈 때 판과 같이 오므라든다.
            */}
           <Animated.View pointerEvents="none" style={[styles.bg, { boxShadow: shadowCss }, bgStyle]}>
             {glassFace}
           </Animated.View>
           <View style={[styles.pill, { zIndex: 2 }]}>{row}</View>
-          {/* 아이콘은 한 벌만 그린다. 렌즈를 그 위에 올려 iOS의 실제 굴절을 사용한다. */}
+          {/* 렌즈는 아이콘 아래에 둔다. 입력 면과 아이콘을 덮지 않는다. */}
           {cell > 0 ? (
             <Animated.View
               pointerEvents="none"
@@ -488,7 +459,7 @@ export function TabBar({
               importantForAccessibility="no-hide-descendants"
               style={[
                 styles.glassLens,
-                { width: cell, zIndex: 3 },
+                { width: cell, zIndex: 1 },
                 lensGlass && { boxShadow: col.glassRim },
                 glassLensStyle,
                 !glass && fallbackLensStyle,
@@ -506,6 +477,19 @@ export function TabBar({
               )}
             </Animated.View>
           ) : null}
+          <View
+            testID="tab-bar-touch-surface"
+            accessible={false}
+            collapsable={false}
+            style={styles.touchSurface}
+            onStartShouldSetResponder={() => cell > 0 && tabs.length > 0}
+            onResponderGrant={startTouch}
+            onResponderStart={(e) => { if (e.nativeEvent.touches.length > 1) resetTouch(); }}
+            onResponderMove={moveTouch}
+            onResponderRelease={releaseTouch}
+            onResponderTerminate={() => resetTouch()}
+            onResponderTerminationRequest={() => false}
+          />
         </View>
       </View>
     </View>
@@ -522,6 +506,7 @@ const styles = StyleSheet.create({
   back: { width: BACK, height: BACK, borderRadius: 999 },
   backHit: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
   pill: { flexDirection: 'row', padding: PAD, borderRadius: 999 },
+  touchSurface: { position: 'absolute', top: PAD, left: PAD, right: PAD, height: ITEM_H, zIndex: 4 },
   row: { flex: 1, flexDirection: 'row' },
   lens: { position: 'absolute', top: 0, left: 0, height: ITEM_H, borderRadius: 999 },
   glassLens: { position: 'absolute', top: PAD, left: PAD, height: ITEM_H, borderRadius: 999 },

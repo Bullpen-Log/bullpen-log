@@ -11,12 +11,13 @@
  *   --live  : <날짜>/live + manifest.json + .analysis.json(download.mjs --live — 앱 카메라 클립, 씨앗 = 공 알림 시각 clipEventSec)
  *   --rec   : download-recording.mjs 로 받은 녹화 폴더(cuts.json — 조각 파일 · 손에서 떠난 때 · 스피드건)
  *
- * 화면 규칙(묶음 하나 = 한 세션)은 scripts/velocity-bench/app-rules.mjs(시험대와 같이 씀). --auto=1 이면 공마다 공 크기 거리(2.8.0).
+ * 화면 규칙(묶음 하나 = 한 세션)은 scripts/velocity-bench/screen.mjs — 앱과 같은 lib/velocity-session.ts 함수를 받은 차례로(2026-10-25 설계안 작업 A).
+ * lib 이 '@/' 를 써서 `node --import ./scripts/alias-register.mjs scripts/velocity-lab/gun-table.mjs …` 로 돈다. --auto=1 이면 공마다 공 크기 거리(2.8.0).
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { open, LAB, argOf } from './cdp.mjs';
-import { screenSession } from '../velocity-bench/app-rules.mjs';
+import { screenGroup, screenSummary } from '../velocity-bench/screen.mjs';
 
 const list = (k) => argOf(k, '').split(',').filter(Boolean);
 const TILT = Number(argOf('tilt', '0.035'));
@@ -75,7 +76,7 @@ for (const s of S) {
     try {
       const res = await AV.analyzeVideo({ file, ...range, fps: 60, fovDeg: fov, approach: 'receding', distanceM: ${s.dist ?? BASE}, distanceAuto: ${argOf('auto', '0') === '1'}, fovKnown: ${s.fov != null ? 'true' : 'undefined'}, tiltRad: ${TILT} });
       const m = res.measure, d = res.distance ?? {};
-      return { ok: m.ok, code: m.ok ? null : m.code, kmh: m.ok ? m.kmh : null, conf: m.ok ? m.confidence : null, frames: m.ok ? m.detail.frames : null,
+      return { result: res, ok: m.ok, code: m.ok ? null : m.code, kmh: m.ok ? m.kmh : null, conf: m.ok ? m.confidence : null, frames: m.ok ? m.detail.frames : null,
         preConf: d.preSize?.confidence ?? null, why: d.why ?? null, size: d.sizeDistM ?? null, slope: d.sizeSlope ?? null, ext: d.extended ?? 0,
         impact: d.impact ?? null, stab: !!d.stabilized, decoded: res.video?.timing?.decoded ?? null,
         se: m.ok ? m.detail.startSeKmh : null, start: m.ok ? m.detail.startKmh : null, endSize: d.endSizeRatio ?? null, first: d.firstDepthM ?? null, shaky: !!d.shaky, source: d.distanceSource ?? null, usedDist: d.distanceM ?? null,
@@ -91,22 +92,25 @@ for (const s of S) {
 }
 await c.close();
 const jsonOut = argOf('json', '');
-if (jsonOut) writeFileSync(jsonOut, JSON.stringify(out, null, 1));
+/* 엔진 결과 통째는 화면 규칙에만 쓰고 JSON 에는 안 남긴다 */
+if (jsonOut) writeFileSync(jsonOut, JSON.stringify(out.map(({ result: _r, ...o }) => o), null, 1));
 
-/* 화면 규칙 — 묶음 하나를 한 세션으로 */
+/* 화면 규칙 — 묶음 하나를 한 세션으로, 앱과 같은 함수로 받은 차례대로(screen.mjs) */
 const all = [];
 let rec = 0;
 console.log('\n묶음별(세션 거리 보정 · 기록 규칙 적용, 차이 = 화면 값 − 건)');
 for (const g of [...new Set(out.map((o) => o.group))]) {
   const rs = out.filter((o) => o.group === g);
-  const { shown, corr, sess } = screenSession(rs);
-  const errs = shown.map((x) => x.kmh - x.row.gun);
+  const screened = screenGroup(rs.map((o) => ({ id: o.name, result: o.result })), { tape: rs.some((o) => o.tape) });
+  const sum = screenSummary(screened);
+  const errs = rs.filter((o) => screened.get(o.name)?.kept).map((o) => screened.get(o.name).kmh - o.gun);
   rec += errs.length;
   all.push(...errs);
   const mae = errs.length ? errs.reduce((a, e) => a + Math.abs(e), 0) / errs.length : NaN;
   const mean = errs.length ? errs.reduce((a, e) => a + e, 0) / errs.length : NaN;
+  const why = Object.entries(sum.why).map(([k, v]) => `${k} ${v}`).join(' · ');
   console.log(
-    `${g}: 기록 ${errs.length}/${rs.length} · 세션 거리 ${corr ? `${corr.m}m${corr.apply ? ' 적용' : ''}` : '-'}${sess ? ` · 자동 세션 ${Math.round(sess.m * 10) / 10}m` : ''} · MAE ${mae.toFixed(1)} · 평균 ${mean >= 0 ? '+' : ''}${mean.toFixed(1)} · [${errs.map((e) => e.toFixed(1)).join(', ')}]`
+    `${g}: 기록 ${errs.length}/${rs.length} · 거리 ${sum.distM != null ? `${Math.round(sum.distM * 10) / 10}m` : '-'} · MAE ${mae.toFixed(1)} · 평균 ${mean >= 0 ? '+' : ''}${mean.toFixed(1)} · [${errs.map((e) => e.toFixed(1)).join(', ')}]${why ? ` · 안 받음: ${why}` : ''}`
   );
 }
 const abs = all.map(Math.abs).sort((a, b) => a - b);

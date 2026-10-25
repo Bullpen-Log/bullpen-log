@@ -29,7 +29,7 @@
 - [x] 같은 엔진 두 번 → 결과 JSON 이 시각 칸 빼고 같다(스크립트 `--check-repeat`)
 - [x] `node scripts/velocity-lab/gun-table.mjs --live=2026-10-21,2026-10-09 --auto=1` 전후 같은 출력
 
-**기대는 것:** Task 1 · **파일:** `scripts/velocity-bench/run.mjs` · `app-rules.mjs` · `scripts/velocity-lab/gun-table.mjs` · `package.json` · **크기:** M
+**기대는 것:** Task 1 · **파일:** `scripts/velocity-bench/run.mjs` · `app-rules.mjs`(→ 2026-10-25 `screen.mjs` 로 — 앱과 같은 함수) · `scripts/velocity-lab/gun-table.mjs` · `package.json` · **크기:** M
 
 ## Task 3: 보고서
 

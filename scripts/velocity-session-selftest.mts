@@ -6,6 +6,7 @@ import {
   MISS_REASONS,
   lowConfidenceFix,
   missReasonOf,
+  screenPitch,
   sessionDistanceOf,
   withSessionDistance,
   type SessionPitchCore,
@@ -121,6 +122,48 @@ console.log('\n▶ 엔진 — 공 크기 거리를 못 낸 자동 공은 세션 
   } as unknown as Parameters<typeof rejudgeSize>[0];
   const again = rejudgeSize(res, 20.5);
   check(again.measure.ok && again.measure.confidence === 'low', '세션 거리로 다시 판정해도 높음으로 안 돌아온다');
+}
+
+console.log('\n▶ screenPitch — 앱 · 시험대가 같이 쓰는 기록 판정(2026-10-25 설계안 작업 A)');
+{
+  type R = Parameters<typeof screenPitch>[0];
+  const okR = (confidence: 'high' | 'medium' | 'low', d: Record<string, unknown> = {}) =>
+    ({
+      measure: { ok: true, kmh: 120, errorKmh: 2, confidence, detail: { frames: 30, releaseDistanceM: 2, travelM: 18, durationSec: 0.5 } },
+      release: null,
+      fps: 60,
+      track: [],
+      analyzeSize: { width: 720, height: 1280 },
+      distance: { distanceM: 20, inputDistM: 20, distanceSource: 'input', sizeDistM: 20.2, impact: 'rebound', extended: 0, ...d },
+    }) as unknown as R;
+  const noR = (code: string) => ({ measure: { ok: false, code, message: '폰이 흔들렸어요.', fix: '삼각대에 고정해 주세요. 손으로 들면 안 돼요.' }, track: [], distance: {} }) as unknown as R;
+  const ctx = { source: 'camera' as const, tape: false, approaching: false };
+  const kept = screenPitch(okR('high'), [], ctx);
+  check(kept.kept, "믿음 '높음'은 받는다");
+  const low = screenPitch(okR('medium'), [], ctx);
+  check(!low.kept && low.why === 'low-confidence' && low.code === null && low.notice.startsWith('측정 불가 · '), "'보통'은 측정 불가(low-confidence) · 글은 '측정 불가 · ' 로 시작");
+  check(screenPitch(okR('medium', { shaky: true, stabilized: true }), [], ctx).kept, "흔들림을 바로잡은 '보통'은 받는다(steadied)");
+  const shake = screenPitch(noR('CAMERA_SHAKE'), [], ctx);
+  check(!shake.kept && shake.why === 'engine-reject' && shake.code === 'CAMERA_SHAKE' && shake.miss === MISS_REASONS.shake, '엔진 거부 CAMERA_SHAKE → engine-reject · 코드 · 흔들림 까닭');
+  const other = screenPitch(noR('NOT_ENOUGH_FRAMES'), [], ctx);
+  check(!other.kept && other.why === 'engine-reject' && other.notice.startsWith('못 쟀어요 · 폰이 흔들렸어요.') && other.notice.endsWith('삼각대에 고정해 주세요.'), '엔진 거부 글 = 까닭 + 할 일 첫 문장');
+  const late = screenPitch(noR('NOT_ENOUGH_FRAMES'), [], { ...ctx, late: true });
+  check(!late.kept && late.notice.startsWith('뒤늦게 찾은 공 · '), '훑기가 찾은 공은 글 앞에 표시');
+  /* 앞 공 셋의 공 크기 거리 가운데 20m 에서 9% 넘게 튀면 session-size */
+  const prior = (sizeDistM: number): SessionPitchCore =>
+    ({ source: 'camera', rawKmh: 120, errorKmh: 2, releaseKmh: null, analysis: { distance: { sizeDistM } } }) as unknown as SessionPitchCore;
+  const list = [prior(19.8), prior(20), prior(20.3)];
+  const outlier = screenPitch(okR('high', { sizeDistM: 23 }), list, ctx);
+  check(!outlier.kept && outlier.why === 'session-size' && outlier.miss === MISS_REASONS.session, '앞 공들과 공 크기 거리가 튀면 session-size');
+  check(screenPitch(okR('high', { sizeDistM: 20.9 }), list, ctx).kept, '9% 안이면 받는다');
+  check(screenPitch(okR('high', { sizeDistM: 23 }), list.slice(0, 2), ctx).kept, '앞 공이 둘뿐이면 튐을 안 본다');
+  /* 같은 입력 → 같은 결과(시험대 반복 시험의 바탕) */
+  const a = JSON.stringify(screenPitch(okR('medium', { why: 'late-start' }), list, ctx));
+  const b = JSON.stringify(screenPitch(okR('medium', { why: 'late-start' }), list, ctx));
+  check(a === b, '같은 입력은 같은 판정');
+  /* 줄자 세션은 넣은 거리로 다시 판정(judgeBySession → rejudgeSize) — 결과 모양이 유지된다 */
+  const tape = screenPitch(okR('high', { inputDistM: 18, distanceM: 18, sizeDistM: 18.3 }), [], { ...ctx, tape: true });
+  check(tape.kept && tape.result.measure.ok, '줄자 세션 공도 같은 길로 받는다');
 }
 
 console.log(`\n통과 ${pass} / 실패 ${fail}`);

@@ -36,7 +36,7 @@ export function LessonFrame({
   children: ReactNode;
 }) {
   return (
-    <div className={`mx-auto ${wide ? 'max-w-4xl' : 'max-w-2xl'} space-y-5 lg:max-w-6xl lg:space-y-7`}>
+    <div className={`mx-auto ${wide ? 'max-w-4xl' : 'max-w-2xl'} space-y-5 lg:max-w-none lg:space-y-5`}>
       {/* 휴대폰 · 패드 머리 — 그대로 */}
       <div className="relative flex min-h-11 items-center justify-center lg:hidden">
         {back && (

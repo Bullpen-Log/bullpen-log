@@ -1,9 +1,11 @@
-import { useLocalSearchParams } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import type { ReactNode } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { loadMemberCard } from '@/app/actions/app-org';
-import { Bar, LoadState, useLoad } from '~/community/parts';
+import type { loadMemberCard, makeInvite } from '@/app/actions/app-org';
+import { Bar, call, LoadState, useLoad } from '~/community/parts';
+import { toast } from '~/shell/toast';
+import { DangerLink, formCall } from '~/org/forms';
 import { READABLE } from '~/lib/layout';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { Card, Empty, GroupTitle, dayLabel, scopeText } from '~/org/parts';
@@ -11,16 +13,38 @@ import { ARM_WORD } from '@/lib/org/rules';
 
 /**
  * 코치가 보는 회원 카드(앱 화면) — 선수가 공유한 항목만(서버가 공유 안 한 칸은 아예 안 읽는다, lib/org/player-data.ts memberCardOf).
- * 1단계는 보기만: 팔 상태 · 투구 · 구속 · 오늘 체크인 · 재활 · 일지. 일지 쓰기 · 숙제는 2단계.
+ * 팔 상태 · 투구 · 구속 · 오늘 체크인 · 재활 · 일지. 1.5단계에 일지 쓰기 · 회원 고치기 · 가입 전 자리 초대 코드 · 빼기를 붙였다(쓰기는 웹과 같은 폼 동작).
  */
 type Loaded = Awaited<ReturnType<typeof loadMemberCard>>;
 type Ok = Extract<Loaded, { ok: true }>;
+type Made = Awaited<ReturnType<typeof makeInvite>>;
 
 export default function MemberCardScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const { id, org } = useLocalSearchParams<{ id: string; org: string }>();
   const { data, error, reload } = useLoad<Loaded>('app-org.loadMemberCard', org ?? '', id ?? '');
+  const invite = async () => {
+    const r = await call<Made>('app-org.makeInvite', org, 'PLAYER', id);
+    if (!r.ok) return toast(r.error, 'error');
+    void Share.share({
+      message: `${data?.member.nickname ?? ''}님 초대 코드 ${r.code} — 싱커에 가입한 뒤 더보기 › 팀 · 레슨장 › 코드 넣기에 넣어 주세요. 한 번만 쓸 수 있어요.`,
+    });
+  };
+  const remove = () =>
+    Alert.alert(`${data?.member.nickname ?? ''}을 뺄까요?`, '조직 화면에서만 빠지고, 선수의 기록은 그대로 남아요.', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '빼기',
+        style: 'destructive',
+        onPress: async () => {
+          const r = await formCall('org.removeMember', { id }, true);
+          if (r.error) return toast(r.error, 'error');
+          toast('뺐어요');
+          router.back();
+        },
+      },
+    ]);
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="뒤로" title={data?.member.nickname ?? ''} c={c} />
@@ -32,15 +56,47 @@ export default function MemberCardScreen() {
             <Text style={[TYPE.hero, { color: c.ink }]}>{data.member.nickname}</Text>
             {data.member.tags.length ? <Text style={[TYPE.sub, { color: c.muted }]}>{data.member.tags.join(' · ')}</Text> : null}
           </View>
-          <Body data={data} c={c} />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <Chip label="일지 쓰기" onPress={() => router.push(`/org/note?org=${org}&member=${id}` as Href)} c={c} />
+            <Chip label="고치기" onPress={() => router.push(`/org/member-edit?org=${org}&id=${id}` as Href)} c={c} />
+            {!data.member.hasUser ? <Chip label="이 자리 초대 코드" onPress={() => void invite()} c={c} /> : null}
+          </View>
+          <Body data={data} c={c} onChanged={() => void reload()} />
+          <DangerLink label="조직에서 빼기" onPress={remove} c={c} />
         </ScrollView>
       )}
     </View>
   );
 }
 
-function Body({ data, c }: { data: Ok; c: Palette }) {
+function Chip({ label, onPress, c }: { label: string; onPress: () => void; c: Palette }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [{ minHeight: 40, paddingHorizontal: 14, borderRadius: 20, justifyContent: 'center', backgroundColor: c.card, boxShadow: c.float }, pressed && { opacity: 0.7 }]}
+    >
+      <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function Body({ data, c, onChanged }: { data: Ok; c: Palette; onChanged: () => void }) {
   const { member, card, scope, notes } = data;
+  const removeNote = (noteId: string) =>
+    Alert.alert('이 일지를 지울까요?', '이 일지로 남긴 투구 수 · 숙제도 함께 사라져요.', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '지우기',
+        style: 'destructive',
+        onPress: async () => {
+          const r = await formCall('org-notes.deleteLessonNote', { id: noteId }, true);
+          if (r.error) return toast(r.error, 'error');
+          toast('지웠어요');
+          onChanged();
+        },
+      },
+    ]);
   return (
     <>
       {!member.hasUser ? (
@@ -118,7 +174,7 @@ function Body({ data, c }: { data: Ok; c: Palette }) {
 
       <Section title="일지" c={c}>
         {notes.length === 0 ? (
-          <Empty text="아직 남긴 일지가 없어요. 일지 쓰기는 다음 판에 앱에 들어와요(지금은 PC 웹)." c={c} />
+          <Empty text="아직 남긴 일지가 없어요. 위의 '일지 쓰기'로 남겨요." c={c} />
         ) : (
           notes.map((n) => (
             <View key={n.id} style={{ gap: 2, paddingVertical: 4 }}>
@@ -128,6 +184,11 @@ function Body({ data, c }: { data: Ok; c: Palette }) {
               </Text>
               <Text style={[TYPE.body, { color: c.ink }]}>{n.body}</Text>
               {n.homework ? <Text style={[TYPE.sub, { color: c.ink }]}>숙제 {n.homework}</Text> : null}
+              {n.mine ? (
+                <Pressable accessibilityRole="button" onPress={() => removeNote(n.id)} hitSlop={6} style={{ alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center' }}>
+                  <Text style={[TYPE.sub, { color: c.danger }]}>지우기</Text>
+                </Pressable>
+              ) : null}
             </View>
           ))
         )}

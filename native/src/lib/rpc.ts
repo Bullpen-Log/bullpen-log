@@ -33,12 +33,13 @@ export function rpc<T>(action: string, ...args: unknown[]): Promise<T> {
 }
 
 /**
- * 폼 동작((prev, formData) 꼴 — auth.login · auth.changePassword …)을 부른다. 앞 인자는 늘 null(useActionState 의 지난 상태),
+ * 폼 동작((prev, formData) 꼴 — auth.login · auth.changePassword …)을 부른다. 앞 인자는 기본 null(useActionState 의 지난 상태),
  * fields 는 웹 폼과 같은 칸 이름(app/api/rpc/[action]/route.ts 의 multipart · __args). 체크박스는 켰을 때만 'on' 으로 넣는다.
+ * 폼 하나만 받는 동작(지우기 등 (formData) 꼴)은 lead 를 [] 로 — 늘 null 을 붙이면 null 이 폼 자리에 들어가 터졌다(2026-10-25 초대 코드).
  */
-export function rpcForm<T>(action: string, fields: Record<string, string | null | undefined>): Promise<T> {
+export function rpcForm<T>(action: string, fields: Record<string, string | null | undefined>, lead: unknown[] = [null]): Promise<T> {
   const form = new FormData();
-  form.append('__args', '[null]');
+  form.append('__args', JSON.stringify(lead));
   for (const [k, v] of Object.entries(fields)) if (v != null) form.append(k, v);
   /* content-type 은 비워 둔다 — fetch 가 경계(boundary)를 붙여 채운다 */
   return call<T>(action, form, {});

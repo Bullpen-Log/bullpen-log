@@ -19,8 +19,36 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 모든 메커니즘 진행 변경은 사용자별 PostgreSQL transaction advisory lock을 공유한다. 드릴/투구/진도 저장은 한 트랜잭션이며, 실패 시 함께 롤백한다. 지연된 동일 요청도 새 합계를 덮어쓰지 않는다.
 - 화면과 서버 모두 `isArmLoaded`로 통증 제한을 적용한다. 기록 후 부하 한도에 도달하면 다음 드릴 전에 중단 안내를 반환한다.
 - 앱 API는 3. 최소 공통 번호는 1 유지, 메커니즘 따라 하기 로드·드릴 기록·완료 3개만 최소 3을 요구한다. 새 앱도 구형 서버 응답이면 플레이어를 열지 않고 재시도를 안내한다. 배포 시 웹과 앱 JS를 함께 반영해야 한다.
-- DB 구조·라이브러리·3D 처방 알고리즘 변경 없음. `prisma generate`나 마이그레이션 작업 불필요. 사용자 지시에 따라 아직 배포하지 않았다.
+- DB 구조·라이브러리·3D 처방 알고리즘 변경 없음. `prisma generate`나 마이그레이션 작업 불필요. 사용자가 배포를 승인해 최신 main과 합쳐 웹·새 앱 자동 배포로 반영한다.
 - 검증: `scripts/mechanics-record-test.mjs`는 메모리 DB에서 실제 액션을 실행해 동시 저장·재전송·통증·완료·롤백을 검사한다. `scripts/mechanics-input-test.mjs`는 앱·웹 입력의 투구/반복 표시를 렌더링한다. 운영 사용자 데이터에 테스트 쓰기를 하지 않는다. 메커니즘 3,226개·API 193개·공유 lib 103개 검사와 웹/앱 타입 검사·린트 통과.
+
+## 김민에게 — 2026-10-25 · 금윤호(Claude, 윤호 맥북 · 서브1) — 구속 측정 설계안 첫 묶음(작업 A~D) — **네 카메라 모듈(Swift) · capture.ts · velocity.tsx 를 고쳤다 · main 에 올리면 앱이 새로 굽힌다**
+
+받은 뒤 할 일: **DB · 패키지 그대로**(prisma generate 필요 없음). `native/modules/dual-camera/ios/DualCameraCore.swift` 가 바뀌어 **main 에 올리면 ios-native.yml 이 앱을 새로 굽는다**(TestFlight) —
+그 전엔 JS 만 받아도 클립에 `hits` 가 없어(옛 모듈) 안내 없이 예전처럼 잰다(조용히 옛 길 — 시도 기록 settings.hitsAvail 0 으로 남는다). 네 설계안 PDF(`sinker-velocity-design-for-yunho-2026-10-25.pdf`)의 첫 묶음대로.
+- **작업 A(기록)**: `capture.ts` 가 줄이 차서 버린 공(QUEUE_FULL) · 막 잰 창 안 알림(DUP_WINDOW) · 재는 클립에 합친 알림(MERGED) · 비킨 작업(DROPPED · SUPERSEDED) · 끝내 버린 것(STOPPED)도
+  시도 기록으로 남긴다(시도 ≠ 투구 — 세지 말고 되짚는 데). 시도 analysis 에 `settings`(카메라 자리 · 줄자 · 고른 거리 · fps · 화각 · 기울기 · 분석창 · 후보 수) · `versions`(앱 판 · 빌드 · UA · OTA ·
+  계산기 엔진 판 · 기능) — `native/src/velocity/attempt-meta.ts`(새). 계산기 `ready` 가 `engine · caps` 를 싣고(`engine-client.tsx ENGINE_CAPS`), 앱 `engine.tsx info()` 로 읽는다.
+  **앱 · 시험대가 같은 기록 판정 함수**(`lib/velocity-session.ts screenPitch`) — 네 `session.ts decide()` 는 그 판정을 화면 글로 옮기기만. 시험대 복제 규칙 `app-rules.mjs` 는 지웠다.
+- **작업 B(모델 좌표)**: Swift `BallNetTrigger` 가 모델 봉우리를 PTS 열쇠로 10초 쥐고(`recentHits`, 점수 0.1 부터), `makeClips` 가 클립 구간(알림 전후 모두)의 후보를 `DualClip.hits`
+  ([클립 시각, x, y, d, 점수] — 세운 화면 비율, 모델 입력 416×736 = 클립 영상과 같은 방향)에 싣는다. `hitsSchema` 1(StartInfo 에도). 앱 `capture.ts netHitsOf` → `MeasureOpts.netHits` →
+  계산기가 받을 수 있을 때만(caps.netHits) → `analyze-distance netHits`. **d(모델 크기 머리)는 지름으로 믿지 않고 안내로만** — `net-flight.ts` 에 지름 없는(d ≤ 0) 후보의 연결 길을 따로 두었다.
+  Swift 는 SDK 27.1 로 typecheck 만 했다(실기기 · 시뮬레이터 굽기 전) — **좌표 방향(시계 방향 회전) · PTS 대응은 폰에서 오버레이로 봐야 한다.**
+- **작업 C(시험대)**: `npm run velocity:bench -- --net=<netseen.json> --modes=app,guided`(안내 vs 기존, 같은 영상) · `--shifts=0.05,0.1,0.2`(분석창 민감도 — 가시 구간 유지 공의 값 차이 2km/h 안 비율,
+  잘린 구간 따로) · `--dump=<폴더>` + `scripts/velocity-bench/overlay.html`(원본 위에 빨강 후보 · 주황 이은 길 · 파랑 덩어리 · 초록 궤적). 엔진 보고에 `guided · guidedWhy(no-chain · no-seed · no-flight) ·
+  netHits · netChain · seedSource(net · hint · rest)` — 안내가 실패해 옛 길로 가면 출처 · 까닭이 남는다(시도 기록 distance 에도).
+- **작업 D(라벨)**: `docs/velocity/redesign/SPEC-labels.md`(공 중심 · 릴리스 · 끝 · 가림 JSON, schema 1) · `labels.mjs` · `--labels=<폴더> --modes=app,label-link`(사람이 찍은 중심을 안내로 = 단계 ②).
+  단계 ③(사람이 찍은 중심을 관측으로 고정)은 엔진 입구가 없어 다음 묶음 — SPEC 4절. **라벨은 0구** — 30~50구는 사용자 몫.
+- 시험: session-test 36 · engine2-test 106 · 웹 · 앱 tsc 0 · eslint 0 · native-api 모양 갱신(더하기만). **시험대 실행(run.mjs)은 이 맥에 영상 자료가 없어 못 돌렸다** — 가짜 결과로 report · labels 만 확인.
+  네 맥(자료 있음)에서 `npm run velocity:bench -- --limit=3` 한 번 돌려 주면 좋겠다. 설계안의 PLAN-pitchlab 결론 셋 수정은 그 문서 머리에 적었다.
+## 금윤호에게 — 2026-10-25 · 김민(Codex, 하단바 입력 긴급 수정)
+
+사용자 실기기 영상에서 직전 App Store 하단바의 탭 누락과 과도한 아이콘 굴절이 확인됐다. 앞서 콜백 모의 검사만 통과한 것을 실제 터치 인식 검증으로 간주한 것이 부족했다. **아래 이전 하단바 설명보다 이 수정이 우선한다.**
+- `tab-bar.tsx`에서 Pan/Pressable 분산 처리와 100ms 입력 차단을 제거했다. 맨 위의 자식 없는 투명 View가 React Native responder로 터치 시작·이동·끝을 한 경로로 소유한다. 정지 탭도 Pan 활성화 없이 직접 확정하고, 접근성 버튼은 별도로 유지한다.
+- 이동은 시작 당시 페이지 좌표 원점을 기준으로 계산하고 마지막 release 좌표로 확정한다. 두 손가락·OS 취소·메뉴/폭 변경은 취소하고, 중복 release는 무시한다. 리렌더·빠른 연속 탭·애니메이션 도중 탭을 다룬다.
+- 유리 렌즈를 아이콘 **아래**로 이동해, 영상에서처럼 아이콘이 뭉개져 읽히지 않는 현상을 막았다. 공용 부품이라 덕아웃 앱에도 적용된다. 패키지/바닥 판/DB 변경 없음.
+- 타입·Expo 린트·responder/기하 자체 검사와 iOS 번들 생성을 확인한다. 아이폰 실기기 터치/굴절 검증은 이 환경에서 수행하지 못했다. 모의 검사 통과를 실기기 검증으로 표현하지 말 것.
+
 
 ## 금윤호에게 — 2026-10-25 · 김민(Codex, App Store 영상 기준 하단바)
 

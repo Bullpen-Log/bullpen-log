@@ -20,8 +20,8 @@ import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
  *
  * 덕아웃 첫 화면(2026-10-24 금윤호: "메인 화면을 그냥 이거로 — 덕아웃의 처음 시작화면은 이거") — 예전 큰 로고 화면(dugout-hero) 대신 이것.
  *   '[지역 ∨] 에서 무엇이 필요하세요?' + 통합검색(→ /search) · [덕아웃 | 싱커] 탭과 우리 기능으로 가는 아이콘 줄(lib/dugout-features.ts).
- *   이 판이 첫 자리(A)인 동안 위 막대는 숨고, 한 번 굴리면 본문 자리(B)로 미끄러지며 막대가 내려앉는다(home-snap.tsx · globals.css '덕아웃 첫 화면').
- *   위 막대 대신 판 맨 위에 작은 모서리 줄 — 왼쪽 DUGOUT, 오른쪽 싱커(S 로고) · 알림 · 설정 · 로그인.
+ *   손가락 화면에서는 이 판이 첫 자리(A)인 동안 위 막대가 숨고, 한 번 굴리면 본문 자리(B)로 미끄러지며 막대가 내려앉는다(home-snap.tsx · globals.css '덕아웃 첫 화면').
+ *   그때 위 막대 대신 판 맨 위에 작은 모서리 줄(싱커 S · 알림 · 설정 · 로그인). PC(2026-10-25 개편)는 위 막대가 늘 서 있어 모서리 줄 없이 판만 조금 낮게.
  */
 /*
  * 아이콘 줄 — 덕아웃 기능 다섯만(2026-10-24 금윤호: "싱커 탭은 아예 빼고, 물건 올리기 · 맞춤 코치 · 채팅 · 장비 추천 · 내 것은 필요 없다").
@@ -62,6 +62,8 @@ export function DugoutMain({
    */
   useLayoutEffect(() => {
     const html = document.documentElement;
+    /* PC 는 위 막대를 숨기지 않는다(2026-10-25 덕아웃 PC 개편 — home-snap.tsx · globals.css 와 같은 조건) */
+    if (matchMedia('(hover: hover) and (pointer: fine)').matches) return;
     html.dataset.dugoutTop = '';
     html.dataset.dugoutInstant = '';
     let id = requestAnimationFrame(() => {
@@ -84,10 +86,10 @@ export function DugoutMain({
       /* 서버 그림부터 '판이 보임' — 첫 칠에 위 막대가 비치지 않게. 붙은 뒤에는 두 칸 스크롤(home-snap.tsx)이 html[data-dugout-top] 으로 맡는다 */
       data-top=""
       aria-label="덕아웃 시작"
-      className="relative -mx-4 -mt-5 px-4 pb-14 md:-mx-6 md:-mt-8 md:px-6 md:pb-20"
+      className="relative -mx-4 -mt-5 px-4 pb-14 md:-mx-6 md:-mt-8 md:px-6 md:pb-20 desk:mt-0 desk:pb-12"
     >
       {/* 모서리 줄 — 위 막대가 숨은 동안의 길 */}
-      <div className="flex items-center justify-end pt-[max(1rem,env(safe-area-inset-top))] pb-2 md:pt-6">
+      <div className="flex items-center justify-end pt-[max(1rem,env(safe-area-inset-top))] pb-2 md:pt-6 desk:hidden">
         <div className="flex items-center gap-2">
           {sinker && !sinkerApp && <SinkerButton native={native} />}
           {user ? (
@@ -118,7 +120,7 @@ export function DugoutMain({
         </div>
       </div>
 
-      <div className="mx-auto max-w-6xl pt-10 md:pt-16">
+      <div className="mx-auto max-w-(--dugout-max,72rem) pt-10 md:pt-16 desk:pt-4">
         {/* 로고 · 통합검색 · 아이콘 줄은 화면 가운데 온 폭 그대로 — 경기 칸이 이 자리를 좁히지 않는다(2026-10-24 금윤호) */}
         <div className="min-w-0">
           <h1 className="flex justify-center">
@@ -128,10 +130,10 @@ export function DugoutMain({
               data-dugout-logo
               className="inline-flex"
             >
-              <Wordmark brand="dugout" className="text-5xl text-ink md:text-7xl" />
+              <Wordmark brand="dugout" className="text-5xl text-ink md:text-7xl desk:text-6xl" />
             </Link>
           </h1>
-          <form action="/search" method="get" role="search" className="mt-6">
+          <form action="/search" method="get" role="search" className="mt-6 desk:mt-5">
             <div
               className={`mx-auto max-w-3xl items-center gap-2 ${sinkerApp ? 'hidden' : 'flex'}`}
             >
@@ -155,7 +157,7 @@ export function DugoutMain({
           </form>
 
           {/* 덕아웃 기능으로 가는 아이콘 줄 */}
-          <ul className="mt-9 flex flex-wrap justify-center gap-x-5 gap-y-4 sm:gap-x-10 md:gap-x-12">
+          <ul className="mt-9 flex flex-wrap justify-center gap-x-5 gap-y-4 sm:gap-x-10 md:gap-x-12 desk:mt-6">
             {items.map((it) => (
               <li key={it.href}>
                 <Link
@@ -181,13 +183,14 @@ export function DugoutMain({
         */}
         {(slides || aside) && (
           <div
-            className={`mt-10 ${aside ? 'md:grid md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-6 lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8' : ''}`}
+            className={`mt-10 desk:mt-8 ${aside ? 'md:grid md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-6 lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8' : ''}`}
           >
             {/* 띠 높이는 그대로(2026-10-24 금윤호 — 경기 카드가 길어져도 띠는 따라 늘지 않는다, 광고 자리라 높이 고정) */}
             <div className="min-w-0">
               {slides && <MarketHero slides={slides} slim label="덕아웃 소식" />}
             </div>
-            {aside && <aside className="hidden md:block">{aside}</aside>}
+            {/* PC 는 본문 쪽 경기 칸이 이 자리까지 올라와 하나로 이어진다(app/(dugout)/page.tsx) — 여기 것은 패드만 */}
+            {aside && <aside className="hidden md:block desk:hidden">{aside}</aside>}
           </div>
         )}
       </div>

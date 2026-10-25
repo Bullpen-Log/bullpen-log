@@ -499,6 +499,39 @@ console.log(
   check('앱 코치 동작은 isMasterUser + orgsFor', app.includes('isMasterUser(user)') && app.includes('orgsFor(user)'));
 }
 
+/* ─────────────────────── 9. 1.5단계 — 앱에서 웹 폼 동작 부르기 · 가입 전 자리 코드 ─────────────────────── */
+
+{
+  const now = new Date('2026-10-25T03:00:00Z');
+  const later = new Date('2026-11-08T03:00:00Z');
+  const used = new Date('2026-10-25T04:00:00Z');
+  check('회원 코드는 써도 다시 쓸 수 있음', inviteUsable({ role: 'PLAYER', expiresAt: later, usedAt: used }, now));
+  check('가입 전 자리 코드는 한 번만', !inviteUsable({ role: 'PLAYER', expiresAt: later, usedAt: used, memberId: 'm1' }, now));
+  check('가입 전 자리 코드도 안 썼으면 됨', inviteUsable({ role: 'PLAYER', expiresAt: later, usedAt: null, memberId: 'm1' }, now));
+  check('가입 하면 자리 코드를 씀 처리', src('lib/org/join.ts').includes("invite.role !== 'PLAYER' || invite.memberId"));
+  const rpc = src('native/src/lib/rpc.ts');
+  check('앱 rpcForm 이 폼 하나만 받는 동작도 부름(lead)', rpc.includes('lead: unknown[] = [null]') && rpc.includes('JSON.stringify(lead)'));
+  /* 앱이 웹 폼 동작을 부를 때 — (지난 상태, 폼) 꼴이면 기본, (폼) 꼴이면 single(lead []) 이어야 한다 */
+  const forms: [string, string, boolean][] = [
+    ['org-calendar', 'saveOrgEvent', false],
+    ['org-calendar', 'deleteOrgEvent', true],
+    ['org-notices', 'saveOrgNotice', false],
+    ['org-notices', 'deleteOrgNotice', true],
+    ['org', 'updateMember', false],
+    ['org', 'addPlaceholderMember', false],
+    ['org', 'removeMember', true],
+    ['org-notes', 'createLessonNote', false],
+    ['org-notes', 'deleteLessonNote', true],
+    ['org-record', 'createPitchLogs', false],
+    ['org-record', 'deleteProxyPitchLog', true],
+  ];
+  for (const [file, fn, single] of forms) {
+    const sig = new RegExp(`export async function ${fn}\\(\\s*([^)]*)\\)`).exec(src(`app/actions/${file}.ts`))?.[1] ?? '';
+    const formOnly = sig.trim().startsWith('formData');
+    check(`${file}.${fn} 꼴이 앱 호출과 맞음(${single ? '폼 하나' : '지난 상태 + 폼'})`, formOnly === single, sig);
+  }
+}
+
 console.log(
   `\n${pass} 통과${fails.length ? `, ${fails.length} 실패:\n  - ${fails.join('\n  - ')}` : ''}`
 );

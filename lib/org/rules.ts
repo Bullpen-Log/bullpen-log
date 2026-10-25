@@ -126,14 +126,14 @@ export function normalizeInviteCode(raw: unknown): string | null {
   return s;
 }
 
-/** 초대 코드가 아직 쓸 수 있나 — 기한 안이고, 한 번만 쓰는 코드(스태프)는 안 쓴 것 */
+/** 초대 코드가 아직 쓸 수 있나 — 기한 안이고, 한 번만 쓰는 코드(스태프 · 가입 전 자리 코드)는 안 쓴 것 */
 export function inviteUsable(
-  invite: { role: 'MASTER' | 'STAFF' | 'PLAYER'; expiresAt: Date; usedAt: Date | null },
+  invite: { role: 'MASTER' | 'STAFF' | 'PLAYER'; expiresAt: Date; usedAt: Date | null; memberId?: string | null },
   now: Date
 ): boolean {
   if (invite.expiresAt.getTime() <= now.getTime()) return false;
-  /* 선수(회원) 코드는 여럿이 같이 쓴다(카톡 단톡에 올리는 것) — 기한까지 몇 번이든 */
-  if (invite.role === 'PLAYER') return true;
+  /* 선수(회원) 코드는 여럿이 같이 쓴다(카톡 단톡에 올리는 것) — 기한까지 몇 번이든. 가입 전 자리(memberId)의 코드는 그 한 사람만 */
+  if (invite.role === 'PLAYER' && !invite.memberId) return true;
   return invite.usedAt == null;
 }
 

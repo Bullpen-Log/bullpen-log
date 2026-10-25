@@ -974,6 +974,13 @@ console.log(
   const got = netFlight([...hand, ...ball, ...back].sort((a, b) => a.t - b.t), dt);
   check(got != null && got.length === 20 && got[0].t === ball[0].t, `공 길 안내 — 멀어지는 공 20장(손 · 되던진 공 빼고): ${got?.length ?? 0}장`);
   check(netFlight([...hand, ...back], dt) == null, '공 길 안내 — 날아가는 공이 없으면 null');
+  /* 지름을 모르는 후보(d ≤ 0, 작업 B) — 지름 규칙 대신 둘레 문(minGatePx) + 넷 넘게 이어진 길. d 를 아는 입력은 minGatePx 를 줘도 글자까지 같다 */
+  const noD = (ps: NetPoint[]) => ps.map((p) => ({ ...p, d: 0 }));
+  const gotNoD = netFlight(noD([...hand, ...ball, ...back]).sort((a, b) => a.t - b.t), dt, 14);
+  check(gotNoD != null && gotNoD.length >= 19 && gotNoD[0].t === ball[0].t, `공 길 안내(지름 없음) — 공 길을 잇는다: ${gotNoD?.length ?? 0}장`);
+  check(netFlight(noD(hand), dt, 14) == null, '공 길 안내(지름 없음) — 제자리 손은 길이 아니다(처음 → 끝 움직임이 둘레 문 세 배 밑)');
+  check(netFlight(noD([...hand, ...back]).sort((a, b) => a.t - b.t), dt, 14) != null, '공 길 안내(지름 없음) — 되던진 공은 커짐을 못 봐 길로 잡힌다(엔진이 뒤에서 거른다)');
+  check(JSON.stringify(netFlight([...hand, ...ball, ...back].sort((a, b) => a.t - b.t), dt, 14)) === JSON.stringify(got), '공 길 안내 — d 를 아는 입력은 minGatePx 가 있어도 같은 답');
 }
 {
   /* 정밀 반지름 — 번짐 · 흐림 · 아래가 어두운 공(흐린 날)을 그려 놓고 다시 맞춘다. 잡음 σ 2(밝기) */

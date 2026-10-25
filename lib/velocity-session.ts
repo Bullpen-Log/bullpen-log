@@ -264,6 +264,66 @@ export function missReasonOf(r: Result, approaching = false): MissReason {
   return (d?.extended ?? 0) > 0 ? MISS_REASONS.bright : MISS_REASONS.other;
 }
 
+/**
+ * 잰 결과를 세션에 담을지 — 앱(native/src/velocity/session.ts decide)과 시험대(scripts/velocity-bench/screen.mjs)가 **같은 함수**로 판정한다
+ * (2026-10-25 설계안 작업 A: "앱과 시험대의 최종 기록 판정은 동일한 함수를 사용한다 — 복사된 과거 세션 보정 코드는 제거"). 차례는 웹
+ * velocity-screen addResult 그대로: 세션 거리로 다시 판정(judgeBySession) → 못 잰 공(엔진 거부) → 믿음 '높음'이 아니면(흔들림을 바로잡은
+ * '보통'은 받음) 측정 불가 → 앞 공들과 공 크기 거리가 튀면(sizeOutlier) 측정 불가. 글(notice · miss)은 화면이 그대로 띄우고, 시험대는 why 만 센다.
+ * result 는 다시 판정한 결과(받으면 이것으로 measuredFields 를 만든다).
+ */
+export type ScreenVerdict<T extends Result> =
+  | { kept: true; result: T }
+  | {
+      kept: false;
+      result: T;
+      /** 시도 기록의 why — 'engine-reject'(엔진이 못 잼) · 'low-confidence' · 'session-size' */
+      why: 'engine-reject' | 'low-confidence' | 'session-size';
+      /** 엔진 거부면 그 코드(VelocityAttempt.rejectCode 와 같은 칸) */
+      code: string | null;
+      notice: string;
+      miss: MissReason;
+    };
+export function screenPitch<T extends Result>(
+  raw: T,
+  list: SessionPitchCore[],
+  ctx: {
+    source: SessionPitchCore['source'];
+    /** 줄자로 잰 세션인가 — 세션 거리 보정을 안 한다(줄자가 이긴다) */
+    tape: boolean;
+    /** 포수 뒤(다가오는 공)인가 — 안내 글이 다르다 */
+    approaching: boolean;
+    /** 조용할 때 훑기가 뒤늦게 찾은 공 — 알림 글 앞에 붙인다 */
+    late?: boolean;
+  }
+): ScreenVerdict<T> {
+  const result = judgeBySession(raw, list, ctx.source, ctx.tape);
+  const m = result.measure;
+  const pre = ctx.late ? '뒤늦게 찾은 공 · ' : '';
+  if (!m.ok) {
+    if (m.code === 'CAMERA_SHAKE')
+      return {
+        kept: false, result, why: 'engine-reject', code: m.code,
+        notice: `${pre}폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.`, miss: MISS_REASONS.shake,
+      };
+    /* 까닭(거부 코드의 한 줄)과 할 일 첫 문장을 같이 — 10-21 김민: "측정 불가하면 원인 띄우고" */
+    const fix = m.fix?.split('. ')[0]?.replace(/\.?$/, '.');
+    return {
+      kept: false, result, why: 'engine-reject', code: m.code,
+      notice: `${pre}못 쟀어요 · ${m.message ?? '공은 봤는데 거리를 못 쟀어요.'}${fix ? ` ${fix}` : ''}`,
+      miss: missReasonOf(result, ctx.approaching),
+    };
+  }
+  if (m.confidence !== 'high' && !steadied(result))
+    return {
+      kept: false, result, why: 'low-confidence', code: null,
+      notice: `${pre}측정 불가 · ${lowConfidenceFix(result, ctx.source, ctx.approaching, ctx.tape)}`,
+      miss: missReasonOf(result, ctx.approaching),
+    };
+  if (sizeOutlier(result, list, ctx.source))
+    return { kept: false, result, why: 'session-size', code: null, notice: `${pre}측정 불가 · ${SIZE_OUTLIER_FIX}`, miss: MISS_REASONS.session };
+  return { kept: true, result };
+}
+
 /** 세션 안 공 크기 거리의 허용 흩어짐(가운데 값 대비) — sizeOutlier */
 export const SESSION_SIZE_SPREAD = 0.09;
 export const SIZE_OUTLIER_FIX =

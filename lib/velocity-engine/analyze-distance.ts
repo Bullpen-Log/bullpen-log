@@ -244,6 +244,16 @@ export type DistanceReport = {
   /** 모델 공 길 안내(netHits)로 찾은 공 길인가 */
   guided?: boolean;
   /**
+   * 안내를 받았는데 안내 길로 못 찾은 까닭(2026-10-25 설계안 작업 C — 안내가 실패하면 옛 길 값을 조용히 섞지 않고 출처 · 까닭을 남긴다):
+   * no-chain 봉우리를 날아가는 공 길로 못 이음 · no-seed 공 길 자리 둘레에 덩어리 없음 · no-flight 씨앗은 있었는데 비행이 안 됨
+   */
+  guidedWhy?: 'no-chain' | 'no-seed' | 'no-flight';
+  /** 받은 모델 후보 수 · 이은 공 길 길이(장) */
+  netHits?: number;
+  netChain?: number;
+  /** 고른 씨앗의 출처 — 모델 안내(net) · 판단 힌트 둘레(hint) · 나머지 씨앗(rest) */
+  seedSource?: 'net' | 'hint' | 'rest';
+  /**
    * 끝 장면 정밀 공 크기로 잰 받는 면 깊이(m, 엔진 2.9 — analyze-video limbDistance) · 쓴 장면 수 · 흐림 σ(원본 px). 디코더 길에서만 실린다.
    * 공 크기 거리(sizeDistM, 덩어리 지름 × 상수)와 달리 상수를 날마다 맞추지 않는다 — 세션 거리가 이것을 쓴다.
    */
@@ -341,7 +351,8 @@ function bestFlight(
    * 모델 공 길 안내 — 날아가는 공 길(netFlight)의 앞 점들에서 그 둘레 덩어리를 씨앗으로 삼고, 장면마다 모델 자리 둘레에서 잇는다. 모델 자리는
    * 흔들림을 바로잡기 전 영상 자리라 맞춘 장면과 몇 px 어긋날 수 있다 — 문(gate)이 그보다 넓다. 다가오는 공(포수 뒤)은 안 쓴다.
    */
-  const chain = netHits && dt > 0 ? netFlight(netHits, dt) : null;
+  /* 지름을 모르는 후보(d ≤ 0)의 둘레 문은 짧은 변의 2%(720px 에서 14px) — d 를 아는 후보는 예전처럼 지름으로(net-flight.ts) */
+  const chain = netHits && dt > 0 ? netFlight(netHits, dt, 0.02 * Math.min(fs.w, fs.h)) : null;
   const frameOf = (t: number) => {
     let k = -1;
     for (let i = 0; i < fs.t.length; i++)
@@ -388,6 +399,7 @@ function bestFlight(
   } | null;
   let skipped = 0;
   let guided = false;
+  let seedSource: 'net' | 'hint' | 'rest' | undefined;
   const tryAll = (list: Seed[], withGuide = false) => {
     for (const seed of list.slice(0, 16)) {
       const raw = blobTrack(fs, bg, seed, withGuide ? guide : undefined);
@@ -415,16 +427,23 @@ function bestFlight(
   if (netSeeds.length) {
     tryAll(netSeeds, true);
     guided = best != null;
+    if (guided) seedSource = 'net';
   }
-  if (!best) tryAll(hinted);
+  /* 안내를 받았는데 안내 길로 못 찾은 까닭 — 아래 옛 길로 가더라도 출처 · 까닭을 남긴다(작업 C) */
+  const guidedWhy: 'no-chain' | 'no-seed' | 'no-flight' | undefined = !netHits?.length || guided ? undefined : !chain ? 'no-chain' : !netSeeds.length ? 'no-seed' : 'no-flight';
+  if (!best) {
+    tryAll(hinted);
+    if (best) seedSource = 'hint';
+  }
   let count = netSeeds.length + hinted.length;
   /* 힌트 둘레 씨앗이 비행이 안 되면 나머지 씨앗도 — 판단이 멀리서야 알아챈 공은 가까운 씨앗이 힌트 앞에 있다(실내 114) */
   if (!best) {
     const rest = findSeeds(fs, bg).filter((q) => !hinted.some((h) => h.i === q.i));
     count += rest.length;
     tryAll(rest);
+    if (best) seedSource = 'rest';
   }
-  return { best, seeds: count, skipped, guided };
+  return { best, seeds: count, skipped, guided, guidedWhy, seedSource, netChain: chain?.length ?? 0 };
 }
 
 /**
@@ -599,7 +618,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
         }
       : fs;
   const bg = medianBackground(pickBackground(frames, stab.extra), width, height);
-  const { best, seeds, skipped, guided } = bestFlight(
+  const { best, seeds, skipped, guided, guidedWhy, seedSource, netChain } = bestFlight(
     fsOrdered,
     bg,
     cam,
@@ -609,7 +628,13 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     approach === 'receding' ? (input.netHits ?? null) : null
   );
   report.seeds = seeds;
-  if (guided) report.guided = true;
+  if (input.netHits?.length) {
+    report.netHits = input.netHits.length;
+    report.netChain = netChain;
+    if (guided) report.guided = true;
+    else if (guidedWhy) report.guidedWhy = guidedWhy;
+  }
+  if (seedSource) report.seedSource = seedSource;
   if (!best) return fail('NOT_ENOUGH_FRAMES', [], 'no-flight');
   report.seedFrame = order[best.seed.i];
   /* 장면 번호를 원래 차례로 되돌린다 */
