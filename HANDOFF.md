@@ -11,6 +11,23 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+
+## 김민에게 — 2026-10-25 · 금윤호(Claude, 윤호 맥북) — 덕아웃 지도(카카오맵) 웹 · 앱 · **Vercel · GitHub 에 열쇠 셋을 넣어 줘(너만 할 수 있는 일)**
+
+받은 뒤 할 일 아래 1~3(DB · 패키지 그대로, 앱은 바닥 코드가 바뀌어 새로 굽힌다). 금윤호: "연습장 · 레슨장을 카카오맵 지도로, 앱은 웹뷰 말고 네이티브로". 코드는 모두 main 에 있다(6ba14b95 · a0634234).
+**지금 실제 사이트(dugout-baseball.com/venues)는 '지도를 불러오지 못했어요'** — 열쇠가 배포에 안 들어가서다(내 컴퓨터 서버는 뜬다). 열쇠 값은 윤호가 카카오 개발자 콘솔에서 받았다 — **값은 윤호에게 따로(메신저) 받아 줘, 저장소에는 적지 않는다.**
+1. **Vercel**(bullpen-log → Settings → Environment Variables, 이름은 글자 그대로 · Production 체크): `NEXT_PUBLIC_KAKAO_MAP_KEY`(카카오 JavaScript 키) · `KAKAO_REST_API_KEY`(REST API 키).
+   넣은 뒤 **Redeploy** 해야 한다 — `NEXT_PUBLIC_` 은 배포 때 화면 코드에 박혀서 넣기만 하면 안 먹는다. 확인: 배포 뒤 `/venues` 에 지도가 뜨고 점이 찍힌다.
+2. **GitHub**(저장소 → Settings → Secrets and variables → Actions): `KAKAO_NATIVE_APP_KEY`(카카오 네이티브 앱 키). `ios-native.yml` 이 굽기 때 `plugins/kakao-map` 으로 Info.plist `KakaoAppKey` 에 넣는다.
+   없으면 앱 지도 자리에 '지도를 불러오지 못했어요'만 뜬다(목록은 그대로).
+3. **카카오 개발자 콘솔**(앱 '덕아웃', 윤호 계정 — 접근이 필요하면 윤호에게 팀원 초대를 받아): 카카오맵 사용 설정 ON · Web 도메인 `localhost:3000` · `bullpen-log.vercel.app` · `dugout-baseball.com` · `www.dugout-baseball.com`(윤호가 넣었다, 네 곳 모두 확인함) ·
+   iOS 번들 ID `com.bullpenlog.app` · `com.bullpenlog.dugout` 이 있어야 앱 지도 인증이 된다. 무료 쿼터는 처음 켠 앱 하나에만 붙으니 **카카오 앱을 새로 만들지 말고 이 앱을 쓴다.**
+- **무엇이 들어갔나**: 웹 `/venues`(왼쪽 목록 · 오른쪽 카카오맵, `components/dugout/place-map.tsx`) · 앱 `native/modules/kakao-map`(KakaoMapsSDK 2.12 를 Expo 뷰로 — 점 · 누름 · 처음 한 번 맞춤) ·
+  `native/src/dugout/app/venues.tsx`(덕아웃 앱 지도 화면: 칩 · 지도 · 카드 · 목록) · `app/api/places/route.ts`(앱이 받는 장소 목록, 웹과 같은 `loadMapPlaces`) · 더미 코치에 좌표(`app/actions/admin-coaches.ts`, 있던 5명도 채움).
+- **네 영역을 고쳤다**: `native/app.json`(plugins 에 `./plugins/kakao-map`) · `native/src/dugout/app/index.tsx`(카카오맵이 든 앱일 때 웹 `/venues` 를 앱 화면으로 돌림 — `hasKakaoMap`, 옛 앱은 웹 그대로) · `.github/workflows/ios-native.yml`(env 한 줄).
+- **못 본 것**: Swift(`KakaoMapModule.swift`)는 **한 번도 컴파일해 보지 못했다**(윤호가 시뮬레이터를 끄라고 해서). 올리면 GitHub 굽기에서 처음 컴파일된다 — 실패하면 오류 줄의 카카오 SDK 함수 이름을 고쳐 줘
+  (SDK 문서: https://apis.map.kakao.com/ios_v2/). 앱 지도는 폰에서 점이 찍히는지 · 점 누름 · 목록 누름 · 자세히 · 예약이 웹으로 가는지 한 번 봐 줘.
+
 ## 김민에게 — 2026-10-24 · 금윤호(Claude, 윤호 맥북) — 덕아웃 탭 겉모양 통일 · 네 커뮤니티 화면도 공용 부품으로 바꿨다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 금윤호: "각 탭 UI 가 통일이 안 돼 있다 — 홈 · 장터 느낌으로". 규칙 `docs/designs/dugout-ui-audit.md`, 부품 `components/dugout/ui`.
