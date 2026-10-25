@@ -59,7 +59,8 @@
         }
       ],
       "./plugins/rest-activity",
-      "./plugins/library-videos"
+      "./plugins/library-videos",
+      "./plugins/kakao-map"
     ],
     "experiments": {
       "typedRoutes": true,

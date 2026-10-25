@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/dal';
+import { geocode } from '@/lib/geocode';
 import { DUMMY_BOOKING_NOTE, DUMMY_MAX_AT_ONCE, makeDummyCoach } from '@/lib/market/lesson-dummy';
 
 /**
@@ -22,12 +23,16 @@ export async function createDummyCoaches(formData: FormData) {
   const existing = await prisma.org.count({ where: { dummy: true } });
   for (let i = 0; i < n; i++) {
     const d = makeDummyCoach(existing + i + 1 + (base % 1000));
+    // 지도에도 뜨게 — 주소가 없으니 지역(시 · 구) 가운데에서 1km 안쪽으로 조금씩 흩는다(같은 구의 더미가 한 점에 겹치지 않게)
+    const at = await geocode(d.region);
+    const coords = at ? { lat: at.lat + (Math.random() - 0.5) * 0.018, lng: at.lng + (Math.random() - 0.5) * 0.022 } : {};
     await prisma.$transaction(async (tx) => {
       const org = await tx.org.create({
         data: {
           kind: 'LESSON',
           name: d.name,
           region: d.region,
+          ...coords,
           note: '더미 코치(관리자가 넣음)',
           ownerId: admin.id,
           publicProfile: true,

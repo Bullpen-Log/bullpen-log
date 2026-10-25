@@ -13,6 +13,7 @@ import { TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
 import { useWebNav } from '~/shell/web-nav';
 import { DUGOUT_GREEN, DUGOUT_TAB_ACCENT } from '~/dugout/mark';
 import { DUGOUT_TABS, DUGOUT_UA, dugoutTabOf, isLoginPath } from '~/dugout/site';
+import { hasKakaoMap } from '../../../modules/kakao-map';
 
 type WebViewHandle = { injectJavaScript(script: string): void };
 /* react-native-webview 14 의 타입은 ref 를 안 받지만 실제 부품은 forwardRef 다(싱커 src/app/index.tsx 와 같다) */
@@ -38,6 +39,15 @@ function openLogin(next?: string) {
   if (Date.now() - loginAt < 700) return;
   loginAt = Date.now();
   router.push((next ? `/login?next=${encodeURIComponent(next)}` : '/login') as Href);
+}
+
+/** 연습장 · 레슨장 지도는 앱 화면(app/venues.tsx — 카카오맵)으로. 카카오맵이 든 바닥 판일 때만 */
+const isVenuesPath = (p: string) => hasKakaoMap && p === '/venues';
+let venuesAt = 0;
+function openVenues(search: string) {
+  if (Date.now() - venuesAt < 700) return;
+  venuesAt = Date.now();
+  router.push(`/venues${search}` as Href);
 }
 
 export default function DugoutShell() {
@@ -92,6 +102,10 @@ export default function DugoutShell() {
         openLogin(nextOf(u.search));
         return false;
       }
+      if (isVenuesPath(u.pathname)) {
+        openVenues(u.search);
+        return false;
+      }
       return true;
     }
     if (/^(about|blob|data):/.test(req.url)) return true;
@@ -111,6 +125,12 @@ export default function DugoutShell() {
       /* 사이트 안 이동으로 로그인에 왔다(로그인이 필요한 화면의 redirect · 로그아웃) — 웹은 앞 화면으로 돌리고 앱 로그인을 띄운다 */
       if (msg.t === 'dloc' && isLoginPath(msg.path) && !/[?&]web=1\b/.test(search)) {
         openLogin(nextOf(search));
+        web.current?.injectJavaScript(`history.length>1?history.back():location.replace('/');true;`);
+        return;
+      }
+      /* 사이트 안 이동으로 지도에 왔다 — 웹은 앞 화면으로 돌리고 앱 지도를 띄운다 */
+      if (msg.t === 'dloc' && isVenuesPath(msg.path)) {
+        openVenues(search);
         web.current?.injectJavaScript(`history.length>1?history.back():location.replace('/');true;`);
         return;
       }

@@ -146,6 +146,8 @@ jobs:
       LANG: en_US.UTF-8
       # 앱 안에 적히는 바닥 판 — plan 이 센 값 그대로(업데이트가 같은 판으로 올라간다)
       EXPO_UPDATES_FINGERPRINT_OVERRIDE: ${{ needs.plan.outputs.runtime }}
+      # 카카오맵 네이티브 앱 키 — plugins/kakao-map 이 prebuild 때 Info.plist(KakaoAppKey)에 넣는다. 없으면 앱 지도 자리에 안내만
+      KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
     steps:
       - uses: actions/checkout@v7
 
