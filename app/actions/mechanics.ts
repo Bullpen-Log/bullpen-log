@@ -5,13 +5,13 @@ import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { effortFields } from '@/lib/pitch-effort';
-import { prisma } from '@/lib/prisma';
+import { withMechanicsTransaction, mechanicsPlanKey } from '@/lib/mechanics/store';
 import { requireUser } from '@/lib/dal';
 import { visibleGuides } from '@/lib/library-cache';
 import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
 import { isLevelKey } from '@/lib/mechanics/levels';
-import { loadDrillThrowNote, loadMechanicsProgram } from '@/lib/mechanics/load';
+import { loadCurrentMechanicsFold, loadMechanicsProgram } from '@/lib/mechanics/load';
 import { loadFocusOffer } from '@/lib/mechanics/focus-load';
 import {
   countFeel,
@@ -21,6 +21,7 @@ import {
   isFeel,
   isFilmVerdict,
   isThrowingDrill,
+  isArmLoaded,
   levelAdvice,
   programStateJson,
   readProgramState,
@@ -49,31 +50,33 @@ const asJson = (v: unknown) => v as Prisma.InputJsonValue;
  */
 export async function startMechanicsProgram(level: string): Promise<Result> {
   const user = await requireUser();
-  if (!isLevelKey(level)) return { error: '알 수 없는 수준이에요.' };
-  const prev = await prisma.mechanicsProgram.findUnique({
-    where: { userId: user.id },
-    select: { progress: true },
+  return withMechanicsTransaction(user.id, async (prisma) => {
+    if (!isLevelKey(level)) return { error: '알 수 없는 수준이에요.' };
+    const prev = await prisma.mechanicsProgram.findUnique({
+      where: { userId: user.id },
+      select: { progress: true },
+    });
+    const prevState = prev ? readProgramState(prev.progress) : null;
+    const progress = asJson(
+      programStateJson({
+        ...freshState(level),
+        films: prevState?.films ?? [],
+        practice: prevState?.practice ?? [],
+        /* 오늘 드릴로 던진 공 알림도 지킨다 — 같은 날 수준을 바꿔도 남길 공은 그대로 */
+        throwLog: prevState?.throwLog ?? null,
+        /* 3D 리포트 처방도 지킨다 — 처방은 수준 세션의 드릴 칸만 바꾸는 것이라 수준을 바꿔도 이어 간다 */
+        focus: prevState?.focus ?? null,
+      })
+    );
+    const focus = prevState?.focus?.reportId ?? null;
+    await prisma.mechanicsProgram.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id, focus, progress },
+      update: { focus, progress },
+    });
+    revalidatePath(PROGRAM_PATH);
+    return { ok: true };
   });
-  const prevState = prev ? readProgramState(prev.progress) : null;
-  const progress = asJson(
-    programStateJson({
-      ...freshState(level),
-      films: prevState?.films ?? [],
-      practice: prevState?.practice ?? [],
-      /* 오늘 드릴로 던진 공 알림도 지킨다 — 같은 날 수준을 바꿔도 남길 공은 그대로 */
-      throwLog: prevState?.throwLog ?? null,
-      /* 3D 리포트 처방도 지킨다 — 처방은 수준 세션의 드릴 칸만 바꾸는 것이라 수준을 바꿔도 이어 간다 */
-      focus: prevState?.focus ?? null,
-    })
-  );
-  const focus = prevState?.focus?.reportId ?? null;
-  await prisma.mechanicsProgram.upsert({
-    where: { userId: user.id },
-    create: { userId: user.id, focus, progress },
-    update: { focus, progress },
-  });
-  revalidatePath(PROGRAM_PATH);
-  return { ok: true };
 }
 
 /**
@@ -85,24 +88,42 @@ export async function startMechanicsFocus(input: { reportId: string; level?: str
   const user = await requireUser();
   const offer = await loadFocusOffer(user, input?.reportId);
   if ('error' in offer) return offer;
-  const prev = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id }, select: { progress: true } });
-  const prevState = prev ? readProgramState(prev.progress) : null;
-  const level = prevState?.level ?? (isLevelKey(input.level) ? input.level : null);
-  if (!level) return { error: '수준을 먼저 골라 주세요.' };
-  const base = prevState?.level ? prevState : { ...freshState(level), films: prevState?.films ?? [], throwLog: prevState?.throwLog ?? null };
-  const progress = asJson(
-    programStateJson({
-      ...base,
-      focus: { reportId: offer.reportId, jobId: offer.jobId, rx: offer.rx, startedOn: toDateKey(appNow()), done: 0 },
-    })
-  );
-  await prisma.mechanicsProgram.upsert({
-    where: { userId: user.id },
-    create: { userId: user.id, focus: offer.reportId, progress },
-    update: { focus: offer.reportId, progress },
+  return withMechanicsTransaction(user.id, async (prisma) => {
+    const prev = await prisma.mechanicsProgram.findUnique({
+      where: { userId: user.id },
+      select: { progress: true },
+    });
+    const prevState = prev ? readProgramState(prev.progress) : null;
+    const level = prevState?.level ?? (isLevelKey(input.level) ? input.level : null);
+    if (!level) return { error: '수준을 먼저 골라 주세요.' };
+    const base = prevState?.level
+      ? prevState
+      : {
+          ...freshState(level),
+          films: prevState?.films ?? [],
+          throwLog: prevState?.throwLog ?? null,
+        };
+    const progress = asJson(
+      programStateJson({
+        ...base,
+        attempt: null,
+        focus: {
+          reportId: offer.reportId,
+          jobId: offer.jobId,
+          rx: offer.rx,
+          startedOn: toDateKey(appNow()),
+          done: 0,
+        },
+      })
+    );
+    await prisma.mechanicsProgram.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id, focus: offer.reportId, progress },
+      update: { focus: offer.reportId, progress },
+    });
+    revalidatePath(PROGRAM_PATH);
+    return { ok: true };
   });
-  revalidatePath(PROGRAM_PATH);
-  return { ok: true };
 }
 
 /**
@@ -121,15 +142,23 @@ export async function loadMechanicsFocusOffer(
 /** 처방 끝내기 — 처방 카드를 걷고 지금 수준 세션으로 돌아간다(마친 처방 · 그만두기). 수준 진행은 그대로 */
 export async function endMechanicsFocus(): Promise<Result> {
   const user = await requireUser();
-  const program = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id }, select: { progress: true } });
-  if (!program) return { ok: true };
-  const state = readProgramState(program.progress);
-  await prisma.mechanicsProgram.update({
-    where: { userId: user.id },
-    data: { focus: null, progress: asJson(programStateJson({ ...state, focus: null })) },
+  return withMechanicsTransaction(user.id, async (prisma) => {
+    const program = await prisma.mechanicsProgram.findUnique({
+      where: { userId: user.id },
+      select: { progress: true },
+    });
+    if (!program) return { ok: true };
+    const state = readProgramState(program.progress);
+    await prisma.mechanicsProgram.update({
+      where: { userId: user.id },
+      data: {
+        focus: null,
+        progress: asJson(programStateJson({ ...state, focus: null, attempt: null })),
+      },
+    });
+    revalidatePath(PROGRAM_PATH);
+    return { ok: true };
   });
-  revalidatePath(PROGRAM_PATH);
-  return { ok: true };
 }
 
 /**
@@ -141,29 +170,42 @@ export async function recordMechanicsFilm(
   feedback?: { comparable?: boolean; transferred?: boolean; response?: string }
 ): Promise<{ ok: true; note: FilmNote } | { error: string }> {
   const user = await requireUser();
-  if (!isFilmVerdict(verdict)) return { error: '알 수 없는 값이에요.' };
-  const program = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id } });
-  if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
-  if (program.sessionsDone <= 0) return { error: '세션을 먼저 마쳐 주세요.' };
-  const state = readProgramState(program.progress);
-  const note: FilmNote = { session: program.sessionsDone, on: toDateKey(appNow()), verdict,
-    level: state.level,
-    comparable: feedback?.comparable === true, transferred: feedback?.transferred === true,
-    response: feedback?.response === 'clear' || feedback?.response === 'pain' ? feedback.response : 'unknown' };
-  await prisma.mechanicsProgram.update({
-    where: { userId: user.id },
-    data: { progress: asJson(programStateJson({ ...state, films: withFilm(state.films, note) })) },
+  return withMechanicsTransaction(user.id, async (prisma) => {
+    if (!isFilmVerdict(verdict)) return { error: '알 수 없는 값이에요.' };
+    const program = await prisma.mechanicsProgram.findUnique({
+      where: { userId: user.id },
+    });
+    if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
+    if (program.sessionsDone <= 0) return { error: '세션을 먼저 마쳐 주세요.' };
+    const state = readProgramState(program.progress);
+    const note: FilmNote = {
+      session: program.sessionsDone,
+      on: toDateKey(appNow()),
+      verdict,
+      level: state.level,
+      comparable: feedback?.comparable === true,
+      transferred: feedback?.transferred === true,
+      response: feedback?.response === 'clear' || feedback?.response === 'pain' ? feedback.response : 'unknown',
+    };
+    await prisma.mechanicsProgram.update({
+      where: { userId: user.id },
+      data: {
+        progress: asJson(programStateJson({ ...state, films: withFilm(state.films, note) })),
+      },
+    });
+    revalidatePath(PROGRAM_PATH);
+    return { ok: true, note };
   });
-  revalidatePath(PROGRAM_PATH);
-  return { ok: true, note };
 }
 
 /** 처음부터 — 프로그램을 지운다(수준 고르기로 돌아간다). 지난 '했다' 기록(UserDrillLog)은 남는다 */
 export async function resetMechanicsProgram(): Promise<Result> {
   const user = await requireUser();
-  await prisma.mechanicsProgram.deleteMany({ where: { userId: user.id } });
-  revalidatePath(PROGRAM_PATH);
-  return { ok: true };
+  return withMechanicsTransaction(user.id, async (prisma) => {
+    await prisma.mechanicsProgram.deleteMany({ where: { userId: user.id } });
+    revalidatePath(PROGRAM_PATH);
+    return { ok: true };
+  });
 }
 
 /**
@@ -178,65 +220,131 @@ export async function recordMechanicsDrill(input: {
   element: string;
   feel: string;
   practice?: unknown;
-}): Promise<Result> {
+  attemptId?: string;
+  requestId?: string;
+}): Promise<{ ok: true; stopReason?: string } | { error: string }> {
   const user = await requireUser();
+  const current = await loadMechanicsProgram(user.id);
   const { guideId, element, feel } = input;
   if (!isElementName(element) || !isFeel(feel)) return { error: '알 수 없는 값이에요.' };
   const guide = (await visibleGuides()).find((g) => g.id === guideId);
   if (!guide) return { error: '드릴을 찾을 수 없어요.' };
-  const actual = practiceInput(input.practice);
-  if (isThrowingDrill(guide.category) && !actual) return { error: '앱을 다시 켜서 업데이트한 뒤, 실제 횟수·체감 강도·통증 여부를 적어 주세요.' };
-  const program = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id } });
-  if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
-
-  const today = toDateKey(appNow());
-  const date = dbDate(today);
-  const read = readProgramState(program.progress);
-  const previous = read.practice?.find((p) => p.on === today && p.guideId === guideId);
-  if (actual && previous && previous.throws === actual.throws && previous.effortPct === actual.effortPct && previous.response === actual.response && previous.alreadyLogged === actual.alreadyLogged) return { ok: true };
-  const current = await loadMechanicsProgram(user.id);
-  if (current.painFold && isThrowingDrill(guide.category)) return { error: current.painFold.reason };
-  /*
-   * 그날 처음 스로잉 드릴을 했으면 그때 투구 기록의 합을 기억한다 — 그 뒤 합이 늘면 드릴로 던진 공을 남긴 것으로 본다(drillThrowNote).
-   * 아침에 불펜을 미리 적어 둔 날도 알림이 뜨게, 시각이 아니라 합으로 견준다(PitchLog 에 고친 시각이 없다).
-   */
-  const state =
-    isThrowingDrill(guide.category) && read.throwLog?.on !== today
-      ? withThrowLog(
-          read,
-          today,
-          (await prisma.pitchLog.aggregate({ where: { userId: user.id, date }, _sum: { pitchCount: true } }))._sum
-            .pitchCount ?? 0
-        )
-      : read;
-  const practice = actual ? [
-    ...(state.practice ?? []).filter((p) => !(p.on === today && p.guideId === guideId)).slice(-89),
-    { ...actual, recorded: true, guideId, on: today },
-  ] : state.practice;
-  const next = { ...state, practice, feels: countFeel(state.feels, element, feel, today) };
-  // 날짜·드릴의 합계 하나. 재시도해도 새 투구 기록이 생기지 않는다.
-  const hash = createHash('sha256').update(`mechanics:${user.id}:${today}:${guideId}`).digest('hex').slice(0, 32);
-  const variant = (8 + (Number.parseInt(hash[16], 16) % 4)).toString(16);
-  const pitchId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-${variant}${hash.slice(17, 20)}-${hash.slice(20)}`;
-  const pitching: Prisma.PrismaPromise<unknown>[] = actual && !actual.alreadyLogged && actual.throws > 0 ? [prisma.pitchLog.upsert({
-    where: { id: pitchId },
-    create: { id: pitchId, userId: user.id, date, sessionType: '캐치볼', pitchCount: actual.throws,
-      ...effortFields(actual.effortPct), memo: `메커니즘 드릴 · ${guide.title} · 오늘 합계`, videoPaths: [] },
-    update: { pitchCount: actual.throws, ...effortFields(actual.effortPct) },
-  })] : actual ? [prisma.pitchLog.deleteMany({ where: { id: pitchId, userId: user.id } })] : [];
-  await prisma.$transaction([
-    ...pitching,
-    prisma.mechanicsProgram.update({
+  const actual = practiceInput(input.practice, guide.category);
+  if (!actual)
+    return {
+      error: '앱을 다시 켜서 업데이트한 뒤, 실제 횟수·체감 강도·통증 여부를 적어 주세요.',
+    };
+  if ((actual.reps ?? actual.throws) === 0) return { error: '수행한 횟수가 1회 이상일 때 드릴을 완료할 수 있어요.' };
+  if (typeof input.requestId !== 'string' || !input.requestId || input.requestId.length > 100)
+    return { error: '앱을 업데이트한 뒤 세션을 다시 열어 주세요.' };
+  const requestId = input.requestId;
+  const fingerprint = createHash('sha256').update(JSON.stringify([guideId, element, feel, actual])).digest('hex');
+  return withMechanicsTransaction(user.id, async (prisma) => {
+    const program = await prisma.mechanicsProgram.findUnique({
       where: { userId: user.id },
-      data: { progress: asJson(programStateJson(next)) },
-    }),
-    prisma.userDrillLog.upsert({
-      where: { userId_guideId_date: { userId: user.id, guideId, date } },
-      create: { userId: user.id, guideId, date, done: true },
-      update: { done: true },
-    }),
-  ]);
-  return { ok: true };
+    });
+    if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
+
+    const today = toDateKey(appNow());
+    const date = dbDate(today);
+    const read = readProgramState(program.progress);
+    const attempt = read.attempt;
+    const receipt = attempt && attempt.id === input.attemptId ? attempt.receipts?.find((r) => r.id === requestId) : null;
+    if (receipt) {
+      if (receipt.fingerprint !== fingerprint) return { error: '수행 입력이 바뀌었어요. 다시 입력해 주세요.' };
+      const stopped = (await loadCurrentMechanicsFold(user.id, prisma)) ?? current.painFold;
+      return stopped && isArmLoaded(guide.category) ? { ok: true, stopReason: stopped.reason } : { ok: true };
+    }
+    if (
+      !input.attemptId ||
+      !attempt ||
+      attempt.id !== input.attemptId ||
+      attempt.on !== today ||
+      attempt.completed ||
+      attempt.planKey !== mechanicsPlanKey(program.id, program.sessionsDone, read)
+    )
+      return {
+        error: '세션을 다시 열어 주세요. 이전 화면에서는 새 기록을 저장할 수 없어요.',
+      };
+    const assigned = attempt.items.some((item) => item.alternatives.some((a) => a.variants.some((v) => v.id === guideId && v.owned)));
+    if (!assigned) return { error: '이 세션에 배정된 드릴을 선택해 주세요.' };
+    const restriction = (await loadCurrentMechanicsFold(user.id, prisma)) ?? current.painFold;
+    if (isArmLoaded(guide.category)) {
+      if (restriction) return { error: restriction.reason };
+      if (read.practice?.some((p) => p.on === today && p.response === 'pain'))
+        return {
+          error: '오늘 드릴 중 통증을 기록했어요. 팔에 부하를 주는 드릴은 쉬어요.',
+        };
+    }
+    /*
+     * 그날 처음 스로잉 드릴을 했으면 그때 투구 기록의 합을 기억한다 — 그 뒤 합이 늘면 드릴로 던진 공을 남긴 것으로 본다(drillThrowNote).
+     * 아침에 불펜을 미리 적어 둔 날도 알림이 뜨게, 시각이 아니라 합으로 견준다(PitchLog 에 고친 시각이 없다).
+     */
+    const state =
+      isThrowingDrill(guide.category) && read.throwLog?.on !== today
+        ? withThrowLog(
+            read,
+            today,
+            (
+              await prisma.pitchLog.aggregate({
+                where: { userId: user.id, date },
+                _sum: { pitchCount: true },
+              })
+            )._sum.pitchCount ?? 0
+          )
+        : read;
+    const practice = actual
+      ? [
+          ...(state.practice ?? []).filter((p) => !(p.on === today && p.guideId === guideId)).slice(-89),
+          { ...actual, recorded: true, guideId, on: today },
+        ]
+      : state.practice;
+    const next = {
+      ...state,
+      practice,
+      attempt: { ...attempt, doneIds: [...new Set([...attempt.doneIds, guideId])], receipts: [...(attempt.receipts ?? []), { id: requestId, fingerprint }] },
+      feels: countFeel(state.feels, element, feel, today),
+    };
+    // 날짜·드릴의 합계 하나. 재시도해도 새 투구 기록이 생기지 않는다.
+    const hash = createHash('sha256').update(`mechanics:${user.id}:${today}:${guideId}`).digest('hex').slice(0, 32);
+    const variant = (8 + (Number.parseInt(hash[16], 16) % 4)).toString(16);
+    const pitchId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-${variant}${hash.slice(17, 20)}-${hash.slice(20)}`;
+    const pitching: Prisma.PrismaPromise<unknown>[] =
+      isThrowingDrill(guide.category) && actual && !actual.alreadyLogged && actual.throws > 0
+        ? [
+            prisma.pitchLog.upsert({
+              where: { id: pitchId },
+              create: {
+                id: pitchId,
+                userId: user.id,
+                date,
+                sessionType: '캐치볼',
+                pitchCount: actual.throws,
+                ...effortFields(actual.effortPct),
+                memo: `메커니즘 드릴 · ${guide.title} · 오늘 합계`,
+                videoPaths: [],
+              },
+              update: { pitchCount: actual.throws, ...effortFields(actual.effortPct) },
+            }),
+          ]
+        : isThrowingDrill(guide.category) && actual
+          ? [prisma.pitchLog.deleteMany({ where: { id: pitchId, userId: user.id } })]
+          : [];
+    await Promise.all([
+      ...pitching,
+      prisma.mechanicsProgram.update({
+        where: { userId: user.id },
+        data: { progress: asJson(programStateJson(next)) },
+      }),
+      prisma.userDrillLog.upsert({
+        where: { userId_guideId_date: { userId: user.id, guideId, date } },
+        create: { userId: user.id, guideId, date, done: true },
+        update: { done: true },
+      }),
+    ]);
+    const stopped = await loadCurrentMechanicsFold(user.id, prisma);
+    return stopped && isArmLoaded(guide.category) ? { ok: true, stopReason: stopped.reason } : { ok: true };
+  });
 }
 
 /**
@@ -244,50 +352,79 @@ export async function recordMechanicsDrill(input: {
  *
  * partial(2판 P6-5, D5): 어깨 · 팔꿈치 통증으로 던지기 · 메디신볼 드릴을 접고 무브먼트만 하고 마쳤다 — 진행 · 세션 수 ·
  * 마친 날을 그대로 둔다(finishState). 접은 드릴이 든 이 세션은 아프지 않은 날 이어서 한다(올리면 그 드릴을 영영 건너뛴다).
- * 화면만 새로 그려 한 드릴의 체크가 보이게 한다. 자기 진도라 보내온 값을 그대로 믿는다.
+ * 시작 때 서버가 저장한 배정과 이 세션의 수행 기록으로 완료를 판단한다. partial은 옛 화면 호환 입력이며 완료 판정에 쓰지 않는다.
  */
 export async function finishMechanicsSession(opts?: {
   partial?: boolean;
   /** 마치는 세션의 차례(sessionsDone + 1, 화면이 열 때 받은 값) — 응답이 끊겨 '다시 저장'을 눌러도 한 번만 센다 */
   session?: number;
+  attemptId?: string;
 }): Promise<
-  | { ok: true; advice: ReturnType<typeof levelAdvice>; throwNote: DrillThrowNote | null }
+  | {
+      ok: true;
+      status: 'completed' | 'partial';
+      message: string | null;
+      advice: ReturnType<typeof levelAdvice>;
+      throwNote: DrillThrowNote | null;
+    }
   | { error: string }
 > {
   const user = await requireUser();
-  const program = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id } });
-  if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
-  const state = readProgramState(program.progress);
-  if (!state.level) return { error: '수준을 먼저 골라 주세요.' };
   const current = await loadMechanicsProgram(user.id);
-  if (current.session.length === 0) return { error: '오늘 사용할 수 있는 드릴이 없어요. 장비와 투구 계획을 확인해 주세요.' };
-  // 건너뛴 칸·서버에서 제한한 칸을 완료로 세지 않는다.
-  const complete = current.session.every((s) => current.doneToday.includes(s.guideId));
-  /* 끝 화면의 '드릴로 공 N회 던졌어요' 카드(2026-10-16) */
-  const throwNote = await loadDrillThrowNote(user.id, state, toDateKey(appNow()));
-  if (opts?.partial === true || !complete || current.painFold != null) {
+  return withMechanicsTransaction(user.id, async (prisma) => {
+    const program = await prisma.mechanicsProgram.findUnique({
+      where: { userId: user.id },
+    });
+    if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
+    const state = readProgramState(program.progress);
+    if (!state.level) return { error: '수준을 먼저 골라 주세요.' };
+    const attempt = state.attempt;
+    if (!opts?.attemptId || !attempt || attempt.id !== opts.attemptId || opts.session !== attempt.session)
+      return { error: '세션을 다시 열어 주세요. 세션 정보가 바뀌었어요.' };
+    // 완료 응답이 유실된 재시도는 날짜·부하가 바뀌어도 같은 완료로 돌려준다.
+    if (attempt.completed)
+      return {
+        ok: true,
+        status: 'completed',
+        message: null,
+        advice: levelAdvice(state),
+        throwNote: null,
+      };
+    if (attempt.on !== toDateKey(appNow()) || attempt.planKey !== mechanicsPlanKey(program.id, program.sessionsDone, state))
+      return { error: '날짜나 프로그램이 바뀌었어요. 세션을 다시 열어 주세요.' };
+    const complete = attempt.items.every((item) => item.alternatives.some((a) => a.variants.some((v) => attempt.doneIds.includes(v.id))));
+    const throwNote = current.throwNote;
+    if (!complete) {
+      revalidatePath(PROGRAM_PATH);
+      return {
+        ok: true,
+        status: 'partial',
+        message: '수행한 드릴은 저장했어요. 남은 드릴이 있어 세션 진행은 유지해요.',
+        advice: null,
+        throwNote,
+      };
+    }
+    const next = {
+      ...finishState(state, false),
+      attempt: { ...attempt, completed: true },
+    };
+    await prisma.mechanicsProgram.update({
+      where: { userId: user.id },
+      data: {
+        progress: asJson(programStateJson(next)),
+        sessionsDone: { increment: 1 },
+        lastSessionOn: dbDate(toDateKey(appNow())),
+      },
+    });
     revalidatePath(PROGRAM_PATH);
-    return { ok: true, advice: null, throwNote };
-  }
-  /*
-   * 이미 센 세션 — 저장은 됐는데 응답이 끊겨 화면이 '다시 저장'을 보였다. 또 올리면 세션이 두 번 세져 다음 수준이 일찍 온다.
-   * 차례를 안 보내는 옛 화면은 예전처럼 센다.
-   */
-  if (typeof opts?.session === 'number' && program.sessionsDone >= opts.session) {
-    revalidatePath(PROGRAM_PATH);
-    return { ok: true, advice: levelAdvice(state), throwNote };
-  }
-  const next = finishState(state, false);
-  await prisma.mechanicsProgram.update({
-    where: { userId: user.id },
-    data: {
-      progress: asJson(programStateJson(next)),
-      sessionsDone: { increment: 1 },
-      lastSessionOn: dbDate(toDateKey(appNow())),
-    },
+    return {
+      ok: true,
+      status: 'completed',
+      message: null,
+      advice: levelAdvice(next),
+      throwNote,
+    };
   });
-  revalidatePath(PROGRAM_PATH);
-  return { ok: true, advice: levelAdvice(next), throwNote };
 }
 
 /**
@@ -296,14 +433,20 @@ export async function finishMechanicsSession(opts?: {
  */
 export async function closeDrillThrowNote(): Promise<Result> {
   const user = await requireUser();
-  const program = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id } });
-  if (!program) return { ok: true };
-  const state = readProgramState(program.progress);
-  if (!state.throwLog || state.throwLog.on !== toDateKey(appNow())) return { ok: true };
-  await prisma.mechanicsProgram.update({
-    where: { userId: user.id },
-    data: { progress: asJson(programStateJson({ ...state, throwLog: { ...state.throwLog, closed: true } })) },
+  return withMechanicsTransaction(user.id, async (prisma) => {
+    const program = await prisma.mechanicsProgram.findUnique({
+      where: { userId: user.id },
+    });
+    if (!program) return { ok: true };
+    const state = readProgramState(program.progress);
+    if (!state.throwLog || state.throwLog.on !== toDateKey(appNow())) return { ok: true };
+    await prisma.mechanicsProgram.update({
+      where: { userId: user.id },
+      data: {
+        progress: asJson(programStateJson({ ...state, throwLog: { ...state.throwLog, closed: true } })),
+      },
+    });
+    revalidatePath(PROGRAM_PATH);
+    return { ok: true };
   });
-  revalidatePath(PROGRAM_PATH);
-  return { ok: true };
 }

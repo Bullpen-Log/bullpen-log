@@ -12,6 +12,7 @@ import {
   MECHANICS_FOLD_TEXT,
   filmPrompt,
   isArmLoaded,
+  isThrowingDrill,
   type DrillFeel,
   type DrillThrowNote,
   type levelAdvice,
@@ -36,7 +37,13 @@ import { Press } from '~/shell/press';
  * 마지막 드릴 뒤 세션을 마친다(finishMechanicsSession, 아픈 날 무브먼트만 했으면 partial). 화면은 켜 둔다(웹 useWakeLock 과 같게).
  */
 type LoadResult = ({ ok: true } & MechanicsPlay) | { ok: false; to: string };
-type FinishResult = { ok: true; advice: ReturnType<typeof levelAdvice>; throwNote: DrillThrowNote | null };
+type FinishResult = {
+  ok: true;
+  status: 'completed' | 'partial';
+  message: string | null;
+  advice: ReturnType<typeof levelAdvice>;
+  throwNote: DrillThrowNote | null;
+};
 
 export default function MechanicsPlayScreen() {
   const c = usePalette();
@@ -50,8 +57,13 @@ export default function MechanicsPlayScreen() {
     rpc<LoadResult>('app-mechanics.loadAppMechanicsPlay', anyway ?? null).then(
       (r) => {
         if (!alive) return;
-        if (r.ok) setData(r);
-        else leave(r.to);
+        if (r.ok) {
+          if (typeof r.attemptId !== 'string' || !Array.isArray(r.doneGuideIds)) {
+            setFailed('세션 업데이트를 적용하고 있어요. 잠시 뒤 다시 불러와 주세요.');
+            return;
+          }
+          setData(r);
+        } else leave(r.to);
       },
       (e: unknown) => {
         if (!alive) return;
@@ -125,18 +137,33 @@ const tick = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
 /* ----------------------------- 본체 ----------------------------- */
 
-function Player({ backHref, items, startAt, label, sessionNumber, partial, painLabel, focus, inApp, c }: MechanicsPlay & { inApp: boolean; c: Palette }) {
+function Player({
+  backHref,
+  items,
+  startAt,
+  label,
+  sessionNumber,
+  attemptId,
+  doneGuideIds,
+  partial,
+  painLabel,
+  focus,
+  inApp,
+  c,
+}: MechanicsPlay & { inApp: boolean; c: Palette }) {
   /* 앱 화면에서 열었으면 그냥 뒤로(그 화면이 다시 보인다) — 웹에서 넘어왔으면 웹을 돌아갈 칸으로(~/shell/web-nav fromApp) */
   const close = () => (inApp ? router.back() : leave(backHref));
   const inset = useSafeAreaInsets();
   /* 아이패드 — 바닥 막대 안 단추를 본문 폭으로(~/lib/layout) */
   const barSide = useBarSide(12);
   const [index, setIndex] = useState(startAt);
-  const [done, setDone] = useState<boolean[]>(() => items.map((_, i) => i < startAt));
+  const [done, setDone] = useState<boolean[]>(() => items.map((item) => doneGuideIds.includes(item.guideId)));
   /* 세션을 마친 뒤 서버가 돌려준 권하기 · 드릴로 던진 공 카드 — 끝 화면이 보인다 */
   const [advice, setAdvice] = useState<FinishResult['advice']>(null);
   const [throwNote, setThrowNote] = useState<DrillThrowNote | null>(null);
   const [finished, setFinished] = useState(false);
+  const [finishPartial, setFinishPartial] = useState(false);
+  const [finishMessage, setFinishMessage] = useState<string | null>(null);
   /* 마치기 저장이 실패했나 — 끝 화면 대신 다시 저장 단추를 둔다(안 그러면 세션 수가 안 올라 같은 세션이 또 나왔다) */
   const [finishFailed, setFinishFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -176,7 +203,12 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
   const item = items[index];
   const view = viewOf(item, choices[index]);
   const counted = Math.min(setsDone, view.sets);
-  const choose = (next: Choice) => setChoices((list) => list.map((v, i) => (i === index ? next : v)));
+  const choose = (next: Choice) => {
+    setChoices((list) => list.map((v, i) => (i === index ? next : v)));
+    setPractice(emptyPractice());
+    setSetsDone(0);
+    setDone((list) => list.map((v, i) => (i === index ? false : v)));
+  };
 
   /* 다이나믹 아일랜드 · 잠금 화면(2026-10-20 김민) — 지금 드릴 · 몇 번째 · 세트, 시계는 이 세션을 연 때부터. 마치면 거둔다 */
   const [openedMs] = useState(() => Date.now());
@@ -201,7 +233,11 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
 
   /** 세션을 마친다 — 실패하면 끝 화면으로 넘어가지 않고 다시 저장하게 한다 */
   const finish = async () => {
-    const res = await act<FinishResult>('mechanics.finishMechanicsSession', { partial, session: sessionNumber });
+    const res = await act<FinishResult>('mechanics.finishMechanicsSession', {
+      partial,
+      session: sessionNumber,
+      attemptId,
+    });
     if ('error' in res) {
       setError(res.error);
       setFinishFailed(true);
@@ -209,6 +245,8 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
     }
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setFinishFailed(false);
+    setFinishPartial(res.status === 'partial');
+    setFinishMessage(res.message);
     setAdvice(res.advice);
     setThrowNote(res.throwNote);
     setFinished(true);
@@ -218,19 +256,53 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
     run(async () => {
       tick();
       /* 마치기 저장만 실패한 뒤 느낌을 다시 누르면 같은 드릴이 두 번 기록됐다 — 이미 기록한 드릴은 건너뛰고 마치기만 */
-      if (!practice.throws.trim() || !practice.effort.trim() || !practice.response) {
+      if (finishFailed) {
+        await finish();
+        return;
+      }
+      if (done[index]) {
+        if (index + 1 < items.length) {
+          setIndex(index + 1);
+          setSetsDone(0);
+          setPractice(emptyPractice());
+        } else await finish();
+        return;
+      }
+      if (!practice.count.trim() || !practice.effort.trim() || !practice.response) {
         setError('실제 횟수·체감 강도·통증 여부를 먼저 적어 주세요.');
         return;
       }
+      let stopReason: string | undefined;
       if (!done[index]) {
-        const res = await act<{ ok: true }>('mechanics.recordMechanicsDrill', { guideId: view.guideId, element: item.element, feel, practice: { throws: Number(practice.throws), effortPct: Number(practice.effort), response: practice.response, alreadyLogged: practice.alreadyLogged } });
+        const res = await act<{ ok: true; stopReason?: string }>('mechanics.recordMechanicsDrill', {
+          attemptId,
+          requestId: `${practice.requestId}:${feel}`,
+          guideId: view.guideId,
+          element: item.element,
+          feel,
+          practice: {
+            ...(isThrowingDrill(view.variant.category) ? { throws: Number(practice.count) } : { reps: Number(practice.count) }),
+            effortPct: Number(practice.effort),
+            response: practice.response,
+            alreadyLogged: practice.alreadyLogged,
+          },
+        });
         if ('error' in res) {
           setError(res.error);
           return;
         }
+        stopReason = res.stopReason;
       }
-      if (practice.response === 'pain') { close(); return; }
+      if (practice.response === 'pain') {
+        close();
+        return;
+      }
       setDone((d) => d.map((v, i) => (i === index ? true : v)));
+      if (stopReason && index + 1 < items.length) {
+        await finish();
+        setFinishMessage(`${stopReason} 수행한 드릴은 저장했어요. 남은 드릴은 다음에 이어서 해요.`);
+        return;
+      }
       if (index + 1 < items.length) next();
       else await finish();
     });
@@ -248,7 +320,16 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
   };
 
   const header = (
-    <View style={[s.header, { paddingTop: inset.top + 8, backgroundColor: c.card, borderBottomColor: c.line }]}>
+    <View
+      style={[
+        s.header,
+        {
+          paddingTop: inset.top + 8,
+          backgroundColor: c.card,
+          borderBottomColor: c.line,
+        },
+      ]}
+    >
       <View style={s.headRow}>
         <Press onPress={close} accessibilityRole="button" accessibilityLabel="따라 하기 닫기" style={s.iconBtn}>
           <View style={[s.circle, { backgroundColor: c.chip }]}>
@@ -266,7 +347,12 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
         {items.map((it, i) => (
           <View
             key={it.guideId}
-            style={[s.segment, { backgroundColor: done[i] ? c.sky : i === index && !finished ? c.sky + '66' : c.chip }]}
+            style={[
+              s.segment,
+              {
+                backgroundColor: done[i] ? c.sky : i === index && !finished ? c.sky + '66' : c.chip,
+              },
+            ]}
           />
         ))}
       </View>
@@ -290,25 +376,32 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
           <SymbolView name="checkmark" size={32} weight="bold" tintColor="#fff" />
         </View>
         <Text accessibilityRole="header" style={[s.finishTitle, { color: c.ink }]}>
-          {partial ? '오늘 드릴을 마쳤어요' : '세션을 마쳤어요'}
+          {finishPartial ? '오늘 드릴을 마쳤어요' : '세션을 마쳤어요'}
         </Text>
         <Text style={[s.body, s.center, { color: c.muted }]}>
-          {focus && !partial ? `처방 ${focus.number} / ${focus.total} 마쳤어요 · ` : ''}드릴 {count}개를 했어요.
+          {focus && !finishPartial ? `처방 ${focus.number} / ${focus.total} 마쳤어요 · ` : ''}
+          드릴 {count}개를 했어요.
         </Text>
-        {partial ? <Text style={[s.body, s.center, { color: c.muted }]}>{MECHANICS_FOLD_TEXT.partialFinish}</Text> : null}
+        {finishPartial ? (
+          <Text style={[s.body, s.center, { color: c.muted }]}>{finishMessage ?? MECHANICS_FOLD_TEXT.partialFinish}</Text>
+        ) : null}
 
         {throwNote ? <ThrowNoteCard note={throwNote} c={c} /> : null}
 
-        {!partial && advice?.to ? <LevelOffer kind={advice.kind} to={advice.to} c={c} /> : null}
+        {!finishPartial && advice?.to ? <LevelOffer kind={advice.kind} to={advice.to} c={c} /> : null}
 
         {/* 처방 중엔 찍기 권유를 처방 카드가 맡는다 */}
-        {!partial && !focus && filmPrompt(sessionNumber) === 'compare' ? (
+        {!finishPartial && !focus && filmPrompt(sessionNumber) === 'compare' ? (
           <View style={[s.block, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Text style={[s.blockTitle, { color: c.ink }]}>세션 {sessionNumber}번 · 찍어서 견줘 볼 때예요</Text>
             <Text style={[s.body, { color: c.muted }]}>
               같은 자리에서 다시 찍어 처음 영상과 2분할로 견줘 보세요. 구속도 재 두면 효과를 알 수 있어요.
             </Text>
-            <Press onPress={() => router.push('/pitch/compare' as Href)} accessibilityRole="link" style={[s.pill, { backgroundColor: c.chip }]}>
+            <Press
+              onPress={() => router.push('/pitch/compare' as Href)}
+              accessibilityRole="link"
+              style={[s.pill, { backgroundColor: c.chip }]}
+            >
               <Text style={[s.bodyBold, { color: c.ink }]}>2분할 비교 열기</Text>
             </Press>
             {/* 견준 결과 — 지금 못 견줬으면 '아직'을 누르거나 프로그램 칸에서 나중에 남긴다 */}
@@ -325,16 +418,39 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
     );
   }
 
+  if (done.every(Boolean)) {
+    return shell(
+      <View style={[s.fill, s.centerBox, { gap: 16, padding: 24 }]}>
+        <Text style={[s.bodyBold, { color: c.ink }]}>드릴 수행 기록은 저장됐어요.</Text>
+        <Text style={[s.body, { color: c.muted }]}>다시 운동할 필요 없이 세션 완료를 확인해 주세요.</Text>
+        {error ? <Text style={{ color: c.warn }}>{error}</Text> : null}
+        <Press disabled={pending} onPress={() => void run(finish)} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
+          <Text style={[s.bodyBold, { color: '#fff' }]}>{pending ? '완료 확인 중' : '세션 완료 확인'}</Text>
+        </Press>
+      </View>
+    );
+  }
+
   return shell(
     <>
       <ScrollView ref={scrollRef} style={s.fill} contentContainerStyle={[s.content, READABLE]}>
         {/* 드릴마다 새로 그린다(key) — 앞 드릴의 영상이 다음 드릴에서 돌고 설명 칸이 펼친 채 남지 않게 */}
         <DrillView key={item.guideId} item={item} view={view} alt={choices[index].alt} onChoose={choose} painLabel={painLabel} c={c} />
-        <PracticeInput value={practice} onChange={setPractice} c={c} />
+        <PracticeInput category={view.variant.category} value={practice} onChange={(value) => setPractice({ ...value, requestId: emptyPractice().requestId })} c={c} />
       </ScrollView>
 
       {/* 누르는 막대 — 엄지가 닿는 아래에 */}
-      <View style={[s.bottom, { paddingBottom: Math.max(12, inset.bottom), paddingHorizontal: barSide, backgroundColor: c.card, borderTopColor: c.line }]}>
+      <View
+        style={[
+          s.bottom,
+          {
+            paddingBottom: Math.max(12, inset.bottom),
+            paddingHorizontal: barSide,
+            backgroundColor: c.card,
+            borderTopColor: c.line,
+          },
+        ]}
+      >
         {/* 세트 세기 — 한 세트를 마칠 때마다 누른다. 다시 누르면 그 앞까지로 */}
         <View accessibilityLabel="마친 세트" style={s.setRow}>
           {Array.from({ length: view.sets }, (_, i) => {
@@ -358,7 +474,9 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
             );
           })}
         </View>
-        <Text style={[s.bodyBold, s.center, { color: c.ink }]}>{counted === view.sets ? '다 했어요. 어땠어요?' : '마쳤으면, 어땠어요?'}</Text>
+        <Text style={[s.bodyBold, s.center, { color: c.ink }]}>
+          {counted === view.sets ? '다 했어요. 어땠어요?' : '마쳤으면, 어땠어요?'}
+        </Text>
         {/* 셋 다 같은 모양 — '쉬움'만 칠하면 무심코 누르기 쉬워 단계가 부풀었다(웹 2026-10-04 검토). 정직하게 고른 느낌이 진도의 전부다 */}
         <View style={s.feelRow}>
           {FEELS.map((f) => (
@@ -367,7 +485,13 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
               onPress={() => void record(f.value)}
               disabled={pending}
               accessibilityRole="button"
-              style={({ pressed }) => [s.feel, { backgroundColor: pressed ? c.sky + '1a' : c.chip, opacity: pending ? 0.6 : 1 }]}
+              style={({ pressed }) => [
+                s.feel,
+                {
+                  backgroundColor: pressed ? c.sky + '1a' : c.chip,
+                  opacity: pending ? 0.6 : 1,
+                },
+              ]}
             >
               <Text style={[s.feelLabel, { color: c.ink }]}>{f.label}</Text>
               <Text style={[s.tiny, s.center, { color: c.muted }]}>{f.hint}</Text>
@@ -381,7 +505,9 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
           </Press>
         ) : (
           <Press onPress={skip} disabled={pending} accessibilityRole="button" style={s.textBtn}>
-            <Text style={[s.smallBold, { color: c.muted }]}>{index + 1 < items.length ? '이번 드릴은 건너뛰기' : done.some(Boolean) ? '건너뛰고 세션 마치기' : '오늘은 그만하기'}</Text>
+            <Text style={[s.smallBold, { color: c.muted }]}>
+              {index + 1 < items.length ? '이번 드릴은 건너뛰기' : done.some(Boolean) ? '건너뛰고 세션 마치기' : '오늘은 그만하기'}
+            </Text>
           </Press>
         )}
       </View>
@@ -493,7 +619,13 @@ function DrillView({
 
       {item.cue ? <Text style={[s.bodyBold, s.box, { color: c.sky, backgroundColor: c.sky + '14' }]}>“{item.cue}”</Text> : null}
 
-      <ExerciseMedia key={`video-${view.guideId}`} path={v.videoPath} referenceVideoId={v.referenceVideoId} thumbUrl={v.thumbUrl} aspectRatio={v.aspectRatio} />
+      <ExerciseMedia
+        key={`video-${view.guideId}`}
+        path={v.videoPath}
+        referenceVideoId={v.referenceVideoId}
+        thumbUrl={v.thumbUrl}
+        aspectRatio={v.aspectRatio}
+      />
 
       <Description key={`desc-${view.guideId}`} guideId={view.guideId} c={c} />
 

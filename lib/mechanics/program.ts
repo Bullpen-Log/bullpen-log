@@ -5,6 +5,7 @@
  * 다른 동작을 같은 요소라는 이유만으로 대체하지 않는다.
  * 진도·수행·영상 비교는 기존 JSON 안에서 보존한다(DB 구조 변경 없음).
  */
+import type { SessionDrillView } from '@/lib/mechanics/load';
 import {
   ARM_PAIN_ROUTINE_MIN_AGE,
   CHECKIN_PARTS,
@@ -75,26 +76,89 @@ export type ProgramState = {
   throwLog: ThrowLog | null;
   /** 3D 리포트 처방 — 진행 중이거나 마친 처방(새 처방 · 끝내기 전까지 남는다). 없으면 null */
   focus: ProgramFocus | null;
-  /** 실제 투구수. 과거 추정량은 섞지 않고 날짜·드릴마다 한 번 저장한다. */
+  /** 실제 수행량. 투구와 반복 횟수를 구분하고 날짜·드릴마다 합계를 저장한다. */
   practice?: PracticeRecord[];
+  /** 시작 때의 배정과 이 세션에서 한 드릴. 날짜별 체크와 구분한다. */
+  attempt?: MechanicsAttempt | null;
 };
+
+export type MechanicsAttempt = {
+  id: string;
+  on: string;
+  session: number;
+  planKey: string;
+  items: SessionDrillView[];
+  doneIds: string[];
+  completed: boolean;
+  receipts?: { id: string; fingerprint: string }[];
+};
+
+function readAttempt(value: unknown): MechanicsAttempt | null {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as MechanicsAttempt;
+  if (
+    typeof v.id !== 'string' ||
+    !dayOf(v.on) ||
+    !Number.isInteger(v.session) ||
+    v.session < 1 ||
+    typeof v.planKey !== 'string' ||
+    typeof v.completed !== 'boolean' ||
+    (v.receipts != null && (!Array.isArray(v.receipts) || !v.receipts.every((r) => r && typeof r.id === 'string' && typeof r.fingerprint === 'string'))) ||
+    !Array.isArray(v.doneIds) ||
+    !v.doneIds.every((id) => typeof id === 'string') ||
+    !Array.isArray(v.items) ||
+    !v.items.length ||
+    !v.items.every(
+      (i) =>
+        i &&
+        typeof i.guideId === 'string' &&
+        i.variant &&
+        Array.isArray(i.alternatives) &&
+        i.alternatives.every((a) => a && Array.isArray(a.variants) && a.variants.every((x) => x && typeof x.id === 'string'))
+    )
+  )
+    return null;
+  return v;
+}
 
 export type PracticeRecord = {
   guideId: string;
   on: string;
   throws: number;
+  /** 새 기록은 운동 단위를 명시한다. 옛 기록의 단위는 추정하지 않는다. */
+  kind?: 'throws' | 'repetitions';
+  reps?: number;
   effortPct: number;
   response: 'clear' | 'pain';
   alreadyLogged: boolean;
   recorded?: boolean;
 };
 
-export function practiceInput(value: unknown): Omit<PracticeRecord, 'guideId' | 'on'> | null {
+export function practiceInput(value: unknown, category?: string): Omit<PracticeRecord, 'guideId' | 'on'> | null {
   const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
-  if (typeof v.throws !== 'number' || !Number.isInteger(v.throws) || v.throws < 0 || v.throws > 1000 ||
-      typeof v.effortPct !== 'number' || !Number.isInteger(v.effortPct) || v.effortPct < 0 || v.effortPct > 100 ||
-      (v.response !== 'clear' && v.response !== 'pain') || typeof v.alreadyLogged !== 'boolean') return null;
-  return { throws: v.throws, effortPct: v.effortPct, response: v.response, alreadyLogged: v.alreadyLogged };
+  const repetitions = category !== undefined ? !isThrowingDrill(category) : v.kind === 'repetitions';
+  // 이전 앱의 throws 필드도 비투구 운동에서는 반복 횟수로만 해석한다.
+  const count = repetitions ? (v.reps ?? v.throws) : v.throws;
+  if (
+    typeof count !== 'number' ||
+    !Number.isInteger(count) ||
+    count < 0 ||
+    count > 1000 ||
+    typeof v.effortPct !== 'number' ||
+    !Number.isInteger(v.effortPct) ||
+    v.effortPct < 0 ||
+    v.effortPct > 100 ||
+    (v.response !== 'clear' && v.response !== 'pain') ||
+    typeof v.alreadyLogged !== 'boolean'
+  )
+    return null;
+  return {
+    throws: repetitions ? 0 : count,
+    ...(repetitions ? { kind: 'repetitions' as const, reps: count } : category !== undefined || v.kind === 'throws' ? { kind: 'throws' as const } : {}),
+    effortPct: v.effortPct,
+    response: v.response,
+    alreadyLogged: repetitions ? false : v.alreadyLogged,
+  };
 }
 
 function readPractice(value: unknown): PracticeRecord[] {
@@ -255,6 +319,7 @@ export function readProgramState(json: unknown): ProgramState {
     throwLog: readThrowLog(raw.throwLog),
     focus: readFocus(raw.focus),
     practice: readPractice(raw.practice),
+    attempt: readAttempt(raw.attempt),
   };
 }
 
@@ -269,6 +334,7 @@ export function programStateJson(state: ProgramState) {
     throwLog: state.throwLog,
     focus: state.focus,
     practice: state.practice ?? [],
+    attempt: state.attempt ?? null,
   };
 }
 
@@ -320,7 +386,7 @@ export function drillThrowNote({
   practice?: readonly PracticeRecord[];
 }): DrillThrowNote | null {
   if (!throwLog || throwLog.on !== todayKey || throwLog.closed) return null;
-  const records = practice.filter((p) => p.on === todayKey && !p.alreadyLogged && !p.recorded);
+  const records = practice.filter((p) => p.on === todayKey && p.kind !== 'repetitions' && !p.alreadyLogged && !p.recorded);
   const throws = records.reduce((sum, p) => sum + p.throws, 0);
   if (throws === 0) return null;
   const effortPct = Math.round(records.reduce((sum, p) => sum + p.throws * p.effortPct, 0) / throws);
@@ -496,7 +562,7 @@ export function doseOf(category: string, stage: DrillStage): Dose {
   return (DOSES[category] ?? DOSES[MOVEMENT])[stage];
 }
 
-export const doseText = (d: Dose) => d.reps > 0 ? `${d.sets}세트 × ${d.reps}회` : '오늘 투구 계획 안에서 짧게 연습';
+export const doseText = (d: Dose) => (d.reps > 0 ? `${d.sets}세트 × ${d.reps}회` : '오늘 투구 계획 안에서 짧게 연습');
 
 /** 세션 한 줄의 처방 칸 — dose · sets · tempo */
 export function doseFields(category: string, stage: DrillStage) {
@@ -615,7 +681,12 @@ export const focusWeek = (done: number) => Math.min(FOCUS_WEEKS, Math.floor(Math
 
 /** 그 주에 할 처방 단계 — 경계 처방은 '1주 연결 · 2~3주 통합'이라 3주차는 2주차 칸을 쓴다(주차가 그보다 작거나 같은 마지막 칸) */
 export function rxWeek(rx: ElementRx, week: number): ElementRx['weeks'][number] | null {
-  return [...rx.weeks].sort((a, b) => a.week - b.week).filter((w) => w.week <= week).at(-1) ?? null;
+  return (
+    [...rx.weeks]
+      .sort((a, b) => a.week - b.week)
+      .filter((w) => w.week <= week)
+      .at(-1) ?? null
+  );
 }
 
 /**
@@ -624,17 +695,10 @@ export function rxWeek(rx: ElementRx, week: number): ElementRx['weeks'][number] 
  *   칸이 모자라면 앞 차례가 먼저, 남으면 지금 수준 드릴로 채우고, 투구 차례(여섯 요소 차례)로 다시 놓는다.
  * 처방 드릴 이름은 리포트가 넘긴 것 그대로(lib/mechanics/prescriptions.ts 로 리포트가 고른 것) — 라이브러리에 없으면 itemsFromTitles 가 건너뛴다.
  */
-export function focusPlan({
-  rx,
-  done,
-  base,
-  drills,
-}: {
-  rx: ElementRx[];
-  done: number;
-  base: string[];
-  drills: ProgramDrill[];
-}): { titles: string[]; tags: Map<string, RxTag> } {
+export function focusPlan({ rx, done, base, drills }: { rx: ElementRx[]; done: number; base: string[]; drills: ProgramDrill[] }): {
+  titles: string[];
+  tags: Map<string, RxTag>;
+} {
   const week = focusWeek(done);
   const slots = Math.max(1, base.length);
   const picks: { title: string; tag: RxTag }[] = [];
@@ -666,7 +730,13 @@ export function focusPlan({
     const i = ELEMENT_NAMES.indexOf(el as MechanicsElementName);
     return i < 0 ? ELEMENT_NAMES.length : i;
   };
-  return { titles: titles.map((t, i) => ({ t, i })).sort((a, b) => order(a.t) - order(b.t) || a.i - b.i).map((x) => x.t), tags };
+  return {
+    titles: titles
+      .map((t, i) => ({ t, i }))
+      .sort((a, b) => order(a.t) - order(b.t) || a.i - b.i)
+      .map((x) => x.t),
+    tags,
+  };
 }
 
 /** 프로그램 칸 · 앱이 그리는 처방 요약(처방 카드 · 머리 '처방 4/9' · 요소 탭 점) */
@@ -768,11 +838,9 @@ export type MechanicsPainFold = {
 
 /** 접는 날 화면 글 — 해요체 · 줄표 없이(시험이 본다). label 은 MechanicsPainFold.label */
 export const MECHANICS_FOLD_TEXT = {
-  reason: (label: string) =>
-    `오늘 ${label}${josa(label, '이/가')} 아파 던지기 · 메디신볼 드릴은 접었어요. 그래도 하려면 펼쳐요.`,
+  reason: (label: string) => `오늘 ${label}${josa(label, '이/가')} 아파 던지기 · 메디신볼 드릴은 접었어요. 그래도 하려면 펼쳐요.`,
   /** 펼친 뒤(그래도 하기) 카드 · 따라 하기 위 한 줄 */
-  anyway: (label: string) =>
-    `오늘 ${label}${josa(label, '이/가')} 아픈 날이에요. 아프면 바로 멈춰요.`,
+  anyway: (label: string) => `오늘 ${label}${josa(label, '이/가')} 아픈 날이에요. 아프면 바로 멈춰요.`,
   /** 따라 하기에서 팔에 싣는 드릴을 볼 때 */
   loadedDrill: (label: string) =>
     `오늘 ${label}${josa(label, '이/가')} 아픈 날이에요. 팔에 힘이 실리는 드릴이라 아프면 바로 멈추고 건너뛰어요.`,
@@ -791,8 +859,7 @@ export const MECHANICS_FOLD_TEXT = {
    */
   homeOpen: (cause: string, n: number) => `오늘은 ${cause} 안 던지는 드릴 ${n}개만 해요`,
   /** 성장기(만 16세 미만)의 통증 날 — 펼치지 못하고 진료를 권한다(lib/checkin.ts ARM_PAIN_ROUTINE_MIN_AGE 와 같은 뜻) */
-  youthReason: (label: string) =>
-    `오늘 ${label}${josa(label, '이/가')} 아파 던지기 · 메디신볼 드릴은 쉬어요. 진료가 먼저예요.`,
+  youthReason: (label: string) => `오늘 ${label}${josa(label, '이/가')} 아파 던지기 · 메디신볼 드릴은 쉬어요. 진료가 먼저예요.`,
   /** 최근 통증인데 오늘 체크인이 없는 날(중재의 안전 층) — 홈 한 줄 머리말은 lib/mechanics/fold.ts MECHANICS_UNKNOWN_CAUSE */
   painUnknown: '최근 아팠던 곳이 있어요. 체크인을 남기기 전엔 던지기 드릴을 쉬어요.',
   homeAllFolded: '오늘은 던지기 드릴을 쉬어요',
@@ -857,16 +924,13 @@ export function foldSession<T extends { category: string }>(
  * 스로잉 · 메디신볼로 바꿔 할 수 있었다(2판 P6 비판). 동작마다 도구를 거르고, 도구가 다 빠진 동작은 뺀다. 처음 고를
  * 도구(guideId)가 빠졌으면 남은 첫 도구로.
  */
-export function unloadedAlternatives<
-  V extends { id: string; category: string },
-  A extends { guideId: string; variants: V[] },
->(alternatives: readonly A[]): A[] {
+export function unloadedAlternatives<V extends { id: string; category: string }, A extends { guideId: string; variants: V[] }>(
+  alternatives: readonly A[]
+): A[] {
   return alternatives.flatMap((a) => {
     const variants = a.variants.filter((v) => !isArmLoaded(v.category));
     if (variants.length === 0) return [];
-    const guideId = variants.some((v) => v.id === a.guideId)
-      ? a.guideId
-      : variants[0].id;
+    const guideId = variants.some((v) => v.id === a.guideId) ? a.guideId : variants[0].id;
     return [{ ...a, variants, guideId }];
   });
 }

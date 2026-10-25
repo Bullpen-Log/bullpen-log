@@ -2,14 +2,18 @@ import { Text, TextInput, View } from 'react-native';
 import type { Palette } from '~/lib/ui';
 import { Press } from '~/shell/press';
 
+import { isThrowingDrill } from '@/lib/mechanics/program';
+
 export type PracticeForm = {
-  throws: string;
+  requestId: string;
+  count: string;
   effort: string;
   response: 'clear' | 'pain' | null;
   alreadyLogged: boolean;
 };
 export const emptyPractice = (): PracticeForm => ({
-  throws: '',
+  requestId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+  count: '',
   effort: '',
   response: null,
   alreadyLogged: false,
@@ -17,13 +21,16 @@ export const emptyPractice = (): PracticeForm => ({
 
 export function PracticeInput({
   value,
+  category,
   onChange,
   c,
 }: {
   value: PracticeForm;
+  category: string;
   onChange: (v: PracticeForm) => void;
   c: Palette;
 }) {
+  const throwing = isThrowingDrill(category);
   const field = {
     borderColor: c.line,
     borderWidth: 1,
@@ -34,17 +41,19 @@ export function PracticeInput({
   };
   return (
     <View style={{ gap: 8 }}>
-      <Text style={{ color: c.ink, fontWeight: '600' }}>오늘 이 드릴의 실제 투구</Text>
+      <Text style={{ color: c.ink, fontWeight: '600' }}>{throwing ? '오늘 이 드릴의 실제 투구' : '오늘 이 드릴의 반복 수행'}</Text>
       <Text style={{ color: c.muted, fontSize: 13 }}>
-        오늘 이 드릴로 던진 합계를 적어요. 투구 기록에 한 번만 저장돼요.
+        {throwing
+          ? '오늘 이 드릴로 던진 합계를 적어요. 투구 기록에 한 번만 저장돼요.'
+          : '오늘 수행한 반복 횟수를 적어요. 투구 수에는 더하지 않아요.'}
       </Text>
       <TextInput
-        accessibilityLabel="실제로 던진 횟수"
-        placeholder="실제 횟수"
+        accessibilityLabel={throwing ? '실제로 던진 횟수' : '실제 반복 횟수'}
+        placeholder={throwing ? '실제 투구 횟수' : '실제 반복 횟수'}
         placeholderTextColor={c.muted}
         keyboardType="number-pad"
-        value={value.throws}
-        onChangeText={(throws) => onChange({ ...value, throws })}
+        value={value.count}
+        onChangeText={(count) => onChange({ ...value, count })}
         style={field}
       />
       <TextInput
@@ -78,16 +87,16 @@ export function PracticeInput({
           </Press>
         ))}
       </View>
-      <Press
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: value.alreadyLogged }}
-        onPress={() => onChange({ ...value, alreadyLogged: !value.alreadyLogged })}
-        style={{ minHeight: 44, justifyContent: 'center' }}
-      >
-        <Text style={{ color: c.ink }}>
-          {value.alreadyLogged ? '☑' : '☐'} 다른 투구 기록에 이미 포함했어요
-        </Text>
-      </Press>
+      {throwing ? (
+        <Press
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: value.alreadyLogged }}
+          onPress={() => onChange({ ...value, alreadyLogged: !value.alreadyLogged })}
+          style={{ minHeight: 44, justifyContent: 'center' }}
+        >
+          <Text style={{ color: c.ink }}>{value.alreadyLogged ? '☑' : '☐'} 다른 투구 기록에 이미 포함했어요</Text>
+        </Press>
+      ) : null}
     </View>
   );
 }

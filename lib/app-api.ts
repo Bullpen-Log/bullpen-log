@@ -14,7 +14,7 @@
 export const APP_API_HEADER = 'x-bullpen-app';
 
 /** 이 코드가 말하는 약속 번호 — 앱은 이 값을 보낸다 */
-export const APP_API_LEVEL = 2; // 메커니즘 실제 투구량·영상 비교 조건 입력
+export const APP_API_LEVEL = 3; // 메커니즘 세션 식별·수행 단위·완료 결과 구분
 
 /** 서버가 받는 가장 낮은 번호 */
 export const MIN_APP_API = 1;
@@ -23,4 +23,10 @@ export const MIN_APP_API = 1;
 export function appApiLevelOf(header: string | null | undefined): number {
   const n = Number.parseInt(header ?? '', 10);
   return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** 세션 식별자를 보내지 않는 옛 앱은 메커니즘 따라 하기에서만 업데이트를 안내한다. */
+export function minAppApiForAction(action: string): number {
+  return ['app-mechanics.loadAppMechanicsPlay', 'mechanics.recordMechanicsDrill', 'mechanics.finishMechanicsSession'].includes(action)
+    ? 3 : MIN_APP_API;
 }

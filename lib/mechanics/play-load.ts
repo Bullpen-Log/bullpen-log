@@ -1,4 +1,5 @@
 import 'server-only';
+import { openMechanicsAttempt } from '@/lib/mechanics/store';
 import type { getCurrentUser } from '@/lib/dal';
 import { loadMechanicsProgram, type SessionDrillView } from '@/lib/mechanics/load';
 import { mechanicsLevel } from '@/lib/mechanics/levels';
@@ -23,6 +24,8 @@ export type MechanicsPlay = {
   startAt: number;
   label: string;
   sessionNumber: number;
+  attemptId: string;
+  doneGuideIds: string[];
   isAdmin: boolean;
   partial: boolean;
   painLabel: string | null;
@@ -32,7 +35,7 @@ export type MechanicsPlay = {
 
 /**
  * 세션은 이 화면을 열 때 한 번 짜서 넘긴다 — 도중에 단계가 올라도 하던 차례가 바뀌지 않는다(서버 동작이 화면을 다시
- * 그리지 않는다, app/actions/mechanics.ts). 오늘 마친 세션이 없으면 오늘 이미 한 드릴부터는 건너뛴다(이어서 하기).
+ * 그리지 않는다, app/actions/mechanics.ts). 시작 때 고정한 배정과 해당 세션에 저장한 수행만 이어서 한다. 날짜별 체크는 다음 세션에 재사용하지 않는다.
  *
  * 어깨 · 팔꿈치가 아픈 날(2판 P6-5, 사용자 결정 D5 — lib/mechanics/program.ts playItemsFor): ?anyway=1 이 없으면 무브먼트
  * 드릴만, 그 '다른 드릴' · 도구도 무브먼트만 넘긴다. 접은 드릴이 있었으면 마쳐도 세션 수를 안 올린다(partial). 할 드릴이
@@ -51,10 +54,19 @@ export async function loadMechanicsPlay(
    * lib/mechanics/fold.ts — 등판 보호 · 안전 층은 '그래도 하기'로 못 넘긴다).
    */
   const anyway = anywayParam === '1' && painFold?.canUnfold !== false;
-  const { items, partial } = playItemsFor(session, painFold, anyway);
+  const savedAll = session.every((item) => doneToday.includes(item.guideId));
+  if (!savedAll && playItemsFor(session, painFold, anyway).items.length === 0) return { ok: false, to: MECHANICS_BACK };
+  const attempt = await openMechanicsAttempt(user.id, program.planKey, session);
+  if (!attempt) return { ok: false, to: MECHANICS_BACK };
+  const allRecorded = attempt.items.every((item) => item.alternatives.some((a) => a.variants.some((v) => attempt.doneIds.includes(v.id))));
+  // 이미 수행한 세션의 완료 응답만 잃은 경우, 부하 제한 중에도 완료 확인은 열어 준다.
+  const { items, partial } = allRecorded ? { items: attempt.items, partial: false } : playItemsFor(attempt.items, painFold, anyway);
   if (items.length === 0) return { ok: false, to: MECHANICS_BACK };
 
-  const done = new Set(program.finishedToday ? [] : doneToday);
+  const done = new Set(attempt.doneIds);
+  for (const item of items) {
+    if (item.alternatives.some((a) => a.variants.some((v) => done.has(v.id)))) done.add(item.guideId);
+  }
 
   return {
     ok: true,
@@ -67,13 +79,12 @@ export async function loadMechanicsPlay(
         : program.level && program.week
           ? `${mechanicsLevel(program.level).name} ${program.index + 1}번 세션`
           : `${program.sessionsDone + 1}번째 세션`,
-    sessionNumber: program.sessionsDone + 1,
+    sessionNumber: attempt.session,
+    attemptId: attempt.id,
+    doneGuideIds: [...done],
     isAdmin: user.role === 'ADMIN',
     partial,
     painLabel: painFold && anyway ? painFold.label : null,
-    focus:
-      program.focus && !program.focus.finished
-        ? { number: program.focus.done + 1, total: program.focus.total }
-        : null,
+    focus: program.focus && !program.focus.finished ? { number: program.focus.done + 1, total: program.focus.total } : null,
   };
 }
