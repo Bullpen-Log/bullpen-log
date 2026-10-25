@@ -1,0 +1,96 @@
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { HomeworkView } from '@/app/actions/app-lesson';
+import { HOMEWORK_STATUS_LABEL } from '@/lib/org/homework';
+import { call } from '~/community/parts';
+import { TYPE, type Palette } from '~/lib/ui';
+import { toast } from '~/shell/toast';
+import { Card, Empty, dayLabel } from '~/org/parts';
+
+/**
+ * 숙제 목록(2단계) — 코치 회원 카드와 선수 공간이 같이 쓴다. 코치는 누르면 면제 · 취소 · 되돌리기, 선수는 '오늘 운동에 넣기' · '했어요'.
+ * 완료는 선수가 트레이닝에서 그 운동을 하면 저절로(서버 app-lesson.ts settleHomework).
+ */
+type Who = { role: 'coach'; orgId: string } | { role: 'player'; memberId: string };
+
+export function HomeworkList({ items, who, onChanged, c }: { items: HomeworkView[]; who: Who; onChanged: () => void; c: Palette }) {
+  if (items.length === 0)
+    return (
+      <Card c={c}>
+        <Empty text={who.role === 'coach' ? "아직 낸 숙제가 없어요. 위의 '숙제 내기'로 내요." : '받은 숙제가 없어요.'} c={c} />
+      </Card>
+    );
+  return (
+    <>
+      {items.map((h) => (
+        <Card key={h.id} c={c}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={[TYPE.sub, { color: c.muted, flex: 1 }]}>
+              {dayLabel(h.key)} 낸 숙제{h.due ? ` · ${dayLabel(h.due)}까지` : ''}
+            </Text>
+            <Text style={[TYPE.sub, { color: statusColor(h.status, c), fontWeight: '600' }]}>
+              {HOMEWORK_STATUS_LABEL[h.status]}
+              {h.doneKey && h.status === 'done' ? ` · ${dayLabel(h.doneKey)}` : ''}
+            </Text>
+          </View>
+          {h.lines.map((l, i) => (
+            <View key={i} style={st.line}>
+              <Text style={[TYPE.body, { color: c.ink, flex: 1 }]} numberOfLines={2}>
+                {l.name}
+                {l.kind === 'drill' ? <Text style={{ color: c.muted }}> · 드릴</Text> : null}
+              </Text>
+              {l.dose ? <Text style={[TYPE.sub, { color: c.muted }]}>{l.dose}</Text> : null}
+            </View>
+          ))}
+          <Actions h={h} who={who} onChanged={onChanged} c={c} />
+        </Card>
+      ))}
+    </>
+  );
+}
+
+const statusColor = (s: HomeworkView['status'], c: Palette) => (s === 'done' ? c.ok : s === 'in_progress' ? c.link : c.muted);
+const open = (s: HomeworkView['status']) => s === 'assigned' || s === 'in_progress';
+
+function Actions({ h, who, onChanged, c }: { h: HomeworkView; who: Who; onChanged: () => void; c: Palette }) {
+  const send = async (action: string, ...args: unknown[]) => {
+    const r = await call<{ ok: boolean; error?: string; added?: number }>(action, ...args);
+    if (!r.ok) return toast(('error' in r && r.error) || '처리하지 못했어요.', 'error');
+    if (typeof r.added === 'number') toast(`오늘 운동에 ${r.added}개 넣었어요. 트레이닝에서 하면 완료돼요.`);
+    onChanged();
+  };
+  if (who.role === 'player') {
+    if (!open(h.status)) return null;
+    return (
+      <View style={st.actions}>
+        {h.hasExercise ? <Link label="오늘 운동에 넣기" onPress={() => void send('app-lesson.homeworkToToday', who.memberId, h.id)} c={c} /> : null}
+        <Link label="했어요" onPress={() => void send('app-lesson.markMyHomework', who.memberId, h.id, 'done')} c={c} />
+      </View>
+    );
+  }
+  const menu = () =>
+    Alert.alert('숙제', undefined, [
+      ...(open(h.status)
+        ? [{ text: '면제', onPress: () => void send('app-lesson.setHomeworkStatus', who.orgId, h.id, 'excused') }]
+        : [{ text: '다시 하게', onPress: () => void send('app-lesson.setHomeworkStatus', who.orgId, h.id, 'assigned') }]),
+      { text: '숙제 취소', style: 'destructive' as const, onPress: () => void send('app-lesson.setHomeworkStatus', who.orgId, h.id, 'canceled') },
+      { text: '닫기', style: 'cancel' as const },
+    ]);
+  return (
+    <View style={st.actions}>
+      <Link label="바꾸기" onPress={menu} c={c} />
+    </View>
+  );
+}
+
+function Link({ label, onPress, c }: { label: string; onPress: () => void; c: Palette }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} hitSlop={6} style={{ minHeight: 36, justifyContent: 'center' }}>
+      <Text style={[TYPE.sub, { color: c.link, fontWeight: '600' }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+const st = StyleSheet.create({
+  line: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 28 },
+  actions: { flexDirection: 'row', gap: 20 },
+});

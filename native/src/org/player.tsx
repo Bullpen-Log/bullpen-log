@@ -1,13 +1,15 @@
 import { type Href, router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 import type { loadMyMembership, MySpace } from '@/app/actions/app-org';
+import type { loadMyHomework } from '@/app/actions/app-lesson';
+import { HomeworkList } from '~/org/homework';
 import { LoadState, useLoad } from '~/community/parts';
 import { TYPE, usePalette } from '~/lib/ui';
 import { Card, Empty, GroupTitle, KIND_WORD, Primary, dayLabel, scopeText } from '~/org/parts';
 
 /**
  * 선수(회원) 공간 — 공유 범위 · 받은 일지(1단계). 공유를 아직 안 골랐으면(예약 확정으로 연결됨) 그것부터 묻는다.
- * 떠난 곳은 받은 일지만 읽기로 남는다(결정 8). 숙제 · 내 성장은 2단계.
+ * 떠난 곳은 받은 일지만 읽기로 남는다(결정 8). 2단계: 숙제(트레이닝에서 하면 저절로 완료). 내 성장은 4단계.
  */
 type Membership = Awaited<ReturnType<typeof loadMyMembership>>;
 
@@ -58,6 +60,8 @@ export function PlayerSpace({ space }: { space: MySpace }) {
         </View>
       ) : null}
 
+      {!data.left ? <MyHomework memberId={space.memberId!} /> : null}
+
       <View style={{ gap: 6 }}>
         <GroupTitle title="받은 일지" c={c} />
         {data.notes.length === 0 ? (
@@ -85,6 +89,22 @@ export function PlayerSpace({ space }: { space: MySpace }) {
           ))
         )}
       </View>
+    </View>
+  );
+}
+
+/** 받은 숙제(2단계) — '오늘 운동에 넣기'로 트레이닝에 넣어 하면 저절로 완료 */
+function MyHomework({ memberId }: { memberId: string }) {
+  const c = usePalette();
+  const { data, error, reload } = useLoad<Awaited<ReturnType<typeof loadMyHomework>>>('app-lesson.loadMyHomework', memberId);
+  return (
+    <View style={{ gap: 6 }}>
+      <GroupTitle title="숙제" c={c} />
+      {data ? (
+        <HomeworkList items={data.homework} who={{ role: 'player', memberId }} onChanged={() => void reload()} c={c} />
+      ) : (
+        <LoadState error={error} onRetry={() => void reload()} c={c} />
+      )}
     </View>
   );
 }

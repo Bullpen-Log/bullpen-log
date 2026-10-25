@@ -16,6 +16,7 @@ import * as appArmcare from '@/app/actions/app-armcare';
 import * as appLibrary from '@/app/actions/app-library';
 import * as appMechanics from '@/app/actions/app-mechanics';
 import * as appNutrition from '@/app/actions/app-nutrition';
+import * as appLesson from '@/app/actions/app-lesson';
 import * as appOrg from '@/app/actions/app-org';
 import * as appTraining from '@/app/actions/app-training';
 import * as appTrainingParts from '@/app/actions/app-training-parts';
@@ -83,6 +84,7 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   'app-library': appLibrary,
   'app-mechanics': appMechanics,
   'app-nutrition': appNutrition,
+  'app-lesson': appLesson,
   'app-org': appOrg,
   'app-training': appTraining,
   'app-training-parts': appTrainingParts,

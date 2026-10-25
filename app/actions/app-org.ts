@@ -6,12 +6,13 @@ import { getCurrentUser, isMasterUser } from '@/lib/dal';
 import { appNow } from '@/lib/clock';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
-import { memberScope, orgsFor } from '@/lib/org/access';
+import { memberScope } from '@/lib/org/access';
 import { CONSENT_SCOPES, type Consent, type OrgKind } from '@/lib/org/rules';
 import { ARM_MISSING_TEXT, armUnknown, type CoachArmStatus } from '@/lib/org/arm-view';
 import { joinWithCode } from '@/lib/org/join';
 import { createInviteCode } from '@/lib/org/invite';
 import { loadMember, loadPlayers, memberCardOf, pitcherBoardOf, type MemberCard } from '@/lib/org/player-data';
+import { coachOrg, myMember } from '@/lib/org/app-access';
 import { formatExercise, readExercises } from '@/lib/org/lesson-work';
 import { noteKey } from '@/lib/org/lesson-pitch';
 
@@ -110,12 +111,6 @@ export async function loadMySpaces(): Promise<{ ok: false; to: string } | { ok: 
 /** 볼 권한이 없거나 없는 곳 — 앱(useLoad)은 to 로 보낸다. 마스터 계정은 /today 가 다시 /manage(→ 앱 /org)로 */
 const NO_ACCESS = { ok: false as const, to: '/today' };
 
-async function coachOrg(orgId: string) {
-  const user = await getCurrentUser();
-  if (!user || !isMasterUser(user)) return null;
-  const org = (await orgsFor(user)).find((o) => o.id === orgId);
-  return org ? { user, org } : null;
-}
 
 export type OrgToday = {
   org: { id: string; kind: OrgKind; name: string };
@@ -538,20 +533,6 @@ export async function loadLessonNote(
 
 /* ── 선수 쪽 ── */
 
-async function myMember(memberId: string) {
-  const user = await getCurrentUser();
-  if (!user) return null;
-  const m = await prisma.orgMember.findFirst({
-    where: { id: memberId, userId: user.id, role: 'PLAYER' },
-    select: {
-      id: true,
-      status: true,
-      consent: { select: { pitch: true, training: true, checkin: true, video: true, nutrition: true, weight: true } },
-      org: { select: { id: true, kind: true, name: true } },
-    },
-  });
-  return m ? { user, m } : null;
-}
 
 /** 선수 '받은 일지' — 조직 이름 · 지금 공유 범위 · 받은 일지. 떠난 조직도 일지는 읽기만으로 남는다(결정 8) */
 export async function loadMyMembership(memberId: string): Promise<

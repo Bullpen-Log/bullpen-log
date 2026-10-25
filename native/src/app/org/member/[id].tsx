@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadMemberCard, makeInvite } from '@/app/actions/app-org';
+import type { loadMemberHomework } from '@/app/actions/app-lesson';
+import { HomeworkList } from '~/org/homework';
 import { Bar, call, LoadState, useLoad } from '~/community/parts';
 import { toast } from '~/shell/toast';
 import { DangerLink, formCall } from '~/org/forms';
@@ -14,6 +16,7 @@ import { ARM_WORD } from '@/lib/org/rules';
 /**
  * 코치가 보는 회원 카드(앱 화면) — 선수가 공유한 항목만(서버가 공유 안 한 칸은 아예 안 읽는다, lib/org/player-data.ts memberCardOf).
  * 팔 상태 · 투구 · 구속 · 오늘 체크인 · 재활 · 일지. 1.5단계에 일지 쓰기 · 회원 고치기 · 가입 전 자리 초대 코드 · 빼기를 붙였다(쓰기는 웹과 같은 폼 동작).
+ * 2단계: 일지 고치기 · 던진 공이 선수 기록에 어떻게 들어갔나 · 숙제 내기 · 숙제 칸.
  */
 type Loaded = Awaited<ReturnType<typeof loadMemberCard>>;
 type Ok = Extract<Loaded, { ok: true }>;
@@ -58,12 +61,29 @@ export default function MemberCardScreen() {
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             <Chip label="일지 쓰기" onPress={() => router.push(`/org/note?org=${org}&member=${id}` as Href)} c={c} />
+            <Chip label="숙제 내기" onPress={() => router.push(`/org/homework?org=${org}&member=${id}` as Href)} c={c} />
             <Chip label="고치기" onPress={() => router.push(`/org/member-edit?org=${org}&id=${id}` as Href)} c={c} />
             {!data.member.hasUser ? <Chip label="이 자리 초대 코드" onPress={() => void invite()} c={c} /> : null}
           </View>
           <Body data={data} org={org ?? ''} c={c} onChanged={() => void reload()} />
+          <MemberHomework org={org ?? ''} memberId={id ?? ''} c={c} />
           <DangerLink label="조직에서 빼기" onPress={remove} c={c} />
         </ScrollView>
+      )}
+    </View>
+  );
+}
+
+/** 숙제(2단계) — 선수가 트레이닝에서 하면 저절로 완료 */
+function MemberHomework({ org, memberId, c }: { org: string; memberId: string; c: Palette }) {
+  const { data, error, reload } = useLoad<Awaited<ReturnType<typeof loadMemberHomework>>>('app-lesson.loadMemberHomework', org, memberId);
+  return (
+    <View style={{ gap: 6 }}>
+      <GroupTitle title="숙제" c={c} />
+      {data ? (
+        <HomeworkList items={data.homework} who={{ role: 'coach', orgId: org }} onChanged={() => void reload()} c={c} />
+      ) : (
+        <LoadState error={error} onRetry={() => void reload()} c={c} />
       )}
     </View>
   );
@@ -84,7 +104,7 @@ function Chip({ label, onPress, c }: { label: string; onPress: () => void; c: Pa
 function Body({ data, org, c, onChanged }: { data: Ok; org: string; c: Palette; onChanged: () => void }) {
   const { member, card, scope, notes } = data;
   const removeNote = (noteId: string) =>
-    Alert.alert('이 일지를 지울까요?', '이 일지로 남긴 투구 수 · 숙제도 함께 사라져요.', [
+    Alert.alert('이 일지를 지울까요?', '이 일지로 선수 투구 기록에 남긴 공도 함께 지워져요. 선수가 직접 남긴 기록은 그대로예요.', [
       { text: '취소', style: 'cancel' },
       {
         text: '지우기',

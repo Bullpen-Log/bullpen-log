@@ -39,6 +39,7 @@ import {
 } from '@/lib/signup-check';
 import { armUnknown, coachArmStatusOf } from '@/lib/org/arm-view';
 import { EVENT_STATUSES, isEventStatus, noteKey, planNotePitch } from '@/lib/org/lesson-pitch';
+import { COACH_STATUSES, PLAYER_STATUSES, cleanHomeworkItems, homeworkDose, homeworkProgress } from '@/lib/org/homework';
 import type { ReportFacts } from '@/lib/report/facts';
 
 let pass = 0;
@@ -496,8 +497,10 @@ console.log(
   const card = src('lib/org/player-data.ts');
   check('떠난 회원 카드는 안 읽음', card.includes("member.status !== 'ACTIVE') return null"));
   check('코치 카드 · 부하판은 공유 범위로 팔 상태(coachArmStatusOf)', (card.match(/coachArmStatusOf\(/g) ?? []).length >= 2);
-  const app = src('app/actions/app-org.ts');
-  check('앱 코치 동작은 isMasterUser + orgsFor', app.includes('isMasterUser(user)') && app.includes('orgsFor(user)'));
+  const access = src('lib/org/app-access.ts');
+  check('앱 코치 동작은 isMasterUser + orgsFor', access.includes('isMasterUser(user)') && access.includes('orgsFor(user)'));
+  for (const f of ['app/actions/app-org.ts', 'app/actions/app-lesson.ts'])
+    check(`${f} 코치 · 선수 권한은 app-access 로`, src(f).includes("from '@/lib/org/app-access'"));
 }
 
 /* ─────────────────────── 9. 1.5단계 — 앱에서 웹 폼 동작 부르기 · 가입 전 자리 코드 ─────────────────────── */
@@ -562,6 +565,27 @@ console.log(
     const sig = new RegExp(`export async function ${fn}\\(\\s*([^)]*)\\)`).exec(src(`app/actions/${file}.ts`))?.[1] ?? '';
     check(`${file}.${fn} 꼴이 앱 호출과 맞음`, sig.trim().startsWith('formData') === single, sig);
   }
+}
+
+/* ─────────────────────── 11. 2단계 — 숙제 ─────────────────────── */
+
+{
+  const known = { exercises: new Set(['e1', 'e2']), guides: new Set(['g1']) };
+  const ok = cleanHomeworkItems([{ exerciseId: 'e1', sets: 3, reps: 15 }, { guideId: 'g1', note: '  천천히 ' }, { exerciseId: 'e1' }], known);
+  check('숙제 줄 거르기 — 같은 것은 한 번', !('error' in ok) && ok.length === 2 && ok[1].note === '천천히');
+  check('라이브러리에 없는 운동은 막음', 'error' in cleanHomeworkItems([{ exerciseId: 'zz' }], known));
+  check('빈 숙제는 막음', 'error' in cleanHomeworkItems([], known));
+  check('열 개 넘으면 막음', 'error' in cleanHomeworkItems(Array.from({ length: 11 }, () => ({ exerciseId: 'e1' })), known));
+  const bad = cleanHomeworkItems([{ exerciseId: 'e2', sets: 99, reps: -1 }], known);
+  check('범위 밖 세트 · 횟수는 버림', !('error' in bad) && bad[0].sets === undefined && bad[0].reps === undefined);
+  const items = [{ exerciseId: 'e1' }, { guideId: 'g1' }];
+  check('기록 없으면 안 함', homeworkProgress(items, new Set(), new Set()) === 'none');
+  check('하나 했으면 하는 중', homeworkProgress(items, new Set(['e1']), new Set()) === 'some');
+  check('다 했으면 완료', homeworkProgress(items, new Set(['e1']), new Set(['g1'])) === 'all');
+  check('처방 한 줄', homeworkDose({ exerciseId: 'e1', sets: 3, reps: 15 }) === '3세트 · 15회' && homeworkDose({ guideId: 'g', holdSec: 30 }) === '30초');
+  check('완료는 코치가 못 정함', !COACH_STATUSES.includes('done') && PLAYER_STATUSES.includes('done'));
+  const reg = src('app/api/rpc/registry.ts');
+  check('앱 숙제 동작이 허용 목록에', reg.includes("'app-lesson': appLesson"));
 }
 
 console.log(
