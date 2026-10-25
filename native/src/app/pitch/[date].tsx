@@ -14,7 +14,8 @@ import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
 import { ApiError, dateKeyOf, deleteLog, isPhoneVideoPath, loadMe, phoneAssetId } from '~/pitch/api';
 import { monthOf, refreshMonth, repOf, setFeatured, useFeatured, useMonth } from '~/pitch/store';
-import { PitchVideo } from '~/pitch/video';
+import { PitchVideo, ViewportProvider, useViewportWatch } from '~/pitch/video';
+import { useScreenSettled } from '~/shell/transition';
 import { VelocityDay } from '~/pitch/velocity-day';
 import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
 import { withAlpha } from '~/lib/ui';
@@ -52,13 +53,12 @@ export default function PitchDayScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const addOpen = !future && (formOpen ?? (logs != null && day.length === 0));
   /*
-   * 빈 날에 저절로 펴지는 입력 폼(800줄)은 창이 다 올라온 뒤에 그린다 — 올라오는 움직임과 겹쳐 끊겼다(2026-10-24 전체 검토). 직접 펴면 바로
+   * 빈 날에 저절로 펴지는 입력 폼(800줄)은 창이 다 올라온 뒤에 그린다 — 올라오는 움직임과 겹쳐 끊겼다(2026-10-24 전체 검토). 직접 펴면 바로.
+   * 끝은 화면 넘김 알림으로 본다(shell/transition.ts, 예전 350ms 어림 — 느린 폰 · 천천히 끌어 올리면 움직임 한가운데 그렸다)
    */
-  const [settled, setSettled] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setSettled(true), 350);
-    return () => clearTimeout(t);
-  }, []);
+  const settled = useScreenSettled();
+  /* 영상은 화면 가까이 온 것만 재생기를 만든다(pitch/video.tsx) — 굴릴 때 알린다 */
+  const viewport = useViewportWatch();
   /* 그날 영상(쉰 날 줄 빼고) · 대표 — 웹 video-calendar DayPanel 과 같은 규칙(repOf) */
   const featured = useFeatured();
   const dayPaths = day.filter((l) => !isRestSession(l.sessionType)).flatMap((l) => l.videoPaths);
@@ -109,176 +109,180 @@ export default function PitchDayScreen() {
           </Press>
         </View>
       </View>
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets
-        contentContainerStyle={[{ padding: 16, paddingTop: 4, paddingBottom: inset.bottom + 32, gap: 12 }, READABLE_WIDE]}
-      >
-        {future ? (
-          <Text style={[styles.well, { color: c.muted, backgroundColor: withAlpha(c.chip, 0.5) }]}>
-            앞으로 올 날짜에는 기록할 수 없어요.{'\n'}던지고 나서 그날 또는 그 뒤에 남겨 주세요.
-          </Text>
-        ) : null}
-        {arm ? <ArmChip c={c} status={arm} /> : null}
-        {now?.nutritionLine ? <NutritionNote c={c} line={now.nutritionLine} /> : null}
-        {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 그날 기록 · 새 기록, 오른쪽 구속 측정. 좁으면 위아래 그대로 */}
-        <TwoColumns ratio={[1, 1]} gap={12}
-          left={
-            <>
-              {error && !logs ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
-              {day.map((l) => {
-                const rested = isRestSession(l.sessionType);
-                const eff = effortText({ intensity: l.intensity ?? 0, effortPct: l.effortPct });
-                const cues = (
-                  [
-                    ['좋았던 것', l.cuesGood],
-                    ['아쉬웠던 것', l.cuesBad],
-                  ] as const
-                ).filter(([, list]) => list.length > 0);
-                const menu = () =>
-                  ActionSheetIOS.showActionSheetWithOptions(
-                    {
-                      title: rested ? '쉬는 날' : `${l.sessionType} ${l.pitchCount}구`,
-                      options: ['기록 고치기', '기록 지우기', '취소'],
-                      destructiveButtonIndex: 1,
-                      cancelButtonIndex: 2,
-                    },
-                    (i) => {
-                      if (i === 0) setEditingId(l.id);
-                      if (i === 1) remove(l.id, l.videoPaths, rested ? '쉬는 날' : `${l.sessionType} ${l.pitchCount}구`);
-                    }
-                  );
-                if (editingId === l.id)
-                  return (
-                    <View key={l.id} style={[styles.formBox, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
-                      <View style={{ gap: 4 }}>
-                        <Text style={[styles.formTitle, { color: c.ink }]}>기록 수정</Text>
-                        <Text style={{ color: c.muted, fontSize: 15 }}>영상도 함께 바꿀 수 있어요</Text>
-                      </View>
-                      <EntryForm date={date} editing={l} imported={[]} inline={{ onDone: () => setEditingId(null), onCancel: () => setEditingId(null) }} />
-                    </View>
-                  );
-                return (
-                  <View key={l.id} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-                    {/* 그날의 수치 — 구속이 있으면 최고 구속을, 없으면 투구 수를 크게(웹 day-record.tsx) */}
-                    <View style={styles.cardHead}>
-                      <View style={{ flex: 1, gap: 12 }}>
-                        <Text style={[TYPE.num, { fontSize: 24, color: rested ? c.muted : c.link }]}>
-                          {rested ? (
-                            /* 한글은 둥근 숫자 글꼴(TYPE.num)에 없어 기기 기본 글꼴로 그려졌다 — 안쪽 Text 는 Pretendard */
-                            <Text>쉬는 날</Text>
-                          ) : l.maxVelocity != null ? (
-                            <>
-                              {round1(toSpeed(l.maxVelocity, speed))}
-                              <Text style={{ fontSize: 15, color: c.muted, fontWeight: '400' }}> {speedLabel(speed)} 최고</Text>
-                            </>
-                          ) : (
-                            <>
-                              {l.pitchCount}
-                              <Text style={{ fontSize: 15, color: c.muted, fontWeight: '400' }}> 구</Text>
-                            </>
-                          )}
-                        </Text>
-                        <View style={styles.badges}>
-                          {rested ? (
-                            <Badge c={c}>던지지 않았어요</Badge>
-                          ) : (
-                            <>
-                              <Badge c={c} strong>
-                                {l.sessionType}
-                              </Badge>
-                              <Badge c={c}>{l.pitchCount}구</Badge>
-                              {eff ? <Badge c={c}>강도 {eff}</Badge> : null}
-                              {l.satisfaction != null ? <Badge c={c}>만족도 {l.satisfaction}/5</Badge> : null}
-                              {l.avgVelocity != null ? <Badge c={c}>평균 {formatSpeed(l.avgVelocity, speed)}</Badge> : null}
-                            </>
-                          )}
+      <ViewportProvider value={viewport}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+          onScroll={viewport.emit}
+          scrollEventThrottle={100}
+          contentContainerStyle={[{ padding: 16, paddingTop: 4, paddingBottom: inset.bottom + 32, gap: 12 }, READABLE_WIDE]}
+        >
+          {future ? (
+            <Text style={[styles.well, { color: c.muted, backgroundColor: withAlpha(c.chip, 0.5) }]}>
+              앞으로 올 날짜에는 기록할 수 없어요.{'\n'}던지고 나서 그날 또는 그 뒤에 남겨 주세요.
+            </Text>
+          ) : null}
+          {arm ? <ArmChip c={c} status={arm} /> : null}
+          {now?.nutritionLine ? <NutritionNote c={c} line={now.nutritionLine} /> : null}
+          {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 그날 기록 · 새 기록, 오른쪽 구속 측정. 좁으면 위아래 그대로 */}
+          <TwoColumns ratio={[1, 1]} gap={12}
+            left={
+              <>
+                {error && !logs ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
+                {day.map((l) => {
+                  const rested = isRestSession(l.sessionType);
+                  const eff = effortText({ intensity: l.intensity ?? 0, effortPct: l.effortPct });
+                  const cues = (
+                    [
+                      ['좋았던 것', l.cuesGood],
+                      ['아쉬웠던 것', l.cuesBad],
+                    ] as const
+                  ).filter(([, list]) => list.length > 0);
+                  const menu = () =>
+                    ActionSheetIOS.showActionSheetWithOptions(
+                      {
+                        title: rested ? '쉬는 날' : `${l.sessionType} ${l.pitchCount}구`,
+                        options: ['기록 고치기', '기록 지우기', '취소'],
+                        destructiveButtonIndex: 1,
+                        cancelButtonIndex: 2,
+                      },
+                      (i) => {
+                        if (i === 0) setEditingId(l.id);
+                        if (i === 1) remove(l.id, l.videoPaths, rested ? '쉬는 날' : `${l.sessionType} ${l.pitchCount}구`);
+                      }
+                    );
+                  if (editingId === l.id)
+                    return (
+                      <View key={l.id} style={[styles.formBox, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
+                        <View style={{ gap: 4 }}>
+                          <Text style={[styles.formTitle, { color: c.ink }]}>기록 수정</Text>
+                          <Text style={{ color: c.muted, fontSize: 15 }}>영상도 함께 바꿀 수 있어요</Text>
                         </View>
+                        <EntryForm date={date} editing={l} imported={[]} inline={{ onDone: () => setEditingId(null), onCancel: () => setEditingId(null) }} />
                       </View>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="기록 고치기 · 지우기"
-                        onPress={menu}
-                        hitSlop={6}
-                        style={({ pressed }) => [styles.more, pressed && { backgroundColor: c.chip }]}
-                      >
-                        <Icon name="ellipsis" size={20} color={c.muted} />
-                      </Pressable>
-                    </View>
-                    {/* 그날의 느낀점 — 영상보다 위(다시 여는 까닭은 대개 '그날 뭐라고 적었더라'), 남긴 것이 없으면 그리지 않는다 */}
-                    {l.memo || cues.length ? (
-                      <View style={[styles.feel, { backgroundColor: c.skyTint }]}>
-                        <Text style={{ color: c.link, fontSize: 13, fontWeight: '400' }}>그날의 느낀점</Text>
-                        {l.memo ? <Text style={[styles.memo, { color: c.ink }]}>{l.memo}</Text> : null}
-                        {cues.map(([title, list]) => (
-                          <Text key={title} style={{ color: c.muted, fontSize: 13 }}>
-                            {title} <Text style={{ color: c.ink }}>{list.join(' · ')}</Text>
-                          </Text>
-                        ))}
-                      </View>
-                    ) : null}
-                    {l.videoPaths.map((p) => (
-                      <View key={p} style={{ gap: 8 }}>
-                        {/* 그날 영상이 둘 넘으면 대표(달력 칸 · 홈 그날 칸에 뜨는 영상) 고르기 — 투구 탭 그날 칸에서 옮겨 옴(2026-10-21) */}
-                        {dayPaths.length > 1 ? (
-                          <View style={styles.videoHead}>
-                            <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>영상 {dayPaths.indexOf(p) + 1}</Text>
-                            {p === rep ? (
-                              <View style={styles.repMark}>
-                                <Icon name="star" size={14} color={c.skyStrong} fill={c.skyStrong} />
-                                <Text style={{ color: c.skyStrong, fontSize: 13, fontWeight: '600' }}>대표</Text>
-                              </View>
+                    );
+                  return (
+                    <View key={l.id} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
+                      {/* 그날의 수치 — 구속이 있으면 최고 구속을, 없으면 투구 수를 크게(웹 day-record.tsx) */}
+                      <View style={styles.cardHead}>
+                        <View style={{ flex: 1, gap: 12 }}>
+                          <Text style={[TYPE.num, { fontSize: 24, color: rested ? c.muted : c.link }]}>
+                            {rested ? (
+                              /* 한글은 둥근 숫자 글꼴(TYPE.num)에 없어 기기 기본 글꼴로 그려졌다 — 안쪽 Text 는 Pretendard */
+                              <Text>쉬는 날</Text>
+                            ) : l.maxVelocity != null ? (
+                              <>
+                                {round1(toSpeed(l.maxVelocity, speed))}
+                                <Text style={{ fontSize: 15, color: c.muted, fontWeight: '400' }}> {speedLabel(speed)} 최고</Text>
+                              </>
                             ) : (
-                              <Press
-                                accessibilityRole="button"
-                                accessibilityLabel={`영상 ${dayPaths.indexOf(p) + 1}을 대표로`}
-                                onPress={() => void setFeatured(date, p)}
-                                style={[styles.repBtn, { backgroundColor: c.chip }]}
-                              >
-                                <Icon name="star" size={14} color={c.muted} />
-                                <Text style={{ color: c.ink, fontSize: 13 }}>대표로</Text>
-                              </Press>
+                              <>
+                                {l.pitchCount}
+                                <Text style={{ fontSize: 15, color: c.muted, fontWeight: '400' }}> 구</Text>
+                              </>
+                            )}
+                          </Text>
+                          <View style={styles.badges}>
+                            {rested ? (
+                              <Badge c={c}>던지지 않았어요</Badge>
+                            ) : (
+                              <>
+                                <Badge c={c} strong>
+                                  {l.sessionType}
+                                </Badge>
+                                <Badge c={c}>{l.pitchCount}구</Badge>
+                                {eff ? <Badge c={c}>강도 {eff}</Badge> : null}
+                                {l.satisfaction != null ? <Badge c={c}>만족도 {l.satisfaction}/5</Badge> : null}
+                                {l.avgVelocity != null ? <Badge c={c}>평균 {formatSpeed(l.avgVelocity, speed)}</Badge> : null}
+                              </>
                             )}
                           </View>
-                        ) : null}
-                        <PitchVideo path={p} tools />
+                        </View>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="기록 고치기 · 지우기"
+                          onPress={menu}
+                          hitSlop={6}
+                          style={({ pressed }) => [styles.more, pressed && { backgroundColor: c.chip }]}
+                        >
+                          <Icon name="ellipsis" size={20} color={c.muted} />
+                        </Pressable>
                       </View>
-                    ))}
-                  </View>
-                );
-              })}
-            </>
-          }
-          right={
-            <>
-              {/* 구속 측정은 기록 카드 밑에 접힌 한 줄로(2026-10-21 김민: 세션 · 공 목록이 기록보다 위에 길게 나왔다) */}
-              <VelocityDay date={date} logCount={day.length} />
-              {future || !logs ? null : addOpen ? (
-                <View style={[styles.formBox, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
-                  <View style={styles.formHead}>
-                    <Text style={[styles.formTitle, { color: c.ink }]}>{day.length > 0 ? '기록 추가' : '이날 기록하기'}</Text>
-                    {day.length > 0 ? (
-                      <Press accessibilityRole="button" onPress={() => setFormOpen(false)} style={styles.formCancel}>
-                        <Text style={{ color: c.muted, fontSize: 13 }}>취소</Text>
-                      </Press>
+                      {/* 그날의 느낀점 — 영상보다 위(다시 여는 까닭은 대개 '그날 뭐라고 적었더라'), 남긴 것이 없으면 그리지 않는다 */}
+                      {l.memo || cues.length ? (
+                        <View style={[styles.feel, { backgroundColor: c.skyTint }]}>
+                          <Text style={{ color: c.link, fontSize: 13, fontWeight: '400' }}>그날의 느낀점</Text>
+                          {l.memo ? <Text style={[styles.memo, { color: c.ink }]}>{l.memo}</Text> : null}
+                          {cues.map(([title, list]) => (
+                            <Text key={title} style={{ color: c.muted, fontSize: 13 }}>
+                              {title} <Text style={{ color: c.ink }}>{list.join(' · ')}</Text>
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
+                      {l.videoPaths.map((p) => (
+                        <View key={p} style={{ gap: 8 }}>
+                          {/* 그날 영상이 둘 넘으면 대표(달력 칸 · 홈 그날 칸에 뜨는 영상) 고르기 — 투구 탭 그날 칸에서 옮겨 옴(2026-10-21) */}
+                          {dayPaths.length > 1 ? (
+                            <View style={styles.videoHead}>
+                              <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>영상 {dayPaths.indexOf(p) + 1}</Text>
+                              {p === rep ? (
+                                <View style={styles.repMark}>
+                                  <Icon name="star" size={14} color={c.skyStrong} fill={c.skyStrong} />
+                                  <Text style={{ color: c.skyStrong, fontSize: 13, fontWeight: '600' }}>대표</Text>
+                                </View>
+                              ) : (
+                                <Press
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`영상 ${dayPaths.indexOf(p) + 1}을 대표로`}
+                                  onPress={() => void setFeatured(date, p)}
+                                  style={[styles.repBtn, { backgroundColor: c.chip }]}
+                                >
+                                  <Icon name="star" size={14} color={c.muted} />
+                                  <Text style={{ color: c.ink, fontSize: 13 }}>대표로</Text>
+                                </Press>
+                              )}
+                            </View>
+                          ) : null}
+                          <PitchVideo path={p} tools />
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })}
+              </>
+            }
+            right={
+              <>
+                {/* 구속 측정은 기록 카드 밑에 접힌 한 줄로(2026-10-21 김민: 세션 · 공 목록이 기록보다 위에 길게 나왔다) */}
+                <VelocityDay date={date} logCount={day.length} />
+                {future || !logs ? null : addOpen ? (
+                  <View style={[styles.formBox, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
+                    <View style={styles.formHead}>
+                      <Text style={[styles.formTitle, { color: c.ink }]}>{day.length > 0 ? '기록 추가' : '이날 기록하기'}</Text>
+                      {day.length > 0 ? (
+                        <Press accessibilityRole="button" onPress={() => setFormOpen(false)} style={styles.formCancel}>
+                          <Text style={{ color: c.muted, fontSize: 13 }}>취소</Text>
+                        </Press>
+                      ) : null}
+                    </View>
+                    {settled || formOpen ? (
+                      <Animated.View entering={fadeIn}>
+                        <EntryForm key={date} date={date} imported={[]} inline={{ onDone: () => setFormOpen(null) }} />
+                      </Animated.View>
                     ) : null}
                   </View>
-                  {settled || formOpen ? (
-                    <Animated.View entering={fadeIn}>
-                      <EntryForm key={date} date={date} imported={[]} inline={{ onDone: () => setFormOpen(null) }} />
-                    </Animated.View>
-                  ) : null}
-                </View>
-              ) : (
-                <Press accessibilityRole="button" onPress={() => setFormOpen(true)} style={[styles.add, { backgroundColor: c.skyTint }]}>
-                  <Icon name="plus" size={16} color={c.skyStrong} />
-                  <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '400' }}>이 날짜에 기록 추가</Text>
-                </Press>
-              )}
-            </>
-          }
-        />
-      </ScrollView>
+                ) : (
+                  <Press accessibilityRole="button" onPress={() => setFormOpen(true)} style={[styles.add, { backgroundColor: c.skyTint }]}>
+                    <Icon name="plus" size={16} color={c.skyStrong} />
+                    <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '400' }}>이 날짜에 기록 추가</Text>
+                  </Press>
+                )}
+              </>
+            }
+          />
+        </ScrollView>
+      </ViewportProvider>
     </View>
   );
 }

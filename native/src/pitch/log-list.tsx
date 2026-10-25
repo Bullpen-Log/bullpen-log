@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { type Href, router } from 'expo-router';
-import { type ComponentRef, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { type ComponentRef, useDeferredValue, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ActionSheetIOS, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { STRONG_EFFORT_PCT, effortBand, effortText, readEffort } from '@/lib/pitch-effort';
@@ -65,11 +65,19 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
   const [opened, setOpened] = useState<string | null>(null);
   /* 2분할 비교 — 웹처럼 목록에서 바로 A · B 를 고르고 탭 위에 뜬 막대에서 [비교하기](video-gallery selecting) */
   const { selecting, picked } = useCompare();
-  const finding = isFindActive(q);
+  /*
+   * 찾기 · 종류 · 정렬은 미뤄서 그린다 — 글자 · 칩은 누른 즉시 바뀌고, 기록이 많을 때 줄을 다시 그리는 일은 그 뒤에 끊어서 한다(찾는 중이면 달을
+   * 다 펴 줄이 수백 개가 된다 — 예전엔 글자 하나마다 줄 전부를 그 자리에서 다시 그려 입력이 늦었다, 2026-10-25 화면 전환 점검)
+   */
+  const listQ = useDeferredValue(q);
+  const listFilter = useDeferredValue(filter);
+  const listSort = useDeferredValue(sort);
+  const finding = isFindActive(listQ);
   /* 날짜로 가기 — 그 달을 펴고 그날 줄(없으면 그 달 카드)이 화면 위쪽에 오게(웹 jumpTo). 줄은 날짜마다 첫 줄만 기억한다 */
   const spots = useRef(new Map<string, ComponentRef<typeof View>>());
   const [flash, setFlash] = useState<string | null>(null);
   const logDays = useMemo(() => new Set((logs ?? []).map((l) => l.date.slice(0, 10))), [logs]);
+  const setSpot = (key: string, el: ComponentRef<typeof View>) => spots.current.set(key, el);
   const jumpTo = (date: string) => {
     const month = date.slice(0, 7);
     setToggled((t) => ({ ...t, [month]: true }));
@@ -77,7 +85,7 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
     setTimeout(() => setFlash(null), 1600);
     setTimeout(() => (spots.current.get(date) ?? spots.current.get(month))?.measureInWindow((_x, y) => onReveal(y)), 120);
   };
-  const shown = useMemo(() => filterLogs(logs ?? [], q), [logs, q]);
+  const shown = useMemo(() => filterLogs(logs ?? [], listQ), [logs, listQ]);
 
   const clips = useMemo<Clip[]>(
     () =>
@@ -128,14 +136,14 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
   const months = useMemo(() => {
     const map = new Map<string, Clip[]>();
     for (const x of clips) {
-      if (filter !== 'all' && x.sessionType !== filter) continue;
+      if (listFilter !== 'all' && x.sessionType !== listFilter) continue;
       const m = x.date.slice(0, 7);
       map.set(m, [...(map.get(m) ?? []), x]);
     }
     const cmp = (a: Clip, b: Clip) =>
-      sort === 'velocity' ? (b.maxVelocity ?? -1) - (a.maxVelocity ?? -1) : sort === 'intensity' ? b.effortPct - a.effortPct : b.date.localeCompare(a.date);
+      listSort === 'velocity' ? (b.maxVelocity ?? -1) - (a.maxVelocity ?? -1) : listSort === 'intensity' ? b.effortPct - a.effortPct : b.date.localeCompare(a.date);
     return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([month, items]) => ({ month, items: [...items].sort(cmp) }));
-  }, [clips, filter, sort]);
+  }, [clips, listFilter, listSort]);
   const isOpen = (month: string) => finding || (toggled[month] ?? month === months[0]?.month);
 
   /* 편 달의 영상만 그림을 묻는다(웹도 보이는 달만) */
@@ -230,70 +238,25 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
             </Press>
             {open ? (
               <Animated.View entering={opened === g.month ? fadeIn : undefined} style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }}>
-                {g.items.map((x, i) => (
-                  <Animated.View
-                    key={x.id}
-                    ref={(el: ComponentRef<typeof View> | null) => {
-                      if (el && (i === 0 || g.items[i - 1].date !== x.date)) spots.current.set(x.date, el);
-                    }}
-                    entering={opened === g.month ? rowIn(Math.min(i, 8)) : undefined}
-                    style={[i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }, flash === x.date && { backgroundColor: c.skyTint }]}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Press
-                      accessibilityRole="button"
-                      accessibilityState={selecting ? { selected: picked.some((y) => y?.id === x.id), disabled: !x.path } : undefined}
-                      onPress={() => (selecting ? pickClip(x) : router.push(`/pitch/${x.date}` as Href))}
-                      style={[
-                        styles.row,
-                        selecting && picked.some((y) => y?.id === x.id) && { backgroundColor: c.skyTint },
-                        selecting && !x.path && { opacity: 0.4 },
-                        { flex: 1 },
-                      ]}
-                    >
-                      <View>
-                        <ClipThumb clip={x} url={x.path ? thumbs[x.path] : undefined} />
-                        {selecting && picked.some((y) => y?.id === x.id) ? (
-                          <View style={[styles.slot, { backgroundColor: c.action }]}>
-                            <Text style={styles.slotText}>{picked[0]?.id === x.id ? 'A' : 'B'}</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text numberOfLines={1}>
-                          <Text style={[styles.rowDate, { color: c.ink }]}>{spokenDate(x.date)} </Text>
-                          <Text style={[styles.rowType, { color: c.muted }]}>
-                            {x.sessionType}
-                            {x.path && x.label !== '영상' ? ` · ${x.label}` : ''}
-                          </Text>
-                        </Text>
-                        {(x.path ? x.summary : x.brief || x.summary) ? (
-                          <Text numberOfLines={1} style={[styles.rowSummary, { color: c.muted }]}>
-                            {x.path ? x.summary : x.brief || x.summary}
-                          </Text>
-                        ) : null}
-                      </View>
-                      {selecting ? null : <Icon name="chevron-right" size={16} color={withAlpha(c.muted, 0.6)} />}
-                    </Press>
-                    {!selecting && x.path && (dayPaths.get(x.date)?.length ?? 0) > 1
-                      ? (() => {
-                          const on = repOf(dayPaths.get(x.date) ?? [], pick[x.date]) === x.path;
-                          return (
-                            <Press
-                              accessibilityRole="button"
-                              accessibilityState={{ selected: on }}
-                              accessibilityLabel={on ? `${spokenDate(x.date)} 대표 영상, 캘린더에 이 영상이 떠요` : `${spokenDate(x.date)} 대표 영상으로 고르기`}
-                              onPress={() => !on && x.path && void setFeatured(x.date, x.path)}
-                              style={styles.star}
-                            >
-                              <Icon name="star" size={16} color={on ? c.link : c.muted} fill={on ? c.sky : 'none'} />
-                            </Press>
-                          );
-                        })()
-                      : null}
-                    </View>
-                  </Animated.View>
-                ))}
+                {g.items.map((x, i) => {
+                  const many = !selecting && x.path != null && (dayPaths.get(x.date)?.length ?? 0) > 1;
+                  const slot = selecting && picked.some((y) => y?.id === x.id) ? (picked[0]?.id === x.id ? 'A' : 'B') : null;
+                  return (
+                    <LogRow
+                      key={x.id}
+                      clip={x}
+                      thumb={x.path ? thumbs[x.path] : undefined}
+                      first={i === 0}
+                      spot={i === 0 || g.items[i - 1].date !== x.date}
+                      onSpot={setSpot}
+                      enter={opened === g.month ? Math.min(i, 8) : null}
+                      flashing={flash === x.date}
+                      selecting={selecting}
+                      slot={slot}
+                      star={many ? repOf(dayPaths.get(x.date) ?? [], pick[x.date]) === x.path : null}
+                    />
+                  );
+                })}
               </Animated.View>
             ) : null}
           </Animated.View>
@@ -383,6 +346,89 @@ export function ComparePickBar({ bottom }: { bottom: number }) {
         </Press>
       </Animated.View>
     </View>
+  );
+}
+
+/*
+ * 목록 한 줄 — 따로 둬서 컴파일러가 줄마다 그린 것을 기억한다(값이 같은 줄은 다시 그리지 않음). 달을 펴고 접거나 고르는 중일 때 바뀐 줄만 다시 그린다.
+ * star = 그날 영상이 여럿일 때만 대표 별(true 면 지금 대표), slot = 비교에 고른 쪽
+ */
+function LogRow({
+  clip: x,
+  thumb,
+  first,
+  spot,
+  onSpot,
+  enter,
+  flashing,
+  selecting,
+  slot,
+  star,
+}: {
+  clip: Clip;
+  thumb: Thumb | undefined;
+  first: boolean;
+  spot: boolean;
+  onSpot: (key: string, el: ComponentRef<typeof View>) => void;
+  enter: number | null;
+  flashing: boolean;
+  selecting: boolean;
+  slot: 'A' | 'B' | null;
+  star: boolean | null;
+}) {
+  const c = usePalette();
+  return (
+    <Animated.View
+      ref={(el: ComponentRef<typeof View> | null) => {
+        if (el && spot) onSpot(x.date, el);
+      }}
+      entering={enter != null ? rowIn(enter) : undefined}
+      style={[!first && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }, flashing && { backgroundColor: c.skyTint }]}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Press
+          accessibilityRole="button"
+          accessibilityState={selecting ? { selected: slot != null, disabled: !x.path } : undefined}
+          onPress={() => (selecting ? pickClip(x) : router.push(`/pitch/${x.date}` as Href))}
+          style={[styles.row, selecting && slot != null && { backgroundColor: c.skyTint }, selecting && !x.path && { opacity: 0.4 }, { flex: 1 }]}
+        >
+          <View>
+            <ClipThumb clip={x} url={thumb} />
+            {slot ? (
+              <View style={[styles.slot, { backgroundColor: c.action }]}>
+                <Text style={styles.slotText}>{slot}</Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text numberOfLines={1}>
+              <Text style={[styles.rowDate, { color: c.ink }]}>{spokenDate(x.date)} </Text>
+              <Text style={[styles.rowType, { color: c.muted }]}>
+                {x.sessionType}
+                {x.path && x.label !== '영상' ? ` · ${x.label}` : ''}
+              </Text>
+            </Text>
+            {(x.path ? x.summary : x.brief || x.summary) ? (
+              <Text numberOfLines={1} style={[styles.rowSummary, { color: c.muted }]}>
+                {x.path ? x.summary : x.brief || x.summary}
+              </Text>
+            ) : null}
+          </View>
+          {selecting ? null : <Icon name="chevron-right" size={16} color={withAlpha(c.muted, 0.6)} />}
+        </Press>
+        {star != null ? (
+          <Press
+            accessibilityRole="button"
+            accessibilityState={{ selected: star }}
+            accessibilityLabel={star ? `${spokenDate(x.date)} 대표 영상, 캘린더에 이 영상이 떠요` : `${spokenDate(x.date)} 대표 영상으로 고르기`}
+            onPress={() => !star && x.path && void setFeatured(x.date, x.path)}
+            style={styles.star}
+          >
+            <Icon name="star" size={16} color={star ? c.link : c.muted} fill={star ? c.sky : 'none'} />
+          </Press>
+        ) : null}
+      </View>
+    </Animated.View>
   );
 }
 
