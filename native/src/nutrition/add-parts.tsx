@@ -33,7 +33,7 @@ export function ComboButton({ combo, busy, onAdd, c }: { combo: MealComboView; b
       disabled={busy}
       style={({ pressed }) => [st.wide, { backgroundColor: c.card, boxShadow: c.float }, pressed && { opacity: 0.6 }]}
     >
-      <Icon name="layers" size={16} color={c.sky} />
+      <Icon name="layers" size={16} color={c.link} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }} numberOfLines={1}>
           {combo.name}
@@ -54,7 +54,7 @@ export function ComboRow({ combo, busy, onAdd, onRemove, c }: { combo: MealCombo
   return (
     <View style={[st.row, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Press accessibilityRole="button" onPress={onAdd} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Icon name="layers" size={16} color={c.sky} />
+        <Icon name="layers" size={16} color={c.link} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }} numberOfLines={1}>
             {combo.name}
@@ -76,7 +76,7 @@ export function ComboRow({ combo, busy, onAdd, onRemove, c }: { combo: MealCombo
         </Press>
       )}
       <Press accessibilityRole="button" accessibilityLabel={`${combo.name} 한 번에 담기`} onPress={onAdd} disabled={busy} style={st.icon}>
-        {busy ? <ActivityIndicator /> : <Text style={{ color: c.sky, fontSize: 24 }}>+</Text>}
+        {busy ? <ActivityIndicator /> : <Text style={{ color: c.link, fontSize: 24 }}>+</Text>}
       </Press>
     </View>
   );
@@ -102,7 +102,7 @@ export function SaveCombo({ label, items, onSave, c }: { label: string; items: C
   return (
     <View style={[st.saveBox, { borderColor: open ? c.sky : c.line }]}>
       <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={st.saveHead}>
-        <Icon name="layers" size={16} color={c.sky} />
+        <Icon name="layers" size={16} color={c.link} />
         <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '600' }}>이 {label}을 조합으로 저장</Text>
         <Text style={{ color: c.muted, fontSize: 13 }}>{items.length}가지</Text>
       </Press>
@@ -116,7 +116,7 @@ export function SaveCombo({ label, items, onSave, c }: { label: string; items: C
             onSubmitEditing={() => void submit()}
             style={[st.nameInput, { backgroundColor: c.page, color: c.ink }]}
           />
-          <Press accessibilityRole="button" onPress={() => void submit()} disabled={pending || !name.trim()} style={[st.saveBtn, { backgroundColor: c.sky }, (pending || !name.trim()) && { opacity: 0.5 }]}>
+          <Press accessibilityRole="button" onPress={() => void submit()} disabled={pending || !name.trim()} style={[st.saveBtn, { backgroundColor: c.action }, (pending || !name.trim()) && { opacity: 0.5 }]}>
             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>{pending ? '저장 중' : '저장'}</Text>
           </Press>
         </Animated.View>
@@ -270,7 +270,7 @@ function MfdsBrowse({ category, sub, row, c }: { category: FoodCategory | 'all';
       {loading ? <ActivityIndicator style={{ padding: 8 }} /> : null}
       {error ? (
         <Press accessibilityRole="button" onPress={() => load(next ?? 0)} style={st.more}>
-          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>못 불러왔어요 · 다시 불러오기</Text>
+          <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>못 불러왔어요 · 다시 불러오기</Text>
         </Press>
       ) : !loading && next != null ? (
         <Press accessibilityRole="button" onPress={() => load(next)} style={[st.more, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
@@ -418,7 +418,7 @@ export function PickPanel({
             onPress={() => setBoth(a)}
             style={[st.quick, { backgroundColor: amount === a ? c.skyTint : c.page }]}
           >
-            <Text style={{ color: amount === a ? c.sky : c.muted, fontSize: 13, fontWeight: '600' }}>{amountText(a)}</Text>
+            <Text style={{ color: amount === a ? c.link : c.muted, fontSize: 13, fontWeight: '600' }}>{amountText(a)}</Text>
           </Press>
         ))}
       </View>
@@ -433,7 +433,7 @@ export function PickPanel({
         <Press accessibilityRole="button" onPress={onCancel} style={[st.half, { backgroundColor: c.chip }]}>
           <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>다른 음식</Text>
         </Press>
-        <Press accessibilityRole="button" onPress={onSave} disabled={saving} style={[st.half, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
+        <Press accessibilityRole="button" onPress={onSave} disabled={saving} style={[st.half, { backgroundColor: c.action }, saving && { opacity: 0.5 }]}>
           <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{saving ? (replacing ? '바꾸는 중' : '담는 중') : replacing ? '바꾸기' : '담기'}</Text>
         </Press>
       </View>

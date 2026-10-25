@@ -84,14 +84,14 @@ export function MiniCalendar({
                 accessibilityLabel={`${view.m + 1}월 ${day}일${isToday ? ', 오늘' : ''}${has ? ', 기록 있음' : ''}`}
                 disabled={off}
                 onPress={() => onPick(key)}
-                style={[styles.cell, picked && { backgroundColor: c.sky }]}
+                style={[styles.cell, picked && { backgroundColor: c.action }]}
               >
                 <Text
                   style={{
                     fontSize: 15,
                     fontVariant: ['tabular-nums'],
                     fontWeight: picked || isToday ? '700' : '400',
-                    color: off ? withAlpha(c.muted, 0.35) : picked ? '#fff' : isToday ? c.sky : c.ink,
+                    color: off ? withAlpha(c.muted, 0.35) : picked ? '#fff' : isToday ? c.link : c.ink,
                   }}
                 >
                   {day}
@@ -157,7 +157,7 @@ export function DateNavButton({
             onPress={open}
             style={[styles.navBtn, at && { backgroundColor: withAlpha(c.ink, 0.06) }]}
           >
-            <Icon name="calendar-days" size={20} color={at ? c.sky : c.muted} />
+            <Icon name="calendar-days" size={20} color={at ? c.link : c.muted} />
           </Press>
         )}
       </View>

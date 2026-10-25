@@ -46,7 +46,7 @@ export function BoardList({ back, bottom = 0 }: { back?: string; bottom?: number
           {item.preview}
         </Text>
         {item.tags.length > 0 ? (
-          <Text style={{ color: c.sky, fontSize: 13 }} numberOfLines={1}>
+          <Text style={{ color: c.link, fontSize: 13 }} numberOfLines={1}>
             {item.tags.map((t) => `#${t}`).join(' ')}
           </Text>
         ) : null}

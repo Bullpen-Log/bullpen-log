@@ -94,7 +94,7 @@ export default function WorkoutDoneScreen() {
           <>
             <Text style={{ color: c.ink, fontSize: 15 }}>신호가 약해 불러오지 못했어요.</Text>
             <Press accessibilityRole="button" onPress={() => (setFailed(false), setTries((n) => n + 1))} hitSlop={8}>
-              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
+              <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
             </Press>
             <Press accessibilityRole="button" onPress={finish} hitSlop={8}>
               <Text style={{ color: c.muted, fontSize: 15 }}>트레이닝으로</Text>
@@ -136,9 +136,9 @@ export default function WorkoutDoneScreen() {
               />
             </Svg>
             <Animated.View
-              style={[st.check, { backgroundColor: c.sky, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }], opacity: pop }]}
+              style={[st.check, { backgroundColor: c.action, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }], opacity: pop }]}
             >
-              <SymbolView name="checkmark" size={40} weight="bold" tintColor="#fff" />
+              <Icon name="check" size={40} color="#fff" />
             </Animated.View>
           </View>
           <Rise delay={600} still={still}>
@@ -193,7 +193,7 @@ export default function WorkoutDoneScreen() {
             {records.map(({ id: rid, title, record }, i) =>
               record ? (
                 <View key={rid} style={[st.line, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
-                  <View style={[st.trophy, { backgroundColor: c.sky }]}>
+                  <View style={[st.trophy, { backgroundColor: c.action }]}>
                     <SymbolView name="trophy.fill" size={15} tintColor="#fff" />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
@@ -202,7 +202,7 @@ export default function WorkoutDoneScreen() {
                     </Text>
                     {record.before != null ? <Text style={[s.tiny, { color: c.muted }]}>지난 최고 {recordText(record.kind, record.before, unit)}</Text> : null}
                   </View>
-                  <Text style={{ color: c.sky, fontSize: 17, fontWeight: '700' }}>{recordText(record.kind, record.value, unit)}</Text>
+                  <Text style={{ color: c.link, fontSize: 17, fontWeight: '700' }}>{recordText(record.kind, record.value, unit)}</Text>
                 </View>
               ) : null
             )}
@@ -231,20 +231,20 @@ export default function WorkoutDoneScreen() {
             onPress={() => leaveTo(data.nutritionLine!.href)}
             style={({ pressed }) => [st.nudge, { backgroundColor: pressed ? c.chip : c.card }]}
           >
-            <View style={{ marginTop: 2 }}><Icon name="utensils" size={17} color={c.sky} /></View>
+            <View style={{ marginTop: 2 }}><Icon name="utensils" size={17} color={c.link} /></View>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={[s.tiny, { color: c.muted }]}>{data.nutritionLine.title}</Text>
               <Text style={[s.smallBold, { color: c.ink }]}>{data.nutritionLine.text}</Text>
               {data.nutritionLine.example ? <Text style={[s.tiny, { color: c.muted }]}>{data.nutritionLine.example}</Text> : null}
             </View>
-            <Text style={[s.smallBold, { color: c.sky }]}>자세히 ›</Text>
+            <Text style={[s.smallBold, { color: c.link }]}>자세히 ›</Text>
           </Pressable>
         ) : null}
         {data.askEffort ? <Effort sessionId={data.askEffort.sessionId} c={c} /> : null}
         <Pressable
           accessibilityRole="button"
           onPress={finish}
-          style={({ pressed }) => [st.done, { backgroundColor: c.sky, opacity: pressed ? 0.85 : 1 }]}
+          style={({ pressed }) => [st.done, { backgroundColor: c.action, opacity: pressed ? 0.85 : 1 }]}
         >
           <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>완료</Text>
         </Pressable>
@@ -346,7 +346,7 @@ function Effort({ sessionId, c }: { sessionId: string; c: Palette }) {
       <View style={[s.between, { alignItems: 'center' }]}>
         <Text style={[s.bodyBold, { color: c.ink }]}>{saved ? '오늘 힘듦을 남겼어요' : '오늘 얼마나 힘들었나요?'}</Text>
         {saved ? (
-          <Text style={[s.smallBold, { color: c.sky }]}>✓ {level?.intensity}/10</Text>
+          <Text style={[s.smallBold, { color: c.link }]}>✓ {level?.intensity}/10</Text>
         ) : (
           <Press accessibilityRole="button" onPress={() => setSkipped(true)} disabled={busy} hitSlop={8}>
             <Text style={[s.small, { color: c.muted }]}>건너뛰기</Text>

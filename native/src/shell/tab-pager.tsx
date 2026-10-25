@@ -28,9 +28,10 @@ export function useOnTabActive(cb: () => void) {
   const active = useTabActive();
   const was = useRef(active);
   const latest = useRef(cb);
-  const ranAt = useRef(Date.now());
+  const ranAt = useRef(0);
   useEffect(() => {
     latest.current = cb;
+    if (ranAt.current === 0) ranAt.current = Date.now();
   });
   useEffect(() => {
     if (active && !was.current && (Date.now() - ranAt.current >= STALE_MS || lastWriteAt() > ranAt.current)) {

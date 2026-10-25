@@ -1,3 +1,4 @@
+import { ActionButton } from '~/shell/action-button';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -162,7 +163,7 @@ export default function LoginScreen() {
                 hitSlop={8}
                 style={{ marginLeft: 'auto', width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
               >
-                <Icon name="info" size={18} color={hint ? c.sky : c.muted} strokeWidth={2} />
+                <Icon name="info" size={18} color={hint ? c.link : c.muted} strokeWidth={2} />
               </Pressable>
             </View>
             {hint ? (
@@ -173,22 +174,15 @@ export default function LoginScreen() {
             ) : null}
           </View>
           <Pressable accessibilityRole="button" onPress={forgotPassword} style={({ pressed }) => [st.text, { alignSelf: 'flex-start', paddingHorizontal: 0 }, pressed && { opacity: 0.6 }]}>
-            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>비밀번호를 잊었어요</Text>
+            <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>비밀번호를 잊었어요</Text>
           </Pressable>
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
           <Pressable accessibilityRole="link" onPress={() => router.push('/signup' as Href)} style={({ pressed }) => [st.text, pressed && { backgroundColor: c.line }]}>
-            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>계정 만들기</Text>
+            <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>계정 만들기</Text>
           </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => void submit()}
-            disabled={busy}
-            style={({ pressed }) => [st.primary, { backgroundColor: c.sky, opacity: busy ? 0.6 : pressed ? 0.85 : 1 }]}
-          >
-            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{busy ? '로그인 중…' : '로그인'}</Text>
-          </Pressable>
+          <ActionButton onPress={() => void submit()} busy={busy} label={busy ? '로그인 중…' : '로그인'} />
         </View>
       </ScrollView>
     </View>
@@ -213,7 +207,7 @@ function CheckLine({ label, value, onChange, c }: { label: string; value: boolea
       onPress={() => onChange(!value)}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 }}
     >
-      <View style={[st.box, value ? { backgroundColor: c.sky, borderColor: c.sky } : { borderColor: c.muted }]}>
+      <View style={[st.box, value ? { backgroundColor: c.action, borderColor: c.sky } : { borderColor: c.muted }]}>
         {value ? <Icon name="check" size={13} color="#fff" strokeWidth={3} /> : null}
       </View>
       <Text style={{ color: c.muted, fontSize: 15 }}>{label}</Text>

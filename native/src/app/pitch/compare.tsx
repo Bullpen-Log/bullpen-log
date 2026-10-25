@@ -52,7 +52,7 @@ export default function PitchCompareScreen() {
     <View style={{ flex: 1, backgroundColor: comparing ? '#000' : c.page }}>
       <View style={[styles.bar, { paddingTop: inset.top + 8 }]}>
         <Press accessibilityRole="button" onPress={() => (comparing ? setComparing(false) : router.back())} hitSlop={10}>
-          <Text style={[styles.barAction, { color: comparing ? '#fff' : c.sky }]}>{comparing ? '‹ 다시 고르기' : '‹ 투구 기록'}</Text>
+          <Text style={[styles.barAction, { color: comparing ? '#fff' : c.link }]}>{comparing ? '‹ 다시 고르기' : '‹ 투구 기록'}</Text>
         </Press>
         <Text style={[styles.barTitle, { color: comparing ? '#fff' : c.ink }]}>2분할 비교</Text>
         <View style={{ width: 80 }} />
@@ -90,7 +90,7 @@ export default function PitchCompareScreen() {
               accessibilityRole="button"
               disabled={picked.length < 2}
               onPress={() => setComparing(true)}
-              style={[styles.primary, { backgroundColor: c.sky }, picked.length < 2 && { opacity: 0.4 }]}
+              style={[styles.primary, { backgroundColor: c.action }, picked.length < 2 && { opacity: 0.4 }]}
             >
               <Text style={styles.primaryText}>{picked.length < 2 ? `${picked.length}/2 골랐어요` : '나란히 보기'}</Text>
             </Press>

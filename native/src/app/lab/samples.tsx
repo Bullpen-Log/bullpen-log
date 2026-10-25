@@ -180,19 +180,19 @@ function UploadCard({ heightCm, defaultHand, onDone, c }: { heightCm: number | n
               onPress={() => void pick(view)}
               style={{ flex: 1, minHeight: 96, borderRadius: 14, padding: 10, gap: 4, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: p ? c.chip : c.page }}
             >
-              <Text style={{ color: p ? c.sky : c.ink, fontSize: 15, fontWeight: '600', textAlign: 'center' }}>{labViewLabel(view, hand)}</Text>
+              <Text style={{ color: p ? c.link : c.ink, fontSize: 15, fontWeight: '600', textAlign: 'center' }}>{labViewLabel(view, hand)}</Text>
               <Text style={[s.meta, { color: c.muted }]} numberOfLines={1}>
                 {checking === view ? '확인하는 중…' : p ? `${((p.asset.fileSize ?? 0) / 1024 / 1024).toFixed(1)}MB` : '눌러서 고르기'}
               </Text>
               {p?.fps != null ? <Badge text={`${Math.round(p.fps)}fps`} color={p.fps >= 100 ? c.ok : c.warn} c={c} /> : null}
-              {pct != null ? <View style={{ position: 'absolute', left: 0, bottom: 0, height: 4, width: `${pct}%`, backgroundColor: c.sky }} /> : null}
+              {pct != null ? <View style={{ position: 'absolute', left: 0, bottom: 0, height: 4, width: `${pct}%`, backgroundColor: c.action }} /> : null}
             </Pressable>
           );
         })}
       </View>
 
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: infoOpen }} onPress={() => setInfoOpen((v) => !v)} style={{ minHeight: 44, justifyContent: 'center' }}>
-        <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>촬영 정보 {infoOpen ? '접기' : '펴기'}</Text>
+        <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>촬영 정보 {infoOpen ? '접기' : '펴기'}</Text>
       </Pressable>
       {infoOpen ? (
         <View style={{ gap: 4 }}>
@@ -262,7 +262,7 @@ function UploadCard({ heightCm, defaultHand, onDone, c }: { heightCm: number | n
         accessibilityRole="button"
         disabled={!ready}
         onPress={() => void upload()}
-        style={[s.primary, { marginTop: 0, backgroundColor: c.sky, opacity: ready || busy ? 1 : 0.4 }]}
+        style={[s.primary, { marginTop: 0, backgroundColor: c.action, opacity: ready || busy ? 1 : 0.4 }]}
       >
         <Text style={s.primaryText}>{progress ? `${progress.view === 'side' ? '옆' : '뒤'} 영상 올리는 중 ${progress.percent}%` : '짝으로 올리기'}</Text>
       </Pressable>

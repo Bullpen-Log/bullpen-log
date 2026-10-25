@@ -84,11 +84,11 @@ export default function NutritionStatsScreen() {
 
           {/* 온보딩을 안 끝낸 옛 계정 — 웹 첫 설정 화면을 권한다(막지는 않는다, 웹과 같다) */}
           {!data.onboarded ? (
-            <View style={[st.banner, { backgroundColor: c.sky + '14', borderColor: c.sky + '4d' }]}>
+            <View style={[st.banner, { backgroundColor: c.action + '14', borderColor: c.sky + '4d' }]}>
               <Text style={{ flex: 1, color: c.ink, fontSize: 15 }}>
                 {data.hasProfile ? '새 계획 화면으로 목표를 다시 정해 볼까요?' : '열 가지 질문으로 내 계획을 만들어요.'}
               </Text>
-              <Press accessibilityRole="button" onPress={() => router.push('/setup/nutrition' as Href)} style={[st.smallBtn, { backgroundColor: c.sky }]}>
+              <Press accessibilityRole="button" onPress={() => router.push('/setup/nutrition' as Href)} style={[st.smallBtn, { backgroundColor: c.action }]}>
                 <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>시작하기</Text>
               </Press>
             </View>
@@ -249,7 +249,7 @@ function WeightCard({
           <Text style={{ color: c.muted, fontSize: 15 }}>{unit}</Text>
         </View>
         {changed ? (
-          <Press accessibilityRole="button" onPress={() => void saveWeightNow()} disabled={busy} style={[st.weightSave, { backgroundColor: c.sky }, busy && { opacity: 0.5 }]}>
+          <Press accessibilityRole="button" onPress={() => void saveWeightNow()} disabled={busy} style={[st.weightSave, { backgroundColor: c.action }, busy && { opacity: 0.5 }]}>
             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>{busy ? '저장 중' : '저장'}</Text>
           </Press>
         ) : null}
@@ -267,7 +267,7 @@ function WeightCard({
               <View style={st.row}>
                 <Text style={[st.small, { color: c.muted }]}>그대로 두기로 했어요.</Text>
                 <Press accessibilityRole="button" onPress={() => writeSnooze(null)} hitSlop={8} style={st.link}>
-                  <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>다시 보기</Text>
+                  <Text style={{ color: c.link, fontSize: 13, fontWeight: '600' }}>다시 보기</Text>
                 </Press>
               </View>
             ) : (
@@ -276,7 +276,7 @@ function WeightCard({
                   accessibilityRole="button"
                   onPress={() => void act()}
                   disabled={busy}
-                  style={[st.primary, { backgroundColor: c.sky }, busy && { opacity: 0.5 }]}
+                  style={[st.primary, { backgroundColor: c.action }, busy && { opacity: 0.5 }]}
                 >
                   <Text style={st.primaryText}>{busy ? '바꾸는 중' : STEP_LABEL[copy.action]}</Text>
                 </Press>
@@ -346,7 +346,7 @@ function PlanCard({ day, unit, onOpenGoal, c }: { day: Stats; unit: WeightUnit; 
       <View style={st.row}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[st.cardTitle, { color: c.ink }]}>
-            내 계획 · <Text style={{ color: c.sky }}>{goal}</Text>
+            내 계획 · <Text style={{ color: c.link }}>{goal}</Text>
           </Text>
           <Text style={{ color: c.ink, fontSize: 15, fontVariant: ['tabular-nums'] }}>
             하루 {t.kcal.toLocaleString('ko-KR')}kcal · 단백질 {t.protein}g
@@ -410,7 +410,7 @@ function PlanStat({ label, value, sub, strong, c }: { label: string; value: numb
       <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
         {label}
       </Text>
-      <Text style={{ color: strong ? c.sky : c.ink, fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+      <Text style={{ color: strong ? c.link : c.ink, fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
         {kcalText(value)}
         <Text style={[TYPE.unit, { color: c.muted }]}> kcal</Text>
       </Text>

@@ -58,7 +58,7 @@ export default function SwingHomeScreen() {
               hitSlop={6}
               style={{ minHeight: 32, alignItems: 'center', justifyContent: 'center' }}
             >
-              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>어떻게 찍나요 ›</Text>
+              <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>어떻게 찍나요 ›</Text>
             </Pressable>
           </View>
 

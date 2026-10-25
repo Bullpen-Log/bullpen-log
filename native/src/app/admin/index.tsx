@@ -100,7 +100,7 @@ function MenuRow({ icon, label, detail, onPress, web, last, c }: { icon: IconNam
   return (
     <Row onPress={onPress} last={last} c={c}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <View style={{ width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: c.sky }}>
+        <View style={{ width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: c.action }}>
           {/* 둥근 야구 아이콘(2026-10-22 — 받은 팩으로 통일, 예전 아이폰 기호) */}
           <Icon name={icon} size={18} color="#fff" filled />
         </View>
@@ -148,7 +148,7 @@ function UserRow({ u, self, last, reload, c }: { u: Data['users'][number]; self:
     <Row onPress={self ? undefined : menu} last={last} c={c}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>{u.nickname}</Text>
-        {u.role === 'ADMIN' ? <Badge text="대표관리자" color={c.sky} c={c} /> : u.role === 'MANAGER' ? <Badge text="준관리자" c={c} /> : null}
+        {u.role === 'ADMIN' ? <Badge text="대표관리자" color={c.link} c={c} /> : u.role === 'MANAGER' ? <Badge text="준관리자" c={c} /> : null}
         {self ? <Badge text="나" c={c} /> : null}
       </View>
       <Text style={[s.meta, { color: c.muted }]} numberOfLines={1}>

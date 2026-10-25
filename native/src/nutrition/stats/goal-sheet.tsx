@@ -375,7 +375,7 @@ export function GoalSheet({
                           { backgroundColor: c.card, borderColor: on ? c.sky : 'transparent' },
                         ]}
                       >
-                        <Text style={{ color: on ? c.sky : c.ink, fontSize: 17, fontWeight: '700' }}>
+                        <Text style={{ color: on ? c.link : c.ink, fontSize: 17, fontWeight: '700' }}>
                           {GOAL_KINDS.find((g) => g.key === key)?.label ?? key}
                         </Text>
                         <Text style={[st.small, { color: c.muted }]}>{goalKindHint(key, body.age)}</Text>
@@ -549,7 +549,7 @@ export function GoalSheet({
                   <View style={st.inputRow}>
                     <Text style={[st.small, { color: c.muted }]}>체중 흐름 조정 {signed(preview.adjust)}kcal 포함</Text>
                     <Press accessibilityRole="button" onPress={() => setCleared(true)} hitSlop={8} style={{ minHeight: 40, justifyContent: 'center' }}>
-                      <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>조정 지우기</Text>
+                      <Text style={{ color: c.link, fontSize: 13, fontWeight: '600' }}>조정 지우기</Text>
                     </Press>
                   </View>
                 ) : savedAdjust !== 0 ? (
@@ -592,7 +592,7 @@ export function GoalSheet({
             accessibilityRole="button"
             onPress={() => void save()}
             disabled={pending}
-            style={[st.primary, { backgroundColor: c.sky }, pending && { opacity: 0.5 }]}
+            style={[st.primary, { backgroundColor: c.action }, pending && { opacity: 0.5 }]}
           >
             <Text style={st.primaryText}>{pending ? '저장 중' : '저장'}</Text>
           </Press>

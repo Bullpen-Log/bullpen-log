@@ -44,7 +44,7 @@ export function NoticeBand({ notice, fields, c, a }: { notice: StateNotice; fiel
   return (
     <Card c={c} tone="warn">
       <View style={[s.row, { alignItems: 'flex-start' }]}>
-        <SymbolView name="arrow.clockwise" size={15} tintColor={c.warn} />
+        <Icon name="refresh-cw" size={15} color={c.warn} />
         <View style={{ flex: 1, gap: 4 }}>
           <Text style={[s.bodyBold, { color: c.warn }]}>{STATE_NOTICE_TEXT.title}</Text>
           {[...notice.lines, ...(notice.more > 0 ? [moreText(notice.more)] : [])].map((line, i) => (
@@ -92,10 +92,10 @@ export function DoneView({ done, intensity, canResume, c, a }: {
     <Card c={c} tone="done">
       <View style={s.between}>
         <View style={s.row}>
-          <SymbolView name="checkmark.circle.fill" size={18} tintColor={c.sky} />
-          <Text style={[s.cardTitle, { color: c.sky }]}>오늘 운동 완료</Text>
+          <Icon name="circle-check" size={18} color={c.link} />
+          <Text style={[s.cardTitle, { color: c.link }]}>오늘 운동 완료</Text>
         </View>
-        {intensity != null ? <Text style={[s.smallBold, { color: c.sky }]}>강도 {intensity}/10</Text> : null}
+        {intensity != null ? <Text style={[s.smallBold, { color: c.link }]}>강도 {intensity}/10</Text> : null}
       </View>
       <View style={[s.row, { gap: 8 }]}>
         {[
@@ -132,7 +132,7 @@ export function DoneView({ done, intensity, canResume, c, a }: {
       )}
       {canResume ? (
         <Press accessibilityRole="button" disabled={a.starting} onPress={() => a.start(false)} style={[s.pill, a.starting && { opacity: 0.6 }]}>
-          <Text style={[s.bodyBold, { color: c.sky }]}>운동 더 하기</Text>
+          <Text style={[s.bodyBold, { color: c.link }]}>운동 더 하기</Text>
         </Press>
       ) : null}
     </Card>
@@ -152,7 +152,7 @@ export function OutingRow({ line, c, a }: { line: OutingLineText; c: Palette; a:
       </View>
       {line.guess ? (
         <Press accessibilityRole="button" onPress={a.checkin} style={st.lineBtn}>
-          <Text style={[s.bodyBold, { color: c.sky }]}>바꾸기</Text>
+          <Text style={[s.bodyBold, { color: c.link }]}>바꾸기</Text>
         </Press>
       ) : null}
     </View>
@@ -212,7 +212,7 @@ export function PrefsCard({ prefs, today, c, a }: { prefs: NonNullable<TrainingT
         <Text numberOfLines={1} style={[s.tiny, { color: c.muted, fontWeight: '600', flexShrink: 1 }]}>
           {summary == null ? '오늘 하고 싶은 운동이 있나요?' : '오늘 설정'}
         </Text>
-        <Text numberOfLines={1} style={[s.tiny, { color: summary == null ? c.sky : c.ink, flexShrink: 1 }]}>
+        <Text numberOfLines={1} style={[s.tiny, { color: summary == null ? c.link : c.ink, flexShrink: 1 }]}>
           {summary ?? '답하기'}
         </Text>
         <Icon name="pencil" size={15} color={c.muted} />
@@ -393,10 +393,10 @@ export function PlanBody({
             오늘 <Text style={[s.num, { fontSize: 18 }]}>{doneCount}</Text>
             <Text style={{ color: c.muted }}>/{all.length}</Text> 완료
           </Text>
-          {all.length > 0 && doneCount === all.length ? <Text style={[s.bodyBold, { color: c.sky }]}>전부 마쳤어요</Text> : null}
+          {all.length > 0 && doneCount === all.length ? <Text style={[s.bodyBold, { color: c.link }]}>전부 마쳤어요</Text> : null}
         </View>
         <View style={[s.bar, { backgroundColor: c.line }]}>
-          <View style={{ width: `${all.length ? (doneCount / all.length) * 100 : 0}%`, backgroundColor: c.sky, borderRadius: 4 }} />
+          <View style={{ width: `${all.length ? (doneCount / all.length) * 100 : 0}%`, backgroundColor: c.action, borderRadius: 4 }} />
         </View>
         {doneCount === 0 && all.length > 0 ? (
           <Text style={[s.tiny, { color: c.muted }]}>마친 운동을 눌러 표시해 주세요. 운동 부하와 다음 일정에 들어가요.</Text>
@@ -419,8 +419,8 @@ export function PlanBody({
         onPress={() => setAdding(true)}
         style={({ pressed }) => [st.add, { backgroundColor: `${c.sky}14` }, pressed && { opacity: 0.6 }]}
       >
-        <SymbolView name="plus" size={15} tintColor={c.sky} />
-        <Text style={[s.bodyBold, { color: c.sky }]}>운동 추가</Text>
+        <Icon name="plus" size={15} color={c.link} />
+        <Text style={[s.bodyBold, { color: c.link }]}>운동 추가</Text>
       </Pressable>
     </View>
   );
@@ -449,7 +449,7 @@ export function PlanBody({
         ) : null}
         {plan.autoPain ? (
           <View style={[s.box, { backgroundColor: c.page, gap: 6 }]}>
-            <Text style={[s.smallBold, { color: c.sky }]}>
+            <Text style={[s.smallBold, { color: c.link }]}>
               자동 맞춤 <Text style={{ color: c.muted, fontWeight: '400' }}>{plan.autoPain.summary}</Text>
             </Text>
             <Text style={[s.small, { color: c.ink }]}>{plan.autoPain.reason}</Text>
@@ -564,7 +564,7 @@ function ExerciseRow({
                   {r.manual ? ' · 직접 넣음' : ''}
                 </Text>
                 {r.prescription ? <Text style={[s.small, { color: c.ink }]}>{r.prescription}</Text> : null}
-                {r.reason ? <Text style={[s.tiny, { color: c.sky }]}>{r.reason}</Text> : null}
+                {r.reason ? <Text style={[s.tiny, { color: c.link }]}>{r.reason}</Text> : null}
                 {r.unsafe ? <Text style={[s.tiny, { color: c.warn }]}>오늘 몸 상태에는 권하지 않는 운동이에요</Text> : null}
               </View>
               {/* 사진은 오른쪽(웹 check-row 와 같다) */}
@@ -582,7 +582,7 @@ function ExerciseRow({
               </Text>
               {hasVideo ? (
                 <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((v) => !v)} style={st.lineBtn}>
-                  <Text style={[s.smallBold, { color: c.sky }]}>{open ? '접기' : '영상'}</Text>
+                  <Text style={[s.smallBold, { color: c.link }]}>{open ? '접기' : '영상'}</Text>
                 </Press>
               ) : null}
             </View>
@@ -632,9 +632,9 @@ function NoteView({ note, anyDone, today, c, a }: { note: TrainingToday['note'];
     return (
       <Card c={c}>
         <View style={s.between}>
-          <Text style={[s.bodyBold, { color: c.sky }]}>✓ 오늘 운동 강도 {cur.intensity}/10</Text>
+          <Text style={[s.bodyBold, { color: c.link }]}>✓ 오늘 운동 강도 {cur.intensity}/10</Text>
           <Press accessibilityRole="button" onPress={() => setEditing(true)} style={st.lineBtn}>
-            <Text style={[s.smallBold, { color: c.sky }]}>고치기</Text>
+            <Text style={[s.smallBold, { color: c.link }]}>고치기</Text>
           </Press>
         </View>
         {cur.memo ? <Text style={[s.body, { color: c.ink }]}>{cur.memo}</Text> : null}

@@ -1,4 +1,4 @@
-import { SymbolView } from 'expo-symbols';
+import { Icon } from '~/shell/icon';
 import { Text, TextInput, View } from 'react-native';
 import { CKCUEST_METHOD, type StageTest } from '@/lib/armcare/rehab';
 import { YES_NO, num, type StageTestDraft } from '@/lib/armcare/rehab-test-draft';
@@ -92,7 +92,7 @@ export function JudgedBox({ pass, fails, c }: { pass: boolean; fails: string[]; 
     <View style={{ borderRadius: 12, padding: 12, gap: 4, backgroundColor: pass ? c.sky + '1a' : c.card }}>
       {pass ? (
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          <SymbolView name="checkmark" size={14} tintColor={c.sky} />
+          <Icon name="check" size={14} color={c.link} />
           <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>통과했어요</Text>
         </View>
       ) : (

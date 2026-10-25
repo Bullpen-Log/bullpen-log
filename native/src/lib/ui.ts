@@ -1,86 +1,7 @@
-import { useColorScheme, type TextStyle, type ViewStyle } from 'react-native';
+import { useColorScheme, type ViewStyle } from 'react-native';
 import { usePrefs } from '~/lib/prefs';
-
-/** 앱 화면 색 — 사이트(app/globals.css)의 밝은 · 어두운 바탕과 같은 값 */
-const LIGHT = {
-  page: '#f2f2f7',
-  card: '#ffffff',
-  ink: '#1d1d1f',
-  muted: '#6e6e73',
-  line: '#e5e5ea',
-  /* 진한 선 — 사이트 --color-line-strong(작은 그래프 바탕 · 화살표) */
-  lineStrong: '#c7c7cc',
-  sky: '#0a84d6',
-  danger: '#d70015',
-  chip: '#e5e5ea',
-  /* 주의(권하지 않음 · 통증을 남긴 날) — 사이트 --color-warn · --color-warn-bg */
-  warn: '#b45309',
-  warnBg: '#fffbeb',
-  /* 좋음(적정 · 변화 좋음) — 사이트 --color-ok */
-  ok: '#047857',
-  /* 고르개의 고른 칸 — 사이트 --color-raised */
-  /* 하늘색 판 · 짙은 하늘 글자(첫날 카드 등) · 경고 · 위험 판 — 사이트 --color-sky-tint · sky-strong · warn-line · danger-bg · danger-line */
-  skyTint: '#e8f3fc',
-  skyStrong: '#0369a1',
-  warnLine: '#fde68a',
-  dangerBg: '#fef2f2',
-  dangerLine: '#fecaca',
-  raised: '#ffffff',
-  /* 카드가 바탕 위에 떠 보이게 — 위 빛 · 가장자리 · 접촉 · 가까운 · 먼 그림자 다섯 겹(2026-10-19 김민: "플로팅 UI 처럼 입체적으로 떠 있는 느낌") */
-  float:
-    'inset 0 1px 0 rgba(255,255,255,0.9), 0 0 0 0.5px rgba(20,30,50,0.07), 0 1px 2px rgba(20,30,50,0.07), 0 6px 14px -4px rgba(20,30,50,0.1), 0 18px 36px -12px rgba(20,30,50,0.16), 0 36px 64px -28px rgba(20,30,50,0.2)',
-};
-/* 다크 · 네이비 카드 — 검은 바탕이라 그림자 대신 가장자리 빛(사이트 :root[data-theme='dark'] 의 --card-float) */
-const FLOAT_DARK =
-  'inset 0 1px 0 rgba(255,255,255,0.1), 0 0 0 0.5px rgba(255,255,255,0.1), 0 2px 4px rgba(0,0,0,0.5), 0 12px 28px -8px rgba(0,0,0,0.7), 0 28px 56px -20px rgba(0,0,0,0.75)';
-const DARK: typeof LIGHT = {
-  page: '#000000',
-  card: '#1c1c1e',
-  ink: '#f5f5f7',
-  muted: '#98989d',
-  line: '#38383a',
-  /* 진한 선 — 사이트 --color-line-strong(작은 그래프 바탕 · 화살표) */
-  lineStrong: '#48484a',
-  /* 사이트 다크도 #0a84d6(단추 바탕 — 흰 글자 대비를 라이트와 같게) · 위험 #f87171 */
-  sky: '#0a84d6',
-  danger: '#f87171',
-  chip: '#2c2c2e',
-  warn: '#fcd34d',
-  warnBg: '#2a1e08',
-  ok: '#34d399',
-  skyTint: '#0a1f2b',
-  skyStrong: '#7dd3fc',
-  warnLine: '#78350f',
-  dangerBg: '#2a1010',
-  dangerLine: '#7f1d1d',
-  /* 사이트 :root[data-theme='dark'] --color-raised(네이비는 #3b4a63) */
-  raised: '#636366',
-  float: FLOAT_DARK,
-};
-/* 네이비 — 사이트 :root[data-theme='navy'](바탕 · 카드 · 선) + 어두운 테마가 같이 쓰는 글자 · 상태색 */
-const NAVY: typeof LIGHT = {
-  page: '#0b1220',
-  card: '#141d2b',
-  ink: '#e8eef7',
-  muted: '#94a3b8',
-  line: '#2a3648',
-  /* 진한 선 — 사이트 --color-line-strong(작은 그래프 바탕 · 화살표) */
-  lineStrong: '#44556e',
-  sky: '#0a84d6',
-  danger: '#f87171',
-  chip: '#1e293b',
-  warn: '#fcd34d',
-  warnBg: '#2a1e08',
-  ok: '#34d399',
-  skyTint: '#0e2a3d',
-  skyStrong: '#7dd3fc',
-  warnLine: '#78350f',
-  dangerBg: '#2a1010',
-  dangerLine: '#7f1d1d',
-  raised: '#3b4a63',
-  float: FLOAT_DARK,
-};
-export type Palette = typeof LIGHT;
+import { PALETTES, type Palette } from './design-tokens';
+export { PALETTES, TYPE, SPACE, RADIUS, CONTROL, SURFACE, type Palette } from './design-tokens';
 
 /** 칠할 테마 — 설정의 '자동'만 기기 밝기를 따른다(웹과 같다, 고른 적 없으면 라이트) */
 export function useTheme(): 'light' | 'dark' | 'navy' {
@@ -91,39 +12,8 @@ export function useTheme(): 'light' | 'dark' | 'navy' {
 
 export function usePalette(): Palette {
   const theme = useTheme();
-  return theme === 'navy' ? NAVY : theme === 'dark' ? DARK : LIGHT;
+  return PALETTES[theme];
 }
-
-/**
- * 글자 — 사이트와 같은 느낌(app/globals.css). 큰 제목은 굵기 800 · 자간 −0.03em(.text-heading, 휴대폰 34px),
- * 숫자는 둥글고 고정폭(.text-numeric — 아이폰의 SF Pro Rounded). 화면마다 크기만 덧붙여 쓴다: [TYPE.num, { fontSize: 28 }].
- */
-export const TYPE = {
-  title: { fontSize: 34, fontWeight: '800', letterSpacing: -1 },
-  heading: { fontWeight: '800', letterSpacing: -0.5 },
-  num: { fontFamily: 'ui-rounded', fontWeight: '700', fontVariant: ['tabular-nums'], letterSpacing: -0.2 },
-  /*
-   * 글자 단계(2026-10-21 김민 "포인트가 없어 눈에 안 들어온다") — 크기 다섯 · 굵기 셋. 새 글은 이 중 하나를 쓴다.
-   * 화면마다 주인공(hero) 하나 → 구역 제목(section) → 카드 제목(card) → 본문(body) → 보조(sub, 회색 · 보통 굵기).
-   * 강조는 굵기가 아니라 크기 · 색으로. 파랑(sky)은 누르는 주 단추 · 지금 고른 것에만 — 꾸밈 그림은 ink · muted.
-   */
-  hero: { fontSize: 30, fontWeight: '800', letterSpacing: -0.8 },
-  section: { fontSize: 20, fontWeight: '700', letterSpacing: -0.4 },
-  card: { fontSize: 17, fontWeight: '600', letterSpacing: -0.2 },
-  body: { fontSize: 15, fontWeight: '400' },
-  sub: { fontSize: 13, fontWeight: '400', lineHeight: 18 },
-  /*
-   * 문장 안 숫자 — 글꼴 · 크기는 둘레 글 그대로, 굵기 · 고정폭만. TYPE.num(둥근 숫자 글꼴)은 혼자 서는 큰 숫자에만:
-   * 문장 안에 쓰면 숫자만 다른 글꼴이라 크기가 안 맞아 보이고, 한글 단위를 그 안에 넣으면 기기 기본 글꼴로 그려진다(2026-10-21).
-   */
-  numInline: { fontWeight: '600', fontVariant: ['tabular-nums'] },
-  /* 혼자 서는 큰 숫자 옆 단위(회색으로 덧붙임) — 숫자 20~26 이면 unit, 28~34 면 unitLg, 48 넘으면 20(구속 큰 숫자). 화면마다 비율이 제각각이었다 */
-  unit: { fontSize: 15, fontWeight: '400' },
-  unitLg: { fontSize: 17, fontWeight: '400' },
-} satisfies Record<string, TextStyle>;
-
-/** 간격 — 사이트 휴대폰 규격: 카드 안 20(--block-pad) · 카드 사이 16 · 큰 덩이 사이 24 · 화면 양옆 16 */
-export const SPACE = { pad: 20, gap: 16, section: 24, side: 16 } as const;
 
 /** 누르면 살짝 눌림 — 사이트 카드의 [data-pressed] scale(0.985) */
 export const PRESSED = { transform: [{ scale: 0.985 }] } satisfies ViewStyle;

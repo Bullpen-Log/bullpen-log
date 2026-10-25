@@ -29,7 +29,7 @@ export function NutritionCheckinCard({ date, answer }: { date: string; answer: N
         <Text numberOfLines={1} style={{ color: c.muted, fontSize: 13, fontWeight: '400', flexShrink: 1 }}>
           {summary == null ? '오늘 식욕 · 끼니는요?' : '오늘 설정'}
         </Text>
-        <Text numberOfLines={1} style={{ color: summary == null ? c.sky : c.ink, fontSize: 13, flexShrink: 1 }}>
+        <Text numberOfLines={1} style={{ color: summary == null ? c.link : c.ink, fontSize: 13, flexShrink: 1 }}>
           {summary ?? '답하기'}
         </Text>
         <Icon name="pencil" size={14} color={c.muted} />
@@ -67,7 +67,7 @@ function MealForm({ date, initial, onDone }: { date: string; initial: NutritionA
         onPress={press}
         style={[styles.chip, on ? { borderColor: c.sky, backgroundColor: withAlpha(c.sky, 0.1) } : { backgroundColor: withAlpha(c.ink, 0.06) }]}
       >
-        <Text numberOfLines={1} style={{ color: on ? c.sky : withAlpha(c.ink, 0.8), fontSize: 15, fontWeight: on ? '600' : '400' }}>
+        <Text numberOfLines={1} style={{ color: on ? c.link : withAlpha(c.ink, 0.8), fontSize: 15, fontWeight: on ? '600' : '400' }}>
           {label}
         </Text>
       </Press>
@@ -106,7 +106,7 @@ function MealForm({ date, initial, onDone }: { date: string; initial: NutritionA
         </View>
       </View>
       {error ? <Text style={{ color: c.danger, fontSize: 13 }}>{error}</Text> : null}
-      <Press accessibilityRole="button" onPress={() => void save()} disabled={saving} style={[styles.primary, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
+      <Press accessibilityRole="button" onPress={() => void save()} disabled={saving} style={[styles.primary, { backgroundColor: c.action }, saving && { opacity: 0.5 }]}>
         <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{saving ? '저장 중…' : '저장'}</Text>
       </Press>
     </Animated.View>

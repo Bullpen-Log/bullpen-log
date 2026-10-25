@@ -1,3 +1,4 @@
+import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
@@ -64,7 +65,7 @@ export default function TrainingDayScreen() {
             <View style={[st.notice, { backgroundColor: c.danger + '14' }]}>
               <Text style={[s.small, { color: c.danger, flex: 1 }]}>{load.error}</Text>
               <Press onPress={() => void load.reload()} accessibilityRole="button" style={s.textBtn}>
-                <Text style={[s.smallBold, { color: c.sky }]}>다시 불러오기</Text>
+                <Text style={[s.smallBold, { color: c.link }]}>다시 불러오기</Text>
               </Press>
             </View>
           ) : null}
@@ -146,7 +147,7 @@ function DayBody({ day, c }: { day: AppTrainingDay; c: Palette }) {
             <>
               {'\n'}
               {/* 웹처럼 '트레이닝'을 누르면 오늘 운동 화면으로 */}
-              <Text accessibilityRole="link" onPress={() => router.push('/training-today' as Href)} style={{ color: c.sky, fontWeight: '600' }}>
+              <Text accessibilityRole="link" onPress={() => router.push('/training-today' as Href)} style={{ color: c.link, fontWeight: '600' }}>
                 트레이닝
               </Text>
               에서 남길 수 있어요.
@@ -209,8 +210,8 @@ function ExerciseLine({
         accessibilityLabel={ex.title}
         style={st.lineMain}
       >
-        <View style={[st.check, ex.done ? { backgroundColor: c.sky, borderColor: c.sky } : { borderColor: c.line }]}>
-          {ex.done ? <SymbolView name="checkmark" size={12} weight="bold" tintColor="#fff" /> : null}
+        <View style={[st.check, ex.done ? { backgroundColor: c.action, borderColor: c.sky } : { borderColor: c.line }]}>
+          {ex.done ? <Icon name="check" size={12} color="#fff" /> : null}
         </View>
         <View style={{ flex: 1, gap: 4 }}>
           <View style={[s.wrap, { alignItems: 'center' }]}>
@@ -220,7 +221,7 @@ function ExerciseLine({
           <Text style={[s.tiny, { color: c.muted }]}>
             {ex.done ? (
               <>
-                {amount ? <Text style={{ color: c.sky, fontWeight: '700' }}>{amount}</Text> : '마친 것으로 표시함'}
+                {amount ? <Text style={{ color: c.link, fontWeight: '700' }}>{amount}</Text> : '마친 것으로 표시함'}
                 {planned ? ` · ${planned}` : ''}
               </>
             ) : (

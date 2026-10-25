@@ -87,7 +87,7 @@ export function NotificationList({ c }: { c: Palette }) {
         <Text style={{ color: c.muted, fontSize: 15, fontWeight: '600' }}>알림</Text>
         {unread > 0 ? (
           <Pressable accessibilityRole="button" onPress={readAll} hitSlop={8}>
-            <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>모두 읽음</Text>
+            <Text style={{ color: c.link, fontSize: 14, fontWeight: '600' }}>모두 읽음</Text>
           </Pressable>
         ) : null}
       </View>
@@ -101,7 +101,7 @@ export function NotificationList({ c }: { c: Palette }) {
           style={{ paddingVertical: 14 }}
         >
           <Text style={{ color: c.muted, fontSize: 15 }}>
-            알림을 불러오지 못했어요. <Text style={{ color: c.sky, fontWeight: '600' }}>다시 불러오기</Text>
+            알림을 불러오지 못했어요. <Text style={{ color: c.link, fontWeight: '600' }}>다시 불러오기</Text>
           </Text>
         </Pressable>
       ) : items == null ? (
@@ -121,7 +121,7 @@ export function NotificationList({ c }: { c: Palette }) {
             <View style={{ width: 8, height: 8, borderRadius: 4, marginTop: 6, backgroundColor: n.read ? 'transparent' : c.sky }} />
             <View style={{ flex: 1, gap: 2 }}>
               <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                <Text style={{ color: c.sky, fontSize: 12, fontWeight: '600' }}>{KIND_LABEL[n.kind as NotifyKind] ?? '알림'}</Text>
+                <Text style={{ color: c.link, fontSize: 12, fontWeight: '600' }}>{KIND_LABEL[n.kind as NotifyKind] ?? '알림'}</Text>
                 <Text style={{ marginLeft: 'auto', color: c.muted, fontSize: 12 }}>{ago(n.at, now)}</Text>
               </View>
               <Text style={{ color: n.read ? c.muted : c.ink, fontSize: 15, fontWeight: n.read ? '400' : '600' }}>{n.title}</Text>

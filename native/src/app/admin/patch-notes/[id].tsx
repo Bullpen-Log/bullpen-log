@@ -56,7 +56,7 @@ function Body({ note, c }: { note: Note; c: Palette }) {
   return (
     <ScrollView contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
       <View style={{ gap: 4 }}>
-        <Text style={[s.meta, { color: c.sky, fontWeight: '600' }]}>{note.author}</Text>
+        <Text style={[s.meta, { color: c.link, fontWeight: '600' }]}>{note.author}</Text>
         <Text style={{ color: c.ink, fontSize: 24, fontWeight: '700' }}>{note.day}</Text>
         {note.areas.length > 0 ? <Text style={[s.meta, { color: c.muted }]}>{note.areas.join(' · ')}</Text> : null}
       </View>
@@ -93,7 +93,7 @@ function Body({ note, c }: { note: Note; c: Palette }) {
           accessibilityRole="button"
           onPress={submit}
           disabled={save.busy || memo === saved}
-          style={[s.primary, { backgroundColor: c.sky, opacity: save.busy || memo === saved ? 0.5 : 1 }]}
+          style={[s.primary, { backgroundColor: c.action, opacity: save.busy || memo === saved ? 0.5 : 1 }]}
         >
           <Text style={s.primaryText}>{save.busy ? '저장하는 중…' : memo === saved ? '저장됨' : '메모 저장'}</Text>
         </Press>

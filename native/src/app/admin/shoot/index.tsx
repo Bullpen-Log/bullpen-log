@@ -38,15 +38,15 @@ export default function ShootHomeScreen() {
               <ShootGauge done={data.all.done} uploaded={data.uploaded} total={data.all.total} c={c} />
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Legend color={c.sky} label="찍음" value={data.all.done} c={c} />
-              <Legend color={c.sky} faint label="올림" value={data.uploaded} c={c} />
+              <Legend color={c.link} label="찍음" value={data.all.done} c={c} />
+              <Legend color={c.link} faint label="올림" value={data.uploaded} c={c} />
               <Legend color={c.warn} label="다시 · 미룸" value={data.all.redo + data.all.later} c={c} />
               <Legend color={c.line} label="남음" value={data.all.todo} c={c} />
             </View>
             {data.nexts.length > 0 ? (
               data.nexts.map((n) => (
                 <View key={n.label} style={{ borderRadius: 14, padding: 14, gap: 8, backgroundColor: c.page }}>
-                  <Text style={[s.meta, { color: c.sky, fontWeight: '600' }]}>
+                  <Text style={[s.meta, { color: c.link, fontWeight: '600' }]}>
                     다음 {n.label} 촬영 · {n.weekLabel} {n.done}/{n.total}
                   </Text>
                   <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>
@@ -57,7 +57,7 @@ export default function ShootHomeScreen() {
                     <Pressable
                       accessibilityRole="button"
                       onPress={() => leaveTo(`/admin/shoot/${n.week}/run`)}
-                      style={[s.pill, { flex: 1, backgroundColor: c.sky }]}
+                      style={[s.pill, { flex: 1, backgroundColor: c.action }]}
                     >
                       <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{n.done > 0 ? '이어 찍기' : '촬영 시작'}</Text>
                     </Pressable>
@@ -72,7 +72,7 @@ export default function ShootHomeScreen() {
                 </View>
               ))
             ) : (
-              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600', borderRadius: 14, padding: 14, backgroundColor: c.page }}>
+              <Text style={{ color: c.link, fontSize: 15, fontWeight: '600', borderRadius: 14, padding: 14, backgroundColor: c.page }}>
                 계획한 운동을 모두 찍었어요.{data.toUpload > 0 ? ` 이제 ${data.toUpload}개를 편집해 올릴 차례예요.` : ''}
               </Text>
             )}
@@ -156,7 +156,7 @@ function WeekState({ state, deferred, c }: { state: string; deferred: boolean; c
   const soft = state === '진행 중' || deferred;
   return (
     <View style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 2, backgroundColor: strong ? c.sky : soft ? c.chip : c.page }}>
-      <Text style={{ color: strong ? '#fff' : soft ? c.sky : c.muted, fontSize: 13, fontWeight: '600' }}>{state}</Text>
+      <Text style={{ color: strong ? '#fff' : soft ? c.link : c.muted, fontSize: 13, fontWeight: '600' }}>{state}</Text>
     </View>
   );
 }

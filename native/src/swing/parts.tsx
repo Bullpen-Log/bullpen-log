@@ -76,7 +76,7 @@ export function Points({ items, c }: { items: readonly string[]; c: Palette }) {
     <View style={{ gap: 8 }}>
       {items.map((text) => (
         <View key={text} style={{ flexDirection: 'row', gap: 10 }}>
-          <View style={{ width: 6, height: 6, borderRadius: 3, marginTop: 8, backgroundColor: c.sky }} />
+          <View style={{ width: 6, height: 6, borderRadius: 3, marginTop: 8, backgroundColor: c.action }} />
           <Text style={{ flex: 1, color: c.ink, fontSize: 15, lineHeight: 22 }}>{text}</Text>
         </View>
       ))}
@@ -126,7 +126,7 @@ export function SwingChecklist({ hand, c }: { hand: LabHand; c: Palette }) {
         <Text style={[s.meta, { color: all ? c.ok : c.muted, fontWeight: '600' }]}>{all ? '다 됐어요. 찍어도 돼요' : `${count} / ${SWING_GUIDE_CHECKS.length}`}</Text>
         {count > 0 ? (
           <Pressable accessibilityRole="button" onPress={() => save(new Set())} hitSlop={8} style={{ minHeight: 32, justifyContent: 'center' }}>
-            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>다시</Text>
+            <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>다시</Text>
           </Pressable>
         ) : null}
       </View>

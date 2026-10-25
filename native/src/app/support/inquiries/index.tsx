@@ -32,7 +32,7 @@ export default function InquiriesScreen() {
               <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', lineHeight: 21 }}>
                 오류 · 계정 · 기능 제안 무엇이든 물어 주세요. 답이 오면 여기에서 볼 수 있어요.
               </Text>
-              <Press accessibilityRole="button" onPress={ask} style={[s.pill, { backgroundColor: c.sky }]}>
+              <Press accessibilityRole="button" onPress={ask} style={[s.pill, { backgroundColor: c.action }]}>
                 <Text style={s.primaryText}>첫 문의 보내기</Text>
               </Press>
             </View>

@@ -114,7 +114,7 @@ function Item({ c, icon, title, body, children }: { c: Palette; icon: 'clipboard
   return (
     <View style={{ borderRadius: 16, padding: 16, backgroundColor: c.page }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Icon name={icon} color={c.sky} size={16} />
+        <Icon name={icon} color={c.link} size={16} />
         <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '600' }}>{title}</Text>
       </View>
       <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18, marginTop: 4, marginBottom: 10 }}>{body}</Text>

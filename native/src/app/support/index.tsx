@@ -53,7 +53,7 @@ export default function SupportScreen() {
           <Press
             accessibilityRole="button"
             onPress={() => router.push('/support/inquiries/new' as Href)}
-            style={[s.primary, { backgroundColor: c.sky, marginTop: -8 }]}
+            style={[s.primary, { backgroundColor: c.action, marginTop: -8 }]}
           >
             <Text style={s.primaryText}>문의하기</Text>
           </Press>
@@ -70,7 +70,7 @@ export default function SupportScreen() {
               style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40 }}
             >
               <SymbolView name="paperplane" size={15} tintColor={c.sky} />
-              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{data.contact}</Text>
+              <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>{data.contact}</Text>
             </Press>
           </View>
         </ScrollView>
@@ -86,7 +86,7 @@ function Section({ title, more, children, c }: { title: string; more?: () => voi
         <Text style={[s.groupTitle, { color: c.muted, flex: 1 }]}>{title}</Text>
         {more ? (
           <Press accessibilityRole="button" onPress={more} hitSlop={8} style={{ paddingHorizontal: 16 }}>
-            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>모두 보기</Text>
+            <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>모두 보기</Text>
           </Press>
         ) : null}
       </View>

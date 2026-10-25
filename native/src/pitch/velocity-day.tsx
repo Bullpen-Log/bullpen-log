@@ -115,7 +115,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
         onPress={() => setOpen((v) => !v)}
         style={[styles.fold, { backgroundColor: c.card, boxShadow: c.float }]}
       >
-        <Icon name="camera" size={18} color={c.sky} />
+        <Icon name="camera" size={18} color={c.link} />
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>구속 측정</Text>
           {all ? (
@@ -192,7 +192,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
                 </Press>
                 {p.clip ? (
                   <Press accessibilityRole="button" accessibilityLabel={`${p.seq}번째 공 영상 보기`} onPress={() => setViewing(p)} style={styles.playBtn}>
-                    <View style={[styles.playCircle, { backgroundColor: c.sky }]}>
+                    <View style={[styles.playCircle, { backgroundColor: c.action }]}>
                       <Icon name="play" size={18} color="#fff" fill="#fff" />
                     </View>
                   </Press>
@@ -219,7 +219,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
               },
             })
           }
-          style={[styles.prefill, { backgroundColor: c.sky }]}
+          style={[styles.prefill, { backgroundColor: c.action }]}
         >
           <Text style={styles.prefillText}>측정한 {pf.pitchCount}구 기록 남기기</Text>
         </Press>
@@ -368,7 +368,7 @@ function TypeChips({ value, onPick, c }: { value: string | null; onPick: (k: str
             onPress={() => onPick(on ? null : t.key)}
             style={[styles.chip, on ? { borderColor: c.sky, backgroundColor: withAlpha(c.sky, 0.1) } : { backgroundColor: withAlpha(c.ink, 0.06) }]}
           >
-            <Text style={{ color: on ? c.sky : withAlpha(c.ink, 0.8), fontSize: 15, fontWeight: on ? '600' : '400' }}>{t.label}</Text>
+            <Text style={{ color: on ? c.link : withAlpha(c.ink, 0.8), fontSize: 15, fontWeight: on ? '600' : '400' }}>{t.label}</Text>
           </Press>
         );
       })}
@@ -465,7 +465,7 @@ function EditSheet({ pitch, onClose, onSaved }: { pitch: VelocityPitchView; onCl
               style={[styles.input, { backgroundColor: withAlpha(c.ink, 0.05), color: c.ink }]}
             />
           </View>
-          <Press accessibilityRole="button" disabled={busy} onPress={() => void save()} style={[styles.prefill, { backgroundColor: c.sky }, busy && { opacity: 0.5 }]}>
+          <Press accessibilityRole="button" disabled={busy} onPress={() => void save()} style={[styles.prefill, { backgroundColor: c.action }, busy && { opacity: 0.5 }]}>
             <Text style={styles.prefillText}>{busy ? '저장 중…' : '저장'}</Text>
           </Press>
           <Press accessibilityRole="button" onPress={remove} style={styles.removeBtn}>

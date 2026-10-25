@@ -169,7 +169,7 @@ export function MonthGrid({
         </View>
         {headerAction}
         <Press accessibilityRole="button" accessibilityLabel="이전 달" onPress={() => onMonth(shiftMonth(month, -1))} style={styles.arrow}>
-          <Icon name="chevron-left" size={20} color={c.sky} />
+          <Icon name="chevron-left" size={20} color={c.link} />
         </Press>
         <Press
           accessibilityRole="button"
@@ -178,7 +178,7 @@ export function MonthGrid({
           onPress={() => onMonth(shiftMonth(month, 1))}
           style={[styles.arrow, last && { opacity: 0.3 }]}
         >
-          <Icon name="chevron-right" size={20} color={c.sky} />
+          <Icon name="chevron-right" size={20} color={c.link} />
         </Press>
       </View>
       {jump ? (
@@ -273,7 +273,7 @@ export function MonthGrid({
                   ]}
                 >
                   <View style={[styles.dayNumBox, isToday && { borderColor: strong ? '#fff' : c.sky, borderWidth: 1.5 }]}>
-                    <Text style={[styles.dayNum, { color: isToday ? (strong ? '#fff' : c.sky) : rest ? c.muted : aheadEmpty ? withAlpha(c.ink, 0.7) : ink }, isToday && { fontWeight: '700', fontSize: 13 }]}>
+                    <Text style={[styles.dayNum, { color: isToday ? (strong ? '#fff' : c.link) : rest ? c.muted : aheadEmpty ? withAlpha(c.ink, 0.7) : ink }, isToday && { fontWeight: '700', fontSize: 13 }]}>
                       {Number(day.slice(8))}
                     </Text>
                   </View>
@@ -451,7 +451,7 @@ function MonthJump({
                         disabled={future}
                         accessibilityState={{ selected: on, disabled: future }}
                         onPress={() => onPick(key(pickYear, i + 1))}
-                        style={[styles.jumpBtn, on && { backgroundColor: c.sky }]}
+                        style={[styles.jumpBtn, on && { backgroundColor: c.action }]}
                       >
                         <Text style={{ fontSize: 15, fontWeight: '500', color: on ? '#fff' : future ? withAlpha(c.muted, 0.35) : c.ink }}>{label}</Text>
                       </Press>
@@ -493,12 +493,12 @@ function MonthJump({
                           setPickYear(year);
                           setView('month');
                         }}
-                        style={[styles.jumpBtn, on && { backgroundColor: c.sky }]}
+                        style={[styles.jumpBtn, on && { backgroundColor: c.action }]}
                       >
                         <Text
                           style={[
                             TYPE.num,
-                            { fontSize: 15, fontWeight: '500', color: on ? '#fff' : off ? withAlpha(c.muted, 0.35) : year === ty ? c.sky : c.ink },
+                            { fontSize: 15, fontWeight: '500', color: on ? '#fff' : off ? withAlpha(c.muted, 0.35) : year === ty ? c.link : c.ink },
                           ]}
                         >
                           {year}

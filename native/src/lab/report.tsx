@@ -285,7 +285,7 @@ export function RxCard({
               goRx(cta.kind, reportId, main.key);
             }}
             accessibilityRole="button"
-            style={({ pressed }) => [s.cta, { backgroundColor: c.sky, opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [s.cta, { backgroundColor: c.action, opacity: pressed ? 0.85 : 1 }]}
           >
             <Text style={s.ctaText}>{cta.label}</Text>
           </Pressable>

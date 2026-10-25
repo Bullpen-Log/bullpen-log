@@ -129,8 +129,8 @@ export function Bar({ back, title, right, c, modal = false, shown }: { back?: st
       {/* back 이 없으면(커뮤니티 하단바의 ← 가 대신) 자리만 비운다 */}
       {back ? (
         <Pressable accessibilityRole="button" accessibilityLabel={`${back}(으)로 돌아가기`} onPress={() => router.back()} hitSlop={10} style={({ pressed }) => [s.side, s.backRow, pressed && { opacity: 0.6 }]}>
-          <Icon name="back" size={24} color={c.sky} />
-          <Text style={{ color: c.sky, fontSize: 17, flexShrink: 1 }} numberOfLines={1}>
+          <Icon name="back" size={24} color={c.link} />
+          <Text style={{ color: c.link, fontSize: 17, flexShrink: 1 }} numberOfLines={1}>
             {back}
           </Text>
         </Pressable>
@@ -161,7 +161,7 @@ export function useTitleCollapse() {
 export function BarButton({ label, onPress, disabled, c }: { label: string; onPress: () => void; disabled?: boolean; c: Palette }) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} disabled={disabled} hitSlop={10}>
-      <Text style={{ color: c.sky, fontSize: 17, fontWeight: '700', opacity: disabled ? 0.4 : 1 }}>{label}</Text>
+      <Text style={{ color: c.link, fontSize: 17, fontWeight: '700', opacity: disabled ? 0.4 : 1 }}>{label}</Text>
     </Pressable>
   );
 }
@@ -172,7 +172,7 @@ export function LoadState({ error, onRetry, c }: { error: string | null; onRetry
   return (
     <View style={{ padding: 24, gap: 16, alignItems: 'center' }}>
       <Text style={{ color: c.ink, fontSize: 15, textAlign: 'center' }}>{error}</Text>
-      <Pressable accessibilityRole="button" onPress={onRetry} style={[s.pill, { backgroundColor: c.sky }]}>
+      <Pressable accessibilityRole="button" onPress={onRetry} style={[s.pill, { backgroundColor: c.action }]}>
         <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
       </Pressable>
     </View>
@@ -229,7 +229,7 @@ export function Row({ children, onPress, last, c }: { children: ReactNode; onPre
 /** 1:1 문의 상태 알약 — 접수됨 하늘 · 답변 완료 초록 · 종료 회색(웹 support-status-badge.tsx 와 같다) */
 export function StatusBadge({ status, c }: { status: InquiryStatusKey; c: Palette }) {
   const m = INQUIRY_STATUS[status];
-  return <Badge text={m.label} color={m.tone === 'sky' ? c.sky : m.tone === 'good' ? c.ok : undefined} c={c} />;
+  return <Badge text={m.label} color={m.tone === 'sky' ? c.link : m.tone === 'good' ? c.ok : undefined} c={c} />;
 }
 
 /** 공지 줄 — 고정 공지는 핀 그림(웹 support-notice-rows.tsx) */

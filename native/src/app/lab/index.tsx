@@ -51,7 +51,7 @@ export default function LabHomeScreen() {
                 <Text style={[s.meta, { color: c.muted }]}>한 구를 찍어 올리면 고칠 점과 드릴 처방을 드려요.</Text>
               </View>
             </View>
-            <Pressable accessibilityRole="button" onPress={() => router.push('/lab/new' as Href)} style={[s.primary, { marginTop: 0, backgroundColor: c.sky }]}>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/lab/new' as Href)} style={[s.primary, { marginTop: 0, backgroundColor: c.action }]}>
               <Text style={s.primaryText}>리포트 받기</Text>
             </Pressable>
             <Pressable
@@ -60,7 +60,7 @@ export default function LabHomeScreen() {
               hitSlop={6}
               style={{ minHeight: 32, alignItems: 'center', justifyContent: 'center' }}
             >
-              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>어떻게 찍나요 ›</Text>
+              <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>어떻게 찍나요 ›</Text>
             </Pressable>
           </View>
 

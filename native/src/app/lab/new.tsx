@@ -1,3 +1,4 @@
+import { Icon } from '~/shell/icon';
 import { type Href, router, Stack } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
@@ -138,7 +139,7 @@ function Flow({ heightCm, defaultHand, isAdmin, c }: { heightCm: number | null; 
             accessibilityRole="button"
             disabled={!canNext}
             onPress={next}
-            style={[s.primary, { flex: 2, marginTop: 0, backgroundColor: c.sky, opacity: canNext ? 1 : 0.4 }]}
+            style={[s.primary, { flex: 2, marginTop: 0, backgroundColor: c.action, opacity: canNext ? 1 : 0.4 }]}
           >
             <Text style={s.primaryText}>{step === 'ready' ? '영상 고르기' : step === 'info' ? '올리고 리포트 받기' : '다음'}</Text>
           </Pressable>
@@ -302,7 +303,7 @@ function InfoStep(p: {
             justifyContent: 'center',
           }}
         >
-          {p.consent ? <SymbolView name="checkmark" size={12} weight="bold" tintColor="#fff" /> : null}
+          {p.consent ? <Icon name="check" size={12} color="#fff" /> : null}
         </View>
         <Text style={{ flex: 1, color: c.ink, fontSize: 14, lineHeight: 20 }}>{CONSENT_TEXT}</Text>
       </Pressable>
@@ -317,7 +318,7 @@ function SendStep({ up, c }: { up: Up; c: Palette }) {
     <View style={{ paddingVertical: 40, gap: 16, alignItems: 'center' }}>
       <StepTitle title={up.progress ? '영상을 올리는 중이에요' : '분석을 시작하는 중이에요'} c={c} />
       <View style={{ alignSelf: 'stretch', height: 8, borderRadius: 4, overflow: 'hidden', backgroundColor: c.line }}>
-        <View style={{ height: 8, width: `${pct}%`, backgroundColor: c.sky }} />
+        <View style={{ height: 8, width: `${pct}%`, backgroundColor: c.action }} />
       </View>
       <Text style={[s.meta, { color: c.muted, textAlign: 'center' }]}>
         {up.progress ? `${up.progress.view === 'side' ? '옆' : '뒤'} 영상 ${up.progress.percent}%` : '곧 결과 화면으로 넘어가요.'} 앱을 닫지 말아 주세요.

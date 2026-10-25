@@ -141,7 +141,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 {r.kg != null ? (
-                  <Text style={[s.bodyBold, s.num, { color: c.sky }]}>
+                  <Text style={[s.bodyBold, s.num, { color: c.link }]}>
                     {formatWeight(r.kg, unit)}{r.perHand ? <Text style={[s.tiny, { color: c.muted }]}> 한 손</Text> : null}
                   </Text>
                 ) : r.first ? (
@@ -179,7 +179,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
           accessibilityValue={{ min: 0, max: p.total, now: p.completed + p.skipped }}
           style={[s.bar, { backgroundColor: c.line }]}
         >
-          <View style={{ width: `${(p.completed / p.total) * 100}%`, backgroundColor: c.sky }} />
+          <View style={{ width: `${(p.completed / p.total) * 100}%`, backgroundColor: c.action }} />
           <View style={{ width: `${(p.skipped / p.total) * 100}%`, backgroundColor: `${c.sky}59` }} />
         </View>
         <Text style={[s.tiny, { color: c.muted }]}>
@@ -378,7 +378,7 @@ export function ProgramDoneView({ result, c }: { result: ProgramResult; c: Palet
             </View>
             {l.from != null && l.to != null ? (
               up ? (
-                <Text style={[s.bodyBold, s.num, { color: c.sky }]}>
+                <Text style={[s.bodyBold, s.num, { color: c.link }]}>
                   {Math.round(toWeight(l.from, unit))} → {Math.round(toWeight(l.to, unit))}
                   {unit}
                 </Text>

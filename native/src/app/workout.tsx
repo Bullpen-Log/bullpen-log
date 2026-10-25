@@ -145,7 +145,7 @@ export default function WorkoutScreen() {
               setTries((n) => n + 1);
             }}
             accessibilityRole="button"
-            style={[s.pill, { backgroundColor: c.sky }]}
+            style={[s.pill, { backgroundColor: c.action }]}
           >
             <Text style={[s.bodyBold, { color: '#fff' }]}>다시 불러오기</Text>
           </Press>
@@ -766,15 +766,15 @@ function Run({
         <View style={[s.header, { paddingTop: inset.top + 8, backgroundColor: c.card, borderBottomColor: c.line }]}>
           <Press onPress={() => leave(TRAINING_HOME_HREF)} accessibilityRole="button" accessibilityLabel="나가기" style={s.iconBtn}>
             <View style={[s.circle, { backgroundColor: c.chip }]}>
-              <SymbolView name="xmark" size={14} weight="semibold" tintColor={c.muted} />
+              <Icon name="x" size={14} color={c.muted} />
             </View>
           </Press>
           {/* 진행 막대 · 목록 단추 — 누르면 오늘 목록. 운동마다 한 칸이 세트를 남길수록 찬다 */}
           <Press onPress={() => openSheet('list')} accessibilityRole="button" accessibilityLabel="오늘 운동 목록 열기" style={s.progress}>
-            <View style={[s.listPill, { backgroundColor: c.sky + '1f', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+            <View style={[s.listPill, { backgroundColor: c.action + '1f', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
               {/* 웹 ListOrdered 그림 */}
               <SymbolView name="list.number" size={13} tintColor={c.sky} />
-              <Text style={[s.smallBold, { color: c.sky }]}>
+              <Text style={[s.smallBold, { color: c.link }]}>
                 목록 {at + 1}/{list.length}
               </Text>
             </View>
@@ -788,7 +788,7 @@ function Run({
                   const fill = n === 0 ? 0 : item.plannedSets ? Math.min(1, n / item.plannedSets) : 1;
                   return (
                     <View key={item.id} style={[s.segment, { backgroundColor: i === at ? c.sky + '40' : c.line }]}>
-                      <View style={{ width: `${fill * 100}%`, height: '100%', backgroundColor: c.sky, borderRadius: 2 }} />
+                      <View style={{ width: `${fill * 100}%`, height: '100%', backgroundColor: c.action, borderRadius: 2 }} />
                     </View>
                   );
                 })}
@@ -844,7 +844,7 @@ function Run({
               <Text style={[s.small, { color: c.muted, flex: 1 }]}>메디신볼을 못 던지면 건너뛰어도 돼요</Text>
               {at < list.length - 1 ? (
                 <Press onPress={() => goTo(at + 1)} accessibilityRole="button" style={s.textBtn}>
-                  <Text style={[s.smallBold, { color: c.sky }]}>건너뛰기</Text>
+                  <Text style={[s.smallBold, { color: c.link }]}>건너뛰기</Text>
                 </Press>
               ) : null}
             </View>
@@ -883,7 +883,7 @@ function Run({
                 accessibilityState={{ expanded: showForm }}
                 style={[s.formBtn, { backgroundColor: c.card }]}
               >
-                <Text style={[s.smallBold, { color: showForm ? c.sky : c.ink }]}>{showForm ? '자세 설명 접기' : 'ⓘ 자세·영상 보기'}</Text>
+                <Text style={[s.smallBold, { color: showForm ? c.link : c.ink }]}>{showForm ? '자세 설명 접기' : 'ⓘ 자세·영상 보기'}</Text>
               </Press>
             ) : null}
             <Press
@@ -892,7 +892,7 @@ function Run({
               accessibilityState={{ expanded: showHistory }}
               style={[s.formBtn, { backgroundColor: c.card }]}
             >
-              <Text style={[s.smallBold, { color: showHistory ? c.sky : c.ink }]}>{showHistory ? '내 기록 접기' : '내 기록'}</Text>
+              <Text style={[s.smallBold, { color: showHistory ? c.link : c.ink }]}>{showHistory ? '내 기록 접기' : '내 기록'}</Text>
             </Press>
           </View>
           {showForm && hasForm ? (
@@ -934,7 +934,7 @@ function Run({
                       style={[
                         s.setRow,
                         i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line } : null,
-                        fixingThis ? { backgroundColor: c.sky + '14' } : null,
+                        fixingThis ? { backgroundColor: c.action + '14' } : null,
                       ]}
                     >
                       <Press
@@ -951,7 +951,7 @@ function Run({
                           {x.weightKg != null ? `${formatWeight(x.weightKg, wUnit)} × ` : ''}
                           {x.holdSeconds != null ? formatSeconds(x.holdSeconds) : `${x.reps}회`}
                         </Text>
-                        {record?.setNo === x.setNo ? <Text style={[s.badge, { backgroundColor: c.sky, color: '#fff' }]}>새 최고</Text> : null}
+                        {record?.setNo === x.setNo ? <Text style={[s.badge, { backgroundColor: c.action, color: '#fff' }]}>새 최고</Text> : null}
                         {x.rir != null ? (
                           <Text style={[s.badge, { backgroundColor: c.chip, color: c.muted }]}>여유 {x.rir >= 4 ? '4+' : x.rir}</Text>
                         ) : null}
@@ -961,7 +961,7 @@ function Run({
                             <Text style={[s.tinyBold, { color: c.warn }]}>대기</Text>
                           </View>
                         ) : null}
-                        <Icon name="pencil" size={16} color={fixingThis ? c.sky : c.muted} />
+                        <Icon name="pencil" size={16} color={fixingThis ? c.link : c.muted} />
                       </Press>
                       <Press
                         onPress={() => void drop(x)}
@@ -1051,9 +1051,9 @@ function Run({
                     <Press
                       onPress={() => (field === 'weight' ? setField('count') : setPad(false))}
                       accessibilityRole="button"
-                      style={[s.padOk, { height: short ? 40 : 48, backgroundColor: c.sky + '26' }]}
+                      style={[s.padOk, { height: short ? 40 : 48, backgroundColor: c.action + '26' }]}
                     >
-                      <Text style={[s.bodyBold, { color: c.sky }]}>
+                      <Text style={[s.bodyBold, { color: c.link }]}>
                         {field === 'weight' ? `다음 · ${ex.isHold ? timeLabel : '횟수'} →` : '확인'}
                       </Text>
                     </Press>
@@ -1062,16 +1062,16 @@ function Run({
 
                 {!pad && !noInput ? (
                   editIndex >= 0 ? (
-                    <View style={[s.editing, { backgroundColor: c.sky + '1a' }]}>
-                      <Text style={[s.small, { color: c.sky, flex: 1 }]}>✎ {editIndex + 1}세트를 고치는 중이에요</Text>
+                    <View style={[s.editing, { backgroundColor: c.action + '1a' }]}>
+                      <Text style={[s.small, { color: c.link, flex: 1 }]}>✎ {editIndex + 1}세트를 고치는 중이에요</Text>
                       <Press onPress={endEdit} accessibilityRole="button" style={s.textBtn}>
-                        <Text style={[s.smallBold, { color: c.sky }]}>그만두기</Text>
+                        <Text style={[s.smallBold, { color: c.link }]}>그만두기</Text>
                       </Press>
                     </View>
                   ) : suggestKg != null ? (
                     <View>
                       <Press onPress={fillSuggested} accessibilityRole="button" style={s.fillBtn}>
-                        <Text style={[s.smallBold, { color: c.sky }]}>
+                        <Text style={[s.smallBold, { color: c.link }]}>
                           ↺ 추천 {shown(suggestKg)}
                           {wUnit} 담기
                         </Text>
@@ -1081,7 +1081,7 @@ function Run({
                     </View>
                   ) : ex.last ? (
                     <Press onPress={fillLast} accessibilityRole="button" style={s.fillBtn}>
-                      <Text style={[s.smallBold, { color: c.sky }]}>↺ 지난번 그대로 담기</Text>
+                      <Text style={[s.smallBold, { color: c.link }]}>↺ 지난번 그대로 담기</Text>
                     </Press>
                   ) : null
                 ) : null}
@@ -1091,7 +1091,7 @@ function Run({
                   onPress={tapOnce(allDone ? openFinish : save)}
                   disabled={allDone && ending}
                   accessibilityRole="button"
-                  style={({ pressed }) => [s.big, { height: pad && short ? 64 : 72, backgroundColor: c.sky, opacity: pressed ? 0.85 : 1 }]}
+                  style={({ pressed }) => [s.big, { height: pad && short ? 64 : 72, backgroundColor: c.action, opacity: pressed ? 0.85 : 1 }]}
                 >
                   <Text style={s.bigText}>
                     {editIndex >= 0 ? `✎ ${editIndex + 1}세트 고치기` : allDone ? '✓ 운동 종료' : `✓ ${mine.length + 1}세트 완료`}

@@ -1,5 +1,5 @@
+import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
-import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -55,7 +55,7 @@ export function AddToRoutine({ exerciseId, title, c }: { exerciseId: string; tit
         accessibilityLabel={`${title} 내 루틴에 담기`}
         style={[st.add, { borderColor: c.line }]}
       >
-        <SymbolView name="plus" size={11} weight="semibold" tintColor={c.muted} />
+        <Icon name="plus" size={11} color={c.muted} />
         <Text style={[st.addText, { color: c.muted }]}>담기</Text>
       </Press>
       <Sheet open={open} onClose={() => setOpen(false)} title="내 루틴에 담기" description={title} c={c}>
@@ -73,13 +73,13 @@ export function AddToRoutine({ exerciseId, title, c }: { exerciseId: string; tit
                   disabled={pending || inside || full}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: pending || inside || full, selected: inside }}
-                  style={[st.choice, inside ? { borderColor: c.sky, backgroundColor: c.sky + '14' } : { borderColor: c.line, backgroundColor: c.card }]}
+                  style={[st.choice, inside ? { borderColor: c.sky, backgroundColor: c.action + '14' } : { borderColor: c.line, backgroundColor: c.card }]}
                 >
-                  <Text style={[st.body, { color: inside ? c.sky : c.ink, fontWeight: '600', flex: 1 }]}>{r.name}</Text>
+                  <Text style={[st.body, { color: inside ? c.link : c.ink, fontWeight: '600', flex: 1 }]}>{r.name}</Text>
                   {inside ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <SymbolView name="checkmark" size={12} weight="bold" tintColor={c.sky} />
-                      <Text style={[st.small, { color: c.sky, fontWeight: '600' }]}>담김</Text>
+                      <Icon name="check" size={12} color={c.link} />
+                      <Text style={[st.small, { color: c.link, fontWeight: '600' }]}>담김</Text>
                     </View>
                   ) : (
                     <Text style={[st.small, { color: c.muted }]}>{full ? `${MY_ROUTINE_MAX_ITEMS}개 꽉 참` : `운동 ${r.exerciseIds.length}개`}</Text>
@@ -88,7 +88,7 @@ export function AddToRoutine({ exerciseId, title, c }: { exerciseId: string; tit
               );
             })
           )}
-          {message ? <Text style={[st.body, { color: c.sky }]}>{message}</Text> : null}
+          {message ? <Text style={[st.body, { color: c.link }]}>{message}</Text> : null}
           {routines.length < MY_ROUTINE_MAX ? (
             <Press
               onPress={() => {
@@ -98,7 +98,7 @@ export function AddToRoutine({ exerciseId, title, c }: { exerciseId: string; tit
               accessibilityRole="button"
               style={[st.newBtn, { backgroundColor: c.chip }]}
             >
-              <SymbolView name="plus" size={14} weight="semibold" tintColor={c.ink} />
+              <Icon name="plus" size={14} color={c.ink} />
               <Text style={[st.body, { color: c.ink, fontWeight: '600' }]}>이 운동으로 새 루틴 만들기</Text>
             </Press>
           ) : null}

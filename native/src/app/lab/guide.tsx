@@ -102,7 +102,7 @@ export default function LabGuideScreen() {
           <View style={{ gap: 10 }}>
             {LAB_GUIDE_POINTS.steps.map((text, i) => (
               <View key={text} style={{ flexDirection: 'row', gap: 12 }}>
-                <View style={{ width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.sky }}>
+                <View style={{ width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.action }}>
                   <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{i + 1}</Text>
                 </View>
                 <Text style={{ flex: 1, color: c.ink, fontSize: 15, lineHeight: 22, paddingTop: 1 }}>{text}</Text>
@@ -129,14 +129,14 @@ export default function LabGuideScreen() {
                   <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{V2_FAIL_TEXT[code]}</Text>
                   <Text style={[s.meta, { color: c.muted, lineHeight: 19 }]}>{forHand(fix.fix, hand)}</Text>
                   <Pressable accessibilityRole="link" onPress={() => go(fix.section)} hitSlop={6} style={{ minHeight: 32, justifyContent: 'center' }}>
-                    <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{LAB_GUIDE_SECTION_NAME[fix.section]} ›</Text>
+                    <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>{LAB_GUIDE_SECTION_NAME[fix.section]} ›</Text>
                   </Pressable>
                 </View>
               );
             })}
           </Fold>
         )}
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={[s.primary, { backgroundColor: c.sky }]}>
+        <Pressable accessibilityRole="button" onPress={() => router.back()} style={[s.primary, { backgroundColor: c.action }]}>
           <Text style={s.primaryText}>영상 올리러 가기</Text>
         </Pressable>
       </ScrollView>
@@ -149,7 +149,7 @@ function Points({ items, c }: { items: readonly string[]; c: Palette }) {
     <View style={{ gap: 8 }}>
       {items.map((text) => (
         <View key={text} style={{ flexDirection: 'row', gap: 10 }}>
-          <View style={{ width: 6, height: 6, borderRadius: 3, marginTop: 8, backgroundColor: c.sky }} />
+          <View style={{ width: 6, height: 6, borderRadius: 3, marginTop: 8, backgroundColor: c.action }} />
           <Text style={{ flex: 1, color: c.ink, fontSize: 15, lineHeight: 22 }}>{text}</Text>
         </View>
       ))}
@@ -211,7 +211,7 @@ function Checklist({ hand, c }: { hand: LabHand; c: Palette }) {
         </Text>
         {count > 0 ? (
           <Pressable accessibilityRole="button" onPress={() => save(new Set())} hitSlop={8} style={{ minHeight: 32, justifyContent: 'center' }}>
-            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>다시</Text>
+            <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>다시</Text>
           </Pressable>
         ) : null}
       </View>
@@ -281,7 +281,7 @@ function PlacementArt({ hand, c }: { hand: LabHand; c: Palette }) {
       <Tag x={back.x - 8} y={P.y - sgn * 28} color={c.ink} align="start" c={c}>
         뒤 폰 · 2루 쪽 3~4m · 세로
       </Tag>
-      <Tag x={side.x + 18} y={side.y} color={c.sky} align="start" c={c}>
+      <Tag x={side.x + 18} y={side.y} color={c.link} align="start" c={c}>
         옆 폰 · {hand === 'L' ? '1루' : '3루'} 쪽 3.5~5m · 가로
       </Tag>
       <Tag x={home.x} y={home.y - 22} color={c.muted} c={c}>

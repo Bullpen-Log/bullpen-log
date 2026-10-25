@@ -261,7 +261,7 @@ export function HomeTab({
         ) : error ? (
           <View style={{ gap: 12, alignItems: 'flex-start' }}>
             <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text>
-            <Press accessibilityRole="button" onPress={() => void refresh()} style={[styles.retry, { backgroundColor: c.sky }]}>
+            <Press accessibilityRole="button" onPress={() => void refresh()} style={[styles.retry, { backgroundColor: c.action }]}>
               <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
             </Press>
           </View>
@@ -440,7 +440,7 @@ function FirstDayCard({
           <Text style={{ color: c.ink, opacity: 0.8, fontSize: 15, lineHeight: 22 }}>
             세 가지만 알려 주면 투구 기록을 시작해요. 그다음부터 지금 팔 상태를 보여 줘요.
           </Text>
-          <Pressable accessibilityRole="button" onPress={() => router.push('/setup/pitch' as Href)} style={[styles.pill, { backgroundColor: c.sky }]}>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/setup/pitch' as Href)} style={[styles.pill, { backgroundColor: c.action }]}>
             <Text style={styles.pillText}>투구 기록 설정하기</Text>
           </Pressable>
         </>
@@ -464,7 +464,7 @@ function FirstDayCard({
             <Pressable
               accessibilityRole="button"
               onPress={() => router.push(`/pitch/${today}` as Href)}
-              style={[styles.pill, { backgroundColor: c.sky }]}
+              style={[styles.pill, { backgroundColor: c.action }]}
             >
               <Text style={styles.pillText}>오늘 투구 남기기</Text>
             </Pressable>
@@ -523,7 +523,7 @@ function GoodDayNote({ note }: { note: NonNullable<AppHome['goodNote']> }) {
           )}
         </View>
         <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
-          <Icon name="chevron-down" size={16} color={c.sky} />
+          <Icon name="chevron-down" size={16} color={c.link} />
         </View>
       </Press>
       {open ? (

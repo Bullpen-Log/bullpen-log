@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedProps, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
@@ -8,9 +8,9 @@ import { Press } from '~/shell/press';
 import type { HomeRing } from './api';
 
 /**
- * 홈 맨 위 링 넷(웹 app/(app)/today/today-rings.tsx 와 같은 숫자 — lib/report/home-today.ts). 색은 하나(sky).
+ * 홈 맨 위 진행 링(웹 app/(app)/today/today-rings.tsx 와 같은 숫자 — lib/report/home-today.ts). 색은 하나(sky).
  * 움직임도 웹과 같다(globals.css):
- * - 처음 보일 때 0 에서 오늘 한 만큼 차오른다 — 900ms cubic-bezier(0.22,1,0.36,1), 120ms 뒤(ring-grow).
+ * - 첫 진입은 현재 값을 바로 표시하고 기록 변경 후에만 차오른다.
  * - 다 차면 링이 한 바퀴 그려지고(700ms cubic-bezier(0.65,0,0.35,1), done-ring) 520ms 뒤 가운데 파란 원 + 흰 체크가 톡(0.6 → 1.08 → 1, 360ms, finish-pop).
  * 움직임 줄이기면 처음부터 다 보인다.
  */
@@ -29,11 +29,11 @@ export function RingsCard({ rings, onPress }: { rings: HomeRing[]; onPress: (rin
   const c = usePalette();
   const done = rings.filter((r) => r.value >= 1).length;
   return (
-    <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
+    <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.floatHero }]}>
       {/* 머리 — 오늘 몇 개 했는지가 홈의 주인공(2026-10-21: 링 넷만 있어 무엇을 보라는 건지 안 읽혔다) */}
       <View style={styles.head} accessibilityRole="summary">
         <Text style={[TYPE.card, { flex: 1, color: c.ink }]}>오늘</Text>
-        <Text style={[TYPE.num, { fontSize: 22, color: done === rings.length ? c.sky : c.ink }]}>
+        <Text style={[TYPE.num, { fontSize: 22, color: done === rings.length ? c.link : c.ink }]}>
           {done}
           <Text style={[TYPE.unit, { color: c.muted }]}> / {rings.length}</Text>
         </Text>
@@ -56,12 +56,14 @@ function Ring({ value, icon }: { value: number; icon: IconName }) {
   const v = Math.min(1, Math.max(0, value));
   const full = v >= 1;
   /* 0 = 빈 링 · 1 = 다 참 */
-  const fill = useSharedValue(reduce ? v : 0);
+  const fill = useSharedValue(v);
+  const first = useRef(true);
   /* 체크 — 크기 0.6 → 1.08(60%) → 1, 진하기 0 → 1(60% 까지) */
-  const scale = useSharedValue(reduce && full ? 1 : 0.6);
-  const shown = useSharedValue(reduce && full ? 1 : 0);
+  const scale = useSharedValue(full ? 1 : 0.6);
+  const shown = useSharedValue(full ? 1 : 0);
   useEffect(() => {
-    if (reduce) {
+    if (first.current || reduce) {
+      first.current = false;
       fill.value = v;
       scale.value = 1;
       shown.value = full ? 1 : 0;
@@ -100,7 +102,7 @@ function Ring({ value, icon }: { value: number; icon: IconName }) {
         />
       </Svg>
       {full ? (
-        <Animated.View style={[styles.done, { backgroundColor: c.sky }, check]}>
+        <Animated.View style={[styles.done, { backgroundColor: c.action }, check]}>
           <Icon name="check" size={20} color="#fff" />
         </Animated.View>
       ) : (

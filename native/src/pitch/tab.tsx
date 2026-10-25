@@ -105,7 +105,7 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
               onPress={() => router.push('/pitch/import' as Href)}
               style={({ pressed }) => [styles.importBtn, { backgroundColor: c.chip }, pressed && PRESSED]}
             >
-              <Icon name="film" size={16} color={c.sky} />
+              <Icon name="film" size={16} color={c.link} />
               <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>가져오기</Text>
             </Pressable>
           </PageHead>
@@ -250,7 +250,7 @@ function ToolTile({ icon, label, onPress }: { icon: IconName; label: string; onP
       onPress={onPress}
       style={({ pressed }) => [styles.tool, { backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
     >
-      <Icon name={icon} size={24} color={c.sky} />
+      <Icon name={icon} size={24} color={c.link} />
       <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>
         {label}
       </Text>
@@ -263,7 +263,7 @@ function LinkRow({ icon, label, onPress }: { icon: IconName; label: string; onPr
   const c = usePalette();
   return (
     <Pressable accessibilityRole="link" onPress={onPress} style={({ pressed }) => [styles.linkRow, pressed && PRESSED]}>
-      <Icon name={icon} size={20} color={c.sky} />
+      <Icon name={icon} size={20} color={c.link} />
       <Text style={{ flex: 1, color: c.ink, fontSize: 17 }}>{label}</Text>
       <Icon name="chevron-right" size={18} color={c.muted} />
     </Pressable>

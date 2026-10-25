@@ -277,17 +277,17 @@ export function TrendCardView({
     <View style={[st.cell, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={st.cellHead}>
         <SymbolView name={icon} size={13} tintColor={c.sky} />
-        <Text numberOfLines={1} style={[st.smallBold, { color: c.sky, flex: 1 }]}>
+        <Text numberOfLines={1} style={[st.smallBold, { color: c.link, flex: 1 }]}>
           {spec.label}
         </Text>
         {change && hover == null ? (
-          <View accessibilityLabel={change.spoken} style={[st.changePill, { backgroundColor: c.sky + '1a' }]}>
+          <View accessibilityLabel={change.spoken} style={[st.changePill, { backgroundColor: c.action + '1a' }]}>
             <SymbolView name={ARROW[change.dir]} size={10} weight="bold" tintColor={c.sky} />
-            <Text style={[st.tinyBold, { color: c.sky }]}>{change.text}</Text>
+            <Text style={[st.tinyBold, { color: c.link }]}>{change.text}</Text>
           </View>
         ) : null}
       </View>
-      <Text numberOfLines={1} style={[st.value, { color: hover == null ? c.ink : c.sky }]}>
+      <Text numberOfLines={1} style={[st.value, { color: hover == null ? c.ink : c.link }]}>
         {shownValue ? shownValue[0] : '—'}
         {shownValue ? <Text style={[TYPE.unit, { color: c.muted }]}> {shownValue[1]}</Text> : null}
       </Text>

@@ -1,5 +1,5 @@
+import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
-import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { BASELINE_WORKOUT_FREQ, THROWING_HANDS } from '@/lib/baseline';
@@ -58,7 +58,7 @@ export default function TrainingSetupScreen() {
           <>
             <Text style={{ color: c.ink, fontSize: 15 }}>신호가 약해 불러오지 못했어요.</Text>
             <Press accessibilityRole="button" onPress={() => (setFailed(false), setTries((n) => n + 1))} hitSlop={8}>
-              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
+              <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
             </Press>
           </>
         ) : (
@@ -202,7 +202,7 @@ function Wizard({ name, age, askHand, hasSetup, basicsDone, initial }: Extract<L
         <View style={{ gap: 16 }}>
           <SummaryRows rows={trainingAnswerLines(a, { askHand })} c={c} />
           {/* 근력 · 파워 프로그램 자격 — 시작 자격과 같은 글(lib/program/program.ts) */}
-          <Text style={{ color: c.ink, fontSize: 15, lineHeight: 22, borderWidth: 1, borderColor: c.sky + '40', backgroundColor: c.sky + '0d', borderRadius: 16, padding: 14, overflow: 'hidden' }}>
+          <Text style={{ color: c.ink, fontSize: 15, lineHeight: 22, borderWidth: 1, borderColor: c.sky + '40', backgroundColor: c.action + '0d', borderRadius: 16, padding: 14, overflow: 'hidden' }}>
             {programNote(a, age, basicsDone)}
           </Text>
           <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>저장하면 오늘 운동 일정을 바로 만들 수 있어요. 일정은 체크인을 남긴 날에 만들어요.</Text>
@@ -238,7 +238,7 @@ function OptionCard({ label, hint, on, invalid, onPress, c }: { label: string; h
         <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>{label}</Text>
         <Text style={{ color: c.muted, fontSize: 15, lineHeight: 20 }}>{hint}</Text>
       </View>
-      {on ? <SymbolView name="checkmark.circle.fill" size={22} tintColor={c.sky} /> : null}
+      {on ? <Icon name="circle-check" size={22} color={c.link} /> : null}
     </Press>
   );
 }

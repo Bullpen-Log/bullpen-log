@@ -1,3 +1,4 @@
+import { Icon } from '~/shell/icon';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
@@ -60,7 +61,7 @@ function PainGuideBody({ pain, c, onRehab }: { pain: PainView; c: Palette; onReh
       )}
       <RedFlags c={c} />
       <View style={[st.box, { backgroundColor: c.card, boxShadow: c.float }]}>
-        <Text style={[st.label, { color: c.sky }]}>오늘은</Text>
+        <Text style={[st.label, { color: c.link }]}>오늘은</Text>
         <Text style={[st.body, { color: c.ink }]}>{advice.text}</Text>
       </View>
       <Text style={[st.small, { color: c.muted, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line, paddingTop: 12 }]}>{DISCLAIMER}</Text>
@@ -70,7 +71,7 @@ function PainGuideBody({ pain, c, onRehab }: { pain: PainView; c: Palette; onReh
             <Text style={[st.body, { color: c.ink, fontWeight: '600' }]}>재활 프로그램</Text>
             <Text style={[st.small, { color: c.muted }]}>아픈 곳과 정도에 맞춰 몇 주에 걸쳐 단계별로 해요</Text>
           </View>
-          <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} />
+          <Icon name="chevron-right" size={13} color={c.muted} />
         </Press>
       ) : null}
     </View>
@@ -84,7 +85,7 @@ function SpotGuide({ guide, c }: { guide: PainGuide; c: Palette }) {
       <Text accessibilityRole="header" style={[st.title, { color: c.ink }]}>{guide.title}</Text>
       {guide.injuries.length > 0 ? (
         <View style={{ gap: 6 }}>
-          <Text style={[st.label, { color: c.sky }]}>이럴 수 있어요 (참고)</Text>
+          <Text style={[st.label, { color: c.link }]}>이럴 수 있어요 (참고)</Text>
           <View style={[st.list, { borderColor: c.line }]}>
             {guide.injuries.map((inj, i) => {
               const on = openName === inj.name;
@@ -108,7 +109,7 @@ function SpotGuide({ guide, c }: { guide: PainGuide; c: Palette }) {
       ) : null}
       {guide.signs.length > 0 ? (
         <View style={{ gap: 6 }}>
-          <Text style={[st.label, { color: c.sky }]}>확인해 볼 증상</Text>
+          <Text style={[st.label, { color: c.link }]}>확인해 볼 증상</Text>
           {guide.signs.map((sign) => (
             <Text key={sign} style={[st.body, { color: c.ink }]}>• {sign}</Text>
           ))}

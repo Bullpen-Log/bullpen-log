@@ -69,7 +69,7 @@ export function VelocityClips({ date }: { date: string }) {
                 style={[styles.chip, on ? { borderColor: c.sky, backgroundColor: c.skyTint } : { borderColor: c.line, backgroundColor: c.card }]}
               >
                 <Text style={{ color: c.muted, fontSize: 13 }}>{it.p.seq}</Text>
-                <Text style={{ color: on ? c.sky : c.ink, fontSize: 15, fontWeight: on ? '700' : '400', fontVariant: ['tabular-nums'] }}>
+                <Text style={{ color: on ? c.link : c.ink, fontSize: 15, fontWeight: on ? '700' : '400', fontVariant: ['tabular-nums'] }}>
                   {formatSpeed(it.p.kmh, speed)}
                 </Text>
               </Press>

@@ -49,14 +49,14 @@ export function VideoCell({ d }: { d: VideoDay }) {
       <>
         {/* 장면 그림이 없거나 아직이면 옅은 하늘 판 + 필름(웹 Thumb) — 영상이 있는 날임은 늘 보인다 */}
         <View style={[StyleSheet.absoluteFill, styles.noThumb, { backgroundColor: withAlpha(c.skyTint, 0.7) }]}>
-          <Icon name="film" size={16} color={withAlpha(c.sky, 0.7)} />
+          <Icon name="film" size={16} color={withAlpha(c.link, 0.7)} />
         </View>
         {d.thumb ? <Image source={thumbSource(d.thumb)} contentFit="cover" transition={160} style={StyleSheet.absoluteFill} /> : null}
         <Shade />
         <DayNum d={d} color="#fff" ring="#fff" bold shadow />
         <Text style={[styles.cornerCount, styles.shadow]}>{d.pitches}구</Text>
         {/* 영상이 강도 색을 덮으니 밑에 강도 막대(2026-10-21 김민: 영상 올린 날만 강도가 안 보였다) — 진하기는 강도 색 칸과 같은 세 단계 */}
-        <View style={[styles.effortBar, { backgroundColor: c.sky, opacity: BAR_OPACITY[effortBand(d.effortPct)] }]} />
+        <View style={[styles.effortBar, { backgroundColor: c.action, opacity: BAR_OPACITY[effortBand(d.effortPct)] }]} />
         {d.noted ? <NoteMark color="#fff" shadow below={d.videos > 1} /> : null}
         {d.videos > 1 ? (
           <View style={styles.films}>

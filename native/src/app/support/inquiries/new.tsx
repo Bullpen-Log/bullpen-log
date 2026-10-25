@@ -82,7 +82,7 @@ export default function NewInquiryScreen() {
           accessibilityRole="button"
           onPress={submit}
           disabled={send.busy}
-          style={[s.primary, { backgroundColor: c.sky }, send.busy && { opacity: 0.5 }]}
+          style={[s.primary, { backgroundColor: c.action }, send.busy && { opacity: 0.5 }]}
         >
           <Text style={s.primaryText}>{send.busy ? '보내는 중' : '문의 보내기'}</Text>
         </Press>

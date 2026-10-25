@@ -79,16 +79,16 @@ export function DateStrip({
                 style={[
                   styles.cell,
                   selected
-                    ? { backgroundColor: c.sky, boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
+                    ? { backgroundColor: c.action, boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
                     : isToday
                       ? { borderWidth: 1.5, borderColor: c.sky }
                       : null,
                 ]}
               >
-                <Text style={{ fontSize: 11, color: selected ? 'rgba(255,255,255,0.8)' : dayNo === 1 ? c.sky : c.muted, fontWeight: dayNo === 1 ? '600' : '400' }}>
+                <Text style={{ fontSize: 11, color: selected ? 'rgba(255,255,255,0.8)' : dayNo === 1 ? c.link : c.muted, fontWeight: dayNo === 1 ? '600' : '400' }}>
                   {dayNo === 1 ? `${m}월` : weekday}
                 </Text>
-                <Text style={{ fontSize: 15, fontWeight: isToday || selected ? '700' : '600', color: selected ? '#fff' : isToday ? c.sky : c.ink, fontVariant: ['tabular-nums'] }}>
+                <Text style={{ fontSize: 15, fontWeight: isToday || selected ? '700' : '600', color: selected ? '#fff' : isToday ? c.link : c.ink, fontVariant: ['tabular-nums'] }}>
                   {dayNo}
                 </Text>
                 {mark?.(d, selected)}

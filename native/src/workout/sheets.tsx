@@ -1,3 +1,4 @@
+import { Icon } from '~/shell/icon';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ScrollLockScope } from '~/shell/scroll-lock';
 import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -167,9 +168,9 @@ export function ListSheet({
         return (
           <View key={ex.id} style={[st.listRow, { borderColor: here ? c.sky : c.line, backgroundColor: c.card }]}>
             <Press onPress={() => onJump(i)} accessibilityRole="button" style={st.listMain}>
-              <Text style={[st.listNo, { color: here ? c.sky : c.muted }]}>{i + 1}</Text>
+              <Text style={[st.listNo, { color: here ? c.link : c.muted }]}>{i + 1}</Text>
               <View style={{ flex: 1 }}>
-                <Text numberOfLines={1} style={[st.listTitle, { color: here ? c.sky : c.ink, fontWeight: here ? '700' : '500' }]}>
+                <Text numberOfLines={1} style={[st.listTitle, { color: here ? c.link : c.ink, fontWeight: here ? '700' : '500' }]}>
                   {ex.title}
                 </Text>
                 <Text numberOfLines={1} style={[st.tiny, { color: c.muted }]}>
@@ -299,12 +300,12 @@ export function FinishSheet({
         onPress={() => !off && onFinish(intensity, memo)}
         disabled={off}
         accessibilityRole="button"
-        style={({ pressed }) => [st.big, { backgroundColor: c.sky, opacity: off ? 0.4 : pressed ? 0.85 : 1 }]}
+        style={({ pressed }) => [st.big, { backgroundColor: c.action, opacity: off ? 0.4 : pressed ? 0.85 : 1 }]}
       >
         <Text style={st.bigText}>{busy ? '정리 중' : '✓ 운동 마치기'}</Text>
       </Pressable>
       <Press onPress={onClose} disabled={busy} accessibilityRole="button" style={st.textBtn}>
-        <Text style={[st.bodyBold, { color: c.sky }]}>더 하기</Text>
+        <Text style={[st.bodyBold, { color: c.link }]}>더 하기</Text>
       </Press>
     </View>
   );
@@ -388,7 +389,7 @@ export function EffortGuide({ c }: { c: Palette }) {
         accessibilityState={{ expanded: open }}
         style={st.guideHead}
       >
-        <SymbolView name="info.circle" size={14} tintColor={c.sky} />
+        <Icon name="info" size={14} color={c.link} />
         <Text style={[st.small, { flex: 1, color: c.muted }]}>{TRAINING_EFFORT_ASK}</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
       </Press>
@@ -396,14 +397,14 @@ export function EffortGuide({ c }: { c: Palette }) {
         <View style={[st.guideBody, { borderTopColor: c.line }]}>
           {TRAINING_EFFORT_LEVELS.map((l) => (
             <View key={l.range} style={{ flexDirection: 'row', gap: 12 }}>
-              <Text style={[st.small, { width: 48, color: c.sky, fontWeight: '700', fontVariant: ['tabular-nums'] }]}>{l.range}</Text>
+              <Text style={[st.small, { width: 48, color: c.link, fontWeight: '700', fontVariant: ['tabular-nums'] }]}>{l.range}</Text>
               <View style={{ flex: 1 }}>
                 <Text style={[st.small, { color: c.ink, fontWeight: '600' }]}>{l.label}</Text>
                 <Text style={[st.small, { color: c.muted }]}>{l.detail}</Text>
               </View>
             </View>
           ))}
-          <Text style={[st.small, st.guideNote, { color: c.sky, backgroundColor: c.sky + '14' }]}>
+          <Text style={[st.small, st.guideNote, { color: c.link, backgroundColor: c.action + '14' }]}>
             <Text style={{ fontWeight: '700' }}>{TRAINING_EFFORT_NOTE.strong}</Text> {TRAINING_EFFORT_NOTE.rest}
           </Text>
         </View>
@@ -632,7 +633,7 @@ export function SwapSheet({
           {matched.slice(0, limit).map((p) => row(p, kind(p)))}
           {matched.length > limit ? (
             <Press onPress={() => setLimit((n) => n + PAGE)} accessibilityRole="button" style={st.textBtn}>
-              <Text style={[st.bodyBold, { color: c.sky }]}>{matched.length - limit}개 더 보기</Text>
+              <Text style={[st.bodyBold, { color: c.link }]}>{matched.length - limit}개 더 보기</Text>
             </Press>
           ) : null}
         </>

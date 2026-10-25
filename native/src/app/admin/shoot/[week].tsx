@@ -1,3 +1,4 @@
+import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
@@ -175,13 +176,13 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
               {next ? <NowCard tag="다음" it={next} fromWeek={carriedWeek.get(next.exerciseId)} onPress={() => setOpenId(next.exerciseId)} c={c} /> : null}
             </View>
           ) : (
-            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>
+            <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>
               이 주 계획을 다 찍었어요{count.later ? ` · 미룬 것 ${count.later}개가 남아 있어요` : ''}.
             </Text>
           )}
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {(crews.length ? crews : [undefined]).map((cr) => (
-              <Pressable key={cr ?? 'all'} accessibilityRole="button" onPress={() => leaveTo(runHref(cr))} style={[s.pill, { flex: 1, minHeight: 52, backgroundColor: c.sky }]}>
+              <Pressable key={cr ?? 'all'} accessibilityRole="button" onPress={() => leaveTo(runHref(cr))} style={[s.pill, { flex: 1, minHeight: 52, backgroundColor: c.action }]}>
                 <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{cr ? `${cr} 촬영` : count.done > 0 ? '이어 찍기' : '촬영 모드로 시작'}</Text>
               </Pressable>
             ))}
@@ -221,7 +222,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
             <View key={st.warmup ? 'warmup' : st.station} style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: c.line }}>
                 <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '600' }} numberOfLines={2}>
-                  {st.crew ? <Text style={{ color: c.sky }}>{st.crew} </Text> : null}
+                  {st.crew ? <Text style={{ color: c.link }}>{st.crew} </Text> : null}
                   {st.space ? <Text style={{ color: c.muted, fontWeight: '400' }}>{st.space} · </Text> : null}
                   {st.warmup ? '몸풀기 · 가벼운 모빌리티 · 스트레칭' : st.station}
                 </Text>
@@ -286,10 +287,10 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
             }}
             style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 }}
           >
-            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>되돌리기</Text>
+            <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>되돌리기</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="알림 닫기" onPress={() => setToast(null)} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-            <SymbolView name="xmark" size={14} tintColor={c.page} />
+            <Icon name="x" size={14} color={c.page} />
           </Pressable>
         </View>
       ) : null}
@@ -300,7 +301,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
 function NowCard({ tag, it, fromWeek, onPress, strong = false, c }: { tag: string; it: PlanItem; fromWeek?: number; onPress: () => void; strong?: boolean; c: Palette }) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [{ borderRadius: 12, padding: 12, gap: 3, backgroundColor: pressed ? c.line : strong ? c.chip : c.page }]}>
-      <Text style={[s.meta, { color: strong ? c.sky : c.muted, fontWeight: '600' }]}>
+      <Text style={[s.meta, { color: strong ? c.link : c.muted, fontWeight: '600' }]}>
         {tag} · {it.no}
         {fromWeek ? ` · ${fromWeek}주차에서` : ''} · 계획 {clockText(it.at)}
       </Text>
@@ -364,7 +365,7 @@ function ItemRow({
             <Text style={{ color: state === 'done' ? c.muted : c.ink, fontSize: 15, fontWeight: '600', textDecorationLine: state === 'done' ? 'line-through' : 'none' }}>
               {it.title}
               {it.load >= 2 ? <Text style={{ color: c.warn, fontSize: 11, fontWeight: '600' }}>  높음</Text> : null}
-              {uploaded ? <Text style={{ color: c.sky, fontSize: 11, fontWeight: '600' }}>  올림</Text> : null}
+              {uploaded ? <Text style={{ color: c.link, fontSize: 11, fontWeight: '600' }}>  올림</Text> : null}
             </Text>
             <Text style={[s.meta, { color: c.muted }]} numberOfLines={1}>
               {carried ? `${it.station} · ` : ''}
@@ -374,7 +375,7 @@ function ItemRow({
           </View>
           {mark ? (
             <View style={{ borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: mark === '지금' ? c.sky : c.page }}>
-              <Text style={{ color: mark === '지금' ? '#fff' : c.sky, fontSize: 13, fontWeight: '600' }}>{mark}</Text>
+              <Text style={{ color: mark === '지금' ? '#fff' : c.link, fontSize: 13, fontWeight: '600' }}>{mark}</Text>
             </View>
           ) : state === 'redo' || state === 'later' ? (
             <StatePill state={state} c={c} />
@@ -382,7 +383,7 @@ function ItemRow({
         </Pressable>
       </View>
       {it.breakAfter && !carried ? (
-        <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600', paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 0.5, borderTopColor: c.line }}>
+        <Text style={{ color: c.link, fontSize: 13, fontWeight: '600', paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 0.5, borderTopColor: c.line }}>
           쉬기 5분 · 모델은 물 마시고 다음 운동 영상 보기
         </Text>
       ) : null}
@@ -432,7 +433,7 @@ function DetailSheet({
           </Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} hitSlop={10} style={{ minHeight: 44, justifyContent: 'center' }}>
-          <Text style={{ color: c.sky, fontSize: 17 }}>닫기</Text>
+          <Text style={{ color: c.link, fontSize: 17 }}>닫기</Text>
         </Pressable>
       </View>
       <ScrollView contentContainerStyle={[{ padding: 16, paddingTop: 4, gap: 14, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
@@ -457,7 +458,7 @@ function DetailSheet({
             {check.by ?? '누군가'} · {stampText(check.at)}
           </Text>
         ) : null}
-        <Pressable accessibilityRole="button" onPress={onRun} style={[s.pill, { backgroundColor: c.sky }]}>
+        <Pressable accessibilityRole="button" onPress={onRun} style={[s.pill, { backgroundColor: c.action }]}>
           <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{info?.uploaded ? '다시 찍기 · 촬영 모드에서' : '영상 찍기 · 촬영 모드에서'}</Text>
         </Pressable>
         <Text style={[s.meta, { color: c.muted, marginTop: -6 }]}>촬영 모드에서 카메라로 찍거나 앨범에서 골라 잘라 올려요.</Text>

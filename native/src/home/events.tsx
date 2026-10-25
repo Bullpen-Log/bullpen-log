@@ -400,7 +400,7 @@ function EventForm({
           accessibilityRole="button"
           disabled={busy || !title.trim()}
           onPress={() => void save()}
-          style={[styles.primary, { backgroundColor: c.sky }, (busy || !title.trim()) && { opacity: 0.4 }]}
+          style={[styles.primary, { backgroundColor: c.action }, (busy || !title.trim()) && { opacity: 0.4 }]}
         >
           <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>{busy ? '저장하는 중…' : event ? '저장' : '추가'}</Text>
         </Press>

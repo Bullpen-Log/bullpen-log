@@ -260,7 +260,7 @@ export function WeightTrend({
         {picked && hover != null ? (
           <>
             <Text style={[st.caption, { color: c.muted }]}>{md(picked.date)}</Text>
-            <Text style={[st.caption, { color: c.sky, fontWeight: '600' }]}>
+            <Text style={[st.caption, { color: c.link, fontWeight: '600' }]}>
               {r1(values[hover])}
               {unit}
               {dropped.has(picked.date) ? <Text style={{ color: c.muted, fontWeight: '400' }}> · 흐름 계산에서 뺀 값</Text> : null}

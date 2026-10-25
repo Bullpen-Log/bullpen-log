@@ -270,7 +270,7 @@ function Builder({ data, c }: { data: RoutineBuilderData; c: Palette }) {
         {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
         <View style={s.row}>
           <Text style={[s.small, { color: c.muted, flex: 1 }]}>{items.length === 0 ? '운동을 담아 주세요' : `${items.length}개 · 약 ${minutes}분`}</Text>
-          <Press onPress={save} disabled={busy != null} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky, opacity: busy ? 0.6 : 1 }]}>
+          <Press onPress={save} disabled={busy != null} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.action, opacity: busy ? 0.6 : 1 }]}>
             <Text style={[s.bodyBold, { color: '#fff' }]}>{busy === 'save' ? '저장하는 중…' : data.id ? '고친 것 저장' : '루틴 저장'}</Text>
           </Press>
         </View>
@@ -292,7 +292,7 @@ function PickRow({ e, inside, disabled, onToggle, c }: { e: BuilderExercise; ins
         <View style={{ flex: 1, gap: 3 }}>
           <Text style={[s.bodyBold, { color: c.ink }]}>
             {ex.title}
-            {method ? <Text style={[s.tiny, { color: c.sky, fontWeight: '600' }]}>{`  ${method}`}</Text> : null}
+            {method ? <Text style={[s.tiny, { color: c.link, fontWeight: '600' }]}>{`  ${method}`}</Text> : null}
           </Text>
           {line ? <Text style={[s.tiny, { color: c.muted }]}>{line}</Text> : null}
           {ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={2} c={c} /> : null}
@@ -303,14 +303,14 @@ function PickRow({ e, inside, disabled, onToggle, c }: { e: BuilderExercise; ins
           accessibilityRole="button"
           accessibilityState={{ selected: inside, disabled }}
           accessibilityLabel={`${ex.title} ${inside ? '빼기' : '담기'}`}
-          style={[st.pick, inside ? { backgroundColor: c.sky } : { borderWidth: 1, borderColor: c.line }, disabled && { opacity: 0.4 }]}
+          style={[st.pick, inside ? { backgroundColor: c.action } : { borderWidth: 1, borderColor: c.line }, disabled && { opacity: 0.4 }]}
         >
           <SymbolView name={inside ? 'checkmark' : 'plus'} size={12} weight="bold" tintColor={inside ? '#fff' : c.ink} />
           <Text style={[s.smallBold, { color: inside ? '#fff' : c.ink }]}>{inside ? '담김' : '담기'}</Text>
         </Press>
       </View>
       <Press onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={[st.disclose, { borderTopColor: c.line }]}>
-        <SymbolView name="info.circle" size={13} tintColor={c.muted} />
+        <Icon name="info" size={13} color={c.muted} />
         <Text style={[s.smallBold, { color: c.muted, flex: 1 }]}>자세·영상 보기</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={11} tintColor={c.muted} />
       </Press>

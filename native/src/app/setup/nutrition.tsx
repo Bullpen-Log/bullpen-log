@@ -61,7 +61,7 @@ export default function NutritionSetupScreen() {
           <>
             <Text style={{ color: c.ink, fontSize: 15 }}>신호가 약해 불러오지 못했어요.</Text>
             <Press accessibilityRole="button" onPress={() => (setFailed(false), setTries((n) => n + 1))} hitSlop={8}>
-              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
+              <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
             </Press>
           </>
         ) : (
@@ -253,8 +253,8 @@ function Wizard({ today, name, age, sex, heightCm: savedHeight, weightKg: savedW
       {current.startsWith('n:') ? <NutritionStepPanel key={current} step={current.slice(2) as NutritionStepKey} ctx={ctx} onBuilt={onBuilt} /> : null}
       {current === 'summary' ? (
         <View style={{ gap: 16 }}>
-          <View style={{ borderWidth: 1, borderColor: c.sky + '4d', backgroundColor: c.sky + '0d', borderRadius: 16, padding: 14, gap: 6 }}>
-            <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{goalLabel ?? '목표'} · 운동 없는 날</Text>
+          <View style={{ borderWidth: 1, borderColor: c.sky + '4d', backgroundColor: c.action + '0d', borderRadius: 16, padding: 14, gap: 6 }}>
+            <Text style={{ color: c.link, fontSize: 13, fontWeight: '600' }}>{goalLabel ?? '목표'} · 운동 없는 날</Text>
             <Text style={{ color: c.ink, fontSize: 30, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
               {kcalText(p.targets.base)}
               <Text style={[TYPE.unitLg, { color: c.muted }]}> kcal</Text>

@@ -102,10 +102,10 @@ function Cheer({ onClose }: { onClose: () => void }) {
             transform="rotate(-90 50 50)"
           />
         </Svg>
-        <Animated.View style={[styles.check, { backgroundColor: c.sky }, checkStyle]}>
+        <Animated.View style={[styles.check, { backgroundColor: c.action }, checkStyle]}>
           <Icon name="check" size={40} color="#fff" strokeWidth={3} />
         </Animated.View>
-        {reduce ? null : BITS.map((b, i) => <Bit key={i} {...b} color={c.sky} />)}
+        {reduce ? null : BITS.map((b, i) => <Bit key={i} {...b} color={c.link} />)}
       </View>
       <Animated.Text style={[styles.text, { color: c.ink, fontFamily: 'Pretendard' }, textStyle]}>오늘 기록을 다 남겼어요</Animated.Text>
     </Pressable>

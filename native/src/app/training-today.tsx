@@ -157,8 +157,8 @@ export default function TrainingTodayScreen() {
   const header = (
     <View style={[st.bar, { paddingTop: inset.top + 4, backgroundColor: c.page }]}>
       <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="트레이닝으로 돌아가기" style={({ pressed }) => [st.back, pressed && { opacity: 0.6 }]}>
-        <Icon name="back" size={24} color={c.sky} />
-        <Text style={{ color: c.sky, fontSize: 17 }}>트레이닝</Text>
+        <Icon name="back" size={24} color={c.link} />
+        <Text style={{ color: c.link, fontSize: 17 }}>트레이닝</Text>
       </Pressable>
     </View>
   );
@@ -171,7 +171,7 @@ export default function TrainingTodayScreen() {
         onPress={() => router.push('/training/settings' as Href)}
         style={({ pressed }) => [st.pill, { backgroundColor: c.chip }, pressed && { opacity: 0.6 }]}
       >
-        <Icon name="settings2" size={16} color={c.sky} />
+        <Icon name="settings2" size={16} color={c.link} />
         <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>설정</Text>
       </Pressable>
     </PageHead>
@@ -191,7 +191,7 @@ export default function TrainingTodayScreen() {
                   void load();
                 }}
                 accessibilityRole="button"
-                style={[s.pill, { backgroundColor: c.sky }]}
+                style={[s.pill, { backgroundColor: c.action }]}
               >
                 <Text style={[s.bodyBold, { color: '#fff' }]}>다시 불러오기</Text>
               </Press>

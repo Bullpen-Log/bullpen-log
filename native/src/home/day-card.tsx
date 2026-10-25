@@ -104,7 +104,7 @@ export function DayCards({
   const camera =
     vday && vday.n > 0 ? (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Icon name="camera" size={14} color={c.sky} />
+        <Icon name="camera" size={14} color={c.link} />
         <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>
           카메라로 잰 공 {vday.n}구 · 최고 {formatSpeed(vday.max, speed)}
           {vday.clips > 0 ? ` · 영상 ${vday.clips}개는 그날 화면에서 봐요` : ''}
@@ -136,7 +136,7 @@ export function DayCards({
       <Animated.View key={`s-${date}`} entering={cardIn} layout={layoutMove} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
         <View style={styles.head}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{agoText(date, today)}</Text>
+            <Text style={{ color: c.link, fontSize: 13, fontWeight: '600' }}>{agoText(date, today)}</Text>
             <Text accessibilityRole="header" style={[TYPE.heading, { color: c.ink, fontSize: 18, marginTop: 2 }]}>
               {spokenDay(date)}
             </Text>
@@ -196,8 +196,8 @@ export function DayCards({
             ) : null}
             {link ? (
               <Press accessibilityRole="link" onPress={() => go(link.href, onTab)} hitSlop={{ top: 6, bottom: 6 }} style={[styles.headLink, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
-                <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{link.label}</Text>
-                <Icon name="chevron-right" size={14} color={c.sky} />
+                <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>{link.label}</Text>
+                <Icon name="chevron-right" size={14} color={c.link} />
               </Press>
             ) : null}
           </View>
@@ -382,7 +382,7 @@ function NutritionDetail({ d, c }: { d: DayDetail; c: Palette }) {
                 </Text>
               </View>
               <View style={[styles.barThin, { backgroundColor: c.page }]}>
-                <View style={[styles.barFill, { width: pct(n[m.key], n.target[m.key]), backgroundColor: c.sky }]} />
+                <View style={[styles.barFill, { width: pct(n[m.key], n.target[m.key]), backgroundColor: c.action }]} />
               </View>
             </View>
           ))}
