@@ -925,7 +925,8 @@ export async function changeSessionExercise(input: {
           freezeExercise(
             /* 처음 찍은 목록과 같은 목표 · 양 조절로 — 옛 판(목표 없음)은 오늘 일정의 목표, 양 조절은 판의 것만(sessionRxBasis) */
             planPrescription(to, sessionRxBasis(plan, core.savedPlan?.goal)),
-            mode === 'replace' ? from.slot : slotForTheme(to, plan.themeKey)
+            /* 코치 운동만 있는 판('org')은 다시 열 때 새 판의 날 종류를 받아 여기 올 일이 거의 없다 — 오면 프로그램 날처럼 'lower' 칸으로 */
+            mode === 'replace' ? from.slot : slotForTheme(to, plan.themeKey === 'org' ? 'lower' : plan.themeKey)
           ),
         ],
         session.date,

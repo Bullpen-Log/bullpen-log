@@ -186,6 +186,8 @@ async function todaySession(userId: string, midnight: Date) {
     id: s.id,
     status: s.status,
     program: plan?.program ?? null,
+    /* 코치 운동만 있는 판(팀 훈련 날, lib/org/team-work.ts) — 선수가 다른 운동을 시작한 것으로 보지 않는다 */
+    org: plan?.themeKey === 'org',
     /* 그 판의 운동 — 오늘 프로그램 판이 있는 날 매일 일정이 그대로 싣는다(programTodayOf, 2판 P6-3) */
     exercises: plan?.exercises ?? [],
   };
@@ -595,7 +597,7 @@ export async function buildProgramDay(
     lastProgramDate,
     checkedIn: core.hasCheckinToday,
     /* 다른 방식이나 다른 프로그램(같은 날 바꿔 시작)으로 오늘 이미 운동했으면 기다린다 */
-    otherWorkoutStarted: session != null && session.program?.key !== row.programKey,
+    otherWorkoutStarted: session != null && !session.org && session.program?.key !== row.programKey,
     halted: core.picked.halted,
     ...throwing,
     /* 세게 던진 날 — 매일 일정(theme.ts hardOuting)과 같은 값을 오늘 상태 한 장에서(문턱은 facts.ts isHardOuting 한 곳) */

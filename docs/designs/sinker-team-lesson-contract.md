@@ -227,6 +227,11 @@ model OrgNoticeRead {
 `enteredById String?` · `orgEventId String?` · `clientKey String?`(유일)를 더한다. 확인할 것: 운동 시작이 'org' 판을 다시 열 때(`lib/workout/open-session.ts mergeReopened`) ·
 얼린 계획에 없는 운동의 세트를 화면이 보이는지 · 저절로 닫기(`close-stale.ts`)가 'org' 판을 건드리지 않는지. 트레이닝 엔진 쪽과 같이 정한다.
 
+**풀었다(2026-10-26)**: 표 칸 `UserExerciseSet.enteredById · orgEventId`(489f927a, clientKey 는 뺌 — 활동 하나의 코치 세트를 지우고 다시 넣어 저장). 규칙 `lib/org/team-work.ts`,
+저장 `lib/org/team-work-store.ts writeOrgWork`(코치 권한 · 선수 트레이닝 공유 확인은 부르는 쪽이). 세트 번호 101 부터 · 판에 붙인 코치 운동은 `fromOrg` · 코치 운동만 남은 'org' 판은
+세트가 없으면 지움 · 'org' 판을 운동 시작으로 다시 열면 새 판의 이름 · 프로그램 표시를 쓰고 코치 운동은 앞에(`mergeReopened`) · 프로그램은 'org' 판을 '다른 운동 시작'으로 안 봄.
+아직 부르는 화면은 없다 — 팀 수행일지(3단계)가 쓴다. 드릴은 세트가 아니라 따로 정한다.
+
 **다음 등판**: 엔진의 등판 짐작(`lib/engine/outing.ts`)이 확정된 `OrgOuting` 을 출처 하나로 더 읽는다. 체크인 답 · 개인 달력과 날이 다르면 덮지 않고 선수에게 묻는다.
 
 **관문 3**: 팀 한 곳 2~3주. 계획 · 참석이 부하에 안 섞임 · 확정된 등판만 다음 등판에 쓰임 · 같은 공 두 번 센 날 0.

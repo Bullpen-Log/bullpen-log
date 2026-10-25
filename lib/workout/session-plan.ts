@@ -78,6 +78,11 @@ export type FrozenExercise = {
    * 2026-10-07 에 더했다. 모든 세트가 같은 날 · 그 앞에 찍은 판에는 없다.
    */
   setTargets?: SetTarget[] | null;
+  /**
+   * 코치가 팀 · 레슨장에서 대신 남긴 운동(2026-10-26 3단계 준비, lib/org/team-work.ts) — 선수가 이 판에서 고른 운동이 아니라 코치 세트로 붙었다.
+   * 코치 세트를 지워 세트가 남지 않으면 판에서도 뺀다. 선수 운동에는 없다(undefined).
+   */
+  fromOrg?: boolean;
 };
 
 export type SetTarget = {
@@ -104,8 +109,11 @@ export type FrozenProgramSlot = {
   group?: boolean;
 };
 
+/** 판의 날 종류 — 매일 일정 · 프로그램(ThemeKey)에 더해, 코치 운동만 있는 판은 'org'(lib/org/team-work.ts ORG_THEME_KEY) */
+export type SessionThemeKey = ThemeKey | 'org';
+
 export type FrozenPlan = {
-  themeKey: ThemeKey;
+  themeKey: SessionThemeKey;
   themeLabel: string;
   /**
    * 오늘 목표(근력 향상 …) — 운동 중에 바꿔 넣는 운동도 같은 횟수로 찍으려고 둔다(goal-prescription.ts).
@@ -249,7 +257,7 @@ export function readFrozenPlan(value: unknown): FrozenPlan | null {
   /* 양 조절도 같은 까닭으로 여기서 지킨다 — 빠지면 첫 바꾸기 · 빼기 뒤 바꿔 넣는 운동만 세트가 하나 많아진다(2판 P5) */
   const volume = readPlanVolume(v.volume);
   return {
-    themeKey: v.themeKey as ThemeKey,
+    themeKey: v.themeKey as SessionThemeKey,
     themeLabel: typeof v.themeLabel === 'string' ? v.themeLabel : '오늘의 운동',
     goal: typeof v.goal === 'string' ? v.goal : null,
     exercises: v.exercises as FrozenExercise[],
@@ -325,6 +333,12 @@ export function freezeProgramExercise(
  */
 export function mergeReopened(kept: FrozenPlan | null, plan: FrozenPlan): FrozenPlan {
   if (!kept || kept.exercises.length === 0) return plan;
+  /*
+   * 코치 운동만 있던 판('org', 팀 훈련 날)을 선수가 운동 시작으로 다시 열면 — 판의 이름 · 프로그램 표시는 새로 시작하는 쪽 것으로
+   * (그대로 두면 'org' 이름이 남고 프로그램 날이 안 넘어간다), 코치 운동은 앞에 둔다(이미 세트가 있다).
+   */
+  if (kept.themeKey === 'org')
+    return { ...plan, exercises: [...kept.exercises, ...plan.exercises.filter((e) => !kept.exercises.some((k) => k.id === e.id))] };
   /*
    * 그 판에서 뺀 · 바꾼 운동(kept.swaps 의 remove · replace)은 다시 붙이지 않는다(P2). 운동 목록 시트가 '뺀 운동은
    * 오늘만 빠져요'라고 약속하는데, 일정 picks 에는 남아 있어 다시 열면 뒤에 되살아났다. 더하기(add)는 from 을 그대로

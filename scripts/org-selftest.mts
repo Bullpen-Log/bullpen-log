@@ -41,6 +41,8 @@ import { armUnknown, coachArmStatusOf } from '@/lib/org/arm-view';
 import { EVENT_STATUSES, isEventStatus, noteKey, planNotePitch } from '@/lib/org/lesson-pitch';
 import { COACH_STATUSES, PLAYER_STATUSES, cleanHomeworkItems, homeworkDose, homeworkProgress } from '@/lib/org/homework';
 import { cleanCommentBody, commentTarget, isOrgVideoPath, isOwnOrgVideoPath, isPlayerCommentKind, readAtSec } from '@/lib/org/comments';
+import { ORG_SET_BASE, ORG_THEME_KEY, cleanOrgWork, isEmptyOrgPlan, orgPlan, withOrgExercises, withoutEmptyOrgExercises } from '@/lib/org/team-work';
+import { mergeReopened, type FrozenExercise, type FrozenPlan } from '@/lib/workout/session-plan';
 import type { ReportFacts } from '@/lib/report/facts';
 
 let pass = 0;
@@ -617,6 +619,46 @@ console.log(
   check('숙제 영상은 회원이 보냄', isPlayerCommentKind('submit'));
   const notes = src('app/actions/org-notes.ts');
   check('일지를 지우면 조직 영상만 지움', notes.includes('deleteVideos(note.videoPaths.filter(isOrgVideoPath))'));
+}
+
+/* ─────────────────────── 14. 3단계 준비 — 코치 운동을 선수 하루 운동 판에 ─────────────────────── */
+
+{
+  const ex = (id: string, extra: Record<string, unknown> = {}) =>
+    ({ id, title: id, category: '하체 스트렝스', slot: 'main', prescription: null, plannedSets: 3, plannedReps: 10, plannedHoldSeconds: null, perSide: false, needsWeight: false, isHold: false, equipment: [], bodyParts: [], intensity: '보통', thumbPath: null, ...extra }) as FrozenExercise;
+  const known = new Set(['sq', 'dl']);
+  const work = cleanOrgWork(
+    [
+      { exerciseId: 'sq', sets: [{ weightKg: 60, reps: 8 }, { reps: 8 }, {}] },
+      { exerciseId: 'sq', sets: [{ reps: 6 }] },
+      { exerciseId: 'dl', sets: [{}] },
+    ],
+    known
+  );
+  check('같은 운동은 한 줄로 · 빈 세트 · 세트 없는 운동은 뺌', !('error' in work) && work.length === 1 && work[0].sets.length === 3);
+  check('라이브러리에 없는 운동은 막음(세트는 운동 목록을 가리킨다)', 'error' in cleanOrgWork([{ exerciseId: 'zz', sets: [{ reps: 5 }] }], known));
+  check('한 운동 세트 열 개 넘으면 막음', 'error' in cleanOrgWork([{ exerciseId: 'sq', sets: Array.from({ length: 11 }, () => ({ reps: 5 })) }], known));
+  check('코치 세트 번호는 101 부터', ORG_SET_BASE === 100);
+  const op = orgPlan([ex('sq')]);
+  check("코치 운동만 있는 판은 'org' · 운동마다 fromOrg", op.themeKey === ORG_THEME_KEY && op.exercises.every((e) => e.fromOrg));
+  const daily = { themeKey: 'lower', themeLabel: '하체', goal: null, exercises: [ex('sq'), ex('lunge')] } as FrozenPlan;
+  const merged = withOrgExercises(daily, [ex('sq'), ex('dl')]);
+  check('선수 판에 붙이면 없는 운동만 뒤에 fromOrg', merged.exercises.map((e) => e.id).join() === 'sq,lunge,dl' && merged.exercises[2].fromOrg === true && !merged.exercises[0].fromOrg);
+  check('붙일 게 없으면 같은 판', withOrgExercises(daily, [ex('sq')]) === daily);
+  const dropped = withoutEmptyOrgExercises(merged, new Set(['sq']));
+  check('세트가 안 남은 코치 운동만 판에서 뺌(선수 운동은 그대로)', dropped.dropped.join() === 'dl' && dropped.plan.exercises.map((e) => e.id).join() === 'sq,lunge');
+  check("코치 운동이 다 빠진 'org' 판은 비었다", isEmptyOrgPlan(withoutEmptyOrgExercises(op, new Set()).plan) && !isEmptyOrgPlan(daily));
+  /* 선수가 나중에 운동을 시작하면 — 판 이름 · 프로그램 표시는 새 판 것, 코치 운동은 앞에 */
+  const program = { themeKey: 'lower', themeLabel: '프로그램 · 2번 세션', goal: null, program: { key: '531', day: 2, week: 1, gapDays: 2 }, exercises: [ex('dl'), ex('sq')] } as unknown as FrozenPlan;
+  const reopened = mergeReopened(op, program);
+  check("'org' 판을 다시 열면 새 판의 이름 · 프로그램 표시", reopened.themeKey === 'lower' && reopened.program?.key === '531' && reopened.themeLabel === '프로그램 · 2번 세션');
+  check('코치 운동은 앞에 · 같은 운동은 한 번', reopened.exercises.map((e) => e.id).join() === 'sq,dl');
+  check('선수 판 다시 열기는 예전 그대로(앞 판 이름 유지)', mergeReopened(daily, program).themeKey === 'lower' && mergeReopened(daily, program).themeLabel === '하체');
+  const store = src('lib/org/team-work-store.ts');
+  check('한 활동의 코치 세트는 통째로 지우고 다시 넣음', store.includes('deleteMany({ where: { sessionId: id, orgEventId: a.orgEventId } })'));
+  check('세트를 바꾼 뒤 요약은 세트에서 다시 셈(summaryWrites)', store.includes('summaryWrites(a.userId'));
+  check('프로그램이 org 판을 다른 운동 시작으로 안 봄', src('lib/program/load.ts').includes('!session.org && session.program?.key !== row.programKey'));
+  check("저절로 닫기는 진행 중인 판만(마친 'org' 판은 안 건드림)", src('lib/workout/close-stale.ts').includes("status: 'ACTIVE', date: { lt: dayStart(now) }"));
 }
 
 console.log(
