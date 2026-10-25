@@ -346,6 +346,22 @@ function run(name: string, sc: Scene, tolRel: number) {
         Math.abs(near.measure.kmh / want - 1) <= 0.01,
       `자동 거리 깨끗한 공은 높음(고른 20m) — ${near.measure.ok ? `${near.measure.kmh}km/h · ${near.measure.confidence}` : '-'} · 판정 전 ${near.distance.preSize?.confidence} · 까닭 ${near.distance.why ?? '없음'}`
     );
+    /* 2.9.0 — 고른 거리로 값(chosenDistance): 값은 고른 거리 그대로, 공 크기 거리 · 그 값은 견주기용, 문은 모은 공 크기 거리로 */
+    const chosen = analyzeByDistance({ frames, width: W, height: H, sourceWidth: 1080, sourceHeight: 1920, focalPx: (F * 1080) / W, distanceM: 20, tiltRad: (sc.tiltDeg * Math.PI) / 180, fps: FPS, autoDistance: true, chosenDistance: true });
+    check(
+      chosen.measure.ok &&
+        chosen.measure.confidence === 'high' &&
+        Math.abs(chosen.measure.kmh / m.kmh - 1) <= 0.005 &&
+        Math.abs((chosen.distance.kmhAtSize ?? 0) / want - 1) <= 0.01 &&
+        Math.abs((chosen.distance.sizeDistM ?? 0) - autoD) <= 0.3 &&
+        chosen.distance.kmhAtInput === chosen.measure.kmh,
+      `고른 거리 값 — 고른 20m 면 ${chosen.measure.ok ? `${chosen.measure.kmh}km/h · ${chosen.measure.confidence}` : chosen.measure.code}(넣은 거리 값 ${m.kmh}) · 공 크기 ${chosen.distance.sizeDistM}m 값 ${chosen.distance.kmhAtSize}(기대 ${want.toFixed(1)})`
+    );
+    const chosenFar = analyzeByDistance({ frames, width: W, height: H, sourceWidth: 1080, sourceHeight: 1920, focalPx: (F * 1080) / W, distanceM: 15, tiltRad: (sc.tiltDeg * Math.PI) / 180, fps: FPS, autoDistance: true, chosenDistance: true });
+    check(
+      chosenFar.measure.ok && chosenFar.measure.confidence === 'low' && chosenFar.distance.why === 'size-mismatch' && chosenFar.distance.distanceM === 15,
+      `고른 거리 값 — 고른 15m(공 크기 ${chosenFar.distance.sizeDistM}m)면 ${chosenFar.measure.ok ? chosenFar.measure.confidence : '-'} · ${chosenFar.distance.why ?? '까닭 없음'} · 거리 ${chosenFar.distance.distanceM}m`
+    );
     /* 첫 어림 거리에 매이지 않는다 — 10 ~ 40m 어디서 시작해도 같은 값(공 크기 거리와 맞춘 거리가 맞을 때까지 다시 맞춤, 2.8.0) */
     const byGuess = [10, 14, 20, 26, 30, 40].map((guess) => {
       const g = analyzeByDistance({ frames, width: W, height: H, sourceWidth: 1080, sourceHeight: 1920, focalPx: (F * 1080) / W, distanceM: guess, tiltRad: (sc.tiltDeg * Math.PI) / 180, fps: FPS, autoDistance: true });

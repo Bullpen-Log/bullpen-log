@@ -81,6 +81,12 @@ export type DistanceInput = {
    * 찾은 공의 지름으로 거리를 다시 정해 궤적을 한 번 더 맞춘다(공 찾기는 다시 안 한다). 공이 8장 넘게 안 잡히면 distanceM 그대로.
    */
   autoDistance?: boolean;
+  /**
+   * 사용자가 고른 거리로 값을 낸다(2.9.0, 새 앱 — PitchLab 방식, PLAN-pitchlab.md). autoDistance 와 같이 켜면 공 크기 거리는 문으로만 쓴다: 고른 거리(distanceM)와
+   * 15% 넘게 다르면 거리 오류('낮음' · size-mismatch), 안이면 고른 거리로 맞춘 값. 공 크기 거리로 낸 값은 kmhAtSize 에 싣는다.
+   * 덩어리 크기는 빠른 공일수록 번져 거리가 짧게(120km/h 넘는 공 −8 ~ −16%) 잡혀 값이 낮았다 — 고른 거리 값은 구속과 상관없이 비율이 일정하다.
+   */
+  chosenDistance?: boolean;
   /** 흔들림을 바로잡나(기본 켬) — 끄면 받은 장면 그대로(시험 · 견주기용) */
   stabilize?: boolean;
   /**
@@ -247,6 +253,8 @@ export type DistanceReport = {
   limbWhy?: string;
   /** 거리 자동일 때 사용자가 고른 거리(inputDistM)로 낸 구속(km/h, 2.8.2) — 현장에서 공 크기 거리와 어느 쪽이 스피드건에 맞는지 견준다 */
   kmhAtInput?: number;
+  /** 고른 거리로 값을 낼 때(chosenDistance, 2.9.0) 공 크기 거리로 낸 구속(km/h) — 견주기용. 그때 sizeDistM 은 다시 맞춰 모은 공 크기 거리다 */
+  kmhAtSize?: number;
   timingMs: number;
 };
 
@@ -1034,12 +1042,20 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
       out = finish(again, true);
     }
     /* 판정 전 값 · 까닭을 이 맞춤으로(견줄 기준 거리는 없다) — 첫 맞춤의 것이 남으면 세션 다시 판정이나 화면 까닭이 엉뚱해진다 */
+    if (out.measure.ok && input.chosenDistance) {
+      /* 고른 거리로 다시 맞춘다(2.9.0) — 공 크기 거리 · 그 값은 견주기용으로 싣고, 문은 모은 공 크기 거리로 */
+      const sizeD = report.distanceM;
+      const sizeKmh = out.measure.kmh;
+      out = finish(D, true);
+      report.sizeDistM = sizeD;
+      report.kmhAtSize = sizeKmh;
+    }
     if (out.measure.ok) {
       report.preSize = { confidence: out.measure.confidence, errorKmh: out.measure.errorKmh, why: report.why ?? null };
       judgeSize(out, null);
-      gateAuto(out, D);
+      gateAuto(out, D, input.chosenDistance ? report.sizeDistM : report.distanceM);
     }
-  } else if (input.autoDistance && out.measure.ok) {
+  } else if (input.autoDistance && !input.chosenDistance && out.measure.ok) {
     /*
      * 공 크기 거리를 못 냈다(크기를 잰 장면 8장 밑 · 3~60m 밖) — 거리를 모른 채 넣은 거리로 잰 값이라 믿지 않는다(2.8.0). 판정 전 값도 '낮음'으로 둬
      * 세션 다시 판정(rejudgeSize)이 첫 맞춤의 '높음'을 되살리지 않게. 이미 '낮음'인 까닭(속력 흔들림 등)이 있으면 그것을 둔다.
@@ -1052,16 +1068,16 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
 }
 
 /**
- * 거리 자동의 문(2.8.2, 2026-10-25 김민 "15% 넘으면 거리 오류로 측정 불가, 그 안은 거리를 감안해서") — 공 크기 거리가 사용자가 고른 거리(D)와 15% 넘게
- * 다르면 '낮음' · size-mismatch(화면이 측정 불가), 안이면 공 크기 거리로 잰 값 그대로. 고른 거리로 낸 구속도 싣는다(kmhAtInput).
- * 받아 둔 현장 29구(10-24 시험대): 고른 거리만 ±3 안 3% · 이 문 56%(정밀 크기) — 고른 거리가 '공이 멈추는 곳'이면 고른 쪽이 나을 수 있어 둘 다 남긴다.
+ * 거리 자동의 문(2.8.2, 2026-10-25 김민 "15% 넘으면 거리 오류로 측정 불가") — 공 크기 거리(sizeD)가 사용자가 고른 거리(D)와 15% 넘게 다르면 '낮음' ·
+ * size-mismatch(화면이 측정 불가). 고른 거리로 낸 구속을 싣는다(kmhAtInput — 고른 거리로 값을 내면(2.9.0) 그 값 그대로).
+ * 덩어리 크기 거리는 빠른 공에서 −8 ~ −16% 짧아(10-24 시험대, 고른 거리가 맞을 때 120km/h 넘는 7구 중 15% 넘음 1 · 10% 넘음 3) 문을 15% 로 둔다.
  */
-function gateAuto(out: DistanceResult, D: number) {
+function gateAuto(out: DistanceResult, D: number, sizeD: number | null) {
   const m = out.measure;
   const report = out.distance;
-  if (!m.ok || !(D > 0) || !(report.distanceM > 0)) return;
+  if (!m.ok || !(D > 0) || !(report.distanceM > 0) || !(sizeD != null && sizeD > 0)) return;
   report.kmhAtInput = round1(m.kmh * (D / report.distanceM) ** SPEED_DISTANCE_EXPONENT);
-  const off = Math.abs(report.distanceM / D - 1);
+  const off = Math.abs(sizeD / D - 1);
   if (off <= INPUT_SIZE_MISMATCH) return;
   m.confidence = 'low';
   m.errorKmh = Math.max(m.errorKmh, round1(m.kmh * off));

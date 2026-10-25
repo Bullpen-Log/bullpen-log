@@ -474,6 +474,7 @@ export class AppCapture {
       releaseDistanceM: s.releaseDistanceM,
       distanceM: s.distanceM,
       distanceAuto: s.distanceAuto,
+      distanceChosen: s.distanceChosen,
       tiltRad: s.tiltRad,
     };
     job.analyzing = true;

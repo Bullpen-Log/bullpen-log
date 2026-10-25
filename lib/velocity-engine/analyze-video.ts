@@ -149,6 +149,8 @@ export type AnalyzeOptions = {
   onBall?: () => void;
   /** 거리를 공 크기로 어림한다(analyze-distance autoDistance) — distanceM 은 첫 어림 */
   distanceAuto?: boolean;
+  /** 고른 거리로 값을 내고 공 크기는 15% 문으로만(analyze-distance chosenDistance, 2.9.0 — 새 앱) */
+  distanceChosen?: boolean;
   /**
    * 장면마다 공 감지 모델 봉우리(영상 시각 · 세운 화면 비율 0~1, 지름은 화면 폭 비율) — 있으면 거리 엔진이 공 길 안내로 쓴다(analyze-distance netHits).
    * 앱은 폰 안 모델(CoreML)이, 시험대는 같은 모델을 미리 돌려 넘긴다.
@@ -739,6 +741,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
               autoDistance:
                 (options.distanceAuto ?? false) &&
                 (options.fovKnown ?? (videoFovInfo(lensInfo) != null || !!focalPerLongSide)),
+              chosenDistance: options.distanceChosen ?? false,
             })
           : analyzeFrames(input);
         timing.analyzeMs += now() - a0;

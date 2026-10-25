@@ -124,6 +124,7 @@ export function analysisOf(
           sizeDistM: dist.sizeDistM,
           sizeRefM: dist.sizeRefM,
           kmhAtInput: dist.kmhAtInput,
+          kmhAtSize: dist.kmhAtSize,
           distanceSource: dist.distanceSource,
           tiltRad: Math.round(dist.tiltRad * 10000) / 10000,
           impact: dist.impact,

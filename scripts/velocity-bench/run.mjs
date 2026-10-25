@@ -7,7 +7,8 @@
  *   … --check-repeat=<앞 결과.json>                                  같은 엔진 두 번 — 시각 칸 빼고 같은지(시험대 자신의 시험)
  *
  * 공마다 길(--modes, 기본 app,true):
- *   app    — 앱 그대로: 넣은 거리(줄자 세션이면 그 값, 아니면 20m) · 줄자 아니면 공 크기 자동 거리 · 공 시각 둘레 BALL_RANGE · 숙임 0.035
+ *   app    — 앱 그대로: 넣은 거리(줄자 세션이면 그 값, 아니면 20m) · 줄자 아니면 그 거리로 값을 내고 공 크기는 15% 문으로만(엔진 2.9.0 chosenDistance) ·
+ *            공 시각 둘레 BALL_RANGE · 숙임 0.035
  *   true   — 실제 거리(폰 → 받는 면)를 넣고 자동 끔 — PitchLab 처럼 거리를 고른 경우. 실제 거리를 모르는 묶음은 건너뜀
  *   true±5 — 실제 거리 ±5%(사용자가 어림한 경우)
  * app 길에는 앱 화면 규칙(app-rules.mjs — 기록할 공 · 세션 거리)을 묶음마다 걸어 shown(화면 값, 기록 안 되면 null)을 싣는다.
@@ -40,7 +41,7 @@ const jsonOut = argOf('json', '');
 
 
 const MODES = {
-  app: (b) => ({ distanceM: b.inputDistM, distanceAuto: !b.tape }),
+  app: (b) => ({ distanceM: b.inputDistM, distanceAuto: !b.tape, distanceChosen: !b.tape }),
   true: (b) => b.trueDistM && { distanceM: b.trueDistM, distanceAuto: false },
   /* 기준 20m 고정(공 크기 자동 끔) — 실제 거리를 모르는 묶음에서 정밀 크기 거리 · 스피드건에 맞는 거리를 견줄 때 */
   base: () => ({ distanceM: 20, distanceAuto: false }),
@@ -83,14 +84,14 @@ async function measure(b, opt) {
     const range = seed != null ? { startSec: Math.max(0, seed - ${BALL_RANGE[0]}), endSec: seed + ${BALL_RANGE[1]}, seedT: seed } : {};
     const t0 = performance.now();
     try {
-      const res = await AV.analyzeVideo({ file, ...range, fps: 60, fovDeg: fov, approach: 'receding', distanceM: ${opt.distanceM}, distanceAuto: ${opt.distanceAuto}, fovKnown: ${b.fov != null ? 'true' : 'undefined'}, tiltRad: ${TILT}, limbDistance: true, netHits: ${JSON.stringify(netById?.get(b.id) ?? null)} });
+      const res = await AV.analyzeVideo({ file, ...range, fps: 60, fovDeg: fov, approach: 'receding', distanceM: ${opt.distanceM}, distanceAuto: ${opt.distanceAuto}, distanceChosen: ${opt.distanceChosen ?? false}, fovKnown: ${b.fov != null ? 'true' : 'undefined'}, tiltRad: ${TILT}, limbDistance: true, netHits: ${JSON.stringify(netById?.get(b.id) ?? null)} });
       const m = res.measure, d = res.distance ?? {};
       const path = d.path ?? [];
       return { ok: m.ok, code: m.ok ? null : m.code, kmh: m.ok ? m.kmh : null, conf: m.ok ? m.confidence : null, frames: m.ok ? m.detail.frames : null,
         preConf: d.preSize?.confidence ?? null, why: d.why ?? null, size: d.sizeDistM ?? null, slope: d.sizeSlope ?? null, ext: d.extended ?? 0,
         impact: d.impact ?? null, te: d.te ?? null, tStart: path.length ? path[0][0] : null, flight: d.flightFrames ?? null, rms: d.rmsPx ?? null,
         stab: !!d.stabilized, shaky: !!d.shaky, first: d.firstDepthM ?? null, endSize: d.endSizeRatio ?? null, source: d.distanceSource ?? null,
-        usedDist: d.distanceM ?? null, guided: !!d.guided, limb: d.limbDistM ?? null, limbN: d.limbFrames ?? null, limbSig: d.limbSigma ?? null, limbWhy: d.limbWhy ?? null, fov, ms: Math.round(performance.now() - t0) };
+        usedDist: d.distanceM ?? null, guided: !!d.guided, limb: d.limbDistM ?? null, limbN: d.limbFrames ?? null, limbSig: d.limbSigma ?? null, limbWhy: d.limbWhy ?? null, atSize: d.kmhAtSize ?? null, sizeDist: d.sizeDistM ?? null, fov, ms: Math.round(performance.now() - t0) };
     } catch (e) { return { ok: false, error: String(e?.message ?? e), ms: Math.round(performance.now() - t0) }; }
   })()`);
 }

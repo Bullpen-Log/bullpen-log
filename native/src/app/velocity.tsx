@@ -86,6 +86,8 @@ const SETTINGS: Omit<MeasureSettings, 'tiltRad' | 'distanceM' | 'distanceAuto'> 
   approach: 'receding',
   focalPerLongSide: null,
   releaseDistanceM: null,
+  /* 값은 고른 거리로, 공 크기는 15% 문으로만(엔진 2.9.0 — 빠른 공일수록 공 크기 거리가 짧아 값이 낮았다, PLAN-pitchlab.md) */
+  distanceChosen: true,
   /* 앱이 화각을 못 주면 — 15 Pro Max 2배 · 손떨림 보정의 긴 변 화각(실험대 38.3°) */
   fallbackFovDeg: 38.3,
 };
