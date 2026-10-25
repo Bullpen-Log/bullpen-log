@@ -78,8 +78,7 @@ export async function workoutCardData(user: HomeUser, today: Date): Promise<Trai
     }),
     PROGRAMS_ENABLED ? activeProgram(user.id) : Promise.resolve(null),
   ]);
-  const programRow =
-    PROGRAMS_ENABLED && core.closedSessions > 0 ? await activeProgram(user.id) : programFirst;
+  const programRow = PROGRAMS_ENABLED && core.closedSessions > 0 ? await activeProgram(user.id) : programFirst;
   const count = core.shownPicks.length;
 
   if (session?.status === 'FINISHED') return card('today', '오늘 운동을 마쳤어요', { tone: 'done' });
@@ -190,6 +189,19 @@ export async function mechanicsCardData(userId: string): Promise<TrainingCard> {
   const completed = program.week == null && !rx;
   const bars = { index: program.index, total: program.total, label: `${level.name} ${program.total}번 중 ${program.index}번 마침` };
 
+  if (program.canFinalize)
+    return card('mechanics', '필수 드릴 수행을 저장했어요. 세션 완료를 확인해 주세요.', {
+      action: { kind: 'link', href: '/mechanics/play', label: '완료 확인' },
+      bars,
+      throwNote,
+    });
+  if (program.blockers.length)
+    return card('mechanics', program.blockers[0], {
+      tone: 'warn',
+      action: { kind: 'link', href: '/training?view=mechanics', label: '필수 드릴·장비 확인' },
+      bars,
+      throwNote,
+    });
   const fold = painFold && !completed && !program.finishedToday ? painFold : null;
   const { open } = foldSession(session, fold);
   if (fold) {
@@ -222,7 +234,9 @@ export async function mechanicsCardData(userId: string): Promise<TrainingCard> {
       : program.finishedToday
         ? '오늘 세션을 마쳤어요'
         : rx
-          ? `처방 ${rx.done + 1}/${rx.total} · ${rx.rx[0].element} · 드릴 ${session.length}개`
+          ? rx.skill
+            ? `${rx.stage} 연습 · ${rx.rx[0].element} · 드릴 ${session.length}개`
+            : `처방 ${rx.done + 1}/${rx.total} · ${rx.rx[0].element} · 드릴 ${session.length}개`
           : `${level.name} ${program.index + 1}번 세션 · 드릴 ${session.length}개 · 15~20분`,
     {
       tone: program.finishedToday || completed ? 'done' : 'normal',

@@ -19,6 +19,7 @@ type PlayUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
 /** 따라 하기 화면(MechanicsPlayer)이 받는 것 그대로 */
 export type MechanicsPlay = {
+  requirementsVersion: 1;
   backHref: string;
   items: SessionDrillView[];
   startAt: number;
@@ -30,7 +31,7 @@ export type MechanicsPlay = {
   partial: boolean;
   painLabel: string | null;
   /** 3D 리포트 처방 중이면 이번이 몇 번째 처방 세션인가 — 끝 화면 '처방 5 / 9 마쳤어요'. 아니면 null */
-  focus: { number: number; total: number } | null;
+  focus: { number: number; total: number; label?: string } | null;
 };
 
 /**
@@ -46,7 +47,7 @@ export async function loadMechanicsPlay(
   user: PlayUser,
   anywayParam: unknown
 ): Promise<({ ok: true } & MechanicsPlay) | { ok: false; to: string }> {
-  const { program, session, doneToday, painFold } = await loadMechanicsProgram(user.id);
+  const { program, session, painFold } = await loadMechanicsProgram(user.id);
   if (!program || session.length === 0) return { ok: false, to: MECHANICS_BACK };
 
   /*
@@ -54,11 +55,14 @@ export async function loadMechanicsPlay(
    * lib/mechanics/fold.ts — 등판 보호 · 안전 층은 '그래도 하기'로 못 넘긴다).
    */
   const anyway = anywayParam === '1' && painFold?.canUnfold !== false;
-  const savedAll = session.every((item) => doneToday.includes(item.guideId));
+  const savedAll = program.canFinalize;
+  if (program.blockers.length > 0 && !savedAll) return { ok: false, to: MECHANICS_BACK };
   if (!savedAll && playItemsFor(session, painFold, anyway).items.length === 0) return { ok: false, to: MECHANICS_BACK };
   const attempt = await openMechanicsAttempt(user.id, program.planKey, session);
   if (!attempt) return { ok: false, to: MECHANICS_BACK };
-  const allRecorded = attempt.items.every((item) => item.alternatives.some((a) => a.variants.some((v) => attempt.doneIds.includes(v.id))));
+  const required = attempt.items.filter((item) => item.required !== false);
+  const allRecorded =
+    required.length > 0 && required.every((item) => item.alternatives.some((a) => a.variants.some((v) => attempt.doneIds.includes(v.id))));
   // 이미 수행한 세션의 완료 응답만 잃은 경우, 부하 제한 중에도 완료 확인은 열어 준다.
   const { items, partial } = allRecorded ? { items: attempt.items, partial: false } : playItemsFor(attempt.items, painFold, anyway);
   if (items.length === 0) return { ok: false, to: MECHANICS_BACK };
@@ -70,12 +74,15 @@ export async function loadMechanicsPlay(
 
   return {
     ok: true,
+    requirementsVersion: 1,
     backHref: MECHANICS_BACK,
     items,
     startAt: resumeAt(items, done),
     label:
       program.focus && !program.focus.finished
-        ? `처방 ${program.focus.done + 1}/${program.focus.total}`
+        ? program.focus.skill
+          ? `${program.focus.stage} 연습 ${program.focus.done + 1}회`
+          : `처방 ${program.focus.done + 1}/${program.focus.total}`
         : program.level && program.week
           ? `${mechanicsLevel(program.level).name} ${program.index + 1}번 세션`
           : `${program.sessionsDone + 1}번째 세션`,
@@ -85,6 +92,13 @@ export async function loadMechanicsPlay(
     isAdmin: user.role === 'ADMIN',
     partial,
     painLabel: painFold && anyway ? painFold.label : null,
-    focus: program.focus && !program.focus.finished ? { number: program.focus.done + 1, total: program.focus.total } : null,
+    focus:
+      program.focus && !program.focus.finished
+        ? {
+            number: program.focus.done + 1,
+            total: program.focus.total,
+            ...(program.focus.skill ? { label: `${program.focus.stage} 연습` } : {}),
+          }
+        : null,
   };
 }

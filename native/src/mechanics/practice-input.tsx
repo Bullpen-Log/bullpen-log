@@ -2,6 +2,7 @@ import { Text, TextInput, View } from 'react-native';
 import type { Palette } from '~/lib/ui';
 import { Press } from '~/shell/press';
 
+import type { SkillAnswer } from '@/lib/mechanics/progression';
 import { isThrowingDrill } from '@/lib/mechanics/program';
 
 export type PracticeForm = {
@@ -10,6 +11,8 @@ export type PracticeForm = {
   effort: string;
   response: 'clear' | 'pain' | null;
   alreadyLogged: boolean;
+  quality: SkillAnswer | null;
+  transferred: SkillAnswer | null;
 };
 export const emptyPractice = (): PracticeForm => ({
   requestId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
@@ -17,16 +20,20 @@ export const emptyPractice = (): PracticeForm => ({
   effort: '',
   response: null,
   alreadyLogged: false,
+  quality: null,
+  transferred: null,
 });
 
 export function PracticeInput({
   value,
   category,
+  skill,
   onChange,
   c,
 }: {
   value: PracticeForm;
   category: string;
+  skill?: { cue: string; requiresTransfer: boolean };
   onChange: (v: PracticeForm) => void;
   c: Palette;
 }) {
@@ -87,6 +94,35 @@ export function PracticeInput({
           </Press>
         ))}
       </View>
+      {skill ? (
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: c.ink, fontWeight: '600' }}>필수 교정 · 자가 확인</Text>
+          <Text style={{ color: c.muted }}>동작 목표: {skill.cue}</Text>
+          {(
+            [
+              { key: 'quality', label: '동작 목표를 유지했나요?' },
+              ...(skill.requiresTransfer ? [{ key: 'transferred', label: '실제 캐치볼에서도 같은 신호를 유지했나요?' }] : []),
+            ] as { key: 'quality' | 'transferred'; label: string }[]
+          ).map((q) => (
+            <View key={q.key} style={{ gap: 6 }}>
+              <Text style={{ color: c.ink }}>{q.label}</Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {(['yes', 'no', 'unknown'] as const).map((v) => (
+                  <Press
+                    key={v}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: value[q.key] === v }}
+                    onPress={() => onChange({ ...value, [q.key]: v })}
+                    style={{ ...field, flex: 1, backgroundColor: value[q.key] === v ? c.sky + '20' : c.card }}
+                  >
+                    <Text style={{ color: c.ink }}>{v === 'yes' ? '유지했어요' : v === 'no' ? '어려웠어요' : '확인 못 했어요'}</Text>
+                  </Press>
+                ))}
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
       {throwing ? (
         <Press
           accessibilityRole="checkbox"

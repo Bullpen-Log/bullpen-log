@@ -3,18 +3,36 @@
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import {
+  newProgression,
+  skillStage,
+  skillFeedback,
+  saveNextDay,
+  advanceSkill,
+  skillPainToday,
+  skillFinished,
+  type SkillEvidence,
+} from '@/lib/mechanics/progression';
+import { DRILL_EQUIPMENT } from '@/lib/exercise-meta';
+import { REPORT_CRITERIA } from '@/lib/pitch-3d/v2/report-policy';
+import { groupDrills } from '@/lib/mechanics/drills';
 import { effortFields } from '@/lib/pitch-effort';
 import { withMechanicsTransaction, mechanicsPlanKey } from '@/lib/mechanics/store';
 import { requireUser } from '@/lib/dal';
-import { visibleGuides } from '@/lib/library-cache';
+import { visibleGuides, trainingGuides } from '@/lib/library-cache';
 import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
 import { isLevelKey } from '@/lib/mechanics/levels';
-import { loadCurrentMechanicsFold, loadMechanicsProgram } from '@/lib/mechanics/load';
+import { loadCurrentMechanicsFold, loadMechanicsEquipment, loadMechanicsProgram } from '@/lib/mechanics/load';
 import { loadFocusOffer } from '@/lib/mechanics/focus-load';
 import {
   countFeel,
+  canUseVariant,
+  focusWeek,
+  focusActive,
+  assessMechanicsSession,
+  rxWeek,
   finishState,
   freshState,
   isElementName,
@@ -60,6 +78,7 @@ export async function startMechanicsProgram(level: string): Promise<Result> {
     const progress = asJson(
       programStateJson({
         ...freshState(level),
+        ...(prevState?.gear ? { gear: prevState.gear } : {}),
         films: prevState?.films ?? [],
         practice: prevState?.practice ?? [],
         /* 오늘 드릴로 던진 공 알림도 지킨다 — 같은 날 수준을 바꿔도 남길 공은 그대로 */
@@ -108,6 +127,7 @@ export async function startMechanicsFocus(input: { reportId: string; level?: str
         ...base,
         attempt: null,
         focus: {
+          progression: newProgression(randomUUID(), offer.rx),
           criteria: offer.criteria,
           reportId: offer.reportId,
           jobId: offer.jobId,
@@ -223,6 +243,7 @@ export async function recordMechanicsDrill(input: {
   practice?: unknown;
   attemptId?: string;
   requestId?: string;
+  skill?: unknown;
 }): Promise<{ ok: true; stopReason?: string } | { error: string }> {
   const user = await requireUser();
   const current = await loadMechanicsProgram(user.id);
@@ -239,7 +260,9 @@ export async function recordMechanicsDrill(input: {
   if (typeof input.requestId !== 'string' || !input.requestId || input.requestId.length > 100)
     return { error: '앱을 업데이트한 뒤 세션을 다시 열어 주세요.' };
   const requestId = input.requestId;
-  const fingerprint = createHash('sha256').update(JSON.stringify([guideId, element, feel, actual])).digest('hex');
+  const fingerprint = createHash('sha256')
+    .update(JSON.stringify([guideId, element, feel, actual, input.skill ?? null]))
+    .digest('hex');
   return withMechanicsTransaction(user.id, async (prisma) => {
     const program = await prisma.mechanicsProgram.findUnique({
       where: { userId: user.id },
@@ -259,6 +282,7 @@ export async function recordMechanicsDrill(input: {
     if (
       !input.attemptId ||
       !attempt ||
+      attempt.requirementsVersion !== 1 ||
       attempt.id !== input.attemptId ||
       attempt.on !== today ||
       attempt.completed ||
@@ -267,12 +291,20 @@ export async function recordMechanicsDrill(input: {
       return {
         error: '세션을 다시 열어 주세요. 이전 화면에서는 새 기록을 저장할 수 없어요.',
       };
-    const assigned = attempt.items.some((item) => item.alternatives.some((a) => a.variants.some((v) => v.id === guideId && v.owned)));
+    const assigned = attempt.items.find((item) => item.alternatives.some((a) => a.variants.some((v) => v.id === guideId)));
+    const feedback = skillFeedback(input.skill);
+    if (assigned?.skill && !feedback) return { error: '동작 목표와 실제 투구 전이를 자가 확인해 주세요.' };
+    const equipment = await loadMechanicsEquipment(user.id, prisma, read);
+    if (!canUseVariant(guide, equipment)) return { error: '이 드릴의 사용 장비가 바뀌었어요. 장비를 확인한 뒤 다시 열어 주세요.' };
     if (!assigned) return { error: '이 세션에 배정된 드릴을 선택해 주세요.' };
     const restriction = (await loadCurrentMechanicsFold(user.id, prisma)) ?? current.painFold;
     if (isArmLoaded(guide.category)) {
       if (restriction) return { error: restriction.reason };
-      if (read.practice?.some((p) => p.on === today && p.response === 'pain'))
+      if (
+        read.practice?.some((p) => p.on === today && p.response === 'pain') ||
+        (read.attempt?.on === today && !!read.attempt.painGuideIds?.length) ||
+        skillPainToday(read.focus?.progression, today)
+      )
         return {
           error: '오늘 드릴 중 통증을 기록했어요. 팔에 부하를 주는 드릴은 쉬어요.',
         };
@@ -303,7 +335,20 @@ export async function recordMechanicsDrill(input: {
     const next = {
       ...state,
       practice,
-      attempt: { ...attempt, doneIds: [...new Set([...attempt.doneIds, guideId])], receipts: [...(attempt.receipts ?? []), { id: requestId, fingerprint }] },
+      attempt: {
+        ...attempt,
+        ...(assigned?.skill && feedback
+          ? {
+              skillFeedback: {
+                ...attempt.skillFeedback,
+                [guideId]: { ...feedback, quality: feel === 'hard' ? ('no' as const) : feedback.quality },
+              },
+            }
+          : {}),
+        painGuideIds: [...new Set([...(attempt.painGuideIds ?? []), ...(actual?.response === 'pain' ? [guideId] : [])])],
+        doneIds: [...new Set([...attempt.doneIds, guideId])],
+        receipts: [...(attempt.receipts ?? []), { id: requestId, fingerprint }],
+      },
       feels: countFeel(state.feels, element, feel, today),
     };
     // 날짜·드릴의 합계 하나. 재시도해도 새 투구 기록이 생기지 않는다.
@@ -380,7 +425,13 @@ export async function finishMechanicsSession(opts?: {
     const state = readProgramState(program.progress);
     if (!state.level) return { error: '수준을 먼저 골라 주세요.' };
     const attempt = state.attempt;
-    if (!opts?.attemptId || !attempt || attempt.id !== opts.attemptId || opts.session !== attempt.session)
+    if (
+      !opts?.attemptId ||
+      !attempt ||
+      attempt.requirementsVersion !== 1 ||
+      attempt.id !== opts.attemptId ||
+      opts.session !== attempt.session
+    )
       return { error: '세션을 다시 열어 주세요. 세션 정보가 바뀌었어요.' };
     // 완료 응답이 유실된 재시도는 날짜·부하가 바뀌어도 같은 완료로 돌려준다.
     if (attempt.completed)
@@ -393,7 +444,10 @@ export async function finishMechanicsSession(opts?: {
       };
     if (attempt.on !== toDateKey(appNow()) || attempt.planKey !== mechanicsPlanKey(program.id, program.sessionsDone, state))
       return { error: '날짜나 프로그램이 바뀌었어요. 세션을 다시 열어 주세요.' };
-    const complete = attempt.items.every((item) => item.alternatives.some((a) => a.variants.some((v) => attempt.doneIds.includes(v.id))));
+    const requiredItems = attempt.items.filter((item) => item.required !== false);
+    const complete =
+      requiredItems.length > 0 &&
+      requiredItems.every((item) => item.alternatives.some((a) => a.variants.some((v) => attempt.doneIds.includes(v.id))));
     const throwNote = current.throwNote;
     if (!complete) {
       revalidatePath(PROGRAM_PATH);
@@ -405,8 +459,48 @@ export async function finishMechanicsSession(opts?: {
         throwNote,
       };
     }
+    let completedState = finishState(state, false);
+    if (completedState.focus?.progression && state.focus && focusActive(state.focus)) {
+      const progression = completedState.focus.progression;
+      const evidence: SkillEvidence[] = state.focus!.rx.flatMap((r) => {
+        const required = attempt.items.filter((i) => i.required !== false && i.skill?.fault === r.fault);
+        if (!required.length) return [];
+        const ids = required
+          .flatMap((i) => i.alternatives.flatMap((a) => a.variants.map((v) => v.id)))
+          .filter((id) => attempt.doneIds.includes(id));
+        const feedback = ids.map((id) => skillFeedback(attempt.skillFeedback?.[id]));
+        const quality = feedback.every((f) => f?.quality === 'yes') ? 'yes' : feedback.some((f) => f?.quality === 'no') ? 'no' : 'unknown';
+        const transferred = feedback.every((f) => f?.transferred === 'yes')
+          ? 'yes'
+          : feedback.some((f) => f?.transferred === 'no')
+            ? 'no'
+            : 'unknown';
+        return [
+          {
+            id: `${attempt.id}:${r.fault}`,
+            fault: r.fault,
+            stage: skillStage(progression, r.fault),
+            on: attempt.on,
+            quality,
+            transferred,
+            during:
+              ids.some((id) => attempt.painGuideIds?.includes(id)) ||
+              state.practice?.some((p) => p.on === attempt.on && ids.includes(p.guideId) && p.response === 'pain')
+                ? 'pain'
+                : 'clear',
+            nextDay: 'unknown',
+            responseOn: null,
+            source: 'self',
+          },
+        ];
+      });
+      completedState = {
+        ...completedState,
+        focus: { ...completedState.focus, progression: { ...progression, evidence: [...progression.evidence, ...evidence] } },
+      };
+    }
     const next = {
-      ...finishState(state, false),
+      ...completedState,
       attempt: { ...attempt, completed: true },
     };
     await prisma.mechanicsProgram.update({
@@ -421,7 +515,10 @@ export async function finishMechanicsSession(opts?: {
     return {
       ok: true,
       status: 'completed',
-      message: null,
+      message:
+        next.focus?.progression && state.focus && focusActive(state.focus)
+          ? '필수 드릴 수행을 저장했어요. 다음 날 반응을 확인한 뒤 단계 진행을 선택해 주세요.'
+          : null,
       advice: levelAdvice(next),
       throwNote,
     };
@@ -446,6 +543,110 @@ export async function closeDrillThrowNote(): Promise<Result> {
       data: {
         progress: asJson(programStateJson({ ...state, throwLog: { ...state.throwLog, closed: true } })),
       },
+    });
+    revalidatePath(PROGRAM_PATH);
+    return { ok: true };
+  });
+}
+
+/** 메커니즘에서 오늘 확인한 장비만 저장한다. 다른 운동의 장비 설정은 덮어쓰지 않는다. */
+export async function saveMechanicsEquipment(values: string[]): Promise<Result> {
+  const user = await requireUser();
+  if (!Array.isArray(values) || values.some((v) => !(DRILL_EQUIPMENT as readonly string[]).includes(v)))
+    return { error: '알 수 없는 장비예요.' };
+  return withMechanicsTransaction(user.id, async (tx) => {
+    const row = await tx.mechanicsProgram.findUnique({ where: { userId: user.id } });
+    if (!row) return { error: '프로그램을 먼저 시작해 주세요.' };
+    const state = readProgramState(row.progress);
+    await tx.mechanicsProgram.update({
+      where: { userId: user.id },
+      data: { progress: asJson(programStateJson({ ...state, gear: { on: toDateKey(appNow()), equipment: [...new Set(values)] } })) },
+    });
+    revalidatePath(PROGRAM_PATH);
+    return { ok: true };
+  });
+}
+export async function convertMechanicsFocus(input: { reportId: string; mode: 'basic' | 'review' }): Promise<Result> {
+  const user = await requireUser();
+  return withMechanicsTransaction(user.id, async (tx) => {
+    const row = await tx.mechanicsProgram.findUnique({ where: { userId: user.id } });
+    if (!row) return { error: '처방을 먼저 시작해 주세요.' };
+    const state = readProgramState(row.progress),
+      focus = state.focus;
+    if (!focus || focus.reportId !== input.reportId || focus.criteria !== REPORT_CRITERIA)
+      return { error: '현재 기준의 리포트를 확인한 뒤 처방을 시작해 주세요.' };
+    if (focus.progression) return { ok: true };
+    if (input.mode !== 'basic' && input.mode !== 'review') return { error: '시작 단계를 확인해 주세요.' };
+    const stages = focus.rx.map((r) => ({ fault: r.fault, stage: rxWeek(r, focusWeek(focus.done))?.stage ?? ('기초' as const) }));
+    const progression = newProgression(randomUUID(), focus.rx, (r) =>
+      input.mode === 'review' ? stages.find((s) => s.fault === r.fault)!.stage : '기초'
+    );
+    progression.previous = { done: focus.done, stages };
+    await tx.mechanicsProgram.update({
+      where: { userId: user.id },
+      data: { progress: asJson(programStateJson({ ...state, attempt: null, focus: { ...focus, progression } })) },
+    });
+    revalidatePath(PROGRAM_PATH);
+    return { ok: true };
+  });
+}
+export async function recordMechanicsNextDay(input: { runId: string; evidenceId: string; response: string }): Promise<Result> {
+  const user = await requireUser();
+  return withMechanicsTransaction(user.id, async (tx) => {
+    const row = await tx.mechanicsProgram.findUnique({ where: { userId: user.id } });
+    if (!row) return { error: '처방을 찾을 수 없어요.' };
+    const state = readProgramState(row.progress),
+      focus = state.focus;
+    if (!focus?.progression || focus.progression.id !== input.runId) return { error: '처방이 바뀌었어요. 다시 불러와 주세요.' };
+    const progression = saveNextDay(focus.progression, input.evidenceId, input.response, toDateKey(appNow()));
+    if ('error' in progression) return progression;
+    await tx.mechanicsProgram.update({
+      where: { userId: user.id },
+      data: { progress: asJson(programStateJson({ ...state, focus: { ...focus, progression } })) },
+    });
+    revalidatePath(PROGRAM_PATH);
+    return { ok: true };
+  });
+}
+export async function advanceMechanicsStage(input: {
+  runId: string;
+  fault: string;
+  from: string;
+  evidenceId: string;
+  requestId: string;
+}): Promise<Result> {
+  const user = await requireUser();
+  const current = await loadMechanicsProgram(user.id);
+  const library = groupDrills(await trainingGuides());
+  return withMechanicsTransaction(user.id, async (tx) => {
+    const row = await tx.mechanicsProgram.findUnique({ where: { userId: user.id } });
+    if (!row) return { error: '처방을 찾을 수 없어요.' };
+    const state = readProgramState(row.progress),
+      focus = state.focus;
+    if (!focus?.progression || focus.progression.id !== input.runId) return { error: '처방이 바뀌었어요. 다시 불러와 주세요.' };
+    if (!input.requestId || input.requestId.length > 200) return { error: '단계 전환 정보를 확인해 주세요.' };
+    const replay = focus.progression.moves.some((m) => m.id === input.requestId);
+    if (!replay) {
+      const blocked = (await loadCurrentMechanicsFold(user.id, tx)) ?? current.painFold;
+      if (blocked) return { error: blocked.reason };
+      if (skillPainToday(focus.progression, toDateKey(appNow()))) return { error: '오늘 통증 반응을 남겨 단계 진행을 보류해요.' };
+      if (state.attempt && !state.attempt.completed && state.attempt.on === toDateKey(appNow()) && state.attempt.doneIds.length)
+        return { error: '진행 중인 세션을 먼저 마쳐 주세요.' };
+    }
+    const progression = advanceSkill(focus.progression, input.fault, input.from, input.evidenceId, input.requestId, toDateKey(appNow()));
+    if ('error' in progression) return progression;
+    if (!replay && !skillFinished(progression)) {
+      const equipment = await loadMechanicsEquipment(user.id, tx, state);
+      const nextSession = assessMechanicsSession({
+        drills: library,
+        state: { ...state, focus: { ...focus, progression } },
+        owned: equipment,
+      });
+      if (nextSession.missing.length) return { error: '다음 단계의 필수 드릴과 장비를 확인한 뒤 전환해 주세요.' };
+    }
+    await tx.mechanicsProgram.update({
+      where: { userId: user.id },
+      data: { progress: asJson(programStateJson({ ...state, attempt: replay ? state.attempt : null, focus: { ...focus, progression } })) },
     });
     revalidatePath(PROGRAM_PATH);
     return { ok: true };

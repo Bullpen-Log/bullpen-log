@@ -58,7 +58,7 @@ export default function MechanicsPlayScreen() {
       (r) => {
         if (!alive) return;
         if (r.ok) {
-          if (typeof r.attemptId !== 'string' || !Array.isArray(r.doneGuideIds)) {
+          if (r.requirementsVersion !== 1 || typeof r.attemptId !== 'string' || !Array.isArray(r.doneGuideIds)) {
             setFailed('세션 업데이트를 적용하고 있어요. 잠시 뒤 다시 불러와 주세요.');
             return;
           }
@@ -122,12 +122,14 @@ type DrillChoiceView = {
 function viewOf(item: SessionDrillView, choice: Choice): DrillChoiceView {
   const alt = item.alternatives[choice.alt] ?? item.alternatives[0];
   const variants = alt?.variants ?? [{ ...item.variant, owned: true }];
-  const variant = variants.find((v) => v.id === choice.variantId) ?? variants[0];
+  const variant = variants.find((v) => v.id === choice.variantId && v.owned) ?? variants.find((v) => v.owned) ?? variants[0];
   return {
     title: alt?.title ?? item.title,
     guideId: variant.id,
     tool: variant.tool,
-    dose: item.dose, sets: item.sets, tempo: item.tempo,
+    dose: item.dose,
+    sets: item.sets,
+    tempo: item.tempo,
     variant,
     variants,
   };
@@ -162,6 +164,7 @@ function Player({
   const [advice, setAdvice] = useState<FinishResult['advice']>(null);
   const [throwNote, setThrowNote] = useState<DrillThrowNote | null>(null);
   const [finished, setFinished] = useState(false);
+  const [continueSupport, setContinueSupport] = useState(false);
   const [finishPartial, setFinishPartial] = useState(false);
   const [finishMessage, setFinishMessage] = useState<string | null>(null);
   /* 마치기 저장이 실패했나 — 끝 화면 대신 다시 저장 단추를 둔다(안 그러면 세션 수가 안 올라 같은 세션이 또 나왔다) */
@@ -280,6 +283,7 @@ function Player({
           guideId: view.guideId,
           element: item.element,
           feel,
+          ...(item.skill ? { skill: { quality: practice.quality ?? 'unknown', transferred: practice.transferred ?? 'unknown' } } : {}),
           practice: {
             ...(isThrowingDrill(view.variant.category) ? { throws: Number(practice.count) } : { reps: Number(practice.count) }),
             effortPct: Number(practice.effort),
@@ -379,10 +383,14 @@ function Player({
           {finishPartial ? '오늘 드릴을 마쳤어요' : '세션을 마쳤어요'}
         </Text>
         <Text style={[s.body, s.center, { color: c.muted }]}>
-          {focus && !finishPartial ? `처방 ${focus.number} / ${focus.total} 마쳤어요 · ` : ''}
+          {focus && !finishPartial
+            ? focus.label
+              ? `${focus.label}을 저장했어요 · `
+              : `처방 ${focus.number} / ${focus.total} 마쳤어요 · `
+            : ''}
           드릴 {count}개를 했어요.
         </Text>
-        {finishPartial ? (
+        {finishMessage || finishPartial ? (
           <Text style={[s.body, s.center, { color: c.muted }]}>{finishMessage ?? MECHANICS_FOLD_TEXT.partialFinish}</Text>
         ) : null}
 
@@ -418,15 +426,24 @@ function Player({
     );
   }
 
-  if (done.every(Boolean)) {
+  if (
+    items.some((it) => it.required !== false) &&
+    items.every((it, i) => it.required === false || done[i]) &&
+    (!continueSupport || done.every(Boolean))
+  ) {
     return shell(
       <View style={[s.fill, s.centerBox, { gap: 16, padding: 24 }]}>
-        <Text style={[s.bodyBold, { color: c.ink }]}>드릴 수행 기록은 저장됐어요.</Text>
+        <Text style={[s.bodyBold, { color: c.ink }]}>필수 드릴 수행 기록은 저장됐어요.</Text>
         <Text style={[s.body, { color: c.muted }]}>다시 운동할 필요 없이 세션 완료를 확인해 주세요.</Text>
         {error ? <Text style={{ color: c.warn }}>{error}</Text> : null}
         <Press disabled={pending} onPress={() => void run(finish)} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
           <Text style={[s.bodyBold, { color: '#fff' }]}>{pending ? '완료 확인 중' : '세션 완료 확인'}</Text>
         </Press>
+        {!done.every(Boolean) ? (
+          <Press accessibilityRole="button" onPress={() => setContinueSupport(true)} style={s.pill}>
+            <Text style={{ color: c.muted }}>보조 드릴도 이어서 하기</Text>
+          </Press>
+        ) : null}
       </View>
     );
   }
@@ -436,7 +453,14 @@ function Player({
       <ScrollView ref={scrollRef} style={s.fill} contentContainerStyle={[s.content, READABLE]}>
         {/* 드릴마다 새로 그린다(key) — 앞 드릴의 영상이 다음 드릴에서 돌고 설명 칸이 펼친 채 남지 않게 */}
         <DrillView key={item.guideId} item={item} view={view} alt={choices[index].alt} onChoose={choose} painLabel={painLabel} c={c} />
-        <PracticeInput category={view.variant.category} value={practice} onChange={(value) => setPractice({ ...value, requestId: emptyPractice().requestId })} c={c} />
+        <Text style={[s.body, { color: c.muted }]}>{item.required === false ? '보조 드릴 · 선택 수행' : '필수 드릴'}</Text>
+        <PracticeInput
+          skill={item.skill}
+          category={view.variant.category}
+          value={practice}
+          onChange={(value) => setPractice({ ...value, requestId: emptyPractice().requestId })}
+          c={c}
+        />
       </ScrollView>
 
       {/* 누르는 막대 — 엄지가 닿는 아래에 */}

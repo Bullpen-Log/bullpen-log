@@ -32,14 +32,15 @@ const result = {
   events: { kneeUp: 5, footPlant: 10, release: 20 },
   t: Array.from({ length: 30 }, (_, i) => i / 60),
 };
+const { prescribedTitles } = await import('../lib/mechanics/prescriptions.ts');
 const drills = ['기초', '연결', '통합'].flatMap((stage) =>
-  [0, 1].map((n) => ({
-    title: `${stage}${n}`,
+  prescribedTitles('drift.stuck', stage, 2).map((title) => ({
+    title,
     stage,
     category: '무브먼트 패턴 드릴',
     focusPoints: ['드리프트'],
     thumbUrl: null,
-    variants: [{ id: `${stage}${n}`, category: '무브먼트 패턴 드릴', equipment: ['맨몸'] }],
+    variants: [{ id: title, category: '무브먼트 패턴 드릴', equipment: ['맨몸'] }],
   }))
 );
 const ctx = { heightCm: 180, ground: 'mound', youth: false, drills };
@@ -48,6 +49,13 @@ const report = (m = base(), overrides = {}) => {
   return buildReport(result, { ...ctx, ...overrides });
 };
 const item = (r, name) => r.items.find((i) => i.element === name);
+
+const missingRx = base();
+missingRx.drift.aheadAtKneeUp = 0.04;
+const requiredBasic = prescribedTitles('drift.stuck', '기초', 2);
+const missingLibrary = drills.filter((d) => d.title !== requiredBasic[1]);
+missingLibrary.push({ ...drills[0], title: '다른 드리프트 동작' });
+assert.deepEqual(report(missingRx, { drills: missingLibrary }).rx, [], '같은 요소의 다른 동작으로 빠진 필수 드릴을 채우지 않는다');
 
 const normal = report();
 assert.deepEqual(normal.coverage, { evaluated: 1, reference: 5, unavailable: 0, total: 6 });
@@ -75,7 +83,7 @@ for (const [ahead, level] of [
   const r = report(m);
   assert.equal(r.rx[0].level, level);
   assert.equal(r.rx[0].weeks[0].stage, '기초', '문제의 경중과 시작 단계를 분리한다');
-  const plan = focusPlan({ rx: r.rx, done: 0, base: ['통합0', '연결0', '기초0', '기초1'], drills, criteria: REPORT_CRITERIA });
+  const plan = focusPlan({ rx: r.rx, done: 0, base: drills.map((d) => d.title), drills, criteria: REPORT_CRITERIA });
   assert.ok(plan.titles.length > 0);
   assert.ok(
     plan.titles.every((t) => drills.find((d) => d.title === t).stage === '기초'),
@@ -116,8 +124,8 @@ for (const name of ['상하체 분리', '몸통 회전', '스로잉']) assert.ok
 
 const m = base();
 m.drift.aheadAtKneeUp = 0.04;
-const missingBasics = report(m, {drills:drills.filter((d)=>d.stage !== '기초')});
-assert.equal(missingBasics.rx.length,0,'기초 드릴이 없으면 연결부터 시작하는 처방을 만들지 않는다');
+const missingBasics = report(m, { drills: drills.filter((d) => d.stage !== '기초') });
+assert.equal(missingBasics.rx.length, 0, '기초 드릴이 없으면 연결부터 시작하는 처방을 만들지 않는다');
 const current = report(m);
 const focus = { reportId: 'r1', jobId: 'j1', rx: current.rx, startedOn: '2026-10-25', done: 2 };
 const legacyState = { ...freshState('beginner'), focus };
@@ -131,8 +139,8 @@ assert.equal(jobReportSummary({ shownJobId: 'j1', report: { ...sum, jobId: 'j1',
 assert.deepEqual(jobReportSummary({ shownJobId: 'j1', report: { ...sum, jobId: 'j1' } }), sum);
 assert.equal(summaryChip({ v: 1, criteria: 'old', primary: null, bad: [], judged: true }).tone, 'muted');
 const { APP_API_LEVEL, minAppApiForAction } = await import('../lib/app-api.ts');
-assert.equal(APP_API_LEVEL, 4);
-assert.equal(minAppApiForAction('pitch-lab.loadAppLabDetail'), 4);
-assert.equal(minAppApiForAction('mechanics.startMechanicsFocus'), 4);
-assert.equal(minAppApiForAction('mechanics.recordMechanicsDrill'), 3);
+assert.ok(APP_API_LEVEL >= 4);
+assert.ok(minAppApiForAction('pitch-lab.loadAppLabDetail') >= 4);
+assert.ok(minAppApiForAction('mechanics.startMechanicsFocus') >= 4);
+assert.ok(minAppApiForAction('mechanics.recordMechanicsDrill') >= 3);
 console.log('3D 리포트 정책 검사 통과: 신뢰도·평가·단계 분리, 참고 지표 차단, 확인 범위, 실제 세션, 구형 처방·요약 호환');

@@ -631,29 +631,14 @@ export function pickProblems(items: ReportItem[]): { primary: ReportItem | null;
   return { primary, next: rest[0] ?? null, later: rest.slice(1) };
 }
 
-/** 요소의 단계별 드릴(그 요소가 주 요소인 동작 먼저, 이름 차례) */
-function drillsFor(drills: ReportDrill[], element: ElementName, stage: DrillStage, n: number) {
-  const mine = drills.filter((d) => d.focusPoints.includes(element) && d.stage === stage);
-  return [...mine]
-    .sort(
-      (a, b) =>
-        Number(a.focusPoints[0] !== element) - Number(b.focusPoints[0] !== element) || a.title.localeCompare(b.title, 'ko')
-    )
-    .slice(0, n)
-    .map((d) => ({ title: d.title, thumbUrl: d.thumbUrl, dose: doseText(doseOf(d.category, stage)) }));
-}
-
-/**
- * 처방 드릴 — 메커니즘 세션의 문제 · 단계 표(lib/mechanics/prescriptions.ts FAULT_DRILLS)를 먼저, 그 이름이 라이브러리에 없거나 표가 비면
- * 그 요소의 단계 드릴로 채운다(drillsFor).
- */
+/** 문제·단계 표에 명시된 드릴만 사용한다. 같은 요소라는 이유로 다른 동작을 자동 대입하지 않는다. */
 function prescribed(drills: ReportDrill[], item: ReportItem & { fault: FaultKey }, stage: DrillStage, n: number) {
   const byTitle = new Map(drills.map((d) => [d.title, d]));
   const picked = prescribedTitles(item.fault, stage, n).flatMap((t) => {
     const d = byTitle.get(t);
     return d ? [{ title: d.title, thumbUrl: d.thumbUrl, dose: doseText(doseOf(d.category, stage)) }] : [];
   });
-  return picked.length ? picked : drillsFor(drills, item.element, stage, n);
+  return picked;
 }
 
 function rxOf(item: ReportItem, drills: ReportDrill[], slots: 1 | 2): ElementRx | null {
@@ -667,7 +652,7 @@ function rxOf(item: ReportItem, drills: ReportDrill[], slots: 1 | 2): ElementRx 
   const weeks = plan
     .map((w) => ({ ...w, drills: prescribed(drills, { ...item, fault: item.fault! }, w.stage, slots) }))
     .filter((w) => w.drills.length > 0);
-  if (!weeks.some((w) => w.week === 1 && w.stage === RX_START_STAGE)) return null;
+  if (!weeks.some((w) => w.week === 1 && w.stage === RX_START_STAGE && w.drills.length === slots)) return null;
   const g = item.gauge;
   return {
     element: item.element,
@@ -827,7 +812,7 @@ export function summaryChip(s: ReportSummary | null): { text: string; tone: 'imp
 }
 
 /** 이 리포트의 처방이 메커니즘에서 진행 중이면 마친 세션 수 / 전체(메커니즘 세션 P2 — MechanicsProgram.progress.focus) */
-export type FocusProgress = { done: number; total: number } | null;
+export type FocusProgress = { done: number; total: number; skill?: { label: string; finished: boolean } } | null;
 
 export type RxAction = { kind: 'start' | 'progress' | 'retake' | 'drills'; label: string; note: string };
 
@@ -837,6 +822,10 @@ export type RxAction = { kind: 'start' | 'progress' | 'retake' | 'drills'; label
  */
 export function rxAction(mine: boolean, focus: FocusProgress): RxAction {
   if (!mine) return { kind: 'drills', label: '요소별 드릴 보기', note: '처방은 리포트를 받은 사람만 시작할 수 있어요.' };
+  if (focus?.skill)
+    return focus.skill.finished
+      ? { kind: 'retake', label: '다시 찍어 리포트 받기', note: '자가 확인을 마쳤어요. 같은 자리에서 다시 찍어 측정값과 견줘요.' }
+      : { kind: 'progress', label: `${focus.skill.label} 연습 중`, note: '메커니즘에서 수행·다음 날 반응을 확인해요.' };
   if (focus && focus.done >= focus.total)
     return { kind: 'retake', label: '다시 찍어 리포트 받기', note: '처방을 마쳤어요. 같은 자리에서 다시 찍어 견줘요.' };
   if (focus) return { kind: 'progress', label: `처방 진행 중 ${focus.done} / ${focus.total}`, note: '메커니즘 프로그램에서 이어서 해요.' };

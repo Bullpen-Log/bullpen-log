@@ -6,6 +6,16 @@
  * 진도·수행·영상 비교는 기존 JSON 안에서 보존한다(DB 구조 변경 없음).
  */
 import { REPORT_CRITERIA, LEGACY_FOCUS_NOTE } from '@/lib/pitch-3d/v2/report-policy';
+import {
+  readProgression,
+  skillFinished,
+  skillStage,
+  skillView,
+  SKILL_STAGES,
+  type SkillProgression,
+  type SkillFeedback,
+  type SkillView,
+} from '@/lib/mechanics/progression';
 import type { SessionDrillView } from '@/lib/mechanics/load';
 import {
   ARM_PAIN_ROUTINE_MIN_AGE,
@@ -81,10 +91,12 @@ export type ProgramState = {
   practice?: PracticeRecord[];
   /** 시작 때의 배정과 이 세션에서 한 드릴. 날짜별 체크와 구분한다. */
   attempt?: MechanicsAttempt | null;
+  gear?: { on: string; equipment: string[] };
 };
 
 export type MechanicsAttempt = {
   id: string;
+  requirementsVersion?: 1;
   on: string;
   session: number;
   planKey: string;
@@ -92,6 +104,8 @@ export type MechanicsAttempt = {
   doneIds: string[];
   completed: boolean;
   receipts?: { id: string; fingerprint: string }[];
+  skillFeedback?: Record<string, SkillFeedback>;
+  painGuideIds?: string[];
 };
 
 function readAttempt(value: unknown): MechanicsAttempt | null {
@@ -104,7 +118,9 @@ function readAttempt(value: unknown): MechanicsAttempt | null {
     v.session < 1 ||
     typeof v.planKey !== 'string' ||
     typeof v.completed !== 'boolean' ||
-    (v.receipts != null && (!Array.isArray(v.receipts) || !v.receipts.every((r) => r && typeof r.id === 'string' && typeof r.fingerprint === 'string'))) ||
+    (v.receipts != null &&
+      (!Array.isArray(v.receipts) || !v.receipts.every((r) => r && typeof r.id === 'string' && typeof r.fingerprint === 'string'))) ||
+    (v.painGuideIds != null && (!Array.isArray(v.painGuideIds) || !v.painGuideIds.every((id) => typeof id === 'string'))) ||
     !Array.isArray(v.doneIds) ||
     !v.doneIds.every((id) => typeof id === 'string') ||
     !Array.isArray(v.items) ||
@@ -177,6 +193,8 @@ function readPractice(value: unknown): PracticeRecord[] {
  * 메커니즘은 리포트 파일을 다시 읽지 않는다. 리포트 번호는 지금 샘플 번호(리포트가 분석 결과로 셈해서 — 3D 세션).
  */
 export type ProgramFocus = {
+  progression?: SkillProgression;
+  progressionInvalid?: boolean;
   criteria?: string | null;
   reportId: string;
   /** 처방을 뽑은 분석 결과의 작업 번호 — 같은 샘플을 다시 분석하면 리포트가 바뀌어 견줄 때 쓴다 */
@@ -184,11 +202,11 @@ export type ProgramFocus = {
   /** 흐름 차례 · 많아야 두 장 — 첫 장이 주 문제 */
   rx: ElementRx[];
   startedOn: string;
-  /** 마친 처방 세션 수(0~{FOCUS_SESSIONS}) */
+  /** 마친 처방 연습 수. 이전 진행 방식만 9회 상한을 사용한다. */
   done: number;
 };
 
-/** 처방 한 번 = 3주 × 주 3번 */
+/** 이전 저장 처방의 호환 상수. 새 진행 방식은 수행 조건으로 전환한다. */
 export const FOCUS_WEEKS = 3;
 export const FOCUS_SESSIONS = FOCUS_WEEKS * 3;
 
@@ -312,7 +330,12 @@ function readFocus(raw: unknown): ProgramFocus | null {
     ...(str(v.criteria) ? { criteria: str(v.criteria) } : {}),
     rx: rx.slice(0, 2),
     startedOn,
-    done: countOf(v.done, FOCUS_SESSIONS),
+    done: countOf(v.done, v.progression ? Number.MAX_SAFE_INTEGER : FOCUS_SESSIONS),
+    ...(v.progression || v.progressionInvalid
+      ? readProgression(v.progression, rx.slice(0, 2))
+        ? { progression: readProgression(v.progression, rx.slice(0, 2))! }
+        : { progressionInvalid: true }
+      : {}),
   };
 }
 
@@ -329,6 +352,19 @@ export function readProgramState(json: unknown): ProgramState {
     focus: readFocus(raw.focus),
     practice: readPractice(raw.practice),
     attempt: readAttempt(raw.attempt),
+    ...(raw.gear &&
+    typeof raw.gear === 'object' &&
+    dayOf((raw.gear as Record<string, unknown>).on) &&
+    Array.isArray((raw.gear as Record<string, unknown>).equipment)
+      ? {
+          gear: {
+            on: dayOf((raw.gear as Record<string, unknown>).on)!,
+            equipment: ((raw.gear as Record<string, unknown>).equipment as unknown[])
+              .filter((e): e is string => typeof e === 'string')
+              .slice(0, 50),
+          },
+        }
+      : {}),
   };
 }
 
@@ -344,6 +380,7 @@ export function programStateJson(state: ProgramState) {
     focus: state.focus,
     practice: state.practice ?? [],
     attempt: state.attempt ?? null,
+    ...(state.gear ? { gear: state.gear } : {}),
   };
 }
 
@@ -487,6 +524,8 @@ export function canUseVariant(
 export type SessionSwap = { title: string; guideId: string; category: string; tool: string };
 
 export type SessionItem = {
+  required?: boolean;
+  skill?: { fault: string; stage: DrillStage; cue: string; requiresTransfer: boolean };
   element: MechanicsElementName;
   stage: DrillStage;
   title: string;
@@ -591,8 +630,8 @@ function usableVariant(drill: ProgramDrill, owned: ReadonlySet<string> | null) {
 type RxTag = { element: MechanicsElementName; level: 'improve' | 'edge'; cue: string };
 
 /**
- * 드릴 이름 목록을 세션으로 펼친다 — 이름마다 할 수 있는 도구를 고르고, 장비가 없어 못 하면 같은 요소 · 같은 단계의 할 수 있는 드릴로 바꿔
- * 넣는다(없으면 그대로 두고 알린다). 라이브러리에 없는 이름은 건너뛴다(시험이 막는다). 처방 칸(tags)은 '처방' 꼬리표와 처방 느낌 신호를 단다.
+ * 이름이 같은 동작 묶음 안에서 사용할 도구만 고른다. 누락된 필수 이름·장비는 assessMechanicsSession이 별도로 보고한다.
+ * 처방 칸(tags)은 처방 꼬리표와 동작 신호를 단다.
  */
 function itemsFromTitles({
   drills,
@@ -681,9 +720,10 @@ export function buildLevelSession({
 
 /* ------------------------- 3D 리포트 처방(6-2 · 6-4절) ------------------------- */
 
-/** 처방이 진행 중인가 — 아홉 세션을 다 마치면 끝(카드는 '다시 찍어 견줘요'로 남는다) */
+/** 새 방식은 요소별 자가 확인 완료까지, 이전 방식은 저장된 9회 기준을 유지한다. */
 export const focusActive = (focus: ProgramFocus | null): focus is ProgramFocus =>
-  focus != null && focus.done < FOCUS_SESSIONS;
+  focus != null &&
+  (focus.progressionInvalid === true || (focus.progression ? !skillFinished(focus.progression) : focus.done < FOCUS_SESSIONS));
 
 /** 처방 몇 주차인가(1~3) — 마친 세션 수로 */
 export const focusWeek = (done: number) => Math.min(FOCUS_WEEKS, Math.floor(Math.max(0, done) / 3) + 1);
@@ -777,6 +817,8 @@ export const RX_LEVEL_TEXT = { improve: '집중', edge: '보조' } as const;
 export const RX_REPORT_TEXT = { improve: '고칠 점', edge: '경계' } as const;
 
 export type FocusView = {
+  skill: SkillView | null;
+  canConvert: boolean;
   criteriaNote: string | null;
   reportId: string;
   startedOn: string;
@@ -794,18 +836,23 @@ export type FocusView = {
   target: ElementRx['target'];
 };
 
-export function focusView(focus: ProgramFocus): FocusView {
+export function focusView(focus: ProgramFocus, today?: string): FocusView {
   const main = focus.rx[0];
-  const week = focusWeek(focus.done);
+  const active = focus.progression
+    ? (focus.rx.find((r) => !focus.progression!.elements.find((e) => e.fault === r.fault)?.finished) ?? main)
+    : main;
+  const week = focus.progression ? SKILL_STAGES.indexOf(skillStage(focus.progression, active.fault)) + 1 : focusWeek(focus.done);
   return {
     reportId: focus.reportId,
+    skill: focus.progression ? skillView(focus.progression, focus.rx, today) : null,
+    canConvert: !focus.progression && !focus.progressionInvalid && focus.criteria === REPORT_CRITERIA,
     criteriaNote: focus.criteria === REPORT_CRITERIA ? null : LEGACY_FOCUS_NOTE,
     startedOn: focus.startedOn,
-    done: Math.min(focus.done, FOCUS_SESSIONS),
+    done: focus.progression ? focus.done : Math.min(focus.done, FOCUS_SESSIONS),
     total: FOCUS_SESSIONS,
-    finished: focus.done >= FOCUS_SESSIONS,
+    finished: focus.progressionInvalid ? false : focus.progression ? skillFinished(focus.progression) : focus.done >= FOCUS_SESSIONS,
     week,
-    stage: rxWeek(main, week)?.stage ?? null,
+    stage: focus.progression ? skillStage(focus.progression, active.fault) : (rxWeek(main, week)?.stage ?? null),
     rx: focus.rx.map((r) => ({ element: r.element, key: r.key, level: r.level, fault: r.fault, target: r.target })),
     cue: main.cue,
     target: main.target,
@@ -826,11 +873,106 @@ export function buildProgramSession({
   owned?: ReadonlySet<string> | null;
 }): SessionItem[] {
   if (!state.level) return [];
+  if (state.focus?.progression && !skillFinished(state.focus.progression)) return assessMechanicsSession({ drills, state, owned }).items;
+  if (state.focus?.progressionInvalid) return [];
   if (!focusActive(state.focus)) return buildLevelSession({ drills, level: state.level, index: state.index, owned });
   const index = Math.min(state.index, SESSIONS_PER_LEVEL - 1);
   const base = levelSession(state.level, index)?.titles ?? [];
   const { titles, tags } = focusPlan({ rx: state.focus.rx, done: state.focus.done, base, drills, criteria: state.focus.criteria });
   return itemsFromTitles({ drills, titles, index, owned, tags });
+}
+
+export type MissingRequirement = { title: string; need: string[]; reason: 'library' | 'gear' | 'recipe' };
+export function assessMechanicsSession({
+  drills,
+  state,
+  owned,
+}: {
+  drills: ProgramDrill[];
+  state: Pick<ProgramState, 'level' | 'index' | 'focus'>;
+  owned: ReadonlySet<string> | null;
+}): { items: SessionItem[]; missing: MissingRequirement[] } {
+  const missing: MissingRequirement[] = [];
+  const items: SessionItem[] = [];
+  if (!state.level || state.focus?.progressionInvalid) return { items, missing: [{ title: '진행 정보 확인', need: [], reason: 'recipe' }] };
+  if (!focusActive(state.focus) && state.index >= SESSIONS_PER_LEVEL) return { items, missing };
+  const index = Math.min(state.index, SESSIONS_PER_LEVEL - 1);
+  const base = levelSession(state.level, index)?.titles ?? [];
+  const focus = state.focus;
+  if (focus?.progression && !skillFinished(focus.progression)) {
+    for (const r of focus.rx) {
+      const el = focus.progression.elements.find((e) => e.fault === r.fault)!;
+      if (el.finished) continue;
+      const titles =
+        r.weeks
+          .find((w) => w.stage === el.stage)
+          ?.drills.slice(0, r.slots)
+          .map((d) => d.title) ?? [];
+      if (titles.length < r.slots) missing.push({ title: `${r.element} ${el.stage} 필수 드릴`, need: [], reason: 'recipe' });
+      for (const title of titles) {
+        const drill = drills.find((d) => d.title === title && d.stage === el.stage);
+        if (!drill) {
+          missing.push({ title, need: [], reason: 'library' });
+          continue;
+        }
+        const found = itemsFromTitles({
+          drills,
+          titles: [title],
+          index,
+          owned,
+          tags: new Map([[title, { element: r.element, level: r.level, cue: r.cue }]]),
+        })[0];
+        if (!found) {
+          missing.push({
+            title,
+            need: [...new Set(drill.variants.flatMap((v) => v.equipment ?? []))].filter((e) => !ALWAYS_HAVE.has(e) && !owned?.has(e)),
+            reason: 'gear',
+          });
+          continue;
+        }
+        if (items.some((i) => i.guideId === found.guideId && i.skill?.fault !== r.fault)) {
+          missing.push({ title, need: [], reason: 'recipe' });
+          continue;
+        }
+        items.push({
+          ...found,
+          required: true,
+          skill: { fault: r.fault, stage: el.stage, cue: r.cue, requiresTransfer: el.stage !== '기초' },
+        });
+      }
+    }
+    for (const title of base) {
+      if (items.length >= Math.max(base.length, 3) || items.some((i) => i.title === title)) continue;
+      const d = drills.find((d) => d.title === title);
+      if (
+        focus.rx.some(
+          (r) =>
+            d?.focusPoints.includes(r.element) &&
+            SKILL_STAGES.indexOf(d.stage as DrillStage) > SKILL_STAGES.indexOf(skillStage(focus.progression!, r.fault))
+        )
+      )
+        continue;
+      const item = itemsFromTitles({ drills, titles: [title], index, owned })[0];
+      if (item) items.push({ ...item, required: false });
+    }
+    return { items, missing };
+  }
+  // 일반 세션·이전 처방도 장비 때문에 빠진 필수 칸을 조용히 완료로 넘기지 않는다.
+  const titles = focusActive(focus) ? focusPlan({ rx: focus.rx, done: focus.done, base, drills, criteria: focus.criteria }).titles : base;
+  const original = buildProgramSession({ drills, state, owned });
+  for (const title of titles) {
+    const d = drills.find((d) => d.title === title);
+    const item = original.find((i) => i.title === title);
+    if (!d) missing.push({ title, need: [], reason: 'library' });
+    else if (!item)
+      missing.push({
+        title,
+        need: [...new Set(d.variants.flatMap((v) => v.equipment ?? []))].filter((e) => !ALWAYS_HAVE.has(e) && !owned?.has(e)),
+        reason: 'gear',
+      });
+    else items.push({ ...item, required: true });
+  }
+  return { items, missing };
 }
 
 /* -------------------------- 팔이 아픈 날 접기(D5) -------------------------- */

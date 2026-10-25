@@ -1,4 +1,5 @@
 import 'server-only';
+import { skillPainToday } from '@/lib/mechanics/progression';
 import { REPORT_CRITERIA, LEGACY_FOCUS_NOTE } from '@/lib/pitch-3d/v2/report-policy';
 import { mechanicsPlanKey } from '@/lib/mechanics/store';
 
@@ -17,7 +18,7 @@ import { equipmentForToday } from '@/lib/report/equipment';
 import { groupDrills, type MechanicsDrillView, type MechanicsVariant } from '@/lib/mechanics/drills';
 import { MECHANICS_PAIN_WINDOW_DAYS, mechanicsFoldOf } from '@/lib/mechanics/fold';
 import {
-  buildProgramSession,
+  assessMechanicsSession,
   canUseVariant,
   drillThrowNote,
   focusView,
@@ -48,6 +49,9 @@ export type SessionDrillView = SessionItem & {
 };
 
 export type MechanicsProgramView = {
+  blockers: string[];
+  canFinalize: boolean;
+  equipment: string[];
   planKey: string;
   /** 고른 수준 — 안 골랐으면 null(수준 고르기 화면) */
   level: LevelKey | null;
@@ -111,6 +115,17 @@ export async function loadCurrentMechanicsFold(userId: string, db: Prisma.Transa
     checkins: checkins.map((c) => ({ ...c, date: keyOfDbDate(c.date) })),
     age: user?.birthDate ? ageFromBirthDate(user.birthDate, now) : null,
   });
+}
+
+export async function loadMechanicsEquipment(userId: string, db: Prisma.TransactionClient, state: ProgramState): Promise<Set<string>> {
+  const today = toDateKey(appNow());
+  const [user, setup] = await Promise.all([
+    db.user.findUnique({ where: { id: userId }, select: { ownedEquipment: true } }),
+    db.dailyTrainingSetup.findUnique({ where: { userId_date: { userId, date: dbDate(today) } }, select: { availableEquipment: true } }),
+  ]);
+  return new Set(
+    state.gear?.on === today ? state.gear.equipment : equipmentForToday(user?.ownedEquipment ?? [], setup?.availableEquipment)
+  );
 }
 
 /**
@@ -185,6 +200,9 @@ export async function loadMechanicsProgram(userId: string): Promise<{
   const gathered = user ? await gatherFactsAndPlan(user, now) : null;
   const plan = state.level ? levelSession(state.level, state.index) : null;
   const program: MechanicsProgramView = {
+    blockers: [],
+    canFinalize: false,
+    equipment: [],
     planKey: mechanicsPlanKey(row.id, row.sessionsDone, state),
     level: state.level,
     index: state.index,
@@ -195,10 +213,12 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     finishedToday: row.lastSessionOn ? keyOfDbDate(row.lastSessionOn) === todayKey : false,
     advice: levelAdvice(state),
     films: state.films,
-    focus: state.focus ? focusView(state.focus) : null,
+    focus: state.focus ? focusView(state.focus, todayKey) : null,
   };
-  const gear = equipmentForToday(user?.ownedEquipment ?? [], setup?.availableEquipment);
-  const owned = gear.length > 0 ? new Set(gear) : null;
+  const gear =
+    state.gear?.on === todayKey ? state.gear.equipment : equipmentForToday(user?.ownedEquipment ?? [], setup?.availableEquipment);
+  const owned = new Set(gear);
+  program.equipment = gear;
   const variants = new Map(drills.flatMap((d) => d.variants.map((v) => [v.id, v] as const)));
   const byTitle = new Map(drills.map((d) => [d.title, d] as const));
   const toAlternative = (d: MechanicsDrillView, guideId: string): SessionAlternative => ({
@@ -206,14 +226,22 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     guideId,
     variants: d.variants.map((v) => ({ ...v, owned: canUseVariant(v, owned) })),
   });
-  const items = buildProgramSession({ drills, state, owned });
+  const assessment = assessMechanicsSession({ drills, state, owned });
+  const items = assessment.items;
+  program.blockers = assessment.missing.map(
+    (m) =>
+      `${m.title}: ${m.reason === 'gear' ? '장비 확인 필요' + (m.need.length ? ' · ' + m.need.join(', ') : '') : '필수 드릴 확인 필요'}`
+  );
   const commonFold = mechanicsFoldOf({
     todayKey,
     checkins: checkins.map((c) => ({ ...c, date: keyOfDbDate(c.date) })),
     logsToday: pitchesToday,
     age: user?.birthDate ? ageFromBirthDate(user.birthDate, now) : null,
   });
-  const painfulPractice = state.practice?.some((p) => p.on === todayKey && p.response === 'pain');
+  const painfulPractice =
+    state.practice?.some((p) => p.on === todayKey && p.response === 'pain') ||
+    (state.attempt?.on === todayKey && !!state.attempt.painGuideIds?.length) ||
+    skillPainToday(state.focus?.progression, todayKey);
   const blocked =
     !gathered ||
     gathered.plan.halted ||
@@ -235,6 +263,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
             : '오늘 투구 계획·체크인·피로 상태를 확인하기 전에는 던지기 드릴을 쉬어요.',
         }
       : null);
+  if (program.focus?.skill && painFold) program.focus.skill.blockedReason = painFold.reason;
   const rebuiltSession = items.flatMap((item): SessionDrillView[] => {
     const variant = variants.get(item.guideId);
     const drill = byTitle.get(item.title);
@@ -250,8 +279,27 @@ export async function loadMechanicsProgram(userId: string): Promise<{
   });
 
   /* 따라 하기에서 도구나 드릴을 바꿔 했어도 그 자리는 한 것으로 — 화면들은 item.guideId 로 본다 */
-  const active = state.attempt && !state.attempt.completed && state.attempt.on === todayKey && state.attempt.planKey === program.planKey ? state.attempt : null;
-  const session = active?.items ?? rebuiltSession;
+  const active =
+    state.attempt?.requirementsVersion === 1 &&
+    !state.attempt.completed &&
+    state.attempt.on === todayKey &&
+    state.attempt.planKey === program.planKey
+      ? state.attempt
+      : null;
+  const session = active
+    ? active.items.map((item) => ({
+        ...item,
+        alternatives: item.alternatives.map((a) => ({ ...a, variants: a.variants.map((v) => ({ ...v, owned: canUseVariant(v, owned) })) })),
+      }))
+    : rebuiltSession;
+  if (active?.doneIds.length && program.focus?.skill && !program.focus.skill.blockedReason)
+    program.focus.skill.blockedReason = '진행 중인 세션을 먼저 마쳐 주세요.';
+  program.canFinalize =
+    !!active &&
+    active.items.some((i) => i.required !== false) &&
+    active.items
+      .filter((i) => i.required !== false)
+      .every((i) => i.alternatives.some((a) => a.variants.some((v) => active.doneIds.includes(v.id))));
   const done = new Set(active?.doneIds ?? []);
   const doneToday = [...done];
   for (const item of session) {
@@ -267,10 +315,12 @@ export async function loadMechanicsProgram(userId: string): Promise<{
       throwLog: state.throwLog,
       practice: state.practice,
       todayKey,
-      doneToday: logs.map((l) => l.guideId).flatMap((id) => {
-        const g = guideById.get(id);
-        return g ? [{ category: g.category, stage: g.stage }] : [];
-      }),
+      doneToday: logs
+        .map((l) => l.guideId)
+        .flatMap((id) => {
+          const g = guideById.get(id);
+          return g ? [{ category: g.category, stage: g.stage }] : [];
+        }),
       pitchedToday: pitchesToday.reduce((sum, p) => sum + p.pitchCount, 0),
     }),
     painFold,

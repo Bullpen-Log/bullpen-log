@@ -1,3 +1,4 @@
+import { MechanicsEquipment } from '~/mechanics/focus-progress';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { ActivityIndicator, Text, View, type ScrollViewInstance } from 'react-native';
@@ -48,7 +49,11 @@ export default function TrainingMechanicsScreen() {
   /* 3D 리포트 [처방 시작]에서 왔다 — 프로그램 칸을 받은 뒤 확인 시트를 한 번 연다 */
   const [offerId, setOfferId] = useState(typeof params.focus === 'string' ? params.focus : null);
   const [tab, setTab] = useState<Tab>(params.tab === 'elements' ? 'elements' : 'program');
-  const state = useScreenData<AppMechanicsProgramTab | AppMechanicsElementsTab>('app-training-parts.loadAppMechanics', tab, `training-mechanics:${tab}`);
+  const state = useScreenData<AppMechanicsProgramTab | AppMechanicsElementsTab>(
+    'app-training-parts.loadAppMechanics',
+    tab,
+    `training-mechanics:${tab}`
+  );
   const scroll = useRef<ScrollViewInstance>(null);
 
   const pick = (t: Tab) => {
@@ -72,7 +77,9 @@ export default function TrainingMechanicsScreen() {
       ) : data?.tab === 'elements' ? (
         <ElementsTab data={data} focus={typeof params.el === 'string' ? params.el : null} scroll={scroll} c={c} />
       ) : null}
-      {offerId && data?.tab === 'program' && !(data.program?.focus && !data.program.focus.finished && data.program.focus.reportId === offerId) ? (
+      {offerId &&
+      data?.tab === 'program' &&
+      !(data.program?.focus && !data.program.focus.finished && data.program.focus.reportId === offerId) ? (
         <FocusStartSheet
           reportId={offerId}
           level={data.program?.level ?? null}
@@ -148,11 +155,14 @@ function FavSheet({ elements, onClose, c }: { elements: AppMechanicsElementsTab 
 function ProgramTab({ data, reload, c }: { data: AppMechanicsProgramTab; reload: () => Promise<void>; c: Palette }) {
   const { program } = data;
   if (!program?.level) return <NoProgram reload={reload} c={c} />;
+  if (!Array.isArray(program.blockers) || !Array.isArray(program.equipment))
+    return <Text style={{ color: c.muted }}>세션 업데이트를 적용하고 있어요. 잠시 뒤 다시 불러와 주세요.</Text>;
   const rx = program.focus && !program.focus.finished ? program.focus : null;
   /* 처방이 남았으면 수준 12세션을 마쳤어도 처방 세션을 이어 한다 */
   const completed = program.week == null && !rx;
   return (
     <View style={{ gap: 12 }}>
+      <MechanicsEquipment key={program.equipment.join(',')} equipment={program.equipment} reload={reload} c={c} />
       {program.focus ? <FocusCard focus={program.focus} reload={reload} c={c} /> : null}
       {/* 오늘 드릴로 던진 공 — 투구 기록에 남기라고(트레이닝 탭 카드 · 따라 하기 끝 화면과 같은 알림) */}
       {data.throwNote ? <ThrowNoteCard note={data.throwNote} c={c} /> : null}

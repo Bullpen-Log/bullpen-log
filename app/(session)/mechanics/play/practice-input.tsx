@@ -1,5 +1,6 @@
 'use client';
 
+import type { SkillAnswer } from '@/lib/mechanics/progression';
 import { isThrowingDrill } from '@/lib/mechanics/program';
 
 export type PracticeForm = {
@@ -8,6 +9,8 @@ export type PracticeForm = {
   effort: string;
   response: 'clear' | 'pain' | null;
   alreadyLogged: boolean;
+  quality: SkillAnswer | null;
+  transferred: SkillAnswer | null;
 };
 export const emptyPractice = (): PracticeForm => ({
   requestId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
@@ -15,15 +18,19 @@ export const emptyPractice = (): PracticeForm => ({
   effort: '',
   response: null,
   alreadyLogged: false,
+  quality: null,
+  transferred: null,
 });
 
 export function PracticeInput({
   value,
   category,
+  skill,
   onChange,
 }: {
   value: PracticeForm;
   category: string;
+  skill?: { cue: string; requiresTransfer: boolean };
   onChange: (v: PracticeForm) => void;
 }) {
   const throwing = isThrowingDrill(category);
@@ -77,6 +84,35 @@ export function PracticeInput({
           </button>
         ))}
       </div>
+      {skill && (
+        <div className="space-y-3">
+          <p className="font-semibold">필수 교정 · 자가 확인</p>
+          <p className="text-sm text-muted">동작 목표: {skill.cue}</p>
+          {(
+            [
+              { key: 'quality', label: '동작 목표를 유지했나요?' },
+              ...(skill.requiresTransfer ? [{ key: 'transferred', label: '실제 캐치볼에서도 같은 신호를 유지했나요?' }] : []),
+            ] as { key: 'quality' | 'transferred'; label: string }[]
+          ).map((q) => (
+            <div key={q.key} className="space-y-2">
+              <p className="text-sm">{q.label}</p>
+              <div className="flex gap-2">
+                {(['yes', 'no', 'unknown'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={value[q.key] === v}
+                    onClick={() => onChange({ ...value, [q.key]: v })}
+                    className={`min-h-11 flex-1 rounded-xl border p-2 text-sm ${value[q.key] === v ? 'border-sky bg-sky-tint' : 'border-line'}`}
+                  >
+                    {v === 'yes' ? '유지했어요' : v === 'no' ? '어려웠어요' : '확인 못 했어요'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {throwing ? (
         <label className="flex min-h-11 items-center gap-2 text-sm">
           <input type="checkbox" checked={value.alreadyLogged} onChange={(e) => onChange({ ...value, alreadyLogged: e.target.checked })} />

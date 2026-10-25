@@ -26,10 +26,12 @@ const apply = ({ kind, args }) => {
     });
   if (kind === 'program') {
     if (args.data.progress) test.row.progress = args.data.progress;
-    if (args.data.sessionsDone?.increment)
-      test.row.sessionsDone += args.data.sessionsDone.increment;
+    if (args.data.sessionsDone?.increment) test.row.sessionsDone += args.data.sessionsDone.increment;
   }
-  if (kind === 'drill') { if (test.failDrill) throw new Error('injected write failure'); test.done.add(args.create.guideId); }
+  if (kind === 'drill') {
+    if (test.failDrill) throw new Error('injected write failure');
+    test.done.add(args.create.guideId);
+  }
 };
 let lockTail = Promise.resolve();
 test.prisma = {
@@ -46,6 +48,8 @@ test.prisma = {
       activities: [],
     }),
   },
+  user: { findUnique: async () => ({ ownedEquipment: [] }) },
+  dailyTrainingSetup: { findUnique: async () => null },
   mechanicsProgram: {
     findUnique: async () => structuredClone(test.row),
     update: async (args) => apply(operation('program', args)),
@@ -59,35 +63,39 @@ test.prisma = {
   $transaction: async (work) => {
     let release;
     let snapshot;
-    const tx = { ...test.prisma, $executeRaw: async (sql, key) => {
-      assert.match(sql.join('?'), /pg_advisory_xact_lock/);
-      assert.equal(key, 'mechanics:test-user');
-      const previous = lockTail;
-      lockTail = new Promise((resolve) => { release = resolve; });
-      await previous;
-      snapshot = structuredClone({ row: test.row, pitches: test.pitches, done: test.done, writes: test.writes });
-      return 1;
-    } };
-    try { return await work(tx); }
-    catch (e) { if (snapshot) Object.assign(test, snapshot); throw e; }
-    finally { release?.(); }
+    const tx = {
+      ...test.prisma,
+      $executeRaw: async (sql, key) => {
+        assert.match(sql.join('?'), /pg_advisory_xact_lock/);
+        assert.equal(key, 'mechanics:test-user');
+        const previous = lockTail;
+        lockTail = new Promise((resolve) => {
+          release = resolve;
+        });
+        await previous;
+        snapshot = structuredClone({ row: test.row, pitches: test.pitches, done: test.done, writes: test.writes });
+        return 1;
+      },
+    };
+    try {
+      return await work(tx);
+    } catch (e) {
+      if (snapshot) Object.assign(test, snapshot);
+      throw e;
+    } finally {
+      release?.();
+    }
   },
 };
 const mocks = new Map([
   ['/lib/prisma.ts', 'export const prisma = globalThis.__mechanicsRecordTest.prisma;'],
-  [
-    '/lib/dal.ts',
-    "export async function requireUser() { return { id: 'test-user' }; }",
-  ],
+  ['/lib/dal.ts', "export async function requireUser() { return { id: 'test-user' }; }"],
   ['/lib/clock.ts', "export const appNow = () => new Date(globalThis.__mechanicsRecordTest.today+'T03:00:00Z');"],
   [
     '/lib/library-cache.ts',
-    'export async function visibleGuides() { return globalThis.__mechanicsRecordTest.guides ?? [globalThis.__mechanicsRecordTest.guide]; }',
+    'export async function visibleGuides() { return globalThis.__mechanicsRecordTest.guides ?? [globalThis.__mechanicsRecordTest.guide]; } export const trainingGuides=visibleGuides;',
   ],
-  [
-    '/lib/mechanics/focus-load.ts',
-    "export async function loadFocusOffer() { return { error: 'test' }; }",
-  ],
+  ['/lib/mechanics/focus-load.ts', "export async function loadFocusOffer() { return { error: 'test' }; }"],
   [
     '/lib/mechanics/load.ts',
     `
@@ -95,6 +103,7 @@ const mocks = new Map([
     import { mechanicsFoldOf } from '@/lib/mechanics/fold';
     import { readProgramState } from '@/lib/mechanics/program';
     import { mechanicsPlanKey } from '@/lib/mechanics/store';
+    export async function loadMechanicsEquipment(userId,db,state) { return new Set(state.gear?.equipment ?? []); }
     export async function loadCurrentMechanicsFold() {
       const t = globalThis.__mechanicsRecordTest;
       return t.blocked ?? mechanicsFoldOf({ todayKey: t.today, age: 25, checkins: [],
@@ -104,7 +113,7 @@ const mocks = new Map([
       const t = globalThis.__mechanicsRecordTest;
       const state = readProgramState(t.row.progress);
       return { program: { level: state.level, index: state.index, week: 1, sessionsDone: t.row.sessionsDone,
-        finishedToday: false, planKey: mechanicsPlanKey(t.row.id, t.row.sessionsDone, state), focus: null },
+        finishedToday: false, blockers:[], equipment:[], canFinalize:!!state.attempt && state.attempt.items.some((i)=>i.required!==false) && state.attempt.items.filter((i)=>i.required!==false).every((i)=>state.attempt.doneIds.includes(i.guideId)), planKey: mechanicsPlanKey(t.row.id, t.row.sessionsDone, state), focus: null },
         throwNote: null, painFold: t.blocked, session: state.attempt?.items ?? [], doneToday: [...t.done] };
 
     }`,
@@ -113,8 +122,7 @@ const mocks = new Map([
 ]);
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === 'server-only')
-      return { url: 'data:text/javascript,export {};', shortCircuit: true };
+    if (specifier === 'server-only') return { url: 'data:text/javascript,export {};', shortCircuit: true };
     if (specifier === 'next/cache')
       return {
         url: 'data:text/javascript,export const revalidatePath = () => {};',
@@ -123,29 +131,37 @@ registerHooks({
     return nextResolve(specifier, context);
   },
   load(url, context, nextLoad) {
-    for (const [suffix, source] of mocks)
-      if (url.endsWith(suffix)) return { format: 'module', source, shortCircuit: true };
+    for (const [suffix, source] of mocks) if (url.endsWith(suffix)) return { format: 'module', source, shortCircuit: true };
     return nextLoad(url, context);
   },
 });
+const { freshState, programStateJson, readProgramState, practiceInput, mechanicsPainFold, playItemsFor, levelAdvice } =
+  await import('../lib/mechanics/program.ts');
 const {
-  freshState,
-  programStateJson,
-  readProgramState,
-  practiceInput,
-  mechanicsPainFold,
-  playItemsFor,
-  levelAdvice,
-} = await import('../lib/mechanics/program.ts');
-const { recordMechanicsDrill, finishMechanicsSession, recordMechanicsFilm, closeDrillThrowNote } = await import('../app/actions/mechanics.ts');
+  recordMechanicsDrill,
+  finishMechanicsSession,
+  recordMechanicsFilm,
+  closeDrillThrowNote,
+  saveMechanicsEquipment,
+  recordMechanicsNextDay,
+  advanceMechanicsStage,
+  convertMechanicsFocus,
+} = await import('../app/actions/mechanics.ts');
 const { mechanicsPlanKey, openMechanicsAttempt } = await import('../lib/mechanics/store.ts');
 const reset = () => {
   test.row = { id: 'program-1', progress: programStateJson(freshState('beginner')), sessionsDone: 0 };
   const state = readProgramState(test.row.progress);
   const guides = test.guides ?? [test.guide];
-  state.attempt = { id: 'attempt-1', on: '2026-10-25', session: 1,
-    planKey: mechanicsPlanKey(test.row.id, 0, state), completed: false, doneIds: [],
-    items: guides.map((g) => ({ guideId: g.id, category: g.category, variant: g, alternatives: [{ variants: [{ ...g, owned: true }] }] })) };
+  state.attempt = {
+    requirementsVersion: 1,
+    id: 'attempt-1',
+    on: '2026-10-25',
+    session: 1,
+    planKey: mechanicsPlanKey(test.row.id, 0, state),
+    completed: false,
+    doneIds: [],
+    items: guides.map((g) => ({ guideId: g.id, category: g.category, variant: g, alternatives: [{ variants: [{ ...g, owned: true }] }] })),
+  };
   test.row.progress = programStateJson(state);
   test.today = '2026-10-25';
   test.failDrill = false;
@@ -156,7 +172,9 @@ const reset = () => {
 };
 const input = (practice = {}) => ({
   attemptId: 'attempt-1',
-  requestId: createHash('sha256').update(JSON.stringify([test.guide.id, practice])).digest('hex'),
+  requestId: createHash('sha256')
+    .update(JSON.stringify([test.guide.id, practice]))
+    .digest('hex'),
   guideId: test.guide.id,
   element: '스로잉',
   feel: 'ok',
@@ -171,16 +189,9 @@ const input = (practice = {}) => ({
 reset();
 assert.deepEqual(await recordMechanicsDrill(input()), { ok: true });
 assert.equal(test.pitches.size, 1);
-assert.match(
-  [...test.pitches.keys()][0],
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
-);
+assert.match([...test.pitches.keys()][0], /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 assert.equal([...test.pitches.values()][0].pitchCount, 7, '실제 횟수를 저장한다');
-assert.equal(
-  [...test.pitches.values()][0].effortPct,
-  55,
-  '단계의 고정 강도를 추정하지 않는다'
-);
+assert.equal([...test.pitches.values()][0].effortPct, 55, '단계의 고정 강도를 추정하지 않는다');
 const writes = test.writes;
 test.blocked = { reason: '투구 제한' };
 assert.deepEqual(
@@ -195,14 +206,10 @@ assert.equal(test.pitches.size, 1, '오늘 합계 수정은 새 투구 기록을
 assert.equal([...test.pitches.values()][0].pitchCount, 9);
 await recordMechanicsDrill(input());
 assert.equal([...test.pitches.values()][0].pitchCount, 9, '수정 뒤 도착한 옛 요청의 재전송은 합계를 되돌리지 않는다');
-assert.ok('error' in await recordMechanicsDrill({ ...input({ throws: 12 }), requestId: input().requestId }));
+assert.ok('error' in (await recordMechanicsDrill({ ...input({ throws: 12 }), requestId: input().requestId })));
 test.pitches.set('manual-row', { pitchCount: 9 });
 await recordMechanicsDrill(input({ throws: 9, alreadyLogged: true }));
-assert.equal(
-  test.pitches.size,
-  1,
-  '다른 기록에 합쳤다고 수정하면 자동 생성했던 중복분만 제거한다'
-);
+assert.equal(test.pitches.size, 1, '다른 기록에 합쳤다고 수정하면 자동 생성했던 중복분만 제거한다');
 assert.ok(test.pitches.has('manual-row'), '다른 투구 기록은 건드리지 않는다');
 
 reset();
@@ -218,35 +225,17 @@ reset();
 assert.ok('error' in (await recordMechanicsDrill({ ...input(), practice: undefined })));
 assert.equal(test.writes, 0, '체크만으로 횟수를 만들지 않는다');
 await recordMechanicsDrill(input({ response: 'pain' }));
-assert.equal(
-  readProgramState(test.row.progress).practice[0].response,
-  'pain',
-  '통증이 생긴 수행도 기록은 남긴다'
-);
+assert.equal(readProgramState(test.row.progress).practice[0].response, 'pain', '통증이 생긴 수행도 기록은 남긴다');
 
 assert.equal(practiceInput(null), null);
 assert.equal(practiceInput({}), null);
-for (const invalid of [
-  { throws: -1 },
-  { throws: 1.5 },
-  { throws: 1001 },
-  { effortPct: NaN },
-  { response: 'unknown' },
-]) {
+for (const invalid of [{ throws: -1 }, { throws: 1.5 }, { throws: 1001 }, { effortPct: NaN }, { response: 'unknown' }]) {
   assert.equal(practiceInput({ ...input().practice, ...invalid }), null);
 }
 for (const age of [13, 16, 22, null]) {
   const fold = mechanicsPainFold({ elbow: '통증' }, { age });
-  const play = playItemsFor(
-    [{ category: '스로잉 드릴', alternatives: [] }],
-    fold,
-    true
-  );
-  assert.equal(
-    play.items.length,
-    0,
-    `나이 ${age}에서도 anyway로 던지기를 복원하지 않는다`
-  );
+  const play = playItemsFor([{ category: '스로잉 드릴', alternatives: [] }], fold, true);
+  assert.equal(play.items.length, 0, `나이 ${age}에서도 anyway로 던지기를 복원하지 않는다`);
 }
 const state = freshState('beginner');
 for (const f of Object.values(state.feels)) f.easy = 3;
@@ -262,20 +251,12 @@ state.films = [
     response: 'pain',
   },
 ];
-assert.equal(
-  levelAdvice(state),
-  null,
-  '영상이 좋아져도 통증 반응이 있으면 승급을 권하지 않는다'
-);
+assert.equal(levelAdvice(state), null, '영상이 좋아져도 통증 반응이 있으면 승급을 권하지 않는다');
 state.films[0].response = 'clear';
 assert.equal(levelAdvice(state).kind, 'up');
 const { loadRehabFacts } = await import('../lib/armcare/rehab-store.ts');
 const rehab = await loadRehabFacts('test-user', new Date('2026-10-25T03:00:00Z'));
-assert.equal(
-  rehab.throwing,
-  'none',
-  '자동 재활 보류로 기존 재활 사용자의 투구 제한이 사라지지 않는다'
-);
+assert.equal(rehab.throwing, 'none', '자동 재활 보류로 기존 재활 사용자의 투구 제한이 사라지지 않는다');
 assert.equal(rehab.stage, 2, '과거 4단계도 자동으로 무거운 운동을 허용하지 않는다');
 
 // Non-throwing categories never create or alter a pitch row, including old-client payloads.
@@ -296,7 +277,7 @@ for (const category of ['무브먼트 패턴 드릴', '근력 · 안정 드릴',
 test.guide = { ...throwingGuide, category: '메디신볼 드릴' };
 reset();
 test.blocked = { reason: '통증으로 쉬어요' };
-assert.ok('error' in await recordMechanicsDrill(input()));
+assert.ok('error' in (await recordMechanicsDrill(input())));
 assert.equal(test.writes, 0);
 test.guide = { ...throwingGuide, category: '무브먼트 패턴 드릴' };
 reset();
@@ -310,7 +291,7 @@ test.guide = throwingGuide;
 reset();
 const atLimit = await recordMechanicsDrill(input({ throws: 50, effortPct: 60 }));
 assert.ok(atLimit.ok && atLimit.stopReason, '저장 직후 다음 드릴 전에 제한을 알린다');
-assert.ok('error' in await recordMechanicsDrill(input({ throws: 51, effortPct: 60 })), '기록된 실제 양으로 다음 투구를 제한한다');
+assert.ok('error' in (await recordMechanicsDrill(input({ throws: 51, effortPct: 60 }))), '기록된 실제 양으로 다음 투구를 제한한다');
 assert.equal((await finish()).status, 'completed');
 assert.equal(test.row.sessionsDone, 1);
 await Promise.all([finish(), finish()]);
@@ -321,9 +302,9 @@ reset();
 test.done.add(test.guide.id);
 assert.equal((await finish()).status, 'partial');
 assert.equal(test.row.sessionsDone, 0);
-assert.ok('error' in await finishMechanicsSession({ session: 1 }));
-assert.ok('error' in await recordMechanicsDrill({ ...input(), attemptId: 'stale' }));
-assert.ok('error' in await recordMechanicsDrill({ ...input(), attemptId: undefined }));
+assert.ok('error' in (await finishMechanicsSession({ session: 1 })));
+assert.ok('error' in (await recordMechanicsDrill({ ...input(), attemptId: 'stale' })));
+assert.ok('error' in (await recordMechanicsDrill({ ...input(), attemptId: undefined })));
 assert.equal(test.writes, 0);
 
 // Two different drills share a program JSON. Read/merge/write must be serialized.
@@ -362,7 +343,10 @@ test.failDrill = false;
 // Opening/reopening the player fixes its original assignment and resumes this attempt only.
 reset();
 const original = readProgramState(test.row.progress).attempt;
-assert.equal((await openMechanicsAttempt('test-user', original.planKey, [original.items[0]])).items.length, 2);
+const refreshed = await openMechanicsAttempt('test-user', original.planKey, [original.items[0]]);
+assert.equal(refreshed.items.length, 2);
+assert.equal(refreshed.items[1].alternatives[0].variants[0].owned, false);
+assert.equal((await openMechanicsAttempt('test-user', original.planKey, original.items)).items[1].alternatives[0].variants[0].owned, true);
 await recordMechanicsDrill(a);
 assert.equal((await openMechanicsAttempt('test-user', original.planKey, original.items)).doneIds.length, 1);
 await recordMechanicsDrill(b);
@@ -394,8 +378,8 @@ assert.equal(concurrentState.throwLog.closed, true);
 // A session opened yesterday cannot silently record today's drills.
 reset();
 test.today = '2026-10-26';
-assert.ok('error' in await recordMechanicsDrill(a));
-assert.ok('error' in await finish());
+assert.ok('error' in (await recordMechanicsDrill(a)));
+assert.ok('error' in (await finish()));
 assert.equal(test.writes, 0);
 const { loadMechanicsPlay } = await import('../lib/mechanics/play-load.ts');
 reset();
@@ -419,13 +403,214 @@ assert.equal(play.startAt, 0);
 assert.deepEqual(play.doneGuideIds, [], '새 플레이어에 날짜별 옛 체크를 넘기지 않는다');
 
 const { APP_API_LEVEL, MIN_APP_API, minAppApiForAction } = await import('../lib/app-api.ts');
-assert.ok(APP_API_LEVEL >= 3);
+assert.equal(APP_API_LEVEL, 5);
+for (const action of [
+  'app-training-parts.loadAppMechanics',
+  'mechanics.saveMechanicsEquipment',
+  'mechanics.convertMechanicsFocus',
+  'mechanics.recordMechanicsNextDay',
+  'mechanics.advanceMechanicsStage',
+])
+  assert.equal(minAppApiForAction(action), 5);
 for (const action of ['app-mechanics.loadAppMechanicsPlay', 'mechanics.recordMechanicsDrill', 'mechanics.finishMechanicsSession'])
-  assert.equal(minAppApiForAction(action), 3);
-assert.equal(minAppApiForAction('app-training-parts.loadAppMechanics'), MIN_APP_API, '다른 기능에는 업데이트를 강제하지 않는다');
+  assert.ok(minAppApiForAction(action) >= 3);
+assert.equal(minAppApiForAction('app-training-parts.loadAppArmcare'), MIN_APP_API, '다른 기능에는 업데이트를 강제하지 않는다');
 reset();
-assert.ok('error' in await recordMechanicsDrill(input({ throws: 0 })));
+assert.ok('error' in (await recordMechanicsDrill(input({ throws: 0 }))));
 assert.equal(test.writes, 0, '0회 입력을 완료로 세지 않는다');
-assert.equal(readProgramState({ ...test.row.progress, attempt: { ...readProgramState(test.row.progress).attempt, items: [null] } }).attempt, null);
+assert.equal(
+  readProgramState({ ...test.row.progress, attempt: { ...readProgramState(test.row.progress).attempt, items: [null] } }).attempt,
+  null
+);
+
+// Current policy: actual actions preserve required slots, stage evidence and transaction retries.
+const { newProgression, skillStage, readiness } = await import('../lib/mechanics/progression.ts');
+const { REPORT_CRITERIA } = await import('../lib/pitch-3d/v2/report-policy.ts');
+const skillGuides = ['기초', '연결', '통합'].flatMap((stage) =>
+  [0, 1].map((n) => ({
+    id: `${stage}-${n}`,
+    title: `${stage}-${n}`,
+    stage,
+    focusPoints: ['드리프트'],
+    category: '무브먼트 패턴 드릴',
+    equipment: n === 1 ? ['밴드'] : ['맨몸'],
+  }))
+);
+const support = {
+  id: 'support',
+  title: 'support',
+  stage: '기초',
+  focusPoints: ['드롭'],
+  category: '무브먼트 패턴 드릴',
+  equipment: ['맨몸'],
+};
+test.guides = [...skillGuides, support];
+test.guide = skillGuides[0];
+reset();
+const skillRx = {
+  element: '드리프트',
+  key: 'drift',
+  fault: 'drift.stuck',
+  level: 'improve',
+  slots: 2,
+  cue: '동작 목표',
+  target: null,
+  weeks: ['기초', '연결', '통합'].map((stage, i) => ({
+    week: i + 1,
+    label: `${i + 1}단계`,
+    stage,
+    drills: skillGuides.filter((g) => g.stage === stage).map((g) => ({ title: g.title, dose: '', thumbUrl: null })),
+  })),
+};
+const slot = (g, required = true) => ({
+  guideId: g.id,
+  category: g.category,
+  title: g.title,
+  element: '드리프트',
+  stage: g.stage,
+  variant: g,
+  required,
+  ...(required ? { skill: { fault: skillRx.fault, stage: g.stage, cue: skillRx.cue, requiresTransfer: g.stage !== '기초' } } : {}),
+  alternatives: [{ variants: [{ ...g, owned: true }] }],
+});
+let st = readProgramState(test.row.progress);
+st.focus = {
+  reportId: 'skill-report',
+  jobId: 'skill-job',
+  criteria: REPORT_CRITERIA,
+  rx: [skillRx],
+  startedOn: test.today,
+  done: 0,
+  progression: newProgression('run-skill', [skillRx]),
+};
+st.gear = { on: test.today, equipment: ['밴드'] };
+st.attempt.items = [slot(skillGuides[0]), slot(skillGuides[1]), slot(support, false)];
+st.attempt.planKey = mechanicsPlanKey(test.row.id, 0, st);
+test.row.progress = programStateJson(st);
+const skillInput = (guide, attemptId = 'attempt-1', quality = 'yes') => ({
+  ...input(),
+  guideId: guide.id,
+  attemptId,
+  requestId: `${attemptId}:${guide.id}:${quality}`,
+  skill: { quality, transferred: 'yes' },
+});
+assert.ok('error' in (await recordMechanicsDrill({ ...skillInput(skillGuides[0]), skill: undefined })));
+assert.equal(test.writes, 0);
+await recordMechanicsDrill(skillInput(skillGuides[0]));
+assert.equal((await finish()).status, 'partial', '필수 2개 중 1개만 하면 진도를 유지');
+await recordMechanicsDrill(skillInput(skillGuides[1]));
+test.blocked = { reason: 'arm cap', because: 'armSpent', canUnfold: false };
+const requiredRecovery = await loadMechanicsPlay({ id: 'test-user', role: 'USER' }, null);
+assert.ok(requiredRecovery.ok);
+assert.equal(requiredRecovery.requirementsVersion, 1);
+test.blocked = null;
+assert.equal((await finish()).status, 'completed', '선택 드릴을 건너뛰어도 필수 수행은 정상 완료');
+st = readProgramState(test.row.progress);
+assert.equal(st.focus.progression.evidence.length, 1);
+assert.equal(st.focus.done, 1);
+assert.equal(st.focus.progression.evidence[0].quality, 'yes');
+const evidenceId = st.focus.progression.evidence[0].id;
+assert.ok('error' in (await recordMechanicsNextDay({ runId: 'run-skill', evidenceId, response: 'clear' })));
+test.today = '2026-10-26';
+await recordMechanicsNextDay({ runId: 'run-skill', evidenceId, response: 'clear' });
+await saveMechanicsEquipment([]);
+const move = { runId: 'run-skill', fault: skillRx.fault, from: '기초', evidenceId, requestId: 'first-move' };
+assert.ok('error' in (await advanceMechanicsStage(move)), '다음 단계 필수 장비가 없으면 전환 보류');
+assert.equal(skillStage(readProgramState(test.row.progress).focus.progression, skillRx.fault), '기초');
+await saveMechanicsEquipment(['밴드']);
+assert.deepEqual(await advanceMechanicsStage(move), { ok: true });
+assert.deepEqual(await advanceMechanicsStage(move), { ok: true });
+st = readProgramState(test.row.progress);
+assert.equal(skillStage(st.focus.progression, skillRx.fault), '연결');
+assert.equal(st.focus.progression.moves.length, 1);
+assert.ok('error' in (await advanceMechanicsStage({ ...move, requestId: 'stale-new-request' })));
+const conn = skillGuides.filter((g) => g.stage === '연결');
+const attempt = await openMechanicsAttempt('test-user', mechanicsPlanKey(test.row.id, test.row.sessionsDone, st), [
+  ...conn.map((g) => slot(g)),
+  slot(support, false),
+]);
+const finishSkill = () => finishMechanicsSession({ session: 2, attemptId: attempt.id });
+await recordMechanicsDrill(skillInput(support, attempt.id));
+assert.equal((await finishSkill()).status, 'partial', '보조 운동만 수행하면 세션 진도가 오르지 않는다');
+assert.equal(test.row.sessionsDone, 1);
+await recordMechanicsDrill(skillInput(conn[0], attempt.id, 'no'));
+await recordMechanicsDrill(skillInput(conn[1], attempt.id));
+await finishSkill();
+st = readProgramState(test.row.progress);
+assert.equal(st.focus.progression.evidence.length, 2);
+assert.equal(st.focus.progression.evidence[1].quality, 'no');
+assert.equal(readiness(st.focus.progression, skillRx.fault).ready, false);
+test.today = '2026-10-27';
+const last = st.focus.progression.evidence[1].id;
+await recordMechanicsNextDay({ runId: 'run-skill', evidenceId: last, response: 'pain' });
+assert.ok('error' in (await recordMechanicsNextDay({ runId: 'run-skill', evidenceId: last, response: 'clear' })));
+assert.ok('error' in (await advanceMechanicsStage({ ...move, from: '연결', evidenceId: last, requestId: 'pain-move' })));
+// An explicit conversion preserves previous count and requires fresh evidence.
+st = readProgramState(test.row.progress);
+delete st.focus.progression;
+st.focus.done = 9;
+st.attempt = null;
+test.row.progress = programStateJson(st);
+assert.deepEqual(await convertMechanicsFocus({ reportId: 'skill-report', mode: 'review' }), { ok: true });
+st = readProgramState(test.row.progress);
+assert.equal(st.focus.done, 9);
+assert.equal(st.focus.progression.previous.done, 9);
+assert.equal(st.focus.progression.evidence.length, 0);
+assert.equal(skillStage(st.focus.progression, skillRx.fault), '통합');
+assert.equal(readiness(st.focus.progression, skillRx.fault).ready, false);
+// Finishing integration must not require unrelated equipment from the regular program.
+st.focus.progression.evidence = [
+  {
+    id: 'integration',
+    fault: skillRx.fault,
+    stage: '통합',
+    on: '2026-10-26',
+    quality: 'yes',
+    transferred: 'yes',
+    during: 'clear',
+    nextDay: 'clear',
+    responseOn: '2026-10-27',
+    source: 'self',
+  },
+];
+st.gear = { on: test.today, equipment: [] };
+test.row.progress = programStateJson(st);
+assert.deepEqual(
+  await advanceMechanicsStage({
+    runId: st.focus.progression.id,
+    fault: skillRx.fault,
+    from: '통합',
+    evidenceId: 'integration',
+    requestId: 'final-move',
+  }),
+  { ok: true }
+);
+assert.ok(readProgramState(test.row.progress).focus.progression.elements[0].finished);
+// A later edit to a movement drill cannot erase pain from this attempt's evidence.
+reset();
+st = readProgramState(test.row.progress);
+st.focus = {
+  reportId: 'pain-report',
+  jobId: 'j',
+  criteria: REPORT_CRITERIA,
+  rx: [skillRx],
+  startedOn: test.today,
+  done: 0,
+  progression: newProgression('pain-run', [skillRx]),
+};
+st.gear = { on: test.today, equipment: ['밴드'] };
+st.attempt.items = skillGuides.filter((g) => g.stage === '기초').map((g) => slot(g));
+st.attempt.planKey = mechanicsPlanKey(test.row.id, 0, st);
+test.row.progress = programStateJson(st);
+const painful = {
+  ...skillInput(skillGuides[0]),
+  requestId: 'painful',
+  practice: { reps: 8, effortPct: 30, response: 'pain', alreadyLogged: false },
+};
+assert.ok((await recordMechanicsDrill(painful)).ok);
+assert.ok((await recordMechanicsDrill({ ...painful, requestId: 'edit-clear', practice: { ...painful.practice, response: 'clear' } })).ok);
+await recordMechanicsDrill(skillInput(skillGuides[1]));
+assert.equal((await finish()).status, 'completed');
+assert.equal(readProgramState(test.row.progress).focus.progression.evidence[0].during, 'pain');
 console.log('메커니즘 기록 회귀 검사 통과: 운동 단위·통증 제한·완료·동시 저장·재전송·롤백·세션 구분 (운영 DB 접근 없음)');
 process.exit(0);

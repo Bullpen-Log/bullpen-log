@@ -18,7 +18,7 @@ import {
   type Pitch3dV2Job,
 } from '@/lib/pitch-3d/v2/contract';
 import { jobReportSummary, type ReportSummary } from '@/lib/pitch-3d/v2/report';
-import { FOCUS_SESSIONS, readProgramState } from '@/lib/mechanics/program';
+import { FOCUS_SESSIONS, focusView, readProgramState } from '@/lib/mechanics/program';
 
 /**
  * 투구 분석 실험실(베타)의 샘플 저장 — 비공개 영상 버킷의 `{userId}/pitch-lab/{샘플 번호}/` 에 둔다.
@@ -502,10 +502,19 @@ export async function loadLatestReport(
  * 메커니즘에서 진행 중인 리포트 처방(메커니즘 세션 P2 — MechanicsProgram.progress.focus) — 리포트 화면의 [처방 시작]이 '처방 진행 중 n / 9'로.
  * 없으면 null. 마친 처방(done = 9)도 돌려준다(화면이 '마쳤어요'로).
  */
-export async function loadFocusProgress(userId: string): Promise<{ reportId: string; done: number; total: number } | null> {
+export async function loadFocusProgress(
+  userId: string
+): Promise<{ reportId: string; done: number; total: number; skill?: { label: string; finished: boolean } } | null> {
   const row = await prisma.mechanicsProgram.findUnique({ where: { userId }, select: { progress: true } });
   const focus = row ? readProgramState(row.progress).focus : null;
-  return focus ? { reportId: focus.reportId, done: Math.min(focus.done, FOCUS_SESSIONS), total: FOCUS_SESSIONS } : null;
+  return focus
+    ? {
+        reportId: focus.reportId,
+        done: focus.progression ? focus.done : Math.min(focus.done, FOCUS_SESSIONS),
+        total: FOCUS_SESSIONS,
+        ...(focus.progression ? { skill: { label: focusView(focus).stage ?? '기초', finished: focusView(focus).finished } } : {}),
+      }
+    : null;
 }
 
 export async function deleteUnsavedLabSample(userId: string, id: string, sport: LabSport = 'pitch') {

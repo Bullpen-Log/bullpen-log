@@ -554,7 +554,7 @@ export async function loadAppLabDetail(input: {
       focus: await (async () => {
         if (sample.ownerId !== user.id) return null;
         const f = await loadFocusProgress(user.id).catch(() => null);
-        return f?.reportId === sample.id ? { done: f.done, total: f.total } : null;
+        return f?.reportId === sample.id ? { done: f.done, total: f.total, ...(f.skill ? { skill: f.skill } : {}) } : null;
       })(),
     };
   }

@@ -16,7 +16,10 @@ import type { DrillThrowNote, MechanicsPainFold, SessionItem } from '@/lib/mecha
 type AppUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
 /** 프로그램 칸 목록의 드릴 한 줄 — 웹 SessionCard 가 그리는 칸만 */
-export type AppSessionDrill = Pick<SessionItem, 'title' | 'guideId' | 'element' | 'stage' | 'tool' | 'dose' | 'category' | 'gearNote' | 'rx'>;
+export type AppSessionDrill = Pick<
+  SessionItem,
+  'title' | 'guideId' | 'element' | 'stage' | 'tool' | 'dose' | 'category' | 'gearNote' | 'rx' | 'required'
+>;
 
 export type AppMechanicsProgramTab = {
   tab: 'program';
@@ -44,7 +47,7 @@ export async function loadAppMechanicsTab(
     return {
       tab,
       program,
-      session: session.map(({ title, guideId, element, stage, tool, dose, category, gearNote, rx }) => ({
+      session: session.map(({ title, guideId, element, stage, tool, dose, category, gearNote, rx, required }) => ({
         title,
         guideId,
         element,
@@ -54,6 +57,7 @@ export async function loadAppMechanicsTab(
         category,
         gearNote,
         rx,
+        required,
       })),
       doneToday,
       painFold,
@@ -62,8 +66,6 @@ export async function loadAppMechanicsTab(
   }
   /* 요소별 드릴 — 웹 mechanics-section.tsx 와 같은 묶음(별 · 직접 찍은 영상의 미리보기 주소까지) */
   const [guides, favorites, report] = await Promise.all([trainingGuides(), favoriteDrillIds(user.id), loadElementReport(user.id)]);
-  const ownThumbs = await createPlaybackUrls(
-    guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string)
-  );
+  const ownThumbs = await createPlaybackUrls(guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string));
   return { tab, drills: groupDrills(guides, favorites, ownThumbs), hand: user.throwingHand, report };
 }
