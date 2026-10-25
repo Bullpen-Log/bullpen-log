@@ -1,11 +1,13 @@
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadMemberCard, makeInvite } from '@/app/actions/app-org';
 import type { loadMemberHomework } from '@/app/actions/app-lesson';
 import { HomeworkList } from '~/org/homework';
 import { TalkToggle } from '~/org/thread';
+import { pickAndUploadOrgVideo } from '~/org/video';
+import { NOTE_VIDEOS_MAX } from '@/lib/org/comments';
 import { Bar, call, LoadState, useLoad } from '~/community/parts';
 import { toast } from '~/shell/toast';
 import { DangerLink, formCall } from '~/org/forms';
@@ -71,6 +73,54 @@ export default function MemberCardScreen() {
           <DangerLink label="조직에서 빼기" onPress={remove} c={c} />
         </ScrollView>
       )}
+    </View>
+  );
+}
+
+/** 일지 영상 붙이기 · 빼기(2단계) — 저장소에 올려 선수도 본다. 일지 하나에 두 개 */
+function NoteVideoLinks({ noteId, videos, org, onChanged, c }: { noteId: string; videos: string[]; org: string; onChanged: () => void; c: Palette }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const attach = async () => {
+    setBusy('영상을 고르는 중');
+    try {
+      const path = await pickAndUploadOrgVideo({ role: 'coach', orgId: org }, (p) => setBusy(`올리는 중 ${p}%`));
+      if (!path) return;
+      const r = await call<{ ok: boolean; error?: string }>('app-lesson.addNoteVideo', org, noteId, path);
+      if (!r.ok) return toast(('error' in r && r.error) || '붙이지 못했어요.', 'error');
+      toast('영상을 붙였어요');
+      onChanged();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : '영상을 올리지 못했어요.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+  const remove = () =>
+    Alert.alert('어느 영상을 뺄까요?', '빼면 저장소에서도 지워져요.', [
+      ...videos.map((v, i) => ({
+        text: `영상 ${i + 1}`,
+        style: 'destructive' as const,
+        onPress: async () => {
+          const r = await call<{ ok: boolean; error?: string }>('app-lesson.removeNoteVideo', org, noteId, v);
+          if (!r.ok) return toast(('error' in r && r.error) || '빼지 못했어요.', 'error');
+          onChanged();
+        },
+      })),
+      { text: '닫기', style: 'cancel' as const },
+    ]);
+  if (busy) return <Text style={[TYPE.sub, { color: c.muted }]}>{busy}</Text>;
+  return (
+    <View style={{ flexDirection: 'row', gap: 20 }}>
+      {videos.length < NOTE_VIDEOS_MAX ? (
+        <Pressable accessibilityRole="button" onPress={() => void attach()} hitSlop={6} style={{ minHeight: 32, justifyContent: 'center' }}>
+          <Text style={[TYPE.sub, { color: c.link, fontWeight: '600' }]}>영상 붙이기</Text>
+        </Pressable>
+      ) : null}
+      {videos.length ? (
+        <Pressable accessibilityRole="button" onPress={remove} hitSlop={6} style={{ minHeight: 32, justifyContent: 'center' }}>
+          <Text style={[TYPE.sub, { color: c.muted, fontWeight: '600' }]}>영상 빼기</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -225,7 +275,8 @@ function Body({ data, org, c, onChanged }: { data: Ok; org: string; c: Palette; 
                   </Pressable>
                 ) : null}
               </View>
-              <TalkToggle kind="note" id={n.id} talk={n.talk} who={{ role: 'coach', orgId: org }} c={c} />
+              <NoteVideoLinks noteId={n.id} videos={n.videos} org={org} onChanged={onChanged} c={c} />
+              <TalkToggle kind="note" id={n.id} talk={n.talk} videos={n.videos.length} who={{ role: 'coach', orgId: org }} c={c} />
             </View>
           ))
         )}
