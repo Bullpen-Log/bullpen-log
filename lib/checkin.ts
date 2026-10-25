@@ -551,18 +551,14 @@ export function pickArmPain(row: {
  * '가벼운 루틴을 해요'라는데 암케어 탭은 쉬라고 하는 날이 생긴다. 나이를 모르면 막지 않는다(대상이 고등학생
  * 이상이고, 생년월일은 안 적어도 되는 칸이다).
  */
-export function canDoPainRoutine({
-  spots,
-  level,
-  age,
-}: {
+/** 통증 위치·자가 점수만으로 운동 가능 여부를 승인하지 않는다. */
+export function canDoPainRoutine(input: {
   spots: readonly string[];
   level: number | null;
   age: number | null;
 }): boolean {
-  return (
-    spots.length > 0 && level === 1 && (age == null || age >= ARM_PAIN_ROUTINE_MIN_AGE)
-  );
+  void input;
+  return false;
 }
 
 /* ─────────────────────────── 상세 체크인 ─────────────────────────── */

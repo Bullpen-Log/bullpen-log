@@ -6,14 +6,9 @@ import { analysisOf, distanceMismatch } from '@/lib/velocity-analysis';
 import { applyCalibration, type CalFit } from '@/lib/velocity-calibration';
 import { summarize } from '@/lib/velocity-meta';
 import {
-  MISS_REASONS,
-  SIZE_OUTLIER_FIX,
-  judgeBySession,
-  lowConfidenceFix,
-  missReasonOf,
   measuredFields,
+  screenPitch,
   sessionDistanceOf,
-  sizeOutlier,
   steadied,
   withSessionDistance,
   type MissReason,
@@ -77,8 +72,8 @@ export function offStandardOf(info: StartInfo | null): string[] {
 const nextId = (list: NativePitch[]) => list.reduce((m, p) => Math.max(m, p.id), 0) + 1;
 
 /**
- * 잰 결과를 세션에 담을지 — 웹 addResult 와 같은 규칙: 못 잰 공은 흔들림만 알리고 나머지는 조용히, 믿음 '높음'이 아니면(흔들림을
- * 바로잡은 '보통'은 받음) 측정 불가, 앞 공들과 공 크기 거리가 튀면 측정 불가. 받으면 새 목록(세션 거리 보정까지 다시 낸 것).
+ * 잰 결과를 세션에 담을지 — 규칙은 lib/velocity-session.ts screenPitch(웹 addResult · 시험대와 같은 함수): 못 잰 공은 까닭을 알리고, 믿음 '높음'이
+ * 아니면(흔들림을 바로잡은 '보통'은 받음) 측정 불가, 앞 공들과 공 크기 거리가 튀면 측정 불가. 받으면 새 목록(세션 거리 보정까지 다시 낸 것).
  */
 export function decide(
   raw: EngineResult,
@@ -88,32 +83,22 @@ export function decide(
   /** ABS 모드면 판정 함수(use-abs judge) — 보정이 있고 궤적 스냅샷이 있으면 analysis.abs 에 싣고 코스는 판정 칸으로(웹과 같다) */
   judgeAbs?: (r: AbsJudgeSource) => AbsAnalysis | null
 ): { verdict: Verdict; list?: NativePitch[]; notice?: string; miss?: MissReason } {
-  const result = judgeBySession(raw as unknown as Result, list, 'camera', ctx.tape);
-  const m = result.measure;
-  /* 조용할 때 훑기가 찾은 공(late)은 알림 없이 잰 것 — 못 쟀으면 어느 공 이야기인지 앞에 붙인다 */
-  const pre = meta.late ? '뒤늦게 찾은 공 · ' : '';
-  if (!m.ok) {
-    if (m.code === 'CAMERA_SHAKE')
-      return { verdict: { kept: false }, notice: `${pre}폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.`, miss: MISS_REASONS.shake };
-    /*
-     * 여기 오는 실패는 화면에 띄운 공뿐이다(capture.ts — 안 보이는 작업 · 공 길 4장 밑은 조용히 넘김). 예전엔 '구속 계산 중' 뒤에 말없이 사라졌다.
-     * 까닭(거부 코드의 한 줄)과 할 일 첫 문장을 같이 — 10-21 김민: "측정 불가하면 원인 띄우고"
-     */
-    const fix = m.fix?.split('. ')[0]?.replace(/\.?$/, '.');
+  /* 받을지는 시험대와 같은 함수(lib/velocity-session.ts screenPitch, 2026-10-25 설계안 작업 A) — 여기선 그 판정을 화면 verdict · 알림으로 옮기기만 */
+  const sv = screenPitch(raw as unknown as Result, list, {
+    source: 'camera',
+    tape: ctx.tape,
+    approaching: ctx.cameraPos !== 'behind-pitcher',
+    late: meta.late,
+  });
+  if (!sv.kept) {
+    /* 여기 오는 엔진 거부는 화면에 띄운 공뿐이다(capture.ts — 안 보이는 작업 · 공 길 4장 밑은 조용히 넘김). 예전엔 '구속 계산 중' 뒤에 말없이 사라졌다 */
     return {
-      verdict: { kept: false },
-      notice: `${pre}못 쟀어요 · ${m.message ?? '공은 봤는데 거리를 못 쟀어요.'}${fix ? ` ${fix}` : ''}`,
-      miss: missReasonOf(result),
+      verdict: sv.why === 'engine-reject' ? { kept: false } : { kept: false, why: sv.why },
+      notice: sv.notice,
+      miss: sv.miss,
     };
   }
-  if (m.confidence !== 'high' && !steadied(result))
-    return {
-      verdict: { kept: false, why: 'low-confidence' },
-      notice: `${pre}측정 불가 · ${lowConfidenceFix(result, 'camera', ctx.cameraPos !== 'behind-pitcher', ctx.tape)}`,
-      miss: missReasonOf(result, ctx.cameraPos !== 'behind-pitcher'),
-    };
-  if (sizeOutlier(result, list, 'camera'))
-    return { verdict: { kept: false, why: 'session-size' }, notice: `${pre}측정 불가 · ${SIZE_OUTLIER_FIX}`, miss: MISS_REASONS.session };
+  const result = sv.result;
 
   const tail = result.track[result.track.length - 1];
   const zone =

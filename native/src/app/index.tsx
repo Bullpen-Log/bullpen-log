@@ -89,6 +89,8 @@ const NATIVE_ROUTES = [
   /^\/lab(\/guide|\/[0-9a-f-]{36})?(\?[\w=&%.-]*)?$/,
   /^\/login\?native=1$/,
   /^\/(signup|account)$/,
+  /* 팀 · 레슨장 공간(1단계, docs/designs/sinker-team-lesson-contract.md 2-2) — 웹 /manage · /join 은 nativeOfWeb 이 이리로 */
+  /^\/org(\/join(\?code=\w+)?|\/member\/[\w-]+\?org=[\w-]+|\/share\/[\w-]+)?$/,
 ];
 const isNativePath = (path: string) => NATIVE_PATHS.has(path) || NATIVE_ROUTES.some((r) => r.test(path));
 /**
@@ -106,6 +108,12 @@ function nativeOfWeb(href: string): string | null {
   const setup: Record<string, string> = { '/videos/setup': '/setup/pitch', '/training/setup': '/setup/training', '/nutrition/setup': '/setup/nutrition' };
   if (setup[path]) return setup[path];
   if (path === '/workout/warmup') return '/warmup';
+  /* 마스터 계정의 웹 관리 화면 · 선수의 참여 화면 → 앱 팀 · 레슨장 공간(웹 /manage 는 PC 용, 앱에서는 '?web=1' 로만) */
+  if (path === '/manage' || path.startsWith('/manage/')) return '/org';
+  if (path === '/join') {
+    const code = new URLSearchParams(q ?? '').get('code');
+    return code && /^\w+$/.test(code) ? `/org/join?code=${code}` : '/org';
+  }
   /* 웹 ABS 판정 → 앱 카메라 화면의 ABS 모드(앱 카메라 · 2배 · 손떨림 보정 — 웹뷰 카메라보다 정확) */
   if (path === '/abs') return '/velocity?mode=abs';
   const sp = new URLSearchParams(q ?? '');
@@ -633,6 +641,11 @@ export default function SiteScreen() {
       return;
     }
     if (isLoginPath(pathname)) resetShell();
+    /*
+     * 마스터 계정은 (app) 틀이 웹 /manage 로 보낸다 — 앱에서는 팀 · 레슨장 공간(앱 화면)을 연다(결정 3: 마스터 계정엔 내 싱커가 없다).
+     * 서버 이동(redirect)은 shouldStart 를 안 거칠 수 있어 주소가 바뀐 것을 여기서 본다. '?web=1' 은 일부러 웹.
+     */
+    if (!nav.loading && (pathname === '/manage' || pathname.startsWith('/manage/')) && !/[?&]web=1\b/.test(nav.url)) openNative('/org');
   }, [resetShell]);
 
   /* 웹을 못 불러와도(꺼진 망에서 켬) 탭 막대 · 앱 탭은 그대로 쓴다 — 사이트가 '막대 켬'을 못 알려 주니 실패면 켠 것으로 본다 */

@@ -7,7 +7,6 @@ import { notify } from '@/lib/notify';
 import { geocode } from '@/lib/geocode';
 import { requireAdmin, requireMaster, requireUser } from '@/lib/dal';
 import { requireOrg } from '@/lib/org/access';
-import { consentDefaults } from '@/lib/org/rules';
 import { dbDate } from '@/lib/nutrition/days';
 import {
   BOOKING_NOTE_MAX,
@@ -30,7 +29,7 @@ import {
   SLOT_MIN_DEFAULT,
 } from '@/lib/market/lessons';
 import { parseHours, readHours, slotValid, weekdayOf } from '@/lib/market/venues';
-import { ORG_NAME_MAX, ORG_REGION_MAX } from '@/lib/org/rules';
+import { ORG_NAME_MAX, ORG_REGION_MAX, passUsable } from '@/lib/org/rules';
 
 /**
  * 덕아웃 레슨 예약(2판, 2026-10-21) — 선수: 요청 · 취소 · 후기(requireUser). 코치: 프로필 공개 · 확정 · 거절 · 끝남(requireMaster → requireOrg).
@@ -182,10 +181,10 @@ export async function confirmBooking(formData: FormData) {
   if (!canConfirm(b, which, new Date())) return;
   const chosen = which === 2 ? b.slot2! : b.slot1;
   const { dateKey, time } = slotParts(chosen);
-  await prisma.$transaction(async (tx) => {
+  const consentPending = await prisma.$transaction(async (tx) => {
     const existing = await tx.orgMember.findUnique({
       where: { orgId_userId: { orgId: org.id, userId: b.userId } },
-      select: { id: true, status: true },
+      select: { id: true, status: true, consent: { select: { memberId: true } } },
     });
     let memberId: string;
     if (existing) {
@@ -207,9 +206,8 @@ export async function confirmBooking(formData: FormData) {
         select: { id: true },
       });
       memberId = m.id;
-      await tx.shareConsent.create({
-        data: { memberId, ...consentDefaults(), byUserId: b.userId },
-      });
+      /* 공유 동의는 만들지 않는다 — 예약 확정은 회원 연결만, 무엇을 보여 줄지는 선수가 싱커에서 고른다(2026-10-25 0단계 계약 2-1).
+         동의 줄이 없는 계정 회원은 아무것도 안 보인다(lib/org/access.ts memberScope) */
     }
     const ev = await tx.orgEvent.create({
       data: {
@@ -227,6 +225,7 @@ export async function confirmBooking(formData: FormData) {
       where: { id },
       data: { status: 'CONFIRMED', chosen, reply, memberId, eventId: ev.id, confirmedAt: new Date() },
     });
+    return !existing?.consent;
   });
   await notify(b.userId, {
     kind: 'booking',
@@ -234,6 +233,13 @@ export async function confirmBooking(formData: FormData) {
     body: formatSlot(chosen),
     link: '/me',
   });
+  if (consentPending)
+    await notify(b.userId, {
+      kind: 'lesson',
+      title: `${org.name}에 연결됐어요`,
+      body: '코치에게 보여 줄 기록을 싱커에서 골라 주세요.',
+      link: '/join',
+    });
   revalidatePath('/manage', 'layout');
   revalidatePath('/', 'layout');
 }
@@ -265,17 +271,32 @@ export async function declineBooking(formData: FormData) {
   revalidatePath('/', 'layout');
 }
 
-/** 레슨을 했다 — 끝남으로. 후기를 쓸 수 있게 된다 */
+/**
+ * 레슨을 했다 — 끝남으로. 후기를 쓸 수 있게 된다. 수강권은 여기서 한 회 준다 — 쓸 수 있는 것 가운데 기한이 가까운 것부터.
+ * 수강권 차감은 덕아웃 운영의 일이라 싱커의 레슨 노트 저장에서 옮겨 왔다(2026-10-25 0단계 계약 2-1).
+ */
 export async function finishBooking(formData: FormData) {
   const user = await requireMaster();
   const id = String(formData.get('id') ?? '');
   const b = await prisma.lessonBooking.findUnique({
     where: { id },
-    select: { orgId: true, status: true },
+    select: { orgId: true, status: true, memberId: true, chosen: true, slot1: true },
   });
   if (!b || b.status !== 'CONFIRMED') return;
   await requireOrg(user, b.orgId);
-  await prisma.lessonBooking.update({ where: { id }, data: { status: 'DONE' } });
+  const lessonDay = slotParts(b.chosen ?? b.slot1).dateKey;
+  await prisma.$transaction(async (tx) => {
+    await tx.lessonBooking.update({ where: { id }, data: { status: 'DONE' } });
+    if (!b.memberId) return;
+    const passes = await tx.lessonPass.findMany({
+      where: { memberId: b.memberId },
+      orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, total: true, used: true, expiresAt: true },
+    });
+    const pick = passes.find((p) => passUsable(p, lessonDay));
+    if (pick)
+      await tx.lessonPass.update({ where: { id: pick.id }, data: { used: { increment: 1 } } });
+  });
   revalidatePath('/manage', 'layout');
   revalidatePath('/', 'layout');
 }

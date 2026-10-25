@@ -74,7 +74,7 @@ import {
 
 type Result<T = object> = ({ ok: true } & T) | { error: string };
 
-const OFF = '재활 프로그램을 잠시 멈췄어요.';
+const OFF = '자동 재활·투구 복귀 안내를 검토 중이에요. 담당 의사·치료사와 확인해 주세요.';
 const NOT_ACTIVE = '진행 중인 재활이 없어요. 화면을 새로고침해 주세요.';
 
 function refresh() {
@@ -805,7 +805,7 @@ export async function setRehabCondition(condition: string): Promise<Result> {
  */
 export async function endRehab(reason: 'done' | 'stopped'): Promise<Result> {
   const user = await requireUser();
-  if (!REHAB_ENABLED) return { error: OFF };
+  if (!REHAB_ENABLED && reason !== 'stopped') return { error: OFF };
 
   const active = await loadActiveRehab(user.id);
   if (!active) return { error: NOT_ACTIVE };

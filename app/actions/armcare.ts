@@ -63,7 +63,7 @@ export async function makeArmcareRoutine(): Promise<{ ok: true } | { error: stri
       error:
         today.decision.kind === 'pain'
           ? '아픈 날에 할 만한 가벼운 암케어 운동이 없어요. 오늘은 팔을 쉬어 주세요.'
-          : '가진 장비로 할 수 있는 암케어 운동이 없어요.',
+          : today.decision.reason.includes('이미 수행') ? '오늘 어깨·팔 운동을 이미 했어요. 보강을 더 채우지 않아도 돼요.' : '현재 장비와 몸 상태에 맞는 기본 보강이 없어요.',
     };
   }
 

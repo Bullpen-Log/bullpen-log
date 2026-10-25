@@ -4,6 +4,10 @@
  *   npm run velocity:bench:report -- <결과.json>                 표
  *   … -- <결과.json> --append                                     docs/velocity/redesign/bench-results.md 에 판 한 줄
  *   … -- --compare=<앞.json>,<뒤.json>                            공마다 바뀐 것 · 묶음별 MAE 전후
+ *   … -- <결과.json> --strict                                     확인용 목표 미달이면 끝 코드 1(CI 용 — 2026-10-25 설계안 단계 0)
+ *
+ * 작업 C(2026-10-25): 결과에 guided(모델 후보 안내) 길이 있으면 app 과 공마다 견주고(같은 영상 — 기록 · MAE · 안내로 찾은 비율 · 안내가 실패한 까닭),
+ * --shifts 로 잰 분석창 민감도(가시 구간이 유지된 공의 값 차이 2km/h 안 비율 · 잘린 구간은 따로)를 낸다.
  *
  * 길마다 재는 것(차이 = 낸 값 − 스피드건):
  *   app  — 기록 = 앱 화면 규칙을 지난 공(shown), 차이는 화면 값
@@ -24,13 +28,20 @@ const median = (a) => {
   return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
 };
 
+/** 화면 규칙을 거치는 길(기록 = shown) */
+const SCREENED = new Set(['app', 'guided', 'label-link']);
 /** 길 하나의 값 — 기록됐으면 km/h, 아니면 null */
 function valueOf(r, mode) {
   const x = r[mode];
   if (!x) return undefined; /* 이 길을 안 잼(실제 거리 모름) */
-  if (mode === 'app') return x.shown ?? null;
+  if (SCREENED.has(mode)) return x.shown ?? null;
   return x.ok ? x.kmh : null;
 }
+const MODE_LABEL = {
+  app: 'app(앱 그대로 · 화면 규칙)',
+  guided: 'guided(앱 + 모델 후보 안내 · 화면 규칙)',
+  'label-link': 'label-link(앱 + 사람이 찍은 중심 안내 · 화면 규칙)',
+};
 
 /** 공 묶음의 숫자 — n 던짐 · 기록 수 · 차이 통계 · MAE 90% 구간(부트스트랩, 씨앗 고정) */
 function stats(rows, mode) {
@@ -77,8 +88,9 @@ function report(res) {
     ['115~130', (g) => g >= 115 && g < 130],
     ['130~', (g) => g >= 130],
   ];
+  let strictOk = true;
   for (const mode of modes) {
-    console.log(`\n── ${mode === 'app' ? 'app(앱 그대로 · 화면 규칙)' : `${mode}(실제 거리${mode === 'true' ? '' : ` ${mode.slice(4)}%`} 넣음)`}`);
+    console.log(`\n── ${MODE_LABEL[mode] ?? `${mode}(실제 거리${mode === 'true' ? '' : ` ${mode.slice(4)}%`} 넣음)`}`);
     for (const split of ['holdout', 'tune', 'diag']) {
       const sr = rows.filter((r) => r.split === split);
       if (!sr.some((r) => r[mode])) continue;
@@ -95,12 +107,26 @@ function report(res) {
         }
         const ok = s.recRate >= GOAL.found && s.within3 >= GOAL.within3 && s.mae < GOAL.mae;
         console.log(`  목표(기록 ${pct(GOAL.found)} · ±3 안 ${pct(GOAL.within3)} · MAE ${GOAL.mae} 밑): ${ok ? '통과' : '미달'}`);
+        if (mode === 'app' && !ok) strictOk = false;
       }
-      if (mode !== 'app') {
+      if (SCREENED.has(mode)) {
+        /* 안 받은 까닭(화면 규칙) · 안내 길이면 안내로 찾은 비율과 실패 까닭 */
+        const screen = {};
+        for (const r of sr.filter((r) => r[mode] && r[mode].screen && r[mode].screen !== 'kept')) screen[r[mode].screenCode ?? r[mode].screen] = (screen[r[mode].screenCode ?? r[mode].screen] ?? 0) + 1;
+        if (Object.keys(screen).length) console.log(`  안 받음: ${Object.entries(screen).map(([k, v]) => `${k} ${v}`).join(' · ')}`);
+        if (mode !== 'app') {
+          const withNet = sr.filter((r) => r[mode]?.netN);
+          const guided = withNet.filter((r) => r[mode].guided).length;
+          const why = {};
+          for (const r of withNet.filter((r) => !r[mode].guided)) why[r[mode].guidedWhy ?? 'none'] = (why[r[mode].guidedWhy ?? 'none'] ?? 0) + 1;
+          console.log(`  안내: 후보 받은 공 ${withNet.length} · 안내로 찾음 ${guided}${Object.keys(why).length ? ` · 못 찾음 ${Object.entries(why).map(([k, v]) => `${k} ${v}`).join(' · ')}` : ''}`);
+        }
+      }
+      if (!SCREENED.has(mode)) {
         const sure = stats(sr.filter((r) => ['high', 'medium'].includes(r[mode]?.conf)), mode);
         if (sure.rec) console.log(line('  믿음 높음·보통', sure));
       }
-      if (mode !== 'app')
+      if (!SCREENED.has(mode))
         for (const imp of ['rebound', 'end']) {
           const is = stats(sr.filter((r) => r[mode]?.impact === imp), mode);
           if (is.rec) console.log(line(`  끝 ${imp}`, is));
@@ -111,6 +137,37 @@ function report(res) {
   const codes = {};
   for (const r of rows.filter((r) => r.split === 'holdout' && r.app && !r.app.ok)) codes[r.app.code ?? r.app.error] = (codes[r.app.code ?? r.app.error] ?? 0) + 1;
   if (Object.keys(codes).length) console.log(`\n확인용 app 못 잰 까닭: ${Object.entries(codes).map(([k, v]) => `${k} ${v}`).join(' · ')}`);
+
+  /* 안내 vs 기존 — 같은 영상에서 공마다(작업 C) */
+  for (const g of ['guided', 'label-link'].filter((m) => modes.includes(m) && modes.includes('app'))) {
+    const both = rows.filter((r) => r.app && r[g]);
+    const diff = both.filter((r) => valueOf(r, 'app') != null && valueOf(r, g) != null).map((r) => valueOf(r, g) - valueOf(r, 'app'));
+    const onlyG = both.filter((r) => valueOf(r, 'app') == null && valueOf(r, g) != null).length;
+    const onlyA = both.filter((r) => valueOf(r, 'app') != null && valueOf(r, g) == null).length;
+    const big = diff.filter((d) => Math.abs(d) > 2).length;
+    console.log(`\n── ${g} vs app(같은 공 ${both.length}): 둘 다 기록 ${diff.length}(값 차이 2km/h 넘음 ${big}) · ${g} 만 기록 ${onlyG} · app 만 기록 ${onlyA}`);
+    for (const split of ['holdout', 'tune']) {
+      const sr = both.filter((r) => r.split === split);
+      if (!sr.length) continue;
+      console.log(line(`[${split}] app`, stats(sr, 'app')));
+      console.log(line(`[${split}] ${g}`, stats(sr, g)));
+    }
+  }
+
+  /* 분석창 민감도(--shifts) — 가시 구간이 유지된 공(frames 7할 넘게)의 값 차이 2km/h 안 비율, 잘린 구간은 따로(작업 C 완료 조건) */
+  for (const mode of modes.filter((m) => rows.some((r) => r[m]?.shift))) {
+    const rs = rows.filter((r) => r[mode]?.shift && r[mode].ok);
+    const keys = [...new Set(rs.flatMap((r) => Object.keys(r[mode].shift)))].sort((a, b) => Math.abs(Number(a)) - Math.abs(Number(b)) || a.localeCompare(b));
+    console.log(`\n── 분석창 민감도 ${mode}(바탕 잰 공 ${rs.length})`);
+    for (const k of keys) {
+      const xs = rs.map((r) => r[mode].shift[k]).filter(Boolean);
+      const kept = xs.filter((x) => x.kept);
+      const within = kept.filter((x) => Math.abs(x.dKmh) <= 2).length;
+      const maxD = kept.length ? Math.max(...kept.map((x) => Math.abs(x.dKmh))) : NaN;
+      console.log(`  ${k.padStart(6)}초: 가시 구간 유지 ${kept.length}/${xs.length} · 그중 2km/h 안 ${within}(${pct(kept.length ? within / kept.length : NaN)}) · 가장 큰 차이 ${fmt(maxD)} · 잘림 · 못 잼 ${xs.length - kept.length}`);
+    }
+  }
+  return strictOk;
 }
 
 function append(res) {
@@ -156,6 +213,10 @@ else {
   const file = process.argv.slice(2).find((a) => !a.startsWith('--'));
   if (!file) throw new Error('쓰는 법: report.mjs <결과.json> [--append] | --compare=<앞>,<뒤>');
   const res = load(file);
-  report(res);
+  const ok = report(res);
   if (process.argv.includes('--append')) append(res);
+  if (process.argv.includes('--strict') && !ok) {
+    console.error('\n확인용 app 목표 미달 — --strict 라 끝 코드 1');
+    process.exitCode = 1;
+  }
 }

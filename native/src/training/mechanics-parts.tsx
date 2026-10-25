@@ -134,9 +134,9 @@ export function NoProgram({ reload, c }: { reload: Reload; c: Palette }) {
     <View style={{ gap: 12 }}>
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 6 }]}>
         <Text style={[s.title, { color: c.ink }]}>투구 메커니즘 향상 프로그램</Text>
-        <Text style={[s.body, { color: c.ink }]}>{SESSIONS_PER_LEVEL}세션 · 한 번에 15~25분이에요.</Text>
+        <Text style={[s.body, { color: c.ink }]}>{SESSIONS_PER_LEVEL}회 연습 순서예요. 기간을 정해두지 않고 오늘 투구 계획에 맞춰 해요.</Text>
         <Fold label="자세히" c={c}>
-          <Text style={[s.body, { color: c.muted }]}>드릴 3~4개를 투구 차례대로 해요. 던지는 날 캐치볼 전에 하면 알맞아요. 처음이면 입문부터.</Text>
+          <Text style={[s.body, { color: c.muted }]}>선택한 동작을 짧게 연습해요. 단계는 학습 난이도이고, 던지는 양과 세기는 오늘 투구 계획을 따라요. 처음이면 입문부터.</Text>
         </Fold>
       </View>
       <LevelPicker current={null} index={0} reload={reload} c={c} />
@@ -299,7 +299,7 @@ export function SessionCard({
       )}
       <Fold label="하는 법" c={c}>
         <Text style={[s.small, { color: c.muted }]}>
-          드릴마다 느낌을 눌러요. 쉬움이 여러 요소에서 쌓이면 다음 수준을 권해요. 던지는 날 몸을 푼 뒤, 캐치볼 전에 하면 알맞아요.
+          드릴마다 느낌을 눌러요. 쉬움이 여러 요소에서 쌓이면 다음 수준을 권해요. 워밍업 뒤 오늘 투구 계획에 포함해 연습해요. 추가 투구량으로 따로 쌓지 않아요.
         </Text>
       </Fold>
     </View>
@@ -546,8 +546,8 @@ export function CompletedCard({ program, reload, c }: { program: MechanicsProgra
         {down
           ? `‘어려움’이 이어지는 요소가 있었어요. ${down.name}에서 자세를 다지거나, ${level.name}${josa(level.name, '을/를')} 한 번 더 해도 돼요.`
           : next
-            ? `4주 동안 ${WEEKS * PER_WEEK}번을 다 했어요. ${next.name}${josa(next.name, '으로/로')} 넘어가거나, 편하지 않았다면 한 번 더 해도 돼요.`
-            : `4주 동안 ${WEEKS * PER_WEEK}번을 다 했어요. 가장 높은 수준이라, 한 번 더 하며 전체 동작을 다듬어요.`}
+            ? `${WEEKS * PER_WEEK}번을 다 했어요. ${next.name}${josa(next.name, '으로/로')} 넘어가기 전 실제 투구에서 유지되는지와 다음 날 반응을 확인해요.`
+            : `${WEEKS * PER_WEEK}번을 다 했어요. 횟수만으로 다음 수준을 정하지 않아요. 같은 조건의 영상·실제 투구·다음 날 반응을 확인해요.`}
       </Text>
       {target ? <Btn label={pending ? '바꾸는 중…' : `${target.name} 시작`} disabled={pending} onPress={() => void start(target.key)} c={c} /> : null}
       <Btn label={`${level.name} 한 번 더`} primary={!target} disabled={pending} onPress={() => void start(level.key)} c={c} />
@@ -581,7 +581,7 @@ export function LevelProgress({ program, c }: { program: MechanicsProgramView; c
                 );
               })}
             </View>
-            <Text style={[s.tiny, s.center, { color: c.muted }]}>{w + 1}주</Text>
+            <Text style={[s.tiny, s.center, { color: c.muted }]}>{w * PER_WEEK + 1}~{(w + 1) * PER_WEEK}회</Text>
           </View>
         ))}
       </View>
@@ -654,7 +654,8 @@ function FilmHistory({ films, c }: { films: FilmNote[]; c: Palette }) {
       {films.map((f) => (
         <View key={f.session} style={s.between}>
           <Text style={[s.body, { color: c.ink }]}>
-            세션 {f.session}번 · <Text style={{ fontWeight: '700', color: f.verdict === 'better' ? c.sky : c.ink }}>{label(f.verdict)}</Text>
+            세션 {f.session}번 · <Text style={{ fontWeight: '700', color: f.verdict === 'better' ? c.sky : c.ink }}>{label(f.verdict)}</Text>{'\n'}
+            <Text style={[s.tiny, { color: c.muted }]}>{f.comparable ? '촬영 조건 같음' : '촬영 조건 미확인'} · {f.transferred ? '실제 투구 확인' : '실제 투구 미확인'} · {f.response === 'clear' ? '통증 없음' : f.response === 'pain' ? '통증 있음' : '운동 후 반응 미확인'}</Text>
           </Text>
           <Text style={[s.tiny, { color: c.muted }]}>
             {Number(f.on.slice(5, 7))}/{Number(f.on.slice(8, 10))}

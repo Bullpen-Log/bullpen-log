@@ -645,6 +645,13 @@
       권한 'dev3d'(대표관리자만), 웹 /hitting/lab · /admin/dev3d, 앱 /swing · /swing/samples(앱 화면 판 11). 리포트는 '준비 중' — 남은 것: 샘플을 모아 모델 만들기 ·
       앱 화면 폰 확인 · 준관리자에게 열지(MANAGER_PERMISSIONS 한 줄).
 
+  23. **구속 측정 신뢰성 설계안 첫 묶음(2026-10-25, 김민 PDF `sinker-velocity-design-for-yunho-2026-10-25.pdf` — 사용자: "읽어보고 바로 실행해줘"). 작업 A~D 코드 끝(서브1 가지 `sub1`, 커밋 셋 — 2756a688 A · c96b8582 B · 다음 C+D), 폰 확인 전.**
+      순서는 설계안대로 관측 · 재현(A) → 좌표 계약 · 후보 전달(B) → 정밀화 · 비교(C) → 라벨 명세(D). 핵심 자리: `capture.ts lost · lostJob`(QUEUE_FULL · DUP_WINDOW · MERGED · SEED_BUSY · DROPPED · SUPERSEDED · STOPPED) ·
+      `attempt-meta.ts`(settings · versions) · `lib/velocity-session.ts screenPitch`(앱 · 시험대 공용 판정 — `scripts/velocity-bench/screen.mjs`, app-rules.mjs 삭제) · Swift `BallNetTrigger.recentHits → DualClip.hits`(hitsSchema 1) →
+      `netHitsOf → MeasureOpts.netHits`(caps.netHits 일 때만) · `net-flight.ts` 지름 없는 길(minGatePx · 넷 넘게 · 문 세 배 움직임) · `analyze-distance guidedWhy · seedSource · netHits · netChain` · 시험대 `--modes=guided,label-link · --shifts · --dump · --labels` ·
+      `overlay.html`(오버레이 + 라벨 찍기) · `SPEC-labels.md` · `report.mjs --strict`. **환경 함정**: 서브1 worktree 의 `native/node_modules` 는 메인 폴더 것으로 symlink(앱 tsc 용, 커밋 안 함); Swift 는 `xcrun swiftc -typecheck -sdk <iphoneos> -target arm64-apple-ios16.4 DualCameraCore.swift` 로 검사(시스템 프레임워크만 쓰는 파일); 웹 tsc 전에 `.next/dev/types` 가 낡으면 지운다.
+      **남은 것**: ① 폰 — 좌표 방향 · PTS 대응(오버레이로 같은 공인지), 시도 기록에 settings · versions · hitsAvail 이 남나 ② 시험대 실제 실행(이 맥엔 자료 없음 — 김민 맥 또는 `velocity:bench:fetch`) ③ 라벨 30~50구(사용자) → 단계 ②
+      ④ 단계 ③ 엔진 입구(관측 고정 — ball-track guide 를 pin 으로) ⑤ 두 번째 묶음(고른 거리 길을 공 크기 자동 거리에서 독립 · 세션 크기 필터 재검증 · 릴리스 · 종점 정의).
 - **클라우드 식단 짜기 정확도 2차 — 끝남(2026-10-04 맡김 → 10-06 main 합침 · 메인 검토 반영). 지금 클라우드가 할 일은 아래 '3차' 줄.**
   (아래는 2차 메모 그대로 — 규칙은 3차에도 같다.) 사용자가 클라우드 세션을 열어 "메모대로 해 줘"라고 하면 이것을 했다. 지난 클라우드 작업(틀 85 → 167 · 시험 382, 커밋 8e1fbd5 · 46cc794 · 96dae5d)을 메인이 세 갈래로 검토했고,
   **못 먹는 것이 새던 것은 메인이 고쳤다**(삼계탕 견과 · 돼지국밥 새우젓 · 소면 · 오므라이스 · 두부조림 · 샐러드 드레싱 등 — 시험에

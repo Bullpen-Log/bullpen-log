@@ -3,7 +3,8 @@ import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireMaster } from '@/lib/dal';
-import { consentAll, type Consent, type OrgKind } from '@/lib/org/rules';
+import type { OrgKind } from '@/lib/org/rules';
+export { memberScope } from '@/lib/org/rules';
 
 /**
  * 팀 · 레슨장 마스터 화면(app/(master))의 접근 — 누가 어느 조직을 보나.
@@ -91,7 +92,3 @@ export async function requireCurrentOrg(
   return { org, orgs };
 }
 
-/** 구성원의 공유 동의 — 동의 줄이 없으면(코치가 대신 만든 자리) 모두 보인다 */
-export function memberScope(consent: Consent | null | undefined): Consent {
-  return consent ?? consentAll();
-}

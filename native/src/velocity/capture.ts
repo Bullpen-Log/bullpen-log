@@ -79,6 +79,21 @@ export function timingLine(t: JobTiming): string {
   return `#${t.id} ${t.kind} 큐 ${t.queueMs} · 자르기 ${t.clipMs} · 읽기 ${t.readMs}(${(t.bytes / 1e6).toFixed(1)}MB${fps}) · 계산 ${t.engineMs}${inner} · 합 ${t.totalMs}ms → ${t.outcome}`;
 }
 
+/**
+ * 클립에 실린 모델 후보(Clip.hits 줄 [t, x, y, d, score]) → 계산기 옵션 netHits. 모양이 어긋난 줄은 뺀다. 좌표 변환은 하지 않는다 — 모듈이 이미
+ * 세운 화면 비율로 준다(DualCameraCore.swift DualClip.hits, 약속 판 hitsSchema 1). 판이 다르면(모듈이 새 뜻으로 바뀜) 안 쓴다 — 조용히 옛 뜻으로 읽지 않게
+ */
+export function netHitsOf(clip: Clip): NonNullable<MeasureOpts['netHits']> | null {
+  if (clip.hitsSchema !== 1 || !Array.isArray(clip.hits) || clip.hits.length === 0) return null;
+  const out: NonNullable<MeasureOpts['netHits']> = [];
+  for (const row of clip.hits) {
+    if (!Array.isArray(row) || row.length < 5 || !row.every((v) => typeof v === 'number' && Number.isFinite(v))) continue;
+    const [t, x, y, d, score] = row;
+    out.push({ t, x, y, d, score });
+  }
+  return out.length ? out : null;
+}
+
 /** 계산기 안 시간 나눔 — 결과에 timing 이 실려 올 때만 */
 function innerTimingOf(result: EngineResult): JobTiming['inner'] {
   const t = (result as { timing?: { framesMs?: unknown; analyzeMs?: unknown; coarseMs?: unknown } }).timing;
@@ -177,6 +192,10 @@ export type CaptureHandlers = {
     distance?: unknown;
     /** 단계별 시간 — 시도 기록(analysis.timing)에도 싣는다. 폰 콘솔 · 관리자 진단에만 있으면 현장 뒤에 원격으로 못 읽었다(2026-10-20) */
     timing?: JobTiming;
+    /** 계산기에 넘긴 옵션 그대로(잰 작업만) — 화면이 설정 칸(analysis.settings)으로 옮겨 적는다(2026-10-25 설계안 작업 A) */
+    opts?: MeasureOpts;
+    /** 클립에 실려 온 모델 후보 수(모듈이 준 것 — 계산기가 못 받으면 opts.netHits 는 없고 이것만 남는다, 작업 B) */
+    hitsAvail?: number;
   }): void;
 };
 
@@ -225,7 +244,11 @@ export class AppCapture {
   stop() {
     this.gen++;
     /* 아직 안 잰 작업의 클립은 이미 잘라 두었다 — 지운다(돌고 있는 작업은 gen 이 바뀌어 스스로 지운다) */
-    for (const j of this.jobs) if (!j.started) this.discardJob(j);
+    for (const j of this.jobs)
+      if (!j.started) {
+        this.discardJob(j);
+        this.lostJob(j, 'STOPPED', 'stopped-before-run');
+      }
     this.jobs = [];
     this.stopSweep();
   }
@@ -237,11 +260,33 @@ export class AppCapture {
     void job.clip?.then((c) => DualCamera.discard({ paths: paths(c) })).catch(() => undefined);
   }
 
+  /**
+   * 재지도 못하고 끝난 알림 · 작업을 시도로 남긴다(2026-10-25 설계안 작업 A — "큐 포화 · 중복 제외까지 이벤트를 남긴다"). 예전엔 줄이 차서 버린 공 ·
+   * 막 잰 창 안에 든 알림 · 공에게 자리를 내준 움직임 작업이 어디에도 안 남아, 알림 수와 기록 수의 차이를 설명할 수 없었다. 시도 하나가 투구 하나는 아니다
+   * (한 투구에 알림이 여럿) — 세지 말고 되짚는 데 쓴다.
+   *   QUEUE_FULL 줄이 차 못 세움 · DUP_WINDOW 막 잰 창 안의 알림 · MERGED 재는 클립 안에 든 알림(그 작업에 합침, why 에 어느 작업) · SEED_BUSY 후보인데 다른 작업이 있음 ·
+   *   DROPPED 공에게 자리를 내줌 · 공 작업이 따로 서서 비킴 · SUPERSEDED 돌던 작업을 공 작업이 대신해 결과를 버림 · STOPPED 측정을 끝내 재지 않음
+   */
+  private lost(a: { id?: number; kind: ThrowKind; atSec: number; strength: number; thermal: number | null; code: string; why: string }) {
+    this.handlers.onAttempt?.({
+      id: a.id ?? ++this.nextId, kind: a.kind, atSec: a.atSec, strength: a.strength, ok: false, code: a.code, why: a.why,
+      thermal: a.thermal, trackFrames: 0, rawKmh: null, confidence: null,
+    });
+  }
+
+  /** 줄에 섰던 작업이 재지 못하고 빠진다 — 한 번만 적는다 */
+  private lostJob(job: Job, code: string, why: string) {
+    if (job.recorded) return;
+    job.recorded = true;
+    this.lost({ id: job.id, kind: kindOf(job), atSec: job.at, strength: job.strength, thermal: job.thermal, code, why });
+  }
+
   /** 작업을 줄에서 뺀다(재지 않음) */
-  private dropJob(job: Job) {
+  private dropJob(job: Job, why: string) {
     job.dropped = true;
     this.jobs = this.jobs.filter((j) => j !== job);
     this.discardJob(job);
+    this.lostJob(job, 'DROPPED', why);
   }
 
   /** 카메라 통계(1초마다)의 장면당 모델 시간 — 0 보다 크면 모델이 돈다 */
@@ -289,6 +334,7 @@ export class AppCapture {
           covering.visible = true;
           this.sync();
         }
+        this.lost({ kind, atSec, strength, thermal, code: 'MERGED', why: `merged:${kindOf(covering)}#${covering.id % 100000}` });
         return false;
       }
       /* 공이 그 클립에 다 안 든다 — 아래 거절 검사를 다 넘으면 그 작업을 비킨다(먼저 비키면 공이 거절될 때 둘 다 잃었다) */
@@ -296,7 +342,10 @@ export class AppCapture {
     }
     const now = Date.now();
     this.recent = this.recent.filter((r) => r.until > now);
-    if (this.recent.some((r) => atSec >= r.start && atSec <= r.end)) return false;
+    if (this.recent.some((r) => atSec >= r.start && atSec <= r.end)) {
+      this.lost({ kind, atSec, strength, thermal, code: 'DUP_WINDOW', why: 'dup-window' });
+      return false;
+    }
     /* 비킬 작업이 아직 안 시작했으면 자리를 셀 때 빼 둔다(그 자리에 선다) */
     const others = displace && !displace.started ? this.jobs.filter((j) => j !== displace) : this.jobs;
     if (others.length >= MAX_PENDING) {
@@ -307,15 +356,19 @@ export class AppCapture {
       const victim = ball ? [...others].reverse().find((j) => !j.visible && !j.started) : undefined;
       if (!victim) {
         if (ball) this.handlers.onNotice('계산이 밀려 공 하나를 건너뛰었어요');
+        this.lost({ kind, atSec, strength, thermal, code: 'QUEUE_FULL', why: 'queue-full' });
         return false;
       }
-      this.dropJob(victim);
+      this.dropJob(victim, 'displaced-by-ball');
     }
     /* 후보는 비어 있을 때만 — 헛 후보가 뒤따르는 확실한 공의 자리를 차지하지 않게 */
-    if (seed && this.jobs.length > 0) return false;
+    if (seed && this.jobs.length > 0) {
+      this.lost({ kind, atSec, strength, thermal, code: 'SEED_BUSY', why: 'seed-busy' });
+      return false;
+    }
     if (displace) {
       if (displace.started) displace.superseded = true;
-      else this.dropJob(displace);
+      else this.dropJob(displace, 'displaced');
     }
     /* 진짜 공이 왔다 — 훑기는 비킨다(돌고 있어도 끊는다, 엔진 2.7.3) */
     if (!sweep) this.engine()?.yieldToMeasure();
@@ -385,6 +438,9 @@ export class AppCapture {
       if (!yielded) {
         this.jobs = this.jobs.filter((j) => j !== job);
         this.recent.push({ start: job.start, end: job.end, until: Date.now() + 5000 });
+        /* 결과를 버린 작업도 시도로 — 공 작업이 대신한 것(superseded) · 측정을 끝내 버린 것(gen) */
+        if (job.superseded) this.lostJob(job, 'SUPERSEDED', 'superseded');
+        else if (gen !== this.gen) this.lostJob(job, 'STOPPED', 'stopped-while-run');
       }
       if (gen === this.gen) this.sync();
     }
@@ -455,6 +511,12 @@ export class AppCapture {
           ? main.eventSec + (job.ballAt - job.at)
           : null;
     const range = job.pre ? SWEEP_RANGE : BALL_RANGE;
+    /*
+     * 클립에 실린 모델 후보 → 공 길 안내(작업 B). 계산기(사이트)가 받을 수 있다고 알렸을 때만(ready caps.netHits) — 옛 사이트에 보내면 모르는 칸이라
+     * 버려지는데, 그걸 '보냈다'고 적으면 안 되니 시도 기록에는 받은 쪽 수(netHits)와 모듈이 준 수(hitsAvail)를 따로 남긴다
+     */
+    const hits = netHitsOf(main);
+    const netHits = hits && engine.info()?.caps.netHits === true ? hits : null;
     const opts: MeasureOpts = {
       fps: main.fps,
       fovDeg: main.fovDeg > 0 ? main.fovDeg : s.fallbackFovDeg,
@@ -476,6 +538,7 @@ export class AppCapture {
       distanceAuto: s.distanceAuto,
       distanceChosen: s.distanceChosen,
       tiltRad: s.tiltRad,
+      ...(netHits ? { netHits } : {}),
     };
     job.analyzing = true;
     if (gen === this.gen) this.sync();
@@ -550,6 +613,8 @@ export class AppCapture {
       confidence: result.measure.ok ? result.measure.confidence : null,
       distance: result.distance,
       timing,
+      opts,
+      hitsAvail: hits?.length ?? 0,
     });
     this.report(timing);
     if (!verdict.kept) drop([main.path]);

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { filterByEquipment } from '@/lib/report/equipment';
+import { intensityLevel } from '@/lib/exercise-meta';
 import { filterByLevel } from '@/lib/report/personalize';
 import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
 import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
@@ -13,6 +14,7 @@ import {
   readArmcareRoutine,
 } from '@/lib/armcare/routine';
 import {
+  REHAB_ENABLED,
   buildRehabSession,
   rehabStatus,
   type RehabProgramLike,
@@ -74,6 +76,7 @@ async function loadRehabToday(
   todayKey: string,
   library: CachedExercise[]
 ): Promise<RehabToday | null> {
+  if (!REHAB_ENABLED) return null;
   const active = await loadActiveRehab(user.id);
   if (!active) return null;
   const { sessions, checkins, weeklies } = await loadRehabRecords(
@@ -111,7 +114,7 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
    * 팔 피로 · 팔 통증 자리 · 정도는 리포트 자료(facts)에 없어 예전에는 오늘 체크인 줄을 여기서 한 번 더 읽었다. 2판 P3(2026-10-12)
    * 부터 오늘 상태 한 장(gathered.state)이 같은 줄(gather 가 이미 읽은 것) · 같은 규칙(armPainSpotsFor)으로 실어 오므로 그것을 쓴다.
    */
-  const [gathered, library, routines, logs, rehab] = await Promise.all([
+  const [gathered, library, routines, logs, rehab, strengthLogs] = await Promise.all([
     gatherFactsAndPlan(user, today),
     visibleExercises(),
     /* 오늘 루틴 + 지난 7일 루틴(강화를 몇 번 했나 — STRENGTH_PER_WEEK) */
@@ -139,6 +142,10 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
       orderBy: { date: 'desc' },
     }),
     visibleExercises().then((all) => loadRehabToday(user, todayKey, all)),
+    prisma.userExerciseLog.findMany({
+      where: { userId: user.id, completed: true, date: { gte: new Date(`${shiftDateKey(todayKey, -6)}T00:00:00.000Z`), lte: midnight } },
+      select: { date: true, exercise: { select: { intensity: true, targetMuscles: true, bodyParts: true } } },
+    }),
   ]);
   /* state = 오늘 상태 한 장(2판 P3) — 팔 피로 · 팔 통증 · 오늘 등판 신호를 여기서 읽는다 */
   const { facts, plan, state } = gathered;
@@ -192,9 +199,14 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
         doneDates.has(key) &&
         readArmcareRoutine(routines[i].plan)?.kind === 'strength'
     );
+  const actualStrength = strengthLogs.filter((l) => intensityLevel(l.exercise.intensity) >= intensityLevel('중간') &&
+    (l.exercise.targetMuscles.length > 0 || l.exercise.bodyParts.some((p) => ['어깨', '팔'].includes(p))));
+  const strengthDates = new Set([...strengthDays, ...actualStrength.map((l) => toDateKey(l.date))]);
+  const trainedToday = new Set(actualStrength.filter((l) => toDateKey(l.date) === todayKey).flatMap((l) => l.exercise.targetMuscles));
   const recentStrength = {
-    yesterday: strengthDays.includes(shiftDateKey(todayKey, -1)),
-    last7: strengthDays.length,
+    today: strengthDates.has(todayKey),
+    yesterday: strengthDates.has(shiftDateKey(todayKey, -1)),
+    last7: [...strengthDates].filter((d) => d !== todayKey).length,
   };
 
   return {
@@ -220,9 +232,9 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
      */
     armPain,
     /** 오늘 만들어 둔 루틴. 없으면 아직 안 만든 날이다. */
-    routine: readArmcareRoutine(saved?.plan),
+    routine: readArmcareRoutine(saved?.plan)?.version === 2 ? readArmcareRoutine(saved?.plan) : null,
     /** 루틴에 넣을 수 있는 것 — 장비·경력을 통과한 암케어 운동 */
-    candidates: leveled.pool,
+    candidates: leveled.pool.filter((ex) => !(ex.targetMuscles ?? []).some((m) => trainedToday.has(m))),
     /** 보이는 암케어 운동 전체 — 오늘 체크한 것을 찾을 때 (장비가 바뀌었어도) */
     library: armcare,
     /** 장비 하나만 더 있으면 가장 많이 늘어나는 것 */

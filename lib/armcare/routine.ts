@@ -3,13 +3,10 @@ import {
   SEVERE_ARM_FATIGUE,
   SEVERE_SORENESS,
   armFatigueWord,
-  armPainLevelLabel,
-  armPainSpotLabel,
-  armPainSpotsFor,
-  canDoPainRoutine,
   sorenessWord,
   LOW_CONDITION_THRESHOLD,
 } from '@/lib/checkin';
+import { REHAB_ENABLED, REHAB_PAUSED_TEXT } from '@/lib/armcare/rehab-regions';
 import { yesterdayArmLoadOf } from '@/lib/engine/arm-load';
 import { HEAVY_EQUIPMENT, intensityLevel, minutesForSets } from '@/lib/exercise-meta';
 import { todayPrefsOf, type ReportFacts } from '@/lib/report/facts';
@@ -25,31 +22,9 @@ import {
 } from '@/lib/armcare/anatomy';
 
 /**
- * 오늘의 암케어 — 그날 몸 상태에 맞춘 루틴.
- *
- * 2026-09-25 사용자분과 정했다. 암케어는 운동 일정에서 빠져 트레이닝 안의 따로
- * 들어가는 화면이 됐고, 그 첫 기능이 이것이다. 투구 강도·팔 피로 같은 오늘
- * 상태를 보고 네 가지 중 하나를 낸다(통증 루틴은 2026-10-03 에 더했다).
- *
- *   쉬기   통증이 있는 날 — 루틴 대신 진료 안내
- *   통증   팔(어깨 · 팔꿈치)이 '던질 때만' 아프고 자리를 고른 날 — 아픈 자리는 버티기 · 가벼운 것, 견갑 · 주변 보강, 1세트
- *   회복   던진 날, 팔 부담이 컸던 다음 날, 큰 등판 뒤 아직 쉬는 기간, 등판 날(체크인 답), 팔 피로가 높은 날, 부하가 높은 날,
- *          온몸 근육통이 심한 날 — 가볍게, 피가 돌 만큼
- *   강화   그 밖의 날(던진 지 이틀이 넘었거나 어제 가볍게만 던진 날) — 부위를 고르게, 제대로
- *
- * 투수 표준 프로그램(Thrower's Ten)과 투구 뒤 48~72시간 회복 원칙을 따랐다.
- * '팔 부담이 컸던 다음 날'은 2판 P4 커밋 F(2026-10-12, 사용자 결정 D3)부터 달력이 아니라 부하다 — 어제 세게 던진 날 · 어제 중간 부하 +
- * 운동 힘듦 급증 · 어제 '오늘 등판'이라 답했는데 기록이 없는 날(lib/engine/arm-load.ts yesterdayArmLoadOf, 근력 프로그램의 쉬는 날 ·
- * 매일 일정의 날 종류와 같은 함수). 그 전에는 어제 던졌으면 캐치볼 10구라도 회복이었다. 가볍게 던진 다음 날도 투구 계획의 휴식표가
- * 아직 쉬라고 하면(pendingOuting) 그대로 회복이다 — 휴식표가 바닥을 지킨다.
- * 체크만 한다 — 실시간 기록과 AI 설명은 넣지 않는다(사용자분과 정함).
- *
- * 통증 루틴은 2026-10-03 팔 통증 안내(재활 1편)로 더했다 — 아픈 날 '오늘은 쉬어요'로 끝나지 않고, 가볍게
- * 아픈 날(던질 때만)에는 할 수 있는 것을 준다. 평소에도 아프거나 밤에도 아프면, 정도를 안 골랐으면,
- * 만 15세 미만이면 지금처럼 쉬기다(lib/checkin.ts 의 canDoPainRoutine).
- *
- * 이 파일은 DB 를 모른다. 읽는 쪽은 lib/armcare/today.ts, 저장하는 쪽은
- * app/actions/armcare.ts 다. 그래서 시험에서 그대로 돌려 볼 수 있다.
+ * 2026-10-25: 일반 암케어는 준비·짧은 정리·별도 강화로 구분한다.
+ * 통증 위치만으로 운동을 허용하지 않는다. 자동 재활·복귀 안내는 검토 전까지 보류한다.
+ * 강화는 실제 수행한 웨이트와 합쳐 조절하고, 정리는 반복량을 늘려 회복을 약속하지 않는다.
  */
 
 export type ArmcareKind = 'recovery' | 'strength' | 'pain';
@@ -92,7 +67,7 @@ const LOW_CONDITION = LOW_CONDITION_THRESHOLD;
 export const STRENGTH_PER_WEEK = 3;
 
 /** 최근 강화 루틴을 한 날 — 맞춤 루틴이 강화였고 암케어를 하나라도 체크한 날(lib/armcare/today.ts 가 센다) */
-export type RecentStrength = { yesterday: boolean; last7: number };
+export type RecentStrength = { yesterday: boolean; last7: number; today?: boolean };
 
 /**
  * 오늘 어떤 루틴을 할지 정한다.
@@ -104,7 +79,6 @@ export function decideArmcare({
   facts,
   plan,
   armFatigue,
-  armPain = null,
   state = null,
   recentStrength = null,
 }: {
@@ -137,14 +111,6 @@ export function decideArmcare({
    * (lib/armcare/today.ts), 이 결정은 내 루틴의 '권하지 않는 운동' 표시에만 쓰인다.
    */
   if (plan.halted && !plan.rehab) {
-    const spots = armPainSpotsFor(facts.condition.today, armPain?.spots ?? []);
-    const level = armPain?.level ?? null;
-    if (canDoPainRoutine({ spots, level, age: facts.profile.age })) {
-      return {
-        kind: 'pain',
-        reason: `${painSpotsText(spots)} · ${armPainLevelLabel(level)} → 통증 루틴`,
-      };
-    }
     return {
       kind: 'rest',
       reason:
@@ -152,6 +118,8 @@ export function decideArmcare({
         '통증 기록이 있어 오늘은 팔을 쉬어요. 통증이 이어지면 전문의 진료를 받아보세요.',
     };
   }
+
+  if (plan.rehab && !REHAB_ENABLED) return { kind: 'rest', reason: REHAB_PAUSED_TEXT };
 
   const p = facts.patterns;
   const pitches = p.lastOutingPitches ?? 0;
@@ -222,7 +190,8 @@ export function decideArmcare({
     signals.push('오늘은 회복을 고르심');
   }
   /* 강화 횟수는 맨 뒤 — 몸 상태 까닭이 있으면 그것이 먼저 읽힌다 */
-  if (recentStrength?.yesterday) signals.push('어제 강화 루틴');
+  if (recentStrength?.today) signals.push('오늘 어깨·팔 강화를 이미 수행');
+  else if (recentStrength?.yesterday) signals.push('어제 강화 루틴');
   else if (recentStrength && recentStrength.last7 >= STRENGTH_PER_WEEK) {
     signals.push(`최근 7일 강화 ${recentStrength.last7}번`);
   }
@@ -244,16 +213,6 @@ export function decideArmcare({
             `어제 ${pitches}구 · 팔 부담 적음 → 강화 루틴`
           : `마지막 투구 ${p.restDays}일 전 → 강화 루틴`,
   };
-}
-
-/**
- * '팔꿈치 안쪽' · '어깨 뒤쪽 · 팔꿈치 안쪽' — 셋 이상이면 앞의 둘과 '외 N곳'. 까닭은 한 줄이라 다 늘어놓지 않는다
- * (자리는 안내 시트에 다 나온다).
- */
-function painSpotsText(spots: readonly string[]): string {
-  const labels = spots.map((s) => armPainSpotLabel(s) ?? s);
-  const head = labels.slice(0, 2).join(' · ');
-  return labels.length > 2 ? `${head} 외 ${labels.length - 2}곳` : head;
 }
 
 /* --------------------------------- 루틴 짜기 --------------------------------- */
@@ -284,7 +243,7 @@ export type ArmcareItem = {
 /** 저장해 두는 하루치 루틴. DailyArmcare.plan 에 그대로 들어간다. */
 export type ArmcareRoutine = {
   /** 모양이 바뀌면 올린다. 옛 기록은 못 읽는 것으로 보고 다시 만들게 한다. */
-  version: 1;
+  version: 1 | 2;
   kind: ArmcareKind;
   reason: string;
   /** 무엇 때문에 무엇을 바꿨는지 — '어깨가 뻐근해 …' */
@@ -294,44 +253,10 @@ export type ArmcareRoutine = {
   estimatedMinutes: number;
 };
 
-/**
- * 부위를 채우는 차례 — 앞의 것이 먼저, 시간이 모자라면 뒤의 것이 빠진다.
- *
- * 어깨 · 견갑 · 팔꿈치를 강화 4 · 2 · 4, 회복 3 · 2 · 4 자리로 담는다(2026-10-14 김민 — 어깨 비중은 괜찮은데 팔꿈치가
- * 부족하다. 예전엔 강화 4 · 2 · 2, 회복 2 · 2 · 1 이라 팔꿈치 바깥은 강화의 마지막 필수 자리, 회복엔 안쪽 하나뿐이었다).
- * 차례는 투수에게 가장 흔한 부상 자리부터 — 감속을 버티는 어깨 뒤쪽과, 인대 부담을 나눠 받는 팔꿈치 안쪽.
- * 모든 자리가 필수(CORE_SLOTS)라 시간이 빠듯해도 비율이 무너지지 않는다. 같은 부위 두 자리는 주 근육이 겹치지
- * 않는 운동을 먼저 고른다(아래 usedMuscles — 팔꿈치 안쪽이면 손목 굽히기 하나 · 아래팔 안쪽 돌리기나 쥐기 하나).
- *
- * 팔꿈치 후방(삼두근)·전방(이두근)은 루틴에 넣지 않는다. 푸시다운·컬 같은 팔
- * 근력 운동이라, 관리 루틴에 끼우면 가볍게 챙기려던 날의 결이 흐려진다. 강화
- * 루틴에만 번갈아 넣는 안도 여쭸는데, 부위별 보강에서만 보이게 두기로 했다
- * (2026-09-25 사용자분과 정함).
- */
+/** 싱커의 짧은 시작 예시. 근력은 웨이트와 합쳐 조절하고, 매번 모든 부위를 채우지 않는다. */
 const SLOTS: Record<FixedKind, readonly ArmcareAreaKey[]> = {
-  strength: [
-    'shoulder-back',
-    'scapula',
-    'elbow-inner',
-    'shoulder-front',
-    'elbow-outer',
-    'shoulder-top',
-    'elbow-inner',
-    'shoulder-back',
-    'scapula',
-    'elbow-outer',
-  ],
-  recovery: [
-    'shoulder-back',
-    'scapula',
-    'elbow-inner',
-    'shoulder-front',
-    'elbow-outer',
-    'scapula',
-    'shoulder-top',
-    'elbow-inner',
-    'elbow-outer',
-  ],
+  strength: ['shoulder-back', 'scapula', 'elbow-inner', 'shoulder-front', 'elbow-outer'],
+  recovery: ['scapula', 'shoulder-back', 'elbow-inner'],
 };
 
 /**
@@ -346,36 +271,21 @@ const SLOT_MUSCLES: Partial<Record<ArmcareAreaKey, readonly string[]>> = {
   'shoulder-front': ['견갑하근'],
 };
 
-/**
- * 앞에서 몇 자리가 필수인가 — 필수 자리는 시간을 조금 넘겨서라도 채운다.
- *
- * 처음에는 모든 자리를 같은 시간 한도로 봤다. 그랬더니 좌우를 번갈아 하는 운동
- * (하나에 4분)이 앞에 몇 개 오면 여섯째 '팔꿈치 외측'이 안 들어가고, 그 뒤의
- * 짧은 견갑 운동이 대신 들어갔다 — 부위를 고르게 담는 것이 이 루틴의 알맹이인데
- * 한 부위가 통째로 빠졌다. 뒤의 덤 자리는 한도 안에서만 넣는다.
- */
-const CORE_SLOTS: Record<FixedKind, number> = { strength: 10, recovery: 9 };
+/** 강화의 기본 세 자리만 여유를 주고, 정리는 시간 한도 안에서만 한다. */
+const CORE_SLOTS: Record<FixedKind, number> = { strength: 3, recovery: 0 };
 
-/**
- * 자리마다 세트 — SLOTS 와 같은 차례(2026-10-14 김민: 강화 약 25분 · 회복 약 20분, '회복할 때도 많이').
- * 강화는 어깨 뒤 · 팔꿈치 안 · 팔꿈치 밖의 첫 자리만 2세트, 나머지는 1세트(실제 라이브러리로 23~27분).
- * 회복은 1세트씩, 가장 흔한 부상 자리 둘(어깨 뒤 · 팔꿈치 안)만 2세트(20~22분).
- */
+/** 개별 기관의 검증된 처방이 아닌 시작 예시. 정리는 한 세트씩만. */
 const SLOT_SETS: Record<FixedKind, readonly number[]> = {
-  strength: [2, 1, 2, 1, 2, 1, 1, 1, 1, 1],
-  recovery: [2, 1, 2, 1, 1, 1, 1, 1, 1],
+  strength: [2, 2, 2, 1, 1],
+  recovery: [1, 1, 1],
 };
 /** 필수 자리가 넘겨도 되는 시간 */
 const CORE_SLACK_MINUTES = 5;
 
-/**
- * 루틴 시간(분)과 기본 세트. 처음엔 강화 2세트 · 20분, 회복 1세트 · 9분이었다(부위를 고르게 담느라 세트를 줄였다).
- * 2026-10-14 김민이 운동량이 적다고 해 자리를 늘리고(강화 10 · 회복 9) 자리마다 세트를 정했다(SLOT_SETS) — 강화 약 25분,
- * 회복 약 20분. 통증 루틴은 그대로 1세트 · 약 10분이다(아픈 날은 많이 하는 날이 아니다).
- */
+/** 짧은 정리와 강화의 시간 상한. 수행 완료를 위해 억지로 채우지 않는다. */
 const BUDGET_MINUTES: Record<ArmcareKind, number> = {
-  strength: 25,
-  recovery: 20,
+  strength: 15,
+  recovery: 8,
   pain: 10,
 };
 const SETS: Record<ArmcareKind, number> = { strength: 2, recovery: 1, pain: 1 };
@@ -478,7 +388,7 @@ export function bodyStateBlock(
   const light = intensityLevel('낮음');
   if (kind === 'recovery') {
     if (level > light) return 'intensity';
-    if (ex.equipment.some((q) => HEAVY_EQUIPMENT.includes(q))) return 'heavy';
+
   }
   /*
    * 통증 루틴 — 버티기이거나 '낮음' 이하, 그리고 무게를 싣는 장비 없음(2026-10-03 정함). 버티기의 위 한도
@@ -761,7 +671,7 @@ export function buildArmcareRoutine({
     const list = withJosa(ruleGaps.join('·'), '은/는');
     notes.push(
       kind === 'recovery'
-        ? `회복날에는 무게를 싣지 않는 가벼운 운동만 넣어서 ${list} 뺐어요.`
+        ? `정리에는 낮은 강도의 운동만 넣어서 ${list} 뺐어요.`
         : kind === 'pain'
           ? `아픈 날에 맞는 버티기 · 가벼운 운동이 없어 ${list} 뺐어요.`
           : `오늘 몸 상태에 맞는 가벼운 운동이 없어 ${list} 뺐어요.`
@@ -778,7 +688,7 @@ export function buildArmcareRoutine({
   items.sort((a, b) => areaRank(a.area) - areaRank(b.area));
 
   return {
-    version: 1,
+    version: 2,
     kind,
     reason: decision.reason,
     notes,
@@ -794,7 +704,7 @@ export function buildArmcareRoutine({
 export function readArmcareRoutine(value: unknown): ArmcareRoutine | null {
   if (!value || typeof value !== 'object') return null;
   const routine = value as Partial<ArmcareRoutine>;
-  if (routine.version !== 1 || !Array.isArray(routine.items)) return null;
+  if ((routine.version !== 1 && routine.version !== 2) || !Array.isArray(routine.items)) return null;
   if (
     routine.kind !== 'recovery' &&
     routine.kind !== 'strength' &&
@@ -812,7 +722,7 @@ export function readArmcareRoutine(value: unknown): ArmcareRoutine | null {
  * 루틴인지는 그날의 까닭(decision.reason)이 말한다.
  */
 export const ARMCARE_KIND_TEXT: Record<ArmcareKind, { label: string }> = {
-  recovery: { label: '회복 루틴' },
-  strength: { label: '강화 루틴' },
+  recovery: { label: '가벼운 정리' },
+  strength: { label: '어깨·팔 강화' },
   pain: { label: '통증 루틴' },
 };

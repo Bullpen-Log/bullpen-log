@@ -1,0 +1,104 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>구속 시험대 — 공 추적 오버레이</title>
+<style>
+  body { font: 14px/1.4 -apple-system, system-ui, sans-serif; margin: 0; background: #111; color: #eee; }
+  header { display: flex; gap: 12px; align-items: center; padding: 8px 12px; background: #1b1b1b; flex-wrap: wrap; }
+  header label { display: inline-flex; gap: 6px; align-items: center; }
+  #stage { position: relative; margin: 8px auto; width: fit-content; }
+  video { display: block; max-height: 78vh; background: #000; }
+  canvas { position: absolute; left: 0; top: 0; pointer-events: none; }
+  #stage.label canvas { pointer-events: auto; cursor: crosshair; }
+  .legend span { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+  #info { padding: 4px 12px; color: #bbb; white-space: pre-wrap; }
+  button { background: #333; color: #eee; border: 1px solid #555; border-radius: 6px; padding: 4px 10px; }
+</style>
+<!--
+  개발용 오버레이(2026-10-25 설계안 작업 C) — run.mjs --dump=<폴더> 가 공마다 남긴 JSON 과 그 원본 영상(mp4)을 골라 영상 위에 겹쳐 본다:
+    빨강 ○ 모델 후보(hits — 지름은 모델 크기 머리, 거친 어림) · 주황 선 이은 공 길(netFlight chain) · 파랑 ● 엔진이 찾은 덩어리(track — 정밀 중심은 이 자리) ·
+    초록 선 맞춘 궤적(path). 좌표는 분석 px(analyzeSize) → 영상 표시 크기로 옮긴다. 영상 시각 = 클립 시각(앱 클립은 0 부터).
+  파일만 읽는 정적 쪽 — 서버 없이 더블클릭으로 연다. 같은 공을 두 길(app · guided)로 돌린 덤프를 번갈아 열어 추적이 같은 공인지 본다.
+  라벨 모드(작업 D, SPEC-labels.md): '라벨' 을 켜고 영상 위를 누르면 지금 시각의 공 중심을 적는다(한 시각에 하나 — 다시 누르면 바뀜). R 릴리스 · E 끝 · O 가린 구간 시작/끝.
+  '라벨 내려받기' 가 SPEC 의 JSON(schema 1)을 만든다. ←/→ 한 장(1/fps) · 스페이스 재생.
+-->
+<header>
+  <label>덤프 JSON <input id="dump" type="file" accept=".json"></label>
+  <label>영상 <input id="vid" type="file" accept="video/*"></label>
+  <button id="step-">◀ 한 장</button><button id="play">재생/멈춤</button><button id="step+">한 장 ▶</button>
+  <label><input id="lab" type="checkbox"> 라벨</label>
+  <button id="save" disabled>라벨 내려받기</button>
+  <span class="legend"><span style="background:#f33"></span>후보 <span style="background:#f90"></span>이은 길 <span style="background:#39f"></span>덩어리 <span style="background:#3c3"></span>궤적</span>
+</header>
+<div id="stage"><video id="v" controls muted playsinline></video><canvas id="c"></canvas></div>
+<div id="info">덤프 JSON 과 영상을 골라 주세요.</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const v = $('v'), c = $('c'), ctx = c.getContext('2d');
+  let dump = null;
+  const label = { centers: new Map(), release: null, end: null, occluded: [], open: null };
+  const fps = () => dump?.fps || 60;
+  const near = (t, dt) => Math.abs(t - v.currentTime) <= dt;
+  function scale() { return { sx: v.clientWidth / (dump?.analyzeSize.width || v.videoWidth), sy: v.clientHeight / (dump?.analyzeSize.height || v.videoHeight) }; }
+  function draw() {
+    c.width = v.clientWidth; c.height = v.clientHeight;
+    ctx.clearRect(0, 0, c.width, c.height);
+    if (!dump) return;
+    const { sx, sy } = scale();
+    const dt = 1 / fps();
+    /* 맞춘 궤적 — 전체를 옅게, 지금까지를 진하게 */
+    const line = (pts, color, upTo) => {
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+      let on = false;
+      for (const [t, x, y] of pts) { if (upTo != null && t > upTo) break; if (!on) { ctx.moveTo(x * sx, y * sy); on = true; } else ctx.lineTo(x * sx, y * sy); }
+      ctx.stroke();
+    };
+    ctx.globalAlpha = 0.35; line(dump.path, '#3c3'); line(dump.chain, '#f90'); ctx.globalAlpha = 1;
+    line(dump.path, '#3c3', v.currentTime); line(dump.chain, '#f90', v.currentTime);
+    /* 지금 장면(±반 장) 의 후보 · 덩어리 */
+    for (const [t, u, w, d, s] of dump.hits) if (near(t, dt * 0.55)) { ctx.strokeStyle = `rgba(255,51,51,${0.4 + 0.6 * s})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(u * sx, w * sy, Math.max(4, (d * sx) / 2), 0, Math.PI * 2); ctx.stroke(); }
+    for (const [t, x, y, d] of dump.track) if (near(t, dt * 0.55)) { ctx.fillStyle = '#39f'; ctx.beginPath(); ctx.arc(x * sx, y * sy, Math.max(3, (d * sx) / 2), 0, Math.PI * 2); ctx.fill(); }
+    /* 라벨 */
+    for (const [t, [x, y]] of label.centers) { ctx.strokeStyle = near(t, dt * 0.55) ? '#fff' : 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x * c.width - 7, y * c.height); ctx.lineTo(x * c.width + 7, y * c.height); ctx.moveTo(x * c.width, y * c.height - 7); ctx.lineTo(x * c.width, y * c.height + 7); ctx.stroke(); }
+    const tags = [];
+    if (dump.seed != null) tags.push(`알림 ${dump.seed.toFixed(2)}초`);
+    tags.push(dump.ok ? `${dump.kmh.toFixed(1)}km/h${dump.gun != null ? ` (건 ${dump.gun})` : ''}` : `못 잼 ${dump.code}${dump.why ? ` · ${dump.why}` : ''}`);
+    tags.push(`안내 ${dump.guided ? '찾음' : dump.guidedWhy ?? '없음'} · 씨앗 ${dump.seedSource ?? '-'}`);
+    $('info').textContent = `${dump.id} · ${dump.mode} · ${v.currentTime.toFixed(3)}초 (장면 ${Math.round(v.currentTime * fps())})\n${tags.join(' · ')}` +
+      (label.centers.size ? `\n라벨 중심 ${label.centers.size} · 릴리스 ${label.release ?? '-'} · 끝 ${label.end ?? '-'} · 가림 ${label.occluded.length}${label.open != null ? '(열림)' : ''}` : '');
+  }
+  $('dump').onchange = async (e) => { dump = JSON.parse(await e.target.files[0].text()); $('save').disabled = false; draw(); };
+  $('vid').onchange = (e) => { v.src = URL.createObjectURL(e.target.files[0]); };
+  v.addEventListener('loadedmetadata', () => { if (dump?.seed != null) v.currentTime = Math.max(0, dump.seed - 0.1); draw(); });
+  v.addEventListener('timeupdate', draw); v.addEventListener('seeked', draw); window.addEventListener('resize', draw);
+  (function tick() { if (!v.paused) draw(); requestAnimationFrame(tick); })();
+  const step = (n) => { v.pause(); v.currentTime = Math.max(0, v.currentTime + n / fps()); };
+  $('step-').onclick = () => step(-1); $('step+').onclick = () => step(1); $('play').onclick = () => (v.paused ? v.play() : v.pause());
+  $('lab').onchange = (e) => $('stage').classList.toggle('label', e.target.checked);
+  c.addEventListener('click', (e) => {
+    if (!$('lab').checked) return;
+    const r = c.getBoundingClientRect();
+    const t = Math.round(v.currentTime * fps()) / fps();
+    label.centers.set(Number(t.toFixed(4)), [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]);
+    draw();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    const t = Number((Math.round(v.currentTime * fps()) / fps()).toFixed(4));
+    if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'ArrowRight') step(1); else if (e.key === ' ') { e.preventDefault(); $('play').click(); }
+    else if (e.key === 'r') label.release = t; else if (e.key === 'e') label.end = t;
+    else if (e.key === 'o') { if (label.open == null) label.open = t; else { label.occluded.push([label.open, t].sort((a, b) => a - b)); label.open = null; } }
+    else if (e.key === 'Backspace') label.centers.delete(t);
+    draw();
+  });
+  $('save').onclick = () => {
+    const out = {
+      schema: 1, id: dump.id, video: dump.video.split('/').pop(), fps: fps(), frame: 'upright', by: '', at: new Date().toISOString().slice(0, 10),
+      centers: [...label.centers.entries()].sort((a, b) => a[0] - b[0]).map(([t, [x, y]]) => [t, Number(x.toFixed(4)), Number(y.toFixed(4))]),
+      release: label.release, end: label.end, occluded: label.occluded, notes: '',
+    };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }));
+    a.download = `${dump.id.replace(/[^\w.-]+/g, '_')}.json`;
+    a.click();
+  };
+</script>

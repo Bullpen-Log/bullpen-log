@@ -85,10 +85,10 @@ export function MechanicsProgram({
         {/* 글은 한 줄만, 나머지는 '자세히' 뒤로(2026-10-16 김민 "화면 글 많은 곳 줄여줘" — 이 화면이 1,500자 · 화면 3장 길이였다) */}
         <Card className="space-y-1">
           <h2 className="text-heading text-lg text-ink">투구 메커니즘 향상 프로그램</h2>
-          <p className="text-sm break-keep text-ink/85">{SESSIONS_PER_LEVEL}세션 · 한 번에 15~25분이에요.</p>
+          <p className="text-sm break-keep text-ink/85">{SESSIONS_PER_LEVEL}회 연습 순서예요. 기간을 정해두지 않고 오늘 투구 계획에 맞춰 해요.</p>
           <FoldNote tone="muted">
             <p className="text-sm leading-relaxed break-keep text-muted">
-              드릴 3~4개를 투구 차례대로 해요. 던지는 날 캐치볼 전에 하면 알맞아요. 처음이면 입문부터.
+              선택한 동작을 짧게 연습해요. 단계는 학습 난이도이고, 던지는 양과 세기는 오늘 투구 계획을 따라요. 처음이면 입문부터.
             </p>
           </FoldNote>
         </Card>
@@ -329,7 +329,7 @@ function SessionCard({
       <FoldNote tone="muted" label="하는 법">
         <p className="text-xs leading-relaxed break-keep text-muted">
           드릴마다 느낌을 눌러요. 쉬움이 여러 요소에서 쌓이면 다음 수준을 권해요.
-          던지는 날 몸을 푼 뒤, 캐치볼 전에 하면 알맞아요.
+          워밍업 뒤 오늘 투구 계획에 포함해 연습해요. 추가 투구량으로 따로 쌓지 않아요.
         </p>
       </FoldNote>
     </Card>
@@ -362,7 +362,7 @@ function LevelProgress({ program, level }: { program: MechanicsProgramView; leve
                 );
               })}
             </div>
-            <span className="block text-center text-xs text-muted">{w + 1}주</span>
+            <span className="block text-center text-xs text-muted">{w * PER_WEEK + 1}~{(w + 1) * PER_WEEK}회</span>
           </div>
         ))}
       </div>
@@ -436,8 +436,8 @@ function CompletedCard({
           {down
             ? `‘어려움’이 이어지는 요소가 있었어요. ${down.name}에서 자세를 다지거나, ${level.name}${josa(level.name, '을/를')} 한 번 더 해도 돼요.`
             : next
-              ? `4주 동안 ${WEEKS * PER_WEEK}번을 다 했어요. ${next.name}${josa(next.name, '으로/로')} 넘어가거나, 편하지 않았다면 한 번 더 해도 돼요.`
-              : `4주 동안 ${WEEKS * PER_WEEK}번을 다 했어요. 가장 높은 수준이라, 한 번 더 하며 전체 동작을 다듬어요.`}
+              ? `${WEEKS * PER_WEEK}번을 다 했어요. ${next.name}${josa(next.name, '으로/로')} 넘어가기 전 실제 투구에서 유지되는지와 다음 날 반응을 확인해요.`
+              : `${WEEKS * PER_WEEK}번을 다 했어요. 횟수만으로 다음 수준을 정하지 않아요. 같은 조건의 영상·실제 투구·다음 날 반응을 확인해요.`}
         </p>
       </div>
       <div className="grid gap-2">
@@ -659,7 +659,7 @@ function FilmHistory({ films }: { films: FilmNote[] }) {
         <li key={f.session} className="flex items-baseline justify-between gap-3 text-sm">
           <span className="text-ink">
             세션 {f.session}번 ·{' '}
-            <b className={f.verdict === 'better' ? 'text-sky-strong' : 'text-ink'}>{label(f.verdict)}</b>
+            <b className={f.verdict === 'better' ? 'text-sky-strong' : 'text-ink'}>{label(f.verdict)}</b><small className="block text-xs text-muted">{f.comparable ? '촬영 조건 같음' : '촬영 조건 미확인'} · {f.transferred ? '실제 투구 확인' : '실제 투구 미확인'} · {f.response === 'clear' ? '통증 없음' : f.response === 'pain' ? '통증 있음' : '운동 후 반응 미확인'}</small>
           </span>
           <span className="shrink-0 text-xs text-muted tabular-nums">
             {Number(f.on.slice(5, 7))}/{Number(f.on.slice(8, 10))}

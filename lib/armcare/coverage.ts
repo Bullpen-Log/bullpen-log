@@ -88,7 +88,7 @@ export function armcareCoverage(
  * 기록이 하나도 없으면(처음 쓰는 사람) 차례의 앞 둘을 낸다 — '어디부터'를 알려 준다.
  */
 export function gapAreas(c: ArmcareCoverage, max = 2): ArmcareAreaKey[] {
-  if (c.total === 0) return GAP_PRIORITY.slice(0, max);
+  if (c.total === 0) return []; // 기록 없음은 근력 부족의 증거가 아니다.
   return GAP_PRIORITY.filter((key) => c.primary[key] < GAP_BELOW).slice(0, max);
 }
 

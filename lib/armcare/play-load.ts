@@ -9,7 +9,7 @@ import { buildFocusRoutine, parseAreas } from '@/lib/armcare/coverage';
 import { filterByEquipment } from '@/lib/report/equipment';
 import { prisma } from '@/lib/prisma';
 import { AFTER_THROWING_TEXT, ARMCARE_KIND_TEXT } from '@/lib/armcare/routine';
-import { REHAB_STAGES } from '@/lib/armcare/rehab';
+import { REHAB_ENABLED, REHAB_STAGES } from '@/lib/armcare/rehab';
 import { loadArmcareToday, notAdvised } from '@/lib/armcare/today';
 import { isRoutineId } from '@/lib/armcare/my-routines';
 import { loadMyRoutine } from '@/lib/armcare/my-routines-store';
@@ -75,11 +75,14 @@ export async function loadArmcarePlay(
   if (id !== 'today' && id !== 'rehab' && id !== 'focus' && !isRoutineId(id))
     return { ok: false, to: ARMCARE_BACK, missing: true };
   const rehabPlay = id === 'rehab';
+  if (rehabPlay && !REHAB_ENABLED) return { ok: false, to: ARMCARE_BACK };
   /*
    * 빈 곳 보강 — 내 팔 지도의 '2주째 비어 있어요'에서 고른 부위(?areas=)로 그 자리에서 짠 10분 루틴(2026-10-04,
    * lib/armcare/coverage.ts). 저장하지 않는다 — 열 때마다 오래 안 한 운동부터 다시 고른다.
    */
   const focusPlay = id === 'focus';
+  // 기록이 적다는 이유만으로 추가 보강을 자동 편성하지 않는다.
+  if (focusPlay) return { ok: false, to: FOCUS_BACK };
   const focusAreas = focusPlay ? parseAreas(areasParam) : [];
   if (focusPlay && focusAreas.length === 0) return { ok: false, to: FOCUS_BACK };
   const mine = id !== 'today' && !rehabPlay && !focusPlay;
@@ -95,6 +98,10 @@ export async function loadArmcarePlay(
     visibleExercises(),
     mine ? loadMyRoutine(user.id, id) : Promise.resolve(null),
   ]);
+
+  // Use today's status even when opening yesterday's saved routine.
+  const current = dateKey === todayKey ? data : await loadArmcareToday(user, now);
+  if (!current.hasCheckinToday || current.decision.kind === 'rest') return { ok: false, to: ARMCARE_BACK };
 
   let title: string;
   let picks: { exerciseId: string; sets: number; note?: string | null }[];
@@ -191,7 +198,7 @@ export async function loadArmcarePlay(
   const byId = new Map(library.map((ex) => [ex.id, ex]));
   const usable = picks.filter((p) => {
     const ex = byId.get(p.exerciseId);
-    return ex != null && (!(mine || focusPlay) || ex.category === ARMCARE_CATEGORY);
+    return ex != null && (!(mine || focusPlay) || ex.category === ARMCARE_CATEGORY) && !notAdvised(current, ex, mine || focusPlay);
   });
   const views = await toArmcareViews(
     usable.map((p) => byId.get(p.exerciseId)!),

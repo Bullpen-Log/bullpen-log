@@ -185,6 +185,12 @@ export function sanitizeDistance(raw: unknown): Record<string, unknown> | null {
     kmhAtInput: n(d.kmhAtInput),
     kmhAtSize: n(d.kmhAtSize),
     distanceSource: d.distanceSource === 'ball' ? 'ball' : 'input',
+    /* 모델 공 길 안내(2.9.0 · 2026-10-25 작업 B · C) — 안내로 찾았나 · 못 찾은 까닭 · 받은 후보 수 · 씨앗 출처 */
+    guided: typeof d.guided === 'boolean' ? d.guided : null,
+    guidedWhy: typeof d.guidedWhy === 'string' ? d.guidedWhy.slice(0, 20) : null,
+    netHits: n(d.netHits),
+    netChain: n(d.netChain),
+    seedSource: typeof d.seedSource === 'string' ? d.seedSource.slice(0, 10) : null,
     tiltRad: n(d.tiltRad),
     impact: d.impact === 'rebound' ? 'rebound' : 'end',
     te: n(d.te),

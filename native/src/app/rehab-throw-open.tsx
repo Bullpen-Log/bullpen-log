@@ -1,3 +1,5 @@
+import { REHAB_ENABLED } from '@/lib/armcare/rehab-regions';
+import { RehabPausedScreen } from '~/armcare/rehab-paused';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -14,7 +16,7 @@ import { useScreenData } from '~/training/screen';
  * 투구 복귀표 열기(앱 화면) — 웹 rehab-throwing.tsx ThrowingOpenFlow: 지난 7일 안의 매주 확인 % · 자신감과 밀기 · 공 던지기 힘 비교로
  * 그 자리에서 판정하고, 통과면 rehab.openThrowingProgram(서버가 다시 본다). 지난 7일 안의 확인이 없으면 재활 자세히가 매주 확인부터 연다.
  */
-export default function RehabThrowOpenScreen() {
+function RehabThrowOpenScreen() {
   const c = usePalette();
   const state = useScreenData<AppArmcareTodayTab | AppArmcareGuideTab>('app-training-parts.loadAppArmcare', 'today', 'training-armcare:today');
   const data = state.data?.tab === 'today' ? state.data : null;
@@ -71,4 +73,8 @@ function OpenForm({ view, recent }: { view: AppRehabThrowing; recent: { normalPc
       <Text style={{ color: c.muted, fontSize: 13 }}>가능하면 진료 때 투구 복귀를 물어보세요.</Text>
     </StepFrame>
   );
+}
+
+export default function RehabRoute() {
+  return REHAB_ENABLED ? <RehabThrowOpenScreen /> : <RehabPausedScreen />;
 }

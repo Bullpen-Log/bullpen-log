@@ -210,7 +210,11 @@ export default function MoreScreen() {
         </View>
       ))}
       {/* 설정 — 묶음 뒤 따로 한 줄(웹 detail-menu: 모든 묶음 뒤) */}
-      <View style={[styles.grid, { marginTop: 12 }]}>{tileOf('settings', '설정', 'settings', () => router.push('/settings' as Href))}</View>
+      <View style={[styles.grid, { marginTop: 12 }]}>
+        {tileOf('settings', '설정', 'settings', () => router.push('/settings' as Href))}
+        {/* 팀 · 레슨장 공간(1단계) — 초대 코드로 들어가기 · 공유 범위 · 받은 일지 */}
+        {tileOf('org', '팀 · 레슨장', 'people', () => router.push('/org' as Href))}
+      </View>
       {/* 내 정보 — 폴더 밑 줄(웹 Avatar · 닉네임 · '내 정보') */}
       <Pressable
         accessibilityRole="button"

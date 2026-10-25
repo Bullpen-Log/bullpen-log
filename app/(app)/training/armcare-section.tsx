@@ -1,3 +1,5 @@
+import { loadArmcareHistory } from '@/lib/armcare/history';
+import { ARMCARE_PURPOSE_TEXT } from '@/lib/pitching-content';
 import type { ReactNode } from 'react';
 import { ChevronRight } from '@/components/icon';
 import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
@@ -87,6 +89,7 @@ export async function ArmcareSection({
     return (
       <ArmcareGuide
         exercises={views}
+        history={await loadArmcareHistory(user.id, todayKey)}
         routines={routines}
         map={{
           side: throwingSide(user.throwingHand),
@@ -268,6 +271,11 @@ export async function ArmcareSection({
           ) : (
             <SectionHead title="맞춤 루틴" desc="오늘 몸 상태로 짜요" />
           )}
+          <Card className="space-y-2 text-sm">
+            <p className="font-semibold">준비 · 정리 · 강화</p>
+            <p>{ARMCARE_PURPOSE_TEXT.cooldown}</p><p>{ARMCARE_PURPOSE_TEXT.strength}</p>
+            <a className="inline-flex min-h-11 items-center font-semibold text-sky-strong" href="/library/warmup">던지기 전 워밍업 보기 ›</a>
+          </Card>
           {custom}
           {/* 들어가는 작은 줄 — 재활 중이 아닐 때만(재활 2편). 오늘 체크인의 아픈 자리 · 정도를 미리 골라 둔다 */}
           {REHAB_ENABLED && !data.rehab && (

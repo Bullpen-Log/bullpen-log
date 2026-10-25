@@ -48,7 +48,8 @@ node scripts/velocity-lab/session-audit.mts ~/bullpen-velocity-lab/device/<세�
 # 10) 엔진 개발용 녹화(관리자 › 구속 측정 › 엔진 개발용 녹화) 받기 — 조각 영상 + 공 표시(스피드건 · 손에서 떠난 때)
 node --env-file=.env scripts/velocity-lab/download-recording.mjs --id=49def374
 # 11) 스피드건 비교표 — 앱과 같은 조건으로 재고 화면 규칙(높음만 기록 · 세션 거리 보정)을 묶음마다 적용(엔진을 고칠 때 전 · 후)
-node scripts/velocity-lab/gun-table.mjs --files=2026-10-03,2026-10-06 --live=2026-10-07,2026-10-09 --rec=rec-49def374
+node --import ./scripts/alias-register.mjs scripts/velocity-lab/gun-table.mjs --files=2026-10-03,2026-10-06 --live=2026-10-07,2026-10-09 --rec=rec-49def374
+#    화면 규칙은 앱과 같은 함수(scripts/velocity-bench/screen.mjs → lib/velocity-session.ts) — '@/' 때문에 --import 가 꼭 필요하다
 #    카메라 앱 영상에 앱 공 알림 시각을 씨앗으로: 5) 의 출력을 파일로 두고 --trig=<그 파일>. 엔진 복사본은 --engine=<폴더>
 ```
 
