@@ -1,6 +1,6 @@
 /**
  * 아이폰 앱(native/) 코드를 node 시험에서 그대로 부르는 경로 해석기 — `@/…`(저장소) · `~/…`(native/src) 를 실제 파일로,
- * 폰에만 있는 모듈(AsyncStorage)은 메모리 흉내로 바꾼다. 쓰는 곳: scripts/native-outbox-selftest.mts.
+ * 폰에만 있는 모듈(AsyncStorage · expo-router)은 흉내로 바꾼다. 쓰는 곳: scripts/native-*-selftest.mts.
  */
 import { statSync } from 'node:fs';
 import path from 'node:path';
@@ -25,9 +25,13 @@ export default {
   multiRemove: async (ks) => { for (const k of ks) m.delete(k); },
 };`;
 
+/* 화면 길잡이 흉내 — 시험은 훅을 그리지 않고 순수 부분만 부른다(shell/transition.ts) */
+const EXPO_ROUTER = `export const useRoute = () => ({ key: undefined });`;
+
 export function resolve(specifier, context, next) {
   if (specifier === '@react-native-async-storage/async-storage')
     return { url: `data:text/javascript,${encodeURIComponent(ASYNC_STORAGE)}`, shortCircuit: true };
+  if (specifier === 'expo-router') return { url: `data:text/javascript,${encodeURIComponent(EXPO_ROUTER)}`, shortCircuit: true };
   const base = specifier.startsWith('@/')
     ? path.join(root, specifier.slice(2))
     : specifier.startsWith('~/')

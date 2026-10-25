@@ -3,6 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { afterMotion } from '~/shell/transition';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ACWR_ZONES, CHRONIC_WINDOW_DAYS, describeRatio, shiftDateKey } from '@/lib/pitch-stats';
@@ -84,9 +85,13 @@ export default function AnalysisScreen() {
         setRefreshing(false);
         if (!r.ok) return leave(r.to);
         if (date == null) lastAnalysis.set(view, { epoch: cacheEpoch(), data: r });
-        setData(r);
-        setLoadedFor(date);
-        setFailed(null);
+        /* 그래프 · 목록을 다시 그리는 일은 화면이 들어오는 움직임이 끝난 뒤에(2026-10-26 2차 — 열자마자 답이 오면 밀려 들어오는 중에 그렸다) */
+        afterMotion(() => {
+          if (!alive) return;
+          setData(r);
+          setLoadedFor(date);
+          setFailed(null);
+        });
       },
       (e: unknown) => {
         if (!alive) return;

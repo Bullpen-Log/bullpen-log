@@ -27,7 +27,7 @@ import { AllDone } from './all-done';
 import { CameraSwipe } from './camera-swipe';
 import { useUnreadNotifications } from './notifications';
 import { READABLE } from '~/lib/layout';
-import { useFocusRefresh, useOnTabActive, useRetapTop } from '~/shell/tab-pager';
+import { useFocusRefresh, useOnTabActive, useRetapTop, useTabActive } from '~/shell/tab-pager';
 
 /**
  * 홈 탭(앱 화면) — 웹 홈(app/(app)/today/home-page.tsx)과 같은 차례: 링 넷 → 요약 칸 → (알림 카드) → 투구 달력 → 고른 날 칸.
@@ -138,6 +138,12 @@ export function HomeTab({
    * 당겨서 새로고침은 없다 — 웹이 일부러 뺐다(2026-10-15, 판 넘기기 · 위 막대와 부딪혔다). 대신 앱을 5분 넘게 떠났다 돌아오면 새로 받는다(웹과 같다).
    */
   const leftAt = useRef<number | null>(null);
+  /* 다른 탭 판이 보이는 동안은 받지 않는다 — 판 넷이 앱이 앞에 올 때 함께 받았다(2026-10-26 2차). 돌아오면 useOnTabActive 가 받는다 */
+  const tabActive = useTabActive();
+  const activeRef = useRef(tabActive);
+  useEffect(() => {
+    activeRef.current = tabActive;
+  }, [tabActive]);
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
       if (st !== 'active') {
@@ -147,7 +153,7 @@ export function HomeTab({
       }
       const away = leftAt.current;
       leftAt.current = null;
-      if (away != null && Date.now() - away > 5 * 60_000) void Promise.all([refresh(), reload(), reloadEvents()]);
+      if (away != null && Date.now() - away > 5 * 60_000 && activeRef.current) void Promise.all([refresh(), reload(), reloadEvents()]);
     });
     return () => sub.remove();
   }, [refresh, reload]);

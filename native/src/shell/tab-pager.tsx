@@ -3,8 +3,8 @@ import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { usePalette } from '~/lib/ui';
 import { lastWriteAt } from '~/lib/rpc';
-import { whenStill } from '~/shell/transition';
-import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
+import { beginMotion, endMotion, whenStill } from '~/shell/transition';
+import Animated, { Easing, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 /**
  * 탭 판 넘기기 — 웹 components/tab-pager.tsx 와 같다: 탭 넷(홈 · 투구 · 트레이닝 · 영양)을 가로로 나란히 두고, 탭을 옮기면 트랙이
@@ -24,7 +24,11 @@ export const useTabActive = () => useContext(ActiveCtx);
  */
 const STALE_MS = 30_000;
 
-/** 판이 숨었다가 다시 보일 때 — 처음 붙을 때는 안 부른다(그때는 화면이 스스로 받는다). 30초 안 · 쓴 것 없음이면 건너뛴다 */
+/**
+ * 판이 숨었다가 다시 보일 때 — 처음 붙을 때는 안 부른다(그때는 화면이 스스로 받는다). 30초 안 · 쓴 것 없음이면 건너뛴다.
+ * 판이 미끄러져 다 들어온 뒤에 받는다(2026-10-26 2차 — 예전엔 보이자마자 받아, 받은 값을 그리는 일이 미끄러짐과 겹쳤다). 그 사이 다른 탭으로
+ * 옮기면 그만둔다(받지 않은 채로 남아 다음에 보일 때 받는다).
+ */
 export function useOnTabActive(cb: () => void) {
   const active = useTabActive();
   const was = useRef(active);
@@ -35,11 +39,13 @@ export function useOnTabActive(cb: () => void) {
     if (ranAt.current === 0) ranAt.current = Date.now();
   });
   useEffect(() => {
-    if (active && !was.current && (Date.now() - ranAt.current >= STALE_MS || lastWriteAt() > ranAt.current)) {
+    const back = active && !was.current;
+    was.current = active;
+    if (!back || (Date.now() - ranAt.current < STALE_MS && lastWriteAt() <= ranAt.current)) return;
+    return whenStill(() => {
       ranAt.current = Date.now();
       latest.current();
-    }
-    was.current = active;
+    });
   }, [active]);
 }
 
@@ -104,21 +110,52 @@ export function useRetapTop(scrollTo: () => void) {
 
 const EASE = Easing.bezier(0.32, 0.72, 0, 1);
 
+/*
+ * 판 옮기기(2026-10-26 2차 정리):
+ * - 옆 판으로: 트랙이 240ms 에 미끄러진다(웹 tab-pager 와 같다).
+ * - 둘 넘게 떨어진 판으로(하단 탭을 바로 누름): 바로 바꾼다 — 240ms 에 트랙 전체를 밀면 사이 판이 휙 지나가 보였다(iOS 탭 막대도 바로 바꾼다).
+ * - 웹 화면 ↔ 앱 판: 판 전체가 짧게 옅어지며 바뀐다(웹은 새 주소를 다 그린 뒤에 드러나므로 옛 화면이 비치지 않는다).
+ * 움직이는 동안은 shell/transition 에 적어, 새로 받기 · 판 붙이기 · 영상 재생기가 끝난 뒤에 돈다. 동작 줄이기면 모두 바로.
+ */
+const FADE_MS = 160;
+const endSlide = () => endMotion('pager');
+const endFade = () => endMotion('pager-fade');
+
 export function TabPager({ index, visible, slots }: { index: number; visible: boolean; slots: (ReactNode | null)[] }) {
   const { width } = useWindowDimensions();
   const c = usePalette();
   const reduce = useReducedMotion();
   const x = useSharedValue(-index * width);
-  /* 숨었다가 나타날 때 · 폭이 바뀔 때는 미끄러지지 않고 바로 그 자리 */
-  const before = useRef({ visible, width });
+  const shown = useSharedValue(visible ? 1 : 0);
+  const before = useRef({ index, visible, width });
   useEffect(() => {
-    const slide = before.current.visible && visible && before.current.width === width && !reduce;
-    x.value = slide ? withTiming(-index * width, { duration: 240, easing: EASE }) : -index * width;
-    before.current = { visible, width };
-  }, [index, visible, width, reduce, x]);
+    const b = before.current;
+    before.current = { index, visible, width };
+    const target = -index * width;
+    const slide = b.visible && visible && b.width === width && !reduce && Math.abs(b.index - index) === 1;
+    if (slide) {
+      beginMotion('pager');
+      x.value = withTiming(target, { duration: 240, easing: EASE }, (done) => {
+        if (done) runOnJS(endSlide)();
+      });
+    } else {
+      x.value = target;
+      endSlide();
+    }
+    if (b.visible !== visible && !reduce) {
+      beginMotion('pager-fade');
+      shown.value = withTiming(visible ? 1 : 0, { duration: FADE_MS, easing: Easing.out(Easing.quad) }, (done) => {
+        if (done) runOnJS(endFade)();
+      });
+    } else if (b.visible !== visible || reduce) {
+      shown.value = visible ? 1 : 0;
+      endFade();
+    }
+  }, [index, visible, width, reduce, x, shown]);
   const track = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+  const fade = useAnimatedStyle(() => ({ opacity: shown.value }));
   return (
-    <View pointerEvents={visible ? 'box-none' : 'none'} style={[StyleSheet.absoluteFill, { opacity: visible ? 1 : 0 }]}>
+    <Animated.View pointerEvents={visible ? 'box-none' : 'none'} style={[StyleSheet.absoluteFill, fade]}>
       <Animated.View style={[styles.track, { width: width * slots.length }, track]}>
         {slots.map((s, i) => (
           /* 아직 안 붙은 판은 바탕색 판 — 밑의 웹이 비치지 않게 */
@@ -127,7 +164,7 @@ export function TabPager({ index, visible, slots }: { index: number; visible: bo
           </View>
         ))}
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 

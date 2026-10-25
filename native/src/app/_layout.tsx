@@ -75,6 +75,8 @@ export default function RootLayout() {
         screenListeners={{
           transitionStart: (e) => e.target && noteTransition(e.target, 'start', e.data.closing),
           transitionEnd: (e) => e.target && noteTransition(e.target, 'end', e.data.closing),
+          /* 뒤로 쓸다 그만둠 — 그 화면은 그대로 위에 있다(끝 알림도 오지만 먼저 풀어 둔다) */
+          gestureCancel: (e) => e.target && noteTransition(e.target, 'cancel'),
         }}
       >
         {/* 구속 측정 — 웹은 멀리서 튀어나오는 zoom 전환. 앱은 옅어지며 들어온다(홈 쓸기의 검은 판 위로 이어짐) */}

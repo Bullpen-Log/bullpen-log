@@ -226,6 +226,19 @@ export function TabBar({
   const touching = useSharedValue(false);
   const shown = useSharedValue(showLens ? 1 : 0);
   const [lensGlass, setLensGlass] = useState(false);
+  /*
+   * 손가락 처리(JS)가 읽는 값은 JS 쪽 거울에서 — 공유 값을 JS 에서 .get() 하면 UI 스레드에 묻고 답을 기다려, UI 가 바쁘면 손가락 처리가 그만큼 밀렸다
+   * (2026-10-26 2차). 이 값들은 JS 에서만 쓰므로 쓸 때 거울도 함께 쓴다.
+   */
+  const mirror = useRef({ preview: index, committed: index, touching: false });
+  const setPreview = (v: number) => {
+    mirror.current.preview = v;
+    preview.set(v);
+  };
+  const setTouching = (v: boolean) => {
+    mirror.current.touching = v;
+    touching.set(v);
+  };
   const pending = useRef<string | null>(null);
   const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef({ tabs, active, onPress, index, showLens });
@@ -241,15 +254,18 @@ export function TabBar({
   // 웹 화면 응답을 기다리는 동안 선택판이 이전 탭으로 튕겨 돌아가지 않게 한다.
   useEffect(() => {
     committed.set(index);
+    mirror.current.committed = index;
     shown.set(reduce ? (showLens ? 1 : 0) : withTiming(showLens ? 1 : 0, { duration: 120 }));
     if (pending.current && pending.current !== active && (JSON.parse(keys) as string[]).includes(pending.current)) return;
     pending.current = null;
     if (pendingTimer.current) clearTimeout(pendingTimer.current);
-    if (!touching.get()) {
+    if (!mirror.current.touching) {
+      /* setPreview 를 부르면 효과가 그 함수에 매인다 — 거울과 공유 값을 여기서 바로 쓴다 */
+      mirror.current.preview = index;
       preview.set(index);
       pos.set(reduce ? index : withSpring(index, POS_SPRING));
     }
-  }, [active, index, showLens, keys, cell, reduce, committed, shown, touching, preview, pos]);
+  }, [active, index, showLens, keys, cell, reduce, committed, shown, preview, pos]);
 
   const choose = (href: string, retap: boolean) => {
     const now = latest.current;
@@ -265,8 +281,8 @@ export function TabBar({
     pendingTimer.current = setTimeout(() => {
       pending.current = null;
       const current = latest.current;
-      if (touching.get()) return;
-      preview.set(current.index);
+      if (mirror.current.touching) return;
+      setPreview(current.index);
       pos.set(reduce ? current.index : withSpring(current.index, POS_SPRING));
     }, TAB_MOTION.acknowledgeMs);
     now.onPress(now.tabs[i]);
@@ -278,12 +294,12 @@ export function TabBar({
     offset: number; moved: boolean; lastX: number; lastAt: number;
   } | null>(null);
   const tick = () => void Haptics.selectionAsync();
-  /* 기본 인자에 committed.get() 을 두면 React 컴파일러가 TabBar 전체를 건너뛰어(부를 때마다 막대 전체를 다시 그림) 안에서 고른다 */
+  /* 기본 인자에 함수 부름을 두면 React 컴파일러가 TabBar 전체를 건너뛰어(부를 때마다 막대 전체를 다시 그림) 안에서 고른다 */
   const resetTouch = (to?: number) => {
-    const settle = to ?? committed.get();
+    const settle = to ?? mirror.current.committed;
     contact.current = null;
-    touching.set(false);
-    preview.set(settle);
+    setTouching(false);
+    setPreview(settle);
     pos.set(reduce ? settle : withSpring(settle, TAB_MOTION.releaseSpring));
     lift.set(reduce ? 0 : withSpring(0, LIFT_SPRING));
     dragY.set(reduce ? 0 : withSpring(0, LIFT_SPRING));
@@ -305,8 +321,8 @@ export function TabBar({
       offset: e.locationX - (target + 0.5) * cell,
       moved: false, lastX: e.pageX, lastAt: e.timestamp,
     };
-    touching.set(true);
-    preview.set(target);
+    setTouching(true);
+    setPreview(target);
     pos.set(reduce ? target : withSpring(target, POS_SPRING));
     lift.set(reduce ? 0 : withTiming(1, { duration: TAB_MOTION.liftDuration }));
     shown.set(1);
@@ -330,7 +346,7 @@ export function TabBar({
     current.lastX = e.pageX;
     current.lastAt = e.timestamp;
     const target = Math.max(0, Math.min(current.count - 1, Math.round(next)));
-    if (target !== preview.get()) { preview.set(target); tick(); }
+    if (target !== mirror.current.preview) { setPreview(target); tick(); }
   };
   const releaseTouch = (event: GestureResponderEvent) => {
     const current = contact.current;
@@ -342,9 +358,9 @@ export function TabBar({
     const dragged = current.moved || Math.hypot(x - current.startX, y - current.startY) >= TAB_MOTION.dragThreshold;
     const position = dragged ? tabDragPosition(x, current.offset, current.cell, current.count) : tabIndexAt(x, current.cell, current.count);
     const target = tabReleaseIndex(x, y, position, current.cell, current.count);
-    resetTouch(target >= 0 ? target : committed.get());
+    resetTouch(target >= 0 ? target : mirror.current.committed);
     if (target < 0) return;
-    if (!dragged && target !== committed.get()) tick();
+    if (!dragged && target !== mirror.current.committed) tick();
     choose(current.hrefs[target], !dragged);
   };
 
@@ -408,7 +424,7 @@ export function TabBar({
             onPress={() => {
               // 물리 터치는 위의 입력 면, VoiceOver/키보드는 이 버튼으로 처리한다.
               if (!on) tick();
-              preview.set(k);
+              setPreview(k);
               pos.set(reduce ? k : withSpring(k, POS_SPRING));
               choose(t.href, true);
             }}

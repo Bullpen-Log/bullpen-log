@@ -14,7 +14,7 @@ import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
 import { ApiError, dateKeyOf, deleteLog, isPhoneVideoPath, loadMe, phoneAssetId } from '~/pitch/api';
 import { monthOf, refreshMonth, repOf, setFeatured, useFeatured, useMonth } from '~/pitch/store';
-import { PitchVideo, ViewportProvider, useViewportWatch } from '~/pitch/video';
+import { PitchVideo, ViewportProvider, useViewport } from '~/pitch/video';
 import { useScreenSettled } from '~/shell/transition';
 import { VelocityDay } from '~/pitch/velocity-day';
 import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
@@ -57,8 +57,8 @@ export default function PitchDayScreen() {
    * 끝은 화면 넘김 알림으로 본다(shell/transition.ts, 예전 350ms 어림 — 느린 폰 · 천천히 끌어 올리면 움직임 한가운데 그렸다)
    */
   const settled = useScreenSettled();
-  /* 영상은 화면 가까이 온 것만 재생기를 만든다(pitch/video.tsx) — 굴릴 때 알린다 */
-  const viewport = useViewportWatch();
+  /* 영상은 화면 가까이 온 것만 재생기를 갖는다(pitch/viewport.ts) — 굴린 자리 · 화면 높이 · 내용 크기를 알린다 */
+  const viewport = useViewport();
   /* 그날 영상(쉰 날 줄 빼고) · 대표 — 웹 video-calendar DayPanel 과 같은 규칙(repOf) */
   const featured = useFeatured();
   const dayPaths = day.filter((l) => !isRestSession(l.sessionType)).flatMap((l) => l.videoPaths);
@@ -113,7 +113,10 @@ export default function PitchDayScreen() {
         <ScrollView
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets
-          onScroll={viewport.emit}
+          innerViewRef={viewport.bindContent}
+          onLayout={(e) => viewport.resize(e.nativeEvent.layout.height)}
+          onScroll={(e) => viewport.scroll(e.nativeEvent.contentOffset.y)}
+          onContentSizeChange={viewport.remeasure}
           scrollEventThrottle={100}
           contentContainerStyle={[{ padding: 16, paddingTop: 4, paddingBottom: inset.bottom + 32, gap: 12 }, READABLE_WIDE]}
         >

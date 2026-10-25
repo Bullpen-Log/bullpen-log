@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { type Href, router } from 'expo-router';
-import { type ComponentRef, useDeferredValue, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { type ComponentRef, memo, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ActionSheetIOS, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { STRONG_EFFORT_PCT, effortBand, effortText, readEffort } from '@/lib/pitch-effort';
@@ -15,6 +15,8 @@ import { fadeIn, rowIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import type { PitchLog } from './api';
 import { FindBar } from './find-bar';
+import { dayPathsOf, groupMonths, rowBudget, type Sort } from './log-groups';
+import { afterMotion } from '~/shell/transition';
 import { repOf, setFeatured, thumbSource, useFeatured, usePathThumbs, type Thumb } from './store';
 
 /**
@@ -24,12 +26,13 @@ import { repOf, setFeatured, thumbSource, useFeatured, usePathThumbs, type Thumb
  * - 달마다 접히는 카드 — 처음엔 가장 최근 달만 펴고, 찾는 중이면 다 편다. 줄은 영상마다 하나(영상 없는 기록은 한 줄):
  *   왼쪽 16:9 작은 장면(영상 없으면 강도 색 칸에 'N구' · 쉬는 날은 점선) · 날짜(요일) · 종류 · 요약 ›.
  */
-type Sort = 'recent' | 'velocity' | 'intensity';
 const SORTS: { key: Sort; label: string }[] = [
   { key: 'recent', label: '최근순' },
   { key: 'velocity', label: '구속 빠른순' },
   { key: 'intensity', label: '강도 높은순' },
 ];
+/** 한 번에 더 그리는 줄 수 */
+const PAGE = 40;
 const BAND_ALPHA = { strong: 0.7, mid: 0.4, light: 0.15 } as const;
 const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
 const spokenDate = (key: string) => {
@@ -81,6 +84,8 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
   const jumpTo = (date: string) => {
     const month = date.slice(0, 7);
     setToggled((t) => ({ ...t, [month]: true }));
+    /* 그날 줄이 그려져 있어야 잴 수 있다 — 나눠 그리기를 끝까지 */
+    setLimit(Infinity);
     setFlash(date);
     setTimeout(() => setFlash(null), 1600);
     setTimeout(() => (spots.current.get(date) ?? spots.current.get(month))?.measureInWindow((_x, y) => onReveal(y)), 120);
@@ -119,11 +124,7 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
   const videoCount = clips.filter((x) => x.path).length;
   /* 대표 영상 — 영상이 여럿인 날만 줄 오른쪽 별(웹 video-gallery choosable). 그날 영상은 거르기 전 기록 전체에서 */
   const pick = useFeatured();
-  const dayPaths = useMemo(() => {
-    const m = new Map<string, string[]>();
-    for (const l of logs ?? []) if (l.sessionType !== REST_SESSION_TYPE) m.set(l.date.slice(0, 10), [...(m.get(l.date.slice(0, 10)) ?? []), ...l.videoPaths]);
-    return m;
-  }, [logs]);
+  const dayPaths = useMemo(() => dayPathsOf(logs ?? [], REST_SESSION_TYPE), [logs]);
 
   const chips = useMemo(() => {
     const byType = new Map<string, Set<string>>();
@@ -133,21 +134,29 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
     );
   }, [clips, shown.length]);
 
-  const months = useMemo(() => {
-    const map = new Map<string, Clip[]>();
-    for (const x of clips) {
-      if (listFilter !== 'all' && x.sessionType !== listFilter) continue;
-      const m = x.date.slice(0, 7);
-      map.set(m, [...(map.get(m) ?? []), x]);
-    }
-    const cmp = (a: Clip, b: Clip) =>
-      listSort === 'velocity' ? (b.maxVelocity ?? -1) - (a.maxVelocity ?? -1) : listSort === 'intensity' ? b.effortPct - a.effortPct : b.date.localeCompare(a.date);
-    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([month, items]) => ({ month, items: [...items].sort(cmp) }));
-  }, [clips, listFilter, listSort]);
+  const months = useMemo(() => groupMonths(clips, listFilter, listSort), [clips, listFilter, listSort]);
   const isOpen = (month: string) => finding || (toggled[month] ?? month === months[0]?.month);
 
-  /* 편 달의 영상만 그림을 묻는다(웹도 보이는 달만) */
-  const openPaths = months.filter((g) => isOpen(g.month)).flatMap((g) => g.items.flatMap((x) => (x.path ? [x.path] : [])));
+  /*
+   * 펼친 줄은 위에서부터 PAGE 줄씩 늘려 그린다 — 찾는 중이면 달이 다 펴져 줄이 수백 개라, 한 번에 그리면 그 동안 손가락 · 굴림이 멈췄다(2026-10-26 2차).
+   * 늘리는 일은 화면이 움직이지 않을 때 사이사이(afterMotion). 찾기 · 종류 · 정렬이 바뀌면 처음부터, 기록이 새로 와도(저장 뒤) 그린 만큼은 둔다
+   * (줄었다 늘면 굴린 자리가 튄다). 날짜로 가기는 끝까지 그린다(그 줄을 재야 해서).
+   */
+  const [limit, setLimit] = useState(PAGE);
+  const [limitFor, setLimitFor] = useState({ q: listQ, f: listFilter, s: listSort });
+  if (limitFor.q !== listQ || limitFor.f !== listFilter || limitFor.s !== listSort) {
+    setLimitFor({ q: listQ, f: listFilter, s: listSort });
+    setLimit(PAGE);
+  }
+  const budget = rowBudget(months, isOpen, limit);
+  const openRows = months.reduce((n, g) => n + (isOpen(g.month) ? g.items.length : 0), 0);
+  useEffect(() => {
+    if (limit >= openRows) return;
+    return afterMotion(() => setLimit((l) => l + PAGE));
+  }, [limit, openRows]);
+
+  /* 그린 줄의 영상만 그림을 묻는다(웹도 보이는 달만) — 폰 영상은 장면을 뽑아 그림을 만들어 무겁다 */
+  const openPaths = months.flatMap((g) => g.items.slice(0, budget.get(g.month) ?? 0).flatMap((x) => (x.path ? [x.path] : [])));
   const thumbs = usePathThumbs(openPaths);
 
   const pickSort = () =>
@@ -238,7 +247,7 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
             </Press>
             {open ? (
               <Animated.View entering={opened === g.month ? fadeIn : undefined} style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }}>
-                {g.items.map((x, i) => {
+                {g.items.slice(0, budget.get(g.month) ?? 0).map((x, i) => {
                   const many = !selecting && x.path != null && (dayPaths.get(x.date)?.length ?? 0) > 1;
                   const slot = selecting && picked.some((y) => y?.id === x.id) ? (picked[0]?.id === x.id ? 'A' : 'B') : null;
                   return (
@@ -353,7 +362,8 @@ export function ComparePickBar({ bottom }: { bottom: number }) {
  * 목록 한 줄 — 따로 둬서 컴파일러가 줄마다 그린 것을 기억한다(값이 같은 줄은 다시 그리지 않음). 달을 펴고 접거나 고르는 중일 때 바뀐 줄만 다시 그린다.
  * star = 그날 영상이 여럿일 때만 대표 별(true 면 지금 대표), slot = 비교에 고른 쪽
  */
-function LogRow({
+/* memo — 줄을 나눠 그릴 때마다 목록 전체가 다시 그려져도, 받는 값(줄 · 그림 · 고름)이 그대로인 줄은 건너뛴다 */
+const LogRow = memo(function LogRow({
   clip: x,
   thumb,
   first,
@@ -430,7 +440,7 @@ function LogRow({
       </View>
     </Animated.View>
   );
-}
+});
 
 function ClipThumb({ clip, url }: { clip: Clip; url: Thumb | undefined }) {
   const c = usePalette();

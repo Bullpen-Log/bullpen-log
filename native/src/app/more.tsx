@@ -13,6 +13,7 @@ import { Icon, type IconName } from '~/shell/icon';
 import { useMenu, type MenuGroup } from '~/shell/menu-store';
 import type { ShellTab } from '~/shell/tab-bar';
 import { destinationOf, leaveTo, leaveWhenShown, openWebAfter } from '~/shell/web-nav';
+import { beginMotion, endMotion } from '~/shell/transition';
 
 /**
  * 더보기(앱) — 아이폰 홈 화면 폴더처럼: 뒤 화면을 흐리고 어둡게 가라앉히고(expo-blur), 그 위에 '메뉴' 큰 제목과 반투명 유리 폴더가
@@ -100,6 +101,7 @@ function folderGroups(groups: MenuGroup[], tabs: ShellTab[]): MenuGroup[] {
 
 /** 웹이 그리기를 기다리는 더보기 닫기(open) — 화면이 먼저 닫히면 그만둔다 */
 let stopLeave: (() => void) | null = null;
+const endMore = () => endMotion('more');
 const holdLeave = (stop: () => void) => {
   stopLeave = stop;
 };
@@ -134,7 +136,13 @@ export default function MoreScreen() {
     box.set({ w, h });
     if (started.current) return;
     started.current = true;
-    grow.set(withTiming(1, { duration: reduce ? 0 : 320, easing: Easing.bezier(0.2, 0.9, 0.3, 1.05) }));
+    /* 부풀고 줄어드는 동안은 움직이는 중으로 적는다 — 밑의 판 붙이기 · 새로 받기가 그 뒤에 돈다(shell/transition.ts) */
+    beginMotion('more');
+    grow.set(
+      withTiming(1, { duration: reduce ? 0 : 320, easing: Easing.bezier(0.2, 0.9, 0.3, 1.05) }, (done) => {
+        if (done) runOnJS(endMore)();
+      })
+    );
   };
   const folderStyle = useAnimatedStyle(() => {
     const g = grow.value;
@@ -149,8 +157,12 @@ export default function MoreScreen() {
   const scrimStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
   const blurProps = useAnimatedProps(() => ({ intensity: BACKDROP_BLUR * fade.value }));
 
-  const gone = () => router.back();
+  const gone = () => {
+    endMotion('more');
+    router.back();
+  };
   const close = () => {
+    beginMotion('more');
     grow.set(
       withTiming(0, { duration: reduce ? 0 : 140, easing: Easing.in(Easing.ease) }, (done) => {
         if (done) runOnJS(gone)();
@@ -180,7 +192,13 @@ export default function MoreScreen() {
    */
   const [leaving, setLeaving] = useState<string | null>(null);
   /* 기다리는 중에 끌어내려 · 막을 눌러 먼저 닫으면 기다림을 그만둔다(router.back 이 두 번이면 밑 화면까지 걷힌다) */
-  useEffect(() => dropLeave, []);
+  useEffect(
+    () => () => {
+      dropLeave();
+      endMotion('more');
+    },
+    []
+  );
   const open = (href: string) => {
     if (leaving) return;
     const to = destinationOf(href);

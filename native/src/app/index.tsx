@@ -451,7 +451,7 @@ export default function SiteScreen() {
     let stop: (() => void) | undefined;
     const t = setTimeout(
       () => {
-        stop = whenStill(() => setSeen((s) => (s[next] ? s : { ...s, [next]: true })), { grace: 0, cap: 1500 });
+        stop = whenStill(() => setSeen((s) => (s[next] ? s : { ...s, [next]: true })), { grace: 0 });
       },
       mounted <= 1 ? 1200 : 700
     );

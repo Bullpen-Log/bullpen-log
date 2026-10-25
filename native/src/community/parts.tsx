@@ -6,6 +6,7 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTimin
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INQUIRY_STATUS, inquiryCategoryLabel, type InquiryStatusKey } from '@/lib/support';
 import { lastWriteAt, rpc, RpcError } from '~/lib/rpc';
+import { afterMotion, whenStill } from '~/shell/transition';
 import { cacheEpoch } from '~/lib/store';
 import type { Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
@@ -63,6 +64,10 @@ export function useLoad<R extends { ok: boolean }>(action: string, ...args: (str
   useEffect(() => {
     latest.current = key;
   }, [key]);
+  /*
+   * 같은 읽기가 겹치면 한 번만(lib/rpc — 저장 뒤에는 새로), 답은 화면이 움직이는 동안이면 끝난 뒤에 그린다(2026-10-26 2차 — 돌아오는 움직임
+   * 한가운데 목록을 다시 그려 끊겼다)
+   */
   const run = useCallback(
     (alive: { on: boolean }) =>
       rpc<R>(action, ...(JSON.parse(key) as unknown[])).then(
@@ -70,8 +75,11 @@ export function useLoad<R extends { ok: boolean }>(action: string, ...args: (str
           if (!alive.on || latest.current !== key) return;
           if (r.ok) {
             if (CACHED_LOADS.has(action)) seenLoads.set(action + key, { epoch: cacheEpoch(), at: Date.now(), data: r });
-            setState({ key, data: r as Extract<R, { ok: true }> });
-            setError(null);
+            afterMotion(() => {
+              if (!alive.on || latest.current !== key) return;
+              setState({ key, data: r as Extract<R, { ok: true }> });
+              setError(null);
+            });
           } else leave((r as { to?: string }).to ?? '/login');
         },
         (e: unknown) => {
@@ -82,14 +90,21 @@ export function useLoad<R extends { ok: boolean }>(action: string, ...args: (str
       ),
     [action, key]
   );
+  /* 처음 보일 때 · 인자(구분)가 바뀌면 바로, 위 화면을 닫고 돌아올 때는 돌아오는 움직임이 끝난 뒤에(그 전에 다시 가려지면 그만둔다) */
+  const ranKey = useRef<string | null>(null);
   useFocusEffect(
     useCallback(() => {
       const alive = { on: true };
-      void run(alive);
+      let stop: (() => void) | undefined;
+      if (ranKey.current !== key) {
+        ranKey.current = key;
+        void run(alive);
+      } else stop = whenStill(() => void run(alive));
       return () => {
         alive.on = false;
+        stop?.();
       };
-    }, [run])
+    }, [run, key])
   );
   const reload = useCallback(() => run({ on: true }), [run]);
   /* 오류는 지난 값이 화면에 있어도 알린다(화면이 그 위에 띄운다) — 안 그러면 구분을 바꾼 채 지난 목록이 흐리게 남고 아무 말이 없었다 */

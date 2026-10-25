@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { leave } from '~/mechanics/parts';
 import { ScrollLockScope } from '~/shell/scroll-lock';
 import { rpc, RpcError } from '~/lib/rpc';
+import { afterMotion, whenStill } from '~/shell/transition';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
@@ -51,21 +52,30 @@ export function useScreenData<T>(action: string, arg: string, key: string) {
   const [failed, setFailed] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const shown = useRef(key);
+  /*
+   * 받기 차례 — 늦게 온 앞 요청의 답이 새 답을 덮지 않게(2026-10-26 2차). 같은 값을 읽는 화면 여럿 · 돌아옴 · 앱이 앞에 옴이 겹치면 한 번만 부르고
+   * (lib/rpc — 저장 뒤에는 새로), 답은 화면이 움직이는 동안이면 끝난 뒤에 그린다(afterMotion).
+   */
+  const seq = useRef(0);
 
   const load = useCallback(() => {
     const e = cacheEpoch();
+    const n = ++seq.current;
     return rpc<Loaded<T>>(action, arg).then(
       (r) => {
-        if (e !== cacheEpoch() || shown.current !== key) return;
+        if (e !== cacheEpoch() || shown.current !== key || n !== seq.current) return;
         if (!r.ok) return leave(r.to);
         memory.set(key, { epoch: e, value: r });
         void cacheSet(key, r);
-        setData(r);
-        setFresh(true);
-        setFailed(null);
+        afterMotion(() => {
+          if (n !== seq.current || shown.current !== key) return;
+          setData(r);
+          setFresh(true);
+          setFailed(null);
+        });
       },
       (err: unknown) => {
-        if (shown.current !== key) return;
+        if (shown.current !== key || n !== seq.current) return;
         if (err instanceof RpcError && err.code === 'redirect') return leave(err.to ?? '/login');
         setFailed(err instanceof RpcError && err.code === 'update' ? '앱을 업데이트해 주세요.' : '신호가 약해 불러오지 못했어요.');
       }
@@ -97,21 +107,45 @@ export function useScreenData<T>(action: string, arg: string, key: string) {
    * 앱이 다시 앞에 오면 다시 받는다(2026-10-18 김민) — 밤새 열어 둔 암케어 목록이 어제 날짜로 체크를 남겼다. 받는 동안은 fresh 를
    * 꺼 체크 · 만들기를 막는다(받아 둔 값이 어제 것일 수 있다).
    */
+  /* 위에 다른 화면이 쌓여 가려진 동안은 받지 않고 '옛 값' 표시만 해 둔다 — 돌아오면 받는다(쌓인 화면들이 한꺼번에 받았다, 2026-10-26 2차) */
+  const focusedNow = useRef(false);
+  const staleWhileHidden = useRef(false);
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
       if (st !== 'active') return;
+      if (!focusedNow.current) {
+        staleWhileHidden.current = true;
+        return;
+      }
       setFresh(false);
       void load();
     });
     return () => sub.remove();
   }, [load]);
 
-  /* 따라 하기 · 체크인(앱 화면)에서 돌아오면 다시 받는다 — 체크 · 진행이 바로 바뀌게 */
+  /*
+   * 따라 하기 · 체크인(앱 화면)에서 돌아오면 다시 받는다 — 체크 · 진행이 바로 바뀌게. 돌아오는 움직임(뒤로 쓸기)이 끝난 뒤에 부르고, 그 전에 다시
+   * 가려지면 그만둔다.
+   */
   const focused = useRef(false);
   useFocusEffect(
     useCallback(() => {
-      if (focused.current) void load();
-      focused.current = true;
+      focusedNow.current = true;
+      if (!focused.current) {
+        focused.current = true;
+        return () => {
+          focusedNow.current = false;
+        };
+      }
+      if (staleWhileHidden.current) {
+        staleWhileHidden.current = false;
+        setFresh(false);
+      }
+      const stop = whenStill(() => void load());
+      return () => {
+        focusedNow.current = false;
+        stop();
+      };
     }, [load])
   );
 
