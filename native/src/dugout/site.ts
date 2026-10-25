@@ -15,7 +15,7 @@ export const DUGOUT_TABS: ShellTab[] = [
   { href: '/market', label: '장터', icon: 'market' },
   { href: '/community', label: '커뮤니티', icon: 'community' },
   { href: '/chat', label: '채팅', icon: 'chat' },
-  { href: '/me', label: '내 것', icon: 'user' },
+  { href: '/me', label: '마이', icon: 'user' },
 ];
 
 /** 사이트 주소 → 그 주소가 속한 탭(없으면 null — 렌즈를 안 띄운다) */

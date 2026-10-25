@@ -46,7 +46,7 @@ export function DugoutShell({
     { href: '/market', label: '장터', icon: RoundMarket },
     { href: '/market/new', label: '올리기', icon: RoundPlus, plus: true },
     { href: '/chat', label: '채팅', icon: RoundChat, badge: unread },
-    { href: '/me', label: '내 것', icon: RoundUser },
+    { href: '/me', label: '마이', icon: RoundUser },
   ];
   const active = (href: string, exact?: boolean) =>
     exact ? pathname === href.split('?')[0] : pathname === href || pathname.startsWith(`${href}/`);
