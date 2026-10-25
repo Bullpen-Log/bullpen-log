@@ -28,6 +28,8 @@ import { Prisma } from '@prisma/client';
 import { appNow, appNowMs } from '@/lib/clock';
 import { memberScope } from '@/lib/org/rules';
 import { noteKey, planNotePitch, type NotePitchPlan } from '@/lib/org/lesson-pitch';
+import { isOrgVideoPath } from '@/lib/org/comments';
+import { deleteVideos } from '@/lib/storage';
 import { DEFAULT_SESSION_TYPE, isRestSession, validateSessionType } from '@/lib/session-type';
 import { effortFields, scaleToEffortPct } from '@/lib/pitch-effort';
 
@@ -295,7 +297,7 @@ export async function deleteLessonNote(formData: FormData) {
   const user = await requireMaster();
   const note = await prisma.lessonNote.findUnique({
     where: { id: String(formData.get('id') ?? '') },
-    select: { id: true, memberId: true, eventId: true, member: { select: { orgId: true, userId: true } } },
+    select: { id: true, memberId: true, eventId: true, videoPaths: true, member: { select: { orgId: true, userId: true } } },
   });
   if (!note) return;
   await requireOrg(user, note.member.orgId);
@@ -308,6 +310,8 @@ export async function deleteLessonNote(formData: FormData) {
     }
     await tx.lessonNote.delete({ where: { id: note.id } });
   });
+  /* 일지에 붙인 조직 영상(org- 파일)만 저장소에서 지운다 — 투구 영상 · 사진은 그 앞말이 아니다 */
+  await deleteVideos(note.videoPaths.filter(isOrgVideoPath));
   revalidateNote(note.memberId);
 }
 

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { InboxCard } from '@/components/master/inbox-card';
 import { redirect } from 'next/navigation';
 import { CalendarDays, ClipboardList, KeyRound, Megaphone, Plus, Users } from '@/components/icon';
 import { RoundPeople } from '@/components/round-icon';
@@ -92,6 +93,8 @@ export default async function MasterHome() {
       </section>
 
       <QuickActions kind={org.kind} players={players.length} />
+
+      <InboxCard orgId={org.id} />
 
       {org.kind === 'TEAM' ? (
         <TeamHome org={org} now={now} todayKey={todayKey} players={players} />

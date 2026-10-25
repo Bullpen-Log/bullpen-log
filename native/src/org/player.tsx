@@ -91,7 +91,7 @@ export function PlayerSpace({ space }: { space: MySpace }) {
                   던진 공 {n.pitchCount}구 · {n.pitchLog === 'own' ? '코치가 내 투구 기록에 남겼어요' : '내 투구 기록에 이었어요'}
                 </Text>
               ) : null}
-              {!data.left ? <TalkToggle kind="note" id={n.id} talk={n.talk} who={{ role: 'player', memberId: space.memberId! }} c={c} /> : null}
+              {!data.left ? <TalkToggle kind="note" id={n.id} talk={n.talk} videos={n.videos.length} who={{ role: 'player', memberId: space.memberId! }} c={c} /> : null}
             </Card>
           ))
         )}

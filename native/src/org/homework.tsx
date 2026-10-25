@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { HomeworkView } from '@/app/actions/app-lesson';
 import { HOMEWORK_STATUS_LABEL } from '@/lib/org/homework';
@@ -6,6 +7,7 @@ import { TYPE, type Palette } from '~/lib/ui';
 import { toast } from '~/shell/toast';
 import { Card, Empty, dayLabel } from '~/org/parts';
 import { TalkToggle } from '~/org/thread';
+import { pickAndUploadOrgVideo } from '~/org/video';
 
 /**
  * 숙제 목록(2단계) — 코치 회원 카드와 선수 공간이 같이 쓴다. 코치는 누르면 면제 · 취소 · 되돌리기, 선수는 '오늘 운동에 넣기' · '했어요'.
@@ -54,6 +56,23 @@ const statusColor = (s: HomeworkView['status'], c: Palette) => (s === 'done' ? c
 const open = (s: HomeworkView['status']) => s === 'assigned' || s === 'in_progress';
 
 function Actions({ h, who, onChanged, c }: { h: HomeworkView; who: Who; onChanged: () => void; c: Palette }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  /* 숙제 영상 — 저장소에 올리고 숙제에 '숙제 영상' 말로 붙인다. 아직 할 숙제면 완료가 된다(서버) */
+  const submitVideo = async (memberId: string) => {
+    setBusy('영상을 고르는 중');
+    try {
+      const path = await pickAndUploadOrgVideo({ role: 'player', memberId }, (p) => setBusy(`올리는 중 ${p}%`));
+      if (!path) return;
+      const r = await call<{ ok: boolean; error?: string }>('app-lesson.addMyComment', memberId, 'homework', h.id, 'submit', '', path);
+      if (!r.ok) return toast(('error' in r && r.error) || '보내지 못했어요.', 'error');
+      toast('숙제 영상을 보냈어요');
+      onChanged();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : '영상을 올리지 못했어요.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
   const send = async (action: string, ...args: unknown[]) => {
     const r = await call<{ ok: boolean; error?: string; added?: number }>(action, ...args);
     if (!r.ok) return toast(('error' in r && r.error) || '처리하지 못했어요.', 'error');
@@ -61,11 +80,12 @@ function Actions({ h, who, onChanged, c }: { h: HomeworkView; who: Who; onChange
     onChanged();
   };
   if (who.role === 'player') {
-    if (!open(h.status)) return null;
+    if (busy) return <Text style={[TYPE.sub, { color: c.muted }]}>{busy}</Text>;
     return (
       <View style={st.actions}>
-        {h.hasExercise ? <Link label="오늘 운동에 넣기" onPress={() => void send('app-lesson.homeworkToToday', who.memberId, h.id)} c={c} /> : null}
-        <Link label="했어요" onPress={() => void send('app-lesson.markMyHomework', who.memberId, h.id, 'done')} c={c} />
+        {open(h.status) && h.hasExercise ? <Link label="오늘 운동에 넣기" onPress={() => void send('app-lesson.homeworkToToday', who.memberId, h.id)} c={c} /> : null}
+        {h.status !== 'canceled' && h.status !== 'excused' ? <Link label="영상 보내기" onPress={() => void submitVideo(who.memberId)} c={c} /> : null}
+        {open(h.status) ? <Link label="했어요" onPress={() => void send('app-lesson.markMyHomework', who.memberId, h.id, 'done')} c={c} /> : null}
       </View>
     );
   }

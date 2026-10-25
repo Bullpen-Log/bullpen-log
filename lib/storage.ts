@@ -170,6 +170,25 @@ export async function createUploadTarget(userId: string, fileName: string) {
 }
 
 /**
+ * 팀 · 레슨장 영상(일지 영상 · 숙제 영상, 2026-10-26) 올리기 주소 — 올린 사람 폴더의 `org-{uuid}.확장자`(lib/org/comments.ts isOwnOrgVideoPath).
+ * 코치 · 선수가 서로 보는 영상이라 폰 안이 아니라 저장소에 둔다. 앞말이 달라 투구 영상 · 사진과 섞이지 않는다.
+ */
+export async function createOrgVideoUploadTarget(userId: string, fileName: string) {
+  const ext =
+    fileName
+      .split('.')
+      .pop()
+      ?.toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 5) || 'mp4';
+  const { data, error } = await getClient()
+    .storage.from(VIDEO_BUCKET)
+    .createSignedUploadUrl(`${userId}/org-${crypto.randomUUID()}.${ext}`);
+  if (error || !data) throw new Error(error?.message ?? '업로드 주소를 만들지 못했어요.');
+  return { path: data.path, signedUrl: data.signedUrl, token: data.token };
+}
+
+/**
  * 여러 영상의 재생 주소를 한 번의 요청으로 받아온다.
  * 하나씩 발급하면 영상 수만큼 왕복이 생겨 느려진다.
  */

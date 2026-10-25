@@ -201,6 +201,8 @@ export type LessonNoteView = {
   pitchLog: 'own' | 'link' | null;
   /** 이 일지에 단 말 수 · 회원이 쓴 안 푼 말 수(2단계) */
   talk: { total: number; open: number };
+  /** 일지에 붙인 영상(저장소 경로) — 재생 주소는 app-lesson.coachVideoUrls · myVideoUrls */
+  videos: string[];
 };
 
 async function notesOf(memberId: string, take: number, viewerId: string, memberUserId: string | null): Promise<LessonNoteView[]> {
@@ -208,7 +210,7 @@ async function notesOf(memberId: string, take: number, viewerId: string, memberU
     where: { memberId },
     orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
     take,
-    select: { id: true, date: true, body: true, homework: true, pitchCount: true, intensity: true, authorId: true, eventId: true },
+    select: { id: true, date: true, body: true, homework: true, pitchCount: true, intensity: true, authorId: true, eventId: true, videoPaths: true },
   });
   const events = notes.map((n) => n.eventId).filter((e): e is string => !!e);
   const [authors, logs, talk] = await Promise.all([
@@ -241,6 +243,7 @@ async function notesOf(memberId: string, take: number, viewerId: string, memberU
     mine: n.authorId === viewerId,
     pitchLog: pitchLogOf(n),
     talk: talk.get(n.id) ?? { total: 0, open: 0 },
+    videos: n.videoPaths,
   }));
 }
 

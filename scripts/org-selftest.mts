@@ -40,7 +40,7 @@ import {
 import { armUnknown, coachArmStatusOf } from '@/lib/org/arm-view';
 import { EVENT_STATUSES, isEventStatus, noteKey, planNotePitch } from '@/lib/org/lesson-pitch';
 import { COACH_STATUSES, PLAYER_STATUSES, cleanHomeworkItems, homeworkDose, homeworkProgress } from '@/lib/org/homework';
-import { cleanCommentBody, commentTarget, isPlayerCommentKind } from '@/lib/org/comments';
+import { cleanCommentBody, commentTarget, isOrgVideoPath, isOwnOrgVideoPath, isPlayerCommentKind, readAtSec } from '@/lib/org/comments';
 import type { ReportFacts } from '@/lib/report/facts';
 
 let pass = 0;
@@ -601,6 +601,22 @@ console.log(
   const fns = [...lesson.matchAll(/export async function (\w+)\([^]*?\n\}/g)];
   check('app-lesson 동작이 있다', fns.length >= 10);
   for (const m of fns) check(`app-lesson.${m[1]} 이 권한부터 본다`, /coachOrg\(|myMember\(/.test(m[0]));
+}
+
+/* ─────────────────────── 13. 2단계 빈칸 — 조직 영상 · 영상 시점 말 ─────────────────────── */
+
+{
+  const u = '2803cf76-1111-2222-3333-444455556666';
+  const v = `${u}/org-12345678-1234-1234-1234-123456789abc.mov`;
+  check('내 조직 영상 경로', isOwnOrgVideoPath(v, u));
+  check('남의 조직 영상은 내 것 아님', !isOwnOrgVideoPath(v, '2803cf76-1111-2222-3333-999999999999'));
+  check('투구 영상 · 폰 안 영상 · 사진은 조직 영상 아님', !isOwnOrgVideoPath(`${u}/12345678-1234-1234-1234-123456789abc.mov`, u) && !isOwnOrgVideoPath(`${u}/local-abc`, u) && !isOwnOrgVideoPath(`${u}/avatar-x.jpg`, u));
+  check('경로 넘기기 막음', !isOwnOrgVideoPath(`${u}/org-../x.mov`, u) && !isOrgVideoPath('../org-x.mov'));
+  check('누가 올렸든 조직 영상', isOrgVideoPath(v) && !isOrgVideoPath(`${u}/12345678-1234-1234-1234-123456789abc.mov`));
+  check('영상 시점 초', readAtSec(12.34) === 12.3 && readAtSec(-1) === null && readAtSec('x') === null && readAtSec(4000) === null);
+  check('숙제 영상은 회원이 보냄', isPlayerCommentKind('submit'));
+  const notes = src('app/actions/org-notes.ts');
+  check('일지를 지우면 조직 영상만 지움', notes.includes('deleteVideos(note.videoPaths.filter(isOrgVideoPath))'));
 }
 
 console.log(
