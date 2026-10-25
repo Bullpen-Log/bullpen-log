@@ -161,9 +161,16 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
       Alert.alert('잠깐만요', '다른 저장이 끝나면 다시 완료를 눌러 주세요.');
       return;
     }
-    setEditing(null);
-    setDrafts({});
-    void run(() => editEntries(date, edits));
+    /* 초안은 저장이 된 뒤에만 지운다 — 먼저 지우면 실패할 때(화면은 actFirst 가 되돌림) 고친 값이 통째로 사라졌다(2026-10-25 UI 검토 A04).
+       실패하면 편집이 열린 채 같은 값이 남아 [완료]를 다시 누르면 된다 */
+    void run(async () => {
+      const err = await editEntries(date, edits);
+      if (!err) {
+        setEditing(null);
+        setDrafts({});
+      }
+      return err;
+    });
   };
 
   const strip = day?.strip ?? [];

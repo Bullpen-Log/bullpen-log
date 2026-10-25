@@ -16,7 +16,7 @@ import { loadHighlights } from '@/lib/report/highlights-load';
 import { buildFeedItems, type FeedItem } from '@/lib/report/feed-items';
 
 /**
- * 홈 맨 위 두 카드의 숫자(서버) — 링 넷(체크인 · 투구 · 운동 · 영양)과 요약 칸('뉴스') 장들. 웹 홈(app/(app)/today/today-rings.tsx ·
+ * 홈 맨 위 두 카드의 숫자(서버) — 링 셋(체크인 · 투구 · 운동)과 요약 칸('뉴스') 장들. 웹 홈(app/(app)/today/today-rings.tsx ·
  * feed.tsx)과 아이폰 앱 홈(native/, /api/rpc/app.loadAppHome)이 같은 값을 그린다 — 그리기만 따로.
  * 무거운 오늘 셈 · 그날 요약은 한 요청에 한 번(loadTodayCoreCached · loadDayDetailCached — 같은 user 객체면 처음 것).
  */
@@ -35,6 +35,8 @@ export type HomeRing = {
   /** 링 밑 한 줄 — '42구' · '3/6' · '남기기'(화면 읽기 글) */
   caption: string;
   href?: string;
+  /** 오늘 해당 없음(운동 일정이 없는 날) — 못 끝낸 0 이 아니다. 앱은 흐리게 그리고 '오늘 n / m' · 다 찬 날 축하에서 뺀다(2026-10-25 UI 검토 A02) */
+  none?: boolean;
 };
 
 /**
@@ -87,6 +89,7 @@ export async function loadHomeRings(
       value: exercises.length > 0 ? doneCount / exercises.length : 0,
       caption: exercises.length > 0 ? `${doneCount}/${exercises.length}` : '일정 없음',
       href: '/training',
+      ...(exercises.length > 0 ? {} : { none: true }),
     },
   ];
 
