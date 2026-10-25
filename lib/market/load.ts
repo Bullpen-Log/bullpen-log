@@ -148,7 +148,6 @@ export type ListingDetail = ListingCard & {
     nickname: string;
     since: Date;
     listings: number;
-    records: number;
   };
   favorite: boolean;
   /** 보는 사람(사는 쪽)과 주인 사이의 채팅방 — 있으면 그 방으로 */
@@ -172,8 +171,9 @@ export async function loadListing(
           id: true,
           nickname: true,
           createdAt: true,
+          /* 투구 기록 수는 거래 신뢰의 근거가 아니라 안 읽는다(2026-10-25 규칙 7 — 싱커 활동을 판매자 신호로 쓰지 않는다) */
           _count: {
-            select: { listings: { where: { hiddenAt: null } }, pitchLogs: true },
+            select: { listings: { where: { hiddenAt: null } } },
           },
         },
       },
@@ -199,7 +199,6 @@ export async function loadListing(
       nickname: row.user.nickname,
       since: row.user.createdAt,
       listings: row.user._count.listings,
-      records: row.user._count.pitchLogs,
     },
     favorite: Array.isArray(row.favorites) && row.favorites.length > 0,
     chatId: Array.isArray(row.chats) && row.chats[0] ? row.chats[0].id : null,

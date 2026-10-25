@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { RoundLock } from '@/components/round-icon';
 import { Card } from '@/components/ui';
 import { formatPrice } from '@/lib/market/specs';
@@ -24,11 +24,17 @@ export function PayShell({
   subtitle,
   lines,
   note,
+  fallback = '그때까지는 채팅으로 직접 거래해 주세요.',
+  extra,
 }: {
   title: string;
   subtitle?: string;
   lines: PayLine[];
   note?: string;
+  /** 결제가 안 열린 동안 무엇을 하라는 한 줄 — 장터는 '문의만'(2026-10-25 규칙 4: 말없이 직거래 · 계좌이체로 바꾸지 않는다) */
+  fallback?: string;
+  /** 결제 내용 밑에 더 보일 것(장터: 배송비 미정 · 판매자 정산 가정) */
+  extra?: ReactNode;
 }) {
   const [method, setMethod] = useState<string>('card');
   const [agree, setAgree] = useState(false);
@@ -52,6 +58,7 @@ export function PayShell({
             <dd className="font-black text-ink">{formatPrice(total)}</dd>
           </div>
         </dl>
+        {extra}
       </Card>
       <Card className="space-y-3">
         <h2 className="text-xs font-medium text-muted">결제 수단</h2>
@@ -75,10 +82,8 @@ export function PayShell({
             onChange={(e) => setAgree(e.target.checked)}
             className="mt-0.5 h-4 w-4 accent-sky"
           />
-          <span>
-            결제 금액과 취소 · 환불 규정을 확인했어요. 안전결제는 거래가 끝난 뒤
-            판매자에게 보내요.
-          </span>
+          {/* 대금 보관 · 지급 시점은 결제 회사 계약으로 정해진다 — 여기서 약속하지 않는다(2026-10-25) */}
+          <span>결제 금액과 취소 · 환불 규정을 확인했어요.</span>
         </label>
       </Card>
       {note && <p className="text-xs text-muted">{note}</p>}
@@ -91,7 +96,7 @@ export function PayShell({
       </button>
       <p className="rounded-xl border border-warn-line bg-warn-bg px-4 py-3 text-xs leading-relaxed text-warn">
         결제는 아직 열리지 않았어요. 결제 회사 계약과 본인 인증이 끝나면 이 단추가 바로
-        결제창을 열어요. 그때까지는 채팅으로 직접 거래해 주세요.
+        결제창을 열어요. {fallback}
       </p>
     </div>
   );

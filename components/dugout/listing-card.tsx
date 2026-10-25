@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { RoundIcon } from '@/components/round-icon';
 import type { ListingCard as Card } from '@/lib/market/load';
-import { formatPrice, statusLabel } from '@/lib/market/specs';
+import { conditionLabel, formatPrice, specSummary, statusLabel } from '@/lib/market/specs';
 import { relativeTime } from '@/components/community/community-format';
 
 /**
@@ -32,6 +32,12 @@ export function ListingCard({ item, now }: { item: Card; now: Date }) {
       </div>
       <p className="mt-3 text-[17px] leading-tight font-bold text-ink">{formatPrice(item.price)}</p>
       <p className="mt-1 truncate text-[15px] text-ink">{item.title}</p>
+      {/* 상태 · 핵심 규격 · 택배 여부 한 줄(2026-10-25 Phase 1 — 글을 안 열어도 거른다) */}
+      <p className="mt-0.5 truncate text-xs text-muted">
+        {[conditionLabel(item.condition), specSummary(item.category, item.specs), item.region === '전국(택배)' ? '택배' : `직거래 ${item.region}`]
+          .filter(Boolean)
+          .join(' · ')}
+      </p>
       <p className="mt-1.5 flex items-center gap-2 text-xs text-muted">
         <span>{relativeTime(item.createdAt, now)}</span>
         <span className="ml-auto inline-flex items-center gap-2">

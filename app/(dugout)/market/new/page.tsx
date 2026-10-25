@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ListingForm } from '@/components/dugout/listing-form';
 import { getCurrentUser } from '@/lib/dal';
@@ -10,7 +11,15 @@ export default async function NewListingPage() {
   if (!user) redirect('/login?next=/market/new');
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <DugoutPageHeader title="물건 올리기" subtitle="사진 한 장, 가격, 한 줄이면 돼요. 규격은 나중에 고쳐도 돼요." />
+      <DugoutPageHeader
+        title="물건 올리기"
+        subtitle="사진 한 장, 가격, 한 줄이면 돼요. 규격은 나중에 고쳐도 돼요."
+        actions={
+          <Link href="/market/sell-preview" className="text-sm font-semibold text-sky">
+            새 등록 흐름 미리보기 ›
+          </Link>
+        }
+      />
       <ListingForm
         initial={{
           category: 'glove',
