@@ -10,6 +10,7 @@ import { memberScope, orgsFor } from '@/lib/org/access';
 import { CONSENT_SCOPES, type Consent, type OrgKind } from '@/lib/org/rules';
 import { ARM_MISSING_TEXT, armUnknown, type CoachArmStatus } from '@/lib/org/arm-view';
 import { joinWithCode } from '@/lib/org/join';
+import { createInviteCode } from '@/lib/org/invite';
 import { loadMember, loadPlayers, memberCardOf, pitcherBoardOf, type MemberCard } from '@/lib/org/player-data';
 
 /**
@@ -255,16 +256,46 @@ export async function loadMemberCard(
   };
 }
 
-/** 지금 쓸 수 있는 회원 초대 코드(가장 늦게 끝나는 것) — 만들기는 웹과 같은 org.createInvite(폼) */
-export async function loadInvite(orgId: string): Promise<{ ok: false; to: string } | { ok: true; code: string | null; until: string | null }> {
-  const c = await coachOrg(orgId);
-  if (!c) return NO_ACCESS;
+export type InviteView = { code: string; until: string } | null;
+
+async function liveInvite(orgId: string, role: 'PLAYER' | 'STAFF'): Promise<InviteView> {
   const invite = await prisma.orgInvite.findFirst({
-    where: { orgId, role: 'PLAYER', expiresAt: { gt: new Date() } },
+    where: { orgId, role, expiresAt: { gt: new Date() }, ...(role === 'STAFF' ? { usedAt: null } : {}) },
     orderBy: { expiresAt: 'desc' },
     select: { code: true, expiresAt: true },
   });
-  return { ok: true, code: invite?.code ?? null, until: invite ? toDateKey(invite.expiresAt) : null };
+  return invite ? { code: invite.code, until: toDateKey(invite.expiresAt) } : null;
+}
+
+/** 코치(스태프) 초대 코드는 만든 대표와 관리자만 — 코치는 코치를 못 부른다(웹 org.createInvite 와 같은 규칙) */
+const canInviteCoach = (c: NonNullable<Awaited<ReturnType<typeof coachOrg>>>) => c.user.role === 'ADMIN' || c.org.ownerId === c.user.id;
+
+/**
+ * 지금 쓸 수 있는 초대 코드 — 회원(선수) 코드는 기한까지 여럿이, 코치 코드는 한 번 쓰면 끝(안 쓴 것만). 코치 코드 칸은 대표 · 관리자만 받는다.
+ */
+export async function loadInvite(
+  orgId: string
+): Promise<{ ok: false; to: string } | { ok: true; player: InviteView; staff: InviteView; canInviteCoach: boolean }> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const coach = canInviteCoach(c);
+  const [player, staff] = await Promise.all([liveInvite(orgId, 'PLAYER'), coach ? liveInvite(orgId, 'STAFF') : null]);
+  return { ok: true, player, staff, canInviteCoach: coach };
+}
+
+/**
+ * 초대 코드 만들기(앱) — 웹 설정의 org.createInvite 와 같은 lib/org/invite.ts. 앱의 폼 호출(rpcForm)은 늘 앞에 지난 상태(null)를 붙여
+ * 폼 하나만 받는 createInvite 를 못 불렀다(2026-10-25 팀 관리자 '코드를 만들지 못했어요') — 그래서 JSON 동작을 따로 둔다.
+ */
+export async function makeInvite(orgId: string, role: unknown): Promise<{ ok: true; code: string; until: string } | { ok: false; error: string }> {
+  const c = await coachOrg(orgId);
+  if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
+  const r = role === 'STAFF' ? 'STAFF' : 'PLAYER';
+  if (r === 'STAFF' && !canInviteCoach(c)) return { ok: false, error: '코치 초대는 대표만 할 수 있어요.' };
+  const made = await createInviteCode(orgId, r);
+  if (!made) return { ok: false, error: '코드를 만들지 못했어요. 다시 해 주세요.' };
+  revalidatePath('/manage/settings');
+  return { ok: true, code: made.code, until: toDateKey(made.expiresAt) };
 }
 
 /* ── 선수 쪽 ── */

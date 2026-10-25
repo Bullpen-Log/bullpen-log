@@ -1,9 +1,8 @@
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
-import type { loadInvite, loadOrgMembers, loadOrgToday, MySpace } from '@/app/actions/app-org';
-import { LoadState, useLoad } from '~/community/parts';
-import { rpcForm } from '~/lib/rpc';
+import type { loadInvite, loadOrgMembers, loadOrgToday, makeInvite, MySpace } from '@/app/actions/app-org';
+import { call, LoadState, useLoad } from '~/community/parts';
 import { SITE_URL } from '~/lib/site';
 import { Segmented } from '~/shell/heading';
 import { toast } from '~/shell/toast';
@@ -24,6 +23,7 @@ const TABS = [
 type Today = Awaited<ReturnType<typeof loadOrgToday>>;
 type Members = Awaited<ReturnType<typeof loadOrgMembers>>;
 type Invite = Awaited<ReturnType<typeof loadInvite>>;
+type Made = Awaited<ReturnType<typeof makeInvite>>;
 
 export function CoachSpace({ space }: { space: MySpace }) {
   const c = usePalette();
@@ -153,43 +153,50 @@ function MembersTab({ space, c }: { space: MySpace; c: Palette }) {
 
 function MoreTab({ space, c }: { space: MySpace; c: Palette }) {
   const { data, error, reload } = useLoad<Invite>('app-org.loadInvite', space.orgId);
-  const [busy, setBusy] = useState(false);
-  const make = async () => {
-    setBusy(true);
-    try {
-      await rpcForm('org.createInvite', { orgId: space.orgId, role: 'PLAYER' });
-      await reload();
-    } catch {
-      toast('코드를 만들지 못했어요.', 'error');
-    } finally {
-      setBusy(false);
-    }
+  const [busy, setBusy] = useState<'PLAYER' | 'STAFF' | null>(null);
+  const make = async (role: 'PLAYER' | 'STAFF') => {
+    setBusy(role);
+    const r = await call<Made>('app-org.makeInvite', space.orgId, role);
+    setBusy(null);
+    if (!r.ok) return toast(r.error, 'error');
+    await reload();
   };
-  const share = (code: string) =>
-    void Share.share({ message: `${space.name} 초대 코드 ${code} — 싱커 더보기 › 팀 · 레슨장 › 초대 코드로 들어가기에 넣어 주세요.` });
+  const who = memberWord(space);
+  const share = (code: string, role: 'PLAYER' | 'STAFF') =>
+    void Share.share({
+      message:
+        role === 'STAFF'
+          ? `${space.name} 코치 초대 코드 ${code} — 싱커 가입에서 ${KIND_WORD[space.kind]}을 고르고 '코치로 들어가나요?'에 넣어 주세요. 한 번만 쓸 수 있어요.`
+          : `${space.name} 초대 코드 ${code} — 싱커 더보기 › 팀 · 레슨장 › 코드 넣기에 넣어 주세요.`,
+    });
   return (
     <View style={{ gap: 16 }}>
-      <View style={{ gap: 6 }}>
-        <GroupTitle title={`${memberWord(space)} 초대 코드`} c={c} />
-        <Card c={c}>
-          {!data ? (
-            <LoadState error={error} onRetry={() => void reload()} c={c} />
-          ) : data.code ? (
-            <>
-              <Text selectable style={[TYPE.num, { fontSize: 32, color: c.ink, letterSpacing: 4 }]}>
-                {data.code}
-              </Text>
-              <Text style={[TYPE.sub, { color: c.muted }]}>{data.until ? `${dayLabel(data.until)}까지 여럿이 쓸 수 있어요.` : ''}</Text>
-              <Primary label="코드 보내기" onPress={() => share(data.code!)} c={c} />
-            </>
-          ) : (
-            <Empty text="쓸 수 있는 코드가 없어요." c={c} />
-          )}
-          <Pressable accessibilityRole="button" onPress={() => void make()} disabled={busy} style={{ minHeight: 44, justifyContent: 'center' }}>
-            <Text style={[TYPE.body, { color: c.sky, fontWeight: '600', opacity: busy ? 0.5 : 1 }]}>새 코드 만들기</Text>
-          </Pressable>
-        </Card>
-      </View>
+      {!data ? (
+        <LoadState error={error} onRetry={() => void reload()} c={c} />
+      ) : (
+        <>
+          <InviteCard
+            title={`${who} 초대 코드`}
+            note={(until) => `${dayLabel(until)}까지 여러 ${who}이 같이 써요.`}
+            invite={data.player}
+            busy={busy === 'PLAYER'}
+            onMake={() => void make('PLAYER')}
+            onShare={(code) => share(code, 'PLAYER')}
+            c={c}
+          />
+          {data.canInviteCoach ? (
+            <InviteCard
+              title="코치 초대 코드"
+              note={(until) => `한 사람이 한 번 써요 · ${dayLabel(until)}까지. 코치는 싱커 가입에서 이 코드를 넣어요.`}
+              invite={data.staff}
+              busy={busy === 'STAFF'}
+              onMake={() => void make('STAFF')}
+              onShare={(code) => share(code, 'STAFF')}
+              c={c}
+            />
+          ) : null}
+        </>
+      )}
       <View style={{ gap: 6 }}>
         <GroupTitle title="PC 에서 관리" c={c} />
         <Card c={c}>
@@ -209,6 +216,48 @@ function MoreTab({ space, c }: { space: MySpace; c: Palette }) {
           <Text style={[TYPE.body, { color: c.sky, fontWeight: '600' }]}>계정 · 로그아웃</Text>
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+function InviteCard({
+  title,
+  note,
+  invite,
+  busy,
+  onMake,
+  onShare,
+  c,
+}: {
+  title: string;
+  note: (until: string) => string;
+  invite: { code: string; until: string } | null;
+  busy: boolean;
+  onMake: () => void;
+  onShare: (code: string) => void;
+  c: Palette;
+}) {
+  return (
+    <View style={{ gap: 6 }}>
+      <GroupTitle title={title} c={c} />
+      <Card c={c}>
+        {invite ? (
+          <>
+            <Text selectable style={[TYPE.num, { fontSize: 32, color: c.ink, letterSpacing: 4 }]}>
+              {invite.code}
+            </Text>
+            <Text style={[TYPE.sub, { color: c.muted }]}>{note(invite.until)}</Text>
+            <Primary label="코드 보내기" onPress={() => onShare(invite.code)} c={c} />
+          </>
+        ) : (
+          <Empty text="쓸 수 있는 코드가 없어요." c={c} />
+        )}
+        <Pressable accessibilityRole="button" onPress={onMake} disabled={busy} style={{ minHeight: 44, justifyContent: 'center' }}>
+          <Text style={[TYPE.body, { color: c.sky, fontWeight: '600', opacity: busy ? 0.5 : 1 }]}>
+            {busy ? '만드는 중…' : invite ? '새 코드 만들기' : '코드 만들기'}
+          </Text>
+        </Pressable>
+      </Card>
     </View>
   );
 }

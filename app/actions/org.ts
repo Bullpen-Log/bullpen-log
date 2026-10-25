@@ -6,13 +6,12 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin, requireMaster } from '@/lib/dal';
 import { ORG_COOKIE, requireOrg } from '@/lib/org/access';
+import { createInviteCode } from '@/lib/org/invite';
 import {
-  INVITE_DAYS,
   ORG_NAME_MAX,
   ORG_NOTE_MAX,
   ORG_REGION_MAX,
   inviteUsable,
-  makeInviteCode,
   normalizeInviteCode,
   orgNameOk,
   parseTags,
@@ -69,18 +68,7 @@ export async function createInvite(formData: FormData) {
   const role = formData.get('role') === 'STAFF' ? 'STAFF' : 'PLAYER';
   /* 코치(스태프) 초대는 만든 마스터와 관리자만 — 스태프는 설정 · 스태프 관리를 못 한다(5단계) */
   if (role === 'STAFF' && user.role !== 'ADMIN' && org.ownerId !== user.id) return;
-  /* 초대 기한은 실제 시각 — 이 표는 시험 계정의 앱 시계(lib/prisma.ts TIME_FIELDS)를 안 쓴다 */
-  const expiresAt = new Date(Date.now() + INVITE_DAYS * 86_400_000);
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const code = makeInviteCode();
-    const dup = await prisma.orgInvite.findUnique({
-      where: { code },
-      select: { id: true },
-    });
-    if (dup) continue;
-    await prisma.orgInvite.create({ data: { orgId: org.id, code, role, expiresAt } });
-    break;
-  }
+  await createInviteCode(org.id, role);
   revalidatePath('/manage/settings');
   revalidatePath('/manage');
 }
