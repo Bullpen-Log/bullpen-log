@@ -128,7 +128,10 @@ const BACK_GAP = 8;
 const LINE_MAX = 448;
 
 /** 테마마다 알약 · 렌즈 · 글자 색 — globals.css [data-tab-bar] 의 --tab-base · --tab-edge · --lens-ink · --tab-on · --tab-off */
-function tabColors(theme: 'light' | 'dark' | 'navy', sky: string, muted: string) {
+/** accent = 고른 칸 색(라이트 · 네이비) — 덕아웃 앱은 초록(웹 [data-brand='dugout'] 의 --tab-on). 다크는 둘 다 흰색 */
+export type TabAccent = { light: string; navy: string };
+
+function tabColors(theme: 'light' | 'dark' | 'navy', sky: string, muted: string, accent?: TabAccent) {
   /*
    * rim = 유리 가장자리 빛(위는 밝게 · 아래는 옅게), tint = 진짜 유리에 얹는 색, lensRim = 렌즈 캡슐의 빛.
    * tint · base 는 2026-10-20 김민 "뒤가 너무 비쳐 하단바가 잘 안 보인다"로 진하게(tint 0.3 → 0.5~0.58, base +0.04~0.06)
@@ -142,13 +145,13 @@ function tabColors(theme: 'light' | 'dark' | 'navy', sky: string, muted: string)
     };
   if (theme === 'navy')
     return {
-      base: 'rgba(20,29,43,0.94)', edge: 'rgba(180,205,240,0.2)', lens: 'rgba(200,220,255,0.16)', on: '#7dd3fc', off: 'rgba(200,220,255,0.6)', shadow: '#030812',
+      base: 'rgba(20,29,43,0.94)', edge: 'rgba(180,205,240,0.2)', lens: 'rgba(200,220,255,0.16)', on: accent?.navy ?? '#7dd3fc', off: 'rgba(200,220,255,0.6)', shadow: '#030812',
       tint: 'rgba(14,30,60,0.58)', rim: 'inset 0 1px 0 rgba(200,225,255,0.3), inset 0 -1px 0 rgba(200,225,255,0.06), inset 0 0 0 0.5px rgba(200,225,255,0.16)',
       lensRim: 'inset 0 1px 0 rgba(220,235,255,0.25), 0 2px 8px rgba(0,0,0,0.35)', drop: 0.55,
       glassRim: 'inset 0 1px 1px rgba(220,235,255,0.55), inset 0 0 0 1px rgba(200,225,255,0.22), 0 8px 22px rgba(0,0,0,0.45)',
     };
   return {
-    base: 'rgba(255,255,255,0.92)', edge: 'rgba(255,255,255,0.9)', lens: 'rgba(120,130,150,0.16)', on: sky, off: muted, shadow: '#141e32',
+    base: 'rgba(255,255,255,0.92)', edge: 'rgba(255,255,255,0.9)', lens: 'rgba(120,130,150,0.16)', on: accent?.light ?? sky, off: muted, shadow: '#141e32',
     tint: 'rgba(255,255,255,0.55)', rim: 'inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.35), inset 0 0 0 0.5px rgba(255,255,255,0.6)',
     lensRim: 'inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 4px rgba(20,30,50,0.1)', drop: 0.3,
     glassRim: 'inset 0 1px 1px rgba(255,255,255,0.95), inset 0 -1px 1px rgba(255,255,255,0.5), inset 0 0 0 1px rgba(255,255,255,0.6), 0 6px 18px rgba(20,30,50,0.18)',
@@ -161,6 +164,7 @@ export function TabBar({
   onPress,
   back,
   enter = false,
+  accent,
 }: {
   tabs: ShellTab[];
   active: string | null;
@@ -169,11 +173,12 @@ export function TabBar({
   back?: () => void;
   /** 처음 붙을 때 옛 막대에서 오므렸다 펴지며 들어온다 */
   enter?: boolean;
+  accent?: TabAccent;
 }) {
   const c = usePalette();
   const theme = useTheme();
   const inset = useSafeAreaInsets();
-  const col = tabColors(theme, c.sky, c.muted);
+  const col = tabColors(theme, c.sky, c.muted, accent);
   const glass = isLiquidGlassAvailable();
   /* 홈 막대 자리에 13 걸쳐(밖에서는 12 보다 좁지 않게) — 웹 --tab-bar-gap */
   const gap = Math.max(inset.bottom - 13, 12);

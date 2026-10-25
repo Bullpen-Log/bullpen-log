@@ -5,12 +5,13 @@ import { Linking, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent, type WebViewNavigation, type WebViewProps } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
+import { markAppReady } from '~/shell/intro';
 import { SITE_HOST, SITE_URL } from '~/lib/site';
 import { usePalette } from '~/lib/ui';
 import { Press } from '~/shell/press';
 import { TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
 import { useWebNav } from '~/shell/web-nav';
-import { DUGOUT_GREEN } from '~/dugout/mark';
+import { DUGOUT_GREEN, DUGOUT_TAB_ACCENT } from '~/dugout/mark';
 import { DUGOUT_TABS, DUGOUT_UA, dugoutTabOf, isLoginPath } from '~/dugout/site';
 
 type WebViewHandle = { injectJavaScript(script: string): void };
@@ -107,7 +108,11 @@ export default function DugoutShell() {
     if (!nav.loading) setFailed(false);
   }, []);
 
-  const hideSplash = useCallback(() => void SplashScreen.hideAsync(), []);
+  /* 사이트가 그려지면 시작 화면 · 시작 연출(_layout 의 Intro)을 걷는다 */
+  const hideSplash = useCallback(() => {
+    void SplashScreen.hideAsync();
+    markAppReady();
+  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
@@ -152,7 +157,7 @@ export default function DugoutShell() {
           </Press>
         </View>
       ) : null}
-      {isLoginPath(path) ? null : <TabBar tabs={DUGOUT_TABS} active={dugoutTabOf(path)} onPress={pressTab} />}
+      {isLoginPath(path) ? null : <TabBar tabs={DUGOUT_TABS} active={dugoutTabOf(path)} onPress={pressTab} accent={DUGOUT_TAB_ACCENT} />}
     </View>
   );
 }

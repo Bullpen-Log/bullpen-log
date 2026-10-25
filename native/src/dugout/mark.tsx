@@ -14,3 +14,6 @@ export function DugoutMark({ size = 32, color }: { size?: number; color: string 
 
 /** 덕아웃 초록 — 웹 --color-dugout */
 export const DUGOUT_GREEN = '#1d8a4f';
+
+/** 아래 탭 막대의 고른 칸 색 — 웹 [data-brand='dugout'] 의 --tab-on(라이트 --color-sky · 네이비 --color-sky-strong) */
+export const DUGOUT_TAB_ACCENT = { light: DUGOUT_GREEN, navy: '#7fe0a8' };
