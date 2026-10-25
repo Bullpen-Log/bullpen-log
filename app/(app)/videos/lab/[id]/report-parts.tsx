@@ -241,7 +241,7 @@ function RxBlock({ rx }: { rx: ElementRx }) {
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm text-ink break-keep">{d.title}</span>
                   <span className="block text-caption text-muted">
-                    {w.label} {w.stage} · {d.dose}
+                    {w.stage} · {d.dose}
                   </span>
                 </span>
               </li>
@@ -284,10 +284,10 @@ export function RxCard({ report, reportId, mine, focus }: { report: PitchReport;
   const main = report.rx[0];
   const cta = rxAction(mine, focus);
   const href = RX_HREF(cta.kind, reportId, main.key);
-  const weeks = main.weeks.map((w) => [w.label, w.stage]);
+  const weeks = main.weeks.map((w, i) => [`${i + 1}단계`, w.stage]);
   return (
     <section className="space-y-2">
-      <h2 className="px-1 text-footnote text-muted">처방 · 3주 · 주 3번</h2>
+      <h2 className="px-1 text-footnote text-muted">처방 · 기초 → 연결 → 통합</h2>
       <div className="space-y-5 rounded-2xl bg-surface p-(--block-pad)">
         <div className={`grid gap-1.5 text-center ${weeks.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
           {weeks.map(([wk, st], i) => (

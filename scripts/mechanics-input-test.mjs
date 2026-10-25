@@ -10,28 +10,52 @@ import { renderToStaticMarkup } from 'react-dom/server';
 globalThis.__mechanicsReact = React;
 registerHooks({
   resolve(specifier, context, next) {
-    if (specifier === 'react-native') return { url: 'data:text/javascript,' + encodeURIComponent(`
+    if (specifier === 'react-native')
+      return {
+        url:
+          'data:text/javascript,' +
+          encodeURIComponent(`
       const h = globalThis.__mechanicsReact.createElement;
       export const Text = ({children}) => h('span', null, children);
       export const View = ({children}) => h('div', null, children);
       export const TextInput = ({accessibilityLabel, placeholder, value}) => h('input', {'aria-label':accessibilityLabel,placeholder,value,readOnly:true});
-    `), shortCircuit: true };
-    if (specifier === '~/shell/press') return { url: 'data:text/javascript,' + encodeURIComponent(`
+    `),
+        shortCircuit: true,
+      };
+    if (specifier === '~/shell/press')
+      return {
+        url:
+          'data:text/javascript,' +
+          encodeURIComponent(`
       export const Press = ({children,accessibilityRole}) => globalThis.__mechanicsReact.createElement('button', {role:accessibilityRole}, children);
-    `), shortCircuit: true };
+    `),
+        shortCircuit: true,
+      };
     return next(specifier, context);
   },
   load(url, context, next) {
-    if (url.endsWith('.tsx')) return { format: 'module', shortCircuit: true, source: ts.transpileModule(readFileSync(fileURLToPath(url), 'utf8'), {
-      compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-    }).outputText };
+    if (url.endsWith('.tsx'))
+      return {
+        format: 'module',
+        shortCircuit: true,
+        source: ts.transpileModule(readFileSync(fileURLToPath(url), 'utf8'), {
+          compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+        }).outputText,
+      };
     return next(url, context);
   },
 });
 
 for (const path of ['../native/src/mechanics/practice-input.tsx', '../app/(session)/mechanics/play/practice-input.tsx']) {
   const { PracticeInput, emptyPractice } = await import(path);
-  const render = (category) => renderToStaticMarkup(React.createElement(PracticeInput, { category, value: emptyPractice(), onChange() {}, c: {} }));
+  const render = (category, skill) =>
+    renderToStaticMarkup(React.createElement(PracticeInput, { category, skill, value: emptyPractice(), onChange() {}, c: {} }));
+  assert.doesNotMatch(render('스로잉 드릴'), /필수 교정/);
+  const basic = render('스로잉 드릴', { cue: 'test-goal', requiresTransfer: false });
+  assert.match(basic, /test-goal/);
+  assert.match(basic, /동작 목표를 유지했나요/);
+  assert.doesNotMatch(basic, /실제 캐치볼에서도/);
+  assert.match(render('스로잉 드릴', { cue: 'test-goal', requiresTransfer: true }), /실제 캐치볼에서도/);
   const throwing = render('스로잉 드릴');
   assert.match(throwing, /실제 투구/);
   assert.match(throwing, /checkbox/);

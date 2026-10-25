@@ -63,7 +63,7 @@ export function MechanicsPlayer({
   /** 아픈 날 '그래도 하기'로 펼쳤으면 아픈 관절 이름('어깨') — 팔에 싣는 드릴마다 주의 한 줄 */
   painLabel?: string | null;
   /** 3D 리포트 처방 중이면 이번이 몇 번째 처방 세션인가 — 끝 화면 '처방 5 / 9 마쳤어요' */
-  focus?: { number: number; total: number } | null;
+  focus?: { number: number; total: number; label?: string } | null;
 }) {
   const [index, setIndex] = useState(startAt);
   const [done, setDone] = useState<boolean[]>(() => items.map((item) => doneGuideIds.includes(item.guideId)));
@@ -72,6 +72,7 @@ export function MechanicsPlayer({
   /* 드릴로 던진 공을 투구 기록에 남기라는 카드(2026-10-16) — 마친 뒤 서버가 셈한다 */
   const [throwNote, setThrowNote] = useState<DrillThrowNote | null>(null);
   const [finished, setFinished] = useState(false);
+  const [continueSupport, setContinueSupport] = useState(false);
   const [finishPartial, setFinishPartial] = useState(false);
   const [finishMessage, setFinishMessage] = useState<string | null>(null);
   /* 마치기 저장이 실패했나 — 끝 화면 대신 다시 저장 단추를 둔다(안 그러면 세션 수가 안 올라 같은 세션이 또 나왔다) */
@@ -122,6 +123,7 @@ export function MechanicsPlayer({
           guideId: view.guideId,
           element: item.element,
           feel,
+          ...(item.skill ? { skill: { quality: practice.quality ?? 'unknown', transferred: practice.transferred ?? 'unknown' } } : {}),
           practice: {
             ...(isThrowingDrill(view.variant.category) ? { throws: Number(practice.count) } : { reps: Number(practice.count) }),
             effortPct: Number(practice.effort),
@@ -199,17 +201,37 @@ export function MechanicsPlayer({
     }
   };
 
-  if (!finished && done.every(Boolean)) {
+  if (
+    !finished &&
+    items.some((it) => it.required !== false) &&
+    items.every((it, i) => it.required === false || done[i]) &&
+    (!continueSupport || done.every(Boolean))
+  ) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-        <p className="font-semibold">드릴 수행 기록은 저장됐어요.</p>
+        <p className="font-semibold">필수 드릴 수행 기록은 저장됐어요.</p>
         <p className="text-sm text-muted">다시 운동할 필요 없이 세션 완료를 확인해 주세요.</p>
         {error && <ErrorLine>{error}</ErrorLine>}
-        <button type="button" disabled={pending} onClick={() => startTransition(async () => { await finish(); })}
-          className="min-h-11 rounded-xl bg-sky px-5 text-white disabled:opacity-60">
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              await finish();
+            })
+          }
+          className="min-h-11 rounded-xl bg-sky px-5 text-white disabled:opacity-60"
+        >
           {pending ? '완료 확인 중' : '세션 완료 확인'}
         </button>
-        <Link href={backHref} className="p-3 text-sm text-muted">닫기</Link>
+        {!done.every(Boolean) && (
+          <button type="button" onClick={() => setContinueSupport(true)} className="min-h-11 text-sm text-muted">
+            보조 드릴도 이어서 하기
+          </button>
+        )}
+        <Link href={backHref} className="p-3 text-sm text-muted">
+          닫기
+        </Link>
       </div>
     );
   }
@@ -264,7 +286,13 @@ export function MechanicsPlayer({
               painLabel={painLabel}
             />
             <div className="mx-auto max-w-xl px-4 pb-4">
-              <PracticeInput category={view.variant.category} value={practice} onChange={(value) => setPractice({ ...value, requestId: emptyPractice().requestId })} />
+              <p className="mb-2 text-sm text-muted">{item.required === false ? '보조 드릴 · 선택 수행' : '필수 드릴'}</p>
+              <PracticeInput
+                skill={item.skill}
+                category={view.variant.category}
+                value={practice}
+                onChange={(value) => setPractice({ ...value, requestId: emptyPractice().requestId })}
+              />
             </div>
           </div>
 
@@ -360,12 +388,14 @@ type DrillChoiceView = {
 function viewOf(item: SessionDrillView, choice: { alt: number; variantId: string }): DrillChoiceView {
   const alt = item.alternatives[choice.alt] ?? item.alternatives[0];
   const variants = alt?.variants ?? [{ ...item.variant, owned: true }];
-  const variant = variants.find((v) => v.id === choice.variantId) ?? variants[0];
+  const variant = variants.find((v) => v.id === choice.variantId && v.owned) ?? variants.find((v) => v.owned) ?? variants[0];
   return {
     title: alt?.title ?? item.title,
     guideId: variant.id,
     tool: variant.tool,
-    dose: item.dose, sets: item.sets, tempo: item.tempo,
+    dose: item.dose,
+    sets: item.sets,
+    tempo: item.tempo,
     variant,
     variants,
   };
@@ -566,7 +596,7 @@ function FinishView({
   partial: boolean;
   message: string | null;
   /** 3D 리포트 처방 중 — '처방 N / 9 마쳤어요', 찍기 권유는 처방 카드가 맡아 안 띄운다 */
-  focus: { number: number; total: number } | null;
+  focus: { number: number; total: number; label?: string } | null;
 }) {
   const ref = useRef<HTMLHeadingElement>(null);
   useEffect(() => ref.current?.focus(), []);
@@ -581,10 +611,16 @@ function FinishView({
             {partial ? '오늘 드릴을 마쳤어요' : '세션을 마쳤어요'}
           </h1>
           <p className="text-sm text-muted">
-            {focus && !partial ? `처방 ${focus.number} / ${focus.total} 마쳤어요 · ` : ''}
+            {focus && !partial
+              ? focus.label
+                ? `${focus.label}을 저장했어요 · `
+                : `처방 ${focus.number} / ${focus.total} 마쳤어요 · `
+              : ''}
             드릴 {count}개를 했어요.
           </p>
-          {partial && <p className="text-sm leading-relaxed break-keep text-muted">{message ?? MECHANICS_FOLD_TEXT.partialFinish}</p>}
+          {(message || partial) && (
+            <p className="text-sm leading-relaxed break-keep text-muted">{message ?? MECHANICS_FOLD_TEXT.partialFinish}</p>
+          )}
         </div>
 
         {throwNote && <DrillThrowNoteCard note={throwNote} plainLink />}

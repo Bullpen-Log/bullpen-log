@@ -64,16 +64,17 @@ const result = {
   events: { kneeUp: 5, footPlant: 10, release: 20 },
   t: Array.from({ length: 30 }, (_, i) => i / 60),
 };
+const { prescribedTitles } = await import('../lib/mechanics/prescriptions.ts');
 const drills = ['기초', '연결', '통합'].map((stage) => ({
-  title: stage + ' 드릴',
-  focusPoints: ['드리프트'],
+  title: prescribedTitles('drift.stuck', stage, 1)[0],
   stage,
   category: '무브먼트 패턴 드릴',
+  focusPoints: ['드리프트'],
   thumbUrl: null,
 }));
 const report = buildReport(result, { heightCm: 180, ground: 'mound', youth: false, drills });
-globalThis.__reportMetrics.drift.aheadAtKneeUp=.1;
-const heldReport = buildReport(result, {heightCm:180,ground:'mound',youth:false,drills});
+globalThis.__reportMetrics.drift.aheadAtKneeUp = 0.1;
+const heldReport = buildReport(result, { heightCm: 180, ground: 'mound', youth: false, drills });
 const c = {
   page: '#fff',
   card: '#fff',
@@ -93,7 +94,7 @@ for (const components of [native, web]) {
   assert.match(flow, /지표 검증 중/);
   assert.match(flow, /회전 속도를 평가한 값은 아니에요/);
   const rx = render(components.RxCard, { report, reportId: 'r1', mine: true, focus: null });
-  assert.match(rx, /기초 드릴/);
+  assert.match(rx, /레그 리프트 드리프트/);
   assert.match(rx, /기초/);
   const hold = render(components.RxCard, { report: heldReport, reportId: 'r1', mine: true, focus: null });
   assert.match(hold, /자동 처방의 근거로 쓰지 않아요/);

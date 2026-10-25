@@ -52,7 +52,7 @@ export default async function LabSamplePage({
       drills={reportDrillsOf(groupDrills(guides))}
       youth={mine && isYouth(user.birthDate, new Date())}
       mine={mine}
-      focus={mine && focus?.reportId === id ? { done: focus.done, total: focus.total } : null}
+      focus={mine && focus?.reportId === id ? { done: focus.done, total: focus.total, skill: focus.skill } : null}
       /* 샘플에 키가 비어 있으면(예전 샘플) 내 샘플일 때만 가입 때 적은 키로 — 3D 인형 크기 · 점검 cm */
       ownerHeightCm={sample.ownerId === user.id ? (user.heightCm ?? null) : null}
     />

@@ -223,7 +223,7 @@ function RxBlock({ c, rx }: { c: Palette; rx: ElementRx }) {
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={[TYPE.body, { color: c.ink }]}>{d.title}</Text>
               <Text style={[TYPE.sub, { color: c.muted }]}>
-                {w.label} {w.stage} · {d.dose}
+                {w.stage} · {d.dose}
               </Text>
             </View>
           </View>
@@ -271,10 +271,10 @@ export function RxCard({
     );
   const main = report.rx[0];
   const cta = rxAction(mine, focus);
-  const weeks = main.weeks.map((w) => [w.label, w.stage]);
+  const weeks = main.weeks.map((w, i) => [`${i + 1}단계`, w.stage]);
   return (
     <View style={{ gap: 8 }}>
-      <Text style={[TYPE.sub, s.secLabel, { color: c.muted }]}>처방 · 3주 · 주 3번</Text>
+      <Text style={[TYPE.sub, s.secLabel, { color: c.muted }]}>처방 · 기초 → 연결 → 통합</Text>
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 18 }]}>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           {weeks.map(([wk, st], i) => (
