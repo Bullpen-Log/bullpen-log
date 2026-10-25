@@ -77,6 +77,26 @@ export function consentAll(): Consent {
   };
 }
 
+/** 모두 끈 동의 — 계정이 이어졌지만 아직 공유 범위를 안 고른 회원(동의 대기). 예약 확정으로 연결된 회원이 여기서 시작한다(2026-10-25 0단계 계약 2-1) */
+export function consentNone(): Consent {
+  return {
+    pitch: false,
+    training: false,
+    checkin: false,
+    video: false,
+    nutrition: false,
+    weight: false,
+  };
+}
+
+/**
+ * 구성원의 공유 동의. 동의 줄이 없을 때 — 코치가 대신 만든 자리(계정 없음)는 모두 보이고, 계정이 이어진 회원은 아무것도 안 보인다
+ * (동의 대기 — 예약 확정은 회원 연결만 하고 공유는 선수가 싱커에서 고른다, 2026-10-25 0단계 계약 2-1). lib/org/access.ts 가 다시 내보낸다.
+ */
+export function memberScope(consent: Consent | null | undefined, hasUser: boolean): Consent {
+  return consent ?? (hasUser ? consentNone() : consentAll());
+}
+
 /* ── 초대 코드 — 읽기 헷갈리는 0 · O · 1 · I 는 뺀 여섯 글자 ── */
 
 export const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

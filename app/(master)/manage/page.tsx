@@ -137,7 +137,7 @@ async function TeamHome({
   players: Awaited<ReturnType<typeof loadPlayers>>;
 }) {
   const checkinIds = players
-    .filter((p) => p.user && memberScope(p.consent).checkin)
+    .filter((p) => p.user && memberScope(p.consent, true).checkin)
     .map((p) => p.user!.id);
   const nameOfUser = new Map(
     players.filter((p) => p.user).map((p) => [p.user!.id, p.nickname])

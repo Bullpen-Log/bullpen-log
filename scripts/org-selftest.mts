@@ -22,6 +22,7 @@ import {
   isGuardianCode,
   makeGuardianCode,
   makeInviteCode,
+  memberScope,
   normalizeInviteCode,
   orgNameOk,
   parseTags,
@@ -36,6 +37,8 @@ import {
   signupStepsOf,
   webStepOfField,
 } from '@/lib/signup-check';
+import { armUnknown, coachArmStatusOf } from '@/lib/org/arm-view';
+import type { ReportFacts } from '@/lib/report/facts';
 
 let pass = 0;
 const fails: string[] = [];
@@ -430,6 +433,70 @@ console.log(
     masterPages.length >= 8,
     String(masterPages.length)
   );
+}
+
+/* ─────────────────────── 8. 1단계 공통 바닥(2026-10-25 0단계 계약 2-1) ─────────────────────── */
+
+{
+  const consent = { ...consentDefaults(), video: false };
+  const none = memberScope(null, true);
+  check('동의 줄 없는 계정 회원은 아무것도 안 보임(동의 대기)', CONSENT_SCOPES.every((c) => none[c.key] === false));
+  const all = memberScope(null, false);
+  check('코치가 만든 빈 자리는 모두 보임', CONSENT_SCOPES.every((c) => all[c.key] === true));
+  check('동의 줄이 있으면 그대로', memberScope(consent, true) === consent);
+}
+
+{
+  const TODAY = '2026-10-25';
+  const facts = (o: { painToday?: boolean; rehab?: boolean; lastThrowDate?: string | null }) =>
+    ({
+      profile: { age: 25 },
+      load: { zone: 'optimal', ratio: 1.05, estimated: false },
+      patterns: { recentOutings: [], hardOutings: [], lastThrowDate: o.lastThrowDate === undefined ? '2026-10-24' : o.lastThrowDate },
+      condition: {
+        painToday: o.painToday ?? false,
+        painRecently: false,
+        painRecentParts: [],
+        today: {},
+        painWordsInMemo: [],
+        throwPlanToday: null,
+        throwPlanYesterday: null,
+        rehab: o.rehab ? { area: 'elbow', label: '팔꿈치 안쪽', stage: 2, throwing: 'none', firstWeekNoThrow: true } : null,
+      },
+    }) as unknown as ReportFacts;
+  const full = consentDefaults();
+  const noCheckin = { ...full, checkin: false };
+  const noTraining = { ...full, training: false };
+  const a = coachArmStatusOf(facts({ painToday: true }), full, TODAY);
+  check('체크인 공유 · 오늘 통증 → 위험', a.level === 'danger' && a.missing.length === 0);
+  const b = coachArmStatusOf(facts({ painToday: true }), noCheckin, TODAY);
+  check('체크인 비공유면 통증이 팔 상태에 안 섞임', b.level !== 'danger' && b.missing.includes('checkin'), b.headline);
+  check('체크인 비공유 · 다른 신호 없음 → 정보 부족', armUnknown(b));
+  const c = coachArmStatusOf(facts({ rehab: true }), noTraining, TODAY);
+  check('트레이닝 비공유면 재활이 안 섞임', c.level !== 'danger' && c.missing.includes('training'));
+  const d = coachArmStatusOf(facts({ lastThrowDate: null }), full, TODAY);
+  check('투구 기록 없음 → records · 정보 부족', d.missing.includes('records') && armUnknown(d));
+  const e = coachArmStatusOf(facts({ lastThrowDate: '2026-10-11' }), full, TODAY);
+  check('15일 전 기록 → records', e.missing.includes('records'));
+  const f = coachArmStatusOf(facts({ lastThrowDate: '2026-10-12' }), full, TODAY);
+  check('14일 안 기록 → records 없음 · 안전', !f.missing.includes('records') && f.level === 'safe' && !armUnknown(f));
+}
+
+{
+  const lessons = src('app/actions/lessons.ts');
+  const confirm = lessons.slice(lessons.indexOf('export async function confirmBooking'), lessons.indexOf('export async function declineBooking'));
+  check('예약 확정은 공유 동의를 만들지 않음', !confirm.includes('shareConsent'));
+  const finish = lessons.slice(lessons.indexOf('export async function finishBooking'), lessons.indexOf('/* ── 선수 ── */'));
+  check('수강권 차감은 예약 끝남에서', finish.includes('lessonPass.update'));
+  const notes = src('app/actions/org-notes.ts');
+  const create = notes.slice(notes.indexOf('export async function createLessonNote'), notes.indexOf('export async function deleteLessonNote'));
+  check('레슨 노트 저장은 수강권을 안 바꿈', !create.includes('lessonPass') && !create.includes('countPass'));
+  check('rpc 허용 목록에 app-org', src('app/api/rpc/registry.ts').includes("'@/app/actions/app-org'"));
+  const card = src('lib/org/player-data.ts');
+  check('떠난 회원 카드는 안 읽음', card.includes("member.status !== 'ACTIVE') return null"));
+  check('코치 카드 · 부하판은 공유 범위로 팔 상태(coachArmStatusOf)', (card.match(/coachArmStatusOf\(/g) ?? []).length >= 2);
+  const app = src('app/actions/app-org.ts');
+  check('앱 코치 동작은 isMasterUser + orgsFor', app.includes('isMasterUser(user)') && app.includes('orgsFor(user)'));
 }
 
 console.log(
