@@ -6,6 +6,8 @@ import { Badge, Card, PageHeading } from '@/components/ui';
 import { Bars, Line } from '@/components/master/charts';
 import { MemberEditForm } from '@/components/master/member-edit-form';
 import { LessonNotes } from '@/components/master/lesson-notes';
+import { HomeworkCard } from '@/components/master/homework-card';
+import { commentCounts } from '@/lib/org/comment-load';
 import { PassCard } from '@/components/master/pass-card';
 import { GuardianLinkCard } from '@/components/master/guardian-link-card';
 import { requireMaster } from '@/lib/dal';
@@ -52,6 +54,7 @@ export default async function MemberPage({
         homework: true,
         authorId: true,
         createdAt: true,
+        videoPaths: true,
       },
     }),
     org.kind === 'LESSON'
@@ -75,6 +78,10 @@ export default async function MemberPage({
         })
       : Promise.resolve([]),
   ]);
+  const talk = await commentCounts(
+    notes.map((n) => ({ noteId: n.id })),
+    member.user?.id ?? null
+  );
   const shared = CONSENT_SCOPES.filter((s) => card?.scope[s.key]).map(
     (s) => s.label.split(' · ')[0]
   );
@@ -324,6 +331,7 @@ export default async function MemberPage({
       {/* 레슨 노트 · 숙제(4단계) — 팀은 '코치 노트' */}
       <LessonNotes
         memberId={member.id}
+        orgId={org.id}
         orgKind={org.kind}
         todayKey={todayKey}
         canLink={canLink}
@@ -334,8 +342,13 @@ export default async function MemberPage({
           body: n.body,
           homework: n.homework,
           mine: n.authorId === user.id,
+          talk: talk.get(n.id) ?? { total: 0, open: 0 },
+          videos: n.videoPaths.length,
         }))}
       />
+
+      {/* 숙제(2단계) — 라이브러리 운동 · 드릴, 선수가 트레이닝에서 하면 완료 */}
+      {member.status === 'ACTIVE' ? <HomeworkCard orgId={org.id} memberId={member.id} todayKey={todayKey} /> : null}
 
       {org.kind === 'LESSON' && (
         <PassCard memberId={member.id} passes={passes} todayKey={todayKey} />

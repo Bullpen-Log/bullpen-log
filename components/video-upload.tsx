@@ -97,6 +97,21 @@ export async function uploadToStorage(
   return data.path as string;
 }
 
+/**
+ * 받은 서명 주소로 올리기 — 주소를 서버 동작이 주는 곳(팀 · 레슨장 조직 영상, app/actions/app-lesson.ts coachVideoUpload)이 쓴다.
+ * 끊기면 uploadToStorage 와 같게 한 번 더(앞의 것이 올라갔으면 '이미 있어요'를 성공으로).
+ */
+export async function putToSignedUrl(signedUrl: string, file: Blob, onProgress: (percent: number) => void) {
+  try {
+    await putFile(signedUrl, file, onProgress, false);
+  } catch (err) {
+    if (!(err instanceof NetworkError)) throw err;
+    await new Promise((r) => setTimeout(r, 1500));
+    onProgress(0);
+    await putFile(signedUrl, file, onProgress, true);
+  }
+}
+
 /** 신호가 끊겨 대답을 못 받은 실패 — 이것만 다시 해 본다(서버가 거절한 것은 다시 해도 같다) */
 class NetworkError extends Error {}
 

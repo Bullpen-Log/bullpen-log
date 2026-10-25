@@ -28,7 +28,7 @@ export async function pickAndUploadOrgVideo(who: VideoWho, onProgress?: (percent
       ? await call<{ ok: true; path: string; signedUrl: string }>('app-lesson.coachVideoUpload', who.orgId, meta)
       : await call<{ ok: true; path: string; signedUrl: string }>('app-lesson.myVideoUpload', who.memberId, meta);
   if (!t.ok) throw new Error(('error' in t && t.error) || '올릴 준비를 못 했어요.');
-  const put = async () => {
+  const put = async (retry: boolean) => {
     const task = createUploadTask(
       t.signedUrl,
       asset.uri,
@@ -36,14 +36,16 @@ export async function pickAndUploadOrgVideo(who: VideoWho, onProgress?: (percent
       (p) => p.totalBytesExpectedToSend > 0 && onProgress?.(Math.round((p.totalBytesSent / p.totalBytesExpectedToSend) * 100))
     );
     const r = await task.uploadAsync();
+    /* 다시 보낸 것인데 '이미 있어요'(409) — 앞의 것이 다 올라갔다(웹 putFile 과 같다) */
+    if (retry && r?.status === 409) return;
     if (!r || r.status < 200 || r.status >= 300) throw new Error('영상을 올리지 못했어요.');
   };
   try {
-    await put();
+    await put(false);
   } catch {
-    /* 신호가 잠깐 끊긴 것일 수 있다 — 같은 주소로 한 번 더(서명 주소는 덮어쓴다) */
+    /* 신호가 잠깐 끊긴 것일 수 있다 — 같은 주소로 한 번 더 */
     await new Promise((r) => setTimeout(r, 1500));
-    await put();
+    await put(true);
   }
   return t.path;
 }

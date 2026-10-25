@@ -8,6 +8,7 @@ import {
   type OrgActionState,
 } from '@/app/actions/org-notes';
 import { ConfirmButton } from '@/components/master/confirm-button';
+import { OrgThread } from '@/components/master/org-thread';
 import {
   Badge,
   Button,
@@ -27,6 +28,9 @@ export type NoteView = {
   body: string;
   homework: string | null;
   mine: boolean;
+  /** 말 수 · 회원이 쓴 안 푼 말 수 · 붙인 영상 수(2단계) */
+  talk: { total: number; open: number };
+  videos: number;
 };
 
 /**
@@ -35,6 +39,7 @@ export type NoteView = {
  */
 export function LessonNotes({
   memberId,
+  orgId,
   orgKind,
   todayKey,
   canLink,
@@ -42,6 +47,7 @@ export function LessonNotes({
   notes,
 }: {
   memberId: string;
+  orgId: string;
   orgKind: OrgKind;
   todayKey: string;
   /** 던진 공이 선수 투구 기록에 들어가나(가입 · 투구 공유) — 2단계 */
@@ -217,6 +223,7 @@ export function LessonNotes({
               {n.homework && (
                 <p className="mt-1 text-xs text-sky-strong">숙제: {n.homework}</p>
               )}
+              <OrgThread orgId={orgId} kind="note" id={n.id} talk={n.talk} videos={n.videos} />
             </li>
           ))}
         </ul>
