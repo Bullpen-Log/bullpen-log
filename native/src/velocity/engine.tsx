@@ -61,6 +61,12 @@ export type EngineResult = {
 /** 한 번 재기 · 훑기에 든 시간(ms) — ms 계산기 안(장면 풀기 + 계산), readMs 클립 읽기 + 조각 보내기, totalMs 부른 뒤 답까지(계산기 뜨기 기다림 포함) */
 export type EngineTiming = { ms: number; readMs: number; totalMs: number };
 
+/**
+ * 계산기가 'ready' 에 실어 보내는 제 판 · 기능(engine-client.tsx, 2026-10-25 설계안 작업 A · B) — 앱은 시도 기록의 versions 에 적고, 기능이 없으면(옛 사이트)
+ * 그 길을 쓰지 않는다(조용히 옛 경로로 가지 않고 기록에 남긴다). engine 은 lib/velocity-engine/version.ts, caps.netHits 는 모델 후보(netHits)를 받나.
+ */
+export type EngineInfo = { engine: string | null; caps: { schema?: number; netHits?: boolean } };
+
 export type EngineHandle = {
   /** 클립을 재 결과를 돌려준다. onBall — 공 길을 찾은 순간(조용히 재던 클립을 화면에 띄울 때) */
   measure(clip: Clip, opts: MeasureOpts, onBall?: () => void): Promise<{ result: EngineResult } & EngineTiming>;
@@ -70,6 +76,8 @@ export type EngineHandle = {
   busy(): boolean;
   /** 공(재기)이 왔다 — 훑기는 줄에서 빼고, 돌고 있으면 끊는다(공이 훑기 뒤에서 기다리지 않게) */
   yieldToMeasure(): void;
+  /** 계산기의 판 · 기능('ready' 가 실어 온 것) — 아직 안 떴으면 null */
+  info(): EngineInfo | null;
 };
 
 /**
@@ -127,6 +135,8 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
   const [gen, setGen] = useState(0);
   const ready = useRef<Promise<void> | null>(null);
   const markReady = useRef<() => void>(() => undefined);
+  /** 'ready' 가 실어 온 계산기 판 · 기능 — 옛 사이트는 빈 ready 라 engine null · caps {} */
+  const info = useRef<EngineInfo | null>(null);
   const waiters = useRef(new Map<number, Waiter>());
   const nextId = useRef(0);
   /** 계산기에 넘겼고 끝(result · located · fail · skipped)이 아직 안 온 일 — 앱이 포기한 일도 포함 */
@@ -142,6 +152,7 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
    */
   const restart = useCallback((code: 'ENGINE_DOWN' | 'ENGINE_GONE', message: string, delayMs: number) => {
     ready.current = new Promise((r) => (markReady.current = r));
+    info.current = null;
     for (const [id, w] of waiters.current) {
       clearTimeout(w.timer);
       w.reject(new EngineError(code, message));
@@ -164,7 +175,10 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
   if (!ready.current) ready.current = new Promise((r) => (markReady.current = r));
 
   const onMessage = useCallback((ev: WebViewMessageEvent) => {
-    let msg: { t: string; id?: number; result?: EngineResult; found?: ThrowLocation | null; ms?: number; message?: string };
+    let msg: {
+      t: string; id?: number; result?: EngineResult; found?: ThrowLocation | null; ms?: number; message?: string;
+      engine?: unknown; caps?: unknown;
+    };
     try {
       msg = JSON.parse(ev.nativeEvent.data);
     } catch {
@@ -172,6 +186,8 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
     }
     if (msg.t === 'ready') {
       loadFails.current = 0;
+      const caps = msg.caps && typeof msg.caps === 'object' ? (msg.caps as EngineInfo['caps']) : {};
+      info.current = { engine: typeof msg.engine === 'string' ? msg.engine : null, caps };
       return markReady.current();
     }
     if (msg.id != null && (msg.t === 'result' || msg.t === 'located' || msg.t === 'fail' || msg.t === 'skipped')) inEngine.current.delete(msg.id);
@@ -273,6 +289,7 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       return { found: r.found ?? null, ms: r.ms, readMs: r.readMs, totalMs: r.totalMs };
     },
     busy: () => inEngine.current.size > 0,
+    info: () => info.current,
     yieldToMeasure() {
       /* 돌고 있는 훑기도 — expire 가 abort 를 보내고 계산기가 끊는다(2.7.3, 모델 · 거친 훑기 둘 다). 예전엔 시작 안 한 것만 빼 공이 돌던 훑기 뒤에서 3~15초 기다렸다 */
       for (const w of [...waiters.current.values()]) if (w.kind === 'locate') w.expire();

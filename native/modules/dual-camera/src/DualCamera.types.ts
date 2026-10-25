@@ -27,6 +27,8 @@ export type StartInfo = {
   debugBuild?: boolean;
   appVersion?: string;
   appBuild?: string;
+  /** 카메라 모듈이 클립에 싣는 모델 후보(Clip.hits)의 약속 판 — 없으면 옛 판(후보를 안 싣는다). 2026-10-25 설계안 작업 B */
+  hitsSchema?: number;
   [key: string]: unknown;
 };
 

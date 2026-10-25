@@ -632,6 +632,12 @@ export type AttemptInput = {
    */
   timing?: unknown;
   camera?: unknown;
+  /**
+   * 2026-10-25 설계안 작업 A — 그때 설정(거리 · 화각 · fps · 분석창 · 카메라 자리 …)과 판(앱 · 빌드 · UA · OTA · 계산기 엔진 · 기능). analysis.settings ·
+   * analysis.versions 로. 현장 자료를 되짚을 때 '어떤 설정 · 어느 판이었나'를 DB 에서 바로 읽기 위해서다. 아는 칸만 거른다(sanitizeSettings · sanitizeVersions)
+   */
+  settings?: unknown;
+  versions?: unknown;
 };
 
 /** 알려진 숫자 칸만(0 ~ 1e7) · 글은 outcome 한 칸만 80자 — 앱이 보낸 진단을 JSON 으로 남길 때 */
@@ -652,6 +658,32 @@ function sanitizeNumbers(v: unknown, keys: readonly string[]): Record<string, nu
   return Object.keys(out).length ? out : undefined;
 }
 const TIMING_KEYS = ['queueMs', 'clipMs', 'readMs', 'engineMs', 'totalMs', 'bytes', 'fpsActual'] as const;
+/** 설정 칸 — 숫자(음수 허용: tiltRad) · 켬끔 · 짧은 글(approach · cameraPos) */
+const SETTINGS_NUM_KEYS = ['fps', 'fovDeg', 'distanceM', 'rubberDistM', 'tiltRad', 'releaseDistanceM', 'focalPerLongSide', 'rangeStart', 'rangeEnd', 'seedT', 'netHits'] as const;
+const SETTINGS_BOOL_KEYS = ['fovKnown', 'distanceAuto', 'distanceChosen', 'tape'] as const;
+const SETTINGS_STR_KEYS = ['approach', 'cameraPos'] as const;
+/** 판 칸 — 글만(앱 판 · 빌드 · UA · OTA 갱신 번호 · 계산기 엔진 판 · 카메라 모듈 후보 약속 · 모델 이름), debug 는 켬끔 */
+const VERSION_KEYS = ['app', 'build', 'ua', 'update', 'js', 'engine', 'caps', 'module', 'model'] as const;
+function sanitizeSettings(v: unknown): Record<string, number | string | boolean> | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const o = v as Record<string, unknown>;
+  const out: Record<string, number | string | boolean> = {};
+  for (const k of SETTINGS_NUM_KEYS) {
+    const x = o[k];
+    if (typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= 1e7) out[k] = Math.round(x * 1e4) / 1e4;
+  }
+  for (const k of SETTINGS_BOOL_KEYS) if (typeof o[k] === 'boolean') out[k] = o[k] as boolean;
+  for (const k of SETTINGS_STR_KEYS) if (typeof o[k] === 'string' && o[k]) out[k] = (o[k] as string).slice(0, 24);
+  return Object.keys(out).length ? out : undefined;
+}
+function sanitizeVersions(v: unknown): Record<string, string | boolean> | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const o = v as Record<string, unknown>;
+  const out: Record<string, string | boolean> = {};
+  for (const k of VERSION_KEYS) if (typeof o[k] === 'string' && o[k]) out[k] = (o[k] as string).slice(0, 80);
+  if (typeof o.debug === 'boolean') out.debug = o.debug;
+  return Object.keys(out).length ? out : undefined;
+}
 const CAMERA_KEYS = ['fps', 'dropped', 'droppedLate', 'droppedBuffers', 'writerSkipped', 'writerResets', 'feedMs', 'feedSkipped', 'thermal', 'screenCaptured', 'shutterDen', 'iso', 'shutterCap', 'netMs'] as const;
 
 /**
@@ -690,12 +722,16 @@ export async function recordVelocityAttempt(
         const thermal = optional(input.thermal, 0, 3);
         const timing = sanitizeNumbers(input.timing, TIMING_KEYS);
         const camera = sanitizeNumbers(input.camera, CAMERA_KEYS);
-        if (!distance && thermal == null && !timing && !camera) return undefined;
+        const settings = sanitizeSettings(input.settings);
+        const versions = sanitizeVersions(input.versions);
+        if (!distance && thermal == null && !timing && !camera && !settings && !versions) return undefined;
         return {
           ...(distance ? { distance } : {}),
           ...(thermal != null ? { thermal: Math.round(thermal) } : {}),
           ...(timing ? { timing } : {}),
           ...(camera ? { camera } : {}),
+          ...(settings ? { settings } : {}),
+          ...(versions ? { versions } : {}),
         } as Prisma.InputJsonValue;
       })(),
       engineVersion: VELOCITY_ENGINE_VERSION,

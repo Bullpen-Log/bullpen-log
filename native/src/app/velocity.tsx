@@ -31,6 +31,7 @@ import { BullpenNative } from '../../modules/bullpen-native';
 import { rpc, RpcError } from '~/lib/rpc';
 import { loadJson, saveJson } from '~/lib/store';
 import { AppCapture, timingLine, type CaptureStatus, type JobTiming, type MeasureSettings } from '~/velocity/capture';
+import { attemptSettings, attemptVersions, loadUpdateId } from '~/velocity/attempt-meta';
 import { VelocityEngine, type EngineHandle } from '~/velocity/engine';
 import { RELEASE_OFF_NOTE, decide, saveSession, shownKmh, statsOf, type NativePitch, type SessionCtx } from '~/velocity/session';
 import { clearDraft, loadDraft, saveDraft } from '~/velocity/draft';
@@ -146,6 +147,13 @@ export default function VelocityScreen() {
   const [fps, setFps] = useState<FpsState | null>(null);
   /** 마지막 카메라 상태 — 시도 기록에 같이 싣는다(현장 뒤에 원격으로 장면 버림 · 열 · 화면 기록을 읽게) */
   const fpsNow = useRef<FpsState | null>(null);
+  /** 화면 코드의 OTA 갱신 번호 — 시도 기록의 versions 에(한 번만 읽는다) */
+  const updateIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    void loadUpdateId().then((id) => {
+      updateIdRef.current = id;
+    });
+  }, []);
   /* 관리자 진단(2026-10-20) — 알약을 누르면 빌드 · 카메라 · 최근 작업의 단계별 시간 */
   const [diag, setDiag] = useState<JobTiming[] | null>(null);
   const timings = useRef<JobTiming[]>([]);
@@ -371,12 +379,20 @@ export default function VelocityScreen() {
         onTiming: (t) => {
           timings.current = [...timings.current.slice(-5), t];
         },
-        onAttempt: (a) => {
+        onAttempt: ({ opts, ...a }) => {
           const date = sessionDateRef.current ?? todayRef.current;
           if (!date) return;
+          /* 설정 · 판도 같이(설계안 작업 A) — 잰 작업은 계산기에 넘긴 옵션 그대로, 못 잰 알림은 지금 설정 */
+          const ctx = ctxRef.current;
           attempts.current.set(
             a.id,
-            rpc<{ ok: true; id: string } | { ok: false }>('velocity.recordVelocityAttempt', { date, ...a, camera: fpsNow.current })
+            rpc<{ ok: true; id: string } | { ok: false }>('velocity.recordVelocityAttempt', {
+              date,
+              ...a,
+              camera: fpsNow.current,
+              settings: attemptSettings(opts, ctx, distRef.current, SETTINGS.distanceChosen === true),
+              versions: attemptVersions(ctx.info, engine.current?.info() ?? null, updateIdRef.current),
+            })
               .then((r) => (r.ok ? r.id : null))
               .catch(() => null)
           );

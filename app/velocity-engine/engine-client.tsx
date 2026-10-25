@@ -5,6 +5,13 @@ import { analyzeVideo, locateThrow, warmDecoder, type ThrowLocation } from '@/li
 import type { Approach } from '@/lib/velocity-engine/analyze-frames';
 import { loadBallNet } from '@/lib/velocity-engine/ball-net';
 import { createEngineQueue } from '@/lib/velocity-engine/engine-queue';
+import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
+
+/**
+ * 계산기가 아는 기능 — 'ready' 에 실어 앱이 시도 기록(analysis.versions)에 남기고, 없는 기능은 쓰지 않는다(2026-10-25 설계안 작업 A · B).
+ * schema 는 이 약속의 판(칸을 더하면 올린다). netHits 는 재기 옵션의 모델 후보(MeasureOpts.netHits)를 analyzeVideo 에 넘기나.
+ */
+export const ENGINE_CAPS = { schema: 1, netHits: false } as const;
 
 /**
  * 앱 ↔ 계산기 약속(native/src/velocity/engine.tsx 와 같이 고친다).
@@ -17,7 +24,7 @@ import { createEngineQueue } from '@/lib/velocity-engine/engine-queue';
  *   { t: 'abort', id } — 조각을 덜 받았으면 버리고, 다 받아 줄에 선 일이면 차례가 와도 하지 않고 { t: 'skipped', id } 만 보낸다.
  *     돌고 있는 훑기면 끊고 { t: 'located', id, found: null } 을 보낸다(공이 오면 앱이 훑기를 끊는다 — 계산기가 하나라 공이 훑기 뒤에서 기다렸다).
  * 계산기 → 앱(window.ReactNativeWebView.postMessage):
- *   { t: 'ready' } · { t: 'ball', id }(공 길을 찾음 — '구속 계산 중'을 띄울 때) · { t: 'result', id, result, ms } · { t: 'fail', id, message }
+ *   { t: 'ready', engine, caps } — engine 은 lib/velocity-engine/version.ts 의 판, caps 는 아래 ENGINE_CAPS(옛 판은 둘이 없다) · { t: 'ball', id }(공 길을 찾음 — '구속 계산 중'을 띄울 때) · { t: 'result', id, result, ms } · { t: 'fail', id, message }
  *   { t: 'located', id, found, ms } — 훑기 답(found 는 lib/velocity-engine/analyze-video.ts ThrowLocation, 못 열면 null)
  *   { t: 'start', id } · { t: 'skipped', id } — 위 ack · abort 의 답.
  *
@@ -184,7 +191,7 @@ export function EngineClient() {
     void warmDecoder().catch(() => undefined);
     /* 공 감지 모델(2.7.1, 런타임 14MB + 모델)도 미리 — 첫 훑기가 받기를 기다리지 않게. 못 받으면 훑기가 거친 길로 돈다 */
     void loadBallNet().catch(() => null);
-    send({ t: 'ready' });
+    send({ t: 'ready', engine: VELOCITY_ENGINE_VERSION, caps: ENGINE_CAPS });
     return () => {
       window.removeEventListener('message', onMessage);
       document.removeEventListener('message', onMessage as EventListener);

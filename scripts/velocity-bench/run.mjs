@@ -11,14 +11,15 @@
  *            공 시각 둘레 BALL_RANGE · 숙임 0.035
  *   true   — 실제 거리(폰 → 받는 면)를 넣고 자동 끔 — PitchLab 처럼 거리를 고른 경우. 실제 거리를 모르는 묶음은 건너뜀
  *   true±5 — 실제 거리 ±5%(사용자가 어림한 경우)
- * app 길에는 앱 화면 규칙(app-rules.mjs — 기록할 공 · 세션 거리)을 묶음마다 걸어 shown(화면 값, 기록 안 되면 null)을 싣는다.
+ * app 길에는 앱 화면 규칙(screen.mjs — 앱과 같은 lib/velocity-session.ts screenPitch · withSessionDistance)을 묶음마다 받은 차례로 걸어
+ * shown(화면 값, 기록 안 되면 null) · screen('kept' 또는 안 받은 까닭)을 싣는다. lib 이 '@/' 를 써서 `node --import ./scripts/alias-register.mjs` 로 돈다.
  */
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { open, REPO, argOf } from '../velocity-lab/cdp.mjs';
 import { BALL_RANGE, BENCH, loadBalls } from './fixtures.mjs';
-import { screenSession } from './app-rules.mjs';
+import { screenGroup } from './screen.mjs';
 
 const TILT = 0.035;
 const git = (cmd) => execSync(cmd, { cwd: REPO, encoding: 'utf8' }).trim();
@@ -84,16 +85,21 @@ async function measure(b, opt) {
     const range = seed != null ? { startSec: Math.max(0, seed - ${BALL_RANGE[0]}), endSec: seed + ${BALL_RANGE[1]}, seedT: seed } : {};
     const t0 = performance.now();
     try {
-      const res = await AV.analyzeVideo({ file, ...range, fps: 60, fovDeg: fov, approach: 'receding', distanceM: ${opt.distanceM}, distanceAuto: ${opt.distanceAuto}, distanceChosen: ${opt.distanceChosen ?? false}, fovKnown: ${b.fov != null ? 'true' : 'undefined'}, tiltRad: ${TILT}, limbDistance: true, netHits: ${JSON.stringify(netById?.get(b.id) ?? null)} });
-      const m = res.measure, d = res.distance ?? {};
-      const path = d.path ?? [];
-      return { ok: m.ok, code: m.ok ? null : m.code, kmh: m.ok ? m.kmh : null, conf: m.ok ? m.confidence : null, frames: m.ok ? m.detail.frames : null,
-        preConf: d.preSize?.confidence ?? null, why: d.why ?? null, size: d.sizeDistM ?? null, slope: d.sizeSlope ?? null, ext: d.extended ?? 0,
-        impact: d.impact ?? null, te: d.te ?? null, tStart: path.length ? path[0][0] : null, flight: d.flightFrames ?? null, rms: d.rmsPx ?? null,
-        stab: !!d.stabilized, shaky: !!d.shaky, first: d.firstDepthM ?? null, endSize: d.endSizeRatio ?? null, source: d.distanceSource ?? null,
-        usedDist: d.distanceM ?? null, guided: !!d.guided, limb: d.limbDistM ?? null, limbN: d.limbFrames ?? null, limbSig: d.limbSigma ?? null, limbWhy: d.limbWhy ?? null, atSize: d.kmhAtSize ?? null, sizeDist: d.sizeDistM ?? null, fov, ms: Math.round(performance.now() - t0) };
+      const result = await AV.analyzeVideo({ file, ...range, fps: 60, fovDeg: fov, approach: 'receding', distanceM: ${opt.distanceM}, distanceAuto: ${opt.distanceAuto}, distanceChosen: ${opt.distanceChosen ?? false}, fovKnown: ${b.fov != null ? 'true' : 'undefined'}, tiltRad: ${TILT}, limbDistance: true, netHits: ${JSON.stringify(netById?.get(b.id) ?? null)} });
+      return { result, fov, ms: Math.round(performance.now() - t0) };
     } catch (e) { return { ok: false, error: String(e?.message ?? e), ms: Math.round(performance.now() - t0) }; }
-  })()`);
+  })()`).then((r) => (r.result ? { ...summaryOf(r.result), fov: r.fov, ms: r.ms, result: r.result } : r));
+}
+
+/** 결과 JSON 에 남기는 요약 칸 — 엔진 결과 통째(result)는 화면 규칙(screen.mjs)에만 쓰고 JSON 에는 안 싣는다 */
+function summaryOf(res) {
+  const m = res.measure, d = res.distance ?? {};
+  const path = d.path ?? [];
+  return { ok: m.ok, code: m.ok ? null : m.code, kmh: m.ok ? m.kmh : null, conf: m.ok ? m.confidence : null, frames: m.ok ? m.detail.frames : null,
+    preConf: d.preSize?.confidence ?? null, why: d.why ?? null, size: d.sizeDistM ?? null, slope: d.sizeSlope ?? null, ext: d.extended ?? 0,
+    impact: d.impact ?? null, te: d.te ?? null, tStart: path.length ? path[0][0] : null, flight: d.flightFrames ?? null, rms: d.rmsPx ?? null,
+    stab: !!d.stabilized, shaky: !!d.shaky, first: d.firstDepthM ?? null, endSize: d.endSizeRatio ?? null, source: d.distanceSource ?? null,
+    usedDist: d.distanceM ?? null, guided: !!d.guided, limb: d.limbDistM ?? null, limbN: d.limbFrames ?? null, limbSig: d.limbSigma ?? null, limbWhy: d.limbWhy ?? null, atSize: d.kmhAtSize ?? null, sizeDist: d.sizeDistM ?? null };
 }
 
 const rows = [];
@@ -110,14 +116,20 @@ for (const b of balls) {
 }
 await c.close();
 
-/* 앱 화면 규칙 — 묶음 하나 = 한 세션 */
+/* 앱 화면 규칙 — 묶음 하나 = 한 세션, 앱과 같은 함수로 받은 차례대로(screen.mjs) */
 if (modes.includes('app'))
   for (const g of new Set(rows.map((r) => r.group))) {
-    const rs = rows.filter((r) => r.group === g);
-    const { shown } = screenSession(rs.map((r) => ({ ...r.app, tape: r.tape, dist: r.inputDistM, _id: r.id })));
-    const byId = new Map(shown.map((x) => [x.row._id, x.kmh]));
-    for (const r of rs) r.app.shown = byId.get(r.id) ?? null;
+    const rs = rows.filter((r) => r.group === g && r.app);
+    const out = screenGroup(rs.map((r) => ({ id: r.id, result: r.app.result })), { tape: rs.some((r) => r.tape) });
+    for (const r of rs) {
+      const o = out.get(r.id);
+      r.app.shown = o?.kept ? o.kmh : null;
+      r.app.screen = o ? (o.kept ? 'kept' : o.why) : 'error';
+      if (o && !o.kept && o.code) r.app.screenCode = o.code;
+    }
   }
+/* 엔진 결과 통째는 JSON 에 안 남긴다(공마다 수백 KB) — 요약 칸만 */
+for (const r of rows) for (const m of modes) if (r[m]) delete r[m].result;
 meta.seconds = Math.round((Date.now() - t0) / 1000);
 console.log(`걸린 시간 ${meta.seconds}초`);
 
