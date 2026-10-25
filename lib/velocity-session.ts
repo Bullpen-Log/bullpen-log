@@ -12,11 +12,10 @@ import {
 import {
   medianOf,
   sessionCorrection,
-  sessionDistOf,
   type DistMemory,
   type SizeSample,
 } from '@/lib/velocity-session-distance';
-import { OUT_OF_RANGE_FIX, STANDARD_TARGET_DIST_M, TAPE_MISMATCH_FIX } from '@/lib/velocity-setup';
+import { DISTANCE_MISMATCH_FIX, OUT_OF_RANGE_FIX, STANDARD_TARGET_DIST_M, TAPE_MISMATCH_FIX } from '@/lib/velocity-setup';
 import type { AnalysisJson } from '@/lib/velocity-analysis';
 
 type Result = AnalyzeResult & { distance?: DistanceReport };
@@ -53,18 +52,6 @@ export type SessionPitchCore = {
   } | null;
 };
 
-/**
- * 세션 거리(규칙 · 숫자는 lib/velocity-session-distance.ts) — 끝이 깨끗한 공(맞고 튄 공으로 끝, 이어 찾기 없음)에만 쓴다. 실내(흰 천 ·
- * 포수)는 공마다 끝 판정이 흔들리고 그 공의 거리가 그것을 메워, 세션 거리로 옮기면 오히려 5.5 → 8.2 로 나빴다. 세션 거리와 5% 넘게
- * 다른 공도 다른 일(폰을 옮김 · 받는 사람이 움직임)이라 제 거리를 둔다. 영상 파일은 파일끼리 따로 세고 지난 세션 거리도 안 쓴다 — 찍은 자리를 모른다.
- * 공을 더하거나 지울 때마다 다시 센다.
- */
-/*
- * 8% → 5%(2026-10-22, 엔진 2.8.0 — 앱이 공마다 공 크기로 거리를 어림하며): 캐치볼은 받는 사람이 움직여 끝 자리가 공마다 다르다(10-21 낮 한 세션 세 공의
- * 스피드건 거리 18.5 · 20.7 · 21.6m). 8% 면 18.9m 공을 세션 가운데 20.2m 로 옮겨 +2% → +10% 가 됐다. 앱 카메라 스피드건 짝 25구: 문턱 0(안 옮김) 3.70% ·
- * 5% 3.36% · 8% 3.67%(공마다 공 크기 거리의 흩어짐이 3% 안팎이라 5% 면 흔들림만 잡고 자리가 바뀐 공은 둔다).
- */
-const SESSION_DIST_TOL = 0.05;
 /** 기준 20m 로 잰 공들의 세션 보정(공 크기 가운데 값) — 그 출처의 깨끗한 공이 하나도 없으면 null(2026-10-19 부터 1개부터) */
 export function stdCorrection(list: SessionPitchCore[], source: SessionPitchCore['source']) {
   return sessionCorrection(
@@ -108,7 +95,7 @@ export function sessionDistanceOf(
   const c = stdCorrection(list, 'camera') ?? stdCorrection(list, 'file');
   return c?.apply
     ? { distanceM: c.m, distanceSource: 'session-size' }
-    : { distanceM: STANDARD_TARGET_DIST_M, distanceSource: 'default' };
+    : { distanceM: s.targetDistM, distanceSource: 'default' };
 }
 export function withSessionDistance<T extends SessionPitchCore>(
   list: T[],
@@ -116,12 +103,6 @@ export function withSessionDistance<T extends SessionPitchCore>(
   /** 줄자로 잰 세션 — 기준 20m 공의 세션 보정을 하지 않는다(줄자가 이긴다) */
   tape = false
 ): T[] {
-  const cleanOf = (source: SessionPitchCore['source']) =>
-    list.filter((p) => p.auto?.clean && p.source === source).map((p) => p.auto!.distM);
-  const sess = {
-    camera: sessionDistOf(cleanOf('camera'), memory),
-    file: sessionDistOf(cleanOf('file'), null),
-  };
   const corr = {
     camera: tape ? null : stdCorrection(list, 'camera'),
     file: tape ? null : stdCorrection(list, 'file'),
@@ -152,21 +133,20 @@ export function withSessionDistance<T extends SessionPitchCore>(
       };
     }
     if (!p.auto) return p;
-    const s = sess[p.source];
-    const on =
-      s != null && p.auto.clean && Math.abs(p.auto.distM / s.m - 1) <= SESSION_DIST_TOL;
-    const use = on ? s.m : p.auto.distM;
-    const k = (use / p.auto.distM) ** SPEED_DISTANCE_EXPONENT;
+    /*
+     * 공마다 공 크기 거리 그대로(엔진 2.8.2 — 고른 거리와 15% 안일 때, 2026-10-25 김민 "그 안의 차이는 거리를 감안해서"). 세션 가운데 값으로 옮기던 것
+     * (2.4.0 · 5% 안)은 뺐다 — 받아 둔 현장 29구 ±3 안: 공마다 56% · 세션 가운데 값 41%(정밀 크기), 덩어리 크기 35 · 36%. 포수는 받는 자리가 공마다 다르다.
+     */
     const distance = p.analysis?.distance;
     return {
       ...p,
-      rawKmh: r1(p.auto.kmh * k),
-      errorKmh: r1(p.auto.errorKmh * k),
-      releaseKmh: p.auto.releaseKmh != null ? r1(p.auto.releaseKmh * k) : null,
-      dist: { m: r1(use), auto: true, from: on ? s.from : null },
+      rawKmh: r1(p.auto.kmh),
+      errorKmh: r1(p.auto.errorKmh),
+      releaseKmh: p.auto.releaseKmh != null ? r1(p.auto.releaseKmh) : null,
+      dist: { m: r1(p.auto.distM), auto: true, from: null },
       analysis:
         p.analysis && distance
-          ? { ...p.analysis, distance: { ...distance, distanceM: r1(use) } }
+          ? { ...p.analysis, distance: { ...distance, distanceM: r1(p.auto.distM) } }
           : p.analysis,
     };
   });
@@ -190,7 +170,8 @@ export function lowConfidenceFix(
   if (approaching)
     return '포수 뒤에서는 정확하게 잴 수 없어요. 투수 뒤에 폰을 두고 재 주세요.';
   /* 공 크기 거리가 넣은 거리와 15% 넘게 다르다(엔진 size-mismatch) — '자동'인데 기준 20m 로 잰 폰(화각 모름)이면 줄자로(2026-10-19 김민 결정) */
-  if (d?.why === 'size-mismatch') return tape ? TAPE_MISMATCH_FIX : OUT_OF_RANGE_FIX;
+  if (d?.why === 'size-mismatch')
+    return d.distanceSource === 'ball' ? DISTANCE_MISMATCH_FIX : tape ? TAPE_MISMATCH_FIX : OUT_OF_RANGE_FIX;
   if (d?.shaky) return '폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.';
   /*
    * 잡힌 끝(impact 'end')만으로는 까닭이 아니다 — 포수가 받으면 늘 'end' 다. 끝을 못 봤고 거리 판독도 어긋날 때(end-unseen)만 이 말(2.7.4,

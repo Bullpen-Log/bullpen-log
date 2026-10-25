@@ -6,12 +6,10 @@ import { tiltOf } from '@/lib/device-tilt';
 import { NO_CALIBRATION, type CalFit } from '@/lib/velocity-calibration';
 import { distanceMismatch } from '@/lib/velocity-analysis';
 import { stdCorrection, withSessionDistance, type MissReason } from '@/lib/velocity-session';
-import { TAPE_WARN } from '@/lib/velocity-session-distance';
 import { EFFORT_CHIPS, effortScaleText } from '@/lib/pitch-effort';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import {
   DEFAULT_SETUP,
-  STANDARD_TARGET_DIST_M,
   TARGET_DIST_MAX,
   TARGET_DIST_MIN,
   ZONE_WIDTH_RANGE,
@@ -19,9 +17,11 @@ import {
   fitZone,
   frameRectToView,
   parseSetup,
-  STANDARD_DIST_HINT,
-  TAPE_HINT,
-  TAPE_MODES,
+  PHONE_BEHIND_RUBBER_M,
+  RECEIVERS,
+  RUBBER_DIST_PRESETS,
+  phoneDistOf,
+  type Receiver,
   type CameraPos,
   type VelocitySetup,
   type ZoneRect,
@@ -86,6 +86,8 @@ const SETTINGS: Omit<MeasureSettings, 'tiltRad' | 'distanceM' | 'distanceAuto'> 
   approach: 'receding',
   focalPerLongSide: null,
   releaseDistanceM: null,
+  /* 값은 고른 거리로, 공 크기는 15% 문으로만(엔진 2.9.0 — 빠른 공일수록 공 크기 거리가 짧아 값이 낮았다, PLAN-pitchlab.md) */
+  distanceChosen: true,
   /* 앱이 화각을 못 주면 — 15 Pro Max 2배 · 손떨림 보정의 긴 변 화각(실험대 38.3°) */
   fallbackFovDeg: 38.3,
 };
@@ -164,22 +166,24 @@ export default function VelocityScreen() {
   /* 측정 시작 셔터를 눌렀나 — 웹처럼 카메라 화면에서 빨간 단추로 시작 */
   const [live, setLive] = useState(false);
   /*
-   * 폰에서 미트까지 — 줄자를 안 넣으면 공마다 공 크기로 거리를 어림한다(엔진 2.8.0, 2026-10-22 김민 "SmartScout 처럼 간편하지만 정확하게").
-   * 화각을 모르는 폰은 엔진이 기준 20m + 세션 보정으로 잰다. 줄자가 이긴다.
+   * 거리 — '누가 받나요' + '투수판 → 공이 멈추는 곳'(PitchLab 방식, 2026-10-25 김민 · PLAN-pitchlab.md). 엔진엔 폰 → 멈추는 곳(+PHONE_BEHIND_RUBBER_M)을
+   * 넘기고 공마다 공 크기로 거리를 어림하되, 고른 거리와 15% 넘게 다르면 거리 오류로 측정 불가(엔진 2.8.2). 화각을 모르는 폰은 고른 거리 + 세션 보정.
    */
-  const [distTape, setDistTape] = useState(false);
-  const [targetDistM, setTargetDistM] = useState(STANDARD_TARGET_DIST_M);
-  const distRef = useRef({ m: STANDARD_TARGET_DIST_M, auto: true });
+  const [receiver, setReceiver] = useState<Receiver>(DEFAULT_SETUP.receiver ?? 'net');
+  const [rubberDistM, setRubberDistM] = useState(DEFAULT_SETUP.rubberDistM ?? 20);
+  /* '직접'을 골랐나 — 14 · 20 을 직접 칸에서 맞춰도 칸이 닫히지 않게 */
+  const [customDist, setCustomDist] = useState(false);
+  const distRef = useRef({ m: phoneDistOf(rubberDistM), auto: true });
   useEffect(() => {
-    distRef.current = { m: distTape ? targetDistM : STANDARD_TARGET_DIST_M, auto: !distTape };
-  }, [distTape, targetDistM]);
+    distRef.current = { m: phoneDistOf(rubberDistM), auto: true };
+  }, [rubberDistM]);
   /* 주의사항 카드 — 몇 번째 장(null = 닫힘). 설정을 마치면 한 번 뜬다(오늘은 보지 않기면 안 뜸) */
   const [tipsAt, setTipsAt] = useState<number | null>(null);
   const [focusBusy, setFocusBusy] = useState(false);
 
   /* 재기 흐름(AppCapture)은 한 번 만들어 쥐고, 지금 값은 ref 로 읽는다 */
   const pitchesRef = useRef<NativePitch[]>([]);
-  const ctxRef = useRef<SessionCtx>({ cameraPos, zone, info: null, tape: false, distM: STANDARD_TARGET_DIST_M });
+  const ctxRef = useRef<SessionCtx>({ cameraPos, zone, info: null, tape: false, distM: phoneDistOf(rubberDistM) });
   const tiltRef = useRef<number | null>(null);
   const todayRef = useRef<string | null>(null);
   /* 시도 기록 날짜 — 맡겨 둔 세션을 이어 재면 그 세션 날짜(저장 날짜와 같게) */
@@ -194,8 +198,8 @@ export default function VelocityScreen() {
   /* ABS 판정 함수 — 재기 흐름(한 번 만든 AppCapture)이 지금 값을 읽게 ref 로 */
   const absRef = useRef<AbsSession | null>(null);
   useEffect(() => {
-    ctxRef.current = { cameraPos, zone, info, tape: distTape, distM: distTape ? targetDistM : STANDARD_TARGET_DIST_M };
-  }, [zone, info, distTape, targetDistM]);
+    ctxRef.current = { cameraPos, zone, info, tape: false, distM: phoneDistOf(rubberDistM) };
+  }, [zone, info, rubberDistM]);
   const fit = start?.fit ?? NO_CALIBRATION;
   /* 공 목록을 바꾸는 곳은 모두 여기로 — ref(재기 흐름이 읽음) · 화면 · 폰에 맡긴 세션을 같이 */
   const draftReady = useRef(false);
@@ -262,9 +266,9 @@ export default function VelocityScreen() {
               const s = parseSetup(raw);
               if (!s || !alive) return;
               setZone(s.zone);
-              /* 줄자 거리도 되살린다 — 안 그러면 이어 잰 공에 세션 거리 보정이 다시 걸려 값이 달라졌다 */
-              setDistTape(s.distTape);
-              setTargetDistM(s.targetDistM);
+              /* 고른 거리도 되살린다 — 안 그러면 이어 잰 공이 다른 거리로 판정됐다 */
+              setReceiver(s.receiver ?? 'net');
+              setRubberDistM(s.rubberDistM ?? 20);
             });
             draftReady.current = true;
             /* 투구 탭에서 모드를 정해 와 사용 방법 카드가 떠 있었으면 걷는다 — 이어 재는 측정 화면 위에 남았다 */
@@ -487,7 +491,7 @@ export default function VelocityScreen() {
       cameraPos,
       sessionType,
       zone,
-      distM: distTape ? targetDistM : STANDARD_TARGET_DIST_M,
+      distM: phoneDistOf(rubberDistM),
       frame: { width: info.mainWidth, height: info.mainHeight, fps: info.mainFps },
       cameraClockStart: DualCamera.now?.() ?? null,
     });
@@ -546,11 +550,11 @@ export default function VelocityScreen() {
     goSetup(next);
   };
 
-  const begin = (s: Pick<VelocitySetup, 'sessionType' | 'zone' | 'distTape' | 'targetDistM'>) => {
+  const begin = (s: Pick<VelocitySetup, 'sessionType' | 'zone' | 'receiver' | 'rubberDistM'>) => {
     setSessionType(s.sessionType);
     setZone(s.zone);
-    setDistTape(s.distTape);
-    setTargetDistM(s.targetDistM);
+    setReceiver(s.receiver ?? 'net');
+    setRubberDistM(s.rubberDistM ?? 20);
     /* ABS 인데 홈플레이트를 아직 못 맞췄으면(지난 설정으로 바로 시작) 플레이트 단계부터 — 건너뛰면 판정이 늘 비었다 */
     setStep(mode === 'abs' && !abs.calib?.ok ? 'abs' : 'measure');
     void saveJson(setupKeyOf(mode), {
@@ -558,8 +562,8 @@ export default function VelocityScreen() {
       sessionType: s.sessionType,
       cameraPos,
       zone: s.zone,
-      distTape: s.distTape,
-      targetDistM: s.targetDistM,
+      receiver: s.receiver ?? 'net',
+      rubberDistM: s.rubberDistM ?? 20,
       savedAt: new Date().toISOString(),
     });
     /* 주의사항은 모드를 고를 때 이미 봤다(guide) — 측정 화면의 주의사항 단추로 다시 본다 */
@@ -676,22 +680,17 @@ export default function VelocityScreen() {
   }, [pitches]);
 
   /*
-   * 세션 거리 알림 — 웹 측정 화면과 같다(앱엔 없었다). 줄자 세션인데 깨끗한 공들의 공 크기 가운데 값이 넣은 거리와 7% 넘게 다르면 다시 재
-   * 보라고, 기준 20m 세션이면 세션 거리로 옮긴 것을 한 번 알린다. 10-21 밖: 측정 앱(AR)으로 잰 '20m' 가 실제 약 21.4m 라 값이 7% 낮았는데
-   * 알리지 않아 몰랐다(공 크기는 22.9m 를 말하고 있었다).
+   * 세션 거리 알림 — 화각을 모르는 폰(고른 거리로 잼)에서 세션 거리로 옮긴 것을 한 번 알린다. 공마다 공 크기로 잰 폰은 엔진이 공마다 판정한다(2.8.2).
    */
   const corrNote = useRef<string | null>(null);
   useEffect(() => {
     const c = stdCorrection(pitches, 'camera');
-    let note: string | null = null;
-    if (c && distTape && Math.abs(c.m / targetDistM - 1) > TAPE_WARN)
-      note = `넣은 거리 ${targetDistM}m · 공 크기로는 ${c.m}m. 폰에서 받는 곳까지 줄자로 다시 재 봐요(측정 앱은 1~2m 틀릴 수 있어요)`;
-    else if (c?.apply && !distTape) note = `공 ${c.n}개의 공 크기로 세션 거리를 ${c.m}m 로 맞추고 앞 공도 다시 셌어요`;
+    const note = c?.apply ? `공 ${c.n}개의 공 크기로 세션 거리를 ${c.m}m 로 맞추고 앞 공도 다시 셌어요` : null;
     if (note && note !== corrNote.current) {
       corrNote.current = note;
       setNotice(note);
     }
-  }, [pitches, distTape, targetDistM]);
+  }, [pitches]);
 
   const level = tilt && Math.abs(tilt.roll) <= ROLL_OK && Math.abs(tilt.pitch) <= PITCH_OK;
   const last = pitches.at(-1);
@@ -880,7 +879,7 @@ export default function VelocityScreen() {
           ) : step === 'loading' || step === 'mode' || step === 'guide' ? null : step === 'ask' && stored ? (
             <GuideCard
               title="지난 설정으로 바로 시작할까요?"
-              subtitle={`${stored.sessionType} · 투수 뒤 · 2배 줌. 같은 자리에서 같은 방식으로 재면 카메라로 바로 가요.`}
+              subtitle={`${stored.sessionType} · ${stored.receiver === 'catcher' ? '포수' : '망'} · 투수판 → 공이 멈추는 곳 ${stored.rubberDistM ?? 20}m. 같은 자리에서 같은 방식으로 재면 카메라로 바로 가요.`}
               footer={
                 <>
                   <CardButton label="새 설정" tone="quiet" onPress={() => setStep('type')} />
@@ -896,32 +895,30 @@ export default function VelocityScreen() {
             <GuideCard
               step={2}
               total={total}
-              title="폰은 투수 뒤 1.5~2m 에 둬요"
+              title={`폰은 투수판 뒤 ${PHONE_BEHIND_RUBBER_M}m 에 둬요`}
               subtitle="던지는 방향을 정면으로 보게 둬요. 너무 붙으면 팔 · 몸이 공을 가리고, 멀면 공이 작아요."
               footer={<CardButton label="다음" onPress={() => setStep('level')} />}
             >
-              {/* 폰에서 미트까지 — '자동'(공 크기로 거리 어림) 또는 줄자(웹과 같은 글, lib/velocity-setup.ts TAPE_MODES) */}
-              <Text style={styles.cardLabel}>폰에서 포수 미트까지</Text>
+              {/* 거리 고르기(PitchLab 방식, lib/velocity-setup.ts RECEIVERS · RUBBER_DIST_PRESETS) — 엔진 거리는 여기에 폰 자리를 더한다 */}
+              <Text style={styles.cardLabel}>누가 받나요</Text>
+              <Segmented items={RECEIVERS.map((r) => ({ value: r.value, label: r.label }))} value={receiver} onChange={(v) => setReceiver(v as Receiver)} />
+              <Text style={[styles.cardLabel, { marginTop: 12 }]}>투수판에서 공이 멈추는 곳까지</Text>
               <Segmented
-                items={TAPE_MODES.map((m) => ({ value: m.value, label: m.label }))}
-                value={distTape ? 'tape' : 'standard'}
+                items={[...RUBBER_DIST_PRESETS.map((m) => ({ value: String(m), label: `${m}m` })), { value: 'custom', label: '직접' }]}
+                value={(RUBBER_DIST_PRESETS as readonly number[]).includes(rubberDistM) && !customDist ? String(rubberDistM) : 'custom'}
                 onChange={(v) => {
-                  setDistTape(v === 'tape');
-                  if (v !== 'tape') setTargetDistM(STANDARD_TARGET_DIST_M);
+                  setCustomDist(v === 'custom');
+                  if (v !== 'custom') setRubberDistM(Number(v));
                 }}
               />
-              {distTape ? (
-                <View style={styles.distRow}>
-                  <Text style={styles.distHint}>{TAPE_HINT}</Text>
-                  <View style={styles.stepper}>
-                    <StepBtn icon="minus" label="0.5m 줄이기" onPress={() => setTargetDistM((d) => Math.max(TARGET_DIST_MIN, Math.round((d - 0.5) * 2) / 2))} />
-                    <Text style={styles.distValue}>{targetDistM.toFixed(1)}m</Text>
-                    <StepBtn icon="plus" label="0.5m 늘리기" onPress={() => setTargetDistM((d) => Math.min(TARGET_DIST_MAX, Math.round((d + 0.5) * 2) / 2))} />
-                  </View>
+              {customDist || !(RUBBER_DIST_PRESETS as readonly number[]).includes(rubberDistM) ? (
+                <View style={styles.stepper}>
+                  <StepBtn icon="minus" label="0.5m 줄이기" onPress={() => setRubberDistM((d) => Math.max(TARGET_DIST_MIN, Math.round((d - 0.5) * 2) / 2))} />
+                  <Text style={styles.distValue}>{rubberDistM.toFixed(1)}m</Text>
+                  <StepBtn icon="plus" label="0.5m 늘리기" onPress={() => setRubberDistM((d) => Math.min(TARGET_DIST_MAX, Math.round((d + 0.5) * 2) / 2))} />
                 </View>
-              ) : (
-                <Text style={styles.distHint}>{STANDARD_DIST_HINT}</Text>
-              )}
+              ) : null}
+              <Text style={styles.distHint}>{RECEIVERS.find((r) => r.value === receiver)?.hint}</Text>
             </GuideCard>
           ) : step === 'level' ? (
             <GuideCard
@@ -943,7 +940,7 @@ export default function VelocityScreen() {
                 mode === 'abs' ? (
                   <CardButton label="다음" onPress={() => setStep('abs')} />
                 ) : (
-                  <CardButton label="완료" onPress={() => begin({ sessionType, zone, distTape, targetDistM })} />
+                  <CardButton label="완료" onPress={() => begin({ sessionType, zone, receiver, rubberDistM })} />
                 )
               }
             />
@@ -954,7 +951,7 @@ export default function VelocityScreen() {
               title={abs.manual ? '플레이트 직접 맞추기' : '홈플레이트 · 타자'}
               subtitle={abs.manual ? undefined : '흰 홈플레이트가 존 밑에 보이게 두면 저절로 찾아요. 존 위 · 아래는 타자 신장으로 정해요.'}
               ok={!!abs.calib?.ok}
-              footer={<CardButton label="완료" disabled={!abs.calib?.ok} onPress={() => begin({ sessionType, zone, distTape, targetDistM })} />}
+              footer={<CardButton label="완료" disabled={!abs.calib?.ok} onPress={() => begin({ sessionType, zone, receiver, rubberDistM })} />}
             >
               <AbsSetupBody abs={abs} tiltKnown={!!tilt} />
             </GuideCard>

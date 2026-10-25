@@ -149,6 +149,8 @@ export type AnalyzeOptions = {
   onBall?: () => void;
   /** 거리를 공 크기로 어림한다(analyze-distance autoDistance) — distanceM 은 첫 어림 */
   distanceAuto?: boolean;
+  /** 고른 거리로 값을 내고 공 크기는 15% 문으로만(analyze-distance chosenDistance, 2.9.0 — 새 앱) */
+  distanceChosen?: boolean;
   /**
    * 장면마다 공 감지 모델 봉우리(영상 시각 · 세운 화면 비율 0~1, 지름은 화면 폭 비율) — 있으면 거리 엔진이 공 길 안내로 쓴다(analyze-distance netHits).
    * 앱은 폰 안 모델(CoreML)이, 시험대는 같은 모델을 미리 돌려 넘긴다.
@@ -739,6 +741,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
               autoDistance:
                 (options.distanceAuto ?? false) &&
                 (options.fovKnown ?? (videoFovInfo(lensInfo) != null || !!focalPerLongSide)),
+              chosenDistance: options.distanceChosen ?? false,
             })
           : analyzeFrames(input);
         timing.analyzeMs += now() - a0;
@@ -772,7 +775,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
       const l0 = now();
       const limb = await limbDistance(dec, first.planned, result.track, dist.fit, focalPerLongSide
         ? focalPerLongSide * Math.max(sourceW, sourceH)
-        : focalPxFromFov(Math.max(sourceW, sourceH), fovDeg), sourceW / width).catch((e) => ({ why: `throw ${e instanceof Error ? e.message : e}` }));
+        : focalPxFromFov(Math.max(sourceW, sourceH), fovDeg), sourceW / width, Math.max(1, Math.min(sourceW, sourceH) / 1080)).catch((e) => ({ why: `throw ${e instanceof Error ? e.message : e}` }));
       if (limb && 'distM' in limb) Object.assign(dist, { limbDistM: limb.distM, limbFrames: limb.n, limbSigma: limb.sigma });
       else dist.limbWhy = limb?.why ?? 'error';
       timing.analyzeMs += now() - l0;
@@ -827,7 +830,8 @@ async function limbDistance(
   track: { t: number; x: number; y: number; diameterPx: number }[],
   fit: NonNullable<DistanceReport['fit']>,
   focalSrc: number,
-  k: number
+  k: number,
+  px: number
 ): Promise<{ distM: number; n: number; sigma: number } | { why: string }> {
   const pl = [...planned].sort((a, b) => a.t - b.t);
   const n = track.length;
@@ -844,10 +848,10 @@ async function limbDistance(
     const a = track[Math.max(0, i - 1)], b = track[Math.min(n - 1, i + 1)];
     const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
     const d0 = o.diameterPx * k;
-    rows.push({ i, t: o.t, cx: o.x * k, cy: o.y * k, half: Math.ceil(Math.max(9, 1.2 * d0)), d0, dir: [(b.x - a.x) / len, (b.y - a.y) / len], seeks: [pl[j].seek, ...bg] });
+    rows.push({ i, t: o.t, cx: o.x * k, cy: o.y * k, half: Math.ceil(Math.max(9 * px, 1.2 * d0)), d0, dir: [(b.x - a.x) / len, (b.y - a.y) / len], seeks: [pl[j].seek, ...bg] });
   }
   /* 흐림 σ — 공이 큰 앞 30% 에서 넷(맥 원형과 같은 자리). 조각은 32칸 반지름까지로 잘라 셈을 줄인다 */
-  const sigRows = rows.slice(0, Math.max(4, Math.floor(rows.length * 0.3))).map((r) => ({ ...r, half: Math.min(r.half, 32) }));
+  const sigRows = rows.slice(0, Math.max(4, Math.floor(rows.length * 0.3))).map((r) => ({ ...r, half: Math.min(r.half, Math.round(32 * px)) }));
   const pickSig = sigRows.filter((_, q) => q % Math.max(1, Math.floor(sigRows.length / 4)) === 0).slice(0, 4);
   const useRows = rows.filter((r) => r.i >= n * 0.25);
   const all = [...new Set([...pickSig, ...useRows])];
@@ -874,7 +878,7 @@ async function limbDistance(
   const sigs: number[] = [];
   for (const r of pickSig) {
     const img = diffOf(r);
-    const f = img && fitBallRadius(img, 2 * r.half + 1, r.d0, r.dir, null);
+    const f = img && fitBallRadius(img, 2 * r.half + 1, r.d0, r.dir, null, px);
     if (f && f.amp > LIMB_MIN_AMP && f.rms < LIMB_MAX_RMS * f.amp) sigs.push(f.sigma);
   }
   if (!sigs.length) return { why: `no-sigma rows ${rows.length} sig ${pickSig.length} use ${useRows.length} crops ${got.size}/${wants.size}` };
@@ -883,7 +887,7 @@ async function limbDistance(
   const ds: number[] = [];
   for (const r of useRows) {
     const img = diffOf(r);
-    const f = img && fitBallRadius(img, 2 * r.half + 1, r.d0, r.dir, sigma);
+    const f = img && fitBallRadius(img, 2 * r.half + 1, r.d0, r.dir, sigma, px);
     if (!f || !(f.amp > LIMB_MIN_AMP) || !(f.rms < LIMB_MAX_RMS * f.amp)) continue;
     const z = trajectoryState(fit.p, fit.te, r.t, opts)[2];
     if (z > 0) ds.push((focalSrc * BALL_RADIUS_M) / f.r / z);

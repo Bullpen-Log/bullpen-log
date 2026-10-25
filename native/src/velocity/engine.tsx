@@ -23,6 +23,8 @@ export type MeasureOpts = {
   releaseDistanceM: number | null;
   distanceM: number | null;
   distanceAuto: boolean;
+  /** 고른 거리로 값을 내고 공 크기는 15% 문으로만(엔진 2.9.0 chosenDistance) — 옛 앱은 안 보낸다 */
+  distanceChosen?: boolean;
   tiltRad: number | null;
 };
 

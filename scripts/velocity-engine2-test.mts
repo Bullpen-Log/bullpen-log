@@ -12,6 +12,7 @@ import {
   AUTO_BLOB_SIZE_RATIO,
   BLOB_SIZE_RATIO,
   rejudgeSize,
+  sizeGateFails,
   SPEED_DISTANCE_EXPONENT,
 } from '../lib/velocity-engine/analyze-distance.ts';
 import { DRAG_K } from '../lib/velocity-engine/trajectory-fit.ts';
@@ -324,13 +325,48 @@ function run(name: string, sc: Scene, tolRel: number) {
         Math.abs(auto.measure.kmh / want - 1) <= 0.01,
       `자동 거리 — 첫 어림 15m 에서 ${auto.distance.distanceM}m(${auto.distance.distanceSource})로 다시 맞춰 ${auto.measure.ok ? auto.measure.kmh : auto.measure.code}km/h(기대 ${want.toFixed(1)})`
     );
-    /* 2.8.0 — 공 크기 거리여도 깨끗한 공은 '높음'까지(예전엔 늘 '보통'이라 앱이 기록하지 않았다), 판정 전 값 · 까닭도 이 맞춤의 것 */
+    /*
+     * 2.8.2 — 고른 거리(첫 어림)와 공 크기 거리가 15% 넘게 다르면 거리 오류('낮음' · size-mismatch), 값은 공 크기 거리 그대로 · 고른 거리로 낸 값도 싣는다.
+     * 15m 와 21.1m 는 40% 차이.
+     */
+    const atInput = auto.measure.ok ? auto.measure.kmh * (15 / auto.distance.distanceM) ** 1.076 : NaN;
     check(
       auto.measure.ok &&
-        auto.measure.confidence === 'high' &&
-        auto.distance.preSize?.confidence === 'high' &&
-        auto.distance.why == null,
-      `자동 거리 깨끗한 공은 높음 — ${auto.measure.ok ? auto.measure.confidence : '-'} · 판정 전 ${auto.distance.preSize?.confidence} · 까닭 ${auto.distance.why ?? '없음'}`
+        auto.measure.confidence === 'low' &&
+        auto.distance.why === 'size-mismatch' &&
+        Math.abs((auto.distance.kmhAtInput ?? 0) - atInput) <= 0.1,
+      `자동 거리 문 — 고른 15m · 공 크기 ${auto.distance.distanceM}m 면 ${auto.measure.ok ? auto.measure.confidence : '-'} · ${auto.distance.why ?? '까닭 없음'} · 고른 거리 값 ${auto.distance.kmhAtInput}(기대 ${atInput.toFixed(1)})`
+    );
+    /* 2.8.0 — 공 크기 거리여도 깨끗한 공은 '높음'까지(예전엔 늘 '보통'이라 앱이 기록하지 않았다), 판정 전 값 · 까닭도 이 맞춤의 것. 고른 거리가 15% 안일 때 */
+    const near = analyzeByDistance({ frames, width: W, height: H, sourceWidth: 1080, sourceHeight: 1920, focalPx: (F * 1080) / W, distanceM: 20, tiltRad: (sc.tiltDeg * Math.PI) / 180, fps: FPS, autoDistance: true });
+    check(
+      near.measure.ok &&
+        near.measure.confidence === 'high' &&
+        near.distance.preSize?.confidence === 'high' &&
+        near.distance.why == null &&
+        Math.abs(near.measure.kmh / want - 1) <= 0.01,
+      `자동 거리 깨끗한 공은 높음(고른 20m) — ${near.measure.ok ? `${near.measure.kmh}km/h · ${near.measure.confidence}` : '-'} · 판정 전 ${near.distance.preSize?.confidence} · 까닭 ${near.distance.why ?? '없음'}`
+    );
+    /* 2.9.0 — 고른 거리로 값(chosenDistance): 값은 고른 거리 그대로, 공 크기 거리 · 그 값은 견주기용, 문은 모은 공 크기 거리로 */
+    const chosen = analyzeByDistance({ frames, width: W, height: H, sourceWidth: 1080, sourceHeight: 1920, focalPx: (F * 1080) / W, distanceM: 20, tiltRad: (sc.tiltDeg * Math.PI) / 180, fps: FPS, autoDistance: true, chosenDistance: true });
+    check(
+      chosen.measure.ok &&
+        chosen.measure.confidence === 'high' &&
+        Math.abs(chosen.measure.kmh / m.kmh - 1) <= 0.005 &&
+        Math.abs((chosen.distance.kmhAtSize ?? 0) / want - 1) <= 0.01 &&
+        Math.abs((chosen.distance.sizeDistM ?? 0) - autoD) <= 0.3 &&
+        chosen.distance.kmhAtInput === chosen.measure.kmh,
+      `고른 거리 값 — 고른 20m 면 ${chosen.measure.ok ? `${chosen.measure.kmh}km/h · ${chosen.measure.confidence}` : chosen.measure.code}(넣은 거리 값 ${m.kmh}) · 공 크기 ${chosen.distance.sizeDistM}m 값 ${chosen.distance.kmhAtSize}(기대 ${want.toFixed(1)})`
+    );
+    const chosenFar = analyzeByDistance({ frames, width: W, height: H, sourceWidth: 1080, sourceHeight: 1920, focalPx: (F * 1080) / W, distanceM: 15, tiltRad: (sc.tiltDeg * Math.PI) / 180, fps: FPS, autoDistance: true, chosenDistance: true });
+    check(
+      chosenFar.measure.ok && chosenFar.measure.confidence === 'low' && chosenFar.distance.why === 'size-mismatch' && chosenFar.distance.distanceM === 15,
+      `고른 거리 값 — 고른 15m(공 크기 ${chosenFar.distance.sizeDistM}m)면 ${chosenFar.measure.ok ? chosenFar.measure.confidence : '-'} · ${chosenFar.distance.why ?? '까닭 없음'} · 거리 ${chosenFar.distance.distanceM}m`
+    );
+    /* 문은 짧은 쪽 22% · 긴 쪽 15%(앱 녹화의 공 크기 거리는 짧게만 틀렸다) — 고른 20m 에 공 크기 16.5 · 22.9m 통과, 15 · 23.2m 거리 오류 */
+    check(
+      !sizeGateFails(16.5, 20) && !sizeGateFails(22.9, 20) && sizeGateFails(15, 20) && sizeGateFails(23.2, 20),
+      '문 — 짧은 쪽 22% · 긴 쪽 15%'
     );
     /* 첫 어림 거리에 매이지 않는다 — 10 ~ 40m 어디서 시작해도 같은 값(공 크기 거리와 맞춘 거리가 맞을 때까지 다시 맞춤, 2.8.0) */
     const byGuess = [10, 14, 20, 26, 30, 40].map((guess) => {
@@ -358,8 +394,9 @@ function run(name: string, sc: Scene, tolRel: number) {
       far.measure.ok &&
         far.distance.distanceSource === 'ball' &&
         Math.abs(far.measure.kmh / want - 1) <= 0.01 &&
-        far.distance.preSize?.confidence === far.measure.confidence,
-      `자동 거리 — 첫 어림 60m(그럴 수 없는 구속)에서도 ${far.measure.ok ? far.measure.kmh : far.measure.code}km/h · 판정 전 ${far.distance.preSize?.confidence ?? '없음'}`
+        far.measure.confidence === 'low' &&
+        far.distance.why === 'size-mismatch',
+      `자동 거리 — 첫 어림 60m(그럴 수 없는 구속)에서도 ${far.measure.ok ? far.measure.kmh : far.measure.code}km/h · 고른 거리와 멀어 ${far.measure.ok ? far.measure.confidence : '-'} · ${far.distance.why ?? '까닭 없음'}`
     );
   }
   /*

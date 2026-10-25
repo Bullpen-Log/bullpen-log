@@ -182,6 +182,8 @@ export function sanitizeDistance(raw: unknown): Record<string, unknown> | null {
     inputDistM: n(d.inputDistM),
     sizeDistM: n(d.sizeDistM),
     sizeRefM: n(d.sizeRefM),
+    kmhAtInput: n(d.kmhAtInput),
+    kmhAtSize: n(d.kmhAtSize),
     distanceSource: d.distanceSource === 'ball' ? 'ball' : 'input',
     tiltRad: n(d.tiltRad),
     impact: d.impact === 'rebound' ? 'rebound' : 'end',

@@ -49,6 +49,10 @@ export type VelocitySetup = {
   distAuto: boolean;
   /** 줄자(레이저)로 잰 거리를 넣었다 — 세션 거리 보정(공 크기 가운데 값, lib/velocity-session-distance.ts sessionCorrection)을 하지 않고 넣은 값이 이긴다(엔진 2.4 1단계) */
   distTape: boolean;
+  /** 누가 받나(새 앱, 2026-10-25 PLAN-pitchlab.md) — 망이면 '망 안쪽, 공이 멈추는 곳'을 고르게 안내한다 */
+  receiver?: Receiver;
+  /** 투수판 → 공이 멈추는 곳(m, 새 앱) — 엔진 거리는 여기에 PHONE_BEHIND_RUBBER_M 를 더한다 */
+  rubberDistM?: number;
   /** 자동 측정 — 켜 두면 공마다 알아서 잡는다. 끄면 공마다 단추를 눌러 기다린다 */
   autoMode: boolean;
   /**
@@ -208,6 +212,24 @@ export const TAPE_MODES = [
   { value: 'standard', label: '자동' },
   { value: 'tape', label: '줄자로 쟀어요' },
 ] as const;
+/*
+ * 새 앱의 거리 고르기(2026-10-25 김민 "PitchLab 방식으로", PLAN-pitchlab.md) — '누가 받나요' + '투수판 → 공이 멈추는 곳'(14m · 20m · 직접).
+ * 망 앞면까지 거리를 넣으면 공이 망 안쪽 1~2.6m 뒤에서 멈춰 구속이 5~11% 낮았다(10-03 · 10-23 · 10-21, 미트는 맞음) — 그래서 '멈추는 곳'으로 묻는다.
+ * 엔진은 고른 거리로 값을 내고, 공 크기 거리가 그보다 22% 넘게 짧거나 15% 넘게 길면 거리 오류로 측정 불가(엔진 2.9.0 gateAuto).
+ */
+export const RECEIVERS = [
+  { value: 'catcher', label: '포수', hint: '투수판에서 포수 미트까지예요.' },
+  { value: 'net', label: '망', hint: '망 앞면이 아니라 공이 들어가 멈추는 망 안쪽까지예요. 앞면까지만 재면 구속이 5~10% 낮게 나와요.' },
+] as const;
+export type Receiver = (typeof RECEIVERS)[number]['value'];
+/** 투수판 → 공이 멈추는 곳 고르기(2026-10-23 김민: 14m 리틀 · 초등, 20m 중학교 이상) — 그 밖은 직접 */
+export const RUBBER_DIST_PRESETS = [14, 20] as const;
+/** 폰은 투수판 뒤 이만큼(m) — 10-22 폰 자리 안내 '투수 뒤 1.5~2m'(가장 잘 잰 10-03 · 09-28 이 2~2.5m)를 2m 하나로 */
+export const PHONE_BEHIND_RUBBER_M = 2;
+/** 엔진에 넘기는 거리(폰 → 공이 멈추는 곳) */
+export const phoneDistOf = (rubberDistM: number) => rubberDistM + PHONE_BEHIND_RUBBER_M;
+/** 공 크기 거리가 고른 거리와 많이 다를 때(엔진 size-mismatch → 측정 불가) */
+export const DISTANCE_MISMATCH_FIX = '거리 오류예요. 공 크기로 본 거리가 고른 거리와 많이 달라요. 투수판에서 공이 멈추는 곳까지 거리를 다시 골라 주세요.';
 /** '자동'을 골랐을 때 밑의 안내 */
 export const STANDARD_DIST_HINT = '거리는 공 크기로 알아서 맞춰요. 줄자로 쟀으면 넣어도 돼요.';
 /** 기준 20m 로 재는 폰(화각 모름)에서 공 크기 거리가 기준과 15% 넘게 다를 때(엔진 size-mismatch → '낮음' → 기록 안 함) */
@@ -232,6 +254,8 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   targetDistM: STANDARD_TARGET_DIST_M,
   distAuto: false,
   distTape: false,
+  receiver: 'net',
+  rubberDistM: 20,
   autoMode: true,
   calibSave: false,
   clipZone: true,
@@ -289,6 +313,11 @@ export function parseSetup(raw: unknown): VelocitySetup | null {
     /* 공마다 공 크기로 거리 어림은 뺐다(2026-10-15 사용자: "기준 20m · 줄자만") — 옛 설정에 켜져 있어도 끔 */
     distAuto: false,
     distTape: p.distTape === true,
+    receiver: p.receiver === 'catcher' ? 'catcher' : 'net',
+    rubberDistM:
+      typeof p.rubberDistM === 'number' && p.rubberDistM >= TARGET_DIST_MIN && p.rubberDistM <= TARGET_DIST_MAX
+        ? p.rubberDistM
+        : DEFAULT_SETUP.rubberDistM,
     /* 측정은 늘 자동(2026-10-15 사용자: "항상 자동으로") — 옛 설정의 수동도 자동으로 */
     autoMode: true,
     calibSave: p.calibSave === true,

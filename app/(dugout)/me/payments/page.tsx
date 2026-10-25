@@ -54,7 +54,7 @@ export default async function PaymentsPage() {
   ];
   return (
     <div className="max-w-3xl space-y-6">
-      <DugoutPageHeader title="결제" crumbs={[{ label: '내 것', href: '/me' }, { label: '결제' }]} />
+      <DugoutPageHeader title="결제" crumbs={[{ label: '마이', href: '/me' }, { label: '결제' }]} />
 
       <Card className="space-y-3">
         <h2 className="text-base font-bold text-ink">결제 수단</h2>

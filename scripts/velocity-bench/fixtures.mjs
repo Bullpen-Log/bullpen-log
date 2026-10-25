@@ -80,7 +80,7 @@ export function loadBalls() {
     for (const e of readJson(mf)) {
       if (e.gun == null || !existsSync(join(dir, e.file))) continue;
       if (g.kind === 'files') {
-        balls.push({ ...base, id: `${g.id}:${e.file}`, path: join(dir, e.file), gun: e.gun, seed: null, fov: null, inputDistM: BASE_DIST, tape: false });
+        balls.push({ ...base, id: `${g.id}:${e.file}`, path: join(dir, e.file), gun: e.gun, seed: null, fov: g.fovDeg ?? null, inputDistM: BASE_DIST, tape: false });
         continue;
       }
       const an = readJson(join(dir, `${e.file}.analysis.json`));
