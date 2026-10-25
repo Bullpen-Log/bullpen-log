@@ -253,7 +253,7 @@ export function HomeTab({
           <>
             <RingsCard rings={home.rings} onPress={openRing} />
             {/* 넷이 다 차면 하루 한 번 축하(웹 all-done — 앱은 화면 가운데) */}
-            <AllDone allDone={home.rings.every((r) => r.value >= 1)} day={today} />
+            <AllDone allDone={home.rings.every((r) => r.none || r.value >= 1)} day={today} />
             <View style={{ marginTop: SPACE.section }}>
               <FeedCard items={home.feed} onOpen={openFeed} />
             </View>
