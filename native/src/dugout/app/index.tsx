@@ -157,7 +157,7 @@ export default function DugoutShell() {
           </Press>
         </View>
       ) : null}
-      {isLoginPath(path) ? null : <TabBar tabs={DUGOUT_TABS} active={dugoutTabOf(path)} onPress={pressTab} accent={DUGOUT_TAB_ACCENT} />}
+      {isLoginPath(path) ? null : <TabBar tabs={DUGOUT_TABS} active={dugoutTabOf(path)} onPress={pressTab} accent={DUGOUT_TAB_ACCENT} frosted />}
     </View>
   );
 }

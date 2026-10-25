@@ -131,28 +131,28 @@ const LINE_MAX = 448;
 /** accent = 고른 칸 색(라이트 · 네이비) — 덕아웃 앱은 초록(웹 [data-brand='dugout'] 의 --tab-on). 다크는 둘 다 흰색 */
 export type TabAccent = { light: string; navy: string };
 
-function tabColors(theme: 'light' | 'dark' | 'navy', sky: string, muted: string, accent?: TabAccent) {
+function tabColors(theme: 'light' | 'dark' | 'navy', sky: string, muted: string, accent?: TabAccent, more = 0) {
   /*
    * rim = 유리 가장자리 빛(위는 밝게 · 아래는 옅게), tint = 진짜 유리에 얹는 색, lensRim = 렌즈 캡슐의 빛.
    * tint · base 는 2026-10-20 김민 "뒤가 너무 비쳐 하단바가 잘 안 보인다"로 진하게(tint 0.3 → 0.5~0.58, base +0.04~0.06)
    */
   if (theme === 'dark')
     return {
-      base: 'rgba(28,28,30,0.93)', edge: 'rgba(255,255,255,0.18)', lens: 'rgba(255,255,255,0.16)', on: '#ffffff', off: 'rgba(255,255,255,0.62)', shadow: '#000000',
-      tint: 'rgba(0,0,0,0.5)', rim: 'inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(255,255,255,0.06), inset 0 0 0 0.5px rgba(255,255,255,0.16)',
+      base: `rgba(28,28,30,${0.93 + more / 2})`, edge: 'rgba(255,255,255,0.18)', lens: 'rgba(255,255,255,0.16)', on: '#ffffff', off: 'rgba(255,255,255,0.62)', shadow: '#000000',
+      tint: `rgba(0,0,0,${0.5 + more})`, rim: 'inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(255,255,255,0.06), inset 0 0 0 0.5px rgba(255,255,255,0.16)',
       lensRim: 'inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 8px rgba(0,0,0,0.35)', drop: 0.55,
       glassRim: 'inset 0 1px 1px rgba(255,255,255,0.55), inset 0 0 0 1px rgba(255,255,255,0.22), 0 8px 22px rgba(0,0,0,0.45)',
     };
   if (theme === 'navy')
     return {
-      base: 'rgba(20,29,43,0.94)', edge: 'rgba(180,205,240,0.2)', lens: 'rgba(200,220,255,0.16)', on: accent?.navy ?? '#7dd3fc', off: 'rgba(200,220,255,0.6)', shadow: '#030812',
-      tint: 'rgba(14,30,60,0.58)', rim: 'inset 0 1px 0 rgba(200,225,255,0.3), inset 0 -1px 0 rgba(200,225,255,0.06), inset 0 0 0 0.5px rgba(200,225,255,0.16)',
+      base: `rgba(20,29,43,${0.94 + more / 2})`, edge: 'rgba(180,205,240,0.2)', lens: 'rgba(200,220,255,0.16)', on: accent?.navy ?? '#7dd3fc', off: 'rgba(200,220,255,0.6)', shadow: '#030812',
+      tint: `rgba(14,30,60,${0.58 + more})`, rim: 'inset 0 1px 0 rgba(200,225,255,0.3), inset 0 -1px 0 rgba(200,225,255,0.06), inset 0 0 0 0.5px rgba(200,225,255,0.16)',
       lensRim: 'inset 0 1px 0 rgba(220,235,255,0.25), 0 2px 8px rgba(0,0,0,0.35)', drop: 0.55,
       glassRim: 'inset 0 1px 1px rgba(220,235,255,0.55), inset 0 0 0 1px rgba(200,225,255,0.22), 0 8px 22px rgba(0,0,0,0.45)',
     };
   return {
-    base: 'rgba(255,255,255,0.92)', edge: 'rgba(255,255,255,0.9)', lens: 'rgba(120,130,150,0.16)', on: accent?.light ?? sky, off: muted, shadow: '#141e32',
-    tint: 'rgba(255,255,255,0.55)', rim: 'inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.35), inset 0 0 0 0.5px rgba(255,255,255,0.6)',
+    base: `rgba(255,255,255,${0.92 + more / 2})`, edge: 'rgba(255,255,255,0.9)', lens: 'rgba(120,130,150,0.16)', on: accent?.light ?? sky, off: muted, shadow: '#141e32',
+    tint: `rgba(255,255,255,${0.55 + more})`, rim: 'inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.35), inset 0 0 0 0.5px rgba(255,255,255,0.6)',
     lensRim: 'inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 4px rgba(20,30,50,0.1)', drop: 0.3,
     glassRim: 'inset 0 1px 1px rgba(255,255,255,0.95), inset 0 -1px 1px rgba(255,255,255,0.5), inset 0 0 0 1px rgba(255,255,255,0.6), 0 6px 18px rgba(20,30,50,0.18)',
   };
@@ -165,6 +165,7 @@ export function TabBar({
   back,
   enter = false,
   accent,
+  frosted = false,
 }: {
   tabs: ShellTab[];
   active: string | null;
@@ -174,11 +175,16 @@ export function TabBar({
   /** 처음 붙을 때 옛 막대에서 오므렸다 펴지며 들어온다 */
   enter?: boolean;
   accent?: TabAccent;
+  /**
+   * 젖빛 유리(글래스모피즘) — 뒤를 흐리게 거르는 'regular' 유리에 색을 조금 더(+0.06). 기본 'clear' 는 뒤가 그대로 비쳐, 흰 덕아웃 화면 위에서는
+   * 유리가 안 보이고 막대가 묽었다(2026-10-25 김민: "글라스모피즘 효과 · 아주 조금만 더 불투명하게"). 덕아웃 앱만 켠다
+   */
+  frosted?: boolean;
 }) {
   const c = usePalette();
   const theme = useTheme();
   const inset = useSafeAreaInsets();
-  const col = tabColors(theme, c.sky, c.muted, accent);
+  const col = tabColors(theme, c.sky, c.muted, accent, frosted ? 0.06 : 0);
   const glass = isLiquidGlassAvailable();
   /* 홈 막대 자리에 13 걸쳐(밖에서는 12 보다 좁지 않게) — 웹 --tab-bar-gap */
   const gap = Math.max(inset.bottom - 13, 12);
@@ -345,7 +351,7 @@ export function TabBar({
     <>
       {glass ? (
         /* iOS 26 진짜 유리 — 테마 색을 살짝 얹는다 */
-        <GlassView glassEffectStyle="clear" tintColor={col.tint} colorScheme={theme === 'light' ? 'light' : 'dark'} style={[StyleSheet.absoluteFill, { borderRadius: 999 }]} />
+        <GlassView glassEffectStyle={frosted ? 'regular' : 'clear'} tintColor={col.tint} colorScheme={theme === 'light' ? 'light' : 'dark'} style={[StyleSheet.absoluteFill, { borderRadius: 999 }]} />
       ) : (
         <View style={[StyleSheet.absoluteFill, { borderRadius: 999, backgroundColor: col.base, borderColor: col.edge, borderWidth: 1 }]} />
       )}
