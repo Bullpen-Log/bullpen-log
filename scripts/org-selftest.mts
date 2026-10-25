@@ -38,6 +38,7 @@ import {
   webStepOfField,
 } from '@/lib/signup-check';
 import { armUnknown, coachArmStatusOf } from '@/lib/org/arm-view';
+import { EVENT_STATUSES, isEventStatus, noteKey, planNotePitch } from '@/lib/org/lesson-pitch';
 import type { ReportFacts } from '@/lib/report/facts';
 
 let pass = 0;
@@ -529,6 +530,37 @@ console.log(
     const sig = new RegExp(`export async function ${fn}\\(\\s*([^)]*)\\)`).exec(src(`app/actions/${file}.ts`))?.[1] ?? '';
     const formOnly = sig.trim().startsWith('formData');
     check(`${file}.${fn} 꼴이 앱 호출과 맞음(${single ? '폼 하나' : '지난 상태 + 폼'})`, formOnly === single, sig);
+  }
+}
+
+/* ─────────────────────── 10. 2단계 — 일지 던진 공 → 선수 투구 기록 · 지도 활동 상태 ─────────────────────── */
+
+{
+  const plan = (o: Partial<Parameters<typeof planNotePitch>[0]>) => {
+    const r = planNotePitch({ pitchCount: 30, canWrite: true, selfLogIds: [], link: '', ...o });
+    return 'kind' in r ? r : { ...r, kind: 'error' as const };
+  };
+  check('공이 없으면 기록 안 함', plan({ pitchCount: null }).kind === 'none' && plan({ pitchCount: 0 }).kind === 'none');
+  check('가입 전 · 공유 끔이면 일지에만', plan({ canWrite: false }).kind === 'none');
+  check('선수 기록이 없으면 일지 줄', plan({}).kind === 'own');
+  check('선수가 그날 남겼으면 고르기 전엔 막음(두 번 세지 않게)', plan({ selfLogIds: ['a'] }).kind === 'error');
+  const linked = plan({ selfLogIds: ['a', 'b'], link: 'b' });
+  check('고른 선수 기록에 잇기', linked.kind === 'link' && linked.logId === 'b');
+  check('없는 기록에는 못 이음', plan({ selfLogIds: ['a'], link: 'zz' }).kind === 'error');
+  check("'따로 던진 공'이면 일지 줄", plan({ selfLogIds: ['a'], link: 'new' }).kind === 'own');
+  check('코치 줄 열쇠는 일지 하나에 하나', noteKey('n1') === 'note:n1');
+  check('활동 상태 셋', EVENT_STATUSES.length === 3 && isEventStatus('done') && !isEventStatus('attended'));
+  const notes = src('app/actions/org-notes.ts');
+  check('일지 지우기는 그 일지 줄만 지움(clientKey)', notes.includes('deleteMany({ where: { userId, clientKey: noteKey(note.id) } })'));
+  check('선수가 직접 남긴 줄은 지우지 않고 연결만 풂', notes.includes('enteredById: null }, data: { orgEventId: null }'));
+  check('일지 저장이 수강권을 안 건드림', !/lessonPass\.(update|create)/.test(notes.slice(0, notes.indexOf('/* ── 수강권 ── */'))));
+  const forms: [string, string, boolean][] = [
+    ['org-notes', 'updateLessonNote', false],
+    ['org-calendar', 'setOrgEventStatus', true],
+  ];
+  for (const [file, fn, single] of forms) {
+    const sig = new RegExp(`export async function ${fn}\\(\\s*([^)]*)\\)`).exec(src(`app/actions/${file}.ts`))?.[1] ?? '';
+    check(`${file}.${fn} 꼴이 앱 호출과 맞음`, sig.trim().startsWith('formData') === single, sig);
   }
 }
 

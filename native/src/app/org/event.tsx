@@ -4,6 +4,7 @@ import { Alert, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadOrgEvents } from '@/app/actions/app-org';
 import { EVENT_KINDS, EVENT_MEMO_MAX, EVENT_TITLE_MAX, timeOk, type EventKind } from '@/lib/org/rules';
+import { EVENT_STATUSES, EVENT_STATUS_LABEL, type EventStatus } from '@/lib/org/lesson-pitch';
 import { toDateKey } from '@/lib/pitch-stats';
 import { Bar, LoadState, useBusy, useLoad } from '~/community/parts';
 import { READABLE } from '~/lib/layout';
@@ -15,6 +16,7 @@ import { Primary } from '~/org/parts';
 /**
  * 조직 일정 만들기 · 고치기 · 지우기(앱 화면, 1.5단계) — 팀 훈련 · 경기 · 휴식, 레슨장 레슨 시간. 저장은 웹과 같은 org-calendar.saveOrgEvent(폼),
  * 지우기는 org-calendar.deleteOrgEvent. 레슨은 회원을 고르면 제목이 비어도 '○○ 레슨'이 된다(서버).
+ * 2단계: 있는 일정은 지도 확인(예정 · 실시 · 취소)을 바로 바꾼다(org-calendar.setOrgEventStatus) — 출석 · 수강권과는 상관없다.
  */
 type Loaded = Awaited<ReturnType<typeof loadOrgEvents>>;
 type Draft = { date: string; kind: EventKind; time: string; title: string; memo: string; memberId: string | null };
@@ -30,7 +32,11 @@ export default function OrgEventScreen() {
 
   const found = data && p.id ? data.events.find((e) => e.id === p.id) : undefined;
   const lesson = data?.kind === 'LESSON';
-  const kinds = EVENT_KINDS.filter((k) => (lesson ? k.key !== 'training' && k.key !== 'game' : k.key !== 'lesson')).map((k) => ({ value: k.key, label: k.label }));
+  /* 일지가 만든 팀 개인 지도(lesson)도 고칠 때는 그 종류를 보인다 */
+  const kinds = EVENT_KINDS.filter((k) => k.key === found?.kind || (lesson ? k.key !== 'training' && k.key !== 'game' : k.key !== 'lesson')).map((k) => ({
+    value: k.key,
+    label: k.label,
+  }));
   const draft: Draft | null =
     edited ??
     (data
@@ -61,6 +67,15 @@ export default function OrgEventScreen() {
       router.back();
       return null;
     });
+  const setStatus = (status: EventStatus) =>
+    void run(async () => {
+      if (!found || found.status === status) return null;
+      const r = await formCall('org-calendar.setOrgEventStatus', { id: found.id, status }, true);
+      if (r.error) return r.error;
+      toast(r.success ?? '바꿨어요');
+      await reload();
+      return null;
+    });
   const remove = () =>
     Alert.alert('이 일정을 지울까요?', undefined, [
       { text: '취소', style: 'cancel' },
@@ -85,6 +100,16 @@ export default function OrgEventScreen() {
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: inset.bottom + 32 }, READABLE]}>
+          {found ? (
+            <Field label="지도 확인" hint="출석 · 수강권과 상관없어요" c={c}>
+              <ChoiceChips
+                options={EVENT_STATUSES.map((v) => ({ value: v, label: EVENT_STATUS_LABEL[v] }))}
+                value={found.status as EventStatus}
+                onChange={setStatus}
+                c={c}
+              />
+            </Field>
+          ) : null}
           <Field label="날짜" c={c}>
             <DateStepper value={draft.date} onChange={(date) => set({ date })} c={c} />
           </Field>

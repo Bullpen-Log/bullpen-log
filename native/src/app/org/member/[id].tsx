@@ -61,7 +61,7 @@ export default function MemberCardScreen() {
             <Chip label="고치기" onPress={() => router.push(`/org/member-edit?org=${org}&id=${id}` as Href)} c={c} />
             {!data.member.hasUser ? <Chip label="이 자리 초대 코드" onPress={() => void invite()} c={c} /> : null}
           </View>
-          <Body data={data} c={c} onChanged={() => void reload()} />
+          <Body data={data} org={org ?? ''} c={c} onChanged={() => void reload()} />
           <DangerLink label="조직에서 빼기" onPress={remove} c={c} />
         </ScrollView>
       )}
@@ -81,7 +81,7 @@ function Chip({ label, onPress, c }: { label: string; onPress: () => void; c: Pa
   );
 }
 
-function Body({ data, c, onChanged }: { data: Ok; c: Palette; onChanged: () => void }) {
+function Body({ data, org, c, onChanged }: { data: Ok; org: string; c: Palette; onChanged: () => void }) {
   const { member, card, scope, notes } = data;
   const removeNote = (noteId: string) =>
     Alert.alert('이 일지를 지울까요?', '이 일지로 남긴 투구 수 · 숙제도 함께 사라져요.', [
@@ -184,11 +184,26 @@ function Body({ data, c, onChanged }: { data: Ok; c: Palette; onChanged: () => v
               </Text>
               <Text style={[TYPE.body, { color: c.ink }]}>{n.body}</Text>
               {n.homework ? <Text style={[TYPE.sub, { color: c.ink }]}>숙제 {n.homework}</Text> : null}
-              {n.mine ? (
-                <Pressable accessibilityRole="button" onPress={() => removeNote(n.id)} hitSlop={6} style={{ alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center' }}>
-                  <Text style={[TYPE.sub, { color: c.danger }]}>지우기</Text>
-                </Pressable>
+              {n.pitchCount ? (
+                <Text style={[TYPE.sub, { color: c.muted }]}>
+                  던진 공 {n.pitchCount}구 · {n.pitchLog === 'own' ? '선수 투구 기록에 남김' : n.pitchLog === 'link' ? '선수 기록에 이음' : '일지에만'}
+                </Text>
               ) : null}
+              <View style={{ flexDirection: 'row', gap: 20 }}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.push(`/org/note?org=${org}&note=${n.id}` as Href)}
+                  hitSlop={6}
+                  style={{ minHeight: 32, justifyContent: 'center' }}
+                >
+                  <Text style={[TYPE.sub, { color: c.link, fontWeight: '600' }]}>고치기</Text>
+                </Pressable>
+                {n.mine ? (
+                  <Pressable accessibilityRole="button" onPress={() => removeNote(n.id)} hitSlop={6} style={{ minHeight: 32, justifyContent: 'center' }}>
+                    <Text style={[TYPE.sub, { color: c.danger }]}>지우기</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           ))
         )}

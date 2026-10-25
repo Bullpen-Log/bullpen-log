@@ -12,6 +12,8 @@ import { ARM_MISSING_TEXT, armUnknown, type CoachArmStatus } from '@/lib/org/arm
 import { joinWithCode } from '@/lib/org/join';
 import { createInviteCode } from '@/lib/org/invite';
 import { loadMember, loadPlayers, memberCardOf, pitcherBoardOf, type MemberCard } from '@/lib/org/player-data';
+import { formatExercise, readExercises } from '@/lib/org/lesson-work';
+import { noteKey } from '@/lib/org/lesson-pitch';
 
 /**
  * 아이폰 앱(native/src/app/org/*)의 팀 · 레슨장 공간 — 1단계(docs/designs/sinker-team-lesson-contract.md 2-1).
@@ -118,7 +120,7 @@ async function coachOrg(orgId: string) {
 export type OrgToday = {
   org: { id: string; kind: OrgKind; name: string };
   todayKey: string;
-  events: { id: string; time: string | null; kind: string; title: string; memberId: string | null; memberName: string | null }[];
+  events: { id: string; time: string | null; kind: string; title: string; status: string; memberId: string | null; memberName: string | null }[];
   counts: { members: number; pending: number; placeholders: number };
   /** 팔 상태가 주의 · 위험인 회원 — 위험부터 */
   alerts: ({ memberId: string; nickname: string } & ArmLine)[];
@@ -134,7 +136,7 @@ export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: stri
     prisma.orgEvent.findMany({
       where: { orgId, date: dbDate(todayKey) },
       orderBy: [{ time: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true, time: true, kind: true, title: true, memberId: true },
+      select: { id: true, time: true, kind: true, title: true, status: true, memberId: true },
     }),
     loadPlayers(orgId),
     pitcherBoardOf(orgId, now),
@@ -199,6 +201,8 @@ export type LessonNoteView = {
   author: string | null;
   /** 보는 사람이 쓴 일지 — 지우기는 쓴 사람만(웹 org-notes.ts deleteLessonNote 와 같은 선) */
   mine: boolean;
+  /** 던진 공이 선수 투구 기록에 어떻게 들어갔나(2단계) — 'own' 일지가 남김 · 'link' 선수 기록에 이음 · null 안 들어감 */
+  pitchLog: 'own' | 'link' | null;
 };
 
 async function notesOf(memberId: string, take: number, viewerId: string): Promise<LessonNoteView[]> {
@@ -206,13 +210,24 @@ async function notesOf(memberId: string, take: number, viewerId: string): Promis
     where: { memberId },
     orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
     take,
-    select: { id: true, date: true, body: true, homework: true, pitchCount: true, intensity: true, authorId: true },
+    select: { id: true, date: true, body: true, homework: true, pitchCount: true, intensity: true, authorId: true, eventId: true },
   });
-  const authors = await prisma.user.findMany({
-    where: { id: { in: [...new Set(notes.map((n) => n.authorId))] } },
-    select: { id: true, nickname: true },
-  });
+  const events = notes.map((n) => n.eventId).filter((e): e is string => !!e);
+  const [authors, logs] = await Promise.all([
+    prisma.user.findMany({
+      where: { id: { in: [...new Set(notes.map((n) => n.authorId))] } },
+      select: { id: true, nickname: true },
+    }),
+    prisma.pitchLog.findMany({
+      where: { OR: [{ clientKey: { in: notes.map((n) => noteKey(n.id)) } }, ...(events.length ? [{ orgEventId: { in: events }, enteredById: null }] : [])] },
+      select: { clientKey: true, orgEventId: true },
+    }),
+  ]);
   const nameOf = new Map(authors.map((a) => [a.id, a.nickname]));
+  const ownKeys = new Set(logs.map((l) => l.clientKey));
+  const linkedEvents = new Set(logs.filter((l) => !l.clientKey?.startsWith('note:')).map((l) => l.orgEventId));
+  const pitchLogOf = (n: (typeof notes)[number]): LessonNoteView['pitchLog'] =>
+    ownKeys.has(noteKey(n.id)) ? 'own' : n.eventId && linkedEvents.has(n.eventId) ? 'link' : null;
   return notes.map((n) => ({
     id: n.id,
     key: n.date.toISOString().slice(0, 10),
@@ -222,6 +237,7 @@ async function notesOf(memberId: string, take: number, viewerId: string): Promis
     intensity: n.intensity,
     author: nameOf.get(n.authorId) ?? null,
     mine: n.authorId === viewerId,
+    pitchLog: pitchLogOf(n),
   }));
 }
 
@@ -322,6 +338,8 @@ export type OrgEventView = {
   kind: string;
   title: string;
   memo: string | null;
+  /** 지도 활동 상태(2단계) — 'planned' · 'done' · 'canceled' */
+  status: string;
   memberId: string | null;
   memberName: string | null;
 };
@@ -340,7 +358,7 @@ export async function loadOrgEvents(
     prisma.orgEvent.findMany({
       where: { orgId, date: { gte: dbDate(from), lte: dbDate(shiftDateKey(from, span - 1)) } },
       orderBy: [{ date: 'asc' }, { time: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true, date: true, time: true, kind: true, title: true, memo: true, memberId: true },
+      select: { id: true, date: true, time: true, kind: true, title: true, memo: true, status: true, memberId: true },
     }),
     prisma.orgMember.findMany({
       where: { orgId, role: 'PLAYER', status: 'ACTIVE' },
@@ -412,7 +430,8 @@ export async function loadProxyLogs(
   if (!c) return NO_ACCESS;
   const [logs, members] = await Promise.all([
     prisma.pitchLog.findMany({
-      where: { orgId, enteredById: { not: null } },
+      /* 일지가 만든 줄(clientKey note:…)은 일지에서 고치고 지운다 */
+      where: { orgId, enteredById: { not: null }, OR: [{ clientKey: null }, { NOT: { clientKey: { startsWith: 'note:' } } }] },
       orderBy: { createdAt: 'desc' },
       take: 15,
       select: { id: true, userId: true, date: true, sessionType: true, pitchCount: true, effortPct: true },
@@ -430,6 +449,90 @@ export async function loadProxyLogs(
       pitchCount: l.pitchCount,
       effortPct: l.effortPct,
     })),
+  };
+}
+
+/* ── 일지 쓰기 · 고치기(2단계) ── */
+
+export type DayPitchLog = { id: string; sessionType: string; pitchCount: number; effortPct: number | null };
+
+/**
+ * 일지에 던진 공을 적을 때 — 선수 투구 기록에 쓸 수 있나(가입 · 투구 공유), 그날 선수가 직접 남긴 기록(이을 후보).
+ * 같은 공을 두 번 세지 않게 코치가 그 줄에 잇거나 '따로 던진 공'을 고른다(lib/org/lesson-pitch.ts planNotePitch).
+ */
+export async function loadNotePitchDay(
+  orgId: string,
+  memberId: string,
+  dateKey: string
+): Promise<{ ok: false; to: string } | { ok: true; canWrite: boolean; why: string | null; logs: DayPitchLog[] }> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const m = await prisma.orgMember.findFirst({
+    where: { id: memberId, orgId, role: 'PLAYER', status: 'ACTIVE' },
+    select: { userId: true, consent: { select: { pitch: true, training: true, checkin: true, video: true, nutrition: true, weight: true } } },
+  });
+  if (!m) return NO_ACCESS;
+  if (!m.userId) return { ok: true, canWrite: false, why: '가입 전 자리라 던진 공은 일지에만 남아요.', logs: [] };
+  if (!memberScope(m.consent, true).pitch) return { ok: true, canWrite: false, why: '투구 기록 공유를 안 켜서 던진 공은 일지에만 남아요.', logs: [] };
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : toDateKey(appNow());
+  const logs = await prisma.pitchLog.findMany({
+    where: { userId: m.userId, date: dbDate(day), enteredById: null, pitchCount: { gt: 0 } },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, sessionType: true, pitchCount: true, effortPct: true },
+  });
+  return { ok: true, canWrite: true, why: null, logs };
+}
+
+/** 일지 고치기 화면 — 적은 값 그대로 + 던진 공이 지금 어디에 들어가 있나(link: 'new' 일지가 남김 · 선수 기록 id · '' 안 들어감) */
+export async function loadLessonNote(
+  orgId: string,
+  noteId: string
+): Promise<
+  | { ok: false; to: string }
+  | {
+      ok: true;
+      note: {
+        id: string;
+        memberId: string;
+        key: string;
+        body: string;
+        homework: string | null;
+        exercises: string;
+        pitchCount: number | null;
+        intensity: number | null;
+        sessionType: string;
+        link: string;
+      };
+    }
+> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const n = await prisma.lessonNote.findFirst({
+    where: { id: noteId, member: { orgId } },
+    select: { id: true, memberId: true, date: true, body: true, homework: true, exercises: true, pitchCount: true, intensity: true, eventId: true, member: { select: { userId: true } } },
+  });
+  if (!n) return NO_ACCESS;
+  const userId = n.member.userId;
+  const [own, linked] = userId
+    ? await Promise.all([
+        prisma.pitchLog.findUnique({ where: { userId_clientKey: { userId, clientKey: noteKey(n.id) } }, select: { sessionType: true } }),
+        n.eventId ? prisma.pitchLog.findFirst({ where: { userId, orgEventId: n.eventId, enteredById: null }, select: { id: true, sessionType: true } }) : null,
+      ])
+    : [null, null];
+  return {
+    ok: true,
+    note: {
+      id: n.id,
+      memberId: n.memberId,
+      key: toDateKey(n.date),
+      body: n.body === '(숙제만)' ? '' : n.body,
+      homework: n.homework,
+      exercises: readExercises(n.exercises).map(formatExercise).join('\n'),
+      pitchCount: n.pitchCount,
+      intensity: n.intensity,
+      sessionType: own?.sessionType ?? linked?.sessionType ?? '불펜',
+      link: own ? 'new' : linked ? linked.id : '',
+    },
   };
 }
 

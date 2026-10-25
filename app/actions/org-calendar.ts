@@ -6,6 +6,8 @@ import { requireMaster } from '@/lib/dal';
 import { requireOrg } from '@/lib/org/access';
 import { EVENT_MEMO_MAX, EVENT_TITLE_MAX, isDateKey, isEventKind, timeOk } from '@/lib/org/rules';
 import { dbDate } from '@/lib/nutrition/days';
+import { appNow } from '@/lib/clock';
+import { EVENT_STATUS_LABEL, isEventStatus } from '@/lib/org/lesson-pitch';
 
 /**
  * 조직 일정(OrgEvent, 5단계 팀 달력 · 4단계 레슨 시간표) — 선수 개인의 CalendarEvent 와 다른 표. 모두 requireMaster → requireOrg.
@@ -62,4 +64,22 @@ export async function deleteOrgEvent(formData: FormData) {
   await prisma.orgEvent.delete({ where: { id: ev.id } });
   revalidatePath('/manage/calendar');
   revalidatePath('/manage');
+}
+
+/** 지도 활동 확인(2단계, 결정 6) — 예정 · 실시 · 취소. 출석 · 수강권과 무관하다. 실시로 바꾼 때를 남긴다 */
+export async function setOrgEventStatus(formData: FormData): Promise<OrgActionState> {
+  const user = await requireMaster();
+  const status = String(formData.get('status') ?? '');
+  if (!isEventStatus(status)) return { error: '상태를 골라 주세요.' };
+  const ev = await prisma.orgEvent.findUnique({
+    where: { id: String(formData.get('id') ?? '') },
+    select: { id: true, orgId: true, status: true },
+  });
+  if (!ev) return { error: '일정을 찾을 수 없어요.' };
+  await requireOrg(user, ev.orgId);
+  if (ev.status !== status)
+    await prisma.orgEvent.update({ where: { id: ev.id }, data: { status, doneAt: status === 'done' ? appNow() : null } });
+  revalidatePath('/manage/calendar');
+  revalidatePath('/manage');
+  return { success: EVENT_STATUS_LABEL[status] };
 }

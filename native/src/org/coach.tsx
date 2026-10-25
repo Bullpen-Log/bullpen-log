@@ -11,6 +11,7 @@ import { toast } from '~/shell/toast';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { dayWithWeekday } from '~/org/forms';
+import { EVENT_STATUS_LABEL } from '@/lib/org/lesson-pitch';
 import { Card, Empty, GroupTitle, KIND_WORD, Primary, armLook, dayLabel, st } from '~/org/parts';
 
 /**
@@ -96,9 +97,10 @@ function TodayTab({ space, c }: { space: MySpace; c: Palette }) {
             data.events.map((e) => (
               <Pressable key={e.id} accessibilityRole="button" onPress={() => openEvent(space, data.todayKey, e.id)} style={({ pressed }) => [st.row, pressed && { opacity: 0.6 }]}>
                 <Text style={[TYPE.numInline, { color: c.muted, width: 52 }]}>{e.time ?? '종일'}</Text>
-                <Text style={[TYPE.body, { color: c.ink, flex: 1 }]} numberOfLines={2}>
+                <Text style={[TYPE.body, { color: e.status === 'canceled' ? c.muted : c.ink, flex: 1 }]} numberOfLines={2}>
                   {e.title}
                 </Text>
+                <StatusWord status={e.status} c={c} />
                 <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
               </Pressable>
             ))
@@ -243,11 +245,12 @@ function ScheduleTab({ space, c }: { space: MySpace; c: Palette }) {
                 <Pressable key={e.id} accessibilityRole="button" onPress={() => openEvent(space, d, e.id)} style={({ pressed }) => [st.row, { minHeight: 44, paddingVertical: 6 }, pressed && { opacity: 0.6 }]}>
                   <Text style={[TYPE.numInline, { color: c.muted, width: 52 }]}>{e.time ?? '종일'}</Text>
                   <View style={{ flex: 1, gap: 1 }}>
-                    <Text style={[TYPE.body, { color: c.ink }]} numberOfLines={1}>
+                    <Text style={[TYPE.body, { color: e.status === 'canceled' ? c.muted : c.ink }]} numberOfLines={1}>
                       {e.title}
                     </Text>
                     <Text style={[TYPE.sub, { color: c.muted }]}>{EVENT_KIND_LABEL[e.kind as EventKind] ?? e.kind}</Text>
                   </View>
+                  <StatusWord status={e.status} c={c} />
                   <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
                 </Pressable>
               ))}
@@ -384,6 +387,12 @@ function InviteCard({
       </Card>
     </View>
   );
+}
+
+/** 지도 확인 — 예정은 안 적고 실시 · 취소만 */
+function StatusWord({ status, c }: { status: string; c: Palette }) {
+  if (status !== 'done' && status !== 'canceled') return null;
+  return <Text style={[TYPE.sub, { color: status === 'done' ? c.ok : c.muted, fontWeight: '600' }]}>{EVENT_STATUS_LABEL[status]}</Text>;
 }
 
 const styles = StyleSheet.create({
