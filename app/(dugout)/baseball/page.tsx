@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { GameCard, dayName } from '@/components/dugout/game-parts';
+import { GameListRow, dayName } from '@/components/dugout/game-parts';
 import { CategoryRow, DugoutEmpty, DugoutPageHeader, SectionHead } from '@/components/dugout/ui';
 import { LEAGUES, addDays, isLeague, kstDateKey, loadGames, type League } from '@/lib/baseball-feed';
 
@@ -12,7 +12,7 @@ const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 
 /**
  * 야구 경기 일정 · 결과(2026-10-24 금윤호: "자세히를 누르면 모든 야구 경기의 일정과 결과를 볼 수 있는 탭을 따로") — 홈 오른쪽 경기 칸의 '자세히'가 여기로.
- * [KBO | MLB | NPB] 탭 → 고른 날 앞뒤 사흘(한 주) 날짜 띠(그날 경기 수) · 한 주 앞뒤 화살표 · 오늘 → 그날 경기 카드(예정은 선발, 끝난 경기는 승 · 패 투수).
+ * [KBO | MLB | NPB] 탭 → 고른 날 앞뒤 사흘(한 주) 날짜 띠(그날 경기 수) · 한 주 앞뒤 화살표 · 오늘 → 그날 경기 줄(예정은 선발, 끝난 경기는 승 · 패 투수).
  * 고른 리그 · 날짜는 주소에(?league=&date=). 자료는 lib/baseball-feed.ts loadGames(네이버 스포츠 일정, 5분 기억).
  */
 export default async function BaseballPage({ searchParams }: { searchParams: Promise<SP> }) {
@@ -98,9 +98,10 @@ export default async function BaseballPage({ searchParams }: { searchParams: Pro
       {ofDay.length === 0 ? (
         <DugoutEmpty compact title={`이날은 ${LEAGUES.find((l) => l.key === league)?.label} 경기가 없어요`} />
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        /* 열이 맞는 일정 줄(2026-10-25 PC 개편 — 카드 격자는 경기 수에 따라 모양이 달랐다) */
+        <ul className="divide-y divide-line border-y border-line">
           {ofDay.map((g) => (
-            <GameCard key={g.id} g={g} />
+            <GameListRow key={g.id} g={g} />
           ))}
         </ul>
       )}

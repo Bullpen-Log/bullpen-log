@@ -11,8 +11,8 @@ import {
 } from '@/components/round-icon';
 import { ListingCard } from '@/components/dugout/listing-card';
 import { CategoryRow, DugoutEmpty, DugoutPageHeader, ShortcutTiles, chipClass, type Shortcut } from '@/components/dugout/ui';
-import { MarketHero } from '@/components/dugout/market-hero';
 import { GearGuide } from '@/components/dugout/gear-guide';
+import { MarketFilterRail } from '@/components/dugout/market-filter-rail';
 import { getCurrentUser } from '@/lib/dal';
 import { loadListings } from '@/lib/market/load';
 import { CATEGORIES, CONDITIONS, REGIONS, SORTS, filterHref, readFilter } from '@/lib/market/specs';
@@ -21,9 +21,10 @@ type SP = { [key: string]: string | string[] | undefined };
 
 /**
  * 장터(2026-10-20) — 품목 · 상태 · 지역 · 정렬 · 검색은 모두 주소에(새로 고쳐도 · 링크로 보내도 같은 목록). 로그인 없이 본다.
- * 모양은 번개장터 그대로(2026-10-23 금윤호: "장터는 번개장터 느낌을 최대한") — 흰 바탕, 굵은 품목 글 줄, 검은 둥근 띠(넘어감),
- * 가운데 동그란 바로가기 줄, '오늘의 추천 물건' 큰 제목, 테두리 없는 6열 사진 격자. 검색은 위 막대 가운데.
- * 품목 · 검색으로 들어오면 띠 · 바로가기 대신 제목과 작은 거르기 한 줄(지역 · 상태 · 정렬).
+ * 모양은 번개장터 그대로(2026-10-23 금윤호: "장터는 번개장터 느낌을 최대한") — 흰 바탕, 굵은 품목 글 줄, 가운데 동그란 바로가기 줄,
+ * '오늘의 추천 물건' 큰 제목, 테두리 없는 사진 격자. 검색은 위 막대.
+ * PC(2026-10-25 덕아웃 PC 개편, docs/designs/dugout-desktop-information-design.md): 품목 줄 · 바로가기 대신 왼쪽 216px 거르기 판(품목 · 상태 · 지역 select · 거래 완료)
+ * + 오른쪽 제목 · 정렬 · 3~4열 격자 — 첫 물건이 1280×720 에서 240px 안에 보인다. 휴대폰 · 패드는 품목 줄 · 칩 그대로.
  * '장비 추천'(2026-10-23 — 따로 있던 /gear 를 장터 안으로): 주소에 ?guide=1 이면 팝업(components/dugout/gear-guide.tsx).
  * 입구는 바로가기 한 칸과, 글러브 · 배트처럼 고르기 어려운 품목 화면의 옅은 한 줄뿐 — 아는 사람 눈에는 거의 안 띈다.
  */
@@ -67,12 +68,32 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
     </Link>
   );
 
+  const sortLinks = (
+    <div role="group" aria-label="정렬" className="flex gap-1 text-xs">
+      {SORTS.map((s) => {
+        const on = f.sort === s.key;
+        return (
+          <Link
+            key={s.key}
+            href={filterHref({ ...f, sort: s.key, page: 1 })}
+            scroll={false}
+            data-nav="none"
+            aria-current={on ? 'page' : undefined}
+            className={`rounded-full px-2.5 py-1 font-semibold ${on ? 'bg-ink text-page' : 'text-muted hover:text-ink'}`}
+          >
+            {s.label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div className="space-y-10">
-      {/* 품목 줄 — 번개장터 둘째 줄처럼 굵은 큰 글(덕아웃 공용 CategoryRow) */}
+    <div className="space-y-8 lg:space-y-0">
+      {/* 품목 줄 · 바로가기 — 휴대폰 · 패드만(PC 는 왼쪽 판이 품목 · 상태 · 지역을 다 가진다, 2026-10-25 PC 개편) */}
       <CategoryRow
         label="품목"
-        className="-mt-2"
+        className="-mt-2 lg:hidden"
         items={[{ key: undefined, label: '전체' }, ...CATEGORIES].map((c) => ({
           key: c.key ?? 'all',
           label: c.label,
@@ -80,93 +101,87 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
           on: f.category === c.key,
         }))}
       />
+      {landing && <ShortcutTiles items={SHORTCUTS} className="lg:hidden" />}
 
-      {landing && (
-        <>
-          <MarketHero />
-          {/* 바로가기 — 번개장터 '찜 · 최근 본 상품 · 내폰바로팔기 …' 줄처럼 가운데 동그란 네모(덕아웃 공용 ShortcutTiles) */}
-          <ShortcutTiles items={SHORTCUTS} />
-        </>
-      )}
+      <div className="lg:grid lg:grid-cols-[216px_minmax(0,1fr)] lg:items-start lg:gap-6">
+        {/* PC 왼쪽 거르기 판 — 위 막대 밑에 붙어 따라온다 */}
+        <aside className="hidden lg:sticky lg:top-[calc(var(--dugout-bar-h)+1.5rem)] lg:block lg:max-h-[calc(100dvh-var(--dugout-bar-h)-3rem)] lg:overflow-y-auto lg:overscroll-contain">
+          <MarketFilterRail f={f} />
+        </aside>
 
-      <section className="space-y-5">
-        <DugoutPageHeader
-          title={heading}
-          actions={
-            f.q && (
-              <Link href="/market" className="text-sm font-semibold text-muted hover:text-ink">
-                검색 지우기
-              </Link>
-            )
-          }
-        />
-        {/* 고르기 어려운 품목 · 검색에만 — 잘 모르는 사람만 보고 지나가게 옅게 */}
-        {!landing && (f.q || (f.category && GUIDE_CATEGORIES.has(f.category))) && (
-          <Link
-            href={withGuide(filterHref(f))}
-            scroll={false}
-            className="-mt-2 inline-flex items-center gap-1.5 text-[13px] text-muted hover:text-ink"
-          >
-            <RoundGear className="h-4 w-4 text-sky" />
-            처음이라 무엇을 사야 할지 모르겠다면 · <span className="font-semibold text-sky">맞는 규격 추천받기 ›</span>
-          </Link>
-        )}
-
-        {!landing && (
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="no-scrollbar -mx-4 flex basis-full gap-1.5 overflow-x-auto px-4 md:mx-0 md:basis-auto md:px-0">
-              {chip(filterHref({ ...f, region: undefined, page: 1 }), !f.region, '지역 전체')}
-              {REGIONS.map((r) => chip(filterHref({ ...f, region: r, page: 1 }), f.region === r, r))}
-            </div>
-            {CONDITIONS.map((c) =>
-              chip(filterHref({ ...f, condition: f.condition === c.key ? undefined : c.key, page: 1 }), f.condition === c.key, c.label)
-            )}
-            {chip(filterHref({ ...f, all: !f.all, page: 1 }), !!f.all, '거래 완료도')}
-            <span className="ml-auto flex gap-3 text-[13px] font-semibold">
-              {SORTS.map((s) => (
-                <Link
-                  key={s.key}
-                  href={filterHref({ ...f, sort: s.key, page: 1 })}
-                  aria-current={f.sort === s.key ? 'page' : undefined}
-                  className={f.sort === s.key ? 'text-ink' : 'text-muted hover:text-ink'}
-                >
-                  {s.label}
-                </Link>
-              ))}
-            </span>
-          </div>
-        )}
-
-        {items.length === 0 ? (
-          <DugoutEmpty
-            title={landing ? '아직 올라온 물건이 없어요' : '맞는 물건이 없어요'}
-            description={landing ? '안 쓰는 글러브 · 배트를 첫 물건으로 올려 보세요.' : '거르기를 풀거나 다른 말로 찾아 보세요.'}
-            href="/market/new"
-            cta="물건 올리기"
+        <section className="min-w-0 space-y-5">
+          <DugoutPageHeader
+            title={heading}
+            subtitle={landing ? '방금 올라온 물건부터 보여요.' : undefined}
+            actions={
+              <>
+                {f.q && (
+                  <Link href="/market" className="text-sm font-semibold text-muted hover:text-ink">
+                    검색 지우기
+                  </Link>
+                )}
+                <div className="rounded-full bg-ink/5 p-1">{sortLinks}</div>
+              </>
+            }
           />
-        ) : (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-            {items.map((item) => (
-              <ListingCard key={item.id} item={item} now={now} />
-            ))}
-          </div>
-        )}
+          {/* 고르기 어려운 품목 · 검색에만 — 잘 모르는 사람만 보고 지나가게 옅게 */}
+          {!landing && (f.q || (f.category && GUIDE_CATEGORIES.has(f.category))) && (
+            <Link
+              href={withGuide(filterHref(f))}
+              scroll={false}
+              className="-mt-2 inline-flex items-center gap-1.5 text-[13px] text-muted hover:text-ink"
+            >
+              <RoundGear className="h-4 w-4 text-sky" />
+              처음이라 무엇을 사야 할지 모르겠다면 · <span className="font-semibold text-sky">맞는 규격 추천받기 ›</span>
+            </Link>
+          )}
 
-        {(f.page > 1 || hasMore) && (
-          <div className="flex justify-center gap-6 pt-4 text-sm font-semibold">
-            {f.page > 1 && (
-              <Link href={filterHref({ ...f, page: f.page - 1 })} className="text-muted hover:text-ink">
-                ‹ 이전
-              </Link>
-            )}
-            {hasMore && (
-              <Link href={filterHref({ ...f, page: f.page + 1 })} className="text-ink">
-                더 보기 ›
-              </Link>
-            )}
-          </div>
-        )}
-      </section>
+          {/* 휴대폰 · 패드 거르기 칩 — PC 는 왼쪽 판 */}
+          {!landing && (
+            <div className="flex flex-wrap items-center gap-2 lg:hidden">
+              <div className="no-scrollbar -mx-4 flex basis-full gap-1.5 overflow-x-auto px-4 md:mx-0 md:basis-auto md:px-0">
+                {chip(filterHref({ ...f, region: undefined, page: 1 }), !f.region, '지역 전체')}
+                {REGIONS.map((r) => chip(filterHref({ ...f, region: r, page: 1 }), f.region === r, r))}
+              </div>
+              {CONDITIONS.map((c) =>
+                chip(filterHref({ ...f, condition: f.condition === c.key ? undefined : c.key, page: 1 }), f.condition === c.key, c.label)
+              )}
+              {chip(filterHref({ ...f, all: !f.all, page: 1 }), !!f.all, '거래 완료도')}
+            </div>
+          )}
+
+          {items.length === 0 ? (
+            <DugoutEmpty
+              title={landing ? '아직 올라온 물건이 없어요' : '맞는 물건이 없어요'}
+              description={landing ? '안 쓰는 글러브 · 배트를 첫 물건으로 올려 보세요.' : '거르기를 풀거나 다른 말로 찾아 보세요.'}
+              href="/market/new"
+              cta="물건 올리기"
+            />
+          ) : (
+            /* PC 는 3 → 4열(카드 220px 넘게 — 사진 위 글이 읽힌다), 휴대폰 2열 */
+            <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+              {items.map((item) => (
+                <ListingCard key={item.id} item={item} now={now} />
+              ))}
+            </div>
+          )}
+
+          {(f.page > 1 || hasMore) && (
+            <div className="flex justify-center gap-6 pt-4 text-sm font-semibold">
+              {f.page > 1 && (
+                <Link href={filterHref({ ...f, page: f.page - 1 })} className="text-muted hover:text-ink">
+                  ‹ 이전
+                </Link>
+              )}
+              {hasMore && (
+                <Link href={filterHref({ ...f, page: f.page + 1 })} className="text-ink">
+                  더 보기 ›
+                </Link>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
       {/* 이 화면은 늘 동적이라 Suspense 로 감싸지 않는다 — 감싸면 바로 연 ?guide=1 에서 팝업이 늦게 살아났다 */}
       <GearGuide />
     </div>

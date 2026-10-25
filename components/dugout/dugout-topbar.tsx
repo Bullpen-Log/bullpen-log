@@ -97,11 +97,14 @@ export function DugoutTopBar({
     <header
       data-brand={isSinkerBar ? undefined : 'dugout'}
       data-morph-bar
-      /* 떠 있는 알약 — 바깥 띠는 위에서 아래로 옅어지는 흰 면이라 알약 위 틈으로 밑 글자가 또렷이 비치지 않는다. 앱 웹뷰는 화면 끝(시계 자리)까지 그려 그만큼 비운다 */
-      className={`${sticky ? 'sticky top-0' : ''} pointer-events-none z-20 bg-gradient-to-b from-30% ${isSinkerBar ? 'from-page to-page/0' : 'from-surface to-surface/0'} ${native ? 'pt-[calc(env(safe-area-inset-top)+0.5rem)]' : 'pt-2 md:pt-3'} ${className}`}
+      /*
+       * 조용한 한 줄(2026-10-25 덕아웃 PC 개편, docs/designs/dugout-desktop-information-design.md) — 떠 있는 알약 대신 면 하나에 밑선.
+       * 홈 · 안쪽 화면 어디서나 같은 자리 · 같은 높이(PC 64px)라 화면을 옮겨도 머리가 뛰지 않는다. 앱 웹뷰는 화면 끝(시계 자리)까지 그려 그만큼 비운다.
+       */
+      className={`${sticky ? 'sticky top-0' : ''} z-20 border-b border-line ${isSinkerBar ? 'bg-page' : 'bg-surface'} ${native ? 'pt-[env(safe-area-inset-top)]' : ''} ${className}`}
     >
-      <div className="mx-auto w-full max-w-6xl px-3 md:px-6">
-        <div className="pointer-events-auto flex h-14 items-center gap-1 rounded-full bg-surface/85 px-2 shadow-[0_10px_30px_-14px_rgba(0,0,0,0.22)] ring-1 ring-line/70 backdrop-blur-xl desk:h-16">
+      <div className="mx-auto w-full max-w-(--dugout-max,72rem) px-3 md:px-6">
+        <div className="flex h-14 items-center gap-1 desk:h-16">
           <Link
             href={homeHref}
             aria-label={isSinkerBar ? undefined : '덕아웃 첫 화면'}

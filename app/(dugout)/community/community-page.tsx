@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { RoundChat, RoundCommunity, RoundEyeOff, RoundFlame, RoundHeart, RoundPencil, RoundPeople, RoundSearch, RoundVideo } from '@/components/round-icon';
-import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
 import { getCurrentUser } from '@/lib/dal';
 import { loadCommunityList } from '@/lib/community-load';
 import {
@@ -21,30 +20,6 @@ import {
   relativeTime,
 } from '@/components/community/community-format';
 import { CommunityRegionFilter } from '@/components/community/community-region-filter';
-
-const SLIDES: readonly BannerSlide[] = [
-  {
-    kicker: '덕아웃 커뮤니티',
-    title: ['야구 이야기라면', '무엇이든 남겨요'],
-    cta: '글쓰기',
-    href: '/community/new',
-    icon: 'community',
-  },
-  {
-    kicker: '질문 · 답변',
-    title: ['모르는 건 물어보면', '코치 · 선수가 답해요'],
-    cta: '질문 보기',
-    href: '/community?category=question',
-    icon: 'chat',
-  },
-  {
-    kicker: '번개',
-    title: ['캐치볼 · 배팅', '같이 할 사람을 모아요'],
-    cta: '번개 보기',
-    href: '/community?category=meetup',
-    icon: 'people',
-  },
-];
 
 type Search = { [key: string]: string | string[] | undefined };
 const one = (v: string | string[] | undefined) =>
@@ -115,7 +90,7 @@ export default async function CommunityPage({
   });
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-10 lg:space-y-6">
       {/* 게시판 — 장터 품목과 같은 밑줄 줄, 맨 위(2026-10-24 '장터처럼 덜어내') */}
       <CategoryRow
         label="게시판"
@@ -126,10 +101,11 @@ export default async function CommunityPage({
         ]}
       />
 
+      {/* 바로가기는 휴대폰 · 패드만 — PC 는 게시판 탭 · 글쓰기 단추가 같은 길(2026-10-25 PC 개편) */}
       {landing && (
         <>
-          <MarketHero slides={SLIDES} label="커뮤니티 소식" />
           <ShortcutTiles
+            className="lg:hidden"
             label="커뮤니티 바로가기"
             items={[
               { href: writeHref, label: '글쓰기', icon: RoundPencil },
@@ -146,7 +122,7 @@ export default async function CommunityPage({
       <section className="space-y-5">
       <DugoutPageHeader
         title={category ? postCategoryLabel(category) : sort === 'hot' ? '인기 글' : '새 글'}
-        actions={landing ? undefined : <ButtonLink href={writeHref} size="sm">글쓰기</ButtonLink>}
+        actions={<ButtonLink href={writeHref} size="sm" className={landing ? 'hidden lg:inline-flex' : ''}>글쓰기</ButtonLink>}
       />
 
       {/* 거르기 — 구분 칩은 옆으로 미끄러지고(휴대폰), 정렬은 오른쪽 끝의 작은 둘 */}
@@ -237,7 +213,7 @@ export default async function CommunityPage({
               >
                 <Link
                   href={`/community/${post.id}`}
-                  className="group flex gap-4 py-5 transition-colors active:bg-ink/6"
+                  className="group flex gap-4 py-5 transition-colors active:bg-ink/6 lg:py-4 lg:hover:bg-ink/3"
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                   <div className="flex flex-wrap items-center gap-2">

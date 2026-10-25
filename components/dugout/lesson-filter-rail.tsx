@@ -66,9 +66,9 @@ export function LessonFilterRail({ current, prefs }: { current: ListQuery; prefs
     !!current.specialty || !!current.audience || !!current.when || !!current.band || !!current.region || !!current.q || prefs.length > 0;
 
   return (
-    <div className="rounded-2xl border border-line bg-surface px-4 py-1">
-      <div className="flex items-center justify-between border-b border-line py-3">
-        <p className="text-sm font-black text-ink">필터</p>
+    <div>
+      <div className="flex items-center justify-between border-b border-line pb-3">
+        <p className="text-base font-black text-ink">필터</p>
         {any ? (
           <Link href="/lessons/list" scroll={false} data-nav="none" className="text-xs font-semibold text-sky">
             필터 초기화

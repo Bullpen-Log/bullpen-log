@@ -130,13 +130,13 @@ export default async function DugoutHome({
           경기 칸은 오른쪽에 작게 따로(2026-10-24 금윤호 "야구 일정 결과를 우측으로 작게 빼 달라고") — 휴대폰이 아니면(768px~) 본문 오른쪽의 좁은 칸(220~240px)에 떠서
           내려도 따라오고(sticky), 본문은 왼쪽 넓은 칸 그대로 먼저. 휴대폰만 띠 밑에 오른쪽으로 붙은 작은 카드(본문 맨 위로 올라오지 않게).
         */}
-        {/* 두 칸 스크롤(첫 화면 ↔ 본문) — components/dugout/home-snap.tsx 가 이 칸을 위 막대 바로 밑에 세운다(scroll-margin 이 그 틈) */}
+        {/* 두 칸 스크롤(첫 화면 ↔ 본문) — 손가락 화면만. components/dugout/home-snap.tsx 가 이 칸을 위 막대 바로 밑에 세운다(scroll-margin 이 그 틈). PC 는 아무것도 안 한다 */}
         <HomeSnap />
         <div
           data-dugout-content
-          className={`mx-auto grid max-w-6xl scroll-mt-3 gap-6 pb-6 md:scroll-mt-5 ${sinkerApp ? '' : 'md:grid-cols-[minmax(0,1fr)_220px] lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8'}`}
+          className={`grid scroll-mt-3 gap-6 pb-6 md:scroll-mt-5 ${sinkerApp ? '' : 'md:grid-cols-[minmax(0,1fr)_220px] lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8'}`}
         >
-        <div className="min-w-0 space-y-16">
+        <div className="min-w-0 space-y-16 desk:space-y-12">
           {/* 로그인한 사람 — 최근 레슨(내 싱커 띠는 2026-10-23 금윤호 "덕아웃에서 내 싱커 블록도 없애줘") */}
           {/* 싱커 → 덕아웃 — 방금 잰 기록을 카드로 붙여 글을 연다(싱커 앱 안만, docs/designs/dugout-community.md '싱커에서 올리기') */}
           {records[0] && (
@@ -301,7 +301,11 @@ export default async function DugoutHome({
             )}
           </section>
         </div>
-        <aside data-games-aside className={sinkerApp ? 'hidden' : 'hidden md:block'}>
+        {/*
+          PC(2026-10-25 PC 개편): 첫 화면의 띠 옆 자리(띠 높이 min-h-36 + 첫 화면 밑 여백 pb-12 = 48 단위)까지 끌어올려 처음부터 오른쪽에 보이고,
+          굴리면 위 막대 밑에 붙어 따라온다 — 두 칸 스크롤 없이도 경기 칸이 하나로 이어진다. 첫 화면 쪽 칸(dugout-main)은 PC 에서 비운다.
+        */}
+        <aside className={sinkerApp ? 'hidden' : 'hidden md:block desk:-mt-48'}>
           <div className="sticky top-[calc(var(--dugout-bar-h)+1.2rem)]">
             <GamesPanel games={games} today={today} />
           </div>

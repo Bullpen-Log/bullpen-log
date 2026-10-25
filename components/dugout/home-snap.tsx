@@ -24,6 +24,8 @@ const NEAR_B = 4;
 const QUIET_MS = 180;
 const SETTLE_MS = 90;
 const TOUCH_SLOP = 6;
+/** PC 판단 — 마우스가 있는 화면(globals.css 의 desk 변형과 같은 조건, 폭은 안 본다) */
+const DESKTOP = '(hover: hover) and (pointer: fine)';
 
 /* cubic-bezier(0.22, 1, 0.36, 1) — 밀어 놓고 천천히 내려앉는 곡선(되튐 없음) */
 function bezier(x1: number, y1: number, x2: number, y2: number) {
@@ -53,6 +55,8 @@ type Stop = 'A' | 'B';
 export function HomeSnap() {
   useEffect(() => {
     const html = document.documentElement;
+    /* PC(2026-10-25 덕아웃 PC 개편) — 두 칸 스크롤 없이 여느 화면처럼 굴러가고 위 막대는 늘 선다(globals.css '덕아웃 첫 화면'과 같은 조건) */
+    if (matchMedia(DESKTOP).matches) return;
     const reduced = () => html.hasAttribute('data-reduce-motion') || matchMedia('(prefers-reduced-motion: reduce)').matches;
     let B = 0;
     let raf = 0;

@@ -8,8 +8,7 @@ import {
   RoundVenue,
 } from '@/components/round-icon';
 import { Badge } from '@/components/ui';
-import { CoachAvatar, CoachPhotoCard } from '@/components/dugout/coach-card';
-import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
+import { CoachAvatar, CoachPhotoCard, CoachRow } from '@/components/dugout/coach-card';
 import { CategoryRow, DugoutEmpty, DugoutPageHeader, SectionHead, ShortcutTiles, type Shortcut } from '@/components/dugout/ui';
 import { getCurrentUser } from '@/lib/dal';
 import { loadQuickCoaches, loadRecommendedCoaches, loadUpcomingBooking } from '@/lib/market/lesson-load';
@@ -21,30 +20,6 @@ import { SPECIALTIES, bookingStatusLabel, formatSlot, listHref } from '@/lib/mar
  * 기능 바로가기 → '추천 코치' 사진 카드 격자(테두리 · 칩 · 소개 없이) → 오늘 · 내일 가능(테두리 없는 얼굴 줄). 숫자 판 · 초록 판 · 안내 글은 걷었다
  * (같은 말은 띠 · 상세 · 예약 화면에 있다). 검색은 위 막대 통합검색이 코치도 찾는다. 로그인 없이 본다.
  */
-
-const SLIDES: readonly BannerSlide[] = [
-  {
-    kicker: '덕아웃 레슨',
-    title: ['다섯 질문이면', '나에게 맞는 코치를 찾아요'],
-    cta: '맞춤 찾기',
-    href: '/lessons/find',
-    icon: 'lesson',
-  },
-  {
-    kicker: '바로 가능',
-    title: ['오늘 · 내일 비어 있는', '코치 시간을 바로 잡아요'],
-    cta: '오늘 가능한 코치',
-    href: listHref({ when: 'today' }),
-    icon: 'flame',
-  },
-  {
-    kicker: '레슨비는 레슨 뒤에',
-    title: ['코치가 시간을 확정하고', '레슨이 끝난 뒤 결제돼요'],
-    cta: '코치 둘러보기',
-    href: '/lessons/list',
-    icon: 'shield',
-  },
-];
 
 const SHORTCUTS: Shortcut[] = [
   { href: '/lessons/find', label: '맞춤 찾기', icon: RoundSearch },
@@ -75,8 +50,8 @@ export default async function LessonsHubPage() {
         ]}
       />
 
-      <MarketHero slides={SLIDES} label="레슨 소식" />
-      <ShortcutTiles items={SHORTCUTS} label="레슨 바로가기" />
+      {/* 바로가기는 휴대폰 · 패드만 — PC 는 종목 줄 · 제목 옆 단추가 같은 길(2026-10-25 PC 개편) */}
+      <ShortcutTiles items={SHORTCUTS} label="레슨 바로가기" className="lg:hidden" />
 
       {/* 내 레슨 — 다가오는 예약이 있을 때만 한 줄(테두리 없이 회색 판) */}
       {upcoming && (
@@ -104,9 +79,17 @@ export default async function LessonsHubPage() {
         <DugoutPageHeader
           title="추천 코치"
           actions={
-            <Link href={listHref({ sort: 'rating' })} className="text-sm font-semibold text-muted hover:text-ink">
-              전체 보기 ›
-            </Link>
+            <>
+              <Link
+                href="/lessons/find"
+                className="hidden min-h-9 items-center rounded-full bg-sky px-4 text-sm font-bold text-white transition-colors hover:bg-sky-strong lg:inline-flex"
+              >
+                맞춤 찾기
+              </Link>
+              <Link href={listHref({ sort: 'rating' })} className="text-sm font-semibold text-muted hover:text-ink">
+                전체 보기 ›
+              </Link>
+            </>
           }
         />
         {recommended.length === 0 ? (
@@ -117,13 +100,23 @@ export default async function LessonsHubPage() {
             cta="레슨장 지도 보기"
           />
         ) : (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:grid-cols-6">
-            {recommended.map((c, i) => (
-              <div key={c.id} className="motion-safe:animate-row-in" style={{ ['--row' as string]: i }}>
-                <CoachPhotoCard c={c} href={`/lessons/${c.id}`} />
-              </div>
-            ))}
-          </div>
+          <>
+            {/* 휴대폰 · 패드 — 사진 카드 격자. PC — 작은 아바타 비교 줄(큰 첫 글자 판은 사진이 아니라 정보가 아니었다, 2026-10-25) */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:hidden">
+              {recommended.map((c, i) => (
+                <div key={c.id} className="motion-safe:animate-row-in" style={{ ['--row' as string]: i }}>
+                  <CoachPhotoCard c={c} href={`/lessons/${c.id}`} />
+                </div>
+              ))}
+            </div>
+            <div className="hidden divide-y divide-line border-y border-line lg:block">
+              {recommended.map((c, i) => (
+                <div key={c.id} className="motion-safe:animate-row-in" style={{ ['--row' as string]: i }}>
+                  <CoachRow c={c} href={`/lessons/${c.id}`} />
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </section>
 
@@ -131,9 +124,9 @@ export default async function LessonsHubPage() {
       {quick.length > 0 && (
         <section className="space-y-4">
           <SectionHead title="오늘 · 내일 바로 가능" href={listHref({ when: 'today' })} />
-          <div className="no-scrollbar -mx-4 flex gap-6 overflow-x-auto px-4 md:mx-0 md:px-0 lg:grid lg:grid-cols-6 lg:gap-4 lg:overflow-visible">
+          <div className="no-scrollbar -mx-4 flex gap-6 overflow-x-auto px-4 md:mx-0 md:px-0 lg:flex-wrap lg:gap-x-8 lg:overflow-visible">
             {quick.map((c) => (
-              <Link key={c.id} href={`/lessons/${c.id}/book`} className="group flex w-24 shrink-0 flex-col items-center gap-2 text-center lg:w-auto">
+              <Link key={c.id} href={`/lessons/${c.id}/book`} className="group flex w-24 shrink-0 flex-col items-center gap-2 text-center lg:w-auto lg:flex-row lg:gap-3 lg:text-left">
                 <CoachAvatar name={c.coach} size="lg" className="transition-transform duration-200 group-hover:-translate-y-0.5 motion-reduce:transform-none" />
                 <span className="w-full min-w-0">
                   <span className="block truncate text-sm font-semibold text-ink">{c.coach} 코치</span>

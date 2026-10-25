@@ -2,14 +2,14 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CoachAvatar, CoachCard, CoachTile } from '@/components/dugout/coach-card';
+import { CoachAvatar, CoachCard, CoachRow } from '@/components/dugout/coach-card';
 import type { CoachCard as CoachCardData } from '@/lib/market/lesson-load';
 import { COMPARE_MAX } from '@/lib/market/lessons';
 
 /**
  * 코치 목록 + 비교함(3판) — 카드 오른쪽 위 체크로 최대 셋을 담으면 아래에 '비교하기' 막대가 뜬다(휴대폰 아래 탭 위).
  * 비교는 주소(/lessons/compare?ids=)라 공유할 수 있다. 카드 자체는 상세로 간다.
- * PC(lg, 2026-10-24): 두 칸 카드 격자(CoachTile), 비교 막대는 담은 코치 얼굴과 함께 아래에서 올라온다.
+ * PC(lg, 2026-10-25): 열이 맞는 비교 줄(CoachRow), 비교 막대는 담은 코치 얼굴과 함께 아래에서 올라온다.
  */
 export function CoachList({ coaches, bookQuery }: { coaches: CoachCardData[]; bookQuery: string }) {
   const [picked, setPicked] = useState<string[]>([]);
@@ -57,11 +57,11 @@ export function CoachList({ coaches, bookQuery }: { coaches: CoachCardData[]; bo
         ))}
       </div>
 
-      {/* PC — 두 칸 카드 */}
-      <div className="hidden gap-4 lg:grid lg:grid-cols-2">
+      {/* PC — 비교 줄(2026-10-25 PC 개편: 두 칸 카드 → 열이 맞는 줄) */}
+      <div className="hidden divide-y divide-line border-y border-line lg:block">
         {coaches.map((c, i) => (
           <div key={c.id} className="motion-safe:animate-row-in" style={{ ['--row' as string]: i }}>
-            <CoachTile c={c} href={hrefOf(c)} actions={pickToggle(c)} />
+            <CoachRow c={c} href={hrefOf(c)} actions={pickToggle(c)} />
           </div>
         ))}
       </div>

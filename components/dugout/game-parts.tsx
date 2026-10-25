@@ -127,3 +127,56 @@ export function GameCard({ g }: { g: Game }) {
     </li>
   );
 }
+
+/**
+ * 일정 한 줄(전체 일정 화면, 2026-10-25 덕아웃 PC 개편) — 카드 격자 대신 열이 맞는 줄: 왼쪽 때 · 구장, 가운데 두 팀(점수), 오른쪽 선발 또는 승 · 패 투수.
+ * 경기가 적은 날도 많은 날도 같은 꼴이라 한눈에 견준다. 휴대폰은 오른쪽 투수 칸이 밑줄로 내려온다.
+ */
+export function GameListRow({ g }: { g: Game }) {
+  const pitchers =
+    g.status === 'before' && (g.away.starter || g.home.starter) ? (
+      <>
+        선발 <span className="font-semibold text-ink">{g.away.starter ?? '미정'}</span> vs{' '}
+        <span className="font-semibold text-ink">{g.home.starter ?? '미정'}</span>
+      </>
+    ) : g.status === 'result' && (g.winPitcher || g.losePitcher) ? (
+      <>
+        {g.winPitcher && (
+          <>
+            승 <span className="font-semibold text-ink">{g.winPitcher}</span>
+          </>
+        )}
+        {g.winPitcher && g.losePitcher && ' · '}
+        {g.losePitcher && (
+          <>
+            패 <span className="font-semibold text-ink">{g.losePitcher}</span>
+          </>
+        )}
+      </>
+    ) : null;
+  return (
+    <li>
+      <Link
+        href={`/baseball/${g.id}`}
+        className="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-x-4 gap-y-2 py-3.5 transition-colors hover:bg-ink/3 sm:grid-cols-[96px_minmax(0,1fr)_minmax(0,220px)]"
+      >
+        <p className="text-[13px] leading-tight text-muted">
+          {g.status === 'live' ? (
+            <span className="font-bold text-danger">진행 중</span>
+          ) : g.status === 'cancel' ? (
+            <span className="font-semibold text-warn">{g.info || '취소'}</span>
+          ) : (
+            <span className="font-semibold text-ink tabular-nums">{g.time}</span>
+          )}
+          {g.stadium && <span className="mt-0.5 block truncate text-xs">{g.stadium}</span>}
+          {g.status === 'live' && g.info && <span className="mt-0.5 block text-xs font-semibold text-danger">{g.info}</span>}
+        </p>
+        <div className="min-w-0 space-y-1">
+          <TeamLine team={g.away} win={g.winner === 'away'} lose={g.winner === 'home'} big />
+          <TeamLine team={g.home} win={g.winner === 'home'} lose={g.winner === 'away'} big />
+        </div>
+        {pitchers && <p className="col-span-2 text-[13px] text-muted sm:col-span-1 sm:text-right">{pitchers}</p>}
+      </Link>
+    </li>
+  );
+}

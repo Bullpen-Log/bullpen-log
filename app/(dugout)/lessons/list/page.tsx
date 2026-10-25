@@ -34,7 +34,7 @@ const one = (v: string | string[] | undefined) =>
 /**
  * 코치 목록(3판) — 찾기 흐름의 답 · 검색 · 종목으로 거른 코치. 조건은 모두 주소에(공유 · 뒤로가기가 된다).
  * 위: 조건 칩(누르면 그 조건만 빠짐) · 정렬. 목록: 코치 카드 + 비교 체크(최대 셋) → 아래 '비교하기' 막대(components/dugout/coach-list.tsx).
- * PC(lg, 2026-10-24): 왼쪽 늘 보이는 거르기 판(components/dugout/lesson-filter-rail.tsx) · 가운데 머리 줄(결과 수 · 켠 조건 · 정렬) · 두 칸 카드 격자.
+ * PC(lg, 2026-10-24 · 25 개편): 왼쪽 216px 거르기 판(components/dugout/lesson-filter-rail.tsx) · 가운데 머리 줄(결과 수 · 켠 조건 · 정렬) · 열이 맞는 비교 줄.
  */
 export default async function CoachListPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
@@ -137,9 +137,9 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
         </Link>
       }
     >
-      <div className="lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start lg:gap-8">
+      <div className="lg:grid lg:grid-cols-[216px_minmax(0,1fr)] lg:items-start lg:gap-6">
         {/* PC 거르기 판 — 머리 밑에 붙어 따라온다 */}
-        <aside className="hidden lg:sticky lg:top-[calc(var(--dugout-bar-h)+1rem)] lg:block lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:overscroll-contain">
+        <aside className="hidden lg:sticky lg:top-[calc(var(--dugout-bar-h)+1.5rem)] lg:block lg:max-h-[calc(100dvh-var(--dugout-bar-h)-3rem)] lg:overflow-y-auto lg:overscroll-contain">
           <LessonFilterRail current={current} prefs={prefs} />
         </aside>
 
