@@ -363,7 +363,7 @@ function run(name: string, sc: Scene, tolRel: number) {
       chosenFar.measure.ok && chosenFar.measure.confidence === 'low' && chosenFar.distance.why === 'size-mismatch' && chosenFar.distance.distanceM === 15,
       `고른 거리 값 — 고른 15m(공 크기 ${chosenFar.distance.sizeDistM}m)면 ${chosenFar.measure.ok ? chosenFar.measure.confidence : '-'} · ${chosenFar.distance.why ?? '까닭 없음'} · 거리 ${chosenFar.distance.distanceM}m`
     );
-    /* 문은 짧은 쪽 22% · 긴 쪽 15%(번짐은 공 크기 거리를 짧게만 잡는다) — 고른 20m 에 공 크기 16.5 · 22.9m 통과, 15 · 23.2m 거리 오류 */
+    /* 문은 짧은 쪽 22% · 긴 쪽 15%(앱 녹화의 공 크기 거리는 짧게만 틀렸다) — 고른 20m 에 공 크기 16.5 · 22.9m 통과, 15 · 23.2m 거리 오류 */
     check(
       !sizeGateFails(16.5, 20) && !sizeGateFails(22.9, 20) && sizeGateFails(15, 20) && sizeGateFails(23.2, 20),
       '문 — 짧은 쪽 22% · 긴 쪽 15%'
