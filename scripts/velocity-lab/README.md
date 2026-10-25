@@ -70,6 +70,9 @@ xcrun devicectl device process launch --device <폰 UDID> --console --terminate-
 더 깊이 볼 때는 `cdp.mjs` 의 `open()` 으로 쪽을 열고 `window.__m['detect']` 같은 엔진 모듈과 `window.__open()`(영상 열기 ·
 `luma(t)`)을 직접 부른다.
 
+**현장 시험 비교표(PitchLab 방식, 엔진 2.8.2)** — 그날 시도마다 화면 값(공 크기 거리 · 15% 문) · 고른 값(고른 거리, `kmhAtInput`)을 스피드건과 견준다(DB 읽기만):
+`node --env-file=.env scripts/velocity-lab/field-report.mjs --date=YYYY-MM-DD [--gun=118,121,…] [--tape=22.4]`. 스피드건을 앱에 안 넣었으면 `--gun` 에 순서대로.
+
 ## 함정
 
 - **장면은 앱과 같은 디코더 길(mediabunny)로 푼다**(2026-10-16 부터 — cdp.mjs 가 mediabunny 를 쪽에 같이 올린다). 그 전에는 늘 되감기 길이라
