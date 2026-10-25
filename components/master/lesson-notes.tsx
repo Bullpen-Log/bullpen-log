@@ -37,11 +37,17 @@ export function LessonNotes({
   memberId,
   orgKind,
   todayKey,
+  canLink,
+  selfLogs,
   notes,
 }: {
   memberId: string;
   orgKind: OrgKind;
   todayKey: string;
+  /** 던진 공이 선수 투구 기록에 들어가나(가입 · 투구 공유) — 2단계 */
+  canLink: boolean;
+  /** 선수가 최근 7일 직접 남긴 기록 — 같은 공이면 잇는다 */
+  selfLogs: { id: string; key: string; label: string }[];
   notes: NoteView[];
 }) {
   const [state, action] = useActionState<OrgActionState, FormData>(
@@ -147,7 +153,7 @@ export function LessonNotes({
                 placeholder="0"
               />
             </Field>
-            <Field label="강도 1~10" hint="선택">
+            <Field label="강도 1~10" hint={canLink ? '던진 공이 있으면 꼭' : '선택'}>
               <Input
                 name="intensity"
                 type="number"
@@ -158,6 +164,30 @@ export function LessonNotes({
               />
             </Field>
           </div>
+          {canLink ? (
+            <Field
+              label="던진 공을 선수 투구 기록에"
+              hint="선수가 그날 직접 남긴 기록이 있으면 같은 공인지 골라요(두 번 세지 않게)"
+            >
+              <select
+                name="link"
+                defaultValue=""
+                className="h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink"
+              >
+                <option value="">새로 남기기(선수 기록이 없을 때)</option>
+                <option value="new">따로 던진 공 — 새로 남기기</option>
+                {selfLogs.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {fmt(l.key)} {l.label}에 잇기
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : (
+            <p className="text-xs text-muted">
+              가입 전이거나 투구 기록 공유를 안 켜서 던진 공은 노트에만 남아요.
+            </p>
+          )}
           {state?.error && <FormError>{state.error}</FormError>}
           <Submit />
         </form>

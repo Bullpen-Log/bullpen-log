@@ -14,7 +14,9 @@ import { loadMember, memberCardOf } from '@/lib/org/player-data';
 import { CONSENT_SCOPES, ORG_WORDS, realNow } from '@/lib/org/rules';
 import { SLEEP_QUALITY_LEVELS } from '@/lib/checkin';
 import { appNow } from '@/lib/clock';
-import { toDateKey } from '@/lib/pitch-stats';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
+import { memberScope } from '@/lib/org/rules';
+import { dbDate } from '@/lib/nutrition/days';
 import { prisma } from '@/lib/prisma';
 
 /**
@@ -35,7 +37,9 @@ export default async function MemberPage({
   const now = appNow();
   const todayKey = toDateKey(now);
 
-  const [card, notes, passes, reports] = await Promise.all([
+  /* 일지의 던진 공을 이을 선수 기록 후보(2단계) — 가입 · 투구 공유를 켠 회원의 최근 7일 직접 남긴 기록 */
+  const canLink = !!member.user && memberScope(member.consent, true).pitch;
+  const [card, notes, passes, reports, selfLogs] = await Promise.all([
     memberCardOf(member, now),
     prisma.lessonNote.findMany({
       where: { memberId: member.id },
@@ -63,6 +67,13 @@ export default async function MemberPage({
       take: 3,
       select: { id: true, token: true, expiresAt: true, lastOpenedAt: true },
     }),
+    canLink && member.user
+      ? prisma.pitchLog.findMany({
+          where: { userId: member.user.id, enteredById: null, pitchCount: { gt: 0 }, date: { gte: dbDate(shiftDateKey(todayKey, -6)) } },
+          orderBy: [{ date: 'desc' }, { createdAt: 'asc' }],
+          select: { id: true, date: true, sessionType: true, pitchCount: true },
+        })
+      : Promise.resolve([]),
   ]);
   const shared = CONSENT_SCOPES.filter((s) => card?.scope[s.key]).map(
     (s) => s.label.split(' · ')[0]
@@ -315,6 +326,8 @@ export default async function MemberPage({
         memberId={member.id}
         orgKind={org.kind}
         todayKey={todayKey}
+        canLink={canLink}
+        selfLogs={selfLogs.map((l) => ({ id: l.id, key: toDateKey(l.date), label: `${l.sessionType} ${l.pitchCount}구` }))}
         notes={notes.map((n) => ({
           id: n.id,
           key: n.date.toISOString().slice(0, 10),
