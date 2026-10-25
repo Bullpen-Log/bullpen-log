@@ -1,4 +1,4 @@
-/** Native gesture callbacks, with rendering/animation drivers replaced by deterministic doubles.
+/** Native responder callbacks, with rendering/animation drivers replaced by deterministic doubles.
  * Run: node scripts/native-tab-bar-selftest.mjs
  * UIKit refraction and spring appearance still require an iPhone check.
  */
@@ -14,7 +14,7 @@ let checks = 0;
 const check = (actual, expected, message) => { assert.deepEqual(actual, expected, message); checks++; };
 
 function harness({ count = 5, reduce = false, glass = true, width = 390, deferSpring = false } = {}) {
-  let cursor = 0, effects = [], tree, gesture, clock = 1000, nextTimer = 1, retaps = 0;
+  let cursor = 0, effects = [], tree, clock = 1000, nextTimer = 1, retaps = 0;
   const slots = [], timers = new Map(), calls = [];
   let tabs = Array.from({ length: count }, (_, i) => ({ href: `/tab-${i}`, label: `Tab ${i}`, icon: 'home' }));
   let props = { tabs, active: tabs[0]?.href ?? null, onPress: t => calls.push(t.href) };
@@ -39,17 +39,10 @@ function harness({ count = 5, reduce = false, glass = true, width = 390, deferSp
   };
   const Animated = { View: 'AnimatedView' };
   const native = { Pressable: 'Pressable', Text: 'Text', View: 'View', useWindowDimensions: () => ({ width }), StyleSheet: { create: x => x, absoluteFill: {} } };
-  const factory = () => {
-    const g = { handlers: {}, config: {} };
-    for (const name of ['enabled', 'maxPointers', 'minDistance', 'shouldCancelWhenOutside', 'cancelsTouchesInView']) g[name] = v => { g.config[name] = v; return g; };
-    for (const name of ['onBegin', 'onStart', 'onUpdate', 'onEnd', 'onFinalize']) g[name] = fn => { g.handlers[name] = fn; return g; };
-    gesture = g; return g;
-  };
   const mocks = {
     react: React,
     'react/jsx-runtime': { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }), Fragment: 'Fragment' },
     'react-native': native,
-    'react-native-gesture-handler': { Gesture: { Pan: factory }, GestureDetector: 'GestureDetector' },
     'react-native-reanimated': { __esModule: true, default: Animated, Easing: { bezier: () => 0 }, Extrapolation: { CLAMP: 'clamp' }, interpolate, useAnimatedStyle: fn => ({ sample: fn }), useReducedMotion: () => reduce, useSharedValue: shared, withSpring: (v, c, cb) => { cb?.(true); return deferSpring ? { deferredSpring: true, target: v } : v; }, withTiming: (v, c, cb) => { cb?.(true); return v; }, runOnJS: fn => fn },
     'expo-haptics': { selectionAsync: () => {} },
     'expo-glass-effect': { GlassView: 'GlassView', isLiquidGlassAvailable: () => glass },
@@ -78,60 +71,82 @@ function harness({ count = 5, reduce = false, glass = true, width = 390, deferSp
   render();
   const preview = () => visit(tree, n => n.type?.name === 'TabFace')?.props.preview.get();
   const press = (i, advance = 500) => { clock += advance; visit(tree, n => n.type === 'Pressable' && n.props.accessibilityLabel === `Tab ${i}`).props.onPress(); };
-  const fire = (name, e = {}, success = true) => gesture.handlers[name]?.({ x: 34.2, y: 26, translationX: 0, translationY: 0, velocityX: 0, ...e }, success);
-  return { render, fire, press, calls, preview, timers, get retaps() { return retaps; }, get config() { return gesture.config; }, expire: () => { for (const fn of [...timers.values()]) fn(); timers.clear(); }, cloneTabs: () => tabs.map(t => ({ ...t })) };
+  const surface = () => visit(tree, n => n.props?.onResponderGrant);
+  const fire = (name, e = {}) => {
+    const { x = 34.2, y = 26, fingers = name === 'onResponderRelease' ? 0 : 1, ...rest } = e;
+    clock += 16;
+    return surface().props[name]?.({ nativeEvent: {
+      locationX: x, locationY: y, pageX: 100 + x, pageY: 700 + y,
+      timestamp: clock, touches: Array.from({ length: fingers }, (_, identifier) => ({ identifier })), ...rest,
+    } });
+  };
+  return { render, fire, press, calls, preview, timers, surface, get retaps() { return retaps; }, expire: () => { for (const fn of [...timers.values()]) fn(); timers.clear(); }, cloneTabs: () => tabs.map(t => ({ ...t })) };
+
 }
 
 for (const glass of [true, false]) for (const reduce of [true, false]) {
   const h = harness({ glass, reduce });
-  check(h.config.minDistance, 0, 'press is tracked without waiting for a long press');
-  h.fire('onBegin'); h.fire('onStart');
-  h.fire('onUpdate', { x: 307.8, translationX: 0, velocityX: 900 });
-  check(h.calls.length, 0, 'scrubbing never navigates through intermediate tabs');
-  check(h.preview(), 4, 'candidate color follows the finger, even when native translation resets at activation');
-  h.fire('onEnd', { x: 307.8 }); h.fire('onFinalize');
-  check(h.calls, ['/tab-4'], 'release navigates once');
+  check(h.surface().props.onStartShouldSetResponder(), true, 'input surface claims stationary touches');
+  h.fire('onResponderGrant', { x: 171 });
+  h.fire('onResponderRelease', { x: 171 });
+  check(h.calls, ['/tab-2'], 'a stationary tap navigates without requiring a pan to activate');
+  h.render({ active: '/tab-2' });
+  h.fire('onResponderGrant', { x: 34.2 });
+  h.fire('onResponderMove', { x: 307.8, locationX: 2 });
+  check(h.calls.length, 1, 'scrubbing never navigates through intermediate tabs');
+  check(h.preview(), 4, 'candidate uses page coordinates even when event target coordinates change');
+  h.fire('onResponderRelease', { x: 307.8 });
+  h.fire('onResponderRelease', { x: 307.8 });
+  check(h.calls, ['/tab-2', '/tab-4'], 'release navigates exactly once');
   h.render({ tabs: h.cloneTabs() });
   check(h.preview(), 4, 'fresh arrays/old active route do not bounce selection back');
   h.render({ active: '/tab-4' });
   check(h.timers.size, 0, 'route acknowledgement clears rollback timer');
-  h.fire('onBegin', { x: 307.8 }); h.fire('onStart');
-  h.fire('onUpdate', { x: 100, translationX: -207.8 });
-  h.fire('onFinalize', {}, false);
+  h.fire('onResponderGrant', { x: 307.8 });
+  h.fire('onResponderMove', { x: 100 });
+  h.fire('onResponderTerminate');
+  h.fire('onResponderRelease', { x: 100 });
   check(h.preview(), 4, 'cancel restores committed selection');
-  check(h.calls.length, 1, 'cancel never navigates');
-  h.fire('onBegin', { x: 307.8 }); h.fire('onStart');
-  h.fire('onUpdate', { x: 100, y: -100, translationX: -207.8 });
-  h.fire('onEnd', { x: 100, y: -100 }); h.fire('onFinalize');
-  check(h.calls.length, 1, 'release far outside cancels');
-}
-{
-  const h = harness();
-  h.fire('onBegin', { x: 171 }); h.fire('onStart');
-  h.fire('onEnd', { x: 171 }); h.fire('onEnd', { x: 171 }); h.fire('onFinalize');
-  check(h.calls, ['/tab-2'], 'duplicate end/finalize cannot dispatch twice');
-  h.press(2, 0); check(h.calls.length, 1, 'native touch does not also dispatch Pressable onPress');
-  h.expire(); check(h.preview(), 0, 'unacknowledged navigation rolls back');
-  h.fire('onBegin'); h.fire('onFinalize', {}, false); h.press(1, 0);
-  check(h.calls.at(-1), '/tab-1', 'short taps that never activate Pan retain Pressable fallback');
-}
-{
-  const h = harness(); h.press(0);
-  check(h.retaps, 1, 'accessibility retap scrolls the current tab to top');
-  check(h.calls.length, 0, 'retap does not reload the current route');
-  h.press(3); check(h.calls, ['/tab-3'], 'accessibility activation still works');
-  h.render({ active: '/tab-3' });
-  h.fire('onBegin', { x: 239.4 }); h.fire('onStart');
-  h.fire('onUpdate', { x: 307.8 });
-  h.render({ tabs: h.cloneTabs().slice(0, 3), active: '/tab-0' });
-  h.fire('onEnd', { x: 100 }); h.fire('onFinalize');
-  check(h.calls.length, 1, 'menu changes during a drag invalidate the old gesture');
+  check(h.calls.length, 2, 'system cancellation never navigates');
+  h.fire('onResponderGrant', { x: 307.8 });
+  h.fire('onResponderRelease', { x: 100, y: -100 });
+  check(h.calls.length, 2, 'release far outside cancels');
+  h.fire('onResponderGrant');
+  h.fire('onResponderStart', { fingers: 2 });
+  h.fire('onResponderRelease', { x: 100 });
+  check(h.calls.length, 2, 'second finger cancels the entire contact');
 }
 {
   const h = harness({ deferSpring: true });
-  h.fire('onBegin', { x: 239.4 }); h.fire('onStart');
-  h.fire('onEnd', { x: 239.4 }); h.fire('onFinalize');
-  check(h.calls, ['/tab-3'], 'a quick tap selects the touched tab before the spring reaches it');
+  for (const i of [3, 1, 4, 2, 0, 4]) {
+    const x = (i + 0.5) * 68.4;
+    h.fire('onResponderGrant', { x }); h.fire('onResponderRelease', { x });
+    h.render({ active: `/tab-${i}` });
+  }
+  check(h.calls, ['/tab-3', '/tab-1', '/tab-4', '/tab-2', '/tab-0', '/tab-4'], 'rapid sequential taps are never blocked, even before springs finish');
+  h.fire('onResponderGrant', { x: 307.8 }); h.render({ tabs: h.cloneTabs().slice(0, 3), active: '/tab-0' });
+  h.fire('onResponderRelease', { x: 100 });
+  check(h.calls.length, 6, 'menu changes invalidate the contact');
+}
+{
+  const h = harness();
+  h.fire('onResponderGrant', { x: 239.4 }); h.render();
+  h.fire('onResponderRelease', { x: 239.4 });
+  check(h.calls, ['/tab-3'], 'a render while pressed preserves contact ownership');
+  h.expire(); check(h.preview(), 0, 'unacknowledged navigation rolls back');
+  h.press(0, 0); check(h.retaps, 1, 'accessibility activation still emits retap');
+  h.press(2, 0); check(h.calls.at(-1), '/tab-2', 'accessibility tab activation navigates directly');
+}
+// Full-width hit regions for sport/main bars and compact/large phones.
+for (const count of [3, 5, 6]) for (const width of [320, 390, 480]) {
+  const h = harness({ count, width });
+  const cell = (Math.min(width - 40, 448) - 8) / count;
+  for (let i = 0; i < count; i++) {
+    const x = (i + 0.5) * cell;
+    h.fire('onResponderGrant', { x }); h.fire('onResponderRelease', { x });
+    if (i > 0) check(h.calls.at(-1), `/tab-${i}`, 'all tab centers remain tappable across phone/bar sizes');
+    h.render({ active: `/tab-${i}` });
+  }
 }
 // Geometry invariants cover narrow/sport bars as well as five tabs.
 const geometryExports = {};
@@ -152,4 +167,4 @@ for (const count of [1, 3, 5, 6]) for (const cell of [36, 52, 70, 90]) {
 check(tabIndexAt(NaN, 70, 5), -1, 'invalid coordinates never select a tab');
 check(tabIndexAt(10, 0, 5), -1, 'unmeasured bars do not select');
 check(tabReleaseIndex(10, 10, NaN, 70, 5), -1, 'invalid releases cancel');
-console.log(`Tab bar gesture scenarios passed: ${checks}`);
+console.log(`Tab bar responder scenarios passed: ${checks}`);
