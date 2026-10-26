@@ -75,6 +75,8 @@ const drills = ['기초', '연결', '통합'].map((stage) => ({
 const report = buildReport(result, { heightCm: 180, ground: 'mound', youth: false, drills });
 globalThis.__reportMetrics.drift.aheadAtKneeUp = 0.1;
 const heldReport = buildReport(result, { heightCm: 180, ground: 'mound', youth: false, drills });
+globalThis.__reportMetrics.arm.conf = 10;
+const hardReport = buildReport(result, { heightCm: 180, ground: 'mound', youth: false, drills });
 const c = {
   page: '#fff',
   card: '#fff',
@@ -88,11 +90,33 @@ const c = {
   action: '#0088ff',
 };
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, { c, ...props }));
+/* 웹: 참고 · 확인 어려움을 모양과 접근성 이름으로 가른다(색만이 아니라) */
+const webFlow = renderToStaticMarkup(React.createElement(web.FlowCard, { report: hardReport, onPick() {} }));
+assert.match(webFlow, /aria-label="브레이크 참고"/);
+assert.match(webFlow, /aria-label="스로잉 확인 어려움"/);
+assert.match(webFlow, /border-2 border-muted bg-surface[^"]*"[^>]*><span class="size-1.5 rounded-full bg-muted"/, '참고 = 실선 고리 + 가운데 점');
+assert.match(webFlow, /border-dashed border-line-strong bg-surface[^"]*"[^>]*><\/span>/, '확인 어려움 = 점선 빈 고리');
 for (const components of [native, web]) {
   const flow = render(components.FlowCard, { report: { ...report, primary: '몸통 회전' }, onPick() {} });
-  assert.match(flow, /평가 1개 · 참고 5개 · 미판정 0개/);
+  assert.match(flow, /수치 확인 6\/6 · 평가 가능 1\/6/);
   assert.match(flow, /지표 검증 중/);
   assert.match(flow, /회전 속도를 평가한 값은 아니에요/);
+  /* 참고 항목은 관찰이 주 설명, 검증 안내는 띠 밑 보조 문구 */
+  assert.match(flow, /공을 놓을 때 몸통이 앞으로 30° 기울어져 있어요/);
+  assert.match(flow, /동작이나 촬영에 문제가 있다는 뜻은 아니에요/);
+  assert.doesNotMatch(flow, /수치를 참고로만 확인해요/);
+  assert.ok(flow.indexOf('기울어져 있어요') < flow.indexOf('동작이나 촬영에 문제가'), '관찰이 제한 안내보다 먼저');
+  for (const [el, re] of [
+    ['드롭', /골반 높이가 다리 길이의 36%만큼 내려가요/],
+    ['상하체 분리', /40° 닫혀 있어요/],
+    ['브레이크', /최대 30° 더 굽어져요/],
+    ['스로잉', /어깨 벌림은 88°예요/],
+  ])
+    assert.match(render(components.FlowCard, { report: { ...report, primary: el }, onPick() {} }), re, el);
+  const hard = render(components.FlowCard, { report: { ...hardReport, primary: '스로잉' }, onPick() {} });
+  assert.match(hard, /확인 어려움/);
+  assert.match(hard, /착지 때 던지는 팔이 영상에서 잘 보이지 않아/);
+  assert.match(hard, /수치 확인 5\/6 · 평가 가능 1\/6/);
   const rx = render(components.RxCard, { report, reportId: 'r1', mine: true, focus: null });
   assert.match(rx, /레그 리프트 드리프트/);
   assert.match(rx, /기초/);
@@ -112,4 +136,4 @@ for (const components of [native, web]) {
   assert.match(render(components.FlowCard, { report: old, onPick() {} }), /이전 판정 기준/);
   assert.match(render(components.RxCard, { report: old, reportId: 'r1', mine: true, focus: null }), /기준을 업데이트/);
 }
-console.log('앱·웹 리포트 렌더 검사 통과: 확인 범위·측정 지표·기초 시작·자동 처방 보류·이전 서버 응답 호환');
+console.log('앱·웹 리포트 렌더 검사 통과: 확인 범위·참고 관찰·확인 어려움 구분·측정 지표·기초 시작·자동 처방 보류·이전 서버 응답 호환');

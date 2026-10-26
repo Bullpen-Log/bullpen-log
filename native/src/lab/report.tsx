@@ -69,8 +69,11 @@ function dotStyle(c: Palette, st: ReportStatus) {
       return { backgroundColor: c.lineStrong };
     case 'good':
       return { backgroundColor: c.ok };
+    /* 참고 = 수치를 잰 지표(실선 고리 + 가운데 점), 확인 못 함 = 점선 빈 고리 — 색만으로 가르지 않는다 */
+    case 'note':
+      return { borderWidth: 2, borderColor: c.muted, backgroundColor: c.card };
     default:
-      return { borderWidth: 1, borderStyle: 'dashed' as const, borderColor: c.muted, backgroundColor: c.card };
+      return { borderWidth: 1.5, borderStyle: 'dashed' as const, borderColor: c.lineStrong, backgroundColor: c.card };
   }
 }
 
@@ -84,7 +87,9 @@ function StatusTag({ c, status }: { c: Palette; status: ReportStatus }) {
           ? { backgroundColor: `${c.ok}22` }
           : status === 'fair'
             ? { backgroundColor: c.chip }
-            : { borderWidth: 1, borderStyle: 'dashed' as const, borderColor: c.muted };
+            : status === 'note'
+              ? { borderWidth: 1, borderColor: c.muted }
+              : { borderWidth: 1, borderStyle: 'dashed' as const, borderColor: c.lineStrong };
   const fg = status === 'improve' || status === 'edge' ? c.warn : status === 'good' ? c.ok : c.muted;
   return (
     <View style={[s.pill, box]}>
@@ -166,7 +171,9 @@ export function FlowCard({ c, report, onPick }: { c: Palette; report: PitchRepor
                   }}
                   style={s.node}
                 >
-                  <View style={[s.dot, dotStyle(c, i.status)]} />
+                  <View style={[s.dot, dotStyle(c, i.status)]}>
+                    {i.status === 'note' ? <View style={[s.dotCore, { backgroundColor: c.muted }]} /> : null}
+                  </View>
                   <Text numberOfLines={1} style={[s.nodeText, { color: on ? c.ink : c.muted, fontWeight: on ? '600' : '400' }]}>
                     {i.element}
                   </Text>
@@ -181,7 +188,6 @@ export function FlowCard({ c, report, onPick }: { c: Palette; report: PitchRepor
             <StatusTag c={c} status={it.status} />
           </View>
           <Text style={[TYPE.body, { color: c.ink, lineHeight: 21 }]}>{it.line}</Text>
-          <Text style={[TYPE.sub, { color: c.muted }]}>{measurementText(it)}</Text>
           {it.metricNote ? <Text style={[TYPE.sub, { color: c.muted }]}>{it.metricNote}</Text> : null}
           {it.value ? (
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
@@ -191,6 +197,7 @@ export function FlowCard({ c, report, onPick }: { c: Palette; report: PitchRepor
           ) : null}
           {it.gauge ? <Gauge c={c} g={it.gauge} muted={it.status === 'note' || it.status === 'unsure'} /> : null}
           {it.foot ? <Text style={[TYPE.sub, { color: c.muted }]}>{it.foot}</Text> : null}
+          <Text style={[TYPE.sub, { color: c.muted }]}>{measurementText(it)}</Text>
         </View>
       </View>
     </View>
@@ -318,7 +325,8 @@ const s = StyleSheet.create({
   chainLine: { position: 'absolute', left: 22, right: 22, top: 8, height: StyleSheet.hairlineWidth * 2 },
   chain: { flexDirection: 'row', justifyContent: 'space-between' },
   node: { width: 52, alignItems: 'center', gap: 6, minHeight: 44 },
-  dot: { width: 16, height: 16, borderRadius: 8 },
+  dot: { width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  dotCore: { width: 6, height: 6, borderRadius: 3 },
   nodeText: { fontSize: 11 },
   detail: { marginTop: 14, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, gap: 10 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },

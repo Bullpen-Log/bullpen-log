@@ -71,7 +71,7 @@ export function CommunityRecordCard({
 
       {card.kind === 'lab' && (
         <p className="text-base font-semibold text-ink">
-          {card.primary ? `먼저 볼 것: ${card.primary}` : card.judged ? '고칠 점이 없었어요' : '분석을 마쳤어요'}
+          {card.primary ? `먼저 볼 것: ${card.primary}` : card.judged ? '평가한 지표에 고칠 점이 없었어요' : '분석을 마쳤어요'}
         </p>
       )}
     </div>
