@@ -52,6 +52,8 @@ export default async function DugoutHome({
    * 장터 · 경기 · 뉴스 · 통합검색은 빼고(lib/sinker-dugout.ts), 맨 위에 내 싱커 기록을 덕아웃에 올리는 카드.
    */
   const sinkerApp = surfaceOf(ua) === 'sinker-app';
+  /* 덕아웃 앱(2026-10-26 김민) — 첫 화면의 싱커 S 단추 · 아이콘 줄의 경기 일정을 뺀다. 웹은 그대로 */
+  const dugoutApp = surfaceOf(ua) === 'dugout-app';
   const viewer = user ? { id: user.id, role: user.role } : null;
   const sinkerUser = !!user && usesSinker(user);
   const [listings, posts, coaches, alerts, lessons, games, news, avatarUrl, unread, records, places] = await Promise.all([
@@ -131,9 +133,10 @@ export default async function DugoutHome({
           avatarUrl={avatarUrl}
           alerts={alerts}
           unread={unread}
-          sinker={sinkerUser}
+          sinker={sinkerUser && !dugoutApp}
           native={native}
           sinkerApp={sinkerApp}
+          dugoutApp={dugoutApp}
           cards={sinkerApp ? undefined : cards}
           aside={sinkerApp ? undefined : <GamesPanel games={games} today={today} />}
         />

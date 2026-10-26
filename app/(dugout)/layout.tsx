@@ -39,7 +39,8 @@ export default async function DugoutLayout({
       avatarUrl={avatarUrl}
       unread={unread}
       alerts={alerts}
-      sinker={!!user && usesSinker(user)}
+      /* 덕아웃 앱은 위 막대에도 싱커 S 단추를 안 둔다(2026-10-26 김민 — 첫 화면과 같게) */
+      sinker={!!user && usesSinker(user) && surface !== 'dugout-app'}
       manage={!!user && (user.accountType === 'MASTER' || user.role === 'ADMIN')}
       native={native}
       sinkerApp={surface === 'sinker-app'}

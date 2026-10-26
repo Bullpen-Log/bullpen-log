@@ -30,6 +30,8 @@ import { HomeCarousel, type HomeCard } from '@/components/dugout/home-carousel';
 const HOME_ICONS = ['/community', '/market', '/lessons', '/venues', '/baseball'];
 /** 싱커 앱의 덕아웃 탭 — 싱커와 이어진 넷만(2026-10-24 김민, lib/sinker-dugout.ts) */
 const SINKER_APP_ICONS = ['/community', '/lessons', '/venues', '/chat'];
+/** 덕아웃 앱 — 경기 일정은 뺀다(2026-10-26 김민) */
+const DUGOUT_APP_ICONS = HOME_ICONS.filter((h) => h !== '/baseball');
 
 export function DugoutMain({
   user,
@@ -39,6 +41,7 @@ export function DugoutMain({
   sinker = false,
   native = false,
   sinkerApp = false,
+  dugoutApp = false,
   cards,
   aside,
 }: {
@@ -55,6 +58,8 @@ export function DugoutMain({
   native?: boolean;
   /** 싱커 앱 안 — 통합검색(장터까지 찾는다) · 싱커 S · 설정 · 프로필은 빼고 아이콘은 넷(커뮤니티 · 레슨 · 연습장 · 채팅) */
   sinkerApp?: boolean;
+  /** 덕아웃 앱 안 — 아이콘 줄에서 경기 일정을 뺀다 */
+  dugoutApp?: boolean;
 }) {
   /*
    * 다른 화면 · 싱커에서 넘어와 붙을 때 — 앞 화면의 위 막대가 보이는 채로 넘어와 0.5초 동안 옅어지며 남았다(2026-10-24 금윤호 "기본 홈에서 이게 안 보이게").
@@ -76,7 +81,7 @@ export function DugoutMain({
     };
   }, []);
 
-  const items = (sinkerApp ? SINKER_APP_ICONS : HOME_ICONS)
+  const items = (sinkerApp ? SINKER_APP_ICONS : dugoutApp ? DUGOUT_APP_ICONS : HOME_ICONS)
     .map((h) => FEATURES.find((f) => f.href === h))
     .filter((f) => !!f);
 
