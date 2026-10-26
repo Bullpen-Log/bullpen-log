@@ -15,6 +15,7 @@ export function ConfirmButton({
   doneToast,
   variant = 'ghost',
   children,
+  ask,
 }: {
   action: (formData: FormData) => Promise<unknown>;
   fields: Record<string, string>;
@@ -22,18 +23,27 @@ export function ConfirmButton({
   doneToast?: string;
   variant?: 'ghost' | 'danger' | 'secondary';
   children: ReactNode;
+  /** 확인 뒤 한 번 더 묻고 그 답을 숨은 칸 name 에 yes · no 로 싣는다(일정 지우기의 '수행일지도 빼기') */
+  ask?: { name: string; message: string; yes: string; no: string };
 }) {
   return (
     <SafeForm action={action} doneToast={doneToast} className="inline-block">
       {Object.entries(fields).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
+      {ask ? <input type="hidden" name={ask.name} defaultValue={ask.no} /> : null}
       <Button
         type="button"
         variant={variant}
         size="sm"
         onClick={(e) => {
-          if (window.confirm(message)) e.currentTarget.form?.requestSubmit();
+          const form = e.currentTarget.form;
+          if (!form || !window.confirm(message)) return;
+          if (ask) {
+            const field = form.elements.namedItem(ask.name);
+            if (field instanceof HTMLInputElement) field.value = window.confirm(ask.message) ? ask.yes : ask.no;
+          }
+          form.requestSubmit();
         }}
       >
         {children}

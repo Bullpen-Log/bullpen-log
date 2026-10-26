@@ -33,6 +33,12 @@ export default function TeamEventScreen() {
     setBusy(true);
     try {
       const r = await call<Res & Record<string, unknown>>(action, ...args);
+      /* 선수가 그날 같은 운동을 직접 남겼으면 '메뉴대로'가 멈춘다 — 따로 한 운동일 때만 남긴다(계약 9-6 ①-6 F, 결정 3) */
+      if (!r.ok && 'own' in r && typeof r.own === 'number' && action === 'app-team.recordWork')
+        return Alert.alert('선수가 직접 남긴 기록이 있어요', r.error ?? '', [
+          { text: '남기지 않기', style: 'cancel' },
+          { text: '따로 한 운동으로 남기기', onPress: () => void send(done, action, ...args.slice(0, 3), 'plan-anyway') },
+        ]);
       if (!r.ok) return toast(('error' in r && r.error) || '처리하지 못했어요.', 'error');
       const word = typeof done === 'string' ? done : done(r);
       if (word) toast(word);
@@ -148,12 +154,16 @@ function Plans({ d, org, c }: Part) {
 
 function Work({ d, org, send, busy, c }: Part & { send: Send; busy: boolean }) {
   const menu = (m: EventMemberView) =>
-    Alert.alert(m.nickname, m.recordedSets ? `이 일정에 ${m.recordedSets}세트를 남겼어요.` : '아직 남긴 기록이 없어요.', [
-      ...(d.plans.length ? [{ text: '메뉴대로 했어요', onPress: () => void send((r) => `${r.sets ?? 0}세트를 남겼어요`, 'app-team.recordWork', org, d.event.id, m.memberId, 'plan') }] : []),
-      { text: '고쳐 적기', onPress: () => router.push(`/org/work?org=${org}&event=${d.event.id}&member=${m.memberId}` as Href) },
-      ...(m.recordedSets ? [{ text: '기록 빼기', style: 'destructive' as const, onPress: () => void send('기록을 뺐어요', 'app-team.recordWork', org, d.event.id, m.memberId, 'clear') }] : []),
-      { text: '닫기', style: 'cancel' as const },
-    ]);
+    Alert.alert(
+      m.nickname,
+      `${m.recordedSets ? `이 일정에 ${m.recordedSets}세트를 남겼어요.` : '아직 남긴 기록이 없어요.'}${m.ownSets ? `\n선수가 그날 메뉴의 운동을 직접 ${m.ownSets}세트 남겼어요.` : ''}`,
+      [
+        ...(d.plans.length ? [{ text: '메뉴대로 했어요', onPress: () => void send((r) => `${r.sets ?? 0}세트를 남겼어요`, 'app-team.recordWork', org, d.event.id, m.memberId, 'plan') }] : []),
+        { text: '고쳐 적기', onPress: () => router.push(`/org/work?org=${org}&event=${d.event.id}&member=${m.memberId}` as Href) },
+        ...(m.recordedSets ? [{ text: '기록 빼기', style: 'destructive' as const, onPress: () => void send('기록을 뺐어요', 'app-team.recordWork', org, d.event.id, m.memberId, 'clear') }] : []),
+        { text: '닫기', style: 'cancel' as const },
+      ]
+    );
   return (
     <View style={{ gap: 6 }}>
       <GroupTitle title="수행일지" c={c} />
@@ -162,7 +172,14 @@ function Work({ d, org, send, busy, c }: Part & { send: Send; busy: boolean }) {
         {d.plans.length ? (
           <SmallLink
             label="참석한 선수 모두 메뉴대로"
-            onPress={() => void send((r) => `${r.done ?? 0}명 남겼어요${r.skipped ? ` · ${r.skipped}명은 못 남김` : ''}`, 'app-team.recordAttendedAsPlan', org, d.event.id)}
+            onPress={() =>
+              void send(
+                (r) => `${r.done ?? 0}명 남겼어요${r.own ? ` · ${r.own}명은 직접 남긴 기록이 있어 건너뜀` : ''}${r.skipped ? ` · ${r.skipped}명은 못 남김` : ''}`,
+                'app-team.recordAttendedAsPlan',
+                org,
+                d.event.id
+              )
+            }
             disabled={busy}
             c={c}
           />
@@ -178,6 +195,7 @@ function Work({ d, org, send, busy, c }: Part & { send: Send; busy: boolean }) {
             <Text style={[TYPE.card, { color: c.ink, flex: 1 }]}>{m.nickname}</Text>
             <Text style={[TYPE.sub, { color: m.recordedSets ? c.ok : c.muted }]}>
               {!m.hasUser ? '앱 연결 대기' : !m.canTrain ? '트레이닝 비공개' : m.recordedSets ? `${m.recordedSets}세트 남김` : '기록 없음'}
+              {m.ownSets ? ' · 선수가 직접 남긴 기록 있음' : ''}
             </Text>
             {m.canTrain ? <Text style={{ color: c.muted, fontSize: 17 }}>›</Text> : null}
           </Pressable>

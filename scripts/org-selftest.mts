@@ -819,6 +819,27 @@ console.log(
     );
     check('기록 화면 — 선수 쪽 회원 id 는 공간 목록의 것', src('native/src/app/index.tsx').includes("(o.side === 'p' ? s.memberId : o.rec?.member) ?? undefined"));
   }
+  {
+    /* 같은 훈련 가리기 · 취소 일정의 코치 세트(계약 9-6 ①-6 F, 결정 3 · 4) */
+    const team = src('app/actions/app-team.ts');
+    const cal = src('app/actions/org-calendar.ts');
+    const store = src('lib/org/team-work-store.ts');
+    check(
+      "'메뉴대로'는 선수가 직접 남긴 그날 메뉴 운동이 있으면 멈추고, 'plan-anyway' 만 남김",
+      team.includes("const own = mode === 'plan' ? (await ownSetsOn([t.userId], t.dateKey, ids)).length : 0;") &&
+        team.includes('return { ok: false, own, error:') &&
+        store.includes('enteredById: null, exerciseId: { in: [...exerciseIds] }')
+    );
+    check('선수 직접 기록은 트레이닝 공유를 켠 선수만 코치에게 보임', team.includes('memberScope(p.consent, true).training);') && team.includes('ownSets: ownOf(p.id, p.userId)'));
+    check(
+      '일정 지우기 · 취소는 고른 때만 코치 세트를 뺌(기본은 둠)',
+      cal.includes("if (formData.get('work') === 'remove') await clearEventWork(ev.id, user.id);") &&
+        cal.includes("if (status === 'canceled' && formData.get('work') === 'remove') await clearEventWork(ev.id, user.id);") &&
+        store.includes("items: [] });")
+    );
+    const ev = src('native/src/app/org/event.tsx');
+    check("앱 일정 지우기 · 취소가 '수행일지도 뺄까요'를 묻고 답을 보냄", ev.includes("'app-team.loadEventWork'") && ev.includes('{ id: found?.id, work }') && ev.includes('{ id: found.id, status, work }'));
+  }
   check('알림 대상 → 탭', targetTab('TEAM', 'p', 'homework') === 'mytraining' && targetTab('LESSON', 'p', 'homework') === 'homework' && targetTab('TEAM', 'c', 'inbox') === 'today' && targetTab('LESSON', 'c', 'inbox') === 'inbox' && targetTab('TEAM', 'p', 'share') === null);
   check('운동 돌아올 곳 왕복', JSON.stringify(parseOrgReturn(orgReturnParam('o1:p', 'homework'))) === '{"key":"o1:p","tab":"homework"}' && parseOrgReturn('org:x:y') === null);
 

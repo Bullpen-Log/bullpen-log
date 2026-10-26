@@ -12,7 +12,7 @@ import { coachOrg, myMember } from '@/lib/org/app-access';
 import { ORG_LOST, orgOpenHref } from '@/lib/org/space-nav';
 import { cleanHomeworkItems, homeworkDose, readHomeworkItems } from '@/lib/org/homework';
 import { cleanOrgWork, type OrgWorkItem } from '@/lib/org/team-work';
-import { writeOrgWork } from '@/lib/org/team-work-store';
+import { eventWorkOf, ownSetsOn, writeOrgWork } from '@/lib/org/team-work-store';
 import {
   ATTEND_NOTE_MAX,
   OUTING_ROLE_LABEL,
@@ -80,6 +80,8 @@ export type EventMemberView = {
   attended: boolean | null;
   /** 이 일정에서 코치가 남긴 세트 수(수행일지) */
   recordedSets: number;
+  /** 선수가 그날 메뉴의 운동을 직접 남긴 세트 수 — 트레이닝 공유를 켠 선수만(계약 9-6 ①-6 F) */
+  ownSets: number;
   outing: { role: OutingRole; pitchLimit: number | null; status: string } | null;
 };
 export type PlanView = { id: string; title: string; memberIds: string[]; targets: string[]; lines: Line[] };
@@ -108,6 +110,19 @@ export async function loadEventDetail(orgId: string, eventId: string): Promise<{
   const att = new Map(attendees.map((a) => [a.memberId, a]));
   const out = new Map(outings.map((o) => [o.memberId, o]));
   const setsOf = new Map(sets.map((s) => [s.userId, s._count._all]));
+  /* 메뉴 운동은 선수마다 다르다(대상 메뉴만) — 한 번에 읽고 선수별로 거른다 */
+  const planItems = plans.map((p) => ({ targets: planMemberIds(p.memberIds, targets), ids: readHomeworkItems(p.items).map((i) => i.exerciseId).filter((x): x is string => !!x) }));
+  const sharing = players.filter((p) => targets.includes(p.id) && p.userId && memberScope(p.consent, true).training);
+  const own = await ownSetsOn(
+    sharing.map((p) => p.userId!),
+    toDateKey(event.date),
+    [...new Set(planItems.flatMap((p) => p.ids))]
+  );
+  const ownOf = (memberId: string, userId: string | null) => {
+    if (!userId || !sharing.some((p) => p.id === memberId)) return 0;
+    const ids = new Set(planItems.filter((p) => p.targets.includes(memberId)).flatMap((p) => p.ids));
+    return own.filter((x) => x.userId === userId && ids.has(x.exerciseId)).length;
+  };
   const members = players
     .filter((p) => targets.includes(p.id))
     .map((p) => {
@@ -123,6 +138,7 @@ export async function loadEventDetail(orgId: string, eventId: string): Promise<{
         note: a?.note ?? null,
         attended: a?.attended ?? null,
         recordedSets: p.userId ? (setsOf.get(p.userId) ?? 0) : 0,
+        ownSets: ownOf(p.id, p.userId),
         outing: o && isOutingRole(o.role) ? { role: o.role, pitchLimit: o.pitchLimit, status: o.status } : null,
       };
     });
@@ -256,6 +272,8 @@ async function defaultsOf(ids: string[]) {
 
 /**
  * 선수 한 명의 수행 기록 — 'plan' 메뉴대로 했어요 · 'clear' 기록 빼기 · 'custom' 고친 기록(items). 이 일정의 코치 세트를 통째로 바꾼다(다시 보내도 같은 결과).
+ * 'plan' 은 선수가 그날 메뉴의 운동을 직접 남겼으면 멈추고 own(그 세트 수)을 돌려준다 — 같은 훈련을 두 번 세지 않게(계약 9-6 ①-6 F, 결정 3).
+ * 따로 한 운동이면 'plan-anyway' 로 다시 보낸다.
  */
 export async function recordWork(
   orgId: string,
@@ -263,7 +281,7 @@ export async function recordWork(
   memberId: string,
   mode: unknown,
   custom?: unknown
-): Promise<{ ok: true; sets: number } | { ok: false; error: string }> {
+): Promise<{ ok: true; sets: number } | { ok: false; error: string; own?: number }> {
   const c = await coachOrg(orgId);
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const t = await workTarget(orgId, eventId, memberId);
@@ -275,11 +293,14 @@ export async function recordWork(
     const clean = cleanOrgWork(custom, new Set(all.map((e) => e.id)));
     if ('error' in clean) return { ok: false, error: clean.error };
     items = clean;
-  } else if (mode === 'plan') {
+  } else if (mode === 'plan' || mode === 'plan-anyway') {
     const players = await activePlayers(orgId);
     const plans = await plansFor(eventId, memberId, eventMemberIds(t.event!, players.map((p) => p.id)));
     if (plans.length === 0) return { ok: false, error: '이 선수가 할 메뉴가 없어요. 메뉴를 먼저 만들어 주세요.' };
     const ids = plans.flatMap((p) => p.items.map((i) => i.exerciseId).filter((x): x is string => !!x));
+    const own = mode === 'plan' ? (await ownSetsOn([t.userId], t.dateKey, ids)).length : 0;
+    if (own)
+      return { ok: false, own, error: `선수가 그날 이 메뉴의 운동을 직접 남겼어요(${own}세트). 같은 훈련이면 남기지 마세요 — 두 번 셈해져요.` };
     items = planWork(plans, await defaultsOf(ids));
     if (items.length === 0) return { ok: false, error: '메뉴에 운동이 없어요(드릴은 선수 운동 기록에 안 들어가요).' };
   } else return { ok: false, error: '기록 방법을 골라 주세요.' };
@@ -288,20 +309,31 @@ export async function recordWork(
   return { ok: true, sets: items.reduce((n, i) => n + i.sets.length, 0) };
 }
 
+/** 일정을 지우거나 취소하기 전 — 남긴 수행일지가 있나(있으면 앱이 '수행일지도 뺄까요'를 묻는다, 결정 4) */
+export async function loadEventWork(orgId: string, eventId: string): Promise<{ ok: false; to: string } | { ok: true; sets: number; players: number }> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  if (!(await eventOf(orgId, eventId))) return { ok: true, sets: 0, players: 0 };
+  return { ok: true, ...(await eventWorkOf(eventId)) };
+}
+
 /** 참석한 선수 모두 '메뉴대로' — 참석 확인(왔어요)한 선수 가운데 선수 기록에 남길 수 있고 메뉴가 있는 사람만 */
-export async function recordAttendedAsPlan(orgId: string, eventId: string): Promise<{ ok: true; done: number; skipped: number } | { ok: false; error: string }> {
+export async function recordAttendedAsPlan(orgId: string, eventId: string): Promise<{ ok: true; done: number; skipped: number; own: number } | { ok: false; error: string }> {
   const c = await coachOrg(orgId);
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const came = await prisma.orgEventAttendee.findMany({ where: { eventId, attended: true }, select: { memberId: true } });
   if (came.length === 0) return { ok: false, error: '참석 확인(왔어요)한 선수가 없어요. 참석부터 확인해 주세요.' };
   let done = 0;
   let skipped = 0;
+  /* 선수가 직접 남긴 사람은 건너뛴다(한 명씩 '따로 한 운동'으로 남길 수 있다) */
+  let own = 0;
   for (const a of came) {
     const r = await recordWork(orgId, eventId, a.memberId, 'plan');
     if (r.ok) done += 1;
+    else if (r.own) own += 1;
     else skipped += 1;
   }
-  return { ok: true, done, skipped };
+  return { ok: true, done, skipped, own };
 }
 
 /** 고친 기록 화면 — 이 일정에서 남긴 코치 세트(없으면 메뉴 처방을 미리 채움) */

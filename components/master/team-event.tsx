@@ -248,6 +248,16 @@ function PlanForm({ d, orgId, lib, planId, onDone }: { d: EventDetail; orgId: st
 function Work({ d, orgId, busy, send, reload }: Part) {
   const [editing, setEditing] = useState<string | null>(null);
   const lib = useLibrary(orgId);
+  /* 선수가 그날 같은 운동을 직접 남겼으면 '메뉴대로'가 멈춘다 — 따로 한 운동일 때만 남긴다(계약 9-6 ①-6 F, 결정 3) */
+  const planFor = async (memberId: string) => {
+    const r = await recordWork(orgId, d.event.id, memberId, 'plan');
+    const done = (x: { sets: number }) => `${x.sets}세트를 남겼어요`;
+    if (!r.ok && r.own) {
+      if (window.confirm(`${r.error}\n\n따로 한 운동이면 남길까요?`)) return send(recordWork(orgId, d.event.id, memberId, 'plan-anyway'), done);
+      return;
+    }
+    return send(Promise.resolve(r), done);
+  };
   return (
     <Card className="space-y-3">
       <div className="flex items-center justify-between gap-2">
@@ -258,7 +268,12 @@ function Work({ d, orgId, busy, send, reload }: Part) {
             variant="secondary"
             size="sm"
             disabled={busy}
-            onClick={() => void send(recordAttendedAsPlan(orgId, d.event.id), (r) => `${r.done}명 남겼어요${r.skipped ? ` · ${r.skipped}명은 못 남김` : ''}`)}
+            onClick={() =>
+              void send(
+                recordAttendedAsPlan(orgId, d.event.id),
+                (r) => `${r.done}명 남겼어요${r.own ? ` · ${r.own}명은 직접 남긴 기록이 있어 건너뜀` : ''}${r.skipped ? ` · ${r.skipped}명은 못 남김` : ''}`
+              )
+            }
           >
             참석한 선수 모두 메뉴대로
           </Button>
@@ -272,11 +287,12 @@ function Work({ d, orgId, busy, send, reload }: Part) {
               <span className="flex-1 text-ink">{m.nickname}</span>
               <span className={`text-xs ${m.recordedSets ? 'text-ok' : 'text-muted'}`}>
                 {!m.hasUser ? '가입 전' : !m.canTrain ? '트레이닝 공유 꺼짐' : m.recordedSets ? `${m.recordedSets}세트 남김` : '기록 없음'}
+                {m.ownSets ? ' · 선수가 직접 남긴 기록 있음' : ''}
               </span>
               {m.canTrain ? (
                 <span className="flex gap-3 text-xs">
                   {d.plans.length ? (
-                    <button type="button" className="text-sky-strong" disabled={busy} onClick={() => void send(recordWork(orgId, d.event.id, m.memberId, 'plan'), (r) => `${r.sets}세트를 남겼어요`)}>
+                    <button type="button" className="text-sky-strong" disabled={busy} onClick={() => void planFor(m.memberId)}>
                       메뉴대로
                     </button>
                   ) : null}

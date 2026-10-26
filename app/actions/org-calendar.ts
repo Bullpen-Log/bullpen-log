@@ -8,6 +8,7 @@ import { EVENT_MEMO_MAX, EVENT_TITLE_MAX, isDateKey, isEventKind, timeOk } from 
 import { dbDate } from '@/lib/nutrition/days';
 import { appNow } from '@/lib/clock';
 import { EVENT_STATUS_LABEL, isEventStatus } from '@/lib/org/lesson-pitch';
+import { clearEventWork } from '@/lib/org/team-work-store';
 
 /**
  * 조직 일정(OrgEvent, 5단계 팀 달력 · 4단계 레슨 시간표) — 선수 개인의 CalendarEvent 와 다른 표. 모두 requireMaster → requireOrg.
@@ -61,7 +62,9 @@ export async function deleteOrgEvent(formData: FormData) {
   });
   if (!ev) return;
   await requireOrg(user, ev.orgId);
-  /* 3단계 참석 · 메뉴 · 등판도 같이 지운다. 이미 남긴 수행일지(선수 운동 세트)는 실제로 한 운동이라 그대로 둔다 */
+  /* 3단계 참석 · 메뉴 · 등판도 같이 지운다. 남긴 수행일지(선수 운동 세트)는 실제로 한 운동일 수 있어 기본은 그대로 —
+     화면이 물어 '같이 빼기'(work=remove)를 고르면 뺀다(계약 9-6 ①-6 F, 결정 4) */
+  if (formData.get('work') === 'remove') await clearEventWork(ev.id, user.id);
   await prisma.$transaction([
     prisma.orgEventAttendee.deleteMany({ where: { eventId: ev.id } }),
     prisma.orgPlan.deleteMany({ where: { eventId: ev.id } }),
@@ -83,6 +86,8 @@ export async function setOrgEventStatus(formData: FormData): Promise<OrgActionSt
   });
   if (!ev) return { error: '일정을 찾을 수 없어요.' };
   await requireOrg(user, ev.orgId);
+  /* 취소하며 '남긴 수행일지도 빼기'를 고른 때(결정 4) */
+  if (status === 'canceled' && formData.get('work') === 'remove') await clearEventWork(ev.id, user.id);
   if (ev.status !== status)
     await prisma.orgEvent.update({ where: { id: ev.id }, data: { status, doneAt: status === 'done' ? appNow() : null } });
   revalidatePath('/manage/calendar');

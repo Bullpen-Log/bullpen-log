@@ -6,7 +6,7 @@ import type { loadOrgEvents } from '@/app/actions/app-org';
 import { EVENT_KINDS, EVENT_MEMO_MAX, EVENT_TITLE_MAX, timeOk, type EventKind } from '@/lib/org/rules';
 import { EVENT_STATUSES, EVENT_STATUS_LABEL, type EventStatus } from '@/lib/org/lesson-pitch';
 import { toDateKey } from '@/lib/pitch-stats';
-import { Bar, LoadState, useBusy, useLoad } from '~/community/parts';
+import { Bar, LoadState, call, useBusy, useLoad } from '~/community/parts';
 import { READABLE } from '~/lib/layout';
 import { TYPE, usePalette } from '~/lib/ui';
 import { toast } from '~/shell/toast';
@@ -18,6 +18,7 @@ import { useDraftGuard } from '~/org/space-store';
  * 조직 일정 만들기 · 고치기 · 지우기(앱 화면, 1.5단계) — 팀 훈련 · 경기 · 휴식, 레슨장 레슨 시간. 저장은 웹과 같은 org-calendar.saveOrgEvent(폼),
  * 지우기는 org-calendar.deleteOrgEvent. 레슨은 회원을 고르면 제목이 비어도 '○○ 레슨'이 된다(서버).
  * 2단계: 있는 일정은 지도 확인(예정 · 실시 · 취소)을 바로 바꾼다(org-calendar.setOrgEventStatus) — 출석 · 수강권과는 상관없다.
+ * 지우거나 취소할 때 코치가 남긴 수행일지가 있으면 같이 뺄지 묻는다(계약 9-6 ①-6 F, 결정 4 — 기본은 둔다).
  */
 type Loaded = Awaited<ReturnType<typeof loadOrgEvents>>;
 type Draft = { date: string; kind: EventKind; time: string; title: string; memo: string; memberId: string | null };
@@ -70,10 +71,30 @@ export default function OrgEventScreen() {
       router.back();
       return null;
     });
+  /** 남긴 수행일지가 있으면 같이 뺄지 묻는다 — 'keep' · 'remove', 그만두면 null */
+  const askWork = async (title: string): Promise<'keep' | 'remove' | null> => {
+    if (!found) return 'keep';
+    const w = await call<{ ok: boolean; sets?: number; players?: number }>('app-team.loadEventWork', p.org, found.id);
+    if (!w.ok || !w.sets) return 'keep';
+    return new Promise((done) =>
+      Alert.alert(
+        title,
+        `이 일정에 선수 ${w.players}명의 수행일지 ${w.sets}세트를 남겼어요. 실제로 한 운동이면 두세요.`,
+        [
+          { text: '그만두기', style: 'cancel', onPress: () => done(null) },
+          { text: '수행일지는 두기', onPress: () => done('keep') },
+          { text: '수행일지도 빼기', style: 'destructive', onPress: () => done('remove') },
+        ],
+        { cancelable: true, onDismiss: () => done(null) }
+      )
+    );
+  };
   const setStatus = (status: EventStatus) =>
     void run(async () => {
       if (!found || found.status === status) return null;
-      const r = await formCall('org-calendar.setOrgEventStatus', { id: found.id, status }, true);
+      const work = status === 'canceled' ? await askWork('일정을 취소할까요?') : 'keep';
+      if (!work) return null;
+      const r = await formCall('org-calendar.setOrgEventStatus', { id: found.id, status, work }, true);
       if (r.error) return r.error;
       toast(r.success ?? '바꿨어요');
       await reload();
@@ -87,7 +108,9 @@ export default function OrgEventScreen() {
         style: 'destructive',
         onPress: () =>
           void run(async () => {
-            const r = await formCall('org-calendar.deleteOrgEvent', { id: found?.id }, true);
+            const work = await askWork('수행일지도 뺄까요?');
+            if (!work) return null;
+            const r = await formCall('org-calendar.deleteOrgEvent', { id: found?.id, work }, true);
             if (r.error) return r.error;
             toast('지웠어요');
             router.back();

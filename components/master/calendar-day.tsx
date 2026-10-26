@@ -37,6 +37,8 @@ export type EventView = {
   title: string;
   memo: string | null;
   memberId: string | null;
+  /** 코치가 남긴 수행일지 세트 수 — 있으면 지울 때 같이 뺄지 묻는다 */
+  workSets?: number;
 };
 
 const selectCls =
@@ -148,6 +150,11 @@ export function CalendarDay({
                   fields={{ id: e.id }}
                   message="이 일정을 지울까요?"
                   doneToast="지웠어요."
+                  ask={
+                    e.workSets
+                      ? { name: 'work', yes: 'remove', no: 'keep', message: `이 일정에 남긴 수행일지 ${e.workSets}세트도 선수 기록에서 뺄까요?\n(실제로 한 운동이면 '취소'를 눌러 두세요)` }
+                      : undefined
+                  }
                 >
                   지우기
                 </ConfirmButton>
