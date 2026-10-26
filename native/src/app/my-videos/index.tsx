@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { memo, useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { File } from 'expo-file-system';
 import { ActionSheetIOS, ActivityIndicator, Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EMPTY_VIDEO_FILTER, MATCH_LABEL, compareItems, filterVideos, groupByDate, type MatchWhere, type MyVideoItem, type VideoSport } from '@/lib/my-videos';
@@ -62,15 +63,28 @@ export default function MyVideosScreen() {
 
   /* 이 폰에 없는 영상(다른 폰 · 앱을 다시 깖) — 폰 영상 번호를 한 번에 묻는다. 못 물으면 표시 안 함 */
   const [missing, setMissing] = useState<Set<string>>(new Set());
+  /* 이 폰에 둔 내 영상의 크기 합 — 앱 안 보관은 백업이 아니라 폰 공간을 쓴다(설계 4절 '공간 표시') */
+  const [usage, setUsage] = useState<{ n: number; bytes: number } | null>(null);
   const phoneKey = (items ?? []).filter((v) => v.storage === 'phone' && isPhoneVideoPath(v.path)).map((v) => v.path).join('|');
   useEffect(() => {
     if (!phoneKey) return;
     let alive = true;
     const paths = phoneKey.split('|');
     void LocalVideo.exists({ ids: paths.map(phoneAssetId) }).then(
-      ({ found }) => {
+      async ({ found }) => {
         const have = new Set(found);
-        if (alive) setMissing(new Set(paths.filter((p) => !have.has(phoneAssetId(p)))));
+        if (!alive) return;
+        setMissing(new Set(paths.filter((p) => !have.has(phoneAssetId(p)))));
+        let bytes = 0;
+        for (const id of found) {
+          const url = await LocalVideo.fileUrl({ id }).then((r) => r.url, () => null);
+          try {
+            bytes += url ? (new File(url).size ?? 0) : 0;
+          } catch {
+            /* 못 재면 빼고 */
+          }
+        }
+        if (alive) setUsage({ n: found.length, bytes });
       },
       () => {}
     );
@@ -97,7 +111,7 @@ export default function MyVideosScreen() {
       else if (options[i] === 'ABS 판정') router.push('/velocity?mode=abs' as Href);
     });
   };
-  const open = (v: MyVideoItem) => {
+  const open = useCallback((v: MyVideoItem) => {
     if (pendingPaths.has(v.path)) return;
     if (pick) {
       const a = items?.find((x) => x.path === pick);
@@ -105,7 +119,7 @@ export default function MyVideosScreen() {
       return;
     }
     router.push({ pathname: '/my-videos/view' as never, params: { path: v.path } });
-  };
+  }, [pendingPaths, pick, items]);
   const searching = q.trim() !== '' || sport !== 'all' || revisitOnly;
 
   return (
@@ -130,7 +144,10 @@ export default function MyVideosScreen() {
         keyExtractor={(r) => r.item.path}
         stickySectionHeadersEnabled={false}
         initialNumToRender={8}
+        maxToRenderPerBatch={8}
         windowSize={7}
+        removeClippedSubviews
+        /* ponytail: 카드 높이가 같아(장면 112 + 여백) getItemLayout 을 줄 수 있지만 묶음 머리까지 세야 해서 뺐다 — 수천 개에서 끊기면 그때 */
         onViewableItemsChanged={onViewable}
         viewabilityConfig={{ itemVisiblePercentThreshold: 10 }}
         keyboardDismissMode="on-drag"
@@ -172,6 +189,11 @@ export default function MyVideosScreen() {
               </Press>
             </View>
             {error ? <Text style={[TYPE.sub, { color: c.muted }]}>{error}</Text> : null}
+            {usage && usage.n > 0 ? (
+              <Text style={[TYPE.sub, { color: c.muted }]}>
+                이 폰에 영상 {usage.n}개 · {usage.bytes >= 1e9 ? `${(usage.bytes / 1e9).toFixed(1)}GB` : `${Math.round(usage.bytes / 1e6)}MB`} — 앱을 지우면 함께 사라져요
+              </Text>
+            ) : null}
           </View>
         }
         renderSectionHeader={({ section }) => (

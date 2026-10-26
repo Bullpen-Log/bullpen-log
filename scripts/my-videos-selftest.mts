@@ -157,6 +157,23 @@ console.log('\n[5-2] 영상만 저장 — 폰이 보낸 칸 다듬기');
   check('모르는 종목 · 출처 · 숫자는 기본값', 'value' in odd && odd.value.sport === 'pitch' && odd.value.origin === 'album' && odd.value.durationSec === null && odd.value.width === null);
 }
 
+console.log('\n[5-3] 많은 영상 — 합치기 · 찾기 · 묶기가 화면을 멈추지 않는가');
+{
+  const day = (i: number) => `2026-${String(1 + (i % 12)).padStart(2, '0')}-${String(1 + (i % 28)).padStart(2, '0')}`;
+  const p = (i: number) => `${U}/local-${String(i).padStart(8, '0')}-aaaa-bbbb-cccc-dddddddddddd`;
+  const logs = Array.from({ length: 2000 }, (_, i) => ({ log: log({ id: `l${i}`, date: day(i), memo: i % 7 ? null : '릴리스 늦음' }), paths: [p(i), p(i + 2000)] }));
+  const clips = Array.from({ length: 1000 }, (_, i) => ({ path: p(4000 + i), clip: { pitchId: `p${i}`, sessionId: 's', date: day(i), kmh: 120, pitchType: null } }));
+  const rows = Array.from({ length: 1000 }, (_, i) => row({ path: p(i), feelNote: i % 3 ? null : '하체 먼저', capturedDate: day(i) }));
+  const t0 = performance.now();
+  const items = mergeVideos({ rows, logs, clips });
+  const hits = filterVideos(items, { ...EMPTY_VIDEO_FILTER, text: '릴리스 늦음' });
+  const groups = groupByDate(filterVideos(items, EMPTY_VIDEO_FILTER));
+  const ms = performance.now() - t0;
+  check('영상 5,000개 — 카드 수가 맞다', items.length === 5000, String(items.length));
+  check('찾기 · 묶기가 결과를 낸다', hits.length > 0 && groups.length > 0 && groups.length <= 336);
+  check('합치기 + 찾기 + 묶기가 300ms 안(폰은 몇 배 느려도 1초 밑)', ms < 300, `${Math.round(ms)}ms`);
+}
+
 console.log('\n[6] 소스 모양 — 부하 · 계정 · 관리자 자료');
 {
   const engine = [...walk('lib/report'), ...walk('lib/engine'), 'lib/pitch-stats.ts'].filter((f) => f.endsWith('.ts'));
