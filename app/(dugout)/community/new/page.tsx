@@ -56,6 +56,7 @@ export default async function NewCommunityPostPage({
         cardOptions={cardOptions}
         initialCard={initialCard}
         teamPrefill={teamPrefill}
+        isAdmin={user.role === 'ADMIN'}
       />
     </div>
   );

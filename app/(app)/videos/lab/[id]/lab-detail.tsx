@@ -10,7 +10,8 @@ import { isV2JobActive, v2WaitingText, type Pitch3dV2Ok } from '@/lib/pitch-3d/v
 import { labHandNote, labTitle, metricRows, type LabMetricRow } from '@/lib/pitch-3d/v2/lab-summary';
 import { buildReport, type FocusProgress, type ReportDrill } from '@/lib/pitch-3d/v2/report';
 import { V2EmptyWell, V2RequestRow, V2StatusBadge } from './analysis-v2';
-import { FlowCard, ReportHero, RxCard, VerdictCard } from './report-parts';
+import { CompareCard, FlowCard, ReportHero, RxCard, VerdictCard } from './report-parts';
+import type { PreviousComparison } from '@/lib/pitch-3d/v2/compare-view';
 import type { Body3DHandle, Transport } from './body-3d';
 import { useV2Analysis } from './use-v2-analysis';
 import { loadLabVideoShifts } from '@/app/actions/pitch-lab';
@@ -34,6 +35,7 @@ export function LabDetail({
   youth = false,
   mine = false,
   focus = null,
+  previous = null,
   preview,
   ownerHeightCm = null,
 }: {
@@ -49,6 +51,8 @@ export function LabDetail({
   mine?: boolean;
   /** 이 리포트의 처방이 메카닉에서 진행 중이면 n / 9 */
   focus?: FocusProgress;
+  /** 바로 앞 내 리포트와 견주기(page.tsx, 내 것만) */
+  previous?: PreviousComparison | null;
   /** 개발 확인용 결과(서버를 안 부른다) */
   preview?: Pitch3dV2Ok | null;
   /** 샘플에 키가 없을 때 쓸 올린 사람의 키(내 샘플일 때만, page.tsx) */
@@ -324,7 +328,8 @@ export function LabDetail({
               }}
             />
           )}
-          {report && <RxCard report={report} reportId={sample.id} mine={mine} focus={focus} />}
+          {report && <RxCard report={report} mine={mine} focus={focus} />}
+          {report && previous && <CompareCard prev={previous} />}
 
           {result && (
             <details className="group rounded-2xl bg-surface p-(--block-pad)">

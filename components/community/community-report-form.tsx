@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { reportTarget, type ReportState } from '@/app/actions/community';
@@ -21,15 +22,18 @@ function SubmitButton() {
 
 /**
  * 신고 — 작은 깃발 단추를 누르면 바로 밑에 이유 고르기가 펼쳐진다(글 · 댓글 공통). 보내면 '접수했어요' 한 줄로 바뀐다.
- * 글(postId) 또는 댓글(commentId) 하나만 받는다. 내 글에는 화면이 이 단추를 그리지 않는다(서버도 한 번 더 막는다).
+ * 글(postId) · 댓글(commentId) · 대화의 말(messageId) 하나만 받는다. 내 글에는 화면이 이 단추를 그리지 않는다(서버도 한 번 더 막는다).
+ * 신고한 사람은 글쓴이에게 드러나지 않는다.
  */
 export function CommunityReportForm({
   postId,
   commentId,
+  messageId,
   compact = false,
 }: {
   postId?: string;
   commentId?: string;
+  messageId?: string;
   /** 댓글 줄의 아이콘만 있는 작은 단추 */
   compact?: boolean;
 }) {
@@ -71,6 +75,7 @@ export function CommunityReportForm({
         >
           {postId && <input type="hidden" name="postId" value={postId} />}
           {commentId && <input type="hidden" name="commentId" value={commentId} />}
+          {messageId && <input type="hidden" name="messageId" value={messageId} />}
           <FormError>{state?.error}</FormError>
 
           <fieldset className="space-y-2">
@@ -102,6 +107,12 @@ export function CommunityReportForm({
             placeholder="더 알려 줄 것이 있으면 적어 주세요(선택)."
             className="text-sm"
           />
+          <p className="text-xs text-muted">
+            신고한 사람은 글쓴이에게 알려지지 않아요.{' '}
+            <Link href="/community/guide" className="font-semibold text-sky">
+              운영 원칙
+            </Link>
+          </p>
 
           <div className="flex items-center gap-2">
             <SubmitButton />

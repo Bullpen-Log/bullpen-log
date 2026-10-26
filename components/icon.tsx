@@ -64,6 +64,9 @@ export const BaseballBat = weighted(BaseballBatRaw);
 export const Bell = rounded('bell');
 export const BookOpen = rounded('book');
 export const BookmarkPlus = weighted(L.BookmarkPlus);
+export const Bookmark = weighted(L.Bookmark);
+export const BookmarkCheck = weighted(L.BookmarkCheck);
+export const Share2 = weighted(L.Share2);
 export const CalendarClock = weighted(L.CalendarClock);
 export const CalendarDays = weighted(L.CalendarDays);
 export const Camera = weighted(L.Camera);
@@ -239,6 +242,9 @@ export const ALL_ICONS: Record<string, LucideIcon> = {
   Bell,
   BookOpen,
   BookmarkPlus,
+  Bookmark,
+  BookmarkCheck,
+  Share2,
   CalendarClock,
   CalendarDays,
   Camera,

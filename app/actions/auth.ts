@@ -133,7 +133,7 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   }
   /* 덕아웃 회원(학부모 · 팬 · 코치, 2026-10-21 개편 3단계) — 선수 칸 없이 계정만. 첫 레슨 기록이 생기면 sinkerStartedAt 이 찍힌다 */
   if (formData.get('accountType') === 'MEMBER') {
-    return trySignupMember({ email, nickname, password });
+    return trySignupMember({ email, nickname, password }, safeNext(formData));
   }
 
   /*
@@ -236,7 +236,8 @@ async function trySignup(formData: FormData): Promise<AuthState> {
     role: user.role,
     pw: passwordFingerprint(passwordHash),
   });
-  redirect('/today');
+  /* 덕아웃에서 가입하러 왔으면 그 화면으로(휴대폰 브라우저는 /today 가 '앱으로 써 주세요'다) */
+  redirect(safeNext(formData) ?? '/today');
 }
 
 /** 가입한 얼굴(lib/app-env.ts Surface) — User.signupSource */
@@ -248,11 +249,14 @@ async function signupSurface(): Promise<string> {
  * 덕아웃 회원 가입(2026-10-21 개편 3단계, docs/designs/sinker-dugout.md 결정 3) — 계정만 만들고 덕아웃 홈(/)으로.
  * 선수 칸(생년월일 · 키 · 성별 · 몸무게)은 없다. 레슨을 예약해 코치가 첫 노트를 쓰면 app/actions/org-notes.ts 가 sinkerStartedAt 을 찍는다.
  */
-async function trySignupMember(acc: {
-  email: string;
-  nickname: string;
-  password: string;
-}): Promise<AuthState> {
+async function trySignupMember(
+  acc: {
+    email: string;
+    nickname: string;
+    password: string;
+  },
+  next: string | null
+): Promise<AuthState> {
   const existing = await prisma.user.findUnique({ where: { email: acc.email } });
   if (existing) return { error: '이미 가입된 이메일이에요.', field: 'email' };
   const passwordHash = await bcrypt.hash(acc.password, 10);
@@ -272,7 +276,7 @@ async function trySignupMember(acc: {
     role: created.role,
     pw: passwordFingerprint(passwordHash),
   });
-  redirect('/');
+  redirect(next ?? '/');
 }
 
 /**

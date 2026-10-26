@@ -298,7 +298,7 @@ function ElementCard({
                   href={`/videos/lab/${report.reportId}`}
                   className="inline-flex min-h-10 items-center text-xs font-semibold text-sky-strong"
                 >
-                  리포트에서 처방 시작 ›
+                  리포트에서 개선 드릴 보기 ›
                 </Link>
               )}
             </div>

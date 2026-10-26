@@ -167,7 +167,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                       {r.posts.map((p) => (
                         <li key={p.id}>
                           <Link
-                            href={user ? `/community/${p.id}` : `/login?next=/community/${p.id}`}
+                            href={`/community/${p.id}`}
                             className="block px-5 py-4 transition-colors hover:bg-ink/3"
                           >
                             <span className="block truncate text-[15px] font-bold text-ink">{p.title}</span>

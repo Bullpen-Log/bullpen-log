@@ -3119,7 +3119,7 @@ console.log('■ 메카닉 점검 판정(mech-judge) — 문턱 · 여러 구 �
     drift: o.ahead === null ? null : { aheadAtKneeUp: o.ahead ?? 0.1, aheadAtKneeUpCm: null, travel: 0.05, travelCm: null, speed: 0.2, speedMs: null, conf: o.dConf ?? 50 },
     pelvisLevel: { tiltDeg: 2, conf: 50 },
     separation: { frame: 0, peakMs: o.ms ?? 0, peakDeg: o.sep ?? 56, atPlantDeg: 20, trunkOpenAtPlantDeg: o.open ?? -20, pelvisOpenAtPlantDeg: 25, trunkHalfPct: o.half === undefined ? 54 : o.half, trunkHalfFrame: 0, trunkConf: o.tConf ?? 50, conf: o.sConf ?? 50 },
-    block: { pelvisDecelPct: o.decel ?? 95, kneeAtPlantDeg: 30, kneeAtReleaseDeg: 30 - (o.ext ?? 0), kneeExtensionDeg: o.ext ?? 0, kneeCollapseDeg: 5, conf: o.bConf ?? 50 },
+    block: { pelvisDecelPct: o.decel ?? 95, kneeAtPlantDeg: 30, kneeAtReleaseDeg: 30 - (o.ext ?? 0), kneeExtensionDeg: o.ext ?? 0, kneeCollapseDeg: 5, conf: o.bConf ?? 50, keyConf: o.bConf ?? 50 },
     drop: null,
     trunkTilt: { forwardDeg: 30, lateralDeg: 20, conf: 50 },
     arm: { abductionAtPlantDeg: 88, conf: 50 },
@@ -3170,9 +3170,9 @@ console.log('■ 메카닉 점검 판정(mech-judge) — 문턱 · 여러 구 �
       st(judgeMechanics([mk({ decel: 95, ext: -20 })]), 'block') === 'fair' && st(judgeMechanics([mk({})]), 'block') === 'good'
   );
   check(
-    '판정: 블록 — 무릎 40° 넘게 더 굽음 · 골반 감속 115% 넘음은 엔진 오류로 보고 뺌(그 공뿐이면 판정 안 함, 다른 공이 있으면 그것으로)',
-    st(judgeMechanics([mk({ ext: -64 })]), 'block') === 'unsure' && st(judgeMechanics([mk({ decel: 129 })]), 'block') === 'unsure' &&
-      st(judgeMechanics([mk({ ext: -64 }), mk({})]), 'block') === 'good'
+    '판정: 블록 — 다리를 편 채 착지해 크게 굽는 실제 동작(64°)과 골반 감속 100% 넘음은 판정, 사람 무릎으로 못 내는 90° 넘음만 엔진 오류로 뺌(그 공뿐이면 판정 안 함)',
+    st(judgeMechanics([mk({ ext: -64 })]), 'block') === 'fair' && st(judgeMechanics([mk({ decel: 129 })]), 'block') === 'good' &&
+      st(judgeMechanics([mk({ ext: -95 })]), 'block') === 'unsure' && st(judgeMechanics([mk({ ext: -95 }), mk({})]), 'block') === 'good'
   );
   const two = judgeMechanics([mk({ ahead: 0.05 }), mk({ ahead: 0.13 })], 180);
   const three = judgeMechanics([mk({}), mk({}), mk({ ahead: 0.05, dConf: 10 })], 180);
@@ -3541,14 +3541,14 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
     drop: { pelvisDrop: 0.36, rise: 0, conf: 50 },
     trunkTilt: { forwardDeg: 30, lateralDeg: 25, conf: 50 },
     arm: { abductionAtPlantDeg: 88, conf: 50 },
-    block: { pelvisDecelPct: 95, kneeAtPlantDeg: 50, kneeAtReleaseDeg: 40, kneeExtensionDeg: 10, kneeCollapseDeg: 3, conf: 50 },
+    block: { pelvisDecelPct: 95, kneeAtPlantDeg: 50, kneeAtReleaseDeg: 40, kneeExtensionDeg: 10, kneeCollapseDeg: 3, conf: 50, keyConf: 50 },
   });
   const fr = { kneeUp: 5, plant: 10, release: 20 };
   const mound: { heightCm: number; ground: 'mound' | 'flat'; youth: boolean } = { heightCm: 180, ground: 'mound', youth: false };
   const st = (m: MechChecks, ctx = mound) => Object.fromEntries(judgeElements(m, ctx, fr).map((i) => [i.element, i.status]));
 
   const good = st(base());
-  check('기준 수치: 드리프트 평가 · 검증 중인 다섯 요소는 참고', good['드리프트'] === 'good' && ['드롭', '상하체 분리', '브레이크', '몸통 회전', '스로잉'].every((e) => good[e] === 'note'), JSON.stringify(good));
+  check('기준 수치: 다섯 요소 평가(2026-10-26 등급) · 스로잉만 참고', ['드리프트', '드롭', '상하체 분리', '브레이크', '몸통 회전'].every((e) => good[e] === 'good') && good['스로잉'] === 'note', JSON.stringify(good));
 
   const m1 = base();
   m1.drift!.aheadAtKneeUp = 0.04;
@@ -3559,17 +3559,22 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   const m2 = base();
   m2.block.kneeCollapseDeg = 25;
   m2.block.kneeExtensionDeg = -20;
-  check('브레이크(A 후보) 무너짐은 참고로 분리', st(m2)['브레이크'] === 'note');
+  check('브레이크 무너짐은 고칠 점', st(m2)['브레이크'] === 'improve');
   const it2 = judgeElements(m2, mound, fr).find((i) => i.element === '브레이크')!;
-  check('브레이크 수치상 문제는 보존 · 검증 중이라 자동 처방 보류', it2.assessment === 'improve' && it2.fault === null && !it2.prescriptionEligible && it2.why === 'validation');
+  check('브레이크 고칠 점은 개선 드릴 대상', it2.assessment === 'improve' && it2.fault === 'block.collapse' && it2.prescriptionEligible && it2.why === null);
   m2.block.kneeCollapseDeg = 45;
-  check('브레이크 더 굽음 40° 넘으면 엔진 오류로 판정 안 함', st(m2)['브레이크'] === 'unsure');
+  check('브레이크 더 굽음 45° 도 실제 동작으로 판정', st(m2)['브레이크'] === 'improve');
+  m2.block.kneeCollapseDeg = 95;
+  check('브레이크 더 굽음 90° 넘으면 엔진 오류로 판정 안 함', st(m2)['브레이크'] === 'unsure');
+  m2.block.kneeCollapseDeg = 25;
+  m2.block.keyConf = 20;
+  check('브레이크 착지 · 가장 굽은 장면이 안 보이면 판정 안 함', st(m2)['브레이크'] === 'unsure');
 
   const m3 = base();
   m3.drop!.pelvisDrop = 0.27;
-  check('드롭 0.26~0.31 수치상 보통 · 검증 중이라 참고', judgeElements(m3, mound, fr).find((i) => i.element === '드롭')?.assessment === 'fair' && st(m3)['드롭'] === 'note');
+  check('드롭 0.26~0.31 은 보통', st(m3)['드롭'] === 'fair');
   m3.drop!.pelvisDrop = 0.02;
-  check('드롭 거의 안 가라앉음도 검증 중이면 참고', st(m3)['드롭'] === 'note');
+  check('드롭 거의 안 가라앉음은 고칠 점', st(m3)['드롭'] === 'improve');
   const flatDrop = judgeElements(m3, { ...mound, ground: 'flat' }, fr).find((i) => i.element === '드롭')!;
   check('평지 드롭은 작은 값도 참고 · 처방 보류', flatDrop.status === 'note' && flatDrop.fault === null && flatDrop.why === 'flat');
   m3.drop!.pelvisDrop = 0.24;
@@ -3577,13 +3582,13 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
 
   const m4 = base();
   m4.trunkTilt.forwardDeg = 15;
-  check('몸통 앞 기울기 13~17.6 수치상 경계 · 검증 중이라 참고', judgeElements(m4, mound, fr).find((i) => i.element === '몸통 회전')?.assessment === 'edge' && st(m4)['몸통 회전'] === 'note');
+  check('몸통 앞 기울기 13~17.6 은 경계', st(m4)['몸통 회전'] === 'edge');
   check('평지 몸통 앞 기울기는 참고', st(m4, { ...mound, ground: 'flat' })['몸통 회전'] === 'note');
   check('성장기 몸통 앞 기울기는 참고', st(m4, { ...mound, youth: true })['몸통 회전'] === 'note');
 
   const m5 = base();
   m5.separation.trunkOpenAtPlantDeg = 0;
-  check('착지 때 상체 열림은 검증 중이라 참고', st(m5)['상하체 분리'] === 'note');
+  check('착지 때 상체가 이미 열렸으면 고칠 점', st(m5)['상하체 분리'] === 'improve');
   m5.separation.trunkConf = 20;
   check('확신 30 밑은 판정 안 함', st(m5)['상하체 분리'] === 'unsure');
 
@@ -3598,11 +3603,11 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   m7.drift!.aheadAtKneeUp = 0.04;
   const items7 = judgeElements(m7, mound, fr);
   const p7 = pickProblems(items7);
-  check('처방 주 문제는 평가 가능한 드리프트만 · 참고 요소는 다음 처방에서도 제외', p7.primary?.element === '드리프트' && p7.next === null && p7.later.length === 0);
+  check('주 문제는 고칠 점 먼저 · 다음은 흐름 앞쪽 경계', p7.primary?.element === '드리프트' && p7.next?.element === '브레이크' && p7.later.map((i) => i.element).join() === '몸통 회전');
   const m8 = base();
   m8.trunkTilt.forwardDeg = 15;
   m8.block.kneeCollapseDeg = 13;
-  check('참고 수치만 경계를 벗어나면 자동 주 문제 없음', pickProblems(judgeElements(m8, mound, fr)).primary === null);
+  check('고칠 점이 없으면 흐름 앞쪽 경계가 주 문제', pickProblems(judgeElements(m8, mound, fr)).primary?.element === '브레이크');
 
   /* 요약 · 목록 꼬리표 */
   const fake = { criteria: 'x', items: items7, primary: '드리프트' } as unknown as PitchReport;
@@ -3610,7 +3615,7 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   check('요약: 주 문제 · 고칠 점', sum.primary?.element === '드리프트' && sum.primary.level === 'improve' && sum.judged);
   check('요약 읽기: 모양이 맞으면 그대로 · 틀리면 null', JSON.stringify(readReportSummary(JSON.parse(JSON.stringify(sum)))) === JSON.stringify(sum) && readReportSummary({ v: 1, criteria: 'x', judged: true, primary: { element: '없는 요소', level: 'improve' } }) === null);
   check('목록 꼬리표', summaryChip(sum)?.text === '드리프트' && summaryChip({ v: 1, criteria: 'x', judged: false, primary: null, bad: [] })?.text === '판정 못 함');
-  check('요약: 경계 이상 요소 모두(흐름 차례) · 옛 요약은 주 문제 하나로', sum.bad.map((b) => b.element).join() === '드리프트' && readReportSummary({ v: 1, criteria: 'x', judged: true, primary: { element: '드롭', level: 'edge' } })?.bad.length === 1);
+  check('요약: 경계 이상 요소 모두(흐름 차례) · 옛 요약은 주 문제 하나로', sum.bad.map((b) => b.element).join() === '드리프트,브레이크,몸통 회전' && readReportSummary({ v: 1, criteria: 'x', judged: true, primary: { element: '드롭', level: 'edge' } })?.bad.length === 1);
 
 }
 

@@ -63,6 +63,8 @@ import {
   readLabMeta,
 } from '@/lib/pitch-lab-meta';
 import { MECH_FOCUS_POINTS } from '@/lib/pitch-3d/v2/mech-judge';
+import type { PreviousComparison } from '@/lib/pitch-3d/v2/compare-view';
+import { loadPreviousComparison } from '@/lib/pitch-lab-compare';
 import { LAB_FAIL_FIX, type LabGuideSection } from '@/lib/pitch-lab-guide';
 import { trainingGuides } from '@/lib/library-cache';
 import { drillPicksFor, groupDrills, type DrillPick } from '@/lib/mechanics/drills';
@@ -483,6 +485,8 @@ export type AppLabDetail = {
     mine: boolean;
     /** 이 리포트의 처방이 메카닉에서 진행 중이면 n / 9(메카닉 세션 P2) */
     focus: FocusProgress;
+    /** 바로 앞 내 리포트와 견주기(내 것만, 없으면 null — 2026-10-26 더함, 옛 앱은 안 읽는다) */
+    previous: PreviousComparison | null;
   } | null;
   /** 결과가 없을 때 3D 칸의 글 · 다시 분석이 돌고 있을 때(active — 앱이 5초마다 묻는다) */
   waiting: ReturnType<typeof labWaitingText> | null;
@@ -527,7 +531,12 @@ export async function loadAppLabDetail(input: {
 
   let summary: AppLabDetail['result'] = null;
   if (result) {
-    const [guides, engineBuild] = await Promise.all([trainingGuides(), getEngineBuild()]);
+    const mine = sample.ownerId === user.id;
+    const [guides, engineBuild, previous] = await Promise.all([
+      trainingGuides(),
+      getEngineBuild(),
+      mine ? loadPreviousComparison(user, sample.id).catch(() => null) : null,
+    ]);
     const drills = groupDrills(guides);
     const picks = Object.fromEntries(MECH_FOCUS_POINTS.map((f) => [f, drillPicksFor(drills, f)]));
     const mech = mechSummary(result, heightCm);
@@ -553,7 +562,8 @@ export async function loadAppLabDetail(input: {
       engineLine: `엔진 v2 ${result.version} · 뼈 흔들림 ${result.fit.boneCvPct}% · 다시 비춤 ${result.fit.reprojPct}%`,
       stale: engineBuild != null && result.engine.build !== engineBuild,
       report,
-      mine: sample.ownerId === user.id,
+      mine,
+      previous,
       focus: await (async () => {
         if (sample.ownerId !== user.id) return null;
         const f = await loadFocusProgress(user.id).catch(() => null);
