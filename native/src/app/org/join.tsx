@@ -1,6 +1,6 @@
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { joinOrgApp } from '@/app/actions/app-org';
 import { consentDefaults, normalizeInviteCode } from '@/lib/org/rules';
@@ -8,7 +8,9 @@ import { Bar, call, useBusy } from '~/community/parts';
 import { READABLE } from '~/lib/layout';
 import { TYPE, usePalette } from '~/lib/ui';
 import { toast } from '~/shell/toast';
-import { ConsentList, GroupTitle, Primary, rememberSpace, spaceKey } from '~/org/parts';
+import { ConsentList, GroupTitle, Primary } from '~/org/parts';
+import { spaceKeyOf } from '@/lib/org/space-nav';
+import { refreshSpaces, setSpace } from '~/org/space-store';
 
 /**
  * 초대 코드로 팀 · 레슨장에 들어가기(앱 화면) — 코드 여섯 글자 + 코치에게 보여 줄 기록(웹 /join 과 같은 lib/org/join.ts).
@@ -28,9 +30,21 @@ export default function JoinOrgScreen() {
     run(async () => {
       const r = await call<Res>('app-org.joinOrgApp', code, consent);
       if (!r.ok) return r.error;
-      rememberSpace(spaceKey({ orgId: r.orgId, role: 'PLAYER' }));
       toast('들어갔어요');
-      router.replace('/org' as Href);
+      /* 들어간 직후 그 공간으로 옮길지 묻는다(U4, 기본 '옮기기') — 내 싱커는 그대로 남는다 */
+      await refreshSpaces();
+      const key = spaceKeyOf({ orgId: r.orgId, role: 'PLAYER' });
+      Alert.alert('그 공간으로 옮길까요?', '내 싱커는 그대로 있고, 위의 공간 고르개로 언제든 오가요.', [
+        { text: '나중에', style: 'cancel', onPress: () => router.replace('/org' as Href) },
+        {
+          text: '옮기기',
+          isPreferred: true,
+          onPress: () => {
+            setSpace(key);
+            if (router.canDismiss()) router.dismissAll();
+          },
+        },
+      ]);
       return null;
     });
   return (

@@ -97,6 +97,10 @@ const GLYPH: Record<string, IconName> = {
   flame: 'flame',
   book: 'book-open',
   pencil: 'pencil',
+  /* 팀 · 레슨장 공간 탭(lib/org/space-nav.ts spaceTabs, 2026-10-26 S단계) */
+  schedule: 'calendar-days',
+  people: 'people',
+  homework: 'clipboard-list',
   /* 덕아웃 앱 탭(src/dugout/site.ts) */
   market: 'market',
   chat: 'chat',

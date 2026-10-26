@@ -52,6 +52,10 @@ import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_SPORT_BARS, DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, sportActiveHref, sportOfPath, useTabBarOcclusion, type ShellTab, type SportKey } from '~/shell/tab-bar';
 import { TabPager } from '~/shell/tab-pager';
 import { ClockVeil } from '~/shell/clock-veil';
+import { ME, ORG_LOST, parseOrgOpen, targetTab, type SpaceSide, type OpenTarget } from '@/lib/org/space-nav';
+import { OrgSpaceView, orgTabsOf } from '~/org/space';
+import { confirmLeaveDrafts, orgLost, refreshSpaces, resetSpace, setSpace, setSpaceTab, spaceNow, spaceOf, spaceOwner, useSpace } from '~/org/space-store';
+import { toast } from '~/shell/toast';
 import { Press } from '~/shell/press';
 
 type WebViewHandle = { injectJavaScript(script: string): void };
@@ -204,6 +208,30 @@ setDestinationOf((href) => {
 const isLoginPath = (p: string) => p === '/login' || p.startsWith('/login/') || p === '/signup';
 /** 웹 체크인 흐름(app/(session)/checkin) — 탭 막대가 없는 화면 */
 const isCheckinPath = (p: string) => p === '/checkin' || p.startsWith('/checkin/');
+/** 조직 쪽 주소 — 조직 공간에서 열어도 내 싱커로 옮기지 않는다 */
+const isOrgHref = (href: string) => /^\/(org|manage|join)(\/|\?|$)/.test(href);
+
+/**
+ * 조직 알림 · 딥링크(/org/open, 계약 8-4) — 공간 목록을 다시 받아 확인한 뒤에만 연다. 지금 소속이면 그 공간 · 탭으로(쓰던 글이 있으면 묻는다),
+ * 지난 소속이면 받은 일지 알림만 읽기 화면으로, 그 밖은 한 줄.
+ */
+async function openOrg(o: { orgId: string; side: SpaceSide; target: OpenTarget }) {
+  await refreshSpaces();
+  const key = `${o.orgId}:${o.side}`;
+  const s = spaceOf(key);
+  if (!s) {
+    const old = o.side === 'p' ? spaceNow().former.find((f) => f.orgId === o.orgId) : undefined;
+    if (old && o.target === 'notes') return void router.push(`/org/former/${old.memberId}` as Href);
+    return toast('이제 볼 수 없는 소식이에요', 'error');
+  }
+  if (!(await confirmLeaveDrafts())) return;
+  if (router.canDismiss()) router.dismissAll();
+  if (o.target === 'share') {
+    setSpace(key);
+    return void router.push(`/org/share/${s.memberId}` as Href);
+  }
+  setSpace(key, targetTab(s.kind, o.side, o.target) ?? undefined);
+}
 
 /** 로그아웃 — 앞사람 기록(메모리 · 폰)을 지운다. 다음 사람이 로그인하면 새로 받는다(껍데기 상태는 SiteScreen resetShell) */
 function resetAccount() {
@@ -224,6 +252,8 @@ function resetAccount() {
   /* 더보기의 이름 · 관리자 칸 — 다음 사람의 메뉴 알림이 오기 전까지 앞사람 것이 보였다 */
   setMenu({ groups: [], nickname: '' });
   setMenuTabs(DEFAULT_TABS);
+  /* 지금 공간(팀 · 레슨장) — 메모리만, 폰의 열쇠는 사람마다(org/space-store) */
+  resetSpace();
   void cacheClear();
   /*
    * 저장 안 한 구속 세션(폰에 맡김)은 여기서 지우지 않는다 — 로그인 화면에 왔다고 지우면 같은 사람이 다시 로그인해도 잰 공이 사라졌다(2026-10-21).
@@ -234,6 +264,8 @@ function resetAccount() {
 /** 누가 로그인했는지 안 때 — 대기열 주인을 정하고, 다른 계정이 맡긴 구속 세션은 지우고, 폰에 남은 것을 보낸다 */
 function ownerKnown(userId: string) {
   setOutboxOwner(userId);
+  /* 그 사람의 마지막 공간을 먼저 그리고 서버 목록으로 확인한다(앱이 앞으로 올 때마다 다시 — 빠지거나 역할이 바뀌었으면 옮긴다, 계약 8-5) */
+  void spaceOwner(userId);
   void dropDraftNotOf(userId);
   drainQueues();
 }
@@ -520,6 +552,12 @@ export default function SiteScreen() {
   const navTo = useRef<(href: string) => void>(() => undefined);
   useEffect(() => {
     navTo.current = (href) => {
+      /* 조직 권한 없음 · 조직 알림 — 웹으로 보내지 않고 앱이 받는다(계약 8-4 · 8-5) */
+      if (href === ORG_LOST) return orgLost();
+      const org = parseOrgOpen(href);
+      if (org) return void openOrg(org);
+      /* 조직 공간에서 내 싱커 화면으로 가는 이동(운동을 마친 뒤 · 더보기의 덕아웃 열기 …)이면 내 싱커로 옮긴다 — 안 그러면 덮개 밑에서 안 보인다 */
+      if (!href.startsWith('#') && !isOrgHref(href) && spaceNow().key !== ME && spaceNow().hasSinker) setSpace(ME);
       if (href === '#refresh') {
         /* 앱 화면이 저장해 웹 틀(탭 잠금 · 목록)이 바뀌었다 — 웹이 다시 받으면 탭 목록을 새로 알린다 */
         setWebNutrition(false);
@@ -562,6 +600,10 @@ export default function SiteScreen() {
     /* 네이티브로 옮긴 화면 — 사이트 대신 앱 화면을 연다(구속 측정, 검토 D3) */
     /* ?web=1 은 옛 앱 세션을 웹 구속 화면이 마무리하는 길이라 가로채지 않는다(app/(session)/velocity/page.tsx) */
     const u = new URL(req.url);
+    if (host === SITE_HOST && (u.pathname === ORG_LOST || u.pathname === '/org/open')) {
+      navTo.current(u.pathname + u.search);
+      return false;
+    }
     if (host === SITE_HOST && NATIVE_PATHS.has(u.pathname) && u.searchParams.get('web') !== '1') {
       openNative(u.pathname + u.search);
       return false;
@@ -629,7 +671,11 @@ export default function SiteScreen() {
     } catch {
       return;
     }
-    if (msg.t === 'native' && msg.path) return openNative(msg.path);
+    if (msg.t === 'native' && msg.path) {
+      /* 웹 받이 페이지(app/org/open · lost)가 알려 온 조직 주소 */
+      if (msg.path === ORG_LOST || parseOrgOpen(msg.path)) return navTo.current(msg.path);
+      return openNative(msg.path);
+    }
     if (msg.t === 'tabs' && Array.isArray(msg.items)) {
       setTabs(msg.items);
       setMenuTabs(msg.items);
@@ -685,8 +731,12 @@ export default function SiteScreen() {
      * 마스터 계정은 (app) 틀이 웹 /manage 로 보낸다 — 앱에서는 팀 · 레슨장 공간(앱 화면)을 연다(결정 3: 마스터 계정엔 내 싱커가 없다).
      * 서버 이동(redirect)은 shouldStart 를 안 거칠 수 있어 주소가 바뀐 것을 여기서 본다. '?web=1' 은 일부러 웹.
      */
-    if (!nav.loading && (pathname === '/manage' || pathname.startsWith('/manage/')) && !/[?&]web=1\b/.test(nav.url)) openNative('/org');
-  }, [resetShell]);
+    /*
+     * 2026-10-26 S단계: 앱 화면 /org 를 쌓지 않고 계정을 물어(웹 /manage 는 탭 막대를 안 켜 askMe 가 저절로 안 돈다) 공간을 확인한다 —
+     * 마스터면 관리 조직 공간이 웹뷰 위를 덮는다(계약 8-5).
+     */
+    if (!nav.loading && (pathname === '/manage' || pathname.startsWith('/manage/')) && !/[?&]web=1\b/.test(nav.url)) void askMe();
+  }, [resetShell, askMe]);
 
   /*
    * 판 넷 — 하나씩 따로 만들어 둔다. 한 덩어리로 쓰면 컴파일러가 판 넷을 한 묶음으로 기억해, 탭을 옮길 때(pagerIndex) · 판 하나가 붙을 때마다
@@ -703,6 +753,13 @@ export default function SiteScreen() {
 
   /* 웹을 못 불러와도(꺼진 망에서 켬) 탭 막대 · 앱 탭은 그대로 쓴다 — 사이트가 '막대 켬'을 못 알려 주니 실패면 켠 것으로 본다 */
   const barShown = (barOn || failed) && !webFront && !isCheckinPath(path);
+  /*
+   * 지금 공간(계약 8절) — 팀 · 레슨장이면 웹뷰 · 내 싱커 판 위에 조직 공간을 덮고 아래 탭을 그 공간 · 역할 것으로 바꾼다. 내 싱커 상태(탭 · 종목 바 · 판)는
+   * 손대지 않아 돌아오면 그대로다. 웹이 보내는 막대 알림은 내 싱커 상태에만 적힌다. 로그인 전(meOk 아님)에는 늘 내 싱커 모양.
+   */
+  const sp = useSpace();
+  const inOrg = meOk && sp.key !== ME;
+  const orgNav = inOrg ? orgTabsOf(sp.key, spaceOf(sp.key)?.kind ?? null, sp.tabs[sp.key]) : null;
 
   return (
     <View style={{ flex: 1 }}>
@@ -775,9 +832,10 @@ export default function SiteScreen() {
         </View>
       ) : null}
       {/* 탭 넷 — 나란히 두고 240ms 에 미끄러진다(웹 tab-pager). 한 번 연 판은 붙여 둬서 굴린 자리가 남는다 */}
-      {today ? <TabPager index={pagerIndex} visible={pagerOn} slots={[homeSlot, pitchSlot, trainingSlot, nutritionSlot]} /> : null}
+      {today ? <TabPager index={pagerIndex} visible={pagerOn && !inOrg} slots={[homeSlot, pitchSlot, trainingSlot, nutritionSlot]} /> : null}
       {/* 홈 밖의 탭은 위 막대가 없어 시계 자리를 막으로 덮는다(웹 data-top-veil) */}
-      {today && pagerOn && pagerIndex !== 0 ? <ClockVeil /> : null}
+      {today && pagerOn && pagerIndex !== 0 && !inOrg ? <ClockVeil /> : null}
+      {inOrg ? <OrgSpaceView bottom={tabBottom} /> : null}
       {/*
         웹 창(설정 · 내 정보 — 웹 틀의 폴더 모양 창)이 앞에 떠 있는 동안은 숨긴다 — 그 창을 닫는 바깥 막은 아래쪽 띠뿐인데 이 막대가 그 띠를
         덮어, 앱에서는 창을 닫을 자리가 없었다(2026-10-18 시뮬레이터에서 확인). 창이 닫히면 웹이 알려(webfront false) 다시 보인다.
@@ -790,7 +848,17 @@ export default function SiteScreen() {
         투구 · 타격 안에서는 종목 바(‹ · 기록 · 트레이닝 · …)로 갈아 끼운다 — 커뮤니티 하단바와 같은 back · enter(웹 sport-tabs.tsx 와 같은 규칙).
         key 가 바뀌어 새로 붙을 때마다 들어오기 연출이 돈다.
       */}
-      {barShown ? (
+      {inOrg ? (
+        orgNav ? (
+          <TabBar
+            key={`org:${sp.key}`}
+            tabs={orgNav.tabs.map((t) => ({ href: t.key, label: t.label, icon: t.icon }))}
+            active={orgNav.tab}
+            onPress={(t) => setSpaceTab(sp.key, t.href)}
+            enter
+          />
+        ) : null
+      ) : barShown ? (
         sport ? (
           <TabBar
             key={sport}

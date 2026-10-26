@@ -17,6 +17,7 @@ import { takeWorkoutDone } from '~/workout/done-prefetch';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { leaveTo } from '~/shell/web-nav';
+import { consumeOrgReturn } from '~/org/space-store';
 import { s } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
@@ -85,7 +86,10 @@ export default function WorkoutDoneScreen() {
     return () => clearTimeout(t);
   }, [data, pop, ring, still]);
 
-  const finish = () => leaveTo('/training');
+  /* 조직 공간에서 연 운동이면 그 공간 · 탭으로(계약 8-4), 아니면 트레이닝 */
+  const finish = () => {
+    if (!consumeOrgReturn()) leaveTo('/training');
+  };
 
   if (!data) {
     return (

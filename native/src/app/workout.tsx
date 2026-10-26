@@ -38,6 +38,7 @@ import { BullpenNative } from '../../modules/bullpen-native';
 import { rpc, RpcError } from '~/lib/rpc';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
+import { consumeOrgReturn } from '~/org/space-store';
 import { REST_DAY } from '~/training/rest-day';
 import { prefetchWorkoutDone } from '~/workout/done-prefetch';
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
@@ -764,7 +765,7 @@ function Run({
       <KeyboardAvoidingView behavior="padding" style={s.fill}>
         {/* ─────────── 위: 보는 곳 ─────────── */}
         <View style={[s.header, { paddingTop: inset.top + 8, backgroundColor: c.card, borderBottomColor: c.line }]}>
-          <Press onPress={() => leave(TRAINING_HOME_HREF)} accessibilityRole="button" accessibilityLabel="나가기" style={s.iconBtn}>
+          <Press onPress={() => consumeOrgReturn() || leave(TRAINING_HOME_HREF)} accessibilityRole="button" accessibilityLabel="나가기" style={s.iconBtn}>
             <View style={[s.circle, { backgroundColor: c.chip }]}>
               <Icon name="x" size={14} color={c.muted} />
             </View>

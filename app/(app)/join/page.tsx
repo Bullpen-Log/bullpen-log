@@ -101,6 +101,8 @@ export default async function JoinPage({
       ? '코드는 여섯 글자예요. 다시 확인해 주세요.'
       : error === 'staff'
         ? '스태프용 초대 코드예요. 선수 계정으로는 참여할 수 없어요.'
+        : error === 'master'
+          ? '선수 코드는 선수 계정으로 넣어 주세요. 이 계정은 팀 · 레슨장 관리용이에요.'
         : error === 'expired' || (code && !usable && !already)
           ? '코드가 맞지 않거나 기한이 지났어요. 코치에게 새 코드를 받아 주세요.'
           : null;

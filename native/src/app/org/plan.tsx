@@ -12,6 +12,7 @@ import { toast } from '~/shell/toast';
 import { Box, DangerLink, Field, st as fst } from '~/org/forms';
 import { Primary } from '~/org/parts';
 import { LibraryBrowser, PickedList, pickItems, type Library, type LibraryLoad, type Pick } from '~/org/picker';
+import { useDraftGuard } from '~/org/space-store';
 
 /**
  * 훈련 메뉴 만들기 · 고치기(앱 화면, 3단계) — 이름(투수조 · 야수조 …) · 대상(모두 또는 고른 선수) · 라이브러리 운동 · 드릴. 저장은 app-team.savePlan.
@@ -30,6 +31,8 @@ export default function PlanScreen() {
   const plan = useLoad<PlanLoaded>('app-team.loadPlan', p.org ?? '', p.id ?? '');
   const [edited, setEdited] = useState<Draft | null>(null);
   const { busy, error, run } = useBusy();
+  /* 쓰던 글 — 다른 조직 알림으로 옮기거나 권한을 잃을 때 묻는다(계약 8-5) */
+  useDraftGuard(edited != null);
 
   const ready = detail.data && lib.data && plan.data;
   const base: Draft | null = ready ? (plan.data!.plan ? fromPlan(plan.data!.plan, lib.data!) : { title: '', memberIds: [], picks: [] }) : null;

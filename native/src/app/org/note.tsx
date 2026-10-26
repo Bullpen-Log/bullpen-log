@@ -1,8 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, ScrollView, Text } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { loadLessonNote, loadNotePitchDay } from '@/app/actions/app-org';
+import type { loadLessonNote, loadNotePitchDay, loadOrgMembers } from '@/app/actions/app-org';
 import { HOMEWORK_MAX, NOTE_MAX } from '@/lib/org/rules';
 import { PITCH_COUNT_MAX } from '@/lib/org/lesson-work';
 import { effortScaleText } from '@/lib/pitch-effort';
@@ -13,7 +13,8 @@ import { READABLE } from '~/lib/layout';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { toast } from '~/shell/toast';
 import { Box, ChoiceChips, DateStepper, Field, formCall } from '~/org/forms';
-import { Primary } from '~/org/parts';
+import { Card, Empty, Primary, st } from '~/org/parts';
+import { useDraftGuard } from '~/org/space-store';
 
 /**
  * 일지 쓰기 · 고치기(앱 화면) — 웹과 같은 org-notes.createLessonNote · updateLessonNote(폼). 오늘 한 것 · 본 것, 숙제(글),
@@ -29,7 +30,42 @@ type Day = Awaited<ReturnType<typeof loadNotePitchDay>>;
 
 export default function LessonNoteScreen() {
   const p = useLocalSearchParams<{ org: string; member?: string; note?: string }>();
-  return p.note ? <EditNote org={p.org ?? ''} noteId={p.note} /> : <NoteForm org={p.org ?? ''} memberId={p.member ?? ''} />;
+  /* 레슨일지 탭의 '+ 일지'는 회원 없이 온다 — 먼저 회원을 고른다(S단계) */
+  const [picked, setPicked] = useState<string | null>(null);
+  if (p.note) return <EditNote org={p.org ?? ''} noteId={p.note} />;
+  const memberId = p.member || picked;
+  return memberId ? <NoteForm org={p.org ?? ''} memberId={memberId} /> : <PickMember org={p.org ?? ''} onPick={setPicked} />;
+}
+
+function PickMember({ org, onPick }: { org: string; onPick: (id: string) => void }) {
+  const c = usePalette();
+  const inset = useSafeAreaInsets();
+  const { data, error, reload } = useLoad<Awaited<ReturnType<typeof loadOrgMembers>>>('app-org.loadOrgMembers', org);
+  return (
+    <View style={{ flex: 1, backgroundColor: c.page }}>
+      <Bar back="뒤로" title="누구의 일지인가요" c={c} />
+      {!data ? (
+        <LoadState error={error} onRetry={() => void reload()} c={c} />
+      ) : (
+        <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32 }, READABLE]}>
+          <Card c={c} style={{ paddingVertical: 4 }}>
+            {data.members.length === 0 ? <Empty text="아직 회원이 없어요." c={c} /> : null}
+            {data.members.map((m, i) => (
+              <Pressable
+                key={m.memberId}
+                accessibilityRole="button"
+                onPress={() => onPick(m.memberId)}
+                style={({ pressed }) => [st.row, i < data.members.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }, pressed && { opacity: 0.6 }]}
+              >
+                <Text style={[TYPE.card, { color: c.ink, flex: 1 }]}>{m.nickname}</Text>
+                <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
+              </Pressable>
+            ))}
+          </Card>
+        </ScrollView>
+      )}
+    </View>
+  );
 }
 
 function EditNote({ org, noteId }: { org: string; noteId: string }) {
@@ -61,6 +97,13 @@ function NoteForm({ org, memberId, edit }: { org: string; memberId: string; edit
   const day = useLoad<Day>('app-org.loadNotePitchDay', org, memberId, date);
   const { busy, error, run } = useBusy();
   const thrown = Number(pitchCount) > 0;
+  /* 쓰던 글 — 다른 조직 알림으로 옮기거나 권한을 잃을 때 묻는다(계약 8-5) */
+  useDraftGuard(
+    body !== (edit?.body ?? '') ||
+      homework !== (edit?.homework ?? '') ||
+      exercises !== (edit?.exercises ?? '') ||
+      pitchCount !== (edit?.pitchCount ? String(edit.pitchCount) : '')
+  );
   const linkValue = link.date === date ? link.value : '';
 
   const save = () =>

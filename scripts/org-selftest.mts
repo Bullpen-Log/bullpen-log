@@ -56,6 +56,19 @@ import {
   replyCounts,
 } from '@/lib/org/team';
 import { isOutingTitle } from '@/lib/calendar-event';
+import {
+  ME,
+  NO_ORG,
+  ORG_LOST,
+  orgOpenHref,
+  orgReturnParam,
+  parseOrgOpen,
+  parseOrgReturn,
+  resolveSpace,
+  spaceLabel,
+  spaceTabs,
+  targetTab,
+} from '@/lib/org/space-nav';
 import type { ReportFacts } from '@/lib/report/facts';
 
 let pass = 0;
@@ -725,6 +738,80 @@ console.log(
   const cal = src('app/actions/org-calendar.ts');
   check('일정을 지우면 참석 · 메뉴 · 등판도 같이', ['orgEventAttendee', 'orgPlan', 'orgOuting'].every((t) => cal.includes(`prisma.${t}.deleteMany({ where: { eventId: ev.id } })`)));
   check('공지를 지우면 읽음도 같이', src('app/actions/org-notices.ts').includes('orgNoticeRead.deleteMany({ where: { noticeId: n.id } })'));
+}
+
+/* ─────────────────────── 16. S단계 — 공간 · 역할별 아래 탭 · 고르개 · 나가기 자리(계약 8절) ─────────────────────── */
+
+{
+  const keys = (k: 'TEAM' | 'LESSON', side: 'c' | 'p') => spaceTabs(k, side).map((t) => t.label).join(' · ');
+  check('팀 코치 탭', keys('TEAM', 'c') === '오늘 · 일정 · 훈련 · 선수단 · 더보기');
+  check('팀 선수 탭(성장은 4단계)', keys('TEAM', 'p') === '오늘 · 일정 · 내 훈련 · 더보기');
+  check('레슨장 코치 탭', keys('LESSON', 'c') === '오늘 · 회원 · 레슨일지 · 받은 것 · 더보기');
+  check('레슨장 회원 탭(성장은 4단계)', keys('LESSON', 'p') === '홈 · 레슨일지 · 숙제 · 더보기');
+  const allLabels = (['TEAM', 'LESSON'] as const).flatMap((k) => (['c', 'p'] as const).flatMap((sd) => spaceTabs(k, sd).map((t) => t.label)));
+  check('조직 아래 탭에 덕아웃 · 예약 · 수강권 · 결제 · 빈 성장 탭 없음', !allLabels.some((l) => /덕아웃|예약|수강권|결제|성장/.test(l)));
+  check('고르개 이름', spaceLabel({ name: 'A팀', kind: 'TEAM', role: 'PLAYER' }) === 'A팀 · 선수' && spaceLabel({ name: 'B', kind: 'LESSON', role: 'PLAYER' }) === 'B · 회원' && spaceLabel({ name: 'B', kind: 'LESSON', role: 'MASTER' }) === 'B · 대표');
+  const team = { orgId: 'o1', role: 'PLAYER' };
+  const studio = { orgId: 'o2', role: 'PLAYER' };
+  check('선수 — 저장한 공간이 있으면 그대로', JSON.stringify(resolveSpace('o1:p', true, [team, studio])) === '{"key":"o1:p","lost":false}');
+  check('선수 — 저장한 공간이 사라지면 내 싱커 + 알림', JSON.stringify(resolveSpace('o9:p', true, [team])) === '{"key":"me","lost":true}');
+  check('선수 — 떠난 소속은 고를 수 없음', resolveSpace('o1:p', true, [{ ...team, left: true }]).key === ME);
+  check('선수 — 내 싱커 저장은 알림 없이 내 싱커', JSON.stringify(resolveSpace(ME, true, [team])) === '{"key":"me","lost":false}');
+  const m1 = { orgId: 'm1', role: 'MASTER' };
+  const m2 = { orgId: 'm2', role: 'STAFF' };
+  check('마스터 — 잃으면 다른 관리 조직(내 싱커 아님)', JSON.stringify(resolveSpace('m1:c', false, [m2])) === '{"key":"m2:c","lost":true}');
+  check('마스터 — 조직이 없으면 조직 없음', JSON.stringify(resolveSpace('m1:c', false, [])) === `{"key":"${NO_ORG}","lost":true}`);
+  check('마스터 — 처음(내 싱커로 저장돼 있어도)은 첫 조직', JSON.stringify(resolveSpace(ME, false, [m1, m2])) === '{"key":"m1:c","lost":false}');
+  check('마스터 — 저장 없음 · 조직 없음', resolveSpace(null, false, []).key === NO_ORG);
+  const open = parseOrgOpen(orgOpenHref('o1', 'p', 'homework'));
+  check('알림 주소 왕복', open?.orgId === 'o1' && open.side === 'p' && open.target === 'homework');
+  check('모르는 대상은 오늘로 · 이상한 주소는 무시', parseOrgOpen('/org/open?org=o1&as=p&to=evil')?.target === 'today' && parseOrgOpen('/org/open?org=../x&as=p') === null && parseOrgOpen('/org/open?org=o1&as=x') === null && parseOrgOpen('/manage') === null);
+  check('알림 대상 → 탭', targetTab('TEAM', 'p', 'homework') === 'mytraining' && targetTab('LESSON', 'p', 'homework') === 'homework' && targetTab('TEAM', 'c', 'inbox') === 'today' && targetTab('LESSON', 'c', 'inbox') === 'inbox' && targetTab('TEAM', 'p', 'share') === null);
+  check('운동 돌아올 곳 왕복', JSON.stringify(parseOrgReturn(orgReturnParam('o1:p', 'homework'))) === '{"key":"o1:p","tab":"homework"}' && parseOrgReturn('org:x:y') === null);
+
+  /* 서버 */
+  check('마스터 계정은 선수 초대 코드를 못 씀', src('lib/org/join.ts').includes("if (invite.role === 'PLAYER' && user.accountType === 'MASTER') return { ok: false, error: 'master' };"));
+  const org = src('app/actions/app-org.ts');
+  check('공간 목록 — 마스터는 선수 소속 없음 · 지금 소속과 떠난 소속을 가름', org.includes("user.accountType === 'MASTER'\n      ? []") && org.includes('former: spaces.filter((s) => s.left)'));
+  for (const f of ['app/actions/app-org.ts', 'app/actions/app-lesson.ts', 'app/actions/app-team.ts'])
+    check(`${f} 권한 없음은 ORG_LOST(앱이 공간을 다시 확인)`, src(f).includes('const NO_ACCESS = { ok: false as const, to: ORG_LOST };'));
+  check('권한 없음 주소', ORG_LOST === '/org/lost');
+  const bodyOf = (file: string, fn: string) => new RegExp(`export async function ${fn}\\([^]*?\\n\\}`).exec(src(file))?.[0] ?? '';
+  for (const [file, fn] of [
+    ['app/actions/app-lesson.ts', 'markMyHomework'],
+    ['app/actions/app-lesson.ts', 'homeworkToToday'],
+    ['app/actions/app-lesson.ts', 'addMyComment'],
+    ['app/actions/app-lesson.ts', 'myVideoUpload'],
+    ['app/actions/app-team.ts', 'replyEvent'],
+    ['app/actions/app-team.ts', 'markNoticesRead'],
+    ['app/actions/app-org.ts', 'saveConsent'],
+  ] as const)
+    check(`떠난 회원은 못 씀 — ${fn}`, /status !== 'ACTIVE'/.test(bodyOf(file, fn)));
+  check('떠난 회원에게 숙제는 안 보임', bodyOf('app/actions/app-lesson.ts', 'loadMyHomework').includes("if (r.m.status !== 'ACTIVE') return { ok: true, homework: [] };"));
+  const actions = readdirSync(join(ROOT, 'app/actions')).filter((f) => f.endsWith('.ts'));
+  check('조직 알림이 덕아웃 마이(/me#lessons)로 안 감', actions.every((f) => !src(`app/actions/${f}`).includes('/me#lessons')));
+  check('웹 받이 페이지(옛 앱 · PC 404 막기)', existsSync(join(ROOT, 'app/org/open/page.tsx')) && existsSync(join(ROOT, 'app/org/lost/page.tsx')));
+
+  /* 앱 */
+  const nativeFiles = walk(join(ROOT, 'native/src')).filter((f) => /\.(ts|tsx)$/.test(f));
+  const leaveCallers = nativeFiles.filter((f) => readFileSync(f, 'utf8').includes("'app-org.leaveOrg'")).map((f) => f.slice(ROOT.length).replace(/^\//, ''));
+  check('나가기는 소속 관리 화면에서만', leaveCallers.join() === 'native/src/app/org/index.tsx', leaveCallers.join());
+  for (const f of ['native/src/org/space-store.ts', 'native/src/org/space.tsx', 'native/src/org/space-pick.tsx', 'native/src/app/org/pick.tsx'])
+    check(`${f} 바꾸기는 소속 · 공유를 안 건드림`, !/leaveOrg|saveConsent|joinOrgApp/.test(src(f)));
+  const orgScreens = ['native/src/org/coach.tsx', 'native/src/org/player.tsx', 'native/src/org/space.tsx'].map(src).join('\n');
+  check('조직 화면에 예약 · 수강권 · 결제 동작 없음(덕아웃 링크만)', !/confirmBooking|addPass|adjustPass|'lessons\.|\/pay\//.test(orgScreens) && orgScreens.includes('openDugout'));
+  const store = src('native/src/org/space-store.ts');
+  check('마지막 공간은 사람마다', store.includes('`bullpen-space:${userId}`') && store.includes('resolveSpace(before, r.hasSinker, r.spaces)'));
+  const shell = src('native/src/app/index.tsx');
+  check('껍데기 — 조직 공간이면 내 싱커 판은 숨기고 덮개 · 조직 탭', shell.includes('visible={pagerOn && !inOrg}') && shell.includes('<OrgSpaceView bottom={tabBottom} />') && shell.includes('key={`org:${sp.key}`}'));
+  check('껍데기 — 권한 없음 · 조직 알림을 앱이 받음', shell.includes('if (href === ORG_LOST) return orgLost();') && shell.includes('parseOrgOpen(href)') && shell.includes("u.pathname === ORG_LOST || u.pathname === '/org/open'"));
+  check('껍데기 — 다른 조직 알림은 쓰던 글을 먼저 물음', shell.includes('if (!(await confirmLeaveDrafts())) return;'));
+  check('껍데기 — 앱이 앞으로 올 때 공간을 다시 확인', shell.includes('void spaceOwner(userId);'));
+  check('앱 useLoad — 권한 없음은 화면을 무작정 걷지 않음', src('native/src/community/parts.tsx').includes('if (to === ORG_LOST) orgLost();'));
+  const tabBar = src('native/src/shell/tab-bar.tsx');
+  check('내 싱커 아래 탭 그대로(홈 · 덕아웃 · 투구 · 타격 · 더보기)', ["label: '홈'", "label: '덕아웃'", "label: '투구'", "label: '타격'", "label: '더보기'"].every((x) => tabBar.includes(x)));
+  check('쓰기 화면이 쓰던 글을 알림', ['note', 'homework', 'plan', 'work', 'notice', 'event'].every((n) => src(`native/src/app/org/${n}.tsx`).includes('useDraftGuard(')));
+  check('조직에서 연 운동은 그 공간으로 돌아옴', src('native/src/app/workout-done.tsx').includes('consumeOrgReturn()') && src('native/src/org/player.tsx').includes('setOrgReturn(spaceKeyOf(space), tab)'));
 }
 
 console.log(

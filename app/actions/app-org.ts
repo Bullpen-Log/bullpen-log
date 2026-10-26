@@ -18,6 +18,7 @@ import { formatExercise, readExercises } from '@/lib/org/lesson-work';
 import { noteKey } from '@/lib/org/lesson-pitch';
 import { replyCounts, type AttendReply } from '@/lib/org/team';
 import { noticeReads } from '@/lib/org/team-load';
+import { ORG_LOST } from '@/lib/org/space-nav';
 
 /**
  * 아이폰 앱(native/src/app/org/*)의 팀 · 레슨장 공간 — 1단계(docs/designs/sinker-team-lesson-contract.md 2-1).
@@ -52,7 +53,11 @@ const armLine = (s: CoachArmStatus): ArmLine => ({
 });
 
 /** 로그인한 사람의 공간 — 마스터 계정은 내 싱커가 없다(결정 3), 코치로 든 조직과 선수로 든 조직을 함께 */
-export async function loadMySpaces(): Promise<{ ok: false; to: string } | { ok: true; hasSinker: boolean; spaces: MySpace[] }> {
+/**
+ * 내 공간 목록(계약 8절) — spaces 는 고르개에 뜨는 지금 소속(코치 쪽 + ACTIVE 선수 소속), former 는 떠난 소속(소속 관리 '지난 소속' — 받은 일지 읽기만).
+ * 마스터 계정은 선수 소속이 없다(결정 3 — 선수 코드도 lib/org/join.ts 가 막는다). 앱이 고른 공간은 권한이 아니다 — 동작마다 coachOrg · myMember 로 다시 본다.
+ */
+export async function loadMySpaces(): Promise<{ ok: false; to: string } | { ok: true; hasSinker: boolean; spaces: MySpace[]; former: MySpace[] }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   /* 관리자도 제가 만들었거나 코치로 든 조직만 — 웹 orgsFor 처럼 모든 조직(더미 코치 포함)을 고르개에 늘어놓지 않는다 */
@@ -75,7 +80,9 @@ export async function loadMySpaces(): Promise<{ ok: false; to: string } | { ok: 
           },
         })
       : [],
-    prisma.orgMember.findMany({
+    user.accountType === 'MASTER'
+      ? []
+      : prisma.orgMember.findMany({
       where: { userId: user.id, role: 'PLAYER', status: { in: ['ACTIVE', 'LEFT'] } },
       orderBy: { joinedAt: 'asc' },
       select: {
@@ -106,13 +113,13 @@ export async function loadMySpaces(): Promise<{ ok: false; to: string } | { ok: 
       left: m.status === 'LEFT',
     })),
   ];
-  return { ok: true, hasSinker: user.accountType !== 'MASTER', spaces };
+  return { ok: true, hasSinker: user.accountType !== 'MASTER', spaces: spaces.filter((s) => !s.left), former: spaces.filter((s) => s.left) };
 }
 
 /* ── 코치 쪽 ── */
 
-/** 볼 권한이 없거나 없는 곳 — 앱(useLoad)은 to 로 보낸다. 마스터 계정은 /today 가 다시 /manage(→ 앱 /org)로 */
-const NO_ACCESS = { ok: false as const, to: '/today' };
+/* 조직을 볼 권한이 없음 — 앱 껍데기가 '/org/lost' 를 가로채 공간을 다시 확인한다(계약 8-5). 옛 앱 · PC 는 웹 /org/lost 페이지가 받는다 */
+const NO_ACCESS = { ok: false as const, to: ORG_LOST };
 
 
 export type OrgToday = {
@@ -213,14 +220,33 @@ export type LessonNoteView = {
   talk: { total: number; open: number };
   /** 일지에 붙인 영상(저장소 경로) — 재생 주소는 app-lesson.coachVideoUrls · myVideoUrls */
   videos: string[];
+  /** 누구의 일지인가(S단계 레슨장 코치 '레슨일지' 탭이 조직 전체 목록에서 쓴다) */
+  memberId: string;
+  nickname: string;
 };
 
-async function notesOf(memberId: string, take: number, viewerId: string, memberUserId: string | null): Promise<LessonNoteView[]> {
+async function notesOf(
+  where: { memberId: string } | { member: { orgId: string }; date?: { lt: Date } },
+  take: number,
+  viewerId: string,
+  memberUserId: string | null
+): Promise<LessonNoteView[]> {
   const notes = await prisma.lessonNote.findMany({
-    where: { memberId },
+    where,
     orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
     take,
-    select: { id: true, date: true, body: true, homework: true, pitchCount: true, intensity: true, authorId: true, eventId: true, videoPaths: true },
+    select: {
+      id: true,
+      date: true,
+      body: true,
+      homework: true,
+      pitchCount: true,
+      intensity: true,
+      authorId: true,
+      eventId: true,
+      videoPaths: true,
+      member: { select: { id: true, nickname: true } },
+    },
   });
   const events = notes.map((n) => n.eventId).filter((e): e is string => !!e);
   const [authors, logs, talk] = await Promise.all([
@@ -254,7 +280,17 @@ async function notesOf(memberId: string, take: number, viewerId: string, memberU
     pitchLog: pitchLogOf(n),
     talk: talk.get(n.id) ?? { total: 0, open: 0 },
     videos: n.videoPaths,
+    memberId: n.member.id,
+    nickname: n.member.nickname,
   }));
+}
+
+/** 레슨장 코치 '레슨일지' 탭(S단계) — 조직 전체 일지 최신순 40개씩, before(그 날짜 앞)로 더 읽기. 말 수는 전체만(회원 안 푼 말은 '받은 것') */
+export async function loadOrgNotes(orgId: string, before: string | null): Promise<{ ok: false; to: string } | { ok: true; notes: LessonNoteView[] }> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const where = { member: { orgId }, ...(before && /^\d{4}-\d{2}-\d{2}$/.test(before) ? { date: { lt: dbDate(before) } } : {}) };
+  return { ok: true, notes: await notesOf(where, 40, c.user.id, null) };
 }
 
 /** 코치 '회원 카드' — 공유한 항목만(card 의 각 칸이 null 이면 공유 안 함) · 일지 */
@@ -276,7 +312,7 @@ export async function loadMemberCard(
   if (!c) return NO_ACCESS;
   const member = await loadMember(orgId, memberId);
   if (!member || member.role !== 'PLAYER' || member.status !== 'ACTIVE') return NO_ACCESS;
-  const [card, notes] = await Promise.all([memberCardOf(member, appNow()), notesOf(member.id, 20, c.user.id, member.user?.id ?? null)]);
+  const [card, notes] = await Promise.all([memberCardOf(member, appNow()), notesOf({ memberId: member.id }, 20, c.user.id, member.user?.id ?? null)]);
   return {
     ok: true,
     kind: c.org.kind,
@@ -579,7 +615,7 @@ export async function loadMyMembership(memberId: string): Promise<
     left: r.m.status === 'LEFT',
     consentPending: r.m.status === 'ACTIVE' && !r.m.consent,
     scope: r.m.consent,
-    notes: await notesOf(r.m.id, 50, r.user.id, r.user.id),
+    notes: await notesOf({ memberId: r.m.id }, 50, r.user.id, r.user.id),
     notices: await noticesOf(r.m.org.id, 10),
   };
 }
@@ -617,10 +653,11 @@ export async function leaveOrg(memberId: string): Promise<{ ok: boolean; error?:
   return { ok: true };
 }
 
-const JOIN_ERROR: Record<'code' | 'expired' | 'staff', string> = {
+const JOIN_ERROR: Record<'code' | 'expired' | 'staff' | 'master', string> = {
   code: '초대 코드 여섯 글자를 확인해 주세요.',
   expired: '코드가 맞지 않거나 기한이 지났어요. 코치에게 새 코드를 받아 주세요.',
   staff: '코치 초대 코드예요. 선수 코드를 받아 주세요.',
+  master: '선수 코드는 선수 계정으로 넣어 주세요. 이 계정은 팀 · 레슨장 관리용이에요.',
 };
 
 /** 초대 코드로 들어가기 — 공유 범위를 함께 고른다(웹 joinOrg 와 같은 lib/org/join.ts) */

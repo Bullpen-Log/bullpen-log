@@ -9,6 +9,7 @@ import { dbDate } from '@/lib/nutrition/days';
 import { allExercises, allGuides, exercisesByIds, trainingGuides, visibleExercises } from '@/lib/library-cache';
 import { memberScope } from '@/lib/org/rules';
 import { coachOrg, myMember } from '@/lib/org/app-access';
+import { ORG_LOST, orgOpenHref } from '@/lib/org/space-nav';
 import { cleanHomeworkItems, homeworkDose, readHomeworkItems } from '@/lib/org/homework';
 import { cleanOrgWork, type OrgWorkItem } from '@/lib/org/team-work';
 import { writeOrgWork } from '@/lib/org/team-work-store';
@@ -34,7 +35,8 @@ import {
  * 수행일지는 선수의 그날 운동 판에 코치 세트로 붙는다(lib/org/team-work-store.ts writeOrgWork) — 가입했고 트레이닝 공유를 켠 선수만.
  */
 
-const NO_ACCESS = { ok: false as const, to: '/today' };
+/* 조직을 볼 권한이 없음 — 앱 껍데기가 가로채 공간을 다시 확인한다(계약 8-5) */
+const NO_ACCESS = { ok: false as const, to: ORG_LOST };
 const CONSENT = { pitch: true, training: true, checkin: true, video: true, nutrition: true, weight: true } as const;
 
 async function eventOf(orgId: string, eventId: string) {
@@ -375,10 +377,65 @@ export async function confirmOutings(orgId: string, eventId: string): Promise<{ 
         kind: 'team',
         title: `${day} ${event.title} ${OUTING_ROLE_LABEL[d.role]}로 확정됐어요`,
         body: d.pitchLimit ? `투구 수 한도 ${d.pitchLimit}구` : undefined,
-        link: '/me#lessons',
+        link: orgOpenHref(orgId, 'p', 'schedule'),
       });
   }
   return { ok: true, count: drafts.length };
+}
+
+/* ── 코치: '훈련' 탭(S단계) — 지난 2주 · 다가오는 2주 팀 일정의 메뉴와 수행일지 남김 ── */
+
+export type TrainingRow = {
+  id: string;
+  date: string;
+  time: string | null;
+  kind: string;
+  title: string;
+  plans: string[];
+  /** 수행일지를 남긴 선수 수 */
+  recorded: number;
+  /** 왔어요로 확인한 선수 수 */
+  attended: number;
+};
+
+export async function loadTeamTraining(orgId: string): Promise<{ ok: false; to: string } | { ok: true; todayKey: string; rows: TrainingRow[] }> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const todayKey = toDateKey(appNow());
+  const events = await prisma.orgEvent.findMany({
+    where: {
+      orgId,
+      memberId: null,
+      kind: { in: ['training', 'game'] },
+      status: { not: 'canceled' },
+      date: { gte: dbDate(shiftDateKey(todayKey, -14)), lte: dbDate(shiftDateKey(todayKey, 14)) },
+    },
+    orderBy: [{ date: 'asc' }, { time: 'asc' }],
+    take: 60,
+    select: { id: true, date: true, time: true, kind: true, title: true },
+  });
+  const ids = events.map((e) => e.id);
+  const [plans, sets, came] = ids.length
+    ? await Promise.all([
+        prisma.orgPlan.findMany({ where: { eventId: { in: ids } }, orderBy: { createdAt: 'asc' }, select: { eventId: true, title: true } }),
+        prisma.userExerciseSet.groupBy({ by: ['orgEventId', 'userId'], where: { orgEventId: { in: ids } } }),
+        prisma.orgEventAttendee.groupBy({ by: ['eventId'], where: { eventId: { in: ids }, attended: true }, _count: { _all: true } }),
+      ])
+    : [[], [], []];
+  return {
+    ok: true,
+    todayKey,
+    rows: events.map((e) => ({
+      id: e.id,
+      date: toDateKey(e.date),
+      time: e.time,
+      kind: e.kind,
+      title: e.title,
+      plans: plans.filter((p) => p.eventId === e.id).map((p) => p.title),
+      recorded: sets.filter((s) => s.orgEventId === e.id).length,
+      attended: came.find((a) => a.eventId === e.id)?._count._all ?? 0,
+    })),
+  };
 }
 
 /* ── 선수: 다가오는 일정 · 참석 응답 · 메뉴 · 확정된 등판 · 공지 읽음 ── */
@@ -395,10 +452,15 @@ export type MyEventView = {
   outing: { role: OutingRole; pitchLimit: number | null } | null;
 };
 
-export async function loadMyTeam(memberId: string): Promise<{ ok: false; to: string } | { ok: true; events: MyEventView[] }> {
+/** 코치가 남긴 내 수행(지난 2주) — 내 운동 세트를 가리키기만 한다(복사 없음, 계약 8-5) */
+export type MyWorkView = { eventId: string; date: string; title: string; sets: number; exercises: string[] };
+
+export async function loadMyTeam(
+  memberId: string
+): Promise<{ ok: false; to: string } | { ok: true; todayKey: string; events: MyEventView[]; recent: MyWorkView[] }> {
   const r = await myMember(memberId);
   if (!r) return NO_ACCESS;
-  if (r.m.status !== 'ACTIVE') return { ok: true, events: [] };
+  if (r.m.status !== 'ACTIVE') return { ok: true, todayKey: toDateKey(appNow()), events: [], recent: [] };
   const today = toDateKey(appNow());
   const events = await prisma.orgEvent.findMany({
     where: {
@@ -421,6 +483,8 @@ export async function loadMyTeam(memberId: string): Promise<{ ok: false; to: str
   const all = players.map((p) => p.id);
   return {
     ok: true,
+    todayKey: today,
+    recent: await myRecentWork(r.m.org.id, r.user.id, today),
     events: await Promise.all(
       events.map(async (e) => {
         const a = att.find((x) => x.eventId === e.id);
@@ -443,6 +507,27 @@ export async function loadMyTeam(memberId: string): Promise<{ ok: false; to: str
   };
 }
 
+async function myRecentWork(orgId: string, userId: string, today: string): Promise<MyWorkView[]> {
+  const events = await prisma.orgEvent.findMany({
+    where: { orgId, date: { gte: dbDate(shiftDateKey(today, -14)), lte: dbDate(today) } },
+    orderBy: [{ date: 'desc' }, { time: 'desc' }],
+    select: { id: true, date: true, title: true },
+  });
+  if (events.length === 0) return [];
+  const sets = await prisma.userExerciseSet.findMany({
+    where: { userId, orgEventId: { in: events.map((e) => e.id) } },
+    select: { orgEventId: true, exerciseId: true },
+  });
+  if (sets.length === 0) return [];
+  const names = new Map((await allExercises()).map((e) => [e.id, e.title]));
+  return events
+    .map((e) => {
+      const mine = sets.filter((s) => s.orgEventId === e.id);
+      return { eventId: e.id, date: toDateKey(e.date), title: e.title, sets: mine.length, exercises: [...new Set(mine.map((s) => names.get(s.exerciseId) ?? '지운 운동'))] };
+    })
+    .filter((w) => w.sets > 0);
+}
+
 /** 참석 응답 — 가요 · 못 가요 · 아직 몰라요(+ 한 줄) */
 export async function replyEvent(memberId: string, eventId: string, reply: unknown, note: unknown): Promise<{ ok: boolean; error?: string }> {
   const r = await myMember(memberId);
@@ -462,7 +547,7 @@ export async function replyEvent(memberId: string, eventId: string, reply: unkno
 /** 공지를 봤다 — 선수 공간이 공지를 보일 때 */
 export async function markNoticesRead(memberId: string, noticeIds: unknown): Promise<{ ok: boolean }> {
   const r = await myMember(memberId);
-  if (!r) return { ok: false };
+  if (!r || r.m.status !== 'ACTIVE') return { ok: false };
   const ids = Array.isArray(noticeIds) ? noticeIds.filter((x): x is string => typeof x === 'string').slice(0, 20) : [];
   if (ids.length === 0) return { ok: true };
   const mine = await prisma.orgNotice.findMany({ where: { id: { in: ids }, orgId: r.m.org.id }, select: { id: true } });

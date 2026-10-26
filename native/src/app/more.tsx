@@ -14,6 +14,7 @@ import { useMenu, type MenuGroup } from '~/shell/menu-store';
 import { tabBarOcclusion, type ShellTab } from '~/shell/tab-bar';
 import { destinationOf, leaveTo, leaveWhenShown, openWebAfter } from '~/shell/web-nav';
 import { beginMotion, endMotion } from '~/shell/transition';
+import { useSpace } from '~/org/space-store';
 
 /**
  * 더보기(앱) — 아이폰 홈 화면 폴더처럼: 뒤 화면을 흐리고 어둡게 가라앉히고(expo-blur), 그 위에 '메뉴' 큰 제목과 반투명 유리 폴더가
@@ -120,6 +121,7 @@ export default function MoreScreen() {
   const { groups, nickname, avatarUrl, isAdmin, tabs } = useMenu();
   const theme = useTheme();
   const L = LOOK[theme];
+  const { spaces } = useSpace();
   const reduce = useReducedMotion();
   /* 타일 크기는 화면 높이가 정한다 — 굴리지 않고 한 장에(웹 --tile: clamp(40px, (100dvh − 34rem) / 5, 52px)) */
   const tile = Math.max(40, Math.min(52, (height - 34 * 16) / 5));
@@ -269,6 +271,21 @@ export default function MoreScreen() {
       onLayout={(e) => setViewH(e.nativeEvent.layout.height)}
       onContentSizeChange={(_, h) => setContentH(h)}
     >
+      {/* 공간 고르개(계약 8-4 · U1) — 팀 · 레슨장에 들어간 사람만. 더보기를 닫고 고르개 시트를 연다 */}
+      {spaces.length ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="지금 공간 내 싱커, 공간 바꾸기"
+          onPress={() => {
+            router.back();
+            router.push('/org/pick' as Href);
+          }}
+          style={({ pressed }) => [styles.space, pressed && { opacity: 0.6 }]}
+        >
+          <Text style={{ color: L.fg, fontSize: 15, fontWeight: '600' }}>내 싱커</Text>
+          <Icon name="chevron-down" size={16} color={L.fg} />
+        </Pressable>
+      ) : null}
       {folders.map((g, gi) => (
         <View key={g.title ?? `g${gi}`} style={[styles.grid, gi > 0 && { marginTop: 4 }]}>
           {g.title ? <Text style={[styles.groupTitle, { color: L.fg, opacity: 0.6 }]}>{g.title}</Text> : null}
@@ -278,8 +295,8 @@ export default function MoreScreen() {
       {/* 설정 — 묶음 뒤 따로 한 줄(웹 detail-menu: 모든 묶음 뒤) */}
       <View style={[styles.grid, { marginTop: 12 }]}>
         {tileOf('settings', '설정', 'settings', () => router.push('/settings' as Href))}
-        {/* 팀 · 레슨장 공간(1단계) — 초대 코드로 들어가기 · 공유 범위 · 받은 일지 */}
-        {tileOf('org', '팀 · 레슨장', 'people', () => router.push('/org' as Href))}
+        {/* 소속 관리(계약 8-4) — 들어간 팀 · 레슨장 · 코드로 들어가기 · 지난 소속 · 나가기. 공간 바꾸기는 홈 머리 · 아래의 고르개 */}
+        {tileOf('org', '소속 관리', 'people', () => router.push('/org' as Href))}
       </View>
       {/* 내 정보 — 폴더 밑 줄(웹 Avatar · 닉네임 · '내 정보') */}
       <Pressable
@@ -357,6 +374,7 @@ export default function MoreScreen() {
 }
 
 const styles = StyleSheet.create({
+  space: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: 4, minHeight: 36, paddingHorizontal: 12 },
   scrim: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   /* 높이는 막 안쪽(시계 자리 ~ 탭 막대)에 맞춰 줄어든다 — 넘치면 폴더 안(body)이 굴러간다 */
   folderWrap: { width: '88%', maxWidth: 352, flexShrink: 1 },

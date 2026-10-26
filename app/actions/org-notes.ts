@@ -29,6 +29,7 @@ import { appNow, appNowMs } from '@/lib/clock';
 import { memberScope } from '@/lib/org/rules';
 import { noteKey, planNotePitch, type NotePitchPlan } from '@/lib/org/lesson-pitch';
 import { isOrgVideoPath } from '@/lib/org/comments';
+import { orgOpenHref } from '@/lib/org/space-nav';
 import { deleteVideos } from '@/lib/storage';
 import { DEFAULT_SESSION_TYPE, isRestSession, validateSessionType } from '@/lib/session-type';
 import { effortFields, scaleToEffortPct } from '@/lib/pitch-effort';
@@ -246,7 +247,7 @@ export async function createLessonNote(
       kind: 'lesson',
       title: '코치가 레슨 기록을 남겼어요',
       body: form.body.slice(0, 60),
-      link: '/me#lessons',
+      link: orgOpenHref(member.orgId, 'p', 'notes'),
     });
   revalidateNote(member.id);
   return { success: '남겼어요.' };

@@ -12,6 +12,8 @@ import { createLatest, createLoadCache } from './load-core';
 import type { Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { Icon } from '~/shell/icon';
+import { ORG_LOST } from '@/lib/org/space-nav';
+import { orgLost } from '~/org/space-store';
 
 /**
  * 커뮤니티 · 고객센터 앱 화면(native/src/app/community · support)이 같이 쓰는 조각 — 읽기 · 쓰기 부르기, 위 막대, 줄, 알약.
@@ -91,7 +93,12 @@ export function useLoad<R extends { ok: boolean }>(action: string, ...args: (str
               setState({ key, data: r as Extract<R, { ok: true }> });
               setError(null);
             });
-          } else if (mine()) leave((r as { to?: string }).to ?? '/login');
+          } else if (mine()) {
+            const to = (r as { to?: string }).to ?? '/login';
+            /* 조직 권한 없음 — 쌓인 화면을 무작정 걷지 않고(쓰던 글) 공간을 다시 확인한다(계약 8-5) */
+            if (to === ORG_LOST) orgLost();
+            else leave(to);
+          }
         },
         (e: unknown) => {
           if (!mine()) return;

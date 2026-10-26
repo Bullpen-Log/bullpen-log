@@ -10,6 +10,7 @@ import { TYPE, usePalette } from '~/lib/ui';
 import { toast } from '~/shell/toast';
 import { Box, DangerLink, Field, formCall } from '~/org/forms';
 import { Card, Primary } from '~/org/parts';
+import { useDraftGuard } from '~/org/space-store';
 
 /** 조직 공지 쓰기 · 고치기 · 지우기(앱 화면, 1.5단계) — 웹과 같은 org-notices.saveOrgNotice · deleteOrgNotice(폼) */
 type Loaded = Awaited<ReturnType<typeof loadOrgNotices>>;
@@ -22,6 +23,8 @@ export default function OrgNoticeScreen() {
   const { data, error, reload } = useLoad<Loaded>('app-org.loadOrgNotices', p.org ?? '');
   const [edited, setDraft] = useState<Draft | null>(null);
   const { busy, error: sendError, run } = useBusy();
+  /* 쓰던 글 — 다른 조직 알림으로 옮기거나 권한을 잃을 때 묻는다(계약 8-5) */
+  useDraftGuard(edited != null);
   const found = data && p.id ? data.notices.find((n) => n.id === p.id) : undefined;
   const draft: Draft | null = edited ?? (data ? (found ? { title: found.title, body: found.body, pinned: found.pinned } : { title: '', body: '', pinned: false }) : null);
   const set = (patch: Partial<Draft>) => {
