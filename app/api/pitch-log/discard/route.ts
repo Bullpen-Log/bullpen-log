@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
-import { prisma } from '@/lib/prisma';
-import { deleteVideos, isOwnAvatarPath, isOwnedBy } from '@/lib/storage';
+import { isOwnAvatarPath, isOwnedBy } from '@/lib/storage';
+import { deleteUnreferenced } from '@/lib/video-refs';
 
 /** 한 번에 받는 경로 수 — 기록 하나에 영상은 두 개까지다 */
 const MAX_PATHS = 10;
@@ -38,39 +38,8 @@ export async function POST(req: Request) {
     );
   if (own.length === 0) return NextResponse.json({ deleted: 0 });
 
-  const [logs, clips, parts, attempts] = await Promise.all([
-    prisma.pitchLog.findMany({
-      where: { userId: user.id, videoPaths: { hasSome: own } },
-      select: { videoPaths: true },
-    }),
-    prisma.velocityPitch.findMany({
-      where: {
-        userId: user.id,
-        OR: [{ clipPath: { in: own } }, { wideClipPath: { in: own } }],
-      },
-      select: { clipPath: true, wideClipPath: true },
-    }),
-    /* 엔진 개발용 녹화 조각(관리자) — 같은 폴더에 있다 */
-    prisma.velocityRecordingPart.findMany({
-      where: { path: { in: own } },
-      select: { path: true },
-    }),
-    /* 못 잰 공의 클립(VelocityAttempt) — 같은 폴더에 있다(2026-10-18 전엔 안 봐서 지워질 수 있었다) */
-    prisma.velocityAttempt.findMany({
-      where: { userId: user.id, clipPath: { in: own } },
-      select: { clipPath: true },
-    }),
-  ]);
-  const used = new Set<string>([
-    ...logs.flatMap((l) => l.videoPaths),
-    ...parts.map((p) => p.path),
-    ...attempts.map((a) => a.clipPath).filter((p): p is string => p != null),
-    ...clips
-      .flatMap((c) => [c.clipPath, c.wideClipPath])
-      .filter((p): p is string => p != null),
-  ]);
-  const orphans = own.filter((p) => !used.has(p));
-  if (orphans.length > 0) await deleteVideos(orphans);
+  /* 투구 · 타격 기록 · 구속 측정 공 · 시도 클립 · 녹화 조각 어디에도 안 붙은 것만(lib/video-refs.ts) */
+  const orphans = await deleteUnreferenced(own);
 
   /* orphans — 어느 기록 · 클립에도 없는 경로. 폰 영상(local-)은 서버에 파일이 없어, 부르는 쪽이 이것만 폰에서 지운다(lib/local-video.ts discardPhoneVideos) */
   return NextResponse.json({ deleted: orphans.length, orphans });

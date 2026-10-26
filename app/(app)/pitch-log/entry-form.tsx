@@ -629,7 +629,7 @@ export function EntryForm({
       /* 고치며 뺀 폰 영상은 이 폰에서도 지운다(서버는 파일이 없어 미리보기만 지운다). 다른 폰의 영상이면 아무 일 없다 */
       if (editing) {
         const kept = new Set(videos.map((v) => v.path));
-        void removePhoneVideos(initial!.videoPaths.filter((p) => isPhoneVideoPath(p) && !kept.has(p)));
+        void discardPhoneVideos(initial!.videoPaths.filter((p) => isPhoneVideoPath(p) && !kept.has(p)));
       }
       clearDraft(draftKey);
       setRestored(false);

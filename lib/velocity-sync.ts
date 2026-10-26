@@ -1,6 +1,6 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
-import { deleteVideos } from '@/lib/storage';
+import { deleteUnreferenced } from '@/lib/video-refs';
 import { VELOCITY_MEMO_MARK } from '@/lib/velocity-meta';
 import { sanitizeAbs, sanitizeFitSnapshot } from '@/lib/abs/analysis';
 
@@ -72,7 +72,7 @@ export async function deleteVelocitySessionRows(sessionId: string) {
       await tx.pitchLog.delete({ where: { id: session.pitchLogId } });
     }
   });
-  if (clips.length) await deleteVideos(clips).catch(() => undefined);
+  if (clips.length) await deleteUnreferenced(clips).catch(() => undefined);
   return session;
 }
 
@@ -86,7 +86,7 @@ export async function deleteVelocityPitchRow(pitch: {
 }) {
   await prisma.velocityPitch.delete({ where: { id: pitch.id } });
   const clips = [pitch.clipPath, pitch.wideClipPath].filter((p): p is string => !!p);
-  if (clips.length) await deleteVideos(clips).catch(() => undefined);
+  if (clips.length) await deleteUnreferenced(clips).catch(() => undefined);
   await syncVelocitySession(pitch.sessionId);
 }
 

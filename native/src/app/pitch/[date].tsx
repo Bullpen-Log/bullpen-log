@@ -8,11 +8,10 @@ import { isRestSession } from '@/lib/session-type';
 import { effortText } from '@/lib/pitch-effort';
 import { formatSpeed, round1, speedLabel, toSpeed } from '@/lib/units';
 import { usePrefs } from '~/lib/prefs';
-import { LocalVideo } from '../../../modules/local-video';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
-import { ApiError, dateKeyOf, deleteLog, isPhoneVideoPath, loadMe, phoneAssetId } from '~/pitch/api';
+import { ApiError, dateKeyOf, deleteLog, loadMe, removePhoneOrphans } from '~/pitch/api';
 import { monthOf, refreshMonth, repOf, setFeatured, useFeatured, useMonth } from '~/pitch/store';
 import { PitchVideo, ViewportProvider, useViewport } from '~/pitch/video';
 import { useScreenSettled } from '~/shell/transition';
@@ -83,9 +82,8 @@ export default function PitchDayScreen() {
         onPress: async () => {
           try {
             await deleteLog(id);
-            /* 폰에 둔 영상은 서버가 못 지운다 — 앱이 지운다(웹 day-client 와 같다) */
-            const phone = videos.filter(isPhoneVideoPath).map(phoneAssetId);
-            if (phone.length) void LocalVideo.remove({ ids: phone }).catch(() => undefined);
+            /* 폰에 둔 영상은 서버가 못 지운다 — 앱이 지운다. 다른 기록 · 내 영상이 같은 영상을 쓰면 남긴다(서버에 묻는다) */
+            void removePhoneOrphans(videos);
             await refreshMonth(monthOf(date));
           } catch (e) {
             Alert.alert(e instanceof ApiError ? e.message : '지우지 못했어요.');

@@ -593,6 +593,52 @@ console.log(
   );
 }
 
+console.log(
+  '\n[14] 영상 지우기 — 기록 · 공을 지우거나 영상을 뺄 때, 다른 기록이 쓰는 영상은 남기는가(내 영상 P0)'
+);
+{
+  /*
+   * 같은 영상을 투구 기록 · 타격 일지 · 구속 측정 공 · 내 영상이 같이 쓸 수 있다. 예전엔 기록을 지우면 경로를 묻지 않고 지웠다.
+   * 투구 영상 · 클립을 다루는 서버 파일은 deleteVideos 를 직접 부르지 않고 lib/video-refs.ts deleteUnreferenced 를 거친다.
+   */
+  const SERVER = [
+    'app/api/pitch-log/route.ts',
+    'app/api/pitch-log/discard/route.ts',
+    'app/actions/velocity.ts',
+    'app/actions/velocity-admin.ts',
+    'lib/velocity-sync.ts',
+  ];
+  for (const f of SERVER) {
+    const text = src(f);
+    check(
+      `${f} 는 영상을 deleteUnreferenced 로만 지운다`,
+      !/\bdeleteVideos\(/.test(text) && /deleteUnreferenced\(/.test(text)
+    );
+  }
+  const refs = src('lib/video-refs.ts');
+  for (const table of ['pitchLog', 'hittingLog', 'velocityPitch', 'velocityAttempt', 'velocityRecordingPart']) {
+    check(`lib/video-refs.ts 가 ${table} 의 참조를 본다`, refs.includes(`prisma.${table}.findMany`));
+  }
+  /*
+   * 앱(native/): 저장된 기록에 붙었던 폰 영상은 서버에 물어(removePhoneOrphans) 안 쓰는 것만 지운다. 바로 지워도 되는 곳은
+   * 방금 만들어 아무 기록도 모르는 파일뿐이다 — 아래 목록. 새로 LocalVideo.remove 를 부르면 여기에 까닭과 함께 더한다.
+   */
+  const FRESH_ONLY = new Set([
+    'native/src/pitch/api.ts', // removePhoneOrphans 자신
+    'native/src/pitch/attach.ts', // 경로를 못 받은 방금 넣은 파일
+    'native/src/app/pitch/import.tsx', // 넣다 막힌 방금 넣은 파일
+    'native/src/app/pitch/edit.tsx', // dropUnsaved(서버에 물음) · 이 폼에서 새로 넣은 것(fresh)
+    'native/src/velocity/session.ts', // 붙이지 못한 방금 옮긴 클립
+    'native/src/lib/cap-bridge.ts', // 웹뷰 다리(웹이 discardPhoneVideos 로 거른다)
+  ]);
+  const removers = walk('native/src').filter((f) => /\.tsx?$/.test(f) && /LocalVideo\.remove\(/.test(src(f)));
+  const stray = removers.filter((f) => !FRESH_ONLY.has(f));
+  check('앱에서 폰 영상을 바로 지우는 곳은 정해 둔 곳뿐이다', stray.length === 0, stray.join(', '));
+  for (const f of ['native/src/app/pitch/[date].tsx', 'native/src/pitch/velocity-day.tsx']) {
+    check(`${f} 는 지운 기록의 폰 영상을 removePhoneOrphans 로 지운다`, src(f).includes('removePhoneOrphans('));
+  }
+}
+
 console.log(`\n${passed}개 통과, ${failed}개 실패`);
 process.exit(failed === 0 ? 0 : 1);
 

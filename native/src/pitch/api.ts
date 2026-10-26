@@ -2,6 +2,7 @@ import { APP_API_HEADER, APP_API_LEVEL } from '@/lib/app-api';
 import { phoneAssetId, phoneVideoPath, isPhoneVideoPath } from '@/lib/phone-video-path';
 import { SITE_URL } from '~/lib/site';
 import { markWrite, rpc, syncSession } from '~/lib/rpc';
+import { LocalVideo } from '../../modules/local-video';
 
 /**
  * 투구 기록 — 사이트의 /api/pitch-log(읽기 GET ?month · 남기기 POST · 고치기 PATCH · 지우기 DELETE)와 재생 주소(/api/pitch-log/video-url).
@@ -103,14 +104,29 @@ export const updateLog = (id: string, e: PitchEntry) => call<PitchLog>('/api/pit
  * 영상을 취소 · 끌어 닫기가 지우지 않게. 서버에 못 물으면 null(아무것도 안 지운다).
  */
 export async function phoneOrphans(paths: string[]): Promise<string[] | null> {
-  const local = paths.filter(isPhoneVideoPath);
+  const local = [...new Set(paths.filter(isPhoneVideoPath))];
   if (!local.length) return [];
   try {
-    const r = await call<{ orphans?: string[] }>('/api/pitch-log/discard', { method: 'POST', body: { paths: local } });
-    return local.filter((p) => (r.orphans ?? []).includes(p));
+    /* 서버는 한 번에 10개까지 받는다(discard MAX_PATHS) — 구속 측정 세션은 클립이 더 많다 */
+    const out: string[] = [];
+    for (let i = 0; i < local.length; i += 10) {
+      const part = local.slice(i, i + 10);
+      const r = await call<{ orphans?: string[] }>('/api/pitch-log/discard', { method: 'POST', body: { paths: part } });
+      out.push(...part.filter((p) => (r.orphans ?? []).includes(p)));
+    }
+    return out;
   } catch {
     return null;
   }
+}
+
+/**
+ * 기록 · 공을 지우거나 영상을 뺀 뒤, 폰 영상 가운데 이제 아무 데도 안 붙은 것만 폰에서 지운다(2026-10-26 '내 영상' P0).
+ * 같은 영상을 다른 기록 · 내 영상이 쓰면 남긴다. 서버에 못 물으면 안 지운다(남는 쪽이 안전 — 나중에 정리).
+ */
+export async function removePhoneOrphans(paths: string[]): Promise<void> {
+  const orphans = await phoneOrphans(paths);
+  if (orphans?.length) await LocalVideo.remove({ ids: orphans.map(phoneAssetId) }).catch(() => undefined);
 }
 export const deleteLog = (id: string) => call<{ ok: true }>('/api/pitch-log', { method: 'DELETE', body: { id } });
 

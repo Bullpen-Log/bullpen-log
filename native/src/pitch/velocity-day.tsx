@@ -13,8 +13,7 @@ import { usePalette, withAlpha, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
 import { toast } from '~/shell/toast';
-import { LocalVideo } from '../../modules/local-video';
-import { isPhoneVideoPath, phoneAssetId } from './api';
+import { isPhoneVideoPath, removePhoneOrphans } from './api';
 import { PitchVideo, UrlVideo } from './video';
 
 /**
@@ -61,11 +60,9 @@ type Result = { ok: true } | { ok: false; error: string };
 const pad = (n: number) => String(n).padStart(2, '0');
 const releaseOf = (s: VelocitySessionView) => (kmh: number) =>
   s.calPairs > 0 ? applyCalibration(kmh, { scale: s.calScale, offset: s.calOffset, n: s.calPairs }) : kmh;
-/** 지운 공의 폰 클립을 앱이 지운다 — 서버는 폰에 둔 영상을 못 지운다(그날 화면 투구 기록 지우기와 같다) */
-const removePhoneClips = (pitches: VelocityPitchView[]) => {
-  const ids = pitches.flatMap((p) => (p.clip && isPhoneVideoPath(p.clip.url) ? [phoneAssetId(p.clip.url)] : []));
-  if (ids.length) void LocalVideo.remove({ ids }).catch(() => undefined);
-};
+/** 지운 공의 폰 클립을 앱이 지운다 — 서버는 폰에 둔 영상을 못 지운다. 다른 기록 · 내 영상이 쓰면 남긴다(서버에 묻는다) */
+const removePhoneClips = (pitches: VelocityPitchView[]) =>
+  void removePhoneOrphans(pitches.flatMap((p) => (p.clip ? [p.clip.url] : [])));
 const editOf = (p: VelocityPitchView): PitchEdit => ({ pitchType: p.pitchType, zone: p.zone, result: p.result, gunKmh: p.gunKmh, memo: p.memo });
 
 export function VelocityDay({ date, logCount }: { date: string; logCount: number }) {

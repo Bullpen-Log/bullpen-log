@@ -8,7 +8,7 @@ import { ArrowLeft, House, Plus, type LucideIcon } from '@/components/icon';
 import { Baseball } from '@/components/baseball-icon';
 import { Button, FormError } from '@/components/ui';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
-import { removePhoneVideos } from '@/lib/local-video';
+import { discardPhoneVideos } from '@/lib/local-video';
 import { ArmStatusNote } from '@/components/arm-status-note';
 import { NutritionLineNote } from '@/components/nutrition-line';
 import type { NutritionLine } from '@/lib/nutrition/nudge';
@@ -204,7 +204,7 @@ export function DayClient({
       if (editingId === id) setEditingId(null);
       /* 이 폰에 둔 영상(local- 경로)은 서버가 못 지운다 — 기록과 함께 폰에서도 뺀다(남으면 앱 용량만 늘었다, 2026-10-17). 웹에서는 아무 일도 안 한다 */
       const gone = logs.find((l) => l.id === id)?.videoPaths ?? [];
-      void removePhoneVideos(gone).catch(() => undefined);
+      void discardPhoneVideos(gone).catch(() => undefined);
       quietRefresh(router);
     },
     [router, editingId, logs]

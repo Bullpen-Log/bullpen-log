@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { can } from '@/lib/permissions';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
-import { deleteVideos } from '@/lib/storage';
+import { deleteUnreferenced } from '@/lib/video-refs';
 import {
   deleteVelocityPitchRow,
   deleteVelocitySessionRows,
@@ -208,7 +208,6 @@ export async function adminDeleteClip(pitchId: string): Promise<AdminActionResul
   const clips = [row.clipPath, row.wideClipPath].filter((p): p is string => !!p);
   if (!clips.length) return { ok: false, error: '이 공에는 클립이 없습니다.' };
 
-  await deleteVideos(clips).catch(() => undefined);
   await prisma.velocityPitch.update({
     where: { id: pitchId },
     data: {
@@ -224,6 +223,8 @@ export async function adminDeleteClip(pitchId: string): Promise<AdminActionResul
       wideClipEventSec: null,
     },
   });
+  /* 칸을 비운 뒤에 — 같은 영상을 다른 기록이 쓰면 공에서만 떼고 파일은 남긴다(lib/video-refs.ts) */
+  await deleteUnreferenced(clips).catch(() => undefined);
   revalidateAll(row.session.date.toISOString().slice(0, 10));
   return { ok: true };
 }

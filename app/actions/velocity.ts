@@ -13,10 +13,10 @@ import {
   ADMIN_MAX_VIDEO_BYTES,
   videoLimitOf,
   createUploadTarget,
-  deleteVideos,
   isOwnedBy,
   isStorageConfigured,
 } from '@/lib/storage';
+import { deleteUnreferenced } from '@/lib/video-refs';
 import {
   deleteVelocityPitchRow,
   deleteVelocitySessionRows,
@@ -599,7 +599,7 @@ export async function attachClip(
   });
   const old = wide ? row.wideClipPath : row.clipPath;
   if (old && old !== path) {
-    await deleteVideos([old]).catch(() => undefined);
+    await deleteUnreferenced([old]).catch(() => undefined);
   }
   revalidateDay(row.session.date.toISOString().slice(0, 10));
   return { ok: true, path };
@@ -809,7 +809,7 @@ export async function attachAttemptClip(
     },
   });
   if (row.clipPath && row.clipPath !== path)
-    await deleteVideos([row.clipPath]).catch(() => undefined);
+    await deleteUnreferenced([row.clipPath]).catch(() => undefined);
   revalidateDay(row.date.toISOString().slice(0, 10));
   return { ok: true, path };
 }

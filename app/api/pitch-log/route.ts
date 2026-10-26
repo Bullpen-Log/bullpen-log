@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { appNowMs } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
-import { deleteVideos, isOwnedBy } from '@/lib/storage';
+import { isOwnedBy } from '@/lib/storage';
+import { deleteUnreferenced } from '@/lib/video-refs';
 import { isRestSession, validateSessionType } from '@/lib/session-type';
 import { isFutureDateKey, toDateKey } from '@/lib/pitch-stats';
 import { cleanCues, isRatedSession, readSatisfaction } from '@/lib/pitch-satisfaction';
@@ -464,8 +465,8 @@ export async function PATCH(req: Request) {
       });
 
       if (removed.length > 0) {
-        // 저장소에 못 찾는 파일이 쌓이지 않게 함께 지운다(옛 폼 분석 표 PoseAnalysis 는 2026-10-16 에 지웠다).
-        await deleteVideos(removed);
+        // 저장소에 못 찾는 파일이 쌓이지 않게 함께 지운다 — 다른 기록 · 클립이 같은 영상을 쓰면 남긴다(lib/video-refs.ts).
+        await deleteUnreferenced(removed);
       }
 
       return NextResponse.json(log);
@@ -508,12 +509,11 @@ export async function DELETE(req: Request) {
 
     await prisma.pitchLog.delete({ where: { id: target.id } });
 
-    // 기록이 사라지면 저장소에 파일만 남지 않도록 함께 지운다.
-    if (target.videoPaths.length > 0) {
-      await deleteVideos(target.videoPaths);
-    }
+    // 기록이 사라지면 저장소에 파일만 남지 않도록 함께 지운다 — 다른 기록 · 클립이 같은 영상을 쓰면 남긴다.
+    // orphans 는 정말 지운 경로 — 앱은 이것만 폰에서 지운다.
+    const orphans = await deleteUnreferenced(target.videoPaths);
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, orphans });
   } catch (error) {
     console.error('[DELETE /api/pitch-log]', error);
     return NextResponse.json({ error: '삭제 실패' }, { status: 500 });

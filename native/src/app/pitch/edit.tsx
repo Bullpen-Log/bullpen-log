@@ -50,6 +50,7 @@ import {
   loadMe,
   phoneAssetId,
   phoneOrphans,
+  removePhoneOrphans,
   updateLog,
   type PitchEntry,
   type PitchLog,
@@ -386,9 +387,8 @@ export function EntryForm({
     try {
       if (editing) {
         await updateLog(editing.id, { ...entry, baseVideoPaths: editing.videoPaths });
-        /* 고치며 뺀 폰 영상은 폰에서도 지운다(웹 entry-form 과 같다) */
-        const gone = editing.videoPaths.filter((p) => isPhoneVideoPath(p) && !entry.videoPaths.includes(p)).map(phoneAssetId);
-        if (gone.length) void LocalVideo.remove({ ids: gone }).catch(() => undefined);
+        /* 고치며 뺀 폰 영상은 폰에서도 지운다 — 다른 기록 · 내 영상이 쓰면 남긴다(서버에 묻는다) */
+        void removePhoneOrphans(editing.videoPaths.filter((p) => !entry.videoPaths.includes(p)));
       } else {
         await createLog(entry);
         if (importKey) markImported(importKey);
