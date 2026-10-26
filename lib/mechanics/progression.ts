@@ -21,7 +21,7 @@ export type SkillEvidence = {
 export type SkillProgression = {
   protocol: typeof SKILL_PROTOCOL;
   id: string;
-  elements: { fault: string; stage: SkillStage; finished: boolean }[];
+  elements: { fault: string; stage: SkillStage; finished: boolean; reviewFrom?: number }[];
   evidence: SkillEvidence[];
   moves: { id: string; fault: string; from: SkillStage; on: string }[];
   previous?: { done: number; stages: { fault: string; stage: SkillStage }[] };
@@ -43,7 +43,14 @@ export function readProgression(raw: unknown, rx: ElementRx[]): SkillProgression
     v.elements.length !== rx.length ||
     new Set(v.elements.map((e) => e?.fault)).size !== rx.length ||
     !rx.every((r) =>
-      v.elements.some((e) => e && e.fault === r.fault && SKILL_STAGES.includes(e.stage) && typeof e.finished === 'boolean')
+      v.elements.some(
+        (e) =>
+          e &&
+          e.fault === r.fault &&
+          SKILL_STAGES.includes(e.stage) &&
+          typeof e.finished === 'boolean' &&
+          (e.reviewFrom === undefined || (Number.isInteger(e.reviewFrom) && e.reviewFrom >= 0 && e.reviewFrom <= v.evidence?.length))
+      )
     ) ||
     !Array.isArray(v.evidence) ||
     !v.evidence.every(
@@ -86,7 +93,10 @@ export const skillPainToday = (p: SkillProgression | undefined, today: string) =
 
 export function readiness(p: SkillProgression, fault: string) {
   const element = p.elements.find((e) => e.fault === fault);
-  const evidence = [...p.evidence].reverse().find((e) => e.fault === fault && e.stage === element?.stage);
+  const evidence = p.evidence
+    .slice(element?.reviewFrom ?? 0)
+    .reverse()
+    .find((e) => e.fault === fault && e.stage === element?.stage);
   let reason = '현재 단계의 필수 드릴을 먼저 수행해 주세요.';
   if (element?.finished) reason = '통합 단계의 자가 확인을 마쳤어요.';
   else if (evidence) {

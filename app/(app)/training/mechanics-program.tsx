@@ -1,5 +1,6 @@
 'use client';
 
+import { FocusReview, FocusHistory } from './focus-review';
 import { FocusProgress, MechanicsEquipment } from './focus-progress';
 import { useState, useTransition, type CSSProperties } from 'react';
 import Link from 'next/link';
@@ -61,7 +62,7 @@ import { OverviewDetail } from './mechanics-guide';
  * (/mechanics/play)에서 한 드릴씩 하고 느낌을 누른다. 규칙은 lib/mechanics/program.ts · levels.ts.
  */
 /** 3D 리포트 [처방 시작]에서 온 처방(확인 시트가 그린다) — 못 시작하면 까닭 */
-export type FocusOfferView = { reportId: string; rx: { element: string; level: 'improve' | 'edge' }[] } | { error: string };
+export type FocusOfferView = { reportId: string; jobId: string; rx: { element: string; level: 'improve' | 'edge' }[] } | { error: string };
 
 export function MechanicsProgram({
   program,
@@ -95,6 +96,7 @@ export function MechanicsProgram({
             </p>
           </FoldNote>
         </Card>
+        <FocusHistory history={program?.history ?? []} />
         <LevelPicker current={null} index={0} />
         <OverviewFold />
       </div>
@@ -109,6 +111,7 @@ export function MechanicsProgram({
   return (
     <div className="stack-block">
       {sheet}
+      <FocusHistory history={program.history} />
       <MechanicsEquipment key={program.equipment.join(',')} equipment={program.equipment} />
       {focus && <FocusCard focus={focus} />}
       {completed ? (
@@ -683,7 +686,7 @@ function FocusCard({ focus }: { focus: FocusView }) {
   const end = () =>
     startTransition(async () => {
       setError(null);
-      const res = await orOffline(endMechanicsFocus(), { error: OFFLINE_MESSAGE });
+      const res = await orOffline(endMechanicsFocus({ runId: focus.runId }), { error: OFFLINE_MESSAGE });
       setAsk(false);
       if ('error' in res) setError(res.error);
       else quietRefresh(router);
@@ -697,6 +700,7 @@ function FocusCard({ focus }: { focus: FocusView }) {
       <RxChips rx={focus.rx} />
       {focus.criteriaNote && <p className="text-sm text-warn">{focus.criteriaNote}</p>}
       <FocusProgress focus={focus} />
+      <FocusReview focus={focus} />
       {!focus.skill &&
         (focus.finished ? (
           <>
@@ -807,9 +811,12 @@ function FocusStartSheet({ offer, level, current }: { offer: FocusOfferView; lev
   const start = () =>
     startTransition(async () => {
       setError(null);
-      const res = await orOffline(startMechanicsFocus({ reportId: offer.reportId, level: pick }), {
-        error: OFFLINE_MESSAGE,
-      });
+      const res = await orOffline(
+        startMechanicsFocus({ reportId: offer.reportId, level: pick, expectedRunId: current?.runId ?? null, expectedJobId: offer.jobId }),
+        {
+          error: OFFLINE_MESSAGE,
+        }
+      );
       if ('error' in res) setError(res.error);
       else close();
     });

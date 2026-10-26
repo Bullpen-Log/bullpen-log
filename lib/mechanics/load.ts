@@ -49,6 +49,7 @@ export type SessionDrillView = SessionItem & {
 };
 
 export type MechanicsProgramView = {
+  history: { focus: ReturnType<typeof focusView>; endedOn: string; reason: string }[];
   blockers: string[];
   canFinalize: boolean;
   equipment: string[];
@@ -200,6 +201,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
   const gathered = user ? await gatherFactsAndPlan(user, now) : null;
   const plan = state.level ? levelSession(state.level, state.index) : null;
   const program: MechanicsProgramView = {
+    history: (state.focusHistory ?? []).map((h) => ({ ...h, focus: focusView(h.focus, todayKey) })),
     blockers: [],
     canFinalize: false,
     equipment: [],

@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { contextForAnalysis } from '@/lib/mechanics/comparison';
 import { getCurrentUser, requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import {
@@ -23,6 +24,7 @@ import {
   listLabSamples,
   saveLabGuard,
   saveLabJob,
+  saveLabAnalysisContext,
   saveLabMeta,
 } from '@/lib/pitch-lab';
 import { finishRequest, guardBlock, labMetaBlock, readLabGuard, recordRequest, serverPairBlock } from '@/lib/pitch-lab-guard';
@@ -277,6 +279,7 @@ export async function requestPitch3dV2(input: {
     engine,
   });
   try {
+    await saveLabAnalysisContext(owner, input.id, contextForAnalysis({ jobId: job.jobId, requestedAt: nowIso, engine }, meta, server));
     await retryOnce(() => saveLabJob(owner, input.id, job));
   } catch {
     return { error: STORAGE_ERROR };

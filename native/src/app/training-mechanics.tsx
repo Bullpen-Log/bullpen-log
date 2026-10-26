@@ -1,3 +1,4 @@
+import { FocusHistory } from '~/mechanics/focus-review';
 import { MechanicsEquipment } from '~/mechanics/focus-progress';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type RefObject } from 'react';
@@ -154,8 +155,14 @@ function FavSheet({ elements, onClose, c }: { elements: AppMechanicsElementsTab 
 /** 프로그램 칸 — 웹 MechanicsProgram 과 같은 차례 */
 function ProgramTab({ data, reload, c }: { data: AppMechanicsProgramTab; reload: () => Promise<void>; c: Palette }) {
   const { program } = data;
-  if (!program?.level) return <NoProgram reload={reload} c={c} />;
-  if (!Array.isArray(program.blockers) || !Array.isArray(program.equipment))
+  if (!program?.level)
+    return (
+      <>
+        <NoProgram reload={reload} c={c} />
+        <FocusHistory history={program?.history ?? []} reload={reload} c={c} />
+      </>
+    );
+  if (!Array.isArray(program.blockers) || !Array.isArray(program.equipment) || !Array.isArray(program.history))
     return <Text style={{ color: c.muted }}>세션 업데이트를 적용하고 있어요. 잠시 뒤 다시 불러와 주세요.</Text>;
   const rx = program.focus && !program.focus.finished ? program.focus : null;
   /* 처방이 남았으면 수준 12세션을 마쳤어도 처방 세션을 이어 한다 */
@@ -178,6 +185,7 @@ function ProgramTab({ data, reload, c }: { data: AppMechanicsProgramTab; reload:
       {/* 처방 중엔 다시 재기 안내가 처방 카드 하나라 촬영 권유를 숨긴다 */}
       {program.focus ? null : <FilmCard sessionsDone={program.sessionsDone} films={program.films} c={c} />}
       <LevelSettings current={program.level} index={program.index} reload={reload} c={c} />
+      <FocusHistory history={program.history} reload={reload} c={c} />
       <OverviewFold c={c} />
     </View>
   );

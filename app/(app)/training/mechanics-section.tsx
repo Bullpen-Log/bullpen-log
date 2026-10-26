@@ -45,20 +45,14 @@ export async function MechanicsSection({
             ? null
             : 'error' in offer
               ? { error: offer.error }
-              : { reportId: offer.reportId, rx: offer.rx.map((r) => ({ element: r.element, level: r.level })) }
+              : { reportId: offer.reportId, jobId: offer.jobId, rx: offer.rx.map((r) => ({ element: r.element, level: r.level })) }
         }
       />
     );
   }
 
-  const [guides, favorites, elementReport] = await Promise.all([
-    trainingGuides(),
-    favoriteDrillIds(user.id),
-    loadElementReport(user.id),
-  ]);
-  const ownThumbs = await createPlaybackUrls(
-    guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string)
-  );
+  const [guides, favorites, elementReport] = await Promise.all([trainingGuides(), favoriteDrillIds(user.id), loadElementReport(user.id)]);
+  const ownThumbs = await createPlaybackUrls(guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string));
 
   return (
     <MechanicsGuide

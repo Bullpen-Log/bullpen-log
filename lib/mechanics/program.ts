@@ -1,3 +1,4 @@
+import { readMechanicsReview, reviewView, type MechanicsReview, type MechanicsReviewView } from '@/lib/mechanics/comparison';
 /**
  * 메커니즘 연습의 공통 규칙. 2026-10-25: 기존 드릴 구성을 유지한다.
  * 12회는 학습 순서이며 정해진 4주·주 3회·전력 투구 프로그램이 아니다.
@@ -76,6 +77,7 @@ export type ThrowLog = { on: string; base: number; closed: boolean };
 
 /** MechanicsProgram.progress 에 두는 것 */
 export type ProgramState = {
+  focusHistory?: { focus: ProgramFocus; endedOn: string; reason: 'replaced' | 'closed' | 'reset' }[];
   /** 고른 수준 — 안 골랐으면 null */
   level: LevelKey | null;
   /** 이 수준에서 마친 세션 수(0~12) */
@@ -193,6 +195,9 @@ function readPractice(value: unknown): PracticeRecord[] {
  * 메커니즘은 리포트 파일을 다시 읽지 않는다. 리포트 번호는 지금 샘플 번호(리포트가 분석 결과로 셈해서 — 3D 세션).
  */
 export type ProgramFocus = {
+  review?: MechanicsReview;
+  reviewHistory?: MechanicsReview[];
+  reviewInvalid?: boolean;
   progression?: SkillProgression;
   progressionInvalid?: boolean;
   criteria?: string | null;
@@ -331,6 +336,14 @@ function readFocus(raw: unknown): ProgramFocus | null {
     rx: rx.slice(0, 2),
     startedOn,
     done: countOf(v.done, v.progression ? Number.MAX_SAFE_INTEGER : FOCUS_SESSIONS),
+    ...(Array.isArray(v.reviewHistory)
+      ? { reviewHistory: v.reviewHistory.map(readMechanicsReview).filter((r): r is MechanicsReview => r !== null) }
+      : {}),
+    ...(v.review || v.reviewInvalid
+      ? readMechanicsReview(v.review)
+        ? { review: readMechanicsReview(v.review)! }
+        : { reviewInvalid: true }
+      : {}),
     ...(v.progression || v.progressionInvalid
       ? readProgression(v.progression, rx.slice(0, 2))
         ? { progression: readProgression(v.progression, rx.slice(0, 2))! }
@@ -350,6 +363,16 @@ export function readProgramState(json: unknown): ProgramState {
     films: readFilms(raw.films),
     throwLog: readThrowLog(raw.throwLog),
     focus: readFocus(raw.focus),
+    focusHistory: Array.isArray(raw.focusHistory)
+      ? raw.focusHistory.flatMap((v) => {
+          if (!v || typeof v !== 'object') return [];
+          const h = v as Record<string, unknown>,
+            focus = readFocus(h.focus);
+          return focus && dayOf(h.endedOn) && ['replaced', 'closed', 'reset'].includes(h.reason as string)
+            ? [{ focus, endedOn: h.endedOn as string, reason: h.reason as 'replaced' | 'closed' | 'reset' }]
+            : [];
+        })
+      : [],
     practice: readPractice(raw.practice),
     attempt: readAttempt(raw.attempt),
     ...(raw.gear &&
@@ -378,6 +401,7 @@ export function programStateJson(state: ProgramState) {
     films: state.films,
     throwLog: state.throwLog,
     focus: state.focus,
+    focusHistory: state.focusHistory ?? [],
     practice: state.practice ?? [],
     attempt: state.attempt ?? null,
     ...(state.gear ? { gear: state.gear } : {}),
@@ -817,6 +841,10 @@ export const RX_LEVEL_TEXT = { improve: '집중', edge: '보조' } as const;
 export const RX_REPORT_TEXT = { improve: '고칠 점', edge: '경계' } as const;
 
 export type FocusView = {
+  runId: string;
+  review: MechanicsReviewView | null;
+  reviewHistory: MechanicsReviewView[];
+  reviewInvalid: boolean;
   skill: SkillView | null;
   canConvert: boolean;
   criteriaNote: string | null;
@@ -844,6 +872,10 @@ export function focusView(focus: ProgramFocus, today?: string): FocusView {
   const week = focus.progression ? SKILL_STAGES.indexOf(skillStage(focus.progression, active.fault)) + 1 : focusWeek(focus.done);
   return {
     reportId: focus.reportId,
+    runId: focusRunId(focus),
+    review: focus.review ? reviewView(focus.review) : null,
+    reviewHistory: (focus.reviewHistory ?? []).map(reviewView),
+    reviewInvalid: !!focus.reviewInvalid,
     skill: focus.progression ? skillView(focus.progression, focus.rx, today) : null,
     canConvert: !focus.progression && !focus.progressionInvalid && focus.criteria === REPORT_CRITERIA,
     criteriaNote: focus.criteria === REPORT_CRITERIA ? null : LEGACY_FOCUS_NOTE,
@@ -1155,4 +1187,11 @@ export function finishState(state: ProgramState, partial: boolean): ProgramState
     /* 처방 중이면 처방 세션도 하나 — 수준 칸과 같은 세션이라 둘 다 오른다 */
     focus: focusActive(state.focus) ? { ...state.focus, done: state.focus.done + 1 } : state.focus,
   };
+}
+
+/** 이전 진행에는 실행 id가 없어 저장된 시작 기준으로 늦은 요청을 구분한다. */
+export const focusRunId = (focus: ProgramFocus) =>
+  focus.progression?.id ?? focus.review?.id ?? `${focus.reportId}:${focus.jobId ?? 'legacy'}:${focus.startedOn}`;
+export function archiveFocus(state: ProgramState, reason: 'replaced' | 'closed' | 'reset', on: string) {
+  return state.focus ? [...(state.focusHistory ?? []), { focus: state.focus, endedOn: on, reason }] : (state.focusHistory ?? []);
 }
