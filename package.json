@@ -10,6 +10,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "backup": "node --env-file=.env scripts/backup.mjs",
+    "candidates:import": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/import-facility-candidates.mts",
     "restore": "node --env-file=.env scripts/restore.mjs",
     "icons": "node scripts/make-icons.mjs",
     "training:test": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/training-selftest.mts",

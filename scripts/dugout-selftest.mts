@@ -56,6 +56,7 @@ import {
 } from '@/lib/org/lesson-work';
 import { readPublicKeys } from '@/lib/public-profile';
 import { appsFor, isExpoToken } from '@/lib/notify-rules';
+import { canApprove, readCandidateFile, readCoords, reviewFlags } from '@/lib/market/candidates';
 import {
   formatTicketCode,
   isTicketCode,
@@ -652,6 +653,68 @@ console.log('\n[UI 통일] 덕아웃 화면이 같은 겉모양을 쓰는지(소
     '공용 부품이 한 곳에 있다(쪽 머리 · 묶음 제목 · 칩 · 종류 줄 · 바로가기 · 빈 화면)',
     ['DugoutPageHeader', 'SectionHead', 'chipClass', 'CategoryRow', 'ShortcutTiles', 'DugoutEmpty'].every((n) => ui.includes(n))
   );
+}
+
+console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관리자만 — candidates 배열만 · 처음 상태 약속 · 공개 화면에 안 섞임');
+{
+  const base = {
+    id: 'semas:MA0001',
+    name: '시험베이스볼',
+    typeHint: '레슨·훈련 후보',
+    region: '서울특별시',
+    lat: 37.5,
+    lng: 127,
+    collectionStatus: 'UNVERIFIED',
+    businessStatus: 'UNKNOWN',
+    contactStatus: 'NOT_CONTACTED',
+    consentStatus: 'NOT_REQUESTED',
+    visibility: 'ADMIN_ONLY',
+    publicProfile: false,
+    bookingEnabled: false,
+    offersLessons: null,
+    offersRental: null,
+    mapReview: { status: 'NAME_ADDRESS_MATCH', lessonNotice: 'KEYWORD_ONLY', sharedPlaceGroup: 'NAVER-1' },
+  };
+  const file = (candidates: unknown[], extra = {}) => ({ schemaVersion: 6, collectedAt: '2026-10-26', counts: { candidates: candidates.length }, candidates, ...extra });
+  const ok = readCandidateFile(file([base, { ...base, id: 'naver:42', lat: null, lng: null }], { heldCandidates: [{ ...base, id: 'semas:HELD' }] }));
+  check(
+    '약속을 지킨 파일은 candidates 만 가져온다(보류 배열은 안 읽음)',
+    ok.errors.length === 0 && ok.rows.length === 2 && !ok.rows.some((r) => r.id === 'semas:HELD') && ok.rows[0].sharedPlaceGroup === 'NAVER-1',
+    ok.errors.join('; ')
+  );
+  check('공개 · 예약 · 서비스 값이 켜진 후보가 하나라도 있으면 통째로 막는다', readCandidateFile(file([base, { ...base, id: 'semas:X', publicProfile: true }])).rows.length === 0);
+  check('레슨을 확정값(true)으로 들고 온 후보도 막는다', readCandidateFile(file([{ ...base, offersLessons: true }])).rows.length === 0);
+  check('id 가 겹치거나 모양이 다르면 막는다', readCandidateFile(file([base, base])).rows.length === 0 && readCandidateFile(file([{ ...base, id: 'x' }])).rows.length === 0);
+  check('schemaVersion 이 다르면 막는다', readCandidateFile({ ...file([base]), schemaVersion: 5 }).rows.length === 0);
+  check(
+    '승인은 동의 · 정보 확인 둘 다 뒤에만',
+    canApprove({ consentStatus: 'AGREED', collectionStatus: 'VERIFIED' }) &&
+      !canApprove({ consentStatus: 'AGREED', collectionStatus: 'UNVERIFIED' }) &&
+      !canApprove({ consentStatus: 'REQUESTED', collectionStatus: 'VERIFIED' })
+  );
+  check('손으로 넣는 좌표는 한국 안쪽만', readCoords('37.55', '127.14')?.lat === 37.55 && readCoords('', '127') === null && readCoords('10', '127') === null);
+  check(
+    '같은 지도 장소 · 중복 의심 · 좌표 없음은 검토 표시만(합치지 않음)',
+    reviewFlags({ sharedPlaceGroup: 'g', duplicateGroup: 'd', lat: null }).length === 3 && reviewFlags({ sharedPlaceGroup: null, duplicateGroup: null, lat: 1 }).length === 0
+  );
+  const rel = (p: string) => p.slice(join(ROOT, '.').length).replace(/\\/g, '/').replace(/^\//, '');
+  const code = ['app', 'lib', 'components'].flatMap((d) => walk(join(ROOT, d))).filter((p) => /\.tsx?$/.test(p));
+  const touch = code.filter((p) => /prisma\.facilityCandidate|Prisma\.FacilityCandidate/.test(readFileSync(p, 'utf8'))).map(rel).sort();
+  check(
+    '수집 후보 표를 읽고 쓰는 곳은 관리자 읽기 · 관리자 동작 둘뿐',
+    JSON.stringify(touch) === JSON.stringify(['app/actions/admin-candidates.ts', 'lib/market/candidate-load.ts']),
+    touch.join(', ')
+  );
+  check(
+    '그 둘은 함수마다 requireAdmin(대표관리자)',
+    ['app/actions/admin-candidates.ts', 'lib/market/candidate-load.ts'].every((f) => {
+      const t = src(f);
+      return (t.match(/export async function/g) ?? []).length === (t.match(/await requireAdmin\(\)/g) ?? []).length;
+    })
+  );
+  const users = code.filter((p) => /candidate-load|admin-candidates/.test(readFileSync(p, 'utf8'))).map(rel).filter((f) => !/^(lib\/market\/candidate-load|app\/actions\/admin-candidates)\.ts$/.test(f));
+  check('수집 후보를 쓰는 화면은 관리자 화면(/admin/places)만', users.length > 0 && users.every((f) => f.startsWith('app/(app)/admin/places/')), users.join(', '));
+  check('앱 rpc 허용 목록에 수집 후보 동작이 없다', !src('app/api/rpc/registry.ts').includes('admin-candidates'));
 }
 
 console.log(
