@@ -2503,7 +2503,8 @@ model GameComment {
 /// 수집 칸은 다시 가져오면 바뀌고(scripts/import-facility-candidates.mts — 자료의 candidates 배열만), 연락 · 동의 · 확인 · 승인 · 메모 칸은
 /// 관리자 화면만 쓴다(가져오기가 덮지 않는다). 공개는 업체 동의 · 정보 확인 · 관리자 승인 뒤 — 공개 레슨장 · 연습장으로 옮기는 길은 아직 없다.
 model FacilityCandidate {
-  /// 수집 자료의 id 그대로('semas:<업소번호>' · 'naver:<장소번호>') — 다시 가져올 때 같은 곳을 알아본다
+  /// 수집 자료의 id 그대로('semas:<업소번호>' · 'naver:<장소번호>') — 다시 가져올 때 같은 곳을 알아본다. 이미 있는 행의 기본키는 바꾸지 않는다
+  /// (통합 자료 2026-10-26 은 이전 id 를 sourceCandidateIds 로 이어 준다 — lib/market/candidates.ts planImport)
   id               String    @id
   name             String
   /// 수집 자료의 분류 단서('레슨·훈련 후보' · '배팅·연습공간 후보' …) — 서비스 확정값 아님
@@ -2516,17 +2517,30 @@ model FacilityCandidate {
   lat              Float?
   lng              Float?
   coordsEdited     Boolean   @default(false)
+  /// 관리자가 좌표를 정한 근거 · 날짜('MANUAL' 손으로 · 'KAKAO_GEOCODE' 주소 찾기) — 수집 좌표(건물 참조)는 비어 있다
+  coordsSource     String?
+  coordsSetAt      DateTime?
   /// 지도 대조 · 공개 안내 근거 수준(lib/market/candidates.ts) — 확정값이 아니다
   mapStatus        String?
   lessonNotice     String?
   rentalNotice     String?
   hardballNotice   String?
+  /// 영업 공개 근거(최근 소식 · 시간표 · 근거 부족) — 실제 영업 확인 아님
+  operationNotice  String?
+  /// 수집 묶음('ORIGINAL_178' 처음 정리 · 'ADDITIONAL_256' 추가 발견)
+  originGroup      String?
+  /// 확인 우선 꼬리표 — 수집 자료의 reviewPriorityTags + 가져오기가 찾은 충돌(업체 확인값 ↔ 공개 근거 등). 다시 가져올 때마다 다시 만든다
+  reviewTags       String[]  @default([])
   /// 같은 지도 장소를 쓰는 기록 · 근거리 유사 상호 묶음 — 자동 병합하지 않고 검토 표시만
   sharedPlaceGroup String?
   duplicateGroup   String?
+  /// 통합 자료가 같은 장소(같은 지도 장소 id · 주소)로 묶은 이전 기록 — 지우지 않고 이 id(대표 기록)로 이어 둔다. 목록 · 지도 · 수에서 빠진다
+  mergedIntoId     String?
   /// 수집 자료 한 줄 통째(원본 행 · 출처 · 지도 대조 · 배팅 검토 · 플래그) — 원본 근거 보존
   collected        Json
   collectedAt      DateTime  @db.Date
+  /// 다시 가져오며 바뀌기 전의 collected 들(가져온 날 · 자료 묶음과 함께) — 원본 근거를 잃지 않게
+  collectedHistory Json      @default("[]")
   /// 아래는 관리자 칸 — 가져오기가 덮지 않는다. 값은 lib/market/candidates.ts
   collectionStatus String    @default("UNVERIFIED")
   businessStatus   String    @default("UNKNOWN")
@@ -2535,6 +2549,10 @@ model FacilityCandidate {
   /// 업체에 확인한 서비스 — null 은 아직 모름(공개 안내 · 사진 · 지도만으로 바꾸지 않는다)
   offersLessons    Boolean?
   offersRental     Boolean?
+  offersHardball   Boolean?
+  /// 업체 연락처 · 동의 범위(무엇을 공개해도 되는지) — 업체에 직접 받은 것만
+  phone            String?
+  consentScope     String?   @db.Text
   verifiedAt       DateTime?
   lastContactedAt  DateTime?
   adminNote        String?   @db.Text
@@ -2545,4 +2563,5 @@ model FacilityCandidate {
   updatedAt        DateTime  @updatedAt
 
   @@index([region])
+  @@index([mergedIntoId])
 }

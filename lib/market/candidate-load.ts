@@ -3,20 +3,31 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/dal';
 import type { MapPlace } from '@/lib/market/map-load';
-import { CONSENT_STATUS, CONTACT_STATUS, NOTICE_LEVEL, isPracticeType, labelOf, reviewFlags } from '@/lib/market/candidates';
+import { CONSENT_STATUS, CONTACT_STATUS, HARDBALL_NOTICE, LESSON_NOTICE, RENTAL_NOTICE, isPracticeType, labelOf, reviewFlags } from '@/lib/market/candidates';
 
 /**
  * 덕아웃 수집 후보 읽기(2026-10-26, 대표관리자만) — 목록 · 검색 · 지도 · 상세가 모두 여기를 거친다. 읽기마다 requireAdmin 을 다시 본다
  * (화면이 막아도, 다른 곳에서 이 함수를 불러도 새지 않게). 공개 지도(lib/market/map-load.ts) · 레슨 · 통합검색은 이 표를 읽지 않는다.
+ * 통합된 이전 기록(mergedIntoId)은 목록 · 지도 · 수에서 빼고 대표 기록의 상세에서만 보인다.
  */
-export type CandidateFilter = { q?: string; region?: string; flag?: string };
+export type CandidateFilter = {
+  q?: string;
+  region?: string;
+  origin?: string;
+  flag?: string;
+  lesson?: string;
+  hardball?: string;
+  rental?: string;
+  operation?: string;
+  contact?: string;
+  consent?: string;
+};
 
-/** 목록 거르기 — 검토 필요 · 좌표 없음 · 연락 전 · 레슨 공개 안내 · 배팅 */
+/** 빠른 거르기 — 확인 우선 · 위치 확인 필요 · 연락 전 · 배팅 */
 export const CANDIDATE_FLAGS = [
-  { key: 'review', label: '검토 필요' },
-  { key: 'nocoords', label: '좌표 없음' },
+  { key: 'review', label: '확인 우선' },
+  { key: 'nocoords', label: '위치 확인 필요' },
   { key: 'todo', label: '연락 전' },
-  { key: 'lesson', label: '레슨 공개 안내' },
   { key: 'batting', label: '배팅 · 연습공간' },
 ] as const;
 
@@ -24,33 +35,34 @@ function whereOf(f: CandidateFilter): Prisma.FacilityCandidateWhereInput {
   const q = f.q?.trim();
   const flag: Prisma.FacilityCandidateWhereInput =
     f.flag === 'review'
-      ? { OR: [{ sharedPlaceGroup: { not: null } }, { duplicateGroup: { not: null } }, { lat: null }] }
+      ? { reviewTags: { isEmpty: false } }
       : f.flag === 'nocoords'
         ? { lat: null }
         : f.flag === 'todo'
           ? { contactStatus: 'NOT_CONTACTED' }
-          : f.flag === 'lesson'
-            ? { lessonNotice: 'PUBLIC_NOTICE_FOUND' }
-            : f.flag === 'batting'
-              ? { OR: [{ typeHint: { startsWith: '배팅' } }, { typeHint: '연습공간 후보' }] }
-              : {};
+          : f.flag === 'batting'
+            ? { OR: [{ typeHint: { startsWith: '배팅' } }, { typeHint: { startsWith: '연습' } }] }
+            : {};
+  const and: Prisma.FacilityCandidateWhereInput[] = [{ mergedIntoId: null }, flag];
+  if (q)
+    and.push({
+      OR: [
+        { name: { contains: q, mode: 'insensitive' } },
+        { address: { contains: q, mode: 'insensitive' } },
+        { roadAddress: { contains: q, mode: 'insensitive' } },
+        { district: { contains: q, mode: 'insensitive' } },
+      ],
+    });
   return {
+    AND: and,
     ...(f.region ? { region: f.region } : {}),
-    ...(q
-      ? {
-          AND: [
-            {
-              OR: [
-                { name: { contains: q, mode: 'insensitive' } },
-                { roadAddress: { contains: q, mode: 'insensitive' } },
-                { address: { contains: q, mode: 'insensitive' } },
-                { district: { contains: q, mode: 'insensitive' } },
-              ],
-            },
-            flag,
-          ],
-        }
-      : flag),
+    ...(f.origin ? { originGroup: f.origin } : {}),
+    ...(f.lesson ? { lessonNotice: f.lesson } : {}),
+    ...(f.hardball ? { hardballNotice: f.hardball } : {}),
+    ...(f.rental ? { rentalNotice: f.rental } : {}),
+    ...(f.operation ? { operationNotice: f.operation } : {}),
+    ...(f.contact ? { contactStatus: f.contact } : {}),
+    ...(f.consent ? { consentStatus: f.consent } : {}),
   };
 }
 
@@ -64,10 +76,13 @@ const LIST_SELECT = {
   address: true,
   lat: true,
   lng: true,
+  coordsEdited: true,
   lessonNotice: true,
   rentalNotice: true,
-  sharedPlaceGroup: true,
-  duplicateGroup: true,
+  hardballNotice: true,
+  operationNotice: true,
+  reviewTags: true,
+  mergedIntoId: true,
   contactStatus: true,
   consentStatus: true,
   approvedAt: true,
@@ -75,16 +90,21 @@ const LIST_SELECT = {
 
 export type CandidateListItem = Prisma.FacilityCandidateGetPayload<{ select: typeof LIST_SELECT }>;
 
+/** 후보는 모두 합쳐 수백 곳이라 한 번에 다 준다(거르기를 풀면 전체) — 1,000곳을 넘으면 쪽 나누기를 더한다 */
+const LIMIT = 1000;
+
 export async function loadCandidates(f: CandidateFilter) {
   await requireAdmin();
+  const live = { mergedIntoId: null } satisfies Prisma.FacilityCandidateWhereInput;
   const [items, regions, totals] = await Promise.all([
-    prisma.facilityCandidate.findMany({ where: whereOf(f), select: LIST_SELECT, orderBy: [{ region: 'asc' }, { name: 'asc' }], take: 500 }),
-    prisma.facilityCandidate.groupBy({ by: ['region'], _count: true, orderBy: { region: 'asc' } }),
-    prisma.facilityCandidate.groupBy({ by: ['contactStatus', 'consentStatus'], _count: true }),
+    prisma.facilityCandidate.findMany({ where: whereOf(f), select: LIST_SELECT, orderBy: [{ region: 'asc' }, { name: 'asc' }], take: LIMIT }),
+    prisma.facilityCandidate.groupBy({ by: ['region'], where: live, _count: true, orderBy: { region: 'asc' } }),
+    prisma.facilityCandidate.groupBy({ by: ['contactStatus', 'consentStatus'], where: live, _count: true }),
   ]);
   const count = (pick: (r: (typeof totals)[number]) => boolean) => totals.filter(pick).reduce((n, r) => n + r._count, 0);
   return {
     items,
+    limit: LIMIT,
     regions: regions.map((r) => ({ region: r.region, count: r._count })),
     total: count(() => true),
     contacted: count((r) => r.contactStatus !== 'NOT_CONTACTED'),
@@ -103,16 +123,22 @@ export function candidateMapPlaces(items: CandidateListItem[]): MapPlace[] {
     name: c.name,
     kindLabel: c.typeHint,
     kind: c.typeHint,
-    region: [c.region, c.district].filter(Boolean).join(' '),
+    region: c.region,
     address: c.roadAddress ?? c.address,
     lat: c.lat,
     lng: c.lng,
+    /* 근거 이름표는 근거 수준만('공개 안내 있음 · 근거 미확보') — 실제 제공 확정이 아니다. 수집 좌표는 건물 참조라고 밝힌다 */
     sub: [
       c.approvedAt ? '승인함' : labelOf(CONSENT_STATUS, c.consentStatus),
       labelOf(CONTACT_STATUS, c.contactStatus),
-      `레슨 ${labelOf(NOTICE_LEVEL, c.lessonNotice)}`,
+      `레슨 ${labelOf(LESSON_NOTICE, c.lessonNotice)}`,
+      c.rentalNotice && c.rentalNotice !== 'NOT_ESTABLISHED' && `대관 ${labelOf(RENTAL_NOTICE, c.rentalNotice)}`,
+      c.hardballNotice && c.hardballNotice !== 'NOT_ESTABLISHED' && `경식구 ${labelOf(HARDBALL_NOTICE, c.hardballNotice)}`,
+      c.lat != null && !c.coordsEdited && '건물 참조 좌표',
       ...reviewFlags(c).map((f) => `⚠ ${f}`),
-    ].join(' · '),
+    ]
+      .filter(Boolean)
+      .join(' · '),
     image: null,
     href: `/manage/places/${encodeURIComponent(c.id)}`,
     rating: null,
@@ -124,14 +150,10 @@ export async function loadCandidate(id: string) {
   await requireAdmin();
   const c = await prisma.facilityCandidate.findUnique({ where: { id } });
   if (!c) return null;
-  const groups = [c.sharedPlaceGroup && { sharedPlaceGroup: c.sharedPlaceGroup }, c.duplicateGroup && { duplicateGroup: c.duplicateGroup }].filter(
-    Boolean
-  ) as Prisma.FacilityCandidateWhereInput[];
-  const siblings = groups.length
-    ? await prisma.facilityCandidate.findMany({
-        where: { id: { not: c.id }, OR: groups },
-        select: { id: true, name: true, roadAddress: true, sharedPlaceGroup: true, duplicateGroup: true },
-      })
-    : [];
-  return { c, siblings };
+  const pick = { id: true, name: true, address: true, roadAddress: true, mergedIntoId: true } as const;
+  const [mergedInto, mergedFrom] = await Promise.all([
+    c.mergedIntoId ? prisma.facilityCandidate.findUnique({ where: { id: c.mergedIntoId }, select: pick }) : null,
+    prisma.facilityCandidate.findMany({ where: { mergedIntoId: c.id }, select: pick }),
+  ]);
+  return { c, mergedInto, mergedFrom };
 }

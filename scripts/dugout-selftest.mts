@@ -56,7 +56,7 @@ import {
 } from '@/lib/org/lesson-work';
 import { readPublicKeys } from '@/lib/public-profile';
 import { appsFor, isExpoToken } from '@/lib/notify-rules';
-import { canApprove, readCandidateFile, readCoords, reviewFlags } from '@/lib/market/candidates';
+import { COLLECTED_KEYS, type ExistingCandidate, canApprove, planImport, readCombinedFile, readCoords, reviewFlags } from '@/lib/market/candidates';
 import {
   formatTicketCode,
   isTicketCode,
@@ -655,15 +655,22 @@ console.log('\n[UI 통일] 덕아웃 화면이 같은 겉모양을 쓰는지(소
   );
 }
 
-console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관리자만 — candidates 배열만 · 처음 상태 약속 · 공개 화면에 안 섞임');
+console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관리자만 — 통합 자료 candidates 만 · 처음 상태 약속 · 다시 넣어도 그대로 · 관리자 칸 안 덮음');
 {
-  const base = {
-    id: 'semas:MA0001',
-    name: '시험베이스볼',
-    typeHint: '레슨·훈련 후보',
+  const ev = (status: string) => ({ status, summary: '', scope: 'UNCONFIRMED', sourceKinds: [], sourceUrls: [], publishedDate: null, checkedDate: '2026-10-26', currentProvisionVerified: false });
+  const cand = (n: string, o: Record<string, unknown> = {}) => ({
+    id: `naver:${n}`,
+    placeId: n,
+    placeIds: [n],
+    sourceCandidateIds: [`naver:${n}`],
+    originGroups: ['ADDITIONAL_256'],
+    name: `시험베이스볼${n}`,
     region: '서울특별시',
+    address: `서울 강남구 시험로 ${n}`,
+    typeHint: '레슨·훈련 후보',
     lat: 37.5,
     lng: 127,
+    coordinatesNeedReview: true,
     collectionStatus: 'UNVERIFIED',
     businessStatus: 'UNKNOWN',
     contactStatus: 'NOT_CONTACTED',
@@ -673,19 +680,93 @@ console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관�
     bookingEnabled: false,
     offersLessons: null,
     offersRental: null,
-    mapReview: { status: 'NAME_ADDRESS_MATCH', lessonNotice: 'KEYWORD_ONLY', sharedPlaceGroup: 'NAVER-1' },
+    offersHardball: null,
+    phone: null,
+    verifiedAt: null,
+    lastContactedAt: null,
+    reviewPriorityTags: [],
+    operationsReview: { operation: { evidenceStatus: 'LISTED_HOURS_OR_PRODUCTS' }, lesson: ev('PUBLIC_NOTICE'), hardball: ev('NOT_ESTABLISHED'), rental: ev('NOT_ESTABLISHED') },
+    ...o,
+  });
+  type C = ReturnType<typeof cand>;
+  const fileOf = (cs: C[], extra: Record<string, unknown> = {}) => {
+    const mapping = cs.flatMap((c) => (c.sourceCandidateIds as string[]).map((s) => ({ sourceCandidateId: s, canonicalCandidateId: c.id })));
+    const merges = cs.filter((c) => (c.sourceCandidateIds as string[]).length > 1).map((c) => ({ canonicalCandidateId: c.id, sourceCandidateIds: c.sourceCandidateIds }));
+    return {
+      schemaVersion: 1,
+      reviewedDate: '2026-10-26',
+      counts: { total: cs.length, coordinatesMissing: cs.filter((c) => c.lat == null).length },
+      sourceCounts: { combinedUniquePlaces: cs.length, totalInputRecords: mapping.length, mergedDuplicateRecords: merges.length },
+      candidates: cs,
+      sourceIdMapping: mapping,
+      mergeLog: merges,
+      addressReview: [],
+      heldCandidates: [cand('999')],
+      ...extra,
+    };
   };
-  const file = (candidates: unknown[], extra = {}) => ({ schemaVersion: 6, collectedAt: '2026-10-26', counts: { candidates: candidates.length }, candidates, ...extra });
-  const ok = readCandidateFile(file([base, { ...base, id: 'naver:42', lat: null, lng: null }], { heldCandidates: [{ ...base, id: 'semas:HELD' }] }));
+  const read = (f: unknown) => readCombinedFile(f).file;
+  const ok = read(fileOf([cand('1'), cand('2', { lat: null, lng: null })]));
+  check('약속을 지킨 통합 자료는 candidates 만 가져온다(보류 배열 · 연결표로 행을 안 만듦)', ok?.rows.length === 2 && !ok.rows.some((r) => r.id === 'naver:999'));
+  check('좌표 없는 후보도 빠지지 않고 null 그대로(0,0 · 도시 가운데로 안 채움)', ok?.rows[1].fields.lat === null && ok.rows[1].fields.lng === null);
+  check('공개 · 예약 · 서비스 · 전화 값이 켜진 후보가 하나라도 있으면 통째로 막는다', ['publicProfile', 'offersHardball', 'offersLessons', 'phone', 'verifiedAt'].every((k) => read(fileOf([cand('1'), cand('2', { [k]: k === 'publicProfile' || k.startsWith('offers') ? true : 'x' })])) === null));
+  check('숫자 · 연결표가 안 맞으면 막는다', read({ ...fileOf([cand('1')]), counts: { total: 2, coordinatesMissing: 0 } }) === null && read({ ...fileOf([cand('1')]), sourceIdMapping: [] }) === null);
   check(
-    '약속을 지킨 파일은 candidates 만 가져온다(보류 배열은 안 읽음)',
-    ok.errors.length === 0 && ok.rows.length === 2 && !ok.rows.some((r) => r.id === 'semas:HELD') && ok.rows[0].sharedPlaceGroup === 'NAVER-1',
-    ok.errors.join('; ')
+    '주소가 달라 좌표를 비운 곳(addressReview)에 좌표가 있으면 막는다(옛 좌표 되살림 방지)',
+    read(fileOf([cand('1')], { addressReview: [{ placeId: '1', matchKind: 'SOURCE_ADDRESS_DIFFERS_COORDINATE_WITHHELD' }] })) === null &&
+      read(fileOf([cand('1', { lat: null, lng: null })], { addressReview: [{ placeId: '1', matchKind: 'SOURCE_ADDRESS_DIFFERS_COORDINATE_WITHHELD' }] }))?.rows[0].fields.mapStatus ===
+        'SOURCE_ADDRESS_DIFFERS_COORDINATE_WITHHELD'
   );
-  check('공개 · 예약 · 서비스 값이 켜진 후보가 하나라도 있으면 통째로 막는다', readCandidateFile(file([base, { ...base, id: 'semas:X', publicProfile: true }])).rows.length === 0);
-  check('레슨을 확정값(true)으로 들고 온 후보도 막는다', readCandidateFile(file([{ ...base, offersLessons: true }])).rows.length === 0);
-  check('id 가 겹치거나 모양이 다르면 막는다', readCandidateFile(file([base, base])).rows.length === 0 && readCandidateFile(file([{ ...base, id: 'x' }])).rows.length === 0);
-  check('schemaVersion 이 다르면 막는다', readCandidateFile({ ...file([base]), schemaVersion: 5 }).rows.length === 0);
+  check('공개 근거는 근거 칸에만 — 서비스 확정값으로 안 바뀜', !Object.keys(ok?.rows[0].fields ?? {}).some((k) => ['offersLessons', 'offersRental', 'offersHardball', 'phone', 'verifiedAt', 'approvedAt', 'collectionStatus', 'businessStatus', 'contactStatus', 'consentStatus'].includes(k)) && ok?.rows[0].fields.lessonNotice === 'PUBLIC_NOTICE');
+
+  /* 가져오기 계획 — 메모리 DB 로 */
+  const row = (id: string, o: Partial<ExistingCandidate> = {}): ExistingCandidate => ({
+    id, mergedIntoId: null, coordsEdited: false, name: '옛이름', typeHint: '레슨·훈련 후보', region: '서울특별시', district: '강남구', roadAddress: '서울특별시 강남구 옛로 1',
+    address: null, lat: 37.4, lng: 127.1, mapStatus: null, lessonNotice: null, rentalNotice: null, hardballNotice: null, operationNotice: null, originGroup: null,
+    sharedPlaceGroup: null, duplicateGroup: null, reviewTags: [], collected: { externalPlaceId: id.split(':')[1] }, collectedAt: '2026-10-25', collectionStatus: 'UNVERIFIED',
+    businessStatus: 'UNKNOWN', contactStatus: 'NOT_CONTACTED', consentStatus: 'NOT_REQUESTED', offersLessons: null, offersRental: null, offersHardball: null, phone: null,
+    consentScope: null, verifiedAt: null, lastContactedAt: null, adminNote: null, approvedAt: null, ...o,
+  });
+  const run = (f: NonNullable<typeof ok>, db: ExistingCandidate[]) => {
+    const plan = planImport(f, db);
+    const next = new Map(db.map((r) => [r.id, { ...r }]));
+    for (const o of plan.ops) {
+      if (o.kind === 'create') next.set(o.id, { ...row(o.id), ...o.data });
+      if (o.kind === 'update') Object.assign(next.get(o.id)!, o.data);
+      if (o.kind === 'merge') next.get(o.id)!.mergedIntoId = o.into;
+    }
+    return { plan, db: [...next.values()] };
+  };
+  const first = run(ok!, []);
+  const second = run(ok!, first.db);
+  check('빈 표에는 모두 새로 만들고, 같은 파일을 다시 돌리면 아무것도 안 바뀐다', first.plan.tally.create === 2 && second.plan.tally.same === 2 && second.plan.tally.create + second.plan.tally.update === 0);
+
+  const contacted = row('naver:1', { contactStatus: 'CONTACTED', consentStatus: 'AGREED', offersLessons: false, phone: '010', adminNote: '통화함', lastContactedAt: '2026-10-20' });
+  const p1 = planImport(ok!, [contacted]);
+  const up = p1.ops.find((o) => o.kind === 'update');
+  check(
+    '연락 · 동의 · 확인 기록이 있는 행은 수집 칸만 고치고 관리자 칸은 그대로(덮어쓰지 않음)',
+    !!up && up.kind === 'update' && Object.keys(up.data).every((k) => (COLLECTED_KEYS as readonly string[]).includes(k)) && !('phone' in up.data) && !('contactStatus' in up.data)
+  );
+  check(
+    '업체 확인값과 공개 근거가 엇갈리면 확인 우선 꼬리표만 단다(값을 바꾸지 않음)',
+    up?.kind === 'update' && (up.data.reviewTags ?? []).some((t) => t.startsWith('레슨:')) && (up.data.reviewTags ?? []).some((t) => t.includes('같은 사업자'))
+  );
+  const edited = planImport(read(fileOf([cand('1', { lat: null, lng: null })]))!, [row('naver:1', { coordsEdited: true })]).ops[0];
+  check('관리자가 손으로 정한 좌표는 다시 가져와도 그대로', edited.kind === 'update' && !('lat' in edited.data) && !('lng' in edited.data));
+
+  const merged = read(fileOf([cand('5', { sourceCandidateIds: ['naver:5', 'semas:B'] })]))!;
+  const pm = planImport(merged, [row('naver:5'), row('semas:B', { collected: {} })]);
+  check('같은 장소로 통합된 이전 기록은 지우지 않고 대표 기록으로 잇는다', pm.ops.some((o) => o.kind === 'merge' && o.id === 'semas:B' && o.into === 'naver:5') && pm.tally.create === 0);
+  const ph = planImport(merged, [row('naver:5'), row('semas:B', { collected: {}, adminNote: '연락함' })]);
+  check('통합 대상 이전 기록에 관리자 기록이 있으면 잇지 않고 남겨 둔다', ph.tally.merge === 0 && ph.tally.hold === 1);
+  const pv = planImport(merged, [row('semas:B', { collected: {} })]);
+  check('기존 기본키는 바꾸지 않고 이전 id 로 찾은 행을 고친다', pv.ops.length === 1 && pv.ops[0].kind === 'update' && pv.ops[0].id === 'semas:B');
+  const ps = planImport(ok!, [row('semas:Z', { collected: { externalPlaceId: '1' } })]);
+  check('이전 id 로는 안 걸리는데 같은 지도 장소를 쓰는 기록이 있으면 만들지 않고 충돌로 남긴다', ps.tally.conflict === 1 && !ps.ops.some((o) => o.kind === 'create' && o.candidateId === 'naver:1'));
+  const pu = planImport(ok!, [row('semas:OLD', { collected: {} })]);
+  check('자료에 없는 기존 행은 지우지 않고 알리기만', pu.untouched.includes('semas:OLD') && pu.tally.create + pu.tally.update + pu.tally.same + pu.tally.conflict === 2);
+
   check(
     '승인은 동의 · 정보 확인 둘 다 뒤에만',
     canApprove({ consentStatus: 'AGREED', collectionStatus: 'VERIFIED' }) &&
@@ -694,8 +775,8 @@ console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관�
   );
   check('손으로 넣는 좌표는 한국 안쪽만', readCoords('37.55', '127.14')?.lat === 37.55 && readCoords('', '127') === null && readCoords('10', '127') === null);
   check(
-    '같은 지도 장소 · 중복 의심 · 좌표 없음은 검토 표시만(합치지 않음)',
-    reviewFlags({ sharedPlaceGroup: 'g', duplicateGroup: 'd', lat: null }).length === 3 && reviewFlags({ sharedPlaceGroup: null, duplicateGroup: null, lat: 1 }).length === 0
+    '좌표 없음 · 통합된 기록 · 확인 우선 꼬리표는 표시만',
+    reviewFlags({ lat: null, mergedIntoId: 'x', reviewTags: ['공 종류·적용 반 확인'] }).length === 3 && reviewFlags({ lat: 1, reviewTags: [] }).length === 0
   );
   const rel = (p: string) => p.slice(join(ROOT, '.').length).replace(/\\/g, '/').replace(/^\//, '');
   const code = ['app', 'lib', 'components'].flatMap((d) => walk(join(ROOT, d))).filter((p) => /\.tsx?$/.test(p));
@@ -713,7 +794,17 @@ console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관�
     })
   );
   const users = code.filter((p) => /candidate-load|admin-candidates/.test(readFileSync(p, 'utf8'))).map(rel).filter((f) => !/^(lib\/market\/candidate-load|app\/actions\/admin-candidates)\.ts$/.test(f));
-  check('수집 후보를 쓰는 화면은 덕아웃 관리 화면(/manage/places)만', users.length > 0 && users.every((f) => f.startsWith('app/(master)/manage/places/')), users.join(', '));
+  /* 관리 화면 밖에서 후보를 부르는 곳은 공개 지도의 관리자 전환 둘뿐(2026-10-26 김민) — 둘 다 대표관리자인지 먼저 보고, API 는 아니면 403 */
+  const GATED = ['app/(dugout)/venues/page.tsx', 'app/api/places/route.ts'];
+  check(
+    '수집 후보를 쓰는 화면은 덕아웃 관리 화면(/manage/places)과 대표관리자 전환(공개 지도 · 앱 지도 API)뿐',
+    users.length > 0 && users.every((f) => f.startsWith('app/(master)/manage/places/') || GATED.includes(f)),
+    users.join(', ')
+  );
+  check(
+    '공개 지도 · 앱 지도 API 는 대표관리자일 때만 후보를 읽는다(API 는 아니면 403)',
+    GATED.every((f) => /const admin = isOwner\(/.test(src(f)) && /admin && one\(sp\.view\) === 'candidates'|if \(!admin\) return NextResponse\.json\([^)]*status: 403/.test(src(f)))
+  );
   check('앱 rpc 허용 목록에 수집 후보 동작이 없다', !src('app/api/rpc/registry.ts').includes('admin-candidates'));
 }
 

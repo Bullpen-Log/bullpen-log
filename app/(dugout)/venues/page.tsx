@@ -79,7 +79,7 @@ export default async function VenuesPage({ searchParams }: { searchParams: Promi
       <CategoryRow label={candidates ? '후보 거르기' : '장소 종류'} items={kinds} keepScroll />
       {candidates && (
         <p className="text-xs text-muted">
-          {places.length}곳{places.length === 500 ? '(500곳까지만 — 검색으로 좁혀 주세요)' : ''} · 사용자에게는 안 보여요. 누르면 후보 상세로 가요.
+          {places.length}곳{places.length >= 1000 ? '(1,000곳까지만 — 검색으로 좁혀 주세요)' : ''} · 사용자에게는 안 보여요. 점은 건물 참조 위치이고 근거 이름표는 확정이 아니에요. 누르면 후보 상세로 가요.
         </p>
       )}
       <PlaceMap places={places} />
