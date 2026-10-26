@@ -100,7 +100,7 @@ export const allExercises = unstable_cache(
   /* :v41 — 2026-10-18 그날 찍은 영상 93개 중 사람이 작은 6개를 잘라 키운 판으로 경로 바꿈(scripts/shoot-trim/apply.mjs). */
   /* :v42 — 같은 날 10-18 영상과 어긋난 운동 12개의 제목 · 도구 · 좌우 · 횟수 · 설명을 영상대로 고침(content-fix.mjs). */
   /* :v43 — 검토 반영: 사이드라잉 외회전 리바운드 도구를 다시 덤벨로(장비 목록은 '모두 있어야 함'이라 원판이면 덤벨만 가진 사람의 어깨 후방이 빈다). */
-  ['library:exercises:v44'],
+  ['library:exercises:v45'],
   { tags: [LIBRARY_TAG] }
 );
 

@@ -1494,7 +1494,8 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
     match: (ex) =>
       inCategory(ex, '파워') &&
       ex.movementPattern === '밀기' &&
-      ex.title.includes('플라이오 푸시업') &&
+      /* 박수 · 드롭 푸시업도 같은 맨몸 상체 플라이오(2026-10-26 김민이 더함) */
+      /플라이오 푸시업|박수 푸시업|드롭 푸시업/.test(ex.title) &&
       intensityLevel(ex.intensity) <= intensityLevel('높음'),
     rank: (ex) => [ex.title.includes('인클라인') ? 1 : 0],
   },
@@ -1504,10 +1505,15 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
         ex.equipment.includes('메디신볼') &&
         ex.movementPattern === '회전' &&
         /로테이션|로테이셔널|회전|스쿱|사이드|쉿|스로우|토스|숏풋/.test(ex.title)) ||
+      /* 메디신볼 없이 빠르게 도는 파워(랜드마인 회전 펀치 · 케이블 · 밴드 스피드 로테이션, 2026-10-26 김민이 더함) — 공 다음, 돌리는 코어 앞 */
+      (inCategory(ex, '파워') && !ex.equipment.includes('메디신볼') && ex.movementPattern === '회전') ||
       (inCategory(ex, '코어') &&
         ROTATION_WORDS.some((w) => ex.title.includes(w)) &&
         !ANTI_ROTATION_WORDS.some((w) => ex.title.includes(w))),
-    rank: (ex) => [inCategory(ex, '파워') ? 0 : 1, /트위스트/.test(ex.title) ? 1 : 0],
+    rank: (ex) => [
+      ex.equipment.includes('메디신볼') ? 0 : inCategory(ex, '파워') ? 1 : 2,
+      /트위스트/.test(ex.title) ? 1 : 0,
+    ],
   },
   /*
    * 보조 메뉴 칸(ACCESSORY_KEYS) — 고르기 차례(rank)는 쓰지 않는다(accessoryPick 이 사람마다 섞는다). 버티기(아이소 · 홀드)는 처방이
