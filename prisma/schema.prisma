@@ -2135,6 +2135,72 @@ model OrgComment {
   @@index([orgId, resolvedAt])
 }
 
+/// 일정 참석(2026-10-26 3단계, docs/designs/sinker-team-lesson-contract.md 4절) — 선수 응답과 코치가 확인한 실제 참석. 부하 · 수강권과 무관하다
+model OrgEventAttendee {
+  eventId   String
+  memberId  String
+  /// 'yes' 가요 · 'no' 못 가요 · 'maybe' 아직 몰라요 — 선수 응답(안 했으면 null)
+  reply     String?
+  /// 못 가는 까닭 같은 한 줄
+  note      String?
+  /// 코치가 확인한 실제 참석(안 했으면 null)
+  attended  Boolean?
+  updatedAt DateTime @updatedAt
+
+  @@id([eventId, memberId])
+  @@index([memberId])
+}
+
+/// 훈련 메뉴 — 한 일정에 묶음별로(예: 투수조 · 야수조). 배정할 때의 대상 명단을 남긴다(묶음이 나중에 바뀌어도 그대로).
+/// 메뉴는 계획일 뿐 부하에 안 든다 — 끝나고 코치가 선수별로 한 것을 기록하면 그 선수의 그날 운동 판에 세트로 붙는다(lib/org/team-work-store.ts)
+model OrgPlan {
+  id          String   @id @default(uuid())
+  orgId       String
+  eventId     String
+  title       String
+  /// [{ exerciseId?, guideId?, sets?, reps?, holdSec?, note? }] — 라이브러리 운동 · 드릴만(숙제와 같은 모양, lib/org/homework.ts)
+  items       Json
+  /// 이 메뉴를 할 선수(OrgMember.id) — 비면 그 일정의 모두
+  memberIds   String[] @default([])
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([orgId])
+}
+
+/// 등판 계획 — 경기 일정 · 선수 하나에 한 줄. 'confirmed' 만 선수의 다음 등판으로 쓴다(엔진의 등판 짐작이 한 출처로 더 읽는다)
+model OrgOuting {
+  id          String   @id @default(uuid())
+  orgId       String
+  eventId     String
+  memberId    String
+  /// 'starter' 선발 · 'relief' 불펜 · 'standby' 대기
+  role        String
+  /// 투구 수 한도(없으면 null)
+  pitchLimit  Int?
+  /// 'draft' 짜는 중 · 'confirmed' 확정 · 'canceled' 취소
+  status      String   @default("draft")
+  updatedById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([eventId, memberId])
+  @@index([memberId, status])
+  @@index([orgId])
+}
+
+/// 공지 읽음 — 선수가 공지를 연 때(코치는 몇 명이 읽었나를 본다)
+model OrgNoticeRead {
+  noticeId String
+  memberId String
+  readAt   DateTime @default(now())
+
+  @@id([noticeId, memberId])
+  @@index([memberId])
+}
+
 /// 수강권(4단계) — 회원마다 '총 N회 · 쓴 M회 · 기한'. 레슨 노트를 레슨 날에 쓰면 한 회 줄고, 3회 남으면 홈이 알린다(lib/org/rules.ts passLeft)
 model LessonPass {
   id        String    @id @default(uuid())
