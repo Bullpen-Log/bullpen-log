@@ -2,6 +2,8 @@ import 'server-only';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/dal';
+import type { MapPlace } from '@/lib/market/map-load';
+import { CONSENT_STATUS, CONTACT_STATUS, NOTICE_LEVEL, isPracticeType, labelOf, reviewFlags } from '@/lib/market/candidates';
 
 /**
  * 덕아웃 수집 후보 읽기(2026-10-26, 대표관리자만) — 목록 · 검색 · 지도 · 상세가 모두 여기를 거친다. 읽기마다 requireAdmin 을 다시 본다
@@ -88,6 +90,34 @@ export async function loadCandidates(f: CandidateFilter) {
     contacted: count((r) => r.contactStatus !== 'NOT_CONTACTED'),
     agreed: count((r) => r.consentStatus === 'AGREED'),
   };
+}
+
+/**
+ * 후보 → 지도 점 — 수집 후보 지도(/manage/places) · 공개 지도의 관리자 전환(/venues?view=candidates) · 덕아웃 앱 지도(/api/places?view=candidates)가
+ * 같이 쓴다. 예약 단추(bookHref)는 없다 — 누르면 후보 상세(/manage/places/<id>)로.
+ */
+export function candidateMapPlaces(items: CandidateListItem[]): MapPlace[] {
+  return items.map((c) => ({
+    id: c.id,
+    type: isPracticeType(c.typeHint) ? 'venue' : 'lesson',
+    name: c.name,
+    kindLabel: c.typeHint,
+    kind: c.typeHint,
+    region: [c.region, c.district].filter(Boolean).join(' '),
+    address: c.roadAddress ?? c.address,
+    lat: c.lat,
+    lng: c.lng,
+    sub: [
+      c.approvedAt ? '승인함' : labelOf(CONSENT_STATUS, c.consentStatus),
+      labelOf(CONTACT_STATUS, c.contactStatus),
+      `레슨 ${labelOf(NOTICE_LEVEL, c.lessonNotice)}`,
+      ...reviewFlags(c).map((f) => `⚠ ${f}`),
+    ].join(' · '),
+    image: null,
+    href: `/manage/places/${encodeURIComponent(c.id)}`,
+    rating: null,
+    reviews: 0,
+  }));
 }
 
 export async function loadCandidate(id: string) {

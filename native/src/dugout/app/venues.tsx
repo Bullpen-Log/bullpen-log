@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KakaoMapView, type KakaoMarker } from '../../../modules/kakao-map';
+import { syncSession } from '~/lib/rpc';
 import { SITE_URL } from '~/lib/site';
 import { TYPE, usePalette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
@@ -15,6 +16,8 @@ import { DUGOUT_UA } from '~/dugout/site';
  * 연습장 · 레슨장 지도 — 덕아웃 앱의 첫 앱 화면(2026-10-25 금윤호: "웹뷰가 아니라 네이티브 앱으로"). 웹 /venues 와 같은 자료(/api/places).
  * 위는 카카오맵(modules/kakao-map), 밑은 목록. 점이나 줄을 누르면 고른 곳 카드 → 자세히 · 예약은 웹 화면으로(leaveTo).
  * 카카오맵 바닥 판이 없는 옛 앱은 껍데기(index.tsx)가 이 화면으로 안 보낸다(hasKakaoMap).
+ * 대표관리자는 머리 밑 [공개 지도 | 수집 후보] 로 같은 자리에서 수집 후보 지도로 바꾼다(2026-10-26 김민 — /api/places?view=candidates,
+ * 칩은 후보 거르기, 줄을 누르면 후보 상세 /manage/places/<id> 웹 화면).
  */
 type Place = {
   id: string;
@@ -28,25 +31,32 @@ type Place = {
   sub: string;
   image: string | null;
   href: string;
-  bookHref: string;
+  /** 없으면 예약 단추를 안 그린다(수집 후보) */
+  bookHref?: string;
   rating: number | null;
   reviews: number;
 };
 type Kind = { key: string; label: string };
+type Mode = 'public' | 'candidates';
 
-async function fetchPlaces(kind?: string, q?: string): Promise<{ places: Place[]; kinds: Kind[] }> {
+async function fetchPlaces(view: Mode, kind?: string, q?: string): Promise<{ places: Place[]; kinds: Kind[]; admin?: boolean }> {
+  /* 로그인 쿠키를 실어야 서버가 관리자인지 안다 */
+  await syncSession();
   const s = new URLSearchParams();
+  if (view === 'candidates') s.set('view', view);
   if (kind) s.set('kind', kind);
   if (q) s.set('q', q);
   const res = await fetch(`${SITE_URL}/api/places${s.size ? `?${s}` : ''}`, { headers: { 'User-Agent': DUGOUT_UA } });
   if (!res.ok) throw new Error(String(res.status));
-  return (await res.json()) as { places: Place[]; kinds: Kind[] };
+  return (await res.json()) as { places: Place[]; kinds: Kind[]; admin?: boolean };
 }
 
 export default function VenuesScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const params = useLocalSearchParams<{ kind?: string; q?: string }>();
+  const [view, setView] = useState<Mode>('public');
+  const [admin, setAdmin] = useState(false);
   const [kind, setKind] = useState<string | undefined>(params.kind || undefined);
   const [places, setPlaces] = useState<Place[] | null>(null);
   const [kinds, setKinds] = useState<Kind[]>([]);
@@ -59,11 +69,12 @@ export default function VenuesScreen() {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let alive = true;
-    fetchPlaces(kind, params.q).then(
+    fetchPlaces(view, kind, params.q).then(
       (body) => {
         if (!alive) return;
         setPlaces(body.places);
         setKinds(body.kinds);
+        setAdmin(!!body.admin);
         setFailed(false);
       },
       () => alive && setFailed(true)
@@ -71,7 +82,7 @@ export default function VenuesScreen() {
     return () => {
       alive = false;
     };
-  }, [kind, params.q, tick]);
+  }, [view, kind, params.q, tick]);
 
   const markers = useMemo<KakaoMarker[]>(
     () => (places ?? []).flatMap((p) => (p.lat != null && p.lng != null ? [{ id: p.id, lat: p.lat, lng: p.lng }] : [])),
@@ -94,8 +105,38 @@ export default function VenuesScreen() {
         <Press accessibilityRole="button" accessibilityLabel="뒤로" onPress={() => router.back()} style={st.back}>
           <Icon name="back" size={22} color={c.ink} />
         </Press>
-        <Text style={[TYPE.section, { color: c.ink }]}>연습장 · 레슨장</Text>
+        <Text style={[TYPE.section, { color: c.ink }]}>{view === 'candidates' ? '수집 후보' : '연습장 · 레슨장'}</Text>
       </View>
+
+      {admin ? (
+        <View style={st.views}>
+          {(
+            [
+              ['public', '공개 지도'],
+              ['candidates', '수집 후보(관리자)'],
+            ] as const
+          ).map(([v, label]) => {
+            const on = view === v;
+            return (
+              <Press
+                key={v}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                onPress={() => {
+                  if (on) return;
+                  setSelected(null);
+                  setPlaces(null);
+                  setKind(undefined);
+                  setView(v);
+                }}
+                style={[st.chip, on ? { backgroundColor: c.ink } : { borderColor: c.line, borderWidth: 1 }]}
+              >
+                <Text style={{ color: on ? c.page : c.ink, fontSize: 14, fontWeight: on ? '700' : '500' }}>{label}</Text>
+              </Press>
+            );
+          })}
+        </View>
+      ) : null}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.chips} style={{ flexGrow: 0 }}>
         {chips.map((k) => {
@@ -147,9 +188,11 @@ export default function VenuesScreen() {
           <Press accessibilityRole="button" onPress={() => leaveTo(picked.href)} style={[st.ghost, { borderColor: c.line }]}>
             <Text style={{ color: c.ink, fontSize: 14, fontWeight: '600' }}>자세히</Text>
           </Press>
-          <Press accessibilityRole="button" onPress={() => leaveTo(picked.bookHref)} style={st.book}>
-            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>예약</Text>
-          </Press>
+          {picked.bookHref ? (
+            <Press accessibilityRole="button" onPress={() => leaveTo(picked.bookHref!)} style={st.book}>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>예약</Text>
+            </Press>
+          ) : null}
         </View>
       ) : null}
 
@@ -215,6 +258,7 @@ export default function VenuesScreen() {
 const st = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingBottom: 6 },
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  views: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 2 },
   chips: { gap: 8, paddingHorizontal: 16, paddingVertical: 8 },
   chip: { height: 36, paddingHorizontal: 14, borderRadius: 18, justifyContent: 'center' },
   map: { height: 300, marginHorizontal: 16, marginTop: 4, borderRadius: 20, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth },

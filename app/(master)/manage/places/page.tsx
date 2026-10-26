@@ -2,9 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeading } from '@/components/ui';
 import { PlaceMap } from '@/components/dugout/place-map';
-import type { MapPlace } from '@/lib/market/map-load';
-import { CANDIDATE_FLAGS, loadCandidates } from '@/lib/market/candidate-load';
-import { CONSENT_STATUS, CONTACT_STATUS, NOTICE_LEVEL, isPracticeType, labelOf, reviewFlags } from '@/lib/market/candidates';
+import { CANDIDATE_FLAGS, candidateMapPlaces, loadCandidates } from '@/lib/market/candidate-load';
 
 export const metadata: Metadata = { title: '레슨 · 연습장 수집 후보' };
 
@@ -27,27 +25,7 @@ export default async function AdminPlacesPage({ searchParams }: { searchParams: 
     const s = new URLSearchParams(Object.entries({ q, region, flag, ...o }).filter(([, v]) => v) as [string, string][]);
     return `/manage/places${s.size ? `?${s}` : ''}`;
   };
-  const places: MapPlace[] = items.map((c) => ({
-    id: c.id,
-    type: isPracticeType(c.typeHint) ? 'venue' : 'lesson',
-    name: c.name,
-    kindLabel: c.typeHint,
-    kind: c.typeHint,
-    region: [c.region, c.district].filter(Boolean).join(' '),
-    address: c.roadAddress ?? c.address,
-    lat: c.lat,
-    lng: c.lng,
-    sub: [
-      c.approvedAt ? '승인함' : labelOf(CONSENT_STATUS, c.consentStatus),
-      labelOf(CONTACT_STATUS, c.contactStatus),
-      `레슨 ${labelOf(NOTICE_LEVEL, c.lessonNotice)}`,
-      ...reviewFlags(c).map((f) => `⚠ ${f}`),
-    ].join(' · '),
-    image: null,
-    href: `/manage/places/${encodeURIComponent(c.id)}`,
-    rating: null,
-    reviews: 0,
-  }));
+  const places = candidateMapPlaces(items);
   const chip = (on: boolean) =>
     `inline-flex min-h-9 shrink-0 items-center rounded-full border px-3 text-sm ${on ? 'border-ink bg-ink font-semibold text-page' : 'border-line text-ink hover:border-ink/30'}`;
 
