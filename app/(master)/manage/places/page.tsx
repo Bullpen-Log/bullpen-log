@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { BackLink } from '@/components/back-link';
 import { PageHeading } from '@/components/ui';
 import { PlaceMap } from '@/components/dugout/place-map';
 import type { MapPlace } from '@/lib/market/map-load';
@@ -26,7 +25,7 @@ export default async function AdminPlacesPage({ searchParams }: { searchParams: 
 
   const href = (o: { region?: string; flag?: string }) => {
     const s = new URLSearchParams(Object.entries({ q, region, flag, ...o }).filter(([, v]) => v) as [string, string][]);
-    return `/admin/places${s.size ? `?${s}` : ''}`;
+    return `/manage/places${s.size ? `?${s}` : ''}`;
   };
   const places: MapPlace[] = items.map((c) => ({
     id: c.id,
@@ -45,7 +44,7 @@ export default async function AdminPlacesPage({ searchParams }: { searchParams: 
       ...reviewFlags(c).map((f) => `⚠ ${f}`),
     ].join(' · '),
     image: null,
-    href: `/admin/places/${encodeURIComponent(c.id)}`,
+    href: `/manage/places/${encodeURIComponent(c.id)}`,
     rating: null,
     reviews: 0,
   }));
@@ -54,12 +53,12 @@ export default async function AdminPlacesPage({ searchParams }: { searchParams: 
 
   return (
     <div className="stack-page">
-      <BackLink href="/admin">관리자</BackLink>
       <PageHeading
+        kicker="관리자"
         title="레슨 · 연습장 수집 후보"
         description={`전체 ${total} · 연락 ${contacted} · 동의 ${agreed} — 공공자료 · 지도 대조로 모은 미확인 후보예요. 동의 · 확인 · 승인 전에는 사용자에게 안 보여요.`}
       />
-      <form method="get" action="/admin/places" className="flex flex-wrap gap-2">
+      <form method="get" action="/manage/places" className="flex flex-wrap gap-2">
         {region && <input type="hidden" name="region" value={region} />}
         {flag && <input type="hidden" name="flag" value={flag} />}
         <input

@@ -713,7 +713,7 @@ console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관�
     })
   );
   const users = code.filter((p) => /candidate-load|admin-candidates/.test(readFileSync(p, 'utf8'))).map(rel).filter((f) => !/^(lib\/market\/candidate-load|app\/actions\/admin-candidates)\.ts$/.test(f));
-  check('수집 후보를 쓰는 화면은 관리자 화면(/admin/places)만', users.length > 0 && users.every((f) => f.startsWith('app/(app)/admin/places/')), users.join(', '));
+  check('수집 후보를 쓰는 화면은 덕아웃 관리 화면(/manage/places)만', users.length > 0 && users.every((f) => f.startsWith('app/(master)/manage/places/')), users.join(', '));
   check('앱 rpc 허용 목록에 수집 후보 동작이 없다', !src('app/api/rpc/registry.ts').includes('admin-candidates'));
 }
 

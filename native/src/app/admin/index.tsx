@@ -10,7 +10,6 @@ import { PageHead } from '~/shell/heading';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Icon, type IconName } from '~/shell/icon';
-import { leaveTo } from '~/shell/web-nav';
 
 const ROLE_DETAIL: Record<Role, string> = {
   USER: '관리자 메뉴를 더는 쓸 수 없어요.',
@@ -63,8 +62,6 @@ export default function AdminScreen() {
             <MenuRow icon="life-buoy" label="소통 관리" detail={data.openInquiries > 0 ? `답할 문의 ${data.openInquiries}` : '1:1 문의 · 공지'} onPress={() => router.push('/admin/support' as Href)} c={c} />
             <MenuRow icon="flag" label="커뮤니티 신고" detail={data.openReports > 0 ? `처리 전 ${data.openReports}` : '신고된 글 · 댓글'} onPress={() => router.push('/admin/community' as Href)} c={c} />
             <MenuRow icon="log" label="패치노트" detail="누가 · 어느 날 무엇을 고쳤나" onPress={() => router.push('/admin/patch-notes' as Href)} c={c} />
-            {/* 레슨 · 연습장 수집 후보(2026-10-26) — 대표관리자만 보는 웹 지도 · 목록(app/(app)/admin/places). 공개는 업체 동의 · 확인 · 승인 뒤 */}
-            <MenuRow icon="venue" label="수집 후보" detail="레슨 · 연습장 지도 · 목록" web onPress={() => leaveTo('/admin/places')} c={c} />
             </>) : null}
             {data.perms.velocityAdmin ? <MenuRow icon="gauge" label="구속 측정 관리자" detail="지난 영상 · 영상 올리기" onPress={() => router.push('/admin/velocity' as Href)} last={!data.perms.shoot && !data.perms.dev3d} c={c} /> : null}
             {/* 3D 개발 관리자(2026-10-21) — 3D 스윙 분석 모델링용 타자 샘플 · 마커 샘플. 옛 서버 답에는 dev3d 칸이 없다 */}

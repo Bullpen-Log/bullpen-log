@@ -3,7 +3,7 @@ import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import Link from 'next/link';
 import { ChevronRight, Clapperboard, Gauge, ScrollText } from '@/components/icon';
-import { RoundBatter, RoundLesson, RoundVenue } from '@/components/round-icon';
+import { RoundBatter, RoundLesson } from '@/components/round-icon';
 import { prisma } from '@/lib/prisma';
 import { requirePermission } from '@/lib/dal';
 import { can, isOwner, parseRole } from '@/lib/permissions';
@@ -204,22 +204,6 @@ export default async function AdminPage() {
         <ChevronRight aria-hidden className="h-4 w-4 text-muted" />
       </Link>
 
-      {/* 덕아웃 레슨 · 연습장 수집 후보(2026-10-26, 대표관리자만) — 미확인 후보 지도 · 목록 · 연락 · 동의 */}
-      {isOwner(admin.role) && (
-        <Link
-          href="/admin/places"
-          className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-strong text-muted">
-            <RoundVenue aria-hidden className="h-4 w-4" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold text-ink">레슨 · 연습장 수집 후보</span>
-            <span className="block text-xs text-muted">미확인 후보 지도 · 목록 · 연락 · 동의 기록(사용자에게 안 보임)</span>
-          </span>
-          <ChevronRight aria-hidden className="h-4 w-4 text-muted" />
-        </Link>
-      )}
 
       <Link
         href="/admin/patch-notes"

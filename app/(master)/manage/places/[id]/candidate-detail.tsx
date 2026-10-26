@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { BackLink } from '@/components/back-link';
+import { ChevronLeft } from '@/components/icon';
 import { SafeForm } from '@/components/safe-form';
 import { Badge, Button, Card, Field, Input, PageHeading, Textarea } from '@/components/ui';
 import { saveCandidateCheck, setCandidateApproval, setCandidateCoords } from '@/app/actions/admin-candidates';
@@ -72,7 +72,9 @@ export function CandidateDetail({ c, siblings, coords }: NonNullable<Awaited<Ret
 
   return (
     <div className="stack-page">
-      <BackLink href="/admin/places">수집 후보</BackLink>
+      <Link href="/manage/places" className="inline-flex items-center gap-1 text-xs text-muted hover:text-ink">
+        <ChevronLeft className="h-3.5 w-3.5" /> 수집 후보
+      </Link>
       <PageHeading title={c.name} description={[c.typeHint, c.region, c.district].filter(Boolean).join(' · ')} />
 
       {flags.length > 0 && (
@@ -90,7 +92,7 @@ export function CandidateDetail({ c, siblings, coords }: NonNullable<Awaited<Ret
               <ul className="space-y-1">
                 {siblings.map((s) => (
                   <li key={s.id}>
-                    <Link href={`/admin/places/${encodeURIComponent(s.id)}`} className="text-sm font-semibold text-sky">
+                    <Link href={`/manage/places/${encodeURIComponent(s.id)}`} className="text-sm font-semibold text-sky">
                       {s.name}
                     </Link>
                     <span className="ml-2 text-xs text-muted">{s.roadAddress}</span>
