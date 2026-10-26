@@ -16,6 +16,8 @@ import { coachOrg, myMember } from '@/lib/org/app-access';
 import { commentCounts } from '@/lib/org/comment-load';
 import { formatExercise, readExercises } from '@/lib/org/lesson-work';
 import { noteKey } from '@/lib/org/lesson-pitch';
+import { replyCounts, type AttendReply } from '@/lib/org/team';
+import { noticeReads } from '@/lib/org/team-load';
 
 /**
  * 아이폰 앱(native/src/app/org/*)의 팀 · 레슨장 공간 — 1단계(docs/designs/sinker-team-lesson-contract.md 2-1).
@@ -116,7 +118,8 @@ const NO_ACCESS = { ok: false as const, to: '/today' };
 export type OrgToday = {
   org: { id: string; kind: OrgKind; name: string };
   todayKey: string;
-  events: { id: string; time: string | null; kind: string; title: string; status: string; memberId: string | null; memberName: string | null }[];
+  /** replies: 참석 응답 수(3단계) — 팀 일정 줄의 '가요 8 · 못 가요 2' */
+  events: { id: string; time: string | null; kind: string; title: string; status: string; memberId: string | null; memberName: string | null; replies: Record<AttendReply, number> }[];
   counts: { members: number; pending: number; placeholders: number };
   /** 팔 상태가 주의 · 위험인 회원 — 위험부터 */
   alerts: ({ memberId: string; nickname: string } & ArmLine)[];
@@ -138,11 +141,18 @@ export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: stri
     pitcherBoardOf(orgId, now),
   ]);
   const nameOf = new Map(members.map((m) => [m.id, m.nickname]));
+  const replies = events.length
+    ? await prisma.orgEventAttendee.findMany({ where: { eventId: { in: events.map((e) => e.id) } }, select: { eventId: true, reply: true } })
+    : [];
   return {
     ok: true,
     org: { id: c.org.id, kind: c.org.kind, name: c.org.name },
     todayKey,
-    events: events.map((e) => ({ ...e, memberName: e.memberId ? (nameOf.get(e.memberId) ?? null) : null })),
+    events: events.map((e) => ({
+      ...e,
+      memberName: e.memberId ? (nameOf.get(e.memberId) ?? null) : null,
+      replies: replyCounts(replies.filter((r) => r.eventId === e.id).map((r) => r.reply)),
+    })),
     counts: {
       members: members.length,
       pending: members.filter((m) => m.user && !m.consent).length,
@@ -406,11 +416,14 @@ async function noticesOf(orgId: string, take: number): Promise<NoticeView[]> {
   }));
 }
 
-/** 코치 '공지' — 고정 먼저, 새 것부터 */
-export async function loadOrgNotices(orgId: string): Promise<{ ok: false; to: string } | { ok: true; notices: NoticeView[] }> {
+/** 코치 '공지' — 고정 먼저, 새 것부터. 3단계: 공지마다 읽은 선수 수(가입한 활동 선수 가운데) */
+export async function loadOrgNotices(
+  orgId: string
+): Promise<{ ok: false; to: string } | { ok: true; notices: NoticeView[]; players: number; reads: Record<string, number> }> {
   const c = await coachOrg(orgId);
   if (!c) return NO_ACCESS;
-  return { ok: true, notices: await noticesOf(orgId, 50) };
+  const notices = await noticesOf(orgId, 50);
+  return { ok: true, notices, ...(await noticeReads(orgId, notices.map((n) => n.id))) };
 }
 
 /** 회원 고치기 화면 — 조직 안 이름 · 태그 · 메모, 가입 전 자리인가 */

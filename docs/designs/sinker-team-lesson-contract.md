@@ -234,6 +234,17 @@ model OrgNoticeRead {
 
 **다음 등판**: 엔진의 등판 짐작(`lib/engine/outing.ts`)이 확정된 `OrgOuting` 을 출처 하나로 더 읽는다. 체크인 답 · 개인 달력과 날이 다르면 덮지 않고 선수에게 묻는다.
 
+**진행(2026-10-26)**: 표 적용(29a1f618, 위 초안 + `OrgEventAttendee.note` · `OrgPlan.memberIds @default([])` · `@@index([orgId])`). 규칙 `lib/org/team.ts`, 동작 `app/actions/app-team.ts`
+(/api/rpc/app-team.*, 모든 동작이 coachOrg · myMember 부터). 앱 코치 `native/src/app/org/team-event.tsx`(참석 · 메뉴 · 수행일지 · 등판, 팀의 있는 일정을 누르면) · `plan.tsx` · `work.tsx`,
+선수 공간 '다가오는 일정'(2주, 응답 · 내 메뉴 · 확정된 등판) · 보인 공지 읽음. 웹 `/manage/calendar/[id]`(같은 일 · 달력 그날 칸의 '참석 · 메뉴') · 공지 '읽음 n/m'. 운동 고르기는
+앱 `native/src/org/picker.tsx` · 웹 `components/master/library-picker.tsx` 로 숙제와 같이 쓴다.
+- 참석 · 메뉴는 부하에 안 든다. 수행일지만 `writeOrgWork` 로 선수 운동 판에 코치 세트로 — 끝난 일정(오늘까지) · 가입 · 트레이닝 공유를 켠 선수만, '메뉴대로'(드릴은 빼고 메뉴 처방 → 없으면 라이브러리 기본 → 1세트)
+  · 고쳐 적기 · 빼기 · '참석한 선수 모두 메뉴대로'.
+- 등판은 경기 일정만. 고치면 다시 '짜는 중', '확정'하면 선수에게 알림. 확정된 선발 · 불펜만 `lib/org/team-load.ts confirmedOutingEvents` 가 이름 '팀 등판(확정)' 일정으로 만들어
+  `lib/report/gather.ts` 가 개인 달력 일정과 같이 읽는다(짐작 출처라 체크인 답이 먼저 · 가볍게 하는 쪽에만). **'날이 다르면 선수에게 묻기'는 아직 없다** — 지금은 개인 달력과 팀 등판이 같은 출처로 섞인다.
+- 일정을 지우면 참석 · 메뉴 · 등판도 지운다(이미 남긴 수행일지 세트는 실제로 한 운동이라 둔다). 공지를 지우면 읽음도.
+- 레슨장 일정 · 웹 선수 참여 화면(/join)의 공지는 이번에 안 건드렸다(읽음은 앱 선수 공간에서 본 것만 센다).
+
 **관문 3**: 팀 한 곳 2~3주. 계획 · 참석이 부하에 안 섞임 · 확정된 등판만 다음 등판에 쓰임 · 같은 공 두 번 센 날 0.
 
 ## 5. 4단계 — 성장 · 확장(표는 그때 정함)

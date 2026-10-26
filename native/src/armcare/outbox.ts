@@ -9,6 +9,9 @@ import { outboxOwner } from '~/workout/outbox';
  *   - 같은 체크(운동 · 날)를 다시 담으면 새것으로 바꾼다. 서버도 한 줄로 남긴다(markExerciseDone 의 upsert).
  *   - 보내다 예외(신호 없음)면 두고 멈춘다 → 'offline'. 서버가 답으로 거절한 것은 다시 보내도 안 되니 뺀다.
  *   - 담은 계정을 붙인다 — 같은 폰에 다른 사람이 로그인하면 앞사람 체크를 그 사람 이름으로 보내지 않는다(계정은 껍데기가 정한다).
+ *     '같은 체크'는 계정까지 같아야 한다 — 예전엔 운동 · 날만 견줘, B 가 같은 운동을 같은 날 체크하면 A 의 못 보낸 체크가 지워졌고, A 의 체크를
+ *     보낸 답이 오면 B 의 체크까지 뺐다(2026-10-26). 보낸 뒤에는 실제로 보낸 그 줄(같은 객체)만 뺀다 — 보내는 사이 다시 담은 새 판은 남는다.
+ *     계정을 모르고 담은 옛 줄(owner 없음)은 그대로 둔다(누구로든 보내는 규칙 그대로 — 지우거나 아무 계정에 붙이지 않는다).
  *   - 7일 넘게 못 보낸 것은 버린다.
  */
 export type { PendingCheck };
@@ -18,7 +21,11 @@ type CheckKey = Pick<PendingCheck, 'exerciseId' | 'dateKey'>;
 const KEY = 'bullpen-armcare:pending-checks:v1';
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const EMPTY: readonly Stored[] = Object.freeze([]);
-const same = (a: CheckKey, b: CheckKey) => a.exerciseId === b.exerciseId && a.dateKey === b.dateKey;
+const sameCheck = (a: CheckKey, b: CheckKey) => a.exerciseId === b.exerciseId && a.dateKey === b.dateKey;
+/** 같은 사람의 같은 체크 — 계정이 다르면 다른 줄(같은 폰에 두 사람) */
+const sameEntry = (a: Stored, b: Stored) => sameCheck(a, b) && (a.owner ?? null) === (b.owner ?? null);
+/** 지금 계정이 보내는 줄 — 제 것과 계정을 모르고 담은 옛 줄 */
+const mine = (x: Stored, owner: string | null) => !x.owner || x.owner === owner;
 /** 화면에서 한 체크를 가리키는 이름 — 웹 checkId 와 같다 */
 export const checkId = (p: CheckKey) => `${p.exerciseId}|${p.dateKey}`;
 
@@ -44,14 +51,23 @@ const loaded: Promise<void> = AsyncStorage.getItem(KEY)
     const parsed: unknown = raw ? JSON.parse(raw) : [];
     const cutoff = Date.now() - MAX_AGE_MS;
     const stored = Array.isArray(parsed) ? parsed.filter(isCheck).filter((p) => Date.parse(p.recordedAt) > cutoff) : [];
-    const extra = stored.filter((s) => !items.some((x) => same(x, s)));
+    const extra = stored.filter((s) => !items.some((x) => sameEntry(x, s)));
     if (extra.length) set([...extra, ...items]);
   })
   .catch(() => undefined);
 
-const remove = (k: CheckKey) => {
-  if (items.some((x) => same(x, k))) set(items.filter((x) => !same(x, k)));
+/** 보낸 그 줄만 뺀다(같은 객체) — 보내는 사이 다시 담은 새 판 · 다른 계정 줄은 남는다 */
+const removeExact = (sent: Stored) => {
+  if (items.includes(sent)) set(items.filter((x) => x !== sent));
 };
+
+/* 화면이 보는 목록 — 지금 계정 것만(다른 사람의 못 보낸 체크가 내 체크로 보이지 않게). 같은 값이면 같은 배열(useSyncExternalStore) */
+let shown: { items: readonly Stored[]; owner: string | null; list: readonly Stored[] } = { items: EMPTY, owner: null, list: EMPTY };
+function visible(): readonly Stored[] {
+  const owner = outboxOwner();
+  if (shown.items !== items || shown.owner !== owner) shown = { items, owner, list: items.filter((x) => mine(x, owner)) };
+  return shown.list;
+}
 
 export const checkOutbox = {
   subscribe(l: () => void) {
@@ -60,12 +76,20 @@ export const checkOutbox = {
       listeners.delete(l);
     };
   },
+  /** 대기열 전체(모든 계정) */
   snapshot: (): readonly PendingCheck[] => items,
-  /** 아직 안 보낸 체크를 푼다(체크 목록에서 다시 누름) — 서버에는 간 적이 없으니 빼기만 하면 된다 */
-  drop: (k: CheckKey) => remove(k),
+  /** 화면이 보는 것 — 지금 계정 것과 계정 모르는 옛 줄만(다른 사람의 못 보낸 체크가 내 체크로 보이지 않게) */
+  visible: (): readonly PendingCheck[] => visible(),
+  /** 아직 안 보낸 체크를 푼다(체크 목록에서 다시 누름) — 서버에는 간 적이 없으니 빼기만. 지금 계정이 보는 줄(제 것 · 옛 줄)만 */
+  drop(k: CheckKey) {
+    const owner = outboxOwner();
+    if (items.some((x) => sameCheck(x, k) && mine(x, owner))) set(items.filter((x) => !(sameCheck(x, k) && mine(x, owner))));
+  },
+  /** 같은 사람의 같은 체크(운동 · 날)를 다시 담으면 새것으로 — 다른 계정 줄 · 계정 모르는 옛 줄은 그대로 */
   add(p: PendingCheck) {
     const owner = outboxOwner();
-    set([...items.filter((x) => !same(x, p)), owner ? { ...p, owner } : p]);
+    const entry: Stored = owner ? { ...p, owner } : p;
+    set([...items.filter((x) => !sameEntry(x, entry)), entry]);
   },
 };
 
@@ -83,8 +107,9 @@ export function onCheckResult(l: CheckListener) {
 }
 
 let draining = false;
-/** 같은 체크에서 서버 오류가 난 횟수(메모리만) */
+/** 같은 체크에서 서버 오류가 난 횟수(메모리만) — 계정마다 */
 const serverFails = new Map<string, number>();
+const failKey = (x: Stored) => `${x.owner ?? ''}|${checkId(x)}`;
 const SERVER_FAIL_LIMIT = 8;
 
 /**
@@ -105,9 +130,7 @@ export async function drainChecks<R>(
     for (;;) {
       const owner = outboxOwner();
       /* 지금 계정 것(또는 계정을 모르고 담은 것)만 — 다른 계정 것은 그 사람이 다시 로그인할 때까지 둔다 */
-      const next = [...items]
-        .filter((p) => !p.owner || p.owner === owner)
-        .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[0];
+      const next = [...items].filter((p) => mine(p, owner)).sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[0];
       if (!next) return 'done';
       const plain: PendingCheck = { exerciseId: next.exerciseId, dateKey: next.dateKey, recordedAt: next.recordedAt };
       let result: R;
@@ -126,20 +149,21 @@ export async function drainChecks<R>(
          * (bad-body · unknown-action 같은 정해진 오류)만 여덟 번이면 뺀다.
          */
         if (code === 'offline' || code === 'update' || code === 'server' || code == null) return 'offline';
-        const n = (serverFails.get(checkId(next)) ?? 0) + 1;
-        serverFails.set(checkId(next), n);
+        const fk = failKey(next);
+        const n = (serverFails.get(fk) ?? 0) + 1;
+        serverFails.set(fk, n);
         if (n < SERVER_FAIL_LIMIT) return 'offline';
-        serverFails.delete(checkId(next));
-        remove(next);
+        serverFails.delete(fk);
+        removeExact(next);
         const refused = { error: '서버가 체크 하나를 받지 못해 뺐어요. 다시 체크해 주세요.' };
         handle(plain, refused as R);
         resultListeners.forEach((l) => l(plain, refused));
         continue;
       }
-      serverFails.delete(checkId(next));
+      serverFails.delete(failKey(next));
       handle(plain, result);
       resultListeners.forEach((l) => l(plain, result));
-      remove(next);
+      removeExact(next);
     }
   } finally {
     draining = false;

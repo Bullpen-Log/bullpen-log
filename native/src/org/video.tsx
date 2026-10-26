@@ -2,10 +2,13 @@ import * as ImagePicker from 'expo-image-picker';
 import { File } from 'expo-file-system';
 import { createUploadTask, FileSystemUploadType } from 'expo-file-system/legacy';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
-import { useEffect, useState, type RefObject } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ORG_VIDEO_MAX_BYTES } from '@/lib/org/comments';
+import { useEventListener } from 'expo';
 import { call } from '~/community/parts';
+import { cacheEpoch } from '~/lib/store';
+import { createRetry, createUrlCache } from './url-cache';
 import { TYPE, type Palette } from '~/lib/ui';
 
 /**
@@ -58,47 +61,107 @@ function safeSize(uri: string): number | null {
   }
 }
 
-/** 재생 주소 — 화면이 켜진 동안 같은 경로는 다시 안 묻는다(서명 주소는 서버가 한동안 같은 것을 준다) */
-const urlCache = new Map<string, string>();
+/** 재생 주소 기억 — 계정 세대 · 범위 · 경로마다 20분까지(org/url-cache.ts — 예전엔 경로만으로 앱이 켜진 동안 쥐어 죽은 주소를 썼다) */
+const urls = createUrlCache({ epoch: cacheEpoch });
 
-function useOrgVideoUrl(path: string, who: VideoWho): { uri: string | null; error: string | null } {
-  const [state, setState] = useState<{ path: string; uri: string | null; error: string | null }>({ path, uri: urlCache.get(path) ?? null, error: null });
-  const scopeId = who.role === 'coach' ? who.orgId : who.memberId;
+function useOrgVideoUrl(path: string, who: VideoWho): { uri: string | null; error: string | null; renew: () => void } {
+  const role = who.role;
+  const id = who.role === 'coach' ? who.orgId : who.memberId;
+  const scope = `${role}:${id}`;
+  /* 다시 받기 차례 — 늘리면 기억을 지우고 새로 받는다 */
+  const [ask, setAsk] = useState(0);
+  const k = `${scope}|${path}|${ask}`;
+  const [state, setState] = useState<{ k: string; uri: string | null; error: string | null }>(() => ({ k, uri: urls.get(scope, path), error: null }));
   useEffect(() => {
-    if (urlCache.has(path)) return;
     let alive = true;
-    void (who.role === 'coach'
-      ? call<{ ok: true; urls: Record<string, string> }>('app-lesson.coachVideoUrls', scopeId, [path])
-      : call<{ ok: true; urls: Record<string, string> }>('app-lesson.myVideoUrls', scopeId, [path])
+    const at = `${scope}|${path}|${ask}`;
+    /* 기억에 있으면(살아 있는 주소) 그것 — 처음 열 때는 초기값이 이미 이것이다 */
+    const hit = urls.get(scope, path);
+    if (hit) {
+      void Promise.resolve().then(() => alive && setState((s) => (s.k === at && s.uri === hit ? s : { k: at, uri: hit, error: null })));
+      return () => {
+        alive = false;
+      };
+    }
+    /* 받는 사이 로그아웃 · 다른 계정이면 버린다(기억에도 안 둔다) */
+    const e = cacheEpoch();
+    void (role === 'coach'
+      ? call<{ ok: true; urls: Record<string, string> }>('app-lesson.coachVideoUrls', id, [path])
+      : call<{ ok: true; urls: Record<string, string> }>('app-lesson.myVideoUrls', id, [path])
     ).then((r) => {
-      if (!alive) return;
+      if (!alive || e !== cacheEpoch()) return;
       const uri = r.ok ? r.urls[path] : undefined;
-      if (uri) urlCache.set(path, uri);
-      setState({ path, uri: uri ?? null, error: uri ? null : '영상을 불러오지 못했어요.' });
+      if (uri) urls.set(scope, path, uri);
+      setState({ k: at, uri: uri ?? null, error: uri ? null : '영상을 불러오지 못했어요.' });
     });
     return () => {
       alive = false;
     };
-  }, [path, who.role, scopeId]);
-  return state.path === path ? { uri: state.uri ?? urlCache.get(path) ?? null, error: state.error } : { uri: urlCache.get(path) ?? null, error: null };
+  }, [scope, path, ask, role, id]);
+  const renew = () => {
+    urls.forget(scope, path);
+    setAsk((n) => n + 1);
+  };
+  return state.k === k ? { uri: state.uri, error: state.error, renew } : { uri: null, error: null, renew };
 }
 
-/** 조직 영상 하나 — playerRef 를 주면 지금 시각(영상 시점 말) · 옮기기(시점 말 누름)에 쓴다 */
+type At = { time: number; rate: number; playing: boolean };
+
+/**
+ * 조직 영상 하나 — playerRef 를 주면 지금 시각(영상 시점 말) · 옮기기(시점 말 누름)에 쓴다.
+ * 재생 중 주소가 죽으면(앱을 오래 켜 둠 · 뒤에 있다 돌아옴) 주소를 새로 받아 그 자리 · 배속에서 이어 튼다 — 저절로는 두 번까지, 그 뒤엔
+ * '다시 불러오기'를 누를 때만(끝없이 다시 받지 않게). 주소를 못 받으면(신호 없음 · 권한 없음)도 누를 때만 다시.
+ */
 export function OrgVideo({ path, who, playerRef, c }: { path: string; who: VideoWho; playerRef?: RefObject<VideoPlayer | null>; c: Palette }) {
-  const { uri, error } = useOrgVideoUrl(path, who);
-  if (error) return <Text style={[TYPE.sub, { color: c.muted }]}>{error}</Text>;
+  const { uri, error, renew } = useOrgVideoUrl(path, who);
+  const [retry] = useState(() => createRetry());
+  const [resume, setResume] = useState<At | null>(null);
+  const [dead, setDead] = useState(false);
+  const onDead = (at: At | null) => {
+    if (at) setResume(at);
+    if (retry.take()) renew();
+    else setDead(true);
+  };
+  const again = () => {
+    retry.reset();
+    setDead(false);
+    renew();
+  };
+  if (error || dead)
+    return (
+      <View style={{ gap: 8 }}>
+        <Text style={[TYPE.sub, { color: c.muted }]}>{error ?? '영상을 재생하지 못했어요.'}</Text>
+        <Pressable accessibilityRole="button" onPress={again} hitSlop={8} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
+          <Text style={[TYPE.sub, { color: c.link, fontWeight: '600' }]}>다시 불러오기</Text>
+        </Pressable>
+      </View>
+    );
   if (!uri)
     return (
       <View style={[st.box, { backgroundColor: c.chip, alignItems: 'center', justifyContent: 'center' }]}>
         <ActivityIndicator />
       </View>
     );
-  return <Player uri={uri} playerRef={playerRef} />;
+  /* 주소가 바뀌면 재생기를 새로 — 이어 틀 자리 · 배속은 resume */
+  return <Player key={uri} uri={uri} playerRef={playerRef} start={resume} onDead={onDead} />;
 }
 
-function Player({ uri, playerRef }: { uri: string; playerRef?: RefObject<VideoPlayer | null> }) {
+function Player({ uri, playerRef, start, onDead }: { uri: string; playerRef?: RefObject<VideoPlayer | null>; start: At | null; onDead: (at: At | null) => void }) {
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;
+    if (start) {
+      p.currentTime = start.time;
+      p.playbackRate = start.rate;
+      if (start.playing) p.play();
+    }
+  });
+  /* 오류 직전에 틀고 있었나 — 오류가 나면 재생이 멈춰 그때 읽으면 늘 멈춤이다 */
+  const playing = useRef(false);
+  useEventListener(player, 'playingChange', ({ isPlaying }) => {
+    playing.current = isPlaying;
+  });
+  useEventListener(player, 'statusChange', ({ status }) => {
+    if (status === 'error') onDead(where(player, playing.current));
   });
   useEffect(() => {
     if (!playerRef) return;
@@ -108,6 +171,15 @@ function Player({ uri, playerRef }: { uri: string; playerRef?: RefObject<VideoPl
     };
   }, [player, playerRef]);
   return <VideoView player={player} style={st.box} nativeControls contentFit="contain" />;
+}
+
+/** 이어 틀 자리 · 배속 — 재생기가 이미 놓였으면 null */
+function where(p: VideoPlayer, playing: boolean): At | null {
+  try {
+    return { time: p.currentTime, rate: p.playbackRate, playing };
+  } catch {
+    return null;
+  }
 }
 
 /** 지금 재생 시각(초) — 재생기가 이미 놓였으면 null */

@@ -2,6 +2,7 @@ import { APP_API_HEADER, APP_API_LEVEL } from '@/lib/app-api';
 import { SITE_URL } from '~/lib/site';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { createReadShare } from './read-share';
+import { cacheEpoch } from './store';
 
 /**
  * 사이트 서버 동작 부르기 — POST /api/rpc/<파일>.<함수>(app/api/rpc/[action]/route.ts). 로그인은 웹뷰의 'session' 쿠키를 앱 저장소로
@@ -36,7 +37,8 @@ export function rpc<T>(action: string, ...args: unknown[]): Promise<T> {
    * 같은 읽기를 겹쳐 부르면 하나로 — 화면에 돌아올 때 · 탭이 보일 때 · 앱이 앞에 올 때 · 같은 값을 읽는 화면 여럿(암케어 목록 위의 재활 화면)이
    * 한꺼번에 같은 것을 불렀다(2026-10-26 2차 점검). 가는 중인 읽기가 떠난 뒤에 쓰기가 끝났으면 합치지 않고 새로 부른다(저장 직후 옛 값을 받지 않게).
    */
-  return reads.run(action + body, () => call<T>(action, body, { 'content-type': 'application/json' }));
+  /* 계정 세대를 열쇠에 — 로그아웃 뒤 다른 계정이 앞 계정의 가는 중인 읽기(앞 계정 쿠키로 보낸 것)에 합류하지 않게 */
+  return reads.run(`${cacheEpoch()}|${action}${body}`, () => call<T>(action, body, { 'content-type': 'application/json' }));
 }
 
 /**

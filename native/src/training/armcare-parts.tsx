@@ -134,7 +134,7 @@ export function Checklist({
     setSeen(initial);
     setItems(initial);
   }
-  const pending = useSyncExternalStore(checkOutbox.subscribe, checkOutbox.snapshot);
+  const pending = useSyncExternalStore(checkOutbox.subscribe, checkOutbox.visible);
   const waiting = new Set(pending.map(checkId));
   const doneOf = (it: AppArmcareItem) => it.done || waiting.has(checkId({ exerciseId: it.exercise.id, dateKey }));
 
@@ -263,7 +263,7 @@ export function RoutineCard({ routine: r, dateKey, fresh, open, onToggle, onChan
   onChanged?: () => void;
   c: Palette;
 }) {
-  const pending = useSyncExternalStore(checkOutbox.subscribe, checkOutbox.snapshot);
+  const pending = useSyncExternalStore(checkOutbox.subscribe, checkOutbox.visible);
   const all = r.items.length;
   /* 폰에 담긴 체크도 한 것으로(체크 목록과 같은 셈) — 목록에서 누른 것은 화면이 다시 받으면(onChanged) 따라온다 */
   const done = r.items.filter((it) => it.done || pending.some((p) => p.exerciseId === it.exercise.id && p.dateKey === dateKey)).length;

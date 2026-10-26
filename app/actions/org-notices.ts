@@ -37,7 +37,7 @@ export async function deleteOrgNotice(formData: FormData) {
   const n = await prisma.orgNotice.findUnique({ where: { id: String(formData.get('id') ?? '') }, select: { id: true, orgId: true } });
   if (!n) return;
   await requireOrg(user, n.orgId);
-  await prisma.orgNotice.delete({ where: { id: n.id } });
+  await prisma.$transaction([prisma.orgNoticeRead.deleteMany({ where: { noticeId: n.id } }), prisma.orgNotice.delete({ where: { id: n.id } })]);
   revalidatePath('/manage/notices');
   revalidatePath('/manage');
   revalidatePath('/join');

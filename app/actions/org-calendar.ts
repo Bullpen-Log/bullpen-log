@@ -61,7 +61,13 @@ export async function deleteOrgEvent(formData: FormData) {
   });
   if (!ev) return;
   await requireOrg(user, ev.orgId);
-  await prisma.orgEvent.delete({ where: { id: ev.id } });
+  /* 3단계 참석 · 메뉴 · 등판도 같이 지운다. 이미 남긴 수행일지(선수 운동 세트)는 실제로 한 운동이라 그대로 둔다 */
+  await prisma.$transaction([
+    prisma.orgEventAttendee.deleteMany({ where: { eventId: ev.id } }),
+    prisma.orgPlan.deleteMany({ where: { eventId: ev.id } }),
+    prisma.orgOuting.deleteMany({ where: { eventId: ev.id } }),
+    prisma.orgEvent.delete({ where: { id: ev.id } }),
+  ]);
   revalidatePath('/manage/calendar');
   revalidatePath('/manage');
 }

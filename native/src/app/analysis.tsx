@@ -79,12 +79,14 @@ export default function AnalysisScreen() {
 
   useEffect(() => {
     let alive = true;
+    /* 요청을 시작한 때의 계정 세대 — 그새 로그아웃 · 다른 계정이면 받아 둔 값에도 화면에도 안 쓴다(2026-10-26) */
+    const e = cacheEpoch();
     rpc<LoadResult>('app-analysis.loadAppAnalysis', view, date).then(
       (r) => {
-        if (!alive) return;
+        if (!alive || e !== cacheEpoch()) return;
         setRefreshing(false);
         if (!r.ok) return leave(r.to);
-        if (date == null) lastAnalysis.set(view, { epoch: cacheEpoch(), data: r });
+        if (date == null) lastAnalysis.set(view, { epoch: e, data: r });
         /* 그래프 · 목록을 다시 그리는 일은 화면이 들어오는 움직임이 끝난 뒤에(2026-10-26 2차 — 열자마자 답이 오면 밀려 들어오는 중에 그렸다) */
         afterMotion(() => {
           if (!alive) return;

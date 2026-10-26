@@ -8,6 +8,7 @@ import { INQUIRY_STATUS, inquiryCategoryLabel, type InquiryStatusKey } from '@/l
 import { lastWriteAt, rpc, RpcError } from '~/lib/rpc';
 import { afterMotion, whenStill } from '~/shell/transition';
 import { cacheEpoch } from '~/lib/store';
+import { createLatest, createLoadCache } from './load-core';
 import type { Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { Icon } from '~/shell/icon';
@@ -30,9 +31,9 @@ const readError = (e: unknown) =>
 /**
  * useLoad 가 받아 둔 값 — 서버 입구 + 인자마다 하나, 로그인 세대(cacheEpoch)째. 읽기만 하는 목록 · 글 화면만 쓴다: 폼 화면(내 정보 · 트레이닝 설정 ·
  * 루틴)은 처음 값을 제 칸에 옮겨 두므로, 지난 값부터 그리면 옛 값으로 열리고 저장하면 그 옛 값이 되돌려 써졌다(2026-10-24 검토).
- * 그사이 어디서든 서버에 썼으면(lib/rpc markWrite) 버린다.
+ * 그사이 어디서든 서버에 썼으면(lib/rpc markWrite) 버린다. 요청을 시작한 때의 세대로 둔다(community/load-core.ts).
  */
-const seenLoads = new Map<string, { epoch: number; at: number; data: unknown }>();
+const loads = createLoadCache<unknown>({ epoch: cacheEpoch, lastWriteAt });
 const CACHED_LOADS = new Set([
   'community.loadAppCommunity',
   'community.loadAppCommunityPost',
@@ -54,8 +55,8 @@ export function useLoad<R extends { ok: boolean }>(action: string, ...args: (str
   const key = JSON.stringify(args);
   /* 다시 열 때는 지난번 값부터 그린다(앱을 켠 동안 · 같은 로그인) — 예전엔 열 때마다 돌개부터였다(2026-10-24 전체 검토). 새 값은 뒤에서 받는다 */
   const [state, setState] = useState<{ key: string; data: Extract<R, { ok: true }> } | null>(() => {
-    const m = CACHED_LOADS.has(action) ? seenLoads.get(action + key) : undefined;
-    return m && m.epoch === cacheEpoch() && m.at >= lastWriteAt() ? { key, data: m.data as Extract<R, { ok: true }> } : null;
+    const d = CACHED_LOADS.has(action) ? loads.recall(action + key) : null;
+    return d ? { key, data: d as Extract<R, { ok: true }> } : null;
   });
   /* 오류도 어느 인자의 것인지 — 지난 구분의 오류가 새 구분에 남지 않게 */
   const [error, setError] = useState<{ key: string; text: string } | null>(null);
@@ -65,30 +66,41 @@ export function useLoad<R extends { ok: boolean }>(action: string, ...args: (str
     latest.current = key;
   }, [key]);
   /*
-   * 같은 읽기가 겹치면 한 번만(lib/rpc — 저장 뒤에는 새로), 답은 화면이 움직이는 동안이면 끝난 뒤에 그린다(2026-10-26 2차 — 돌아오는 움직임
-   * 한가운데 목록을 다시 그려 끊겼다)
+   * 이 화면의 요청 차례(community/load-core.ts) — 마지막에 시작한 요청의 답(성공 · 실패 모두)만 화면에 쓰고, 요청을 시작한 뒤 계정이 바뀌었거나
+   * 화면이 닫혔으면 버린다(2026-10-26 — 앞 계정의 늦은 답이 받아 둔 값에 들어가고, 같은 인자의 옛 답이 새 답을 덮었다).
+   * 같은 읽기가 겹치면 한 번만(lib/rpc — 저장 뒤에는 새로), 답은 화면이 움직이는 동안이면 끝난 뒤에 그린다.
    */
+  const [gate] = useState(() => createLatest(cacheEpoch));
+  useEffect(() => {
+    gate.reopen();
+    return () => gate.close();
+  }, [gate]);
   const run = useCallback(
-    (alive: { on: boolean }) =>
-      rpc<R>(action, ...(JSON.parse(key) as unknown[])).then(
+    (alive: { on: boolean }) => {
+      const t = loads.start();
+      gate.begin(t);
+      const mine = () => alive.on && gate.current(t) && latest.current === key;
+      return rpc<R>(action, ...(JSON.parse(key) as unknown[])).then(
         (r) => {
-          if (!alive.on || latest.current !== key) return;
           if (r.ok) {
-            if (CACHED_LOADS.has(action)) seenLoads.set(action + key, { epoch: cacheEpoch(), at: Date.now(), data: r });
+            /* 받아 둔 값은 같은 계정 세대 · 더 늦은 요청이 안 둔 때만(화면이 닫혔어도 그 계정의 값으로는 맞다) */
+            if (CACHED_LOADS.has(action)) loads.remember(action + key, t, r);
+            if (!mine()) return;
             afterMotion(() => {
-              if (!alive.on || latest.current !== key) return;
+              if (!mine()) return;
               setState({ key, data: r as Extract<R, { ok: true }> });
               setError(null);
             });
-          } else leave((r as { to?: string }).to ?? '/login');
+          } else if (mine()) leave((r as { to?: string }).to ?? '/login');
         },
         (e: unknown) => {
-          if (!alive.on || latest.current !== key) return;
+          if (!mine()) return;
           if (e instanceof RpcError && e.code === 'redirect') return leave(e.to ?? '/login');
           setError({ key, text: readError(e) });
         }
-      ),
-    [action, key]
+      );
+    },
+    [action, key, gate]
   );
   /* 처음 보일 때 · 인자(구분)가 바뀌면 바로, 위 화면을 닫고 돌아올 때는 돌아오는 움직임이 끝난 뒤에(그 전에 다시 가려지면 그만둔다) */
   const ranKey = useRef<string | null>(null);

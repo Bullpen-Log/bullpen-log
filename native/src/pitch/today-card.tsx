@@ -1,6 +1,6 @@
 import { ActionButton } from '~/shell/action-button';
 import { type Href, router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { rpc } from '~/lib/rpc';
@@ -10,6 +10,7 @@ import { Icon } from '~/shell/icon';
 import { fadeIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import { useFocusRefresh, useOnTabActive } from '~/shell/tab-pager';
+import { todayView } from './today-view';
 
 /**
  * 투구 탭 맨 위 '오늘' 카드(앱) — 웹 투구 탭 today-card.tsx 와 같은 값(app.loadAppPitchToday): 지금 팔 상태(위험 · 주의 · 안전) ·
@@ -26,16 +27,24 @@ type Today = {
   nutritionLine: { title: string; text: string; example: string | null; href: string } | null;
 };
 let cached: Today | null = null;
+/* 받아 둔 값을 쓴 요청 번호 — 늦게 시작한 요청이 둔 값을 앞 요청의 늦은 답이 덮지 않게 */
+let fetches = 0;
+let cachedN = 0;
 export const resetPitchTodayCache = () => {
   cached = null;
+  cachedN = 0;
 };
 /** 오늘 값을 새로 받는다 — 받으면 옆 칸(cached)에 둔다. 그새 로그아웃 등으로 캐시를 비웠으면 버린다 */
 function fetchToday(): Promise<Today | null> {
   const e = cacheEpoch();
+  const n = ++fetches;
   return rpc<({ ok: true } & Today) | { ok: false; error: string }>('app.loadAppPitchToday').then(
     (r) => {
       if (!r.ok || e !== cacheEpoch()) return null;
-      cached = r;
+      if (n >= cachedN) {
+        cached = r;
+        cachedN = n;
+      }
       return r;
     },
     () => null
@@ -47,6 +56,7 @@ function fetchToday(): Promise<Today | null> {
  */
 export function usePitchToday(today: string, enabled: boolean, key: string): Today | null {
   const [data, setData] = useState<Today | null>(() => (cached?.today === today ? cached : null));
+  /* 날짜가 바뀌어도(한국 자정 · 다음 날 복귀) 다시 받는다 — 앞 효과의 늦은 답은 버린다(alive) */
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
@@ -54,7 +64,7 @@ export function usePitchToday(today: string, enabled: boolean, key: string): Tod
     return () => {
       alive = false;
     };
-  }, [enabled, key]);
+  }, [enabled, key, today]);
   return enabled && data?.today === today ? data : null;
 }
 const LEVEL = { danger: '위험', caution: '주의', safe: '안전' } as const;
@@ -65,22 +75,42 @@ export function PitchTodayCard({ today }: { today: string }) {
   /* 팔 상태 까닭 펴기 */
   const [why, setWhy] = useState(false);
 
+  /* 받기 차례 — 늦게 온 앞 요청의 답이 새 답을 덮지 않게 */
+  const seq = useRef(0);
   const load = useCallback(() => {
-    void fetchToday().then((r) => r && setData(r));
+    const n = ++seq.current;
+    void fetchToday().then((r) => r && n === seq.current && setData(r));
   }, []);
   /* 탭을 옮겼다 돌아와도(판은 붙어 있다) */
   useOnTabActive(() => load());
   useFocusRefresh(load, { first: true });
+  /*
+   * 날짜가 바뀌면(투구 탭을 켜 둔 채 한국 자정 · 다음 날 복귀 — 껍데기가 서버에 오늘을 다시 물어 today 가 바뀐다) 새로 받는다. 예전엔 어제 값이 남아
+   * '오늘 기록 남기기'가 어제 화면(data.today)을 열었다(2026-10-26)
+   */
+  const seenToday = useRef(today);
+  useEffect(() => {
+    if (seenToday.current === today) return;
+    seenToday.current = today;
+    load();
+  }, [today, load]);
 
-  if (!data) return null;
-  const tone = { danger: c.danger, caution: c.warn, safe: c.ok }[data.status.level];
-  const box = { danger: [c.dangerBg, c.dangerLine], caution: [c.warnBg, c.warnLine], safe: [withAlpha(c.chip, 0.5), c.line] }[data.status.level];
-  const button = data.unloggedVelocity
-    ? { label: `측정한 ${data.unloggedVelocity}구 기록 남기기`, go: () => router.push(`/pitch/${data.today}` as Href) }
-    : {
-        label: data.logged ? `오늘 ${data.logged.pitches}구 · 기록 더하기` : '오늘 기록 남기기',
-        go: () => router.push(`/pitch/${data.today}` as Href),
-      };
+  /* 오늘 것만 보인다 — 새 날 값이 오기 전에는 팔 상태 없이 '오늘 기록' 단추만(가는 곳은 늘 지금의 today, pitch/today-view.ts) */
+  const view = todayView(data, today);
+  if (view.show === 'none' || !data) return null;
+  const go = () => router.push(view.go as Href);
+  const day = view.show === 'full' ? data : null;
+  if (!day)
+    return (
+      <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.floatHero }]}>
+        <ActionButton label="오늘 기록 남기기" icon="plus" onPress={go} />
+      </View>
+    );
+  const tone = { danger: c.danger, caution: c.warn, safe: c.ok }[day.status.level];
+  const box = { danger: [c.dangerBg, c.dangerLine], caution: [c.warnBg, c.warnLine], safe: [withAlpha(c.chip, 0.5), c.line] }[day.status.level];
+  const button = day.unloggedVelocity
+    ? { label: `측정한 ${day.unloggedVelocity}구 기록 남기기`, go }
+    : { label: day.logged ? `오늘 ${day.logged.pitches}구 · 기록 더하기` : '오늘 기록 남기기', go };
 
   return (
     <Animated.View layout={LinearTransition.duration(260)} style={[styles.card, { backgroundColor: c.card, boxShadow: c.floatHero }]}>
@@ -91,25 +121,25 @@ export function PitchTodayCard({ today }: { today: string }) {
       <Press
         accessibilityRole="button"
         accessibilityState={{ expanded: why }}
-        accessibilityLabel={`지금 팔 상태 ${LEVEL[data.status.level]}. ${data.status.headline}`}
-        disabled={!data.status.details.length}
+        accessibilityLabel={`지금 팔 상태 ${LEVEL[day.status.level]}. ${day.status.headline}`}
+        disabled={!day.status.details.length}
         onPress={() => setWhy((v) => !v)}
         style={[styles.status, { backgroundColor: box[0], borderColor: box[1] }]}
       >
         <View style={styles.statusRow}>
           <View style={[styles.dot, { backgroundColor: tone }]} />
-          <Text style={{ color: tone, fontSize: 17, fontWeight: '700' }}>팔 {LEVEL[data.status.level]}</Text>
+          <Text style={{ color: tone, fontSize: 17, fontWeight: '700' }}>팔 {LEVEL[day.status.level]}</Text>
           <View style={{ flex: 1 }} />
-          {data.status.details.length ? (
+          {day.status.details.length ? (
             <>
               <Text style={{ color: c.muted, fontSize: 13 }}>{why ? '접기' : '까닭'}</Text>
               <Icon name={why ? 'chevron-up' : 'chevron-down'} size={14} color={c.muted} />
             </>
           ) : null}
         </View>
-        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600', lineHeight: 21 }}>{data.status.headline}</Text>
+        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600', lineHeight: 21 }}>{day.status.headline}</Text>
         {why
-          ? data.status.details.map((d) => (
+          ? day.status.details.map((d) => (
               <Animated.Text entering={fadeIn} key={d} style={{ color: c.muted, fontSize: 13, lineHeight: 19, fontFamily: 'Pretendard' }}>
                 {d}
               </Animated.Text>
@@ -117,8 +147,8 @@ export function PitchTodayCard({ today }: { today: string }) {
           : null}
       </Press>
 
-      {data.unloggedVelocity ? (
-        <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>구속 측정 {data.unloggedVelocity}구가 아직 투구 기록에 없어요. 남겨야 팔 부하에 들어가요.</Text>
+      {day.unloggedVelocity ? (
+        <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>구속 측정 {day.unloggedVelocity}구가 아직 투구 기록에 없어요. 남겨야 팔 부하에 들어가요.</Text>
       ) : null}
       <ActionButton label={button.label} icon="plus" onPress={button.go} />
     </Animated.View>
