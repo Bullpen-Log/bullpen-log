@@ -243,8 +243,9 @@ export function CoachPhotoCard({ c, href }: { c: CoachCardData; href: string }) 
 }
 
 /**
- * 코치 비교 줄(PC, 2026-10-25 덕아웃 PC 개편 — docs/designs/dugout-desktop-information-design.md 레슨) — 큰 첫 글자 판 대신 작은 아바타 한 줄.
- * 왼쪽 작은 아바타 · 이름 ★ · 레슨장 · 지역 · 전문 칩 → 오른쪽 가격 · 다음 가능 · 비교 단추. 줄들은 가로선으로 쌓여 열이 맞아 코치끼리 바로 견준다.
+ * 코치 비교 줄(2026-10-25 덕아웃 PC 개편, 2026-10-26 v2 규격) — 큰 첫 글자 판 대신 아바타 48 한 줄, 높이 96~112 출발(긴 글이면 자란다).
+ * 왼쪽 아바타 · 이름 ★ · 레슨장 · 지역 · 칩 둘(전문 · 빠른 확정 같은 특징을 한 줄로, 나머지는 '외 N') → 오른쪽 가격 · 길이 · 다음 가능 · 비교 단추.
+ * 쓰는 곳이 줄 폭을 960 안으로 묶는다(이름과 가격이 화면 양 끝으로 벌어지지 않게). 찾기 조건의 '왜 추천'은 칩이 아니라 옅은 한 줄.
  * 줄 전체가 상세로 가는 링크(이름 링크를 줄 크기로 덮는다 — 안쪽 단추는 relative z-10 으로 위에).
  */
 export function CoachRow({
@@ -259,41 +260,57 @@ export function CoachRow({
   admin?: boolean;
 }) {
   const today = c.nextOpen?.startsWith('오늘');
+  /* 칩은 둘까지 — 전문 분야 먼저, 그다음 특징(빠른 확정 · 싱커 기록 · 체험가). 관리자 표시(더미 · 비공개)는 늘 */
+  const tags = [
+    ...c.specialties.map(specialtyLabel),
+    ...(c.quickConfirm ? ['빠른 확정'] : []),
+    ...(c.sinkerReview ? ['싱커 기록 봐 줌'] : []),
+    ...(c.trialPrice != null ? [`체험 ${formatPrice(c.trialPrice)}`] : []),
+  ];
+  const shown = tags.slice(0, 2);
+  const rest = tags.length - shown.length;
   return (
-    <article className="relative grid grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-4 py-4 transition-colors hover:bg-ink/3 focus-within:bg-ink/3">
-      <CoachAvatar name={c.coach} size="md" className="h-10 w-10 text-sm" />
+    <article className="relative grid grid-cols-[48px_minmax(0,1fr)_auto] items-start gap-x-4 py-4 transition-colors hover:bg-ink/3 focus-within:bg-ink/3">
+      <CoachAvatar name={c.coach} size="md" />
       <div className="min-w-0 space-y-1">
         <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <Link
             href={href}
-            className="text-base font-bold text-ink after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
+            className="text-[15px] leading-[22px] font-bold text-ink after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
           >
             {c.coach} 코치
           </Link>
           <Stars rating={c.rating} reviews={c.reviews} />
         </p>
-        <p className="truncate text-[13px] text-muted">
+        <p className="truncate text-[13px] leading-[18px] text-muted">
           {c.name}
           {c.region ? ` · ${c.region}` : ''}
         </p>
-        <p className="flex flex-wrap gap-1 pt-0.5">
-          {c.specialties.slice(0, 4).map((s) => (
-            <Badge key={s}>{specialtyLabel(s)}</Badge>
+        <p className="flex flex-wrap items-center gap-1 pt-0.5">
+          {shown.map((t) => (
+            <Badge key={t}>{t}</Badge>
           ))}
-          <CoachBadges c={c} admin={admin} />
-          {c.match?.reasons.map((r) => (
-            <span key={r} className="rounded-full bg-sky/10 px-2 py-0.5 text-[11px] font-semibold text-sky-strong">
-              {r}
+          {rest > 0 && (
+            <span className="text-[11px] text-muted" title={tags.slice(2).join(' · ')}>
+              외 {rest}
             </span>
-          ))}
+          )}
+          {admin && c.dummy && <Badge className="text-warn">더미</Badge>}
+          {admin && !c.publicProfile && <Badge className="text-muted">비공개</Badge>}
         </p>
+        {c.match && c.match.reasons.length > 0 && (
+          <p className="truncate text-[12px] leading-[18px] text-sky-strong">{c.match.reasons.join(' · ')}</p>
+        )}
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-1.5 text-right">
-        <p className="text-sm font-bold text-ink">
+      <div className="flex min-w-24 shrink-0 flex-col items-end gap-1 text-right">
+        <p className="text-[15px] leading-[22px] font-bold text-ink">
           {c.priceFrom != null ? `${formatPrice(c.priceFrom)}~` : '가격 문의'}
-          <span className="ml-1 text-xs font-normal text-muted">· {c.slotMin}분</span>
         </p>
-        <p className={`text-xs ${today ? 'font-semibold text-ok' : 'text-muted'}`}>{c.nextOpen ?? c.hours ?? '시간 문의'}</p>
+        {/* 길이 · 다음 가능을 한 줄로 — 비교 단추가 붙어도 줄 높이가 112 안에 머문다 */}
+        <p className="text-xs leading-[18px] text-muted">
+          {c.slotMin}분 ·{' '}
+          <span className={today ? 'font-semibold text-ok' : ''}>{c.nextOpen ?? c.hours ?? '시간 문의'}</span>
+        </p>
         {actions && <div className="relative z-10 flex items-center gap-2 pt-0.5">{actions}</div>}
       </div>
     </article>

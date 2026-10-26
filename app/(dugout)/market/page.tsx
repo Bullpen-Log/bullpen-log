@@ -9,7 +9,7 @@ import {
   RoundShield,
   RoundUser,
 } from '@/components/round-icon';
-import { ListingCard } from '@/components/dugout/listing-card';
+import { LISTING_GRID, ListingCard } from '@/components/dugout/listing-card';
 import { CategoryRow, DugoutEmpty, DugoutPageHeader, ShortcutTiles, chipClass, type Shortcut } from '@/components/dugout/ui';
 import { GearGuide } from '@/components/dugout/gear-guide';
 import { MarketFilterRail } from '@/components/dugout/market-filter-rail';
@@ -103,9 +103,10 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
       />
       {landing && <ShortcutTiles items={SHORTCUTS} className="lg:hidden" />}
 
-      <div className="lg:grid lg:grid-cols-[216px_minmax(0,1fr)] lg:items-start lg:gap-6">
+      {/* 거르기 판 184 + 간격 24 + 결과(1160 기준 952 — 220 카드 넷 = 940, 남는 12 는 그대로 둔다, v2 6절) */}
+      <div className="lg:grid lg:grid-cols-[184px_minmax(0,1fr)] lg:items-start lg:gap-6">
         {/* PC 왼쪽 거르기 판 — 위 막대 밑에 붙어 따라온다 */}
-        <aside className="hidden lg:sticky lg:top-[calc(var(--dugout-bar-h)+1.5rem)] lg:block lg:max-h-[calc(100dvh-var(--dugout-bar-h)-3rem)] lg:overflow-y-auto lg:overscroll-contain">
+        <aside className="hidden min-w-0 lg:sticky lg:top-[calc(var(--dugout-bar-h)+1.5rem)] lg:block lg:max-h-[calc(100dvh-var(--dugout-bar-h)-3rem)] lg:overflow-y-auto lg:overscroll-contain">
           <MarketFilterRail f={f} />
         </aside>
 
@@ -158,8 +159,8 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
               cta="물건 올리기"
             />
           ) : (
-            /* PC 는 3 → 4열(카드 220px 넘게 — 사진 위 글이 읽힌다), 휴대폰 2열 */
-            <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+            /* 카드 190~220px(v2 카드 크기 계약) — 큰 화면도 220 을 넘지 않는다. 휴대폰 2열 · 작은 패드 3열 */
+            <div className={`${LISTING_GRID} lg:gap-x-5`}>
               {items.map((item) => (
                 <ListingCard key={item.id} item={item} now={now} />
               ))}

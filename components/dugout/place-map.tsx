@@ -145,7 +145,11 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
   const picked = places.find((p) => p.id === pick) ?? null;
 
   return (
-    <div className="grid gap-4 md:h-[calc(var(--vvh,100dvh)-14.5rem)] md:min-h-[440px] md:grid-cols-[360px_minmax(0,1fr)]">
+    <div className="grid gap-4 md:h-[calc(var(--vvh,100dvh)-14.5rem)] md:min-h-[440px] md:grid-cols-[340px_minmax(0,1fr)] md:gap-5">
+      {/*
+        목록 340 + 간격 20 + 지도 나머지(2026-10-26 v2 연습장). 높이 = 화면 − (위 막대 · 머리 · 종류 줄 · 밑 여유 24) 쯤, 짧은 화면은 440 밑으로 안 줄고
+        문서가 굴러간다(넘친 것을 자르지 않는다)
+      */}
       {/* 지도 — 휴대폰은 위, PC 는 오른쪽 */}
       <div className="relative order-1 h-[52vh] min-h-72 overflow-hidden rounded-2xl border border-line bg-surface-2 md:order-2 md:h-full">
         <div ref={box} className="h-full w-full" />

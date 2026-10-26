@@ -25,7 +25,7 @@ const QUIET_MS = 180;
 const SETTLE_MS = 90;
 const TOUCH_SLOP = 6;
 /** PC 판단 — 마우스가 있는 화면(globals.css 의 desk 변형과 같은 조건, 폭은 안 본다) */
-const DESKTOP = '(hover: hover) and (pointer: fine)';
+const DESKTOP = '(hover: hover) and (pointer: fine), (min-width: 64rem)';
 
 /* cubic-bezier(0.22, 1, 0.36, 1) — 밀어 놓고 천천히 내려앉는 곡선(되튐 없음) */
 function bezier(x1: number, y1: number, x2: number, y2: number) {

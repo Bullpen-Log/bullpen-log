@@ -90,7 +90,8 @@ export default async function CommunityPage({
   });
 
   return (
-    <div className="space-y-10 lg:space-y-6">
+    /* 읽기 폭 900(2026-10-26 v2 커뮤니티) — 글 줄이 1160 양 끝까지 늘어나지 않게. 게시판 줄 · 머리 · 목록이 같은 폭 */
+    <div className="space-y-10 lg:max-w-[900px] lg:space-y-6">
       {/* 게시판 — 장터 품목과 같은 밑줄 줄, 맨 위(2026-10-24 '장터처럼 덜어내') */}
       <CategoryRow
         label="게시판"
@@ -174,6 +175,7 @@ export default async function CommunityPage({
 
       {posts.length === 0 ? (
         <DugoutEmpty
+          compact
           icon={<RoundCommunity />}
           title={
             page > 1
@@ -213,9 +215,12 @@ export default async function CommunityPage({
               >
                 <Link
                   href={`/community/${post.id}`}
-                  className="group flex gap-4 py-5 transition-colors active:bg-ink/6 lg:py-4 lg:hover:bg-ink/3"
+                  className="group flex gap-4 py-5 transition-colors active:bg-ink/6 lg:items-center lg:py-3 lg:hover:bg-ink/3"
                 >
-                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  {/*
+                    큰 화면은 두 줄(약 68px, v2): 게시판 · 말머리 · 제목 한 줄 → 쓴 사람 · 때 · 좋아요 · 댓글 한 줄. 미리보기 글은 휴대폰만(목록을 훑을 때는 제목이 먼저)
+                  */}
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5 lg:flex-row lg:flex-wrap lg:items-center lg:gap-x-3 lg:gap-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-semibold text-ink">{postCategoryLabel(post.category)}</span>
                     {postTagLabel(post.category, post.tag) && (
@@ -236,11 +241,11 @@ export default async function CommunityPage({
                       </Badge>
                     )}
                   </div>
-                  <h2 className="text-base font-semibold leading-snug text-ink group-hover:underline">
+                  <h2 className="text-base font-semibold leading-snug text-ink group-hover:underline lg:min-w-0 lg:flex-1 lg:truncate lg:leading-[22px]">
                     {post.title}
                   </h2>
                   {(post.meetAt || post.region) && (
-                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-ink/80">
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-ink/80 lg:basis-full">
                       {post.meetAt && <span>{meetAtText(post.meetAt)}</span>}
                       {post.region && <span className="text-muted">{post.region}</span>}
                       {post.capacity !== null && (
@@ -253,10 +258,10 @@ export default async function CommunityPage({
                       )}
                     </p>
                   )}
-                  <p className="line-clamp-1 text-sm text-muted">
+                  <p className="line-clamp-1 text-sm text-muted lg:hidden">
                     {post.preview}
                   </p>
-                  <div className="flex items-center gap-3 text-xs text-muted">
+                  <div className="flex items-center gap-3 text-xs text-muted lg:basis-full">
                     <span className="text-ink/80">
                       {post.nickname}
                       {post.coach && <span className="ml-1 font-semibold text-sky">코치</span>}
@@ -277,7 +282,7 @@ export default async function CommunityPage({
                   </div>
                   </div>
                   {(post.thumb || post.hasVideo) && (
-                    <div className="relative h-18 w-18 shrink-0 self-center overflow-hidden rounded-xl bg-surface-2">
+                    <div className="relative h-18 w-18 shrink-0 self-center overflow-hidden rounded-xl bg-surface-2 lg:h-12 lg:w-12 lg:rounded-lg">
                       {post.thumb && (
                         /* eslint-disable-next-line @next/next/no-img-element -- 저장소 서명 주소 */
                         <img src={post.thumb} alt="" className="h-full w-full object-cover" />

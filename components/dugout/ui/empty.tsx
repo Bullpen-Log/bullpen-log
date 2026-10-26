@@ -24,8 +24,11 @@ export function DugoutEmpty({
   compact?: boolean;
 }) {
   return (
-    <div className={`space-y-3 text-center ${compact ? 'py-10' : 'py-20'}`}>
-      {icon && <div className="mx-auto grid h-12 w-12 place-items-center text-muted/70 [&_svg]:h-8 [&_svg]:w-8">{icon}</div>}
+    /* compact 는 큰 화면에서 더 작게(그림 없이 약 160px, 2026-10-26 v2 — 빈 목록이 화면 가운데 큰 공백이 되지 않게) */
+    <div className={`space-y-3 text-center ${compact ? 'py-10 lg:py-6' : 'py-20'}`}>
+      {icon && (
+        <div className={`mx-auto grid h-12 w-12 place-items-center text-muted/70 [&_svg]:h-8 [&_svg]:w-8 ${compact ? 'lg:hidden' : ''}`}>{icon}</div>
+      )}
       <p className="text-base font-bold text-ink">{title}</p>
       {description && <p className="text-sm text-muted">{description}</p>}
       {action ??

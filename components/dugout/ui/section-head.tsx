@@ -26,7 +26,7 @@ export function SectionHead({
     <div className="flex items-end justify-between gap-3">
       <div className="min-w-0">
         {kicker && <p className="text-[13px] text-muted">{kicker}</p>}
-        <Tag className="mt-0.5 text-xl font-bold text-ink">
+        <Tag className="mt-0.5 text-[18px] leading-[26px] font-bold text-ink">
           {title}
           {count != null && <span className="ml-1.5 text-base font-semibold text-muted tabular-nums">{count}</span>}
         </Tag>

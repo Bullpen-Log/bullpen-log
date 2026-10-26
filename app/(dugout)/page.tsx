@@ -2,16 +2,17 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { RoundIcon } from '@/components/round-icon';
-import { ListingCard } from '@/components/dugout/listing-card';
+import { LISTING_GRID, ListingCard } from '@/components/dugout/listing-card';
 import { SectionHead, chipClass } from '@/components/dugout/ui';
 import { getCurrentUser } from '@/lib/dal';
 import { isNativeUserAgent, surfaceOf } from '@/lib/app-env';
 import { DugoutMain } from '@/components/dugout/dugout-main';
 import { HomeSnap } from '@/components/dugout/home-snap';
 import { type BannerSlide } from '@/components/dugout/market-hero';
-import { CoachAvatar, Stars } from '@/components/dugout/coach-card';
+import { CoachRow, Stars } from '@/components/dugout/coach-card';
 import { countUnread, loadLatestListings, loadPublicPosts } from '@/lib/market/load';
 import { loadRecommendedCoaches } from '@/lib/market/lesson-load';
+import { loadMapPlaces } from '@/lib/market/map-load';
 import { GamesPanel } from '@/components/dugout/games-panel';
 import { BaseballNews } from '@/components/dugout/baseball-news';
 import { kstDateKey, loadBaseballNews, loadHomeGames } from '@/lib/baseball-feed';
@@ -22,8 +23,8 @@ import { loadLessonFeed } from '@/lib/org/lesson-feed';
 import { usesSinker } from '@/lib/brand';
 import { createAvatarUrl } from '@/lib/storage';
 import { recentCardOptions } from '@/lib/community-cards';
-import { CATEGORIES, filterHref, formatPrice } from '@/lib/market/specs';
-import { SPECIALTIES, specialtyLabel } from '@/lib/market/lessons';
+import { CATEGORIES, filterHref } from '@/lib/market/specs';
+import { SPECIALTIES } from '@/lib/market/lessons';
 
 /**
  * 덕아웃 홈(2026-10-20).
@@ -53,7 +54,7 @@ export default async function DugoutHome({
   const sinkerApp = surfaceOf(ua) === 'sinker-app';
   const viewer = user ? { id: user.id, role: user.role } : null;
   const sinkerUser = !!user && usesSinker(user);
-  const [listings, posts, coaches, alerts, lessons, games, news, avatarUrl, unread, records] = await Promise.all([
+  const [listings, posts, coaches, alerts, lessons, games, news, avatarUrl, unread, records, places] = await Promise.all([
     sinkerApp ? [] : loadLatestListings(6, viewer),
     loadPublicPosts(30),
     loadRecommendedCoaches(3),
@@ -66,6 +67,8 @@ export default async function DugoutHome({
     user ? countUnread(user.id) : 0,
     /* 싱커 기록 카드로 올릴 만한 가장 최근 기록 하나(구속 · 투구 · 3D) — 못 읽어도 홈은 뜬다 */
     sinkerApp && user ? recentCardOptions(user.id).catch(() => []) : [],
+    /* 연습장 · 레슨장 앞 세 곳 — 못 읽어도 홈은 뜬다 */
+    sinkerApp ? [] : loadMapPlaces().catch(() => []),
   ]);
   const now = new Date();
   const today = kstDateKey(0);
@@ -130,14 +133,24 @@ export default async function DugoutHome({
           경기 칸은 오른쪽에 작게 따로(2026-10-24 금윤호 "야구 일정 결과를 우측으로 작게 빼 달라고") — 휴대폰이 아니면(768px~) 본문 오른쪽의 좁은 칸(220~240px)에 떠서
           내려도 따라오고(sticky), 본문은 왼쪽 넓은 칸 그대로 먼저. 휴대폰만 띠 밑에 오른쪽으로 붙은 작은 카드(본문 맨 위로 올라오지 않게).
         */}
-        {/* 두 칸 스크롤(첫 화면 ↔ 본문) — 손가락 화면만. components/dugout/home-snap.tsx 가 이 칸을 위 막대 바로 밑에 세운다(scroll-margin 이 그 틈). PC 는 아무것도 안 한다 */}
+        {/* 두 칸 스크롤(첫 화면 ↔ 본문) — 손가락 화면 · 폭 1024 밑만. components/dugout/home-snap.tsx 가 이 칸을 위 막대 바로 밑에 세운다(scroll-margin 이 그 틈) */}
         <HomeSnap />
+        {/*
+          본문(2026-10-26 v2 — docs/designs/dugout-desktop-layout-v2-plan.md 7절 홈). 큰 화면(lg)은 진입 판 없이 바로 이것: 주 칸(1160 기준 872) + 간격 24 + 오늘 경기 264.
+          주 칸 차례 — 짧은 제목 줄 → 새로 올라온 장비 넷 → 커뮤니티 세 줄 → 추천 코치 → 연습장 · 레슨장. 같은 줄(grid row)에 둬서 예전 '-mt-48' 끌어올리기가 없다.
+          휴대폰 · 패드는 예전 차례 그대로(경기는 판 띠 옆 · 본문 카드).
+        */}
         <div
           data-dugout-content
-          className={`grid scroll-mt-3 gap-6 pb-6 md:scroll-mt-5 ${sinkerApp ? '' : 'md:grid-cols-[minmax(0,1fr)_220px] lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8'}`}
+          className={`grid scroll-mt-3 gap-6 pb-6 md:scroll-mt-5 ${sinkerApp ? '' : 'lg:grid-cols-[minmax(0,1fr)_264px]'}`}
         >
-        <div className="min-w-0 space-y-16 desk:space-y-12">
-          {/* 로그인한 사람 — 최근 레슨(내 싱커 띠는 2026-10-23 금윤호 "덕아웃에서 내 싱커 블록도 없애줘") */}
+        <div className="min-w-0 space-y-16 lg:space-y-10">
+          {/* 큰 화면의 제목 줄 — 위 막대가 로고 · 검색 · 메뉴를 가져서 여기는 한 줄 맥락만(인사 · 홍보 문구 없음) */}
+          <div className="hidden items-baseline gap-3 lg:flex">
+            <h1 className="text-2xl leading-8 font-bold tracking-tight text-ink">덕아웃</h1>
+            <p className="text-[13px] text-muted">오늘 올라온 장비 · 야구인 이야기 · 경기</p>
+          </div>
+
           {/* 싱커 → 덕아웃 — 방금 잰 기록을 카드로 붙여 글을 연다(싱커 앱 안만, docs/designs/dugout-community.md '싱커에서 올리기') */}
           {records[0] && (
             <Link
@@ -160,32 +173,50 @@ export default async function DugoutHome({
 
           {lessons.length > 0 && <LessonFeedCard items={lessons} compact title="최근 레슨" />}
 
-          {/* 휴대폰 · 태블릿의 경기 칸 — 오른쪽으로 붙은 작은 카드(PC 는 오른쪽 칸) */}
+          {/* 휴대폰의 경기 칸 — 오른쪽으로 붙은 작은 카드(패드는 첫 판 띠 옆, 큰 화면은 오른쪽 칸) */}
           <div className={sinkerApp ? 'hidden' : 'flex justify-end md:hidden'}>
             <div className="w-full sm:w-80">
               <GamesPanel games={games} today={today} />
             </div>
           </div>
 
-          {/* 야구 뉴스 — 네이버 검색 열쇠가 있을 때만(경기 결과는 오른쪽 칸) */}
+          {/* 야구 뉴스 — 네이버 검색 열쇠가 있을 때만 */}
           {newsRows && newsRows.length > 0 && <BaseballNews news={newsRows} />}
 
-          {/* 장터 — 싱커 앱에는 없다. 두 칸 스크롤의 본문 자리(B)는 이 묶음이 위 막대 바로 밑에 오는 곳(2026-10-24 금윤호 — 띠는 지나서) */}
-          <section data-dugout-snap className={sinkerApp ? 'hidden' : 'scroll-mt-4 space-y-4 md:scroll-mt-6'}>
-            <SectionHead kicker="덕아웃 장터에서" title="방금 올라온 물건" href="/market" />
-            <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
-              {chip('/market', '전체', true)}
-              {CATEGORIES.slice(0, 8).map((c) => chip(filterHref({ category: c.key }), c.label))}
+          {/* 장터 — 싱커 앱에는 없다. 두 칸 스크롤의 본문 자리(B)는 이 묶음이 위 막대 바로 밑에 오는 곳 */}
+          <section data-dugout-snap className={sinkerApp ? 'hidden' : '@container scroll-mt-4 space-y-4 md:scroll-mt-6 lg:space-y-3'}>
+            {/* 큰 화면은 제목 · 품목 넷 · 전체 보기를 한 줄에 — 첫 사진이 y220 안에서 시작하게(v2 첫 화면 예산) */}
+            <div className="space-y-4 lg:flex lg:items-end lg:justify-between lg:gap-4 lg:space-y-0">
+              <SectionHead
+                kicker={<span className="lg:hidden">덕아웃 장터에서</span>}
+                title="방금 올라온 물건"
+                action={
+                  <Link href="/market" className="shrink-0 text-sm text-muted hover:text-ink lg:hidden">
+                    더보기 ›
+                  </Link>
+                }
+              />
+              <div className="no-scrollbar -mx-(--dugout-gutter) flex items-center gap-2 overflow-x-auto px-(--dugout-gutter) md:mx-0 md:flex-wrap md:px-0 lg:shrink-0 lg:flex-nowrap lg:[&>a:nth-child(n+6)]:hidden">
+                {chip('/market', '전체', true)}
+                {CATEGORIES.slice(0, 8).map((c) => chip(filterHref({ category: c.key }), c.label))}
+                <Link href="/market" className="ml-1 hidden shrink-0 text-sm text-muted hover:text-ink lg:inline">
+                  장터 전체 ›
+                </Link>
+              </div>
             </div>
             {listings.length === 0 ? (
-              <p className="py-10 text-center text-sm text-muted">
+              <p className="py-10 text-center text-sm text-muted lg:py-6">
                 아직 올라온 물건이 없어요 ·{' '}
                 <Link href="/market/new" className="font-semibold text-sky">
                   첫 물건 올리기
                 </Link>
               </p>
             ) : (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3">
+              /*
+                카드 190~220(장터와 같은 계약) — 큰 화면은 한 줄만: 넷(872 칸에 206px 넷), 칸이 넷을 못 담으면(808 밑 — 1024 화면은 662) 셋.
+                한 줄을 넘겨 마지막 하나가 혼자 둘째 줄에 서지 않게
+              */
+              <div className={`${LISTING_GRID} lg:[&>*:nth-child(n+5)]:hidden lg:@max-[808px]:[&>*:nth-child(n+4)]:hidden`}>
                 {listings.map((item) => (
                   <ListingCard key={item.id} item={item} now={now} />
                 ))}
@@ -193,55 +224,81 @@ export default async function DugoutHome({
             )}
           </section>
 
-          {/* 추천 코치 — 숨고 '오늘의 추천 고수' */}
-          <section className="space-y-4">
-            <SectionHead title="오늘의 추천 코치" href="/lessons/list" />
-            <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
+          {/* 커뮤니티 — 장비 바로 밑(v2: 다음 쓸모 있는 묶음이 첫 화면 안에서 시작하게). 큰 화면은 세 줄 */}
+          <section className="space-y-4 lg:space-y-2">
+            <SectionHead title="이번 주 인기글" href="/community" more="커뮤니티 ›" />
+            {hot.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted lg:py-5 lg:text-left">
+                아직 글이 없어요 ·{' '}
+                <Link href={user ? '/community/new' : '/login?next=/community/new'} className="font-semibold text-sky">
+                  첫 글 쓰기
+                </Link>
+              </p>
+            ) : (
+              <ol className="grid gap-x-10 md:grid-flow-col md:grid-cols-2 md:grid-rows-3 lg:grid-flow-row lg:grid-cols-1 lg:grid-rows-none lg:[&>li:nth-child(n+4)]:hidden">
+                {hot.map((p, i) => (
+                  <li key={p.id} className="border-b border-line">
+                    <Link href={`/community/${p.id}`} className="flex gap-3 py-4 transition-colors hover:bg-ink/3 lg:items-center lg:py-3">
+                      <span className="w-4 shrink-0 text-[15px] font-bold text-sky tabular-nums">{i + 1}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] font-bold text-ink lg:text-[14px] lg:font-semibold">{p.title}</span>
+                        <span className="mt-1 block truncate text-[13px] text-muted lg:hidden">{p.preview}</span>
+                        <span className="mt-1.5 block text-xs text-muted lg:hidden">
+                          좋아요 {p.likes} · 댓글 {p.comments}
+                        </span>
+                      </span>
+                      <span className="hidden shrink-0 text-xs text-muted tabular-nums lg:block">
+                        {relativeTime(p.createdAt, now)} · 댓글 {p.comments}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+
+          {/* 추천 코치 — 비교 줄(레슨 목록과 같은 CoachRow). 종목 칩은 휴대폰 · 패드만 */}
+          <section className="space-y-4 lg:space-y-2">
+            <SectionHead title="오늘의 추천 코치" href="/lessons/list" more="코치 찾기 ›" />
+            <div className="no-scrollbar -mx-(--dugout-gutter) flex gap-2 overflow-x-auto px-(--dugout-gutter) md:mx-0 md:flex-wrap md:px-0 lg:hidden">
               {chip('/lessons/list', '전체', true)}
               {SPECIALTIES.map((s) => chip(`/lessons/list?specialty=${s.key}`, s.label))}
             </div>
             {coaches.length === 0 ? (
-              <p className="py-10 text-center text-sm text-muted">아직 공개한 코치가 없어요.</p>
+              <p className="py-10 text-center text-sm text-muted lg:py-5 lg:text-left">아직 공개한 코치가 없어요.</p>
             ) : (
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="divide-y divide-line border-y border-line">
                 {coaches.map((c) => (
-                  <Link
-                    key={c.id}
-                    href={`/lessons/${c.id}`}
-                    className="group block overflow-hidden rounded-2xl border border-line bg-surface transition-shadow hover:shadow-md"
-                  >
-                    <div className="space-y-1.5 p-5">
-                      <p className="truncate text-xs text-muted">
-                        {c.specialties.length ? c.specialties.map(specialtyLabel).join(' · ') : '레슨'}
-                      </p>
-                      <p className="truncate text-base font-bold text-ink">{c.name}</p>
-                      <p className="flex items-center gap-1.5 text-xs text-muted">
-                        <Stars rating={c.rating} reviews={c.reviews} />
-                        {c.region && <span>· {c.region}</span>}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3 border-t border-line bg-ink/3 px-5 py-4">
-                      <CoachAvatar name={c.coach} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-ink">{c.coach} 코치</span>
-                        <span className="block truncate text-xs text-muted">{c.nextOpen ?? '시간은 문의해요'}</span>
-                      </span>
-                      <span className="shrink-0 text-sm font-bold text-ink">
-                        {c.trialPrice != null
-                          ? `체험 ${formatPrice(c.trialPrice)}`
-                          : c.priceFrom != null
-                            ? `${formatPrice(c.priceFrom)}~`
-                            : ''}
-                      </span>
-                    </div>
-                  </Link>
+                  <CoachRow key={c.id} c={c} href={`/lessons/${c.id}`} />
                 ))}
               </div>
             )}
           </section>
 
-          {/* 지금 필요한 것 — 숨고 '지금 필요한 서비스, 한번에 견적 받기'(장비 · 물건 팔기가 섞여 싱커 앱에는 없다) */}
-          <section className={sinkerApp ? 'hidden' : 'space-y-4'}>
+          {/* 연습장 · 레슨장 — 지도 화면의 앞 세 곳(같은 목록 읽기 lib/market/map-load.ts) */}
+          {!sinkerApp && places.length > 0 && (
+            <section className="space-y-4 lg:space-y-2">
+              <SectionHead title="연습장 · 레슨장" href="/venues" more="지도로 보기 ›" />
+              <ul className="divide-y divide-line border-y border-line">
+                {places.slice(0, 3).map((pl) => (
+                  <li key={`${pl.type}-${pl.id}`}>
+                    <Link href={pl.href} className="flex items-center gap-3 py-3 transition-colors hover:bg-ink/3">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[14px] font-semibold text-ink">{pl.name}</span>
+                        <span className="mt-0.5 block truncate text-xs text-muted">
+                          {[pl.kindLabel, pl.region, pl.sub].filter(Boolean).join(' · ')}
+                        </span>
+                      </span>
+                      <Stars rating={pl.rating} reviews={pl.reviews} className="shrink-0" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* 지금 필요한 것 — 큰 길 타일 넷(장비 · 레슨 · 연습장 · 팔기). 큰 화면은 위 막대 메뉴와 겹쳐 뺀다(v2 — 같은 길을 두 번 안 보인다) */}
+          <section className={sinkerApp ? 'hidden' : 'space-y-4 lg:hidden'}>
             <SectionHead title="지금 필요한 것, 한 번에" />
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
               {needs.map((n) => (
@@ -267,46 +324,10 @@ export default async function DugoutHome({
               ))}
             </div>
           </section>
-
-          {/* 인기글 — 숨고 '이번 주 강남구 주변 인기글' */}
-          <section className="space-y-4">
-            <SectionHead title="이번 주 인기글" href={user ? '/community' : '/login?next=/community'} />
-            {hot.length === 0 ? (
-              <p className="py-10 text-center text-sm text-muted">
-                아직 글이 없어요 ·{' '}
-                <Link href={user ? '/community/new' : '/login?next=/community/new'} className="font-semibold text-sky">
-                  첫 글 쓰기
-                </Link>
-              </p>
-            ) : (
-              <ol className="grid gap-x-10 md:grid-flow-col md:grid-cols-2 md:grid-rows-3">
-                {hot.map((p, i) => (
-                  <li key={p.id} className="border-b border-line">
-                    <Link
-                      href={user ? `/community/${p.id}` : '/login?next=/community'}
-                      className="flex gap-3 py-4 transition-colors hover:bg-ink/3"
-                    >
-                      <span className="w-4 shrink-0 text-[15px] font-bold text-sky tabular-nums">{i + 1}</span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] font-bold text-ink">{p.title}</span>
-                        <span className="mt-1 block truncate text-[13px] text-muted">{p.preview}</span>
-                        <span className="mt-1.5 block text-xs text-muted">
-                          좋아요 {p.likes} · 댓글 {p.comments}
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
         </div>
-        {/*
-          PC(2026-10-25 PC 개편): 첫 화면의 띠 옆 자리(띠 높이 min-h-36 + 첫 화면 밑 여백 pb-12 = 48 단위)까지 끌어올려 처음부터 오른쪽에 보이고,
-          굴리면 위 막대 밑에 붙어 따라온다 — 두 칸 스크롤 없이도 경기 칸이 하나로 이어진다. 첫 화면 쪽 칸(dugout-main)은 PC 에서 비운다.
-        */}
-        <aside className={sinkerApp ? 'hidden' : 'hidden md:block desk:-mt-48'}>
-          <div className="sticky top-[calc(var(--dugout-bar-h)+1.2rem)]">
+        {/* 큰 화면의 오늘 경기 — 주 칸과 같은 줄 맨 위에서 시작해 내려도 위 막대 밑에 붙어 따라온다 */}
+        <aside className={sinkerApp ? 'hidden' : 'hidden lg:block'}>
+          <div className="sticky top-[calc(var(--dugout-bar-h)+1.5rem)]">
             <GamesPanel games={games} today={today} />
           </div>
         </aside>

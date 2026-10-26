@@ -3881,13 +3881,41 @@ html[data-shell='expo'][data-pager] dialog[data-sheet] [data-sheet-end] {
   --color-sky-soft: #8fd4ad;
   --color-sky-tint: #e6f5ec;
   --color-brand: #1d8a4f;
-  /* 덕아웃 PC 틀 토큰(2026-10-25, docs/designs/dugout-desktop-information-design.md) — 본문 폭 · 위 막대 높이. 싱커 틀은 안 받는다 */
-  --dugout-max: 1240px;
-  --dugout-bar-h: 4rem;
+  /*
+   * 덕아웃 틀 토큰(2026-10-26 v2, docs/designs/dugout-desktop-layout-v2-plan.md 6절) — 본문 폭 = min(1160, 화면 − 2 × 거터).
+   * 거터는 바깥 여백 한 번만(.dugout-frame 이 준다) — 안쪽 칸이 또 넣지 않는다. 위 막대 높이도 여기. 싱커 틀은 안 받는다(.dugout-frame 의 예비값)
+   */
+  --dugout-content: 1160px;
+  --dugout-gutter: 16px;
+  --dugout-bar-h: 3.75rem;
+}
+@media (min-width: 40rem) {
+  [data-brand='dugout'] {
+    --dugout-gutter: 24px;
+  }
+}
+@media (min-width: 64rem) {
+  [data-brand='dugout'] {
+    --dugout-gutter: 32px;
+  }
+}
+@media (min-width: 75rem) {
+  [data-brand='dugout'] {
+    --dugout-gutter: 48px;
+  }
+}
+/* 덕아웃 바깥 틀 — 위 막대와 본문이 같은 축(x)에 선다. 예비값은 싱커 틀의 같은 막대(브랜드 sinker)가 쓴다 */
+.dugout-frame {
+  width: 100%;
+  max-width: calc(var(--dugout-content, 72rem) + 2 * var(--dugout-gutter, 1.5rem));
+  margin-inline: auto;
+  padding-inline: var(--dugout-gutter, 1.5rem);
 }
 /*
  * 덕아웃 PC 는 간격을 원래 값(4px)으로 — PC 전체의 --spacing 0.2rem(위 'PC 화면의 크기 기준')은 싱커 선수 화면을 위한 것이라,
- * 덕아웃 안에서는 단추 40px · 위 막대 64px · 카드 여백이 설계 수치대로 나오게 이 면에서만 되돌린다. 묶음 제목(text-xl)은 20px.
+ * 덕아웃 안에서는 단추 40px · 카드 여백이 설계 수치대로 나오게 이 면에서만 되돌린다.
+ * v2(2026-10-26) 점검: 이 되돌림은 그대로 둔다 — 덕아웃 부품(위 막대 · 칩 · 거르기 판 · 카드)이 모두 이 단위로 맞춰져 있고, 크게 보이던 원인은
+ * 단위가 아니라 홈의 겹친 진입부 · 최대 폭 없는 카드였다(실측: 단추 40 · 칩 32 · 막대 칸 40). 제목 · 묶음 제목 크기는 부품에서 따로 정한다.
  */
 @media (min-width: 36rem) and (hover: hover) and (pointer: fine) {
   [data-brand='dugout'] {
@@ -4009,7 +4037,8 @@ html[data-morph] [data-morph-chrome] > :nth-child(n + 8) {
     opacity 480ms cubic-bezier(0.2, 0.8, 0.2, 1),
     transform 480ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-@media (hover: none), (pointer: coarse) {
+/* 손가락 화면이면서 폭 1024 밑(그 위에는 첫 판이 없다 — dugout-main.tsx lg:hidden, 2026-10-26 v2) */
+@media (max-width: 63.99rem) and (hover: none), (max-width: 63.99rem) and (pointer: coarse) {
   body:has([data-dugout-main]) [data-morph-bar] {
     position: fixed;
     inset-inline: 0;

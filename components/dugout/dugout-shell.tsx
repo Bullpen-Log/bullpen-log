@@ -77,8 +77,8 @@ export function DugoutShell({
       )}
       <main
         data-morph-main
-        /* 본문 폭은 덕아웃 토큰(--dugout-max 1240px, globals.css) — 위 막대와 같은 폭. PC 는 막대 밑 24px 에서 바로 내용이 시작한다 */
-        className="mx-auto w-full max-w-(--dugout-max,72rem) flex-1 px-4 pt-5 pb-28 md:px-6 md:pt-8 md:pb-16 desk:pt-6"
+        /* 바깥 틀(.dugout-frame — 본문 1160 · 거터 48/32/24/16, globals.css) — 위 막대와 같은 축. 큰 화면은 막대 밑 24px 에서 바로 내용이 시작한다 */
+        className="dugout-frame flex-1 pt-5 pb-28 md:pt-8 md:pb-16 lg:pt-6"
       >
         {sinkerApp && !inSinkerDugout(pathname) ? <SinkerAway /> : children}
       </main>

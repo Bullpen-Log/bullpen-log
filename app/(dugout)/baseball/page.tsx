@@ -99,7 +99,7 @@ export default async function BaseballPage({ searchParams }: { searchParams: Pro
         <DugoutEmpty compact title={`이날은 ${LEAGUES.find((l) => l.key === league)?.label} 경기가 없어요`} />
       ) : (
         /* 열이 맞는 일정 줄(2026-10-25 PC 개편 — 카드 격자는 경기 수에 따라 모양이 달랐다) */
-        <ul className="divide-y divide-line border-y border-line">
+        <ul className="divide-y divide-line border-y border-line lg:max-w-[960px]">
           {ofDay.map((g) => (
             <GameListRow key={g.id} g={g} />
           ))}

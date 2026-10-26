@@ -103,8 +103,11 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
         </p>
       )}
 
-      {/* 위 — 사진 60 · 구매 요약 40 */}
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-12">
+      {/*
+        위 — 사진 540(4:3 이라 높이 405) · 구매 요약 나머지(2026-10-26 v2: 60 대 40 이면 1160 에서 사진이 667 · 높이 500 이 넘어 첫 화면을 다 썼다).
+        원래 비율 사진 · 흠집은 아래 '사진 자세히'와 전체 화면 보기에서 그대로 본다
+      */}
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,540px)_minmax(0,1fr)] lg:gap-10">
         <div className="min-w-0">
           <ListingGallery images={item.images} title={item.title} />
           <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
@@ -115,7 +118,8 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             <span>조회 {item.views}</span>
           </p>
         </div>
-        <div className="space-y-5 lg:sticky lg:top-24 lg:self-start">
+        {/* 따라오는 요약 — 화면보다 길면 안에서 굴러 끝(단추 · 하자)까지 닿는다(늘 붙어 있어 밑이 영영 안 보이던 것 막기, v2) */}
+        <div className="space-y-5 lg:sticky lg:top-[calc(var(--dugout-bar-h)+1.5rem)] lg:max-h-[calc(100dvh-var(--dugout-bar-h)-3rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain">
           <PurchaseSummary item={item} loggedIn={!!user} now={now} />
           {ownerActions}
           {/* 중요한 하자는 요약 옆에서도 */}

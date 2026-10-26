@@ -62,8 +62,8 @@ export function DugoutMain({
    */
   useLayoutEffect(() => {
     const html = document.documentElement;
-    /* PC 는 위 막대를 숨기지 않는다(2026-10-25 덕아웃 PC 개편 — home-snap.tsx · globals.css 와 같은 조건) */
-    if (matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    /* PC · 큰 화면은 위 막대를 숨기지 않는다(home-snap.tsx · globals.css 와 같은 조건 — 마우스 화면이거나 폭 1024 이상. 2026-10-26 v2 에 폭을 더함: lg 에는 이 판이 없다) */
+    if (matchMedia('(hover: hover) and (pointer: fine), (min-width: 64rem)').matches) return;
     html.dataset.dugoutTop = '';
     html.dataset.dugoutInstant = '';
     let id = requestAnimationFrame(() => {
@@ -86,7 +86,12 @@ export function DugoutMain({
       /* 서버 그림부터 '판이 보임' — 첫 칠에 위 막대가 비치지 않게. 붙은 뒤에는 두 칸 스크롤(home-snap.tsx)이 html[data-dugout-top] 으로 맡는다 */
       data-top=""
       aria-label="덕아웃 시작"
-      className="relative -mx-4 -mt-5 px-4 pb-14 md:-mx-6 md:-mt-8 md:px-6 md:pb-20 desk:mt-0 desk:pb-12"
+      /*
+        큰 화면(lg, 1024~)에는 이 판이 없다(2026-10-26 v2) — 위 막대에 로고 · 검색 · 메뉴가 이미 있어 큰 로고 · 둘째 검색 · 같은 다섯 아이콘 · 띠가
+        첫 화면을 다 쓰고 첫 물건 사진이 y666 에서야 시작했다. 휴대폰 · 패드 · 앱은 그대로.
+        바깥 여백은 본문 틀(.dugout-frame)의 거터만큼 걷어 판이 화면 끝까지 닿는다
+      */
+      className="relative -mx-(--dugout-gutter) -mt-5 px-(--dugout-gutter) pb-14 md:-mt-8 md:pb-20 desk:mt-0 desk:pb-12 lg:hidden"
     >
       {/* 모서리 줄 — 위 막대가 숨은 동안의 길 */}
       <div className="flex items-center justify-end pt-[max(1rem,env(safe-area-inset-top))] pb-2 md:pt-6 desk:hidden">
@@ -120,7 +125,7 @@ export function DugoutMain({
         </div>
       </div>
 
-      <div className="mx-auto max-w-(--dugout-max,72rem) pt-10 md:pt-16 desk:pt-4">
+      <div className="mx-auto pt-10 md:pt-16 desk:pt-4">
         {/* 로고 · 통합검색 · 아이콘 줄은 화면 가운데 온 폭 그대로 — 경기 칸이 이 자리를 좁히지 않는다(2026-10-24 금윤호) */}
         <div className="min-w-0">
           <h1 className="flex justify-center">
@@ -190,7 +195,7 @@ export function DugoutMain({
               {slides && <MarketHero slides={slides} slim label="덕아웃 소식" />}
             </div>
             {/* PC 는 본문 쪽 경기 칸이 이 자리까지 올라와 하나로 이어진다(app/(dugout)/page.tsx) — 여기 것은 패드만 */}
-            {aside && <aside className="hidden md:block desk:hidden">{aside}</aside>}
+            {aside && <aside className="hidden md:block">{aside}</aside>}
           </div>
         )}
       </div>

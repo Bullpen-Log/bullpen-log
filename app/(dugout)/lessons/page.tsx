@@ -109,7 +109,8 @@ export default async function LessonsHubPage() {
                 </div>
               ))}
             </div>
-            <div className="hidden divide-y divide-line border-y border-line lg:block">
+            {/* 줄 폭 960 안 — 이름과 가격이 1160 양 끝으로 벌어지지 않게(v2 레슨) */}
+            <div className="hidden max-w-[960px] divide-y divide-line border-y border-line lg:block">
               {recommended.map((c, i) => (
                 <div key={c.id} className="motion-safe:animate-row-in" style={{ ['--row' as string]: i }}>
                   <CoachRow c={c} href={`/lessons/${c.id}`} />

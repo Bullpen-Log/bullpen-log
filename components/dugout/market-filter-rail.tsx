@@ -6,12 +6,12 @@ import { CATEGORIES, CONDITIONS, REGIONS, filterHref, type ListingFilter } from 
 /**
  * 장터 PC 왼쪽 거르기 판(2026-10-25 덕아웃 PC 개편, docs/designs/dugout-desktop-information-design.md) — 번개장터 · 당근처럼 왼쪽에 늘 보이는
  * 품목 목록 · 상태 · 거래 방법 · 지역(select). 조건은 모두 주소에(휴대폰 칩 · 품목 줄과 같은 주소) — 같은 화면에서 값만 바뀌니 굴린 자리를 지킨다.
- * 레슨 코치 목록의 왼쪽 판(lesson-filter-rail.tsx)과 같은 폭(216px) · 같은 묶음 모양.
+ * 레슨 코치 목록의 왼쪽 판(lesson-filter-rail.tsx)과 같은 폭(184px, v2) · 같은 묶음 모양.
  */
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-2 border-b border-line py-4 first:pt-0 last:border-b-0">
-      <h3 className="text-[13px] font-bold text-muted">{title}</h3>
+      <h3 className="px-2 text-[13px] font-bold text-muted">{title}</h3>
       {children}
     </section>
   );
@@ -25,7 +25,8 @@ function Row({ href, on, children }: { href: string; on: boolean; children: Reac
         scroll={false}
         data-nav="none"
         aria-current={on ? 'true' : undefined}
-        className={`-mx-2 flex min-h-8 items-center rounded-md px-2 text-sm transition-colors ${
+        /* 음수 바깥 여백(-mx-2)을 쓰지 않는다 — 세로로 굴러가는 판(overflow-y auto)에서 가로 넘침(스크롤)이 생겼다(2026-10-26 v2 실측) */
+        className={`flex min-h-8 items-center rounded-md px-2 text-sm break-keep transition-colors ${
           on ? 'bg-ink/6 font-bold text-ink' : 'text-ink/80 hover:bg-ink/4 hover:text-ink'
         }`}
       >
@@ -45,8 +46,8 @@ export function MarketFilterRail({ f }: { f: ListingFilter }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between pb-3">
-        <p className="text-base font-black text-ink">필터</p>
+      <div className="flex items-center justify-between px-2 pb-3">
+        <p className="text-base font-bold text-ink">필터</p>
         {any ? (
           <Link href={filterHref({ q: f.q, sort: f.sort })} scroll={false} data-nav="none" className="text-xs font-semibold text-sky">
             초기화

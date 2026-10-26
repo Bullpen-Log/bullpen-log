@@ -75,10 +75,10 @@ export function DugoutTopBar({
       : pathname === href || pathname.startsWith(`${href}/`));
   /* 둥근 알약 한 줄(2026-10-24 금윤호 "둥글둥글하고 심플하게") — 칸은 모두 높이 40px 둥근 단추, 지금 보는 곳은 뒤에서 미끄러지는 옅은 알약 */
   const item = (on: boolean) =>
-    `relative z-10 flex h-10 items-center rounded-full px-3.5 text-[15px] whitespace-nowrap transition-colors ${
+    `relative z-10 flex h-9 items-center rounded-lg px-3 text-sm whitespace-nowrap transition-colors ${
       on ? 'font-bold text-ink' : 'font-semibold text-ink/65 hover:text-ink'
     }`;
-  const ghost = 'flex h-10 items-center rounded-full px-3.5 text-sm font-semibold text-ink transition-colors hover:bg-ink/6';
+  const ghost = 'flex h-9 items-center rounded-lg px-3 text-sm font-semibold text-ink transition-colors hover:bg-ink/6';
   /* 가운데 검색 — 덕아웃 통합검색(물건 · 글 · 코치 · 연습장 · 기능을 한 번에, app/(dugout)/search). 누르면 넓어진다 */
   const search = (
     <form method="get" action="/search" role="search" className="relative hidden shrink-0 xl:block">
@@ -88,7 +88,7 @@ export function DugoutTopBar({
         type="search"
         placeholder="통합검색"
         aria-label="통합검색"
-        className="h-10 w-56 appearance-none rounded-full bg-ink/6 pr-4 pl-10 text-sm text-ink transition-[width,background-color] duration-200 ease-out placeholder:text-muted/70 focus:w-80 focus:bg-surface focus:ring-2 focus:ring-sky focus:outline-none"
+        className="h-9 w-60 appearance-none rounded-lg bg-ink/6 pr-4 pl-10 text-sm text-ink transition-[width,background-color] duration-200 ease-out placeholder:text-muted/70 focus:w-80 focus:bg-surface focus:ring-2 focus:ring-sky focus:outline-none"
       />
     </form>
   );
@@ -103,14 +103,15 @@ export function DugoutTopBar({
        */
       className={`${sticky ? 'sticky top-0' : ''} z-20 border-b border-line ${isSinkerBar ? 'bg-page' : 'bg-surface'} ${native ? 'pt-[env(safe-area-inset-top)]' : ''} ${className}`}
     >
-      <div className="mx-auto w-full max-w-(--dugout-max,72rem) px-3 md:px-6">
-        <div className="flex h-14 items-center gap-1 desk:h-16">
+      {/* 본문과 같은 바깥 틀(.dugout-frame — 폭 1160 · 거터) — 로고와 본문 첫 글자가 같은 x 에 선다(2026-10-26 v2) */}
+      <div className="dugout-frame">
+        <div className="flex h-14 items-center gap-1 desk:h-15">
           <Link
             href={homeHref}
             aria-label={isSinkerBar ? undefined : '덕아웃 첫 화면'}
             data-dugout-logo={isSinkerBar ? undefined : ''}
             data-morph-side
-            className="flex h-10 shrink-0 items-center rounded-full px-3 transition-colors hover:bg-ink/5"
+            className="-ml-2 flex h-10 shrink-0 items-center rounded-lg px-2 transition-colors hover:bg-ink/5"
           >
             <Wordmark brand={brand} className="text-xl text-ink" />
           </Link>
@@ -150,7 +151,7 @@ export function DugoutTopBar({
                   </Link>
                   <Link
                     href="/login?signup=1"
-                    className="flex h-10 items-center rounded-full bg-sky px-4 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+                    className="flex h-9 items-center rounded-lg bg-sky px-3.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
                   >
                     시작하기
                   </Link>
@@ -204,7 +205,7 @@ function NavPills({
     <nav ref={box} aria-label="덕아웃" data-morph-chrome className="relative ml-1 hidden items-center md:flex">
       <span
         aria-hidden
-        className={`absolute top-0 left-0 h-10 rounded-full bg-ink/7 ${pill?.move ? 'transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]' : ''}`}
+        className={`absolute top-0 left-0 h-9 rounded-lg bg-ink/7 ${pill?.move ? 'transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]' : ''}`}
         style={{
           width: pill?.w ?? 0,
           transform: `translateX(${pill?.x ?? 0}px)`,

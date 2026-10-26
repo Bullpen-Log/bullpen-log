@@ -137,7 +137,8 @@ export default async function CoachListPage({ searchParams }: { searchParams: Pr
         </Link>
       }
     >
-      <div className="lg:grid lg:grid-cols-[216px_minmax(0,1fr)] lg:items-start lg:gap-6">
+      {/* 거르기 판 184 + 간격 24 + 결과 최대 952(v2 — 장터와 같은 판 폭) */}
+      <div className="lg:grid lg:grid-cols-[184px_minmax(0,1fr)] lg:items-start lg:gap-6">
         {/* PC 거르기 판 — 머리 밑에 붙어 따라온다 */}
         <aside className="hidden lg:sticky lg:top-[calc(var(--dugout-bar-h)+1.5rem)] lg:block lg:max-h-[calc(100dvh-var(--dugout-bar-h)-3rem)] lg:overflow-y-auto lg:overscroll-contain">
           <LessonFilterRail current={current} prefs={prefs} />
