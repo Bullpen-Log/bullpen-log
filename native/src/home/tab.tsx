@@ -238,8 +238,9 @@ export function HomeTab({
   const pending = useUnreadNotifications();
   const { spaces } = useSpace();
 
+  /* 내 영상 쓸기는 투구 첫 설정 전에도 — 영상 보기 · 메모는 부하와 무관하고, 구속 측정은 제 화면에서 다시 막는다 */
   return (
-    <CameraSwipe enabled={!home?.pitchLocked}>
+    <CameraSwipe enabled>
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Animated.ScrollView automaticallyAdjustKeyboardInsets
         ref={scrollRef}
@@ -388,6 +389,15 @@ export function HomeTab({
           </View>
         ) : null}
         <Wordmark color={c.ink} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="내 영상"
+          onPress={() => router.push('/my-videos')}
+          hitSlop={6}
+          style={({ pressed }) => [styles.bell, { right: 60 }, pressed && { backgroundColor: c.chip }]}
+        >
+          <Icon name="film" size={19} color={c.muted} />
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={pending > 0 ? `알림, 안 읽은 알림 ${pending}개` : '알림'}

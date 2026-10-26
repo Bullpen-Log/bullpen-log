@@ -14,7 +14,7 @@ import { loadMyVideos } from '@/lib/my-videos-load';
 
 export type MyVideosResult = { ok: true; items: MyVideoItem[] } | { ok: false; error: string };
 
-export async function listMyVideos(): Promise<MyVideosResult> {
+export async function loadMyVideoList(): Promise<MyVideosResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   return { ok: true, items: await loadMyVideos(user.id) };

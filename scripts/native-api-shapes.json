@@ -153,6 +153,8 @@
  "mechanics.saveMechanicsEquipment": "(values: string[]) => Promise<{ error: string } | { ok: true }>",
  "mechanics.startMechanicsFocus": "(input: { expectedJobId: string; expectedRunId: null | string; level?: null | string | undefined; reportId: string }) => Promise<{ error: string } | { ok: true }>",
  "mechanics.startMechanicsProgram": "(level: string) => Promise<{ error: string } | { ok: true }>",
+ "my-videos.loadMyVideoList": "() => Promise<{ error: string; ok: false } | { items: { clip: null | { date: string; kmh: number; pitchId: string; pitchType: null | string; sessionId: string }; createdAt: null | string; date: null | string; dateSource: \"camera\" | \"header\" | \"log\" | \"manual\" | \"unknown\"; durationSec: null | number; logs: { count: number; cuesBad: string[]; cuesGood: string[]; date: string; id: string; kind: \"hit\" | \"pitch\"; memo: null | string; type: string }[]; note: null | string; origin: \"album\" | \"camera\" | \"log\" | \"velocityClip\"; path: string; revisit: boolean; saved: boolean; sport: \"hit\" | \"pitch\"; storage: \"phone\" | \"server\" }[]; ok: true }>",
+ "my-videos.updateMyVideo": "(path: string, patch: { feelNote?: null | string | undefined; revisit?: false | true | undefined }) => Promise<{ error: string; ok: false } | { note: null | string; ok: true; revisit: boolean }>",
  "notifications.countBellNotifications": "() => Promise<number>",
  "notifications.loadBellNotifications": "() => Promise<{ items: { at: string; body: null | string; id: string; kind: string; link: null | string; read: boolean; title: string }[]; unread: number }>",
  "notifications.readBellNotifications": "(id?: string | undefined) => Promise<number>",

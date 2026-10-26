@@ -28,6 +28,7 @@ import { resetImported } from '~/pitch/attach';
 import { resetScanned } from '~/nutrition/scanned';
 import { HomeTab, resetHomeCache } from '~/home/tab';
 import { resetNotificationList } from '~/home/notifications';
+import { resetMyVideos } from '~/videos/store';
 import { NutritionTab } from '~/nutrition/tab';
 import { TrainingTab, resetTrainingCache } from '~/training/tab';
 import { resetPitchTodayCache } from '~/pitch/today-card';
@@ -253,6 +254,7 @@ function resetAccount() {
   resetImported();
   resetScanned();
   resetNotificationList();
+  resetMyVideos();
   /* 더보기의 이름 · 관리자 칸 — 다음 사람의 메뉴 알림이 오기 전까지 앞사람 것이 보였다 */
   setMenu({ groups: [], nickname: '' });
   setMenuTabs(DEFAULT_TABS);
