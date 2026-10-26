@@ -57,8 +57,11 @@ export function MasterShell({
       { href: '/manage/payouts', label: '정산', icon: CalendarDays },
       { href: '/manage/settings', label: '설정 · 초대', icon: RoundSettings },
     ];
-  if (user.isAdmin)
+  if (user.isAdmin) {
     items.push({ href: '/manage/orgs', label: '모든 조직(관리자)', icon: RoundShield });
+    /* 덕아웃 '관리' 단추로 온 대표관리자가 찾는 곳 — 레슨 · 연습장 수집 후보 지도(싱커 관리자 app/(app)/admin/places, 2026-10-26) */
+    items.push({ href: '/admin/places', label: '수집 후보 지도(관리자)', icon: RoundVenue });
+  }
 
   const active = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
