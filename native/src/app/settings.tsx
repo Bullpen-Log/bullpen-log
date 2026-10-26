@@ -1,7 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { Icon, type IconName } from '~/shell/icon';
 import * as WebBrowser from 'expo-web-browser';
-import { useState, type ReactNode } from 'react';
+import Constants from 'expo-constants';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LENGTH_UNITS, SPEED_UNITS, WEIGHT_UNITS } from '@/lib/units';
@@ -11,6 +12,7 @@ import { THEME_OPTIONS, setPref, usePrefs, type Prefs } from '~/lib/prefs';
 import { SITE_URL } from '~/lib/site';
 import { CONTROL, RADIUS, TYPE, usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { loadBundleInfo } from '~/shell/app-update';
 
 /**
  * 설정(앱 화면) — 웹 설정 창(components/settings-panel.tsx)을 옮겼다: 화면 테마 · 단위(길이 · 무게 · 구속) · 정보(약관 · 개인정보 · 3D 모델 출처 · 문의).
@@ -21,6 +23,16 @@ export default function SettingsScreen() {
   const inset = useSafeAreaInsets();
   const prefs = usePrefs();
   const [credit, setCredit] = useState(false);
+  const [bundle, setBundle] = useState<string | null>(null);
+  useEffect(() => {
+    void loadBundleInfo().then((b) =>
+      setBundle(
+        [Constants.expoConfig?.version, b.dev ? '개발' : b.update ? `화면 ${b.update}` : '화면 앱에 든 그대로', b.runtime ? `바닥 ${b.runtime}` : null]
+          .filter(Boolean)
+          .join(' · ')
+      )
+    );
+  }, []);
   const open = (path: string) => void WebBrowser.openBrowserAsync(`${SITE_URL}${path}`).catch(() => undefined);
 
   const pick = <K extends keyof Prefs>(key: K, value: Prefs[K]) => {
@@ -67,7 +79,14 @@ export default function SettingsScreen() {
                 </Pressable>
               </View>
             ) : null}
-            <Row label="문의하기" detail={CONTACT} onPress={() => void Linking.openURL(`mailto:${CONTACT}`).catch(() => undefined)} last c={c} />
+            <Row label="문의하기" detail={CONTACT} onPress={() => void Linking.openURL(`mailto:${CONTACT}`).catch(() => undefined)} c={c} />
+            {/* 폰이 새 화면 코드를 받았는지 — 게시 번호와 견준다(계약 9-6 ②-1) */}
+            <View accessible accessibilityLabel={`앱 판 ${bundle ?? ''}`} style={st.row}>
+              <Text style={{ color: c.ink, fontSize: 17 }}>앱 판</Text>
+              <Text selectable style={[st.small, { color: c.muted, flex: 1, textAlign: 'right' }]} numberOfLines={2}>
+                {bundle ?? '…'}
+              </Text>
+            </View>
           </View>
           <Text style={[st.small, { color: c.muted }]}>{MEDICAL_NOTICE}</Text>
         </Section>

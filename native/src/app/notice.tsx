@@ -23,7 +23,7 @@ function spokenDay(day: string) {
 }
 
 export default function NoticeScreen() {
-  const params = useLocalSearchParams<{ date?: string; checkin?: string; pitch?: string; locked?: string }>();
+  const params = useLocalSearchParams<{ date?: string; checkin?: string; pitch?: string; locked?: string; only?: string }>();
   /* 날짜 없이 열려도(바깥 링크) 오늘로 — 'NaN월'과 날짜 없는 쉬는 날 기록을 막는다 */
   const p = { ...params, date: params.date || toDateKey(new Date()) };
   const c = usePalette();
@@ -56,6 +56,8 @@ export default function NoticeScreen() {
     router.back();
     router.push(href as Href);
   };
+  /* 팀 · 레슨장 공간 위 막대의 종은 알림만(계약 9-3 — 오늘 할 일 · 체크인은 내 싱커 것) */
+  const tasks = params.only !== '1';
   const allDone = checkinDone && pitchDone;
 
   return (
@@ -72,23 +74,23 @@ export default function NoticeScreen() {
       {/* 진짜 알림(2026-10-22 금윤호) — 있으면 목록, 없으면 '알림이 없습니다'. 오늘 할 일은 남은 것이 있을 때만 그 밑에 */}
       <NotificationList c={c} />
 
-      {!allDone ? (
+      {tasks && !allDone ? (
         <Text style={{ color: c.muted, fontSize: 15, fontWeight: '600', marginTop: 8 }}>{spokenDay(p.date)} · 오늘 할 일</Text>
       ) : null}
 
-      {!checkinDone ? (
+      {tasks && !checkinDone ? (
         <Item c={c} icon="clipboard-list" title="오늘 체크인을 아직 안 했어요" body="몇 초면 끝나요. 오늘 운동 추천에 바로 반영해요.">
           <Pill c={c} label="체크인하기" chevron primary onPress={() => openCheckin()} />
         </Item>
       ) : null}
 
-      {!pitchDone && locked ? (
+      {tasks && !pitchDone && locked ? (
         <Item c={c} icon="target" title="투구 기록을 아직 시작하지 않았어요" body="몇 가지만 알려 주면 투구 기록을 시작할 수 있어요.">
           <Pill c={c} label="투구 기록 설정하기" chevron primary onPress={() => go('/setup/pitch')} />
         </Item>
       ) : null}
 
-      {!pitchDone && !locked ? (
+      {tasks && !pitchDone && !locked ? (
         <Item c={c} icon="target" title="오늘 투구 기록이 아직 없어요" body="남기지 않으면 안 던진 날로 봐요. 쉬었으면 한 번만 눌러 두세요.">
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
             <Pill c={c} label="기록하기" chevron primary onPress={() => go(`/pitch/${p.date}`)} />
@@ -100,7 +102,7 @@ export default function NoticeScreen() {
       ) : null}
 
       {/* 다 한 것도 여기서 고친다 — 잘못 누른 '통증' 하나가 오늘 운동을 막으니 고칠 길이 늘 있어야 한다(웹과 같은 까닭) */}
-      {checkinDone || pitchDone ? (
+      {tasks && (checkinDone || pitchDone) ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
           {checkinDone ? <Pill c={c} label="체크인 고치기" onPress={() => openCheckin()} /> : null}
           {pitchDone ? <Pill c={c} label="오늘 투구 기록 보기" onPress={() => go(`/pitch/${p.date}`)} /> : null}

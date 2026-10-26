@@ -62,10 +62,13 @@ export function spaceTabs(kind: OrgKindName, side: SpaceSide): SpaceTab[] {
       ];
 }
 
+/** 공간에서의 역할 한 단어 — 선수 · 회원 · 대표 · 코치 */
+export const spaceRoleWord = (s: { kind: OrgKindName; role: string }) =>
+  s.role === 'PLAYER' ? (s.kind === 'TEAM' ? '선수' : '회원') : s.role === 'MASTER' ? '대표' : '코치';
+
 /** 고르개 한 줄 — '○○ 야구팀 · 선수' */
 export function spaceLabel(s: { name: string; kind: OrgKindName; role: string }): string {
-  const role = s.role === 'PLAYER' ? (s.kind === 'TEAM' ? '선수' : '회원') : s.role === 'MASTER' ? '대표' : '코치';
-  return `${s.name} · ${role}`;
+  return `${s.name} · ${spaceRoleWord(s)}`;
 }
 
 /**

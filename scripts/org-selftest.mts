@@ -79,6 +79,7 @@ import {
   parseOrgReturn,
   resolveSpace,
   spaceLabel,
+  spaceRoleWord,
   spaceTabs,
   targetTab,
 } from '@/lib/org/space-nav';
@@ -863,6 +864,17 @@ console.log(
       team.includes("memberScope(p.consent, true).checkin && out.get(p.id)?.status === 'confirmed'") && team.includes('calendarOutings: [] }).length ?')
     );
     check('엔진은 그대로 — 팀 등판은 달력 모양으로 같은 출처', src('lib/org/team-load.ts').includes('(await teamOutingsOf(userId, from, to)).map((o) => ({ date: new Date(`${o.date}T00:00:00.000Z`), title: OUTING_CALENDAR_TITLE }))'));
+  }
+  {
+    /* ② 공통 셸 · 배치(계약 9-3 · 9-4) */
+    check('고르개 역할 말', spaceRoleWord({ kind: 'TEAM', role: 'PLAYER' }) === '선수' && spaceRoleWord({ kind: 'LESSON', role: 'PLAYER' }) === '회원' && spaceRoleWord({ kind: 'TEAM', role: 'MASTER' }) === '대표' && spaceRoleWord({ kind: 'LESSON', role: 'STAFF' }) === '코치');
+    const space = src('native/src/org/space.tsx');
+    check('공간 머리 한 줄 — 싱커 이름표 · 두 줄 고르개 · 알림 종', space.includes('<Wordmark size={17}') && space.includes('sub={`${KIND_WORD[space.kind]} · ${spaceRoleWord(space)}`}') && space.includes("params: { only: '1' }"));
+    check('설정 › 정보에 앱 판(화면 묶음 · 바닥 판)', src('native/src/app/settings.tsx').includes('loadBundleInfo()') && src('native/src/shell/app-update.ts').includes('Updates.updateId.slice(0, 8)'));
+    check('카드는 평평 — 그림자는 머리 카드(float)만', src('native/src/org/parts.tsx').includes('float && { boxShadow: c.float }') && !src('native/src/org/coach.tsx').includes('boxShadow'));
+    const coach = src('native/src/org/coach.tsx');
+    check('코치 일정은 빈 날을 안 그림 — 한 주 띠 + 일정 있는 날만', coach.includes('const withEvents = data ? days.filter((d) => data.events.some((e) => e.date === d)) : [];') && coach.includes('withEvents.map((d, di)'));
+    check("오늘의 숫자 → 선수단 거르개", coach.includes("openRoster(space, filterOfWatch(g.k))") && coach.includes('nextRosterFilter = null;') && src('app/actions/app-org.ts').includes('watch: watchKindOf({ hasUser: !!m.user, consent: m.consent }, statusOf.get(m.id) ?? null)'));
   }
   check('알림 대상 → 탭', targetTab('TEAM', 'p', 'homework') === 'mytraining' && targetTab('LESSON', 'p', 'homework') === 'homework' && targetTab('TEAM', 'c', 'inbox') === 'today' && targetTab('LESSON', 'c', 'inbox') === 'inbox' && targetTab('TEAM', 'p', 'share') === null);
   check('운동 돌아올 곳 왕복', JSON.stringify(parseOrgReturn(orgReturnParam('o1:p', 'homework'))) === '{"key":"o1:p","tab":"homework"}' && parseOrgReturn('org:x:y') === null);

@@ -17,7 +17,7 @@ import { coachOrg, myMember } from '@/lib/org/app-access';
 import { commentCounts } from '@/lib/org/comment-load';
 import { formatExercise, readExercises } from '@/lib/org/lesson-work';
 import { noteKey } from '@/lib/org/lesson-pitch';
-import { replyCounts, type AttendReply } from '@/lib/org/team';
+import { eventMemberIds, replyCounts, type AttendReply } from '@/lib/org/team';
 import { noticeReads } from '@/lib/org/team-load';
 import { ORG_LOST } from '@/lib/org/space-nav';
 
@@ -127,7 +127,23 @@ export type OrgToday = {
   org: { id: string; kind: OrgKind; name: string };
   todayKey: string;
   /** replies: 참석 응답 수(3단계) — 팀 일정 줄의 '가요 8 · 못 가요 2' */
-  events: { id: string; time: string | null; kind: string; title: string; status: string; memberId: string | null; memberName: string | null; replies: Record<AttendReply, number> }[];
+  events: {
+    id: string;
+    time: string | null;
+    kind: string;
+    title: string;
+    status: string;
+    memberId: string | null;
+    memberName: string | null;
+    replies: Record<AttendReply, number>;
+    /** 오늘 일정 줄(계약 9-4) — 대상 선수 수(답 안 함 = 대상 − 응답) · 메뉴 수 · 수행일지 남긴 선수 수 · 참석 확인 수 */
+    targets?: number;
+    plans?: number;
+    recorded?: number;
+    attended?: number;
+  }[];
+  /** 오늘 일정이 없을 때 보일 다음 일정 하나(계약 9-4) */
+  next?: { id: string; date: string; time: string | null; kind: string; title: string } | null;
   counts: { members: number; pending: number; placeholders: number };
   /** 팔 상태가 주의 · 위험인 회원 — 위험부터(옛 앱 화면이 읽는다. 새 화면은 watch) */
   alerts: ({ memberId: string; nickname: string } & ArmLine)[];
@@ -151,18 +167,37 @@ export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: stri
     pitcherBoardOf(orgId, now),
   ]);
   const nameOf = new Map(members.map((m) => [m.id, m.nickname]));
-  const replies = events.length
-    ? await prisma.orgEventAttendee.findMany({ where: { eventId: { in: events.map((e) => e.id) } }, select: { eventId: true, reply: true } })
-    : [];
+  const ids = events.map((e) => e.id);
+  const [replies, plans, work, next] = await Promise.all([
+    ids.length ? prisma.orgEventAttendee.findMany({ where: { eventId: { in: ids } }, select: { eventId: true, reply: true, attended: true } }) : [],
+    ids.length ? prisma.orgPlan.groupBy({ by: ['eventId'], where: { eventId: { in: ids } }, _count: { _all: true } }) : [],
+    ids.length
+      ? prisma.userExerciseSet.findMany({ where: { orgEventId: { in: ids }, enteredById: { not: null } }, select: { orgEventId: true, userId: true }, distinct: ['orgEventId', 'userId'] })
+      : [],
+    prisma.orgEvent.findFirst({
+      where: { orgId, date: { gt: dbDate(todayKey) }, status: { not: 'canceled' } },
+      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+      select: { id: true, date: true, time: true, kind: true, title: true },
+    }),
+  ]);
+  const active = members.map((m) => m.id);
   return {
     ok: true,
     org: { id: c.org.id, kind: c.org.kind, name: c.org.name },
     todayKey,
-    events: events.map((e) => ({
-      ...e,
-      memberName: e.memberId ? (nameOf.get(e.memberId) ?? null) : null,
-      replies: replyCounts(replies.filter((r) => r.eventId === e.id).map((r) => r.reply)),
-    })),
+    events: events.map((e) => {
+      const mine = replies.filter((r) => r.eventId === e.id);
+      return {
+        ...e,
+        memberName: e.memberId ? (nameOf.get(e.memberId) ?? null) : null,
+        replies: replyCounts(mine.map((r) => r.reply)),
+        targets: eventMemberIds(e, active).length,
+        plans: plans.find((p) => p.eventId === e.id)?._count._all ?? 0,
+        recorded: work.filter((w) => w.orgEventId === e.id).length,
+        attended: mine.filter((r) => r.attended).length,
+      };
+    }),
+    next: next ? { ...next, date: toDateKey(next.date) } : null,
     counts: {
       members: members.length,
       pending: members.filter((m) => m.user && !m.consent).length,
@@ -200,6 +235,8 @@ export type OrgMemberRow = {
   arm: ArmLine | null;
   /** 코치가 투구를 대신 적을 수 있나 — 가입했고 투구 공유를 켬(app/actions/org-record.ts createPitchLogs 와 같은 선) */
   pitchOk: boolean;
+  /** 살필 묶음(오늘의 숫자 → 선수단 거르개, 계약 9-4) — 살필 것 없으면 null */
+  watch?: WatchKind | null;
 };
 
 /** 코치 '회원' — 활동 중인 회원 전부, 이름순 */
@@ -208,6 +245,7 @@ export async function loadOrgMembers(orgId: string): Promise<{ ok: false; to: st
   if (!c) return NO_ACCESS;
   const [members, board] = await Promise.all([loadPlayers(orgId), pitcherBoardOf(orgId, appNow())]);
   const armOf = new Map(board.rows.map((r) => [r.memberId, armLine(r.status)]));
+  const statusOf = new Map(board.rows.map((r) => [r.memberId, r.status]));
   return {
     ok: true,
     kind: c.org.kind,
@@ -219,6 +257,7 @@ export async function loadOrgMembers(orgId: string): Promise<{ ok: false; to: st
       consentPending: !!m.user && !m.consent,
       arm: armOf.get(m.id) ?? null,
       pitchOk: !!m.user && memberScope(m.consent, true).pitch,
+      watch: watchKindOf({ hasUser: !!m.user, consent: m.consent }, statusOf.get(m.id) ?? null),
     })),
   };
 }

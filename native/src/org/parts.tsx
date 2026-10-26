@@ -18,8 +18,9 @@ export function armLook(a: ArmLine, c: Palette): { word: string; color: string }
   return { word: ARM_WORD[a.level], color: a.level === 'danger' ? c.danger : a.level === 'caution' ? c.warn : c.ok };
 }
 
-export function Card({ children, c, style }: { children: ReactNode; c: Palette; style?: object }) {
-  return <View style={[st.card, { backgroundColor: c.card, boxShadow: c.float }, style]}>{children}</View>;
+/** 묶음 하나 = 카드 하나(설정 목록 꼴). 그림자는 화면 맨 위 머리 카드 하나만(float) — 나머지는 평평하게(계약 9-3) */
+export function Card({ children, c, style, float = false }: { children: ReactNode; c: Palette; style?: object; float?: boolean }) {
+  return <View style={[st.card, { backgroundColor: c.card }, float && { boxShadow: c.float }, style]}>{children}</View>;
 }
 
 export function GroupTitle({ title, c }: { title: string; c: Palette }) {

@@ -13,7 +13,7 @@ import { HomeworkList } from '~/org/homework';
 import { TalkToggle } from '~/org/thread';
 import { LoadState, call, useLoad } from '~/community/parts';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
-import { Card, Empty, GroupTitle, KIND_WORD, Primary, dayLabel, scopeText } from '~/org/parts';
+import { Card, Empty, GroupTitle, KIND_WORD, Primary, dayLabel, scopeText, st } from '~/org/parts';
 import { openDugout, setOrgReturn, setSpaceTab } from '~/org/space-store';
 
 /**
@@ -141,41 +141,43 @@ function LessonHome({ space }: { space: MySpace }) {
   return (
     <View style={{ gap: 16 }}>
       <Top space={space} data={mem.data} />
-      <View style={{ gap: 6 }}>
-        <GroupTitle title="다음 레슨" c={c} />
-        <Card c={c}>
-          {next ? (
-            <Text style={[TYPE.body, { color: c.ink }]}>
-              {dayWithWeekday(next.date)} · {next.time ?? '종일'} · {next.title}
+      {/* 묶음 하나 = 카드 하나(계약 9-3) — 다음 레슨 · 최근 일지 · 할 숙제를 한 카드의 줄로 */}
+      <Card c={c} float style={{ paddingVertical: 0 }}>
+        <View style={[st.row, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }]}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[TYPE.sub, { color: c.muted }]}>다음 레슨</Text>
+            <Text style={[TYPE.body, { color: next ? c.ink : c.muted }]}>{next ? `${dayWithWeekday(next.date)} · ${next.time ?? '종일'} · ${next.title}` : '잡힌 레슨이 없어요'}</Text>
+          </View>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setSpaceTab(key, 'notes')}
+          style={({ pressed }) => [st.row, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }, pressed && { opacity: 0.6 }]}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[TYPE.sub, { color: c.muted }]}>최근 레슨일지{note ? ` · ${dayLabel(note.key)}` : ''}</Text>
+            <Text style={[TYPE.body, { color: note ? c.ink : c.muted }]} numberOfLines={3}>
+              {note ? note.body : '아직 받은 일지가 없어요'}
             </Text>
-          ) : (
-            <Empty text="잡힌 레슨이 없어요." c={c} />
-          )}
-        </Card>
-      </View>
-      <Pressable accessibilityRole="button" onPress={() => setSpaceTab(key, 'notes')}>
-        <Card c={c}>
-          <Text style={[TYPE.sub, { color: c.muted }]}>최근 레슨일지{note ? ` · ${dayLabel(note.key)}` : ''}</Text>
-          <Text style={[TYPE.body, { color: c.ink }]} numberOfLines={3}>
-            {note ? note.body : '아직 받은 일지가 없어요.'}
-          </Text>
-        </Card>
-      </Pressable>
-      <Pressable accessibilityRole="button" onPress={() => setSpaceTab(key, 'homework')}>
-        <Card c={c} style={{ flexDirection: 'row', alignItems: 'center' }}>
+          </View>
+          <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => setSpaceTab(key, 'homework')} style={({ pressed }) => [st.row, pressed && { opacity: 0.6 }]}>
           <Text style={[TYPE.card, { color: c.ink, flex: 1 }]}>{open ? `할 숙제 ${open}개` : '할 숙제가 없어요'}</Text>
           <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
-        </Card>
-      </Pressable>
+        </Pressable>
+      </Card>
     </View>
   );
 }
 
 /** 받은 일지 — 레슨장 '레슨일지' 탭 · 팀 '내 훈련' 아래 · 소속 관리 '지난 소속'(readOnly — 말 · 영상 보내기 없음) */
-export function ReceivedNotes({ memberId, readOnly = false, title }: { memberId: string; readOnly?: boolean; title?: string }) {
+export function ReceivedNotes({ memberId, readOnly = false, title, hideEmpty = false }: { memberId: string; readOnly?: boolean; title?: string; hideEmpty?: boolean }) {
   const c = usePalette();
   const { data, error, reload } = useLoad<Membership>('app-org.loadMyMembership', memberId);
   if (!data) return <LoadState error={error} onRetry={() => void reload()} c={c} />;
+  /* 다른 칸 밑에 붙을 때 빈 카드를 쌓지 않는다(계약 9-3) */
+  if (hideEmpty && data.notes.length === 0) return null;
   return (
     <View style={{ gap: 6 }}>
       {title ? <GroupTitle title={title} c={c} /> : null}
@@ -255,43 +257,51 @@ function MyTraining({ space }: { space: MySpace }) {
   const menus = data.events.filter((e) => e.plans.length);
   return (
     <View style={{ gap: 16 }}>
-      <View style={{ gap: 6 }}>
-        <GroupTitle title="다가오는 내 메뉴" c={c} />
+      {/* 빈 칸은 한 줄로 합친다 — 빈 카드를 쌓지 않게(계약 9-3) */}
+      {menus.length === 0 && data.recent.length === 0 ? (
         <Card c={c}>
-          {menus.length === 0 ? <Empty text="2주 안에 받은 메뉴가 없어요." c={c} /> : null}
-          {menus.map((e) => (
-            <View key={e.id} style={{ gap: 2, paddingVertical: 4 }}>
-              <Text style={[TYPE.sub, { color: c.muted }]}>
-                {dayWithWeekday(e.date)} · {e.title}
-              </Text>
-              {e.plans.map((p, i) => (
-                <Text key={i} style={[TYPE.body, { color: c.ink }]} numberOfLines={2}>
-                  {p.title} · {p.lines.map((l) => l.name).join(', ')}
+          <Empty text="2주 안에 받은 메뉴 · 코치가 남긴 수행이 없어요." c={c} />
+        </Card>
+      ) : null}
+      {menus.length ? (
+        <View style={{ gap: 6 }}>
+          <GroupTitle title="다가오는 내 메뉴" c={c} />
+          <Card c={c}>
+            {menus.map((e) => (
+              <View key={e.id} style={{ gap: 2, paddingVertical: 4 }}>
+                <Text style={[TYPE.sub, { color: c.muted }]}>
+                  {dayWithWeekday(e.date)} · {e.title}
                 </Text>
-              ))}
-            </View>
-          ))}
-        </Card>
-      </View>
-      <View style={{ gap: 6 }}>
-        <GroupTitle title="코치가 남긴 내 수행" c={c} />
-        <Card c={c}>
-          {data.recent.length === 0 ? <Empty text="지난 2주에 남긴 수행일지가 없어요." c={c} /> : null}
-          {data.recent.map((w) => (
-            <View key={w.eventId} style={{ gap: 2, paddingVertical: 4 }}>
-              <Text style={[TYPE.sub, { color: c.muted }]}>
-                {dayWithWeekday(w.date)} · {w.title} · {w.sets}세트
-              </Text>
-              <Text style={[TYPE.body, { color: c.ink }]} numberOfLines={2}>
-                {w.exercises.join(', ')}
-              </Text>
-            </View>
-          ))}
-          {data.recent.length ? <Text style={[TYPE.sub, { color: c.muted }]}>내 운동 기록 · 부하에 한 번만 들어가 있어요.</Text> : null}
-        </Card>
-      </View>
+                {e.plans.map((p, i) => (
+                  <Text key={i} style={[TYPE.body, { color: c.ink }]} numberOfLines={2}>
+                    {p.title} · {p.lines.map((l) => l.name).join(', ')}
+                  </Text>
+                ))}
+              </View>
+            ))}
+          </Card>
+        </View>
+      ) : null}
+      {data.recent.length ? (
+        <View style={{ gap: 6 }}>
+          <GroupTitle title="코치가 남긴 내 수행" c={c} />
+          <Card c={c}>
+            {data.recent.map((w) => (
+              <View key={w.eventId} style={{ gap: 2, paddingVertical: 4 }}>
+                <Text style={[TYPE.sub, { color: c.muted }]}>
+                  {dayWithWeekday(w.date)} · {w.title} · {w.sets}세트
+                </Text>
+                <Text style={[TYPE.body, { color: c.ink }]} numberOfLines={2}>
+                  {w.exercises.join(', ')}
+                </Text>
+              </View>
+            ))}
+            <Text style={[TYPE.sub, { color: c.muted }]}>내 운동 기록 · 부하에 한 번만 들어가 있어요.</Text>
+          </Card>
+        </View>
+      ) : null}
       <MyHomework space={space} tab="mytraining" />
-      <ReceivedNotes memberId={space.memberId!} title="받은 일지" />
+      <ReceivedNotes memberId={space.memberId!} title="받은 일지" hideEmpty />
     </View>
   );
 }
@@ -299,25 +309,33 @@ function MyTraining({ space }: { space: MySpace }) {
 /** 선수 공간 '더보기' — 보여 줄 기록 · 소속 관리(나가기는 여기 안) · 코드로 들어가기 · 덕아웃 열기 · 설정 */
 function PlayerMore({ space }: { space: MySpace }) {
   const c = usePalette();
-  const row = (title: string, sub: string, onPress: () => void) => (
-    <Pressable key={title} accessibilityRole="button" onPress={onPress}>
-      <Card c={c} style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={[TYPE.card, { color: c.ink }]}>{title}</Text>
-          <Text style={[TYPE.sub, { color: c.muted }]}>{sub}</Text>
-        </View>
-        <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
-      </Card>
-    </Pressable>
-  );
+  const rows = [
+    { title: '보여 줄 기록', sub: '코치가 볼 수 있는 내 기록을 고르거나 바꿔요', onPress: () => share(space.memberId!) },
+    { title: '소속 관리', sub: '들어간 팀 · 레슨장 · 지난 소속 · 나가기', onPress: () => router.push('/org' as Href) },
+    { title: '코드로 들어가기', sub: '다른 팀 · 레슨장의 초대 코드를 넣어요', onPress: () => router.push('/org/join' as Href) },
+    { title: '덕아웃 열기', sub: '레슨 예약 · 수강권 · 장터는 덕아웃에서 해요', onPress: openDugout },
+    { title: '설정', sub: '테마 · 단위 · 앱 판', onPress: () => router.push('/settings' as Href) },
+  ];
   return (
     <View style={{ gap: 12 }}>
       <MembershipCard space={space} />
-      {row('보여 줄 기록', '코치가 볼 수 있는 내 기록을 고르거나 바꿔요', () => share(space.memberId!))}
-      {row('소속 관리', '들어간 팀 · 레슨장 · 지난 소속 · 나가기', () => router.push('/org' as Href))}
-      {row('코드로 들어가기', '다른 팀 · 레슨장의 초대 코드를 넣어요', () => router.push('/org/join' as Href))}
-      {row('덕아웃 열기', '레슨 예약 · 수강권 · 장터는 덕아웃에서 해요', openDugout)}
-      {row('설정', '테마 · 단위', () => router.push('/settings' as Href))}
+      {/* 묶음 하나 = 카드 하나(계약 9-3) */}
+      <Card c={c} style={{ paddingVertical: 0 }}>
+        {rows.map((r, i) => (
+          <Pressable
+            key={r.title}
+            accessibilityRole="button"
+            onPress={r.onPress}
+            style={({ pressed }) => [st.row, i < rows.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }, pressed && { opacity: 0.6 }]}
+          >
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[TYPE.card, { color: c.ink }]}>{r.title}</Text>
+              <Text style={[TYPE.sub, { color: c.muted }]}>{r.sub}</Text>
+            </View>
+            <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
+          </Pressable>
+        ))}
+      </Card>
     </View>
   );
 }
@@ -327,7 +345,7 @@ function MembershipCard({ space }: { space: MySpace }) {
   const { data } = useLoad<Membership>('app-org.loadMyMembership', space.memberId);
   if (!data) return null;
   return (
-    <Card c={c}>
+    <Card c={c} float>
       <Text style={[TYPE.card, { color: c.ink }]}>
         {data.org.name} {KIND_WORD[data.org.kind]}
       </Text>

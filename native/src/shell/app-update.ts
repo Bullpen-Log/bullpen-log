@@ -41,3 +41,21 @@ export function useAppUpdateOnReturn() {
     return () => sub.remove();
   }, []);
 }
+
+/**
+ * 지금 돌고 있는 화면 묶음(계약 9-6 ②-1) — 설정 › 정보가 보인다. 폰이 새 업데이트를 받았는지 GitHub 게시 번호와 견줄 때.
+ * update: 받은 업데이트 번호 앞 8자(앱에 든 그대로면 null) · runtime: 바닥 판(지문) 앞 8자. 바닥 모듈이 없거나 개발(Metro)이면 둘 다 null.
+ */
+export async function loadBundleInfo(): Promise<{ update: string | null; runtime: string | null; dev: boolean }> {
+  if (__DEV__ || !requireOptionalNativeModule('ExpoUpdates')) return { update: null, runtime: null, dev: __DEV__ };
+  try {
+    const Updates = await import('expo-updates');
+    return {
+      update: Updates.isEnabled && !Updates.isEmbeddedLaunch && Updates.updateId ? Updates.updateId.slice(0, 8) : null,
+      runtime: Updates.runtimeVersion ? Updates.runtimeVersion.slice(0, 8) : null,
+      dev: false,
+    };
+  } catch {
+    return { update: null, runtime: null, dev: false };
+  }
+}

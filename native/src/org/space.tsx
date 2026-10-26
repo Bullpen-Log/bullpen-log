@@ -2,12 +2,15 @@ import { type Href, router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SpacePickButton } from '~/org/space-pick';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { NO_ORG, parseSpaceKey, spaceLabel, spaceTabs, type SpaceTab } from '@/lib/org/space-nav';
+import { NO_ORG, parseSpaceKey, spaceRoleWord, spaceTabs, type SpaceTab } from '@/lib/org/space-nav';
 import { READABLE } from '~/lib/layout';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { CoachTab } from '~/org/coach';
 import { PlayerTab } from '~/org/player';
-import { Card } from '~/org/parts';
+import { Card, KIND_WORD } from '~/org/parts';
+import { useUnreadNotifications } from '~/home/notifications';
+import { Icon } from '~/shell/icon';
+import { Wordmark } from '~/shell/wordmark';
 import { spaceOf, useSpace } from '~/org/space-store';
 
 /**
@@ -31,8 +34,19 @@ export function OrgSpaceView({ bottom }: { bottom: number }) {
   const nav = orgTabsOf(sp.key, space?.kind ?? null, sp.tabs[sp.key]);
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: c.page }]}>
-      <View style={[st.bar, { paddingTop: inset.top, backgroundColor: c.page }]}>
-        {space ? <SpacePickButton label={spaceLabel(space)} c={c} /> : <Text style={[st.pickText, { color: c.ink }]}>팀 · 레슨장</Text>}
+      {/* 머리 한 줄(계약 9-3) — 왼쪽 싱커 이름표 · 가운데 고르개(조직 이름 ▾ / '팀 · 대표') · 오른쪽 알림 종. 내 싱커 홈 머리와 같은 높이 */}
+      <View style={{ paddingTop: inset.top, backgroundColor: c.page }}>
+        <View style={st.bar}>
+          <View style={st.left} pointerEvents="none">
+            <Wordmark size={17} color={c.ink} />
+          </View>
+          {space ? (
+            <SpacePickButton label={space.name} sub={`${KIND_WORD[space.kind]} · ${spaceRoleWord(space)}`} c={c} />
+          ) : (
+            <Text style={[st.pickText, { color: c.ink }]}>팀 · 레슨장</Text>
+          )}
+          <Bell c={c} />
+        </View>
       </View>
       <ScrollView key={`${sp.key}:${nav?.tab ?? ''}`} contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: bottom + 24 }, READABLE]}>
         {sp.key === NO_ORG ? (
@@ -44,6 +58,23 @@ export function OrgSpaceView({ bottom }: { bottom: number }) {
         )}
       </ScrollView>
     </View>
+  );
+}
+
+/** 알림 종 — 내 알림(공간과 상관없이 같은 목록). 오늘 할 일 · 체크인은 내 싱커 것이라 여기 창에는 알림만 */
+function Bell({ c }: { c: Palette }) {
+  const pending = useUnreadNotifications();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={pending > 0 ? `알림, 안 읽은 알림 ${pending}개` : '알림'}
+      onPress={() => router.push({ pathname: '/notice' as Href as never, params: { only: '1' } })}
+      hitSlop={6}
+      style={({ pressed }) => [st.bell, pressed && { backgroundColor: c.chip }]}
+    >
+      <Icon name="bell" size={19} color={c.muted} />
+      {pending > 0 ? <View style={[st.dot, { backgroundColor: c.warn, borderColor: c.page }]} /> : null}
+    </Pressable>
   );
 }
 
@@ -68,6 +99,9 @@ function NoOrg({ c }: { c: Palette }) {
 }
 
 const st = StyleSheet.create({
-  bar: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingBottom: 6 },
+  bar: { height: 56, alignItems: 'center', justifyContent: 'center' },
+  left: { position: 'absolute', left: 16, height: 56, justifyContent: 'center' },
+  bell: { position: 'absolute', right: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  dot: { position: 'absolute', right: 10, top: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2 },
   pickText: { fontSize: 17, fontWeight: '700' },
 });
