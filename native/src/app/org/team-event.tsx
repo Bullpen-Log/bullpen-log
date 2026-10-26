@@ -147,6 +147,8 @@ function Plans({ d, org, c }: Part) {
       <Card c={c}>
         {d.plans.length === 0 ? <Empty text="메뉴는 계획이라 선수 기록에 안 들어가요. 끝난 뒤 수행일지로 남겨요." c={c} /> : null}
         <SmallLink label="+ 메뉴 만들기" onPress={() => open()} c={c} />
+        {/* 다시 쓰기(계약 10-4 ②) — 지난 일정의 메뉴를 가져와 고친다 */}
+        <SmallLink label="지난 일정에서 가져오기" onPress={() => router.push(`/org/plan-copy?org=${org}&event=${d.event.id}` as Href)} c={c} />
       </Card>
     </View>
   );

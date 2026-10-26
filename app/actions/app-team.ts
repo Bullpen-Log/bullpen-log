@@ -9,7 +9,7 @@ import { eventLine, notifyEventPlayers } from '@/lib/org/notify-org';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
 import { allExercises, allGuides, exercisesByIds, trainingGuides, visibleExercises } from '@/lib/library-cache';
-import { memberScope, ORG_DUPLICATE_MS } from '@/lib/org/rules';
+import { isDateKey, memberScope, ORG_DUPLICATE_MS } from '@/lib/org/rules';
 import { coachOrg, myMember } from '@/lib/org/app-access';
 import { ORG_LOST, orgOpenHref } from '@/lib/org/space-nav';
 import { cleanHomeworkItems, homeworkDose, readHomeworkItems } from '@/lib/org/homework';
@@ -25,12 +25,15 @@ import {
   PITCH_LIMIT_MAX,
   PLAN_TITLE_MAX,
   cleanPlanMembers,
+  copyPlanTargets,
   eventMemberIds,
   isAttendReply,
   isOutingRole,
   planMemberIds,
   planWork,
   replyCounts,
+  unionPlanMembers,
+  weekCopyKey,
   type AttendReply,
   type OutingRole,
 } from '@/lib/org/team';
@@ -281,6 +284,119 @@ export async function loadPlan(
     : null;
   return { ok: true, plan: p ? { ...p, items: readHomeworkItems(p.items) } : null };
 }
+
+/* ── 다시 쓰기(계약 10-4 ②) — 지난 일정의 메뉴 가져오기 · 한 주 복사. 복사본은 그 날짜의 새 계획: 참석 · 등판 · 수행은 안 옮기고,
+   원본을 고쳐도 복사본 · 지난 기록은 그대로(행을 새로 만든다). 처방은 라이브러리 운동 · 드릴 그대로 — 개인 엔진 · 안전 거름은 선수 쪽에서 그대로 ── */
+
+export type PlanSource = { id: string; date: string; time: string | null; title: string; plans: string[] };
+
+/** 메뉴를 가져올 일정 — 메뉴가 있는 이 조직 일정, 가까운 날부터 30(지난 60일 ~ 앞으로 14일) */
+export async function loadPlanSources(orgId: string, eventId: string): Promise<{ ok: false; to: string } | { ok: true; sources: PlanSource[] }> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const today = toDateKey(appNow());
+  const events = await prisma.orgEvent.findMany({
+    where: { orgId, id: { not: String(eventId) }, date: { gte: dbDate(shiftDateKey(today, -60)), lte: dbDate(shiftDateKey(today, 14)) } },
+    orderBy: [{ date: 'desc' }, { time: 'desc' }],
+    select: { id: true, date: true, time: true, title: true },
+  });
+  const plans = events.length
+    ? await prisma.orgPlan.findMany({ where: { orgId, eventId: { in: events.map((e) => e.id) } }, orderBy: { createdAt: 'asc' }, select: { eventId: true, title: true } })
+    : [];
+  const sources = events
+    .map((e) => ({ id: e.id, date: toDateKey(e.date), time: e.time, title: e.title, plans: plans.filter((p) => p.eventId === e.id).map((p) => p.title) }))
+    .filter((e) => e.plans.length)
+    .slice(0, 30);
+  return { ok: true, sources };
+}
+
+/** 지난 일정의 메뉴를 이 일정으로 — 'add' 더하기 · 'replace' 이 일정의 메뉴를 바꾸기(이 일정의 참석 · 수행은 그대로). 2분 안 같은 복사는 한 번 */
+export async function copyPlansFrom(orgId: string, fromEventId: string, toEventId: string, mode: unknown): Promise<{ ok: true; copied: number } | { ok: false; error: string }> {
+  const c = await coachOrg(orgId);
+  if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
+  if (mode !== 'add' && mode !== 'replace') return { ok: false, error: '더할지 바꿀지 골라 주세요.' };
+  const [from, to] = await Promise.all([eventOf(orgId, fromEventId), eventOf(orgId, toEventId)]);
+  if (!from || !to || from.id === to.id) return { ok: false, error: '일정을 찾을 수 없어요.' };
+  if (to.status === 'canceled') return { ok: false, error: '취소된 일정이에요.' };
+  const [src, players, recent] = await Promise.all([
+    prisma.orgPlan.findMany({ where: { orgId, eventId: from.id }, orderBy: { createdAt: 'asc' }, select: { title: true, items: true, memberIds: true } }),
+    activePlayers(orgId),
+    prisma.orgPlan.findMany({ where: { orgId, eventId: to.id, createdById: c.user.id, createdAt: { gte: new Date(appNowMs() - ORG_DUPLICATE_MS) } }, select: { title: true, items: true, memberIds: true } }),
+  ]);
+  if (src.length === 0) return { ok: false, error: '가져올 메뉴가 없어요.' };
+  const targets = eventMemberIds(to, players.map((p) => p.id));
+  const rows = src.flatMap((p) => {
+    const memberIds = copyPlanTargets(p.memberIds, targets);
+    return memberIds ? [{ title: p.title, items: readHomeworkItems(p.items), memberIds }] : [];
+  });
+  /* 신호 끊김 뒤 재전송 — 방금 같은 것을 만들었으면 다시 안 만든다 */
+  const same = (r: (typeof rows)[number]) => recent.some((x) => x.title === r.title && JSON.stringify(x.items) === JSON.stringify(r.items) && x.memberIds.join() === r.memberIds.join());
+  if (rows.length && rows.every(same)) return { ok: true, copied: 0 };
+  await prisma.$transaction([
+    ...(mode === 'replace' ? [prisma.orgPlan.deleteMany({ where: { orgId, eventId: to.id } })] : []),
+    ...rows.map((r) => prisma.orgPlan.create({ data: { orgId, eventId: to.id, title: r.title, items: r.items, memberIds: r.memberIds, createdById: c.user.id } })),
+  ]);
+  if (rows.length) await tellPlan(orgId, to, unionPlanMembers(rows.map((r) => r.memberIds)), mode === 'replace' ? '훈련 메뉴가 바뀌었어요' : '훈련 메뉴가 올라왔어요');
+  return { ok: true, copied: rows.length };
+}
+
+/**
+ * 한 주 복사 — fromMonday 주의 일정(취소 뺌)과 그 메뉴를 toMonday 주의 같은 요일로. 같은 날짜 · 시각 · 제목이 이미 있으면 건너뛴다(다시 눌러도 한 번).
+ * 떠난 회원의 레슨은 안 옮긴다. 알림은 선수마다 한 번('다음 주 일정 n개가 잡혔어요').
+ */
+export async function copyWeek(orgId: string, fromMonday: string, toMonday: string): Promise<{ ok: true; events: number; skipped: number } | { ok: false; error: string }> {
+  const c = await coachOrg(orgId);
+  if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
+  const monday = (k: string) => isDateKey(k) && new Date(`${k}T00:00:00Z`).getUTCDay() === 1;
+  if (!monday(fromMonday) || !monday(toMonday) || fromMonday === toMonday) return { ok: false, error: '복사할 주를 다시 골라 주세요.' };
+  const gap = Math.round((Date.parse(`${toMonday}T00:00:00Z`) - Date.parse(`${fromMonday}T00:00:00Z`)) / 86400000);
+  const [src, existing, players] = await Promise.all([
+    prisma.orgEvent.findMany({
+      where: { orgId, date: { gte: dbDate(fromMonday), lte: dbDate(shiftDateKey(fromMonday, 6)) }, status: { not: 'canceled' } },
+      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+      select: { id: true, date: true, time: true, kind: true, title: true, memo: true, memberId: true },
+    }),
+    prisma.orgEvent.findMany({ where: { orgId, date: { gte: dbDate(toMonday), lte: dbDate(shiftDateKey(toMonday, 6)) } }, select: { date: true, time: true, title: true } }),
+    activePlayers(orgId),
+  ]);
+  if (src.length === 0) return { ok: false, error: '이 주에 복사할 일정이 없어요.' };
+  const taken = new Set(existing.map((e) => weekCopyKey({ date: toDateKey(e.date), time: e.time, title: e.title })));
+  const active = players.map((p) => p.id);
+  const plans = await prisma.orgPlan.findMany({ where: { orgId, eventId: { in: src.map((e) => e.id) } }, orderBy: { createdAt: 'asc' }, select: { eventId: true, title: true, items: true, memberIds: true } });
+  const made: { date: string; memberId: string | null }[] = [];
+  let skipped = 0;
+  await prisma.$transaction(async (tx) => {
+    for (const e of src) {
+      const date = shiftDateKey(toDateKey(e.date), gap);
+      if (taken.has(weekCopyKey({ date, time: e.time, title: e.title })) || (e.memberId && !active.includes(e.memberId))) {
+        skipped += 1;
+        continue;
+      }
+      const ev = await tx.orgEvent.create({
+        data: { orgId, date: dbDate(date), time: e.time, kind: e.kind, title: e.title, memo: e.memo, memberId: e.memberId, createdById: c.user.id },
+        select: { id: true },
+      });
+      const targets = eventMemberIds(e, active);
+      for (const p of plans.filter((x) => x.eventId === e.id)) {
+        const memberIds = copyPlanTargets(p.memberIds, targets);
+        if (memberIds) await tx.orgPlan.create({ data: { orgId, eventId: ev.id, title: p.title, items: readHomeworkItems(p.items), memberIds, createdById: c.user.id } });
+      }
+      made.push({ date, memberId: e.memberId });
+    }
+  });
+  /* 선수마다 한 번 — 오늘 · 앞으로의 일정만 센다 */
+  const today = toDateKey(appNow());
+  const count = new Map<string, number>();
+  for (const m of made.filter((x) => x.date >= today))
+    for (const p of players.filter((x) => x.userId && eventMemberIds(m, active).includes(x.id))) count.set(p.userId!, (count.get(p.userId!) ?? 0) + 1);
+  await Promise.all(
+    [...count].map(([userId, n]) => notify(userId, { kind: 'team', title: `${dayLabelOf(toMonday)} 주 일정 ${n}개가 잡혔어요`, link: orgOpenHref(orgId, 'p', 'schedule') }))
+  );
+  revalidatePath('/manage');
+  return { ok: true, events: made.length, skipped };
+}
+
+const dayLabelOf = (key: string) => `${Number(key.slice(5, 7))}월 ${Number(key.slice(8, 10))}일`;
 
 /* ── 코치: 수행일지 — 선수의 그날 운동 판에 코치 세트로(writeOrgWork) ── */
 

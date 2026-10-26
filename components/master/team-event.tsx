@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import {
   confirmOutings,
+  copyPlansFrom,
   deletePlan,
   loadEventDetail,
   loadMemberWork,
   loadPlan,
+  loadPlanSources,
   markAllAttended,
   recordAttendedAsPlan,
   recordWork,
@@ -15,6 +17,7 @@ import {
   setAttended,
   type EventDetail,
   type EventMemberView,
+  type PlanSource,
 } from '@/app/actions/app-team';
 import { Badge, Button, Card, Field, Input } from '@/components/ui';
 import { toast } from '@/components/toast';
@@ -130,18 +133,24 @@ function Attendance({ d, orgId, busy, send, past }: Part & { past: boolean }) {
 }
 
 function Plans({ d, orgId, busy, send, reload }: Part) {
-  const [open, setOpen] = useState<string | 'new' | null>(null);
+  const [open, setOpen] = useState<string | 'new' | 'copy' | null>(null);
   const lib = useLibrary(orgId);
   return (
     <Card className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-bold text-ink">훈련 메뉴</h2>
-        <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(open === 'new' ? null : 'new')}>
-          {open === 'new' ? '닫기' : '메뉴 만들기'}
-        </Button>
+        <span className="flex gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(open === 'copy' ? null : 'copy')}>
+            {open === 'copy' ? '닫기' : '지난 일정에서 가져오기'}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(open === 'new' ? null : 'new')}>
+            {open === 'new' ? '닫기' : '메뉴 만들기'}
+          </Button>
+        </span>
       </div>
       <p className="text-xs text-muted">메뉴는 계획이라 선수 기록에 안 들어가요. 끝난 뒤 수행일지로 남겨요.</p>
       {open === 'new' ? <PlanForm d={d} orgId={orgId} lib={lib} planId={null} onDone={() => (setOpen(null), reload())} /> : null}
+      {open === 'copy' ? <PlanCopy orgId={orgId} eventId={d.event.id} busy={busy} send={send} onDone={() => setOpen(null)} /> : null}
       <ul className="divide-y divide-line">
         {d.plans.map((pl) => (
           <li key={pl.id} className="space-y-1 py-2.5 text-sm">
@@ -176,6 +185,51 @@ function Plans({ d, orgId, busy, send, reload }: Part) {
         ))}
       </ul>
     </Card>
+  );
+}
+
+/** 지난 일정에서 메뉴 가져오기(계약 10-4 ②) — 앱 org/plan-copy 와 같은 동작. 복사본은 새 메뉴, 이 일정의 참석 · 수행은 그대로 */
+function PlanCopy({ orgId, eventId, busy, send, onDone }: { orgId: string; eventId: string; busy: boolean; send: Part['send']; onDone: () => void }) {
+  const [sources, setSources] = useState<PlanSource[] | null>(null);
+  const [pick, setPick] = useState('');
+  useEffect(() => {
+    let live = true;
+    void loadPlanSources(orgId, eventId).then((r) => live && setSources(r.ok ? r.sources : []));
+    return () => {
+      live = false;
+    };
+  }, [orgId, eventId]);
+  if (!sources) return <p className="text-xs text-muted">불러오는 중…</p>;
+  if (sources.length === 0) return <p className="text-xs text-muted">메뉴가 있는 지난 일정이 없어요.</p>;
+  const run = (mode: 'add' | 'replace') => void send(copyPlansFrom(orgId, pick, eventId, mode), (r) => (r.copied ? `메뉴 ${r.copied}개를 가져왔어요` : '이미 가져왔어요')).then(onDone);
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-surface-2 p-2">
+      <select
+        aria-label="메뉴를 가져올 일정"
+        value={pick}
+        onChange={(e) => setPick(e.target.value)}
+        className="min-w-0 flex-1 rounded-xl border border-line bg-surface px-2 py-1.5 text-sm text-ink"
+      >
+        <option value="">일정 고르기</option>
+        {sources.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.date} {s.time ?? ''} {s.title} — {s.plans.join(' · ')}
+          </option>
+        ))}
+      </select>
+      <Button type="button" variant="secondary" size="sm" disabled={!pick || busy} onClick={() => run('add')}>
+        더하기
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={!pick || busy}
+        onClick={() => window.confirm('이 일정의 메뉴를 지우고 가져온 메뉴로 바꿀까요? 참석 · 수행은 그대로예요.') && run('replace')}
+      >
+        바꾸기
+      </Button>
+    </div>
   );
 }
 

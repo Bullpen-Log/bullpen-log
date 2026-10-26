@@ -66,6 +66,9 @@ import {
   planMemberIds,
   planWork,
   replyCounts,
+  copyPlanTargets,
+  unionPlanMembers,
+  weekCopyKey,
 } from '@/lib/org/team';
 import { isOutingTitle } from '@/lib/calendar-event';
 import {
@@ -905,6 +908,24 @@ console.log(
       team.includes('where: { userId: r.user.id, date: e.date, enteredById: null, orgEventId: null, ...(ids.length ? { exerciseId: { in: ids } } : {}), ...(from ? { recordedAt: { gte: from } } : {}) }') && team.includes('if (!ids.length && !from) return { ok: true, linked: 0 };')
     );
     check("일정 화면 '운동하기'는 메뉴를 오늘 운동에 넣고, 마치면 이 일정에 잇기", src('native/src/app/org/my-event.tsx').includes("'app-team.menuToToday'") && src('native/src/org/space-store.ts').includes("rpc<{ ok: boolean; linked?: number }>('app-team.linkMyWork', ev.memberId, ev.eventId, ev.since)"));
+  }
+  {
+    /* 다시 쓰기 · 오늘 브리핑(계약 10-4) */
+    check('복사한 메뉴 대상 — 모두는 모두, 고른 선수는 새 일정 선수로 좁힘, 아무도 안 남으면 버림', JSON.stringify(copyPlanTargets([], ['a', 'b'])) === '[]' && JSON.stringify(copyPlanTargets(['a', 'c'], ['a', 'b'])) === '["a"]' && copyPlanTargets(['c'], ['a', 'b']) === null);
+    check('알림 명단 — 하나라도 모두면 모두, 아니면 합침', JSON.stringify(unionPlanMembers([['a'], []])) === '[]' && JSON.stringify(unionPlanMembers([['a'], ['b', 'a']])) === '["a","b"]');
+    check('한 주 복사의 같은 일정', weekCopyKey({ date: '2026-11-03', time: '19:00', title: '훈련' }) === weekCopyKey({ date: '2026-11-03', time: '19:00', title: '훈련' }) && weekCopyKey({ date: '2026-11-03', time: null, title: '훈련' }) !== weekCopyKey({ date: '2026-11-03', time: '19:00', title: '훈련' }));
+    const team = src('app/actions/app-team.ts');
+    check(
+      '복사는 새 행만 — 참석 · 등판 · 수행은 안 옮기고, 바꾸기는 이 일정의 메뉴만 지움',
+      team.includes("...(mode === 'replace' ? [prisma.orgPlan.deleteMany({ where: { orgId, eventId: to.id } })] : [])") &&
+        !/copyWeek[\s\S]{0,4000}orgEventAttendee\.create|copyWeek[\s\S]{0,4000}orgOuting\.create|copyWeek[\s\S]{0,4000}userExerciseSet/.test(team.slice(team.indexOf('export async function copyWeek'), team.indexOf('const dayLabelOf')))
+    );
+    check('한 주 복사는 같은 일정이 있으면 건너뛰고 · 떠난 회원 레슨은 안 옮기고 · 알림은 선수마다 한 번', team.includes('taken.has(weekCopyKey({ date, time: e.time, title: e.title })) || (e.memberId && !active.includes(e.memberId))') && team.includes('count.set(p.userId!, (count.get(p.userId!) ?? 0) + 1)'));
+    const org = src('app/actions/app-org.ts');
+    check(
+      '브리핑 — 원래 기록에서 셈(치우기 없음) · 선수 기록은 트레이닝 공유만 · 숙제 영상은 받은 것에만',
+      org.includes('memberScope(m.consent, true).training).map((m) => [m.user!.id, m])') && org.includes("where: { orgId, status: 'reported' }") && !org.includes("status: 'submitted' }, orderBy")
+    );
   }
   check('알림 대상 → 탭', targetTab('TEAM', 'p', 'homework') === 'mytraining' && targetTab('LESSON', 'p', 'homework') === 'homework' && targetTab('TEAM', 'c', 'inbox') === 'today' && targetTab('LESSON', 'c', 'inbox') === 'inbox' && targetTab('TEAM', 'p', 'share') === null);
   check('운동 돌아올 곳 왕복', JSON.stringify(parseOrgReturn(orgReturnParam('o1:p', 'homework'))) === '{"key":"o1:p","tab":"homework"}' && parseOrgReturn('org:x:y') === null);

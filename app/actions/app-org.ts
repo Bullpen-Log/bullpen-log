@@ -147,6 +147,15 @@ export type OrgToday = {
   }[];
   /** 오늘 일정이 없을 때 보일 다음 일정 하나(계약 9-4) */
   next?: { id: string; date: string; time: string | null; kind: string; title: string } | null;
+  /**
+   * 오늘 브리핑(계약 10-4 ③) — 원래 기록에서 셈해 따로 '치움'이 없다(원래 일을 처리하면 빠진다). 기록 없음을 '나쁨'으로 읽지 않는다.
+   * unanswered: 내일 ~ 7일 안 일정 가운데 답 안 한 선수(앱 연결된 대상)가 있는 것. review: 확인 대기 — 지난 14일(오늘 뺌, 오늘은 일정 줄에 있음) 일정에
+   * 선수가 이은 기록이 있는데 참석 확인 전인 것 · 선수가 '했어요'라고 한 숙제(영상은 '받은 것'에 이미 있어 안 넣음).
+   */
+  briefing?: {
+    unanswered: { id: string; date: string; time: string | null; title: string; silent: number }[];
+    review: { kind: 'work' | 'homework'; id: string; memberId: string | null; date: string; title: string; line: string }[];
+  };
   counts: { members: number; pending: number; placeholders: number };
   /** 팔 상태가 주의 · 위험인 회원 — 위험부터(옛 앱 화면이 읽는다. 새 화면은 watch) */
   alerts: ({ memberId: string; nickname: string } & ArmLine)[];
@@ -203,6 +212,7 @@ export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: stri
       };
     }),
     next: next ? { ...next, date: toDateKey(next.date) } : null,
+    briefing: await briefingOf(orgId, todayKey, members),
     counts: {
       members: members.length,
       pending: members.filter((m) => m.user && !m.consent).length,
@@ -213,6 +223,49 @@ export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: stri
       .map((r) => ({ memberId: r.memberId, nickname: r.nickname, ...armLine(r.status) })),
     watch: watchOf(members, board.rows),
   };
+}
+
+async function briefingOf(orgId: string, todayKey: string, members: Awaited<ReturnType<typeof loadPlayers>>): Promise<NonNullable<OrgToday['briefing']>> {
+  const linked = members.filter((m) => m.user).map((m) => m.id);
+  /* 선수 기록은 트레이닝을 보여 주는 선수만(일정 화면 selfSets 와 같은 선) */
+  const memberOfUser = new Map(members.filter((m) => m.user && memberScope(m.consent, true).training).map((m) => [m.user!.id, m]));
+  const [soon, recent, reported] = await Promise.all([
+    prisma.orgEvent.findMany({
+      where: { orgId, date: { gt: dbDate(todayKey), lte: dbDate(shiftDateKey(todayKey, 7)) }, status: { not: 'canceled' } },
+      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+      select: { id: true, date: true, time: true, title: true, memberId: true },
+    }),
+    prisma.orgEvent.findMany({
+      where: { orgId, date: { gte: dbDate(shiftDateKey(todayKey, -14)), lt: dbDate(todayKey) }, status: { not: 'canceled' } },
+      orderBy: [{ date: 'desc' }],
+      select: { id: true, date: true, title: true },
+    }),
+    prisma.orgAssignment.findMany({ where: { orgId, status: 'reported' }, orderBy: { updatedAt: 'desc' }, take: 10, select: { id: true, memberId: true, updatedAt: true } }),
+  ]);
+  const [answers, selfSets, attended] = await Promise.all([
+    soon.length ? prisma.orgEventAttendee.findMany({ where: { eventId: { in: soon.map((e) => e.id) }, reply: { not: null } }, select: { eventId: true, memberId: true } }) : [],
+    recent.length
+      ? prisma.userExerciseSet.findMany({ where: { orgEventId: { in: recent.map((e) => e.id) }, enteredById: null }, select: { orgEventId: true, userId: true }, distinct: ['orgEventId', 'userId'] })
+      : [],
+    recent.length ? prisma.orgEventAttendee.findMany({ where: { eventId: { in: recent.map((e) => e.id) }, attended: true }, select: { eventId: true, memberId: true } }) : [],
+  ]);
+  const unanswered = soon
+    .map((e) => {
+      const targets = eventMemberIds(e, linked);
+      const said = new Set(answers.filter((a) => a.eventId === e.id).map((a) => a.memberId));
+      return { id: e.id, date: toDateKey(e.date), time: e.time, title: e.title, silent: targets.filter((id) => !said.has(id)).length };
+    })
+    .filter((e) => e.silent > 0)
+    .slice(0, 5);
+  const work = recent.flatMap((e) => {
+    const waiting = selfSets.filter((x) => x.orgEventId === e.id).map((x) => memberOfUser.get(x.userId)).filter((m) => m && !attended.some((a) => a.eventId === e.id && a.memberId === m.id));
+    return waiting.length ? [{ kind: 'work' as const, id: e.id, memberId: null, date: toDateKey(e.date), title: e.title, line: `선수 기록 ${waiting.length}명 · 참석 확인 전` }] : [];
+  });
+  const nameOf = new Map(members.map((m) => [m.id, m.nickname]));
+  const homework = reported
+    .filter((a) => nameOf.has(a.memberId))
+    .map((a) => ({ kind: 'homework' as const, id: a.id, memberId: a.memberId, date: toDateKey(a.updatedAt), title: nameOf.get(a.memberId)!, line: '숙제를 했다고 함 · 확인 전' }));
+  return { unanswered, review: [...work, ...homework].slice(0, 10) };
 }
 
 function watchOf(members: Awaited<ReturnType<typeof loadPlayers>>, rows: { memberId: string; status: CoachArmStatus }[]): OrgToday['watch'] {

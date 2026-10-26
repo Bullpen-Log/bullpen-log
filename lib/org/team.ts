@@ -73,3 +73,20 @@ export function replyCounts(replies: readonly (string | null)[]): Record<AttendR
     maybe: replies.filter((r) => r === 'maybe').length,
   };
 }
+
+/* ── 다시 쓰기(계약 10-4 ②) — 지난 일정의 메뉴 가져오기 · 한 주 복사. 복사본은 새 계획이다(참석 · 등판 · 수행은 안 옮김) ── */
+
+/** 복사한 메뉴의 대상 — 새 일정의 선수로 좁힌다. 고른 선수가 아무도 안 남으면 null(그 메뉴는 버림 — 빈 명단은 '모두'라서) */
+export function copyPlanTargets(memberIds: readonly string[], eventMembers: readonly string[]): string[] | null {
+  if (memberIds.length === 0) return [];
+  const kept = memberIds.filter((id) => eventMembers.includes(id));
+  return kept.length ? kept : null;
+}
+
+/** 여러 메뉴의 대상을 합친 알림 명단 — 하나라도 '모두'면 모두([]) */
+export function unionPlanMembers(lists: readonly (readonly string[])[]): string[] {
+  return lists.some((l) => l.length === 0) ? [] : [...new Set(lists.flat())];
+}
+
+/** 한 주 복사의 같은 일정 — 날짜 · 시각 · 제목이 같으면 이미 있는 것(다시 눌러도 한 번) */
+export const weekCopyKey = (e: { date: string; time: string | null; title: string }) => `${e.date}|${e.time ?? ''}|${e.title}`;

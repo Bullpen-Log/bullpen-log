@@ -1,6 +1,6 @@
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import type { loadInvite, loadOrgEvents, loadOrgMembers, loadOrgNotes, loadOrgToday, makeInvite, MySpace } from '@/app/actions/app-org';
 import { EVENT_KIND_LABEL, type EventKind } from '@/lib/org/rules';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
@@ -90,6 +90,7 @@ function TodayTab({ space, c }: { space: MySpace; c: Palette }) {
   return (
     <View style={{ gap: 16 }}>
       <TodayEvents space={space} data={data} c={c} />
+      <Briefing space={space} data={data} c={c} />
       <Watch space={space} data={data} c={c} />
       {/* 레슨장은 '받은 것'이 따로 탭 — 팀은 오늘 화면 칸 그대로(계약 8-3) */}
       {team ? <Inbox space={space} c={c} /> : null}
@@ -180,6 +181,62 @@ function TodayEvents({ space, data, c }: { space: MySpace; data: Extract<Today, 
         )}
       </Card>
     </View>
+  );
+}
+
+/**
+ * 오늘 브리핑(계약 10-4 ③) — 확인 대기 · 답 안 한 일정. 있을 때만, 줄마다 원래 자리로. 원래 일을 처리하면 서버가 안 보내 저절로 빠진다(따로 치우기 없음).
+ * 받은 것(질문 · 정정 · 숙제 영상)은 그 칸에 있어 여기 다시 안 넣는다.
+ */
+function Briefing({ space, data, c }: { space: MySpace; data: Extract<Today, { ok: true }>; c: Palette }) {
+  const b = data.briefing;
+  if (!b || (b.review.length === 0 && b.unanswered.length === 0)) return null;
+  const row = (key: string, title: string, line: string, onPress: () => void, first: boolean) => (
+    <Pressable
+      key={key}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [st.row, { minHeight: 48 }, !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }, pressed && { opacity: 0.6 }]}
+    >
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[TYPE.body, { color: c.ink }]} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text style={[TYPE.sub, { color: c.muted }]}>{line}</Text>
+      </View>
+      <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
+    </Pressable>
+  );
+  return (
+    <>
+      {b.review.length ? (
+        <View style={{ gap: 6 }}>
+          <GroupTitle title={`확인 대기 ${b.review.length}`} c={c} />
+          <Card c={c} style={{ paddingVertical: 0 }}>
+            {b.review.map((r, i) =>
+              row(
+                `${r.kind}:${r.id}`,
+                r.kind === 'work' ? `${dayLabel(r.date)} · ${r.title}` : r.title,
+                r.line,
+                () =>
+                  r.kind === 'work'
+                    ? openEvent(space, r.date, r.id)
+                    : router.push(orgRecordHref(space.orgId, 'c', { kind: 'homework', id: r.id, member: r.memberId ?? undefined }) as Href),
+                i === 0
+              )
+            )}
+          </Card>
+        </View>
+      ) : null}
+      {b.unanswered.length ? (
+        <View style={{ gap: 6 }}>
+          <GroupTitle title="답 안 한 일정 · 7일 안" c={c} />
+          <Card c={c} style={{ paddingVertical: 0 }}>
+            {b.unanswered.map((e, i) => row(e.id, `${dayWithWeekday(e.date)} · ${e.time ?? '종일'} · ${e.title}`, `답 안 함 ${e.silent}명`, () => openEvent(space, e.date, e.id), i === 0))}
+          </Card>
+        </View>
+      ) : null}
+    </>
   );
 }
 
@@ -407,9 +464,32 @@ export function ScheduleTab({ space, c }: { space: MySpace; c: Palette }) {
           )}
         </Card>
       )}
-      <Actions items={[{ label: `+ ${dayLabel(day)} ${space.kind === 'TEAM' ? '일정' : '활동'}`, onPress: () => openEvent(space, day) }]} c={c} />
+      <Actions
+        items={[
+          { label: `+ ${dayLabel(day)} ${space.kind === 'TEAM' ? '일정' : '활동'}`, onPress: () => openEvent(space, day) },
+          ...(withEvents.length ? [{ label: '이 주를 다음 주로 복사', onPress: () => copyWeekAsk(space, from, () => move(7)) }] : []),
+        ]}
+        c={c}
+      />
     </View>
   );
+}
+
+/** 한 주 복사(계약 10-4 ②) — 일정 · 메뉴만 옮기고 참석 · 등판 · 수행은 안 옮긴다. 같은 일정이 이미 있으면 건너뜀 */
+function copyWeekAsk(space: MySpace, from: string, after: () => void) {
+  const to = shiftDateKey(from, 7);
+  Alert.alert('이 주를 다음 주로 복사할까요?', `${dayLabel(from)} 주의 일정과 메뉴를 ${dayLabel(to)} 주 같은 요일로 옮겨요. 참석 · 등판 · 수행은 안 옮겨요.`, [
+    { text: '취소', style: 'cancel' },
+    {
+      text: '복사',
+      onPress: async () => {
+        const r = await call<{ ok: true; events: number; skipped: number }>('app-team.copyWeek', space.orgId, from, to);
+        if (!r.ok) return toast(('error' in r && r.error) || '복사하지 못했어요.', 'error');
+        toast(`일정 ${r.events}개를 복사했어요${r.skipped ? ` · ${r.skipped}개는 이미 있어 건너뜀` : ''}`);
+        after();
+      },
+    },
+  ]);
 }
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
