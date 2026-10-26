@@ -156,8 +156,9 @@ function Work({ d, org, send, busy, c }: Part & { send: Send; busy: boolean }) {
   const menu = (m: EventMemberView) =>
     Alert.alert(
       m.nickname,
-      `${m.recordedSets ? `이 일정에 ${m.recordedSets}세트를 남겼어요.` : '아직 남긴 기록이 없어요.'}${m.ownSets ? `\n선수가 그날 메뉴의 운동을 직접 ${m.ownSets}세트 남겼어요.` : ''}`,
+      `${m.recordedSets ? `이 일정에 ${m.recordedSets}세트를 남겼어요.` : '아직 남긴 기록이 없어요.'}${m.selfSets ? `\n선수가 이 일정에서 직접 ${m.selfSets}세트를 했어요.` : m.ownSets ? `\n선수가 그날 메뉴의 운동을 직접 ${m.ownSets}세트 남겼어요.` : ''}`,
       [
+        ...(m.selfSets && !m.attended ? [{ text: '확인했어요(참석)', onPress: () => void send('참석으로 적었어요', 'app-team.setAttended', org, d.event.id, m.memberId, true) }] : []),
         ...(d.plans.length ? [{ text: '메뉴대로 했어요', onPress: () => void send((r) => `${r.sets ?? 0}세트를 남겼어요`, 'app-team.recordWork', org, d.event.id, m.memberId, 'plan') }] : []),
         { text: '고쳐 적기', onPress: () => router.push(`/org/work?org=${org}&event=${d.event.id}&member=${m.memberId}` as Href) },
         ...(m.recordedSets ? [{ text: '기록 빼기', style: 'destructive' as const, onPress: () => void send('기록을 뺐어요', 'app-team.recordWork', org, d.event.id, m.memberId, 'clear') }] : []),
@@ -193,9 +194,18 @@ function Work({ d, org, send, busy, c }: Part & { send: Send; busy: boolean }) {
             style={({ pressed }) => [st.row, i < d.members.length - 1 && line(c), pressed && { opacity: 0.6 }]}
           >
             <Text style={[TYPE.card, { color: c.ink, flex: 1 }]}>{m.nickname}</Text>
-            <Text style={[TYPE.sub, { color: m.recordedSets ? c.ok : c.muted }]}>
-              {!m.hasUser ? '앱 연결 대기' : !m.canTrain ? '트레이닝 비공개' : m.recordedSets ? `${m.recordedSets}세트 남김` : '기록 없음'}
-              {m.ownSets ? ' · 선수가 직접 남긴 기록 있음' : ''}
+            {/* 선수 기록(이 일정에서 '운동하기'로 직접 한 세트) · 확인 대기(코치가 아직 참석 · 수행을 안 봄) — 계약 9-6 ③-3 */}
+            <Text style={[TYPE.sub, { color: m.recordedSets || m.selfSets ? c.ok : c.muted }]}>
+              {!m.hasUser
+                ? '앱 연결 대기'
+                : !m.canTrain
+                  ? '트레이닝 비공개'
+                  : m.recordedSets
+                    ? `${m.recordedSets}세트 남김`
+                    : m.selfSets
+                      ? `선수 기록 ${m.selfSets}세트${m.attended ? '' : ' · 확인 대기'}`
+                      : '기록 없음'}
+              {m.ownSets && !m.selfSets ? ' · 선수가 직접 남긴 기록 있음' : ''}
             </Text>
             {m.canTrain ? <Text style={{ color: c.muted, fontSize: 17 }}>›</Text> : null}
           </Pressable>

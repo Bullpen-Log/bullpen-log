@@ -28,7 +28,7 @@ export function PlayerTab({ space, tab }: { space: MySpace; tab: string }) {
   const memberId = space.memberId!;
   switch (tab) {
     case 'schedule':
-      return <MyEvents memberId={memberId} />;
+      return <MyEvents memberId={memberId} orgId={space.orgId} />;
     case 'mytraining':
       return <MyTraining space={space} />;
     case 'notes':
@@ -116,7 +116,7 @@ function TeamToday({ space }: { space: MySpace }) {
       <View style={{ gap: 6 }}>
         <GroupTitle title={today.length ? '오늘' : '다음 일정'} c={c} />
         {next.length ? (
-          next.map((e) => <MyEvent key={e.id} e={e} memberId={space.memberId!} onChanged={() => void team.reload()} />)
+          next.map((e) => <MyEvent key={e.id} e={e} memberId={space.memberId!} orgId={space.orgId} onChanged={() => void team.reload()} />)
         ) : (
           <Card c={c}>
             <Empty text="2주 안에 잡힌 일정이 없어요." c={c} />
@@ -357,7 +357,7 @@ function MembershipCard({ space }: { space: MySpace }) {
 }
 
 /** 다가오는 일정(3단계) — 참석 응답(가요 · 못 가요 · 아직 몰라요 + 한 줄), 내 훈련 메뉴, 확정된 등판 */
-function MyEvents({ memberId }: { memberId: string }) {
+function MyEvents({ memberId, orgId }: { memberId: string; orgId: string }) {
   const c = usePalette();
   const { data, error, reload } = useLoad<Team>('app-team.loadMyTeam', memberId);
   return (
@@ -370,13 +370,14 @@ function MyEvents({ memberId }: { memberId: string }) {
           <Empty text="2주 안에 잡힌 일정이 없어요." c={c} />
         </Card>
       ) : (
-        data.events.map((e) => <MyEvent key={e.id} e={e} memberId={memberId} onChanged={() => void reload()} />)
+        data.events.map((e) => <MyEvent key={e.id} e={e} memberId={memberId} orgId={orgId} onChanged={() => void reload()} />)
       )}
     </View>
   );
 }
 
-function MyEvent({ e, memberId, onChanged }: { e: MyEventView; memberId: string; onChanged: () => void }) {
+/** 일정 카드 — 응답 · 메뉴 · 확정 등판. orgId 를 주면 '자세히'로 일정 하나 화면(코치가 남긴 수행 · 운동하기, 계약 9-6 ③-2) */
+export function MyEvent({ e, memberId, orgId, onChanged }: { e: MyEventView; memberId: string; orgId?: string; onChanged: () => void }) {
   const c = usePalette();
   const [busy, setBusy] = useState(false);
   const send = async (reply: AttendReply, note: string | null) => {
@@ -437,6 +438,16 @@ function MyEvent({ e, memberId, onChanged }: { e: MyEventView; memberId: string;
         })}
       </View>
       {e.note ? <Text style={[TYPE.sub, { color: c.muted }]}>남긴 말 · {e.note}</Text> : null}
+      {orgId ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push(`/org/my-event?org=${orgId}&id=${e.id}&member=${memberId}` as Href)}
+          hitSlop={6}
+          style={{ minHeight: 40, justifyContent: 'center' }}
+        >
+          <Text style={[TYPE.sub, { color: c.link, fontWeight: '600' }]}>수행 · 운동하기 ›</Text>
+        </Pressable>
+      ) : null}
     </Card>
   );
 }

@@ -713,7 +713,7 @@ console.log(
   check('코치 운동은 앞에 · 같은 운동은 한 번', reopened.exercises.map((e) => e.id).join() === 'sq,dl');
   check('선수 판 다시 열기는 예전 그대로(앞 판 이름 유지)', mergeReopened(daily, program).themeKey === 'lower' && mergeReopened(daily, program).themeLabel === '하체');
   const store = src('lib/org/team-work-store.ts');
-  check('한 활동의 코치 세트는 통째로 지우고 다시 넣음', store.includes('deleteMany({ where: { sessionId: id, orgEventId: a.orgEventId } })'));
+  check('한 활동의 코치 세트는 통째로 지우고 다시 넣음', store.includes('deleteMany({ where: { sessionId: id, orgEventId: a.orgEventId, enteredById: { not: null } } })'));
   check('세트를 바꾼 뒤 요약은 세트에서 다시 셈(summaryWrites)', store.includes('summaryWrites(a.userId'));
   check('프로그램이 org 판을 다른 운동 시작으로 안 봄', src('lib/program/load.ts').includes('!session.org && session.program?.key !== row.programKey'));
   check("저절로 닫기는 진행 중인 판만(마친 'org' 판은 안 건드림)", src('lib/workout/close-stale.ts').includes("status: 'ACTIVE', date: { lt: dayStart(now) }"));
@@ -804,7 +804,7 @@ console.log(
   check(
     '기록 알림 — 이상한 번호 · 종류는 버리고 탭만',
     parseOrgOpen('/org/open?org=o1&as=p&to=notes&rec=note.../x')?.rec === undefined &&
-      parseOrgOpen('/org/open?org=o1&as=p&to=notes&rec=event.e1')?.rec === undefined &&
+      parseOrgOpen('/org/open?org=o1&as=p&to=notes&rec=comment.c1')?.rec === undefined &&
       parseOrgOpen('/org/open?org=o1&as=p&to=notes&rec=note.n1&m=../x')?.rec?.member === undefined
   );
   check('기록 화면 주소', orgRecordHref('o1', 'p', { kind: 'note', id: 'n1' }) === '/org/record?org=o1&as=p&kind=note&id=n1');
@@ -875,6 +875,36 @@ console.log(
     const coach = src('native/src/org/coach.tsx');
     check('코치 일정은 빈 날을 안 그림 — 한 주 띠 + 일정 있는 날만', coach.includes('const withEvents = data ? days.filter((d) => data.events.some((e) => e.date === d)) : [];') && coach.includes('withEvents.map((d, di)'));
     check("오늘의 숫자 → 선수단 거르개", coach.includes("openRoster(space, filterOfWatch(g.k))") && coach.includes('nextRosterFilter = null;') && src('app/actions/app-org.ts').includes('watch: watchKindOf({ hasUser: !!m.user, consent: m.consent }, statusOf.get(m.id) ?? null)'));
+  }
+  {
+    /* ③ 흐름 잇기(계약 9-6 ③) */
+    const ev = parseOrgOpen(orgOpenHref('o1', 'p', 'schedule', { kind: 'event', id: 'e1' }));
+    check('일정 알림 왕복 · 기록 화면 주소(선수 · 코치)', JSON.stringify(ev?.rec) === '{"kind":"event","id":"e1"}' && orgRecordHref('o1', 'p', { kind: 'event', id: 'e1', member: 'm1' }) === '/org/my-event?org=o1&id=e1&member=m1' && orgRecordHref('o1', 'c', { kind: 'event', id: 'e1' }) === '/org/team-event?org=o1&id=e1');
+    check('공유 바꿈 · 나감 알림은 선수단 탭으로', targetTab('TEAM', 'c', 'roster') === 'roster' && targetTab('LESSON', 'c', 'roster') === 'roster');
+    const cal = src('app/actions/org-calendar.ts');
+    check(
+      '일정 알림 — 새로 · 바뀜(메모만은 안 보냄) · 취소 · 빠짐, 오늘 · 앞으로만',
+      cal.includes("title: '새 일정이 잡혔어요'") && cal.includes("title: '일정이 바뀌었어요'") && cal.includes("'일정이 취소됐어요'") && cal.includes("title: '일정이 빠졌어요'") &&
+        cal.includes('found.title !== title || found.memberId !== memberId') && !cal.includes('found.memo !== memo')
+    );
+    const team = src('app/actions/app-team.ts');
+    check("메뉴 알림은 2일 안 살아 있는 일정의 메뉴 대상만", team.includes("key > shiftDateKey(today, 2)) return;") && team.includes("await tellPlan(orgId, event, memberIds, '훈련 메뉴가 올라왔어요');"));
+    check('수행일지 알림은 남길 때만(빼기는 안 알림)', team.includes("title: '코치가 수행일지를 남겼어요'") && team.includes('if (items.length)\n    await notify(t.userId'));
+    check('공유 바꿈 · 나감은 대표 · 코치에게(앱 · PC)', src('app/actions/app-org.ts').includes('님이 나갔어요') && src('app/actions/app-org.ts').includes('님이 보여 주는 기록을 바꿨어요') && src('app/actions/sharing.ts').includes('notifyCoaches(member.orgId'));
+    check(
+      '코치 세트 바꾸기는 선수 세트(일정에 이은 것)를 안 지움',
+      src('lib/org/team-work-store.ts').includes('deleteMany({ where: { sessionId: id, orgEventId: a.orgEventId, enteredById: { not: null } } })')
+    );
+    check(
+      "'코치가 남긴 수행' · 수행일지 수 · 고쳐 적기는 코치 세트만",
+      team.includes("where: { orgEventId: eventId, enteredById: { not: null } }, _count") && team.includes('where: { userId: p.userId, orgEventId: eventId, enteredById: { not: null } }') &&
+        team.includes("where: { orgEventId: { in: ids }, enteredById: { not: null } } })") && team.includes('where: { userId, orgEventId: { in: events.map((e) => e.id) }, enteredById: { not: null } }')
+    );
+    check(
+      '내 기록 잇기 — 내 세트 · 그날 · 아직 안 이은 것 · 메뉴 운동(없으면 시작 뒤 것만)',
+      team.includes('where: { userId: r.user.id, date: e.date, enteredById: null, orgEventId: null, ...(ids.length ? { exerciseId: { in: ids } } : {}), ...(from ? { recordedAt: { gte: from } } : {}) }') && team.includes('if (!ids.length && !from) return { ok: true, linked: 0 };')
+    );
+    check("일정 화면 '운동하기'는 메뉴를 오늘 운동에 넣고, 마치면 이 일정에 잇기", src('native/src/app/org/my-event.tsx').includes("'app-team.menuToToday'") && src('native/src/org/space-store.ts').includes("rpc<{ ok: boolean; linked?: number }>('app-team.linkMyWork', ev.memberId, ev.eventId, ev.since)"));
   }
   check('알림 대상 → 탭', targetTab('TEAM', 'p', 'homework') === 'mytraining' && targetTab('LESSON', 'p', 'homework') === 'homework' && targetTab('TEAM', 'c', 'inbox') === 'today' && targetTab('LESSON', 'c', 'inbox') === 'inbox' && targetTab('TEAM', 'p', 'share') === null);
   check('운동 돌아올 곳 왕복', JSON.stringify(parseOrgReturn(orgReturnParam('o1:p', 'homework'))) === '{"key":"o1:p","tab":"homework"}' && parseOrgReturn('org:x:y') === null);

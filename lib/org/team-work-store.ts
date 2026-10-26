@@ -51,7 +51,8 @@ export async function writeOrgWork(a: {
     const id = session.id;
 
     /* 이 활동의 코치 세트를 통째로 지우고 다시 넣는다. 다른 활동의 코치 세트(같은 날 두 번 · 같은 운동)는 그 번호 뒤부터 */
-    await tx.userExerciseSet.deleteMany({ where: { sessionId: id, orgEventId: a.orgEventId } });
+    /* 코치 세트만 — 선수가 그 일정에서 직접 한 세트(enteredById 없음, 계약 9-6 ③-2)는 건드리지 않는다 */
+    await tx.userExerciseSet.deleteMany({ where: { sessionId: id, orgEventId: a.orgEventId, enteredById: { not: null } } });
     const others = await tx.userExerciseSet.groupBy({
       by: ['exerciseId'],
       where: { sessionId: id, setNo: { gt: ORG_SET_BASE }, exerciseId: { in: items.map((i) => i.exerciseId) } },

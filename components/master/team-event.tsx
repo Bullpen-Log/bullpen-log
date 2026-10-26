@@ -285,9 +285,17 @@ function Work({ d, orgId, busy, send, reload }: Part) {
           <li key={m.memberId} className="space-y-2 py-2 text-sm">
             <div className="flex items-center gap-2">
               <span className="flex-1 text-ink">{m.nickname}</span>
-              <span className={`text-xs ${m.recordedSets ? 'text-ok' : 'text-muted'}`}>
-                {!m.hasUser ? '가입 전' : !m.canTrain ? '트레이닝 공유 꺼짐' : m.recordedSets ? `${m.recordedSets}세트 남김` : '기록 없음'}
-                {m.ownSets ? ' · 선수가 직접 남긴 기록 있음' : ''}
+              <span className={`text-xs ${m.recordedSets || m.selfSets ? 'text-ok' : 'text-muted'}`}>
+                {!m.hasUser
+                  ? '가입 전'
+                  : !m.canTrain
+                    ? '트레이닝 공유 꺼짐'
+                    : m.recordedSets
+                      ? `${m.recordedSets}세트 남김`
+                      : m.selfSets
+                        ? `선수 기록 ${m.selfSets}세트${m.attended ? '' : ' · 확인 대기'}`
+                        : '기록 없음'}
+                {m.ownSets && !m.selfSets ? ' · 선수가 직접 남긴 기록 있음' : ''}
               </span>
               {m.canTrain ? (
                 <span className="flex gap-3 text-xs">

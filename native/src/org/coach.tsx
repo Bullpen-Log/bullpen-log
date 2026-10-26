@@ -116,7 +116,14 @@ function TodayEvents({ space, data, c }: { space: MySpace; data: Extract<Today, 
       .filter(Boolean)
       .join(' · ');
     const done = e.status === 'done' || !!e.recorded || !!e.attended;
-    return [replies, e.plans ? `메뉴 ${e.plans}` : '메뉴 만들기', done ? `수행일지 ${e.recorded ?? 0}${e.attended ? ` / 참석 ${e.attended}` : ''}` : ''].filter(Boolean).join(' · ');
+    return [
+      replies,
+      e.plans ? `메뉴 ${e.plans}` : '메뉴 만들기',
+      done ? `수행일지 ${e.recorded ?? 0}${e.attended ? ` / 참석 ${e.attended}` : ''}` : '',
+      e.selfRecorded ? `선수 기록 ${e.selfRecorded}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
   };
   return (
     <View style={{ gap: 6 }}>

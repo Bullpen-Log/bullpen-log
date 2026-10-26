@@ -19,7 +19,8 @@ import { formatExercise, readExercises } from '@/lib/org/lesson-work';
 import { noteKey } from '@/lib/org/lesson-pitch';
 import { eventMemberIds, replyCounts, type AttendReply } from '@/lib/org/team';
 import { noticeReads } from '@/lib/org/team-load';
-import { ORG_LOST } from '@/lib/org/space-nav';
+import { ORG_LOST, orgOpenHref } from '@/lib/org/space-nav';
+import { notifyCoaches } from '@/lib/org/notify-org';
 
 /**
  * 아이폰 앱(native/src/app/org/*)의 팀 · 레슨장 공간 — 1단계(docs/designs/sinker-team-lesson-contract.md 2-1).
@@ -140,6 +141,8 @@ export type OrgToday = {
     targets?: number;
     plans?: number;
     recorded?: number;
+    /** 이 일정에서 '운동하기'로 직접 한 선수 수 */
+    selfRecorded?: number;
     attended?: number;
   }[];
   /** 오늘 일정이 없을 때 보일 다음 일정 하나(계약 9-4) */
@@ -171,8 +174,9 @@ export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: stri
   const [replies, plans, work, next] = await Promise.all([
     ids.length ? prisma.orgEventAttendee.findMany({ where: { eventId: { in: ids } }, select: { eventId: true, reply: true, attended: true } }) : [],
     ids.length ? prisma.orgPlan.groupBy({ by: ['eventId'], where: { eventId: { in: ids } }, _count: { _all: true } }) : [],
+    /* 코치 수행일지 · 선수가 그 일정에서 직접 한 기록(계약 9-6 ③-3) — 선수 수만 */
     ids.length
-      ? prisma.userExerciseSet.findMany({ where: { orgEventId: { in: ids }, enteredById: { not: null } }, select: { orgEventId: true, userId: true }, distinct: ['orgEventId', 'userId'] })
+      ? prisma.userExerciseSet.findMany({ where: { orgEventId: { in: ids } }, select: { orgEventId: true, userId: true, enteredById: true }, distinct: ['orgEventId', 'userId', 'enteredById'] })
       : [],
     prisma.orgEvent.findFirst({
       where: { orgId, date: { gt: dbDate(todayKey) }, status: { not: 'canceled' } },
@@ -193,7 +197,8 @@ export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: stri
         replies: replyCounts(mine.map((r) => r.reply)),
         targets: eventMemberIds(e, active).length,
         plans: plans.find((p) => p.eventId === e.id)?._count._all ?? 0,
-        recorded: work.filter((w) => w.orgEventId === e.id).length,
+        recorded: new Set(work.filter((w) => w.orgEventId === e.id && w.enteredById).map((w) => w.userId)).size,
+        selfRecorded: new Set(work.filter((w) => w.orgEventId === e.id && !w.enteredById).map((w) => w.userId)).size,
         attended: mine.filter((r) => r.attended).length,
       };
     }),
@@ -715,6 +720,15 @@ export async function saveConsent(memberId: string, consent: unknown): Promise<{
     update: { ...value, byUserId: r.user.id },
     create: { memberId, ...value, byUserId: r.user.id },
   });
+  /* 공유를 처음 고르거나 바꾸면 대표 · 코치에게(계약 9-6 ③-1) — 같은 값을 다시 저장하면 안 알린다 */
+  const before = r.m.consent as Consent | null;
+  if (!before || CONSENT_SCOPES.some((s) => before[s.key] !== value[s.key]))
+    await notifyCoaches(r.m.org.id, {
+      kind: 'team',
+      title: before ? `${r.m.nickname}님이 보여 주는 기록을 바꿨어요` : `${r.m.nickname}님이 보여 줄 기록을 골랐어요`,
+      body: CONSENT_SCOPES.filter((s) => value[s.key]).map((s) => s.label).join(' · ') || '아무것도 보여 주지 않아요',
+      link: orgOpenHref(r.m.org.id, 'c', 'roster'),
+    });
   revalidatePath('/manage', 'layout');
   return { ok: true };
 }
@@ -725,6 +739,7 @@ export async function leaveOrg(memberId: string): Promise<{ ok: boolean; error?:
   if (!r) return { ok: false, error: '회원 정보를 찾을 수 없어요.' };
   if (r.m.status === 'LEFT') return { ok: true };
   await prisma.orgMember.update({ where: { id: memberId }, data: { status: 'LEFT', leftAt: new Date() } });
+  await notifyCoaches(r.m.org.id, { kind: 'team', title: `${r.m.nickname}님이 나갔어요`, body: r.m.org.name, link: orgOpenHref(r.m.org.id, 'c', 'roster') });
   revalidatePath('/manage', 'layout');
   return { ok: true };
 }

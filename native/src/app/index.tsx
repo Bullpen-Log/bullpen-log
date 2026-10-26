@@ -234,7 +234,7 @@ async function openOrg(o: { orgId: string; side: SpaceSide; target: OpenTarget; 
   setSpace(key, targetTab(s.kind, o.side, o.target) ?? undefined);
   /* 기록 하나를 가리키면 그 탭 위에 그 기록을 연다(계약 9-6 ①-3 C) — 선수 쪽 회원 id 는 공간 목록의 것(주소의 것은 안 믿음) */
   const member = (o.side === 'p' ? s.memberId : o.rec?.member) ?? undefined;
-  if (o.rec && (o.rec.kind === 'note' || member)) router.push(orgRecordHref(o.orgId, o.side, { ...o.rec, member }) as Href);
+  if (o.rec && (o.rec.kind !== 'homework' || member)) router.push(orgRecordHref(o.orgId, o.side, { ...o.rec, member }) as Href);
 }
 
 /** 로그아웃 — 앞사람 기록(메모리 · 폰)을 지운다. 다음 사람이 로그인하면 새로 받는다(껍데기 상태는 SiteScreen resetShell) */

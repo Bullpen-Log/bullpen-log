@@ -119,14 +119,23 @@ export function resetSpace() {
 
 /* ── 조직 일에서 연 개인 운동 — 마치면 그 공간 · 탭으로(계약 8-4) ── */
 
-let orgReturn: { key: SpaceKey; tab: string } | null = null;
-export const setOrgReturn = (key: SpaceKey, tab: string) => {
-  orgReturn = { key, tab };
+/** event: 일정 하나에서 연 운동이면 마칠 때 그 뒤에 한 내 세트를 그 일정에 잇는다(계약 9-6 ③-2, app-team.linkMyWork) */
+let orgReturn: { key: SpaceKey; tab: string; event?: { memberId: string; eventId: string; since: number } } | null = null;
+export const setOrgReturn = (key: SpaceKey, tab: string, event?: { memberId: string; eventId: string }) => {
+  orgReturn = { key, tab, ...(event ? { event: { ...event, since: Date.now() } } : {}) };
 };
 /** 운동을 마치거나 나갈 때 — 출발한 조직 공간이 아직 있으면 쌓인 화면을 걷고 그 탭으로(true). 없으면 false(부르는 쪽이 원래대로) */
 export function consumeOrgReturn(): boolean {
   const r = orgReturn;
   orgReturn = null;
+  if (r?.event) {
+    const ev = r.event;
+    void rpc<{ ok: boolean; linked?: number }>('app-team.linkMyWork', ev.memberId, ev.eventId, ev.since)
+      .then((res) => {
+        if (res.ok && res.linked) toast(`일정에 내 기록 ${res.linked}세트를 이었어요`);
+      })
+      .catch(() => {});
+  }
   if (!r || !spaceOf(r.key)) return false;
   if (router.canDismiss()) router.dismissAll();
   set({ key: r.key, tabs: { ...state.tabs, [r.key]: r.tab } });

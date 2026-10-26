@@ -24,6 +24,7 @@ export async function myMember(memberId: string) {
     where: { id: memberId, userId: user.id, role: 'PLAYER' },
     select: {
       id: true,
+      nickname: true,
       status: true,
       consent: { select: { pitch: true, training: true, checkin: true, video: true, nutrition: true, weight: true } },
       org: { select: { id: true, kind: true, name: true } },

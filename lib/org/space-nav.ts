@@ -91,11 +91,11 @@ export function resolveSpace(
 /* ── 알림 · 딥링크 ── */
 
 /** 알림이 가리키는 곳 — 탭은 공간 종류 · 역할에 따라 고른다(targetTab) */
-export const OPEN_TARGETS = ['today', 'schedule', 'notes', 'homework', 'inbox', 'share'] as const;
+export const OPEN_TARGETS = ['today', 'schedule', 'notes', 'homework', 'inbox', 'share', 'roster'] as const;
 export type OpenTarget = (typeof OPEN_TARGETS)[number];
 
-/** 알림이 그 기록 하나를 가리킬 때(계약 9-6 ①-3 C) — 일지 · 숙제. 코치 쪽은 회원 id 도(숙제를 읽는 데 필요) */
-export type OpenRecord = { kind: 'note' | 'homework'; id: string; member?: string };
+/** 알림이 그 기록 하나를 가리킬 때(계약 9-6 ①-3 C · ③-1) — 일지 · 숙제 · 일정. 코치 쪽은 숙제에 회원 id 도(숙제를 읽는 데 필요) */
+export type OpenRecord = { kind: 'note' | 'homework' | 'event'; id: string; member?: string };
 
 const ID = /^[\w-]{1,64}$/;
 
@@ -111,15 +111,18 @@ export function parseOrgOpen(href: string): { orgId: string; side: SpaceSide; ta
   const target = sp.get('to') ?? 'today';
   if (!ID.test(orgId) || (side !== 'c' && side !== 'p')) return null;
   const out = { orgId, side: side as SpaceSide, target: (OPEN_TARGETS as readonly string[]).includes(target) ? (target as OpenTarget) : ('today' as OpenTarget) };
-  const rec = /^(note|homework)\.([\w-]{1,64})$/.exec(sp.get('rec') ?? '');
+  const rec = /^(note|homework|event)\.([\w-]{1,64})$/.exec(sp.get('rec') ?? '');
   if (!rec) return out;
   const m = sp.get('m');
   return { ...out, rec: { kind: rec[1] as OpenRecord['kind'], id: rec[2], ...(m && ID.test(m) ? { member: m } : {}) } };
 }
 
-/** 기록 하나 화면(native/src/app/org/record.tsx) — 알림 · 코치 '받은 것'이 연다 */
-export const orgRecordHref = (orgId: string, side: SpaceSide, rec: OpenRecord) =>
-  `/org/record?org=${orgId}&as=${side}&kind=${rec.kind}&id=${rec.id}${rec.member ? `&member=${rec.member}` : ''}`;
+/** 기록 하나 화면 — 일지 · 숙제는 native/src/app/org/record.tsx, 일정은 선수 org/my-event · 코치 org/team-event. 알림 · 코치 '받은 것'이 연다 */
+export function orgRecordHref(orgId: string, side: SpaceSide, rec: OpenRecord): string {
+  if (rec.kind === 'event')
+    return side === 'c' ? `/org/team-event?org=${orgId}&id=${rec.id}` : `/org/my-event?org=${orgId}&id=${rec.id}${rec.member ? `&member=${rec.member}` : ''}`;
+  return `/org/record?org=${orgId}&as=${side}&kind=${rec.kind}&id=${rec.id}${rec.member ? `&member=${rec.member}` : ''}`;
+}
 
 /** 알림 대상 → 그 공간의 탭 키('share' 는 탭이 아니라 보여 줄 기록 화면 — null) */
 export function targetTab(kind: OrgKindName, side: SpaceSide, target: OpenTarget): string | null {
@@ -132,6 +135,7 @@ export function targetTab(kind: OrgKindName, side: SpaceSide, target: OpenTarget
     homework: ['homework', 'mytraining', 'today'],
     inbox: ['inbox', 'today'],
     share: [],
+    roster: ['roster', 'today'],
   };
   return want[target].find((k) => tabs.includes(k)) ?? 'today';
 }
