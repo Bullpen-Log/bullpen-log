@@ -146,7 +146,7 @@ export default async function DugoutHome({
           내려도 따라오고(sticky), 본문은 왼쪽 넓은 칸 그대로 먼저. 휴대폰만 띠 밑에 오른쪽으로 붙은 작은 카드(본문 맨 위로 올라오지 않게).
         */}
         {/* 두 칸 스크롤(첫 화면 ↔ 본문) — 손가락 화면 · 폭 1024 밑만. components/dugout/home-snap.tsx 가 이 칸을 위 막대 바로 밑에 세운다(scroll-margin 이 그 틈) */}
-        <HomeSnap />
+        <HomeSnap free={sinkerApp || dugoutApp} />
         {/*
           본문(2026-10-26 v2 — docs/designs/dugout-desktop-layout-v2-plan.md 7절 홈). 큰 화면(lg)은 진입 판 없이 바로 이것: 주 칸(1160 기준 872) + 간격 24 + 오늘 경기 264.
           주 칸 차례 — 짧은 제목 줄 → 새로 올라온 장비 넷 → 커뮤니티 세 줄 → 추천 코치 → 연습장 · 레슨장. 같은 줄(grid row)에 둬서 예전 '-mt-48' 끌어올리기가 없다.

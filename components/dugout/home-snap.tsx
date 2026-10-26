@@ -18,6 +18,9 @@ import { useEffect } from 'react';
  *
  * 위 막대는 이 지휘자가 정한다(html[data-dugout-top]) — 미끄러지기 시작하는 순간에 바꿔 막대가 본문과 함께 내려앉는다.
  * 예전 IntersectionObserver 는 판이 화면에서 다 사라져야 바뀌어 B 에서는 막대가 안 떴다.
+ *
+ * free(앱 — 싱커 · 덕아웃 웹뷰, 2026-10-26 김민 "앱에서는 스크롤하는 만큼만 이동") — 한 번에 미끄러뜨리지 않고 여느 스크롤 그대로.
+ * 위 막대만 맡는다(B 에 닿으면 보임).
  */
 const EDGE = 2;
 const NEAR_B = 4;
@@ -52,7 +55,7 @@ const EASE = bezier(0.22, 1, 0.36, 1);
 
 type Stop = 'A' | 'B';
 
-export function HomeSnap() {
+export function HomeSnap({ free = false }: { free?: boolean }) {
   useEffect(() => {
     const html = document.documentElement;
     /* PC(2026-10-25 덕아웃 PC 개편) — 두 칸 스크롤 없이 여느 화면처럼 굴러가고 위 막대는 늘 선다(globals.css '덕아웃 첫 화면'과 같은 조건) */
@@ -250,7 +253,7 @@ export function HomeSnap() {
       lastY = y;
       setBar(y >= B - 1 && y > EDGE);
       clearTimeout(settleTimer);
-      if (where() === 'between') {
+      if (!free && where() === 'between') {
         settleTimer = window.setTimeout(() => {
           if (!animating && !pointerDown && where() === 'between') go(dir < 0 ? 'A' : 'B');
         }, SETTLE_MS);
@@ -266,7 +269,7 @@ export function HomeSnap() {
     /* 처음 — 이 지휘자가 막대를 맡는다(서버 그림의 data-top 은 이제 안 본다), 사이에서 열렸으면(되돌아오기 · 새로고침) 가까운 자리로 바로 */
     html.dataset.dugoutReady = '';
     measure();
-    if (!location.hash) {
+    if (!free && !location.hash) {
       if (where() === 'between') window.scrollTo({ top: scrollY < B / 2 ? 0 : B, behavior: 'instant' });
     }
     lastY = scrollY;
@@ -279,11 +282,13 @@ export function HomeSnap() {
     if (grid) ro.observe(grid);
     document.fonts?.ready.then(measure).catch(() => {});
 
-    window.addEventListener('wheel', onWheel, { passive: false });
-    window.addEventListener('touchstart', onTouchStart, { passive: true });
-    window.addEventListener('touchmove', onTouchMove, { passive: false });
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('focusin', onFocus);
+    if (!free) {
+      window.addEventListener('wheel', onWheel, { passive: false });
+      window.addEventListener('touchstart', onTouchStart, { passive: true });
+      window.addEventListener('touchmove', onTouchMove, { passive: false });
+      window.addEventListener('keydown', onKey);
+      window.addEventListener('focusin', onFocus);
+    }
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', measure);
     window.addEventListener('pointerdown', onPointerDown, { passive: true });
@@ -307,7 +312,7 @@ export function HomeSnap() {
       delete html.dataset.dugoutReady;
       html.style.removeProperty('--dugout-bar-h');
     };
-  }, []);
+  }, [free]);
 
   return null;
 }

@@ -207,7 +207,7 @@ export function DugoutMain({
           >
             {/* 카드 높이는 148 고정 — 경기 카드가 길어져도 따라 늘지 않는다(2026-10-24 띠 규칙 그대로) */}
             <div className="min-w-0">
-              {cards && <HomeCarousel cards={cards} />}
+              {cards && <HomeCarousel cards={cards} infinite={dugoutApp} />}
             </div>
             {/* PC 는 본문 쪽 경기 칸이 이 자리까지 올라와 하나로 이어진다(app/(dugout)/page.tsx) — 여기 것은 패드만 */}
             {aside && <aside className="hidden md:block lg:hidden">{aside}</aside>}
