@@ -60,6 +60,7 @@ import * as pitchLab from '@/app/actions/pitch-lab';
 import * as swingLab from '@/app/actions/swing-lab';
 import * as pitchSetup from '@/app/actions/pitch-setup';
 import * as hittingLog from '@/app/actions/hitting-log';
+import * as myVideos from '@/app/actions/my-videos';
 import * as planEdit from '@/app/actions/plan-edit';
 import * as profile from '@/app/actions/profile';
 import * as program from '@/app/actions/program';
@@ -132,6 +133,8 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   'pitch-setup': pitchSetup,
   /* 타격 1단계(2026-10-20) — 새 앱이 웹 화면 대신 부를 때를 위해 같이 연다 */
   'hitting-log': hittingLog,
+  /* '내 영상' 갤러리(2026-10-26) */
+  'my-videos': myVideos,
   'plan-edit': planEdit,
   profile: profile,
   program: program,

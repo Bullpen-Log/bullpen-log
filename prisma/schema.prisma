@@ -155,6 +155,7 @@ model User {
   mechanicsProgram  MechanicsProgram?
   pitchLogs         PitchLog[]
   hittingLogs       HittingLog[]
+  userVideos        UserVideo[]
   velocitySessions  VelocitySession[]
   velocityPitches   VelocityPitch[]
   velocityAttempts  VelocityAttempt[]
@@ -692,6 +693,49 @@ model HittingLog {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
+}
+
+/// '내 영상' 갤러리의 영상 한 개(2026-10-26). 파일은 그대로 — 회원은 그 폰 앱 안, 관리자는 서버 저장소. 여기는 감각 메모 · 다시 보기 ·
+/// 촬영 날짜 같은 영상 단위 정보만. 기록과의 연결은 지금처럼 PitchLog · HittingLog 의 videoPaths 에 같은 경로가 있는지로 정한다
+/// (옛 앱 · 웹이 그대로 돈다). 기존 기록 영상 · 측정 클립은 줄 없이 갤러리에 보이다가 메모나 ★ 를 처음 적을 때 줄이 생긴다.
+/// 부하 계산은 이 표를 읽지 않는다 — 영상만 남겨도 투구수 · 부하는 그대로다.
+model UserVideo {
+  id             String    @id @default(uuid())
+  userId         String
+  /// 폰이 만든 번호 — 끊긴 뒤 다시 보내도 하나만(영상만 저장할 때). 기존 영상에서 만든 줄은 null
+  clientId       String?
+  /// 저장 경로 — 회원 폰 영상은 `{userId}/local-<UUID>`, 관리자는 서버 경로(lib/phone-video-path.ts)
+  path           String
+  /// phone | server
+  storage        String    @default("phone")
+  /// pitch | hit
+  sport          String    @default("pitch")
+  /// 찍은 시각을 알면(파일 머리 · 카메라) — 모르면 null
+  capturedAt     DateTime?
+  /// 묶을 때 쓰는 한국 날짜 — 모르면 null('촬영 날짜 모름')
+  capturedDate   DateTime? @db.Date
+  /// header | camera | manual | log | unknown
+  capturedSource String    @default("unknown")
+  /// camera | album | log | velocityClip
+  origin         String    @default("album")
+  /// 이 영상에서 느낀 것(200자) — 기록 총평(PitchLog.memo)과 따로
+  feelNote       String?   @db.Text
+  /// 다시 보고 싶은 영상(★)
+  revisit        Boolean   @default(false)
+  revisitAt      DateTime?
+  durationSec    Float?
+  width          Int?
+  height         Int?
+  /// 지운 영상 — 바로 숨긴다
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, path])
+  @@unique([userId, clientId])
+  @@index([userId, capturedDate])
 }
 
 /**

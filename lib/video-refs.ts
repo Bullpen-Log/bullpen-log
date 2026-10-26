@@ -5,7 +5,7 @@ import { deleteVideos } from '@/lib/storage';
 /**
  * 영상 파일이 아직 어딘가에 붙어 있는지 — 지우기 전에 한 곳에서 본다(2026-10-26 '내 영상' P0).
  *
- * 같은 영상 하나를 투구 기록 · 타격 일지 · 구속 측정 공 · 시도 클립이 같이 쓸 수 있다(경로가 같으면 같은 파일).
+ * 같은 영상 하나를 투구 기록 · 타격 일지 · 구속 측정 공 · 시도 클립 · '내 영상'(UserVideo)이 같이 쓸 수 있다(경로가 같으면 같은 파일).
  * 예전에는 기록을 지우거나 영상을 빼면 그 경로를 묻지 않고 지워, 다른 기록이 쓰던 영상까지 사라질 수 있었다.
  * 이제 지우는 곳은 행을 먼저 지우거나 고친 **뒤에** deleteUnreferenced 를 부른다 — 그때도 남은 참조가 있으면 안 지운다.
  *
@@ -33,7 +33,7 @@ export async function referencedPaths(paths: string[]): Promise<Set<string>> {
   }
   await Promise.all(
     [...byOwner].map(async ([userId, own]) => {
-      const [logs, hits, clips, attempts, parts] = await Promise.all([
+      const [logs, hits, clips, attempts, parts, saved] = await Promise.all([
         prisma.pitchLog.findMany({
           where: { userId, videoPaths: { hasSome: own } },
           select: { videoPaths: true },
@@ -54,6 +54,11 @@ export async function referencedPaths(paths: string[]): Promise<Set<string>> {
           where: { path: { in: own } },
           select: { path: true },
         }),
+        /* '내 영상'에 남긴 영상 — 기록에서 빠져도 갤러리에 남는다 */
+        prisma.userVideo.findMany({
+          where: { userId, deletedAt: null, path: { in: own } },
+          select: { path: true },
+        }),
       ]);
       const hit = new Set<string>([
         ...logs.flatMap((l) => l.videoPaths),
@@ -61,6 +66,7 @@ export async function referencedPaths(paths: string[]): Promise<Set<string>> {
         ...clips.flatMap((c) => [c.clipPath, c.wideClipPath]).filter((p): p is string => !!p),
         ...attempts.map((a) => a.clipPath).filter((p): p is string => !!p),
         ...parts.map((p) => p.path),
+        ...saved.map((s) => s.path),
       ]);
       for (const p of own) if (hit.has(p)) used.add(p);
     })

@@ -42,6 +42,7 @@
     "pitch3d:test": "node --import ./scripts/alias-register.mjs scripts/pitch-3d-selftest.mts",
     "highlights:test": "node --import ./scripts/alias-register.mjs scripts/highlights-selftest.mts",
     "pitch-find:test": "node --import ./scripts/alias-register.mjs scripts/pitch-find-selftest.mts",
+    "my-videos:test": "node --import ./scripts/alias-register.mjs scripts/my-videos-selftest.mts",
     "hitting:test": "node --import ./scripts/alias-register.mjs scripts/hitting-log-selftest.mts",
     "pitch-import:test": "node --import ./scripts/alias-register.mjs scripts/pitch-import-selftest.mts",
     "arm-status:test": "node --import ./scripts/alias-register.mjs scripts/arm-status-selftest.mts",
