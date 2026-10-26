@@ -15,7 +15,8 @@ const OPEN =
  * 덕아웃 앱(이름표 DugoutApp — native/src/dugout, 2026-10-24 김민)은 덕아웃 주소에 더해 /login 까지 — 로그인은 앱 화면이 맡고 가입만 아직 웹 폼
  * (/login?signup=1)이다. 싱커 화면은 그대로 막혀 '앱으로 써 주세요'를 본다(덕아웃 앱은 선수가 아닌 사람의 앱).
  */
-const DUGOUT_APP_OPEN = /^\/login(\/|$)/;
+/* 관리(/manage — 팀 · 레슨장 계정 · 관리자의 덕아웃 관리, app/(master))도 연다(2026-10-26 김민 "앱에서 관리자 기능을 쓸 수 있게"). 방어는 그 틀의 requireMaster */
+const DUGOUT_APP_OPEN = /^\/(login|manage)(\/|$)/;
 
 export function proxy(req: NextRequest) {
   /* 개발 서버(localhost)는 막지 않는다 — 휴대폰 웹 화면을 새 앱과 견주며 고칠 때 · 휴대폰 크기 확인(브라우저 휴대폰 흉내는 이름표도 바꾼다) */

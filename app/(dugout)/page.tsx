@@ -137,6 +137,7 @@ export default async function DugoutHome({
           native={native}
           sinkerApp={sinkerApp}
           dugoutApp={dugoutApp}
+          manage={!!user && (user.accountType === 'MASTER' || user.role === 'ADMIN')}
           cards={sinkerApp ? undefined : cards}
           aside={sinkerApp ? undefined : <GamesPanel games={games} today={today} />}
         />

@@ -42,6 +42,7 @@ export function DugoutMain({
   native = false,
   sinkerApp = false,
   dugoutApp = false,
+  manage = false,
   cards,
   aside,
 }: {
@@ -60,6 +61,8 @@ export function DugoutMain({
   sinkerApp?: boolean;
   /** 덕아웃 앱 안 — 아이콘 줄에서 경기 일정을 뺀다 */
   dugoutApp?: boolean;
+  /** 팀 · 레슨장 계정 · 관리자 — 모서리 줄에 '관리'(/manage). 위 막대와 같은 길 */
+  manage?: boolean;
 }) {
   /*
    * 다른 화면 · 싱커에서 넘어와 붙을 때 — 앞 화면의 위 막대가 보이는 채로 넘어와 0.5초 동안 옅어지며 남았다(2026-10-24 금윤호 "기본 홈에서 이게 안 보이게").
@@ -104,6 +107,11 @@ export function DugoutMain({
           {sinker && !sinkerApp && <SinkerButton native={native} />}
           {user ? (
             <>
+              {manage && !sinkerApp && (
+                <Link href="/manage" className="flex min-h-10 items-center rounded-lg px-3 text-sm font-semibold text-ink hover:bg-ink/6">
+                  관리
+                </Link>
+              )}
               <ChatButton unread={unread} />
               <DugoutBell initial={alerts} />
             </>

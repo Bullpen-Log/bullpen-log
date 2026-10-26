@@ -1,4 +1,6 @@
+import { headers } from 'next/headers';
 import { requireMaster } from '@/lib/dal';
+import { surfaceOf } from '@/lib/app-env';
 import { currentOrg } from '@/lib/org/access';
 import { MasterShell } from '@/components/master/master-shell';
 import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
@@ -19,6 +21,8 @@ export default async function MasterLayout({
   children: React.ReactNode;
 }) {
   const user = await requireMaster();
+  /* 덕아웃 앱 안에서는 싱커 화면(/today)이 막혀 있다(proxy.ts) — '선수 화면으로'를 안 보인다 */
+  const dugoutApp = surfaceOf((await headers()).get('user-agent')) === 'dugout-app';
   const { org, orgs } = await currentOrg(user);
   const pick = (o: (typeof orgs)[number]) => ({ id: o.id, kind: o.kind, name: o.name });
   const [unread, alerts] = await Promise.all([
@@ -40,6 +44,7 @@ export default async function MasterLayout({
       />
       <MasterShell
         user={{ nickname: user.nickname, isAdmin: user.role === 'ADMIN' }}
+        toSinker={user.role === 'ADMIN' && !dugoutApp}
         org={org ? pick(org) : null}
         orgs={orgs.map(pick)}
       >

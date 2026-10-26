@@ -23,9 +23,12 @@ export function MasterShell({
   user,
   org,
   orgs,
+  toSinker,
   children,
 }: {
   user: { nickname: string; isAdmin: boolean };
+  /** '선수 화면으로'(/today) 단추 — 관리자이고 덕아웃 앱 밖일 때 */
+  toSinker: boolean;
   org: ShellOrg | null;
   orgs: ShellOrg[];
   children: ReactNode;
@@ -107,7 +110,8 @@ export function MasterShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* 위 막대 — 조직 고르개 · 선수 화면으로(관리자) · 로그아웃 */}
-        <header className="sticky top-0 z-20 flex min-h-14 items-center gap-2 border-b border-line bg-surface/90 px-4 backdrop-blur md:px-6">
+        {/* 덕아웃 앱은 웹뷰를 화면 끝까지 그린다 — 시계 자리만큼 비운다(브라우저는 0) */}
+        <header className="sticky top-0 z-20 flex min-h-14 items-center gap-2 border-b border-line bg-surface/90 px-4 pt-[env(safe-area-inset-top)] backdrop-blur md:px-6">
           <button
             type="button"
             aria-label={open ? '메뉴 닫기' : '메뉴 열기'}
@@ -121,7 +125,7 @@ export function MasterShell({
           <OrgSwitcher org={org} orgs={orgs} />
 
           <div className="ml-auto flex items-center gap-1">
-            {user.isAdmin && (
+            {toSinker && (
               <Link
                 href="/today"
                 className="hidden min-h-10 items-center rounded-xl px-3 text-sm font-medium text-muted hover:bg-ink/5 hover:text-ink sm:flex"
@@ -145,7 +149,7 @@ export function MasterShell({
         {open && (
           <div className="border-b border-line bg-surface px-4 py-3 md:hidden motion-safe:animate-fade-in">
             {nav}
-            {user.isAdmin && (
+            {toSinker && (
               <Link
                 href="/today"
                 onClick={() => setOpen(false)}
@@ -157,7 +161,8 @@ export function MasterShell({
           </div>
         )}
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 md:px-8 md:py-8">
+        {/* 휴대폰은 덕아웃 앱 안에서만 열린다(브라우저는 /phone) — 앱의 아래 탭 막대에 끝이 안 가리게 */}
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-28 md:px-8 md:py-8">
           {children}
         </main>
       </div>
