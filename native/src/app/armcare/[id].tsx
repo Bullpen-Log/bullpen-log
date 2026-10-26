@@ -225,7 +225,7 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
    * 체크 — 마친 운동을 기록에 남긴다. 먼저 폰에 담고 뒤에서 하나씩 보낸다. 한 운동은 한 번만 담는다(queued). 못 보낸 것은 폰에 남아
    * 다시 보낸다 — 다음 운동을 마칠 때, 앱으로 돌아올 때, 15초마다, [다시 보내기]를 누를 때.
    */
-  const pending = useSyncExternalStore(checkOutbox.subscribe, checkOutbox.snapshot);
+  const pending = useSyncExternalStore(checkOutbox.subscribe, checkOutbox.visible);
   const queued = useRef(new Set<string>());
   const [saved, setSaved] = useState<ReadonlySet<string>>(() => new Set());
   /* 서버가 받지 않은 것(지운 운동 등) — 다시 보내도 안 되므로 폰에서 빼고 알린다 */
