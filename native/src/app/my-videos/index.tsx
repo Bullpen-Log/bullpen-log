@@ -141,7 +141,11 @@ export default function MyVideosScreen() {
       </View>
       <SectionList
         sections={sections}
-        keyExtractor={(r) => r.item.path}
+        /*
+         * 보이는 줄을 셀 때(onViewableItemsChanged) SectionList 는 묶음 머리 · 꼬리 줄에 영상 대신 묶음 자체를 넘긴다 — r.item 이 없다.
+         * 예전엔 r.item.path 로 읽어 내 영상을 열자마자 앱이 꺼졌다(2026-10-26)
+         */
+        keyExtractor={(r, i) => (r as Partial<Row> & { key?: string }).item?.path ?? (r as { key?: string }).key ?? `row-${i}`}
         stickySectionHeadersEnabled={false}
         initialNumToRender={8}
         maxToRenderPerBatch={8}

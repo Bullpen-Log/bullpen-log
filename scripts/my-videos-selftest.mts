@@ -200,6 +200,10 @@ console.log('\n[6] 소스 모양 — 부하 · 계정 · 관리자 자료');
   const del = action.slice(action.indexOf('export async function deleteMyVideo'));
   check('영상 지우기는 구속 측정 클립을 막고, 대표 영상 · 지운 표시를 같이 한다', del.includes('item.clip') && del.includes('dailyFeaturedVideo.deleteMany') && del.includes('deletedAt'));
   check('앱 입구(rpc 허용 목록)에 있다', src('app/api/rpc/registry.ts').includes("'my-videos': myVideos"));
+  check(
+    '앱 목록의 keyExtractor 는 묶음 머리 줄(영상 없음)에서도 안 터진다(onViewableItemsChanged)',
+    src('native/src/app/my-videos/index.tsx').split('\n').some((l) => l.includes('keyExtractor=') && l.includes('.item?.path'))
+  );
   check('지우기 참조 검사가 UserVideo 를 본다', src('lib/video-refs.ts').includes('prisma.userVideo.findMany'));
 }
 
