@@ -826,7 +826,7 @@ function SampleCard({
   );
 }
 
-/** 끝난 분석은 리포트 꼬리표(주 문제 · 좋아요 · 판정 못 함 — lib/pitch-3d/v2/report.ts), 도는 중 · 실패 · 요약 전은 작업 상태 */
+/** 끝난 분석은 리포트 꼬리표(주 문제 · 확인 범위 — lib/pitch-3d/v2/report.ts summaryChip), 도는 중 · 실패 · 요약 전은 작업 상태 */
 function ReportOrStatus({ sample, now }: { sample: LabSample; now: number }) {
   const job = sample.v2.job;
   const chip = job && !isV2JobActive(job, now) ? summaryChip(jobReportSummary(job)) : null;

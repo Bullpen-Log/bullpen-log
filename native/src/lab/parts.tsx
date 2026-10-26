@@ -83,7 +83,7 @@ export function SampleRow({ item, name, last, onRemoved, c }: { item: AppLabList
           </Text>
         ) : null}
         {item.report && item.status?.tone !== 'sky' ? (
-          /* 끝난 분석은 리포트 꼬리표(주 문제 · 좋아요 · 판정 못 함), 도는 중 · 실패는 작업 상태 */
+          /* 끝난 분석은 리포트 꼬리표(주 문제 · 확인 범위), 도는 중 · 실패는 작업 상태 */
           <Badge
             text={item.report.text}
             color={item.report.tone === 'good' ? c.ok : item.report.tone === 'muted' ? undefined : c.warn}

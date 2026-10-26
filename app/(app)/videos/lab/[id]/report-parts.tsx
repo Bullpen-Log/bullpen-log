@@ -84,10 +84,15 @@ function Dot({ status }: { status: ReportStatus }) {
     edge: 'border-[2.5px] border-warn bg-surface',
     fair: 'bg-line-strong',
     good: 'bg-ok',
-    note: 'border border-dashed border-muted bg-surface',
-    unsure: 'border border-dashed border-line-strong bg-surface',
+    /* 참고 = 수치를 잰 지표(실선 고리 + 가운데 점), 확인 못 함 = 점선 빈 고리 — 색만으로 가르지 않는다 */
+    note: 'border-2 border-muted bg-surface',
+    unsure: 'border-[1.5px] border-dashed border-line-strong bg-surface',
   };
-  return <span className={`block size-4 rounded-full ${cls[status]}`} aria-hidden="true" />;
+  return (
+    <span className={`flex size-4 items-center justify-center rounded-full ${cls[status]}`} aria-hidden="true">
+      {status === 'note' && <span className="size-1.5 rounded-full bg-muted" />}
+    </span>
+  );
 }
 
 function StatusTag({ status }: { status: ReportStatus }) {
@@ -96,7 +101,7 @@ function StatusTag({ status }: { status: ReportStatus }) {
     edge: 'border border-warn text-warn',
     fair: 'bg-surface-2 text-muted',
     good: 'bg-ok/15 text-ok',
-    note: 'border border-dashed border-muted text-muted',
+    note: 'border border-muted text-muted',
     unsure: 'border border-dashed border-line-strong text-muted',
   };
   return (
@@ -173,6 +178,7 @@ export function FlowCard({
                   type="button"
                   role="tab"
                   aria-selected={on}
+                  aria-label={`${i.element} ${REPORT_STATUS_TEXT[i.status]}`}
                   onClick={() => {
                     setSel(i.element);
                     onPick(i);
@@ -192,8 +198,7 @@ export function FlowCard({
             <StatusTag status={it.status} />
           </div>
           <p className="text-sm leading-relaxed text-ink break-keep">{it.line}</p>
-          <p className="text-caption text-muted">{measurementText(it)}</p>
-          {it.metricNote && <p className="text-caption text-muted">{it.metricNote}</p>}
+          {it.metricNote && <p className="text-caption text-muted break-keep">{it.metricNote}</p>}
           {it.value && (
             <div className="flex items-baseline gap-2">
               <span className="text-numeric text-3xl font-semibold tracking-tight text-ink">{it.value}</span>
@@ -202,6 +207,7 @@ export function FlowCard({
           )}
           {it.gauge && <Gauge g={it.gauge} muted={it.status === 'note' || it.status === 'unsure'} />}
           {it.foot && <p className="text-caption text-muted break-keep">{it.foot}</p>}
+          <p className="text-caption text-muted">{measurementText(it)}</p>
         </div>
       </div>
     </section>

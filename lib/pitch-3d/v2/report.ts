@@ -9,6 +9,8 @@
  * (2026-10-21 — 실험실 실제 샘플 8개 중 4개가 브레이크 '고칠 점'으로 나왔는데 엔진 앞다리 정확도를 아직 한 사람 · 한 번만 쟀다), B 는 '참고'까지.
  * 2026-10-26: 검증 수준·영상 신뢰도·기준상 수치 위치를 분리하고 A?와 B는 자동 처방에서 제외한다.
  * 결론은 확인한 지표의 범위만 설명하고 평가·참고·미판정 개수를 함께 표시한다.
+ * 2026-10-26(표시만, 판정 · 처방 · 기준 판 그대로): 참고 지표는 수치를 읽은 관찰을 주 설명으로, 검증 · 적용 조건 제한은 띠 밑 한 줄로.
+ * 확인하지 못한 칸은 안 보인 부위 · 구간이나 계산 못 한 까닭을 말한다. 요약은 '수치 확인 m/6 · 평가 가능 n/6'(두 축, 합이 아니다).
  */
 import { REPORT_CRITERIA, RX_START_STAGE } from '@/lib/pitch-3d/v2/report-policy';
 import { DRILL_STAGE_NAMES, type FOCUS_POINTS } from '@/lib/exercise-meta';
@@ -211,16 +213,83 @@ export type ReportContext = {
 
 /* ───────────────────────────── 글 ───────────────────────────── */
 
-const UNSURE_LINE = '영상에서 이 부분이 잘 안 보여 판정하지 않았어요.';
-const WHY_LINE: Record<NonNullable<ReportItem['why']>, string> = {
-  validation: '이 지표는 검증 중이라 수치를 참고로만 확인해요. 이 값만으로 교정 운동을 정하지 않아요.',
-  confidenceMissing: '이전 분석에는 측정 신뢰도 정보가 없어 판정하지 않았어요. 다시 촬영해 확인해 주세요.',
-  gradeB: '이 지표는 아직 정확도를 확인하는 중이라 참고로만 봐요.',
-  flat: '평지에서 던진 영상이라 참고로만 봐요. 기준이 마운드 투구예요.',
-  youth: '성장기는 크기보다 순서를 먼저 봐서 참고로만 봐요.',
-  lowConf: UNSURE_LINE,
-  implausible: '이 영상에서는 값이 믿기 어려워 판정하지 않았어요.',
-  notMeasured: '다리를 드는 장면을 찾지 못해 판정하지 않았어요.',
+/**
+ * 참고 지표의 제한 — 띠 밑 한 줄(foot)로 내려 보인다. 동작이나 촬영의 문제가 아니라 기준 · 검증 범위 밖이라는 뜻.
+ * 주 설명(line)은 그 수치를 그대로 읽은 관찰 문장(OBS)이다(2026-10-26 — 참고 다섯 칸이 같은 검증 안내만 보여 얻는 게 없었다).
+ */
+const VALIDATING = '측정 정확도를 검증하는 지표라 평가와 자동 처방에는 쓰지 않아요. 동작이나 촬영에 문제가 있다는 뜻은 아니에요.';
+const NOTE_LIMIT: Record<'validation' | 'gradeB' | 'flat' | 'youth', string> = {
+  validation: VALIDATING,
+  gradeB: VALIDATING,
+  flat: '기준이 마운드 투구라 평지 영상은 평가하지 않고 수치만 보여 줘요.',
+  youth: '성장기는 크기보다 순서를 먼저 봐서 이 수치로 교정 필요를 정하지 않아요.',
+};
+/** 확인하지 못한 까닭 — 그 지표가 쓴 관절 · 장면(mech-checks confOf)이 잘 안 보였다 */
+const HARD_TO_SEE: Record<ElementName, string> = {
+  드리프트: '첫 장면과 니업 때 골반 · 축발이',
+  드롭: '니업과 착지 때 골반 · 다리가',
+  '상하체 분리': '착지에서 릴리스까지 두 어깨가',
+  브레이크: '착지에서 릴리스까지 앞다리가',
+  '몸통 회전': '릴리스 때 어깨 · 골반이',
+  스로잉: '착지 때 던지는 팔이',
+};
+function unsureLine(why: NonNullable<ReportItem['why']>, name: ElementName, kneeUpFound: boolean): string {
+  if (why === 'implausible') return '계산값이 정상 범위를 벗어나 수치를 보여 주지 않아요. 분석 확인이 필요해요.';
+  if (why === 'confidenceMissing') return '이 결과에는 측정 신뢰도 정보가 없어 평가하지 않았어요. 다시 분석하면 확인할 수 있어요.';
+  if (why === 'notMeasured')
+    /* 드롭은 니업이 있어도 두 발 사이 기준선을 못 잡으면 못 잰다(mech-checks drop) — 니업을 못 찾았다고 단정하지 않는다 */
+    return kneeUpFound
+      ? '니업과 착지 장면으로 높이 기준선을 잡지 못해 계산하지 못했어요.'
+      : '다리를 가장 높이 든 장면(니업)을 찾지 못해 이 지표는 계산하지 못했어요. 다리를 드는 동작부터 영상에 담기면 확인할 수 있어요.';
+  return `${HARD_TO_SEE[name]} 영상에서 잘 보이지 않아 판정하지 않았어요. 그 구간이 두 영상에 잘 보이게 다시 찍으면 확인할 수 있어요.`;
+}
+
+/** 관찰 문장 — 숫자 · 부호 그대로(평가 말 '잘 · 충분히 · 덜 · 늦음 · 무너짐'은 쓰지 않는다). 값 칸과 같은 반올림 */
+const r0 = (v: number) => Math.round(v);
+const OBS = {
+  drift: (ratio: number, cm: number | null) => {
+    const n = cm != null ? r0(cm) : r0(ratio * 100);
+    const amount = cm != null ? `${Math.abs(n)}cm` : `키의 ${Math.abs(n)}%`;
+    if (n === 0) return '다리를 가장 높이 들었을 때 골반이 축발 바로 위에 있어요.';
+    return n > 0
+      ? `다리를 가장 높이 들었을 때 골반이 축발보다 홈 쪽으로 ${amount} 앞에 있어요.`
+      : `다리를 가장 높이 들었을 때 골반이 축발보다 2루 쪽으로 ${amount} 뒤에 있어요.`;
+  },
+  drop: (drop: number, rise: number) => {
+    const n = r0(drop * 100);
+    const main =
+      n > 0
+        ? `니업에서 착지까지 골반 높이가 다리 길이의 ${n}%만큼 내려가요.`
+        : n < 0
+          ? `착지 때 골반이 니업 때보다 다리 길이의 ${-n}%만큼 높아요.`
+          : '니업에서 착지까지 골반 높이가 거의 그대로예요.';
+    return rise > DROP_RISE_MAX ? `${main} 그 사이 한때 니업보다 다리 길이의 ${r0(rise * 100)}%만큼 올라갔어요.` : main;
+  },
+  sep: (openDeg: number) => {
+    const n = r0(Math.abs(openDeg));
+    return n === 0
+      ? '앞발이 닿을 때 어깨선이 디딤 방향과 나란해요.'
+      : `앞발이 닿을 때 어깨선은 디딤 방향을 기준으로 ${n}° ${openDeg > 0 ? '열려' : '닫혀'} 있어요.`;
+  },
+  collapse: (deg: number) =>
+    r0(deg) > 0 ? `착지 뒤 앞무릎이 착지 때보다 최대 ${r0(deg)}° 더 굽어져요.` : '착지 뒤 앞무릎이 착지 때보다 더 굽지 않아요.',
+  extension: (deg: number) => {
+    const n = r0(Math.abs(deg));
+    return n === 0
+      ? '착지에서 공을 놓을 때까지 앞무릎 각도가 거의 그대로예요.'
+      : deg > 0
+        ? `착지에서 공을 놓을 때까지 앞무릎이 ${n}° 펴져요.`
+        : `착지에서 공을 놓을 때까지 앞무릎이 ${n}° 더 굽어져요.`;
+  },
+  trunk: (deg: number) => {
+    const n = r0(deg);
+    return n > 0
+      ? `공을 놓을 때 몸통이 앞으로 ${n}° 기울어져 있어요.`
+      : n < 0
+        ? `공을 놓을 때 몸통이 뒤로 ${-n}° 젖혀져 있어요.`
+        : '공을 놓을 때 몸통이 앞뒤로 거의 기울지 않았어요.';
+  },
+  arm: (deg: number) => `앞발이 닿을 때 던지는 팔의 어깨 벌림은 ${r0(deg)}°예요.`,
 };
 
 /** 결론 첫 줄 — 문제(fault)마다 하나(5-7절) */
@@ -317,12 +386,16 @@ const okConf = (c: number | null | undefined) => c == null || (Number.isFinite(c
 const fmtDeg = (v: number) => `${Math.round(v)}°`;
 const fmtPct = (v: number) => `${Math.round(v * 100)}%`;
 
-type Draft = Omit<ReportItem, 'element' | 'key' | 'assessment' | 'measurement' | 'prescriptionEligible' | 'metricNote'>;
+type Draft = Omit<ReportItem, 'element' | 'key' | 'assessment' | 'measurement' | 'prescriptionEligible' | 'metricNote'> & {
+  /** 관찰 문장 — 참고 지표의 주 설명 */
+  obs: string | null;
+};
 
 function judged(
   name: ElementName,
   fault: FaultKey,
   status: 'improve' | 'edge' | 'fair' | 'good',
+  obs: string,
   value: string,
   valueLabel: string,
   gauge: ReportGauge,
@@ -335,6 +408,7 @@ function judged(
     fault: bad ? fault : null,
     why: null,
     line: (bad ? LINES[fault][status] : LINES[name][status]) ?? '',
+    obs,
     value,
     valueLabel,
     foot: status === 'good' || !goal ? STATUS_FOOT[status] : `${STATUS_FOOT[status]} · 좋아요는 ${goal}`,
@@ -348,7 +422,8 @@ const reference = (why: NonNullable<ReportItem['why']>, value: string | null, va
   status: why === 'lowConf' || why === 'implausible' || why === 'notMeasured' ? 'unsure' : 'note',
   fault: null,
   why,
-  line: WHY_LINE[why],
+  line: '',
+  obs: null,
   value,
   valueLabel,
   foot: null,
@@ -382,6 +457,7 @@ export function judgeElements(
       '드리프트',
       'drift.stuck',
       bandOf(v, DRIFT_BAND),
+      OBS.drift(v, m.drift.aheadAtKneeUpCm),
       value,
       '니업 때 골반이 축발보다 앞',
       { ...DRIFT_BAND, value: v },
@@ -398,11 +474,11 @@ export function judgeElements(
     const gauge = { ...DROP_BAND, value: v };
     const label = '니업 → 착지 골반이 내려간 몫(다리 길이)';
     if (v < DROP_FLOAT_MAX || m.drop.rise > DROP_RISE_MAX)
-      out['드롭'] = judged('드롭', 'drop.float', 'improve', fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`);
+      out['드롭'] = judged('드롭', 'drop.float', 'improve', OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`);
     else
       out['드롭'] = capped(
         '드롭',
-        judged('드롭', 'drop.shallow', bandOf(v, DROP_BAND), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`),
+        judged('드롭', 'drop.shallow', bandOf(v, DROP_BAND), OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`),
         flat ? 'flat' : ctx.youth ? 'youth' : null
       );
   }
@@ -410,7 +486,8 @@ export function judgeElements(
   /* 상하체 분리 = 착지 때 상체 열림(순서 지표라 성장기도 판정) */
   {
     const v = m.separation.trunkOpenAtPlantDeg;
-    if (!okConf(m.separation.trunkConf) || !Number.isFinite(v)) out['상하체 분리'] = reference('lowConf', null, null, null, frames.plant);
+    if (!okConf(m.separation.trunkConf)) out['상하체 분리'] = reference('lowConf', null, null, null, frames.plant);
+    else if (!Number.isFinite(v)) out['상하체 분리'] = reference('implausible', null, null, null, frames.plant);
     else {
       const b = sepBand(m.hand);
       const value = `${Math.round(Math.abs(v))}° ${v >= 0 ? '열림' : '닫힘'}`;
@@ -418,6 +495,7 @@ export function judgeElements(
         '상하체 분리',
         'sep.openAtPlant',
         bandOf(v, b),
+        OBS.sep(v),
         value,
         '착지 때 상체(어깨선)',
         { ...b, value: v },
@@ -445,6 +523,7 @@ export function judgeElements(
               '브레이크',
               'block.collapse',
               sink,
+              OBS.collapse(bl.kneeCollapseDeg),
               fmtDeg(bl.kneeCollapseDeg),
               '착지 뒤 앞무릎이 더 굽은 각',
               { ...SINK_BAND, value: bl.kneeCollapseDeg },
@@ -455,6 +534,7 @@ export function judgeElements(
               '브레이크',
               'block.soft',
               ext,
+              OBS.extension(bl.kneeExtensionDeg),
               `${bl.kneeExtensionDeg >= 0 ? '+' : '−'}${Math.round(Math.abs(bl.kneeExtensionDeg))}°`,
               '착지 → 릴리스 앞무릎이 펴진 각',
               { ...EXT_BAND, value: bl.kneeExtensionDeg },
@@ -477,6 +557,7 @@ export function judgeElements(
           '몸통 회전',
           'trunk.upright',
           bandOf(t.forwardDeg, TRUNK_BAND),
+          OBS.trunk(t.forwardDeg),
           fmtDeg(t.forwardDeg),
           '릴리스 때 몸통 앞 기울기',
           { ...TRUNK_BAND, value: t.forwardDeg },
@@ -498,6 +579,7 @@ export function judgeElements(
           '스로잉',
           'arm.late',
           bandOf(a.abductionAtPlantDeg, ARM_BAND),
+          OBS.arm(a.abductionAtPlantDeg),
           fmtDeg(a.abductionAtPlantDeg),
           '착지 때 어깨 벌림(90° = 팔꿈치가 어깨 높이)',
           { ...ARM_BAND, value: a.abductionAtPlantDeg },
@@ -517,7 +599,7 @@ export function judgeElements(
     스로잉: m.arm.conf,
   };
   return CHAIN.map((name) => {
-    const d = out[name];
+    const { obs, ...d } = out[name];
     const conf = confidence[name];
     const validation: ReportMeasurement['validation'] =
       ELEMENT_GRADE[name] === 'A' ? 'supported' : ELEMENT_GRADE[name] === 'A?' ? 'provisional' : 'reference';
@@ -574,12 +656,15 @@ export function judgeElements(
       prescriptionEligible,
       fault: prescriptionEligible ? d.fault : null,
       why,
-      line: why ? WHY_LINE[why] : d.line,
+      /* 참고 = 수치를 읽은 관찰 + 띠 밑 제한, 확인 못 함 = 그 까닭, 평가 = 평가 말 */
+      line:
+        status === 'unsure' ? unsureLine(why!, name, frames.kneeUp != null) : status === 'note' ? (obs ?? d.line) : d.line,
       value: invalid ? null : d.value,
       gauge: invalid ? null : d.gauge,
-      foot: why ? null : d.foot,
+      foot: status === 'note' ? NOTE_LIMIT[why as keyof typeof NOTE_LIMIT] : why ? null : d.foot,
       goal: prescriptionEligible ? d.goal : null,
-      metricNote: METRIC_NOTES[name] ?? null,
+      /* 지표 정의는 수치를 보인 칸에만 — 확인하지 못한 칸에 '각도를 확인해요'가 붙으면 잰 것처럼 읽힌다 */
+      metricNote: status === 'unsure' ? null : (METRIC_NOTES[name] ?? null),
     };
   });
 }
@@ -590,12 +675,28 @@ const METRIC_NOTES: Partial<Record<ElementName, string>> = {
   스로잉: '착지 때 어깨가 벌어진 각도를 확인해요. 팔의 전체 타이밍을 평가한 값은 아니에요.',
 };
 
+const HARD_TEXT: Record<Exclude<ReportMeasurement['quality'], 'sufficient'>, string> = {
+  low: '확인 어려움 · 영상 신뢰도 부족',
+  missing: '확인 어려움 · 신뢰도 정보 없음',
+  invalid: '확인 어려움 · 계산값 확인 필요',
+  unavailable: '확인 어려움 · 계산하지 못함',
+};
 export function measurementText(item: ReportItem): string {
-  if (!item.measurement) return '이전 판정 기준의 리포트예요. 다시 불러와 확인해 주세요.';
-  if (item.measurement.quality !== 'sufficient') return '측정 확인 필요';
-  if (item.measurement.applicability !== 'supported') return '수치 확인 · 촬영 조건 참고';
-  return item.measurement.validation === 'supported' ? '수치 확인 · 판정 가능' : '수치 확인 · 지표 검증 중';
+  const m = item.measurement;
+  if (!m) return '이전 판정 기준의 리포트예요. 다시 불러와 확인해 주세요.';
+  if (m.quality !== 'sufficient') return HARD_TEXT[m.quality] ?? '확인 어려움';
+  if (m.applicability === 'flat') return '수치 확인 · 평지 영상이라 참고';
+  if (m.applicability === 'youth') return '수치 확인 · 성장기라 참고';
+  return m.validation === 'supported' ? '수치 확인 · 평가 가능' : '수치 확인 · 지표 검증 중';
 }
+
+/**
+ * 수치를 확인한 지표 = 신뢰도가 충분하고 유한한 값이 있는 것. 참고 · 평가 칸은 늘 그렇고(judgeElements), 확인 못 함은 아니라
+ * 요약(coverage)만으로는 total − unavailable 과 같다 — 화면 · 목록이 같은 셈을 쓰게 여기 하나로.
+ */
+export const isMeasured = (i: ReportItem) =>
+  i.measurement?.quality === 'sufficient' && i.value != null && i.gauge != null && Number.isFinite(i.gauge.value);
+export const measuredCount = (c: ReportCoverage) => c.total - c.unavailable;
 
 export function coverageOf(items: ReportItem[]): ReportCoverage {
   return {
@@ -605,17 +706,25 @@ export function coverageOf(items: ReportItem[]): ReportCoverage {
     total: items.length,
   };
 }
+/** 확인 범위 — 측정(수치 확인)과 평가는 다른 축이라 따로 센다(합이 아니다) */
 export const coverageText = (c: ReportCoverage | undefined) =>
   c
-    ? `평가 ${c.evaluated}개 · 참고 ${c.reference}개 · 미판정 ${c.unavailable}개`
+    ? `수치 확인 ${measuredCount(c)}/${c.total} · 평가 가능 ${c.evaluated}/${c.total}`
     : '이전 판정 기준의 리포트예요. 다시 불러와 확인해 주세요.';
 export function prescriptionMessage(report: PitchReport): string {
   if (report.criteria !== REPORT_CRITERIA || !report.coverage)
     return '리포트 기준을 업데이트하고 있어요. 다시 불러온 뒤 처방을 확인해 주세요.';
   if (report.rx.length === 0 && report.items.some((i) => i.prescriptionEligible)) return '기초 단계의 드릴을 구성할 수 없어 자동 처방을 보류했어요. 사용할 수 있는 드릴을 확인해 주세요.';
-  if (report.coverage.reference || report.coverage.unavailable)
-    return '참고·미판정 항목은 자동 처방의 근거로 쓰지 않아요. 영상 확인이 어려운 항목은 다시 촬영하고, 검증 중인 수치는 참고로 확인해 주세요.';
-  return '확인한 지표에서 자동 처방할 항목이 없어요. 이 결과가 투구 동작 전체를 평가한 것은 아니에요.';
+  const c = report.coverage;
+  const lines = [
+    c.evaluated
+      ? `평가한 ${c.evaluated}개 지표에서 교정이 필요한 항목이 없어 자동 처방을 만들지 않았어요.`
+      : '평가할 수 있는 지표가 없어 자동 처방을 하지 않아요.',
+    c.reference ? '참고 지표의 수치는 자동 처방의 근거로 쓰지 않아요.' : null,
+    c.unavailable ? '확인하지 못한 항목은 투구의 흐름에서 까닭을 볼 수 있어요.' : null,
+    c.evaluated === c.total ? '이 결과가 투구 동작 전체를 평가한 것은 아니에요.' : null,
+  ];
+  return lines.filter(Boolean).join(' ');
 }
 
 /* ───────────────────────────── 처방 ───────────────────────────── */
@@ -710,25 +819,41 @@ export function buildReport(result: Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' 
       moment: momentName(result, primary.frame),
     };
   } else if (evaluated.length > 0) {
+    /* 평가한 것 · 참고로 수치만 본 것 · 확인 못 한 것을 섞지 않고 사실대로(참고를 '추가 확인 필요'로 묶지 않는다) */
+    const { reference: refs, unavailable: hard } = coverage;
+    const rest =
+      refs && hard
+        ? `${refs}개 지표는 수치를 참고로 볼 수 있고, ${hard}개는 확인하지 못했어요.`
+        : refs
+          ? `다른 ${refs}개 지표의 수치는 참고로 확인할 수 있어요.`
+          : hard
+            ? `다른 ${hard}개 지표는 확인하지 못했어요.`
+            : null;
     headline = {
       tone: coverage.evaluated === coverage.total ? 'good' : 'unsure',
       tag: null,
       title:
-        evaluated.length === 1
-          ? `${evaluated[0].element} 지표는 ${evaluated[0].status === 'good' ? '좋아요' : '보통이에요'}.\n나머지 ${coverage.total - 1}개 요소는 추가 확인이 필요해요.`
-          : `확인한 ${coverage.evaluated}개 지표에서 처방할 항목이 없어요.`,
+        (evaluated.length === 1
+          ? `${evaluated[0].element} 지표는 ${evaluated[0].status === 'good' ? '좋아요' : '보통이에요'}.`
+          : `평가한 ${coverage.evaluated}개 지표에서 처방할 항목이 없어요.`) + (rest ? `\n${rest}` : ''),
       why: '이 결과는 확인한 지표의 평가예요. 투구 동작 전체에 대한 결론은 아니에요.',
       frame: result.events.release,
       moment: momentName(result, result.events.release),
     };
   } else {
+    const lowConf = items.some((i) => i.why === 'lowConf');
     headline = {
       tone: 'unsure',
       tag: null,
-      title: coverage.reference ? '수치는 참고로 확인해요.\n자동 처방은 보류해요.' : '이 영상으로는 판정이 어려워요.',
+      title: coverage.reference
+        ? `${coverage.reference}개 지표의 수치를 참고로 확인할 수 있어요.` +
+          (coverage.unavailable ? `\n${coverage.unavailable}개는 확인하지 못했어요.` : '')
+        : '이 영상으로는 지표를 확인하지 못했어요.',
       why: coverage.reference
-        ? '검증 중인 지표와 촬영 조건을 확인해 주세요. 이 결과만으로 교정 운동을 정하지 않아요.'
-        : '몸이 잘 보이게 다시 찍어 측정 가능한지 확인해 주세요.',
+        ? '평가할 수 있는 지표는 없어요. 이 결과만으로 교정 운동을 정하지 않아요.'
+        : lowConf
+          ? '몸 전체가 두 영상에 잘 보이게 다시 찍으면 확인할 수 있어요. 항목마다 까닭을 볼 수 있어요.'
+          : '항목마다 확인하지 못한 까닭을 볼 수 있어요.',
       frame: null,
       moment: null,
     };
@@ -801,14 +926,14 @@ export function jobReportSummary(job: { report?: unknown; shownJobId: string | n
   return s && s.criteria === REPORT_CRITERIA && s.coverage ? s : null;
 }
 
-/** 목록 줄의 꼬리표 — '브레이크 · 고칠 점' · '좋아요' · '판정 못 함' */
+/** 목록 줄의 꼬리표 — 주 문제 '브레이크' · '드리프트 · 경계', 없으면 확인 범위 '수치 6/6 · 평가 1/6'(참고를 좋음 · 문제로 세지 않는다) */
 export function summaryChip(s: ReportSummary | null): { text: string; tone: 'improve' | 'edge' | 'good' | 'muted' } | null {
   if (!s) return null;
   if (s.primary) return { text: `${s.primary.element}${s.primary.level === 'improve' ? '' : ' · 경계'}`, tone: s.primary.level };
-  if (!s.judged && s.coverage?.reference) return { text: `참고 ${s.coverage.reference}개`, tone: 'muted' };
-  return s.judged
-    ? { text: s.coverage ? `평가 ${s.coverage.evaluated}/${s.coverage.total}` : '확인 범위 보기', tone: 'muted' }
-    : { text: '판정 못 함', tone: 'muted' };
+  if (!s.coverage) return { text: s.judged ? '확인 범위 보기' : '판정 못 함', tone: 'muted' };
+  const measured = measuredCount(s.coverage);
+  if (measured === 0) return { text: '확인 어려움', tone: 'muted' };
+  return { text: `수치 ${measured}/${s.coverage.total} · 평가 ${s.coverage.evaluated}/${s.coverage.total}`, tone: 'muted' };
 }
 
 /** 이 리포트의 처방이 메커니즘에서 진행 중이면 마친 세션 수 / 전체(메커니즘 세션 P2 — MechanicsProgram.progress.focus) */
@@ -848,5 +973,5 @@ export const REPORT_STATUS_TEXT: Record<ReportStatus, string> = {
   fair: '보통',
   good: '좋아요',
   note: '참고',
-  unsure: '판정 안 함',
+  unsure: '확인 어려움',
 };
