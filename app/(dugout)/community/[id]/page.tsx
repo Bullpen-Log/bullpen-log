@@ -1,9 +1,21 @@
 import { notFound } from 'next/navigation';
 import { Check, Eye, EyeOff, UserMinus } from '@/components/icon';
-import { RoundChat, RoundEyeOff, RoundHeart, RoundTrash } from '@/components/round-icon';
+import { RoundChat, RoundEyeOff, RoundHeart, RoundPencil, RoundTrash } from '@/components/round-icon';
 import { getCurrentUser } from '@/lib/dal';
 import { loadCommunityPost, loadCommunityRoom } from '@/lib/community-load';
-import { INJURY_NOTE, MEET_AGES, MEET_LEVELS, postCategoryLabel, postTagLabel } from '@/lib/community';
+import {
+  COACH_BADGE_NOTE,
+  INJURY_NOTE,
+  JOIN_STATUSES,
+  MEET_AGES,
+  MEET_LEVELS,
+  STAFF_BADGE_NOTE,
+  gatherStateLabel,
+  headcountText,
+  joinStatusLabel,
+  postCategoryLabel,
+  postTagLabel,
+} from '@/lib/community';
 import {
   acceptComment,
   deleteComment,
@@ -11,6 +23,8 @@ import {
   setBlocked,
   setClosed,
   setHidden,
+  setJoinStatus,
+  setOutcome,
 } from '@/app/actions/community';
 import { BackLink, Badge, Button, ButtonLink } from '@/components/ui';
 import { DugoutPageHeader, SectionHead } from '@/components/dugout/ui';
@@ -22,6 +36,12 @@ import { CommunityCommentForm } from '@/components/community/community-comment-f
 import { CommunityRecordCard } from '@/components/community/community-record-card';
 import { CommunityJoinButton } from '@/components/community/community-join-button';
 import { CommunityRoom } from '@/components/community/community-room';
+import {
+  ClearDraftOnArrival,
+  CommunityAppealForm,
+  CommunitySaveButton,
+  CommunityShareButton,
+} from '@/components/community/community-post-actions';
 import Link from 'next/link';
 import {
   categoryBadgeClass,
@@ -32,8 +52,10 @@ import {
 
 const DELETE_BUTTON =
   'inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm text-muted transition-colors hover:text-danger';
+const SMALL_PILL = 'inline-flex min-h-9 items-center rounded-full px-3 text-xs font-semibold';
+const COACH_BADGE = 'min-h-0 border-sky-soft/60 bg-sky-tint px-2 py-0.5 text-sky-strong desk:bg-transparent';
 
-/** 관리자의 가리기 · 되살리기 — 서버 폼 하나(지우지 않고 가린다, app/actions/community.ts setHidden) */
+/** 운영자의 가리기 · 되살리기 — 가릴 때는 까닭 한 줄(글쓴이에게 보인다 · 운영 기록에 남는다) */
 function HideToggle({
   kind,
   id,
@@ -44,10 +66,19 @@ function HideToggle({
   hidden: boolean;
 }) {
   return (
-    <SafeForm action={setHidden}>
+    <SafeForm action={setHidden} className="flex items-center gap-1">
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="hidden" value={hidden ? '0' : '1'} />
+      {!hidden && (
+        <input
+          name="reason"
+          maxLength={200}
+          placeholder="가린 까닭"
+          aria-label="가린 까닭(글쓴이에게 보여요)"
+          className="h-9 w-28 rounded-full border border-line bg-surface px-3 text-xs"
+        />
+      )}
       <Button type="submit" variant="ghost" size="sm" className="gap-1.5 px-3">
         {hidden ? (
           <Eye aria-hidden className="h-4 w-4" />
@@ -68,7 +99,12 @@ function BlockButton({ userId, nickname, compact }: { userId: string; nickname: 
       hidden={{ userId, block: '1' }}
       ariaLabel={`${nickname} 차단`}
       title={`${nickname} 님을 차단할까요?`}
-      detail={<p className="text-muted">이 사람의 글 · 댓글이 내 화면에서 안 보여요. 상대는 몰라요. 커뮤니티 목록 맨 밑에서 풀 수 있어요.</p>}
+      detail={
+        <p className="text-muted">
+          이 사람의 글 · 댓글이 내 화면에서 안 보이고, 서로의 글에 댓글 · 참가 · 둘만의 대화를 못 해요. 번개 단체방에서는 그 사람의 말만 접혀요. 상대는
+          몰라요. 커뮤니티 목록 맨 밑에서 풀 수 있어요.
+        </p>
+      }
       confirmLabel="차단"
       className={DELETE_BUTTON}
     >
@@ -78,22 +114,39 @@ function BlockButton({ userId, nickname, compact }: { userId: string; nickname: 
   );
 }
 
-/**
- * 글 하나(2026-10-17 1판 — 틀) — 본문 · 좋아요 · 신고 · 댓글. 가린 글 · 댓글은 관리자에게만 흐리게 보인다.
- */
+/** 코치 배지 — 조직 역할 표시일 뿐 자격 인증이 아니다(눌러 보거나 올려 두면 뜻이 뜬다, 댓글 위에도 한 줄) */
+function CoachBadge() {
+  return (
+    <span title={COACH_BADGE_NOTE}>
+      <Badge className={COACH_BADGE}>코치</Badge>
+    </span>
+  );
+}
+
 /** 양식 한 줄 — 비어 있으면 안 그린다 */
 function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
   return (
     <div className="flex gap-3 text-sm">
-      <dt className="w-16 shrink-0 text-muted">{label}</dt>
+      <dt className="w-20 shrink-0 text-muted">{label}</dt>
       <dd className="min-w-0 text-ink">{value}</dd>
     </div>
   );
 }
 
-const timeText = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' });
+const STATE_BADGE: Record<string, string> = {
+  open: 'border-ok/40 bg-ok/10 text-ok desk:bg-transparent',
+  full: 'border-line-strong text-muted',
+  closed: 'border-line-strong text-muted',
+  cancelled: 'border-danger-line bg-danger-bg text-danger desk:bg-transparent',
+  past: 'border-line-strong text-muted',
+  held: 'border-sky-soft/60 bg-sky-tint text-sky-strong desk:bg-transparent',
+};
 
+/**
+ * 글 하나(2026-10-17 1판 — 틀) — 본문 · 좋아요 · 신고 · 댓글. 가린 글 · 댓글은 관리자에게만 흐리게 보인다.
+ * 2026-10-26: 고치기 · 저장 · 공유, 채택된 답을 위로, 번개 · 경기 결과(모였어요 · 취소), 팀 신청 진행, 가린 까닭 · 이의 제기, 대화 최근 장.
+ */
 export default async function CommunityPostPage({
   params,
   searchParams,
@@ -120,10 +173,16 @@ export default async function CommunityPostPage({
   const postHidden = post.hidden;
   const visibleComments = post.commentCount;
   const tagLabel = postTagLabel(post.category, post.tag);
+  const loginHref = (back: string) => `/login?next=${encodeURIComponent(back)}`;
   /* 글에 묶인 대화 — 글쓴이 · 참가자(번개) · 신청자(팀)만 */
   const room = post.joinable
     ? await loadCommunityRoom(user, post, typeof threadParam === 'string' ? threadParam : undefined)
     : null;
+  const accepted = post.comments.find((c) => c.id === post.acceptedCommentId) ?? null;
+  const anyCoach = post.coach || post.comments.some((c) => c.coach);
+  const flow = post.teamFlow;
+  const stateLabel = post.state ? gatherStateLabel(post.state, post.category, post.tag) : null;
+  const canCloseToggle = post.isOwner && !post.outcome && (post.state === 'open' || post.state === 'closed' || post.state === 'full');
 
   if (post.authorBlocked) {
     return (
@@ -145,6 +204,7 @@ export default async function CommunityPostPage({
 
   return (
     <div className="stack-page mx-auto max-w-3xl">
+      <ClearDraftOnArrival />
       <BackLink href="/community">커뮤니티</BackLink>
 
       <article className={`selectable space-y-6 ${postHidden ? 'opacity-70' : ''}`}>
@@ -154,9 +214,18 @@ export default async function CommunityPostPage({
               {postCategoryLabel(post.category)}
             </Badge>
             {tagLabel && <span className="text-xs font-semibold text-muted">{tagLabel}</span>}
-            {post.acceptedCommentId && (
-              <Badge className="border-ok/40 bg-ok/10 text-ok desk:bg-transparent">해결됨</Badge>
+            {post.byStaff && (
+              <span title={STAFF_BADGE_NOTE}>
+                <Badge className="border-ink/20 text-ink">운영</Badge>
+              </span>
             )}
+            {post.category === 'question' &&
+              (post.acceptedCommentId || post.acceptedFromBlocked ? (
+                <Badge className="border-ok/40 bg-ok/10 text-ok desk:bg-transparent">해결됨</Badge>
+              ) : visibleComments === 0 ? (
+                <Badge className="border-warn-line bg-warn-bg text-warn desk:bg-transparent">답변 기다림</Badge>
+              ) : null)}
+            {stateLabel && post.state && <Badge className={STATE_BADGE[post.state]}>{stateLabel}</Badge>}
             {postHidden && (
               <Badge className="gap-1 border-danger-line bg-danger-bg text-danger desk:bg-transparent">
                 <RoundEyeOff aria-hidden className="h-3 w-3" />
@@ -169,12 +238,36 @@ export default async function CommunityPostPage({
           <DugoutPageHeader title={post.title} />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
             <span className="font-medium text-ink">{post.nickname}</span>
-            {post.coach && <Badge className="min-h-0 border-sky-soft/60 bg-sky-tint px-2 py-0.5 text-sky-strong desk:bg-transparent">코치</Badge>}
+            {post.coach && <CoachBadge />}
             <time dateTime={post.createdAt.toISOString()}>
               {formatDateTime(post.createdAt)}
             </time>
+            {post.editedAt && (
+              <span title={formatDateTime(post.editedAt)}>· 고침 {relativeTime(post.editedAt)}</span>
+            )}
           </div>
         </header>
+
+        {/* 가린 까닭 · 이의 제기 — 글쓴이(와 관리자)에게만. 신고한 사람은 드러내지 않는다 */}
+        {postHidden && post.moderation && (
+          <div className="space-y-2 rounded-2xl border border-danger-line bg-danger-bg/40 px-(--block-pad) py-3 text-sm">
+            <p className="text-ink">
+              {post.moderation.auto ? '신고가 여러 건 들어와 운영자가 볼 때까지 잠시 가렸어요.' : '운영자가 이 글을 가렸어요.'}
+              {post.moderation.reason && !post.moderation.auto && <> 까닭: {post.moderation.reason}</>}
+            </p>
+            {post.isOwner && (
+              <>
+                <p className="text-xs text-muted">
+                  고쳐서 다시 보여 주고 싶으면 글을 고친 뒤 이의 제기를 보내 주세요.{' '}
+                  <Link href="/community/guide" className="font-semibold text-sky">
+                    운영 원칙
+                  </Link>
+                </p>
+                <CommunityAppealForm kind="post" id={post.id} pending={post.moderation.appealPending} />
+              </>
+            )}
+          </div>
+        )}
 
         {post.tag === 'injury' && (
           <p className="rounded-xl bg-warn-bg px-3 py-2 text-xs text-warn">{INJURY_NOTE}</p>
@@ -190,8 +283,8 @@ export default async function CommunityPostPage({
               {post.meetup && (
                 <>
                   <InfoRow label="언제" value={post.meetAt ? meetAtText(post.meetAt) : null} />
-                  <InfoRow label="어디서" value={`${post.region ?? ''} · ${post.meetup.place}`} />
-                  <InfoRow label="인원" value={`${post.joinCount} / ${post.meetup.capacity}명 참가`} />
+                  <InfoRow label="어디서" value={[post.region, post.district, post.meetup.place].filter(Boolean).join(' · ')} />
+                  <InfoRow label="인원" value={headcountText(post.joinCount, post.meetup.capacity)} />
                   <InfoRow label="실력" value={MEET_LEVELS.find((l) => l.key === post.meetup?.level)?.label} />
                   <InfoRow label="누가" value={MEET_AGES.find((a) => a.key === post.meetup?.age)?.label} />
                   <InfoRow label="준비물" value={post.meetup.gear} />
@@ -201,31 +294,54 @@ export default async function CommunityPostPage({
               {post.team && (
                 <>
                   <InfoRow label="팀" value={post.team.team} />
-                  <InfoRow label="지역" value={post.region} />
+                  <InfoRow label="지역" value={[post.region, post.district].filter(Boolean).join(' · ')} />
+                  <InfoRow label="경기" value={post.meetAt ? meetAtText(post.meetAt) : null} />
+                  <InfoRow label="구장" value={post.team.venue} />
+                  <InfoRow
+                    label="구장 확보"
+                    value={post.team.venueReady === 'yes' ? '구장 있어요' : post.team.venueReady === 'no' ? '같이 찾아요' : null}
+                  />
+                  <InfoRow label={post.teamKind === 'seek' ? '포지션' : '모집 포지션'} value={post.team.positions.join(' · ')} />
+                  <InfoRow label="몇 명" value={post.team.count ? `${post.team.count}명` : null} />
+                  <InfoRow label={post.teamKind === 'seek' ? '경력' : '경력 조건'} value={post.team.career} />
+                  <InfoRow label={post.teamKind === 'scrim' ? '팀 수준' : '실력'} value={post.team.level} />
                   <InfoRow label="리그" value={post.team.league} />
-                  <InfoRow label="연습" value={post.team.days.length ? `${post.team.days.join(' · ')}요일` : null} />
+                  <InfoRow
+                    label={post.teamKind === 'seek' ? '가능 요일' : '활동 요일'}
+                    value={post.team.days.length ? `${post.team.days.join(' · ')}요일` : null}
+                  />
+                  <InfoRow label="일정" value={post.team.schedule} />
+                  <InfoRow label="다닐 곳" value={post.team.areas} />
+                  <InfoRow label={post.teamKind === 'scrim' ? '비용 분담' : '비용'} value={post.team.cost} />
                   <InfoRow label="회비" value={post.team.fee} />
                   <InfoRow label="연령대" value={post.team.ages} />
-                  <InfoRow label="신청" value={`${post.joinCount}명`} />
+                  <InfoRow label={flow?.who ?? '신청'} value={`${post.joinCount}명`} />
                 </>
               )}
             </dl>
             <div className="flex flex-wrap items-center gap-2">
-              {(post.past || post.closed || post.full) && (
-                <Badge className="border-line-strong text-muted">{post.past ? '지난 번개' : '마감'}</Badge>
-              )}
-              {!user && (
-                <ButtonLink href={`/login?next=${encodeURIComponent(`/community/${post.id}`)}`} size="sm">
-                  로그인하고 {post.meetup ? '참가하기' : '신청하기'}
+              {!user && post.state !== 'cancelled' && (
+                <ButtonLink href={loginHref(`/community/${post.id}`)} size="sm">
+                  로그인하고 {post.meetup ? '참가하기' : (flow?.apply ?? '신청하기')}
                 </ButtonLink>
               )}
               {user && !post.isOwner && (post.joined || !post.joinBlock) && (
-                <CommunityJoinButton postId={post.id} meetup={post.meetup !== null} joined={post.joined} />
+                <CommunityJoinButton
+                  postId={post.id}
+                  joined={post.joined}
+                  applyLabel={post.meetup ? '참가하기' : (flow?.apply ?? '신청하기')}
+                  cancelLabel={post.meetup ? '참가 취소' : (flow?.cancel ?? '신청 취소')}
+                />
               )}
               {user && !post.isOwner && !post.joined && post.joinBlock && (
                 <p className="text-sm text-muted">{post.joinBlock}</p>
               )}
-              {post.isOwner && !post.past && (
+              {post.team && post.joined && post.myJoinStatus && (
+                <p className="text-sm text-ink">
+                  {flow?.applied} · 진행: <strong>{joinStatusLabel(post.myJoinStatus)}</strong>
+                </p>
+              )}
+              {canCloseToggle && (
                 <SafeForm action={setClosed}>
                   <input type="hidden" name="id" value={post.id} />
                   <input type="hidden" name="closed" value={post.closed ? '0' : '1'} />
@@ -234,9 +350,78 @@ export default async function CommunityPostPage({
                   </Button>
                 </SafeForm>
               )}
+              {/* 결과 — 시각이 지나면 '모였어요 · 취소됐어요', 그 전에는 '취소'. 참가 신청만으로 성사로 세지 않는다 */}
+              {post.isOwner && post.gathers && !post.outcome && post.state === 'past' && (
+                <>
+                  <SafeForm action={setOutcome}>
+                    <input type="hidden" name="id" value={post.id} />
+                    <input type="hidden" name="outcome" value="held" />
+                    <Button type="submit" size="sm">
+                      {post.meetup ? '모였어요' : '경기했어요'}
+                    </Button>
+                  </SafeForm>
+                  <SafeForm action={setOutcome}>
+                    <input type="hidden" name="id" value={post.id} />
+                    <input type="hidden" name="outcome" value="cancelled" />
+                    <Button type="submit" variant="secondary" size="sm">
+                      못 했어요
+                    </Button>
+                  </SafeForm>
+                </>
+              )}
+              {post.isOwner && post.gathers && !post.outcome && post.state !== 'past' && (
+                <ConfirmDeleteForm
+                  action={setOutcome}
+                  hidden={{ id: post.id, outcome: 'cancelled' }}
+                  ariaLabel="모임 취소"
+                  title={post.meetup ? '이 번개를 취소할까요?' : '이 경기를 취소할까요?'}
+                  detail={<p className="text-muted">참가 · 신청한 분들께 알림이 가고 대화방이 닫혀요.</p>}
+                  confirmLabel="취소하기"
+                  className={`${SMALL_PILL} bg-ink/6 text-ink`}
+                >
+                  {post.meetup ? '번개 취소' : '경기 취소'}
+                </ConfirmDeleteForm>
+              )}
+              {post.isOwner && post.outcome && (
+                <SafeForm action={setOutcome}>
+                  <input type="hidden" name="id" value={post.id} />
+                  <input type="hidden" name="outcome" value="" />
+                  <Button type="submit" variant="ghost" size="sm">
+                    결과 되돌리기
+                  </Button>
+                </SafeForm>
+              )}
             </div>
+            {post.state === 'past' && !post.isOwner && (
+              <p className="text-xs text-muted">시각이 지났어요. 글쓴이가 결과를 남기면 여기 보여요.</p>
+            )}
             {post.joiners.length > 0 && post.meetup && (
               <p className="text-xs text-muted">참가: {post.joiners.map((j) => j.nickname).join(' · ')}</p>
+            )}
+            {/* 팀 — 글쓴이가 신청마다 진행을 남긴다(신청자는 '마이 › 커뮤니티 활동'에서 다시 본다) */}
+            {post.team && post.isOwner && post.joiners.length > 0 && (
+              <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
+                {post.joiners.map((j) => (
+                  <li key={j.userId} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
+                    <Link href={`/community/${post.id}?thread=${j.userId}`} scroll={false} data-nav="none" className="font-semibold text-ink">
+                      {j.nickname}
+                    </Link>
+                    <span className="text-xs text-muted">{joinStatusLabel(j.status)}</span>
+                    <span className="ml-auto flex flex-wrap gap-1">
+                      {JOIN_STATUSES.filter((s) => s.key !== 'applied' && s.key !== j.status).map((s) => (
+                        <SafeForm key={s.key} action={setJoinStatus}>
+                          <input type="hidden" name="postId" value={post.id} />
+                          <input type="hidden" name="userId" value={j.userId} />
+                          <input type="hidden" name="status" value={s.key} />
+                          <button type="submit" className={`${SMALL_PILL} bg-ink/6 text-ink hover:bg-ink/10`}>
+                            {s.label}
+                          </button>
+                        </SafeForm>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
         )}
@@ -265,7 +450,7 @@ export default async function CommunityPostPage({
           </div>
         )}
 
-        {/* 동작 줄 — 좋아요 · 댓글 수 왼쪽, 신고 · 가리기 · 지우기 오른쪽 */}
+        {/* 동작 줄 — 좋아요 · 댓글 수 · 저장 · 공유 왼쪽, 고치기 · 차단 · 가리기 · 지우기 오른쪽 */}
         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-5">
           {/* 가린 글은 글쓴이도 좋아요를 못 누른다(서버 toggleLike 가 거절) — 단추 대신 수만(댓글 폼과 같은 조건) */}
           {!post.canLike ? (
@@ -286,7 +471,15 @@ export default async function CommunityPostPage({
             <span className="sr-only">댓글 </span>
             {visibleComments}
           </span>
+          {post.canSave && <CommunitySaveButton postId={post.id} saved={post.saved} />}
+          {post.shareable && <CommunityShareButton title={post.title} path={`/community/${post.id}`} />}
           <div className="ml-auto flex flex-wrap items-center gap-1">
+            {post.canEdit && (
+              <Link href={`/community/${post.id}/edit`} className={`${DELETE_BUTTON} hover:text-ink`}>
+                <RoundPencil aria-hidden className="h-4 w-4" />
+                고치기
+              </Link>
+            )}
             {post.canBlock && <BlockButton userId={post.userId} nickname={post.nickname} />}
             {isAdmin && <HideToggle kind="post" id={post.id} hidden={postHidden} />}
             {post.canDelete && (
@@ -301,7 +494,7 @@ export default async function CommunityPostPage({
                       <strong className="text-ink">{post.title}</strong>
                     </p>
                     <p className="text-muted">
-                      댓글 · 좋아요도 함께 사라져요. 되돌릴 수 없어요.
+                      댓글 · 좋아요 · 참가 · 대화도 함께 사라져요. 되돌릴 수 없어요.
                     </p>
                   </div>
                 }
@@ -319,9 +512,11 @@ export default async function CommunityPostPage({
 
       {room && (
         <section className="space-y-4" aria-label="대화">
-          <SectionHead title={post.meetup ? '참가자 대화방' : post.isOwner ? '신청자와 대화' : '팀과 대화'} />
+          <SectionHead
+            title={post.meetup ? '참가자 대화방' : post.isOwner ? (flow?.ownerRoom ?? '신청자와 대화') : (flow?.joinerRoom ?? '팀과 대화')}
+          />
           {post.team && post.isOwner && post.joiners.length > 1 && (
-            <nav aria-label="신청자" className="no-scrollbar flex gap-1.5 overflow-x-auto">
+            <nav aria-label={flow?.who ?? '신청자'} className="no-scrollbar flex gap-1.5 overflow-x-auto">
               {post.joiners.map((j) => (
                 <Link
                   key={j.userId}
@@ -339,24 +534,41 @@ export default async function CommunityPostPage({
             </nav>
           )}
           <CommunityRoom
+            /* 신청자를 바꾸면 새 방 — 쌓아 둔 말을 버린다 */
+            key={room.thread ?? 'meetup'}
             postId={post.id}
             thread={post.team && post.isOwner ? room.thread : null}
-            open={post.meetup ? post.roomOpen : true}
+            hasOlder={room.hasOlder}
+            canWrite={room.canWrite}
+            closedNote={room.closedNote}
             empty={post.meetup ? '참가한 사람끼리 이야기하는 곳이에요. 모일 곳 · 시각을 맞춰 보세요.' : '궁금한 것을 물어보세요.'}
-            messages={room.messages.map((m) => ({
-              id: m.id,
-              mine: m.mine,
-              nickname: m.nickname,
-              body: m.body,
-              time: timeText.format(m.createdAt),
-            }))}
+            messages={room.messages}
           />
         </section>
       )}
 
+      {/* 채택된 답 — 질문 바로 밑에서 먼저 보이게(댓글 목록에도 그대로 있다) */}
+      {accepted && (
+        <section aria-label="채택된 답" className="space-y-2 rounded-2xl border border-ok/40 bg-ok/5 px-(--block-pad) py-4">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-ok">
+            <Check aria-hidden className="h-3.5 w-3.5" />
+            채택된 답 · {accepted.nickname}
+            {accepted.coach && <CoachBadge />}
+          </p>
+          <p className="selectable whitespace-pre-wrap text-sm leading-relaxed text-ink/90">{accepted.body}</p>
+          <a href={`#c-${accepted.id}`} className="text-xs text-muted">
+            댓글에서 보기
+          </a>
+        </section>
+      )}
+      {post.acceptedFromBlocked && (
+        <p className="rounded-2xl bg-surface-2 px-(--block-pad) py-3 text-sm text-muted">채택된 답은 내가 차단한 사람의 답이라 안 보여요.</p>
+      )}
+
       {/* 댓글 */}
       <section className="space-y-4" aria-label="댓글">
-        <SectionHead title="댓글" count={visibleComments} />
+        <SectionHead title={post.category === 'question' ? '답변 · 댓글' : '댓글'} count={visibleComments} />
+        {anyCoach && <p className="text-xs text-muted">코치 표시: {COACH_BADGE_NOTE}</p>}
 
         {post.comments.length > 0 && (
           <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
@@ -366,12 +578,13 @@ export default async function CommunityPostPage({
               return (
                 <li
                   key={c.id}
+                  id={`c-${c.id}`}
                   style={{ '--row': i } as React.CSSProperties}
-                  className={`selectable space-y-2 px-(--block-pad) py-4 motion-safe:animate-row-in ${hidden ? 'opacity-55' : ''}`}
+                  className={`selectable scroll-mt-24 space-y-2 px-(--block-pad) py-4 motion-safe:animate-row-in ${hidden ? 'opacity-55' : ''}`}
                 >
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
                     <span className="font-medium text-ink">{c.nickname}</span>
-                    {c.coach && <Badge className="min-h-0 border-sky-soft/60 bg-sky-tint px-2 py-0.5 text-sky-strong desk:bg-transparent">코치</Badge>}
+                    {c.coach && <CoachBadge />}
                     {mine && <Badge className="min-h-0 px-2 py-0.5">나</Badge>}
                     {c.accepted && (
                       <Badge className="min-h-0 gap-1 border-ok/40 bg-ok/10 px-2 py-0.5 text-ok desk:bg-transparent">
@@ -414,7 +627,7 @@ export default async function CommunityPostPage({
                         hidden={{ id: c.id }}
                         ariaLabel="댓글 삭제"
                         title="이 댓글을 지울까요?"
-                        detail={<p className="text-muted">되돌릴 수 없어요.</p>}
+                        detail={<p className="text-muted">{c.accepted ? '채택된 답이라 지우면 질문이 다시 미해결이 돼요. ' : ''}되돌릴 수 없어요.</p>}
                         className={DELETE_BUTTON}
                       >
                         <RoundTrash aria-hidden className="h-4 w-4" />
@@ -430,16 +643,21 @@ export default async function CommunityPostPage({
 
         {post.comments.length === 0 && (
           <p className="rounded-2xl border border-dashed border-line px-(--block-pad) py-6 text-center text-sm text-muted">
-            아직 댓글이 없어요. 첫 댓글을 남겨 보세요.
+            {post.category === 'question'
+              ? '아직 답이 없어요. 아는 만큼 먼저 답해 주세요.'
+              : '아직 댓글이 없어요. 첫 댓글을 남겨 보세요.'}
           </p>
         )}
 
         {/* 가린 글에는 글쓴이도 댓글을 못 단다 — 아무도 못 보는 글이다 */}
         {post.canComment && <CommunityCommentForm postId={post.id} />}
+        {user && !post.canComment && !postHidden && (
+          <p className="text-sm text-muted">이 글에는 댓글을 달 수 없어요.</p>
+        )}
         {!user && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface-2 px-(--block-pad) py-4">
-            <p className="text-sm text-muted">로그인하면 댓글 · 좋아요를 남길 수 있어요.</p>
-            <ButtonLink href={`/login?next=/community/${encodeURIComponent(post.id)}`} size="sm">
+            <p className="text-sm text-muted">로그인하면 댓글 · 좋아요 · 저장을 할 수 있어요.</p>
+            <ButtonLink href={loginHref(`/community/${post.id}`)} size="sm">
               로그인
             </ButtonLink>
           </div>

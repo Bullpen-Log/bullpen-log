@@ -14,8 +14,15 @@ type Item = { key: string; path?: string; url: string; video: boolean; progress?
  * 경로만 폼에 싣는다(name="media"). 장터 사진 칸(components/dugout/listing-form.tsx)과 같은 길.
  * 올리는 중이면 onBusy(true) — 폼이 올리기 단추를 잠근다.
  */
-export function CommunityMediaPicker({ onBusy }: { onBusy?: (busy: boolean) => void }) {
-  const [items, setItems] = useState<Item[]>([]);
+export function CommunityMediaPicker({
+  onBusy,
+  initial = [],
+}: {
+  onBusy?: (busy: boolean) => void;
+  /** 고치기 — 이미 붙어 있는 사진 · 영상(빼면 글을 고칠 때 파일도 지운다) */
+  initial?: { path: string; url: string; video: boolean }[];
+}) {
+  const [items, setItems] = useState<Item[]>(() => initial.map((m) => ({ key: m.path, path: m.path, url: m.url, video: m.video })));
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const busy = useRef(0);

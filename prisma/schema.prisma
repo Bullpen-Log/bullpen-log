@@ -175,6 +175,8 @@ model User {
   communityJoins    CommunityJoin[]
   communityMessages CommunityMessage[] @relation("CommunityMessageSender")
   communityThreads  CommunityMessage[] @relation("CommunityMessageThread")
+  communitySaves    CommunitySave[]
+  communityModerations CommunityModeration[]
   listings          Listing[]
   listingFavorites  ListingFavorite[]
   buyingChats       Conversation[]    @relation("ConversationBuyer")
@@ -1777,10 +1779,21 @@ model CommunityPost {
   form      Json?
   /// 우리 동네 거르기(시 · 도 + 시 · 군 · 구 한 줄)
   region    String?
+  /// 시 · 군 · 구(lib/kr-districts.ts) — 2026-10-26 더함, 비면 시 · 도로만 거른다
+  district  String?
   /// 번개 날짜 · 시각 — 지나면 목록에서 내려가고 다음 날 대화방이 닫힌다
   meetAt    DateTime?
   /// 마감(글쓴이가 닫거나 다 참) — 더 참가 · 신청을 안 받는다
   closedAt  DateTime?
+  /// 번개 · 경기 글의 실제 결과 — held(모였어요) · cancelled(취소). 참가 신청만으로는 '성사'로 세지 않는다(2026-10-26)
+  outcome   String?
+  outcomeAt DateTime?
+  /// 질문의 첫 답(글쓴이가 아닌 사람의 가리지 않은 댓글) 시각 — '답변 없는 질문' 거르기 · 첫 답까지 걸린 시간(lib/community-ops.ts refreshAnswerState 가 다시 셈)
+  firstAnswerAt DateTime?
+  /// 글쓴이가 고친 때(제목 · 본문 · 양식) — 마감 · 가리기로는 안 바뀐다(updatedAt 과 다름)
+  editedAt  DateTime?
+  /// 운영자 글 표시(관리자만 켠다)
+  byStaff   Boolean   @default(false)
   hiddenAt  DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -1791,6 +1804,7 @@ model CommunityPost {
   reports  CommunityReport[]
   joins    CommunityJoin[]
   messages CommunityMessage[]
+  saves    CommunitySave[]
 
   @@index([createdAt])
   @@index([category, createdAt])
@@ -1843,6 +1857,9 @@ model CommunityBlock {
 model CommunityJoin {
   postId    String
   userId    String
+  /// 팀 신청의 진행 — applied(접수) · accepted(함께해요) · declined(이번엔 어려워요) · done(진행 완료). 번개는 늘 applied
+  status    String   @default("applied")
+  statusAt  DateTime?
   createdAt DateTime @default(now())
 
   post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -1859,12 +1876,18 @@ model CommunityMessage {
   threadUserId String?
   senderId     String
   body         String   @db.Text
+  /// 보내는 쪽이 정한 번호 — 응답이 끊겨 다시 보내도 한 번만 남는다
+  clientId     String?
+  /// 운영자가 가린 때(신고 처리)
+  hiddenAt     DateTime?
   createdAt    DateTime @default(now())
 
-  post   CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  thread User?         @relation("CommunityMessageThread", fields: [threadUserId], references: [id], onDelete: Cascade)
-  sender User          @relation("CommunityMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  post    CommunityPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  thread  User?             @relation("CommunityMessageThread", fields: [threadUserId], references: [id], onDelete: Cascade)
+  sender  User              @relation("CommunityMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  reports CommunityReport[]
 
+  @@unique([senderId, clientId])
   @@index([postId, threadUserId, createdAt])
   @@index([threadUserId])
   @@index([senderId])
@@ -1878,9 +1901,13 @@ model CommunityReport {
   commentId  String?
   /// 덕아웃 장터 물건 신고(2026-10-20) — 글 · 댓글과 같은 표에 둔다(관리자 화면 하나)
   listingId  String?
+  /// 글에 묶인 대화의 말 하나(2026-10-26)
+  messageId  String?
   reason     String
   detail     String?   @db.Text
   resolvedAt DateTime?
+  /// 처리 결과 — actioned(가림) · dismissed(문제 없음). 같은 사람이 문제없는 신고를 되풀이하는지 본다
+  outcome    String?
   createdAt  DateTime  @default(now())
 
   reporter User              @relation("CommunityReporter", fields: [reporterId], references: [id], onDelete: Cascade)
@@ -1888,14 +1915,48 @@ model CommunityReport {
   post     CommunityPost?    @relation(fields: [postId], references: [id], onDelete: SetNull)
   comment  CommunityComment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
   listing  Listing?          @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  message  CommunityMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
 
-  /* 같은 사람이 같은 글 · 댓글 · 물건을 두 번 신고하지 못하게(NULL 은 서로 다른 값으로 친다) */
+  /* 같은 사람이 같은 글 · 댓글 · 물건 · 말을 두 번 신고하지 못하게(NULL 은 서로 다른 값으로 친다) */
   @@unique([reporterId, postId])
   @@unique([reporterId, commentId])
   @@unique([reporterId, listingId])
+  @@unique([reporterId, messageId])
   @@index([listingId])
+  @@index([messageId])
   @@index([resolvedAt, createdAt])
   @@index([reporterId])
+}
+
+/// 저장한 글(2026-10-26) — 좋아요와 따로, 나만 보는 모음
+model CommunitySave {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@index([userId, createdAt])
+}
+
+/// 운영 기록(2026-10-26) — 가리기 · 되살리기 · 자동 임시 가림 · 신고 처리 · 이의 제기. kind = post · comment · message, actorId 가 비면 자동 조치
+model CommunityModeration {
+  id        String   @id @default(uuid())
+  kind      String
+  targetId  String
+  /// hide · unhide · autohide · resolve · appeal
+  action    String
+  reason    String?  @db.Text
+  actorId   String?
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([kind, targetId, createdAt])
+  @@index([action, createdAt])
+  @@index([actorId])
 }
 
 // ── 트레이닝 영상 촬영(관리자) ───────────────────────────────────────────────

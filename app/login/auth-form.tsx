@@ -554,6 +554,7 @@ function SignupWizard({
     undefined
   );
   const formRef = useRef<HTMLFormElement>(null);
+  const nextPath = useQueryParam('next');
 
   /* 차례는 종류에 따라 다르다(lib/signup-check.ts signupStepsOf) — 선수 다섯, 레슨장 · 팀 넷(2026-10-20) */
   const w = useStepWizard<StepKey, SignupAnswers>({
@@ -793,7 +794,10 @@ function SignupWizard({
         */}
         <input type="hidden" name="sex" value={answers.sex ?? ''} />
         {/* 계정 종류 — 레슨장 · 팀이면 'MASTER'(서버가 조직을 함께 만든다, app/actions/auth.ts trySignupMaster). 선수는 빈 값 */}
-        <input type="hidden" name="accountType" value={master ? 'MASTER' : ''} />
+        {/* 덕아웃 회원(학부모 · 팬 · 코치)은 'MEMBER' — 빠져 있어 선수 가입으로 가서 생년월일에 막혔다(2026-10-26) */}
+        <input type="hidden" name="accountType" value={master ? 'MASTER' : answers.kind === 'member' ? 'MEMBER' : ''} />
+        {/* 덕아웃의 '로그인하고 댓글 달기' 등에서 왔으면 가입 뒤 그 화면으로(서버가 우리 주소만 받는다) */}
+        {nextPath && <input type="hidden" name="next" value={nextPath} />}
         <input type="hidden" name="orgKind" value={orgKindOf(answers.kind) ?? ''} />
 
         {/* ── 0 계정 종류 — 선수 · 레슨장 · 팀(2026-10-20). 레슨장 · 팀은 선수 칸(생년월일 · 키 · 몸무게) 대신 조직 화면으로 ── */}

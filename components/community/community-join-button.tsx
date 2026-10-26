@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { toggleJoin, type CommunityState } from '@/app/actions/community';
+import { setJoin, type CommunityState } from '@/app/actions/community';
 import { guardFormAction } from '@/lib/action-offline';
 import { Button, FormError } from '@/components/ui';
 
@@ -15,22 +15,27 @@ function Submit({ label, secondary }: { label: string; secondary: boolean }) {
   );
 }
 
-/** 번개 참가 · 팀 신청과 그 취소 — 막히면(나이 · 마감 · 지난 번개) 까닭이 밑에 뜬다(서버 toggleJoin 이 한 번 더 본다) */
+/**
+ * 번개 참가 · 팀 신청과 그 취소 — 바라는 상태(want)를 보낸다. 두 번 눌러도 참가 → 취소로 뒤집히지 않고, 정원 · 나이 · 마감은 서버가 잠근 채 본다
+ * (lib/community-ops.ts joinPost). 막히면 까닭이 밑에 뜬다. 말은 팀 말머리를 따른다(지원하기 · 경기 신청 · 우리 팀 제안하기 …).
+ */
 export function CommunityJoinButton({
   postId,
-  meetup,
   joined,
+  applyLabel,
+  cancelLabel,
 }: {
   postId: string;
-  meetup: boolean;
   joined: boolean;
+  applyLabel: string;
+  cancelLabel: string;
 }) {
-  const [state, action] = useActionState<CommunityState, FormData>(guardFormAction(toggleJoin), undefined);
-  const label = joined ? (meetup ? '참가 취소' : '신청 취소') : meetup ? '참가하기' : '신청하기';
+  const [state, action] = useActionState<CommunityState, FormData>(guardFormAction(setJoin), undefined);
   return (
     <form action={action} className="space-y-2">
       <input type="hidden" name="postId" value={postId} />
-      <Submit label={label} secondary={joined} />
+      <input type="hidden" name="want" value={joined ? 'leave' : 'join'} />
+      <Submit label={joined ? cancelLabel : applyLabel} secondary={joined} />
       <FormError>{state?.error}</FormError>
     </form>
   );

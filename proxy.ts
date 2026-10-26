@@ -8,8 +8,13 @@ import { isPhoneBrowser, surfaceOf } from '@/lib/app-env';
  */
 /* 덕아웃(/ · /intro)은 휴대폰 브라우저도 본다 — 로그인 없이 보는 바깥 공간이라 검색으로 온 사람이 막히면 안 된다(2026-10-20 금윤호) */
 /* 덕아웃(2026-10-21 2단계부터 뿌리 주소: / · /market · /chat · /lessons · /venues · /gear · /me · /search · /pay · /u · /notifications)은 휴대폰 브라우저도 본다 */
+/*
+ * /login(가입 ?signup=1 · 폰 로그인 /login/qr 포함)도 연다(2026-10-26 커뮤니티) — 덕아웃에서 '로그인하고 댓글 달기'를 누르면 '앱으로 써 주세요'에 막혔다.
+ * 로그인 뒤는 ?next= 로 돌아간 덕아웃 화면이고, next 가 없는 선수 계정은 /today 로 가서 예전처럼 '앱으로 써 주세요'를 본다(싱커 화면은 그대로 막힘).
+ * 비밀번호 찾기 화면은 아직 없다(메일 보내는 길이 없음).
+ */
 const OPEN =
-  /^\/(phone|terms|privacy|embed|velocity-engine|intro|report|market|chat|lessons|venues|gear|me|pay|u|notifications|link|community|search|baseball)(\/|$)|^\/$/;
+  /^\/(phone|terms|privacy|embed|velocity-engine|intro|report|market|chat|lessons|venues|gear|me|pay|u|notifications|link|community|search|baseball|login)(\/|$)|^\/$/;
 
 /*
  * 덕아웃 앱(이름표 DugoutApp — native/src/dugout, 2026-10-24 김민)은 덕아웃 주소에 더해 /login 까지 — 로그인은 앱 화면이 맡고 가입만 아직 웹 폼

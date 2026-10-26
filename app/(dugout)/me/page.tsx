@@ -85,6 +85,18 @@ export default async function MePage() {
         )}
       </div>
 
+      {/* 커뮤니티 활동(2026-10-26) — 내 글 · 댓글 · 저장 · 참가 · 팀 신청 */}
+      <Link
+        href="/me/community"
+        className="flex items-center justify-between rounded-2xl border border-line bg-surface px-(--block-pad) py-4 text-sm transition-colors hover:bg-ink/3"
+      >
+        <span>
+          <span className="block font-semibold text-ink">커뮤니티 활동</span>
+          <span className="text-xs text-muted">내 글 · 댓글 단 글 · 저장 · 참가한 번개 · 팀 신청</span>
+        </span>
+        <span aria-hidden className="text-muted">›</span>
+      </Link>
+
       {/* 공개 프로필(3단계 3-6) — 기본은 전부 숨김 */}
       <section className="space-y-4">
         <SectionHead title="공개 프로필" href={profileHref(user.nickname)} more="내 프로필 보기 ›" />

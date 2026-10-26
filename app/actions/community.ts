@@ -6,14 +6,28 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { appNow } from '@/lib/clock';
-import { loadCommunityList, loadCommunityPost } from '@/lib/community-load';
+import { loadCommunityList, loadCommunityPost, loadRoomOlder } from '@/lib/community-load';
 import { deleteVideos, isOwnedBy } from '@/lib/storage';
 import { buildCard } from '@/lib/community-cards';
 import { ageFromBirthDate } from '@/lib/profile';
+import { withJosa } from '@/lib/korean';
 import { formatDateTime, relativeTime } from '@/components/community/community-format';
 import { withInput, type FormValues } from '@/lib/form-values';
-import { notify } from '@/lib/notify';
+import { notify, notifyMany, type NotifyInput } from '@/lib/notify';
 import {
+  addRoomMessage,
+  joinPost,
+  leavePost,
+  logModeration,
+  maybeAutoHide,
+  recentCount,
+  refreshAnswerState,
+  setTargetHidden,
+  type ModKind,
+} from '@/lib/community-ops';
+import {
+  APPEAL_MAX,
+  HIDE_REASON_MAX,
   REPORT_DETAIL_MAX,
   COMMENT_BODY_MAX,
   POST_BODY_MAX,
@@ -21,22 +35,30 @@ import {
   MEDIA_MAX,
   ROOM_MESSAGE_MAX,
   ROOM_OPEN_MS,
+  changedFacts,
+  isJoinStatus,
   isMediaPath,
-  joinBlockReason,
+  joinStatusLabel,
   parseMeetup,
   parseTeam,
+  rateLimitError,
   readMeetupForm,
   isPostCategory,
   isPostTag,
   isReportReason,
   maskContacts,
   normalizeCategory,
+  teamHasGame,
+  teamKindOf,
+  type PostCategory,
+  type RateKind,
 } from '@/lib/community';
 
 /**
  * 커뮤니티 동작(2026-10-17 1판 — 틀) — 글 · 댓글 · 좋아요 · 신고 · 가리기.
- * 권한은 여기서 한 번 더 본다(화면이 단추를 숨겨도 주소로 부를 수 있다): 지우기는 글쓴이 · 관리자,
- * 가리기 · 신고 처리는 관리자만. 가린 글(hiddenAt)은 관리자 아니면 없는 글로 친다.
+ * 권한은 여기서 한 번 더 본다(화면이 단추를 숨겨도 주소로 부를 수 있다): 지우기는 글쓴이 · 관리자, 고치기는 글쓴이,
+ * 가리기 · 신고 처리는 관리자만. 가린 글(hiddenAt)은 관리자 · 글쓴이 아니면 없는 글로 친다.
+ * 2026-10-26: 참가는 정원 잠금(lib/community-ops.ts joinPost), 고치기 · 결과 · 신청 진행 · 저장 · 이의 제기 · 운영 기록 · 도배 막기.
  */
 export type CommunityState = { error?: string; values?: FormValues } | undefined;
 /** 신고 폼은 끝난 뒤 '접수했어요'로 바뀌어야 해서 done 을 함께 돌려준다 */
@@ -54,9 +76,103 @@ function revalidatePost(postId: string) {
   revalidatePath('/community');
   revalidatePath(`/community/${postId}`);
   revalidatePath('/admin/community');
+  revalidatePath('/me/community');
+}
+
+/** 도배 막기 — 최근 수가 넘으면 그 말. 창은 DB 시각(실제)과 견준다 */
+async function tooFast(kind: RateKind, userId: string) {
+  return rateLimitError(kind, await recentCount(prisma, kind, userId, new Date()));
+}
+
+/** 둘 사이에 차단이 있나(어느 쪽이 막았든) — 댓글 · 참가 · 대화를 막을 때. 화면에는 누가 막았는지 드러내지 않는다 */
+async function blockedBetween(a: string, b: string) {
+  if (a === b) return false;
+  return (
+    (await prisma.communityBlock.count({
+      where: { OR: [{ blockerId: a, blockedId: b }, { blockerId: b, blockedId: a }] },
+    })) > 0
+  );
+}
+
+/** 같은 글 · 같은 말의 알림이 아직 안 읽힌 채 있으면 또 안 보낸다(댓글 · 대화가 잦아도 알림은 하나) */
+async function notifyOnce(userIds: string[], input: NotifyInput) {
+  for (const id of new Set(userIds)) {
+    const waiting = await prisma.notification.findFirst({
+      where: { userId: id, link: input.link ?? null, title: input.title, readAt: null },
+      select: { id: true },
+    });
+    if (!waiting) await notify(id, input);
+  }
 }
 
 // ── 글 ────────────────────────────────────────────────────────────────────
+
+type PostDraft = {
+  category: PostCategory;
+  tag: string | null;
+  title: string;
+  body: string;
+  media: string[];
+  form: object | null;
+  region: string | null;
+  district: string | null;
+  meetAt: Date | null;
+  byStaff: boolean;
+};
+
+/**
+ * 글 폼 읽기 — 쓰기 · 고치기가 같이 쓴다. before 는 고칠 글(날짜를 안 바꿨으면 지난 시각이어도 그대로 둔다 · 운영자 표시를 지킨다).
+ */
+function readPostForm(
+  user: Me,
+  formData: FormData,
+  before?: { meetAt: Date | null; byStaff: boolean }
+): { error: string } | { draft: PostDraft } {
+  const category = normalizeCategory(field(formData, 'category'));
+  /* 전화번호 · 카톡 아이디는 올릴 때 가린다(lib/community.ts maskContacts — 1:1 쪽지가 없는 곳, 미성년 보호) */
+  const title = maskContacts(field(formData, 'title'));
+  const body = maskContacts(field(formData, 'body'));
+
+  if (!category) return { error: '게시판을 골라 주세요.' };
+  const rawTag = field(formData, 'tag');
+  if (rawTag && !isPostTag(category, rawTag)) return { error: '말머리를 다시 골라 주세요.' };
+  const tag = rawTag || null;
+  /* 사진 · 영상은 내 폴더에 올린 것만(남의 경로를 걸어 두면 그 사람 파일을 글과 함께 지울 수 있다) */
+  const media = [...new Set(formData.getAll('media').map(String).filter(Boolean))];
+  if (media.length > MEDIA_MAX) return { error: `사진 · 영상은 ${MEDIA_MAX}개까지 올릴 수 있어요.` };
+  if (media.some((m) => !isOwnedBy(m, user.id) || !isMediaPath(m)))
+    return { error: '사진 · 영상을 다시 올려 주세요.' };
+  if (!title || !body) return { error: '제목과 내용을 적어 주세요.' };
+  /* 번개 · 팀 홍보 · 선수 모집 양식 — 우리 동네 · 날짜로 거르는 칸은 따로(region · district · meetAt) */
+  const get = (name: string) => field(formData, name);
+  const getAll = (name: string) => formData.getAll(name).map(String);
+  const extra =
+    category === 'meetup'
+      ? parseMeetup(get, appNow(), before?.meetAt)
+      : category === 'team'
+        ? parseTeam(get, getAll, tag, appNow(), before?.meetAt)
+        : null;
+  if (extra && 'error' in extra) return { error: extra.error };
+  if (title.length > POST_TITLE_MAX)
+    return { error: `제목은 ${POST_TITLE_MAX}자까지 적을 수 있어요.` };
+  if (body.length > POST_BODY_MAX)
+    return { error: `내용은 ${POST_BODY_MAX}자까지 적을 수 있어요.` };
+  return {
+    draft: {
+      category,
+      tag,
+      title,
+      body,
+      media,
+      form: extra?.form ?? null,
+      region: extra?.region ?? null,
+      district: extra?.district ?? null,
+      meetAt: extra?.meetAt ?? null,
+      /* 운영자 글 표시는 관리자만 켜고 끈다 */
+      byStaff: user.role === 'ADMIN' ? field(formData, 'byStaff') === '1' : (before?.byStaff ?? false),
+    },
+  };
+}
 
 export async function createPost(
   _prev: CommunityState,
@@ -74,78 +190,137 @@ async function tryCreatePost(
   formData: FormData
 ): Promise<{ error: string } | { id: string }> {
   if (!user) return { error: LOGIN_NEEDED };
-
-  const category = normalizeCategory(field(formData, 'category'));
-  /* 전화번호 · 카톡 아이디는 올릴 때 가린다(lib/community.ts maskContacts — 1:1 쪽지가 없는 곳, 미성년 보호) */
-  const title = maskContacts(field(formData, 'title'));
-  const body = maskContacts(field(formData, 'body'));
-
-  if (!category) return { error: '게시판을 골라 주세요.' };
-  const rawTag = field(formData, 'tag');
-  if (rawTag && !isPostTag(category, rawTag)) return { error: '말머리를 다시 골라 주세요.' };
-  const tag = rawTag || null;
-  /* 사진 · 영상은 내 폴더에 올린 것만(남의 경로를 걸어 두면 그 사람 파일을 글과 함께 지울 수 있다) */
-  const media = formData.getAll('media').map(String).filter(Boolean);
-  if (media.length > MEDIA_MAX) return { error: `사진 · 영상은 ${MEDIA_MAX}개까지 올릴 수 있어요.` };
-  if (media.some((m) => !isOwnedBy(m, user.id) || !isMediaPath(m)))
-    return { error: '사진 · 영상을 다시 올려 주세요.' };
-  if (!title || !body) return { error: '제목과 내용을 적어 주세요.' };
-  /* 싱커 기록 카드 — 화면은 ref 만 보내고, 카드는 내 기록에서 다시 만든다(남의 기록 · 고친 숫자를 못 붙이게) */
-  const cardRef = field(formData, 'card');
-  const card = cardRef ? await buildCard(user.id, cardRef, field(formData, 'cardHide') === '1') : null;
-  if (cardRef && !card) return { error: '붙인 기록을 찾지 못했어요. 다시 골라 주세요.' };
-  /* 번개 · 팀 홍보 · 선수 모집 양식 — 우리 동네 · 날짜로 거르는 칸은 따로(region · meetAt) */
-  const get = (name: string) => field(formData, name);
-  const extra =
-    category === 'meetup'
-      ? parseMeetup(get, appNow())
-      : category === 'team'
-        ? parseTeam(get, formData.getAll('days').map(String))
-        : null;
-  if (extra && 'error' in extra) return { error: extra.error };
-  if (title.length > POST_TITLE_MAX)
-    return { error: `제목은 ${POST_TITLE_MAX}자까지 적을 수 있어요.` };
-  if (body.length > POST_BODY_MAX)
-    return { error: `내용은 ${POST_BODY_MAX}자까지 적을 수 있어요.` };
+  const read = readPostForm(user, formData);
+  if ('error' in read) return read;
+  const d = read.draft;
 
   /*
    * 1분 안 같은 글이면 새로 안 만든다 — 저장은 됐는데 응답이 끊겨(앱 '신호가 약해 보내지 못했어요') 다시 누르면 같은 글이 둘 생겼다.
-   * createdAt 은 DB 의 실제 시각이라 Date.now 와 견준다.
+   * createdAt 은 DB 의 실제 시각이라 Date.now 와 견준다. 도배 막기보다 먼저(다시 보내기를 도배로 세지 않게).
    */
   const same = await prisma.communityPost.findFirst({
     where: {
       userId: user.id,
-      category,
-      title,
-      body,
+      category: d.category,
+      title: d.title,
+      body: d.body,
       createdAt: { gte: new Date(Date.now() - 60_000) },
     },
     select: { id: true },
   });
   if (same) return { id: same.id };
+  const fast = await tooFast('post', user.id);
+  if (fast) return { error: fast };
+
+  /* 싱커 기록 카드 — 화면은 ref 만 보내고, 카드는 내 기록에서 다시 만든다(남의 기록 · 고친 숫자를 못 붙이게) */
+  const cardRef = field(formData, 'card');
+  const card = cardRef ? await buildCard(user.id, cardRef, field(formData, 'cardHide') === '1') : null;
+  if (cardRef && !card) return { error: '붙인 기록을 찾지 못했어요. 다시 골라 주세요.' };
 
   const post = await prisma.communityPost.create({
     data: {
       userId: user.id,
-      category,
-      tag,
-      title,
-      body,
-      media,
+      category: d.category,
+      tag: d.tag,
+      title: d.title,
+      body: d.body,
+      media: d.media,
+      byStaff: d.byStaff,
       ...(card ? { card: card as unknown as Prisma.InputJsonValue } : {}),
-      ...(extra
-        ? {
-            form: extra.form as unknown as Prisma.InputJsonValue,
-            region: extra.region,
-            meetAt: 'meetAt' in extra ? extra.meetAt : null,
-          }
+      ...(d.form
+        ? { form: d.form as Prisma.InputJsonValue, region: d.region, district: d.district, meetAt: d.meetAt }
         : {}),
     },
     select: { id: true },
   });
 
   revalidatePath('/community');
+  revalidatePath('/me/community');
   return { id: post.id };
+}
+
+/**
+ * 글 고치기(2026-10-26) — 글쓴이만. 게시판은 참가 · 신청 · 대화가 없을 때만, 팀 말머리는 신청이 없을 때만 바꾼다(흐름이 깨지지 않게).
+ * 번개 인원은 이미 참가한 수보다 줄이지 못한다. 날짜 · 장소 · 비용 · 인원이 바뀌면 참가자 · 신청자에게 한 번씩 알린다.
+ */
+export async function updatePost(_prev: CommunityState, formData: FormData): Promise<CommunityState> {
+  const done = await tryUpdatePost(await getCurrentUser(), formData);
+  if ('id' in done) redirect(`/community/${done.id}`);
+  return withInput(done, formData);
+}
+
+async function tryUpdatePost(user: Me | null, formData: FormData): Promise<{ error: string } | { id: string }> {
+  if (!user) return { error: LOGIN_NEEDED };
+  const id = field(formData, 'id');
+  const post = await prisma.communityPost.findUnique({
+    where: { id },
+    select: {
+      userId: true,
+      category: true,
+      tag: true,
+      title: true,
+      media: true,
+      form: true,
+      region: true,
+      district: true,
+      meetAt: true,
+      byStaff: true,
+      joins: { select: { userId: true } },
+      _count: { select: { messages: true } },
+    },
+  });
+  if (!post || post.userId !== user.id) return { error: '고칠 수 있는 글이 아니에요.' };
+  const read = readPostForm(user, formData, post);
+  if ('error' in read) return read;
+  const d = read.draft;
+  const joins = post.joins.length;
+
+  if ((joins > 0 || post._count.messages > 0) && d.category !== post.category)
+    return { error: '참가 · 신청한 사람이 있어 게시판은 바꿀 수 없어요.' };
+  if (joins > 0 && post.category === 'team' && teamKindOf(d.tag) !== teamKindOf(post.tag))
+    return { error: '신청한 사람이 있어 말머리는 바꿀 수 없어요.' };
+  const capacity = d.category === 'meetup' ? readMeetupForm(d.form)?.capacity ?? 0 : null;
+  if (capacity !== null && capacity < joins)
+    return { error: `이미 ${joins}명이 참가해 모집 인원을 ${joins}명보다 적게 줄일 수 없어요.` };
+
+  await prisma.communityPost.update({
+    where: { id },
+    data: {
+      category: d.category,
+      tag: d.tag,
+      title: d.title,
+      body: d.body,
+      media: d.media,
+      byStaff: d.byStaff,
+      form: (d.form ?? Prisma.DbNull) as Prisma.InputJsonValue,
+      region: d.region,
+      district: d.district,
+      meetAt: d.meetAt,
+      editedAt: appNow(),
+    },
+  });
+  /* 뺀 사진 · 영상 파일 — 글이 바뀐 뒤에(실패해도 고치기는 막지 않는다) */
+  await deleteVideos(post.media.filter((m) => !d.media.includes(m) && isOwnedBy(m, user.id)));
+
+  const changed = changedFacts(
+    { meetAt: post.meetAt, region: post.region, district: post.district, form: post.form as never },
+    { meetAt: d.meetAt, region: d.region, district: d.district, form: d.form as never }
+  );
+  if (joins > 0 && changed.length > 0) {
+    const last = changed[changed.length - 1];
+    const what = [...changed.slice(0, -1), withJosa(last, '이/가')].join(' · ');
+    await notifyMany(
+      post.joins.map((j) => j.userId),
+      {
+        kind: 'community',
+        title: `${post.category === 'meetup' ? '참가한 번개' : '신청한 글'}의 ${what} 바뀌었어요`,
+        body: d.title,
+        link: `/community/${id}`,
+      }
+    );
+  }
+  revalidatePost(id);
+  return { id };
 }
 
 export async function deletePost(formData: FormData) {
@@ -158,19 +333,26 @@ async function removePost(user: Me, id: string) {
   if (!id) return false;
   const post = await prisma.communityPost.findUnique({
     where: { id },
-    select: { userId: true, media: true },
+    select: { userId: true, category: true, title: true, media: true, meetAt: true, joins: { select: { userId: true } } },
   });
-  /* 글쓴이 본인이거나 관리자만 — 댓글 · 좋아요 · 신고 · 참가 · 대화는 Prisma 가 이어서 지운다(relationMode prisma) */
+  /* 글쓴이 본인이거나 관리자만 — 댓글 · 좋아요 · 신고 · 참가 · 대화 · 저장은 Prisma 가 이어서 지운다(relationMode prisma) */
   if (!post || (post.userId !== user.id && user.role !== 'ADMIN')) return false;
 
   await prisma.communityPost.delete({ where: { id } });
   /* 사진 · 영상 파일도 — 글이 지워진 뒤에(실패해도 글 지우기는 막지 않는다) */
   await deleteVideos(post.media.filter((m) => isOwnedBy(m, post.userId)));
+  /* 다가오는 모임이 사라지면 참가자는 알아야 한다(지난 모임은 조용히) */
+  const upcoming = !post.meetAt || post.meetAt.getTime() > appNow().getTime();
+  if (upcoming && post.joins.length > 0)
+    await notifyMany(
+      post.joins.map((j) => j.userId),
+      { kind: 'community', title: post.category === 'meetup' ? '참가한 번개 글이 지워졌어요' : '신청한 글이 지워졌어요', body: post.title }
+    );
   revalidatePost(id);
   return true;
 }
 
-// ── 좋아요 ────────────────────────────────────────────────────────────────
+// ── 좋아요 · 저장 ─────────────────────────────────────────────────────────
 
 /** 한 번 누르면 켜고 다시 누르면 끈다 — 한 사람이 한 글에 한 번(복합 키 postId_userId) */
 export async function toggleLike(formData: FormData) {
@@ -206,6 +388,28 @@ export async function toggleLike(formData: FormData) {
   revalidatePath(`/community/${postId}`);
 }
 
+/**
+ * 저장 · 저장 풀기(2026-10-26, 좋아요와 따로 — 나만 보는 모음). 바라는 상태(saved '1' | '0')로 받아 두 번 눌러도 결과가 같다.
+ */
+export async function setSaved(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) return;
+  const postId = field(formData, 'postId');
+  const post = await prisma.communityPost.findUnique({ where: { id: postId }, select: { hiddenAt: true, userId: true } });
+  if (!post || (post.hiddenAt && user.role !== 'ADMIN' && post.userId !== user.id)) return;
+  if (field(formData, 'saved') === '1') {
+    try {
+      await prisma.communitySave.create({ data: { postId, userId: user.id } });
+    } catch (e) {
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e;
+    }
+  } else {
+    await prisma.communitySave.deleteMany({ where: { postId, userId: user.id } });
+  }
+  revalidatePath(`/community/${postId}`);
+  revalidatePath('/me/community');
+}
+
 // ── 댓글 ──────────────────────────────────────────────────────────────────
 
 export async function addComment(
@@ -232,6 +436,7 @@ async function tryAddComment(formData: FormData): Promise<CommunityState> {
   });
   if (!post || (post.hiddenAt && user.role !== 'ADMIN'))
     return { error: '글을 찾지 못했어요.' };
+  if (await blockedBetween(user.id, post.userId)) return { error: '이 글에는 댓글을 달 수 없어요.' };
 
   /* 1분 안 같은 댓글이면 새로 안 만든다(끊긴 응답에 다시 보냄 — 글 만들기와 같은 까닭) */
   const same = await prisma.communityComment.findFirst({
@@ -244,10 +449,13 @@ async function tryAddComment(formData: FormData): Promise<CommunityState> {
     select: { id: true },
   });
   if (!same) {
+    const fast = await tooFast('comment', user.id);
+    if (fast) return { error: fast };
     await prisma.communityComment.create({ data: { postId, userId: user.id, body } });
-    /* 글쓴이에게 알림(내 글에 내가 단 댓글은 빼고) — 질문이면 '답이 달렸어요' */
+    if (post.category === 'question') await refreshAnswerState(prisma, postId);
+    /* 글쓴이에게 알림(내 글에 내가 단 댓글은 빼고) — 질문이면 '답이 달렸어요'. 안 읽은 같은 알림이 있으면 또 안 보낸다 */
     if (post.userId !== user.id)
-      await notify(post.userId, {
+      await notifyOnce([post.userId], {
         kind: 'community',
         title: post.category === 'question' ? '내 질문에 답이 달렸어요' : '내 글에 댓글이 달렸어요',
         body: post.title,
@@ -256,6 +464,7 @@ async function tryAddComment(formData: FormData): Promise<CommunityState> {
   }
   revalidatePath('/community');
   revalidatePath(`/community/${postId}`);
+  revalidatePath('/me/community');
   return undefined;
 }
 
@@ -272,6 +481,8 @@ export async function deleteComment(formData: FormData) {
   if (!comment || (comment.userId !== user.id && user.role !== 'ADMIN')) return;
 
   await prisma.communityComment.delete({ where: { id } });
+  /* 채택한 답이었으면 채택이 풀리고, 첫 답이었으면 답 상태가 다시 셈 된다 */
+  await refreshAnswerState(prisma, comment.postId);
   revalidatePost(comment.postId);
 }
 
@@ -301,7 +512,7 @@ export async function acceptComment(formData: FormData) {
     data: { acceptedCommentId: accepting ? id : null },
   });
   if (accepting)
-    await notify(comment.userId, {
+    await notifyOnce([comment.userId], {
       kind: 'community',
       title: '내 답변이 채택됐어요',
       link: `/community/${post.id}`,
@@ -329,84 +540,52 @@ export async function setBlocked(formData: FormData) {
     await prisma.communityBlock.deleteMany({ where: { blockerId: user.id, blockedId: target } });
   }
   revalidatePath('/community', 'layout');
+  revalidatePath('/search');
 }
 
-// ── 번개 참가 · 팀 신청 · 마감 · 글에 묶인 대화 ─────────────────────────────
+// ── 번개 참가 · 팀 신청 · 마감 · 결과 · 글에 묶인 대화 ─────────────────────
 
-/** 같은 글의 알림이 아직 안 읽힌 채 있으면 또 안 보낸다(대화가 잦아도 알림은 하나) */
-async function notifyOnce(userIds: string[], input: Parameters<typeof notify>[1]) {
-  for (const id of new Set(userIds)) {
-    const waiting = await prisma.notification.findFirst({
-      where: { userId: id, link: input.link ?? null, readAt: null },
-      select: { id: true },
-    });
-    if (!waiting) await notify(id, input);
-  }
-}
-
-/** 참가(번개) · 신청(팀)과 그 취소 — 한 단추로. 막히면 까닭을 돌려준다 */
-export async function toggleJoin(_prev: CommunityState, formData: FormData): Promise<CommunityState> {
+/**
+ * 참가(번개) · 신청(팀)과 그 취소 — 바라는 상태(want 'join' | 'leave')로 받는다. 예전 한 단추 뒤집기는 두 번 누르면 참가 → 취소가 됐다.
+ * 정원 확인과 넣기는 한 묶음(lib/community-ops.ts joinPost — 글 줄 잠금). 알림은 실제로 새로 들어왔을 때만.
+ */
+export async function setJoin(_prev: CommunityState, formData: FormData): Promise<CommunityState> {
   const user = await getCurrentUser();
   if (!user) return { error: LOGIN_NEEDED };
   const postId = field(formData, 'postId');
-  const post = await prisma.communityPost.findUnique({
-    where: { id: postId },
-    select: {
-      userId: true,
-      category: true,
-      title: true,
-      form: true,
-      meetAt: true,
-      closedAt: true,
-      hiddenAt: true,
-      joins: { where: { userId: user.id }, select: { userId: true } },
-      _count: { select: { joins: true } },
-    },
-  });
-  if (!post || post.hiddenAt || (post.category !== 'meetup' && post.category !== 'team'))
-    return { error: '글을 찾지 못했어요.' };
   const now = appNow();
-  const past = post.meetAt !== null && post.meetAt.getTime() < now.getTime();
-
-  if (post.joins.length > 0) {
-    if (past) return { error: '지난 번개는 취소할 수 없어요.' };
-    await prisma.communityJoin.deleteMany({ where: { postId, userId: user.id } });
+  if (field(formData, 'want') === 'leave') {
+    const r = await leavePost(prisma, postId, user.id, now);
+    if ('error' in r) return r;
     revalidatePost(postId);
     return undefined;
   }
-
-  const meetup = readMeetupForm(post.form);
-  const reason = joinBlockReason({
-    age: user.birthDate ? ageFromBirthDate(user.birthDate) : null,
-    adultOnly: meetup?.age === 'adult',
-    isAuthor: post.userId === user.id,
-    closed: post.closedAt !== null,
-    full: post.category === 'meetup' && meetup !== null && post._count.joins >= meetup.capacity,
-    past,
-  });
-  if (reason) return { error: reason };
-  try {
-    await prisma.communityJoin.create({ data: { postId, userId: user.id } });
-  } catch (e) {
-    if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e;
-  }
-  await notify(post.userId, {
-    kind: 'community',
-    title: post.category === 'meetup' ? `${user.nickname} 님이 번개에 참가했어요` : `${user.nickname} 님이 신청했어요`,
-    body: post.title,
-    link: `/community/${postId}`,
-  });
+  const r = await joinPost(
+    prisma,
+    postId,
+    { id: user.id, age: user.birthDate ? ageFromBirthDate(user.birthDate) : null },
+    now
+  );
+  if ('error' in r) return r;
+  if (r.joined)
+    await notify(r.post.userId, {
+      kind: 'community',
+      title:
+        r.post.category === 'meetup' ? `${user.nickname} 님이 번개에 참가했어요` : `${user.nickname} 님이 신청했어요`,
+      body: r.post.title,
+      link: r.post.category === 'team' ? `/community/${postId}?thread=${user.id}` : `/community/${postId}`,
+    });
   revalidatePost(postId);
   return undefined;
 }
 
-/** 마감 · 다시 열기 — 글쓴이만 */
+/** 마감 · 다시 열기 — 글쓴이만, 결과(모였어요 · 취소)를 남긴 글은 그대로 */
 export async function setClosed(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) return;
   const id = field(formData, 'id');
-  const post = await prisma.communityPost.findUnique({ where: { id }, select: { userId: true } });
-  if (!post || post.userId !== user.id) return;
+  const post = await prisma.communityPost.findUnique({ where: { id }, select: { userId: true, outcome: true } });
+  if (!post || post.userId !== user.id || post.outcome) return;
   await prisma.communityPost.update({
     where: { id },
     data: { closedAt: field(formData, 'closed') === '1' ? appNow() : null },
@@ -415,14 +594,80 @@ export async function setClosed(formData: FormData) {
 }
 
 /**
- * 글에 묶인 대화에 말하기 — 번개는 글쓴이 + 참가자 한 방(모임 다음 날 닫힘), 팀은 신청자마다 글쓴이와 둘만(thread = 신청자).
- * 이 방은 연락을 나누는 곳이라 연락처를 가리지 않는다.
+ * 모임 · 경기의 실제 결과(2026-10-26) — 글쓴이만. held(모였어요 · 경기했어요)는 시각이 지난 뒤, cancelled(취소)는 언제나. '' 는 되돌리기.
+ * 참가 신청만으로 '성사'로 세지 않는다(운영 지표). 취소하면 참가자 · 신청자에게 알린다.
+ */
+export async function setOutcome(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) return;
+  const id = field(formData, 'id');
+  const outcome = field(formData, 'outcome');
+  if (outcome !== 'held' && outcome !== 'cancelled' && outcome !== '') return;
+  const post = await prisma.communityPost.findUnique({
+    where: { id },
+    select: { userId: true, category: true, tag: true, title: true, meetAt: true, outcome: true, joins: { select: { userId: true } } },
+  });
+  if (!post || post.userId !== user.id) return;
+  const gathers = post.category === 'meetup' || (post.category === 'team' && teamHasGame(teamKindOf(post.tag)));
+  if (!gathers) return;
+  const now = appNow();
+  if (outcome === 'held' && (!post.meetAt || post.meetAt.getTime() > now.getTime())) return;
+  await prisma.communityPost.update({
+    where: { id },
+    data: { outcome: outcome || null, outcomeAt: outcome ? now : null },
+  });
+  if (outcome === 'cancelled' && post.outcome !== 'cancelled' && post.joins.length > 0)
+    await notifyMany(
+      post.joins.map((j) => j.userId),
+      {
+        kind: 'community',
+        title: post.category === 'meetup' ? '참가한 번개가 취소됐어요' : '신청한 경기가 취소됐어요',
+        body: post.title,
+        link: `/community/${id}`,
+      }
+    );
+  revalidatePost(id);
+}
+
+/** 팀 신청 진행 — 글쓴이가 신청마다(접수 · 함께해요 · 이번엔 어려워요 · 진행 완료). 신청자에게 알린다 */
+export async function setJoinStatus(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) return;
+  const postId = field(formData, 'postId');
+  const target = field(formData, 'userId');
+  const status = field(formData, 'status');
+  if (!isJoinStatus(status)) return;
+  const post = await prisma.communityPost.findUnique({
+    where: { id: postId },
+    select: { userId: true, category: true, title: true },
+  });
+  if (!post || post.userId !== user.id || post.category !== 'team') return;
+  const { count } = await prisma.communityJoin.updateMany({
+    where: { postId, userId: target, status: { not: status } },
+    data: { status, statusAt: appNow() },
+  });
+  if (count > 0)
+    await notify(target, {
+      kind: 'community',
+      title: `신청 진행: ${joinStatusLabel(status)}`,
+      body: post.title,
+      link: `/community/${postId}`,
+    });
+  revalidatePost(postId);
+}
+
+/**
+ * 글에 묶인 대화에 말하기 — 번개는 글쓴이 + 참가자 한 방(모임 다음 날 · 취소하면 닫힘), 팀은 신청자마다 글쓴이와 둘만(thread = 신청자).
+ * 이 방은 연락을 나누는 곳이라 연락처를 가리지 않는다. clientId 로 다시 보내기를 하나로(응답이 끊겨도 말이 둘 생기지 않게).
+ * 번개 방에서 누군가를 차단했다고 방을 막지 않는다(다른 참가자의 대화까지 막게 된다) — 막은 사람의 말만 내 화면에서 접는다.
+ * 팀 둘만의 방은 둘 사이에 차단이 있으면 더 못 보낸다.
  */
 export async function sendRoomMessage(_prev: CommunityState, formData: FormData): Promise<CommunityState> {
   const user = await getCurrentUser();
   if (!user) return { error: LOGIN_NEEDED };
   const postId = field(formData, 'postId');
   const body = field(formData, 'body');
+  const clientId = field(formData, 'clientId').slice(0, 64) || null;
   if (!body) return { error: '말을 적어 주세요.' };
   if (body.length > ROOM_MESSAGE_MAX) return { error: `${ROOM_MESSAGE_MAX}자까지 적을 수 있어요.` };
   const post = await prisma.communityPost.findUnique({
@@ -432,6 +677,7 @@ export async function sendRoomMessage(_prev: CommunityState, formData: FormData)
       category: true,
       title: true,
       meetAt: true,
+      outcome: true,
       hiddenAt: true,
       joins: { select: { userId: true } },
     },
@@ -440,31 +686,55 @@ export async function sendRoomMessage(_prev: CommunityState, formData: FormData)
   const joined = post.joins.map((j) => j.userId);
   const isAuthor = post.userId === user.id;
   const link = `/community/${postId}`;
+  let thread: string | null = null;
 
   if (post.category === 'meetup') {
     if (!isAuthor && !joined.includes(user.id)) return { error: '참가한 사람만 말할 수 있어요.' };
+    if (post.outcome === 'cancelled') return { error: '취소된 번개라 대화방이 닫혔어요.' };
     if (post.meetAt && appNow().getTime() > post.meetAt.getTime() + ROOM_OPEN_MS)
       return { error: '대화방이 닫혔어요.' };
-    await prisma.communityMessage.create({ data: { postId, senderId: user.id, body } });
-    await notifyOnce(
-      [post.userId, ...joined].filter((id) => id !== user.id),
-      { kind: 'community', title: '번개 대화방에 새 말이 있어요', body: post.title, link }
-    );
   } else if (post.category === 'team') {
-    const thread = isAuthor ? field(formData, 'thread') : user.id;
+    thread = isAuthor ? field(formData, 'thread') : user.id;
     if (!joined.includes(thread)) return { error: isAuthor ? '신청한 사람을 찾지 못했어요.' : '먼저 신청해 주세요.' };
-    await prisma.communityMessage.create({ data: { postId, threadUserId: thread, senderId: user.id, body } });
-    await notifyOnce([isAuthor ? thread : post.userId], {
-      kind: 'community',
-      title: isAuthor ? '팀에서 답이 왔어요' : `${user.nickname} 님이 말을 보냈어요`,
-      body: post.title,
-      link: isAuthor ? link : `${link}?thread=${user.id}`,
-    });
+    if (await blockedBetween(post.userId, thread)) return { error: '이 대화는 더 이어갈 수 없어요.' };
   } else {
     return { error: '대화가 없는 글이에요.' };
   }
+  /* 같은 번호의 다시 보내기는 도배로 세지 않는다 — 새 말에만 제한 */
+  const known = clientId
+    ? await prisma.communityMessage.findUnique({
+        where: { senderId_clientId: { senderId: user.id, clientId } },
+        select: { id: true },
+      })
+    : null;
+  if (!known) {
+    const fast = await tooFast('message', user.id);
+    if (fast) return { error: fast };
+  }
+  const { created } = await addRoomMessage(prisma, { postId, thread, senderId: user.id, body, clientId });
+  if (created) {
+    if (post.category === 'meetup')
+      await notifyOnce(
+        [post.userId, ...joined].filter((id) => id !== user.id),
+        { kind: 'community', title: '번개 대화방에 새 말이 있어요', body: post.title, link }
+      );
+    else
+      await notifyOnce([isAuthor ? thread! : post.userId], {
+        kind: 'community',
+        title: isAuthor ? '팀에서 답이 왔어요' : `${user.nickname} 님이 말을 보냈어요`,
+        body: post.title,
+        link: isAuthor ? link : `${link}?thread=${user.id}`,
+      });
+  }
   revalidatePath(`/community/${postId}`);
   return undefined;
+}
+
+/** 대화의 이전 장 — 화면이 '이전 대화 보기'로 부른다. 볼 수 없으면 빈 장 */
+export async function loadOlderRoomMessages(postId: unknown, thread: unknown, before: unknown) {
+  const user = await getCurrentUser();
+  if (!user || typeof postId !== 'string' || typeof before !== 'string') return { messages: [], hasOlder: false };
+  return loadRoomOlder(user, postId, typeof thread === 'string' ? thread : undefined, before);
 }
 
 // ── 신고 ──────────────────────────────────────────────────────────────────
@@ -482,35 +752,56 @@ async function tryReport(formData: FormData): Promise<ReportState> {
 
   const postId = field(formData, 'postId');
   const commentId = field(formData, 'commentId');
+  const messageId = field(formData, 'messageId');
   const reason = field(formData, 'reason');
   const detail = field(formData, 'detail');
   if (detail.length > REPORT_DETAIL_MAX)
     return { error: `신고 내용은 ${REPORT_DETAIL_MAX}자까지 적을 수 있어요.` };
 
   if (!isReportReason(reason)) return { error: '신고 이유를 골라 주세요.' };
-  /* 글 또는 댓글 하나 — 둘 다거나 둘 다 아니면 잘못 온 요청 */
-  if (Boolean(postId) === Boolean(commentId))
+  /* 글 · 댓글 · 대화의 말 가운데 하나만 */
+  if ([postId, commentId, messageId].filter(Boolean).length !== 1)
     return { error: '신고할 글을 찾지 못했어요.' };
 
-  const target = commentId
-    ? await prisma.communityComment.findUnique({
-        where: { id: commentId },
-        select: { userId: true, postId: true },
-      })
-    : await prisma.communityPost.findUnique({
-        where: { id: postId },
-        select: { userId: true },
-      });
+  let kind: ModKind;
+  let target: { userId: string } | null;
+  if (messageId) {
+    kind = 'message';
+    /* 그 대화를 볼 수 있는 사람만(글쓴이 · 참가자 · 그 신청자) — 남의 방 말 번호로 신고하지 못하게 */
+    const m = await prisma.communityMessage.findUnique({
+      where: { id: messageId },
+      select: { senderId: true, threadUserId: true, post: { select: { userId: true, joins: { select: { userId: true } } } } },
+    });
+    const member =
+      m &&
+      (m.post.userId === user.id ||
+        (m.threadUserId ? m.threadUserId === user.id : m.post.joins.some((j) => j.userId === user.id)));
+    target = m && member ? { userId: m.senderId } : null;
+  } else if (commentId) {
+    kind = 'comment';
+    target = await prisma.communityComment.findUnique({ where: { id: commentId }, select: { userId: true } });
+  } else {
+    kind = 'post';
+    target = await prisma.communityPost.findUnique({ where: { id: postId }, select: { userId: true } });
+  }
   if (!target) return { error: '신고할 글을 찾지 못했어요.' };
   if (target.userId === user.id) return { error: '내가 쓴 글은 신고할 수 없어요.' };
 
-  /* 같은 사람이 같은 글을 두 번 신고해도 한 건 — 표의 unique([reporterId, postId|commentId])가 막고, 이미 있으면 접수된 것으로 친다 */
+  /* 같은 사람이 같은 것을 두 번 신고해도 한 건 — 표의 unique 가 막고, 이미 있으면 접수된 것으로 친다(도배 막기 전에) */
+  const exists = await prisma.communityReport.findFirst({
+    where: { reporterId: user.id, postId: kind === 'post' ? postId : undefined, commentId: kind === 'comment' ? commentId : undefined, messageId: kind === 'message' ? messageId : undefined },
+    select: { id: true },
+  });
+  if (exists) return { done: true };
+  const fast = await tooFast('report', user.id);
+  if (fast) return { error: fast };
   try {
     await prisma.communityReport.create({
       data: {
         reporterId: user.id,
-        postId: commentId ? null : postId,
-        commentId: commentId || null,
+        postId: kind === 'post' ? postId : null,
+        commentId: kind === 'comment' ? commentId : null,
+        messageId: kind === 'message' ? messageId : null,
         reason,
         detail: detail || null,
       },
@@ -519,16 +810,27 @@ async function tryReport(formData: FormData): Promise<ReportState> {
     if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002'))
       throw e;
   }
+  /* 기준을 넘으면 운영자가 보기 전 잠시 가린다(lib/community.ts AUTO_HIDE) */
+  const id = kind === 'post' ? postId : kind === 'comment' ? commentId : messageId;
+  if (await maybeAutoHide(prisma, kind, id, appNow())) {
+    if (kind === 'comment') {
+      const c = await prisma.communityComment.findUnique({ where: { id }, select: { postId: true } });
+      if (c) {
+        await refreshAnswerState(prisma, c.postId);
+        revalidatePost(c.postId);
+      }
+    } else if (kind === 'post') revalidatePost(id);
+  }
 
   revalidatePath('/admin/community');
   return { done: true };
 }
 
-// ── 관리자 — 가리기 · 신고 처리 ───────────────────────────────────────────
+// ── 운영자 — 가리기 · 신고 처리 ───────────────────────────────────────────
 
 /**
- * 글 · 댓글 가리기와 되살리기 하나로 — kind('post' | 'comment') · id · hidden('1' | '0').
- * 지우지 않고 가린다 — 신고가 잘못됐을 때 되살릴 수 있어야 하고, 글쓴이의 다른 글 · 댓글은 그대로 둬야 한다.
+ * 글 · 댓글 · 대화의 말 가리기와 되살리기 하나로 — kind('post' | 'comment' | 'message') · id · hidden('1' | '0') · reason(선택).
+ * 지우지 않고 가린다 — 신고가 잘못됐을 때 되살릴 수 있어야 하고, 글쓴이의 다른 글 · 댓글은 그대로 둬야 한다. 누가 · 언제 · 왜는 운영 기록에.
  */
 export async function setHidden(formData: FormData) {
   const user = await getCurrentUser();
@@ -536,28 +838,24 @@ export async function setHidden(formData: FormData) {
 
   const kind = field(formData, 'kind');
   const id = field(formData, 'id');
-  const hiddenAt = field(formData, 'hidden') === '1' ? appNow() : null;
-  if (!id) return;
+  const hidden = field(formData, 'hidden') === '1';
+  const reason = field(formData, 'reason').slice(0, HIDE_REASON_MAX);
+  if (!id || (kind !== 'post' && kind !== 'comment' && kind !== 'message')) return;
 
-  if (kind === 'post') {
-    const post = await prisma.communityPost.findUnique({
-      where: { id },
-      select: { id: true },
-    });
-    if (!post) return;
-    await prisma.communityPost.update({ where: { id }, data: { hiddenAt } });
-    revalidatePost(id);
-  } else if (kind === 'comment') {
-    const comment = await prisma.communityComment.findUnique({
-      where: { id },
-      select: { postId: true },
-    });
-    if (!comment) return;
-    await prisma.communityComment.update({ where: { id }, data: { hiddenAt } });
-    revalidatePost(comment.postId);
+  await setTargetHidden(prisma, { kind, id, hidden, reason, actorId: user.id }, appNow());
+  if (kind === 'post') revalidatePost(id);
+  else {
+    const row =
+      kind === 'comment'
+        ? await prisma.communityComment.findUnique({ where: { id }, select: { postId: true } })
+        : await prisma.communityMessage.findUnique({ where: { id }, select: { postId: true } });
+    if (!row) return;
+    if (kind === 'comment') await refreshAnswerState(prisma, row.postId);
+    revalidatePost(row.postId);
   }
 }
 
+/** 신고 처리 — 대상이 가려져 있으면 '가림'(actioned), 아니면 '문제 없음'(dismissed). 문제없는 신고를 되풀이하는 사람은 자동 가림에서 덜 센다 */
 export async function resolveReport(formData: FormData) {
   const user = await getCurrentUser();
   if (!user || user.role !== 'ADMIN') return;
@@ -566,14 +864,99 @@ export async function resolveReport(formData: FormData) {
 
   const report = await prisma.communityReport.findUnique({
     where: { id },
-    select: { id: true },
+    select: {
+      postId: true,
+      commentId: true,
+      messageId: true,
+      listingId: true,
+      post: { select: { hiddenAt: true } },
+      comment: { select: { hiddenAt: true } },
+      message: { select: { hiddenAt: true } },
+      listing: { select: { hiddenAt: true } },
+    },
   });
   if (!report) return;
+  const target = report.post ?? report.comment ?? report.message ?? report.listing;
   await prisma.communityReport.update({
     where: { id },
-    data: { resolvedAt: appNow() },
+    data: { resolvedAt: appNow(), outcome: target?.hiddenAt ? 'actioned' : 'dismissed' },
   });
+  const kind: ModKind | null = report.postId ? 'post' : report.commentId ? 'comment' : report.messageId ? 'message' : null;
+  const targetId = report.postId ?? report.commentId ?? report.messageId;
+  if (kind && targetId)
+    await logModeration(prisma, {
+      kind,
+      targetId,
+      action: 'resolve',
+      reason: target?.hiddenAt ? '가린 채 처리' : '문제 없음으로 처리',
+      actorId: user.id,
+    });
   revalidatePath('/admin/community');
+}
+
+/**
+ * 이의 제기(2026-10-26) — 운영자가 가린 내 글 · 댓글에 한 번. 운영자가 다시 보기 전에는 또 못 낸다. 운영자에게 알림.
+ */
+export async function appealHidden(_prev: ReportState, formData: FormData): Promise<ReportState> {
+  const user = await getCurrentUser();
+  if (!user) return { error: LOGIN_NEEDED };
+  const kind = field(formData, 'kind');
+  const id = field(formData, 'id');
+  const reason = field(formData, 'reason');
+  if (kind !== 'post' && kind !== 'comment') return { error: '이의를 낼 글을 찾지 못했어요.' };
+  if (!reason) return { error: '왜 다시 봐야 하는지 적어 주세요.' };
+  if (reason.length > APPEAL_MAX) return { error: `${APPEAL_MAX}자까지 적을 수 있어요.` };
+  const target =
+    kind === 'post'
+      ? await prisma.communityPost.findUnique({ where: { id }, select: { userId: true, hiddenAt: true, id: true } })
+      : await prisma.communityComment.findUnique({ where: { id }, select: { userId: true, hiddenAt: true, postId: true } });
+  if (!target || target.userId !== user.id || !target.hiddenAt) return { error: '이의를 낼 수 있는 글이 아니에요.' };
+  const last = await prisma.communityModeration.findFirst({
+    where: { kind, targetId: id },
+    orderBy: { createdAt: 'desc' },
+    select: { action: true },
+  });
+  if (last?.action === 'appeal') return { done: true };
+  await logModeration(prisma, { kind, targetId: id, action: 'appeal', reason, actorId: user.id });
+  const admins = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } });
+  await notifyOnce(
+    admins.map((a) => a.id),
+    { kind: 'community', title: '커뮤니티 이의 제기가 들어왔어요', link: '/admin/community?view=appeals' }
+  );
+  revalidatePath('/admin/community');
+  revalidatePath(`/community/${'postId' in target ? target.postId : target.id}`);
+  return { done: true };
+}
+
+/**
+ * 이의 제기 처리 — 운영자가 다시 보고 되살리거나(restore) 그대로 둔다(keep). 글쓴이에게 결과를 알린다. 기록은 운영 기록에.
+ */
+export async function reviewAppeal(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user || user.role !== 'ADMIN') return;
+  const kind = field(formData, 'kind');
+  const id = field(formData, 'id');
+  const decision = field(formData, 'decision');
+  if ((kind !== 'post' && kind !== 'comment') || (decision !== 'restore' && decision !== 'keep')) return;
+  const target =
+    kind === 'post'
+      ? await prisma.communityPost.findUnique({ where: { id }, select: { userId: true, id: true } })
+      : await prisma.communityComment.findUnique({ where: { id }, select: { userId: true, postId: true } });
+  if (!target) return;
+  const postId = 'postId' in target ? target.postId : target.id;
+  const now = appNow();
+  if (decision === 'restore') {
+    await setTargetHidden(prisma, { kind, id, hidden: false, reason: '이의 제기를 받아 되살림', actorId: user.id }, now);
+    if (kind === 'comment') await refreshAnswerState(prisma, postId);
+  } else {
+    await logModeration(prisma, { kind, targetId: id, action: 'resolve', reason: '이의 제기 확인 · 가림 유지', actorId: user.id });
+  }
+  await notify(target.userId, {
+    kind: 'community',
+    title: decision === 'restore' ? '이의 제기를 받아 다시 보이게 했어요' : '이의 제기를 확인했어요. 가림은 그대로예요',
+    link: `/community/${postId}`,
+  });
+  revalidatePost(postId);
 }
 
 // ── 아이폰 앱(native/src/app/community) ─────────────────────────────────────

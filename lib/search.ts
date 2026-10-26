@@ -59,10 +59,15 @@ export type SearchResult = {
   venues: VenueCard[];
 };
 
-async function searchPosts(q: string, take: number): Promise<PostHit[]> {
+/** 커뮤니티 글 — 게시판 목록과 같은 공개 규칙(가린 글 빼고, 내가 막은 사람의 글 빼고 — lib/community-load.ts) */
+async function searchPosts(q: string, take: number, viewerId: string | null): Promise<PostHit[]> {
+  const blocked = viewerId
+    ? (await prisma.communityBlock.findMany({ where: { blockerId: viewerId }, select: { blockedId: true } })).map((b) => b.blockedId)
+    : [];
   const rows = await prisma.communityPost.findMany({
     where: {
       hiddenAt: null,
+      ...(blocked.length > 0 ? { userId: { notIn: blocked } } : {}),
       OR: [
         { title: { contains: q, mode: 'insensitive' } },
         { body: { contains: q, mode: 'insensitive' } },
@@ -160,7 +165,7 @@ export async function searchAll(
     want('market')
       ? safe(searchListings(q, region, viewer), { items: [], hasMore: false })
       : { items: [], hasMore: false },
-    want('community') ? safe(searchPosts(q, many ? 30 : 5), []) : [],
+    want('community') ? safe(searchPosts(q, many ? 30 : 5, viewer?.id ?? null), []) : [],
     want('lessons') ? safe(searchCoaches(q, region), []) : [],
     want('venues') ? safe(loadVenues({ q, region }, viewer?.id ?? null), []) : [],
   ]);

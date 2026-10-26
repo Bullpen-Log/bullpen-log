@@ -11,6 +11,17 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-26 · 김민(Claude, 커뮤니티 세션) — 커뮤니티 운영 보완 · **받으면 `npx prisma generate`** · 네 로그인 폼 · 검색 · 마이를 조금 고쳤다
+
+받은 뒤 할 일: **`npx prisma generate`** — 마이그레이션 `20261026230000_community_ops`(더하기만: 커뮤니티 글 · 참가 · 대화 · 신고 칸 몇 개, 새 표 `CommunitySave` · `CommunityModeration`).
+공유 DB 에는 이 푸시의 Vercel 빌드(`prisma migrate deploy`)가 건다 — 손으로 걸지 않았다. 직전 백업 `db-2026-10-26-14-16.json`. 옛 코드도 그대로 돈다.
+김민: "덕아웃 커뮤니티 개선(싱커 기록 공유는 빼고)". 무엇을 바꿨는지는 `docs/designs/dugout-community.md` '5단계 운영 보완'.
+- **네 영역 고친 곳(작게)**: `app/login/auth-form.tsx` — 웹 가입의 '학부모 · 팬 · 코치'가 `accountType` 을 안 보내 선수 가입으로 가서 생년월일에 막히던 것(`MEMBER` 를 보냄),
+  가입에도 `?next=`. `app/actions/auth.ts` 선수 · 덕아웃 회원 가입 뒤 next 로. `proxy.ts` OPEN 에 `login`(휴대폰 브라우저 로그인 · 가입, 싱커 화면은 그대로 막힘).
+  `app/(dugout)/search/page.tsx` 글 링크를 로그인 없이 상세로 · `lib/search.ts` 내가 막은 사람 글 빼기. `app/(dugout)/me/page.tsx` '커뮤니티 활동' 줄 하나. `components/icon.tsx` 아이콘 셋.
+- 덕아웃 위 막대의 '로그인'은 next 없이 간다 — 지금 보던 주소를 붙이면 휴대폰에서도 로그인 뒤 제자리로 온다(네 `dugout-topbar` 몫, 원하면 같이).
+- `npm run dugout:test` 실패 3개(덕아웃 앱 `/login` 정규식 · `@modal/(.)manage/places` 머리 · 수집 후보 화면)는 이 작업 전부터다.
+
 
 ## 금윤호에게 — 2026-10-26 · 김민(Codex, 체크인 야구 유니폼 일러스트 적용)
 
