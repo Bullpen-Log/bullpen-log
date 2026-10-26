@@ -30,7 +30,7 @@ export function ChatShell({ rooms, children }: { rooms: ChatListItem[]; children
     : rooms;
 
   return (
-    <div className="-mx-4 -mt-5 flex h-[calc(var(--vvh,100dvh)-9.5rem)] overflow-hidden border-line bg-surface md:mx-0 md:mt-0 md:h-[calc(var(--vvh,100dvh)-10rem)] md:rounded-2xl md:border">
+    <div data-chat-shell className="-mx-4 -mt-5 flex h-[calc(var(--vvh,100dvh)-9.5rem)] overflow-hidden border-line bg-surface md:mx-0 md:mt-0 md:h-[calc(var(--vvh,100dvh)-10rem)] md:rounded-2xl md:border">
       {/* 왼쪽 — 대화 목록 */}
       <aside
         className={`${active ? 'hidden md:flex' : 'flex'} w-full min-w-0 flex-col border-line md:w-[340px] md:shrink-0 md:border-r`}

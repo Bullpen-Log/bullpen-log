@@ -45,7 +45,7 @@ export function DugoutPageHeader({
           </nav>
         )}
         {eyebrow && <p className="text-[13px] text-muted">{eyebrow}</p>}
-        <h1 className="text-[24px] leading-8 font-bold tracking-tight text-ink">{title}</h1>
+        <h1 data-dugout-title className="text-[24px] leading-8 font-bold tracking-tight text-ink">{title}</h1>
         {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2 has-[form]:w-full sm:has-[form]:w-auto">{actions}</div>}

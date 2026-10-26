@@ -16,7 +16,8 @@ export type Shortcut = {
 
 export function ShortcutTiles({ items, label = '바로가기', className = '' }: { items: Shortcut[]; label?: string; className?: string }) {
   return (
-    <nav aria-label={label} className={`no-scrollbar -mx-4 flex justify-start gap-4 overflow-x-auto px-4 md:mx-0 md:justify-center md:gap-8 md:px-0 ${className}`}>
+    /* data-shortcuts — 싱커 앱 안에서는 72px 타일 대신 아이콘 · 이름이 든 흰 알약 한 줄(globals.css '싱커 앱 안의 덕아웃') */
+    <nav aria-label={label} data-shortcuts className={`no-scrollbar -mx-4 flex justify-start gap-4 overflow-x-auto px-4 md:mx-0 md:justify-center md:gap-8 md:px-0 ${className}`}>
       {items.map((s) => {
         const I = s.icon;
         return (

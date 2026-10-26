@@ -8,6 +8,7 @@ import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
 import { MorphIn } from '@/components/shell-morph';
 import { DugoutAppBridge } from '@/components/app-shell/expo-tabs';
 import { inSinkerDugout } from '@/lib/sinker-dugout';
+import type { Surface } from '@/lib/app-env';
 
 /**
  * 덕아웃 껍데기(2026-10-20, docs/designs/baseball-hub.md) — 로그인 없이 보는 야구인의 공간. 선수 껍데기(components/app-shell)와 별개.
@@ -21,7 +22,7 @@ export function DugoutShell({
   sinker = false,
   manage = false,
   native = false,
-  sinkerApp = false,
+  surface = 'web',
   avatarUrl = null,
   children,
 }: {
@@ -34,13 +35,17 @@ export function DugoutShell({
   /** 싱커 앱 웹뷰 안 — 아래 탭은 앱 것이 대신 선다 */
   native?: boolean;
   /**
-   * 싱커 앱의 덕아웃 탭(2026-10-24 김민: "싱커와 연관 있는 것만 · 따로 노는 느낌 말고 이어진 느낌 · 덕아웃 정체성은 그대로") — 덕아웃 틀 · 초록 · 로고는 그대로 두고
-   * 위 막대만 가볍게(slim), 싱커에 없어도 되는 화면(장터 · 경기 일정 · 검색 …)은 안내로 바꾼다(lib/sinker-dugout.ts). 덕아웃 앱은 native 만 켜고 이것은 끈다.
+   * 어느 얼굴 안인가(서버가 이름표로 가린 값, lib/app-env.ts surfaceOf) — 바깥 틀에 data-surface 로 단다.
+   * 'sinker-app'(싱커 앱의 덕아웃 탭, 2026-10-24 김민: "싱커와 연관 있는 것만 · 따로 노는 느낌 말고 이어진 느낌 · 덕아웃 정체성은 그대로"):
+   * 위 막대는 가볍게(slim — 첫 칠부터 서 있고 하위 화면은 '‹ 뒤로'), 싱커에 없어도 되는 화면(장터 · 경기 일정 · 검색 …)은 안내로 바꾼다(lib/sinker-dugout.ts).
+   * 2026-10-27 김민 "같은 앱 안에서 활동 공간만 바뀐 느낌": 바탕 · 카드 · 행동색 · 조작 크기를 싱커(native/src/lib/design-tokens.ts)에 맞춘다 —
+   * 회색 바탕 · 흰 카드 · 파란 행동, 덕아웃 초록은 로고에만(globals.css '싱커 앱 안의 덕아웃'). 덕아웃 웹 · 덕아웃 앱은 예전 그대로.
    */
-  sinkerApp?: boolean;
+  surface?: Surface;
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const sinkerApp = surface === 'sinker-app';
   const tabs = [
     { href: native ? '/?dugout=1' : '/', label: '홈', icon: RoundHome, exact: true },
     { href: '/market', label: '장터', icon: RoundMarket },
@@ -56,7 +61,8 @@ export function DugoutShell({
     <div
       data-safe-area
       data-brand="dugout"
-      className="flex min-h-[var(--vvh,100dvh)] flex-col bg-surface text-ink"
+      data-surface={surface}
+      className={`flex min-h-[var(--vvh,100dvh)] flex-col text-ink ${sinkerApp ? 'bg-page' : 'bg-surface'}`}
     >
       <DugoutTopBar
         user={user}
@@ -78,7 +84,7 @@ export function DugoutShell({
       <main
         data-morph-main
         /* 바깥 틀(.dugout-frame — 본문 1160 · 거터 48/32/24/16, globals.css) — 위 막대와 같은 축. 큰 화면은 막대 밑 24px 에서 바로 내용이 시작한다 */
-        className="dugout-frame flex-1 pt-5 pb-28 md:pt-8 md:pb-16 lg:pt-6"
+        className={`dugout-frame flex-1 ${sinkerApp ? 'pt-4 pb-(--dugout-end)' : 'pt-5 pb-28 md:pt-8 md:pb-16 lg:pt-6'}`}
       >
         {sinkerApp && !inSinkerDugout(pathname) ? <SinkerAway /> : children}
       </main>

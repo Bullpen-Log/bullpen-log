@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useLayoutEffect, useRef, useState } from 'react';
-import { RoundChat, RoundPlus, RoundSearch } from '@/components/round-icon';
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { RoundBack, RoundChat, RoundPlus, RoundSearch } from '@/components/round-icon';
+import { goBack } from '@/components/back-link';
+import { barSnapshot, serverBarSnapshot, subscribeBar } from '@/lib/nav-state';
 import { SinkerMark, Wordmark } from '@/components/logo';
 import { MorphLink } from '@/components/shell-morph';
 import { DugoutBell, DugoutSettings } from '@/components/dugout/dugout-header-tools';
@@ -57,6 +59,12 @@ export function DugoutTopBar({
   const router = useRouter();
   /* 덕아웃 홈 — 가운데 통합검색이 있는 화면(싱커 앱 웹뷰의 /?dugout=1 도 같은 주소) */
   const onHome = pathname === '/';
+  /*
+   * 싱커 앱 안(slim)의 하위 화면 — 왼쪽에 '‹ 뒤로'(2026-10-27). 화면의 BackLink 가 적어 둔 목적지가 있으면 그것, 없으면 주소로 정한 윗 화면(sinkerBackOf).
+   * 덕아웃 화면의 BackLink 는 휴대폰에서 본문 줄을 숨기고 위 막대에 서게 돼 있는데(components/back-link.tsx) 덕아웃 막대가 안 읽어, 앱에서는 뒤로 단추가 아예 없었다.
+   */
+  const bar = useSyncExternalStore(subscribeBar, barSnapshot, serverBarSnapshot);
+  const back = slim && !onHome ? (bar.back ?? sinkerBackOf(pathname)) : null;
   const inDugout = current === null;
   const isSinkerBar = brand === 'sinker';
   /* 로고 · '홈' = 덕아웃 첫 화면(2026-10-24 — 큰 로고 화면 없이 찾기 화면이 첫 화면) */
@@ -104,11 +112,27 @@ export function DugoutTopBar({
        * 조용한 한 줄(2026-10-25 덕아웃 PC 개편, docs/designs/dugout-desktop-information-design.md) — 떠 있는 알약 대신 면 하나에 밑선.
        * 홈 · 안쪽 화면 어디서나 같은 자리 · 같은 높이(PC 64px)라 화면을 옮겨도 머리가 뛰지 않는다. 앱 웹뷰는 화면 끝(시계 자리)까지 그려 그만큼 비운다.
        */
-      className={`${sticky ? 'sticky top-0' : ''} z-20 border-b border-line ${isSinkerBar ? 'bg-page' : 'bg-surface'} ${native ? 'pt-[env(safe-area-inset-top)]' : ''} ${className}`}
+      className={`${sticky ? 'sticky top-0' : ''} z-20 border-b border-line ${isSinkerBar ? 'bg-page' : slim ? 'bg-page/92 backdrop-blur-md' : 'bg-surface'} ${native ? 'pt-[env(safe-area-inset-top)]' : ''} ${className}`}
     >
       {/* 본문과 같은 바깥 틀(.dugout-frame — 폭 1160 · 거터) — 로고와 본문 첫 글자가 같은 x 에 선다(2026-10-26 v2) */}
       <div className="dugout-frame">
         <div className="flex h-14 items-center gap-1 desk:h-15">
+          {back ? (
+            <a
+              href={back.href}
+              data-bar-tool
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                e.preventDefault();
+                goBack(router, back.href);
+              }}
+              aria-label={`뒤로 · ${back.label}`}
+              className="-ml-2.5 flex w-auto! shrink-0 items-center gap-0.5 rounded-full pr-2 pl-1 text-[17px] text-sky transition-opacity active:opacity-60"
+            >
+              <RoundBack aria-hidden className="h-6 w-6" />
+              <span className="max-w-[12rem] truncate">{back.label}</span>
+            </a>
+          ) : (
           <Link
             href={homeHref}
             aria-label={isSinkerBar ? undefined : '덕아웃 첫 화면'}
@@ -118,6 +142,7 @@ export function DugoutTopBar({
           >
             <Wordmark brand={brand} className="text-xl text-ink" />
           </Link>
+          )}
           {nav.length > 0 && !slim && <NavPills nav={nav} active={active} item={item} />}
           <div className="ml-auto flex min-w-0 items-center gap-1">
             {/* 홈(/)은 가운데 큰 통합검색이 첫째라 막대의 찾기 칸은 작은 단추로 접는다 — 누르면 가운데 찾기 칸으로(2026-10-26, 같은 크기 찾기 칸 둘을 두지 않게) */}
@@ -185,6 +210,21 @@ export function DugoutTopBar({
       </div>
     </header>
   );
+}
+
+/**
+ * 싱커 앱 안 하위 화면의 윗 화면 — 화면이 BackLink 로 적지 않았을 때(목록 첫 화면 · 알림 · 프로필 …). 덕아웃 탭의 첫 화면은 /?dugout=1.
+ */
+const SINKER_SECTIONS: [string, string][] = [
+  ['/community', '커뮤니티'],
+  ['/lessons', '레슨'],
+  ['/venues', '연습장'],
+  ['/chat', '채팅'],
+  ['/me', '마이'],
+];
+export function sinkerBackOf(path: string): { href: string; label: string } {
+  for (const [root, label] of SINKER_SECTIONS) if (path.startsWith(`${root}/`)) return { href: root, label };
+  return { href: '/?dugout=1', label: '덕아웃' };
 }
 
 /** 위 막대의 동그란 아이콘 단추 — 모두 같은 40px 원, 테두리 없이 올리면 옅게 */
@@ -290,6 +330,7 @@ export function ChatButton({ unread = 0 }: { unread?: number }) {
       href="/chat"
       aria-label={unread ? `채팅 · 안 읽은 ${unread}개` : '채팅'}
       title="채팅"
+      data-bar-tool
       className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink transition-colors hover:bg-ink/6"
     >
       <RoundChat className="h-5.5 w-5.5" />

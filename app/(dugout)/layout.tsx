@@ -46,7 +46,7 @@ export default async function DugoutLayout({
       sinker={!!user && usesSinker(user) && surface !== 'dugout-app'}
       manage={!!user && (user.accountType === 'MASTER' || user.role === 'ADMIN')}
       native={native}
-      sinkerApp={surface === 'sinker-app'}
+      surface={surface}
     >
       {children}
       {modal}

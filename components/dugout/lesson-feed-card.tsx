@@ -17,7 +17,7 @@ export function LessonFeedCard({
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-bold text-ink">{title}</h2>
+        <h2 data-dugout-section className="text-lg font-bold text-ink">{title}</h2>
         <Link href="/me#lessons" className="text-sm font-semibold text-sky">
           전체 보기
         </Link>

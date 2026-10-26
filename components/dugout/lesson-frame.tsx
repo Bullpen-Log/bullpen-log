@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { RoundBack } from '@/components/round-icon';
 import { DugoutPageHeader, SectionHead, type Crumb } from '@/components/dugout/ui';
+import { BackLink } from '@/components/ui';
 
 /**
  * 레슨 화면의 공통 틀(2026-10-22 금윤호: "화면 인터페이스가 안 맞고 서로 크기도 안 맞아 — 닥터나우와 비슷하게").
@@ -37,13 +38,21 @@ export function LessonFrame({
 }) {
   return (
     <div className={`mx-auto ${wide ? 'max-w-4xl' : 'max-w-2xl'} space-y-5 lg:max-w-none lg:space-y-5`}>
-      {/* 휴대폰 · 패드 머리 — 그대로 */}
-      <div className="relative flex min-h-11 items-center justify-center lg:hidden">
+      {/*
+        휴대폰 · 패드 머리 — 그대로. 싱커 앱 안에서는 이 줄 대신 위 막대의 '‹ 뒤로'(BackLink 가 막대에 적는다) + 공용 쪽 머리(globals.css data-lesson-*)
+      */}
+      {/* 보이지 않는 '‹ 뒤로' — 싱커 앱 위 막대가 읽는다(웹 덕아웃 막대는 안 읽어 그대로) */}
+      {back && (
+        <span className="hidden">
+          <BackLink href={back}>{backLabel ?? '뒤로'}</BackLink>
+        </span>
+      )}
+      <div data-lesson-mhead className="relative flex min-h-11 items-center justify-center lg:hidden">
         {back && (
           <Link
             href={back}
             aria-label={backLabel ?? '뒤로'}
-            className="absolute left-0 grid h-10 w-10 place-items-center rounded-full text-ink hover:bg-ink/6"
+            className="absolute left-0 grid h-11 w-11 place-items-center rounded-full text-ink hover:bg-ink/6"
           >
             <RoundBack className="h-5 w-5" />
           </Link>
@@ -52,7 +61,9 @@ export function LessonFrame({
       </div>
 
       {/* PC 머리 — 덕아웃 공용 쪽 머리(2026-10-24 UI 통일) */}
-      <DugoutPageHeader className="hidden lg:flex" title={title} crumbs={crumbs} subtitle={subtitle} actions={actions} />
+      <div data-lesson-head className="hidden lg:block">
+        <DugoutPageHeader title={title} crumbs={crumbs} subtitle={subtitle} actions={actions} />
+      </div>
 
       {children}
     </div>

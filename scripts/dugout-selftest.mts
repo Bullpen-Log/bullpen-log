@@ -46,6 +46,7 @@ import {
 import { recommend } from '@/lib/market/gear';
 import { ESCROW_FEE_RATE, escrowFee, payout, platformFee } from '@/lib/market/pay';
 import { existsSync } from 'node:fs';
+import { inSinkerDugout } from '@/lib/sinker-dugout';
 import { surfaceOf } from '@/lib/app-env';
 import { BRAND, brandOfPath, usesSinker } from '@/lib/brand';
 import {
@@ -253,8 +254,8 @@ console.log(
     /market\|chat\|lessons/.test(proxy) && proxy.includes(String.raw`|^\/$/`)
   );
   check(
-    '덕아웃 앱(DugoutApp)은 /login(가입 폼)까지 열고, 덕아웃 틀이 덕아웃 앱을 앱으로 본다(웹 아래 탭 숨김)',
-    proxy.includes(String.raw`DUGOUT_APP_OPEN = /^\/login(\/|$)/`) &&
+    '덕아웃 앱(DugoutApp)은 /login(가입 폼) · /manage(관리, 2026-10-26)까지 열고, 덕아웃 틀이 덕아웃 앱을 앱으로 본다(웹 아래 탭 숨김)',
+    proxy.includes(String.raw`DUGOUT_APP_OPEN = /^\/(login|manage)(\/|$)/`) &&
       proxy.includes(`surfaceOf(ua) === 'dugout-app'`) &&
       src('app/(dugout)/layout.tsx').includes(`!== 'web'`) &&
       src('components/app-shell/expo-tabs.tsx').includes('inDugoutApp()')
@@ -373,6 +374,17 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
       surfaceOf('Mozilla/5.0 DugoutApp/1') === 'dugout-app' &&
       surfaceOf('Mozilla/5.0 (iPhone)') === 'web' &&
       surfaceOf(null) === 'web'
+  );
+  check(
+    '싱커 앱 안 덕아웃 — 커뮤니티 흐름(내 활동 포함)은 열고 장터 · 결제 · 검색은 막는다(lib/sinker-dugout.ts)',
+    ['/', '/me', '/me/community', '/me/community/x', '/community', '/community/abc', '/community/new', '/lessons/list', '/venues/v1', '/chat/r1', '/notifications', '/u/kim', '/pay/lesson/a', '/pay/venue/b'].every(inSinkerDugout) &&
+      !['/me/payments', '/me/communityx', '/market', '/market/new', '/pay/listing/a', '/search', '/baseball', '/gear', '/sinker'].some(inSinkerDugout)
+  );
+  check(
+    '싱커 앱 안 덕아웃 겉모양 — 틀이 서버가 가린 얼굴을 data-surface 로 달고, 초록 덮어쓰기 · 채움 아이콘은 싱커 앱 밖에서만',
+    /data-surface=\{surface\}/.test(src('components/dugout/dugout-shell.tsx')) &&
+      /surface=\{surface\}/.test(src('app/(dugout)/layout.tsx')) &&
+      /:not\(\[data-surface='sinker-app'\][^)]*\)/.test(src('app/globals.css'))
   );
   check(
     '이름 — 덕아웃 주소는 덕아웃, 선수 화면은 싱커',
@@ -625,6 +637,7 @@ console.log('\n[UI 통일] 덕아웃 화면이 같은 겉모양을 쓰는지(소
     'market/[id]/page.tsx': '물건 상세 — 사진 옆 물건 이름이 머리(번개장터식)',
     'link/[code]/page.tsx': 'PC 로그인 승인 — 가운데 작은 카드',
     'lessons/find/page.tsx': '맞춤 찾기 흐름 — 한 화면 한 질문',
+    '@modal/(.)manage/places/[id]/page.tsx': '수집 후보 팝업 — 머리는 창 제목(DayModal)',
   };
   const VIA: Record<string, string> = { 'community/page.tsx': 'app/(dugout)/community/community-page.tsx' };
   const missing = pages
@@ -796,10 +809,16 @@ console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관�
   const users = code.filter((p) => /candidate-load|admin-candidates/.test(readFileSync(p, 'utf8'))).map(rel).filter((f) => !/^(lib\/market\/candidate-load|app\/actions\/admin-candidates)\.ts$/.test(f));
   /* 관리 화면 밖에서 후보를 부르는 곳은 공개 지도의 관리자 전환 둘뿐(2026-10-26 김민) — 둘 다 대표관리자인지 먼저 보고, API 는 아니면 403 */
   const GATED = ['app/(dugout)/venues/page.tsx', 'app/api/places/route.ts'];
+  /* 후보 하나를 보이는 곳 — 지도 위 팝업(@modal) · 덕아웃 앱 후보 창(app/embed/place, 2026-10-26). 둘 다 loadCandidate(안에서 requireAdmin)로만 읽는다 */
+  const DETAIL = ['app/(dugout)/@modal/(.)manage/places/[id]/page.tsx', 'app/embed/place/[id]/page.tsx'];
   check(
     '수집 후보를 쓰는 화면은 덕아웃 관리 화면(/manage/places)과 대표관리자 전환(공개 지도 · 앱 지도 API)뿐',
-    users.length > 0 && users.every((f) => f.startsWith('app/(master)/manage/places/') || GATED.includes(f)),
+    users.length > 0 && users.every((f) => f.startsWith('app/(master)/manage/places/') || GATED.includes(f) || DETAIL.includes(f)),
     users.join(', ')
+  );
+  check(
+    '후보 팝업 · 앱 후보 창은 loadCandidate(대표관리자 확인)로만 읽고, 앱 창은 그 전에 대표관리자인지 본다',
+    DETAIL.every((f) => /loadCandidate\(/.test(src(f)) && !/prisma\./.test(src(f))) && /isOwner\(/.test(src('app/embed/place/[id]/page.tsx'))
   );
   check(
     '공개 지도 · 앱 지도 API 는 대표관리자일 때만 후보를 읽는다(API 는 아니면 403)',

@@ -6,7 +6,8 @@ import type { ReactNode } from 'react';
  * 초록은 고른 칩에 쓰지 않는다(주요 단추 · 상태 · 링크만). 주소로 거르는 칩은 ChipLink — 같은 화면에서 값만 바뀌니 굴린 자리를 지킨다.
  */
 export function chipClass(on: boolean, size: 'sm' | 'md' = 'sm'): string {
-  return `inline-flex ${size === 'md' ? 'min-h-9 px-3.5' : 'min-h-8 px-3'} shrink-0 items-center justify-center gap-1 rounded-full text-[13px] font-semibold whitespace-nowrap transition-colors ${
+  /* dugout-chip — 싱커 앱 안에서 누르는 칸을 44 로(globals.css '싱커 앱 안의 덕아웃') */
+  return `dugout-chip inline-flex ${size === 'md' ? 'min-h-9 px-3.5' : 'min-h-8 px-3'} shrink-0 items-center justify-center gap-1 rounded-full text-[13px] font-semibold whitespace-nowrap transition-colors ${
     on ? 'bg-ink text-page' : 'border border-line text-ink hover:border-ink/40'
   }`;
 }

@@ -233,7 +233,7 @@ export default async function CommunityPage({
                   <Link
                     href={o.href}
                     aria-current={o.on ? 'page' : undefined}
-                    className={`rounded-full px-2 py-1 transition-colors ${
+                    className={`dugout-tap rounded-full px-2 py-1 transition-colors ${
                       o.on ? 'font-semibold text-ink' : 'text-muted hover:text-ink'
                     }`}
                   >

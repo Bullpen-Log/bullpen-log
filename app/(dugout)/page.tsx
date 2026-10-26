@@ -7,6 +7,7 @@ import { SectionHead, chipClass } from '@/components/dugout/ui';
 import { getCurrentUser } from '@/lib/dal';
 import { isNativeUserAgent, surfaceOf } from '@/lib/app-env';
 import { DugoutMain } from '@/components/dugout/dugout-main';
+import { SinkerDugoutHome } from '@/components/dugout/sinker-dugout-home';
 import { HomeSnap } from '@/components/dugout/home-snap';
 import { type HomeCard } from '@/components/dugout/home-carousel';
 import { CoachRow, Stars } from '@/components/dugout/coach-card';
@@ -85,6 +86,22 @@ export default async function DugoutHome({
       return wb - wa || b.likes + b.comments - (a.likes + a.comments) || b.createdAt.getTime() - a.createdAt.getTime();
     })
     .slice(0, 6);
+
+  /*
+   * 싱커 앱의 덕아웃 탭(2026-10-27 김민 "같은 앱 안에서 활동 공간만 바뀐 느낌") — 큰 로고 · 아이콘 줄 · 두 칸 스크롤 없이 위 막대 밑에 바로 콘텐츠.
+   * 덕아웃 웹 · 덕아웃 앱은 아래 원래 첫 화면 그대로.
+   */
+  if (sinkerApp) {
+    return (
+      <SinkerDugoutHome
+        record={records[0] ?? null}
+        lessons={lessons}
+        posts={hot.slice(0, 4)}
+        coaches={coaches}
+        loggedIn={!!user}
+      />
+    );
+  }
 
   /*
    * 둘러보기 카드(2026-10-26) — 예전 소식 띠의 네 장(싱커 · 레슨 · 장터 · 연습장) 글을 그대로 쓰고, 실제로 있는 길 둘(커뮤니티 · 경기 일정)을 더했다.

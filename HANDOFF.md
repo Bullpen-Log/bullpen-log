@@ -11,6 +11,23 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-27 · 김민(Claude) — 싱커 앱 안의 덕아웃을 싱커 겉모양으로 · 네 덕아웃 공용 부품 · globals.css 를 고쳤다
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — 웹 배포만). 김민: "싱커에서 덕아웃 탭으로 가면 같은 앱 안에서 활동 공간만 바뀐 느낌, 덕아웃 이름 · 정체성은 그대로".
+**덕아웃 웹 · 덕아웃 앱은 바뀌지 않게** 서버가 가린 얼굴(`lib/app-env.ts surfaceOf`)로만 갈랐다.
+- 틀: `DugoutShell` 의 `sinkerApp` 칸 → `surface`(layout 이 넘김), 바깥에 `data-surface`.
+- `globals.css`: 덕아웃 초록 덮어쓰기 · 늘 채움 아이콘 규칙을 `:where([data-brand='dugout']):not([data-surface='sinker-app'], [data-surface='sinker-app'] *)` 로 — 싱커 앱 안은
+  싱커 색(행동 #0070c9 · 링크 글자 · 회색 바탕 · 흰 카드, native design-tokens 기준). 덕아웃 초록은 로고(DugoutMark, --color-dugout)에만. 새 블록 '싱커 앱 안의 덕아웃':
+  칩 44(`chipClass` 에 `dugout-chip`) · 바로가기 타일은 흰 알약 한 줄(`ShortcutTiles` 의 `data-shortcuts`) · 제목 표시(`data-dugout-title` · `data-dugout-section`) ·
+  바탕에 놓인 `divide-y border-y` 목록은 흰 카드 · 화면 안 '‹ 뒤로' · 위치 줄 숨김(`data-page-back`) · 채팅 틀 높이(`data-chat-shell`).
+- 위 막대(`dugout-topbar.tsx` slim): 하위 화면은 왼쪽 '‹ 뒤로'(화면의 BackLink 가 적은 곳, 없으면 `sinkerBackOf`). **덕아웃의 BackLink 는 휴대폰에서 본문 줄이 숨는데
+  덕아웃 막대가 안 읽어 앱(싱커 · 덕아웃 둘 다)에서 뒤로 단추가 없었다** — 싱커 앱만 고쳤다. 덕아웃 앱도 같은 증상이니 네가 정해 줘.
+- 홈: 싱커 앱이면 `components/dugout/sinker-dugout-home.tsx`(오늘 기록 공유 · 최근 레슨 · 커뮤니티 · 레슨/연습장 · 추천 코치) — 큰 로고 · 아이콘 줄 · 두 칸 스크롤 없음. 웹 · 덕아웃 앱 첫 화면은 그대로.
+- 레슨 틀(`lesson-frame.tsx`): 보이지 않는 BackLink(막대가 읽음) · 휴대폰 머리 `data-lesson-mhead` · PC 머리를 `data-lesson-head` div 로 감쌈. 로딩(`app/(dugout)/loading.tsx`)은 덕아웃 카드 모양으로.
+- `lib/sinker-dugout.ts`: `/me/community`(내 활동) 열음 — 막혀 '이 화면은 덕아웃에서'가 떴다. `/me/payments` · 장터 · 결제는 그대로 막음.
+- `dugout:test` 108 통과(경로 허용 · data-surface 시험 더함, 10-26 내 커밋들이 깨뜨린 셋 — DUGOUT_APP_OPEN · 후보 팝업 · 앱 후보 창 — 도 맞춤).
+  헤드리스(싱커 앱 이름표 · 390 · 820, 라이트 · 다크 · 네이비)로 봤다. **실기기 · 로그인 화면(채팅 · 기록 카드 · 키보드)은 아직.**
+
 ## 금윤호에게 — 2026-10-26 · 김민(Claude, 커뮤니티 세션) — 커뮤니티 운영 보완 · **받으면 `npx prisma generate`** · 네 로그인 폼 · 검색 · 마이를 조금 고쳤다
 
 받은 뒤 할 일: **`npx prisma generate`** — 마이그레이션 `20261026230000_community_ops`(더하기만: 커뮤니티 글 · 참가 · 대화 · 신고 칸 몇 개, 새 표 `CommunitySave` · `CommunityModeration`).

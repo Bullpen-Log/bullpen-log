@@ -49,6 +49,7 @@ export function DugoutBell({ initial = 0, large = false }: { initial?: number; /
         aria-controls={open ? panelId : undefined}
         aria-label={count > 0 ? `알림, 안 읽은 알림 ${count}개` : '알림'}
         title="알림"
+        data-bar-tool
         className={`relative flex ${large ? 'h-12 w-12' : 'h-10 w-10'} items-center justify-center rounded-full transition-colors duration-75 ${
           open ? 'bg-sky/15 text-sky' : 'text-muted hover:bg-ink/6 hover:text-ink'
         }`}

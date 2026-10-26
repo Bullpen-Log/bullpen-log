@@ -4,6 +4,7 @@ import { RoundBack, RoundMarket } from '@/components/round-icon';
 import { ChatRoom, type MessageView } from '@/components/dugout/chat-room';
 import { ChatAvatar } from '@/components/dugout/chat-avatar';
 import { getCurrentUser } from '@/lib/dal';
+import { BackLink } from '@/components/ui';
 import { loadConversation } from '@/lib/market/load';
 import { formatPrice, statusLabel } from '@/lib/market/specs';
 
@@ -52,9 +53,13 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ id: s
   return (
     <>
       <header className="flex items-center gap-3 border-b border-line px-4 py-3 md:px-5">
-        <Link href="/chat" aria-label="대화 목록" className="-ml-1 grid h-9 w-9 place-items-center rounded-full text-ink md:hidden">
+        {/* 싱커 앱 안에서는 위 막대의 '‹ 채팅'(보이지 않는 BackLink 가 적는다)이 대신 선다 — 머리가 둘이 되지 않게 */}
+        <Link href="/chat" aria-label="대화 목록" data-page-back className="-ml-1.5 grid h-11 w-11 place-items-center rounded-full text-ink md:hidden">
           <RoundBack className="h-5 w-5" />
         </Link>
+        <span className="hidden">
+          <BackLink href="/chat">채팅</BackLink>
+        </span>
         <ChatAvatar name={room.other.nickname} url={room.other.avatarUrl} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-bold text-ink">{room.other.nickname}</p>
