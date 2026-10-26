@@ -24,8 +24,8 @@ export type MapPlace = {
   sub: string;
   image: string | null;
   href: string;
-  /** 바로 잡기 단추가 가는 곳 */
-  bookHref: string;
+  /** 바로 잡기 단추가 가는 곳 — 없으면 단추를 안 그린다(관리자 수집 후보 지도, 2026-10-26) */
+  bookHref?: string;
   rating: number | null;
   reviews: number;
 };

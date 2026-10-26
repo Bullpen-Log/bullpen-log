@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MapPlace } from '@/lib/market/map-load';
 import { coachTone } from '@/components/dugout/coach-card';
@@ -84,6 +85,7 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
   const [failed, setFailed] = useState(!KEY);
   const [pick, setPick] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const router = useRouter();
   const located = useMemo(() => places.filter((p) => p.lat != null && p.lng != null), [places]);
 
   /* 지도 만들기 — 한 번 */
@@ -177,9 +179,11 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
               <Link href={picked.href} className="flex min-h-10 flex-1 items-center justify-center rounded-xl border border-line text-sm font-semibold text-ink hover:border-ink/30">
                 자세히
               </Link>
-              <Link href={picked.bookHref} className="flex min-h-10 flex-1 items-center justify-center rounded-xl bg-sky text-sm font-bold text-white hover:bg-sky-strong">
-                {picked.type === 'venue' ? '대관 예약' : '레슨 예약'}
-              </Link>
+              {picked.bookHref && (
+                <Link href={picked.bookHref} className="flex min-h-10 flex-1 items-center justify-center rounded-xl bg-sky text-sm font-bold text-white hover:bg-sky-strong">
+                  {picked.type === 'venue' ? '대관 예약' : '레슨 예약'}
+                </Link>
+              )}
             </div>
           </div>
         )}
@@ -192,7 +196,8 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
           <li key={`${p.type}-${p.id}`} data-place={p.id}>
             <button
               type="button"
-              onClick={() => (p.lat != null ? setPick(p.id) : undefined)}
+              /* 좌표가 없는 곳은 지도에 점이 없어 바로 자세히로 */
+              onClick={() => (p.lat != null ? setPick(p.id) : router.push(p.href))}
               className={`flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-ink/3 ${pick === p.id ? 'bg-ink/5' : ''}`}
             >
               {p.image ? (

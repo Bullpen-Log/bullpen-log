@@ -2497,3 +2497,52 @@ model GameComment {
   @@index([gameId, createdAt])
   @@index([userId])
 }
+
+/// 덕아웃 레슨 · 연습장 수집 후보(2026-10-26, 대표관리자만) — 공공자료(소상공인 상가정보) · 지도 대조로 모은 미확인 후보.
+/// 예약용 Org · Venue · 예약 · 후기와 따로 둔다(업체가 동의하지 않았다). 공개 목록 · 검색 · 지도는 이 표를 읽지 않는다(npm run dugout:test 가 지킨다).
+/// 수집 칸은 다시 가져오면 바뀌고(scripts/import-facility-candidates.mts — 자료의 candidates 배열만), 연락 · 동의 · 확인 · 승인 · 메모 칸은
+/// 관리자 화면만 쓴다(가져오기가 덮지 않는다). 공개는 업체 동의 · 정보 확인 · 관리자 승인 뒤 — 공개 레슨장 · 연습장으로 옮기는 길은 아직 없다.
+model FacilityCandidate {
+  /// 수집 자료의 id 그대로('semas:<업소번호>' · 'naver:<장소번호>') — 다시 가져올 때 같은 곳을 알아본다
+  id               String    @id
+  name             String
+  /// 수집 자료의 분류 단서('레슨·훈련 후보' · '배팅·연습공간 후보' …) — 서비스 확정값 아님
+  typeHint         String
+  region           String
+  district         String?
+  roadAddress      String?
+  address          String?
+  /// 수집 좌표(공공자료 건물 위치) — 없으면 지도 핀 없이 목록에만. 관리자가 손으로 고치면 coordsEdited 가 켜져 다시 가져와도 그대로
+  lat              Float?
+  lng              Float?
+  coordsEdited     Boolean   @default(false)
+  /// 지도 대조 · 공개 안내 근거 수준(lib/market/candidates.ts) — 확정값이 아니다
+  mapStatus        String?
+  lessonNotice     String?
+  rentalNotice     String?
+  hardballNotice   String?
+  /// 같은 지도 장소를 쓰는 기록 · 근거리 유사 상호 묶음 — 자동 병합하지 않고 검토 표시만
+  sharedPlaceGroup String?
+  duplicateGroup   String?
+  /// 수집 자료 한 줄 통째(원본 행 · 출처 · 지도 대조 · 배팅 검토 · 플래그) — 원본 근거 보존
+  collected        Json
+  collectedAt      DateTime  @db.Date
+  /// 아래는 관리자 칸 — 가져오기가 덮지 않는다. 값은 lib/market/candidates.ts
+  collectionStatus String    @default("UNVERIFIED")
+  businessStatus   String    @default("UNKNOWN")
+  contactStatus    String    @default("NOT_CONTACTED")
+  consentStatus    String    @default("NOT_REQUESTED")
+  /// 업체에 확인한 서비스 — null 은 아직 모름(공개 안내 · 사진 · 지도만으로 바꾸지 않는다)
+  offersLessons    Boolean?
+  offersRental     Boolean?
+  verifiedAt       DateTime?
+  lastContactedAt  DateTime?
+  adminNote        String?   @db.Text
+  /// 관리자 승인 — 동의(AGREED) · 정보 확인(VERIFIED) 뒤에만. 승인한 관리자 id(관계 없이)
+  approvedAt       DateTime?
+  approvedById     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([region])
+}
