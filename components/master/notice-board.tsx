@@ -144,7 +144,7 @@ export function NoticeBoard({
               <div className="flex items-center justify-end gap-1">
                 {players ? (
                   <span className="mr-auto text-xs text-muted">
-                    읽음 {n.read ?? 0}/{players}
+                    열어 본 선수 {n.read ?? 0}/{players}
                   </span>
                 ) : null}
                 <Button

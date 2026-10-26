@@ -187,7 +187,7 @@ function watchOf(members: Awaited<ReturnType<typeof loadPlayers>>, rows: { membe
   });
   /* 묶음 차례 · 위험 먼저 · 이름 */
   out.sort((a, b) => WATCH_KINDS.indexOf(a.kind) - WATCH_KINDS.indexOf(b.kind) || Number(b.danger) - Number(a.danger) || a.nickname.localeCompare(b.nickname, 'ko'));
-  return out.map(({ danger: _danger, ...w }) => w);
+  return out.map((w) => ({ kind: w.kind, memberId: w.memberId, nickname: w.nickname, line: w.line }));
 }
 
 export type OrgMemberRow = {

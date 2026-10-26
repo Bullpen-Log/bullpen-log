@@ -22,7 +22,7 @@ export async function confirmedOutingEvents(userId: string, from: Date, to: Date
   return events.map((e) => ({ date: e.date, title: OUTING_CALENDAR_TITLE }));
 }
 
-/** 공지 읽음 — 가입한 활동 선수 수와 공지마다 읽은 사람 수(코치 공지 목록 · 웹 /manage) */
+/** 공지 열어 봄 — 앱에 연결된 활동 선수 수와 공지마다 그 공지를 열어 본 사람 수(코치 공지 목록 · 웹 /manage, 계약 9-6 ①-4) */
 export async function noticeReads(orgId: string, noticeIds: readonly string[]): Promise<{ players: number; reads: Record<string, number> }> {
   const [players, rows] = await Promise.all([
     prisma.orgMember.count({ where: { orgId, role: 'PLAYER', status: 'ACTIVE', userId: { not: null } } }),

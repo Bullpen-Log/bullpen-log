@@ -42,7 +42,7 @@ export default function OrgNoticesScreen() {
                   </Text>
                   {data.players ? (
                     <Text style={[TYPE.sub, { color: c.muted }]}>
-                      읽음 {data.reads[n.id] ?? 0}/{data.players}
+                      열어 본 선수 {data.reads[n.id] ?? 0}/{data.players}
                     </Text>
                   ) : null}
                 </Card>

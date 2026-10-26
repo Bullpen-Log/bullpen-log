@@ -1,6 +1,6 @@
 import { type Href, router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { loadMyMembership, MySpace } from '@/app/actions/app-org';
 import type { loadMyHomework } from '@/app/actions/app-lesson';
 import type { loadMyTeam, MyEventView } from '@/app/actions/app-team';
@@ -44,13 +44,10 @@ export function PlayerTab({ space, tab }: { space: MySpace; tab: string }) {
 
 const share = (memberId: string) => router.push(`/org/share/${memberId}` as Href);
 
-/** 공유 대기 카드 · 공지(보인 것은 읽음으로) — 팀 오늘 · 레슨장 홈 위 */
+/** 공유 대기 카드 · 공지 — 팀 오늘 · 레슨장 홈 위. 공지는 제목 + 두 줄, 눌러 열어야 '읽음'(계약 9-6 ①-4 — 목록에 보였다고 읽음으로 안 센다) */
 function Top({ space, data }: { space: MySpace; data: Extract<Membership, { ok: true }> }) {
   const c = usePalette();
-  const shownIds = data.notices.slice(0, 3).map((n) => n.id).join(',');
-  useEffect(() => {
-    if (shownIds) void call('app-team.markNoticesRead', space.memberId, shownIds.split(','));
-  }, [shownIds, space.memberId]);
+  const open = (id?: string) => router.push(`/org/notice-view?member=${space.memberId}${id ? `&id=${id}` : ''}` as Href);
   return (
     <>
       {data.consentPending ? (
@@ -63,18 +60,30 @@ function Top({ space, data }: { space: MySpace; data: Extract<Membership, { ok: 
       {data.notices.length ? (
         <View style={{ gap: 6 }}>
           <GroupTitle title="공지" c={c} />
-          {data.notices.slice(0, 3).map((n) => (
-            <Card key={n.id} c={c}>
-              <Text style={[TYPE.sub, { color: n.pinned ? c.sky : c.muted }]}>
-                {n.pinned ? '고정 · ' : ''}
-                {dayLabel(n.key)}
-              </Text>
-              <Text style={[TYPE.card, { color: c.ink }]}>{n.title}</Text>
-              <Text selectable style={[TYPE.body, { color: c.ink }]}>
-                {n.body}
-              </Text>
-            </Card>
-          ))}
+          <Card c={c} style={{ paddingVertical: 4 }}>
+            {data.notices.slice(0, 3).map((n, i) => (
+              <Pressable
+                key={n.id}
+                accessibilityRole="button"
+                onPress={() => open(n.id)}
+                style={({ pressed }) => [{ paddingVertical: 8, gap: 2 }, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }, pressed && { opacity: 0.6 }]}
+              >
+                <Text style={[TYPE.sub, { color: n.pinned ? c.sky : c.muted }]}>
+                  {n.pinned ? '고정 · ' : ''}
+                  {dayLabel(n.key)}
+                </Text>
+                <Text style={[TYPE.card, { color: c.ink }]}>{n.title}</Text>
+                <Text style={[TYPE.sub, { color: c.muted }]} numberOfLines={2}>
+                  {n.body}
+                </Text>
+              </Pressable>
+            ))}
+            {data.notices.length > 3 ? (
+              <Pressable accessibilityRole="button" onPress={() => open()} style={{ minHeight: 40, justifyContent: 'center' }}>
+                <Text style={[TYPE.sub, { color: c.link, fontWeight: '600' }]}>공지 모두 보기</Text>
+              </Pressable>
+            ) : null}
+          </Card>
         </View>
       ) : null}
     </>
