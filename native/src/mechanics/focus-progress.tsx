@@ -26,7 +26,7 @@ export function MechanicsEquipment({ equipment, reload, c }: { equipment: string
   };
   return (
     <View style={{ gap: 10, padding: 14, borderWidth: 1, borderColor: c.line, borderRadius: 16 }}>
-      <Text style={{ color: c.ink, fontWeight: '600' }}>오늘 메커니즘 장비</Text>
+      <Text style={{ color: c.ink, fontWeight: '600' }}>오늘 메카닉 장비</Text>
       <Text style={{ color: c.muted }}>맨몸·야구공 외에 실제 사용할 장비를 확인해 주세요.</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {DRILL_EQUIPMENT.filter((e) => e !== '맨몸' && e !== '야구공').map((e) => (

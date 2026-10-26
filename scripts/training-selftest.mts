@@ -555,7 +555,7 @@ import {
   type TodaySignals,
   type VariantKey,
 } from '../lib/program/program.ts';
-/* 2판 중재(P6-1) — 프로그램 · 매일 일정 · 암케어 · 메커니즘이 하루를 나눠 쓰는 규칙 */
+/* 2판 중재(P6-1) — 프로그램 · 매일 일정 · 암케어 · 메카닉이 하루를 나눠 쓰는 규칙 */
 import {
   ARBITER_LAYERS,
   ARM_BUDGET_TEXT,
@@ -585,13 +585,13 @@ import {
   type ArbiterInput,
   type Arbitration,
 } from '../lib/engine/arbiter.ts';
-/* 2판 P6-5 D5 메커니즘 — 오늘 어깨 · 팔꿈치 통증 날 접기(판정이 오늘 상태 한 장과 같은지) */
+/* 2판 P6-5 D5 메카닉 — 오늘 어깨 · 팔꿈치 통증 날 접기(판정이 오늘 상태 한 장과 같은지) */
 import {
   MECHANICS_FOLD_TEXT,
   isArmLoaded,
   mechanicsPainFold,
 } from '../lib/mechanics/program.ts';
-/* 2판 P6 검토 — 메커니즘 접기를 팔 예산 · 통증 확인 전 · 성장기까지 한 판정으로 */
+/* 2판 P6 검토 — 메카닉 접기를 팔 예산 · 통증 확인 전 · 성장기까지 한 판정으로 */
 import {
   MECHANICS_SPENT_CAUSE,
   MECHANICS_SPENT_TEXT,
@@ -13342,7 +13342,7 @@ console.log(
     const base = stateOf({ today: {} });
     /* P4 로 바뀜(커밋 C) — 팔 피로는 이제 extras 가 아니라 체크인 칸이다. 칸 없는 체크인이면 null 인 것은 그대로 */
     check(
-      '오늘 상태 (extras) 안 주면 팔 통증 · 프로그램 · 메커니즘 · 체중 흐름이 모두 null, 팔 피로 칸 없는 체크인이면 팔 피로도 null',
+      '오늘 상태 (extras) 안 주면 팔 통증 · 프로그램 · 메카닉 · 체중 흐름이 모두 null, 팔 피로 칸 없는 체크인이면 팔 피로도 null',
       base.state.arm.fatigue === null &&
         base.state.arm.pain === null &&
         base.state.commitments.program === null &&
@@ -13360,7 +13360,7 @@ console.log(
       }
     ).state;
     check(
-      '오늘 상태 (extras) 프로그램 5/12일차 · 어제 마침 → 안 끝남 · 마친 지 1일, 메커니즘 · 체중 흐름은 그대로',
+      '오늘 상태 (extras) 프로그램 5/12일차 · 어제 마침 → 안 끝남 · 마친 지 1일, 메카닉 · 체중 흐름은 그대로',
       withProgram.commitments.program?.done === false &&
         withProgram.commitments.program.daysSinceLastDone === 1 &&
         withProgram.commitments.program.nextDay === 5 &&
@@ -13375,10 +13375,10 @@ console.log(
       mechanics.index === 3
     );
     check(
-      "오늘 상태 (extras) 이유 글 — '근력 프로그램 5번 세션을 할 차례예요.' · '오늘 메커니즘 세션이 남아 있어요.' · '체중이 일주일에 0.3kg씩 늘고 있어요.'",
+      "오늘 상태 (extras) 이유 글 — '근력 프로그램 5번 세션을 할 차례예요.' · '오늘 메카닉 세션이 남아 있어요.' · '체중이 일주일에 0.3kg씩 늘고 있어요.'",
       [
         '근력 프로그램 5번 세션을 할 차례예요.',
-        '오늘 메커니즘 세션이 남아 있어요.',
+        '오늘 메카닉 세션이 남아 있어요.',
         '체중이 일주일에 0.3kg씩 늘고 있어요.',
       ].every((l) => withProgram.why.includes(l)),
       withProgram.why.join(' / ')
@@ -13392,11 +13392,11 @@ console.log(
       }
     ).state;
     check(
-      "오늘 상태 (extras) 13/12일차 → 다 마침 · 마친 날 모름, 메커니즘 마침 글, 체중 흐름 '모름'은 글 없음",
+      "오늘 상태 (extras) 13/12일차 → 다 마침 · 마친 날 모름, 메카닉 마침 글, 체중 흐름 '모름'은 글 없음",
       done.commitments.program?.done === true &&
         done.commitments.program.daysSinceLastDone === null &&
         done.why.includes('근력 프로그램을 다 마쳤어요.') &&
-        done.why.includes('오늘 메커니즘 세션을 마쳤어요.') &&
+        done.why.includes('오늘 메카닉 세션을 마쳤어요.') &&
         !done.why.some((l) => l.includes('체중')),
       done.why.join(' / ')
     );
@@ -28187,7 +28187,7 @@ console.log(
       { prog: sl3, programDecision: 'go', mechanics: true }
     ).r;
     scene(
-      'B2 멈춤 + 오늘 등판(어제 답) + 판정이 go 로 와도 → 일정 멈춤 · 프로그램 쉼, 팔 예산은 메커니즘 · 암케어만',
+      'B2 멈춤 + 오늘 등판(어제 답) + 판정이 go 로 와도 → 일정 멈춤 · 프로그램 쉼, 팔 예산은 메카닉 · 암케어만',
       b2,
       b2.top === 'safety' &&
         same(b2.applied, ['safety', 'outing']) &&
@@ -28204,7 +28204,7 @@ console.log(
       { prog: ws2, programDecision: 'go', override: true, mechanics: true }
     ).r;
     scene(
-      "C 오늘 등판 + '그래도 오늘 할래요'(D24) → 프로그램은 하되 던지기(회전 · 앞으로)는 오늘 뺌(점프는 남김) · 메커니즘 접고 못 펼침",
+      "C 오늘 등판 + '그래도 오늘 할래요'(D24) → 프로그램은 하되 던지기(회전 · 앞으로)는 오늘 뺌(점프는 남김) · 메카닉 접고 못 펼침",
       c,
       c.top === 'outing' &&
         same(c.applied, ['outing', 'choice', 'program']) &&
@@ -28383,7 +28383,7 @@ console.log(
     const j = arb({ today: { shoulder: '통증' } }).r;
     const j2 = arb({ today: { shoulder: '통증', throwPlan: '오늘 등판' } }).r;
     scene(
-      "J 메커니즘 — 어깨 통증(D5)은 접고 '그래도 하기', 등판까지 겹치면 팔 예산이 이겨 못 펼침",
+      "J 메카닉 — 어깨 통증(D5)은 접고 '그래도 하기', 등판까지 겹치면 팔 예산이 이겨 못 펼침",
       j,
       j.mechanics.foldThrows &&
         !j.mechanics.anyway &&
@@ -30430,16 +30430,16 @@ console.log(
 }
 
 /*
- * 2판 P6-5 D5 메커니즘(2026-10-13, lib/mechanics/program.ts · lib/checkin.ts armPainJointsToday) — 오늘 어깨 · 팔꿈치가 '통증'인 날만
- * 메커니즘의 팔에 싣는 드릴(스로잉 · 메디신볼)을 접고 '그래도 하기'로 펼친다(사용자 결정 D5 — 막지 않는다). 메커니즘 화면은 체크인
+ * 2판 P6-5 D5 메카닉(2026-10-13, lib/mechanics/program.ts · lib/checkin.ts armPainJointsToday) — 오늘 어깨 · 팔꿈치가 '통증'인 날만
+ * 메카닉의 팔에 싣는 드릴(스로잉 · 메디신볼)을 접고 '그래도 하기'로 펼친다(사용자 결정 D5 — 막지 않는다). 메카닉 화면은 체크인
  * 한 줄의 두 칸만 읽고, 오늘 상태 한 장 · 중재는 facts 전체로 판정한다 — 같은 체크인이면 같은 답인지 격자로 본다(설계 비판 1 'D5 판정
  * 길이 둘'). 드릴 접기 · 펼치기 · 반만 마치기 자체는 npm run mechanics:test 가 가짜 드릴 표와 라이브러리 세션 전부로 본다.
  * (가) 격자 243가지 — 다섯 부위 × 정상 · 뻐근 · 통증: 오늘 상태 arm.painJoints = mechanicsPainFold().joints, 중재 mechanics 'pain' ⇔ 접음
- * (나) 체크인 없음 · 어제만 통증 · 등판 + 통증 — 메커니즘 화면 판정과 중재가 엇갈리지 않음
+ * (나) 체크인 없음 · 어제만 통증 · 등판 + 통증 — 메카닉 화면 판정과 중재가 엇갈리지 않음
  * (다) 소스 — 읽기 · 따라 하기 · 마치기 · 프로그램 칸 · 트레이닝 홈이 같은 함수를 쓴다, 드릴을 가르는 술어는 isArmLoaded 하나
  */
 console.log(
-  '\n[2판 P6] D5 메커니즘(P6-5) — 오늘 어깨 · 팔꿈치 통증이면 던지기 · 메디신볼 드릴을 접고 펼칠 수 있게, 판정은 오늘 상태와 같은 함수'
+  '\n[2판 P6] D5 메카닉(P6-5) — 오늘 어깨 · 팔꿈치 통증이면 던지기 · 메디신볼 드릴을 접고 펼칠 수 있게, 판정은 오늘 상태와 같은 함수'
 );
 {
   const json = (v: unknown) => JSON.stringify(v);
@@ -30511,7 +30511,7 @@ console.log(
           arb.mechanics.anyway !== (fold == null)
         )
           bad.push(
-            `${PARTS.map((p) => acc[p][0]).join('')}: 상태 ${json(state.arm.painJoints)} · 메커니즘 ${json(fold?.joints ?? null)} · 중재 ${arb.mechanics.because}`
+            `${PARTS.map((p) => acc[p][0]).join('')}: 상태 ${json(state.arm.painJoints)} · 메카닉 ${json(fold?.joints ?? null)} · 중재 ${arb.mechanics.because}`
           );
         return;
       }
@@ -30519,7 +30519,7 @@ console.log(
     };
     walk(0, NORMAL);
     check(
-      `P6-5 (가) 격자 ${combos}가지 — 오늘 상태 arm.painJoints · 메커니즘 접기 · 중재 mechanics('pain' · 그래도 하기)가 같은 답, 어깨 · 팔꿈치 '통증'만 접음(${folds}가지)`,
+      `P6-5 (가) 격자 ${combos}가지 — 오늘 상태 arm.painJoints · 메카닉 접기 · 중재 mechanics('pain' · 그래도 하기)가 같은 답, 어깨 · 팔꿈치 '통증'만 접음(${folds}가지)`,
       bad.length === 0 && combos === 243 && folds === 135,
       bad.slice(0, 3).join(' / ')
     );
@@ -30532,18 +30532,18 @@ console.log(
     const outingPain = d5Arb([d5Checkin(0, { ...NORMAL, elbow: '통증' }, '오늘 등판')]);
     const rows: [string, boolean][] = [
       [
-        '체크인 없음 — 메커니즘은 안 접고, 중재도 접지 않음',
+        '체크인 없음 — 메카닉은 안 접고, 중재도 접지 않음',
         mechanicsPainFold(null) === null &&
           none.state.arm.painJoints.length === 0 &&
           !none.arb.mechanics.foldThrows,
       ],
       [
-        '어제만 어깨 통증 · 오늘 체크인 없음 — D5 는 오늘만 본다(메커니즘 · 중재 둘 다 통증 아님)',
+        '어제만 어깨 통증 · 오늘 체크인 없음 — D5 는 오늘만 본다(메카닉 · 중재 둘 다 통증 아님)',
         yesterdayOnly.state.arm.painJoints.length === 0 &&
           yesterdayOnly.arb.mechanics.because !== 'pain',
       ],
       [
-        "오늘 등판 + 팔꿈치 통증 — 오늘 상태의 통증 관절은 메커니즘 판정과 같고, 중재는 팔 예산이 이겨 못 펼침('armSpent')",
+        "오늘 등판 + 팔꿈치 통증 — 오늘 상태의 통증 관절은 메카닉 판정과 같고, 중재는 팔 예산이 이겨 못 펼침('armSpent')",
         json(outingPain.state.arm.painJoints) ===
           json(mechanicsPainFold({ ...NORMAL, elbow: '통증' })?.joints) &&
           outingPain.arb.mechanics.because === 'armSpent' &&
@@ -30626,7 +30626,7 @@ console.log(
           /MECHANICS_FOLD_TEXT\.homeOpen\(fold\.cause, open\.length\)/.test(homeCard),
       ],
       [
-        '오늘 상태 — 팔 통증 관절은 armPainJointsToday(메커니즘과 한 함수)',
+        '오늘 상태 — 팔 통증 관절은 armPainJointsToday(메카닉과 한 함수)',
         /armPainJointsToday\(today\)/.test(dayState),
       ],
       [
@@ -31397,11 +31397,11 @@ console.log(
  * (다) 등판 가까움 — 짐작한 오늘 · 내일 등판은 큰 하체 · 파워를, 창 3일 안은 큰 하체를 프로그램도 가볍게(outingNearOf)
  * (라) 프로그램 날 일정은 카드와 같은 부위 거르기(partsOnly) — 일정 picks = 운동 시작이 얼리는 운동
  * (마) 프로그램 없는 사람에게도 팔 예산(armOnlyBudgetOf) — 팔을 안 쓴 날은 글자까지 같다
- * (바) 메커니즘 접기 = 중재 mechanics(팔 예산 > 통증 확인 전 > 통증 · 성장기 못 펼침) 격자
+ * (바) 메카닉 접기 = 중재 mechanics(팔 예산 > 통증 확인 전 > 통증 · 성장기 못 펼침) 격자
  * (사) 글 · 소스
  */
 console.log(
-  '\n[2판 P6] 검토 반영 — 프로그램 날 판정 · 등판 가까움 · 일정과 실제 판 · 팔 예산 모두에게 · 메커니즘 접기 층 · 글'
+  '\n[2판 P6] 검토 반영 — 프로그램 날 판정 · 등판 가까움 · 일정과 실제 판 · 팔 예산 모두에게 · 메카닉 접기 층 · 글'
 );
 {
   const json = (v: unknown) => JSON.stringify(v);
@@ -32086,7 +32086,7 @@ console.log(
     );
   }
 
-  /* ── (바) 메커니즘 접기 = 중재 mechanics ── */
+  /* ── (바) 메카닉 접기 = 중재 mechanics ── */
   {
     const todays: (RCheckin | null)[] = [
       null,
@@ -32171,7 +32171,7 @@ console.log(
             }
           }
     check(
-      `P6 검토 (바) 메커니즘 접기 격자 ${combos}가지 — 메커니즘 화면(mechanicsFoldOf)과 중재 mechanics 가 같은 답(접기 · 까닭 · 펼치기): 팔을 다 쓴 날 ${seen.armSpent} · 통증 확인 전 ${seen.painUnknown} · 통증 ${seen.pain}(성장기라 못 펼침 ${seen.youthLocked}) · 안 접음 ${seen.none}`,
+      `P6 검토 (바) 메카닉 접기 격자 ${combos}가지 — 메카닉 화면(mechanicsFoldOf)과 중재 mechanics 가 같은 답(접기 · 까닭 · 펼치기): 팔을 다 쓴 날 ${seen.armSpent} · 통증 확인 전 ${seen.painUnknown} · 통증 ${seen.pain}(성장기라 못 펼침 ${seen.youthLocked}) · 안 접음 ${seen.none}`,
       bad.length === 0 &&
         seen.armSpent > 0 &&
         seen.painUnknown > 0 &&
@@ -32286,7 +32286,7 @@ console.log(
           /const unit = useWeightUnit\(\);/.test(view),
       ],
       [
-        '하루 투구 합은 facts · 메커니즘이 한 함수(addOutingLog)',
+        '하루 투구 합은 facts · 메카닉이 한 함수(addOutingLog)',
         /addOutingLog\(outingByDay\.get\(key\) \?\? null, log\)/.test(facts) &&
           /reduce<OutingTotals \| null>\(addOutingLog, null\)/.test(fold),
       ],

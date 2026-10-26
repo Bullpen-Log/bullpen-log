@@ -109,7 +109,7 @@ export function DayClient({
   /** 아직 투구 기록으로 안 남긴 구속 측정 값 — 있으면 새 기록 폼이 이 값으로 채워져 열린다 */
   velocityPrefill?: LogPrefill | null;
   /**
-   * 메커니즘 드릴로 던진 공(트레이닝의 '드릴로 공 N회 던졌어요' 카드에서 왔을 때) — 오늘 캐치볼 기록이 있으면 더할지 새로 남길지
+   * 메카닉 드릴로 던진 공(트레이닝의 '드릴로 공 N회 던졌어요' 카드에서 왔을 때) — 오늘 캐치볼 기록이 있으면 더할지 새로 남길지
    * 묻고, 없으면 새 기록 폼을 그 값으로 채워 연다. 구속 측정 값이 있으면 그쪽이 먼저.
    */
   drillPrefill?: DrillPrefill | null;
@@ -332,7 +332,7 @@ export function DayClient({
           <div className="space-y-3 rounded-2xl border border-line bg-surface-2 p-(--block-pad)">
             <div>
               <h2 className="font-bold text-ink">
-                {`메커니즘 드릴 공 ${drillPrefill.pitchCount}회`}
+                {`메카닉 드릴 공 ${drillPrefill.pitchCount}회`}
               </h2>
               <p className="mt-1 text-sm text-muted">
                 오늘 캐치볼 기록이 있어요. 어떻게 남길까요?

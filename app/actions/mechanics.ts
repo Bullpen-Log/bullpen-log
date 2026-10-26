@@ -53,7 +53,7 @@ import {
 } from '@/lib/mechanics/program';
 
 /**
- * 투구 메커니즘 프로그램 — 수준 고르기(바꾸기) · 처음부터 · 드릴 느낌 · 세션 마치기.
+ * 투구 메카닉 프로그램 — 수준 고르기(바꾸기) · 처음부터 · 드릴 느낌 · 세션 마치기.
  * 규칙은 lib/mechanics/program.ts · levels.ts, 표는 MechanicsProgram(한 사람에 하나). 고른 수준 · 몇 번째 세션 · 느낌은
  * progress(Json) 한 칸에 둔다(DB 구조는 그대로). '했다'는 UserDrillLog 에 남긴다.
  */
@@ -409,7 +409,7 @@ export async function recordMechanicsDrill(input: {
                 sessionType: '캐치볼',
                 pitchCount: actual.throws,
                 ...effortFields(actual.effortPct),
-                memo: `메커니즘 드릴 · ${guide.title} · 오늘 합계`,
+                memo: `메카닉 드릴 · ${guide.title} · 오늘 합계`,
                 videoPaths: [],
               },
               update: { pitchCount: actual.throws, ...effortFields(actual.effortPct) },
@@ -591,7 +591,7 @@ export async function closeDrillThrowNote(): Promise<Result> {
   });
 }
 
-/** 메커니즘에서 오늘 확인한 장비만 저장한다. 다른 운동의 장비 설정은 덮어쓰지 않는다. */
+/** 메카닉에서 오늘 확인한 장비만 저장한다. 다른 운동의 장비 설정은 덮어쓰지 않는다. */
 export async function saveMechanicsEquipment(values: string[]): Promise<Result> {
   const user = await requireUser();
   if (!Array.isArray(values) || values.some((v) => !(DRILL_EQUIPMENT as readonly string[]).includes(v)))

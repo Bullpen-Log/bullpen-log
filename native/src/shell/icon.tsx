@@ -97,7 +97,7 @@ const ICONS = {
 
 /*
  * 둥근 야구 아이콘(2026-10-21 금윤호, lib/round-icons.ts — 웹 components/round-icon.tsx 와 같은 그림). 아래 이름은 lucide 선 대신 그것으로 그린다.
- * zone(ABS 스트라이크존) · pitcher(투구 모션 — 메커니즘 · 투구 드릴 · 3D 동작 분석)는 둥근 아이콘에만 있는 이름.
+ * zone(ABS 스트라이크존) · pitcher(투구 모션 — 메카닉 · 투구 드릴 · 3D 동작 분석)는 둥근 아이콘에만 있는 이름.
  */
 const ROUND: Partial<Record<string, RoundIconName>> = {
   house: 'home',

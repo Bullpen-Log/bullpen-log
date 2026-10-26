@@ -490,7 +490,7 @@ export async function listLabSamples(viewer: LabViewer, sport: LabSport = 'pitch
  * 정보가 있는 샘플은 건드리지 않는다. 목록을 못 읽으면 던진다(아무것도 안 지움).
  */
 /**
- * 내 가장 최근 진단 리포트의 요약(투구, 마커 샘플 빼고) — 메커니즘 요소 탭이 처방 없이 리포트만 받은 사람에게도 점을 찍게(설계 6-4절).
+ * 내 가장 최근 진단 리포트의 요약(투구, 마커 샘플 빼고) — 메카닉 요소 탭이 처방 없이 리포트만 받은 사람에게도 점을 찍게(설계 6-4절).
  * 샘플마다 job.json(요약이 든 곳) · meta.json 두 작은 파일만 읽는다(영상 주소 · 결과 파일은 안 읽음). 요약이 아직 없는 옛 결과는 건너뛴다.
  * ponytail: 샘플 수만큼 읽는다 — 한 사람 샘플이 수십 개를 넘으면 마지막 리포트 번호를 따로 적어 둔다.
  */
@@ -524,7 +524,7 @@ export async function loadLatestReport(
 }
 
 /**
- * 메커니즘에서 진행 중인 리포트 처방(메커니즘 세션 P2 — MechanicsProgram.progress.focus) — 리포트 화면의 [처방 시작]이 '처방 진행 중 n / 9'로.
+ * 메카닉에서 진행 중인 리포트 처방(메카닉 세션 P2 — MechanicsProgram.progress.focus) — 리포트 화면의 [처방 시작]이 '처방 진행 중 n / 9'로.
  * 없으면 null. 마친 처방(done = 9)도 돌려준다(화면이 '마쳤어요'로).
  */
 export async function loadFocusProgress(

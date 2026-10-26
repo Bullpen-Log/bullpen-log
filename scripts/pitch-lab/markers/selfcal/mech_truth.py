@@ -1,4 +1,4 @@
-"""메커니즘 점검 넷의 정답(K4 — 네 대 교차, 미터)을 투구마다 JSON 으로 — 앱 계산(lib/pitch-3d/v2/mech-checks.ts)을 채점할 때.
+"""메카닉 점검 넷의 정답(K4 — 네 대 교차, 미터)을 투구마다 JSON 으로 — 앱 계산(lib/pitch-3d/v2/mech-checks.ts)을 채점할 때.
 (세션 폴더에서) python mech_truth.py → work/mech_truth.json
 
 식은 mech_checks.py 의 K4 쪽과 같다(분리 시점은 착지 150ms 전 ~ 릴리스). 순간(니업 · 착지 · 릴리스)은 엔진 것 — 순간 찾기 오차는 안 잰다.

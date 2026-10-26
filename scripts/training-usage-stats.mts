@@ -3,7 +3,7 @@
  *
  *   npm run training:usage
  *
- * 왜 있나. 추천 메커니즘 2판(docs/designs/training-recommendation-engine.md)의 결정 D2(체감 강도 0~100%) ·
+ * 왜 있나. 추천 메카닉 2판(docs/designs/training-recommendation-engine.md)의 결정 D2(체감 강도 0~100%) ·
  * D3(경기 다음 날을 달력이 아니라 부하로) · D4(성장기 16세 미만)와 P0 는 '지금 사용자가 실제로 무엇을 적고
  * 있나'를 숫자로 알아야 옮길 수 있다 — 등판 질문이 상세 체크인에만 있어 답이 거의 없다는 것, 운동 '마침'을
  * 누르는 날이 드물다는 것, 투구 강도 1~10 이 실제로 어떻게 쓰이는지, 16세 기준이 몇 명을 가르는지. P4 부터는 다음 등판

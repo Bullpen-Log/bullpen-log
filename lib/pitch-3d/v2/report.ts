@@ -196,7 +196,7 @@ export type ReportSummary = {
   v: 1;
   criteria: string;
   primary: { element: ElementName; level: 'improve' | 'edge' } | null;
-  /** 경계 이상인 요소 모두(흐름 차례) — 메커니즘 요소 탭의 점(처방 없이 리포트만 받은 사람도) */
+  /** 경계 이상인 요소 모두(흐름 차례) — 메카닉 요소 탭의 점(처방 없이 리포트만 받은 사람도) */
   bad: { element: ElementName; level: 'improve' | 'edge' }[];
   /** 판정한 요소가 하나라도 있나 */
   judged: boolean;
@@ -936,13 +936,13 @@ export function summaryChip(s: ReportSummary | null): { text: string; tone: 'imp
   return { text: `수치 ${measured}/${s.coverage.total} · 평가 ${s.coverage.evaluated}/${s.coverage.total}`, tone: 'muted' };
 }
 
-/** 이 리포트의 처방이 메커니즘에서 진행 중이면 마친 세션 수 / 전체(메커니즘 세션 P2 — MechanicsProgram.progress.focus) */
+/** 이 리포트의 처방이 메카닉에서 진행 중이면 마친 세션 수 / 전체(메카닉 세션 P2 — MechanicsProgram.progress.focus) */
 export type FocusProgress = { done: number; total: number; skill?: { label: string; finished: boolean } } | null;
 
 export type RxAction = { kind: 'start' | 'progress' | 'retake' | 'drills'; label: string; note: string };
 
 /**
- * 처방 카드 맨 아래 단추(웹 · 앱 같은 판단) — 처방 시작(메커니즘 확인 시트) · 진행 중 n / 9 · 마쳤으면 다시 찍기.
+ * 처방 카드 맨 아래 단추(웹 · 앱 같은 판단) — 처방 시작(메카닉 확인 시트) · 진행 중 n / 9 · 마쳤으면 다시 찍기.
  * 남의 샘플(관리자)이면 시작할 수 없어(lib/mechanics/focus-load.ts 가 막음) 요소별 드릴로. 갈 주소는 화면마다(웹 · 앱 길이 달라서).
  */
 export function rxAction(mine: boolean, focus: FocusProgress): RxAction {
@@ -950,11 +950,11 @@ export function rxAction(mine: boolean, focus: FocusProgress): RxAction {
   if (focus?.skill)
     return focus.skill.finished
       ? { kind: 'retake', label: '다시 찍어 리포트 받기', note: '자가 확인을 마쳤어요. 같은 자리에서 다시 찍어 측정값과 견줘요.' }
-      : { kind: 'progress', label: `${focus.skill.label} 연습 중`, note: '메커니즘에서 수행·다음 날 반응을 확인해요.' };
+      : { kind: 'progress', label: `${focus.skill.label} 연습 중`, note: '메카닉에서 수행·다음 날 반응을 확인해요.' };
   if (focus && focus.done >= focus.total)
     return { kind: 'retake', label: '다시 찍어 리포트 받기', note: '처방을 마쳤어요. 같은 자리에서 다시 찍어 견줘요.' };
-  if (focus) return { kind: 'progress', label: `처방 진행 중 ${focus.done} / ${focus.total}`, note: '메커니즘 프로그램에서 이어서 해요.' };
-  return { kind: 'start', label: '처방 시작', note: '메커니즘 프로그램의 드릴 칸이 이 처방으로 바뀌어요.' };
+  if (focus) return { kind: 'progress', label: `처방 진행 중 ${focus.done} / ${focus.total}`, note: '메카닉 프로그램에서 이어서 해요.' };
+  return { kind: 'start', label: '처방 시작', note: '메카닉 프로그램의 드릴 칸이 이 처방으로 바뀌어요.' };
 }
 
 /** 만 나이(생년월일 'YYYY-MM-DD' · Date) — 모르면 null */

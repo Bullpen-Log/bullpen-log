@@ -99,12 +99,12 @@ function now() {
 /**
  * 앱의 머리 — '‹ 트레이닝'(트레이닝 홈으로) · 큰 제목 · 오른쪽 트레이닝 설정(2026-10-04).
  *
- * 예전에는 [트레이닝 | 암케어 | 메커니즘] 고르개가 여기 있어 셋이 한 화면의 탭처럼 보였다. 이제 셋은 트레이닝 홈
+ * 예전에는 [트레이닝 | 암케어 | 메카닉] 고르개가 여기 있어 셋이 한 화면의 탭처럼 보였다. 이제 셋은 트레이닝 홈
  * (training-home.tsx)의 앱 카드에서 들어가는 따로 된 앱이고, 머리에는 돌아가는 길만 둔다. 보고 있는 앱을 쿠키에
  * 적어 홈이 그 카드를 맨 위에 둔다(remember-app.tsx).
  *
  * 트레이닝 설정은 운동에만 둔다 — 운동 목록을 보다가 "이건 장비가 없어서 못 하는데" 싶을 때 여기서 고친다.
- * 메커니즘은 장비 · 목표 설정을 읽지 않아 두지 않고, 암케어에서는 2026-10-20 뺐다(김민).
+ * 메카닉은 장비 · 목표 설정을 읽지 않아 두지 않고, 암케어에서는 2026-10-20 뺐다(김민).
  */
 function AppHead({
   app,
@@ -166,7 +166,7 @@ export default async function TrainingPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const user = await requireUser();
-  /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 — 홈 · 암케어 · 메커니즘 모든 분기 앞 */
+  /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 — 홈 · 암케어 · 메카닉 모든 분기 앞 */
   if (featureLocks(user).training) redirect(SETUP_PATH.training);
   /* 첫 설정 뒤 탭 사용법(TabTutorial)은 2026-10-12 사용자 요청으로 뺐다 — 감싸기 자리만 남긴다 */
   const withTutorial = (node: ReactNode) => node;
@@ -228,7 +228,7 @@ export default async function TrainingPage({
   }
 
   /*
-   * 메커니즘 — 투구 드릴로 투구 동작을 키운다(2026-10-04). 암케어처럼 운동 일정과 따로다(사용자분).
+   * 메카닉 — 투구 드릴로 투구 동작을 키운다(2026-10-04). 암케어처럼 운동 일정과 따로다(사용자분).
    * [프로그램 | 요소별 드릴], 요소 카드는 ?el= 로 열어 둘 수 있다. 3D 리포트의 [처방 시작]은 ?focus=<리포트 번호>로 와서 프로그램 칸에 확인 시트를 연다.
    */
   if (view === 'mechanics') {
@@ -237,7 +237,7 @@ export default async function TrainingPage({
       <div className="stack-page">
         <AppHead
           app="mechanics"
-          title="메커니즘"
+          title="메카닉"
           returnTo={
             tab === 'program'
               ? '/training?view=mechanics'

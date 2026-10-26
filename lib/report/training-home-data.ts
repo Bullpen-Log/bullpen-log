@@ -18,7 +18,7 @@ import { withJosa } from '@/lib/korean';
 import type { TrainingPart } from '@/lib/training-part';
 
 /**
- * 트레이닝 홈 앱 카드 셋(오늘 운동 · 암케어 · 메커니즘)의 내용 — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 아이폰 앱
+ * 트레이닝 홈 앱 카드 셋(오늘 운동 · 암케어 · 메카닉)의 내용 — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 아이폰 앱
  * (native/, app.loadAppTraining)이 같은 판정을 그린다. 그리기는 각자. 판정 차례 · 까닭은 각 함수 머리 주석.
  */
 export type HomeUser = UserForToday & UserForArmcare & { id: string };
@@ -26,7 +26,7 @@ export type HomeUser = UserForToday & UserForArmcare & { id: string };
 export type CardAction =
   /** 운동 판 열기 — program 이면 근력 프로그램 판(startProgramWorkout), 아니면 매일 일정(startWorkout) */
   | { kind: 'workout'; program: boolean; resume: boolean }
-  /** 따라 하기 화면으로(암케어 · 메커니즘) */
+  /** 따라 하기 화면으로(암케어 · 메카닉) */
   | { kind: 'link'; href: string; label: string }
   /** 체크인 흐름을 연다 */
   | { kind: 'checkin'; label: string };
@@ -40,9 +40,9 @@ export type TrainingCard = {
   action: CardAction | null;
   /** 암케어 — 내 팔 지도의 '2주째 안 한 곳' 한 줄(누르면 부위별 보강) */
   gap?: { text: string; href: string } | null;
-  /** 메커니즘 — 수준의 세션 칸(마친 수 · 모두) */
+  /** 메카닉 — 수준의 세션 칸(마친 수 · 모두) */
   bars?: { index: number; total: number; label: string } | null;
-  /** 메커니즘 — 드릴로 던진 공을 투구 기록에 남기라는 한 줄 */
+  /** 메카닉 — 드릴로 던진 공을 투구 기록에 남기라는 한 줄 */
   throwNote?: DrillThrowNote | null;
 };
 
@@ -171,7 +171,7 @@ export async function armcareCardData(user: HomeUser, today: Date): Promise<Trai
 }
 
 /**
- * 메커니즘 — 고른 수준의 다음 세션과 12칸 진행(수준을 안 골랐으면 고르라고).
+ * 메카닉 — 고른 수준의 다음 세션과 12칸 진행(수준을 안 골랐으면 고르라고).
  *
  * 어깨 · 팔꿈치가 아픈 날(2판 P6-5, D5) · 팔을 다 쓴 날 · 통증 확인 전(2판 P6 검토, lib/mechanics/fold.ts) — 프로그램 칸처럼 팔에 싣는 드릴은
  * 접고 무브먼트만 권한다. 까닭 머리말은 fold.cause. 펼치기('그래도 하기' — 성인의 통증 날만)는 프로그램 칸에 있어서, 할 드릴이 없으면 단추 없이
@@ -180,7 +180,7 @@ export async function armcareCardData(user: HomeUser, today: Date): Promise<Trai
 export async function mechanicsCardData(userId: string): Promise<TrainingCard> {
   const { program, session, doneToday, painFold, throwNote } = await loadMechanicsProgram(userId);
   if (!program?.level) {
-    return card('mechanics', '수준을 골라 투구 메커니즘 프로그램을 시작해 보세요');
+    return card('mechanics', '수준을 골라 투구 메카닉 프로그램을 시작해 보세요');
   }
   const level = mechanicsLevel(program.level);
   const done = new Set(program.finishedToday ? [] : doneToday);

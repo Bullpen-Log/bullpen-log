@@ -34,7 +34,7 @@ export const FEATURES: Feature[] = [
   { group: 'sinker', href: '/velocity', label: '구속 측정', icon: 'radar', desc: '폰 카메라로 구속 재기', keywords: ['구속', '스피드', '스피드건', '측정'] },
   { group: 'sinker', href: '/training', label: '트레이닝', icon: 'training', desc: '오늘 맞춤 운동', keywords: ['운동', '웨이트', '근력', '프로그램'] },
   { group: 'sinker', href: '/training?view=armcare', label: '암케어', icon: 'armcare', desc: '어깨 · 팔꿈치 관리', keywords: ['어깨', '팔꿈치', '재활', '부상', '통증'] },
-  { group: 'sinker', href: '/training?view=mechanics', label: '메커니즘', icon: 'pitcher', desc: '투구 동작 드릴', keywords: ['드릴', '폼', '투구폼', '투수', '동작'] },
+  { group: 'sinker', href: '/training?view=mechanics', label: '메카닉', icon: 'pitcher', desc: '투구 동작 드릴', keywords: ['메커니즘', '드릴', '폼', '투구폼', '투수', '동작'] },
   { group: 'sinker', href: '/nutrition', label: '영양', icon: 'cutlery', desc: '식단 · 단백질', keywords: ['식단', '체중', '단백질', '밥'] },
   { group: 'sinker', href: '/hitting', label: '타격', icon: 'batter', desc: '타격 기록 · 드릴', keywords: ['타자', '배팅', '스윙'] },
   { group: 'sinker', href: '/videos/lab', label: '3D 동작 분석', icon: 'clapper', desc: '두 영상으로 3D 투구 분석', keywords: ['3d', '분석', '모션', '동작 분석'] },

@@ -26,7 +26,7 @@ import { PageHead, Segmented } from '~/shell/heading';
 import { Press } from '~/shell/press';
 
 /**
- * 암케어 · 메커니즘 전체 화면(native/src/app/training-armcare.tsx · training-mechanics.tsx)의 같은 틀 — 머리(‹ · 제목) · 두 칸 고르개 ·
+ * 암케어 · 메카닉 전체 화면(native/src/app/training-armcare.tsx · training-mechanics.tsx)의 같은 틀 — 머리(‹ · 제목) · 두 칸 고르개 ·
  * 받기(받아 둔 값 먼저 · 당겨서 새로고침 · 따라 하기에서 돌아오면 다시) · 불러오는 중 · 못 불러옴.
  */
 

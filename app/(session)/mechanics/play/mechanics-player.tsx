@@ -26,7 +26,7 @@ import type { DrillThrowNote } from '@/lib/mechanics/program';
 import { josa } from '@/lib/korean';
 
 /**
- * 메커니즘 세션 따라 하기 — 한 드릴씩(2026-10-04, page.tsx).
+ * 메카닉 세션 따라 하기 — 한 드릴씩(2026-10-04, page.tsx).
  *
  * 드릴에는 시계가 없다(횟수 · 공 수로 한다). 그래서 암케어처럼 쉬는 시계 대신, 마치면 느낌 하나를 누르는 것이 '다음'이다.
  * 느낌은 그 요소에 쌓이고, 수준은 저절로 바꾸지 않는다 — 세션을 마치면 끝 화면이 다음 · 아래 수준을 권한다
@@ -247,7 +247,7 @@ export function MechanicsPlayer({
           >
             <X className="h-5 w-5" />
           </Link>
-          <p className="min-w-0 flex-1 truncate text-base font-bold text-ink">메커니즘 · {label}</p>
+          <p className="min-w-0 flex-1 truncate text-base font-bold text-ink">메카닉 · {label}</p>
           <span className="shrink-0 text-sm font-semibold text-muted tabular-nums">
             {finished ? items.length : index + 1} / {items.length}
           </span>

@@ -128,7 +128,7 @@ function Wizard({ name, age, askHand, hasSetup, basicsDone, initial }: Extract<L
       case 'minutes':
         return { title: '하루에 얼마나 할 수 있어요?', desc: '일정을 이 시간에 맞춰 짜요. 만들 때마다 바꿀 수 있어요.' };
       case 'hand':
-        return { title: '어느 손으로 던져요?', desc: '암케어와 메커니즘이 어느 팔을 볼지 정해요. 투구 기록에서도 같은 값을 써요.' };
+        return { title: '어느 손으로 던져요?', desc: '암케어와 메카닉이 어느 팔을 볼지 정해요. 투구 기록에서도 같은 값을 써요.' };
       case 'burnCard':
         return { title: '운동을 적으면 영양이 따라와요' };
       case 'summary':

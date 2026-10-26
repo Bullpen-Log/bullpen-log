@@ -248,7 +248,7 @@ function RxBlock({ c, rx }: { c: Palette; rx: ElementRx }) {
   );
 }
 
-/** 처방 카드 단추가 갈 곳(앱) — 무엇을 할지는 lib/pitch-3d/v2/report.ts rxAction(웹과 같은 판단). 메커니즘은 앱 화면(training-mechanics) */
+/** 처방 카드 단추가 갈 곳(앱) — 무엇을 할지는 lib/pitch-3d/v2/report.ts rxAction(웹과 같은 판단). 메카닉은 앱 화면(training-mechanics) */
 function goRx(kind: ReturnType<typeof rxAction>['kind'], reportId: string, elementKey: string) {
   if (kind === 'start') return router.push(`/training-mechanics?focus=${reportId}` as Href);
   if (kind === 'progress') return router.push('/training-mechanics' as Href);

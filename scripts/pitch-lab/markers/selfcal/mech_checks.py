@@ -1,4 +1,4 @@
-"""메커니즘 네 가지(드리프트 · 착지 골반 수평 · 최대 분리 시점 · 리드레그 블록)를 엔진이 잴 수 있나 — 엔진 vs 정답(K4 · 스티커). (세션 폴더에서)"""
+"""메카닉 네 가지(드리프트 · 착지 골반 수평 · 최대 분리 시점 · 리드레그 블록)를 엔진이 잴 수 있나 — 엔진 vs 정답(K4 · 스티커). (세션 폴더에서)"""
 import os, sys, json
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

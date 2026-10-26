@@ -12,7 +12,7 @@ import { DRILL_THROW_TEXT, type DrillThrowNote } from '@/lib/mechanics/program';
 /**
  * '드릴로 공을 약 N회 던졌어요 · 투구 기록에 남기기' — 투구 기록에 바로 넣지 않고 알린다(2026-10-16 사용자: 자동으로 넣으면 투구 기록과 겹친다).
  * 투구 기록에 남기면 다음에 그릴 때 저절로 사라지고(lib/mechanics/program.ts drillThrowNote), '이미 넣었어요 · 안 적을래요'는 그날 닫는다.
- * 트레이닝 홈의 메커니즘 카드와 따라 하기 끝 화면이 쓴다. 따라 하기는 (app) 밖이라 plainLink — Link 면 (app) 의 가로채는 팝업이 빈 화면 위에 뜬다.
+ * 트레이닝 홈의 메카닉 카드와 따라 하기 끝 화면이 쓴다. 따라 하기는 (app) 밖이라 plainLink — Link 면 (app) 의 가로채는 팝업이 빈 화면 위에 뜬다.
  */
 export function DrillThrowNoteCard({
   note,

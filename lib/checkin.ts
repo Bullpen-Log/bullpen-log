@@ -450,8 +450,8 @@ export type ArmPainJoint = keyof typeof ARM_PAIN_SPOTS;
 /**
  * 오늘 '통증'이라고 한 팔 관절 — 어깨 → 팔꿈치 차례. 뻐근 · 손목 · 허리 · 하체 통증은 넣지 않는다.
  *
- * 메커니즘 접기(사용자 결정 D5, lib/mechanics/program.ts mechanicsPainFold)와 오늘 상태 한 장
- * (lib/engine/day-state.ts arm.painJoints — 중재의 mechanics.because 'pain')가 둘 다 이것을 부른다. 메커니즘은
+ * 메카닉 접기(사용자 결정 D5, lib/mechanics/program.ts mechanicsPainFold)와 오늘 상태 한 장
+ * (lib/engine/day-state.ts arm.painJoints — 중재의 mechanics.because 'pain')가 둘 다 이것을 부른다. 메카닉은
  * 체크인 한 줄만 읽고 오늘 상태는 facts 전체로 만들어서, 판정을 따로 두면 같은 체크인에 다른 답이 나올 수
  * 있었다(트레이닝 추천 2판 P6 비판 — 재활 관절 · 최근 통증이 섞이면 '오늘 통증만'인 D5 와 갈린다).
  */

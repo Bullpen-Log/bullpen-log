@@ -10,7 +10,7 @@ import { APP_UA, SITE_URL } from '~/lib/site';
  *
  * 웹뷰와의 말(사이트 app/embed/lab/[id]/lab-embed.tsx 와 같은 모양):
  *   - 웹 → 앱(postMessage JSON): ready · size(칸 높이 px — 웹뷰 높이를 맞춘다) · transport(3D 시계 + 그때 두 영상의 재생기 시각)
- *   - 앱 → 웹: window.__labSeek(장면) — 숫자 · 메커니즘 점검의 '그 순간 보기'
+ *   - 앱 → 웹: window.__labSeek(장면) — 숫자 · 메카닉 점검의 '그 순간 보기'
  */
 export type LabTransport = {
   frame: number;

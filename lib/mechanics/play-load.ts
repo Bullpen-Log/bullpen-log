@@ -6,7 +6,7 @@ import { mechanicsLevel } from '@/lib/mechanics/levels';
 import { playItemsFor, resumeAt } from '@/lib/mechanics/program';
 
 /**
- * 메커니즘 세션 따라 하기에 무엇을 띄울지 — 웹 화면(app/(session)/mechanics/play/page.tsx)과 아이폰 앱 화면(app/actions/app-mechanics.ts →
+ * 메카닉 세션 따라 하기에 무엇을 띄울지 — 웹 화면(app/(session)/mechanics/play/page.tsx)과 아이폰 앱 화면(app/actions/app-mechanics.ts →
  * native/src/app/mechanics.tsx)이 같이 쓴다. 둘이 따로 고르면 아픈 날 접는 드릴 · 이어서 할 자리가 두 화면에서 달라진다.
  *
  * 열 수 없으면 갈 곳(to)을 돌려준다 — 웹은 그리로 redirect, 앱은 화면을 닫고 웹을 그리로 보낸다.

@@ -29,7 +29,7 @@ import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
 
 /**
  * 3D 동작 분석 결과(앱 화면) — 웹 /videos/lab/[id](app/(app)/videos/lab/[id]/lab-detail.tsx)를 옮겼다(2026-10-18 김민: 길 B). 사이트의 결과 화면이
- * 앱(BullpenNative/8 부터)이면 이 화면을 띄운다(page.tsx → OpenNative). 둘레(제목 · 원본 영상 · 메커니즘 점검 · 숫자)는 앱이 그리고, 3D 칸만 사이트
+ * 앱(BullpenNative/8 부터)이면 이 화면을 띄운다(page.tsx → OpenNative). 둘레(제목 · 원본 영상 · 메카닉 점검 · 숫자)는 앱이 그리고, 3D 칸만 사이트
  * app/embed/lab/[id] 를 웹뷰로(~/lab/lab-3d.tsx) — 웹과 같은 인형 부품 하나를 쓴다. 판정 · 숫자 · 이름은 웹과 같은 곳(lib/pitch-3d/v2/lab-summary.ts,
  * 서버 app/actions/pitch-lab.ts loadAppLabDetail).
  *

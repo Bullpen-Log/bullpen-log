@@ -137,7 +137,7 @@ function isNetworkError(err: unknown) {
 }
 
 /** 고칠 기록. 주어지면 수정 모드가 된다. */
-/** 메커니즘 드릴로 던진 공 — 새 기록 칸에 채울 값(pitch-log/[date]/load.ts drillPrefillOf) */
+/** 메카닉 드릴로 던진 공 — 새 기록 칸에 채울 값(pitch-log/[date]/load.ts drillPrefillOf) */
 export type DrillPrefill = { pitchCount: number; effortPct: number; memo: string };
 
 /**
@@ -373,7 +373,7 @@ export function EntryForm({
    */
   prefill?: LogPrefill | null;
   /**
-   * 새 기록을 메커니즘 드릴로 던진 공으로 채워 연다(2026-10-16 — 트레이닝의 '드릴로 공 N회 던졌어요' 카드가 데려온다).
+   * 새 기록을 메카닉 드릴로 던진 공으로 채워 연다(2026-10-16 — 트레이닝의 '드릴로 공 N회 던졌어요' 카드가 데려온다).
    * 캐치볼 · 투구수 · 체감 강도 · 메모만 채우고 선수가 고쳐 저장한다. 구속 측정 prefill 이 있으면 그쪽이 먼저. 수정 폼에서는 안 쓴다.
    */
   drillPrefill?: DrillPrefill | null;

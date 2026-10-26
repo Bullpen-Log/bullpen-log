@@ -237,7 +237,7 @@ function ExerciseLine({
   );
 }
 
-/** 날짜 띠 — 최근 6주를 옆으로 굴린다. 칸 밑 점은 그날 한 것(운동 · 암케어 · 메커니즘). 고른 날로 처음부터 굴려 둔다 */
+/** 날짜 띠 — 최근 6주를 옆으로 굴린다. 칸 밑 점은 그날 한 것(운동 · 암케어 · 메카닉). 고른 날로 처음부터 굴려 둔다 */
 function Strip({ days, date, today, c }: { days: AppTrainingDay['strip']; date: string; today: string; c: Palette }) {
   const scroll = useRef<ScrollViewInstance>(null);
   const pick = (key: string) => {
@@ -253,7 +253,7 @@ function Strip({ days, date, today, c }: { days: AppTrainingDay['strip']; date: 
         const on = day.date === date;
         const d = dayOf(day.date);
         const dots = [day.workout, day.armcare, day.drill];
-        const done = [day.workout && '운동', day.armcare && '암케어', day.drill && '메커니즘'].filter(Boolean).join(' · ');
+        const done = [day.workout && '운동', day.armcare && '암케어', day.drill && '메카닉'].filter(Boolean).join(' · ');
         return (
           <Press
             key={day.date}

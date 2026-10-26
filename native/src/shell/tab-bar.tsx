@@ -38,7 +38,7 @@ export const DEFAULT_SPORT_BARS: Record<SportKey, ShellTab[]> = {
     { href: '/videos?view=log', label: '기록', icon: 'calendar' },
     { href: '/training?sport=pitch', label: '트레이닝', icon: 'dumbbell' },
     { href: '/training?view=armcare', label: '암케어', icon: 'heart' },
-    { href: '/training?view=mechanics', label: '메커니즘', icon: 'target' },
+    { href: '/training?view=mechanics', label: '메카닉', icon: 'target' },
   ],
   hit: [
     { href: '/hitting', label: '타격', icon: 'bat' },

@@ -100,7 +100,7 @@ for (const m of [native, web]) {
   const legacy = { ...focus };
   delete legacy.progression;
   assert.match(render(m.FocusProgress, { focus: focusView(legacy, '2026-10-26') }), /누적 수행 기록은 보존/);
-  assert.match(render(m.MechanicsEquipment, { equipment: ['밴드'] }), /오늘 메커니즘 장비/);
+  assert.match(render(m.MechanicsEquipment, { equipment: ['밴드'] }), /오늘 메카닉 장비/);
   progression.evidence[0].nextDay = 'unknown';
   progression.evidence[0].responseOn = null;
 }

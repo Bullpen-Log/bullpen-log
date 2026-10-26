@@ -6,7 +6,7 @@
  *   npm run training:baseline -- --out=<새 JSON> --compare=<앞 JSON>   전후 표 · '옛 칸 같음'(scripts/training-baseline-gates.mts)
  *   npm run training:baseline -- --gate=P5                             그 단계까지의 막는 목표를 못 맞추면 exit 1
  *
- * 왜 있나. 추천 메커니즘 2판 검토안(docs/designs/training-recommendation-engine.md)이 낸 수치 — 씨앗만 바꾸면 목록
+ * 왜 있나. 추천 메카닉 2판 검토안(docs/designs/training-recommendation-engine.md)이 낸 수치 — 씨앗만 바꾸면 목록
  * 90.9% 바뀜 · 체크인만 바꾸면 30.2% · 같은 설정 새 사용자 둘이 같은 목록 46.9% … — 는 스크래치에서 라이브러리를
  * 재구성해 돌린 것이라 저장소에 없다. 단계(P1~P6 · Y)마다 같은 잣대로 다시 재려면, 실제 운동 표로 도는 도구가 저장소
  * 안에 있어야 한다. 이 파일이 그 잣대다. 수치의 뜻은 아래 '재는 것' 표의 주석에 한 줄씩 적어 두었다.

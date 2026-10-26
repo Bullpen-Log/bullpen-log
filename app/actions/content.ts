@@ -185,7 +185,7 @@ export async function exerciseDescription(id: string): Promise<string | null> {
 }
 
 /**
- * 드릴 설명 — 펼칠 때 받아 온다(트레이닝의 메커니즘 칸). 운동 설명(exerciseDescription)과 같은 까닭이다:
+ * 드릴 설명 — 펼칠 때 받아 온다(트레이닝의 메카닉 칸). 운동 설명(exerciseDescription)과 같은 까닭이다:
  * 드릴 백이십 개의 설명을 미리 다 실으면 화면 짐이 커지는데, 펼쳐 보는 것은 몇 개다.
  * 로그인이 풀렸거나 숨긴 · 지운 드릴이면 null.
  */
@@ -328,7 +328,7 @@ async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
   return { success: '수정했습니다.' };
 }
 
-/* --------------------------------- 메커니즘 --------------------------------- */
+/* --------------------------------- 메카닉 --------------------------------- */
 
 export async function createGuide(
   _prev: ActionState,

@@ -8,7 +8,7 @@ import { loadElementReport, loadMechanicsProgram, type ElementReportView, type M
 import type { DrillThrowNote, MechanicsPainFold, SessionItem } from '@/lib/mechanics/program';
 
 /**
- * 아이폰 앱 메커니즘 화면(native/src/app/training-mechanics.tsx)이 그릴 것 — 웹 메커니즘 칸(app/(app)/training/mechanics-section.tsx)과 같은
+ * 아이폰 앱 메카닉 화면(native/src/app/training-mechanics.tsx)이 그릴 것 — 웹 메카닉 칸(app/(app)/training/mechanics-section.tsx)과 같은
  * 함수(loadMechanicsProgram · groupDrills)를 그대로 부른다. 프로그램 칸의 세션은 목록에 쓰는 칸만 추린다(따라 하기의 다른 드릴 · 도구는 따라 하기
  * 화면이 다시 읽는다 — lib/mechanics/play-load.ts). 'use server' 파일에 두지 않는다 — user 를 받는 함수가 입구가 되지 않게.
  */

@@ -8,7 +8,7 @@ import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { MechanicsPlayer } from './mechanics-player';
 
 /**
- * 메커니즘 세션 따라 하기 — /mechanics/play(2026-10-04).
+ * 메카닉 세션 따라 하기 — /mechanics/play(2026-10-04).
  *
  * 암케어 따라 하기(/armcare/play)처럼 메뉴 없는 전체 화면이다((session) 틀). 오늘의 세션을 한 드릴씩 — 영상 · 몇 번 ·
  * 느낌 신호를 보고, 마치면 느낌(어려움 · 적당 · 쉬움)을 누르면 다음 드릴로 간다. 끝 화면에서 오른 단계를 알려 준다.
@@ -28,7 +28,7 @@ export default async function MechanicsPlayPage({
   if (!play.ok) redirect(play.to);
 
   /*
-   * 새 아이폰 앱(Expo)이 메커니즘 따라 하기를 아는 판(BullpenNative/4 부터)이면 앱 화면으로 연다(native/src/app/mechanics.tsx) — 웹 화면은
+   * 새 아이폰 앱(Expo)이 메카닉 따라 하기를 아는 판(BullpenNative/4 부터)이면 앱 화면으로 연다(native/src/app/mechanics.tsx) — 웹 화면은
    * 화면 켜 두기 · 떨림이 웹뷰 것이라 약하다. 고르는 일(위)은 넘기기 전에 한다 — 할 드릴이 없으면 앱 화면을 띄울 것 없이 웹이 그리로 간다.
    */
   if (expoLevel((await headers()).get('user-agent')) >= 4) {

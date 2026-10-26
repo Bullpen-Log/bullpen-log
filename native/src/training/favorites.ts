@@ -3,7 +3,7 @@ import { useRef, useState, useSyncExternalStore } from 'react';
 import { act } from '~/mechanics/parts';
 
 /**
- * 암케어 운동 · 메커니즘 드릴의 즐겨찾기 — 줄의 별과 머리의 '즐겨찾기' 모음 창이 같은 값을 본다(2026-10-20 김민: "즐겨찾기한 것을 빨리 찾게").
+ * 암케어 운동 · 메카닉 드릴의 즐겨찾기 — 줄의 별과 머리의 '즐겨찾기' 모음 창이 같은 값을 본다(2026-10-20 김민: "즐겨찾기한 것을 빨리 찾게").
  * 서버가 준 값(initial) 위에 이 화면에서 바꾼 것만 얹는다. 저장은 웹과 같은 서버 동작(favorite.*) — 실패하면 되돌리고 한 줄 알린다.
  */
 type Kind = 'exercise' | 'drill';

@@ -22,14 +22,14 @@ import { loadTrainingStrip } from '@/lib/training-week';
 import { loadTrainingWeekCounts } from '@/lib/report/training-week-counts';
 
 /**
- * 트레이닝 홈 — 트레이닝 · 암케어 · 메커니즘을 앱 카드 셋으로(2026-10-04).
+ * 트레이닝 홈 — 트레이닝 · 암케어 · 메카닉을 앱 카드 셋으로(2026-10-04).
  *
  * 사용자분: "불펜로그라는 하나의 앱 안에 아주 높은 퀄리티의 각각의 앱들이 들어 있는 것을 원한다 — 지금은 한눈에 잘 안
- * 들어온다." 예전에는 아래 탭이 마지막으로 본 칸을 바로 열고 셋이 [트레이닝 | 암케어 | 메커니즘] 고르개를 같이 써서,
+ * 들어온다." 예전에는 아래 탭이 마지막으로 본 칸을 바로 열고 셋이 [트레이닝 | 암케어 | 메카닉] 고르개를 같이 써서,
  * 한 화면의 탭처럼 보였다. 이제 앱마다 얼굴(아이콘 · 색 — globals.css --color-app-*)과 오늘 할 것 한 줄, [시작]을 둔다 —
  * 아래 탭에서 두 번 누르면 운동이 시작된다. 카드를 누르면 그 앱의 전체 화면(‹ 트레이닝).
  *
- * 카드마다 읽는 것이 달라(운동 일정 · 암케어 오늘 · 메커니즘 프로그램) 따로 기다린다 — 먼저 온 카드부터 보인다.
+ * 카드마다 읽는 것이 달라(운동 일정 · 암케어 오늘 · 메카닉 프로그램) 따로 기다린다 — 먼저 온 카드부터 보인다.
  * 마지막으로 쓴 앱(쿠키)이 맨 위다.
  */
 export function TrainingHome({
@@ -119,7 +119,7 @@ const APPS: Record<
     barSoft: 'bg-app-armcare/35',
   },
   mechanics: {
-    name: '메커니즘',
+    name: '메카닉',
     icon: Target,
     tile: 'bg-app-mechanics/12',
     ink: 'text-app-mechanics',
@@ -296,7 +296,7 @@ function CardView({ card }: { card: TrainingCard }) {
       {throwLine}
     </>
   ) : undefined;
-  /* 수준을 안 고른 메커니즘 카드는 예전처럼 드릴 한 줄만 밑에 따로(카드 밖) — 같은 자리라 그대로 안에 둔다 */
+  /* 수준을 안 고른 메카닉 카드는 예전처럼 드릴 한 줄만 밑에 따로(카드 밖) — 같은 자리라 그대로 안에 둔다 */
   return (
     <AppCard app={app} tone={card.tone} status={card.status} action={button}>
       {below}

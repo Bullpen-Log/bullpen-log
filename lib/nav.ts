@@ -206,7 +206,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     /*
-     * 트레이닝 홈 — 트레이닝 · 암케어 · 메커니즘 앱 카드(lib/training-part.ts). 휴대폰은 투구 · 타격 종목 하단바가 대신한다(2026-10-20) —
+     * 트레이닝 홈 — 트레이닝 · 암케어 · 메카닉 앱 카드(lib/training-part.ts). 휴대폰은 투구 · 타격 종목 하단바가 대신한다(2026-10-20) —
      * 하단 탭에서 빠져 더보기 · PC 메뉴에만 남는다.
      */
     items: [
@@ -408,7 +408,7 @@ export const SPORT_BARS: Record<SportKey, NavItem[]> = {
     },
     {
       href: '/training?view=mechanics',
-      label: '메커니즘',
+      label: '메카닉',
       icon: 'target',
       lock: 'training',
     },

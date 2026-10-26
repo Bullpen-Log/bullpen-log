@@ -129,4 +129,4 @@ assert.deepEqual(assessMechanicsSession({ drills, state: completeNormal, owned: 
 const corrupt = readProgramState({ ...programStateJson(state), focus: { ...state.focus, progression: { ...final, elements: [] } } });
 assert.equal(corrupt.focus.progressionInvalid, true);
 assert.ok(assessMechanicsSession({ drills, state: corrupt, owned: new Set(['밴드']) }).missing.length);
-console.log('메커니즘 단계 정책 검사 통과: 필수·보조, 장비·라이브러리 누락, 9회 이후 유지, 다음 날·전이·통증, 요소별 전환·재시도');
+console.log('메카닉 단계 정책 검사 통과: 필수·보조, 장비·라이브러리 누락, 9회 이후 유지, 다음 날·전이·통증, 요소별 전환·재시도');

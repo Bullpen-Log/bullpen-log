@@ -228,7 +228,7 @@ export function GuideForm({
         <RadioGroup
           name="stage"
           label="단계"
-          hint="메커니즘 프로그램이 쉬운 단계부터 고를 때 써요."
+          hint="메카닉 프로그램이 쉬운 단계부터 고를 때 써요."
           options={DRILL_STAGES}
           selected={String(pick('stage', initial?.stage) ?? '') || null}
         />

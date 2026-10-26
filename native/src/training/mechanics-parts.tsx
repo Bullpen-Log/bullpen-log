@@ -38,7 +38,7 @@ import { Press } from '~/shell/press';
 import { Icon } from '~/shell/icon';
 
 /**
- * 메커니즘 전체 화면(native/src/app/training-mechanics.tsx)의 조각 — 웹 mechanics-program.tsx(오늘의 세션 · 수준 고르기 · 12칸 · 영상으로 확인)와
+ * 메카닉 전체 화면(native/src/app/training-mechanics.tsx)의 조각 — 웹 mechanics-program.tsx(오늘의 세션 · 수준 고르기 · 12칸 · 영상으로 확인)와
  * mechanics-guide.tsx · mechanics-drill.tsx(요소별 드릴)를 옮겼다. 시작은 앱 따라 하기(/mechanics, '그래도 하기'면 ?anyway=1 — 웹과 같은 주소),
  * 수준 바꾸기 · 처음부터 · 견준 결과는 웹과 같은 서버 동작(mechanics.*).
  */
@@ -147,7 +147,7 @@ export function NoProgram({ reload, c }: { reload: Reload; c: Palette }) {
   return (
     <View style={{ gap: 12 }}>
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 6 }]}>
-        <Text style={[s.title, { color: c.ink }]}>투구 메커니즘 향상 프로그램</Text>
+        <Text style={[s.title, { color: c.ink }]}>투구 메카닉 향상 프로그램</Text>
         <Text style={[s.body, { color: c.ink }]}>{SESSIONS_PER_LEVEL}회 연습 순서예요. 기간을 정해두지 않고 오늘 투구 계획에 맞춰 해요.</Text>
         <Fold label="자세히" c={c}>
           <Text style={[s.body, { color: c.muted }]}>선택한 동작을 짧게 연습해요. 단계는 학습 난이도이고, 던지는 양과 세기는 오늘 투구 계획을 따라요. 처음이면 입문부터.</Text>

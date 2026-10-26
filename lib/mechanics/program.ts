@@ -1,6 +1,6 @@
 import { readMechanicsReview, reviewView, type MechanicsReview, type MechanicsReviewView } from '@/lib/mechanics/comparison';
 /**
- * 메커니즘 연습의 공통 규칙. 2026-10-25: 기존 드릴 구성을 유지한다.
+ * 메카닉 연습의 공통 규칙. 2026-10-25: 기존 드릴 구성을 유지한다.
  * 12회는 학습 순서이며 정해진 4주·주 3회·전력 투구 프로그램이 아니다.
  * 횟수는 실제 입력을 기록하고, 통증·현재 투구 계획을 서버에서도 확인한다.
  * 다른 동작을 같은 요소라는 이유만으로 대체하지 않는다.
@@ -192,7 +192,7 @@ function readPractice(value: unknown): PracticeRecord[] {
 
 /**
  * 3D 리포트 처방(docs/designs/pitch-3d-report.md 6-2 · 6-4절) — [처방 시작]을 누를 때 리포트의 처방 한 장들(ElementRx[])을 그대로 베낀다.
- * 메커니즘은 리포트 파일을 다시 읽지 않는다. 리포트 번호는 지금 샘플 번호(리포트가 분석 결과로 셈해서 — 3D 세션).
+ * 메카닉은 리포트 파일을 다시 읽지 않는다. 리포트 번호는 지금 샘플 번호(리포트가 분석 결과로 셈해서 — 3D 세션).
  */
 export type ProgramFocus = {
   review?: MechanicsReview;
@@ -470,7 +470,7 @@ export const DRILL_THROW_TEXT = {
   done: '이미 넣었어요',
   skip: '안 적을래요',
   /** 투구 기록 칸에 미리 채울 메모 */
-  memo: (n: number) => `메커니즘 드릴 ${n}회`,
+  memo: (n: number) => `메카닉 드릴 ${n}회`,
 } as const;
 
 /** 투구 기록 화면으로 — 그날 기록 칸이 캐치볼 · 투구수 · 체감 강도 · 메모로 채워져 열린다(app/(app)/pitch-log/[date]/load.ts) */
@@ -1013,7 +1013,7 @@ export function assessMechanicsSession({
  * 팔에 싣는 드릴인가 — 고른 도구의 분류(MechanicsGuide.category)가 무브먼트 패턴 · 근력 · 안정 드릴이 아니면 다 그렇다고 본다.
  * 스로잉 드릴은 공을 던지고, 메디신볼 드릴은 공을 던지거나 내리친다. 분류 이름은 DB 글자라 모르는 분류(새 분류 · 오타)가
  * 오면 접는 쪽이 안전하다. 이름(P1~P5)이나 동작 묶음으로 가르지 않는다 — 한 묶음에 스로잉 · 메디신볼 도구가 섞여 있다
- * (운영 DB 98묶음 중 11). 메커니즘 화면 · 따라 하기 · 시험이 모두 이 하나를 쓴다.
+ * (운영 DB 98묶음 중 11). 메카닉 화면 · 따라 하기 · 시험이 모두 이 하나를 쓴다.
  */
 export function isArmLoaded(category: string): boolean {
   return category !== MOVEMENT && category !== STRENGTH;

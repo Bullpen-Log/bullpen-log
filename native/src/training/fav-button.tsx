@@ -5,7 +5,7 @@ import type { Palette } from '~/lib/ui';
 import { Press } from '~/shell/press';
 import { Icon } from '~/shell/icon';
 
-/** 큰 제목 오른쪽 '즐겨찾기' 알약 — 암케어 · 메커니즘의 즐겨찾기 모음 창을 연다(2026-10-20 김민) */
+/** 큰 제목 오른쪽 '즐겨찾기' 알약 — 암케어 · 메카닉의 즐겨찾기 모음 창을 연다(2026-10-20 김민) */
 export function FavButton({ onPress, c }: { onPress: () => void; c: Palette }) {
   return (
     <Pressable

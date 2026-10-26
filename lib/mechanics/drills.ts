@@ -1,5 +1,5 @@
 /**
- * 투구 드릴을 '동작' 단위로 묶는다 — 메커니즘 칸 · 프로그램 · 따라 하기가 같이 쓴다(2026-10-04).
+ * 투구 드릴을 '동작' 단위로 묶는다 — 메카닉 칸 · 프로그램 · 따라 하기가 같이 쓴다(2026-10-04).
  *
  * 같은 동작을 도구만 바꾼 드릴이 많다 — 'P1 스트레치 스로우'는 야구공(스로잉 드릴) · 작은 메디신볼 · 큰 메디신볼 셋이다
  * (처음 113개 중 39개가 이렇게 겹쳤다). 화면에는 한 줄로, 도구는 칩으로 고른다. 요소 · 단계는 묶음의 첫 드릴 것을 쓴다 —
@@ -96,7 +96,7 @@ export function groupDrills(
   return [...byTitle.values()];
 }
 
-/** 3D 분석 '메커니즘 점검' 카드가 고칠 요소마다 보여 줄 드릴 — 쉬운 단계부터, 같은 단계면 그 요소가 주 요소인 동작 먼저 */
+/** 3D 분석 '메카닉 점검' 카드가 고칠 요소마다 보여 줄 드릴 — 쉬운 단계부터, 같은 단계면 그 요소가 주 요소인 동작 먼저 */
 export type DrillPick = { title: string; stage: string | null };
 
 export function drillPicksFor(drills: MechanicsDrillView[], element: string, n = 3): { count: number; items: DrillPick[] } {

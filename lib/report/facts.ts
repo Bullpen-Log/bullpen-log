@@ -419,7 +419,7 @@ export function isNearMaxOuting(o: HardOuting): boolean {
 export type OutingTotals = { pitches: number; load: number; nearMaxPitches: number };
 
 /**
- * 투구 기록 한 줄을 그날 합에 더한다 — buildFacts 의 날마다 합(patterns.hardOutings)과 메커니즘 화면의 '오늘 세게 던졌나'
+ * 투구 기록 한 줄을 그날 합에 더한다 — buildFacts 의 날마다 합(patterns.hardOutings)과 메카닉 화면의 '오늘 세게 던졌나'
  * (lib/mechanics/program.ts mechanicsFoldOf, 2판 P6 검토)가 같은 규칙을 쓰게 한 곳에 둔다. 세션마다 곱해서 더한다(경기는 늘 100% 라 세션
  * 단위로 가린다). Σ 투구수 × 체감 강도(%)가 0 인 줄(쉰 날 · 0구)은 더하지 않는다 — prev 그대로(처음이면 null).
  * 옛 규칙의 재료(nearMaxPitches) — 경기, 또는 1~10 으로 9 이상. % 기록은 반올림해 견준다(85% = 8.5 → 9, 저장된 intensity 와 같은 값 —

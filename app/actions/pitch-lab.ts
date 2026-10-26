@@ -481,7 +481,7 @@ export type AppLabDetail = {
     report: PitchReport;
     /** 내 샘플 — 처방을 시작할 수 있다 */
     mine: boolean;
-    /** 이 리포트의 처방이 메커니즘에서 진행 중이면 n / 9(메커니즘 세션 P2) */
+    /** 이 리포트의 처방이 메카닉에서 진행 중이면 n / 9(메카닉 세션 P2) */
     focus: FocusProgress;
   } | null;
   /** 결과가 없을 때 3D 칸의 글 · 다시 분석이 돌고 있을 때(active — 앱이 5초마다 묻는다) */

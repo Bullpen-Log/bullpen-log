@@ -86,7 +86,7 @@ export async function loadPitchDay(
     loadVelocityDay(user.id, at),
     /* 던진 뒤 회복식 한 줄 — 오늘 불펜 · 라이브 · 경기 기록이 있을 때만(lib/nutrition/nudge.ts). 저장 뒤 quietRefresh 로 곧바로 뜬다 */
     pitchNutritionLine(user, date, todayKey),
-    /* 메커니즘 드릴로 던진 공 — 트레이닝 카드에서 왔고 그 카드가 아직 살아 있을 때만 */
+    /* 메카닉 드릴로 던진 공 — 트레이닝 카드에서 왔고 그 카드가 아직 살아 있을 때만 */
     drillPrefillOf(user.id, search, date, todayKey),
   ]);
 

@@ -9,13 +9,13 @@ import type { TrainingStripDay } from '@/lib/training-week';
 const DOTS: { key: 'workout' | 'armcare' | 'drill'; name: string; color: string }[] = [
   { key: 'workout', name: '운동', color: 'bg-app-training' },
   { key: 'armcare', name: '암케어', color: 'bg-app-armcare' },
-  { key: 'drill', name: '메커니즘', color: 'bg-app-mechanics' },
+  { key: 'drill', name: '메카닉', color: 'bg-app-mechanics' },
 ];
 
 /**
  * 트레이닝 날짜 띠 — 영양 탭 제목 밑의 날짜 띠와 같은 한 줄(components/date-scroll-strip.tsx, 2026-10-15 사용자 "둘 다").
  *
- * 최근 6주를 옆으로 굴린다. 칸 밑의 점은 그날 한 것(운동 · 암케어 · 메커니즘). 칸을 누르면 그날 기록, 오늘은 트레이닝 홈.
+ * 최근 6주를 옆으로 굴린다. 칸 밑의 점은 그날 한 것(운동 · 암케어 · 메카닉). 칸을 누르면 그날 기록, 오늘은 트레이닝 홈.
  * 더 옛날은 띠 끝 달력 그림(2026-10-16 — 제목 옆에 따로 있던 달력을 여기로).
  */
 export function TrainingDayStrip({

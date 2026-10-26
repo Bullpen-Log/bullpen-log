@@ -131,7 +131,7 @@ function Body({ p, reload, c }: { p: AppProfile; reload: () => void; c: Palette 
       {msg ? <Text style={{ color: msg.ok ? c.ok : c.danger, fontSize: 15, fontWeight: '600', paddingHorizontal: 4 }}>{msg.text}</Text> : null}
       <ActionButton onPress={() => void save()} busy={saving} label={saving ? '저장 중…' : '저장'} />
 
-      <Group title="계정" footer={p.isAdmin ? '관리자 계정이에요. 트레이닝 영상과 메커니즘 가이드를 올리고 지울 수 있어요.' : undefined} c={c}>
+      <Group title="계정" footer={p.isAdmin ? '관리자 계정이에요. 트레이닝 영상과 메카닉 가이드를 올리고 지울 수 있어요.' : undefined} c={c}>
         <Row label={p.email} c={c} last>
           <Pressable accessibilityRole="link" onPress={() => router.push('/account' as Href)} hitSlop={8}>
             <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>비밀번호 · 로그아웃 ›</Text>

@@ -13,7 +13,7 @@ import { mechChecks } from './mech-checks';
 import { judgeMechanics, type MechStatus, type MechVerdict } from './mech-judge';
 
 /**
- * 3D 동작 분석 결과 화면의 숫자 · 메커니즘 점검 줄(순수) — 웹 결과 화면(app/(app)/videos/lab/[id]/lab-detail.tsx · mech-card.tsx)과
+ * 3D 동작 분석 결과 화면의 숫자 · 메카닉 점검 줄(순수) — 웹 결과 화면(app/(app)/videos/lab/[id]/lab-detail.tsx · mech-card.tsx)과
  * 아이폰 앱 결과 화면(native/src/app/lab/[id].tsx, 서버 app/actions/pitch-lab.ts loadAppLabDetail)이 같이 쓴다. 이름 · 차례 · '그 순간'을
  * 한 곳에 두어 두 화면이 어긋나지 않게.
  */
@@ -33,7 +33,7 @@ export const METRIC_LABELS: Record<MetricKey, string> = {
 };
 
 /**
- * 숫자 칸에 보이는 것 — 메커니즘 점검이 판정에 쓰는 것(상하체 분리 · 앞다리 버티기의 앞무릎)과 보폭 · 디딤 방향(2026-10-14 김민: "숫자에 잡다한 게
+ * 숫자 칸에 보이는 것 — 메카닉 점검이 판정에 쓰는 것(상하체 분리 · 앞다리 버티기의 앞무릎)과 보폭 · 디딤 방향(2026-10-14 김민: "숫자에 잡다한 게
  * 많다, 분석에 쓰는 것만"). 나머지 지표는 결과에 그대로 있다(인형 이름표 · 시험이 읽음).
  */
 export const MAIN_METRICS: MetricKey[] = [
@@ -109,7 +109,7 @@ export type LabMechItem = MechVerdict & {
   frame: number | null;
 };
 
-/** 메커니즘 점검 — 화면에 내는 판정만, 고칠 점이 먼저. 한 구만 봤으면 tentative */
+/** 메카닉 점검 — 화면에 내는 판정만, 고칠 점이 먼저. 한 구만 봤으면 tentative */
 export function mechSummary(
   result: Pitch3dV2Ok,
   heightCm: number | null
@@ -135,7 +135,7 @@ export function mechSummary(
 
 export type DrillPicks = Record<string, { count: number; items: DrillPick[] }>;
 
-/** 메커니즘 점검 줄에 붙는 드릴(요소별 드릴 칸 키 · 쉬운 드릴 셋 · 전체 수) */
+/** 메카닉 점검 줄에 붙는 드릴(요소별 드릴 칸 키 · 쉬운 드릴 셋 · 전체 수) */
 export function mechDrills(
   focus: string,
   picks: DrillPicks

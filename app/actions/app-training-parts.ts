@@ -11,7 +11,7 @@ import { trainingDay, type TrainingDayDetail } from '@/lib/report/training-histo
 import { loadTrainingStrip, type TrainingStripDay } from '@/lib/training-week';
 
 /**
- * 아이폰 앱의 암케어 · 메커니즘 전체 화면(native/src/app/training-armcare.tsx · training-mechanics.tsx)을 열 때 — 웹 트레이닝의
+ * 아이폰 앱의 암케어 · 메카닉 전체 화면(native/src/app/training-armcare.tsx · training-mechanics.tsx)을 열 때 — 웹 트레이닝의
  * ?view=armcare · ?view=mechanics 칸(app/(app)/training/training-page.tsx)이 그리는 것과 같은 자료(lib/armcare/today-load.ts ·
  * lib/mechanics/home-load.ts). 웹처럼 첫 설정을 안 마쳤으면 그 설정 화면으로(to). /api/rpc/app-training-parts.<함수> 로 부른다.
  */

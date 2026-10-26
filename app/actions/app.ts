@@ -231,7 +231,7 @@ export async function loadAppTraining(): Promise<
       cards: TrainingCard[];
       /** 제목 밑 날짜 띠(최근 6주, 웹 트레이닝 홈과 같은 lib/training-week.ts loadTrainingStrip) */
       strip: TrainingStripDay[];
-      /** '이번 주 운동 N일 · 암케어 N일 · 메커니즘 N일'(lib/report/training-week-counts.ts) */
+      /** '이번 주 운동 N일 · 암케어 N일 · 메카닉 N일'(lib/report/training-week-counts.ts) */
       week: TrainingWeekCounts;
     }
   | { ok: false; error: string; to?: string }

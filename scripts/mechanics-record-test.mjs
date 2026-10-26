@@ -717,5 +717,5 @@ st = readProgramState(test.row.progress);
 assert.equal(st.level, null);
 assert.equal(st.focusHistory.length, 3);
 assert.equal(test.row.sessionsDone, sessions);
-console.log('메커니즘 기록 회귀 검사 통과: 운동 단위·통증 제한·완료·동시 저장·재전송·롤백·세션 구분 (운영 DB 접근 없음)');
+console.log('메카닉 기록 회귀 검사 통과: 운동 단위·통증 제한·완료·동시 저장·재전송·롤백·세션 구분 (운영 DB 접근 없음)');
 process.exit(0);

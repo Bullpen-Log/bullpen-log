@@ -19,7 +19,7 @@ import {
  *   경력            경력에 비해 이른 운동을 뺀다(lib/report/personalize.ts) · 근력 · 파워 프로그램 자격(lib/program)
  *   웨이트 횟수      운동 부하 지수의 시작 기준선(lib/baseline.ts estimateTrainingDailyLoad)
  *   하루 운동 시간   일정을 그 시간에 맞춰 짠다(lib/report/theme.ts)
- *   던지는 손        암케어 · 메커니즘이 어느 팔을 볼지 — 투구 설정 전이라 계정에 없을 때만 묻는다
+ *   던지는 손        암케어 · 메카닉이 어느 팔을 볼지 — 투구 설정 전이라 계정에 없을 때만 묻는다
  *
  * 답은 영양 온보딩(lib/nutrition/onboarding-answers.ts)과 같은 길로 보낸다 — 화면이 상태로 쥐고 [이름, 값] 줄로 한 번에.
  */

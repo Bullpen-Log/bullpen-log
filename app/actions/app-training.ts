@@ -33,7 +33,7 @@ export async function loadAppTrainingPicker(): Promise<{ ok: true; items: TodayP
 }
 
 /**
- * 앱 화면에서 연 트레이닝 앱(오늘 운동 · 암케어 · 메커니즘)을 '마지막으로 쓴 앱'으로 적는다 — 웹 remember-app.tsx 가 document.cookie 로 하는 일과 같은
+ * 앱 화면에서 연 트레이닝 앱(오늘 운동 · 암케어 · 메카닉)을 '마지막으로 쓴 앱'으로 적는다 — 웹 remember-app.tsx 가 document.cookie 로 하는 일과 같은
  * 쿠키(lib/training-part.ts TRAINING_PART_COOKIE, 한 해). 트레이닝 홈(웹 training-home · 앱 loadAppTraining)이 그 앱 카드를 맨 위에 둔다.
  * 앱의 fetch 쿠키는 웹뷰와 같은 저장소라(sharedCookiesEnabled) 웹 화면도 같은 값을 본다. /api/rpc/app-training.rememberTrainingPart
  */

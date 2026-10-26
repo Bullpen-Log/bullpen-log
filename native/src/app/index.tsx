@@ -303,7 +303,7 @@ export default function SiteScreen() {
   /* 투구 · 타격 종목 바(사이트가 잠금을 입혀 보냄) — 2026-10-20 타격 1단계 D1 */
   const [sportBars, setSportBars] = useState<Record<SportKey, ShellTab[]>>(DEFAULT_SPORT_BARS);
   const [path, setPath] = useState('/today');
-  /* 주소의 ? 뒤 — 트레이닝은 첫 화면(?view=home)만 앱 화면이고 암케어 · 메커니즘(?view=…)은 웹이라 가른다 */
+  /* 주소의 ? 뒤 — 트레이닝은 첫 화면(?view=home)만 앱 화면이고 암케어 · 메카닉(?view=…)은 웹이라 가른다 */
   const [search, setSearch] = useState('');
   const [barOn, setBarOn] = useState(false);
   const [today, setToday] = useState<string | null>(null);
@@ -400,7 +400,7 @@ export default function SiteScreen() {
   /* undefined = 아직 모름(메뉴가 오기 전) */
   const nutritionLocked = nutritionTab?.locked;
   const showNutrition = barOn && path === '/nutrition' && !!today && !webNutrition && !nutritionTab?.locked && !webFront;
-  /* 트레이닝 첫 화면(앱 카드 셋)도 앱 화면 — 카드를 누르면(암케어 · 메커니즘 · 운동 전체) 주소가 ?view=… 로 바뀌어 웹이 보인다 */
+  /* 트레이닝 첫 화면(앱 카드 셋)도 앱 화면 — 카드를 누르면(암케어 · 메카닉 · 운동 전체) 주소가 ?view=… 로 바뀌어 웹이 보인다 */
   /* 2026-10-21 트레이닝은 하단 탭이 아니라 투구 종목 바 안 — 잠김은 그 칸에서 읽는다(하단 탭에서 찾으면 늘 없어 잠김을 못 봤다) */
   const trainingTab = sportBars.pitch.find((t) => t.href.startsWith('/training?sport='));
   const trainingView = new URLSearchParams(search).get('view');
@@ -442,7 +442,7 @@ export default function SiteScreen() {
   );
   /*
    * 웹 화면으로 갈 때는 웹이 그 주소를 그렸다고 알려 온 뒤(msg 'path')에 앱 판을 걷는다 — 먼저 걷으면 밑에 깔린 옛 웹 화면이 보였다가 그 화면으로
-   * 넘어갔다(투구 → 타격, 앱 → 암케어 · 메커니즘, 2026-10-24 전체 검토). 그동안 탭 막대 렌즈는 누른 칸에 먼저 가 있다(pressed).
+   * 넘어갔다(투구 → 타격, 앱 → 암케어 · 메카닉, 2026-10-24 전체 검토). 그동안 탭 막대 렌즈는 누른 칸에 먼저 가 있다(pressed).
    * 'path' 알림은 Next 가 새 주소를 화면에 붙인 뒤(usePathname 이 바뀐 뒤)에 온다 — 그 화면의 불러오는 판(loading)일 수는 있어도 옛 화면은 아니다.
    * 웹이 이미 그 자리면(알림이 안 옴) 바로 걷는다. 알림을 못 받으면(느린 망 · 웹 다리 없는 화면) WEB_WAIT_MS 뒤에 걷는다 — 예전 1.5초는 느린 망에서
    * 새 화면이 오기 전에 옛 웹 화면을 보였다.

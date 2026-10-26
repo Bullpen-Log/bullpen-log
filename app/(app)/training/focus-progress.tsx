@@ -16,7 +16,7 @@ export function MechanicsEquipment({ equipment }: { equipment: string[] }) {
   const router = useRouter();
   return (
     <div className="space-y-3 rounded-2xl border border-line p-4">
-      <h3 className="font-semibold">오늘 메커니즘 장비</h3>
+      <h3 className="font-semibold">오늘 메카닉 장비</h3>
       <p className="text-sm text-muted">맨몸·야구공 외에 실제 사용할 장비를 확인해 주세요.</p>
       <div className="flex flex-wrap gap-3">
         {DRILL_EQUIPMENT.filter((e) => e !== '맨몸' && e !== '야구공').map((e) => (

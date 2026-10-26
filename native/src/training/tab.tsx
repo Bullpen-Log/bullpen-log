@@ -23,8 +23,8 @@ import { Icon, type IconName } from '~/shell/icon';
 import { Press } from '~/shell/press';
 
 /**
- * 트레이닝 탭 첫 화면(앱 화면) — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 같은 앱 카드 셋(오늘 운동 · 암케어 · 메커니즘,
- * 판정은 lib/report/training-home-data.ts — app.loadAppTraining). [시작]은 운동 판을 열어 앱 운동 화면(/workout)으로, 암케어 · 메커니즘
+ * 트레이닝 탭 첫 화면(앱 화면) — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 같은 앱 카드 셋(오늘 운동 · 암케어 · 메카닉,
+ * 판정은 lib/report/training-home-data.ts — app.loadAppTraining). [시작]은 운동 판을 열어 앱 운동 화면(/workout)으로, 암케어 · 메카닉
  * 따라 하기 · 각 앱의 전체 화면(카드를 누름)도 앱 화면(/armcare · /mechanics · /training-*), 앱 화면이 없는 곳만 onWeb.
  */
 type Loaded = { today: string; cards: TrainingCard[]; strip?: TrainingStripDay[]; week?: TrainingWeekCounts };
@@ -37,7 +37,7 @@ export const resetTrainingCache = () => {
 const APP: Record<TrainingPart, { name: string; glyph: IconName }> = {
   today: { name: '오늘 운동', glyph: 'dumbbell' },
   armcare: { name: '암케어', glyph: 'shield-plus' },
-  mechanics: { name: '메커니즘', glyph: 'pitcher' },
+  mechanics: { name: '메카닉', glyph: 'pitcher' },
 };
 
 export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: number; onWeb: (href: string) => void }) {
@@ -105,7 +105,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
     /* 암케어 따라 하기는 앱 화면 — 웹(/armcare/play/<id>)을 거치면 한 번 더 읽고 넘긴다 */
     const armcare = /^\/armcare\/play\/([\w-]+)(\?.*)?$/.exec(a.href);
     if (armcare) return router.push(fromApp(`/armcare/${armcare[1]}${armcare[2] ?? ''}`) as Href);
-    /* 메커니즘 따라 하기도 앱 화면(앱 판 4) */
+    /* 메카닉 따라 하기도 앱 화면(앱 판 4) */
     const mech = /^\/mechanics\/play(\?.*)?$/.exec(a.href);
     if (mech) return router.push(fromApp(`/mechanics${mech[1] ?? ''}`) as Href);
     onWeb(a.href);
@@ -143,7 +143,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
           onPick={(d) => (d === data.today ? undefined : router.push(`/training/day/${d}` as Href))}
           labelOf={(d) => {
             const x = data.strip!.find((y) => y.date === d);
-            const done = x ? [x.workout && '운동', x.armcare && '암케어', x.drill && '메커니즘'].filter(Boolean) : [];
+            const done = x ? [x.workout && '운동', x.armcare && '암케어', x.drill && '메카닉'].filter(Boolean) : [];
             return done.length ? done.join(' · ') : '기록 없음';
           }}
           mark={(d, selected) => {
@@ -284,12 +284,12 @@ function TrainingDateNav({ today }: { today: string }) {
   );
 }
 
-/** 이번 주 한 줄 — 웹 WeekStrip 과 같은 글('이번 주 운동 N일 · 암케어 N일 · 메커니즘 N일', 다 0 이면 '이번 주는 아직 기록이 없어요.') */
+/** 이번 주 한 줄 — 웹 WeekStrip 과 같은 글('이번 주 운동 N일 · 암케어 N일 · 메카닉 N일', 다 0 이면 '이번 주는 아직 기록이 없어요.') */
 function WeekLine({ week, c }: { week: TrainingWeekCounts; c: ReturnType<typeof usePalette> }) {
   const cells: [string, number][] = [
     ['운동', week.today],
     ['암케어', week.armcare],
-    ['메커니즘', week.mechanics],
+    ['메카닉', week.mechanics],
   ];
   const none = cells.every(([, n]) => n === 0);
   return (

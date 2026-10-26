@@ -37,7 +37,7 @@ const isExpo = () => typeof navigator !== 'undefined' && navigator.userAgent.inc
 
 /**
  * 앱 하단바(기본 · 투구 · 타격 종목 바)로 옮긴 화면은 맨 위에서 시작 — 판마다 스크롤 자리를 기억해(tab-pager), 전에 아래까지 내려 본 화면
- * (트레이닝 · 암케어 · 메커니즘 · 타격 기록 …)을 다시 누르면 아래에서 열렸다(2026-10-20 김민). 주소가 바뀌어 새 화면이 붙은 뒤에 올린다.
+ * (트레이닝 · 암케어 · 메카닉 · 타격 기록 …)을 다시 누르면 아래에서 열렸다(2026-10-20 김민). 주소가 바뀌어 새 화면이 붙은 뒤에 올린다.
  */
 function startAtTop(href: string, slid: boolean) {
   const want = new URL(href, location.href);

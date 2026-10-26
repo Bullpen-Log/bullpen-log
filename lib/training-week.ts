@@ -14,7 +14,7 @@ export type TrainingStripDay = {
   workout: boolean;
   /** 암케어 운동을 하나라도 했다 */
   armcare: boolean;
-  /** 메커니즘 드릴을 하나라도 했다 */
+  /** 메카닉 드릴을 하나라도 했다 */
   drill: boolean;
 };
 
@@ -46,7 +46,7 @@ async function doneByDate(userId: string, from: string, to: string) {
  * 트레이닝 날짜 띠 — 최근 6주를 옆으로 굴리는 한 줄(영양 탭의 날짜 띠와 같은 칸, lib/date-strip.ts).
  *
  * 2026-10-15 사용자: "영양 위에 있던 최근 날짜 보기를 트레이닝에도" · "좌우로 긴 것 스크롤 가능하게". 칸마다 운동 · 암케어 ·
- * 메커니즘을 한 날을 점으로 — 어느 날 쉬었는지가 한눈에 보이고, 누르면 그날 기록(/training/day/날짜)으로 간다.
+ * 메카닉을 한 날을 점으로 — 어느 날 쉬었는지가 한눈에 보이고, 누르면 그날 기록(/training/day/날짜)으로 간다.
  */
 export async function loadTrainingStrip(
   userId: string,

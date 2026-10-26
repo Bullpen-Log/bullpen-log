@@ -151,7 +151,7 @@ export type TodayBody =
 
 export type TrainingToday = {
   today: string;
-  /** 최근 7일 — 칸마다 그날 한 것(운동 · 암케어 · 메커니즘) */
+  /** 최근 7일 — 칸마다 그날 한 것(운동 · 암케어 · 메카닉) */
   strip: TrainingStripDay[];
   programCard: ProgramCardProps | null;
   programDone: ProgramResult | null;

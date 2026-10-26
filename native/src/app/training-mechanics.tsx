@@ -31,8 +31,8 @@ import { Fold, Screen, s, useJump, useScreenData } from '~/training/screen';
 import { useRememberPart } from '~/training/remember';
 
 /**
- * 메커니즘(앱 화면) — 웹 /training?view=mechanics(&tab=elements&el=…)(app/(app)/training/training-page.tsx 의 mechanics 칸 · mechanics-section.tsx)를
- * 옮겼다. 자료는 웹과 같은 함수로 모은다(app/actions/app-training-parts.ts → lib/mechanics/home-load.ts). 트레이닝 탭의 메커니즘 카드에서 들어온다.
+ * 메카닉(앱 화면) — 웹 /training?view=mechanics(&tab=elements&el=…)(app/(app)/training/training-page.tsx 의 mechanics 칸 · mechanics-section.tsx)를
+ * 옮겼다. 자료는 웹과 같은 함수로 모은다(app/actions/app-training-parts.ts → lib/mechanics/home-load.ts). 트레이닝 탭의 메카닉 카드에서 들어온다.
  *
  * [프로그램] 오늘의 세션(아픈 날 접기 · 그래도 하기) · 권하기 · 12칸 · 영상으로 확인 · 수준 바꾸기, [요소별 드릴] 투구의 흐름 · 증상 · 요소 카드.
  * 시작은 앱 따라 하기(/mechanics · /mechanics?anyway=1 — 웹이 내는 주소 그대로). ?el= 은 그 요소 카드를 펴고 내려간다.
@@ -65,7 +65,7 @@ export default function TrainingMechanicsScreen() {
   const [favOpen, setFavOpen] = useState(false);
   return (
     <Screen
-      title="메커니즘"
+      title="메카닉"
       tabs={TABS}
       tab={tab}
       onTab={pick}

@@ -1,5 +1,5 @@
 /**
- * 앱의 메커니즘 점검 계산(lib/pitch-3d/v2/mech-checks.ts)을 마커 정답(mech_truth.py → work/mech_truth.json)에 대어 본다.
+ * 앱의 메카닉 점검 계산(lib/pitch-3d/v2/mech-checks.ts)을 마커 정답(mech_truth.py → work/mech_truth.json)에 대어 본다.
  *
  *   (세션 폴더에서) python <저장소>/scripts/pitch-lab/markers/selfcal/mech_truth.py
  *   (저장소에서) node --import ./scripts/alias-register.mjs scripts/pitch-lab/markers/selfcal/mech-score.mts <세션 폴더>/work [키 cm]

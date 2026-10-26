@@ -1,5 +1,5 @@
 /**
- * 중재 — 근력 프로그램 · 매일 일정 · 암케어 · 메커니즘이 같은 하루를 나눠 쓰는 규칙(트레이닝 추천 2판 P6-1, 2026-10-13,
+ * 중재 — 근력 프로그램 · 매일 일정 · 암케어 · 메카닉이 같은 하루를 나눠 쓰는 규칙(트레이닝 추천 2판 P6-1, 2026-10-13,
  * docs/designs/training-recommendation-engine.md).
  *
  * 왜 두는가. 기능마다 오늘을 따로 정해서, 같은 날 둘이 부딪쳤다(설계 검토 P6 arbiter 갈래).
@@ -8,13 +8,13 @@
  *     오늘 일정 하체 → 내일 프로그램 스쿼트)는 아무도 안 봤다(기준선 ㉑ 은 P5 검토 반영으로 0 이 됐지만 막는 규칙은 없다).
  *   - 등판 날 '그래도 하기'로 넘기면 메디신볼 · 회전 던지기가 그대로 남았다(프로그램 D24 · 매일 일정 forcing).
  *   - 오늘 세게 던진 날(오늘 불펜 40구 90%)에 매일 일정은 회복인데 프로그램은 주의 한 줄만 달고 무거운 날을 냈다(비판 1 빈틈 29).
- * 여기서 층 차례로 한 번 정하고, 독자(프로그램 판정 · 매일 일정 · 암케어 · 메커니즘)는 결과의 제 칸만 읽는다.
+ * 여기서 층 차례로 한 번 정하고, 독자(프로그램 판정 · 매일 일정 · 암케어 · 메카닉)는 결과의 제 칸만 읽는다.
  *
  * 층 차례(ARBITER_LAYERS) — 위 층이 정한 것을 아래 층이 되살리지 못한다.
  *   1 safety   안전 층 — 통증이 있었는데 오늘 체크인이 없으면(painStateUnknown) 매일 일정 · 프로그램이 멈춘다. 중재는 운동을 더하지 않는다.
  *              빼는 일(selectCandidates)은 안전 층의 몫이고 여기서 하지 않는다.
  *   2 outing   등판 보호(팔) — 오늘 등판 · 오늘 경기 기록 · 오늘 세게 던진 날이면 팔로 던지는 것(팔 플라이오 · 프로그램 메디신볼 · 회전 던지기 ·
- *              메커니즘 던지기 드릴 · 암케어 강화)을 오늘은 뺀다. '그래도 하기'로도 못 넘긴다(비판 1 빈틈 30 권함 — 조이는 쪽).
+ *              메카닉 던지기 드릴 · 암케어 강화)을 오늘은 뺀다. '그래도 하기'로도 못 넘긴다(비판 1 빈틈 30 권함 — 조이는 쪽).
  *              과제 글의 마지막 층 '팔 · 하체 · 시간 예산' 가운데 팔 예산은 등판 날에만 있어 이 층에 둔다.
  *   3 choice   사용자 선택 — 오늘 '그래도 하기'(매일 일정 forcing · 프로그램 D24 '그래도 오늘 할래요'), 오늘 '회복'을 고름, 다른 운동을 먼저
  *              시작함(프로그램 otherMode). '그래도 하기'는 아래 쉬는 날 · 예산을 넘고(경고 한 줄), 회복 고름 · 다른 운동은 프로그램을 쉬게 한다.
@@ -33,7 +33,7 @@
  *     (programCommitment(commitment), 역할 'unknown')으로도 다음 일차를 본다. program.ts 는 이 파일을 부르지 않는다(이 파일이 program.ts 를
  *     부르므로 순환) — 그래서 신호는 부르는 쪽이 만들어 넘기고, 둘이 같이 쓰는 상수(ARM_THROW_VARIANTS · 하체 글)는 program.ts 에 둔다.
  *   - 매일 일정이 하체 날을 바꾸는 일(theme.ts steerFromEmptyMain 옆): daily.heavyLower false 면 상체(daily.upperOk) 또는 보조로.
- *   - 메커니즘 접기(D5): mechanics.foldThrows · anyway. 드릴이 던지는 것인지는 메커니즘 쪽 술어(isArmLoaded)가 정한다. 메커니즘 화면은 오늘 상태
+ *   - 메카닉 접기(D5): mechanics.foldThrows · anyway. 드릴이 던지는 것인지는 메카닉 쪽 술어(isArmLoaded)가 정한다. 메카닉 화면은 오늘 상태
  *     한 장을 만들지 않고 lib/mechanics/fold.ts mechanicsFoldOf 가 같은 차례(팔 예산 > 통증 확인 전 > 통증, 성장기 통증은 못 펼침)로 정한다 —
  *     2판 P6 검토부터, 자체 시험이 둘이 같은 답인지 격자로 본다.
  *   - 암케어: 등판 · 오늘 던진 날은 decideArmcare 가 이미 회복으로 간다(오늘 상태 한 장의 outing.role · 오늘 N구). 여기 armcare.strength 는
@@ -410,7 +410,7 @@ export type ArmBudget = {
     dailyArmPlyo: boolean;
     /** 프로그램의 팔 던지기 변형 — 오늘 일차에 있는 것만 실제로 뺀다(programDeferVariants) */
     programVariants: readonly VariantKey[];
-    /** 메커니즘 던지기 · 메디신볼 드릴(드릴 분류는 메커니즘 쪽 술어가 가른다) */
+    /** 메카닉 던지기 · 메디신볼 드릴(드릴 분류는 메카닉 쪽 술어가 가른다) */
     mechanicsThrows: boolean;
     /** 암케어 강화 루틴(회복 루틴은 한다 — decideArmcare 가 이미 그렇게 간다) */
     armcareStrength: boolean;
@@ -770,7 +770,7 @@ export type Arbitration = {
   /** 프로그램 판정에 넣을 것 — 오늘 뺄 변형(팔 예산) · 큰 하체 가볍게(하체 예산) */
   programAdjust: { deferVariants: VariantKey[]; lighterBigLower: boolean };
   /**
-   * 메커니즘 — 던지기 드릴을 접는가. 팔 예산(등판 보호)이면 anyway 거짓(못 펼침), 통증 확인 전(안전 층 — 2판 P6 검토)이면 anyway 거짓, 오늘 어깨 ·
+   * 메카닉 — 던지기 드릴을 접는가. 팔 예산(등판 보호)이면 anyway 거짓(못 펼침), 통증 확인 전(안전 층 — 2판 P6 검토)이면 anyway 거짓, 오늘 어깨 ·
    * 팔꿈치 '통증'이면(D5) anyway 참(그래도 하기 — 성장기는 거짓). 위가 이긴다.
    */
   mechanics: {
@@ -810,7 +810,7 @@ export type ArbiterInput = {
   minutes?: { requested: number; program?: number | null; armcare?: number | null };
   /** 프로그램 날의 매일 일정(기본 PROGRAM_DAY_DAILY) — 시험 · 결정이 바뀔 때만 넘긴다 */
   programDayDaily?: ProgramDayDaily;
-  /** 만 나이(모르면 null — 성인으로 본다) — 성장기의 메커니즘 통증 날은 못 펼친다(mechanics.anyway, 2판 P6 검토) */
+  /** 만 나이(모르면 null — 성인으로 본다) — 성장기의 메카닉 통증 날은 못 펼친다(mechanics.anyway, 2판 P6 검토) */
   age?: number | null;
 };
 
@@ -943,7 +943,7 @@ export function arbitrate(input: ArbiterInput): Arbitration {
     if (state.commitments.mechanics && !state.commitments.mechanics.finishedToday) {
       defer({
         key: 'mechanicsThrows',
-        what: '메커니즘 던지기 드릴',
+        what: '메카닉 던지기 드릴',
         why: arm.text!,
         layer: 'outing',
       });
@@ -1025,8 +1025,8 @@ export function arbitrate(input: ArbiterInput): Arbitration {
   };
 
   /*
-   * 메커니즘 — 팔 예산(못 펼침) > 통증 확인 전(못 펼침 — 안전 층이 위라는 규칙을 메커니즘에도, 2판 P6 검토) > D5 통증(성인은 그래도 하기, 성장기는
-   * 못 펼침). 메커니즘 화면은 lib/mechanics/fold.ts mechanicsFoldOf 가 같은 차례 · 같은 규칙으로 정한다(자체 시험이 같은 답인지 본다).
+   * 메카닉 — 팔 예산(못 펼침) > 통증 확인 전(못 펼침 — 안전 층이 위라는 규칙을 메카닉에도, 2판 P6 검토) > D5 통증(성인은 그래도 하기, 성장기는
+   * 못 펼침). 메카닉 화면은 lib/mechanics/fold.ts mechanicsFoldOf 가 같은 차례 · 같은 규칙으로 정한다(자체 시험이 같은 답인지 본다).
    */
   const pain = state.arm.painJoints.length > 0;
   const mechanics: Arbitration['mechanics'] = arm.spent

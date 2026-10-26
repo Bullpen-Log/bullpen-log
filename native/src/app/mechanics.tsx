@@ -29,7 +29,7 @@ import { useLiveActivity } from '~/shell/live-activity';
 import { Press } from '~/shell/press';
 
 /**
- * 메커니즘 세션 따라 하기(앱 화면) — 웹 app/(session)/mechanics/play/mechanics-player.tsx 를 옮겼다. 사이트의 따라 하기가 앱(BullpenNative/4 부터)이면
+ * 메카닉 세션 따라 하기(앱 화면) — 웹 app/(session)/mechanics/play/mechanics-player.tsx 를 옮겼다. 사이트의 따라 하기가 앱(BullpenNative/4 부터)이면
  * 이 화면을 띄우고(page.tsx → OpenNative), 무엇을 띄울지는 웹과 같은 곳에서 읽는다(app/actions/app-mechanics.ts → lib/mechanics/play-load.ts).
  *
  * 웹과 같은 규칙: 드릴에는 시계가 없다(횟수 · 공 수로 한다). 마치면 느낌(어려움 · 적당 · 쉬움) 하나를 누르는 것이 '다음'이고, 그 느낌을 서버에
@@ -221,7 +221,7 @@ function Player({
       : {
           kind: 'work',
           symbol: 'figure.baseball',
-          label: '메커니즘',
+          label: '메카닉',
           title: view.title,
           detail: `드릴 ${index + 1}/${items.length} · 세트 ${counted}/${view.sets}`,
           since: openedMs,
@@ -341,7 +341,7 @@ function Player({
           </View>
         </Press>
         <Text numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
-          메커니즘 · {label}
+          메카닉 · {label}
         </Text>
         <Text style={[s.smallBold, s.count, { color: c.muted }]}>
           {finished ? items.length : index + 1} / {items.length}

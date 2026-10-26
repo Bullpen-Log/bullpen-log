@@ -1,5 +1,5 @@
 /**
- * 투구 메커니즘 프로그램 규칙 자체 검사 — lib/mechanics/program.ts · levels.ts.
+ * 투구 메카닉 프로그램 규칙 자체 검사 — lib/mechanics/program.ts · levels.ts.
  *
  *   npm run mechanics:test
  *

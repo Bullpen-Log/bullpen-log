@@ -9,7 +9,7 @@ import { MechanicsGuide } from './mechanics-guide';
 import { MechanicsProgram } from './mechanics-program';
 
 /**
- * 메커니즘 칸 — [프로그램 | 요소별 드릴](2026-10-04).
+ * 메카닉 칸 — [프로그램 | 요소별 드릴](2026-10-04).
  *
  * 투구 드릴(라이브러리의 '투구 드릴', MechanicsGuide)을 투구 요소 여섯으로 묶어 보여 준다. 암케어의 부위별 보강과 같은
  * 모양이다 — 요소 → 증상 · 설명 → 단계별 드릴. 글은 lib/mechanics/elements.ts.

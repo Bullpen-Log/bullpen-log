@@ -25,7 +25,7 @@
  * extras 로 받았는데, 매일 일정의 안전 거르기 · 일정 지문도 같은 값을 읽어야 해서 facts 한 곳으로 옮겼다.
  *
  * import 금지: lib/report/theme.ts(theme 이 이 파일에 맡기므로 되부르면 순환) · lib/program/load.ts · lib/report/plan-fingerprint.ts
- * (둘 다 theme 을 부른다). 프로그램 · 메커니즘 · 체중 흐름은 DayStateExtras 로 받기만 한다.
+ * (둘 다 theme 을 부른다). 프로그램 · 메카닉 · 체중 흐름은 DayStateExtras 로 받기만 한다.
  */
 import {
   CHECKIN_PARTS,
@@ -109,7 +109,7 @@ export type ProgramCommitment = ProgramCommitmentInput & {
   daysSinceLastDone: number | null;
 };
 
-/** 메커니즘 프로그램(lib/mechanics/load.ts 의 MechanicsProgramView 에서) — 부르는 쪽이 넘긴다 */
+/** 메카닉 프로그램(lib/mechanics/load.ts 의 MechanicsProgramView 에서) — 부르는 쪽이 넘긴다 */
 export type MechanicsCommitment = {
   level: string | null;
   /** 단계 안에서 몇 번째 세션인가 */
@@ -189,7 +189,7 @@ export type DayState = {
     /** 그 말('많이' …), 범위 밖이면 null */
     fatigueWord: string | null;
     fatigueHigh: boolean;
-    /** 오늘 '통증'인 팔 관절(어깨 · 팔꿈치 — 암케어 통증 루틴 · 메커니즘 접기(D5)가 보는 관절, lib/checkin.ts armPainJointsToday) */
+    /** 오늘 '통증'인 팔 관절(어깨 · 팔꿈치 — 암케어 통증 루틴 · 메카닉 접기(D5)가 보는 관절, lib/checkin.ts armPainJointsToday) */
     painJoints: CheckinPartKey[];
     /** 그 관절이 있을 때만 자리 · 정도(lib/armcare/today.ts 의 armPain 과 같은 값), 없으면 null */
     pain: { spots: ArmcareAreaKey[]; level: number | null } | null;
@@ -349,7 +349,7 @@ export function buildDayState({
   /* arm — 팔 피로는 오늘 체크인 칸(facts, 2판 P4). 체크인이 없으면 null */
   const fatigue = today?.armFatigue ?? null;
   const fatigueHigh = fatigue != null && fatigue >= HIGH_ARM_FATIGUE;
-  /* 메커니즘 접기(D5)와 한 함수 — 같은 체크인이면 같은 답(2판 P6-5, lib/checkin.ts) */
+  /* 메카닉 접기(D5)와 한 함수 — 같은 체크인이면 같은 답(2판 P6-5, lib/checkin.ts) */
   const painJoints: CheckinPartKey[] = armPainJointsToday(today);
   const saved = extras.armPain ?? null;
   const armPain =
@@ -533,8 +533,8 @@ function whyLines(s: Omit<DayState, 'why'>): string[] {
   if (commitments.mechanics) {
     out.push(
       commitments.mechanics.finishedToday
-        ? '오늘 메커니즘 세션을 마쳤어요.'
-        : '오늘 메커니즘 세션이 남아 있어요.'
+        ? '오늘 메카닉 세션을 마쳤어요.'
+        : '오늘 메카닉 세션이 남아 있어요.'
     );
   }
   if (nutritionTrend?.kind === 'flat') {

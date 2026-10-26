@@ -192,7 +192,7 @@ export function CheckinGate({
   const [showDone, setShowDone] = useState(false);
 
   /*
-   * 투구 · 타격 화면(그 종목 바 안의 트레이닝 · 암케어 · 메커니즘 포함, lib/nav.ts sportOf)에 들어갈 때만 묻는다(2026-10-21 김민:
+   * 투구 · 타격 화면(그 종목 바 안의 트레이닝 · 암케어 · 메카닉 포함, lib/nav.ts sportOf)에 들어갈 때만 묻는다(2026-10-21 김민:
    * "체크인을 투구, 타격에 들어갈 때 · 영양 빼고"). 예전엔 앱을 켜면 어디서든 떴다. 하루 한 번 · 건너뛰기 그대로.
    */
   const pathname = usePathname();

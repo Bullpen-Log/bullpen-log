@@ -47,7 +47,7 @@ export function LabDetail({
   youth?: boolean;
   /** 내 샘플 — 처방을 시작할 수 있다 */
   mine?: boolean;
-  /** 이 리포트의 처방이 메커니즘에서 진행 중이면 n / 9 */
+  /** 이 리포트의 처방이 메카닉에서 진행 중이면 n / 9 */
   focus?: FocusProgress;
   /** 개발 확인용 결과(서버를 안 부른다) */
   preview?: Pitch3dV2Ok | null;

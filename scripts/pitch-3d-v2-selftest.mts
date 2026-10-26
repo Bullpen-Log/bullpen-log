@@ -3018,7 +3018,7 @@ console.log('■ 몸통 마디(trunk) — 규칙 · AI 상대 값 · 못 믿는 
   );
 }
 
-console.log('■ 메커니즘 점검 넷(mech-checks) — 합성 투수: 드리프트 · 골반 수평 · 분리 시점(니업 쪽 가짜 봉우리 무시) · 블록 · 좌투 거울');
+console.log('■ 메카닉 점검 넷(mech-checks) — 합성 투수: 드리프트 · 골반 수평 · 분리 시점(니업 쪽 가짜 봉우리 무시) · 블록 · 좌투 거울');
 {
   const N = 200;
   const dt = 1 / 120;
@@ -3111,7 +3111,7 @@ console.log('■ 메커니즘 점검 넷(mech-checks) — 합성 투수: 드리�
   );
 }
 
-console.log('■ 메커니즘 점검 판정(mech-judge) — 문턱 · 여러 구 평균 · 확신 낮으면 판정 안 함 · 글 규칙');
+console.log('■ 메카닉 점검 판정(mech-judge) — 문턱 · 여러 구 평균 · 확신 낮으면 판정 안 함 · 글 규칙');
 {
   type M = ReturnType<typeof mechChecks>;
   const mk = (o: { ahead?: number | null; dConf?: number | null; ms?: number; sep?: number; sConf?: number | null; decel?: number; ext?: number; bConf?: number | null; hand?: 'R' | 'L'; half?: number | null; open?: number; tConf?: number | null }): M => ({

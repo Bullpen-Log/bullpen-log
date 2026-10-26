@@ -55,7 +55,7 @@ import { josa } from '@/lib/korean';
 import { OverviewDetail } from './mechanics-guide';
 
 /**
- * 프로그램 칸 — 투구 메커니즘 향상 프로그램.
+ * 프로그램 칸 — 투구 메카닉 향상 프로그램.
  *
  * 2026-10-04 사용자분: 세션을 저절로 짜지 말고, 수준(입문 · 초급 · 중급 · 고급)을 골라 그 수준의 4주 프로그램을 따라 하게.
  * 수준을 안 골랐으면 고르기 카드 넷, 골랐으면 오늘의 세션 · 12칸 진행 · 권하기 · 수준 바꾸기. 세션은 따라 하기 화면
@@ -86,7 +86,7 @@ export function MechanicsProgram({
         {sheet}
         {/* 글은 한 줄만, 나머지는 '자세히' 뒤로(2026-10-16 김민 "화면 글 많은 곳 줄여줘" — 이 화면이 1,500자 · 화면 3장 길이였다) */}
         <Card className="space-y-1">
-          <h2 className="text-heading text-lg text-ink">투구 메커니즘 향상 프로그램</h2>
+          <h2 className="text-heading text-lg text-ink">투구 메카닉 향상 프로그램</h2>
           <p className="text-sm break-keep text-ink/85">
             {SESSIONS_PER_LEVEL}회 연습 순서예요. 기간을 정해두지 않고 오늘 투구 계획에 맞춰 해요.
           </p>

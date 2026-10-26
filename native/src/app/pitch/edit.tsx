@@ -88,7 +88,7 @@ function parseList(raw?: string): string[] {
 
 export default function PitchEditScreen() {
   /* videos · importKey = 지난 영상 가져오기(pitch/import)가 폰에 넣은 영상 경로를 붙여 연다 — 저장하면 그 묶음을 '남김'으로 */
-  /* drill · pct = 트레이닝 탭 메커니즘 카드의 '드릴로 던진 공'(웹 drillPrefill 과 같은 값 — 캐치볼 · 공 수 · 강도 · 메모로 채운다) */
+  /* drill · pct = 트레이닝 탭 메카닉 카드의 '드릴로 던진 공'(웹 drillPrefill 과 같은 값 — 캐치볼 · 공 수 · 강도 · 메모로 채운다) */
   const { date, id, videos, importKey, drill, pct, vsids, vtype, vcount, vmax, vavg, veffort } = useLocalSearchParams<{
     date: string;
     id?: string;
@@ -143,7 +143,7 @@ export default function PitchEditScreen() {
   const drillThrows = drill ? Number.parseInt(drill, 10) : NaN;
   const drillPrefill =
     !editing && Number.isFinite(drillThrows) && drillThrows > 0
-      ? { pitchCount: drillThrows, effortPct: snapEffortPct(Number(pct) || 60), memo: `메커니즘 드릴 ${drillThrows}회` }
+      ? { pitchCount: drillThrows, effortPct: snapEffortPct(Number(pct) || 60), memo: `메카닉 드릴 ${drillThrows}회` }
       : null;
   const sessionIds = parseList(vsids);
   const num = (v?: string) => (v && Number.isFinite(Number(v)) ? Number(v) : null);
