@@ -442,7 +442,7 @@ function OutingRow({ m, busy, onSave }: { m: EventMemberView; busy: boolean; onS
   const role = m.outing?.role ?? '';
   const [limit, setLimit] = useState(m.outing?.pitchLimit ? String(m.outing.pitchLimit) : '');
   return (
-    <li className="flex items-center gap-2 py-2 text-sm">
+    <li className="flex flex-wrap items-center gap-2 py-2 text-sm">
       <span className="flex-1 text-ink">{m.nickname}</span>
       <select
         aria-label={`${m.nickname} 등판 역할`}
@@ -470,6 +470,7 @@ function OutingRow({ m, busy, onSave }: { m: EventMemberView; busy: boolean; onS
       <span className={`w-12 text-right text-xs ${m.outing?.status === 'confirmed' ? 'text-ok' : 'text-muted'}`}>
         {m.outing ? (OUTING_STATUS_LABEL[m.outing.status as keyof typeof OUTING_STATUS_LABEL] ?? m.outing.status) : ''}
       </span>
+      {m.outingNote ? <p className="basis-full text-xs text-warn">{m.outingNote}</p> : null}
     </li>
   );
 }

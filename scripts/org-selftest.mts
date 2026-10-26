@@ -83,6 +83,7 @@ import {
   targetTab,
 } from '@/lib/org/space-nav';
 import type { ReportFacts } from '@/lib/report/facts';
+import { conflictLine, outingConflicts, type TeamOuting } from '@/lib/org/outing-check';
 
 let pass = 0;
 const fails: string[] = [];
@@ -839,6 +840,29 @@ console.log(
     );
     const ev = src('native/src/app/org/event.tsx');
     check("앱 일정 지우기 · 취소가 '수행일지도 뺄까요'를 묻고 답을 보냄", ev.includes("'app-team.loadEventWork'") && ev.includes('{ id: found?.id, work }') && ev.includes('{ id: found.id, status, work }'));
+  }
+  {
+    /* 팀 등판 확인(계약 9-6 ①-5 E) — 날이 다르면 묻는다 */
+    const T = '2026-10-26';
+    const o = (date: string, orgId = 'a', role: TeamOuting['role'] = 'starter'): TeamOuting => ({ orgId, orgName: orgId === 'a' ? 'A팀' : 'B팀', eventId: `e-${orgId}-${date}`, date, role, pitchLimit: 60 });
+    const run = (outings: TeamOuting[], plan: string | null, cal: string[] = []) => outingConflicts({ today: T, outings, throwPlanToday: plan, calendarOutings: cal });
+    check('체크인 답과 같은 날이면 조용함', run([o(T)], '오늘 등판').length === 0 && run([o('2026-10-28')], '2~3일 뒤').length === 0 && run([o('2026-10-31')], '4일 이상 뒤').length === 0);
+    check(
+      '체크인 답과 날이 다르면 묻는다',
+      run([o(T)], '내일 등판')[0]?.kind === 'checkin' && run([o('2026-10-27')], '없음')[0]?.kind === 'checkin' && run([o(T)], '오늘 불펜')[0]?.kind === 'checkin' && run([o('2026-10-31')], '내일 등판')[0]?.kind === 'checkin'
+    );
+    check("'없음'인데 팀 등판이 4일 넘게 뒤면 조용함 · 체크인 안 했으면 조용함", run([o('2026-10-31')], '없음').length === 0 && run([o(T)], null).length === 0);
+    check('내 달력 등판이 팀 등판 날과 같으면 조용 · 다르면 묻기', run([o(T)], null, [T]).length === 0 && run([o(T)], null, ['2026-10-28'])[0]?.kind === 'calendar');
+    const two = run([o(T, 'a'), o(T, 'b', 'relief')], null);
+    check('두 팀 같은 날 등판은 묻는다', two.length === 1 && two[0].kind === 'teams' && conflictLine(two[0], T).includes('A팀 선발') && conflictLine(two[0], T).includes('B팀 불펜'));
+    check('창(7일) 밖 · 지난 등판은 안 봄', run([o('2026-11-05')], '내일 등판').length === 0 && run([o('2026-10-25')], '내일 등판').length === 0);
+    check("선수에게 보일 말에 조직 · 역할 · 한도", conflictLine(run([o(T)], '없음')[0], T) === "팀은 A팀 · 오늘 선발 · 60구까지인데, 오늘 체크인에는 '없음'으로 답했어요.");
+    const team = src('app/actions/app-team.ts');
+    check(
+      '코치에게는 체크인 공유를 켠 선수의 체크인 답만(다른 팀 · 개인 달력 안 보임)',
+      team.includes("memberScope(p.consent, true).checkin && out.get(p.id)?.status === 'confirmed'") && team.includes('calendarOutings: [] }).length ?')
+    );
+    check('엔진은 그대로 — 팀 등판은 달력 모양으로 같은 출처', src('lib/org/team-load.ts').includes('(await teamOutingsOf(userId, from, to)).map((o) => ({ date: new Date(`${o.date}T00:00:00.000Z`), title: OUTING_CALENDAR_TITLE }))'));
   }
   check('알림 대상 → 탭', targetTab('TEAM', 'p', 'homework') === 'mytraining' && targetTab('LESSON', 'p', 'homework') === 'homework' && targetTab('TEAM', 'c', 'inbox') === 'today' && targetTab('LESSON', 'c', 'inbox') === 'inbox' && targetTab('TEAM', 'p', 'share') === null);
   check('운동 돌아올 곳 왕복', JSON.stringify(parseOrgReturn(orgReturnParam('o1:p', 'homework'))) === '{"key":"o1:p","tab":"homework"}' && parseOrgReturn('org:x:y') === null);

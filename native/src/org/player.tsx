@@ -101,6 +101,18 @@ function TeamToday({ space }: { space: MySpace }) {
   return (
     <View style={{ gap: 16 }}>
       <Top space={space} data={mem.data} />
+      {team.data.outingCheck?.length ? (
+        /* 팀 확정 등판이 체크인 답 · 내 달력 · 다른 팀과 날이 다르면 묻는다 — 조용히 덮지 않는다(계약 9-6 ①-5 E) */
+        <Card c={c}>
+          <Text style={[TYPE.card, { color: c.ink }]}>팀 등판 확인</Text>
+          {team.data.outingCheck.map((l) => (
+            <Text key={l} style={[TYPE.body, { color: c.ink }]}>
+              {l}
+            </Text>
+          ))}
+          <Text style={[TYPE.sub, { color: c.muted }]}>어느 쪽이 맞나요? 오늘 추천은 체크인 답을 먼저 따라요. 다르면 체크인의 던지는 일정을 고치거나 코치에게 알려 주세요.</Text>
+        </Card>
+      ) : null}
       <View style={{ gap: 6 }}>
         <GroupTitle title={today.length ? '오늘' : '다음 일정'} c={c} />
         {next.length ? (

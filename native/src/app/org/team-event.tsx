@@ -232,7 +232,10 @@ function Outings({ d, org, send, busy, c }: Part & { send: Send; busy: boolean }
         <Text style={[TYPE.sub, { color: c.muted }]}>확정한 선발 · 불펜만 선수의 다음 등판으로 읽혀요(선수 체크인 답이 먼저).</Text>
         {d.members.map((m, i) => (
           <Pressable key={m.memberId} accessibilityRole="button" disabled={busy} onPress={() => pick(m)} style={({ pressed }) => [st.row, i < d.members.length - 1 && line(c), pressed && { opacity: 0.6 }]}>
-            <Text style={[TYPE.card, { color: c.ink, flex: 1 }]}>{m.nickname}</Text>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[TYPE.card, { color: c.ink }]}>{m.nickname}</Text>
+              {m.outingNote ? <Text style={[TYPE.sub, { color: c.warn }]}>{m.outingNote}</Text> : null}
+            </View>
             <Text style={[TYPE.sub, { color: m.outing?.status === 'confirmed' ? c.ok : m.outing ? c.link : c.muted }]}>
               {m.outing
                 ? `${OUTING_ROLE_LABEL[m.outing.role]}${m.outing.pitchLimit ? ` · ${m.outing.pitchLimit}구` : ''} · ${OUTING_STATUS_LABEL[m.outing.status as keyof typeof OUTING_STATUS_LABEL] ?? m.outing.status}`

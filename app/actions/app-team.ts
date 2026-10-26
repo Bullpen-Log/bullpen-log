@@ -13,9 +13,13 @@ import { ORG_LOST, orgOpenHref } from '@/lib/org/space-nav';
 import { cleanHomeworkItems, homeworkDose, readHomeworkItems } from '@/lib/org/homework';
 import { cleanOrgWork, type OrgWorkItem } from '@/lib/org/team-work';
 import { eventWorkOf, ownSetsOn, writeOrgWork } from '@/lib/org/team-work-store';
+import { teamOutingsOf } from '@/lib/org/team-load';
+import { OUTING_CHECK_DAYS, conflictLine, outingConflicts } from '@/lib/org/outing-check';
+import { isOutingTitle } from '@/lib/calendar-event';
 import {
   ATTEND_NOTE_MAX,
   OUTING_ROLE_LABEL,
+  PITCHING_ROLES,
   PITCH_LIMIT_MAX,
   PLAN_TITLE_MAX,
   cleanPlanMembers,
@@ -82,6 +86,8 @@ export type EventMemberView = {
   recordedSets: number;
   /** 선수가 그날 메뉴의 운동을 직접 남긴 세트 수 — 트레이닝 공유를 켠 선수만(계약 9-6 ①-6 F) */
   ownSets: number;
+  /** 확정 등판이 선수의 오늘 체크인 답과 날이 다르면 한 줄 — 체크인 공유를 켠 선수만(계약 9-6 ①-5 E) */
+  outingNote: string | null;
   outing: { role: OutingRole; pitchLimit: number | null; status: string } | null;
 };
 export type PlanView = { id: string; title: string; memberIds: string[]; targets: string[]; lines: Line[] };
@@ -118,6 +124,19 @@ export async function loadEventDetail(orgId: string, eventId: string): Promise<{
     toDateKey(event.date),
     [...new Set(planItems.flatMap((p) => p.ids))]
   );
+  /* 등판 확인 — 오늘 체크인의 던지는 일정과 이 일정의 확정 등판(체크인 공유를 켠 선수만, 다른 팀 · 개인 달력은 코치에게 안 보인다) */
+  const today = toDateKey(appNow());
+  const checkinShared = players.filter((p) => targets.includes(p.id) && p.userId && memberScope(p.consent, true).checkin && out.get(p.id)?.status === 'confirmed');
+  const answers = checkinShared.length
+    ? await prisma.dailyCheckin.findMany({ where: { userId: { in: checkinShared.map((p) => p.userId!) }, date: dbDate(today) }, select: { userId: true, throwPlan: true } })
+    : [];
+  const outingNoteOf = (memberId: string, userId: string | null): string | null => {
+    const o = out.get(memberId);
+    const plan = answers.find((x) => x.userId === userId)?.throwPlan ?? null;
+    if (!o || !plan || !checkinShared.some((p) => p.id === memberId) || !isOutingRole(o.role) || !PITCHING_ROLES.includes(o.role)) return null;
+    const one = { orgId, orgName: c.org.name, eventId, date: toDateKey(event.date), role: o.role, pitchLimit: o.pitchLimit };
+    return outingConflicts({ today, outings: [one], throwPlanToday: plan, calendarOutings: [] }).length ? `선수 일정과 달라요 — 오늘 체크인 '${plan}'` : null;
+  };
   const ownOf = (memberId: string, userId: string | null) => {
     if (!userId || !sharing.some((p) => p.id === memberId)) return 0;
     const ids = new Set(planItems.filter((p) => p.targets.includes(memberId)).flatMap((p) => p.ids));
@@ -139,6 +158,7 @@ export async function loadEventDetail(orgId: string, eventId: string): Promise<{
         attended: a?.attended ?? null,
         recordedSets: p.userId ? (setsOf.get(p.userId) ?? 0) : 0,
         ownSets: ownOf(p.id, p.userId),
+        outingNote: outingNoteOf(p.id, p.userId),
         outing: o && isOutingRole(o.role) ? { role: o.role, pitchLimit: o.pitchLimit, status: o.status } : null,
       };
     });
@@ -496,10 +516,10 @@ export type MyWorkView = { eventId: string; date: string; title: string; sets: n
 
 export async function loadMyTeam(
   memberId: string
-): Promise<{ ok: false; to: string } | { ok: true; todayKey: string; events: MyEventView[]; recent: MyWorkView[] }> {
+): Promise<{ ok: false; to: string } | { ok: true; todayKey: string; events: MyEventView[]; recent: MyWorkView[]; outingCheck: string[] }> {
   const r = await myMember(memberId);
   if (!r) return NO_ACCESS;
-  if (r.m.status !== 'ACTIVE') return { ok: true, todayKey: toDateKey(appNow()), events: [], recent: [] };
+  if (r.m.status !== 'ACTIVE') return { ok: true, todayKey: toDateKey(appNow()), events: [], recent: [], outingCheck: [] };
   const today = toDateKey(appNow());
   const events = await prisma.orgEvent.findMany({
     where: {
@@ -524,6 +544,7 @@ export async function loadMyTeam(
     ok: true,
     todayKey: today,
     recent: await myRecentWork(r.m.org.id, r.user.id, today),
+    outingCheck: await myOutingCheck(r.m.org.id, r.user.id, today),
     events: await Promise.all(
       events.map(async (e) => {
         const a = att.find((x) => x.eventId === e.id);
@@ -544,6 +565,26 @@ export async function loadMyTeam(
       })
     ),
   };
+}
+
+/** 이 팀의 확정 등판이 체크인 답 · 내 달력 · 다른 팀 등판과 날이 다른지(계약 9-6 ①-5 E) — 선수 본인의 것만 읽는다 */
+async function myOutingCheck(orgId: string, userId: string, today: string): Promise<string[]> {
+  const from = dbDate(today);
+  const to = dbDate(shiftDateKey(today, OUTING_CHECK_DAYS));
+  const [outings, checkin, calendar] = await Promise.all([
+    teamOutingsOf(userId, from, to),
+    prisma.dailyCheckin.findFirst({ where: { userId, date: from }, select: { throwPlan: true } }),
+    prisma.calendarEvent.findMany({ where: { userId, date: { gte: from, lte: to } }, select: { date: true, title: true } }),
+  ]);
+  if (!outings.some((o) => o.orgId === orgId)) return [];
+  return outingConflicts({
+    today,
+    outings,
+    throwPlanToday: checkin?.throwPlan ?? null,
+    calendarOutings: calendar.filter((e) => isOutingTitle(e.title)).map((e) => toDateKey(e.date)),
+  })
+    .filter((c) => c.outing.orgId === orgId || (c.kind === 'teams' && c.other.orgId === orgId))
+    .map((c) => conflictLine(c, today));
 }
 
 async function myRecentWork(orgId: string, userId: string, today: string): Promise<MyWorkView[]> {
