@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { referencedPaths } from '@/lib/video-refs';
 import { getCurrentUser } from '@/lib/dal';
 import {
   createPlaybackUrls,
@@ -50,12 +50,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: '접근할 수 없는 영상이에요' }, { status: 403 });
     }
 
-    /* 경로 모양만 보지 않고, 실제로 본인 기록에 붙은 영상인지 DB 로 다시 본다 */
-    const owned = await prisma.pitchLog.findMany({
-      where: { userId: user.id, videoPaths: { hasSome: requested } },
-      select: { videoPaths: true },
-    });
-    const ownedSet = new Set(owned.flatMap((l) => l.videoPaths));
+    /* 경로 모양만 보지 않고, 실제로 본인 기록(투구 · 타격 · 내 영상 · 구속 공)에 붙은 영상인지 DB 로 다시 본다(lib/video-refs.ts) */
+    const ownedSet = await referencedPaths(requested);
 
     const pairs = requested
       .filter((p) => ownedSet.has(p))

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { createPlaybackUrls, isOwnedBy, isStorageConfigured } from '@/lib/storage';
+import { referencedPaths } from '@/lib/video-refs';
 
 /** 한 번에 받아갈 수 있는 재생 주소 개수 */
 const MAX_PATHS = 10;
@@ -45,12 +45,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: '접근할 수 없는 영상이에요' }, { status: 403 });
     }
 
-    const owned = await prisma.pitchLog.findMany({
-      where: { userId: user.id, videoPaths: { hasSome: requested } },
-      select: { videoPaths: true },
-    });
-
-    const ownedSet = new Set(owned.flatMap((l) => l.videoPaths));
+    /*
+     * 본인 기록 어딘가(투구 · 타격 기록 · 내 영상 · 구속 측정 공)에 붙은 영상만 — 지우기 검사와 같은 곳에서 본다(lib/video-refs.ts).
+     * 예전엔 투구 기록만 봐서 '내 영상'에 따로 남긴 관리자 영상 · 타격 기록 영상이 '불러오지 못했어요'였다(2026-10-27)
+     */
+    const ownedSet = await referencedPaths(requested);
     const allowed = requested.filter((p) => ownedSet.has(p));
 
     if (allowed.length === 0) {

@@ -181,9 +181,10 @@ console.log('\n[6] 소스 모양 — 부하 · 계정 · 관리자 자료');
   check('부하 · 추천 계산(lib/report · lib/engine · pitch-stats)은 UserVideo 를 읽지 않는다', readers.length === 0, readers.join(', '));
   const load = src('lib/my-videos-load.ts');
   const finds = load.match(/\.findMany\(\{\s*where: \{[^}]*/g) ?? [];
-  check('목록 읽기 넷이 모두 userId 로 거른다', finds.length === 4 && finds.every((w) => /where: \{ userId/.test(w)), String(finds.length));
-  check('보정용 세션 클립은 뺀다', load.includes('forCalibration: false'));
-  check('광각 클립 · 시도 클립 · 녹화 조각은 안 읽는다', !/wideClipPath|velocityAttempt|velocityRecording/.test(load));
+  check('목록 읽기 셋이 모두 userId 로 거른다', finds.length === 3 && finds.every((w) => /where: \{ userId/.test(w)), String(finds.length));
+  check('구속 측정 클립 · 시도 클립 · 녹화 조각은 갤러리에 안 넣는다(김민 2026-10-27)', !/velocityPitch|velocityAttempt|velocityRecording/.test(load));
+  for (const f of ['app/api/pitch-log/video-url/route.ts', 'app/api/pitch-log/thumb-url/route.ts'])
+    check(`${f} 는 본인 기록 어디에 붙은 영상이든 주소를 준다(referencedPaths) — 내 영상 · 타격 기록 영상도`, src(f).includes('referencedPaths(requested)') && src(f).includes('isOwnedBy(p, user.id)'));
   const action = src('app/actions/my-videos.ts');
   check('고치기는 로그인 · 본인 경로만', action.includes('getCurrentUser()') && action.includes('isOwnedBy(path, user.id)'));
   check('갤러리 동작은 기록을 만들거나 지우지 않는다', !/prisma\.(pitchLog|hittingLog)\.(create|delete|upsert)/.test(action));
