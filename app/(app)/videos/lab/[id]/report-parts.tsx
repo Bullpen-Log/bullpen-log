@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ButtonLink } from '@/components/ui';
+import Link from 'next/link';
+import { Button, ButtonLink } from '@/components/ui';
+import { compareDeltaText, compareRangeText, prevDateText, PREV_CONFIRM, type PreviousComparison } from '@/lib/pitch-3d/v2/compare-view';
 import {
   REPORT_STATUS_TEXT,
   REPORT_CRITERIA,
@@ -19,7 +21,7 @@ import {
 } from '@/lib/pitch-3d/v2/report';
 
 /**
- * 투구 진단 리포트 조각(설계 docs/designs/pitch-3d-report.md 5-4절 '모양') — 어두운 3D 무대 위 결론 · 투구의 흐름 사슬 · 3주 처방.
+ * 투구 진단 리포트 조각(설계 docs/designs/pitch-3d-report.md 5-4절 '모양') — 어두운 3D 무대 위 결론 · 투구의 흐름 사슬 · 개선 드릴 · 지난번과 견주기.
  * 색은 sky(누름) · warn(문제) · ok(목표 · 좋아요) 셋만, 숫자는 text-numeric. 앱 화면(native/src/app/lab/[id].tsx)도 같은 차례 · 같은 글.
  */
 
@@ -227,7 +229,7 @@ function RxBlock({ rx }: { rx: ElementRx }) {
             improve ? 'bg-warn-bg text-warn' : 'border border-warn text-warn'
           }`}
         >
-          {improve ? '집중 · 2칸' : '보조 · 1칸'}
+          {improve ? '고칠 점' : '경계'}
         </span>
       </div>
       <p className={`border-l-2 pl-3 text-base leading-normal text-ink break-keep ${improve ? 'border-warn' : 'border-line-strong'}`}>
@@ -269,40 +271,29 @@ function RxBlock({ rx }: { rx: ElementRx }) {
   );
 }
 
-/** 처방 카드 단추가 갈 곳(웹) — 무엇을 할지는 lib/pitch-3d/v2/report.ts rxAction(앱과 같은 판단) */
-const RX_HREF = (kind: RxAction['kind'], reportId: string, elementKey: string) =>
-  kind === 'start'
-    ? `/training?view=mechanics&focus=${reportId}`
-    : kind === 'progress'
-      ? '/training?view=mechanics'
-      : kind === 'retake'
-        ? '/videos/lab'
-        : `/training?view=mechanics&tab=elements&el=${elementKey}`;
+/** 개선 드릴 카드 단추가 갈 곳(웹) — 무엇을 할지는 lib/pitch-3d/v2/report.ts rxAction(앱과 같은 판단) */
+const RX_HREF = (kind: RxAction['kind'], elementKey: string) =>
+  kind === 'progress'
+    ? '/training?view=mechanics'
+    : kind === 'retake'
+      ? '/videos/lab'
+      : `/training?view=mechanics&tab=elements&el=${elementKey}`;
 
-export function RxCard({ report, reportId, mine, focus }: { report: PitchReport; reportId: string; mine: boolean; focus: FocusProgress }) {
+export function RxCard({ report, mine, focus }: { report: PitchReport; mine: boolean; focus: FocusProgress }) {
   if (report.criteria !== REPORT_CRITERIA || report.rx.length === 0)
     return (
       <section className="space-y-2 rounded-2xl bg-surface p-(--block-pad)">
-        <h2 className="font-semibold text-ink">자동 처방 안내</h2>
+        <h2 className="font-semibold text-ink">개선 드릴</h2>
         <p className="text-sm text-muted">{prescriptionMessage(report)}</p>
       </section>
     );
   const main = report.rx[0];
   const cta = rxAction(mine, focus);
-  const href = RX_HREF(cta.kind, reportId, main.key);
-  const weeks = main.weeks.map((w, i) => [`${i + 1}단계`, w.stage]);
+  const href = RX_HREF(cta.kind, main.key);
   return (
     <section className="space-y-2">
-      <h2 className="px-1 text-footnote text-muted">처방 · 기초 → 연결 → 통합</h2>
+      <h2 className="px-1 text-footnote text-muted">개선 드릴 · 쉬운 것부터</h2>
       <div className="space-y-5 rounded-2xl bg-surface p-(--block-pad)">
-        <div className={`grid gap-1.5 text-center ${weeks.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-          {weeks.map(([wk, st], i) => (
-            <div key={wk} className={`rounded-xl py-2 ${i === 0 ? 'bg-sky text-white' : 'bg-surface-2 text-ink'}`}>
-              <div className={`text-caption ${i === 0 ? 'text-white/80' : 'text-muted'}`}>{wk}</div>
-              <div className="text-footnote font-semibold">{st}</div>
-            </div>
-          ))}
-        </div>
         {report.rx.map((rx) => (
           <RxBlock key={rx.element} rx={rx} />
         ))}
@@ -311,8 +302,55 @@ export function RxCard({ report, reportId, mine, focus }: { report: PitchReport;
           <ButtonLink href={href} size="lg" className="w-full">
             {cta.label}
           </ButtonLink>
-          <p className="text-center text-caption text-muted break-keep">{cta.note}</p>
+          {cta.note && <p className="text-center text-caption text-muted break-keep">{cta.note}</p>}
         </div>
+      </div>
+    </section>
+  );
+}
+
+/* ───────────────────────────── 지난번 리포트와 견주기 ───────────────────────────── */
+
+/** 바로 앞 내 리포트와 숫자 견주기 — 촬영 조건이 같다고 확인해야 펴진다(lib/pitch-3d/v2/compare-view.ts · 앱과 같은 글) */
+export function CompareCard({ prev }: { prev: PreviousComparison }) {
+  const [same, setSame] = useState(false);
+  return (
+    <section className="space-y-2">
+      <h2 className="px-1 text-footnote text-muted">지난번 리포트와 견주기 · {prevDateText(prev.requestedAt)}</h2>
+      <div className="space-y-3 rounded-2xl bg-surface p-(--block-pad)">
+        {!prev.compared ? (
+          <p className="text-sm text-muted break-keep">{prev.reason ?? '양쪽에서 견줄 수 있는 지표가 없어요.'}</p>
+        ) : !same ? (
+          <>
+            <p className="text-sm text-ink break-keep">숫자는 촬영 조건이 같을 때만 견줄 수 있어요.</p>
+            <Button variant="secondary" className="w-full" onClick={() => setSame(true)}>
+              {PREV_CONFIRM}
+            </Button>
+          </>
+        ) : (
+          <>
+            <ul className="divide-y divide-line">
+              {prev.rows.map((r) => (
+                <li key={r.key} className="flex items-baseline justify-between gap-3 py-2.5">
+                  <span className="min-w-0">
+                    <span className="block text-sm text-ink">{r.element}</span>
+                    <span className="block text-caption text-muted break-keep">{r.label}</span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block text-sm text-ink tabular-nums">
+                      {compareRangeText(r.element, r.unit, r.before, r.after)}
+                    </span>
+                    <span className="block text-caption text-muted tabular-nums">{compareDeltaText(r.unit, r.delta)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-caption text-muted break-keep">{prev.note}</p>
+          </>
+        )}
+        <Link href={`/videos/lab/${prev.reportId}`} className="inline-flex min-h-10 items-center text-sm font-semibold text-sky-strong">
+          지난번 리포트 보기 ›
+        </Link>
       </div>
     </section>
   );

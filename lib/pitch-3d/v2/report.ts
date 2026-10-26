@@ -5,12 +5,15 @@
  * 값은 mechChecks(lib/pitch-3d/v2/mech-checks.ts), 기준은 드라이브라인 공개 자료를 우리 식으로 다시 센 것(scripts/pitch-lab/obp/elements.py,
  * 마운드 · 100명 402구), 엔진 오차는 마커 15구(scripts/pitch-lab/markers/selfcal/element_score.py, 10-15 엔진). 문턱 여유는 2 × σ(1구).
  *
- * 등급(3-1절): 드리프트 A · 드롭 · 브레이크 · 몸통 회전 · 착지 때 상체 'A 후보'(P0 마커 촬영 전) · 스로잉 B. A 만 고칠 점, A 후보와 B는 참고로만
- * (2026-10-21 — 실험실 실제 샘플 8개 중 4개가 브레이크 '고칠 점'으로 나왔는데 엔진 앞다리 정확도를 아직 한 사람 · 한 번만 쟀다), B 는 '참고'까지.
+ * 등급(3-1절): 지금은 스로잉만 B(참고), 나머지 다섯은 A(평가 · 개선 드릴 — 아래 2026-10-26 줄). A 후보(A?)는 평가 · 처방을 안 하는 칸으로 남겨 둔다.
+ * (2026-10-21 에는 드리프트만 A 였다 — 실험실 샘플 브레이크 '고칠 점' 넷이 옛 엔진 앞다리 탓으로 보였는데, 10-16 고침 뒤 겹쳐 보기로 실제 동작으로 확인.)
  * 2026-10-26: 검증 수준·영상 신뢰도·기준상 수치 위치를 분리하고 A?와 B는 자동 처방에서 제외한다.
  * 결론은 확인한 지표의 범위만 설명하고 평가·참고·미판정 개수를 함께 표시한다.
  * 2026-10-26(표시만, 판정 · 처방 · 기준 판 그대로): 참고 지표는 수치를 읽은 관찰을 주 설명으로, 검증 · 적용 조건 제한은 띠 밑 한 줄로.
  * 확인하지 못한 칸은 안 보인 부위 · 구간이나 계산 못 한 까닭을 말한다. 요약은 '수치 확인 m/6 · 평가 가능 n/6'(두 축, 합이 아니다).
+ * 2026-10-26(김민 — "큰 오차만 아니면 평가 · 처방까지"): 드롭 · 상하체 분리 · 브레이크 · 몸통 회전을 A 로. 넷 다 '엔진 오차 × 2 < 정상 폭'(3-1절 조건 3)을
+ * 넉넉히 넘고, 고칠 점 문턱이 이미 아래 10% − 2σ 라 오차로 잘못 짚는 몫은 지표마다 약 2%. 다른 투수 마커(조건 1 · 2)는 아직 — 드리프트도 같다.
+ * 처방은 3주 프로그램이 아니라 한 번 보는 '개선 드릴'(요소마다 기초 → 연결 → 통합 하나씩) — 새로 3주 처방을 시작하지 않는다(lib/mechanics/focus-load.ts).
  */
 import { REPORT_CRITERIA, RX_START_STAGE } from '@/lib/pitch-3d/v2/report-policy';
 import { DRILL_STAGE_NAMES, type FOCUS_POINTS } from '@/lib/exercise-meta';
@@ -20,7 +23,7 @@ import { doseOf, doseText } from '@/lib/mechanics/program';
 import { prescribedTitles } from '@/lib/mechanics/prescriptions';
 import { plantFrame, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { mechChecks, DROP_RISE_MAX, type MechChecks } from '@/lib/pitch-3d/v2/mech-checks';
-import { DRIFT_GOOD, DRIFT_LOW, MECH_CONF_MIN, TRUNK_PLANT_NORM } from '@/lib/pitch-3d/v2/mech-judge';
+import { BLOCK_IMPLAUSIBLE_SINK_DEG, DRIFT_GOOD, DRIFT_LOW, MECH_CONF_MIN, TRUNK_PLANT_NORM } from '@/lib/pitch-3d/v2/mech-judge';
 
 type ElementName = (typeof FOCUS_POINTS)[number];
 type DrillStage = (typeof DRILL_STAGE_NAMES)[number];
@@ -30,7 +33,8 @@ export { REPORT_CRITERIA };
 /**
  * 이 확신(0~100, 그 지표가 쓴 관절 · 장면 평균) 밑이면 판정하지 않는다 — 지금 점검 카드와 같은 30(mech-judge MECH_CONF_MIN).
  * 설계 3-2절은 한 구라 45 로 올리자 했지만, 실험실 실제 샘플 8개의 확신이 25~57 이라 45 면 8개 중 6개가 '판정 못 함'이 됐다(2026-10-21).
- * 한 구의 큰 오류는 확신 대신 엔진 오류값 거르기(브레이크 더 굽음 40° · 골반 감속 115%)로 막는다. 확신이 없는 옛 결과는 수치만 참고하고 자동 판정하지 않는다.
+ * 한 구의 큰 오류는 확신 대신 엔진 오류값 거르기로 막는다(브레이크는 값을 정하는 두 장면의 확신 · 사람 무릎이 못 내는 크기 — mech-judge
+ * BLOCK_IMPLAUSIBLE_SINK_DEG). 확신이 없는 옛 결과는 수치만 참고하고 자동 판정하지 않는다.
  */
 export const REPORT_CONF_MIN = MECH_CONF_MIN;
 /** 성장기(만 16세 미만, 트레이닝과 같은 선) — 크기 지표는 참고로만(4절 4번) */
@@ -49,13 +53,13 @@ export type ReportMeasurement = {
 };
 export type ReportCoverage = { evaluated: number; reference: number; unavailable: number; total: number };
 
-/** 등급(3-1절) — 'A?' = A 후보(P0 전, 자동 처방 보류). B 는 경계 · 고칠 점을 안 낸다 */
+/** 등급(3-1절) — 'A?' = A 후보(평가 · 처방 안 함, 지금은 없음). B 는 참고만(스로잉 — 정답 자료가 같은 2D 라 검증이 안 된다) */
 export const ELEMENT_GRADE: Record<ElementName, Grade> = {
   드리프트: 'A',
-  드롭: 'A?',
-  '상하체 분리': 'A?',
-  브레이크: 'A?',
-  '몸통 회전': 'A?',
+  드롭: 'A',
+  '상하체 분리': 'A',
+  브레이크: 'A',
+  '몸통 회전': 'A',
   스로잉: 'B',
 };
 
@@ -147,16 +151,16 @@ export const reportDrillsOf = (views: MechanicsDrillView[]): ReportDrill[] =>
     thumbUrl: d.variants.find((v) => v.thumbUrl)?.thumbUrl ?? null,
   }));
 
-/** 처방 한 장 — 판정과 시작 단계를 분리하며 새 처방은 기초부터 */
+/** 개선 드릴 한 장 — 요소마다 기초 → 연결 → 통합 하나씩(한 번 보는 목록, 옛 3주 처방과 같은 모양이라 진행 중인 처방도 그대로 읽힌다) */
 export type ElementRx = {
   element: ElementName;
   key: string;
   fault: FaultKey;
-  /** 고칠 점 = 집중(2칸) · 경계 = 보조(1칸) */
   level: 'improve' | 'edge';
+  /** 단계마다 드릴 수 — 지금은 늘 1(옛 3주 처방은 고칠 점 2) */
   slots: 1 | 2;
   cue: string;
-  /** 주차별 드릴 — 고칠 점 1 · 2 · 3주, 경계 1주 · 2~3주 */
+  /** 단계별 드릴 — 쉬운 것부터(week 는 옛 3주 처방과 같은 칸 이름) */
   weeks: { week: 1 | 2 | 3; label: string; stage: DrillStage; drills: { title: string; thumbUrl: string | null; dose: string }[] }[];
   /** 다음 재기에서 볼 숫자 */
   target: { label: string; now: string; goal: string } | null;
@@ -185,7 +189,7 @@ export type PitchReport = {
     /** 그 순간 이름 '착지 뒤 0.08초' */
     moment: string | null;
   };
-  /** 경계 이상 요소마다 처방(흐름 차례 · 많아야 2장) */
+  /** 경계 이상 요소마다 개선 드릴(흐름 차례 · 많아야 2장) */
   rx: ElementRx[];
   /** 경계 이상인데 이번 처방에 못 넣은 요소 — 다음 차례 */
   later: ElementName[];
@@ -508,8 +512,12 @@ export function judgeElements(
   /* 브레이크 — 착지 뒤 더 굽음 · 무릎 펴짐 둘 중 나쁜 쪽 */
   {
     const bl = m.block;
-    if (!okConf(bl.conf)) out['브레이크'] = reference('lowConf', null, null, null, frames.release);
-    else if (bl.kneeCollapseDeg > 40 || (Number.isFinite(bl.pelvisDecelPct) && bl.pelvisDecelPct > 115))
+    if (!okConf(bl.conf) || !okConf(bl.keyConf)) out['브레이크'] = reference('lowConf', null, null, null, frames.release);
+    else if (
+      ![bl.kneeCollapseDeg, bl.kneeExtensionDeg].every(Number.isFinite) ||
+      bl.kneeCollapseDeg > BLOCK_IMPLAUSIBLE_SINK_DEG ||
+      -bl.kneeExtensionDeg > BLOCK_IMPLAUSIBLE_SINK_DEG
+    )
       out['브레이크'] = reference('implausible', null, null, null, frames.release);
     else {
       const sink = bandOf(bl.kneeCollapseDeg, SINK_BAND);
@@ -594,7 +602,8 @@ export function judgeElements(
     드리프트: m.drift?.conf,
     드롭: m.drop?.conf,
     '상하체 분리': m.separation.trunkConf,
-    브레이크: m.block.conf,
+    /* 두 핵심 장면 중 안 보인 곳이 있으면 그 확신으로 — 판정 안 함의 까닭('잘 안 보임')과 같은 숫자 */
+    브레이크: m.block.conf != null && m.block.keyConf != null ? Math.min(m.block.conf, m.block.keyConf) : m.block.conf,
     '몸통 회전': m.trunkTilt.conf,
     스로잉: m.arm.conf,
   };
@@ -713,14 +722,15 @@ export const coverageText = (c: ReportCoverage | undefined) =>
     : '이전 판정 기준의 리포트예요. 다시 불러와 확인해 주세요.';
 export function prescriptionMessage(report: PitchReport): string {
   if (report.criteria !== REPORT_CRITERIA || !report.coverage)
-    return '리포트 기준을 업데이트하고 있어요. 다시 불러온 뒤 처방을 확인해 주세요.';
-  if (report.rx.length === 0 && report.items.some((i) => i.prescriptionEligible)) return '기초 단계의 드릴을 구성할 수 없어 자동 처방을 보류했어요. 사용할 수 있는 드릴을 확인해 주세요.';
+    return '리포트 기준을 업데이트하고 있어요. 다시 불러온 뒤 드릴을 확인해 주세요.';
+  if (report.rx.length === 0 && report.items.some((i) => i.prescriptionEligible))
+    return '기초 단계 드릴을 찾지 못해 개선 드릴을 보여 드리지 못했어요. 요소별 드릴에서 찾아 주세요.';
   const c = report.coverage;
   const lines = [
     c.evaluated
-      ? `평가한 ${c.evaluated}개 지표에서 교정이 필요한 항목이 없어 자동 처방을 만들지 않았어요.`
-      : '평가할 수 있는 지표가 없어 자동 처방을 하지 않아요.',
-    c.reference ? '참고 지표의 수치는 자동 처방의 근거로 쓰지 않아요.' : null,
+      ? `평가한 ${c.evaluated}개 지표에 고칠 점이 없어 따로 권할 드릴이 없어요.`
+      : '평가할 수 있는 지표가 없어 드릴을 권하지 않아요.',
+    c.reference ? '참고 지표의 수치로는 드릴을 권하지 않아요.' : null,
     c.unavailable ? '확인하지 못한 항목은 투구의 흐름에서 까닭을 볼 수 있어요.' : null,
     c.evaluated === c.total ? '이 결과가 투구 동작 전체를 평가한 것은 아니에요.' : null,
   ];
@@ -798,7 +808,7 @@ export function buildReport(result: Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' 
   const { primary, next, later } = pickProblems(items);
   const drills = ctx.drills ?? [];
   const rx = drills.length
-    ? [primary && rxOf(primary, drills, primary.status === 'improve' ? 2 : 1), next && rxOf(next, drills, 1)].filter(
+    ? [primary && rxOf(primary, drills, 1), next && rxOf(next, drills, 1)].filter(
         (x): x is ElementRx => x != null
       )
     : [];
@@ -835,7 +845,7 @@ export function buildReport(result: Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' 
       title:
         (evaluated.length === 1
           ? `${evaluated[0].element} 지표는 ${evaluated[0].status === 'good' ? '좋아요' : '보통이에요'}.`
-          : `평가한 ${coverage.evaluated}개 지표에서 처방할 항목이 없어요.`) + (rest ? `\n${rest}` : ''),
+          : `평가한 ${coverage.evaluated}개 지표에 고칠 점이 없어요.`) + (rest ? `\n${rest}` : ''),
       why: '이 결과는 확인한 지표의 평가예요. 투구 동작 전체에 대한 결론은 아니에요.',
       frame: result.events.release,
       moment: momentName(result, result.events.release),
@@ -939,14 +949,17 @@ export function summaryChip(s: ReportSummary | null): { text: string; tone: 'imp
 /** 이 리포트의 처방이 메카닉에서 진행 중이면 마친 세션 수 / 전체(메카닉 세션 P2 — MechanicsProgram.progress.focus) */
 export type FocusProgress = { done: number; total: number; skill?: { label: string; finished: boolean } } | null;
 
-export type RxAction = { kind: 'start' | 'progress' | 'retake' | 'drills'; label: string; note: string };
+export type RxAction = { kind: 'progress' | 'retake' | 'drills'; label: string; note: string };
+
+/** 개선 드릴 카드의 맺음 한 줄 — 한 번 해서는 동작이 안 바뀐다 */
+export const RX_PRACTICE_NOTE = '며칠에 걸쳐 몇 번 해 보고, 같은 자리에서 다시 찍으면 지난번과 숫자를 견줘 보여 드려요.';
 
 /**
- * 처방 카드 맨 아래 단추(웹 · 앱 같은 판단) — 처방 시작(메카닉 확인 시트) · 진행 중 n / 9 · 마쳤으면 다시 찍기.
- * 남의 샘플(관리자)이면 시작할 수 없어(lib/mechanics/focus-load.ts 가 막음) 요소별 드릴로. 갈 주소는 화면마다(웹 · 앱 길이 달라서).
+ * 개선 드릴 카드 맨 아래 단추(웹 · 앱 같은 판단) — 드릴 영상 보기(요소별 드릴). 2026-10-26 전에 시작한 3주 처방이 진행 중이면 진행 · 다시 찍기.
+ * 새 3주 처방은 시작하지 않는다(lib/mechanics/focus-load.ts). 갈 주소는 화면마다(웹 · 앱 길이 달라서).
  */
 export function rxAction(mine: boolean, focus: FocusProgress): RxAction {
-  if (!mine) return { kind: 'drills', label: '요소별 드릴 보기', note: '처방은 리포트를 받은 사람만 시작할 수 있어요.' };
+  if (!mine) return { kind: 'drills', label: '드릴 영상 보기', note: '' };
   if (focus?.skill)
     return focus.skill.finished
       ? { kind: 'retake', label: '다시 찍어 리포트 받기', note: '자가 확인을 마쳤어요. 같은 자리에서 다시 찍어 측정값과 견줘요.' }
@@ -954,7 +967,7 @@ export function rxAction(mine: boolean, focus: FocusProgress): RxAction {
   if (focus && focus.done >= focus.total)
     return { kind: 'retake', label: '다시 찍어 리포트 받기', note: '처방을 마쳤어요. 같은 자리에서 다시 찍어 견줘요.' };
   if (focus) return { kind: 'progress', label: `처방 진행 중 ${focus.done} / ${focus.total}`, note: '메카닉 프로그램에서 이어서 해요.' };
-  return { kind: 'start', label: '처방 시작', note: '메카닉 프로그램의 드릴 칸이 이 처방으로 바뀌어요.' };
+  return { kind: 'drills', label: '드릴 영상 보기', note: RX_PRACTICE_NOTE };
 }
 
 /** 만 나이(생년월일 'YYYY-MM-DD' · Date) — 모르면 null */

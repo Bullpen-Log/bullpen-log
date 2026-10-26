@@ -928,7 +928,7 @@ export function ElementCard({
                   accessibilityRole="button"
                   style={[s.textBtn, { paddingHorizontal: 0 }]}
                 >
-                  <Text style={[s.smallBold, { color: c.sky }]}>리포트에서 처방 시작 ›</Text>
+                  <Text style={[s.smallBold, { color: c.sky }]}>리포트에서 개선 드릴 보기 ›</Text>
                 </Press>
               ) : null}
             </View>

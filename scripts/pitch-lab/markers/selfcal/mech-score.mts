@@ -32,7 +32,7 @@ for (const [p, T] of Object.entries(truth)) {
     drift: { aheadAtKneeUp: n('aheadAtKneeUpCm') / heightCm, aheadAtKneeUpCm: n('aheadAtKneeUpCm'), travel: n('travelCm') / heightCm, travelCm: n('travelCm'), speed: n('speedMs') * 100 / heightCm, speedMs: n('speedMs'), conf: null },
     pelvisLevel: { tiltDeg: n('tiltDeg'), conf: null },
     separation: { frame: 0, peakMs: n('peakMs'), peakDeg: n('peakDeg'), atPlantDeg: n('atPlantDeg'), trunkOpenAtPlantDeg: n('trunkOpenAtPlantDeg'), pelvisOpenAtPlantDeg: n('pelvisOpenAtPlantDeg'), trunkHalfPct: T.trunkHalfPct == null ? null : n('trunkHalfPct'), trunkHalfFrame: null, trunkConf: null, conf: null },
-    block: { pelvisDecelPct: n('pelvisDecelPct'), kneeAtPlantDeg: n('kneeAtPlantDeg'), kneeAtReleaseDeg: n('kneeAtReleaseDeg'), kneeExtensionDeg: n('kneeExtensionDeg'), kneeCollapseDeg: n('kneeCollapseDeg'), conf: null },
+    block: { pelvisDecelPct: n('pelvisDecelPct'), kneeAtPlantDeg: n('kneeAtPlantDeg'), kneeAtReleaseDeg: n('kneeAtReleaseDeg'), kneeExtensionDeg: n('kneeExtensionDeg'), kneeCollapseDeg: n('kneeCollapseDeg'), conf: null, keyConf: null },
     /* 리포트 지표(드롭 · 몸통 기울기 · 팔)는 정답지에 아직 없다 — element_score.py 가 따로 잰다 */
     drop: null,
     trunkTilt: { forwardDeg: NaN, lateralDeg: NaN, conf: null },

@@ -497,6 +497,16 @@ export async function listLabSamples(viewer: LabViewer, sport: LabSport = 'pitch
 export async function loadLatestReport(
   userId: string
 ): Promise<{ reportId: string; finishedAt: string | null; summary: ReportSummary } | null> {
+  const found = (await pitchLabJobs(userId)).flatMap(({ reportId, job }) => {
+    const summary = jobReportSummary(job);
+    return summary ? [{ reportId, finishedAt: job.finishedAt ?? job.requestedAt, summary }] : [];
+  });
+  found.sort((a, b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''));
+  return found[0] ?? null;
+}
+
+/** 한 사람의 투구 분석 작업 기록(마커 실험 영상 빼고) — 샘플마다 job.json · meta.json 두 작은 파일만 */
+async function pitchLabJobs(userId: string) {
   const { data: dirs, error } = await videoBucket().list(`${userId}/${labDir('pitch')}`, { limit: 200 });
   if (error) throw new Error(error.message);
   const ids = (dirs ?? []).filter((d) => d.id == null).map((d) => d.name);
@@ -507,20 +517,30 @@ export async function loadLatestReport(
         getJson(`${folder(userId, id)}/meta.json`),
       ]);
       const job = readPitch3dV2Job(jobRaw);
-      const summary = jobReportSummary(job);
-      if (!job || !summary) return null;
+      if (!job) return null;
       let marker = false;
       try {
         marker = metaRaw != null && readLabMeta(metaRaw, '').kind === 'marker';
       } catch {
         /* 정보가 깨졌으면 투구로 */
       }
-      return marker ? null : { reportId: id, finishedAt: job.finishedAt ?? job.requestedAt, summary };
+      return marker ? null : { reportId: id, job };
     })
   );
-  const found = rows.filter((r): r is NonNullable<typeof r> => r != null);
-  found.sort((a, b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''));
-  return found[0] ?? null;
+  return rows.filter((r): r is NonNullable<typeof r> => r != null);
+}
+
+/** 이 리포트 바로 앞에 분석을 마친 내 리포트(분석 요청 시각 차례) — 없으면 null. 직전 리포트와 견주기(lib/pitch-lab-compare.ts)가 쓴다 */
+export async function previousLabReport(userId: string, reportId: string): Promise<{ reportId: string; requestedAt: string } | null> {
+  const done = (await pitchLabJobs(userId)).filter(
+    ({ job }) => job.status === 'done' && job.shownJobId != null && job.jobId === job.shownJobId
+  );
+  const at = done.find((r) => r.reportId === reportId)?.job.requestedAt;
+  if (!at) return null;
+  const before = done
+    .filter((r) => r.reportId !== reportId && r.job.requestedAt < at)
+    .sort((a, b) => b.job.requestedAt.localeCompare(a.job.requestedAt));
+  return before[0] ? { reportId: before[0].reportId, requestedAt: before[0].job.requestedAt } : null;
 }
 
 /**
