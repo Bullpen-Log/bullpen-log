@@ -20,7 +20,7 @@ import type { AppLabDetail } from '@/app/actions/pitch-lab';
 import { CONSENT_TEXT } from '@/lib/pitch-3d/v2/lab-summary';
 import { followTick } from '@/lib/pitch-3d/v2/video-sync';
 import { Lab3D, type Lab3DHandle, type LabTransport } from '~/lab/lab-3d';
-import { FlowCard, ReportHero, RxCard, STAGE_BG } from '~/lab/report';
+import { CompareCard, FlowCard, ReportHero, RxCard, STAGE_BG } from '~/lab/report';
 import { rpc, RpcError } from '~/lib/rpc';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
@@ -274,7 +274,8 @@ export default function LabScreen() {
                   }}
                 />
               )}
-              {report && r && <RxCard c={c} report={report} reportId={data.id} mine={r.mine} focus={r.focus} />}
+              {report && r && <RxCard c={c} report={report} mine={r.mine} focus={r.focus} />}
+              {report && r?.previous ? <CompareCard c={c} prev={r.previous} /> : null}
               {r && <Details c={c} r={r} active={active} request={request} onJump={jump} />}
             </>
           }

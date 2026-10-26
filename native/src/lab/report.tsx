@@ -16,6 +16,7 @@ import {
   type ReportItem,
   type ReportStatus,
 } from '@/lib/pitch-3d/v2/report';
+import { compareDeltaText, compareRangeText, prevDateText, PREV_CONFIRM, type PreviousComparison } from '@/lib/pitch-3d/v2/compare-view';
 import { TYPE, type Palette } from '~/lib/ui';
 import { type Href, router } from 'expo-router';
 import { leaveTo } from '~/shell/web-nav';
@@ -213,7 +214,7 @@ function RxBlock({ c, rx }: { c: Palette; rx: ElementRx }) {
       <View style={s.row}>
         <Text style={[TYPE.card, { color: c.ink }]}>{rx.element}</Text>
         <View style={[s.pill, improve ? { backgroundColor: c.warnBg } : { borderWidth: 1, borderColor: c.warn }]}>
-          <Text style={[TYPE.sub, { color: c.warn }]}>{improve ? '집중 · 2칸' : '보조 · 1칸'}</Text>
+          <Text style={[TYPE.sub, { color: c.warn }]}>{improve ? '고칠 점' : '경계'}</Text>
         </View>
       </View>
       <View style={[s.cue, { borderLeftColor: improve ? c.warn : c.lineStrong }]}>
@@ -248,9 +249,8 @@ function RxBlock({ c, rx }: { c: Palette; rx: ElementRx }) {
   );
 }
 
-/** 처방 카드 단추가 갈 곳(앱) — 무엇을 할지는 lib/pitch-3d/v2/report.ts rxAction(웹과 같은 판단). 메카닉은 앱 화면(training-mechanics) */
-function goRx(kind: ReturnType<typeof rxAction>['kind'], reportId: string, elementKey: string) {
-  if (kind === 'start') return router.push(`/training-mechanics?focus=${reportId}` as Href);
+/** 개선 드릴 카드 단추가 갈 곳(앱) — 무엇을 할지는 lib/pitch-3d/v2/report.ts rxAction(웹과 같은 판단). 메카닉은 앱 화면(training-mechanics) */
+function goRx(kind: ReturnType<typeof rxAction>['kind'], elementKey: string) {
   if (kind === 'progress') return router.push('/training-mechanics' as Href);
   if (kind === 'retake') return router.push('/lab/new' as Href);
   leaveTo(`/training?view=mechanics&tab=elements&el=${elementKey}`);
@@ -259,38 +259,27 @@ function goRx(kind: ReturnType<typeof rxAction>['kind'], reportId: string, eleme
 export function RxCard({
   c,
   report,
-  reportId,
   mine,
   focus,
 }: {
   c: Palette;
   report: PitchReport;
-  reportId: string;
   mine: boolean;
   focus: FocusProgress;
 }) {
   if (report.criteria !== REPORT_CRITERIA || report.rx.length === 0)
     return (
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 8 }]}>
-        <Text style={[TYPE.card, { color: c.ink }]}>자동 처방 안내</Text>
+        <Text style={[TYPE.card, { color: c.ink }]}>개선 드릴</Text>
         <Text style={[TYPE.body, { color: c.muted }]}>{prescriptionMessage(report)}</Text>
       </View>
     );
   const main = report.rx[0];
   const cta = rxAction(mine, focus);
-  const weeks = main.weeks.map((w, i) => [`${i + 1}단계`, w.stage]);
   return (
     <View style={{ gap: 8 }}>
-      <Text style={[TYPE.sub, s.secLabel, { color: c.muted }]}>처방 · 기초 → 연결 → 통합</Text>
+      <Text style={[TYPE.sub, s.secLabel, { color: c.muted }]}>개선 드릴 · 쉬운 것부터</Text>
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 18 }]}>
-        <View style={{ flexDirection: 'row', gap: 6 }}>
-          {weeks.map(([wk, st], i) => (
-            <View key={wk} style={[s.week, { backgroundColor: i === 0 ? c.sky : c.page }]}>
-              <Text style={[TYPE.sub, { color: i === 0 ? 'rgba(255,255,255,0.8)' : c.muted, fontSize: 12 }]}>{wk}</Text>
-              <Text style={[TYPE.sub, { color: i === 0 ? '#fff' : c.ink, fontWeight: '600' }]}>{st}</Text>
-            </View>
-          ))}
-        </View>
         {report.rx.map((rx) => (
           <RxBlock key={rx.element} c={c} rx={rx} />
         ))}
@@ -299,15 +288,67 @@ export function RxCard({
           <Pressable
             onPress={() => {
               void Haptics.selectionAsync();
-              goRx(cta.kind, reportId, main.key);
+              goRx(cta.kind, main.key);
             }}
             accessibilityRole="button"
             style={({ pressed }) => [s.cta, { backgroundColor: c.action, opacity: pressed ? 0.85 : 1 }]}
           >
             <Text style={s.ctaText}>{cta.label}</Text>
           </Pressable>
-          <Text style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>{cta.note}</Text>
+          {cta.note ? <Text style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>{cta.note}</Text> : null}
         </View>
+      </View>
+    </View>
+  );
+}
+
+/* ───────────────────────────── 지난번 리포트와 견주기 ───────────────────────────── */
+
+/** 바로 앞 내 리포트와 숫자 견주기 — 촬영 조건이 같다고 확인해야 펴진다(웹 CompareCard 와 같은 글) */
+export function CompareCard({ c, prev }: { c: Palette; prev: PreviousComparison }) {
+  const [same, setSame] = useState(false);
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={[TYPE.sub, s.secLabel, { color: c.muted }]}>지난번 리포트와 견주기 · {prevDateText(prev.requestedAt)}</Text>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 12 }]}>
+        {!prev.compared ? (
+          <Text style={[TYPE.body, { color: c.muted }]}>{prev.reason ?? '양쪽에서 견줄 수 있는 지표가 없어요.'}</Text>
+        ) : !same ? (
+          <>
+            <Text style={[TYPE.body, { color: c.ink }]}>숫자는 촬영 조건이 같을 때만 견줄 수 있어요.</Text>
+            <Pressable
+              onPress={() => {
+                void Haptics.selectionAsync();
+                setSame(true);
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [s.cta, { backgroundColor: c.page, opacity: pressed ? 0.7 : 1, paddingHorizontal: 16 }]}
+            >
+              <Text style={[TYPE.body, { color: c.ink, fontWeight: '600', textAlign: 'center' }]}>{PREV_CONFIRM}</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            {prev.rows.map((r) => (
+              <View key={r.key} style={[s.row, { alignItems: 'flex-start', paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[TYPE.body, { color: c.ink }]}>{r.element}</Text>
+                  <Text style={[TYPE.sub, { color: c.muted }]}>{r.label}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                  <Text style={[TYPE.body, { color: c.ink, fontVariant: ['tabular-nums'] }]}>
+                    {compareRangeText(r.element, r.unit, r.before, r.after)}
+                  </Text>
+                  <Text style={[TYPE.sub, { color: c.muted, fontVariant: ['tabular-nums'] }]}>{compareDeltaText(r.unit, r.delta)}</Text>
+                </View>
+              </View>
+            ))}
+            <Text style={[TYPE.sub, { color: c.muted }]}>{prev.note}</Text>
+          </>
+        )}
+        <Pressable onPress={() => router.push(`/lab/${prev.reportId}` as Href)} accessibilityRole="link" hitSlop={8}>
+          <Text style={[TYPE.sub, { color: c.sky, fontWeight: '600' }]}>지난번 리포트 보기 ›</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -337,7 +378,6 @@ const s = StyleSheet.create({
   drill: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
   thumb: { width: 44, height: 44, borderRadius: 10 },
   target: { flexDirection: 'row', alignItems: 'baseline', gap: 8, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },
-  week: { flex: 1, borderRadius: 12, paddingVertical: 8, alignItems: 'center' },
   cta: { minHeight: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
   ctaText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });

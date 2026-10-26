@@ -96,6 +96,8 @@ export type MechChecks = {
     /** 착지 뒤 더 굽어 들어간 만큼(°) — 주저앉음 */
     kneeCollapseDeg: number;
     conf: number | null;
+    /** 값을 정하는 두 장면(착지 · 가장 굽은 장면)의 앞다리 확신 중 낮은 쪽 — 그 장면이 안 보였으면 값을 믿지 않는다 */
+    keyConf: number | null;
   };
 };
 
@@ -237,7 +239,15 @@ export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechCh
   let pk = -Infinity;
   for (let k = ku ?? 0; k <= fp; k++) pk = Math.max(pk, vFwd(k));
   let worst = knee(fp);
-  for (let k = fp; k <= rl; k++) worst = Math.max(worst, knee(k));
+  let worstK = fp;
+  for (let k = fp; k <= rl; k++)
+    if (knee(k) > worst) {
+      worst = knee(k);
+      worstK = k;
+    }
+  const leadLeg = [J(lead, 'Hip'), J(lead, 'Kn'), J(lead, 'An')];
+  const plantConf = confOf(leadLeg, [fp]);
+  const worstConf = confOf(leadLeg, [worstK]);
   const kneeAtPlantDeg = knee(fp);
   const kneeAtReleaseDeg = knee(rl);
   const plantToRelease = Array.from({ length: rl - fp + 1 }, (_, i) => fp + i);
@@ -247,7 +257,8 @@ export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechCh
     kneeAtReleaseDeg,
     kneeExtensionDeg: kneeAtPlantDeg - kneeAtReleaseDeg,
     kneeCollapseDeg: worst - kneeAtPlantDeg,
-    conf: confOf([J(lead, 'Hip'), J(lead, 'Kn'), J(lead, 'An')], plantToRelease),
+    conf: confOf(leadLeg, plantToRelease),
+    keyConf: plantConf == null || worstConf == null ? null : Math.min(plantConf, worstConf),
   };
 
   /* 5 드롭 · 6 몸통 기울기 · 7 팔 — 기준 축은 디딤 방향(니업 때 축발 발목 → 착지 때 앞발 발목, 수평) */
