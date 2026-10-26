@@ -1,0 +1,96 @@
+export const BASE_JOB = '2b0c7c1e-8f7a-4d1e-9a51-0c9d2f3e4a5b';
+export const AFTER_JOB = '3c1d8d2f-9a8b-4e2f-8b62-1dae3a4f5b6c';
+export const BASE_REPORT = '11111111-1111-4111-8111-111111111111';
+export const AFTER_REPORT = '22222222-2222-4222-8222-222222222222';
+export const snapshot = (after = false) => ({
+  v: 1,
+  source: 'verified',
+  reportId: after ? AFTER_REPORT : BASE_REPORT,
+  jobId: after ? AFTER_JOB : BASE_JOB,
+  savedAt: after ? '2026-10-26T05:00:00Z' : '2026-10-24T02:00:00Z',
+  resultDigest: (after ? 'e' : 'f').repeat(64),
+  engine: 'engine-1',
+  criteria: '2026-10-26-confidence',
+  metricsVersion: '2026-10-26-metrics',
+  youth: false,
+  hasRx: true,
+  context: {
+    v: 1,
+    jobId: after ? AFTER_JOB : BASE_JOB,
+    requestedAt: after ? '2026-10-26T04:00:00Z' : '2026-10-24T01:00:00Z',
+    engine: 'v2:build',
+    hand: 'R',
+    ground: 'mound',
+    heightCm: 180,
+    synced: true,
+    screenRecorded: false,
+    slowmoFps: 120,
+    files: ['side', 'back'].map((view, i) => ({
+      view,
+      fp: (after ? ['c', 'd'] : ['a', 'b'])[i].repeat(64),
+      at: after ? '2026-10-26T03:00:00Z' : '2026-10-24T00:00:00Z',
+      timeSource: 'apple',
+    })),
+  },
+  rows: [
+    {
+      key: 'drift',
+      element: '드리프트',
+      label: '니업 때 앞 이동',
+      value: after ? 12 : 4,
+      unit: '% 키',
+      quality: 'sufficient',
+      validation: 'supported',
+      applicability: 'supported',
+      confidence: 50,
+    },
+    {
+      key: 'trunk',
+      element: '몸통 회전',
+      label: '몸통 앞 기울기',
+      value: after ? 30 : 20,
+      unit: '°',
+      quality: 'sufficient',
+      validation: 'provisional',
+      applicability: 'supported',
+      confidence: 50,
+    },
+  ],
+});
+export function rawResult(version, jobId = BASE_JOB) {
+  const n = 40;
+  return {
+    ok: true,
+    version,
+    jobId,
+    hand: 'R',
+    engine: { v1: '0.1.0', pose: 'rtmw-l', build: 'build-1' },
+    t: Array.from({ length: n }, (_, i) => i / 120),
+    tBack: Array.from({ length: n }, (_, i) => 0.3 + i / 120),
+    joints: Array.from({ length: n }, () => Array.from({ length: 25 }, (_, j) => [j * 10, 1000 - j * 30, j % 2 ? 100 : -100])),
+    conf: Array.from({ length: n }, () => Array.from({ length: 25 }, () => 90)),
+    lowConf: [[30, 33]],
+    events: { kneeUp: 2, footPlant: 20, release: 30, contactBy: 'heel' },
+    metrics: [{ key: 'trunkForwardTilt', value: 30.1, unit: 'deg', pm: 3, trust: 'high' }],
+    quality: {
+      reprojPct: 1.1,
+      boneCv: { trunk: 2, legs: 2, upperArm: 3, forearm: 4 },
+      axisAngleDeg: 88,
+      focal: { side: 1.1, back: 1, spread: 0.1 },
+      density: { side: 120, back: 120 },
+      coverage: 1,
+      syncCost: 0.004,
+      calibration: 'high',
+      flips: { side: 0, back: 0, repaired: 0, handSwapped: false, backMirrored: false },
+      travelVsBackDeg: 3,
+      offsetFrames: 0.2,
+    },
+    fit: { boneCvPct: 0.3, reprojPct: 1.4, filled: 12, accelP95: 0.02, boneLen: { 3: 0.186 } },
+    warnings: ['narrow'],
+    cameras: {
+      side: { f: 1200, cx: 540, cy: 960, R: [1, 0, 0, 0, 1, 0, 0, 0, 1], t: [0, 0, 3], W: 1080, H: 1920 },
+      back: { f: 1200, cx: 540, cy: 960, R: [0, 0, 1, 0, 1, 0, -1, 0, 0], t: [0, 0, 3], W: 1080, H: 1920 },
+    },
+    segment: { fromSec: 0, toSec: n / 120 },
+  };
+}

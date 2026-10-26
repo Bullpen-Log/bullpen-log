@@ -53,6 +53,7 @@ test.prisma = {
   mechanicsProgram: {
     findUnique: async () => structuredClone(test.row),
     update: async (args) => apply(operation('program', args)),
+    upsert: async (args) => apply(operation('program', { data: args.update })),
   },
   pitchLog: {
     aggregate: async () => ({ _sum: { pitchCount: 80 } }),
@@ -88,6 +89,14 @@ test.prisma = {
   },
 };
 const mocks = new Map([
+  [
+    '/lib/mechanics/analysis-load.ts',
+    `export async function loadAnalysisSnapshot(user,id,job) {const t=globalThis.__mechanicsRecordTest;return t.analysisError?{error:t.analysisError}:{snapshot:t.snapshot,report:{rx:[]}};}`,
+  ],
+  [
+    '/lib/pitch-lab.ts',
+    `export const listOwnLabAnalyses=async()=>[{reportId:'r',jobId:'j',requestedAt:'2026-10-26T00:00:00Z'}];export const loadLabJob=async(user,id)=>{const t=globalThis.__mechanicsRecordTest;return id==='new-report'&&t.offer?{status:'done',jobId:t.offer.jobId,shownJobId:t.offer.jobId}:t.changedJob?{status:'running'}:{status:'done',jobId:t.snapshot?.jobId,shownJobId:t.snapshot?.jobId};};`,
+  ],
   ['/lib/prisma.ts', 'export const prisma = globalThis.__mechanicsRecordTest.prisma;'],
   ['/lib/dal.ts', "export async function requireUser() { return { id: 'test-user' }; }"],
   ['/lib/clock.ts', "export const appNow = () => new Date(globalThis.__mechanicsRecordTest.today+'T03:00:00Z');"],
@@ -95,7 +104,10 @@ const mocks = new Map([
     '/lib/library-cache.ts',
     'export async function visibleGuides() { return globalThis.__mechanicsRecordTest.guides ?? [globalThis.__mechanicsRecordTest.guide]; } export const trainingGuides=visibleGuides;',
   ],
-  ['/lib/mechanics/focus-load.ts', "export async function loadFocusOffer() { return { error: 'test' }; }"],
+  [
+    '/lib/mechanics/focus-load.ts',
+    "export async function loadFocusOffer() { return globalThis.__mechanicsRecordTest.offer ?? { error: 'test' }; }",
+  ],
   [
     '/lib/mechanics/load.ts',
     `
@@ -403,7 +415,7 @@ assert.equal(play.startAt, 0);
 assert.deepEqual(play.doneGuideIds, [], '새 플레이어에 날짜별 옛 체크를 넘기지 않는다');
 
 const { APP_API_LEVEL, MIN_APP_API, minAppApiForAction } = await import('../lib/app-api.ts');
-assert.equal(APP_API_LEVEL, 5);
+assert.ok(APP_API_LEVEL >= 5);
 for (const action of [
   'app-training-parts.loadAppMechanics',
   'mechanics.saveMechanicsEquipment',
@@ -411,7 +423,7 @@ for (const action of [
   'mechanics.recordMechanicsNextDay',
   'mechanics.advanceMechanicsStage',
 ])
-  assert.equal(minAppApiForAction(action), 5);
+  assert.ok(minAppApiForAction(action) >= 5);
 for (const action of ['app-mechanics.loadAppMechanicsPlay', 'mechanics.recordMechanicsDrill', 'mechanics.finishMechanicsSession'])
   assert.ok(minAppApiForAction(action) >= 3);
 assert.equal(minAppApiForAction('app-training-parts.loadAppArmcare'), MIN_APP_API, '다른 기능에는 업데이트를 강제하지 않는다');
@@ -612,5 +624,98 @@ assert.ok((await recordMechanicsDrill({ ...painful, requestId: 'edit-clear', pra
 await recordMechanicsDrill(skillInput(skillGuides[1]));
 assert.equal((await finish()).status, 'completed');
 assert.equal(readProgramState(test.row.progress).focus.progression.evidence[0].during, 'pain');
+// Actual review actions share the same program transaction and keep historical evidence.
+const { snapshot } = await import('./mechanics-comparison-fixture.mjs');
+const { loadMechanicsReviewOptions, linkMechanicsAnalysis, recordMechanicsReviewDecision } =
+  await import('../app/actions/mechanics-review.ts');
+const { focusRunId } = await import('../lib/mechanics/program.ts');
+const { endMechanicsFocus, resetMechanicsProgram, startMechanicsFocus } = await import('../app/actions/mechanics.ts');
+assert.equal(minAppApiForAction('mechanics-review.linkMechanicsAnalysis'), 6);
+st = readProgramState(test.row.progress);
+st.attempt = null;
+st.focus.review = { v: 1, id: 'review', baseline: snapshot(), origin: 'start', baselinePractice: 0, followups: [], decisions: [] };
+test.row.progress = programStateJson(st);
+test.snapshot = snapshot(true);
+const link = {
+  runId: focusRunId(st.focus),
+  reviewId: 'review',
+  reportId: test.snapshot.reportId,
+  jobId: test.snapshot.jobId,
+  mode: 'followup',
+  conditions: 'same',
+};
+assert.ok('error' in (await loadMechanicsReviewOptions({ runId: 'stale' })));
+assert.ok((await loadMechanicsReviewOptions({ runId: link.runId })).options.length);
+test.analysisError = 'not owner';
+assert.ok('error' in (await linkMechanicsAnalysis(link)));
+test.analysisError = null;
+test.changedJob = true;
+assert.ok('error' in (await linkMechanicsAnalysis(link)));
+test.changedJob = false;
+assert.deepEqual(await linkMechanicsAnalysis({ ...link, runId: 'old-run' }), {
+  error: '처방이나 비교 기준이 바뀌었어요. 다시 불러와 주세요.',
+});
+await Promise.all([linkMechanicsAnalysis(link), linkMechanicsAnalysis(link)]);
+st = readProgramState(test.row.progress);
+assert.equal(st.focus.review.followups.length, 1);
+assert.equal(st.focus.done, 1);
+assert.ok('error' in (await linkMechanicsAnalysis({ ...link, conditions: 'different' })));
+const decision = { runId: link.runId, reviewId: 'review', reportId: link.reportId, jobId: link.jobId, choice: 'maintain' };
+await recordMechanicsReviewDecision(decision);
+assert.equal(readProgramState(test.row.progress).focus.done, 1);
+test.blocked = { reason: 'pain today' };
+assert.ok('error' in (await recordMechanicsReviewDecision({ ...decision, choice: 'practice' })));
+test.blocked = null;
+test.today = '2026-10-29';
+assert.deepEqual(await recordMechanicsReviewDecision({ ...decision, choice: 'practice' }), { ok: true });
+st = readProgramState(test.row.progress);
+const count = st.focus.progression.evidence.length;
+assert.equal(st.focus.progression.elements[0].reviewFrom, count);
+assert.equal(readiness(st.focus.progression, skillRx.fault).ready, false);
+await recordMechanicsReviewDecision({ ...decision, choice: 'practice' });
+assert.equal(readProgramState(test.row.progress).focus.review.decisions.length, 2);
+// A deliberately registered later baseline keeps the entire former comparison round.
+const beforeRebase = readProgramState(test.row.progress).focus;
+assert.ok('error' in (await linkMechanicsAnalysis({ ...link, reviewId: 'stale', mode: 'baseline' })));
+assert.deepEqual(await linkMechanicsAnalysis({ ...link, mode: 'baseline' }), { ok: true });
+const rebased = readProgramState(test.row.progress).focus;
+assert.equal(rebased.review.origin, 'later');
+assert.equal(rebased.review.baselinePractice, beforeRebase.done);
+assert.deepEqual(rebased.reviewHistory[0], beforeRebase.review);
+assert.deepEqual(rebased.progression, beforeRebase.progression);
+assert.ok('error' in (await recordMechanicsReviewDecision(decision)));
+const preserved = readProgramState(test.row.progress).focus.review;
+await endMechanicsFocus({ runId: focusRunId(readProgramState(test.row.progress).focus) });
+st = readProgramState(test.row.progress);
+assert.equal(st.focus, null);
+assert.deepEqual(st.focusHistory.at(-1).focus.review, preserved);
+// Starting a new prescription freezes the server offer and keeps all previous runs.
+test.offer = { reportId: 'new-report', jobId: 'new-job', criteria: REPORT_CRITERIA, rx: [skillRx], snapshot: snapshot() };
+await startMechanicsFocus({
+  reportId: 'new-report',
+  expectedJobId: 'new-job',
+  expectedRunId: readProgramState(test.row.progress).focus ? focusRunId(readProgramState(test.row.progress).focus) : null,
+});
+st = readProgramState(test.row.progress);
+assert.deepEqual(st.focus.review.baseline, snapshot());
+assert.equal(st.focusHistory.length, 1);
+assert.ok(
+  'error' in (await startMechanicsFocus({ reportId: 'new-report', expectedJobId: 'wrong-job', expectedRunId: focusRunId(st.focus) }))
+);
+assert.ok('error' in (await startMechanicsFocus({ reportId: 'new-report', expectedJobId: 'new-job', expectedRunId: 'old-run' })));
+assert.ok('error' in (await endMechanicsFocus({ runId: 'old-run' })));
+await startMechanicsFocus({
+  reportId: 'new-report',
+  expectedJobId: 'new-job',
+  expectedRunId: readProgramState(test.row.progress).focus ? focusRunId(readProgramState(test.row.progress).focus) : null,
+});
+st = readProgramState(test.row.progress);
+assert.equal(st.focusHistory.length, 2);
+const sessions = test.row.sessionsDone;
+await resetMechanicsProgram();
+st = readProgramState(test.row.progress);
+assert.equal(st.level, null);
+assert.equal(st.focusHistory.length, 3);
+assert.equal(test.row.sessionsDone, sessions);
 console.log('메커니즘 기록 회귀 검사 통과: 운동 단위·통증 제한·완료·동시 저장·재전송·롤백·세션 구분 (운영 DB 접근 없음)');
 process.exit(0);

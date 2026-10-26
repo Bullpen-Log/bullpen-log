@@ -19,6 +19,7 @@ import {
 } from '@/lib/pitch-3d/v2/contract';
 import { jobReportSummary, type ReportSummary } from '@/lib/pitch-3d/v2/report';
 import { FOCUS_SESSIONS, focusView, readProgramState } from '@/lib/mechanics/program';
+import { readAnalysisContext, type AnalysisContext } from '@/lib/mechanics/comparison';
 
 /**
  * 투구 분석 실험실(베타)의 샘플 저장 — 비공개 영상 버킷의 `{userId}/pitch-lab/{샘플 번호}/` 에 둔다.
@@ -43,6 +44,16 @@ const V2_PREFIX = 'analysis-v2-';
 const v2File = (jobId: string) => `${V2_PREFIX}${jobId}.json`;
 /** 폴더 안 파일 수 상한 — 영상 2 · 정보 · v1 결과 · job + v2 결과(작업마다 하나) */
 const FOLDER_LIMIT = 100;
+/** 작업별 조건 파일이 늘어나도 영상·이전 결과를 목록 한 장 밖이라는 이유로 놓치지 않는다. */
+async function labFolderFiles(dir: string) {
+  const files = [];
+  for (let offset = 0; ; offset += FOLDER_LIMIT) {
+    const { data, error } = await videoBucket().list(dir, { limit: FOLDER_LIMIT, offset });
+    if (error) throw new Error(error.message);
+    files.push(...(data ?? []));
+    if (!data || data.length < FOLDER_LIMIT) return files;
+  }
+}
 
 /**
  * 종목별 폴더 — 투구 `pitch-lab`, 타자 3D 스윙 분석 `swing-lab`(2026-10-21). 아래 함수들의 끝 인자 sport 가 정하고, 안 주면 투구라 예전 그대로다.
@@ -77,13 +88,7 @@ export type LabSample = {
 };
 
 /** 브라우저가 영상 하나를 직접 올릴 임시 주소 — 같은 자리에 다시 올리면 덮어쓴다 */
-export async function createLabUploadTarget(
-  userId: string,
-  id: string,
-  view: LabUploadView,
-  fileName: string,
-  sport: LabSport = 'pitch'
-) {
+export async function createLabUploadTarget(userId: string, id: string, view: LabUploadView, fileName: string, sport: LabSport = 'pitch') {
   const ext =
     fileName
       .split('.')
@@ -95,10 +100,11 @@ export async function createLabUploadTarget(
   const { data, error } = await videoBucket().createSignedUploadUrl(path, {
     upsert: true,
   });
-  if (error || !data)
-    throw new Error(error?.message ?? '업로드 주소를 만들지 못했어요.');
+  if (error || !data) throw new Error(error?.message ?? '업로드 주소를 만들지 못했어요.');
   /* 영상을 바꾸면 그 칸의 가벼운 영상은 옛 것이라 지운다(다시 분석하면 새로 굽는다) — 못 지워도 올리기는 그대로 */
-  await videoBucket().remove([`${folder(userId, id, sport)}/${PREVIEW_PREFIX}${view}.mp4`]).catch(() => undefined);
+  await videoBucket()
+    .remove([`${folder(userId, id, sport)}/${PREVIEW_PREFIX}${view}.mp4`])
+    .catch(() => undefined);
   return { path: data.path, signedUrl: data.signedUrl, token: data.token };
 }
 
@@ -153,6 +159,40 @@ export async function saveLabJob(userId: string, id: string, job: Pitch3dV2Job) 
   await putJson(`${folder(userId, id)}/${JOB_FILE}`, job);
 }
 
+/** 분석 요청 당시 조건. 같은 작업 번호는 덮어쓰지 않는다. 원본의 클라이언트 입력 지문은 쓰지 않는다. */
+export async function saveLabAnalysisContext(userId: string, id: string, context: AnalysisContext) {
+  const { error } = await videoBucket().upload(
+    `${folder(userId, id)}/context-${context.jobId}.json`,
+    new Blob([JSON.stringify(context)], { type: 'application/json' }),
+    {
+      contentType: 'application/json',
+      upsert: false,
+    }
+  );
+  if (error) throw new Error(error.message);
+}
+export async function loadLabAnalysisContext(userId: string, id: string, jobId: string) {
+  if (!isV2JobId(jobId)) return null;
+  return readAnalysisContext(await getJson(`${folder(userId, id)}/context-${jobId}.json`));
+}
+
+/** 내 결과만 고른다. 관리자 공유 샘플·서명 영상 주소는 비교 선택 목록에 섞지 않는다. */
+export async function listOwnLabAnalyses(userId: string) {
+  const { data, error } = await videoBucket().list(`${userId}/${LAB_DIR}`, { limit: 200 });
+  if (error) throw new Error(error.message);
+  const rows = await Promise.all(
+    (data ?? [])
+      .filter((d) => d.id == null && /^\w[\w-]*$/.test(d.name))
+      .map(async (d) => {
+        const [job, meta] = await Promise.all([loadLabJob(userId, d.name), loadLabMetaRaw(userId, d.name)]);
+        if (!job || job.status !== 'done' || job.shownJobId !== job.jobId || (meta as { kind?: unknown } | null)?.kind === 'marker')
+          return [];
+        return [{ reportId: d.name, jobId: job.jobId, requestedAt: job.requestedAt }];
+      })
+  );
+  return rows.flat().sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
+}
+
 /** v2 결과 읽기 — 없으면 null(모양 검사 readPitch3dV2Result 는 부르는 쪽이) */
 export async function loadV2Result(
   userId: string,
@@ -164,17 +204,9 @@ export async function loadV2Result(
 }
 
 /** GPU 함수가 결과를 PUT 할 서명 주소(토큰 포함, 1회용 · 같은 자리면 덮어씀) */
-export async function createV2ResultUploadUrl(
-  userId: string,
-  id: string,
-  jobId: string
-): Promise<string> {
-  const { data, error } = await videoBucket().createSignedUploadUrl(
-    `${folder(userId, id)}/${v2File(jobId)}`,
-    { upsert: true }
-  );
-  if (error || !data)
-    throw new Error(error?.message ?? '결과 올리기 주소를 만들지 못했어요.');
+export async function createV2ResultUploadUrl(userId: string, id: string, jobId: string): Promise<string> {
+  const { data, error } = await videoBucket().createSignedUploadUrl(`${folder(userId, id)}/${v2File(jobId)}`, { upsert: true });
+  if (error || !data) throw new Error(error?.message ?? '결과 올리기 주소를 만들지 못했어요.');
   return data.signedUrl;
 }
 
@@ -188,7 +220,9 @@ export async function createLabPreviewUploadUrls(
   extras: readonly ('cam3' | 'cam4')[] = []
 ): Promise<({ side: string; back: string } & Partial<Record<'cam3' | 'cam4', string>>) | null> {
   const one = async (view: LabUploadView) => {
-    const { data, error } = await videoBucket().createSignedUploadUrl(`${folder(userId, id)}/${PREVIEW_PREFIX}${view}.mp4`, { upsert: true });
+    const { data, error } = await videoBucket().createSignedUploadUrl(`${folder(userId, id)}/${PREVIEW_PREFIX}${view}.mp4`, {
+      upsert: true,
+    });
     return error || !data ? null : data.signedUrl;
   };
   const [side, back, ...rest] = await Promise.all([one('side'), one('back'), ...extras.map(one)]);
@@ -200,10 +234,7 @@ export async function createLabPreviewUploadUrls(
 /** 폴더 파일 목록 → 영상 경로 · v1 결과 · v2 작업 번호들 */
 async function scanFolder(userId: string, id: string, sport: LabSport = 'pitch') {
   const dir = folder(userId, id, sport);
-  const { data: files, error } = await videoBucket().list(dir, {
-    limit: FOLDER_LIMIT,
-  });
-  if (error) throw new Error(error.message);
+  const files = await labFolderFiles(dir);
   const names = (files ?? []).map((f) => f.name);
   const videos: LabSample['videos'] = {};
   const preview = (key: string) => (names.includes(`${PREVIEW_PREFIX}${key}.mp4`) ? `${dir}/${PREVIEW_PREFIX}${key}.mp4` : undefined);
@@ -277,8 +308,7 @@ export type LabServerFacts = Partial<Record<(typeof LAB_VIEWS)[number], { fp: st
  */
 export async function labServerFacts(userId: string, id: string): Promise<LabServerFacts> {
   const dir = folder(userId, id);
-  const { data: files, error } = await videoBucket().list(dir, { limit: FOLDER_LIMIT });
-  if (error) throw new Error(error.message);
+  const files = await labFolderFiles(dir);
   const picked = LAB_VIEWS.flatMap((view) => {
     const f = (files ?? []).find((x) => x.name.startsWith(`${view}.`));
     const size = Number((f?.metadata as { size?: unknown } | null)?.size);
@@ -399,8 +429,7 @@ async function ownerIds(viewer: LabViewer): Promise<string[]> {
 const MARKER_VIEWER_ID = 'e0418384-8334-4c4b-85e3-b042cad362c5';
 export const seesMarkerSamples = (viewer: LabViewer) => viewer.id === MARKER_VIEWER_ID;
 /** 그 종목의 마커 샘플을 보는가 — 타자 마커 샘플은 3D 개발 관리자(대표관리자)끼리 같이 본다 */
-const seesMarkers = (viewer: LabViewer, sport: LabSport) =>
-  sport === 'hit' ? viewer.role === 'ADMIN' : seesMarkerSamples(viewer);
+const seesMarkers = (viewer: LabViewer, sport: LabSport) => (sport === 'hit' ? viewer.role === 'ADMIN' : seesMarkerSamples(viewer));
 
 async function isMarkerFolder(uid: string, id: string, sport: LabSport = 'pitch'): Promise<boolean> {
   const raw = (await getJson(`${folder(uid, id, sport)}/meta.json`)) as { kind?: unknown } | null;
@@ -450,13 +479,9 @@ export async function listLabSamples(viewer: LabViewer, sport: LabSport = 'pitch
       return Promise.all(ids.map((id) => readSample(uid, id, sport)));
     })
   );
-  const samples = per
-    .flat()
-    .filter((s) => s.meta?.kind !== 'marker' || seesMarkers(viewer, sport));
+  const samples = per.flat().filter((s) => s.meta?.kind !== 'marker' || seesMarkers(viewer, sport));
   await attachUrls(samples);
-  return samples.sort((a, b) =>
-    (b.meta?.createdAt ?? '').localeCompare(a.meta?.createdAt ?? '')
-  );
+  return samples.sort((a, b) => (b.meta?.createdAt ?? '').localeCompare(a.meta?.createdAt ?? ''));
 }
 
 /** 샘플 하나를 폴더째 지운다 */
@@ -528,10 +553,7 @@ export async function deleteUnsavedLabSample(userId: string, id: string, sport: 
 
 export async function deleteLabSample(userId: string, id: string, sport: LabSport = 'pitch') {
   const bucket = videoBucket();
-  const { data: files, error } = await bucket.list(folder(userId, id, sport), {
-    limit: FOLDER_LIMIT,
-  });
-  if (error) throw new Error(error.message);
+  const files = await labFolderFiles(folder(userId, id, sport));
   const paths = (files ?? []).map((f) => `${folder(userId, id, sport)}/${f.name}`);
   if (paths.length === 0) return;
   const removed = await bucket.remove(paths);

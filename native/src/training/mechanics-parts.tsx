@@ -1,3 +1,4 @@
+import { FocusReview } from '~/mechanics/focus-review';
 import { FocusProgress } from '~/mechanics/focus-progress';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
@@ -343,7 +344,7 @@ function Start({ label, onPress, c }: { label: string; onPress: () => void; c: P
 
 /* ----------------------------- 3D 리포트 처방 ----------------------------- */
 
-type FocusOffer = { reportId: string; rx: { element: string; level: 'improve' | 'edge' }[] };
+type FocusOffer = { reportId: string; jobId: string; rx: { element: string; level: 'improve' | 'edge' }[] };
 
 /** 처방 칸 드릴의 '처방' 꼬리표(웹 RxTag) */
 function RxTag({ element, c }: { element: string; c: Palette }) {
@@ -376,7 +377,7 @@ export function FocusCard({ focus, reload, c }: { focus: FocusView; reload: Relo
     if (pending) return;
     setPending(true);
     setError(null);
-    const res = await act<{ ok: true }>('mechanics.endMechanicsFocus');
+    const res = await act<{ ok: true }>('mechanics.endMechanicsFocus', { runId: focus.runId });
     if ('error' in res) setError(res.error);
     else await reload();
     setPending(false);
@@ -395,6 +396,7 @@ export function FocusCard({ focus, reload, c }: { focus: FocusView; reload: Relo
       <RxChips rx={focus.rx} c={c} />
       {focus.criteriaNote ? <Text style={[s.tiny, { color: c.warn }]}>{focus.criteriaNote}</Text> : null}
       <FocusProgress focus={focus} reload={reload} c={c} />
+      <FocusReview focus={focus} reload={reload} c={c} />
       {!focus.skill &&
         (focus.finished ? (
           <>
@@ -481,7 +483,12 @@ export function FocusStartSheet({
     if (pending || !pick) return;
     setPending(true);
     setError(null);
-    const res = await act<{ ok: true }>('mechanics.startMechanicsFocus', { reportId, level: pick });
+    const res = await act<{ ok: true }>('mechanics.startMechanicsFocus', {
+      reportId,
+      level: pick,
+      expectedRunId: current?.runId ?? null,
+      expectedJobId: offer && !('error' in offer) ? offer.jobId : '',
+    });
     if ('error' in res) {
       setError(res.error);
       setPending(false);

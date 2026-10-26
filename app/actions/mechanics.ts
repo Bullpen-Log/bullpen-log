@@ -1,5 +1,6 @@
 'use server';
 
+import { archiveFocus, focusRunId } from '@/lib/mechanics/program';
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
@@ -20,6 +21,7 @@ import { groupDrills } from '@/lib/mechanics/drills';
 import { effortFields } from '@/lib/pitch-effort';
 import { withMechanicsTransaction, mechanicsPlanKey } from '@/lib/mechanics/store';
 import { requireUser } from '@/lib/dal';
+import { loadLabJob } from '@/lib/pitch-lab';
 import { visibleGuides, trainingGuides } from '@/lib/library-cache';
 import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
@@ -78,6 +80,7 @@ export async function startMechanicsProgram(level: string): Promise<Result> {
     const progress = asJson(
       programStateJson({
         ...freshState(level),
+        focusHistory: prevState?.focusHistory ?? [],
         ...(prevState?.gear ? { gear: prevState.gear } : {}),
         films: prevState?.films ?? [],
         practice: prevState?.practice ?? [],
@@ -103,31 +106,47 @@ export async function startMechanicsProgram(level: string): Promise<Result> {
  * MechanicsProgram.focus 칼럼에(DB 구조 그대로). 처방은 지금 수준 세션의 드릴 칸을 바꾸는 것이라 수준이 있어야 한다 — 아직 안 골랐으면
  * 확인 시트가 함께 고른 수준(level)으로 시작한다. 진행 중인 다른 처방은 새 처방으로 바뀐다(시트가 먼저 묻는다).
  */
-export async function startMechanicsFocus(input: { reportId: string; level?: string | null }): Promise<Result> {
+export async function startMechanicsFocus(input: {
+  reportId: string;
+  level?: string | null;
+  expectedRunId: string | null;
+  expectedJobId: string;
+}): Promise<Result> {
   const user = await requireUser();
   const offer = await loadFocusOffer(user, input?.reportId);
   if ('error' in offer) return offer;
+  if (offer.jobId !== input.expectedJobId) return { error: '선택한 분석이 바뀌었어요. 리포트를 다시 확인해 주세요.' };
   return withMechanicsTransaction(user.id, async (prisma) => {
     const prev = await prisma.mechanicsProgram.findUnique({
       where: { userId: user.id },
       select: { progress: true },
     });
     const prevState = prev ? readProgramState(prev.progress) : null;
+    if ((prevState?.focus ? focusRunId(prevState.focus) : null) !== input.expectedRunId)
+      return { error: '진행 중인 처방이 바뀌었어요. 다시 확인해 주세요.' };
+    const latest = await loadLabJob(user.id, offer.reportId);
+    if (latest?.status !== 'done' || latest.jobId !== offer.jobId || latest.shownJobId !== offer.jobId)
+      return { error: '분석 결과가 바뀌었어요. 리포트를 다시 확인해 주세요.' };
     const level = prevState?.level ?? (isLevelKey(input.level) ? input.level : null);
     if (!level) return { error: '수준을 먼저 골라 주세요.' };
     const base = prevState?.level
       ? prevState
       : {
           ...freshState(level),
+          practice: prevState?.practice ?? [],
+          ...(prevState?.gear ? { gear: prevState.gear } : {}),
           films: prevState?.films ?? [],
           throwLog: prevState?.throwLog ?? null,
         };
+    const runId = randomUUID();
     const progress = asJson(
       programStateJson({
         ...base,
+        focusHistory: prevState ? archiveFocus(prevState, 'replaced', toDateKey(appNow())) : [],
         attempt: null,
         focus: {
-          progression: newProgression(randomUUID(), offer.rx),
+          progression: newProgression(runId, offer.rx),
+          review: { v: 1, id: runId, baseline: offer.snapshot, origin: 'start', baselinePractice: 0, followups: [], decisions: [] },
           criteria: offer.criteria,
           reportId: offer.reportId,
           jobId: offer.jobId,
@@ -153,15 +172,15 @@ export async function startMechanicsFocus(input: { reportId: string; level?: str
  */
 export async function loadMechanicsFocusOffer(
   reportId: string
-): Promise<{ reportId: string; rx: { element: string; level: 'improve' | 'edge' }[] } | { error: string }> {
+): Promise<{ reportId: string; jobId: string; rx: { element: string; level: 'improve' | 'edge' }[] } | { error: string }> {
   const user = await requireUser();
   const offer = await loadFocusOffer(user, reportId);
   if ('error' in offer) return offer;
-  return { reportId: offer.reportId, rx: offer.rx.map((r) => ({ element: r.element, level: r.level })) };
+  return { reportId: offer.reportId, jobId: offer.jobId, rx: offer.rx.map((r) => ({ element: r.element, level: r.level })) };
 }
 
 /** 처방 끝내기 — 처방 카드를 걷고 지금 수준 세션으로 돌아간다(마친 처방 · 그만두기). 수준 진행은 그대로 */
-export async function endMechanicsFocus(): Promise<Result> {
+export async function endMechanicsFocus(input: { runId: string }): Promise<Result> {
   const user = await requireUser();
   return withMechanicsTransaction(user.id, async (prisma) => {
     const program = await prisma.mechanicsProgram.findUnique({
@@ -170,11 +189,15 @@ export async function endMechanicsFocus(): Promise<Result> {
     });
     if (!program) return { ok: true };
     const state = readProgramState(program.progress);
+    if (!state.focus) return { ok: true };
+    if (input?.runId !== focusRunId(state.focus)) return { error: '처방이 바뀌었어요. 현재 처방을 다시 확인해 주세요.' };
     await prisma.mechanicsProgram.update({
       where: { userId: user.id },
       data: {
         focus: null,
-        progress: asJson(programStateJson({ ...state, focus: null, attempt: null })),
+        progress: asJson(
+          programStateJson({ ...state, focusHistory: archiveFocus(state, 'closed', toDateKey(appNow())), focus: null, attempt: null })
+        ),
       },
     });
     revalidatePath(PROGRAM_PATH);
@@ -223,7 +246,26 @@ export async function recordMechanicsFilm(
 export async function resetMechanicsProgram(): Promise<Result> {
   const user = await requireUser();
   return withMechanicsTransaction(user.id, async (prisma) => {
-    await prisma.mechanicsProgram.deleteMany({ where: { userId: user.id } });
+    const row = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id } });
+    if (row) {
+      const state = readProgramState(row.progress);
+      await prisma.mechanicsProgram.update({
+        where: { userId: user.id },
+        data: {
+          focus: null,
+          progress: asJson(
+            programStateJson({
+              ...state,
+              ...freshState(null),
+              films: state.films,
+              practice: state.practice,
+              throwLog: state.throwLog,
+              focusHistory: archiveFocus(state, 'reset', toDateKey(appNow())),
+            })
+          ),
+        },
+      });
+    }
     revalidatePath(PROGRAM_PATH);
     return { ok: true };
   });

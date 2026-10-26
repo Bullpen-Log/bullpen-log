@@ -14,7 +14,7 @@
 export const APP_API_HEADER = 'x-bullpen-app';
 
 /** 이 코드가 말하는 약속 번호 — 앱은 이 값을 보낸다 */
-export const APP_API_LEVEL = 5; // 필수 드릴·장비·자가 확인에 따른 요소별 단계 진행
+export const APP_API_LEVEL = 6; // 분석 기준 보존·재측정 비교·처방 교체 요청 보호
 
 /** 서버가 받는 가장 낮은 번호 */
 export const MIN_APP_API = 1;
@@ -28,13 +28,20 @@ export function appApiLevelOf(header: string | null | undefined): number {
 /** 변경된 기능의 화면에서만 업데이트를 안내한다. */
 export function minAppApiForAction(action: string): number {
   if (
+    action.startsWith('mechanics-review.') ||
     [
       'app-training-parts.loadAppMechanics',
+      'mechanics.startMechanicsFocus',
+      'mechanics.endMechanicsFocus',
+      'mechanics.loadMechanicsFocusOffer',
+    ].includes(action)
+  )
+    return 6;
+  if (
+    [
       'app-mechanics.loadAppMechanicsPlay',
       'mechanics.recordMechanicsDrill',
       'mechanics.finishMechanicsSession',
-      'mechanics.startMechanicsFocus',
-      'mechanics.loadMechanicsFocusOffer',
       'mechanics.saveMechanicsEquipment',
       'mechanics.convertMechanicsFocus',
       'mechanics.recordMechanicsNextDay',

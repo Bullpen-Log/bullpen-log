@@ -28,6 +28,10 @@ registerHooks({
     if (s === 'next/navigation') return data('export const useRouter=()=>({refresh(){}});export const unstable_rethrow=()=>{};');
     if (s === 'next/link')
       return data(`export default function Link({href,children}){return globalThis.__progressReact.createElement('a',{href},children);}`);
+    if (s === '@/app/actions/mechanics-review')
+      return data(
+        'export const loadMechanicsReviewOptions=async()=>({options:[]});export const linkMechanicsAnalysis=async()=>({ok:true});export const recordMechanicsReviewDecision=linkMechanicsAnalysis;'
+      );
     if (s === '@/app/actions/mechanics')
       return data(
         'export const saveMechanicsEquipment=async()=>({ok:true});export const convertMechanicsFocus=saveMechanicsEquipment;export const recordMechanicsNextDay=saveMechanicsEquipment;export const advanceMechanicsStage=saveMechanicsEquipment;'
@@ -101,3 +105,36 @@ for (const m of [native, web]) {
   progression.evidence[0].responseOn = null;
 }
 console.log('앱·웹 진행 화면 렌더 검사 통과: 확인 대기·전환 권유·통증/장비 제한·이전 기준 전환·장비 설정');
+
+const { snapshot } = await import('./mechanics-comparison-fixture.mjs');
+const { reviewView } = await import('../lib/mechanics/comparison.ts');
+for (const m of [await import('../native/src/mechanics/focus-review.tsx'), await import('../app/(app)/training/focus-review.tsx')]) {
+  const review = reviewView({
+    v: 1,
+    id: 'review',
+    baseline: snapshot(),
+    origin: 'start',
+    baselinePractice: 2,
+    followups: [{ snapshot: snapshot(true), conditions: 'same', practice: 6, linkedAt: '2026-10-26T05:00:00Z' }],
+    decisions: [],
+  });
+  const view = { ...focusView(focus, '2026-10-26'), review, reviewHistory: [] };
+  const html = render(m.FocusReview, { focus: view });
+  assert.match(html, /처방 전후 측정 비교/);
+  assert.match(html, /기준 이후 4회 수행/);
+  assert.match(html, /8.0/);
+  assert.match(html, /개선·악화나 운동 효과를 확정하지 않아요/);
+  assert.match(html, /참고 지표/);
+  assert.match(html, /현재 단계에서 다시 연습/);
+  assert.match(html, /새 처방은 리포트에서 별도로/);
+  const held = structuredClone(review);
+  held.followups[0].comparison = { ...held.followups[0].comparison, kind: 'held', reasons: ['촬영 조건이 달라요.'] };
+  assert.match(render(m.FocusReview, { focus: { ...view, review: held } }), /비교 보류/);
+  const old = render(m.FocusReview, { focus: { ...view, review: null } });
+  assert.match(old, /이전 처방에는 시작 당시 비교 기록이 없어요/);
+  const later = render(m.FocusReview, { focus: { ...view, review: { ...review, origin: 'later' } } });
+  assert.match(later, /처방 시작 전 측정이 아니에요/);
+  const historical = render(m.FocusReview, { focus: view, readOnly: true });
+  assert.doesNotMatch(historical, />현재 단계에서 다시 연습</);
+}
+console.log('앱·웹 비교 화면 통과: 수치 차이·참고 보류·오차 한계·이후 기준·이전 기록 읽기');
