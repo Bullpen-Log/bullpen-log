@@ -1,6 +1,6 @@
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FEEL_NOTE_MAX, type MyVideoLog } from '@/lib/my-videos';
 import { READABLE } from '~/lib/layout';
@@ -9,7 +9,8 @@ import { useFeatured } from '~/pitch/store';
 import { PitchVideo } from '~/pitch/video';
 import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
-import { findMyVideo, saveMyVideo, useMyVideos } from '~/videos/store';
+import { rpc } from '~/lib/rpc';
+import { deleteVideo, findMyVideo, linkVideo, saveMyVideo, useMyVideos } from '~/videos/store';
 import { videoDateText } from '~/videos/text';
 
 /**
@@ -25,6 +26,7 @@ export default function MyVideoScreen() {
   const featured = useFeatured();
   const [note, setNote] = useState(v?.note ?? '');
   const [status, setStatus] = useState<string | null>(null);
+  const [linking, setLinking] = useState(false);
   const saved = useRef(v?.note ?? '');
   /* 목록이 늦게 오면(앱을 막 켬) 그때 채운다 — 적는 중이면 안 덮는다 */
   useEffect(() => {
@@ -58,6 +60,37 @@ export default function MyVideoScreen() {
       </View>
     );
   }
+  const unlink = (l: MyVideoLog) =>
+    Alert.alert('이 기록에서 영상을 뗄까요?', '기록에서만 빠져요. 영상 · 메모는 내 영상에 남아요.', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '연결 해제',
+        onPress: async () => {
+          const err = await linkVideo(v.path, l, false);
+          if (err) setStatus(err);
+        },
+      },
+    ]);
+  const remove = () =>
+    Alert.alert(
+      '이 영상을 지울까요?',
+      [v.logs.length ? `기록 ${v.logs.length}개에서도 빠져요(투구수 · 강도는 그대로).` : null, '영상 · 메모가 지워지고 되돌릴 수 없어요.'].filter(Boolean).join('\n'),
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '지우기',
+          style: 'destructive',
+          onPress: async () => {
+            const err = await deleteVideo(v.path, v.logs.map((l) => l.date));
+            if (err) setStatus(err);
+            else {
+              saved.current = note; // 나가며 메모를 다시 저장하지 않게
+              router.back();
+            }
+          },
+        },
+      ]
+    );
   const toggleStar = async () => {
     const err = await saveMyVideo(v.path, { revisit: !v.revisit });
     if (err) setStatus(err);
@@ -117,8 +150,12 @@ export default function MyVideoScreen() {
         ) : null}
 
         {v.logs.map((l) => (
-          <LogCard key={`${l.kind}:${l.id}`} log={l} />
+          <LogCard key={`${l.kind}:${l.id}`} log={l} onUnlink={() => unlink(l)} />
         ))}
+        <Press accessibilityRole="button" onPress={() => setLinking(true)} style={[styles.button, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
+          <Icon name="plus" size={18} color={c.ink} />
+          <Text style={[TYPE.buttonCompact, { color: c.ink }]}>기록에 연결</Text>
+        </Press>
 
         <Press
           accessibilityRole="button"
@@ -128,16 +165,96 @@ export default function MyVideoScreen() {
           <Icon name="video" size={18} color={c.ink} />
           <Text style={[TYPE.buttonCompact, { color: c.ink }]}>다른 영상과 비교</Text>
         </Press>
+        {v.clip ? (
+          <Text style={[TYPE.sub, { color: c.muted }]}>구속 측정 영상은 투구 기록의 구속 측정 칸에서 지워요.</Text>
+        ) : (
+          <Press accessibilityRole="button" onPress={remove} style={styles.danger}>
+            <Text style={[TYPE.buttonCompact, { color: c.danger }]}>영상 지우기</Text>
+          </Press>
+        )}
         {v.storage === 'phone' ? (
           <Text style={[TYPE.sub, { color: c.muted }]}>영상은 이 폰의 싱커 앱 안에만 있어요. 앱을 지우면 영상도 사라져요.</Text>
         ) : null}
       </ScrollView>
+      {linking ? <LinkSheet path={v.path} date={v.date} linked={v.logs} onClose={() => setLinking(false)} /> : null}
     </View>
   );
 }
 
+type LinkTarget = { kind: 'pitch' | 'hit'; id: string; date: string; type: string; count: number; videos: number };
+
+/** '기록에 연결' — 그날(모르면 최근 14일)의 투구 · 타격 기록. 누르면 연결(투구수 그대로) */
+function LinkSheet({ path, date, linked, onClose }: { path: string; date: string | null; linked: MyVideoLog[]; onClose: () => void }) {
+  const c = usePalette();
+  const [logs, setLogs] = useState<LinkTarget[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void rpc<{ ok: true; logs: LinkTarget[] } | { ok: false; error: string }>('my-videos.loadMyVideoLinkTargets', date).then(
+      (r) => (r.ok ? setLogs(r.logs) : setError(r.error)),
+      () => setError('신호가 약해 기록을 못 받았어요.')
+    );
+  }, [date]);
+  const has = (l: LinkTarget) => linked.some((x) => x.kind === l.kind && x.id === l.id);
+  const pick = async (l: LinkTarget) => {
+    setBusy(true);
+    const err = await linkVideo(path, l, true);
+    setBusy(false);
+    if (err) setError(err);
+    else onClose();
+  };
+  return (
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: c.page }}>
+        <View style={[styles.bar, { paddingTop: 12 }]}>
+          <View style={styles.barButton} />
+          <Text accessibilityRole="header" style={[TYPE.card, { flex: 1, textAlign: 'center', color: c.ink }]}>
+            기록에 연결
+          </Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} hitSlop={6} style={styles.barButton}>
+            <Icon name="x" size={20} color={c.muted} />
+          </Pressable>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
+          <Text style={[TYPE.sub, { color: c.muted }]}>
+            {date ? `${videoDateText(date)} 기록` : '최근 14일 기록'}이에요. 연결해도 투구수 · 강도는 그대로예요. 기록 하나에 영상 2개까지.
+          </Text>
+          {error ? <Text style={[TYPE.body, { color: c.danger }]}>{error}</Text> : null}
+          {!logs && !error ? <ActivityIndicator style={{ marginTop: 24 }} /> : null}
+          {logs && logs.length === 0 ? (
+            <Text style={[TYPE.body, { color: c.muted, paddingVertical: 24, textAlign: 'center' }]}>이날 남긴 기록이 없어요.</Text>
+          ) : null}
+          {logs?.map((l) => {
+            const on = has(l);
+            const full = !on && l.videos >= 2;
+            return (
+              <Press
+                key={`${l.kind}:${l.id}`}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: on || full || busy }}
+                disabled={on || full || busy}
+                onPress={() => void pick(l)}
+                style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }, (on || full) && { opacity: 0.5 }]}
+              >
+                <Text style={[TYPE.sub, { color: c.muted }]}>
+                  {l.kind === 'pitch' ? '투구 기록' : '타격 기록'} · {videoDateText(l.date)}
+                </Text>
+                <Text style={[TYPE.card, { color: c.ink }]}>
+                  {l.type} · {l.count}
+                  {l.kind === 'pitch' ? '구' : '스윙'}
+                </Text>
+                <Text style={[TYPE.sub, { color: c.muted }]}>{on ? '이미 연결됨' : full ? '영상이 2개라 더 못 붙여요' : `영상 ${l.videos}/2`}</Text>
+              </Press>
+            );
+          })}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
 /** 붙은 기록 — 날짜 · 종류 · 수 · 기록 총평(읽기만). 투구 기록은 그날 화면에서 고친다 */
-function LogCard({ log }: { log: MyVideoLog }) {
+function LogCard({ log, onUnlink }: { log: MyVideoLog; onUnlink: () => void }) {
   const c = usePalette();
   const pitch = log.kind === 'pitch';
   return (
@@ -155,11 +272,16 @@ function LogCard({ log }: { log: MyVideoLog }) {
           {[...log.cuesGood.map((q) => `좋았던 ${q}`), ...log.cuesBad.map((q) => `아쉬운 ${q}`)].join(' · ')}
         </Text>
       ) : null}
-      {pitch ? (
-        <Pressable accessibilityRole="link" onPress={() => router.push(`/pitch/${log.date}` as Href)} hitSlop={8}>
-          <Text style={[TYPE.body, { color: c.link }]}>기록에서 고치기 ›</Text>
+      <View style={styles.logActions}>
+        {pitch ? (
+          <Pressable accessibilityRole="link" onPress={() => router.push(`/pitch/${log.date}` as Href)} hitSlop={8}>
+            <Text style={[TYPE.body, { color: c.link }]}>기록에서 고치기 ›</Text>
+          </Pressable>
+        ) : null}
+        <Pressable accessibilityRole="button" onPress={onUnlink} hitSlop={8}>
+          <Text style={[TYPE.body, { color: c.muted }]}>연결 해제</Text>
         </Pressable>
-      ) : null}
+      </View>
     </View>
   );
 }
@@ -171,4 +293,6 @@ const styles = StyleSheet.create({
   note: { minHeight: 88, borderRadius: 14, padding: 12, fontSize: 16, lineHeight: 22, textAlignVertical: 'top' },
   card: { gap: 4, padding: 14, borderRadius: 16 },
   button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 24 },
+  danger: { alignItems: 'center', justifyContent: 'center', height: 48 },
+  logActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
 });

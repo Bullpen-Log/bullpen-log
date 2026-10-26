@@ -169,7 +169,19 @@ console.log('\n[6] 소스 모양 — 부하 · 계정 · 관리자 자료');
   check('광각 클립 · 시도 클립 · 녹화 조각은 안 읽는다', !/wideClipPath|velocityAttempt|velocityRecording/.test(load));
   const action = src('app/actions/my-videos.ts');
   check('고치기는 로그인 · 본인 경로만', action.includes('getCurrentUser()') && action.includes('isOwnedBy(path, user.id)'));
-  check('갤러리 동작은 기록(pitchLog · hittingLog)을 쓰지 않는다 — 영상만 저장해도 부하 그대로', !/prisma\.(pitchLog|hittingLog)\.(update|create|delete)/.test(action));
+  check('갤러리 동작은 기록을 만들거나 지우지 않는다', !/prisma\.(pitchLog|hittingLog)\.(create|delete|upsert)/.test(action));
+  check(
+    '기록에 쓰는 것은 영상 목록(videoPaths)뿐 — 투구수 · 강도 · 스윙 수 · 총평은 안 쓴다(부하 그대로)',
+    !/\b(pitchCount|intensity|effortPct|swings|memo|sessionType)\s*:(?!\s*true\b)/.test(action)
+  );
+  for (const fn of ['linkMyVideo', 'unlinkMyVideo', 'deleteMyVideo']) {
+    const body = action.slice(action.indexOf(`export async function ${fn}`));
+    check(`${fn} 는 로그인한 사람의 갤러리 영상만(galleryItem)`, body.slice(0, 700).includes('getCurrentUser()') && body.slice(0, 900).includes('galleryItem(user.id'));
+  }
+  const unlink = action.slice(action.indexOf('export async function unlinkMyVideo'), action.indexOf('export async function deleteMyVideo'));
+  check('연결 해제는 영상 줄을 남긴다(keepRow) · 파일은 안 지운다', unlink.includes('keepRow(') && !/deleteUnreferenced|deleteVideos/.test(unlink));
+  const del = action.slice(action.indexOf('export async function deleteMyVideo'));
+  check('영상 지우기는 구속 측정 클립을 막고, 대표 영상 · 지운 표시를 같이 한다', del.includes('item.clip') && del.includes('dailyFeaturedVideo.deleteMany') && del.includes('deletedAt'));
   check('앱 입구(rpc 허용 목록)에 있다', src('app/api/rpc/registry.ts').includes("'my-videos': myVideos"));
   check('지우기 참조 검사가 UserVideo 를 본다', src('lib/video-refs.ts').includes('prisma.userVideo.findMany'));
 }

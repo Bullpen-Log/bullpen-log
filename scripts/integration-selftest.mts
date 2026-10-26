@@ -387,8 +387,6 @@ console.log(
       '앱이 부르는 알림 기기 등록(RPC) — 웹 화면이 없고, 기기 목록(/sinker/sharing)은 들어갈 때 새로 읽는다',
     'app/actions/login-ticket.ts':
       '코드 로그인 — PC 는 2초마다 묻는 RPC 로, 폰은 redirect 로 같은 주소를 다시 열어 새로 그린다',
-    'app/actions/my-videos.ts':
-      "'내 영상'은 앱 화면만(RPC) — 웹 화면이 없고, 앱은 받은 답으로 목록을 바로 고친다",
   };
   const files = readdirSync(new URL('../app/actions/', import.meta.url))
     .map((f) => `app/actions/${f}`)

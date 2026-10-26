@@ -14,6 +14,7 @@ import { Press } from '~/shell/press';
 import { ApiError, dateKeyOf, deleteLog, loadMe, removePhoneOrphans } from '~/pitch/api';
 import { monthOf, refreshMonth, repOf, setFeatured, useFeatured, useMonth } from '~/pitch/store';
 import { PitchVideo, ViewportProvider, useViewport } from '~/pitch/video';
+import { VideoNoteLine } from '~/videos/note-line';
 import { useScreenSettled } from '~/shell/transition';
 import { VelocityDay } from '~/pitch/velocity-day';
 import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
@@ -246,6 +247,7 @@ export default function PitchDayScreen() {
                             </View>
                           ) : null}
                           <PitchVideo path={p} tools />
+                          <VideoNoteLine path={p} />
                         </View>
                       ))}
                     </View>

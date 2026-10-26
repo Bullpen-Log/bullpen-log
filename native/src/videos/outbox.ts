@@ -107,7 +107,7 @@ export async function drainVideos(): Promise<void> {
   } finally {
     draining = false;
   }
-  if (sent) void refreshMyVideos();
+  if (sent) void refreshMyVideos(true);
 }
 
 /** 찍거나 고른 직후 — 아직 저장 전. 앱이 죽으면 다음에 켤 때 저장한다 */
