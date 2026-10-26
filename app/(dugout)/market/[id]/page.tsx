@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { MarketBackLink } from '@/components/dugout/market-back';
 import { notFound } from 'next/navigation';
 import { RoundBack, RoundEyeOff, RoundPencil } from '@/components/round-icon';
 import { SafeForm } from '@/components/safe-form';
@@ -93,9 +94,10 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="space-y-10 pb-24 md:pb-0">
-      <Link href="/market" className="inline-flex items-center gap-1 text-sm font-semibold text-sky">
+      {/* 고르던 목록(결과 · 입구)으로 굴린 자리까지 — 없으면 장터 입구(components/dugout/market-back.tsx) */}
+      <MarketBackLink id={item.id} className="inline-flex items-center gap-1 text-sm font-semibold text-sky">
         <RoundBack className="h-4 w-4" /> 장터
-      </Link>
+      </MarketBackLink>
 
       {item.hidden && (
         <p className="rounded-xl border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn">

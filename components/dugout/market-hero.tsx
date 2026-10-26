@@ -36,12 +36,13 @@ const SLIDES: readonly BannerSlide[] = [
     href: '/market?guide=1',
     icon: 'gear',
   },
+  /* 2026-10-26 — '안전결제' 장은 뺐다(결제가 아직 껍데기라 되는 일처럼 적지 않는다). 대신 실제로 되는 규격 거르기 */
   {
-    kicker: '안전결제 준비 중',
-    title: ['물건을 받고 확인할 때까지', '돈은 덕아웃이 맡아 둬요'],
-    cta: '자세히 보기',
-    href: '/market?sort=new',
-    icon: 'shield',
+    kicker: '규격까지 한눈에',
+    title: ['글러브는 포지션 · 손 · 인치,', '배트는 길이 · 무게까지 적혀요'],
+    cta: '글러브 보기',
+    href: '/market/browse?category=glove',
+    icon: 'bat',
   },
 ];
 

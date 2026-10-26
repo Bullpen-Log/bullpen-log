@@ -8,7 +8,7 @@ import { getCurrentUser } from '@/lib/dal';
 import { isNativeUserAgent, surfaceOf } from '@/lib/app-env';
 import { DugoutMain } from '@/components/dugout/dugout-main';
 import { HomeSnap } from '@/components/dugout/home-snap';
-import { type BannerSlide } from '@/components/dugout/market-hero';
+import { type HomeCard } from '@/components/dugout/home-carousel';
 import { CoachRow, Stars } from '@/components/dugout/coach-card';
 import { countUnread, loadLatestListings, loadPublicPosts } from '@/lib/market/load';
 import { loadRecommendedCoaches } from '@/lib/market/lesson-load';
@@ -84,16 +84,24 @@ export default async function DugoutHome({
     })
     .slice(0, 6);
 
-  const slides: BannerSlide[] = [
+  /*
+   * 둘러보기 카드(2026-10-26) — 예전 소식 띠의 네 장(싱커 · 레슨 · 장터 · 연습장) 글을 그대로 쓰고, 실제로 있는 길 둘(커뮤니티 · 경기 일정)을 더했다.
+   * 카드 하나 = 한 곳. 되는 일만 적는다.
+   */
+  const cards: HomeCard[] = [
+    { kicker: '장터', title: '쓰던 장비, 야구인끼리 사고팔아요', desc: '글러브 · 배트를 규격으로 골라 보기', href: '/market', icon: 'market', tone: 'dark' },
+    { kicker: '레슨', title: '코치를 비교하고, 원하는 시간에 예약해요', desc: '종목 · 지역 · 시간으로 찾기', href: '/lessons/find', icon: 'lesson', tone: 'sky' },
+    { kicker: '연습장', title: '빈 시간을 보고 전화 없이 바로 잡아요', desc: '지도에서 연습장 · 레슨장 보기', href: '/venues', icon: 'venue', tone: 'soft' },
+    { kicker: '커뮤니티', title: '야구인끼리 묻고 답해요', desc: '자유 · 질문 · 번개 · 팀 홍보', href: '/community', icon: 'community', tone: 'dark' },
+    { kicker: '경기 일정', title: 'KBO · MLB · NPB 오늘 경기', desc: '선발 · 점수 · 경기 기록', href: '/baseball', icon: 'baseball', tone: 'soft' },
     {
       kicker: '싱커',
-      title: ['던진 만큼 적으면, 오늘 할 일을 정해 줘요'],
+      title: '던진 만큼 적으면, 오늘 할 일을 정해 줘요',
+      desc: '선수용 기록 앱',
       href: user ? '/sinker' : '/login?signup=1',
       icon: 'pitcher',
+      tone: 'sky',
     },
-    { kicker: '레슨', title: ['코치를 비교하고, 원하는 시간에 예약해요'], href: '/lessons/find', icon: 'lesson' },
-    { kicker: '장터', title: ['안 쓰는 글러브, 30초면 올려요'], href: '/market/new', icon: 'baseball' },
-    { kicker: '연습장', title: ['빈 시간을 보고 전화 없이 바로 잡아요'], href: '/venues', icon: 'venue' },
   ];
 
   const needs: { kicker: string; title: string; foot: string; href: string; icon: 'gear' | 'lesson' | 'venue' | 'plus' }[] = [
@@ -126,7 +134,7 @@ export default async function DugoutHome({
           sinker={sinkerUser}
           native={native}
           sinkerApp={sinkerApp}
-          slides={sinkerApp ? undefined : slides}
+          cards={sinkerApp ? undefined : cards}
           aside={sinkerApp ? undefined : <GamesPanel games={games} today={today} />}
         />
         {/*
@@ -145,12 +153,6 @@ export default async function DugoutHome({
           className={`grid scroll-mt-3 gap-6 pb-6 md:scroll-mt-5 ${sinkerApp ? '' : 'lg:grid-cols-[minmax(0,1fr)_264px]'}`}
         >
         <div className="min-w-0 space-y-16 lg:space-y-10">
-          {/* 큰 화면의 제목 줄 — 위 막대가 로고 · 검색 · 메뉴를 가져서 여기는 한 줄 맥락만(인사 · 홍보 문구 없음) */}
-          <div className="hidden items-baseline gap-3 lg:flex">
-            <h1 className="text-2xl leading-8 font-bold tracking-tight text-ink">덕아웃</h1>
-            <p className="text-[13px] text-muted">오늘 올라온 장비 · 야구인 이야기 · 경기</p>
-          </div>
-
           {/* 싱커 → 덕아웃 — 방금 잰 기록을 카드로 붙여 글을 연다(싱커 앱 안만, docs/designs/dugout-community.md '싱커에서 올리기') */}
           {records[0] && (
             <Link
@@ -191,13 +193,13 @@ export default async function DugoutHome({
                 kicker={<span className="lg:hidden">덕아웃 장터에서</span>}
                 title="방금 올라온 물건"
                 action={
-                  <Link href="/market" className="shrink-0 text-sm text-muted hover:text-ink lg:hidden">
+                  <Link href="/market/browse" className="shrink-0 text-sm text-muted hover:text-ink lg:hidden">
                     더보기 ›
                   </Link>
                 }
               />
               <div className="no-scrollbar -mx-(--dugout-gutter) flex items-center gap-2 overflow-x-auto px-(--dugout-gutter) md:mx-0 md:flex-wrap md:px-0 lg:shrink-0 lg:flex-nowrap lg:[&>a:nth-child(n+6)]:hidden">
-                {chip('/market', '전체', true)}
+                {chip('/market/browse', '전체', true)}
                 {CATEGORIES.slice(0, 8).map((c) => chip(filterHref({ category: c.key }), c.label))}
                 <Link href="/market" className="ml-1 hidden shrink-0 text-sm text-muted hover:text-ink lg:inline">
                   장터 전체 ›

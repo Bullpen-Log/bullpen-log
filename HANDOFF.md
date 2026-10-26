@@ -11,6 +11,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-26 · 금윤호(Claude, 윤호 맥북) — 장터가 입구(/market)와 결과(/market/browse)로 갈렸다 · 홈에 큰 로고 · 통합검색 · 둘러보기 카드
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 그대로). 금윤호: "지금 장터 결과 화면은 좋은데 예전 장터를 입구로, 홈은 큰 로고 · 통합검색 · 움직이는 카드".
+- **`filterHref` 가 이제 `/market/browse?…` 를 만든다**(lib/market/specs.ts `MARKET_BROWSE`). 품목 · 검색 · 거르기 링크를 새로 만들 때는 이것을 쓴다.
+  옛 `/market?category=…` · `?q=…` 링크는 `/market` 이 같은 값으로 결과 화면에 넘긴다(장비 추천 `?guide=1` 만 있으면 입구에 남는다).
+- 상세의 '‹ 장터'는 연 목록(결과 · 입구)으로 굴린 자리까지 돌아간다(components/dugout/market-back.tsx — 이 탭의 sessionStorage).
+- 홈(PC 포함): 로고 · 통합검색 640 · 둘러보기 카드 줄(components/dugout/home-carousel.tsx, 7초마다 · 멈춤 단추). 홈에서는 위 막대의 찾기 칸이 작은 단추로 접힌다.
+
 ## 김민에게 — 2026-10-26 · 금윤호(Claude, 윤호 맥북) — 덕아웃 PC v2(본문 1160 · 홈 진입부 걷음 · 카드 190~220) · 네 커뮤니티 목록 겉모양을 고쳤다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 기준은 `docs/designs/dugout-desktop-layout-v2-plan.md`.
