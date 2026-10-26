@@ -10,6 +10,7 @@ import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { toast } from '~/shell/toast';
 import { Card, Empty, GroupTitle, Primary } from '~/org/parts';
 import { LibraryBrowser, Num, type LibraryLoad, type Pick } from '~/org/picker';
+import { useDraftGuard } from '~/org/space-store';
 
 /**
  * 수행일지 고쳐 적기(앱 화면, 3단계) — 선수 한 명이 이 일정에서 실제로 한 운동 · 세트(무게 · 횟수 · 버틴 초). 처음엔 남긴 기록, 없으면 메뉴 처방으로 채워 연다.
@@ -30,6 +31,8 @@ export default function WorkScreen() {
   const lib = useLoad<LibraryLoad>('app-lesson.loadHomeworkLibrary', p.org ?? '');
   const [edited, setEdited] = useState<Item[] | null>(null);
   const { busy, error, run } = useBusy();
+  /* 쓰던 글 — 다른 조직 알림으로 옮기거나 권한을 잃을 때 묻는다(계약 8-5) */
+  useDraftGuard(edited != null);
 
   const items: Item[] | null =
     edited ??

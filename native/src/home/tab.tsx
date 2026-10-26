@@ -28,6 +28,8 @@ import { CameraSwipe } from './camera-swipe';
 import { useUnreadNotifications } from './notifications';
 import { READABLE } from '~/lib/layout';
 import { useFocusRefresh, useOnTabActive, useRetapTop, useTabActive } from '~/shell/tab-pager';
+import { SpacePickButton } from '~/org/space-pick';
+import { useSpace } from '~/org/space-store';
 
 /**
  * 홈 탭(앱 화면) — 웹 홈(app/(app)/today/home-page.tsx)과 같은 차례: 링 넷 → 요약 칸 → (알림 카드) → 투구 달력 → 고른 날 칸.
@@ -226,6 +228,7 @@ export function HomeTab({
     });
   /* 종의 점 — 안 읽은 진짜 알림(2026-10-22 금윤호 "진짜 알림으로" — 웹 notice-bell 과 같게). 오늘 할 일은 종 창 안에만 */
   const pending = useUnreadNotifications();
+  const { spaces } = useSpace();
 
   return (
     <CameraSwipe enabled={!home?.pitchLocked}>
@@ -357,6 +360,12 @@ export function HomeTab({
       </Animated.View>
       <View pointerEvents="none" style={[styles.clock, { height: inset.top, backgroundColor: c.page }]} />
       <Animated.View style={[styles.bar, { top: inset.top, backgroundColor: c.page }, barStyle]}>
+        {/* 공간 고르개(계약 8-4) — 팀 · 레슨장에 들어간 사람만. 바꾸기는 나가기가 아니다 */}
+        {spaces.length ? (
+          <View style={styles.pick}>
+            <SpacePickButton label="내 싱커" compact c={c} />
+          </View>
+        ) : null}
         <Wordmark color={c.ink} />
         <Pressable
           accessibilityRole="button"
@@ -497,6 +506,7 @@ const styles = StyleSheet.create({
   tail: { position: 'absolute', left: 0, right: 0, height: 16, zIndex: 1 },
   bar: { position: 'absolute', left: 0, right: 0, height: BAR_H, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   bell: { position: 'absolute', right: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  pick: { position: 'absolute', left: 12, height: 44, justifyContent: 'center' },
   dot: { position: 'absolute', right: 10, top: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2 },
   card: { borderRadius: 20, padding: SPACE.pad, gap: 10 },
   retry: { minHeight: 44, paddingHorizontal: 20, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

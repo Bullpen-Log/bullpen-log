@@ -397,8 +397,8 @@ model OrgNoticeRead {
 - 받아 둔 값 · 안 읽은 수 · 늦게 온 답은 사람 + 조직 열쇠로만: `useLoad` 열쇠에 늘 `orgId` · `memberId` 를 넣는다(지금 그렇다) · 안 읽은 수(받은 것 · 공지)는 공간 열쇠별 ·
   공간을 바꾸면 앞 공간 화면이 내려가 늦게 온 답은 버려진다(`alive` · `latest`). 앞 공간에서 끝난 쓰기의 알림 글에는 조직 이름을 붙인다("○○에 저장했어요").
 - 쓰던 글: 고르개는 탭 첫 화면에만 있고 쓰기 화면(일지 · 숙제 · 메뉴 · 수행일지 · 공지 · 일정 · 말)은 그 위에 쌓이므로, 고르개로 바꾸다 쓰던 글이 걸리는 일은 없다.
-  걸리는 때는 둘 — ① 쓰는 중에 다른 조직 알림을 누름 → "저장 안 한 내용이 있어요" [남겨 두고 옮기기 · 머무르기], 남긴 글은 (사람 · 조직 · 화면 · 대상) 열쇠로 폰에 두고 같은 조직의 같은 화면을
-  다시 열면 되살린다 ② 쓰는 중에 그 조직 권한을 잃음 → 화면을 걷지 않고 저장만 막고("이 조직에 더는 쓸 수 없어요") 글은 고를 수 있게 둔다. 폰에 둔 글은 다른 계정이 로그인하면 지운다
+  걸리는 때는 둘 — ① 쓰는 중에 다른 조직 알림을 누름 → "저장 안 한 내용이 있어요" [머무르기 · 버리고 옮기기](S단계 — 남겨 두기는 나중에: 남긴 글을 (사람 · 조직 · 화면 · 대상) 열쇠로 폰에 두고 같은 조직의 같은 화면을
+  다시 열면 되살린다) ② 쓰는 중에 그 조직 권한을 잃음 → 화면을 걷지 않고 저장만 막고("이 조직에 더는 쓸 수 없어요") 글은 고를 수 있게 둔다. 폰에 둔 글은 다른 계정이 로그인하면 지운다
   (구속 세션 `dropDraftNotOf` 와 같은 규칙). 글은 연 때의 `orgId` 를 쥐고 저장도 그 `orgId` 로만 — **바뀐 공간으로 몰래 보내지 않는다.**
 
 **서버 · API**
@@ -425,6 +425,20 @@ DB 변경 없음. 순서: 서버(쓰기 ACTIVE 확인 · 마스터 선수 코드
 | | 서버 | 앱 | 웹 | 합 |
 | --- | --- | --- | --- | --- |
 | S | 5~7시간 | 16~22시간 | 1~2시간 | 22~31시간 |
+
+**진행(2026-10-26, S단계 구현)** — DB 변경 없음.
+- 서버: 마스터 선수 코드 막기(`lib/org/join.ts` 'master') · `loadMySpaces` 가 `spaces`(지금 소속) / `former`(떠난 소속), 마스터는 선수 소속 없음 · 조직 동작의 권한 없음 = `ORG_LOST` ·
+  떠난 회원 쓰기 막기(`markMyHomework` · `homeworkToToday` · `markNoticesRead`, 숙제 목록은 빈 목록) · 조직 알림 주소 `orgOpenHref`(app-lesson · app-team · org-notes · lessons) ·
+  새 읽기 `app-team.loadTeamTraining` · `app-org.loadOrgNotes`, `loadMyTeam` 에 `todayKey` · `recent`(코치가 남긴 내 수행 참조). 웹 받이 `app/org/open` · `app/org/lost`
+  (마스터 → /manage, 앱 웹뷰 → 앱에 알리고 돌아감, PC 선수 → 안내). 규칙 표 `lib/org/space-nav.ts`.
+- 앱: 공간 상태 `native/src/org/space-store.ts`(사람마다 저장 · 서버 확인 · 잃으면 옮김 · 쓰던 글 · 운동 돌아오기), 조직 공간 `native/src/org/space.tsx`(웹뷰 위 덮개) ·
+  고르개 `native/src/org/space-pick.tsx` · 시트 `app/org/pick.tsx`, 껍데기 `app/index.tsx`(덮개 · 조직 탭 · `/org/lost` · `/org/open` 가로채기 · 마스터 `/manage` 에서 계정 묻기),
+  탭 본문 `native/src/org/coach.tsx CoachTab` · `player.tsx PlayerTab`, 소속 관리 `app/org/index.tsx`(나가기는 여기만) · 지난 소속 `app/org/former/[id].tsx` · 예정 활동 `app/org/schedule.tsx`,
+  홈 머리 · 더보기 맨 위 고르개, 더보기 타일 '소속 관리', 공유 화면에서 떠나기 뺌, 일지 '+ 일지'는 회원 고르기부터.
+- 설계와 다르게 한 것: ① 쓰던 글은 **남겨 두기 없이 [머무르기 · 버리고 옮기기]** 를 묻는다(요청이 허락한 '보존이 안 되면 명시적 선택' — 남겨 두기는 나중에) ·
+  ② 조직에서 연 개인 운동의 돌아올 곳은 주소(`from=org:…`)가 아니라 앱이 기억한다(`setOrgReturn` → `/workout-done` 완료 · 운동 '나가기'가 `consumeOrgReturn`) ·
+  ③ 조직 공간에서 내 싱커 화면으로 가는 이동(덕아웃 열기 · 운동을 마친 뒤 웹 이동 등)은 내 싱커로 옮긴다(덮개 밑에서 안 보이지 않게).
+- 확인: 웹 · 앱 tsc, 바꾼 파일 eslint · expo lint, org:test 263(16절 49개 새로), native-api:test 254, integration:test(이전부터 실패 2 그대로). **폰 · 시뮬레이터 확인은 안 했다(사용자 몫).**
 
 ### 8-7. 받아들임 시험(S단계 관문)
 

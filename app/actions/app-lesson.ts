@@ -9,6 +9,7 @@ import { dbDate } from '@/lib/nutrition/days';
 import { isDateKey } from '@/lib/org/rules';
 import { trainingGuides, visibleExercises, allExercises, allGuides } from '@/lib/library-cache';
 import { coachOrg, myMember } from '@/lib/org/app-access';
+import { ORG_LOST, orgOpenHref } from '@/lib/org/space-nav';
 import { commentCounts } from '@/lib/org/comment-load';
 import {
   COACH_STATUSES,
@@ -42,7 +43,8 @@ import { createOrgVideoUploadTarget, createPlaybackUrls, deleteVideos, isStorage
  * 완료는 선수의 실제 기록(운동 기록 · 드릴 기록)을 읽을 때 맞춘다(settleHomework) — 운동 화면 코드는 안 건드린다.
  */
 
-const NO_ACCESS = { ok: false as const, to: '/today' };
+/* 조직을 볼 권한이 없음 — 앱 껍데기가 가로채 공간을 다시 확인한다(계약 8-5) */
+const NO_ACCESS = { ok: false as const, to: ORG_LOST };
 
 export type HomeworkLine = { name: string; dose: string; kind: 'exercise' | 'drill' };
 export type HomeworkView = {
@@ -102,7 +104,7 @@ export async function assignHomework(
     data: { orgId, memberId: member.id, noteId, assignedById: c.user.id, items, dueDate: due ? dbDate(due) : null },
   });
   if (member.userId)
-    await notify(member.userId, { kind: 'lesson', title: '코치가 숙제를 냈어요', body: `${items.length}가지`, link: '/me#lessons' });
+    await notify(member.userId, { kind: 'lesson', title: '코치가 숙제를 냈어요', body: `${items.length}가지`, link: orgOpenHref(orgId, 'p', 'homework') });
   revalidatePath('/manage');
   return { ok: true };
 }
@@ -212,13 +214,15 @@ export async function loadMemberHomework(orgId: string, memberId: string): Promi
 export async function loadMyHomework(memberId: string): Promise<{ ok: false; to: string } | { ok: true; homework: HomeworkView[] }> {
   const r = await myMember(memberId);
   if (!r) return NO_ACCESS;
+  /* 떠난 곳의 숙제는 안 보인다 — 떠난 회원은 받은 일지만 읽기(결정 8, 계약 8-5) */
+  if (r.m.status !== 'ACTIVE') return { ok: true, homework: [] };
   return { ok: true, homework: await homeworkOf(r.m.id, r.user.id) };
 }
 
 /** 선수: '하는 중' · '했어요'(기록 없이 했을 때) */
 export async function markMyHomework(memberId: string, id: string, status: unknown): Promise<{ ok: boolean; error?: string }> {
   const r = await myMember(memberId);
-  if (!r) return { ok: false, error: '숙제를 찾을 수 없어요.' };
+  if (!r || r.m.status !== 'ACTIVE') return { ok: false, error: '숙제를 찾을 수 없어요.' };
   if (!isHomeworkStatus(status) || !PLAYER_STATUSES.includes(status)) return { ok: false, error: '바꿀 수 없는 상태예요.' };
   const a = await prisma.orgAssignment.updateMany({
     where: { id, memberId: r.m.id, status: { in: ['assigned', 'in_progress'] } },
@@ -230,7 +234,7 @@ export async function markMyHomework(memberId: string, id: string, status: unkno
 /** 선수: 숙제의 운동을 오늘 운동 목록에 넣기(트레이닝에서 하면 그 기록으로 숙제가 완료된다) — 오늘 일정이 있어야 한다 */
 export async function homeworkToToday(memberId: string, id: string): Promise<{ ok: boolean; added: number; error?: string }> {
   const r = await myMember(memberId);
-  if (!r) return { ok: false, added: 0, error: '숙제를 찾을 수 없어요.' };
+  if (!r || r.m.status !== 'ACTIVE') return { ok: false, added: 0, error: '숙제를 찾을 수 없어요.' };
   const a = await prisma.orgAssignment.findFirst({ where: { id, memberId: r.m.id }, select: { items: true, status: true } });
   if (!a || !isOpenHomework(a.status)) return { ok: false, added: 0, error: '이미 끝났거나 없는 숙제예요.' };
   const ids = readHomeworkItems(a.items)
@@ -363,7 +367,7 @@ export async function addCoachComment(
     }),
     ...(owner.userId ? [prisma.orgComment.updateMany({ where: { ...where, authorId: owner.userId, resolvedAt: null }, data: { resolvedAt: appNow() } })] : []),
   ]);
-  if (owner.userId) await notify(owner.userId, { kind: 'lesson', title: '코치가 답을 남겼어요', body: text.slice(0, 60), link: '/me#lessons' });
+  if (owner.userId) await notify(owner.userId, { kind: 'lesson', title: '코치가 답을 남겼어요', body: text.slice(0, 60), link: orgOpenHref(orgId, 'p', 'noteId' in t ? 'notes' : 'homework') });
   return { ok: true };
 }
 
@@ -404,7 +408,7 @@ export async function addMyComment(
     kind: 'lesson',
     title: kind === 'fix' ? '회원이 정정을 요청했어요' : kind === 'submit' ? '회원이 숙제 영상을 보냈어요' : '회원이 질문을 남겼어요',
     body: text.slice(0, 60),
-    link: '/manage',
+    link: orgOpenHref(owner.orgId, 'c', 'inbox'),
   });
   return { ok: true };
 }
@@ -502,7 +506,7 @@ export async function addNoteVideo(orgId: string, noteId: string, path: unknown)
   if (note.videoPaths.includes(path)) return { ok: true };
   if (note.videoPaths.length >= NOTE_VIDEOS_MAX) return { ok: false, error: `일지 하나에 영상은 ${NOTE_VIDEOS_MAX}개까지예요.` };
   await prisma.lessonNote.update({ where: { id: note.id }, data: { videoPaths: [...note.videoPaths, path], editedById: c.user.id } });
-  if (note.member.userId) await notify(note.member.userId, { kind: 'lesson', title: '코치가 일지에 영상을 붙였어요', link: '/me#lessons' });
+  if (note.member.userId) await notify(note.member.userId, { kind: 'lesson', title: '코치가 일지에 영상을 붙였어요', link: orgOpenHref(orgId, 'p', 'notes') });
   return { ok: true };
 }
 

@@ -1,28 +1,13 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import type { ArmLine, MySpace } from '@/app/actions/app-org';
+import type { ArmLine } from '@/app/actions/app-org';
 import { ARM_WORD, CONSENT_SCOPES, type Consent } from '@/lib/org/rules';
-import { loadJson, saveJson } from '~/lib/store';
 import { TYPE, type Palette } from '~/lib/ui';
 
 /**
  * 팀 · 레슨장 공간(앱 화면, native/src/app/org/*) 공용 — 1단계(docs/designs/sinker-team-lesson-contract.md 2-2).
- * 자료는 app/actions/app-org.ts(/api/rpc/app-org.*). 마지막에 고른 공간은 이 폰에(서버 쿠키 bp-org 는 웹 /manage 만 쓴다).
+ * 자료는 app/actions/app-org.ts(/api/rpc/app-org.*). 고른 공간은 ~/org/space-store 가 사람마다 폰에 둔다(서버 쿠키 bp-org 는 웹 /manage 만 쓴다).
  */
-
-const SPACE_KEY = 'bullpen-org-space';
-
-/** 공간 하나의 열쇠 — 같은 조직에 코치로도 선수로도 들 수 있어 역할까지 */
-export const spaceKey = (s: Pick<MySpace, 'orgId' | 'role'>) => `${s.orgId}:${s.role === 'PLAYER' ? 'p' : 'c'}`;
-
-export async function lastSpace(): Promise<string | null> {
-  const v = await loadJson(SPACE_KEY);
-  return typeof v === 'string' ? v : null;
-}
-
-export function rememberSpace(key: string) {
-  void saveJson(SPACE_KEY, key);
-}
 
 export const KIND_WORD = { LESSON: '레슨장', TEAM: '팀' } as const;
 export const ROLE_WORD = { MASTER: '대표', STAFF: '코치', PLAYER: '회원' } as const;

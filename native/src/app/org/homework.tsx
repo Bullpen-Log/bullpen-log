@@ -10,6 +10,7 @@ import { toast } from '~/shell/toast';
 import { ChoiceChips, DateStepper, Field } from '~/org/forms';
 import { Primary } from '~/org/parts';
 import { LibraryBrowser, PickedList, pickItems, type LibraryLoad, type Pick } from '~/org/picker';
+import { useDraftGuard } from '~/org/space-store';
 
 /**
  * 숙제 내기(앱 화면, 2단계) — 라이브러리 운동 · 드릴에서 고르고(자유 글 운동 없음) 세트 · 횟수를 적는다. 저장은 app-lesson.assignHomework.
@@ -29,6 +30,8 @@ export default function HomeworkScreen() {
   const today = toDateKey(new Date());
   const [due, setDue] = useState<{ on: boolean; key: string }>({ on: false, key: shiftDateKey(today, 7) });
   const { busy, error, run } = useBusy();
+  /* 쓰던 글 — 다른 조직 알림으로 옮기거나 권한을 잃을 때 묻는다(계약 8-5) */
+  useDraftGuard(picks.length > 0);
 
   const save = () =>
     run(async () => {

@@ -102,6 +102,11 @@ export default function RootLayout() {
           name="notice"
           options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', sheetGrabberVisible: true, sheetCornerRadius: 28 }}
         />
+        {/* 공간 고르개(팀 · 레슨장, 계약 8-4) — 내용만큼 올라오는 아래 시트 */}
+        <Stack.Screen
+          name="org/pick"
+          options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', sheetGrabberVisible: true, sheetCornerRadius: 28 }}
+        />
       </Stack>
       {/* '저장했어요' 같은 잠깐 알림(웹 Toaster) — 쌓인 화면 위, 시계 밑 */}
       <Toaster />

@@ -7,7 +7,7 @@ import { inviteUsable, normalizeInviteCode, type Consent } from '@/lib/org/rules
  * 초대 코드로 조직에 들어가기 — 웹 참여 화면(app/actions/org-join.ts joinOrg)과 앱(app/actions/app-org.ts joinOrgApp)이 같이 쓴다.
  * 코치가 대신 만든 자리(초대의 memberId)는 그 줄을 이어받고, 공유 범위는 들어가는 사람이 고른 그대로 저장한다(합류 = 동의를 함께 고름).
  */
-export type JoinResult = { ok: true; orgId: string; memberId: string } | { ok: false; error: 'code' | 'expired' | 'staff' };
+export type JoinResult = { ok: true; orgId: string; memberId: string } | { ok: false; error: 'code' | 'expired' | 'staff' | 'master' };
 
 export async function joinWithCode(
   user: { id: string; nickname: string; accountType: AccountType },
@@ -30,6 +30,8 @@ export async function joinWithCode(
   if (!invite || !inviteUsable(invite, new Date())) return { ok: false, error: 'expired' };
   /* 스태프 코드는 마스터 계정이 쓰는 것(5단계) — 선수 계정에는 안 맞는다 */
   if (invite.role !== 'PLAYER' && user.accountType !== 'MASTER') return { ok: false, error: 'staff' };
+  /* 마스터 계정엔 내 싱커가 없다(결정 3) — 선수로도 뛰는 코치는 선수 계정을 따로 쓴다(계약 8-2) */
+  if (invite.role === 'PLAYER' && user.accountType === 'MASTER') return { ok: false, error: 'master' };
 
   const memberId = await prisma.$transaction(async (tx) => {
     const existing = await tx.orgMember.findUnique({

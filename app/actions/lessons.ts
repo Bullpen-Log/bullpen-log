@@ -30,6 +30,7 @@ import {
 } from '@/lib/market/lessons';
 import { parseHours, readHours, slotValid, weekdayOf } from '@/lib/market/venues';
 import { ORG_NAME_MAX, ORG_REGION_MAX, passUsable } from '@/lib/org/rules';
+import { orgOpenHref } from '@/lib/org/space-nav';
 
 /**
  * 덕아웃 레슨 예약(2판, 2026-10-21) — 선수: 요청 · 취소 · 후기(requireUser). 코치: 프로필 공개 · 확정 · 거절 · 끝남(requireMaster → requireOrg).
@@ -238,7 +239,7 @@ export async function confirmBooking(formData: FormData) {
       kind: 'lesson',
       title: `${org.name}에 연결됐어요`,
       body: '코치에게 보여 줄 기록을 싱커에서 골라 주세요.',
-      link: '/join',
+      link: orgOpenHref(org.id, 'p', 'share'),
     });
   revalidatePath('/manage', 'layout');
   revalidatePath('/', 'layout');

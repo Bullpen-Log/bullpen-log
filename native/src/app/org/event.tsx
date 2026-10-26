@@ -12,6 +12,7 @@ import { TYPE, usePalette } from '~/lib/ui';
 import { toast } from '~/shell/toast';
 import { Box, ChoiceChips, DangerLink, DateStepper, Field, formCall } from '~/org/forms';
 import { Primary } from '~/org/parts';
+import { useDraftGuard } from '~/org/space-store';
 
 /**
  * 조직 일정 만들기 · 고치기 · 지우기(앱 화면, 1.5단계) — 팀 훈련 · 경기 · 휴식, 레슨장 레슨 시간. 저장은 웹과 같은 org-calendar.saveOrgEvent(폼),
@@ -29,6 +30,8 @@ export default function OrgEventScreen() {
   const { data, error, reload } = useLoad<Loaded>('app-org.loadOrgEvents', p.org ?? '', day, 1);
   const [edited, setDraft] = useState<Draft | null>(null);
   const { busy, error: sendError, run } = useBusy();
+  /* 쓰던 글 — 다른 조직 알림으로 옮기거나 권한을 잃을 때 묻는다(계약 8-5) */
+  useDraftGuard(edited != null);
 
   const found = data && p.id ? data.events.find((e) => e.id === p.id) : undefined;
   const lesson = data?.kind === 'LESSON';

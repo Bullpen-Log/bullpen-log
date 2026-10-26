@@ -6,62 +6,60 @@ import type { loadMyHomework } from '@/app/actions/app-lesson';
 import type { loadMyTeam, MyEventView } from '@/app/actions/app-team';
 import { EVENT_KIND_LABEL, type EventKind } from '@/lib/org/rules';
 import { ATTEND_LABEL, ATTEND_REPLIES, OUTING_ROLE_LABEL, type AttendReply } from '@/lib/org/team';
+import { spaceKeyOf } from '@/lib/org/space-nav';
 import { toast } from '~/shell/toast';
 import { dayWithWeekday } from '~/org/forms';
 import { HomeworkList } from '~/org/homework';
 import { TalkToggle } from '~/org/thread';
 import { LoadState, call, useLoad } from '~/community/parts';
-import { TYPE, usePalette } from '~/lib/ui';
+import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { Card, Empty, GroupTitle, KIND_WORD, Primary, dayLabel, scopeText } from '~/org/parts';
+import { openDugout, setOrgReturn, setSpaceTab } from '~/org/space-store';
 
 /**
- * 선수(회원) 공간 — 공유 범위 · 받은 일지(1단계). 공유를 아직 안 골랐으면(예약 확정으로 연결됨) 그것부터 묻는다.
- * 떠난 곳은 받은 일지만 읽기로 남는다(결정 8). 2단계: 숙제(트레이닝에서 하면 저절로 완료). 내 성장은 4단계.
- * 3단계(팀): 다가오는 2주 일정 · 참석 응답 · 내 훈련 메뉴 · 확정된 등판, 보인 공지는 읽음으로(app-team.ts).
+ * 선수(회원) 공간의 탭 화면 — S단계(docs/designs/sinker-team-lesson-contract.md 8-3): 팀 오늘 · 일정 · 내 훈련 · 더보기,
+ * 레슨장 홈 · 레슨일지 · 숙제 · 더보기(성장은 4단계). 공유를 아직 안 골랐으면(예약 확정으로 연결됨) 첫 탭에서 그것부터 묻는다.
+ * 떠난 곳은 이 공간에 안 뜬다 — 받은 일지는 소속 관리 '지난 소속'(ReceivedNotes readOnly). 나가기도 소속 관리에서만.
  */
 type Membership = Awaited<ReturnType<typeof loadMyMembership>>;
+type Team = Awaited<ReturnType<typeof loadMyTeam>>;
 
-export function PlayerSpace({ space }: { space: MySpace }) {
-  const c = usePalette();
-  const { data, error, reload } = useLoad<Membership>('app-org.loadMyMembership', space.memberId);
-  if (!data) return <LoadState error={error} onRetry={() => void reload()} c={c} />;
-  const share = () => router.push(`/org/share/${space.memberId}` as Href);
-  return (
-    <PlayerBody space={space} data={data} share={share} />
-  );
+export function PlayerTab({ space, tab }: { space: MySpace; tab: string }) {
+  const memberId = space.memberId!;
+  switch (tab) {
+    case 'schedule':
+      return <MyEvents memberId={memberId} />;
+    case 'mytraining':
+      return <MyTraining space={space} />;
+    case 'notes':
+      return <ReceivedNotes memberId={memberId} />;
+    case 'homework':
+      return <MyHomework space={space} tab="homework" />;
+    case 'more':
+      return <PlayerMore space={space} />;
+    default:
+      return space.kind === 'TEAM' ? <TeamToday space={space} /> : <LessonHome space={space} />;
+  }
 }
 
-function PlayerBody({ space, data, share }: { space: MySpace; data: Extract<Membership, { ok: true }>; share: () => void }) {
+const share = (memberId: string) => router.push(`/org/share/${memberId}` as Href);
+
+/** 공유 대기 카드 · 공지(보인 것은 읽음으로) — 팀 오늘 · 레슨장 홈 위 */
+function Top({ space, data }: { space: MySpace; data: Extract<Membership, { ok: true }> }) {
   const c = usePalette();
-  /* 보인 공지(위 셋)는 읽음으로 — 코치 공지 목록의 '읽음 n/m' */
-  const shownIds = data.left ? '' : data.notices.slice(0, 3).map((n) => n.id).join(',');
+  const shownIds = data.notices.slice(0, 3).map((n) => n.id).join(',');
   useEffect(() => {
     if (shownIds) void call('app-team.markNoticesRead', space.memberId, shownIds.split(','));
   }, [shownIds, space.memberId]);
   return (
-    <View style={{ gap: 16 }}>
-      {data.left ? (
-        <Card c={c}>
-          <Text style={[TYPE.body, { color: c.ink }]}>떠난 {KIND_WORD[data.org.kind]}이에요. 받은 일지만 볼 수 있어요.</Text>
-        </Card>
-      ) : data.consentPending ? (
+    <>
+      {data.consentPending ? (
         <Card c={c}>
           <Text style={[TYPE.card, { color: c.ink }]}>코치에게 보여 줄 기록을 골라 주세요</Text>
           <Text style={[TYPE.sub, { color: c.muted }]}>고르기 전에는 코치가 내 기록을 볼 수 없어요. 일지는 그대로 받아요.</Text>
-          <Primary label="보여 줄 기록 고르기" onPress={share} c={c} />
+          <Primary label="보여 줄 기록 고르기" onPress={() => share(space.memberId!)} c={c} />
         </Card>
-      ) : (
-        <View style={{ gap: 6 }}>
-          <GroupTitle title="코치에게 보여 주는 것" c={c} />
-          <Pressable accessibilityRole="button" onPress={share}>
-            <Card c={c}>
-              <Text style={[TYPE.body, { color: c.ink }]}>{scopeText(data.scope!)}</Text>
-              <Text style={[TYPE.sub, { color: c.sky, fontWeight: '600' }]}>바꾸기 · 떠나기</Text>
-            </Card>
-          </Pressable>
-        </View>
-      )}
-
+      ) : null}
       {data.notices.length ? (
         <View style={{ gap: 6 }}>
           <GroupTitle title="공지" c={c} />
@@ -79,57 +77,148 @@ function PlayerBody({ space, data, share }: { space: MySpace; data: Extract<Memb
           ))}
         </View>
       ) : null}
+    </>
+  );
+}
 
-      {!data.left && space.kind === 'TEAM' ? <MyEvents memberId={space.memberId!} /> : null}
-
-      {!data.left ? <MyHomework memberId={space.memberId!} /> : null}
-
+/** 팀 선수 '오늘' — 오늘 · 다음 일정 하나(응답 · 메뉴 · 확정 등판), 공지 */
+function TeamToday({ space }: { space: MySpace }) {
+  const c = usePalette();
+  const mem = useLoad<Membership>('app-org.loadMyMembership', space.memberId);
+  const team = useLoad<Team>('app-team.loadMyTeam', space.memberId);
+  if (!mem.data || !team.data) return <LoadState error={mem.error ?? team.error} onRetry={() => void Promise.all([mem.reload(), team.reload()])} c={c} />;
+  const today = team.data.events.filter((e) => e.date === team.data!.todayKey);
+  const next = today.length ? today : team.data.events.slice(0, 1);
+  return (
+    <View style={{ gap: 16 }}>
+      <Top space={space} data={mem.data} />
       <View style={{ gap: 6 }}>
-        <GroupTitle title="받은 일지" c={c} />
-        {data.notes.length === 0 ? (
-          <Card c={c}>
-            <Empty text="아직 받은 일지가 없어요." c={c} />
-          </Card>
+        <GroupTitle title={today.length ? '오늘' : '다음 일정'} c={c} />
+        {next.length ? (
+          next.map((e) => <MyEvent key={e.id} e={e} memberId={space.memberId!} onChanged={() => void team.reload()} />)
         ) : (
-          data.notes.map((n) => (
-            <Card key={n.id} c={c}>
-              <Text style={[TYPE.sub, { color: c.muted }]}>
-                {dayLabel(n.key)}
-                {n.author ? ` · ${n.author}` : ''}
-                {n.pitchCount ? ` · ${n.pitchCount}구` : ''}
-              </Text>
-              <Text selectable style={[TYPE.body, { color: c.ink }]}>
-                {n.body}
-              </Text>
-              {n.homework ? (
-                <Text selectable style={[TYPE.body, { color: c.ink }]}>
-                  <Text style={{ fontWeight: '700' }}>숙제 </Text>
-                  {n.homework}
-                </Text>
-              ) : null}
-              {n.pitchLog ? (
-                <Text style={[TYPE.sub, { color: c.muted }]}>
-                  던진 공 {n.pitchCount}구 · {n.pitchLog === 'own' ? '코치가 내 투구 기록에 남겼어요' : '내 투구 기록에 이었어요'}
-                </Text>
-              ) : null}
-              {!data.left ? <TalkToggle kind="note" id={n.id} talk={n.talk} videos={n.videos.length} who={{ role: 'player', memberId: space.memberId! }} c={c} /> : null}
-            </Card>
-          ))
+          <Card c={c}>
+            <Empty text="2주 안에 잡힌 일정이 없어요." c={c} />
+          </Card>
         )}
       </View>
     </View>
   );
 }
 
-/** 받은 숙제(2단계) — '오늘 운동에 넣기'로 트레이닝에 넣어 하면 저절로 완료 */
-function MyHomework({ memberId }: { memberId: string }) {
+/** 레슨장 회원 '홈' — 다음 예정 활동 · 최근 일지 하나 · 열린 숙제 수 · 공지 */
+function LessonHome({ space }: { space: MySpace }) {
   const c = usePalette();
+  const mem = useLoad<Membership>('app-org.loadMyMembership', space.memberId);
+  const team = useLoad<Team>('app-team.loadMyTeam', space.memberId);
+  const hw = useLoad<Awaited<ReturnType<typeof loadMyHomework>>>('app-lesson.loadMyHomework', space.memberId);
+  if (!mem.data || !team.data) return <LoadState error={mem.error ?? team.error} onRetry={() => void Promise.all([mem.reload(), team.reload()])} c={c} />;
+  const key = spaceKeyOf(space);
+  const next = team.data.events[0];
+  const note = mem.data.notes[0];
+  const open = hw.data ? hw.data.homework.filter((h) => h.status === 'assigned' || h.status === 'in_progress').length : 0;
+  return (
+    <View style={{ gap: 16 }}>
+      <Top space={space} data={mem.data} />
+      <View style={{ gap: 6 }}>
+        <GroupTitle title="다음 레슨" c={c} />
+        <Card c={c}>
+          {next ? (
+            <Text style={[TYPE.body, { color: c.ink }]}>
+              {dayWithWeekday(next.date)} · {next.time ?? '종일'} · {next.title}
+            </Text>
+          ) : (
+            <Empty text="잡힌 레슨이 없어요." c={c} />
+          )}
+        </Card>
+      </View>
+      <Pressable accessibilityRole="button" onPress={() => setSpaceTab(key, 'notes')}>
+        <Card c={c}>
+          <Text style={[TYPE.sub, { color: c.muted }]}>최근 레슨일지{note ? ` · ${dayLabel(note.key)}` : ''}</Text>
+          <Text style={[TYPE.body, { color: c.ink }]} numberOfLines={3}>
+            {note ? note.body : '아직 받은 일지가 없어요.'}
+          </Text>
+        </Card>
+      </Pressable>
+      <Pressable accessibilityRole="button" onPress={() => setSpaceTab(key, 'homework')}>
+        <Card c={c} style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={[TYPE.card, { color: c.ink, flex: 1 }]}>{open ? `할 숙제 ${open}개` : '할 숙제가 없어요'}</Text>
+          <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
+        </Card>
+      </Pressable>
+    </View>
+  );
+}
+
+/** 받은 일지 — 레슨장 '레슨일지' 탭 · 팀 '내 훈련' 아래 · 소속 관리 '지난 소속'(readOnly — 말 · 영상 보내기 없음) */
+export function ReceivedNotes({ memberId, readOnly = false, title }: { memberId: string; readOnly?: boolean; title?: string }) {
+  const c = usePalette();
+  const { data, error, reload } = useLoad<Membership>('app-org.loadMyMembership', memberId);
+  if (!data) return <LoadState error={error} onRetry={() => void reload()} c={c} />;
+  return (
+    <View style={{ gap: 6 }}>
+      {title ? <GroupTitle title={title} c={c} /> : null}
+      {data.notes.length === 0 ? (
+        <Card c={c}>
+          <Empty text="아직 받은 일지가 없어요." c={c} />
+        </Card>
+      ) : (
+        data.notes.map((n) => (
+          <Card key={n.id} c={c}>
+            <Text style={[TYPE.sub, { color: c.muted }]}>
+              {dayLabel(n.key)}
+              {n.author ? ` · ${n.author}` : ''}
+              {n.pitchCount ? ` · ${n.pitchCount}구` : ''}
+            </Text>
+            <Text selectable style={[TYPE.body, { color: c.ink }]}>
+              {n.body}
+            </Text>
+            {n.homework ? (
+              <Text selectable style={[TYPE.body, { color: c.ink }]}>
+                <Text style={{ fontWeight: '700' }}>숙제 </Text>
+                {n.homework}
+              </Text>
+            ) : null}
+            {n.pitchLog ? (
+              <Text style={[TYPE.sub, { color: c.muted }]}>
+                던진 공 {n.pitchCount}구 · {n.pitchLog === 'own' ? '코치가 내 투구 기록에 남겼어요' : '내 투구 기록에 이었어요'}
+              </Text>
+            ) : null}
+            {!readOnly && !data.left ? <TalkToggle kind="note" id={n.id} talk={n.talk} videos={n.videos.length} who={{ role: 'player', memberId }} c={c} /> : null}
+          </Card>
+        ))
+      )}
+    </View>
+  );
+}
+
+/** 숙제 · 내 훈련의 '운동하기' — 내 개인 운동을 열고, 마치면 이 공간 · 탭으로 돌아온다(계약 8-4) */
+function StartWorkout({ space, tab, c }: { space: MySpace; tab: string; c: Palette }) {
+  return (
+    <Primary
+      label="운동하기"
+      onPress={() => {
+        setOrgReturn(spaceKeyOf(space), tab);
+        router.push('/workout' as Href);
+      }}
+      c={c}
+    />
+  );
+}
+
+/** 받은 숙제 — '오늘 운동에 넣기'로 트레이닝에 넣어 하면 저절로 완료 */
+function MyHomework({ space, tab }: { space: MySpace; tab: string }) {
+  const c = usePalette();
+  const memberId = space.memberId!;
   const { data, error, reload } = useLoad<Awaited<ReturnType<typeof loadMyHomework>>>('app-lesson.loadMyHomework', memberId);
   return (
     <View style={{ gap: 6 }}>
       <GroupTitle title="숙제" c={c} />
       {data ? (
-        <HomeworkList items={data.homework} who={{ role: 'player', memberId }} onChanged={() => void reload()} c={c} />
+        <>
+          <HomeworkList items={data.homework} who={{ role: 'player', memberId }} onChanged={() => void reload()} c={c} />
+          {data.homework.some((h) => h.status === 'in_progress') ? <StartWorkout space={space} tab={tab} c={c} /> : null}
+        </>
       ) : (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       )}
@@ -137,10 +226,101 @@ function MyHomework({ memberId }: { memberId: string }) {
   );
 }
 
-/** 다가오는 팀 일정(3단계) — 참석 응답(가요 · 못 가요 · 아직 몰라요 + 한 줄), 내 훈련 메뉴, 확정된 등판 */
+/** 팀 선수 '내 훈련' — 다가오는 내 메뉴(계획) · 코치가 남긴 내 수행(내 운동 세트 참조) · 숙제 · 받은 일지 */
+function MyTraining({ space }: { space: MySpace }) {
+  const c = usePalette();
+  const { data, error, reload } = useLoad<Team>('app-team.loadMyTeam', space.memberId);
+  if (!data) return <LoadState error={error} onRetry={() => void reload()} c={c} />;
+  const menus = data.events.filter((e) => e.plans.length);
+  return (
+    <View style={{ gap: 16 }}>
+      <View style={{ gap: 6 }}>
+        <GroupTitle title="다가오는 내 메뉴" c={c} />
+        <Card c={c}>
+          {menus.length === 0 ? <Empty text="2주 안에 받은 메뉴가 없어요." c={c} /> : null}
+          {menus.map((e) => (
+            <View key={e.id} style={{ gap: 2, paddingVertical: 4 }}>
+              <Text style={[TYPE.sub, { color: c.muted }]}>
+                {dayWithWeekday(e.date)} · {e.title}
+              </Text>
+              {e.plans.map((p, i) => (
+                <Text key={i} style={[TYPE.body, { color: c.ink }]} numberOfLines={2}>
+                  {p.title} · {p.lines.map((l) => l.name).join(', ')}
+                </Text>
+              ))}
+            </View>
+          ))}
+        </Card>
+      </View>
+      <View style={{ gap: 6 }}>
+        <GroupTitle title="코치가 남긴 내 수행" c={c} />
+        <Card c={c}>
+          {data.recent.length === 0 ? <Empty text="지난 2주에 남긴 수행일지가 없어요." c={c} /> : null}
+          {data.recent.map((w) => (
+            <View key={w.eventId} style={{ gap: 2, paddingVertical: 4 }}>
+              <Text style={[TYPE.sub, { color: c.muted }]}>
+                {dayWithWeekday(w.date)} · {w.title} · {w.sets}세트
+              </Text>
+              <Text style={[TYPE.body, { color: c.ink }]} numberOfLines={2}>
+                {w.exercises.join(', ')}
+              </Text>
+            </View>
+          ))}
+          {data.recent.length ? <Text style={[TYPE.sub, { color: c.muted }]}>내 운동 기록 · 부하에 한 번만 들어가 있어요.</Text> : null}
+        </Card>
+      </View>
+      <MyHomework space={space} tab="mytraining" />
+      <ReceivedNotes memberId={space.memberId!} title="받은 일지" />
+    </View>
+  );
+}
+
+/** 선수 공간 '더보기' — 보여 줄 기록 · 소속 관리(나가기는 여기 안) · 코드로 들어가기 · 덕아웃 열기 · 설정 */
+function PlayerMore({ space }: { space: MySpace }) {
+  const c = usePalette();
+  const row = (title: string, sub: string, onPress: () => void) => (
+    <Pressable key={title} accessibilityRole="button" onPress={onPress}>
+      <Card c={c} style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[TYPE.card, { color: c.ink }]}>{title}</Text>
+          <Text style={[TYPE.sub, { color: c.muted }]}>{sub}</Text>
+        </View>
+        <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
+      </Card>
+    </Pressable>
+  );
+  return (
+    <View style={{ gap: 12 }}>
+      <MembershipCard space={space} />
+      {row('보여 줄 기록', '코치가 볼 수 있는 내 기록을 고르거나 바꿔요', () => share(space.memberId!))}
+      {row('소속 관리', '들어간 팀 · 레슨장 · 지난 소속 · 나가기', () => router.push('/org' as Href))}
+      {row('코드로 들어가기', '다른 팀 · 레슨장의 초대 코드를 넣어요', () => router.push('/org/join' as Href))}
+      {row('덕아웃 열기', '레슨 예약 · 수강권 · 장터는 덕아웃에서 해요', openDugout)}
+      {row('설정', '테마 · 단위', () => router.push('/settings' as Href))}
+    </View>
+  );
+}
+
+function MembershipCard({ space }: { space: MySpace }) {
+  const c = usePalette();
+  const { data } = useLoad<Membership>('app-org.loadMyMembership', space.memberId);
+  if (!data) return null;
+  return (
+    <Card c={c}>
+      <Text style={[TYPE.card, { color: c.ink }]}>
+        {data.org.name} {KIND_WORD[data.org.kind]}
+      </Text>
+      <Text style={[TYPE.sub, { color: c.muted }]}>
+        {data.consentPending ? '보여 줄 기록을 아직 안 골랐어요' : `코치에게 보여 주는 것: ${scopeText(data.scope!)}`}
+      </Text>
+    </Card>
+  );
+}
+
+/** 다가오는 일정(3단계) — 참석 응답(가요 · 못 가요 · 아직 몰라요 + 한 줄), 내 훈련 메뉴, 확정된 등판 */
 function MyEvents({ memberId }: { memberId: string }) {
   const c = usePalette();
-  const { data, error, reload } = useLoad<Awaited<ReturnType<typeof loadMyTeam>>>('app-team.loadMyTeam', memberId);
+  const { data, error, reload } = useLoad<Team>('app-team.loadMyTeam', memberId);
   return (
     <View style={{ gap: 6 }}>
       <GroupTitle title="다가오는 일정" c={c} />
