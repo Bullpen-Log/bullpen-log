@@ -11,7 +11,7 @@ import { PitchDayPanel } from './day-panel';
 import { PitchTodayCard } from './today-card';
 import { monthOf, reloadFeatured, reloadNoteDays, useAllLogs, useDayThumbs, useMonth, useNoteDays } from './store';
 
-import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
+import { READABLE_WIDE, TwoColumns, columnCell, columnRow, useColumns } from '~/lib/layout';
 import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 import { useTabIntent } from '~/shell/tab-intent';
 import { useMenu } from '~/shell/menu-store';
@@ -44,6 +44,12 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
   /* 고른 날 — 밑에 그날 칸(웹 video-calendar). 펴지면 320ms 뒤 화면 밖이면 굴려 보인다 */
   const [selected, setSelected] = useState<string | null>(null);
   const panelY = useRef(0);
+  /*
+   * 넓은 창(아이패드 가로)의 기록 — 왼쪽 달력 · 목록, 오른쪽 고른 날 칸(목록에서 줄을 누르면 그날 화면을 덮어 열지 않고 오른쪽에). 좁으면 예전처럼
+   * 달력 밑에 그날 칸 · 목록 줄은 그날 화면(2026-10-26 아이패드 점검). 고른 날은 창 크기를 바꿔도 남는다.
+   */
+  const cols = useColumns();
+  const rowY = useRef(0);
   const viewH = useRef(0);
   const scrollY = useRef(0);
   const { logs, error, reload } = useMonth(month);
@@ -76,11 +82,14 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
     if (!selected) return;
     const t = setTimeout(() => {
       /* 칸 위치는 오른쪽 열 기준이라 대략 — 밑으로 잘리면 그 칸 머리가 화면 위쪽에 오게 */
-      const top = panelY.current;
+      /* 넓으면 그날 칸이 오른쪽 위라 굴릴 것 없다 */
+      if (cols.two) return;
+      const top = rowY.current + panelY.current;
       if (top + 160 > scrollY.current + viewH.current) scrollRef.current?.scrollTo({ y: Math.max(0, top - 80), animated: true });
     }, 320);
     return () => clearTimeout(t);
-  }, [selected]);
+  }, [selected, cols.two]);
+  const dayLogs = (day: string) => ((view === 'list' ? all.logs : logs) ?? []).filter((l) => l.date.slice(0, 10) === day);
 
   return (
     <View style={{ flex: 1 }}>
@@ -120,6 +129,14 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
             value={view}
             onChange={(v) => (v === 'velocity' ? router.push('/admin/velocity?from=pitch' as Href) : setView(v))}
           />
+          <View
+            onLayout={(e) => {
+              cols.onLayout(e);
+              rowY.current = e.nativeEvent.layout.y;
+            }}
+            style={columnRow(cols.two, SPACE.section)}
+          >
+          <View style={columnCell(cols.two, 3, SPACE.gap)}>
           {view === 'calendar' ? (
             <>
               {error && !logs ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
@@ -139,9 +156,9 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
                 onDay={(day) => setSelected((cur) => (cur === day ? null : day))}
               />
               {/* 날을 누르면 밑에 그날 칸이 펴진다(웹 video-calendar DayPanel) — 같은 날을 다시 누르면 닫힘 */}
-              {selected ? (
+              {selected && !cols.two ? (
                 <View onLayout={(e) => (panelY.current = e.nativeEvent.layout.y)}>
-                  <PitchDayPanel key={selected} date={selected} logs={(logs ?? []).filter((l) => l.date.slice(0, 10) === selected)} />
+                  <PitchDayPanel key={selected} date={selected} logs={dayLogs(selected)} />
                 </View>
               ) : null}
             </>
@@ -150,8 +167,22 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
               logs={all.logs}
               today={today}
               onReveal={(y) => scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current + y - inset.top - 72), animated: true })}
+              openDate={cols.two ? selected : null}
+              onOpenDate={cols.two ? setSelected : undefined}
             />
           )}
+          </View>
+          {/* 오른쪽 칸 — 넓을 때만 고른 날(View 는 늘 둔다 — 창 크기를 바꿔도 달력 · 목록이 새로 붙지 않게) */}
+          <View style={columnCell(cols.two, 2, SPACE.gap)}>
+            {!cols.two ? null : selected ? (
+              <PitchDayPanel key={selected} date={selected} logs={dayLogs(selected)} full />
+            ) : (
+              <View style={[styles.pickHint, { backgroundColor: c.card }]}>
+                <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center' }}>{view === 'list' ? '목록에서 줄을 고르면' : '달력에서 날을 고르면'} 그날 기록이 여기 보여요.</Text>
+              </View>
+            )}
+          </View>
+          </View>
         </>
       ) : (
         <>
@@ -271,6 +302,7 @@ function LinkRow({ icon, label, onPress }: { icon: IconName; label: string; onPr
 }
 
 const styles = StyleSheet.create({
+  pickHint: { borderRadius: 20, paddingHorizontal: 20, paddingVertical: 28 },
   links: { borderRadius: 20, overflow: 'hidden' },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingHorizontal: 20 },
   linkLine: { height: StyleSheet.hairlineWidth, marginLeft: 52 },

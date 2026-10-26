@@ -27,7 +27,8 @@ const spokenDate = (key: string) => {
 };
 const effortOf = (l: PitchLog) => ({ intensity: l.intensity ?? 0, effortPct: l.effortPct });
 
-export function PitchDayPanel({ date, logs }: { date: string; logs: PitchLog[] }) {
+/** full — 넓은 창의 오른쪽 칸(메모를 줄이지 않는다) */
+export function PitchDayPanel({ date, logs, full = false }: { date: string; logs: PitchLog[]; full?: boolean }) {
   const c = usePalette();
   const speed = usePrefs().speed;
   const measured = useVelocityDays()?.[date];
@@ -91,7 +92,7 @@ export function PitchDayPanel({ date, logs }: { date: string; logs: PitchLog[] }
                 </Text>
               </View>
               {l.memo ? (
-                <Text numberOfLines={1} style={{ color: c.muted, fontSize: 13, lineHeight: 19, marginTop: 4 }}>
+                <Text numberOfLines={full ? undefined : 1} style={{ color: c.muted, fontSize: 13, lineHeight: 19, marginTop: 4 }}>
                   {l.memo}
                 </Text>
               ) : null}

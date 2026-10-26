@@ -19,7 +19,7 @@ import { PLAN_PLACES, type PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
 import { SNOOZE_KEY, clearPlan, eatPlan, editEntries, isSnoozed, makePlan, useNutritionDay } from './api';
 import { cacheGet } from '~/lib/store';
-import { READABLE } from '~/lib/layout';
+import { READABLE, READABLE_WIDE, columnCell, columnRow, useColumns } from '~/lib/layout';
 import { NutritionCheckinCard } from './checkin-card';
 import { useFocusRefresh, useOnTabActive, useRetapTop, useTabActive } from '~/shell/tab-pager';
 
@@ -57,6 +57,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   /* 탭을 옮겼다 돌아오면 새로 받는다(1번 판 넘기기 — 판이 붙어 있어 마운트로는 안 받는다) */
   /* 지금 탭(영양)을 다시 누르면 맨 위로(1번 세션 — 앱 틀) */
   const topRef = useRef<ScrollViewInstance>(null);
+  const cols = useColumns({ ratio: [1, 1] });
   useRetapTop(() => topRef.current?.scrollTo({ y: 0, animated: true }));
 
   useOnTabActive(() => void reload());
@@ -184,9 +185,15 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     <ScrollView
       ref={topRef}
       style={{ flex: 1, backgroundColor: c.page }}
-      contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 20 }, READABLE]}
+      contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16 }, READABLE_WIDE]}
       keyboardShouldPersistTaps="handled"
     >
+      {/*
+        넓은 창(아이패드 가로)이면 머리(제목 · 날짜 띠 · 기록 | 통계)는 위 한 줄, 그 밑 왼쪽 하루 요약 · 체크인 · 식단 짜기, 오른쪽 끼니 기록 — 남은 열량을
+        보면서 끼니를 적는다(2026-10-26 아이패드 점검). 좁으면 예전 차례 · 폭 720 그대로. 재는 상자는 늘 끝까지, View 차례는 늘 같다
+      */}
+      <View onLayout={cols.onLayout} style={{ gap: 20 }}>
+      <View style={[{ gap: 20 }, !cols.two && READABLE]}>
       {/* 머리 — 웹 영양 탭 휴대폰: 큰 제목 · 오른쪽 목표 단추(그림만), 밑에 날짜 띠(최근 6주) */}
       <View style={{ gap: 12 }}>
         <View style={styles.head}>
@@ -250,7 +257,10 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           { value: 'stats', label: '통계' },
         ]}
       />
+      </View>
 
+      <View style={[columnRow(cols.two, 20), !cols.two && READABLE]}>
+      <View style={columnCell(cols.two, 1, 20)}>
       {error && !day ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
 
       {/* 오늘 영양 한 장(웹 TodayCard) — 링 · 남은 열량 · 균형 점수, 탄단지 세 칸, 할 일 한 줄(던지는 날은 가이드) */}
@@ -355,6 +365,8 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
 
       {day && isToday && t ? <PlanCard date={date} plan={day.mealPlan} busy={busy} run={run} kcal={t.kcal} protein={t.protein} state={day.planState ?? null} ageBand={day.ageBand} /> : null}
 
+      </View>
+      <View style={columnCell(cols.two, 1, 20)}>
       {/* 끼니 넷 — 한 판 안에 줄로(웹 끼니 칸 ul · 사이 선). 휴대폰은 한 줄로 접어 두고 누르면 편다 */}
       {day ? <SectionHead title={isToday ? '오늘 먹은 것' : '이날 먹은 것'} /> : null}
       {day ? (
@@ -507,6 +519,9 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           })}
         </View>
       ) : null}
+      </View>
+      </View>
+      </View>
     </ScrollView>
   );
 }

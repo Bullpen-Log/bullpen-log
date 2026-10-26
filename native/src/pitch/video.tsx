@@ -237,7 +237,7 @@ function timeOf(p: VideoPlayer): number | null {
  * 안 보이는 영상은 멈춘다 — 위에 다른 화면이 쌓이거나(가려짐) 다른 탭 판으로 옮기면 멈췄다가 돌아오면 다시 틀고, 화면 밖으로 굴려 가면 멈춘다(굴려
  * 돌아와도 저절로 틀지 않는다 — 분석용 영상이라). 예전엔 소리 없는 되풀이 영상이 가려진 뒤에도 계속 돌았다(2026-10-25 화면 전환 점검).
  */
-function usePauseWhenHidden(player: VideoPlayer, offscreen: boolean) {
+export function usePauseWhenHidden(player: VideoPlayer, offscreen: boolean) {
   const active = useTabActive();
   const focused = useIsFocused();
   const hidden = !active || !focused;

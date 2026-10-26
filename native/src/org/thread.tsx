@@ -1,5 +1,6 @@
 import type { VideoPlayer } from 'expo-video';
 import { useRef, useState } from 'react';
+import { cacheEpoch } from '~/lib/store';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import type { loadCoachThread } from '@/app/actions/app-lesson';
 import { COMMENT_KIND_LABEL, COMMENT_MAX } from '@/lib/org/comments';
@@ -55,6 +56,13 @@ export function TalkToggle({
   );
 }
 
+/** 적던 말 — 앱을 켠 동안(로그아웃해도 남는 곳이 아니라 메모리, 보내면 지운다) */
+const drafts = new Map<string, string>();
+function keepDraft(key: string, v: string) {
+  if (v) drafts.set(key, v);
+  else drafts.delete(key);
+}
+
 function Thread({ kind, id, who, c }: { kind: 'note' | 'homework'; id: string; who: VideoWho; c: Palette }) {
   /* 한 화면 안에서 who.role 은 안 바뀐다 — 동작 이름 · 첫 인자만 고른다 */
   const t = useLoad<Loaded>(
@@ -63,7 +71,13 @@ function Thread({ kind, id, who, c }: { kind: 'note' | 'homework'; id: string; w
     kind,
     id
   );
-  const [body, setBody] = useState('');
+  /* 적던 말은 그 일지 · 숙제마다 기억한다 — 창 크기를 바꿔 칸이 바뀌거나(아이패드) 화면을 나갔다 와도 남게(2026-10-26 아이패드 점검) */
+  const draftKey = `${cacheEpoch()}|${who.role}|${kind}|${id}`;
+  const [body, setBodyState] = useState(() => drafts.get(draftKey) ?? '');
+  const setBody = (v: string) => {
+    keepDraft(draftKey, v);
+    setBodyState(v);
+  };
   const [ask, setAsk] = useState<'question' | 'fix'>('question');
   const [pick, setPick] = useState<string | null>(null);
   const [atNow, setAtNow] = useState(false);

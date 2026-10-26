@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SpacePickButton } from '~/org/space-pick';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NO_ORG, parseSpaceKey, spaceRoleWord, spaceTabs, type SpaceTab } from '@/lib/org/space-nav';
-import { READABLE } from '~/lib/layout';
+import { READABLE, READABLE_WIDE } from '~/lib/layout';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { CoachTab } from '~/org/coach';
 import { PlayerTab } from '~/org/player';
@@ -48,7 +48,14 @@ export function OrgSpaceView({ bottom }: { bottom: number }) {
           <Bell c={c} />
         </View>
       </View>
-      <ScrollView key={`${sp.key}:${nav?.tab ?? ''}`} contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: bottom + 24 }, READABLE]}>
+      {/* 코치 선수단 탭은 넓은 창에서 목록 + 회원 카드 두 칸이라 넓은 본문(그 탭이 한 칸이면 다시 720 으로 모은다), 나머지는 읽기 폭 */}
+      <ScrollView
+        key={`${sp.key}:${nav?.tab ?? ''}`}
+        contentContainerStyle={[
+          { padding: 16, gap: 16, paddingBottom: bottom + 24 },
+          parseSpaceKey(sp.key)?.side === 'c' && nav?.tab === 'roster' ? READABLE_WIDE : READABLE,
+        ]}
+      >
         {sp.key === NO_ORG ? (
           <NoOrg c={c} />
         ) : !space || !nav ? null : parseSpaceKey(sp.key)?.side === 'c' ? (

@@ -26,7 +26,7 @@ import { RingsCard } from './rings';
 import { AllDone } from './all-done';
 import { CameraSwipe } from './camera-swipe';
 import { useUnreadNotifications } from './notifications';
-import { READABLE } from '~/lib/layout';
+import { READABLE, READABLE_WIDE, columnCell, columnRow, useColumns } from '~/lib/layout';
 import { useFocusRefresh, useOnTabActive, useRetapTop, useTabActive } from '~/shell/tab-pager';
 import { SpacePickButton } from '~/org/space-pick';
 import { useSpace } from '~/org/space-store';
@@ -211,10 +211,18 @@ export function HomeTab({
   const viewH = useRef(0);
   const dayY = useRef(0);
   const calY = useRef(0);
+  /* 대시보드(넓은 창) — 몸통 상자의 자리 · 오른쪽 칸(달력)의 자리. 그날 칸으로 굴릴 때 더한다 */
+  const wrapY = useRef(0);
+  const rightY = useRef(0);
+  /*
+   * 넓은 창(아이패드 가로 · 큰 창)이면 대시보드 — 왼쪽 오늘(경고 · 링 · 요약 칸 · 첫날 카드), 오른쪽 달력 · 고른 날. 둘이 한 화면에 들어 굴리지 않고
+   * 오늘 할 일과 달력을 같이 본다. 좁으면 예전 한 칸(폭 720) 그대로(2026-10-26 아이패드 점검). 몸통이 실제로 받은 폭으로 정한다(lib/columns.ts).
+   */
+  const cols = useColumns({ ratio: [1, 1], gap: SPACE.section });
   useEffect(() => {
     if (!selected) return;
     const t = setTimeout(() => {
-      const top = calY.current + dayY.current;
+      const top = wrapY.current + rightY.current + calY.current + dayY.current;
       const visibleBottom = lastY.value + viewH.current - (bottom + 24);
       if (top + 160 > visibleBottom) scrollRef.current?.scrollTo({ y: Math.max(0, top - inset.top - BAR_H - 16), animated: true });
     }, 320);
@@ -239,8 +247,17 @@ export function HomeTab({
         onLayout={(e) => (viewH.current = e.nativeEvent.layout.height)}
         scrollEventThrottle={16}
         style={{ flex: 1 }}
-        contentContainerStyle={[{ paddingTop: inset.top + BAR_H + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side }, READABLE]}
+        contentContainerStyle={[{ paddingTop: inset.top + BAR_H + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side }, READABLE_WIDE]}
       >
+        {/* 몸통 — 넓이를 재는 상자(늘 끝까지), 그 안은 두 칸이면 나란히 · 한 칸이면 폭 720 가운데. View 차례는 늘 같다(돌려도 달력 · 링이 새로 붙지 않음) */}
+        <View
+          onLayout={(e) => {
+            cols.onLayout(e);
+            wrapY.current = e.nativeEvent.layout.y;
+          }}
+        >
+        <View style={[columnRow(cols.two, SPACE.section), !cols.two && READABLE]}>
+        <View style={columnCell(cols.two, 1, 0)}>
         {/*
           차례: 통증 경고 → 링 → 요약 칸 → 달력(+ 그날 칸) → 첫날 · 잘 던진 날 카드. 통증 경고는 맨 위(2026-10-21 — 화면에서 가장 중요한
           안전 글이 달력 밑에 있어 끝까지 내려야 보였다).
@@ -282,9 +299,13 @@ export function HomeTab({
             <Pulse style={[styles.card, { height: 201, marginTop: SPACE.section, backgroundColor: c.line }]} />
           </>
         )}
+        {/* 넓으면 첫날 · 잘 던진 날 카드도 왼쪽(오늘 할 일 곁) — 좁으면 예전처럼 달력 밑 */}
+        {cols.two ? <HomeNotes home={home} today={today} onTab={onTab} onRested={() => void refresh()} /> : null}
+        </View>
+        <View style={columnCell(cols.two, 1, 0)} onLayout={(e) => (rightY.current = e.nativeEvent.layout.y)}>
 
         {/* 달력 덩어리 통째로는 움직이지 않는다 — 위 칸 높이가 바뀔 때마다(불러오기 뼈대 → 링 · 요약 칸) 달력이 0.3초 미끄러졌다(2026-10-24 전체 검토) */}
-        <Animated.View style={{ marginTop: SPACE.section }} onLayout={(e) => (calY.current = e.nativeEvent.layout.y)}>
+        <Animated.View onLayout={(e) => (calY.current = e.nativeEvent.layout.y)}>
           {/* 홈 달력은 앞날 · 다음 달도 열린다 — 일정을 미리 적는 곳(엔진이 다음 등판을 읽는다, 웹 allowFuture). 날을 고르면 칸이 납작해진다(웹 compact) */}
           {/* 보기 전환은 달력 머리의 목록 그림 · 목록 머리의 달력 그림으로(웹 2026-10-16) — 바꿀 때만 옅게 떠오른다(view-swap) */}
           {calView === 'list' ? (
@@ -335,15 +356,15 @@ export function HomeTab({
           ) : null}
         </Animated.View>
 
-        {/* 캘린더 밑 — 알림 카드 · 첫날 카드(웹 home-page.tsx TodayBody 와 같은 차례) */}
-        {home?.firstDay || home?.goodNote ? (
-          <Animated.View style={{ marginTop: SPACE.section, gap: SPACE.section }}>
-            {home.firstDay ? (
-              <FirstDayCard today={today} status={home.firstDay} locked={home.pitchLocked} onTab={onTab} onRested={() => void refresh()} />
-            ) : null}
-            {home.goodNote ? <GoodDayNote note={home.goodNote} /> : null}
-          </Animated.View>
+        </View>
+        </View>
+        {/* 캘린더 밑 — 알림 카드 · 첫날 카드(웹 home-page.tsx TodayBody 와 같은 차례). 넓으면 왼쪽 칸에 있다 */}
+        {!cols.two ? (
+          <View style={READABLE}>
+            <HomeNotes home={home} today={today} onTab={onTab} onRested={() => void refresh()} />
+          </View>
         ) : null}
+        </View>
       </Animated.ScrollView>
 
       {/* 위 막대 — 홈은 로고가 가운데, 오른쪽은 알림 종만(웹 2026-10-14 "인스타처럼"). 시계 자리는 늘 막대 색으로 덮는다 */}
@@ -380,6 +401,17 @@ export function HomeTab({
       </Animated.View>
     </View>
     </CameraSwipe>
+  );
+}
+
+/** 첫날 카드 · 잘 던진 날 — 좁으면 달력 밑, 넓으면 왼쪽 칸(오늘 할 일 곁) */
+function HomeNotes({ home, today, onTab, onRested }: { home: AppHome | null; today: string; onTab: (href: string) => void; onRested: () => void }) {
+  if (!home?.firstDay && !home?.goodNote) return null;
+  return (
+    <Animated.View style={{ marginTop: SPACE.section, gap: SPACE.section }}>
+      {home.firstDay ? <FirstDayCard today={today} status={home.firstDay} locked={home.pitchLocked} onTab={onTab} onRested={onRested} /> : null}
+      {home.goodNote ? <GoodDayNote note={home.goodNote} /> : null}
+    </Animated.View>
   );
 }
 

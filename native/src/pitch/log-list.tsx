@@ -55,7 +55,23 @@ type Clip = {
   summary: string;
 };
 
-export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; today: string; onReveal: (windowY: number) => void }) {
+/**
+ * openDate · onOpenDate — 넓은 창(투구 탭이 오른쪽 칸에 그날을 보일 때): 줄을 누르면 그날 화면을 열지 않고 onOpenDate, 그날 줄은 고른 표시.
+ * 없으면 예전처럼 그날 화면(좁은 창 · 아이폰).
+ */
+export function LogList({
+  logs,
+  today,
+  onReveal,
+  openDate = null,
+  onOpenDate,
+}: {
+  logs: PitchLog[] | null;
+  today: string;
+  onReveal: (windowY: number) => void;
+  openDate?: string | null;
+  onOpenDate?: (date: string) => void;
+}) {
   const c = usePalette();
   const speed = usePrefs().speed;
   const [q, setQ] = useState<FindQuery>(EMPTY_FIND);
@@ -260,6 +276,8 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
                       onSpot={setSpot}
                       enter={opened === g.month ? Math.min(i, 8) : null}
                       flashing={flash === x.date}
+                      current={openDate === x.date}
+                      onOpen={onOpenDate}
                       selecting={selecting}
                       slot={slot}
                       star={many ? repOf(dayPaths.get(x.date) ?? [], pick[x.date]) === x.path : null}
@@ -374,6 +392,8 @@ const LogRow = memo(function LogRow({
   selecting,
   slot,
   star,
+  current,
+  onOpen,
 }: {
   clip: Clip;
   thumb: Thumb | undefined;
@@ -385,6 +405,10 @@ const LogRow = memo(function LogRow({
   selecting: boolean;
   slot: 'A' | 'B' | null;
   star: boolean | null;
+  /** 넓은 창에서 오른쪽 칸에 보이는 날 */
+  current: boolean;
+  /** 있으면 그날 화면 대신 이것(넓은 창) */
+  onOpen?: (date: string) => void;
 }) {
   const c = usePalette();
   return (
@@ -393,13 +417,13 @@ const LogRow = memo(function LogRow({
         if (el && spot) onSpot(x.date, el);
       }}
       entering={enter != null ? rowIn(enter) : undefined}
-      style={[!first && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }, flashing && { backgroundColor: c.skyTint }]}
+      style={[!first && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }, (flashing || current) && { backgroundColor: c.skyTint }]}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <Press
           accessibilityRole="button"
-          accessibilityState={selecting ? { selected: slot != null, disabled: !x.path } : undefined}
-          onPress={() => (selecting ? pickClip(x) : router.push(`/pitch/${x.date}` as Href))}
+          accessibilityState={selecting ? { selected: slot != null, disabled: !x.path } : onOpen ? { selected: current } : undefined}
+          onPress={() => (selecting ? pickClip(x) : onOpen ? onOpen(x.date) : router.push(`/pitch/${x.date}` as Href))}
           style={[styles.row, selecting && slot != null && { backgroundColor: c.skyTint }, selecting && !x.path && { opacity: 0.4 }, { flex: 1 }]}
         >
           <View>

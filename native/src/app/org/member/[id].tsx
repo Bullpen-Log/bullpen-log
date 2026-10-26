@@ -29,7 +29,24 @@ export default function MemberCardScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const { id, org } = useLocalSearchParams<{ id: string; org: string }>();
-  const { data, error, reload } = useLoad<Loaded>('app-org.loadMemberCard', org ?? '', id ?? '');
+  /* 위 막대 이름 — 본문(MemberDetail)과 같은 읽기라 한 번만 간다(lib/rpc 같은 읽기 합치기) */
+  const { data } = useLoad<Loaded>('app-org.loadMemberCard', org ?? '', id ?? '');
+  return (
+    <View style={{ flex: 1, backgroundColor: c.page }}>
+      <Bar back="뒤로" title={data?.member.nickname ?? ''} c={c} />
+      <ScrollView contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: inset.bottom + 32 }, READABLE]}>
+        <MemberDetail org={org ?? ''} id={id ?? ''} onRemoved={() => router.back()} c={c} />
+      </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * 회원 카드 본문 — 이 화면과, 넓은 창의 선수단 탭 오른쪽 칸(org/coach.tsx — 목록을 오가지 않고 옆에서 본다, 2026-10-26 아이패드 점검)이 같이 쓴다.
+ * 빼기가 끝나면 onRemoved(화면은 뒤로, 옆 칸은 고른 것을 비운다).
+ */
+export function MemberDetail({ org, id, onRemoved, c }: { org: string; id: string; onRemoved: () => void; c: Palette }) {
+  const { data, error, reload } = useLoad<Loaded>('app-org.loadMemberCard', org, id);
   const invite = async () => {
     const r = await call<Made>('app-org.makeInvite', org, 'PLAYER', id);
     if (!r.ok) return toast(r.error, 'error');
@@ -47,17 +64,13 @@ export default function MemberCardScreen() {
           const r = await formCall('org.removeMember', { id }, true);
           if (r.error) return toast(r.error, 'error');
           toast('뺐어요');
-          router.back();
+          onRemoved();
         },
       },
     ]);
+  if (!data) return <LoadState error={error} onRetry={() => void reload()} c={c} />;
   return (
-    <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="뒤로" title={data?.member.nickname ?? ''} c={c} />
-      {!data ? (
-        <LoadState error={error} onRetry={() => void reload()} c={c} />
-      ) : (
-        <ScrollView contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: inset.bottom + 32 }, READABLE]}>
+        <View style={{ gap: 16 }}>
           <View style={{ gap: 2, paddingHorizontal: 4 }}>
             <Text style={[TYPE.hero, { color: c.ink }]}>{data.member.nickname}</Text>
             {data.member.tags.length ? <Text style={[TYPE.sub, { color: c.muted }]}>{data.member.tags.join(' · ')}</Text> : null}
@@ -71,9 +84,7 @@ export default function MemberCardScreen() {
           <Body data={data} org={org ?? ''} c={c} onChanged={() => void reload()} />
           <MemberHomework org={org ?? ''} memberId={id ?? ''} c={c} />
           <DangerLink label="조직에서 빼기" onPress={remove} c={c} />
-        </ScrollView>
-      )}
-    </View>
+        </View>
   );
 }
 

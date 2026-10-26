@@ -15,7 +15,7 @@ import { BigButton, s, type TodayActions } from '~/training/today/parts';
 import { DoneView, HaltedCard, MakeCard, NoticeBand, OutingRow, PlanBody } from '~/training/today/plan';
 import { ProgramCardView, ProgramDoneView } from '~/training/today/program';
 import { ProgramStartView } from '~/training/today/program-start';
-import { READABLE } from '~/lib/layout';
+import { READABLE, READABLE_WIDE, columnCell, columnRow, useColumns } from '~/lib/layout';
 import { Icon } from '~/shell/icon';
 import { PageHead } from '~/shell/heading';
 import { useRememberPart } from '~/training/remember';
@@ -40,6 +40,9 @@ const KEY = 'training-today';
 let memory: { epoch: number; data: TrainingToday } | null = null;
 const remembered = () => (memory?.epoch === cacheEpoch() ? memory.data : null);
 
+/** 칸 안 카드 사이 — 본문 상자(s.content)의 gap 과 같다 */
+const GAP = 16;
+
 export default function TrainingTodayScreen() {
   useRememberPart('today');
   const c = usePalette();
@@ -51,6 +54,8 @@ export default function TrainingTodayScreen() {
   const [failed, setFailed] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState(false);
+  /* 넓은 창의 두 칸(아래 본문) — 훅이라 일찍 돌려주기 전에 */
+  const cols = useColumns({ ratio: [2, 3] });
 
   const load = useCallback((): Promise<void> => {
     const e = cacheEpoch();
@@ -205,13 +210,14 @@ export default function TrainingTodayScreen() {
   }
 
   const b = data.body;
+  const wide = cols.two;
 
   return (
     <View style={[s.fill, { backgroundColor: c.page }]}>
       {header}
       <ScrollView automaticallyAdjustKeyboardInsets
         style={s.fill}
-        contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE]}
+        contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE_WIDE]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -222,6 +228,13 @@ export default function TrainingTodayScreen() {
           />
         }
       >
+        {/*
+          넓은 창(아이패드 가로)이면 왼쪽 오늘 상태(프로그램 · 알림 · 시작/마침 · 등판), 오른쪽 오늘 운동 목록 · 만들기 — 시작 단추를 보면서 운동을 훑는다
+          (2026-10-26 아이패드 점검). 좁으면 예전 차례 · 폭 720. 재는 상자는 늘 끝까지, View 차례는 늘 같다
+        */}
+        <View onLayout={cols.onLayout}>
+        <View style={[columnRow(wide, 20), !wide && READABLE]}>
+        <View style={columnCell(wide, 1, GAP)}>
         {heading}
         {failed ? <Text style={[s.small, { color: c.danger }]}>{failed}</Text> : null}
 
@@ -245,6 +258,8 @@ export default function TrainingTodayScreen() {
         {data.programStart ? <ProgramStartView ps={data.programStart} c={c} a={actions} /> : null}
 
         {data.outing ? <OutingRow line={data.outing} c={c} a={actions} /> : null}
+        </View>
+        <View style={columnCell(wide, 1, GAP)}>
 
         {b.kind === 'halted' ? (
           <HaltedCard reason={b.reason} c={c} a={actions} />
@@ -267,7 +282,9 @@ export default function TrainingTodayScreen() {
         ) : b.kind === 'plan' ? (
           <PlanBody plan={b.plan} make={b.make} data={data} c={c} a={actions} />
         ) : null}
-
+        </View>
+        </View>
+        </View>
       </ScrollView>
     </View>
   );

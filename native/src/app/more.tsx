@@ -117,7 +117,12 @@ const dropLeave = () => {
 
 export default function MoreScreen() {
   const inset = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  /*
+   * 넓은 창(아이패드 · 이 폴더는 창 전체에 뜬다)이면 한 줄에 네 칸 · 폴더를 넓게 — 세 칸이면 가로 아이패드에서 폴더가 세로로 길어 화면 밖까지 내려갔다
+   * (2026-10-26 아이패드 점검). 휴대폰은 그대로(세 칸 · 352)
+   */
+  const wideFolder = width >= 700;
   const { groups, nickname, avatarUrl, isAdmin, tabs } = useMenu();
   const theme = useTheme();
   const L = LOOK[theme];
@@ -230,7 +235,7 @@ export default function MoreScreen() {
       onPress={onPress}
       disabled={leaving != null}
       accessibilityState={{ busy: leaving === key, disabled: leaving != null }}
-      style={({ pressed }) => [styles.tile, pressed && { transform: [{ scale: 0.95 }] }]}
+      style={({ pressed }) => [styles.tile, wideFolder && { width: '25%' }, pressed && { transform: [{ scale: 0.95 }] }]}
     >
       <View
         style={[
@@ -348,7 +353,7 @@ export default function MoreScreen() {
           {/* 폴더 안을 눌러도 닫히지 않게 — 안쪽 Pressable 이 누름을 먼저 받는다 */}
           <Animated.View
             accessibilityViewIsModal
-            style={[styles.folderWrap, folderStyle]}
+            style={[styles.folderWrap, wideFolder && { maxWidth: 460 }, folderStyle]}
             onLayout={(e) => measured(e.nativeEvent.layout.width, e.nativeEvent.layout.height)}
           >
             {/* 폴더 위 큰 제목 — 아이폰 폴더 이름처럼 흰 글자(뒤가 어두워져 늘 읽힌다). 폴더 안을 굴릴 때도 이 줄을 끌어내리면 닫힌다 */}

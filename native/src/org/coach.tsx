@@ -19,6 +19,8 @@ import { withJosa } from '@/lib/korean';
 import { WATCH_KINDS, WATCH_LABEL, type WatchKind } from '@/lib/org/watch';
 import { orgRecordHref, spaceKeyOf } from '@/lib/org/space-nav';
 import { Card, Empty, GroupTitle, KIND_WORD, Primary, armLook, dayLabel, st } from '~/org/parts';
+import { READABLE, columnCell, columnRow, useColumns } from '~/lib/layout';
+import { MemberDetail } from '~/app/org/member/[id]';
 
 /**
  * 코치(대표 · 코치) 공간의 탭 화면 — S단계(docs/designs/sinker-team-lesson-contract.md 8-3): 팀 오늘 · 일정 · 훈련 · 선수단 · 더보기,
@@ -305,6 +307,13 @@ function MembersTab({ space, c }: { space: MySpace; c: Palette }) {
     nextRosterFilter = null;
     return f;
   });
+  /*
+   * 넓은 창(아이패드 가로)이면 왼쪽 목록 · 오른쪽 고른 회원 카드 — 회원마다 들어갔다 나오기를 줄인다(2026-10-26 아이패드 점검). 좁으면 예전처럼 눌러
+   * 회원 카드 화면으로. 고른 회원은 창을 좁혔다 넓혀도 남는다(이 칸의 상태). 회원 카드 쓰기 · 권한은 화면과 같은 본문(MemberDetail) 그대로.
+   */
+  const cols = useColumns({ ratio: [2, 3] });
+  const [picked, setPicked] = useState<string | null>(null);
+  const open = (id: string) => (cols.two ? setPicked(id) : openMember(space, id));
   if (!data) return <LoadState error={error} onRetry={() => void reload()} c={c} />;
   const who = memberWord(space);
   const add = <Actions items={[{ label: `+ ${who} 등록`, onPress: () => router.push(`/org/member-edit?org=${space.orgId}` as Href) }]} c={c} />;
@@ -322,8 +331,11 @@ function MembersTab({ space, c }: { space: MySpace; c: Palette }) {
   const chips = (['attention', 'insufficient', 'hidden', 'waiting'] as const).filter((f) => count(f) > 0 || f === filter);
   const label: Record<RosterFilter, string> = { all: '전체', attention: '살필', insufficient: '정보 부족', hidden: '비공개', waiting: '연결 대기' };
   const shown = filter === 'all' ? data.members : data.members.filter((m) => kindOf(m) === filter);
+  const pickedOne = cols.two && picked ? data.members.find((m) => m.memberId === picked) : undefined;
   return (
-    <View style={{ gap: 12 }}>
+    <View onLayout={cols.onLayout}>
+    <View style={[columnRow(cols.two, 20), !cols.two && READABLE]}>
+    <View style={columnCell(cols.two, 2, 12)}>
       {chips.length ? (
         <ChoiceChips
           options={[{ value: 'all' as RosterFilter, label: `전체 ${data.members.length}` }, ...chips.map((f) => ({ value: f as RosterFilter, label: `${label[f]} ${count(f)}` }))]}
@@ -344,25 +356,53 @@ function MembersTab({ space, c }: { space: MySpace; c: Palette }) {
                 : m.arm
                   ? armLook(m.arm, c)
                   : { word: '투구 기록 비공개', color: c.muted };
+            const on = pickedOne?.memberId === m.memberId;
             return (
               <Pressable
                 key={m.memberId}
                 accessibilityRole="button"
-                onPress={() => openMember(space, m.memberId)}
-                style={({ pressed }) => [st.row, i < shown.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }, pressed && { opacity: 0.6 }]}
+                accessibilityState={cols.two ? { selected: on } : undefined}
+                onPress={() => open(m.memberId)}
+                style={({ pressed }) => [
+                  st.row,
+                  i < shown.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line },
+                  on && { backgroundColor: c.skyTint, marginHorizontal: -12, paddingHorizontal: 12, borderRadius: 10 },
+                  pressed && { opacity: 0.6 },
+                ]}
               >
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={[TYPE.card, { color: c.ink }]}>{m.nickname}</Text>
                   {m.tags.length ? <Text style={[TYPE.sub, { color: c.muted }]}>{m.tags.join(' · ')}</Text> : null}
                 </View>
                 <Text style={[TYPE.sub, { color: status.color, fontWeight: '600' }]}>{status.word}</Text>
-                <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
+                {cols.two ? null : <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>}
               </Pressable>
             );
           })
         )}
       </Card>
       {add}
+    </View>
+    {/* 오른쪽 칸 — 넓을 때만 고른 회원 카드(좁으면 비어 있다). View 는 늘 둔다(창 크기를 바꿔도 목록이 새로 붙지 않게) */}
+    <View style={columnCell(cols.two, 3, 16)}>
+      {!cols.two ? null : pickedOne ? (
+        <MemberDetail
+          key={pickedOne.memberId}
+          org={space.orgId}
+          id={pickedOne.memberId}
+          onRemoved={() => {
+            setPicked(null);
+            void reload();
+          }}
+          c={c}
+        />
+      ) : (
+        <Card c={c}>
+          <Empty text={`왼쪽에서 ${withJosa(memberWord(space), '을/를')} 고르면 여기 카드가 보여요.`} c={c} />
+        </Card>
+      )}
+    </View>
+    </View>
     </View>
   );
 }

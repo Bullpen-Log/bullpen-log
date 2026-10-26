@@ -11,8 +11,8 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View,
   useWindowDimensions,
+  View,
   type ScrollViewInstance,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,7 +25,7 @@ import { rpc, RpcError } from '~/lib/rpc';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { toast } from '~/shell/toast';
-import { READABLE_WIDE, TwoColumns, useTwoColumns, WIDE_MAX } from '~/lib/layout';
+import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
 
 /**
  * 3D 동작 분석 결과(앱 화면) — 웹 /videos/lab/[id](app/(app)/videos/lab/[id]/lab-detail.tsx)를 옮겼다(2026-10-18 김민: 길 B). 사이트의 결과 화면이
@@ -45,8 +45,9 @@ const SOURCE_VIEWS: readonly SourceView[] = ['side', 'back', 'cam3', 'cam4'];
 export default function LabScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const two = useTwoColumns();
+  /* 가로로 짧은 창(아이패드 가로 · 분할)에서 3D 칸(폭 × 1.25 + 조작부 132)이 화면보다 길지 않게 — 그만큼 폭을 줄여 가운데에 둔다 */
+  const { height: winH } = useWindowDimensions();
+  const stageMax = Math.max(280, (winH - inset.top - 56 - 132 - 40) / 1.25);
   const { id } = useLocalSearchParams<{ id: string }>();
   const [data, setData] = useState<AppLabDetail | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -174,9 +175,6 @@ export default function LabScreen() {
 
   const r = data.result;
   const report = r?.report ?? null;
-  /* 3D 칸 폭(처음 높이 어림) — 본문 폭(READABLE_WIDE), 두 칸이면 왼쪽 칸(3 : 2, 사이 20) */
-  const bodyW = Math.min(width, WIDE_MAX) - 32;
-  const boxW = two ? ((bodyW - 20) * 3) / 5 : bodyW;
   const when = data.title.replace(/ 투구$/, '');
   const sub = report
     ? `${when} · ${report.ground === 'flat' ? '평지' : '마운드'} · ${report.hand === 'L' ? '왼손' : '오른손'} · 이 한 구 기준`
@@ -233,8 +231,9 @@ export default function LabScreen() {
         </View>
 
         {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 결론(3D), 오른쪽 흐름 · 처방 · 자세히(웹 리포트의 PC 배치). 좁으면 위아래 그대로 */}
+        {/* 3D 칸 폭(처음 높이 어림)은 왼쪽 칸이 실제로 받은 폭 — 돌려도 3D · 원본 영상은 그대로 붙어 있다(lib/layout TwoColumns) */}
         <TwoColumns
-          left={
+          left={(boxW) => (
             <View style={{ gap: 8 }}>
               {r?.handNote && <Text style={[s.small, { color: c.muted }]}>{r.handNote}</Text>}
               {r && report && data.waiting && !data.waiting.active && (
@@ -248,8 +247,8 @@ export default function LabScreen() {
                 <ReportHero
                   report={report}
                   stage={
-                    <View>
-                      <Lab3D key={data.shown ?? ''} ref={lab} id={data.id} width={boxW} bg={STAGE_BG} onTransport={onTransport} stop={report.headline.frame} dark />
+                    <View style={{ width: Math.min(boxW, stageMax), alignSelf: 'center' }}>
+                      <Lab3D key={data.shown ?? ''} ref={lab} id={data.id} width={Math.min(boxW, stageMax)} bg={STAGE_BG} onTransport={onTransport} stop={report.headline.frame} dark />
                       {/* 다시 분석 중이면 이전 결과 위에 처음 분석처럼 판을 덮는다(2026-10-24 김민: "분석이 된 건지 전 건지 알 수가 없어") */}
                       {active && data.waiting && <Reanalyzing waiting={data.waiting} />}
                     </View>
@@ -263,7 +262,7 @@ export default function LabScreen() {
               )}
               {sources}
             </View>
-          }
+          )}
           right={
             <>
               {report && (
