@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import {
@@ -126,6 +127,14 @@ export function CalendarDay({
                 {e.title}
               </span>
               <span className="flex items-center gap-1">
+                {orgKind === 'TEAM' ? (
+                  <Link
+                    href={`/manage/calendar/${e.id}`}
+                    className="rounded-lg px-2 py-1 text-xs font-semibold text-sky-strong hover:bg-ink/5"
+                  >
+                    참석 · 메뉴
+                  </Link>
+                ) : null}
                 <Button
                   type="button"
                   variant="ghost"

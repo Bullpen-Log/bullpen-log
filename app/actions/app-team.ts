@@ -1,0 +1,471 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { prisma } from '@/lib/prisma';
+import { appNow } from '@/lib/clock';
+import { notifyMany } from '@/lib/notify';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
+import { dbDate } from '@/lib/nutrition/days';
+import { allExercises, allGuides, exercisesByIds, trainingGuides, visibleExercises } from '@/lib/library-cache';
+import { memberScope } from '@/lib/org/rules';
+import { coachOrg, myMember } from '@/lib/org/app-access';
+import { cleanHomeworkItems, homeworkDose, readHomeworkItems } from '@/lib/org/homework';
+import { cleanOrgWork, type OrgWorkItem } from '@/lib/org/team-work';
+import { writeOrgWork } from '@/lib/org/team-work-store';
+import {
+  ATTEND_NOTE_MAX,
+  OUTING_ROLE_LABEL,
+  PITCH_LIMIT_MAX,
+  PLAN_TITLE_MAX,
+  cleanPlanMembers,
+  eventMemberIds,
+  isAttendReply,
+  isOutingRole,
+  planMemberIds,
+  planWork,
+  replyCounts,
+  type AttendReply,
+  type OutingRole,
+} from '@/lib/org/team';
+
+/**
+ * 팀 3단계(docs/designs/sinker-team-lesson-contract.md 4절)의 앱 · 웹 동작 — 참석 · 훈련 메뉴 · 수행일지 · 등판 계획 · 공지 읽음. JSON 인자 · 답, /api/rpc/app-team.<함수>.
+ * 코치 쪽은 lib/org/app-access.ts coachOrg, 선수 쪽은 myMember. 규칙은 lib/org/team.ts.
+ * 수행일지는 선수의 그날 운동 판에 코치 세트로 붙는다(lib/org/team-work-store.ts writeOrgWork) — 가입했고 트레이닝 공유를 켠 선수만.
+ */
+
+const NO_ACCESS = { ok: false as const, to: '/today' };
+const CONSENT = { pitch: true, training: true, checkin: true, video: true, nutrition: true, weight: true } as const;
+
+async function eventOf(orgId: string, eventId: string) {
+  return prisma.orgEvent.findFirst({
+    where: { id: eventId, orgId },
+    select: { id: true, date: true, time: true, kind: true, title: true, memo: true, status: true, memberId: true },
+  });
+}
+
+async function activePlayers(orgId: string) {
+  return prisma.orgMember.findMany({
+    where: { orgId, role: 'PLAYER', status: 'ACTIVE' },
+    orderBy: { nickname: 'asc' },
+    select: { id: true, nickname: true, tags: true, userId: true, consent: { select: CONSENT } },
+  });
+}
+
+type Line = { name: string; dose: string; kind: 'exercise' | 'drill' };
+async function linesOf(itemsJson: unknown): Promise<Line[]> {
+  const [ex, gd] = await Promise.all([allExercises(), allGuides()]);
+  const exName = new Map(ex.map((e) => [e.id, e.title]));
+  const gName = new Map(gd.map((g) => [g.id, g.title]));
+  return readHomeworkItems(itemsJson).map((i) => ({
+    name: (i.exerciseId ? exName.get(i.exerciseId) : i.guideId ? gName.get(i.guideId) : null) ?? '지운 운동',
+    dose: homeworkDose(i),
+    kind: i.exerciseId ? ('exercise' as const) : ('drill' as const),
+  }));
+}
+
+/* ── 코치: 일정 하나 — 참석 · 메뉴 · 수행 · 등판 ── */
+
+export type EventMemberView = {
+  memberId: string;
+  nickname: string;
+  tags: string[];
+  hasUser: boolean;
+  /** 수행일지를 선수 기록에 남길 수 있나 — 가입 · 트레이닝 공유 */
+  canTrain: boolean;
+  reply: AttendReply | null;
+  note: string | null;
+  attended: boolean | null;
+  /** 이 일정에서 코치가 남긴 세트 수(수행일지) */
+  recordedSets: number;
+  outing: { role: OutingRole; pitchLimit: number | null; status: string } | null;
+};
+export type PlanView = { id: string; title: string; memberIds: string[]; targets: string[]; lines: Line[] };
+export type EventDetail = {
+  kind: 'LESSON' | 'TEAM';
+  todayKey: string;
+  event: { id: string; date: string; time: string | null; kind: string; title: string; memo: string | null; status: string; memberId: string | null };
+  members: EventMemberView[];
+  plans: PlanView[];
+  counts: Record<AttendReply, number>;
+};
+
+export async function loadEventDetail(orgId: string, eventId: string): Promise<{ ok: false; to: string } | ({ ok: true } & EventDetail)> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const event = await eventOf(orgId, eventId);
+  if (!event) return NO_ACCESS;
+  const players = await activePlayers(orgId);
+  const targets = eventMemberIds(event, players.map((p) => p.id));
+  const [attendees, plans, outings, sets] = await Promise.all([
+    prisma.orgEventAttendee.findMany({ where: { eventId } }),
+    prisma.orgPlan.findMany({ where: { eventId }, orderBy: { createdAt: 'asc' } }),
+    prisma.orgOuting.findMany({ where: { eventId } }),
+    prisma.userExerciseSet.groupBy({ by: ['userId'], where: { orgEventId: eventId }, _count: { _all: true } }),
+  ]);
+  const att = new Map(attendees.map((a) => [a.memberId, a]));
+  const out = new Map(outings.map((o) => [o.memberId, o]));
+  const setsOf = new Map(sets.map((s) => [s.userId, s._count._all]));
+  const members = players
+    .filter((p) => targets.includes(p.id))
+    .map((p) => {
+      const a = att.get(p.id);
+      const o = out.get(p.id);
+      return {
+        memberId: p.id,
+        nickname: p.nickname,
+        tags: p.tags,
+        hasUser: !!p.userId,
+        canTrain: !!p.userId && memberScope(p.consent, true).training,
+        reply: a?.reply && isAttendReply(a.reply) ? a.reply : null,
+        note: a?.note ?? null,
+        attended: a?.attended ?? null,
+        recordedSets: p.userId ? (setsOf.get(p.userId) ?? 0) : 0,
+        outing: o && isOutingRole(o.role) ? { role: o.role, pitchLimit: o.pitchLimit, status: o.status } : null,
+      };
+    });
+  return {
+    ok: true,
+    kind: c.org.kind,
+    todayKey: toDateKey(appNow()),
+    event: { ...event, date: toDateKey(event.date) },
+    members,
+    plans: await Promise.all(
+      plans.map(async (p) => ({ id: p.id, title: p.title, memberIds: p.memberIds, targets: planMemberIds(p.memberIds, targets), lines: await linesOf(p.items) }))
+    ),
+    counts: replyCounts(members.map((m) => m.reply)),
+  };
+}
+
+/** 실제 참석 확인 — true 왔어요 · false 안 왔어요 · null 지우기 */
+export async function setAttended(orgId: string, eventId: string, memberId: string, attended: unknown): Promise<{ ok: boolean; error?: string }> {
+  const c = await coachOrg(orgId);
+  if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
+  const event = await eventOf(orgId, eventId);
+  if (!event) return { ok: false, error: '일정을 찾을 수 없어요.' };
+  const players = await activePlayers(orgId);
+  if (!eventMemberIds(event, players.map((p) => p.id)).includes(memberId)) return { ok: false, error: '이 일정의 선수가 아니에요.' };
+  const value = attended === true || attended === false ? attended : null;
+  await prisma.orgEventAttendee.upsert({
+    where: { eventId_memberId: { eventId, memberId } },
+    create: { eventId, memberId, attended: value },
+    update: { attended: value },
+  });
+  return { ok: true };
+}
+
+/** '모두 왔어요' — 못 간다고 답한 선수 빼고 모두 참석으로 */
+export async function markAllAttended(orgId: string, eventId: string): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  const c = await coachOrg(orgId);
+  if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
+  const event = await eventOf(orgId, eventId);
+  if (!event) return { ok: false, error: '일정을 찾을 수 없어요.' };
+  const players = await activePlayers(orgId);
+  const targets = eventMemberIds(event, players.map((p) => p.id));
+  const rows = await prisma.orgEventAttendee.findMany({ where: { eventId }, select: { memberId: true, reply: true } });
+  const no = new Set(rows.filter((r) => r.reply === 'no').map((r) => r.memberId));
+  const ids = targets.filter((id) => !no.has(id));
+  await prisma.$transaction(
+    ids.map((memberId) =>
+      prisma.orgEventAttendee.upsert({ where: { eventId_memberId: { eventId, memberId } }, create: { eventId, memberId, attended: true }, update: { attended: true } })
+    )
+  );
+  return { ok: true, count: ids.length };
+}
+
+/* ── 코치: 훈련 메뉴 ── */
+
+export async function savePlan(orgId: string, eventId: string, input: unknown): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const c = await coachOrg(orgId);
+  if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
+  const event = await eventOf(orgId, eventId);
+  if (!event) return { ok: false, error: '일정을 찾을 수 없어요.' };
+  const o = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+  const title = typeof o.title === 'string' ? o.title.trim().slice(0, PLAN_TITLE_MAX) : '';
+  if (!title) return { ok: false, error: '메뉴 이름을 적어 주세요(예: 투수조).' };
+  const [ex, gd, players] = await Promise.all([visibleExercises(), trainingGuides(), activePlayers(orgId)]);
+  const items = cleanHomeworkItems(o.items, { exercises: new Set(ex.map((e) => e.id)), guides: new Set(gd.map((g) => g.id)) });
+  if ('error' in items) return { ok: false, error: items.error.replace(/숙제/g, '메뉴') };
+  const memberIds = cleanPlanMembers(o.memberIds, eventMemberIds(event, players.map((p) => p.id)));
+  const id = typeof o.id === 'string' && o.id ? o.id : null;
+  if (id) {
+    const r = await prisma.orgPlan.updateMany({ where: { id, eventId, orgId }, data: { title, items, memberIds } });
+    if (!r.count) return { ok: false, error: '메뉴를 찾을 수 없어요.' };
+    return { ok: true, id };
+  }
+  const made = await prisma.orgPlan.create({ data: { orgId, eventId, title, items, memberIds, createdById: c.user.id }, select: { id: true } });
+  return { ok: true, id: made.id };
+}
+
+export async function deletePlan(orgId: string, planId: string): Promise<{ ok: boolean; error?: string }> {
+  const c = await coachOrg(orgId);
+  if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
+  const r = await prisma.orgPlan.deleteMany({ where: { id: planId, orgId } });
+  return r.count ? { ok: true } : { ok: false, error: '메뉴를 찾을 수 없어요.' };
+}
+
+/** 메뉴 고치기 화면 — 적은 값 그대로. 새 메뉴(빈 번호) · 그새 지운 메뉴는 plan null(앱 useLoad 가 ok:false 면 화면을 떠나서) */
+export async function loadPlan(
+  orgId: string,
+  planId: string
+): Promise<{ ok: false; to: string } | { ok: true; plan: { id: string; eventId: string; title: string; items: unknown; memberIds: string[] } | null }> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const p = planId
+    ? await prisma.orgPlan.findFirst({ where: { id: planId, orgId }, select: { id: true, eventId: true, title: true, items: true, memberIds: true } })
+    : null;
+  return { ok: true, plan: p ? { ...p, items: readHomeworkItems(p.items) } : null };
+}
+
+/* ── 코치: 수행일지 — 선수의 그날 운동 판에 코치 세트로(writeOrgWork) ── */
+
+type WorkCheck = { ok: true; userId: string; dateKey: string } | { ok: false; error: string };
+
+async function workTarget(orgId: string, eventId: string, memberId: string): Promise<WorkCheck & { event?: NonNullable<Awaited<ReturnType<typeof eventOf>>> }> {
+  const event = await eventOf(orgId, eventId);
+  if (!event) return { ok: false, error: '일정을 찾을 수 없어요.' };
+  const dateKey = toDateKey(event.date);
+  if (dateKey > toDateKey(appNow())) return { ok: false, error: '아직 오지 않은 일정이에요. 끝난 뒤에 기록해 주세요.' };
+  const players = await activePlayers(orgId);
+  const p = players.find((x) => x.id === memberId);
+  if (!p || !eventMemberIds(event, players.map((x) => x.id)).includes(memberId)) return { ok: false, error: '이 일정의 선수가 아니에요.' };
+  if (!p.userId) return { ok: false, error: '가입 전 자리라 선수 기록에 남길 수 없어요.' };
+  if (!memberScope(p.consent, true).training) return { ok: false, error: '트레이닝 공유를 안 켜서 선수 기록에 남길 수 없어요.' };
+  return { ok: true, userId: p.userId, dateKey, event };
+}
+
+/** 그 선수가 대상인 메뉴들 */
+async function plansFor(eventId: string, memberId: string, targets: readonly string[]) {
+  const plans = await prisma.orgPlan.findMany({ where: { eventId }, orderBy: { createdAt: 'asc' }, select: { items: true, memberIds: true } });
+  return plans.filter((p) => planMemberIds(p.memberIds, targets).includes(memberId)).map((p) => ({ items: readHomeworkItems(p.items) }));
+}
+
+async function defaultsOf(ids: string[]) {
+  const ex = await exercisesByIds(ids);
+  return new Map(ex.map((e) => [e.id, { sets: e.sets, reps: e.reps, holdSeconds: e.holdSeconds }]));
+}
+
+/**
+ * 선수 한 명의 수행 기록 — 'plan' 메뉴대로 했어요 · 'clear' 기록 빼기 · 'custom' 고친 기록(items). 이 일정의 코치 세트를 통째로 바꾼다(다시 보내도 같은 결과).
+ */
+export async function recordWork(
+  orgId: string,
+  eventId: string,
+  memberId: string,
+  mode: unknown,
+  custom?: unknown
+): Promise<{ ok: true; sets: number } | { ok: false; error: string }> {
+  const c = await coachOrg(orgId);
+  if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
+  const t = await workTarget(orgId, eventId, memberId);
+  if (!t.ok) return t;
+  let items: OrgWorkItem[];
+  if (mode === 'clear') items = [];
+  else if (mode === 'custom') {
+    const all = await allExercises();
+    const clean = cleanOrgWork(custom, new Set(all.map((e) => e.id)));
+    if ('error' in clean) return { ok: false, error: clean.error };
+    items = clean;
+  } else if (mode === 'plan') {
+    const players = await activePlayers(orgId);
+    const plans = await plansFor(eventId, memberId, eventMemberIds(t.event!, players.map((p) => p.id)));
+    if (plans.length === 0) return { ok: false, error: '이 선수가 할 메뉴가 없어요. 메뉴를 먼저 만들어 주세요.' };
+    const ids = plans.flatMap((p) => p.items.map((i) => i.exerciseId).filter((x): x is string => !!x));
+    items = planWork(plans, await defaultsOf(ids));
+    if (items.length === 0) return { ok: false, error: '메뉴에 운동이 없어요(드릴은 선수 운동 기록에 안 들어가요).' };
+  } else return { ok: false, error: '기록 방법을 골라 주세요.' };
+  await writeOrgWork({ userId: t.userId, dateKey: t.dateKey, orgEventId: eventId, enteredById: c.user.id, items });
+  revalidatePath('/manage');
+  return { ok: true, sets: items.reduce((n, i) => n + i.sets.length, 0) };
+}
+
+/** 참석한 선수 모두 '메뉴대로' — 참석 확인(왔어요)한 선수 가운데 선수 기록에 남길 수 있고 메뉴가 있는 사람만 */
+export async function recordAttendedAsPlan(orgId: string, eventId: string): Promise<{ ok: true; done: number; skipped: number } | { ok: false; error: string }> {
+  const c = await coachOrg(orgId);
+  if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
+  const came = await prisma.orgEventAttendee.findMany({ where: { eventId, attended: true }, select: { memberId: true } });
+  if (came.length === 0) return { ok: false, error: '참석 확인(왔어요)한 선수가 없어요. 참석부터 확인해 주세요.' };
+  let done = 0;
+  let skipped = 0;
+  for (const a of came) {
+    const r = await recordWork(orgId, eventId, a.memberId, 'plan');
+    if (r.ok) done += 1;
+    else skipped += 1;
+  }
+  return { ok: true, done, skipped };
+}
+
+/** 고친 기록 화면 — 이 일정에서 남긴 코치 세트(없으면 메뉴 처방을 미리 채움) */
+export async function loadMemberWork(
+  orgId: string,
+  eventId: string,
+  memberId: string
+): Promise<
+  | { ok: false; to: string }
+  | { ok: true; nickname: string; recorded: boolean; items: { exerciseId: string; name: string; sets: { weightKg: number | null; reps: number | null; holdSeconds: number | null }[] }[] }
+> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const event = await eventOf(orgId, eventId);
+  if (!event) return NO_ACCESS;
+  const players = await activePlayers(orgId);
+  const p = players.find((x) => x.id === memberId);
+  if (!p) return NO_ACCESS;
+  const names = new Map((await allExercises()).map((e) => [e.id, e.title]));
+  const sets = p.userId
+    ? await prisma.userExerciseSet.findMany({
+        where: { userId: p.userId, orgEventId: eventId },
+        orderBy: [{ exerciseId: 'asc' }, { setNo: 'asc' }],
+        select: { exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
+      })
+    : [];
+  let items: OrgWorkItem[];
+  if (sets.length) {
+    const by = new Map<string, OrgWorkItem['sets']>();
+    for (const s of sets) by.set(s.exerciseId, [...(by.get(s.exerciseId) ?? []), { weightKg: s.weightKg, reps: s.reps, holdSeconds: s.holdSeconds }]);
+    items = [...by].map(([exerciseId, list]) => ({ exerciseId, sets: list }));
+  } else {
+    const plans = await plansFor(eventId, memberId, eventMemberIds(event, players.map((x) => x.id)));
+    const ids = plans.flatMap((pl) => pl.items.map((i) => i.exerciseId).filter((x): x is string => !!x));
+    items = planWork(plans, await defaultsOf(ids));
+  }
+  return { ok: true, nickname: p.nickname, recorded: sets.length > 0, items: items.map((i) => ({ ...i, name: names.get(i.exerciseId) ?? '지운 운동' })) };
+}
+
+/* ── 코치: 등판 계획 ── */
+
+/** 선수 한 명의 등판 — role null 이면 지운다. 고치면 다시 '짜는 중'(확정은 따로) */
+export async function saveOuting(orgId: string, eventId: string, memberId: string, role: unknown, pitchLimit: unknown): Promise<{ ok: boolean; error?: string }> {
+  const c = await coachOrg(orgId);
+  if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
+  const event = await eventOf(orgId, eventId);
+  if (!event) return { ok: false, error: '일정을 찾을 수 없어요.' };
+  const players = await activePlayers(orgId);
+  if (!eventMemberIds(event, players.map((p) => p.id)).includes(memberId)) return { ok: false, error: '이 일정의 선수가 아니에요.' };
+  if (role == null || role === '') {
+    await prisma.orgOuting.deleteMany({ where: { eventId, memberId } });
+    return { ok: true };
+  }
+  if (!isOutingRole(role)) return { ok: false, error: '선발 · 불펜 · 대기 가운데 골라 주세요.' };
+  const n = pitchLimit == null || pitchLimit === '' ? null : Number(pitchLimit);
+  if (n != null && !(Number.isInteger(n) && n >= 1 && n <= PITCH_LIMIT_MAX)) return { ok: false, error: `투구 수 한도는 1~${PITCH_LIMIT_MAX}구로 적어 주세요.` };
+  await prisma.orgOuting.upsert({
+    where: { eventId_memberId: { eventId, memberId } },
+    create: { orgId, eventId, memberId, role, pitchLimit: n, status: 'draft', updatedById: c.user.id },
+    update: { role, pitchLimit: n, status: 'draft', updatedById: c.user.id },
+  });
+  return { ok: true };
+}
+
+/** 짜는 중인 등판을 모두 확정 — 확정만 선수의 다음 등판 재료가 된다. 선수에게 알림 */
+export async function confirmOutings(orgId: string, eventId: string): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  const c = await coachOrg(orgId);
+  if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
+  const event = await eventOf(orgId, eventId);
+  if (!event) return { ok: false, error: '일정을 찾을 수 없어요.' };
+  const drafts = await prisma.orgOuting.findMany({ where: { eventId, status: 'draft' }, select: { memberId: true, role: true, pitchLimit: true } });
+  if (drafts.length === 0) return { ok: false, error: '확정할 등판이 없어요.' };
+  await prisma.orgOuting.updateMany({ where: { eventId, status: 'draft' }, data: { status: 'confirmed', updatedById: c.user.id } });
+  const members = await prisma.orgMember.findMany({ where: { id: { in: drafts.map((d) => d.memberId) } }, select: { id: true, userId: true } });
+  const day = toDateKey(event.date).slice(5).replace('-', '/');
+  for (const d of drafts) {
+    const u = members.find((m) => m.id === d.memberId)?.userId;
+    if (u && isOutingRole(d.role))
+      await notifyMany([u], {
+        kind: 'team',
+        title: `${day} ${event.title} ${OUTING_ROLE_LABEL[d.role]}로 확정됐어요`,
+        body: d.pitchLimit ? `투구 수 한도 ${d.pitchLimit}구` : undefined,
+        link: '/me#lessons',
+      });
+  }
+  return { ok: true, count: drafts.length };
+}
+
+/* ── 선수: 다가오는 일정 · 참석 응답 · 메뉴 · 확정된 등판 · 공지 읽음 ── */
+
+export type MyEventView = {
+  id: string;
+  date: string;
+  time: string | null;
+  kind: string;
+  title: string;
+  reply: AttendReply | null;
+  note: string | null;
+  plans: { title: string; lines: Line[] }[];
+  outing: { role: OutingRole; pitchLimit: number | null } | null;
+};
+
+export async function loadMyTeam(memberId: string): Promise<{ ok: false; to: string } | { ok: true; events: MyEventView[] }> {
+  const r = await myMember(memberId);
+  if (!r) return NO_ACCESS;
+  if (r.m.status !== 'ACTIVE') return { ok: true, events: [] };
+  const today = toDateKey(appNow());
+  const events = await prisma.orgEvent.findMany({
+    where: {
+      orgId: r.m.org.id,
+      date: { gte: dbDate(today), lte: dbDate(shiftDateKey(today, 13)) },
+      status: { not: 'canceled' },
+      OR: [{ memberId: null }, { memberId: r.m.id }],
+    },
+    orderBy: [{ date: 'asc' }, { time: 'asc' }],
+    take: 20,
+    select: { id: true, date: true, time: true, kind: true, title: true, memberId: true },
+  });
+  const ids = events.map((e) => e.id);
+  const [att, plans, outings, players] = await Promise.all([
+    prisma.orgEventAttendee.findMany({ where: { eventId: { in: ids }, memberId: r.m.id } }),
+    prisma.orgPlan.findMany({ where: { eventId: { in: ids } }, orderBy: { createdAt: 'asc' }, select: { eventId: true, title: true, items: true, memberIds: true } }),
+    prisma.orgOuting.findMany({ where: { eventId: { in: ids }, memberId: r.m.id, status: 'confirmed' } }),
+    prisma.orgMember.findMany({ where: { orgId: r.m.org.id, role: 'PLAYER', status: 'ACTIVE' }, select: { id: true } }),
+  ]);
+  const all = players.map((p) => p.id);
+  return {
+    ok: true,
+    events: await Promise.all(
+      events.map(async (e) => {
+        const a = att.find((x) => x.eventId === e.id);
+        const o = outings.find((x) => x.eventId === e.id);
+        const targets = eventMemberIds(e, all);
+        const mine = plans.filter((p) => p.eventId === e.id && planMemberIds(p.memberIds, targets).includes(r.m.id));
+        return {
+          id: e.id,
+          date: toDateKey(e.date),
+          time: e.time,
+          kind: e.kind,
+          title: e.title,
+          reply: a?.reply && isAttendReply(a.reply) ? a.reply : null,
+          note: a?.note ?? null,
+          plans: await Promise.all(mine.map(async (p) => ({ title: p.title, lines: await linesOf(p.items) }))),
+          outing: o && isOutingRole(o.role) ? { role: o.role, pitchLimit: o.pitchLimit } : null,
+        };
+      })
+    ),
+  };
+}
+
+/** 참석 응답 — 가요 · 못 가요 · 아직 몰라요(+ 한 줄) */
+export async function replyEvent(memberId: string, eventId: string, reply: unknown, note: unknown): Promise<{ ok: boolean; error?: string }> {
+  const r = await myMember(memberId);
+  if (!r || r.m.status !== 'ACTIVE') return { ok: false, error: '응답할 수 없어요.' };
+  if (!isAttendReply(reply)) return { ok: false, error: '가요 · 못 가요 · 아직 몰라요 가운데 골라 주세요.' };
+  const event = await prisma.orgEvent.findFirst({ where: { id: eventId, orgId: r.m.org.id, OR: [{ memberId: null }, { memberId: r.m.id }] }, select: { id: true } });
+  if (!event) return { ok: false, error: '일정을 찾을 수 없어요.' };
+  const text = typeof note === 'string' ? note.trim().slice(0, ATTEND_NOTE_MAX) || null : null;
+  await prisma.orgEventAttendee.upsert({
+    where: { eventId_memberId: { eventId, memberId: r.m.id } },
+    create: { eventId, memberId: r.m.id, reply, note: text },
+    update: { reply, note: text },
+  });
+  return { ok: true };
+}
+
+/** 공지를 봤다 — 선수 공간이 공지를 보일 때 */
+export async function markNoticesRead(memberId: string, noticeIds: unknown): Promise<{ ok: boolean }> {
+  const r = await myMember(memberId);
+  if (!r) return { ok: false };
+  const ids = Array.isArray(noticeIds) ? noticeIds.filter((x): x is string => typeof x === 'string').slice(0, 20) : [];
+  if (ids.length === 0) return { ok: true };
+  const mine = await prisma.orgNotice.findMany({ where: { id: { in: ids }, orgId: r.m.org.id }, select: { id: true } });
+  if (mine.length) await prisma.orgNoticeRead.createMany({ data: mine.map((n) => ({ noticeId: n.id, memberId: r.m.id })), skipDuplicates: true });
+  return { ok: true };
+}

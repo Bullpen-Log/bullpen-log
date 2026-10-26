@@ -27,15 +27,20 @@ export type NoticeView = {
   body: string;
   pinned: boolean;
   key: string;
+  /** 읽은 선수 수(3단계) */
+  read?: number;
 };
 
 /** 조직 공지(5단계) — 고정 먼저. 쓰기 · 고치기 폼 하나를 같이 쓴다 */
 export function NoticeBoard({
   orgId,
   notices,
+  players = 0,
 }: {
   orgId: string;
   notices: NoticeView[];
+  /** 공지를 볼 수 있는 선수 수(가입한 활동 선수) — 0 이면 읽음 수를 안 보인다 */
+  players?: number;
 }) {
   const [state, action] = useActionState<OrgActionState, FormData>(
     guardFormAction(saveOrgNotice),
@@ -136,7 +141,12 @@ export function NoticeBoard({
                 </span>
               </div>
               <p className="whitespace-pre-wrap text-sm text-ink">{n.body}</p>
-              <div className="flex justify-end gap-1">
+              <div className="flex items-center justify-end gap-1">
+                {players ? (
+                  <span className="mr-auto text-xs text-muted">
+                    읽음 {n.read ?? 0}/{players}
+                  </span>
+                ) : null}
                 <Button
                   type="button"
                   variant="ghost"

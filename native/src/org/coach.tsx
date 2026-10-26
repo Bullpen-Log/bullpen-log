@@ -56,8 +56,11 @@ export function CoachSpace({ space }: { space: MySpace }) {
 const memberWord = (space: MySpace) => (space.kind === 'TEAM' ? '선수' : '회원');
 const openMember = (space: MySpace, memberId: string) =>
   router.push(`/org/member/${memberId}?org=${space.orgId}` as Href);
+/* 팀의 있는 일정은 참석 · 메뉴 · 수행 · 등판 화면(3단계, org/team-event), 레슨장 · 새 일정은 고치기 화면 */
 const openEvent = (space: MySpace, date: string, id?: string) =>
-  router.push(`/org/event?org=${space.orgId}&date=${date}${id ? `&id=${id}` : ''}` as Href);
+  router.push(
+    (id && space.kind === 'TEAM' ? `/org/team-event?org=${space.orgId}&id=${id}` : `/org/event?org=${space.orgId}&date=${date}${id ? `&id=${id}` : ''}`) as Href
+  );
 
 /** 작은 글 단추 줄(+ 일정 · 투구 기록 적기 …) */
 function Actions({ items, c }: { items: { label: string; onPress: () => void }[]; c: Palette }) {
@@ -102,6 +105,12 @@ function TodayTab({ space, c }: { space: MySpace; c: Palette }) {
                 <Text style={[TYPE.body, { color: e.status === 'canceled' ? c.muted : c.ink, flex: 1 }]} numberOfLines={2}>
                   {e.title}
                 </Text>
+                {space.kind === 'TEAM' && e.replies.yes + e.replies.no + e.replies.maybe > 0 ? (
+                  <Text style={[TYPE.sub, { color: c.muted }]}>
+                    가요 {e.replies.yes}
+                    {e.replies.no ? ` · 못 가요 ${e.replies.no}` : ''}
+                  </Text>
+                ) : null}
                 <StatusWord status={e.status} c={c} />
                 <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
               </Pressable>

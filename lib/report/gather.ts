@@ -1,4 +1,5 @@
 import 'server-only';
+import { confirmedOutingEvents } from '@/lib/org/team-load';
 import { requestCache as cache } from '@/lib/request-cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -82,11 +83,15 @@ const recentRecords = cache(async (userId: string, sinceIso: string, asOf: strin
      * 이름만. 내 것만 읽는다 — 홈 캘린더는 관리자끼리 서로의 일정도 보여 주지만(app/(app)/today/page.tsx), 남의 경기로 내 운동을 바꾸면
      * 안 된다. 등판으로 읽는 이름인지는 buildFacts 가 가린다(lib/calendar-event.ts isOutingTitle).
      */
-    prisma.calendarEvent.findMany({
-      where: { userId, date: { gte: calendarFrom, lte: calendarTo } },
-      select: { date: true, title: true },
-      orderBy: { date: 'asc' },
-    }),
+    /* 팀이 확정한 등판도 같은 출처로 더한다(2026-10-26 팀 3단계, lib/org/team-load.ts) — 체크인 답이 먼저라 덮지 않는다 */
+    Promise.all([
+      prisma.calendarEvent.findMany({
+        where: { userId, date: { gte: calendarFrom, lte: calendarTo } },
+        select: { date: true, title: true },
+        orderBy: { date: 'asc' },
+      }),
+      confirmedOutingEvents(userId, calendarFrom, calendarTo),
+    ]).then(([mine, team]) => [...mine, ...team].sort((a, b) => a.date.getTime() - b.date.getTime())),
     /*
      * 트레이닝 탭 카드의 답(체크인 3판, 2026-10-13 — 오늘 하고 싶은 운동 종류 · 부위). 체크인 줄의 같은 칸은 2판까지의 기록이라,
      * 날짜가 같은 카드 답이 있으면 그것이 이긴다(아래 checkins 매핑). 하루 한 줄 · 45일이라 가볍다.

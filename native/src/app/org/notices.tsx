@@ -7,7 +7,7 @@ import { READABLE } from '~/lib/layout';
 import { TYPE, usePalette } from '~/lib/ui';
 import { Card, Empty, dayLabel } from '~/org/parts';
 
-/** 조직 공지 목록(앱 화면, 1.5단계) — 고정 먼저, 새 것부터. 누르면 고치기, 오른쪽 위 '쓰기'. 선수는 제 공간 화면에서 본다 */
+/** 조직 공지 목록(앱 화면, 1.5단계) — 고정 먼저, 새 것부터. 누르면 고치기, 오른쪽 위 '쓰기'. 선수는 제 공간 화면에서 본다. 3단계: 읽은 선수 수 */
 type Loaded = Awaited<ReturnType<typeof loadOrgNotices>>;
 
 export default function OrgNoticesScreen() {
@@ -40,6 +40,11 @@ export default function OrgNoticesScreen() {
                   <Text style={[TYPE.body, { color: c.ink }]} numberOfLines={3}>
                     {n.body}
                   </Text>
+                  {data.players ? (
+                    <Text style={[TYPE.sub, { color: c.muted }]}>
+                      읽음 {data.reads[n.id] ?? 0}/{data.players}
+                    </Text>
+                  ) : null}
                 </Card>
               </Pressable>
             ))

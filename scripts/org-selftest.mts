@@ -43,6 +43,19 @@ import { COACH_STATUSES, PLAYER_STATUSES, cleanHomeworkItems, homeworkDose, home
 import { cleanCommentBody, commentTarget, isOrgVideoPath, isOwnOrgVideoPath, isPlayerCommentKind, readAtSec } from '@/lib/org/comments';
 import { ORG_SET_BASE, ORG_THEME_KEY, cleanOrgWork, isEmptyOrgPlan, orgPlan, withOrgExercises, withoutEmptyOrgExercises } from '@/lib/org/team-work';
 import { mergeReopened, type FrozenExercise, type FrozenPlan } from '@/lib/workout/session-plan';
+import {
+  ATTEND_REPLIES,
+  OUTING_CALENDAR_TITLE,
+  PITCHING_ROLES,
+  cleanPlanMembers,
+  eventMemberIds,
+  isAttendReply,
+  isOutingRole,
+  planMemberIds,
+  planWork,
+  replyCounts,
+} from '@/lib/org/team';
+import { isOutingTitle } from '@/lib/calendar-event';
 import type { ReportFacts } from '@/lib/report/facts';
 
 let pass = 0;
@@ -659,6 +672,59 @@ console.log(
   check('세트를 바꾼 뒤 요약은 세트에서 다시 셈(summaryWrites)', store.includes('summaryWrites(a.userId'));
   check('프로그램이 org 판을 다른 운동 시작으로 안 봄', src('lib/program/load.ts').includes('!session.org && session.program?.key !== row.programKey'));
   check("저절로 닫기는 진행 중인 판만(마친 'org' 판은 안 건드림)", src('lib/workout/close-stale.ts').includes("status: 'ACTIVE', date: { lt: dayStart(now) }"));
+}
+
+/* ─────────────────────── 15. 3단계(팀) — 참석 · 훈련 메뉴 · 수행일지 · 등판 계획 · 공지 읽음 ─────────────────────── */
+
+{
+  const all = ['a', 'b', 'c'];
+  check('팀 일정은 활동 선수 모두', eventMemberIds({ memberId: null }, all).join() === 'a,b,c');
+  check('회원 일정은 그 회원만 · 떠났으면 아무도', eventMemberIds({ memberId: 'b' }, all).join() === 'b' && eventMemberIds({ memberId: 'z' }, all).length === 0);
+  check('메뉴 대상이 비면 일정의 모두', planMemberIds([], all).join() === 'a,b,c');
+  check('메뉴 대상은 아직 일정 대상인 사람만', planMemberIds(['b', 'z'], all).join() === 'b');
+  check('대상 거르기 — 모르는 사람 · 겹침 뺌', cleanPlanMembers(['b', 'b', 'z', 3], all).join() === 'b');
+  check('모두 고르면 빈 명단(=모두)', cleanPlanMembers(['a', 'b', 'c'], all).length === 0 && cleanPlanMembers('x', all).length === 0);
+  const defaults = new Map([
+    ['sq', { sets: 3, reps: 8, holdSeconds: null }],
+    ['plank', { sets: 2, reps: null, holdSeconds: 30 }],
+    ['nosets', { sets: null, reps: 10, holdSeconds: null }],
+  ]);
+  const work = planWork(
+    [
+      { items: [{ exerciseId: 'sq', sets: 4, reps: 5 }, { guideId: 'drill' }, { exerciseId: 'plank' }, { exerciseId: 'gone' }] },
+      { items: [{ exerciseId: 'sq', sets: 2 }, { exerciseId: 'nosets' }, { exerciseId: 'plank', holdSec: 45, sets: 99 }] },
+    ],
+    defaults
+  );
+  check('메뉴대로 — 드릴 · 지운 운동은 뺌, 같은 운동은 앞 메뉴 한 번', work.map((w) => w.exerciseId).join() === 'sq,plank,nosets');
+  check('메뉴에 적은 세트 · 횟수가 먼저', work[0].sets.length === 4 && work[0].sets.every((x) => x.reps === 5 && x.holdSeconds == null && x.weightKg == null));
+  check('안 적으면 라이브러리 기본(버티기는 초)', work[1].sets.length === 2 && work[1].sets[0].holdSeconds === 30 && work[1].sets[0].reps == null);
+  check('세트 수도 없으면 1세트', work[2].sets.length === 1 && work[2].sets[0].reps === 10);
+  check('세트는 열 개까지', planWork([{ items: [{ exerciseId: 'sq', sets: 99 }] }], defaults)[0].sets.length === 10);
+  check('세트끼리 같은 객체를 안 나눔', work[0].sets[0] !== work[0].sets[1]);
+  check('참석 응답 수', JSON.stringify(replyCounts(['yes', 'no', 'yes', null, 'maybe', 'x'])) === '{"yes":2,"no":1,"maybe":1}');
+  check('응답 · 역할 거르기', ATTEND_REPLIES.every(isAttendReply) && !isAttendReply('YES') && isOutingRole('standby') && !isOutingRole('closer'));
+  check('대기는 다음 등판 재료가 아님', PITCHING_ROLES.join() === 'starter,relief');
+  check('엔진이 확정 등판 이름을 등판으로 읽음', isOutingTitle(OUTING_CALENDAR_TITLE));
+
+  /* 'use server' 파일의 내보낸 함수는 누구나 부를 수 있다 — 하나도 빠짐없이 코치(coachOrg) · 선수(myMember) 확인부터 */
+  const team = src('app/actions/app-team.ts');
+  const fns = [...team.matchAll(/export async function (\w+)\([^]*?\n\}/g)];
+  check('app-team 동작이 있다', fns.length >= 12);
+  for (const m of fns) check(`app-team.${m[1]} 이 권한부터 본다`, /coachOrg\(|myMember\(/.test(m[0]));
+  check('앱 팀 동작이 허용 목록에', src('app/api/rpc/registry.ts').includes("'app-team': appTeam"));
+  check('수행일지는 선수 운동 판에 코치 세트로(writeOrgWork)', team.includes('await writeOrgWork({'));
+  check('수행일지는 가입 · 트레이닝 공유를 켠 선수만', team.includes('memberScope(p.consent, true).training'));
+  check('오지 않은 일정은 수행일지를 못 남김', team.includes("dateKey > toDateKey(appNow())"));
+  check('등판 고치면 다시 짜는 중', team.includes("update: { role, pitchLimit: n, status: 'draft'"));
+  check('공지 읽음은 제 조직 공지만', team.includes('where: { id: { in: ids }, orgId: r.m.org.id }'));
+  const load = src('lib/org/team-load.ts');
+  check('엔진 재료는 확정 · 선발 · 불펜 · 취소 안 한 일정만', load.includes("status: 'confirmed', role: { in: [...PITCHING_ROLES] }") && load.includes("status: { not: 'canceled' }"));
+  check('떠난 팀 등판은 안 읽음', load.includes("role: 'PLAYER', status: 'ACTIVE'"));
+  check('엔진이 팀 등판을 달력 일정과 같이 읽음', src('lib/report/gather.ts').includes('confirmedOutingEvents(userId, calendarFrom, calendarTo)'));
+  const cal = src('app/actions/org-calendar.ts');
+  check('일정을 지우면 참석 · 메뉴 · 등판도 같이', ['orgEventAttendee', 'orgPlan', 'orgOuting'].every((t) => cal.includes(`prisma.${t}.deleteMany({ where: { eventId: ev.id } })`)));
+  check('공지를 지우면 읽음도 같이', src('app/actions/org-notices.ts').includes('orgNoticeRead.deleteMany({ where: { noticeId: n.id } })'));
 }
 
 console.log(
