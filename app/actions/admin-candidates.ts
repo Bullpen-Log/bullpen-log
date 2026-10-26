@@ -19,7 +19,7 @@ import {
  * 덕아웃 수집 후보 관리자 동작(2026-10-26, 대표관리자만) — 업체 확인 정보 · 연락 · 동의 · 승인 · 좌표. 동작마다 requireAdmin.
  * 앱 rpc 허용 목록(app/api/rpc/registry.ts)에는 넣지 않는다. 수집 칸(원본 · 지도 대조 · 공개 안내)은 여기서 안 고친다 — 다시 가져오기만.
  */
-const done = (id: string) => revalidatePath(`/admin/places/${encodeURIComponent(id)}`);
+const done = (id: string) => revalidatePath(`/manage/places/${encodeURIComponent(id)}`);
 
 /** 업체 확인 정보 · 연락 · 동의 상태 · 메모 저장. 승인 조건이 깨지면 승인을 거둔다 */
 export async function saveCandidateCheck(formData: FormData) {
@@ -77,7 +77,7 @@ export async function setCandidateCoords(formData: FormData) {
   const id = String(formData.get('id') ?? '');
   const c = await prisma.facilityCandidate.findUnique({ where: { id }, select: { name: true, roadAddress: true, address: true } });
   if (!c) return;
-  const back = (r: string) => redirect(`/admin/places/${encodeURIComponent(id)}?coords=${r}`);
+  const back = (r: string) => redirect(`/manage/places/${encodeURIComponent(id)}?coords=${r}`);
   let at: { lat: number; lng: number } | null;
   if (formData.get('mode') === 'geocode') {
     if (!process.env.KAKAO_REST_API_KEY) back('nokey');

@@ -54,6 +54,9 @@ const nextConfig: NextConfig = {
       { source: '/dugout/:path*', destination: '/:path*', permanent: true },
       { source: '/master', destination: '/manage', permanent: true },
       { source: '/master/:path*', destination: '/manage/:path*', permanent: true },
+      /* 레슨 · 연습장 수집 후보는 싱커 관리자 → 덕아웃 관리로 옮겼다(2026-10-26) */
+      { source: '/admin/places', destination: '/manage/places', permanent: true },
+      { source: '/admin/places/:path*', destination: '/manage/places/:path*', permanent: true },
       // 영상분석은 투구 일지 안으로 들어갔고, 그 투구 일지는 홈으로 들어갔다.
       { source: '/analysis', destination: '/today', permanent: false },
       /*

@@ -349,14 +349,6 @@ export const NAV_GROUPS: NavGroup[] = [
         tone: 'armcare',
         adminOnly: true,
       },
-      /* 덕아웃 레슨 · 연습장 수집 후보 — 미확인 후보 관리(2026-10-26, 대표관리자만 · 사용자에게 안 보임) */
-      {
-        href: '/admin/places',
-        label: '수집 후보',
-        icon: 'users',
-        tone: 'armcare',
-        adminOnly: true,
-      },
       /* 1:1 문의 답하기 · 공지 쓰기 · 커뮤니티 신고 처리(2026-10-17) */
       {
         href: '/admin/support',
