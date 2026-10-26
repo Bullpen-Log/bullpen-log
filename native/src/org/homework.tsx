@@ -15,7 +15,7 @@ import { pickAndUploadOrgVideo } from '~/org/video';
  */
 type Who = { role: 'coach'; orgId: string } | { role: 'player'; memberId: string };
 
-export function HomeworkList({ items, who, onChanged, c }: { items: HomeworkView[]; who: Who; onChanged: () => void; c: Palette }) {
+export function HomeworkList({ items, who, onChanged, c, openTalk }: { items: HomeworkView[]; who: Who; onChanged: () => void; c: Palette; openTalk?: string }) {
   if (items.length === 0)
     return (
       <Card c={c}>
@@ -45,7 +45,7 @@ export function HomeworkList({ items, who, onChanged, c }: { items: HomeworkView
             </View>
           ))}
           <Actions h={h} who={who} onChanged={onChanged} c={c} />
-          <TalkToggle kind="homework" id={h.id} talk={h.talk} who={who.role === 'coach' ? who : { role: 'player', memberId: who.memberId }} c={c} />
+          <TalkToggle kind="homework" id={h.id} talk={h.talk} who={who.role === 'coach' ? who : { role: 'player', memberId: who.memberId }} c={c} defaultOpen={h.id === openTalk} />
         </Card>
       ))}
     </>

@@ -73,6 +73,7 @@ import {
   NO_ORG,
   ORG_LOST,
   orgOpenHref,
+  orgRecordHref,
   orgReturnParam,
   parseOrgOpen,
   parseOrgReturn,
@@ -795,6 +796,29 @@ console.log(
   const open = parseOrgOpen(orgOpenHref('o1', 'p', 'homework'));
   check('알림 주소 왕복', open?.orgId === 'o1' && open.side === 'p' && open.target === 'homework');
   check('모르는 대상은 오늘로 · 이상한 주소는 무시', parseOrgOpen('/org/open?org=o1&as=p&to=evil')?.target === 'today' && parseOrgOpen('/org/open?org=../x&as=p') === null && parseOrgOpen('/org/open?org=o1&as=x') === null && parseOrgOpen('/manage') === null);
+  /* 기록 하나를 가리키는 알림(계약 9-6 ①-3 C) */
+  const rec = parseOrgOpen(orgOpenHref('o1', 'c', 'inbox', { kind: 'homework', id: 'h1', member: 'm1' }));
+  check('기록 알림 왕복 — 종류 · 번호 · 회원', JSON.stringify(rec?.rec) === '{"kind":"homework","id":"h1","member":"m1"}' && rec?.target === 'inbox');
+  check(
+    '기록 알림 — 이상한 번호 · 종류는 버리고 탭만',
+    parseOrgOpen('/org/open?org=o1&as=p&to=notes&rec=note.../x')?.rec === undefined &&
+      parseOrgOpen('/org/open?org=o1&as=p&to=notes&rec=event.e1')?.rec === undefined &&
+      parseOrgOpen('/org/open?org=o1&as=p&to=notes&rec=note.n1&m=../x')?.rec?.member === undefined
+  );
+  check('기록 화면 주소', orgRecordHref('o1', 'p', { kind: 'note', id: 'n1' }) === '/org/record?org=o1&as=p&kind=note&id=n1');
+  {
+    const lesson = src('app/actions/app-lesson.ts');
+    const notes = src('app/actions/org-notes.ts');
+    check(
+      '기록 알림 — 숙제 · 답 · 질문 · 일지 · 일지 영상이 그 기록을 가리킴',
+      lesson.includes("orgOpenHref(orgId, 'p', 'homework', { kind: 'homework', id: made.id })") &&
+        lesson.includes("'noteId' in t ? 'notes' : 'homework', recordOf(t))") &&
+        lesson.includes("orgOpenHref(owner.orgId, 'c', 'inbox', { ...recordOf(t), member: r.m.id })") &&
+        lesson.includes("orgOpenHref(orgId, 'p', 'notes', { kind: 'note', id: note.id })") &&
+        notes.includes("orgOpenHref(member.orgId, 'p', 'notes', { kind: 'note', id: noteId })")
+    );
+    check('기록 화면 — 선수 쪽 회원 id 는 공간 목록의 것', src('native/src/app/index.tsx').includes("(o.side === 'p' ? s.memberId : o.rec?.member) ?? undefined"));
+  }
   check('알림 대상 → 탭', targetTab('TEAM', 'p', 'homework') === 'mytraining' && targetTab('LESSON', 'p', 'homework') === 'homework' && targetTab('TEAM', 'c', 'inbox') === 'today' && targetTab('LESSON', 'c', 'inbox') === 'inbox' && targetTab('TEAM', 'p', 'share') === null);
   check('운동 돌아올 곳 왕복', JSON.stringify(parseOrgReturn(orgReturnParam('o1:p', 'homework'))) === '{"key":"o1:p","tab":"homework"}' && parseOrgReturn('org:x:y') === null);
 

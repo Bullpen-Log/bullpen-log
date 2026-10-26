@@ -56,17 +56,17 @@ export default function NoticeViewScreen() {
                   </Card>
                 </Pressable>
               ) : (
-              <Card key={n.id} c={c}>
-                <Text style={[TYPE.sub, { color: n.pinned ? c.sky : c.muted }]}>
-                  {n.pinned ? '고정 · ' : ''}
-                  {dayLabel(n.key)}
-                  {n.author ? ` · ${n.author}` : ''}
-                </Text>
-                <Text style={[TYPE.card, { color: c.ink }]}>{n.title}</Text>
-                <Text selectable style={[TYPE.body, { color: c.ink }]}>
-                  {n.body}
-                </Text>
-              </Card>
+                <Card key={n.id} c={c}>
+                  <Text style={[TYPE.sub, { color: n.pinned ? c.sky : c.muted }]}>
+                    {n.pinned ? '고정 · ' : ''}
+                    {dayLabel(n.key)}
+                    {n.author ? ` · ${n.author}` : ''}
+                  </Text>
+                  <Text style={[TYPE.card, { color: c.ink }]}>{n.title}</Text>
+                  <Text selectable style={[TYPE.body, { color: c.ink }]}>
+                    {n.body}
+                  </Text>
+                </Card>
               )
             )
           )}

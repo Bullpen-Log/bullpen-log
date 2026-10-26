@@ -52,7 +52,7 @@ import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_SPORT_BARS, DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, sportActiveHref, sportOfPath, useTabBarOcclusion, type ShellTab, type SportKey } from '~/shell/tab-bar';
 import { TabPager } from '~/shell/tab-pager';
 import { ClockVeil } from '~/shell/clock-veil';
-import { ME, ORG_LOST, parseOrgOpen, targetTab, type SpaceSide, type OpenTarget } from '@/lib/org/space-nav';
+import { ME, ORG_LOST, orgRecordHref, parseOrgOpen, targetTab, type SpaceSide, type OpenTarget, type OpenRecord } from '@/lib/org/space-nav';
 import { OrgSpaceView, orgTabsOf } from '~/org/space';
 import { confirmLeaveDrafts, orgLost, refreshSpaces, resetSpace, setSpace, setSpaceTab, spaceNow, spaceOf, spaceOwner, useSpace } from '~/org/space-store';
 import { toast } from '~/shell/toast';
@@ -215,13 +215,14 @@ const isOrgHref = (href: string) => /^\/(org|manage|join)(\/|\?|$)/.test(href);
  * 조직 알림 · 딥링크(/org/open, 계약 8-4) — 공간 목록을 다시 받아 확인한 뒤에만 연다. 지금 소속이면 그 공간 · 탭으로(쓰던 글이 있으면 묻는다),
  * 지난 소속이면 받은 일지 알림만 읽기 화면으로, 그 밖은 한 줄.
  */
-async function openOrg(o: { orgId: string; side: SpaceSide; target: OpenTarget }) {
+async function openOrg(o: { orgId: string; side: SpaceSide; target: OpenTarget; rec?: OpenRecord }) {
   await refreshSpaces();
   const key = `${o.orgId}:${o.side}`;
   const s = spaceOf(key);
   if (!s) {
     const old = o.side === 'p' ? spaceNow().former.find((f) => f.orgId === o.orgId) : undefined;
-    if (old && o.target === 'notes') return void router.push(`/org/former/${old.memberId}` as Href);
+    if (old && o.target === 'notes')
+      return void router.push((o.rec?.kind === 'note' ? orgRecordHref(o.orgId, 'p', { kind: 'note', id: o.rec.id, member: old.memberId ?? undefined }) : `/org/former/${old.memberId}`) as Href);
     return toast('이제 볼 수 없는 소식이에요', 'error');
   }
   if (!(await confirmLeaveDrafts())) return;
@@ -231,6 +232,9 @@ async function openOrg(o: { orgId: string; side: SpaceSide; target: OpenTarget }
     return void router.push(`/org/share/${s.memberId}` as Href);
   }
   setSpace(key, targetTab(s.kind, o.side, o.target) ?? undefined);
+  /* 기록 하나를 가리키면 그 탭 위에 그 기록을 연다(계약 9-6 ①-3 C) — 선수 쪽 회원 id 는 공간 목록의 것(주소의 것은 안 믿음) */
+  const member = (o.side === 'p' ? s.memberId : o.rec?.member) ?? undefined;
+  if (o.rec && (o.rec.kind === 'note' || member)) router.push(orgRecordHref(o.orgId, o.side, { ...o.rec, member }) as Href);
 }
 
 /** 로그아웃 — 앞사람 기록(메모리 · 폰)을 지운다. 다음 사람이 로그인하면 새로 받는다(껍데기 상태는 SiteScreen resetShell) */

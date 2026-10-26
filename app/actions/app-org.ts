@@ -245,7 +245,7 @@ export type LessonNoteView = {
 };
 
 async function notesOf(
-  where: { memberId: string } | { member: { orgId: string }; date?: { lt: Date } },
+  where: { memberId: string; id?: string } | { member: { orgId: string }; date?: { lt: Date }; id?: string },
   take: number,
   viewerId: string,
   memberUserId: string | null
@@ -310,6 +310,24 @@ export async function loadOrgNotes(orgId: string, before: string | null): Promis
   if (!c) return NO_ACCESS;
   const where = { member: { orgId }, ...(before && /^\d{4}-\d{2}-\d{2}$/.test(before) ? { date: { lt: dbDate(before) } } : {}) };
   return { ok: true, notes: await notesOf(where, 40, c.user.id, null) };
+}
+
+/** 알림 · 받은 것이 가리키는 일지 하나(계약 9-6 ①-3 C) — 코치. 지웠으면 note null(권한 잃음과 가른다) */
+export async function loadCoachNote(orgId: string, noteId: string): Promise<{ ok: false; to: string } | { ok: true; note: LessonNoteView | null }> {
+  const c = await coachOrg(orgId);
+  if (!c) return NO_ACCESS;
+  const n = await prisma.lessonNote.findFirst({ where: { id: String(noteId), member: { orgId } }, select: { member: { select: { userId: true } } } });
+  if (!n) return { ok: true, note: null };
+  const [note] = await notesOf({ id: String(noteId), member: { orgId } }, 1, c.user.id, n.member.userId);
+  return { ok: true, note: note ?? null };
+}
+
+/** 같은 것 — 선수(내 회원 자리의 일지만). 떠난 곳이면 left(말 · 영상 보내기 없음) */
+export async function loadMyNote(memberId: string, noteId: string): Promise<{ ok: false; to: string } | { ok: true; note: LessonNoteView | null; left: boolean }> {
+  const r = await myMember(memberId);
+  if (!r) return NO_ACCESS;
+  const [note] = await notesOf({ id: String(noteId), memberId: r.m.id }, 1, r.user.id, r.user.id);
+  return { ok: true, note: note ?? null, left: r.m.status === 'LEFT' };
 }
 
 /** 코치 '회원 카드' — 공유한 항목만(card 의 각 칸이 null 이면 공유 안 함) · 일지 */

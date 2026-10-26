@@ -9,5 +9,7 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) 
 export default async function OrgOpenPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const q = new URLSearchParams({ org: one(sp.org), as: one(sp.as), to: one(sp.to) });
+  /* 기록 하나를 가리키는 알림(계약 9-6 ①-3 C) — 앱으로 넘길 때 같이 */
+  for (const k of ['rec', 'm']) if (one(sp[k])) q.set(k, one(sp[k]));
   return <OrgFallback lost={false} nativePath={`/org/open?${q.toString()}`} />;
 }

@@ -17,6 +17,7 @@ import type { loadTeamTraining } from '@/app/actions/app-team';
 import { openDugout, spaceNow } from '~/org/space-store';
 import { withJosa } from '@/lib/korean';
 import { WATCH_KINDS, WATCH_LABEL } from '@/lib/org/watch';
+import { orgRecordHref } from '@/lib/org/space-nav';
 import { Card, Empty, GroupTitle, KIND_WORD, Primary, armLook, dayLabel, st } from '~/org/parts';
 
 /**
@@ -434,7 +435,11 @@ function Inbox({ space, empty = false, c }: { space: MySpace; empty?: boolean; c
       <Card c={c}>
         {data.items.map((m) => (
           <View key={m.id} style={{ gap: 4, paddingVertical: 4 }}>
-            <Pressable accessibilityRole="button" onPress={() => openMember(space, m.memberId)} style={({ pressed }) => [{ gap: 2 }, pressed && { opacity: 0.6 }]}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => (m.rec ? router.push(orgRecordHref(space.orgId, 'c', m.rec) as Href) : openMember(space, m.memberId))}
+              style={({ pressed }) => [{ gap: 2 }, pressed && { opacity: 0.6 }]}
+            >
               <Text style={[TYPE.sub, { color: m.kind === 'fix' ? c.warn : c.link, fontWeight: '600' }]}>
                 {m.nickname} · {COMMENT_KIND_LABEL[m.kind]} · {m.where}
               </Text>

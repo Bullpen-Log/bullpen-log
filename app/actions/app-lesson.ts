@@ -9,7 +9,7 @@ import { dbDate } from '@/lib/nutrition/days';
 import { isDateKey, ORG_DUPLICATE_MS } from '@/lib/org/rules';
 import { trainingGuides, visibleExercises, allExercises, allGuides } from '@/lib/library-cache';
 import { coachOrg, myMember } from '@/lib/org/app-access';
-import { ORG_LOST, orgOpenHref } from '@/lib/org/space-nav';
+import { ORG_LOST, orgOpenHref, type OpenRecord } from '@/lib/org/space-nav';
 import { commentCounts } from '@/lib/org/comment-load';
 import {
   COACH_STATUSES,
@@ -110,11 +110,17 @@ export async function assignHomework(
     select: { items: true, dueDate: true },
   });
   if (recent.some((a) => JSON.stringify(a.items) === JSON.stringify(items) && (a.dueDate ? toDateKey(a.dueDate) : null) === due)) return { ok: true };
-  await prisma.orgAssignment.create({
+  const made = await prisma.orgAssignment.create({
     data: { orgId, memberId: member.id, noteId, assignedById: c.user.id, items, dueDate: due ? dbDate(due) : null },
+    select: { id: true },
   });
   if (member.userId)
-    await notify(member.userId, { kind: 'lesson', title: '코치가 숙제를 냈어요', body: `${items.length}가지`, link: orgOpenHref(orgId, 'p', 'homework') });
+    await notify(member.userId, {
+      kind: 'lesson',
+      title: '코치가 숙제를 냈어요',
+      body: `${items.length}가지`,
+      link: orgOpenHref(orgId, 'p', 'homework', { kind: 'homework', id: made.id }),
+    });
   revalidatePath('/manage');
   return { ok: true };
 }
@@ -183,10 +189,10 @@ async function settleHomework(userId: string | null, rows: { id: string; status:
   return changed;
 }
 
-/** 회원 한 명의 숙제(새 것부터 20) — 기록으로 맞춘 뒤 */
-async function homeworkOf(memberId: string, userId: string | null): Promise<HomeworkView[]> {
+/** 회원 한 명의 숙제(새 것부터 20) — 기록으로 맞춘 뒤. only 면 그 숙제 하나(알림이 가리킨 것, 계약 9-6 ①-3 C) */
+async function homeworkOf(memberId: string, userId: string | null, only?: unknown): Promise<HomeworkView[]> {
   const rows = await prisma.orgAssignment.findMany({
-    where: { memberId, status: { not: 'canceled' } },
+    where: { memberId, status: { not: 'canceled' }, ...(typeof only === 'string' && only ? { id: only } : {}) },
     orderBy: { createdAt: 'desc' },
     take: 20,
     select: { id: true, status: true, createdAt: true, items: true, dueDate: true, doneAt: true, doneSessionId: true },
@@ -226,21 +232,21 @@ async function homeworkOf(memberId: string, userId: string | null): Promise<Home
 }
 
 /** 코치: 회원 카드의 숙제 */
-export async function loadMemberHomework(orgId: string, memberId: string): Promise<{ ok: false; to: string } | { ok: true; homework: HomeworkView[] }> {
+export async function loadMemberHomework(orgId: string, memberId: string, only?: unknown): Promise<{ ok: false; to: string } | { ok: true; homework: HomeworkView[] }> {
   const c = await coachOrg(orgId);
   if (!c) return NO_ACCESS;
   const m = await prisma.orgMember.findFirst({ where: { id: memberId, orgId, role: 'PLAYER' }, select: { id: true, userId: true } });
   if (!m) return NO_ACCESS;
-  return { ok: true, homework: await homeworkOf(m.id, m.userId) };
+  return { ok: true, homework: await homeworkOf(m.id, m.userId, only) };
 }
 
 /** 선수: 내 숙제 */
-export async function loadMyHomework(memberId: string): Promise<{ ok: false; to: string } | { ok: true; homework: HomeworkView[] }> {
+export async function loadMyHomework(memberId: string, only?: unknown): Promise<{ ok: false; to: string } | { ok: true; homework: HomeworkView[] }> {
   const r = await myMember(memberId);
   if (!r) return NO_ACCESS;
   /* 떠난 곳의 숙제는 안 보인다 — 떠난 회원은 받은 일지만 읽기(결정 8, 계약 8-5) */
   if (r.m.status !== 'ACTIVE') return { ok: true, homework: [] };
-  return { ok: true, homework: await homeworkOf(r.m.id, r.user.id) };
+  return { ok: true, homework: await homeworkOf(r.m.id, r.user.id, only) };
 }
 
 /** 선수: '하는 중' · '했어요'(보고 — 완료 아님, 코치가 확인하거나 기록이 채워지면 완료). 옛 앱의 'done' 은 보고로 받는다 */
@@ -393,7 +399,13 @@ export async function addCoachComment(
     }),
     ...(owner.userId ? [prisma.orgComment.updateMany({ where: { ...where, authorId: owner.userId, resolvedAt: null }, data: { resolvedAt: appNow() } })] : []),
   ]);
-  if (owner.userId) await notify(owner.userId, { kind: 'lesson', title: '코치가 답을 남겼어요', body: text.slice(0, 60), link: orgOpenHref(orgId, 'p', 'noteId' in t ? 'notes' : 'homework') });
+  if (owner.userId)
+    await notify(owner.userId, {
+      kind: 'lesson',
+      title: '코치가 답을 남겼어요',
+      body: text.slice(0, 60),
+      link: orgOpenHref(orgId, 'p', 'noteId' in t ? 'notes' : 'homework', recordOf(t)),
+    });
   return { ok: true };
 }
 
@@ -446,10 +458,13 @@ export async function addMyComment(
     kind: 'lesson',
     title: kind === 'fix' ? '회원이 정정을 요청했어요' : kind === 'submit' ? '회원이 숙제 영상을 보냈어요' : '회원이 질문을 남겼어요',
     body: text.slice(0, 60),
-    link: orgOpenHref(owner.orgId, 'c', 'inbox'),
+    link: orgOpenHref(owner.orgId, 'c', 'inbox', { ...recordOf(t), member: r.m.id }),
   });
   return { ok: true };
 }
+
+/** 말을 단 자리 → 알림이 열 기록(계약 9-6 ①-3 C) */
+const recordOf = (t: CommentTarget): OpenRecord => ('noteId' in t ? { kind: 'note', id: t.noteId } : { kind: 'homework', id: t.assignmentId });
 
 /** 코치: 받은 것 하나 풀기(답 없이 처리했을 때) */
 export async function resolveComment(orgId: string, id: string): Promise<{ ok: boolean; error?: string }> {
@@ -468,6 +483,8 @@ export type InboxItem = {
   key: string;
   /** 어디에 단 말인가 — 일지(날짜) · 숙제 */
   where: string;
+  /** 누르면 그 기록 하나로(계약 9-6 ①-3 C) */
+  rec: OpenRecord | null;
 };
 
 /** 코치 '받은 것' — 회원이 쓴 말 가운데 안 푼 것, 새 것부터 30 */
@@ -497,6 +514,7 @@ export async function loadInbox(orgId: string): Promise<{ ok: false; to: string 
       body: r.body,
       key: toDateKey(r.createdAt),
       where: r.noteId ? `${noteDay.get(r.noteId) ?? ''} 일지` : r.assignmentId ? '숙제' : '',
+      rec: r.noteId ? { kind: 'note' as const, id: r.noteId, member: r.memberId } : r.assignmentId ? { kind: 'homework' as const, id: r.assignmentId, member: r.memberId } : null,
     })),
   };
 }
@@ -544,7 +562,7 @@ export async function addNoteVideo(orgId: string, noteId: string, path: unknown)
   if (note.videoPaths.includes(path)) return { ok: true };
   if (note.videoPaths.length >= NOTE_VIDEOS_MAX) return { ok: false, error: `일지 하나에 영상은 ${NOTE_VIDEOS_MAX}개까지예요.` };
   await prisma.lessonNote.update({ where: { id: note.id }, data: { videoPaths: [...note.videoPaths, path], editedById: c.user.id } });
-  if (note.member.userId) await notify(note.member.userId, { kind: 'lesson', title: '코치가 일지에 영상을 붙였어요', link: orgOpenHref(orgId, 'p', 'notes') });
+  if (note.member.userId) await notify(note.member.userId, { kind: 'lesson', title: '코치가 일지에 영상을 붙였어요', link: orgOpenHref(orgId, 'p', 'notes', { kind: 'note', id: note.id }) });
   return { ok: true };
 }
 

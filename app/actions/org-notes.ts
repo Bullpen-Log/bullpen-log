@@ -218,7 +218,7 @@ export async function createLessonNote(
   });
   if (dup) return { success: '남겼어요.' };
 
-  await prisma.$transaction(async (tx) => {
+  const noteId = await prisma.$transaction(async (tx) => {
     const eventId = await lessonEventOf(tx, member, form.date, user.id);
     const note = await tx.lessonNote.create({
       data: {
@@ -241,13 +241,14 @@ export async function createLessonNote(
         where: { id: member.userId, sinkerStartedAt: null },
         data: { sinkerStartedAt: new Date() },
       });
+    return note.id;
   });
   if (member.userId)
     await notify(member.userId, {
       kind: 'lesson',
       title: '코치가 레슨 기록을 남겼어요',
       body: form.body.slice(0, 60),
-      link: orgOpenHref(member.orgId, 'p', 'notes'),
+      link: orgOpenHref(member.orgId, 'p', 'notes', { kind: 'note', id: noteId }),
     });
   revalidateNote(member.id);
   return { success: '남겼어요.' };

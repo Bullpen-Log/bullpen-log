@@ -27,6 +27,7 @@ export function TalkToggle({
   videos = 0,
   who,
   c,
+  defaultOpen = false,
 }: {
   kind: 'note' | 'homework';
   id: string;
@@ -35,8 +36,10 @@ export function TalkToggle({
   videos?: number;
   who: VideoWho;
   c: Palette;
+  /** 알림이 가리킨 기록이면 펴서 연다(계약 9-6 ①-3 C) */
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const parts = [videos ? `영상 ${videos}` : '', talk.total ? `말 ${talk.total}` : ''].filter(Boolean);
   const label = parts.length ? parts.join(' · ') : who.role === 'coach' ? '말 남기기' : '질문 · 정정 요청';
   return (

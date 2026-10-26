@@ -91,18 +91,32 @@ export function resolveSpace(
 export const OPEN_TARGETS = ['today', 'schedule', 'notes', 'homework', 'inbox', 'share'] as const;
 export type OpenTarget = (typeof OPEN_TARGETS)[number];
 
-export const orgOpenHref = (orgId: string, side: SpaceSide, target: OpenTarget) => `${ORG_OPEN}?org=${orgId}&as=${side}&to=${target}`;
+/** 알림이 그 기록 하나를 가리킬 때(계약 9-6 ①-3 C) — 일지 · 숙제. 코치 쪽은 회원 id 도(숙제를 읽는 데 필요) */
+export type OpenRecord = { kind: 'note' | 'homework'; id: string; member?: string };
 
-export function parseOrgOpen(href: string): { orgId: string; side: SpaceSide; target: OpenTarget } | null {
+const ID = /^[\w-]{1,64}$/;
+
+export const orgOpenHref = (orgId: string, side: SpaceSide, target: OpenTarget, rec?: OpenRecord) =>
+  `${ORG_OPEN}?org=${orgId}&as=${side}&to=${target}${rec ? `&rec=${rec.kind}.${rec.id}${rec.member ? `&m=${rec.member}` : ''}` : ''}`;
+
+export function parseOrgOpen(href: string): { orgId: string; side: SpaceSide; target: OpenTarget; rec?: OpenRecord } | null {
   const [path, q] = href.split('?');
   if (path !== ORG_OPEN) return null;
   const sp = new URLSearchParams(q ?? '');
   const orgId = sp.get('org') ?? '';
   const side = sp.get('as');
   const target = sp.get('to') ?? 'today';
-  if (!/^[\w-]{1,64}$/.test(orgId) || (side !== 'c' && side !== 'p')) return null;
-  return { orgId, side, target: (OPEN_TARGETS as readonly string[]).includes(target) ? (target as OpenTarget) : 'today' };
+  if (!ID.test(orgId) || (side !== 'c' && side !== 'p')) return null;
+  const out = { orgId, side: side as SpaceSide, target: (OPEN_TARGETS as readonly string[]).includes(target) ? (target as OpenTarget) : ('today' as OpenTarget) };
+  const rec = /^(note|homework)\.([\w-]{1,64})$/.exec(sp.get('rec') ?? '');
+  if (!rec) return out;
+  const m = sp.get('m');
+  return { ...out, rec: { kind: rec[1] as OpenRecord['kind'], id: rec[2], ...(m && ID.test(m) ? { member: m } : {}) } };
 }
+
+/** 기록 하나 화면(native/src/app/org/record.tsx) — 알림 · 코치 '받은 것'이 연다 */
+export const orgRecordHref = (orgId: string, side: SpaceSide, rec: OpenRecord) =>
+  `/org/record?org=${orgId}&as=${side}&kind=${rec.kind}&id=${rec.id}${rec.member ? `&member=${rec.member}` : ''}`;
 
 /** 알림 대상 → 그 공간의 탭 키('share' 는 탭이 아니라 보여 줄 기록 화면 — null) */
 export function targetTab(kind: OrgKindName, side: SpaceSide, target: OpenTarget): string | null {
