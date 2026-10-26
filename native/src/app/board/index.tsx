@@ -20,7 +20,10 @@ export default function BoardScreen() {
   return <BoardList back="뒤로" />;
 }
 
-/** 자료실 목록 — 이 화면과 커뮤니티 하단바의 '자료실' 칸(app/community/index.tsx)이 같이 쓴다. bottom = 밑에 깔린 하단바 높이 */
+/**
+ * 자료실 목록 — 이 화면과 커뮤니티 하단바의 '자료실' 칸(app/community/index.tsx)이 같이 쓴다.
+ * bottom = 밑에 깔린 하단바가 바닥에서 가리는 높이(shell/tab-bar useTabBarOcclusion — 바닥 안전 영역 포함). 없으면 안전 영역만 비운다
+ */
 export function BoardList({ back, bottom = 0 }: { back?: string; bottom?: number }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
@@ -72,7 +75,7 @@ export function BoardList({ back, bottom = 0 }: { back?: string; bottom?: number
           data={data.articles}
           keyExtractor={(a) => a.id}
           renderItem={row}
-          contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + bottom + 32 }, READABLE]}
+          contentContainerStyle={[{ padding: 16, paddingBottom: (bottom || inset.bottom) + 32 }, READABLE]}
           refreshControl={
             <RefreshControl
               refreshing={pulling}

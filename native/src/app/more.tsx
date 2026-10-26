@@ -4,14 +4,14 @@ import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { type Href, router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { Easing, runOnJS, useAnimatedProps, useAnimatedStyle, useDerivedValue, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useTheme } from '~/lib/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, type IconName } from '~/shell/icon';
 import { useMenu, type MenuGroup } from '~/shell/menu-store';
-import type { ShellTab } from '~/shell/tab-bar';
+import { tabBarOcclusion, type ShellTab } from '~/shell/tab-bar';
 import { destinationOf, leaveTo, leaveWhenShown, openWebAfter } from '~/shell/web-nav';
 import { beginMotion, endMotion } from '~/shell/transition';
 
@@ -21,6 +21,10 @@ import { beginMotion, endMotion } from '~/shell/transition';
  * 라이트 테마에서 흰 폴더가 흰 배경에 묻혔다. 폴더 안은 투명 아이콘 + 이름이 셋씩, 묶음 제목은 60%, 맨 밑에 설정 타일 · 내 정보 줄.
  * 하단 탭에 있는 넷(홈 · 투구 · 트레이닝 · 영양)은 뺀다. 막을 누르면 닫힌다(아이폰 폴더처럼 닫기 단추 없음).
  * 목록은 사이트가 알려 준 메뉴 묶음(lib/nav.ts visibleGroups · 잠김까지). 누르면 닫고 그곳으로(앱 화면이 있는 곳은 앱 화면 — 껍데기가 가른다).
+ *
+ * 폴더 높이(2026-10-26 아이폰 레이아웃 점검): 폴더는 시계 자리와 탭 막대 사이에 들어가는 만큼만 크고, 넘치는 메뉴는 폴더 안에서 굴린다.
+ * 예전엔 높이 한도 · 스크롤이 없어 메뉴가 많으면(관리자 · 잠긴 칸) 위의 '메뉴' 제목과 밑의 내 정보 줄이 화면 밖으로 잘렸다.
+ * 굴릴 게 있을 때만 폴더 안 끌어내려 닫기를 끈다(스크롤과 다투지 않게) — 그때도 '메뉴' 제목을 끌거나 바깥 막을 누르면 닫힌다.
  */
 /* 웹 nav-icons.tsx NAV_ICONS 와 같은 선 그림 */
 const ICON: Record<string, IconName> = {
@@ -169,8 +173,12 @@ export default function MoreScreen() {
       })
     );
   };
-  /* 끌어내려 닫기 — 폴더가 손가락을 따라 내려오다 놓으면 아래로 미끄러져 닫히거나(280ms) 제자리로(220ms) */
-  const drag = Gesture.Pan()
+  /* 폴더 안이 넘치나(굴릴 게 있나) — 스크롤 칸의 보이는 높이 · 내용 높이를 재서 */
+  const [viewH, setViewH] = useState(0);
+  const [contentH, setContentH] = useState(0);
+  const overflow = viewH > 0 && contentH > viewH + 1;
+  /* 끌어내려 닫기 — 폴더가 손가락을 따라 내려오다 놓으면 아래로 미끄러져 닫히거나(280ms) 제자리로(220ms). 제목 줄은 늘, 폴더 전체는 굴릴 게 없을 때만 */
+  const pull = () => Gesture.Pan()
     .activeOffsetY(DRAG_START)
     .failOffsetX([-DRAG_START, DRAG_START])
     .onUpdate((e) => {
@@ -184,6 +192,9 @@ export default function MoreScreen() {
         dragY.set(withTiming(0, { duration: 220, easing: SLIDE }));
       }
     });
+  /* 둘 중 하나만 켠다 — 둘 다 켜면 제목을 끌 때 두 번 닫혀(router.back 두 번) 밑 화면까지 걷힌다 */
+  const drag = pull().enabled(!overflow);
+  const titleDrag = pull().enabled(overflow);
 
   /*
    * 폴더는 가는 곳이 보일 때 닫는다 — 예전엔 누르자마자 폴더를 걷고 웹을 옮겨, 웹이 새 화면을 그리는 동안 밑의 옛 화면(앱 판 · 옛 웹)이 보였다가
@@ -249,7 +260,15 @@ export default function MoreScreen() {
 
   const folders = folderGroups(groups, tabs);
   const body = (
-    <View style={{ paddingTop: 24, paddingHorizontal: 22, paddingBottom: 22, gap: 12 }}>
+    <ScrollView
+      style={styles.body}
+      contentContainerStyle={{ paddingTop: 24, paddingHorizontal: 22, paddingBottom: 22, gap: 12 }}
+      scrollEnabled={overflow}
+      bounces={overflow}
+      showsVerticalScrollIndicator={overflow}
+      onLayout={(e) => setViewH(e.nativeEvent.layout.height)}
+      onContentSizeChange={(_, h) => setContentH(h)}
+    >
       {folders.map((g, gi) => (
         <View key={g.title ?? `g${gi}`} style={[styles.grid, gi > 0 && { marginTop: 4 }]}>
           {g.title ? <Text style={[styles.groupTitle, { color: L.fg, opacity: 0.6 }]}>{g.title}</Text> : null}
@@ -282,12 +301,12 @@ export default function MoreScreen() {
           <Text style={{ color: L.fg, opacity: 0.65, fontSize: 13 }}>{isAdmin ? '관리자' : '내 정보'}</Text>
         </View>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 
   return (
     <GestureDetector gesture={drag}>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1 }} onAccessibilityEscape={close}>
         {AnimatedBlur ? (
           <AnimatedBlur
             pointerEvents="none"
@@ -300,14 +319,27 @@ export default function MoreScreen() {
           {!AnimatedBlur ? <View style={[StyleSheet.absoluteFill, { backgroundColor: L.scrim }]} /> : null}
           <View style={[StyleSheet.absoluteFill, { backgroundColor: L.scrim }]} />
         </Animated.View>
-        {/* 하단 탭 자리만큼 비운다 — 폴더가 탭 막대 위에 선다(웹 inset.bottom + 72) */}
-        <Pressable accessibilityLabel="메뉴 닫기" onPress={close} style={[styles.scrim, { paddingTop: inset.top, paddingBottom: inset.bottom + 72 }]}>
+        {/*
+          위는 시계 자리 + 12, 밑은 탭 막대가 실제로 가리는 높이 + 12 만큼 비운다 — 폴더가 그 사이에 들어가고 넘치면 안에서 굴린다.
+          예전 밑 여백 '안전 영역 + 72' 는 홈 단추 아이폰(안전 영역 0)에서 막대 윗변(72)과 딱 붙었다.
+        */}
+        <Pressable
+          accessibilityLabel="메뉴 닫기"
+          onPress={close}
+          style={[styles.scrim, { paddingTop: inset.top + 12, paddingBottom: tabBarOcclusion(inset.bottom) + 12 }]}
+        >
           {/* 폴더 안을 눌러도 닫히지 않게 — 안쪽 Pressable 이 누름을 먼저 받는다 */}
-          <Animated.View style={[styles.folderWrap, folderStyle]} onLayout={(e) => measured(e.nativeEvent.layout.width, e.nativeEvent.layout.height)}>
-            {/* 폴더 위 큰 제목 — 아이폰 폴더 이름처럼 흰 글자(뒤가 어두워져 늘 읽힌다) */}
-            <Text accessibilityRole="header" style={styles.title}>
-              메뉴
-            </Text>
+          <Animated.View
+            accessibilityViewIsModal
+            style={[styles.folderWrap, folderStyle]}
+            onLayout={(e) => measured(e.nativeEvent.layout.width, e.nativeEvent.layout.height)}
+          >
+            {/* 폴더 위 큰 제목 — 아이폰 폴더 이름처럼 흰 글자(뒤가 어두워져 늘 읽힌다). 폴더 안을 굴릴 때도 이 줄을 끌어내리면 닫힌다 */}
+            <GestureDetector gesture={titleDrag}>
+              <Text accessibilityRole="header" style={styles.title}>
+                메뉴
+              </Text>
+            </GestureDetector>
             <Pressable accessibilityRole="menu" accessibilityLabel="메뉴" onPress={() => undefined} style={styles.lift}>
               {glass ? (
                 <GlassView glassEffectStyle="regular" colorScheme={theme === 'light' ? 'light' : 'dark'} tintColor={L.folder} style={[styles.folder, { borderWidth: 1, borderColor: L.border }]}>
@@ -326,11 +358,14 @@ export default function MoreScreen() {
 
 const styles = StyleSheet.create({
   scrim: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  folderWrap: { width: '88%', maxWidth: 352 },
+  /* 높이는 막 안쪽(시계 자리 ~ 탭 막대)에 맞춰 줄어든다 — 넘치면 폴더 안(body)이 굴러간다 */
+  folderWrap: { width: '88%', maxWidth: 352, flexShrink: 1 },
   title: { color: '#ffffff', fontSize: 30, fontWeight: '700', letterSpacing: -0.5, marginLeft: 8, marginBottom: 14, textShadowColor: 'rgba(0,0,0,0.18)', textShadowRadius: 8 },
   /* 그림자는 겉에(폴더 안쪽은 overflow hidden 이라 잘린다) */
-  lift: { borderRadius: 36, boxShadow: FOLDER_SHADOW },
-  folder: { borderRadius: 36, overflow: 'hidden' },
+  lift: { borderRadius: 36, boxShadow: FOLDER_SHADOW, flexShrink: 1 },
+  folder: { borderRadius: 36, overflow: 'hidden', flexShrink: 1 },
+  /* 내용만큼 크고(flexGrow 0) 자리가 모자라면 줄어 굴러간다 */
+  body: { flexGrow: 0, flexShrink: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 12 },
   groupTitle: { width: '100%', fontSize: 11, fontWeight: '600', paddingHorizontal: 4, marginBottom: -4 },
   tile: { width: `${100 / 3}%`, alignItems: 'center', gap: 6, paddingHorizontal: 2 },

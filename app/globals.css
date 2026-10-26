@@ -3850,13 +3850,18 @@ html[data-reduce-motion] *::after {
 
 /*
  * Expo 앱 탭 — 새 아이폰 앱(native/, <html data-shell="expo">, lib/native-app.ts)은 아래 탭 막대를 앱이 그린다(투구 탭은 앱 화면,
- * 홈 · 트레이닝 · 영양은 이 웹 화면). 웹 탭 막대를 숨기고, 탭 위에 띄우던 것들은 앱 막대(49pt + 홈 막대 자리) 위로.
+ * 홈 · 트레이닝 · 영양은 이 웹 화면). 웹 탭 막대를 숨기고, 탭 위에 띄우던 것들은 앱 막대 윗변(아래 --tab-bar-top) 위로.
  */
 html[data-shell='expo'] nav[data-mobile-tabs] {
   display: none;
 }
+/*
+ * 앱 막대가 바닥에서 가리는 높이 — 앱 native/src/shell/tab-bar.tsx tabBarOcclusion 과 같은 식(2026-10-26 아이폰 레이아웃 점검):
+ * 알약 60 + 밑 틈 max(홈 막대 자리 − 13, 12) = max(안전 영역 + 47, 72). 예전 '안전 영역 + 49' 는 홈 단추 아이폰(안전 영역 0)에서
+ * 49 라 실제 막대 윗변 72 보다 23 모자라 시트 끝 줄이 막대 밑에 깔렸다.
+ */
 html[data-shell='expo'] {
-  --tab-bar-top: calc(env(safe-area-inset-bottom) + 3.0625rem);
+  --tab-bar-top: max(calc(env(safe-area-inset-bottom) + 2.9375rem), 4.5rem);
 }
 /*
  * 앱 하단바는 웹뷰 위에 떠 있어 아래 시트(Modal 의 data-sheet)의 바닥을 덮는다 — 시트 맨 아래 칸(내용 · 단추 줄)을 막대 위까지 비운다

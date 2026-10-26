@@ -2,12 +2,11 @@ import * as Haptics from 'expo-haptics';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { POST_CATEGORIES, isPostCategory, postCategoryLabel, type PostCategory, type PostSort } from '@/lib/community';
 import type { loadAppCommunity } from '@/app/actions/community';
 import { Badge, Bar, categoryColor, Chip, LoadState, s, useLoad, useTitleCollapse } from '~/community/parts';
 import { BoardList } from '~/app/board';
-import { TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
+import { TabBar, useTabBarOcclusion, type ShellTab } from '~/shell/tab-bar';
 import { PageHead } from '~/shell/heading';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
@@ -28,6 +27,8 @@ const TABS: ShellTab[] = [
 ];
 
 export default function CommunityScreen() {
+  /* 하단바가 가리는 높이(바닥 안전 영역 포함) — 자료실 판 끝 여백 */
+  const tabBottom = useTabBarOcclusion();
   const c = usePalette();
   const params = useLocalSearchParams<{ category?: string; sort?: string; tab?: string }>();
   const [tab, setTab] = useState<Tab>(params.tab === 'board' ? 'board' : params.sort === 'hot' ? 'hot' : 'new');
@@ -43,7 +44,7 @@ export default function CommunityScreen() {
     <View style={{ flex: 1, backgroundColor: c.page }}>
       {seen.map((k) => (
         <View key={k} style={[StyleSheet.absoluteFill, { display: tab === k ? 'flex' : 'none' }]}>
-          {k === 'board' ? <BoardList bottom={TAB_BAR_HEIGHT} /> : <PostList sort={k} first={first} />}
+          {k === 'board' ? <BoardList bottom={tabBottom} /> : <PostList sort={k} first={first} />}
         </View>
       ))}
       <TabBar tabs={TABS} active={tab} onPress={press} back={() => router.back()} enter />
@@ -65,7 +66,7 @@ const MAX_PAGES = 10;
 function PostList({ sort, first }: { sort: PostSort; first: PostCategory | null }) {
   const c = usePalette();
   const { shown, scroll } = useTitleCollapse();
-  const inset = useSafeAreaInsets();
+  const tabBottom = useTabBarOcclusion();
   const [category, setCategory] = useState<PostCategory | null>(first);
   const [pages, setPages] = useState(1);
   /* 더 보기로 읽는 중 — 그때는 목록을 흐리지 않고 밑에 도는 표시만 */
@@ -157,7 +158,7 @@ function PostList({ sort, first }: { sort: PostSort; first: PostCategory | null 
             )
           }
           style={{ opacity: stale && !more ? 0.5 : 1 }}
-          contentContainerStyle={[{ paddingBottom: inset.bottom + TAB_BAR_HEIGHT + 24 }, READABLE]}
+          contentContainerStyle={[{ paddingBottom: tabBottom + 24 }, READABLE]}
           refreshControl={
             <RefreshControl
               refreshing={pulling}

@@ -182,7 +182,7 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
       )}
     </ScrollView>
     {/* 2분할 비교 고르는 중 — 하단 탭 위에 뜬 막대(웹 video-gallery) */}
-    {log && view === 'list' ? <ComparePickBar bottom={Math.max(inset.bottom - 13, 12) + 62 + 12} /> : null}
+    {log && view === 'list' ? <ComparePickBar bottom={bottom + 12} /> : null}
     </View>
   );
 }

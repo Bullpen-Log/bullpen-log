@@ -49,7 +49,7 @@ import { drainOutbox, setOutboxOwner } from '~/workout/outbox';
 import { drainChecks } from '~/armcare/outbox';
 import { sendCheck } from '~/armcare/send';
 import { PitchTab } from '~/pitch/tab';
-import { DEFAULT_SPORT_BARS, DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, sportActiveHref, sportOfPath, type ShellTab, type SportKey } from '~/shell/tab-bar';
+import { DEFAULT_SPORT_BARS, DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, sportActiveHref, sportOfPath, useTabBarOcclusion, type ShellTab, type SportKey } from '~/shell/tab-bar';
 import { TabPager } from '~/shell/tab-pager';
 import { ClockVeil } from '~/shell/clock-veil';
 import { Press } from '~/shell/press';
@@ -693,11 +693,13 @@ export default function SiteScreen() {
    * 붙어 있는 판이 모두 다시 그려졌다(2026-10-25 화면 전환 점검). 따로 두면 바뀐 판만 새로 만든다
    */
   const pitchLog = showPitch && new URLSearchParams(search).get('view') === 'log';
+  /* 탭 판 넷의 본문 끝 여백 — 막대가 실제로 가리는 높이(바닥 안전 영역 포함, 2026-10-26). 예전 TAB_BAR_HEIGHT(49)는 안전 영역을 안 넣어 끝이 막대 밑에 깔렸다 */
+  const tabBottom = useTabBarOcclusion();
   const { home: seenHome, pitch: seenPitch, training: seenTraining, nutrition: seenNutrition } = seen;
-  const homeSlot = today && seenHome ? <HomeTab key="home" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} onTab={goTab} /> : null;
-  const pitchSlot = today && seenPitch ? <PitchTab key="pitch" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} log={pitchLog} /> : null;
-  const trainingSlot = today && seenTraining ? <TrainingTab key="training" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} /> : null;
-  const nutritionSlot = today && seenNutrition ? <NutritionTab key="nutrition" today={today} bottom={TAB_BAR_HEIGHT} onWebNutrition={openWebNutrition} /> : null;
+  const homeSlot = today && seenHome ? <HomeTab key="home" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} /> : null;
+  const pitchSlot = today && seenPitch ? <PitchTab key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} log={pitchLog} /> : null;
+  const trainingSlot = today && seenTraining ? <TrainingTab key="training" today={today} bottom={tabBottom} onWeb={openWeb} /> : null;
+  const nutritionSlot = today && seenNutrition ? <NutritionTab key="nutrition" today={today} bottom={tabBottom} onWebNutrition={openWebNutrition} /> : null;
 
   /* 웹을 못 불러와도(꺼진 망에서 켬) 탭 막대 · 앱 탭은 그대로 쓴다 — 사이트가 '막대 켬'을 못 알려 주니 실패면 켠 것으로 본다 */
   const barShown = (barOn || failed) && !webFront && !isCheckinPath(path);

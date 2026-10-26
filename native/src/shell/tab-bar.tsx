@@ -111,6 +111,21 @@ export const TAB_BAR_HEIGHT = 49;
 
 const ITEM_H = TAB_MOTION.height;
 const PAD = 4;
+
+/**
+ * 탭 막대가 화면 바닥에서 가리는 높이 = 알약 윗변까지(2026-10-26 아이폰 레이아웃 점검). 알약 60(칸 52 + 위아래 4) + 밑 틈(홈 막대 자리 − 13, 12 보다 좁지 않게).
+ * 홈 막대 34(노치 아이폰) 81 · 홈 단추 아이폰(SE 꼴, 0) 72. 탭 위 본문은 이만큼 + 여유를 비운다 — 앱 ScrollView 는 바닥 안전 영역을 저절로 더하지 않는다
+ * (RN contentInsetAdjustmentBehavior 기본 never). 예전엔 49 + 24 = 73 만 비워 노치 아이폰에서 끝 8pt 가 막대 밑에 깔렸다.
+ * 웹 globals.css 'Expo 앱 탭'의 --tab-bar-top 도 같은 식이다 — 하나를 바꾸면 둘 다.
+ */
+export function tabBarOcclusion(insetBottom: number): number {
+  return Math.max(insetBottom - 13, 12) + ITEM_H + PAD * 2;
+}
+
+/** 지금 기기의 탭 막대 가림 높이 — tabBarOcclusion(안전 영역 바닥) */
+export function useTabBarOcclusion(): number {
+  return tabBarOcclusion(useSafeAreaInsets().bottom);
+}
 // 손을 놓을 때만 칸 중심으로 스프링. 끌 때는 손가락 좌표를 그대로 따른다.
 const POS_SPRING = TAB_MOTION.positionSpring;
 const LIFT_SPRING = TAB_MOTION.liftSpring;

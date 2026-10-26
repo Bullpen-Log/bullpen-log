@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AVERAGE_HEIGHT_CM, HEIGHT_MAX_CM, HEIGHT_MIN_CM } from '@/lib/abs/rules';
 import { Icon } from '~/shell/icon';
@@ -8,6 +8,8 @@ import { Press } from '~/shell/press';
 /**
  * 측정 중 '타자 N · 175cm' 칩(앱) — 누르면 '다음 타자' 시트: 평균 신장 그대로 또는 숫자 입력(웹 components/abs/batter-chip.tsx 와 같다).
  * 처음 '평균'을 골랐으면 다음 타자에게도 유지, 숫자를 넣으면 그 타자부터 그 값.
+ * 시트는 자판 위로 올라온다(2026-10-26 아이폰 레이아웃 점검) — 투명 Modal 바닥에 붙은 시트라, 숫자 자판(autoFocus)이 뜨면 입력칸과 '넘어가기'를 통째로 덮었다.
+ * 숫자 자판엔 완료 키가 없어 덮이면 끝낼 길이 없었다 — 이제 단추가 자판 바로 위에 있다.
  */
 export function BatterChip({ batter, height, onNext }: { batter: number; height: number | 'average'; onNext: (height: number | 'average') => void }) {
   const inset = useSafeAreaInsets();
@@ -27,6 +29,7 @@ export function BatterChip({ batter, height, onNext }: { batter: number; height:
         <Icon name="chevron-right" size={14} color="rgba(255,255,255,0.7)" />
       </Pressable>
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+        <KeyboardAvoidingView behavior="padding" style={st.fill}>
         <Pressable style={st.scrim} onPress={() => setOpen(false)} accessibilityLabel="닫기" />
         <View style={[st.sheet, { paddingBottom: inset.bottom + 16 }]}>
           <Text style={st.title}>다음 타자</Text>
@@ -67,6 +70,7 @@ export function BatterChip({ batter, height, onNext }: { batter: number; height:
             <Text style={st.nextText}>타자 {batter + 1}로 넘어가기</Text>
           </Pressable>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -75,17 +79,19 @@ export function BatterChip({ batter, height, onNext }: { batter: number; height:
 const st = StyleSheet.create({
   chip: { alignSelf: 'flex-start', height: 36, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.55)' },
   chipText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  fill: { flex: 1 },
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: { backgroundColor: '#f2f2f7', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 12 },
   title: { fontSize: 22, fontWeight: '700', color: '#1d1d1f' },
   body: { fontSize: 15, color: '#3a3a3c' },
-  row: { flexDirection: 'row', gap: 8 },
+  /* 큰 글자에서 두 칩이 한 줄에 안 들어가면 다음 줄로 */
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   opt: { minHeight: 40, paddingHorizontal: 16, borderRadius: 20, backgroundColor: '#e5e5ea', justifyContent: 'center' },
   optOn: { backgroundColor: '#0a84d6' },
   optText: { fontSize: 15, fontWeight: '600', color: '#1d1d1f' },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   input: { height: 48, width: 112, borderRadius: 12, borderWidth: 1, borderColor: '#e5e5ea', backgroundColor: '#fff', textAlign: 'center', fontSize: 18, color: '#1d1d1f', fontVariant: ['tabular-nums'] },
   unit: { fontSize: 14, color: '#6e6e73' },
-  next: { marginTop: 8, height: 48, borderRadius: 16, backgroundColor: '#0a84d6', alignItems: 'center', justifyContent: 'center' },
+  next: { marginTop: 8, minHeight: 48, paddingHorizontal: 16, borderRadius: 16, backgroundColor: '#0a84d6', alignItems: 'center', justifyContent: 'center' },
   nextText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

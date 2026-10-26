@@ -83,7 +83,11 @@ export function Sheet({
             <Animated.View entering={FadeIn.duration(220)} exiting={FadeOut.duration(SHEET_OUT_MS)} style={st.scrim}>
               <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="닫기" />
             </Animated.View>
-            <View style={st.fitWrap} pointerEvents="box-none">
+            {/*
+              자판이 올라오면 카드도 그 위로 — 투명 Modal 은 아이폰 시트(pageSheet)와 달리 자판을 저절로 피하지 않는다(2026-10-26 아이폰 레이아웃 점검).
+              pageSheet 갈래(아래)와 같은 한 가지 길(KeyboardAvoidingView padding)이고, 안 스크롤은 자판 inset 을 따로 더하지 않는다
+            */}
+            <KeyboardAvoidingView behavior="padding" style={st.fitWrap} pointerEvents="box-none">
               <Animated.View
                 entering={SlideInDown.duration(320).easing(Easing.bezier(0.22, 1, 0.36, 1))}
                 exiting={SlideOutDown.duration(SHEET_OUT_MS).easing(Easing.in(Easing.ease))}
@@ -101,7 +105,7 @@ export function Sheet({
                 </ScrollLockScope>
                 {footer ? <View style={[st.footer, { paddingBottom: Math.max(16, inset.bottom), borderTopColor: c.line }]}>{footer}</View> : null}
               </Animated.View>
-            </View>
+            </KeyboardAvoidingView>
           </>
         ) : null}
       </Modal>
