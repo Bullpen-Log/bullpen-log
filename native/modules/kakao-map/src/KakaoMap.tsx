@@ -2,8 +2,8 @@ import { requireNativeView } from 'expo';
 import type { ComponentType } from 'react';
 import type { NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native';
 
-/** 지도 위 점 하나 — id 는 누르면 그대로 돌아온다 */
-export type KakaoMarker = { id: string; lat: number; lng: number };
+/** 지도 위 점 하나 — id 는 누르면 그대로 돌아온다. name 은 확대했을 때 점 밑에 붙는 이름(없으면 점만) */
+export type KakaoMarker = { id: string; lat: number; lng: number; name?: string };
 
 export type KakaoMapProps = {
   style?: StyleProp<ViewStyle>;

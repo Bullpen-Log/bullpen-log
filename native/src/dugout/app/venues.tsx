@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KakaoMapView, type KakaoMarker } from '../../../modules/kakao-map';
 import { syncSession } from '~/lib/rpc';
@@ -17,7 +18,8 @@ import { DUGOUT_UA } from '~/dugout/site';
  * 위는 카카오맵(modules/kakao-map), 밑은 목록. 점이나 줄을 누르면 고른 곳 카드 → 자세히 · 예약은 웹 화면으로(leaveTo).
  * 카카오맵 바닥 판이 없는 옛 앱은 껍데기(index.tsx)가 이 화면으로 안 보낸다(hasKakaoMap).
  * 대표관리자는 머리 밑 [공개 지도 | 수집 후보] 로 같은 자리에서 수집 후보 지도로 바꾼다(2026-10-26 김민 — /api/places?view=candidates,
- * 칩은 후보 거르기, 줄을 누르면 후보 상세 /manage/places/<id> 웹 화면).
+ * 칩은 후보 거르기). 후보의 '자세히'는 관리 화면으로 넘어가지 않고 아래 창 웹뷰(사이트 app/embed/place/[id] — 관리 화면과 같은 내용)로,
+ * 닫으면 목록을 새로 받는다(연락 · 승인 같은 바뀐 상태). 점은 확대하면 이름이 붙는다(modules/kakao-map 의 name).
  */
 type Place = {
   id: string;
@@ -63,6 +65,8 @@ export default function VenuesScreen() {
   const [failed, setFailed] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  /* 후보 창 — 고른 후보(수집 후보 지도에서만) */
+  const [detail, setDetail] = useState<Place | null>(null);
   const list = useRef<FlatList<Place>>(null);
 
   /* 다시 불러오기 단추가 올린다 */
@@ -85,7 +89,7 @@ export default function VenuesScreen() {
   }, [view, kind, params.q, tick]);
 
   const markers = useMemo<KakaoMarker[]>(
-    () => (places ?? []).flatMap((p) => (p.lat != null && p.lng != null ? [{ id: p.id, lat: p.lat, lng: p.lng }] : [])),
+    () => (places ?? []).flatMap((p) => (p.lat != null && p.lng != null ? [{ id: p.id, lat: p.lat, lng: p.lng, name: p.name }] : [])),
     [places]
   );
   const picked = places?.find((p) => p.id === selected) ?? null;
@@ -185,7 +189,11 @@ export default function VenuesScreen() {
               {[picked.kindLabel, picked.address ?? picked.region].filter(Boolean).join(' · ')}
             </Text>
           </View>
-          <Press accessibilityRole="button" onPress={() => leaveTo(picked.href)} style={[st.ghost, { borderColor: c.line }]}>
+          <Press
+            accessibilityRole="button"
+            onPress={() => (view === 'candidates' ? setDetail(picked) : leaveTo(picked.href))}
+            style={[st.ghost, { borderColor: c.line }]}
+          >
             <Text style={{ color: c.ink, fontSize: 14, fontWeight: '600' }}>자세히</Text>
           </Press>
           {picked.bookHref ? (
@@ -251,11 +259,52 @@ export default function VenuesScreen() {
           }}
         />
       )}
+
+      <CandidateSheet
+        place={detail}
+        onClose={() => {
+          setDetail(null);
+          setTick((n) => n + 1);
+        }}
+      />
     </View>
   );
 }
 
+/** 수집 후보 하나 — 아래 창(pageSheet) 웹뷰. 로그인은 덕아웃 웹뷰와 같은 쿠키(sharedCookiesEnabled) */
+function CandidateSheet({ place, onClose }: { place: Place | null; onClose: () => void }) {
+  const c = usePalette();
+  return (
+    <Modal visible={place != null} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: c.page }}>
+        <View style={[st.sheetHead, { borderBottomColor: c.line }]}>
+          <Text numberOfLines={1} style={[TYPE.card, { color: c.ink, flex: 1 }]}>{place?.name ?? ''}</Text>
+          <Press accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} style={st.back}>
+            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>닫기</Text>
+          </Press>
+        </View>
+        {place ? (
+          <WebView
+            source={{ uri: `${SITE_URL}/embed/place/${encodeURIComponent(place.id)}` }}
+            applicationNameForUserAgent={DUGOUT_UA}
+            sharedCookiesEnabled
+            allowsLinkPreview={false}
+            style={{ flex: 1, backgroundColor: c.page }}
+            startInLoadingState
+            renderLoading={() => (
+              <View style={[StyleSheet.absoluteFill, st.center]}>
+                <ActivityIndicator color={c.muted} />
+              </View>
+            )}
+          />
+        ) : null}
+      </View>
+    </Modal>
+  );
+}
+
 const st = StyleSheet.create({
+  sheetHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 16, paddingRight: 4, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth },
   head: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingBottom: 6 },
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   views: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 2 },

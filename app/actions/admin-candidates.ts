@@ -81,7 +81,9 @@ export async function setCandidateCoords(formData: FormData) {
   const id = String(formData.get('id') ?? '');
   const c = await prisma.facilityCandidate.findUnique({ where: { id }, select: { name: true, roadAddress: true, address: true } });
   if (!c) return;
-  const back = (r: string) => redirect(`/manage/places/${encodeURIComponent(id)}?coords=${r}`);
+  /* 덕아웃 앱의 후보 창(app/embed/place/[id])에서 보냈으면 그 화면으로 — 관리 화면으로 넘어가지 않게(2026-10-26) */
+  const base = formData.get('embed') === '1' ? '/embed/place' : '/manage/places';
+  const back = (r: string) => redirect(`${base}/${encodeURIComponent(id)}?coords=${r}`);
   let at: { lat: number; lng: number } | null;
   const source = formData.get('mode') === 'geocode' ? 'KAKAO_GEOCODE' : 'MANUAL';
   if (source === 'KAKAO_GEOCODE') {

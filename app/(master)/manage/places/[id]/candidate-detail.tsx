@@ -88,10 +88,13 @@ export function CandidateDetail({
   mergedFrom,
   coords,
   embedded = false,
+  inApp = false,
 }: NonNullable<Awaited<ReturnType<typeof loadCandidate>>> & {
   coords?: string;
   /** 연습장 지도 위 팝업 안(app/(dugout)/@modal) — '‹ 수집 후보' 목록 길을 안 그린다(창을 닫으면 지도로) */
   embedded?: boolean;
+  /** 덕아웃 앱의 후보 창(app/embed/place/[id]) — 좌표를 저장해도 그 화면에 머문다(setCandidateCoords 의 embed) */
+  inApp?: boolean;
 }) {
   const k = (c.collected ?? {}) as Collected;
   const ops = k.operationsReview;
@@ -344,6 +347,7 @@ export function CandidateDetail({
             <SafeForm action={setCandidateCoords} className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="id" value={c.id} />
               <input type="hidden" name="mode" value="manual" />
+              {inApp && <input type="hidden" name="embed" value="1" />}
               <label className="min-w-0 flex-1 space-y-1">
                 <span className="block text-xs text-muted">위도</span>
                 <Input name="lat" inputMode="decimal" defaultValue={c.lat ?? ''} placeholder="37.5665" />
@@ -359,6 +363,7 @@ export function CandidateDetail({
             <SafeForm action={setCandidateCoords}>
               <input type="hidden" name="id" value={c.id} />
               <input type="hidden" name="mode" value="geocode" />
+              {inApp && <input type="hidden" name="embed" value="1" />}
               <Button type="submit" size="sm" variant="secondary">
                 지도 주소로 좌표 찾기
               </Button>
