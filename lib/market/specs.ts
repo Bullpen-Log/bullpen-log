@@ -413,8 +413,14 @@ export function filterHref(f: Partial<ListingFilter>): string {
   if (f.page && f.page > 1) sp.set('page', String(f.page));
   if (f.all) sp.set('all', '1');
   const s = sp.toString();
-  return s ? `/market?${s}` : '/market';
+  /* 결과 화면(2026-10-26) — /market 은 둘러보는 입구, 품목 · 검색 · 거르기는 모두 /market/browse */
+  return s ? `${MARKET_BROWSE}?${s}` : MARKET_BROWSE;
 }
+
+/** 장터 결과 화면 주소 — 입구(/market)와 갈린다(2026-10-26 금윤호: 예전 장터는 입구로, 지금 거르기 화면은 결과로) */
+export const MARKET_BROWSE = '/market/browse';
+/** 결과 화면에 실을 수 있는 주소 열쇠 — 옛 /market?category=… 링크를 이것만 실어 결과 화면으로 넘긴다 */
+export const LISTING_FILTER_KEYS = ['category', 'condition', 'region', 'q', 'sort', 'page', 'all'] as const;
 
 /** 사진 — 올릴 때 쓰는 종류 · 크기(브라우저가 lib/shrink-image.ts 로 줄여 올린다) */
 export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];

@@ -1,189 +1,176 @@
 import Link from 'next/link';
-import {
-  RoundBaseball,
-  RoundBat,
-  RoundChat,
-  RoundGear,
-  RoundHeart,
-  RoundPlus,
-  RoundShield,
-  RoundUser,
-} from '@/components/round-icon';
+import { redirect } from 'next/navigation';
+import { RoundIcon, RoundPlus, RoundSearch } from '@/components/round-icon';
 import { LISTING_GRID, ListingCard } from '@/components/dugout/listing-card';
-import { CategoryRow, DugoutEmpty, DugoutPageHeader, ShortcutTiles, chipClass, type Shortcut } from '@/components/dugout/ui';
+import { DugoutEmpty, DugoutPageHeader, SectionHead } from '@/components/dugout/ui';
 import { GearGuide } from '@/components/dugout/gear-guide';
-import { MarketFilterRail } from '@/components/dugout/market-filter-rail';
+import { MarketHero } from '@/components/dugout/market-hero';
+import { MarketListMemory } from '@/components/dugout/market-back';
 import { getCurrentUser } from '@/lib/dal';
-import { loadListings } from '@/lib/market/load';
-import { CATEGORIES, CONDITIONS, REGIONS, SORTS, filterHref, readFilter } from '@/lib/market/specs';
+import { loadLatestListings, loadListings } from '@/lib/market/load';
+import { CATEGORIES, LISTING_FILTER_KEYS, MARKET_BROWSE, filterHref, readFilter } from '@/lib/market/specs';
+import type { RoundIconName } from '@/lib/round-icons';
 
 type SP = { [key: string]: string | string[] | undefined };
 
 /**
- * 장터(2026-10-20) — 품목 · 상태 · 지역 · 정렬 · 검색은 모두 주소에(새로 고쳐도 · 링크로 보내도 같은 목록). 로그인 없이 본다.
- * 모양은 번개장터 그대로(2026-10-23 금윤호: "장터는 번개장터 느낌을 최대한") — 흰 바탕, 굵은 품목 글 줄, 가운데 동그란 바로가기 줄,
- * '오늘의 추천 물건' 큰 제목, 테두리 없는 사진 격자. 검색은 위 막대.
- * PC(2026-10-25 덕아웃 PC 개편, docs/designs/dugout-desktop-information-design.md): 품목 줄 · 바로가기 대신 왼쪽 216px 거르기 판(품목 · 상태 · 지역 select · 거래 완료)
- * + 오른쪽 제목 · 정렬 · 3~4열 격자 — 첫 물건이 1280×720 에서 240px 안에 보인다. 휴대폰 · 패드는 품목 줄 · 칩 그대로.
- * '장비 추천'(2026-10-23 — 따로 있던 /gear 를 장터 안으로): 주소에 ?guide=1 이면 팝업(components/dugout/gear-guide.tsx).
- * 입구는 바로가기 한 칸과, 글러브 · 배트처럼 고르기 어려운 품목 화면의 옅은 한 줄뿐 — 아는 사람 눈에는 거의 안 띈다.
+ * 장터 입구(2026-10-26 금윤호: "지금 장터 화면은 좋은데, 예전 장터를 첫 입구로") — '어떤 장비를 볼까'를 고르는 화면.
+ * 예전 장터(c0278425 번개장터식 · 411cf462 UI 통일판)의 차례를 다시 쓴다: 굵은 품목 입구 → 방금 올라온 물건 → 검은 띠(MarketHero) → 품목별 새 물건.
+ * 그때의 큰 띠(높이 288)는 첫 물건을 밀어 내려서 띠는 얇은 판(slim)으로 물건 줄 밑에, 바로가기의 찜 · 채팅은 위 막대 · 내 것에 있어 뺐다.
+ * 품목 · 검색 · '전체 보기'는 모두 결과 화면(/market/browse — 왼쪽 거르기 판 + 카드 격자)으로 간다. 이 화면에는 거르기 판이 없다.
+ * 옛 주소(/market?category=glove · /market?q=…)는 그 뜻 그대로 결과 화면으로 넘긴다 — 걸러 둔 링크를 입구로 떨구지 않는다.
  */
-/** 규격을 몰라 망설이는 품목 — 이 화면들에만 '처음이라면' 한 줄을 띄운다 */
-const GUIDE_CATEGORIES = new Set(['glove', 'bat', 'spikes', 'protector', 'ball']);
-const withGuide = (href: string) => `${href}${href.includes('?') ? '&' : '?'}guide=1`;
-const SHORTCUTS: Shortcut[] = [
-  { href: '/me#favorites', label: '찜', icon: RoundHeart },
-  { href: '/market/new', label: '내 물건 팔기', icon: RoundPlus },
-  { href: filterHref({ category: 'glove' }), label: '글러브', icon: RoundBaseball },
-  { href: filterHref({ category: 'bat' }), label: '배트', icon: RoundBat },
-  { href: filterHref({ category: 'protector' }), label: '보호구', icon: RoundShield },
-  { href: filterHref({ category: 'uniform' }), label: '유니폼', icon: RoundUser },
-  { href: '/market?guide=1', label: '장비 추천', icon: RoundGear, scroll: false },
-  { href: '/chat', label: '채팅', icon: RoundChat },
-];
+export const metadata = { title: '장터' };
 
-export default async function MarketPage({ searchParams }: { searchParams: Promise<SP> }) {
+/**
+ * 품목 입구 그림 — 덕아웃 둥근 아이콘(lib/round-icons.ts)에서 고른다. 'gear'(장비)는 글러브 그림이라 글러브에, 공은 공.
+ * 신발 그림은 아직 없어 스파이크는 크게 내딛는 투구 그림(pitcher)으로 — 신발 그림이 생기면 바꾼다.
+ */
+const CATEGORY_ICON: Record<string, RoundIconName> = {
+  glove: 'gear',
+  bat: 'bat',
+  spikes: 'pitcher',
+  protector: 'shield',
+  uniform: 'user',
+  ball: 'baseball',
+  bag: 'market',
+  training: 'training',
+  other: 'plus',
+};
+
+/** 품목별 줄 — 고르기 어려워 많이 찾는 둘만(물건이 있을 때만 그린다) */
+const FEATURED = ['glove', 'bat'] as const;
+
+export default async function MarketLanding({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
-  const f = readFilter((k) => (Array.isArray(sp[k]) ? sp[k]![0] : sp[k]));
+  /* 옛 걸러 둔 링크 → 결과 화면(주소의 다른 값 — 장비 추천 팝업의 guide · age … 도 그대로 싣는다) */
+  if (LISTING_FILTER_KEYS.some((k) => sp[k] != null && sp[k] !== '')) {
+    const out = new URLSearchParams();
+    for (const [k, v] of Object.entries(sp)) for (const one of Array.isArray(v) ? v : [v]) if (one != null) out.append(k, one);
+    redirect(`${MARKET_BROWSE}?${out.toString()}`);
+  }
+
   const user = await getCurrentUser();
-  const { items, hasMore } = await loadListings(f, user ? { id: user.id, role: user.role } : null);
+  const viewer = user ? { id: user.id, role: user.role } : null;
+  const none = readFilter(() => undefined);
+  const [recent, ...featured] = await Promise.all([
+    loadLatestListings(10, viewer),
+    ...FEATURED.map((c) => loadListings({ ...none, category: c }, viewer).then((r) => r.items.slice(0, 5))),
+  ]);
   const now = new Date();
-  const landing = !f.q && !f.category && !f.region && !f.condition && !f.all && f.sort === 'new' && f.page === 1;
-  const heading = f.q
-    ? `‘${f.q}’ 검색 결과`
-    : f.category
-      ? (CATEGORIES.find((c) => c.key === f.category)?.label ?? '물건')
-      : landing
-        ? '오늘의 추천 물건'
-        : '전체 물건';
-
-  const chip = (href: string, on: boolean, label: string) => (
-    <Link
-      key={href + label}
-      href={href}
-      aria-current={on ? 'page' : undefined}
-      className={chipClass(on)}
-    >
-      {label}
-    </Link>
-  );
-
-  const sortLinks = (
-    <div role="group" aria-label="정렬" className="flex gap-1 text-xs">
-      {SORTS.map((s) => {
-        const on = f.sort === s.key;
-        return (
-          <Link
-            key={s.key}
-            href={filterHref({ ...f, sort: s.key, page: 1 })}
-            scroll={false}
-            data-nav="none"
-            aria-current={on ? 'page' : undefined}
-            className={`rounded-full px-2.5 py-1 font-semibold ${on ? 'bg-ink text-page' : 'text-muted hover:text-ink'}`}
-          >
-            {s.label}
-          </Link>
-        );
-      })}
-    </div>
-  );
 
   return (
-    <div className="space-y-8 lg:space-y-0">
-      {/* 품목 줄 · 바로가기 — 휴대폰 · 패드만(PC 는 왼쪽 판이 품목 · 상태 · 지역을 다 가진다, 2026-10-25 PC 개편) */}
-      <CategoryRow
-        label="품목"
-        className="-mt-2 lg:hidden"
-        items={[{ key: undefined, label: '전체' }, ...CATEGORIES].map((c) => ({
-          key: c.key ?? 'all',
-          label: c.label,
-          href: filterHref({ ...f, category: c.key, page: 1 }),
-          on: f.category === c.key,
-        }))}
-      />
-      {landing && <ShortcutTiles items={SHORTCUTS} className="lg:hidden" />}
+    <div className="space-y-10 lg:space-y-12">
+      <div className="space-y-6 lg:space-y-7">
+        <DugoutPageHeader
+          title="덕아웃 장터"
+          subtitle="야구인끼리 쓰던 장비를 사고팔아요"
+          actions={
+            <>
+              {/* 장터 안 찾기 — 결과 화면의 같은 q(제목 · 설명). 위 막대의 통합검색과 달리 물건만 찾는다 */}
+              <form action={MARKET_BROWSE} method="get" role="search" className="flex min-w-0 flex-1 items-center gap-2 sm:w-[420px] sm:flex-none">
+                <label className="relative min-w-0 flex-1">
+                  <RoundSearch className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted" />
+                  <input
+                    name="q"
+                    type="search"
+                    maxLength={40}
+                    placeholder="글러브 · 배트 · 브랜드 찾기"
+                    aria-label="장터 물건 찾기"
+                    className="h-11 w-full appearance-none rounded-xl bg-ink/6 pr-3 pl-10 text-[15px] text-ink placeholder:text-muted/70 focus:bg-surface focus:ring-2 focus:ring-sky focus:outline-none"
+                  />
+                </label>
+                <button type="submit" className="h-11 shrink-0 rounded-xl bg-ink px-4 text-sm font-bold text-page">
+                  찾기
+                </button>
+              </form>
+              <Link
+                href="/market/new"
+                className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl bg-sky px-4 text-sm font-bold text-white hover:bg-sky-strong"
+              >
+                <RoundPlus className="h-4 w-4" /> 물건 팔기
+              </Link>
+            </>
+          }
+        />
 
-      {/* 거르기 판 184 + 간격 24 + 결과(1160 기준 952 — 220 카드 넷 = 940, 남는 12 는 그대로 둔다, v2 6절) */}
-      <div className="lg:grid lg:grid-cols-[184px_minmax(0,1fr)] lg:items-start lg:gap-6">
-        {/* PC 왼쪽 거르기 판 — 위 막대 밑에 붙어 따라온다 */}
-        <aside className="hidden min-w-0 lg:sticky lg:top-[calc(var(--dugout-bar-h)+1.5rem)] lg:block lg:max-h-[calc(100dvh-var(--dugout-bar-h)-3rem)] lg:overflow-y-auto lg:overscroll-contain">
-          <MarketFilterRail f={f} />
-        </aside>
+        {/*
+          품목 입구 — 예전 장터 바로가기(72px 네모 + 이름)를 PC 크기로: 네모 48 · 그림 28 · 이름 13, 한 칸 76 높이. 큰 화면은 열 칸 한 줄,
+          휴대폰은 다섯 칸 두 줄(이름이 길면 두 줄로 — 자르지 않는다). 누르면 그 품목이 고른 채로 결과 화면
+        */}
+        <nav aria-label="품목으로 둘러보기">
+          <ul className="grid grid-cols-5 gap-x-2 gap-y-4 lg:grid-cols-10 lg:gap-x-3">
+            {[{ key: undefined, label: '전체' }, ...CATEGORIES].map((c) => (
+              <li key={c.key ?? 'all'}>
+                <Link
+                  href={c.key ? filterHref({ category: c.key }) : MARKET_BROWSE}
+                  className="group flex flex-col items-center gap-1.5 rounded-xl py-0.5 focus-visible:ring-2 focus-visible:ring-sky focus-visible:outline-none"
+                >
+                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-2 text-sky transition-transform group-hover:-translate-y-0.5 motion-reduce:transform-none">
+                    <RoundIcon name={c.key ? (CATEGORY_ICON[c.key] ?? 'market') : 'menu'} filled className="h-7 w-7" />
+                  </span>
+                  <span className="text-center text-[13px] leading-[18px] font-semibold break-keep text-ink">{c.label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </div>
 
-        <section className="min-w-0 space-y-5">
-          <DugoutPageHeader
-            title={heading}
-            subtitle={landing ? '방금 올라온 물건부터 보여요.' : undefined}
-            actions={
-              <>
-                {f.q && (
-                  <Link href="/market" className="text-sm font-semibold text-muted hover:text-ink">
-                    검색 지우기
-                  </Link>
-                )}
-                <div className="rounded-full bg-ink/5 p-1">{sortLinks}</div>
-              </>
-            }
+      {/* 방금 올라온 물건 — 만든 때 차례(추천이 아니다). 큰 화면 두 줄(다섯 칸이면 열 · 넷이면 여덟 — 한 줄 끝에 하나만 남지 않게), 휴대폰 여섯 */}
+      <section className="@container space-y-4">
+        <SectionHead title="방금 올라온 물건" href={MARKET_BROWSE} more="전체 보기 ›" />
+        {recent.length === 0 ? (
+          <DugoutEmpty
+            compact
+            title="아직 올라온 물건이 없어요"
+            description="안 쓰는 글러브 · 배트를 첫 물건으로 올려 보세요."
+            href="/market/new"
+            cta="물건 올리기"
           />
-          {/* 고르기 어려운 품목 · 검색에만 — 잘 모르는 사람만 보고 지나가게 옅게 */}
-          {!landing && (f.q || (f.category && GUIDE_CATEGORIES.has(f.category))) && (
-            <Link
-              href={withGuide(filterHref(f))}
-              scroll={false}
-              className="-mt-2 inline-flex items-center gap-1.5 text-[13px] text-muted hover:text-ink"
+        ) : (
+          <div className={`${LISTING_GRID} max-lg:[&>*:nth-child(n+7)]:hidden lg:@max-[1013px]:[&>*:nth-child(n+9)]:hidden`}>
+            {recent.map((item) => (
+              <ListingCard key={item.id} item={item} now={now} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 예전 장터의 검은 띠 — 얇은 판으로 물건 줄 밑에(첫 물건을 밀어 내리지 않게). 실제로 되는 일만 적는다 */}
+      <MarketHero slim label="장터 소식" />
+
+      {/* 품목별 새 물건 — 한 줄씩(물건이 있는 품목만) */}
+      {FEATURED.map((key, i) => {
+        const items = featured[i];
+        if (!items || items.length === 0) return null;
+        const label = CATEGORIES.find((c) => c.key === key)?.label ?? key;
+        return (
+          <section key={key} className="@container space-y-4">
+            <SectionHead title={`${label} 새 물건`} href={filterHref({ category: key })} more={`${label} 전체 ›`} />
+            <div
+              className={`${LISTING_GRID} max-sm:[&>*:nth-child(n+5)]:hidden sm:max-lg:[&>*:nth-child(n+4)]:hidden lg:@max-[1013px]:[&>*:nth-child(n+5)]:hidden`}
             >
-              <RoundGear className="h-4 w-4 text-sky" />
-              처음이라 무엇을 사야 할지 모르겠다면 · <span className="font-semibold text-sky">맞는 규격 추천받기 ›</span>
-            </Link>
-          )}
-
-          {/* 휴대폰 · 패드 거르기 칩 — PC 는 왼쪽 판 */}
-          {!landing && (
-            <div className="flex flex-wrap items-center gap-2 lg:hidden">
-              <div className="no-scrollbar -mx-4 flex basis-full gap-1.5 overflow-x-auto px-4 md:mx-0 md:basis-auto md:px-0">
-                {chip(filterHref({ ...f, region: undefined, page: 1 }), !f.region, '지역 전체')}
-                {REGIONS.map((r) => chip(filterHref({ ...f, region: r, page: 1 }), f.region === r, r))}
-              </div>
-              {CONDITIONS.map((c) =>
-                chip(filterHref({ ...f, condition: f.condition === c.key ? undefined : c.key, page: 1 }), f.condition === c.key, c.label)
-              )}
-              {chip(filterHref({ ...f, all: !f.all, page: 1 }), !!f.all, '거래 완료도')}
-            </div>
-          )}
-
-          {items.length === 0 ? (
-            <DugoutEmpty
-              title={landing ? '아직 올라온 물건이 없어요' : '맞는 물건이 없어요'}
-              description={landing ? '안 쓰는 글러브 · 배트를 첫 물건으로 올려 보세요.' : '거르기를 풀거나 다른 말로 찾아 보세요.'}
-              href="/market/new"
-              cta="물건 올리기"
-            />
-          ) : (
-            /* 카드 190~220px(v2 카드 크기 계약) — 큰 화면도 220 을 넘지 않는다. 휴대폰 2열 · 작은 패드 3열 */
-            <div className={`${LISTING_GRID} lg:gap-x-5`}>
               {items.map((item) => (
                 <ListingCard key={item.id} item={item} now={now} />
               ))}
             </div>
-          )}
+          </section>
+        );
+      })}
 
-          {(f.page > 1 || hasMore) && (
-            <div className="flex justify-center gap-6 pt-4 text-sm font-semibold">
-              {f.page > 1 && (
-                <Link href={filterHref({ ...f, page: f.page - 1 })} className="text-muted hover:text-ink">
-                  ‹ 이전
-                </Link>
-              )}
-              {hasMore && (
-                <Link href={filterHref({ ...f, page: f.page + 1 })} className="text-ink">
-                  더 보기 ›
-                </Link>
-              )}
-            </div>
-          )}
-        </section>
+      {/* 다 훑은 사람의 길 — 거르기 · 정렬이 있는 결과 화면 */}
+      <div className="flex justify-center">
+        <Link
+          href={MARKET_BROWSE}
+          className="inline-flex h-11 items-center rounded-full border border-line px-6 text-sm font-semibold text-ink transition-colors hover:border-ink/30"
+        >
+          물건 전체 보기 · 거르기 ›
+        </Link>
       </div>
-      {/* 이 화면은 늘 동적이라 Suspense 로 감싸지 않는다 — 감싸면 바로 연 ?guide=1 에서 팝업이 늦게 살아났다 */}
+
+      <MarketListMemory />
+      {/* 장비 추천 팝업(?guide=1) — 띠 · 옛 /gear 주소가 이 화면으로 온다 */}
       <GearGuide />
     </div>
   );

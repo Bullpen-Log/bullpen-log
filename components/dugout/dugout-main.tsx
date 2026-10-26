@@ -11,7 +11,7 @@ import {
   SinkerButton,
 } from '@/components/dugout/dugout-topbar';
 import { FEATURES } from '@/lib/dugout-features';
-import { MarketHero, type BannerSlide } from '@/components/dugout/market-hero';
+import { HomeCarousel, type HomeCard } from '@/components/dugout/home-carousel';
 
 /**
  * 2026-10-24 금윤호(둘째): "'전국 에서 무엇이 필요하세요?' 글을 지우고 덕아웃 로고를 · 검색창은 '통합검색'만 · 우측 상단 싱커는 S 로고만 · 맨 끝엔 프로필".
@@ -39,13 +39,13 @@ export function DugoutMain({
   sinker = false,
   native = false,
   sinkerApp = false,
-  slides,
+  cards,
   aside,
 }: {
   /** 첫 화면 오른쪽 칸(오늘의 경기) — PC · 패드만 */
   aside?: ReactNode;
-  /** 덕아웃 소식 띠 — 로고 밑 · 통합검색 위(2026-10-24 금윤호). 싱커 앱은 없다 */
-  slides?: readonly BannerSlide[];
+  /** 둘러보기 카드(2026-10-26 — 예전 소식 띠를 카드 여러 장 한 줄로, components/dugout/home-carousel.tsx). 싱커 앱은 없다 */
+  cards?: readonly HomeCard[];
   user: { nickname: string } | null;
   avatarUrl?: string | null;
   alerts?: number;
@@ -87,11 +87,11 @@ export function DugoutMain({
       data-top=""
       aria-label="덕아웃 시작"
       /*
-        큰 화면(lg, 1024~)에는 이 판이 없다(2026-10-26 v2) — 위 막대에 로고 · 검색 · 메뉴가 이미 있어 큰 로고 · 둘째 검색 · 같은 다섯 아이콘 · 띠가
-        첫 화면을 다 쓰고 첫 물건 사진이 y666 에서야 시작했다. 휴대폰 · 패드 · 앱은 그대로.
+        큰 화면(lg, 1024~ — 2026-10-26 금윤호 "홈은 큰 로고 · 통합검색 · 움직이는 카드"로 되살림): 로고 64 · 찾기 640×48 · 둘러보기 카드 줄만.
+        아이콘 다섯은 위 막대 메뉴와 같은 길이라 뺀다(v2 에서 걷었던 까닭 — 같은 길을 두 번 보이지 않는다). 본문은 1280×720 에서 y420 쯤 시작한다.
         바깥 여백은 본문 틀(.dugout-frame)의 거터만큼 걷어 판이 화면 끝까지 닿는다
       */
-      className="relative -mx-(--dugout-gutter) -mt-5 px-(--dugout-gutter) pb-14 md:-mt-8 md:pb-20 desk:mt-0 desk:pb-12 lg:hidden"
+      className="relative -mx-(--dugout-gutter) -mt-5 px-(--dugout-gutter) pb-14 md:-mt-8 md:pb-20 desk:mt-0 desk:pb-12 lg:mx-0 lg:px-0 lg:pb-6!"
     >
       {/* 모서리 줄 — 위 막대가 숨은 동안의 길 */}
       <div className="flex items-center justify-end pt-[max(1rem,env(safe-area-inset-top))] pb-2 md:pt-6 desk:hidden">
@@ -125,7 +125,7 @@ export function DugoutMain({
         </div>
       </div>
 
-      <div className="mx-auto pt-10 md:pt-16 desk:pt-4">
+      <div className="mx-auto pt-10 md:pt-16 desk:pt-4 lg:pt-0!">
         {/* 로고 · 통합검색 · 아이콘 줄은 화면 가운데 온 폭 그대로 — 경기 칸이 이 자리를 좁히지 않는다(2026-10-24 금윤호) */}
         <div className="min-w-0">
           <h1 className="flex justify-center">
@@ -135,12 +135,13 @@ export function DugoutMain({
               data-dugout-logo
               className="inline-flex"
             >
-              <Wordmark brand="dugout" className="text-5xl text-ink md:text-7xl desk:text-6xl" />
+              <Wordmark brand="dugout" className="text-5xl text-ink md:text-7xl desk:text-6xl lg:text-[64px]" />
             </Link>
           </h1>
           <form action="/search" method="get" role="search" className="mt-6 desk:mt-5">
             <div
-              className={`mx-auto max-w-3xl items-center gap-2 ${sinkerApp ? 'hidden' : 'flex'}`}
+              /* 큰 화면 640 · 높이 48 — 이 화면의 첫째 찾기(위 막대 찾기 칸은 홈에서 작은 단추로 접힌다, dugout-topbar.tsx) */
+              className={`mx-auto max-w-3xl items-center gap-2 lg:max-w-[640px] ${sinkerApp ? 'hidden' : 'flex'}`}
             >
               <label className="relative min-w-0 flex-1">
                 <RoundSearch className="pointer-events-none absolute top-1/2 left-4 h-4.5 w-4.5 -translate-y-1/2 text-muted" />
@@ -149,12 +150,13 @@ export function DugoutMain({
                   type="search"
                   placeholder="통합검색"
                   aria-label="덕아웃 통합검색"
-                  className="min-h-11 w-full appearance-none rounded-xl bg-ink/6 pr-4 pl-11 text-[15px] text-ink placeholder:text-muted/70 focus:bg-surface focus:ring-2 focus:ring-sky focus:outline-none"
+                  id="dugout-home-search"
+                  className="min-h-11 w-full appearance-none lg:min-h-12 rounded-xl bg-ink/6 pr-4 pl-11 text-[15px] text-ink placeholder:text-muted/70 focus:bg-surface focus:ring-2 focus:ring-sky focus:outline-none"
                 />
               </label>
               <button
                 type="submit"
-                className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-ink px-5 text-sm font-bold text-page"
+                className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-ink px-5 lg:min-h-12 text-sm font-bold text-page"
               >
                 찾기
               </button>
@@ -162,7 +164,7 @@ export function DugoutMain({
           </form>
 
           {/* 덕아웃 기능으로 가는 아이콘 줄 */}
-          <ul className="mt-9 flex flex-wrap justify-center gap-x-5 gap-y-4 sm:gap-x-10 md:gap-x-12 desk:mt-6">
+          <ul className="mt-9 flex flex-wrap justify-center gap-x-5 gap-y-4 sm:gap-x-10 md:gap-x-12 desk:mt-6 lg:hidden">
             {items.map((it) => (
               <li key={it.href}>
                 <Link
@@ -186,16 +188,16 @@ export function DugoutMain({
           검색 ↔ 아이콘(첫 화면의 두 할 일)은 붙어 있고, 띠는 첫 화면 끝에서 보이며(네이버 첫 화면과 같은 차례), 경기 칸은 밑 본문의 경기 칸과 같은 줄이라
           한 번 굴려 본문으로 가도 같은 자리에 같은 칸이 이어진다. 휴대폰은 띠만(경기는 본문 쪽 카드).
         */}
-        {(slides || aside) && (
+        {(cards || aside) && (
           <div
-            className={`mt-10 desk:mt-8 ${aside ? 'md:grid md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-6 lg:grid-cols-[minmax(0,1fr)_240px] lg:gap-8' : ''}`}
+            className={`mt-10 desk:mt-8 lg:mt-6! ${aside ? 'md:grid md:grid-cols-[minmax(0,1fr)_220px] md:items-start md:gap-6 lg:block' : ''}`}
           >
-            {/* 띠 높이는 그대로(2026-10-24 금윤호 — 경기 카드가 길어져도 띠는 따라 늘지 않는다, 광고 자리라 높이 고정) */}
+            {/* 카드 높이는 148 고정 — 경기 카드가 길어져도 따라 늘지 않는다(2026-10-24 띠 규칙 그대로) */}
             <div className="min-w-0">
-              {slides && <MarketHero slides={slides} slim label="덕아웃 소식" />}
+              {cards && <HomeCarousel cards={cards} />}
             </div>
             {/* PC 는 본문 쪽 경기 칸이 이 자리까지 올라와 하나로 이어진다(app/(dugout)/page.tsx) — 여기 것은 패드만 */}
-            {aside && <aside className="hidden md:block">{aside}</aside>}
+            {aside && <aside className="hidden md:block lg:hidden">{aside}</aside>}
           </div>
         )}
       </div>

@@ -141,7 +141,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                     tab === 'all' && r.listingsMore
                       ? href('market')
                       : tab === 'market'
-                        ? `/market?q=${encodeURIComponent(q)}${region ? `&region=${encodeURIComponent(region)}` : ''}`
+                        ? `/market/browse?q=${encodeURIComponent(q)}${region ? `&region=${encodeURIComponent(region)}` : ''}`
                         : undefined
                   }
                   moreLabel={tab === 'market' ? '장터에서 거르기' : undefined}

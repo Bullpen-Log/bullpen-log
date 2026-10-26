@@ -169,9 +169,20 @@ console.log('\n[2] 가격 · 거르기 주소');
   check(
     '거르기 → 주소',
     filterHref({ category: 'bat', sort: 'cheap', page: 2 }) ===
-      '/market?category=bat&sort=cheap&page=2' &&
-      filterHref({ sort: 'new', page: 1 }) === '/market'
+      '/market/browse?category=bat&sort=cheap&page=2' &&
+      filterHref({ sort: 'new', page: 1 }) === '/market/browse'
   );
+  {
+    /* 장터 입구 · 결과 갈림(2026-10-26) — 입구(/market)는 거르기 판 없이 둘러보기, 옛 걸러 둔 링크는 결과 화면으로 그 뜻 그대로 */
+    const landing = src('app/(dugout)/market/page.tsx');
+    const browse = src('app/(dugout)/market/browse/page.tsx');
+    check(
+      '장터 입구: 옛 /market?… 링크는 같은 값으로 /market/browse 로 넘긴다',
+      /LISTING_FILTER_KEYS\.some/.test(landing) && /redirect\(`\$\{MARKET_BROWSE\}\?/.test(landing)
+    );
+    check('장터 입구에는 거르기 판이 없고 결과 화면에만 있다', !/MarketFilterRail/.test(landing) && /<MarketFilterRail/.test(browse));
+    check('상세 → 뒤로는 고르던 목록으로(목록 두 곳이 열어 둔 물건을 적는다)', /<MarketListMemory/.test(landing) && /<MarketListMemory/.test(browse) && /MarketBackLink/.test(src('app/(dugout)/market/[id]/page.tsx')));
+  }
   check(
     '지역 — 전국(택배)이 첫째',
     REGIONS[0] === '전국(택배)' && REGIONS.length === 18

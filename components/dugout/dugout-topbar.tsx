@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { RoundChat, RoundPlus, RoundSearch } from '@/components/round-icon';
 import { SinkerMark, Wordmark } from '@/components/logo';
@@ -54,6 +54,9 @@ export function DugoutTopBar({
   slim?: boolean;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  /* 덕아웃 홈 — 가운데 통합검색이 있는 화면(싱커 앱 웹뷰의 /?dugout=1 도 같은 주소) */
+  const onHome = pathname === '/';
   const inDugout = current === null;
   const isSinkerBar = brand === 'sinker';
   /* 로고 · '홈' = 덕아웃 첫 화면(2026-10-24 — 큰 로고 화면 없이 찾기 화면이 첫 화면) */
@@ -117,8 +120,25 @@ export function DugoutTopBar({
           </Link>
           {nav.length > 0 && !slim && <NavPills nav={nav} active={active} item={item} />}
           <div className="ml-auto flex min-w-0 items-center gap-1">
-            {!isSinkerBar && !slim && search}
-            {!isSinkerBar && !slim && (
+            {/* 홈(/)은 가운데 큰 통합검색이 첫째라 막대의 찾기 칸은 작은 단추로 접는다 — 누르면 가운데 찾기 칸으로(2026-10-26, 같은 크기 찾기 칸 둘을 두지 않게) */}
+            {!isSinkerBar && !slim && !onHome && search}
+            {!isSinkerBar && !slim && onHome && (
+              <button
+                type="button"
+                aria-label="통합검색"
+                title="통합검색"
+                onClick={() => {
+                  const input = document.getElementById('dugout-home-search');
+                  if (!(input instanceof HTMLInputElement) || input.getClientRects().length === 0) return router.push('/search');
+                  input.focus({ preventScroll: true });
+                  input.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+                }}
+                className={`${ICON} hidden md:grid`}
+              >
+                <RoundSearch className="h-5 w-5" />
+              </button>
+            )}
+            {!isSinkerBar && !slim && !onHome && (
               <Link href="/search" aria-label="통합검색" title="통합검색" className={`${ICON} hidden md:grid xl:hidden`}>
                 <RoundSearch className="h-5 w-5" />
               </Link>
