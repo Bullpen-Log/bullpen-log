@@ -128,6 +128,9 @@ export async function removePhoneOrphans(paths: string[]): Promise<void> {
   const orphans = await phoneOrphans(paths);
   if (orphans?.length) await LocalVideo.remove({ ids: orphans.map(phoneAssetId) }).catch(() => undefined);
 }
+/** 저장하지 않고 버린 서버 영상(관리자) — 아무 데도 안 붙었으면 서버가 지운다 */
+export const discardServerVideo = (path: string) =>
+  call('/api/pitch-log/discard', { method: 'POST', body: { paths: [path] } }).catch(() => undefined);
 export const deleteLog = (id: string) => call<{ ok: true }>('/api/pitch-log', { method: 'DELETE', body: { id } });
 
 /** 서버 영상의 재생 주소(서명, 잠깐 쓰는 것) — 폰 영상은 빼고 묻는다 */

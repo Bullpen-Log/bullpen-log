@@ -158,7 +158,7 @@ export function mergeVideos(input: {
 }
 
 /** 날짜 아는 것 먼저(최근부터) → 같은 날은 만든 때 최근부터 → 날짜 모름은 맨 끝(만든 때 최근부터) */
-function compareItems(a: MyVideoItem, b: MyVideoItem): number {
+export function compareItems(a: MyVideoItem, b: MyVideoItem): number {
   if (a.date !== b.date) {
     if (a.date === null) return 1;
     if (b.date === null) return -1;
@@ -253,4 +253,59 @@ export function groupByDate<T extends { item: MyVideoItem }>(
     else groups.push({ date: r.item.date, rows: [r] });
   }
   return groups;
+}
+
+/** 영상만 저장(폰이 보냄)의 칸 — checkNewVideo 가 다듬는다 */
+export type NewVideo = {
+  clientId: string;
+  path: string;
+  sport: VideoSport;
+  origin: 'camera' | 'album';
+  /** ISO — 모르면 null */
+  capturedAt: string | null;
+  /** YYYY-MM-DD — 모르면 null */
+  capturedDate: string | null;
+  capturedSource: 'header' | 'camera' | 'manual' | 'unknown';
+  feelNote: string | null;
+  durationSec: number | null;
+  width: number | null;
+  height: number | null;
+};
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const numIn = (v: unknown, lo: number, hi: number) => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? v : null);
+
+/**
+ * 폰이 보낸 '영상만 저장'을 다듬는다 — 본인 폴더의 경로만, 오늘보다 뒤인 촬영 날짜는 모름으로. 틀린 칸은 버리고 꼭 필요한 것(번호 · 경로)만 막는다.
+ * today = 한국 오늘(YYYY-MM-DD).
+ */
+export function checkNewVideo(raw: unknown, userId: string, today: string): { value: NewVideo } | { error: string } {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const clientId = typeof r.clientId === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(r.clientId) ? r.clientId : null;
+  if (!clientId) return { error: '영상 번호가 올바르지 않아요.' };
+  const path = typeof r.path === 'string' ? r.path : '';
+  if (!path.startsWith(`${userId}/`) || path.includes('..') || path.length > 300 || !isGalleryPath(path))
+    return { error: '영상 경로가 올바르지 않아요.' };
+  const date = typeof r.capturedDate === 'string' && DATE_RE.test(r.capturedDate) && r.capturedDate <= today && !Number.isNaN(Date.parse(r.capturedDate)) ? r.capturedDate : null;
+  const at = typeof r.capturedAt === 'string' && !Number.isNaN(Date.parse(r.capturedAt)) ? new Date(r.capturedAt).toISOString() : null;
+  const src = (['header', 'camera', 'manual'] as const).find((s) => s === r.capturedSource);
+  const int = (v: unknown) => {
+    const n = numIn(v, 1, 10000);
+    return n === null ? null : Math.round(n);
+  };
+  return {
+    value: {
+      clientId,
+      path,
+      sport: r.sport === 'hit' ? 'hit' : 'pitch',
+      origin: r.origin === 'camera' ? 'camera' : 'album',
+      capturedAt: at,
+      capturedDate: date,
+      capturedSource: date && src ? src : 'unknown',
+      feelNote: cleanFeelNote(r.feelNote),
+      durationSec: numIn(r.durationSec, 0, 3600),
+      width: int(r.width),
+      height: int(r.height),
+    },
+  };
 }

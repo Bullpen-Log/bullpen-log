@@ -8,6 +8,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import {
   EMPTY_VIDEO_FILTER,
   FEEL_NOTE_MAX,
+  checkNewVideo,
   cleanFeelNote,
   filterVideos,
   groupByDate,
@@ -141,6 +142,21 @@ check('빈 글 · 공백은 null', cleanFeelNote('   ') === null && cleanFeelNot
 check('겹친 공백 하나로', cleanFeelNote(' 하체가\n\n먼저 ') === '하체가 먼저');
 check(`${FEEL_NOTE_MAX}자에서 자른다(한글 기준)`, [...(cleanFeelNote('가'.repeat(300)) ?? '')].length === FEEL_NOTE_MAX);
 
+console.log('\n[5-2] 영상만 저장 — 폰이 보낸 칸 다듬기');
+{
+  const ok = (raw: unknown) => checkNewVideo(raw, U, '2026-10-26');
+  const base = { clientId: 'abcd1234-ef', path: phone(1), sport: 'hit', origin: 'camera', capturedDate: '2026-10-25', capturedSource: 'camera', feelNote: '  좋았다 ' };
+  const good = ok(base);
+  check('맞는 칸은 그대로', 'value' in good && good.value.sport === 'hit' && good.value.capturedDate === '2026-10-25' && good.value.feelNote === '좋았다' && good.value.capturedSource === 'camera');
+  check('남의 폴더 경로는 막는다', 'error' in ok({ ...base, path: `u2/local-1234` }));
+  check('.. · 3D 샘플 폴더는 막는다', 'error' in ok({ ...base, path: `${U}/../x` }) && 'error' in ok({ ...base, path: `${U}/pitch-lab/1/a.mov` }));
+  check('번호가 없거나 이상하면 막는다', 'error' in ok({ ...base, clientId: '' }) && 'error' in ok({ ...base, clientId: 'a b' }));
+  const future = ok({ ...base, capturedDate: '2026-10-27' });
+  check('오늘보다 뒤 날짜는 모름으로', 'value' in future && future.value.capturedDate === null && future.value.capturedSource === 'unknown');
+  const odd = ok({ ...base, sport: 'golf', origin: 'x', durationSec: -1, width: 'w' });
+  check('모르는 종목 · 출처 · 숫자는 기본값', 'value' in odd && odd.value.sport === 'pitch' && odd.value.origin === 'album' && odd.value.durationSec === null && odd.value.width === null);
+}
+
 console.log('\n[6] 소스 모양 — 부하 · 계정 · 관리자 자료');
 {
   const engine = [...walk('lib/report'), ...walk('lib/engine'), 'lib/pitch-stats.ts'].filter((f) => f.endsWith('.ts'));
@@ -153,7 +169,7 @@ console.log('\n[6] 소스 모양 — 부하 · 계정 · 관리자 자료');
   check('광각 클립 · 시도 클립 · 녹화 조각은 안 읽는다', !/wideClipPath|velocityAttempt|velocityRecording/.test(load));
   const action = src('app/actions/my-videos.ts');
   check('고치기는 로그인 · 본인 경로만', action.includes('getCurrentUser()') && action.includes('isOwnedBy(path, user.id)'));
-  check('고치기는 기록(pitchLog · hittingLog)을 쓰지 않는다', !/prisma\.(pitchLog|hittingLog)\.(update|create|delete)/.test(action));
+  check('갤러리 동작은 기록(pitchLog · hittingLog)을 쓰지 않는다 — 영상만 저장해도 부하 그대로', !/prisma\.(pitchLog|hittingLog)\.(update|create|delete)/.test(action));
   check('앱 입구(rpc 허용 목록)에 있다', src('app/api/rpc/registry.ts').includes("'my-videos': myVideos"));
   check('지우기 참조 검사가 UserVideo 를 본다', src('lib/video-refs.ts').includes('prisma.userVideo.findMany'));
 }

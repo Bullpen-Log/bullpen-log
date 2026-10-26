@@ -83,6 +83,8 @@ export default function RootLayout() {
         <Stack.Screen name="velocity" options={{ animation: 'fade', animationDuration: 220 }} />
         {/* 내 영상 — 홈 쓸기의 판이 화면을 덮은 뒤 옅게 바뀐다(위 막대 단추도 같은 길) */}
         <Stack.Screen name="my-videos/index" options={{ animation: 'fade', animationDuration: 220 }} />
+        {/* 영상만 저장 — 끌어 닫기 막음(버리기 · 저장 두 길만, 찍은 영상을 모르게 버리지 않게) */}
+        <Stack.Screen name="my-videos/new" options={{ presentation: 'modal', gestureEnabled: false }} />
         {/* 그날 화면 — 웹 휴대폰처럼 아래에서 올라오는 창(끌어내려 닫기) */}
         {/* 커뮤니티 — 토스 '증권'처럼 옅어지며 들어오고 하단바가 커뮤니티 것으로 바뀐다(community/index.tsx · tab-bar.tsx enter) */}
         <Stack.Screen name="community/index" options={{ animation: 'none' }} />

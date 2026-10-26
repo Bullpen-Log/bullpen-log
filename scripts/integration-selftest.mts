@@ -631,6 +631,7 @@ console.log(
     'native/src/app/pitch/import.tsx', // 넣다 막힌 방금 넣은 파일
     'native/src/app/pitch/edit.tsx', // dropUnsaved(서버에 물음) · 이 폼에서 새로 넣은 것(fresh)
     'native/src/velocity/session.ts', // 붙이지 못한 방금 옮긴 클립
+    'native/src/app/my-videos/new.tsx', // 영상만 저장 화면에서 [버리기] — 방금 넣고 아직 저장 안 한 파일
     'native/src/lib/cap-bridge.ts', // 웹뷰 다리(웹이 discardPhoneVideos 로 거른다)
   ]);
   const removers = walk('native/src').filter((f) => /\.tsx?$/.test(f) && /LocalVideo\.remove\(/.test(src(f)));

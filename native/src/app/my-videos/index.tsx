@@ -1,9 +1,9 @@
 import { Image } from 'expo-image';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { memo, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { memo, useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Pressable, SectionList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { EMPTY_VIDEO_FILTER, MATCH_LABEL, filterVideos, groupByDate, type MatchWhere, type MyVideoItem, type VideoSport } from '@/lib/my-videos';
+import { EMPTY_VIDEO_FILTER, MATCH_LABEL, compareItems, filterVideos, groupByDate, type MatchWhere, type MyVideoItem, type VideoSport } from '@/lib/my-videos';
 import { isPhoneVideoPath, phoneAssetId } from '@/lib/phone-video-path';
 import { READABLE } from '~/lib/layout';
 import { TYPE, usePalette, withAlpha } from '~/lib/ui';
@@ -14,6 +14,7 @@ import { useMenu } from '~/shell/menu-store';
 import { Press } from '~/shell/press';
 import { LocalVideo } from '../../../modules/local-video';
 import { useMyVideos } from '~/videos/store';
+import { videoOutbox } from '~/videos/outbox';
 import { compareLabel, videoDateText } from '~/videos/text';
 
 /**
@@ -41,12 +42,21 @@ export default function MyVideosScreen() {
   const menu = useMenu();
   const canAbs = menu.isAdmin === true || menu.groups.some((g) => g.items.some((i) => i.href === '/abs'));
 
+  /* 아직 못 보낸 영상(동기화 대기) — 서버 목록에 생기면 그쪽이 이긴다 */
+  const pending = useSyncExternalStore(videoOutbox.subscribe, videoOutbox.snapshot);
+  const pendingPaths = useMemo(() => new Set(pending.map((v) => v.path)), [pending]);
+  const all = useMemo(() => {
+    const have = new Set((items ?? []).map((v) => v.path));
+    const extra = pending.filter((v) => !have.has(v.path));
+    return extra.length ? [...extra, ...(items ?? [])].sort(compareItems) : (items ?? []);
+  }, [items, pending]);
+
   const rows = useMemo(
     () =>
-      filterVideos(items ?? [], { ...EMPTY_VIDEO_FILTER, text: q, sport: sport === 'all' ? null : sport, revisitOnly }).filter(
+      filterVideos(all, { ...EMPTY_VIDEO_FILTER, text: q, sport: sport === 'all' ? null : sport, revisitOnly }).filter(
         (r) => r.item.path !== pick
       ),
-    [items, q, sport, revisitOnly, pick]
+    [all, q, sport, revisitOnly, pick]
   );
   const sections = useMemo(() => groupByDate(rows).map((g) => ({ key: g.date ?? 'none', date: g.date, data: g.rows })), [rows]);
 
@@ -77,13 +87,18 @@ export default function MyVideosScreen() {
   const thumbs = usePathThumbs(visible.filter((p) => !missing.has(p)));
 
   const openAdd = () => {
-    const options = ['구속 측정', ...(canAbs ? ['ABS 판정'] : []), '취소'];
+    const options = ['촬영하기', '앨범에서 가져오기', '구속 측정', ...(canAbs ? ['ABS 판정'] : []), '취소'];
+    /* 고르개가 타격이면 타격으로 미리 고른다 */
+    const kind = sport === 'hit' ? 'hit' : 'pitch';
     ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: options.length - 1 }, (i) => {
-      if (options[i] === '구속 측정') router.push('/velocity?mode=speed' as Href);
+      if (options[i] === '촬영하기') router.push({ pathname: '/my-videos/new' as never, params: { source: 'camera', sport: kind } });
+      else if (options[i] === '앨범에서 가져오기') router.push({ pathname: '/my-videos/new' as never, params: { source: 'album', sport: kind } });
+      else if (options[i] === '구속 측정') router.push('/velocity?mode=speed' as Href);
       else if (options[i] === 'ABS 판정') router.push('/velocity?mode=abs' as Href);
     });
   };
   const open = (v: MyVideoItem) => {
+    if (pendingPaths.has(v.path)) return;
     if (pick) {
       const a = items?.find((x) => x.path === pick);
       router.replace({ pathname: '/pitch/compare' as never, params: { a: pick, al: a ? compareLabel(a) : 'A', b: v.path, bl: compareLabel(v) } });
@@ -165,7 +180,14 @@ export default function MyVideosScreen() {
           </Text>
         )}
         renderItem={({ item: r }) => (
-          <VideoCard row={r} thumb={thumbs[r.item.path]} missing={missing.has(r.item.path)} showWhere={q.trim() !== ''} onPress={open} />
+          <VideoCard
+            row={r}
+            thumb={thumbs[r.item.path]}
+            missing={missing.has(r.item.path)}
+            pending={pendingPaths.has(r.item.path)}
+            showWhere={q.trim() !== ''}
+            onPress={open}
+          />
         )}
         ListEmptyComponent={
           !items && loading ? (
@@ -174,7 +196,7 @@ export default function MyVideosScreen() {
             <View style={styles.empty}>
               <Icon name="film" size={32} color={c.muted} />
               <Text style={[TYPE.body, { color: c.muted, textAlign: 'center' }]}>
-                {searching ? '맞는 영상이 없어요.' : '아직 영상이 없어요. 투구 기록 · 구속 측정에 남긴 영상이 여기 모여요.'}
+                {searching ? '맞는 영상이 없어요.' : '아직 영상이 없어요. 오른쪽 위 + 로 찍거나 가져오면 운동량 없이 영상만 남아요.'}
               </Text>
             </View>
           )
@@ -188,12 +210,14 @@ const VideoCard = memo(function VideoCard({
   row,
   thumb,
   missing,
+  pending,
   showWhere,
   onPress,
 }: {
   row: Row;
   thumb: Thumb | undefined;
   missing: boolean;
+  pending: boolean;
   showWhere: boolean;
   onPress: (v: MyVideoItem) => void;
 }) {
@@ -203,6 +227,7 @@ const VideoCard = memo(function VideoCard({
   const chips = [v.sport === 'hit' ? '타격' : '투구', kind, v.clip ? `${Math.round(v.clip.kmh)}km/h` : null].filter(Boolean) as string[];
   const memo = v.logs.find((l) => l.memo)?.memo ?? null;
   const tags = [
+    pending ? '동기화 대기' : null,
     v.logs.length ? `기록 ${v.logs.length}개` : null,
     missing ? '이 폰에 없음' : null,
     showWhere && row.where ? MATCH_LABEL[row.where] : null,

@@ -42,7 +42,7 @@ function sizeOf(asset: ImagePicker.ImagePickerAsset): number | null {
  * 폰의 앱 안에 넣는다. LocalVideo.saveFile 은 앱 임시 · 캐시 폴더의 파일만 받는다 — 사진 선택기가 다른 자리(읽기 전용 · 다른 폴더)의
  * 주소를 주면 'path' 로 막히니, 그때는 캐시로 한 번 복사해 넣고 복사본을 지운다.
  */
-async function saveToPhone(uri: string): Promise<string> {
+export async function saveToPhone(uri: string): Promise<string> {
   try {
     return (await LocalVideo.saveFile({ path: uri })).id;
   } catch (e) {

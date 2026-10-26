@@ -29,6 +29,7 @@ import { resetScanned } from '~/nutrition/scanned';
 import { HomeTab, resetHomeCache } from '~/home/tab';
 import { resetNotificationList } from '~/home/notifications';
 import { resetMyVideos } from '~/videos/store';
+import { drainVideos } from '~/videos/outbox';
 import { NutritionTab } from '~/nutrition/tab';
 import { TrainingTab, resetTrainingCache } from '~/training/tab';
 import { resetPitchTodayCache } from '~/pitch/today-card';
@@ -283,6 +284,7 @@ const PAGER_KEYS = ['home', 'pitch', 'training', 'nutrition'] as const;
 
 /** 폰에 남은 운동 세트 · 암케어 체크를 보낸다 — 체크를 하나라도 보냈으면 사이트의 트레이닝 목록 · 홈을 새로 그리게(따라 하기 화면과 같다) */
 function drainQueues() {
+  void drainVideos();
   void drainOutbox((p) => rpc('workout.logSet', p), () => undefined);
   let sent = 0;
   void drainChecks(sendCheck, (_p, res) => {
