@@ -82,7 +82,20 @@ const safeUrl = (u: unknown): u is string => typeof u === 'string' && u.startsWi
 const shortUrl = (u: string) => u.replace(/^https:\/\/(www\.|m\.|pcmap\.)?/, '').slice(0, 48);
 
 /** 수집 후보 하나의 화면 몸통(2026-10-26, 대표관리자만) — 공개 근거(직접 확인 전)와 업체에 확인한 정보를 나눠 보이고, 연락 · 동의 · 승인 · 좌표를 고친다 */
-export function CandidateDetail({ c, mergedInto, mergedFrom, coords }: NonNullable<Awaited<ReturnType<typeof loadCandidate>>> & { coords?: string }) {
+export function CandidateDetail({
+  c,
+  mergedInto,
+  mergedFrom,
+  coords,
+  embedded = false,
+  inApp = false,
+}: NonNullable<Awaited<ReturnType<typeof loadCandidate>>> & {
+  coords?: string;
+  /** 연습장 지도 위 팝업 안(app/(dugout)/@modal) — '‹ 수집 후보' 목록 길을 안 그린다(창을 닫으면 지도로) */
+  embedded?: boolean;
+  /** 덕아웃 앱의 후보 창(app/embed/place/[id]) — 좌표를 저장해도 그 화면에 머문다(setCandidateCoords 의 embed) */
+  inApp?: boolean;
+}) {
   const k = (c.collected ?? {}) as Collected;
   const ops = k.operationsReview;
   const op = ops?.operation;
@@ -107,10 +120,17 @@ export function CandidateDetail({ c, mergedInto, mergedFrom, coords }: NonNullab
 
   return (
     <div className="stack-page">
-      <Link href="/manage/places" className="inline-flex items-center gap-1 text-xs text-muted hover:text-ink">
-        <ChevronLeft className="h-3.5 w-3.5" /> 수집 후보
-      </Link>
-      <PageHeading title={c.name} description={[c.typeHint, c.region, labelOf(ORIGIN_GROUP, c.originGroup)].filter((x) => x && x !== '—').join(' · ')} />
+      {!embedded && (
+        <Link href="/manage/places" className="inline-flex items-center gap-1 text-xs text-muted hover:text-ink">
+          <ChevronLeft className="h-3.5 w-3.5" /> 수집 후보
+        </Link>
+      )}
+      {/* 팝업은 창 제목이 이름이라 설명 줄만 */}
+      {embedded ? (
+        <p className="text-sm text-muted">{[c.typeHint, c.region, labelOf(ORIGIN_GROUP, c.originGroup)].filter((x) => x && x !== '—').join(' · ')}</p>
+      ) : (
+        <PageHeading title={c.name} description={[c.typeHint, c.region, labelOf(ORIGIN_GROUP, c.originGroup)].filter((x) => x && x !== '—').join(' · ')} />
+      )}
 
       {(flags.length > 0 || mergedFrom.length > 0) && (
         <Card className="space-y-2 border-warn/40">
@@ -327,6 +347,7 @@ export function CandidateDetail({ c, mergedInto, mergedFrom, coords }: NonNullab
             <SafeForm action={setCandidateCoords} className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="id" value={c.id} />
               <input type="hidden" name="mode" value="manual" />
+              {inApp && <input type="hidden" name="embed" value="1" />}
               <label className="min-w-0 flex-1 space-y-1">
                 <span className="block text-xs text-muted">위도</span>
                 <Input name="lat" inputMode="decimal" defaultValue={c.lat ?? ''} placeholder="37.5665" />
@@ -342,6 +363,7 @@ export function CandidateDetail({ c, mergedInto, mergedFrom, coords }: NonNullab
             <SafeForm action={setCandidateCoords}>
               <input type="hidden" name="id" value={c.id} />
               <input type="hidden" name="mode" value="geocode" />
+              {inApp && <input type="hidden" name="embed" value="1" />}
               <Button type="submit" size="sm" variant="secondary">
                 지도 주소로 좌표 찾기
               </Button>

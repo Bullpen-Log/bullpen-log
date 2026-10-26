@@ -5,7 +5,6 @@ import {
   ARM_PAIN_SPOTS,
   CHECKIN_NOTE_MAX,
   CHECKIN_PARTS as PART_LABELS,
-  CONDITION_BANDS,
   MAX_CONDITION,
   MIN_CONDITION,
   SLEEP_QUALITY_LEVELS,
@@ -25,6 +24,7 @@ import { useState } from 'react';
 import { Search } from '@/components/icon';
 import { Chip } from '@/components/day-card';
 import { OutlinePerson, SleepPicture } from './pictures';
+import { CONDITION_VISUAL_STAGES, conditionVisualStage } from './condition-visual';
 
 /**
  * 체크인 3판의 질문 화면 넷(components/checkin-flow/flow.tsx 가 차례로 띄운다).
@@ -36,10 +36,9 @@ const TITLE = 'text-2xl font-bold leading-tight text-ink';
 const UNSET_CONDITION = 6;
 const UNSET_SLEEP = 3;
 
-const bandWord = (score: number) =>
-  CONDITION_BANDS.find((b) => b.key === conditionBand(score))?.label ?? '';
+const bandWord = (score: number) => conditionVisualStage(score).label;
 
-/** 컨디션 1~10 — 세로 슬라이더, 큰 숫자, 띠의 말(아파요 · 보통이에요 · 좋아요), 어제 · 평소, '불편한 곳' 확인 */
+/** 컨디션 1~10 — 가로 슬라이더, 큰 숫자, 5단계 그림·문구, 어제 · 평소, '불편한 곳' 확인 */
 
 /*
  * 밀어서 고르기 — 손가락 자리로 값을 바로 셈한다(2026-10-20 김민: "아이패드에서 컨디션 밀어서 고르기 작동 안 됨"). 기본 range 는
@@ -97,8 +96,8 @@ export function ConditionStep({
       <h1 className={TITLE}>오늘 컨디션은 어때요?</h1>
       {/* 그림 위 · 슬라이더는 그림 밑에 가로로(2026-10-13 사용자: "스크롤은 전부 그림 하단에 가로로") */}
       <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
-        {/* 사람 윤곽 — 띠마다 자세 · 표정 · 색이 다르고 0.16초 옅어지며 바뀐다(pictures.tsx) */}
-        <OutlinePerson band={band} className="h-44 w-28 shrink-0" />
+        {/* 야구 선수 5단계 — 저장 점수와 통증 확인 규칙은 그대로, 자세·표정·표시 문구만 세분화. */}
+        <OutlinePerson score={value} className="h-44 w-28 shrink-0" />
         <div className="flex items-baseline gap-2">
           <p
             className={`text-6xl font-black tabular-nums leading-none ${tone}`}
@@ -119,16 +118,18 @@ export function ConditionStep({
           onChange={(e) => onChange(Number(e.target.value))}
           {...rangePointer(MIN_CONDITION, MAX_CONDITION, onChange)}
           aria-label="오늘 컨디션"
-          aria-valuetext={value == null ? '아직 안 고름' : `${value}점, ${bandWord(value)}`}
+          aria-valuetext={
+            value == null ? '아직 안 고름' : `${value}점, ${bandWord(value)}`
+          }
           className={`checkin-range w-full max-w-xs ${unset ? 'checkin-range-unset' : ''}`}
         />
-        <ol
-          className="flex w-full max-w-xs justify-between text-caption text-muted"
-          aria-hidden
-        >
-          {CONDITION_BANDS.map((b) => (
-            <li key={b.key} className={!unset && b.key === band ? 'font-semibold text-sky' : ''}>
-              {b.label}
+        <ol className="flex w-full max-w-xs text-caption text-muted" aria-hidden>
+          {CONDITION_VISUAL_STAGES.map((stage) => (
+            <li
+              key={stage.key}
+              className={`min-w-0 flex-1 text-center ${!unset && stage.key === conditionVisualStage(value).key ? 'font-semibold text-sky' : ''}`}
+            >
+              {stage.shortLabel}
             </li>
           ))}
         </ol>
@@ -428,7 +429,9 @@ export function SleepStep({
       <div className="flex flex-1 flex-col items-center justify-center gap-6 py-4">
         {/* 누운 사람과 달 — 잘 잔 만큼 달이 찬다(pictures.tsx) */}
         <SleepPicture quality={shown} className="h-32 w-full max-w-xs" />
-        <p className={`text-3xl font-black ${unset ? 'text-muted' : 'text-sky'}`}>{word}</p>
+        <p className={`text-3xl font-black ${unset ? 'text-muted' : 'text-sky'}`}>
+          {word}
+        </p>
         <input
           type="range"
           min={1}
@@ -446,7 +449,10 @@ export function SleepStep({
           aria-hidden
         >
           {SLEEP_QUALITY_LEVELS.map((w, i) => (
-            <li key={w} className={!unset && i + 1 === value ? 'font-semibold text-sky' : ''}>
+            <li
+              key={w}
+              className={!unset && i + 1 === value ? 'font-semibold text-sky' : ''}
+            >
               {w}
             </li>
           ))}

@@ -6,6 +6,7 @@ import UIKit
  * 카카오맵 뷰(덕아웃 연습장 · 레슨장 지도, 2026-10-25) — KakaoMapsSDK v2 를 Expo 뷰 하나로 감싼다.
  * 열쇠는 Info.plist 의 KakaoAppKey(plugins/kakao-map 이 prebuild 때 KAKAO_NATIVE_APP_KEY 로 채운다). 없거나 인증이 안 되면 onError.
  * 점(markers)을 받아 찍고, 처음 한 번 모든 점이 보이게 맞추고, 고른 점(selectedId)은 진하게 + 그 자리로 옮긴다. 점을 누르면 onMarkerPress { id }.
+ * 이름(name)은 NAME_LEVEL 이상으로 확대했을 때만 점 밑에 — 멀리 보면 점만(2026-10-26 김민 "축소하면 아이콘만, 확대하면 이름"). 고른 점은 늘 이름.
  */
 public class KakaoMapModule: Module {
   public func definition() -> ModuleDefinition {
@@ -28,6 +29,7 @@ struct KakaoMarker: Record {
   @Field var id: String = ""
   @Field var lat: Double = 0
   @Field var lng: Double = 0
+  @Field var name: String = ""
 }
 
 final class KakaoMapView: ExpoView, MapControllerDelegate {
@@ -37,6 +39,8 @@ final class KakaoMapView: ExpoView, MapControllerDelegate {
 
   private static var sdkReady = false
   private static let green = UIColor(red: 0x1d / 255, green: 0x8a / 255, blue: 0x4f / 255, alpha: 1)
+  /** 이름을 붙이는 확대 정도 — 카카오 수준은 클수록 확대(15 ≈ 웹 지도의 250m 축척). 이름이 겹쳐 보이면 이 숫자를 올린다 */
+  private static let nameLevel = 15
 
   private let container = KMViewContainer(frame: .zero)
   private var controller: KMController?
@@ -155,8 +159,16 @@ final class KakaoMapView: ExpoView, MapControllerDelegate {
     ))
     let normal = PoiIconStyle(symbol: Self.pin(size: 26, color: Self.green), anchorPoint: CGPoint(x: 0.5, y: 0.5))
     let on = PoiIconStyle(symbol: Self.pin(size: 38, color: UIColor(white: 0.1, alpha: 1)), anchorPoint: CGPoint(x: 0.5, y: 0.5))
-    manager.addPoiStyle(PoiStyle(styleID: "pin", styles: [PerLevelPoiStyle(iconStyle: normal, level: 0)]))
-    manager.addPoiStyle(PoiStyle(styleID: "pinOn", styles: [PerLevelPoiStyle(iconStyle: on, level: 0)]))
+    /* 이름 — 점 밑에 진한 글자 + 흰 테두리(지도 위에서 읽히게) */
+    let text = PoiTextStyle(textLineStyles: [
+      PoiTextLineStyle(textStyle: TextStyle(fontSize: 22, fontColor: UIColor(white: 0.11, alpha: 1), strokeThickness: 3, strokeColor: .white)),
+    ])
+    text.textLayouts = [.bottom]
+    manager.addPoiStyle(PoiStyle(styleID: "pin", styles: [
+      PerLevelPoiStyle(iconStyle: normal, level: 0),
+      PerLevelPoiStyle(iconStyle: normal, textStyle: text, level: Self.nameLevel),
+    ]))
+    manager.addPoiStyle(PoiStyle(styleID: "pinOn", styles: [PerLevelPoiStyle(iconStyle: on, textStyle: text, level: 0)]))
   }
 
   private func draw() {
@@ -167,6 +179,9 @@ final class KakaoMapView: ExpoView, MapControllerDelegate {
       let option = PoiOptions(styleID: isOn ? "pinOn" : "pin", poiID: m.id)
       option.rank = isOn ? 1 : 0
       option.clickable = true
+      if !m.name.isEmpty {
+        option.addText(PoiText(text: m.name.count > 12 ? "\(m.name.prefix(12))…" : m.name, styleIndex: 0))
+      }
       if let poi = layer.addPoi(option: option, at: MapPoint(longitude: m.lng, latitude: m.lat)) {
         _ = poi.addPoiTappedEventHandler(target: self, handler: KakaoMapView.tapped)
         poi.show()
