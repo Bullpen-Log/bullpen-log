@@ -1536,10 +1536,16 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       inCategory(ex, '상체 스트렝스') && ex.movementPattern === '당기기' && VERTICAL_PULL.test(ex.title) && loadableAccessory(ex),
     rank: () => [],
   },
-  /* 보조 밀기 — 덤벨 · 케이블 · 푸시업 종류(바벨은 본운동 몫). 머리 위 프레스도 든다(2026-10-14 사용자: 투수도 머리 위 운동을 한다) */
+  /*
+   * 보조 밀기 — 덤벨 · 케이블 · 푸시업 종류(바벨은 본운동 몫). 머리 위 프레스도 든다(2026-10-14 사용자: 투수도 머리 위 운동을 한다).
+   * 랜드마인 프레스는 바벨을 쓰지만 한 팔 보조 운동이라 든다(2026-10-26 김민이 라이브러리에 더함).
+   */
   pushAcc: {
     match: (ex) =>
-      inCategory(ex, '상체 스트렝스') && ex.movementPattern === '밀기' && !ex.equipment.includes('바벨') && loadableAccessory(ex),
+      inCategory(ex, '상체 스트렝스') &&
+      ex.movementPattern === '밀기' &&
+      (!ex.equipment.includes('바벨') || /랜드마인/.test(ex.title)) &&
+      loadableAccessory(ex),
     rank: () => [],
   },
   hamstring: {
