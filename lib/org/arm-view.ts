@@ -42,3 +42,4 @@ export function coachArmStatusOf(facts: ReportFacts, scope: Consent, todayKey: s
 export function armUnknown(s: CoachArmStatus): boolean {
   return s.level === 'safe' && s.missing.length > 0;
 }
+

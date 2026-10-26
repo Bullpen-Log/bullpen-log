@@ -177,7 +177,7 @@ function Work({ d, org, send, busy, c }: Part & { send: Send; busy: boolean }) {
           >
             <Text style={[TYPE.card, { color: c.ink, flex: 1 }]}>{m.nickname}</Text>
             <Text style={[TYPE.sub, { color: m.recordedSets ? c.ok : c.muted }]}>
-              {!m.hasUser ? '가입 전' : !m.canTrain ? '트레이닝 공유 꺼짐' : m.recordedSets ? `${m.recordedSets}세트 남김` : '기록 없음'}
+              {!m.hasUser ? '앱 연결 대기' : !m.canTrain ? '트레이닝 비공개' : m.recordedSets ? `${m.recordedSets}세트 남김` : '기록 없음'}
             </Text>
             {m.canTrain ? <Text style={{ color: c.muted, fontSize: 17 }}>›</Text> : null}
           </Pressable>

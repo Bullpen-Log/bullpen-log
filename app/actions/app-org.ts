@@ -9,6 +9,7 @@ import { dbDate } from '@/lib/nutrition/days';
 import { memberScope } from '@/lib/org/access';
 import { CONSENT_SCOPES, type Consent, type OrgKind } from '@/lib/org/rules';
 import { ARM_MISSING_TEXT, armUnknown, type CoachArmStatus } from '@/lib/org/arm-view';
+import { WATCH_KINDS, WATCH_LINE, watchKindOf, type WatchKind } from '@/lib/org/watch';
 import { joinWithCode } from '@/lib/org/join';
 import { createInviteCode } from '@/lib/org/invite';
 import { loadMember, loadPlayers, memberCardOf, pitcherBoardOf, type MemberCard } from '@/lib/org/player-data';
@@ -128,8 +129,10 @@ export type OrgToday = {
   /** replies: 참석 응답 수(3단계) — 팀 일정 줄의 '가요 8 · 못 가요 2' */
   events: { id: string; time: string | null; kind: string; title: string; status: string; memberId: string | null; memberName: string | null; replies: Record<AttendReply, number> }[];
   counts: { members: number; pending: number; placeholders: number };
-  /** 팔 상태가 주의 · 위험인 회원 — 위험부터 */
+  /** 팔 상태가 주의 · 위험인 회원 — 위험부터(옛 앱 화면이 읽는다. 새 화면은 watch) */
   alerts: ({ memberId: string; nickname: string } & ArmLine)[];
+  /** 살필 선수(계약 9-6 ①-1) — 주의 · 위험 / 정보 부족 / 투구 비공개 / 공유 동의 대기 / 앱 연결 대기. 살필 것 없는 선수는 없음 */
+  watch: { kind: WatchKind; memberId: string; nickname: string; line: string }[];
 };
 
 /** 코치 '오늘' — 오늘 조직 일정 · 공유 대기 회원 수 · 팔 상태 주의 회원 */
@@ -168,7 +171,23 @@ export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: stri
     alerts: board.rows
       .filter((r) => r.status.level !== 'safe')
       .map((r) => ({ memberId: r.memberId, nickname: r.nickname, ...armLine(r.status) })),
+    watch: watchOf(members, board.rows),
   };
+}
+
+function watchOf(members: Awaited<ReturnType<typeof loadPlayers>>, rows: { memberId: string; status: CoachArmStatus }[]): OrgToday['watch'] {
+  const statusOf = new Map(rows.map((r) => [r.memberId, r.status]));
+  const out = members.flatMap((m) => {
+    const st = statusOf.get(m.id) ?? null;
+    const kind = watchKindOf({ hasUser: !!m.user, consent: m.consent }, st);
+    if (!kind) return [];
+    const line =
+      kind === 'attention' ? (st?.headline ?? '') : kind === 'insufficient' ? (st?.missing.map((x) => ARM_MISSING_TEXT[x]).join(' · ') ?? '') : WATCH_LINE[kind];
+    return [{ kind, memberId: m.id, nickname: m.nickname, line, danger: st?.level === 'danger' }];
+  });
+  /* 묶음 차례 · 위험 먼저 · 이름 */
+  out.sort((a, b) => WATCH_KINDS.indexOf(a.kind) - WATCH_KINDS.indexOf(b.kind) || Number(b.danger) - Number(a.danger) || a.nickname.localeCompare(b.nickname, 'ko'));
+  return out.map(({ danger: _danger, ...w }) => w);
 }
 
 export type OrgMemberRow = {

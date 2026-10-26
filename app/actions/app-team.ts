@@ -2,12 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { appNow } from '@/lib/clock';
+import { appNow, appNowMs } from '@/lib/clock';
 import { notifyMany } from '@/lib/notify';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
 import { allExercises, allGuides, exercisesByIds, trainingGuides, visibleExercises } from '@/lib/library-cache';
-import { memberScope } from '@/lib/org/rules';
+import { memberScope, ORG_DUPLICATE_MS } from '@/lib/org/rules';
 import { coachOrg, myMember } from '@/lib/org/app-access';
 import { ORG_LOST, orgOpenHref } from '@/lib/org/space-nav';
 import { cleanHomeworkItems, homeworkDose, readHomeworkItems } from '@/lib/org/homework';
@@ -195,6 +195,13 @@ export async function savePlan(orgId: string, eventId: string, input: unknown): 
     if (!r.count) return { ok: false, error: '메뉴를 찾을 수 없어요.' };
     return { ok: true, id };
   }
+  /* 같은 메뉴를 다시 보냈으면(신호 끊김 뒤 재전송) 그 메뉴를 돌려준다 */
+  const recent = await prisma.orgPlan.findMany({
+    where: { eventId, createdById: c.user.id, title, createdAt: { gte: new Date(appNowMs() - ORG_DUPLICATE_MS) } },
+    select: { id: true, items: true, memberIds: true },
+  });
+  const same = recent.find((p) => JSON.stringify(p.items) === JSON.stringify(items) && p.memberIds.join() === memberIds.join());
+  if (same) return { ok: true, id: same.id };
   const made = await prisma.orgPlan.create({ data: { orgId, eventId, title, items, memberIds, createdById: c.user.id }, select: { id: true } });
   return { ok: true, id: made.id };
 }

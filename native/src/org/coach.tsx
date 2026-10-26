@@ -15,6 +15,8 @@ import { COMMENT_KIND_LABEL } from '@/lib/org/comments';
 import type { loadInbox } from '@/app/actions/app-lesson';
 import type { loadTeamTraining } from '@/app/actions/app-team';
 import { openDugout, spaceNow } from '~/org/space-store';
+import { withJosa } from '@/lib/korean';
+import { WATCH_KINDS, WATCH_LABEL } from '@/lib/org/watch';
 import { Card, Empty, GroupTitle, KIND_WORD, Primary, armLook, dayLabel, st } from '~/org/parts';
 
 /**
@@ -80,7 +82,6 @@ function Actions({ items, c }: { items: { label: string; onPress: () => void }[]
 function TodayTab({ space, c }: { space: MySpace; c: Palette }) {
   const { data, error, reload } = useLoad<Today>('app-org.loadOrgToday', space.orgId);
   if (!data) return <LoadState error={error} onRetry={() => void reload()} c={c} />;
-  const who = memberWord(space);
   return (
     <View style={{ gap: 16 }}>
       <Actions
@@ -119,46 +120,51 @@ function TodayTab({ space, c }: { space: MySpace; c: Palette }) {
       {/* 레슨장은 '받은 것'이 따로 탭 — 팀은 오늘 화면 칸 그대로(계약 8-3) */}
       {space.kind === 'TEAM' ? <Inbox space={space} c={c} /> : null}
 
-      <View style={{ gap: 6 }}>
-        <GroupTitle title={who} c={c} />
-        <Card c={c}>
-          <Text style={[TYPE.body, { color: c.ink }]}>
-            {who} {data.counts.members}명
-            {data.counts.pending ? ` · 공유 대기 ${data.counts.pending}` : ''}
-            {data.counts.placeholders ? ` · 가입 전 ${data.counts.placeholders}` : ''}
-          </Text>
-          {data.counts.pending ? (
-            <Text style={[TYPE.sub, { color: c.muted }]}>공유 대기 {who}은 싱커에서 보여 줄 기록을 고르기 전이라 기록이 안 보여요.</Text>
-          ) : null}
-        </Card>
-      </View>
+      <Watch space={space} data={data} c={c} />
+    </View>
+  );
+}
 
-      <View style={{ gap: 6 }}>
-        <GroupTitle title="팔 상태 살필 사람" c={c} />
-        <Card c={c}>
-          {data.alerts.length === 0 ? (
-            <Empty text={`주의 · 위험인 ${who}이 없어요.`} c={c} />
-          ) : (
-            data.alerts.map((a) => {
-              const look = armLook(a, c);
-              return (
-                <Pressable key={a.memberId} accessibilityRole="button" onPress={() => openMember(space, a.memberId)} style={st.row}>
-                  <View style={[styles.dot, { backgroundColor: look.color }]} />
+/**
+ * 살필 선수(계약 9-6 ①-1) — 주의 · 위험 / 정보 부족 / 투구 기록 비공개 / 공유 동의 대기 / 앱 연결 대기를 따로. 정보 부족을 '주의 · 위험 없음'으로 덮지 않는다.
+ * 줄을 누르면 그 선수 카드. 살필 사람이 없을 때만 '없어요' 한 줄(선수가 없으면 초대 안내).
+ */
+function Watch({ space, data, c }: { space: MySpace; data: Extract<Today, { ok: true }>; c: Palette }) {
+  const who = memberWord(space);
+  /* 옛 서버(watch 없음)는 주의 · 위험만 */
+  const watch = data.watch ?? data.alerts.map((a) => ({ kind: 'attention' as const, memberId: a.memberId, nickname: a.nickname, line: a.headline }));
+  const groups = WATCH_KINDS.map((k) => ({ k, rows: watch.filter((w) => w.kind === k) })).filter((g) => g.rows.length);
+  return (
+    <View style={{ gap: 6 }}>
+      <GroupTitle title={`살필 ${who} · ${space.kind === 'TEAM' ? '선수단' : '회원'} ${data.counts.members}명`} c={c} />
+      <Card c={c}>
+        {data.counts.members === 0 ? (
+          <Empty text={`아직 ${withJosa(who, '이/가')} 없어요. 더보기의 초대 코드를 보내요.`} c={c} />
+        ) : groups.length === 0 ? (
+          <Empty text={`살필 ${withJosa(who, '이/가')} 없어요 — 모두 최근 기록이 있고 주의 · 위험 신호가 없어요.`} c={c} />
+        ) : (
+          groups.map((g, gi) => (
+            <View key={g.k} style={gi > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line, paddingTop: 6 }}>
+              <Text style={[TYPE.sub, { color: g.k === 'attention' ? c.warn : c.muted, fontWeight: '700' }]}>
+                {WATCH_LABEL[g.k]} {g.rows.length}명
+              </Text>
+              {g.rows.map((w) => (
+                <Pressable key={w.memberId} accessibilityRole="button" onPress={() => openMember(space, w.memberId)} style={({ pressed }) => [st.row, { minHeight: 44 }, pressed && { opacity: 0.6 }]}>
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={[TYPE.card, { color: c.ink }]}>
-                      {a.nickname} <Text style={{ color: look.color }}>{look.word}</Text>
-                    </Text>
-                    <Text style={[TYPE.sub, { color: c.muted }]} numberOfLines={2}>
-                      {a.headline}
-                    </Text>
+                    <Text style={[TYPE.card, { color: c.ink }]}>{w.nickname}</Text>
+                    {w.line ? (
+                      <Text style={[TYPE.sub, { color: c.muted }]} numberOfLines={2}>
+                        {w.line}
+                      </Text>
+                    ) : null}
                   </View>
                   <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
                 </Pressable>
-              );
-            })
-          )}
-        </Card>
-      </View>
+              ))}
+            </View>
+          ))
+        )}
+      </Card>
     </View>
   );
 }
@@ -166,13 +172,13 @@ function TodayTab({ space, c }: { space: MySpace; c: Palette }) {
 function MembersTab({ space, c }: { space: MySpace; c: Palette }) {
   const { data, error, reload } = useLoad<Members>('app-org.loadOrgMembers', space.orgId);
   if (!data) return <LoadState error={error} onRetry={() => void reload()} c={c} />;
-  const add = <Actions items={[{ label: '+ 가입 전 자리', onPress: () => router.push(`/org/member-edit?org=${space.orgId}` as Href) }]} c={c} />;
+  const add = <Actions items={[{ label: `+ ${memberWord(space)} 등록`, onPress: () => router.push(`/org/member-edit?org=${space.orgId}` as Href) }]} c={c} />;
   if (data.members.length === 0)
     return (
       <View style={{ gap: 16 }}>
         {add}
         <Card c={c}>
-          <Empty text={`아직 ${memberWord(space)}이 없어요. 더보기의 초대 코드를 보내거나, 가입 전 자리를 먼저 만들어 일지를 남길 수 있어요.`} c={c} />
+          <Empty text={`아직 ${withJosa(memberWord(space), '이/가')} 없어요. 더보기의 초대 코드를 보내거나, 앱 연결 전에 먼저 등록해 일지를 남길 수 있어요.`} c={c} />
         </Card>
       </View>
     );
@@ -182,12 +188,12 @@ function MembersTab({ space, c }: { space: MySpace; c: Palette }) {
     <Card c={c} style={{ paddingVertical: 4 }}>
       {data.members.map((m, i) => {
         const status = !m.hasUser
-          ? { word: '가입 전', color: c.muted }
+          ? { word: '앱 연결 대기', color: c.muted }
           : m.consentPending
-            ? { word: '공유 대기', color: c.muted }
+            ? { word: '공유 동의 대기', color: c.muted }
             : m.arm
               ? armLook(m.arm, c)
-              : { word: '투구 비공유', color: c.muted };
+              : { word: '투구 기록 비공개', color: c.muted };
         return (
           <Pressable
             key={m.memberId}
@@ -295,7 +301,7 @@ function MoreTab({ space, c }: { space: MySpace; c: Palette }) {
     void Share.share({
       message:
         role === 'STAFF'
-          ? `${space.name} 코치 초대 코드 ${code} — 싱커 가입에서 ${KIND_WORD[space.kind]}을 고르고 '코치로 들어가나요?'에 넣어 주세요. 한 번만 쓸 수 있어요.`
+          ? `${space.name} 코치 초대 코드 ${code} — 싱커 가입에서 ${withJosa(KIND_WORD[space.kind], '을/를')} 고르고 '코치로 들어가나요?'에 넣어 주세요. 한 번만 쓸 수 있어요.`
           : `${space.name} 초대 코드 ${code} — 싱커 더보기 › 소속 관리 › 코드로 들어가기에 넣어 주세요.`,
     });
   return (
@@ -306,7 +312,7 @@ function MoreTab({ space, c }: { space: MySpace; c: Palette }) {
         <>
           <InviteCard
             title={`${who} 초대 코드`}
-            note={(until) => `${dayLabel(until)}까지 여러 ${who}이 같이 써요.`}
+            note={(until) => `${dayLabel(until)}까지 여러 ${withJosa(who, '이/가')} 같이 써요.`}
             invite={data.player}
             busy={busy === 'PLAYER'}
             onMake={() => void make('PLAYER')}
@@ -343,7 +349,7 @@ function MoreTab({ space, c }: { space: MySpace; c: Palette }) {
         <GroupTitle title="PC 에서 관리" c={c} />
         <Card c={c}>
           <Text style={[TYPE.body, { color: c.ink }]}>
-            {KIND_WORD[space.kind]} 설정 · 수강권 · 보호자 리포트 · 긴 표는 PC 웹에서 해요.
+            {space.kind === 'TEAM' ? '팀 설정 · 긴 표 · 내보내기는 PC 웹에서 해요.' : '레슨장 설정 · 보호자 리포트 · 긴 표는 PC 웹에서 해요. 예약 · 수강권은 덕아웃이에요.'}
           </Text>
           <Text selectable style={[TYPE.sub, { color: c.muted }]}>
             {SITE_URL.replace(/^https?:\/\//, '')}/manage

@@ -110,7 +110,7 @@ export default function TeamPitchScreen() {
                 ))
               )}
             </Card>
-            {hidden ? <Text style={[TYPE.sub, { color: c.muted, paddingHorizontal: 4 }]}>투구 공유를 안 켰거나 가입 전인 선수 {hidden}명은 적을 수 없어요.</Text> : null}
+            {hidden ? <Text style={[TYPE.sub, { color: c.muted, paddingHorizontal: 4 }]}>투구 기록을 비공개로 했거나 앱 연결 대기인 선수 {hidden}명은 적을 수 없어요.</Text> : null}
           </View>
           {error ? <Text style={[TYPE.body, { color: c.danger }]}>{error}</Text> : null}
           <Primary label={busy ? '기록하는 중…' : '기록하기'} onPress={() => void save()} disabled={busy || players.length === 0} c={c} />

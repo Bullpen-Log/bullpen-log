@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { HomeworkView } from '@/app/actions/app-lesson';
-import { HOMEWORK_STATUS_LABEL } from '@/lib/org/homework';
+import { HOMEWORK_STATUS_LABEL, doneLabel, needsCoachLook } from '@/lib/org/homework';
 import { call } from '~/community/parts';
 import { TYPE, type Palette } from '~/lib/ui';
 import { toast } from '~/shell/toast';
@@ -10,8 +10,8 @@ import { TalkToggle } from '~/org/thread';
 import { pickAndUploadOrgVideo } from '~/org/video';
 
 /**
- * 숙제 목록(2단계) — 코치 회원 카드와 선수 공간이 같이 쓴다. 코치는 누르면 면제 · 취소 · 되돌리기, 선수는 '오늘 운동에 넣기' · '했어요'.
- * 완료는 선수가 트레이닝에서 그 운동을 하면 저절로(서버 app-lesson.ts settleHomework).
+ * 숙제 목록(2단계) — 코치 회원 카드와 선수 공간이 같이 쓴다. 코치는 누르면 확인 · 면제 · 취소 · 되돌리기, 선수는 '오늘 운동에 넣기' · '했어요'.
+ * 완료는 선수가 처방대로 한 기록으로 저절로(서버 app-lesson.ts settleHomework) 또는 코치 확인. '했어요'는 보고, 숙제 영상은 '영상 받음'(계약 9-6 ①-2).
  */
 type Who = { role: 'coach'; orgId: string } | { role: 'player'; memberId: string };
 
@@ -31,7 +31,7 @@ export function HomeworkList({ items, who, onChanged, c }: { items: HomeworkView
               {dayLabel(h.key)} 낸 숙제{h.due ? ` · ${dayLabel(h.due)}까지` : ''}
             </Text>
             <Text style={[TYPE.sub, { color: statusColor(h.status, c), fontWeight: '600' }]}>
-              {HOMEWORK_STATUS_LABEL[h.status]}
+              {h.status === 'done' ? doneLabel(h.doneByRecord) : HOMEWORK_STATUS_LABEL[h.status]}
               {h.doneKey && h.status === 'done' ? ` · ${dayLabel(h.doneKey)}` : ''}
             </Text>
           </View>
@@ -52,7 +52,7 @@ export function HomeworkList({ items, who, onChanged, c }: { items: HomeworkView
   );
 }
 
-const statusColor = (s: HomeworkView['status'], c: Palette) => (s === 'done' ? c.ok : s === 'in_progress' ? c.link : c.muted);
+const statusColor = (s: HomeworkView['status'], c: Palette) => (s === 'done' ? c.ok : s === 'in_progress' || needsCoachLook(s) ? c.link : c.muted);
 const open = (s: HomeworkView['status']) => s === 'assigned' || s === 'in_progress';
 
 function Actions({ h, who, onChanged, c }: { h: HomeworkView; who: Who; onChanged: () => void; c: Palette }) {
@@ -85,13 +85,14 @@ function Actions({ h, who, onChanged, c }: { h: HomeworkView; who: Who; onChange
       <View style={st.actions}>
         {open(h.status) && h.hasExercise ? <Link label="오늘 운동에 넣기" onPress={() => void send('app-lesson.homeworkToToday', who.memberId, h.id)} c={c} /> : null}
         {h.status !== 'canceled' && h.status !== 'excused' ? <Link label="영상 보내기" onPress={() => void submitVideo(who.memberId)} c={c} /> : null}
-        {open(h.status) ? <Link label="했어요" onPress={() => void send('app-lesson.markMyHomework', who.memberId, h.id, 'done')} c={c} /> : null}
+        {open(h.status) ? <Link label="했어요" onPress={() => void send('app-lesson.markMyHomework', who.memberId, h.id, 'reported')} c={c} /> : null}
       </View>
     );
   }
   const menu = () =>
-    Alert.alert('숙제', undefined, [
-      ...(open(h.status)
+    Alert.alert('숙제', needsCoachLook(h.status) ? `${HOMEWORK_STATUS_LABEL[h.status]} — 보고 확인하면 완료가 돼요.` : undefined, [
+      ...(needsCoachLook(h.status) ? [{ text: '확인했어요(완료)', onPress: () => void send('app-lesson.setHomeworkStatus', who.orgId, h.id, 'done') }] : []),
+      ...(open(h.status) || needsCoachLook(h.status)
         ? [{ text: '면제', onPress: () => void send('app-lesson.setHomeworkStatus', who.orgId, h.id, 'excused') }]
         : [{ text: '다시 하게', onPress: () => void send('app-lesson.setHomeworkStatus', who.orgId, h.id, 'assigned') }]),
       { text: '숙제 취소', style: 'destructive' as const, onPress: () => void send('app-lesson.setHomeworkStatus', who.orgId, h.id, 'canceled') },

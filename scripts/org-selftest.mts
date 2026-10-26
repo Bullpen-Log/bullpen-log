@@ -39,7 +39,19 @@ import {
 } from '@/lib/signup-check';
 import { armUnknown, coachArmStatusOf } from '@/lib/org/arm-view';
 import { EVENT_STATUSES, isEventStatus, noteKey, planNotePitch } from '@/lib/org/lesson-pitch';
-import { COACH_STATUSES, PLAYER_STATUSES, cleanHomeworkItems, homeworkDose, homeworkProgress } from '@/lib/org/homework';
+import {
+  COACH_STATUSES,
+  PLAYER_STATUSES,
+  cleanHomeworkItems,
+  doneLabel,
+  homeworkDose,
+  homeworkProgress,
+  homeworkWindow,
+  isOpenHomework,
+  isUnsettledHomework,
+  setMeets,
+  type HomeworkSet,
+} from '@/lib/org/homework';
 import { cleanCommentBody, commentTarget, isOrgVideoPath, isOwnOrgVideoPath, isPlayerCommentKind, readAtSec } from '@/lib/org/comments';
 import { ORG_SET_BASE, ORG_THEME_KEY, cleanOrgWork, isEmptyOrgPlan, orgPlan, withOrgExercises, withoutEmptyOrgExercises } from '@/lib/org/team-work';
 import { mergeReopened, type FrozenExercise, type FrozenPlan } from '@/lib/workout/session-plan';
@@ -607,12 +619,29 @@ console.log(
   check('열 개 넘으면 막음', 'error' in cleanHomeworkItems(Array.from({ length: 11 }, () => ({ exerciseId: 'e1' })), known));
   const bad = cleanHomeworkItems([{ exerciseId: 'e2', sets: 99, reps: -1 }], known);
   check('범위 밖 세트 · 횟수는 버림', !('error' in bad) && bad[0].sets === undefined && bad[0].reps === undefined);
-  const items = [{ exerciseId: 'e1' }, { guideId: 'g1' }];
-  check('기록 없으면 안 함', homeworkProgress(items, new Set(), new Set()) === 'none');
-  check('하나 했으면 하는 중', homeworkProgress(items, new Set(['e1']), new Set()) === 'some');
-  check('다 했으면 완료', homeworkProgress(items, new Set(['e1']), new Set(['g1'])) === 'all');
+  /* 숙제 진행(계약 9-6 ①-2) — 처방량 · 낸 시각 · 창 */
+  const T0 = Date.UTC(2026, 9, 26, 3, 0, 0); /* 한국 12시에 냄 */
+  const win = homeworkWindow(new Date(T0), null);
+  const set = (reps: number | null, at: number, sessionId = 's1', extra: Partial<HomeworkSet> = {}): HomeworkSet => ({ exerciseId: 'e1', reps, holdSeconds: null, weightKg: null, sessionId, at, ...extra });
+  const items = [{ exerciseId: 'e1', sets: 3, reps: 10 }, { guideId: 'g1' }];
+  check('기록 없으면 안 함', homeworkProgress(items, [], new Set(), win).progress === 'none');
+  check('처방보다 적은 세트는 하는 중', homeworkProgress(items, [set(10, T0 + 1), set(10, T0 + 2)], new Set(['g1']), win).progress === 'some');
+  check('횟수가 모자란 세트는 안 셈', homeworkProgress(items, [set(10, T0 + 1), set(10, T0 + 2), set(8, T0 + 3)], new Set(['g1']), win).progress === 'some');
+  const all = homeworkProgress(items, [set(10, T0 + 1), set(12, T0 + 2), set(10, T0 + 3, 's9')], new Set(['g1']), win);
+  check('처방대로 모두 하면 완료 · 증거는 셋째 세트의 운동 판', all.progress === 'all' && all.evidence === 's9');
+  check('낸 시각 앞 세트는 안 셈(같은 날이어도)', homeworkProgress([items[0]], [set(10, T0 - 60_000), set(10, T0 - 30_000), set(10, T0 + 1)], new Set(), win).progress === 'some');
+  check('창(기한 없으면 7일) 밖은 안 셈', homeworkProgress([items[0]], [set(10, win.to + 1), set(10, win.to + 2), set(10, win.to + 3)], new Set(), win).progress === 'none');
+  check('기한 날 끝(한국 23:59:59)까지', homeworkWindow(new Date(T0), new Date(Date.UTC(2026, 9, 28))).to === Date.UTC(2026, 9, 28, 14, 59, 59, 999));
+  check('초 처방', setMeets({ exerciseId: 'e1', holdSec: 30 }, set(null, 1, 's', { holdSeconds: 30 })) && !setMeets({ exerciseId: 'e1', holdSec: 30 }, set(null, 1, 's', { holdSeconds: 20 })));
+  check('세트 수 없으면 한 세트로 · 처방 없으면 무엇이든 적은 세트', homeworkProgress([{ exerciseId: 'e1' }], [set(null, T0 + 1, 's2', { weightKg: 20 })], new Set(), win).progress === 'all');
   check('처방 한 줄', homeworkDose({ exerciseId: 'e1', sets: 3, reps: 15 }) === '3세트 · 15회' && homeworkDose({ guideId: 'g', holdSec: 30 }) === '30초');
-  check('완료는 코치가 못 정함', !COACH_STATUSES.includes('done') && PLAYER_STATUSES.includes('done'));
+  check('선수 했어요는 보고(완료 아님) · 코치는 확인으로 완료', PLAYER_STATUSES.includes('reported') && !PLAYER_STATUSES.includes('done') && COACH_STATUSES.includes('done'));
+  check('보고 · 영상은 할 숙제 아님 · 기록으로는 여전히 맞춤', !isOpenHomework('reported') && isUnsettledHomework('submitted') && !isUnsettledHomework('done'));
+  check('완료 근거 글', doneLabel(true) === '기록으로 완료' && doneLabel(false) === '코치가 확인');
+  const lesson = src('app/actions/app-lesson.ts');
+  check('기록으로 셀 때 코치 대신 세트는 뺌 · 세트 시각으로', lesson.includes('enteredById: null, recordedAt: { gte: new Date(from), lte: new Date(to) }'));
+  check('숙제 영상은 영상 받음(완료 아님)', lesson.includes("data: { status: 'submitted' }") && !/status: 'done', doneAt: appNow\(\) \}\);\n  const \[org/.test(lesson));
+  check('옛 앱의 했어요(done)는 보고로', lesson.includes("const next = status === 'done' ? 'reported' : status;"));
   const reg = src('app/api/rpc/registry.ts');
   check('앱 숙제 동작이 허용 목록에', reg.includes("'app-lesson': appLesson"));
 }

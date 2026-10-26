@@ -228,3 +228,9 @@ export const NOTICE_BODY_MAX = 3000;
 export function realNow(): Date {
   return new Date();
 }
+
+/**
+ * 같은 요청을 다시 보낸 것으로 보는 시간(계약 9-6 ①-7) — 신호가 끊겨 답을 못 받고 다시 누르면 같은 메뉴 · 숙제 · 말이 두 줄 생겼다.
+ * 이 안에 같은 사람이 같은 내용을 같은 자리에 보냈으면 새로 만들지 않는다(일지의 2분 막기와 같은 값).
+ */
+export const ORG_DUPLICATE_MS = 2 * 60 * 1000;

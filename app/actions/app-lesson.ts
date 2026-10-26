@@ -2,11 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { appNow } from '@/lib/clock';
+import { appNow, appNowMs } from '@/lib/clock';
 import { notify, notifyMany } from '@/lib/notify';
 import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
-import { isDateKey } from '@/lib/org/rules';
+import { isDateKey, ORG_DUPLICATE_MS } from '@/lib/org/rules';
 import { trainingGuides, visibleExercises, allExercises, allGuides } from '@/lib/library-cache';
 import { coachOrg, myMember } from '@/lib/org/app-access';
 import { ORG_LOST, orgOpenHref } from '@/lib/org/space-nav';
@@ -17,8 +17,10 @@ import {
   cleanHomeworkItems,
   homeworkDose,
   homeworkProgress,
+  homeworkWindow,
   isHomeworkStatus,
   isOpenHomework,
+  isUnsettledHomework,
   readHomeworkItems,
   type HomeworkStatus,
 } from '@/lib/org/homework';
@@ -58,6 +60,8 @@ export type HomeworkView = {
   hasExercise: boolean;
   /** 이 숙제에 단 말 수 · 회원이 쓴 안 푼 말 수 */
   talk: { total: number; open: number };
+  /** 완료의 근거(계약 9-6 ①-2) — true 기록(증거 세트의 운동 판) · false 코치 확인. 완료가 아니면 false */
+  doneByRecord: boolean;
 };
 
 /** 숙제 고르기용 라이브러리 — 트레이닝이 고를 수 있는 운동 · 드릴만(숨김 · '나중에 촬영' 뺌) */
@@ -100,6 +104,12 @@ export async function assignHomework(
     const note = await prisma.lessonNote.findFirst({ where: { id: o.noteId, memberId: member.id }, select: { id: true } });
     noteId = note?.id ?? null;
   }
+  /* 같은 숙제를 다시 보냈으면(신호 끊김 뒤 재전송) 한 줄만 · 알림도 한 번 */
+  const recent = await prisma.orgAssignment.findMany({
+    where: { memberId: member.id, assignedById: c.user.id, createdAt: { gte: new Date(appNowMs() - ORG_DUPLICATE_MS) } },
+    select: { items: true, dueDate: true },
+  });
+  if (recent.some((a) => JSON.stringify(a.items) === JSON.stringify(items) && (a.dueDate ? toDateKey(a.dueDate) : null) === due)) return { ok: true };
   await prisma.orgAssignment.create({
     data: { orgId, memberId: member.id, noteId, assignedById: c.user.id, items, dueDate: due ? dbDate(due) : null },
   });
@@ -114,47 +124,60 @@ export async function setHomeworkStatus(orgId: string, id: string, status: unkno
   const c = await coachOrg(orgId);
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   if (!isHomeworkStatus(status) || !COACH_STATUSES.includes(status)) return { ok: false, error: '바꿀 수 없는 상태예요.' };
+  /* 'done' 은 코치 확인 — 기록 증거는 안 붙인다(증거는 기록으로 맞출 때만). 되돌리면 증거도 지운다 */
   const a = await prisma.orgAssignment.updateMany({
     where: { id, orgId },
-    data: { status, ...(status === 'assigned' ? { doneAt: null, doneSessionId: null } : {}) },
+    data: {
+      status,
+      ...(status === 'assigned' ? { doneAt: null, doneSessionId: null } : status === 'done' ? { doneAt: appNow() } : {}),
+    },
   });
   return a.count ? { ok: true } : { ok: false, error: '숙제를 찾을 수 없어요.' };
 }
 
 /**
- * 선수 기록으로 숙제 맞추기 — 아직 할 숙제마다 낸 날부터의 운동 · 드릴 기록을 보고 모두 했으면 '완료'(그날 운동 판을 가리킴),
- * 하나라도 했으면 '하는 중'. 읽을 때마다 부른다(코치 · 선수 화면 모두). 계정이 없는 자리는 손으로만.
+ * 선수 기록으로 숙제 맞추기(계약 9-6 ①-2) — 아직 안 끝난 숙제마다 선수가 **직접** 남긴 세트(코치 대신 세트 제외)를 낸 시각 ~ 기한(없으면 7일) 안에서 보고
+ * 처방 세트 · 횟수(초)를 모두 채웠으면 '완료'(증거 = 그 세트의 운동 판), 무엇이라도 했으면 '하는 중'. 드릴 기록은 시각이 없어 낸 다음 날부터.
+ * 읽을 때마다 부른다(코치 · 선수 화면 모두). 계정이 없는 자리는 손으로만. 보고 · 영상만 받은 숙제도 기록이 채워지면 기록 완료로 바꾼다.
  */
-async function settleHomework(userId: string | null, rows: { id: string; status: string; createdAt: Date; items: unknown }[]) {
-  const open = rows.filter((r) => isOpenHomework(r.status));
-  if (!userId || open.length === 0) return new Map<string, { status: HomeworkStatus; doneAt: Date | null }>();
+async function settleHomework(userId: string | null, rows: { id: string; status: string; createdAt: Date; dueDate: Date | null; items: unknown }[]) {
+  const open = rows.filter((r) => isUnsettledHomework(r.status));
+  if (!userId || open.length === 0) return new Map<string, { status: HomeworkStatus; doneAt: Date | null; doneSessionId: string | null }>();
   const items = open.map((r) => readHomeworkItems(r.items));
-  const from = dbDate(toDateKey(new Date(Math.min(...open.map((r) => r.createdAt.getTime())))));
+  const windows = open.map((r) => homeworkWindow(r.createdAt, r.dueDate));
+  const from = Math.min(...windows.map((w) => w.from));
+  const to = Math.max(...windows.map((w) => w.to));
   const exIds = [...new Set(items.flat().map((i) => i.exerciseId).filter((x): x is string => !!x))];
   const gIds = [...new Set(items.flat().map((i) => i.guideId).filter((x): x is string => !!x))];
-  const [exLogs, drillLogs] = await Promise.all([
+  const [sets, drillLogs] = await Promise.all([
     exIds.length
-      ? prisma.userExerciseLog.findMany({
-          where: { userId, exerciseId: { in: exIds }, date: { gte: from }, OR: [{ completed: true }, { setsDone: { gt: 0 } }] },
-          select: { exerciseId: true, date: true },
+      ? prisma.userExerciseSet.findMany({
+          where: { userId, exerciseId: { in: exIds }, enteredById: null, recordedAt: { gte: new Date(from), lte: new Date(to) } },
+          select: { exerciseId: true, reps: true, holdSeconds: true, weightKg: true, sessionId: true, recordedAt: true },
         })
       : [],
-    gIds.length ? prisma.userDrillLog.findMany({ where: { userId, guideId: { in: gIds }, date: { gte: from }, done: true }, select: { guideId: true, date: true } }) : [],
+    gIds.length
+      ? prisma.userDrillLog.findMany({
+          where: { userId, guideId: { in: gIds }, done: true, date: { gte: dbDate(toDateKey(new Date(from))) } },
+          select: { guideId: true, date: true },
+        })
+      : [],
   ]);
-  const changed = new Map<string, { status: HomeworkStatus; doneAt: Date | null }>();
+  const facts = sets.map((x) => ({ ...x, at: x.recordedAt.getTime() }));
+  const changed = new Map<string, { status: HomeworkStatus; doneAt: Date | null; doneSessionId: string | null }>();
   for (const [i, r] of open.entries()) {
-    const since = toDateKey(r.createdAt);
-    const ex = exLogs.filter((l) => toDateKey(l.date) >= since);
-    const dr = drillLogs.filter((l) => toDateKey(l.date) >= since);
-    const p = homeworkProgress(items[i], new Set(ex.map((l) => l.exerciseId)), new Set(dr.map((l) => l.guideId)));
-    if (p === 'all') {
-      const last = [...ex, ...dr].map((l) => l.date).sort((a, b) => b.getTime() - a.getTime())[0];
-      const session = await prisma.trainingSession.findFirst({ where: { userId, date: last }, select: { id: true } });
-      await prisma.orgAssignment.update({ where: { id: r.id }, data: { status: 'done', doneAt: appNow(), doneSessionId: session?.id ?? null } });
-      changed.set(r.id, { status: 'done', doneAt: appNow() });
-    } else if (p === 'some' && r.status === 'assigned') {
+    const day = toDateKey(r.createdAt);
+    const endKey = toDateKey(new Date(windows[i].to));
+    /* 드릴 기록은 날짜뿐 — 낸 날의 기록은 낸 시각 앞일 수 있어 다음 날부터 */
+    const drills = new Set(drillLogs.filter((l) => toDateKey(l.date) > day && toDateKey(l.date) <= endKey).map((l) => l.guideId));
+    const p = homeworkProgress(items[i], facts, drills, windows[i]);
+    if (p.progress === 'all') {
+      const now = appNow();
+      await prisma.orgAssignment.update({ where: { id: r.id }, data: { status: 'done', doneAt: now, doneSessionId: p.evidence } });
+      changed.set(r.id, { status: 'done', doneAt: now, doneSessionId: p.evidence });
+    } else if (p.progress === 'some' && r.status === 'assigned') {
       await prisma.orgAssignment.update({ where: { id: r.id }, data: { status: 'in_progress' } });
-      changed.set(r.id, { status: 'in_progress', doneAt: null });
+      changed.set(r.id, { status: 'in_progress', doneAt: null, doneSessionId: null });
     }
   }
   return changed;
@@ -166,7 +189,7 @@ async function homeworkOf(memberId: string, userId: string | null): Promise<Home
     where: { memberId, status: { not: 'canceled' } },
     orderBy: { createdAt: 'desc' },
     take: 20,
-    select: { id: true, status: true, createdAt: true, items: true, dueDate: true, doneAt: true },
+    select: { id: true, status: true, createdAt: true, items: true, dueDate: true, doneAt: true, doneSessionId: true },
   });
   const changed = await settleHomework(userId, rows);
   const [ex, gd, talk] = await Promise.all([
@@ -192,6 +215,7 @@ async function homeworkOf(memberId: string, userId: string | null): Promise<Home
       doneKey: doneAt ? toDateKey(doneAt) : null,
       hasExercise: items.some((i) => i.exerciseId),
       talk: talk.get(r.id) ?? { total: 0, open: 0 },
+      doneByRecord: status === 'done' && !!(now ? now.doneSessionId : r.doneSessionId),
       lines: items.map((i) => ({
         name: (i.exerciseId ? exName.get(i.exerciseId) : i.guideId ? gName.get(i.guideId) : null) ?? '지운 운동',
         dose: homeworkDose(i),
@@ -219,14 +243,15 @@ export async function loadMyHomework(memberId: string): Promise<{ ok: false; to:
   return { ok: true, homework: await homeworkOf(r.m.id, r.user.id) };
 }
 
-/** 선수: '하는 중' · '했어요'(기록 없이 했을 때) */
+/** 선수: '하는 중' · '했어요'(보고 — 완료 아님, 코치가 확인하거나 기록이 채워지면 완료). 옛 앱의 'done' 은 보고로 받는다 */
 export async function markMyHomework(memberId: string, id: string, status: unknown): Promise<{ ok: boolean; error?: string }> {
   const r = await myMember(memberId);
   if (!r || r.m.status !== 'ACTIVE') return { ok: false, error: '숙제를 찾을 수 없어요.' };
-  if (!isHomeworkStatus(status) || !PLAYER_STATUSES.includes(status)) return { ok: false, error: '바꿀 수 없는 상태예요.' };
+  const next = status === 'done' ? 'reported' : status;
+  if (!isHomeworkStatus(next) || !PLAYER_STATUSES.includes(next)) return { ok: false, error: '바꿀 수 없는 상태예요.' };
   const a = await prisma.orgAssignment.updateMany({
     where: { id, memberId: r.m.id, status: { in: ['assigned', 'in_progress'] } },
-    data: { status, doneAt: status === 'done' ? appNow() : null },
+    data: { status: next, doneAt: null },
   });
   return a.count ? { ok: true } : { ok: false, error: '이미 끝났거나 없는 숙제예요.' };
 }
@@ -361,6 +386,7 @@ export async function addCoachComment(
     video = videoPath;
   }
   const where = 'noteId' in t ? { noteId: t.noteId } : { assignmentId: t.assignmentId };
+  if (await sameComment(where, c.user.id, text, video)) return { ok: true };
   await prisma.$transaction([
     prisma.orgComment.create({
       data: { orgId, memberId: owner.memberId, ...where, authorId: c.user.id, kind: 'comment', body: text, videoPath: video, atSec: video ? readAtSec(atSec) : null },
@@ -371,7 +397,16 @@ export async function addCoachComment(
   return { ok: true };
 }
 
-/** 선수가 질문 · 정정 요청 — 떠난 곳은 못 쓴다. 조직 대표와 그 일지를 쓴 코치에게 알림 */
+/** 같은 사람이 같은 자리에 같은 말을 2분 안에 또 보냈나(재전송) */
+async function sameComment(where: { noteId: string } | { assignmentId: string }, authorId: string, body: string, videoPath: string | null, kind?: string): Promise<boolean> {
+  const dup = await prisma.orgComment.findFirst({
+    where: { ...where, authorId, body, videoPath, ...(kind ? { kind } : {}), createdAt: { gte: new Date(appNowMs() - ORG_DUPLICATE_MS) } },
+    select: { id: true },
+  });
+  return dup != null;
+}
+
+/** 선수가 질문 · 정정 요청 — 떠난 곳은 못 쓴다. 조직 대표 · 그 일지를 쓴 코치 · 그 숙제를 낸 코치에게 알림 */
 export async function addMyComment(
   memberId: string,
   place: unknown,
@@ -393,18 +428,21 @@ export async function addMyComment(
   const owner = await targetOwner(t);
   if (!owner || owner.memberId !== r.m.id) return { ok: false, error: '일지 · 숙제를 찾을 수 없어요.' };
   const where = 'noteId' in t ? { noteId: t.noteId } : { assignmentId: t.assignmentId };
+  if (await sameComment(where, r.user.id, text, video, kind)) return { ok: true };
   await prisma.orgComment.create({ data: { orgId: owner.orgId, memberId: r.m.id, ...where, authorId: r.user.id, kind, body: text, videoPath: video } });
-  /* 숙제 영상을 보냈으면 그 숙제는 한 것 — 아직 할 숙제만 '완료'로 */
+  /* 숙제 영상은 '영상 받음'(완료 아님 — 코치가 보고 확인하거나 기록이 채워지면 완료, 계약 9-6 ①-2) */
   if (kind === 'submit' && 'assignmentId' in t)
     await prisma.orgAssignment.updateMany({
-      where: { id: t.assignmentId, memberId: r.m.id, status: { in: ['assigned', 'in_progress'] } },
-      data: { status: 'done', doneAt: appNow() },
+      where: { id: t.assignmentId, memberId: r.m.id, status: { in: ['assigned', 'in_progress', 'reported'] } },
+      data: { status: 'submitted' },
     });
-  const [org, note] = await Promise.all([
+  /* 알림은 대표 · 그 일지를 쓴 코치 · 그 숙제를 낸 코치에게(계약 9-6 ①-7 H) */
+  const [org, note, hw] = await Promise.all([
     prisma.org.findUnique({ where: { id: owner.orgId }, select: { ownerId: true } }),
     'noteId' in t ? prisma.lessonNote.findUnique({ where: { id: t.noteId }, select: { authorId: true } }) : null,
+    'assignmentId' in t ? prisma.orgAssignment.findUnique({ where: { id: t.assignmentId }, select: { assignedById: true } }) : null,
   ]);
-  await notifyMany([org?.ownerId, note?.authorId].filter((x): x is string => !!x), {
+  await notifyMany([org?.ownerId, note?.authorId, hw?.assignedById].filter((x): x is string => !!x), {
     kind: 'lesson',
     title: kind === 'fix' ? '회원이 정정을 요청했어요' : kind === 'submit' ? '회원이 숙제 영상을 보냈어요' : '회원이 질문을 남겼어요',
     body: text.slice(0, 60),

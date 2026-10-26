@@ -9,6 +9,7 @@ import { TYPE, usePalette } from '~/lib/ui';
 import { toast } from '~/shell/toast';
 import { Box, Field, formCall } from '~/org/forms';
 import { Primary } from '~/org/parts';
+import { spaceOf } from '~/org/space-store';
 
 /**
  * 회원 고치기 · 가입 전 자리 만들기(앱 화면, 1.5단계). id 가 있으면 조직 안 이름 · 태그 · 메모 고치기(org.updateMember),
@@ -21,9 +22,11 @@ const EMPTY: Draft = { nickname: '', tags: '', memo: '' };
 export default function MemberEditScreen() {
   const c = usePalette();
   const p = useLocalSearchParams<{ org: string; id?: string }>();
+  /* 팀은 선수 · 레슨장은 회원(계약 9-3) */
+  const word = spaceOf(`${p.org}:c`)?.kind === 'TEAM' ? '선수' : '회원';
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="뒤로" title={p.id ? '회원 고치기' : '가입 전 자리'} c={c} />
+      <Bar back="뒤로" title={`${word} ${p.id ? '고치기' : '등록'}`} c={c} />
       {/* 고치기만 읽는다 — 새 자리에서 읽으면 없는 회원이라 다른 화면으로 튕겼다 */}
       {p.id ? <EditMember org={p.org ?? ''} id={p.id} /> : <MemberForm org={p.org ?? ''} initial={EMPTY} />}
     </View>

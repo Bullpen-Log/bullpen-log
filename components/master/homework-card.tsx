@@ -10,7 +10,7 @@ import {
 import { Badge, Button, Card, Field, Input } from '@/components/ui';
 import { toast } from '@/components/toast';
 import { OrgThread } from '@/components/master/org-thread';
-import { HOMEWORK_STATUS_LABEL } from '@/lib/org/homework';
+import { HOMEWORK_STATUS_LABEL, doneLabel, needsCoachLook } from '@/lib/org/homework';
 import { LibraryList, PickedRows, pickItems, togglePick, useLibrary, type Pick } from '@/components/master/library-picker';
 
 /**
@@ -35,7 +35,7 @@ export function HomeworkCard({ orgId, memberId, todayKey }: { orgId: string; mem
   }, [orgId, memberId, version]);
   const reload = () => setVersion((v) => v + 1);
 
-  const change = async (id: string, status: 'assigned' | 'excused' | 'canceled') => {
+  const change = async (id: string, status: 'assigned' | 'excused' | 'canceled' | 'done') => {
     if (status === 'canceled' && !window.confirm('이 숙제를 취소할까요?')) return;
     const r = await setHomeworkStatus(orgId, id, status);
     if (!r.ok) return toast(r.error ?? '바꾸지 못했어요.');
@@ -73,12 +73,18 @@ export function HomeworkCard({ orgId, memberId, todayKey }: { orgId: string; mem
                 <span className="text-xs text-muted">
                   {dayText(h.key)} 낸 숙제{h.due ? ` · ${dayText(h.due)}까지` : ''}
                 </span>
-                <Badge className={h.status === 'done' ? 'text-ok' : ''}>
-                  {HOMEWORK_STATUS_LABEL[h.status]}
+                <Badge className={h.status === 'done' ? 'text-ok' : needsCoachLook(h.status) ? 'text-sky-strong' : ''}>
+                  {h.status === 'done' ? doneLabel(h.doneByRecord) : HOMEWORK_STATUS_LABEL[h.status]}
                   {h.status === 'done' && h.doneKey ? ` · ${dayText(h.doneKey)}` : ''}
                 </Badge>
                 <span className="ml-auto flex gap-3 text-xs">
-                  {h.status === 'assigned' || h.status === 'in_progress' ? (
+                  {/* 보고 · 영상을 보고 확인하면 완료(계약 9-6 ①-2) */}
+                  {needsCoachLook(h.status) ? (
+                    <button type="button" className="font-semibold text-sky-strong" onClick={() => void change(h.id, 'done')}>
+                      확인했어요
+                    </button>
+                  ) : null}
+                  {h.status === 'assigned' || h.status === 'in_progress' || needsCoachLook(h.status) ? (
                     <button type="button" className="text-muted" onClick={() => void change(h.id, 'excused')}>
                       면제
                     </button>
