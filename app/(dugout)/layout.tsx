@@ -19,8 +19,11 @@ export const metadata: Metadata = {
  */
 export default async function DugoutLayout({
   children,
+  modal,
 }: {
   children: React.ReactNode;
+  /** 팝업 자리(@modal) — 연습장 지도의 수집 후보 '자세히'가 관리 화면 대신 여기에 뜬다(@modal/(.)manage/places/[id]) */
+  modal: React.ReactNode;
 }) {
   const user = await getCurrentUser();
   /* 앱 웹뷰인가 — 싱커 앱의 덕아웃 탭 · 덕아웃 앱(DugoutApp, 2026-10-24). 아래 탭은 앱 것이 서고, 홈은 ?dugout=1, '내 싱커'는 /today */
@@ -46,6 +49,7 @@ export default async function DugoutLayout({
       sinkerApp={surface === 'sinker-app'}
     >
       {children}
+      {modal}
     </DugoutShell>
   );
 }

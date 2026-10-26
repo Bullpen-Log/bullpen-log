@@ -66,13 +66,26 @@ function loadKakao(): Promise<Kakao> {
 /** 서울시청 — 점이 하나도 없을 때 가운데 */
 const SEOUL = { lat: 37.5665, lng: 126.978 };
 
-function pin(p: MapPlace, on: boolean): HTMLElement {
+/**
+ * 이름을 붙이는 확대 정도(2026-10-26 김민 "축소했을 때는 아이콘만, 어느 정도 확대하면 이름") — 카카오 지도 수준은 작을수록 확대(1 ≈ 20m · 5 ≈ 250m · 8 ≈ 2km).
+ * 이 수준 이하로 확대하면 이름표, 더 멀리 보면 색 점만. 고른 곳은 늘 이름표. 이름이 겹쳐 보이면 이 숫자를 줄인다.
+ */
+const NAME_LEVEL = 5;
+
+/** 점 하나 칠하기 — named 면 이름표(알약), 아니면 색 점. 바닥 가운데가 그 자리다(점은 반만큼 내려 가운데가 자리에) */
+function paint(el: HTMLElement, p: MapPlace, on: boolean, named: boolean) {
+  const color = p.type === 'lesson' ? '#7c3aed' : '#16804a';
+  el.style.cssText = named
+    ? `display:flex;align-items:center;gap:4px;padding:5px 9px;border-radius:999px;font:600 12px/1 system-ui,sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25);border:2px solid ${color};transform:translateY(-6px) scale(${on ? 1.12 : 1});transition:transform .15s;background:${on ? color : '#fff'};color:${on ? '#fff' : '#1d1d1f'}`
+    : `display:block;width:16px;height:16px;padding:0;border-radius:999px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.35);border:2.5px solid #fff;background:${color};transform:translateY(50%);transition:transform .15s`;
+  el.textContent = named ? (p.name.length > 12 ? `${p.name.slice(0, 12)}…` : p.name) : '';
+}
+
+function pin(p: MapPlace, named: boolean): HTMLElement {
   const el = document.createElement('button');
   el.type = 'button';
   el.setAttribute('aria-label', p.name);
-  const color = p.type === 'lesson' ? '#7c3aed' : '#16804a';
-  el.style.cssText = `display:flex;align-items:center;gap:4px;padding:5px 9px;border-radius:999px;font:600 12px/1 system-ui,sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25);border:2px solid ${color};transform:translateY(-6px) scale(${on ? 1.12 : 1});transition:transform .15s;background:${on ? color : '#fff'};color:${on ? '#fff' : '#1d1d1f'}`;
-  el.textContent = p.name.length > 12 ? `${p.name.slice(0, 12)}…` : p.name;
+  paint(el, p, false, named);
   return el;
 }
 
@@ -84,6 +97,8 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(!KEY);
   const [pick, setPick] = useState<string | null>(null);
+  /* 이름표를 붙일 만큼 확대했나(NAME_LEVEL) */
+  const [named, setNamed] = useState(false);
   const listRef = useRef<HTMLUListElement>(null);
   const router = useRouter();
   const located = useMemo(() => places.filter((p) => p.lat != null && p.lng != null), [places]);
@@ -98,6 +113,7 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
         kakaoRef.current = k;
         const m = new k.maps.Map(box.current, { center: new k.maps.LatLng(SEOUL.lat, SEOUL.lng), level: 8 });
         m.addControl?.(new k.maps.ZoomControl(), k.maps.ControlPosition.RIGHT);
+        k.maps.event.addListener(m, 'zoom_changed', () => setNamed(m.getLevel() <= NAME_LEVEL));
         mapRef.current = m;
         setReady(true);
       })
@@ -117,7 +133,7 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
     const bounds = new k.maps.LatLngBounds();
     for (const p of located) {
       const pos = new k.maps.LatLng(p.lat!, p.lng!);
-      const el = pin(p, false);
+      const el = pin(p, m.getLevel() <= NAME_LEVEL);
       el.addEventListener('click', () => setPick(p.id));
       const o = new k.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1, clickable: true, zIndex: 1 });
       o.setMap(m);
@@ -128,16 +144,20 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
       m.panTo(new k.maps.LatLng(located[0].lat!, located[0].lng!));
       m.setLevel(4);
     } else if (located.length > 1) m.setBounds(bounds, 40, 40, 40, 40);
+    setNamed(m.getLevel() <= NAME_LEVEL);
   }, [ready, located]);
 
-  /* 고른 곳 — 점 강조 · 지도 옮김 · 목록에서 보이게 */
+  /* 확대 정도 · 고른 곳이 바뀌면 다시 칠한다 — 고른 곳은 늘 이름표 */
   useEffect(() => {
     overlays.current.forEach(({ o, el, p }) => {
       const on = p.id === pick;
-      const next = pin(p, on);
-      el.style.cssText = next.style.cssText;
+      paint(el, p, on, named || on);
       o.setZIndex(on ? 10 : 1);
     });
+  }, [pick, named, located]);
+
+  /* 고른 곳 — 지도 옮김 · 목록에서 보이게 */
+  useEffect(() => {
     const hit = pick ? overlays.current.get(pick) : null;
     const k = kakaoRef.current;
     if (hit && k && mapRef.current) mapRef.current.panTo(new k.maps.LatLng(hit.p.lat!, hit.p.lng!));
