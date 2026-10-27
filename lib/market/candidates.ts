@@ -17,7 +17,7 @@ export const BUSINESS_STATUS = { UNKNOWN: '영업 모름', OPEN: '영업 중(업
 export const CONTACT_STATUS = { NOT_CONTACTED: '연락 전', CONTACTED: '연락함', NO_ANSWER: '답 없음', DO_NOT_CONTACT: '연락 사절' } as const;
 export const CONSENT_STATUS = { NOT_REQUESTED: '동의 요청 전', REQUESTED: '동의 요청함', AGREED: '동의함', REFUSED: '거절' } as const;
 
-export const ORIGIN_GROUP: Record<string, string> = { ORIGINAL_178: '기존 수집', ADDITIONAL_256: '추가 발견' };
+export const ORIGIN_GROUP: Record<string, string> = { ORIGINAL_178: '기존 수집', ADDITIONAL_256: '추가 발견', BASEBALL_FIELDS: '야구장 조사' };
 
 /** 주소 검토(통합 자료 addressReview) — 처음 공공자료 주소와 지금 지도 주소가 달라 옛 좌표를 비운 곳 */
 export const MAP_STATUS: Record<string, string> = {
@@ -130,6 +130,9 @@ export type CollectedFields = {
   rentalNotice: string | null;
   hardballNotice: string | null;
   operationNotice: string | null;
+  /** 야구장 후보만(lib/market/field-candidates.ts) — 레슨 · 연습장은 null */
+  accessNotice: string | null;
+  identityNotice: string | null;
   originGroup: string | null;
   sharedPlaceGroup: string | null;
   duplicateGroup: string | null;
@@ -138,7 +141,7 @@ export type CollectedFields = {
 };
 export const COLLECTED_KEYS = [
   'name', 'typeHint', 'region', 'district', 'roadAddress', 'address', 'lat', 'lng', 'mapStatus', 'lessonNotice', 'rentalNotice',
-  'hardballNotice', 'operationNotice', 'originGroup', 'sharedPlaceGroup', 'duplicateGroup', 'collected', 'collectedAt', 'reviewTags',
+  'hardballNotice', 'operationNotice', 'accessNotice', 'identityNotice', 'originGroup', 'sharedPlaceGroup', 'duplicateGroup', 'collected', 'collectedAt', 'reviewTags',
 ] as const;
 
 export type CandidateImportRow = {
@@ -253,6 +256,8 @@ export function readCombinedFile(d: unknown): { file: CombinedFile | null; error
         rentalNotice: status('rental'),
         hardballNotice: status('hardball'),
         operationNotice,
+        accessNotice: null,
+        identityNotice: null,
         originGroup: strs(c.originGroups)[0] ?? null,
         sharedPlaceGroup: null,
         duplicateGroup: null,
@@ -294,6 +299,8 @@ export type ExistingCandidate = {
   rentalNotice: string | null;
   hardballNotice: string | null;
   operationNotice: string | null;
+  accessNotice: string | null;
+  identityNotice: string | null;
   originGroup: string | null;
   sharedPlaceGroup: string | null;
   duplicateGroup: string | null;

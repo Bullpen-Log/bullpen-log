@@ -1,8 +1,10 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
+  FadeIn,
+  FadeOut,
   useAnimatedProps,
   useAnimatedStyle,
   useReducedMotion,
@@ -17,16 +19,17 @@ import { usePalette, useTheme, withAlpha } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 
 /**
- * 홈 '오늘' 링 넷이 다 찼을 때의 축하 — 웹 app/(app)/today/all-done.tsx 의 앱 쪽(화면 전체).
- * 링이 다 그려진 뒤(1.5초) 성공 떨림 → 화면이 옅게 덮이고(260ms) 가운데 96px 링이 한 바퀴(700ms) · 520ms 에 체크가 톡(0.6 → 1.08 → 1) ·
- * 링을 따라 야구공 실밥(V자 바늘땀 14개)이 꿰매지고(200ms 부터 900ms) · 600ms 에 '오늘 기록을 다 남겼어요'가 떠오른다. 2.8초 뒤 또는 누르면
- * 걷힌다. 하루 한 번(폰에 날짜를 적음). 움직임 줄이기면 다 꿰맨 모양만.
+ * 오늘 셀 것(체크인 · 투구 · 운동 — 일정 없는 날은 둘)을 다 했을 때의 축하 — 웹 app/(app)/today/all-done.tsx 의 앱 쪽.
+ * 2026-10-27 홈 개편: 홈이 '안 다 함 → 다 함'을 직접 본 때만 튼다(play) — 앱을 켜거나 탭에 돌아왔을 때 이미 다 해 둔 날은 안 튼다.
+ * 화면을 덮거나 누름을 막지 않는다(가운데 작은 카드 · 누름은 밑으로 지나감). 0.6초 뒤 성공 떨림 → 가운데 링이 한 바퀴(700ms) · 520ms 에 체크가 톡 ·
+ * 링을 따라 야구공 실밥이 꿰매지고(200ms 부터 900ms) · 600ms 에 '오늘 기록을 다 남겼어요'. 2.4초 뒤 걷힌다. 하루 한 번(폰에 날짜를 적음).
+ * 움직임 줄이기면 다 꿰맨 모양만. 화면 읽기는 한 번 읽어 준다.
  * 실밥은 싱커만의 표시 — 웹 로그인 · 빈 화면의 실밥 무늬(app/globals.css --seam)와 같은 바늘땀. 앱에서는 이 순간 한 곳에만 쓴다(2026-10-27 HIG
  * 검토: 링이 애플 피트니스와 똑같아 보였다 — 예전엔 흔한 '퍼지는 점' 다섯).
  */
 const KEY = 'all-done';
-const START_MS = 1500;
-const OVERLAY_MS = 2800;
+const START_MS = 600;
+const OVERLAY_MS = 2400;
 const R = 45;
 const LEN = 2 * Math.PI * R;
 const ACircle = Animated.createAnimatedComponent(Circle);
@@ -51,10 +54,10 @@ const SEAM_COLOR = { light: '#c8352b', dark: '#ff6f61' } as const;
 const APath = Animated.createAnimatedComponent(Path);
 const POP = Easing.bezier(0.22, 1, 0.36, 1);
 
-export function AllDone({ allDone, day }: { allDone: boolean; day: string }) {
+export function AllDone({ play, day }: { play: boolean; day: string }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
-    if (!allDone) return;
+    if (!play) return;
     let alive = true;
     const timers: ReturnType<typeof setTimeout>[] = [];
     void loadJson(KEY).then((v) => {
@@ -63,6 +66,7 @@ export function AllDone({ allDone, day }: { allDone: boolean; day: string }) {
         setTimeout(() => {
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           void saveJson(KEY, day);
+          AccessibilityInfo.announceForAccessibility('오늘 기록을 다 남겼어요');
           setOpen(true);
           timers.push(setTimeout(() => setOpen(false), OVERLAY_MS));
         }, START_MS)
@@ -72,16 +76,16 @@ export function AllDone({ allDone, day }: { allDone: boolean; day: string }) {
       alive = false;
       timers.forEach(clearTimeout);
     };
-  }, [allDone, day]);
+  }, [play, day]);
   if (!open) return null;
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-      <Cheer onClose={() => setOpen(false)} />
-    </Modal>
+    <Animated.View pointerEvents="none" entering={FadeIn.duration(200)} exiting={FadeOut.duration(220)} style={styles.layer}>
+      <Cheer />
+    </Animated.View>
   );
 }
 
-function Cheer({ onClose }: { onClose: () => void }) {
+function Cheer() {
   const c = usePalette();
   const seamColor = SEAM_COLOR[useTheme() === 'light' ? 'light' : 'dark'];
   const reduce = useReducedMotion();
@@ -103,7 +107,7 @@ function Cheer({ onClose }: { onClose: () => void }) {
   const checkStyle = useAnimatedStyle(() => ({ opacity: shown.value, transform: [{ scale: check.value }] }));
   const textStyle = useAnimatedStyle(() => ({ opacity: text.value, transform: [{ translateY: (1 - text.value) * 8 }] }));
   return (
-    <Pressable accessibilityRole="alert" accessibilityLabel="오늘 기록을 다 남겼어요" onPress={onClose} style={[styles.screen, { backgroundColor: withAlpha(c.page, 0.86) }]}>
+    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.card, { backgroundColor: withAlpha(c.card, 0.96), boxShadow: c.floatHero }]}>
       <View style={styles.ring}>
         <Svg width={96} height={96} viewBox="0 0 100 100" style={StyleSheet.absoluteFill}>
           <Circle cx={50} cy={50} r={R} fill="none" strokeWidth={7} stroke={withAlpha(c.sky, 0.15)} />
@@ -135,13 +139,14 @@ function Cheer({ onClose }: { onClose: () => void }) {
         </Animated.View>
       </View>
       <Animated.Text style={[styles.text, { color: c.ink, fontFamily: 'Pretendard' }, textStyle]}>오늘 기록을 다 남겼어요</Animated.Text>
-    </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  layer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 20 },
+  card: { alignItems: 'center', justifyContent: 'center', paddingVertical: 26, paddingHorizontal: 28, borderRadius: 24 },
   ring: { width: 96, height: 96, alignItems: 'center', justifyContent: 'center' },
   check: { position: 'absolute', top: '16%', left: '16%', right: '16%', bottom: '16%', borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  text: { marginTop: 20, fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },
+  text: { marginTop: 18, fontSize: 20, fontWeight: '700', letterSpacing: -0.5 },
 });

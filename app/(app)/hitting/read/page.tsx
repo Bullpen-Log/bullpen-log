@@ -11,17 +11,17 @@ export default async function PitchReadingPage() {
     return <OpenNative path="/pitch-reading" cover={false} />;
   return (
     <section
-      className="fixed inset-0 z-60 flex flex-col bg-[#101b1d] text-[#e5e8df]"
-      aria-label="공 읽기"
+      className="fixed inset-0 z-60 flex flex-col bg-page text-ink"
+      aria-label="선구안 훈련"
     >
-      <header className="flex h-12 shrink-0 items-center gap-4 border-b border-white/10 px-5">
+      <header className="flex h-12 shrink-0 items-center gap-4 border-b border-line px-5">
         <Link href="/hitting" className="text-sm font-semibold">
           ‹ 타격
         </Link>
-        <h1 className="text-sm font-semibold">공 읽기</h1>
+        <h1 className="text-sm font-semibold">선구안 훈련</h1>
       </header>
       <iframe
-        title="공 읽기 연습"
+        title="선구안 훈련 연습"
         src={`${PITCH_READING_SCENE}?embed=1&scope=${encodeURIComponent(user.id)}`}
         className="min-h-0 flex-1 border-0"
         allow="fullscreen"

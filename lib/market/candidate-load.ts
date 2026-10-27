@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/dal';
 import type { MapPlace } from '@/lib/market/map-load';
 import { CONSENT_STATUS, CONTACT_STATUS, HARDBALL_NOTICE, LESSON_NOTICE, RENTAL_NOTICE, isPracticeType, labelOf, reviewFlags } from '@/lib/market/candidates';
+import { ACCESS_NOTICE, FIELD_OPERATION_NOTICE, FIELD_TYPE_HINT, IDENTITY_NOTICE, isFieldType } from '@/lib/market/field-candidates';
 
 /**
  * 덕아웃 수집 후보 읽기(2026-10-26, 대표관리자만) — 목록 · 검색 · 지도 · 상세가 모두 여기를 거친다. 읽기마다 requireAdmin 을 다시 본다
@@ -12,6 +13,8 @@ import { CONSENT_STATUS, CONTACT_STATUS, HARDBALL_NOTICE, LESSON_NOTICE, RENTAL_
  */
 export type CandidateFilter = {
   q?: string;
+  /** 'lesson' 레슨 · 연습장 · 'field' 야구장(분류 '야구장 후보') — 없으면 둘 다 */
+  kind?: string;
   region?: string;
   origin?: string;
   flag?: string;
@@ -21,7 +24,17 @@ export type CandidateFilter = {
   operation?: string;
   contact?: string;
   consent?: string;
+  /** 야구장만 — 이용 경로 · 장소 대응(lib/market/field-candidates.ts) */
+  access?: string;
+  identity?: string;
 };
+
+export const CANDIDATE_KINDS = [
+  { key: 'lesson', label: '레슨 · 연습장' },
+  { key: 'field', label: '야구장' },
+] as const;
+const kindWhere = (kind?: string): Prisma.FacilityCandidateWhereInput =>
+  kind === 'field' ? { typeHint: FIELD_TYPE_HINT } : kind === 'lesson' ? { NOT: { typeHint: FIELD_TYPE_HINT } } : {};
 
 /** 빠른 거르기 — 확인 우선 · 위치 확인 필요 · 연락 전 · 배팅 */
 export const CANDIDATE_FLAGS = [
@@ -29,6 +42,7 @@ export const CANDIDATE_FLAGS = [
   { key: 'nocoords', label: '위치 확인 필요' },
   { key: 'todo', label: '연락 전' },
   { key: 'batting', label: '배팅 · 연습공간' },
+  { key: 'field', label: '야구장' },
 ] as const;
 
 function whereOf(f: CandidateFilter): Prisma.FacilityCandidateWhereInput {
@@ -42,8 +56,10 @@ function whereOf(f: CandidateFilter): Prisma.FacilityCandidateWhereInput {
           ? { contactStatus: 'NOT_CONTACTED' }
           : f.flag === 'batting'
             ? { OR: [{ typeHint: { startsWith: '배팅' } }, { typeHint: { startsWith: '연습' } }] }
-            : {};
-  const and: Prisma.FacilityCandidateWhereInput[] = [{ mergedIntoId: null }, flag];
+            : f.flag === 'field'
+              ? kindWhere('field')
+              : {};
+  const and: Prisma.FacilityCandidateWhereInput[] = [{ mergedIntoId: null }, flag, kindWhere(f.kind)];
   if (q)
     and.push({
       OR: [
@@ -63,6 +79,8 @@ function whereOf(f: CandidateFilter): Prisma.FacilityCandidateWhereInput {
     ...(f.operation ? { operationNotice: f.operation } : {}),
     ...(f.contact ? { contactStatus: f.contact } : {}),
     ...(f.consent ? { consentStatus: f.consent } : {}),
+    ...(f.access ? { accessNotice: f.access } : {}),
+    ...(f.identity ? { identityNotice: f.identity } : {}),
   };
 }
 
@@ -81,6 +99,8 @@ const LIST_SELECT = {
   rentalNotice: true,
   hardballNotice: true,
   operationNotice: true,
+  accessNotice: true,
+  identityNotice: true,
   reviewTags: true,
   mergedIntoId: true,
   contactStatus: true,
@@ -90,16 +110,17 @@ const LIST_SELECT = {
 
 export type CandidateListItem = Prisma.FacilityCandidateGetPayload<{ select: typeof LIST_SELECT }>;
 
-/** 후보는 모두 합쳐 수백 곳이라 한 번에 다 준다(거르기를 풀면 전체) — 1,000곳을 넘으면 쪽 나누기를 더한다 */
-const LIMIT = 1000;
+/** 후보는 모두 합쳐 1,100곳 남짓(레슨 · 연습장 430 + 야구장 672)이라 한 번에 다 준다 — 2,000곳을 넘으면 쪽 나누기를 더한다 */
+const LIMIT = 2000;
 
 export async function loadCandidates(f: CandidateFilter) {
   await requireAdmin();
   const live = { mergedIntoId: null } satisfies Prisma.FacilityCandidateWhereInput;
-  const [items, regions, totals] = await Promise.all([
+  const [items, regions, totals, fields] = await Promise.all([
     prisma.facilityCandidate.findMany({ where: whereOf(f), select: LIST_SELECT, orderBy: [{ region: 'asc' }, { name: 'asc' }], take: LIMIT }),
-    prisma.facilityCandidate.groupBy({ by: ['region'], where: live, _count: true, orderBy: { region: 'asc' } }),
+    prisma.facilityCandidate.groupBy({ by: ['region'], where: { ...live, ...kindWhere(f.kind) }, _count: true, orderBy: { region: 'asc' } }),
     prisma.facilityCandidate.groupBy({ by: ['contactStatus', 'consentStatus'], where: live, _count: true }),
+    prisma.facilityCandidate.count({ where: { ...live, ...kindWhere('field') } }),
   ]);
   const count = (pick: (r: (typeof totals)[number]) => boolean) => totals.filter(pick).reduce((n, r) => n + r._count, 0);
   return {
@@ -107,6 +128,7 @@ export async function loadCandidates(f: CandidateFilter) {
     limit: LIMIT,
     regions: regions.map((r) => ({ region: r.region, count: r._count })),
     total: count(() => true),
+    fields,
     contacted: count((r) => r.contactStatus !== 'NOT_CONTACTED'),
     agreed: count((r) => r.consentStatus === 'AGREED'),
   };
@@ -119,7 +141,7 @@ export async function loadCandidates(f: CandidateFilter) {
 export function candidateMapPlaces(items: CandidateListItem[]): MapPlace[] {
   return items.map((c) => ({
     id: c.id,
-    type: isPracticeType(c.typeHint) ? 'venue' : 'lesson',
+    type: isFieldType(c.typeHint) ? 'field' : isPracticeType(c.typeHint) ? 'venue' : 'lesson',
     name: c.name,
     kindLabel: c.typeHint,
     kind: c.typeHint,
@@ -131,9 +153,19 @@ export function candidateMapPlaces(items: CandidateListItem[]): MapPlace[] {
     sub: [
       c.approvedAt ? '승인함' : labelOf(CONSENT_STATUS, c.consentStatus),
       labelOf(CONTACT_STATUS, c.contactStatus),
-      `레슨 ${labelOf(LESSON_NOTICE, c.lessonNotice)}`,
-      c.rentalNotice && c.rentalNotice !== 'NOT_ESTABLISHED' && `대관 ${labelOf(RENTAL_NOTICE, c.rentalNotice)}`,
-      c.hardballNotice && c.hardballNotice !== 'NOT_ESTABLISHED' && `경식구 ${labelOf(HARDBALL_NOTICE, c.hardballNotice)}`,
+      ...(isFieldType(c.typeHint)
+        ? [
+            /* 야구장 — 이용 경로 · 운영 근거도 공개 출처를 본 수준일 뿐 대관 가능 · 운영 확정이 아니다 */
+            `이용 ${labelOf(ACCESS_NOTICE, c.accessNotice)}`,
+            labelOf(FIELD_OPERATION_NOTICE, c.operationNotice),
+            /* 불확실 · 출처 못 찾음은 확인 우선 꼬리표가 이미 말한다 */
+            c.identityNotice === 'WHOLE_SITE' && labelOf(IDENTITY_NOTICE, c.identityNotice),
+          ]
+        : [
+            `레슨 ${labelOf(LESSON_NOTICE, c.lessonNotice)}`,
+            c.rentalNotice && c.rentalNotice !== 'NOT_ESTABLISHED' && `대관 ${labelOf(RENTAL_NOTICE, c.rentalNotice)}`,
+            c.hardballNotice && c.hardballNotice !== 'NOT_ESTABLISHED' && `경식구 ${labelOf(HARDBALL_NOTICE, c.hardballNotice)}`,
+          ]),
       c.lat != null && !c.coordsEdited && '건물 참조 좌표',
       ...reviewFlags(c).map((f) => `⚠ ${f}`),
     ]

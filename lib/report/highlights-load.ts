@@ -55,14 +55,20 @@ export async function loadHighlights(
     prisma.pitchLog.findFirst({
       where: { userId },
       orderBy: { date: 'desc' },
-      select: { date: true },
+      select: { date: true, pitchCount: true, sessionType: true },
     }),
   ]);
   const pitchesByDay: Record<string, number> = {};
   const velocityByDay: Record<string, number> = {};
+  /* 날짜별 투구 기록(쉰 날 줄 포함) — 앱 홈 기록 보드(lib/report/home-board.ts)가 휴식도 기록으로 센다 */
+  const pitchDays: Record<string, { pitches: number; rest: boolean }> = {};
   for (const l of logs) {
     const key = toDateKey(l.date);
-    if (l.sessionType !== REST_SESSION_TYPE)
+    const rest = l.sessionType === REST_SESSION_TYPE;
+    const day = (pitchDays[key] ??= { pitches: 0, rest: false });
+    if (rest) day.rest = true;
+    else day.pitches += l.pitchCount;
+    if (!rest)
       pitchesByDay[key] = (pitchesByDay[key] ?? 0) + l.pitchCount;
     if (l.maxVelocity != null)
       velocityByDay[key] = Math.max(velocityByDay[key] ?? 0, l.maxVelocity);
@@ -94,6 +100,16 @@ export async function loadHighlights(
   const extra = {
     bestBeforeDate: before ? toDateKey(before.date) : null,
     sleepByDay,
+    pitchDays,
+    /* 6주 밖의 마지막 기록 — 그 줄 하나로 어림한다(같은 날 줄이 여럿이면 하나만 — 6주 넘게 비운 사람에게만 보이는 값) */
+    olderLastLog:
+      lastLog && !pitchDays[toDateKey(lastLog.date)]
+        ? {
+            date: toDateKey(lastLog.date),
+            pitches: lastLog.sessionType === REST_SESSION_TYPE ? 0 : lastLog.pitchCount,
+            rest: lastLog.sessionType === REST_SESSION_TYPE,
+          }
+        : null,
   };
   return { items, lastLogDate, input, extra };
 }

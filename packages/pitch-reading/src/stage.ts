@@ -1,5 +1,4 @@
 import type {DisplayCalibration} from './display-calibration.ts';
-import {pursuitDirection} from './gaze.ts';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PitcherRig } from './pitcher.ts';
@@ -223,7 +222,7 @@ export class PitchStage {
       this.camera.lookAt(config.target.x,config.target.y,config.target.z);
     } else if(this.view==='tracking'){
       // Look toward home from the pitcher side, keeping the zone large in the frame.
-      this.camera.fov=32;this.camera.position.set(-.45,1.4,PLATE_FRONT_Z-3.8);this.camera.lookAt(0,.95,PLATE_FRONT_Z+.2);
+      this.camera.fov=32;this.camera.position.set(-.45,1.4,PLATE_FRONT_Z-3.8);this.camera.lookAt(0,.35,PLATE_FRONT_Z+.2);
     } else if(this.view==='side') {
       this.camera.fov=47;this.camera.position.set(25,6.5,PLATE_Z/2);
       this.camera.lookAt(0,1.1,PLATE_Z/2);
@@ -254,11 +253,6 @@ export class PitchStage {
     const pose=this.rig.update(frame.deliveryTime,this.pitcher,this.pitch.release,this.pitch.velocity);
     const held=frame.held&&frame.deliveryTime<0;
     const p=held?pose.grip:trackingAt(this.pitch,frame.time);
-    if(this.display&&this.view==='batter'){
-      const horizontalFov=2*Math.atan(Math.tan(this.camera.fov*Math.PI/360)*this.camera.aspect)*180/Math.PI;
-      const direction=pursuitDirection(this.camera.position,this.pitch.release,p,Math.max(0,frame.deliveryTime),horizontalFov,this.camera.fov);
-      this.camera.lookAt(this.camera.position.x+direction.x,this.camera.position.y+direction.y,this.camera.position.z+direction.z);
-    }
     this.ball.position.set(p.x,p.y,p.z);this.ball.scale.setScalar(frame.ballScale);
     // Rotate only the decorative stitching, never the tessellated sphere silhouette.
     this.ballSeams.rotation.set(frame.time*18,frame.time*9,0);

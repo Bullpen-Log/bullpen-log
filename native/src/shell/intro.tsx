@@ -63,9 +63,25 @@ const SINKER_LOOK: IntroLook = {
  * 먼저 걷으면 그 사이 다른 테마 바탕 · 덜 그린 이름이 비칠 수 있었다. 인트로가 없을 때(덕아웃 앱의 웹뷰 등 다른 길)는 바로 걷는다.
  */
 let introMounted = 0;
+/* 연출이 걷히면 알릴 곳 — 홈의 공이 연출 뒤에 한 번만 살짝 돈다(onIntroGone) */
+const goneListeners = new Set<() => void>();
 const holdSplash = (d: 1 | -1) => {
   introMounted += d;
+  if (introMounted === 0) for (const f of [...goneListeners]) f();
 };
+/** 연출이 없거나 걷히면 cb — 이미 걷혔으면 곧바로. 돌려준 함수로 그만 듣는다 */
+export function onIntroGone(cb: () => void): () => void {
+  if (introMounted === 0) {
+    cb();
+    return () => undefined;
+  }
+  const once = () => {
+    goneListeners.delete(once);
+    cb();
+  };
+  goneListeners.add(once);
+  return () => goneListeners.delete(once);
+}
 export function hideSplashUnlessIntro(): Promise<void> {
   if (introMounted > 0) return Promise.resolve();
   return SplashScreen.hideAsync().catch(() => undefined);

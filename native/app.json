@@ -12,7 +12,7 @@
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 1500
     },
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "scheme": [
       "bullpenlog",
@@ -60,7 +60,13 @@
       ],
       "./plugins/rest-activity",
       "./plugins/library-videos",
-      "./plugins/kakao-map"
+      "./plugins/kakao-map",
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT_UP"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

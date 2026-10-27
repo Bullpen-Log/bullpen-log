@@ -60,6 +60,15 @@ import { readPublicKeys } from '@/lib/public-profile';
 import { appsFor, isExpoToken } from '@/lib/notify-rules';
 import { COLLECTED_KEYS, type ExistingCandidate, canApprove, planImport, readCombinedFile, readCoords, reviewFlags } from '@/lib/market/candidates';
 import {
+  ACCESS_NOTICE,
+  FIELD_OPERATION_NOTICE,
+  FIELD_TYPE_HINT,
+  IDENTITY_NOTICE,
+  MOBILE_MASK,
+  maskMobiles,
+  readFieldReviewFile,
+} from '@/lib/market/field-candidates';
+import {
   formatTicketCode,
   isTicketCode,
   makeTicketCode,
@@ -745,7 +754,7 @@ console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관�
   /* 가져오기 계획 — 메모리 DB 로 */
   const row = (id: string, o: Partial<ExistingCandidate> = {}): ExistingCandidate => ({
     id, mergedIntoId: null, coordsEdited: false, name: '옛이름', typeHint: '레슨·훈련 후보', region: '서울특별시', district: '강남구', roadAddress: '서울특별시 강남구 옛로 1',
-    address: null, lat: 37.4, lng: 127.1, mapStatus: null, lessonNotice: null, rentalNotice: null, hardballNotice: null, operationNotice: null, originGroup: null,
+    address: null, lat: 37.4, lng: 127.1, mapStatus: null, lessonNotice: null, rentalNotice: null, hardballNotice: null, operationNotice: null, accessNotice: null, identityNotice: null, originGroup: null,
     sharedPlaceGroup: null, duplicateGroup: null, reviewTags: [], collected: { externalPlaceId: id.split(':')[1] }, collectedAt: '2026-10-25', collectionStatus: 'UNVERIFIED',
     businessStatus: 'UNKNOWN', contactStatus: 'NOT_CONTACTED', consentStatus: 'NOT_REQUESTED', offersLessons: null, offersRental: null, offersHardball: null, phone: null,
     consentScope: null, verifiedAt: null, lastContactedAt: null, adminNote: null, approvedAt: null, ...o,
@@ -835,6 +844,94 @@ console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관�
     GATED.every((f) => /const admin = isOwner\(/.test(src(f)) && /admin && one\(sp\.view\) === 'candidates'|if \(!admin\) return NextResponse\.json\([^)]*status: 403/.test(src(f)))
   );
   check('앱 rpc 허용 목록에 수집 후보 동작이 없다', !src('app/api/rpc/registry.ts').includes('admin-candidates'));
+
+  /* 야구장 조사 파일(2026-10-27) — 같은 표 · 같은 가져오기 계획으로 */
+  type F = Record<string, unknown>;
+  const obj2 = (v: unknown): F => (v && typeof v === 'object' ? (v as F) : {});
+  const fld =(n: string, o: F = {}): F => ({
+    fieldId: `field-kakao-${n}`,
+    name: `시험야구장${n}`,
+    cityKey: '경기|수원시',
+    addresses: [`경기 수원시 시험로 ${n}`],
+    sourceCandidateIds: [`field-kakao-${n}`],
+    accessReviewStatus: '공개 신청·대관 안내 확보',
+    review5Identity: '같은 장소·면',
+    operationStatus5: '현재 운영 근거 있음(5차 원문)',
+    evidenceIds: [`E-${n}`],
+    documentedPhone: ['031-000-0000'],
+    sourceConflicts: [],
+    visibility: 'ADMIN_ONLY',
+    contactStatus: 'NOT_CONTACTED',
+    consentStatus: 'NOT_REQUESTED',
+    publicProfile: false,
+    bookingEnabled: false,
+    ...o,
+  });
+  const fieldFile = (fs: F[], extra: F = {}) => {
+    const tally = (k: string) => fs.reduce<Record<string, number>>((m, r) => ({ ...m, [String(r[k])]: (m[String(r[k])] ?? 0) + 1 }), {});
+    return {
+      metadata: { checkedAt: '2026-10-27', counts: { totalRows: fs.length, accessStatus: tally('accessReviewStatus'), identity5: tally('review5Identity'), operationStatus5: tally('operationStatus5') } },
+      fields: fs,
+      evidence: fs.flatMap((r) => (r.evidenceIds as string[]).map((e) => ({ evidenceId: e, fieldId: r.fieldId, url: 'https://example.go.kr' }))),
+      sourceReview5: fs.map((r) => ({ fieldId: r.fieldId, evidenceId: (r.evidenceIds as string[])[0] })),
+      ...extra,
+    };
+  };
+  const readField = (f: unknown) => readFieldReviewFile(f).file;
+  const fok = readField(fieldFile([fld('11'), fld('12', { cityKey: '호남|광주 북구', review5Identity: '대응 불확실' })]));
+  check(
+    '야구장 파일은 정식 지역 이름 · 야구장 분류 · 좌표 없음(null) · 카카오 장소 id 이름표로 온다',
+    fok?.rows.length === 2 &&
+      fok.rows[1].fields.region === '전남광주통합특별시' &&
+      fok.rows[1].fields.district === '광주 북구' &&
+      fok.rows.every((r) => r.fields.typeHint === FIELD_TYPE_HINT && r.fields.lat === null && r.fields.lng === null) &&
+      fok.rows[0].placeIds[0] === 'kakao:11'
+  );
+  check(
+    '이용 · 대응 · 운영 근거는 코드로, 레슨 · 대관 · 경식구 근거 칸은 비운다',
+    fok?.rows[0].fields.accessNotice === 'PUBLIC_APPLICATION' &&
+      fok.rows[1].fields.identityNotice === 'UNSURE' &&
+      fok.rows[0].fields.operationNotice === 'FIELD_OPERATING' &&
+      fok.rows[0].fields.lessonNotice === null &&
+      fok.rows[0].fields.rentalNotice === null &&
+      !!ACCESS_NOTICE.PUBLIC_APPLICATION && !!IDENTITY_NOTICE.UNSURE && !!FIELD_OPERATION_NOTICE.FIELD_OPERATING
+  );
+  check('공개 출처 연락처 · 업체 확인 칸은 표 칸으로 안 간다(근거 collected 에만)', !Object.keys(fok?.rows[0].fields ?? {}).some((k) => ['phone', 'offersRental', 'contactStatus', 'consentStatus', 'approvedAt'].includes(k)));
+  check('그 구장의 출처 · 점검 기록이 근거에 함께 담긴다', (obj2(fok?.rows[0].fields.collected).evidence as unknown[])?.length === 1 && (obj2(obj2(fok?.rows[0].fields.collected).audit).sourceReview5 as unknown[])?.length === 1);
+  const unit = readField(fieldFile([{ ...fld('31'), fieldId: 'field-unit-abc123def', sourceCandidateIds: [] }]));
+  check('이전 id 가 없는 새 면도 받고, 이전 id 에 자기 id 를 넣는다(카카오 장소 id 는 없음)', unit?.rows[0].sourceIds.join() === 'field-unit-abc123def' && unit.rows[0].placeIds.length === 0);
+  check('근거가 이 구장인지 불확실하면 확인 우선 꼬리표',fok?.rows[1].fileTags.some((t) => t.includes('불확실')) === true && fok.rows[0].fileTags.length === 0);
+
+  const masked = readField(fieldFile([fld('13', { documentedPhone: ['031-979-0909 / 010-1234-5678'] })]));
+  const kept = JSON.stringify(masked?.rows[0].fields.collected);
+  check('휴대전화 번호는 근거째 가리고 기관 전화는 남긴다', masked?.maskedPhones === 1 && !kept.includes('010-1234') && kept.includes('031-979-0909') && kept.includes(MOBILE_MASK));
+  check('id 속 숫자는 휴대전화로 안 가린다', maskMobiles({ id: 'field-kakao-1012345678', url: 'https://place.map.kakao.com/1012345678' }).count === 0);
+
+  check(
+    '공개 · 예약 · 연락 · 동의 · 업체 확인 값이 처음 상태가 아니면 통째로 막는다',
+    [{ publicProfile: true }, { bookingEnabled: true }, { contactStatus: 'CONTACTED' }, { consentStatus: 'AGREED' }, { visibility: 'PUBLIC' }, { offersRental: true }].every(
+      (o) => readField(fieldFile([fld('11'), fld('12', o)])) === null
+    ) && readField(fieldFile([fld('11', { visibility: undefined })])) === null
+  );
+  check('모르는 지역 · 이용 · 대응 · 운영 글은 짐작하지 않고 막는다', [{ cityKey: '해외|도쿄' }, { accessReviewStatus: '아마 됨' }, { review5Identity: '?' }, { operationStatus5: '?' }].every((o) => readField(fieldFile([fld('11', o)])) === null));
+  check(
+    '수 · 근거 연결 · 이전 id 가 안 맞으면 막는다',
+    readField({ ...fieldFile([fld('11')]), metadata: { checkedAt: '2026-10-27', counts: { totalRows: 2 } } }) === null &&
+      readField(fieldFile([fld('11', { evidenceIds: ['E-없음'] })], { evidence: [] })) === null &&
+      readField(fieldFile([fld('11'), fld('12', { sourceCandidateIds: ['field-kakao-12', 'field-kakao-11'] })])) === null
+  );
+  const dupOk = readField(fieldFile([fld('21', { duplicateGroupId: 'D1', canonicalCandidateId: 'field-kakao-21' }), fld('22', { duplicateGroupId: 'D1', canonicalCandidateId: 'field-kakao-21' })]));
+  check(
+    '중복 기록은 합치지 않고 묶음 표시 + 대표 아닌 쪽에 꼬리표, 대표가 파일에 없으면 막는다',
+    dupOk?.rows.every((r) => r.fields.duplicateGroup === 'D1') === true &&
+      dupOk.rows[1].fileTags.some((t) => t.includes('대표 field-kakao-21')) &&
+      readField(fieldFile([fld('22', { duplicateGroupId: 'D1', canonicalCandidateId: 'field-kakao-21' })])) === null
+  );
+  const fp = planImport(fok!, [row('naver:11', { collected: { externalPlaceId: '11' } })]);
+  check('카카오 장소 번호가 네이버 장소 번호와 숫자가 같아도 다른 곳으로 본다(충돌 아님)', fp.tally.conflict === 0 && fp.tally.create === 2);
+  check('레슨 · 연습장 자료는 야구장 칸(이용 경로 · 장소 대응)을 비운다', ok?.rows[0].fields.accessNotice === null && ok.rows[0].fields.identityNotice === null);
+  const ffirst = run(fok!, []);
+  check('야구장 파일도 빈 표에 새로 만들고, 다시 돌리면 그대로', ffirst.plan.tally.create === 2 && run(fok!, ffirst.db).plan.tally.same === 2);
 }
 
 console.log('\n[싱커 안 덕아웃] 선수 활동 공간 — 차단 · 가림이 목록과 같고, 장터 채팅을 선수 활동처럼 두지 않고, 기록 공유는 예전 그대로');

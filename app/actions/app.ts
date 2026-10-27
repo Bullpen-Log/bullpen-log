@@ -24,7 +24,9 @@ import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
 import type { AgeBand } from '@/lib/nutrition/age';
 import { DIET_STYLES, MEAL_PATTERNS, type AvoidKey } from '@/lib/nutrition/diet-prefs';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
-import { loadHomeFeed, loadHomeRings, type HomeRing } from '@/lib/report/home-today';
+import { loadHomeFeedAndBoard, loadHomeRings, type HomeRing } from '@/lib/report/home-today';
+import type { HomeBoard } from '@/lib/report/home-board';
+import { readPlanFingerprint } from '@/lib/report/plan-fingerprint';
 import { loadTodayCoreCached } from '@/lib/report/today-data';
 import { armStatusOf, type ArmStatus } from '@/lib/report/arm-status';
 import { pitchNutritionLine, type NutritionLine } from '@/lib/nutrition/nudge';
@@ -86,6 +88,21 @@ export async function loadAppHome(): Promise<
       pitchLocked: boolean;
       /** 지난번 잘 던진 날 남긴 말 — 오늘 던지는 날, 오늘 기록 전에만(웹 home-page.tsx goodNote · good-day-note.tsx) */
       goodNote: { date: string; sessionType: string; satisfaction: number; memo: string; cuesGood: string[] } | null;
+      /** 기록 보드(주간 · 최근 투구 · 최고 구속 · 부하 · 오늘 컨디션) — lib/report/home-board.ts. 2026-10-27 홈 개편부터(옛 앱은 안 읽음) */
+      board: HomeBoard;
+      /**
+       * 오늘 운동 — 일정이 없거나 멈춘 날 null. done · total 은 운동 링과 같은 셈, 분은 트레이닝 화면과 같은 어림(today-data).
+       * checkin: 일정을 만들 때 오늘 체크인을 봤나 — before(체크인 전에 만든 것 · 체크인 없음) · applied(본 뒤 그대로) · changed(본 뒤 몸 상태가 바뀜)
+       */
+      workout: {
+        label: string;
+        done: number;
+        total: number;
+        minutes: number;
+        leftMinutes: number;
+        checkin: 'before' | 'applied' | 'changed';
+      } | null;
+      trainingLocked: boolean;
     }
   | { ok: false; error: string }
 > {
@@ -93,9 +110,9 @@ export async function loadAppHome(): Promise<
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const today = toDateKey(appNow());
   const locks = featureLocks(user);
-  const [rings, feed, core, goodDay] = await Promise.all([
+  const [rings, { items: feed, board }, core, goodDay] = await Promise.all([
     loadHomeRings(user, today, locks.pitch),
-    loadHomeFeed(user, today),
+    loadHomeFeedAndBoard(user, today),
     loadTodayCoreCached(user),
     /* 만족도가 높았던 날의 메모 — 5점 먼저, 같은 점수면 최근 것(웹 홈과 같은 조회) */
     prisma.pitchLog.findFirst({
@@ -105,9 +122,24 @@ export async function loadAppHome(): Promise<
     }),
   ]);
   const { plan, picked, facts } = core;
+  const saved = core.savedPlan;
+  const seen = saved ? readPlanFingerprint((saved as { fingerprint?: unknown }).fingerprint) : null;
   return {
     ok: true,
     today,
+    board,
+    workout:
+      saved && !picked.halted && rings.training.total > 0
+        ? {
+            label: saved.program ? saved.program.label : saved.theme.label,
+            done: rings.training.done,
+            total: rings.training.total,
+            minutes: core.shownMinutes,
+            leftMinutes: core.leftMinutes,
+            checkin: !rings.checkinDone || !seen?.checkin ? 'before' : core.stateChanges.length > 0 ? 'changed' : 'applied',
+          }
+        : null,
+    trainingLocked: locks.training,
     rings: rings.items,
     checkinDone: rings.checkinDone,
     pitchDone: rings.pitchDone,

@@ -74,7 +74,7 @@ const NAME_LEVEL = 5;
 
 /** 점 하나 칠하기 — named 면 이름표(알약), 아니면 색 점. 바닥 가운데가 그 자리다(점은 반만큼 내려 가운데가 자리에) */
 function paint(el: HTMLElement, p: MapPlace, on: boolean, named: boolean) {
-  const color = p.type === 'lesson' ? '#7c3aed' : '#16804a';
+  const color = p.type === 'lesson' ? '#7c3aed' : p.type === 'field' ? '#c2410c' : '#16804a';
   el.style.cssText = named
     ? `display:flex;align-items:center;gap:4px;padding:5px 9px;border-radius:999px;font:600 12px/1 system-ui,sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25);border:2px solid ${color};transform:translateY(-6px) scale(${on ? 1.12 : 1});transition:transform .15s;background:${on ? color : '#fff'};color:${on ? '#fff' : '#1d1d1f'}`
     : `display:block;width:16px;height:16px;padding:0;border-radius:999px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.35);border:2.5px solid #fff;background:${color};transform:translateY(50%);transition:transform .15s`;
