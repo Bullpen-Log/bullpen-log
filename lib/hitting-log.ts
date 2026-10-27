@@ -30,6 +30,9 @@ export type HittingValue = {
   satisfaction: number | null;
 };
 
+export type HittingSessionInput = Omit<HittingInput, 'swings'> & { swings?: number | string | null };
+export type HittingSessionValue = Omit<HittingValue, 'swings'> & { swings: number | null };
+
 export function isHittingType(v: unknown): v is HittingType {
   return typeof v === 'string' && (HITTING_TYPES as readonly string[]).includes(v);
 }
@@ -37,7 +40,7 @@ export function isHittingType(v: unknown): v is HittingType {
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
 function toInt(v: unknown): number | null {
-  if (v === null || v === undefined || v === '') return null;
+  if (v === null || v === undefined || (typeof v === 'string' && v.trim() === '')) return null;
   const n = typeof v === 'number' ? v : Number(String(v).trim());
   return Number.isInteger(n) ? n : NaN;
 }
@@ -47,15 +50,35 @@ export function validateHitting(
   input: HittingInput,
   today: string
 ): { value: HittingValue } | { error: string; field: string } {
+  const result = validateHittingFields(input, today, false);
+  if ('error' in result) return result;
+  // The legacy HittingLog table requires a count.
+  if (result.value.swings === null) return { error: '스윙 수를 적어 주세요.', field: 'swings' };
+  return { value: { ...result.value, swings: result.value.swings } };
+}
+
+export function validateHittingSession(
+  input: HittingSessionInput,
+  today: string
+): { value: HittingSessionValue } | { error: string; field: string } {
+  return validateHittingFields(input, today, true);
+}
+
+function validateHittingFields(
+  input: HittingSessionInput,
+  today: string,
+  optionalCount: boolean
+): { value: HittingSessionValue } | { error: string; field: string } {
   const date = String(input.date ?? '').trim();
-  if (!DATE_KEY.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) {
+  const parsedDate = new Date(`${date}T00:00:00Z`);
+  if (!DATE_KEY.test(date) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
     return { error: '날짜가 올바르지 않아요.', field: 'date' };
   }
   if (date > today) return { error: '앞날의 기록은 남길 수 없어요.', field: 'date' };
   if (!isHittingType(input.sessionType)) return { error: '종류를 골라 주세요.', field: 'sessionType' };
 
   const swings = toInt(input.swings);
-  if (swings === null || Number.isNaN(swings) || swings < 0 || swings > MAX_SWINGS) {
+  if ((!optionalCount && swings === null) || (swings !== null && (Number.isNaN(swings) || swings < 0 || swings > MAX_SWINGS))) {
     return { error: `스윙 수는 0~${MAX_SWINGS} 사이로 적어 주세요.`, field: 'swings' };
   }
 
@@ -90,8 +113,8 @@ export function validateHitting(
 }
 
 /** 목록 · 달력에 쓰는 한 줄 — '티배팅 120회 · 강도 7' */
-export function hittingLine(log: { sessionType: string; swings: number; effortPct: number | null }): string {
-  const parts = [`${log.sessionType} ${log.swings}회`];
+export function hittingLine(log: { sessionType: string; swings: number | null; effortPct: number | null }): string {
+  const parts = [log.swings === null ? log.sessionType : `${log.sessionType} ${log.swings}회`];
   if (log.effortPct != null) parts.push(`강도 ${Math.round(log.effortPct / 10)}`);
   return parts.join(' · ');
 }

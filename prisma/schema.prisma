@@ -155,6 +155,7 @@ model User {
   mechanicsProgram  MechanicsProgram?
   pitchLogs         PitchLog[]
   hittingLogs       HittingLog[]
+  hittingSessions   HittingSession[]
   userVideos        UserVideo[]
   velocitySessions  VelocitySession[]
   velocityPitches   VelocityPitch[]
@@ -693,6 +694,22 @@ model HittingLog {
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+/// 새 타격 연습 기록. 옛 HittingLog의 필수 swings 계약은 그대로 둔다.
+model HittingSession {
+  id           String   @id
+  userId       String
+  date         DateTime @db.Date
+  sessionType  String
+  swings       Int?
+  effortPct    Int?
+  memo         String?  @db.Text
+  satisfaction Int?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
 }

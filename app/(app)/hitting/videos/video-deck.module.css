@@ -1,0 +1,20 @@
+.deck { display: grid; gap: 14px; }
+.stack { position: relative; padding: 8px 8px 12px; }
+.backCard { position: absolute; inset: 5px 18px 5px; border-radius: 24px; background: #c9e7f9; transform: rotate(3deg); }
+.card { position: relative; overflow: hidden; display: grid; gap: 16px; padding: 20px; border-radius: 22px; color: #fff; background: linear-gradient(145deg, #075c86, #062b4c); box-shadow: 0 12px 22px #143a5329; }
+.cardHeader { display: flex; justify-content: space-between; gap: 12px; color: #c4e8fc; font-size: 12px; font-weight: 700; }
+.player { min-width: 0; }
+.cardTitle { min-height: 64px; display: grid; align-content: end; gap: 5px; }
+.cardTitle span { color: #a8e0ff; font-size: 12px; font-weight: 700; }
+.cardTitle h2 { margin: 0; font-size: 21px; line-height: 1.3; font-weight: 750; overflow-wrap: anywhere; }
+.controls { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--color-muted); font-size: 12px; }
+.controls button { min-height: 44px; min-width: 78px; padding: 0 14px; border: 1px solid var(--color-line); border-radius: 13px; background: var(--color-surface); color: var(--color-ink); font-size: 14px; font-weight: 700; }
+.controls button:disabled { opacity: .42; }
+.library { display: flex; justify-content: space-between; align-items: center; min-height: 52px; padding: 0 16px; border: 1px solid var(--color-line); border-radius: 16px; background: var(--color-surface); color: var(--color-ink); font-size: 14px; font-weight: 700; }
+.library span { color: var(--color-muted); font-size: 20px; }
+@media (prefers-reduced-motion: no-preference) {
+  .next { animation: next .34s cubic-bezier(.2,.8,.2,1) both; }
+  .previous { animation: previous .34s cubic-bezier(.2,.8,.2,1) both; }
+}
+@keyframes next { from { opacity: .45; transform: translateX(32px) rotate(3deg); } to { opacity: 1; transform: none; } }
+@keyframes previous { from { opacity: .45; transform: translateX(-32px) rotate(-3deg); } to { opacity: 1; transform: none; } }

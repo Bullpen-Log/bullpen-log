@@ -16,19 +16,29 @@ export default async function HittingPage() {
   const today = toDateKey(appNow());
   const since = new Date(`${today}T00:00:00.000Z`);
   since.setUTCDate(since.getUTCDate() - READ_DAYS);
-  const logs = await prisma.hittingLog.findMany({
+  const select = {
+    id: true,
+    date: true,
+    sessionType: true,
+    swings: true,
+    effortPct: true,
+    memo: true,
+    satisfaction: true,
+    createdAt: true,
+  } as const;
+  const [logs, sessions] = await Promise.all([prisma.hittingLog.findMany({
     where: { userId: user.id, date: { gte: since } },
     orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-    select: {
-      id: true,
-      date: true,
-      sessionType: true,
-      swings: true,
-      effortPct: true,
-      memo: true,
-      satisfaction: true,
-    },
-  });
-  const rows: HittingRow[] = logs.map((l) => ({ ...l, date: toDateKey(l.date) }));
+    select,
+  }), prisma.hittingSession.findMany({
+    where: { userId: user.id, date: { gte: since } },
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    select,
+  })]);
+  const rows: HittingRow[] = [
+    ...logs.map((l) => ({ ...l, source: 'legacy' as const })),
+    ...sessions.map((l) => ({ ...l, source: 'session' as const })),
+  ].sort((a, b) => b.date.getTime() - a.date.getTime() || b.createdAt.getTime() - a.createdAt.getTime())
+    .map((l) => ({ id: l.id, date: toDateKey(l.date), sessionType: l.sessionType, swings: l.swings, effortPct: l.effortPct, memo: l.memo, satisfaction: l.satisfaction, source: l.source }));
   return <HittingClient today={today} rows={rows} />;
 }
