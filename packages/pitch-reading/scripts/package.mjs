@@ -1,0 +1,30 @@
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const root = fileURLToPath(new URL('..', import.meta.url));
+const buildRoot = path.join(root, 'dist');
+let html = await readFile(path.join(buildRoot, 'index.html'), 'utf8');
+const jsMatch = html.match(/<script\s+type="module"[^>]*src="([^"]+)"[^>]*><\/script>/);
+const cssMatch = html.match(/<link\s+rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/);
+if (!jsMatch || !cssMatch) throw new Error('Expected one bundled script and one stylesheet.');
+const safeBuildPath = relative => {
+  const full = path.resolve(buildRoot, relative.replace(/^\//, ''));
+  if (!full.startsWith(buildRoot + path.sep)) throw new Error('Unexpected build asset path.');
+  return full;
+};
+const js = await readFile(safeBuildPath(jsMatch[1]), 'utf8');
+const css = await readFile(safeBuildPath(cssMatch[1]), 'utf8');
+const threeLicense = await readFile(path.join(root, 'node_modules/three/LICENSE'), 'utf8');
+const referenceNotice = 'MLB Baseball Savant / Statcast tracking-fit reference: 2025-08-15, 599 pitches in eight anonymous four-pitch families. Modeled release and lower-level speeds; not a measured-player replay. https://baseballsavant.mlb.com/csv-docs';
+const motionNotice = await readFile(path.join(root, 'assets-source/sinker/NOTICE.md'), 'utf8');
+html = html.replace(jsMatch[0], () => `<script type="module">\n${js.replace(/<\/script/gi, '<\\/script')}\n</script>`);
+html = html.replace(cssMatch[0], () => `<style>\n${css.replace(/<\/style/gi, '<\\/style')}\n</style>`);
+html = html.replace('</head>', () => `<!-- Three.js license\n${threeLicense.replace(/-->/g, '-- >')}\n-->\n</head>`);
+html = html.replace('</head>', () => `<!-- Sinker motion source\n${motionNotice.replace(/-->/g, '-- >')}\n-->\n</head>`);
+const output = path.join(root, 'release');
+await mkdir(output, { recursive: true });
+await writeFile(path.join(output, 'sinker-pitch-reading.html'), html);
+await writeFile(path.join(output, 'THIRD_PARTY_LICENSES.txt'), `Three.js\n\n${threeLicense}\n\n${motionNotice}\n\n${referenceNotice}`);
+await writeFile(path.join(output, '사용법.txt'), '싱커 공 읽기\n\n우투/좌투 → 우타/좌타 → 난이도를 선택합니다. 휴대폰은 약 35cm, PC는 약 60cm 거리에서 보세요.\n화면 크기가 자동 확인되지 않으면 카드의 짧은 변(5.398cm)으로 처음 한 번 맞출 수 있습니다. 카메라 위치는 조절할 수 없습니다.\n공 지름은 7.32cm이고 홈 앞 약 1.5m까지 실제 속도로 접근합니다. 결과의 느린 공 추적과 실제 속도 1× 다시 보기를 구분했습니다.\n우완은 투구 4, 좌완은 투구 3 동작입니다. 2025-08-15 Statcast 599구의 여덟 구질 묶음을 참고한 합성 궤적입니다. 국내 중고교/KBO 구질 실측이나 실제 타자 대상 검증을 마친 모델은 아닙니다.\n결과는 기기/브라우저에 저장합니다. 운영 DB 변경은 없습니다.\n');
+console.log(`Created ${path.join(output, 'sinker-pitch-reading.html')} (${(Buffer.byteLength(html)/1024).toFixed(0)} KiB)`);

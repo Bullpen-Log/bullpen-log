@@ -1,0 +1,90 @@
+{
+  "retrieved": "2026-10-27",
+  "references": [
+    {
+      "type": "FF",
+      "year": "2025",
+      "url": "https://baseballsavant.mlb.com/leaderboard/pitch-movement?year=2025&pitch_type=FF&min=q",
+      "byHand": {
+        "R": {
+          "mph": 95,
+          "horizontalInches": -7.6,
+          "inducedVerticalInches": 15.8
+        },
+        "L": {
+          "mph": 93.1,
+          "horizontalInches": -8.1,
+          "inducedVerticalInches": 15.9
+        }
+      }
+    },
+    {
+      "type": "SI",
+      "year": "2025",
+      "url": "https://baseballsavant.mlb.com/leaderboard/pitch-movement?year=2025&pitch_type=SI&min=q",
+      "byHand": {
+        "R": {
+          "mph": 94,
+          "horizontalInches": -15.1,
+          "inducedVerticalInches": 7.4
+        },
+        "L": {
+          "mph": 93.2,
+          "horizontalInches": -15.4,
+          "inducedVerticalInches": 7.5
+        }
+      }
+    },
+    {
+      "type": "SL",
+      "year": "2025",
+      "url": "https://baseballsavant.mlb.com/leaderboard/pitch-movement?year=2025&pitch_type=SL&min=q",
+      "byHand": {
+        "R": {
+          "mph": 86.7,
+          "horizontalInches": 4.2,
+          "inducedVerticalInches": 1.9
+        },
+        "L": {
+          "mph": 85,
+          "horizontalInches": 4,
+          "inducedVerticalInches": 2.1
+        }
+      }
+    },
+    {
+      "type": "CU",
+      "year": "2025",
+      "url": "https://baseballsavant.mlb.com/leaderboard/pitch-movement?year=2025&pitch_type=CU&min=q",
+      "byHand": {
+        "R": {
+          "mph": 80.6,
+          "horizontalInches": 9,
+          "inducedVerticalInches": -10.2
+        },
+        "L": {
+          "mph": 79.1,
+          "horizontalInches": 7.8,
+          "inducedVerticalInches": -9.7
+        }
+      }
+    },
+    {
+      "type": "CH",
+      "year": "2025",
+      "url": "https://baseballsavant.mlb.com/leaderboard/pitch-movement?year=2025&pitch_type=CH&min=q",
+      "byHand": {
+        "R": {
+          "mph": 86.6,
+          "horizontalInches": -14.5,
+          "inducedVerticalInches": 4.1
+        },
+        "L": {
+          "mph": 84.4,
+          "horizontalInches": -14.2,
+          "inducedVerticalInches": 5.2
+        }
+      }
+    }
+  ]
+}

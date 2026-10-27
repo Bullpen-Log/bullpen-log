@@ -80,6 +80,7 @@ const NATIVE_PATHS = new Set(['/velocity', '/velocity/measure']);
 let lastOpen = { path: '', at: 0 };
 /** 앱 화면이 맡는 사이트 주소(구속 측정 말고) — 사이트가 BullpenNative/<n> 판을 보고 넘기는 것과 같은 목록(lib/app-env.ts expoLevel) */
 const NATIVE_ROUTES = [
+  /^\/pitch-reading$/,
   /^\/pitch\/\d{4}-\d{2}-\d{2}$/,
   /^\/workout$/,
   /^\/armcare\/[\w-]+(\?[\w=&%.-]*)?$/,
@@ -109,6 +110,7 @@ function nativeOfWeb(href: string): string | null {
   if (/[?&]web=1\b/.test(href)) return null;
   if (isNativePath(href)) return href;
   const [path, q] = href.split('?');
+  if (path === '/hitting/read') return '/pitch-reading';
   const day = /^\/pitch-log\/(\d{4}-\d{2}-\d{2})$/.exec(path)?.[1];
   if (day) return `/pitch/${day}`;
   const lab = /^\/videos\/lab(\/guide|\/[0-9a-f-]{36})?$/.exec(path);

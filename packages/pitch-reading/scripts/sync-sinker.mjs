@@ -1,0 +1,14 @@
+import {readFile,writeFile,mkdir,copyFile} from 'node:fs/promises';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const source=fileURLToPath(new URL('..',import.meta.url));
+const target=path.resolve(process.argv[2]??path.join(source,'../..'));
+const pkg=JSON.parse(await readFile(path.join(target,'native/package.json'),'utf8'));
+if(pkg.name!=='bullpen-log-native')throw new Error('Expected the Sinker repository, with native/package.json.');
+const html=await readFile(path.join(source,'release/sinker-pitch-reading.html'),'utf8');
+await mkdir(path.join(target,'public/pitch-reading'),{recursive:true});
+await mkdir(path.join(target,'native/src/pitch-reading'),{recursive:true});
+await writeFile(path.join(target,'public/pitch-reading/index.html'),html);
+await writeFile(path.join(target,'native/src/pitch-reading/scene.generated.json'),JSON.stringify({html})+'\n');
+await copyFile(path.join(source,'release/THIRD_PARTY_LICENSES.txt'),path.join(target,'public/pitch-reading/THIRD_PARTY_LICENSES.txt'));
+console.log('Updated identical offline scenes for web and Expo. No server or database actions.');

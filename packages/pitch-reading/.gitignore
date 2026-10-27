@@ -1,0 +1,13 @@
+node_modules
+dist/
+release/
+playwright-report/
+test-results/
+.DS_Store
+.venv-motion/
+assets-source/cmu/*.c3d
+assets-source/cmu/*.amc
+assets-source/cmu/*.asf
+assets-source/cmu/*.html
+
+assets-source/kbo/*.pdf

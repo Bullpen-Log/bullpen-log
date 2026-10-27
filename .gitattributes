@@ -19,3 +19,7 @@
 *.woff binary
 *.woff2 binary
 *.pdf binary
+
+# Generated scene retains upstream Three.js shader whitespace.
+public/pitch-reading/index.html linguist-generated=true -whitespace
+native/src/pitch-reading/scene.generated.json linguist-generated=true

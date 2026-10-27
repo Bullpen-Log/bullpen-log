@@ -37,6 +37,11 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
         ],
       },
+      {
+        // The bundled scene is embedded only by Sinker pages of the same origin.
+        source: '/pitch-reading/:path*',
+        headers: [{ key: 'Content-Security-Policy', value: "frame-ancestors 'self'" }],
+      },
     ];
   },
   images: {

@@ -1,0 +1,22 @@
+{
+  "name": "sinker-pitch-reading-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 4173 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "package": "npm run build && node scripts/package.mjs",
+    "preview": "vite preview --host 0.0.0.0 --port 4173 --strictPort",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:browser": "npm run package && playwright test"
+  },
+  "dependencies": { "three": "0.186.1" },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "^24.0.0",
+    "@types/three": "^0.186.0",
+    "typescript": "^6.0.3",
+    "vite": "8.3.5"
+  }
+}

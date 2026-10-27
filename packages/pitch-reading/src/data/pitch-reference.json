@@ -1,0 +1,280 @@
+{
+  "version": "statcast-fit-20250815-v1",
+  "date": "2025-08-15",
+  "source": "https://baseballsavant.mlb.com/statcast_search/csv?all=true&type=details&game_date_gt=2025-08-15&game_date_lt=2025-08-15&hfPT=FF%7CCU%7CSL%7CCH%7C",
+  "method": "Medians of drag and transverse lift per speed squared inferred from fitted 50ft velocity and acceleration. Four pitches stay grouped by the same anonymous pitcher. Preset source-3/4 release and lower-level speeds are modeled, not a replay of the measured player.",
+  "profiles": [
+    {
+      "id": "r-1",
+      "hand": "R",
+      "pitches": {
+        "FF": {
+          "n": 21,
+          "drag": 0.0054942,
+          "liftX": -0.0008944,
+          "liftY": 0.0018103,
+          "speedSdKmh": 1.428
+        },
+        "CU": {
+          "n": 10,
+          "drag": 0.00639,
+          "liftX": 0.0031498,
+          "liftY": -0.001976,
+          "speedSdKmh": 1.656
+        },
+        "SL": {
+          "n": 11,
+          "drag": 0.0053646,
+          "liftX": 0.0006785,
+          "liftY": 0.0002684,
+          "speedSdKmh": 3.806
+        },
+        "CH": {
+          "n": 11,
+          "drag": 0.005934,
+          "liftX": -0.0028405,
+          "liftY": 0.0009103,
+          "speedSdKmh": 0.578
+        }
+      }
+    },
+    {
+      "id": "r-2",
+      "hand": "R",
+      "pitches": {
+        "FF": {
+          "n": 31,
+          "drag": 0.0051224,
+          "liftX": -0.0013376,
+          "liftY": 0.0023827,
+          "speedSdKmh": 1.253
+        },
+        "CU": {
+          "n": 6,
+          "drag": 0.0052593,
+          "liftX": 0.0019173,
+          "liftY": -0.0013502,
+          "speedSdKmh": 0.839
+        },
+        "SL": {
+          "n": 16,
+          "drag": 0.0047777,
+          "liftX": 0.0006651,
+          "liftY": -0.0003266,
+          "speedSdKmh": 1.655
+        },
+        "CH": {
+          "n": 12,
+          "drag": 0.0052381,
+          "liftX": -0.0019481,
+          "liftY": -3.74e-05,
+          "speedSdKmh": 1.506
+        }
+      }
+    },
+    {
+      "id": "r-3",
+      "hand": "R",
+      "pitches": {
+        "FF": {
+          "n": 43,
+          "drag": 0.0058473,
+          "liftX": -0.0014881,
+          "liftY": 0.002919,
+          "speedSdKmh": 1.352
+        },
+        "CU": {
+          "n": 6,
+          "drag": 0.0056494,
+          "liftX": 0.0019272,
+          "liftY": -0.0009712,
+          "speedSdKmh": 1.383
+        },
+        "SL": {
+          "n": 26,
+          "drag": 0.0051789,
+          "liftX": 0.0008475,
+          "liftY": 0.0002634,
+          "speedSdKmh": 1.431
+        },
+        "CH": {
+          "n": 9,
+          "drag": 0.0055953,
+          "liftX": -0.0025489,
+          "liftY": 8.29e-05,
+          "speedSdKmh": 1.987
+        }
+      }
+    },
+    {
+      "id": "r-4",
+      "hand": "R",
+      "pitches": {
+        "FF": {
+          "n": 19,
+          "drag": 0.0052968,
+          "liftX": -0.0012521,
+          "liftY": 0.0027899,
+          "speedSdKmh": 1.323
+        },
+        "CU": {
+          "n": 12,
+          "drag": 0.0052822,
+          "liftX": 0.0012044,
+          "liftY": -0.0024105,
+          "speedSdKmh": 1.455
+        },
+        "SL": {
+          "n": 18,
+          "drag": 0.004716,
+          "liftX": 0.000385,
+          "liftY": 0.0006493,
+          "speedSdKmh": 2.518
+        },
+        "CH": {
+          "n": 6,
+          "drag": 0.0047457,
+          "liftX": -0.0023858,
+          "liftY": 0.0009437,
+          "speedSdKmh": 1.103
+        }
+      }
+    },
+    {
+      "id": "l-1",
+      "hand": "L",
+      "pitches": {
+        "FF": {
+          "n": 42,
+          "drag": 0.0051212,
+          "liftX": 0.0013371,
+          "liftY": 0.0030159,
+          "speedSdKmh": 2.1
+        },
+        "CU": {
+          "n": 16,
+          "drag": 0.0058359,
+          "liftX": -0.0015726,
+          "liftY": -0.003199,
+          "speedSdKmh": 2.739
+        },
+        "SL": {
+          "n": 13,
+          "drag": 0.0047722,
+          "liftX": -0.0008717,
+          "liftY": 0.0008858,
+          "speedSdKmh": 1.141
+        },
+        "CH": {
+          "n": 25,
+          "drag": 0.005307,
+          "liftX": 0.0016324,
+          "liftY": 0.0025549,
+          "speedSdKmh": 1.177
+        }
+      }
+    },
+    {
+      "id": "l-2",
+      "hand": "L",
+      "pitches": {
+        "FF": {
+          "n": 25,
+          "drag": 0.0053203,
+          "liftX": 0.0016598,
+          "liftY": 0.0027554,
+          "speedSdKmh": 1.856
+        },
+        "CU": {
+          "n": 22,
+          "drag": 0.0050964,
+          "liftX": -0.0015381,
+          "liftY": -0.0010588,
+          "speedSdKmh": 2.462
+        },
+        "SL": {
+          "n": 35,
+          "drag": 0.0051655,
+          "liftX": -0.0005628,
+          "liftY": 0.0004451,
+          "speedSdKmh": 2.099
+        },
+        "CH": {
+          "n": 12,
+          "drag": 0.0050907,
+          "liftX": 0.0025377,
+          "liftY": 0.0015712,
+          "speedSdKmh": 2.281
+        }
+      }
+    },
+    {
+      "id": "l-3",
+      "hand": "L",
+      "pitches": {
+        "FF": {
+          "n": 40,
+          "drag": 0.005302,
+          "liftX": 0.0012189,
+          "liftY": 0.0029921,
+          "speedSdKmh": 1.282
+        },
+        "CU": {
+          "n": 27,
+          "drag": 0.0052673,
+          "liftX": -0.0009265,
+          "liftY": -0.0025281,
+          "speedSdKmh": 2.612
+        },
+        "SL": {
+          "n": 11,
+          "drag": 0.0056816,
+          "liftX": 0.000162,
+          "liftY": 0.000298,
+          "speedSdKmh": 1.319
+        },
+        "CH": {
+          "n": 10,
+          "drag": 0.0049711,
+          "liftX": 0.0023751,
+          "liftY": 0.0013536,
+          "speedSdKmh": 0.794
+        }
+      }
+    },
+    {
+      "id": "l-4",
+      "hand": "L",
+      "pitches": {
+        "FF": {
+          "n": 24,
+          "drag": 0.00504,
+          "liftX": 0.0006717,
+          "liftY": 0.0030614,
+          "speedSdKmh": 1.832
+        },
+        "CU": {
+          "n": 15,
+          "drag": 0.0052124,
+          "liftX": -0.0007087,
+          "liftY": -0.00208,
+          "speedSdKmh": 3.015
+        },
+        "SL": {
+          "n": 11,
+          "drag": 0.0049368,
+          "liftX": -0.0008545,
+          "liftY": -5.59e-05,
+          "speedSdKmh": 2.08
+        },
+        "CH": {
+          "n": 14,
+          "drag": 0.0052263,
+          "liftX": 0.001892,
+          "liftY": 0.0018047,
+          "speedSdKmh": 2.024
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,272 @@
+{
+  "version": 19,
+  "date": "2026-10-27",
+  "physics": "reference-aero-8",
+  "reference": {
+    "date": "2025-08-15",
+    "families": 8,
+    "pitches": 599,
+    "source": "https://baseballsavant.mlb.com/csv-docs",
+    "limitations": "Data-derived shape calibration with source-3/4 modeled release; lower levels are speed-scaled designs, not measured KBO/youth replays."
+  },
+  "projection": {
+    "phoneExample": {
+      "cssPixelsPerCm": 60.36745406824147,
+      "widthCss": 393,
+      "viewDistanceCm": 35,
+      "horizontalFov": 10.626660970499168
+    },
+    "unknownDevice": "Visible estimate with optional one-time physical card check. Actual viewing distance is an assumption, not measured.",
+    "sources": [
+      "https://support.apple.com/en-ie/121031",
+      "https://support.apple.com/en-my/111865",
+      "https://support.apple.com/en-gb/111873",
+      "https://support.apple.com/it-it/111854"
+    ]
+  },
+  "approach": [
+    {
+      "hand": "R",
+      "speed": 110,
+      "arrivalMs": 554.4296505036363,
+      "visibleUntilMs": 501.0508489323271,
+      "remainingDistanceM": 1.5
+    },
+    {
+      "hand": "R",
+      "speed": 125,
+      "arrivalMs": 487.8383892830838,
+      "visibleUntilMs": 440.86859749443244,
+      "remainingDistanceM": 1.5
+    },
+    {
+      "hand": "R",
+      "speed": 145,
+      "arrivalMs": 420.65185137810874,
+      "visibleUntilMs": 380.1490813324817,
+      "remainingDistanceM": 1.5
+    },
+    {
+      "hand": "R",
+      "speed": 153,
+      "arrivalMs": 398.7101428996531,
+      "visibleUntilMs": 360.31952178430316,
+      "remainingDistanceM": 1.5
+    },
+    {
+      "hand": "L",
+      "speed": 110,
+      "arrivalMs": 538.8227754825481,
+      "visibleUntilMs": 485.90200659370896,
+      "remainingDistanceM": 1.5
+    },
+    {
+      "hand": "L",
+      "speed": 125,
+      "arrivalMs": 474.15546901659775,
+      "visibleUntilMs": 427.5815509420543,
+      "remainingDistanceM": 1.5
+    },
+    {
+      "hand": "L",
+      "speed": 145,
+      "arrivalMs": 408.8822612839665,
+      "visibleUntilMs": 368.7163060436648,
+      "remainingDistanceM": 1.5
+    },
+    {
+      "hand": "L",
+      "speed": 153,
+      "arrivalMs": 387.5610942302342,
+      "visibleUntilMs": 349.48859905057117,
+      "remainingDistanceM": 1.5
+    }
+  ],
+  "timingBenchmark": {
+    "rows": 3018,
+    "method": "Same-speed and same-target comparison against public Statcast fitted coefficients from one MLB date. Generic family r-1/l-1; not all-family perceptual validation.",
+    "groups": [
+      {
+        "hand": "R",
+        "kind": "FF",
+        "n": 1072,
+        "presetMeanErrorMs": 3.467349956886877,
+        "presetMedianErrorMs": 3.3165621829078304,
+        "presetErrorP10P90Ms": [
+          -0.8946917640709557,
+          8.196806965037524
+        ],
+        "matchedReleaseMeanErrorMs": -0.555435313702178,
+        "matchedReleaseMedianAbsoluteErrorMs": 1.2464428146966497,
+        "extensionP10P90M": [
+          1.7983200000000001,
+          2.1336
+        ]
+      },
+      {
+        "hand": "R",
+        "kind": "CU",
+        "n": 225,
+        "presetMeanErrorMs": 6.014252035945501,
+        "presetMedianErrorMs": 5.741468248412957,
+        "presetErrorP10P90Ms": [
+          0.09642048809968173,
+          12.627371211320735
+        ],
+        "matchedReleaseMeanErrorMs": 2.721139727287613,
+        "matchedReleaseMedianAbsoluteErrorMs": 3.231617973037146,
+        "extensionP10P90M": [
+          1.70688,
+          2.1336
+        ]
+      },
+      {
+        "hand": "R",
+        "kind": "SL",
+        "n": 558,
+        "presetMeanErrorMs": 3.642161415041608,
+        "presetMedianErrorMs": 3.602359691991296,
+        "presetErrorP10P90Ms": [
+          -1.6250348512076584,
+          8.810248018710865
+        ],
+        "matchedReleaseMeanErrorMs": 0.38938913999348596,
+        "matchedReleaseMedianAbsoluteErrorMs": 1.1165728397575663,
+        "extensionP10P90M": [
+          1.76784,
+          2.10312
+        ]
+      },
+      {
+        "hand": "R",
+        "kind": "CH",
+        "n": 314,
+        "presetMeanErrorMs": 5.0225233732460906,
+        "presetMedianErrorMs": 5.0164121352952975,
+        "presetErrorP10P90Ms": [
+          0.6941160693972392,
+          8.993485807755803
+        ],
+        "matchedReleaseMeanErrorMs": 1.305035687058961,
+        "matchedReleaseMedianAbsoluteErrorMs": 1.3783656405428815,
+        "extensionP10P90M": [
+          1.8288000000000002,
+          2.10312
+        ]
+      },
+      {
+        "hand": "L",
+        "kind": "FF",
+        "n": 371,
+        "presetMeanErrorMs": -5.778842674663566,
+        "presetMedianErrorMs": -6.249393434313731,
+        "presetErrorP10P90Ms": [
+          -11.536401673889486,
+          1.3571400319532927
+        ],
+        "matchedReleaseMeanErrorMs": -1.9735444823978858,
+        "matchedReleaseMedianAbsoluteErrorMs": 1.8204563721329237,
+        "extensionP10P90M": [
+          1.85928,
+          2.31648
+        ]
+      },
+      {
+        "hand": "L",
+        "kind": "CU",
+        "n": 143,
+        "presetMeanErrorMs": -6.277281790459938,
+        "presetMedianErrorMs": -4.245188858354879,
+        "presetErrorP10P90Ms": [
+          -15.400140355667077,
+          -0.9308203048257724
+        ],
+        "matchedReleaseMeanErrorMs": 0.589243398426265,
+        "matchedReleaseMedianAbsoluteErrorMs": 1.787682568095704,
+        "extensionP10P90M": [
+          1.76784,
+          2.1336
+        ]
+      },
+      {
+        "hand": "L",
+        "kind": "SL",
+        "n": 194,
+        "presetMeanErrorMs": -7.983815143495741,
+        "presetMedianErrorMs": -7.618643595647541,
+        "presetErrorP10P90Ms": [
+          -14.059457588095313,
+          -3.948515156140104
+        ],
+        "matchedReleaseMeanErrorMs": -2.0523176607840243,
+        "matchedReleaseMedianAbsoluteErrorMs": 1.9661779630788487,
+        "extensionP10P90M": [
+          1.7983200000000001,
+          2.16408
+        ]
+      },
+      {
+        "hand": "L",
+        "kind": "CH",
+        "n": 141,
+        "presetMeanErrorMs": -6.358555849599283,
+        "presetMedianErrorMs": -6.182865393721897,
+        "presetErrorP10P90Ms": [
+          -13.082201533098896,
+          0.9054405566380979
+        ],
+        "matchedReleaseMeanErrorMs": -1.4501780544680756,
+        "matchedReleaseMedianAbsoluteErrorMs": 1.4369762157961077,
+        "extensionP10P90M": [
+          1.76784,
+          2.286
+        ]
+      }
+    ]
+  },
+  "checks": {
+    "unit": 51,
+    "chromium": 24,
+    "webTypecheck": "passed",
+    "nativeTypecheck": "passed",
+    "nativeLint": "passed",
+    "iosMetroExport": "passed",
+    "sameOriginSceneInNext": "passed",
+    "webkit": 3,
+    "chromiumChangedAreaRetest": 7
+  },
+  "limitations": [
+    "Physical iPhone rendering and frame pacing still need verification.",
+    "No human batter perceptual equivalence study."
+  ],
+  "gaze": {
+    "version": "partial-pursuit-1",
+    "method": "Fixed eye; smooth partial pursuit with residual screen motion instead of a centre-locked ball. Uses the current ball location only. Physical phone-window clipping checked for both batting/pitching hands and all four grades."
+  },
+  "webkitBundledScene": {
+    "idleRun": {
+      "environment": "Desktop Playwright WebKit 27.2, phone-sized viewport, actual bundled native HTML; not a physical iPhone",
+      "readyMs": 421,
+      "interrupts": 0,
+      "errors": [],
+      "flightFrames": 87,
+      "medianFrameMs": 17,
+      "p95FrameMs": 17,
+      "maxFrameMs": 20,
+      "answered": 4
+    },
+    "duringConcurrentBuild": {
+      "environment": "Desktop Playwright WebKit 27.2, phone-sized viewport, actual bundled native HTML; not a physical iPhone",
+      "readyMs": 422,
+      "interrupts": 1,
+      "errors": [],
+      "flightFrames": 97,
+      "medianFrameMs": 17,
+      "p95FrameMs": 18,
+      "maxFrameMs": 410,
+      "answered": 4
+    },
+    "note": "The concurrent build run caused one long scheduling gap; the trial was excluded and retried. Desktop WebKit measurements do not replace a physical iPhone test."
+  },
+  "validationStage": "Pre-deployment verification snapshot"
+}

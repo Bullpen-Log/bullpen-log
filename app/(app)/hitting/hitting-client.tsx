@@ -274,6 +274,26 @@ export function HittingClient({ today, rows }: { today: string; rows: HittingRow
             타격의 영상 — 더보기에서 옮겨 옴(2026-10-21 김민: "타격은 운동 영상 + 타격 드릴"). 운동 영상은 앱에선 앱 화면으로 열린다.
             3D 스윙 분석(2026-10-21 금윤호 — 투구 탭의 '3D 동작 분석' 칸과 같은 자리)은 앱(판 11~)이면 앱 화면 /swing 으로 넘어간다.
           */}
+          <Link
+            href="/hitting/read"
+            className="flex min-h-22 items-center gap-3 rounded-2xl border border-line bg-surface px-(--block-pad) py-4"
+          >
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-sky-tint">
+              <Target aria-hidden className="size-5.5 text-sky" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <strong className="block text-base font-semibold text-ink">
+                공 읽기
+              </strong>
+              <span className="mt-1 block text-sm break-keep text-muted">
+                다가오는 공의 구종과 스트라이크·볼을 읽어보세요.
+              </span>
+            </span>
+            <span aria-hidden className="text-xl text-muted">
+              ›
+            </span>
+          </Link>
+
           {/* 트레이닝 — 앱 하단바의 종목 바에 있던 칸(2026-10-27 HIG 검토 A안으로 이리 옮김). ?sport=hit 이면 트레이닝 화면의 '‹ 타격'이 여기로 */}
           <div className="grid grid-cols-4 gap-2">
             <Link href="/training?sport=hit" className="flex min-h-18 flex-col items-center justify-center gap-1.5 rounded-2xl border border-line bg-surface px-2">
