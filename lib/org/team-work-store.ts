@@ -95,15 +95,6 @@ export async function writeOrgWork(a: {
   if (sessionId) await prisma.$transaction(await summaryWrites(a.userId, { id: sessionId, date }));
 }
 
-/** 선수가 그날 직접 남긴 세트(코치 세트 제외) 가운데 그 운동들 — 같은 훈련을 두 번 세지 않게(계약 9-6 ①-6 F, 결정 3: 선수 기록 우선) */
-export async function ownSetsOn(userIds: readonly string[], dateKey: string, exerciseIds: readonly string[]): Promise<{ userId: string; exerciseId: string }[]> {
-  if (userIds.length === 0 || exerciseIds.length === 0) return [];
-  return prisma.userExerciseSet.findMany({
-    where: { userId: { in: [...userIds] }, date: new Date(`${dateKey}T00:00:00.000Z`), enteredById: null, exerciseId: { in: [...exerciseIds] } },
-    select: { userId: true, exerciseId: true },
-  });
-}
-
 /** 그 일정에 코치가 남긴 수행일지 — 지우기 · 취소 전에 묻는다(결정 4) */
 export async function eventWorkOf(orgEventId: string): Promise<{ sets: number; players: number }> {
   const rows = await prisma.userExerciseSet.groupBy({ by: ['userId'], where: { orgEventId, enteredById: { not: null } }, _count: { _all: true } });

@@ -8,7 +8,7 @@ import { requireCurrentOrg } from '@/lib/org/access';
 import { prisma } from '@/lib/prisma';
 import { toDateKey } from '@/lib/pitch-stats';
 
-/** 팀 일정 하나(3단계) — 참석 · 훈련 메뉴 · 수행일지 · 등판 계획. 앱 native/src/app/org/team-event.tsx 와 같은 동작(app/actions/app-team.ts) */
+/** 팀 훈련 하나(계약 11절) — 계획 · 실제 확인 · 결과 · 등판 계획. 앱 native/src/app/org/team-event.tsx 와 같은 동작(app/actions/app-team.ts) */
 export default async function TeamEventPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireMaster();
   const { org } = await requireCurrentOrg(user);
@@ -21,7 +21,7 @@ export default async function TeamEventPage({ params }: { params: Promise<{ id: 
       <Link href={`/manage/calendar?month=${day.slice(0, 7)}&day=${day}`} className="inline-flex items-center gap-1 text-xs text-muted hover:text-ink">
         <ChevronLeft className="h-3.5 w-3.5" /> 달력
       </Link>
-      <PageHeading title={event.title} description="참석 · 훈련 메뉴 · 수행일지 · 등판 계획" />
+      <PageHeading title={event.title} description="계획 · 실제 확인 · 결과 · 등판 계획" />
       <TeamEventPanel orgId={org.id} eventId={event.id} />
     </div>
   );

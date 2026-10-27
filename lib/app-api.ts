@@ -14,7 +14,7 @@
 export const APP_API_HEADER = 'x-bullpen-app';
 
 /** 이 코드가 말하는 약속 번호 — 앱은 이 값을 보낸다 */
-export const APP_API_LEVEL = 6; // 분석 기준 보존·재측정 비교·처방 교체 요청 보호
+export const APP_API_LEVEL = 7; // 팀 훈련 전체 → 조 → 예외(참석 걷음 · 실제 확인)
 
 /** 서버가 받는 가장 낮은 번호 */
 export const MIN_APP_API = 1;
@@ -27,6 +27,8 @@ export function appApiLevelOf(header: string | null | undefined): number {
 
 /** 변경된 기능의 화면에서만 업데이트를 안내한다. */
 export function minAppApiForAction(action: string): number {
+  /* 팀 훈련 개정(계약 11절) — 참석 동작을 걷고 일정 · 오늘 화면 모양이 바뀌었다 */
+  if (action.startsWith('app-team.') || action === 'app-org.loadOrgToday') return 7;
   if (
     action.startsWith('mechanics-review.') ||
     [

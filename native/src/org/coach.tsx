@@ -58,7 +58,7 @@ export function CoachTab({ space, tab }: { space: MySpace; tab: string }) {
 const memberWord = (space: MySpace) => (space.kind === 'TEAM' ? '선수' : '회원');
 const openMember = (space: MySpace, memberId: string) =>
   router.push(`/org/member/${memberId}?org=${space.orgId}` as Href);
-/* 팀의 있는 일정은 참석 · 메뉴 · 수행 · 등판 화면(3단계, org/team-event), 레슨장 · 새 일정은 고치기 화면 */
+/* 팀의 있는 일정은 훈련 하나 화면(계획 · 실제 확인 · 결과 · 등판, org/team-event), 레슨장 · 새 일정은 고치기 화면 */
 const openEvent = (space: MySpace, date: string, id?: string) =>
   router.push(
     (id && space.kind === 'TEAM' ? `/org/team-event?org=${space.orgId}&id=${id}` : `/org/event?org=${space.orgId}&date=${date}${id ? `&id=${id}` : ''}`) as Href
@@ -108,21 +108,16 @@ function TodayTab({ space, c }: { space: MySpace; c: Palette }) {
   );
 }
 
-/** 오늘 일정 줄 — 시각 · 이름 · 응답(가요 · 못 가요 · 답 안 함) · 메뉴 · 끝났으면 수행일지. 없으면 한 줄 + 다음 일정 하나 */
+/** 오늘 일정 줄 — 시각 · 이름 · 단계(계획 · 확인 대기 · 확인함) · 결과 수. 없으면 한 줄 + 다음 일정 하나 */
 function TodayEvents({ space, data, c }: { space: MySpace; data: Extract<Today, { ok: true }>; c: Palette }) {
   const team = space.kind === 'TEAM';
   const line = (e: Extract<Today, { ok: true }>['events'][number]) => {
     if (!team) return e.memberName ?? '';
-    const answered = e.replies.yes + e.replies.no + e.replies.maybe;
-    const silent = e.targets != null ? Math.max(0, e.targets - answered) : 0;
-    const replies = [e.replies.yes ? `가요 ${e.replies.yes}` : '', e.replies.no ? `못 가요 ${e.replies.no}` : '', e.replies.maybe ? `몰라요 ${e.replies.maybe}` : '', silent ? `답 안 함 ${silent}` : '']
-      .filter(Boolean)
-      .join(' · ');
-    const done = e.status === 'done' || !!e.recorded || !!e.attended;
     return [
-      replies,
-      e.plans ? `메뉴 ${e.plans}` : '메뉴 만들기',
-      done ? `수행일지 ${e.recorded ?? 0}${e.attended ? ` / 참석 ${e.attended}` : ''}` : '',
+      e.targets != null ? `명단 ${e.targets}` : '',
+      e.plans ? `활동 ${e.plans}` : '활동 만들기',
+      e.confirmed ? `확인함 · 기록 ${e.recorded ?? 0}` : e.plans ? '확인 대기' : '',
+      e.issues ? `확인 필요 ${e.issues}` : '',
       e.selfRecorded ? `선수 기록 ${e.selfRecorded}` : '',
     ]
       .filter(Boolean)
@@ -187,12 +182,12 @@ function TodayEvents({ space, data, c }: { space: MySpace; data: Extract<Today, 
 }
 
 /**
- * 오늘 브리핑(계약 10-4 ③) — 확인 대기 · 답 안 한 일정. 있을 때만, 줄마다 원래 자리로. 원래 일을 처리하면 서버가 안 보내 저절로 빠진다(따로 치우기 없음).
+ * 오늘 브리핑(계약 10-4 ③ · 11-6) — 확인 대기(실제 확인 전 · 확인 필요 · 실패 · 정정 요청 · 숙제). 있을 때만, 줄마다 원래 자리로. 원래 일을 처리하면 서버가 안 보내 저절로 빠진다(따로 치우기 없음).
  * 받은 것(질문 · 정정 · 숙제 영상)은 그 칸에 있어 여기 다시 안 넣는다.
  */
 function Briefing({ space, data, c }: { space: MySpace; data: Extract<Today, { ok: true }>; c: Palette }) {
   const b = data.briefing;
-  if (!b || (b.review.length === 0 && b.unanswered.length === 0)) return null;
+  if (!b || b.review.length === 0) return null;
   const row = (key: string, title: string, line: string, onPress: () => void, first: boolean) => (
     <Pressable
       key={key}
@@ -227,14 +222,6 @@ function Briefing({ space, data, c }: { space: MySpace; data: Extract<Today, { o
                 i === 0
               )
             )}
-          </Card>
-        </View>
-      ) : null}
-      {b.unanswered.length ? (
-        <View style={{ gap: 6 }}>
-          <GroupTitle title="답 안 한 일정 · 7일 안" c={c} />
-          <Card c={c} style={{ paddingVertical: 0 }}>
-            {b.unanswered.map((e, i) => row(e.id, `${dayWithWeekday(e.date)} · ${e.time ?? '종일'} · ${e.title}`, `답 안 함 ${e.silent}명`, () => openEvent(space, e.date, e.id), i === 0))}
           </Card>
         </View>
       ) : null}
@@ -409,7 +396,7 @@ function MembersTab({ space, c }: { space: MySpace; c: Palette }) {
 
 /**
  * 코치 '일정'(계약 9-4) — 위 한 주 띠(일곱 칸 · 일정 있는 날 점) + 밑 그 주 일정 목록(날짜 머리 + 줄, 빈 날은 안 그림). '+ 일정' 하나 — 날짜는 띠에서 고른 날.
- * 팀은 일정을 누르면 참석 · 메뉴 · 수행 · 등판, 레슨장은 고치기(더보기 '예정 활동' 화면도 이것).
+ * 팀은 일정을 누르면 훈련 하나(계획 · 실제 확인 · 결과 · 등판), 레슨장은 고치기(더보기 '예정 활동' 화면도 이것).
  */
 export function ScheduleTab({ space, c }: { space: MySpace; c: Palette }) {
   const todayKey = toDateKey(new Date());
@@ -515,10 +502,10 @@ export function ScheduleTab({ space, c }: { space: MySpace; c: Palette }) {
   );
 }
 
-/** 한 주 복사(계약 10-4 ②) — 일정 · 메뉴만 옮기고 참석 · 등판 · 수행은 안 옮긴다. 같은 일정이 이미 있으면 건너뜀 */
+/** 한 주 복사(계약 10-4 ②) — 일정 · 활동만 옮기고 실제 · 등판 · 결과는 안 옮긴다. 같은 일정이 이미 있으면 건너뜀 */
 function copyWeekAsk(space: MySpace, from: string, after: () => void) {
   const to = shiftDateKey(from, 7);
-  Alert.alert('이 주를 다음 주로 복사할까요?', `${dayLabel(from)} 주의 일정과 메뉴를 ${dayLabel(to)} 주 같은 요일로 옮겨요. 참석 · 등판 · 수행은 안 옮겨요.`, [
+  Alert.alert('이 주를 다음 주로 복사할까요?', `${dayLabel(from)} 주의 일정과 활동을 ${dayLabel(to)} 주 같은 요일로 옮겨요. 실제 · 등판 · 결과는 안 옮겨요.`, [
     { text: '취소', style: 'cancel' },
     {
       text: '복사',
@@ -709,7 +696,7 @@ function Inbox({ space, empty = false, c }: { space: MySpace; empty?: boolean; c
   );
 }
 
-/** 팀 코치 '훈련'(S단계) — 지난 2주 · 다가오는 2주 훈련 · 경기의 메뉴와 수행일지. 누르면 일정 하나(참석 · 메뉴 · 수행 · 등판) */
+/** 팀 코치 '훈련'(S단계) — 지난 2주 · 다가오는 2주 훈련 · 경기의 활동과 실제 확인. 누르면 훈련 하나(계획 · 실제 확인 · 결과 · 등판) */
 function TrainingTab({ space, c }: { space: MySpace; c: Palette }) {
   const { data, error, reload } = useLoad<Awaited<ReturnType<typeof loadTeamTraining>>>('app-team.loadTeamTraining', space.orgId);
   if (!data) return <LoadState error={error} onRetry={() => void reload()} c={c} />;
@@ -731,10 +718,10 @@ function TrainingTab({ space, c }: { space: MySpace; c: Palette }) {
             <Text style={[TYPE.card, { color: c.ink }]} numberOfLines={1}>
               {dayWithWeekday(r.date)} · {r.title}
             </Text>
-            {/* 메뉴가 없으면 경고색 대신 할 일로(계약 9-4) — 누르면 일정 하나의 메뉴 칸 */}
-            <Text style={[TYPE.sub, { color: r.plans.length ? c.muted : c.link }]} numberOfLines={1}>
-              {r.plans.length ? `메뉴 ${r.plans.join(' · ')}` : '메뉴 만들기'}
-              {done ? ` · 수행일지 ${r.recorded}명 · 참석 ${r.attended}명` : ''}
+            {/* 활동이 없으면 경고색 대신 할 일로(계약 9-4) — 누르면 훈련 하나 */}
+            <Text style={[TYPE.sub, { color: r.plans.length ? (done && r.plans.length && (!r.confirmed || r.issues) ? c.warn : c.muted) : c.link }]} numberOfLines={1}>
+              {r.plans.length ? `활동 ${r.plans.join(' · ')}` : '활동 만들기'}
+              {done && r.plans.length ? (r.confirmed ? ` · 확인함 · 기록 ${r.recorded}명${r.issues ? ` · 확인 필요 ${r.issues}` : ''}` : ' · 실제 확인 전') : ''}
             </Text>
           </View>
           <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>

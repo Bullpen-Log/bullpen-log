@@ -55,21 +55,22 @@ import {
 import { cleanCommentBody, commentTarget, isOrgVideoPath, isOwnOrgVideoPath, isPlayerCommentKind, readAtSec } from '@/lib/org/comments';
 import { ORG_SET_BASE, ORG_THEME_KEY, cleanOrgWork, isEmptyOrgPlan, orgPlan, withOrgExercises, withoutEmptyOrgExercises } from '@/lib/org/team-work';
 import { mergeReopened, type FrozenExercise, type FrozenPlan } from '@/lib/workout/session-plan';
+import { OUTING_CALENDAR_TITLE, PITCHING_ROLES, eventMemberIds, isOutingRole, planMemberIds, copyPlanTargets, weekCopyKey } from '@/lib/org/team';
 import {
-  ATTEND_REPLIES,
-  OUTING_CALENDAR_TITLE,
-  PITCHING_ROLES,
-  cleanPlanMembers,
-  eventMemberIds,
-  isAttendReply,
-  isOutingRole,
-  planMemberIds,
-  planWork,
-  replyCounts,
-  copyPlanTargets,
-  unionPlanMembers,
-  weekCopyKey,
-} from '@/lib/org/team';
+  cleanException,
+  cleanLines,
+  cleanValues,
+  confirmSummary,
+  linesToWork,
+  memberPlans,
+  memberWork,
+  planTargets,
+  sameAsGroup,
+  teamPitchKey,
+  workHash,
+  type MemberWorkInput,
+  type SessionPlan,
+} from '@/lib/org/team-session';
 import { isOutingTitle } from '@/lib/calendar-event';
 import {
   ME,
@@ -722,7 +723,7 @@ console.log(
   check("저절로 닫기는 진행 중인 판만(마친 'org' 판은 안 건드림)", src('lib/workout/close-stale.ts').includes("status: 'ACTIVE', date: { lt: dayStart(now) }"));
 }
 
-/* ─────────────────────── 15. 3단계(팀) — 참석 · 훈련 메뉴 · 수행일지 · 등판 계획 · 공지 읽음 ─────────────────────── */
+/* ─────────────────────── 15. 3단계(팀) — 일정 대상 · 활동 · 실제 확인 · 등판 계획 · 공지 읽음 ─────────────────────── */
 
 {
   const all = ['a', 'b', 'c'];
@@ -730,28 +731,109 @@ console.log(
   check('회원 일정은 그 회원만 · 떠났으면 아무도', eventMemberIds({ memberId: 'b' }, all).join() === 'b' && eventMemberIds({ memberId: 'z' }, all).length === 0);
   check('메뉴 대상이 비면 일정의 모두', planMemberIds([], all).join() === 'a,b,c');
   check('메뉴 대상은 아직 일정 대상인 사람만', planMemberIds(['b', 'z'], all).join() === 'b');
-  check('대상 거르기 — 모르는 사람 · 겹침 뺌', cleanPlanMembers(['b', 'b', 'z', 3], all).join() === 'b');
-  check('모두 고르면 빈 명단(=모두)', cleanPlanMembers(['a', 'b', 'c'], all).length === 0 && cleanPlanMembers('x', all).length === 0);
-  const defaults = new Map([
-    ['sq', { sets: 3, reps: 8, holdSeconds: null }],
-    ['plank', { sets: 2, reps: null, holdSeconds: 30 }],
-    ['nosets', { sets: null, reps: 10, holdSeconds: null }],
+  /* 팀 훈련 — 전체 → 조 → 예외(계약 11절 · 11-7 예 · 11-9 받아들임) — 선수 한 명의 실제는 memberWork 하나 */
+  const dS = new Map([
+    ['band', { sets: 2, reps: 15, holdSeconds: null }],
+    ['lunge', { sets: 2, reps: 10, holdSeconds: null }],
+    ['goblet', { sets: 3, reps: 8, holdSeconds: null }],
+    ['row', { sets: 3, reps: 10, holdSeconds: null }],
+    ['band2', { sets: 3, reps: 12, holdSeconds: null }],
+    ['bike', { sets: 1, reps: null, holdSeconds: 600 }],
   ]);
-  const work = planWork(
-    [
-      { items: [{ exerciseId: 'sq', sets: 4, reps: 5 }, { guideId: 'drill' }, { exerciseId: 'plank' }, { exerciseId: 'gone' }] },
-      { items: [{ exerciseId: 'sq', sets: 2 }, { exerciseId: 'nosets' }, { exerciseId: 'plank', holdSec: 45, sets: 99 }] },
-    ],
-    defaults
-  );
-  check('메뉴대로 — 드릴 · 지운 운동은 뺌, 같은 운동은 앞 메뉴 한 번', work.map((w) => w.exerciseId).join() === 'sq,plank,nosets');
-  check('메뉴에 적은 세트 · 횟수가 먼저', work[0].sets.length === 4 && work[0].sets.every((x) => x.reps === 5 && x.holdSeconds == null && x.weightKg == null));
-  check('안 적으면 라이브러리 기본(버티기는 초)', work[1].sets.length === 2 && work[1].sets[0].holdSeconds === 30 && work[1].sets[0].reps == null);
-  check('세트 수도 없으면 1세트', work[2].sets.length === 1 && work[2].sets[0].reps === 10);
-  check('세트는 열 개까지', planWork([{ items: [{ exerciseId: 'sq', sets: 99 }] }], defaults)[0].sets.length === 10);
-  check('세트끼리 같은 객체를 안 나눔', work[0].sets[0] !== work[0].sets[1]);
-  check('참석 응답 수', JSON.stringify(replyCounts(['yes', 'no', 'yes', null, 'maybe', 'x'])) === '{"yes":2,"no":1,"maybe":1}');
-  check('응답 · 역할 거르기', ATTEND_REPLIES.every(isAttendReply) && !isAttendReply('YES') && isOutingRole('standby') && !isOutingRole('closer'));
+  const pitchers = ['p1', 'p2', 'p3', 'p4', 'p5'];
+  const fielders = ['f1', 'f2', 'f3', 'f4'];
+  const roster = [...pitchers, ...fielders];
+  const plan = (id: string, o: Partial<SessionPlan>): SessionPlan => ({
+    id,
+    title: id,
+    scope: 'all',
+    groupName: null,
+    memberIds: [],
+    replacesPlanId: null,
+    valueMode: 'shared',
+    position: 0,
+    items: [],
+    actualItems: null,
+    ...o,
+  });
+  const plansS = [
+    plan('A', { position: 0, items: [{ exerciseId: 'band', sets: 2, reps: 15 }, { exerciseId: 'lunge', sets: 2, reps: 10 }] }),
+    plan('B1', { position: 1, scope: 'group', groupName: '투수', memberIds: pitchers, valueMode: 'individual' }),
+    plan('B2', { position: 2, scope: 'group', groupName: '야수', memberIds: fielders, items: [{ guideId: 'fungo' }] }),
+    plan('C', { position: 3, items: [{ exerciseId: 'goblet', sets: 3, reps: 8 }, { exerciseId: 'row', sets: 3, reps: 10 }] }),
+    plan('R', { position: 4, scope: 'member', memberIds: ['p5'], replacesPlanId: 'C', items: [{ exerciseId: 'band2' }] }),
+  ];
+  const base = (memberId: string, o: Partial<MemberWorkInput> = {}): MemberWorkInput => ({
+    memberId,
+    roster,
+    plans: plansS,
+    exception: null,
+    values: [],
+    defaults: dS,
+    linked: new Set(),
+    sameDay: new Set(),
+    hasUser: true,
+    active: true,
+    canTrain: true,
+    canPitch: true,
+    ...o,
+  });
+  const setsOf = (w: { work: { sets: unknown[] }[] }) => w.work.reduce((n, x) => n + x.sets.length, 0);
+  const v = (planId: string, pitchCount: number) => ({ planId, pitchCount, effortPct: 80, maxVelocity: null });
+
+  check('선수는 제 활동만 — 투수 A · B1 · C, 야수 A · B2 · C(다른 조 활동 없음)', memberPlans(plansS, roster, 'p1').map((p) => p.id).join() === 'A,B1,C' && memberPlans(plansS, roster, 'f4').map((p) => p.id).join() === 'A,B2,C');
+  check("개인 '바꾸기'는 그 조 활동을 대신(둘 다 안 셈)", memberPlans(plansS, roster, 'p5').map((p) => p.id).join() === 'A,B1,R');
+  check('명단 고정 — 대상은 담은 명단 안에서만(뒤에 들어온 사람 · 모르는 사람 없음)', planTargets({ memberIds: ['p1', 'new'] }, roster).join() === 'p1' && planTargets({ memberIds: [] }, roster).length === roster.length);
+  const same = memberWork(base('f4'));
+  check('같음 야수 — 워밍업 4 + 근력 6 = 코치 세트 10 · 무게 모름 · 기록함', setsOf(same) === 10 && same.status === 'recorded' && same.work.every((x) => x.sets.every((y) => y.weightKg == null)));
+  check('드릴 활동은 함 표시만 — 세트 · 부하에 0', same.drills.join() === 'fungo' && !same.work.some((x) => x.exerciseId === 'fungo'));
+  const p5 = memberWork(base('p5', { values: [v('B1', 30)] }));
+  check('투수 — 적은 투구만 남음 · 바꾸기 활동 세트(밴드 루틴)', p5.pitch.length === 1 && p5.pitch[0].pitchCount === 30 && p5.work.some((x) => x.exerciseId === 'band2') && !p5.work.some((x) => x.exerciseId === 'goblet'));
+  const p4 = memberWork(base('p4'));
+  check("투구 수를 비운 투수 — 세트는 그대로 · 투구 없음 · '투구 수 안 적음'", setsOf(p4) === 10 && p4.pitch.length === 0 && p4.reasons.includes('no_pitch') && p4.status === 'recorded');
+  check('조 전체에 같은 투구 수가 들어가는 길이 없음 — 값은 그 선수 것만', memberWork(base('p4', { values: [] })).pitch.length === 0 && memberWork(base('p2', { values: [v('B1', 25)] })).pitch[0].pitchCount === 25);
+  const reduced = { items: [{ planId: 'C', kind: 'reduced' as const, items: [{ exerciseId: 'goblet', sets: 2, reps: 8 }, { exerciseId: 'row', sets: 2, reps: 10 }], note: '어깨 피로' }], extra: [], separate: [] };
+  const p2 = memberWork(base('p2', { exception: reduced, values: [v('B1', 40)] }));
+  check('줄임 — 워밍업 4 + 근력 4 = 8세트 + 불펜 투구', setsOf(p2) === 8 && p2.pitch.length === 1);
+  const absent = { items: ['A', 'B1', 'C'].map((planId) => ({ planId, kind: 'absent' as const })), extra: [], separate: [] };
+  const p1 = memberWork(base('p1', { exception: absent, values: [v('B1', 20)] }));
+  check('빠짐 — 아무것도 안 생김 · 결과 빠짐', p1.status === 'absent' && p1.work.length === 0 && p1.pitch.length === 0 && p1.drills.length === 0);
+  const partial = { items: ['B2', 'C'].map((planId) => ({ planId, kind: 'absent' as const })), extra: [], separate: [] };
+  check('일부 참여(A 까지) — 워밍업 4세트만', setsOf(memberWork(base('f2', { exception: partial }))) === 4 && memberWork(base('f2', { exception: partial })).status === 'recorded');
+  const linked = memberWork(base('p3', { linked: new Set(['goblet', 'row']), values: [v('B1', 30)] }));
+  check('일정에 이은 선수 기록 — 그 운동은 맞춤(코치 세트 안 씀) · 결과 내 기록으로 맞춤', linked.status === 'reconciled' && linked.reconciled.join() === 'goblet,row' && setsOf(linked) === 4);
+  const held = memberWork(base('f3', { sameDay: new Set(['goblet']) }));
+  check('안 이은 같은 날 같은 운동 — 그 운동만 보류 · 확인 필요 · 나머지는 씀', held.status === 'needs_check' && held.held.join() === 'goblet' && setsOf(held) === 7);
+  const sep = memberWork(base('f3', { sameDay: new Set(['goblet']), exception: { items: [], extra: [], separate: ['goblet'] } }));
+  check("'따로 한 운동이에요' — 팀 기록도 남김(둘 다)", sep.status === 'recorded' && setsOf(sep) === 10);
+  check('앱 연결 대기 — 남길 수 없음 · 쓰지 않음', memberWork(base('f4', { hasUser: false })).status === 'blocked' && !memberWork(base('f4', { hasUser: false })).writeTraining);
+  check('팀을 떠남 — 남길 수 없음(떠남)', memberWork(base('f4', { active: false })).reasons.join() === 'left');
+  const priv = memberWork(base('f4', { canTrain: false }));
+  check('트레이닝 비공개 — 세트 안 씀 · 지금 기록 그대로 · 남길 수 없음', priv.status === 'blocked' && priv.work.length === 0 && !priv.writeTraining && priv.reasons.includes('training_private'));
+  const pp = memberWork(base('p5', { canPitch: false, values: [v('B1', 30)] }));
+  check('투구 비공개 — 투구 안 씀 · 세트는 씀', pp.pitch.length === 0 && !pp.writePitch && pp.reasons.includes('pitch_private') && pp.work.length > 0 && pp.status === 'recorded');
+  check('다른 운동 — 그 활동 대신 적은 운동', memberWork(base('f4', { exception: { items: [{ planId: 'C', kind: 'substitute', items: [{ exerciseId: 'bike' }] }], extra: [], separate: [] } })).work.map((x) => x.exerciseId).join() === 'band,lunge,bike');
+  check('더 함 — 덧붙인 운동', memberWork(base('f4', { exception: { items: [], extra: [{ items: [{ exerciseId: 'bike', sets: 1, holdSec: 300 }] }], separate: [] } })).work.some((x) => x.exerciseId === 'bike' && x.sets[0].holdSeconds === 300));
+  check('서로 다른 활동의 같은 운동은 둘 다 셈(세트가 이어 붙음)', linesToWork([{ exerciseId: 'lunge', sets: 2 }, { exerciseId: 'lunge', sets: 3 }], dS)[0].sets.length === 5);
+  check('예외 줄의 무게만 세트에 들어감', linesToWork([{ exerciseId: 'goblet', sets: 2, reps: 8, weightKg: 20 }], dS)[0].sets.every((x) => x.weightKg === 20));
+  /* 조 실제를 고침 — 예외 없는 선수만 바뀌고 줄임 선수 값은 안 흔들림 */
+  const rain = plansS.map((p) => (p.id === 'C' ? { ...p, actualItems: [{ exerciseId: 'goblet', sets: 2, reps: 8 }, { exerciseId: 'row', sets: 2, reps: 10 }] } : p));
+  check('다시 보내도 같은 지문(몇 번 눌러도 한 벌)', workHash(memberWork(base('f4'))) === workHash(memberWork(base('f4'))));
+  check('조 실제를 고치면 예외 없는 선수는 바뀜 · 8세트', workHash(memberWork(base('f4', { plans: rain }))) !== workHash(same) && setsOf(memberWork(base('f4', { plans: rain }))) === 8);
+  check('줄임 선수는 제 값 그대로(지문 같음)', workHash(memberWork(base('p2', { plans: rain, exception: reduced, values: [v('B1', 40)] }))) === workHash(p2));
+  check("줄임이 새 조 실제와 같아지면 '예외를 풀까요'", sameAsGroup(reduced.items[0], rain.find((p) => p.id === 'C')!, dS) && !sameAsGroup(reduced.items[0], plansS.find((p) => p.id === 'C')!, dS));
+  check('투구 열쇠 — 같은 훈련 · 활동이면 한 줄', teamPitchKey('e1', 'B1') === 'team:e1:B1');
+  const big = Array.from({ length: 25 }, (_, i) => `m${i}`);
+  const exMap = new Map(big.map((id, i) => [id, i < 5 ? absent : null]));
+  check("확인 단추 — '같음 20 · 예외 5'", JSON.stringify(confirmSummary(big, exMap)) === '{"same":20,"exceptions":5}');
+  const known = { exercises: new Set(['goblet', 'row', 'bike']), guides: new Set(['fungo']) };
+  check('조 실제는 무게를 안 받음', (cleanLines([{ exerciseId: 'goblet', sets: 2, weightKg: 40 }], known, false) as { weightKg?: number }[])[0].weightKg === undefined);
+  check('처방 거르기 — 모르는 운동 막음 · 세트 1~10', 'error' in cleanLines([{ exerciseId: 'zz' }], known, false) && !('error' in cleanLines([{ exerciseId: 'goblet', sets: 99 }], known, false)) && (cleanLines([{ exerciseId: 'goblet', sets: 99 }], known, false) as { sets?: number }[])[0].sets === undefined);
+  check('예외 거르기 — 남의 활동 · 한 활동에 둘 · 줄 없는 줄임 막음', 'error' in (cleanException({ items: [{ planId: 'X', kind: 'absent' }] }, ['A'], known) ?? {}) && 'error' in (cleanException({ items: [{ planId: 'A', kind: 'absent' }, { planId: 'A', kind: 'absent' }] }, ['A'], known) ?? {}) && 'error' in (cleanException({ items: [{ planId: 'A', kind: 'reduced', items: [] }] }, ['A'], known) ?? {}));
+  check('예외가 비면 조와 같음(null)', cleanException({ items: [] }, ['A'], known) === null && cleanException(null, ['A'], known) === null);
+  check('값 거르기 — 투구를 받는 활동만 · 강도 필수 · 빈 투구 수는 지움', 'error' in cleanValues([{ planId: 'A', pitchCount: 20, effortPct: 80 }], ['B1']) && 'error' in cleanValues([{ planId: 'B1', pitchCount: 20 }], ['B1']) && (cleanValues([{ planId: 'B1', pitchCount: '' }], ['B1']) as unknown[]).length === 0);
+  check('값 거르기 — 투구 수 1~500 · 구속 30~200', 'error' in cleanValues([{ planId: 'B1', pitchCount: 501, effortPct: 80 }], ['B1']) && 'error' in cleanValues([{ planId: 'B1', pitchCount: 20, effortPct: 80, maxVelocity: 20 }], ['B1']));
+  check('역할 거르기', isOutingRole('standby') && !isOutingRole('closer'));
   check('대기는 다음 등판 재료가 아님', PITCHING_ROLES.join() === 'starter,relief');
   check('엔진이 확정 등판 이름을 등판으로 읽음', isOutingTitle(OUTING_CALENDAR_TITLE));
 
@@ -761,9 +843,14 @@ console.log(
   check('app-team 동작이 있다', fns.length >= 12);
   for (const m of fns) check(`app-team.${m[1]} 이 권한부터 본다`, /coachOrg\(|myMember\(/.test(m[0]));
   check('앱 팀 동작이 허용 목록에', src('app/api/rpc/registry.ts').includes("'app-team': appTeam"));
-  check('수행일지는 선수 운동 판에 코치 세트로(writeOrgWork)', team.includes('await writeOrgWork({'));
-  check('수행일지는 가입 · 트레이닝 공유를 켠 선수만', team.includes('memberScope(p.consent, true).training'));
-  check('오지 않은 일정은 수행일지를 못 남김', team.includes("dateKey > toDateKey(appNow())"));
+  const sessionStore = src('lib/org/team-session-store.ts');
+  check('실제 확인은 선수 운동 판에 코치 세트로(writeOrgWork) · 선수마다 따로', sessionStore.includes('await writeOrgWork({ userId: m.userId, dateKey, orgEventId: event.id') && sessionStore.includes('for (const r of rows) {'));
+  check('세트는 가입 · 트레이닝 공유 · 팀에 있는 선수만, 투구는 투구 공유만', sessionStore.includes('if (m?.userId && w.writeTraining)') && sessionStore.includes('if (m?.userId && w.writePitch)') && sessionStore.includes("active: m?.status === 'ACTIVE'"));
+  check('오지 않은 · 취소된 훈련은 확인 못 함', team.includes("if (toDateKey(r.event.date) > toDateKey(appNow())) return { ok: false, error: '아직 오지 않은 훈련이에요.") && team.includes("if (r.event.status === 'canceled') return { ok: false, error: '취소된 훈련이에요.' };"));
+  check('계획 · 명단만으로는 기록 없음 — 기록을 쓰는 길은 확인(applyTeamWork) 하나', !team.includes('writeOrgWork(') && (team.match(/applyTeamWork\(/g) ?? []).length >= 3);
+  check('한 선수 실패는 그 선수만 · 실패만 다시(지문 비움)', sessionStore.includes("workStatus: 'failed', workReason: 'write_failed', workHash: null") && sessionStore.includes("r.prev.workStatus === 'failed'"));
+  check('같은 확인을 다시 보내면 안 씀(지문) · 투구는 열쇠로 고침', sessionStore.includes('if (!needsWrite(r)) {') && sessionStore.includes('where: { userId_clientKey: { userId: a.userId, clientKey } }'));
+  check('명단은 처음 한 번만 담음(그 뒤 들어오고 나간 선수와 무관)', sessionStore.includes("updateMany({ where: { id: event.id, rosterAt: null }, data: { rosterAt: appNow() } })") && sessionStore.includes('if (!event.rosterAt) return eventMemberIds(event, active);'));
   check('등판 고치면 다시 짜는 중', team.includes("update: { role, pitchLimit: n, status: 'draft'"));
   check('공지 읽음은 제 조직 공지만', team.includes('where: { id: { in: ids }, orgId: r.m.org.id }'));
   const load = src('lib/org/team-load.ts');
@@ -829,18 +916,19 @@ console.log(
     const team = src('app/actions/app-team.ts');
     const cal = src('app/actions/org-calendar.ts');
     const store = src('lib/org/team-work-store.ts');
+    const sessionStore = src('lib/org/team-session-store.ts');
     check(
-      "'메뉴대로'는 선수가 직접 남긴 그날 메뉴 운동이 있으면 멈추고, 'plan-anyway' 만 남김",
-      team.includes("const own = mode === 'plan' ? (await ownSetsOn([t.userId], t.dateKey, ids)).length : 0;") &&
-        team.includes('return { ok: false, own, error:') &&
-        store.includes('enteredById: null, exerciseId: { in: [...exerciseIds] }')
+      '맞추기 — 일정에 이은 선수 세트 · 그날 안 이은 선수 세트를 가려 읽음(코치 세트 제외)',
+      sessionStore.includes('enteredById: null, OR: [{ orgEventId: event.id }, { date: event.date, orgEventId: null }]')
     );
-    check('선수 직접 기록은 트레이닝 공유를 켠 선수만 코치에게 보임', team.includes('memberScope(p.consent, true).training);') && team.includes('ownSets: ownOf(p.id, p.userId)'));
+    check("'팀 훈련이었나요' — 잇기는 그날 안 이은 그 운동만 · 따로는 예외에 적고 다시 셈", team.includes('where: { userId: m.userId, date: event.date, enteredById: null, orgEventId: null, exerciseId }') && team.includes("separate: [...new Set([...e.separate, exerciseId])]"));
+    check('선수 직접 기록 수는 트레이닝 공유를 켠 선수만 코치에게 보임', sessionStore.includes('linkedSets: scope?.training ? linked.length : 0'));
     check(
-      '일정 지우기 · 취소는 고른 때만 코치 세트를 뺌(기본은 둠)',
-      cal.includes("if (formData.get('work') === 'remove') await clearEventWork(ev.id, user.id);") &&
-        cal.includes("if (status === 'canceled' && formData.get('work') === 'remove') await clearEventWork(ev.id, user.id);") &&
-        store.includes("items: [] });")
+      '일정 지우기 · 취소는 고른 때만 코치 세트 · 팀 투구를 뺌(기본은 둠)',
+      cal.includes("if (formData.get('work') === 'remove') await clearTeamWork(ev.id, user.id);") &&
+        cal.includes("if (status === 'canceled' && formData.get('work') === 'remove') await clearTeamWork(ev.id, user.id);") &&
+        store.includes("items: [] });") &&
+        sessionStore.includes("await prisma.pitchLog.deleteMany({ where: { clientKey: { startsWith: `team:${eventId}:` } } });")
     );
     const ev = src('native/src/app/org/event.tsx');
     check("앱 일정 지우기 · 취소가 '수행일지도 뺄까요'를 묻고 답을 보냄", ev.includes("'app-team.loadEventWork'") && ev.includes('{ id: found?.id, work }') && ev.includes('{ id: found.id, status, work }'));
@@ -864,7 +952,7 @@ console.log(
     const team = src('app/actions/app-team.ts');
     check(
       '코치에게는 체크인 공유를 켠 선수의 체크인 답만(다른 팀 · 개인 달력 안 보임)',
-      team.includes("memberScope(p.consent, true).checkin && out.get(p.id)?.status === 'confirmed'") && team.includes('calendarOutings: [] }).length ?')
+      team.includes("r.scope?.checkin && out.get(r.id)?.status === 'confirmed'") && team.includes('calendarOutings: [] }).length ?')
     );
     check('엔진은 그대로 — 팀 등판은 달력 모양으로 같은 출처', src('lib/org/team-load.ts').includes('(await teamOutingsOf(userId, from, to)).map((o) => ({ date: new Date(`${o.date}T00:00:00.000Z`), title: OUTING_CALENDAR_TITLE }))'));
   }
@@ -891,17 +979,18 @@ console.log(
         cal.includes('found.title !== title || found.memberId !== memberId') && !cal.includes('found.memo !== memo')
     );
     const team = src('app/actions/app-team.ts');
-    check("메뉴 알림은 2일 안 살아 있는 일정의 메뉴 대상만", team.includes("key > shiftDateKey(today, 2)) return;") && team.includes("await tellPlan(orgId, event, memberIds, '훈련 메뉴가 올라왔어요');"));
-    check('수행일지 알림은 남길 때만(빼기는 안 알림)', team.includes("title: '코치가 수행일지를 남겼어요'") && team.includes('if (items.length)\n    await notify(t.userId'));
+    check("메뉴 알림은 2일 안 살아 있는 일정의 활동 대상만", team.includes("key > shiftDateKey(today, 2) || targets.length === 0) return;") && team.includes("await tellPlan(orgId, event, targets, '훈련 메뉴가 올라왔어요');"));
+    check('확인 알림은 바뀐 선수에게 한 번(올라옴 · 바뀜 · 확인해 주세요)', src('lib/org/team-session-store.ts').includes("title: w.status === 'needs_check' ? '팀 훈련 기록을 확인해 주세요' : had ? '팀 훈련 기록이 바뀌었어요' : '팀 훈련 기록이 올라왔어요'"));
     check('공유 바꿈 · 나감은 대표 · 코치에게(앱 · PC)', src('app/actions/app-org.ts').includes('님이 나갔어요') && src('app/actions/app-org.ts').includes('님이 보여 주는 기록을 바꿨어요') && src('app/actions/sharing.ts').includes('notifyCoaches(member.orgId'));
     check(
       '코치 세트 바꾸기는 선수 세트(일정에 이은 것)를 안 지움',
       src('lib/org/team-work-store.ts').includes('deleteMany({ where: { sessionId: id, orgEventId: a.orgEventId, enteredById: { not: null } } })')
     );
     check(
-      "'코치가 남긴 수행' · 수행일지 수 · 고쳐 적기는 코치 세트만",
-      team.includes("where: { orgEventId: eventId, enteredById: { not: null } }, _count") && team.includes('where: { userId: p.userId, orgEventId: eventId, enteredById: { not: null } }') &&
-        team.includes("where: { orgEventId: { in: ids }, enteredById: { not: null } } })") && team.includes('where: { userId, orgEventId: { in: events.map((e) => e.id) }, enteredById: { not: null } }')
+      "'코치가 남긴 수행' · 팀 훈련 기록 카드는 코치 세트 · 팀 투구 줄만",
+      team.includes("setSummary({ userId: r.user.id, orgEventId: e.id, enteredById: { not: null } })") &&
+        team.includes('where: { userId, orgEventId: { in: events.map((e) => e.id) }, enteredById: { not: null } }') &&
+        team.includes('prisma.pitchLog.findMany({ where: { userId, clientKey: { startsWith: `team:${event.id}:` } }')
     );
     check(
       '내 기록 잇기 — 내 세트 · 그날 · 아직 안 이은 것 · 메뉴 운동(없으면 시작 뒤 것만)',
@@ -912,19 +1001,19 @@ console.log(
   {
     /* 다시 쓰기 · 오늘 브리핑(계약 10-4) */
     check('복사한 메뉴 대상 — 모두는 모두, 고른 선수는 새 일정 선수로 좁힘, 아무도 안 남으면 버림', JSON.stringify(copyPlanTargets([], ['a', 'b'])) === '[]' && JSON.stringify(copyPlanTargets(['a', 'c'], ['a', 'b'])) === '["a"]' && copyPlanTargets(['c'], ['a', 'b']) === null);
-    check('알림 명단 — 하나라도 모두면 모두, 아니면 합침', JSON.stringify(unionPlanMembers([['a'], []])) === '[]' && JSON.stringify(unionPlanMembers([['a'], ['b', 'a']])) === '["a","b"]');
     check('한 주 복사의 같은 일정', weekCopyKey({ date: '2026-11-03', time: '19:00', title: '훈련' }) === weekCopyKey({ date: '2026-11-03', time: '19:00', title: '훈련' }) && weekCopyKey({ date: '2026-11-03', time: null, title: '훈련' }) !== weekCopyKey({ date: '2026-11-03', time: '19:00', title: '훈련' }));
     const team = src('app/actions/app-team.ts');
     check(
-      '복사는 새 행만 — 참석 · 등판 · 수행은 안 옮기고, 바꾸기는 이 일정의 메뉴만 지움',
-      team.includes("...(mode === 'replace' ? [prisma.orgPlan.deleteMany({ where: { orgId, eventId: to.id } })] : [])") &&
+      '복사는 새 행만 — 실제 · 예외 · 등판 · 결과는 안 옮기고, 바꾸기는 이 일정의 활동만 지움',
+      team.includes("if (mode === 'replace') await tx.orgPlan.deleteMany({ where: { orgId, eventId: to.id } });") &&
+        !/actualItems/.test(team.slice(team.indexOf('async function createCopies'), team.indexOf('/** 지난 일정의 활동을'))) &&
         !/copyWeek[\s\S]{0,4000}orgEventAttendee\.create|copyWeek[\s\S]{0,4000}orgOuting\.create|copyWeek[\s\S]{0,4000}userExerciseSet/.test(team.slice(team.indexOf('export async function copyWeek'), team.indexOf('const dayLabelOf')))
     );
     check('한 주 복사는 같은 일정이 있으면 건너뛰고 · 떠난 회원 레슨은 안 옮기고 · 알림은 선수마다 한 번', team.includes('taken.has(weekCopyKey({ date, time: e.time, title: e.title })) || (e.memberId && !active.includes(e.memberId))') && team.includes('count.set(p.userId!, (count.get(p.userId!) ?? 0) + 1)'));
     const org = src('app/actions/app-org.ts');
     check(
-      '브리핑 — 원래 기록에서 셈(치우기 없음) · 선수 기록은 트레이닝 공유만 · 숙제 영상은 받은 것에만',
-      org.includes('memberScope(m.consent, true).training).map((m) => [m.user!.id, m])') && org.includes("where: { orgId, status: 'reported' }") && !org.includes("status: 'submitted' }, orderBy")
+      '브리핑 — 원래 기록에서 셈(치우기 없음) · 팀 훈련은 실제 확인 전 · 확인 필요 · 실패 · 정정 요청 · 숙제 영상은 받은 것에만',
+      org.includes("'실제 확인 전'") && org.includes("workStatus: { in: ['needs_check', 'failed'] }") && org.includes("kind: 'fix', resolvedAt: null") && org.includes("where: { orgId, status: 'reported' }") && !org.includes("status: 'submitted' }, orderBy")
     );
   }
   check('알림 대상 → 탭', targetTab('TEAM', 'p', 'homework') === 'mytraining' && targetTab('LESSON', 'p', 'homework') === 'homework' && targetTab('TEAM', 'c', 'inbox') === 'today' && targetTab('LESSON', 'c', 'inbox') === 'inbox' && targetTab('TEAM', 'p', 'share') === null);
@@ -943,7 +1032,8 @@ console.log(
     ['app/actions/app-lesson.ts', 'homeworkToToday'],
     ['app/actions/app-lesson.ts', 'addMyComment'],
     ['app/actions/app-lesson.ts', 'myVideoUpload'],
-    ['app/actions/app-team.ts', 'replyEvent'],
+    ['app/actions/app-team.ts', 'answerTeamCheck'],
+    ['app/actions/app-team.ts', 'requestTeamFix'],
     ['app/actions/app-team.ts', 'markNoticesRead'],
     ['app/actions/app-org.ts', 'saveConsent'],
   ] as const)
@@ -971,7 +1061,19 @@ console.log(
   check('앱 useLoad — 권한 없음은 화면을 무작정 걷지 않음', src('native/src/community/parts.tsx').includes('if (to === ORG_LOST) orgLost();'));
   const tabBar = src('native/src/shell/tab-bar.tsx');
   check('내 싱커 아래 탭 그대로(홈 · 덕아웃 · 투구 · 타격 · 더보기)', ["label: '홈'", "label: '덕아웃'", "label: '투구'", "label: '타격'", "label: '더보기'"].every((x) => tabBar.includes(x)));
-  check('쓰기 화면이 쓰던 글을 알림', ['note', 'homework', 'plan', 'work', 'notice', 'event'].every((n) => src(`native/src/app/org/${n}.tsx`).includes('useDraftGuard(')));
+  check('쓰기 화면이 쓰던 글을 알림', ['note', 'homework', 'plan', 'actual', 'exception', 'notice', 'event'].every((n) => src(`native/src/app/org/${n}.tsx`).includes('useDraftGuard(')));
+  /* 참석 기능을 걷었다(2026-10-27 김민, 계약 11-9 2) — 앱 · PC · 서버 어디에도 참석 응답 · 참석 확인 · 모두 왔어요 · 참석한 선수 모두 메뉴대로가 없다 */
+  const teamFiles = ['app/actions/app-team.ts', 'app/actions/app-org.ts', 'components/master/team-event.tsx', 'native/src/app/org/team-event.tsx', 'native/src/app/org/my-event.tsx', 'native/src/org/player.tsx', 'native/src/org/coach.tsx'];
+  check(
+    '참석 응답 · 참석 확인 단추가 앱 · PC 어디에도 없음',
+    teamFiles.every((f) => !/replyEvent|setAttended|markAllAttended|recordAttendedAsPlan|ATTEND_LABEL|모두 왔어요|가요 ·|참석한 선수 모두/.test(src(f)))
+  );
+  check('한 선수씩 같은 폼을 내지 않음 — 옛 선수별 수행일지 길(recordWork) 없음', teamFiles.every((f) => !/recordWork|loadMemberWork/.test(src(f))) && !existsSync(join(ROOT, 'native/src/app/org/work.tsx')));
+  check(
+    '조 전체에 같은 투구 수가 들어가는 길이 없음 — 투구 칸은 선수마다(saveTeamValues 는 줄마다 그 선수 값)',
+    src('app/actions/app-team.ts').includes('const v = cleanValues([{ ...x, planId: plan.id }], [plan.id]);') && !/pitchCount: count\b/.test(src('native/src/app/org/team-event.tsx'))
+  );
+  check('선수 화면은 제 결과만 — 내 회원 한 명만 셈(computeTeamWork(event, [memberId])) · 내 활동만(memberPlans)', src('app/actions/app-team.ts').includes('const t = await computeTeamWork(event, [memberId]);') && src('app/actions/app-team.ts').includes('return memberPlans(await readSessionPlans(event.id), roster, memberId);'));
   check('조직에서 연 운동은 그 공간으로 돌아옴', src('native/src/app/workout-done.tsx').includes('consumeOrgReturn()') && src('native/src/org/player.tsx').includes('setOrgReturn(spaceKeyOf(space), tab)'));
 }
 

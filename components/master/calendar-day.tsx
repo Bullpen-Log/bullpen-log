@@ -37,7 +37,7 @@ export type EventView = {
   title: string;
   memo: string | null;
   memberId: string | null;
-  /** 코치가 남긴 수행일지 세트 수 — 있으면 지울 때 같이 뺄지 묻는다 */
+  /** 코치가 남긴 팀 훈련 기록 수(세트 · 팀 투구) — 있으면 지울 때 같이 뺄지 묻는다 */
   workSets?: number;
 };
 
@@ -134,7 +134,7 @@ export function CalendarDay({
                     href={`/manage/calendar/${e.id}`}
                     className="rounded-lg px-2 py-1 text-xs font-semibold text-sky-strong hover:bg-ink/5"
                   >
-                    참석 · 메뉴
+                    훈련 · 확인
                   </Link>
                 ) : null}
                 <Button
@@ -152,7 +152,7 @@ export function CalendarDay({
                   doneToast="지웠어요."
                   ask={
                     e.workSets
-                      ? { name: 'work', yes: 'remove', no: 'keep', message: `이 일정에 남긴 수행일지 ${e.workSets}세트도 선수 기록에서 뺄까요?\n(실제로 한 운동이면 '취소'를 눌러 두세요)` }
+                      ? { name: 'work', yes: 'remove', no: 'keep', message: `이 일정에 남긴 팀 훈련 기록 ${e.workSets}개(세트 · 투구)도 선수 기록에서 뺄까요?\n(실제로 한 운동이면 '취소'를 눌러 두세요)` }
                       : undefined
                   }
                 >

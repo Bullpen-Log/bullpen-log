@@ -52,13 +52,17 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       select: { id: true, nickname: true },
     }),
   ]);
-  /* 코치가 남긴 수행일지 — 지울 때 같이 뺄지 묻는다(계약 9-6 ①-6 F, 결정 4) */
-  const work = await prisma.userExerciseSet.groupBy({
-    by: ['orgEventId'],
-    where: { orgEventId: { in: events.map((e) => e.id) }, enteredById: { not: null } },
-    _count: { _all: true },
-  });
+  /* 코치가 남긴 팀 훈련 기록(세트 · 팀 투구) — 지울 때 같이 뺄지 묻는다(계약 9-6 ①-6 F, 결정 4) */
+  const [work, pitch] = await Promise.all([
+    prisma.userExerciseSet.groupBy({
+      by: ['orgEventId'],
+      where: { orgEventId: { in: events.map((e) => e.id) }, enteredById: { not: null } },
+      _count: { _all: true },
+    }),
+    prisma.pitchLog.groupBy({ by: ['orgEventId'], where: { orgEventId: { in: events.map((e) => e.id) }, clientKey: { startsWith: 'team:' } }, _count: { _all: true } }),
+  ]);
   const workOf = new Map(work.map((w) => [w.orgEventId, w._count._all]));
+  for (const p of pitch) workOf.set(p.orgEventId, (workOf.get(p.orgEventId) ?? 0) + p._count._all);
   const views: EventView[] = events.map((e) => ({ ...e, key: e.date.toISOString().slice(0, 10), workSets: workOf.get(e.id) ?? 0 }));
   const byDay = new Map<string, EventView[]>();
   for (const v of views) byDay.set(v.key, [...(byDay.get(v.key) ?? []), v]);

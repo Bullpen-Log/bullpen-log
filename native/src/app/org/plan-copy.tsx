@@ -12,7 +12,7 @@ import { Card, Empty, st } from '~/org/parts';
 
 /**
  * 지난 일정에서 메뉴 가져오기(계약 10-4 ②) — 메뉴가 있는 이 조직 일정(지난 60일 ~ 앞으로 14일)을 골라 이 일정에 더하거나 바꾼다.
- * 복사본은 새 메뉴다: 원본을 고쳐도 안 바뀌고, 이 일정의 참석 · 수행은 그대로. 대상은 이 일정의 선수로 좁힌다(app-team.copyPlansFrom).
+ * 복사본은 새 활동이다: 원본을 고쳐도 안 바뀌고, 이 일정의 실제 · 결과는 그대로. 대상은 이 일정의 선수로 좁힌다(app-team.copyPlansFrom).
  * 주소: /org/plan-copy?org=&event=
  */
 type Loaded = Awaited<ReturnType<typeof loadPlanSources>>;
@@ -36,7 +36,7 @@ export default function PlanCopyScreen() {
       }
     })();
   const pick = (id: string, title: string) =>
-    Alert.alert(`'${title}'의 메뉴를 가져올까요?`, '더하면 이 일정의 메뉴 뒤에 붙고, 바꾸면 이 일정의 메뉴를 지우고 넣어요. 참석 · 수행은 그대로예요.', [
+    Alert.alert(`'${title}'의 메뉴를 가져올까요?`, '더하면 이 일정의 활동 뒤에 붙고, 바꾸면 이 일정의 활동을 지우고 넣어요. 실제 · 결과는 그대로예요.', [
       { text: '취소', style: 'cancel' },
       { text: '더하기', onPress: () => copy(id, 'add') },
       { text: '바꾸기', style: 'destructive', onPress: () => copy(id, 'replace') },

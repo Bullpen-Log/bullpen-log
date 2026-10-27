@@ -498,11 +498,16 @@ export async function loadInbox(orgId: string): Promise<{ ok: false; to: string 
         where: { orgId, resolvedAt: null, authorId: { in: players } },
         orderBy: { createdAt: 'desc' },
         take: 30,
-        select: { id: true, memberId: true, kind: true, body: true, createdAt: true, noteId: true, assignmentId: true },
+        select: { id: true, memberId: true, kind: true, body: true, createdAt: true, noteId: true, assignmentId: true, eventId: true },
       })
     : [];
-  const notes = await prisma.lessonNote.findMany({ where: { id: { in: rows.map((r) => r.noteId).filter((x): x is string => !!x) } }, select: { id: true, date: true } });
+  const [notes, events] = await Promise.all([
+    prisma.lessonNote.findMany({ where: { id: { in: rows.map((r) => r.noteId).filter((x): x is string => !!x) } }, select: { id: true, date: true } }),
+    /* 팀 훈련 기록의 정정 요청(계약 11-5) */
+    prisma.orgEvent.findMany({ where: { orgId, id: { in: rows.map((r) => r.eventId).filter((x): x is string => !!x) } }, select: { id: true, date: true } }),
+  ]);
   const noteDay = new Map(notes.map((n) => [n.id, toDateKey(n.date)]));
+  const eventDay = new Map(events.map((e) => [e.id, toDateKey(e.date)]));
   const nameOf = new Map(members.map((m) => [m.id, m.nickname]));
   return {
     ok: true,
@@ -513,8 +518,14 @@ export async function loadInbox(orgId: string): Promise<{ ok: false; to: string 
       kind: (r.kind in COMMENT_KIND_LABEL ? r.kind : 'question') as CommentKind,
       body: r.body,
       key: toDateKey(r.createdAt),
-      where: r.noteId ? `${noteDay.get(r.noteId) ?? ''} 일지` : r.assignmentId ? '숙제' : '',
-      rec: r.noteId ? { kind: 'note' as const, id: r.noteId, member: r.memberId } : r.assignmentId ? { kind: 'homework' as const, id: r.assignmentId, member: r.memberId } : null,
+      where: r.noteId ? `${noteDay.get(r.noteId) ?? ''} 일지` : r.assignmentId ? '숙제' : r.eventId ? `${eventDay.get(r.eventId) ?? ''} 팀 훈련` : '',
+      rec: r.noteId
+        ? { kind: 'note' as const, id: r.noteId, member: r.memberId }
+        : r.assignmentId
+          ? { kind: 'homework' as const, id: r.assignmentId, member: r.memberId }
+          : r.eventId
+            ? { kind: 'event' as const, id: r.eventId, member: r.memberId }
+            : null,
     })),
   };
 }

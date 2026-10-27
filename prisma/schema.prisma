@@ -2141,6 +2141,11 @@ model OrgEvent {
   /// 지도 활동 확인(2026-10-26 2단계) — 'planned' 예정 · 'done' 실시 · 'canceled' 취소. 출석 · 수강권과 무관(차감은 덕아웃 예약 끝남)
   status      String    @default("planned")
   doneAt      DateTime?
+  /// 팀 훈련 명단을 담은 때(2026-10-27, 계약 11절) — 있으면 이 일정의 OrgEventAttendee 줄이 곧 대상 명단(그 뒤 들고 난 선수와 무관). 없으면 옛 일정(볼 때마다 활동 선수 전부)
+  rosterAt      DateTime?
+  /// 팀 훈련 실제 확인 — 마지막으로 '이대로 확인'한 때 · 사람
+  confirmedAt   DateTime?
+  confirmedById String?
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -2226,6 +2231,8 @@ model OrgComment {
   noteId       String?
   assignmentId String?
   authorId     String
+  /// 팀 훈련 기록에 단 말(정정 요청, 2026-10-27 계약 11절)
+  eventId      String?
   /// 'comment' 말 · 'question' 질문 · 'fix' 정정 요청 · 'submit' 숙제 영상
   kind         String    @default("comment")
   body         String    @db.Text
@@ -2237,6 +2244,7 @@ model OrgComment {
 
   @@index([noteId])
   @@index([assignmentId])
+  @@index([eventId])
   @@index([orgId, resolvedAt])
 }
 
@@ -2250,6 +2258,18 @@ model OrgEventAttendee {
   note      String?
   /// 코치가 확인한 실제 참석(안 했으면 null)
   attended  Boolean?
+  /// ↑ 응답 · 참석 칸은 2026-10-27 기능을 걷어 안 쓴다(계약 11절). 아래는 팀 훈련 실제 확인 — 명단을 담은 일정(rosterAt)이면 대상 선수마다 이 줄이 있다
+  /// 예외 — { items: [{ planId, kind: 'absent'|'reduced'|'substitute', items?, note? }], extra?: [{ items, note? }], separate?: [운동 id] }. 비면 '조와 같음'
+  exception  Json?
+  /// 값을 선수마다 받는 활동의 값 — [{ planId, pitchCount, effortPct?, maxVelocity? }]
+  values     Json?
+  /// 마지막 쓰기 결과 — 'recorded' · 'reconciled' · 'needs_check' · 'blocked' · 'failed' · 'absent'
+  workStatus String?
+  /// 까닭 코드(쉼표로) — not_linked · training_private · pitch_private · left · write_failed · no_pitch
+  workReason String?
+  /// 마지막으로 쓴 내용의 지문 — 다시 확인할 때 바뀐 선수만 다시 쓴다
+  workHash   String?
+  workAt     DateTime?
   updatedAt DateTime @updatedAt
 
   @@id([eventId, memberId])
@@ -2267,6 +2287,18 @@ model OrgPlan {
   items       Json
   /// 이 메뉴를 할 선수(OrgMember.id) — 비면 그 일정의 모두
   memberIds   String[] @default([])
+  /// 팀 훈련 활동(2026-10-27, 계약 11절) — 'all' 전체(명단 모두) · 'group' 조 · 'member' 개인
+  scope          String  @default("all")
+  /// 조 이름표(고른 태그) — 이름일 뿐, 대상은 memberIds
+  groupName      String?
+  /// 개인 '바꾸기'면 그 선수가 대신하는 활동(OrgPlan.id)
+  replacesPlanId String?
+  /// 'shared' 조 공통 실제 · 'individual' 선수마다 값(투구)
+  valueMode      String  @default("shared")
+  /// 조 실제 — 확인한 처방(items 와 같은 모양). 비면 계획 그대로로 미리 채움
+  actualItems    Json?
+  /// 훈련 안 차례
+  position       Int     @default(0)
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

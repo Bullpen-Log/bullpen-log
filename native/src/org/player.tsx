@@ -1,17 +1,15 @@
 import { type Href, router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { loadMyMembership, MySpace } from '@/app/actions/app-org';
 import type { loadMyHomework } from '@/app/actions/app-lesson';
 import type { loadMyTeam, MyEventView } from '@/app/actions/app-team';
 import { EVENT_KIND_LABEL, type EventKind } from '@/lib/org/rules';
-import { ATTEND_LABEL, ATTEND_REPLIES, OUTING_ROLE_LABEL, type AttendReply } from '@/lib/org/team';
+import { OUTING_ROLE_LABEL } from '@/lib/org/team';
 import { spaceKeyOf } from '@/lib/org/space-nav';
-import { toast } from '~/shell/toast';
 import { dayWithWeekday } from '~/org/forms';
 import { HomeworkList } from '~/org/homework';
 import { TalkToggle } from '~/org/thread';
-import { LoadState, call, useLoad } from '~/community/parts';
+import { LoadState, useLoad } from '~/community/parts';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { Card, Empty, GroupTitle, KIND_WORD, Primary, dayLabel, scopeText, st } from '~/org/parts';
 import { openDugout, setOrgReturn, setSpaceTab } from '~/org/space-store';
@@ -116,7 +114,7 @@ function TeamToday({ space }: { space: MySpace }) {
       <View style={{ gap: 6 }}>
         <GroupTitle title={today.length ? '오늘' : '다음 일정'} c={c} />
         {next.length ? (
-          next.map((e) => <MyEvent key={e.id} e={e} memberId={space.memberId!} orgId={space.orgId} onChanged={() => void team.reload()} />)
+          next.map((e) => <MyEvent key={e.id} e={e} memberId={space.memberId!} orgId={space.orgId} />)
         ) : (
           <Card c={c}>
             <Empty text="2주 안에 잡힌 일정이 없어요." c={c} />
@@ -356,7 +354,7 @@ function MembershipCard({ space }: { space: MySpace }) {
   );
 }
 
-/** 다가오는 일정(3단계) — 참석 응답(가요 · 못 가요 · 아직 몰라요 + 한 줄), 내 훈련 메뉴, 확정된 등판 */
+/** 다가오는 일정(3단계) — 내 활동(전체 · 내 조 · 내 개인), 확정된 등판. 참석 응답은 없다(2026-10-27) */
 function MyEvents({ memberId, orgId }: { memberId: string; orgId: string }) {
   const c = usePalette();
   const { data, error, reload } = useLoad<Team>('app-team.loadMyTeam', memberId);
@@ -370,34 +368,15 @@ function MyEvents({ memberId, orgId }: { memberId: string; orgId: string }) {
           <Empty text="2주 안에 잡힌 일정이 없어요." c={c} />
         </Card>
       ) : (
-        data.events.map((e) => <MyEvent key={e.id} e={e} memberId={memberId} orgId={orgId} onChanged={() => void reload()} />)
+        data.events.map((e) => <MyEvent key={e.id} e={e} memberId={memberId} orgId={orgId} />)
       )}
     </View>
   );
 }
 
-/** 일정 카드 — 응답 · 메뉴 · 확정 등판. orgId 를 주면 '자세히'로 일정 하나 화면(코치가 남긴 수행 · 운동하기, 계약 9-6 ③-2) */
-export function MyEvent({ e, memberId, orgId, onChanged }: { e: MyEventView; memberId: string; orgId?: string; onChanged: () => void }) {
+/** 일정 카드 — 내 활동 · 확정 등판. orgId 를 주면 '자세히'로 일정 하나 화면(팀 훈련 기록 · 운동하기, 계약 9-6 ③-2 · 11-6) */
+export function MyEvent({ e, memberId, orgId }: { e: MyEventView; memberId: string; orgId?: string }) {
   const c = usePalette();
-  const [busy, setBusy] = useState(false);
-  const send = async (reply: AttendReply, note: string | null) => {
-    setBusy(true);
-    try {
-      const r = await call<{ ok: boolean; error?: string }>('app-team.replyEvent', memberId, e.id, reply, note);
-      if (!r.ok) return toast(('error' in r && r.error) || '보내지 못했어요.', 'error');
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
-  };
-  /* 못 가요 · 아직 몰라요는 까닭 한 줄(선택) */
-  const answer = (reply: AttendReply) =>
-    reply === 'yes'
-      ? void send(reply, null)
-      : Alert.prompt(ATTEND_LABEL[reply], '코치에게 남길 한 줄(선택)', [
-          { text: '취소', style: 'cancel' },
-          { text: '보내기', onPress: (v?: string) => void send(reply, v?.trim() || null) },
-        ], 'plain-text', e.reply === reply ? (e.note ?? '') : '');
   return (
     <Card c={c}>
       <Text style={[TYPE.sub, { color: c.muted }]}>
@@ -411,7 +390,9 @@ export function MyEvent({ e, memberId, orgId, onChanged }: { e: MyEventView; mem
       ) : null}
       {e.plans.map((p, i) => (
         <View key={i} style={{ gap: 2 }}>
-          <Text style={[TYPE.sub, { color: c.ink, fontWeight: '600' }]}>메뉴 · {p.title}</Text>
+          <Text style={[TYPE.sub, { color: c.ink, fontWeight: '600' }]}>
+            {p.scope === 'all' ? '전체' : p.scope === 'group' ? (p.groupName ?? '내 조') : '내 활동'} · {p.title}
+          </Text>
           {p.lines.map((l, j) => (
             <Text key={j} style={[TYPE.sub, { color: c.muted }]} numberOfLines={1}>
               {l.name}
@@ -420,24 +401,6 @@ export function MyEvent({ e, memberId, orgId, onChanged }: { e: MyEventView; mem
           ))}
         </View>
       ))}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {ATTEND_REPLIES.map((r) => {
-          const on = e.reply === r;
-          return (
-            <Pressable
-              key={r}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: on }}
-              disabled={busy}
-              onPress={() => answer(r)}
-              style={{ minHeight: 36, paddingHorizontal: 14, borderRadius: 18, justifyContent: 'center', backgroundColor: on ? c.sky : c.page, opacity: busy ? 0.5 : 1 }}
-            >
-              <Text style={{ color: on ? '#fff' : c.ink, fontSize: 15, fontWeight: '600' }}>{ATTEND_LABEL[r]}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      {e.note ? <Text style={[TYPE.sub, { color: c.muted }]}>남긴 말 · {e.note}</Text> : null}
       {orgId ? (
         <Pressable
           accessibilityRole="button"
@@ -445,7 +408,7 @@ export function MyEvent({ e, memberId, orgId, onChanged }: { e: MyEventView; mem
           hitSlop={6}
           style={{ minHeight: 40, justifyContent: 'center' }}
         >
-          <Text style={[TYPE.sub, { color: c.link, fontWeight: '600' }]}>수행 · 운동하기 ›</Text>
+          <Text style={[TYPE.sub, { color: c.link, fontWeight: '600' }]}>팀 훈련 기록 · 운동하기 ›</Text>
         </Pressable>
       ) : null}
     </Card>
