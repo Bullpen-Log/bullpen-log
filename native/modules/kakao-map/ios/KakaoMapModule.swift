@@ -48,12 +48,7 @@ final class KakaoMapView: ExpoView, MapControllerDelegate {
   private var active = false
   private var markers: [KakaoMarker] = []
   private var markersByID: [String: KakaoMarker] = [:]
-  private var displayed: [String: KakaoMarker] = [:]
-  private var updatingMarkers = false
-  private var markerRevision = 0
-  private var layerGeneration = 0
   private var selected: String?
-  private var drawnSelected: KakaoMarker?
   private var fitted = false
 
   required init(appContext: AppContext? = nil) {
@@ -111,8 +106,7 @@ final class KakaoMapView: ExpoView, MapControllerDelegate {
     }) else { return }
     markers = valid
     markersByID = Dictionary(valid.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
-    markerRevision += 1
-    reconcileMarkers()
+    draw()
     if !fitted { fit() }
   }
 
@@ -143,11 +137,7 @@ final class KakaoMapView: ExpoView, MapControllerDelegate {
     self.map = map
     map.viewRect = bounds
     setUpLayer(map)
-    layerGeneration += 1
-    updatingMarkers = false
-    displayed.removeAll()
-    drawnSelected = nil
-    reconcileMarkers()
+    draw()
     fit()
     onReady([:])
   }
@@ -199,35 +189,10 @@ final class KakaoMapView: ExpoView, MapControllerDelegate {
     manager.addPoiStyle(PoiStyle(styleID: "pinOn", styles: [PerLevelPoiStyle(iconStyle: on, textStyle: text, level: 0)]))
   }
 
-  private func reconcileMarkers() {
+  private func draw() {
     guard let layer = map?.getLabelManager().getLodLabelLayer(layerID: "places") else { return }
-    guard !updatingMarkers else { return }
-    // Reconcile one snapshot at a time: removal is asynchronous in Kakao's SDK.
-    let desired = markersByID
-    let changes = markerChanges(current: displayed, desired: desired) { old, next in
-      old.lat == next.lat && old.lng == next.lng && old.name == next.name
-    }
-    let removed = changes.removed
-    let added = changes.added
-    guard !removed.isEmpty || !added.isEmpty else { updateSelection(previous: nil); return }
-    updatingMarkers = true
-    let revision = markerRevision
-    let generation = layerGeneration
-    let finish = { [weak self] in
-      guard let self, self.layerGeneration == generation else { return }
-      for id in removed { self.displayed.removeValue(forKey: id) }
-      self.addMarkers(added, to: layer)
-      self.updatingMarkers = false
-      self.updateSelection(previous: nil)
-      // Props may have changed while the SDK was removing the previous snapshot.
-      if self.markerRevision != revision { self.reconcileMarkers() }
-    }
-    if removed.isEmpty { finish() }
-    else { layer.removeLodPois(poiIDs: removed) { DispatchQueue.main.async(execute: finish) } }
-  }
-
-  private func addMarkers(_ added: [KakaoMarker], to layer: LodLabelLayer) {
-    let options = added.map { m in
+    layer.clearAllItems()
+    let options = markers.map { m in
       let option = PoiOptions(styleID: "pin", poiID: m.id)
       option.rank = 0
       option.clickable = true
@@ -236,15 +201,12 @@ final class KakaoMapView: ExpoView, MapControllerDelegate {
       }
       return option
     }
-    let positions = added.map { MapPoint(longitude: $0.lng, latitude: $0.lat) }
+    let positions = markers.map { MapPoint(longitude: $0.lng, latitude: $0.lat) }
     if !options.isEmpty, let pois = layer.addLodPois(options: options, at: positions) {
-      let byID = Dictionary(added.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
-      for poi in pois {
-        _ = poi.addPoiTappedEventHandler(target: self, handler: KakaoMapView.tapped)
-        if let marker = byID[poi.itemID] { displayed[poi.itemID] = marker }
-      }
-      layer.showLodPois(poiIDs: pois.map { $0.itemID })
+      for poi in pois { _ = poi.addPoiTappedEventHandler(target: self, handler: KakaoMapView.tapped) }
+      layer.showAllLodPois()
     }
+    updateSelection(previous: nil)
   }
 
   // Change at most the previous and current marker; never rebuild the collection.
@@ -253,16 +215,8 @@ final class KakaoMapView: ExpoView, MapControllerDelegate {
           let layer = manager.getLodLabelLayer(layerID: "places"),
           let selectedLayer = manager.getLabelLayer(layerID: "selected-place") else { return }
     if let previous { layer.getLodPoi(poiID: previous)?.show() }
-    guard let id = selected, let marker = markersByID[id] else {
-      if drawnSelected != nil { selectedLayer.clearAllItems(); drawnSelected = nil }
-      return
-    }
-    if let old = drawnSelected, old.id == id, old.lat == marker.lat, old.lng == marker.lng, old.name == marker.name {
-      layer.getLodPoi(poiID: id)?.hide()
-      return
-    }
     selectedLayer.clearAllItems()
-    drawnSelected = nil
+    guard let id = selected, let marker = markersByID[id] else { return }
     let option = PoiOptions(styleID: "pinOn", poiID: id)
     option.rank = 1
     option.clickable = true
@@ -273,7 +227,6 @@ final class KakaoMapView: ExpoView, MapControllerDelegate {
       layer.getLodPoi(poiID: id)?.hide()
       _ = poi.addPoiTappedEventHandler(target: self, handler: KakaoMapView.tapped)
       poi.show()
-      drawnSelected = marker
     }
   }
 
