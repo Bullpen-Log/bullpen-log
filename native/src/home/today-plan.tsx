@@ -78,7 +78,7 @@ export function TodayPlan({
         >
           <View style={styles.cellLabel}>
             <Icon name="heart-pulse" size={12} color={c.muted} strokeWidth={2.4} />
-            <Text style={[styles.label11, { color: c.muted }]}>컨디션</Text>
+            <Text style={[styles.statusLabel, { color: c.muted }]}>컨디션</Text>
           </View>
           <Text style={[styles.cellValue, { color: c.ink }]}>
             {board?.condition ? `${board.condition.value} / 10` : home.checkinDone ? '기록함' : '기록 전'}
@@ -97,9 +97,9 @@ export function TodayPlan({
         >
           <View style={styles.cellLabel}>
             <Icon name="activity" size={12} color={c.muted} strokeWidth={2.4} />
-            <Text style={[styles.label11, { color: c.muted }]}>부하 지수</Text>
+            <Text style={[styles.statusLabel, { color: c.muted }]}>부하 지수</Text>
           </View>
-          <Text numberOfLines={2} style={[styles.cellValue, { color: loadTone }]}>
+          <Text style={[styles.cellValue, { color: loadTone }]}>
             {painFirst ? '회복 안내 먼저' : load ? load.ratio.toFixed(2) : board ? '기록 부족' : '—'}
             <Text style={[styles.cellSmall, { color: c.muted }]}>
               {'  '}
@@ -157,7 +157,7 @@ function PlanCard({
     >
       <View style={styles.planTop}>
         <Icon name={icon} size={17} color={c.link} strokeWidth={2.3} />
-        <Text numberOfLines={1} style={[styles.planLabel, { color: c.ink }]}>
+        <Text style={[styles.planLabel, { color: c.ink }]}>
           {label}
         </Text>
       </View>
@@ -182,16 +182,16 @@ const styles = StyleSheet.create({
   plans: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   plan: { flexGrow: 1, minHeight: 132, borderRadius: 19, padding: 14, paddingBottom: 16, alignItems: 'flex-start' },
   planTop: { flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'stretch' },
-  planLabel: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  planLabel: { fontSize: 15, lineHeight: 21, fontWeight: '600', flexShrink: 1 },
   planValue: { fontSize: 22, lineHeight: 29, fontWeight: '700', letterSpacing: -0.7, marginTop: 11, marginBottom: 5, fontVariant: ['tabular-nums'] },
-  planUnit: { fontSize: 13, fontWeight: '400', letterSpacing: 0 },
-  planMeta: { fontSize: 12, lineHeight: 17, paddingRight: 18 },
+  planUnit: { fontSize: 15, fontWeight: '400', letterSpacing: 0 },
+  planMeta: { fontSize: 13, lineHeight: 20, paddingRight: 18 },
   arrow: { position: 'absolute', right: 13, bottom: 13 },
   status: { flexDirection: 'row', marginTop: 10, borderRadius: 16, overflow: 'hidden' },
   cell: { flex: 1, minHeight: 57, paddingVertical: 10, paddingHorizontal: 13, justifyContent: 'center', gap: 3 },
   cellLabel: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  label11: { fontSize: 11 },
-  cellValue: { fontSize: 14, lineHeight: 19, fontWeight: '600' },
-  cellSmall: { fontSize: 11, fontWeight: '400' },
+  statusLabel: { fontSize: 13, lineHeight: 19 },
+  cellValue: { fontSize: 16, lineHeight: 23, fontWeight: '600' },
+  cellSmall: { fontSize: 13, fontWeight: '400' },
   split: { width: StyleSheet.hairlineWidth },
 });

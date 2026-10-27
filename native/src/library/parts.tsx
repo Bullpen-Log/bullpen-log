@@ -188,7 +188,7 @@ export function LibraryTile({ title, thumbUrl, favorite, onPress, c }: { title: 
       </View>
       {/* 한 줄 이름 카드는 옆 두 줄 카드 높이로 늘어나 — 글을 세로 가운데에(웹 5b2e75cb) */}
       <View style={st.tileName}>
-        <Text numberOfLines={2} style={{ color: c.ink, fontSize: 15, fontWeight: '600', lineHeight: 19 }}>
+        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600', lineHeight: 22 }}>
           {title}
         </Text>
       </View>

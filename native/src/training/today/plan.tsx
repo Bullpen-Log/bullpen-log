@@ -48,11 +48,11 @@ export function NoticeBand({ notice, fields, c, a }: { notice: StateNotice; fiel
         <View style={{ flex: 1, gap: 4 }}>
           <Text style={[s.bodyBold, { color: c.warn }]}>{STATE_NOTICE_TEXT.title}</Text>
           {[...notice.lines, ...(notice.more > 0 ? [moreText(notice.more)] : [])].map((line, i) => (
-            <Text key={i} style={[s.small, { color: c.warn }]}>
+            <Text key={i} style={[s.body, { color: c.warn }]}>
               · {line}
             </Text>
           ))}
-          {notice.note ? <Text style={[s.small, { color: c.warn }]}>{notice.note}</Text> : null}
+          {notice.note ? <Text style={[s.body, { color: c.warn }]}>{notice.note}</Text> : null}
         </View>
       </View>
       {notice.canRemake ? (
@@ -258,7 +258,7 @@ export function PrefsCard({ prefs, today, c, a }: { prefs: NonNullable<TrainingT
           </>
         ) : null}
         {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
-        <BigButton c={c} busy={busy} label={busy ? '저장 중…' : '이대로 할래요'} onPress={() => void save()} />
+        <BigButton c={c} busy={busy} label={busy ? '저장 중…' : '선택 저장'} onPress={() => void save()} />
       </View>
     </View>
   );
@@ -399,7 +399,7 @@ export function PlanBody({
           <View style={{ width: `${all.length ? (doneCount / all.length) * 100 : 0}%`, backgroundColor: c.action, borderRadius: 4 }} />
         </View>
         {doneCount === 0 && all.length > 0 ? (
-          <Text style={[s.tiny, { color: c.muted }]}>마친 운동을 눌러 표시해 주세요. 운동 부하와 다음 일정에 들어가요.</Text>
+          <Text style={[s.tiny, { color: c.muted }]}>완료한 운동을 체크하면 운동 부하와 다음 일정에 반영돼요.</Text>
         ) : null}
       </View>
       {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
@@ -452,8 +452,8 @@ export function PlanBody({
             <Text style={[s.smallBold, { color: c.link }]}>
               자동 맞춤 <Text style={{ color: c.muted, fontWeight: '400' }}>{plan.autoPain.summary}</Text>
             </Text>
-            <Text style={[s.small, { color: c.ink }]}>{plan.autoPain.reason}</Text>
-            {plan.autoPain.caution ? <Text style={[s.tiny, { color: c.muted }]}>메모를 보고 조심한 곳: {plan.autoPain.caution}</Text> : null}
+            <Text style={[s.body, { color: c.ink }]}>{plan.autoPain.reason}</Text>
+            {plan.autoPain.caution ? <Text style={[s.body, { color: c.warn }]}>메모를 보고 조심한 곳: {plan.autoPain.caution}</Text> : null}
             <Text style={[s.small, { color: c.warn }]}>메모에 통증 같은 말이 있어요.</Text>
             <LinkRow c={c} label="통증이면 체크인 고치기" onPress={a.checkin} />
           </View>
@@ -556,16 +556,16 @@ function ExerciseRow({
             >
               <SymbolView name={r.done ? 'checkmark.circle.fill' : 'circle'} size={24} tintColor={r.done ? c.sky : c.muted} />
               <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                <Text numberOfLines={2} style={[s.bodyBold, { color: c.ink }]}>
+                <Text style={[s.bodyBold, { color: c.ink }]}>
                   {r.title}
                 </Text>
                 <Text numberOfLines={1} style={[s.tiny, { color: c.muted }]}>
                   {r.category}
                   {r.manual ? ' · 직접 넣음' : ''}
                 </Text>
-                {r.prescription ? <Text style={[s.small, { color: c.ink }]}>{r.prescription}</Text> : null}
+                {r.prescription ? <Text style={[s.body, { color: c.ink, fontWeight: '600' }]}>{r.prescription}</Text> : null}
                 {r.reason ? <Text style={[s.tiny, { color: c.link }]}>{r.reason}</Text> : null}
-                {r.unsafe ? <Text style={[s.tiny, { color: c.warn }]}>오늘 몸 상태에는 권하지 않는 운동이에요</Text> : null}
+                {r.unsafe ? <Text style={[s.body, { color: c.warn }]}>오늘 몸 상태에는 권하지 않는 운동이에요</Text> : null}
               </View>
               {/* 사진은 오른쪽(웹 check-row 와 같다) */}
               {r.thumbUrl ? <Thumb uri={r.thumbUrl} style={[st.thumb, { backgroundColor: c.line }]} /> : null}
@@ -659,7 +659,7 @@ function NoteView({ note, anyDone, today, c, a }: { note: TrainingToday['note'];
     <Card c={c}>
       <View style={{ gap: 2 }}>
         <Text style={[s.bodyBold, { color: c.ink }]}>오늘 운동은 어땠나요?</Text>
-        <Text style={[s.tiny, { color: c.muted }]}>하루에 한 번만 적으면 돼요. 투구와 함께 몸에 걸린 부담을 보는 데 써요.</Text>
+        <Text style={[s.tiny, { color: c.muted }]}>투구 기록과 함께 훈련 부하 계산에 반영돼요.</Text>
       </View>
       <Text style={[s.smallBold, { color: c.ink }]}>운동 강도 · {value == null ? '아직 안 골랐어요' : `${value} / 10`}</Text>
       <View style={[s.row, { gap: 6 }]}>

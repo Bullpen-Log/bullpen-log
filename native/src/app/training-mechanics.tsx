@@ -127,13 +127,13 @@ function FavSheet({ elements, onClose, c }: { elements: AppMechanicsElementsTab 
     <Sheet fit open onClose={onClose} title="즐겨찾기" description="별을 단 드릴" c={c}>
       {!data ? (
         failed ? (
-          <Text style={[s.small, { color: c.muted }]}>신호가 약해 불러오지 못했어요.</Text>
+          <Text style={[s.small, { color: c.muted }]}>드릴을 불러오지 못했어요.</Text>
         ) : (
           <ActivityIndicator style={{ paddingVertical: 24 }} />
         )
       ) : list.length === 0 ? (
         <Text style={[s.body, s.box, { color: c.muted, backgroundColor: c.card }]}>
-          아직 즐겨찾기한 드릴이 없어요. 요소별 드릴에서 드릴 옆 별을 눌러 담아요.
+          즐겨찾기한 드릴이 없어요. 요소별 드릴에서 추가할 수 있어요.
         </Text>
       ) : (
         <View style={{ gap: 10 }}>

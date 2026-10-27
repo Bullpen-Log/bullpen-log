@@ -77,7 +77,7 @@ export function useScreenData<T>(action: string, arg: string, key: string) {
       (err: unknown) => {
         if (shown.current !== key || n !== seq.current) return;
         if (err instanceof RpcError && err.code === 'redirect') return leave(err.to ?? '/login');
-        setFailed(err instanceof RpcError && err.code === 'update' ? '앱을 업데이트해 주세요.' : '신호가 약해 불러오지 못했어요.');
+        setFailed(err instanceof RpcError && err.code === 'update' ? '앱을 업데이트해 주세요.' : '불러오지 못했어요.');
       }
     );
   }, [action, arg, key]);
@@ -307,11 +307,11 @@ export const s = StyleSheet.create({
   box: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, overflow: 'hidden' },
   textBtn: { minHeight: 44, paddingHorizontal: 10, justifyContent: 'center' },
   title: { fontSize: 20, fontWeight: '700', lineHeight: 26 },
-  tiny: { fontSize: 13, lineHeight: 16 },
-  small: { fontSize: 13, lineHeight: 18 },
+  tiny: { fontSize: 13, lineHeight: 19 },
+  small: { fontSize: 13, lineHeight: 20 },
   smallBold: { fontSize: 13, fontWeight: '600' },
-  body: { fontSize: 15, lineHeight: 21 },
-  bodyBold: { fontSize: 15, fontWeight: '600', lineHeight: 21 },
+  body: { fontSize: 16, lineHeight: 24 },
+  bodyBold: { fontSize: 17, fontWeight: '600', lineHeight: 24 },
   center: { textAlign: 'center' },
 });
 

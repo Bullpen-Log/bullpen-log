@@ -48,8 +48,8 @@ export function SinkerDugoutHome({
         <Link href={summary.href} className="flex min-h-16 items-center gap-3 rounded-[20px] bg-surface px-4 py-3 transition-colors active:bg-ink/4">
           <TicketGlyph />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[16px] font-semibold text-ink">{summary.title}</span>
-            <span className="mt-0.5 block truncate text-[13px] text-muted tabular-nums">{summary.sub}</span>
+            <span className="block text-[17px] leading-6 font-semibold text-ink">{summary.title}</span>
+            <span className="mt-1 block text-[15px] leading-[1.5] text-muted tabular-nums">{summary.sub}</span>
           </span>
           <span aria-hidden className="shrink-0 text-muted">
             ›
@@ -71,7 +71,7 @@ export function SinkerDugoutHome({
             }
           />
           <Line action={<Pill href={need('/community/new?board=meetup')}>번개 만들기</Pill>}>
-            다가오는 모집 중 번개가 없어요. 캐치볼 · 배팅 · 펑고를 같이 할 사람을 모아 봐요.
+            모집 중인 번개가 없어요.
           </Line>
         </section>
       ) : (
@@ -128,8 +128,8 @@ export function SinkerDugoutHome({
         >
           <span className="min-w-0 flex-1">
             <span className="block text-[13px] text-muted">기록으로 글 쓰기</span>
-            <span className="block truncate text-[15px] font-semibold text-ink">{record.title}</span>
-            <span className="block truncate text-[13px] text-muted">{record.detail}</span>
+            <span className="block text-[17px] leading-6 font-semibold text-ink">{record.title}</span>
+            <span className="block text-[15px] leading-[1.5] text-muted">{record.detail}</span>
           </span>
           <span className="shrink-0 text-[15px] text-sky">글 쓰기 ›</span>
         </Link>
@@ -140,7 +140,7 @@ export function SinkerDugoutHome({
 
 function Line({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-[20px] bg-surface px-4 py-4">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] bg-surface px-4 py-4">
       <p className="min-w-0 text-[15px] text-muted">{children}</p>
       {action}
     </div>

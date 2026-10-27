@@ -61,7 +61,7 @@ export function AddToRoutine({ exerciseId, title, c }: { exerciseId: string; tit
       <Sheet open={open} onClose={() => setOpen(false)} title="내 루틴에 담기" description={title} c={c}>
         <View style={{ gap: 12 }}>
           {routines.length === 0 ? (
-            <Text style={[st.body, { color: c.muted }]}>아직 만든 루틴이 없어요. 이 운동으로 새 루틴을 시작해 보세요.</Text>
+            <Text style={[st.body, { color: c.muted }]}>저장한 루틴이 없어요.</Text>
           ) : (
             routines.map((r) => {
               const inside = contains(r);

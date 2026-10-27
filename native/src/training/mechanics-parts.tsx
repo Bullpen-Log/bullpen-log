@@ -35,6 +35,7 @@ import { Star } from './fav-button';
 import { Sheet } from '~/workout/sheets';
 import { fromApp } from '~/shell/web-nav';
 import { Press } from '~/shell/press';
+import { TYPE } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 
 /**
@@ -94,22 +95,22 @@ function Btn({
 export function OverviewDetail({ c }: { c: Palette }) {
   return (
     <View style={{ gap: 12 }}>
-      <Text style={[s.body, { color: c.ink }]}>{MECHANICS_OVERVIEW.lead}</Text>
+      <Text style={[TYPE.reading, { color: c.ink }]}>{MECHANICS_OVERVIEW.lead}</Text>
       <View style={{ gap: 6 }}>
         {MECHANICS_ELEMENTS.map((el) => (
           <View key={el.key} style={[s.row, { gap: 8, alignItems: 'flex-start' }]}>
             <Num n={el.order} c={c} />
-            <Text style={[s.body, { color: c.muted, flex: 1 }]}>
+            <Text style={[TYPE.reading, { color: c.ink, flex: 1 }]}>
               <Text style={{ color: c.ink, fontWeight: '700' }}>{el.name}</Text> {el.line}
             </Text>
           </View>
         ))}
       </View>
       <Text style={[s.bodyBold, { color: c.ink }]}>왜 순서가 중요한가요</Text>
-      <Text style={[s.body, { color: c.ink }]}>{MECHANICS_OVERVIEW.whyOrder}</Text>
+      <Text style={[TYPE.reading, { color: c.ink }]}>{MECHANICS_OVERVIEW.whyOrder}</Text>
       <Text style={[s.bodyBold, { color: c.ink }]}>이렇게 쓰세요</Text>
       {MECHANICS_OVERVIEW.howTo.map((h, i) => (
-        <Text key={h} style={[s.body, { color: c.ink }]}>
+        <Text key={h} style={[TYPE.reading, { color: c.ink }]}>
           {i + 1}. {h}
         </Text>
       ))}
@@ -274,12 +275,13 @@ export function SessionCard({
         return (
           <View key={d.guideId} style={[st.drill, { backgroundColor: c.page }]}>
             <Num n={i + 1} done={done.has(d.guideId)} c={c} />
-            <View style={{ flex: 1, gap: 2 }}>
+            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
               {d.rx ? <RxTag element={d.rx.element} c={c} /> : null}
               <Text style={[s.bodyBold, { color: c.ink }]}>{d.title}</Text>
               <Text style={[s.small, { color: c.muted }]}>
-                {d.required === false ? '보조 · 선택' : '필수'} · {d.element} · {d.stage} · {d.tool} · {d.dose}
+                {d.required === false ? '보조 · 선택' : '필수'} · {d.element} · {d.stage} · {d.tool}
               </Text>
+              {d.dose ? <Text style={[TYPE.buttonCompact, { color: c.ink }]}>{d.dose}</Text> : null}
               {d.gearNote?.replaced ? (
                 <Text style={[s.small, { color: c.muted }]}>
                   {d.gearNote.replaced}에는 {d.gearNote.need}
@@ -839,10 +841,10 @@ const shortFault = (text: string) => text.split('. ')[0].replace(/\.$/, '');
 function ElementDetail({ el, hand, c }: { el: MechanicsElement; hand: string | null; c: Palette }) {
   const t = (x: string) => sideText(x, hand);
   const part = (title: string, body: string | string[]) => (
-    <View style={{ gap: 4 }}>
-      <Text style={[s.bodyBold, { color: c.ink }]}>{title}</Text>
+    <View style={{ gap: 8 }}>
+      <Text accessibilityRole="header" style={[s.bodyBold, { color: c.ink }]}>{title}</Text>
       {(Array.isArray(body) ? body : [body]).map((b) => (
-        <Text key={b} style={[s.body, { color: c.ink }]}>
+        <Text key={b} style={[TYPE.reading, { color: c.ink }]}>
           {Array.isArray(body) ? '· ' : ''}
           {t(b)}
         </Text>

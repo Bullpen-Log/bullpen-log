@@ -112,7 +112,7 @@ export function PlanForm({
       <BigButton
         c={c}
         busy={busy}
-        label={busy ? '오늘 몸 상태에 맞추고 있어요…' : generated ? '자동 맞춤으로 다시 만들기' : '자동 맞춤으로 만들기'}
+        label={busy ? '운동 구성 중…' : generated ? '운동 다시 만들기' : '오늘 운동 만들기'}
         onPress={submit}
       />
     </View>

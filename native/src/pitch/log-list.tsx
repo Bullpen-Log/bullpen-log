@@ -443,7 +443,7 @@ const LogRow = memo(function LogRow({
               </Text>
             </Text>
             {(x.path ? x.summary : x.brief || x.summary) ? (
-              <Text numberOfLines={1} style={[styles.rowSummary, { color: c.muted }]}>
+              <Text style={[styles.rowSummary, { color: c.ink }]}>
                 {x.path ? x.summary : x.brief || x.summary}
               </Text>
             ) : null}
@@ -513,5 +513,5 @@ const styles = StyleSheet.create({
   thumb: { width: 96, aspectRatio: 16 / 9, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   rowDate: { fontSize: 15, fontWeight: '600' },
   rowType: { fontSize: 13 },
-  rowSummary: { fontSize: 13, marginTop: 2 },
+  rowSummary: { fontSize: 15, lineHeight: 22, marginTop: 4 },
 });

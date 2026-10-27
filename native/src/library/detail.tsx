@@ -1,4 +1,4 @@
-import { TYPE } from '~/lib/ui';
+import { InstructionText } from '~/shell/instruction-text';
 import { Icon } from '~/shell/icon';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -70,9 +70,7 @@ export function ExerciseDetail({ item, c, onClose }: { item: Exercise; c: Palett
             </Text>
           </Press>
         ) : desc.text ? (
-          <Text selectable style={[s.body, { color: c.muted }]}>
-            {desc.text}
-          </Text>
+          <InstructionText text={desc.text} c={c} />
         ) : (
           <Text style={[s.small, { color: c.muted }]}>아직 적힌 설명이 없어요.</Text>
         )}
@@ -122,9 +120,7 @@ export function DrillDetail({ item, c, onClose }: { item: Drill; c: Palette; onC
       ) : null}
       <Tags items={[...(item.stage ? [item.stage] : []), ...item.equipment]} c={c} />
       {item.description ? (
-        <Text selectable style={[TYPE.reading, { color: c.muted }]}>
-          {item.description}
-        </Text>
+        <InstructionText text={item.description} c={c} />
       ) : (
         <Text style={[s.small, { color: c.muted }]}>아직 적힌 설명이 없어요.</Text>
       )}
