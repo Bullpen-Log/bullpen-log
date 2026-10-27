@@ -2664,7 +2664,10 @@ model FacilityCandidate {
   hardballNotice   String?
   /// 영업 공개 근거(최근 소식 · 시간표 · 근거 부족) — 실제 영업 확인 아님
   operationNotice  String?
-  /// 수집 묶음('ORIGINAL_178' 처음 정리 · 'ADDITIONAL_256' 추가 발견)
+  /// 야구장 후보(2026-10-27)만 — 이용 경로 근거(공개 신청 · 용도만 · 문의 …) · 근거가 이 구장(면)인지. 값은 lib/market/field-candidates.ts, 레슨 · 연습장 후보는 비어 있다
+  accessNotice     String?
+  identityNotice   String?
+  /// 수집 묶음('ORIGINAL_178' 처음 정리 · 'ADDITIONAL_256' 추가 발견 · 'BASEBALL_FIELDS' 야구장 조사)
   originGroup      String?
   /// 확인 우선 꼬리표 — 수집 자료의 reviewPriorityTags + 가져오기가 찾은 충돌(업체 확인값 ↔ 공개 근거 등). 다시 가져올 때마다 다시 만든다
   reviewTags       String[]  @default([])
