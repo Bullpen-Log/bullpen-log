@@ -17,13 +17,14 @@ const LIGHT = {
   action: '#0070c9',
   onAction: '#ffffff',
   link: '#0069b4',
-  danger: '#d70015',
+  /* 칩 위 글자도 4.5:1 — #d70015 은 4.29, #047857 은 4.37 이었다(2026-10-27 HIG 검토, scripts/native-palette-selftest.mts) */
+  danger: '#c8001a',
   chip: '#e5e5ea',
   /* 주의(권하지 않음 · 통증을 남긴 날) — 사이트 --color-warn · --color-warn-bg */
   warn: '#b45309',
   warnBg: '#fffbeb',
   /* 좋음(적정 · 변화 좋음) — 사이트 --color-ok */
-  ok: '#047857',
+  ok: '#03704f',
   /* 고르개의 고른 칸 — 사이트 --color-raised */
   /* 하늘색 판 · 짙은 하늘 글자(첫날 카드 등) · 경고 · 위험 판 — 사이트 --color-sky-tint · sky-strong · warn-line · danger-bg · danger-line */
   skyTint: '#e8f3fc',
@@ -96,6 +97,18 @@ const NAVY: typeof LIGHT = {
 };
 export type Palette = typeof LIGHT;
 export const PALETTES = { light: LIGHT, dark: DARK, navy: NAVY };
+
+/*
+ * 폰 '대비 높이기'(손쉬운 사용 › 디스플레이 및 텍스트 크기)를 켰을 때 — 회색 글자 · 링크 · 상태색 · 선을 더 진하게(2026-10-27 HIG 검토,
+ * accessibility.md "provides a higher contrast color scheme when … Increase Contrast is turned on"). 글자는 바탕 · 카드 · 칩 위 모두 5.6:1 넘게
+ * (라이트 회색 글자 칩 위 7.27), 선은 카드 위 2.2~2.9 · 진한 선 3.3~5.2. 바탕 · 카드 · 주 단추 색은 그대로.
+ */
+const DARK_HC = { muted: '#c7c7cc', link: '#bae6fd', danger: '#fca5a5', warn: '#fde68a', ok: '#6ee7b7', skyStrong: '#bae6fd' };
+export const PALETTES_HIGH_CONTRAST: typeof PALETTES = {
+  light: { ...LIGHT, muted: '#48484a', link: '#00539a', danger: '#b00012', warn: '#92400e', ok: '#065f46', skyStrong: '#075985', line: '#aeaeb2', lineStrong: '#8e8e93' },
+  dark: { ...DARK, ...DARK_HC, line: '#636366', lineStrong: '#8e8e93' },
+  navy: { ...NAVY, ...DARK_HC, muted: '#cbd5e1', line: '#55657d', lineStrong: '#7b8ba3' },
+};
 
 /**
  * 글자 — 사이트와 같은 느낌(app/globals.css). 큰 제목은 굵기 800 · 자간 −0.03em(.text-heading, 휴대폰 34px),

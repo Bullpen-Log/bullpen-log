@@ -30,6 +30,7 @@
     "native-today-card:test": "node --import ./scripts/native-test-register.mjs scripts/native-today-card-selftest.mts",
     "native-org-video:test": "node --import ./scripts/native-test-register.mjs scripts/native-org-video-selftest.mts",
     "native-columns:test": "node --import ./scripts/native-test-register.mjs scripts/native-columns-selftest.mts",
+    "native-palette:test": "node --import ./scripts/native-test-register.mjs scripts/native-palette-selftest.mts",
     "native-web-route:test": "node --import ./scripts/native-test-register.mjs scripts/native-web-route-selftest.mts",
     "native-viewport:test": "node --import ./scripts/native-test-register.mjs scripts/native-viewport-selftest.mts",
     "native-log-list:test": "node --import ./scripts/native-test-register.mjs scripts/native-log-list-selftest.mts",
