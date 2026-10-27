@@ -4,7 +4,8 @@ import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PRESSED, SPACE, TYPE, usePalette } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
-import { AnalysisPill, PageHead, Segmented } from '~/shell/heading';
+import { PageHead, Segmented } from '~/shell/heading';
+import { Wordmark } from '~/shell/wordmark';
 import { ComparePickBar, LogList } from './log-list';
 import { MonthGrid } from './month-grid';
 import { PitchDayPanel } from './day-panel';
@@ -19,6 +20,7 @@ import { round1, speedLabel, toSpeed } from '@/lib/units';
 import { usePrefs } from '~/lib/prefs';
 import type { PitchLog } from './api';
 import { weekStartKey } from '@/lib/pitch-stats';
+import { PitchRecentCard } from './home-recent';
 
 /**
  * 투구 탭(앱 화면) — 종목 바의 두 칸이 이 판 하나를 나눠 쓴다(2026-10-20 김민: 종목 홈 추가).
@@ -52,8 +54,11 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
   const rowY = useRef(0);
   const viewH = useRef(0);
   const scrollY = useRef(0);
-  const { logs, error, reload } = useMonth(month);
-  const thumbs = useDayThumbs(logs);
+  // 홈은 달력에서 고른 과거 달과 별개로 오늘의 달을 읽으며 같은 달을 중복 요청하지 않는다.
+  const { logs, error, reload } = useMonth(log ? month : monthOf(today));
+  const home = { logs, error, reload };
+  // 홈에는 영상 썸네일이 없다. 달력에 들어갔을 때만 장면을 준비한다.
+  const thumbs = useDayThumbs(log ? logs : null);
   /* 탭을 옮겼다 돌아오면 새로 받는다(판은 붙어 있다) */
   useOnTabActive(() => void Promise.all([reload(), reloadFeatured(), reloadNoteDays()]));
   const notes = useNoteDays();
@@ -66,7 +71,9 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
   });
   /* 처음 펼 달 — 이번 달에 기록이 없으면 가장 최근에 기록을 남긴 달(웹 video-calendar). 한 번 정했거나 달을 직접 옮겼으면 안 건드린다 */
   const needLatest = !monthSettled && logs?.length === 0;
-  const all = useAllLogs((log && view === 'list') || needLatest);
+  // 이번 달 기록이 없을 때만 과거에서 최근 한 건을 찾는다. 매 진입마다 전체 영상을 받지 않는다.
+  const needHomeHistory = !log && home.logs !== null && !home.logs.some((l) => l.date.slice(0, 10) <= today);
+  const all = useAllLogs((log && view === 'list') || needLatest || needHomeHistory);
   if (!monthSettled && logs?.length) setMonthSettled(true);
   if (needLatest && all.logs) {
     setMonthSettled(true);
@@ -198,13 +205,28 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
       ) : (
         <>
           <PageHead title="투구">
-            <AnalysisPill view="pitch" />
+            <Wordmark size={18} color={c.ink} />
           </PageHead>
           {/*
-            매일 보는 것 먼저 — 오늘 카드(팔 상태 · 기록 남기기) · 이번 주, 그 밑에 찍으러 가는 문(2026-10-21 김민: 가독성 · 시야 검토).
-            아이패드 가로(~/lib/layout TwoColumns)는 왼쪽 오늘 카드, 오른쪽 이번 주. 좁으면 위아래 그대로
+            최초 개선안: 오늘 카드 바로 밑 도구 → 최근 기록 → 이번 주.
+            아이패드에서는 오늘/도구와 최근/주간을 두 열로, 휴대폰에서는 같은 읽기 순서로 잇는다.
           */}
-          <TwoColumns ratio={[1, 1]} gap={16} left={<PitchTodayCard today={today} />} right={<PitchWeekCard today={today} onOpen={() => onWeb('/videos?view=log')} />} />
+          <TwoColumns ratio={[1, 1]} gap={20} left={
+            <View style={{ gap: 10 }}>
+              <PitchTodayCard today={today} logs={home.logs} />
+              <View style={[styles.tools, { backgroundColor: c.card, boxShadow: c.float }]}>
+                <ToolTile icon="radar" label="구속 측정" onPress={() => router.push('/velocity?mode=speed' as Href)} />
+                {canAbs ? <><View style={[styles.toolDivider, { backgroundColor: c.line }]} /><ToolTile icon="zone" label="ABS" onPress={() => router.push('/velocity?mode=abs' as Href)} /></> : null}
+                <View style={[styles.toolDivider, { backgroundColor: c.line }]} />
+                <ToolTile icon="pitcher" label="동작 분석" onPress={() => router.push('/lab' as Href)} />
+              </View>
+            </View>
+          } right={
+            <View style={{ gap: 20 }}>
+              <PitchRecentCard today={today} logs={[...(home.logs ?? []), ...(all.logs ?? [])]} loading={home.logs === null || (needHomeHistory && all.logs === null)} error={home.error || (needHomeHistory ? all.error : null)} onAll={() => onWeb('/videos?view=log')} onRetry={() => { void home.reload(); }} />
+              <PitchWeekCard today={today} currentLogs={home.logs} onOpen={() => onWeb('/analysis?view=pitch')} />
+            </View>
+          } />
           {/*
             투구 안의 화면 넷 — 하단바는 늘 그대로 두고 여기서 들어간다(2026-10-27 HIG 검토 A안, 김민). 예전엔 투구를 누르면 하단바가 종목 바로 바뀌어
             홈 · 덕아웃 · 더보기가 사라졌다. 각 화면은 위의 '‹ 투구'(또는 하단바 투구 다시 누르기)로 돌아온다. sport=pitch 는 그 '‹ 투구'를 고르는 표시
@@ -216,15 +238,6 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
                 <LinkRow icon={x.icon} label={x.label} onPress={() => onWeb(x.href)} />
               </Fragment>
             ))}
-          </View>
-          {/*
-            찍으러 가는 문 셋 — 한 줄 같은 폭. 구속 측정 · ABS 는 같은 카메라 화면의 두 모드라 그 모드로 바로 연다(모드 고르기 시트를 건너뜀).
-            ABS 는 관리자만(lib/camera-mode.ts adminOnly)
-          */}
-          <View style={styles.tools}>
-            <ToolTile icon="radar" label="구속 측정" onPress={() => router.push('/velocity?mode=speed' as Href)} />
-            {canAbs ? <ToolTile icon="zone" label="ABS 판정" onPress={() => router.push('/velocity?mode=abs' as Href)} /> : null}
-            <ToolTile icon="pitcher" label="3D 동작 분석" onPress={() => router.push('/lab' as Href)} />
           </View>
           {/* 보는 것(운동 영상 · 투구 드릴)은 찍는 문과 무게를 달리해 목록 줄로(2026-10-21 더보기에서 옮겨 온 둘) */}
           <View style={[styles.links, { backgroundColor: c.card, boxShadow: c.float }]}>
@@ -242,12 +255,12 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
 }
 
 /** 투구 홈 '이번 주' — 던진 날 · 공 수 · 최고 구속(투구 기록 기준). 주가 지난달에 걸치면 그달 기록도 읽는다. 누르면 기록(달력) */
-function PitchWeekCard({ today, onOpen }: { today: string; onOpen: () => void }) {
+function PitchWeekCard({ today, currentLogs, onOpen }: { today: string; currentLogs: PitchLog[] | null; onOpen: () => void }) {
   const c = usePalette();
   const speed = usePrefs().speed;
   const start = weekStartKey(today);
   const prev = useMonth(monthOf(start)).logs;
-  const cur = useMonth(monthOf(today)).logs;
+  const cur = currentLogs;
   const week = useMemo(() => {
     if (!prev || !cur) return null;
     const byId = new Map<string, PitchLog>();
@@ -272,22 +285,22 @@ function PitchWeekCard({ today, onOpen }: { today: string; onOpen: () => void })
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityHint="투구 기록 달력을 열어요"
+      accessibilityLabel="이번 주 투구 요약, 기록 추이 보기"
+      accessibilityHint="투구 분석 화면을 열어요"
       onPress={onOpen}
       style={({ pressed }) => [styles.week, { backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
     >
       <View style={styles.weekHead}>
         <Text style={{ flex: 1, color: c.ink, fontSize: 17, fontWeight: '700' }}>이번 주</Text>
+        <Text style={{ color: c.link, fontSize: 12 }}>기록 추이</Text>
         <Icon name="chevron-right" size={18} color={c.muted} />
       </View>
       <View style={styles.weekRow}>
         {stats.map(([label, value, unit]) => (
           <View key={label} style={{ flex: 1, gap: 2 }}>
             <Text style={{ color: c.muted, fontSize: 13 }}>{label}</Text>
-            <Text numberOfLines={1} style={[TYPE.num, { color: c.ink, fontSize: 22 }]}>
-              {value}
-              {unit ? <Text style={{ color: c.muted, fontSize: 15 }}> {unit}</Text> : null}
-            </Text>
+            <Text numberOfLines={1} style={[TYPE.num, { color: c.ink, fontSize: 28 }]}>{value}</Text>
+            {unit ? <Text style={{ color: c.muted, fontSize: 12 }}>{unit}</Text> : null}
           </View>
         ))}
       </View>
@@ -302,10 +315,10 @@ function ToolTile({ icon, label, onPress }: { icon: IconName; label: string; onP
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [styles.tool, { backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
+      style={({ pressed }) => [styles.tool, pressed && PRESSED]}
     >
-      <Icon name={icon} size={24} color={c.link} />
-      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>
+      <Icon name={icon} size={21} color={c.link} />
+      <Text style={{ color: c.ink, fontSize: 13, fontWeight: '600', textAlign: 'center', flexShrink: 1 }}>
         {label}
       </Text>
     </Pressable>
@@ -338,12 +351,13 @@ const styles = StyleSheet.create({
   back: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', minHeight: 44, marginLeft: -6, marginBottom: -8 },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingHorizontal: 20 },
   linkLine: { height: StyleSheet.hairlineWidth, marginLeft: 52 },
-  tools: { flexDirection: 'row', gap: 8 },
+  tools: { flexDirection: 'row', alignItems: 'stretch', borderRadius: 19, padding: 4 },
+  toolDivider: { width: StyleSheet.hairlineWidth, marginVertical: 12 },
   /* 오늘 카드와 같은 판(둥글기 20 · 안쪽 20) */
   week: { borderRadius: 20, padding: 20, gap: 12 },
   weekHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   weekRow: { flexDirection: 'row', gap: 12 },
-  tool: { flex: 1, minHeight: 80, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6 },
+  tool: { flex: 1, minWidth: 0, minHeight: 64, borderRadius: 15, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 5, paddingVertical: 10 },
   /* 머리 오른쪽 '가져오기' 알약 — '분석' 알약(AnalysisPill)과 같은 44 */
   importBtn: { minHeight: 44, borderRadius: 22, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16 },
 });
