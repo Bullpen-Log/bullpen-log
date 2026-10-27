@@ -753,7 +753,7 @@ console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관�
   /* 가져오기 계획 — 메모리 DB 로 */
   const row = (id: string, o: Partial<ExistingCandidate> = {}): ExistingCandidate => ({
     id, mergedIntoId: null, coordsEdited: false, name: '옛이름', typeHint: '레슨·훈련 후보', region: '서울특별시', district: '강남구', roadAddress: '서울특별시 강남구 옛로 1',
-    address: null, lat: 37.4, lng: 127.1, mapStatus: null, lessonNotice: null, rentalNotice: null, hardballNotice: null, operationNotice: null, originGroup: null,
+    address: null, lat: 37.4, lng: 127.1, mapStatus: null, lessonNotice: null, rentalNotice: null, hardballNotice: null, operationNotice: null, accessNotice: null, identityNotice: null, originGroup: null,
     sharedPlaceGroup: null, duplicateGroup: null, reviewTags: [], collected: { externalPlaceId: id.split(':')[1] }, collectedAt: '2026-10-25', collectionStatus: 'UNVERIFIED',
     businessStatus: 'UNKNOWN', contactStatus: 'NOT_CONTACTED', consentStatus: 'NOT_REQUESTED', offersLessons: null, offersRental: null, offersHardball: null, phone: null,
     consentScope: null, verifiedAt: null, lastContactedAt: null, adminNote: null, approvedAt: null, ...o,
@@ -928,6 +928,7 @@ console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관�
   );
   const fp = planImport(fok!, [row('naver:11', { collected: { externalPlaceId: '11' } })]);
   check('카카오 장소 번호가 네이버 장소 번호와 숫자가 같아도 다른 곳으로 본다(충돌 아님)', fp.tally.conflict === 0 && fp.tally.create === 2);
+  check('레슨 · 연습장 자료는 야구장 칸(이용 경로 · 장소 대응)을 비운다', ok?.rows[0].fields.accessNotice === null && ok.rows[0].fields.identityNotice === null);
   const ffirst = run(fok!, []);
   check('야구장 파일도 빈 표에 새로 만들고, 다시 돌리면 그대로', ffirst.plan.tally.create === 2 && run(fok!, ffirst.db).plan.tally.same === 2);
 }

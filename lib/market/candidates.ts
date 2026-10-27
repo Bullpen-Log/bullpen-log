@@ -130,6 +130,9 @@ export type CollectedFields = {
   rentalNotice: string | null;
   hardballNotice: string | null;
   operationNotice: string | null;
+  /** 야구장 후보만(lib/market/field-candidates.ts) — 레슨 · 연습장은 null */
+  accessNotice: string | null;
+  identityNotice: string | null;
   originGroup: string | null;
   sharedPlaceGroup: string | null;
   duplicateGroup: string | null;
@@ -138,7 +141,7 @@ export type CollectedFields = {
 };
 export const COLLECTED_KEYS = [
   'name', 'typeHint', 'region', 'district', 'roadAddress', 'address', 'lat', 'lng', 'mapStatus', 'lessonNotice', 'rentalNotice',
-  'hardballNotice', 'operationNotice', 'originGroup', 'sharedPlaceGroup', 'duplicateGroup', 'collected', 'collectedAt', 'reviewTags',
+  'hardballNotice', 'operationNotice', 'accessNotice', 'identityNotice', 'originGroup', 'sharedPlaceGroup', 'duplicateGroup', 'collected', 'collectedAt', 'reviewTags',
 ] as const;
 
 export type CandidateImportRow = {
@@ -253,6 +256,8 @@ export function readCombinedFile(d: unknown): { file: CombinedFile | null; error
         rentalNotice: status('rental'),
         hardballNotice: status('hardball'),
         operationNotice,
+        accessNotice: null,
+        identityNotice: null,
         originGroup: strs(c.originGroups)[0] ?? null,
         sharedPlaceGroup: null,
         duplicateGroup: null,
@@ -294,6 +299,8 @@ export type ExistingCandidate = {
   rentalNotice: string | null;
   hardballNotice: string | null;
   operationNotice: string | null;
+  accessNotice: string | null;
+  identityNotice: string | null;
   originGroup: string | null;
   sharedPlaceGroup: string | null;
   duplicateGroup: string | null;

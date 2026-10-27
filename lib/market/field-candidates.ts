@@ -1,4 +1,4 @@
-import type { CollectedFields, CombinedFile } from '@/lib/market/candidates';
+import type { CombinedFile } from '@/lib/market/candidates';
 
 /**
  * 덕아웃 야구장 수집 후보(2026-10-27, 대표관리자만) — 야구장 672곳 조사 파일(5차 중간본) 읽기(순수). 표는 레슨 · 연습장과 같은 prisma FacilityCandidate.
@@ -93,15 +93,7 @@ const REGION_FROM: Record<string, string> = {
   제주: '제주특별자치도',
 };
 
-/** 가져오기가 쓸 칸 — 레슨 · 연습장 칸 + 야구장 칸 둘(표에 칸을 더한 뒤 COLLECTED_KEYS 에 넣는다) */
-export type FieldCollectedFields = CollectedFields & {
-  accessNotice: string;
-  identityNotice: string;
-};
-export type FieldReviewFile = CombinedFile & {
-  rows: (CombinedFile['rows'][number] & { fields: FieldCollectedFields })[];
-  maskedPhones: number;
-};
+export type FieldReviewFile = CombinedFile & { maskedPhones: number };
 
 type Raw = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
@@ -320,8 +312,8 @@ export function readFieldReviewFile(d: unknown): {
         rentalNotice: null,
         hardballNotice: null,
         operationNotice: operationNotice ?? null,
-        accessNotice: accessNotice ?? '',
-        identityNotice: identityNotice ?? '',
+        accessNotice: accessNotice ?? null,
+        identityNotice: identityNotice ?? null,
         originGroup: FIELD_ORIGIN,
         sharedPlaceGroup: null,
         duplicateGroup: dup,
