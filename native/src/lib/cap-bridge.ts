@@ -1,5 +1,5 @@
+import { hideSplashUnlessIntro } from '~/shell/intro';
 import * as Haptics from 'expo-haptics';
-import * as SplashScreen from 'expo-splash-screen';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { LocalVideo } from '../../modules/local-video';
@@ -113,7 +113,8 @@ async function run({ plugin, method, options: o }: CapMessage): Promise<unknown>
     setStatusBarStyle(o.style === 'LIGHT' ? 'dark' : 'light');
     return null;
   }
-  if (plugin === 'SplashScreen' && method === 'hide') return SplashScreen.hideAsync();
+  /* 사이트의 시작 화면 걷기 — 인트로가 떠 있으면 인트로가 걷는다(shell/intro.tsx) */
+  if (plugin === 'SplashScreen' && method === 'hide') return hideSplashUnlessIntro();
   if (plugin === 'ShootCamera') {
     if (method === 'status') return ShootCamera.status();
     if (method === 'record') return ShootCamera.record({ maxSeconds: Number(o.maxSeconds) || 180 });

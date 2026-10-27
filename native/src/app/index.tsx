@@ -1,7 +1,6 @@
 import * as Linking from 'expo-linking';
 import { type Href, router } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { markAppReady } from '~/shell/intro';
+import { hideSplashUnlessIntro, markAppReady } from '~/shell/intro';
 import {
   useCallback,
   useEffect,
@@ -43,7 +42,7 @@ import { resetFavorites } from '~/training/favorites';
 import { setMenu, setMenuTabs, useMenu, type MenuGroup } from '~/shell/menu-store';
 import { adoptWebValues, cacheClear, loadJson, saveJson } from '~/lib/store';
 import { onPrefsChange, PREF_KEYS, reloadPrefs } from '~/lib/prefs';
-import { useTheme } from '~/lib/ui';
+import { usePalette, useTheme } from '~/lib/ui';
 import { dropDraftNotOf } from '~/velocity/draft';
 import { markWrite, rpc, RpcError } from '~/lib/rpc';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -300,6 +299,9 @@ export default function SiteScreen() {
   /** 바꾸면 웹뷰를 새로 그린다 — 다시 불러오기(react-native-webview 14 의 WebView 는 ref 를 안 받는다) */
   const [load, setLoad] = useState(0);
   const [failed, setFailed] = useState(false);
+  /* 사이트 첫 불러오기가 끝났나(onLoadEnd · onError) — 그 전엔 빈 웹뷰 대신 앱 바탕 + 돌개(아래 첫 불러오기 판) */
+  const [webLoaded, setWebLoaded] = useState(false);
+  const page = usePalette().page;
   const dark = useTheme() !== 'light';
   const web = useRef<WebViewHandle>(null);
   /** 사이트 테마의 바탕색 — 오래 뒤에 있다 돌아와 다시 그리는 동안 흰 화면이 번쩍이지 않게(옛 앱의 bullpenTheme 과 같은 일) */
@@ -432,6 +434,7 @@ export default function SiteScreen() {
   /* 웹뷰를 새로 만들 때(다시 불러오기 · 프로세스 죽음) — 새 웹은 /today 인데 앱 상태가 옛 주소로 남아 탭 불 · 판이 어긋났다 */
   const resetWebState = () => {
     arrived();
+    setWebLoaded(false);
     route.reset();
     setPath('/today');
     setSearch('');
@@ -602,7 +605,8 @@ export default function SiteScreen() {
   );
 
   const hideSplash = useCallback(() => {
-    void SplashScreen.hideAsync();
+    void hideSplashUnlessIntro();
+    setWebLoaded(true);
     markAppReady();
   }, []);
 
@@ -816,6 +820,15 @@ export default function SiteScreen() {
           setLoad((n) => n + 1);
         }}
       />
+      {/*
+        첫 불러오기 판 — 시작 연출(2.2초)이 걷힌 뒤에도 사이트가 아직이면 빈 웹뷰 대신 앱 바탕 + 돌개. 2026-10-27 승인 시안: 예전엔 브랜드 이름을
+        사이트가 올 때까지(최대 7초) 붙잡았다. 다 불러오거나(onLoadEnd) 못 불러오면(onError → 아래 알림) 걷힌다
+      */}
+      {!webLoaded && !failed ? (
+        <View style={[StyleSheet.absoluteFill, styles.loading, { backgroundColor: page }]}>
+          <ActivityIndicator />
+        </View>
+      ) : null}
       {/* 웹 자리에만 알림 — 예전엔 껍데기 전체를 이 화면으로 바꿔 탭 막대 · 앱 탭까지 못 썼다(2026-10-21) */}
       {failed ? (
         <View style={[StyleSheet.absoluteFill, styles.offline, dark && styles.offlineDark, { paddingBottom: 24 + TAB_BAR_HEIGHT }]}>
@@ -888,6 +901,7 @@ export default function SiteScreen() {
 
 const styles = StyleSheet.create({
   web: { flex: 1, backgroundColor: '#f4f7fb' },
+  loading: { alignItems: 'center', justifyContent: 'center' },
   offline: {
     flex: 1,
     alignItems: 'center',

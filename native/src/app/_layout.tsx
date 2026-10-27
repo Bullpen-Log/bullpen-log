@@ -1,7 +1,7 @@
 import { router, Stack, usePathname } from 'expo-router';
 import { noteTransition } from '~/shell/transition';
 import { Toaster } from '~/shell/toast';
-import { Intro, markAppReady } from '~/shell/intro';
+import { Intro, SINKER_TIMING, hideSplashUnlessIntro, markAppReady } from '~/shell/intro';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -49,7 +49,8 @@ export default function RootLayout() {
   useAppUpdateOnReturn();
   useEffect(() => {
     if (path !== '/') {
-      void SplashScreen.hideAsync();
+      /* 시작 화면은 인트로가 테마 · 로고 칸을 맞춘 뒤 걷는다(인트로가 없을 때만 여기서) — 목적지 화면은 인트로가 걷히면 그대로 보인다 */
+      void hideSplashUnlessIntro();
       markAppReady();
     }
   }, [path]);
@@ -114,8 +115,8 @@ export default function RootLayout() {
       </Stack>
       {/* '저장했어요' 같은 잠깐 알림(웹 Toaster) — 쌓인 화면 위, 시계 밑 */}
       <Toaster />
-      {/* 시작 연출 — 웹 시작 연출과 같은 B → 이름(shell/intro.tsx), 사이트가 그려지면 걷힌다 */}
-      <Intro />
+      {/* 시작 연출 — 로고 → SINKER, 2026-10-27 승인 2.20초(shell/intro-timeline.ts SINKER_TIMING). 사이트가 늦으면 index.tsx 의 첫 불러오기 판이 이어 받는다 */}
+      <Intro timing={SINKER_TIMING} />
     </GestureHandlerRootView>
   );
 }

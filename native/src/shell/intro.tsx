@@ -1,5 +1,5 @@
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { StyleSheet, View, useWindowDimensions, type LayoutRectangle } from 'react-native';
 import Animated, {
   Easing,
@@ -8,28 +8,26 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
 import { prefsReady } from '~/lib/prefs';
 import { usePalette } from '~/lib/ui';
 import { MARK_ASPECT, MARK_DROP, MARK_EM, SinkerMark } from '~/shell/wordmark';
+import { LEGACY_TIMING, createIntroController, leaveEase, letterEase, markDone, markEase, type IntroTiming } from './intro-timeline';
+export { LEGACY_TIMING, SINKER_TIMING, type IntroTiming } from './intro-timeline';
 
 /*
- * 앱 시작 연출 — 웹 components/app-splash.tsx 와 같은 장면 · 같은 때(김민이 다듬은 옛 앱 IntroOverlay 그대로).
- * 2026-10-22 금윤호: 불펜로그 B → BULLPEN LOG 이던 것을 싱커 로고(초안 · 임시) → SINKER 로. 아래 'B' 는 이제 싱커 로고, 글자는 I · N · K · E · R:
- * 큰 B 0.4초 → 1초 동안 작아지며 이름의 B 칸으로(ease-in-out) → 1.25초부터 U · L · … · G 가 0.075초 간격으로 0.65초씩 밀려 나오며 진해짐 →
- * 2.9초에(사이트가 다 그려졌으면) 0.55초 동안 옅어지며 1.06배. 움직임 줄이기면 완성된 이름 1.1초 → 걷힘.
- * 큰 B 는 시작 화면(app.json splash · 바탕 #f2f2f7 = 앱 바탕)과 같은 크기 · 자리 · 색이라 시작 화면을 걷는 순간이 이어진다.
+ * 앱 시작 연출 — 큰 로고 → 이름의 로고 칸으로 → 글자가 밀려 나옴 → 걷힘. 시간표 · 곡선은 shell/intro-timeline.ts(순수, 시험 있음).
+ * 싱커는 2026-10-27 김민이 고른 2.20초(SINKER_TIMING, app/_layout.tsx 가 넘긴다), 덕아웃 앱은 예전 3.45초(LEGACY_TIMING — 기본값).
+ * 2026-10-22 금윤호: 불펜로그 B → BULLPEN LOG 이던 것을 싱커 로고 → SINKER 로(아래 'B' 는 이제 로고, 글자는 I · N · K · E · R).
+ * 움직임 줄이기면 완성된 이름 1.1초 → 걷힘(움직임 없이). 웹 PC 시작 연출(components/app-splash.tsx)은 예전 시간 그대로라 이제 싱커 앱과 다르다.
+ * 큰 로고는 시작 화면(app.json splash · 바탕 = 앱 바탕)과 같은 크기 · 자리 · 색이라 시작 화면을 걷는 순간이 이어진다.
+ * 가림막이 떠 있는 동안은 밑 화면을 누를 수 없다(예전엔 pointerEvents none 이라 보이지 않는 단추가 눌렸다) · VoiceOver 도 가림막 안에만.
  */
-const MOVE_AT = 400;
-const MOVE_MS = 1000;
-const LETTER_AT = 1250;
-const LETTER_GAP = 75;
-const LETTER_MS = 650;
-const SETTLE_MS = 2900;
-const LEAVE_MS = 550;
-const REDUCED_HOLD_MS = 1100;
+/* 칸을 못 재거나 테마를 못 읽어도 이만큼 뒤엔 시작한다(시작 화면이 영영 안 걷히지 않게) */
+const START_FALLBACK_MS = 2500;
 /*
  * 큰 B = 150pt(웹 app-splash 의 '긴 변 16%'와 거의 같다 — 852 화면 136 · 932 화면 149, 2026-10-19 김민: "너무 큰 상태에서 작아진다").
  * 시작 화면은 app.json splash imageWidth 300 — 그림(assets/splash.png)의 로고가 한 변의 절반 높이라 300 × 256/512 = 150pt, 같은 가운데.
@@ -61,7 +59,10 @@ const SINKER_LOOK: IntroLook = {
   mark: (h) => <SinkerMark height={h} />,
 };
 
-/* 사이트(웹 껍데기)가 다 그려졌다는 알림 — 그 전에 걷으면 흰 화면이 번쩍인다. index.tsx · 딥링크 화면이 부른다 */
+/*
+ * 사이트(웹 껍데기)가 다 그려졌다는 알림 — index.tsx · 딥링크 화면이 부른다. 덕아웃(LEGACY_TIMING)은 이걸 기다려 걷고, 싱커는 시간표대로 걷는다
+ * (아직이면 index.tsx 의 첫 불러오기 판이 이어 받는다).
+ */
 let ready = false;
 const subs = new Set<() => void>();
 export function markAppReady() {
@@ -70,12 +71,22 @@ export function markAppReady() {
   subs.forEach((f) => f());
 }
 
-const ease = Easing.out(Easing.cubic);
+/*
+ * 시작 화면(OS)은 인트로가 붙어 있으면 인트로가 걷는다 — 테마를 읽고 로고 칸을 잰 뒤. 다른 곳(사이트 다 그림 · 딥링크 · 사이트의 SplashScreen.hide)이
+ * 먼저 걷으면 그 사이 다른 테마 바탕 · 덜 그린 이름이 비칠 수 있었다. 인트로가 없을 때(덕아웃 앱의 웹뷰 등 다른 길)는 바로 걷는다.
+ */
+let introMounted = 0;
+const holdSplash = (d: 1 | -1) => {
+  introMounted += d;
+};
+export function hideSplashUnlessIntro(): Promise<void> {
+  if (introMounted > 0) return Promise.resolve();
+  return SplashScreen.hideAsync().catch(() => undefined);
+}
 
-function Letter({ ch, i, t, size, color }: { ch: string; i: number; t: SharedValue<number>; size: number; color: string }) {
+function Letter({ ch, i, t, size, color, timing }: { ch: string; i: number; t: SharedValue<number>; size: number; color: string; timing: IntroTiming }) {
   const style = useAnimatedStyle(() => {
-    const p = Math.min(1, Math.max(0, (t.get() - (LETTER_AT + LETTER_GAP * i)) / LETTER_MS));
-    const e = ease(p);
+    const e = letterEase(t.get(), i, timing);
     return { opacity: e, transform: [{ translateX: (1 - e) * -0.245 * size }] };
   });
   if (ch === ' ') return <View style={{ width: size * 0.3 }} />;
@@ -85,7 +96,7 @@ function Letter({ ch, i, t, size, color }: { ch: string; i: number; t: SharedVal
   );
 }
 
-export function Intro({ look = SINKER_LOOK }: { look?: IntroLook }) {
+export function Intro({ look = SINKER_LOOK, timing = LEGACY_TIMING }: { look?: IntroLook; timing?: IntroTiming }) {
   const c = usePalette();
   const reduced = useReducedMotion();
   const { width, height } = useWindowDimensions();
@@ -98,76 +109,100 @@ export function Intro({ look = SINKER_LOOK }: { look?: IntroLook }) {
   const bigH = look.bigH;
   const bigW = bigH * look.aspect;
   const [ox, oy] = look.bigOffset ?? [0, 0];
-  /* 타임라인(ms) 하나로 B · 글자를 다 그린다 — 장면마다 다시 그리지 않게 UI 스레드에서 */
-  const t = useSharedValue(reduced ? SETTLE_MS : 0);
+  /* 타임라인(ms) 하나로 로고 · 글자를 다 그린다 — 장면마다 다시 그리지 않게 UI 스레드에서. leave 는 걷힘의 시간 비율(0~1) */
+  const t = useSharedValue(reduced ? timing.settleMs : 0);
   const leave = useSharedValue(0);
-  const [settled, setSettled] = useState(false);
+  /* 움직임 줄이기는 켤 때 값으로 — 연출 도중 설정을 바꿔도 제어기를 새로 만들어 처음부터 다시 돌지 않게 */
+  const [still] = useState(reduced);
+  const intro = useRef<ReturnType<typeof createIntroController> | null>(null);
+  /*
+   * 시작 · 걷기 · 치우기 결정은 intro-timeline createIntroController(시험 있음) — 여기는 그 결정을 Reanimated · 시작 화면 · 타이머로 옮길 뿐.
+   * 한 번씩만이라 칸을 다시 재도(회전 · 창 크기) 다시 시작하지 않고, 늦게 온 '다 그림' · 타이머가 걷기를 두 번 돌리지 않는다.
+   * 붙을 때 만들고 떨어질 때 타이머 · 기다림을 거둔다 — 다시 붙으면(개발 모드 효과 두 번 돌기) 새로 만든다.
+   */
+  useLayoutEffect(() => {
+    /* 다 걷히면 시작 화면 걷기를 다시 남(index · 딥링크 · 사이트)에게 넘긴다 — 붙어 있는 동안만 붙든다 */
+    let held = true;
+    holdSplash(1);
+    const release = () => {
+      if (held) holdSplash(-1);
+      held = false;
+    };
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const waits: (() => void)[] = [];
+    const c = createIntroController(timing, still, {
+      frame: (f) => requestAnimationFrame(() => requestAnimationFrame(f)),
+      hideSplash: () => SplashScreen.hideAsync().catch(() => undefined),
+      later: (f, ms) => {
+        timers.push(setTimeout(f, ms));
+      },
+      runClock: (ms, done) =>
+        t.set(withTiming(ms, { duration: ms, easing: Easing.linear, reduceMotion: ReduceMotion.Never }, (fin) => fin && done && runOnJS(done)())),
+      runLeave: (delay, ms, done) => {
+        const go = withTiming(1, { duration: ms, easing: Easing.linear, reduceMotion: ReduceMotion.Never }, (fin) => fin && runOnJS(done)());
+        leave.set(delay > 0 ? withDelay(delay, go) : go);
+      },
+      gone: () => {
+        release();
+        setGone(true);
+      },
+      isReady: () => ready,
+      onReady: (f) => {
+        subs.add(f);
+        waits.push(f);
+      },
+    });
+    intro.current = c;
+    return () => {
+      release();
+      c.dispose();
+      intro.current = null;
+      timers.forEach(clearTimeout);
+      waits.forEach((f) => subs.delete(f));
+    };
+  }, [timing, still, t, leave]);
 
-  /* B 칸 자리를 잰 뒤에 시작 화면을 걷고 시계를 돌린다 — 잰 전에는 큰 B 가 시작 화면과 같은 자리에 있다 */
-  /* 앱 테마를 읽기 전엔 기본값(라이트)이라 — 읽은 뒤에 시작 화면을 걷는다(다크에서 흰 판이 번쩍이던 것) */
+  /* 테마를 읽기 전엔 기본값이라 — 읽은 뒤에 시작 화면을 걷는다(다크 · 네이비에서 다른 바탕이 번쩍이던 것) */
   const [themed, setThemed] = useState(false);
   useEffect(() => {
     void prefsReady.then(() => setThemed(true));
   }, []);
+  /*
+   * 로고 칸을 재고 테마를 읽은 뒤 시작 — 큰 로고가 그려진 다음 장면에 시작 화면을 걷고, 다 걷힌 뒤에 시계를 돌린다(먼저 돌리면 시작 화면이 걷혔을 때
+   * 로고가 이미 작아지는 중이라 툭 튀었다).
+   */
+  const begin = useEffectEvent(() => intro.current?.begin());
   useEffect(() => {
-    if (!slot || !themed) return;
-    /*
-     * 큰 B 가 그려진 다음 장면에 시작 화면을 걷고, 다 걷힌 뒤에 시계를 돌린다 — 앱이 무겁게 뜨면 걷히는 데 시간이 걸려, 먼저 돌리면
-     * 시작 화면이 걷혔을 때 B 가 이미 작아지는 중이라 툭 튀었다.
-     */
-    let alive = true;
-    let id: ReturnType<typeof setTimeout> | undefined;
-    const done = () => setSettled(true);
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        void SplashScreen.hideAsync()
-          .catch(() => undefined)
-          .then(() => {
-            if (!alive) return;
-            if (reduced) id = setTimeout(done, REDUCED_HOLD_MS);
-            else t.set(withTiming(SETTLE_MS, { duration: SETTLE_MS, easing: Easing.linear, reduceMotion: ReduceMotion.Never }, (fin) => fin && runOnJS(done)()));
-          });
-      })
-    );
-    return () => {
-      alive = false;
-      if (id) clearTimeout(id);
-    };
-  }, [slot, themed, reduced, t]);
-
-  /* 다 섰고 사이트도 그려졌으면 걷는다. 사이트가 끝내 안 오면 선 뒤 7초에 걷는다(시작 화면이 하던 10초 상한과 비슷하게) */
+    if (slot && themed) begin();
+  }, [slot, themed]);
   useEffect(() => {
-    if (!settled) return;
-    const go = () => leave.set(withTiming(1, { duration: LEAVE_MS, easing: Easing.in(Easing.quad) }, (fin) => fin && runOnJS(setGone)(true)));
-    if (ready) return go();
-    subs.add(go);
-    const id = setTimeout(go, 7000);
-    return () => {
-      subs.delete(go);
-      clearTimeout(id);
-    };
-  }, [settled, leave]);
+    const id = setTimeout(() => begin(), START_FALLBACK_MS);
+    return () => clearTimeout(id);
+  }, []);
 
-  const veil = useAnimatedStyle(() => ({ opacity: 1 - leave.get(), transform: [{ scale: 1 + 0.06 * leave.get() }] }));
+  const veil = useAnimatedStyle(() => {
+    const e = leaveEase(leave.get(), timing);
+    return { opacity: 1 - e, transform: [{ scale: reduced ? 1 : 1 + (timing.leaveScale - 1) * e }] };
+  });
   /*
    * B 는 늘 '가운데 큰 B' 자리에 그리고(정지 모양 = 시작 장면), 움직임만 이름의 B 칸으로 옮기며 줄인다 — 움직임 스타일이 한 장면 늦게
    * 붙어도 큰 B 가 보일 뿐이다(예전엔 B 를 칸 자리에 그리고 키워 놓아, 첫 장면에 작은 B · 이름이 잠깐 비쳤다).
    */
   const mark = useAnimatedStyle(() => {
     if (!slot) return { transform: [{ translateX: 0 }, { translateY: 0 }, { scale: 1 }] };
-    const p = Math.min(1, Math.max(0, (t.get() - MOVE_AT) / MOVE_MS));
-    const e = Easing.inOut(Easing.cubic)(p);
+    const e = markEase(t.get(), timing);
     const dx = slot.x + slot.width / 2 - (width / 2 + ox);
     const dy = slot.y + slot.height / 2 - (height / 2 + oy);
     const s = slotH / bigH;
     /* 다 옮겨지면 감추고 칸 자리의 '제 크기 B'로 바꾼다 — 150pt 그림을 0.27배로 줄여 둔 채면 장면이 바뀔 때 계단처럼 깨져 보였다 */
-    return { opacity: p >= 1 ? 0 : 1, transform: [{ translateX: e * dx }, { translateY: e * dy }, { scale: 1 + (s - 1) * e }] };
+    return { opacity: markDone(t.get(), timing) ? 0 : 1, transform: [{ translateX: e * dx }, { translateY: e * dy }, { scale: 1 + (s - 1) * e }] };
   });
-  const crisp = useAnimatedStyle(() => ({ opacity: slot && t.get() >= MOVE_AT + MOVE_MS ? 1 : 0 }));
+  const crisp = useAnimatedStyle(() => ({ opacity: slot && markDone(t.get(), timing) ? 1 : 0 }));
 
   if (gone) return null;
   return (
-    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.page, zIndex: 1000 }, veil]}>
+    /* 가림막이 손가락 · VoiceOver 를 받는다 — 걷힐 때까지 밑 화면은 눌리지 않고, 다 걷히면(gone) 통째로 빠진다 */
+    <Animated.View accessibilityViewIsModal style={[StyleSheet.absoluteFill, { backgroundColor: c.page, zIndex: 1000 }, veil]}>
       <View style={styles.center}>
         <View accessible accessibilityLabel={look.label} style={styles.row}>
           {/* B 칸 — 자리만 잡고 그림은 밖의 움직이는 B 가 그린다 */}
@@ -181,7 +216,7 @@ export function Intro({ look = SINKER_LOOK }: { look?: IntroLook }) {
             style={{ width: slotH * look.aspect, height: slotH, marginRight: slotBox.right, marginBottom: slotBox.bottom }}
           />
           {look.letters.map((ch, i) => (
-            <Letter key={i} ch={ch} i={i} t={t} size={size} color={c.ink} />
+            <Letter key={i} ch={ch} i={i} t={t} size={size} color={c.ink} timing={timing} />
           ))}
         </View>
       </View>
