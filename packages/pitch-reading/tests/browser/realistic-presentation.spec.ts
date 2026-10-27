@@ -19,8 +19,8 @@ test('native bridge uses device projection, spatial observation, real-speed repl
   const messages=await page.evaluate(()=>(window as unknown as {__messages:BridgeMessage[]}).__messages);
   expect(messages.some(m=>m.kind==='ready')).toBe(true);
   const session=messages.filter(m=>m.kind==='history').at(-1)!.sessions![0];
-  expect(session.id).not.toBe('another-account');expect(session.observationVersion).toBe('fixed-window-150cm-2');expect(session.occlusionMs).toBe(0);
-  expect(session.trials[0].observedMs).toBeGreaterThan(70);expect(session.trials[0].observedMs).toBeLessThan(session.trials[0].pitch.duration*1000);
+  expect(session.id).not.toBe('another-account');expect(session.observationVersion).toBe('batter-home-full-1');expect(session.occlusionMs).toBe(0);
+  expect(session.trials[0].observedMs).toBeGreaterThan(70);expect(session.trials[0].observedMs).toBeGreaterThan(session.trials[0].pitch.duration*1000);
   expect(session.battingView.horizontalFov).toBeCloseTo(physicalFov(740,{cssPixelsPerCm:460/3/2.54,viewDistanceCm:35,source:'device',version:'physical-window-1'}),3);
   await expect(page.locator('#real-replay-action')).toBeVisible();await page.locator('#real-replay-action').click();
   await expect(page.locator('#scene-state')).toHaveText('실제 속도 · 1×');
