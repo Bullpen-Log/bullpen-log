@@ -140,6 +140,8 @@ const LIFT_SPRING = TAB_MOTION.liftSpring;
 const MORPH_EASE = Easing.bezier(0.32, 0.72, 0, 1);
 const BACK = ITEM_H + PAD * 2;
 const BACK_GAP = 8;
+/** 하단바 글자가 시스템 글자 크기를 따라 커지는 한도 — 위 TabFace 주석 */
+const TAB_LABEL_MAX_SCALE = 1.3;
 /** 막대 줄의 가장 넓은 폭(웹 mobile-tabs max-w-md) */
 const LINE_MAX = 448;
 
@@ -548,7 +550,7 @@ const styles = StyleSheet.create({
   lens: { position: 'absolute', top: 0, left: 0, height: ITEM_H, borderRadius: 999 },
   glassLens: { position: 'absolute', top: PAD, left: PAD, height: ITEM_H, borderRadius: 999 },
   item: { flex: 1, height: ITEM_H, alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 2, borderRadius: 999 },
-  label: { fontSize: 10 },
+  label: { fontSize: 11 },
   face: { alignItems: 'center', justifyContent: 'center', gap: 2 },
 });
 
@@ -574,7 +576,20 @@ function TabFace({ tab, i, preview, lift, onColor, offColor }: {
           </View>
         ) : null}
       </View>
-      <Text style={[styles.label, { color: on ? onColor : offColor, fontWeight: on ? '600' : '500' }]}>{tab.label}</Text>
+      {/*
+        큰 글씨에서도 칸(높이 ITEM_H) 안에 — 아이콘 26 · 사이 2 를 빼면 글자 줄에 22pt 남아 1.3배(11 → 14.3pt, 줄 약 17pt)까지. 칸이 좁은 종목 바에서
+        '트레이닝'처럼 긴 이름은 폭에 맞춰 줄인다(2026-10-27 HIG 검토 — 10pt · 한도 없음이라 접근성 최대 글씨에서 31pt 로 칸을 넘쳤다).
+        아이폰 기본 하단바는 글자를 아예 안 키우고 길게 눌러 크게 보기를 쓰지만, 여기는 길게 눌러 끌기라 그 대신 한도를 둔다.
+      */}
+      <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+        maxFontSizeMultiplier={TAB_LABEL_MAX_SCALE}
+        style={[styles.label, { color: on ? onColor : offColor, fontWeight: on ? '600' : '500' }]}
+      >
+        {tab.label}
+      </Text>
     </>
   );
   return (
