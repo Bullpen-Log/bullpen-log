@@ -1,5 +1,5 @@
 import { type Href, router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PRESSED, SPACE, TYPE, usePalette } from '~/lib/ui';
@@ -106,6 +106,17 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
     >
       {log ? (
         <>
+          {/* 투구 첫 화면으로 — 하단바가 종목 바(‹)였을 때의 돌아가는 길(2026-10-27 HIG 검토 A안). 하단바 투구를 다시 눌러도 된다 */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="투구로 돌아가기"
+            onPress={() => onWeb('/videos')}
+            hitSlop={6}
+            style={({ pressed }) => [styles.back, pressed && { opacity: 0.6 }]}
+          >
+            <Icon name="back" size={22} color={c.link} />
+            <Text style={{ color: c.link, fontSize: 17 }}>투구</Text>
+          </Pressable>
           {/* 지난 영상 가져오기는 드물게 쓰여 머리 오른쪽 작은 알약으로(2026-10-21 김민: 달력 위 큰 칸이 첫 시야를 차지했다) */}
           <PageHead title="투구 기록">
             <Pressable
@@ -194,6 +205,18 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
             아이패드 가로(~/lib/layout TwoColumns)는 왼쪽 오늘 카드, 오른쪽 이번 주. 좁으면 위아래 그대로
           */}
           <TwoColumns ratio={[1, 1]} gap={16} left={<PitchTodayCard today={today} />} right={<PitchWeekCard today={today} onOpen={() => onWeb('/videos?view=log')} />} />
+          {/*
+            투구 안의 화면 넷 — 하단바는 늘 그대로 두고 여기서 들어간다(2026-10-27 HIG 검토 A안, 김민). 예전엔 투구를 누르면 하단바가 종목 바로 바뀌어
+            홈 · 덕아웃 · 더보기가 사라졌다. 각 화면은 위의 '‹ 투구'(또는 하단바 투구 다시 누르기)로 돌아온다. sport=pitch 는 그 '‹ 투구'를 고르는 표시
+          */}
+          <View style={[styles.links, { backgroundColor: c.card, boxShadow: c.float }]}>
+            {PITCH_SECTIONS.map((x, i) => (
+              <Fragment key={x.href}>
+                {i ? <View style={[styles.linkLine, { backgroundColor: c.line }]} /> : null}
+                <LinkRow icon={x.icon} label={x.label} onPress={() => onWeb(x.href)} />
+              </Fragment>
+            ))}
+          </View>
           {/*
             찍으러 가는 문 셋 — 한 줄 같은 폭. 구속 측정 · ABS 는 같은 카메라 화면의 두 모드라 그 모드로 바로 연다(모드 고르기 시트를 건너뜀).
             ABS 는 관리자만(lib/camera-mode.ts adminOnly)
@@ -290,6 +313,14 @@ function ToolTile({ icon, label, onPress }: { icon: IconName; label: string; onP
 }
 
 /** 보는 곳으로 가는 줄 — 그림 · 이름 · › (설정 목록 줄 모양) */
+/* 투구 첫 화면의 칸 넷 — 예전 종목 바(웹 lib/nav.ts SPORT_BARS pitch)와 같은 곳 */
+const PITCH_SECTIONS: { href: string; label: string; icon: IconName }[] = [
+  { href: '/videos?view=log', label: '기록', icon: 'log' },
+  { href: '/training?sport=pitch', label: '트레이닝', icon: 'dumbbell' },
+  { href: '/training?view=armcare&sport=pitch', label: '암케어', icon: 'armcare' },
+  { href: '/training?view=mechanics&sport=pitch', label: '메카닉', icon: 'pitcher' },
+];
+
 function LinkRow({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
   const c = usePalette();
   return (
@@ -304,6 +335,7 @@ function LinkRow({ icon, label, onPress }: { icon: IconName; label: string; onPr
 const styles = StyleSheet.create({
   pickHint: { borderRadius: 20, paddingHorizontal: 20, paddingVertical: 28 },
   links: { borderRadius: 20, overflow: 'hidden' },
+  back: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', minHeight: 44, marginLeft: -6, marginBottom: -8 },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingHorizontal: 20 },
   linkLine: { height: StyleSheet.hairlineWidth, marginLeft: 52 },
   tools: { flexDirection: 'row', gap: 8 },

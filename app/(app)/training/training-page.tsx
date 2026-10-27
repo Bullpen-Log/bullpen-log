@@ -111,9 +111,12 @@ function AppHead({
   title,
   settings,
   returnTo,
+  back,
 }: {
   app: TrainingPart;
   title: string;
+  /** 휴대폰(앱) 위 막대의 '‹ 뒤로' — 들어온 곳(backOf) */
+  back: { href: string; label: string };
   settings?: {
     trainingLevel: string | null;
   };
@@ -127,6 +130,13 @@ function AppHead({
         '‹ 트레이닝'은 휴대폰에서 위 막대에 선다(BackLink) — 이 줄은 PC 에서만. 예전엔 휴대폰에서 이 줄에 설정 단추만 남아 제목 위에 홀로
         떠 있었다(2026-10-15 김민 "상단이 부자연스럽다") → 휴대폰은 설정을 제목 오른쪽 알약으로(투구의 '분석'처럼).
       */}
+      {/*
+        휴대폰(앱) 위 막대의 '‹ 투구 · 타격 · 트레이닝' — 본문엔 안 보이고 막대에만 선다. 2026-10-20 엔 종목 하단바의 ‹ 가 돌아가는 길이라 뺐는데,
+        2026-10-27 HIG 검토 A안(김민)으로 종목 바를 걷어 다시 둔다.
+      */}
+      <div className="desk:hidden">
+        <BackLink href={back.href}>{back.label}</BackLink>
+      </div>
       <div className="hidden min-h-11 items-center gap-3 desk:flex">
         <BackLink href={TRAINING_HOME_HREF} toBar={false}>
           트레이닝
@@ -178,6 +188,13 @@ export default async function TrainingPage({
    * 이 값은 투구 전용 줄을 숨기는 데만 쓴다. ?sport= 가 없으면 투구 쪽(포지션은 묻지 않는다, 2026-10-20).
    */
   const hitSide = params.sport === 'hit';
+  /* 휴대폰(앱)에서 돌아갈 곳 — 투구 · 타격 첫 화면의 칸에서 들어오면 ?sport= 가 붙는다(앱 pitch/tab.tsx PITCH_SECTIONS · 타격 첫 화면), 아니면 트레이닝 홈 */
+  const back =
+    params.sport === 'hit'
+      ? { href: '/hitting', label: '타격' }
+      : params.sport === 'pitch'
+        ? { href: '/videos', label: '투구' }
+        : { href: TRAINING_HOME_HREF, label: '트레이닝' };
   /* 예전 [기록] 칸의 주소 — 지난 기록은 이제 홈 캘린더에 있다 */
   if (params.view === 'history') redirect('/today');
   /*
@@ -207,6 +224,7 @@ export default async function TrainingPage({
     return withTutorial(
       <div className="stack-page">
         <AppHead
+          back={back}
           app="armcare"
           title="암케어"
           returnTo={
@@ -236,6 +254,7 @@ export default async function TrainingPage({
     return withTutorial(
       <div className="stack-page">
         <AppHead
+          back={back}
           app="mechanics"
           title="메카닉"
           returnTo={
@@ -588,6 +607,7 @@ export default async function TrainingPage({
     <BodyPartsProvider>
       <div className="stack-page">
         <AppHead
+          back={back}
           app="today"
           title="트레이닝"
           settings={user}

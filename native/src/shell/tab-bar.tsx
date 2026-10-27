@@ -63,19 +63,6 @@ export function sportOfPath(path: string, search: string): SportKey | null {
   return null;
 }
 
-/** 종목 바에서 켜진 칸 — 웹 lib/nav.ts sportActiveHref 와 같다 */
-export function sportActiveHref(sport: SportKey, path: string, search: string): string {
-  if (path === '/training' || path === '/training/setup') {
-    const view = new URLSearchParams(search).get('view');
-    if (sport === 'pitch' && view === 'armcare') return '/training?view=armcare';
-    if (sport === 'pitch' && view === 'mechanics') return '/training?view=mechanics';
-    return `/training?sport=${sport}`;
-  }
-  const home = sport === 'pitch' ? '/videos' : '/hitting';
-  const log = new URLSearchParams(search).get('view') === 'log' || path.startsWith('/pitch-log/');
-  return log ? `${home}?view=log` : home;
-}
-
 /* 웹 하단 탭과 같은 선 그림(nav-icons.tsx · glyphs.tsx Squares) — 26px */
 const GLYPH: Record<string, IconName> = {
   home: 'house',
@@ -184,10 +171,16 @@ export function TabBar({
   enter = false,
   accent,
   frosted = false,
+  popTo = null,
 }: {
   tabs: ShellTab[];
   active: string | null;
   onPress: (t: ShellTab) => void;
+  /**
+   * 이 탭의 하위 화면에 있으면 그 탭 href — 그 탭을 다시 누르면 맨 위로 굴리는 대신 첫 화면으로 돌아간다(아이폰 하단바와 같다,
+   * 2026-10-27 투구 · 타격 하위 화면이 종목 바 대신 하단바를 그대로 쓰게 되면서)
+   */
+  popTo?: string | null;
   /** 왼쪽에 따로 떨어진 동그란 ← (딴 하단바에서 앞 화면으로) */
   back?: () => void;
   /** 처음 붙을 때 옛 막대에서 오므렸다 펴지며 들어온다 */
@@ -262,11 +255,11 @@ export function TabBar({
   };
   const pending = useRef<string | null>(null);
   const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latest = useRef({ tabs, active, onPress, index, showLens });
+  const latest = useRef({ tabs, active, onPress, index, showLens, popTo });
   const keys = JSON.stringify(tabs.map((t) => t.href));
 
   useEffect(() => {
-    latest.current = { tabs, active, onPress, index, showLens };
+    latest.current = { tabs, active, onPress, index, showLens, popTo };
   });
   useEffect(() => () => {
     if (pendingTimer.current) clearTimeout(pendingTimer.current);
@@ -295,7 +288,10 @@ export function TabBar({
     if (pendingTimer.current) clearTimeout(pendingTimer.current);
     if (href === now.active) {
       pending.current = null;
-      if (retap) emitRetap();
+      if (retap) {
+        if (now.popTo === href) now.onPress(now.tabs[i]);
+        else emitRetap();
+      }
       return;
     }
     pending.current = href;

@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Button, PageHeading } from '@/components/ui';
+import { BackLink, Button, PageHeading } from '@/components/ui';
 import { Modal } from '@/components/modal';
 import { MonthCalendar, type DayMark } from '@/components/month-calendar';
 import { EffortChips } from '@/components/effort-chips';
@@ -15,7 +15,7 @@ import { haptic } from '@/lib/haptics';
 import { toast } from '@/components/toast';
 import { dateKeyLabel, weekStartKey } from '@/lib/pitch-stats';
 import { SPORT_LOG_VIEW } from '@/lib/nav';
-import { Film, Target } from '@/components/icon';
+import { Dumbbell, Film, Target } from '@/components/icon';
 import { RoundBatter } from '@/components/round-icon';
 import { HITTING_TYPES, hittingLine, type HittingType } from '@/lib/hitting-log';
 import { deleteHittingLog, saveHittingLog } from '@/app/actions/hitting-log';
@@ -176,6 +176,15 @@ export function HittingClient({ today, rows }: { today: string; rows: HittingRow
 
   return (
     <div className="stack-page">
+      {/*
+        기록에서 타격 첫 화면으로 — 휴대폰(앱) 위 막대에만 선다(본문엔 안 보임). 앱 하단바가 종목 바(‹ · 기록 · 트레이닝)였을 때의 길을
+        2026-10-27 HIG 검토 A안(김민)으로 걷어 여기 둔다. 하단바 타격을 다시 눌러도 돌아온다.
+      */}
+      {log ? (
+        <div className="desk:hidden">
+          <BackLink href="/hitting">타격</BackLink>
+        </div>
+      ) : null}
       <PageHeading
         title={log ? '타격 기록' : '타격'}
         inlineAction
@@ -265,7 +274,12 @@ export function HittingClient({ today, rows }: { today: string; rows: HittingRow
             타격의 영상 — 더보기에서 옮겨 옴(2026-10-21 김민: "타격은 운동 영상 + 타격 드릴"). 운동 영상은 앱에선 앱 화면으로 열린다.
             3D 스윙 분석(2026-10-21 금윤호 — 투구 탭의 '3D 동작 분석' 칸과 같은 자리)은 앱(판 11~)이면 앱 화면 /swing 으로 넘어간다.
           */}
-          <div className="grid grid-cols-3 gap-2">
+          {/* 트레이닝 — 앱 하단바의 종목 바에 있던 칸(2026-10-27 HIG 검토 A안으로 이리 옮김). ?sport=hit 이면 트레이닝 화면의 '‹ 타격'이 여기로 */}
+          <div className="grid grid-cols-4 gap-2">
+            <Link href="/training?sport=hit" className="flex min-h-18 flex-col items-center justify-center gap-1.5 rounded-2xl border border-line bg-surface px-2">
+              <Dumbbell aria-hidden className="size-5.5 text-sky" />
+              <span className="text-footnote font-semibold text-ink">트레이닝</span>
+            </Link>
             <Link href="/library/training" className="flex min-h-18 flex-col items-center justify-center gap-1.5 rounded-2xl border border-line bg-surface px-2">
               <Film aria-hidden className="size-5.5 text-sky" />
               <span className="text-footnote font-semibold text-ink">운동 영상</span>

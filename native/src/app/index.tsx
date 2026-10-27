@@ -52,7 +52,7 @@ import { drainOutbox, setOutboxOwner } from '~/workout/outbox';
 import { drainChecks } from '~/armcare/outbox';
 import { sendCheck } from '~/armcare/send';
 import { PitchTab } from '~/pitch/tab';
-import { DEFAULT_SPORT_BARS, DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, sportActiveHref, sportOfPath, useTabBarOcclusion, type ShellTab, type SportKey } from '~/shell/tab-bar';
+import { DEFAULT_SPORT_BARS, DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, sportOfPath, useTabBarOcclusion, type ShellTab, type SportKey } from '~/shell/tab-bar';
 import { TabPager } from '~/shell/tab-pager';
 import { ClockVeil } from '~/shell/clock-veil';
 import { ME, ORG_LOST, orgRecordHref, parseOrgOpen, targetTab, type SpaceSide, type OpenTarget, type OpenRecord } from '@/lib/org/space-nav';
@@ -388,6 +388,14 @@ export default function SiteScreen() {
   }, [askMe]);
   const active = tabOf(path, tabs);
   const sport = sportOfPath(path, search);
+  /*
+   * 투구 · 타격 안의 화면(기록 · 트레이닝 · 암케어 · 메카닉)에서도 하단바는 그대로 — 그 종목 탭에 불을 켜고, 그 탭을 다시 누르면 종목 첫 화면으로.
+   * 2026-10-27 HIG 검토 A안(김민): 예전엔 투구를 누르면 하단바가 종목 바(‹ · 기록 · 트레이닝 …)로 바뀌어 홈 · 덕아웃 · 더보기가 사라졌다
+   * (tab-bars.md "Make sure the tab bar is visible when people navigate to different sections"). 종목 안 화면은 첫 화면의 칸으로 들어가고
+   * 각 화면의 '‹ 투구 · 타격'으로 돌아온다.
+   */
+  const sportRoot = sport === 'pitch' ? '/videos' : sport === 'hit' ? '/hitting' : null;
+  const atSportRoot = sportRoot != null && path === sportRoot && new URLSearchParams(search).get('view') == null;
   /* 웹을 앞으로 — 앱 화면 위에서 연 웹 창(설정)이 보이게 앱 화면을 잠시 걷는다. 그 창을 닫거나 탭을 누르면 돌아온다 */
   const [webFront, setWebFront] = useState(false);
   const pitchTab = tabs.find((t) => t.href === '/videos');
@@ -854,10 +862,7 @@ export default function SiteScreen() {
         체크인(웹 (session) 흐름)으로 갈 때는 앱이 주소를 정하는 그 순간 숨긴다 — 웹 틀이 떨어져 '막대 끔'을 알려 오기 전까지 체크인 화면 위에
         막대가 같이 보였다(2026-10-20 김민: "체크인 고치기를 누르면 체크인과 하단 바가 같이 나온다").
       */}
-      {/*
-        투구 · 타격 안에서는 종목 바(‹ · 기록 · 트레이닝 · …)로 갈아 끼운다 — 커뮤니티 하단바와 같은 back · enter(웹 sport-tabs.tsx 와 같은 규칙).
-        key 가 바뀌어 새로 붙을 때마다 들어오기 연출이 돈다.
-      */}
+      {/* 투구 · 타격 안에서도 같은 하단바(위 sportRoot — 종목 바는 2026-10-27 걷음) */}
       {inOrg ? (
         orgNav ? (
           <TabBar
@@ -869,23 +874,13 @@ export default function SiteScreen() {
           />
         ) : null
       ) : barShown ? (
-        sport ? (
-          <TabBar
-            key={sport}
-            tabs={sportBars[sport]}
-            active={pressed ?? sportActiveHref(sport, path, search)}
-            onPress={pressTab}
-            back={() => goTab('/today')}
-            enter
-          />
-        ) : (
-          <TabBar
-            key="main"
-            tabs={tabs}
-            active={pressed ?? (showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : active)}
-            onPress={pressTab}
-          />
-        )
+        <TabBar
+          key="main"
+          tabs={tabs}
+          active={pressed ?? sportRoot ?? (showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : active)}
+          onPress={pressTab}
+          popTo={atSportRoot ? null : sportRoot}
+        />
       ) : null}
     </View>
   );
