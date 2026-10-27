@@ -1,5 +1,6 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
+import { usesSinker } from '@/lib/brand';
 import {
   appsFor,
   isExpoToken,
@@ -53,7 +54,14 @@ async function pushTo(userId: string, input: NotifyInput) {
   });
   if (devices.length === 0) return;
   const has = new Set(devices.map((d) => d.app as AppName));
-  const target = new Set(appsFor(input.kind, has));
+  /* 두 앱을 다 가졌을 때만 누구인지 본다 — 선수면 선수 활동 알림도 싱커로(lib/notify-rules.ts) */
+  const player =
+    has.size > 1
+      ? await prisma.user
+          .findUnique({ where: { id: userId }, select: { accountType: true, sinkerStartedAt: true } })
+          .then((u) => (u ? usesSinker(u) : false))
+      : false;
+  const target = new Set(appsFor(input.kind, has, { player }));
   const tokens = devices
     .filter((d) => target.has(d.app as AppName) && isExpoToken(d.token))
     .map((d) => d.token);

@@ -468,7 +468,16 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
       appsFor('chat', ['sinker']).join() === 'sinker' &&
       appsFor('lesson', ['sinker', 'dugout']).join() === 'sinker' &&
       appsFor('lesson', ['dugout']).join() === 'dugout' &&
-      appsFor('chat', []).length === 0
+      appsFor('chat', []).length === 0 &&
+      /* 2026-10-27 — 두 앱을 다 가진 선수: 선수 활동은 싱커, 장터 · 거래 채팅은 덕아웃 앱. 선수가 아니면 예전처럼 */
+      appsFor('community', ['sinker', 'dugout'], { player: true }).join() === 'sinker' &&
+      appsFor('booking', ['sinker', 'dugout'], { player: true }).join() === 'sinker' &&
+      appsFor('venue', ['sinker', 'dugout'], { player: true }).join() === 'sinker' &&
+      appsFor('chat', ['sinker', 'dugout'], { player: true }).join() === 'dugout' &&
+      appsFor('listing', ['sinker', 'dugout'], { player: true }).join() === 'dugout' &&
+      appsFor('community', ['sinker', 'dugout'], { player: false }).join() === 'dugout' &&
+      appsFor('community', ['dugout'], { player: true }).join() === 'dugout' &&
+      appsFor('chat', ['sinker'], { player: true }).join() === 'sinker'
   );
   check(
     'Expo 토큰 모양',
