@@ -3,7 +3,7 @@ import { usePrefs } from '~/lib/prefs';
 import { PALETTES, type Palette } from './design-tokens';
 export { PALETTES, TYPE, SPACE, RADIUS, CONTROL, SURFACE, type Palette } from './design-tokens';
 
-/** 칠할 테마 — 설정의 '자동'만 기기 밝기를 따른다(웹과 같다, 고른 적 없으면 라이트) */
+/** 칠할 테마 — 설정의 '자동'만 기기 밝기를 따른다(웹과 같다, 고른 적 없으면 자동) */
 export function useTheme(): 'light' | 'dark' | 'navy' {
   const { theme } = usePrefs();
   const system = useColorScheme();

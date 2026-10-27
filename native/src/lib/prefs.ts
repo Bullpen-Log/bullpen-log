@@ -40,8 +40,8 @@ const ALLOWED: Record<keyof Prefs, readonly { value: string }[]> = {
   weight: WEIGHT_UNITS,
   speed: SPEED_UNITS,
 };
-/* 웹과 같은 기본값 — 테마는 라이트(lib/theme.ts DEFAULT_THEME) */
-const DEFAULTS: Prefs = { theme: 'light', length: DEFAULT_LENGTH, weight: DEFAULT_WEIGHT, speed: DEFAULT_SPEED };
+/* 웹과 같은 기본값 — 테마는 자동(lib/theme.ts DEFAULT_THEME): 고른 적 없으면 폰 밝기를 따른다(2026-10-27 HIG 검토 — 예전 기본값 라이트는 다크 모드 폰에서도 흰 앱이었다) */
+const DEFAULTS: Prefs = { theme: 'system', length: DEFAULT_LENGTH, weight: DEFAULT_WEIGHT, speed: DEFAULT_SPEED };
 
 let prefs: Prefs = DEFAULTS;
 const subs = new Set<() => void>();
@@ -67,7 +67,7 @@ export async function reloadPrefs(): Promise<void> {
 /** 지금 값 — 약속(prefsReady)을 기다린 뒤 그때의 값을 볼 때 */
 export const currentPrefs = () => prefs;
 
-/** 앱을 켤 때 처음 읽기 — 끝나기 전엔 테마가 기본값(라이트)이라, 시작 연출 · 시작 화면 테마는 이걸 기다린다 */
+/** 앱을 켤 때 처음 읽기 — 끝나기 전엔 테마가 기본값(자동)이라, 시작 연출 · 시작 화면 테마는 이걸 기다린다 */
 export const prefsReady: Promise<void> = reloadPrefs();
 
 /** 앱 설정 화면에서 고르면 — 바로 그리고, 앱 저장소에 두고, 웹에도 칠한다 */

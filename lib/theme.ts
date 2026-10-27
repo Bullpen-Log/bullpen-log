@@ -41,15 +41,15 @@ function resolveTheme(choice: ThemeChoice): Exclude<ThemeChoice, 'system'> {
   return window.matchMedia(DARK_QUERY).matches ? 'dark' : 'light';
 }
 
-/** 모르는 값이면 라이트로 떨어뜨린다. 옛 저장값과 손댄 값을 함께 막는다. */
+/** 모르는 값이면 기본값(자동)으로 떨어뜨린다. 옛 저장값과 손댄 값을 함께 막는다. */
 function normalizeTheme(value: unknown): ThemeChoice {
   return THEME_CHOICES.some((c) => c.value === value)
     ? (value as ThemeChoice)
     : DEFAULT_THEME;
 }
 
-/** 아무것도 고르지 않았을 때 */
-export const DEFAULT_THEME: ThemeChoice = 'light';
+/** 아무것도 고르지 않았을 때 — 기기 밝기를 따른다(2026-10-27 애플 HIG 검토: 앱만의 밝기 설정은 기기 설정을 이기지 않게. 예전 기본값은 라이트) */
+export const DEFAULT_THEME: ThemeChoice = 'system';
 
 /**
  * 테마마다 바탕색(app/globals.css 의 --color-page) — 사파리 주소창 · 홈 화면 앱의 상태바 띠(<meta name="theme-color">)를
@@ -80,7 +80,7 @@ export const THEME_INIT_SCRIPT = `
   try {
     var stored = localStorage.getItem('${THEME_STORAGE_KEY}');
     var known = ${JSON.stringify(THEME_CHOICES.map((c) => c.value))};
-    var choice = known.indexOf(stored) === -1 ? 'light' : stored;
+    var choice = known.indexOf(stored) === -1 ? '${DEFAULT_THEME}' : stored;
     document.documentElement.dataset.themeChoice = choice;
     document.documentElement.dataset.theme =
       choice !== 'system'
