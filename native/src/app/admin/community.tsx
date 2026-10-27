@@ -1,7 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { toast } from '~/shell/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppCommunityReports } from '@/app/actions/app-admin';
 import { Badge, Bar, call, Chip, LoadState, s, useLoad, useTitleCollapse } from '~/community/parts';
@@ -61,7 +62,7 @@ function ReportCard({ r, reload, c }: { r: Report; reload: () => void; c: Palett
     setBusy(true);
     const res = await call<{ ok: true }>(action, ...args);
     setBusy(false);
-    if (!res.ok) return Alert.alert('하지 못했어요', res.error);
+    if (!res.ok) return toast(`하지 못했어요. ${res.error}`, 'error');
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     reload();
   };

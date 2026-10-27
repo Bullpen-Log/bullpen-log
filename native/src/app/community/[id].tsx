@@ -3,6 +3,7 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { toast } from '~/shell/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardUp } from '~/lib/use-keyboard-up';
 import { COMMENT_BODY_MAX, REPORT_DETAIL_MAX, REPORT_REASONS, postCategoryLabel, type ReportReason } from '@/lib/community';
@@ -77,19 +78,19 @@ export default function CommunityPostScreen() {
   const removePost = () =>
     confirm('이 글을 지울까요?', `${post.title}\n댓글 · 좋아요도 함께 사라져요. 되돌릴 수 없어요.`, async () => {
       const r = await call<Ok>('community.deleteAppPost', post.id);
-      if (!r.ok) return Alert.alert(r.error);
+      if (!r.ok) return toast(r.error, 'error');
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     });
   const removeComment = (commentId: string) =>
     confirm('이 댓글을 지울까요?', '되돌릴 수 없어요.', async () => {
       const r = await call<Ok>('community.deleteAppComment', commentId);
-      if (!r.ok) return Alert.alert(r.error);
+      if (!r.ok) return toast(r.error, 'error');
       await reload();
     });
   const hide = async (kind: 'post' | 'comment', targetId: string, hidden: boolean) => {
     const r = await call<Ok>('community.setAppHidden', kind, targetId, !hidden);
-    if (!r.ok) return Alert.alert(r.error);
+    if (!r.ok) return toast(r.error, 'error');
     await reload();
   };
   const addComment = () =>

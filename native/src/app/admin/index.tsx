@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { toast } from '~/shell/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppAdmin } from '@/app/actions/app-admin';
 import { ROLE_LABEL, parseRole, type Role } from '@/lib/permissions';
@@ -117,7 +118,7 @@ function MenuRow({ icon, label, detail, onPress, web, last, c }: { icon: IconNam
 function UserRow({ u, self, last, reload, c }: { u: Data['users'][number]; self: boolean; last: boolean; reload: () => void; c: Palette }) {
   const act = (action: string, ...args: unknown[]) =>
     void call<{ ok: true; message: string }>(action, u.id, ...args).then((r) => {
-      if (!r.ok) return Alert.alert('하지 못했어요', r.error);
+      if (!r.ok) return toast(`하지 못했어요. ${r.error}`, 'error');
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       reload();
     });

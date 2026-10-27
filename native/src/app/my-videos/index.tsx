@@ -4,7 +4,6 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, us
 import {
   ActionSheetIOS,
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   SectionList,
@@ -15,6 +14,7 @@ import {
   useWindowDimensions,
   type SectionListData,
 } from 'react-native';
+import { toast } from '~/shell/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   EMPTY_VIDEO_FILTER,
@@ -251,12 +251,12 @@ export default function MyVideosScreen() {
   const open = useCallback(
     (v: MyVideoItem) => {
       if (pendingPaths.has(v.path)) {
-        Alert.alert('아직 보내는 중이에요', '신호가 잡혀 저장이 끝나면 열 수 있어요. 영상은 이 폰에 그대로 있어요.');
+        toast('아직 보내는 중이에요. 신호가 잡혀 저장이 끝나면 열 수 있어요. 영상은 이 폰에 그대로 있어요.', 'info');
         return;
       }
       if (pick) {
         if (missing.has(v.path)) {
-          Alert.alert('이 폰에 없는 영상이에요', '찍은 폰의 싱커 앱에서만 재생돼서 비교할 수 없어요.');
+          toast('이 폰에 없는 영상이에요. 찍은 폰의 싱커 앱에서만 재생돼서 비교할 수 없어요.', 'info');
           return;
         }
         const a = all.find((x) => x.path === pick);
@@ -530,7 +530,7 @@ export default function MyVideosScreen() {
             }
             const s = sections.findIndex((x) => (ym ? x.date?.startsWith(ym) : x.date === null));
             if (s >= 0) scrollTo({ sectionIndex: s, itemIndex: 0 });
-            else Alert.alert(ym ? monthText(ym) : '촬영 날짜 모름', '지금 조건에 맞는 영상이 없어요.');
+            else toast(`${ym ? monthText(ym) : '촬영 날짜 모름'} · 지금 조건에 맞는 영상이 없어요.`, 'info');
           }}
         />
       ) : null}

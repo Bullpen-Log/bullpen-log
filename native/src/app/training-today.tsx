@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { toast } from '~/shell/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { toDateKey } from '@/lib/pitch-stats';
 import type { TrainingToday } from '@/lib/report/training-today-data';
@@ -127,7 +128,7 @@ export default function TrainingTodayScreen() {
         else if (e.to.startsWith('/workout/rest')) Alert.alert(REST_DAY.title, REST_DAY.body);
         else if (e.to === '/training') await load();
         else leave(e.to);
-      } else Alert.alert('운동을 열지 못했어요', e instanceof Error ? e.message : '신호가 약해요. 잠시 뒤 다시 눌러 주세요.');
+      } else toast(`운동을 열지 못했어요. ${e instanceof Error ? e.message : '신호가 약해요. 잠시 뒤 다시 눌러 주세요.'}`, 'error');
     } finally {
       setStarting(false);
     }

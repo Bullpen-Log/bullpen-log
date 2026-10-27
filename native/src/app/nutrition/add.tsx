@@ -2,7 +2,8 @@ import { SymbolView } from 'expo-symbols';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { toast } from '~/shell/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BASIC_FOODS, STARTER_FOOD_IDS, basicFood, rankFoods } from '@/lib/nutrition/foods';
 import { COMBO_TOP, comboFood, findCombo, itemsFromEntries, orderCombos, type MealComboView } from '@/lib/nutrition/combos';
@@ -161,7 +162,7 @@ export default function NutritionAddScreen() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (replacing) {
       /* 바꾸기는 바로 닫는다 — 내 음식 저장만 실패했으면 알리고 닫는다(조용히 버려지던 것) */
-      if (saveErr) Alert.alert('내 음식에 저장하지 못했어요', `${food.name}: ${saveErr}`);
+      if (saveErr) toast(`내 음식에 저장하지 못했어요. ${food.name}: ${saveErr}`, 'error');
       return router.back();
     }
     setAdded((a) => [...a, food.name]);

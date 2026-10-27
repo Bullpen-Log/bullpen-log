@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { toast } from '~/shell/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppNotice } from '@/app/actions/support';
 import { Badge, Bar, call, LoadState, s, useLoad } from '~/community/parts';
@@ -31,7 +32,7 @@ export default function NoticeScreen() {
         style: 'destructive',
         onPress: async () => {
           const r = await call<{ ok: true } | { ok: false; error: string }>('support.deleteAppNotice', notice.id);
-          if (!r.ok) return Alert.alert(r.error);
+          if (!r.ok) return toast(r.error, 'error');
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           router.back();
         },

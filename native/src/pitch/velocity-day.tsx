@@ -92,7 +92,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
         style: 'destructive',
         onPress: async () => {
           const r = await rpc<Result>('velocity.deleteVelocitySession', s.id).catch(() => ({ ok: false as const, error: '신호가 약해 서버에 닿지 못했어요.' }));
-          if (!r.ok) return Alert.alert('지우지 못했어요', r.error);
+          if (!r.ok) return toast(`지우지 못했어요. ${r.error}`, 'error');
           removePhoneClips(s.pitches);
           toast('지웠어요');
           reload();
@@ -310,7 +310,7 @@ function ResultSheet({
     if (mine !== turn.current) return;
     if (!r.ok) {
       setType(confirmed.current);
-      return Alert.alert('저장하지 못했어요', r.error);
+      return toast(`저장하지 못했어요. ${r.error}`, 'error');
     }
     onSaved();
   };
@@ -386,7 +386,7 @@ function EditSheet({ pitch, onClose, onSaved }: { pitch: VelocityPitchView; onCl
     setBusy(true);
     const r = await rpc<Result>('velocity.updateVelocityPitch', pitch.id, draft).catch(() => ({ ok: false as const, error: '신호가 약해 서버에 닿지 못했어요.' }));
     setBusy(false);
-    if (!r.ok) return Alert.alert('저장하지 못했어요', r.error);
+    if (!r.ok) return toast(`저장하지 못했어요. ${r.error}`, 'error');
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     toast('저장했어요');
     onSaved();
@@ -400,7 +400,7 @@ function EditSheet({ pitch, onClose, onSaved }: { pitch: VelocityPitchView; onCl
         style: 'destructive',
         onPress: async () => {
           const r = await rpc<Result>('velocity.deleteVelocityPitch', pitch.id).catch(() => ({ ok: false as const, error: '신호가 약해 서버에 닿지 못했어요.' }));
-          if (!r.ok) return Alert.alert('지우지 못했어요', r.error);
+          if (!r.ok) return toast(`지우지 못했어요. ${r.error}`, 'error');
           removePhoneClips([pitch]);
           toast('지웠어요');
           onSaved();

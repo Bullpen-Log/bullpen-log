@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Animated from 'react-native-reanimated';
 import { fadeIn } from '~/shell/motion';
 import { ActionSheetIOS, Alert, Pressable, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
+import { toast } from '~/shell/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isRestSession } from '@/lib/session-type';
 import { effortText } from '@/lib/pitch-effort';
@@ -87,7 +88,7 @@ export default function PitchDayScreen() {
             void removePhoneOrphans(videos);
             await refreshMonth(monthOf(date));
           } catch (e) {
-            Alert.alert(e instanceof ApiError ? e.message : '지우지 못했어요.');
+            toast(e instanceof ApiError ? e.message : '지우지 못했어요.', 'error');
           }
         },
       },

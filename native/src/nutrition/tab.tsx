@@ -1,6 +1,7 @@
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
+import { toast } from '~/shell/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MEALS, amountText, entryMacros, gapNames, macroGaps, mealLabel, missingMacros, missingText, stepAmount, type EntryEdit, type MealEntryView, type MealKey } from '@/lib/nutrition/meta';
 import { mealProtein } from '@/lib/nutrition/meal-protein';
@@ -126,9 +127,9 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     setBusy(true);
     try {
       const err = await job();
-      if (err) Alert.alert('저장하지 못했어요', err);
+      if (err) toast(`저장하지 못했어요. ${err}`, 'error');
     } catch {
-      Alert.alert('저장하지 못했어요', '신호를 확인하고 다시 해 주세요.');
+      toast('저장하지 못했어요. 신호를 확인하고 다시 해 주세요.', 'error');
     }
     running.current = false;
     setBusy(false);
@@ -161,7 +162,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     }
     /* 다른 저장이 도는 중이면 초안을 버리지 않고 편집을 그대로 둔다(예전엔 말없이 사라졌다) */
     if (running.current) {
-      Alert.alert('잠깐만요', '다른 저장이 끝나면 다시 완료를 눌러 주세요.');
+      toast('다른 저장이 끝나면 다시 완료를 눌러 주세요.', 'info');
       return;
     }
     /* 초안은 저장이 된 뒤에만 지운다 — 먼저 지우면 실패할 때(화면은 actFirst 가 되돌림) 고친 값이 통째로 사라졌다(2026-10-25 UI 검토 A04).

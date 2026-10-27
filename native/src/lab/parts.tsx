@@ -2,6 +2,7 @@ import { type Href, router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { type ReactNode, useState } from 'react';
 import { Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { toast } from '~/shell/toast';
 import type { AppLabListItem } from '@/app/actions/pitch-lab';
 import type { LabGuideSection } from '@/lib/pitch-lab-guide';
 import { LAB_OTHER_SUBJECT, LAB_SUBJECT_FOLDERS, type LabHand } from '@/lib/pitch-lab-meta';
@@ -48,10 +49,10 @@ export function SampleRow({ item, name, last, onRemoved, c }: { item: AppLabList
           setBusy(true);
           try {
             const r = await rpc<{ ok: true } | { error: string }>('pitch-lab.removeLabSample', { id: item.id });
-            if ('error' in r) return Alert.alert('지우지 못했어요', r.error);
+            if ('error' in r) return toast(`지우지 못했어요. ${r.error}`, 'error');
             onRemoved();
           } catch {
-            Alert.alert('지우지 못했어요', '신호가 약해 보내지 못했어요. 다시 해 주세요.');
+            toast('지우지 못했어요. 신호가 약해 보내지 못했어요. 다시 해 주세요.', 'error');
           } finally {
             setBusy(false);
           }
