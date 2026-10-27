@@ -24,6 +24,8 @@ export type Session = {
   gazeVersion?:string;
   presentationVersion?:string;
   minBallPixels?:number;
+  zoneGuide?:boolean;
+  guideVersion?:string;
   displayCalibration?:import('./display-calibration.ts').DisplayCalibration;
   taskVersion?:string;
   samplingVersion?:string;

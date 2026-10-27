@@ -56,7 +56,7 @@ const native = JSON.parse(
   )
 );
 assert.equal(native.html, web, 'Web and iPhone must ship the same scene');
-assert.ok(web.includes('phone-fit-1') && web.includes('fixed-window-150cm-2') && web.includes('fixed-release-view-2') && web.includes('physical-window-1'));
+assert.ok(web.includes('home-guide-1') && web.includes('home-crossing-1') && web.includes('phone-fit-1') && web.includes('fixed-window-150cm-2') && web.includes('fixed-release-view-2') && web.includes('physical-window-1'));
 console.log(
   'Pitch-reading integration: device scale, bridge limits, boot escaping, identical web/native artifact passed.'
 );
