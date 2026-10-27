@@ -92,7 +92,7 @@ jobs:
       - id: fp
         run: |
           RT=$(npx expo-updates fingerprint:generate --platform ios --workflow managed | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).hash))')
-          test "$RT" = '8562d9d03eb1eba6f5da3687f021d3146c3c4d1b' || { echo '::error::기존 설치본과 네이티브 구성이 다르므로 호환 업데이트를 중단합니다'; exit 1; }
+          test "$RT" = '2c78c3fda8ab3a44ac771c22e172e602bffa6d82' || { echo '::error::기존 설치본과 네이티브 구성이 다르므로 호환 업데이트를 중단합니다'; exit 1; }
           echo "runtime=$RT" >> "$GITHUB_OUTPUT"
           echo "::notice title=바닥 판::$RT"
       - id: bin
