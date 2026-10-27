@@ -94,7 +94,13 @@ export const COORDS_ACCURACY: Record<string, string> = {
   NOT_ESTABLISHED: '좌표 근거 미확보',
   UNRESOLVED: '위치 미해결',
 };
-export const COORDS_SOURCE: Record<string, string> = { MANUAL: '관리자가 손으로', KAKAO_GEOCODE: '관리자가 주소로 찾음' };
+export const COORDS_SOURCE: Record<string, string> = {
+  MANUAL: '관리자가 손으로',
+  KAKAO_GEOCODE: '관리자가 주소로 찾음',
+  /* 야구장 일괄 찾기(scripts/geocode-field-candidates.mts) — 자동이라 구장 위치는 확인 전이다 */
+  KAKAO_PLACE: '카카오맵 같은 장소 좌표(자동 · 확인 전)',
+  KAKAO_ADDRESS: '주소 검색 좌표(자동 · 확인 전)',
+};
 
 export type StatusMap = Record<string, string>;
 export const isStatus = (map: StatusMap, v: unknown): v is string => typeof v === 'string' && Object.hasOwn(map, v);

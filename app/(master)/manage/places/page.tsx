@@ -130,7 +130,7 @@ export default async function AdminPlacesPage({ searchParams }: { searchParams: 
       </nav>
       <p className="text-xs text-muted">
         {items.length}곳 · 지도 점 {located} · 위치 확인 필요 {items.length - located}
-        {items.length === limit ? ` (${limit}곳까지만 보여요 — 지역이나 검색으로 좁혀 주세요)` : ''} · 점은 공공자료 건물 참조 위치(출입구 · 층 확인 전)이고, 점 색(보라 레슨 · 초록 배팅 · 연습공간 · 주황 야구장)은 분류 단서예요. 야구장은 조사 파일에 좌표가 없어 위치를 정하기 전까지 목록에만 보여요. 근거 이름표는 실제 제공 · 영업 · 대관 가능 확정이 아니에요.
+        {items.length === limit ? ` (${limit}곳까지만 보여요 — 지역이나 검색으로 좁혀 주세요)` : ''} · 점은 공공자료 건물 참조 위치(출입구 · 층 확인 전)이고, 점 색(보라 레슨 · 초록 배팅 · 연습공간 · 주황 야구장)은 분류 단서예요. 야구장 점은 카카오맵 같은 장소 · 주소 검색으로 자동으로 찾은 자리(구장 위치 확인 전)이고, 못 찾은 곳은 목록에만 보여요. 근거 이름표는 실제 제공 · 영업 · 대관 가능 확정이 아니에요.
       </p>
       <PlaceMap places={places} />
     </div>

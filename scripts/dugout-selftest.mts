@@ -65,7 +65,10 @@ import {
   FIELD_TYPE_HINT,
   IDENTITY_NOTICE,
   MOBILE_MASK,
+  kakaoIdsOf,
   maskMobiles,
+  pickAddress,
+  pickKakaoPlace,
   readFieldReviewFile,
 } from '@/lib/market/field-candidates';
 import {
@@ -930,6 +933,19 @@ console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관�
   const fp = planImport(fok!, [row('naver:11', { collected: { externalPlaceId: '11' } })]);
   check('카카오 장소 번호가 네이버 장소 번호와 숫자가 같아도 다른 곳으로 본다(충돌 아님)', fp.tally.conflict === 0 && fp.tally.create === 2);
   check('레슨 · 연습장 자료는 야구장 칸(이용 경로 · 장소 대응)을 비운다', ok?.rows[0].fields.accessNotice === null && ok.rows[0].fields.identityNotice === null);
+  check('카카오 장소 id 는 kakao: 이름표 붙은 것만 숫자로', kakaoIdsOf(['kakao:123', '456', 'naver:9']).join() === '123');
+  check(
+    '좌표 일괄 찾기는 같은 카카오 장소 id 만 쓴다(이름 비슷한 다른 곳 · 한국 밖 좌표는 안 씀)',
+    pickKakaoPlace([{ id: '9', place_name: '다른 야구장', x: '127', y: '37.5' }, { id: '123', place_name: '시험야구장', x: '127.1', y: '37.6' }], ['123'])?.lat === 37.6 &&
+      pickKakaoPlace([{ id: '9', x: '127', y: '37.5' }], ['123']) === null &&
+      pickKakaoPlace([{ id: '123', x: '0', y: '0' }], ['123']) === null
+  );
+  check(
+    '주소 검색은 번지 · 건물 주소까지 맞은 것만(동 · 길 이름만 맞으면 안 씀)',
+    pickAddress([{ address_type: 'REGION', x: '127', y: '37' }]) === null &&
+      pickAddress([{ address_type: 'ROAD', x: '127', y: '37' }]) === null &&
+      pickAddress([{ address_type: 'REGION', x: '127', y: '37' }, { address_type: 'REGION_ADDR', address_name: '시험동 1', x: '127.2', y: '37.3' }])?.source === 'KAKAO_ADDRESS'
+  );
   const ffirst = run(fok!, []);
   check('야구장 파일도 빈 표에 새로 만들고, 다시 돌리면 그대로', ffirst.plan.tally.create === 2 && run(fok!, ffirst.db).plan.tally.same === 2);
 }

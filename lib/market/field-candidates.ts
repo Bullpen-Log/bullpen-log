@@ -1,4 +1,4 @@
-import type { CombinedFile } from '@/lib/market/candidates';
+import { type CombinedFile, readCoords } from '@/lib/market/candidates';
 
 /**
  * 덕아웃 야구장 수집 후보(2026-10-27, 대표관리자만) — 야구장 672곳 조사 파일(5차 중간본) 읽기(순수). 표는 레슨 · 연습장과 같은 prisma FacilityCandidate.
@@ -342,4 +342,27 @@ export function readFieldReviewFile(d: unknown): {
         },
         errors,
       };
+}
+
+/* 좌표 일괄 찾기(scripts/geocode-field-candidates.mts) — 카카오 로컬 API 결과에서 고르는 규칙(순수). 받은 좌표는 카카오 지도 위에만 쓴다 */
+export type KakaoPlaceDoc = { id?: string; place_name?: string; x?: string; y?: string };
+export type KakaoAddressDoc = { address_name?: string; address_type?: string; x?: string; y?: string };
+export type FieldCoords = { lat: number; lng: number; source: 'KAKAO_PLACE' | 'KAKAO_ADDRESS'; matched: string };
+
+/** 후보의 카카오 장소 id('kakao:<번호>') 숫자만 */
+export const kakaoIdsOf = (placeIds: unknown) => texts(placeIds).map((p) => p.match(/^kakao:(\d+)$/)?.[1]).filter((x): x is string => !!x);
+const texts = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+
+/** 장소 검색 결과에서 후보와 같은 카카오 장소 id 만 — 이름이 비슷한 다른 곳은 안 쓴다 */
+export function pickKakaoPlace(docs: KakaoPlaceDoc[], kakaoIds: string[]): FieldCoords | null {
+  const d = docs.find((x) => !!x.id && kakaoIds.includes(x.id));
+  const at = d && readCoords(d.y, d.x);
+  return at ? { ...at, source: 'KAKAO_PLACE', matched: `${d.place_name ?? ''} (kakao:${d.id})` } : null;
+}
+
+/** 주소 검색 결과 — 번지 · 건물 주소까지 맞은 것만(REGION_ADDR · ROAD_ADDR). 동 · 리 · 길 이름만 맞은 REGION · ROAD 는 넓은 구역 가운데라 안 쓴다 */
+export function pickAddress(docs: KakaoAddressDoc[]): FieldCoords | null {
+  const d = docs.find((x) => x.address_type === 'REGION_ADDR' || x.address_type === 'ROAD_ADDR');
+  const at = d && readCoords(d.y, d.x);
+  return at ? { ...at, source: 'KAKAO_ADDRESS', matched: d.address_name ?? '' } : null;
 }

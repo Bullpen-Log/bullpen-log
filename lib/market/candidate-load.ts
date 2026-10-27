@@ -95,6 +95,7 @@ const LIST_SELECT = {
   lat: true,
   lng: true,
   coordsEdited: true,
+  coordsSource: true,
   lessonNotice: true,
   rentalNotice: true,
   hardballNotice: true,
@@ -167,6 +168,7 @@ export function candidateMapPlaces(items: CandidateListItem[]): MapPlace[] {
             c.hardballNotice && c.hardballNotice !== 'NOT_ESTABLISHED' && `경식구 ${labelOf(HARDBALL_NOTICE, c.hardballNotice)}`,
           ]),
       c.lat != null && !c.coordsEdited && '건물 참조 좌표',
+      c.lat != null && (c.coordsSource === 'KAKAO_PLACE' || c.coordsSource === 'KAKAO_ADDRESS') && '자동 좌표(위치 확인 전)',
       ...reviewFlags(c).map((f) => `⚠ ${f}`),
     ]
       .filter(Boolean)
