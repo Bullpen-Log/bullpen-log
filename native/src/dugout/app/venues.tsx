@@ -23,7 +23,7 @@ import { DUGOUT_UA } from '~/dugout/site';
  */
 type Place = {
   id: string;
-  type: 'venue' | 'lesson';
+  type: 'venue' | 'lesson' | 'field';
   name: string;
   kindLabel: string;
   region: string | null;
@@ -41,16 +41,26 @@ type Place = {
 type Kind = { key: string; label: string };
 type Mode = 'public' | 'candidates';
 
-async function fetchPlaces(view: Mode, kind?: string, q?: string): Promise<{ places: Place[]; kinds: Kind[]; admin?: boolean }> {
+type PlacePage = { places: Place[]; kinds: Kind[]; admin?: boolean; page: number; hasMore: boolean };
+
+async function fetchPlaces(view: Mode, kind?: string, q?: string, page = 1): Promise<PlacePage> {
   /* 로그인 쿠키를 실어야 서버가 관리자인지 안다 */
   await syncSession();
   const s = new URLSearchParams();
+  s.set('page', String(page));
   if (view === 'candidates') s.set('view', view);
   if (kind) s.set('kind', kind);
   if (q) s.set('q', q);
   const res = await fetch(`${SITE_URL}/api/places${s.size ? `?${s}` : ''}`, { headers: { 'User-Agent': DUGOUT_UA } });
   if (!res.ok) throw new Error(String(res.status));
-  return (await res.json()) as { places: Place[]; kinds: Kind[]; admin?: boolean };
+  const body = (await res.json()) as Partial<PlacePage> & Pick<PlacePage, 'places' | 'kinds'>;
+  return { ...body, page: body.page ?? page, hasMore: body.hasMore ?? false };
+}
+
+function mergePlaces(first: Place[], next: Place[]): Place[] {
+  const byId = new Map(first.map((p) => [p.id, p]));
+  for (const p of next) byId.set(p.id, p);
+  return Array.from(byId.values());
 }
 
 export default function VenuesScreen() {
@@ -68,25 +78,78 @@ export default function VenuesScreen() {
   /* 후보 창 — 고른 후보(수집 후보 지도에서만) */
   const [detail, setDetail] = useState<Place | null>(null);
   const list = useRef<FlatList<Place>>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState(false);
+  const pageRef = useRef(1);
+  const generation = useRef(0);
+  const loadingMoreRef = useRef(false);
+  const refreshingRef = useRef(false);
+  const previousQuery = useRef('');
 
   /* 다시 불러오기 단추가 올린다 */
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let alive = true;
-    fetchPlaces(view, kind, params.q).then(
+    const request = ++generation.current;
+    const queryKey = JSON.stringify([view, kind, params.q]);
+    const refreshPages = previousQuery.current === queryKey ? pageRef.current : 1;
+    previousQuery.current = queryKey;
+    loadingMoreRef.current = false;
+    refreshingRef.current = true;
+    const load = async () => {
+      let body = await fetchPlaces(view, kind, params.q, 1);
+      let items = body.places;
+      let loaded = 1;
+      while (body.hasMore && loaded < refreshPages) {
+        if (!alive || generation.current !== request) return null;
+        body = await fetchPlaces(view, kind, params.q, ++loaded);
+        items = mergePlaces(items, body.places);
+      }
+      return { ...body, places: items, loaded };
+    };
+    load().then(
       (body) => {
-        if (!alive) return;
+        if (!body || !alive || generation.current !== request) return;
+        refreshingRef.current = false;
         setPlaces(body.places);
         setKinds(body.kinds);
         setAdmin(!!body.admin);
+        setHasMore(body.hasMore);
+        setLoadingMore(false);
+        setMoreError(false);
+        pageRef.current = body.loaded;
         setFailed(false);
       },
-      () => alive && setFailed(true)
+      () => { if (alive && generation.current === request) { refreshingRef.current = false; setLoadingMore(false); setPlaces(null); setHasMore(false); setFailed(true); } }
     );
     return () => {
       alive = false;
+      if (generation.current === request) generation.current += 1;
     };
   }, [view, kind, params.q, tick]);
+
+  const loadMore = async () => {
+    if (!hasMore || loadingMoreRef.current || refreshingRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    setMoreError(false);
+    const request = generation.current;
+    try {
+      const body = await fetchPlaces(view, kind, params.q, pageRef.current + 1);
+      if (generation.current !== request) return;
+      setPlaces((old) => mergePlaces(old ?? [], body.places));
+      pageRef.current = body.page;
+      setHasMore(body.hasMore);
+    } catch {
+      if (generation.current === request) setMoreError(true);
+    } finally {
+      if (generation.current === request) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
+    }
+  };
 
   const markers = useMemo<KakaoMarker[]>(
     () => (places ?? []).flatMap((p) => (p.lat != null && p.lng != null ? [{ id: p.id, lat: p.lat, lng: p.lng, name: p.name }] : [])),
@@ -227,10 +290,20 @@ export default function VenuesScreen() {
           data={places}
           keyExtractor={(p) => p.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: inset.bottom + 24 }}
-          onScrollToIndexFailed={() => {}}
+          onScrollToIndexFailed={(info) => list.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true })}
           ListEmptyComponent={
             <Text style={{ color: c.muted, fontSize: 14, textAlign: 'center', paddingVertical: 32 }}>조건에 맞는 곳이 없어요.</Text>
           }
+          ListHeaderComponent={
+            <Text style={{ color: c.muted, fontSize: 12, paddingVertical: 8 }}>
+              불러온 {places.length}곳을 지도와 목록에 표시해요.{hasMore ? ' 더 보기를 눌러 나머지를 불러올 수 있어요.' : ''}
+            </Text>
+          }
+          ListFooterComponent={hasMore ? (
+            <Press accessibilityRole="button" onPress={loadMore} disabled={loadingMore} style={[st.ghost, { borderColor: c.line, alignItems: 'center', marginVertical: 16 }]}>
+              <Text style={{ color: c.ink, fontSize: 14, fontWeight: '600' }}>{loadingMore ? '불러오는 중…' : moreError ? '다시 불러오기' : '장소 더 보기'}</Text>
+            </Press>
+          ) : undefined}
           ItemSeparatorComponent={() => <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: c.line }} />}
           renderItem={({ item: p }) => {
             const on = p.id === selected;

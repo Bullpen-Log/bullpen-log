@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/dal';
 import type { MapPlace } from '@/lib/market/map-load';
+import { PLACE_PAGE_SIZE, pageSlice } from '@/lib/market/place-pagination';
 import { CONSENT_STATUS, CONTACT_STATUS, HARDBALL_NOTICE, LESSON_NOTICE, RENTAL_NOTICE, isPracticeType, labelOf, reviewFlags } from '@/lib/market/candidates';
 import { ACCESS_NOTICE, FIELD_OPERATION_NOTICE, FIELD_TYPE_HINT, IDENTITY_NOTICE, isFieldType } from '@/lib/market/field-candidates';
 
@@ -111,21 +112,31 @@ const LIST_SELECT = {
 
 export type CandidateListItem = Prisma.FacilityCandidateGetPayload<{ select: typeof LIST_SELECT }>;
 
-/** 후보는 모두 합쳐 1,100곳 남짓(레슨 · 연습장 430 + 야구장 672)이라 한 번에 다 준다 — 2,000곳을 넘으면 쪽 나누기를 더한다 */
-const LIMIT = 2000;
+const LIMIT = PLACE_PAGE_SIZE;
 
-export async function loadCandidates(f: CandidateFilter) {
+/** 지도용은 통계 계산을 하지 않는다. 각 요청마다 관리자 권한을 확인한다. */
+export async function loadCandidateMapPage(f: CandidateFilter, page = 1) {
+  await requireAdmin();
+  const rows = await prisma.facilityCandidate.findMany({
+    where: whereOf(f), select: LIST_SELECT,
+    orderBy: [{ region: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+    skip: (page - 1) * LIMIT, take: LIMIT + 1,
+  });
+  return pageSlice(rows, LIMIT);
+}
+
+export async function loadCandidates(f: CandidateFilter, page = 1) {
   await requireAdmin();
   const live = { mergedIntoId: null } satisfies Prisma.FacilityCandidateWhereInput;
   const [items, regions, totals, fields] = await Promise.all([
-    prisma.facilityCandidate.findMany({ where: whereOf(f), select: LIST_SELECT, orderBy: [{ region: 'asc' }, { name: 'asc' }], take: LIMIT }),
+    prisma.facilityCandidate.findMany({ where: whereOf(f), select: LIST_SELECT, orderBy: [{ region: 'asc' }, { name: 'asc' }, { id: 'asc' }], skip: (page - 1) * LIMIT, take: LIMIT + 1 }),
     prisma.facilityCandidate.groupBy({ by: ['region'], where: { ...live, ...kindWhere(f.kind) }, _count: true, orderBy: { region: 'asc' } }),
     prisma.facilityCandidate.groupBy({ by: ['contactStatus', 'consentStatus'], where: live, _count: true }),
     prisma.facilityCandidate.count({ where: { ...live, ...kindWhere('field') } }),
   ]);
   const count = (pick: (r: (typeof totals)[number]) => boolean) => totals.filter(pick).reduce((n, r) => n + r._count, 0);
   return {
-    items,
+    ...pageSlice(items, LIMIT),
     limit: LIMIT,
     regions: regions.map((r) => ({ region: r.region, count: r._count })),
     total: count(() => true),

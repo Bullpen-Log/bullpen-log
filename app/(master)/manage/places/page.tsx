@@ -15,6 +15,7 @@ import {
   isStatus,
 } from '@/lib/market/candidates';
 import { ACCESS_NOTICE, FIELD_OPERATION_NOTICE, IDENTITY_NOTICE } from '@/lib/market/field-candidates';
+import { placePage } from '@/lib/market/place-pagination';
 
 export const metadata: Metadata = { title: '수집 후보' };
 
@@ -42,6 +43,7 @@ const SELECTS: { key: keyof CandidateFilter; label: string; map: StatusMap }[] =
  */
 export default async function AdminPlacesPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
+  const page = placePage(one(sp.page));
   const rawKind = one(sp.kind);
   const f: CandidateFilter = {
     q: one(sp.q) || undefined,
@@ -54,13 +56,17 @@ export default async function AdminPlacesPage({ searchParams }: { searchParams: 
   }
   const rawFlag = one(sp.flag);
   if (CANDIDATE_FLAGS.some((x) => x.key === rawFlag)) f.flag = rawFlag;
-  const { items, limit, regions, total, fields, contacted, agreed } = await loadCandidates(f);
+  const { items, hasMore, regions, total, fields, contacted, agreed } = await loadCandidates(f, page);
 
   const href = (o: Partial<CandidateFilter>) => {
     const s = new URLSearchParams(Object.entries({ ...f, ...o }).filter(([, v]) => v) as [string, string][]);
     return `/manage/places${s.size ? `?${s}` : ''}`;
   };
   const places = candidateMapPlaces(items);
+  const pageHref = (p: number) => {
+    const s = new URLSearchParams(Object.entries({ ...f, page: String(p) }).filter(([, v]) => v) as [string, string][]);
+    return `/manage/places?${s}`;
+  };
   const located = items.filter((c) => c.lat != null).length;
   const chip = (on: boolean) =>
     `inline-flex min-h-9 shrink-0 items-center rounded-full border px-3 text-sm ${on ? 'border-ink bg-ink font-semibold text-page' : 'border-line text-ink hover:border-ink/30'}`;
@@ -129,10 +135,14 @@ export default async function AdminPlacesPage({ searchParams }: { searchParams: 
         ))}
       </nav>
       <p className="text-xs text-muted">
-        {items.length}곳 · 지도 점 {located} · 위치 확인 필요 {items.length - located}
-        {items.length === limit ? ` (${limit}곳까지만 보여요 — 지역이나 검색으로 좁혀 주세요)` : ''} · 점은 공공자료 건물 참조 위치(출입구 · 층 확인 전)이고, 점 색(보라 레슨 · 초록 배팅 · 연습공간 · 주황 야구장)은 분류 단서예요. 야구장 점은 카카오맵 같은 장소 · 주소 검색으로 자동으로 찾은 자리(구장 위치 확인 전)이고, 못 찾은 곳은 목록에만 보여요. 근거 이름표는 실제 제공 · 영업 · 대관 가능 확정이 아니에요.
+        현재 {page}쪽 {items.length}곳 · 지도 점 {located} · 위치 확인 필요 {items.length - located} · 지도는 이쪽의 장소를 표시해요. 점은 공공자료 건물 참조 위치(출입구 · 층 확인 전)이고, 점 색(보라 레슨 · 초록 배팅 · 연습공간 · 주황 야구장)은 분류 단서예요. 야구장 점은 카카오맵 같은 장소 · 주소 검색으로 자동으로 찾은 자리(구장 위치 확인 전)이고, 못 찾은 곳은 목록에만 보여요. 근거 이름표는 실제 제공 · 영업 · 대관 가능 확정이 아니에요.
       </p>
       <PlaceMap places={places} />
+      {(page > 1 || hasMore) && <nav aria-label="후보 페이지" className="flex items-center justify-center gap-4 text-sm">
+        {page > 1 && <Link href={pageHref(page - 1)} className="rounded-xl border border-line px-4 py-2">이전</Link>}
+        <span>{page}쪽</span>
+        {hasMore && <Link href={pageHref(page + 1)} className="rounded-xl border border-line px-4 py-2">다음</Link>}
+      </nav>}
     </div>
   );
 }

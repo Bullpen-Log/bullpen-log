@@ -23,7 +23,7 @@ type KMap = {
   relayout(): void;
   addControl?(c: unknown, pos: unknown): void;
 };
-type KOverlay = { setMap(m: KMap | null): void; setZIndex(z: number): void };
+type KOverlay = { setMap(m: KMap | null): void; setZIndex(z: number): void; setPosition(p: KLatLng): void };
 type Kakao = {
   maps: {
     load(cb: () => void): void;
@@ -124,22 +124,36 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
     };
   }, []);
 
-  /* 점 그리기 — 목록이 바뀔 때마다 다시, 다 보이게 */
+  /* 기존 점을 재사용하고 바뀐 점만 추가 · 이동 · 제거한다. */
   useEffect(() => {
     const k = kakaoRef.current;
     const m = mapRef.current;
     if (!ready || !k || !m) return;
-    overlays.current.forEach(({ o }) => o.setMap(null));
-    overlays.current.clear();
-    lastPaint.current = null;
+    const ids = new Set(located.map((p) => p.id));
+    overlays.current.forEach(({ o }, id) => {
+      if (!ids.has(id)) { o.setMap(null); overlays.current.delete(id); }
+    });
     const bounds = new k.maps.LatLngBounds();
     for (const p of located) {
       const pos = new k.maps.LatLng(p.lat!, p.lng!);
-      const el = pin(p, m.getLevel() <= NAME_LEVEL);
-      el.addEventListener('click', () => setPick(p.id));
-      const o = new k.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1, clickable: true, zIndex: 1 });
-      o.setMap(m);
-      overlays.current.set(p.id, { o, el, p });
+      const existing = overlays.current.get(p.id);
+      const on = lastPaint.current?.pick === p.id;
+      const namedNow = m.getLevel() <= NAME_LEVEL;
+      if (existing) {
+        if (existing.p.lat !== p.lat || existing.p.lng !== p.lng) existing.o.setPosition(pos);
+        if (existing.p.name !== p.name || existing.p.type !== p.type) {
+          existing.el.setAttribute('aria-label', p.name);
+          paint(existing.el, p, on, namedNow || on);
+        }
+        existing.p = p;
+      } else {
+        const el = pin(p, namedNow);
+        if (on) paint(el, p, true, true);
+        el.addEventListener('click', () => setPick(p.id));
+        const o = new k.maps.CustomOverlay({ position: pos, content: el, yAnchor: 1, clickable: true, zIndex: on ? 10 : 1 });
+        o.setMap(m);
+        overlays.current.set(p.id, { o, el, p });
+      }
       bounds.extend(pos);
     }
     if (located.length === 1) {

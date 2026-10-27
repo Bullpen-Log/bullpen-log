@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
 import { isOwner } from '@/lib/permissions';
-import { loadMapPlaces } from '@/lib/market/map-load';
-import { CANDIDATE_FLAGS, candidateMapPlaces, loadCandidates } from '@/lib/market/candidate-load';
+import { loadMapPlacesPage, type MapPlace } from '@/lib/market/map-load';
+import { CANDIDATE_FLAGS, candidateMapPlaces, loadCandidateMapPage } from '@/lib/market/candidate-load';
 import { VENUE_KINDS, isVenueKind } from '@/lib/market/venues';
+import { placePage } from '@/lib/market/place-pagination';
 
 /**
  * 연습장 · 레슨장 목록(덕아웃 앱 지도 화면 native/src/dugout/app/venues.tsx, 2026-10-25) — 웹 /venues 와 같은 읽기(loadMapPlaces).
@@ -16,22 +17,45 @@ export async function GET(req: Request) {
   const sp = new URL(req.url).searchParams;
   const raw = (sp.get('kind') ?? '').trim();
   const q = (sp.get('q') ?? '').trim().slice(0, 40) || undefined;
+  const paged = sp.has('page');
+  const page = placePage(sp.get('page') ?? undefined);
   try {
     const admin = isOwner((await getCurrentUser())?.role);
     if (sp.get('view') === 'candidates') {
       if (!admin) return NextResponse.json({ error: '관리자만 볼 수 있어요' }, { status: 403 });
       const flag = CANDIDATE_FLAGS.some((f) => f.key === raw) ? raw : undefined;
-      const { items } = await loadCandidates({ q, flag });
+      const first = await loadCandidateMapPage({ q, flag }, page);
+      const places = candidateMapPlaces(first.items);
+      let hasMore = first.hasMore;
+      // Old installed apps do not send page. Preserve their complete response.
+      if (!paged) {
+        for (let next = 2; hasMore; next++) {
+          const batch = await loadCandidateMapPage({ q, flag }, next);
+          places.push(...candidateMapPlaces(batch.items));
+          hasMore = batch.hasMore;
+        }
+      }
       return NextResponse.json({
-        places: candidateMapPlaces(items),
+        places,
+        page, hasMore,
         kinds: CANDIDATE_FLAGS.map((f) => ({ key: f.key, label: f.label })),
         admin,
       });
     }
     const kind = raw === 'lesson' || isVenueKind(raw) ? raw : undefined;
-    const places = await loadMapPlaces({ kind, q });
+    const first = await loadMapPlacesPage({ kind, q }, page);
+    const places: MapPlace[] = first.places;
+    let hasMore = first.hasMore;
+    if (!paged) {
+      for (let next = 2; hasMore; next++) {
+        const batch = await loadMapPlacesPage({ kind, q }, next);
+        places.push(...batch.places);
+        hasMore = batch.hasMore;
+      }
+    }
     return NextResponse.json({
       places,
+      page, hasMore,
       kinds: [{ key: 'lesson', label: '레슨장' }, ...VENUE_KINDS.map((k) => ({ key: k.key, label: k.label }))],
       admin,
     });

@@ -4,6 +4,7 @@ import { createPlaybackUrls } from '@/lib/storage';
 import { venueKindLabel } from '@/lib/market/venues';
 import { formatPrice } from '@/lib/market/specs';
 import { specialtyLabel } from '@/lib/market/lessons';
+import { PLACE_PAGE_SIZE, pageSlice } from '@/lib/market/place-pagination';
 
 /**
  * 덕아웃 지도(2026-10-24) — 공개된 연습장 · 구장(Venue)과 레슨장(코치 프로필 공개 Org)을 한 목록으로.
@@ -34,7 +35,9 @@ export type MapPlace = {
 /**
  * only 'venue' — 연습장 · 구장만(싱커 앱 안 덕아웃의 연습장 탐색, 2026-10-27). 안 주면 예전처럼 둘 다(덕아웃 웹 · 덕아웃 앱의 공용 지도).
  */
-export async function loadMapPlaces(f: { q?: string; kind?: string; only?: 'venue' } = {}): Promise<MapPlace[]> {
+type MapFilter = { q?: string; kind?: string; only?: 'venue' };
+
+export async function loadMapPlacesPage(f: MapFilter = {}, page = 1, recent = false): Promise<{ places: MapPlace[]; hasMore: boolean }> {
   const q = f.q?.trim();
   const wantVenue = f.kind !== 'lesson';
   const wantLesson = f.only !== 'venue' && (!f.kind || f.kind === 'lesson');
@@ -55,8 +58,9 @@ export async function loadMapPlaces(f: { q?: string; kind?: string; only?: 'venu
                 }
               : {}),
           },
-          take: 300,
-          orderBy: { createdAt: 'desc' },
+          skip: (page - 1) * PLACE_PAGE_SIZE,
+          take: PLACE_PAGE_SIZE + 1,
+          orderBy: recent ? [{ createdAt: 'desc' }, { id: 'asc' }] : [{ id: 'asc' }],
           select: {
             id: true,
             name: true,
@@ -88,7 +92,9 @@ export async function loadMapPlaces(f: { q?: string; kind?: string; only?: 'venu
                 }
               : {}),
           },
-          take: 300,
+          skip: (page - 1) * PLACE_PAGE_SIZE,
+          take: PLACE_PAGE_SIZE + 1,
+          orderBy: { id: 'asc' },
           select: {
             id: true,
             name: true,
@@ -104,11 +110,13 @@ export async function loadMapPlaces(f: { q?: string; kind?: string; only?: 'venu
         })
       : [],
   ]);
-  const firsts = venues.flatMap((v) => (v.images[0] ? [v.images[0]] : []));
+  const venuePage = pageSlice(venues);
+  const orgPage = pageSlice(orgs);
+  const firsts = venuePage.items.flatMap((v) => (v.images[0] ? [v.images[0]] : []));
   const urls = firsts.length ? await createPlaybackUrls(firsts).catch(() => ({}) as Record<string, string>) : {};
 
   const out: MapPlace[] = [
-    ...venues.map((v) => ({
+    ...venuePage.items.map((v) => ({
       id: v.id,
       type: 'venue' as const,
       name: v.name,
@@ -125,7 +133,7 @@ export async function loadMapPlaces(f: { q?: string; kind?: string; only?: 'venu
       rating: null,
       reviews: 0,
     })),
-    ...orgs.map((o) => {
+    ...orgPage.items.map((o) => {
       const n = o.reviews.length;
       return {
         id: o.id,
@@ -148,5 +156,10 @@ export async function loadMapPlaces(f: { q?: string; kind?: string; only?: 'venu
       };
     }),
   ];
-  return out;
+  return { places: out, hasMore: venuePage.hasMore || orgPage.hasMore };
+}
+
+/** 홈은 앞쪽 장소만 사용한다. 전체 탐색은 페이지별 함수로 불러온다. */
+export async function loadMapPlaces(f: MapFilter = {}): Promise<MapPlace[]> {
+  return (await loadMapPlacesPage(f, 1, true)).places;
 }

@@ -1,13 +1,15 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { headers } from 'next/headers';
 import { surfaceOf } from '@/lib/app-env';
 import { PlaceMap } from '@/components/dugout/place-map';
 import { CategoryRow, ChipLink, ChipRow, DugoutPageHeader } from '@/components/dugout/ui';
 import { getCurrentUser } from '@/lib/dal';
 import { isOwner } from '@/lib/permissions';
-import { loadMapPlaces } from '@/lib/market/map-load';
-import { CANDIDATE_FLAGS, candidateMapPlaces, loadCandidates } from '@/lib/market/candidate-load';
+import { loadMapPlacesPage } from '@/lib/market/map-load';
+import { CANDIDATE_FLAGS, candidateMapPlaces, loadCandidateMapPage } from '@/lib/market/candidate-load';
 import { VENUE_KINDS, isVenueKind } from '@/lib/market/venues';
+import { placePage } from '@/lib/market/place-pagination';
 
 export const metadata: Metadata = { title: '연습장 · 레슨장 지도' };
 
@@ -25,6 +27,7 @@ const one = (v: string | string[] | undefined) => ((Array.isArray(v) ? v[0] : v)
 export default async function VenuesPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const q = one(sp.q) || undefined;
+  const page = placePage(one(sp.page));
   const admin = isOwner((await getCurrentUser())?.role);
   /* 싱커 앱 안(2026-10-27 승인 시안 — 덕아웃의 '연습장' 분류)은 연습장 · 구장만. 레슨장은 덕아웃 웹 · 덕아웃 앱의 공용 지도에 그대로 */
   const sinkerApp = surfaceOf((await headers()).get('user-agent')) === 'sinker-app';
@@ -33,13 +36,18 @@ export default async function VenuesPage({ searchParams }: { searchParams: Promi
   const kind = candidates
     ? CANDIDATE_FLAGS.some((f) => f.key === raw) ? raw : undefined
     : (raw === 'lesson' && !sinkerApp) || isVenueKind(raw) ? raw : undefined;
-  const places = candidates
-    ? candidateMapPlaces((await loadCandidates({ q, flag: kind })).items)
-    : await loadMapPlaces({ kind, q, only: sinkerApp ? 'venue' : undefined });
+  const result = candidates
+    ? await loadCandidateMapPage({ q, flag: kind }, page).then((r) => ({ places: candidateMapPlaces(r.items), hasMore: r.hasMore }))
+    : await loadMapPlacesPage({ kind, q, only: sinkerApp ? 'venue' : undefined }, page);
+  const { places, hasMore } = result;
   const view = candidates ? 'candidates' : undefined;
-  const href = (k?: string, v = view) => {
+  const href = (k?: string, v: string | null | undefined = view) => {
     const s = new URLSearchParams(Object.entries({ view: v, kind: k, q }).filter(([, x]) => x) as [string, string][]);
     return `/venues${s.size ? `?${s}` : ''}`;
+  };
+  const pageHref = (p: number) => {
+    const s = new URLSearchParams(Object.entries({ view, kind, q, page: String(p) }).filter(([, x]) => x) as [string, string][]);
+    return `/venues?${s}`;
   };
   const list = candidates ? CANDIDATE_FLAGS : sinkerApp ? VENUE_KINDS : [{ key: 'lesson', label: '레슨장' }, ...VENUE_KINDS];
   const kinds = [{ key: undefined, label: '전체' }, ...list].map((k) => ({
@@ -72,7 +80,7 @@ export default async function VenuesPage({ searchParams }: { searchParams: Promi
       />
       {admin && (
         <ChipRow label="지도 고르기">
-          <ChipLink href={href(undefined, undefined)} on={!candidates} size="md">
+          <ChipLink href={href(undefined, null)} on={!candidates} size="md">
             공개 지도
           </ChipLink>
           <ChipLink href={href(undefined, 'candidates')} on={candidates} size="md">
@@ -83,10 +91,15 @@ export default async function VenuesPage({ searchParams }: { searchParams: Promi
       <CategoryRow label={candidates ? '후보 거르기' : '장소 종류'} items={kinds} keepScroll />
       {candidates && (
         <p className="text-xs text-muted">
-          {places.length}곳{places.length >= 1000 ? '(1,000곳까지만 — 검색으로 좁혀 주세요)' : ''} · 사용자에게는 안 보여요. 점은 건물 참조 위치이고 근거 이름표는 확정이 아니에요. 누르면 후보 상세로 가요.
+          현재 {page}쪽 {places.length}곳 · 사용자에게는 안 보여요. 지도는 이쪽의 장소를 표시해요. 점은 건물 참조 위치이고 근거 이름표는 확정이 아니에요.
         </p>
       )}
       <PlaceMap places={places} />
+      {(page > 1 || hasMore) && <nav aria-label="장소 페이지" className="flex items-center justify-center gap-4 text-sm">
+        {page > 1 && <Link href={pageHref(page - 1)} className="rounded-xl border border-line px-4 py-2">이전</Link>}
+        <span>{page}쪽</span>
+        {hasMore && <Link href={pageHref(page + 1)} className="rounded-xl border border-line px-4 py-2">다음</Link>}
+      </nav>}
     </div>
   );
 }
