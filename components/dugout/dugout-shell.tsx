@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, type ReactNode } from 'react';
 import { RoundChat, RoundHome, RoundMarket, RoundPlus, RoundUser } from '@/components/round-icon';
 import { DugoutTopBar } from '@/components/dugout/dugout-topbar';
@@ -140,17 +140,30 @@ export function DugoutShell({
 }
 
 /** 싱커 앱에서 뺀 덕아웃 화면(장터 · 경기 일정 · 검색 …)에 알림 · 링크로 왔을 때 */
+/**
+ * 싱커 앱 안 덕아웃에서 열지 않는 화면(lib/sinker-dugout.ts 밖 — 장터 · 장비 · 경기 · 뉴스 · 통합검색 · 장터 결제). 알림 · 공유 링크로 들어와도
+ * 무엇이 왜 안 열리는지와 돌아갈 길을 준다. 계정 · 자료는 같아 덕아웃 앱 · PC 에서 그대로 열린다(덕아웃 앱은 주소로 바로 열기를 아직 못 받는다).
+ */
 function SinkerAway() {
+  const router = useRouter();
   return (
-    <div className="space-y-4 rounded-2xl bg-surface-2 px-(--block-pad) py-10 text-center">
-      <p className="text-base font-semibold text-ink">이 화면은 덕아웃에서 볼 수 있어요</p>
-      <p className="text-sm text-muted">장터 · 경기 일정은 PC 나 덕아웃 앱에서 열어 주세요.</p>
-      <Link
-        href="/?dugout=1"
-        className="inline-flex min-h-10 items-center rounded-full bg-sky px-5 text-sm font-semibold text-white"
-      >
-        덕아웃 홈으로
-      </Link>
+    <div className="space-y-4 rounded-2xl bg-surface px-(--block-pad) py-8 text-center">
+      <p className="text-[17px] font-semibold text-ink">이 화면은 싱커에서 열지 않아요</p>
+      <p className="text-[15px] text-muted">
+        장터 · 장비 · 경기 일정 · 뉴스 · 통합검색은 덕아웃 앱이나 PC 의 덕아웃에서 같은 계정으로 열어 주세요. 장터 거래 대화는 알림 · 마이에서 그대로 볼 수 있어요.
+      </p>
+      <div className="flex flex-wrap justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => (history.length > 1 ? router.back() : router.replace('/?dugout=1'))}
+          className="inline-flex min-h-11 items-center rounded-full bg-ink/6 px-5 text-[15px] font-semibold text-ink"
+        >
+          돌아가기
+        </button>
+        <Link href="/?dugout=1" className="inline-flex min-h-11 items-center rounded-full bg-sky px-5 text-[15px] font-semibold text-white">
+          덕아웃 홈으로
+        </Link>
+      </div>
     </div>
   );
 }

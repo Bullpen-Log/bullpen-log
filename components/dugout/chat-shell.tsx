@@ -21,7 +21,11 @@ export type ChatListItem = {
   unread: number;
 };
 
-export function ChatShell({ rooms, children }: { rooms: ChatListItem[]; children: ReactNode }) {
+/**
+ * trade = 싱커 앱 안(2026-10-27) — 이 대화는 장터 물건 거래라 '장터 거래 대화'로 부르고 한 줄로 알린다. 번개 · 팀 신청 대화는 커뮤니티 글 안에 있다.
+ * 대화 · 보내기 · 읽음은 그대로(거래를 잃지 않게) — 이름표만 다르다.
+ */
+export function ChatShell({ rooms, trade = false, children }: { rooms: ChatListItem[]; trade?: boolean; children: ReactNode }) {
   const pathname = usePathname();
   const [q, setQ] = useState('');
   const active = pathname.startsWith('/chat/') ? pathname.slice('/chat/'.length) : null;
@@ -36,7 +40,12 @@ export function ChatShell({ rooms, children }: { rooms: ChatListItem[]; children
         className={`${active ? 'hidden md:flex' : 'flex'} w-full min-w-0 flex-col border-line md:w-[340px] md:shrink-0 md:border-r`}
       >
         <div className="space-y-3 px-5 pt-5 pb-3">
-          <DugoutPageHeader title="메시지" />
+          <DugoutPageHeader title={trade ? '장터 거래 대화' : '메시지'} />
+          {trade && (
+            <p className="text-[13px] text-muted">
+              장터 물건을 사고파는 대화예요. 물건 화면은 덕아웃 앱이나 PC 에서 열어요. 번개 · 팀 신청 대화는 그 글 안에 있어요.
+            </p>
+          )}
           <label className="relative block">
             <RoundSearch className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted" />
             <input

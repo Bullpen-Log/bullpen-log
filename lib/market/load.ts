@@ -400,11 +400,23 @@ export async function countUnread(userId: string): Promise<number> {
   return counts.reduce((a, b) => a + b, 0);
 }
 
+/** 내 장터 거래 대화 수 — 싱커 앱 마이에서 거래 대화로 가는 길을 둘지(대화가 있는 사람만, 2026-10-27) */
+export function countConversations(userId: string) {
+  return prisma.conversation.count({ where: { OR: [{ buyerId: userId }, { sellerId: userId }] } });
+}
+
 /* ── 피드(소통) — 로그인 없이 보는 최신 글 ── */
 
-export async function loadPublicPosts(take: number) {
+/**
+ * viewerId = 보는 사람 — 그 사람이 차단한 사람의 글은 뺀다(커뮤니티 목록 lib/community-load.ts · 검색 lib/search.ts 와 같은 규칙,
+ * 2026-10-27: 홈 인기글에만 차단한 사람 글이 다시 보였다). 가린 글은 누구에게나 뺀다.
+ */
+export async function loadPublicPosts(take: number, viewerId: string | null = null) {
+  const blocked = viewerId
+    ? (await prisma.communityBlock.findMany({ where: { blockerId: viewerId }, select: { blockedId: true } })).map((b) => b.blockedId)
+    : [];
   const rows = await prisma.communityPost.findMany({
-    where: { hiddenAt: null },
+    where: { hiddenAt: null, ...(blocked.length > 0 ? { userId: { notIn: blocked } } : {}) },
     orderBy: { createdAt: 'desc' },
     take,
     select: {

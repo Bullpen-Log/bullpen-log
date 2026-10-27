@@ -7,7 +7,7 @@ import { Card } from '@/components/ui';
 import { DugoutEmpty, DugoutPageHeader, SectionHead } from '@/components/dugout/ui';
 import { ListingCard } from '@/components/dugout/listing-card';
 import { getCurrentUser } from '@/lib/dal';
-import { loadFavorites, loadMyListings } from '@/lib/market/load';
+import { countConversations, loadFavorites, loadMyListings } from '@/lib/market/load';
 import { loadMyBookings } from '@/lib/market/lesson-load';
 import { loadMyVenueBookings } from '@/lib/market/venue-load';
 import { audienceLabel, bookingStatusLabel, canReview, formatSlot, payMethodLabel } from '@/lib/market/lessons';
@@ -38,6 +38,8 @@ export default async function MePage() {
   const sinker = usesSinker(user);
   /* 싱커 앱 안 — 레슨 · 연습장 예약만(장터 물건 · 찜 · 결제는 덕아웃 웹 · 덕아웃 앱, lib/sinker-dugout.ts) */
   const sinkerApp = surfaceOf((await headers()).get('user-agent')) === 'sinker-app';
+  /* 싱커 앱 안 — 위 막대에서 장터 채팅을 뺐으니, 거래 대화가 있는 사람은 여기서 그대로 이어 간다 */
+  const tradeRooms = sinkerApp ? await countConversations(user.id).catch(() => 0) : 0;
   const shown = new Set(user.publicSinker ?? []);
   const now = new Date();
   return (
@@ -96,6 +98,19 @@ export default async function MePage() {
         </span>
         <span aria-hidden className="text-muted">›</span>
       </Link>
+
+      {tradeRooms > 0 && (
+        <Link
+          href="/chat"
+          className="flex items-center justify-between rounded-2xl border border-line bg-surface px-(--block-pad) py-4 text-sm transition-colors hover:bg-ink/3"
+        >
+          <span>
+            <span className="block font-semibold text-ink">장터 거래 대화</span>
+            <span className="text-xs text-muted">장터 물건을 사고판 대화 {tradeRooms}개 · 물건 화면은 덕아웃 앱 · PC 에서</span>
+          </span>
+          <span aria-hidden className="text-muted">›</span>
+        </Link>
+      )}
 
       {/* 공개 프로필(3단계 3-6) — 기본은 전부 숨김 */}
       <section className="space-y-4">

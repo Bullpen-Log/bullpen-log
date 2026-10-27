@@ -8,6 +8,7 @@ import { getCurrentUser } from '@/lib/dal';
 import { isNativeUserAgent, surfaceOf } from '@/lib/app-env';
 import { DugoutMain } from '@/components/dugout/dugout-main';
 import { SinkerDugoutHome } from '@/components/dugout/sinker-dugout-home';
+import { loadSinkerActivity, loadSinkerDugoutFeed } from '@/lib/sinker-dugout-load';
 import { HomeSnap } from '@/components/dugout/home-snap';
 import { type HomeCard } from '@/components/dugout/home-carousel';
 import { CoachRow, Stars } from '@/components/dugout/coach-card';
@@ -57,9 +58,34 @@ export default async function DugoutHome({
   const dugoutApp = surfaceOf(ua) === 'dugout-app';
   const viewer = user ? { id: user.id, role: user.role } : null;
   const sinkerUser = !!user && usesSinker(user);
+  /*
+   * 싱커 앱의 덕아웃 탭(2026-10-27 김민) — 선수 활동 공간: 내 활동 · 질문 · 번개 · 레슨 · 연습장. 큰 로고 · 장터 · 경기 · 뉴스 · 검색 · 장터 채팅은 없다.
+   * 자기 자료만 읽고 바로 그린다(덕아웃 웹 · 덕아웃 앱의 첫 화면은 아래 그대로). 글은 커뮤니티 목록과 같은 함수라 차단 · 가림 규칙이 같다.
+   */
+  if (sinkerApp) {
+    const [activity, feed, sinkerCoaches, sinkerLessons, sinkerRecords] = await Promise.all([
+      user ? loadSinkerActivity(user) : undefined,
+      loadSinkerDugoutFeed(user),
+      loadRecommendedCoaches(3).catch(() => []),
+      user ? loadLessonFeed(user.id, 3).catch(() => []) : [],
+      /* 기록 공유 카드 — 정책을 다시 정할 때까지 예전 그대로(가장 최근 기록 하나, 못 읽어도 홈은 뜬다) */
+      user ? recentCardOptions(user.id).catch(() => []) : [],
+    ]);
+    return (
+      <SinkerDugoutHome
+        activity={activity}
+        feed={feed}
+        record={sinkerRecords[0] ?? null}
+        lessons={sinkerLessons}
+        coaches={sinkerCoaches}
+        loggedIn={!!user}
+      />
+    );
+  }
   const [listings, posts, coaches, alerts, lessons, games, news, avatarUrl, unread, records, places] = await Promise.all([
     sinkerApp ? [] : loadLatestListings(6, viewer),
-    loadPublicPosts(30),
+    /* 내가 차단한 사람의 글은 빼고(커뮤니티 목록 · 검색과 같은 규칙) */
+    loadPublicPosts(30, user?.id ?? null),
     loadRecommendedCoaches(3),
     user ? countUnreadNotifications(user.id) : 0,
     user ? loadLessonFeed(user.id, 3) : [],
@@ -86,22 +112,6 @@ export default async function DugoutHome({
       return wb - wa || b.likes + b.comments - (a.likes + a.comments) || b.createdAt.getTime() - a.createdAt.getTime();
     })
     .slice(0, 6);
-
-  /*
-   * 싱커 앱의 덕아웃 탭(2026-10-27 김민 "같은 앱 안에서 활동 공간만 바뀐 느낌") — 큰 로고 · 아이콘 줄 · 두 칸 스크롤 없이 위 막대 밑에 바로 콘텐츠.
-   * 덕아웃 웹 · 덕아웃 앱은 아래 원래 첫 화면 그대로.
-   */
-  if (sinkerApp) {
-    return (
-      <SinkerDugoutHome
-        record={records[0] ?? null}
-        lessons={lessons}
-        posts={hot.slice(0, 4)}
-        coaches={coaches}
-        loggedIn={!!user}
-      />
-    );
-  }
 
   /*
    * 둘러보기 카드(2026-10-26) — 예전 소식 띠의 네 장(싱커 · 레슨 · 장터 · 연습장) 글을 그대로 쓰고, 실제로 있는 길 둘(커뮤니티 · 경기 일정)을 더했다.

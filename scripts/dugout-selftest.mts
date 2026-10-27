@@ -827,6 +827,34 @@ console.log('[수집 후보] 레슨 · 연습장 미확인 후보는 대표관�
   check('앱 rpc 허용 목록에 수집 후보 동작이 없다', !src('app/api/rpc/registry.ts').includes('admin-candidates'));
 }
 
+console.log('\n[싱커 안 덕아웃] 선수 활동 공간 — 차단 · 가림이 목록과 같고, 장터 채팅을 선수 활동처럼 두지 않고, 기록 공유는 예전 그대로');
+{
+  const home = src('components/dugout/sinker-dugout-home.tsx');
+  const load = src('lib/sinker-dugout-load.ts');
+  const page = src('app/(dugout)/page.tsx');
+  check(
+    '싱커 홈의 글은 커뮤니티 목록과 같은 함수(loadCommunityList — 차단 · 가림 규칙 한 곳)로만 읽는다',
+    /loadCommunityList\(user, \{ category: 'question'/.test(load) && /loadCommunityList\(user, \{ category: 'meetup'/.test(load) && !/loadPublicPosts/.test(load) && !/communityPost\.findMany/.test(load)
+  );
+  check('요약은 관리자에게도 가린 글을 빼고 보인다', (load.match(/\.filter\(\(p\) => !p\.hidden\)/g) ?? []).length >= 3);
+  check(
+    '덕아웃 홈 인기글(loadPublicPosts)도 보는 사람이 차단한 사람 글을 뺀다',
+    /export async function loadPublicPosts\(take: number, viewerId[\s\S]{0,400}communityBlock\.findMany[\s\S]{0,300}notIn: blocked/.test(src('lib/market/load.ts')) &&
+      /loadPublicPosts\(30, user\?\.id/.test(page)
+  );
+  check('싱커 홈은 자기 자료만 읽고 먼저 돌아간다(장터 · 경기 · 뉴스를 안 읽음)', /if \(sinkerApp\) \{[\s\S]{0,900}return \(\s*<SinkerDugoutHome/.test(page) && page.indexOf('if (sinkerApp) {') < page.indexOf('loadLatestListings(6'));
+  check('싱커 홈에 장터 · 채팅 · 검색 · 경기 · 뉴스 길이 없다', !/href=["{`'][^"'`]*\/(market|chat|search|baseball|gear)/.test(home));
+  check('싱커 위 막대에는 장터 채팅 단추가 없다(slim)', /\{!slim && <ChatButton unread=\{unread\} \/>\}/.test(src('components/dugout/dugout-topbar.tsx')));
+  check(
+    '장터 거래 대화는 싱커에서도 그대로 열리고(/chat 허용) 이름으로 갈린다 · 마이에서 이어 간다',
+    inSinkerDugout('/chat') && inSinkerDugout('/chat/r1') && /trade=\{trade\}/.test(src('app/(dugout)/chat/layout.tsx')) && /장터 거래 대화/.test(src('app/(dugout)/me/page.tsx'))
+  );
+  check('기록 공유 카드는 예전 길 그대로(?card= · 자동 공개 없음) — 맨 끝 한 줄', /href=\{`\/community\/new\?card=\$\{encodeURIComponent\(record\.ref\)\}`\}/.test(home) && home.lastIndexOf('record &&') > home.indexOf('같이 연습'));
+  check('네 게시판 길을 없애지 않았다(자유 · 팀은 보조 길)', /\/community\?category=free/.test(home) && /\/community\?category=team/.test(home) && /\/community\?category=question/.test(home) && /\/community\?category=meetup/.test(home));
+  check('내 활동 · 질문 · 번개는 못 읽음과 빈 것을 가른다', /activity === null/.test(home) && /feed === null/.test(home) && /return null;/.test(load));
+  check('열지 않는 화면도 돌아갈 길을 준다(뒤로 · 덕아웃 홈)', /function SinkerAway[\s\S]{0,1500}router\.back\(\)[\s\S]{0,600}\/\?dugout=1/.test(src('components/dugout/dugout-shell.tsx')));
+}
+
 console.log(
   `\n${pass} 통과${fails.length ? `, ${fails.length} 실패:\n  - ${fails.join('\n  - ')}` : ''}`
 );

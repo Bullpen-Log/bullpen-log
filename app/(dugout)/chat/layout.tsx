@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { headers } from 'next/headers';
+import { surfaceOf } from '@/lib/app-env';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/dal';
 import { loadConversations } from '@/lib/market/load';
@@ -12,8 +14,11 @@ export default async function ChatLayout({ children }: { children: ReactNode }) 
   if (!user) redirect('/login?next=/chat');
   const rooms = await loadConversations(user.id);
   const now = new Date();
+  /* 싱커 앱 안 — 여기 대화는 장터 물건 거래다(번개 · 팀 신청 대화는 커뮤니티 글 안). 선수 활동 메시지처럼 보이지 않게 이름을 가른다 */
+  const trade = surfaceOf((await headers()).get('user-agent')) === 'sinker-app';
   return (
     <ChatShell
+      trade={trade}
       rooms={rooms.map((r) => ({
         id: r.id,
         name: r.other.nickname,

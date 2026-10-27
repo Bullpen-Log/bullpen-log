@@ -186,7 +186,8 @@ export function DugoutTopBar({
                       관리
                     </Link>
                   )}
-                  <ChatButton unread={unread} />
+                  {/* 싱커 앱 안에서는 장터 거래 채팅을 선수 활동처럼 막대에 두지 않는다(2026-10-27) — 거래 대화는 알림 · 마이에서 그대로 열린다 */}
+                  {!slim && <ChatButton unread={unread} />}
                   <DugoutBell initial={alerts} />
                 </>
               ) : (
