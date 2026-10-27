@@ -10,7 +10,6 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Wordmark } from '~/shell/wordmark';
 import { fadeIn, Pulse } from '~/shell/motion';
 import { leaveTo, openCheckin } from '~/shell/web-nav';
-import { toast } from '~/shell/toast';
 import { RpcError } from '~/lib/rpc';
 import { monthOf, reloadFeatured, reloadVelocityDays, useMonth } from '~/pitch/store';
 import { loadHome, type AppHome } from './api';
@@ -26,19 +25,18 @@ import { SpacePickButton } from '~/org/space-pick';
 import { useSpace } from '~/org/space-store';
 import { useBallRotation } from './ball/ball';
 import { HomeHero } from './hero';
-import { LockerRow } from './locker-row';
-import { grantFromHome, STICKERS, useLocker, type StickerKey } from './locker-store';
 import { nextAction, todayCount, type NextAction } from './plan-model';
 import { RecordBoard } from './record-board';
 import { TodayPlan } from './today-plan';
 
 /**
  * 홈 탭(앱 화면) — 2026-10-27 승인 시안 '시안 1 볼 컨트롤 + 새 하단':
- *   위 막대 → (통증 · 회복 안내) → 히어로(큰 날짜 · 입체 공 · 지금 할 일 하나) → 오늘 플랜 → 기록 보드 → 내 라커.
+ *   위 막대 → (통증 · 회복 안내) → 히어로(큰 날짜 · 입체 공 · 지금 할 일 하나) → 오늘 플랜 → 기록 보드.
+ * (시안의 내 라커 — 공 꾸미기 · 스티커 · 공 잡기 — 는 2026-10-27 김민이 뺐다. 코드는 git 6f090f09 에.)
  * 예전 홈의 링 셋 · 요약 칸 · 달력은 이렇게 옮겼다: 링의 셈 → 위 막대의 '한 수 / 셀 수'와 히어로 · 오늘 플랜, 요약 칸의 투구 · 구속 · 부하 · 컨디션 →
  * 오늘 플랜 · 기록 보드(app.loadAppHome 의 board), 달력 · 그날 칸 · 일정 → 기록 달력 화면(app/calendar.tsx — 보드의 날짜 · '이번 주 N일').
  * 숫자는 서버 셈(app.loadAppHome) 그대로. 받아 둔 값을 먼저 그리고 뒤에서 새로 받는다(검토 D10). 새로 받다 실패하면 받아 둔 값 위에 한 줄로 알린다.
- * 스티커는 홈이 새로 받은 사실로만 준다(locker-store). 이번에 '없음 → 있음'을 직접 본 것만 알림 · 축하 — 앱을 켤 때 이미 해 둔 것은 조용히.
+ * 완료 축하는 이번에 '안 다 함 → 다 함'을 직접 본 때만 — 앱을 켤 때 이미 다 해 둔 날은 조용히.
  */
 let cached: AppHome | null = null;
 /** 홈이 마지막으로 받은 값 — 전체 기록 · 기록 달력 시트가 읽는다(없으면 null) */
@@ -51,19 +49,7 @@ export const resetHomeCache = () => {
   resetEventsCache();
 };
 
-type Seen = Record<'checkin' | 'pitch' | 'workout', boolean> & { all: boolean; epoch: number; day: string };
-
-/** 오늘의 사실 — 스티커 · 축하가 보는 것(운동은 링과 같이 일정이 있고 다 했을 때) */
-function factsOf(h: AppHome): Omit<Seen, 'epoch' | 'day'> {
-  const training = h.rings.find((r) => r.key === 'training');
-  const { done, total } = todayCount(h);
-  return {
-    checkin: h.checkinDone,
-    pitch: h.pitchDone,
-    workout: !!training && !training.none && training.value >= 1,
-    all: total > 0 && done === total,
-  };
-}
+type Seen = { all: boolean; epoch: number; day: string };
 
 export function HomeTab({
   today,
@@ -84,21 +70,17 @@ export function HomeTab({
   /* 홈 보드가 투구 기록을 읽지는 않지만, 달 묶음을 데워 두면 기록 달력 · 그날 화면이 바로 뜬다(예전 홈 달력과 같은 조회) */
   const { reload } = useMonth(monthOf(today));
   const rotation = useBallRotation();
-  const { locker } = useLocker();
   /* 축하를 틀 날 — 그날 직접 본 전이에만(다음 날로 넘어가면 저절로 꺼진다) */
   const [playDay, setPlayDay] = useState<string | null>(null);
   const seen = useRef<Seen | null>(null);
 
-  /* 서버가 새로 준 값만 여기로(폰에 남긴 값은 아니다) — 스티커 · 축하는 이번에 직접 본 '없음 → 있음'에만 */
+  /* 서버가 새로 준 값만 여기로(폰에 남긴 값은 아니다) — 축하는 이번에 직접 본 '안 다 함 → 다 함'에만 */
   const accept = useCallback((h: AppHome) => {
-    const f = factsOf(h);
+    const { done, total } = todayCount(h);
+    const all = total > 0 && done === total;
     const prev = seen.current && seen.current.epoch === cacheEpoch() && seen.current.day === h.today ? seen.current : null;
-    seen.current = { ...f, epoch: cacheEpoch(), day: h.today };
-    void grantFromHome({ checkin: f.checkin, pitch: f.pitch, workout: f.workout }, h.today).then((gained) => {
-      const shown = prev ? gained.filter((k: StickerKey) => k !== 'catch' && prev[k as 'checkin' | 'pitch' | 'workout'] === false) : [];
-      if (shown.length) toast(`스티커를 받았어요 · ${shown.map((k) => STICKERS.find((s) => s.key === k)?.label).join(', ')}`);
-    });
-    if (prev && !prev.all && f.all) setPlayDay(h.today);
+    seen.current = { all, epoch: cacheEpoch(), day: h.today };
+    if (prev && !prev.all && all) setPlayDay(h.today);
   }, []);
 
   const failed = useCallback((e: unknown) => {
@@ -200,7 +182,7 @@ export function HomeTab({
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   /* 지금 탭(홈)을 다시 누르면 맨 위로 */
   useRetapTop(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
-  /* 넓은 창(아이패드 가로)이면 두 칸 — 왼쪽 오늘(히어로 · 오늘 플랜), 오른쪽 기록 보드 · 내 라커 */
+  /* 넓은 창(아이패드 가로)이면 두 칸 — 왼쪽 오늘(히어로 · 오늘 플랜), 오른쪽 기록 보드 */
   const cols = useColumns({ ratio: [1, 1], gap: SPACE.section });
 
   const openNotice = () =>
@@ -270,7 +252,7 @@ export function HomeTab({
               <View style={[columnRow(cols.two, SPACE.section), !cols.two && READABLE]}>
                 <View style={columnCell(cols.two, 1, 22)}>
                   {warnings}
-                  <HomeHero today={today} action={action} onAction={() => runAction(action)} thread={locker.thread} rotation={rotation} />
+                  <HomeHero today={today} action={action} onAction={() => runAction(action)} rotation={rotation} />
                   <TodayPlan
                     home={home}
                     next={action.key}
@@ -296,7 +278,6 @@ export function HomeTab({
                     onMeasure={() => go('/velocity')}
                     onAnalysis={() => go('/analysis?view=pitch')}
                   />
-                  <LockerRow />
                 </View>
               </View>
             ) : error ? (

@@ -26,7 +26,6 @@ import { resetLibraryItems } from '~/library/parts';
 import { resetImported } from '~/pitch/attach';
 import { resetScanned } from '~/nutrition/scanned';
 import { HomeTab, resetHomeCache } from '~/home/tab';
-import { lockerOwner } from '~/home/locker-store';
 import { resetNotificationList } from '~/home/notifications';
 import { resetMyVideos } from '~/videos/store';
 import { resetGalleryUi } from '~/videos/filters';
@@ -246,7 +245,6 @@ async function openOrg(o: { orgId: string; side: SpaceSide; target: OpenTarget; 
 function resetAccount() {
   resetMe();
   setOutboxOwner(null);
-  void lockerOwner(null);
   resetPitchStore();
   resetCompare();
   resetLibraryItems();
@@ -276,8 +274,6 @@ function resetAccount() {
 /** 누가 로그인했는지 안 때 — 대기열 주인을 정하고, 다른 계정이 맡긴 구속 세션은 지우고, 폰에 남은 것을 보낸다 */
 function ownerKnown(userId: string) {
   setOutboxOwner(userId);
-  /* 홈 내 라커(공 색 · 캐치 · 스티커)는 계정마다 이 폰에 — 그 사람 것을 읽는다 */
-  void lockerOwner(userId);
   /* 그 사람의 마지막 공간을 먼저 그리고 서버 목록으로 확인한다(앱이 앞으로 올 때마다 다시 — 빠지거나 역할이 바뀌었으면 옮긴다, 계약 8-5) */
   void spaceOwner(userId);
   void dropDraftNotOf(userId);

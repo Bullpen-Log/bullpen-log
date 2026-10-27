@@ -16,7 +16,7 @@ import Animated, {
 import Svg, { Circle, Defs, Ellipse, Path, RadialGradient, Stop } from 'react-native-svg';
 import { useHomeSwipe } from '~/home/camera-swipe';
 import { BRAND, MARK_PATH } from '~/shell/mark-path';
-import { ballFrame, GRAIN_POINTS, logoRings, SEAM, START_ROTATION, STITCH, THREAD_COLORS, TILT_LIMIT, TILT_Z, type ThreadIndex } from './geometry';
+import { ballFrame, GRAIN_POINTS, logoRings, SEAM, START_ROTATION, STITCH, THREAD_COLOR, TILT_LIMIT, TILT_Z } from './geometry';
 
 /**
  * 입체 야구공 — 시안 1 '볼 컨트롤'의 공(geometry.ts 의 머리말). 장면마다 바뀌는 것은 길 글자(d)뿐이라 손가락을 따라 돌 때도 홈 전체를 다시 그리지 않는다.
@@ -58,12 +58,9 @@ export function SinkerBall({
   size,
   radius,
   center,
-  thread,
   rotation,
   interactive = false,
   label = '입체 야구공',
-  shadow = true,
-  shadowOpacity = 0.42,
   style,
 }: {
   /** 그림 상자 [너비, 높이] */
@@ -71,13 +68,9 @@ export function SinkerBall({
   radius: number;
   /** 상자 안 공 가운데 — 없으면 가운데(그림자 몫만큼 위) */
   center?: [number, number];
-  thread: ThreadIndex;
   rotation?: BallRotation;
   interactive?: boolean;
   label?: string;
-  shadow?: boolean;
-  /** 바닥 그림자 진하기 — 네이비 판 0.42(시안 #0006), 밝은 판은 옅게(시안 #00264622) */
-  shadowOpacity?: number;
   style?: StyleProp<ViewStyle>;
 }) {
   const own = useBallRotation();
@@ -88,7 +81,7 @@ export function SinkerBall({
   const cy = center?.[1] ?? h / 2 - R * 0.06;
   const reduce = useReducedMotion();
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const color = THREAD_COLORS[thread];
+  const color = THREAD_COLOR;
 
   const frame = useDerivedValue(() =>
     ballFrame(r.rx.get(), r.ry.get(), TILT_Z, cx, cy, R, SEAM, STITCH, GRAIN_POINTS, LOGO_PTS, LOGO_RINGS)
@@ -165,11 +158,11 @@ export function SinkerBall({
           <Stop offset="1" stopColor="#ffffff" stopOpacity={0} />
         </RadialGradient>
         <RadialGradient id={`d${id}`} cx={cx} cy={cy + R * 1.04} r={R * 0.92} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor="#000000" stopOpacity={shadowOpacity} />
+          <Stop offset="0" stopColor="#000000" stopOpacity={0.42} />
           <Stop offset="1" stopColor="#000000" stopOpacity={0} />
         </RadialGradient>
       </Defs>
-      {shadow ? <Ellipse cx={cx} cy={cy + R * 1.04} rx={R * 0.9} ry={R * 0.2} fill={`url(#d${id})`} /> : null}
+      <Ellipse cx={cx} cy={cy + R * 1.04} rx={R * 0.9} ry={R * 0.2} fill={`url(#d${id})`} />
       <Circle cx={cx} cy={cy} r={R} fill={`url(#b${id})`} />
       <APath animatedProps={grainProps} stroke="rgb(120,116,105)" strokeOpacity={0.16} strokeWidth={Math.max(0.8, R * 0.011)} strokeLinecap="round" fill="none" />
       <APath animatedProps={seamProps} stroke="#8d352f" strokeOpacity={0.45} strokeWidth={Math.max(0.6, R * 0.009)} fill="none" />

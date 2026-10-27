@@ -240,7 +240,5 @@ export function ballFrame(
   return { seam, near, mid, far, grain, logo, logoOpacity };
 }
 
-/** 실밥 색 셋 — 시안 레드 · 블루 · 네이비(three 0xc53c32 · 0x147fb0 · 0x16334a) */
-export const THREAD_COLORS = ['#c53c32', '#147fb0', '#16334a'] as const;
-export const THREAD_NAMES = ['레드', '블루', '네이비'] as const;
-export type ThreadIndex = 0 | 1 | 2;
+/** 실밥 색 — 시안 레드(three 0xc53c32) */
+export const THREAD_COLOR = '#c53c32';

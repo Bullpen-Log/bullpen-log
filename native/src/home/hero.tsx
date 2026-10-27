@@ -8,12 +8,11 @@ import { Icon } from '~/shell/icon';
 import { onIntroGone } from '~/shell/intro';
 import { Press } from '~/shell/press';
 import { SinkerBall, spinBall, type BallRotation } from './ball/ball';
-import type { ThreadIndex } from './ball/geometry';
 import { dotDate, weekdayEn, weekdayKo, type NextAction } from './plan-model';
 
 /**
  * 홈 히어로 — 승인 시안 1 '볼 컨트롤'(sinker-home-four-concepts.html · layout-review heroMarkup 과 같은 칸): 네이비 판 · 위 줄(• SINKER | 10.27 · 화) ·
- * 큰 날짜(10. / 윤곽 27. / 하늘 TUE) · 궤도 선 · 오른쪽의 입체 공(돌려 보세요) · 아래 '지금 할 일 하나'와 단추.
+ * 큰 날짜(10. / 윤곽 27. / 하늘 TUE) · 궤도 선 · 날짜 옆 입체 공(돌려 보세요) · 아래 '지금 할 일 하나'와 단추.
  * 판은 아래 글이 길어지면(큰 글씨) 같이 커진다 — 시안의 큰 글씨 판(460)처럼. 공의 아래쪽은 글 뒤 그러데이션에 잠긴다(시안 :after).
  * 처음 한 번만(앱을 켠 뒤) 접속 연출이 걷히면 공이 한 바퀴 돌아 로고가 앞으로 온다 — 탭을 옮겼다 오거나 자료를 다시 받아도 안 돈다.
  */
@@ -28,13 +27,11 @@ export function HomeHero({
   today,
   action,
   onAction,
-  thread,
   rotation,
 }: {
   today: string;
   action: NextAction;
   onAction: () => void;
-  thread: ThreadIndex;
   rotation: BallRotation;
 }) {
   const c = usePalette();
@@ -59,10 +56,15 @@ export function HomeHero({
     };
   }, [reduce, rotation]);
 
-  const R = w < 350 ? 86 : w < 375 ? 96 : Math.min(108, w * 0.267);
-  const cx = w - R * 0.98;
-  const cy = 36 + R * 1.28;
   const big = Math.max(60, Math.min(83, w * 0.2));
+  /*
+   * 공은 큰 날짜 오른쪽 끝과 판 오른쪽 끝의 한가운데(2026-10-27 김민: 오른쪽에 붙어 있다 — 시안은 판 밖으로 잘렸다).
+   * 날짜 칸 끝 = 왼쪽 22 + 가장 넓은 줄(WED 쯤) ≈ 글자 크기 1.15배. 양옆에 8 은 남도록 반지름을 줄인다.
+   */
+  const dateRight = 22 + big * 1.15;
+  const R = Math.min(w < 350 ? 86 : w < 375 ? 96 : Math.min(108, w * 0.267), (w - dateRight) / 2 - 8);
+  const cx = (dateRight + w) / 2;
+  const cy = 36 + R * 1.28;
   const month = Number(today.slice(5, 7));
   const day = Number(today.slice(8, 10));
 
@@ -87,7 +89,8 @@ export function HomeHero({
             <Rect width={w} height={h} fill="url(#glow)" />
             <Line x1={w * 0.18} y1={h} x2={w * 0.62} y2={0} stroke="#7dd3fc" strokeOpacity={0.06} strokeWidth={1} />
             <Line x1={w * 0.43} y1={h} x2={w * 0.87} y2={0} stroke="#7dd3fc" strokeOpacity={0.06} strokeWidth={1} />
-            <G transform={`translate(${w - 88} 168) rotate(-28)`}>
+            {/* 궤도 선은 공을 둘러(시안처럼 공 가운데에서 조금 오른쪽) */}
+            <G transform={`translate(${cx + 12} ${cy + 1}) rotate(-28)`}>
               <Ellipse rx={150} ry={150 * 0.4384} fill="none" stroke="#7dcfff" strokeOpacity={0.11} />
               <Ellipse rx={128} ry={128 * 0.4384} fill="none" stroke="#7dcfff" strokeOpacity={0.1} />
               <Ellipse rx={104} ry={104 * 0.4384} fill="none" stroke="#7dcfff" strokeOpacity={0.1} />
@@ -115,7 +118,6 @@ export function HomeHero({
           <SinkerBall
             interactive
             label="입체 야구공"
-            thread={thread}
             rotation={rotation}
             size={[R * 2.4, R * 2.6]}
             radius={R}
