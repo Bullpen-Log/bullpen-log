@@ -94,6 +94,7 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
   const mapRef = useRef<KMap | null>(null);
   const kakaoRef = useRef<Kakao | null>(null);
   const overlays = useRef<Map<string, { o: KOverlay; el: HTMLElement; p: MapPlace }>>(new Map());
+  const lastPaint = useRef<{ pick: string | null; named: boolean } | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(!KEY);
   const [pick, setPick] = useState<string | null>(null);
@@ -130,6 +131,7 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
     if (!ready || !k || !m) return;
     overlays.current.forEach(({ o }) => o.setMap(null));
     overlays.current.clear();
+    lastPaint.current = null;
     const bounds = new k.maps.LatLngBounds();
     for (const p of located) {
       const pos = new k.maps.LatLng(p.lat!, p.lng!);
@@ -147,14 +149,28 @@ export function PlaceMap({ places }: { places: MapPlace[] }) {
     setNamed(m.getLevel() <= NAME_LEVEL);
   }, [ready, located]);
 
-  /* 확대 정도 · 고른 곳이 바뀌면 다시 칠한다 — 고른 곳은 늘 이름표 */
+  /* 확대 경계를 넘으면 전체를, 선택만 바뀌면 이전 · 현재 점만 다시 칠한다. */
   useEffect(() => {
-    overlays.current.forEach(({ o, el, p }) => {
+    const paintOne = ({ o, el, p }: { o: KOverlay; el: HTMLElement; p: MapPlace }) => {
       const on = p.id === pick;
       paint(el, p, on, named || on);
       o.setZIndex(on ? 10 : 1);
-    });
-  }, [pick, named, located]);
+    };
+    const previous = lastPaint.current;
+    if (!previous || previous.named !== named) {
+      overlays.current.forEach(paintOne);
+    } else if (previous.pick !== pick) {
+      if (previous.pick) {
+        const old = overlays.current.get(previous.pick);
+        if (old) paintOne(old);
+      }
+      if (pick) {
+        const current = overlays.current.get(pick);
+        if (current) paintOne(current);
+      }
+    }
+    lastPaint.current = { pick, named };
+  }, [pick, named, located, ready]);
 
   /* 고른 곳 — 지도 옮김 · 목록에서 보이게 */
   useEffect(() => {
