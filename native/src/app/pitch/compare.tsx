@@ -24,7 +24,9 @@ export default function PitchCompareScreen() {
   const inset = useSafeAreaInsets();
   const all = useAllLogs(true);
   /* 목록에서 A · B 를 골라 왔으면 바로 나란히(웹 video-gallery → compare-view) */
-  const params = useLocalSearchParams<{ a?: string; al?: string; b?: string; bl?: string }>();
+  const params = useLocalSearchParams<{ a?: string; al?: string; b?: string; bl?: string; src?: string }>();
+  /* 내 영상에서 왔으면 다시 고르기도 내 영상 고르기로(타격 · 따로 남긴 영상까지 같은 범위 · 같은 찾기) — A 는 그대로 두고 B 만 다시 */
+  const fromGallery = params.src === 'my-videos' && !!params.a;
   const given = params.a && params.b ? [{ key: 'a', path: params.a, label: params.al ?? 'A' }, { key: 'b', path: params.b, label: params.bl ?? 'B' }] : null;
   const [picked, setPicked] = useState<Pick[]>(given ?? []);
   const [comparing, setComparing] = useState(given != null);
@@ -51,7 +53,17 @@ export default function PitchCompareScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: comparing ? '#000' : c.page }}>
       <View style={[styles.bar, { paddingTop: inset.top + 8 }]}>
-        <Press accessibilityRole="button" onPress={() => (comparing ? setComparing(false) : router.back())} hitSlop={10}>
+        <Press
+          accessibilityRole="button"
+          onPress={() =>
+            fromGallery && comparing
+              ? router.replace({ pathname: '/my-videos' as never, params: { pick: params.a, src: 'my-videos' } })
+              : comparing
+                ? setComparing(false)
+                : router.back()
+          }
+          hitSlop={10}
+        >
           <Text style={[styles.barAction, { color: comparing ? '#fff' : c.link }]}>{comparing ? '‹ 다시 고르기' : '‹ 투구 기록'}</Text>
         </Press>
         <Text style={[styles.barTitle, { color: comparing ? '#fff' : c.ink }]}>2분할 비교</Text>

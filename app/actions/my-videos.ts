@@ -41,18 +41,28 @@ export async function updateMyVideo(
   if (typeof path !== 'string' || !isOwnedBy(path, user.id) || path.includes('..'))
     return { ok: false, error: '영상을 찾지 못했어요.' };
 
-  /* ponytail: 고칠 때마다 목록을 다 읽는다 — 누를 때 한 번이라 괜찮다. 영상이 수천 개가 되면 경로 하나만 찾게 */
-  const item = (await loadMyVideos(user.id)).find((v) => v.path === path);
-  if (!item) return { ok: false, error: '영상을 찾지 못했어요. 새로고침해 주세요.' };
-
-  const data: { feelNote?: string | null; revisit?: boolean; revisitAt?: Date | null } =
-    {};
+  const data: { feelNote?: string | null; revisit?: boolean; revisitAt?: Date | null } = {};
   if (patch.feelNote !== undefined) data.feelNote = cleanFeelNote(patch.feelNote);
   if (typeof patch.revisit === 'boolean') {
     data.revisit = patch.revisit;
     data.revisitAt = patch.revisit ? appNow() : null;
   }
+  const select = { feelNote: true, revisit: true } as const;
 
+  /* 줄이 있으면 그 줄만 고친다 — 별 · 메모를 누를 때마다 목록 전체를 읽지 않게(2026-10-27). 지운 영상은 고치지 않는다 */
+  const existing = await prisma.userVideo.findUnique({
+    where: { userId_path: { userId: user.id, path } },
+    select: { id: true, deletedAt: true },
+  });
+  if (existing?.deletedAt) return { ok: false, error: '지운 영상이에요. 새로고침해 주세요.' };
+  if (existing) {
+    const row = await prisma.userVideo.update({ where: { id: existing.id }, data, select });
+    return { ok: true, note: row.feelNote, revisit: row.revisit };
+  }
+
+  /* 줄 없는 기존 영상(기록에만 붙은 것)은 처음 한 번만 — 그 사람 기록에 정말 붙은 영상인지 · 날짜 · 종목을 목록 규칙으로 정해 줄을 만든다 */
+  const item = (await loadMyVideos(user.id)).find((v) => v.path === path);
+  if (!item) return { ok: false, error: '영상을 찾지 못했어요. 새로고침해 주세요.' };
   const row = await prisma.userVideo.upsert({
     where: { userId_path: { userId: user.id, path } },
     update: data,
@@ -66,7 +76,7 @@ export async function updateMyVideo(
       origin: item.origin,
       ...data,
     },
-    select: { feelNote: true, revisit: true },
+    select,
   });
   return { ok: true, note: row.feelNote, revisit: row.revisit };
 }

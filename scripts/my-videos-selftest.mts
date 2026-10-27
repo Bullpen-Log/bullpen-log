@@ -7,6 +7,15 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import {
   EMPTY_VIDEO_FILTER,
+  chunkRows,
+  clearChip,
+  filterChips,
+  isFilterActive,
+  monthIndex,
+  periodRange,
+  recordTypes,
+  sortRows,
+  type VideoFilter,
   FEEL_NOTE_MAX,
   checkNewVideo,
   cleanFeelNote,
@@ -17,6 +26,7 @@ import {
   type MyVideoLog,
   type MyVideoRow,
 } from '../lib/my-videos.ts';
+import { applyOverrides, createFavQueue, pruneOverrides, type Override } from '../native/src/videos/edits.ts';
 
 let passed = 0;
 let failed = 0;
@@ -133,8 +143,120 @@ console.log('\n[4] 찾기 — 영상 메모 · 기록 총평 둘 다, 어디서 
   check('날짜 모름 영상도 메모로 찾는다', f('늦었다').length === 1 && f('늦었다')[0].item.date === null);
   check('띄어 쓴 낱말은 모두 맞아야(AND)', f('릴리스 타이밍').length === 0 && f('릴리스 늦었다').length === 1);
   check('종목 고르개', f('', { sport: 'hit' }).length === 1 && f('', { sport: 'pitch' }).length === 2);
-  check('다시 보기만', f('', { revisitOnly: true }).map((r) => r.item.path).join() === phone(1));
+  check('즐겨찾기만(revisit 칸 그대로)', f('', { favoriteOnly: true }).map((r) => r.item.path).join() === phone(1));
   check('대소문자 · 공백 무시', filterVideos(mergeVideos({ rows: [row({ feelNote: 'Hip  Lead' })], logs: [], clips: [] }), { ...EMPTY_VIDEO_FILTER, text: ' hip lead ' }).length === 1);
+}
+
+console.log('\n[4-2] 기간 — 양끝 포함 · 월말 · 연말 · 윤년 · 날짜 모름');
+{
+  const r = (kind: 'all' | '7d' | 'thisMonth' | 'lastMonth' | 'custom' | 'unknown', today: string, from?: string, to?: string) =>
+    periodRange({ kind, from, to }, today);
+  check('최근 7일 = 오늘 포함 7일(월 넘김)', JSON.stringify(r('7d', '2026-03-03')) === JSON.stringify({ from: '2026-02-25', to: '2026-03-03', unknownOnly: false }));
+  check('윤년 2월 끝(2024-03-02 의 7일 = 02-25 ~)', r('7d', '2024-03-02').from === '2024-02-25' && r('lastMonth', '2024-03-15').to === '2024-02-29');
+  check('평년 2월 끝 28일', r('lastMonth', '2026-03-01').to === '2026-02-28');
+  check('지난달 — 1월이면 지난해 12월', JSON.stringify(r('lastMonth', '2026-01-10')) === JSON.stringify({ from: '2025-12-01', to: '2025-12-31', unknownOnly: false }));
+  check('이번 달 — 1일 ~ 말일', r('thisMonth', '2026-10-26').from === '2026-10-01' && r('thisMonth', '2026-10-26').to === '2026-10-31');
+  check('직접 기간 — 거꾸로 고르면 바꿔 끼움', r('custom', '2026-10-26', '2026-10-20', '2026-10-01').from === '2026-10-01');
+  const items = mergeVideos({
+    rows: [
+      row({ path: phone(1), capturedDate: '2026-10-01', capturedSource: 'header' }),
+      row({ path: phone(2), capturedDate: '2026-10-31', capturedSource: 'header' }),
+      row({ path: phone(3), capturedDate: '2026-11-01', capturedSource: 'header' }),
+      row({ path: phone(4), capturedDate: null }),
+      row({ path: phone(5), capturedDate: '2025-10-26', capturedSource: 'header' }),
+    ],
+    logs: [],
+    clips: [],
+  });
+  const per = (kind: 'all' | 'thisMonth' | 'unknown' | 'custom', from?: string, to?: string) =>
+    filterVideos(items, { ...EMPTY_VIDEO_FILTER, period: { kind, from, to } }, '2026-10-26').map((x) => x.item.path);
+  check('이번 달 — 10/01 · 10/31 양끝 포함, 11/01 · 날짜 모름 · 작년은 빠짐', per('thisMonth').join() === [phone(2), phone(1)].join());
+  check('날짜 모름은 전체 기간에서 맨 끝에 보인다', per('all').at(-1) === phone(4));
+  check('날짜 모름만', per('unknown').join() === phone(4));
+  check('기간에는 날짜 모름을 안 넣는다', !per('custom', '2020-01-01', '2030-01-01').includes(phone(4)));
+  const yearWords = filterVideos(items, { ...EMPTY_VIDEO_FILTER, text: '10월 26일' }).map((x) => x.item.path);
+  const y2025 = filterVideos(items, { ...EMPTY_VIDEO_FILTER, text: '2025 10월' }).map((x) => x.item.path);
+  check("'10월 26일'은 해마다 · '2025 10월'은 그해로", yearWords.includes(phone(5)) && y2025.join() === phone(5));
+}
+
+console.log('\n[4-3] 기록 종류 · 연결 여부 · 여러 기록 · 정렬 · 칩');
+{
+  const items = mergeVideos({
+    rows: [row({ path: phone(9), capturedDate: '2026-10-20', capturedSource: 'header', feelNote: '혼자 찍음' })],
+    logs: [
+      { log: log({ id: 'a', type: '캐치볼', date: '2026-10-21' }), paths: [phone(1)] },
+      { log: log({ id: 'b', type: '불펜', date: '2026-10-22' }), paths: [phone(1)] },
+      { log: log({ id: 'c', type: '경기', date: '2026-10-23' }), paths: [phone(2)] },
+    ],
+    clips: [],
+  });
+  const f = (over: Partial<VideoFilter>) => filterVideos(items, { ...EMPTY_VIDEO_FILTER, ...over }).map((x) => x.item.path);
+  check('기록 여럿 중 뒤의 기록 종류로도 찾는다(logs[0]만 안 봄)', f({ types: ['불펜'] }).join() === phone(1));
+  check('종류 여럿은 어느 하나', f({ types: ['불펜', '경기'] }).length === 2);
+  check('기록 연결됨 · 연결 없음', f({ linked: 'linked' }).length === 2 && f({ linked: 'unlinked' }).join() === phone(9));
+  check('복합(종류 × 연결 × 기간)', f({ types: ['경기'], linked: 'linked', period: { kind: 'custom', from: '2026-10-23', to: '2026-10-23' } }).join() === phone(2));
+  check('같은 영상은 기록이 둘이어도 한 번만 센다', f({}).length === 3);
+  check('기록 종류 목록은 실제 데이터에서', recordTypes(items).map((t) => t.type).sort().join() === ['경기', '불펜', '캐치볼'].sort().join());
+  const all = filterVideos(items, EMPTY_VIDEO_FILTER);
+  check('오래된 순 — 오래된 날부터', sortRows(all, 'old').map((x) => x.item.path).join() === [phone(9), phone(1), phone(2)].join());
+  const withUnknown = filterVideos(mergeVideos({ rows: [row({ path: phone(7) }), row({ path: phone(8), capturedDate: '2026-01-01', capturedSource: 'header' })], logs: [], clips: [] }), EMPTY_VIDEO_FILTER);
+  check('오래된 순에도 날짜 모름은 맨 끝', sortRows(withUnknown, 'old').at(-1)?.item.path === phone(7) && sortRows(withUnknown, 'new').at(-1)?.item.path === phone(7));
+  const busy: VideoFilter = { ...EMPTY_VIDEO_FILTER, text: '릴리스', sport: 'pitch', favoriteOnly: true, period: { kind: '7d' }, types: ['불펜'], linked: 'linked' };
+  const chips = filterChips(busy, '2026-10-26');
+  check('켜진 조건마다 칩 하나', chips.length === 6 && chips.some((c) => c.label === '즐겨찾기'));
+  const cleared = chips.reduce((acc, c) => clearChip(acc, c.key), busy);
+  check('칩을 다 지우면 처음 조건', !isFilterActive(cleared) && JSON.stringify(cleared) === JSON.stringify(EMPTY_VIDEO_FILTER));
+  check('검색 결과에 걸린 글 조각', filterVideos(items, { ...EMPTY_VIDEO_FILTER, text: '혼자' })[0]?.snippet?.includes('혼자') === true);
+  const fav = mergeVideos({ rows: [row({ path: phone(1), revisit: true }), row({ path: phone(2), revisit: false })], logs: [], clips: [] });
+  check('즐겨찾기만 보는 중 끈 영상은 조건을 바꿀 때까지 자리에(keep)', filterVideos(fav, { ...EMPTY_VIDEO_FILTER, favoriteOnly: true }, undefined, new Set([phone(2)])).length === 2);
+  check('그리드 줄 자르기', chunkRows([1, 2, 3, 4, 5], 2).map((r) => r.length).join() === '2,2,1' && chunkRows([1], 0).length === 1);
+  const mi = monthIndex(items, filterVideos(items, { ...EMPTY_VIDEO_FILTER, types: ['경기'] }));
+  check('월 바로 가기 — 전체 수와 조건에 맞는 수', mi.length === 1 && mi[0].ym === '2026-10' && mi[0].total === 3 && mi[0].shown === 1);
+}
+
+console.log('\n[4-4] 즐겨찾기 — 연타 · 실패 · 새로고침이 되돌리지 않음');
+{
+  type Call = { want: boolean; resolve: (r: { ok: true; revisit: boolean } | { ok: false; error: string }) => void };
+  const calls: Call[] = [];
+  const shown: boolean[] = [];
+  const fails: string[] = [];
+  const q = createFavQueue({
+    send: (_p, want) => new Promise((resolve) => calls.push({ want, resolve })),
+    show: (_p, v) => shown.push(v),
+    fail: (_p, e) => fails.push(e),
+  });
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+  let cur = false;
+  cur = q.toggle('a', cur); // true — 보냄
+  cur = q.toggle('a', cur); // false
+  cur = q.toggle('a', cur); // true
+  check('연타 중에는 한 번에 하나만 보낸다', calls.length === 1 && calls[0].want === true);
+  calls[0].resolve({ ok: true, revisit: true });
+  await flush();
+  check('마지막 뜻(켬)이 첫 보냄과 같으면 더 안 보낸다 · 보이는 값 켬', calls.length === 1 && shown.at(-1) === true);
+  cur = q.toggle('a', true); // false
+  cur = q.toggle('a', cur); // true
+  cur = q.toggle('a', cur); // false
+  calls[1].resolve({ ok: true, revisit: false });
+  await flush();
+  check('보내는 사이 바뀐 뜻이 첫 보냄과 같으면 끝', calls.length === 2 && shown.at(-1) === false);
+  cur = q.toggle('a', false); // true 보냄
+  cur = q.toggle('a', cur); // false 로 바꿈
+  calls[2].resolve({ ok: true, revisit: true });
+  await flush();
+  check('보내는 사이 뜻이 바뀌면 끝난 뒤 마지막 뜻을 한 번 더', calls.length === 4 && calls[3].want === false);
+  calls[3].resolve({ ok: false, error: '신호 없음' });
+  await flush();
+  check('실패하면 서버가 마지막으로 받은 값(켬)으로 되돌리고 알린다', shown.at(-1) === true && fails.length === 1);
+
+  const ov = new Map<string, Override>([['a', { revisit: true, done: 100 }], ['b', { note: '새 메모', done: null }]]);
+  const stale = [{ path: 'a', note: null, revisit: false }, { path: 'b', note: '옛 메모', revisit: false }];
+  const shownStale = applyOverrides(stale, ov);
+  check('고침 전에 떠난 목록 답은 고친 값으로 덮어 보인다', shownStale[0].revisit === true && shownStale[1].note === '새 메모');
+  pruneOverrides(ov, 50);
+  check('고침이 끝나기 전에 떠난 답으로는 안 놓는다', ov.has('a'));
+  pruneOverrides(ov, 200);
+  check('끝난 뒤 떠난 답이 오면 놓는다 · 아직 보내는 중인 것은 둔다', !ov.has('a') && ov.has('b'));
 }
 
 console.log('\n[5] 메모 다듬기');
@@ -157,21 +279,40 @@ console.log('\n[5-2] 영상만 저장 — 폰이 보낸 칸 다듬기');
   check('모르는 종목 · 출처 · 숫자는 기본값', 'value' in odd && odd.value.sport === 'pitch' && odd.value.origin === 'album' && odd.value.durationSec === null && odd.value.width === null);
 }
 
-console.log('\n[5-3] 많은 영상 — 합치기 · 찾기 · 묶기가 화면을 멈추지 않는가');
+console.log('\n[5-3] 많은 영상 — 0 · 1 · 100 · 500 · 1,000 · 5,000개 (이 컴퓨터의 순수 함수 시간 — 폰 그리기 · 장면 그림 · 다리 비용은 아님)');
 {
-  const day = (i: number) => `2026-${String(1 + (i % 12)).padStart(2, '0')}-${String(1 + (i % 28)).padStart(2, '0')}`;
+  const day = (i: number) => `202${5 + (i % 2)}-${String(1 + (i % 12)).padStart(2, '0')}-${String(1 + (i % 28)).padStart(2, '0')}`;
   const p = (i: number) => `${U}/local-${String(i).padStart(8, '0')}-aaaa-bbbb-cccc-dddddddddddd`;
-  const logs = Array.from({ length: 2000 }, (_, i) => ({ log: log({ id: `l${i}`, date: day(i), memo: i % 7 ? null : '릴리스 늦음' }), paths: [p(i), p(i + 2000)] }));
-  const clips = Array.from({ length: 1000 }, (_, i) => ({ path: p(4000 + i), clip: { pitchId: `p${i}`, sessionId: 's', date: day(i), kmh: 120, pitchType: null } }));
-  const rows = Array.from({ length: 1000 }, (_, i) => row({ path: p(i), feelNote: i % 3 ? null : '하체 먼저', capturedDate: day(i) }));
-  const t0 = performance.now();
-  const items = mergeVideos({ rows, logs, clips });
-  const hits = filterVideos(items, { ...EMPTY_VIDEO_FILTER, text: '릴리스 늦음' });
-  const groups = groupByDate(filterVideos(items, EMPTY_VIDEO_FILTER));
-  const ms = performance.now() - t0;
-  check('영상 5,000개 — 카드 수가 맞다', items.length === 5000, String(items.length));
-  check('찾기 · 묶기가 결과를 낸다', hits.length > 0 && groups.length > 0 && groups.length <= 336);
-  check('합치기 + 찾기 + 묶기가 300ms 안(폰은 몇 배 느려도 1초 밑)', ms < 300, `${Math.round(ms)}ms`);
+  const make = (n: number) => {
+    const logN = Math.floor(n * 0.4);
+    const logs = Array.from({ length: logN }, (_, i) => ({ log: log({ id: `l${i}`, date: day(i), type: i % 3 ? '불펜' : '경기', memo: i % 7 ? null : '릴리스 늦음' }), paths: [p(i), p(i + logN)].slice(0, n - i > logN ? 2 : 1) }));
+    const rows = Array.from({ length: n - logN * 2 > 0 ? n - logN * 2 : 0 }, (_, i) => row({ path: p(2 * logN + i), feelNote: i % 3 ? null : '하체 먼저', capturedDate: i % 10 ? day(i) : null, revisit: i % 5 === 0 }));
+    return mergeVideos({ rows, logs, clips: [] });
+  };
+  const time = (fn: () => unknown) => {
+    const t0 = performance.now();
+    fn();
+    return performance.now() - t0;
+  };
+  const report: string[] = [];
+  let worst = 0;
+  for (const n of [0, 1, 100, 500, 1000, 5000]) {
+    const items = make(n);
+    const tDefault = time(() => chunkRows(groupByDate(sortRows(filterVideos(items, EMPTY_VIDEO_FILTER, '2026-10-26'), 'new')), 2));
+    const tSearch = time(() => filterVideos(items, { ...EMPTY_VIDEO_FILTER, text: '릴리스 늦음' }, '2026-10-26'));
+    const tCombo = time(() => filterVideos(items, { ...EMPTY_VIDEO_FILTER, sport: 'pitch', favoriteOnly: false, types: ['불펜'], linked: 'linked', period: { kind: 'custom', from: '2025-03-01', to: '2026-06-30' } }, '2026-10-26'));
+    const tMonth = time(() => monthIndex(items, filterVideos(items, EMPTY_VIDEO_FILTER, '2026-10-26')));
+    const tSwap = time(() => {
+      const g = groupByDate(filterVideos(items, EMPTY_VIDEO_FILTER, '2026-10-26'));
+      g.map((x) => chunkRows(x.rows, 3));
+      g.map((x) => chunkRows(x.rows, 1));
+    });
+    worst = Math.max(worst, tDefault, tSearch, tCombo, tMonth, tSwap);
+    report.push(`${n}개: 기본 ${tDefault.toFixed(1)} · 검색 ${tSearch.toFixed(1)} · 복합 ${tCombo.toFixed(1)} · 월 ${tMonth.toFixed(1)} · 보기 바꿈 ${tSwap.toFixed(1)}ms`);
+    if (n === 5000) check('5,000개 카드 수가 맞다', items.length === 5000, String(items.length));
+  }
+  console.log(report.map((r) => `       ${r}`).join('\n'));
+  check('가장 느린 계산도 200ms 밑(이 컴퓨터) — 폰이 몇 배 느려도 검색 한 번에 1초 밑', worst < 200, `${worst.toFixed(1)}ms`);
 }
 
 console.log('\n[6] 소스 모양 — 부하 · 계정 · 관리자 자료');
@@ -203,8 +344,14 @@ console.log('\n[6] 소스 모양 — 부하 · 계정 · 관리자 자료');
   check('앱 입구(rpc 허용 목록)에 있다', src('app/api/rpc/registry.ts').includes("'my-videos': myVideos"));
   check(
     '앱 목록의 keyExtractor 는 묶음 머리 줄(영상 없음)에서도 안 터진다(onViewableItemsChanged)',
-    src('native/src/app/my-videos/index.tsx').split('\n').some((l) => l.includes('keyExtractor=') && l.includes('.item?.path'))
+    /keyExtractor=\{[\s\S]{0,300}\.item\?\.path/.test(src('native/src/app/my-videos/index.tsx')) &&
+      /viewableItems\.flatMap[\s\S]{0,300}\?\.item\?\.path/.test(src('native/src/app/my-videos/index.tsx'))
   );
+  const gallery = src('native/src/app/my-videos/index.tsx') + src('native/src/videos/gallery-parts.tsx') + src('native/src/app/my-videos/view.tsx');
+  check("화면 글에 '다시 볼'이 남지 않았다(이름은 '즐겨찾기')", !gallery.includes('다시 볼'));
+  check('즐겨찾기 별은 추가 · 해제 이름과 선택 상태를 읽어 준다', gallery.includes("'즐겨찾기에서 해제'") && gallery.includes("'즐겨찾기에 추가'") && gallery.includes('accessibilityState={{ selected: on }}'));
+  check('목록은 가상화(SectionList) · 줄 자리 계산(getItemLayout) — 다 그리기(map)로 안 돌아감', /<SectionList/.test(gallery) && gallery.includes('getItemLayout'));
+  check('즐겨찾기 저장은 줄이 있으면 그 줄만(목록 전체 안 읽음)', /findUnique\([\s\S]{0,120}userId_path[\s\S]{0,400}userVideo\.update/.test(action));
   check('지우기 참조 검사가 UserVideo 를 본다', src('lib/video-refs.ts').includes('prisma.userVideo.findMany'));
 }
 

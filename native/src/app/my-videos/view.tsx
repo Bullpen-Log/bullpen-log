@@ -10,18 +10,19 @@ import { PitchVideo } from '~/pitch/video';
 import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
 import { rpc } from '~/lib/rpc';
-import { deleteVideo, findMyVideo, linkVideo, saveMyVideo, useMyVideos } from '~/videos/store';
+import { deleteVideo, findMyVideo, linkVideo, refreshMyVideos, saveMyVideo, toggleFavorite, useMyVideos } from '~/videos/store';
 import { videoDateText } from '~/videos/text';
 
 /**
- * 영상 하나(내 영상 상세) — 재생기 · 이 영상에만 남는 감각 메모 · ★ 다시 보기 · 붙은 기록(읽기만) · 다른 영상과 비교.
+ * 영상 하나(내 영상 상세) — 재생기 · 이 영상에만 남는 감각 메모 · ★ 즐겨찾기 · 붙은 기록(읽기만) · 다른 영상과 비교.
+ * 바로 들어왔을 때(목록 없이) — 받는 중 · 못 받음 · 없는 영상을 가른다(끝없이 도는 표시로 두지 않는다).
  * 기록 총평(PitchLog.memo)은 기록 화면에서 고친다 — 여기서 적는 메모와 따로다(설계 4절).
  */
 export default function MyVideoScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const { path } = useLocalSearchParams<{ path: string }>();
-  useMyVideos();
+  const list = useMyVideos();
   const v = path ? findMyVideo(path) : null;
   const featured = useFeatured();
   const [note, setNote] = useState(v?.note ?? '');
@@ -54,9 +55,29 @@ export default function MyVideoScreen() {
   useEffect(() => () => void latest.current(), []);
 
   if (!v) {
+    const waiting = list.loading || (!list.items && !list.error);
     return (
-      <View style={[styles.center, { backgroundColor: c.page, paddingTop: inset.top }]}>
-        <ActivityIndicator />
+      <View style={[styles.center, { backgroundColor: c.page, paddingTop: inset.top, gap: 12, padding: 24 }]}>
+        {waiting ? (
+          <ActivityIndicator />
+        ) : (
+          <>
+            <Icon name={list.items ? 'film' : 'refresh-cw'} size={30} color={c.muted} />
+            <Text style={[TYPE.body, { color: c.muted, textAlign: 'center' }]}>
+              {list.items
+                ? '이 영상을 찾지 못했어요. 지웠거나, 다른 계정의 영상이거나, 아직 보내는 중일 수 있어요.'
+                : `영상 정보를 받지 못했어요. ${list.error ?? ''}`}
+            </Text>
+            {!list.items ? (
+              <Press accessibilityRole="button" onPress={() => void refreshMyVideos()} style={[styles.button, { backgroundColor: withAlpha(c.ink, 0.06), paddingHorizontal: 20 }]}>
+                <Text style={[TYPE.buttonCompact, { color: c.ink }]}>다시 받기</Text>
+              </Press>
+            ) : null}
+            <Press accessibilityRole="button" onPress={() => router.back()} style={[styles.button, { paddingHorizontal: 20 }]}>
+              <Text style={[TYPE.buttonCompact, { color: c.link }]}>돌아가기</Text>
+            </Press>
+          </>
+        )}
       </View>
     );
   }
@@ -91,10 +112,8 @@ export default function MyVideoScreen() {
         },
       ]
     );
-  const toggleStar = async () => {
-    const err = await saveMyVideo(v.path, { revisit: !v.revisit });
-    if (err) setStatus(err);
-  };
+  /* 즐겨찾기 — 목록과 같은 길(연타는 마지막 뜻만, 실패하면 되돌리고 알림) */
+  const toggleStar = () => void toggleFavorite(v.path);
   const isFeatured = v.date != null && featured[v.date] === v.path;
 
   return (
@@ -108,7 +127,7 @@ export default function MyVideoScreen() {
         </Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={v.revisit ? '다시 볼 영상에서 빼기' : '다시 볼 영상으로'}
+          accessibilityLabel={v.revisit ? '즐겨찾기에서 해제' : '즐겨찾기에 추가'}
           accessibilityState={{ selected: v.revisit }}
           onPress={toggleStar}
           hitSlop={6}
@@ -119,7 +138,17 @@ export default function MyVideoScreen() {
       </View>
       <ScrollView keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: inset.bottom + 32 }, READABLE]}>
         <PitchVideo path={v.path} tools />
-        {isFeatured ? <Text style={[TYPE.sub, { color: c.muted }]}>그날 대표 영상</Text> : null}
+        {isFeatured || v.dateSource === 'log' || !v.date ? (
+          <Text style={[TYPE.sub, { color: c.muted }]}>
+            {[
+              isFeatured ? '그날 대표 영상' : null,
+              v.dateSource === 'log' ? '찍은 날을 몰라 붙은 기록의 날짜로 묶었어요' : null,
+              !v.date ? '찍은 날을 몰라요' : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
+        ) : null}
 
         <View style={{ gap: 6 }}>
           <Text style={[TYPE.card, { color: c.ink }]}>이 영상에서 느낀 것</Text>
@@ -159,7 +188,7 @@ export default function MyVideoScreen() {
 
         <Press
           accessibilityRole="button"
-          onPress={() => router.push({ pathname: '/my-videos' as never, params: { pick: v.path } })}
+          onPress={() => router.push({ pathname: '/my-videos' as never, params: { pick: v.path, src: 'my-videos' } })}
           style={[styles.button, { backgroundColor: withAlpha(c.ink, 0.06) }]}
         >
           <Icon name="video" size={18} color={c.ink} />
