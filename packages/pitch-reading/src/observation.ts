@@ -1,5 +1,5 @@
 import {at,PLATE_FRONT_Z,type Pitch} from './physics.ts';
-export const OBSERVATION_VERSION='approach-150cm-1';
+export const OBSERVATION_VERSION='fixed-window-150cm-2';
 export const LAST_VISIBLE_DISTANCE_M=1.5;
 /** Spatial cutoff, independent of difficulty/type. The approach always runs at 1x. */
 export function approachCutoff(pitch:Pitch):number{

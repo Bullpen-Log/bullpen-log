@@ -1,8 +1,9 @@
 import './style.css';
+import './app.css';
 import {DISPLAY_VERSION,CARD_SHORT_EDGE_CM,validCalibration,estimateDisplay,cardCalibration,type DisplayCalibration} from './display-calibration.ts';
 import {approachCutoff,OBSERVATION_VERSION} from './observation.ts';
 import {GAZE_VERSION} from './gaze.ts';
-declare global {interface Window {__SINKER_PITCH__?:{embedded?:boolean;displayCalibration?:DisplayCalibration;history?:Session[]};ReactNativeWebView?:{postMessage:(message:string)=>void}}}
+declare global {interface Window {__SINKER_PITCH__?:{embedded?:boolean;displayCalibration?:DisplayCalibration;history?:Session[];theme?:'light'|'dark'|'navy';palette?:Record<string,string>};ReactNativeWebView?:{postMessage:(message:string)=>void}}}
 import { DIFFICULTIES, generatePitch, movement, PITCHERS, ENGINE_VERSION, trackingAt, trackingEnd, BALL_RADIUS,PLATE_Z,type PitchKind, type Pitcher } from './physics.ts';
 import {assessZone,callName,STRIKE_ZONE,zoneExplanation,MIDDLE_Z,END_BOTTOM,type ZoneCall} from './strike-zone.ts';
 import {REFERENCE_BATTER,ZONE_VERSION} from './batter-reference.ts';
@@ -23,6 +24,20 @@ const historyKey=scope&&/^[a-zA-Z0-9-]{1,64}$/.test(scope)?`sinker-pitch-reading
 const historyStorage={getItem:()=>localStorage.getItem(historyKey),setItem:(_key:string,value:string)=>localStorage.setItem(historyKey,value)};
 const postNative=(value:unknown)=>window.ReactNativeWebView?.postMessage(JSON.stringify({t:'pitch-reading',...value as object}));
 const touch=matchMedia('(pointer:coarse)').matches;
+const themeMedia=matchMedia('(prefers-color-scheme: dark)');
+function applyAppTheme(theme?:string,palette?:Record<string,string>){
+  document.documentElement.dataset.theme=['light','dark','navy'].includes(theme??'')?theme!:themeMedia.matches?'dark':'light';
+  const keys:Record<string,string>={page:'--page',card:'--panel',ink:'--ink',muted:'--muted',line:'--line',lineStrong:'--line-strong',action:'--accent',link:'--link',chip:'--surface',skyTint:'--tint',ok:'--ok',danger:'--danger'};
+  if(palette)for(const [key,css] of Object.entries(keys)){const color=palette[key];if(/^#[a-fA-F0-9]{6}$/.test(color??''))document.documentElement.style.setProperty(css,color);}
+}
+applyAppTheme(nativeBoot?.theme,nativeBoot?.palette);
+window.addEventListener('sinker-theme',((event:CustomEvent)=>applyAppTheme(event.detail?.theme,event.detail?.palette)) as EventListener);
+if(!nativeBoot){
+  const followParent=()=>{try{applyAppTheme(window.parent!==window?window.parent.document.documentElement.dataset.theme:undefined);}catch{applyAppTheme();}};
+  followParent();themeMedia.addEventListener('change',followParent);
+  try{if(window.parent!==window)new MutationObserver(followParent).observe(window.parent.document.documentElement,{attributes:true,attributeFilter:['data-theme']});}catch{/* standalone cross-origin */}
+}
+
 let display=estimateDisplay(touch,Math.min(screen.width,screen.height));
 try{const saved=JSON.parse(localStorage.getItem('sinker-pitch-display-v1')??'null');if(validCalibration(saved)&&saved.source==='card')display=saved;}catch{/* use visible estimate */}
 if(validCalibration(nativeBoot?.displayCalibration))display=nativeBoot.displayCalibration;
@@ -44,20 +59,20 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 app.dataset.inspector=String(INSPECTOR);app.dataset.embedded=String(EMBEDDED);app.dataset.displaySource=display.source;
 app.innerHTML = `
   <header class="topbar">
-    <a class="brand" href="#" aria-label="싱커 공 읽기 홈"><span class="brand-mark"><i></i><i></i><i></i></span><span>sinker<span class="brand-dot">.</span></span><span class="brand-divider"></span><span class="lab-word">PITCH LAB</span></a>
-    ${INSPECTOR?`<nav class="mode-switch" aria-label="사용 모드"><button id="mode-training" class="active" aria-pressed="true">${icon('eye',16)} 공 읽기</button><button id="mode-lab" aria-pressed="false">${icon('settings',16)} 궤적 검수</button></nav>`:'<span class="public-mode">공 읽기</span>'}
+    <a class="brand" href="#" aria-label="싱커 선구안 훈련 홈"><span class="brand-mark"><i></i><i></i><i></i></span><span>sinker<span class="brand-dot">.</span></span><span class="brand-divider"></span><span class="lab-word">PITCH LAB</span></a>
+    ${INSPECTOR?`<nav class="mode-switch" aria-label="사용 모드"><button id="mode-training" class="active" aria-pressed="true">${icon('eye',16)} 선구안 훈련</button><button id="mode-lab" aria-pressed="false">${icon('settings',16)} 궤적 검수</button></nav>`:'<span class="public-mode">선구안 훈련</span>'}
     <div class="header-actions"><span class="prototype-tag">PROTOTYPE 19</span><button class="icon-button" id="about-open" aria-label="시제품 안내">${icon('info')}</button></div>
   </header>
   <main>
-    <section class="page-heading"><div><p class="eyebrow">SEE EARLIER. READ BETTER.</p><h1 id="page-title">공이 사라지기 전에, <em>읽어보세요.</em></h1><p id="page-description">투수의 손을 떠난 공. 구종과 스트라이크·볼을 함께 판단해 보세요.</p></div><button class="text-button history-open">${icon('clock',17)} 최근 연습 <span class="history-count">0</span></button></section>
+    <section class="page-heading"><div><p class="eyebrow">SEE EARLIER. READ BETTER.</p><h1 id="page-title">선구안 훈련</h1><p id="page-description">투수의 공을 보고, 구종과 스트라이크·볼을 판단해요.</p></div><button class="text-button history-open">${icon('clock',17)} 최근 훈련 <span class="history-count">0</span></button></section>
     ${!INSPECTOR?`<section class="setup-panel" id="setup-panel" aria-labelledby="setup-title">
-      <div class="setup-intro"><span class="eyebrow">YOUR AT BAT</span><h2 id="setup-title">오늘의 타석을 정해 주세요.</h2><p>투수 손, 타자 시점, 난이도 순서로 선택해요.</p></div>
+      <div class="setup-intro"><button class="text-button history-open setup-history">${icon('clock',17)} 최근 훈련</button><span class="eyebrow">10구 · 구종과 볼 판별</span><h2 id="setup-title">오늘의 타석</h2><p>투수 · 타석 · 난이도를 선택하면 바로 시작해요.</p></div>
       <nav id="setup-progress" class="setup-progress" aria-label="연습 조건 선택 단계"></nav>
       <div class="setup-body"><p class="section-kicker" id="setup-kicker"></p><h3 id="setup-question"></h3><div id="setup-options" class="setup-options"></div></div>
       <div class="display-guide"><span id="display-guide-text"></span><button id="display-open" class="text-button">화면 크기 확인</button></div>
       <div class="setup-summary" id="setup-summary" aria-live="polite"></div>
-      <div class="setup-actions"><button id="setup-back" class="text-button">이전</button><button id="setup-start" class="primary-button" disabled>10구 연습 시작 ${icon('arrow',18)}</button></div>
-      <details class="level-evidence"><summary>난이도는 어떤 기준인가요?</summary><p>구종별 구속 범위를 달리하고 공이 홈 앞 약 1.5m에 올 때까지 실제 속도로 보여 줍니다. 눈 위치와 실제 공 크기는 고정하며, 화면 크기에 맞춰 전체 장면을 보정합니다. 공을 따라 보는 방향은 자동으로 움직이고 직접 조절할 수 없습니다.</p><p>중·고교는 청소년 측정 연구를 참고한 연습 범위이며 국내 선수의 대표 평균으로 검증된 값은 아닙니다. KBO는 공개 구속 보도, MLB는 2025 Statcast 자료를 참고했습니다. 실제 타격 실력이나 훈련 효과를 인증하는 단계는 아닙니다.</p><p><a href="https://ijspt.scholasticahq.com/article/21495-comparative-pitching-biomechanics-among-adolescent-baseball-athletes-are-there-fundamental-differences-between-pitchers-and-non-pitchers" target="_blank" rel="noopener">청소년 측정 연구 ↗</a> · <a href="https://mobile.newsis.com/view_amp.html?ar_id=NISX20250315_0003100099" target="_blank" rel="noopener">KBO 구속 자료 ↗</a> · <a href="https://baseballsavant.mlb.com/leaderboard/pitch-movement?year=2025&pitch_type=FF&min=q" target="_blank" rel="noopener">2025 Statcast ↗</a></p></details>
+      <div class="setup-actions"><button id="setup-back" class="text-button">이전</button><button id="setup-start" class="primary-button" disabled>10구 훈련 시작 ${icon('arrow',18)}</button></div>
+      <details class="level-evidence"><summary>난이도는 어떤 기준인가요?</summary><p>구종별 구속 범위를 달리하고 공을 실제 속도로 보여 주고, 홈 앞 약 1.5m 또는 화면을 벗어나기 직전에 가립니다. 눈 위치와 실제 공 크기는 고정하며, 화면 크기에 맞춰 전체 장면을 보정합니다. 시선은 투수의 릴리스 방향에 고정되며 공을 따라 움직이지 않습니다. 화면 밖으로 나가는 공은 그 직전까지 보여 줍니다.</p><p>중·고교는 청소년 측정 연구를 참고한 연습 범위이며 국내 선수의 대표 평균으로 검증된 값은 아닙니다. KBO는 공개 구속 보도, MLB는 2025 Statcast 자료를 참고했습니다. 실제 타격 실력이나 훈련 효과를 인증하는 단계는 아닙니다.</p><p><a href="https://ijspt.scholasticahq.com/article/21495-comparative-pitching-biomechanics-among-adolescent-baseball-athletes-are-there-fundamental-differences-between-pitchers-and-non-pitchers" target="_blank" rel="noopener">청소년 측정 연구 ↗</a> · <a href="https://mobile.newsis.com/view_amp.html?ar_id=NISX20250315_0003100099" target="_blank" rel="noopener">KBO 구속 자료 ↗</a> · <a href="https://baseballsavant.mlb.com/leaderboard/pitch-movement?year=2025&pitch_type=FF&min=q" target="_blank" rel="noopener">2025 Statcast ↗</a></p></details>
     </section>`:''}
     <div class="workspace">
       <section class="simulation-column" aria-label="시뮬레이션과 훈련">
@@ -66,9 +81,9 @@ app.innerHTML = `
           <div id="viewport"></div>
           <div class="scene-vignette"></div>
           <div id="tracking-card" class="tracking-card" hidden></div>
-          <div class="scene-top"><span class="camera-label">${icon('eye',15)} <span id="camera-name">타자 시점 · 우타자</span></span><div class="scene-tools">${!INSPECTOR?'<button class="text-button public-end" id="end-session" hidden>연습 종료</button>':''}<span class="live-label"><i></i><span id="scene-state">READY</span></span><button ${!INSPECTOR?'hidden':''} id="focus-toggle" class="focus-toggle" aria-pressed="false">${icon('expand',15)} <span>타석 화면</span></button></div></div>
+          <div class="scene-top"><span class="camera-label">${icon('eye',15)} <span id="camera-name">타자 시점 · 우타자</span></span><div class="scene-tools"><span id="scene-progress" class="scene-progress"></span>${!INSPECTOR?'<button class="text-button public-end" id="end-session" hidden>훈련 종료</button>':''}<span class="live-label"><i></i><span id="scene-state">READY</span></span><button ${!INSPECTOR?'hidden':''} id="focus-toggle" class="focus-toggle" aria-pressed="false">${icon('expand',15)} <span>타석 화면</span></button></div></div>
           <div class="scene-bottom"><span class="scene-pitcher"><span id="scene-number">01</span><span id="scene-pitcher-name">우완 오버핸드</span><small>가상 투수</small></span><span class="scale-label" id="scene-scale">학습용 공 확대 1.8×</span></div>
-          <button class="stage-start primary-button" id="stage-start">10구 연습 시작 ${icon('arrow',18)}</button>
+          <button class="stage-start primary-button" id="stage-start">10구 훈련 시작 ${icon('arrow',18)}</button>
           <div class="view-selector" id="view-selector" hidden aria-label="궤적 시점"><button data-view="batter" class="active">타자</button><button data-view="side">측면</button><button data-view="top">위쪽</button></div>
           <div id="stage-message" class="stage-message" hidden><div id="stage-message-icon">${icon('eye',32)}</div><p class="stage-eyebrow" id="stage-message-kicker">MAKE YOUR CALL</p><h2 id="stage-message-title">어떤 공이었나요?</h2><p id="stage-message-description">아래에서 구종을 골라 주세요.</p></div>
           <div class="preparation-label" id="preparation-label" hidden>투수의 릴리스를 보세요</div>
@@ -80,7 +95,7 @@ app.innerHTML = `
           <div class="round-line"><div><span class="section-kicker" id="round-kicker">YOUR NEXT REP</span><h2 id="round-title">준비되면 첫 공을 만나보세요.</h2></div><div class="round-count"><strong id="round-current">00</strong><span>/ 10</span></div></div>
           <div class="progress-dots" id="progress-dots" aria-label="10구 진행 상황"></div>
           <div class="answer-controls"><div class="answer-group"><h3>구종</h3><div class="answer-row" id="answer-row"></div></div><div class="answer-group"><h3>스트라이크 · 볼</h3><div class="call-row" id="call-row"></div></div></div>
-          <div class="action-row"><p id="training-hint">구종과 스트라이크·볼을 고르면 공 추적으로 확인해요.</p><button class="primary-button" id="primary-action">10구 연습 시작 ${icon('arrow',18)}</button><button class="secondary-button" id="real-replay-action" hidden>실제 속도 1×</button><button class="secondary-button" id="replay-action" hidden>${icon('refresh',16)} 다시 보기</button></div>
+          <div class="action-row"><p id="training-hint">구종과 스트라이크·볼을 고르면 공 추적으로 확인해요.</p><button class="primary-button" id="primary-action">10구 훈련 시작 ${icon('arrow',18)}</button><button class="secondary-button" id="real-replay-action" hidden>실제 속도 1×</button><button class="secondary-button" id="replay-action" hidden>${icon('refresh',16)} 다시 보기</button></div>
           <div id="feedback-detail" class="feedback-detail" hidden></div>
         </div>
         <div id="lab-console" class="lab-console" hidden>
@@ -99,7 +114,7 @@ app.innerHTML = `
           <section class="control-section"><div class="control-heading"><h3>공을 보여 주는 최대 시간</h3><span id="difficulty-value">340ms</span></div><div id="difficulty-options" class="segmented"></div><p class="control-caption">릴리스부터의 최대 시간 · 화면 밖으로 벗어나면 먼저 가립니다.</p></section>
           <section class="control-section"><div class="control-heading"><h3>공 크기</h3><span class="small-tag">학습 설정</span></div><div class="segmented" id="scale-options"><button data-scale="1" class="active" aria-pressed="true">실제 크기 1×</button><button data-scale="1.8" aria-pressed="false">식별 보조 1.8×</button></div><p class="control-caption">확대 여부가 다른 연습은 같은 조건으로 비교하지 않아요.</p></section>
           <div class="training-condition"><span>${icon('target',17)} 오늘의 구성</span><p id="condition-description"></p></div>
-          <button class="end-session text-button" id="end-session" hidden>이번 연습 종료</button>
+          <button class="end-session text-button" id="end-session" hidden>이번 훈련 종료</button>
         </div>
         <div id="lab-settings" hidden>
           <section class="control-section"><div class="control-heading"><h3>구종</h3></div><div id="lab-pitches" class="segmented"></div></section>
@@ -121,13 +136,13 @@ app.innerHTML = `
         <p class="panel-footnote" id="motion-note">${icon('info',14)} 투구 4 · 우완 · 공 궤적은 가상 설정입니다.</p>
       </aside>`: ''}
     </div>
-    <footer><span><i class="status-dot"></i> 이 기기에만 연습 결과 저장</span><span>단축키 <kbd>Space</kbd> 시작·다음 <kbd>1</kbd>–<kbd>${INSPECTOR?2:4}</kbd> 구종 <kbd>${INSPECTOR?3:5}</kbd><kbd>${INSPECTOR?4:6}</kbd> 스트라이크·볼</span><span>SINKER EXPERIMENTS / 019</span></footer>
+    <footer><span><i class="status-dot"></i> 이 기기에만 훈련 결과 저장</span><span>단축키 <kbd>Space</kbd> 시작·다음 <kbd>1</kbd>–<kbd>${INSPECTOR?2:4}</kbd> 구종 <kbd>${INSPECTOR?3:5}</kbd><kbd>${INSPECTOR?4:6}</kbd> 스트라이크·볼</span><span>SINKER EXPERIMENTS / 019</span></footer>
   </main>
   ${!INSPECTOR?`<dialog id="display-dialog"><div class="dialog-header"><span class="eyebrow">SCREEN SIZE</span><button class="icon-button dialog-close" aria-label="화면 크기 확인 닫기">${icon('close')}</button></div><h2>카드의 짧은 변에 맞춰 주세요.</h2><p>일반 신용·체크카드의 짧은 변(약 5.4cm)을 화면에 대고 아래 세로선을 카드의 짧은 변과 같은 길이로 맞춰 주세요. 카드 정보는 촬영하거나 입력하지 않아요.</p><div class="card-measure" id="card-measure"><span id="card-measure-line"></span></div><label for="card-measure-range">세로선 길이<input id="card-measure-range" type="range" min="100" max="480" step="1" /></label><p id="display-distance-note"></p><button id="display-save" class="primary-button">이 화면 크기로 맞추기 ${icon('check',18)}</button></dialog>`:''}
   <div id="toast" class="toast" role="status" hidden></div>
-  <dialog id="about-dialog"><div class="dialog-header"><span class="eyebrow">공 읽기</span><button class="icon-button dialog-close" aria-label="안내 닫기">${icon('close')}</button></div><h2>타석에서 공을 읽어보세요.</h2><p>투수의 손을 떠나는 공을 보고 직구·커브·슬라이더·체인지업과 스트라이크·볼을 판단해요.</p><div class="about-list"><p><strong>실제 속도로 접근해요</strong>연습의 공은 느려지지 않아요. 홈 앞 약 1.5m까지 보여 준 뒤 가립니다. 결과의 느린 공 추적과 실제 속도 1× 다시 보기는 별도입니다.</p><p><strong>화면과 보는 거리</strong>휴대폰은 눈에서 약 35cm, PC는 약 60cm 거리로 보세요. 공만 키우지 않고 장면 전체를 화면 크기에 맞춥니다. 크기가 추정된 화면은 처음 한 번 카드로 확인할 수 있어요. 보는 거리를 자동으로 측정하지는 않습니다.</p><p><strong>타석은 고정해요</strong>선택한 우타석·좌타석의 눈 위치와 실제 공 지름 7.32cm를 유지합니다. 공을 따라 보는 방향만 자동으로 움직이며 직접 조절할 수 없습니다. 존은 180cm 타자의 KBO ABS 기준입니다.</p><p><strong>실측을 참고한 가상 투수예요</strong>우투는 투구 4, 좌투는 투구 3 동작입니다. 구질은 공개 투구 자료를 참고한 합성 값이며, 실제 선수와 동일한 동작·구질이나 국내 중·고교 실력 검증을 마친 모델은 아닙니다.</p><p><strong>답한 공까지 남겨요</strong>기기에 최근 30회 연습을 보관합니다. 공이 재생 중 크게 끊기거나 앱이 가려진 경우 그 공은 평가하지 않고 새 공을 보여 줍니다.</p></div><button class="primary-button dialog-close">알겠습니다 ${icon('check',18)}</button></dialog>
-  <dialog id="history-dialog"><div class="dialog-header"><span class="eyebrow">YOUR PRACTICE</span><button class="icon-button dialog-close" aria-label="연습 내역 닫기">${icon('close')}</button></div><h2>최근 연습</h2><p>투수 손·타석·단계·화면 조건이 같은 연습끼리 확인해 주세요.</p><div id="history-list"></div><button class="secondary-button" id="export-history">${icon('download',16)} 연습 결과 JSON 받기</button></dialog>
-  <dialog id="result-dialog"><div class="dialog-header"><span class="eyebrow">SESSION COMPLETE</span><button class="icon-button dialog-close" aria-label="결과 닫기">${icon('close')}</button></div><div id="result-content"></div><div class="result-actions"><button class="primary-button" id="practice-again">같은 조건으로 한 번 더 ${icon('arrow',18)}</button><button class="text-button dialog-close">설정으로 돌아가기</button></div></dialog>
+  <dialog id="about-dialog"><div class="dialog-header"><span class="eyebrow">선구안 훈련</span><button class="icon-button dialog-close" aria-label="안내 닫기">${icon('close')}</button></div><h2>타석에서 공을 읽어보세요.</h2><p>투수의 손을 떠나는 공을 보고 직구·커브·슬라이더·체인지업과 스트라이크·볼을 판단해요.</p><div class="about-list"><p><strong>실제 속도로 접근해요</strong>연습의 공은 느려지지 않아요. 홈 앞 약 1.5m 또는 화면을 벗어나기 직전까지 보여 준 뒤 가립니다. 결과의 느린 공 추적과 실제 속도 1× 다시 보기는 별도입니다.</p><p><strong>화면과 보는 거리</strong>휴대폰은 눈에서 약 35cm, PC는 약 60cm 거리로 보세요. 공만 키우지 않고 장면 전체를 화면 크기에 맞춥니다. 크기가 추정된 화면은 처음 한 번 카드로 확인할 수 있어요. 보는 거리를 자동으로 측정하지는 않습니다.</p><p><strong>타석은 고정해요</strong>선택한 우타석·좌타석의 눈 위치와 실제 공 지름 7.32cm를 유지합니다. 시선도 릴리스 방향에 고정되며 공을 따라 움직이지 않습니다. 존은 180cm 타자의 KBO ABS 기준입니다.</p><p><strong>실측을 참고한 가상 투수예요</strong>우투는 투구 4, 좌투는 투구 3 동작입니다. 구질은 공개 투구 자료를 참고한 합성 값이며, 실제 선수와 동일한 동작·구질이나 국내 중·고교 실력 검증을 마친 모델은 아닙니다.</p><p><strong>답한 공까지 남겨요</strong>기기에 최근 30회 연습을 보관합니다. 공이 재생 중 크게 끊기거나 앱이 가려진 경우 그 공은 평가하지 않고 새 공을 보여 줍니다.</p></div><button class="primary-button dialog-close">알겠습니다 ${icon('check',18)}</button></dialog>
+  <dialog id="history-dialog"><div class="dialog-header"><span class="eyebrow">YOUR PRACTICE</span><button class="icon-button dialog-close" aria-label="연습 내역 닫기">${icon('close')}</button></div><h2>최근 훈련</h2><p>투수 손·타석·단계·화면 조건이 같은 연습끼리 확인해 주세요.</p><div id="history-list"></div><button class="secondary-button" id="export-history">${icon('download',16)} 훈련 결과 JSON 받기</button></dialog>
+  <dialog id="result-dialog"><div class="dialog-header"><span class="eyebrow">SESSION COMPLETE</span><button class="icon-button dialog-close" aria-label="결과 닫기">${icon('close')}</button></div><div id="result-content"></div><div class="result-actions"><button class="primary-button" id="practice-again">같은 조건으로 한 번 더 ${icon('arrow',18)}</button><button class="text-button" id="result-settings">조건 다시 선택</button></div></dialog>
 `;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -223,6 +238,7 @@ function toggleFocus(force?:boolean){
   if(motion?.kind==='trial')interruptTrial('타석 화면 크기가 바뀌었습니다.');
   const active=force??!document.body.classList.contains('immersive');
   document.body.classList.toggle('immersive',active);
+  if(IS_NATIVE)postNative({kind:'immersive',active});
   document.body.style.setProperty('--immersive-console',immersiveConsoleHeight());
   $('focus-toggle').setAttribute('aria-pressed',String(active));
   $('focus-toggle').innerHTML=`${icon(active?'close':'expand',15)} <span>${active?'돌아가기':'타석 화면'}</span>`;
@@ -230,6 +246,7 @@ function toggleFocus(force?:boolean){
 function renderProgress() {
   const trials=session?.trials??[];
   $('round-current').textContent=String(trials.length).padStart(2,'0');
+  $('scene-progress').textContent=`${Math.min(10,trials.length+(phase==='feedback'?0:1))} / 10구`;
   $('progress-dots').innerHTML=Array.from({length:10},(_,i)=>`<span class="${trials[i]?(trials[i].correct?'correct':'incorrect'):i===trials.length&&session?'current':''}" aria-label="${i+1}구 ${trials[i]?(trials[i].correct?'정답':'오답'):'미진행'}">${trials[i]?icon(trials[i].correct?'check':'close',10):''}</span>`).join('');
 }
 function renderAnswers() {
@@ -269,7 +286,7 @@ function resetTraining() {
   motion=null;session=null;practicePlan=[];trialId='';selectedPitch=null;selectedCall=null;trackingRevealed=false;$('tracking-card').hidden=true;setPhase(rendererFailed?'error':'ready');setMessage();
   $('preparation-label').hidden=true;$('view-selector').hidden=true;view='batter';
   $('feedback-detail').hidden=true;$('replay-action').hidden=true;$('real-replay-action').hidden=true;
-  $('primary-action').hidden=false;$('primary-action').innerHTML=`10구 연습 시작 ${icon('arrow',18)}`;
+  $('primary-action').hidden=false;$('primary-action').innerHTML=`10구 훈련 시작 ${icon('arrow',18)}`;
   ($('primary-action') as HTMLButtonElement).disabled=rendererFailed;
   $('round-kicker').textContent='YOUR NEXT REP';$('round-title').textContent='준비되면 첫 공을 만나보세요.';
   $('training-hint').textContent='구종과 스트라이크·볼을 고르면 공 추적으로 확인해요.';
@@ -279,7 +296,7 @@ function resetTraining() {
 }
 function startSession() {
   if(rendererFailed||(!INSPECTOR&&!config))return;
-  if(!INSPECTOR&&config){pitcher=createTrainingPitcher(config.level,config.pitchHand,newSeed());toggleFocus(true);stage?.syncViewport();}
+  if(!INSPECTOR&&config){app.dataset.screen='practice';pitcher=createTrainingPitcher(config.level,config.pitchHand,newSeed());toggleFocus(true);stage?.syncViewport();}
   pitchPlan=createPitchPlan(newSeed());
   practicePlan=createPracticePlan(newSeed());
   session={id:uniqueId(),startedAt:new Date().toISOString(),pitcherId:pitcher.id,difficulty:difficulty.id,
@@ -304,7 +321,7 @@ function throwNext(retry=false) {
   $('feedback-detail').hidden=true;$('replay-action').hidden=true;$('real-replay-action').hidden=true;$('view-selector').hidden=true;
   $('primary-action').hidden=true;view='batter';updateCamera();
   stage?.setPitch(pitcher,currentPitch);
-  visibleObservationLimit=INSPECTOR?(stage?.observationLimit(Math.min(difficulty.milliseconds/1000,currentPitch.duration-.025),ballScale)??Infinity):approachCutoff(currentPitch);
+  visibleObservationLimit=INSPECTOR?(stage?.observationLimit(Math.min(difficulty.milliseconds/1000,currentPitch.duration-.025),ballScale)??Infinity):Math.min(approachCutoff(currentPitch),stage?.observationLimit(approachCutoff(currentPitch),ballScale)??Infinity);
   $('round-kicker').textContent=`PITCH ${String(session.trials.length+1).padStart(2,'0')}`;
   $('round-title').textContent='손을 떠나는 순간부터 공을 보세요.';
   $('training-hint').textContent='화면이 가려진 뒤 구종과 스트라이크·볼을 골라 주세요.';
@@ -316,7 +333,7 @@ function throwNext(retry=false) {
 function askQuestion(actualMs:number) {
   motion=null;observedMs=actualMs;setPhase('question');
   $('preparation-label').hidden=true;
-  setMessage('구종과 스트라이크·볼은?','두 가지를 고르면 전체 궤적과 판정 위치를 확인해요.');
+  setMessage('어떤 공이었나요?','구종 하나, 스트라이크·볼 하나를 골라요.');
   $('round-title').textContent='구종과 스트라이크·볼을 각각 골라 주세요.';
   $('training-hint').textContent='판단하는 시간은 점수에 포함하지 않아요.';
   $('scene-state').textContent='MAKE YOUR CALL';renderAnswers();
@@ -340,14 +357,14 @@ function submitAnswer(){
 function revealTrackingResult(){
   if(trackingRevealed||!session)return;trackingRevealed=true;
   const trial=session.trials[session.trials.length-1],result=assessZone(currentPitch);
-  $('track-call').textContent=result.call==='strike'?'STRIKE':'BALL';
+  $('track-call').textContent=INSPECTOR?(result.call==='strike'?'STRIKE':'BALL'):callName(result.call);
   $('track-call-detail').textContent=zoneExplanation(result);$('tracking-card').classList.add('has-result');
   $('tracking-card').querySelector('.track-impact')?.removeAttribute('hidden');
   $('tracking-card').querySelector('.track-live')?.setAttribute('hidden','');
   $('round-kicker').textContent=trial.correct?'BOTH CORRECT':'CHECK THE PITCH';
   $('round-title').textContent=`${currentPitch.name} · ${callName(result.call)} — ${trial.correct?'둘 다 맞았어요':trial.pitchCorrect?'구종은 맞았어요':trial.callCorrect?'스트라이크·볼은 맞았어요':'다시 확인해 보세요'}`;
   $('feedback-detail').hidden=false;$('feedback-detail').textContent=`구종 ${trial.pitchCorrect?'정답':'오답'} · 스트라이크/볼 ${trial.callCorrect?'정답':'오답'} · KBO ABS · ${zoneExplanation(result)} · 중간면 좌우 ${result.checks.horizontal?'통과':'벗어남'} / 높이 ${result.checks.middleVertical?'통과':'벗어남'} · 끝면 높이 ${result.checks.endVertical?'통과':'벗어남'}.`;
-  $('primary-action').hidden=false;$('primary-action').innerHTML=session.trials.length===10?`연습 결과 보기 ${icon('arrow',18)}`:`다음 공 ${icon('arrow',18)}`;
+  $('primary-action').hidden=false;$('primary-action').innerHTML=session.trials.length===10?`훈련 결과 보기 ${icon('arrow',18)}`:`다음 공 ${icon('arrow',18)}`;
   $('replay-action').hidden=false;$('real-replay-action').hidden=INSPECTOR;$('replay-action').innerHTML=`${icon('refresh',16)} ${INSPECTOR?'다시 보기':'느린 공 추적'}`;renderAnswers();
 }
 function updateTrackingBall(time:number){
@@ -378,15 +395,15 @@ function finishSession(showResult=true) {
   const result=finish(session);
   motion=null;
   if(result.trials.length)persist(result);
-  resetTraining();if(!INSPECTOR)toggleFocus(false);
+  resetTraining();if(!INSPECTOR){toggleFocus(false);app.dataset.screen='setup';renderSetup();}
   if(showResult&&result.trials.length)showResults(result);
   else if(!result.trials.length)toast('아직 답한 공이 없어 결과를 저장하지 않았습니다.');
 }
 function showResults(result:Session) {
   const p=resolvePitcher(result.pitcherId)!;
   const correct=result.trials.filter(t=>t.correct).length;
-  $('result-content').innerHTML=`<p class="result-pitcher">${p.name} · ${result.observationVersion?'실제 속도 · 접근 관찰':`${result.occlusionMs}ms 관찰`}</p><h2>${result.completed?'10구 연습을 마쳤어요.':'답한 공까지 남겼어요.'}</h2><div class="result-score"><strong>${score(result)}</strong><span>%</span><p>${result.trials.length}구 중 ${correct}구 정답</p></div><div class="result-breakdown">${p.pitches.map(spec=>{const ts=result.trials.filter(t=>t.pitch.kind===spec.kind);return `<div><span>${spec.name}</span><strong>${ts.filter(t=>t.correct).length} <small>/ ${ts.length}구</small></strong></div>`;}).join('')}</div><p class="result-dual">구종 ${result.trials.filter(t=>t.pitchCorrect??t.correct).length}/${result.trials.length} · 스트라이크/볼 ${result.trials.filter(t=>t.callCorrect).length}/${result.trials.length}<br/>위 점수는 두 판단을 모두 맞힌 비율입니다.</p><p class="result-note">${result.ballScale===1?'기준 공 1×':'학습용 공 확대 1.8×'} · ${result.eye==='R'?'우타자':'좌타자'} 시점<br/>이 가상 설정에서의 정답률입니다. 실제 타격 능력 점수가 아닙니다.</p>`;
-  $('result-dialog').querySelector('.eyebrow')!.textContent=result.completed?'SESSION COMPLETE':'SESSION SAVED';
+  $('result-content').innerHTML=`<p class="result-pitcher">${p.name} · ${result.observationVersion?'실제 속도 · 접근 관찰':`${result.occlusionMs}ms 관찰`}</p><h2>${result.completed?'10구 훈련을 마쳤어요.':'답한 공까지 남겼어요.'}</h2><div class="result-score"><strong>${score(result)}</strong><span>%</span><p>${result.trials.length}구 중 ${correct}구 정답</p></div><div class="result-breakdown">${p.pitches.map(spec=>{const ts=result.trials.filter(t=>t.pitch.kind===spec.kind);return `<div><span>${spec.name}</span><strong>${ts.filter(t=>t.correct).length} <small>/ ${ts.length}구</small></strong></div>`;}).join('')}</div><p class="result-dual">구종 ${result.trials.filter(t=>t.pitchCorrect??t.correct).length}/${result.trials.length} · 스트라이크/볼 ${result.trials.filter(t=>t.callCorrect).length}/${result.trials.length}<br/>위 점수는 두 판단을 모두 맞힌 비율입니다.</p><p class="result-note">${result.ballScale===1?'기준 공 1×':'학습용 공 확대 1.8×'} · ${result.eye==='R'?'우타자':'좌타자'} 시점<br/>이 가상 설정에서의 정답률입니다. 실제 타격 능력 점수가 아닙니다.</p>`;
+  $('result-dialog').querySelector('.eyebrow')!.textContent=result.completed?'훈련 완료':'훈련 저장';
   showDialog('result-dialog');
 }
 function updateHistoryCount() {document.querySelectorAll('.history-count').forEach(e=>{e.textContent=String(history.length);});}
@@ -395,14 +412,15 @@ function renderHistory() {
     const p=resolvePitcher(s.pitcherId);
     const date=new Date(s.startedAt);
     const dateLabel=Number.isNaN(date.valueOf())?'날짜 없음':new Intl.DateTimeFormat('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(date);
-    return `<article class="history-item"><div><span>${dateLabel} · ${s.completed?'10구 완료':`${s.trials.length}구 기록`}</span><strong>${p?.name??'가상 투수'}</strong><small>${s.observationVersion?'실제 속도 · 접근 관찰':`${s.occlusionMs}ms`} · ${s.ballScale===1?'공 1×':'공 1.8×'} · ${s.eye==='R'?'우타자':'좌타자'} · ${s.taskVersion?'구종+존':'구종만'} · ${s.samplingVersion===SAMPLING_VERSION?'혼합 무작위':s.samplingVersion==='mixed-zone-1'?'이전 연속 제한':'독립 추첨'} · ${s.zoneVersion===ZONE_VERSION?'KBO ABS · 180cm':s.zoneVersion==='anatomical-180-v1'?'이전 신체 기준 존':'이전 존'} · ${s.motionSample?`투구 ${s.motionSample}`:s.motionVersion==='sinker-release-continuous-5'?`투구 4${p?.hand==='L'?' 반전':''}`:'이전 동작'} · ${s.engineVersion===ENGINE_VERSION?'공기저항 궤적':'이전 궤적'}</small></div><div class="history-score">${score(s)}<small>%</small></div></article>`;
-  }).join(''):`<div class="empty-history">${icon('clock',35)}<h3>아직 남긴 연습이 없어요.</h3><p>10구 연습을 시작하면 답한 공과 설정이<br/>이 기기에 함께 저장됩니다.</p></div>`;
+    return `<article class="history-item"><div><span>${dateLabel} · ${s.completed?'10구 완료':`${s.trials.length}구 기록`}</span><strong>${p?.name??'가상 투수'} · ${s.eye==='R'?'우타석':'좌타석'}</strong><small>구종 ${s.trials.filter(t=>t.pitchCorrect??t.correct).length}/${s.trials.length} · 볼 판별 ${s.trials.filter(t=>t.callCorrect).length}/${s.trials.length} · ${s.gazeVersion===GAZE_VERSION?'시선 고정':s.gazeVersion?'이전 자동 시선':'이전 시선 조건'}${s.ballScale!==1?' · 공 확대':''}</small></div><div class="history-score">${score(s)}<small>%</small></div></article>`;
+  }).join(''):`<div class="empty-history">${icon('clock',35)}<h3>아직 남긴 연습이 없어요.</h3><p>10구 훈련을 시작하면 답한 공과 설정이<br/>이 기기에 함께 저장됩니다.</p></div>`;
   ($('export-history') as HTMLButtonElement).disabled=!history.length;
 }
 function showDialog(id:string) {
   if(motion?.kind==='trial')interruptTrial('안내를 여는 동안 투구를 중단했습니다.');
   if(motion?.kind==='lab'){motion=null;updateLabPlayback();}
   const dialog=$<HTMLDialogElement>(id);if(!dialog.open)dialog.showModal();
+  if(IS_NATIVE)postNative({kind:'sheet',open:true});
 }
 function interruptTrial(reason:string) {
   if(motion?.kind!=='trial')return;
@@ -487,8 +505,8 @@ function switchMode(next:typeof mode) {
   $('training-console').hidden=mode!=='training';$('training-settings').hidden=mode!=='training';$('how-it-works').hidden=mode!=='training';
   $('lab-console').hidden=mode!=='lab';$('lab-settings').hidden=mode!=='lab';$('view-selector').hidden=mode!=='lab';
   $('review-toolbar').hidden=mode!=='lab';$('orbit-hint').hidden=mode!=='lab'||reviewMode!=='delivery';
-  $('page-title').innerHTML=mode==='training'?'공이 사라지기 전에, <em>읽어보세요.</em>':'같은 공을, <em>다른 시점에서.</em>';
-  $('page-description').textContent=mode==='training'?'투수의 손을 떠난 공. 구종과 스트라이크·볼을 함께 판단해 보세요.':'구속과 릴리스를 조절하고, 움직임이 자연스러운지 확인해 보세요.';
+  $('page-title').innerHTML=mode==='training'?'선구안 훈련':'같은 공을, <em>다른 시점에서.</em>';
+  $('page-description').textContent=mode==='training'?'투수의 공을 보고, 구종과 스트라이크·볼을 판단해요.':'구속과 릴리스를 조절하고, 움직임이 자연스러운지 확인해 보세요.';
   $('panel-title').textContent=mode==='training'?'오늘 상대할 투수':'투수와 궤적 설정';
   $('preparation-label').hidden=true;setMessage();
   if(mode==='training')resetTraining();else{setPhase('ready');defaultLab();renderSettings();setReviewMode(reviewMode);}
@@ -570,8 +588,10 @@ $('mode-lab')?.addEventListener('click',()=>switchMode('lab'));
 $('about-open').addEventListener('click',()=>showDialog('about-dialog'));
 document.querySelectorAll('.history-open').forEach(b=>b.addEventListener('click',()=>{renderHistory();showDialog('history-dialog');}));
 document.querySelectorAll<HTMLDialogElement>('dialog').forEach(dialog=>{
+  dialog.addEventListener('close',()=>{if(IS_NATIVE)postNative({kind:'sheet',open:!!document.querySelector('dialog[open]')});});
   dialog.addEventListener('click',e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)dialog.close();}});
 });
+$('result-settings').addEventListener('click',()=>{$<HTMLDialogElement>('result-dialog').close();toggleFocus(false);setupStep=0;app.dataset.screen='setup';renderSetup();});
 $('practice-again').addEventListener('click',()=>{$<HTMLDialogElement>('result-dialog').close();startSession();});
 $('export-history').addEventListener('click',()=>{
   if(IS_NATIVE){postNative({kind:'export',sessions:history});return;}

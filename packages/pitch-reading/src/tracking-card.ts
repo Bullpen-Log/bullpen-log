@@ -3,7 +3,7 @@ import {STRIKE_ZONE,type ZoneAssessment} from './strike-zone.ts';
 export function trackingCard(pitch:Pitch,result:ZoneAssessment){
   const scale=140,x=120-result.point.x*scale,y=225-result.point.y*scale;
   const left=120-STRIKE_ZONE.halfWidth*scale,top=225-STRIKE_ZONE.top*scale,width=STRIKE_ZONE.halfWidth*2*scale,height=(STRIKE_ZONE.top-STRIKE_ZONE.bottom)*scale;
-  return `<div class="track-heading"><span>PITCH TRACK</span><strong>${pitch.name}</strong><small>${pitch.speedKmh.toFixed(1)} km/h</small></div>
+  return `<div class="track-heading"><span>공 추적</span><strong>${pitch.name}</strong><small>${pitch.speedKmh.toFixed(1)} km/h</small></div>
     <svg viewBox="0 0 240 225" role="img" aria-label="투수 방향에서 본 KBO ABS 중간면 스트라이크존과 통과 위치">
       <defs><pattern id="track-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#7197a5" stroke-opacity=".10"/></pattern></defs>
       <rect width="240" height="225" fill="url(#track-grid)"/>

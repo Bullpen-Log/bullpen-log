@@ -15,6 +15,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import * as Device from 'expo-device';
@@ -33,6 +34,7 @@ import {
   PITCH_READING_DISPLAY_KEY,
   type PitchDisplay,
 } from '@/lib/pitch-reading';
+import { usePalette, useTheme } from '~/lib/ui';
 import { APP_UA } from '~/lib/site';
 import { cacheEpoch, cacheGet, cacheSet, loadJson, saveJson } from '~/lib/store';
 import { BullpenNative } from '../../modules/bullpen-native';
@@ -50,6 +52,12 @@ type Boot = {
 
 export function PitchReadingScreen() {
   const inset = useSafeAreaInsets();
+  const palette = usePalette();
+  const theme = useTheme();
+  const { width, height } = useWindowDimensions();
+  const [immersive, setImmersive] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [initialAppearance] = useState(() => ({ theme, palette }));
   const web = useRef<WebHandle>(null);
   const epoch = useRef(cacheEpoch());
   const [boot, setBoot] = useState<Boot | null>(null);
@@ -92,17 +100,21 @@ export function PitchReadingScreen() {
     () =>
       boot
         ? {
-            html: embedPitchScene(scene.html, boot),
+            html: embedPitchScene(scene.html, { ...boot, ...initialAppearance }),
             baseUrl: 'https://pitch-reading.sinker.local',
           }
         : null,
-    [boot]
+    [boot, initialAppearance]
   );
   useEffect(() => {
     if (!boot || ready) return;
     const timer = setTimeout(() => setFailed(true), 15000);
     return () => clearTimeout(timer);
   }, [boot, ready, reloadKey]);
+  useEffect(() => {
+    if (!ready) return;
+    web.current?.injectJavaScript(`window.dispatchEvent(new CustomEvent('sinker-theme',{detail:${JSON.stringify({ theme, palette })}}));true;`);
+  }, [ready, theme, palette]);
   const onMessage = (event: WebViewMessageEvent) => {
     if (epoch.current !== cacheEpoch() || event.nativeEvent.data.length > 1_500_000)
       return;
@@ -114,6 +126,8 @@ export function PitchReadingScreen() {
         setFailed(false);
       }
       if (m.kind === 'error') setFailed(true);
+      if (m.kind === 'sheet' && typeof m.open === 'boolean') setSheetOpen(m.open);
+      if (m.kind === 'immersive' && typeof m.active === 'boolean') setImmersive(m.active);
       if (m.kind === 'history' && isPitchHistory(m.sessions)) {
         latestHistory.current = m.sessions;
         void cacheSet('pitch-reading', m.sessions);
@@ -122,7 +136,7 @@ export function PitchReadingScreen() {
         void saveJson(PITCH_READING_DISPLAY_KEY, m.value);
       if (m.kind === 'export' && isPitchHistory(m.sessions))
         void Share.share({
-          title: '싱커 공 읽기 연습',
+          title: '싱커 선구안 훈련',
           message: JSON.stringify({ sessions: m.sessions }, null, 2),
         }).catch(() => undefined);
     } catch {
@@ -133,23 +147,25 @@ export function PitchReadingScreen() {
     <View
       style={{
         flex: 1,
-        backgroundColor: '#101b1d',
+        backgroundColor: palette.page,
+        paddingLeft: inset.left,
+        paddingRight: inset.right,
         paddingTop: inset.top,
         paddingBottom: inset.bottom,
       }}
     >
       <StatusBar hidden />
-      <View style={styles.bar}>
+      {!immersive && !sheetOpen && <View style={[styles.bar, { top: inset.top, left: inset.left, right: inset.right, backgroundColor: palette.page, borderBottomColor: palette.line }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="타격으로 돌아가기"
           onPress={() => router.back()}
           hitSlop={12}
         >
-          <Text style={styles.back}>‹ 타격</Text>
+          <Text style={[styles.back, { color: palette.link }]}>‹ 타격</Text>
         </Pressable>
-        <Text style={styles.title}>공 읽기</Text>
-      </View>
+        <Text style={[styles.title, { color: palette.ink }]}>선구안 훈련</Text>
+      </View>}
       {source && (
         <SceneWebView
           key={reloadKey}
@@ -172,25 +188,36 @@ export function PitchReadingScreen() {
           onMessage={onMessage}
           onError={() => setFailed(true)}
           onContentProcessDidTerminate={() => setFailed(true)}
-          style={{ flex: 1, backgroundColor: '#101b1d' }}
+          style={{ flex: 1, backgroundColor: palette.page }}
         />
+      )}
+      {width < height && ready && !failed && (
+        <View style={[StyleSheet.absoluteFill, styles.cover, { backgroundColor: palette.page, padding: 32 }]}>
+          <Text style={{ fontSize: 36, color: palette.link }}>↻</Text>
+          <Text style={[styles.title, { color: palette.ink, fontSize: 21 }]}>가로로 돌려 훈련해요</Text>
+          <Text style={[styles.message, { color: palette.muted, textAlign: 'center' }]}>넓은 화면으로 투수와 공을 확인해 주세요.</Text>
+          <Pressable accessibilityRole="button" onPress={() => router.back()}><Text style={[styles.back, { color: palette.link }]}>타격으로 돌아가기</Text></Pressable>
+        </View>
       )}
       {(!ready || failed) && (
         <View
           style={[
             StyleSheet.absoluteFill,
             styles.cover,
+            { backgroundColor: palette.page },
             { top: inset.top + 42, bottom: inset.bottom },
           ]}
         >
           {failed ? (
             <>
-              <Text style={styles.message}>공 읽기를 불러오지 못했어요.</Text>
+              <Text style={[styles.message, { color: palette.muted }]}>선구안 훈련을 불러오지 못했어요.</Text>
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
                   setFailed(false);
                   setReady(false);
+                  setImmersive(false);
+                  setSheetOpen(false);
                   setBoot((previous) =>
                     previous
                       ? { ...previous, history: latestHistory.current }
@@ -199,16 +226,16 @@ export function PitchReadingScreen() {
                   setReloadKey((key) => key + 1);
                 }}
               >
-                <Text style={styles.back}>다시 불러오기</Text>
+                <Text style={[styles.back, { color: palette.link }]}>다시 불러오기</Text>
               </Pressable>
               <Pressable accessibilityRole="button" onPress={() => router.back()}>
-                <Text style={styles.back}>타격으로 돌아가기</Text>
+                <Text style={[styles.back, { color: palette.link }]}>타격으로 돌아가기</Text>
               </Pressable>
             </>
           ) : (
             <>
-              <ActivityIndicator color="#e9b482" />
-              <Text style={styles.message}>타석을 준비하고 있어요.</Text>
+              <ActivityIndicator color={palette.action} />
+              <Text style={[styles.message, { color: palette.muted }]}>타석을 준비하고 있어요.</Text>
             </>
           )}
         </View>
@@ -218,6 +245,8 @@ export function PitchReadingScreen() {
 }
 const styles = StyleSheet.create({
   bar: {
+    position: 'absolute',
+    zIndex: 5,
     height: 42,
     paddingHorizontal: 18,
     flexDirection: 'row',
@@ -226,13 +255,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#344647',
   },
-  back: { color: '#e9b482', fontSize: 15, fontWeight: '600', paddingVertical: 10 },
-  title: { color: '#e5e8df', fontSize: 15, fontWeight: '600' },
+  back: { fontSize: 15, fontWeight: '600', paddingVertical: 10 },
+  title: { fontSize: 15, fontWeight: '600' },
   cover: {
-    backgroundColor: '#101b1d',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
   },
-  message: { color: '#c7cfdd', fontSize: 15 },
+  message: { fontSize: 15 },
 });

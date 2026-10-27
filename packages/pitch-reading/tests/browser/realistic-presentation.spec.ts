@@ -4,7 +4,7 @@ type BridgeMessage={kind:string;sessions?:{id:string;observationVersion:string;o
 async function question(page:import('@playwright/test').Page){for(let i=0;i<5;i++){await expect(page.locator('#app')).toHaveAttribute('data-phase',/question|interrupted/,{timeout:10000});if(await page.locator('#app').getAttribute('data-phase')==='question')return;await page.locator('#primary-action').click();}throw new Error('trial did not complete');}
 test('native bridge uses device projection, spatial observation, real-speed replay and isolated cached history',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.setViewportSize({width:393,height:780});
+  await page.setViewportSize({width:740,height:354});
   await page.addInitScript(()=>{
     const w=window as unknown as {__SINKER_PITCH__:unknown;__messages:unknown[];ReactNativeWebView:{postMessage:(s:string)=>void}};
     w.__messages=[];w.ReactNativeWebView={postMessage:s=>w.__messages.push(JSON.parse(s))};
@@ -19,9 +19,9 @@ test('native bridge uses device projection, spatial observation, real-speed repl
   const messages=await page.evaluate(()=>(window as unknown as {__messages:BridgeMessage[]}).__messages);
   expect(messages.some(m=>m.kind==='ready')).toBe(true);
   const session=messages.filter(m=>m.kind==='history').at(-1)!.sessions![0];
-  expect(session.id).not.toBe('another-account');expect(session.observationVersion).toBe('approach-150cm-1');expect(session.occlusionMs).toBe(0);
-  expect(session.trials[0].observedMs).toBeGreaterThan(session.trials[0].pitch.duration*800);
-  expect(session.battingView.horizontalFov).toBeCloseTo(physicalFov(393,{cssPixelsPerCm:460/3/2.54,viewDistanceCm:35,source:'device',version:'physical-window-1'}),3);
+  expect(session.id).not.toBe('another-account');expect(session.observationVersion).toBe('fixed-window-150cm-2');expect(session.occlusionMs).toBe(0);
+  expect(session.trials[0].observedMs).toBeGreaterThan(70);expect(session.trials[0].observedMs).toBeLessThan(session.trials[0].pitch.duration*1000);
+  expect(session.battingView.horizontalFov).toBeCloseTo(physicalFov(740,{cssPixelsPerCm:460/3/2.54,viewDistanceCm:35,source:'device',version:'physical-window-1'}),3);
   await expect(page.locator('#real-replay-action')).toBeVisible();await page.locator('#real-replay-action').click();
   await expect(page.locator('#scene-state')).toHaveText('실제 속도 · 1×');
   await expect(page.locator('#camera-name')).toContainText('좌타자');await expect(page.locator('[data-view]')).toHaveCount(0);

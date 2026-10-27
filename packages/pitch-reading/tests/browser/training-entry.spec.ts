@@ -46,8 +46,8 @@ test('public four pitch practice freezes conditions, saves them, tracks automati
   expect(Object.keys(saved.speedRanges)).toHaveLength(4);expect(saved.motionSample).toBe(3);
   await page.locator('#end-session').click();await expect(page.locator('#result-dialog')).toBeVisible();
   await page.locator('#result-dialog .dialog-close').first().click();
-  await page.locator('#change-settings').click();await expect(page.locator('#setup-panel')).toBeVisible();
-  await page.locator('.history-open').click();await expect(page.locator('#history-list')).toContainText('MLB · 좌투');
+  await expect(page.locator('#setup-panel')).toBeVisible();
+  await page.locator('.history-open:visible').click();await expect(page.locator('#history-list')).toContainText('MLB · 좌투');
   expect(errors).toEqual([]);
 });
 for(const viewport of [{width:390,height:844},{width:844,height:390}])test(`four answers and two calls fit ${viewport.width}x${viewport.height}`,async({page})=>{

@@ -283,7 +283,7 @@ export function HittingClient({ today, rows }: { today: string; rows: HittingRow
             </span>
             <span className="min-w-0 flex-1">
               <strong className="block text-base font-semibold text-ink">
-                공 읽기
+                선구안 훈련
               </strong>
               <span className="mt-1 block text-sm break-keep text-muted">
                 다가오는 공의 구종과 스트라이크·볼을 읽어보세요.
