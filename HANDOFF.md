@@ -11,15 +11,6 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 금윤호에게 — 2026-10-27 · 김민(Claude) — 싱커 앱 시작 연출 2.20초 · 공용 `shell/intro.tsx` · `lib/cap-bridge.ts` 를 고쳤다
-
-받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — 지문 같음, 화면 업데이트로 나감). 김민이 재생해 보고 고른 2.20초 시안을 싱커 앱에만 넣었다.
-- 시간표 · 곡선은 새 `native/src/shell/intro-timeline.ts`(순수, 시험 `npm run native-intro:test`). 싱커는 `app/_layout.tsx` 가 `SINKER_TIMING` 을 넘기고,
-  **덕아웃 앱은 기본값 `LEGACY_TIMING`(예전 3.45초 · 사이트 7초 기다림) 그대로**. 웹 PC `components/app-splash.tsx` 는 안 바꿔 이제 싱커 앱과 시간이 다르다.
-- 덕아웃 앱에도 닿는 것 둘: ① 가림막이 떠 있는 동안 밑 화면 터치 · VoiceOver 를 막는다(예전 pointerEvents none — 안 보이는 단추가 눌렸다) ② 인트로가 붙어 있는 동안
-  OS 시작 화면은 인트로가 걷는다 — 사이트의 `SplashScreen.hide`(cap-bridge) · 딥링크도 `hideSplashUnlessIntro()` 를 거친다. 덕아웃 `dugout/app/index.tsx` 는 안 건드렸다.
-- 싱커는 사이트를 안 기다리고 2.2초에 걷힌다 — 아직 불러오는 중이면 `app/index.tsx` 의 첫 불러오기 판(앱 바탕 + 돌개)이 이어 받는다.
-
 ## 금윤호에게 — 2026-10-27 · 김민(Claude) — 싱커 앱 안의 덕아웃을 싱커 겉모양으로 · 네 덕아웃 공용 부품 · globals.css 를 고쳤다
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — 웹 배포만). 김민: "싱커에서 덕아웃 탭으로 가면 같은 앱 안에서 활동 공간만 바뀐 느낌, 덕아웃 이름 · 정체성은 그대로".

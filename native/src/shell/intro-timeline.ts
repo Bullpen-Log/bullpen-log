@@ -1,9 +1,10 @@
 /**
  * 앱 시작 연출의 시간표 · 곡선 · 수명 — 순수(시험: scripts/native-intro-selftest.mts). shell/intro.tsx 가 UI 스레드(worklet)에서 그대로 부른다.
  *
- * 2026-10-27 김민이 재생해 보고 고른 2.20초 시안(SINKER_TIMING) — 큰 로고 0.2초 → 0.8초 동안 이름의 S 칸으로(in-out cubic) → 0.7초부터 I · N · K · E · R 가
+ * 2026-10-27 김민이 재생해 보고 고른 2.20초 시안(INTRO_TIMING) — 큰 로고 0.2초 → 0.8초 동안 이름의 S 칸으로(in-out cubic) → 0.7초부터 I · N · K · E · R 가
  * 0.055초 간격으로 0.48초씩(out cubic) → 1.4초에 이름 완성 · 0.3초 머묾 → 1.7초부터 0.5초 동안 옅어지며 1.015배(out cubic) = 2.2초.
- * 로고 이동과 글자 등장은 겹친다(따로 더하면 2.2초를 넘는다). 덕아웃 앱은 예전 3.45초 그대로(LEGACY_TIMING).
+ * 로고 이동과 글자 등장은 겹친다(따로 더하면 2.2초를 넘는다). 같은 날 김민: 덕아웃 앱도 같은 2.2초(글자가 여섯이라 1.455초에 다 서고 0.245초 머묾).
+ * 사이트가 다 그려지길 기다리지 않는다 — 아직이면 밑의 화면(app/index.tsx · dugout/app/index.tsx)이 첫 불러오기 판을 보인다.
  */
 export type IntroTiming = {
   moveAt: number;
@@ -16,16 +17,10 @@ export type IntroTiming = {
   leaveMs: number;
   /** 걷히며 커지는 끝 배율 */
   leaveScale: number;
-  leaveCurve: 'in-quad' | 'out-cubic';
-  /**
-   * 다 선 뒤 사이트가 그려지길 기다리는 상한(ms). 0 이면 안 기다리고 시간표대로 걷는다 — 그 뒤 아직 받는 중이면 밑의 화면이 제 로딩 표시를 보인다
-   * (싱커 app/index.tsx 의 첫 불러오기 판). 브랜드 이름만 붙잡고 몇 초씩 세워 두지 않는다.
-   */
-  readyWaitMs: number;
 };
 
-/** 싱커 — 2026-10-27 승인 시안 */
-export const SINKER_TIMING: IntroTiming = {
+/** 2026-10-27 승인 시안 — 싱커 · 덕아웃 앱 */
+export const INTRO_TIMING: IntroTiming = {
   moveAt: 200,
   moveMs: 800,
   letterAt: 700,
@@ -34,22 +29,6 @@ export const SINKER_TIMING: IntroTiming = {
   settleMs: 1700,
   leaveMs: 500,
   leaveScale: 1.015,
-  leaveCurve: 'out-cubic',
-  readyWaitMs: 0,
-};
-
-/** 예전(약 3.45초 + 사이트 기다림 7초) — 덕아웃 앱(src/dugout/app/_layout.tsx)이 그대로 쓴다 */
-export const LEGACY_TIMING: IntroTiming = {
-  moveAt: 400,
-  moveMs: 1000,
-  letterAt: 1250,
-  letterGap: 75,
-  letterMs: 650,
-  settleMs: 2900,
-  leaveMs: 550,
-  leaveScale: 1.06,
-  leaveCurve: 'in-quad',
-  readyWaitMs: 7000,
 };
 
 export function clamp01(x: number): number {
@@ -80,18 +59,17 @@ export function letterEase(t: number, i: number, tm: IntroTiming): number {
   'worklet';
   return outCubic(clamp01((t - (tm.letterAt + tm.letterGap * i)) / tm.letterMs));
 }
-/** 걷힘(u = 0~1, 시간 비율) → 곡선 값 */
-export function leaveEase(u: number, tm: IntroTiming): number {
+/** 걷힘(u = 0~1, 시간 비율) → 곡선 값(out cubic — 예전 in quad) */
+export function leaveEase(u: number): number {
   'worklet';
-  const p = clamp01(u);
-  return tm.leaveCurve === 'out-cubic' ? outCubic(p) : p * p;
+  return outCubic(clamp01(u));
 }
 
 export const lettersDoneAt = (tm: IntroTiming, count: number) => tm.letterAt + tm.letterGap * (count - 1) + tm.letterMs;
 export const introTotalMs = (tm: IntroTiming) => tm.settleMs + tm.leaveMs;
 
 /**
- * 한 번만 — 시작 · 걷기 · 끝. 화면 크기가 바뀌어 칸을 다시 재도 다시 시작하지 않고(아이패드 회전 · 창 크기), 늦게 온 '사이트 다 그림' · 안전 타이머가
+ * 한 번만 — 시작 · 걷기 · 끝. 화면 크기가 바뀌어 칸을 다시 재도 다시 시작하지 않고(아이패드 회전 · 창 크기), 늦게 온 안전 타이머가
  * 걷기를 두 번 돌리거나 다 걷힌 가림막을 다시 건드리지 않게.
  */
 export function createIntroLife() {
@@ -131,21 +109,18 @@ export type IntroEffects = {
   frame: (f: () => void) => void;
   hideSplash: () => Promise<unknown>;
   later: (f: () => void, ms: number) => void;
-  /** 타임라인 0 → settleMs(직선). done 은 끝났을 때 */
-  runClock: (durationMs: number, done?: () => void) => void;
+  /** 타임라인 0 → settleMs(직선) */
+  runClock: (durationMs: number) => void;
   /** 걷힘 0 → 1(직선) — delayMs 뒤 durationMs 동안. done 은 끝났을 때 */
   runLeave: (delayMs: number, durationMs: number, done: () => void) => void;
   gone: () => void;
-  isReady: () => boolean;
-  onReady: (f: () => void) => void;
 };
 
 /**
  * 시작 · 걷기 결정 — 언제 시계를 돌리고, 언제 걷고, 언제 치우나. 화면(intro.tsx)과 시험이 같은 것을 쓴다.
- * - 싱커(readyWaitMs 0): 시작 화면을 걷은 뒤 시계와 걷힘을 한 번에 건다 — 1700 부터 500 동안 걷혀 2200 에 치운다. 늦게 온 '다 그림'은 무시.
- * - 덕아웃(readyWaitMs > 0): 다 선 뒤 사이트가 그려졌으면 걷고, 아니면 그려질 때까지(상한 readyWaitMs).
+ * - 시작 화면을 걷은 뒤 시계와 걷힘을 한 번에 건다 — settleMs 부터 leaveMs 동안 걷혀 2.2초에 치운다. 걷힘 끝 알림을 잃어도 SAFETY_MS 뒤 치운다.
  * - 움직임 줄이기: 완성된 이름 REDUCED_HOLD_MS → 곧바로 걷힘(걷힘 시간 0).
- * 시작 · 걷기 · 치우기는 한 번씩(createIntroLife), 치운 뒤(dispose 포함) 오는 알림 · 타이머는 아무것도 안 한다.
+ * 시작 · 걷기 · 치우기는 한 번씩(createIntroLife), 치운 뒤(dispose 포함) 오는 타이머는 아무것도 안 한다.
  */
 export function createIntroController(tm: IntroTiming, reduced: boolean, fx: IntroEffects) {
   const life = createIntroLife();
@@ -153,17 +128,10 @@ export function createIntroController(tm: IntroTiming, reduced: boolean, fx: Int
   const finish = () => {
     if (!disposed && life.finish()) fx.gone();
   };
-  const leaveNow = () => {
+  const leaveAfter = (delay: number, ms: number) => {
     if (disposed || !life.leave()) return;
-    const ms = reduced ? 0 : tm.leaveMs;
-    fx.runLeave(0, ms, finish);
-    fx.later(finish, ms + SAFETY_MS);
-  };
-  const settle = () => {
-    if (disposed) return;
-    if (fx.isReady() || tm.readyWaitMs <= 0) return leaveNow();
-    fx.onReady(leaveNow);
-    fx.later(leaveNow, tm.readyWaitMs);
+    fx.runLeave(delay, ms, finish);
+    fx.later(finish, delay + ms + SAFETY_MS);
   };
   return {
     life,
@@ -172,12 +140,9 @@ export function createIntroController(tm: IntroTiming, reduced: boolean, fx: Int
       fx.frame(() => {
         void fx.hideSplash().then(() => {
           if (disposed) return;
-          if (reduced) return fx.later(settle, REDUCED_HOLD_MS);
-          if (tm.readyWaitMs > 0) return fx.runClock(tm.settleMs, settle);
-          life.leave();
+          if (reduced) return fx.later(() => leaveAfter(0, 0), REDUCED_HOLD_MS);
           fx.runClock(tm.settleMs);
-          fx.runLeave(tm.settleMs, tm.leaveMs, finish);
-          fx.later(finish, tm.settleMs + tm.leaveMs + SAFETY_MS);
+          leaveAfter(tm.settleMs, tm.leaveMs);
         });
       });
     },

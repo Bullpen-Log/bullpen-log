@@ -1,11 +1,10 @@
 import { type Href, router } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
 import { useCallback, useEffect, useRef, useState, type ComponentType, type Ref } from 'react';
-import { Linking, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent, type WebViewNavigation, type WebViewProps } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
-import { markAppReady } from '~/shell/intro';
+import { hideSplashUnlessIntro } from '~/shell/intro';
 import { SITE_HOST, SITE_URL } from '~/lib/site';
 import { usePalette } from '~/lib/ui';
 import { Press } from '~/shell/press';
@@ -56,6 +55,8 @@ export default function DugoutShell() {
   /** 바꾸면 웹뷰를 새로 그린다(다시 불러오기 · 프로세스 죽음) */
   const [load, setLoad] = useState(0);
   const [failed, setFailed] = useState(false);
+  /* 사이트 첫 불러오기가 끝났나 — 그 전엔 빈 웹뷰 대신 앱 바탕 + 돌개(시작 연출은 2.2초에 걷히고 사이트를 기다리지 않는다) */
+  const [webLoaded, setWebLoaded] = useState(false);
   const [path, setPath] = useState('/');
   const [pageColor, setPageColor] = useState<string | null>(null);
 
@@ -150,10 +151,10 @@ export default function DugoutShell() {
     if (!nav.loading) setFailed(false);
   }, []);
 
-  /* 사이트가 그려지면 시작 화면 · 시작 연출(_layout 의 Intro)을 걷는다 */
+  /* 사이트가 그려짐 — 첫 불러오기 판을 걷는다. 시작 화면(OS)은 시작 연출이 떠 있으면 연출이 걷는다 */
   const hideSplash = useCallback(() => {
-    void SplashScreen.hideAsync();
-    markAppReady();
+    void hideSplashUnlessIntro();
+    setWebLoaded(true);
   }, []);
 
   return (
@@ -180,8 +181,16 @@ export default function DugoutShell() {
           hideSplash();
           setFailed(true);
         }}
-        onContentProcessDidTerminate={() => setLoad((n) => n + 1)}
+        onContentProcessDidTerminate={() => {
+          setWebLoaded(false);
+          setLoad((n) => n + 1);
+        }}
       />
+      {!webLoaded && !failed ? (
+        <View style={[StyleSheet.absoluteFill, st.loading, { backgroundColor: c.page }]}>
+          <ActivityIndicator />
+        </View>
+      ) : null}
       {/* 망이 끊겼을 때 — 흰 화면 대신(앱 심사관이 비행기 모드로 본다). 탭 막대는 그대로 */}
       {failed ? (
         <View style={[StyleSheet.absoluteFill, st.offline, { backgroundColor: c.page, paddingBottom: 24 + TAB_BAR_HEIGHT }]}>
@@ -192,6 +201,7 @@ export default function DugoutShell() {
             style={st.button}
             onPress={() => {
               setFailed(false);
+              setWebLoaded(false);
               setLoad((n) => n + 1);
             }}
           >
@@ -206,5 +216,6 @@ export default function DugoutShell() {
 
 const st = StyleSheet.create({
   offline: { alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
+  loading: { alignItems: 'center', justifyContent: 'center' },
   button: { marginTop: 8, height: 48, paddingHorizontal: 24, borderRadius: 24, backgroundColor: DUGOUT_GREEN, justifyContent: 'center' },
 });

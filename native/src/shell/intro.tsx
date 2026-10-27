@@ -15,12 +15,11 @@ import Animated, {
 import { prefsReady } from '~/lib/prefs';
 import { usePalette } from '~/lib/ui';
 import { MARK_ASPECT, MARK_DROP, MARK_EM, SinkerMark } from '~/shell/wordmark';
-import { LEGACY_TIMING, createIntroController, leaveEase, letterEase, markDone, markEase, type IntroTiming } from './intro-timeline';
-export { LEGACY_TIMING, SINKER_TIMING, type IntroTiming } from './intro-timeline';
+import { INTRO_TIMING as timing, createIntroController, leaveEase, letterEase, markDone, markEase } from './intro-timeline';
 
 /*
  * 앱 시작 연출 — 큰 로고 → 이름의 로고 칸으로 → 글자가 밀려 나옴 → 걷힘. 시간표 · 곡선은 shell/intro-timeline.ts(순수, 시험 있음).
- * 싱커는 2026-10-27 김민이 고른 2.20초(SINKER_TIMING, app/_layout.tsx 가 넘긴다), 덕아웃 앱은 예전 3.45초(LEGACY_TIMING — 기본값).
+ * 2026-10-27 김민이 고른 2.20초(INTRO_TIMING) — 싱커 · 덕아웃 앱 같게. 사이트를 기다리지 않고, 아직이면 밑 화면의 첫 불러오기 판이 이어 받는다.
  * 2026-10-22 금윤호: 불펜로그 B → BULLPEN LOG 이던 것을 싱커 로고 → SINKER 로(아래 'B' 는 이제 로고, 글자는 I · N · K · E · R).
  * 움직임 줄이기면 완성된 이름 1.1초 → 걷힘(움직임 없이). 웹 PC 시작 연출(components/app-splash.tsx)은 예전 시간 그대로라 이제 싱커 앱과 다르다.
  * 큰 로고는 시작 화면(app.json splash · 바탕 = 앱 바탕)과 같은 크기 · 자리 · 색이라 시작 화면을 걷는 순간이 이어진다.
@@ -60,18 +59,6 @@ const SINKER_LOOK: IntroLook = {
 };
 
 /*
- * 사이트(웹 껍데기)가 다 그려졌다는 알림 — index.tsx · 딥링크 화면이 부른다. 덕아웃(LEGACY_TIMING)은 이걸 기다려 걷고, 싱커는 시간표대로 걷는다
- * (아직이면 index.tsx 의 첫 불러오기 판이 이어 받는다).
- */
-let ready = false;
-const subs = new Set<() => void>();
-export function markAppReady() {
-  if (ready) return;
-  ready = true;
-  subs.forEach((f) => f());
-}
-
-/*
  * 시작 화면(OS)은 인트로가 붙어 있으면 인트로가 걷는다 — 테마를 읽고 로고 칸을 잰 뒤. 다른 곳(사이트 다 그림 · 딥링크 · 사이트의 SplashScreen.hide)이
  * 먼저 걷으면 그 사이 다른 테마 바탕 · 덜 그린 이름이 비칠 수 있었다. 인트로가 없을 때(덕아웃 앱의 웹뷰 등 다른 길)는 바로 걷는다.
  */
@@ -84,7 +71,7 @@ export function hideSplashUnlessIntro(): Promise<void> {
   return SplashScreen.hideAsync().catch(() => undefined);
 }
 
-function Letter({ ch, i, t, size, color, timing }: { ch: string; i: number; t: SharedValue<number>; size: number; color: string; timing: IntroTiming }) {
+function Letter({ ch, i, t, size, color }: { ch: string; i: number; t: SharedValue<number>; size: number; color: string }) {
   const style = useAnimatedStyle(() => {
     const e = letterEase(t.get(), i, timing);
     return { opacity: e, transform: [{ translateX: (1 - e) * -0.245 * size }] };
@@ -96,7 +83,7 @@ function Letter({ ch, i, t, size, color, timing }: { ch: string; i: number; t: S
   );
 }
 
-export function Intro({ look = SINKER_LOOK, timing = LEGACY_TIMING }: { look?: IntroLook; timing?: IntroTiming }) {
+export function Intro({ look = SINKER_LOOK }: { look?: IntroLook }) {
   const c = usePalette();
   const reduced = useReducedMotion();
   const { width, height } = useWindowDimensions();
@@ -129,15 +116,13 @@ export function Intro({ look = SINKER_LOOK, timing = LEGACY_TIMING }: { look?: I
       held = false;
     };
     const timers: ReturnType<typeof setTimeout>[] = [];
-    const waits: (() => void)[] = [];
     const c = createIntroController(timing, still, {
       frame: (f) => requestAnimationFrame(() => requestAnimationFrame(f)),
       hideSplash: () => SplashScreen.hideAsync().catch(() => undefined),
       later: (f, ms) => {
         timers.push(setTimeout(f, ms));
       },
-      runClock: (ms, done) =>
-        t.set(withTiming(ms, { duration: ms, easing: Easing.linear, reduceMotion: ReduceMotion.Never }, (fin) => fin && done && runOnJS(done)())),
+      runClock: (ms) => t.set(withTiming(ms, { duration: ms, easing: Easing.linear, reduceMotion: ReduceMotion.Never })),
       runLeave: (delay, ms, done) => {
         const go = withTiming(1, { duration: ms, easing: Easing.linear, reduceMotion: ReduceMotion.Never }, (fin) => fin && runOnJS(done)());
         leave.set(delay > 0 ? withDelay(delay, go) : go);
@@ -146,11 +131,6 @@ export function Intro({ look = SINKER_LOOK, timing = LEGACY_TIMING }: { look?: I
         release();
         setGone(true);
       },
-      isReady: () => ready,
-      onReady: (f) => {
-        subs.add(f);
-        waits.push(f);
-      },
     });
     intro.current = c;
     return () => {
@@ -158,9 +138,8 @@ export function Intro({ look = SINKER_LOOK, timing = LEGACY_TIMING }: { look?: I
       c.dispose();
       intro.current = null;
       timers.forEach(clearTimeout);
-      waits.forEach((f) => subs.delete(f));
     };
-  }, [timing, still, t, leave]);
+  }, [still, t, leave]);
 
   /* 테마를 읽기 전엔 기본값이라 — 읽은 뒤에 시작 화면을 걷는다(다크 · 네이비에서 다른 바탕이 번쩍이던 것) */
   const [themed, setThemed] = useState(false);
@@ -181,7 +160,7 @@ export function Intro({ look = SINKER_LOOK, timing = LEGACY_TIMING }: { look?: I
   }, []);
 
   const veil = useAnimatedStyle(() => {
-    const e = leaveEase(leave.get(), timing);
+    const e = leaveEase(leave.get());
     return { opacity: 1 - e, transform: [{ scale: reduced ? 1 : 1 + (timing.leaveScale - 1) * e }] };
   });
   /*
@@ -216,7 +195,7 @@ export function Intro({ look = SINKER_LOOK, timing = LEGACY_TIMING }: { look?: I
             style={{ width: slotH * look.aspect, height: slotH, marginRight: slotBox.right, marginBottom: slotBox.bottom }}
           />
           {look.letters.map((ch, i) => (
-            <Letter key={i} ch={ch} i={i} t={t} size={size} color={c.ink} timing={timing} />
+            <Letter key={i} ch={ch} i={i} t={t} size={size} color={c.ink} />
           ))}
         </View>
       </View>

@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking';
 import { type Href, router } from 'expo-router';
-import { hideSplashUnlessIntro, markAppReady } from '~/shell/intro';
+import { hideSplashUnlessIntro } from '~/shell/intro';
 import {
   useCallback,
   useEffect,
@@ -607,7 +607,6 @@ export default function SiteScreen() {
   const hideSplash = useCallback(() => {
     void hideSplashUnlessIntro();
     setWebLoaded(true);
-    markAppReady();
   }, []);
 
   /** 우리 사이트 밖 주소(유튜브 · 결제 · 메일 등)는 웹뷰에서 열지 않고 폰의 앱 · 사파리로 */

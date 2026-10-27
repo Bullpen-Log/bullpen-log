@@ -1,15 +1,14 @@
 /**
- * 앱 시작 연출(native/src/shell/intro-timeline.ts) 시험 — 2026-10-27 승인 2.20초 시안이 시간표대로 걷히는지, 늦은 알림 · 다시 재기 · 잃은 끝 알림 ·
+ * 앱 시작 연출(native/src/shell/intro-timeline.ts) 시험 — 2026-10-27 승인 2.20초 시안(싱커 · 덕아웃)이 시간표대로 걷히는지, 다시 재기 · 잃은 끝 알림 ·
  * 움직임 줄이기 · 화면 닫힘에서 두 번 걷거나 영영 안 걷히지 않는지. 상수 글자가 아니라 가짜 시계로 '언제 무엇이 일어났나'를 본다.
  * 실행: npm run native-intro:test
  * 실제 아이폰의 장면 · Reanimated 시계 · 시작 화면 걷힘은 이 시험이 보지 못한다(폰에서 확인).
  */
 import assert from 'node:assert/strict';
 import {
-  LEGACY_TIMING,
+  INTRO_TIMING,
   REDUCED_HOLD_MS,
   SAFETY_MS,
-  SINKER_TIMING,
   createIntroController,
   introTotalMs,
   leaveEase,
@@ -37,8 +36,6 @@ function world(tm: IntroTiming, reduced: boolean, opts: { loseAnimEnd?: boolean;
   let seq = 0;
   let jobs: Job[] = [];
   const log: string[] = [];
-  let ready = false;
-  const subs = new Set<() => void>();
   let goneAt: number | null = null;
   let leaveAt: number | null = null;
   let goneCount = 0;
@@ -54,10 +51,9 @@ function world(tm: IntroTiming, reduced: boolean, opts: { loseAnimEnd?: boolean;
       return new Promise<void>((res) => at(opts.splashMs ?? 0, res));
     },
     later: (f, ms) => at(ms, f),
-    runClock: (ms, done) => {
+    runClock: () => {
       clockStarts++;
       log.push(`clock@${now}`);
-      if (done && !opts.loseAnimEnd) at(ms, done);
     },
     runLeave: (delay, ms, done) => {
       leaveStarts++;
@@ -68,10 +64,6 @@ function world(tm: IntroTiming, reduced: boolean, opts: { loseAnimEnd?: boolean;
     gone: () => {
       goneCount++;
       goneAt = now;
-    },
-    isReady: () => ready,
-    onReady: (f) => {
-      subs.add(f);
     },
   });
   /* 시작 화면 걷힘 약속(Promise)의 then 을 돌리고 다음 일을 고른다 */
@@ -116,12 +108,6 @@ function world(tm: IntroTiming, reduced: boolean, opts: { loseAnimEnd?: boolean;
     get splashHides() {
       return splashHides;
     },
-    /** 사이트가 다 그림(markAppReady) */
-    ready() {
-      if (ready) return;
-      ready = true;
-      subs.forEach((f) => f());
-    },
   };
 }
 
@@ -130,13 +116,14 @@ const T0 = 32;
 
 /* 1. 시간표 — 승인 시안의 숫자가 곡선 함수에서 그대로 나오는지 */
 {
-  const tm = SINKER_TIMING;
+  const tm = INTRO_TIMING;
   eq(introTotalMs(tm), 2200, '싱커 전체 2.2초');
   eq(tm.moveAt + tm.moveMs, 1000, '로고 이동 0.2 → 1.0초');
   eq(lettersDoneAt(tm, 5), 1400, '마지막 글자(R) 1.4초에 다 섬');
   eq(tm.settleMs - lettersDoneAt(tm, 5), 300, '이름 완성 뒤 0.3초 머묾');
-  eq(introTotalMs(LEGACY_TIMING), 3450, '덕아웃(예전) 3.45초 그대로');
-  eq(lettersDoneAt(LEGACY_TIMING, 5), 2200, '예전 글자 끝 2.2초');
+  eq(lettersDoneAt(tm, 6), 1455, '덕아웃(D · U · G · O · U · T 여섯) 1.455초에 다 섬');
+  assert.ok(lettersDoneAt(tm, 6) < tm.settleMs, '덕아웃도 걷기 전에 이름이 다 섬');
+  n++;
   /* 로고 이동: in-out cubic */
   eq(markEase(199, tm), 0, '0.2초 전엔 안 움직임');
   near(markEase(600, tm), 0.5, '이동 한가운데 0.5');
@@ -151,16 +138,14 @@ const T0 = 32;
   eq(letterEase(700 + 55 * 4 + 480, 4, tm), 1, 'R 은 1.4초에 끝');
   near(letterEase(1399, 4, tm), 1 - (1 / 480) ** 3, 'R 이 1.4초 바로 전엔 거의 다 섬');
   /* 걷힘: out cubic, 1.015배 (예전 in quad 1.06배) */
-  near(leaveEase(0.5, tm), 1 - 0.5 ** 3, '걷힘 절반 = out cubic');
-  near(leaveEase(0.5, LEGACY_TIMING), 0.25, '예전 걷힘 절반 = p²');
-  eq([leaveEase(-1, tm), leaveEase(2, tm)], [0, 1], '걷힘 비율은 0~1 로 묶음');
+  near(leaveEase(0.5), 1 - 0.5 ** 3, '걷힘 절반 = out cubic');
+  eq([leaveEase(-1), leaveEase(2)], [0, 1], '걷힘 비율은 0~1 로 묶음');
   eq(tm.leaveScale, 1.015, '걷히며 1.015배');
-  eq(LEGACY_TIMING.leaveScale, 1.06, '예전 1.06배 그대로');
 }
 
-/* 2. 싱커 — 시작 화면을 걷은 뒤 정확히 1.7초부터 0.5초 걷혀 2.2초에 치운다(사이트를 안 기다림) */
+/* 2. 시작 화면을 걷은 뒤 정확히 1.7초부터 0.5초 걷혀 2.2초에 치운다(사이트를 안 기다림) */
 {
-  const w = world(SINKER_TIMING, false);
+  const w = world(INTRO_TIMING, false);
   w.c.begin();
   await w.run(T0 + 2199);
   eq(w.goneAt, null, '2.2초 전엔 그대로');
@@ -169,27 +154,15 @@ const T0 = 32;
   eq(w.goneAt, T0 + 2200, '2.2초에 치움');
   eq(w.c.life.phase, 'gone', '수명 끝');
   eq(w.splashHides, 1, '시작 화면은 한 번 걷음');
-  /* 늦게 온 '사이트 다 그림' · 안전 타이머는 아무것도 안 함 */
-  w.ready();
+  /* 늦게 온 안전 타이머는 아무것도 안 함 */
   await w.run(T0 + 5000);
   eq(w.goneCount, 1, '두 번 치우지 않음');
   eq(w.leaveStarts, 1, '걷힘을 두 번 안 돌림');
 }
 
-/* 3. 싱커 — 사이트가 먼저 그려져도(0.5초) 걷힘을 당기지 않는다(승인 시간표 그대로) */
-{
-  const w = world(SINKER_TIMING, false);
-  w.c.begin();
-  await w.run(500);
-  w.ready();
-  await w.run(T0 + 2200);
-  eq(w.leaveAt, T0 + 1700, '먼저 그려져도 1.7초에 걷음');
-  eq(w.goneAt, T0 + 2200, '2.2초에 치움');
-}
-
 /* 4. 다시 재기 · 늦은 시작 — 회전으로 칸을 다시 재 begin 이 또 와도, 대비 타이머(2.5초)가 와도 다시 시작하지 않음 */
 {
-  const w = world(SINKER_TIMING, false);
+  const w = world(INTRO_TIMING, false);
   w.c.begin();
   await w.run(800);
   w.c.begin();
@@ -203,7 +176,7 @@ const T0 = 32;
 
 /* 5. 걷힘 끝 알림을 잃음(Reanimated 콜백 누락) — 안전 타이머가 2.2 + 0.4초에 치운다 */
 {
-  const w = world(SINKER_TIMING, false, { loseAnimEnd: true });
+  const w = world(INTRO_TIMING, false, { loseAnimEnd: true });
   w.c.begin();
   await w.run(T0 + 2200 + SAFETY_MS - 1);
   eq(w.goneAt, null, '안전 시간 전엔 아직');
@@ -213,7 +186,7 @@ const T0 = 32;
 
 /* 6. 시작 화면 걷힘이 느려도(0.3초) 시간표는 걷힌 뒤부터 센다 — 걷히기 전에 로고가 작아지지 않게 */
 {
-  const w = world(SINKER_TIMING, false, { splashMs: 300 });
+  const w = world(INTRO_TIMING, false, { splashMs: 300 });
   w.c.begin();
   await w.run(T0 + 300 + 2200);
   eq(w.log[0], `clock@${T0 + 300}`, '시계는 시작 화면이 걷힌 뒤');
@@ -222,7 +195,7 @@ const T0 = 32;
 
 /* 7. 움직임 줄이기 — 완성된 이름 1.1초 → 걷힘 시간 0 으로 바로(2.2초를 기다리지 않음) */
 {
-  const w = world(SINKER_TIMING, true);
+  const w = world(INTRO_TIMING, true);
   w.c.begin();
   await w.run(T0 + REDUCED_HOLD_MS);
   eq(w.goneAt, T0 + REDUCED_HOLD_MS, '1.1초에 치움');
@@ -232,49 +205,17 @@ const T0 = 32;
 
 /* 8. 화면이 닫힘(dispose) — 그 뒤 타이머 · 알림이 와도 치우기 · 걷기를 안 부른다 */
 {
-  const w = world(SINKER_TIMING, false);
+  const w = world(INTRO_TIMING, false);
   w.c.begin();
   await w.run(1000);
   w.c.dispose();
   await w.run(5000);
   eq(w.goneCount, 0, '닫힌 뒤엔 gone 안 부름');
-  const w2 = world(SINKER_TIMING, false);
+  const w2 = world(INTRO_TIMING, false);
   w2.c.dispose();
   w2.c.begin();
   await w2.run(5000);
   eq(w2.splashHides, 0, '닫힌 뒤 begin 은 아무것도 안 함');
-}
-
-/* 9. 덕아웃(예전) — 다 선 뒤 사이트를 기다린다: 이미 그려졌으면 바로, 늦으면 그때, 영영 안 오면 7초 상한 */
-{
-  const w = world(LEGACY_TIMING, false);
-  w.c.begin();
-  await w.run(1000);
-  w.ready();
-  await w.run(T0 + 3450);
-  eq(w.leaveAt, T0 + 2900, '먼저 그려졌으면 2.9초에 걷음');
-  eq(w.goneAt, T0 + 3450, '3.45초에 치움');
-}
-{
-  const w = world(LEGACY_TIMING, false);
-  w.c.begin();
-  await w.run(5000);
-  eq(w.goneAt, null, '사이트가 아직이면 이름을 세워 둠');
-  w.ready();
-  await w.run(5000 + 550);
-  eq(w.leaveAt, 5000, '그려진 순간 걷음');
-  eq(w.goneAt, 5550, '0.55초 뒤 치움');
-  w.ready();
-  await w.run(20000);
-  eq(w.goneCount, 1, '7초 상한 타이머가 뒤에 와도 두 번 안 걷음');
-  eq(w.leaveStarts, 1, '걷힘 한 번');
-}
-{
-  const w = world(LEGACY_TIMING, false);
-  w.c.begin();
-  await w.run(T0 + 2900 + 7000 + 550);
-  eq(w.leaveAt, T0 + 2900 + 7000, '사이트가 안 와도 다 선 뒤 7초에 걷음');
-  eq(w.goneAt, T0 + 9900 + 550, '그리고 치움');
 }
 
 console.log(`native-intro: ${n}개 통과`);

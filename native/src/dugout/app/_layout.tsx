@@ -17,7 +17,7 @@ SplashScreen.preventAutoHideAsync();
 export const unstable_settings = { anchor: 'index' };
 
 /*
- * 시작 연출 — 싱커 앱과 같은 장면 · 같은 때(shell/intro.tsx): 시작 화면의 큰 지붕 로고가 작아지며 이름 칸으로 → D · U · G · O · U · T 가 밀려 나온다.
+ * 시작 연출 — 싱커 앱과 같은 장면 · 같은 2.2초(shell/intro.tsx · intro-timeline.ts, 2026-10-27 김민): 시작 화면의 큰 지붕 로고가 작아지며 이름 칸으로 → D · U · G · O · U · T 가 밀려 나온다.
  * 큰 로고 = 시작 화면 그림(scripts/make-dugout-app-assets.mjs — 64 칸 그림의 로고 상자 57.7 × 39.4 를 그림 폭의 60% 로, 가운데)과 같은 크기 · 자리.
  * 이름 줄은 웹 Wordmark brand='dugout'(로고 0.78em · 틈 0.18em · 글자 가운데에 맞춤). 글자는 싱커 연출처럼 DIN Condensed(웹은 Bebas).
  */
