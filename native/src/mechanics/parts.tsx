@@ -4,7 +4,6 @@ import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { josa } from '@/lib/korean';
 import { mechanicsLevel } from '@/lib/mechanics/levels';
 import { DRILL_THROW_TEXT, FILM_VERDICTS, type DrillThrowNote, type FilmNote, type FilmVerdict } from '@/lib/mechanics/program';
 import { rpc, RpcError } from '~/lib/rpc';
@@ -215,7 +214,7 @@ export function FilmVerdictButtons({ session, current = null, c }: { session: nu
           );
         })}
       </View>
-      {saved ? <Text style={[s.small, { color: c.muted }]}>세션 {session}번 결과로 남겼어요. 다시 누르면 바꿔요.</Text> : null}
+      {saved ? <Text style={[s.small, { color: c.muted }]}>{session}회차 결과를 저장했어요. 다른 결과를 선택하면 수정돼요.</Text> : null}
       {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
     </View>
   );
@@ -247,10 +246,8 @@ export function LevelOffer({
   const level = mechanicsLevel(to);
   const title =
     kind === 'done'
-      ? `이 수준을 다 마쳤어요. ${level.name}${josa(level.name, '으로/로')} 가 볼까요?`
-      : kind === 'up'
-        ? `${level.name}${josa(level.name, '으로/로')} 올라가 볼까요?`
-        : `${level.name}${josa(level.name, '으로/로')} 낮춰 볼까요?`;
+      ? `프로그램 완료 · 다음 수준 ${level.name}`
+      : `수준 조정 제안 · ${level.name}`;
   const detail =
     kind === 'down'
       ? '‘어려움’이 이어지는 요소가 있어요. 한 단계 낮은 수준에서 자세를 다지고 다시 올라와도 돼요.'
@@ -278,7 +275,7 @@ export function LevelOffer({
       ) : (
         <>
           <Text style={[s.blockTitle, { color: c.ink }]}>{title}</Text>
-          <Text style={[s.body, { color: c.muted }]}>{detail}</Text>
+          <Text style={[s.body, { color: c.ink }]}>{detail}</Text>
           <View style={s.grid}>
             <Press
               onPress={() => void start()}
@@ -312,7 +309,7 @@ const s = StyleSheet.create({
   blockTitle: { fontSize: 17, fontWeight: '700', lineHeight: 23 },
   small: { fontSize: 13, lineHeight: 18 },
   smallBold: { fontSize: 13, fontWeight: '600' },
-  body: { fontSize: 15, lineHeight: 22 },
-  bodyBold: { fontSize: 15, fontWeight: '600', lineHeight: 21 },
+  body: { fontSize: 16, lineHeight: 24 },
+  bodyBold: { fontSize: 17, fontWeight: '600', lineHeight: 24 },
   center: { textAlign: 'center' },
 });

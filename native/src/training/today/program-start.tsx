@@ -501,7 +501,7 @@ function StartSheet({
 
       {step === 'summary' && choice ? (
         <>
-          <Text style={[s.cardTitle, { color: c.ink }]}>준비됐어요</Text>
+          <Text style={[s.cardTitle, { color: c.ink }]}>프로그램 확인</Text>
           {choice.perWeek.length > 1 ? (
             <View style={s.chips}>
               {choice.perWeek.map((n) => (

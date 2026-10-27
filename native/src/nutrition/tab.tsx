@@ -326,13 +326,13 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           ) : null}
           {nudge ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 8 }}>
-              <Text style={{ color: c.muted, fontSize: 13 }}>체중 흐름을 보고 목표를 조금 바꿔 볼까요?</Text>
+              <Text style={{ color: c.ink, fontSize: 15, lineHeight: 22 }}>체중 변화에 따른 목표 검토</Text>
               <Press
                 accessibilityRole="button"
                 onPress={() => router.push({ pathname: '/nutrition/stats' as Href as never, params: { date } })}
                 style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 4 }}
               >
-                <Text style={{ color: c.skyStrong, fontSize: 13, fontWeight: '600' }}>보기</Text>
+                <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '600' }}>목표 확인</Text>
               </Press>
             </View>
           ) : null}
@@ -735,7 +735,7 @@ function PlanCard({
               </Press>
             </View>
             <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>
-              안 먹은 계획은 먹은 칼로리에 안 들어가요. 끼니 칸의 동그라미를 누르면 먹은 것으로 기록돼요.
+              먹은 음식만 섭취량에 반영돼요.
             </Text>
           </Animated.View>
         ) : null}

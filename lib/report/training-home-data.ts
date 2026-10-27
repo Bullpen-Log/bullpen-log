@@ -180,7 +180,7 @@ export async function armcareCardData(user: HomeUser, today: Date): Promise<Trai
 export async function mechanicsCardData(userId: string): Promise<TrainingCard> {
   const { program, session, doneToday, painFold, throwNote } = await loadMechanicsProgram(userId);
   if (!program?.level) {
-    return card('mechanics', '수준을 골라 투구 메카닉 프로그램을 시작해 보세요');
+    return card('mechanics', '프로그램 수준을 선택해 주세요');
   }
   const level = mechanicsLevel(program.level);
   const done = new Set(program.finishedToday ? [] : doneToday);

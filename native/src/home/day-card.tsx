@@ -233,7 +233,7 @@ export function DayCards({
                       {l.videoPaths.length ? (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
                           <Icon name="film" size={14} color={c.muted} />
-                          <Text style={{ color: c.muted, fontSize: 13 }}>영상 {l.videoPaths.length}개 · 영상 아이콘을 누르면 봐요</Text>
+                          <Text style={{ color: c.muted, fontSize: 13 }}>영상 {l.videoPaths.length}개</Text>
                         </View>
                       ) : null}
                     </Animated.View>
@@ -258,7 +258,7 @@ export function DayCards({
                     </View>
                   ));
                 })()}
-                {videos > 2 ? <Text style={{ color: c.muted, fontSize: 13 }}>외 {videos - 2}개는 투구 기록에서 볼 수 있어요.</Text> : null}
+                {videos > 2 ? <Text style={{ color: c.muted, fontSize: 13 }}>외 {videos - 2}개 · 전체 투구 기록에서 확인</Text> : null}
                   </View>
                 ) : null}
                 {vday?.clips ? <VelocityClips date={date} /> : null}
@@ -448,21 +448,30 @@ function CheckinDetail({ d, c, isToday }: { d: DayDetail; c: Palette; isToday: b
 function Fact({ c, label, value, strong }: { c: Palette; label: string; value: string; strong?: boolean }) {
   return (
     <View style={{ minWidth: 72, flex: 1 }}>
-      <Text style={{ color: c.muted, fontSize: 11 }}>{label}</Text>
+      <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>{label}</Text>
       <Text style={{ color: c.ink, fontSize: strong ? 18 : 15, fontWeight: strong ? '700' : '600', fontVariant: ['tabular-nums'] }}>{value}</Text>
     </View>
   );
 }
 function Memo({ c, text, label, bare }: { c: Palette; text: string; label?: string; bare?: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const long = text.length > 100 || text.split(/\r?\n/).length > 3;
   return (
     <View style={[{ flexDirection: 'row', gap: 6 }, bare ? { marginTop: 8 } : [styles.memo, { backgroundColor: c.page }]]}>
       <View style={{ marginTop: 2 }}>
         <Icon name="clipboard-list" size={14} color={c.muted} />
       </View>
-      <Text style={{ flex: 1, color: c.ink, opacity: 0.8, fontSize: 13, lineHeight: 19 }} numberOfLines={3}>
-        {label ? <Text style={{ color: c.muted, fontWeight: '600' }}>{label} · </Text> : null}
-        {text}
-      </Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text selectable style={[TYPE.body, { color: c.ink }]} numberOfLines={long && !expanded ? 3 : undefined}>
+          {label ? <Text style={{ color: c.muted, fontWeight: '600' }}>{label} · </Text> : null}
+          {text}
+        </Text>
+        {long ? (
+          <Press accessibilityRole="button" accessibilityLabel={expanded ? '메모 접기' : '메모 전체 보기'} accessibilityState={{ expanded }} onPress={() => setExpanded((v) => !v)} style={{ minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center' }}>
+            <Text style={[TYPE.buttonCompact, { color: c.link }]}>{expanded ? '접기' : '전체 보기'}</Text>
+          </Press>
+        ) : null}
+      </View>
     </View>
   );
 }

@@ -20,6 +20,7 @@ import { Muscle3D, MuscleChips } from '~/armcare/muscle-info';
 import { AREA_DETAILS } from '@/lib/armcare/details';
 import { Press } from '~/shell/press';
 import { Icon } from '~/shell/icon';
+import { TYPE } from '~/lib/ui';
 
 /**
  * 암케어 전체 화면(native/src/app/training-armcare.tsx)의 조각 — 웹 armcare-today.tsx(체크 목록 · 이번 주) · my-routines.tsx · rehab-card.tsx(겉) ·
@@ -68,31 +69,32 @@ export function ExerciseRow({
             </View>
           </Press>
         ) : null}
-        <View style={{ flex: 1, gap: 3 }}>
-          <Text style={[s.bodyBold, { color: c.ink }]}>
+        <View style={{ flex: 1, minWidth: 0, gap: 7 }}>
+          <Text style={[TYPE.card, { color: c.ink, lineHeight: 24 }]}>
             {ex.title}
             {note ? <Text style={[s.small, { color: c.link }]}>{`  ${note}`}</Text> : null}
           </Text>
-          {ex.prescription ? <Text style={[s.smallBold, { color: c.muted }]}>{ex.prescription}</Text> : null}
-          {warning ? <Text style={[s.small, { color: c.warn }]}>{warning}</Text> : null}
+          {ex.prescription ? <Text style={[TYPE.buttonCompact, { color: c.ink }]}>{ex.prescription}</Text> : null}
+          {warning ? <Text style={[TYPE.body, { color: c.warn }]}>{warning}</Text> : null}
           {ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={2} highlight={highlight} c={c} /> : null}
           <Text style={[s.tiny, { color: c.muted }]}>{meta}</Text>
           {/* 부위별 보강에서만(루틴 목록을 넘긴 곳) — 웹 AddToRoutine 처럼 운동 줄 안 [담기] */}
           <AddToRoutine exerciseId={ex.id} title={ex.title} c={c} />
         </View>
-        {ex.thumbUrl ? <Thumb uri={ex.thumbUrl} style={st.thumb} /> : null}
-        {fav != null ? <Star kind="exercise" id={ex.id} initial={fav} title={ex.title} c={c} /> : null}
       </View>
-      <Press
-        onPress={() => setOpen((v) => !v)}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        style={[st.disclose, { borderTopColor: c.line }]}
-      >
-        <SymbolView name="info.circle" size={13} tintColor={c.muted} />
-        <Text style={[s.smallBold, { color: c.muted, flex: 1 }]}>자세·영상 보기</Text>
-        <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={11} tintColor={c.muted} />
-      </Press>
+      <View style={[st.exerciseFooter, { borderTopColor: c.line }]}>
+        <Press
+          onPress={() => setOpen((v) => !v)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          style={st.exerciseDetails}
+        >
+          {ex.thumbUrl ? <Thumb uri={ex.thumbUrl} style={st.thumb} /> : <SymbolView name="info.circle" size={16} tintColor={c.link} />}
+          <Text style={[TYPE.buttonCompact, { color: c.link, flex: 1 }]}>{open ? '자세·영상 접기' : '자세·영상 보기'}</Text>
+          <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
+        </Press>
+        {fav != null ? <View style={{ paddingTop: 10, paddingRight: 12 }}><Star kind="exercise" id={ex.id} initial={fav} title={ex.title} c={c} /></View> : null}
+      </View>
       {open ? (
         <View style={{ gap: 10, paddingHorizontal: 12, paddingBottom: 12 }}>
           <ExerciseMedia path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
@@ -558,7 +560,9 @@ const st = StyleSheet.create({
   rowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingHorizontal: 12, paddingVertical: 12 },
   checkHit: { width: 32, height: 44, marginTop: -8, marginLeft: -4, alignItems: 'center', justifyContent: 'center' },
   check: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  thumb: { width: 72, height: 52, borderRadius: 8, backgroundColor: '#000' },
+  thumb: { width: 56, height: 40, borderRadius: 8, backgroundColor: '#000' },
+  exerciseFooter: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth },
+  exerciseDetails: { flex: 1, minWidth: 0, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 8 },
   disclose: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderTopWidth: StyleSheet.hairlineWidth },
   bar: { height: 8, borderRadius: 4, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 4 },

@@ -13,6 +13,8 @@ import { leaveTo } from '~/shell/web-nav';
 import type { Palette } from '~/lib/ui';
 import { ExerciseVideo, clockText } from '~/workout/parts';
 import { Press } from '~/shell/press';
+import { InstructionText } from '~/shell/instruction-text';
+import { TYPE } from '~/lib/ui';
 
 /** 암케어 따라 하기(native/src/app/armcare/[id].tsx)의 작은 조각 — 웹 app/(session)/armcare/play/[id] 의 같은 이름 부품을 옮겼다 */
 
@@ -152,18 +154,15 @@ export function HowTo({
             </Press>
           ) : got ? (
             got.text ? (
-              <Text selectable style={[s.body, { color: c.ink }]}>
-                {got.text}
-              </Text>
+              <InstructionText text={got.text} c={c} />
             ) : (
               <Text style={[s.small, { color: c.muted }]}>아직 적힌 설명이 없어요.</Text>
             )
           ) : null}
           {m ? (
             <View style={[s.method, { borderColor: c.sky + '40', backgroundColor: c.action + '0f' }]}>
-              <Text style={[s.smallBold, { color: c.link }]}>
-                {m.label} 방식 <Text style={{ color: c.muted, fontWeight: '400' }}>· {m.cue}</Text>
-              </Text>
+              <Text accessibilityRole="header" style={[TYPE.card, { color: c.link }]}>{m.label} 방식</Text>
+              <Text style={[TYPE.body, { color: c.ink }]}>{m.cue}</Text>
               {[
                 ['하는 법', m.what],
                 ['왜', m.why],
@@ -171,12 +170,12 @@ export function HowTo({
                 ['멈출 때', m.stop],
               ].map(([k, v]) => (
                 <View key={k} style={s.methodRow}>
-                  <Text style={[s.smallBold, s.methodKey, { color: c.link }]}>{k}</Text>
-                  <Text style={[s.small, { color: c.ink, flex: 1 }]}>{v}</Text>
+                  <Text style={[TYPE.buttonCompact, s.methodKey, { color: c.link }]}>{k}</Text>
+                  <Text style={[TYPE.reading, { color: c.ink }]}>{v}</Text>
                 </View>
               ))}
               {m.caution ? (
-                <Text style={[s.small, s.warnBox, { color: c.warn, backgroundColor: c.warnBg }]}>{m.caution}</Text>
+                <Text style={[TYPE.body, s.warnBox, { color: c.warn, backgroundColor: c.warnBg }]}>{m.caution}</Text>
               ) : null}
             </View>
           ) : null}
@@ -320,8 +319,8 @@ const s = StyleSheet.create({
   howToHead: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6 },
   textBtn: { minHeight: 40, justifyContent: 'center' },
   method: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
-  methodRow: { flexDirection: 'row', gap: 10 },
-  methodKey: { width: 56 },
+  methodRow: { gap: 4 },
+  methodKey: { alignSelf: 'flex-start' },
   warnBox: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, overflow: 'hidden' },
   chip: { minHeight: 44, borderRadius: 22, borderWidth: 1, paddingHorizontal: 14, justifyContent: 'center' },
   stack: { alignItems: 'flex-start', gap: 6 },
