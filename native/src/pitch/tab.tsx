@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PRESSED, SPACE, TYPE, usePalette } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
 import { PageHead, Segmented } from '~/shell/heading';
-import { Wordmark } from '~/shell/wordmark';
 import { ComparePickBar, LogList } from './log-list';
 import { MonthGrid } from './month-grid';
 import { PitchDayPanel } from './day-panel';
@@ -204,9 +203,10 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
         </>
       ) : (
         <>
-          <PageHead title="투구">
-            <Wordmark size={18} color={c.ink} />
-          </PageHead>
+          {/* 타격 웹뷰의 homeHeading과 같은 제목 높이·줄 높이. 오른쪽 도구는 카드 안에 둔다. */}
+          <View style={{ minHeight: 44, justifyContent: 'center' }}>
+            <Text accessibilityRole="header" style={[TYPE.title, { color: c.ink, lineHeight: 40 }]}>투구</Text>
+          </View>
           {/*
             최초 개선안: 오늘 카드 바로 밑 도구 → 최근 기록 → 이번 주.
             아이패드에서는 오늘/도구와 최근/주간을 두 열로, 휴대폰에서는 같은 읽기 순서로 잇는다.

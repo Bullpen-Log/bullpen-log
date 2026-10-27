@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BackLink, Button, PageHeading } from '@/components/ui';
+import { NavTitle } from '@/components/nav-title';
 import { Modal } from '@/components/modal';
 import { MonthCalendar, type DayMark } from '@/components/month-calendar';
 import { EffortChips } from '@/components/effort-chips';
@@ -184,7 +185,7 @@ export function HittingClient({ today, rows }: { today: string; rows: HittingRow
   );
 
   return (
-    <div className="stack-page">
+    <div className={log ? 'stack-page' : styles.home} data-sport-home={log ? undefined : 'hit'}>
       {/*
         기록에서 타격 첫 화면으로 — 휴대폰(앱) 위 막대에만 선다(본문엔 안 보임). 앱 하단바가 종목 바(‹ · 기록 · 트레이닝)였을 때의 길을
         2026-10-27 HIG 검토 A안(김민)으로 걷어 여기 둔다. 하단바 타격을 다시 눌러도 돌아온다.
@@ -194,15 +195,18 @@ export function HittingClient({ today, rows }: { today: string; rows: HittingRow
           <BackLink href="/hitting">타격</BackLink>
         </div>
       ) : null}
-      <PageHeading
-        title={log ? '타격 기록' : '타격'}
+      {log ? <PageHeading
+        title="타격 기록"
         inlineAction
         action={
           <Button size="sm" onClick={() => openNew()}>
             기록 남기기
           </Button>
         }
-      />
+      /> : <header className={styles.homeHeading}>
+        <h1>타격</h1>
+        <NavTitle title="타격" />
+      </header>}
 
       {log ? (
         <>
@@ -237,7 +241,8 @@ export function HittingClient({ today, rows }: { today: string; rows: HittingRow
           )}
         </>
       ) : (
-        <>
+        <div className={styles.columns}>
+          <div className={styles.primary}>
           <BattingHero today={today} count={todayRows.length} types={[...new Set(todayRows.map((r) => r.sessionType))]} onRecord={() => openNew(today)} />
 
           {/*
@@ -263,7 +268,9 @@ export function HittingClient({ today, rows }: { today: string; rows: HittingRow
               ›
             </span>
           </Link>
+          </div>
 
+          <div className={styles.secondary}>
           <section className="space-y-2">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-ink">이번 주 기록</h2>
@@ -310,7 +317,8 @@ export function HittingClient({ today, rows }: { today: string; rows: HittingRow
               {rowList(recent, true)}
             </section>
           )}
-        </>
+          </div>
+        </div>
       )}
 
       <Modal

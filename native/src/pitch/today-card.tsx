@@ -125,8 +125,8 @@ export function PitchTodayCard({ today, logs = null }: { today: string; logs?: P
   return (
     <Animated.View layout={LinearTransition.duration(260)} style={[styles.card, { backgroundColor: dark ? '#0d2940' : '#153f60', boxShadow: c.floatHero }]}>
       <View style={styles.heroHead}>
-        <Text style={{ color: '#f4fbff', fontSize: 17, fontWeight: '600' }}>오늘 투구</Text>
-        <Text style={{ color: '#b5d5eb', fontSize: 12 }}>{today.slice(5).replace('-', '.')}</Text>
+        <Text style={{ color: '#f4fbff', fontSize: 17, lineHeight: 24, fontWeight: '600' }}>오늘 투구</Text>
+        <Text style={{ color: '#b5d5eb', fontSize: 12, lineHeight: 19 }}>{today.slice(5).replace('-', '.')}</Text>
       </View>
       <View style={[styles.heroBody, stacked && { flexDirection: 'column', alignItems: 'flex-end' }]}>
         <View style={{ flex: stacked ? undefined : 1, alignSelf: stacked ? 'stretch' : undefined, minWidth: 0, gap: 8 }}>

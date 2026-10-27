@@ -1,16 +1,30 @@
-.hero { border-radius: 22px; overflow: hidden; padding: 20px; background: linear-gradient(135deg,#073254,#04527a); color: #f3faff; box-shadow: 0 9px 22px #042f4927; }
-.heroTop { display: flex; justify-content: space-between; gap: 10px; color: #bfdef0; font-size: 13px; line-height: 1.5; }
-.heroTop strong { color: #ecf8ff; }
-.stage { height: 195px; position: relative; }
-.heroTitle { position: absolute; top: 28px; left: 0; display: grid; gap: 12px; }
-.heroTitle strong { font-size: 38px; line-height: 1.08; letter-spacing: -.06em; }
-.heroTitle span { color: #a8d6ed; font-size: 11px; font-weight: 800; letter-spacing: .18em; }
-.scene { position: absolute; width: 57%; height: 190px; right: 0; top: 0; border: 0; padding: 0; background: transparent; touch-action: pan-y; }
+/* 앱 투구 첫 화면과 같은 기준: 옆 16 · 제목 34/40, 높이 44 · 제목 아래 16 · 바깥 폭 최대 1120(본문 1088). */
+.home { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 1088px; margin-inline: auto; container-type: inline-size; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+.homeHeading { display: flex; align-items: center; min-height: 44px; }
+.homeHeading h1 { margin: 0; color: var(--color-ink); font-size: 2.125rem; line-height: calc(40 / 34); font-weight: 800; letter-spacing: -1px; }
+.columns { display: flex; flex-direction: column; gap: 20px; }
+.primary, .secondary { display: flex; flex-direction: column; min-width: 0; }
+.primary { gap: 10px; }
+.secondary { gap: 20px; }
+@container (min-width: 868px) {
+  .columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: 20px; align-items: start; }
+}
+/* native/src/pitch/today-card.tsx와 같은 틀: 모서리24 · 안쪽18 · 간격10 · 장면150. 내용이 늘면 높이도 늘어난다. */
+.hero { display: flex; flex-direction: column; gap: 10px; border-radius: 24px; overflow: hidden; padding: 18px; background: linear-gradient(135deg,#073254,#04527a); color: #f3faff; box-shadow: 0 9px 22px #042f4927; }
+.heroTop { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; color: #bfdef0; font-size: .75rem; line-height: calc(19 / 12); }
+.heroTop strong { color: #ecf8ff; font-size: 1.0625rem; line-height: calc(24 / 17); font-weight: 600; }
+.stage { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 150px; position: relative; }
+.heroTitle { flex: 1; min-width: 4em; position: relative; display: grid; gap: 8px; padding-block: 12px 24px; font-size: 1.875rem; }
+.heroTitle strong { font-size: inherit; line-height: 1.2; letter-spacing: -.025em; }
+.heroTitle span { color: #a8d6ed; font-size: .6875rem; line-height: 1.45; font-weight: 800; letter-spacing: .13em; }
+.scene { flex: 0 0 48%; min-width: 100px; position: relative; height: 150px; margin-left: auto; border: 0; padding: 0; background: transparent; touch-action: pan-y; }
 .scene canvas { width: 100%; height: 100%; display: block; }
 .fallback { position: absolute; top: 28%; left: 47%; width: 16px; height: 105px; border-radius: 45% 45% 30% 30%; background: linear-gradient(90deg,#9f733a,#edcd8a 45%,#b18b53); transform: rotate(39deg); }
 .hint { position: absolute; left: 0; bottom: 6px; color: #b0d4e7; font-size: 11px; }
-.summary { min-height: 23px; margin: 0 0 14px; color: #e2f2fc; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
-.record { width: 100%; min-height: 48px; border: 0; border-radius: 14px; color: white; background: #0070c9; font-size: 17px; line-height: 1.4; padding: 12px 16px; font-weight: 700; }
+.recordStatus { display: flex; flex-direction: column; gap: 8px; min-height: 71px; padding-block: 8px; }
+.statusTitle { margin: 0; color: #a9e2f3; font-size: 1.0625rem; line-height: calc(24 / 17); font-weight: 600; }
+.summary { margin: 0; color: #e2f2fc; font-size: .9375rem; line-height: calc(23 / 15); overflow-wrap: anywhere; }
+.record { width: 100%; min-height: 48px; border: 0; border-radius: 14px; color: white; background: #0070c9; font-size: 1.0625rem; line-height: calc(23 / 17); padding: 10px 20px; font-weight: 600; }
 .weekDays { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 3px; margin-top: 14px; }
 .weekDay { display: grid; justify-items: center; gap: 6px; color: var(--color-muted); font-size: 11px; }
 .weekMark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--color-surface-2); color: var(--color-muted); font-weight: 700; }

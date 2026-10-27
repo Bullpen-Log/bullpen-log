@@ -24,8 +24,7 @@ export function BattingHero({ today, types, count, onRecord }: { today: string; 
     return () => { cancelled = true; observer.disconnect(); dispose?.(); };
   }, []);
 
-  const date = new Date(`${today}T12:00:00Z`);
-  const dateText = `${date.getUTCMonth() + 1}.${String(date.getUTCDate()).padStart(2, '0')} · ${['일','월','화','수','목','금','토'][date.getUTCDay()]}요일`;
+  const dateText = today.slice(5).replace('-', '.');
   return (
     <section className={styles.hero} aria-label="오늘의 타격">
       <div className={styles.heroTop}><strong>연습 기록</strong><span>{dateText}</span></div>
@@ -36,7 +35,10 @@ export function BattingHero({ today, types, count, onRecord }: { today: string; 
         </button>
         <span className={styles.hint} aria-hidden="true">↔ 배트 돌려보기</span>
       </div>
-      <p className={styles.summary}>{count > 0 ? `기록 ${count}건 · ${types.join(' · ')}` : '오늘 어떤 연습을 했나요?'}</p>
+      <div className={styles.recordStatus}>
+        <p className={styles.statusTitle}>{count > 0 ? `오늘 기록 · ${count}건` : '오늘 기록 없음'}</p>
+        <p className={styles.summary}>{count > 0 ? types.join(' · ') : '오늘 어떤 연습을 했나요?'}</p>
+      </div>
       <button className={styles.record} type="button" onClick={onRecord}>＋ 연습 기록하기</button>
     </section>
   );

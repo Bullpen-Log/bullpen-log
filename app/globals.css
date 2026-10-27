@@ -3863,6 +3863,21 @@ html[data-shell='expo'] nav[data-mobile-tabs] {
 html[data-shell='expo'] {
   --tab-bar-top: max(calc(env(safe-area-inset-bottom) + 2.9375rem), 4.5rem);
 }
+/* 타격 첫 화면은 앱 투구와 같은 16pt 거터·24pt 상단·1120pt 바깥 폭(본문 1088pt). 패드의 웹 전용 32px 거터를 덮는다. */
+html[data-shell='expo'][data-pager='tabs'] [data-panel]:has(> [data-sport-home]) {
+  padding-top: calc(env(safe-area-inset-top) + 24px);
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  scrollbar-width: none;
+}
+html[data-shell='expo'][data-pager='tabs'] [data-panel]:has(> [data-sport-home])::-webkit-scrollbar {
+  display: none;
+}
+html[data-shell='expo'][data-pager='tabs'] [data-panel] > [data-sport-home] {
+  width: 100%;
+  max-width: 1088px;
+  margin-inline: auto;
+}
 /*
  * 앱 하단바는 웹뷰 위에 떠 있어 아래 시트(Modal 의 data-sheet)의 바닥을 덮는다 — 시트 맨 아래 칸(내용 · 단추 줄)을 막대 위까지 비운다
  * (2026-10-21 김민: 트레이닝 운동 줄 시트가 하단바에 겹침). 하단바는 앱 틀((app), html[data-pager]) 안에서만 뜬다 — 운동 진행 같은 (session) 화면은 그대로.
