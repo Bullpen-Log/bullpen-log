@@ -25,6 +25,7 @@ import {
   labelOf,
   reviewFlags,
 } from '@/lib/market/candidates';
+import { ACCESS_NOTICE, FIELD_OPERATION_NOTICE, IDENTITY_NOTICE, isFieldType } from '@/lib/market/field-candidates';
 
 /* 통합 자료(2026-10-26) 한 후보에서 화면에 쓰는 부분 — 원문 소개 · 사진 · 후기 · 가격표는 자료에도 없고 여기서도 안 그린다 */
 type Evidence = {
@@ -99,6 +100,8 @@ export function CandidateDetail({
   const k = (c.collected ?? {}) as Collected;
   const ops = k.operationsReview;
   const op = ops?.operation;
+  const field = isFieldType(c.typeHint);
+  const kakaoIds = (k.placeIds ?? []).map((p) => p.match(/^kakao:(\d+)$/)?.[1]).filter((x): x is string => !!x);
   const flags = reviewFlags(c);
   const history = Array.isArray(c.collectedHistory) ? c.collectedHistory.length : 0;
   const select = (name: string, map: Record<string, string>, value: string) => (
@@ -170,6 +173,10 @@ export function CandidateDetail({
 
       <div className="grid gap-block lg:grid-cols-2">
         <div className="stack-block">
+          {field ? (
+            <FieldEvidence c={c} k={c.collected as FieldCollected} />
+          ) : (
+            <>
           <Card className="space-y-3">
             <div>
               <h2 className="text-sm font-bold text-ink">공개 근거 · 직접 확인 필요</h2>
@@ -228,6 +235,8 @@ export function CandidateDetail({
               </ol>
             </Card>
           ) : null}
+            </>
+          )}
 
           <Card className="space-y-2">
             <h2 className="text-sm font-bold text-ink">이력</h2>
@@ -247,6 +256,15 @@ export function CandidateDetail({
               ) : null}
               <Row label="자료">{[`기준 ${dateText(c.collectedAt)}`, history ? `이전 자료 ${history}개 보존` : null].filter(Boolean).join(' · ')}</Row>
             </dl>
+            {kakaoIds.length > 0 && (
+              <p className="flex flex-wrap gap-3">
+                {kakaoIds.map((n) => (
+                  <a key={n} href={`https://place.map.kakao.com/${n}`} target="_blank" rel="noreferrer" className="text-sm font-semibold text-sky">
+                    카카오맵 장소{kakaoIds.length > 1 ? ` ${n}` : ''} ↗
+                  </a>
+                ))}
+              </p>
+            )}
             {(safeUrl(k.placeUrl) || safeUrl(k.infoUrl)) && (
               <p className="flex flex-wrap gap-3">
                 {safeUrl(k.placeUrl) && (
@@ -267,8 +285,8 @@ export function CandidateDetail({
         <div className="stack-block">
           <Card className="space-y-3">
             <div>
-              <h2 className="text-sm font-bold text-ink">업체 확인 정보</h2>
-              <p className="mt-1 text-xs text-muted">업체에 직접 확인한 것만 적어요. 공개 안내 · 사진 · 지도만으로 바꾸지 않아요.</p>
+              <h2 className="text-sm font-bold text-ink">{field ? '운영기관 확인 정보' : '업체 확인 정보'}</h2>
+              <p className="mt-1 text-xs text-muted">{field ? '운영기관' : '업체'}에 직접 확인한 것만 적어요. 공개 안내 · 사진 · 지도만으로 바꾸지 않아요.</p>
             </div>
             <SafeForm action={saveCandidateCheck} doneToast="저장했어요." className="space-y-3">
               <input type="hidden" name="id" value={c.id} />
@@ -407,6 +425,225 @@ function EvidenceBlock({ title, map, e, fallback }: { title: string; map: Status
         </p>
       )}
     </div>
+  );
+}
+
+/* 야구장 조사 파일(2026-10-27) 한 구장에서 화면에 쓰는 부분 — lib/market/field-candidates.ts 가 collected 에 담는다 */
+type FieldCollected = {
+  addresses?: string[];
+  unit?: string;
+  placeIds?: string[];
+  operatingCategories?: string[];
+  documentedPurposes?: string[];
+  applicationMethods?: string[];
+  applicationUrls?: string[];
+  feeInformation?: string[];
+  conditions?: string[];
+  listedManagers?: string[];
+  documentedPhone?: string[];
+  mapPublicContacts?: { number?: string }[];
+  closureNotices?: string[];
+  sourceConflicts?: string[];
+  nextQuestions?: string[];
+  operationStatusBasis5?: string;
+  review5IdentityNote?: string;
+  checkedAt?: string;
+  evidence?: {
+    evidenceId?: string;
+    title?: string;
+    url?: string;
+    sourceAsOf?: string;
+    sourceType?: string;
+  }[];
+  audit?: { sourceReview5?: { evidenceId?: string; review5Status?: string }[] };
+};
+
+const texts = (v: unknown) =>
+  Array.isArray(v)
+    ? v.filter((x): x is string => typeof x === 'string' && x.trim() !== '')
+    : [];
+
+/** 여러 줄 근거 — 한 줄에 하나(합치거나 줄이지 않는다) */
+function Lines({ items }: { items: string[] }) {
+  return items.map((t, i) => (
+    <span key={i} className="block">
+      {t}
+    </span>
+  ));
+}
+
+/** 야구장 후보의 공개 근거 — 공공 · 협회 · 리그 등 공개 출처를 본 것. 이용 경로 · 운영 근거도 대관 가능 · 운영 확정이 아니다(운영기관 연락 · 현장 확인 없음) */
+function FieldEvidence({
+  c,
+  k,
+}: {
+  c: {
+    accessNotice: string | null;
+    identityNotice: string | null;
+    operationNotice: string | null;
+  };
+  k: FieldCollected;
+}) {
+  const status = new Map(
+    (k.audit?.sourceReview5 ?? []).map((s) => [s.evidenceId, s.review5Status])
+  );
+  const phones = [
+    ...new Set([
+      ...texts(k.documentedPhone),
+      ...texts((k.mapPublicContacts ?? []).map((m) => m.number)),
+    ]),
+  ];
+  const urls = texts(k.applicationUrls);
+  const sources = (k.evidence ?? []).filter((e) => e.title || e.url);
+  const questions = texts(k.nextQuestions);
+  return (
+    <>
+      <Card className="space-y-3">
+        <div>
+          <h2 className="text-sm font-bold text-ink">공개 근거 · 직접 확인 필요</h2>
+          <p className="mt-1 text-xs text-muted">
+            공공 · 협회 · 리그 등 공개 출처를 본 근거예요
+            {k.checkedAt ? `(조사 ${k.checkedAt})` : ''}. 운영기관 연락 · 현장 확인은 안
+            했어요 — 지금 대관 가능 · 운영 확정이 아니에요.
+          </p>
+        </div>
+        <dl className="space-y-2 text-sm">
+          <Row label="주소">
+            <Lines items={texts(k.addresses)} />
+          </Row>
+          {k.unit && <Row label="면 표기">{k.unit}</Row>}
+          <Row label="이용 경로">
+            {labelOf(ACCESS_NOTICE, c.accessNotice)}
+            {texts(k.operatingCategories).length > 0 && (
+              <span className="block text-xs text-muted">
+                {texts(k.operatingCategories).join(' · ')}
+              </span>
+            )}
+          </Row>
+          {texts(k.documentedPurposes).length > 0 && (
+            <Row label="용도 근거">
+              <Lines items={texts(k.documentedPurposes)} />
+            </Row>
+          )}
+          {texts(k.applicationMethods).length > 0 && (
+            <Row label="신청 방법">
+              <Lines items={texts(k.applicationMethods)} />
+            </Row>
+          )}
+          {urls.length > 0 && (
+            <Row label="신청 주소">
+              {urls.map((u) =>
+                safeUrl(u) ? (
+                  <a
+                    key={u}
+                    href={u}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block text-xs font-semibold text-sky"
+                  >
+                    {shortUrl(u)} ↗
+                  </a>
+                ) : (
+                  <span key={u} className="block text-xs">
+                    {u}
+                  </span>
+                )
+              )}
+            </Row>
+          )}
+          {texts(k.feeInformation).length > 0 && (
+            <Row label="요금">
+              <Lines items={texts(k.feeInformation)} />
+            </Row>
+          )}
+          {texts(k.conditions).length > 0 && (
+            <Row label="조건">
+              <Lines items={texts(k.conditions)} />
+            </Row>
+          )}
+          <Row label="운영 근거">
+            {labelOf(FIELD_OPERATION_NOTICE, c.operationNotice)}
+            {k.operationStatusBasis5 && (
+              <span className="block text-xs text-muted">
+                {k.operationStatusBasis5}
+              </span>
+            )}
+          </Row>
+          <Row label="장소 대응">
+            {labelOf(IDENTITY_NOTICE, c.identityNotice)}
+            {k.review5IdentityNote && (
+              <span className="block text-xs text-muted">{k.review5IdentityNote}</span>
+            )}
+          </Row>
+          {texts(k.closureNotices).length > 0 && (
+            <Row label="폐쇄 · 중지 공지">
+              <Lines items={texts(k.closureNotices)} />
+            </Row>
+          )}
+          {texts(k.sourceConflicts).length > 0 && (
+            <Row label="출처 엇갈림">
+              <Lines items={texts(k.sourceConflicts)} />
+            </Row>
+          )}
+          {texts(k.listedManagers).length > 0 && (
+            <Row label="안내 주체">
+              <Lines items={texts(k.listedManagers)} />
+            </Row>
+          )}
+          {phones.length > 0 && (
+            <Row label="공개 연락처">
+              {phones.join(' · ')}
+              <span className="block text-xs text-muted">
+                공개 출처 · 지도에 적힌 번호예요. 운영 · 대관 권한은 확인 전이고,
+                휴대전화 번호는 가렸어요.
+              </span>
+            </Row>
+          )}
+        </dl>
+        {sources.length > 0 && (
+          <div className="space-y-1">
+            <p className="text-xs font-semibold text-muted">출처 {sources.length}</p>
+            <ul className="space-y-1">
+              {sources.map((e, i) => (
+                <li key={e.evidenceId ?? i} className="text-xs">
+                  {safeUrl(e.url) ? (
+                    <a
+                      href={e.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold text-sky"
+                    >
+                      {e.title || shortUrl(e.url)} ↗
+                    </a>
+                  ) : (
+                    <span className="font-semibold text-ink">{e.title || e.url}</span>
+                  )}
+                  <span className="ml-2 text-muted">
+                    {[
+                      e.sourceType,
+                      e.sourceAsOf && `기준 ${e.sourceAsOf}`,
+                      status.get(e.evidenceId),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Card>
+      {questions.length > 0 && (
+        <Card className="space-y-2">
+          <h2 className="text-sm font-bold text-ink">운영기관에 물어볼 것</h2>
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-ink">
+            {questions.map((q, i) => (
+              <li key={i}>{q}</li>
+            ))}
+          </ol>
+        </Card>
+      )}
+    </>
   );
 }
 

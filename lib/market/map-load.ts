@@ -11,7 +11,8 @@ import { specialtyLabel } from '@/lib/market/lessons';
  */
 export type MapPlace = {
   id: string;
-  type: 'venue' | 'lesson';
+  /** 'field' 는 관리자 수집 후보의 야구장만(공개 지도에는 없다) */
+  type: 'venue' | 'lesson' | 'field';
   name: string;
   /** 종류 글('실내 연습장' · '레슨장') */
   kindLabel: string;
