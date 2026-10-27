@@ -58,25 +58,25 @@ export function SinkerDugoutHome({
       ) : null}
 
       {/* 같이 연습 */}
-      {meetup === null ? (
-        <Line action={<TextLink href="/community?category=meetup&open=1">번개 목록</TextLink>}>같이 연습을 불러오지 못했어요.</Line>
-      ) : meetup === undefined ? (
-        <section className="space-y-3">
-          <SectionHead
-            title="같이 연습"
-            action={
-              <Link href="/community?category=meetup&open=1" className="-my-2.5 shrink-0 py-2.5 text-[15px] text-sky">
-                번개 전체
-              </Link>
-            }
-          />
+      <section className="space-y-3">
+        <SectionHead
+          title="같이 연습"
+          action={
+            <Link href="/community?category=meetup&open=1" className="-my-2.5 shrink-0 py-2.5 text-[15px] text-sky">
+              번개 전체
+            </Link>
+          }
+        />
+        {meetup === null ? (
+          <Line action={<TextLink href="/community?category=meetup&open=1">번개 목록</TextLink>}>같이 연습을 불러오지 못했어요.</Line>
+        ) : meetup === undefined ? (
           <Line action={<Pill href={need('/community/new?board=meetup')}>번개 만들기</Pill>}>
             모집 중인 번개가 없어요.
           </Line>
-        </section>
-      ) : (
-        <BenchCard key={meetup.id} meetup={meetup} />
-      )}
+        ) : (
+          <BenchCard key={meetup.id} meetup={meetup} />
+        )}
+      </section>
 
       <SinkerCommunity hot={community.hot} latest={community.latest} loggedIn={loggedIn} />
 

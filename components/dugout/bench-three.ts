@@ -237,7 +237,8 @@ export function mountBench(
     if (disposed || !w || !h) return;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
-    camera.position.set(3.4, 2.9, w / h < 1.4 ? 5.7 : 5.1);
+    // 작은 타일에서도 받침과 벤치가 잘리지 않게 카메라를 뒤로 둔다.
+    camera.position.set(3.4, 2.9, 7);
     camera.lookAt(0, 0.7, 0);
     camera.updateProjectionMatrix();
     draw();

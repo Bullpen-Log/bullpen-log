@@ -2,71 +2,45 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { CalendarDays, MapPin, Users } from '@/components/icon';
 import type { BenchMeetup } from '@/lib/sinker-dugout-load';
 
-/** 카드 무대 — 네이비 바탕(시안 그대로, 테마와 상관없이). 나머지 면 · 글자는 앱 토큰 */
-const NAVY = 'bg-[linear-gradient(160deg,#0d2c52_0%,#0a2240_55%,#071a33_100%)]';
-
-
 /**
- * 같이 연습 — 실제 번개 한 건을 담은 벤치 카드(2026-10-27 승인 시안: 네이비 무대 · 파란 벤치 · 공 · 배트 · 큰 날짜 · 상세 단추).
+ * 같이 연습 — 작은 입체 벤치와 실제 번개 정보가 함께 보이는 컴팩트 카드.
  * 날짜 · 곳 · 남은 자리 · 실력은 모두 실제 글에서(lib/sinker-dugout-load.ts loadSinkerMeetup). 정원을 안 적은 번개는 남은 자리를 말하지 않는다.
- * 무대 밖의 글과 단추가 먼저 읽힌다 — 입체 장면은 꾸밈(aria-hidden)이고, 불러오는 동안 · 못 그릴 때는 정적 벤치 그림이 선다.
+ * 모임 정보와 상세 단추를 읽을 수 있고, 입체 장면을 쓸 수 있으면 버튼이나 드래그로 돌린다. 못 그릴 때는 정적 벤치 그림이 선다.
  * 단추: 아직 참가 안 했으면 '같이 연습 보기'(글에서 조건을 보고 참가), 참가했으면 '참가 티켓 보기'(글의 티켓으로).
  */
 export function BenchCard({ meetup }: { meetup: BenchMeetup }) {
   const [live, setLive] = useState(false);
   const d = meetup.date;
-  const line = [d.time, meetup.place, meetup.level].filter(Boolean).join(' · ');
+  const place = [meetup.place, meetup.area].filter(Boolean).join(' · ') || '장소 미정';
   return (
-    <section aria-labelledby="bench-title" className={`overflow-hidden rounded-[22px] text-white shadow-[0_10px_30px_-12px_rgba(7,26,51,0.55)] ${NAVY}`}>
-      <div className="relative h-[13.5rem] select-none">
-        <BenchStage pass={{ md: d.md, line: `${meetup.tagEn} / ${d.time}` }} live={live} setLive={setLive} />
-        <div className="pointer-events-none relative flex h-full flex-col p-4">
-          <div className="flex items-center justify-between text-[13px] text-white/80">
-            <span className="flex items-center gap-1">
-              <PinIcon />
-              {meetup.area ?? '지역 안 적음'}
-            </span>
-            <span>같이 연습</span>
+    <article aria-labelledby="bench-title" className="overflow-hidden rounded-[20px] border border-line bg-surface shadow-[0_5px_18px_rgba(23,59,80,0.06)]">
+      <div className="flex items-center gap-2 px-4 pt-4 pb-3">
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {meetup.tagLabel && <span className="rounded-md bg-sky-tint px-2 py-1 text-[13px] font-semibold text-sky-strong">{meetup.tagLabel}</span>}
+            <span className="flex items-center gap-1 text-[13px] font-semibold text-ok"><span aria-hidden className="size-1.5 rounded-full bg-current" />모집 중</span>
           </div>
-          <p aria-hidden className="text-display mt-2 text-[4.5rem] leading-[0.85] tracking-tight">
-            {d.md}
-          </p>
-          <p aria-hidden className="text-display text-[2.4rem] leading-none tracking-wide text-white/22 [-webkit-text-stroke:1px_rgba(255,255,255,0.45)]">
-            {d.weekday}
-          </p>
-          {/* 돌릴 수 있을 때만(장면이 섰을 때) — 정적 그림에서는 밀어도 안 돌아서 말하지 않는다 */}
-          <p aria-hidden className={`mt-auto flex items-center gap-1 text-[12px] text-white/70 transition-opacity duration-200 ${live ? 'opacity-100' : 'opacity-0'}`}>
-            <span>↔</span> 옆으로 밀어 돌려보기
-          </p>
+          <h3 id="bench-title" className="text-[18px] leading-snug font-bold break-words text-ink">{meetup.title}</h3>
+          <div className="space-y-1 text-[14px] leading-5 text-muted">
+            <p className="flex items-start gap-1.5"><CalendarDays aria-hidden className="mt-0.5 size-4 shrink-0" /><span><span className="sr-only">일시: </span>{d.month}월 {d.day}일 {d.dayKo}요일 · {d.time}</span></p>
+            <p className="flex items-start gap-1.5"><MapPin aria-hidden className="mt-0.5 size-4 shrink-0" /><span className="min-w-0 break-words"><span className="sr-only">장소: </span>{place}</span></p>
+            {meetup.seats !== null && <p className="flex items-start gap-1.5"><Users aria-hidden className="mt-0.5 size-4 shrink-0" /><span>{meetup.seats}자리 남음</span></p>}
+            {meetup.level && <p className="pl-[22px]">{meetup.level}</p>}
+          </div>
         </div>
+        <BenchStage pass={{ md: d.md, line: `${meetup.tagEn} / ${d.time}` }} live={live} setLive={setLive} />
       </div>
-      <div className="space-y-2 bg-[#071a33]/60 px-4 pt-3 pb-4">
-        <div className="flex items-center justify-between gap-2">
-          {meetup.tagLabel ? (
-            <span className="rounded-md bg-white/12 px-2 py-0.5 text-[12px] font-semibold text-white/90">{meetup.tagLabel}</span>
-          ) : (
-            <span />
-          )}
-          {meetup.seats !== null && <span className="text-[13px] text-white/80">{meetup.seats}자리 남음</span>}
-        </div>
-        <h3 id="bench-title" className="text-[20px] leading-snug font-bold text-white">
-          {meetup.title}
-        </h3>
-        <p className="text-[14px] text-white/75">
-          <span className="sr-only">{`${d.month}월 ${d.day}일 ${d.dayKo}요일 `}</span>
-          {line}
-        </p>
-        <Link
-          href={meetup.joined ? `/community/${meetup.id}#ticket` : `/community/${meetup.id}`}
-          className="mt-2 flex min-h-12 items-center justify-center gap-1.5 rounded-2xl bg-sky text-[16px] font-bold text-white transition-[transform,background-color] duration-200 active:scale-[0.98] active:bg-sky-strong"
-        >
-          {meetup.joined ? '참가 티켓 보기' : '같이 연습 보기'}
-          <span aria-hidden>↗</span>
-        </Link>
-      </div>
-    </section>
+      <Link
+        href={meetup.joined ? `/community/${meetup.id}#ticket` : `/community/${meetup.id}`}
+        className="flex min-h-11 items-center justify-between gap-2 border-t border-line px-4 text-[15px] font-semibold text-sky-strong transition-colors active:bg-sky-tint"
+      >
+        {meetup.joined ? '참가 티켓 보기' : '같이 연습 보기'}
+        <span aria-hidden>↗</span>
+      </Link>
+    </article>
   );
 }
 
@@ -75,7 +49,7 @@ export function BenchCard({ meetup }: { meetup: BenchMeetup }) {
  * 동작 줄이기(기기 설정 · 앱 설정 html[data-reduce-motion])면 미끄러짐 없이 누를 때 조금만 돈다. 화면을 떠나면 장면 · 자원을 모두 놓는다.
  */
 function BenchStage({ pass, live, setLive }: { pass: { md: string; line: string }; live: boolean; setLive: (v: boolean) => void }) {
-  const host = useRef<HTMLDivElement>(null);
+  const host = useRef<HTMLButtonElement>(null);
   const { md, line } = pass;
   useEffect(() => {
     const el = host.current;
@@ -104,14 +78,16 @@ function BenchStage({ pass, live, setLive }: { pass: { md: string; line: string 
     };
   }, [md, line, setLive]);
   return (
-    <div
+    <button
+      type="button"
       ref={host}
-      aria-hidden
+      disabled={!live}
+      aria-label={live ? '벤치 돌려보기. 옆으로 밀어서도 돌릴 수 있어요.' : '벤치 그림'}
       data-live={live ? '' : undefined}
-      className="absolute inset-y-0 right-0 w-[64%] cursor-grab touch-pan-y active:cursor-grabbing [&:not([data-live])>canvas]:hidden"
+      className="relative h-[120px] w-[104px] shrink-0 touch-pan-y overflow-hidden rounded-2xl bg-sky-tint p-0 opacity-100 cursor-grab active:cursor-grabbing [&:not([data-live])>canvas]:hidden"
     >
       {!live && <StaticBench />}
-    </div>
+    </button>
   );
 }
 
@@ -133,15 +109,6 @@ function StaticBench() {
       <path d="M124 94 q6 8 0 16 M140 94 q-6 8 0 16" stroke="#b73b32" strokeWidth="1.4" fill="none" />
       <path d="M196 40 L206 128" stroke="#c49660" strokeWidth="7" strokeLinecap="round" />
       <path d="M205 118 L207 136" stroke="#1b3445" strokeWidth="4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function PinIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
-      <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z" />
-      <circle cx="12" cy="9.5" r="2.5" />
     </svg>
   );
 }
