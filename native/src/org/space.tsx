@@ -95,10 +95,10 @@ function NoOrg({ c }: { c: Palette }) {
       </Card>
       <View style={{ flexDirection: 'row', gap: 20, paddingHorizontal: 4 }}>
         <Pressable accessibilityRole="button" onPress={() => router.push('/settings' as Href)} style={{ minHeight: 44, justifyContent: 'center' }}>
-          <Text style={[TYPE.body, { color: c.sky, fontWeight: '600' }]}>설정</Text>
+          <Text style={[TYPE.body, { color: c.link, fontWeight: '600' }]}>설정</Text>
         </Pressable>
         <Pressable accessibilityRole="button" onPress={() => router.push('/account' as Href)} style={{ minHeight: 44, justifyContent: 'center' }}>
-          <Text style={[TYPE.body, { color: c.sky, fontWeight: '600' }]}>계정 · 로그아웃</Text>
+          <Text style={[TYPE.body, { color: c.link, fontWeight: '600' }]}>계정 · 로그아웃</Text>
         </Pressable>
       </View>
     </>

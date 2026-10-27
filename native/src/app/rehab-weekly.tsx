@@ -180,7 +180,7 @@ function Flow({ d }: { d: AppRehabDetail }) {
           {test || throwTest ? (
             <Press onPress={() => setSkipTest((v) => !v)} accessibilityRole="button" hitSlop={8} style={{ flexDirection: 'row', gap: 6, alignItems: 'center', minHeight: 44 }}>
               <SymbolView name={skipTest ? 'pencil' : 'forward'} size={13} tintColor={c.sky} />
-              <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{skipTest ? '시험할게요' : '오늘은 시험 건너뛰기'}</Text>
+              <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>{skipTest ? '시험할게요' : '오늘은 시험 건너뛰기'}</Text>
             </Press>
           ) : null}
         </View>

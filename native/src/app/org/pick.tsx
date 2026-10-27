@@ -38,11 +38,11 @@ export default function PickSpaceScreen() {
       {!sp.spaces.length && !sp.hasSinker ? <Text style={[TYPE.sub, { color: c.muted, paddingHorizontal: 4 }]}>관리하는 팀 · 레슨장이 없어요.</Text> : null}
       <View style={{ flexDirection: 'row', gap: 20, paddingHorizontal: 4, paddingTop: 8 }}>
         <Pressable accessibilityRole="button" onPress={() => go('/org')} style={{ minHeight: 44, justifyContent: 'center' }}>
-          <Text style={[TYPE.body, { color: c.sky, fontWeight: '600' }]}>소속 관리</Text>
+          <Text style={[TYPE.body, { color: c.link, fontWeight: '600' }]}>소속 관리</Text>
         </Pressable>
         {sp.hasSinker ? (
           <Pressable accessibilityRole="button" onPress={() => go('/org/join')} style={{ minHeight: 44, justifyContent: 'center' }}>
-            <Text style={[TYPE.body, { color: c.sky, fontWeight: '600' }]}>코드로 들어가기</Text>
+            <Text style={[TYPE.body, { color: c.link, fontWeight: '600' }]}>코드로 들어가기</Text>
           </Pressable>
         ) : null}
       </View>

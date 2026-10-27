@@ -268,7 +268,7 @@ function ThrowingProgram({ t, reload, c }: { t: AppRehabThrowing; reload: () => 
     <View style={{ gap: 12 }}>
       {next ? (
         <View style={{ borderRadius: 12, padding: 12, gap: 2, backgroundColor: c.sky + '14' }}>
-          <Text style={[s.bodyBold, { color: c.sky }]}>
+          <Text style={[s.bodyBold, { color: c.link }]}>
             {next.done ? '마운드 칸까지 마쳤어요' : `다음 ${next.step}칸 · ${THROWING_STEPS[next.step - 1].distance}${next.restUntil ? ` · ${md(next.restUntil)}부터` : ''}`}
           </Text>
           <Text style={[s.small, { color: c.ink }]}>{next.reason}</Text>
@@ -308,7 +308,7 @@ function ThrowingProgram({ t, reload, c }: { t: AppRehabThrowing; reload: () => 
             </Text>
           </View>
         ))}
-      <Text style={[s.bodyBold, { color: c.sky }]}>{throwingFrequency(t.severity)}</Text>
+      <Text style={[s.bodyBold, { color: c.link }]}>{throwingFrequency(t.severity)}</Text>
       <View style={{ gap: 4 }}>
         <Text style={[s.smallBold, { color: c.muted }]}>던질 때 아프면</Text>
         {THROWING_PAIN_RULES.map((r) => (
@@ -326,7 +326,7 @@ function ThrowingProgram({ t, reload, c }: { t: AppRehabThrowing; reload: () => 
 function Part({ title, children, c }: { title: string; children: React.ReactNode; c: Palette }) {
   return (
     <View style={{ gap: 8, padding: 14, borderRadius: 14, backgroundColor: c.card, boxShadow: c.float }}>
-      <Text style={[s.smallBold, { color: c.sky }]}>{title}</Text>
+      <Text style={[s.smallBold, { color: c.link }]}>{title}</Text>
       {children}
     </View>
   );
@@ -344,7 +344,7 @@ function Check({ ok, label, c }: { ok: boolean; label: string; c: Palette }) {
 function AppButton({ label, onPress, disabled, c }: { label: string; onPress: () => void; disabled?: boolean; c: Palette }) {
   return (
     <Press onPress={onPress} disabled={disabled} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 16, opacity: disabled ? 0.5 : 1 }]}>
-      <Text style={[s.bodyBold, { color: c.sky }]}>{label}</Text>
+      <Text style={[s.bodyBold, { color: c.link }]}>{label}</Text>
     </Press>
   );
 }

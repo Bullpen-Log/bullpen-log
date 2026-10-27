@@ -384,7 +384,7 @@ export function MyEvent({ e, memberId, orgId }: { e: MyEventView; memberId: stri
       </Text>
       <Text style={[TYPE.card, { color: c.ink }]}>{e.title}</Text>
       {e.outing ? (
-        <Text style={[TYPE.body, { color: c.sky, fontWeight: '600' }]}>
+        <Text style={[TYPE.body, { color: c.link, fontWeight: '600' }]}>
           {OUTING_ROLE_LABEL[e.outing.role]}로 확정{e.outing.pitchLimit ? ` · 투구 수 한도 ${e.outing.pitchLimit}구` : ''}
         </Text>
       ) : null}

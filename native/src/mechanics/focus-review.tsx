@@ -51,7 +51,7 @@ export function FocusReview({
       onPress={job}
       style={{ padding: 12, borderRadius: 12, backgroundColor: selected ? c.sky + '22' : c.chip, opacity: pending || disabled ? 0.5 : 1 }}
     >
-      <Text style={{ color: c.sky }}>{label}</Text>
+      <Text style={{ color: c.link }}>{label}</Text>
     </Press>
   );
   const text = (s: string, warn = false) => (

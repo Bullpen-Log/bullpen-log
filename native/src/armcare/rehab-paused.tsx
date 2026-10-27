@@ -59,7 +59,7 @@ export function RehabPausedScreen() {
               accessibilityRole="button"
               style={{ minHeight: 48, justifyContent: 'center' }}
             >
-              <Text style={{ color: c.sky, fontWeight: '600' }}>
+              <Text style={{ color: c.link, fontWeight: '600' }}>
                 기존 프로그램 사용 중단
               </Text>
             </Press>
@@ -71,7 +71,7 @@ export function RehabPausedScreen() {
           accessibilityRole="button"
           style={{ minHeight: 48, justifyContent: 'center' }}
         >
-          <Text style={{ color: c.sky, fontWeight: '600' }}>암케어로 돌아가기</Text>
+          <Text style={{ color: c.link, fontWeight: '600' }}>암케어로 돌아가기</Text>
         </Press>
       </ScrollView>
     </View>

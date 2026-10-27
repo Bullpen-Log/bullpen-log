@@ -1,11 +1,15 @@
 import type { TextStyle, ViewStyle } from 'react-native';
 
-/** 싱커 앱 공통 디자인. sky는 기존 채움색 호환용이며 새 행동은 action, 글자는 link를 사용한다. */
+/**
+ * 싱커 앱 공통 디자인. sky는 기존 채움색 호환용이며 새 행동은 action, 글자는 link를 사용한다.
+ * sky(#0070c9)를 글자색으로 쓰면 다크 카드 위 3.37:1 · 네이비 3.35:1 로 4.5:1 미달이다 — 글자는 늘 link(2026-10-27 HIG 검토에서 59곳을 바꿨다).
+ */
 const LIGHT = {
   page: '#f2f2f7',
   card: '#ffffff',
   ink: '#1d1d1f',
-  muted: '#6e6e73',
+  /* 칩(#e5e5ea) 위 작은 회색 글자도 4.5:1 넘게 — #6e6e73 은 칩 위 4.04:1 이었다(2026-10-27 HIG 검토). 바탕 5.37 · 카드 5.99 · 칩 4.77 */
+  muted: '#636366',
   line: '#e5e5ea',
   /* 진한 선 — 사이트 --color-line-strong(작은 그래프 바탕 · 화살표) */
   lineStrong: '#c7c7cc',

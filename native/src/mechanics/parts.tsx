@@ -67,7 +67,7 @@ export function Description({ guideId, inline = false, c }: { guideId: string; i
     ) : failed ? (
       <Press onPress={load} accessibilityRole="button" style={s.textBtn}>
         <Text style={[s.small, { color: c.muted }]}>
-          설명을 불러오지 못했어요. <Text style={{ color: c.sky, fontWeight: '700' }}>다시 받기</Text>
+          설명을 불러오지 못했어요. <Text style={{ color: c.link, fontWeight: '700' }}>다시 받기</Text>
         </Text>
       </Press>
     ) : got?.text ? (
@@ -97,7 +97,7 @@ export function Description({ guideId, inline = false, c }: { guideId: string; i
           ) : failed ? (
             <Press onPress={load} accessibilityRole="button" style={s.textBtn}>
               <Text style={[s.small, { color: c.muted }]}>
-                설명을 불러오지 못했어요. <Text style={{ color: c.sky, fontWeight: '700' }}>다시 받기</Text>
+                설명을 불러오지 못했어요. <Text style={{ color: c.link, fontWeight: '700' }}>다시 받기</Text>
               </Text>
             </Press>
           ) : got ? (
@@ -147,7 +147,7 @@ export function ThrowNoteCard({ note, c }: { note: DrillThrowNote; c: Palette })
             recordThrows(note);
           }}
           accessibilityRole="link" style={[s.chip, { backgroundColor: c.sky + '1a' }]}>
-          <Text style={[s.smallBold, { color: c.sky }]}>{DRILL_THROW_TEXT.record}</Text>
+          <Text style={[s.smallBold, { color: c.link }]}>{DRILL_THROW_TEXT.record}</Text>
           <SymbolView name="chevron.right" size={11} weight="semibold" tintColor={c.sky} />
         </Press>
         {[DRILL_THROW_TEXT.done, DRILL_THROW_TEXT.skip].map((t) => (

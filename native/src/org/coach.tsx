@@ -75,7 +75,7 @@ function Actions({ items, c }: { items: { label: string; onPress: () => void }[]
           onPress={it.onPress}
           style={({ pressed }) => [st.chip, { backgroundColor: c.card }, pressed && { opacity: 0.7 }]}
         >
-          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{it.label}</Text>
+          <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>{it.label}</Text>
         </Pressable>
       ))}
     </View>
@@ -428,7 +428,7 @@ export function ScheduleTab({ space, c }: { space: MySpace; c: Palette }) {
           <Text style={[TYPE.card, { color: c.ink }]}>
             {dayLabel(days[0])} – {dayLabel(days[6])}
           </Text>
-          {from !== thisWeek ? <Text style={[TYPE.sub, { color: c.sky }]}>이번 주로</Text> : null}
+          {from !== thisWeek ? <Text style={[TYPE.sub, { color: c.link }]}>이번 주로</Text> : null}
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="다음 주" onPress={() => move(7)} hitSlop={8} style={styles.weekBtn}>
           <Icon name="chevron-right" size={22} color={c.sky} />
@@ -598,12 +598,12 @@ function MoreTab({ space, c }: { space: MySpace; c: Palette }) {
       </View>
       <View style={{ flexDirection: 'row', gap: 20, paddingHorizontal: 4 }}>
         <Pressable accessibilityRole="button" onPress={() => router.push('/settings' as Href)} style={{ minHeight: 44, justifyContent: 'center' }}>
-          <Text style={[TYPE.body, { color: c.sky, fontWeight: '600' }]}>설정</Text>
+          <Text style={[TYPE.body, { color: c.link, fontWeight: '600' }]}>설정</Text>
         </Pressable>
         {/* 마스터 계정은 내 싱커 더보기가 없어 계정이 여기 하나 */}
         {spaceNow().hasSinker ? null : (
           <Pressable accessibilityRole="button" onPress={() => router.push('/account' as Href)} style={{ minHeight: 44, justifyContent: 'center' }}>
-            <Text style={[TYPE.body, { color: c.sky, fontWeight: '600' }]}>계정 · 로그아웃</Text>
+            <Text style={[TYPE.body, { color: c.link, fontWeight: '600' }]}>계정 · 로그아웃</Text>
           </Pressable>
         )}
       </View>
@@ -644,7 +644,7 @@ function InviteCard({
           <Empty text="쓸 수 있는 코드가 없어요." c={c} />
         )}
         <Pressable accessibilityRole="button" onPress={onMake} disabled={busy} style={{ minHeight: 44, justifyContent: 'center' }}>
-          <Text style={[TYPE.body, { color: c.sky, fontWeight: '600', opacity: busy ? 0.5 : 1 }]}>
+          <Text style={[TYPE.body, { color: c.link, fontWeight: '600', opacity: busy ? 0.5 : 1 }]}>
             {busy ? '만드는 중…' : invite ? '새 코드 만들기' : '코드 만들기'}
           </Text>
         </Pressable>
@@ -793,7 +793,7 @@ function NotesTab({ space, c }: { space: MySpace; c: Palette }) {
       </Card>
       {data.notes.length >= 40 ? (
         <Pressable accessibilityRole="button" onPress={more} style={{ minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={[TYPE.body, { color: c.sky, fontWeight: '600' }]}>더 보기</Text>
+          <Text style={[TYPE.body, { color: c.link, fontWeight: '600' }]}>더 보기</Text>
         </Pressable>
       ) : null}
     </View>

@@ -134,7 +134,7 @@ function Num({ n, done, c }: { n: number; done?: boolean; c: Palette }) {
       {done ? (
         <SymbolView name="checkmark" size={11} weight="bold" tintColor="#fff" />
       ) : (
-        <Text style={[s.smallBold, { color: c.sky }]}>{n}</Text>
+        <Text style={[s.smallBold, { color: c.link }]}>{n}</Text>
       )}
     </View>
   );
@@ -181,7 +181,7 @@ function LevelPicker({ current, index, reload, c }: { current: LevelKey | null; 
           >
             <View style={[s.row, { alignItems: 'flex-start' }]}>
               <View style={[st.bigNum, { backgroundColor: c.sky + '1a' }]}>
-                <Text style={[s.bodyBold, { color: c.sky }]}>{i + 1}</Text>
+                <Text style={[s.bodyBold, { color: c.link }]}>{i + 1}</Text>
               </View>
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={[s.body, { color: c.muted }]}>
@@ -195,7 +195,7 @@ function LevelPicker({ current, index, reload, c }: { current: LevelKey | null; 
               </View>
             </View>
             {on ? (
-              <Text style={[s.bodyBold, { color: c.sky }]}>✓ 지금 하는 수준이에요</Text>
+              <Text style={[s.bodyBold, { color: c.link }]}>✓ 지금 하는 수준이에요</Text>
             ) : (
               <Btn
                 label={current ? `${lv.name}${josa(lv.name, '으로/로')} 바꾸기` : `${lv.name} 시작`}
@@ -255,7 +255,7 @@ export function SessionCard({
         </Text>
       </View>
       {program.finishedToday ? (
-        <Text style={[s.bodyBold, { color: c.sky }]}>✓ 오늘 세션을 마쳤어요. 더 하고 싶으면 다음 세션을 이어서 해도 돼요.</Text>
+        <Text style={[s.bodyBold, { color: c.link }]}>✓ 오늘 세션을 마쳤어요. 더 하고 싶으면 다음 세션을 이어서 해도 돼요.</Text>
       ) : null}
       {painFold ? (
         folding ? (
@@ -312,7 +312,7 @@ export function SessionCard({
         open.length === 0 ? (
           <Text style={[s.bodyBold, { color: c.ink }]}>{MECHANICS_FOLD_TEXT.allFolded}</Text>
         ) : openDone ? (
-          <Text style={[s.bodyBold, { color: c.sky }]}>✓ {MECHANICS_FOLD_TEXT.openDone}</Text>
+          <Text style={[s.bodyBold, { color: c.link }]}>✓ {MECHANICS_FOLD_TEXT.openDone}</Text>
         ) : (
           <Start label={started ? '이어서 하기' : MECHANICS_FOLD_BUTTONS.openOnly} onPress={() => go('/mechanics')} c={c} />
         )
@@ -422,7 +422,7 @@ export function FocusCard({ focus, reload, c }: { focus: FocusView; reload: Relo
                 />
               ))}
             </View>
-            {focus.cue ? <Text style={[s.bodyBold, s.box, { color: c.sky, backgroundColor: c.sky + '14' }]}>“{focus.cue}”</Text> : null}
+            {focus.cue ? <Text style={[s.bodyBold, s.box, { color: c.link, backgroundColor: c.sky + '14' }]}>“{focus.cue}”</Text> : null}
             {focus.target ? (
               <Text style={[s.small, { color: c.muted }]}>
                 목표 {focus.target.label} {focus.target.now} → {focus.target.goal}
@@ -430,7 +430,7 @@ export function FocusCard({ focus, reload, c }: { focus: FocusView; reload: Relo
             ) : null}
             <View style={[s.between, { alignItems: 'center' }]}>
               <Press onPress={() => router.push(`/lab/${focus.reportId}` as Href)} accessibilityRole="button" style={s.textBtn}>
-                <Text style={[s.smallBold, { color: c.sky }]}>리포트 보기 ›</Text>
+                <Text style={[s.smallBold, { color: c.link }]}>리포트 보기 ›</Text>
               </Press>
               <Press onPress={askEnd} accessibilityRole="button" style={s.textBtn}>
                 <Text style={[s.tiny, { color: c.muted }]}>처방 그만두기</Text>
@@ -858,7 +858,7 @@ function ElementDetail({ el, hand, c }: { el: MechanicsElement; hand: string | n
       {part('스스로 확인하기', el.check)}
       <Text style={[s.bodyBold, { color: c.ink }]}>느낌 신호</Text>
       {el.cues.map((cue) => (
-        <Text key={cue} style={[s.bodyBold, s.box, { color: c.sky, backgroundColor: c.sky + '14' }]}>
+        <Text key={cue} style={[s.bodyBold, s.box, { color: c.link, backgroundColor: c.sky + '14' }]}>
           “{cue}”
         </Text>
       ))}
@@ -898,7 +898,7 @@ export function ElementCard({
     <View onLayout={onLayout} style={[st.card, { backgroundColor: c.card, boxShadow: c.float, borderColor: open ? c.sky + '66' : c.line }]}>
       <Press onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.cardHead}>
         <View style={[st.bigNum, { backgroundColor: c.sky + '1a', width: 28, height: 28 }]}>
-          <Text style={[s.smallBold, { color: c.sky }]}>{el.order}</Text>
+          <Text style={[s.smallBold, { color: c.link }]}>{el.order}</Text>
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>
@@ -919,7 +919,7 @@ export function ElementCard({
               {report.criteriaNote ? <Text style={[s.tiny, { color: c.warn }]}>{report.criteriaNote}</Text> : null}
               {report.titles.map((t, i) => (
                 <Text key={t.title} style={[s.small, { color: c.ink }]}>
-                  <Text style={{ color: c.sky, fontWeight: '700' }}>{i + 1}</Text> {t.title} · {t.stage}
+                  <Text style={{ color: c.link, fontWeight: '700' }}>{i + 1}</Text> {t.title} · {t.stage}
                 </Text>
               ))}
               {report.reportId ? (
@@ -928,7 +928,7 @@ export function ElementCard({
                   accessibilityRole="button"
                   style={[s.textBtn, { paddingHorizontal: 0 }]}
                 >
-                  <Text style={[s.smallBold, { color: c.sky }]}>리포트에서 개선 드릴 보기 ›</Text>
+                  <Text style={[s.smallBold, { color: c.link }]}>리포트에서 개선 드릴 보기 ›</Text>
                 </Press>
               ) : null}
             </View>
@@ -939,7 +939,7 @@ export function ElementCard({
               {via.also.map((name, i) => (
                 <Text key={name}>
                   {i > 0 ? ' · ' : ''}
-                  <Text onPress={() => onElement(name)} style={{ color: c.sky, fontWeight: '700' }}>
+                  <Text onPress={() => onElement(name)} style={{ color: c.link, fontWeight: '700' }}>
                     {name}
                   </Text>
                 </Text>

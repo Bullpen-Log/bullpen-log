@@ -525,7 +525,7 @@ function Player({
         {error ? <Text style={[s.small, s.box, { color: c.danger, backgroundColor: c.danger + '14' }]}>{error}</Text> : null}
         {finishFailed ? (
           <Press onPress={() => void run(finish)} disabled={pending} accessibilityRole="button" style={s.textBtn}>
-            <Text style={[s.bodyBold, { color: c.sky }]}>세션 마치기 다시 저장</Text>
+            <Text style={[s.bodyBold, { color: c.link }]}>세션 마치기 다시 저장</Text>
           </Press>
         ) : (
           <Press onPress={skip} disabled={pending} accessibilityRole="button" style={s.textBtn}>
@@ -574,13 +574,13 @@ function DrillView({
       <View style={{ gap: 6 }}>
         <View style={s.tags}>
           {item.rx ? <Text style={[s.tag, { color: '#fff', backgroundColor: c.sky }]}>처방 · {item.rx.element}</Text> : null}
-          <Text style={[s.tag, { color: c.sky, backgroundColor: c.sky + '1a' }]}>{item.element}</Text>
+          <Text style={[s.tag, { color: c.link, backgroundColor: c.sky + '1a' }]}>{item.element}</Text>
           <Text style={[s.tag, { color: c.ink, backgroundColor: c.chip }]}>{item.stage}</Text>
           {view.variants.length < 2 ? <Text style={[s.small, { color: c.muted }]}>{view.tool}</Text> : null}
         </View>
         <Text style={[s.title, { color: c.ink }]}>{view.title}</Text>
         <View style={s.doseRow}>
-          <Text style={[s.amount, { color: c.sky }]}>{view.dose}</Text>
+          <Text style={[s.amount, { color: c.link }]}>{view.dose}</Text>
           {alts > 1 ? (
             <Press
               onPress={() => {
@@ -592,7 +592,7 @@ function DrillView({
               style={s.swap}
             >
               <SymbolView name="shuffle" size={14} weight="semibold" tintColor={c.sky} />
-              <Text style={[s.bodyBold, { color: c.sky }]}>다른 드릴</Text>
+              <Text style={[s.bodyBold, { color: c.link }]}>다른 드릴</Text>
               <Text style={[s.small, { color: c.muted, fontVariant: ['tabular-nums'] }]}>
                 {alt + 1}/{alts}
               </Text>
@@ -641,7 +641,7 @@ function DrillView({
         </Text>
       ) : null}
 
-      {item.cue ? <Text style={[s.bodyBold, s.box, { color: c.sky, backgroundColor: c.sky + '14' }]}>“{item.cue}”</Text> : null}
+      {item.cue ? <Text style={[s.bodyBold, s.box, { color: c.link, backgroundColor: c.sky + '14' }]}>“{item.cue}”</Text> : null}
 
       <ExerciseMedia
         key={`video-${view.guideId}`}

@@ -152,7 +152,7 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
         <Text style={[s.bodyBold, { color: c.ink }]}>준비 · 정리 · 강화</Text>
         <Text style={[s.small, { color: c.muted }]}>{ARMCARE_PURPOSE_TEXT.cooldown}</Text>
         <Text style={[s.small, { color: c.muted }]}>{ARMCARE_PURPOSE_TEXT.strength}</Text>
-        <Press onPress={() => router.push('/library/warmup' as Href)} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}><Text style={[s.bodyBold, { color: c.sky }]}>던지기 전 워밍업 보기 ›</Text></Press>
+        <Press onPress={() => router.push('/library/warmup' as Href)} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}><Text style={[s.bodyBold, { color: c.link }]}>던지기 전 워밍업 보기 ›</Text></Press>
       </View>
       <View style={{ gap: 10 }}>
         {custom.kind === 'rehab' ? (
@@ -192,7 +192,7 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
               accessibilityRole="button"
               style={s.textBtn}
             >
-              <Text style={[s.smallBold, { color: c.sky }]}>통증이 아니면 체크인 고치기</Text>
+              <Text style={[s.smallBold, { color: c.link }]}>통증이 아니면 체크인 고치기</Text>
             </Press>
           </View>
         ) : (
@@ -277,7 +277,7 @@ function CustomRoutine({
           <PainGuideButton pain={painView} tone="sky" c={c} />
         ) : (
           <Press onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start' }]}>
-            <Text style={[s.smallBold, { color: c.sky }]}>통증 안내 보기 ›</Text>
+            <Text style={[s.smallBold, { color: c.link }]}>통증 안내 보기 ›</Text>
           </Press>
         )
       ) : null}
@@ -289,7 +289,7 @@ function CustomRoutine({
     return (
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, borderWidth: 1, borderColor: c.sky + '40' }]}>
         <Text style={[s.title, { color: c.ink }]}>오늘은 {decision.label}을 권해요</Text>
-        <Text style={[s.bodyBold, { color: c.sky }]}>{decision.reason}</Text>
+        <Text style={[s.bodyBold, { color: c.link }]}>{decision.reason}</Text>
         {extra}
         <Press
           onPress={() => void make()}
@@ -316,7 +316,7 @@ function CustomRoutine({
             <Text style={[s.bodyBold, { color: c.ink }]}>{routine.estimatedMinutes}</Text>분
           </Text>
         </View>
-        <Text style={[s.bodyBold, { color: c.sky }]}>{routine.reason}</Text>
+        <Text style={[s.bodyBold, { color: c.link }]}>{routine.reason}</Text>
         {extra}
         {routine.notes.length > 0 ? (
           <Fold label={`안내 ${routine.notes.length}개`} c={c}>
@@ -425,7 +425,7 @@ function RehabStartRow({ start, c }: { start: NonNullable<AppArmcareTodayTab['re
   return (
     <Press onPress={() => router.push(`/rehab-start?${q}` as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.body, { color: c.ink, flex: 1 }]}>
-        팔이 아프면 · <Text style={{ color: c.sky, fontWeight: '600' }}>재활 프로그램</Text>
+        팔이 아프면 · <Text style={{ color: c.link, fontWeight: '600' }}>재활 프로그램</Text>
       </Text>
       <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} />
     </Press>

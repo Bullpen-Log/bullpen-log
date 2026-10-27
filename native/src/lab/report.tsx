@@ -347,7 +347,7 @@ export function CompareCard({ c, prev }: { c: Palette; prev: PreviousComparison 
           </>
         )}
         <Pressable onPress={() => router.push(`/lab/${prev.reportId}` as Href)} accessibilityRole="link" hitSlop={8}>
-          <Text style={[TYPE.sub, { color: c.sky, fontWeight: '600' }]}>지난번 리포트 보기 ›</Text>
+          <Text style={[TYPE.sub, { color: c.link, fontWeight: '600' }]}>지난번 리포트 보기 ›</Text>
         </Pressable>
       </View>
     </View>

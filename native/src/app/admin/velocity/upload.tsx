@@ -215,7 +215,7 @@ export default function VelocityUploadScreen() {
         ))}
         {!busy ? (
           <Press accessibilityRole="button" onPress={() => void pick()} style={[s.pill, { minHeight: 52, backgroundColor: c.card }]}>
-            <Text style={{ color: c.sky, fontSize: 17, fontWeight: '600' }}>{items.length ? '영상 더 고르기' : '영상 고르기'}</Text>
+            <Text style={{ color: c.link, fontSize: 17, fontWeight: '600' }}>{items.length ? '영상 더 고르기' : '영상 고르기'}</Text>
           </Press>
         ) : null}
         {error ? <Text style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>{error}</Text> : null}

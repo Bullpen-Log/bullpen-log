@@ -71,7 +71,7 @@ export function ExerciseRow({
         <View style={{ flex: 1, gap: 3 }}>
           <Text style={[s.bodyBold, { color: c.ink }]}>
             {ex.title}
-            {note ? <Text style={[s.small, { color: c.sky }]}>{`  ${note}`}</Text> : null}
+            {note ? <Text style={[s.small, { color: c.link }]}>{`  ${note}`}</Text> : null}
           </Text>
           {ex.prescription ? <Text style={[s.smallBold, { color: c.muted }]}>{ex.prescription}</Text> : null}
           {warning ? <Text style={[s.small, { color: c.warn }]}>{warning}</Text> : null}
@@ -284,7 +284,7 @@ export function RoutineCard({ routine: r, dateKey, fresh, open, onToggle, onChan
               all > 0 && done === all
                 ? { color: '#fff', backgroundColor: c.sky }
                 : done > 0
-                  ? { color: c.sky, backgroundColor: c.sky + '1a' }
+                  ? { color: c.link, backgroundColor: c.sky + '1a' }
                   : { color: c.muted, backgroundColor: c.chip },
             ]}
           >
@@ -333,7 +333,7 @@ export function RehabLine({ line, bg, c }: { line: NonNullable<AppRehabSummary['
       <Text style={[s.body, { color: c.ink, flex: 1 }]}>{line.text}</Text>
       {action ? (
         <Press onPress={() => router.push(action.href as Href)} accessibilityRole="button" style={[s.textBtn, { minHeight: 44, justifyContent: 'center' }]}>
-          <Text style={[s.smallBold, { color: c.sky }]}>{action.label}</Text>
+          <Text style={[s.smallBold, { color: c.link }]}>{action.label}</Text>
         </Press>
       ) : null}
     </View>
@@ -355,7 +355,7 @@ export function RehabCard({ rehab, dateKey, c }: { rehab: AppRehabSummary; dateK
             <Text style={[s.small, { color: c.muted }]}>{rehab.today.text}</Text>
           </View>
           <Press onPress={() => openPlay('rehab', `d=${dateKey}`)} accessibilityRole="button" style={s.textBtn}>
-            <Text style={[s.smallBold, { color: c.sky }]}>다시 답하기</Text>
+            <Text style={[s.smallBold, { color: c.link }]}>다시 답하기</Text>
           </Press>
         </View>
       ) : !rehab.rest ? (
@@ -376,7 +376,7 @@ export function RehabCard({ rehab, dateKey, c }: { rehab: AppRehabSummary; dateK
         accessibilityRole={rehab.detail ? 'button' : 'link'}
         style={[st.disclose, { borderTopColor: c.line, paddingHorizontal: 0 }]}
       >
-        <Text style={[s.smallBold, { color: c.sky, flex: 1 }]}>{rehab.detail ? '자세히' : '자세히 · 단계 시험 · 매주 확인은 웹에서'}</Text>
+        <Text style={[s.smallBold, { color: c.link, flex: 1 }]}>{rehab.detail ? '자세히' : '자세히 · 단계 시험 · 매주 확인은 웹에서'}</Text>
         <SymbolView name={rehab.detail ? 'chevron.right' : 'arrow.up.right'} size={12} tintColor={c.sky} />
       </Press>
     </View>
@@ -487,7 +487,7 @@ export function AreaCard({
             <AreaSection title="이 부위의 근육" c={c}>
               {muscles.map((m) => (
                 <Text key={m.name} style={[s.small, { color: c.ink }]}>
-                  <Text style={{ fontWeight: '700', color: c.sky }}>{m.name}</Text> {m.does}
+                  <Text style={{ fontWeight: '700', color: c.link }}>{m.name}</Text> {m.does}
                 </Text>
               ))}
             </AreaSection>

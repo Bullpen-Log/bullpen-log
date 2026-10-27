@@ -158,7 +158,7 @@ function Chip({ label, onPress, c }: { label: string; onPress: () => void; c: Pa
       onPress={onPress}
       style={({ pressed }) => [{ minHeight: 40, paddingHorizontal: 14, borderRadius: 20, justifyContent: 'center', backgroundColor: c.card }, pressed && { opacity: 0.7 }]}
     >
-      <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>{label}</Text>
     </Pressable>
   );
 }

@@ -291,7 +291,7 @@ function Summary({
         <Text style={{ color: c.ink, fontSize: 18, fontWeight: '700', lineHeight: 25 }}>
           {rehabTitle(area, condition)} · {severityLabel(severity)} · {stage}단계부터
         </Text>
-        <Text style={[body, { color: c.sky, fontWeight: '600' }]}>
+        <Text style={[body, { color: c.link, fontWeight: '600' }]}>
           투구 복귀표까지 {weeksText(rehabEstimateDays(severity, condition))}, 빨리 나으면 앞당겨져요
         </Text>
         <Text style={[body, { color: c.muted }]}>

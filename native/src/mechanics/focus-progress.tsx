@@ -43,7 +43,7 @@ export function MechanicsEquipment({ equipment, reload, c }: { equipment: string
         ))}
       </View>
       <Press disabled={pending} accessibilityRole="button" onPress={() => void save()} style={{ padding: 12 }}>
-        <Text style={{ color: c.sky, fontWeight: '600' }}>{pending ? '저장 중' : '사용 장비 저장'}</Text>
+        <Text style={{ color: c.link, fontWeight: '600' }}>{pending ? '저장 중' : '사용 장비 저장'}</Text>
       </Press>
       {error ? <Text style={{ color: c.warn }}>{error}</Text> : null}
     </View>
@@ -69,7 +69,7 @@ export function FocusProgress({ focus, reload, c }: { focus: FocusView; reload: 
       onPress={() => void run(action, input)}
       style={{ padding: 12, borderRadius: 12, backgroundColor: c.chip, opacity: pending || disabled ? 0.5 : 1 }}
     >
-      <Text style={{ color: c.sky, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ color: c.link, fontWeight: '600' }}>{label}</Text>
     </Press>
   );
   const skill = focus.skill;
@@ -127,11 +127,11 @@ export function FocusProgress({ focus, reload, c }: { focus: FocusView; reload: 
         </View>
       ))}
       <Press accessibilityRole="button" onPress={() => router.push(`/lab/${focus.reportId}`)} style={{ padding: 12 }}>
-        <Text style={{ color: c.sky }}>처방의 3D 리포트 보기</Text>
+        <Text style={{ color: c.link }}>처방의 3D 리포트 보기</Text>
       </Press>
       {focus.finished ? (
         <Press accessibilityRole="button" onPress={() => router.push('/lab')} style={{ padding: 12 }}>
-          <Text style={{ color: c.sky }}>같은 조건으로 다시 촬영하기</Text>
+          <Text style={{ color: c.link }}>같은 조건으로 다시 촬영하기</Text>
         </Press>
       ) : null}
       {error ? <Text style={{ color: c.warn }}>{error}</Text> : null}
