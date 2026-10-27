@@ -42,16 +42,7 @@ body.immersive #app[data-phase=question] .scene-bottom{display:none}
  body.immersive #app[data-inspector=false] .track-heading strong{font-size:11px}
  body.immersive #app[data-inspector=false] .track-heading small{font-size:8px}
 }
-/* Keep the home-position guide beside the field, clear of the flight and answers. */
-:root{--guide-rail:150px}
-.guide-choice{display:flex;align-items:center;gap:8px;min-height:44px;color:var(--ink);font-size:12px;cursor:pointer}.guide-choice input{width:18px;height:18px;margin:0;accent-color:var(--accent)}.display-guide .guide-choice span{display:inline;white-space:nowrap;font-size:12px}
-.zone-guide{position:fixed;right:0;top:0;bottom:138px;width:var(--guide-rail);z-index:50;display:flex;flex-direction:column;gap:4px;padding:12px 10px 8px;background:#0b1220;color:#f5f5f7;border-left:1px solid #ffffff24;pointer-events:none;text-align:center;overflow:hidden}.guide-title{font-size:13px;font-weight:650;line-height:1.5}.guide-title span{display:block;font-size:10px;font-weight:400;color:#a8b6cc}.zone-guide svg{display:block;width:100%;flex:1;min-height:0}.guide-state{font-size:13px;font-weight:600;line-height:1.5}.guide-caption{font-size:10px;line-height:1.5;color:#a8b6cc}.zone-guide[data-state=crossed]{border-left-color:#ffffff50}
-body.immersive #app[data-zone-guide=true][data-camera-view=batter] .viewport-shell{right:var(--guide-rail)}
-body.immersive #app[data-zone-guide=true] .action-row .location-feedback{font-size:12px;line-height:1.5;color:var(--ink);font-weight:550}
-@media(max-width:760px){:root{--guide-rail:126px}.zone-guide{padding:10px 8px 6px}.guide-title{font-size:12px}.guide-title span{font-size:10px}}
-@media(max-height:375px) and (orientation:landscape){.guide-caption{display:none}.zone-guide{gap:2px;padding-top:8px}.guide-title{font-size:12px}.guide-title span{display:none}.guide-state{font-size:12px}}
-@media(max-width:600px) and (orientation:portrait){.zone-guide{bottom:230px}:root{--guide-rail:116px}}
-body.immersive #app[data-zone-guide=true][data-camera-view=batter]::after{content:'';position:fixed;right:0;top:0;bottom:0;width:var(--guide-rail);z-index:49;background:#0b1220;pointer-events:none}
+body.immersive #app[data-inspector=false] .action-row .location-feedback{font-size:12px;line-height:1.5;color:var(--ink);font-weight:550}
 body.immersive #app[data-presentation=phone] .preparation-label{top:auto;bottom:48px;left:14px;transform:none;padding:6px 10px}
 @media(max-width:650px) and (max-height:375px) and (orientation:landscape){
  .setup-options.four-levels{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
