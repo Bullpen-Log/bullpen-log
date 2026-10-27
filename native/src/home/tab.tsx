@@ -229,7 +229,7 @@ export function HomeTab({
     ) : null;
 
   return (
-    <CameraSwipe enabled>
+    <CameraSwipe enabled={!home?.pitchLocked}>
       <View style={{ flex: 1, backgroundColor: c.page }}>
         <Animated.ScrollView
           automaticallyAdjustKeyboardInsets

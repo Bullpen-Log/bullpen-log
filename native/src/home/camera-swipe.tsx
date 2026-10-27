@@ -4,14 +4,13 @@ import { createContext, useCallback, useContext, useMemo, type ReactNode } from 
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, type GestureType } from 'react-native-gesture-handler';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
-import { usePalette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 
 /**
- * 홈에서 오른쪽으로 쓸면 '내 영상'(2026-10-26 — 예전엔 카메라. 구속 측정 · ABS 는 투구 탭 문과 내 영상의 + 로 연다).
+ * 홈에서 오른쪽으로 쓸면 카메라(구속 측정 · ABS 판정을 열린 뒤 고른다).
  * - 홈 첫 화면에서만, 오른쪽으로만(왼쪽 · 다른 탭은 쓸기 없음 — 2026-10-15 김민).
- * - 손가락을 따라 홈이 밀리고 왼쪽에서 '내 영상' 판이 같이 들어온다.
- * - 폭 1/4 넘게 또는 빠르게 튕기면(0.35px/ms) 끝까지 밀린 뒤 내 영상으로, 아니면 제자리.
+ * - 손가락을 따라 홈이 밀리고 왼쪽에서 카메라 판이 같이 들어온다.
+ * - 폭 1/4 넘게 또는 빠르게 튕기면(0.35px/ms) 끝까지 밀린 뒤 카메라로, 아니면 제자리.
  *   손 뗀 빠르기를 이어받는다(웹 settleFor — 130~280ms, cubic-bezier(0.2, y1, 0.35, 1)).
  * - 왼쪽 끝 16px 는 아이폰 뒤로 가기 몫이라 받지 않는다. 요약 칸(옆으로 넘기는 칸)은 제 손가락이 이긴다(HomeSwipeContext).
  */
@@ -34,7 +33,6 @@ function settle(dist: number, speed: number) {
 
 export function CameraSwipe({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   const { width } = useWindowDimensions();
-  const c = usePalette();
   const reduce = useReducedMotion();
   const dx = useSharedValue(0);
   const startX = useSharedValue(0);
@@ -54,7 +52,7 @@ export function CameraSwipe({ enabled, children }: { enabled: boolean; children:
     }, [dx, away])
   );
   const open = () => {
-    router.push('/my-videos');
+    router.push('/velocity');
     setTimeout(() => {
       if (!away.get()) dx.set(withTiming(0, { duration: 200 }));
     }, 1500);
@@ -100,12 +98,12 @@ export function CameraSwipe({ enabled, children }: { enabled: boolean; children:
       <GestureDetector gesture={pan}>
         <View style={{ flex: 1, overflow: 'hidden' }}>
           <Animated.View style={[{ flex: 1 }, content]}>{children}</Animated.View>
-          {/* 내 영상 자리표시 — 왼쪽에서 손가락을 따라 들어오는 판(웹 data-tab-ghost) */}
-          <Animated.View pointerEvents="none" style={[styles.ghost, { left: -width, width, backgroundColor: c.page }, ghost]}>
-            <View style={[styles.ghostIcon, { backgroundColor: c.chip }]}>
-              <Icon name="film" size={40} color={c.ink} />
+          {/* 카메라 자리표시 — 왼쪽에서 손가락을 따라 들어오는 판 */}
+          <Animated.View pointerEvents="none" style={[styles.ghost, { left: -width, width }, ghost]}>
+            <View style={styles.ghostIcon}>
+              <Icon name="camera" size={40} color="#fff" />
             </View>
-            <Text style={[styles.ghostText, { color: c.ink }]}>내 영상</Text>
+            <Text style={styles.ghostText}>카메라</Text>
           </Animated.View>
         </View>
       </GestureDetector>
@@ -114,7 +112,7 @@ export function CameraSwipe({ enabled, children }: { enabled: boolean; children:
 }
 
 const styles = StyleSheet.create({
-  ghost: { position: 'absolute', top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  ghostIcon: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
-  ghostText: { fontSize: 18, fontWeight: '600' },
+  ghost: { position: 'absolute', top: 0, bottom: 0, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  ghostIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  ghostText: { color: '#fff', fontSize: 18, fontWeight: '600' },
 });
