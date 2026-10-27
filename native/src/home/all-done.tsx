@@ -11,16 +11,18 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { loadJson, saveJson } from '~/lib/store';
-import { usePalette, withAlpha } from '~/lib/ui';
+import { usePalette, useTheme, withAlpha } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 
 /**
  * 홈 '오늘' 링 넷이 다 찼을 때의 축하 — 웹 app/(app)/today/all-done.tsx 의 앱 쪽(화면 전체).
  * 링이 다 그려진 뒤(1.5초) 성공 떨림 → 화면이 옅게 덮이고(260ms) 가운데 96px 링이 한 바퀴(700ms) · 520ms 에 체크가 톡(0.6 → 1.08 → 1) ·
- * 점 다섯이 퍼지고(1.2초, 차례로) · 600ms 에 '오늘 기록을 다 남겼어요'가 떠오른다. 2.8초 뒤 또는 누르면 걷힌다. 하루 한 번(폰에 날짜를 적음).
- * 움직임 줄이기면 점 없이 다 된 모양만.
+ * 링을 따라 야구공 실밥(V자 바늘땀 14개)이 꿰매지고(200ms 부터 900ms) · 600ms 에 '오늘 기록을 다 남겼어요'가 떠오른다. 2.8초 뒤 또는 누르면
+ * 걷힌다. 하루 한 번(폰에 날짜를 적음). 움직임 줄이기면 다 꿰맨 모양만.
+ * 실밥은 싱커만의 표시 — 웹 로그인 · 빈 화면의 실밥 무늬(app/globals.css --seam)와 같은 바늘땀. 앱에서는 이 순간 한 곳에만 쓴다(2026-10-27 HIG
+ * 검토: 링이 애플 피트니스와 똑같아 보였다 — 예전엔 흔한 '퍼지는 점' 다섯).
  */
 const KEY = 'all-done';
 const START_MS = 1500;
@@ -28,13 +30,25 @@ const OVERLAY_MS = 2800;
 const R = 45;
 const LEN = 2 * Math.PI * R;
 const ACircle = Animated.createAnimatedComponent(Circle);
-const BITS = [
-  { s: 8, dx: -64, dy: -30, d: 420 },
-  { s: 6, dx: 62, dy: -36, d: 480 },
-  { s: 7, dx: -74, dy: 18, d: 540 },
-  { s: 5, dx: 72, dy: 14, d: 600 },
-  { s: 6, dx: 0, dy: -58, d: 520 },
-];
+/* 실밥 — 링(반지름 R, 굵기 7) 위를 가로지르는 V자 바늘땀. 링이 그려지는 쪽(시계 방향)으로 끝이 향한다. 한 경로라 길이만큼 차례로 그린다 */
+const STITCHES = 14;
+const SEAM = (() => {
+  const at = (r: number, t: number) => [50 + r * Math.cos(t), 50 + r * Math.sin(t)] as const;
+  let d = '';
+  let len = 0;
+  for (let i = 0; i < STITCHES; i++) {
+    const a = -Math.PI / 2 + ((i + 0.5) * 2 * Math.PI) / STITCHES;
+    const [x1, y1] = at(R - 6, a);
+    const [x2, y2] = at(R, a + 0.11);
+    const [x3, y3] = at(R + 6, a);
+    d += `M${x1.toFixed(1)},${y1.toFixed(1)}L${x2.toFixed(1)},${y2.toFixed(1)}L${x3.toFixed(1)},${y3.toFixed(1)}`;
+    len += Math.hypot(x2 - x1, y2 - y1) + Math.hypot(x3 - x2, y3 - y2);
+  }
+  return { d, len };
+})();
+/* 야구공 실밥의 빨강 — 상태색(danger)과 따로 둔다(꾸밈 한 곳에만) */
+const SEAM_COLOR = { light: '#c8352b', dark: '#ff6f61' } as const;
+const APath = Animated.createAnimatedComponent(Path);
 const POP = Easing.bezier(0.22, 1, 0.36, 1);
 
 export function AllDone({ allDone, day }: { allDone: boolean; day: string }) {
@@ -69,19 +83,23 @@ export function AllDone({ allDone, day }: { allDone: boolean; day: string }) {
 
 function Cheer({ onClose }: { onClose: () => void }) {
   const c = usePalette();
+  const seamColor = SEAM_COLOR[useTheme() === 'light' ? 'light' : 'dark'];
   const reduce = useReducedMotion();
   const ring = useSharedValue(reduce ? 1 : 0);
+  const seam = useSharedValue(reduce ? 1 : 0);
   const check = useSharedValue(reduce ? 1 : 0.6);
   const shown = useSharedValue(reduce ? 1 : 0);
   const text = useSharedValue(reduce ? 1 : 0);
   useEffect(() => {
     if (reduce) return;
     ring.set(withTiming(1, { duration: 700, easing: Easing.bezier(0.65, 0, 0.35, 1) }));
+    seam.set(withDelay(200, withTiming(1, { duration: 900, easing: Easing.bezier(0.45, 0, 0.25, 1) })));
     check.set(withDelay(520, withSequence(withTiming(1.08, { duration: 216, easing: POP }), withTiming(1, { duration: 144, easing: POP }))));
     shown.set(withDelay(520, withTiming(1, { duration: 216, easing: POP })));
     text.set(withDelay(600, withTiming(1, { duration: 420, easing: POP })));
-  }, [reduce, ring, check, shown, text]);
+  }, [reduce, ring, seam, check, shown, text]);
   const arc = useAnimatedProps(() => ({ strokeDashoffset: LEN * (1 - ring.value) }));
+  const stitch = useAnimatedProps(() => ({ strokeDashoffset: SEAM.len * (1 - seam.value) }));
   const checkStyle = useAnimatedStyle(() => ({ opacity: shown.value, transform: [{ scale: check.value }] }));
   const textStyle = useAnimatedStyle(() => ({ opacity: text.value, transform: [{ translateY: (1 - text.value) * 8 }] }));
   return (
@@ -101,36 +119,29 @@ function Cheer({ onClose }: { onClose: () => void }) {
             animatedProps={arc}
             transform="rotate(-90 50 50)"
           />
+          <APath
+            d={SEAM.d}
+            fill="none"
+            stroke={seamColor}
+            strokeWidth={2.2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray={`${SEAM.len} ${SEAM.len}`}
+            animatedProps={stitch}
+          />
         </Svg>
         <Animated.View style={[styles.check, { backgroundColor: c.action }, checkStyle]}>
           <Icon name="check" size={40} color="#fff" strokeWidth={3} />
         </Animated.View>
-        {reduce ? null : BITS.map((b, i) => <Bit key={i} {...b} color={c.link} />)}
       </View>
       <Animated.Text style={[styles.text, { color: c.ink, fontFamily: 'Pretendard' }, textStyle]}>오늘 기록을 다 남겼어요</Animated.Text>
     </Pressable>
   );
 }
 
-/* 퍼지는 점 — 가운데에서 바깥으로 1.6배 거리, 1.2초(25% 까지 진해지고 75% 부터 옅어짐) */
-function Bit({ s, dx, dy, d, color }: { s: number; dx: number; dy: number; d: number; color: string }) {
-  const t = useSharedValue(0);
-  useEffect(() => {
-    t.set(withDelay(d, withTiming(1, { duration: 1200, easing: POP })));
-  }, [t, d]);
-  const style = useAnimatedStyle(() => {
-    const v = t.value;
-    const o = v < 0.25 ? v / 0.25 : v > 0.75 ? (1 - v) / 0.25 : 1;
-    return { opacity: o, transform: [{ translateX: dx * 1.6 * v }, { translateY: dy * 1.6 * v }, { scale: 0.4 + 0.6 * v }] };
-  });
-  const size = s * 1.5;
-  return <Animated.View pointerEvents="none" style={[styles.bit, { width: size, height: size, borderRadius: size / 2, marginLeft: -size / 2, marginTop: -size / 2, backgroundColor: color }, style]} />;
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   ring: { width: 96, height: 96, alignItems: 'center', justifyContent: 'center' },
   check: { position: 'absolute', top: '16%', left: '16%', right: '16%', bottom: '16%', borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  bit: { position: 'absolute', left: '50%', top: '50%' },
   text: { marginTop: 20, fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },
 });
