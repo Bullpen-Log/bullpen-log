@@ -1,4 +1,8 @@
 import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
+import { surfaceOf } from '@/lib/app-env';
+import { benchDate, meetupTagEn } from '@/lib/sinker-dugout-feed';
+import { MeetupTicket } from '@/components/community/meetup-ticket';
 import { Check, Eye, EyeOff, UserMinus } from '@/components/icon';
 import { RoundChat, RoundEyeOff, RoundHeart, RoundPencil, RoundTrash } from '@/components/round-icon';
 import { getCurrentUser } from '@/lib/dal';
@@ -161,6 +165,7 @@ export default async function CommunityPostPage({
    * OpenNative 를 걷었다(커뮤니티는 웹 하나로).
    */
   const user = await getCurrentUser();
+  const sinkerApp = surfaceOf((await headers()).get('user-agent')) === 'sinker-app';
 
   /*
    * 읽기 · 누가 무엇을 누를 수 있나는 앱 화면과 같은 곳(lib/community-load.ts). 가린 글은 관리자와 글쓴이만 — 글쓴이는 왜 안 보이는지
@@ -276,6 +281,23 @@ export default async function CommunityPostPage({
         <div className="whitespace-pre-wrap text-subhead leading-[1.9] text-ink/90">
           {post.body}
         </div>
+
+        {/* 싱커 앱 안 — 참가한 번개의 내 티켓(서버가 참가를 읽은 뒤에만 선다, 참가 단추를 누른 순간이 아니다) */}
+        {sinkerApp && post.meetup && post.joined && post.meetAt && user && (
+          <MeetupTicket
+            title={post.title}
+            date={benchDate(post.meetAt)}
+            tagEn={meetupTagEn(post.tag)}
+            nickname={user.nickname}
+            place={[post.district ?? post.region, post.meetup.place].filter(Boolean).join(' · ')}
+            tone={
+              post.state === 'cancelled' ? 'cancelled' : post.state === 'held' ? 'held' : post.state === 'past' ? 'past' : post.state === 'closed' ? 'closed' : 'joined'
+            }
+            gear={post.meetup.gear || null}
+            cost={post.meetup.cost || null}
+            roomHref={room ? '#room' : null}
+          />
+        )}
 
         {(post.meetup || post.team) && (
           <section aria-label={post.meetup ? '번개 정보' : '팀 정보'} className="space-y-4 rounded-2xl bg-surface-2 p-(--block-pad)">
@@ -511,7 +533,7 @@ export default async function CommunityPostPage({
       </article>
 
       {room && (
-        <section className="space-y-4" aria-label="대화">
+        <section id="room" className="scroll-mt-20 space-y-4" aria-label="대화">
           <SectionHead
             title={post.meetup ? '참가자 대화방' : post.isOwner ? (flow?.ownerRoom ?? '신청자와 대화') : (flow?.joinerRoom ?? '팀과 대화')}
           />
@@ -566,7 +588,7 @@ export default async function CommunityPostPage({
       )}
 
       {/* 댓글 */}
-      <section className="space-y-4" aria-label="댓글">
+      <section id="comments" className="scroll-mt-20 space-y-4" aria-label="댓글">
         <SectionHead title={post.category === 'question' ? '답변 · 댓글' : '댓글'} count={visibleComments} />
         {anyCoach && <p className="text-xs text-muted">코치 표시: {COACH_BADGE_NOTE}</p>}
 

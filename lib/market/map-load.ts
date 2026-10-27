@@ -30,10 +30,13 @@ export type MapPlace = {
   reviews: number;
 };
 
-export async function loadMapPlaces(f: { q?: string; kind?: string } = {}): Promise<MapPlace[]> {
+/**
+ * only 'venue' — 연습장 · 구장만(싱커 앱 안 덕아웃의 연습장 탐색, 2026-10-27). 안 주면 예전처럼 둘 다(덕아웃 웹 · 덕아웃 앱의 공용 지도).
+ */
+export async function loadMapPlaces(f: { q?: string; kind?: string; only?: 'venue' } = {}): Promise<MapPlace[]> {
   const q = f.q?.trim();
   const wantVenue = f.kind !== 'lesson';
-  const wantLesson = !f.kind || f.kind === 'lesson';
+  const wantLesson = f.only !== 'venue' && (!f.kind || f.kind === 'lesson');
   const [venues, orgs] = await Promise.all([
     wantVenue
       ? prisma.venue.findMany({

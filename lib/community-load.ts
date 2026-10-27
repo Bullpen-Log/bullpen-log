@@ -213,6 +213,43 @@ export async function loadCommunityList(user: CommunityUser | null, q: ListQuery
   };
 }
 
+/**
+ * 목록 카드 보강(2026-10-27 싱커 덕아웃 첫 화면) — 글 몇 개의 답변 미리보기 · 내 저장 여부를 한 번에 읽는다(글마다 글 화면 로더를 부르지 않는다).
+ * 답변은 글 화면(loadCommunityPost)과 같은 거르기: 가린 댓글 · 내가 차단한 사람의 댓글은 빼고(요약이라 관리자에게도 가린 댓글은 뺀다),
+ * 채택한 답이 보이면 그것, 아니면 글쓴이가 아닌 사람의 가장 이른 답. 고르기는 lib/sinker-dugout-feed.ts pickAnswer.
+ */
+export async function loadPostExtras(user: CommunityUser | null, questionIds: string[], allIds: string[]) {
+  const blocked = await blockedIdsOf(user);
+  const notBlocked = blocked.length > 0 ? { notIn: blocked } : {};
+  const metas = questionIds.length
+    ? await prisma.communityPost.findMany({ where: { id: { in: questionIds } }, select: { id: true, userId: true, acceptedCommentId: true } })
+    : [];
+  const acceptedIds = metas.map((m) => m.acceptedCommentId).filter((x): x is string => x !== null);
+  const pick = { id: true, postId: true, userId: true, body: true, user: { select: { nickname: true } } } as const;
+  const [accepted, firsts, saves] = await Promise.all([
+    acceptedIds.length
+      ? prisma.communityComment.findMany({ where: { id: { in: acceptedIds }, hiddenAt: null, userId: notBlocked }, select: pick })
+      : [],
+    /* 글마다 글쓴이가 아닌 사람의 가장 이른 답 하나(distinct postId) */
+    metas.length
+      ? prisma.communityComment.findMany({
+          where: { hiddenAt: null, OR: metas.map((m) => ({ postId: m.id, userId: { not: m.userId, ...notBlocked } })) },
+          orderBy: { createdAt: 'asc' },
+          distinct: ['postId'],
+          select: pick,
+        })
+      : [],
+    user && allIds.length
+      ? prisma.communitySave.findMany({ where: { userId: user.id, postId: { in: allIds } }, select: { postId: true } })
+      : [],
+  ]);
+  const comments = [...accepted, ...firsts].map((c) => ({ id: c.id, postId: c.postId, userId: c.userId, body: c.body, nickname: c.user.nickname }));
+  return {
+    posts: metas.map((m) => ({ id: m.id, authorId: m.userId, acceptedId: m.acceptedCommentId, comments: comments.filter((c) => c.postId === m.id) })),
+    saved: new Set(saves.map((s) => s.postId)),
+  };
+}
+
 /** 이 게시판(말머리)에 거르기 없이 글이 있나 — 빈 목록이 '아직 글이 없음'인지 '조건에 맞는 글이 없음'인지 가른다 */
 export async function boardHasPosts(user: CommunityUser | null, category?: PostCategory, tag?: string) {
   const blocked = await blockedIdsOf(user);

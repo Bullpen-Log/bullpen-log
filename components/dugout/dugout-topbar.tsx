@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { RoundBack, RoundChat, RoundPlus, RoundSearch } from '@/components/round-icon';
+import { Ticket } from '@/components/icon';
 import { goBack } from '@/components/back-link';
 import { barSnapshot, serverBarSnapshot, subscribeBar } from '@/lib/nav-state';
 import { SinkerMark, Wordmark } from '@/components/logo';
@@ -64,7 +65,9 @@ export function DugoutTopBar({
    * 덕아웃 화면의 BackLink 는 휴대폰에서 본문 줄을 숨기고 위 막대에 서게 돼 있는데(components/back-link.tsx) 덕아웃 막대가 안 읽어, 앱에서는 뒤로 단추가 아예 없었다.
    */
   const bar = useSyncExternalStore(subscribeBar, barSnapshot, serverBarSnapshot);
-  const back = slim && !onHome ? (bar.back ?? sinkerBackOf(pathname)) : null;
+  /* 세 분류(둘러보기 · 커뮤니티 · 연습장)의 첫 화면은 '‹ 뒤로' 대신 로고 + 분류 줄(2026-10-27 승인 시안) */
+  const tabRoot = slim ? sinkerTabOf(pathname) : null;
+  const back = slim && tabRoot === null ? (bar.back ?? sinkerBackOf(pathname)) : null;
   const inDugout = current === null;
   const isSinkerBar = brand === 'sinker';
   /* 로고 · '홈' = 덕아웃 첫 화면(2026-10-24 — 큰 로고 화면 없이 찾기 화면이 첫 화면) */
@@ -188,6 +191,12 @@ export function DugoutTopBar({
                   )}
                   {/* 싱커 앱 안에서는 장터 거래 채팅을 선수 활동처럼 막대에 두지 않는다(2026-10-27) — 거래 대화는 알림 · 마이에서 그대로 열린다 */}
                   {!slim && <ChatButton unread={unread} />}
+                  {/* 싱커 앱 안 — 내 활동(참가 · 질문 · 저장 · 신청, 티켓 모양). 예약은 거기서 마이로 이어진다 */}
+                  {slim && (
+                    <Link href="/me/community" aria-label="내 활동" title="내 활동" className={ICON}>
+                      <Ticket aria-hidden className="h-5 w-5" />
+                    </Link>
+                  )}
                   <DugoutBell initial={alerts} />
                 </>
               ) : (
@@ -208,6 +217,7 @@ export function DugoutTopBar({
             </div>
           </div>
         </div>
+        {tabRoot !== null && <SinkerTabs on={tabRoot} />}
       </div>
     </header>
   );
@@ -226,6 +236,39 @@ const SINKER_SECTIONS: [string, string][] = [
 export function sinkerBackOf(path: string): { href: string; label: string } {
   for (const [root, label] of SINKER_SECTIONS) if (path.startsWith(`${root}/`)) return { href: root, label };
   return { href: '/?dugout=1', label: '덕아웃' };
+}
+
+/**
+ * 싱커 앱 안 덕아웃의 세 분류(2026-10-27 승인 시안) — 실제 주소와 같다: 둘러보기 /?dugout=1(앱의 / 는 싱커로 돌아가서) · 커뮤니티 /community · 연습장 /venues.
+ * 분류 줄은 세 첫 화면에서만 선다(글 · 장소 같은 하위 화면은 '‹ 뒤로'). 전역 아래 탭(홈 · 덕아웃 · 투구 · 타격 · 더보기)은 앱이 그린다 — 여기서 겹쳐 그리지 않는다.
+ */
+export const SINKER_TABS = [
+  { key: 'browse', href: '/?dugout=1', path: '/', label: '둘러보기' },
+  { key: 'community', href: '/community', path: '/community', label: '커뮤니티' },
+  { key: 'venues', href: '/venues', path: '/venues', label: '연습장' },
+] as const;
+export function sinkerTabOf(path: string): (typeof SINKER_TABS)[number]['key'] | null {
+  return SINKER_TABS.find((t) => t.path === path)?.key ?? null;
+}
+function SinkerTabs({ on }: { on: (typeof SINKER_TABS)[number]['key'] }) {
+  return (
+    <nav aria-label="덕아웃 분류" className="-mx-1 flex">
+      {SINKER_TABS.map((t) => {
+        const cur = t.key === on;
+        return (
+          <Link
+            key={t.key}
+            href={t.href}
+            aria-current={cur ? 'page' : undefined}
+            className={`relative flex min-h-11 flex-1 items-center justify-center text-[15px] transition-colors duration-200 ${cur ? 'font-bold text-ink' : 'font-semibold text-muted'}`}
+          >
+            {t.label}
+            <span aria-hidden className={`absolute bottom-0 left-1/2 h-[3px] w-14 -translate-x-1/2 rounded-full bg-sky ${cur ? '' : 'hidden'}`} />
+          </Link>
+        );
+      })}
+    </nav>
+  );
 }
 
 /** 위 막대의 동그란 아이콘 단추 — 모두 같은 40px 원, 테두리 없이 올리면 옅게 */

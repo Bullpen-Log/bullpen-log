@@ -188,6 +188,7 @@ export const StickyNote = weighted(L.StickyNote);
 export const Sun = weighted(L.Sun);
 export const SunMoon = weighted(L.SunMoon);
 export const Target = weighted(L.Target);
+export const Ticket = weighted(L.Ticket);
 export const Timer = weighted(L.Timer);
 export const Trash2 = rounded('trash');
 export const TrendingDown = weighted(L.TrendingDown);
@@ -366,6 +367,7 @@ export const ALL_ICONS: Record<string, LucideIcon> = {
   Sun,
   SunMoon,
   Target,
+  Ticket,
   Timer,
   Trash2,
   TrendingDown,

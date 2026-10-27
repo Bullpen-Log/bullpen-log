@@ -8,7 +8,7 @@ import { getCurrentUser } from '@/lib/dal';
 import { isNativeUserAgent, surfaceOf } from '@/lib/app-env';
 import { DugoutMain } from '@/components/dugout/dugout-main';
 import { SinkerDugoutHome } from '@/components/dugout/sinker-dugout-home';
-import { loadSinkerActivity, loadSinkerDugoutFeed } from '@/lib/sinker-dugout-load';
+import { loadSinkerActivity, loadSinkerCommunity, loadSinkerMeetup, loadSinkerVenue } from '@/lib/sinker-dugout-load';
 import { HomeSnap } from '@/components/dugout/home-snap';
 import { type HomeCard } from '@/components/dugout/home-carousel';
 import { CoachRow, Stars } from '@/components/dugout/coach-card';
@@ -59,25 +59,29 @@ export default async function DugoutHome({
   const viewer = user ? { id: user.id, role: user.role } : null;
   const sinkerUser = !!user && usesSinker(user);
   /*
-   * 싱커 앱의 덕아웃 탭(2026-10-27 김민) — 선수 활동 공간: 내 활동 · 질문 · 번개 · 레슨 · 연습장. 큰 로고 · 장터 · 경기 · 뉴스 · 검색 · 장터 채팅은 없다.
+   * 싱커 앱의 덕아웃 탭(2026-10-27 김민) — 선수 활동 공간: 내 활동 · 같이 연습 · 커뮤니티 · 연습장. 큰 로고 · 장터 · 경기 · 뉴스 · 검색 · 장터 채팅은 없다.
    * 자기 자료만 읽고 바로 그린다(덕아웃 웹 · 덕아웃 앱의 첫 화면은 아래 그대로). 글은 커뮤니티 목록과 같은 함수라 차단 · 가림 규칙이 같다.
    */
   if (sinkerApp) {
-    const [activity, feed, sinkerCoaches, sinkerLessons, sinkerRecords] = await Promise.all([
+    /*
+     * 2026-10-27 승인 시안 '수정 개선안' — 이어 볼 활동 · 같이 연습(번개 한 건) · 커뮤니티 인기/최신 · 연습장 한 곳. 레슨 찾기 · 추천 코치 · 최근 레슨 조회는 뺐다
+     * (기존 레슨 예약은 loadSinkerActivity 가 그대로 읽는다). 구역마다 따로 실패한다.
+     */
+    const [activity, meetup, community, venue, sinkerRecords] = await Promise.all([
       user ? loadSinkerActivity(user) : undefined,
-      loadSinkerDugoutFeed(user),
-      loadRecommendedCoaches(3).catch(() => []),
-      user ? loadLessonFeed(user.id, 3).catch(() => []) : [],
+      loadSinkerMeetup(user),
+      loadSinkerCommunity(user),
+      loadSinkerVenue(),
       /* 기록 공유 카드 — 정책을 다시 정할 때까지 예전 그대로(가장 최근 기록 하나, 못 읽어도 홈은 뜬다) */
       user ? recentCardOptions(user.id).catch(() => []) : [],
     ]);
     return (
       <SinkerDugoutHome
         activity={activity}
-        feed={feed}
+        meetup={meetup}
+        community={community}
+        venue={venue}
         record={sinkerRecords[0] ?? null}
-        lessons={sinkerLessons}
-        coaches={sinkerCoaches}
         loggedIn={!!user}
       />
     );

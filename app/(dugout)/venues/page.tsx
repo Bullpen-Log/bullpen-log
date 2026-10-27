@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
+import { surfaceOf } from '@/lib/app-env';
 import { PlaceMap } from '@/components/dugout/place-map';
 import { CategoryRow, ChipLink, ChipRow, DugoutPageHeader } from '@/components/dugout/ui';
 import { getCurrentUser } from '@/lib/dal';
@@ -24,20 +26,22 @@ export default async function VenuesPage({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const q = one(sp.q) || undefined;
   const admin = isOwner((await getCurrentUser())?.role);
+  /* 싱커 앱 안(2026-10-27 승인 시안 — 덕아웃의 '연습장' 분류)은 연습장 · 구장만. 레슨장은 덕아웃 웹 · 덕아웃 앱의 공용 지도에 그대로 */
+  const sinkerApp = surfaceOf((await headers()).get('user-agent')) === 'sinker-app';
   const candidates = admin && one(sp.view) === 'candidates';
   const raw = one(sp.kind);
   const kind = candidates
     ? CANDIDATE_FLAGS.some((f) => f.key === raw) ? raw : undefined
-    : raw === 'lesson' || isVenueKind(raw) ? raw : undefined;
+    : (raw === 'lesson' && !sinkerApp) || isVenueKind(raw) ? raw : undefined;
   const places = candidates
     ? candidateMapPlaces((await loadCandidates({ q, flag: kind })).items)
-    : await loadMapPlaces({ kind, q });
+    : await loadMapPlaces({ kind, q, only: sinkerApp ? 'venue' : undefined });
   const view = candidates ? 'candidates' : undefined;
   const href = (k?: string, v = view) => {
     const s = new URLSearchParams(Object.entries({ view: v, kind: k, q }).filter(([, x]) => x) as [string, string][]);
     return `/venues${s.size ? `?${s}` : ''}`;
   };
-  const list = candidates ? CANDIDATE_FLAGS : [{ key: 'lesson', label: '레슨장' }, ...VENUE_KINDS];
+  const list = candidates ? CANDIDATE_FLAGS : sinkerApp ? VENUE_KINDS : [{ key: 'lesson', label: '레슨장' }, ...VENUE_KINDS];
   const kinds = [{ key: undefined, label: '전체' }, ...list].map((k) => ({
     key: k.key ?? 'all',
     label: k.label,
@@ -48,7 +52,7 @@ export default async function VenuesPage({ searchParams }: { searchParams: Promi
   return (
     <div className="space-y-4">
       <DugoutPageHeader
-        title={candidates ? '수집 후보' : '연습장 · 레슨장'}
+        title={candidates ? '수집 후보' : sinkerApp ? '연습장' : '연습장 · 레슨장'}
         actions={
           <form method="get" action="/venues" className="flex w-full gap-2 sm:w-auto">
             {view && <input type="hidden" name="view" value={view} />}

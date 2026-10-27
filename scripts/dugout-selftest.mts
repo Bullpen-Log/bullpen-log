@@ -47,6 +47,7 @@ import { recommend } from '@/lib/market/gear';
 import { ESCROW_FEE_RATE, escrowFee, payout, platformFee } from '@/lib/market/pay';
 import { existsSync } from 'node:fs';
 import { inSinkerDugout } from '@/lib/sinker-dugout';
+import { activitySummary, benchDate, feedCardOf, feedLabel, pickAnswer, seatsLeft, venueBookingText, venuePriceText, type ListPost } from '@/lib/sinker-dugout-feed';
 import { surfaceOf } from '@/lib/app-env';
 import { BRAND, brandOfPath, usesSinker } from '@/lib/brand';
 import {
@@ -843,9 +844,30 @@ console.log('\n[싱커 안 덕아웃] 선수 활동 공간 — 차단 · 가림�
   const page = src('app/(dugout)/page.tsx');
   check(
     '싱커 홈의 글은 커뮤니티 목록과 같은 함수(loadCommunityList — 차단 · 가림 규칙 한 곳)로만 읽는다',
-    /loadCommunityList\(user, \{ category: 'question'/.test(load) && /loadCommunityList\(user, \{ category: 'meetup'/.test(load) && !/loadPublicPosts/.test(load) && !/communityPost\.findMany/.test(load)
+    /loadCommunityList\(user, q\)/.test(load) && /loadCommunityList\(user, \{ category: 'meetup'/.test(load) && !/loadPublicPosts/.test(load) && !/communityPost\.findMany/.test(load)
   );
-  check('요약은 관리자에게도 가린 글을 빼고 보인다', (load.match(/\.filter\(\(p\) => !p\.hidden\)/g) ?? []).length >= 3);
+  check(
+    '인기글은 목록의 인기 그대로(최근 7일 · 좋아요 순 — period 를 꼭 넘김), 최신글은 쓴 때 차례',
+    /read\(\{ sort: 'hot', period: '7d', page: 1 \}\)/.test(load) && /read\(\{ sort: 'new', page: 1 \}\)/.test(load)
+  );
+  check('요약은 관리자에게도 가린 글을 빼고 보인다', /\.filter\(\(p\) => !p\.hidden\)/.test(load) && /\.find\(\(x\) => !x\.hidden && x\.meetAt\)/.test(load));
+  check(
+    '답변 미리보기 · 저장은 글 몇 개를 한 번에(글마다 글 화면 로더를 부르지 않음) — 가린 댓글 · 차단한 사람 · 글쓴이 댓글을 뺀다',
+    /loadPostExtras\(user, qids, ids\)/.test(load) &&
+      !/loadCommunityPost/.test(load) &&
+      /export async function loadPostExtras[\s\S]{0,1600}hiddenAt: null[\s\S]{0,400}userId: \{ not: m\.userId, \.\.\.notBlocked \}/.test(src('lib/community-load.ts'))
+  );
+  check(
+    '레슨 찾기 · 추천 코치 · 최근 레슨은 싱커 첫 화면에서 빠졌다(그 조회도) — 기존 레슨 예약은 내 활동이 그대로 읽는다',
+    /if \(sinkerApp\) \{[\s\S]{0,1400}return \(\s*<SinkerDugoutHome/.test(page) &&
+      !/if \(sinkerApp\) \{[\s\S]{0,1400}(loadRecommendedCoaches|loadLessonFeed)[\s\S]{0,600}<SinkerDugoutHome/.test(page) &&
+      !/href=["{`'][^"'`]*\/lessons/.test(home) &&
+      /loadMyBookings\(user\.id\)/.test(load)
+  );
+  check(
+    '첫 화면 차례 — 이어 볼 활동 → 같이 연습(벤치) → 커뮤니티 → 연습장',
+    home.indexOf('activitySummary(activity)') < home.indexOf('<BenchCard') && home.indexOf('<BenchCard') < home.indexOf('<SinkerCommunity') && home.indexOf('<SinkerCommunity') < home.indexOf('title="연습장"')
+  );
   check(
     '덕아웃 홈 인기글(loadPublicPosts)도 보는 사람이 차단한 사람 글을 뺀다',
     /export async function loadPublicPosts\(take: number, viewerId[\s\S]{0,400}communityBlock\.findMany[\s\S]{0,300}notIn: blocked/.test(src('lib/market/load.ts')) &&
@@ -859,9 +881,69 @@ console.log('\n[싱커 안 덕아웃] 선수 활동 공간 — 차단 · 가림�
     inSinkerDugout('/chat') && inSinkerDugout('/chat/r1') && /trade=\{trade\}/.test(src('app/(dugout)/chat/layout.tsx')) && /장터 거래 대화/.test(src('app/(dugout)/me/page.tsx'))
   );
   check('기록 공유 카드는 예전 길 그대로(?card= · 자동 공개 없음) — 맨 끝 한 줄', /href=\{`\/community\/new\?card=\$\{encodeURIComponent\(record\.ref\)\}`\}/.test(home) && home.lastIndexOf('record &&') > home.indexOf('같이 연습'));
-  check('네 게시판 길을 없애지 않았다(자유 · 팀은 보조 길)', /\/community\?category=free/.test(home) && /\/community\?category=team/.test(home) && /\/community\?category=question/.test(home) && /\/community\?category=meetup/.test(home));
-  check('내 활동 · 질문 · 번개는 못 읽음과 빈 것을 가른다', /activity === null/.test(home) && /feed === null/.test(home) && /return null;/.test(load));
+  {
+    const bar = src('components/dugout/dugout-topbar.tsx');
+    check(
+      '세 분류(둘러보기 · 커뮤니티 · 연습장)는 실제 주소 — 둘러보기는 /?dugout=1(앱의 / 는 싱커로 간다), 첫 화면에서만 · 싱커 앱(slim)에서만',
+      /href: '\/\?dugout=1', path: '\/', label: '둘러보기'/.test(bar) && /href: '\/community', path: '\/community', label: '커뮤니티'/.test(bar) && /href: '\/venues', path: '\/venues', label: '연습장'/.test(bar) &&
+        /const tabRoot = slim \? sinkerTabOf\(pathname\) : null/.test(bar) && !/label: '레슨'[\s\S]{0,80}SINKER_TABS/.test(bar)
+    );
+    check('내 활동(티켓 모양) 단추는 이름이 있고 싱커 앱 안에만', /\{slim && \([\s\S]{0,80}href="\/me\/community" aria-label="내 활동"/.test(bar));
+  }
+  check('게시판 길 — 커뮤니티 분류 · 번개 목록 · 글쓰기는 실제 계약(board=)', /\/community\?category=meetup&open=1/.test(home) && /\/community\/new\?board=meetup/.test(home) && !/\/community\/new\?(category|kind)=/.test(home));
+  check(
+    '내 활동 · 같이 연습 · 커뮤니티 · 연습장은 못 읽음과 빈 것을 가른다(구역마다 따로)',
+    /activity === null/.test(home) && /meetup === null/.test(home) && /meetup === undefined/.test(home) && /venue === null/.test(home) && /venue === undefined/.test(home) &&
+      /list === null/.test(src('components/dugout/sinker-community.tsx')) && /return null;/.test(load)
+  );
+  {
+    const bench = src('components/dugout/bench-card.tsx');
+    const three = src('components/dugout/bench-three.ts');
+    check(
+      '벤치 장면은 카드가 보일 때만 불러오고(three 를 첫 묶음에 안 실음) 못 그리면 정적 그림 — 해상도 1.6배 · 저전력 · 문맥 잃음 · 놓기',
+      /import\('\.\/bench-three'\)/.test(bench) && !/from 'three'/.test(bench) && /IntersectionObserver/.test(bench) && /StaticBench/.test(bench) &&
+        /Math\.min\(window\.devicePixelRatio \|\| 1, 1\.6\)/.test(three) && /powerPreference: 'low-power'/.test(three) && /webglcontextlost/.test(three) &&
+        /renderer\.dispose\(\)/.test(three) && /observer\.disconnect\(\)/.test(three) && /touch-pan-y/.test(bench)
+    );
+    check('벤치 장면은 번개 id 가 같으면 다시 만들지 않는다(커뮤니티 정렬을 바꿔도 그대로)', /<BenchCard key=\{meetup\.id\}/.test(home) && /\}, \[md, line, setLive\]\);/.test(bench));
+  }
+  check(
+    '참가 티켓은 서버가 참가를 읽은 뒤에만(싱커 앱 번개 글) — 바코드 같은 입장 코드는 없다',
+    /sinkerApp && post\.meetup && post\.joined && post\.meetAt && user && \(\s*<MeetupTicket/.test(src('app/(dugout)/community/[id]/page.tsx')) && !/barcode|바코드/i.test(src('components/community/meetup-ticket.tsx').replace(/바코드 같은 입장 코드를 그리지 않는다/, ''))
+  );
+  check(
+    '싱커의 연습장은 장소(Venue)만 — 공용 지도는 레슨장도 그대로',
+    /only: sinkerApp \? 'venue' : undefined/.test(src('app/(dugout)/venues/page.tsx')) && /const wantLesson = f\.only !== 'venue' &&/.test(src('lib/market/map-load.ts')) &&
+      /prisma\.venue\.findFirst\(\{\s*where: \{ publicProfile: true, hiddenAt: null \}/.test(load)
+  );
   check('열지 않는 화면도 돌아갈 길을 준다(뒤로 · 덕아웃 홈)', /function SinkerAway[\s\S]{0,1500}router\.back\(\)[\s\S]{0,600}\/\?dugout=1/.test(src('components/dugout/dugout-shell.tsx')));
+}
+
+console.log('\n[싱커 안 덕아웃] 첫 화면 규칙(lib/sinker-dugout-feed.ts) — 말머리 · 행동 · 답변 고르기 · 날짜 · 가격 · 활동 한 줄');
+{
+  const base: ListPost = { id: 'p1', category: 'question', tag: 'pitch', title: 't', preview: '본문', solved: false, answered: false, comments: 0, nickname: '민', state: null, meetAt: null, region: null, district: null, capacity: null, joins: 0 };
+  const x = { answer: null, saved: false, ago: '방금' };
+  check('말머리 — 질문 · 투구 / 내 기록 = 연습 기록(새 게시판 없음) / 자유 · KBO / 번개 · 캐치볼', feedLabel('question', 'pitch') === '질문 · 투구' && feedLabel('free', 'record') === '연습 기록' && feedLabel('free', 'kbo') === '자유 · KBO' && feedLabel('free', null) === '자유' && feedLabel('meetup', 'catch') === '번개 · 캐치볼');
+  const open = feedCardOf(base, x);
+  check('답 없는 질문만 첫 답변 남기기(댓글 칸으로)', open.cta.label === '첫 답변 남기기' && open.cta.href === '/community/p1#comments' && open.meta === '답 기다림');
+  const free = feedCardOf({ ...base, category: 'free', tag: null }, x);
+  check('자유 글에는 첫 답변 · 답 기다림을 붙이지 않는다', free.cta.label === '이야기 보기' && !free.meta.includes('답') && free.kind === 'story');
+  const solved = feedCardOf({ ...base, answered: true, solved: true, comments: 3 }, { ...x, answer: { nickname: '코치', body: '팔을 늦게', accepted: true } });
+  check('해결된 질문은 채택한 답을 보이고 행동은 답변 보기(정답 · 전문가로 말하지 않음)', solved.meta === '해결됨' && solved.answer?.accepted === true && solved.body === null && solved.cta.label === '답변 보기');
+  const noPreview = feedCardOf({ ...base, answered: true, comments: 1 }, x);
+  check('답변을 못 읽으면 본문 요약 — 답을 꾸미지 않는다', noPreview.answer === null && noPreview.body === '본문');
+  const meet = feedCardOf({ ...base, category: 'meetup', tag: 'catch', state: 'open', meetAt: new Date('2026-10-31T01:00:00Z'), district: '성동구', capacity: 3, joins: 1 }, x);
+  check('번개 글은 모집 상태 · 때 · 곳 · 인원, 질문 · 자유 단추를 안 씀', meet.kind === 'gather' && meet.meta === '모집 중' && meet.cta.label === '자세히 보기' && /10\/31\(토\) 10:00 · 성동구 · 1\/3명 모집/.test(meet.body ?? ''));
+  const c = (id: string, userId: string) => ({ id, userId, body: id, nickname: id });
+  check('답변 고르기 — 글쓴이 댓글만이면 없음 · 채택이 먼저 · 아니면 남의 가장 이른 답', pickAnswer([c('a', 'author')], 'author', null) === null && pickAnswer([c('first', 'u1'), c('acc', 'u2')], 'author', 'acc')?.body === 'acc' && pickAnswer([c('mine', 'author'), c('first', 'u1')], 'author', null)?.body === 'first' && pickAnswer([c('own', 'author')], 'author', 'own') === null);
+  const d = benchDate(new Date('2026-10-31T01:00:00Z'));
+  const late = benchDate(new Date('2026-10-31T15:30:00Z'));
+  check('번개 날짜는 한국 시각(자정 넘김 포함)', d.md === '10.31' && d.weekday === 'SATURDAY' && d.time === '10:00' && late.md === '11.01' && late.weekday === 'SUNDAY' && late.dayKo === '일' && late.time === '00:30');
+  check('정원을 안 적은 번개는 남은 자리를 말하지 않는다', seatsLeft(null, 3) === null && seatsLeft(4, 2) === 2 && seatsLeft(2, 5) === 0);
+  check('연습장 가격 · 예약 방식 글', venuePriceText(null, 60).price === '가격 문의' && venuePriceText(30000, 60).price === '30,000원' && venuePriceText(30000, 60).unit === '/ 60분' && venueBookingText(true) === '장소 확인 후 예약 확정' && venueBookingText(false) === '바로 예약 확정');
+  const a = (label: string, href: string) => ({ label, title: 'T', sub: 'S', href });
+  const many = activitySummary([a('참가한 번개', '/community/x'), a('답변 있는 질문', '/community/y'), a('답변 있는 질문', '/community/z')]);
+  check('이어 볼 활동 — 없으면 줄 없음 · 하나면 그것 · 여럿이면 종류별 수(새 답변 · 안 읽은 수는 말하지 않음)', activitySummary([]) === null && activitySummary([a('연습장 예약', '/me')])?.href === '/me' && many?.sub === '참가한 번개 1 · 답변 있는 질문 2' && many?.href === '/me/community' && !/새 답변/.test(many?.sub ?? '') && activitySummary([a('레슨 예약', '/me'), a('연습장 예약', '/me')])?.href === '/me');
 }
 
 console.log(
