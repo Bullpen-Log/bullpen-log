@@ -1,4 +1,5 @@
 import type { FeedItem } from '@/lib/report/feed-items';
+import type { HomeBoard } from '@/lib/report/home-board';
 import { rpc } from '~/lib/rpc';
 import { call } from '~/pitch/api';
 
@@ -22,6 +23,21 @@ export type AppHome = {
   pitchLocked: boolean;
   /** 지난번 잘 던진 날 남긴 말 — 오늘 던지는 날 기록 전에만(옛 서버는 칸 없음) */
   goodNote?: { date: string; sessionType: string; satisfaction: number; memo: string; cuesGood: string[] } | null;
+  /** 기록 보드 · 컨디션 · 부하(2026-10-27 홈 개편 — 옛 서버는 칸 없음, 화면이 '불러오지 못했어요'로) */
+  board?: HomeBoard;
+  /** 오늘 운동(링과 같은 셈) — 일정이 없거나 멈춘 날 null. 옛 서버는 칸 없음 */
+  workout?: HomeWorkout | null;
+  trainingLocked?: boolean;
+};
+
+export type HomeWorkout = {
+  label: string;
+  done: number;
+  total: number;
+  minutes: number;
+  leftMinutes: number;
+  /** 일정을 만들 때 오늘 체크인을 봤나 */
+  checkin: 'before' | 'applied' | 'changed';
 };
 
 export async function loadHome(): Promise<AppHome> {

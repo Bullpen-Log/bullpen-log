@@ -113,6 +113,23 @@ export default function RootLayout() {
           name="notice"
           options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', sheetGrabberVisible: true, sheetCornerRadius: 28 }}
         />
+        {/* 홈 내 라커 · 전체 기록(2026-10-27 홈 개편) — 알림 시트와 같은 내용만큼 올라오는 아래 시트(손잡이 · 끌어 내리기) */}
+        <Stack.Screen
+          name="locker/ball"
+          options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', sheetGrabberVisible: true, sheetCornerRadius: 28 }}
+        />
+        <Stack.Screen
+          name="locker/stickers"
+          options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', sheetGrabberVisible: true, sheetCornerRadius: 28 }}
+        />
+        <Stack.Screen
+          name="locker/catch"
+          options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', sheetGrabberVisible: true, sheetCornerRadius: 28 }}
+        />
+        <Stack.Screen
+          name="records"
+          options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', sheetGrabberVisible: true, sheetCornerRadius: 28 }}
+        />
         {/* 공간 고르개(팀 · 레슨장, 계약 8-4) — 내용만큼 올라오는 아래 시트 */}
         <Stack.Screen
           name="org/pick"

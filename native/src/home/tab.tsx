@@ -1,28 +1,22 @@
 import { type Href, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, FadeOut, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { AppState, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { FeedItem } from '@/lib/report/feed-items';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
-import { PRESSED, SPACE, TYPE, usePalette, withAlpha } from '~/lib/ui';
+import { SPACE, TYPE, usePalette, withAlpha } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
-import { REST_SESSION_TYPE } from '@/lib/session-type';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Wordmark } from '~/shell/wordmark';
-import { fadeIn, Pulse, viewSwap } from '~/shell/motion';
+import { fadeIn, Pulse } from '~/shell/motion';
 import { leaveTo, openCheckin } from '~/shell/web-nav';
+import { toast } from '~/shell/toast';
 import { RpcError } from '~/lib/rpc';
-import { ApiError, call, dateKeyOf } from '~/pitch/api';
-import { MonthGrid } from '~/pitch/month-grid';
-import { monthOf, reloadFeatured, reloadVelocityDays, useAllLogs, useMonth, useVelocityDays } from '~/pitch/store';
-import { loadHome, type AppHome, type HomeRing } from './api';
-import { DayCards, layoutMove, resetDayCache } from './day-card';
-import { reloadEvents, resetEventsCache, useEventCounts } from './events';
-import { RecentList } from './recent-list';
+import { monthOf, reloadFeatured, reloadVelocityDays, useMonth } from '~/pitch/store';
+import { loadHome, type AppHome } from './api';
+import { layoutMove, resetDayCache } from './day-card';
+import { reloadEvents, resetEventsCache } from './events';
 import { Press } from '~/shell/press';
-import { FeedCard } from './feed';
-import { RingsCard } from './rings';
 import { AllDone } from './all-done';
 import { CameraSwipe } from './camera-swipe';
 import { useUnreadNotifications } from './notifications';
@@ -30,19 +24,26 @@ import { READABLE, READABLE_WIDE, columnCell, columnRow, useColumns } from '~/li
 import { useFocusRefresh, useOnTabActive, useRetapTop, useTabActive } from '~/shell/tab-pager';
 import { SpacePickButton } from '~/org/space-pick';
 import { useSpace } from '~/org/space-store';
+import { useBallRotation } from './ball/ball';
+import { HomeHero } from './hero';
+import { LockerRow } from './locker-row';
+import { grantFromHome, STICKERS, useLocker, type StickerKey } from './locker-store';
+import { nextAction, todayCount, type NextAction } from './plan-model';
+import { RecordBoard } from './record-board';
+import { TodayPlan } from './today-plan';
 
 /**
- * 홈 탭(앱 화면) — 웹 홈(app/(app)/today/home-page.tsx)과 같은 차례: 링 넷 → 요약 칸 → (알림 카드) → 투구 달력 → 고른 날 칸.
- * 숫자는 웹과 같은 서버 셈(app.loadAppHome). 받아 둔 값을 먼저 그리고 뒤에서 새로 받는다(검토 D10).
- * 아직 웹인 것(체크인 흐름 · 잠긴 탭의 첫 설정)은 onWeb 으로 웹 화면을 연다 — 분석 · 그날 화면처럼 앱 화면이 있는 주소는 껍데기가 앱 화면으로 바꿔 연다(index.tsx nativeOfWeb).
+ * 홈 탭(앱 화면) — 2026-10-27 승인 시안 '시안 1 볼 컨트롤 + 새 하단':
+ *   위 막대 → (통증 · 회복 안내) → 히어로(큰 날짜 · 입체 공 · 지금 할 일 하나) → 오늘 플랜 → 기록 보드 → 내 라커.
+ * 예전 홈의 링 셋 · 요약 칸 · 달력은 이렇게 옮겼다: 링의 셈 → 위 막대의 '한 수 / 셀 수'와 히어로 · 오늘 플랜, 요약 칸의 투구 · 구속 · 부하 · 컨디션 →
+ * 오늘 플랜 · 기록 보드(app.loadAppHome 의 board), 달력 · 그날 칸 · 일정 → 기록 달력 화면(app/calendar.tsx — 보드의 날짜 · '이번 주 N일').
+ * 숫자는 서버 셈(app.loadAppHome) 그대로. 받아 둔 값을 먼저 그리고 뒤에서 새로 받는다(검토 D10). 새로 받다 실패하면 받아 둔 값 위에 한 줄로 알린다.
+ * 스티커는 홈이 새로 받은 사실로만 준다(locker-store). 이번에 '없음 → 있음'을 직접 본 것만 알림 · 축하 — 앱을 켤 때 이미 해 둔 것은 조용히.
  */
 let cached: AppHome | null = null;
+/** 홈이 마지막으로 받은 값 — 전체 기록 · 기록 달력 시트가 읽는다(없으면 null) */
+export const homeSnapshot = () => cached;
 
-/** 못 받음 — 로그인이 풀렸으면(redirect) 다른 화면처럼 그 주소로, 아니면 글 + 다시 불러오기 */
-function failed(e: unknown, setError: (v: string) => void) {
-  if (e instanceof RpcError && e.code === 'redirect') return leaveTo(e.to ?? '/login');
-  setError(e instanceof Error ? e.message : '불러오지 못했어요.');
-}
 /** 로그아웃 — 앞사람 홈을 지운다 */
 export const resetHomeCache = () => {
   cached = null;
@@ -50,11 +51,23 @@ export const resetHomeCache = () => {
   resetEventsCache();
 };
 
+type Seen = Record<'checkin' | 'pitch' | 'workout', boolean> & { all: boolean; epoch: number; day: string };
+
+/** 오늘의 사실 — 스티커 · 축하가 보는 것(운동은 링과 같이 일정이 있고 다 했을 때) */
+function factsOf(h: AppHome): Omit<Seen, 'epoch' | 'day'> {
+  const training = h.rings.find((r) => r.key === 'training');
+  const { done, total } = todayCount(h);
+  return {
+    checkin: h.checkinDone,
+    pitch: h.pitchDone,
+    workout: !!training && !training.none && training.value >= 1,
+    all: total > 0 && done === total,
+  };
+}
+
 export function HomeTab({
   today,
   bottom,
-  onWeb,
-  onTab,
 }: {
   today: string;
   bottom: number;
@@ -65,48 +78,50 @@ export function HomeTab({
 }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  /* 받아 둔 홈은 오늘 것일 때만 먼저(자정을 넘겨 켜 둔 앱이 어제 링을 안 보이게) */
+  /* 받아 둔 홈은 오늘 것일 때만 먼저(자정을 넘겨 켜 둔 앱이 어제 것을 안 보이게) */
   const [home, setHome] = useState<AppHome | null>(() => (cached?.today === today ? cached : null));
   const [error, setError] = useState<string | null>(null);
-  const [month, setMonth] = useState(monthOf(today));
-  /* 자정에 달이 바뀌면 보던 달(그때의 이번 달)도 따라 넘긴다 — 지난 달을 일부러 보던 중이면 그대로 */
-  const [monthToday, setMonthToday] = useState(today);
-  if (monthToday !== today) {
-    setMonthToday(today);
-    if (month === monthOf(monthToday)) setMonth(monthOf(today));
-  }
-  /* 고른 날 — 처음엔 없다(웹 홈처럼 날짜를 누르면 밑에 그날 칸이 펴지고 X 로 닫는다) */
-  const [selected, setSelected] = useState<string | null>(null);
-  const { logs, reload } = useMonth(month);
-  /* 달력 | 목록 — 목록은 모든 기록(최근 것부터) */
-  const [calView, setCalViewRaw] = useState<'calendar' | 'list'>('calendar');
-  const [swapped, setSwapped] = useState(false);
-  const setCalView = (v: 'calendar' | 'list') => {
-    setSwapped(true);
-    setCalViewRaw(v);
-  };
-  const allLogs = useAllLogs(calView === 'list');
-  const eventCounts = useEventCounts();
-  const velocityDays = useVelocityDays();
-  const clipCounts: Record<string, number> = {};
-  for (const [k, v] of Object.entries(velocityDays ?? {})) clipCounts[k] = v.clips;
+  /* 홈 보드가 투구 기록을 읽지는 않지만, 달 묶음을 데워 두면 기록 달력 · 그날 화면이 바로 뜬다(예전 홈 달력과 같은 조회) */
+  const { reload } = useMonth(monthOf(today));
+  const rotation = useBallRotation();
+  const { locker } = useLocker();
+  /* 축하를 틀 날 — 그날 직접 본 전이에만(다음 날로 넘어가면 저절로 꺼진다) */
+  const [playDay, setPlayDay] = useState<string | null>(null);
+  const seen = useRef<Seen | null>(null);
 
-  /* 펴 둔 그날 칸도 홈과 같이 새로 받게(DayCards refreshKey) */
-  const [dayTick, setDayTick] = useState(0);
+  /* 서버가 새로 준 값만 여기로(폰에 남긴 값은 아니다) — 스티커 · 축하는 이번에 직접 본 '없음 → 있음'에만 */
+  const accept = useCallback((h: AppHome) => {
+    const f = factsOf(h);
+    const prev = seen.current && seen.current.epoch === cacheEpoch() && seen.current.day === h.today ? seen.current : null;
+    seen.current = { ...f, epoch: cacheEpoch(), day: h.today };
+    void grantFromHome({ checkin: f.checkin, pitch: f.pitch, workout: f.workout }, h.today).then((gained) => {
+      const shown = prev ? gained.filter((k: StickerKey) => k !== 'catch' && prev[k as 'checkin' | 'pitch' | 'workout'] === false) : [];
+      if (shown.length) toast(`스티커를 받았어요 · ${shown.map((k) => STICKERS.find((s) => s.key === k)?.label).join(', ')}`);
+    });
+    if (prev && !prev.all && f.all) setPlayDay(h.today);
+  }, []);
+
+  const failed = useCallback((e: unknown) => {
+    if (e instanceof RpcError && e.code === 'redirect') return leaveTo(e.to ?? '/login');
+    setError(e instanceof Error ? e.message : '불러오지 못했어요.');
+  }, []);
+
   const refresh = useCallback(() => {
     const e = cacheEpoch();
-    setDayTick((n) => n + 1);
     return loadHome().then(
-        (h) => {
-          if (e !== cacheEpoch()) return;
-          cached = h;
-          void cacheSet('home', h);
-          setHome(h);
-          setError(null);
-        },
-        (err: unknown) => failed(err, setError)
-      );
-  }, []);
+      (h) => {
+        if (e !== cacheEpoch()) return;
+        cached = h;
+        void cacheSet('home', h);
+        setHome(h);
+        setError(null);
+        accept(h);
+      },
+      (err: unknown) => {
+        if (e === cacheEpoch()) failed(err);
+      }
+    );
+  }, [accept, failed]);
   useEffect(() => {
     let alive = true;
     /* 앱을 막 켰으면 폰에 남긴 오늘 홈을 먼저(날이 바뀌었으면 안 씀) */
@@ -122,25 +137,24 @@ export function HomeTab({
         if (e !== cacheEpoch()) return;
         cached = h;
         void cacheSet('home', h);
-        if (alive) setHome(h);
+        if (!alive) return;
+        setHome(h);
+        setError(null);
+        accept(h);
       },
-      (e: unknown) => alive && failed(e, setError)
+      (err: unknown) => alive && e === cacheEpoch() && failed(err)
     );
     return () => {
       alive = false;
     };
-  }, [today]);
+  }, [today, accept, failed]);
 
-  /* 위에 쌓인 앱 화면(체크인 · 투구 기록 · 운동)에서 돌아오면 다시 받는다 — 링이 방금 남긴 것을 따라오게(처음 한 번은 위 효과가 받는다) */
-  /* 탭을 옮겼다 돌아오면(판은 붙어 있다) 새로 받는다 — 다른 탭에서 남긴 것이 링 · 달력에 바로 */
+  /* 위에 쌓인 앱 화면(체크인 · 투구 기록 · 운동)에서 돌아오면 · 탭을 옮겼다 오면 다시 받는다 — 방금 남긴 것이 바로 */
   useOnTabActive(() => void Promise.all([refresh(), reload(), reloadEvents(), reloadVelocityDays(), reloadFeatured()]));
   useFocusRefresh(() => void refresh());
 
-  /*
-   * 당겨서 새로고침은 없다 — 웹이 일부러 뺐다(2026-10-15, 판 넘기기 · 위 막대와 부딪혔다). 대신 앱을 5분 넘게 떠났다 돌아오면 새로 받는다(웹과 같다).
-   */
+  /* 앱을 5분 넘게 떠났다 돌아오면 새로 받는다(웹과 같다). 다른 탭 판이 보이는 동안은 받지 않는다 */
   const leftAt = useRef<number | null>(null);
-  /* 다른 탭 판이 보이는 동안은 받지 않는다 — 판 넷이 앱이 앞에 올 때 함께 받았다(2026-10-26 2차). 돌아오면 useOnTabActive 가 받는다 */
   const tabActive = useTabActive();
   const activeRef = useRef(tabActive);
   useEffect(() => {
@@ -160,8 +174,7 @@ export function HomeTab({
     return () => sub.remove();
   }, [refresh, reload]);
 
-  /* 위 막대 — 아래로 굴리면 숨고 위로 굴리면 나온다(웹 mobile-top-bar.tsx useBarHidden 과 같은 문턱: 64 넘게 내려가며 4 넘게 움직임) */
-  /* 위 막대 — 나올 때 자리 280ms cubic-bezier(0.32,0.72,0,1) + 진하기 200ms ease-out, 숨을 때 240ms + 160ms ease-in(웹 gc:3268-3288) */
+  /* 위 막대 — 아래로 굴리면 숨고 위로 굴리면 나온다(웹 mobile-top-bar.tsx useBarHidden 과 같은 문턱) */
   const barY = useSharedValue(0);
   const barO = useSharedValue(1);
   const barUp = useSharedValue(1);
@@ -182,246 +195,185 @@ export function HomeTab({
     }
   });
   const barStyle = useAnimatedStyle(() => ({ transform: [{ translateY: barY.value }], opacity: barO.value }));
-  /* 막대 밑 꼬리 — 웹 위 막(top-veil)처럼 바탕색이 16px 동안 옅어진다. 막대가 숨으면 시계 자리 밑으로 같이 올라간다 */
   const tailStyle = useAnimatedStyle(() => ({ transform: [{ translateY: barY.value }] }));
 
-  const openRing = (r: HomeRing) => {
-    if (r.key === 'checkin') return openCheckin();
-    if (r.key === 'pitch') return home?.pitchLocked ? onWeb(r.href ?? '/videos/setup') : router.push(`/pitch/${today}` as Href);
-    onTab(r.href ?? '/today');
-  };
-  const openFeed = (it: FeedItem) => {
-    if (it.checkin && !it.href) return openCheckin();
-    if (!it.href) return;
-    const day = /^\/pitch-log\/(\d{4}-\d{2}-\d{2})/.exec(it.href)?.[1];
-    if (day) return router.push(`/pitch/${day}` as Href);
-    if (it.href === '/videos' || it.href === '/training' || it.href === '/nutrition') return onTab(it.href);
-    onWeb(it.href);
-  };
-
-  const dayLogs = (logs ?? []).filter((l) => dateKeyOf(l.date) === selected);
-
-  /*
-   * 날을 고르면 그날 칸이 화면 밖일 때 320ms 뒤 부드럽게 굴려 보이게(웹 pitch-log-panel.tsx — 펴지는 움직임이 끝난 뒤).
-   * 위 막대 밑에 그날 칸 머리가 오도록.
-   */
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   /* 지금 탭(홈)을 다시 누르면 맨 위로 */
   useRetapTop(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
-  const viewH = useRef(0);
-  const dayY = useRef(0);
-  const calY = useRef(0);
-  /* 대시보드(넓은 창) — 몸통 상자의 자리 · 오른쪽 칸(달력)의 자리. 그날 칸으로 굴릴 때 더한다 */
-  const wrapY = useRef(0);
-  const rightY = useRef(0);
-  /*
-   * 넓은 창(아이패드 가로 · 큰 창)이면 대시보드 — 왼쪽 오늘(경고 · 링 · 요약 칸 · 첫날 카드), 오른쪽 달력 · 고른 날. 둘이 한 화면에 들어 굴리지 않고
-   * 오늘 할 일과 달력을 같이 본다. 좁으면 예전 한 칸(폭 720) 그대로(2026-10-26 아이패드 점검). 몸통이 실제로 받은 폭으로 정한다(lib/columns.ts).
-   */
+  /* 넓은 창(아이패드 가로)이면 두 칸 — 왼쪽 오늘(히어로 · 오늘 플랜), 오른쪽 기록 보드 · 내 라커 */
   const cols = useColumns({ ratio: [1, 1], gap: SPACE.section });
-  useEffect(() => {
-    if (!selected) return;
-    const t = setTimeout(() => {
-      const top = wrapY.current + rightY.current + calY.current + dayY.current;
-      const visibleBottom = lastY.value + viewH.current - (bottom + 24);
-      if (top + 160 > visibleBottom) scrollRef.current?.scrollTo({ y: Math.max(0, top - inset.top - BAR_H - 16), animated: true });
-    }, 320);
-    return () => clearTimeout(t);
-  }, [selected, bottom, inset.top, lastY, scrollRef]);
 
   const openNotice = () =>
     router.push({
       pathname: '/notice' as Href as never,
       params: { date: today, checkin: home?.checkinDone ? '1' : '0', pitch: home?.pitchDone ? '1' : '0', locked: home?.pitchLocked ? '1' : '0' },
     });
-  /* 종의 점 — 안 읽은 진짜 알림(2026-10-22 금윤호 "진짜 알림으로" — 웹 notice-bell 과 같게). 오늘 할 일은 종 창 안에만 */
   const pending = useUnreadNotifications();
+  /* 좁은 폰(320pt)에서는 오늘 셈 알약이 가운데 로고와 겹친다 — 그때는 숨긴다(같은 수가 히어로 · 기록 보드 오늘 칸에 있다) */
+  const roomy = useWindowDimensions().width >= 360;
   const { spaces } = useSpace();
 
-  /* 내 영상 쓸기는 투구 첫 설정 전에도 — 영상 보기 · 메모는 부하와 무관하고, 구속 측정은 제 화면에서 다시 막는다 */
+  const go = (to: string) => router.push(to as Href);
+  const openPitch = () => (home?.pitchLocked ? go('/setup/pitch') : go(`/pitch/${today}`));
+  const openWorkout = () => {
+    if (home?.trainingLocked) return go('/setup/training');
+    const w = home?.workout;
+    if (w && w.total > 0 && w.done >= w.total) return go(`/training/day/${today}`);
+    router.push({ pathname: '/training-today' as Href as never, params: { today } });
+  };
+  const runAction = (a: NextAction) => {
+    if (a.key === 'painCheck' || a.key === 'checkin') return openCheckin();
+    if (a.key === 'pitchSetup' || a.key === 'pitch') return openPitch();
+    if (a.key === 'workout') return openWorkout();
+    go(`/calendar?date=${today}`);
+  };
+  const action = home ? nextAction(home) : null;
+  const count = home ? todayCount(home) : null;
+
+  const warnings =
+    home?.painWords || home?.recovering ? (
+      <View style={{ gap: SPACE.gap }}>
+        {home.painWords ? (
+          <Warn
+            title="지금 통증이 있으신가요?"
+            body="통증이 있으면 던지지 말고 전문의와 상담하세요."
+            why={`최근 투구 일지 메모에 ‘${home.painWords.join(', ')}’ 같은 말이 있었어요. 통증인지 알 수 없어서, 확인될 때까지 투구는 쉬고 운동은 회복 · 가동성만 골랐어요. 체크인을 남기면 바로 평소 계획으로 돌아가요.`}
+            action="오늘 체크인하기"
+            onPress={() => openCheckin()}
+          />
+        ) : null}
+        {home.recovering ? <Warn title="오늘은 회복 운동만 골랐어요" body="최근 체크인에 통증이 있어서 무게 운동은 뺐어요." /> : null}
+      </View>
+    ) : null;
+
   return (
     <CameraSwipe enabled>
-    <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Animated.ScrollView automaticallyAdjustKeyboardInsets
-        ref={scrollRef}
-        onScroll={onScroll}
-        onLayout={(e) => (viewH.current = e.nativeEvent.layout.height)}
-        scrollEventThrottle={16}
-        style={{ flex: 1 }}
-        contentContainerStyle={[{ paddingTop: inset.top + BAR_H + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side }, READABLE_WIDE]}
-      >
-        {/* 몸통 — 넓이를 재는 상자(늘 끝까지), 그 안은 두 칸이면 나란히 · 한 칸이면 폭 720 가운데. View 차례는 늘 같다(돌려도 달력 · 링이 새로 붙지 않음) */}
-        <View
-          onLayout={(e) => {
-            cols.onLayout(e);
-            wrapY.current = e.nativeEvent.layout.y;
-          }}
+      <View style={{ flex: 1, backgroundColor: c.page }}>
+        <Animated.ScrollView
+          automaticallyAdjustKeyboardInsets
+          ref={scrollRef}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          style={{ flex: 1 }}
+          contentContainerStyle={[{ paddingTop: inset.top + BAR_H + 12, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side }, READABLE_WIDE]}
         >
-        <View style={[columnRow(cols.two, SPACE.section), !cols.two && READABLE]}>
-        <View style={columnCell(cols.two, 1, 0)}>
-        {/*
-          차례: 통증 경고 → 링 → 요약 칸 → 달력(+ 그날 칸) → 첫날 · 잘 던진 날 카드. 통증 경고는 맨 위(2026-10-21 — 화면에서 가장 중요한
-          안전 글이 달력 밑에 있어 끝까지 내려야 보였다).
-        */}
-        {home?.painWords || home?.recovering ? (
-          <View style={{ gap: SPACE.gap, marginBottom: SPACE.section }}>
-            {home.painWords ? (
-              <Warn
-                title="지금 통증이 있으신가요?"
-                body="통증이 있으면 던지지 말고 전문의와 상담하세요."
-                why={`최근 투구 일지 메모에 ‘${home.painWords.join(', ')}’ 같은 말이 있었어요. 통증인지 알 수 없어서, 확인될 때까지 투구는 쉬고 운동은 회복 · 가동성만 골랐어요. 체크인을 남기면 바로 평소 계획으로 돌아가요.`}
-                action="오늘 체크인하기"
-                onPress={() => openCheckin()}
-              />
+          <View onLayout={cols.onLayout}>
+            {error && home ? (
+              <Animated.View entering={fadeIn} style={[styles.stale, { backgroundColor: c.card }]}>
+                <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>새로 받지 못했어요. 마지막으로 받은 기록이에요.</Text>
+                <Press accessibilityRole="button" onPress={() => void refresh()} style={styles.staleBtn}>
+                  <Text style={{ color: c.link, fontSize: 13, fontWeight: '600' }}>다시</Text>
+                </Press>
+              </Animated.View>
             ) : null}
-            {home.recovering ? <Warn title="오늘은 회복 운동만 골랐어요" body="최근 체크인에 통증이 있어서 무게 운동은 뺐어요." /> : null}
-          </View>
-        ) : null}
-        {home ? (
-          <>
-            <RingsCard rings={home.rings} onPress={openRing} />
-            {/* 넷이 다 차면 하루 한 번 축하(웹 all-done — 앱은 화면 가운데) */}
-            <AllDone allDone={home.rings.every((r) => r.none || r.value >= 1)} day={today} />
-            <View style={{ marginTop: SPACE.section }}>
-              <FeedCard items={home.feed} onOpen={openFeed} />
-            </View>
-          </>
-        ) : error ? (
-          <View style={{ gap: 12, alignItems: 'flex-start' }}>
-            <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text>
-            <Press accessibilityRole="button" onPress={() => void refresh()} style={[styles.retry, { backgroundColor: c.action }]}>
-              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
-            </Press>
-          </View>
-        ) : (
-          /* 불러오는 동안 — 웹 @home/today/loading.tsx 의 뼈대(216 · 180)가 숨 쉬듯 옅어졌다 진해짐 */
-          <>
-            <Pulse style={[styles.card, { height: 142, backgroundColor: c.line }]} />
-            <Pulse style={[styles.card, { height: 201, marginTop: SPACE.section, backgroundColor: c.line }]} />
-          </>
-        )}
-        {/* 넓으면 첫날 · 잘 던진 날 카드도 왼쪽(오늘 할 일 곁) — 좁으면 예전처럼 달력 밑 */}
-        {cols.two ? <HomeNotes home={home} today={today} onTab={onTab} onRested={() => void refresh()} /> : null}
-        </View>
-        <View style={columnCell(cols.two, 1, 0)} onLayout={(e) => (rightY.current = e.nativeEvent.layout.y)}>
-
-        {/* 달력 덩어리 통째로는 움직이지 않는다 — 위 칸 높이가 바뀔 때마다(불러오기 뼈대 → 링 · 요약 칸) 달력이 0.3초 미끄러졌다(2026-10-24 전체 검토) */}
-        <Animated.View onLayout={(e) => (calY.current = e.nativeEvent.layout.y)}>
-          {/* 홈 달력은 앞날 · 다음 달도 열린다 — 일정을 미리 적는 곳(엔진이 다음 등판을 읽는다, 웹 allowFuture). 날을 고르면 칸이 납작해진다(웹 compact) */}
-          {/* 보기 전환은 달력 머리의 목록 그림 · 목록 머리의 달력 그림으로(웹 2026-10-16) — 바꿀 때만 옅게 떠오른다(view-swap) */}
-          {calView === 'list' ? (
-            <Animated.View key="list" entering={viewSwap} style={{ gap: 16 }}>
-              <View style={styles.listHead}>
-                <Text accessibilityRole="header" style={[TYPE.section, { color: c.ink }]}>최근 기록</Text>
-                <Press accessibilityRole="button" accessibilityLabel="캘린더로 보기" onPress={() => setCalView('calendar')} style={styles.viewBtn}>
-                  <Icon name="calendar-days" size={20} color={c.muted} />
+            {home && action && count ? (
+              <View style={[columnRow(cols.two, SPACE.section), !cols.two && READABLE]}>
+                <View style={columnCell(cols.two, 1, 22)}>
+                  {warnings}
+                  <HomeHero today={today} action={action} onAction={() => runAction(action)} thread={locker.thread} rotation={rotation} />
+                  <TodayPlan
+                    home={home}
+                    next={action.key}
+                    onPitch={openPitch}
+                    onWorkout={openWorkout}
+                    onCheckin={() => openCheckin()}
+                    onLoad={() => go('/analysis?view=pitch')}
+                  />
+                  {home.goodNote ? <GoodDayNote note={home.goodNote} /> : null}
+                </View>
+                <View style={columnCell(cols.two, 1, 22)}>
+                  <RecordBoard
+                    board={home.board}
+                    today={today}
+                    todayCount={count}
+                    pitchLocked={home.pitchLocked}
+                    onWeek={() => go('/calendar')}
+                    onDay={(d) => go(`/calendar?date=${d}`)}
+                    onRecords={() => go('/records')}
+                    onLastPitch={(d) => (d ? go(`/pitch/${d}`) : openPitch())}
+                    onBest={() => go('/analysis?view=pitch')}
+                    onVideos={() => go('/my-videos')}
+                    onMeasure={() => go('/velocity')}
+                    onAnalysis={() => go('/analysis?view=pitch')}
+                  />
+                  <LockerRow />
+                </View>
+              </View>
+            ) : error ? (
+              <View style={[READABLE, { gap: 12, alignItems: 'flex-start' }]}>
+                <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text>
+                <Press accessibilityRole="button" onPress={() => void refresh()} style={[styles.retry, { backgroundColor: c.action }]}>
+                  <Text style={{ color: c.onAction, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
                 </Press>
               </View>
-              <RecentList logs={allLogs.logs} />
-            </Animated.View>
-          ) : (
-            <Animated.View key="calendar" entering={swapped ? viewSwap : undefined}>
-              <MonthGrid
-                month={month}
-                today={today}
-                logs={logs}
-                selected={selected}
-                allowFuture
-                legendExtra
-                events={eventCounts}
-                clips={clipCounts}
-                compact={selected != null}
-                onMonth={(m) => {
-                  setMonth(m);
-                  /* 고른 날이 새 달 밖이면 접는다 — 그날 칸은 이 달 기록만 받아 '기록 없음'으로 보였다 */
-                  setSelected((cur) => (cur && cur.slice(0, 7) === m.slice(0, 7) ? cur : null));
-                }}
-                onDay={(day) => setSelected((cur) => (cur === day ? null : day))}
-                headerAction={
-                  <Press accessibilityRole="button" accessibilityLabel="목록으로 보기" onPress={() => setCalView('list')} style={[styles.viewBtn, { marginRight: 4 }]}>
-                    <Icon name="list" size={20} color={c.muted} />
-                  </Press>
-                }
-              />
-            </Animated.View>
-          )}
-          {selected && calView === 'calendar' ? (
-            /* 닫을 때 옅어지며 빠진다(웹 그날 칸이 접히며 빠지는 0.3초) — 밑 카드는 layout 으로 따라 올라온다 */
-            <Animated.View
-              exiting={FadeOut.duration(200).easing(Easing.in(Easing.ease))}
-              style={{ marginTop: 16 }}
-              onLayout={(e) => (dayY.current = e.nativeEvent.layout.y)}
-            >
-              <DayCards date={selected} today={today} logs={dayLogs} onTab={onTab} onClose={() => setSelected(null)} refreshKey={dayTick} />
-            </Animated.View>
-          ) : null}
+            ) : (
+              /* 처음 불러오는 동안 — 히어로 · 카드 둘의 뼈대가 숨 쉬듯(받아 둔 값이 있으면 이 판은 안 뜬다) */
+              <View style={[READABLE, { gap: 22 }]}>
+                <Pulse style={[styles.skel, { height: 386, borderRadius: 24, backgroundColor: c.line }]} />
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <Pulse style={[styles.skel, { flex: 1, height: 132, backgroundColor: c.line }]} />
+                  <Pulse style={[styles.skel, { flex: 1, height: 132, backgroundColor: c.line }]} />
+                </View>
+              </View>
+            )}
+          </View>
+        </Animated.ScrollView>
+
+        {/* 위 막대 — 홈은 로고가 가운데, 오른쪽은 오늘 셈 · 내 영상 · 알림 종. 시계 자리는 늘 막대 색으로 덮는다 */}
+        <Animated.View pointerEvents="none" style={[styles.tail, { top: inset.top + BAR_H }, tailStyle]}>
+          <Svg width="100%" height={16}>
+            <Defs>
+              <LinearGradient id="veil" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={c.page} stopOpacity={0.95} />
+                <Stop offset="1" stopColor={c.page} stopOpacity={0} />
+              </LinearGradient>
+            </Defs>
+            <Rect width="100%" height={16} fill="url(#veil)" />
+          </Svg>
         </Animated.View>
-
-        </View>
-        </View>
-        {/* 캘린더 밑 — 알림 카드 · 첫날 카드(웹 home-page.tsx TodayBody 와 같은 차례). 넓으면 왼쪽 칸에 있다 */}
-        {!cols.two ? (
-          <View style={READABLE}>
-            <HomeNotes home={home} today={today} onTab={onTab} onRested={() => void refresh()} />
-          </View>
-        ) : null}
-        </View>
-      </Animated.ScrollView>
-
-      {/* 위 막대 — 홈은 로고가 가운데, 오른쪽은 알림 종만(웹 2026-10-14 "인스타처럼"). 시계 자리는 늘 막대 색으로 덮는다 */}
-      <Animated.View pointerEvents="none" style={[styles.tail, { top: inset.top + BAR_H }, tailStyle]}>
-        <Svg width="100%" height={16}>
-          <Defs>
-            <LinearGradient id="veil" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={c.page} stopOpacity={0.95} />
-              <Stop offset="1" stopColor={c.page} stopOpacity={0} />
-            </LinearGradient>
-          </Defs>
-          <Rect width="100%" height={16} fill="url(#veil)" />
-        </Svg>
-      </Animated.View>
-      <View pointerEvents="none" style={[styles.clock, { height: inset.top, backgroundColor: c.page }]} />
-      <Animated.View style={[styles.bar, { top: inset.top, backgroundColor: c.page }, barStyle]}>
-        {/* 공간 고르개(계약 8-4) — 팀 · 레슨장에 들어간 사람만. 바꾸기는 나가기가 아니다 */}
-        {spaces.length ? (
-          <View style={styles.pick}>
-            <SpacePickButton label="내 싱커" compact c={c} />
-          </View>
-        ) : null}
-        <Wordmark color={c.ink} />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="내 영상"
-          onPress={() => router.push('/my-videos')}
-          hitSlop={6}
-          style={({ pressed }) => [styles.bell, { right: 60 }, pressed && { backgroundColor: c.chip }]}
-        >
-          <Icon name="film" size={19} color={c.muted} />
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={pending > 0 ? `알림, 안 읽은 알림 ${pending}개` : '알림'}
-          onPress={openNotice}
-          hitSlop={6}
-          style={({ pressed }) => [styles.bell, pressed && { backgroundColor: c.chip }]}
-        >
-          <Icon name="bell" size={19} color={c.muted} />
-          {pending > 0 ? <View style={[styles.dot, { backgroundColor: c.warn, borderColor: c.page }]} /> : null}
-        </Pressable>
-      </Animated.View>
-    </View>
+        <View pointerEvents="none" style={[styles.clock, { height: inset.top, backgroundColor: c.page }]} />
+        <Animated.View style={[styles.bar, { top: inset.top, backgroundColor: c.page }, barStyle]}>
+          {spaces.length ? (
+            <View style={styles.pick}>
+              <SpacePickButton label="내 싱커" compact c={c} />
+            </View>
+          ) : null}
+          <Wordmark color={c.ink} />
+          {count && roomy ? (
+            <View
+              accessible
+              accessibilityLabel={`오늘 ${count.total}개 중 ${count.done}개 했어요`}
+              style={[styles.count, { backgroundColor: c.skyTint }]}
+            >
+              <Text style={[styles.countText, { color: c.link }]}>
+                {count.done}/{count.total}
+              </Text>
+            </View>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="내 영상"
+            onPress={() => router.push('/my-videos')}
+            hitSlop={6}
+            style={({ pressed }) => [styles.bell, { right: 60 }, pressed && { backgroundColor: c.chip }]}
+          >
+            <Icon name="film" size={19} color={c.muted} />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={pending > 0 ? `알림, 안 읽은 알림 ${pending}개` : '알림'}
+            onPress={openNotice}
+            hitSlop={6}
+            style={({ pressed }) => [styles.bell, pressed && { backgroundColor: c.chip }]}
+          >
+            <Icon name="bell" size={19} color={c.muted} />
+            {pending > 0 ? <View style={[styles.dot, { backgroundColor: c.warn, borderColor: c.page }]} /> : null}
+          </Pressable>
+        </Animated.View>
+        {/* 오늘 셀 것을 다 했을 때 — 홈이 직접 본 전이에서만, 누름을 막지 않는 작은 카드 */}
+        <AllDone play={playDay === today} day={today} />
+      </View>
     </CameraSwipe>
-  );
-}
-
-/** 첫날 카드 · 잘 던진 날 — 좁으면 달력 밑, 넓으면 왼쪽 칸(오늘 할 일 곁) */
-function HomeNotes({ home, today, onTab, onRested }: { home: AppHome | null; today: string; onTab: (href: string) => void; onRested: () => void }) {
-  if (!home?.firstDay && !home?.goodNote) return null;
-  return (
-    <Animated.View style={{ marginTop: SPACE.section, gap: SPACE.section }}>
-      {home.firstDay ? <FirstDayCard today={today} status={home.firstDay} locked={home.pitchLocked} onTab={onTab} onRested={onRested} /> : null}
-      {home.goodNote ? <GoodDayNote note={home.goodNote} /> : null}
-    </Animated.View>
   );
 }
 
@@ -452,94 +404,6 @@ function Warn({ title, body, why, action, onPress }: { title: string; body: stri
   );
 }
 
-/**
- * 첫날 카드 — 투구 기록을 한 번도 안 남긴 사람(웹 first-day-card.tsx 와 같은 칸): 하늘색 판 · '여기부터 시작하세요' · 지금 팔 상태(점 · 색 · 까닭) ·
- * [오늘 투구 남기기][오늘 안 던졌어요] · '첫 운동 만들기 ›'. 투구 기록이 잠겼으면 설정으로 가는 단추 하나.
- */
-const ARM_LABEL = { danger: '위험', caution: '주의', safe: '안전' } as const;
-function FirstDayCard({
-  today,
-  status,
-  locked,
-  onTab,
-  onRested,
-}: {
-  today: string;
-  status: NonNullable<AppHome['firstDay']>;
-  locked: boolean;
-  onTab: (href: string) => void;
-  onRested: () => void;
-}) {
-  const c = usePalette();
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const busy = useRef(false);
-  const tone = status.level === 'danger' ? c.danger : status.level === 'caution' ? c.warn : c.ok;
-  const rest = async () => {
-    if (busy.current) return;
-    busy.current = true;
-    setSaving(true);
-    setErr(null);
-    /* finally 대신 뒤에 — catch 가 다 받아 늘 이어지고, finally 는 React 컴파일러가 이 칸을 건너뛰게 한다 */
-    try {
-      await call('/api/pitch-log', { method: 'POST', body: { date: today, sessionType: REST_SESSION_TYPE, videoPaths: [] } });
-      onRested();
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : '인터넷 연결을 확인한 뒤 다시 눌러 주세요.');
-    }
-    busy.current = false;
-    setSaving(false);
-  };
-  return (
-    <View style={[styles.card, { backgroundColor: c.skyTint, gap: 12 }]}>
-      <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '600' }}>여기부터 시작하세요</Text>
-      {locked ? (
-        <>
-          <Text style={{ color: c.ink, opacity: 0.8, fontSize: 15, lineHeight: 22 }}>
-            세 가지만 알려 주면 투구 기록을 시작해요. 그다음부터 지금 팔 상태를 보여 줘요.
-          </Text>
-          <Pressable accessibilityRole="button" onPress={() => router.push('/setup/pitch' as Href)} style={[styles.pill, { backgroundColor: c.action }]}>
-            <Text style={styles.pillText}>투구 기록 설정하기</Text>
-          </Pressable>
-        </>
-      ) : (
-        <>
-          <View accessibilityRole="summary" style={{ gap: 4 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: tone }} />
-              <Text style={{ color: c.muted, fontSize: 13 }}>지금 팔 상태</Text>
-              <Text style={{ color: tone, fontSize: 13, fontWeight: '600' }}>{ARM_LABEL[status.level]}</Text>
-            </View>
-            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{status.headline}</Text>
-            {status.details.map((d) => (
-              <Text key={d} style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>
-                {d}
-              </Text>
-            ))}
-          </View>
-          <Text style={{ color: c.ink, opacity: 0.8, fontSize: 15, lineHeight: 22 }}>던진 양을 남기면 내 기록과 견줘 상태를 알려 드려요.</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push(`/pitch/${today}` as Href)}
-              style={[styles.pill, { backgroundColor: c.action }]}
-            >
-              <Text style={styles.pillText}>오늘 투구 남기기</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" disabled={saving} onPress={() => void rest()} style={[styles.pill, { backgroundColor: c.card, opacity: saving ? 0.5 : 1 }]}>
-              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '400' }}>{saving ? '남기는 중…' : '오늘 안 던졌어요'}</Text>
-            </Pressable>
-          </View>
-          {err ? <Text style={{ color: c.danger, fontSize: 13 }}>{err}</Text> : null}
-        </>
-      )}
-      <Pressable accessibilityRole="link" onPress={() => onTab('/training')} style={({ pressed }) => [{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }, pressed && PRESSED]}>
-        <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '600' }}>첫 운동 만들기 ›</Text>
-      </Pressable>
-    </View>
-  );
-}
-
 /** 위 막대 높이 — 웹 h-14 */
 const BAR_H = 56;
 
@@ -548,23 +412,24 @@ const styles = StyleSheet.create({
   tail: { position: 'absolute', left: 0, right: 0, height: 16, zIndex: 1 },
   bar: { position: 'absolute', left: 0, right: 0, height: BAR_H, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   bell: { position: 'absolute', right: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  count: { position: 'absolute', right: 108, minWidth: 40, height: 32, borderRadius: 16, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
+  countText: { fontFamily: 'DINCondensed-Bold', fontSize: 19, lineHeight: 22, marginTop: 3 },
   pick: { position: 'absolute', left: 12, minHeight: 44, justifyContent: 'center' },
   dot: { position: 'absolute', right: 10, top: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2 },
   card: { borderRadius: 20, padding: SPACE.pad, gap: 10 },
   retry: { minHeight: 44, paddingHorizontal: 20, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  stale: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingLeft: 14, marginBottom: 12, ...READABLE },
+  staleBtn: { minHeight: 44, minWidth: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  skel: { borderRadius: 19 },
   good: { borderRadius: 20, borderWidth: 1 },
   goodHead: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, padding: SPACE.pad },
-  listHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
-  viewBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   cardTitle: TYPE.card,
-  pill: { minHeight: 44, borderRadius: 22, paddingHorizontal: 16, justifyContent: 'center' },
-  pillText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   ghost: { alignSelf: 'flex-start', minHeight: 44, borderRadius: 22, borderWidth: 1, paddingHorizontal: 16, justifyContent: 'center' },
-  webLink: { alignItems: 'center', paddingVertical: 8 },
 });
 
 /**
  * '지난번 잘 던진 날 남긴 말' — 웹 good-day-note.tsx: 하늘색 판, 겉은 메모 한 줄, 누르면 메모 전체 · 날짜 · 종류 · 만족도 · 좋았던 것.
+ * 오늘 던지는 날, 오늘 투구 기록 전에만(서버가 정함).
  */
 function GoodDayNote({ note }: { note: NonNullable<AppHome['goodNote']> }) {
   const c = usePalette();

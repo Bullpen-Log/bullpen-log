@@ -38,6 +38,7 @@
     "native-read-share:test": "node --import ./scripts/native-test-register.mjs scripts/native-read-share-selftest.mts",
     "native-transition:test": "node --import ./scripts/native-test-register.mjs scripts/native-transition-selftest.mts",
     "native-intro:test": "node --import ./scripts/native-test-register.mjs scripts/native-intro-selftest.mts",
+    "native-home:test": "node --import ./scripts/native-test-register.mjs scripts/native-home-selftest.mts",
     "native-api:test": "node scripts/native-api-selftest.mts",
     "shared-lib:test": "node scripts/shared-lib-selftest.mts",
     "program:test": "node --import ./scripts/alias-register.mjs scripts/program-selftest.mts",

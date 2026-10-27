@@ -14,6 +14,7 @@ import { CHECKIN_PARTS } from '@/lib/checkin';
 import { loadTodayCoreCached } from '@/lib/report/today-data';
 import { loadHighlights } from '@/lib/report/highlights-load';
 import { buildFeedItems, type FeedItem } from '@/lib/report/feed-items';
+import { buildHomeBoard, type HomeBoard } from '@/lib/report/home-board';
 
 /**
  * 홈 맨 위 두 카드의 숫자(서버) — 링 셋(체크인 · 투구 · 운동)과 요약 칸('뉴스') 장들. 웹 홈(app/(app)/today/today-rings.tsx ·
@@ -47,7 +48,7 @@ export async function loadHomeRings(
   user: HomeUser,
   today: string,
   pitchLocked: boolean
-): Promise<{ items: HomeRing[]; checkinDone: boolean; pitchDone: boolean }> {
+): Promise<{ items: HomeRing[]; checkinDone: boolean; pitchDone: boolean; training: { done: number; total: number } }> {
   const [detail, logs] = await Promise.all([
     loadDayDetailCached(user, today),
     prisma.pitchLog.findMany({
@@ -94,11 +95,25 @@ export async function loadHomeRings(
   ];
 
   /* pitchDone — 오늘 투구 기록이 한 줄이라도(쉰 날 줄 포함) 있나: 앱 위 막대 알림 종의 '오늘 할 일'(웹 종과 같은 판정) */
-  return { items, checkinDone: detail.checkin != null, pitchDone: logs.length > 0 };
+  return {
+    items,
+    checkinDone: detail.checkin != null,
+    pitchDone: logs.length > 0,
+    /* 운동 링과 같은 셈 — 앱 홈 오늘 운동 카드가 이 수를 그대로 그린다(링 · 카드 · 완료 판정이 어긋나지 않게) */
+    training: { done: doneCount, total: exercises.length },
+  };
 }
 
 /** 요약 칸 장들 — 장을 만드는 셈은 lib/report/feed-items.ts(순수), 여기는 재료를 모은다 */
 export async function loadHomeFeed(user: HomeUser, today: string): Promise<FeedItem[]> {
+  return (await loadHomeFeedAndBoard(user, today)).items;
+}
+
+/** 요약 칸 장들 + 앱 홈 기록 보드(lib/report/home-board.ts) — 같은 재료로 한 번에(앱 홈 app.loadAppHome) */
+export async function loadHomeFeedAndBoard(
+  user: HomeUser,
+  today: string
+): Promise<{ items: FeedItem[]; board: HomeBoard }> {
   const corePending = loadTodayCoreCached(user);
   const [core, { items: highlights, input, extra }, advice, detail, weekMeals] =
     await Promise.all([
@@ -182,7 +197,20 @@ export async function loadHomeFeed(user: HomeUser, today: string): Promise<FeedI
     highlights,
   });
 
-  return items;
+  const board = buildHomeBoard({
+    today,
+    pitchDays: extra.pitchDays,
+    olderLastLog: extra.olderLastLog,
+    velocityByDay: input.velocityByDay,
+    bestBefore: input.bestBefore,
+    bestBeforeDate: extra.bestBeforeDate,
+    conditionByDay: input.conditionByDay,
+    checkinDays: input.checkinDays,
+    workoutDays: input.workoutDays,
+    load: facts.load,
+  });
+
+  return { items, board };
 }
 
 const MACROS = [
