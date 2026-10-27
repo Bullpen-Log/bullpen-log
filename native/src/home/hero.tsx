@@ -8,11 +8,12 @@ import { Icon } from '~/shell/icon';
 import { onIntroGone } from '~/shell/intro';
 import { Press } from '~/shell/press';
 import { SinkerBall, spinBall, type BallRotation } from './ball/ball';
-import { dotDate, weekdayEn, weekdayKo, type NextAction } from './plan-model';
+import { weekdayEn, weekdayKo, type NextAction } from './plan-model';
 
 /**
- * 홈 히어로 — 승인 시안 1 '볼 컨트롤'(sinker-home-four-concepts.html · layout-review heroMarkup 과 같은 칸): 네이비 판 · 위 줄(• SINKER | 10.27 · 화) ·
- * 큰 날짜(10. / 윤곽 27. / 하늘 TUE) · 궤도 선 · 날짜 옆 입체 공(돌려 보세요) · 아래 '지금 할 일 하나'와 단추.
+ * 홈 히어로 — 승인 시안 1 '볼 컨트롤'(sinker-home-four-concepts.html · layout-review heroMarkup 과 같은 칸): 네이비 판 · 위 줄(• SINKER) ·
+ * 큰 날짜(10. / 윤곽 27. / 하늘 TUE) · 궤도 선 · 날짜 옆 입체 공 · 아래 '지금 할 일 하나'와 단추.
+ * 시안의 오른쪽 위 작은 날짜 · '돌려 보세요'는 2026-10-27 김민이 뺐다(큰 날짜와 겹침).
  * 판은 아래 글이 길어지면(큰 글씨) 같이 커진다 — 시안의 큰 글씨 판(460)처럼. 공의 아래쪽은 글 뒤 그러데이션에 잠긴다(시안 :after).
  * 처음 한 번만(앱을 켠 뒤) 접속 연출이 걷히면 공이 한 바퀴 돌아 로고가 앞으로 온다 — 탭을 옮겼다 오거나 자료를 다시 받아도 안 돈다.
  */
@@ -96,8 +97,9 @@ export function HomeHero({
               <Ellipse rx={104} ry={104 * 0.4384} fill="none" stroke="#7dcfff" strokeOpacity={0.1} />
             </G>
           </Svg>
-          {/* 큰 날짜 — 숫자 · 윤곽 숫자 · 하늘 요일(시안 sx-supertype). 읽기는 위 줄 날짜가 맡는다 */}
-          <Svg width={w} height={COPY_TOP + 40} style={styles.abs} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {/* 큰 날짜 — 숫자 · 윤곽 숫자 · 하늘 요일(시안 sx-supertype). 오른쪽 위 작은 날짜는 겹쳐 뺐다(2026-10-27 김민) — 읽기는 이 칸이 맡는다 */}
+          <View accessible accessibilityLabel={`${month}월 ${day}일 ${weekdayKo(today)}요일`} pointerEvents="none" style={[styles.abs, { width: w, height: COPY_TOP + 40 }]}>
+          <Svg width={w} height={COPY_TOP + 40}>
             {[`${month}.`, `${day}.`, weekdayEn(today)].map((t, i) => (
               <SvgText
                 key={i}
@@ -115,6 +117,7 @@ export function HomeHero({
               </SvgText>
             ))}
           </Svg>
+          </View>
           <SinkerBall
             interactive
             label="입체 야구공"
@@ -141,21 +144,16 @@ export function HomeHero({
           <View style={styles.dot} />
           <Text style={styles.topText}>SINKER</Text>
         </View>
-        <Text accessibilityLabel={`${month}월 ${day}일 ${weekdayKo(today)}요일`} style={styles.topText}>
-          {dotDate(today)} · {weekdayKo(today)}
-        </Text>
-      </View>
-      <View style={styles.spin} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <Icon name="move-horizontal" size={13} color={NIGHT_MUTED} strokeWidth={2} />
-        <Text style={styles.spinText}>돌려 보세요</Text>
       </View>
       <View style={styles.copy} pointerEvents="box-none">
-        <Text accessibilityRole="header" lineBreakStrategyIOS="hangul-word" style={styles.title}>
+        <Text accessibilityRole="header" lineBreakStrategyIOS="hangul-word" style={[styles.title, !action.sub && { marginBottom: 16 }]}>
           {action.title}
         </Text>
-        <Text lineBreakStrategyIOS="hangul-word" style={styles.sub}>
-          {action.sub}
-        </Text>
+        {action.sub ? (
+          <Text lineBreakStrategyIOS="hangul-word" style={styles.sub}>
+            {action.sub}
+          </Text>
+        ) : null}
         <Press card accessibilityRole="button" accessibilityLabel={action.cta} onPress={onAction} style={[styles.cta, { backgroundColor: c.action }]}>
           <Text style={[styles.ctaText, { color: c.onAction }]}>{action.cta}</Text>
           <Icon name="arrow-up-right" size={19} color={c.onAction} strokeWidth={2.2} />
@@ -172,8 +170,6 @@ const styles = StyleSheet.create({
   code: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: ACCENT },
   topText: { fontFamily: 'DINCondensed-Bold', fontSize: 13, letterSpacing: 1.7, color: NIGHT_MUTED },
-  spin: { position: 'absolute', right: 22, top: 43, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  spinText: { fontSize: 11, letterSpacing: 0.2, color: NIGHT_MUTED },
   copy: { zIndex: 5 },
   title: { fontSize: 20, lineHeight: 27, fontWeight: '700', letterSpacing: -0.6, color: NIGHT_TEXT, marginBottom: 6 },
   sub: { fontSize: 13, lineHeight: 19, color: NIGHT_MUTED, marginBottom: 16 },

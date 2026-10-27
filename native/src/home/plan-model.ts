@@ -26,7 +26,8 @@ const workoutLeft = (w: HomeWorkout | null | undefined) => (w && w.total > 0 && 
 export function nextAction(h: Facts): NextAction {
   if (h.painWords?.length)
     return { key: 'painCheck', title: '통증 확인이 먼저예요', sub: '체크인으로 오늘 몸 상태를 알려 주세요.', cta: '체크인하기' };
-  if (!h.checkinDone) return { key: 'checkin', title: '오늘 체크인', sub: '몸 상태 · 수면 · 불편한 곳', cta: '체크인하기' };
+  /* 체크인은 제목만(2026-10-27 김민: 밑의 '몸 상태 · 수면 · 불편한 곳'은 뺐다) — sub 가 비면 히어로가 줄을 안 그린다 */
+  if (!h.checkinDone) return { key: 'checkin', title: '오늘 체크인', sub: '', cta: '체크인하기' };
   if (!h.pitchDone)
     return h.pitchLocked
       ? { key: 'pitchSetup', title: '투구 기록 시작', sub: '세 가지만 알려 주면 기록을 시작해요.', cta: '투구 기록 설정하기' }
