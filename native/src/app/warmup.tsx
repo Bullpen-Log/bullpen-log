@@ -11,7 +11,7 @@ import { BullpenNative } from '../../modules/bullpen-native';
 import { ExerciseMedia } from '~/armcare/parts';
 import { Bar } from '~/community/parts';
 import { rpc, RpcError } from '~/lib/rpc';
-import { usePalette } from '~/lib/ui';
+import { usePalette, TYPE } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { s } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
@@ -187,7 +187,7 @@ export default function WarmupScreen() {
                           <View style={{ gap: 12, paddingHorizontal: 14, paddingBottom: 14 }}>
                             <ExerciseMedia key={ex.id} path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
                             {ex.description ? (
-                              <Text selectable style={[s.body, { color: c.ink }]}>
+                              <Text selectable style={[TYPE.reading, { color: c.ink }]}>
                                 {ex.description}
                               </Text>
                             ) : null}

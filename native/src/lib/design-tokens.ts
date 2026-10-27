@@ -127,6 +127,8 @@ export const TYPE = {
   section: { fontSize: 20, fontWeight: '700', letterSpacing: -0.4 },
   card: { fontSize: 17, fontWeight: '600', letterSpacing: -0.2 },
   body: { fontSize: 15, lineHeight: 22, fontWeight: '400' },
+  /* 오래 읽는 글(운동 · 드릴 설명 · 공지 · 글 본문) — 아이폰 기본 본문 17pt(2026-10-27 HIG 검토). 목록 · 카드의 짧은 글은 body 15pt 그대로 */
+  reading: { fontSize: 17, lineHeight: 25, fontWeight: '400' },
   button: { fontSize: 17, lineHeight: 23, fontWeight: '600' },
   buttonCompact: { fontSize: 15, lineHeight: 21, fontWeight: '600' },
   sub: { fontSize: 13, fontWeight: '400', lineHeight: 19 },

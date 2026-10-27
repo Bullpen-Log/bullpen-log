@@ -63,7 +63,7 @@ export default function NoticeViewScreen() {
                     {n.author ? ` · ${n.author}` : ''}
                   </Text>
                   <Text style={[TYPE.card, { color: c.ink }]}>{n.title}</Text>
-                  <Text selectable style={[TYPE.body, { color: c.ink }]}>
+                  <Text selectable style={[TYPE.reading, { color: c.ink }]}>
                     {n.body}
                   </Text>
                 </Card>

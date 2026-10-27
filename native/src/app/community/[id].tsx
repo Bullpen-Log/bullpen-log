@@ -10,7 +10,7 @@ import { COMMENT_BODY_MAX, REPORT_DETAIL_MAX, REPORT_REASONS, postCategoryLabel,
 import type { loadAppCommunityPost } from '@/app/actions/community';
 import { Badge, Bar, call, categoryColor, Chip, LoadState, s, useBusy, useLoad } from '~/community/parts';
 import { useDraftGuard } from '~/community/draft-guard';
-import { usePalette, type Palette } from '~/lib/ui';
+import { usePalette, type Palette, TYPE } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
 import { Icon } from '~/shell/icon';
@@ -131,7 +131,7 @@ export default function CommunityPostScreen() {
             {'  '}
             {post.at}
           </Text>
-          <Text selectable style={[s.body, { color: c.ink }]}>
+          <Text selectable style={[TYPE.reading, { color: c.ink }]}>
             {post.body}
           </Text>
         </View>

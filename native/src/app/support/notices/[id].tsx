@@ -5,7 +5,7 @@ import { toast } from '~/shell/toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppNotice } from '@/app/actions/support';
 import { Badge, Bar, call, LoadState, s, useLoad } from '~/community/parts';
-import { usePalette } from '~/lib/ui';
+import { usePalette, TYPE } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
 import { Icon } from '~/shell/icon';
@@ -66,7 +66,7 @@ export default function NoticeScreen() {
             </View>
           ) : null}
           <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line, paddingTop: 16 }}>
-            <Text selectable style={[s.body, { color: c.ink }]}>
+            <Text selectable style={[TYPE.reading, { color: c.ink }]}>
               {notice.body}
             </Text>
           </View>

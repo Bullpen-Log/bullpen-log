@@ -6,7 +6,7 @@ import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppArticle } from '@/app/actions/board';
 import { Bar, BarButton, call, LoadState, s, useBusy, useLoad } from '~/community/parts';
-import { usePalette } from '~/lib/ui';
+import { usePalette, TYPE } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 
 /**
@@ -85,7 +85,7 @@ export default function ArticleScreen() {
               <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
             </Pressable>
           ) : null}
-          <Text selectable style={[s.body, { color: c.ink }]}>
+          <Text selectable style={[TYPE.reading, { color: c.ink }]}>
             {a.content}
           </Text>
         </ScrollView>

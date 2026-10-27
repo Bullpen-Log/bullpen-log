@@ -1,3 +1,4 @@
+import { TYPE } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -121,7 +122,7 @@ export function DrillDetail({ item, c, onClose }: { item: Drill; c: Palette; onC
       ) : null}
       <Tags items={[...(item.stage ? [item.stage] : []), ...item.equipment]} c={c} />
       {item.description ? (
-        <Text selectable style={[s.body, { color: c.muted }]}>
+        <Text selectable style={[TYPE.reading, { color: c.muted }]}>
           {item.description}
         </Text>
       ) : (

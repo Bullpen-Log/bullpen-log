@@ -900,7 +900,7 @@ function Run({
             <View style={[s.formBox, { backgroundColor: c.card, boxShadow: c.float }]}>
               {/* 운동마다 새 재생기 — 같은 자리라 앞 운동의 영상이 다음 운동에서도 돌지 않게. 웹 LibraryVideo 처럼 미리보기 그림 → 눌러 재생 */}
               <ExerciseMedia key={ex.id} path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
-              {ex.description ? <Text style={[s.body, { color: c.ink }]}>{ex.description}</Text> : null}
+              {ex.description ? <Text style={[TYPE.reading, { color: c.ink }]}>{ex.description}</Text> : null}
             </View>
           ) : null}
           {showHistory ? (
