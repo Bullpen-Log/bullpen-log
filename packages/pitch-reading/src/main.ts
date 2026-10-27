@@ -3,7 +3,8 @@ import './app.css';
 import {DISPLAY_VERSION,CARD_SHORT_EDGE_CM,validCalibration,estimateDisplay,cardCalibration,type DisplayCalibration} from './display-calibration.ts';
 import {approachCutoff,OBSERVATION_VERSION} from './observation.ts';
 import {GAZE_VERSION} from './gaze.ts';
-declare global {interface Window {__SINKER_PITCH__?:{embedded?:boolean;displayCalibration?:DisplayCalibration;history?:Session[];theme?:'light'|'dark'|'navy';palette?:Record<string,string>};ReactNativeWebView?:{postMessage:(message:string)=>void}}}
+import {PHONE_PRESENTATION_VERSION,PHONE_MIN_BALL_PIXELS} from './phone-presentation.ts';
+declare global {interface Window {__SINKER_PITCH__?:{embedded?:boolean;presentation?:'phone';displayCalibration?:DisplayCalibration;history?:Session[];theme?:'light'|'dark'|'navy';palette?:Record<string,string>};ReactNativeWebView?:{postMessage:(message:string)=>void}}}
 import { DIFFICULTIES, generatePitch, movement, PITCHERS, ENGINE_VERSION, trackingAt, trackingEnd, BALL_RADIUS,PLATE_Z,type PitchKind, type Pitcher } from './physics.ts';
 import {assessZone,callName,STRIKE_ZONE,zoneExplanation,MIDDLE_Z,END_BOTTOM,type ZoneCall} from './strike-zone.ts';
 import {REFERENCE_BATTER,ZONE_VERSION} from './batter-reference.ts';
@@ -24,6 +25,7 @@ const historyKey=scope&&/^[a-zA-Z0-9-]{1,64}$/.test(scope)?`sinker-pitch-reading
 const historyStorage={getItem:()=>localStorage.getItem(historyKey),setItem:(_key:string,value:string)=>localStorage.setItem(historyKey,value)};
 const postNative=(value:unknown)=>window.ReactNativeWebView?.postMessage(JSON.stringify({t:'pitch-reading',...value as object}));
 const touch=matchMedia('(pointer:coarse)').matches;
+const PHONE_PRESENTATION=!INSPECTOR&&(nativeBoot?.presentation==='phone'||(!IS_NATIVE&&touch&&Math.min(screen.width,screen.height)<600));
 const themeMedia=matchMedia('(prefers-color-scheme: dark)');
 function applyAppTheme(theme?:string,palette?:Record<string,string>){
   document.documentElement.dataset.theme=['light','dark','navy'].includes(theme??'')?theme!:themeMedia.matches?'dark':'light';
@@ -56,7 +58,7 @@ const icon = (name: string, size = 20) => {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] ?? paths.target}</svg>`;
 };
 const app = document.querySelector<HTMLDivElement>('#app')!;
-app.dataset.inspector=String(INSPECTOR);app.dataset.embedded=String(EMBEDDED);app.dataset.displaySource=display.source;
+app.dataset.presentation=PHONE_PRESENTATION?'phone':'physical';app.dataset.inspector=String(INSPECTOR);app.dataset.embedded=String(EMBEDDED);app.dataset.displaySource=display.source;
 app.innerHTML = `
   <header class="topbar">
     <a class="brand" href="#" aria-label="싱커 선구안 훈련 홈"><span class="brand-mark"><i></i><i></i><i></i></span><span>sinker<span class="brand-dot">.</span></span><span class="brand-divider"></span><span class="lab-word">PITCH LAB</span></a>
@@ -72,7 +74,7 @@ app.innerHTML = `
       <div class="display-guide"><span id="display-guide-text"></span><button id="display-open" class="text-button">화면 크기 확인</button></div>
       <div class="setup-summary" id="setup-summary" aria-live="polite"></div>
       <div class="setup-actions"><button id="setup-back" class="text-button">이전</button><button id="setup-start" class="primary-button" disabled>10구 훈련 시작 ${icon('arrow',18)}</button></div>
-      <details class="level-evidence"><summary>난이도는 어떤 기준인가요?</summary><p>구종별 구속 범위를 달리하고 공을 실제 속도로 보여 주고, 홈 앞 약 1.5m 또는 화면을 벗어나기 직전에 가립니다. 눈 위치와 실제 공 크기는 고정하며, 화면 크기에 맞춰 전체 장면을 보정합니다. 시선은 투수의 릴리스 방향에 고정되며 공을 따라 움직이지 않습니다. 화면 밖으로 나가는 공은 그 직전까지 보여 줍니다.</p><p>중·고교는 청소년 측정 연구를 참고한 연습 범위이며 국내 선수의 대표 평균으로 검증된 값은 아닙니다. KBO는 공개 구속 보도, MLB는 2025 Statcast 자료를 참고했습니다. 실제 타격 실력이나 훈련 효과를 인증하는 단계는 아닙니다.</p><p><a href="https://ijspt.scholasticahq.com/article/21495-comparative-pitching-biomechanics-among-adolescent-baseball-athletes-are-there-fundamental-differences-between-pitchers-and-non-pitchers" target="_blank" rel="noopener">청소년 측정 연구 ↗</a> · <a href="https://mobile.newsis.com/view_amp.html?ar_id=NISX20250315_0003100099" target="_blank" rel="noopener">KBO 구속 자료 ↗</a> · <a href="https://baseballsavant.mlb.com/leaderboard/pitch-movement?year=2025&pitch_type=FF&min=q" target="_blank" rel="noopener">2025 Statcast ↗</a></p></details>
+      <details class="level-evidence"><summary>난이도는 어떤 기준인가요?</summary><p>구종별 구속 범위를 달리하고 ${PHONE_PRESENTATION?'폰에서는 넓은 고정 시야와 공의 최소 표시 크기 보정을 사용합니다. 구속과 비행 시간은 실제 시간으로 재생하며, 구종·판정 계산은 실제 공 크기를 사용합니다.':'공을 실제 속도로 보여 주고, 홈 앞 약 1.5m 또는 화면을 벗어나기 직전에 가립니다. 눈 위치와 실제 공 크기는 고정하며, 화면 크기에 맞춰 전체 장면을 보정합니다.'} 시선은 선택한 타석의 구도에 고정되며 공을 따라 움직이지 않습니다. 화면 밖으로 나가는 공은 그 직전까지 보여 줍니다.</p><p>중·고교는 청소년 측정 연구를 참고한 연습 범위이며 국내 선수의 대표 평균으로 검증된 값은 아닙니다. KBO는 공개 구속 보도, MLB는 2025 Statcast 자료를 참고했습니다. 실제 타격 실력이나 훈련 효과를 인증하는 단계는 아닙니다.</p><p><a href="https://ijspt.scholasticahq.com/article/21495-comparative-pitching-biomechanics-among-adolescent-baseball-athletes-are-there-fundamental-differences-between-pitchers-and-non-pitchers" target="_blank" rel="noopener">청소년 측정 연구 ↗</a> · <a href="https://mobile.newsis.com/view_amp.html?ar_id=NISX20250315_0003100099" target="_blank" rel="noopener">KBO 구속 자료 ↗</a> · <a href="https://baseballsavant.mlb.com/leaderboard/pitch-movement?year=2025&pitch_type=FF&min=q" target="_blank" rel="noopener">2025 Statcast ↗</a></p></details>
     </section>`:''}
     <div class="workspace">
       <section class="simulation-column" aria-label="시뮬레이션과 훈련">
@@ -140,7 +142,7 @@ app.innerHTML = `
   </main>
   ${!INSPECTOR?`<dialog id="display-dialog"><div class="dialog-header"><span class="eyebrow">SCREEN SIZE</span><button class="icon-button dialog-close" aria-label="화면 크기 확인 닫기">${icon('close')}</button></div><h2>카드의 짧은 변에 맞춰 주세요.</h2><p>일반 신용·체크카드의 짧은 변(약 5.4cm)을 화면에 대고 아래 세로선을 카드의 짧은 변과 같은 길이로 맞춰 주세요. 카드 정보는 촬영하거나 입력하지 않아요.</p><div class="card-measure" id="card-measure"><span id="card-measure-line"></span></div><label for="card-measure-range">세로선 길이<input id="card-measure-range" type="range" min="100" max="480" step="1" /></label><p id="display-distance-note"></p><button id="display-save" class="primary-button">이 화면 크기로 맞추기 ${icon('check',18)}</button></dialog>`:''}
   <div id="toast" class="toast" role="status" hidden></div>
-  <dialog id="about-dialog"><div class="dialog-header"><span class="eyebrow">선구안 훈련</span><button class="icon-button dialog-close" aria-label="안내 닫기">${icon('close')}</button></div><h2>타석에서 공을 읽어보세요.</h2><p>투수의 손을 떠나는 공을 보고 직구·커브·슬라이더·체인지업과 스트라이크·볼을 판단해요.</p><div class="about-list"><p><strong>실제 속도로 접근해요</strong>연습의 공은 느려지지 않아요. 홈 앞 약 1.5m 또는 화면을 벗어나기 직전까지 보여 준 뒤 가립니다. 결과의 느린 공 추적과 실제 속도 1× 다시 보기는 별도입니다.</p><p><strong>화면과 보는 거리</strong>휴대폰은 눈에서 약 35cm, PC는 약 60cm 거리로 보세요. 공만 키우지 않고 장면 전체를 화면 크기에 맞춥니다. 크기가 추정된 화면은 처음 한 번 카드로 확인할 수 있어요. 보는 거리를 자동으로 측정하지는 않습니다.</p><p><strong>타석은 고정해요</strong>선택한 우타석·좌타석의 눈 위치와 실제 공 지름 7.32cm를 유지합니다. 시선도 릴리스 방향에 고정되며 공을 따라 움직이지 않습니다. 존은 180cm 타자의 KBO ABS 기준입니다.</p><p><strong>실측을 참고한 가상 투수예요</strong>우투는 투구 4, 좌투는 투구 3 동작입니다. 구질은 공개 투구 자료를 참고한 합성 값이며, 실제 선수와 동일한 동작·구질이나 국내 중·고교 실력 검증을 마친 모델은 아닙니다.</p><p><strong>답한 공까지 남겨요</strong>기기에 최근 30회 연습을 보관합니다. 공이 재생 중 크게 끊기거나 앱이 가려진 경우 그 공은 평가하지 않고 새 공을 보여 줍니다.</p></div><button class="primary-button dialog-close">알겠습니다 ${icon('check',18)}</button></dialog>
+  <dialog id="about-dialog"><div class="dialog-header"><span class="eyebrow">선구안 훈련</span><button class="icon-button dialog-close" aria-label="안내 닫기">${icon('close')}</button></div><h2>타석에서 공을 읽어보세요.</h2><p>투수의 손을 떠나는 공을 보고 직구·커브·슬라이더·체인지업과 스트라이크·볼을 판단해요.</p><div class="about-list"><p><strong>실제 속도로 접근해요</strong>연습의 공은 느려지지 않아요. 홈 앞 약 1.5m 또는 화면을 벗어나기 직전까지 보여 준 뒤 가립니다. 결과의 느린 공 추적과 실제 속도 1× 다시 보기는 별도입니다.</p><p><strong>화면에 맞춘 표시</strong>${PHONE_PRESENTATION?'휴대폰은 공의 접근 구간이 보이는 넓은 고정 구도를 사용합니다. 먼 공은 최소 5px로 표시해 식별을 돕습니다. 실제 크기와 시야를 1:1로 재현하는 모드는 아닙니다.':'PC는 약 60cm 거리로 보세요. 장면 전체를 화면 크기에 맞춥니다. 크기가 추정된 화면은 처음 한 번 카드로 확인할 수 있어요.'}</p><p><strong>타석은 고정해요</strong>선택한 우타석·좌타석의 눈 위치를 유지합니다. 궤적·판정은 실제 공 지름 7.32cm로 계산합니다. 시선도 선택한 타석 구도에 고정되며 공을 따라 움직이지 않습니다. 존은 180cm 타자의 KBO ABS 기준입니다.</p><p><strong>실측을 참고한 가상 투수예요</strong>우투는 투구 4, 좌투는 투구 3 동작입니다. 구질은 공개 투구 자료를 참고한 합성 값이며, 실제 선수와 동일한 동작·구질이나 국내 중·고교 실력 검증을 마친 모델은 아닙니다.</p><p><strong>답한 공까지 남겨요</strong>기기에 최근 30회 연습을 보관합니다. 공이 재생 중 크게 끊기거나 앱이 가려진 경우 그 공은 평가하지 않고 새 공을 보여 줍니다.</p></div><button class="primary-button dialog-close">알겠습니다 ${icon('check',18)}</button></dialog>
   <dialog id="history-dialog"><div class="dialog-header"><span class="eyebrow">YOUR PRACTICE</span><button class="icon-button dialog-close" aria-label="연습 내역 닫기">${icon('close')}</button></div><h2>최근 훈련</h2><p>투수 손·타석·단계·화면 조건이 같은 연습끼리 확인해 주세요.</p><div id="history-list"></div><button class="secondary-button" id="export-history">${icon('download',16)} 훈련 결과 JSON 받기</button></dialog>
   <dialog id="result-dialog"><div class="dialog-header"><span class="eyebrow">SESSION COMPLETE</span><button class="icon-button dialog-close" aria-label="결과 닫기">${icon('close')}</button></div><div id="result-content"></div><div class="result-actions"><button class="primary-button" id="practice-again">같은 조건으로 한 번 더 ${icon('arrow',18)}</button><button class="text-button" id="result-settings">조건 다시 선택</button></div></dialog>
 `;
@@ -199,7 +201,7 @@ function renderError(message: string) {
   $('primary-action').setAttribute('disabled', ''); $('lab-play').setAttribute('disabled', '');
   setMessage(); renderAnswers();
 }
-try { stage = new PitchStage($('viewport'), renderError);if(!INSPECTOR)stage.configureDisplay(display); }
+try { stage = new PitchStage($('viewport'), renderError);if(!INSPECTOR)stage.configureDisplay(display,PHONE_PRESENTATION); }
 catch { renderError('이 브라우저에서 3D 화면을 시작하지 못했습니다. WebGL 2를 지원하는 최신 Safari 또는 Chrome에서 열어 주세요.'); }
 
 function drawStatic() {
@@ -220,7 +222,7 @@ function renderSettings() {
     $<HTMLButtonElement>('change-settings').disabled=!!session;
     $('end-session').hidden=!session;
     $('stage-start').hidden=!!session||!config||rendererFailed;
-    $('scene-scale').textContent='실제 속도 1× · 자동 시선';renderPitchers();return;
+    $('scene-scale').textContent=PHONE_PRESENTATION?'폰 화면 보정 · 시선 고정':'실제 속도 1× · 시선 고정';renderPitchers();return;
   }
   $('difficulty-options').innerHTML = DIFFICULTIES.map(d=>`<button data-difficulty="${d.id}" class="${d.id===difficulty.id?'active':''}" aria-pressed="${d.id===difficulty.id}" ${session?'disabled':''}>${d.name}</button>`).join('');
   $('difficulty-value').textContent=`${difficulty.milliseconds}ms`;
@@ -304,7 +306,7 @@ function startSession() {
     ...(!INSPECTOR&&config?{trainingLevel:config.level,pitchHand:config.pitchHand,trainingProfileVersion:TRAINING_PROFILE_VERSION,speedRanges:Object.fromEntries(pitcher.pitches.map(p=>[p.kind,p.speed])),pitchReferenceProfile:pitcher.referenceProfile,observationVersion:OBSERVATION_VERSION,gazeVersion:GAZE_VERSION,displayCalibration:{...display}}:{}),
     batterProfileId:eye==='R'?REFERENCE_BATTER.id:'adult-180-left',zoneVersion:ZONE_VERSION,strikeZone:{...STRIKE_ZONE},
     zoneRules:{middleZ:MIDDLE_Z,endZ:PLATE_Z,endBottom:END_BOTTOM,ballRadius:BALL_RADIUS},
-    occlusionMs:INSPECTOR?difficulty.milliseconds:0,ballScale,eye,trials:[],targetCount:10,taskVersion:'pitch-and-zone-v1',engineVersion:ENGINE_VERSION,motionVersion:MOTION_VERSION,motionSample:motionSample(pitcher),cameraVersion:INSPECTOR?CAMERA_VERSION:DISPLAY_VERSION,battingView:{...battingView,...(!INSPECTOR?stage?.projection():{})}};
+    occlusionMs:INSPECTOR?difficulty.milliseconds:0,ballScale,eye,trials:[],targetCount:10,taskVersion:'pitch-and-zone-v1',engineVersion:ENGINE_VERSION,motionVersion:MOTION_VERSION,motionSample:motionSample(pitcher),cameraVersion:INSPECTOR?CAMERA_VERSION:PHONE_PRESENTATION?PHONE_PRESENTATION_VERSION:DISPLAY_VERSION,...(PHONE_PRESENTATION?{presentationVersion:PHONE_PRESENTATION_VERSION,minBallPixels:PHONE_MIN_BALL_PIXELS}:{}),battingView:{...battingView,...(!INSPECTOR?stage?.projection():{})}};
   renderSettings();throwNext();
 }
 function throwNext(retry=false) {
@@ -402,7 +404,7 @@ function finishSession(showResult=true) {
 function showResults(result:Session) {
   const p=resolvePitcher(result.pitcherId)!;
   const correct=result.trials.filter(t=>t.correct).length;
-  $('result-content').innerHTML=`<p class="result-pitcher">${p.name} · ${result.observationVersion?'실제 속도 · 접근 관찰':`${result.occlusionMs}ms 관찰`}</p><h2>${result.completed?'10구 훈련을 마쳤어요.':'답한 공까지 남겼어요.'}</h2><div class="result-score"><strong>${score(result)}</strong><span>%</span><p>${result.trials.length}구 중 ${correct}구 정답</p></div><div class="result-breakdown">${p.pitches.map(spec=>{const ts=result.trials.filter(t=>t.pitch.kind===spec.kind);return `<div><span>${spec.name}</span><strong>${ts.filter(t=>t.correct).length} <small>/ ${ts.length}구</small></strong></div>`;}).join('')}</div><p class="result-dual">구종 ${result.trials.filter(t=>t.pitchCorrect??t.correct).length}/${result.trials.length} · 스트라이크/볼 ${result.trials.filter(t=>t.callCorrect).length}/${result.trials.length}<br/>위 점수는 두 판단을 모두 맞힌 비율입니다.</p><p class="result-note">${result.ballScale===1?'기준 공 1×':'학습용 공 확대 1.8×'} · ${result.eye==='R'?'우타자':'좌타자'} 시점<br/>이 가상 설정에서의 정답률입니다. 실제 타격 능력 점수가 아닙니다.</p>`;
+  $('result-content').innerHTML=`<p class="result-pitcher">${p.name} · ${result.observationVersion?'실제 속도 · 접근 관찰':`${result.occlusionMs}ms 관찰`}</p><h2>${result.completed?'10구 훈련을 마쳤어요.':'답한 공까지 남겼어요.'}</h2><div class="result-score"><strong>${score(result)}</strong><span>%</span><p>${result.trials.length}구 중 ${correct}구 정답</p></div><div class="result-breakdown">${p.pitches.map(spec=>{const ts=result.trials.filter(t=>t.pitch.kind===spec.kind);return `<div><span>${spec.name}</span><strong>${ts.filter(t=>t.correct).length} <small>/ ${ts.length}구</small></strong></div>`;}).join('')}</div><p class="result-dual">구종 ${result.trials.filter(t=>t.pitchCorrect??t.correct).length}/${result.trials.length} · 스트라이크/볼 ${result.trials.filter(t=>t.callCorrect).length}/${result.trials.length}<br/>위 점수는 두 판단을 모두 맞힌 비율입니다.</p><p class="result-note">${result.presentationVersion===PHONE_PRESENTATION_VERSION?'폰 화면 보정':result.ballScale===1?'기준 공 1×':'학습용 공 확대 1.8×'} · ${result.eye==='R'?'우타자':'좌타자'} 시점<br/>이 가상 설정에서의 정답률입니다. 실제 타격 능력 점수가 아닙니다.</p>`;
   $('result-dialog').querySelector('.eyebrow')!.textContent=result.completed?'훈련 완료':'훈련 저장';
   showDialog('result-dialog');
 }
@@ -412,7 +414,7 @@ function renderHistory() {
     const p=resolvePitcher(s.pitcherId);
     const date=new Date(s.startedAt);
     const dateLabel=Number.isNaN(date.valueOf())?'날짜 없음':new Intl.DateTimeFormat('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(date);
-    return `<article class="history-item"><div><span>${dateLabel} · ${s.completed?'10구 완료':`${s.trials.length}구 기록`}</span><strong>${p?.name??'가상 투수'} · ${s.eye==='R'?'우타석':'좌타석'}</strong><small>구종 ${s.trials.filter(t=>t.pitchCorrect??t.correct).length}/${s.trials.length} · 볼 판별 ${s.trials.filter(t=>t.callCorrect).length}/${s.trials.length} · ${s.gazeVersion===GAZE_VERSION?'시선 고정':s.gazeVersion?'이전 자동 시선':'이전 시선 조건'}${s.ballScale!==1?' · 공 확대':''}</small></div><div class="history-score">${score(s)}<small>%</small></div></article>`;
+    return `<article class="history-item"><div><span>${dateLabel} · ${s.completed?'10구 완료':`${s.trials.length}구 기록`}</span><strong>${p?.name??'가상 투수'} · ${s.eye==='R'?'우타석':'좌타석'}</strong><small>구종 ${s.trials.filter(t=>t.pitchCorrect??t.correct).length}/${s.trials.length} · 볼 판별 ${s.trials.filter(t=>t.callCorrect).length}/${s.trials.length} · ${s.gazeVersion===GAZE_VERSION?'시선 고정':s.gazeVersion?'이전 자동 시선':'이전 시선 조건'}${s.presentationVersion===PHONE_PRESENTATION_VERSION?' · 폰 화면 보정':s.ballScale!==1?' · 공 확대':''}</small></div><div class="history-score">${score(s)}<small>%</small></div></article>`;
   }).join(''):`<div class="empty-history">${icon('clock',35)}<h3>아직 남긴 연습이 없어요.</h3><p>10구 훈련을 시작하면 답한 공과 설정이<br/>이 기기에 함께 저장됩니다.</p></div>`;
   ($('export-history') as HTMLButtonElement).disabled=!history.length;
 }
@@ -514,6 +516,7 @@ function switchMode(next:typeof mode) {
 
 function renderDisplayGuide(){
   if(INSPECTOR)return;
+  if(PHONE_PRESENTATION){$('display-guide-text').textContent='폰 전용 고정 시야 · 먼 공 식별 보조';$('display-open').hidden=true;return;}
   $('display-guide-text').textContent=`${display.source==='device'?'기기 화면 크기 자동 반영':display.source==='card'?'화면 크기 확인 완료':'화면 크기 추정 · 처음 한 번 확인을 권해요'} · 눈에서 약 ${display.viewDistanceCm}cm 떨어뜨려 주세요.`;
   app.dataset.displaySource=display.source;
 }
@@ -527,7 +530,7 @@ $('card-measure-range')?.addEventListener('input',()=>{$('card-measure-line').st
 $('display-save')?.addEventListener('click',()=>{
   display=cardCalibration(Number($<HTMLInputElement>('card-measure-range').value),display.viewDistanceCm);
   try{localStorage.setItem('sinker-pitch-display-v1',JSON.stringify(display));}catch{/* this visit only */}
-  if(IS_NATIVE)postNative({kind:'display',value:display});stage?.configureDisplay(display);renderDisplayGuide();$<HTMLDialogElement>('display-dialog').close();
+  if(IS_NATIVE)postNative({kind:'display',value:display});stage?.configureDisplay(display,PHONE_PRESENTATION);renderDisplayGuide();$<HTMLDialogElement>('display-dialog').close();
 });
 function renderSetup(){
   renderDisplayGuide();

@@ -1,5 +1,6 @@
 import type {DisplayCalibration} from './display-calibration.ts';
 import * as THREE from 'three';
+import {phoneBallScale} from './phone-presentation.ts';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PitcherRig } from './pitcher.ts';
 import {createSky,createOutfield} from './environment.ts';
@@ -48,6 +49,7 @@ export class PitchStage {
   private eye: 'R' | 'L' = 'R';
   private observer: ResizeObserver;
   private display:DisplayCalibration|null=null;
+  private phonePresentation=false;
   private lastFrame: StageFrame | null = null;
   private disposed = false;
   private markerCameraPosition=new THREE.Vector3();
@@ -192,8 +194,8 @@ export class PitchStage {
     const point=assessZone(pitch).point;this.landing.position.set(point.x,point.y,point.z);
   }
 
-  configureDisplay(display:DisplayCalibration){this.display=display;this.resize();}
-  projection(){return {horizontalFov:2*Math.atan(Math.tan(this.camera.fov*Math.PI/360)*this.camera.aspect)*180/Math.PI,eyeHeight:this.camera.position.y,plateDistance:Math.abs(this.camera.position.x),plateDepth:this.camera.position.z-PLATE_Z};}
+  configureDisplay(display:DisplayCalibration,phone=false){this.display=display;this.phonePresentation=phone;this.resize();}
+  projection(){return {verticalFov:this.camera.fov,horizontalFov:2*Math.atan(Math.tan(this.camera.fov*Math.PI/360)*this.camera.aspect)*180/Math.PI,eyeHeight:this.camera.position.y,plateDistance:Math.abs(this.camera.position.x),plateDepth:this.camera.position.z-PLATE_Z};}
   syncViewport(){this.resize();}
   setView(view: ViewName, eye: 'R' | 'L') {
     this.view=view;this.eye=eye;this.positionCamera();
@@ -216,7 +218,7 @@ export class PitchStage {
     this.camera.up.set(0,1,0);
     if(this.controls)this.controls.enabled=this.view.startsWith('delivery-');
     if(this.view==='batter') {
-      const config=battingCamera(this.eye,this.camera.aspect,PLATE_Z,this.display?{width:this.host.clientWidth,calibration:this.display}:undefined);
+      const config=battingCamera(this.eye,this.camera.aspect,PLATE_Z,this.display?{width:this.host.clientWidth,calibration:this.display,phone:this.phonePresentation}:undefined);
       this.camera.fov=config.verticalFov;
       this.camera.position.set(config.position.x,config.position.y,config.position.z);
       this.camera.lookAt(config.target.x,config.target.y,config.target.z);
@@ -262,7 +264,11 @@ export class PitchStage {
     // A fixed one-pixel seam overwhelmed a distant 6–10px ball. Fade stitching by
     // projected size, while keeping the physical sphere and perspective untouched.
     const ballDepth=-this.markerCameraPosition.copy(this.ball.position).applyMatrix4(this.camera.matrixWorldInverse).z;
-    const diameter=BALL_RADIUS*frame.ballScale*this.host.clientHeight/(Math.max(.001,ballDepth)*Math.tan(this.camera.fov*Math.PI/360));
+    let diameter=BALL_RADIUS*frame.ballScale*this.host.clientHeight/(Math.max(.001,ballDepth)*Math.tan(this.camera.fov*Math.PI/360));
+    if(this.phonePresentation&&this.view==='batter'&&ballDepth>BALL_RADIUS){
+      const scale=phoneBallScale(frame.ballScale,diameter);
+      this.ball.scale.setScalar(scale);diameter*=scale/frame.ballScale;
+    }
     this.seamMaterial.opacity=.8*THREE.MathUtils.smoothstep(diameter,12,24);
     // Slow decorative stitching is not a measured spin cue. From the batter's
     // eyes an in-flight ball stays white instead of flickering between red arcs.

@@ -100,7 +100,7 @@ export function PitchReadingScreen() {
     () =>
       boot
         ? {
-            html: embedPitchScene(scene.html, { ...boot, ...initialAppearance }),
+            html: embedPitchScene(scene.html, { ...boot, presentation: 'phone', ...initialAppearance }),
             baseUrl: 'https://pitch-reading.sinker.local',
           }
         : null,

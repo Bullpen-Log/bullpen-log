@@ -22,6 +22,8 @@ export type Session = {
   pitchReferenceProfile?:string;
   observationVersion?:string;
   gazeVersion?:string;
+  presentationVersion?:string;
+  minBallPixels?:number;
   displayCalibration?:import('./display-calibration.ts').DisplayCalibration;
   taskVersion?:string;
   samplingVersion?:string;
