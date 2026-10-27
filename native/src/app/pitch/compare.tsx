@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   note: { color: 'rgba(255,255,255,0.8)', fontSize: 13, textAlign: 'center', padding: 12 },
   controls: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
   rates: { flexDirection: 'row', gap: 8 },
-  rate: { flex: 1, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)' },
+  rate: { flex: 1, minHeight: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)' },
   rateOn: { backgroundColor: '#fff' },
   rateText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   ctl: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)' },

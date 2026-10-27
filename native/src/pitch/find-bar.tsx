@@ -102,8 +102,8 @@ export function FindBar({
 
 const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  search: { flex: 1, minWidth: 0, height: 44, borderRadius: 20, flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 6, gap: 6 },
-  input: { flex: 1, height: 44, fontSize: 15 },
+  search: { flex: 1, minWidth: 0, minHeight: 44, borderRadius: 20, flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 6, gap: 6 },
+  input: { flex: 1, minHeight: 44, fontSize: 15 },
   clear: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   row: { gap: 6, alignItems: 'center', paddingVertical: 2 },
   chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 4 },

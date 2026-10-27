@@ -313,5 +313,5 @@ const styles = StyleSheet.create({
   weekRow: { flexDirection: 'row', gap: 12 },
   tool: { flex: 1, minHeight: 80, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6 },
   /* 머리 오른쪽 '가져오기' 알약 — '분석' 알약(AnalysisPill)과 같은 44 */
-  importBtn: { height: 44, borderRadius: 22, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16 },
+  importBtn: { minHeight: 44, borderRadius: 22, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16 },
 });

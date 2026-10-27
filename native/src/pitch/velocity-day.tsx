@@ -158,7 +158,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
                   화각 {s.fovDeg}° · {cal ? `보정 ${cal}` : '보정 없음'}
                 </Text>
               </View>
-              <Press accessibilityRole="button" accessibilityLabel="이 세션 지우기" onPress={() => removeSession(s)} style={styles.trash}>
+              <Press accessibilityRole="button" accessibilityLabel="이 세션 지우기" onPress={() => removeSession(s)} hitSlop={6} style={styles.trash}>
                 <Icon name="trash2" size={15} color={c.muted} />
               </Press>
             </View>
@@ -319,7 +319,7 @@ function ResultSheet({
       <View style={{ flex: 1, backgroundColor: c.page }}>
         <View style={styles.sheetBar}>
           <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>{pitch.seq}번째 공</Text>
-          <Press accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} style={[styles.close, { backgroundColor: c.chip }]}>
+          <Press accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} hitSlop={6} style={[styles.close, { backgroundColor: c.chip }]}>
             <Icon name="x" size={18} color={c.muted} />
           </Press>
         </View>
@@ -415,7 +415,7 @@ function EditSheet({ pitch, onClose, onSaved }: { pitch: VelocityPitchView; onCl
           <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>
             {pitch.seq}번째 공 · {formatSpeed(pitch.kmh, unit)}
           </Text>
-          <Press accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} style={[styles.close, { backgroundColor: c.chip }]}>
+          <Press accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} hitSlop={6} style={[styles.close, { backgroundColor: c.chip }]}>
             <Icon name="x" size={18} color={c.muted} />
           </Press>
         </View>

@@ -681,7 +681,7 @@ const st = StyleSheet.create({
   guideNote: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, overflow: 'hidden' },
   question: { fontSize: 17, fontWeight: '700', marginTop: 8 },
   levels: { flexDirection: 'row', gap: 4, marginTop: 8 },
-  level: { flex: 1, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  level: { flex: 1, minHeight: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   levelText: { fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] },
   levelEnds: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 },
   input: { minHeight: 64, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, fontSize: 17, textAlignVertical: 'top' },

@@ -1208,7 +1208,7 @@ const s = StyleSheet.create({
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   circle: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   progress: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  listPill: { height: 44, borderRadius: 22, paddingHorizontal: 14, justifyContent: 'center' },
+  listPill: { minHeight: 44, borderRadius: 22, paddingHorizontal: 14, justifyContent: 'center' },
   segments: { flexDirection: 'row', gap: 3, marginTop: 6 },
   segment: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden' },
   endPill: { minHeight: 44, borderRadius: 22, paddingHorizontal: 14, justifyContent: 'center' },

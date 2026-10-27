@@ -104,7 +104,7 @@ export default function PitchDayScreen() {
           {at.getUTCMonth() + 1}월 {at.getUTCDate()}일 ({WEEKDAYS[at.getUTCDay()]})
         </Text>
         <View style={[styles.side, { alignItems: 'flex-end' }]}>
-          <Press accessibilityRole="button" accessibilityLabel="닫기" onPress={() => router.back()} style={[styles.close, { backgroundColor: c.chip }]}>
+          <Press accessibilityRole="button" accessibilityLabel="닫기" onPress={() => router.back()} hitSlop={6} style={[styles.close, { backgroundColor: c.chip }]}>
             <Icon name="x" size={18} color={c.muted} />
           </Press>
         </View>

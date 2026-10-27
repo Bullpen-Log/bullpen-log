@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   primary: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   primaryText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   typeRow: { flexDirection: 'row', gap: 8 },
-  typeInput: { flex: 1, height: 44, borderRadius: 12, paddingHorizontal: 14, fontSize: 17, color: '#fff', backgroundColor: 'rgba(255,255,255,0.14)' },
-  small: { height: 44, borderRadius: 22, paddingHorizontal: 18, justifyContent: 'center' },
+  typeInput: { flex: 1, minHeight: 44, borderRadius: 12, paddingHorizontal: 14, fontSize: 17, color: '#fff', backgroundColor: 'rgba(255,255,255,0.14)' },
+  small: { minHeight: 44, borderRadius: 22, paddingHorizontal: 18, justifyContent: 'center' },
   input: { minHeight: 44, borderRadius: 12, paddingHorizontal: 12, fontSize: 17 },
 });

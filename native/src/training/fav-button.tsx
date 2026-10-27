@@ -44,5 +44,5 @@ export function Star({ kind, id, initial, title, c }: { kind: 'exercise' | 'dril
 const st = StyleSheet.create({
   star: { width: 36, height: 44, marginTop: -10, marginRight: -6, alignItems: 'center', justifyContent: 'center' },
   error: { fontSize: 11, lineHeight: 16, maxWidth: 120, textAlign: 'right' },
-  pill: { height: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pill: { minHeight: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
 });

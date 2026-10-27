@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   week: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 4 },
   title: { flex: 1, fontSize: 34, fontWeight: '700' },
-  chip: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
+  chip: { minHeight: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
   chipText: { fontSize: 15, fontWeight: '600' },
   card: { borderRadius: RADIUS.card, padding: SPACE.pad, gap: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },

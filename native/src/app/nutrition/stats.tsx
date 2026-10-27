@@ -422,7 +422,7 @@ function PlanStat({ label, value, sub, strong, c }: { label: string; value: numb
 }
 
 const st = StyleSheet.create({
-  weightSave: { height: 44, borderRadius: 22, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+  weightSave: { minHeight: 44, borderRadius: 22, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   card: { borderRadius: 20, padding: 16, gap: 10 },
   cardHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   cardTitle: { fontSize: 17, fontWeight: '700' },

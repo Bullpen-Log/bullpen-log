@@ -84,5 +84,5 @@ export function VelocityClips({ date }: { date: string }) {
 const styles = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1 },
   reload: { alignItems: 'center', gap: 12, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 24 },
-  reloadBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 40, paddingHorizontal: 16, borderRadius: 20 },
+  reloadBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 16, borderRadius: 20 },
 });

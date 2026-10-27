@@ -295,7 +295,7 @@ export default function TrainingTodayScreen() {
 const st = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, minHeight: 44 },
   back: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
-  pill: { height: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pill: { minHeight: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
   strip: { flexDirection: 'row', gap: 6 },
   day: { flex: 1, minHeight: 64, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 2 },
   dots: { flexDirection: 'row', gap: 2, height: 5 },

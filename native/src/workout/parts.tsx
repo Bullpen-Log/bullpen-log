@@ -446,7 +446,7 @@ function togglePlay(p: VideoPlayer) {
 const s = StyleSheet.create({
   clipTools: { position: 'absolute', right: 8, bottom: 8, flexDirection: 'row', gap: 6 },
   clipTool: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
-  rest: { alignSelf: 'center', height: 40, borderRadius: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  rest: { alignSelf: 'center', minHeight: 40, borderRadius: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
   restClock: { fontSize: 18, fontWeight: '600', fontVariant: ['tabular-nums'] },
   small: { fontSize: 13 },
   smallBold: { fontSize: 13, fontWeight: '600' },

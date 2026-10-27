@@ -723,7 +723,7 @@ const st = StyleSheet.create({
   /* 웹 check-row 의 h-14 w-20 */
   thumb: { width: 80, height: 56, borderRadius: 12 },
   swipe: { borderRadius: 16, overflow: 'hidden' },
-  level: { flex: 1, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  level: { flex: 1, minHeight: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   add: { minHeight: 52, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   input: { minHeight: 80, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, textAlignVertical: 'top' },
 });

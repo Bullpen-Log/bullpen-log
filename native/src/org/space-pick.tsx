@@ -38,5 +38,5 @@ export function SpacePickButton({ label, sub, c, compact = false }: { label: str
 const st = StyleSheet.create({
   pick: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 44, maxWidth: '58%' },
   pickText: { fontSize: 17, fontWeight: '700' },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 32, paddingHorizontal: 10, borderRadius: 16, maxWidth: 150 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 32, paddingHorizontal: 10, borderRadius: 16, maxWidth: 150 },
 });

@@ -365,7 +365,7 @@ function ToolPlayer({ uri, path, offscreen, onPin }: { uri: string; path: string
 
 const styles = StyleSheet.create({
   tools: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  tool: { minWidth: 44, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
+  tool: { minWidth: 44, minHeight: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
   measure: { flexDirection: 'row', gap: 4 },
   box: { width: '100%', aspectRatio: 9 / 16, maxHeight: 420, alignSelf: 'center', borderRadius: 16, backgroundColor: '#000', overflow: 'hidden' },
   center: { alignItems: 'center', justifyContent: 'center', padding: 16 },

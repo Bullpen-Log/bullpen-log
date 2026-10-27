@@ -131,7 +131,7 @@ export default function PitchImportScreen() {
           <Text accessibilityRole="header" style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>
             지난 영상 가져오기
           </Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={() => router.back()} style={({ pressed }) => [styles.close, { backgroundColor: c.chip }, pressed && { opacity: 0.55 }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={() => router.back()} hitSlop={6} style={({ pressed }) => [styles.close, { backgroundColor: c.chip }, pressed && { opacity: 0.55 }]}>
             <Icon name="x" size={18} color={c.muted} />
           </Pressable>
         </View>

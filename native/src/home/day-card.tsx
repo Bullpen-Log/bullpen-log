@@ -329,7 +329,7 @@ function TrainingDetail({ d, c }: { d: DayDetail; c: Palette }) {
           <Animated.View key={e.id} entering={rowIn(i)} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
             <View style={{ marginTop: 2 }}>{e.done ? <Icon name="check" size={16} color={c.ok} /> : <Icon name="circle-check" size={16} color={c.lineStrong} />}</View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: e.done ? c.ink : c.muted, fontSize: 15 }} numberOfLines={1}>
+              <Text style={{ color: e.done ? c.ink : c.muted, fontSize: 15 }} numberOfLines={2}>
                 {e.title}
               </Text>
               <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>

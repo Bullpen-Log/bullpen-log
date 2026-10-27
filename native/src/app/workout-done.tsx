@@ -218,7 +218,7 @@ export default function WorkoutDoneScreen() {
         <Section title="오늘 한 운동" c={c}>
           {data.rows.map((r, i) => (
             <View key={r.id} style={[st.line, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
-              <Text numberOfLines={1} style={[s.body, { color: c.ink, flex: 1 }]}>
+              <Text numberOfLines={2} style={[s.body, { color: c.ink, flex: 1 }]}>
                 {r.title}
               </Text>
               <Text style={[s.small, { color: c.muted }]}>{formatSummary(r.summary, unit)}</Text>
