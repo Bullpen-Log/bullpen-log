@@ -4,8 +4,10 @@ import { SymbolView } from 'expo-symbols';
 import { Icon } from '~/shell/icon';
 import { type Href, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEventListener } from 'expo';
+import { useCallback, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Pressable,
   ScrollView,
@@ -15,12 +17,13 @@ import {
   View,
   type ScrollViewInstance,
 } from 'react-native';
+import type { ReportItem } from '@/lib/pitch-3d/v2/report';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AppLabDetail } from '@/app/actions/pitch-lab';
 import { CONSENT_TEXT } from '@/lib/pitch-3d/v2/lab-summary';
 import { followTick } from '@/lib/pitch-3d/v2/video-sync';
 import { Lab3D, type Lab3DHandle, type LabTransport } from '~/lab/lab-3d';
-import { CompareCard, FlowCard, ReportHero, RxCard, STAGE_BG } from '~/lab/report';
+import { CompareCard, FlowCard, KeyFinding, RxCard, STAGE_BG } from '~/lab/report';
 import { rpc, RpcError } from '~/lib/rpc';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
@@ -33,6 +36,8 @@ import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
  * app/embed/lab/[id] 를 웹뷰로(~/lab/lab-3d.tsx) — 웹과 같은 인형 부품 하나를 쓴다. 판정 · 숫자 · 이름은 웹과 같은 곳(lib/pitch-3d/v2/lab-summary.ts,
  * 서버 app/actions/pitch-lab.ts loadAppLabDetail).
  *
+ * 차례(2026-10-27 개편 — 장면 → 근거 → 해석 → 다음 선택): 머리 → 이번 투구의 핵심(~/lab/report KeyFinding) → 장면(3D 무대) → 원본 영상 → 여섯 요소 판독
+ * → 개선 드릴 · 다음 길 → 지난번과 견주기 → 분석 자세히. '장면 보기'는 3D(→ 원본 영상)를 그 장면에 세우고 무대가 보이게 굴린다(웹뷰는 그대로 — 다시 만들지 않는다).
  * 원본 영상 두 칸은 3D 바로 밑에서(2026-10-20 김민: "같이 볼 수 있게") 3D 시계를 따라간다(웹과 같은 규칙, lib/pitch-3d/v2/video-sync.ts):
  * 멈춤 · 끌기 때 그 시각에 서고, 재생 때 0.1초마다 빠르기를 맞춰 따라붙는다. 시각은 embed 가 편집 목록 앞머리까지 더해 보낸다.
  * 분석 걸기도 앱에서(판 9 — RequestPanel): 동의 글은 웹과 같은 한 곳(lab-summary CONSENT_TEXT), 비용 지키기 · 동의 확인은 서버 requestPitch3dV2.
@@ -46,13 +51,17 @@ export default function LabScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   /* 가로로 짧은 창(아이패드 가로 · 분할)에서 3D 칸(폭 × 1.25 + 조작부 132)이 화면보다 길지 않게 — 그만큼 폭을 줄여 가운데에 둔다 */
+  /* 휴대폰에서도 3D 칸(높이 = 폭 × 1.25)이 화면 높이의 절반을 넘지 않게 — 어두운 무대가 화면을 다 덮지 않고 핵심 · 영상과 함께 읽히게(2026-10-27) */
   const { height: winH } = useWindowDimensions();
-  const stageMax = Math.max(280, (winH - inset.top - 56 - 132 - 40) / 1.25);
+  const stageMax = Math.max(260, Math.min((winH - inset.top - 56 - 132 - 40) / 1.25, (winH * 0.5) / 1.25));
   const { id } = useLocalSearchParams<{ id: string }>();
   const [data, setData] = useState<AppLabDetail | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [tries, setTries] = useState(0);
   const scroll = useRef<ScrollViewInstance>(null);
+  /* 무대 자리를 재는 기준(ScrollView 안쪽 상자)과 무대 */
+  const content = useRef<ComponentRef<typeof View>>(null);
+  const stage = useRef<ComponentRef<typeof View>>(null);
   const lab = useRef<Lab3DHandle>(null);
 
   useEffect(() => {
@@ -135,12 +144,18 @@ export default function LabScreen() {
     }
   }, []);
 
+  /* 3D(→ 원본 영상)를 그 장면에 세우고 무대가 보이게 — 무대 자리는 ScrollView 안쪽 상자에 대해 잰다(아이패드 두 칸이어도 맞다) */
   const jump = (frame: number | null) => {
     if (frame == null) return;
-    void Haptics.selectionAsync();
     lab.current?.seek(frame);
-    scroll.current?.scrollTo({ y: 0, animated: true });
+    const el = stage.current;
+    const box = content.current;
+    if (!el || !box) return;
+    void AccessibilityInfo.isReduceMotionEnabled().then((calm) =>
+      el.measureLayout(box as never, (_x, y) => scroll.current?.scrollTo({ y: Math.max(0, y - 12), animated: !calm }), () => undefined)
+    );
   };
+  const onScene = (it: ReportItem) => jump(it.frame);
 
   const header = (
     <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: c.line }]}>
@@ -175,10 +190,15 @@ export default function LabScreen() {
 
   const r = data.result;
   const report = r?.report ?? null;
-  const when = data.title.replace(/ 투구$/, '');
-  const sub = report
-    ? `${when} · ${report.ground === 'flat' ? '평지' : '마운드'} · ${report.hand === 'L' ? '왼손' : '오른손'} · 이 한 구 기준`
-    : [when, ...data.chips].join(' · ');
+  /* 날짜의 뜻 — '찍은 때' · '올린 때'(서버 labWhenText). 옛 서버면 제목(늘 올린 시각)에 그 뜻을 붙인다 */
+  const when = data.when !== undefined ? data.when : data.title === '투구' ? null : `올린 때 ${data.title.replace(/ 투구$/, '')}`;
+  const sub = (
+    report
+      ? [when, report.ground === 'flat' ? '평지' : '마운드', report.hand === 'L' ? '왼손' : '오른손', '이 한 구 기준']
+      : [when, ...data.chips]
+  )
+    .filter(Boolean)
+    .join(' · ');
   /*
    * 원본 영상 — 결과 바로 밑에 늘 보인다(2026-10-22 김민: "결과 밑에 원본 영상도 안 나와" — 예전엔 '원본 영상 보기'를 눌러야 폈다).
    * 두 칸씩 줄을 바꿔 마커 샘플은 ③ · ④ 까지 넷. 넷 다 3D 시계를 따라간다(③ · ④ 는 사이트가 옆 시각 + 그 카메라 몫으로 보낸다, 2026-10-22).
@@ -207,7 +227,7 @@ export default function LabScreen() {
         </Pressable>
       )}
       <Text style={[s.small, { color: c.muted }]}>
-        영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.
+        3D 와 두 영상은 같은 투구의 같은 순간이에요. 3D 를 멈추거나 끌면 영상도 그 장면에 서요.
       </Text>
     </View>
   );
@@ -221,7 +241,7 @@ export default function LabScreen() {
       {header}
       <ScrollLockScope>
         {(scrollEnabled) => (
-      <ScrollView ref={scroll} scrollEnabled={scrollEnabled} contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 20 }, READABLE_WIDE]}>
+      <ScrollView ref={scroll} innerViewRef={content} scrollEnabled={scrollEnabled} contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 20 }, READABLE_WIDE]}>
         <View style={{ gap: 4 }}>
           <View style={s.row}>
             <Text style={[TYPE.hero, { color: c.ink, flexShrink: 1 }]}>투구 진단</Text>
@@ -243,17 +263,16 @@ export default function LabScreen() {
                   </Text>
                 </View>
               )}
+              {/* 이번 투구의 핵심 — 무대 위(아이패드 두 칸이어도 왼쪽 맨 위, 3D 와 나란히) */}
+              {r && report ? <KeyFinding c={c} report={report} onScene={onScene} /> : null}
               {r && report ? (
-                <ReportHero
-                  report={report}
-                  stage={
-                    <View style={{ width: Math.min(boxW, stageMax), alignSelf: 'center' }}>
-                      <Lab3D key={data.shown ?? ''} ref={lab} id={data.id} width={Math.min(boxW, stageMax)} bg={STAGE_BG} onTransport={onTransport} stop={report.headline.frame} dark />
-                      {/* 다시 분석 중이면 이전 결과 위에 처음 분석처럼 판을 덮는다(2026-10-24 김민: "분석이 된 건지 전 건지 알 수가 없어") */}
-                      {active && data.waiting && <Reanalyzing waiting={data.waiting} />}
-                    </View>
-                  }
-                />
+                <View ref={stage} accessibilityLabel="장면" style={[s.stage, { backgroundColor: STAGE_BG }]}>
+                  <View style={{ width: Math.min(boxW - 20, stageMax), alignSelf: 'center' }}>
+                    <Lab3D key={data.shown ?? ''} ref={lab} id={data.id} width={Math.min(boxW - 20, stageMax)} bg={STAGE_BG} onTransport={onTransport} stop={report.headline.frame} dark />
+                    {/* 다시 분석 중이면 이전 결과 위에 처음 분석처럼 판을 덮는다(2026-10-24 김민: "분석이 된 건지 전 건지 알 수가 없어") */}
+                    {active && data.waiting && <Reanalyzing waiting={data.waiting} />}
+                  </View>
+                </View>
               ) : (
                 <>
                   {data.waiting && <Waiting waiting={data.waiting} />}
@@ -265,15 +284,7 @@ export default function LabScreen() {
           )}
           right={
             <>
-              {report && (
-                <FlowCard
-                  c={c}
-                  report={report}
-                  onPick={(it) => {
-                    if (it.frame != null) lab.current?.seek(it.frame);
-                  }}
-                />
-              )}
+              {report && <FlowCard c={c} report={report} onPick={onScene} />}
               {report && r && <RxCard c={c} report={report} mine={r.mine} focus={r.focus} />}
               {report && r?.previous ? <CompareCard c={c} prev={r.previous} /> : null}
               {r && <Details c={c} r={r} active={active} request={request} onJump={jump} />}
@@ -324,7 +335,10 @@ function Details({
             {r.rows.map((m, i) => (
               <Pressable
                 key={m.key}
-                onPress={() => onJump(m.frame)}
+                onPress={() => {
+                  void Haptics.selectionAsync();
+                  onJump(m.frame);
+                }}
                 accessibilityRole="button"
                 style={({ pressed }) => [s.metricRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }, pressed && { opacity: 0.6 }]}
               >
@@ -351,20 +365,50 @@ function Details({
   );
 }
 
-/** 원본 영상 하나 — 소리 없이, 손으로 틀지 않는다(3D 시계가 튼다) */
-function SourceVideo({
+/**
+ * 원본 영상 하나 — 소리 없이, 손으로 틀지 않는다(3D 시계가 튼다). 못 불러오면 그 사실과 다시 불러오기(가짜 그림으로 채우지 않는다) —
+ * 다시 불러오면 재생기를 새로 만들어(key) 3D 시계에 다시 알린다.
+ */
+function SourceVideo(props: { uri: string; view: SourceView; onPlayer: (view: SourceView, p: VideoPlayer | null) => void }) {
+  const [failed, setFailed] = useState(false);
+  const [tries, setTries] = useState(0);
+  if (failed)
+    return (
+      <View style={[s.video, s.centerBox, { gap: 8, padding: 12 }]} accessibilityLiveRegion="polite">
+        <Text style={[s.small, s.center, { color: '#c7cfdd' }]}>영상을 불러오지 못했어요.</Text>
+        <Pressable
+          onPress={() => {
+            setFailed(false);
+            setTries((n) => n + 1);
+          }}
+          accessibilityRole="button"
+          style={[s.pill, { backgroundColor: 'rgba(255,255,255,0.14)' }]}
+        >
+          <Text style={[s.bodyBold, { color: '#fff' }]}>다시 불러오기</Text>
+        </Pressable>
+      </View>
+    );
+  return <SourcePlayer key={tries} {...props} onError={() => setFailed(true)} />;
+}
+
+function SourcePlayer({
   uri,
   view,
   onPlayer,
+  onError,
 }: {
   uri: string;
   view: SourceView;
   /** 3D 시계가 부를 재생기를 화면에 알린다(없어지면 null) */
   onPlayer: (view: SourceView, p: VideoPlayer | null) => void;
+  onError: () => void;
 }) {
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;
     p.loop = false;
+  });
+  useEventListener(player, 'statusChange', ({ status }) => {
+    if (status === 'error') onError();
   });
   useEffect(() => {
     onPlayer(view, player);
@@ -503,6 +547,7 @@ const s = StyleSheet.create({
   pill: { minHeight: 44, paddingHorizontal: 20, borderRadius: 22, justifyContent: 'center' },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
   video: { width: '100%', height: 180, borderRadius: 12, backgroundColor: '#000', overflow: 'hidden' },
+  stage: { borderRadius: 24, padding: 10, overflow: 'hidden' },
   list: { borderRadius: 14, overflow: 'hidden' },
   metric: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingHorizontal: 14, paddingVertical: 8 },
   metricRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44, paddingVertical: 6 },

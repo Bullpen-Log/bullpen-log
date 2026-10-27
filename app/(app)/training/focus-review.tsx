@@ -3,7 +3,7 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { FocusView } from '@/lib/mechanics/program';
-import { baselineReady, reviewDate, REVIEW_CHOICES, type ComparisonConditions, type ReviewChoice } from '@/lib/mechanics/comparison';
+import { baselineReady, reviewDate, REVIEW_CHOICES, rowUnitText, type ComparisonConditions, type ReviewChoice } from '@/lib/mechanics/comparison';
 import { loadMechanicsReviewOptions, linkMechanicsAnalysis, recordMechanicsReviewDecision } from '@/app/actions/mechanics-review';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { quietRefresh } from '@/lib/quiet-refresh';
@@ -92,13 +92,13 @@ export function FocusReview({ focus, readOnly = false }: { focus: FocusView; rea
                       </td>
                       <td>
                         {number(r.before)}
-                        {r.unit}
+                        {rowUnitText(r.element, r.unit)}
                       </td>
                       <td>
                         {number(r.after)}
-                        {r.unit}
+                        {rowUnitText(r.element, r.unit)}
                       </td>
-                      <td>{r.delta === null ? '보류' : `${r.delta > 0 ? '+' : ''}${number(r.delta)}${r.unit}`}</td>
+                      <td>{r.delta === null ? '보류' : `${r.delta > 0 ? '+' : ''}${number(r.delta)}${r.unit === '°' ? '°' : '%p'}`}</td>
                     </tr>
                   ))}
                 </tbody>

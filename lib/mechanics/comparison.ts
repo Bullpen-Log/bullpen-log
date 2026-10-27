@@ -204,6 +204,12 @@ export function snapshotRows(report: PitchReport): AnalysisSnapshot['rows'] {
         : null,
   }));
 }
+/**
+ * 비교 칸 단위 글(화면만) — 저장 칸 unit '% 키'는 드리프트 · 드롭 둘 다 쓰지만 드롭은 실제로 다리 길이 비율이라 요소로 가른다(2026-10-27).
+ * 저장된 비교 · 스냅샷의 값과 unit 은 그대로 둔다(소급해 바꾸지 않는다). element 가 없는 옛 줄은 예전처럼 키.
+ */
+export const rowUnitText = (element: string | undefined, unit: '% 키' | '°'): string =>
+  unit === '°' ? '°' : element === '드롭' ? '%(다리 길이)' : '%(키)';
 export const COMPARISON_NOTE =
   '한 구씩 비교한 수치 변화예요. 반복 측정 오차와 최소 검출 변화량이 검증되지 않아 개선·악화나 운동 효과를 확정하지 않아요.';
 export const baselineReady = (s: AnalysisSnapshot) =>

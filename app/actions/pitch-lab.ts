@@ -83,6 +83,7 @@ import {
   labHandNote,
   labStatusLabel,
   labTitle,
+  labWhenText,
   labWaitingText,
   MECH_STATUS_TEXT,
   mechDrills,
@@ -459,6 +460,8 @@ export type AppLabDetail = {
   ok: true;
   id: string;
   title: string;
+  /** 리포트 머리의 날짜 '찍은 때 10월 16일 14:05' · '올린 때 …'(lab-summary labWhenText, 2026-10-27 — 옛 서버 응답엔 없다) */
+  when?: string | null;
   chips: string[];
   status: { text: string; tone: 'sky' | 'muted' | 'warn' } | null;
   /** 원본 영상 — 옆 · 뒤(3D 시계를 따라감), 마커 샘플이면 ③ · ④ 카메라까지 최대 넷(2026-10-22 김민: "샘플에서는 최대 4개까지") */
@@ -575,6 +578,7 @@ export async function loadAppLabDetail(input: {
     ok: true,
     id: sample.id,
     title: labTitle(meta?.createdAt),
+    when: labWhenText(meta),
     chips: meta ? labMetaChips(meta) : [],
     status: labStatusLabel(job, now),
     videos: [

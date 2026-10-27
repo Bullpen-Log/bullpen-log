@@ -58,7 +58,8 @@ globalThis.__reportMetrics = {
   separation: { trunkOpenAtPlantDeg: -40, trunkConf: 50 },
   trunkTilt: { forwardDeg: 30, conf: 50 },
   arm: { abductionAtPlantDeg: 88, conf: 50 },
-  block: { pelvisDecelPct: 95, kneeExtensionDeg: 10, kneeCollapseDeg: 30, conf: 50 },
+  /* 가장 굽은 장면 13 — 착지(10)와 릴리스(20) 사이. 브레이크 '더 굽음'의 장면은 릴리스가 아니라 이 장면이다 */
+  block: { pelvisDecelPct: 95, kneeExtensionDeg: 10, kneeCollapseDeg: 30, worstFrame: 13, conf: 50 },
 };
 const result = {
   hand: 'R',
@@ -100,11 +101,18 @@ const c = {
   action: '#0088ff',
 };
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, { c, ...props }));
-/* 웹: 참고 · 확인 어려움을 모양과 접근성 이름으로 가른다(색만이 아니라) */
+/* 브레이크 '더 굽음'은 가장 굽은 장면을 가리킨다 — 릴리스를 그 장면처럼 쓰지 않는다 */
+const brake = report.items.find((i) => i.element === '브레이크');
+assert.equal(brake.frame, 13);
+assert.equal(brake.moment, '앞무릎이 가장 굽은');
+assert.equal(report.headline.frame, 13, '3D 첫 장면도 그 장면');
+/* 웹: 여섯 줄을 한 장에서 — 참고 · 확인 어려움을 모양 · 글로 가른다(색만이 아니라), 주 문제가 없으면 펴 둔 줄도 없다 */
 const webFlow = renderToStaticMarkup(React.createElement(web.FlowCard, { report: hardYouth, onPick() {} }));
-assert.match(webFlow, /aria-label="브레이크 참고"/);
-assert.match(webFlow, /aria-label="상하체 분리 좋아요"/);
-assert.match(webFlow, /aria-label="스로잉 확인 어려움"/);
+for (const el of ['드리프트', '드롭', '상하체 분리', '브레이크', '몸통 회전', '스로잉']) assert.match(webFlow, new RegExp(`>${el}<`));
+assert.match(webFlow, />참고</);
+assert.match(webFlow, />확인 어려움</);
+assert.match(webFlow, />영상 신뢰도 부족</, '확인 못 한 줄은 까닭을 둘째 줄에');
+assert.doesNotMatch(webFlow, /aria-expanded="true"/);
 assert.match(webFlow, /border-2 border-muted bg-surface[^"]*"[^>]*><span class="size-1.5 rounded-full bg-muted"/, '참고 = 실선 고리 + 가운데 점');
 assert.match(webFlow, /border-dashed border-line-strong bg-surface[^"]*"[^>]*><\/span>/, '확인 어려움 = 점선 빈 고리');
 for (const components of [native, web]) {
@@ -112,7 +120,25 @@ for (const components of [native, web]) {
   assert.match(flow, /수치 확인 6\/6 · 평가 가능 5\/6/);
   assert.match(flow, /수치 확인 · 평가 가능/);
   assert.match(flow, /30°/);
+  assert.match(flow, /최대 30° 더 굽어져요/, '펴 둔 줄은 수치 관찰부터');
+  assert.match(flow, /앞무릎이 가장 굽은 장면 보기/);
+  assert.match(flow, /문턱/, '평가한 칸은 기준 띠');
   assert.doesNotMatch(flow, /지표 검증 중/, '평가 지표에 검증 중 표시 없음');
+  /* 이번 투구의 핵심 — 주 문제의 수치 · 관찰 · 근거 · 장면. 요소 일반 설명(인과 문장)은 쓰지 않는다 */
+  const lead = render(components.KeyFinding, { report, onScene() {} });
+  assert.match(lead, /먼저 볼 것 · 브레이크/);
+  assert.match(lead, /착지 뒤 앞무릎이 더 굽은 각/);
+  assert.match(lead, /30°/);
+  assert.match(lead, /최대 30° 더 굽어져요/);
+  assert.match(lead, /엔진 오차를 빼도 기준 밑/);
+  assert.match(lead, /앞무릎이 가장 굽은 장면 보기/);
+  assert.doesNotMatch(lead, /힘이 몸통으로|여기부터 고쳐요/);
+  /* 고칠 점이 없으면 확인 범위만 — 좋다 · 문제라고 만들어 내지 않는다 */
+  const scope = render(components.KeyFinding, { report: heldReport, onScene() {} });
+  assert.match(scope, /이번 투구에서 확인한 범위/);
+  assert.match(scope, /평가한 5개 지표에 고칠 점이 없어요/);
+  assert.match(scope, /투구 동작 전체에 대한 결론은 아니에요/);
+  assert.doesNotMatch(scope, /먼저 볼 것|장면 보기/);
   /* 참고(성장기 · 스로잉)는 관찰이 주 설명, 제한은 띠 밑 보조 문구 */
   const ref = render(components.FlowCard, { report: { ...refReport, primary: '몸통 회전' }, onPick() {} });
   assert.match(ref, /공을 놓을 때 몸통이 앞으로 30° 기울어져 있어요/);
@@ -120,6 +146,7 @@ for (const components of [native, web]) {
   assert.match(ref, /성장기는 크기보다 순서를 먼저 봐서/);
   assert.match(ref, /성장기라 참고/);
   assert.ok(ref.indexOf('기울어져 있어요') < ref.indexOf('성장기는 크기보다'), '관찰이 제한 안내보다 먼저');
+  assert.doesNotMatch(ref, /문턱|참고선/, '참고 칸에는 기준 띠를 안 그린다(목표선처럼 보이지 않게)');
   const armRef = render(components.FlowCard, { report: { ...refReport, primary: '스로잉' }, onPick() {} });
   assert.match(armRef, /어깨 벌림은 88°예요/);
   assert.match(armRef, /동작이나 촬영에 문제가 있다는 뜻은 아니에요/);
@@ -141,6 +168,11 @@ for (const components of [native, web]) {
   const hold = render(components.RxCard, { report: heldReport, mine: true, focus: null });
   assert.match(hold, /고칠 점이 없어 따로 권할 드릴이 없어요/);
   assert.doesNotMatch(hold, /처방 시작|자동 처방/);
+  /* 처방이 없으면 까닭에 맞는 길 — 참고 지표는 요소 설명(처방이 아님), 확인 못 한 구간은 촬영 안내 */
+  assert.match(hold, /스로잉 요소 설명 보기/);
+  assert.match(hold, /이번 투구에 맞춘 처방은 아니에요/);
+  assert.doesNotMatch(hold, /촬영 안내 보기/);
+  assert.match(render(components.RxCard, { report: hardYouth, mine: true, focus: null }), /촬영 안내 보기/);
   const old = {
     ...report,
     criteria: '2026-10-21',

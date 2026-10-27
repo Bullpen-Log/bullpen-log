@@ -202,6 +202,16 @@ const WHEN = new Intl.DateTimeFormat('ko-KR', {
 export const labTitle = (createdAt: string | null | undefined): string =>
   createdAt ? `${WHEN.format(new Date(createdAt))} 투구` : '투구';
 
+/**
+ * 리포트 머리의 날짜 — 아이폰이 적은 녹화 시작 시각(src 'apple')이 있으면 '찍은 때', 없으면 '올린 때'(createdAt). 둘 다 없으면 null.
+ * 제목(labTitle)은 늘 올린 시각이라, 리포트에서는 그 뜻을 붙여 보인다(2026-10-27 — 날짜가 무엇의 날짜인지 추정하게 두지 않는다).
+ */
+export function labWhenText(meta: { createdAt?: string | null; files?: Partial<Record<'side' | 'back', { at?: string; src?: string }>> } | null | undefined): string | null {
+  const shot = (['side', 'back'] as const).map((v) => meta?.files?.[v]).find((f) => f?.src === 'apple' && f.at && Number.isFinite(Date.parse(f.at)));
+  if (shot?.at) return `찍은 때 ${WHEN.format(new Date(shot.at))}`;
+  return meta?.createdAt && Number.isFinite(Date.parse(meta.createdAt)) ? `올린 때 ${WHEN.format(new Date(meta.createdAt))}` : null;
+}
+
 /** 영상으로 본 던지는 손이 올릴 때 고른 손과 다르면 한 줄(같으면 null) */
 export function labHandNote(resultHand: 'L' | 'R', metaHand: 'L' | 'R' | null | undefined): string | null {
   if (!metaHand || resultHand === metaHand) return null;

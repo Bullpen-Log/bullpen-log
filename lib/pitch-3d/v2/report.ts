@@ -131,6 +131,13 @@ export type ReportItem = {
   gauge: ReportGauge | null;
   /** '그 순간' 장면 */
   frame: number | null;
+  /**
+   * 수치를 그대로 읽은 관찰 문장(평가 말 없이) — 확인 못 한 칸은 null. 리포트 판독 칸의 주 설명(2026-10-27).
+   * line 은 평가 칸이면 평가 말이라 그대로 둔다(옛 앱이 읽는다). 옛 서버 응답에는 이 칸이 없다.
+   */
+  obs?: string | null;
+  /** 장면 이름 '착지' · '착지 뒤' · '앞무릎이 가장 굽은'(초 없이 — momentName. buildReport 가 채운다, 옛 서버 응답에는 없다) */
+  moment?: string | null;
 };
 
 /** 처방에 쓰는 드릴 한 동작 — MechanicsDrillView 에서 필요한 것만(화면으로 보내는 몫을 줄인다) */
@@ -186,7 +193,7 @@ export type PitchReport = {
     title: string;
     why: string | null;
     frame: number | null;
-    /** 그 순간 이름 '착지 뒤 0.08초' */
+    /** 그 순간 이름 '착지 뒤'(초 없이 — momentName) */
     moment: string | null;
   };
   /** 경계 이상 요소마다 개선 드릴(흐름 차례 · 많아야 2장) */
@@ -535,7 +542,8 @@ export function judgeElements(
               fmtDeg(bl.kneeCollapseDeg),
               '착지 뒤 앞무릎이 더 굽은 각',
               { ...SINK_BAND, value: bl.kneeCollapseDeg },
-              frames.release,
+              /* 값은 착지 ~ 릴리스에서 가장 굽은 장면의 것 — 릴리스보다 앞일 수 있어 그 장면을 가리킨다(2026-10-27). 옛 계산 결과에 없으면 릴리스 */
+              bl.worstFrame != null && Number.isInteger(bl.worstFrame) ? bl.worstFrame : frames.release,
               `${Math.round(SINK_BAND.fairEnd)}° 밑`
             )
           : judged(
@@ -674,6 +682,9 @@ export function judgeElements(
       goal: prescriptionEligible ? d.goal : null,
       /* 지표 정의는 수치를 보인 칸에만 — 확인하지 못한 칸에 '각도를 확인해요'가 붙으면 잰 것처럼 읽힌다 */
       metricNote: status === 'unsure' ? null : (METRIC_NOTES[name] ?? null),
+      obs: status === 'unsure' ? null : obs,
+      /* 브레이크 '더 굽음'의 장면은 착지 ~ 릴리스에서 앞무릎이 가장 굽은 때 — 그 이름으로(나머지는 buildReport 가 순간 이름을 붙인다) */
+      moment: name === '브레이크' && d.gauge?.up === false && status !== 'unsure' ? '앞무릎이 가장 굽은' : null,
     };
   });
 }
@@ -684,16 +695,17 @@ const METRIC_NOTES: Partial<Record<ElementName, string>> = {
   스로잉: '착지 때 어깨가 벌어진 각도를 확인해요. 팔의 전체 타이밍을 평가한 값은 아니에요.',
 };
 
-const HARD_TEXT: Record<Exclude<ReportMeasurement['quality'], 'sufficient'>, string> = {
-  low: '확인 어려움 · 영상 신뢰도 부족',
-  missing: '확인 어려움 · 신뢰도 정보 없음',
-  invalid: '확인 어려움 · 계산값 확인 필요',
-  unavailable: '확인 어려움 · 계산하지 못함',
+/** 확인하지 못한 까닭(짧게) — 판독 줄의 둘째 줄 · measurementText */
+export const HARD_REASON: Record<Exclude<ReportMeasurement['quality'], 'sufficient'>, string> = {
+  low: '영상 신뢰도 부족',
+  missing: '신뢰도 정보 없음',
+  invalid: '계산값 확인 필요',
+  unavailable: '계산하지 못함',
 };
 export function measurementText(item: ReportItem): string {
   const m = item.measurement;
   if (!m) return '이전 판정 기준의 리포트예요. 다시 불러와 확인해 주세요.';
-  if (m.quality !== 'sufficient') return HARD_TEXT[m.quality] ?? '확인 어려움';
+  if (m.quality !== 'sufficient') return HARD_REASON[m.quality] ? `확인 어려움 · ${HARD_REASON[m.quality]}` : '확인 어려움';
   if (m.applicability === 'flat') return '수치 확인 · 평지 영상이라 참고';
   if (m.applicability === 'youth') return '수치 확인 · 성장기라 참고';
   return m.validation === 'supported' ? '수치 확인 · 평가 가능' : '수치 확인 · 지표 검증 중';
@@ -731,7 +743,7 @@ export function prescriptionMessage(report: PitchReport): string {
       ? `평가한 ${c.evaluated}개 지표에 고칠 점이 없어 따로 권할 드릴이 없어요.`
       : '평가할 수 있는 지표가 없어 드릴을 권하지 않아요.',
     c.reference ? '참고 지표의 수치로는 드릴을 권하지 않아요.' : null,
-    c.unavailable ? '확인하지 못한 항목은 투구의 흐름에서 까닭을 볼 수 있어요.' : null,
+    c.unavailable ? '확인하지 못한 항목은 여섯 요소 판독에서 까닭을 볼 수 있어요.' : null,
     c.evaluated === c.total ? '이 결과가 투구 동작 전체를 평가한 것은 아니에요.' : null,
   ];
   return lines.filter(Boolean).join(' ');
@@ -787,13 +799,17 @@ function rxOf(item: ReportItem, drills: ReportDrill[], slots: 1 | 2): ElementRx 
 
 /* ───────────────────────────── 리포트 ───────────────────────────── */
 
+/**
+ * 장면 이름 '착지' · '착지 뒤' — 초는 붙이지 않는다(2026-10-27). 결과 시각(t)은 영상 트랙 시각이라 슬로모를 30fps 로 펴서 올린 영상은 실제보다
+ * 몇 배 길게 읽힌다(실험실 240fps 샘플: 착지 → 가장 굽은 장면이 '0.93초'로 나왔지만 실제로는 0.12초 남짓). 순간 이름만 정확히.
+ */
 const momentName = (r: Pick<Pitch3dV2Ok, 't' | 'events'>, frame: number | null): string | null => {
   if (frame == null) return null;
   const fp = plantFrame(r.events);
   const at = (k: number, name: string) => {
     const d = r.t[frame] - r.t[k];
     if (Math.abs(d) < 0.005) return name;
-    return `${name} ${d > 0 ? '뒤' : '전'} ${Math.abs(d).toFixed(2)}초`;
+    return `${name} ${d > 0 ? '뒤' : '전'}`;
   };
   if (r.events.kneeUp != null && frame <= r.events.kneeUp) return at(r.events.kneeUp, '니업');
   if (frame < fp) return at(fp, '착지');
@@ -804,7 +820,10 @@ const momentName = (r: Pick<Pitch3dV2Ok, 't' | 'events'>, frame: number | null):
 export function buildReport(result: Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' | 'hand' | 'conf'>, ctx: ReportContext): PitchReport {
   const m = mechChecks(result, ctx.heightCm);
   const fp = plantFrame(result.events);
-  const items = judgeElements(m, ctx, { kneeUp: result.events.kneeUp, plant: fp, release: result.events.release });
+  const items = judgeElements(m, ctx, { kneeUp: result.events.kneeUp, plant: fp, release: result.events.release }).map((i) => ({
+    ...i,
+    moment: i.moment ?? momentName(result, i.frame),
+  }));
   const { primary, next, later } = pickProblems(items);
   const drills = ctx.drills ?? [];
   const rx = drills.length

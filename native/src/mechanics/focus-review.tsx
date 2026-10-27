@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { router } from 'expo-router';
 import type { FocusView } from '@/lib/mechanics/program';
-import { baselineReady, reviewDate, REVIEW_CHOICES, type ComparisonConditions, type ReviewChoice } from '@/lib/mechanics/comparison';
+import { baselineReady, reviewDate, REVIEW_CHOICES, rowUnitText, type ComparisonConditions, type ReviewChoice } from '@/lib/mechanics/comparison';
 import type { Palette } from '~/lib/ui';
 import { Press } from '~/shell/press';
 import { act } from '~/mechanics/parts';
@@ -90,8 +90,8 @@ export function FocusReview({
               {f.comparison.rows.map((r) => (
                 <View key={r.key} style={{ gap: 4, paddingVertical: 8, borderTopWidth: 1, borderColor: c.line }}>
                   <Text style={{ color: c.ink, fontWeight: '600' }}>{r.label}</Text>
-                  {text(`기준 ${number(r.before)}${r.unit} → 재측정 ${number(r.after)}${r.unit}`)}
-                  {text(`차이: ${r.delta === null ? '보류' : `${r.delta > 0 ? '+' : ''}${number(r.delta)}${r.unit}`}`)}
+                  {text(`기준 ${number(r.before)}${rowUnitText(r.element, r.unit)} → 재측정 ${number(r.after)}${rowUnitText(r.element, r.unit)}`)}
+                  {text(`차이: ${r.delta === null ? '보류' : `${r.delta > 0 ? '+' : ''}${number(r.delta)}${r.unit === '°' ? '°' : '%p'}`}`)}
                   {r.reason ? text(r.reason) : null}
                 </View>
               ))}

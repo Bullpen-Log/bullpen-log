@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Button, ButtonLink } from '@/components/ui';
+import { labGuideHref } from '@/lib/pitch-lab-guide';
 import { compareDeltaText, compareRangeText, prevDateText, PREV_CONFIRM, type PreviousComparison } from '@/lib/pitch-3d/v2/compare-view';
 import {
   REPORT_STATUS_TEXT,
@@ -19,66 +20,15 @@ import {
   type ReportItem,
   type ReportStatus,
 } from '@/lib/pitch-3d/v2/report';
+import { itemObs, itemSub, nextStepsOf, reportLead, sceneLabel, showsGauge, type ReportNextStep } from '@/lib/pitch-3d/v2/report-view';
 
 /**
- * 투구 진단 리포트 조각(설계 docs/designs/pitch-3d-report.md 5-4절 '모양') — 어두운 3D 무대 위 결론 · 투구의 흐름 사슬 · 개선 드릴 · 지난번과 견주기.
- * 색은 sky(누름) · warn(문제) · ok(목표 · 좋아요) 셋만, 숫자는 text-numeric. 앱 화면(native/src/app/lab/[id].tsx)도 같은 차례 · 같은 글.
+ * 투구 진단 리포트 조각(2026-10-27 개편 — 장면 → 근거 → 해석 → 다음 선택) — 이번 투구의 핵심 · 여섯 요소 판독 · 개선 드릴 · 지난번과 견주기.
+ * 3D 무대 · 원본 영상은 lab-detail.tsx. 색은 sky(누름) · warn(문제) · ok(좋아요) 셋, 상태는 색 · 모양 · 글 셋으로 가른다.
+ * 앱 화면(native/src/lab/report.tsx)도 같은 차례 · 같은 글(고르기는 lib/pitch-3d/v2/report-view.ts).
  */
 
-/* ───────────────────────────── 결론(어두운 무대) ───────────────────────────── */
-
-export function ReportHero({
-  report,
-  stage,
-}: {
-  report: PitchReport;
-  /** 3D 인형 칸 */
-  stage: ReactNode;
-}) {
-  const h = report.headline;
-  return (
-    <section className="theme-dark overflow-hidden rounded-3xl bg-page text-ink">
-      <div className="relative">
-        {stage}
-        {h.moment && <span className="pointer-events-none absolute right-4 top-3 text-caption text-muted">{h.moment}</span>}
-      </div>
-      {/* PC 는 결론이 3D 밑으로 밀려 안 보여 오른쪽 위(VerdictCard)로 */}
-      <div className="px-5 pb-5 pt-1 desk:hidden">
-        <Verdict report={report} />
-      </div>
-    </section>
-  );
-}
-
-/** PC 오른쪽 맨 위의 결론 — 휴대폰은 ReportHero 안에 */
-export function VerdictCard({ report }: { report: PitchReport }) {
-  return (
-    <section className="theme-dark hidden rounded-3xl bg-page p-6 text-ink desk:block">
-      <Verdict report={report} />
-    </section>
-  );
-}
-
-function Verdict({ report }: { report: PitchReport }) {
-  const h = report.headline;
-  return (
-    <div className="space-y-2.5">
-      {h.tag && (
-        <span
-          className={`inline-flex rounded-full px-2.5 py-1 text-footnote ${
-            h.tone === 'improve' ? 'bg-warn/20 text-warn' : 'border border-warn/60 text-warn'
-          }`}
-        >
-          {h.tag}
-        </span>
-      )}
-      <p className="whitespace-pre-line text-xl font-semibold leading-snug break-keep">{h.title}</p>
-      {h.why && <p className="text-sm leading-relaxed text-muted break-keep">{h.why}</p>}
-    </div>
-  );
-}
-
-/* ───────────────────────────── 투구의 흐름 ───────────────────────────── */
+/* ───────────────────────────── 상태 표시 ───────────────────────────── */
 
 function Dot({ status }: { status: ReportStatus }) {
   const cls: Record<ReportStatus, string> = {
@@ -91,7 +41,7 @@ function Dot({ status }: { status: ReportStatus }) {
     unsure: 'border-[1.5px] border-dashed border-line-strong bg-surface',
   };
   return (
-    <span className={`flex size-4 items-center justify-center rounded-full ${cls[status]}`} aria-hidden="true">
+    <span className={`flex size-4 shrink-0 items-center justify-center rounded-full ${cls[status]}`} aria-hidden="true">
       {status === 'note' && <span className="size-1.5 rounded-full bg-muted" />}
     </span>
   );
@@ -111,20 +61,17 @@ function StatusTag({ status }: { status: ReportStatus }) {
   );
 }
 
-/** 기준 띠 — 고칠 점 · 경계 · 보통 · 좋아요 네 칸 + 내 값 점 + 문턱 */
-export function Gauge({ g, muted = false }: { g: ReportGauge; muted?: boolean }) {
+/** 기준 띠 — 고칠 점 · 경계 · 보통 · 좋아요 네 칸 + 내 값 점 + 문턱. 평가한 칸에만 그린다(report-view showsGauge) */
+export function Gauge({ g }: { g: ReportGauge }) {
   const x = (v: number) => Math.max(0, Math.min(100, ((v - g.lo) / (g.hi - g.lo)) * 100));
   const a = x(g.cut);
   const b = x(g.edgeEnd);
   const c = x(g.fairEnd);
   const seg = (from: number, to: number, cls: string) => (
-    <span
-      className={`absolute inset-y-0 ${muted ? 'bg-line' : cls}`}
-      style={{ left: `${Math.min(from, to)}%`, width: `${Math.abs(to - from)}%` }}
-    />
+    <span className={`absolute inset-y-0 ${cls}`} style={{ left: `${Math.min(from, to)}%`, width: `${Math.abs(to - from)}%` }} />
   );
   return (
-    <div className={`relative h-9 ${muted ? 'opacity-50' : ''}`} aria-hidden="true">
+    <div className="relative h-9" aria-hidden="true">
       <div className="absolute inset-x-0 top-2.5 h-1.5 overflow-hidden rounded-full bg-surface-2">
         {g.up ? (
           <>
@@ -142,76 +89,124 @@ export function Gauge({ g, muted = false }: { g: ReportGauge; muted?: boolean })
           </>
         )}
       </div>
-      <span
-        className="absolute top-1 size-4 -translate-x-1/2 rounded-full border-[3px] border-surface bg-ink"
-        style={{ left: `${x(g.value)}%` }}
-      />
-      <span className={`absolute top-5 -translate-x-1/2 text-caption ${muted ? 'text-muted' : 'text-warn'}`} style={{ left: `${a}%` }}>
-        {muted ? '참고선' : '문턱'}
+      <span className="absolute top-1 size-4 -translate-x-1/2 rounded-full border-[3px] border-surface bg-ink" style={{ left: `${x(g.value)}%` }} />
+      <span className="absolute top-5 -translate-x-1/2 text-caption text-warn" style={{ left: `${a}%` }}>
+        문턱
       </span>
     </div>
   );
 }
 
+/** '착지 장면 보기' · '앞무릎이 가장 굽은 장면 보기' — 3D 와 원본 영상을 그 장면에 세우고 무대로 간다(lab-detail onScene) */
+function SceneButton({ item, onScene }: { item: ReportItem; onScene: (item: ReportItem) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onScene(item)}
+      className="inline-flex min-h-11 items-center gap-2 rounded-full bg-surface-2 px-4 text-sm font-semibold text-ink transition-colors active:bg-line desk:hover:bg-line"
+    >
+      <span aria-hidden="true" className="text-xs">
+        ▶
+      </span>
+      {sceneLabel(item)}
+    </button>
+  );
+}
+
+/* ───────────────────────────── 이번 투구의 핵심 ───────────────────────────── */
+
+/**
+ * 맨 위 한 가지 — 처방할 주 문제면 그 수치 · 관찰 · 근거 · 장면, 없으면 확인 범위(report-view reportLead). 고칠 점을 만들어 내지 않는다.
+ * 요소의 일반 설명(headline.why)은 이 투구에서 확인한 사실이 아니라 쓰지 않는다.
+ */
+export function KeyFinding({ report, onScene }: { report: PitchReport; onScene: (item: ReportItem) => void }) {
+  const lead = reportLead(report);
+  if (lead.kind === 'scope')
+    return (
+      <section aria-label="이번 투구의 핵심" className="space-y-2 rounded-2xl bg-surface p-(--block-pad)">
+        <p className="text-footnote text-muted">이번 투구에서 확인한 범위</p>
+        <p className="whitespace-pre-line text-lg font-semibold leading-snug text-ink break-keep">{lead.title}</p>
+        {lead.note && <p className="text-sm leading-relaxed text-muted break-keep">{lead.note}</p>}
+        <p className="text-caption text-muted">{coverageText(report.coverage)}</p>
+      </section>
+    );
+  const it = lead.item;
+  return (
+    <section aria-label="이번 투구의 핵심" className="space-y-3 rounded-2xl bg-surface p-(--block-pad)">
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusTag status={it.status} />
+        <span className="text-footnote text-muted">먼저 볼 것 · {it.element}</span>
+      </div>
+      <div className="space-y-0.5">
+        <p className="text-footnote text-muted break-keep">{it.valueLabel}</p>
+        <p className="text-numeric text-4xl font-semibold tracking-tight text-ink">{it.value}</p>
+      </div>
+      <p className="text-base leading-normal text-ink break-keep">{itemObs(it)}</p>
+      {it.foot && <p className="text-caption text-muted break-keep">{it.foot}</p>}
+      {it.frame != null && <SceneButton item={it} onScene={onScene} />}
+    </section>
+  );
+}
+
+/* ───────────────────────────── 여섯 요소 판독 ───────────────────────────── */
+
+/**
+ * 여섯 요소를 한 장에서 훑는다(상태 · 잰 것 · 값) — 줄을 누르면 그 자리에서 펴진다: 관찰 → 띠(평가한 칸만) → 읽는 법 · 해석 범위 → 장면.
+ * 처음엔 주 문제 줄만 펴 둔다. 줄을 펴는 것만으로는 3D 를 옮기지 않는다(읽던 자리를 잃지 않게) — 장면 단추가 옮긴다.
+ */
 export function FlowCard({
   report,
   onPick,
 }: {
   report: PitchReport;
-  /** 점을 고르면 그 순간으로(3D) */
+  /** 장면 단추 — 3D · 원본 영상을 그 순간으로 */
   onPick: (item: ReportItem) => void;
 }) {
-  const first = report.items.find((i) => i.element === report.primary) ?? report.items[0];
-  const [sel, setSel] = useState(first.element);
-  const it = report.items.find((i) => i.element === sel) ?? first;
+  const [open, setOpen] = useState<string | null>(report.primary);
   return (
-    <section className="space-y-2">
-      <h2 className="px-1 text-footnote text-muted">투구의 흐름</h2>
-      <p className="px-1 text-caption text-muted">{coverageText(report.coverage)}</p>
-      <div className="rounded-2xl bg-surface p-(--block-pad)">
-        <div className="relative">
-          <div className="absolute inset-x-5 top-2 h-px bg-line" />
-          <div role="tablist" aria-label="여섯 요소" className="relative flex justify-between">
-            {report.items.map((i) => {
-              const on = i.element === sel;
-              return (
-                <button
-                  key={i.element}
-                  type="button"
-                  role="tab"
-                  aria-selected={on}
-                  aria-label={`${i.element} ${REPORT_STATUS_TEXT[i.status]}`}
-                  onClick={() => {
-                    setSel(i.element);
-                    onPick(i);
-                  }}
-                  className="flex w-12 flex-col items-center gap-1.5"
-                >
-                  <Dot status={i.status} />
-                  <span className={`text-caption whitespace-nowrap ${on ? 'font-semibold text-ink' : 'text-muted'}`}>{i.element}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div role="tabpanel" className="mt-4 space-y-3 border-t border-line pt-4">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-base font-semibold text-ink">{it.element}</span>
-            <StatusTag status={it.status} />
-          </div>
-          <p className="text-sm leading-relaxed text-ink break-keep">{it.line}</p>
-          {it.metricNote && <p className="text-caption text-muted break-keep">{it.metricNote}</p>}
-          {it.value && (
-            <div className="flex items-baseline gap-2">
-              <span className="text-numeric text-3xl font-semibold tracking-tight text-ink">{it.value}</span>
-              <span className="text-footnote text-muted break-keep">{it.valueLabel}</span>
-            </div>
-          )}
-          {it.gauge && <Gauge g={it.gauge} muted={it.status === 'note' || it.status === 'unsure'} />}
-          {it.foot && <p className="text-caption text-muted break-keep">{it.foot}</p>}
-          <p className="text-caption text-muted">{measurementText(it)}</p>
-        </div>
+    <section className="space-y-2" aria-label="여섯 요소 판독">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 px-1">
+        <h2 className="text-footnote text-muted">여섯 요소 판독</h2>
+        <p className="text-caption text-muted">{coverageText(report.coverage)}</p>
       </div>
+      <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-surface">
+        {report.items.map((i) => {
+          const on = open === i.element;
+          const panel = `report-el-${i.key || i.element}`;
+          return (
+            <li key={i.element}>
+              <button
+                type="button"
+                aria-expanded={on}
+                aria-controls={panel}
+                onClick={() => setOpen(on ? null : i.element)}
+                className="flex min-h-14 w-full items-center gap-3 px-(--block-pad) py-2.5 text-left transition-colors active:bg-ink/4 desk:hover:bg-surface-2"
+              >
+                <Dot status={i.status} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-ink">{i.element}</span>
+                  <span className="line-clamp-2 block text-caption text-muted break-keep">{itemSub(i)}</span>
+                </span>
+                <span className="text-numeric shrink-0 text-base font-semibold text-ink">{i.value ?? '—'}</span>
+                <StatusTag status={i.status} />
+                <span aria-hidden="true" className={`shrink-0 text-muted transition-transform ${on ? 'rotate-90' : ''}`}>
+                  ›
+                </span>
+              </button>
+              {on && (
+                <div id={panel} className="space-y-3 px-(--block-pad) pb-4">
+                  <p className="text-sm leading-relaxed text-ink break-keep">{itemObs(i)}</p>
+                  {showsGauge(i) && <Gauge g={i.gauge!} />}
+                  {i.foot && <p className="text-caption text-muted break-keep">{i.foot}</p>}
+                  {i.metricNote && <p className="text-caption text-muted break-keep">{i.metricNote}</p>}
+                  <p className="text-caption text-muted">{measurementText(i)}</p>
+                  {i.frame != null && <SceneButton item={i} onScene={onPick} />}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
@@ -258,13 +253,15 @@ function RxBlock({ rx }: { rx: ElementRx }) {
         </ul>
       )}
       {rx.target && (
-        <div className="flex items-baseline gap-2 rounded-xl bg-surface-2 px-3.5 py-3">
-          <span className="min-w-0 flex-1 text-caption text-muted break-keep">다음에 볼 숫자 · {rx.target.label}</span>
-          <span className="text-numeric text-base text-muted">{rx.target.now}</span>
-          <span className="text-muted" aria-hidden="true">
-            →
-          </span>
-          <span className="text-numeric text-base font-semibold text-ok">{rx.target.goal}</span>
+        <div className="space-y-1 rounded-xl bg-surface-2 px-3.5 py-3">
+          <p className="text-caption text-muted break-keep">다음에 볼 숫자 · {rx.target.label}</p>
+          <p className="flex flex-wrap items-baseline gap-x-2">
+            <span className="text-numeric text-base text-muted">{rx.target.now}</span>
+            <span className="text-muted" aria-hidden="true">
+              →
+            </span>
+            <span className="text-numeric text-base font-semibold text-ok">{rx.target.goal}</span>
+          </p>
         </div>
       )}
     </div>
@@ -279,14 +276,40 @@ const RX_HREF = (kind: RxAction['kind'], elementKey: string) =>
       ? '/videos/lab'
       : `/training?view=mechanics&tab=elements&el=${elementKey}`;
 
+/** 처방이 없을 때 이어 갈 길(웹) — 촬영 안내 · 요소 설명(report-view nextStepsOf) */
+const STEP_HREF = (s: ReportNextStep) =>
+  s.kind === 'guide' ? labGuideHref('frame') : `/training?view=mechanics&tab=elements&el=${s.elementKey}`;
+
 export function RxCard({ report, mine, focus }: { report: PitchReport; mine: boolean; focus: FocusProgress }) {
-  if (report.criteria !== REPORT_CRITERIA || report.rx.length === 0)
+  if (report.criteria !== REPORT_CRITERIA || report.rx.length === 0) {
+    const steps = report.criteria === REPORT_CRITERIA && report.coverage ? nextStepsOf(report) : [];
     return (
-      <section className="space-y-2 rounded-2xl bg-surface p-(--block-pad)">
+      <section className="space-y-3 rounded-2xl bg-surface p-(--block-pad)">
         <h2 className="font-semibold text-ink">개선 드릴</h2>
-        <p className="text-sm text-muted">{prescriptionMessage(report)}</p>
+        <p className="text-sm text-muted break-keep">{prescriptionMessage(report)}</p>
+        {steps.length > 0 && (
+          <ul className="space-y-2">
+            {steps.map((s) => (
+              <li key={s.kind}>
+                <Link
+                  href={STEP_HREF(s)}
+                  className="flex min-h-12 items-center gap-3 rounded-xl bg-surface-2 px-3.5 py-2.5 transition-colors active:bg-line desk:hover:bg-line"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-ink">{s.label}</span>
+                    <span className="block text-caption text-muted break-keep">{s.note}</span>
+                  </span>
+                  <span aria-hidden="true" className="text-muted">
+                    ›
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     );
+  }
   const main = report.rx[0];
   const cta = rxAction(mine, focus);
   const href = RX_HREF(cta.kind, main.key);

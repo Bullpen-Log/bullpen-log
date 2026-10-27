@@ -107,7 +107,11 @@ for (const m of [native, web]) {
 console.log('앱·웹 진행 화면 렌더 검사 통과: 확인 대기·전환 권유·통증/장비 제한·이전 기준 전환·장비 설정');
 
 const { snapshot } = await import('./mechanics-comparison-fixture.mjs');
-const { reviewView } = await import('../lib/mechanics/comparison.ts');
+const { reviewView, rowUnitText } = await import('../lib/mechanics/comparison.ts');
+/* 저장 칸 '% 키'는 드리프트 · 드롭 둘 다 — 드롭은 다리 길이 비율로 보인다(화면 글만, 저장 값은 그대로) */
+assert.equal(rowUnitText('드롭', '% 키'), '%(다리 길이)');
+assert.equal(rowUnitText('드리프트', '% 키'), '%(키)');
+assert.equal(rowUnitText(undefined, '% 키'), '%(키)');
 for (const m of [await import('../native/src/mechanics/focus-review.tsx'), await import('../app/(app)/training/focus-review.tsx')]) {
   const review = reviewView({
     v: 1,
@@ -123,6 +127,8 @@ for (const m of [await import('../native/src/mechanics/focus-review.tsx'), await
   assert.match(html, /처방 전후 측정 비교/);
   assert.match(html, /기준 이후 4회 수행/);
   assert.match(html, /8.0/);
+  assert.match(html, /4\.0(<!-- -->)?%\(키\)/, '드리프트는 키 비율');
+  assert.match(html, /\+8\.0%p/, '% 끼리의 차이는 %p');
   assert.match(html, /개선·악화나 운동 효과를 확정하지 않아요/);
   assert.match(html, /참고 지표/);
   assert.match(html, /현재 단계에서 다시 연습/);

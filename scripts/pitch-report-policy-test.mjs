@@ -187,7 +187,7 @@ for (const i of one.items.filter((x) => x.status === 'unsure')) {
 }
 assert.match(item(one, '드롭').line, /니업과 착지 때 골반 · 다리가/);
 assert.match(item(one, '스로잉').line, /착지 때 던지는 팔이/);
-assert.match(prescriptionMessage(one), /확인하지 못한 항목은 투구의 흐름에서 까닭을/);
+assert.match(prescriptionMessage(one), /확인하지 못한 항목은 여섯 요소 판독에서 까닭을/);
 assert.doesNotMatch(one.headline.title, /크게 고칠 곳이 없/);
 partial.drift.conf = 0;
 assert.equal(report(partial).coverage.unavailable, 6);

@@ -95,6 +95,8 @@ export type MechChecks = {
     kneeExtensionDeg: number;
     /** 착지 뒤 더 굽어 들어간 만큼(°) — 주저앉음 */
     kneeCollapseDeg: number;
+    /** 앞무릎이 가장 굽은 장면(착지 ~ 릴리스) — kneeCollapseDeg 를 정한 장면. 릴리스보다 앞일 수 있다(2026-10-27 더함 — 손으로 만든 값 · 옛 호출에는 없다) */
+    worstFrame?: number;
     conf: number | null;
     /** 값을 정하는 두 장면(착지 · 가장 굽은 장면)의 앞다리 확신 중 낮은 쪽 — 그 장면이 안 보였으면 값을 믿지 않는다 */
     keyConf: number | null;
@@ -257,6 +259,7 @@ export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechCh
     kneeAtReleaseDeg,
     kneeExtensionDeg: kneeAtPlantDeg - kneeAtReleaseDeg,
     kneeCollapseDeg: worst - kneeAtPlantDeg,
+    worstFrame: worstK,
     conf: confOf(leadLeg, plantToRelease),
     keyConf: plantConf == null || worstConf == null ? null : Math.min(plantConf, worstConf),
   };
