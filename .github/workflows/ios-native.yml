@@ -474,6 +474,8 @@ jobs:
       LANG: en_US.UTF-8
       # prebuild · Xcode 의 화면 코드 묶기 · 바닥 판 셈이 모두 이 값으로 덕아웃 설정을 읽는다
       APP_VARIANT: dugout
+      # 덕아웃 지도도 싱커와 같은 네이티브 키를 필요로 한다.
+      KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
     steps:
       - uses: actions/checkout@v7
 
@@ -493,8 +495,13 @@ jobs:
         id: prebuild
         run: |
           set -o pipefail
+          if [ -z "$KAKAO_NATIVE_APP_KEY" ]; then
+            echo "::error title=카카오 지도 키 누락::KAKAO_NATIVE_APP_KEY가 없어 덕아웃 지도를 사용할 수 없습니다."
+            exit 1
+          fi
           npx expo prebuild -p ios --no-install 2>&1 | tee "$RUNNER_TEMP/prebuild.log"
           test -d ios/Dugout.xcodeproj
+          /usr/libexec/PlistBuddy -c 'Print :KakaoAppKey' ios/Dugout/Info.plist > /dev/null
 
       - name: CocoaPods 설치
         id: pods
