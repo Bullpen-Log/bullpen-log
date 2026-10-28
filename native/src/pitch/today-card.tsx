@@ -1,22 +1,21 @@
 import { ActionButton } from '~/shell/action-button';
 import { type Href, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { rpc } from '~/lib/rpc';
 import { cacheEpoch } from '~/lib/store';
-import { TYPE, usePalette, useTheme } from '~/lib/ui';
+import { TYPE, usePalette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { fadeIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import { useFocusRefresh, useOnTabActive } from '~/shell/tab-pager';
 import { todayView } from './today-view';
 import type { PitchLog } from './api';
-import { PitchHomeMound } from './home-mound';
 import { isRecordedRest } from './home-summary';
 
 /**
- * 투구 탭 맨 위 '오늘' 카드(앱) — 웹 투구 탭 today-card.tsx 와 같은 값(app.loadAppPitchToday): 지금 팔 상태(위험 · 주의 · 안전) ·
+ * 투구 탭 '오늘'(앱) — 웹 투구 탭 today-card.tsx 와 같은 값(app.loadAppPitchToday): 지금 팔 상태(위험 · 주의 · 안전) ·
  * 안 남긴 구속 측정 · 오늘 기록 단추. '오늘 던지는 일정' 질문은 2026-10-21 뺐다(김민: 답한 줄이 0 — 던진 양 · 체감 강도는 투구 기록에서
  * 읽는다). 서버는 옛 앱을 위해 throwCard 를 그대로 보낸다(이 판은 안 읽는다).
  * 위에 쌓인 화면(기록 폼 · 체크인 · 측정)에서 돌아오면 다시 받는다.
@@ -72,16 +71,13 @@ export function usePitchToday(today: string, enabled: boolean, key: string): Tod
 }
 const LEVEL = { danger: '위험', caution: '주의', safe: '안전' } as const;
 
-export function PitchTodayCard({ today, logs = null }: { today: string; logs?: PitchLog[] | null }) {
-  const c = usePalette();
-  const dark = useTheme() !== 'light';
-  const { width, fontScale } = useWindowDimensions();
-  const stacked = width < 600 && fontScale > 1.2;
+/**
+ * 투구 탭 '오늘'의 값 — 팔 상태 알약(머리 줄) · 팔 상태 칸 · 오늘 투구 카드가 같이 쓴다(2026-10-29 확정 디자인: 팔 상태는 날짜 줄 오른쪽으로,
+ * 오늘 투구는 흰 카드 + 투구 · 휴식 기록 단추). 위에 쌓인 화면(기록 폼 · 체크인 · 측정)에서 돌아오면 다시 받는다.
+ */
+export function usePitchTodayState(today: string) {
   const [data, setData] = useState<Today | null>(() => (cached?.today === today ? cached : null));
   const [failed, setFailed] = useState(false);
-  /* 주의·위험 근거는 처음부터 표시하고, 사용자가 접은 선택은 같은 상태에서만 유지한다. */
-  const [detailView, setDetailView] = useState<{ key: string; open: boolean } | null>(null);
-
   /* 받기 차례 — 늦게 온 앞 요청의 답이 새 답을 덮지 않게 */
   const seq = useRef(0);
   const load = useCallback(() => {
@@ -105,84 +101,85 @@ export function PitchTodayCard({ today, logs = null }: { today: string; logs?: P
     seenToday.current = today;
     load();
   }, [today, load]);
-
   const view = todayView(data, today);
-  const current = view.show === 'full' ? data : null;
-  const pending = current?.unloggedVelocity ?? 0;
-  const resting = !pending && isRecordedRest(logs, today);
-  const count = pending || current?.logged?.pitches;
-  const value = pending ? String(pending) : resting ? '휴식' : current?.logged ? String(count) : current ? '기록 전' : failed ? '확인 필요' : '확인 중';
-  const subtitle = pending ? '측정 완료 · 기록 반영 전' : resting ? '오늘 휴식 기록 완료' : current?.logged ? '오늘 투구 기록 완료' : current ? '투구 · 휴식 미기록' : failed ? '오늘 기록 확인 필요' : '오늘 기록 불러오는 중…';
-  const tone = current ? { danger: c.danger, caution: c.warn, safe: '#a9e2f3' }[current.status.level] : '#b5d5eb';
-  const warning = current && current.status.level !== 'safe';
-  const detailKey = JSON.stringify([today, current?.status.level, current?.status.headline]);
-  const why = detailView?.key === detailKey ? detailView.open : !!warning;
-  const button = {
-    label: pending ? `측정한 ${pending}구 기록에 반영` : current?.logged ? '오늘 기록 보기' : '투구 · 휴식 기록',
-    go: () => router.push(view.go as Href),
-  };
+  return { current: view.show === 'full' ? data : null, failed, load, go: view.go };
+}
+export type PitchTodayState = ReturnType<typeof usePitchTodayState>;
 
+/** 날짜 줄 오른쪽 '팔 상태' 알약 — 색 점 + 단계. 누르면 밑에 근거 칸이 펴진다 */
+export function ArmStatusChip({ state, open, onPress }: { state: PitchTodayState; open: boolean; onPress: () => void }) {
+  const c = usePalette();
+  const { current, failed } = state;
+  const tone = current ? { danger: c.danger, caution: c.warn, safe: c.ok }[current.status.level] : c.muted;
+  const label = current ? `팔 상태 · ${LEVEL[current.status.level]}` : failed ? '팔 상태 다시' : '팔 상태';
   return (
-    <Animated.View layout={LinearTransition.duration(260)} style={[styles.card, { backgroundColor: dark ? '#0d2940' : '#153f60', boxShadow: c.floatHero }]}>
-      <View style={styles.heroHead}>
-        <Text style={{ color: '#f4fbff', fontSize: 17, lineHeight: 24, fontWeight: '600' }}>오늘 투구</Text>
-        <Text style={{ color: '#b5d5eb', fontSize: 12, lineHeight: 19 }}>{today.slice(5).replace('-', '.')}</Text>
-      </View>
-      <View style={[styles.heroBody, stacked && { flexDirection: 'column', alignItems: 'flex-end' }]}>
-        <View style={{ flex: stacked ? undefined : 1, alignSelf: stacked ? 'stretch' : undefined, minWidth: 0, gap: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5, flexWrap: 'wrap' }}>
-            <Text style={[typeof count === 'number' && !resting ? TYPE.num : TYPE.heading, { color: '#f4fbff', fontSize: typeof count === 'number' && !resting ? 54 : 30 }]}>{value}</Text>
-            {typeof count === 'number' && !resting ? <Text style={{ color: '#b5d5eb', fontSize: 15 }}>구</Text> : null}
-          </View>
-          <Text style={{ color: '#b5d5eb', fontSize: 15, lineHeight: 22 }}>{subtitle}</Text>
-        </View>
-        <PitchHomeMound />
-      </View>
-      {/*
-        지금 팔 상태 — 카드에서 가장 먼저 읽히게 색 띠 · 큰 글(2026-10-21 김민: 안전 신호가 가장 작은 글이었다).
-        주의·위험 근거는 기본으로 펼치며 띠를 누르면 접거나 다시 편다
-      */}
-      <Press
-        accessibilityRole="button"
-        accessibilityState={{ expanded: why }}
-        accessibilityLabel={current ? `지금 팔 상태 ${LEVEL[current.status.level]}. ${current.status.headline}` : failed ? '팔 상태 다시 확인' : '팔 상태 확인 중'}
-        disabled={!current?.status.details.length && !failed}
-        onPress={() => failed ? load() : setDetailView({ key: detailKey, open: !why })}
-        style={[styles.status, warning && { backgroundColor: current.status.level === 'danger' ? c.dangerBg : c.warnBg, padding: 12 }]}
-      >
-        <View style={[styles.statusRow, stacked && { flexDirection: 'column', alignItems: 'stretch', gap: 8 }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: stacked ? undefined : 1 }}>
-            <View style={[styles.dot, { backgroundColor: tone }]} />
-            <Text style={{ color: tone, fontSize: 17, lineHeight: 24, fontWeight: '600', flex: 1 }}>{current ? `팔 상태 · ${LEVEL[current.status.level]}` : failed ? '팔 상태 다시 확인' : '팔 상태 확인 중'}</Text>
-          </View>
-          {current?.status.details.length ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: stacked ? 'flex-end' : undefined }}>
-              <Text style={{ color: warning ? c.muted : '#b5d5eb', fontSize: 13, lineHeight: 19 }}>{why ? '접기' : '상세'}</Text>
-              <Icon name={why ? 'chevron-up' : 'chevron-down'} size={14} color={warning ? c.muted : '#b5d5eb'} />
-            </View>
-          ) : null}
-        </View>
-        {current ? <Text style={{ color: warning ? c.ink : '#edf7ff', fontSize: 15, lineHeight: 23 }}>{current.status.headline}</Text> : null}
-        {why && current
-          ? current.status.details.map((d) => (
-              <Animated.Text entering={fadeIn} key={d} style={{ color: warning ? c.ink : '#d6eafa', fontSize: 15, lineHeight: 23, fontFamily: 'Pretendard' }}>
-                {d}
-              </Animated.Text>
-            ))
-          : null}
-      </Press>
+    <Press
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      accessibilityLabel={current ? `지금 팔 상태 ${LEVEL[current.status.level]}. ${current.status.headline}` : failed ? '팔 상태 다시 확인' : '팔 상태 확인 중'}
+      onPress={() => (failed && !current ? state.load() : onPress())}
+      style={[styles.chip, { backgroundColor: c.card, boxShadow: c.float }]}
+    >
+      <Icon name="activity" size={15} color={c.link} />
+      <Text style={{ color: c.muted, fontSize: 13, fontWeight: '500' }}>{label}</Text>
+      {current ? <View style={[styles.dot, { backgroundColor: tone }]} /> : null}
+    </Press>
+  );
+}
 
-      <ActionButton label={button.label} icon={current?.logged && !pending ? 'chevron-right' : 'plus'} onPress={button.go} style={{ borderRadius: 14 }} />
+/** 팔 상태 근거 칸 — 주의 · 위험이면 처음부터 펴 둔다(안전 문장을 숨기지 않는다). 알약으로 접고 편다 */
+export function ArmStatusPanel({ state }: { state: PitchTodayState }) {
+  const c = usePalette();
+  const current = state.current;
+  if (!current) return null;
+  const warning = current.status.level !== 'safe';
+  const bg = current.status.level === 'danger' ? c.dangerBg : current.status.level === 'caution' ? c.warnBg : c.card;
+  const ink = current.status.level === 'danger' ? c.danger : current.status.level === 'caution' ? c.warn : c.ink;
+  return (
+    <Animated.View entering={fadeIn} style={[styles.panel, { backgroundColor: bg }, !warning && { boxShadow: c.float }]}>
+      <Text style={{ color: ink, fontSize: 15, lineHeight: 22, fontWeight: '600' }}>{current.status.headline}</Text>
+      {current.status.details.map((d) => (
+        <Text key={d} style={{ color: warning ? c.ink : c.muted, fontSize: 15, lineHeight: 22 }}>
+          {d}
+        </Text>
+      ))}
     </Animated.View>
   );
 }
 
-/* 웹 Card space-y-3 · 둥근 20 · 안쪽 20 */
+/** 오늘 투구 — 흰 카드: 작은 이름 · 큰 값(기록 전 · N구 · 휴식 · 측정 N구) · 한 줄 · 주 단추 하나 */
+export function PitchTodayCard({ today, logs = null, state }: { today: string; logs?: PitchLog[] | null; state: PitchTodayState }) {
+  const c = usePalette();
+  const { current, failed, go } = state;
+  const pending = current?.unloggedVelocity ?? 0;
+  const resting = !pending && isRecordedRest(logs, today);
+  const count = pending || current?.logged?.pitches;
+  const numeric = typeof count === 'number' && !resting;
+  const value = numeric ? String(count) : resting ? '휴식' : current ? '기록 전' : failed ? '확인 필요' : '확인 중';
+  /* 측정했지만 기록에 안 넣은 공 — 확정 기록처럼 보이지 않게 '반영 전'을 붙인다 */
+  const note = pending ? '측정 완료 · 기록 반영 전' : !current && failed ? '오늘 기록을 불러오지 못했어요' : null;
+  const button = {
+    label: pending ? `측정한 ${pending}구 기록에 반영` : current?.logged || resting ? '오늘 기록 보기' : '투구 · 휴식 기록',
+    icon: (current?.logged || resting) && !pending ? ('chevron-right' as const) : ('plus' as const),
+  };
+  return (
+    <Animated.View layout={LinearTransition.duration(260)} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
+      <View style={{ gap: 5 }}>
+        <Text style={{ color: c.muted, fontSize: 12 }}>오늘 투구</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
+          <Text style={[numeric ? TYPE.num : TYPE.heading, { color: c.ink, fontSize: numeric ? 30 : 26 }]}>{value}</Text>
+          {numeric ? <Text style={{ color: c.muted, fontSize: 14 }}>구</Text> : null}
+        </View>
+        {note ? <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{note}</Text> : null}
+      </View>
+      <ActionButton label={button.label} icon={button.icon} onPress={() => router.push(go as Href)} style={{ borderRadius: 16 }} />
+    </Animated.View>
+  );
+}
+
 const styles = StyleSheet.create({
-  card: { borderRadius: 24, padding: 18, gap: 10, overflow: 'hidden' },
-  heroHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  heroBody: { flexDirection: 'row', alignItems: 'center', minHeight: 139 },
-  status: { borderRadius: 13, minHeight: 44, gap: 8, paddingVertical: 8 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
+  card: { borderRadius: 25, padding: 18, gap: 17 },
+  chip: { minHeight: 44, borderRadius: 22, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  panel: { borderRadius: 18, padding: 16, gap: 6 },
 });
