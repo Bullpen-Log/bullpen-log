@@ -1,6 +1,7 @@
 'use client';
 
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { zonedFormat } from '@/lib/time-zone';
 import { Activity, ChevronRight } from 'lucide-react';
 import { speedLabel, toSpeed, type SpeedUnit } from '@/lib/units';
 import { PITCH_TYPES, pitchTypeLabel } from '@/lib/velocity-meta';
@@ -430,17 +431,11 @@ function shortDate(date: string) {
 }
 
 /*
- * 같은 날 세션을 가르는 시각 — '15:20'. 한국 시간으로 적는다: 이 부품은 서버(UTC)에서도 그려져, 기기 시각(getHours)을
- * 쓰면 서버가 그린 글자(UTC)와 폰이 그린 글자가 달라 맞추기(hydration)가 어긋났다.
+ * 같은 날 세션을 가르는 시각 — '15:20'. 기기 시간대로 적는다(lib/time-zone.ts — 서버도 요청의 기기 시간대로 그려 맞추기가 안 어긋난다).
  */
-const TIME_KST = new Intl.DateTimeFormat('ko-KR', {
-  timeZone: 'Asia/Seoul',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-});
+const TIME_OPTS: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
 function timeLabel(iso: string) {
   const t = new Date(iso);
   if (Number.isNaN(t.getTime())) return '';
-  return TIME_KST.format(t);
+  return zonedFormat('ko-KR', TIME_OPTS).format(t);
 }

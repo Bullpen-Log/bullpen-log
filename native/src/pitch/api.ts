@@ -1,5 +1,6 @@
 import { APP_API_HEADER, APP_API_LEVEL } from '@/lib/app-api';
 import { countryOf } from '@/lib/country';
+import { deviceTimeZone } from '@/lib/time-zone';
 import { setCountryNow } from '~/lib/country-store';
 import { phoneAssetId, phoneVideoPath, isPhoneVideoPath } from '@/lib/phone-video-path';
 import { SITE_URL } from '~/lib/site';
@@ -62,7 +63,8 @@ export async function call<T>(path: string, init: { method: string; body?: unkno
     res = await fetch(`${SITE_URL}${path}`, {
       method: init.method,
       credentials: 'include',
-      headers: { 'content-type': 'application/json', [APP_API_HEADER]: String(APP_API_LEVEL) },
+      /* 기기 시간대 — 서버가 '오늘'을 이 기기 날짜로(lib/time-zone.ts) */
+      headers: { 'content-type': 'application/json', [APP_API_HEADER]: String(APP_API_LEVEL), 'x-bp-tz': deviceTimeZone() ?? '' },
       ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
     });
   } catch {

@@ -56,11 +56,14 @@ export function defaultRemind(time: string | null): number {
 const ALL_DAY_AT = '09:00';
 
 /**
- * 알림이 울릴 때(ms, Date.now 기준). 알림이 없으면 null. 한국 시각(+09:00)으로 센다 — 이 앱의 날짜 키가 모두 한국 날짜다.
+ * 알림이 울릴 때(ms, Date.now 기준). 알림이 없으면 null. 기기 시각으로 센다(2026-10-28 김민 Q10 — 날짜 키도 기기 날짜다, lib/time-zone.ts).
+ * 기기(앱 · 브라우저)에서 알림을 걸 때만 부른다 — 서머타임도 기기가 센다.
  */
 export function remindAt(e: Pick<CalendarEventView, 'date' | 'time' | 'remindMin'>) {
   if (e.remindMin == null) return null;
-  const at = Date.parse(`${e.date}T${e.time ?? ALL_DAY_AT}:00+09:00`);
+  const [y, mo, d] = e.date.split('-').map(Number);
+  const [h, mi] = (e.time ?? ALL_DAY_AT).split(':').map(Number);
+  const at = new Date(y, mo - 1, d, h, mi).getTime();
   return Number.isNaN(at) ? null : at - e.remindMin * 60_000;
 }
 

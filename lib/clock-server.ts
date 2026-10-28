@@ -1,6 +1,7 @@
 import 'server-only';
 import { workUnitAsyncStorage } from 'next/dist/server/app-render/work-unit-async-storage.external';
 import { prisma } from '@/lib/prisma';
+import { isTimeZone } from '@/lib/time-zone';
 
 /**
  * 시뮬레이션 날짜(User.simDate)를 가진 계정 → 날짜. 30초마다 다시 읽는다(김민이 '다음날로'를 DB 에서 바꾸면 곧 반영).
@@ -55,6 +56,30 @@ export function simNowMs(): number {
 }
 
 (globalThis as { __bpNow?: () => number }).__bpNow = simNowMs;
+
+/**
+ * 이 요청의 기기 시간대(lib/time-zone.ts) — 앱 요청은 머리글 x-bp-tz, 웹 화면은 쿠키 bp-tz. 둘 다 없거나 엉뚱하면 null(→ 한국).
+ * 2026-10-28 김민 Q10: 날짜 · 하루 넘어감은 기기 기준.
+ */
+function requestZone(): string | null {
+  try {
+    const store = workUnitAsyncStorage.getStore() as unknown as
+      | {
+          headers?: { get?: (n: string) => string | null };
+          cookies?: { get?: (n: string) => { value: string } | undefined };
+        }
+      | undefined;
+    const header = typeof store?.headers?.get === 'function' ? store.headers.get('x-bp-tz') : null;
+    if (isTimeZone(header)) return header;
+    const cookie = typeof store?.cookies?.get === 'function' ? store.cookies.get('bp-tz')?.value : undefined;
+    const z = cookie ? decodeURIComponent(cookie) : null;
+    return isTimeZone(z) ? z : null;
+  } catch {
+    return null;
+  }
+}
+
+(globalThis as { __bpZone?: () => string | null }).__bpZone = requestZone;
 
 /** 이 요청 계정의 시계가 실제보다 얼마나 옮겨졌나(ms) — 뿌리 레이아웃이 화면 시계를 같은 만큼 옮긴다. 다른 계정은 0 */
 export const simOffsetMs = () => simNowMs() - Date.now();

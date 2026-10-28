@@ -1,27 +1,19 @@
 import type { PostCategory } from '@/lib/community';
+import { zonedFormat } from '@/lib/time-zone';
 
 /**
  * 커뮤니티 화면이 같이 쓰는 글자 다듬기 — 때 · 구분 색. 서버 컴포넌트에서 부른다. 글 시각은 DB 의 실제 시각이라 실제 '지금'과 견준다(appNow 아님).
  */
 
-/* 서버(Vercel)는 UTC 로 돈다 — 시간대를 안 주면 한국 0~9시에 쓴 글이 전날로 찍힌다 */
-const dateOnly = new Intl.DateTimeFormat('ko-KR', {
-  timeZone: 'Asia/Seoul',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
-const dateTime = new Intl.DateTimeFormat('ko-KR', {
-  timeZone: 'Asia/Seoul',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-});
+/*
+ * 서버(Vercel)는 UTC 로 돈다 — 시간대를 안 주면 한국 0~9시에 쓴 글이 전날로 찍힌다. 글 시각은 보는 사람 기기 시간대로(lib/time-zone.ts —
+ * 서버는 요청의 기기 시간대, 모르면 한국). 번개 시각(meetAtText)은 한국 장소라 한국 시간 그대로
+ */
+const DATE_OPTS: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' };
+const DATE_TIME_OPTS: Intl.DateTimeFormatOptions = { ...DATE_OPTS, hour: '2-digit', minute: '2-digit' };
 
-export const formatDate = (date: Date) => dateOnly.format(date);
-export const formatDateTime = (date: Date) => dateTime.format(date);
+export const formatDate = (date: Date) => zonedFormat('ko-KR', DATE_OPTS).format(date);
+export const formatDateTime = (date: Date) => zonedFormat('ko-KR', DATE_TIME_OPTS).format(date);
 
 /** 목록의 짧은 때 — 방금 · N분 전 · N시간 전 · N일 전, 한 주 넘으면 날짜 */
 export function relativeTime(date: Date, now: Date = new Date()) {

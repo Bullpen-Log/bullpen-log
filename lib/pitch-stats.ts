@@ -1,4 +1,5 @@
 import { appNow } from '@/lib/clock';
+import { DEFAULT_TIME_ZONE, zonedFormat } from '@/lib/time-zone';
 import { SESSION_TYPE_NAMES, isRestSession } from '@/lib/session-type';
 
 /** 연속한 이틀의 체감 강도 합이 이 값을 넘으면 과부하로 본다. */
@@ -95,18 +96,16 @@ export function intensityOf(log: EffortLike): number {
  * 해외에 있어도 한국 날짜를 따른다 — 팀·경기 일정이 한국 기준이라
  * 그쪽이 헷갈리지 않는다.
  */
-export const SERVICE_TIME_ZONE = 'Asia/Seoul';
+export const SERVICE_TIME_ZONE = DEFAULT_TIME_ZONE;
+/*
+ * 2026-10-28 김민 Q10 — 이제 기기 시간대로 센다(lib/time-zone.ts). 서버는 요청이 알려 준 기기 시간대, 화면은 기기, 모르면 위 한국.
+ * 서버와 화면이 같은 기기 시간대를 보므로 위 '두 쪽이 다른 날' 문제는 그대로 막힌다. 한국 기기는 숫자가 그대로다.
+ */
+const DATE_KEY_OPTS: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' };
 
-const dateKeyParts = new Intl.DateTimeFormat('en-US', {
-  timeZone: SERVICE_TIME_ZONE,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
-
-/** 한국 시간 기준 YYYY-MM-DD */
+/** 기기 시간대(모르면 한국) 기준 YYYY-MM-DD */
 export function toDateKey(date: Date) {
-  const parts = dateKeyParts.formatToParts(date);
+  const parts = zonedFormat('en-US', DATE_KEY_OPTS).formatToParts(date);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
   return `${get('year')}-${get('month')}-${get('day')}`;
 }

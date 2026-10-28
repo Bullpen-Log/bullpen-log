@@ -1,5 +1,6 @@
 import 'server-only';
 import { appNow } from '@/lib/clock';
+import { zonedNoon } from '@/lib/time-zone';
 import type { getCurrentUser } from '@/lib/dal';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { visibleExercises } from '@/lib/library-cache';
@@ -90,8 +91,8 @@ export async function loadArmcarePlay(
   const now = appNow();
   const todayKey = toDateKey(now);
   const dateKey = playDay(d, todayKey);
-  /* 어제 것을 이어 하면 그날(한국 시간 한낮)의 루틴·체크·몸 상태로 읽는다 */
-  const day = dateKey === todayKey ? now : new Date(`${dateKey}T12:00:00+09:00`);
+  /* 어제 것을 이어 하면 그날(기기 시간대 한낮, lib/time-zone.ts)의 루틴·체크·몸 상태로 읽는다 */
+  const day = dateKey === todayKey ? now : zonedNoon(dateKey);
 
   const [data, library, routine] = await Promise.all([
     loadArmcareToday(user, day),

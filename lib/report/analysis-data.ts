@@ -1,5 +1,6 @@
 import 'server-only';
 import { appNow } from '@/lib/clock';
+import { zonedNoon } from '@/lib/time-zone';
 import { prisma } from '@/lib/prisma';
 import type { requireUser } from '@/lib/dal';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
@@ -33,10 +34,10 @@ const LOOKBACK_DAYS = 70;
 const dbDay = (key: string) => new Date(`${key}T00:00:00.000Z`);
 
 /**
- * 그날 정오(서울). 부하·돌아보기 함수들이 받는 '오늘'이다 — toDateKey 가 그날로 읽고,
+ * 그날 정오(기기 시간대, lib/time-zone.ts). 부하·돌아보기 함수들이 받는 '오늘'이다 — toDateKey 가 그날로 읽고,
  * 시간대가 조금 어긋나도 날짜가 넘어가지 않는 한가운데.
  */
-const noonOf = (key: string) => new Date(`${key}T12:00:00+09:00`);
+const noonOf = (key: string) => zonedNoon(key);
 
 export type AnalysisCards = {
   /** 하이라이트 — 이 칸 것만, 오늘 분석일 때만. 분석 화면 자신을 가리키는 주소는 뺐다 */

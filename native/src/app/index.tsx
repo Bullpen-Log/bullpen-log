@@ -286,7 +286,11 @@ function ownerKnown(userId: string) {
 }
 
 /** 다음 한국 자정까지(ms) — 한국은 서머타임이 없어 UTC+9 고정. 1초 넉넉히 */
-const untilKstMidnight = () => 86_400_000 - ((Date.now() + 9 * 3_600_000) % 86_400_000) + 1000;
+/* 기기의 다음 자정까지(2026-10-28 김민 Q10 — 날짜 넘어감은 기기 기준, 서머타임도 기기가 센다). 1초 늦게 — 날이 바뀐 뒤에 */
+const untilMidnight = () => {
+  const n = new Date();
+  return new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1).getTime() - n.getTime() + 1000;
+};
 const UNSEEN = { home: false, pitch: false, training: false, nutrition: false };
 const PAGER_KEYS = ['home', 'pitch', 'training', 'nutrition'] as const;
 
@@ -395,7 +399,7 @@ export default function SiteScreen() {
       timer = setTimeout(() => {
         void askMe();
         atMidnight();
-      }, untilKstMidnight());
+      }, untilMidnight());
     };
     atMidnight();
     return () => {

@@ -42,6 +42,7 @@
     "native-home:test": "node --import ./scripts/native-test-register.mjs scripts/native-home-selftest.mts",
     "native-api:test": "node scripts/native-api-selftest.mts",
     "country:test": "node scripts/country-selftest.mts",
+    "time-zone:test": "node --import ./scripts/alias-register.mjs scripts/time-zone-selftest.mts",
     "shared-lib:test": "node scripts/shared-lib-selftest.mts",
     "program:test": "node --import ./scripts/alias-register.mjs scripts/program-selftest.mts",
     "pitch-lab:test": "node --import ./scripts/alias-register.mjs scripts/pitch-lab-selftest.mts",

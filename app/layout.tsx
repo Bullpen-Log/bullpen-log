@@ -8,6 +8,7 @@ import { Bebas_Neue } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import { PREFS_INIT_SCRIPT } from '@/lib/device-prefs';
 import { APP_INIT_SCRIPT } from '@/lib/native-app';
+import { TIME_ZONE_INIT_SCRIPT } from '@/lib/time-zone';
 import { PressFeedback } from '@/components/press-feedback';
 import { HapticFeedback } from '@/components/haptic-feedback';
 import { Toaster } from '@/components/toast';
@@ -116,6 +117,8 @@ export default async function RootLayout({
         )}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: PREFS_INIT_SCRIPT }} />
+        {/* 기기 시간대를 서버에(쿠키 bp-tz, lib/time-zone.ts) — 날짜 · 하루 넘어감은 기기 기준(2026-10-28 김민 Q10) */}
+        <script dangerouslySetInnerHTML={{ __html: TIME_ZONE_INIT_SCRIPT }} />
         {/*
          * 아이폰 앱 안에서만 — 앱 표시(data-app) · 상태바 글자색 · 로딩 화면 걷기(lib/native-app.ts).
          * 테마 스크립트 뒤라야 고른 테마(data-theme)를 보고 상태바 색을 맞춘다.

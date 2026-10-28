@@ -1,6 +1,7 @@
 'use client';
 
 import { addTransitionType, useState, useTransition, type ComponentProps } from 'react';
+import { zonedFormat } from '@/lib/time-zone';
 import { unstable_rethrow, useRouter } from 'next/navigation';
 import {
   Camera,
@@ -55,15 +56,10 @@ import {
  * 시트에서는 설정 '영상에 스트라이크 존 표시'(기기별)가 켜져 있으면 잰 순간의 존과 고르는 중인 코스 칸을 겹친다.
  */
 /*
- * 세션 시각 — 한국 시간으로 적는다. 이 칸은 서버(UTC)에서도 그려져, 기기 시각(getHours)을 쓰면 서버 글자와 폰 글자가
- * 달라 맞추기(hydration)가 어긋났다.
+ * 세션 시각 — 기기 시간대로 적는다(lib/time-zone.ts — 서버도 요청의 기기 시간대로 그려 맞추기(hydration)가 안 어긋난다).
+ * 예전엔 서버(UTC) · 폰 글자가 달라 한국 시간으로 못박았다.
  */
-const TIME_KST = new Intl.DateTimeFormat('ko-KR', {
-  timeZone: 'Asia/Seoul',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-});
+const TIME_OPTS: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
 
 export function VelocitySection({
   sessions,
@@ -294,7 +290,7 @@ export function VelocitySection({
           >
             <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2.5 text-xs text-muted">
               <span className="font-semibold text-ink tabular-nums">
-                {TIME_KST.format(at)}
+                {zonedFormat('ko-KR', TIME_OPTS).format(at)}
               </span>
               <span>
                 {s.source === 'file' ? '영상 파일' : '카메라'} · {sessionSetupText(s)}

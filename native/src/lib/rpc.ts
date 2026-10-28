@@ -1,4 +1,5 @@
 import { APP_API_HEADER, APP_API_LEVEL } from '@/lib/app-api';
+import { deviceTimeZone } from '@/lib/time-zone';
 import { SITE_URL } from '~/lib/site';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { createReadShare } from './read-share';
@@ -87,7 +88,8 @@ async function call<T>(action: string, payload: string | FormData, headers: Reco
     res = await fetch(`${SITE_URL}/api/rpc/${action}`, {
       method: 'POST',
       credentials: 'include',
-      headers: { ...headers, [APP_API_HEADER]: String(APP_API_LEVEL) },
+      /* 기기 시간대 — 서버가 '오늘'을 이 기기 날짜로 센다(lib/time-zone.ts, 2026-10-28 김민 Q10) */
+      headers: { ...headers, [APP_API_HEADER]: String(APP_API_LEVEL), 'x-bp-tz': deviceTimeZone() ?? '' },
       body: payload,
     });
   } catch {
