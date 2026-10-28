@@ -1,5 +1,7 @@
 import { type Href, router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
+import { hasNutrition } from '@/lib/country';
+import { useCountry } from '~/lib/country-store';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { SLEEP_QUALITY_LEVELS } from '@/lib/checkin';
@@ -66,6 +68,9 @@ export function DayCards({
 }) {
   const c = usePalette();
   const speed = usePrefs().speed;
+  /* 영양이 없는 나라(미국 · 일본, lib/country.ts)는 영양 칸을 뺀다 */
+  const country = useCountry();
+  const tiles = hasNutrition(country) ? TILES : TILES.filter((t) => t.key !== 'nutrition');
   const [state, setState] = useState<{ date: string; detail: DayDetail | null; error: string | null }>(() => ({
     date,
     detail: days.get(date) ?? null,
@@ -125,7 +130,7 @@ export function DayCards({
     schedule: eventCount > 0,
   };
   /* 처음 펼칠 것 — 남긴 것 가운데 가장 앞, 아무것도 없으면 투구(앞날이면 일정 — 웹 firstFocus 와 같다) */
-  const first = ahead ? 'schedule' : (TILES.find((t) => has[t.key])?.key ?? 'pitch');
+  const first = ahead ? 'schedule' : (tiles.find((t) => has[t.key])?.key ?? 'pitch');
   /* 칸이 펴진 채 날을 바꾸면 보던 아이콘 그대로(웹 — 날마다 영양 · 투구를 견줘 본다). 처음 펼 때만 first */
   const focus = picked ? picked.focus : first;
   const link = tabLink(focus, date, today, !has[focus], videos === 0 && (vday?.clips ?? 0) > 0);
@@ -146,7 +151,7 @@ export function DayCards({
           </Press>
         </View>
         <View style={[styles.tiles, { borderTopColor: c.line }]}>
-          {TILES.map((t, i) => {
+          {tiles.map((t, i) => {
             const on = has[t.key];
             const sel = focus === t.key;
             return (

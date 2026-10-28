@@ -6,4 +6,7 @@ for (const h of ['/hitting', '/hitting?view=log', '/hitting/lab', '/training?spo
 for (const h of ['/videos', '/training?sport=pitch', '/today', '/hittingx', '/training?sport=hitter']) assert.ok(!hiddenIn('jp', h), h);
 assert.ok(!hiddenIn('kr', '/hitting'));
 assert.deepEqual(forCountry([{ href: '/videos' }, { href: '/hitting' }], 'us'), [{ href: '/videos' }]);
+for (const h of ['/nutrition', '/nutrition?date=2026-10-28', '/nutrition/setup', '/swing', '/swing/abc']) assert.ok(hiddenIn('us', h), h);
+for (const h of ['/nutrition', '/swing']) assert.ok(!hiddenIn('kr', h), h);
+assert.ok(!hiddenIn('us', '/nutritionist'));
 console.log('ok');

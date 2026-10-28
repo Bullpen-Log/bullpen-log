@@ -7,6 +7,7 @@ import { DugoutShell } from '@/components/dugout/dugout-shell';
 import { usesSinker } from '@/lib/brand';
 import { countUnreadNotifications } from '@/lib/notify';
 import { createAvatarUrl } from '@/lib/storage';
+import { countryOf } from '@/lib/country';
 
 export const metadata: Metadata = {
   title: { default: '덕아웃', template: '%s · 덕아웃' },
@@ -47,6 +48,7 @@ export default async function DugoutLayout({
       manage={!!user && (user.accountType === 'MASTER' || user.role === 'ADMIN')}
       native={native}
       surface={surface}
+      country={countryOf(user?.country)}
     >
       {children}
       {modal}

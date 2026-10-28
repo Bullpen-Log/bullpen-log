@@ -9,6 +9,7 @@ import { MorphIn } from '@/components/shell-morph';
 import { DugoutAppBridge } from '@/components/app-shell/expo-tabs';
 import { inSinkerDugout } from '@/lib/sinker-dugout';
 import type { Surface } from '@/lib/app-env';
+import type { Country } from '@/lib/country';
 
 /**
  * 덕아웃 껍데기(2026-10-20, docs/designs/baseball-hub.md) — 로그인 없이 보는 야구인의 공간. 선수 껍데기(components/app-shell)와 별개.
@@ -24,9 +25,12 @@ export function DugoutShell({
   native = false,
   surface = 'web',
   avatarUrl = null,
+  country = 'kr',
   children,
 }: {
   avatarUrl?: string | null;
+  /** 보는 사람의 나라(lib/country.ts) — 싱커 앱 안에서 미국 · 일본은 커뮤니티만 연다(lib/sinker-dugout.ts) */
+  country?: Country;
   user: { nickname: string } | null;
   unread: number;
   alerts?: number;
@@ -86,7 +90,7 @@ export function DugoutShell({
         /* 바깥 틀(.dugout-frame — 본문 1160 · 거터 48/32/24/16, globals.css) — 위 막대와 같은 축. 큰 화면은 막대 밑 24px 에서 바로 내용이 시작한다 */
         className={`dugout-frame flex-1 ${sinkerApp ? 'pt-4 pb-(--dugout-end)' : 'pt-5 pb-28 md:pt-8 md:pb-16 lg:pt-6'}`}
       >
-        {sinkerApp && !inSinkerDugout(pathname) ? <SinkerAway /> : children}
+        {sinkerApp && !inSinkerDugout(pathname, country) ? <SinkerAway /> : children}
       </main>
 
       {/*

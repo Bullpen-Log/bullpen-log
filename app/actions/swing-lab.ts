@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser, requireUser } from '@/lib/dal';
 import { can } from '@/lib/permissions';
+import { countryOf, hasHitting } from '@/lib/country';
 import {
   deleteLabSample,
   deleteUnsavedLabSample,
@@ -45,6 +46,8 @@ export async function saveSwingSample(input: { id: string; meta: unknown }): Pro
   const user = await requireUser();
   if (!isLabId(input?.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
   const dev = can(user.role, 'dev3d');
+  /* 타격이 없는 나라(미국 · 일본)는 새 스윙 샘플을 못 올린다 — 3D 개발 관리자는 시험 나라와 상관없이 */
+  if (!dev && !hasHitting(countryOf(user.country))) return { error: '이 나라의 싱커에는 3D 스윙 분석이 없어요.' };
   const read = readLabMeta(input.meta, new Date().toISOString());
   /* 타격은 늘 평지 · 마커는 3D 개발 관리자만(다른 사람이 보낸 kind 는 늘 sample) */
   const meta = { ...read, ground: 'flat' as const, kind: dev ? read.kind : ('sample' as const) };

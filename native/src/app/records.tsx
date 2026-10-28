@@ -1,5 +1,7 @@
 import { type Href, router } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { hasNutrition } from '@/lib/country';
+import { useCountry } from '~/lib/country-store';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { toDateKey } from '@/lib/pitch-stats';
 import { round1, speedLabel, toSpeed } from '@/lib/units';
@@ -20,6 +22,7 @@ export default function RecordsSheet() {
   const inset = useSafeAreaInsets();
   const speed = usePrefs().speed;
   const h = homeSnapshot();
+  const country = useCountry();
   const b = h?.board;
   const today = h?.today ?? toDateKey(new Date());
   const go = (to: string) => {
@@ -27,7 +30,7 @@ export default function RecordsSheet() {
     router.push(to as Href);
   };
   const nutrition = h?.feed.find((f) => f.key === 'nutrition');
-  const rows: [IconName, string, string, () => void][] = [
+  const allRows: [IconName, string, string, () => void][] = [
     ['circle-dot', '투구량', b?.lastPitch ? (b.lastPitch.rested ? '휴식' : `${b.lastPitch.pitches}구`) : b ? '기록 없음' : '—', () => go('/analysis?view=pitch')],
     ['gauge', '구속', b?.bestVelocity ? `${round1(toSpeed(b.bestVelocity.kmh, speed))} ${speedLabel(speed)}` : b ? '기록 없음' : '—', () => go('/analysis?view=pitch')],
     ['heart-pulse', '컨디션', b?.condition ? `${b.condition.value} / 10` : h ? '기록 전' : '—', () => go(`/calendar?date=${today}`)],
@@ -35,6 +38,8 @@ export default function RecordsSheet() {
     ['dumbbell', '운동', h?.workout ? `${h.workout.done} / ${h.workout.total}` : h ? '일정 없음' : '—', () => go('/analysis?view=training')],
     ['utensils', '영양', nutrition ? (nutrition.tone === 'none' ? '기록 없음' : nutrition.tone === 'today' ? '오늘 기록 있음' : '지난 기록') : '—', () => leaveTo('/nutrition')],
   ];
+  /* 영양이 없는 나라(미국 · 일본, lib/country.ts)는 영양 줄을 뺀다 */
+  const rows = allRows.filter(([icon]) => icon !== 'utensils' || hasNutrition(country));
   return (
     <ScrollView style={{ backgroundColor: c.card }} contentContainerStyle={{ padding: 20, paddingBottom: inset.bottom + 24 }}>
       <SheetHead c={c} title="전체 기록" />

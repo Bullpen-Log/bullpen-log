@@ -5,7 +5,11 @@ import { getCurrentUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
 import { appNow, appNowMs } from '@/lib/clock';
 import { toDateKey } from '@/lib/pitch-stats';
+import { countryOf, hasHitting } from '@/lib/country';
 import { DUPLICATE_WINDOW_MS, validateHitting, validateHittingSession, type HittingInput, type HittingSessionInput } from '@/lib/hitting-log';
+
+/** 타격이 없는 나라(미국 · 일본, lib/country.ts)는 새 기록을 못 만든다 — 이미 남긴 기록 고치기 · 지우기는 된다 */
+const NO_HITTING = '이 나라의 싱커에는 타격 기록이 없어요.';
 
 export type HittingSaveResult =
   | { ok: true; id: string }
@@ -18,6 +22,7 @@ export type HittingSaveResult =
 export async function saveHittingLog(input: HittingInput & { id?: string }): Promise<HittingSaveResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  if (!input.id && !hasHitting(countryOf(user.country))) return { ok: false, error: NO_HITTING };
 
   const checked = validateHitting(input, toDateKey(appNow()));
   if ('error' in checked) return { ok: false, error: checked.error, field: checked.field };
@@ -75,6 +80,7 @@ export async function deleteHittingLog(id: string): Promise<{ ok: boolean; error
 export async function saveHittingSession(input: HittingSessionInput & { id: string; editing: boolean }): Promise<HittingSaveResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  if (!input.editing && !hasHitting(countryOf(user.country))) return { ok: false, error: NO_HITTING };
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.id)) {
     return { ok: false, error: '기록을 만들지 못했어요. 다시 시작해 주세요.' };
   }

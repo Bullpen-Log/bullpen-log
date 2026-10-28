@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
+import { countryOf, hasHitting } from '@/lib/country';
 import { ChevronDown } from '@/components/icon';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
@@ -188,6 +189,8 @@ export default async function TrainingPage({
    * 이 값은 투구 전용 줄을 숨기는 데만 쓴다. ?sport= 가 없으면 투구 쪽(포지션은 묻지 않는다, 2026-10-20).
    */
   const hitSide = params.sport === 'hit';
+  /* 타격이 없는 나라(미국 · 일본, lib/country.ts)는 투구 쪽으로 */
+  if (hitSide && !hasHitting(countryOf(user.country))) redirect('/training?sport=pitch');
   /* 휴대폰(앱)에서 돌아갈 곳 — 투구 · 타격 첫 화면의 칸에서 들어오면 ?sport= 가 붙는다(앱 pitch/tab.tsx PITCH_SECTIONS · 타격 첫 화면), 아니면 트레이닝 홈 */
   const back =
     params.sport === 'hit'

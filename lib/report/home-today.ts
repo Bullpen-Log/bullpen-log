@@ -8,6 +8,7 @@ import type { Advice } from '@/lib/nutrition/advice';
 import { loadAdvice } from '@/lib/nutrition/advice-load';
 import { serviceHour } from '@/lib/nutrition/advice-input';
 import { dbDate } from '@/lib/nutrition/days';
+import { countryOf, hasNutrition } from '@/lib/country';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { CHECKIN_PARTS } from '@/lib/checkin';
@@ -210,7 +211,8 @@ export async function loadHomeFeedAndBoard(
     load: facts.load,
   });
 
-  return { items, board };
+  /* 영양이 없는 나라(미국 · 일본, lib/country.ts)는 영양 장을 뺀다 */
+  return { items: hasNutrition(countryOf(user.country)) ? items : items.filter((i) => i.key !== 'nutrition'), board };
 }
 
 const MACROS = [

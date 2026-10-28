@@ -4,6 +4,7 @@ import { hideSplashUnlessIntro } from '~/shell/intro';
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentType,
@@ -20,7 +21,8 @@ import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTyp
 import { APP_UA, SITE_HOST, SITE_URL, START_PATH } from '~/lib/site';
 import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
 import { loadMe, resetMe } from '~/pitch/api';
-import { countryOf, forCountry } from '@/lib/country';
+import { forCountry, hasNutrition, hiddenIn } from '@/lib/country';
+import { countryNow, useCountry } from '~/lib/country-store';
 import { resetPitchStore } from '~/pitch/store';
 import { resetCompare } from '~/pitch/log-list';
 import { resetLibraryItems } from '~/library/parts';
@@ -141,6 +143,8 @@ function openNative(path: string) {
    * 1.5초면 화면을 닫고 곧바로 같은 곳을 다시 누를 때 안 열렸다(2026-10-21) — _layout 의 같은 곳 두 번 밀기 막기(0.7초)와 같게
    */
   if (path === lastOpen.path && Date.now() - lastOpen.at < 700) return;
+  /* 그 나라에 없는 화면(미국 · 일본의 타격 · 3D 스윙 · 영양, lib/country.ts)은 안 연다 */
+  if (hiddenIn(countryNow(), path)) return;
   /* ? 뒤까지 맞는 앱 화면이 먼저 — '/velocity?mode=abs' 를 '/velocity' 로 열면 ABS 모드가 빠졌다 */
   if (NATIVE_ROUTES.some((r) => r.test(path))) router.push(path as Href);
   else if (NATIVE_PATHS.has(path.split('?')[0])) router.push('/velocity');
@@ -310,7 +314,10 @@ export default function SiteScreen() {
   /** 사이트 테마의 바탕색 — 오래 뒤에 있다 돌아와 다시 그리는 동안 흰 화면이 번쩍이지 않게(옛 앱의 bullpenTheme 과 같은 일) */
   const [pageColor, setPageColor] = useState<string | null>(null);
   /* 앱 탭 막대 — 사이트가 알려 준 탭 · 지금 주소 · 막대를 보일지(탭이 없는 웹 화면에서는 숨김) */
-  const [tabs, setTabs] = useState<ShellTab[]>(DEFAULT_TABS);
+  const [siteTabs, setTabs] = useState<ShellTab[]>(DEFAULT_TABS);
+  /* 사이트 탭이 오기 전의 기본 탭에서 그 나라에 없는 칸(미국 · 일본의 타격)을 뺀다 — 사이트 탭은 사이트가 걸러 보낸다(lib/country.ts) */
+  const country = useCountry();
+  const tabs = useMemo(() => (siteTabs === DEFAULT_TABS ? forCountry(DEFAULT_TABS, country) : siteTabs), [siteTabs, country]);
   /* 투구 · 타격 종목 바(사이트가 잠금을 입혀 보냄) — 2026-10-20 타격 1단계 D1 */
   const [sportBars, setSportBars] = useState<Record<SportKey, ShellTab[]>>(DEFAULT_SPORT_BARS);
   const [path, setPath] = useState('/today');
@@ -339,9 +346,6 @@ export default function SiteScreen() {
         if (no !== askNo.current) return true;
         deviceDay.current = toDateKey(new Date());
         setToday(m.today);
-        /* 그 나라에 없는 칸(미국 · 일본의 타격)을 기본 탭에서 뺀다 — 사이트 탭이 이미 왔으면 그대로(사이트가 걸러 보낸다) */
-        const country = countryOf(m.country);
-        if (country !== 'kr') setTabs((t) => (t === DEFAULT_TABS ? forCountry(DEFAULT_TABS, country) : t));
         setMeOk(true);
         setMeError(null);
         ownerKnown(m.userId);
@@ -421,7 +425,7 @@ export default function SiteScreen() {
     tabs.find((t) => t.href === '/nutrition') ?? menu.groups.flatMap((g) => g.items).find((i) => i.href.split('?')[0] === '/nutrition' || i.icon === 'utensils');
   /* undefined = 아직 모름(메뉴가 오기 전) */
   const nutritionLocked = nutritionTab?.locked;
-  const showNutrition = barOn && path === '/nutrition' && !!today && !webNutrition && !nutritionTab?.locked && !webFront;
+  const showNutrition = barOn && path === '/nutrition' && hasNutrition(country) && !!today && !webNutrition && !nutritionTab?.locked && !webFront;
   /* 트레이닝 첫 화면(앱 카드 셋)도 앱 화면 — 카드를 누르면(암케어 · 메카닉 · 운동 전체) 주소가 ?view=… 로 바뀌어 웹이 보인다 */
   /* 2026-10-21 트레이닝은 하단 탭이 아니라 투구 종목 바 안 — 잠김은 그 칸에서 읽는다(하단 탭에서 찾으면 늘 없어 잠김을 못 봤다) */
   const trainingTab = sportBars.pitch.find((t) => t.href.startsWith('/training?sport='));
@@ -579,6 +583,8 @@ export default function SiteScreen() {
   const navTo = useRef<(href: string) => void>(() => undefined);
   useEffect(() => {
     navTo.current = (href) => {
+      /* 그 나라에 없는 곳(미국 · 일본의 타격 · 영양)으로 가는 이동은 홈으로 */
+      if (!href.startsWith('#') && hiddenIn(countryNow(), href)) return goTab('/today');
       /* 조직 권한 없음 · 조직 알림 — 웹으로 보내지 않고 앱이 받는다(계약 8-4 · 8-5) */
       if (href === ORG_LOST) return orgLost();
       const org = parseOrgOpen(href);

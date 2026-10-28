@@ -23,6 +23,7 @@ export function SinkerDugoutHome({
   venue,
   record,
   loggedIn,
+  korea = true,
 }: {
   /** 내 활동 — null 이면 못 읽음, 로그인 안 했으면 undefined */
   activity: ActivityItem[] | null | undefined;
@@ -32,6 +33,8 @@ export function SinkerDugoutHome({
   venue: VenueCard | null | undefined;
   record: Record | null;
   loggedIn: boolean;
+  /** 한국 덕아웃인가 — 미국 · 일본(lib/country.ts)은 내 활동(예약 · 번개) · 같이 연습 · 연습장 없이 커뮤니티 · 기록 공유만 */
+  korea?: boolean;
 }) {
   const need = (href: string) => (loggedIn ? href : `/login?next=${encodeURIComponent(href)}`);
   const summary = activity ? activitySummary(activity) : null;
@@ -40,7 +43,7 @@ export function SinkerDugoutHome({
       <h1 className="sr-only">덕아웃 둘러보기</h1>
 
       {/* 이어 볼 활동 — 있을 때만 한 줄(빈 활동 카드를 세우지 않는다) */}
-      {!loggedIn ? (
+      {!korea ? null : !loggedIn ? (
         <Line action={<Pill href={`/login?next=${encodeURIComponent('/?dugout=1')}`}>로그인</Pill>}>로그인하면 내 참가 · 질문 · 예약을 이어 봐요.</Line>
       ) : activity === null ? (
         <Line>내 활동을 불러오지 못했어요. 아래로 당겨 다시 받아 주세요.</Line>
@@ -58,67 +61,71 @@ export function SinkerDugoutHome({
       ) : null}
 
       {/* 같이 연습 */}
-      <section className="space-y-3">
-        <SectionHead
-          title="같이 연습"
-          action={
-            <Link href="/community?category=meetup&open=1" className="-my-2.5 shrink-0 py-2.5 text-[15px] text-sky">
-              번개 전체
-            </Link>
-          }
-        />
-        {meetup === null ? (
-          <Line action={<TextLink href="/community?category=meetup&open=1">번개 목록</TextLink>}>같이 연습을 불러오지 못했어요.</Line>
-        ) : meetup === undefined ? (
-          <Line action={<Pill href={need('/community/new?board=meetup')}>번개 만들기</Pill>}>
-            모집 중인 번개가 없어요.
-          </Line>
-        ) : (
-          <BenchCard key={meetup.id} meetup={meetup} />
-        )}
-      </section>
+      {korea && (
+        <section className="space-y-3">
+          <SectionHead
+            title="같이 연습"
+            action={
+              <Link href="/community?category=meetup&open=1" className="-my-2.5 shrink-0 py-2.5 text-[15px] text-sky">
+                번개 전체
+              </Link>
+            }
+          />
+          {meetup === null ? (
+            <Line action={<TextLink href="/community?category=meetup&open=1">번개 목록</TextLink>}>같이 연습을 불러오지 못했어요.</Line>
+          ) : meetup === undefined ? (
+            <Line action={<Pill href={need('/community/new?board=meetup')}>번개 만들기</Pill>}>
+              모집 중인 번개가 없어요.
+            </Line>
+          ) : (
+            <BenchCard key={meetup.id} meetup={meetup} />
+          )}
+        </section>
+      )}
 
       <SinkerCommunity hot={community.hot} latest={community.latest} loggedIn={loggedIn} />
 
       {/* 연습장 — 실제 장소 한 곳(레슨장은 넣지 않는다) */}
-      <section className="space-y-3">
-        <SectionHead
-          title="연습장"
-          action={
-            <Link href="/venues" className="-my-2.5 shrink-0 py-2.5 text-[15px] text-sky">
-              전체 보기
-            </Link>
-          }
-        />
-        {venue === null ? (
-          <Line action={<TextLink href="/venues">지도 열기</TextLink>}>연습장을 불러오지 못했어요.</Line>
-        ) : venue === undefined ? (
-          <Line action={<TextLink href="/venues">지도 열기</TextLink>}>아직 등록된 연습장이 없어요.</Line>
-        ) : (
-          <article className="flex gap-3.5 rounded-[20px] bg-surface p-3.5">
-            <div className="relative h-[6.5rem] w-[5.5rem] shrink-0 overflow-hidden rounded-xl bg-sky-tint">
-              {venue.image ? (
-                // eslint-disable-next-line @next/next/no-img-element -- 저장소 서명 주소(1시간)라 이미지 최적화를 거치지 않는다
-                <img src={venue.image} alt={`${venue.name} 사진`} className="h-full w-full object-cover" />
-              ) : (
-                <VenueArt kind={venue.kind} />
-              )}
-            </div>
-            <div className="min-w-0 flex-1 py-0.5">
-              <p className="truncate text-[12px] text-muted">{[venue.region, venue.kindLabel].filter(Boolean).join(' · ')}</p>
-              <h3 className="mt-0.5 line-clamp-2 text-[16px] leading-snug font-bold text-ink">{venue.name}</h3>
-              <p className="mt-1 text-[15px] font-bold text-ink tabular-nums">
-                {venue.price}
-                {venue.unit && <span className="ml-1 text-[12px] font-normal text-muted">{venue.unit}</span>}
-              </p>
-              <p className="text-[12px] text-muted">{venue.booking}</p>
-              <Link href={`/venues/${venue.id}`} className="-mb-2 inline-flex min-h-11 items-center gap-1 text-[14px] font-semibold text-sky">
-                시설 보기 <span aria-hidden>↗</span>
+      {korea && (
+        <section className="space-y-3">
+          <SectionHead
+            title="연습장"
+            action={
+              <Link href="/venues" className="-my-2.5 shrink-0 py-2.5 text-[15px] text-sky">
+                전체 보기
               </Link>
-            </div>
-          </article>
-        )}
-      </section>
+            }
+          />
+          {venue === null ? (
+            <Line action={<TextLink href="/venues">지도 열기</TextLink>}>연습장을 불러오지 못했어요.</Line>
+          ) : venue === undefined ? (
+            <Line action={<TextLink href="/venues">지도 열기</TextLink>}>아직 등록된 연습장이 없어요.</Line>
+          ) : (
+            <article className="flex gap-3.5 rounded-[20px] bg-surface p-3.5">
+              <div className="relative h-[6.5rem] w-[5.5rem] shrink-0 overflow-hidden rounded-xl bg-sky-tint">
+                {venue.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- 저장소 서명 주소(1시간)라 이미지 최적화를 거치지 않는다
+                  <img src={venue.image} alt={`${venue.name} 사진`} className="h-full w-full object-cover" />
+                ) : (
+                  <VenueArt kind={venue.kind} />
+                )}
+              </div>
+              <div className="min-w-0 flex-1 py-0.5">
+                <p className="truncate text-[12px] text-muted">{[venue.region, venue.kindLabel].filter(Boolean).join(' · ')}</p>
+                <h3 className="mt-0.5 line-clamp-2 text-[16px] leading-snug font-bold text-ink">{venue.name}</h3>
+                <p className="mt-1 text-[15px] font-bold text-ink tabular-nums">
+                  {venue.price}
+                  {venue.unit && <span className="ml-1 text-[12px] font-normal text-muted">{venue.unit}</span>}
+                </p>
+                <p className="text-[12px] text-muted">{venue.booking}</p>
+                <Link href={`/venues/${venue.id}`} className="-mb-2 inline-flex min-h-11 items-center gap-1 text-[14px] font-semibold text-sky">
+                  시설 보기 <span aria-hidden>↗</span>
+                </Link>
+              </div>
+            </article>
+          )}
+        </section>
+      )}
 
       {/* 기록 공유 — 정책을 다시 정할 때까지 예전 기능 그대로(기존 ?card= 길 · 글쓰기의 기록 고르기 · 공개 선택). 맨 끝에 한 줄로만 */}
       {record && (

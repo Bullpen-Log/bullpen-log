@@ -17,11 +17,18 @@ export const countryOf = (v: string | null | undefined): Country => (isCountry(v
 
 /** 타격 — 국내만. 미국 · 일본은 투수 전용으로 먼저 낸다 */
 export const hasHitting = (c: Country) => c === 'kr';
+/** 영양 — 국내만(식약처 식품 DB · 한식 식단 틀이라, 2026-10-28 김민 Q1) */
+export const hasNutrition = (c: Country) => c === 'kr';
+/** 싱커 안 덕아웃의 레슨 · 연습장 · 채팅 · 번개 · 예약 — 국내만(해외 덕아웃은 커뮤니티만) */
+export const hasKoreaDugout = (c: Country) => c === 'kr';
 
-/** 그 나라에 없는 주소인가 — 타격 탭 · 타격 하위 화면 · 타격 트레이닝 */
+const startsAt = (href: string, root: string) => href === root || href.startsWith(`${root}/`) || href.startsWith(`${root}?`);
+
+/** 그 나라에 없는 주소인가 — 타격(탭 · 하위 화면 · 타격 트레이닝 · 3D 스윙) · 영양 */
 export function hiddenIn(c: Country, href: string): boolean {
-  if (hasHitting(c)) return false;
-  return /^\/hitting(?:[/?]|$)/.test(href) || /[?&]sport=hit(?:&|$)/.test(href);
+  if (!hasHitting(c) && (startsAt(href, '/hitting') || startsAt(href, '/swing') || /[?&]sport=hit(?:&|$)/.test(href))) return true;
+  if (!hasNutrition(c) && startsAt(href, '/nutrition')) return true;
+  return false;
 }
 
 export const forCountry = <T extends { href: string }>(items: T[], c: Country): T[] =>

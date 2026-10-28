@@ -390,8 +390,16 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
   );
   check(
     '싱커 앱 안 덕아웃 — 커뮤니티 흐름(내 활동 포함)은 열고 장터 · 결제 · 검색은 막는다(lib/sinker-dugout.ts)',
-    ['/', '/me', '/me/community', '/me/community/x', '/community', '/community/abc', '/community/new', '/lessons/list', '/venues/v1', '/chat/r1', '/notifications', '/u/kim', '/pay/lesson/a', '/pay/venue/b'].every(inSinkerDugout) &&
-      !['/me/payments', '/me/communityx', '/market', '/market/new', '/pay/listing/a', '/search', '/baseball', '/gear', '/sinker'].some(inSinkerDugout)
+    ['/', '/me', '/me/community', '/me/community/x', '/community', '/community/abc', '/community/new', '/lessons/list', '/venues/v1', '/chat/r1', '/notifications', '/u/kim', '/pay/lesson/a', '/pay/venue/b'].every((p) => inSinkerDugout(p)) &&
+      !['/me/payments', '/me/communityx', '/market', '/market/new', '/pay/listing/a', '/search', '/baseball', '/gear', '/sinker'].some((p) => inSinkerDugout(p))
+  );
+  check(
+    '미국 · 일본 싱커의 덕아웃은 커뮤니티만 — 레슨 · 연습장 · 채팅 · 결제 · 예약(/me)은 막는다(lib/sinker-dugout.ts, 2026-10-28)',
+    (['us', 'jp'] as const).every(
+      (c) =>
+        ['/', '/me/community', '/community', '/community/abc', '/notifications', '/u/kim', '/link/x'].every((p) => inSinkerDugout(p, c)) &&
+        !['/me', '/lessons/list', '/venues/v1', '/chat/r1', '/pay/lesson/a', '/pay/venue/b'].some((p) => inSinkerDugout(p, c))
+    )
   );
   check(
     '싱커 앱 안 덕아웃 겉모양 — 틀이 서버가 가린 얼굴을 data-surface 로 달고, 초록 덮어쓰기 · 채움 아이콘은 싱커 앱 밖에서만',

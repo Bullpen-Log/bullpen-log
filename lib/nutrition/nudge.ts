@@ -1,5 +1,6 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
+import { countryOf, hasNutrition } from '@/lib/country';
 import { featureLocks, FEATURE_HOME, SETUP_PATH } from '@/lib/feature-locks';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { ageBand } from '@/lib/nutrition/age';
@@ -35,6 +36,8 @@ type NudgeUser = Parameters<typeof featureLocks>[0] & {
   id: string;
   birthDate: Date | null;
   weightKg: number | null;
+  /** 나라(lib/country.ts) — 영양이 없는 나라(미국 · 일본)면 영양 줄을 안 보인다 */
+  country?: string | null;
 };
 
 const dbDate = (key: string) => new Date(`${key}T00:00:00.000Z`);
@@ -94,7 +97,7 @@ export async function pitchNutritionLine(
   date: string,
   today: string
 ): Promise<NutritionLine | null> {
-  if (date !== today) return null;
+  if (date !== today || !hasNutrition(countryOf(user.country))) return null;
   const signals = await signalsOf(user.id, date);
   if (throwDayKind(signals) !== 'after') return null;
   const guide = throwDayGuide(signals, { ...(await bodyOf(user, date)), goal: DEFAULT_PROFILE.goal });
@@ -112,7 +115,7 @@ export async function workoutNutritionLine(
   user: NudgeUser,
   input: { date: string; today: string; now: Date; categories: string[] }
 ): Promise<NutritionLine | null> {
-  if (input.date !== input.today) return null;
+  if (input.date !== input.today || !hasNutrition(countryOf(user.country))) return null;
   const kinds = input.categories.map(trainingKindOf);
   const power = kinds.includes('power');
   if (!power && !kinds.includes('strength')) return null;

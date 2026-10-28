@@ -7,11 +7,23 @@
  * '/me/community'(내 글 · 댓글 · 저장 · 참가 · 신청, 2026-10-27)는 커뮤니티 흐름이라 연다 — 커뮤니티 목록 · 마이의 '내 활동'이 가리키는데 막혀
  * '이 화면은 덕아웃에서 볼 수 있어요'가 떴다. /me 아래를 통째로 열지는 않는다(/me/payments 는 장터 결제라 뺀 그대로).
  */
+import { hasKoreaDugout, type Country } from '@/lib/country';
+
 const PREFIX = ['/community', '/lessons', '/venues', '/chat', '/notifications', '/u', '/pay/lesson', '/pay/venue', '/link', '/me/community'];
 /** '/' 는 탭 첫 화면(?dugout=1, 장터 · 경기를 뺀 덕아웃 홈). '/me' 는 레슨 · 연습장 예약만 보인다(/me/payments 는 뺌) */
 const EXACT = ['/', '/me'];
 
-export function inSinkerDugout(path: string): boolean {
-  return EXACT.includes(path) || PREFIX.some((r) => path === r || path.startsWith(`${r}/`));
+/*
+ * 미국 · 일본 싱커의 덕아웃은 커뮤니티만(2026-10-28 김민, docs/designs/overseas-sinker-dugout.md 4절) — 레슨 · 연습장 · 채팅 · 결제 ·
+ * '/me'(레슨 · 연습장 예약만 보이는 곳)는 한국만이다.
+ */
+const KOREA_ONLY = new Set(['/lessons', '/venues', '/chat', '/pay/lesson', '/pay/venue', '/me']);
+
+export function inSinkerDugout(path: string, country: Country = 'kr'): boolean {
+  const korea = hasKoreaDugout(country);
+  return (
+    EXACT.some((r) => path === r && (korea || !KOREA_ONLY.has(r))) ||
+    PREFIX.some((r) => (path === r || path.startsWith(`${r}/`)) && (korea || !KOREA_ONLY.has(r)))
+  );
 }
 

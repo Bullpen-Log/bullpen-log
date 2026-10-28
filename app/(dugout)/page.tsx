@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { countryOf, hasKoreaDugout } from '@/lib/country';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { RoundIcon } from '@/components/round-icon';
@@ -67,11 +68,13 @@ export default async function DugoutHome({
      * 2026-10-27 승인 시안 '수정 개선안' — 이어 볼 활동 · 같이 연습(번개 한 건) · 커뮤니티 인기/최신 · 연습장 한 곳. 레슨 찾기 · 추천 코치 · 최근 레슨 조회는 뺐다
      * (기존 레슨 예약은 loadSinkerActivity 가 그대로 읽는다). 구역마다 따로 실패한다.
      */
+    /* 미국 · 일본 싱커는 커뮤니티 · 기록 공유만(lib/country.ts) — 내 활동(예약 · 번개) · 같이 연습 · 연습장은 한국 것이라 읽지도 않는다 */
+    const korea = hasKoreaDugout(countryOf(user?.country));
     const [activity, meetup, community, venue, sinkerRecords] = await Promise.all([
-      user ? loadSinkerActivity(user) : undefined,
-      loadSinkerMeetup(user),
+      user && korea ? loadSinkerActivity(user) : undefined,
+      korea ? loadSinkerMeetup(user) : undefined,
       loadSinkerCommunity(user),
-      loadSinkerVenue(),
+      korea ? loadSinkerVenue() : undefined,
       /* 기록 공유 카드 — 정책을 다시 정할 때까지 예전 그대로(가장 최근 기록 하나, 못 읽어도 홈은 뜬다) */
       user ? recentCardOptions(user.id).catch(() => []) : [],
     ]);
@@ -83,6 +86,7 @@ export default async function DugoutHome({
         venue={venue}
         record={sinkerRecords[0] ?? null}
         loggedIn={!!user}
+        korea={korea}
       />
     );
   }

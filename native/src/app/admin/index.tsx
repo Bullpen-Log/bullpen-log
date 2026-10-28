@@ -11,8 +11,8 @@ import { PageHead } from '~/shell/heading';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Icon, type IconName } from '~/shell/icon';
-import { useEffect, useState } from 'react';
-import { COUNTRIES, COUNTRY_LABEL, countryOf, type Country } from '@/lib/country';
+import { COUNTRIES, COUNTRY_LABEL, type Country } from '@/lib/country';
+import { useCountry } from '~/lib/country-store';
 import { loadMe, resetMe } from '~/pitch/api';
 import { openWebAfter } from '~/shell/web-nav';
 
@@ -130,16 +130,14 @@ function MenuRow({ icon, label, detail, onPress, web, last, c }: { icon: IconNam
  * 화면 글은 아직 한국어다(번역 전).
  */
 function CountryRow({ c }: { c: Palette }) {
-  const [now, setNow] = useState<Country | null>(null);
-  useEffect(() => {
-    void loadMe().then((m) => setNow(countryOf(m.country)), () => undefined);
-  }, []);
+  const now = useCountry();
   const pick = (to: Country) =>
     void call<{ ok: true }>('app.setMyCountry', to).then((r) => {
       if (!r.ok) return toast(`바꾸지 못했어요. ${r.error}`, 'error');
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setNow(to);
+      /* 다시 물으면 나라 저장소가 바뀌어 열린 앱 화면들이 그 나라 것으로 다시 그려진다 */
       resetMe();
+      void loadMe().catch(() => undefined);
       openWebAfter('#refresh');
       toast(`${COUNTRY_LABEL[to]} 싱커로 바꿨어요`);
     });
@@ -148,7 +146,7 @@ function CountryRow({ c }: { c: Palette }) {
       ...COUNTRIES.filter((k) => k !== now).map((k) => ({ text: `${COUNTRY_LABEL[k]} 싱커`, onPress: () => pick(k) })),
       { text: '닫기', style: 'cancel' as const },
     ]);
-  return <MenuRow icon="admin" label="나라 바꾸기 (시험용)" detail={now ? `지금 ${COUNTRY_LABEL[now]} 싱커` : '불러오는 중'} onPress={menu} last c={c} />;
+  return <MenuRow icon="admin" label="나라 바꾸기 (시험용)" detail={`지금 ${COUNTRY_LABEL[now]} 싱커`} onPress={menu} last c={c} />;
 }
 
 function UserRow({ u, self, last, reload, c }: { u: Data['users'][number]; self: boolean; last: boolean; reload: () => void; c: Palette }) {
