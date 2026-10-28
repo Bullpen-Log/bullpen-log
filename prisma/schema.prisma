@@ -1796,6 +1796,9 @@ model CommunityPost {
   card      Json?
   /// 번개 · 팀 홍보 · 선수 모집 양식(언제 · 어디 · 몇 명 · 실력 · 회비 …)
   form      Json?
+  /// 어느 나라 덕아웃 글인가 — 'kr' · 'us' · 'jp'(lib/country.ts). 쓸 때 쓴 사람의 나라로 박고 고치지 않는다 — 계정 나라를 바꿔도 예전 글은 그 나라에 남는다.
+  /// region · district 는 한국 안 지역(번개 · 팀)이라 이것과 다르다(2026-10-28 김민, docs/designs/overseas-sinker-dugout.md 5-2)
+  country   String    @default("kr")
   /// 우리 동네 거르기(시 · 도 + 시 · 군 · 구 한 줄)
   region    String?
   /// 시 · 군 · 구(lib/kr-districts.ts) — 2026-10-26 더함, 비면 시 · 도로만 거른다
@@ -1828,6 +1831,8 @@ model CommunityPost {
   @@index([createdAt])
   @@index([category, createdAt])
   @@index([userId])
+  @@index([country, createdAt])
+  @@index([country, category, createdAt])
 }
 
 model CommunityComment {

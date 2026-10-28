@@ -1,6 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { canWriteIn, dugoutOf, OTHER_DUGOUT } from '@/lib/community-country';
+import { hasKoreaDugout } from '@/lib/country';
 import { redirect } from 'next/navigation';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -193,6 +195,10 @@ async function tryCreatePost(
   const read = readPostForm(user, formData);
   if ('error' in read) return read;
   const d = read.draft;
+  /* 쓴 사람의 나라 덕아웃에 박는다 — 고치기는 안 바꾼다(lib/community-country.ts). 번개 · 팀은 한국 지역 게시판이라 한국만 */
+  const country = dugoutOf(user);
+  if ((d.category === 'meetup' || d.category === 'team') && !hasKoreaDugout(country))
+    return { error: '이 게시판은 한국 덕아웃에만 있어요.' };
 
   /*
    * 1분 안 같은 글이면 새로 안 만든다 — 저장은 됐는데 응답이 끊겨(앱 '신호가 약해 보내지 못했어요') 다시 누르면 같은 글이 둘 생겼다.
@@ -220,6 +226,7 @@ async function tryCreatePost(
   const post = await prisma.communityPost.create({
     data: {
       userId: user.id,
+      country,
       category: d.category,
       tag: d.tag,
       title: d.title,
@@ -363,10 +370,10 @@ export async function toggleLike(formData: FormData) {
 
   const post = await prisma.communityPost.findUnique({
     where: { id: postId },
-    select: { hiddenAt: true },
+    select: { hiddenAt: true, country: true, userId: true },
   });
-  /* 가린 글은 관리자만 보이므로 좋아요도 관리자만 — 주소로 바로 부르는 것을 막는다 */
-  if (!post || (post.hiddenAt && user.role !== 'ADMIN')) return;
+  /* 가린 글은 관리자만 보이므로 좋아요도 관리자만 — 주소로 바로 부르는 것을 막는다. 다른 나라 덕아웃 글은 읽기만(lib/community-country.ts) */
+  if (!post || (post.hiddenAt && user.role !== 'ADMIN') || !canWriteIn(post, user)) return;
 
   /*
    * 읽고 쓰기가 아니라 '지우고, 없었으면 만들기' — 두 번 빠르게 누르면 둘째가 P2002(이미 있음) · P2025(이미 없음)로 던져
@@ -395,8 +402,8 @@ export async function setSaved(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) return;
   const postId = field(formData, 'postId');
-  const post = await prisma.communityPost.findUnique({ where: { id: postId }, select: { hiddenAt: true, userId: true } });
-  if (!post || (post.hiddenAt && user.role !== 'ADMIN' && post.userId !== user.id)) return;
+  const post = await prisma.communityPost.findUnique({ where: { id: postId }, select: { hiddenAt: true, userId: true, country: true } });
+  if (!post || (post.hiddenAt && user.role !== 'ADMIN' && post.userId !== user.id) || !canWriteIn(post, user)) return;
   if (field(formData, 'saved') === '1') {
     try {
       await prisma.communitySave.create({ data: { postId, userId: user.id } });
@@ -432,10 +439,11 @@ async function tryAddComment(formData: FormData): Promise<CommunityState> {
 
   const post = await prisma.communityPost.findUnique({
     where: { id: postId },
-    select: { hiddenAt: true, userId: true, category: true, title: true },
+    select: { hiddenAt: true, userId: true, category: true, title: true, country: true },
   });
   if (!post || (post.hiddenAt && user.role !== 'ADMIN'))
     return { error: '글을 찾지 못했어요.' };
+  if (!canWriteIn(post, user)) return { error: OTHER_DUGOUT };
   if (await blockedBetween(user.id, post.userId)) return { error: '이 글에는 댓글을 달 수 없어요.' };
 
   /* 1분 안 같은 댓글이면 새로 안 만든다(끊긴 응답에 다시 보냄 — 글 만들기와 같은 까닭) */
@@ -560,6 +568,9 @@ export async function setJoin(_prev: CommunityState, formData: FormData): Promis
     revalidatePost(postId);
     return undefined;
   }
+  /* 다른 나라 덕아웃 글(한국 번개 · 팀)에는 참여하지 않는다 — 읽기만(lib/community-country.ts) */
+  const target = await prisma.communityPost.findUnique({ where: { id: postId }, select: { country: true, userId: true } });
+  if (target && !canWriteIn(target, user)) return { error: OTHER_DUGOUT };
   const r = await joinPost(
     prisma,
     postId,
@@ -1075,11 +1086,12 @@ export async function setAppLike(postId: unknown, liked: unknown) {
     return fail({ error: '다시 해 주세요.' });
   const post = await prisma.communityPost.findUnique({
     where: { id: postId },
-    select: { hiddenAt: true },
+    select: { hiddenAt: true, country: true, userId: true },
   });
   /* 가린 글은 관리자만 보이므로 좋아요도 관리자만(웹 toggleLike 와 같다) */
   if (!post || (post.hiddenAt && user.role !== 'ADMIN'))
     return fail({ error: '글을 찾을 수 없어요.' });
+  if (!canWriteIn(post, user)) return fail({ error: OTHER_DUGOUT });
   if (liked) {
     try {
       await prisma.communityLike.create({ data: { postId, userId: user.id } });

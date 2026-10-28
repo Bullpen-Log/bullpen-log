@@ -1,5 +1,6 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
+import { canWriteIn, dugoutOf, OTHER_DUGOUT, otherDugoutLabel } from '@/lib/community-country';
 import type { Prisma } from '@prisma/client';
 import type { getCurrentUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
@@ -91,6 +92,8 @@ function listWhere(user: CommunityUser | null, q: ListQuery, blocked: string[], 
   const isAdmin = user?.role === 'ADMIN';
   const days = HOT_PERIODS.find((p) => p.key === q.period)?.days ?? 0;
   return {
+    /* 보는 사람의 나라 덕아웃 글만(lib/community-country.ts) */
+    country: dugoutOf(user),
     ...(q.category ? { category: q.category } : {}),
     ...(q.tag ? { tag: q.tag } : {}),
     ...(q.region ? { region: q.region } : {}),
@@ -261,10 +264,10 @@ export async function boardHasPosts(user: CommunityUser | null, category?: PostC
 }
 
 /** 답을 기다리는 질문 수(말머리별) — 코치 · 운영자에게 보이는 '답할 질문' */
-export async function waitingQuestions() {
+export async function waitingQuestions(user: CommunityUser | null) {
   const rows = await prisma.communityPost.groupBy({
     by: ['tag'],
-    where: { category: 'question', hiddenAt: null, firstAnswerAt: null },
+    where: { country: dugoutOf(user), category: 'question', hiddenAt: null, firstAnswerAt: null },
     _count: { _all: true },
   });
   return {
@@ -361,10 +364,14 @@ export async function loadCommunityPost(user: CommunityUser | null, id: string) 
         now: nowDate,
       })
     : null;
+  /* 다른 나라 덕아웃 글은 읽기만(lib/community-country.ts) — 로그인 안 했으면 어차피 못 쓴다 */
+  const writable = !user || canWriteIn(post, user);
   const joinBlock =
     !joinable || !user || joined
       ? null
-      : joinBlockReason({
+      : !writable
+        ? OTHER_DUGOUT
+        : joinBlockReason({
           age: user.birthDate ? ageFromBirthDate(user.birthDate) : null,
           adultOnly: meetup?.age === 'adult',
           isAuthor: isOwner,
@@ -402,6 +409,9 @@ export async function loadCommunityPost(user: CommunityUser | null, id: string) 
     teamFlow: post.category === 'team' ? teamFlowOf(post.tag) : null,
     region: post.region,
     district: post.district,
+    /* 다른 나라 덕아웃 글 — 이름표('미국 덕아웃 글')와 읽기만(댓글 · 좋아요 · 저장 · 참여 막음, 신고는 됨) */
+    otherDugout: otherDugoutLabel(post, user),
+    readOnly: !writable,
     joinable,
     joined,
     myJoinStatus: myJoin?.status ?? null,
@@ -443,9 +453,9 @@ export async function loadCommunityPost(user: CommunityUser | null, id: string) 
     likes: post._count.likes,
     /* 댓글 수는 가린 댓글을 빼고 — 목록의 수와 같아야 한다 */
     commentCount: comments.filter((c) => c.hiddenAt === null).length,
-    canLike: open,
-    canSave: user !== null,
-    canComment: open && !blockedByAuthor,
+    canLike: open && writable,
+    canSave: user !== null && writable,
+    canComment: open && !blockedByAuthor && writable,
     canEdit: isOwner,
     canDelete: isOwner || isAdmin,
     /* 내 글은 신고하지 않는다 · 가린 글은 이미 운영자가 본 글 */

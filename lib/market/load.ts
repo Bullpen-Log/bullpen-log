@@ -416,7 +416,8 @@ export async function loadPublicPosts(take: number, viewerId: string | null = nu
     ? (await prisma.communityBlock.findMany({ where: { blockerId: viewerId }, select: { blockedId: true } })).map((b) => b.blockedId)
     : [];
   const rows = await prisma.communityPost.findMany({
-    where: { hiddenAt: null, ...(blocked.length > 0 ? { userId: { notIn: blocked } } : {}) },
+    /* 덕아웃 웹 · 앱 홈은 한국 전용(Q15) — 한국 글만 */
+    where: { country: 'kr', hiddenAt: null, ...(blocked.length > 0 ? { userId: { notIn: blocked } } : {}) },
     orderBy: { createdAt: 'desc' },
     take,
     select: {

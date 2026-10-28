@@ -47,6 +47,7 @@ import { recommend } from '@/lib/market/gear';
 import { ESCROW_FEE_RATE, escrowFee, payout, platformFee } from '@/lib/market/pay';
 import { existsSync } from 'node:fs';
 import { inSinkerDugout } from '@/lib/sinker-dugout';
+import { canWriteIn, dugoutOf, otherDugoutLabel } from '@/lib/community-country';
 import { activitySummary, benchDate, feedCardOf, feedLabel, pickAnswer, seatsLeft, venueBookingText, venuePriceText, type ListPost } from '@/lib/sinker-dugout-feed';
 import { surfaceOf } from '@/lib/app-env';
 import { BRAND, brandOfPath, usesSinker } from '@/lib/brand';
@@ -392,6 +393,26 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
     '싱커 앱 안 덕아웃 — 커뮤니티 흐름(내 활동 포함)은 열고 장터 · 결제 · 검색은 막는다(lib/sinker-dugout.ts)',
     ['/', '/me', '/me/community', '/me/community/x', '/community', '/community/abc', '/community/new', '/lessons/list', '/venues/v1', '/chat/r1', '/notifications', '/u/kim', '/pay/lesson/a', '/pay/venue/b'].every((p) => inSinkerDugout(p)) &&
       !['/me/payments', '/me/communityx', '/market', '/market/new', '/pay/listing/a', '/search', '/baseball', '/gear', '/sinker'].some((p) => inSinkerDugout(p))
+  );
+  check(
+    '나라별 덕아웃(2026-10-28) — 보는 사람 나라 · 비면 한국, 다른 나라 글은 읽기만(내 글은 씀), 이름표',
+    dugoutOf(null) === 'kr' &&
+      dugoutOf({ country: null }) === 'kr' &&
+      dugoutOf({ country: 'us' }) === 'us' &&
+      canWriteIn({ country: 'kr', userId: 'a' }, { id: 'b', country: null }) &&
+      !canWriteIn({ country: 'kr', userId: 'a' }, { id: 'b', country: 'us' }) &&
+      canWriteIn({ country: 'kr', userId: 'a' }, { id: 'a', country: 'us' }) &&
+      otherDugoutLabel({ country: 'kr' }, { country: 'kr' }) === null &&
+      otherDugoutLabel({ country: 'us' }, { country: 'jp' }) === '미국 덕아웃 글'
+  );
+  check(
+    '나라별 덕아웃 — 목록 · 답 기다리는 질문은 보는 사람 나라, 검색 · 덕아웃 웹 홈은 한국, 새 글은 쓴 사람 나라로 박는다',
+    /country: dugoutOf\(user\),\n\s*\.\.\.\(q\.category/.test(src('lib/community-load.ts')) &&
+      /where: \{ country: dugoutOf\(user\), category: 'question'/.test(src('lib/community-load.ts')) &&
+      /country: 'kr',\n\s*hiddenAt: null/.test(src('lib/search.ts')) &&
+      /where: \{ country: 'kr', hiddenAt: null/.test(src('lib/market/load.ts')) &&
+      /userId: user\.id,\n\s*country,\n\s*category: d\.category/.test(src('app/actions/community.ts')) &&
+      (src('app/actions/community.ts').match(/canWriteIn\(/g) ?? []).length >= 5
   );
   check(
     '미국 · 일본 싱커의 덕아웃은 커뮤니티만 — 레슨 · 연습장 · 채팅 · 결제 · 예약(/me)은 막는다(lib/sinker-dugout.ts, 2026-10-28)',

@@ -66,6 +66,9 @@ async function searchPosts(q: string, take: number, viewerId: string | null): Pr
     : [];
   const rows = await prisma.communityPost.findMany({
     where: {
+      /* 통합검색은 덕아웃 웹 · 덕아웃 앱에만 있다(싱커 앱은 막음, lib/sinker-dugout.ts) — 둘 다 한국 전용이라 한국 덕아웃 글만(2026-10-28 Q15).
+         해외 웹을 만들면 보는 사람의 나라로(lib/community-country.ts dugoutOf) */
+      country: 'kr',
       hiddenAt: null,
       ...(blocked.length > 0 ? { userId: { notIn: blocked } } : {}),
       OR: [

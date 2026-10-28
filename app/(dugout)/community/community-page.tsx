@@ -135,7 +135,7 @@ export default async function CommunityPage({
   const boardEmpty = posts.length === 0 && page === 1 ? !(await boardHasPosts(user, category)) : false;
   /* 답할 질문 — 코치 · 운영자에게(질문 게시판 · 첫 화면) */
   const showWaiting = (isCoach || user?.role === 'ADMIN') && (landing || category === 'question');
-  const waiting = showWaiting ? await waitingQuestions() : null;
+  const waiting = showWaiting ? await waitingQuestions(user) : null;
 
   const guide = category ? BOARD_GUIDES[category] : null;
 

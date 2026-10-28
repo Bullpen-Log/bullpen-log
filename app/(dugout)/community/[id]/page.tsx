@@ -231,6 +231,13 @@ export default async function CommunityPostPage({
                 <Badge className="border-warn-line bg-warn-bg text-warn desk:bg-transparent">답변 기다림</Badge>
               ) : null)}
             {stateLabel && post.state && <Badge className={STATE_BADGE[post.state]}>{stateLabel}</Badge>}
+            {/* 다른 나라 덕아웃 글 — 링크로 와서 읽기만(lib/community-country.ts) */}
+            {post.otherDugout && (
+              <Badge className="border-line text-muted">
+                {post.otherDugout}
+                {post.readOnly ? ' · 읽기만' : ''}
+              </Badge>
+            )}
             {postHidden && (
               <Badge className="gap-1 border-danger-line bg-danger-bg text-danger desk:bg-transparent">
                 <RoundEyeOff aria-hidden className="h-3 w-3" />
