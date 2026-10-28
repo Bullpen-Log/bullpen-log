@@ -22,19 +22,22 @@ import { useUnreadNotifications } from './notifications';
 import { READABLE, READABLE_WIDE, columnCell, columnRow, useColumns } from '~/lib/layout';
 import { useFocusRefresh, useOnTabActive, useRetapTop, useTabActive } from '~/shell/tab-pager';
 import { SpacePickButton } from '~/org/space-pick';
+import { MenuButton } from '~/shell/menu-button';
 import { useSpace } from '~/org/space-store';
 import { useBallRotation } from './ball/ball';
 import { HomeHero } from './hero';
 import { nextAction, todayCount, type NextAction } from './plan-model';
-import { RecordBoard } from './record-board';
+import { WeekCard } from './week-card';
+import { openTabAt } from '~/shell/tab-intent';
 import { TodayPlan } from './today-plan';
 
 /**
- * 홈 탭(앱 화면) — 2026-10-27 승인 시안 '시안 1 볼 컨트롤 + 새 하단':
- *   위 막대 → (통증 · 회복 안내) → 히어로(큰 날짜 · 입체 공 · 지금 할 일 하나) → 오늘 플랜 → 기록 보드.
+ * 홈 탭(앱 화면) — 2026-10-27 승인 시안 '시안 1 볼 컨트롤 + 새 하단', 2026-10-29 확정 디자인으로 아래만 바꿨다:
+ *   위 막대 → (통증 · 회복 안내) → 히어로(큰 날짜 · 입체 공 · 지금 할 일 하나) → 오늘 플랜 → 이번 주(요일 일곱 칸, week-card.tsx).
+ * 오늘 플랜까지는 그대로 두고, 기록 보드(최근 투구 · 최고 구속 · 내 영상 · 구속 측정 · 분석)는 걷었다 — 상세 이력은 기록 탭, 측정 도구는 투구 탭.
  * (시안의 내 라커 — 공 꾸미기 · 스티커 · 공 잡기 — 는 2026-10-27 김민이 뺐다. 코드는 git 6f090f09 에.)
  * 예전 홈의 링 셋 · 요약 칸 · 달력은 이렇게 옮겼다: 링의 셈 → 위 막대의 '한 수 / 셀 수'와 히어로 · 오늘 플랜, 요약 칸의 투구 · 구속 · 부하 · 컨디션 →
- * 오늘 플랜 · 기록 보드(app.loadAppHome 의 board), 달력 · 그날 칸 · 일정 → 기록 달력 화면(app/calendar.tsx — 보드의 날짜 · '이번 주 N일').
+ * 오늘 플랜 · 이번 주(app.loadAppHome 의 board), 달력 · 그날 칸 · 일정 → 기록 탭(날짜 · '이번 주 N일')과 그날 자세히(app/calendar.tsx).
  * 숫자는 서버 셈(app.loadAppHome) 그대로. 받아 둔 값을 먼저 그리고 뒤에서 새로 받는다(검토 D10). 새로 받다 실패하면 받아 둔 값 위에 한 줄로 알린다.
  * 완료 축하는 이번에 '안 다 함 → 다 함'을 직접 본 때만 — 앱을 켤 때 이미 다 해 둔 날은 조용히.
  */
@@ -54,6 +57,7 @@ type Seen = { all: boolean; epoch: number; day: string };
 export function HomeTab({
   today,
   bottom,
+  onTab,
 }: {
   today: string;
   bottom: number;
@@ -182,7 +186,7 @@ export function HomeTab({
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   /* 지금 탭(홈)을 다시 누르면 맨 위로 */
   useRetapTop(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
-  /* 넓은 창(아이패드 가로)이면 두 칸 — 왼쪽 오늘(히어로 · 오늘 플랜), 오른쪽 기록 보드 */
+  /* 넓은 창(아이패드 가로)이면 두 칸 — 왼쪽 오늘(히어로 · 오늘 플랜), 오른쪽 이번 주 */
   const cols = useColumns({ ratio: [1, 1], gap: SPACE.section });
 
   const openNotice = () =>
@@ -201,11 +205,16 @@ export function HomeTab({
     if (w && w.total > 0 && w.done >= w.total) return go(`/training/day/${today}`);
     router.push({ pathname: '/training-today' as Href as never, params: { today } });
   };
+  /* 기록 탭의 그날로 — 탭 판이 늘 붙어 있어 주소 대신 부탁(shell/tab-intent)을 남기고 탭을 옮긴다 */
+  const openRecords = (date: string) => {
+    openTabAt('records', date);
+    onTab('/records');
+  };
   const runAction = (a: NextAction) => {
     if (a.key === 'painCheck' || a.key === 'checkin') return openCheckin();
     if (a.key === 'pitchSetup' || a.key === 'pitch') return openPitch();
     if (a.key === 'workout') return openWorkout();
-    go(`/calendar?date=${today}`);
+    openRecords(today);
   };
   const action = home ? nextAction(home) : null;
   const count = home ? todayCount(home) : null;
@@ -262,20 +271,7 @@ export function HomeTab({
                   {home.goodNote ? <GoodDayNote note={home.goodNote} /> : null}
                 </View>
                 <View style={columnCell(cols.two, 1, 22)}>
-                  <RecordBoard
-                    board={home.board}
-                    today={today}
-                    todayCount={count}
-                    pitchLocked={home.pitchLocked}
-                    onWeek={() => go('/calendar')}
-                    onDay={(d) => go(`/calendar?date=${d}`)}
-                    onRecords={() => go('/records')}
-                    onLastPitch={(d) => (d ? go(`/pitch/${d}`) : openPitch())}
-                    onBest={() => go('/analysis?view=pitch')}
-                    onVideos={() => go('/my-videos')}
-                    onMeasure={() => go('/velocity')}
-                    onAnalysis={() => go('/analysis?view=pitch')}
-                  />
+                  <WeekCard board={home.board} today={today} onWeek={() => openRecords(today)} onDay={openRecords} />
                 </View>
               </View>
             ) : error ? (
@@ -318,25 +314,18 @@ export function HomeTab({
             </View>
           ) : null}
           <Wordmark color={c.ink} />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="내 영상"
-            onPress={() => router.push('/my-videos')}
-            hitSlop={6}
-            style={({ pressed }) => [styles.bell, { right: 60 }, pressed && { backgroundColor: c.chip }]}
-          >
-            <Icon name="film" size={19} color={c.muted} />
-          </Pressable>
+          {/* 오른쪽은 알림 종 · 전체 메뉴(☰ — 하단 탭의 더보기를 옮겼다, 2026-10-29). 내 영상은 기록 탭 아래 칸으로 갔다 */}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={pending > 0 ? `알림, 안 읽은 알림 ${pending}개` : '알림'}
             onPress={openNotice}
             hitSlop={6}
-            style={({ pressed }) => [styles.bell, pressed && { backgroundColor: c.chip }]}
+            style={({ pressed }) => [styles.bell, { right: 64 }, pressed && { backgroundColor: c.chip }]}
           >
             <Icon name="bell" size={19} color={c.muted} />
             {pending > 0 ? <View style={[styles.dot, { backgroundColor: c.warn, borderColor: c.page }]} /> : null}
           </Pressable>
+          <MenuButton style={styles.menu} />
         </Animated.View>
         {/* 오늘 셀 것을 다 했을 때 — 홈이 직접 본 전이에서만, 누름을 막지 않는 작은 카드 */}
         <AllDone play={playDay === today} day={today} />
@@ -379,6 +368,7 @@ const styles = StyleSheet.create({
   clock: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 3 },
   tail: { position: 'absolute', left: 0, right: 0, height: 16, zIndex: 1 },
   bar: { position: 'absolute', left: 0, right: 0, height: BAR_H, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  menu: { position: 'absolute', right: 14 },
   bell: { position: 'absolute', right: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   pick: { position: 'absolute', left: 12, minHeight: 44, justifyContent: 'center' },
   dot: { position: 'absolute', right: 10, top: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2 },
