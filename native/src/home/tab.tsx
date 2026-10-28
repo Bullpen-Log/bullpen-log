@@ -1,6 +1,6 @@
 import { type Href, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
@@ -191,8 +191,6 @@ export function HomeTab({
       params: { date: today, checkin: home?.checkinDone ? '1' : '0', pitch: home?.pitchDone ? '1' : '0', locked: home?.pitchLocked ? '1' : '0' },
     });
   const pending = useUnreadNotifications();
-  /* 좁은 폰(320pt)에서는 오늘 셈 알약이 가운데 로고와 겹친다 — 그때는 숨긴다(같은 수가 히어로 · 기록 보드 오늘 칸에 있다) */
-  const roomy = useWindowDimensions().width >= 360;
   const { spaces } = useSpace();
 
   const go = (to: string) => router.push(to as Href);
@@ -300,7 +298,7 @@ export function HomeTab({
           </View>
         </Animated.ScrollView>
 
-        {/* 위 막대 — 홈은 로고가 가운데, 오른쪽은 오늘 셈 · 내 영상 · 알림 종. 시계 자리는 늘 막대 색으로 덮는다 */}
+        {/* 위 막대 — 홈은 로고가 가운데, 오른쪽은 내 영상 · 알림 종(오늘 셈 알약은 2026-10-28 김민이 뺐다). 시계 자리는 늘 막대 색으로 덮는다 */}
         <Animated.View pointerEvents="none" style={[styles.tail, { top: inset.top + BAR_H }, tailStyle]}>
           <Svg width="100%" height={16}>
             <Defs>
@@ -320,17 +318,6 @@ export function HomeTab({
             </View>
           ) : null}
           <Wordmark color={c.ink} />
-          {count && roomy ? (
-            <View
-              accessible
-              accessibilityLabel={`오늘 ${count.total}개 중 ${count.done}개 했어요`}
-              style={[styles.count, { backgroundColor: c.skyTint }]}
-            >
-              <Text style={[styles.countText, { color: c.link }]}>
-                {count.done}/{count.total}
-              </Text>
-            </View>
-          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="내 영상"
@@ -393,8 +380,6 @@ const styles = StyleSheet.create({
   tail: { position: 'absolute', left: 0, right: 0, height: 16, zIndex: 1 },
   bar: { position: 'absolute', left: 0, right: 0, height: BAR_H, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   bell: { position: 'absolute', right: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  count: { position: 'absolute', right: 108, minWidth: 40, height: 32, borderRadius: 16, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
-  countText: { fontFamily: 'DINCondensed-Bold', fontSize: 19, lineHeight: 22, marginTop: 3 },
   pick: { position: 'absolute', left: 12, minHeight: 44, justifyContent: 'center' },
   dot: { position: 'absolute', right: 10, top: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2 },
   card: { borderRadius: 20, padding: SPACE.pad, gap: 10 },
