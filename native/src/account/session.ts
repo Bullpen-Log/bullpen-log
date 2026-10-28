@@ -1,6 +1,7 @@
 import { rpc, rpcForm, RpcError } from '~/lib/rpc';
 import { SITE_URL } from '~/lib/site';
 import { BullpenNative } from '../../modules/bullpen-native';
+import { unregisterPush } from '~/shell/push';
 
 /**
  * 계정 화면(로그인 · 가입 · 비밀번호 · 로그아웃 · 탈퇴)이 로그인 쿠키를 다루는 곳.
@@ -45,4 +46,8 @@ export const accountForm = <S>(action: string, fields: Record<string, string | n
   settle(() => rpcForm<S>(action, fields));
 
 /** 로그아웃 — 서버가 쿠키를 지우고 '/login' 으로 보낸다 */
-export const logoutNow = () => settle(() => rpc<null>('auth.logout'));
+export const logoutNow = async () => {
+  /* 이 폰으로 앞사람 알림이 오지 않게 — 로그인이 살아 있을 때 먼저(native/src/shell/push.ts) */
+  await unregisterPush();
+  return settle(() => rpc<null>('auth.logout'));
+};

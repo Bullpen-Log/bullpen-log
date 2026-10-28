@@ -23,6 +23,7 @@ import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
 import { loadMe, resetMe } from '~/pitch/api';
 import { forCountry, hasNutrition, hiddenIn } from '@/lib/country';
 import { countryNow, followStorefront, useCountry } from '~/lib/country-store';
+import { registerPush, usePushTaps } from '~/shell/push';
 import { resetPitchStore } from '~/pitch/store';
 import { resetCompare } from '~/pitch/log-list';
 import { resetLibraryItems } from '~/library/parts';
@@ -351,6 +352,7 @@ export default function SiteScreen() {
         deviceDay.current = toDateKey(new Date());
         setToday(m.today);
         /* 나라 = 앱스토어 계정 나라 — 바뀌었으면 웹 틀(탭 · 메뉴)을 다시 받는다 */
+        void registerPush(m.userId);
         void followStorefront(m.userId, () => {
           resetMe();
           openWebAfter('#refresh');
@@ -613,6 +615,8 @@ export default function SiteScreen() {
     };
   });
   useWebNav(useCallback((href: string) => navTo.current(href), []));
+  /* 휴대폰 푸시를 누르면 그 주소로(native/src/shell/push.ts) */
+  usePushTaps(useCallback((href: string) => navTo.current(href), []));
   /* 앱 설정 화면에서 고른 테마 · 단위를 웹에도 — 웹 다리(expo-tabs.tsx __bpPrefs)가 없는 화면이면 저장소에만 두고 다음에 열 때 칠해진다 */
   useEffect(
     () =>

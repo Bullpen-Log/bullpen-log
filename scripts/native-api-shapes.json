@@ -221,6 +221,8 @@
  "program.startProgram": "(input: { birthDate?: null | string | undefined; ownedEquipment?: null | string[] | undefined; perWeek: number; pinned?: null | undefined | {  }; programId: string; trainingLevel?: null | string | undefined }) => Promise<{ error: string } | { ok: true }>",
  "program.startProgramWorkout": "() => Promise<void>",
  "program.stopProgram": "() => Promise<{ error: string } | { ok: true }>",
+ "push.registerPushDevice": "(input: { app: \"dugout\" | \"sinker\"; platform?: string | undefined; token: string }) => Promise<{ ok: boolean }>",
+ "push.unregisterPushDevice": "(input: { token: string }) => Promise<{ ok: boolean }>",
  "rehab.changeRehabStage": "(input: { test?: undefined | { ckcFirst?: null | number | undefined; ckcNow?: null | number | undefined; injured?: number | undefined; other?: number | undefined; pain?: number | undefined; painFree?: false | true | undefined; similar?: false | true | undefined }; to: number; via: \"direct\" | \"test\" }) => Promise<{ error: string } | { error: string; fails: string[] } | { ok: true; stage: 1 | 2 | 3 | 4 }>",
  "rehab.endRehab": "(reason: \"done\" | \"stopped\") => Promise<{ error: string } | { ok: true }>",
  "rehab.logRehabThrow": "(input: { pain: string; pitches?: number | undefined; step: number }) => Promise<{ error: string } | { ok: true }>",

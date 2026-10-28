@@ -58,7 +58,11 @@ public class BullpenNativeModule: Module {
             /* 앱 테마로 창을 칠한다 — 시작 화면(SplashScreenBackground 의 라이트 · 다크)이 기기 밝기가 아니라 앱 테마를 따르게.
                JS 의 설정 읽기(AsyncStorage)는 늦어서, 다크를 골랐는데 흰 시작 화면이 한 번 번쩍였다 */
             DispatchQueue.main.async { BullpenNativeModule.applyLaunchStyle() }
-            UNUserNotificationCenter.current().delegate = self.presenter
+            /* 푸시 부품(expo-notifications, 2026-10-28)이 있으면 그 대리자가 먼저 서 있다 — 덮으면 푸시를 눌러도 앱이 모른다.
+               그때는 앞에 뜬 알림 규칙을 JS(native/src/shell/push.ts setNotificationHandler)가 같게 맡는다. 없을 때(옛 판)만 이것으로 */
+            if UNUserNotificationCenter.current().delegate == nil {
+                UNUserNotificationCenter.current().delegate = self.presenter
+            }
             let center = NotificationCenter.default
             center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
                 UIApplication.shared.isIdleTimerDisabled = false

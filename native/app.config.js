@@ -5,7 +5,8 @@
  * 덕아웃 앱은 굽기 · Metro · 업데이트 내보내기를 모두 APP_VARIANT=dugout 을 붙여 돌린다 — 안 붙이면 싱커 화면이 묶인다.
  * 싱커는 app.json 을 손대지 않고 돌려준다 — 바닥 판 지문이 그대로라 이 파일이 생겨도 싱커를 새로 굽지 않는다.
  */
-const DUGOUT_DROP = new Set(['./plugins/rest-activity', './plugins/library-videos']);
+/* 푸시(expo-notifications)는 싱커만 — 덕아웃 앱은 아직 푸시 토큰을 등록하지 않고, 서명에 푸시 권한을 더하지 않게(2026-10-28) */
+const DUGOUT_DROP = new Set(['./plugins/rest-activity', './plugins/library-videos', 'expo-notifications']);
 
 module.exports = ({ config }) => {
   if (process.env.APP_VARIANT !== 'dugout') return config;
