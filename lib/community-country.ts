@@ -15,6 +15,11 @@ export const canWriteIn = (post: { country: string; userId: string }, user: { id
 
 export const OTHER_DUGOUT = '다른 나라 덕아웃 글이라 읽기만 할 수 있어요.';
 
+/** 해외 덕아웃의 글 · 댓글 · 영상 공유는 만 13세부터(2026-10-28 김민 Q7 — 법률 자문 전 기본값, 미국 COPPA). 한국은 지금 규칙 그대로 */
+export const OVERSEAS_MIN_AGE = 13;
+export const YOUNG_ABROAD = `만 ${OVERSEAS_MIN_AGE}세가 넘으면 덕아웃에 글을 쓸 수 있어요.`;
+export const youngAbroad = (country: Country, age: number | null) => country !== 'kr' && age !== null && age < OVERSEAS_MIN_AGE;
+
 /** 다른 나라 글에 다는 이름표 — 같은 나라면 null */
 export function otherDugoutLabel(post: { country: string }, user: { country?: string | null } | null | undefined): string | null {
   const c = countryOf(post.country);

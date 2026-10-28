@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { canWriteIn, dugoutOf, OTHER_DUGOUT } from '@/lib/community-country';
+import { canWriteIn, dugoutOf, OTHER_DUGOUT, YOUNG_ABROAD, youngAbroad } from '@/lib/community-country';
 import { hasKoreaDugout } from '@/lib/country';
 import { redirect } from 'next/navigation';
 import { Prisma } from '@prisma/client';
@@ -9,7 +9,10 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { appNow } from '@/lib/clock';
 import { loadCommunityList, loadCommunityPost, loadRoomOlder } from '@/lib/community-load';
-import { deleteVideos, isOwnedBy } from '@/lib/storage';
+import { copyVideoTo, isOwnedBy } from '@/lib/storage';
+import { isPhoneVideoPath } from '@/lib/phone-video-path';
+import { isGalleryPath } from '@/lib/my-videos';
+import { deleteUnreferenced } from '@/lib/video-refs';
 import { buildCard } from '@/lib/community-cards';
 import { ageFromBirthDate } from '@/lib/profile';
 import { withJosa } from '@/lib/korean';
@@ -199,6 +202,7 @@ async function tryCreatePost(
   const country = dugoutOf(user);
   if ((d.category === 'meetup' || d.category === 'team') && !hasKoreaDugout(country))
     return { error: '이 게시판은 한국 덕아웃에만 있어요.' };
+  if (youngAbroad(country, user.birthDate ? ageFromBirthDate(user.birthDate) : null)) return { error: YOUNG_ABROAD };
 
   /*
    * 1분 안 같은 글이면 새로 안 만든다 — 저장은 됐는데 응답이 끊겨(앱 '신호가 약해 보내지 못했어요') 다시 누르면 같은 글이 둘 생겼다.
@@ -306,8 +310,8 @@ async function tryUpdatePost(user: Me | null, formData: FormData): Promise<{ err
       editedAt: appNow(),
     },
   });
-  /* 뺀 사진 · 영상 파일 — 글이 바뀐 뒤에(실패해도 고치기는 막지 않는다) */
-  await deleteVideos(post.media.filter((m) => !d.media.includes(m) && isOwnedBy(m, user.id)));
+  /* 뺀 사진 · 영상 파일 — 글이 바뀐 뒤에, 다른 기록 · 글이 안 쓰는 것만(lib/video-refs.ts, 실패해도 고치기는 막지 않는다) */
+  await deleteUnreferenced(post.media.filter((m) => !d.media.includes(m) && isOwnedBy(m, user.id)));
 
   const changed = changedFacts(
     { meetAt: post.meetAt, region: post.region, district: post.district, form: post.form as never },
@@ -346,8 +350,8 @@ async function removePost(user: Me, id: string) {
   if (!post || (post.userId !== user.id && user.role !== 'ADMIN')) return false;
 
   await prisma.communityPost.delete({ where: { id } });
-  /* 사진 · 영상 파일도 — 글이 지워진 뒤에(실패해도 글 지우기는 막지 않는다) */
-  await deleteVideos(post.media.filter((m) => isOwnedBy(m, post.userId)));
+  /* 사진 · 영상 파일도 — 글이 지워진 뒤에, 내 영상 · 기록 · 다른 글이 안 쓰는 것만(lib/video-refs.ts, 실패해도 글 지우기는 막지 않는다) */
+  await deleteUnreferenced(post.media.filter((m) => isOwnedBy(m, post.userId)));
   /* 다가오는 모임이 사라지면 참가자는 알아야 한다(지난 모임은 조용히) */
   const upcoming = !post.meetAt || post.meetAt.getTime() > appNow().getTime();
   if (upcoming && post.joins.length > 0)
@@ -444,6 +448,7 @@ async function tryAddComment(formData: FormData): Promise<CommunityState> {
   if (!post || (post.hiddenAt && user.role !== 'ADMIN'))
     return { error: '글을 찾지 못했어요.' };
   if (!canWriteIn(post, user)) return { error: OTHER_DUGOUT };
+  if (youngAbroad(dugoutOf(user), user.birthDate ? ageFromBirthDate(user.birthDate) : null)) return { error: YOUNG_ABROAD };
   if (await blockedBetween(user.id, post.userId)) return { error: '이 글에는 댓글을 달 수 없어요.' };
 
   /* 1분 안 같은 댓글이면 새로 안 만든다(끊긴 응답에 다시 보냄 — 글 만들기와 같은 까닭) */
@@ -1057,14 +1062,39 @@ export async function createAppPost(input: {
   category?: unknown;
   title?: unknown;
   body?: unknown;
+  /** 아래는 내 영상의 '덕아웃에 올리기'(2026-10-28) — 말머리 · 올린 공유용 사본 · 붙일 기록(pitch:<id>) · 숫자 숨기기 */
+  tag?: unknown;
+  media?: unknown;
+  card?: unknown;
+  cardHide?: unknown;
 }) {
   const user = await getCurrentUser();
   const fd = new FormData();
   fd.set('category', String(input?.category ?? ''));
   fd.set('title', String(input?.title ?? ''));
   fd.set('body', String(input?.body ?? ''));
+  if (typeof input?.tag === 'string') fd.set('tag', input.tag);
+  if (Array.isArray(input?.media)) for (const m of input.media) if (typeof m === 'string') fd.append('media', m);
+  if (typeof input?.card === 'string' && input.card) fd.set('card', input.card);
+  if (input?.cardHide === true) fd.set('cardHide', '1');
   const made = await tryCreatePost(user, fd);
   return 'id' in made ? { ok: true as const, id: made.id } : fail(made);
+}
+
+/**
+ * 서버에 있는 내 영상(관리자 · 서버 저장)을 덕아웃 공유용 사본으로 — 저장소 안 복사, 다시 안 올린다. 폰에만 있는 영상은 앱이 그 파일을 바로 올린다
+ * (app/api/community/upload-url). 글은 개인 원본을 가리키지 않아, 내 영상을 지워도 글이 안 깨지고 글을 지워도 내 영상이 안 지워진다(설계 5-6).
+ */
+export async function copyShareVideo(path: unknown) {
+  const user = await getCurrentUser();
+  if (!user) return fail({ error: LOGIN_NEEDED });
+  if (typeof path !== 'string' || !isOwnedBy(path, user.id) || isPhoneVideoPath(path) || !isGalleryPath(path))
+    return fail({ error: '이 영상은 올릴 수 없어요.' });
+  try {
+    return { ok: true as const, path: await copyVideoTo(user.id, path) };
+  } catch {
+    return fail({ error: '영상을 준비하지 못했어요. 다시 해 주세요.' });
+  }
 }
 
 export async function deleteAppPost(id: unknown) {

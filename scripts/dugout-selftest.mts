@@ -407,6 +407,20 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
       otherDugoutLabel({ country: 'us' }, { country: 'jp' }) === '미국 덕아웃 글'
   );
   check(
+    '덕아웃 글과 내 영상 · 기록이 서로의 파일을 안 지운다 — 참조 셈에 글의 사진 · 영상 · 카드 영상, 글 지우기 · 고치기는 참조를 본 뒤(2026-10-28)',
+    /prisma\.communityPost\.findMany\(\{\s*where: \{ userId, OR: \[\{ media: \{ hasSome: own \} \}/.test(src('lib/video-refs.ts')) &&
+      /cardVideo\(p\.card\)/.test(src('lib/video-refs.ts')) &&
+      !/deleteVideos\(/.test(src('app/actions/community.ts')) &&
+      (src('app/actions/community.ts').match(/deleteUnreferenced\(/g) ?? []).length >= 2
+  );
+  check(
+    '영상 공유는 사본 — 앱은 폰 영상을 커뮤니티 주소로 올리고 서버 영상은 저장소 안 복사, 해외 만 13세 밑은 글 · 댓글 막음',
+    /api\/community\/upload-url/.test(src('native/src/videos/share.ts')) &&
+      /community\.copyShareVideo/.test(src('native/src/videos/share.ts')) &&
+      /export async function copyVideoTo/.test(src('lib/storage.ts')) &&
+      (src('app/actions/community.ts').match(/youngAbroad\(/g) ?? []).length >= 2
+  );
+  check(
     '해외 덕아웃 고르개 셋 — 지금 게시판 · 말머리 짝, 팁은 해외만의 말머리(한국 말머리 줄엔 없음), 덕아웃 이름',
     OVERSEAS_KINDS.length === 3 &&
       OVERSEAS_KINDS.every((k) => isPostTag(k.category, k.tag)) &&

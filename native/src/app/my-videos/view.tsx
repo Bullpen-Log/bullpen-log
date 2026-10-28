@@ -186,6 +186,15 @@ export default function MyVideoScreen() {
           <Text style={[TYPE.buttonCompact, { color: c.ink }]}>기록에 연결</Text>
         </Press>
 
+        {/* 덕아웃에 올리기(2026-10-28) — 공유용 사본을 올리고 글을 쓴다(my-videos/share). 내 영상은 비공개 그대로 */}
+        <Press
+          accessibilityRole="button"
+          onPress={() => router.push({ pathname: '/my-videos/share' as never, params: { path: v.path } })}
+          style={[styles.button, { backgroundColor: withAlpha(c.ink, 0.06) }]}
+        >
+          <Icon name="chat" size={18} color={c.ink} />
+          <Text style={[TYPE.buttonCompact, { color: c.ink }]}>덕아웃에 올리기</Text>
+        </Press>
         <Press
           accessibilityRole="button"
           onPress={() => router.push({ pathname: '/my-videos' as never, params: { pick: v.path, src: 'my-videos' } })}

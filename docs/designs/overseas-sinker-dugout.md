@@ -235,7 +235,7 @@
 | 2 | 나라 = 앱스토어 계정 나라: 앱 모듈 storefront 함수 · 켤 때 알림 · 서버가 `User.country` 에 씀 · 대표관리자는 안 따름(DB 변경 없음) | `BullpenNative` · loadAppMe · setMyCountry | 미 · 일 샌드박스 계정 · 고정 뒤 안 덮임 · 바뀐 뒤 기록 그대로 | 3~5시간(Swift 굽기 1번) |
 | 3★ | `CommunityPost.country` + 색인, 거르기 한 곳(`lib/community-country.ts`), 쓰기 확인 — **끝(2026-10-28)**. 관리자 나라 고르개는 해외 글이 생기면(지금은 글을 열면 나라 이름표) | schema · community-load · search · market/load · community-ops · actions/community · admin | 아래 시나리오 1~4 · 통합 시험에 '나라 섞임' 줄 | 5~7시간 |
 | 4 | 미 · 일 덕아웃 피드(고르개 셋) · 글쓰기 '어느 나라에 올라가요' — **끝(2026-10-28)** | 덕아웃 웹 화면(웹뷰라 OTA 없이 바로) | 화면 · 375 · 다크 | 4~6시간 |
-| 5 | 영상 공유: 공유용 사본 · 미리보기 · 공개 칩 · 초안 이어 올리기 · 지우기 관계 · referencedPaths 버그 | 내 영상(앱) · upload-url · community 동작 · video-refs | 시나리오 8 | 8~12시간 |
+| 5 | 영상 공유: 공유용 사본 · 미리보기 · 공개 칩 · 초안 이어 올리기 · 지우기 관계 · referencedPaths 버그 — **끝(2026-10-28)**. 남음: 앱을 껐다 켜도 이어 올리기(지금은 화면에 남은 동안만) · 자르기 · 줄이기(50MB 넘으면 알림) | 내 영상(앱) · upload-url · community 동작 · video-refs | 시나리오 8 | 8~12시간 |
 | 6 | 푸시(댓글 · 답) — 앱 토큰 등록(서버 길은 있음) | 앱 바닥 판(굽기) | 실기기 | 3~4시간 |
 | 7★ | 시간대 = 기기: 요청 머리글 · `toDateKey` 기본 · 23곳 · 앱 자정 · 푸시용 `User.timeZone` | lib 공통(129개 파일은 기본값이라 대부분 그대로) · rpc · 웹뷰 | 시나리오 10 · 한국 숫자 전후 같음 | 8~12시간 |
 | 8 | 단위 글자 110곳 · 미국 기본 mph | 화면 · `lib/units.ts` 기본값을 나라별로 | 시나리오 11 | 3~4시간 |

@@ -288,6 +288,19 @@ export async function deleteUserFiles(userId: string) {
   }
 }
 
+/**
+ * 저장소 안에서 영상을 같은 사람 폴더의 새 이름으로 복사 → 새 경로. 덕아웃 공유용 사본(2026-10-28 설계 5-6) — 글이 개인 원본을 가리키지 않게.
+ * 다시 올리지 않고 저장소 안에서만 복사한다.
+ */
+export async function copyVideoTo(userId: string, from: string): Promise<string> {
+  const ext = from.split('.').pop()?.toLowerCase();
+  if (ext !== 'mp4' && ext !== 'mov') throw new Error('영상(MP4 · MOV)만 복사할 수 있어요.');
+  const to = `${userId}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await getClient().storage.from(VIDEO_BUCKET).copy(from, to);
+  if (error) throw new Error(error.message);
+  return to;
+}
+
 /** 해당 경로가 그 사용자의 폴더인지 확인한다. */
 export function isOwnedBy(path: string, userId: string) {
   return path.startsWith(`${userId}/`);
