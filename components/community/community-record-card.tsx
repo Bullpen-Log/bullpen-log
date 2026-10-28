@@ -1,4 +1,5 @@
 import type { CommunityCard } from '@/lib/community-cards';
+import { Speed } from '@/components/speed';
 
 const dateText = (d: string) => {
   const [, m, day] = d.split('-').map(Number);
@@ -39,12 +40,12 @@ export function CommunityRecordCard({
             </p>
           ) : (
             <>
+              {/* 보는 사람이 고른 단위로(km/h · mph — 미국 기본 mph, 2026-10-28). 저장값은 km/h 그대로 */}
               <p className="text-numeric text-3xl font-bold text-ink tabular-nums">
-                {card.maxKmh.toFixed(1)}
-                <span className="ml-1 text-base font-semibold text-muted">km/h</span>
+                <Speed kmh={card.maxKmh} />
               </p>
               <p className="text-sm text-muted tabular-nums">
-                평균 {card.avgKmh.toFixed(1)} · {card.n}구{card.sessionType ? ` · ${card.sessionType}` : ''}
+                평균 <Speed kmh={card.avgKmh} /> · {card.n}구{card.sessionType ? ` · ${card.sessionType}` : ''}
               </p>
             </>
           )}

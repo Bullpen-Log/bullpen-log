@@ -4,6 +4,7 @@ import {
   DEFAULT_LENGTH,
   DEFAULT_SPEED,
   DEFAULT_WEIGHT,
+  defaultUnits,
   LENGTH_UNITS,
   SPEED_UNITS,
   WEIGHT_UNITS,
@@ -77,6 +78,19 @@ export function setPref<K extends keyof Prefs>(key: K, value: Prefs[K]) {
   emit();
   void AsyncStorage.setItem(PREF_KEYS[key], value).catch(() => undefined);
   pushers.forEach((f) => f({ [key]: value }));
+}
+
+/**
+ * 나라 기본 단위(lib/units.ts defaultUnits — 미국 mph · lb · inch) — 고른 적 없는 단위만 그 나라 값으로 둔다. 둔 값은 고른 것처럼 앱 저장소에
+ * 남고 웹에도 칠해진다(setPref) — 그 뒤 설정에서 바꾸면 그 값이 이긴다. 한국 · 일본은 기본이 같아 아무것도 안 한다.
+ */
+export async function applyCountryUnits(country: string) {
+  const want = defaultUnits(country);
+  await prefsReady;
+  for (const key of ['length', 'weight', 'speed'] as const) {
+    const stored = await AsyncStorage.getItem(PREF_KEYS[key]).catch(() => 'unknown');
+    if (!stored) setPref(key, want[key]);
+  }
 }
 
 /** 껍데기가 웹에 칠하는 곳을 건다 */

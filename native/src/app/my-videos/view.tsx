@@ -1,4 +1,6 @@
 import { type Href, router, useLocalSearchParams } from 'expo-router';
+import { formatSpeed } from '@/lib/units';
+import { usePrefs } from '~/lib/prefs';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,6 +27,8 @@ export default function MyVideoScreen() {
   const list = useMyVideos();
   const v = path ? findMyVideo(path) : null;
   const featured = useFeatured();
+  /* 고른 구속 단위(km/h · mph) */
+  const speed = usePrefs().speed;
   const [note, setNote] = useState(v?.note ?? '');
   const [status, setStatus] = useState<string | null>(null);
   const [linking, setLinking] = useState(false);
@@ -173,7 +177,7 @@ export default function MyVideoScreen() {
           <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Text style={[TYPE.sub, { color: c.muted }]}>구속 측정</Text>
             <Text style={[TYPE.card, { color: c.ink }]}>
-              {Math.round(v.clip.kmh)}km/h{v.clip.pitchType ? ` · ${v.clip.pitchType}` : ''}
+              {formatSpeed(v.clip.kmh, speed)}{v.clip.pitchType ? ` · ${v.clip.pitchType}` : ''}
             </Text>
           </View>
         ) : null}

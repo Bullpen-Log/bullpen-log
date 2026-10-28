@@ -42,6 +42,14 @@ export const DEFAULT_LENGTH: LengthUnit = 'cm';
 export const DEFAULT_WEIGHT: WeightUnit = 'kg';
 export const DEFAULT_SPEED: SpeedUnit = 'kmh';
 
+/**
+ * 나라의 기본 단위(2026-10-28 김민 Q9 · Q13) — 미국은 mph · lb · inch, 한국 · 일본은 km/h · kg · cm. 고른 적 없을 때만 쓰고,
+ * 설정에서 바꾸면 그 값이 이긴다. 저장값 · 계산은 늘 미터법(km/h · kg · cm)이라 단위를 바꿔도 기록 · 부하는 그대로다.
+ */
+export function defaultUnits(country: string): { length: LengthUnit; weight: WeightUnit; speed: SpeedUnit } {
+  return country === 'us' ? { length: 'in', weight: 'lb', speed: 'mph' } : { length: DEFAULT_LENGTH, weight: DEFAULT_WEIGHT, speed: DEFAULT_SPEED };
+}
+
 const CM_PER_INCH = 2.54;
 const KG_PER_LB = 0.45359237;
 const KMH_PER_MPH = 1.609344;

@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { Speed } from '@/components/speed';
+import type { ReactNode } from 'react';
 import { DugoutPageHeader, SectionHead } from '@/components/dugout/ui';
 import { notFound } from 'next/navigation';
 import { Badge, Card } from '@/components/ui';
@@ -43,7 +45,7 @@ export default async function PublicProfilePage({
     show.has('velocity') ? velocitySummaryOf(user.id) : null,
     show.has('days') ? prisma.pitchLog.count({ where: { userId: user.id } }) : null,
   ]);
-  const facts: { label: string; value: string }[] = [];
+  const facts: { label: string; value: ReactNode }[] = [];
   if (show.has('position') && (user.position || user.throwingHand))
     facts.push({
       label: '포지션',
@@ -55,7 +57,8 @@ export default async function PublicProfilePage({
         .join(' · '),
     });
   if (velocity?.best)
-    facts.push({ label: '최고 구속', value: `${velocity.best} km/h` });
+    /* 보는 사람이 고른 단위로(km/h · mph) */
+    facts.push({ label: '최고 구속', value: <Speed kmh={velocity.best} /> });
   if (pitchDays != null) facts.push({ label: '투구 기록', value: `${pitchDays}회` });
 
   return (

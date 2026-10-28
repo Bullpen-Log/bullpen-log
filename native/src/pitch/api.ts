@@ -2,6 +2,7 @@ import { APP_API_HEADER, APP_API_LEVEL } from '@/lib/app-api';
 import { countryOf } from '@/lib/country';
 import { deviceTimeZone } from '@/lib/time-zone';
 import { setCountryNow } from '~/lib/country-store';
+import { applyCountryUnits } from '~/lib/prefs';
 import { phoneAssetId, phoneVideoPath, isPhoneVideoPath } from '@/lib/phone-video-path';
 import { SITE_URL } from '~/lib/site';
 import { markWrite, rpc, syncSession } from '~/lib/rpc';
@@ -85,6 +86,8 @@ export function loadMe(): Promise<Me> {
   const p = rpc<({ ok: true } & Me) | { ok: false; error: string }>('app.loadAppMe').then((r) => {
     if (!r.ok) throw new ApiError(r.error);
     setCountryNow(countryOf(r.country));
+    /* 나라 기본 단위(미국 mph · lb · inch) — 고른 적 없을 때만 */
+    void applyCountryUnits(countryOf(r.country));
     return r;
   });
   meCache = p;
