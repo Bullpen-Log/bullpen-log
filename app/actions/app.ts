@@ -33,10 +33,13 @@ import { loadTodayCoreCached } from '@/lib/report/today-data';
 import { armStatusOf, type ArmStatus } from '@/lib/report/arm-status';
 import { pitchNutritionLine, type NutritionLine } from '@/lib/nutrition/nudge';
 import type { FeedItem } from '@/lib/report/feed-items';
+import { RECORDS_MAX_DAYS, loadRecordsRange, type RecordItem } from '@/lib/records/day-records';
 import {
   armcareCardData,
   mechanicsCardData,
+  programShelfData,
   workoutCardData,
+  type ProgramShelf,
   type TrainingCard,
 } from '@/lib/report/training-home-data';
 import { TRAINING_PART_COOKIE, readTrainingPart, type TrainingPart } from '@/lib/training-part';
@@ -303,6 +306,8 @@ export async function loadAppTraining(): Promise<
       strip: TrainingStripDay[];
       /** '이번 주 운동 N일 · 암케어 N일 · 메카닉 N일'(lib/report/training-week-counts.ts) */
       week: TrainingWeekCounts;
+      /** 프로그램 가로 카드(2026-10-29) — 보일 프로그램 · 진행 중 · 오늘 시작 가능. 실패해도 카드 셋은 보인다(null) */
+      programs: ProgramShelf | null;
     }
   | { ok: false; error: string; to?: string }
 > {
@@ -320,7 +325,7 @@ export async function loadAppTraining(): Promise<
     }
   };
   const todayKey = toDateKey(now);
-  const [cards, strip, week] = await Promise.all([
+  const [cards, strip, week, programs] = await Promise.all([
     Promise.all([
       safe('today', () => workoutCardData(user, now)),
       safe('armcare', () => armcareCardData(user, now)),
@@ -328,10 +333,29 @@ export async function loadAppTraining(): Promise<
     ]),
     loadTrainingStrip(user.id, todayKey, todayKey),
     loadTrainingWeekCounts(user.id, now),
+    programShelfData(user, now).catch((err: unknown) => {
+      unstable_rethrow(err);
+      console.error('[앱 트레이닝] 프로그램 카드', err);
+      return null;
+    }),
   ]);
   const last = readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value);
   if (last) cards.sort((a, b) => Number(b.app === last) - Number(a.app === last));
-  return { ok: true, today: todayKey, cards, strip, week };
+  return { ok: true, today: todayKey, cards, strip, week, programs };
+}
+
+/**
+ * 앱 기록 탭(2026-10-29) — 날짜별 시간순 기록(투구 · 트레이닝 · 암케어 · 메커니즘 드릴 · 체크인, lib/records/day-records.ts). 이미 남은 기록을
+ * 읽기만 한다. from · to 는 날짜 키(그 사이 최대 400일) — 화면은 달마다, 찾기는 최근 1년을 부른다.
+ */
+export async function loadAppRecords(from: unknown, to: unknown): Promise<{ ok: true; items: RecordItem[] } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const key = /^\d{4}-\d{2}-\d{2}$/;
+  if (typeof from !== 'string' || typeof to !== 'string' || !key.test(from) || !key.test(to)) return { ok: false, error: '날짜가 잘못됐어요.' };
+  const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000;
+  if (!(days >= 0 && days <= RECORDS_MAX_DAYS)) return { ok: false, error: '날짜가 잘못됐어요.' };
+  return { ok: true, items: await loadRecordsRange(user.id, from, to) };
 }
 
 /**

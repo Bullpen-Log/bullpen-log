@@ -3,8 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { loadTodayCoreCached, type UserForToday } from '@/lib/report/today-data';
 import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
 import { STATE_NOTICE_TEXT, stateNoticeOf } from '@/lib/report/state-notice';
-import { PROGRAMS_ENABLED } from '@/lib/program/program';
-import { activeProgram, buildProgramDay, programTodayOf } from '@/lib/program/load';
+import { PROGRAMS, PROGRAMS_ENABLED, audienceOf, parseProgram, profileBlock } from '@/lib/program/program';
+import { activeProgram, buildProgramDay, hasFinishedBasics, programTodayOf } from '@/lib/program/load';
+import { ageFromBirthDate } from '@/lib/profile';
 import { loadArmcareToday, type UserForArmcare } from '@/lib/armcare/today';
 import { ARMCARE_KIND_TEXT } from '@/lib/armcare/routine';
 import { ARMCARE_AREAS } from '@/lib/armcare/anatomy';
@@ -44,6 +45,13 @@ export type TrainingCard = {
   bars?: { index: number; total: number; label: string } | null;
   /** 메카닉 — 드릴로 던진 공을 투구 기록에 남기라는 한 줄 */
   throwNote?: DrillThrowNote | null;
+  /**
+   * 오늘 운동 카드의 상태(2026-10-29 앱 트레이닝 탭 — 상태마다 주 단추 하나). 옛 앱은 이 칸을 모르고 status · action 만 읽는다.
+   * none 일정 없음 · planned 할 운동 있음 · active 운동 중 · done 마침 · rest 쉬는 날(멈춤 · 남은 운동 없음)
+   */
+  state?: 'none' | 'planned' | 'active' | 'done' | 'rest';
+  /** 오늘 운동 — 그날 일정의 실제 값만(이름 · 종목 수 · 예상 분). 프로그램 날은 프로그램 이름 · 회차 */
+  plan?: { title: string; sub: string | null; count: number | null; minutes: number | null } | null;
 };
 
 const card = (app: TrainingPart, status: string, rest: Partial<TrainingCard> = {}): TrainingCard => ({
@@ -81,8 +89,8 @@ export async function workoutCardData(user: HomeUser, today: Date): Promise<Trai
   const programRow = PROGRAMS_ENABLED && core.closedSessions > 0 ? await activeProgram(user.id) : programFirst;
   const count = core.shownPicks.length;
 
-  if (session?.status === 'FINISHED') return card('today', '오늘 운동을 마쳤어요', { tone: 'done' });
-  if (core.picked.halted) return card('today', '오늘은 운동을 처방하지 않았어요', { tone: 'warn' });
+  if (session?.status === 'FINISHED') return card('today', '오늘 운동을 마쳤어요', { tone: 'done', state: 'done' });
+  if (core.picked.halted) return card('today', '오늘은 운동을 처방하지 않았어요', { tone: 'warn', state: 'rest' });
 
   /* 프로그램 날은 트레이닝 화면의 프로그램 카드와 같은 길(buildProgramDay — 판정 · 오늘 판 · 중재) */
   const programView = programRow ? await buildProgramDay(core, programRow, user) : null;
@@ -101,11 +109,14 @@ export async function workoutCardData(user: HomeUser, today: Date): Promise<Trai
     const dayLabel = programView.arbitration.program?.today?.label ?? programView.dayLabel;
     return card('today', `${programView.plan.def.name} · ${dayLabel}`, {
       action: canStart ? { kind: 'workout', program: true, resume: active } : null,
+      state: active ? 'active' : canStart ? 'planned' : 'rest',
+      plan: { title: programView.plan.def.name, sub: dayLabel, count: null, minutes: null },
     });
   }
   if (!screen.usesPlan || !core.savedPlan) {
-    return card('today', screen.stalePlan ? TRAINING_SCREEN_TEXT.stalePlanHome : '오늘 일정을 아직 안 만들었어요');
+    return card('today', screen.stalePlan ? TRAINING_SCREEN_TEXT.stalePlanHome : '오늘 일정을 아직 안 만들었어요', { state: 'none' });
   }
+  const savedPlan = { title: core.savedPlan.theme.label, sub: null, count, minutes: core.shownMinutes };
   /*
    * 상태 바뀜(2판 P6-6) — 트레이닝 화면의 띠와 같은 함수(lib/report/state-notice.ts). 한 번 눌러 다시 만들 수 있는 날만 주의 색 한 줄로 알리고
    * (운동 중 · 체크인 없는 날은 홈에서 할 것이 없어 보통 카드), 카드를 누르면 띠가 있는 트레이닝 화면으로 간다. [시작]은 그대로 둔다 — 알림은
@@ -121,11 +132,15 @@ export async function workoutCardData(user: HomeUser, today: Date): Promise<Trai
     return card('today', STATE_NOTICE_TEXT.home, {
       tone: 'warn',
       action: count > 0 ? { kind: 'workout', program: false, resume: false } : null,
+      state: count > 0 ? 'planned' : 'rest',
+      plan: savedPlan,
     });
   }
-  if (count === 0) return card('today', '일정에 남은 운동이 없어요');
+  if (count === 0) return card('today', '일정에 남은 운동이 없어요', { state: 'rest', plan: savedPlan });
   return card('today', `${core.savedPlan.theme.label} · ${count}종목 · 약 ${core.shownMinutes}분`, {
     action: { kind: 'workout', program: false, resume: session?.status === 'ACTIVE' },
+    state: session?.status === 'ACTIVE' ? 'active' : 'planned',
+    plan: savedPlan,
   });
 }
 
@@ -248,4 +263,37 @@ export async function mechanicsCardData(userId: string): Promise<TrainingCard> {
       throwNote,
     }
   );
+}
+
+/**
+ * 트레이닝 탭의 프로그램 가로 카드(2026-10-29 앱 확정 디자인) — 이 사람에게 보일 프로그램과 지금 시작할 수 있는지. 셈은 트레이닝 오늘 화면의
+ * 고르기 시트(lib/report/training-today-data.ts programStart · 앱 training/today/program-start.tsx)와 같다:
+ * - 성인 프로그램은 늘 보이고, 나이 · 경력으로 막혔으면 그 까닭을 단다(시트도 막힘 글을 보인다).
+ * - 기본기 4주는 웨이트 입문이거나 성인 프로그램이 막힌 사람에게만, 기본기 자체가 막히지 않았을 때.
+ * - 시작은 진행 중인 프로그램도 오늘 일정도 없을 때만(시트가 그때만 뜬다). 옛 8주(LEGACY)는 PROGRAMS 밖이라 새로 보이지 않는다.
+ */
+export type ProgramShelf = {
+  items: { id: string; blocked: string | null }[];
+  activeId: string | null;
+  canStart: boolean;
+};
+
+export async function programShelfData(user: HomeUser, today: Date): Promise<ProgramShelf> {
+  if (!PROGRAMS_ENABLED) return { items: [], activeId: null, canStart: false };
+  const [core, row] = await Promise.all([loadTodayCoreCached(user), activeProgram(user.id)]);
+  const asksBasics = user.trainingLevel === '입문';
+  const basicsDone = asksBasics && !row ? await hasFinishedBasics(user.id) : false;
+  const known = { age: user.birthDate ? ageFromBirthDate(user.birthDate, today) : null, trainingLevel: user.trainingLevel, basicsDone };
+  const adult = profileBlock({ audience: 'adult', ...known });
+  const basics = profileBlock({ audience: 'basics', ...known });
+  const showBasics = basics == null && (asksBasics || adult != null);
+  const items = PROGRAMS.filter((p) => audienceOf(p) === 'adult' || showBasics)
+    .map((p) => ({ id: p.id, blocked: audienceOf(p) === 'adult' ? (adult?.reason ?? null) : null }))
+    /* 기본기를 권하는 사람에게는 기본기가 먼저(시트의 '추천'과 같다) */
+    .sort((a, b) => Number(b.id === 'basics-4w' && adult != null) - Number(a.id === 'basics-4w' && adult != null));
+  return {
+    items,
+    activeId: row ? (parseProgram(row.programKey)?.def.id ?? null) : null,
+    canStart: !row && core.savedPlan == null,
+  };
 }
