@@ -23,10 +23,15 @@ const STOREFRONT: Record<string, Country> = { KOR: 'kr', USA: 'us', JPN: 'jp' };
 export const countryOfStorefront = (code: unknown): Country | null =>
   typeof code === 'string' ? (STOREFRONT[code.toUpperCase()] ?? null) : null;
 
-/** 타격 — 국내만. 미국 · 일본은 투수 전용으로 먼저 낸다 */
-export const hasHitting = (c: Country) => c === 'kr';
-/** 영양 — 국내만(식약처 식품 DB · 한식 식단 틀이라, 2026-10-28 김민 Q1) */
-export const hasNutrition = (c: Country) => c === 'kr';
+/**
+ * 타격 · 영양 — 지금은 세 나라 모두 숨긴다(2026-10-28 김민: "한국에서도 일단 타격 제외 · 영양도 완전 삭제 말고 숨기기").
+ * 화면 · 서버 코드는 그대로 두고 탭 · 메뉴 · 주소만 막는다. 다시 열 때는 아래 묶음에 나라를 넣는다 — 둘 다 원래 'kr' 하나
+ * (영양은 식약처 식품 DB · 한식 식단 틀이라 국내만이었다, 같은 날 Q1).
+ */
+const HITTING_IN = new Set<Country>();
+const NUTRITION_IN = new Set<Country>();
+export const hasHitting = (c: Country) => HITTING_IN.has(c);
+export const hasNutrition = (c: Country) => NUTRITION_IN.has(c);
 /** 싱커 안 덕아웃의 레슨 · 연습장 · 채팅 · 번개 · 예약 — 국내만(해외 덕아웃은 커뮤니티만) */
 export const hasKoreaDugout = (c: Country) => c === 'kr';
 
