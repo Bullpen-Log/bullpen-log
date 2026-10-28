@@ -20,6 +20,7 @@ import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTyp
 import { APP_UA, SITE_HOST, SITE_URL, START_PATH } from '~/lib/site';
 import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
 import { loadMe, resetMe } from '~/pitch/api';
+import { countryOf, forCountry } from '@/lib/country';
 import { resetPitchStore } from '~/pitch/store';
 import { resetCompare } from '~/pitch/log-list';
 import { resetLibraryItems } from '~/library/parts';
@@ -338,6 +339,9 @@ export default function SiteScreen() {
         if (no !== askNo.current) return true;
         deviceDay.current = toDateKey(new Date());
         setToday(m.today);
+        /* 그 나라에 없는 칸(미국 · 일본의 타격)을 기본 탭에서 뺀다 — 사이트 탭이 이미 왔으면 그대로(사이트가 걸러 보낸다) */
+        const country = countryOf(m.country);
+        if (country !== 'kr') setTabs((t) => (t === DEFAULT_TABS ? forCountry(DEFAULT_TABS, country) : t));
         setMeOk(true);
         setMeError(null);
         ownerKnown(m.userId);

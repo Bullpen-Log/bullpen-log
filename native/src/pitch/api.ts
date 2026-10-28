@@ -73,7 +73,8 @@ export async function call<T>(path: string, init: { method: string; body?: unkno
   return body as T;
 }
 
-export type Me = { userId: string; nickname: string; isAdmin: boolean; today: string; locks: { pitch: boolean } };
+/** country — 옛 서버 답에는 없다(그때는 한국, lib/country.ts countryOf) */
+export type Me = { userId: string; nickname: string; isAdmin: boolean; today: string; locks: { pitch: boolean }; country?: string };
 let meCache: Promise<Me> | null = null;
 export function loadMe(): Promise<Me> {
   if (meCache) return meCache;

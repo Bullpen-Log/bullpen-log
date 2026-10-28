@@ -35,6 +35,7 @@ export const getCurrentUser = cache(async () => {
         accountType: true,
         /* 싱커를 쓰는 사람인가(lib/brand.ts usesSinker) — 위 막대의 '내 싱커' · 덕아웃 홈의 요약 줄 */
         sinkerStartedAt: true,
+        country: true,
         publicSinker: true,
         birthDate: true,
         /* 내 정보에서 고치고, 영양 목표의 기초대사량 계산이 읽는다 */

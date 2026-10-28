@@ -9,6 +9,8 @@ import { loadTrainingWeekCounts, type TrainingWeekCounts } from '@/lib/report/tr
 import { pickArmPain, pickCheckinParts, todayOutingRole, validateCheckinDate, type CheckinPartKey } from '@/lib/checkin';
 import { GOOD_DAY_MIN, RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
+import { countryOf, isCountry, type Country } from '@/lib/country';
+import { revalidatePath } from 'next/cache';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { prisma } from '@/lib/prisma';
 import { isOutingTitle, sortEvents, type CalendarEventView } from '@/lib/calendar-event';
@@ -51,6 +53,8 @@ export async function loadAppMe(): Promise<
       isAdmin: boolean;
       today: string;
       locks: { pitch: boolean; training: boolean; nutrition: boolean };
+      /** 나라(lib/country.ts) — 앱이 사이트 탭을 받기 전의 기본 탭에서 그 나라에 없는 칸을 뺀다 */
+      country: Country;
     }
   | { ok: false; error: string }
 > {
@@ -63,7 +67,22 @@ export async function loadAppMe(): Promise<
     isAdmin: user.role === 'ADMIN',
     today: toDateKey(appNow()),
     locks: featureLocks(user),
+    country: countryOf(user.country),
   };
+}
+
+/**
+ * 나라 바꾸기(시험용, 대표관리자만 — 2026-10-28 김민: "폰 하나로 한국 · 미국 · 일본 싱커를 바꿔 가며") — 제 계정의 나라만 바꾼다.
+ * 앱 관리자 화면이 부르고, 바꾼 뒤 웹 틀을 다시 받게 해 탭 · 메뉴가 그 나라 것이 된다.
+ */
+export async function setMyCountry(country: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  if (user.role !== 'ADMIN') return { ok: false, error: '대표관리자만 바꿀 수 있어요.' };
+  if (!isCountry(country)) return { ok: false, error: '나라를 다시 골라 주세요.' };
+  await prisma.user.update({ where: { id: user.id }, data: { country: country === 'kr' ? null : country } });
+  revalidatePath('/', 'layout');
+  return { ok: true };
 }
 
 /**

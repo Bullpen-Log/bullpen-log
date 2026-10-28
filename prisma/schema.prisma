@@ -146,6 +146,8 @@ model User {
   baselineMix         Json?
   /// 시뮬레이션 날짜 — 시험 계정을 '그날'로 써 보려고(2026-10-11 김민). 있으면 이 계정만 서버 · 화면의 '오늘'이 이 날짜(시각은 실제), 없으면 실제 날짜. lib/clock.ts
   simDate             DateTime? @db.Date
+  /// 나라 — 'kr' · 'us' · 'jp', 비면 한국(2026-10-28 김민: 미국 · 일본은 투수 전용으로 먼저). 탭 · 메뉴를 가른다(lib/country.ts)
+  country             String?
   createdAt           DateTime  @default(now())
 
   exerciseFavorites UserExerciseFavorite[]

@@ -24,6 +24,7 @@ import {
   withoutDugoutTabGroups,
 } from '@/lib/nav';
 import { featureLocks } from '@/lib/feature-locks';
+import { countryOf, forCountry, forCountryGroups, hasHitting } from '@/lib/country';
 import { AppNav } from '@/components/app-shell';
 import { CheckinGate } from '@/components/checkin-gate';
 import { RefreshOnReturn } from '@/components/refresh-on-return';
@@ -87,10 +88,12 @@ export default async function AppLayout({
   const isNative = isNativeUserAgent((await headers()).get('user-agent'));
   /* 웹(브라우저)의 싱커 틀 — 덕아웃 탭 대신 홈 왼쪽의 원형 뒤로가기(2026-10-21 금윤호). 앱은 탭 그대로(김민 몫) */
   const back = isNative ? null : { href: '/', label: '덕아웃' };
+  /* 나라(lib/country.ts) — 미국 · 일본은 투수 전용이라 타격 탭 · 메뉴가 빠진다 */
+  const country = countryOf(user.country);
   const tabsOf = <T extends { href: string }>(items: T[]) =>
-    isNative ? items : withoutDugoutTab(items);
+    forCountry(isNative ? items : withoutDugoutTab(items), country);
   const groupsOf = <G extends { items: { href: string }[] }>(groups: G[]) =>
-    isNative ? groups : withoutDugoutTabGroups(groups);
+    forCountryGroups(isNative ? groups : withoutDugoutTabGroups(groups), country);
 
   /* PC 브라우저의 선수 화면은 덕아웃 틀 안(2026-10-21 2단계, docs/designs/sinker-dugout.md 5-1) — 위 막대 하나, 앱(싱커 웹뷰)은 안 그린다 */
   const [unread, alerts] = isNative
@@ -273,7 +276,9 @@ export default async function AppLayout({
                 .flatMap((g) => g.items)
                 .find((i) => i.icon === 'radar' && !i.locked) ?? null
             }
-            panels={[home, videos, hitting]}
+            /* 타격이 없는 나라는 판 둘 — 차례(order)도 같이 줄인다 */
+            panels={hasHitting(country) ? [home, videos, hitting] : [home, videos]}
+            order={hasHitting(country) ? undefined : ['/today', '/videos']}
           >
             <MainTransition>{children}</MainTransition>
           </TabPager>
