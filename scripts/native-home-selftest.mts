@@ -2,6 +2,7 @@
  * 싱커 홈 개편(2026-10-27 시안 1 볼 컨트롤 + 새 하단) 시험 — `npm run native-home:test`.
  * 회귀 위험이 큰 규칙만: 입체 공의 돌림 · 비춤(로고 · 실밥이 구면에 붙어 앞쪽만), 주간 보드(월요일 시작 · 기록한 날 수는 날짜 하나에 한 번 · 휴식도 기록 ·
  * 앞날 안 셈 · 달 · 해 넘김), 지금 할 일 차례와 완료 수(운동 일정 없는 날은 분모에서 뺌).
+ * 2026-10-29 기록 탭: 시간순(최근 위 · 시각 모름 맨 뒤) · 거르기 + 찾기 · 달 칸(월요일부터 · 윤년) · 달 넘김 날짜, 투구 탭 최근 투구 차례.
  * 실제 아이폰의 그림 · 손가락은 이 시험이 보지 못한다(폰에서 확인).
  */
 import assert from 'node:assert/strict';
@@ -9,6 +10,9 @@ import { ballFrame, GRAIN_POINTS, logoRings, rotation, SEAM, START_ROTATION, STI
 import { MARK_PATH } from '~/shell/mark-path';
 import { buildHomeBoard, type HomeBoardInput } from '@/lib/report/home-board';
 import { nextAction, pitchCard, todayCount, workoutCard } from '~/home/plan-model';
+import type { RecordItem } from '@/lib/records/day-records';
+import { byTimeDesc, dayRecords, kindsOn, monthCells, sameDayIn, searchRecords, shiftMonth, weekOf } from '~/records/model';
+import { recentPitchLogs } from '~/pitch/home-summary';
 
 let n = 0;
 const ok = (cond: unknown, m: string) => {
@@ -137,6 +141,47 @@ const base: HomeBoardInput = {
   const board = buildHomeBoard({ ...base, pitchDays: { '2026-10-27': { pitches: 0, rest: true } } });
   eq(pitchCard({ pitchDone: true, pitchLocked: false, board, today: '2026-10-27' }).value, '휴식', '쉰 날은 휴식으로');
   eq(pitchCard({ pitchDone: false, pitchLocked: false, board, today: '2026-10-27' }).value, '기록 전', '기록 전');
+}
+
+/* ── 기록 탭(2026-10-29) ── */
+{
+  const P = (id: string, date: string, at: string | null, extra: Partial<Extract<RecordItem, { kind: 'pitch' }>> = {}): RecordItem => ({
+    kind: 'pitch', id, date, at, title: '불펜', pitches: 40, rested: false, maxKmh: null, videos: 0, memo: null, ...extra,
+  });
+  const items: RecordItem[] = [
+    P('p1', '2026-10-27', '2026-10-27T09:42:00Z', { memo: '앞발 착지 확인' }),
+    { kind: 'armcare', id: 'a1', date: '2026-10-27', at: null, count: 5 },
+    { kind: 'training', id: 't1', date: '2026-10-27', at: '2026-10-27T08:20:00Z', title: '하체 · 코어', count: 6, minutes: 35, active: false },
+    { kind: 'checkin', id: 'c1', date: '2026-10-27', at: '2026-10-27T10:30:00Z', condition: 7, sleepQuality: 4, note: null },
+    P('p2', '2026-10-25', '2026-10-25T08:00:00Z', { title: '캐치볼' }),
+  ];
+  eq(dayRecords(items, '2026-10-27', 'all').map((r) => r.id), ['c1', 'p1', 't1', 'a1'], '최근 시각 위 · 시각 모름(암케어) 맨 뒤 — 투구라고 앞당기지 않음');
+  eq(dayRecords(items, '2026-10-27', 'training').map((r) => r.id), ['t1', 'a1'], '트레이닝 거르기에 암케어도');
+  eq(dayRecords(items, '2026-10-27', 'condition').map((r) => r.id), ['c1'], '컨디션 = 체크인');
+  eq(dayRecords(items, '2026-10-26', 'all'), [], '빈 날');
+  eq(searchRecords(items, '착지', 'all').map((r) => r.id), ['p1'], '메모로 찾기');
+  eq(searchRecords(items, '캐치볼', 'condition'), [], '찾기 + 거르기가 같이');
+  eq(searchRecords(items, '10월 25일', 'all').map((r) => r.id), ['p2'], '날짜 말로 찾기');
+  eq(searchRecords(items, '   ', 'all'), [], '빈 찾기는 결과 없음');
+  eq(searchRecords(items, '불펜', 'all').map((r) => r.id), ['p1'], '찾기 결과도 최근 날 먼저 · 한 번씩');
+  ok(byTimeDesc(items[4], items[0]) > 0, '다른 날이면 최근 날 먼저');
+  eq(kindsOn(items, '2026-10-27'), 3, '그날 종류 수 — 투구 · 트레이닝(운동 + 암케어 한 묶음) · 컨디션');
+  eq(weekOf('2026-11-01'), ['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31', '2026-11-01'], '주는 월요일부터 · 달 넘김');
+  const oct = monthCells('2026-10');
+  eq([oct.filter((x) => x == null).length, oct.filter(Boolean).length], [3, 31], '2026년 10월 1일은 목요일 — 앞 빈칸 셋');
+  eq(monthCells('2028-02').filter(Boolean).length, 29, '윤년 2월');
+  eq([shiftMonth('2026-12', 1), shiftMonth('2026-01', -1)], ['2027-01', '2025-12'], '해 넘김');
+  eq(sameDayIn('2026-02', '2026-01-31'), '2026-02-28', '달 넘김 때 없는 날은 그 달 끝');
+}
+
+/* ── 투구 탭 최근 투구(2026-10-29) ── */
+{
+  const L = (id: string, date: string, createdAt: string) => ({
+    id, date: `${date}T00:00:00.000Z`, sessionType: '불펜', pitchCount: 30, intensity: null, effortPct: null, maxVelocity: null, avgVelocity: null,
+    memo: null, videoPaths: [], satisfaction: null, cuesGood: [], cuesBad: [], createdAt,
+  });
+  const logs = [L('a', '2026-10-20', '1'), L('b', '2026-10-27', '1'), L('c', '2026-10-27', '2'), L('d', '2026-10-30', '1'), L('b', '2026-10-27', '1')];
+  eq(recentPitchLogs(logs, '2026-10-28', 3).map((l) => l.id), ['c', 'b', 'a'], '앞날 빼고 최근 날 · 나중에 남긴 것 먼저 · 같은 기록 한 번');
 }
 
 console.log(`native-home: ${n}개 통과`);

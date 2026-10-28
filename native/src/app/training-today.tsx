@@ -48,7 +48,8 @@ export default function TrainingTodayScreen() {
   useRememberPart('today');
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ today?: string }>();
+  /* program — 트레이닝 탭 프로그램 커버에서 왔으면 그 프로그램 소개를 편 채로(training/program-cards.tsx) */
+  const params = useLocalSearchParams<{ today?: string; program?: string }>();
   /* 트레이닝 탭이 서버의 오늘을 넘기면 그것(시험 계정 날짜까지), 없으면 폰의 오늘 — 받아 둔 값이 그날 것일 때만 먼저 보인다 */
   const today = typeof params.today === 'string' ? params.today : toDateKey(new Date());
   const [data, setData] = useState<TrainingToday | null>(() => (remembered()?.today === today ? remembered() : null));
@@ -256,7 +257,7 @@ export default function TrainingTodayScreen() {
           />
         ) : null}
 
-        {data.programStart ? <ProgramStartView ps={data.programStart} c={c} a={actions} /> : null}
+        {data.programStart ? <ProgramStartView ps={data.programStart} c={c} a={actions} initialId={typeof params.program === 'string' ? params.program : undefined} /> : null}
 
         {data.outing ? <OutingRow line={data.outing} c={c} a={actions} /> : null}
         </View>

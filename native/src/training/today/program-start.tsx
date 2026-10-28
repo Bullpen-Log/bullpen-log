@@ -66,9 +66,14 @@ function Gist({ p, c }: { p: ProgramChoice; c: Palette }) {
 }
 
 /** 입구 — 근력 · 파워 프로그램 한 줄과 기본기 카드(성인 프로그램이 막힌 사람에게는 기본기가 먼저, '추천') */
-export function ProgramStartView({ ps, c, a }: { ps: TodayProgramStart; c: Palette; a: TodayActions }) {
-  /* 열 때마다 새 시트 — 카드로 열면 그 프로그램 소개부터, 입구 줄로 열면 목록부터 */
-  const [opening, setOpening] = useState<{ with: ProgramChoice | null } | null>(null);
+export function ProgramStartView({ ps, c, a, initialId }: { ps: TodayProgramStart; c: Palette; a: TodayActions; initialId?: string }) {
+  /*
+   * 열 때마다 새 시트 — 카드로 열면 그 프로그램 소개부터, 입구 줄로 열면 목록부터. 트레이닝 탭의 프로그램 커버를 누르고 오면(initialId) 그 소개가 펴진 채
+   * (그 사람에게 없는 프로그램이면 목록부터 — 자격 · 막힘은 시트가 늘 하던 대로 가른다)
+   */
+  const [opening, setOpening] = useState<{ with: ProgramChoice | null } | null>(() =>
+    initialId ? { with: ps.programs.find((p) => p.id === initialId) ?? null } : null
+  );
   const basicsChoice = ps.programs.find((p) => p.audience === 'basics') ?? null;
   const adultCount = ps.programs.filter((p) => p.audience === 'adult').length;
   const showBasics = basicsChoice != null && ps.basicsBlocked == null && offersBasics(ps);
