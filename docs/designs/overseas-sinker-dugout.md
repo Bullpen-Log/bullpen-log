@@ -171,7 +171,7 @@
 
 | 설정 | 기본값 [제안] | 바꾸기 | 저장 |
 |---|---|---|---|
-| 나라 구성 | **앱스토어 계정 나라**(StoreKit storefront — KOR · USA · JPN) — 사용자가 고르지 않는다(김민 Q3) | 앱스토어 계정 나라가 바뀌면 따라 바뀜 · 관리자만 시험용 고정 | `User.country`(있음) + 고정 표시 |
+| 나라 구성 | **앱스토어 계정 나라**(StoreKit storefront — KOR · USA · JPN) — 사용자가 고르지 않는다(김민 Q3) | 앱스토어 계정 나라가 바뀌면 따라 바뀜 · 관리자만 시험용 고정 | `User.country`(있음) |
 | 덕아웃 나라 | 나라 구성과 같음 | 따로 없음 | — |
 | 앱 언어 | iOS 앱 언어(기기 언어) | iOS 설정 › 싱커 › 언어 | 기기 + 서버(푸시 글용 `User.language`, 푸시를 붙일 때) |
 | 단위 | 미국 mph · lb · ft-in(설정에서 km/h · kg · cm), 한 · 일 km/h · kg · cm | 앱 설정(지금 있음) | 기기(지금 그대로) — 저장값은 늘 미터법 |
@@ -179,7 +179,7 @@
 
 **나라 = 앱스토어 계정 나라**(김민 Q3 — 처음 요청의 '스토어만으로 확정하지 말 것'을 김민이 바꿈). 기기 언어 · 위치는 안 쓴다.
 - 앱이 켤 때 storefront 나라를 서버에 알린다(앱 모듈에 함수 하나 — `Storefront.current?.countryCode`, 3글자). 서버가 KOR → kr · USA → us · JPN → jp 로 `User.country` 에 쓴다.
-- 관리자 시험 전환(`setMyCountry`)은 '고정' 표시를 같이 써서 storefront 가 덮지 않게 한다(고정 풀기 = storefront 를 다시 따름).
+- 대표관리자는 storefront 를 따르지 않는다 — 시험 전환(`setMyCountry`)이 덮이지 않게. 관리자 화면 '앱스토어 나라로'를 누를 때만 따른다(2단계에서 이렇게 해 DB 칸을 더하지 않았다).
 - 그 밖 나라 storefront(TestFlight 시험자 · 배포 국가를 넓힐 때)는 마지막으로 알려진 값, 없으면 한국(Q14). PC 웹은 당분간 한국 사용자만 — 웹 가입은 한국(Q15).
 - storefront 가 바뀌면 새 글부터 새 나라 덕아웃. 예전 글 · 기록은 그대로.
 
@@ -232,7 +232,7 @@
 |---|---|---|---|---|
 | 0 | 결정 · 법률 자문 시작(10절 · 9절) | 없음 | — | 사용자 몫 |
 | 1 | 숨긴 기능 막기: 앱 `/swing/*` · `/training?sport=hit` · 싱커 덕아웃의 레슨 · 연습장 · 채팅 · 결제 · 홈 줄 · 야구 소식, 새로 만들기 동작만 서버에서 | `lib/country.ts` · `lib/sinker-dugout.ts` · 덕아웃 홈 · 앱 화면 · 동작 몇 개 | 미 · 일 계정으로 주소 직접 입력 · 한국 그대로 | 3~4시간 |
-| 2 | 나라 = 앱스토어 계정 나라: 앱 모듈 storefront 함수 · 켤 때 알림 · 서버가 `User.country` 에 씀 · 관리자 고정★(칸 하나) | `BullpenNative` · loadAppMe · setMyCountry | 미 · 일 샌드박스 계정 · 고정 뒤 안 덮임 · 바뀐 뒤 기록 그대로 | 3~5시간(Swift 굽기 1번) |
+| 2 | 나라 = 앱스토어 계정 나라: 앱 모듈 storefront 함수 · 켤 때 알림 · 서버가 `User.country` 에 씀 · 대표관리자는 안 따름(DB 변경 없음) | `BullpenNative` · loadAppMe · setMyCountry | 미 · 일 샌드박스 계정 · 고정 뒤 안 덮임 · 바뀐 뒤 기록 그대로 | 3~5시간(Swift 굽기 1번) |
 | 3★ | `CommunityPost.country` + 색인, 거르기 한 곳(`lib/community-country.ts`), 쓰기 확인, 관리자 나라 고르개 | schema · community-load · search · market/load · community-ops · actions/community · admin | 아래 시나리오 1~4 · 통합 시험에 '나라 섞임' 줄 | 5~7시간 |
 | 4 | 미 · 일 덕아웃 피드(고르개 셋) · 글쓰기 '어느 나라에 올라가요' | 덕아웃 웹 화면(웹뷰라 OTA 없이 바로) | 화면 · 375 · 다크 | 4~6시간 |
 | 5 | 영상 공유: 공유용 사본 · 미리보기 · 공개 칩 · 초안 이어 올리기 · 지우기 관계 · referencedPaths 버그 | 내 영상(앱) · upload-url · community 동작 · video-refs | 시나리오 8 | 8~12시간 |

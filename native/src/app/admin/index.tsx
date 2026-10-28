@@ -11,8 +11,9 @@ import { PageHead } from '~/shell/heading';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Icon, type IconName } from '~/shell/icon';
-import { COUNTRIES, COUNTRY_LABEL, type Country } from '@/lib/country';
-import { useCountry } from '~/lib/country-store';
+import { useEffect, useState } from 'react';
+import { COUNTRIES, COUNTRY_LABEL, countryOfStorefront, type Country } from '@/lib/country';
+import { storefrontCountry, useCountry } from '~/lib/country-store';
 import { loadMe, resetMe } from '~/pitch/api';
 import { openWebAfter } from '~/shell/web-nav';
 
@@ -131,22 +132,35 @@ function MenuRow({ icon, label, detail, onPress, web, last, c }: { icon: IconNam
  */
 function CountryRow({ c }: { c: Palette }) {
   const now = useCountry();
+  /* 이 폰의 앱스토어 계정 나라 — 옛 앱 판이면 없다 */
+  const [store, setStore] = useState<string | null>(null);
+  useEffect(() => {
+    void storefrontCountry().then(setStore);
+  }, []);
+  const storeCountry = countryOfStorefront(store);
+  const done = (to: Country) => {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    /* 다시 물으면 나라 저장소가 바뀌어 열린 앱 화면들이 그 나라 것으로 다시 그려진다 */
+    resetMe();
+    void loadMe().catch(() => undefined);
+    openWebAfter('#refresh');
+    toast(`${COUNTRY_LABEL[to]} 싱커로 바꿨어요`);
+  };
   const pick = (to: Country) =>
-    void call<{ ok: true }>('app.setMyCountry', to).then((r) => {
-      if (!r.ok) return toast(`바꾸지 못했어요. ${r.error}`, 'error');
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      /* 다시 물으면 나라 저장소가 바뀌어 열린 앱 화면들이 그 나라 것으로 다시 그려진다 */
-      resetMe();
-      void loadMe().catch(() => undefined);
-      openWebAfter('#refresh');
-      toast(`${COUNTRY_LABEL[to]} 싱커로 바꿨어요`);
-    });
+    void call<{ ok: true }>('app.setMyCountry', to).then((r) => (r.ok ? done(to) : toast(`바꾸지 못했어요. ${r.error}`, 'error')));
+  /* 앱스토어 나라로 — 일반 사용자와 같은 길(app.reportStorefront). 대표관리자는 평소엔 안 따르므로 이때만 따른다 */
+  const follow = () =>
+    void call<{ ok: true; country: Country }>('app.reportStorefront', store, true).then((r) =>
+      r.ok ? done(r.country) : toast(`바꾸지 못했어요. ${r.error}`, 'error')
+    );
   const menu = () =>
-    Alert.alert('나라 바꾸기', '내 계정만 바뀌어요. 미국 · 일본은 투수 전용이라 타격 탭이 빠져요.', [
+    Alert.alert('나라 바꾸기', '내 계정만 바뀌어요. 미국 · 일본은 투수 전용이라 타격 · 영양이 빠져요. 일반 사용자는 앱스토어 계정 나라를 따라요.', [
+      ...(storeCountry && storeCountry !== now ? [{ text: `앱스토어 나라로(${COUNTRY_LABEL[storeCountry]})`, onPress: follow }] : []),
       ...COUNTRIES.filter((k) => k !== now).map((k) => ({ text: `${COUNTRY_LABEL[k]} 싱커`, onPress: () => pick(k) })),
       { text: '닫기', style: 'cancel' as const },
     ]);
-  return <MenuRow icon="admin" label="나라 바꾸기 (시험용)" detail={`지금 ${COUNTRY_LABEL[now]} 싱커`} onPress={menu} last c={c} />;
+  const storeText = store ? ` · 앱스토어 ${storeCountry ? COUNTRY_LABEL[storeCountry] : store}` : '';
+  return <MenuRow icon="admin" label="나라 바꾸기 (시험용)" detail={`지금 ${COUNTRY_LABEL[now]} 싱커${storeText}`} onPress={menu} last c={c} />;
 }
 
 function UserRow({ u, self, last, reload, c }: { u: Data['users'][number]; self: boolean; last: boolean; reload: () => void; c: Palette }) {

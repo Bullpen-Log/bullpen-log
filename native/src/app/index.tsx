@@ -22,7 +22,7 @@ import { APP_UA, SITE_HOST, SITE_URL, START_PATH } from '~/lib/site';
 import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
 import { loadMe, resetMe } from '~/pitch/api';
 import { forCountry, hasNutrition, hiddenIn } from '@/lib/country';
-import { countryNow, useCountry } from '~/lib/country-store';
+import { countryNow, followStorefront, useCountry } from '~/lib/country-store';
 import { resetPitchStore } from '~/pitch/store';
 import { resetCompare } from '~/pitch/log-list';
 import { resetLibraryItems } from '~/library/parts';
@@ -38,7 +38,7 @@ import { TrainingTab, resetTrainingCache } from '~/training/tab';
 import { resetPitchTodayCache } from '~/pitch/today-card';
 import { resetVelocityDayCache } from '~/pitch/velocity-day';
 import { resetNutritionStore } from '~/nutrition/api';
-import { WEB_WAIT_MS, setDestinationOf, useWebNav, webArrived } from '~/shell/web-nav';
+import { WEB_WAIT_MS, openWebAfter, setDestinationOf, useWebNav, webArrived } from '~/shell/web-nav';
 import { createWebRoute, locOf } from '~/shell/web-route';
 import { whenStill } from '~/shell/transition';
 import { resetFavorites } from '~/training/favorites';
@@ -346,6 +346,11 @@ export default function SiteScreen() {
         if (no !== askNo.current) return true;
         deviceDay.current = toDateKey(new Date());
         setToday(m.today);
+        /* 나라 = 앱스토어 계정 나라 — 바뀌었으면 웹 틀(탭 · 메뉴)을 다시 받는다 */
+        void followStorefront(m.userId, () => {
+          resetMe();
+          openWebAfter('#refresh');
+        });
         setMeOk(true);
         setMeError(null);
         ownerKnown(m.userId);

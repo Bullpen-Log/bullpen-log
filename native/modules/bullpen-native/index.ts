@@ -16,4 +16,6 @@ export const BullpenNative = requireNativeModule<{
   /** 운동하는 동안의 시계를 다이나믹 아일랜드 · 잠금 화면에(~/shell/live-activity) — 이 앱 판에 없으면 undefined(옛 앱) */
   liveShow?(kind: string, symbol: string, label: string, title: string, detail: string, sinceMs: number, untilMs: number): Promise<void>;
   liveEnd?(): Promise<void>;
+  /** 앱스토어 계정 나라(ISO 3166-1 alpha-3, 예 'KOR') — 모르면 null, 이 앱 판에 없으면 undefined(옛 앱) */
+  storefrontCountry?(): Promise<string | null>;
 }>('BullpenNative');

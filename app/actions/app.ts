@@ -9,7 +9,7 @@ import { loadTrainingWeekCounts, type TrainingWeekCounts } from '@/lib/report/tr
 import { pickArmPain, pickCheckinParts, todayOutingRole, validateCheckinDate, type CheckinPartKey } from '@/lib/checkin';
 import { GOOD_DAY_MIN, RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
-import { countryOf, isCountry, type Country } from '@/lib/country';
+import { countryOf, countryOfStorefront, isCountry, type Country } from '@/lib/country';
 import { revalidatePath } from 'next/cache';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { prisma } from '@/lib/prisma';
@@ -69,6 +69,25 @@ export async function loadAppMe(): Promise<
     locks: featureLocks(user),
     country: countryOf(user.country),
   };
+}
+
+/**
+ * 앱스토어 계정 나라를 알린다(2026-10-28 김민 Q3 — 나라는 사용자가 고르지 않고 앱스토어 계정을 따른다, lib/country.ts countryOfStorefront).
+ * 앱이 계정을 물은 뒤 부른다. 한 · 미 · 일 밖 나라면 그대로 둔다(Q14).
+ * 대표관리자는 시험용 나라 바꾸기(setMyCountry)가 덮이지 않게 따르지 않는다 — follow 를 주면(관리자 화면 '앱스토어 나라로') 그때만 따른다.
+ */
+export async function reportStorefront(
+  code: unknown,
+  follow?: unknown
+): Promise<{ ok: true; country: Country; changed: boolean } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const now = countryOf(user.country);
+  const next = countryOfStorefront(code);
+  if (!next || next === now || (user.role === 'ADMIN' && follow !== true)) return { ok: true, country: now, changed: false };
+  await prisma.user.update({ where: { id: user.id }, data: { country: next === 'kr' ? null : next } });
+  revalidatePath('/', 'layout');
+  return { ok: true, country: next, changed: true };
 }
 
 /**

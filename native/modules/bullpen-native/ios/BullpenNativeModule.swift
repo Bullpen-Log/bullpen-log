@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import StoreKit
 import UIKit
 import UserNotifications
 import WebKit
@@ -12,6 +13,7 @@ import WebKit
 ///   cancelAlarm(id)                         건 알림 지우기(이미 뜬 것도)
 ///   liveShow(kind, symbol, label, title, detail, sinceMs, untilMs)  운동하는 동안의 시계를 다이나믹 아일랜드 · 잠금 화면에(RestActivity.swift)
 ///   liveEnd()                               그 시계 거두기
+///   storefrontCountry()                     앱스토어 계정 나라(ISO 3166-1 alpha-3, 예 'KOR') — 모르면 nil. 앱의 나라 구성이 이것을 따른다(lib/country.ts)
 ///
 /// keepAwake · 알림은 옛 Capacitor 앱의 BullpenNativePlugin.swift(mobile/)를 그대로 옮겼다 — 웹뷰 화면은 window.Capacitor 흉내 다리
 /// (native/src/lib/cap-bridge.ts, 2026-10-17 검토 D4)로 부른다.
@@ -149,6 +151,11 @@ public class BullpenNativeModule: Module {
 
         AsyncFunction("liveEnd") {
             await SessionLive.end()
+        }
+
+        /* 나라 = 앱스토어 계정 나라(2026-10-28 김민 — 사용자가 고르지 않는다). TestFlight 도 그 Apple 계정의 나라 */
+        AsyncFunction("storefrontCountry") { () async -> String? in
+            await Storefront.current?.countryCode
         }
 
         AsyncFunction("scheduleAlarm") { (id: String, at: Double, title: String, body: String, promise: Promise) in

@@ -15,6 +15,14 @@ export const isCountry = (v: unknown): v is Country => v === 'kr' || v === 'us' 
 /** 계정 칸 → 나라. 비어 있으면 한국(이 칸이 생기기 전 계정 모두) */
 export const countryOf = (v: string | null | undefined): Country => (isCountry(v) ? v : 'kr');
 
+/**
+ * 앱스토어 계정 나라(StoreKit storefront, ISO 3166-1 alpha-3) → 싱커 나라(2026-10-28 김민 Q3 — 사용자가 고르지 않는다).
+ * 한 · 미 · 일 밖이면 null — 그때는 마지막으로 알려진 나라를 그대로 둔다(Q14, 처음이면 한국)
+ */
+const STOREFRONT: Record<string, Country> = { KOR: 'kr', USA: 'us', JPN: 'jp' };
+export const countryOfStorefront = (code: unknown): Country | null =>
+  typeof code === 'string' ? (STOREFRONT[code.toUpperCase()] ?? null) : null;
+
 /** 타격 — 국내만. 미국 · 일본은 투수 전용으로 먼저 낸다 */
 export const hasHitting = (c: Country) => c === 'kr';
 /** 영양 — 국내만(식약처 식품 DB · 한식 식단 틀이라, 2026-10-28 김민 Q1) */
