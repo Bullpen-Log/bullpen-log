@@ -1,5 +1,6 @@
 import { REGIONS } from '@/lib/market/specs';
 import { isDistrict } from '@/lib/kr-districts';
+import { overseasKindOf } from '@/lib/community-country';
 
 /**
  * 커뮤니티(/community, 2026-10-17 1판 — 틀) — 글 · 댓글 · 좋아요 · 신고. 구분 값 · 한도는 여기 한 곳.
@@ -56,12 +57,13 @@ export const POST_TAGS: Record<PostCategory, readonly { key: string; label: stri
     { key: 'seek', label: '팀 구해요' },
   ],
 };
+/* 해외 덕아웃의 고르개(lib/community-country.ts OVERSEAS_KINDS — 자유 · 팁)도 말머리로 받는다. 한국 화면의 말머리 줄에는 안 보인다 */
 export function isPostTag(category: string, tag: unknown): tag is string {
-  return isPostCategory(category) && POST_TAGS[category].some((t) => t.key === tag);
+  return isPostCategory(category) && (POST_TAGS[category].some((t) => t.key === tag) || overseasKindOf(category, String(tag)) !== null);
 }
 export function postTagLabel(category: string, tag: string | null | undefined) {
   if (!tag || !isPostCategory(category)) return null;
-  return POST_TAGS[category].find((t) => t.key === tag)?.label ?? null;
+  return POST_TAGS[category].find((t) => t.key === tag)?.label ?? overseasKindOf(category, tag)?.label ?? null;
 }
 
 /** 부상 질문에 붙는 안내 — 의료 조언이 아니다 */

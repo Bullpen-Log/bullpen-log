@@ -23,6 +23,7 @@ import {
   type PostSort,
 } from '@/lib/community';
 import { isDistrict } from '@/lib/kr-districts';
+import { OVERSEAS_KINDS, overseasDugoutName, overseasKindOf } from '@/lib/community-country';
 import { Badge, ButtonLink } from '@/components/ui';
 import { CategoryRow, ChipLink, ChipRow, DugoutEmpty, DugoutPageHeader, ShortcutTiles } from '@/components/dugout/ui';
 import {
@@ -111,8 +112,21 @@ export default async function CommunityPage({
   /* 첫 화면(전체 · 최신 · 첫 장)만 바로가기 — 장터와 같은 규칙 */
   const landing = !category && sort === 'new' && page === 1;
 
+  /*
+   * 해외(미국 · 일본) 덕아웃 — 게시판 넷 대신 피드 하나 + 고르개 셋(lib/community-country.ts OVERSEAS_KINDS). 고르개는 지금 게시판 · 말머리 짝이라
+   * 목록 읽기(listWhere)는 그대로다. 한국은 아래 그대로
+   */
+  const overseas = overseasDugoutName(user);
+  const kind = overseas ? overseasKindOf(category, tag) : null;
+
   /* 글쓰기는 로그인 — 안 했으면 로그인 뒤 글쓰기로. 게시판을 보고 있으면 그 게시판을 골라 둔다 */
-  const newHref = category ? `/community/new?board=${category}` : '/community/new';
+  const newHref = overseas
+    ? kind
+      ? `/community/new?kind=${kind.key}`
+      : '/community/new'
+    : category
+      ? `/community/new?board=${category}`
+      : '/community/new';
   const writeHref = user ? newHref : `/login?next=${encodeURIComponent(newHref)}`;
 
   /* 읽기는 앱 화면과 같은 곳(lib/community-load.ts) — 가린 글은 관리자에게만, 차단한 사람 글은 빼고 */
@@ -132,12 +146,12 @@ export default async function CommunityPage({
     user ? coachIdsOf([user.id]).then((s) => s.size > 0) : Promise.resolve(false),
   ]);
   /* 빈 목록이면 — 게시판 자체가 비었는지, 거르기 때문인지 */
-  const boardEmpty = posts.length === 0 && page === 1 ? !(await boardHasPosts(user, category)) : false;
+  const boardEmpty = posts.length === 0 && page === 1 ? !(await boardHasPosts(user, category, kind?.tag)) : false;
   /* 답할 질문 — 코치 · 운영자에게(질문 게시판 · 첫 화면) */
   const showWaiting = (isCoach || user?.role === 'ADMIN') && (landing || category === 'question');
   const waiting = showWaiting ? await waitingQuestions(user) : null;
 
-  const guide = category ? BOARD_GUIDES[category] : null;
+  const guide = overseas ? null : category ? BOARD_GUIDES[category] : null;
 
   return (
     /* 읽기 폭 900(2026-10-26 v2 커뮤니티) — 글 줄이 1160 양 끝까지 늘어나지 않게. 게시판 줄 · 머리 · 목록이 같은 폭 */
@@ -148,7 +162,9 @@ export default async function CommunityPage({
         className="-mt-2"
         items={[
           { key: 'all', label: '전체', href: listHref({ sort }), on: !category },
-          ...POST_CATEGORIES.map((c) => ({ key: c.key, label: c.label, href: listHref({ category: c.key, sort }), on: category === c.key })),
+          ...(overseas
+            ? OVERSEAS_KINDS.map((k) => ({ key: k.key, label: k.label, href: listHref({ category: k.category, tag: k.tag, sort }), on: kind?.key === k.key }))
+            : POST_CATEGORIES.map((c) => ({ key: c.key, label: c.label, href: listHref({ category: c.key, sort }), on: category === c.key }))),
         ]}
       />
 
@@ -159,9 +175,18 @@ export default async function CommunityPage({
           label="커뮤니티 바로가기"
           items={[
             { href: writeHref, label: '글쓰기', icon: RoundPencil },
-            { href: listHref({ category: 'question', answer: 'none', sort }), label: '답할 질문', icon: RoundSearch },
-            { href: listHref({ category: 'meetup', open: true, sort }), label: '모집 중 번개', icon: RoundFlame },
-            { href: listHref({ category: 'team', sort }), label: '선수 모집', icon: RoundPeople },
+            {
+              href: overseas ? listHref({ category: 'question', tag: 'form', answer: 'none', sort }) : listHref({ category: 'question', answer: 'none', sort }),
+              label: '답할 질문',
+              icon: RoundSearch,
+            },
+            /* 번개 · 선수 모집은 한국 지역 게시판이라 한국만 */
+            ...(overseas
+              ? []
+              : [
+                  { href: listHref({ category: 'meetup', open: true, sort }), label: '모집 중 번개', icon: RoundFlame },
+                  { href: listHref({ category: 'team', sort }), label: '선수 모집', icon: RoundPeople },
+                ]),
             { href: listHref({ sort: 'hot' }), label: '인기 글', icon: RoundHeart },
             { href: user ? '/me/community' : `/login?next=${encodeURIComponent('/me/community')}`, label: '내 활동', icon: RoundChat },
           ]}
@@ -192,8 +217,8 @@ export default async function CommunityPage({
 
       <section className="space-y-5">
       <DugoutPageHeader
-        title={category ? postCategoryLabel(category) : sort === 'hot' ? '인기 글' : '새 글'}
-        subtitle={guide?.what}
+        title={kind ? kind.label : category ? postCategoryLabel(category) : sort === 'hot' ? '인기 글' : overseas ?? '새 글'}
+        subtitle={kind ? kind.what : guide?.what}
         actions={<ButtonLink href={writeHref} size="sm" className={landing ? 'hidden lg:inline-flex' : ''}>{guide?.cta ?? '글쓰기'}</ButtonLink>}
       />
 
@@ -201,7 +226,8 @@ export default async function CommunityPage({
       <div className="space-y-3">
         <div className="flex flex-col gap-3 desk:flex-row desk:flex-wrap desk:items-center desk:justify-between">
           {!category && <span className="hidden desk:block" />}
-          {category && (
+          {/* 해외는 고르개가 말머리까지 정한다 — 말머리 줄 없음 */}
+          {category && !overseas && (
             <ChipRow label="말머리" className="desk:flex-1">
               {[{ key: '', label: '전체' }, ...POST_TAGS[category]].map((t) => (
                 <ChipLink key={t.key} on={(tag ?? '') === t.key} href={listHref({ ...keep, tag: t.key || undefined, sort })}>
@@ -285,10 +311,21 @@ export default async function CommunityPage({
         ) : boardEmpty ? (
           /* 게시판 자체가 빔 — 무엇을 하는 곳인지 · 이런 글을 써 보라는 보기 · 쓰기 단추 */
           <div className="space-y-4 rounded-2xl bg-surface-2 px-(--block-pad) py-8 text-center">
-            <p className="text-base font-bold text-ink">{category ? `${postCategoryLabel(category)}의 첫 글을 기다려요` : '첫 글을 기다려요'}</p>
-            <p className="text-sm text-muted">{guide?.what ?? '야구 이야기라면 무엇이든 남겨요. 질문 · 번개 · 팀 모집도 여기서 해요.'}</p>
+            <p className="text-base font-bold text-ink">
+              {kind ? `${kind.label}의 첫 글을 기다려요` : category && !overseas ? `${postCategoryLabel(category)}의 첫 글을 기다려요` : '첫 글을 기다려요'}
+            </p>
+            <p className="text-sm text-muted">
+              {kind?.what ??
+                guide?.what ??
+                (overseas ? '투수 이야기라면 무엇이든 남겨요. 폼 질문 · 훈련 기록 · 팁을 나눠요.' : '야구 이야기라면 무엇이든 남겨요. 질문 · 번개 · 팀 모집도 여기서 해요.')}
+            </p>
             <ul className="mx-auto max-w-xl space-y-1 text-left text-sm text-ink/80">
-              {(guide?.examples ?? [BOARD_GUIDES.free.examples[0], BOARD_GUIDES.question.examples[0], BOARD_GUIDES.meetup.examples[0]]).map((e) => (
+              {(kind
+                ? [kind.example]
+                : overseas
+                  ? OVERSEAS_KINDS.map((k) => k.example)
+                  : (guide?.examples ?? [BOARD_GUIDES.free.examples[0], BOARD_GUIDES.question.examples[0], BOARD_GUIDES.meetup.examples[0]])
+              ).map((e) => (
                 <li key={e} className="rounded-xl bg-surface px-3 py-2">
                   예) {e}
                 </li>

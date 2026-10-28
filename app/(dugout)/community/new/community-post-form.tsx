@@ -21,6 +21,7 @@ import { Button, ButtonLink, Field, FormError, Input, Textarea } from '@/compone
 import { CommunityMediaPicker } from '@/components/community/community-media-picker';
 import { CommunityCardPicker } from '@/components/community/community-card-picker';
 import type { CardOption } from '@/lib/community-cards';
+import { OVERSEAS_KINDS, overseasKindOf } from '@/lib/community-country';
 import { CommunityFormFields, type TeamPrefill } from '@/components/community/community-form-fields';
 import {
   clearDraft,
@@ -56,6 +57,8 @@ type Step = 'board' | 'form' | 'text';
  */
 export function CommunityPostForm({
   initialCategory,
+  initialTag,
+  overseas = null,
   cardOptions = [],
   initialCard,
   teamPrefill = null,
@@ -63,6 +66,10 @@ export function CommunityPostForm({
   isAdmin = false,
 }: {
   initialCategory?: string;
+  /** 처음 골라 둘 말머리 — 해외 덕아웃의 고르개(?kind=)가 게시판과 같이 정한다 */
+  initialTag?: string;
+  /** 해외 덕아웃 이름('미국 덕아웃') — 있으면 게시판 넷 대신 고르개 셋(lib/community-country.ts OVERSEAS_KINDS), 맨 위에 어디 올라가는지 */
+  overseas?: string | null;
   /** '싱커 기록 붙이기' 목록(lib/community-cards.ts recentCardOptions) */
   cardOptions?: CardOption[];
   /** 싱커 결과 화면의 '덕아웃에 올리기'로 왔을 때 붙여 둘 기록(?card=velocity:… 등) */
@@ -127,6 +134,8 @@ export function CommunityPostForm({
         draftKey={key}
         restored={restored}
         initialCategory={initialCategory}
+        initialTag={initialTag}
+        overseas={overseas}
         cardOptions={cardOptions}
         initialCard={initialCard}
         teamPrefill={teamPrefill}
@@ -141,6 +150,8 @@ function PostForm({
   draftKey: key,
   restored,
   initialCategory,
+  initialTag,
+  overseas,
   cardOptions,
   initialCard,
   teamPrefill,
@@ -150,6 +161,8 @@ function PostForm({
   draftKey: string;
   restored: FormValues | null;
   initialCategory?: string;
+  initialTag?: string;
+  overseas: string | null;
   cardOptions: CardOption[];
   initialCard?: string;
   teamPrefill: TeamPrefill;
@@ -164,8 +177,15 @@ function PostForm({
   /* 오류로 되돌아왔을 때 > 이어 쓴 초안 > 고칠 글의 값 */
   const before = state?.values ?? restored ?? editing?.values;
   const keptCategory = kept(before, 'category');
+  /* 해외 덕아웃 — 고르개 셋 가운데 처음 것(이어 쓴 값 · ?kind= 가 맞으면 그것, 아니면 기록이 있으면 훈련 기록, 없으면 폼 질문) */
+  const startKind = overseas
+    ? (overseasKindOf(keptCategory ?? initialCategory, kept(before, 'tag') ?? initialTag) ??
+      OVERSEAS_KINDS[cardOptions.some((o) => o.ref === initialCard) ? 1 : 0])
+    : null;
   const [category, setCategory] = useState<PostCategory>(
-    isPostCategory(keptCategory)
+    startKind
+      ? startKind.category
+      : isPostCategory(keptCategory)
       ? keptCategory
       : isPostCategory(initialCategory)
         ? initialCategory
@@ -174,7 +194,8 @@ function PostForm({
   /* 기록을 붙여 왔으면 자유는 '내 기록', 질문은 '내 폼 봐 주세요'로 시작 */
   const cardTag = (c: PostCategory) => (c === 'free' ? 'record' : c === 'question' ? 'form' : '');
   const startCard = cardOptions.some((o) => o.ref === initialCard) ? initialCard : undefined;
-  const [tag, setTag] = useState(kept(before, 'tag') ?? (startCard ? cardTag(category) : ''));
+  const [tag, setTag] = useState(startKind ? startKind.tag : (kept(before, 'tag') ?? initialTag ?? (startCard ? cardTag(category) : '')));
+  const kind = startKind ? (overseasKindOf(category, tag) ?? startKind) : null;
   const [busy, setBusy] = useState(false);
   const steps: Step[] = category === 'meetup' || category === 'team' ? ['board', 'form', 'text'] : ['board', 'text'];
   const [stepIndex, setStepIndex] = useState(0);
@@ -198,7 +219,7 @@ function PostForm({
 
   const section = (s: Step) => `space-y-6 ${step === s ? '' : 'hidden'} desk:block`;
   const last = step === 'text';
-  const placeholder = TAG_EXAMPLES[`${category}:${tag}`] ?? BOARD_GUIDES[category].examples[0];
+  const placeholder = kind ? kind.example : (TAG_EXAMPLES[`${category}:${tag}`] ?? BOARD_GUIDES[category].examples[0]);
 
   return (
     <form
@@ -212,6 +233,8 @@ function PostForm({
       className="space-y-6 rounded-2xl border border-line bg-surface p-(--block-pad)"
     >
       {editing && <input type="hidden" name="id" value={editing.id} />}
+      {/* 어느 나라 덕아웃에 올라가는지(2026-10-28 — 해외 덕아웃) */}
+      {overseas && <p className="text-sm font-semibold text-ink">{overseas}에 올라가요</p>}
       <FormError>{state?.error}</FormError>
 
       {/* 휴대폰 단계 표시 */}
@@ -220,6 +243,34 @@ function PostForm({
       </p>
 
       <div data-step="board" className={section('board')}>
+        {kind ? (
+          <fieldset className="space-y-2">
+            <legend className="block text-xs font-medium text-muted">어떤 글인가요</legend>
+            <input type="hidden" name="category" value={kind.category} />
+            <input type="hidden" name="tag" value={kind.tag} />
+            <div className="flex flex-wrap gap-2">
+              {OVERSEAS_KINDS.map((k) => (
+                <label key={k.key} className="cursor-pointer">
+                  <input
+                    type="radio"
+                    name="kind"
+                    value={k.key}
+                    checked={kind.key === k.key}
+                    disabled={editing?.lockCategory && kind.category !== k.category}
+                    onChange={() => {
+                      setCategory(k.category);
+                      setTag(k.tag);
+                    }}
+                    className="peer sr-only"
+                  />
+                  <span className={`${CHIP} peer-disabled:opacity-40`}>{k.label}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-muted">{kind.what}</p>
+          </fieldset>
+        ) : (
+        <>
         <fieldset className="space-y-2">
           <legend className="block text-xs font-medium text-muted">게시판</legend>
           {editing?.lockCategory && (
@@ -277,6 +328,8 @@ function PostForm({
             <p className="rounded-xl bg-warn-bg px-3 py-2 text-xs text-warn">{INJURY_NOTE}</p>
           )}
         </fieldset>
+        </>
+        )}
       </div>
 
       {(category === 'meetup' || category === 'team') && (

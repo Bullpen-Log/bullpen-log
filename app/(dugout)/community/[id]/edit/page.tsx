@@ -7,6 +7,7 @@ import type { FormValues } from '@/lib/form-values';
 import { BackLink } from '@/components/ui';
 import { DugoutPageHeader } from '@/components/dugout/ui';
 import { CommunityPostForm } from '../../new/community-post-form';
+import { overseasDugoutName } from '@/lib/community-country';
 
 /**
  * 글 고치기(2026-10-26) — 글쓴이만. 글쓰기와 같은 폼에 지금 값을 채워 연다. 참가 · 신청 · 대화가 있으면 게시판, 신청이 있으면 팀 말머리를 잠근다
@@ -72,6 +73,8 @@ export default async function EditCommunityPostPage({ params }: { params: Promis
         </p>
       )}
       <CommunityPostForm
+        /* 글의 나라 덕아웃 그대로(쓴 사람이 나라를 바꿨어도) */
+        overseas={overseasDugoutName({ country: post.country })}
         isAdmin={user.role === 'ADMIN'}
         editing={{
           id,

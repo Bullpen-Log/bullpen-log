@@ -6,6 +6,7 @@ import { COMMUNITY_REGIONS } from '@/lib/community';
 import { BackLink } from '@/components/ui';
 import { DugoutPageHeader } from '@/components/dugout/ui';
 import { CommunityPostForm } from './community-post-form';
+import { overseasDugoutName, overseasKindByKey } from '@/lib/community-country';
 
 /**
  * 글쓰기 — 가입한 누구나(자료실과 달리 관리자 전용이 아니다). 앱 웹뷰에서도 이 화면 그대로(2026-10-24 — 커뮤니티는 웹 하나로,
@@ -16,15 +17,18 @@ import { CommunityPostForm } from './community-post-form';
 export default async function NewCommunityPostPage({
   searchParams,
 }: {
-  searchParams: Promise<{ board?: string | string[]; card?: string | string[] }>;
+  searchParams: Promise<{ board?: string | string[]; card?: string | string[]; kind?: string | string[] }>;
 }) {
-  const { board, card } = await searchParams;
-  const initialCategory = typeof board === 'string' ? board : undefined;
+  const { board, card, kind: kindParam } = await searchParams;
+  /* 해외 덕아웃의 고르개(?kind=form · log · tip, lib/community-country.ts) — 게시판 · 말머리를 같이 정한다 */
+  const kind = overseasKindByKey(kindParam);
+  const initialCategory = kind?.category ?? (typeof board === 'string' ? board : undefined);
   const initialCard = typeof card === 'string' ? card : undefined;
   const user = await getCurrentUser();
   if (!user) {
     const q = new URLSearchParams();
-    if (initialCategory) q.set('board', initialCategory);
+    if (typeof board === 'string') q.set('board', board);
+    if (kind) q.set('kind', kind.key);
     if (initialCard) q.set('card', initialCard);
     const back = q.size ? `/community/new?${q}` : '/community/new';
     redirect(`/login?next=${encodeURIComponent(back)}`);
@@ -53,6 +57,8 @@ export default async function NewCommunityPostPage({
       <DugoutPageHeader title="글쓰기" />
       <CommunityPostForm
         initialCategory={initialCategory}
+        initialTag={kind?.tag}
+        overseas={overseasDugoutName(user)}
         cardOptions={cardOptions}
         initialCard={initialCard}
         teamPrefill={teamPrefill}

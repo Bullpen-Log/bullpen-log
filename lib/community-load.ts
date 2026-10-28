@@ -409,6 +409,8 @@ export async function loadCommunityPost(user: CommunityUser | null, id: string) 
     teamFlow: post.category === 'team' ? teamFlowOf(post.tag) : null,
     region: post.region,
     district: post.district,
+    /* 어느 나라 덕아웃 글인가(고치기 화면이 그 나라 고르개를 쓴다) */
+    country: post.country,
     /* 다른 나라 덕아웃 글 — 이름표('미국 덕아웃 글')와 읽기만(댓글 · 좋아요 · 저장 · 참여 막음, 신고는 됨) */
     otherDugout: otherDugoutLabel(post, user),
     readOnly: !writable,

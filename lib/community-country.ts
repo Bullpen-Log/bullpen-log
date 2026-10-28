@@ -20,3 +20,22 @@ export function otherDugoutLabel(post: { country: string }, user: { country?: st
   const c = countryOf(post.country);
   return c === dugoutOf(user) ? null : `${COUNTRY_LABEL[c]} 덕아웃 글`;
 }
+
+/*
+ * 해외(미국 · 일본) 덕아웃은 게시판을 나누지 않고 피드 하나 + 고르개 셋(2026-10-28, 설계 5-7) — 사람이 적을 때 판을 나누면 다 비어 보여서.
+ * 새 표 없이 지금 게시판 · 말머리 짝을 쓴다(폼 질문 = 질문 · 내 폼 봐 주세요, 훈련 기록 = 자유 · 내 기록, 투수 팁 = 자유 · 팁). 한국은 그대로(게시판 넷).
+ */
+export const OVERSEAS_KINDS = [
+  { key: 'form', label: '폼 질문', category: 'question', tag: 'form', what: '투구 영상을 올리고 폼에 대해 물어봐요.', example: '릴리스 때 팔이 늦게 나오는 것 같아요' },
+  { key: 'log', label: '훈련 기록', category: 'free', tag: 'record', what: '오늘 한 훈련과 그날의 감각을 나눠요.', example: '불펜 40구, 슬라이더 감이 돌아왔어요' },
+  { key: 'tip', label: '투수 팁', category: 'free', tag: 'tip', what: '도움이 된 드릴 · 훈련 경험을 소개해요.', example: '팔이 편해진 밴드 루틴 공유해요' },
+] as const;
+export type OverseasKind = (typeof OVERSEAS_KINDS)[number];
+export const overseasKindOf = (category: string | null | undefined, tag: string | null | undefined): OverseasKind | null =>
+  OVERSEAS_KINDS.find((k) => k.category === category && k.tag === tag) ?? null;
+export const overseasKindByKey = (key: unknown): OverseasKind | null => OVERSEAS_KINDS.find((k) => k.key === key) ?? null;
+/** 해외 덕아웃 이름 — 한국이면 null(게시판 넷 그대로) */
+export const overseasDugoutName = (user: { country?: string | null } | null | undefined): string | null => {
+  const c = dugoutOf(user);
+  return c === 'kr' ? null : `${COUNTRY_LABEL[c]} 덕아웃`;
+};

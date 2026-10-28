@@ -47,7 +47,8 @@ import { recommend } from '@/lib/market/gear';
 import { ESCROW_FEE_RATE, escrowFee, payout, platformFee } from '@/lib/market/pay';
 import { existsSync } from 'node:fs';
 import { inSinkerDugout } from '@/lib/sinker-dugout';
-import { canWriteIn, dugoutOf, otherDugoutLabel } from '@/lib/community-country';
+import { canWriteIn, dugoutOf, otherDugoutLabel, OVERSEAS_KINDS, overseasDugoutName, overseasKindOf } from '@/lib/community-country';
+import { isPostTag, POST_TAGS, postTagLabel } from '@/lib/community';
 import { activitySummary, benchDate, feedCardOf, feedLabel, pickAnswer, seatsLeft, venueBookingText, venuePriceText, type ListPost } from '@/lib/sinker-dugout-feed';
 import { surfaceOf } from '@/lib/app-env';
 import { BRAND, brandOfPath, usesSinker } from '@/lib/brand';
@@ -404,6 +405,19 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
       canWriteIn({ country: 'kr', userId: 'a' }, { id: 'a', country: 'us' }) &&
       otherDugoutLabel({ country: 'kr' }, { country: 'kr' }) === null &&
       otherDugoutLabel({ country: 'us' }, { country: 'jp' }) === '미국 덕아웃 글'
+  );
+  check(
+    '해외 덕아웃 고르개 셋 — 지금 게시판 · 말머리 짝, 팁은 해외만의 말머리(한국 말머리 줄엔 없음), 덕아웃 이름',
+    OVERSEAS_KINDS.length === 3 &&
+      OVERSEAS_KINDS.every((k) => isPostTag(k.category, k.tag)) &&
+      !POST_TAGS.free.some((t) => t.key === 'tip') &&
+      postTagLabel('free', 'tip') === '투수 팁' &&
+      overseasKindOf('question', 'form')?.key === 'form' &&
+      overseasKindOf('meetup', 'catch') === null &&
+      overseasDugoutName(null) === null &&
+      overseasDugoutName({ country: 'jp' }) === '일본 덕아웃' &&
+      /overseas\s*\?\s*OVERSEAS_KINDS\.map/.test(src('app/(dugout)/community/community-page.tsx')) &&
+      /\{overseas\}에 올라가요/.test(src('app/(dugout)/community/new/community-post-form.tsx'))
   );
   check(
     '나라별 덕아웃 — 목록 · 답 기다리는 질문은 보는 사람 나라, 검색 · 덕아웃 웹 홈은 한국, 새 글은 쓴 사람 나라로 박는다',
