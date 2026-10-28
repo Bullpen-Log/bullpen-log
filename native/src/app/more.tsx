@@ -58,9 +58,10 @@ const ICON: Record<string, IconName> = {
 };
 /**
  * 하단 탭에도 있는 메뉴 항목 — 폴더에서 뺀다(웹 detail-menu.tsx inTabBar: 같은 길이 두 번). 잠기면 주소가 바뀌어 이름 · 그림으로 견준다(네이티브3).
- * 탭은 사이트가 보낸 지금 탭(menu-store tabs) — 고정 목록이면 사이트가 탭을 바꿔도 더보기가 따라가지 않았다
+ * 탭은 사이트가 보낸 지금 탭(menu-store tabs) — 고정 목록이면 사이트가 탭을 바꿔도 더보기가 따라가지 않았다.
+ * 이름으로만 견준다(2026-10-29) — 덕아웃 탭은 그림이 사람 둘('users')인데 메뉴 항목은 말풍선('community')이라 그림까지 견주면 두 번 나왔다.
  */
-const inTabBar = (it: { label: string; icon: string }, tabs: ShellTab[]) => tabs.some((t) => t.label === it.label && t.icon === it.icon);
+const inTabBar = (it: { label: string }, tabs: ShellTab[]) => tabs.some((t) => t.label === it.label);
 /* 테마별 색 — 웹 globals.css(2026-10-14 사용자 "화이트는 희게 반투명 · 타일 옅은 하늘색, 네이비는 네이비 반투명, 다크는 그대로") */
 /*
  * scrim = 흐린 뒤 화면 위에 얹는 어둠(모든 테마에서 가라앉혀 폴더 · 흰 제목이 떠 보이게), folder = 폴더 유리 색. 라이트는 폴더를 더 희게(0.62 → 0.8) —

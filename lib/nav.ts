@@ -71,6 +71,8 @@ export type NavIconName =
   | 'support'
   /* 팀 · 레슨장 관리(마스터 화면) — 사람 둘 */
   | 'users'
+  /* 앱 하단 탭 '기록'(2026-10-29 확정 디자인 — 막대 그래프) */
+  | 'records'
   | 'menu';
 
 export type NavItem = {
@@ -285,12 +287,12 @@ export const NAV_GROUPS: NavGroup[] = [
         tone: 'power',
         appMoreHidden: true,
       },
+      /* 투구 드릴은 앱 더보기에도 둔다(2026-10-29) — 투구 탭의 드릴 줄을 걷어 앱에서 들어갈 곳이 여기다. 운동 영상은 트레이닝 탭 아래 칸 */
       {
         href: '/library/mechanics',
         label: '투구 드릴',
         icon: 'target',
         tone: 'mobility',
-        appMoreHidden: true,
       },
     ],
   },
@@ -529,6 +531,21 @@ export const MOBILE_TABS: NavItem[] = [
   },
   { href: '/hitting', label: '타격', icon: 'bat' },
   { href: MORE_HREF, label: '더보기', icon: 'menu' },
+];
+
+/**
+ * 앱 하단 탭(2026-10-29 확정 디자인 — 홈 · 투구 · 트레이닝 · 기록 · 덕아웃). 더보기는 탭이 아니라 각 탭 위 오른쪽 메뉴(☰)다.
+ * 앱 화면 판(BullpenNative/<n>) APP_TABS_LEVEL 부터 이 목록을 보낸다 — 옛 앱은 더보기가 탭에만 있어 MOBILE_TABS 그대로(components/app-shell/expo-tabs.tsx).
+ * 기록(RECORDS_HREF)은 앱 화면만 있는 탭이다 — 앱이 웹으로 보내지 않는다(native/src/app/index.tsx pressTab). PC 웹은 그대로 MOBILE_TABS.
+ */
+export const RECORDS_HREF = '/records';
+export const APP_TABS_LEVEL = 13;
+export const APP_TABS: NavItem[] = [
+  { href: '/today', label: '홈', icon: 'home' },
+  { href: '/videos', label: '투구', icon: 'baseball', lock: 'pitch' },
+  { href: TRAINING_HOME_HREF, label: '트레이닝', icon: 'dumbbell', lock: 'training' },
+  { href: RECORDS_HREF, label: '기록', icon: 'records' },
+  { href: DUGOUT_HREF, label: '덕아웃', icon: 'users' },
 ];
 
 /** applyLocks 가 곁 항목(탭의 첫 화면이 아닌 잠긴 항목)의 주소에 붙이는 칸 이름 — isLockSideHref 가 같은 이름을 본다 */

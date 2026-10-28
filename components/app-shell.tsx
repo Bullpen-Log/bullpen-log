@@ -142,6 +142,7 @@ export function AppNav({
   groups,
   quick,
   tabs,
+  appTabs,
   back = null,
   sportBars,
   nickname,
@@ -162,6 +163,8 @@ export function AppNav({
    * 여닫이(open)를 쥔 이곳과 이어져 있어야 한다. 상단 바도 이미 여기서 그린다.
    */
   tabs: NavItem[];
+  /** 앱(웹뷰)에 보낼 하단 탭 — 없으면 tabs. 새 앱은 더보기 없는 다섯 탭(lib/nav.ts APP_TABS) */
+  appTabs?: NavItem[];
   /** 덕아웃으로 돌아가는 원형 뒤로가기(웹만, 2026-10-21) — 홈 아이콘 왼쪽. 앱은 null(탭의 '덕아웃'이 그 길) */
   back?: { href: string; label: string } | null;
   /** 종목 하단바 둘(잠금 입힘)과 그냥 /training 의 종목 — 투구 · 타격 화면이면 하단바가 이것으로 바뀐다(2026-10-20, sport-tabs.tsx) */
@@ -1365,7 +1368,7 @@ export function AppNav({
       />
       <Suspense fallback={null}>
         <ExpoTabBridge
-          tabs={tabs}
+          tabs={appTabs ?? tabs}
           sportBars={sportBars}
           onMenu={() => go('sheet')}
           groups={groups}

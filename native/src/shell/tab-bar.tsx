@@ -18,12 +18,12 @@ import { TAB_MOTION, tabDragPosition, tabIndexAt, tabReleaseIndex } from './tab-
 export type ShellTab = { href: string; label: string; icon: string; locked?: boolean };
 
 export const DEFAULT_TABS: ShellTab[] = [
+  /* 차례 홈 · 투구 · 트레이닝 · 기록 · 덕아웃(2026-10-29 확정 디자인, 웹 lib/nav.ts APP_TABS). 더보기는 각 탭 위 오른쪽 메뉴(shell/menu-button.tsx) */
   { href: '/today', label: '홈', icon: 'home' },
-  /* 차례 홈 · 덕아웃(커뮤니티) · 투구 · 타격 · 더보기(2026-10-21 김민, 웹 lib/nav.ts MOBILE_TABS). 트레이닝은 종목 바 안, 영양은 더보기 */
-  { href: '/?dugout=1', label: '덕아웃', icon: 'community' },
   { href: '/videos', label: '투구', icon: 'baseball' },
-  { href: '/hitting', label: '타격', icon: 'bat' },
-  { href: '/more', label: '더보기', icon: 'menu' },
+  { href: '/training?view=home', label: '트레이닝', icon: 'dumbbell' },
+  { href: '/records', label: '기록', icon: 'records' },
+  { href: '/?dugout=1', label: '덕아웃', icon: 'users' },
 ];
 
 /**
@@ -79,6 +79,9 @@ const GLYPH: Record<string, IconName> = {
   batter: 'batter',
   utensils: 'utensils',
   community: 'messages-square',
+  /* 기록 탭(막대 그래프) · 덕아웃 탭(사람 둘) — 2026-10-29 확정 디자인 */
+  records: 'chart-no-axes-column',
+  users: 'people',
   menu: 'squares',
   /* 커뮤니티 하단바(app/community/index.tsx) — 'community' 는 위(넷째 탭과 같은 그림) */
   flame: 'flame',

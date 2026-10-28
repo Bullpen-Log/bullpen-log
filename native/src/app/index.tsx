@@ -36,6 +36,7 @@ import { resetGalleryUi } from '~/videos/filters';
 import { drainVideos } from '~/videos/outbox';
 import { NutritionTab } from '~/nutrition/tab';
 import { TrainingTab, resetTrainingCache } from '~/training/tab';
+import { RECORDS_PATH, RecordsTab, resetRecordsCache } from '~/records/tab';
 import { resetPitchTodayCache } from '~/pitch/today-card';
 import { resetVelocityDayCache } from '~/pitch/velocity-day';
 import { resetNutritionStore } from '~/nutrition/api';
@@ -55,7 +56,7 @@ import { drainOutbox, setOutboxOwner } from '~/workout/outbox';
 import { drainChecks } from '~/armcare/outbox';
 import { sendCheck } from '~/armcare/send';
 import { PitchTab } from '~/pitch/tab';
-import { DEFAULT_SPORT_BARS, DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, sportOfPath, useTabBarOcclusion, type ShellTab, type SportKey } from '~/shell/tab-bar';
+import { DEFAULT_SPORT_BARS, DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, useTabBarOcclusion, type ShellTab, type SportKey } from '~/shell/tab-bar';
 import { TabPager } from '~/shell/tab-pager';
 import { ClockVeil } from '~/shell/clock-veil';
 import { ME, ORG_LOST, orgRecordHref, parseOrgOpen, targetTab, type SpaceSide, type OpenTarget, type OpenRecord } from '@/lib/org/space-nav';
@@ -198,10 +199,10 @@ let askedOldVelocity = false;
 
 /** 앱이 웹에 보낸 이동 ↔ 웹의 '그렸어요' 짝짓기(아래 SiteScreen goWeb · onMessage) — 껍데기는 하나라 여기 둔다(lastOpen 과 같다) */
 const route = createWebRoute();
-/** 앱 판이 맡는 주소 — 홈 · 투구(?view=log 포함) · 영양 · 트레이닝 첫 화면(?view=home · last). 여기면 웹을 기다리지 않고 바로 판을 바꾼다 */
+/** 앱 판이 맡는 주소 — 홈 · 투구(?view=log 포함) · 기록 · 영양 · 트레이닝 첫 화면(?view=home · last). 여기면 웹을 기다리지 않고 바로 판을 바꾼다 */
 function isAppPage(href: string): boolean {
   const { path, search } = locOf(href);
-  if (path === '/videos' || path === '/today' || path === '/nutrition') return true;
+  if (path === '/videos' || path === '/today' || path === '/nutrition' || path === RECORDS_PATH) return true;
   const view = new URLSearchParams(search).get('view');
   return path === '/training' && (view === 'home' || view === 'last');
 }
@@ -255,6 +256,7 @@ function resetAccount() {
   resetCompare();
   resetLibraryItems();
   resetHomeCache();
+  resetRecordsCache();
   resetNutritionStore();
   resetTrainingCache();
   resetFavorites();
@@ -292,8 +294,9 @@ const untilMidnight = () => {
   const n = new Date();
   return new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1).getTime() - n.getTime() + 1000;
 };
-const UNSEEN = { home: false, pitch: false, training: false, nutrition: false };
-const PAGER_KEYS = ['home', 'pitch', 'training', 'nutrition'] as const;
+const UNSEEN = { home: false, pitch: false, training: false, records: false, nutrition: false };
+/* 판 차례 = 하단 탭 차례(홈 · 투구 · 트레이닝 · 기록, 2026-10-29) — 영양은 탭이 아니라 맨 끝(더보기에서 연다) */
+const PAGER_KEYS = ['home', 'pitch', 'training', 'records', 'nutrition'] as const;
 
 /** 폰에 남은 운동 세트 · 암케어 체크를 보낸다 — 체크를 하나라도 보냈으면 사이트의 트레이닝 목록 · 홈을 새로 그리게(따라 하기 화면과 같다) */
 function drainQueues() {
@@ -410,14 +413,18 @@ export default function SiteScreen() {
     };
   }, [askMe]);
   const active = tabOf(path, tabs);
-  const sport = sportOfPath(path, search);
   /*
-   * 투구 · 타격 안의 화면(기록 · 트레이닝 · 암케어 · 메카닉)에서도 하단바는 그대로 — 그 종목 탭에 불을 켜고, 그 탭을 다시 누르면 종목 첫 화면으로.
+   * 투구 · 타격 안의 화면(투구 기록 ?view=log · 3D 동작 분석 웹 …)에서도 하단바는 그대로 — 그 종목 탭에 불을 켜고, 그 탭을 다시 누르면 종목 첫 화면으로.
    * 2026-10-27 HIG 검토 A안(김민): 예전엔 투구를 누르면 하단바가 종목 바(‹ · 기록 · 트레이닝 …)로 바뀌어 홈 · 덕아웃 · 더보기가 사라졌다
-   * (tab-bars.md "Make sure the tab bar is visible when people navigate to different sections"). 종목 안 화면은 첫 화면의 칸으로 들어가고
-   * 각 화면의 '‹ 투구 · 타격'으로 돌아온다.
+   * (tab-bars.md "Make sure the tab bar is visible when people navigate to different sections").
+   * 2026-10-29 트레이닝은 제 탭이라(암케어 · 메카닉 웹 화면도 트레이닝 탭) 종목 묶음에서 뺀다.
    */
-  const sportRoot = sport === 'pitch' ? '/videos' : sport === 'hit' ? '/hitting' : null;
+  const sportRoot =
+    path === '/hitting' || path.startsWith('/hitting/')
+      ? '/hitting'
+      : path === '/videos' || path.startsWith('/videos/') || path.startsWith('/pitch-log/')
+        ? '/videos'
+        : null;
   const atSportRoot = sportRoot != null && path === sportRoot && new URLSearchParams(search).get('view') == null;
   /* 웹을 앞으로 — 앱 화면 위에서 연 웹 창(설정)이 보이게 앱 화면을 잠시 걷는다. 그 창을 닫거나 탭을 누르면 돌아온다 */
   const [webFront, setWebFront] = useState(false);
@@ -438,19 +445,27 @@ export default function SiteScreen() {
   const nutritionLocked = nutritionTab?.locked;
   const showNutrition = barOn && path === '/nutrition' && hasNutrition(country) && !!today && !webNutrition && !nutritionTab?.locked && !webFront;
   /* 트레이닝 첫 화면(앱 카드 셋)도 앱 화면 — 카드를 누르면(암케어 · 메카닉 · 운동 전체) 주소가 ?view=… 로 바뀌어 웹이 보인다 */
-  /* 2026-10-21 트레이닝은 하단 탭이 아니라 투구 종목 바 안 — 잠김은 그 칸에서 읽는다(하단 탭에서 찾으면 늘 없어 잠김을 못 봤다) */
-  const trainingTab = sportBars.pitch.find((t) => t.href.startsWith('/training?sport='));
+  /* 2026-10-29 트레이닝은 다시 하단 탭(넷째 → 셋째) — 잠김은 그 칸에서, 옛 탭 목록(사이트가 아직 옛 탭을 보냄)이면 투구 종목 바에서 읽는다 */
+  const trainingTab = tabs.find((t) => t.href.startsWith('/training')) ?? sportBars.pitch.find((t) => t.href.startsWith('/training?sport='));
   const trainingView = new URLSearchParams(search).get('view');
   const showTraining =
     barOn && path === '/training' && (trainingView === 'home' || trainingView === 'last') && !!today && !trainingTab?.locked && !webFront;
+  /* 기록(2026-10-29) — 앱 화면만 있는 탭(웹으로 안 보낸다, pressTab) */
+  const showRecords = barOn && path === RECORDS_PATH && !!today && !webFront;
   /* 판 넘기기 — 지금 보일 앱 판(없으면 웹이 앞)과 한 번이라도 열린 판(붙여 둠) */
-  const pagerOn = showHome || showPitch || showTraining || showNutrition;
-  const nowIndex = showHome ? 0 : showPitch ? 1 : showTraining ? 2 : showNutrition ? 3 : -1;
+  const pagerOn = showHome || showPitch || showTraining || showRecords || showNutrition;
+  const nowIndex = showHome ? 0 : showPitch ? 1 : showTraining ? 2 : showRecords ? 3 : showNutrition ? 4 : -1;
   const [pagerIndex, setPagerIndex] = useState(0);
   if (nowIndex >= 0 && nowIndex !== pagerIndex) setPagerIndex(nowIndex);
   const [seen, setSeen] = useState(UNSEEN);
-  if ((showHome && !seen.home) || (showPitch && !seen.pitch) || (showTraining && !seen.training) || (showNutrition && !seen.nutrition))
-    setSeen({ home: seen.home || showHome, pitch: seen.pitch || showPitch, training: seen.training || showTraining, nutrition: seen.nutrition || showNutrition });
+  if ((showHome && !seen.home) || (showPitch && !seen.pitch) || (showTraining && !seen.training) || (showRecords && !seen.records) || (showNutrition && !seen.nutrition))
+    setSeen({
+      home: seen.home || showHome,
+      pitch: seen.pitch || showPitch,
+      training: seen.training || showTraining,
+      records: seen.records || showRecords,
+      nutrition: seen.nutrition || showNutrition,
+    });
 
   /* 웹뷰를 새로 만들 때(다시 불러오기 · 프로세스 죽음) — 새 웹은 /today 인데 앱 상태가 옛 주소로 남아 탭 불 · 판이 어긋났다 */
   const resetWebState = () => {
@@ -516,7 +531,7 @@ export default function SiteScreen() {
    */
   useEffect(() => {
     if (!pagerOn || pressed) return;
-    const can = { home: true, pitch: !pitchTab?.locked, training: !trainingTab?.locked, nutrition: nutritionLocked === false };
+    const can = { home: true, pitch: !pitchTab?.locked, training: !trainingTab?.locked, records: true, nutrition: nutritionLocked === false };
     const next = PAGER_KEYS.map((k, i) => ({ k, d: Math.abs(i - pagerIndex) }))
       .sort((a, b) => a.d - b.d)
       .find(({ k }) => !seen[k] && can[k])?.k;
@@ -544,6 +559,12 @@ export default function SiteScreen() {
     if (t.href === '/more') return void goWeb(t.href, false);
     if (t.href === '/today') setWebHome(false);
     if (t.href === '/nutrition') setWebNutrition(false);
+    /* 기록은 앱 화면만 — 웹은 지금 자리에 둔다(웹 '/records' 는 없다). 판만 바꾼다 */
+    if (t.href === RECORDS_PATH) {
+      setPath(RECORDS_PATH);
+      setSearch('');
+      return;
+    }
     const waits = goWeb(t.href);
     /*
      * 앱 판이 있는 탭(홈 · 투구 · 영양 · 트레이닝 첫 화면 ?view=home · last)은 바로 그 판으로 — 종목 바의 홈 · 기록(?view=log)도 같은 판이라
@@ -791,10 +812,11 @@ export default function SiteScreen() {
   const pitchLog = showPitch && new URLSearchParams(search).get('view') === 'log';
   /* 탭 판 넷의 본문 끝 여백 — 막대가 실제로 가리는 높이(바닥 안전 영역 포함, 2026-10-26). 예전 TAB_BAR_HEIGHT(49)는 안전 영역을 안 넣어 끝이 막대 밑에 깔렸다 */
   const tabBottom = useTabBarOcclusion();
-  const { home: seenHome, pitch: seenPitch, training: seenTraining, nutrition: seenNutrition } = seen;
+  const { home: seenHome, pitch: seenPitch, training: seenTraining, records: seenRecords, nutrition: seenNutrition } = seen;
   const homeSlot = today && seenHome ? <HomeTab key="home" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} /> : null;
   const pitchSlot = today && seenPitch ? <PitchTab key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} log={pitchLog} /> : null;
   const trainingSlot = today && seenTraining ? <TrainingTab key="training" today={today} bottom={tabBottom} onWeb={openWeb} /> : null;
+  const recordsSlot = today && seenRecords ? <RecordsTab key="records" today={today} bottom={tabBottom} /> : null;
   const nutritionSlot = today && seenNutrition ? <NutritionTab key="nutrition" today={today} bottom={tabBottom} onWebNutrition={openWebNutrition} /> : null;
 
   /* 웹을 못 불러와도(꺼진 망에서 켬) 탭 막대 · 앱 탭은 그대로 쓴다 — 사이트가 '막대 켬'을 못 알려 주니 실패면 켠 것으로 본다 */
@@ -887,7 +909,7 @@ export default function SiteScreen() {
         </View>
       ) : null}
       {/* 탭 넷 — 나란히 두고 240ms 에 미끄러진다(웹 tab-pager). 한 번 연 판은 붙여 둬서 굴린 자리가 남는다 */}
-      {today ? <TabPager index={pagerIndex} visible={pagerOn && !inOrg} slots={[homeSlot, pitchSlot, trainingSlot, nutritionSlot]} /> : null}
+      {today ? <TabPager index={pagerIndex} visible={pagerOn && !inOrg} slots={[homeSlot, pitchSlot, trainingSlot, recordsSlot, nutritionSlot]} /> : null}
       {/* 홈 밖의 탭은 위 막대가 없어 시계 자리를 막으로 덮는다(웹 data-top-veil) */}
       {today && pagerOn && pagerIndex !== 0 && !inOrg ? <ClockVeil /> : null}
       {inOrg ? <OrgSpaceView bottom={tabBottom} /> : null}
@@ -914,7 +936,7 @@ export default function SiteScreen() {
         <TabBar
           key="main"
           tabs={tabs}
-          active={pressed ?? sportRoot ?? (showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : active)}
+          active={pressed ?? sportRoot ?? (showPitch ? '/videos' : showHome ? '/today' : showRecords ? RECORDS_PATH : showNutrition ? '/nutrition' : active)}
           onPress={pressTab}
           popTo={atSportRoot ? null : sportRoot}
         />

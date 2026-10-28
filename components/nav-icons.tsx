@@ -43,6 +43,7 @@ export const NAV_TINT: Record<NavIconName, [string, string]> = {
   back: ['#6b7180', '#2c313b'],
   heart: ['#ff7aa8', '#d9346b'],
   calendar: ['#4fc3ff', '#0a7fd6'],
+  records: ['#4fc3ff', '#0a7fd6'],
   dumbbell: ['#ffb14a', '#f06a0f'],
   utensils: ['#5fe07a', '#1f9e45'],
   radar: ['#8f9bff', '#4b55d6'],
@@ -80,6 +81,8 @@ export const NAV_ICONS: Record<NavIconName, NavIcon> = {
   back: RoundBack,
   heart: RoundArmcare,
   calendar: RoundLog,
+  /* 앱 하단 탭 '기록' — 웹은 PC 라 이 탭을 그리지 않지만 이름표는 같이 둔다 */
+  records: RoundLog,
   dumbbell: RoundTraining,
   film: RoundVideo,
   utensils: RoundCutlery,

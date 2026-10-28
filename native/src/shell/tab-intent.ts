@@ -2,10 +2,10 @@ import { useEffect, useRef } from 'react';
 
 /**
  * 다른 탭의 날짜를 열어 달라는 부탁 — 웹은 주소(?date=)로 넘기지만 앱 탭은 판이 늘 붙어 있어 주소가 없다.
- * 홈 그날 칸의 '영양 탭에서 자세히'(그날 영양) · '투구 탭에서 보기'(투구 달력 그날 칸을 연 채로)가 쓴다.
+ * 홈 그날 칸의 '영양 탭에서 자세히'(그날 영양) · '투구 탭에서 보기'(투구 달력 그날 칸을 연 채로) · 홈 '이번 주'의 날짜(기록 탭의 그날)가 쓴다.
  * 부탁은 받는 탭이 아직 안 붙었으면 남겨 두었다가 붙을 때 꺼낸다.
  */
-type Tab = 'nutrition' | 'pitch';
+type Tab = 'nutrition' | 'pitch' | 'records';
 const pending = new Map<Tab, string>();
 const listeners = new Map<Tab, Set<(date: string) => void>>();
 
