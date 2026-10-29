@@ -178,7 +178,7 @@ const dal = await import(abs('lib/dal.ts'));
 const pitchLab = await import(abs('app/actions/pitch-lab.ts'));
 const nutrition = await import(abs('app/actions/nutrition.ts'));
 const velocityAdmin = await import(abs('app/actions/velocity-admin.ts'));
-const { FeatureLockedError } = await import(abs('lib/release-gate.ts'));
+const { FeatureLockedError, stageOf } = await import(abs('lib/release-gate.ts'));
 
 const base = {
   email: 'x@example.com',
@@ -441,6 +441,12 @@ check(u.e instanceof FeatureLockedError && g.storage.length === 0, '이상한 sp
 as('ADMIN');
 u = await upload(`?pair=${pair}&view=side&sport=hit`);
 check(!u.e, '대표관리자는 스윙 업로드 그대로');
+
+/* ───────── 환경변수 값 읽기 — 대시보드에 붙여 넣다 생긴 빈칸 · 따옴표 · 대문자도 베타로(2026-10-30) ───────── */
+for (const v of ['restricted_beta', ' restricted_beta ', '"restricted_beta"', "'restricted_beta'", 'RESTRICTED_BETA', 'restricted-beta', 'restricted_beta\n'])
+  check(stageOf(v) === 'restricted_beta', `베타 값: ${JSON.stringify(v)}`);
+for (const v of [undefined, '', 'released', 'beta', 'off', 'restricted'])
+  check(stageOf(v) === 'released', `정식 값: ${JSON.stringify(v)}`);
 
 console.log(`release-gate: ${n}개 통과`);
 void pathToFileURL;

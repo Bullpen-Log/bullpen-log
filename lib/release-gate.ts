@@ -32,9 +32,18 @@ import {
  * 기존 역할 · 소유권 · 동의 · 비용 검사는 각 동작에 그대로 있다. 이 관문은 그 앞에 하나 더 있을 뿐이다.
  */
 
-/** 출시 단계 — 서버 환경변수만 본다(클라이언트 변수 · 앱이 보낸 값으로 정하지 않는다). 2026-10-29 금윤호: 환경변수로 켜고 끈다 */
+/**
+ * 출시 단계 — 서버 환경변수만 본다(클라이언트 변수 · 앱이 보낸 값으로 정하지 않는다). 2026-10-29 금윤호: 환경변수로 켜고 끈다.
+ * 값은 너그럽게 읽는다 — 대시보드에 붙여 넣다 생긴 앞뒤 빈칸 · 따옴표 · 대문자 · 가운데 줄표(restricted-beta)도 베타로(2026-10-30).
+ */
 export function releaseStage(): ReleaseStage {
-  return process.env.RELEASE_STAGE === 'restricted_beta' ? 'restricted_beta' : 'released';
+  return stageOf(process.env.RELEASE_STAGE);
+}
+
+/** 환경변수 값 → 출시 단계(시험용으로 따로) */
+export function stageOf(raw: string | undefined): ReleaseStage {
+  const v = (raw ?? '').trim().replace(/^['"]+|['"]+$/g, '').trim().toLowerCase().replace(/[-\s]+/g, '_');
+  return v === 'restricted_beta' ? 'restricted_beta' : 'released';
 }
 
 /** 앱 시작 정보에 싣는 판정 요약(그리기용) */

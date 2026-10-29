@@ -14,6 +14,7 @@ import { SITE_URL } from '~/lib/site';
 import { CONTROL, RADIUS, TYPE, usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { loadBundleInfo } from '~/shell/app-update';
+import { useRelease, useReleaseDecided } from '~/shell/release';
 
 /**
  * 설정(앱 화면) — 웹 설정 창(components/settings-panel.tsx)을 옮겼다: 화면 테마 · 단위(길이 · 무게 · 구속) · 정보(약관 · 개인정보 · 3D 모델 출처 · 문의).
@@ -25,6 +26,21 @@ export default function SettingsScreen() {
   const prefs = usePrefs();
   const [credit, setCredit] = useState(false);
   const [bundle, setBundle] = useState<string | null>(null);
+  /*
+   * 체험판 상태 — 서버가 알려 준 출시 단계(app.loadAppMe 의 access). 폰에서 '서버 변수가 켜졌나 · 새 화면 코드를 받았나'를 바로 본다(2026-10-30).
+   * 대표관리자는 잠기지 않지만 단계는 보인다 — 어느 계정으로든 서버 변수가 켜졌는지 확인할 수 있게
+   */
+  const release = useRelease();
+  const decided = useReleaseDecided();
+  const stageText = !release
+    ? decided
+      ? '서버에 묻지 못했어요'
+      : '확인 중…'
+    : release.stage === 'restricted_beta'
+      ? release.restricted
+        ? '베타 체험(3D 분석만)'
+        : '베타 켜짐 · 이 계정은 다 열림'
+      : '정식(잠금 없음)';
   useEffect(() => {
     void loadBundleInfo().then((b) =>
       setBundle(
@@ -83,6 +99,12 @@ export default function SettingsScreen() {
               </View>
             ) : null}
             <Row label="문의하기" detail={CONTACT} onPress={() => void Linking.openURL(`mailto:${CONTACT}`).catch(() => undefined)} c={c} />
+            <View accessible accessibilityLabel={`체험판 ${stageText}`} style={st.row}>
+              <Text style={{ color: c.ink, fontSize: 17 }}>체험판</Text>
+              <Text selectable style={[st.small, { color: c.muted, flex: 1, textAlign: 'right' }]} numberOfLines={2}>
+                {stageText}
+              </Text>
+            </View>
             {/* 폰이 새 화면 코드를 받았는지 — 게시 번호와 견준다(계약 9-6 ②-1) */}
             <View accessible accessibilityLabel={`앱 판 ${bundle ?? ''}`} style={st.row}>
               <Text style={{ color: c.ink, fontSize: 17 }}>앱 판</Text>

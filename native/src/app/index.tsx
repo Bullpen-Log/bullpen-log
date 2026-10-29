@@ -917,7 +917,8 @@ export default function SiteScreen() {
    * 손대지 않아 돌아오면 그대로다. 웹이 보내는 막대 알림은 내 싱커 상태에만 적힌다. 로그인 전(meOk 아님)에는 늘 내 싱커 모양.
    */
   const sp = useSpace();
-  const inOrg = meOk && sp.key !== ME;
+  /* 베타면 팀 · 레슨장 공간은 열지 않는다(잠긴 기능 — 예전에 고른 공간이 남아 있어도 내 싱커로) */
+  const inOrg = meOk && !beta && sp.key !== ME;
   const orgNav = inOrg ? orgTabsOf(sp.key, spaceOf(sp.key)?.kind ?? null, sp.tabs[sp.key]) : null;
 
   return (
