@@ -19,8 +19,7 @@ import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 import { useTabIntent } from '~/shell/tab-intent';
 import { useMenu } from '~/shell/menu-store';
 import { MenuButton } from '~/shell/menu-button';
-import { LOCKED_HINT, LockedGlyph, LockedRow, lockedColors } from '~/shell/locked';
-import { noticeLocked } from '~/shell/release';
+import { LockedBlock, LockedRow } from '~/shell/locked';
 
 /**
  * 투구 탭(앱 화면) — 첫 화면과 투구 기록이 이 판 하나를 나눠 쓴다(2026-10-20 김민: 종목 홈 추가).
@@ -299,7 +298,6 @@ function ToolDock({ canAbs, beta = false }: { canAbs: boolean; beta?: boolean })
   /* 3D 카드 폭 ≈ (화면 − 옆 여백 − 틈) / 2 — 그림은 그 82%(시안 V6 · 여백 줄인 판), 넓은 화면에서는 168 에서 멈춘다 */
   const art = Math.min(168, Math.max(110, ((Math.min(width, 520) - SPACE.side * 2 - 12) / 2) * 0.82));
   if (beta) {
-    const k = lockedColors(c);
     return (
       <View style={styles.dock}>
         <Pressable
@@ -314,30 +312,9 @@ function ToolDock({ canAbs, beta = false }: { canAbs: boolean; beta?: boolean })
           </Text>
         </Pressable>
         <View style={styles.dockSide}>
-          {(
-            [
-              { label: '구속 측정', icon: 'gauge', size: 54, minHeight: 154 },
-              { label: 'ABS', icon: 'zone', size: 44, minHeight: 128 },
-            ] as const
-          ).map((t) => (
-            <Pressable
-              key={t.label}
-              accessibilityRole="button"
-              accessibilityLabel={`${t.label}, 준비 중`}
-              accessibilityHint={LOCKED_HINT}
-              accessibilityState={{ disabled: true }}
-              onPress={noticeLocked}
-              style={({ pressed }) => [styles.toolSmall, { minHeight: t.minHeight, backgroundColor: k.fill }, pressed && { opacity: 0.8 }]}
-            >
-              <LockedGlyph locked badge={22} ring={k.fill}>
-                <Icon name={t.icon} size={t.size} color={k.glyph} />
-              </LockedGlyph>
-              <Text lineBreakStrategyIOS="hangul-word" style={[styles.toolLabel, { color: k.label }]}>
-                {t.label}
-              </Text>
-              <Text style={{ color: k.label, fontSize: 11, marginTop: -8 }}>준비 중</Text>
-            </Pressable>
-          ))}
+          {/* 구속 측정 · ABS — 블럭째 회색 + 한가운데 자물쇠, 누르면 작은 안내만(shell/locked.tsx LockedBlock) */}
+          <LockedBlock icon="gauge" size={54} label="구속 측정" style={{ minHeight: 154 }} />
+          <LockedBlock icon="zone" size={44} label="ABS" style={{ minHeight: 128 }} />
         </View>
       </View>
     );
@@ -367,20 +344,20 @@ function ToolDock({ canAbs, beta = false }: { canAbs: boolean; beta?: boolean })
             구속 측정
           </Text>
         </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={canAbs ? 'ABS' : 'ABS, 준비 중'}
-          accessibilityState={{ disabled: !canAbs }}
-          disabled={!canAbs}
-          onPress={() => router.push('/velocity?mode=abs' as Href)}
-          style={({ pressed }) => [styles.toolSmall, { minHeight: 128, backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
-        >
-          <View style={{ opacity: canAbs ? 1 : 0.45 }}>
+        {canAbs ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="ABS"
+            onPress={() => router.push('/velocity?mode=abs' as Href)}
+            style={({ pressed }) => [styles.toolSmall, { minHeight: 128, backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
+          >
             <ZoneMark size={46} c={c} />
-          </View>
-          <Text style={[styles.toolLabel, { color: canAbs ? c.ink : c.muted }]}>ABS</Text>
-          {canAbs ? null : <Text style={{ color: c.muted, fontSize: 11, marginTop: -6 }}>준비 중</Text>}
-        </Pressable>
+            <Text style={[styles.toolLabel, { color: c.ink }]}>ABS</Text>
+          </Pressable>
+        ) : (
+          /* 권한이 없으면 베타의 잠긴 블럭과 같은 모양 — 회색 판 + 자물쇠, 누르면 작은 안내 */
+          <LockedBlock icon="zone" size={44} label="ABS" style={{ minHeight: 128 }} />
+        )}
       </View>
     </View>
   );

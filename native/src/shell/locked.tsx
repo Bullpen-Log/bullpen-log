@@ -36,16 +36,53 @@ export function LockBadge({ size = 18, ring, style }: { size?: number; ring?: st
 }
 
 /**
- * 잠긴 아이콘 — 감싼 아이콘 · 그림을 흐리게 하고 오른쪽 위에 자물쇠를 얹는다. locked 가 아니면 그대로 그린다(자리 · 크기가 같다).
- * badge: 자물쇠 원 크기, ring: 자물쇠 테 색(칸 바탕과 같게).
+ * 잠긴 아이콘 — 감싼 아이콘 · 그림을 흐리게 하고 자물쇠를 얹는다. locked 가 아니면 그대로 그린다(자리 · 크기가 같다).
+ * badge: 자물쇠 원 크기, ring: 자물쇠 테 색(칸 바탕과 같게), center: 자물쇠를 아이콘 한가운데에(큰 칸 — 투구 탭 도구 블럭), 아니면 오른쪽 위.
  */
-export function LockedGlyph({ locked, badge = 18, ring, children }: { locked: boolean; badge?: number; ring?: string; children: ReactNode }) {
+export function LockedGlyph({
+  locked,
+  badge = 18,
+  ring,
+  center = false,
+  children,
+}: {
+  locked: boolean;
+  badge?: number;
+  ring?: string;
+  center?: boolean;
+  children: ReactNode;
+}) {
   if (!locked) return <>{children}</>;
   return (
-    <View>
-      <View style={{ opacity: LOCK_DIM }}>{children}</View>
-      <LockBadge size={badge} ring={ring} style={{ position: 'absolute', top: -badge * 0.32, right: -badge * 0.38 }} />
+    <View style={center ? s.center : undefined}>
+      <View style={{ opacity: center ? LOCK_DIM * 0.7 : LOCK_DIM }}>{children}</View>
+      <LockBadge size={badge} ring={ring} style={center ? s.centerBadge : { position: 'absolute', top: -badge * 0.32, right: -badge * 0.38 }} />
     </View>
+  );
+}
+
+/**
+ * 잠긴 도구 블럭(투구 탭 도구 도크의 구속 측정 · ABS) — 블럭 전체를 회색 판으로(그림자 · 색 없음), 회색 그림 위 한가운데 큰 자물쇠,
+ * 이름 · '준비 중'도 회색. 누르면 작은 안내('준비 중인 기능입니다.')만 뜨고 들어가지 않는다(2026-10-30 금윤호: "블럭을 아예 회색으로 · 그 위에 자물쇠").
+ */
+export function LockedBlock({ icon, size, label, style }: { icon: IconName; size: number; label: string; style?: StyleProp<ViewStyle> }) {
+  const c = usePalette();
+  const k = lockedColors(c);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, 준비 중`}
+      accessibilityHint={LOCKED_HINT}
+      accessibilityState={{ disabled: true }}
+      onPress={noticeLocked}
+      style={({ pressed }) => [s.block, { backgroundColor: k.fill, borderColor: c.lineStrong }, style, pressed && { opacity: 0.85 }]}
+    >
+      <LockedGlyph locked center badge={34} ring={k.fill}>
+        <Icon name={icon} size={size} color={k.glyph} />
+      </LockedGlyph>
+      <Text style={[s.blockLabel, { color: k.label }]}>{label}</Text>
+      <Text style={{ color: k.label, fontSize: 12, fontWeight: '600', marginTop: -8 }}>준비 중</Text>
+    </Pressable>
   );
 }
 
@@ -104,6 +141,10 @@ export function LockedTile({ icon, label, style }: { icon: IconName; label: stri
 
 const s = StyleSheet.create({
   badge: { alignItems: 'center', justifyContent: 'center' },
+  center: { alignItems: 'center', justifyContent: 'center' },
+  centerBadge: { position: 'absolute' },
+  block: { borderRadius: 24, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 12, paddingVertical: 16, borderWidth: 1, borderStyle: 'dashed' },
+  blockLabel: { fontSize: 15, fontWeight: '600', letterSpacing: -0.3, textAlign: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 56, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 12 },
   tile: { alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 92, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 14 },
 });
