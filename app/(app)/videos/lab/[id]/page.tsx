@@ -4,6 +4,7 @@ import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
+import { isRestrictedNow } from '@/lib/release-gate';
 import { loadFocusProgress, loadLabSample } from '@/lib/pitch-lab';
 import { loadPreviousComparison } from '@/lib/pitch-lab-compare';
 import { isLabId } from '@/lib/pitch-lab-meta';
@@ -28,7 +29,8 @@ export default async function LabSamplePage({
 }) {
   const user = await requireUser();
   /* 투구 첫 설정 전이면 다른 투구 화면처럼 설정으로 */
-  if (featureLocks(user).pitch) redirect(SETUP_PATH.pitch);
+  /* 출시 전 베타에는 투구 첫 설정을 묻지 않는다(그 화면이 잠겨 있고, 3D 는 필요한 값을 새 분석 화면이 받는다 — lib/release-gate.ts) */
+  if (featureLocks(user).pitch && !isRestrictedNow(user)) redirect(SETUP_PATH.pitch);
   const { id } = await params;
   if (!isLabId(id)) notFound();
   /*

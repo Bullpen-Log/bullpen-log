@@ -6,12 +6,13 @@ import { prisma } from '@/lib/prisma';
 import { readSession, passwordFingerprint } from '@/lib/session';
 import { ensureSim } from '@/lib/clock-server';
 import { can, type Permission } from '@/lib/permissions';
+import { allowAdmin, enforceRelease } from '@/lib/release-gate';
 
 /**
- * 현재 로그인한 사용자를 반환한다. 로그인하지 않았으면 null.
+ * 세션의 사용자 — 출시 단계 관문을 거치지 않는다. 관문 자신(RPC 입구가 미리 판정할 때)만 쓴다. 화면 · 동작은 getCurrentUser.
  * 한 요청 안에서 여러 번 호출해도 DB는 한 번만 조회한다.
  */
-export const getCurrentUser = cache(async () => {
+export const loadSessionUserUnchecked = cache(async () => {
   const session = await readSession();
   if (!session) return null;
 
@@ -83,6 +84,18 @@ export const getCurrentUser = cache(async () => {
   return rest;
 });
 
+/**
+ * 현재 로그인한 사용자를 반환한다. 로그인하지 않았으면 null.
+ *
+ * 출시 전 베타(2026-10-29, lib/release-gate.ts)면 읽는 순간 이 요청이 그 사람에게 열린 기능인지 판정한다 — 잠긴 화면은 베타 홈으로,
+ * 잠긴 서버 동작 · RPC · API 는 FeatureLockedError(FEATURE_LOCKED_BETA). 대표관리자 · 정식 출시는 그대로 지나간다.
+ */
+export async function getCurrentUser() {
+  const user = await loadSessionUserUnchecked();
+  if (user) await enforceRelease(user);
+  return user;
+}
+
 /** 로그인이 필요한 페이지에서 사용. 비로그인 시 /login으로 보낸다. */
 export async function requireUser() {
   const user = await getCurrentUser();
@@ -110,6 +123,8 @@ export async function requireAdmin() {
 
 /** 이 기능을 쓸 수 있는 관리자(대표 · 준)만 — 표는 lib/permissions.ts. 못 쓰면 오늘 화면으로 */
 export async function requirePermission(perm: Permission) {
+  /* 관리 업무 — 출시 전 베타에도 이 권한이 있는 관리자에게는 열린다(lib/release-gate.ts allowAdmin). 권한 검사는 아래 그대로 */
+  allowAdmin(perm);
   const user = await requireUser();
   if (!can(user.role, perm)) redirect('/today');
   return user;

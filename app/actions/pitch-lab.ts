@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature, isRestrictedNow } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
 import { contextForAnalysis } from '@/lib/mechanics/comparison';
 import { getCurrentUser, requireUser } from '@/lib/dal';
@@ -164,6 +165,7 @@ export async function saveLabSample(input: {
   id: string;
   meta: unknown;
 }): Promise<Result> {
+  allowFeature('pitch3d');
   const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
   const meta = readLabMeta(input.meta, new Date().toISOString());
@@ -196,6 +198,7 @@ export async function saveLabSample(input: {
 }
 
 export async function removeLabSample(input: { id: string }): Promise<Result> {
+  allowFeature('pitch3d');
   const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
   try {
@@ -219,6 +222,7 @@ export async function requestPitch3dV2(input: {
   id: string;
   consent: boolean;
 }): Promise<{ ok: true; job: Pitch3dV2Job } | { error: string; need?: 'consent' }> {
+  allowFeature('pitch3d');
   const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플을 찾지 못했어요.' };
   if (!isPitch3dV2Configured()) return { error: '분석 서버 설정이 없어요.' };
@@ -363,6 +367,7 @@ export async function requestPitch3dV2(input: {
 export async function checkPitch3dV2(input: {
   id: string;
 }): Promise<{ job: Pitch3dV2Job | null } | { error: string }> {
+  allowFeature('pitch3d');
   const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플을 찾지 못했어요.' };
   const owner = await findLabOwner(input.id, user).catch(() => null);
@@ -443,6 +448,7 @@ export async function loadPitch3dV2(input: {
   id: string;
   jobId: string;
 }): Promise<{ result: Pitch3dV2Result | null } | { error: string }> {
+  allowFeature('pitch3d');
   const user = await requireUser();
   if (!isLabId(input.id) || !isV2JobId(input.jobId))
     return { error: '샘플을 찾지 못했어요.' };
@@ -462,6 +468,7 @@ export async function loadPitch3dV2(input: {
  * 범위 요청 몇 번이라 화면 그리기를 막지 않게 서버 동작으로. 못 받으면 0(예전처럼 3D 시각 그대로).
  */
 export async function loadLabVideoShifts(input: { id: string }): Promise<LabShifts> {
+  allowFeature('pitch3d');
   const zero = { side: 0, back: 0 };
   const user = await getCurrentUser();
   if (!user || !isLabId(input.id)) return zero;
@@ -565,10 +572,14 @@ function appJobOf(job: Pitch3dV2Job | null, nowMs: number): AppLabDetail['job'] 
 export async function loadAppLabDetail(input: {
   id: string;
 }): Promise<AppLabDetail | { ok: false; to: string }> {
+  allowFeature('pitch3d');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
-  /* 투구 첫 설정 전이면 설정으로(웹 /videos/lab 과 같다) */
-  if (featureLocks(user).pitch) return { ok: false, to: SETUP_PATH.pitch };
+  /*
+   * 투구 첫 설정 전이면 설정으로(웹 /videos/lab 과 같다). 출시 전 베타(2026-10-29)에는 묻지 않는다 — 그때 투구 첫 설정은 잠긴 기능이고,
+   * 3D 에 필요한 것(던지는 손 · 던진 곳 · 키)은 새 분석 화면이 직접 받는다. 첫 설정 값을 채워 넘기지 않는다(pitchSetupAt 그대로).
+   */
+  if (featureLocks(user).pitch && !isRestrictedNow(user)) return { ok: false, to: SETUP_PATH.pitch };
   if (!isLabId(input?.id)) return { ok: false, to: LAB_PATH };
   const sample = await loadLabSample(input.id, user);
   if (!sample) return { ok: false, to: LAB_PATH };
@@ -725,10 +736,14 @@ export async function loadAppLabList(scope?: string): Promise<
   | { ok: true; samples: AppLabListItem[]; heightCm: number | null; hand: 'L' | 'R'; isAdmin: boolean }
   | { ok: false; to: string }
 > {
+  allowFeature('pitch3d');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
-  /* 투구 첫 설정 전이면 설정으로(웹 /videos/lab 과 같다) */
-  if (featureLocks(user).pitch) return { ok: false, to: SETUP_PATH.pitch };
+  /*
+   * 투구 첫 설정 전이면 설정으로(웹 /videos/lab 과 같다). 출시 전 베타(2026-10-29)에는 묻지 않는다 — 그때 투구 첫 설정은 잠긴 기능이고,
+   * 3D 에 필요한 것(던지는 손 · 던진 곳 · 키)은 새 분석 화면이 직접 받는다. 첫 설정 값을 채워 넘기지 않는다(pitchSetupAt 그대로).
+   */
+  if (featureLocks(user).pitch && !isRestrictedNow(user)) return { ok: false, to: SETUP_PATH.pitch };
   const all = await listLabSamples(user);
   /*
    * 'mine' = 사용자 화면(앱 /lab) — 관리자도 자기 투구만(마커 빼고). 없으면 관리자 샘플 화면(앱 /lab/samples) · 옛 앱 — 관리자끼리 · 마커 포함 그대로.

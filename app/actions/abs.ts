@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
@@ -14,6 +15,7 @@ export type RejudgeResult = { ok: true; abs: AbsAnalysis } | { ok: false; error:
  * 본인 공만. 코스(zone) · 결과(result)도 새 판정으로 바꾼다('다음 타자' 뒤 신장을 고쳤을 때).
  */
 export async function rejudgePitch(id: string, heightCm: number, rule?: RuleSetId): Promise<RejudgeResult> {
+  allowFeature('abs');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   if (!Number.isFinite(heightCm) || heightCm < HEIGHT_MIN_CM || heightCm > HEIGHT_MAX_CM)

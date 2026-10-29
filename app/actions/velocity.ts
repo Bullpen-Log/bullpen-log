@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { phoneVideoPath } from '@/lib/phone-video-path';
 import { can } from '@/lib/permissions';
 import { Prisma } from '@prisma/client';
@@ -180,6 +181,7 @@ function checkEdit(edit: PitchEdit): { error: string } | PitchEdit {
  * 6.5% 올림). 스피드건 값은 관리자 화면에서 견주기용으로만 쓴다(velocity-admin 의 보정식 미리 보기는 그대로). 이미 저장된 공의 값은 그대로다.
  */
 export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[] }> {
+  allowFeature('velocity');
   /* 서버 동작은 모두 로그인 확인을 거친다(통합 시험) — 보정이 꺼져 로그인해도 빈 식이다 */
   const user = await getCurrentUser();
   if (!user) return { fit: fitCalibration([]), pairs: [] };
@@ -194,6 +196,7 @@ export async function loadVelocityStart(): Promise<
   | { ok: true; isAdmin: boolean; canAbs: boolean; canRecord: boolean; canVelocityAdmin: boolean; pitchLocked: boolean; today: string; fit: CalFit }
   | { ok: false; error: string }
 > {
+  allowFeature('velocity');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const { fit } = await loadCalibration();
@@ -213,6 +216,7 @@ export async function loadVelocityStart(): Promise<
 export async function saveVelocitySession(
   input: SaveSessionInput
 ): Promise<VelocityActionResult & { sessionId?: string; pitchIds?: string[] }> {
+  allowFeature('velocity');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
 
@@ -417,6 +421,7 @@ export async function updateVelocityPitch(
   id: string,
   edit: PitchEdit
 ): Promise<VelocityActionResult> {
+  allowFeature('velocity');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const checked = checkEdit(edit);
@@ -453,6 +458,7 @@ export async function updateVelocityPitch(
 }
 
 export async function deleteVelocityPitch(id: string): Promise<VelocityActionResult> {
+  allowFeature('velocity');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
 
@@ -474,6 +480,7 @@ export async function deleteVelocityPitch(id: string): Promise<VelocityActionRes
 }
 
 export async function deleteVelocitySession(id: string): Promise<VelocityActionResult> {
+  allowFeature('velocity');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
 
@@ -512,6 +519,7 @@ export async function createClipUpload(
   mime: string,
   bytes: number
 ): Promise<ClipUploadTarget> {
+  allowFeature('velocity');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   if (!isStorageConfigured())
@@ -556,6 +564,7 @@ export async function attachClip(
   },
   kind: 'main' | 'wide' = 'main'
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  allowFeature('velocity');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const path =
@@ -693,6 +702,7 @@ const CAMERA_KEYS = ['fps', 'dropped', 'droppedLate', 'droppedBuffers', 'writerS
 export async function recordVelocityAttempt(
   input: AttemptInput
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  allowFeature('velocity');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)))
@@ -751,6 +761,7 @@ export async function createAttemptClipUpload(
   mime: string,
   bytes: number
 ): Promise<ClipUploadTarget> {
+  allowFeature('velocity');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   if (!can(user.role, 'velocityAdmin'))
@@ -788,6 +799,7 @@ export async function attachAttemptClip(
   attemptId: string,
   info: { path: string; bytes: number; sec: number | null; mime: string; eventSec: number | null }
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  allowFeature('velocity');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const path = String(info.path ?? '');

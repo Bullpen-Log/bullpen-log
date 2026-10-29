@@ -1,5 +1,6 @@
 'use server';
 
+import { allowAdmin } from '@/lib/release-gate';
 import { prisma } from '@/lib/prisma';
 import { can, isOwner, type Permission } from '@/lib/permissions';
 import { getCurrentUser } from '@/lib/dal';
@@ -26,6 +27,7 @@ const TO_LOGIN = { ok: false, to: '/login' } as const;
 
 /** 이 기능을 쓸 수 있는 관리자(대표 · 준, lib/permissions.ts)면 그 사용자 */
 async function staff(perm: Permission) {
+  allowAdmin(perm);
   const user = await getCurrentUser();
   if (!user) return TO_LOGIN;
   if (!can(user.role, perm)) return NOT_ADMIN;

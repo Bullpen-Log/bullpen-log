@@ -38,6 +38,9 @@ import { MainTransition } from '@/components/main-transition';
 import { SiteFooter } from '@/components/site-footer';
 import { AppSplash } from '@/components/app-splash';
 import { TabPager } from '@/components/tab-pager';
+import { BetaHome } from '@/components/beta/beta-home';
+import { applyBetaLocks, betaGroups } from '@/lib/nav';
+import { isRestrictedNow, releaseAccessFor } from '@/lib/release-gate';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
@@ -83,6 +86,11 @@ export default async function AppLayout({
 }) {
   // 이 레이아웃 아래의 모든 페이지는 로그인이 필요하다.
   const user = await requireUser();
+  /*
+   * 출시 전 베타(2026-10-29, lib/release-gate.ts) — 일반 · 준관리자는 투구 3D 만. 잠긴 주소는 사람을 읽을 때(requireUser) 이미 베타 홈으로 보냈다.
+   * 여기서는 틀을 줄인다: 탭 판(홈 · 투구 · 타격)을 그리지 않고(그 판이 예전 통계 · 기록을 읽는다), 체크인 관문 · 대기열 보내기도 안 둔다.
+   */
+  if (isRestrictedNow(user)) return <BetaAppLayout user={user}>{children}</BetaAppLayout>;
   /* 마스터 계정(팀 · 레슨장)은 선수 기능이 없다 — 선수 화면 전체가 /manage 로 간다(2026-10-20 결정 2). 관리자는 둘 다 본다 */
   if (user.accountType === 'MASTER' && user.role !== 'ADMIN') redirect('/manage');
   const isAdmin = user.role === 'ADMIN';
@@ -290,6 +298,66 @@ export default async function AppLayout({
           </TabPager>
         </main>
 
+        <SiteFooter tabBar brand="sinker" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 출시 전 베타의 싱커 틀(2026-10-29) — 생김새(위 막대 · 하단 탭 · 메뉴 · 테마)는 그대로, 탭은 잠긴 칸에 자물쇠, 메뉴는 열린 항목 · 기존 권한의 관리 업무만.
+ * 홈(/today)은 베타 홈, 그 밖의 열린 주소(투구 3D · 고객센터 · 관리 업무)는 그 화면. 계정 종류(MASTER 포함)는 바꾸지 않고 /manage 로도 보내지 않는다.
+ * 예전 홈 판 · 체크인 · 알림 수 · 투구 기록 조회는 하지 않는다.
+ */
+async function BetaAppLayout({
+  user,
+  children,
+}: {
+  user: Awaited<ReturnType<typeof requireUser>>;
+  children: React.ReactNode;
+}) {
+  const access = releaseAccessFor(user);
+  const h = await headers();
+  const userAgent = h.get('user-agent');
+  const isNative = isNativeUserAgent(userAgent);
+  const path = (h.get('x-bp-path') ?? '').split('?')[0];
+  const appTabs = expoLevel(userAgent) >= APP_TABS_LEVEL ? APP_TABS : MOBILE_TABS;
+  const country = countryOf(user.country);
+  const tabsOf = <T extends { href: string }>(items: T[]) => forCountry(isNative ? items : withoutDugoutTab(items), country);
+  const groups = forCountryGroups(betaGroups(visibleGroups(user.role, isNative), access), country);
+  const avatarUrl = await createAvatarUrl(user.avatarPath);
+  const isHome = path === '/today' || path === '' || path === '/dashboard';
+  return (
+    <div className="flex min-h-dvh flex-col pad:pl-(--rail)">
+      {!isNative && <AppSplash />}
+      <AppNav
+        groups={groups}
+        quick={tabsOf(applyBetaLocks(quickTabs(), access))}
+        tabs={tabsOf(applyBetaLocks(MOBILE_TABS, access))}
+        /* 앱에 보내는 탭은 주소를 그대로 — 앱이 주소로 탭을 가린다. 잠김 까닭('beta')만 단다 */
+        appTabs={isNative ? tabsOf(applyBetaLocks(appTabs, access, { keepHref: true })) : undefined}
+        back={isNative ? null : { href: '/', label: '덕아웃' }}
+        sportBars={{ pitch: applyBetaLocks(SPORT_BARS.pitch, access), hit: applyBetaLocks(SPORT_BARS.hit, access) }}
+        nickname={user.nickname}
+        avatarUrl={avatarUrl}
+        isAdmin={false}
+        profile={{
+          email: user.email,
+          nickname: user.nickname,
+          birthDate: user.birthDate ? toDateInputValue(user.birthDate) : '',
+          sex: isSex(user.sex) ? user.sex : null,
+          heightCm: user.heightCm,
+          weightKg: user.weightKg,
+          targetVelocity: user.targetVelocity,
+          isAdmin: false,
+        }}
+        today={todayKey()}
+        todo={{ checkinDays: [], pitchDays: [], flow: contextFrom(user.nickname, [], []), pitchLocked: true }}
+      />
+      <div className="flex flex-1 flex-col">
+        <main className="mx-auto w-full max-w-5xl flex-1 py-6 pb-10 pl-[max(calc(var(--spacing)*4),env(safe-area-inset-left))] pr-[max(calc(var(--spacing)*4),env(safe-area-inset-right))] sm:pl-[max(calc(var(--spacing)*6),env(safe-area-inset-left))] sm:pr-[max(calc(var(--spacing)*6),env(safe-area-inset-right))] desk:pt-(--page-top) desk:pb-32 pad:pl-8">
+          <MainTransition>{isHome ? <BetaHome user={user} /> : children}</MainTransition>
+        </main>
         <SiteFooter tabBar brand="sinker" />
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
+import { allowFeature } from '@/lib/release-gate';
 import {
   AVATAR_TYPES,
   MAX_AVATAR_BYTES,
@@ -17,6 +18,8 @@ import {
  * 사용자 id 로 만든다. 남의 폴더에 올릴 방법이 없다.
  */
 export async function POST(req: Request) {
+  /* 내 정보 사진 — 계정(출시 전 베타에도 열림) */
+  allowFeature('account');
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
