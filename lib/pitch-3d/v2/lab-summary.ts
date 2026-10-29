@@ -165,7 +165,7 @@ export function labWaitingText(
   if (!hasVideos) return { title: '옆 · 뒤 영상이 다 있어야 해요', line: null, active: false, canStart: false };
   return {
     title: '아직 3D 분석을 하지 않았어요',
-    line: '아래 동의를 확인하고 분석을 걸면 1~2분 뒤 여기에 인형이 움직여요.',
+    line: '분석을 시작하면 여기에 3D 동작이 나와요.',
     active: false,
     canStart: true,
   };

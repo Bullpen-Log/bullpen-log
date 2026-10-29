@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import Svg, { Path, Circle, Rect, SvgXml } from 'react-native-svg';
+import Svg, { Path, Circle, Rect, SvgXml, Line } from 'react-native-svg';
 import { roundIconMarkup, type RoundIconName } from '@/lib/round-icons';
 import { useTheme } from '~/lib/ui';
 
@@ -215,6 +215,9 @@ export function Icon({
             return <Circle key={i} {...(a as object)} />;
           case "rect":
             return <Rect key={i} {...(a as object)} />;
+          /* circle-alert 처럼 선으로 된 그림(예전엔 빠져 원만 보였다) */
+          case "line":
+            return <Line key={i} {...(a as object)} />;
           default:
             return null;
         }

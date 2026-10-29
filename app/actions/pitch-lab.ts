@@ -27,6 +27,8 @@ import {
   saveLabAnalysisContext,
   saveLabMeta,
 } from '@/lib/pitch-lab';
+import { analysisConsentReady } from '@/lib/analysis-consent';
+import { consentStateFor } from '@/lib/analysis-consent-store';
 import { finishRequest, guardBlock, labMetaBlock, readLabGuard, recordRequest, serverPairBlock } from '@/lib/pitch-lab-guard';
 import {
   applyGpuStatus,
@@ -59,6 +61,7 @@ import {
   labMetaChips,
   labViewLabel,
   LAB_EXTRA_LABEL,
+  type LabGround,
   type LabShifts,
   readLabMeta,
 } from '@/lib/pitch-lab-meta';
@@ -215,7 +218,7 @@ export async function removeLabSample(input: { id: string }): Promise<Result> {
 export async function requestPitch3dV2(input: {
   id: string;
   consent: boolean;
-}): Promise<{ ok: true; job: Pitch3dV2Job } | { error: string }> {
+}): Promise<{ ok: true; job: Pitch3dV2Job } | { error: string; need?: 'consent' }> {
   const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플을 찾지 못했어요.' };
   if (!isPitch3dV2Configured()) return { error: '분석 서버 설정이 없어요.' };
@@ -224,6 +227,17 @@ export async function requestPitch3dV2(input: {
   /* 샘플이 든 폴더 — 자기 것(관리자는 관리자끼리 같이, lib/pitch-lab.ts findLabOwner) */
   const owner = await findLabOwner(input.id, user).catch(() => null);
   if (!owner) return { error: '샘플을 찾지 못했어요.' };
+  /*
+   * 국외 이전 동의(2026-10-29, lib/analysis-consent.ts) — 문서가 확정되면 화면의 consent:true 만으로는 안 된다: 본인 투구는 DB 에 남은 유효한 동의가 있어야 한다.
+   * 관리자가 남의 투구(관리자 폴더)를 걸 때는 요청마다 선수 쪽 동의를 받았다는 확인(consent:true)으로 — 본인 동의로 대신하지 않는다.
+   * 확정 전이면 예전처럼 요청할 때마다 확인(consent:true)만.
+   */
+  if (user.role !== 'ADMIN' && analysisConsentReady()) {
+    if (owner !== user.id) return { error: '내 투구만 분석할 수 있어요.' };
+    const state = await consentStateFor(user.id).catch(() => null);
+    if (!state) return { error: '동의 내역을 확인하지 못했어요. 다시 해 주세요.' };
+    if (!state.valid) return { error: '3D 분석을 위한 국외 이전 동의가 필요해요.', need: 'consent' as const };
+  }
 
   let prev: Pitch3dV2Job | null;
   let urls: Awaited<ReturnType<typeof labVideoUrls>>;
@@ -500,7 +514,49 @@ export type AppLabDetail = {
    * 검사 · 동의 · 비용 지키기는 웹과 같은 requestPitch3dV2 가 한다.
    */
   request: { enabled: boolean; videoFault: boolean; fix: string | null; fixSection: LabGuideSection | null };
+  /**
+   * 지금 작업(진행 화면 — 2026-10-29). 앱은 이 번호로 상태 답을 견준다(다른 작업의 늦은 답이 덮지 않게). 옛 앱은 안 읽는다.
+   * fail.kind — 'video' 영상 탓(촬영 안내 · 영상 바꾸기) · 'timeout' 오래 걸려 멈춤 · 'server' 서버 쪽(같은 영상으로 다시 걸기)
+   */
+  job?: {
+    id: string;
+    status: Pitch3dV2Job['status'];
+    requestedAt: string;
+    startedAt: string | null;
+    active: boolean;
+    fail: { code: string; reason: string; kind: 'video' | 'timeout' | 'server' } | null;
+  } | null;
+  /**
+   * 3D 장면 → 원본 시각(3D 를 못 불러왔을 때 원본에서 핵심 장면 보기 — lib/pitch-3d/v2/video-sync.ts sourceTimesAt). 장면마다 옆 · 뒤 트랙 시각(초, ms 반올림)
+   * · 편집 목록 앞머리(shifts — 앱이 원본을 열 때 loadLabVideoShifts 로 따로 받는다). 결과가 없으면 null
+   */
+  sync?: { t: number[]; tBack: number[] } | null;
+  /** 이번 투구의 촬영 정보(분석 정보 보기 · 결과 머리) — 옛 샘플이면 null */
+  capture?: {
+    ground: LabGround;
+    hand: 'L' | 'R';
+    heightCm: number | null;
+    slowmoFps: 120 | 240 | null;
+    files: { view: 'side' | 'back'; name: string; mb: number | null; sec: number | null }[];
+  } | null;
 };
+
+/** 앱으로 보내는 작업 요약(진행 화면) */
+function appJobOf(job: Pitch3dV2Job | null, nowMs: number): AppLabDetail['job'] {
+  if (!job) return null;
+  const code = job.fail?.code ?? null;
+  return {
+    id: job.jobId,
+    status: job.status,
+    requestedAt: job.requestedAt,
+    startedAt: job.startedAt,
+    active: isV2JobActive(job, nowMs),
+    fail:
+      job.status === 'failed' && job.fail && code
+        ? { code, reason: job.fail.reason, kind: V2_VIDEO_FAULT.has(code) ? 'video' : code === 'timeout' ? 'timeout' : 'server' }
+        : null,
+  };
+}
 
 /**
  * 아이폰 앱 3D 동작 분석 결과 화면 — 웹 /videos/lab/[id](page.tsx · lab-detail.tsx)와 같은 샘플 · 결과 · 판정. 로그인이 없으면 { ok:false, to }.
@@ -606,6 +662,25 @@ export async function loadAppLabDetail(input: {
         fixSection: fix?.section ?? null,
       };
     })(),
+    job: appJobOf(job, now),
+    sync: result ? { t: result.t.map((x) => Math.round(x * 1000) / 1000), tBack: result.tBack.map((x) => Math.round(x * 1000) / 1000) } : null,
+    capture: meta
+      ? {
+          ground: meta.ground ?? 'mound',
+          hand,
+          heightCm: meta.heightCm ?? null,
+          slowmoFps: meta.slowmoFps ?? null,
+          files: LAB_VIEWS.map((view) => {
+            const f = meta.files?.[view];
+            return {
+              view,
+              name: f?.name ?? '',
+              mb: f?.size ? Math.round((f.size / 1048576) * 10) / 10 : null,
+              sec: f?.dur ?? null,
+            };
+          }),
+        }
+      : null,
   };
 }
 
@@ -625,6 +700,11 @@ export type AppLabListItem = {
   status: ReturnType<typeof labStatusLabel>;
   /** 진단 리포트 꼬리표 — '브레이크' · '드롭 · 경계' · '좋아요' · '판정 못 함'(결과가 없거나 아직 요약 전이면 null) */
   report: ReturnType<typeof summaryChip>;
+  /** 작업 단계(2026-10-29 첫 화면) — 'active' 분석 중 · 'done' 결과 있음 · 'failed' 실패 · 'none' 분석 전 · 'broken' 올리다 멈춤. 옛 서버엔 없다 */
+  phase?: 'active' | 'done' | 'failed' | 'none' | 'broken';
+  /** 던진 곳 · 던지는 손(첫 화면 줄) — 정보가 없으면 null */
+  ground?: LabGround | null;
+  hand?: 'L' | 'R' | null;
 };
 
 const LIST_WHEN = new Intl.DateTimeFormat('ko-KR', {
@@ -674,6 +754,17 @@ export async function loadAppLabList(scope?: string): Promise<
       subject: s.meta?.subject ?? null,
       status: labStatusLabel(s.v2.job, now),
       report: summaryChip(jobReportSummary(s.v2.job)),
+      phase: !s.meta
+        ? ('broken' as const)
+        : isV2JobActive(s.v2.job, now)
+          ? ('active' as const)
+          : s.v2.job?.status === 'failed'
+            ? ('failed' as const)
+            : s.v2.job?.shownJobId
+              ? ('done' as const)
+              : ('none' as const),
+      ground: s.meta ? (s.meta.ground ?? 'mound') : null,
+      hand: s.meta?.hand ?? null,
     })),
   };
 }

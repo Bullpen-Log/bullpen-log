@@ -78,7 +78,7 @@ function StatusTag({ c, status }: { c: Palette; status: ReportStatus }) {
   );
 }
 
-/** 기준 띠 — 고칠 점 · 경계 · 보통 · 좋아요 네 칸 + 내 값 점 + 문턱. 평가한 칸에만 그린다(report-view showsGauge) */
+/** 기준 띠 — 고칠 점 · 경계 · 보통 · 좋아요 네 칸 + 내 값 점 + 판정 기준(고칠 점이 시작되는 값). 평가한 칸에만 그린다(report-view showsGauge) */
 function Gauge({ c, g }: { c: Palette; g: ReportGauge }) {
   const x = (v: number) => Math.max(0, Math.min(100, ((v - g.lo) / (g.hi - g.lo)) * 100));
   const a = x(g.cut);
@@ -112,7 +112,7 @@ function Gauge({ c, g }: { c: Palette; g: ReportGauge }) {
         )}
       </View>
       <View style={[s.marker, { left: `${x(g.value)}%`, backgroundColor: c.ink, borderColor: c.card }]} />
-      <Text style={[s.cut, { left: `${a}%`, color: c.warn }]}>문턱</Text>
+      <Text style={[s.cut, { left: `${a}%`, color: c.warn }]}>판정 기준</Text>
     </View>
   );
 }
@@ -171,63 +171,85 @@ export function KeyFinding({ c, report, onScene }: { c: Palette; report: PitchRe
   );
 }
 
-/* ───────────────────────────── 여섯 요소 판독 ───────────────────────────── */
+/* ───────────────────────────── 요소별 분석 ───────────────────────────── */
 
 /**
- * 여섯 요소를 한 장에서 훑는다(상태 · 잰 것 · 값) — 줄을 누르면 그 자리에서 펴진다: 관찰 → 띠(평가한 칸만) → 읽는 법 · 해석 범위 → 장면.
- * 처음엔 주 문제 줄만 펴 둔다. 줄을 펴는 것만으로는 3D 를 옮기지 않는다(읽던 자리를 잃지 않게) — 장면 단추가 옮긴다.
+ * 여섯 요소 — 2열 × 3행 고르기 카드(이름 · 상태), 고른 요소의 관찰 · 측정값 · 판정 기준 · 확인 제한은 그 밑 상세 한 장(2026-10-29 확정 시안 results).
+ * 상태 이름은 서버 구분 그대로(REPORT_STATUS_TEXT — 고칠 점 · 경계 · 보통 · 좋아요 · 참고 · 확인 어려움). 값이 없으면 0 이 아니라 '측정값 없음'.
+ * 고르면 3D 를 그 장면에 세운다(onPick — 스크롤은 하지 않는다, 장면 단추가 무대로 간다).
  */
-export function FlowCard({ c, report, onPick }: { c: Palette; report: PitchReport; onPick: (item: ReportItem) => void }) {
-  const [open, setOpen] = useState<string | null>(report.primary);
+export function ElementGrid({
+  c,
+  report,
+  onPick,
+  onScene,
+}: {
+  c: Palette;
+  report: PitchReport;
+  onPick: (item: ReportItem) => void;
+  onScene: (item: ReportItem) => void;
+}) {
+  const [sel, setSel] = useState<string>(report.primary ?? report.items[0]?.element ?? '');
+  const it = report.items.find((i) => i.element === sel) ?? report.items[0];
+  if (!it) return null;
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: 10 }}>
       <View style={[s.row, s.secLabel, { flexWrap: 'wrap' }]}>
-        <Text accessibilityRole="header" style={[TYPE.sub, { color: c.muted }]}>
-          여섯 요소 판독
+        <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>
+          요소별 분석
         </Text>
         <Text style={[TYPE.sub, { color: c.muted }]}>{coverageText(report.coverage)}</Text>
       </View>
-      <View style={[s.list, { backgroundColor: c.card, boxShadow: c.float }]}>
-        {report.items.map((i, n) => {
-          const on = open === i.element;
+      <View accessibilityRole="radiogroup" style={s.grid}>
+        {report.items.map((i) => {
+          const on = i.element === it.element;
+          const tone = i.status === 'improve' || i.status === 'edge' ? c.warn : i.status === 'good' ? c.ok : c.muted;
           return (
-            <View key={i.element} style={n > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line } : null}>
-              <Pressable
-                onPress={() => {
-                  void Haptics.selectionAsync();
-                  setOpen(on ? null : i.element);
-                }}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: on }}
-                accessibilityHint={on ? '접어요' : '펴서 관찰 · 읽는 법 · 장면을 봐요'}
-                style={({ pressed }) => [s.elRow, pressed && { opacity: 0.6 }]}
-              >
+            <Pressable
+              key={i.element}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: on }}
+              accessibilityLabel={`${i.element} ${REPORT_STATUS_TEXT[i.status]}`}
+              onPress={() => {
+                void Haptics.selectionAsync();
+                setSel(i.element);
+                onPick(i);
+              }}
+              style={({ pressed }) => [
+                s.gridCard,
+                { backgroundColor: on ? c.skyTint : c.card, borderColor: on ? c.sky : 'transparent', boxShadow: c.float, opacity: pressed ? 0.75 : 1 },
+              ]}
+            >
+              <Text numberOfLines={1} style={[TYPE.body, { color: c.ink, fontWeight: '600' }]}>
+                {i.element}
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Dot c={c} status={i.status} />
-                <View style={{ flex: 1, gap: 1 }}>
-                  <Text style={[TYPE.body, { color: c.ink, fontWeight: '600' }]}>{i.element}</Text>
-                  <Text numberOfLines={2} style={[TYPE.sub, { color: c.muted }]}>
-                    {itemSub(i)}
-                  </Text>
-                </View>
-                <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                  <Text style={[TYPE.body, TYPE.numInline, { color: c.ink, fontSize: 17 }]}>{i.value ?? '—'}</Text>
-                  <StatusTag c={c} status={i.status} />
-                </View>
-                <Text style={[s.chev, { color: c.muted, transform: [{ rotate: on ? '90deg' : '0deg' }] }]}>›</Text>
-              </Pressable>
-              {on ? (
-                <View style={s.elDetail}>
-                  <Text style={[TYPE.body, { color: c.ink }]}>{itemObs(i)}</Text>
-                  {showsGauge(i) ? <Gauge c={c} g={i.gauge!} /> : null}
-                  {i.foot ? <Text style={[TYPE.sub, { color: c.muted }]}>{i.foot}</Text> : null}
-                  {i.metricNote ? <Text style={[TYPE.sub, { color: c.muted }]}>{i.metricNote}</Text> : null}
-                  <Text style={[TYPE.sub, { color: c.muted }]}>{measurementText(i)}</Text>
-                  {i.frame != null ? <SceneButton c={c} item={i} onScene={onPick} /> : null}
-                </View>
-              ) : null}
-            </View>
+                <Text style={[TYPE.sub, { color: tone }]} accessibilityElementsHidden importantForAccessibility="no">
+                  {REPORT_STATUS_TEXT[i.status]}
+                </Text>
+              </View>
+            </Pressable>
           );
         })}
+      </View>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 10 }]} accessibilityLiveRegion="polite">
+        <View style={s.row}>
+          <Text style={[TYPE.card, { color: c.ink, flexShrink: 1 }]}>{it.element}</Text>
+          <StatusTag c={c} status={it.status} />
+        </View>
+        <Text style={[TYPE.body, { color: c.ink }]}>{itemObs(it)}</Text>
+        <View style={[s.measure, { backgroundColor: c.page }]}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[TYPE.sub, { color: c.muted }]}>{it.valueLabel ?? itemSub(it)}</Text>
+            <Text style={[TYPE.sub, { color: c.muted }]}>{measurementText(it)}</Text>
+          </View>
+          <Text style={[TYPE.num, { color: it.value != null ? c.ink : c.muted, fontSize: it.value != null ? 24 : 15 }]}>{it.value ?? '측정값 없음'}</Text>
+        </View>
+        {showsGauge(it) ? <Gauge c={c} g={it.gauge!} /> : null}
+        {it.foot ? <Text style={[TYPE.sub, { color: c.muted }]}>{it.foot}</Text> : null}
+        {it.metricNote ? <Text style={[TYPE.sub, { color: c.muted }]}>{it.metricNote}</Text> : null}
+        {it.frame != null ? <SceneButton c={c} item={it} onScene={onScene} /> : null}
       </View>
     </View>
   );
@@ -235,7 +257,8 @@ export function FlowCard({ c, report, onPick }: { c: Palette; report: PitchRepor
 
 /* ───────────────────────────── 처방 ───────────────────────────── */
 
-function RxBlock({ c, rx }: { c: Palette; rx: ElementRx }) {
+/** 추천 훈련 한 요소 — 목적(관찰 기반 한 줄)과 대표 드릴(전체에서 많아야 2개). 주차별 계획은 훈련 상세에서 */
+function RxBlock({ c, rx, drills }: { c: Palette; rx: ElementRx; drills: (ElementRx['weeks'][number]['drills'][number] & { stage: string })[] }) {
   const improve = rx.level === 'improve';
   return (
     <View style={{ gap: 10 }}>
@@ -248,23 +271,21 @@ function RxBlock({ c, rx }: { c: Palette; rx: ElementRx }) {
       <View style={[s.cue, { borderLeftColor: improve ? c.warn : c.lineStrong }]}>
         <Text style={[TYPE.body, { color: c.ink, fontSize: 16, lineHeight: 22 }]}>{rx.cue}</Text>
       </View>
-      {rx.weeks.flatMap((w) =>
-        w.drills.map((d) => (
-          <View key={`${w.week}-${d.title}`} style={[s.drill, { borderTopColor: c.line }]}>
-            {d.thumbUrl ? (
-              <Image source={{ uri: d.thumbUrl }} style={[s.thumb, { backgroundColor: c.page }]} contentFit="cover" />
-            ) : (
-              <View style={[s.thumb, { backgroundColor: c.page }]} />
-            )}
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={[TYPE.body, { color: c.ink }]}>{d.title}</Text>
-              <Text style={[TYPE.sub, { color: c.muted }]}>
-                {w.stage} · {d.dose}
-              </Text>
-            </View>
+      {drills.map((d) => (
+        <View key={d.title} style={[s.drill, { borderTopColor: c.line }]}>
+          {d.thumbUrl ? (
+            <Image source={{ uri: d.thumbUrl }} style={[s.thumb, { backgroundColor: c.page }]} contentFit="cover" />
+          ) : (
+            <View style={[s.thumb, { backgroundColor: c.page }]} />
+          )}
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[TYPE.body, { color: c.ink }]}>{d.title}</Text>
+            <Text style={[TYPE.sub, { color: c.muted }]}>
+              {d.stage} · {d.dose}
+            </Text>
           </View>
-        ))
-      )}
+        </View>
+      ))}
       {rx.target ? (
         <View style={[s.target, { backgroundColor: c.page }]}>
           <Text style={[TYPE.sub, { color: c.muted }]}>다음에 볼 숫자 · {rx.target.label}</Text>
@@ -307,7 +328,9 @@ export function RxCard({
     const steps = report.criteria === REPORT_CRITERIA && report.coverage ? nextStepsOf(report) : [];
     return (
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 10 }]}>
-        <Text style={[TYPE.card, { color: c.ink }]}>개선 드릴</Text>
+        <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>
+          다음 행동
+        </Text>
         <Text style={[TYPE.body, { color: c.muted }]}>{prescriptionMessage(report)}</Text>
         {steps.map((st) => (
           <Pressable
@@ -326,17 +349,46 @@ export function RxCard({
             <Text style={[s.chev, { color: c.muted }]}>›</Text>
           </Pressable>
         ))}
+        {/* 판정 어려움(평가한 요소가 하나도 없음) — 측정 · 처방을 만들지 않고 다시 찍을 길만(촬영 안내는 위 steps 또는 여기) */}
+        {!report.items.some((i) => i.status === 'improve' || i.status === 'edge' || i.status === 'fair' || i.status === 'good') ? (
+          <>
+            {!steps.some((st) => st.kind === 'guide') ? (
+              <Pressable onPress={() => router.push('/lab/guide?s=frame' as Href)} accessibilityRole="link" style={({ pressed }) => [s.step, { backgroundColor: c.page, opacity: pressed ? 0.7 : 1 }]}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[TYPE.buttonCompact, { color: c.ink }]}>촬영 안내 보기</Text>
+                  <Text style={[TYPE.sub, { color: c.muted }]}>두 영상에 몸 전체가 잘 보이게 찍는 법이에요.</Text>
+                </View>
+                <Text style={[s.chev, { color: c.muted }]}>›</Text>
+              </Pressable>
+            ) : null}
+            <Pressable onPress={() => router.push('/lab/new' as Href)} accessibilityRole="button" style={({ pressed }) => [s.cta, { backgroundColor: c.action, opacity: pressed ? 0.85 : 1 }]}>
+              <Text style={s.ctaText}>영상 다시 골라 분석</Text>
+            </Pressable>
+          </>
+        ) : null}
       </View>
     );
   }
   const main = report.rx[0];
   const cta = rxAction(mine, focus);
+  /* 대표 드릴은 처방 전체에서 많아야 2개 — 보고서가 고른 드릴만(시안의 예시 드릴 · 횟수는 쓰지 않는다) */
+  const blocks = report.rx.reduce<{ rx: ElementRx; drills: (ElementRx['weeks'][number]['drills'][number] & { stage: string })[] }[]>((acc, rx) => {
+    const used = acc.reduce((n, b) => n + b.drills.length, 0);
+    const all = rx.weeks.flatMap((w) => w.drills.map((d) => ({ ...d, stage: w.stage })));
+    const drills = all.filter((d, n) => all.findIndex((x) => x.title === d.title) === n).slice(0, Math.max(0, 2 - used));
+    return [...acc, { rx, drills }];
+  }, []);
   return (
     <View style={{ gap: 8 }}>
-      <Text style={[TYPE.sub, s.secLabel, { color: c.muted }]}>개선 드릴 · 쉬운 것부터</Text>
+      <View style={[s.row, s.secLabel]}>
+        <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>
+          추천 훈련
+        </Text>
+        <Text style={[TYPE.sub, { color: c.muted }]}>확인된 항목 기준</Text>
+      </View>
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 18 }]}>
-        {report.rx.map((rx) => (
-          <RxBlock key={rx.element} c={c} rx={rx} />
+        {blocks.map((b) => (
+          <RxBlock key={b.rx.element} c={c} rx={b.rx} drills={b.drills} />
         ))}
         {report.later.length > 0 ? <Text style={[TYPE.sub, { color: c.muted }]}>다음 차례 · {report.later.join(' · ')}</Text> : null}
         <View style={{ gap: 8 }}>
@@ -414,17 +466,18 @@ const s = StyleSheet.create({
   secLabel: { paddingHorizontal: 4 },
   card: { borderRadius: 20, padding: 18 },
   list: { borderRadius: 20, overflow: 'hidden' },
-  elRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingHorizontal: 18, paddingVertical: 10 },
-  elDetail: { paddingHorizontal: 18, paddingBottom: 16, gap: 10 },
   chev: { fontSize: 20, width: 12, textAlign: 'center' },
   dot: { width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   dotCore: { width: 6, height: 6, borderRadius: 3 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  gridCard: { width: '48%', flexGrow: 1, minHeight: 72, borderRadius: 18, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 12, gap: 6 },
+  measure: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   scene: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', minHeight: 44, borderRadius: 22, paddingHorizontal: 16 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   track: { position: 'absolute', left: 0, right: 0, top: 10, height: 6, borderRadius: 3, overflow: 'hidden' },
   marker: { position: 'absolute', top: 5, width: 16, height: 16, marginLeft: -8, borderRadius: 8, borderWidth: 3 },
-  cut: { position: 'absolute', top: 20, fontSize: 11, transform: [{ translateX: -12 }] },
+  cut: { position: 'absolute', top: 20, fontSize: 11, transform: [{ translateX: -24 }] },
   cue: { borderLeftWidth: 2, paddingLeft: 12 },
   drill: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
   thumb: { width: 44, height: 44, borderRadius: 10 },

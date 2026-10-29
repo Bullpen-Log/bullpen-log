@@ -141,7 +141,7 @@ assert.equal(hk.measurement.quality, 'low');
 assert.match(hk.line, /앞다리가 영상에서 잘 보이지 않아/);
 
 /* 개선 드릴 단추 — 새 3주 처방은 시작하지 않는다, 진행 중인 옛 처방은 그대로 */
-assert.deepEqual(rxAction(true, null), { kind: 'drills', label: '드릴 영상 보기', note: RX_PRACTICE_NOTE });
+assert.deepEqual(rxAction(true, null), { kind: 'drills', label: '추천 훈련 보기', note: RX_PRACTICE_NOTE });
 assert.equal(rxAction(false, null).kind, 'drills');
 assert.equal(rxAction(true, { done: 2, total: 9 }).kind, 'progress');
 assert.equal(rxAction(true, { done: 9, total: 9 }).kind, 'retake');

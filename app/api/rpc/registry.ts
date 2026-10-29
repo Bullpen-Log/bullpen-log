@@ -9,6 +9,7 @@ import 'server-only';
 import * as mechanicsReview from '@/app/actions/mechanics-review';
 import * as abs from '@/app/actions/abs';
 import * as admin from '@/app/actions/admin';
+import * as analysisConsent from '@/app/actions/analysis-consent';
 import * as app from '@/app/actions/app';
 import * as appAdmin from '@/app/actions/app-admin';
 import * as appDugout from '@/app/actions/app-dugout';
@@ -80,6 +81,7 @@ import * as workout from '@/app/actions/workout';
 export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   abs: abs,
   admin: admin,
+  'analysis-consent': analysisConsent,
   app: app,
   'app-admin': appAdmin,
   'app-dugout': appDugout,

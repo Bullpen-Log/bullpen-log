@@ -59,7 +59,8 @@ export type Transport = {
   speed: Speed;
   reason: 'tick' | 'seek' | 'toggle' | 'speed';
 };
-export type Body3DHandle = { seek: (frame: number) => void };
+/** seek: 장면으로 · view: 시점 바꾸기(앱 결과 화면의 원본 옆 · 뒤 전환이 3D 도 그 시점으로, 2026-10-29) */
+export type Body3DHandle = { seek: (frame: number) => void; view: (v: ViewName) => void };
 
 /** 재생 중 자세를 다시 짓는 가장 짧은 간격(ms) — 초당 60번쯤. 120Hz 화면에서도 두 장면에 한 번 */
 const POSE_MIN_MS = 15;
@@ -666,7 +667,17 @@ export const Body3D = forwardRef<
     };
   }, [bounds, track, mann, n, firstStop, result.hand, result.t, result.cameras, result.joints, result.events, result.metrics, retry]);
 
-  useImperativeHandle(ref, () => ({ seek: (k) => ctrl.current?.seek(k) }), []);
+  useImperativeHandle(
+    ref,
+    () => ({
+      seek: (k) => ctrl.current?.seek(k),
+      view: (v) => {
+        setView(v);
+        ctrl.current?.view(v, true);
+      },
+    }),
+    []
+  );
 
   const toggle = useCallback(() => ctrl.current?.play(!playing), [playing]);
   const seek = (k: number) => ctrl.current?.seek(k);
@@ -703,7 +714,7 @@ export const Body3D = forwardRef<
       >
         {status !== 'ready' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-sm text-[#c7cfdd]">
-            {status === 'loading' && <p>인형을 만드는 중이에요</p>}
+            {status === 'loading' && <p>3D 동작을 불러오고 있어요.</p>}
             {status === 'unavailable' && (
               <p>이 브라우저는 3D 를 그릴 수 없어요. 숫자는 아래에 그대로 있어요.</p>
             )}

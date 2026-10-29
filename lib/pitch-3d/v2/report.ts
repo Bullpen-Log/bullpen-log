@@ -974,7 +974,7 @@ export type RxAction = { kind: 'progress' | 'retake' | 'drills'; label: string; 
 export const RX_PRACTICE_NOTE = '며칠에 걸쳐 몇 번 해 보고, 같은 자리에서 다시 찍으면 지난번과 숫자를 견줘 보여 드려요.';
 
 /**
- * 개선 드릴 카드 맨 아래 단추(웹 · 앱 같은 판단) — 드릴 영상 보기(요소별 드릴). 2026-10-26 전에 시작한 3주 처방이 진행 중이면 진행 · 다시 찍기.
+ * 개선 드릴 카드 맨 아래 단추(웹 · 앱 같은 판단) — 내 리포트면 '추천 훈련 보기'(요소별 드릴 — 보기만, 프로그램을 바꾸지 않는다), 남의 것이면 드릴 영상 보기. 2026-10-26 전에 시작한 3주 처방이 진행 중이면 진행 · 다시 찍기.
  * 새 3주 처방은 시작하지 않는다(lib/mechanics/focus-load.ts). 갈 주소는 화면마다(웹 · 앱 길이 달라서).
  */
 export function rxAction(mine: boolean, focus: FocusProgress): RxAction {
@@ -986,7 +986,7 @@ export function rxAction(mine: boolean, focus: FocusProgress): RxAction {
   if (focus && focus.done >= focus.total)
     return { kind: 'retake', label: '다시 찍어 리포트 받기', note: '처방을 마쳤어요. 같은 자리에서 다시 찍어 견줘요.' };
   if (focus) return { kind: 'progress', label: `처방 진행 중 ${focus.done} / ${focus.total}`, note: '메카닉 프로그램에서 이어서 해요.' };
-  return { kind: 'drills', label: '드릴 영상 보기', note: RX_PRACTICE_NOTE };
+  return { kind: 'drills', label: '추천 훈련 보기', note: RX_PRACTICE_NOTE };
 }
 
 /** 만 나이(생년월일 'YYYY-MM-DD' · Date) — 모르면 null */

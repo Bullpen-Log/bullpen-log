@@ -115,14 +115,16 @@ assert.match(webFlow, />영상 신뢰도 부족</, '확인 못 한 줄은 까닭
 assert.doesNotMatch(webFlow, /aria-expanded="true"/);
 assert.match(webFlow, /border-2 border-muted bg-surface[^"]*"[^>]*><span class="size-1.5 rounded-full bg-muted"/, '참고 = 실선 고리 + 가운데 점');
 assert.match(webFlow, /border-dashed border-line-strong bg-surface[^"]*"[^>]*><\/span>/, '확인 어려움 = 점선 빈 고리');
-for (const components of [native, web]) {
+/* 앱은 2026-10-29 결과 화면 개편으로 여섯 요소가 2열 고르기 카드 + 고른 요소 상세 한 장(ElementGrid), 처방 카드 제목이 '추천 훈련'이다 — 고른(주) 요소의 상세는 FlowCard 의 펼친 줄과 같은 글 */
+const nativeParts = { ...native, FlowCard: (props) => native.ElementGrid({ ...props, onScene: props.onPick }) };
+for (const components of [nativeParts, web]) {
   const flow = render(components.FlowCard, { report: { ...report, primary: '브레이크' }, onPick() {} });
   assert.match(flow, /수치 확인 6\/6 · 평가 가능 5\/6/);
   assert.match(flow, /수치 확인 · 평가 가능/);
   assert.match(flow, /30°/);
   assert.match(flow, /최대 30° 더 굽어져요/, '펴 둔 줄은 수치 관찰부터');
   assert.match(flow, /앞무릎이 가장 굽은 장면 보기/);
-  assert.match(flow, /문턱/, '평가한 칸은 기준 띠');
+  assert.match(flow, /판정 기준/, '평가한 칸은 기준 띠');
   assert.doesNotMatch(flow, /지표 검증 중/, '평가 지표에 검증 중 표시 없음');
   /* 이번 투구의 핵심 — 주 문제의 수치 · 관찰 · 근거 · 장면. 요소 일반 설명(인과 문장)은 쓰지 않는다 */
   const lead = render(components.KeyFinding, { report, onScene() {} });
@@ -146,7 +148,7 @@ for (const components of [native, web]) {
   assert.match(ref, /성장기는 크기보다 순서를 먼저 봐서/);
   assert.match(ref, /성장기라 참고/);
   assert.ok(ref.indexOf('기울어져 있어요') < ref.indexOf('성장기는 크기보다'), '관찰이 제한 안내보다 먼저');
-  assert.doesNotMatch(ref, /문턱|참고선/, '참고 칸에는 기준 띠를 안 그린다(목표선처럼 보이지 않게)');
+  assert.doesNotMatch(ref, /판정 기준|참고선/, '참고 칸에는 기준 띠를 안 그린다(목표선처럼 보이지 않게)');
   const armRef = render(components.FlowCard, { report: { ...refReport, primary: '스로잉' }, onPick() {} });
   assert.match(armRef, /어깨 벌림은 88°예요/);
   assert.match(armRef, /동작이나 촬영에 문제가 있다는 뜻은 아니에요/);
@@ -158,10 +160,10 @@ for (const components of [native, web]) {
   assert.match(hard, /수치 확인 5\/6 · 평가 가능 5\/6/);
   /* 개선 드릴 — 한 번 보는 목록, 새 3주 처방 단추 없음 */
   const rx = render(components.RxCard, { report, mine: true, focus: null });
-  assert.match(rx, /개선 드릴 · 쉬운 것부터/);
+  assert.match(rx, components === web ? /개선 드릴 · 쉬운 것부터/ : /추천 훈련/);
   assert.match(rx, /레그 리프트 드리프트/);
   assert.match(rx, /기초/);
-  assert.match(rx, /드릴 영상 보기/);
+  assert.match(rx, /추천 훈련 보기/);
   assert.match(rx, /같은 자리에서 다시 찍으면 지난번과 숫자를 견줘/);
   assert.doesNotMatch(rx, /처방 시작|1단계|집중 · 2칸|보조 · 1칸/);
   assert.match(render(components.RxCard, { report, mine: true, focus: { done: 3, total: 9 } }), /처방 진행 중 3 \/ 9/, '진행 중인 옛 처방은 그대로');

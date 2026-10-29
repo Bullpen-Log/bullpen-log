@@ -26,7 +26,12 @@ type ToApp =
   | { t: 'lab'; kind: 'size'; h: number }
   | ({ t: 'lab'; kind: 'transport'; side: number; back: number; cam3?: number; cam4?: number } & Transport);
 
-type Bridge = { ReactNativeWebView?: { postMessage(s: string): void }; __labSeek?: (frame: number) => void };
+type Bridge = {
+  ReactNativeWebView?: { postMessage(s: string): void };
+  __labSeek?: (frame: number) => void;
+  /** 시점 바꾸기 — 앱이 원본 옆 · 뒤를 바꿀 때 3D 도 같은 쪽에서 보게(2026-10-29) */
+  __labView?: (view: string) => void;
+};
 
 const post = (msg: ToApp) => (window as unknown as Bridge).ReactNativeWebView?.postMessage(JSON.stringify(msg));
 
@@ -90,6 +95,9 @@ export function LabEmbed({
   useEffect(() => {
     const w = window as unknown as Bridge;
     w.__labSeek = (k) => body.current?.seek(k);
+    w.__labView = (v) => {
+      if (v === 'side' || v === 'back' || v === 'catcher' || v === 'top') body.current?.view(v);
+    };
     const el = box.current;
     let ro: ResizeObserver | undefined;
     if (el) {
@@ -102,6 +110,7 @@ export function LabEmbed({
     return () => {
       ro?.disconnect();
       delete w.__labSeek;
+      delete w.__labView;
     };
   }, []);
 

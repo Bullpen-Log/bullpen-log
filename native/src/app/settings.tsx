@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { Icon, type IconName } from '~/shell/icon';
 import * as WebBrowser from 'expo-web-browser';
+import { type Href, router } from 'expo-router';
 import Constants from 'expo-constants';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -58,6 +59,8 @@ export default function SettingsScreen() {
           <View style={[st.group, { backgroundColor: c.card }]}>
             <Row label="이용약관" onPress={() => open('/terms')} c={c} />
             <Row label="개인정보 처리방침" onPress={() => open('/privacy')} c={c} />
+            {/* 3D 분석 국외 이전 동의 — 내역 · 철회(2026-10-29, app/lab/consent.tsx) */}
+            <Row label="3D 분석 국외 이전 동의" onPress={() => router.push('/lab/consent' as Href)} c={c} />
             <Row label="3D 모델 출처" onPress={() => setCredit((v) => !v)} open={credit} c={c} />
             {credit ? (
               <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 10 }}>

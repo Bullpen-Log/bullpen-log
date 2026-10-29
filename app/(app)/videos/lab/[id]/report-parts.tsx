@@ -61,7 +61,7 @@ function StatusTag({ status }: { status: ReportStatus }) {
   );
 }
 
-/** 기준 띠 — 고칠 점 · 경계 · 보통 · 좋아요 네 칸 + 내 값 점 + 문턱. 평가한 칸에만 그린다(report-view showsGauge) */
+/** 기준 띠 — 고칠 점 · 경계 · 보통 · 좋아요 네 칸 + 내 값 점 + 판정 기준(고칠 점이 시작되는 값, 옛 이름 '문턱'). 평가한 칸에만 그린다(report-view showsGauge) */
 export function Gauge({ g }: { g: ReportGauge }) {
   const x = (v: number) => Math.max(0, Math.min(100, ((v - g.lo) / (g.hi - g.lo)) * 100));
   const a = x(g.cut);
@@ -90,8 +90,8 @@ export function Gauge({ g }: { g: ReportGauge }) {
         )}
       </div>
       <span className="absolute top-1 size-4 -translate-x-1/2 rounded-full border-[3px] border-surface bg-ink" style={{ left: `${x(g.value)}%` }} />
-      <span className="absolute top-5 -translate-x-1/2 text-caption text-warn" style={{ left: `${a}%` }}>
-        문턱
+      <span className="absolute top-5 -translate-x-1/2 whitespace-nowrap text-caption text-warn" style={{ left: `${a}%` }}>
+        판정 기준
       </span>
     </div>
   );

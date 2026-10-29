@@ -158,7 +158,8 @@ export async function uploadLabVideo(
   id: string,
   view: LabView | 'cam3' | 'cam4',
   asset: ImagePicker.ImagePickerAsset,
-  onProgress: (percent: number) => void,
+  /** 퍼센트 + 보낸 · 전체 바이트(진행 화면이 두 파일을 합쳐 센다) */
+  onProgress: (percent: number, sent?: number, total?: number) => void,
   /** 'hit' = 3D 스윙 분석(타자) 폴더 — ③ · ④ 카메라는 그때 3D 개발 관리자만 */
   sport: LabSport = 'pitch'
 ): Promise<void> {
@@ -177,7 +178,9 @@ export async function uploadLabVideo(
       json.signedUrl!,
       asset.uri,
       { httpMethod: 'PUT', uploadType: FileSystemUploadType.BINARY_CONTENT, headers: { 'content-type': type } },
-      (p) => p.totalBytesExpectedToSend > 0 && onProgress(Math.round((p.totalBytesSent / p.totalBytesExpectedToSend) * 100))
+      (p) =>
+        p.totalBytesExpectedToSend > 0 &&
+        onProgress(Math.round((p.totalBytesSent / p.totalBytesExpectedToSend) * 100), p.totalBytesSent, p.totalBytesExpectedToSend)
     );
     const r = await task.uploadAsync();
     if (!r || r.status < 200 || r.status >= 300) throw new Error('업로드에 실패했어요.');
@@ -187,7 +190,7 @@ export async function uploadLabVideo(
   } catch {
     /* 신호가 잠깐 끊긴 것일 수 있다 — 같은 주소로 한 번 더(웹과 같다) */
     await new Promise((r) => setTimeout(r, 1500));
-    onProgress(0);
+    onProgress(0, 0, asset.fileSize ?? undefined);
     await put();
   }
 }

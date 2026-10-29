@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { router, Stack } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AuthState } from '@/app/actions/auth';
@@ -30,6 +30,7 @@ import { Icon, type IconName } from '~/shell/icon';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { leaveTo } from '~/shell/web-nav';
 import { READABLE } from '~/lib/layout';
+import { consentAgeBlock, type AnalysisConsentDoc } from '@/lib/analysis-consent';
 
 /**
  * 가입(앱 화면) — 웹 가입(app/login/auth-form.tsx)을 옮겼다: 종류(선수 · 레슨장 · 팀) → 이름 · 이메일 · 비밀번호 → 선수는 생년월일 · 성별 → 키 · 몸무게,
@@ -73,6 +74,22 @@ export default function SignupScreen() {
   const unit = useWeightUnit();
   const keyboardUp = useKeyboardUp();
   const [a, setA] = useState<SignupAnswers>(EMPTY_SIGNUP);
+  /*
+   * [선택] 3D 분석 국외 이전 동의(2026-10-29) — 서버가 문서를 확정했다고 할 때만 줄을 그린다(못 받으면 안 그림 · 가입은 그대로).
+   * 필수 '모두 동의'에 묶지 않고 기본 꺼짐. 켜면 본 문서 판을 같이 보내고, 서버가 계정과 같은 트랜잭션에 남긴다(app/actions/auth.ts).
+   */
+  const [analysisDoc, setAnalysisDoc] = useState<AnalysisConsentDoc | null>(null);
+  const [analysisOpen, setAnalysisOpen] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    rpc<{ ok: true; ready: boolean; doc: AnalysisConsentDoc }>('analysis-consent.loadAnalysisConsentDoc').then(
+      (r) => alive && r.ready && setAnalysisDoc(r.doc),
+      () => undefined
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [step, setStep] = useState<WebSignupStep>('kind');
   const [problem, setProblem] = useState<{ error: string; field: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -344,9 +361,51 @@ export default function SignupScreen() {
 
         {step === 'terms' ? (
           <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
-            <AgreeRow label="모두 동의" value={a.agreeTerms && a.agreePrivacy} onChange={(v) => set({ agreeTerms: v, agreePrivacy: v })} strong c={c} />
+            <AgreeRow label="필수 항목 모두 동의" value={a.agreeTerms && a.agreePrivacy} onChange={(v) => set({ agreeTerms: v, agreePrivacy: v })} strong c={c} />
             <AgreeRow label="이용약관 동의(필수)" doc="terms" value={a.agreeTerms} onChange={(v) => set({ agreeTerms: v })} bad={bad('agreeTerms')} c={c} />
             <AgreeRow label="개인정보 처리방침 동의(필수)" doc="privacy" value={a.agreePrivacy} onChange={(v) => set({ agreePrivacy: v })} bad={bad('agreePrivacy')} last c={c} />
+          </View>
+        ) : null}
+        {step === 'terms' && analysisDoc && (!a.kind || a.kind === 'player') && !(a.birthDate && consentAgeBlock(new Date(a.birthDate), new Date())) ? (
+          <View style={{ gap: 6 }}>
+            <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
+              <View style={[st.row, { alignItems: 'flex-start', paddingVertical: 12 }]}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={{ color: c.sky, fontSize: 13, fontWeight: '700' }}>선택</Text>
+                  <Text style={{ color: c.ink, fontSize: 17 }}>{analysisDoc.title}</Text>
+                  <Pressable accessibilityRole="button" accessibilityState={{ expanded: analysisOpen }} onPress={() => setAnalysisOpen((v) => !v)} hitSlop={8}>
+                    <Text style={{ color: c.link, fontSize: 15 }}>{analysisOpen ? '내용 접기' : '내용 보기 ›'}</Text>
+                  </Pressable>
+                </View>
+                <Switch
+                  value={a.analysisConsentVersion === analysisDoc.version}
+                  onValueChange={(v) => set({ analysisConsentVersion: v ? analysisDoc.version : null })}
+                  accessibilityLabel={`${analysisDoc.title}(선택)`}
+                />
+              </View>
+              {analysisOpen ? (
+                <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 6 }}>
+                  {(
+                    [
+                      ['이전 항목', analysisDoc.items],
+                      ['이전 국가', analysisDoc.country],
+                      ['받는 곳', [analysisDoc.recipient, analysisDoc.contact].filter(Boolean).join(' · ')],
+                      ['시기 · 방법', analysisDoc.when],
+                      ['이용 목적', analysisDoc.purpose],
+                      ['보유 · 이용 기간', analysisDoc.retention ?? ''],
+                    ] as const
+                  ).map(([k, v]) => (
+                    <Text key={k} style={[TYPE.sub, { color: c.ink }]}>
+                      <Text style={{ color: c.muted }}>{k} </Text>
+                      {v}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+            <Text style={[TYPE.sub, { color: c.muted, paddingHorizontal: 4 }]}>
+              선택 항목에 동의하지 않아도 가입할 수 있어요. 동의하지 않으면 첫 3D 분석 때 한 번 더 물어봐요.
+            </Text>
           </View>
         ) : null}
 

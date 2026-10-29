@@ -68,6 +68,7 @@
     "velocity:bench:report": "node scripts/velocity-bench/report.mjs",
     "velocity:session-test": "node --import ./scripts/alias-register.mjs scripts/velocity-session-selftest.mts",
     "app-update:test": "node --import ./scripts/alias-loader.mjs scripts/app-update-selftest.mts",
+    "analysis-consent:test": "node --import ./scripts/alias-register.mjs scripts/analysis-consent-selftest.mts",
     "velocity:queue-test": "node scripts/velocity-engine-queue-test.mts",
     "velocity:detect-test": "node scripts/velocity-detect-test.mts",
     "velocity:video-test": "node scripts/velocity-video-test.mts",

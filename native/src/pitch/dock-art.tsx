@@ -37,7 +37,8 @@ const LIMBS: [string, number][] = [
   ['M149 70 L153 61', 12],
 ];
 
-export function PitcherMark({ size }: { size: number }) {
+/** layer — 'all' 전체 · 'body' 몸만 · 'joints' 관절점 · 연결선만(3D 분석 진행 화면이 몸 위에 관절을 띄운다, 2026-10-29) */
+export function PitcherMark({ size, layer = 'all' }: { size: number; layer?: 'all' | 'body' | 'joints' }) {
   const k = useTheme() === 'light' ? LIGHT : DARK;
   return (
     <Svg width={size} height={size} viewBox="26 25 204 204" fill="none" accessible={false}>
@@ -49,25 +50,33 @@ export function PitcherMark({ size }: { size: number }) {
         </LinearGradient>
       </Defs>
       <G transform="translate(-5 8)">
-        <G stroke="url(#pitch-blue)" strokeLinecap="round" strokeLinejoin="round">
-          {LIMBS.map(([d, w]) => (
-            <Path key={d} d={d} strokeWidth={w} />
-          ))}
-        </G>
-        <Path d="M141 69 Q146 65 153 70 L165 78 Q173 81 173 88 L160 132 Q158 140 150 140 L139 138 Q133 136 132 129 L125 87 Q122 81 130 77Z" fill="url(#pitch-blue)" />
-        <Ellipse cx="153" cy="52" rx="13.5" ry="15" transform="rotate(10 153 52)" fill="url(#pitch-blue)" />
-        <Circle cx="114" cy="32.5" r="6.5" fill="url(#pitch-blue)" />
-        <Ellipse cx="196" cy="116" rx="8" ry="10.5" transform="rotate(-34 196 116)" fill="url(#pitch-blue)" />
-        <G stroke={k.link} strokeWidth={2.15} strokeLinecap="round" strokeLinejoin="round" opacity={0.9}>
-          {LINKS.map((d) => (
-            <Path key={d} d={d} />
-          ))}
-        </G>
-        <G fill={k.nodeFill} stroke={k.nodeStroke} strokeWidth={1.25}>
-          {NODES.map(([x, y]) => (
-            <Circle key={`${x}-${y}`} cx={x} cy={y} r={3.4} />
-          ))}
-        </G>
+        {layer !== 'joints' ? (
+          <G>
+            <G stroke="url(#pitch-blue)" strokeLinecap="round" strokeLinejoin="round">
+              {LIMBS.map(([d, w]) => (
+                <Path key={d} d={d} strokeWidth={w} />
+              ))}
+            </G>
+            <Path d="M141 69 Q146 65 153 70 L165 78 Q173 81 173 88 L160 132 Q158 140 150 140 L139 138 Q133 136 132 129 L125 87 Q122 81 130 77Z" fill="url(#pitch-blue)" />
+            <Ellipse cx="153" cy="52" rx="13.5" ry="15" transform="rotate(10 153 52)" fill="url(#pitch-blue)" />
+            <Circle cx="114" cy="32.5" r="6.5" fill="url(#pitch-blue)" />
+            <Ellipse cx="196" cy="116" rx="8" ry="10.5" transform="rotate(-34 196 116)" fill="url(#pitch-blue)" />
+          </G>
+        ) : null}
+        {layer !== 'body' ? (
+          <G>
+            <G stroke={k.link} strokeWidth={2.15} strokeLinecap="round" strokeLinejoin="round" opacity={0.9}>
+              {LINKS.map((d) => (
+                <Path key={d} d={d} />
+              ))}
+            </G>
+            <G fill={k.nodeFill} stroke={k.nodeStroke} strokeWidth={1.25}>
+              {NODES.map(([x, y]) => (
+                <Circle key={`${x}-${y}`} cx={x} cy={y} r={3.4} />
+              ))}
+            </G>
+          </G>
+        ) : null}
       </G>
     </Svg>
   );

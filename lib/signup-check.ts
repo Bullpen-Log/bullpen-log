@@ -38,6 +38,8 @@ export type SignupAnswers = {
   passwordConfirm: string;
   agreeTerms: boolean;
   agreePrivacy: boolean;
+  /** [선택] 3D 분석 국외 이전 동의 — 본 문서 판(서버가 그 판일 때만 남긴다, app/actions/auth.ts). 안 켜면 null */
+  analysisConsentVersion?: string | null;
   /** 레슨장 · 팀 가입만 — 조직 이름 · 지역 · 메모(레슨장: 코치 수 · 소개, 팀: 연령대 · 리그) */
   orgName: string;
   orgRegion: string;
@@ -261,6 +263,8 @@ export function signupFields(a: SignupAnswers): Record<string, string | null> {
     passwordConfirm: a.passwordConfirm,
     agreeTerms: a.agreeTerms ? 'on' : null,
     agreePrivacy: a.agreePrivacy ? 'on' : null,
+    analysisConsent: a.analysisConsentVersion ? 'on' : null,
+    analysisConsentVersion: a.analysisConsentVersion ?? null,
     /* 레슨장 · 팀 — 서버(app/actions/auth.ts)가 accountType 이 'MASTER' 면 조직을 함께 만든다. 선수는 이 칸들이 없다 */
     ...(isMasterKind(a.kind)
       ? {

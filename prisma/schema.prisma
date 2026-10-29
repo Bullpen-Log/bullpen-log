@@ -206,6 +206,24 @@ model User {
   calendarEvents    CalendarEvent[]
   mealPlans         MealPlan[]
   dailyNutrition    DailyNutrition[]
+  analysisConsents  AnalysisConsent[]
+}
+
+/// 3D 동작 분석 — 개인정보 국외 이전 동의 이력(2026-10-29 김민: 가입 때 별도 선택 · 첫 분석 때 없으면 한 번, 개인정보 보호법 제28조의8).
+/// 줄 하나 = 동의 한 번. 철회는 지우지 않고 revokedAt 을 적는다(언제 무엇에 동의했는지 남게). 유효한 동의 = 철회 안 했고 version 이 지금 문서 판과 같은 줄
+/// (lib/analysis-consent.ts). 화면의 체크 · 앱 저장값은 동의 근거가 아니다 — 이 줄만.
+model AnalysisConsent {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 동의한 문서 판(lib/analysis-consent.ts ANALYSIS_CONSENT.version)
+  version   String
+  /// 받은 곳 — 'signup'(가입) · 'first_use'(첫 분석 전) · 'settings'(설정에서 다시)
+  source    String
+  agreedAt  DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId, agreedAt])
 }
 
 /// 하루 한 번 남기는 몸상태 체크인. 운동 처방과 리포트의 입력이 된다.

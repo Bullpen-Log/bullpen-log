@@ -25,6 +25,7 @@ import {
 import { toDateKey } from '@/lib/pitch-stats';
 import { withInput, type FormValues } from '@/lib/form-values';
 import { dbDate } from '@/lib/nutrition/days';
+import { ANALYSIS_CONSENT, analysisConsentReady, consentAgeBlock } from '@/lib/analysis-consent';
 import {
   ORG_KIND_LABEL,
   ORG_NAME_MAX,
@@ -191,6 +192,15 @@ async function trySignup(formData: FormData): Promise<AuthState> {
    */
 
   const today = toDateKey(new Date());
+  /*
+   * [선택] 3D 분석 국외 이전 동의(2026-10-29) — 켰을 때만, 본 문서 판이 지금 판이고 문서가 확정됐을 때만 계정과 같은 트랜잭션에 남긴다.
+   * 안 켜도 가입은 그대로다. 가입이 실패하면 같이 사라진다(체크만 하고 가입 못 한 것은 동의가 아니다).
+   */
+  const analysisConsent =
+    formData.get('analysisConsent') === 'on' &&
+    formData.get('analysisConsentVersion') === ANALYSIS_CONSENT.version &&
+    analysisConsentReady() &&
+    !consentAgeBlock(profile.value.birthDate ?? null, new Date());
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return { error: '이미 가입된 이메일이에요.', field: 'email' };
@@ -228,6 +238,8 @@ async function trySignup(formData: FormData): Promise<AuthState> {
     await tx.dailyNutrition.create({
       data: { userId: created.id, date: dbDate(today), weightKg },
     });
+    if (analysisConsent)
+      await tx.analysisConsent.create({ data: { userId: created.id, version: ANALYSIS_CONSENT.version, source: 'signup' } });
     return created;
   });
 

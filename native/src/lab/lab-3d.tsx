@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef, useState, type ComponentType, type Ref } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ComponentType, type Ref } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useGrabProps } from '~/shell/scroll-lock';
 import { WebView, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
@@ -10,7 +10,8 @@ import { APP_UA, SITE_URL } from '~/lib/site';
  *
  * 웹뷰와의 말(사이트 app/embed/lab/[id]/lab-embed.tsx 와 같은 모양):
  *   - 웹 → 앱(postMessage JSON): ready · size(칸 높이 px — 웹뷰 높이를 맞춘다) · transport(3D 시계 + 그때 두 영상의 재생기 시각)
- *   - 앱 → 웹: window.__labSeek(장면) — 숫자 · 메카닉 점검의 '그 순간 보기'
+ *   - 앱 → 웹: window.__labSeek(장면) — 숫자 · 메카닉 점검의 '그 순간 보기' · window.__labView(시점) — 원본 옆 · 뒤를 바꿀 때 3D 도 그쪽에서(2026-10-29)
+ * 못 불러오면(오류 · 25초 안에 ready 가 안 옴) 덮개에 다시 불러오기 — 분석을 다시 걸지 않고 웹뷰만 다시 연다(onFailed 로 화면이 '원본으로 확인'을 띄운다).
  */
 export type LabTransport = {
   frame: number;
@@ -26,7 +27,7 @@ export type LabTransport = {
   cam3?: number;
   cam4?: number;
 };
-export type Lab3DHandle = { seek: (frame: number) => void };
+export type Lab3DHandle = { seek: (frame: number) => void; view: (v: 'side' | 'back' | 'catcher' | 'top') => void };
 
 type FromWeb =
   | { t: 'lab'; kind: 'ready' }
@@ -50,14 +51,30 @@ export const Lab3D = forwardRef<
     stop?: number | null;
     /** 어두운 무대(리포트 결론 판 안) */
     dark?: boolean;
+    /** 불러오기 실패 · 다시 불러옴(분석 실패와 다르다 — 화면이 원본 확인을 띄운다) */
+    onFailed?: (failed: boolean) => void;
   }
->(function Lab3D({ id, width, bg, onTransport, stop = null, dark = false }, ref) {
+>(function Lab3D({ id, width, bg, onTransport, stop = null, dark = false, onFailed }, ref) {
   const web = useRef<WebViewHandle>(null);
   const grab = useGrabProps();
   const [height, setHeight] = useState(() => Math.round(width * 1.25) + 132);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const base = `${SITE_URL}/embed/lab/${id}`;
+  /* 실패를 화면에 알린다(같은 값이면 안 부른다) · 25초 안에 ready 가 안 오면 실패로 */
+  const failedCb = useRef(onFailed);
+  useEffect(() => {
+    failedCb.current = onFailed;
+  });
+  useEffect(() => {
+    failedCb.current?.(failed);
+  }, [failed]);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    if (ready || failed) return;
+    const t = setTimeout(() => setFailed(true), 25_000);
+    return () => clearTimeout(t);
+  }, [ready, failed, attempt]);
   const q = [stop != null ? `stop=${Math.max(0, Math.round(stop))}` : null, dark ? 'dark=1' : null].filter(Boolean).join('&');
   const url = q ? `${base}?${q}` : base;
 
@@ -65,6 +82,7 @@ export const Lab3D = forwardRef<
     ref,
     () => ({
       seek: (k) => web.current?.injectJavaScript(`window.__labSeek&&window.__labSeek(${Math.max(0, Math.round(k))});true;`),
+      view: (v) => web.current?.injectJavaScript(`window.__labView&&window.__labView(${JSON.stringify(v)});true;`),
     }),
     []
   );
@@ -108,23 +126,25 @@ export const Lab3D = forwardRef<
         <View style={[StyleSheet.absoluteFill, styles.cover]}>
           {failed ? (
             <>
-              <Text style={styles.coverText}>3D 를 불러오지 못했어요.</Text>
+              <Text style={styles.coverText}>3D를 불러오지 못했어요.</Text>
+              <Text style={[styles.coverText, { fontSize: 13, color: '#9aa3b8' }]}>분석 결과는 그대로예요. 3D 화면만 다시 불러와요.</Text>
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
                   setFailed(false);
                   setReady(false);
+                  setAttempt((n) => n + 1);
                   web.current?.reload();
                 }}
                 style={styles.retry}
               >
-                <Text style={styles.retryText}>다시</Text>
+                <Text style={styles.retryText}>3D 다시 불러오기</Text>
               </Pressable>
             </>
           ) : (
             <>
               <ActivityIndicator color="#c7cfdd" />
-              <Text style={styles.coverText}>인형을 만드는 중이에요</Text>
+              <Text style={styles.coverText}>3D 동작을 불러오고 있어요.</Text>
             </>
           )}
         </View>
@@ -136,6 +156,6 @@ export const Lab3D = forwardRef<
 const styles = StyleSheet.create({
   cover: { backgroundColor: '#151722', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 24 },
   coverText: { color: '#c7cfdd', fontSize: 15, textAlign: 'center' },
-  retry: { minHeight: 40, paddingHorizontal: 18, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center' },
+  retry: { minHeight: 44, paddingHorizontal: 18, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center' },
   retryText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });
