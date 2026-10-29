@@ -13,7 +13,8 @@ import { Icon, type IconName } from '~/shell/icon';
 import { MENU_ICON as ICON, useMenu, type MenuGroup } from '~/shell/menu-store';
 import { tabBarOcclusion, type ShellTab } from '~/shell/tab-bar';
 import { destinationOf, leaveTo, leaveWhenShown, openWebAfter } from '~/shell/web-nav';
-import { canOpen, noticeLocked, useRelease } from '~/shell/release';
+import { canOpen, isBetaView, noticeLocked, useRelease } from '~/shell/release';
+import { LOCK_DIM, LockBadge } from '~/shell/locked';
 import { beginMotion, endMotion } from '~/shell/transition';
 import { useSpace } from '~/org/space-store';
 
@@ -44,6 +45,9 @@ const LOOK = {
   navy: { scrim: 'rgba(4,9,20,0.45)', folder: 'rgba(30,41,59,0.62)', border: 'rgba(148,163,184,0.3)', fg: '#ffffff', tile: 'rgba(51,65,85,0.55)', ring: 'rgba(148,163,184,0.3)', glyph: '#ffffff', gloss: 'rgba(255,255,255,0.35)' },
   light: { scrim: 'rgba(16,22,34,0.28)', folder: 'rgba(255,255,255,0.8)', border: 'rgba(255,255,255,0.95)', fg: '#1d1d1f', tile: 'rgba(10,132,214,0.16)', ring: 'rgba(10,132,214,0.22)', glyph: '#0a6fb8', gloss: 'rgba(255,255,255,0.7)' },
 } as const;
+/* 출시 전 베타로 잠긴 타일 — 회색 판 · 회색 그림(테마 색 없음) */
+const GRAY_TILE = { light: 'rgba(60,60,67,0.12)', dark: 'rgba(235,235,245,0.1)', navy: 'rgba(148,163,184,0.14)' } as const;
+const GRAY_GLYPH = { light: '#8e8e93', dark: '#aeaeb2', navy: '#94a3b8' } as const;
 /* 뒤 화면 흐림 — 아이폰 폴더 뒤(홈 화면 배경이 크게 번짐)만큼. 어둠은 위 scrim 이 따로 얹는다 */
 const BACKDROP_BLUR = 60;
 /*
@@ -100,9 +104,11 @@ export default function MoreScreen() {
   const theme = useTheme();
   const L = LOOK[theme];
   const { spaces } = useSpace();
-  /* 출시 전 베타 — 잠긴 칸은 자물쇠 · '준비 중', 누르면 안내만(shell/release.ts). 관리 업무 칸은 기존 권한 그대로(준관리자) */
+  /* 출시 전 베타 — 잠긴 칸(3D 분석 · 설정 · 내 정보 말고 전부, 준관리자의 관리 업무도)은 회색 + 자물쇠, 누르면 '준비 중인 기능입니다'만(shell/release.ts) */
   const release = useRelease();
   const betaLocked = (href: string) => !canOpen(href, release);
+  /* 베타 화면에서는 잠금을 앱이 다시 판정한다 — 사이트가 단 잠김 표시(첫 설정 전)는 베타 동안 없다 */
+  const betaView = isBetaView(release);
   const reduce = useReducedMotion();
   /* 타일 크기는 화면 높이가 정한다 — 굴리지 않고 한 장에(웹 --tile: clamp(40px, (100dvh − 34rem) / 5, 52px)) */
   const tile = Math.max(40, Math.min(52, (height - 34 * 16) / 5));
@@ -224,21 +230,30 @@ export default function MoreScreen() {
             height: tile,
             /* 웹 app-icon 둥근 네모 22.5% */
             borderRadius: tile * 0.225,
-            backgroundColor: L.tile,
-            borderColor: L.ring,
-            boxShadow: `inset 0 1px 0 ${L.gloss}`,
-            opacity: locked ? 0.55 : 1,
+            /* 베타 잠금은 색 없는 회색 판 — 테마 색(하늘)을 빼야 '꺼진 칸'으로 읽힌다 */
+            backgroundColor: beta ? GRAY_TILE[theme] : L.tile,
+            borderColor: beta ? 'transparent' : L.ring,
+            boxShadow: beta ? undefined : `inset 0 1px 0 ${L.gloss}`,
+            opacity: locked && !beta ? 0.55 : 1,
           },
         ]}
       >
-        {leaving === key ? <ActivityIndicator color={L.glyph} /> : <Icon name={icon} size={tile * 0.5} color={L.glyph} />}
-        {locked ? (
+        {leaving === key ? (
+          <ActivityIndicator color={L.glyph} />
+        ) : (
+          <View style={beta ? { opacity: LOCK_DIM } : undefined}>
+            <Icon name={icon} size={tile * 0.5} color={beta ? GRAY_GLYPH[theme] : L.glyph} />
+          </View>
+        )}
+        {beta ? (
+          <LockBadge size={20} ring="transparent" style={styles.betaLock} />
+        ) : locked ? (
           <View style={[styles.lock, { backgroundColor: L.tile }]}>
             <Icon name="lock" size={11} color={L.glyph} />
           </View>
         ) : null}
       </View>
-      <Text numberOfLines={1} style={[styles.tileLabel, { color: L.fg }, locked && { opacity: 0.55 }]}>
+      <Text numberOfLines={1} style={[styles.tileLabel, { color: L.fg }, locked && { opacity: beta ? 0.45 : 0.55 }]}>
         {label}
       </Text>
     </Pressable>
@@ -274,7 +289,7 @@ export default function MoreScreen() {
       {folders.map((g, gi) => (
         <View key={g.title ?? `g${gi}`} style={[styles.grid, gi > 0 && { marginTop: 4 }]}>
           {g.title ? <Text style={[styles.groupTitle, { color: L.fg, opacity: 0.6 }]}>{g.title}</Text> : null}
-          {g.items.map((it) => tileOf(it.href, it.label, ICON[it.icon] ?? 'menu', () => open(it.href), it.locked, betaLocked(it.href)))}
+          {g.items.map((it) => tileOf(it.href, it.label, ICON[it.icon] ?? 'menu', () => open(it.href), betaView ? false : it.locked, betaLocked(it.href)))}
         </View>
       ))}
       {/* 설정 — 묶음 뒤 따로 한 줄(웹 detail-menu: 모든 묶음 뒤) */}
@@ -378,6 +393,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   lock: { position: 'absolute', right: -4, bottom: -4, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  betaLock: { position: 'absolute', top: -6, right: -6 },
   tileLabel: { fontSize: 13, lineHeight: 16, fontWeight: '400', maxWidth: '100%' },
   me: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderRadius: 16, paddingHorizontal: 4 },
   avatar: { width: 36, height: 36, borderRadius: 18, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },

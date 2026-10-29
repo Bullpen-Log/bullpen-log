@@ -19,6 +19,8 @@ import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 import { useTabIntent } from '~/shell/tab-intent';
 import { useMenu } from '~/shell/menu-store';
 import { MenuButton } from '~/shell/menu-button';
+import { LOCKED_HINT, LockedGlyph, LockedRow, lockedColors } from '~/shell/locked';
+import { noticeLocked } from '~/shell/release';
 
 /**
  * 투구 탭(앱 화면) — 첫 화면과 투구 기록이 이 판 하나를 나눠 쓴다(2026-10-20 김민: 종목 홈 추가).
@@ -251,15 +253,95 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
 }
 
 /**
+ * 출시 전 베타의 투구 탭(2026-10-29 금윤호: "3D 분석만 쓰고 나머지는 아이콘 위 자물쇠 · 회색, 누르면 '준비 중인 기능입니다'") — 일반 · 준관리자.
+ * 생김새는 투구 첫 화면 그대로(제목 · 날짜 · 도구 도크)이고, 3D 동작 분석만 열린다. 구속 측정 · ABS · 오늘 투구 기록 · 최근 투구는 회색 + 자물쇠.
+ * 투구 기록 · 팔 상태 조회(서버가 막는 것)는 부르지 않는다 — 그래서 PitchTab 과 따로 둔다(훅 차례가 다르다).
+ */
+export function BetaPitchTab({ today, bottom }: { today: string; bottom: number }) {
+  const c = usePalette();
+  const inset = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  useRetapTop(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
+  return (
+    <ScrollView
+      ref={scrollRef}
+      style={{ flex: 1, backgroundColor: c.page }}
+      contentContainerStyle={[{ paddingTop: inset.top + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap }, READABLE_WIDE]}
+    >
+      <View style={styles.title}>
+        <Text accessibilityRole="header" style={[TYPE.title, { flex: 1, color: c.ink, lineHeight: 40 }]}>투구</Text>
+        <MenuButton />
+      </View>
+      <View style={styles.dateRow}>
+        <View style={styles.date} accessible accessibilityLabel={`오늘 ${Number(today.slice(5, 7))}월 ${Number(today.slice(8, 10))}일 ${weekdayKo(today)}요일`}>
+          <Text style={[TYPE.num, { color: c.ink, fontSize: 28, lineHeight: 32 }]}>{Number(today.slice(8, 10))}</Text>
+          <Text style={{ color: c.muted, fontSize: 12 }}>{`${Number(today.slice(5, 7))}월 · ${weekdayKo(today)}요일`}</Text>
+        </View>
+      </View>
+      <ToolDock canAbs={false} beta />
+      <View style={{ gap: 10 }}>
+        <LockedRow icon="log" label="오늘 투구 기록" />
+        <LockedRow icon="calendar-days" label="최근 투구 · 투구 기록" />
+      </View>
+    </ScrollView>
+  );
+}
+
+/**
  * 도구 도크(2026-10-29 확정 디자인 '소프트 솔리드 툴 도크') — 왼쪽 세로 카드 3D 동작 분석(V6 관절 추적 투수), 오른쪽 위 구속 측정(계기판) · 아래 ABS(3×3 존).
  * 높이는 시안의 154 · 128 · 틈 12(≈294)를 바닥으로만 — 큰 글씨면 글이 늘어난 만큼 커진다. 그림과 이름을 카드 가운데에 맞춘다.
  * ABS 는 권한(사이트 메뉴 · 관리자)이 있을 때만 연다 — 없으면 같은 자리에 '준비 중'으로 흐리게(눌리지 않음).
+ * beta(출시 전 베타): 구속 측정 · ABS 를 회색 판 · 회색 그림 + 자물쇠로, 누르면 안내만(들어가지 않음). 3D 동작 분석은 그대로 열린다.
  */
-function ToolDock({ canAbs }: { canAbs: boolean }) {
+function ToolDock({ canAbs, beta = false }: { canAbs: boolean; beta?: boolean }) {
   const c = usePalette();
   const { width } = useWindowDimensions();
   /* 3D 카드 폭 ≈ (화면 − 옆 여백 − 틈) / 2 — 그림은 그 82%(시안 V6 · 여백 줄인 판), 넓은 화면에서는 168 에서 멈춘다 */
   const art = Math.min(168, Math.max(110, ((Math.min(width, 520) - SPACE.side * 2 - 12) / 2) * 0.82));
+  if (beta) {
+    const k = lockedColors(c);
+    return (
+      <View style={styles.dock}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="3D 동작 분석"
+          onPress={() => router.push('/lab' as Href)}
+          style={({ pressed }) => [styles.tool3d, { backgroundColor: c.skyTint, boxShadow: c.float }, pressed && PRESSED]}
+        >
+          <PitcherMark size={art} />
+          <Text lineBreakStrategyIOS="hangul-word" style={[styles.toolBig, { color: c.ink }]}>
+            3D 동작 분석
+          </Text>
+        </Pressable>
+        <View style={styles.dockSide}>
+          {(
+            [
+              { label: '구속 측정', icon: 'gauge', size: 54, minHeight: 154 },
+              { label: 'ABS', icon: 'zone', size: 44, minHeight: 128 },
+            ] as const
+          ).map((t) => (
+            <Pressable
+              key={t.label}
+              accessibilityRole="button"
+              accessibilityLabel={`${t.label}, 준비 중`}
+              accessibilityHint={LOCKED_HINT}
+              accessibilityState={{ disabled: true }}
+              onPress={noticeLocked}
+              style={({ pressed }) => [styles.toolSmall, { minHeight: t.minHeight, backgroundColor: k.fill }, pressed && { opacity: 0.8 }]}
+            >
+              <LockedGlyph locked badge={22} ring={k.fill}>
+                <Icon name={t.icon} size={t.size} color={k.glyph} />
+              </LockedGlyph>
+              <Text lineBreakStrategyIOS="hangul-word" style={[styles.toolLabel, { color: k.label }]}>
+                {t.label}
+              </Text>
+              <Text style={{ color: k.label, fontSize: 11, marginTop: -8 }}>준비 중</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    );
+  }
   return (
     <View style={styles.dock}>
       <Pressable

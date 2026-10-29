@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from 'react';
 import {
-  BETA_LOCK_BODY,
   BETA_LOCK_TITLE,
   RELEASE_POLICY_VERSION,
   accessAllowsPath,
@@ -93,11 +92,11 @@ export const isBetaView = (a: ReleaseAccess | null = releaseNow()) => !a || a.re
 /** 이 앱 주소를 열 수 있나(그리기용 — 서버가 다시 판정한다) */
 export const canOpen = (href: string, a: ReleaseAccess | null = releaseNow()) => accessAllowsPath(a, href, 'native');
 
-/** 잠긴 기능을 눌렀을 때 — 작은 안내 한 번(되풀이 누름은 잇달아 띄우지 않는다) */
+/** 잠긴 기능을 눌렀을 때 — '준비 중인 기능입니다.' 작은 안내 한 번(되풀이 누름은 잇달아 띄우지 않는다). 그 화면으로는 들어가지 않는다 */
 let lastNotice = 0;
 export function noticeLocked() {
   const now = Date.now();
   if (now - lastNotice < 2500) return;
   lastNotice = now;
-  toast(`${BETA_LOCK_TITLE} ${BETA_LOCK_BODY}`, 'info');
+  toast(BETA_LOCK_TITLE, 'info');
 }

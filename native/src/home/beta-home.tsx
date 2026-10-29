@@ -7,10 +7,10 @@ import { useLoad } from '~/community/parts';
 import { READABLE } from '~/lib/layout';
 import { SPACE, TYPE, usePalette } from '~/lib/ui';
 import { ActionButton } from '~/shell/action-button';
-import { Icon } from '~/shell/icon';
+import type { IconName } from '~/shell/icon';
+import { LockedTile } from '~/shell/locked';
 import { MenuButton } from '~/shell/menu-button';
 import { Press } from '~/shell/press';
-import { noticeLocked } from '~/shell/release';
 import { Wordmark } from '~/shell/wordmark';
 
 /**
@@ -20,7 +20,15 @@ import { Wordmark } from '~/shell/wordmark';
  */
 type LabList = { ok: true; samples: AppLabListItem[] } | { ok: false; to: string };
 
-const LOCKED = ['투구 기록', '트레이닝', '기록', '덕아웃'];
+/* 준비 중인 기능 — 회색 칸 + 자물쇠(shell/locked.tsx). 누르면 '준비 중인 기능입니다'만 */
+const LOCKED: { label: string; icon: IconName }[] = [
+  { label: '구속 측정', icon: 'gauge' },
+  { label: 'ABS', icon: 'zone' },
+  { label: '투구 기록', icon: 'log' },
+  { label: '트레이닝', icon: 'dumbbell' },
+  { label: '기록', icon: 'chart-no-axes-column' },
+  { label: '덕아웃', icon: 'people' },
+];
 const PHASE: Record<NonNullable<AppLabListItem['phase']>, string> = {
   active: '분석 중',
   done: '결과 보기',
@@ -110,24 +118,14 @@ export function BetaHome({ bottom }: { bottom: number }) {
             )}
           </View>
 
-          {/* 준비 중인 기능 — 작게 한 묶음(큰 잠금 카드로 홈을 채우지 않는다). 누르면 안내만 */}
-          <View style={{ gap: 8 }}>
+          {/* 준비 중인 기능 — 회색 칸 셋씩(아이콘 위 자물쇠). 누르면 '준비 중인 기능입니다'만, 들어가지 않는다 */}
+          <View style={{ gap: 10 }}>
             <Text accessibilityRole="header" style={[TYPE.sub, { color: c.muted, fontWeight: '600' }]}>
               준비 중인 기능
             </Text>
-            <View style={s.chips}>
-              {LOCKED.map((label) => (
-                <Pressable
-                  key={label}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${label}, 준비 중`}
-                  accessibilityHint="아직 열리지 않은 기능이에요. 누르면 안내가 나와요."
-                  onPress={noticeLocked}
-                  style={({ pressed }) => [s.chip, { backgroundColor: c.chip, opacity: pressed ? 0.7 : 1 }]}
-                >
-                  <Icon name="lock" size={13} color={c.muted} />
-                  <Text style={[TYPE.sub, { color: c.muted }]}>{label} · 준비 중</Text>
-                </Pressable>
+            <View style={s.grid}>
+              {LOCKED.map((t) => (
+                <LockedTile key={t.label} icon={t.icon} label={t.label} style={s.cell} />
               ))}
             </View>
             <Text style={[TYPE.sub, { color: c.muted }]}>{BETA_LOCK_BODY}</Text>
@@ -157,6 +155,7 @@ const s = StyleSheet.create({
   more: { minHeight: 44, justifyContent: 'center' },
   line: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48 },
   chev: { fontSize: 22, fontWeight: '300' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, borderRadius: 999, paddingHorizontal: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  /* 셋씩 — 틈 10 둘을 뺀 폭의 ⅓ */
+  cell: { flexBasis: '30%', flexGrow: 1 },
 });

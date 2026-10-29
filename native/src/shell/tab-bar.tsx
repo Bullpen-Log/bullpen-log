@@ -7,6 +7,7 @@ import Animated, { Easing, Extrapolation, interpolate, runOnJS, useAnimatedStyle
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette, useTheme, withAlpha } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
+import { LOCK_DIM, LockBadge } from '~/shell/locked';
 import { TAB_MOTION, tabDragPosition, tabIndexAt, tabReleaseIndex } from './tab-bar-motion';
 
 /**
@@ -458,7 +459,8 @@ export function TabBar({
               pos.set(reduce ? k : withSpring(k, POS_SPRING));
               choose(t.href, true);
             }}
-            style={[styles.item, t.locked && { opacity: 0.55 }]}
+            /* 첫 설정 전(setup)은 칸째 흐리게. 베타 잠금은 TabFace 가 아이콘 · 이름만 흐리고 자물쇠는 또렷이 */
+            style={[styles.item, t.locked && t.lockReason !== 'beta' && { opacity: 0.55 }]}
           >
             <Morph open={open} on={on} shift={mid - (PAD + cell * (k + 0.5))}>
               <TabFace tab={t} i={k} preview={preview} lift={lift} onColor={col.on} offColor={col.off} />
@@ -546,6 +548,7 @@ export function TabBar({
 
 const styles = StyleSheet.create({
   lockBadge: { position: 'absolute', right: -4, bottom: -3, width: 13, height: 13, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  betaLock: { position: 'absolute', top: -5, right: -9 },
   wrap: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center' },
   /* 그림자는 boxShadow — 바탕 없는 칸의 shadow* 는 iOS 가 장면마다 속 그림의 모양을 다시 셈했다(유리 알약 뒤라 바탕을 못 깐다) */
   line: { flexDirection: 'row', width: '100%', maxWidth: LINE_MAX, gap: BACK_GAP },
@@ -575,11 +578,17 @@ function TabFace({ tab, i, preview, lift, onColor, offColor }: {
   const neutral = useAnimatedStyle(() => ({ opacity: preview.value === i ? 0 : 1 }));
   const selected = useAnimatedStyle(() => ({ opacity: preview.value === i ? 1 : 0 }));
   const zoom = useAnimatedStyle(() => ({ transform: [{ scale: preview.value === i ? 1 + 0.10 * lift.value : 1 }] }));
+  /* 출시 전 베타로 잠긴 칸 — 아이콘 · 이름을 회색으로 흐리고 아이콘 오른쪽 위에 자물쇠 원(shell/locked.tsx, 더보기 · 투구 도구와 같은 모양) */
+  const beta = tab.locked && tab.lockReason === 'beta';
   const face = (on: boolean) => (
     <>
       <View>
-        <Icon name={GLYPH[tab.icon] ?? 'house'} size={26} color={on ? onColor : offColor} filled={on} />
-        {tab.locked ? (
+        <View style={beta ? { opacity: LOCK_DIM } : undefined}>
+          <Icon name={GLYPH[tab.icon] ?? 'house'} size={26} color={on ? onColor : offColor} filled={on && !beta} />
+        </View>
+        {beta ? (
+          <LockBadge size={15} ring="transparent" style={styles.betaLock} />
+        ) : tab.locked ? (
           <View style={styles.lockBadge}>
             <Icon name="lock" size={9} color={on ? onColor : offColor} strokeWidth={3} />
           </View>
@@ -595,7 +604,7 @@ function TabFace({ tab, i, preview, lift, onColor, offColor }: {
         adjustsFontSizeToFit
         minimumFontScale={0.8}
         maxFontSizeMultiplier={TAB_LABEL_MAX_SCALE}
-        style={[styles.label, { color: on ? onColor : offColor, fontWeight: on ? '600' : '500' }]}
+        style={[styles.label, { color: on ? onColor : offColor, fontWeight: on ? '600' : '500' }, beta && { opacity: LOCK_DIM + 0.17 }]}
       >
         {tab.label}
       </Text>

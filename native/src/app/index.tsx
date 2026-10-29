@@ -31,6 +31,7 @@ import { resetImported } from '~/pitch/attach';
 import { resetScanned } from '~/nutrition/scanned';
 import { HomeTab, resetHomeCache } from '~/home/tab';
 import { BetaHome } from '~/home/beta-home';
+import { accessAllowsPath } from '@/lib/release-access';
 import { canOpen, isBetaView, noticeLocked, releaseLookupFailed, resetRelease, restoreRelease, useRelease } from '~/shell/release';
 import { resetNotificationList } from '~/home/notifications';
 import { resetMyVideos } from '~/videos/store';
@@ -58,7 +59,7 @@ import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { drainOutbox, setOutboxOwner } from '~/workout/outbox';
 import { drainChecks } from '~/armcare/outbox';
 import { sendCheck } from '~/armcare/send';
-import { PitchTab } from '~/pitch/tab';
+import { BetaPitchTab, PitchTab } from '~/pitch/tab';
 import { DEFAULT_SPORT_BARS, DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, useTabBarOcclusion, type ShellTab, type SportKey } from '~/shell/tab-bar';
 import { TabPager } from '~/shell/tab-pager';
 import { ClockVeil } from '~/shell/clock-veil';
@@ -345,12 +346,17 @@ export default function SiteScreen() {
   const release = useRelease();
   const beta = isBetaView(release);
   const open = useCallback((href: string) => canOpen(href, release), [release]);
+  /* 베타에서 앱 화면으로는 열리지만 그 웹 주소는 잠긴 곳(투구 첫 화면) — 웹을 그리로 보내지 않는다 */
+  const webLockedNow = (href: string) => beta && canOpen(href, release) && !accessAllowsPath(release, href, 'web');
   useEffect(() => {
     void restoreRelease();
   }, []);
   const tabs = useMemo(() => {
     const base = siteTabs === DEFAULT_TABS ? forCountry(DEFAULT_TABS, country) : siteTabs;
-    return beta ? base.map((t) => (canOpen(t.href, release) ? t : { ...t, locked: true, lockReason: 'beta' as const })) : base;
+    /* 베타면 잠김은 앱이 다시 판정한다(첫 설정 잠금은 베타 동안 없다) — 투구 탭 첫 화면은 열리고(안의 구속 측정 · ABS 가 잠김) 나머지는 회색 + 자물쇠 */
+    return beta
+      ? base.map((t) => (canOpen(t.href, release) ? { ...t, locked: false, lockReason: undefined } : { ...t, locked: true, lockReason: 'beta' as const }))
+      : base;
   }, [siteTabs, country, beta, release]);
   /* 투구 · 타격 종목 바(사이트가 잠금을 입혀 보냄) — 2026-10-20 타격 1단계 D1 */
   const [sportBars, setSportBars] = useState<Record<SportKey, ShellTab[]>>(DEFAULT_SPORT_BARS);
@@ -458,7 +464,7 @@ export default function SiteScreen() {
   const [webFront, setWebFront] = useState(false);
   const pitchTab = tabs.find((t) => t.href === '/videos');
   /* 투구 탭의 첫 화면일 때만 앱 화면 — 잠겼으면 웹의 첫 설정 화면(주소가 /videos/setup)으로 간다 */
-  const showPitch = barOn && path === '/videos' && !!today && !pitchTab?.locked && !webFront && open('/videos');
+  const showPitch = barOn && path === '/videos' && !!today && !pitchTab?.locked && !webFront && open(search ? `/videos?${search}` : '/videos');
   /* 홈 첫 화면도 앱 화면 — '웹 홈에서' 를 누르면 홈 탭을 다시 누를 때까지 웹 홈(일정 · 자세한 그날 칸) */
   const [webHome, setWebHome] = useState(false);
   const showHome = barOn && path === '/today' && !!today && !webHome && !webFront;
@@ -603,6 +609,15 @@ export default function SiteScreen() {
     if (t.href === '/more') return void goWeb(t.href, false);
     if (t.href === '/today') setWebHome(false);
     if (t.href === '/nutrition') setWebNutrition(false);
+    /*
+     * 베타에서 앱 화면만 열린 탭(투구 첫 화면 — 웹 /videos 는 투구 기록을 읽어 잠김)은 웹을 옮기지 않고 판만 바꾼다. 웹을 보내면 서버가 베타 홈으로
+     * 돌려보내고 그 주소('/today')를 알려 와 판이 홈으로 튀었다
+     */
+    if (webLockedNow(t.href)) {
+      setPath(locOf(t.href).path);
+      setSearch(locOf(t.href).search);
+      return;
+    }
     /* 기록은 앱 화면만 — 웹은 지금 자리에 둔다(웹 '/records' 는 없다). 판만 바꾼다 */
     if (t.href === RECORDS_PATH) {
       setPath(RECORDS_PATH);
@@ -626,6 +641,13 @@ export default function SiteScreen() {
     if (!open(href) && !nativeOfWeb(href)) return noticeLocked();
     const native = nativeOfWeb(href);
     if (native && isNativePath(native)) return openNative(native);
+    /* 베타에서 앱 판만 열린 곳(투구 첫 화면)은 웹을 옮기지 않는다(pressTab 과 같은 까닭) */
+    if (isAppPage(href) && webLockedNow(href)) {
+      const loc = locOf(href);
+      setPath(loc.path);
+      setSearch(loc.search);
+      return;
+    }
     const waits = goWeb(href);
     /* 앱 판이 맡는 주소(투구 기록 ?view=log 등)는 바로 그 판으로 — 웹을 기다릴 까닭이 없다 */
     if (isAppPage(href)) {
@@ -873,7 +895,15 @@ export default function SiteScreen() {
         <HomeTab key="home" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} />
       )
     ) : null;
-  const pitchSlot = today && seenPitch && open('/videos') ? <PitchTab key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} log={pitchLog} /> : null;
+  /* 베타면 투구 탭은 베타 판(3D 분석만 열리고 구속 측정 · ABS · 투구 기록은 회색 + 자물쇠 — 투구 기록 조회는 안 함) */
+  const pitchSlot =
+    today && seenPitch && open('/videos') ? (
+      beta ? (
+        <BetaPitchTab key="beta-pitch" today={today} bottom={tabBottom} />
+      ) : (
+        <PitchTab key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} log={pitchLog} />
+      )
+    ) : null;
   const trainingSlot = today && seenTraining && open(TRAINING_HOME_HREF) ? <TrainingTab key="training" today={today} bottom={tabBottom} onWeb={openWeb} /> : null;
   const recordsSlot = today && seenRecords && open(RECORDS_PATH) ? <RecordsTab key="records" today={today} bottom={tabBottom} /> : null;
   const dugoutSlot = today && seen.dugout && open('/?dugout=1') ? <DugoutTab key="dugout" bottom={tabBottom} onWeb={openWeb} /> : null;

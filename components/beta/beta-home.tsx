@@ -9,7 +9,7 @@ import { BETA_LOCK_BODY } from '@/lib/release-access';
  * 예전 홈의 통계 · 트레이닝 계획 · 영양 · 커뮤니티는 읽지 않는다(그 판은 틀이 그리지 않는다, app/(app)/layout.tsx).
  * 앱(아이폰)은 같은 내용을 앱 화면(native/src/home/beta-home.tsx)으로 그린다 — 앱 안 웹뷰의 이 화면은 그 밑에 가려진다.
  */
-const LOCKED_SUMMARY = ['투구 기록', '트레이닝', '기록', '덕아웃'];
+const LOCKED_SUMMARY = ['구속 측정', 'ABS', '투구 기록', '트레이닝', '기록', '덕아웃'];
 
 const STATUS_TEXT = { queued: '분석 대기 중', running: '분석 중', done: '결과 보기', failed: '분석 실패' } as const;
 

@@ -305,8 +305,8 @@ export default async function AppLayout({
 }
 
 /**
- * 출시 전 베타의 싱커 틀(2026-10-29) — 생김새(위 막대 · 하단 탭 · 메뉴 · 테마)는 그대로, 탭은 잠긴 칸에 자물쇠, 메뉴는 열린 항목 · 기존 권한의 관리 업무만.
- * 홈(/today)은 베타 홈, 그 밖의 열린 주소(투구 3D · 고객센터 · 관리 업무)는 그 화면. 계정 종류(MASTER 포함)는 바꾸지 않고 /manage 로도 보내지 않는다.
+ * 출시 전 베타의 싱커 틀(2026-10-29) — 생김새(위 막대 · 하단 탭 · 메뉴 · 테마)는 그대로, 탭은 잠긴 칸에 자물쇠, 메뉴는 웹이면 열린 항목만 · 앱이면 잠긴 것도 표시해서.
+ * 홈(/today)은 베타 홈, 그 밖의 열린 주소(투구 3D · 설정 · 내 정보)는 그 화면. 관리 업무 · 고객센터도 베타 동안 잠긴다(대표관리자는 이 틀을 안 탄다). 계정 종류(MASTER 포함)는 바꾸지 않고 /manage 로도 보내지 않는다.
  * 예전 홈 판 · 체크인 · 알림 수 · 투구 기록 조회는 하지 않는다.
  */
 async function BetaAppLayout({
@@ -324,7 +324,8 @@ async function BetaAppLayout({
   const appTabs = expoLevel(userAgent) >= APP_TABS_LEVEL ? APP_TABS : MOBILE_TABS;
   const country = countryOf(user.country);
   const tabsOf = <T extends { href: string }>(items: T[]) => forCountry(isNative ? items : withoutDugoutTab(items), country);
-  const groups = forCountryGroups(betaGroups(visibleGroups(user.role, isNative), access), country);
+  /* 앱에는 잠긴 메뉴도 보낸다(더보기가 회색 + 자물쇠로 그림), 웹은 열린 것만 */
+  const groups = forCountryGroups(betaGroups(visibleGroups(user.role, isNative), access, { showLocked: isNative }), country);
   const avatarUrl = await createAvatarUrl(user.avatarPath);
   const isHome = path === '/today' || path === '' || path === '/dashboard';
   return (
@@ -335,7 +336,7 @@ async function BetaAppLayout({
         quick={tabsOf(applyBetaLocks(quickTabs(), access))}
         tabs={tabsOf(applyBetaLocks(MOBILE_TABS, access))}
         /* 앱에 보내는 탭은 주소를 그대로 — 앱이 주소로 탭을 가린다. 잠김 까닭('beta')만 단다 */
-        appTabs={isNative ? tabsOf(applyBetaLocks(appTabs, access, { keepHref: true })) : undefined}
+        appTabs={isNative ? tabsOf(applyBetaLocks(appTabs, access, { keepHref: true, surface: 'native' })) : undefined}
         back={isNative ? null : { href: '/', label: '덕아웃' }}
         sportBars={{ pitch: applyBetaLocks(SPORT_BARS.pitch, access), hit: applyBetaLocks(SPORT_BARS.hit, access) }}
         nickname={user.nickname}

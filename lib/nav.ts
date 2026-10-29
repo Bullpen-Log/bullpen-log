@@ -590,12 +590,17 @@ export function applyLocks<T extends NavItem>(
 /**
  * 출시 전 베타에 잠긴 항목에 표시를 단다(2026-10-29, lib/release-access.ts). 판정은 서버가 준 요약(ReleaseAccess)으로 — 보기용이고 진짜 막기는 서버.
  * keepHref: 앱에 보내는 탭(expo-tabs)은 주소를 그대로 둔다 — 앱이 주소로 탭을 가려서. 웹 막대 · 탭은 주소를 베타 홈으로 바꿔 눌러도 잠긴 화면을 안 연다.
+ * surface 'native': 앱 화면 기준으로 판정(앱 투구 탭 첫 화면은 베타에도 열린다 — lib/release-access.ts PATH_RULES).
  * 정식 출시 · 대표관리자면 그대로.
  */
-export function applyBetaLocks<T extends NavItem>(items: T[], access: ReleaseAccess, opts: { keepHref?: boolean } = {}): (T & { locked?: boolean })[] {
+export function applyBetaLocks<T extends NavItem>(
+  items: T[],
+  access: ReleaseAccess,
+  opts: { keepHref?: boolean; surface?: 'web' | 'native' } = {}
+): (T & { locked?: boolean })[] {
   if (!access.restricted) return items;
   return items.map((item) =>
-    accessAllowsPath(access, item.href, 'web')
+    accessAllowsPath(access, item.href, opts.surface ?? 'web')
       ? item
       : { ...item, locked: true, lockReason: 'beta' as const, ...(opts.keepHref ? {} : { href: BETA_LOCKED_HREF }) }
   );
@@ -604,9 +609,13 @@ export function applyBetaLocks<T extends NavItem>(items: T[], access: ReleaseAcc
 /** 웹에서 베타에 잠긴 칸이 가리키는 곳 — 베타 홈(잠긴 화면으로 가지 않게) */
 export const BETA_LOCKED_HREF = '/today';
 
-/** 메뉴 묶음은 열린 항목만 남긴다(잠긴 기능 목록은 베타 홈의 '준비 중인 기능'이 짧게 보인다) — 관리 업무는 기존 권한 표가 연 것만 */
-export function betaGroups(groups: NavGroup[], access: ReleaseAccess): NavGroup[] {
+/**
+ * 메뉴 묶음 — 웹은 열린 항목만 남긴다. 앱(showLocked)은 잠긴 항목도 남기고 '준비 중' 표시를 단다 — 앱 더보기가 회색 + 자물쇠로 그리고
+ * 누르면 안내만 한다(2026-10-29 금윤호: 잠긴 기능도 보이되 누가 봐도 비활성으로). 주소는 그대로 둔다 — 앱이 주소로 잠김을 다시 판정한다.
+ */
+export function betaGroups(groups: NavGroup[], access: ReleaseAccess, opts: { showLocked?: boolean } = {}): NavGroup[] {
   if (!access.restricted) return groups;
+  if (opts.showLocked) return groups.map((g) => ({ ...g, items: applyBetaLocks(g.items, access, { keepHref: true, surface: 'native' }) }));
   return groups
     .map((g) => ({ ...g, items: g.items.filter((i) => accessAllowsPath(access, i.href, 'web')) }))
     .filter((g) => g.items.length > 0);
