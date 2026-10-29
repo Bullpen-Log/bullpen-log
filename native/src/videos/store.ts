@@ -5,7 +5,7 @@ import { rpc } from '~/lib/rpc';
 import { removePhoneOrphans } from '~/pitch/api';
 import { monthOf, refreshMonth } from '~/pitch/store';
 import { toast } from '~/shell/toast';
-import { applyOverrides, createFavQueue, pruneOverrides, type Override } from './edits';
+import { applyOverrides, createFavQueue, createNoteQueue, pruneOverrides, type NoteOutcome, type Override } from './edits';
 
 /**
  * '내 영상' 목록을 앱이 쥐고 있다가 화면을 열면 바로 그린다 — 그리고 뒤에서 새로 받는다(투구 달 저장소 pitch/store.ts 와 같은 꼴).
@@ -79,20 +79,23 @@ export function useMyVideos(): State {
 
 export const findMyVideo = (path: string) => state.items?.find((v) => v.path === path) ?? null;
 
-/** 영상 메모 — 바로 고쳐 보이고, 서버가 거절하면 되돌린다. 실패 글을 돌려준다(성공이면 null) */
-export async function saveMyVideo(path: string, patch: { feelNote: string | null }): Promise<string | null> {
-  const before = overrides.get(path);
-  const old = findMyVideo(path)?.note ?? null;
-  setOverride(path, { note: patch.feelNote?.trim() || null, done: null });
-  const r = await rpc<UpdateResult>('my-videos.updateMyVideo', path, patch).catch(() => ({ ok: false as const, error: '신호가 약해 저장하지 못했어요.' }));
-  if (!r.ok) {
-    if (before) overrides.set(path, before);
-    setOverride(path, { note: old, done: Date.now() });
-    return r.error;
-  }
-  setOverride(path, { note: r.note, done: Date.now() });
-  if (state.items) set({ items: state.items.map((v) => (v.path === path ? { ...v, saved: true } : v)) });
-  return null;
+/*
+ * 영상 메모 — 바로 고쳐 보이고, 한 영상에 한 번에 하나씩 보낸다(./edits.ts createNoteQueue — 늦게 온 앞 답이 새 글을 안 덮고, 실패는 메모만 되돌린다).
+ * 결과의 note 는 서버가 다듬은 글(공백 · 줄바꿈을 한 칸으로 — lib/my-videos.ts cleanFeelNote) — 화면은 저장 뒤 이 글을 원본으로 쓴다.
+ */
+const noteQueue = createNoteQueue({
+  send: (path, note) =>
+    rpc<UpdateResult>('my-videos.updateMyVideo', path, { feelNote: note }).then(
+      (r) => (r.ok ? { ok: true as const, note: r.note } : r),
+      () => ({ ok: false as const, error: '신호가 약해 저장하지 못했어요.' })
+    ),
+  show: (path, note, done) => {
+    setOverride(path, { note, done: done ? Date.now() : null });
+    if (done && state.items) set({ items: state.items.map((v) => (v.path === path ? { ...v, saved: true } : v)) });
+  },
+});
+export function saveMyVideo(path: string, patch: { feelNote: string | null }): Promise<NoteOutcome> {
+  return noteQueue.save(path, patch.feelNote?.trim() || null, findMyVideo(path)?.note ?? null);
 }
 
 /* 즐겨찾기 — 누르면 곧바로 바뀌어 보이고, 한 영상에 한 번에 하나씩 보낸다(연타는 마지막 뜻만 · 실패는 되돌리고 알림, ./edits.ts) */
@@ -118,6 +121,7 @@ export function resetMyVideos() {
   inflight = null;
   overrides.clear();
   favQueue.reset();
+  noteQueue.reset();
   set({ items: null, error: null, loading: false, fresh: false });
 }
 
@@ -134,13 +138,23 @@ export async function linkVideo(path: string, target: Target, on: boolean): Prom
   return null;
 }
 
-/** 영상 지우기 — 서버가 기록에서 빼고 지운 표시를 한 뒤, 폰 파일은 아무 데도 안 쓸 때만 지운다 */
-export async function deleteVideo(path: string, dates: string[]): Promise<string | null> {
+/**
+ * 영상 지우기 — 서버가 기록에서 빼고 지운 표시를 한 뒤, 폰 파일은 아무 데도 안 쓸 때만 지운다.
+ * 단계를 가른다(2026-10-29): 서버가 거절하면 error(영상 그대로), 서버는 지웠는데 폰 파일 정리만 못 했으면 deleted + cleanup 글 —
+ * 지운 것을 실패로 보이거나 되살리지 않는다(파일은 다음 정리 때 다시 본다).
+ */
+export async function deleteVideo(path: string, dates: string[]): Promise<{ error: string } | { deleted: true; cleanup: string | null }> {
   const r = await rpc<Done>('my-videos.deleteMyVideo', path).catch(() => NET);
-  if (!r.ok) return r.error;
+  if (!r.ok) return { error: r.error };
+  overrides.delete(path);
   set({ items: state.items?.filter((v) => v.path !== path) ?? null });
-  await removePhoneOrphans([path]);
+  let cleanup: string | null = null;
+  try {
+    await removePhoneOrphans([path]);
+  } catch {
+    cleanup = '영상은 지웠어요. 폰에 남은 파일은 다음에 다시 정리해요.';
+  }
   void refreshMyVideos(true);
   for (const m of new Set(dates.map(monthOf))) void refreshMonth(m);
-  return null;
+  return { deleted: true, cleanup };
 }

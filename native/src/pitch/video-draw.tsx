@@ -7,8 +7,9 @@ import { Press } from '~/shell/press';
 
 /**
  * 그날 투구 영상 위에 선 · 각도 그리기 — 웹 components/video-canvas.tsx(VideoCanvas · DrawingToolbar)를 옮겼다. 도구 다섯 · 색 넷 · 되돌리기 ·
- * 전체 지우기 · 셈(수직 대비 기울기 · 세 점 각)은 웹과 같다. 그리기만 캔버스 대신 svg.
- * 좌표는 영상 칸의 픽셀 — 영상은 contain 으로 고르게 줄어 각도가 그대로이고, 그림은 이 칸에서만 쓰니(저장 안 함) 웹의 레터박스 셈은 뺐다.
+ * 전체 지우기 · 셈(수직 대비 기울기 · 세 점 각)은 웹과 같다. 그리기만 캔버스 대신 svg. 사람이 짚는 2D 참고선이다(관절을 따라가지 않고 저장하지 않음).
+ * 좌표(2026-10-29)는 판의 비율(0~1) — 판의 크기가 바뀌어도(전체 화면 · 회전 · 글자 크기) 영상에 붙어 있다. 각도는 원본 영상 비율(source)로 셈한다
+ * (가로 · 세로 비가 다른 비율 좌표로 바로 셈하면 각이 틀어진다). 내 영상 상세는 판을 영상 비율에 맞춰(레터박스 없이) 깐다.
  */
 type P = { x: number; y: number };
 export type Shape =
@@ -30,11 +31,17 @@ const TOOLS: { kind: ToolKind; label: string; hint: string; icon: SFSymbol }[] =
 export const DRAW_COLORS = ['#F5F5F4', '#E3CB95', '#5EEAD4', '#FCA5A5'];
 const SHADE = 'rgba(8,8,10,0.55)';
 
-/** 세 점이 이루는 각도(도), v 가 꼭짓점 — 웹 angleAt */
-export function angleAt(a: P, v: P, b: P) {
+/** 세 점이 이루는 각도(도), v 가 꼭짓점 — 웹 angleAt. 팔이 거의 0 이면(점이 겹침) NaN 대신 null */
+export function angleAt(a: P, v: P, b: P): number {
   let deg = Math.abs((Math.atan2(a.y - v.y, a.x - v.x) - Math.atan2(b.y - v.y, b.x - v.x)) * (180 / Math.PI));
   if (deg > 180) deg = 360 - deg;
   return deg;
+}
+export function safeAngle(a: P, v: P, b: P): number | null {
+  return Math.hypot(a.x - v.x, a.y - v.y) < 1e-6 || Math.hypot(b.x - v.x, b.y - v.y) < 1e-6 ? null : angleAt(a, v, b);
+}
+export function safeTilt(a: P, b: P): number | null {
+  return Math.hypot(b.x - a.x, b.y - a.y) < 1e-6 ? null : tiltFromVertical(a, b);
 }
 /** 선이 수직에서 몇 도 기울었나(0 수직 · 90 수평) — 웹 tiltFromVertical */
 export function tiltFromVertical(a: P, b: P) {
@@ -64,58 +71,73 @@ function Readout({ text, x, y, color, w }: { text: string; x: number; y: number;
     </G>
   );
 }
-/** 선 끝 손잡이 — 웹 handle() */
-function Handle({ p, color }: { p: P; color: string }) {
+/** 선 끝 손잡이 — 웹 handle(). 고칠 수 있는 판이면 조금 크게(손가락으로 잡는 자리는 HIT 반지름) */
+function Handle({ p, color, big }: { p: P; color: string; big?: boolean }) {
+  const r = big ? 4.5 : 1.75;
   return (
     <>
-      <Rect x={p.x - 1.75} y={p.y - 1.75} width={3.5} height={3.5} stroke="rgba(8,8,10,0.6)" strokeWidth={2} fill="none" />
-      <Rect x={p.x - 1.75} y={p.y - 1.75} width={3.5} height={3.5} stroke={color} strokeWidth={1} fill="none" />
+      <Rect x={p.x - r} y={p.y - r} width={r * 2} height={r * 2} stroke="rgba(8,8,10,0.6)" strokeWidth={2} fill={big ? 'rgba(8,8,10,0.25)' : 'none'} />
+      <Rect x={p.x - r} y={p.y - r} width={r * 2} height={r * 2} stroke={color} strokeWidth={1.2} fill="none" />
     </>
   );
 }
+/** 손잡이를 잡는 거리(화면 px) — 작게 보여도 손가락 자리는 44pt 쯤 */
+const HIT = 22;
 
-function ShapeView({ s, w, h }: { s: Shape; w: number; h: number }) {
+/** 판 좌표(0~1) → 화면 px · 원본 비율 px(각도 셈) */
+type Frame = { w: number; h: number; sw: number; sh: number };
+const toV = (p: P, f: Frame): P => ({ x: p.x * f.w, y: p.y * f.h });
+const toS = (p: P, f: Frame): P => ({ x: p.x * f.sw, y: p.y * f.sh });
+
+function ShapeView({ s, f, big }: { s: Shape; f: Frame; big?: boolean }) {
+  const { w, h } = f;
   switch (s.kind) {
     case 'vref': {
+      const x = s.x * w;
       const ticks = [];
-      for (let y = 24; y < h; y += 40) ticks.push(<Line key={y} x1={s.x - 3} x2={s.x + 3} y1={y} y2={y} stroke={s.color} strokeWidth={1} />);
+      for (let y = 24; y < h; y += 40) ticks.push(<Line key={y} x1={x - 3} x2={x + 3} y1={y} y2={y} stroke={s.color} strokeWidth={1} />);
       return (
         <G>
-          <Stroke d={`M${s.x},0 L${s.x},${h}`} color={s.color} width={1} />
+          <Stroke d={`M${x},0 L${x},${h}`} color={s.color} width={1} />
           {ticks}
         </G>
       );
     }
     case 'href': {
+      const y = s.y * h;
       const ticks = [];
-      for (let x = 24; x < w; x += 40) ticks.push(<Line key={x} x1={x} x2={x} y1={s.y - 3} y2={s.y + 3} stroke={s.color} strokeWidth={1} />);
+      for (let x = 24; x < w; x += 40) ticks.push(<Line key={x} x1={x} x2={x} y1={y - 3} y2={y + 3} stroke={s.color} strokeWidth={1} />);
       return (
         <G>
-          <Stroke d={`M0,${s.y} L${w},${s.y}`} color={s.color} width={1} />
+          <Stroke d={`M0,${y} L${w},${y}`} color={s.color} width={1} />
           {ticks}
         </G>
       );
     }
     case 'tilt': {
-      const { a, b } = s;
+      const a = toV(s.a, f);
+      const b = toV(s.b, f);
       const top = a.y <= b.y ? a : b;
       const bottom = a.y <= b.y ? b : a;
       const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
       /* 값은 선과 직각으로 비켜 놓는다 — 선 위에 얹으면 봐야 할 동작을 가린다(웹과 같다) */
       const nx = -(b.y - a.y) / len;
       const ny = (b.x - a.x) / len;
+      const deg = safeTilt(toS(s.a, f), toS(s.b, f));
       return (
         <G>
           <Stroke d={`M${a.x},${a.y} L${b.x},${b.y}`} color={s.color} />
           <Line x1={bottom.x} y1={bottom.y} x2={bottom.x} y2={top.y} stroke="rgba(245,245,244,0.35)" strokeWidth={1} strokeDasharray={[4, 4]} />
-          <Handle p={a} color={s.color} />
-          <Handle p={b} color={s.color} />
-          <Readout text={`${tiltFromVertical(a, b).toFixed(1)}°`} x={(a.x + b.x) / 2 + nx * 14} y={(a.y + b.y) / 2 + ny * 14} color={s.color} w={w} />
+          <Handle p={a} color={s.color} big={big} />
+          <Handle p={b} color={s.color} big={big} />
+          {deg != null ? <Readout text={`${deg.toFixed(1)}°`} x={(a.x + b.x) / 2 + nx * 14} y={(a.y + b.y) / 2 + ny * 14} color={s.color} w={w} /> : null}
         </G>
       );
     }
     case 'angle': {
-      const { a, v, b } = s;
+      const a = toV(s.a, f);
+      const v = toV(s.v, f);
+      const b = toV(s.b, f);
       const r = Math.min(30, Math.hypot(a.x - v.x, a.y - v.y) * 0.45, Math.hypot(b.x - v.x, b.y - v.y) * 0.45);
       const start = Math.atan2(a.y - v.y, a.x - v.x);
       let diff = Math.atan2(b.y - v.y, b.x - v.x) - start;
@@ -124,19 +146,20 @@ function ShapeView({ s, w, h }: { s: Shape; w: number; h: number }) {
       const end = start + diff;
       const arc = `M${v.x + Math.cos(start) * r},${v.y + Math.sin(start) * r} A${r},${r} 0 0 ${diff > 0 ? 1 : 0} ${v.x + Math.cos(end) * r},${v.y + Math.sin(end) * r}`;
       const mid = start + diff / 2;
+      const deg = safeAngle(toS(s.a, f), toS(s.v, f), toS(s.b, f));
       return (
         <G>
           <Stroke d={`M${a.x},${a.y} L${v.x},${v.y} L${b.x},${b.y}`} color={s.color} />
-          {r > 0 ? <Path d={arc} stroke={s.color} strokeWidth={1} fill="none" /> : null}
-          <Handle p={a} color={s.color} />
-          <Handle p={v} color={s.color} />
-          <Handle p={b} color={s.color} />
-          <Readout text={`${angleAt(a, v, b).toFixed(1)}°`} x={v.x + Math.cos(mid) * (r + 15)} y={v.y + Math.sin(mid) * (r + 15)} color={s.color} w={w} />
+          {r > 0.5 ? <Path d={arc} stroke={s.color} strokeWidth={1} fill="none" /> : null}
+          <Handle p={a} color={s.color} big={big} />
+          <Handle p={v} color={s.color} big={big} />
+          <Handle p={b} color={s.color} big={big} />
+          {deg != null ? <Readout text={`${deg.toFixed(1)}°`} x={v.x + Math.cos(mid) * (r + 15)} y={v.y + Math.sin(mid) * (r + 15)} color={s.color} w={w} /> : null}
         </G>
       );
     }
     case 'marker': {
-      const { x, y } = s.p;
+      const { x, y } = toV(s.p, f);
       return (
         <G>
           <Stroke d={`M${x - 11},${y} L${x - 4},${y} M${x + 4},${y} L${x + 11},${y} M${x},${y - 11} L${x},${y - 4} M${x},${y + 4} L${x},${y + 11}`} color={s.color} />
@@ -147,6 +170,41 @@ function ShapeView({ s, w, h }: { s: Shape; w: number; h: number }) {
   }
 }
 
+/** 도형의 손잡이(판 좌표) — 고칠 때 잡을 점들. 기준선은 선 자체가 손잡이 */
+function handlesOf(s: Shape): { key: string; p: P }[] {
+  switch (s.kind) {
+    case 'tilt':
+      return [
+        { key: 'a', p: s.a },
+        { key: 'b', p: s.b },
+      ];
+    case 'angle':
+      return [
+        { key: 'a', p: s.a },
+        { key: 'v', p: s.v },
+        { key: 'b', p: s.b },
+      ];
+    case 'marker':
+      return [{ key: 'p', p: s.p }];
+    default:
+      return [];
+  }
+}
+function moveHandle(s: Shape, key: string, p: P): Shape {
+  switch (s.kind) {
+    case 'tilt':
+      return key === 'a' ? { ...s, a: p } : { ...s, b: p };
+    case 'angle':
+      return key === 'a' ? { ...s, a: p } : key === 'v' ? { ...s, v: p } : { ...s, b: p };
+    case 'marker':
+      return { ...s, p };
+    case 'vref':
+      return { ...s, x: p.x };
+    case 'href':
+      return { ...s, y: p.y };
+  }
+}
+
 /**
  * 영상 칸 위에 깔리는 그림 판 — 켜져 있을 때만 손가락을 받는다(꺼지면 그림만 보이고 손가락은 밑의 재생기로).
  * 기울기는 끌어서, 각도는 세 번 눌러서, 기준선 · 포인트는 한 번 눌러서(웹 VideoCanvas 와 같다).
@@ -154,23 +212,67 @@ function ShapeView({ s, w, h }: { s: Shape; w: number; h: number }) {
 export function DrawLayer({
   shapes,
   onCommit,
+  onEdit,
   tool,
   color,
   enabled,
+  source,
 }: {
   shapes: Shape[];
   onCommit: (s: Shape) => void;
+  /** 있으면 손잡이를 끌어 고친다(내 영상 상세) — 없으면 예전처럼 새로 그리기만 */
+  onEdit?: (index: number, s: Shape) => void;
   tool: ToolKind;
   color: string;
   enabled: boolean;
+  /** 원본 영상의 가로 · 세로(비만 쓴다) — 없으면 판 크기(예전과 같다) */
+  source?: { w: number; h: number } | null;
 }) {
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [draft, setDraft] = useState<Shape | null>(null);
   const [anglePts, setAnglePts] = useState<P[]>([]);
   const draftRef = useRef<Shape | null>(null);
-  const at = (e: GestureResponderEvent): P => ({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY });
+  const editRef = useRef<{ i: number; key: string } | null>(null);
+  /* 도구를 바꾸거나 되돌리기 · 지우기를 하면 짚다 만 각도 점은 버린다(남은 점이 다음 도형에 섞이지 않게) */
+  const resetKey = `${tool}:${shapes.length}`;
+  const [ptsFor, setPtsFor] = useState(resetKey);
+  if (ptsFor !== resetKey) {
+    setPtsFor(resetKey);
+    setAnglePts([]);
+  }
+  const f: Frame = {
+    w: size.w,
+    h: size.h,
+    sw: source && source.w > 0 && source.h > 0 ? (source.w / source.h) * 1000 : size.w,
+    sh: source && source.w > 0 && source.h > 0 ? 1000 : size.h,
+  };
+  const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+  const at = (e: GestureResponderEvent): P => ({ x: clamp01(e.nativeEvent.locationX / (size.w || 1)), y: clamp01(e.nativeEvent.locationY / (size.h || 1)) });
+  /* 가장 가까운 손잡이(화면 px 로 HIT 안) — 위에 그린 도형부터 */
+  const hit = (e: GestureResponderEvent) => {
+    if (!onEdit) return null;
+    const x = e.nativeEvent.locationX;
+    const y = e.nativeEvent.locationY;
+    let best: { i: number; key: string; d: number } | null = null;
+    for (let i = shapes.length - 1; i >= 0; i--) {
+      const s = shapes[i];
+      const pts = handlesOf(s);
+      for (const h of pts) {
+        const d = Math.hypot(h.p.x * size.w - x, h.p.y * size.h - y);
+        if (d <= HIT && (!best || d < best.d)) best = { i, key: h.key, d };
+      }
+      if (s.kind === 'vref' && Math.abs(s.x * size.w - x) <= HIT / 2 && !best) best = { i, key: 'x', d: 0 };
+      if (s.kind === 'href' && Math.abs(s.y * size.h - y) <= HIT / 2 && !best) best = { i, key: 'y', d: 0 };
+    }
+    return best;
+  };
 
   const down = (e: GestureResponderEvent) => {
+    const grab = anglePts.length ? null : hit(e);
+    if (grab) {
+      editRef.current = { i: grab.i, key: grab.key };
+      return;
+    }
     const p = at(e);
     if (tool === 'vref') return onCommit({ kind: 'vref', color, x: p.x });
     if (tool === 'href') return onCommit({ kind: 'href', color, y: p.y });
@@ -188,6 +290,12 @@ export function DrawLayer({
     setDraft(start);
   };
   const move = (e: GestureResponderEvent) => {
+    const ed = editRef.current;
+    if (ed && onEdit) {
+      const s = shapes[ed.i];
+      if (s) onEdit(ed.i, moveHandle(s, ed.key, at(e)));
+      return;
+    }
     const prev = draftRef.current;
     if (!prev || prev.kind !== 'tilt') return;
     const next = { ...prev, b: at(e) };
@@ -195,11 +303,12 @@ export function DrawLayer({
     setDraft(next);
   };
   const up = () => {
+    editRef.current = null;
     const prev = draftRef.current;
     draftRef.current = null;
     setDraft(null);
-    /* 점만 찍고 만 것은 버린다(웹은 칸의 1% — 여기선 픽셀이라 4px) */
-    if (prev?.kind === 'tilt' && Math.hypot(prev.a.x - prev.b.x, prev.a.y - prev.b.y) > 4) onCommit(prev);
+    /* 점만 찍고 만 것은 버린다(웹은 칸의 1% — 여기선 화면 4px) */
+    if (prev?.kind === 'tilt' && Math.hypot((prev.a.x - prev.b.x) * size.w, (prev.a.y - prev.b.y) * size.h) > 4) onCommit(prev);
   };
 
   return (
@@ -218,11 +327,11 @@ export function DrawLayer({
       {size.w > 0 ? (
         <Svg width={size.w} height={size.h} pointerEvents="none">
           {shapes.map((s, i) => (
-            <ShapeView key={i} s={s} w={size.w} h={size.h} />
+            <ShapeView key={i} s={s} f={f} big={enabled && !!onEdit} />
           ))}
-          {draft ? <ShapeView s={draft} w={size.w} h={size.h} /> : null}
+          {draft ? <ShapeView s={draft} f={f} big={enabled && !!onEdit} /> : null}
           {anglePts.map((p, i) => (
-            <Handle key={i} p={p} color={color} />
+            <Handle key={i} p={toV(p, f)} color={color} big={!!onEdit} />
           ))}
         </Svg>
       ) : null}

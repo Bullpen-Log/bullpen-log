@@ -21,12 +21,32 @@ import {
   cleanFeelNote,
   filterVideos,
   groupByDate,
+  groupByMonth,
   isGalleryPath,
   mergeVideos,
   type MyVideoLog,
   type MyVideoRow,
 } from '../lib/my-videos.ts';
-import { applyOverrides, createFavQueue, pruneOverrides, type Override } from '../native/src/videos/edits.ts';
+import { applyOverrides, createFavQueue, createNoteQueue, pruneOverrides, type NoteSent, type Override } from '../native/src/videos/edits.ts';
+import {
+  bothMarked,
+  clampTo,
+  clockText,
+  commonRange,
+  driftOf,
+  navBack,
+  navCompare,
+  navOpenPick,
+  navPickNext,
+  navRealign,
+  navRestore,
+  navStart,
+  navSwipeOk,
+  relText,
+  sceneStep,
+  sideTimes,
+  type CompareNav,
+} from '../native/src/videos/compare-math.ts';
 
 let passed = 0;
 let failed = 0;
@@ -279,7 +299,7 @@ console.log('\n[5-2] 영상만 저장 — 폰이 보낸 칸 다듬기');
   check('모르는 종목 · 출처 · 숫자는 기본값', 'value' in odd && odd.value.sport === 'pitch' && odd.value.origin === 'album' && odd.value.durationSec === null && odd.value.width === null);
 }
 
-console.log('\n[5-3] 많은 영상 — 0 · 1 · 100 · 500 · 1,000 · 5,000개 (이 컴퓨터의 순수 함수 시간 — 폰 그리기 · 장면 그림 · 다리 비용은 아님)');
+console.log('\n[5-3] 많은 영상 — 0 · 1 · 10 · 100 · 500 · 1,000 · 5,000개 (이 컴퓨터의 순수 함수 시간 — 폰 그리기 · 장면 그림 · 다리 비용은 아님)');
 {
   const day = (i: number) => `202${5 + (i % 2)}-${String(1 + (i % 12)).padStart(2, '0')}-${String(1 + (i % 28)).padStart(2, '0')}`;
   const p = (i: number) => `${U}/local-${String(i).padStart(8, '0')}-aaaa-bbbb-cccc-dddddddddddd`;
@@ -296,7 +316,7 @@ console.log('\n[5-3] 많은 영상 — 0 · 1 · 100 · 500 · 1,000 · 5,000개
   };
   const report: string[] = [];
   let worst = 0;
-  for (const n of [0, 1, 100, 500, 1000, 5000]) {
+  for (const n of [0, 1, 10, 100, 500, 1000, 5000]) {
     const items = make(n);
     const tDefault = time(() => chunkRows(groupByDate(sortRows(filterVideos(items, EMPTY_VIDEO_FILTER, '2026-10-26'), 'new')), 2));
     const tSearch = time(() => filterVideos(items, { ...EMPTY_VIDEO_FILTER, text: '릴리스 늦음' }, '2026-10-26'));
@@ -307,8 +327,17 @@ console.log('\n[5-3] 많은 영상 — 0 · 1 · 100 · 500 · 1,000 · 5,000개
       g.map((x) => chunkRows(x.rows, 3));
       g.map((x) => chunkRows(x.rows, 1));
     });
-    worst = Math.max(worst, tDefault, tSearch, tCombo, tMonth, tSwap);
-    report.push(`${n}개: 기본 ${tDefault.toFixed(1)} · 검색 ${tSearch.toFixed(1)} · 복합 ${tCombo.toFixed(1)} · 월 ${tMonth.toFixed(1)} · 보기 바꿈 ${tSwap.toFixed(1)}ms`);
+    /* 즐겨찾기 칸은 달로 묶는다 · 돌아올 때는 경로로 그 자리를 찾는다(갤러리 locate 와 같은 일) */
+    const tFav = time(() => groupByMonth(sortRows(filterVideos(items, { ...EMPTY_VIDEO_FILTER, favoriteOnly: true }, '2026-10-26'), 'new')).map((g) => chunkRows(g.rows, 2)));
+    const want = items[Math.floor(items.length / 2)]?.path;
+    const tBack = time(() => {
+      const g = groupByDate(sortRows(filterVideos(items, EMPTY_VIDEO_FILTER, '2026-10-26'), 'new')).map((x) => chunkRows(x.rows, 2));
+      g.findIndex((rows) => rows.some((r) => r.some((x) => x.item.path === want)));
+    });
+    worst = Math.max(worst, tDefault, tSearch, tCombo, tMonth, tSwap, tFav, tBack);
+    report.push(
+      `${n}개: 기본 ${tDefault.toFixed(1)} · 검색 ${tSearch.toFixed(1)} · 복합 ${tCombo.toFixed(1)} · 월 ${tMonth.toFixed(1)} · 보기 바꿈 ${tSwap.toFixed(1)} · 즐겨찾기 달 묶음 ${tFav.toFixed(1)} · 복귀 자리 찾기 ${tBack.toFixed(1)}ms`
+    );
     if (n === 5000) check('5,000개 카드 수가 맞다', items.length === 5000, String(items.length));
   }
   console.log(report.map((r) => `       ${r}`).join('\n'));
@@ -344,15 +373,156 @@ console.log('\n[6] 소스 모양 — 부하 · 계정 · 관리자 자료');
   check('앱 입구(rpc 허용 목록)에 있다', src('app/api/rpc/registry.ts').includes("'my-videos': myVideos"));
   check(
     '앱 목록의 keyExtractor 는 묶음 머리 줄(영상 없음)에서도 안 터진다(onViewableItemsChanged)',
-    /keyExtractor=\{[\s\S]{0,300}\.item\?\.path/.test(src('native/src/app/my-videos/index.tsx')) &&
-      /viewableItems\.flatMap[\s\S]{0,300}\?\.item\?\.path/.test(src('native/src/app/my-videos/index.tsx'))
+    /keyExtractor=\{[\s\S]{0,300}\.item\?\.path/.test(src('native/src/videos/gallery.tsx')) &&
+      /viewableItems\.flatMap[\s\S]{0,300}\?\.item\?\.path/.test(src('native/src/videos/gallery.tsx'))
   );
-  const gallery = src('native/src/app/my-videos/index.tsx') + src('native/src/videos/gallery-parts.tsx') + src('native/src/app/my-videos/view.tsx');
+  const gallery = ['native/src/app/my-videos/index.tsx', 'native/src/videos/gallery.tsx', 'native/src/videos/gallery-parts.tsx', 'native/src/app/my-videos/view.tsx', 'native/src/app/pitch/compare.tsx'].map(src).join('\n');
   check("화면 글에 '다시 볼'이 남지 않았다(이름은 '즐겨찾기')", !gallery.includes('다시 볼'));
   check('즐겨찾기 별은 추가 · 해제 이름과 선택 상태를 읽어 준다', gallery.includes("'즐겨찾기에서 해제'") && gallery.includes("'즐겨찾기에 추가'") && gallery.includes('accessibilityState={{ selected: on }}'));
   check('목록은 가상화(SectionList) · 줄 자리 계산(getItemLayout) — 다 그리기(map)로 안 돌아감', /<SectionList/.test(gallery) && gallery.includes('getItemLayout'));
   check('즐겨찾기 저장은 줄이 있으면 그 줄만(목록 전체 안 읽음)', /findUnique\([\s\S]{0,120}userId_path[\s\S]{0,400}userVideo\.update/.test(action));
   check('지우기 참조 검사가 UserVideo 를 본다', src('lib/video-refs.ts').includes('prisma.userVideo.findMany'));
+}
+
+console.log('\n[7] 비교 시간 셈 — 공통 구간 · 0초 기준 · 끝');
+{
+  check('null 과 0초 기준을 가른다(0초도 짚은 것)', bothMarked({ a: 0, b: 0 }) && !bothMarked({ a: null, b: 0 }) && !bothMarked({ a: 0, b: null }));
+  const r = commonRange(2, 1, 10, 6);
+  check('공통 구간 = max(−ma,−mb) ~ min(da−ma, db−mb)', r?.min === -1 && r?.max === 5, JSON.stringify(r));
+  const z = commonRange(0, 0, 5, 3);
+  check('둘 다 0초 기준이면 0 ~ 짧은 쪽 길이', z?.min === 0 && z?.max === 3, JSON.stringify(z));
+  const end = commonRange(5, 3, 5, 3);
+  check('기준이 영상 끝이어도 앞쪽 구간은 남는다', end?.min === -3 && end?.max === 0, JSON.stringify(end));
+  check('길이를 모르거나 0 이면 구간 없음(NaN 을 안 만든다)', commonRange(1, 1, null, 4) === null && commonRange(1, 1, 0, 4) === null && commonRange(NaN, 1, 4, 4) === null);
+  /* 시안 검증과 같은 예 — A 4.6초 · B 2.3초 기준, B 12초 끝에서 A 는 14.3초 */
+  const ex = commonRange(4.6, 2.3, 20, 12);
+  const at = ex ? sideTimes(ex.max, 4.6, 2.3) : null;
+  check('B 끝에서 함께 멈출 때 A 자리 = A 기준 + 상대 시간', !!at && Math.abs(at.b - 12) < 1e-9 && Math.abs(at.a - 14.3) < 1e-9, JSON.stringify(at));
+  check('구간 밖은 끝으로 붙인다', clampTo(-9, { min: -1, max: 5 }) === -1 && clampTo(9, { min: -1, max: 5 }) === 5 && clampTo(2, { min: -1, max: 5 }) === 2);
+  check('어긋남 = B 상대 − A 상대', driftOf(5, 3, 2, 1) === -1 && driftOf(3, 2, 2, 1) === 0);
+  check('장면 걸음은 영상이 알린 간격, 모르거나 이상하면 1/60', sceneStep(30) === 1 / 30 && sceneStep(240) === 1 / 240 && sceneStep(0) === 1 / 60 && sceneStep(1000) === 1 / 60 && sceneStep(null) === 1 / 60);
+  check('시각 글', clockText(0) === '0:00.00' && clockText(3.2) === '0:03.20' && clockText(65.456) === '1:05.46' && clockText(null) === '—' && clockText(NaN) === '—', clockText(65.456));
+  check("상대 시간 글 — 반올림한 0 은 '−0.0' 이 아니다", relText(-0.4) === '−0.4초' && relText(1.24) === '+1.2초' && relText(-0.04) === '+0.0초', relText(-0.04));
+}
+
+console.log('\n[8] 비교 단계 오가기 — 뒤로 길에 고리가 없다 · 취소는 직전 비교로');
+{
+  type S = { nav: CompareNav; snap: boolean };
+  const key = (x: S) => `${x.nav.stage}|${x.nav.pickFrom}|${x.nav.alignFrom}|${x.snap}`;
+  const back = (x: S): S | 'exit' => {
+    const r = navBack(x.nav, x.snap);
+    if (r.to === 'exit') return 'exit';
+    if (r.to === 'restore') return { nav: navRestore(x.nav), snap: false };
+    return { nav: r.nav, snap: x.snap };
+  };
+  const moves = (x: S): S[] => {
+    const out: S[] = [];
+    if (x.nav.stage !== 'pick') out.push({ nav: navOpenPick(x.nav), snap: x.nav.stage === 'compare' ? true : x.snap });
+    if (x.nav.stage === 'pick') {
+      out.push({ nav: navPickNext(x.nav), snap: x.snap });
+      if (x.snap) out.push({ nav: navRestore(x.nav), snap: false });
+    }
+    if (x.nav.stage === 'compare') out.push({ nav: navRealign(x.nav), snap: true });
+    if (x.nav.stage === 'align') out.push({ nav: navCompare(x.nav), snap: false });
+    const b = back(x);
+    if (b !== 'exit') out.push(b);
+    return out;
+  };
+  const seen = new Map<string, S>();
+  const queue: S[] = [
+    { nav: navStart(false), snap: false },
+    { nav: navStart(true), snap: false },
+  ];
+  while (queue.length) {
+    const x = queue.shift() as S;
+    if (seen.has(key(x))) continue;
+    seen.set(key(x), x);
+    queue.push(...moves(x));
+  }
+  let worstBack = 0;
+  const loops: string[] = [];
+  for (const x of seen.values()) {
+    let cur: S | 'exit' = x;
+    const path = new Set<string>();
+    let n = 0;
+    while (cur !== 'exit') {
+      const k: string = key(cur);
+      if (path.has(k)) {
+        loops.push(key(x));
+        break;
+      }
+      path.add(k);
+      cur = back(cur);
+      n++;
+    }
+    worstBack = Math.max(worstBack, n);
+  }
+  check('어느 단계에서든 뒤로만 눌러 들어온 곳에 닿는다(고리 없음)', loops.length === 0, loops.join(' · '));
+  check('뒤로는 많아야 네 번(고르기 → 맞추기 → 고르기 → 비교 → 들어온 곳)', worstBack <= 4, `${worstBack}번 · 상태 ${seen.size}개`);
+  const swipeBad = [...seen.values()].filter((x) => navSwipeOk(x.nav) && back(x) !== 'exit').map(key);
+  check('밀어서 뒤로가 켜진 단계는 뒤로가 곧 들어온 곳', swipeBad.length === 0, swipeBad.join(' · '));
+
+  const walk2 = (steps: ((x: S) => S | 'exit')[], from: S) => steps.reduce<S | 'exit'>((x, f) => (x === 'exit' ? 'exit' : f(x)), from);
+  const open = (x: S): S => ({ nav: navOpenPick(x.nav), snap: x.nav.stage === 'compare' ? true : x.snap });
+  const next = (x: S): S => ({ nav: navPickNext(x.nav), snap: x.snap });
+  const go = (x: S): S => ({ nav: navCompare(x.nav), snap: false });
+  const re = (x: S): S => ({ nav: navRealign(x.nav), snap: true });
+  const mine: S = { nav: navStart(false), snap: false };
+  const log: S = { nav: navStart(true), snap: false };
+  const st = (x: S | 'exit') => (x === 'exit' ? 'exit' : `${x.nav.stage}${x.snap ? '+snap' : ''}`);
+  check('내 영상: 처음 고르기의 뒤로는 상세', st(back(mine)) === 'exit');
+  check('처음 맞추기의 뒤로는 고르기, 그 뒤로는 상세', st(walk2([next, back], mine)) === 'pick' && st(walk2([next, back, back], mine)) === 'exit');
+  check('완성된 비교의 뒤로는 상세', st(walk2([next, go, back], mine)) === 'exit');
+  check('비교 → 장면 다시 맞추기 → 뒤로 = 직전 비교', st(walk2([next, go, re, back], mine)) === 'compare');
+  check('비교 → B 바꾸기 → 뒤로 = 직전 비교', st(walk2([next, go, open, back], mine)) === 'compare');
+  check('비교 → B 바꾸기 → 새 B 맞추기 → 뒤로 → 뒤로 = 직전 비교', st(walk2([next, go, open, next, back, back], mine)) === 'compare');
+  check('고르기에서 온 맞추기의 B 바꾸기는 고르기를 쌓지 않는다(뒤로 한 번에 상세)', st(walk2([next, open, back], mine)) === 'exit');
+  check('다시 맞추기 → B 바꾸기 → 뒤로 → 뒤로 = 직전 비교', st(walk2([next, go, re, open, back, back], mine)) === 'compare');
+  check('투구 기록(2분할)에서 들어오면 맞추기의 뒤로는 그 목록', st(back(log)) === 'exit' && st(walk2([open, back, back], log)) === 'exit');
+}
+
+console.log('\n[9] 메모 저장 줄 — 마지막 글이 이긴다 · 늦은 답 · 실패는 메모만 · 로그아웃');
+{
+  const sends: { path: string; note: string | null; resolve: (r: NoteSent) => void }[] = [];
+  const shown: [string, string | null, boolean][] = [];
+  const q = createNoteQueue({
+    send: (path, note) => new Promise<NoteSent>((resolve) => sends.push({ path, note, resolve })),
+    show: (p, n, d) => shown.push([p, n, d]),
+  });
+  const flush = async () => {
+    for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0));
+  };
+  const r1 = q.save('v1', '첫 글', '예전');
+  const r2 = q.save('v1', '둘째', '예전');
+  const r3 = q.save('v1', '셋째', '예전');
+  check('한 영상은 한 번에 하나만 보낸다', sends.length === 1 && sends[0].note === '첫 글');
+  sends[0].resolve({ ok: true, note: '첫 글' });
+  const o1 = await r1;
+  await flush();
+  check('앞 답은 더 새 글이 있으면 superseded(화면을 덮지 않음)', o1.ok && o1.superseded === true && !shown.some(([, n, d]) => d && n === '첫 글'));
+  check('기다리던 글은 마지막 것 하나만 보낸다', sends.length === 2 && sends[1].note === '셋째');
+  sends[1].resolve({ ok: false, error: '신호' });
+  const [o2, o3] = await Promise.all([r2, r3]);
+  check('실패하면 둘 다 실패로 알리고', !o2.ok && !o3.ok);
+  check('보이는 메모는 서버가 마지막으로 받은 글로(즐겨찾기는 안 건드림)', shown[shown.length - 1][1] === '첫 글' && shown[shown.length - 1][2] === true);
+  const r4 = q.save('v2', ' 하체  먼저 ', null);
+  sends[2].resolve({ ok: true, note: '하체 먼저' });
+  const o4 = await r4;
+  check('서버가 다듬은 글을 그대로 보인다', o4.ok && o4.note === '하체 먼저' && shown[shown.length - 1][1] === '하체 먼저');
+  const r5 = q.save('v3', '로그아웃 전', null);
+  q.reset();
+  /* 보내던 중에 로그아웃 — 답이 와도 버린다 */
+  sends[3].resolve({ ok: true, note: '로그아웃 전' });
+  const o5 = await r5;
+  await flush();
+  check('로그아웃하면 기다리던 저장은 버린다(dropped) · 늦은 답이 화면에 안 붙는다', !!o5.dropped && !shown.some(([p, , d]) => p === 'v3' && d));
+}
+
+console.log('\n[10] 즐겨찾기 달 묶음');
+{
+  const it = (date: string | null) => ({ item: { date } as unknown as Parameters<typeof groupByMonth>[0][number]['item'] });
+  const g = groupByMonth([it('2026-10-03'), it('2026-10-01'), it('2026-09-30'), it(null)]);
+  check('같은 달끼리 · 날짜 모름은 따로', g.length === 3 && g[0].date === '2026-10' && g[0].rows.length === 2 && g[1].date === '2026-09' && g[2].date === null, JSON.stringify(g.map((x) => [x.date, x.rows.length])));
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

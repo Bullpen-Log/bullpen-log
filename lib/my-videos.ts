@@ -365,6 +365,21 @@ export function groupByDate<T extends { item: MyVideoItem }>(
   return groups;
 }
 
+/**
+ * 달 묶음 — 즐겨찾기 보기(2026-10-29 시안): 날마다 묶으면 한두 개짜리 묶음이 많아 빈 칸이 늘어서 달로 묶고 날짜는 칸 안에 적는다.
+ * 정렬된 목록 그대로, 날짜 모름은 맨 끝 한 묶음(key = 'YYYY-MM' 또는 null).
+ */
+export function groupByMonth<T extends { item: MyVideoItem }>(rows: readonly T[]): { date: string | null; rows: T[] }[] {
+  const groups: { date: string | null; rows: T[] }[] = [];
+  for (const r of rows) {
+    const ym = r.item.date ? r.item.date.slice(0, 7) : null;
+    const last = groups[groups.length - 1];
+    if (last && last.date === ym) last.rows.push(r);
+    else groups.push({ date: ym, rows: [r] });
+  }
+  return groups;
+}
+
 /** 칸 여럿씩 한 줄(그리드) — 묶음마다 따로 자른다 */
 export function chunkRows<T>(rows: readonly T[], cols: number): T[][] {
   const n = Math.max(1, Math.floor(cols));

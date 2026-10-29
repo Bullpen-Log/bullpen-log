@@ -28,9 +28,8 @@ import { durationText, videoCaption, videoDateText } from './text';
  * 월 바로 가기 · 보기 바꿈 · 돌아오기에서 멀리 있는 줄로도 바로 간다. 그래서 칸 안 글은 줄 수를 묶고(numberOfLines) 큰 글씨는 2배까지만.
  */
 export const MAX_FONT = 2;
-export type CellState = { pending: boolean; missing: boolean };
 
-/** 즐겨찾기 별 — 칸을 여는 누름과 따로(겹쳐 놓은 형제라 누름이 영상 열기로 안 번진다) */
+/** 즐겨찾기 별 — 칸을 여는 누름과 따로(겹쳐 놓은 형제라 누름이 영상 열기로 안 번진다). 44pt 누름 자리 */
 export function StarButton({ on, onPress, light }: { on: boolean; onPress: () => void; light?: boolean }) {
   const c = usePalette();
   return (
@@ -39,32 +38,48 @@ export function StarButton({ on, onPress, light }: { on: boolean; onPress: () =>
       accessibilityLabel={on ? '즐겨찾기에서 해제' : '즐겨찾기에 추가'}
       accessibilityState={{ selected: on }}
       onPress={onPress}
-      hitSlop={8}
-      style={({ pressed }) => [styles.star, light && { backgroundColor: 'rgba(0,0,0,0.35)' }, pressed && { opacity: 0.6 }]}
+      hitSlop={6}
+      style={({ pressed }) => [styles.star, light && { backgroundColor: 'rgba(16,40,59,0.55)' }, pressed && { transform: [{ scale: 0.92 }] }]}
     >
-      <Icon name="star" size={18} color={on ? c.warn : light ? '#fff' : c.muted} fill={on ? c.warn : undefined} />
+      <Icon name="star" size={18} color={on ? (light ? '#fff' : c.warn) : light ? '#fff' : c.muted} fill={on ? (light ? '#fff' : c.warn) : undefined} />
     </Pressable>
   );
 }
 
-function metaOf(row: FilteredRow, cell: CellState, showWhere: boolean) {
+/** 칸 상태 — 보내는 중(동기화 대기) · 이 폰에 없음 · 즐겨찾기 해제됨(즐겨찾기 보기에서 조건을 바꿀 때까지 남긴 칸) · 고르기에서 못 고름 */
+export type CellState = { pending: boolean; missing: boolean; unstarred?: boolean; blocked?: string | null; selected?: boolean };
+
+/**
+ * 칸의 두 줄 — 첫 줄은 영상 메모(최대 두 줄, 검색이면 걸린 글 조각), 메모가 없으면 실제 정보(기록 종류 · 공 수, 없으면 '투구 영상').
+ * 둘째 줄은 메모가 있을 때의 기록 요약 · 날짜(달 묶음 · 고르기에서) · 상태. 새 제목 칸은 만들지 않는다.
+ */
+function linesOf(row: FilteredRow, cell: CellState, showWhere: boolean, showDate: boolean) {
   const v = row.item;
-  return [
-    cell.pending ? '동기화 대기' : null,
-    cell.missing ? '이 폰에 없음' : null,
+  const snippet = showWhere && row.snippet && row.where !== 'note' ? row.snippet : null;
+  const title = snippet ?? v.note ?? videoCaption(v);
+  const meta = [
+    showDate && v.date ? `${Number(v.date.slice(5, 7))}.${Number(v.date.slice(8))}` : null,
+    snippet || v.note ? videoCaption(v) : null,
     showWhere && row.where ? MATCH_LABEL[row.where] : null,
-    v.sport === 'hit' ? '타격' : '투구',
+    v.sport === 'hit' ? '타격' : null,
     v.dateSource === 'log' ? '기록 날짜' : null,
+    cell.unstarred ? '즐겨찾기 해제됨' : null,
+    cell.blocked ?? (cell.pending ? '동기화 대기' : cell.missing ? '이 기기에 없음' : null),
   ].filter(Boolean) as string[];
-}
-/** 첫 줄 글 — 검색이면 걸린 글 조각, 아니면 영상 메모, 없으면 실제 정보(종류 · 공 수) */
-function lineOf(row: FilteredRow, showWhere: boolean) {
-  if (showWhere && row.snippet && row.where !== 'note') return { text: row.snippet, muted: false };
-  if (row.item.note) return { text: row.item.note, muted: false };
-  return { text: videoCaption(row.item), muted: true };
+  return { title, meta, captionOnly: !snippet && !v.note };
 }
 
-/** 그리드 칸 — 3:4 장면(가운데를 잘라 채움 · 세로 · 가로 영상 같은 규칙), 오른쪽 위 별, 오른쪽 아래 길이(알 때만), 밑 두 줄 */
+/** 칸 글 높이(목록이 줄 자리를 미리 셈 — getItemLayout) — 첫 줄 두 줄 + 둘째 줄 + 위아래 여백 */
+export function tileTextHeight(fs: number) {
+  return 10 + Math.ceil(TITLE_LH * fs) * 2 + Math.ceil(META_LH * fs) + 12;
+}
+const TITLE_LH = 21;
+const META_LH = 18;
+
+/**
+ * 그리드 칸(2026-10-29 시안) — 둥근 카드, 위는 실제 장면 그림을 자르지 않고(contain · 남는 자리는 어두운 판 — 전신 · 투구 구도가 잘리지 않게),
+ * 오른쪽 위 별(따로 누름), 왼쪽 아래 재생 표시, 오른쪽 아래 길이(알 때만 — 0:00 으로 쓰지 않음), 밑에 메모 두 줄 · 요약 한 줄.
+ */
 export const GridTile = memo(function GridTile({
   row,
   width,
@@ -72,6 +87,7 @@ export const GridTile = memo(function GridTile({
   thumb,
   cell,
   showWhere,
+  showDate = false,
   onOpen,
   onStar,
 }: {
@@ -81,61 +97,72 @@ export const GridTile = memo(function GridTile({
   thumb: Thumb | undefined;
   cell: CellState;
   showWhere: boolean;
+  showDate?: boolean;
   onOpen: (v: MyVideoItem) => void;
-  onStar: (v: MyVideoItem) => void;
+  onStar?: (v: MyVideoItem) => void;
 }) {
   const c = usePalette();
   const v = row.item;
-  const line = lineOf(row, showWhere);
-  const meta = metaOf(row, cell, showWhere);
+  const { title, meta, captionOnly } = linesOf(row, cell, showWhere, showDate);
   const dur = durationText(v.durationSec);
+  const off = !!cell.blocked;
   return (
     <View style={{ width }}>
-      <View>
-        <Press
-          card
-          accessibilityRole="button"
-          accessibilityLabel={`${videoDateText(v.date)} ${line.text} ${meta.join(' ')}`}
-          onPress={() => onOpen(v)}
-          style={[styles.thumb, { width, height: thumbH, backgroundColor: withAlpha(c.ink, 0.08) }]}
-        >
+      <Press
+        card
+        accessibilityRole="button"
+        accessibilityLabel={[videoDateText(v.date), title, ...meta, dur ? `길이 ${dur}` : null, cell.selected ? '비교 영상 B로 고름' : null].filter(Boolean).join(', ')}
+        accessibilityState={{ disabled: off, selected: cell.selected }}
+        accessibilityHint={off ? (cell.blocked ?? undefined) : undefined}
+        onPress={() => onOpen(v)}
+        style={[
+          styles.tile,
+          { backgroundColor: c.card, boxShadow: c.float },
+          cell.selected && { borderColor: c.action, borderWidth: 3 },
+          off && { opacity: 0.45 },
+        ]}
+      >
+        <View style={[styles.thumb, { height: thumbH, backgroundColor: THUMB_BG }]}>
           {thumb ? (
-            <Image source={thumbSource(thumb)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" recyclingKey={v.path} />
+            <Image source={thumbSource(thumb)} style={StyleSheet.absoluteFill} contentFit="contain" contentPosition="center" recyclingKey={v.path} />
           ) : (
-            <Icon name="film" size={24} color={c.muted} />
+            <Icon name="film" size={24} color="rgba(255,255,255,0.6)" />
           )}
+          <View style={styles.playMark} pointerEvents="none">
+            <Icon name="play" size={12} color="#fff" fill="#fff" />
+          </View>
           {dur ? (
-            <View style={styles.dur}>
+            <View style={styles.dur} pointerEvents="none">
               <Text maxFontSizeMultiplier={1.4} style={styles.durText}>
                 {dur}
               </Text>
             </View>
           ) : null}
-          {cell.pending || cell.missing ? (
-            <View style={[styles.flag, { backgroundColor: 'rgba(0,0,0,0.55)' }]}>
-              <Text maxFontSizeMultiplier={1.4} style={styles.durText}>
-                {cell.pending ? '동기화 대기' : '이 폰에 없음'}
-              </Text>
+          {cell.selected ? (
+            <View style={[styles.pickBadge, { backgroundColor: c.action }]} pointerEvents="none">
+              <Text style={styles.pickBadgeText}>B</Text>
             </View>
           ) : null}
-        </Press>
-        {!cell.pending ? (
-          <View style={styles.starAt}>
-            <StarButton on={v.revisit} onPress={() => onStar(v)} light />
-          </View>
-        ) : null}
-      </View>
-      <Text numberOfLines={1} maxFontSizeMultiplier={MAX_FONT} style={[styles.cap, { color: line.muted ? c.muted : c.ink }]}>
-        {line.text}
-      </Text>
-      <Text numberOfLines={1} maxFontSizeMultiplier={MAX_FONT} style={[styles.meta, { color: c.muted }]}>
-        {meta.join(' · ')}
-      </Text>
+        </View>
+        <View style={styles.tileText}>
+          <Text numberOfLines={2} maxFontSizeMultiplier={MAX_FONT} style={[styles.title, { color: captionOnly ? withAlpha(c.ink, 0.85) : c.ink }]}>
+            {title}
+          </Text>
+          <Text numberOfLines={1} maxFontSizeMultiplier={MAX_FONT} style={[styles.meta, { color: cell.unstarred || off ? c.warn : c.muted }]}>
+            {meta.join(' · ') || ' '}
+          </Text>
+        </View>
+      </Press>
+      {onStar && !cell.pending ? (
+        <View style={styles.starAt}>
+          <StarButton on={v.revisit} onPress={() => onStar(v)} light />
+        </View>
+      ) : null}
     </View>
   );
 });
 
-/** 목록 칸 — 메모를 읽으며 고르는 보기. 별은 오른쪽(칸 누름과 따로) */
+/** 목록 칸 — 메모를 읽으며 고르는 보기. 장면 그림은 자르지 않고, 별은 오른쪽(칸 누름과 따로) */
 export const ListCard = memo(function ListCard({
   row,
   height,
@@ -151,43 +178,44 @@ export const ListCard = memo(function ListCard({
   cell: CellState;
   showWhere: boolean;
   onOpen: (v: MyVideoItem) => void;
-  onStar: (v: MyVideoItem) => void;
+  onStar?: (v: MyVideoItem) => void;
 }) {
   const c = usePalette();
   const v = row.item;
-  const line = lineOf(row, showWhere);
-  const kind = v.logs[0]?.type;
+  const { title, meta, captionOnly } = linesOf(row, cell, showWhere, false);
   const dur = durationText(v.durationSec);
-  const tags = [...metaOf(row, cell, showWhere), v.logs.length ? `기록 ${v.logs.length}개` : '기록 연결 없음', dur].filter(Boolean) as string[];
+  const off = !!cell.blocked;
+  const tags = [...meta, v.logs.length ? `기록 ${v.logs.length}개` : '기록 연결 없음', dur].filter(Boolean) as string[];
   return (
     <View style={{ height, paddingBottom: 8 }}>
       <Press
         card
         accessibilityRole="button"
-        accessibilityLabel={`${videoDateText(v.date)} ${kind ?? ''} ${line.text} ${tags.join(' ')}`}
+        accessibilityLabel={[videoDateText(v.date), title, ...tags, cell.selected ? '비교 영상 B로 고름' : null].filter(Boolean).join(', ')}
+        accessibilityState={{ disabled: off, selected: cell.selected }}
         onPress={() => onOpen(v)}
-        style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}
+        style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }, cell.selected && { borderColor: c.action, borderWidth: 3 }, off && { opacity: 0.45 }]}
       >
-        <View style={[styles.listThumb, { backgroundColor: withAlpha(c.ink, 0.08) }]}>
+        <View style={[styles.listThumb, { backgroundColor: THUMB_BG }]}>
           {thumb ? (
-            <Image source={thumbSource(thumb)} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={v.path} />
+            <Image source={thumbSource(thumb)} style={StyleSheet.absoluteFill} contentFit="contain" recyclingKey={v.path} />
           ) : (
-            <Icon name="film" size={22} color={c.muted} />
+            <Icon name="film" size={22} color="rgba(255,255,255,0.6)" />
           )}
         </View>
         <View style={{ flex: 1, gap: 4, paddingRight: 40 }}>
           <Text numberOfLines={1} maxFontSizeMultiplier={MAX_FONT} style={[TYPE.sub, { color: c.muted, fontWeight: '600' }]}>
-            {[videoDateText(v.date), kind].filter(Boolean).join(' · ')}
+            {videoDateText(v.date)}
           </Text>
-          <Text numberOfLines={2} maxFontSizeMultiplier={MAX_FONT} style={[TYPE.body, { color: line.muted ? c.muted : c.ink }]}>
-            {line.text}
+          <Text numberOfLines={2} maxFontSizeMultiplier={MAX_FONT} style={[styles.title, { color: captionOnly ? withAlpha(c.ink, 0.85) : c.ink }]}>
+            {title}
           </Text>
-          <Text numberOfLines={1} maxFontSizeMultiplier={MAX_FONT} style={[TYPE.sub, { color: c.muted }]}>
+          <Text numberOfLines={1} maxFontSizeMultiplier={MAX_FONT} style={[TYPE.sub, { color: cell.unstarred || off ? c.warn : c.muted }]}>
             {tags.join(' · ')}
           </Text>
         </View>
       </Press>
-      {!cell.pending ? (
+      {onStar && !cell.pending ? (
         <View style={styles.listStar}>
           <StarButton on={v.revisit} onPress={() => onStar(v)} />
         </View>
@@ -195,6 +223,13 @@ export const ListCard = memo(function ListCard({
     </View>
   );
 });
+
+/** 목록 칸 높이 — 줄 자리 셈과 칸이 같은 값을 쓴다 */
+export function listCardHeight(fs: number) {
+  return Math.max(132, Math.ceil(20 + 19 * fs + TITLE_LH * 2 * fs + 19 * fs + 16)) + 8;
+}
+
+const THUMB_BG = '#1b2b3b';
 
 /* ───────────────────────── 시트 ───────────────────────── */
 
@@ -311,10 +346,10 @@ export function FilterSheet({
   const count = useMemo(() => filterVideos(items, f, today).length, [items, f, today]);
   return (
     <SheetFrame
-      title="찾기 조건"
+      title="영상 필터"
       onCancel={onClose}
       right={
-        <Pressable accessibilityRole="button" onPress={() => { setF({ ...EMPTY_VIDEO_FILTER, text: f.text }); setO('new'); }} hitSlop={8}>
+        <Pressable accessibilityRole="button" onPress={() => { setF({ ...EMPTY_VIDEO_FILTER, text: f.text, favoriteOnly: f.favoriteOnly }); setO('new'); }} hitSlop={8}>
           <Text style={[TYPE.body, { color: c.link }]}>초기화</Text>
         </Pressable>
       }
@@ -329,11 +364,6 @@ export function FilterSheet({
       </Section>
       <Section title="기간">
         <PeriodPicker value={f.period} onChange={(period) => setF({ ...f, period })} today={today} />
-      </Section>
-      <Section title="즐겨찾기">
-        <View style={styles.chipWrap}>
-          <Chip on={f.favoriteOnly} label="즐겨찾기만" onPress={() => setF({ ...f, favoriteOnly: !f.favoriteOnly })} />
-        </View>
       </Section>
       <Section title="붙은 기록">
         <Segmented options={LINKED} value={f.linked} onChange={(linked) => setF({ ...f, linked })} label="기록 연결" />
@@ -356,25 +386,6 @@ export function FilterSheet({
       <Section title="정렬">
         <Segmented options={ORDERS} value={o} onChange={setO} label="정렬" />
       </Section>
-    </SheetFrame>
-  );
-}
-
-/** 기간만 빠르게 — 목록 위 '기간' 칩 */
-export function PeriodSheet({ value, today, onApply, onClose }: { value: VideoFilter['period']; today: string; onApply: (p: VideoFilter['period']) => void; onClose: () => void }) {
-  const c = usePalette();
-  const [p, setP] = useState(value);
-  return (
-    <SheetFrame
-      title="기간"
-      onCancel={onClose}
-      footer={
-        <Press accessibilityRole="button" onPress={() => onApply(p)} style={[styles.apply, { backgroundColor: c.action }]}>
-          <Text style={[TYPE.button, { color: '#fff' }]}>적용</Text>
-        </Press>
-      }
-    >
-      <PeriodPicker value={p} onChange={setP} today={today} />
     </SheetFrame>
   );
 }
@@ -439,17 +450,21 @@ export function MonthSheet({
 }
 
 const styles = StyleSheet.create({
-  star: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  star: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   starAt: { position: 'absolute', top: 4, right: 4 },
-  thumb: { borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  dur: { position: 'absolute', right: 6, bottom: 6, paddingHorizontal: 6, height: 20, borderRadius: 10, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.55)' },
-  flag: { position: 'absolute', left: 6, bottom: 6, paddingHorizontal: 6, height: 20, borderRadius: 10, justifyContent: 'center' },
-  durText: { color: '#fff', fontSize: 11, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  cap: { fontSize: 13, lineHeight: 18, fontWeight: '600', marginTop: 6 },
-  meta: { fontSize: 12, lineHeight: 18 },
-  card: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 16 },
-  listThumb: { width: 84, height: 112, borderRadius: 10, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  listStar: { position: 'absolute', right: 8, top: 8 },
+  tile: { borderRadius: 18, overflow: 'hidden', borderWidth: 0, borderColor: 'transparent' },
+  thumb: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  tileText: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12, gap: 0 },
+  playMark: { position: 'absolute', left: 8, bottom: 8, width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(16,40,59,0.7)' },
+  dur: { position: 'absolute', right: 8, bottom: 8, paddingHorizontal: 7, height: 22, borderRadius: 8, justifyContent: 'center', backgroundColor: 'rgba(16,40,59,0.75)' },
+  durText: { color: '#fff', fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  pickBadge: { position: 'absolute', left: 8, top: 8, width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  pickBadgeText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  title: { fontSize: 15, lineHeight: TITLE_LH, fontWeight: '700', letterSpacing: -0.3 },
+  meta: { fontSize: 13, lineHeight: META_LH },
+  card: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 18 },
+  listThumb: { width: 84, height: 112, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  listStar: { position: 'absolute', right: 4, top: 4 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, paddingHorizontal: 12, borderRadius: 18 },
   chipText: { fontSize: 14, fontWeight: '600' },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

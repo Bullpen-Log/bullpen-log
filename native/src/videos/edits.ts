@@ -78,3 +78,67 @@ export function createFavQueue(opts: {
     },
   };
 }
+
+/**
+ * 3) 메모 줄(2026-10-29): 즐겨찾기 줄과 같은 꼴 — 한 영상에 한 번에 하나만 보내고, 보내는 사이 또 저장하면 끝난 뒤 마지막 글을 한 번 더.
+ *    늦게 온 앞 답이 더 최근 글을 덮지 않게(앞 답은 superseded 로 돌려준다). 실패하면 **메모만** 서버가 마지막으로 받은 값으로 되돌린다 —
+ *    예전엔 실패 때 고침 표 전체를 저장 전 것으로 되돌려, 그사이 누른 즐겨찾기까지 옛 값으로 보였다.
+ */
+export type NoteSent = { ok: true; note: string | null } | { ok: false; error: string };
+export type NoteOutcome = NoteSent & { superseded?: boolean; dropped?: boolean };
+export function createNoteQueue(opts: {
+  send: (path: string, note: string | null) => Promise<NoteSent>;
+  /** 보이는 메모 — done = 서버가 확인함(또는 되돌림) */
+  show: (path: string, note: string | null, done: boolean) => void;
+}) {
+  const pending = new Map<string, { note: string | null; done: ((r: NoteOutcome) => void)[] }>();
+  const server = new Map<string, string | null>();
+  const busy = new Set<string>();
+  let gen = 0;
+  async function flush(path: string) {
+    if (busy.has(path)) return;
+    busy.add(path);
+    const g = gen;
+    try {
+      for (;;) {
+        const job = pending.get(path);
+        if (!job) break;
+        pending.delete(path);
+        const r = await opts.send(path, job.note);
+        if (g !== gen) {
+          job.done.forEach((d) => d({ ok: false, error: '', dropped: true }));
+          return;
+        }
+        const newer = pending.has(path);
+        if (r.ok) server.set(path, r.note);
+        if (!newer) opts.show(path, r.ok ? r.note : (server.get(path) ?? null), true);
+        job.done.forEach((d) => d(newer ? { ...r, superseded: true } : r));
+      }
+    } finally {
+      busy.delete(path);
+    }
+  }
+  return {
+    /** current = 지금 서버 값으로 보이는 메모(처음 보낼 때만 기억 — 실패하면 거기로 되돌린다) */
+    save(path: string, note: string | null, current: string | null): Promise<NoteOutcome> {
+      if (!busy.has(path) && !pending.has(path)) server.set(path, current);
+      opts.show(path, note, false);
+      return new Promise((resolve) => {
+        const job = pending.get(path);
+        if (job) {
+          job.note = note;
+          job.done.push(resolve);
+        } else pending.set(path, { note, done: [resolve] });
+        void flush(path);
+      });
+    },
+    /** 로그아웃 — 기다리던 저장은 버린다(앞사람 글이 다음 계정에 안 가게) */
+    reset() {
+      gen++;
+      for (const job of pending.values()) job.done.forEach((d) => d({ ok: false, error: '', dropped: true }));
+      pending.clear();
+      server.clear();
+      busy.clear();
+    },
+  };
+}

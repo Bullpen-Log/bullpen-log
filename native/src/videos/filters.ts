@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 import { EMPTY_VIDEO_FILTER, type VideoFilter, type VideoOrder } from '@/lib/my-videos';
 import { loadJson, saveJson } from '~/lib/store';
 
@@ -22,28 +22,50 @@ void loadJson(MODE_KEY).then((v) => {
   }
 });
 
+/*
+ * 비교할 B 고르기의 조건 — 비교 한 번(상세에서 [다른 영상과 비교]를 누른 때) 동안 이어진다: 처음엔 지금 목록 조건을 베끼고(startPickUi),
+ * 비교 화면에서 B 를 다시 고를 때는 고르기에서 바꾼 조건 · 보던 자리 그대로. 목록(main)에는 옮기지 않는다.
+ */
+let pick: GalleryUi | null = null;
+export function startPickUi() {
+  pick = { ...main };
+  anchors.pick = null;
+  emit();
+}
+
+/** 보던 영상(경로) — 목록이 다시 그려지거나(고르기 → 맞추기 → 다시 고르기) 열 수 · 글자 크기가 바뀌어도 그 근처로 */
+const anchors: Record<'main' | 'pick', string | null> = { main: null, pick: null };
+export const galleryAnchor = (scope: 'main' | 'pick') => anchors[scope];
+export const setGalleryAnchor = (scope: 'main' | 'pick', path: string | null) => {
+  anchors[scope] = path;
+};
+
 export function useGalleryUi(scope: 'main' | 'pick'): [GalleryUi, (next: Partial<GalleryUi>) => void] {
-  const shared = useSyncExternalStore(
+  const snap = useSyncExternalStore(
     (l) => {
       listeners.add(l);
       return () => listeners.delete(l);
     },
-    () => main
+    () => (scope === 'pick' ? (pick ?? main) : main)
   );
-  const [local, setLocal] = useState<GalleryUi>(() => main);
-  if (scope === 'pick') return [local, (next) => setLocal((cur) => ({ ...cur, ...next }))];
   return [
-    shared,
+    snap,
     (next) => {
-      main = { ...main, ...next };
-      if (next.mode) void saveJson(MODE_KEY, next.mode);
+      if (scope === 'pick') pick = { ...(pick ?? main), ...next };
+      else {
+        main = { ...main, ...next };
+        if (next.mode) void saveJson(MODE_KEY, next.mode);
+      }
       emit();
     },
   ];
 }
 
-/** 로그아웃 — 앞사람의 검색어 · 조건을 지운다(보기 방식은 기기 선호라 둔다) */
+/** 로그아웃 — 앞사람의 검색어 · 조건 · 보던 자리를 지운다(보기 방식은 기기 선호라 둔다) */
 export function resetGalleryUi() {
   main = { ...main, filter: EMPTY_VIDEO_FILTER, order: 'new' };
+  pick = null;
+  anchors.main = null;
+  anchors.pick = null;
   emit();
 }
