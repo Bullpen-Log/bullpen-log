@@ -182,21 +182,32 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
 
       {data?.programs ? <ProgramCards shelf={data.programs} today={day} /> : null}
 
-      <Press
-        accessibilityRole="button"
-        accessibilityLabel="운동 영상, 운동 찾기 · 즐겨찾기"
-        onPress={() => router.push('/library/training' as Href)}
-        style={[styles.video, { backgroundColor: c.card, boxShadow: c.float }]}
-      >
-        <View style={[styles.videoIcon, { backgroundColor: withAlpha(c.link, 0.12) }]}>
-          <Icon name="clapperboard" size={22} color={c.link} />
-        </View>
-        <View style={{ flex: 1, gap: 3 }}>
-          <Text style={[TYPE.card, { color: c.ink }]}>운동 영상</Text>
-          <Text style={{ color: c.muted, fontSize: 13 }}>운동 찾기 · 즐겨찾기</Text>
-        </View>
-        <Icon name="chevron-right" size={18} color={c.muted} />
-      </Press>
+      {/* 영상 라이브러리 — 운동 영상 · 투구 드릴(2026-10-29 상단 메뉴 개편으로 더보기에서 옮겨 왔다 — 드릴은 트레이닝 소속) */}
+      <View style={[styles.library, { backgroundColor: c.card, boxShadow: c.float }]}>
+        {(
+          [
+            { href: '/library/training', title: '운동 영상', sub: '운동 찾기 · 즐겨찾기', icon: 'clapperboard' },
+            { href: '/library/mechanics', title: '투구 드릴', sub: '메커니즘 요소별 드릴 영상', icon: 'target' },
+          ] as const
+        ).map((it, i) => (
+          <Press
+            key={it.href}
+            accessibilityRole="button"
+            accessibilityLabel={`${it.title}, ${it.sub}`}
+            onPress={() => router.push(it.href as Href)}
+            style={[styles.video, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}
+          >
+            <View style={[styles.videoIcon, { backgroundColor: withAlpha(c.link, 0.12) }]}>
+              <Icon name={it.icon} size={22} color={c.link} />
+            </View>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={[TYPE.card, { color: c.ink }]}>{it.title}</Text>
+              <Text style={{ color: c.muted, fontSize: 13 }}>{it.sub}</Text>
+            </View>
+            <Icon name="chevron-right" size={18} color={c.muted} />
+          </Press>
+        ))}
+      </View>
     </ScrollView>
   );
 }
@@ -348,7 +359,8 @@ const styles = StyleSheet.create({
   miniHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   miniIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   miniFoot: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 'auto', minHeight: 24 },
-  video: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: RADIUS.card, padding: 16, minHeight: 76 },
+  library: { borderRadius: RADIUS.card },
+  video: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, minHeight: 76 },
   videoIcon: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 });
 

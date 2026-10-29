@@ -10,7 +10,7 @@ import Animated, { Easing, runOnJS, useAnimatedProps, useAnimatedStyle, useDeriv
 import { useTheme } from '~/lib/ui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, type IconName } from '~/shell/icon';
-import { useMenu, type MenuGroup } from '~/shell/menu-store';
+import { MENU_ICON as ICON, useMenu, type MenuGroup } from '~/shell/menu-store';
 import { tabBarOcclusion, type ShellTab } from '~/shell/tab-bar';
 import { destinationOf, leaveTo, leaveWhenShown, openWebAfter } from '~/shell/web-nav';
 import { beginMotion, endMotion } from '~/shell/transition';
@@ -27,35 +27,6 @@ import { useSpace } from '~/org/space-store';
  * 예전엔 높이 한도 · 스크롤이 없어 메뉴가 많으면(관리자 · 잠긴 칸) 위의 '메뉴' 제목과 밑의 내 정보 줄이 화면 밖으로 잘렸다.
  * 굴릴 게 있을 때만 폴더 안 끌어내려 닫기를 끈다(스크롤과 다투지 않게) — 그때도 '메뉴' 제목을 끌거나 바깥 막을 누르면 닫힌다.
  */
-/* 웹 nav-icons.tsx NAV_ICONS 와 같은 선 그림 */
-const ICON: Record<string, IconName> = {
-  home: 'house',
-  baseball: 'baseball',
-  dumbbell: 'dumbbell',
-  film: 'film',
-  utensils: 'utensils',
-  target: 'pitcher',
-  zone: 'zone',
-  book: 'book-open',
-  settings: 'settings',
-  shield: 'shield',
-  gauge: 'gauge',
-  clapper: 'clapperboard',
-  radar: 'radar',
-  body: 'pitcher',
-  /* 3D 스윙 분석 · 3D 개발 관리자 — 타자(2026-10-22), 타격 — 방망이 */
-  batter: 'batter',
-  bat: 'baseball-bat',
-  community: 'messages-square',
-  /* 2026-10-22 둥근 그림 — 웹 nav-icons.tsx 와 같게(관리자는 'admin' 별 방패, 'shield' 는 홈 요약 칸 컨디션) */
-  heart: 'armcare',
-  calendar: 'log',
-  users: 'people',
-  admin: 'admin',
-  back: 'back',
-  support: 'life-buoy',
-  menu: 'menu',
-};
 /**
  * 하단 탭에도 있는 메뉴 항목 — 폴더에서 뺀다(웹 detail-menu.tsx inTabBar: 같은 길이 두 번). 잠기면 주소가 바뀌어 이름 · 그림으로 견준다(네이티브3).
  * 탭은 사이트가 보낸 지금 탭(menu-store tabs) — 고정 목록이면 사이트가 탭을 바꿔도 더보기가 따라가지 않았다.

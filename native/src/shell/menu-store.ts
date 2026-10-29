@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import type { IconName } from '~/shell/icon';
 import { DEFAULT_TABS, type ShellTab } from '~/shell/tab-bar';
 
 /** 더보기 목록 — 사이트가 알려 준 것(components/app-shell/expo-tabs.tsx { t: 'menu' }). 껍데기가 넣고 더보기 화면(/more)이 그린다 */
@@ -29,3 +30,33 @@ export const useMenu = () =>
   );
 /** 앱 내 정보(app/profile.tsx)에서 닉네임을 고치면 더보기 머리도 바로 바꾼다 — 사이트가 다음 알림을 보낼 때까지 */
 export const setMenuNickname = (nickname: string) => setMenu({ ...menu, nickname });
+
+/* 웹 nav-icons.tsx NAV_ICONS 와 같은 선 그림 */
+export const MENU_ICON: Record<string, IconName> = {
+  home: 'house',
+  baseball: 'baseball',
+  dumbbell: 'dumbbell',
+  film: 'film',
+  utensils: 'utensils',
+  target: 'pitcher',
+  zone: 'zone',
+  book: 'book-open',
+  settings: 'settings',
+  shield: 'shield',
+  gauge: 'gauge',
+  clapper: 'clapperboard',
+  radar: 'radar',
+  body: 'pitcher',
+  /* 3D 스윙 분석 · 3D 개발 관리자 — 타자(2026-10-22), 타격 — 방망이 */
+  batter: 'batter',
+  bat: 'baseball-bat',
+  community: 'messages-square',
+  /* 2026-10-22 둥근 그림 — 웹 nav-icons.tsx 와 같게(관리자는 'admin' 별 방패, 'shield' 는 홈 요약 칸 컨디션) */
+  heart: 'armcare',
+  calendar: 'log',
+  users: 'people',
+  admin: 'admin',
+  back: 'back',
+  support: 'life-buoy',
+  menu: 'menu',
+};
