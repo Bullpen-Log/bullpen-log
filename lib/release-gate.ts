@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import type { Permission } from '@/lib/permissions';
 import {
   FEATURE_LOCKED_BETA,
+  RELEASE_STAGE_DEFAULT,
   decideAccess,
   decidePath,
   isBetaRestricted,
@@ -33,17 +34,18 @@ import {
  */
 
 /**
- * 출시 단계 — 서버 환경변수만 본다(클라이언트 변수 · 앱이 보낸 값으로 정하지 않는다). 2026-10-29 금윤호: 환경변수로 켜고 끈다.
- * 값은 너그럽게 읽는다 — 대시보드에 붙여 넣다 생긴 앞뒤 빈칸 · 따옴표 · 대문자 · 가운데 줄표(restricted-beta)도 베타로(2026-10-30).
+ * 출시 단계 — 서버 환경변수 RELEASE_STAGE 가 있으면 그것, 없으면 코드 기본값(RELEASE_STAGE_DEFAULT — 2026-10-30 부터 베타).
+ * 클라이언트 변수 · 앱이 보낸 값으로는 정하지 않는다. 값은 너그럽게 읽는다 — 앞뒤 빈칸 · 따옴표 · 대문자 · 줄표(restricted-beta) · 'beta' 도 베타,
+ * 'released' · 'off' · 'false' 는 정식.
  */
 export function releaseStage(): ReleaseStage {
   return stageOf(process.env.RELEASE_STAGE);
 }
 
-/** 환경변수 값 → 출시 단계(시험용으로 따로) */
+/** 환경변수 값 → 출시 단계(시험용으로 따로). 비었으면 코드 기본값 */
 export function stageOf(raw: string | undefined): ReleaseStage {
   const v = (raw ?? '').trim().replace(/^['"]+|['"]+$/g, '').trim().toLowerCase().replace(/[-\s]+/g, '_');
-  /* 'beta' 하나만 적어도 베타로 — 켜려는 뜻이 분명한 값 */
+  if (!v) return RELEASE_STAGE_DEFAULT;
   return v === 'restricted_beta' || v === 'beta' ? 'restricted_beta' : 'released';
 }
 

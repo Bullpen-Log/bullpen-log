@@ -16,6 +16,12 @@ import { can, type Permission } from '@/lib/permissions';
 
 export type ReleaseStage = 'restricted_beta' | 'released';
 
+/**
+ * 서버 환경변수 RELEASE_STAGE 가 비었을 때의 출시 단계(2026-10-30 금윤호). Vercel 변수가 들어가지 않아 두 번 연속 베타가 안 켜졌다 —
+ * 이제 코드가 베타를 기본으로 하고, 정식 출시로 바꿀 때는 여기를 'released' 로 고쳐 올리거나 변수 RELEASE_STAGE=released 를 넣는다.
+ */
+export const RELEASE_STAGE_DEFAULT: ReleaseStage = 'restricted_beta';
+
 /** 정책 판 — 허용 목록 · 경로 표를 바꾸면 올린다. 앱이 들고 있는 정책을 이 값으로 갈라 버린다(계정 · 판이 다르면 다시 묻는다) */
 export const RELEASE_POLICY_VERSION = '2026-10-29.2';
 

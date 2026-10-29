@@ -14,7 +14,7 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 ## 김민에게 — 2026-10-30 · 금윤호(Claude, 윤호 맥북) — 출시 전 베타(투구 3D 만)를 main 에 올렸다 · 네 앱 틀을 고쳤다 · **새 서버 동작은 표에 올려야 한다**
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만이라 업데이트로 나간다). 금윤호: 대표관리자 말고는 투구 3D · 홈 · 설정 · 내 정보만, 나머지는 회색 + 자물쇠(누르면 '준비 중인 기능입니다.').
-**Vercel 환경변수 `RELEASE_STAGE=restricted_beta` 를 금윤호가 넣으면 켜진다**(없으면 정식 출시 그대로). 설계 · 접근 표 · 되돌리기는 `docs/designs/pitch-3d-beta-access-impl.md`.
+**10-30 부터 코드 기본값이 베타다**(`lib/release-access.ts RELEASE_STAGE_DEFAULT` — Vercel 변수가 안 들어가 바꿨다). 끄려면 그 값을 `'released'` 로 올리거나 Vercel 변수 `RELEASE_STAGE=released`. 지금 단계는 `/api/release-stage`. 설계 · 접근 표 · 되돌리기는 `docs/designs/pitch-3d-beta-access-impl.md`.
 - **켜지면 준관리자(MANAGER)도 일반과 같다** — 구속 측정 · ABS · 관리 업무 · 고객센터도 잠긴다. 역할 · 권한 표는 그대로라 변수를 지우면 예전대로.
 - **새로 만드는 서버 동작 · RPC 모듈은 기본으로 막힌다**(베타일 때) — `lib/release-ops.ts` 표에 기능을 적고, 베타에 열 것이면 함수 맨 위에 `allowFeature('pitch3d')` 같은 줄. `npm run release-access:test` 가 registry 의 모든 모듈이 표에 있는지 본다.
 - **네 앱 영역 고친 곳**: `native/src/app/index.tsx`(정책 받기 · 잠긴 탭은 판 안 붙임 · 베타면 홈 = `home/beta-home.tsx`, 투구 = `pitch/tab.tsx BetaPitchTab`) · `app/_layout.tsx`(잠긴 화면 딥링크 닫기) ·
