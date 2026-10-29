@@ -150,6 +150,8 @@ type Job = {
   analyzing?: boolean;
   /** 조용히 재던 클립이 공을 찾았다 — 이때까지 '인식했어요'를 먼저 보인다(웹처럼 결과가 불쑥 뜨지 않게) */
   flashUntil?: number;
+  /** 계산기가 공 길을 찾았다고 알렸다('ball') — 그 뒤는 '구속 계산 중'. 공 구간을 받은 작업은 계산기가 이 알림을 안 보낸다 */
+  pathFound?: boolean;
 };
 
 const kindOf = (job: Job): ThrowKind => (job.net ? 'net' : job.ball ? 'ball' : job.seed ? 'seed' : job.sweep ? 'sweep' : 'motion');
@@ -162,7 +164,10 @@ export const canSweep = () => typeof DualCamera.now === 'function';
 /** 화면이 정하는 재기 조건(사이트 DualCapture 의 set… 들) */
 export type MeasureSettings = Omit<MeasureOpts, 'fps' | 'fovDeg' | 'fovKnown' | 'ballRange'> & { fallbackFovDeg: number };
 
-export type CaptureStatus = 'armed' | 'capturing' | 'analyzing';
+/** armed 대기 · capturing 투구를 알아채 클립을 기다림 · analyzing 계산기가 공 길을 찾는 중 · computing 계산기가 공 길을 찾았다고 알림(구속 계산) */
+export type CaptureStatus = 'armed' | 'capturing' | 'analyzing' | 'computing';
+/** 화면에 띄우는 알림의 종류 — missed 공 길을 못 잡음 · failed 계산 실패 · backlog 앞 공 처리 중이라 못 잼 · info 재기는 이어 가는 알림 */
+export type NoticeKind = 'missed' | 'failed' | 'backlog' | 'info';
 
 /** 화면이 잰 공을 받았나 — 안 받으면(측정 불가 · 잡음) 클립을 지우고 시도 기록에 까닭을 남긴다 */
 export type Verdict = { kept: true } | { kept: false; code?: string; why?: string };
@@ -172,8 +177,8 @@ export type CaptureHandlers = {
   onResult(result: EngineResult, meta: { id: number; hitT: number; clip: Clip; late: boolean }): Verdict;
   /** 화면에 띄울 작업 수가 바뀜 — '투구를 인식했어요' · '구속 계산 중' */
   onStatus(status: CaptureStatus, visible: number): void;
-  /** miss — 못 잰 공 알림이면 그 짧은 까닭(화면 집계 · 소리 안내) */
-  onNotice(message: string, miss?: MissReason): void;
+  /** miss — 못 잰 공 알림이면 그 짧은 까닭(화면 집계 · 소리 안내). kind — 화면이 실패를 가르는 종류 */
+  onNotice(message: string, miss: MissReason | undefined, kind: NoticeKind): void;
   /** 작업 하나가 끝날 때(쟀든 실패했든) 단계별 시간 — 관리자 진단 */
   onTiming?(t: JobTiming): void;
   /** 시도 기록(사이트 recordVelocityAttempt 와 같은 칸) */
@@ -355,7 +360,7 @@ export class AppCapture {
        */
       const victim = ball ? [...others].reverse().find((j) => !j.visible && !j.started) : undefined;
       if (!victim) {
-        if (ball) this.handlers.onNotice('계산이 밀려 공 하나를 건너뛰었어요');
+        if (ball) this.handlers.onNotice('계산이 밀려 공 하나를 건너뛰었어요', undefined, 'backlog');
         this.lost({ kind, atSec, strength, thermal, code: 'QUEUE_FULL', why: 'queue-full' });
         return false;
       }
@@ -432,7 +437,12 @@ export class AppCapture {
           });
         }
         this.report(timing);
-        if (job.visible) this.handlers.onNotice(err instanceof Error ? err.message : '영상을 읽지 못했어요');
+        if (job.visible)
+          this.handlers.onNotice(
+            err instanceof Error ? err.message : '영상을 읽지 못했어요',
+            undefined,
+            err instanceof EngineError && err.code === 'TIMEOUT' && err.queued ? 'backlog' : 'failed'
+          );
       }
     } finally {
       if (!yielded) {
@@ -454,7 +464,8 @@ export class AppCapture {
     const visible = this.jobs.filter((j) => j.visible);
     const now = Date.now();
     const recognizing = visible.some((j) => !j.analyzing || (j.flashUntil ?? 0) > now);
-    this.handlers.onStatus(this.jobs.length ? (visible.length && !recognizing ? 'analyzing' : 'capturing') : 'armed', visible.length);
+    const working: CaptureStatus = visible.some((j) => j.pathFound) ? 'computing' : 'analyzing';
+    this.handlers.onStatus(this.jobs.length ? (visible.length && !recognizing ? working : 'capturing') : 'armed', visible.length);
   }
 
   /** 단계별 시간을 한 줄로 — 콘솔 · 관리자 진단(2026-10-20) */
@@ -470,7 +481,7 @@ export class AppCapture {
     const now = Date.now();
     if (now - this.lastLossNoticeAt < 10_000) return;
     this.lastLossNoticeAt = now;
-    this.handlers.onNotice(frameLossNotice(clip.fpsActual ?? 0));
+    this.handlers.onNotice(frameLossNotice(clip.fpsActual ?? 0), undefined, 'info');
   }
 
   /** 'yield' — 공 작업에게 차례를 내주고 줄로 돌아갔다(클립은 그대로 쥔다) */
@@ -545,7 +556,9 @@ export class AppCapture {
     let measured: Awaited<ReturnType<EngineHandle['measure']>>;
     try {
       measured = await engine.measure(main, opts, () => {
-        if (job.visible || job.superseded || gen !== this.gen) return;
+        if (job.superseded || gen !== this.gen) return;
+        job.pathFound = true;
+        if (job.visible) return this.sync();
         /* 조용히 재던 클립이 공을 찾았다 — '인식했어요'를 잠깐 먼저 보인다 */
         job.visible = true;
         job.flashUntil = Date.now() + 400;
@@ -570,7 +583,7 @@ export class AppCapture {
      * 안 띄웠어도 공 길이 있으면 못 잰 까닭을 알린다(2026-10-22 — 알림 없이 던진 공이 말없이 사라지던 것).
      */
     const silent = !ok && ((!job.visible && !job.sweep) || track < 4);
-    if (silent && job.visible) this.handlers.onNotice(LOST_BALL_NOTE, MISS_REASONS.short);
+    if (silent && job.visible) this.handlers.onNotice(LOST_BALL_NOTE, MISS_REASONS.short, 'missed');
     let decided: Verdict;
     try {
       decided = silent

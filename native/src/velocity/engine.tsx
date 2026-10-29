@@ -92,7 +92,9 @@ export type EngineHandle = {
 export class EngineError extends Error {
   constructor(
     public code: 'TIMEOUT' | 'ENGINE_DOWN' | 'ENGINE_GONE' | 'ENGINE_FAIL',
-    message: string
+    message: string,
+    /** 시한 초과가 줄에 서 있던 채로 났나(앞 공 계산이 밀림) — 화면이 '앞 공 처리 중'으로 가른다. 시도 기록 코드는 그대로 TIMEOUT */
+    public queued = false
   ) {
     super(message);
     this.name = 'EngineError';
@@ -249,7 +251,8 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
                 ? queued
                   ? '계산이 밀려 이번 공은 재지 못했어요'
                   : '계산이 너무 오래 걸려 이번 공은 재지 못했어요'
-                : '훑기가 너무 오래 걸렸어요'
+                : '훑기가 너무 오래 걸렸어요',
+              queued
             )
           );
         };
