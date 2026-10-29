@@ -280,9 +280,25 @@ const RX_HREF = (kind: RxAction['kind'], elementKey: string) =>
 const STEP_HREF = (s: ReportNextStep) =>
   s.kind === 'guide' ? labGuideHref('frame') : `/training?view=mechanics&tab=elements&el=${s.elementKey}`;
 
-export function RxCard({ report, mine, focus }: { report: PitchReport; mine: boolean; focus: FocusProgress }) {
+/**
+ * trainingOpen — 트레이닝(메커니즘 진행 · 요소별 드릴)을 열 수 있나. 출시 전 베타(2026-10-29)의 일반 · 준관리자는 잠겨 있어,
+ * 보고서의 드릴 이름 · 횟수는 그대로 보이고 그리로 가는 단추만 뺀다('다시 찍기' · 촬영 안내는 투구 3D 라 남김). 보고서가 잠긴 기능의 우회로가 되지 않게.
+ */
+export function RxCard({
+  report,
+  mine,
+  focus,
+  trainingOpen = true,
+}: {
+  report: PitchReport;
+  mine: boolean;
+  focus: FocusProgress;
+  trainingOpen?: boolean;
+}) {
   if (report.criteria !== REPORT_CRITERIA || report.rx.length === 0) {
-    const steps = report.criteria === REPORT_CRITERIA && report.coverage ? nextStepsOf(report) : [];
+    const steps = (report.criteria === REPORT_CRITERIA && report.coverage ? nextStepsOf(report) : []).filter(
+      (s) => trainingOpen || s.kind === 'guide'
+    );
     return (
       <section className="space-y-3 rounded-2xl bg-surface p-(--block-pad)">
         <h2 className="font-semibold text-ink">개선 드릴</h2>
@@ -313,6 +329,8 @@ export function RxCard({ report, mine, focus }: { report: PitchReport; mine: boo
   const main = report.rx[0];
   const cta = rxAction(mine, focus);
   const href = RX_HREF(cta.kind, main.key);
+  /* 베타 — 트레이닝으로 가는 단추(진행 · 추천 훈련 보기)는 빼고 다시 찍기만 */
+  const ctaOpen = trainingOpen || cta.kind === 'retake';
   return (
     <section className="space-y-2">
       <h2 className="px-1 text-footnote text-muted">개선 드릴 · 쉬운 것부터</h2>
@@ -321,12 +339,16 @@ export function RxCard({ report, mine, focus }: { report: PitchReport; mine: boo
           <RxBlock key={rx.element} rx={rx} />
         ))}
         {report.later.length > 0 && <p className="text-caption text-muted break-keep">다음 차례 · {report.later.join(' · ')}</p>}
-        <div className="space-y-2">
-          <ButtonLink href={href} size="lg" className="w-full">
-            {cta.label}
-          </ButtonLink>
-          {cta.note && <p className="text-center text-caption text-muted break-keep">{cta.note}</p>}
-        </div>
+        {ctaOpen ? (
+          <div className="space-y-2">
+            <ButtonLink href={href} size="lg" className="w-full">
+              {cta.label}
+            </ButtonLink>
+            {cta.note && <p className="text-center text-caption text-muted break-keep">{cta.note}</p>}
+          </div>
+        ) : (
+          <p className="text-center text-caption text-muted break-keep">추천 훈련 화면은 준비 중이에요. 위 드릴을 참고해 연습해 보세요.</p>
+        )}
       </div>
     </section>
   );

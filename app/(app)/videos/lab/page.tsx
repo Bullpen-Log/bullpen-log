@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
+import { isRestrictedNow } from '@/lib/release-gate';
 import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { listLabSamples } from '@/lib/pitch-lab';
@@ -19,7 +20,8 @@ import { LabClient } from './lab-client';
 export default async function PitchLabPage() {
   const user = await requireUser();
   /* 투구 첫 설정 전이면 다른 투구 화면처럼 설정으로 */
-  if (featureLocks(user).pitch) redirect(SETUP_PATH.pitch);
+  /* 출시 전 베타에는 투구 첫 설정을 묻지 않는다(그 화면이 잠겨 있고, 3D 는 필요한 값을 새 분석 화면이 받는다 — lib/release-gate.ts) */
+  if (featureLocks(user).pitch && !isRestrictedNow(user)) redirect(SETUP_PATH.pitch);
   /* 새 아이폰 앱(판 9~)은 앱 화면(native/src/app/lab/index.tsx)으로 */
   if (expoLevel((await headers()).get('user-agent')) >= 9) return <OpenNative path="/lab" cover={false} />;
   const all = await listLabSamples(user);
@@ -33,6 +35,8 @@ export default async function PitchLabPage() {
       samples={samples}
       defaultHeightCm={user.heightCm ?? null}
       defaultHand={labHandOf(user.throwingHand)}
+      /* 출시 전 베타 — 부모 '투구'(/videos)가 잠겨 있어 '‹' 는 베타 홈으로 */
+      back={isRestrictedNow(user) ? { href: '/today', label: '홈' } : undefined}
     />
   );
 }

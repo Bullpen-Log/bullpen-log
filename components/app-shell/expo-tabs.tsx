@@ -104,6 +104,8 @@ export function ExpoTabBridge({
       label: t.short ?? t.label,
       icon: t.icon,
       locked: !!t.locked,
+      /* 잠긴 까닭(첫 설정 · 출시 전 베타) — 옛 앱은 이 칸을 모르고 지나간다 */
+      lockReason: t.lockReason ?? null,
     });
     rn()?.postMessage(
       JSON.stringify({
@@ -133,7 +135,7 @@ export function ExpoTabBridge({
         isAdmin,
         groups: groups.map((g) => ({
           title: g.title ?? null,
-          items: g.items.map((i) => ({ href: i.href, label: i.label, icon: i.icon, locked: !!i.locked, hidden: !!i.appMoreHidden })),
+          items: g.items.map((i) => ({ href: i.href, label: i.label, icon: i.icon, locked: !!i.locked, lockReason: i.lockReason ?? null, hidden: !!i.appMoreHidden })),
         })),
       })
     );

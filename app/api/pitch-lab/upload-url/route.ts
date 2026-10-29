@@ -10,6 +10,7 @@ import {
   isLabView,
 } from '@/lib/pitch-lab-meta';
 import { can } from '@/lib/permissions';
+import { allowFeature } from '@/lib/release-gate';
 
 /**
  * 3D 동작 분석(베타) — 옆 · 뒤 영상 하나를 저장소로 직접 올릴 임시 주소. 로그인한 누구나 — 자기 폴더에만(관리자는 관리자끼리).
@@ -17,6 +18,12 @@ import { can } from '@/lib/permissions';
  * ?sport=hit 면 3D 스윙 분석(타자) 폴더(swing-lab, 2026-10-21) — 그때만 3D 개발 관리자가 마커 샘플의 ③ · ④ 카메라(view cam3 · cam4)도 올린다.
  */
 export async function POST(req: Request) {
+  /*
+   * 출시 전 베타(2026-10-29) — 같은 주소가 투구 3D 와 스윙 3D(?sport=hit)를 같이 받는다. 사람을 읽기 전에 어느 일인지 밝혀, 스윙은 잠긴 채로 둔다
+   * (lib/release-gate.ts). 모르는 sport 값은 아래에서 400 이지만, 여기서도 투구로 넘겨 주지 않는다(스윙 쪽 = 잠긴 쪽으로 본다).
+   */
+  const sportParam = new URL(req.url).searchParams.get('sport');
+  allowFeature(sportParam == null || sportParam === 'pitch' ? 'pitch3d' : 'swing3d');
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });

@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { surfaceOf } from '@/lib/app-env';
@@ -58,6 +59,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * signup 이다.
  */
 export async function checkSignupEmail(raw: string): Promise<{ error?: string }> {
+  allowFeature('account');
   const email = raw.trim().toLowerCase();
   if (!email) return { error: '이메일을 적어 주세요.' };
   if (!EMAIL_RE.test(email)) return { error: '올바른 이메일 형식이 아니에요.' };
@@ -75,6 +77,7 @@ export async function checkSignupEmail(raw: string): Promise<{ error?: string }>
  * (비밀번호는 돌려보내지 않는다 — lib/form-values.ts 참고)
  */
 export async function signup(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  allowFeature('account');
   return withInput(await trySignup(formData), formData);
 }
 
@@ -431,6 +434,7 @@ async function trySignupMaster(
 }
 
 export async function login(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  allowFeature('account');
   return withInput(await tryLogin(formData), formData);
 }
 
@@ -491,6 +495,7 @@ function safeNext(formData: FormData): string | null {
 }
 
 export async function logout() {
+  allowFeature('account');
   await deleteSession();
   redirect('/login');
 }
@@ -515,6 +520,7 @@ export async function changePassword(
   _prev: AccountState,
   formData: FormData
 ): Promise<AccountState> {
+  allowFeature('account');
   const user = await getCurrentUser();
   if (!user) return { error: '로그인이 필요해요.' };
 
@@ -579,6 +585,7 @@ export async function deleteAccount(
   _prev: AccountState,
   formData: FormData
 ): Promise<AccountState> {
+  allowFeature('account');
   const user = await getCurrentUser();
   if (!user) return { error: '로그인이 필요해요.' };
 

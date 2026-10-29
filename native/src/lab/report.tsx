@@ -21,6 +21,7 @@ import { compareDeltaText, compareRangeText, prevDateText, PREV_CONFIRM, type Pr
 import { TYPE, type Palette } from '~/lib/ui';
 import { type Href, router } from 'expo-router';
 import { leaveTo } from '~/shell/web-nav';
+import { canOpen, useRelease } from '~/shell/release';
 
 /**
  * 투구 진단 리포트 조각(앱, 2026-10-27 개편 — 장면 → 근거 → 해석 → 다음 선택) — 웹 app/(app)/videos/lab/[id]/report-parts.tsx 와 같은 차례 · 같은 글
@@ -324,8 +325,14 @@ export function RxCard({
   mine: boolean;
   focus: FocusProgress;
 }) {
+  /*
+   * 출시 전 베타 — 트레이닝 · 메커니즘이 잠겼으면 그리로 가는 길(요소별 드릴 · 프로그램)을 걷는다. 리포트의 드릴 이름 · 설명은 그대로 보인다.
+   * 웹 report-parts.tsx RxCard 의 trainingOpen 과 같다
+   */
+  const release = useRelease();
+  const trainingOpen = canOpen('/training?view=mechanics', release) && canOpen('/training-mechanics', release);
   if (report.criteria !== REPORT_CRITERIA || report.rx.length === 0) {
-    const steps = report.criteria === REPORT_CRITERIA && report.coverage ? nextStepsOf(report) : [];
+    const steps = (report.criteria === REPORT_CRITERIA && report.coverage ? nextStepsOf(report) : []).filter((st) => trainingOpen || st.kind === 'guide');
     return (
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 10 }]}>
         <Text accessibilityRole="header" style={[TYPE.card, { color: c.ink }]}>
@@ -371,6 +378,7 @@ export function RxCard({
   }
   const main = report.rx[0];
   const cta = rxAction(mine, focus);
+  const ctaOpen = trainingOpen || cta.kind === 'retake';
   /* 대표 드릴은 처방 전체에서 많아야 2개 — 보고서가 고른 드릴만(시안의 예시 드릴 · 횟수는 쓰지 않는다) */
   const blocks = report.rx.reduce<{ rx: ElementRx; drills: (ElementRx['weeks'][number]['drills'][number] & { stage: string })[] }[]>((acc, rx) => {
     const used = acc.reduce((n, b) => n + b.drills.length, 0);
@@ -391,19 +399,23 @@ export function RxCard({
           <RxBlock key={b.rx.element} c={c} rx={b.rx} drills={b.drills} />
         ))}
         {report.later.length > 0 ? <Text style={[TYPE.sub, { color: c.muted }]}>다음 차례 · {report.later.join(' · ')}</Text> : null}
-        <View style={{ gap: 8 }}>
-          <Pressable
-            onPress={() => {
-              void Haptics.selectionAsync();
-              goRx(cta.kind, main.key);
-            }}
-            accessibilityRole="button"
-            style={({ pressed }) => [s.cta, { backgroundColor: c.action, opacity: pressed ? 0.85 : 1 }]}
-          >
-            <Text style={s.ctaText}>{cta.label}</Text>
-          </Pressable>
-          {cta.note ? <Text style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>{cta.note}</Text> : null}
-        </View>
+        {ctaOpen ? (
+          <View style={{ gap: 8 }}>
+            <Pressable
+              onPress={() => {
+                void Haptics.selectionAsync();
+                goRx(cta.kind, main.key);
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [s.cta, { backgroundColor: c.action, opacity: pressed ? 0.85 : 1 }]}
+            >
+              <Text style={s.ctaText}>{cta.label}</Text>
+            </Pressable>
+            {cta.note ? <Text style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>{cta.note}</Text> : null}
+          </View>
+        ) : (
+          <Text style={[TYPE.sub, { color: c.muted }]}>추천 훈련 화면은 준비 중이에요. 위 드릴을 참고해 연습해 보세요.</Text>
+        )}
       </View>
     </View>
   );

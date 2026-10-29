@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { requireUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
 import { isExpoToken } from '@/lib/notify-rules';
@@ -13,6 +14,7 @@ export async function registerPushDevice(input: {
   app: 'sinker' | 'dugout';
   platform?: string;
 }): Promise<{ ok: boolean }> {
+  allowFeature('appInfra');
   const user = await requireUser();
   const token = String(input?.token ?? '').trim();
   const app = input?.app === 'dugout' ? 'dugout' : 'sinker';
@@ -30,6 +32,7 @@ export async function registerPushDevice(input: {
 export async function unregisterPushDevice(input: {
   token: string;
 }): Promise<{ ok: boolean }> {
+  allowFeature('appInfra');
   const user = await requireUser();
   const token = String(input?.token ?? '').trim();
   if (!token) return { ok: false };

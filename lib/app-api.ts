@@ -14,7 +14,13 @@
 export const APP_API_HEADER = 'x-bullpen-app';
 
 /** 이 코드가 말하는 약속 번호 — 앱은 이 값을 보낸다 */
-export const APP_API_LEVEL = 7; // 팀 훈련 전체 → 조 → 예외(참석 걷음 · 실제 확인)
+export const APP_API_LEVEL = 8; // 출시 전 베타 정책(loadAppMe access · FEATURE_LOCKED_BETA 403)을 아는 앱
+
+/**
+ * 출시 전 베타(2026-10-29, lib/release-gate.ts)를 아는 가장 낮은 번호 — 베타 제한을 받는 사람의 앱이 이보다 낮으면 RPC 가 426(업데이트)으로 답한다.
+ * 그 앱은 베타 홈 · 잠금 안내를 그리지 못하고 잠긴 화면마다 일반 오류만 냈다. 정식 출시 · 대표관리자에게는 상관없다.
+ */
+export const BETA_APP_API = 8;
 
 /** 서버가 받는 가장 낮은 번호 */
 export const MIN_APP_API = 1;

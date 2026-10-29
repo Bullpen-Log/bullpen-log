@@ -148,7 +148,8 @@ export async function drainChecks<R>(
          * 재활 3문항까지 막혔다 — 웹 대기열(lib/outbox.ts)처럼 쥐고 있다가 다시 보낸다. 서버가 그 체크 자체를 못 받는 것
          * (bad-body · unknown-action 같은 정해진 오류)만 여덟 번이면 뺀다.
          */
-        if (code === 'offline' || code === 'update' || code === 'server' || code == null) return 'offline';
+        /* 출시 전 베타에 잠긴 기능(FEATURE_LOCKED_BETA)도 지우지 않고 멈춘다(2026-10-29) */
+        if (code === 'offline' || code === 'update' || code === 'server' || code === 'FEATURE_LOCKED_BETA' || code == null) return 'offline';
         const fk = failKey(next);
         const n = (serverFails.get(fk) ?? 0) + 1;
         serverFails.set(fk, n);

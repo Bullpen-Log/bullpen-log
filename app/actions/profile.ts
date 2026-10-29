@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { appNow } from '@/lib/clock';
@@ -32,6 +33,7 @@ export async function updateProfile(
   _prev: ProfileState,
   formData: FormData
 ): Promise<ProfileState> {
+  allowFeature('account');
   // 오류로 끝나면 고치던 내용을 돌려준다. 저장 전 값으로 되돌아가면 안 된다.
   return withInput(await tryUpdateProfile(formData), formData);
 }
@@ -136,6 +138,7 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
  * 사진만 사라진다.
  */
 export async function saveAvatar(path: string | null): Promise<ProfileState> {
+  allowFeature('account');
   const user = await getCurrentUser();
   if (!user) return { error: '로그인이 필요해요.' };
 
@@ -196,6 +199,7 @@ export type AppProfile = {
  * /api/rpc/profile.loadAppProfile 로 부른다.
  */
 export async function loadAppProfile(): Promise<({ ok: true } & AppProfile) | { ok: false; to: string }> {
+  allowFeature('account');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   return {
@@ -214,6 +218,7 @@ export async function loadAppProfile(): Promise<({ ok: true } & AppProfile) | { 
 
 /** 앱의 내 정보 저장 — 웹 폼(updateProfile)과 같은 칸 · 같은 검사. 앱은 FormData 를 못 보내 칸을 글자로 받아 폼으로 바꾼다(키 cm · 몸무게 kg) */
 export async function updateAppProfile(fields: Record<string, unknown>): Promise<ProfileState> {
+  allowFeature('account');
   const form = new FormData();
   for (const k of ['nickname', 'birthDate', 'sex', 'heightCm', 'weightKg']) form.set(k, String(fields?.[k] ?? ''));
   return tryUpdateProfile(form);

@@ -30,6 +30,9 @@ import { resetLibraryItems } from '~/library/parts';
 import { resetImported } from '~/pitch/attach';
 import { resetScanned } from '~/nutrition/scanned';
 import { HomeTab, resetHomeCache } from '~/home/tab';
+import { BetaHome } from '~/home/beta-home';
+import { accessAllowsPath } from '@/lib/release-access';
+import { canOpen, isBetaView, noticeLocked, releaseLookupFailed, resetRelease, restoreRelease, useRelease } from '~/shell/release';
 import { resetNotificationList } from '~/home/notifications';
 import { resetMyVideos } from '~/videos/store';
 import { resetGalleryUi } from '~/videos/filters';
@@ -56,7 +59,7 @@ import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { drainOutbox, setOutboxOwner } from '~/workout/outbox';
 import { drainChecks } from '~/armcare/outbox';
 import { sendCheck } from '~/armcare/send';
-import { PitchTab } from '~/pitch/tab';
+import { BetaPitchTab, PitchTab } from '~/pitch/tab';
 import { DEFAULT_SPORT_BARS, DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, useTabBarOcclusion, type ShellTab, type SportKey } from '~/shell/tab-bar';
 import { TabPager } from '~/shell/tab-pager';
 import { ClockVeil } from '~/shell/clock-veil';
@@ -146,6 +149,8 @@ function openNative(path: string) {
    * 1.5초면 화면을 닫고 곧바로 같은 곳을 다시 누를 때 안 열렸다(2026-10-21) — _layout 의 같은 곳 두 번 밀기 막기(0.7초)와 같게
    */
   if (path === lastOpen.path && Date.now() - lastOpen.at < 700) return;
+  /* 출시 전 베타 — 잠긴 화면은 열지 않고 안내만(서버도 막는다. 알림 · 딥링크 · 웹 링크가 모두 이리로 온다) */
+  if (!canOpen(path)) return noticeLocked();
   /* 그 나라에 없는 화면(미국 · 일본의 타격 · 3D 스윙 · 영양, lib/country.ts)은 안 연다 */
   if (hiddenIn(countryNow(), path)) return;
   /* ? 뒤까지 맞는 앱 화면이 먼저 — '/velocity?mode=abs' 를 '/velocity' 로 열면 ABS 모드가 빠졌다 */
@@ -252,6 +257,8 @@ async function openOrg(o: { orgId: string; side: SpaceSide; target: OpenTarget; 
 /** 로그아웃 — 앞사람 기록(메모리 · 폰)을 지운다. 다음 사람이 로그인하면 새로 받는다(껍데기 상태는 SiteScreen resetShell) */
 function resetAccount() {
   resetMe();
+  /* 앞사람의 베타 정책 — 대표관리자 다음 사람에게 다 열려 보이지 않게(shell/release.ts) */
+  resetRelease();
   setOutboxOwner(null);
   resetPitchStore();
   resetCompare();
@@ -284,9 +291,14 @@ function resetAccount() {
 /** 누가 로그인했는지 안 때 — 대기열 주인을 정하고, 다른 계정이 맡긴 구속 세션은 지우고, 폰에 남은 것을 보낸다 */
 function ownerKnown(userId: string) {
   setOutboxOwner(userId);
+  void dropDraftNotOf(userId);
+  /*
+   * 출시 전 베타(일반 · 준관리자) — 팀 · 레슨장 공간과 폰에 남은 운동 세트 · 암케어 체크 · 투구 영상은 잠긴 기능이라 손대지 않는다.
+   * 지우지 않고 그대로 두어 정식 출시 뒤(또는 다음에 열린 계정으로) 보낸다. 서버도 막아 보내 봐야 FEATURE_LOCKED_BETA(대기열은 'offline' 으로 남긴다)
+   */
+  if (isBetaView()) return;
   /* 그 사람의 마지막 공간을 먼저 그리고 서버 목록으로 확인한다(앱이 앞으로 올 때마다 다시 — 빠지거나 역할이 바뀌었으면 옮긴다, 계약 8-5) */
   void spaceOwner(userId);
-  void dropDraftNotOf(userId);
   drainQueues();
 }
 
@@ -327,7 +339,25 @@ export default function SiteScreen() {
   const [siteTabs, setTabs] = useState<ShellTab[]>(DEFAULT_TABS);
   /* 사이트 탭이 오기 전의 기본 탭에서 그 나라에 없는 칸(미국 · 일본의 타격)을 뺀다 — 사이트 탭은 사이트가 걸러 보낸다(lib/country.ts) */
   const country = useCountry();
-  const tabs = useMemo(() => (siteTabs === DEFAULT_TABS ? forCountry(DEFAULT_TABS, country) : siteTabs), [siteTabs, country]);
+  /*
+   * 출시 전 베타(2026-10-29) — 서버가 알려 준 정책(app.loadAppMe 의 access, shell/release.ts). 모르는 동안(앱을 켠 직후 · 꺼진 망에 저장값 없음)은
+   * 막힌 쪽으로 그린다. 잠긴 탭은 자물쇠를 달고 누르면 안내만 — 판을 붙이지도 서버를 부르지도 않는다(진짜 막기는 서버 403).
+   */
+  const release = useRelease();
+  const beta = isBetaView(release);
+  const open = useCallback((href: string) => canOpen(href, release), [release]);
+  /* 베타에서 앱 화면으로는 열리지만 그 웹 주소는 잠긴 곳(투구 첫 화면) — 웹을 그리로 보내지 않는다 */
+  const webLockedNow = (href: string) => beta && canOpen(href, release) && !accessAllowsPath(release, href, 'web');
+  useEffect(() => {
+    void restoreRelease();
+  }, []);
+  const tabs = useMemo(() => {
+    const base = siteTabs === DEFAULT_TABS ? forCountry(DEFAULT_TABS, country) : siteTabs;
+    /* 베타면 잠김은 앱이 다시 판정한다(첫 설정 잠금은 베타 동안 없다) — 투구 탭 첫 화면은 열리고(안의 구속 측정 · ABS 가 잠김) 나머지는 회색 + 자물쇠 */
+    return beta
+      ? base.map((t) => (canOpen(t.href, release) ? { ...t, locked: false, lockReason: undefined } : { ...t, locked: true, lockReason: 'beta' as const }))
+      : base;
+  }, [siteTabs, country, beta, release]);
   /* 투구 · 타격 종목 바(사이트가 잠금을 입혀 보냄) — 2026-10-20 타격 1단계 D1 */
   const [sportBars, setSportBars] = useState<Record<SportKey, ShellTab[]>>(DEFAULT_SPORT_BARS);
   const [path, setPath] = useState('/today');
@@ -369,6 +399,8 @@ export default function SiteScreen() {
       },
       (e: unknown) => {
         if (no !== askNo.current) return false;
+        /* 정책을 못 받았다 — 같은 계정 · 판의 저장값이 없으면 막힌 쪽으로(꺼진 망에서 다 열지 않는다) */
+        void restoreRelease().then(releaseLookupFailed);
         setMeError(e instanceof RpcError && e.code === 'update' ? '앱을 업데이트해 주세요.' : e instanceof RpcError && e.code === 'offline' ? null : '불러오지 못했어요.');
         if (e instanceof RpcError && e.code === 'offline') {
           const was = deviceDay.current;
@@ -432,7 +464,7 @@ export default function SiteScreen() {
   const [webFront, setWebFront] = useState(false);
   const pitchTab = tabs.find((t) => t.href === '/videos');
   /* 투구 탭의 첫 화면일 때만 앱 화면 — 잠겼으면 웹의 첫 설정 화면(주소가 /videos/setup)으로 간다 */
-  const showPitch = barOn && path === '/videos' && !!today && !pitchTab?.locked && !webFront;
+  const showPitch = barOn && path === '/videos' && !!today && !pitchTab?.locked && !webFront && open(search ? `/videos?${search}` : '/videos');
   /* 홈 첫 화면도 앱 화면 — '웹 홈에서' 를 누르면 홈 탭을 다시 누를 때까지 웹 홈(일정 · 자세한 그날 칸) */
   const [webHome, setWebHome] = useState(false);
   const showHome = barOn && path === '/today' && !!today && !webHome && !webFront;
@@ -445,20 +477,21 @@ export default function SiteScreen() {
     tabs.find((t) => t.href === '/nutrition') ?? menu.groups.flatMap((g) => g.items).find((i) => i.href.split('?')[0] === '/nutrition' || i.icon === 'utensils');
   /* undefined = 아직 모름(메뉴가 오기 전) */
   const nutritionLocked = nutritionTab?.locked;
-  const showNutrition = barOn && path === '/nutrition' && hasNutrition(country) && !!today && !webNutrition && !nutritionTab?.locked && !webFront;
+  const showNutrition =
+    barOn && path === '/nutrition' && hasNutrition(country) && !!today && !webNutrition && !nutritionTab?.locked && !webFront && open('/nutrition');
   /* 트레이닝 첫 화면(앱 카드 셋)도 앱 화면 — 카드를 누르면(암케어 · 메카닉 · 운동 전체) 주소가 ?view=… 로 바뀌어 웹이 보인다 */
   /* 2026-10-29 트레이닝은 다시 하단 탭(넷째 → 셋째) — 잠김은 그 칸에서, 옛 탭 목록(사이트가 아직 옛 탭을 보냄)이면 투구 종목 바에서 읽는다 */
   const trainingTab = tabs.find((t) => t.href.startsWith('/training')) ?? sportBars.pitch.find((t) => t.href.startsWith('/training?sport='));
   const trainingView = new URLSearchParams(search).get('view');
   const showTraining =
-    barOn && path === '/training' && (trainingView === 'home' || trainingView === 'last') && !!today && !trainingTab?.locked && !webFront;
+    barOn && path === '/training' && (trainingView === 'home' || trainingView === 'last') && !!today && !trainingTab?.locked && !webFront && open(TRAINING_HOME_HREF);
   /* 기록(2026-10-29) — 앱 화면만 있는 탭(웹으로 안 보낸다, pressTab) */
-  const showRecords = barOn && path === RECORDS_PATH && !!today && !webFront;
+  const showRecords = barOn && path === RECORDS_PATH && !!today && !webFront && open(RECORDS_PATH);
   /*
    * 덕아웃 첫 화면(2026-10-29 매치 카드) — 앱 화면. 글 · 연습장 자세히 같은 덕아웃 웹 화면은 그대로 웹(주소가 '/' 밖이면 웹이 앞).
    * barOn 은 안 본다 — 웹이 (app) 틀에서 덕아웃 틀로 옮겨 가는 동안 막대 알림이 잠깐 꺼졌다 켜져, 그때마다 앱 판이 깜빡였다
    */
-  const showDugout = isDugoutHome(path, search) && !!today && !webFront;
+  const showDugout = isDugoutHome(path, search) && !!today && !webFront && open('/?dugout=1');
   /* 판 넘기기 — 지금 보일 앱 판(없으면 웹이 앞)과 한 번이라도 열린 판(붙여 둠) */
   const pagerOn = showHome || showPitch || showTraining || showRecords || showDugout || showNutrition;
   const nowIndex = showHome ? 0 : showPitch ? 1 : showTraining ? 2 : showRecords ? 3 : showDugout ? 4 : showNutrition ? 5 : -1;
@@ -539,7 +572,14 @@ export default function SiteScreen() {
    */
   useEffect(() => {
     if (!pagerOn || pressed) return;
-    const can = { home: true, pitch: !pitchTab?.locked, training: !trainingTab?.locked, records: true, dugout: true, nutrition: nutritionLocked === false };
+    const can = {
+      home: true,
+      pitch: !pitchTab?.locked && open('/videos'),
+      training: !trainingTab?.locked && open(TRAINING_HOME_HREF),
+      records: open(RECORDS_PATH),
+      dugout: open('/?dugout=1'),
+      nutrition: nutritionLocked === false && open('/nutrition'),
+    };
     const next = PAGER_KEYS.map((k, i) => ({ k, d: Math.abs(i - pagerIndex) }))
       .sort((a, b) => a.d - b.d)
       .find(({ k }) => !seen[k] && can[k])?.k;
@@ -556,10 +596,12 @@ export default function SiteScreen() {
       clearTimeout(t);
       stop?.();
     };
-  }, [pagerOn, pressed, pagerIndex, seen, pitchTab?.locked, trainingTab?.locked, nutritionLocked]);
+  }, [pagerOn, pressed, pagerIndex, seen, pitchTab?.locked, trainingTab?.locked, nutritionLocked, open]);
   const pressTab = (t: ShellTab) => {
     /* 앞서 누른 웹 칸을 기다리던 것은 버린다 — 안 그러면 옛 칸으로 되돌아가고 렌즈도 그 칸에 남았다(2026-10-24 검토) */
     arrived();
+    /* 출시 전 베타 — 잠긴 탭은 안내만(판 · 웹 이동 없음). 더보기 · 홈은 늘 열린다 */
+    if (!open(t.href)) return noticeLocked();
     setWebFront(false);
     /* 더보기는 앱 화면(사이트가 목록을 알려 준 뒤) — 웹 메뉴는 앱 화면 위에서 열면 밑에 깔려 안 보인다 */
     if (t.href === '/more' && menu.groups.length) return router.push('/more' as Href);
@@ -567,6 +609,15 @@ export default function SiteScreen() {
     if (t.href === '/more') return void goWeb(t.href, false);
     if (t.href === '/today') setWebHome(false);
     if (t.href === '/nutrition') setWebNutrition(false);
+    /*
+     * 베타에서 앱 화면만 열린 탭(투구 첫 화면 — 웹 /videos 는 투구 기록을 읽어 잠김)은 웹을 옮기지 않고 판만 바꾼다. 웹을 보내면 서버가 베타 홈으로
+     * 돌려보내고 그 주소('/today')를 알려 와 판이 홈으로 튀었다
+     */
+    if (webLockedNow(t.href)) {
+      setPath(locOf(t.href).path);
+      setSearch(locOf(t.href).search);
+      return;
+    }
     /* 기록은 앱 화면만 — 웹은 지금 자리에 둔다(웹 '/records' 는 없다). 판만 바꾼다 */
     if (t.href === RECORDS_PATH) {
       setPath(RECORDS_PATH);
@@ -587,8 +638,16 @@ export default function SiteScreen() {
   /* 투구 탭(앱 화면)에서 아직 웹인 화면(투구 분석 · 3D 동작 분석)으로 — 앱 화면을 바로 걷고 웹이 그 주소로 간다 */
   const openWeb = (href: string) => {
     arrived();
+    if (!open(href) && !nativeOfWeb(href)) return noticeLocked();
     const native = nativeOfWeb(href);
     if (native && isNativePath(native)) return openNative(native);
+    /* 베타에서 앱 판만 열린 곳(투구 첫 화면)은 웹을 옮기지 않는다(pressTab 과 같은 까닭) */
+    if (isAppPage(href) && webLockedNow(href)) {
+      const loc = locOf(href);
+      setPath(loc.path);
+      setSearch(loc.search);
+      return;
+    }
     const waits = goWeb(href);
     /* 앱 판이 맡는 주소(투구 기록 ?view=log 등)는 바로 그 판으로 — 웹을 기다릴 까닭이 없다 */
     if (isAppPage(href)) {
@@ -598,6 +657,7 @@ export default function SiteScreen() {
     } else showWeb(href, waits);
   };
   const goTab = (href: string) => {
+    if (!open(href)) return noticeLocked();
     /*
      * 운동을 마치거나 트레이닝 첫 설정을 끝낸 뒤의 '/training' — 2026-10-21 트레이닝이 종목 바 안으로 들어가 하단 탭에서 못 찾고 웹 '오늘 운동'이 열렸다.
      * 앱 트레이닝 첫 화면(TrainingTab, ?view=home — 트레이닝 홈 카드가 여는 곳)으로. 잠겼으면 웹이 첫 설정으로 보낸다
@@ -625,6 +685,8 @@ export default function SiteScreen() {
     navTo.current = (href) => {
       /* 그 나라에 없는 곳(미국 · 일본의 타격 · 영양)으로 가는 이동은 홈으로 */
       if (!href.startsWith('#') && hiddenIn(countryNow(), href)) return goTab('/today');
+      /* 출시 전 베타 — 잠긴 곳(알림 · 웹 링크 · 앱 화면이 끝난 뒤의 이동)은 안내만, 지금 자리에 둔다 */
+      if (!href.startsWith('#') && !open(href) && !nativeOfWeb(href)) return noticeLocked();
       /* 조직 권한 없음 · 조직 알림 — 웹으로 보내지 않고 앱이 받는다(계약 8-4 · 8-5) */
       if (href === ORG_LOST) return orgLost();
       const org = parseOrgOpen(href);
@@ -821,12 +883,32 @@ export default function SiteScreen() {
   /* 탭 판 넷의 본문 끝 여백 — 막대가 실제로 가리는 높이(바닥 안전 영역 포함, 2026-10-26). 예전 TAB_BAR_HEIGHT(49)는 안전 영역을 안 넣어 끝이 막대 밑에 깔렸다 */
   const tabBottom = useTabBarOcclusion();
   const { home: seenHome, pitch: seenPitch, training: seenTraining, records: seenRecords, nutrition: seenNutrition } = seen;
-  const homeSlot = today && seenHome ? <HomeTab key="home" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} /> : null;
-  const pitchSlot = today && seenPitch ? <PitchTab key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} log={pitchLog} /> : null;
-  const trainingSlot = today && seenTraining ? <TrainingTab key="training" today={today} bottom={tabBottom} onWeb={openWeb} /> : null;
-  const recordsSlot = today && seenRecords ? <RecordsTab key="records" today={today} bottom={tabBottom} /> : null;
-  const dugoutSlot = today && seen.dugout ? <DugoutTab key="dugout" bottom={tabBottom} onWeb={openWeb} /> : null;
-  const nutritionSlot = today && seenNutrition ? <NutritionTab key="nutrition" today={today} bottom={tabBottom} onWebNutrition={openWebNutrition} /> : null;
+  /*
+   * 출시 전 베타 — 홈 판은 베타 홈(투구 3D 만), 잠긴 판은 아예 붙이지 않는다(그 판의 서버 부름 · 대기열도 안 돈다). 정책이 바뀌면(로그아웃 → 다른 계정)
+   * 열쇠가 달라 판이 새로 만들어진다
+   */
+  const homeSlot =
+    today && seenHome ? (
+      beta ? (
+        <BetaHome key="beta-home" bottom={tabBottom} />
+      ) : (
+        <HomeTab key="home" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} />
+      )
+    ) : null;
+  /* 베타면 투구 탭은 베타 판(3D 분석만 열리고 구속 측정 · ABS · 투구 기록은 회색 + 자물쇠 — 투구 기록 조회는 안 함) */
+  const pitchSlot =
+    today && seenPitch && open('/videos') ? (
+      beta ? (
+        <BetaPitchTab key="beta-pitch" today={today} bottom={tabBottom} />
+      ) : (
+        <PitchTab key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} log={pitchLog} />
+      )
+    ) : null;
+  const trainingSlot = today && seenTraining && open(TRAINING_HOME_HREF) ? <TrainingTab key="training" today={today} bottom={tabBottom} onWeb={openWeb} /> : null;
+  const recordsSlot = today && seenRecords && open(RECORDS_PATH) ? <RecordsTab key="records" today={today} bottom={tabBottom} /> : null;
+  const dugoutSlot = today && seen.dugout && open('/?dugout=1') ? <DugoutTab key="dugout" bottom={tabBottom} onWeb={openWeb} /> : null;
+  const nutritionSlot =
+    today && seenNutrition && open('/nutrition') ? <NutritionTab key="nutrition" today={today} bottom={tabBottom} onWebNutrition={openWebNutrition} /> : null;
 
   /* 웹을 못 불러와도(꺼진 망에서 켬) 탭 막대 · 앱 탭은 그대로 쓴다 — 사이트가 '막대 켬'을 못 알려 주니 실패면 켠 것으로 본다 */
   const barShown = (barOn || failed) && !webFront && !isCheckinPath(path);
@@ -835,7 +917,8 @@ export default function SiteScreen() {
    * 손대지 않아 돌아오면 그대로다. 웹이 보내는 막대 알림은 내 싱커 상태에만 적힌다. 로그인 전(meOk 아님)에는 늘 내 싱커 모양.
    */
   const sp = useSpace();
-  const inOrg = meOk && sp.key !== ME;
+  /* 베타면 팀 · 레슨장 공간은 열지 않는다(잠긴 기능 — 예전에 고른 공간이 남아 있어도 내 싱커로) */
+  const inOrg = meOk && !beta && sp.key !== ME;
   const orgNav = inOrg ? orgTabsOf(sp.key, spaceOf(sp.key)?.kind ?? null, sp.tabs[sp.key]) : null;
 
   return (

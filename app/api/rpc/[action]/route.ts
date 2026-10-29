@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
-import { APP_API_HEADER, MIN_APP_API, appApiLevelOf, minAppApiForAction } from '@/lib/app-api';
+import { APP_API_HEADER, BETA_APP_API, MIN_APP_API, appApiLevelOf, minAppApiForAction } from '@/lib/app-api';
 import { RPC_MODULES } from '../registry';
 import { runWithRequestCache } from '@/lib/request-cache';
+import { loadSessionUserUnchecked } from '@/lib/dal';
+import { FEATURE_LOCKED_BETA, RELEASE_POLICY_VERSION, decideAccess, isBetaRestricted, type AccessDecision } from '@/lib/release-access';
+import { gateDenied, isFeatureLocked, releaseStage, runInGate } from '@/lib/release-gate';
+import { rpcAccessOf } from '@/lib/release-ops';
 
 /**
  * 아이폰 앱(native/, Expo)이 서버 액션을 부르는 입구 — POST /api/rpc/<파일>.<함수>(2026-10-17 엔지니어링 검토 D2).
@@ -20,6 +24,8 @@ import { runWithRequestCache } from '@/lib/request-cache';
  *   - 426 `{ ok: false, error: 'update', min }` — 앱 약속 번호가 낮다(lib/app-api.ts). 머리가 없어도 426(남의 사이트에서 쿠키로
  *     부르는 것도 이걸로 막힌다 — CSRF).
  *   - 400 몸이 깨짐 · 500 그 밖의 오류(로그에 남김).
+ *   - 403 `{ ok: false, error: 'FEATURE_LOCKED_BETA', capability, policyVersion }` — 출시 전 베타에 잠긴 기능(2026-10-29, lib/release-gate.ts).
+ *     권한 없는 관리 업무는 `error: 'PERMISSION_DENIED'`. 앱은 이것을 다시 시도하지 않는다(정책이 바뀔 때까지).
  */
 export async function POST(
   request: Request,
@@ -40,6 +46,23 @@ export async function POST(
   if (!fn)
     return NextResponse.json({ ok: false, error: 'unknown-action' }, { status: 404 });
 
+  /*
+   * 출시 전 베타(lib/release-gate.ts) — 베타 제한을 받는 사람이면 몸을 읽기 전에 표(lib/release-ops.ts)로 판정한다. 잠긴 동작은 부르지 않는다.
+   * 베타를 모르는 옛 앱(BETA_APP_API 밑)은 잠긴 화면에서 일반 오류만 되풀이하므로 '업데이트해 주세요'(426)로 보낸다 — 앱을 다시 켜면 새 화면 코드를 받는다.
+   * 지나가도 동작 안에서 사람을 읽을 때 한 번 더 판정한다(동작 맨 위의 allowFeature 가 없으면 막힘).
+   */
+  const stage = releaseStage();
+  if (stage === 'restricted_beta') {
+    const subject = await loadSessionUserUnchecked();
+    if (subject && isBetaRestricted(subject, stage)) {
+      if (level < BETA_APP_API)
+        return NextResponse.json({ ok: false, error: 'update', min: BETA_APP_API }, { status: 426 });
+      const op = rpcAccessOf(action);
+      const d = decideAccess(subject, op.cap, { stage, perm: op.perm });
+      if (!d.allowed) return locked(d);
+    }
+  }
+
   let args: unknown[];
   try {
     args = await readArgs(request);
@@ -52,10 +75,16 @@ export async function POST(
      * 읽기(load…)는 한 요청 안에서 같은 읽기를 한 번만(lib/request-cache.ts — React cache 가 라우트 핸들러에서는 안 먹는다).
      * 쓰는 동작은 쓴 뒤 다시 읽을 수 있어 그대로 둔다(웹 서버 동작과 같은 뜻).
      */
-    const run = () => fn(...args);
-    const result = await (/\.load[A-Z]/.test(action) ? runWithRequestCache(run) : run());
-    return NextResponse.json({ ok: true, result: result ?? null });
+    const run = () => runInGate('rpc', action, async () => {
+      const result = await fn(...args);
+      /* 동작이 막힘을 자기 try/catch 로 삼켜 { ok:false } 로 돌려줘도 입구는 막힘으로 답한다 — 앱이 일반 오류로 다시 시도하지 않게 */
+      return { result, denied: gateDenied() };
+    });
+    const out = await (/\.load[A-Z]/.test(action) ? runWithRequestCache(run) : run());
+    if (out.denied) return locked(out.denied);
+    return NextResponse.json({ ok: true, result: out.result ?? null });
   } catch (e) {
+    if (isFeatureLocked(e)) return locked(e.decision);
     const digest =
       typeof (e as { digest?: unknown })?.digest === 'string'
         ? (e as { digest: string }).digest
@@ -71,6 +100,19 @@ export async function POST(
     console.error('[rpc]', action, e);
     return NextResponse.json({ ok: false, error: 'server' }, { status: 500 });
   }
+}
+
+/** 베타 잠금 · 권한 없음 — 403, 기계용 코드와 정책 판 */
+function locked(d: AccessDecision) {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: d.reason === 'permission_denied' ? 'PERMISSION_DENIED' : FEATURE_LOCKED_BETA,
+      capability: d.capability,
+      policyVersion: RELEASE_POLICY_VERSION,
+    },
+    { status: 403 }
+  );
 }
 
 /** '<파일>.<함수>' → 허용 목록의 함수(없으면 null). 모듈의 export 만 본다 — 프로토타입 이름(constructor 등)은 못 고른다. */

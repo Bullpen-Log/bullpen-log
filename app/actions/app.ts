@@ -1,5 +1,7 @@
 'use server';
 
+import { allowFeature, releaseAccessFor } from '@/lib/release-gate';
+import type { ReleaseAccess } from '@/lib/release-access';
 import { cookies } from 'next/headers';
 import { unstable_rethrow } from 'next/navigation';
 import { appNow } from '@/lib/clock';
@@ -58,9 +60,15 @@ export async function loadAppMe(): Promise<
       locks: { pitch: boolean; training: boolean; nutrition: boolean };
       /** 나라(lib/country.ts) — 앱이 사이트 탭을 받기 전의 기본 탭에서 그 나라에 없는 칸을 뺀다 */
       country: Country;
+      /**
+       * 출시 단계 판정 요약(2026-10-29 출시 전 베타, lib/release-access.ts) — 앱이 베타 홈 · 잠긴 탭을 그리는 데만 쓴다. 진짜 막기는 서버.
+       * locks(첫 설정)와 다른 뜻이다 — 첫 설정을 마쳐도 베타 잠금은 안 풀린다. 옛 서버 답에는 없다(앱은 그때 정식 출시로 본다).
+       */
+      access: ReleaseAccess;
     }
   | { ok: false; error: string }
 > {
+  allowFeature('appInfra');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   return {
@@ -71,6 +79,7 @@ export async function loadAppMe(): Promise<
     today: toDateKey(appNow()),
     locks: featureLocks(user),
     country: countryOf(user.country),
+    access: releaseAccessFor(user),
   };
 }
 
@@ -83,6 +92,7 @@ export async function reportStorefront(
   code: unknown,
   follow?: unknown
 ): Promise<{ ok: true; country: Country; changed: boolean } | { ok: false; error: string }> {
+  allowFeature('appInfra');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const now = countryOf(user.country);

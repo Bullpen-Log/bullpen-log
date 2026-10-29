@@ -4,6 +4,7 @@ import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
+import { isRestrictedNow } from '@/lib/release-gate';
 import { loadFocusProgress, loadLabSample } from '@/lib/pitch-lab';
 import { loadPreviousComparison } from '@/lib/pitch-lab-compare';
 import { isLabId } from '@/lib/pitch-lab-meta';
@@ -28,7 +29,8 @@ export default async function LabSamplePage({
 }) {
   const user = await requireUser();
   /* 투구 첫 설정 전이면 다른 투구 화면처럼 설정으로 */
-  if (featureLocks(user).pitch) redirect(SETUP_PATH.pitch);
+  /* 출시 전 베타에는 투구 첫 설정을 묻지 않는다(그 화면이 잠겨 있고, 3D 는 필요한 값을 새 분석 화면이 받는다 — lib/release-gate.ts) */
+  if (featureLocks(user).pitch && !isRestrictedNow(user)) redirect(SETUP_PATH.pitch);
   const { id } = await params;
   if (!isLabId(id)) notFound();
   /*
@@ -59,6 +61,8 @@ export default async function LabSamplePage({
       previous={mine ? previous : null}
       /* 샘플에 키가 비어 있으면(예전 샘플) 내 샘플일 때만 가입 때 적은 키로 — 3D 인형 크기 · 점검 cm */
       ownerHeightCm={sample.ownerId === user.id ? (user.heightCm ?? null) : null}
+      /* 출시 전 베타의 일반 · 준관리자는 트레이닝이 잠겨 있다 — 보고서의 트레이닝 단추를 뺀다 */
+      trainingOpen={!isRestrictedNow(user)}
     />
   );
 }

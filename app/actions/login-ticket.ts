@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, requireUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
@@ -13,6 +14,7 @@ import { isTicketCode, makeTicketCode, normalizeTicketCode, ticketStateOf, TICKE
  * 코드는 32^8 ≈ 1조 가지라 맞히기는 어렵고, 승인 전엔 아무 정보도 안 준다.
  */
 export async function createLoginTicket(): Promise<{ code: string; expiresAt: string }> {
+  allowFeature('account');
   const now = Date.now();
   /* 지난 것 정리 — 표가 안 자라게 */
   await prisma.loginTicket.deleteMany({ where: { expiresAt: { lt: new Date(now - 60 * 60 * 1000) } } }).catch(() => undefined);
@@ -29,6 +31,7 @@ export async function createLoginTicket(): Promise<{ code: string; expiresAt: st
 }
 
 export async function approveLoginTicket(formData: FormData): Promise<void> {
+  allowFeature('account');
   const user = await requireUser();
   const code = normalizeTicketCode(String(formData.get('code') ?? ''));
   if (!isTicketCode(code)) return;
@@ -41,6 +44,7 @@ export async function approveLoginTicket(formData: FormData): Promise<void> {
 }
 
 export async function claimLoginTicket(input: { code: string }): Promise<{ state: 'waiting' | 'approved' | 'expired' | 'used' }> {
+  allowFeature('account');
   const code = normalizeTicketCode(String(input?.code ?? ''));
   if (!isTicketCode(code)) return { state: 'expired' };
   const now = new Date();

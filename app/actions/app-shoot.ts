@@ -1,5 +1,6 @@
 'use server';
 
+import { allowAdmin } from '@/lib/release-gate';
 import { getCurrentUser } from '@/lib/dal';
 import { can } from '@/lib/permissions';
 import { SHOOT_PLAN } from '@/lib/shoot/plan';
@@ -22,6 +23,7 @@ import { crewsOf } from '@/lib/shoot/crews';
  * 관리자가 아니면 { ok:false, to }. /api/rpc/app-shoot.<함수> 로 부른다.
  */
 async function admin() {
+  allowAdmin('shoot');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' } as const;
   if (!can(user.role, 'shoot')) return { ok: false, to: '/today' } as const;

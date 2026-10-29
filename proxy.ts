@@ -23,14 +23,33 @@ const OPEN =
 /* 관리(/manage — 팀 · 레슨장 계정 · 관리자의 덕아웃 관리, app/(master))도 연다(2026-10-26 김민 "앱에서 관리자 기능을 쓸 수 있게"). 방어는 그 틀의 requireMaster */
 const DUGOUT_APP_OPEN = /^\/(login|manage)(\/|$)/;
 
-export function proxy(req: NextRequest) {
-  /* 개발 서버(localhost)는 막지 않는다 — 휴대폰 웹 화면을 새 앱과 견주며 고칠 때 · 휴대폰 크기 확인(브라우저 휴대폰 흉내는 이름표도 바꾼다) */
-  if (process.env.NODE_ENV !== 'production') return NextResponse.next();
-  const ua = req.headers.get('user-agent');
+/**
+ * 요청의 종류 · 주소를 서버 관문(lib/release-gate.ts)에 알린다 — 출시 전 베타의 화면 판정이 이 값을 본다(2026-10-29).
+ * 손님이 같은 이름의 머리를 보내도 여기서 덮는다. 화면 주소로 오는 GET · HEAD 는 'page', 그 밖의 방법(서버 동작 POST)은 'action',
+ * /api 는 'api'. 이 머리가 없는 요청은 관문이 '동작'으로 보고 기능 밝힘을 요구한다(덜 열린 쪽).
+ */
+function gateHeaders(req: NextRequest): Headers {
+  const h = new Headers(req.headers);
   const path = req.nextUrl.pathname;
-  if (!isPhoneBrowser(ua) || OPEN.test(path) || (surfaceOf(ua) === 'dugout-app' && DUGOUT_APP_OPEN.test(path)))
-    return NextResponse.next();
-  return NextResponse.rewrite(new URL('/phone', req.url));
+  const api = path === '/api' || path.startsWith('/api/');
+  const page = req.method === 'GET' || req.method === 'HEAD';
+  h.set('x-bp-entry', api ? 'api' : page ? 'page' : 'action');
+  h.set('x-bp-path', path + req.nextUrl.search);
+  return h;
 }
 
-export const config = { matcher: ['/((?!api/|_next/|.*\\..*).*)'] };
+export function proxy(req: NextRequest) {
+  const headers = gateHeaders(req);
+  const next = () => NextResponse.next({ request: { headers } });
+  const path = req.nextUrl.pathname;
+  if (path === '/api' || path.startsWith('/api/')) return next();
+  /* 개발 서버(localhost)는 막지 않는다 — 휴대폰 웹 화면을 새 앱과 견주며 고칠 때 · 휴대폰 크기 확인(브라우저 휴대폰 흉내는 이름표도 바꾼다) */
+  if (process.env.NODE_ENV !== 'production') return next();
+  const ua = req.headers.get('user-agent');
+  if (!isPhoneBrowser(ua) || OPEN.test(path) || (surfaceOf(ua) === 'dugout-app' && DUGOUT_APP_OPEN.test(path)))
+    return next();
+  return NextResponse.rewrite(new URL('/phone', req.url), { request: { headers } });
+}
+
+/* /api 도 지나가게 둔다(점이 든 /api/sinker/log.csv 까지) — 관문 머리를 덮어 손님이 'page' 로 꾸미지 못하게. 휴대폰 막기는 /api 를 보지 않는다 */
+export const config = { matcher: ['/((?!api/|_next/|.*\\..*).*)', '/api/:path*'] };

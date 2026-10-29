@@ -12,6 +12,7 @@ import { currentPrefs, prefsReady, usePrefs } from '~/lib/prefs';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { useTheme } from '~/lib/ui';
 import { useAppUpdateOnReturn } from '~/shell/app-update';
+import { canOpen, noticeLocked, useRelease, useReleaseDecided } from '~/shell/release';
 
 /** 사이트 첫 화면이 그려질 때까지 시작 화면을 둔다(index.tsx 가 걷는다) — 흰 화면이 번쩍이지 않게 */
 SplashScreen.preventAutoHideAsync();
@@ -42,10 +43,27 @@ function useSinglePush() {
   }, []);
 }
 
+/**
+ * 출시 전 베타(2026-10-29) — 잠긴 앱 화면이 딥링크 · 알림 · 되살린 화면 · 뒤로 · 웹 링크로 열려도 그대로 두지 않고 껍데기(베타 홈)로 돌린다.
+ * 정책이 정해진 뒤에만(서버 답 · 저장값 · 묻다 실패) — 묻는 중에 닫으면 정식 출시 사용자의 알림 화면까지 닫혔다. 정책이 바뀌면(다른 계정) 다시 본다.
+ * 화면이 잠깐 붙는 사이의 서버 부름은 서버가 막는다(403 FEATURE_LOCKED_BETA). 탭 판은 껍데기가 아예 안 붙인다(app/index.tsx).
+ */
+function useReleaseGuard(path: string) {
+  const release = useRelease();
+  const decided = useReleaseDecided();
+  useEffect(() => {
+    if (!decided || path === '/' || canOpen(path, release)) return;
+    noticeLocked();
+    if (router.canDismiss()) router.dismissAll();
+    else router.replace('/');
+  }, [path, release, decided]);
+}
+
 export default function RootLayout() {
   useSinglePush();
   /* 딥링크로 앱 화면부터 열면 그 화면이 보이게 시작 화면을 걷는다 — 밑의 웹 껍데기는 가려져 있어 다 그려졌다는 알림이 오지 않았다 */
   const path = usePathname();
+  useReleaseGuard(path);
   const theme = useTheme();
   useEffect(() => {
     // Only 선구안 훈련 uses landscape; all other screens retain portrait.

@@ -14,6 +14,7 @@ import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { PitcherMark } from '~/pitch/dock-art';
 import { Icon } from '~/shell/icon';
 import { toast } from '~/shell/toast';
+import { isBetaView, useRelease } from '~/shell/release';
 
 /**
  * 3D 동작 분석 첫 화면(2026-10-29 확정 시안 analysis-home) — 투구 탭의 '3D 동작 분석' 칸으로 들어온다.
@@ -30,10 +31,12 @@ export default function LabHomeScreen() {
   const inset = useSafeAreaInsets();
   const { data, error, reload } = useLoad<Loaded>('pitch-lab.loadAppLabList', 'mine');
   const [all, setAll] = useState(false);
+  /* 출시 전 베타 — 베타 홈에서 들어온다(투구 탭은 잠김) */
+  const beta = isBetaView(useRelease());
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar
-        back="투구"
+        back={beta ? '홈' : '투구'}
         title="3D 동작 분석"
         right={data?.isAdmin ? <BarButton label="샘플" onPress={() => router.push('/lab/samples' as Href)} c={c} /> : undefined}
         c={c}

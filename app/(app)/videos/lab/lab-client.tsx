@@ -144,11 +144,14 @@ export function LabClient({
   samples,
   defaultHeightCm,
   defaultHand,
+  back = { href: '/videos', label: '투구' },
 }: {
   samples: LabSample[];
   defaultHeightCm: number | null;
   /** 가입 때 고른 던지는 손 — 올리기 칸의 처음 값 · 옆 폰 자리(우투 3루 · 좌투 1루) */
   defaultHand: LabHand;
+  /** '‹' 가 갈 곳 — 출시 전 베타면 홈(투구가 잠겨 있다) */
+  back?: { href: string; label: string };
 }) {
   const [tab, setTab] = useState<'sample' | 'marker'>('sample');
   const normal = samples.filter((s) => s.meta?.kind !== 'marker');
@@ -157,7 +160,7 @@ export function LabClient({
   return (
     <div className="stack-page">
       <div className="space-y-2">
-        <BackLink href="/videos">투구</BackLink>
+        <BackLink href={back.href}>{back.label}</BackLink>
         <PageHeading
           kicker="베타"
           title="3D 동작 분석"

@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 import VideosPage from '@/app/(app)/videos/videos-page';
-import { requireUser } from '@/lib/dal';
+import { betaPanelHidden, requireUser } from '@/lib/dal';
 import { featureLocks } from '@/lib/feature-locks';
 import { isExpoUserAgent } from '@/lib/app-env';
 
@@ -11,6 +11,8 @@ import { isExpoUserAgent } from '@/lib/app-env';
  */
 /* 잠겼으면(첫 설정 전) 앱도 웹 판을 쓴다 — 그때는 원래대로(설정으로 보냄) */
 export default async function VideosTabPage(props: Parameters<typeof VideosPage>[0]) {
+  /* 출시 전 베타 — 투구 판은 잠김. 그리지 않는다(lib/dal.ts betaPanelHidden) */
+  if (await betaPanelHidden()) return null;
   if (isExpoUserAgent((await headers()).get('user-agent')) && !featureLocks(await requireUser()).pitch) return null;
   return <VideosPage {...props} />;
 }

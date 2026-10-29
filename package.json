@@ -46,6 +46,8 @@
     "shared-lib:test": "node scripts/shared-lib-selftest.mts",
     "program:test": "node --import ./scripts/alias-register.mjs scripts/program-selftest.mts",
     "pitch-lab:test": "node --import ./scripts/alias-register.mjs scripts/pitch-lab-selftest.mts",
+    "release-access:test": "node --import ./scripts/alias-register.mjs scripts/release-access-selftest.mts",
+    "release-gate:test": "node --import ./scripts/alias-register.mjs scripts/release-gate-test.mjs",
     "pitch3d:test": "node --import ./scripts/alias-register.mjs scripts/pitch-3d-selftest.mts",
     "highlights:test": "node --import ./scripts/alias-register.mjs scripts/highlights-selftest.mts",
     "pitch-find:test": "node --import ./scripts/alias-register.mjs scripts/pitch-find-selftest.mts",

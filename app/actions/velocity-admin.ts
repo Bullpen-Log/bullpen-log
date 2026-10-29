@@ -1,5 +1,6 @@
 'use server';
 
+import { allowAdmin } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
 import { can } from '@/lib/permissions';
 import { prisma } from '@/lib/prisma';
@@ -42,6 +43,7 @@ const CONFIDENCES = ['high', 'medium', 'low'];
 const NOT_ADMIN: AdminActionResult = { ok: false, error: '관리자만 할 수 있습니다.' };
 
 async function requireAdminUser() {
+  allowAdmin('velocityAdmin');
   const user = await getCurrentUser();
   /* 구속 측정 관리자 — 대표 · 준관리자(lib/permissions.ts) */
   return user && can(user.role, 'velocityAdmin') ? user : null;

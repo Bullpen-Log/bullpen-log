@@ -1,6 +1,7 @@
 import { withJosa } from '@/lib/korean';
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
+import { allowAdmin } from '@/lib/release-gate';
 import { can } from '@/lib/permissions';
 import {
   MAX_THUMB_BYTES,
@@ -14,6 +15,8 @@ import {
  * 회원 모두가 보게 되는 자료이므로 관리자만 올릴 수 있다.
  */
 export async function POST(req: Request) {
+  /* 촬영 관리(준관리자 shoot 권한) — 출시 전 베타에도 기존 권한 그대로(권한 검사는 아래) */
+  allowAdmin('shoot');
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });

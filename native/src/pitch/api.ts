@@ -1,3 +1,4 @@
+import { setReleaseFromMe } from '~/shell/release';
 import { APP_API_HEADER, APP_API_LEVEL } from '@/lib/app-api';
 import { countryOf } from '@/lib/country';
 import { deviceTimeZone } from '@/lib/time-zone';
@@ -79,12 +80,14 @@ export async function call<T>(path: string, init: { method: string; body?: unkno
 }
 
 /** country — 옛 서버 답에는 없다(그때는 한국, lib/country.ts countryOf) */
-export type Me = { userId: string; nickname: string; isAdmin: boolean; today: string; locks: { pitch: boolean }; country?: string };
+/** access — 출시 전 베타 판정 요약(2026-10-29, lib/release-access.ts). 옛 서버 답에는 없다(그때는 정식 출시, shell/release.ts) */
+export type Me = { userId: string; nickname: string; isAdmin: boolean; today: string; locks: { pitch: boolean }; country?: string; access?: unknown };
 let meCache: Promise<Me> | null = null;
 export function loadMe(): Promise<Me> {
   if (meCache) return meCache;
   const p = rpc<({ ok: true } & Me) | { ok: false; error: string }>('app.loadAppMe').then((r) => {
     if (!r.ok) throw new ApiError(r.error);
+    setReleaseFromMe(r.userId, r.access);
     setCountryNow(countryOf(r.country));
     /* 나라 기본 단위(미국 mph · lb · inch) — 고른 적 없을 때만 */
     void applyCountryUnits(countryOf(r.country));

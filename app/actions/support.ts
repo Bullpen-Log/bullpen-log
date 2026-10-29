@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
@@ -66,6 +67,7 @@ export async function createInquiry(
   _prev: SupportState,
   formData: FormData
 ): Promise<SupportState> {
+  allowFeature('support');
   const made = await tryCreateInquiry(await getCurrentUser(), formData);
   if ('id' in made) redirect(`/support/inquiries/${made.id}`);
   // 오류로 끝나면 쓰던 글을 돌려준다. 길게 쓴 내용이 날아가면 안 된다.
@@ -123,6 +125,7 @@ export async function replyInquiry(
   _prev: SupportState,
   formData: FormData
 ): Promise<SupportState> {
+  allowFeature('support');
   return withInput(await tryReplyInquiry(formData), formData);
 }
 
@@ -177,12 +180,14 @@ async function tryReplyInquiry(formData: FormData): Promise<SupportState> {
 /** 쓴 사람 · 관리자가 문의를 닫는다 — 닫힌 문의에는 답글을 못 쓴다(다시 열 수 있다) */
 /* 로그인 확인은 내보내는 함수 안에서 — 통합 시험(scripts/integration-selftest.mts)이 export 함수마다 그 줄을 본다 */
 export async function closeInquiry(formData: FormData) {
+  allowFeature('support');
   const user = await getCurrentUser();
   if (!user) return;
   await setInquiryStatus(user, formData, 'CLOSED');
 }
 
 export async function reopenInquiry(formData: FormData) {
+  allowFeature('support');
   const user = await getCurrentUser();
   if (!user) return;
   await setInquiryStatus(user, formData, 'OPEN');
@@ -228,6 +233,7 @@ export async function createNotice(
   _prev: SupportState,
   formData: FormData
 ): Promise<SupportState> {
+  allowFeature('support');
   return withInput(await tryCreateNotice(formData), formData);
 }
 
@@ -285,6 +291,7 @@ export async function updateNotice(
   _prev: SupportState,
   formData: FormData
 ): Promise<SupportState> {
+  allowFeature('support');
   return withInput(await tryUpdateNotice(formData), formData);
 }
 
@@ -295,6 +302,7 @@ async function tryUpdateNotice(formData: FormData): Promise<SupportState> {
 }
 
 export async function deleteNotice(formData: FormData) {
+  allowFeature('support');
   const user = await getCurrentUser();
   /* 지운 자리(공지 상세)에서 왔으니 공지 목록으로 — 관리 화면으로 튕기면 보던 목록을 잃는다 */
   if (user && (await removeNotice(user, String(formData.get('id') ?? ''))))
@@ -333,6 +341,7 @@ const dated = <T extends { createdAt: Date }>({ createdAt, ...row }: T) => ({
 
 /** 고객센터 첫 화면 — 공지 3 · 내 문의 5 · 문의 수 · 메일 주소(로그인이 안 될 때 닿는 길) */
 export async function loadAppSupport() {
+  allowFeature('support');
   const user = await getCurrentUser();
   if (!user) return TO_LOGIN;
   const home = await loadSupportHome(user);
@@ -347,6 +356,7 @@ export async function loadAppSupport() {
 }
 
 export async function loadAppNotices() {
+  allowFeature('support');
   const user = await getCurrentUser();
   if (!user) return TO_LOGIN;
   return {
@@ -358,6 +368,7 @@ export async function loadAppNotices() {
 
 /** 공지 한 편 — 없으면 notice: null */
 export async function loadAppNotice(id: unknown) {
+  allowFeature('support');
   const user = await getCurrentUser();
   if (!user) return TO_LOGIN;
   const notice = await loadNotice(String(id ?? ''));
@@ -371,6 +382,7 @@ export async function loadAppNotice(id: unknown) {
 }
 
 export async function loadAppInquiries() {
+  allowFeature('support');
   const user = await getCurrentUser();
   if (!user) return TO_LOGIN;
   return { ok: true as const, inquiries: (await loadInquiries(user)).map(dated) };
@@ -378,6 +390,7 @@ export async function loadAppInquiries() {
 
 /** 문의 한 건 — 쓴 사람 · 관리자만(아니면 inquiry: null) */
 export async function loadAppInquiry(id: unknown) {
+  allowFeature('support');
   const user = await getCurrentUser();
   if (!user) return TO_LOGIN;
   const inquiry = await loadInquiry(user, String(id ?? ''));
@@ -401,6 +414,7 @@ export async function createAppInquiry(input: {
   title?: unknown;
   body?: unknown;
 }) {
+  allowFeature('support');
   const user = await getCurrentUser();
   const fd = new FormData();
   fd.set('category', String(input?.category ?? ''));
@@ -411,6 +425,7 @@ export async function createAppInquiry(input: {
 }
 
 export async function replyAppInquiry(id: unknown, body: unknown) {
+  allowFeature('support');
   const user = await getCurrentUser();
   if (!user) return fail(LOGIN_NEEDED);
   const fd = new FormData();
@@ -422,6 +437,7 @@ export async function replyAppInquiry(id: unknown, body: unknown) {
 
 /** 문의 종료(open false) · 다시 열기(open true) — 쓴 사람 · 관리자만(setInquiryStatus 가 본다) */
 export async function setAppInquiryOpen(id: unknown, open: unknown) {
+  allowFeature('support');
   const user = await getCurrentUser();
   if (!user) return fail(LOGIN_NEEDED);
   const fd = new FormData();
@@ -431,6 +447,7 @@ export async function setAppInquiryOpen(id: unknown, open: unknown) {
 }
 
 export async function deleteAppNotice(id: unknown) {
+  allowFeature('support');
   const user = await getCurrentUser();
   if (!user) return fail(LOGIN_NEEDED);
   return (await removeNotice(user, String(id ?? '')))
@@ -440,6 +457,7 @@ export async function deleteAppNotice(id: unknown) {
 
 /** 공지 쓰기 · 고치기(관리자, 앱 native/src/app/admin/notice.tsx) — id 가 있으면 고친다. 같은 검사 · 같은 쓰기(writeNotice) */
 export async function saveAppNotice(input: { id?: unknown; title?: unknown; body?: unknown; pinned?: unknown }) {
+  allowFeature('support');
   const fd = new FormData();
   fd.set('title', String(input?.title ?? ''));
   fd.set('body', String(input?.body ?? ''));
