@@ -43,7 +43,8 @@ export function releaseStage(): ReleaseStage {
 /** 환경변수 값 → 출시 단계(시험용으로 따로) */
 export function stageOf(raw: string | undefined): ReleaseStage {
   const v = (raw ?? '').trim().replace(/^['"]+|['"]+$/g, '').trim().toLowerCase().replace(/[-\s]+/g, '_');
-  return v === 'restricted_beta' ? 'restricted_beta' : 'released';
+  /* 'beta' 하나만 적어도 베타로 — 켜려는 뜻이 분명한 값 */
+  return v === 'restricted_beta' || v === 'beta' ? 'restricted_beta' : 'released';
 }
 
 /** 앱 시작 정보에 싣는 판정 요약(그리기용) */

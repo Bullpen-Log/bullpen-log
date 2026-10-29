@@ -5,6 +5,7 @@ import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, type GestureType } from 'react-native-gesture-handler';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Icon } from '~/shell/icon';
+import { noticeLocked } from '~/shell/release';
 
 /**
  * 홈에서 오른쪽으로 쓸면 카메라(구속 측정 · ABS 판정을 열린 뒤 고른다).
@@ -13,6 +14,8 @@ import { Icon } from '~/shell/icon';
  * - 폭 1/4 넘게 또는 빠르게 튕기면(0.35px/ms) 끝까지 밀린 뒤 카메라로, 아니면 제자리.
  *   손 뗀 빠르기를 이어받는다(웹 settleFor — 130~280ms, cubic-bezier(0.2, y1, 0.35, 1)).
  * - 왼쪽 끝 16px 는 아이폰 뒤로 가기 몫이라 받지 않는다. 요약 칸(옆으로 넘기는 칸)은 제 손가락이 이긴다(HomeSwipeContext).
+ * - locked(출시 전 베타, 2026-10-30 금윤호): 쓸면 회색 카메라 판(자물쇠 · '준비 중')이 따라 들어오다, 놓으면 카메라를 열지 않고
+ *   '준비 중인 기능입니다.' 작은 안내를 띄우고 홈으로 되돌아온다(멀리 안 갔으면 그냥 제자리).
  */
 const SNAP_RATIO = 0.25;
 const FLICK_SPEED = 350; // px/s
@@ -31,7 +34,7 @@ function settle(dist: number, speed: number) {
   return { ms, easing: Easing.bezier(0.2, y1, 0.35, 1) };
 }
 
-export function CameraSwipe({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+export function CameraSwipe({ enabled, locked = false, children }: { enabled: boolean; locked?: boolean; children: ReactNode }) {
   const { width } = useWindowDimensions();
   const reduce = useReducedMotion();
   const dx = useSharedValue(0);
@@ -77,7 +80,12 @@ export function CameraSwipe({ enabled, children }: { enabled: boolean; children:
           if (startX.get() < EDGE) return;
           const v = e.velocityX;
           const far = (dx.get() > width * SNAP_RATIO && v > -FLICK_SPEED) || v > FLICK_SPEED;
-          if (far) {
+          if (far && locked) {
+            /* 잠김 — 카메라로 넘어가지 않고 안내 뒤 홈으로 되돌린다 */
+            runOnJS(tick)();
+            runOnJS(noticeLocked)();
+            dx.set(withTiming(0, { duration: reduce ? 0 : 320, easing: Easing.bezier(0.32, 0.72, 0, 1) }));
+          } else if (far) {
             const s = settle(width - dx.get(), Math.max(0, v));
             runOnJS(tick)();
             dx.set(withTiming(width, { duration: reduce ? 0 : s.ms, easing: s.easing }, (done) => done && runOnJS(open)()));
@@ -87,7 +95,7 @@ export function CameraSwipe({ enabled, children }: { enabled: boolean; children:
           }
         }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [enabled, width, reduce]
+    [enabled, locked, width, reduce]
   );
 
   const content = useAnimatedStyle(() => ({ transform: [{ translateX: dx.value }] }));
@@ -99,11 +107,16 @@ export function CameraSwipe({ enabled, children }: { enabled: boolean; children:
         <View style={{ flex: 1, overflow: 'hidden' }}>
           <Animated.View style={[{ flex: 1 }, content]}>{children}</Animated.View>
           {/* 카메라 자리표시 — 왼쪽에서 손가락을 따라 들어오는 판 */}
-          <Animated.View pointerEvents="none" style={[styles.ghost, { left: -width, width }, ghost]}>
-            <View style={styles.ghostIcon}>
+          <Animated.View pointerEvents="none" style={[styles.ghost, { left: -width, width }, locked && styles.ghostLocked, ghost]}>
+            <View style={[styles.ghostIcon, locked && { opacity: 0.45 }]}>
               <Icon name="camera" size={40} color="#fff" />
             </View>
-            <Text style={styles.ghostText}>카메라</Text>
+            {locked ? (
+              <View style={styles.ghostLock}>
+                <Icon name="lock" size={16} color="#3a3a3c" strokeWidth={2.8} filled />
+              </View>
+            ) : null}
+            <Text style={[styles.ghostText, locked && { color: 'rgba(255,255,255,0.6)' }]}>{locked ? '카메라 · 준비 중' : '카메라'}</Text>
           </Animated.View>
         </View>
       </GestureDetector>
@@ -115,4 +128,7 @@ const styles = StyleSheet.create({
   ghost: { position: 'absolute', top: 0, bottom: 0, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', gap: 12 },
   ghostIcon: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   ghostText: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  /* 잠긴 카메라 판 — 검정 대신 회색, 카메라 그림 위에 자물쇠 */
+  ghostLocked: { backgroundColor: '#3a3a3c' },
+  ghostLock: { position: 'absolute', marginTop: -62, marginLeft: 54, width: 30, height: 30, borderRadius: 15, backgroundColor: '#d1d1d6', alignItems: 'center', justifyContent: 'center' },
 });

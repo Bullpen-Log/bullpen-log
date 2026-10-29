@@ -12,6 +12,7 @@ import { LockedTile } from '~/shell/locked';
 import { MenuButton } from '~/shell/menu-button';
 import { Press } from '~/shell/press';
 import { Wordmark } from '~/shell/wordmark';
+import { CameraSwipe } from './camera-swipe';
 
 /**
  * 출시 전 베타 홈(앱, 2026-10-29) — 일반 · 준관리자에게 홈 판 대신. 지금 열린 것은 투구 3D 분석 하나라 그것만 크게, 잠긴 기능은 작게 한 묶음.
@@ -46,6 +47,8 @@ export function BetaHome({ bottom }: { bottom: number }) {
   const recent = samples.slice(0, 3);
   const go = (to: string) => router.push(to as Href);
   return (
+    /* 홈에서 카메라 쪽으로 쓸면 — 회색 카메라 판이 들어오다 '준비 중인 기능입니다.' 뒤 홈으로 되돌아온다(구속 측정 · ABS 잠김) */
+    <CameraSwipe enabled locked>
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <ScrollView
         style={{ flex: 1 }}
@@ -140,6 +143,7 @@ export function BetaHome({ bottom }: { bottom: number }) {
         <MenuButton style={s.menu} />
       </View>
     </View>
+    </CameraSwipe>
   );
 }
 

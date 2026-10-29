@@ -443,9 +443,9 @@ u = await upload(`?pair=${pair}&view=side&sport=hit`);
 check(!u.e, '대표관리자는 스윙 업로드 그대로');
 
 /* ───────── 환경변수 값 읽기 — 대시보드에 붙여 넣다 생긴 빈칸 · 따옴표 · 대문자도 베타로(2026-10-30) ───────── */
-for (const v of ['restricted_beta', ' restricted_beta ', '"restricted_beta"', "'restricted_beta'", 'RESTRICTED_BETA', 'restricted-beta', 'restricted_beta\n'])
+for (const v of ['restricted_beta', ' restricted_beta ', '"restricted_beta"', "'restricted_beta'", 'RESTRICTED_BETA', 'restricted-beta', 'restricted_beta\n', 'beta', 'BETA'])
   check(stageOf(v) === 'restricted_beta', `베타 값: ${JSON.stringify(v)}`);
-for (const v of [undefined, '', 'released', 'beta', 'off', 'restricted'])
+for (const v of [undefined, '', 'released', 'off', 'restricted', 'false'])
   check(stageOf(v) === 'released', `정식 값: ${JSON.stringify(v)}`);
 
 console.log(`release-gate: ${n}개 통과`);
