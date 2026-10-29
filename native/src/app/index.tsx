@@ -37,6 +37,7 @@ import { drainVideos } from '~/videos/outbox';
 import { NutritionTab } from '~/nutrition/tab';
 import { TrainingTab, resetTrainingCache } from '~/training/tab';
 import { RECORDS_PATH, RecordsTab, resetRecordsCache } from '~/records/tab';
+import { DugoutTab, isDugoutHome, resetDugoutCache } from '~/dugout/home-tab';
 import { resetPitchTodayCache } from '~/pitch/today-card';
 import { resetVelocityDayCache } from '~/pitch/velocity-day';
 import { resetNutritionStore } from '~/nutrition/api';
@@ -202,7 +203,7 @@ const route = createWebRoute();
 /** 앱 판이 맡는 주소 — 홈 · 투구(?view=log 포함) · 기록 · 영양 · 트레이닝 첫 화면(?view=home · last). 여기면 웹을 기다리지 않고 바로 판을 바꾼다 */
 function isAppPage(href: string): boolean {
   const { path, search } = locOf(href);
-  if (path === '/videos' || path === '/today' || path === '/nutrition' || path === RECORDS_PATH) return true;
+  if (path === '/videos' || path === '/today' || path === '/nutrition' || path === RECORDS_PATH || isDugoutHome(path, search)) return true;
   const view = new URLSearchParams(search).get('view');
   return path === '/training' && (view === 'home' || view === 'last');
 }
@@ -257,6 +258,7 @@ function resetAccount() {
   resetLibraryItems();
   resetHomeCache();
   resetRecordsCache();
+  resetDugoutCache();
   resetNutritionStore();
   resetTrainingCache();
   resetFavorites();
@@ -294,9 +296,9 @@ const untilMidnight = () => {
   const n = new Date();
   return new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1).getTime() - n.getTime() + 1000;
 };
-const UNSEEN = { home: false, pitch: false, training: false, records: false, nutrition: false };
+const UNSEEN = { home: false, pitch: false, training: false, records: false, dugout: false, nutrition: false };
 /* 판 차례 = 하단 탭 차례(홈 · 투구 · 트레이닝 · 기록, 2026-10-29) — 영양은 탭이 아니라 맨 끝(더보기에서 연다) */
-const PAGER_KEYS = ['home', 'pitch', 'training', 'records', 'nutrition'] as const;
+const PAGER_KEYS = ['home', 'pitch', 'training', 'records', 'dugout', 'nutrition'] as const;
 
 /** 폰에 남은 운동 세트 · 암케어 체크를 보낸다 — 체크를 하나라도 보냈으면 사이트의 트레이닝 목록 · 홈을 새로 그리게(따라 하기 화면과 같다) */
 function drainQueues() {
@@ -452,18 +454,24 @@ export default function SiteScreen() {
     barOn && path === '/training' && (trainingView === 'home' || trainingView === 'last') && !!today && !trainingTab?.locked && !webFront;
   /* 기록(2026-10-29) — 앱 화면만 있는 탭(웹으로 안 보낸다, pressTab) */
   const showRecords = barOn && path === RECORDS_PATH && !!today && !webFront;
+  /*
+   * 덕아웃 첫 화면(2026-10-29 매치 카드) — 앱 화면. 글 · 연습장 자세히 같은 덕아웃 웹 화면은 그대로 웹(주소가 '/' 밖이면 웹이 앞).
+   * barOn 은 안 본다 — 웹이 (app) 틀에서 덕아웃 틀로 옮겨 가는 동안 막대 알림이 잠깐 꺼졌다 켜져, 그때마다 앱 판이 깜빡였다
+   */
+  const showDugout = isDugoutHome(path, search) && !!today && !webFront;
   /* 판 넘기기 — 지금 보일 앱 판(없으면 웹이 앞)과 한 번이라도 열린 판(붙여 둠) */
-  const pagerOn = showHome || showPitch || showTraining || showRecords || showNutrition;
-  const nowIndex = showHome ? 0 : showPitch ? 1 : showTraining ? 2 : showRecords ? 3 : showNutrition ? 4 : -1;
+  const pagerOn = showHome || showPitch || showTraining || showRecords || showDugout || showNutrition;
+  const nowIndex = showHome ? 0 : showPitch ? 1 : showTraining ? 2 : showRecords ? 3 : showDugout ? 4 : showNutrition ? 5 : -1;
   const [pagerIndex, setPagerIndex] = useState(0);
   if (nowIndex >= 0 && nowIndex !== pagerIndex) setPagerIndex(nowIndex);
   const [seen, setSeen] = useState(UNSEEN);
-  if ((showHome && !seen.home) || (showPitch && !seen.pitch) || (showTraining && !seen.training) || (showRecords && !seen.records) || (showNutrition && !seen.nutrition))
+  if ((showHome && !seen.home) || (showPitch && !seen.pitch) || (showTraining && !seen.training) || (showRecords && !seen.records) || (showDugout && !seen.dugout) || (showNutrition && !seen.nutrition))
     setSeen({
       home: seen.home || showHome,
       pitch: seen.pitch || showPitch,
       training: seen.training || showTraining,
       records: seen.records || showRecords,
+      dugout: seen.dugout || showDugout,
       nutrition: seen.nutrition || showNutrition,
     });
 
@@ -531,7 +539,7 @@ export default function SiteScreen() {
    */
   useEffect(() => {
     if (!pagerOn || pressed) return;
-    const can = { home: true, pitch: !pitchTab?.locked, training: !trainingTab?.locked, records: true, nutrition: nutritionLocked === false };
+    const can = { home: true, pitch: !pitchTab?.locked, training: !trainingTab?.locked, records: true, dugout: true, nutrition: nutritionLocked === false };
     const next = PAGER_KEYS.map((k, i) => ({ k, d: Math.abs(i - pagerIndex) }))
       .sort((a, b) => a.d - b.d)
       .find(({ k }) => !seen[k] && can[k])?.k;
@@ -817,6 +825,7 @@ export default function SiteScreen() {
   const pitchSlot = today && seenPitch ? <PitchTab key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} log={pitchLog} /> : null;
   const trainingSlot = today && seenTraining ? <TrainingTab key="training" today={today} bottom={tabBottom} onWeb={openWeb} /> : null;
   const recordsSlot = today && seenRecords ? <RecordsTab key="records" today={today} bottom={tabBottom} /> : null;
+  const dugoutSlot = today && seen.dugout ? <DugoutTab key="dugout" bottom={tabBottom} onWeb={openWeb} /> : null;
   const nutritionSlot = today && seenNutrition ? <NutritionTab key="nutrition" today={today} bottom={tabBottom} onWebNutrition={openWebNutrition} /> : null;
 
   /* 웹을 못 불러와도(꺼진 망에서 켬) 탭 막대 · 앱 탭은 그대로 쓴다 — 사이트가 '막대 켬'을 못 알려 주니 실패면 켠 것으로 본다 */
@@ -909,7 +918,7 @@ export default function SiteScreen() {
         </View>
       ) : null}
       {/* 탭 넷 — 나란히 두고 240ms 에 미끄러진다(웹 tab-pager). 한 번 연 판은 붙여 둬서 굴린 자리가 남는다 */}
-      {today ? <TabPager index={pagerIndex} visible={pagerOn && !inOrg} slots={[homeSlot, pitchSlot, trainingSlot, recordsSlot, nutritionSlot]} /> : null}
+      {today ? <TabPager index={pagerIndex} visible={pagerOn && !inOrg} slots={[homeSlot, pitchSlot, trainingSlot, recordsSlot, dugoutSlot, nutritionSlot]} /> : null}
       {/* 홈 밖의 탭은 위 막대가 없어 시계 자리를 막으로 덮는다(웹 data-top-veil) */}
       {today && pagerOn && pagerIndex !== 0 && !inOrg ? <ClockVeil /> : null}
       {inOrg ? <OrgSpaceView bottom={tabBottom} /> : null}

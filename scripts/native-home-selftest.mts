@@ -13,6 +13,7 @@ import { nextAction, pitchCard, todayCount, workoutCard } from '~/home/plan-mode
 import type { RecordItem } from '@/lib/records/day-records';
 import { byTimeDesc, dayRecords, kindsOn, monthCells, sameDayIn, searchRecords, shiftMonth, weekOf } from '~/records/model';
 import { recentPitchLogs } from '~/pitch/home-summary';
+import { dotStart, keepSelected, railIndex } from '~/dugout/rail-model';
 
 let n = 0;
 const ok = (cond: unknown, m: string) => {
@@ -182,6 +183,21 @@ const base: HomeBoardInput = {
   });
   const logs = [L('a', '2026-10-20', '1'), L('b', '2026-10-27', '1'), L('c', '2026-10-27', '2'), L('d', '2026-10-30', '1'), L('b', '2026-10-27', '1')];
   eq(recentPitchLogs(logs, '2026-10-28', 3).map((l) => l.id), ['c', 'b', 'a'], '앞날 빼고 최근 날 · 나중에 남긴 것 먼저 · 같은 기록 한 번');
+}
+
+/* ── 덕아웃 같이 연습 카드 넘기기(2026-10-29) — 고른 모임은 id 로 ── */
+{
+  const A = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  eq(keepSelected(A, [{ id: 'x' }, ...A], 'b'), 'b', '앞에 모임이 더해져도 같은 모임');
+  eq(keepSelected(A, [{ id: 'a' }, { id: 'c' }], 'b'), 'c', '고른 모임이 사라지면 그 자리 근처');
+  eq(keepSelected(A, [{ id: 'a' }], 'c'), 'a', '목록이 줄면 끝 카드');
+  eq(keepSelected(null, A, null), 'a', '처음은 첫 모임');
+  eq(keepSelected(A, [], 'a'), null, '모임이 없으면 고른 것 없음');
+  eq(railIndex(0, 300, 3), 0, '처음 자리');
+  eq(railIndex(290, 300, 3), 1, '끝 카드 여백만큼 덜 가도 그 카드(카드 폭 − 22)');
+  eq(railIndex(5000, 300, 3), 2, '넘쳐도 마지막 카드');
+  eq(railIndex(100, 0, 3), 0, '폭을 모르면 0');
+  eq([dotStart(0, 3, 5), dotStart(0, 20, 5), dotStart(10, 20, 5), dotStart(19, 20, 5)], [0, 0, 8, 15], '점은 다섯 개까지 · 지금 자리 둘레 · 양끝에 붙음');
 }
 
 console.log(`native-home: ${n}개 통과`);

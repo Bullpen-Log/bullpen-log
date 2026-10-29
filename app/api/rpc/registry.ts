@@ -11,6 +11,7 @@ import * as abs from '@/app/actions/abs';
 import * as admin from '@/app/actions/admin';
 import * as app from '@/app/actions/app';
 import * as appAdmin from '@/app/actions/app-admin';
+import * as appDugout from '@/app/actions/app-dugout';
 import * as appShoot from '@/app/actions/app-shoot';
 import * as appAnalysis from '@/app/actions/app-analysis';
 import * as appArmcare from '@/app/actions/app-armcare';
@@ -81,6 +82,7 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   admin: admin,
   app: app,
   'app-admin': appAdmin,
+  'app-dugout': appDugout,
   'app-shoot': appShoot,
   'app-analysis': appAnalysis,
   'app-armcare': appArmcare,
