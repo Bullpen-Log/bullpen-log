@@ -11,10 +11,20 @@ import { zoneWorld } from '@/lib/abs/zone';
 /**
  * 3D 둘러보기 — 플레이트 · 존 상자 · 공 궤적(맞춘 궤적을 세상 미터로) · 통과점. 손가락으로 끌어 돌려 본다(사용자 결정 2026-10-18: 1차 포함).
  * three 는 import() 로(열 때만 실린다). 좌표는 ABS 세상(x 1루 · y 위 · z 투수 쪽)을 three 에 그대로 둔다.
+ * 2026-10-29: 머리에 판정 · 타자, 밑에 무엇이 존 · 통과점인지, 시점 단추 셋(포수 뒤 · 옆 · 위 — 끌어 돌리기와 같은 카메라 각도를 바꾼다).
  */
+/** 시점 단추 — 카메라를 이 자리로 옮긴다(az 좌우 각, elv 올려 본 각). 포수 뒤는 플레이트 뒤(−z), 옆은 1루 쪽(+x) */
+const VIEWS = [
+  { key: 'catcher', label: '포수 뒤', az: 0, elv: 0.08 },
+  { key: 'side', label: '옆', az: Math.PI / 2, elv: 0.08 },
+  { key: 'top', label: '위', az: 0, elv: 1.3 },
+] as const;
+
 export function Zone3d({ abs, fit, onClose }: { abs: AbsAnalysis; fit: FitSnapshot; onClose: () => void }) {
   const host = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  /* 그리기가 준비되면 채워지는 시점 옮기기 — 준비 전에는 단추를 눌러도 아무 일 없음 */
+  const goView = useRef<((az: number, elv: number) => void) | null>(null);
   useEffect(() => {
     const el = host.current;
     if (!el) return;
@@ -108,6 +118,12 @@ export function Zone3d({ abs, fit, onClose }: { abs: AbsAnalysis; fit: FitSnapsh
         renderer.render(scene, cam);
       };
       resize();
+      goView.current = (a, e) => {
+        az = a;
+        elv = e;
+        place();
+        renderer.render(scene, cam);
+      };
       const ro = new ResizeObserver(resize);
       ro.observe(el);
       let last: { x: number; y: number } | null = null;
@@ -135,6 +151,7 @@ export function Zone3d({ abs, fit, onClose }: { abs: AbsAnalysis; fit: FitSnapsh
       el.addEventListener('pointercancel', up);
       el.addEventListener('wheel', wheel, { passive: true });
       cleanup = () => {
+        goView.current = null;
         ro.disconnect();
         el.removeEventListener('pointerdown', down);
         el.removeEventListener('pointermove', move);
@@ -152,18 +169,39 @@ export function Zone3d({ abs, fit, onClose }: { abs: AbsAnalysis; fit: FitSnapsh
   }, [abs, fit]);
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#151722] text-white" role="dialog" aria-label="3D 존 보기">
-      <div className="box-content flex h-12 shrink-0 items-center justify-between px-2 pt-[env(safe-area-inset-top)]">
-        <span className="pl-3 text-sm font-semibold text-white/85">
-          3D 존 · 타자 {abs.batter} · {abs.heightCm}cm
-        </span>
+      <div className="box-content flex h-14 shrink-0 items-center justify-between px-2 pt-[env(safe-area-inset-top)]">
+        <div className="min-w-0 pl-3">
+          <p className="text-base font-semibold text-white">3D 판정 복기</p>
+          <p className="truncate text-xs text-white/65">
+            {abs.verdict ? (abs.verdict.call === 'strike' ? '스트라이크' : '볼') : '판정 없음'}
+            {abs.verdict?.borderline ? ' · 경계' : ''} · 타자 {abs.batter} · {abs.heightCm}cm
+          </p>
+        </div>
         <button type="button" onClick={onClose} aria-label="닫기" className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white/85 hover:bg-white/10">
           <X aria-hidden className="h-5 w-5" />
         </button>
       </div>
       <div ref={host} className="min-h-0 flex-1 touch-none [&>canvas]:h-full [&>canvas]:w-full" />
-      <p className="shrink-0 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 text-center text-xs text-white/55">
-        {failed ?? '끌어서 돌리고, PC 는 휠로 당겨요. 파란 상자가 존, 공은 판정 면 통과점이에요.'}
-      </p>
+      <div className="shrink-0 space-y-2 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
+        {failed ? null : (
+          <div className="flex justify-center gap-2" role="group" aria-label="시점">
+            {VIEWS.map((v) => (
+              <button
+                key={v.key}
+                type="button"
+                onClick={() => goView.current?.(v.az, v.elv)}
+                className="min-h-11 rounded-full bg-white/12 px-4 text-sm font-semibold text-white/90 hover:bg-white/20"
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <p className="text-center text-xs text-white/60">
+          {failed ??
+            `파란 상자가 존, 옅은 판이 판정 면, 공이 그 면을 지난 자리예요${abs.verdict ? `(${abs.verdict.call === 'strike' ? '파랑' : '주황'})` : ''}. 끌어서 돌려요.`}
+        </p>
+      </div>
     </div>
   );
 }

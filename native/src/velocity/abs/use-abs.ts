@@ -9,6 +9,7 @@ import { zoneWorld } from '@/lib/abs/zone';
 import type { ZoneRect } from '@/lib/velocity-setup';
 import { DualCamera } from '../../../modules/dual-camera';
 import { loadJson, saveJson } from '~/lib/store';
+import { batterAt, type BatterSpan } from './present';
 
 /**
  * ABS 세션 상태(앱) — 웹 components/abs/use-abs-session.ts 를 옮겼다. 설정(규칙 · 신장) · 타자 번호 · 플레이트 앞변(자동 · 직접) ·
@@ -94,17 +95,31 @@ export function useAbs(p: AbsParams) {
     void saveJson(SETUP_KEY, out);
   }, []);
   const setRule = useCallback((rule: RuleSetId) => persist({ ...setup, rule }), [persist, setup]);
-  const setHeight = useCallback((height: number | 'average') => persist({ ...setup, height }), [persist, setup]);
-
-  const [batter, setBatter] = useState(1);
-  const nextBatter = useCallback(
+  /*
+   * 타자 기록 — 판정은 공을 알아챈 때의 타자 · 신장으로(present.ts batterAt). '다음 타자'를 누를 때 쌓는다(첫 타자 줄은 그때 앞에 붙임).
+   * 기록이 비었으면(아직 안 바꿈) 지금 타자 · 신장 그대로.
+   */
+  const history = useRef<BatterSpan[]>([]);
+  const setHeight = useCallback(
     (height: number | 'average') => {
-      setBatter((b) => b + 1);
+      const h = history.current;
+      if (h.length) history.current = [...h.slice(0, -1), { ...h[h.length - 1], heightCm: heightCmOf(height) }];
       persist({ ...setup, height });
     },
     [persist, setup]
   );
+
+  const [batter, setBatter] = useState(1);
   const heightCm = heightCmOf(setup.height);
+  const nextBatter = useCallback(
+    (height: number | 'average') => {
+      const h = history.current.length ? history.current : [{ since: 0, batter, heightCm }];
+      history.current = [...h.slice(-20), { since: Date.now(), batter: batter + 1, heightCm: heightCmOf(height) }];
+      setBatter(batter + 1);
+      persist({ ...setup, height });
+    },
+    [persist, setup, batter, heightCm]
+  );
 
   const [find, setFind] = useState<PlateFind | null>(null);
   const [ends, setEndsState] = useState<PlateEnds | null>(null);
@@ -222,10 +237,14 @@ export function useAbs(p: AbsParams) {
     [calib, heightCm, setup.rule]
   );
 
-  /** 엔진 결과 → ABS 판정(저장 모양). 보정이 없거나 궤적 스냅샷이 없으면 null */
+  /**
+   * 엔진 결과 → ABS 판정(저장 모양). 보정이 없거나 궤적 스냅샷이 없으면 null.
+   * atMs — 공을 알아챈 때(Date.now, capture.ts queuedAt). 그때의 타자 · 신장으로 판정한다(계산 중에 '다음 타자'를 눌러도 앞 공은 앞 타자).
+   */
   const judge = useCallback(
-    (result: AbsJudgeSource): AbsAnalysis | null => {
+    (result: AbsJudgeSource, atMs?: number): AbsAnalysis | null => {
       if (!active || !calibInput || !result.distance?.fit) return null;
+      const who = batterAt(history.current, atMs) ?? { batter, heightCm };
       const k = result.sourceSize.width / result.analyzeSize.width;
       const diams = result.track.map((o) => o.diameterPx ?? 0).filter((d) => d > 0).sort((a, b) => a - b);
       return judgePitch({
@@ -235,9 +254,9 @@ export function useAbs(p: AbsParams) {
         inputDistM: null,
         obs: result.track.map((o) => ({ t: o.t, u: o.x, v: o.y })),
         calib: calibInput,
-        heightCm,
+        heightCm: who.heightCm,
         rule: setup.rule,
-        batter,
+        batter: who.batter,
         bands: drift ? bandsFor(drift, DEFAULT_BANDS) : DEFAULT_BANDS,
         drift: drift ? { movedPx: drift.movedPx, recalibrated: drift.recalibrate } : undefined,
         ballDiamPx: diams.length ? diams[diams.length >> 1] * k : null,
@@ -246,7 +265,21 @@ export function useAbs(p: AbsParams) {
     [active, calibInput, heightCm, setup.rule, batter, drift]
   );
 
-  return { on: active, setup, setRule, setHeight, heightCm, batter, nextBatter, find, ends, setEnds, manual, setManual, detectNow, calibInput, calib, zonePoly, drift, judge };
+  /**
+   * 측정 중 '앞변 다시 맞추기' — 삼각대 감시가 밀렸다고 본 뒤(drift.recalibrate) 지금 장면에서 앞변을 다시 찾아 기준으로 삼는다.
+   * 못 찾으면(포수 · 타자가 가림) 지금 끝 · 감시를 그대로 두고 까닭을 돌려준다 — 끝을 지우면 판정이 말없이 멈춘다.
+   */
+  const recalibrate = useCallback(async (): Promise<string | null> => {
+    const r = await detectOnce();
+    if (!r) return '지금은 장면을 못 읽었어요. 잠시 뒤 다시 눌러 주세요.';
+    setFind(r);
+    if (!r.ok) return r.reason ?? '앞변을 못 찾았어요. 플레이트가 가려지지 않게 해 주세요.';
+    setManual(false);
+    setEnds({ left: r.left, right: r.right });
+    return null;
+  }, [detectOnce, setEnds]);
+
+  return { on: active, recalibrate, setup, setRule, setHeight, heightCm, batter, nextBatter, find, ends, setEnds, manual, setManual, detectNow, calibInput, calib, zonePoly, drift, judge };
 }
 
 export type AbsSession = ReturnType<typeof useAbs>;

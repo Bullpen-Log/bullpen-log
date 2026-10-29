@@ -174,7 +174,8 @@ export type Verdict = { kept: true } | { kept: false; code?: string; why?: strin
 
 export type CaptureHandlers = {
   /** 잰 공(쟀든 못 쟀든 공 길이 있는 것). 받으면(kept) 클립은 화면 것 — 다 쓴 뒤 화면이 discard 를 부른다 */
-  onResult(result: EngineResult, meta: { id: number; hitT: number; clip: Clip; late: boolean }): Verdict;
+  /** queuedAt — 투구를 알아챈 때(Date.now) — ABS 가 그때의 타자로 판정한다 */
+  onResult(result: EngineResult, meta: { id: number; hitT: number; clip: Clip; late: boolean; queuedAt: number }): Verdict;
   /** 화면에 띄울 작업 수가 바뀜 — '투구를 인식했어요' · '구속 계산 중' */
   onStatus(status: CaptureStatus, visible: number): void;
   /** miss — 못 잰 공 알림이면 그 짧은 까닭(화면 집계 · 소리 안내). kind — 화면이 실패를 가르는 종류 */
@@ -588,7 +589,7 @@ export class AppCapture {
     try {
       decided = silent
         ? { kept: false }
-        : this.handlers.onResult(result, { id: job.id, hitT: job.pre && ballEv != null ? ballEv : main.eventSec, clip: main, late: job.sweep === true });
+        : this.handlers.onResult(result, { id: job.id, hitT: job.pre && ballEv != null ? ballEv : main.eventSec, clip: main, late: job.sweep === true, queuedAt: job.queuedAt });
     } catch (e) {
       void drop([main.path]);
       throw e;

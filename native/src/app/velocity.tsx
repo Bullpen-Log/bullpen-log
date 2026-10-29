@@ -59,7 +59,9 @@ import { useAbs } from '~/velocity/abs/use-abs';
 import { PlateOverlay } from '~/velocity/abs/plate-overlay';
 import { AbsSetupBody } from '~/velocity/abs/abs-setup-card';
 import { BatterChip } from '~/velocity/abs/batter-chip';
-import { VerdictCard } from '~/velocity/abs/verdict-card';
+import { Abs3dButton, VerdictCard } from '~/velocity/abs/verdict-card';
+import { absRowText, absStatusLine } from '~/velocity/abs/present';
+import { AbsDriftWarn } from '~/velocity/abs/drift-warn';
 import { AbsSummary } from '~/velocity/abs/abs-summary';
 import type { AbsSession } from '~/velocity/abs/use-abs';
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
@@ -375,7 +377,8 @@ export default function VelocityScreen() {
       {
         onResult: (result, meta) => {
           const a = absRef.current;
-          const out = decide(result, pitchesRef.current, ctxRef.current, meta, a?.on ? a.judge : undefined);
+          /* ABS 는 공을 알아챈 때의 타자로 판정(계산 중에 '다음 타자'를 눌러도 앞 공은 앞 타자) */
+          const out = decide(result, pitchesRef.current, ctxRef.current, meta, a?.on ? (r) => a.judge(r, meta.queuedAt) : undefined);
           /* 받은 공의 값은 목록이 바뀐 뒤 읽는다(판 · 소리 — 세션 거리 보정까지 다시 낸 값) */
           if (out.list) {
             setList(out.list);
@@ -799,6 +802,16 @@ export default function VelocityScreen() {
     failed: ['측정 불가 · 계산 실패', '#ff9d94'],
     backlog: ['이번 투구 미기록', '#ffd08a'],
   };
+  /* ABS — 칩 글을 판정으로(present.ts absStatusLine): 대기 · 결과는 판정 수(판정 없음 따로) · 카메라 위치 경고, 계산 · 실패도 '판정' */
+  if (abs.on) {
+    const line = absStatusLine({ status: 'armed', visible: 0, judged: pitches.filter((x) => x.analysis?.abs?.verdict).length, total: n, recalibrate: !!abs.drift?.recalibrate });
+    const tone = line.tone === 'warn' ? '#ffd08a' : GREEN;
+    STATUS.waiting = [line.text, tone];
+    STATUS.result = [line.text, tone];
+    STATUS.calculating = ['판정 계산 중', GREEN];
+    STATUS.missed = ['판정 없음 · 공 확인 실패', '#ff9d94'];
+    STATUS.failed = ['판정 없음 · 계산 실패', '#ff9d94'];
+  }
   const prepView = !distOk ? (stored ? 'repeat' : 'first') : canStart ? 'ready' : 'tilt';
   const statusChip: [string, string] | null =
     step === 'measure'
@@ -828,6 +841,10 @@ export default function VelocityScreen() {
   const extra = (
     <>
       {backlogN > 0 && phase !== 'backlog' ? <PanelHint tone="warn" text={`그사이 던진 공 ${backlogN}개는 앞 공을 처리하느라 기록하지 못했어요.`} /> : null}
+      {/* 삼각대 감시가 밀렸다고 봄 — 판정은 경계 띠를 넓혀 이어 간다(use-abs drift.recalibrate). 멈춘 것처럼 말하지 않는다 */}
+      {abs.on && step === 'measure' && abs.drift?.recalibrate ? (
+        <AbsDriftWarn onFix={() => abs.recalibrate().then((why) => setInfoNote(why ?? '앞변을 다시 맞췄어요.'))} />
+      ) : null}
       {infoNote ? <PanelHint text={infoNote} /> : null}
       {error && step === 'measure' ? <PanelHint tone="warn" text={`카메라 · ${error}`} /> : null}
     </>
@@ -1001,18 +1018,20 @@ export default function VelocityScreen() {
               <Text style={[styles.sumSmall, { color: p.muted }]}>{stats ? `최고 구속 · ${n}구 기록` : `${n}구 기록`}</Text>
             </View>
             {excludedN ? <Text style={[styles.sumSmall, { color: p.warn, marginBottom: 8 }]}>공 크기 거리가 어긋난 공 {excludedN}개는 최고 구속에서 뺐어요.</Text> : null}
-            {abs.on ? <AbsSummary items={pitches.flatMap((x) => (x.analysis?.abs ? [{ id: x.id, abs: x.analysis.abs }] : []))} /> : null}
+            {abs.on ? <AbsSummary items={pitches.map((x) => x.analysis?.abs ?? null)} /> : null}
             <Text style={[styles.sumLabel, { color: p.muted }]}>구속이 기록된 공</Text>
             {pitches.map((x, i) => {
               const type = PITCH_TYPES.find((t) => t.key === x.pitchType)?.label;
               const call = x.analysis?.abs?.verdict?.call;
+              const xa = x.analysis?.abs ?? null;
+              const xfit = x.analysis?.distance?.fit ?? null;
               const open = openId === x.id;
               return (
                 <View key={x.id} style={[styles.sumRowWrap, { borderTopColor: p.line }]}>
                   <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpenId(open ? null : x.id)} style={styles.sumRowPress}>
                     <Text style={[styles.sumRowKey, { color: p.muted }]}>{i + 1}구</Text>
                     <Text style={[styles.sumRowMid, { color: p.muted }]} numberOfLines={1}>
-                      {[call ? (call === 'strike' ? 'S' : 'B') : null, type, x.notes.length ? '메모' : null].filter(Boolean).join(' · ')}
+                      {[abs.on ? absRowText(xa) : call ? (call === 'strike' ? 'S' : 'B') : null, type, x.notes.length ? '메모' : null].filter(Boolean).join(' · ')}
                     </Text>
                     <Text style={[styles.sumRowVal, { color: p.ink }]}>
                       {sp(shownKmh(x, fit))} {ul}
@@ -1031,6 +1050,8 @@ export default function VelocityScreen() {
                         <FlowButton kind="secondary" grow label="영상 보기" onPress={() => setReplay(x.clip.path)} />
                         <FlowButton kind="secondary" grow label="이 공 지우기" onPress={() => remove(x.id)} />
                       </View>
+                      {/* 3D 는 판정 · 궤적이 다 있는 공만(타격 · 판정 없음은 없음) */}
+                      {abs.on && xa?.verdict && xa.event !== 'contact' && xfit ? <Abs3dButton abs={xa} fit={xfit} light /> : null}
                     </View>
                   ) : null}
                 </View>
@@ -1085,7 +1106,9 @@ export default function VelocityScreen() {
       const copy = {
         detected: ['투구 감지', '투구를 인식했어요', '공이 날아간 영상을 받고 있어요.'],
         tracking: ['공 경로 확인 중', '공이 날아간 길을 찾고 있어요', '결과가 나오기 전에는 숫자를 보여주지 않아요.'],
-        calculating: ['구속 계산 중', '구속을 계산하고 있어요', '결과가 나오기 전에는 숫자를 보여주지 않아요.'],
+        calculating: abs.on
+          ? ['판정 계산 중', '판정을 계산하고 있어요', '결과가 나오기 전에는 판정을 보여주지 않아요.']
+          : ['구속 계산 중', '구속을 계산하고 있어요', '결과가 나오기 전에는 숫자를 보여주지 않아요.'],
       }[phase];
       panel = (
         <FlowPanel eyebrow={copy[0]} title={copy[1]} body={copy[2]}>
@@ -1094,6 +1117,29 @@ export default function VelocityScreen() {
       );
       note = '폰을 움직이지 않은 채 기다려 주세요.';
       actions = <FlowButton label={busyLabel[phase]} disabled />;
+    } else if (phase === 'result' && last && abs.on) {
+      /* ABS 방금 공 — 판정을 먼저 크게, 구속은 그 밑에 작게. 영상 다시 보기 · 3D 는 카드 안 따로 된 단추 */
+      panel = (
+        <FlowPanel eyebrow="방금 공">
+          <View style={styles.verdictWrap}>
+            <VerdictCard
+              key={last.id}
+              abs={last.analysis?.abs ?? null}
+              fit={last.analysis?.distance?.fit ?? null}
+              speed={`${sp(shownKmh(last, fit))} ${ul}`}
+              onReplay={() => setReplay(last.clip.path)}
+            />
+          </View>
+          {extra}
+        </FlowPanel>
+      );
+      note = lastWarn ?? '판정은 구속이 잡힌 공만 내요.';
+      actions = (
+        <>
+          {endBtn}
+          <FlowButton label={`계속 ${verb}`} onPress={ack} />
+        </>
+      );
     } else if (phase === 'result' && last) {
       panel = (
         <FlowPanel eyebrow="방금 공 · 참고 측정값">
@@ -1122,12 +1168,12 @@ export default function VelocityScreen() {
       );
     } else if (phase === 'missed' || phase === 'failed') {
       panel = (
-        <FlowPanel tone="danger" title={phase === 'missed' ? '공을 끝까지 찾지 못했어요' : '구속을 계산하지 못했어요'} body={cleaned}>
+        <FlowPanel tone="danger" title={phase === 'missed' ? '공을 끝까지 찾지 못했어요' : abs.on ? '판정하지 못했어요' : '구속을 계산하지 못했어요'} body={cleaned}>
           {missHint}
           {extra}
         </FlowPanel>
       );
-      note = phase === 'missed' ? '이번 시도에는 구속값이 기록되지 않았어요.' : '추정 숫자는 기록하지 않았어요.';
+      note = abs.on ? '이번 시도는 판정 없이 넘어갔어요.' : phase === 'missed' ? '이번 시도에는 구속값이 기록되지 않았어요.' : '추정 숫자는 기록하지 않았어요.';
       actions = (
         <>
           {endBtn}
