@@ -15,7 +15,8 @@ import { TAB_MOTION, tabDragPosition, tabIndexAt, tabReleaseIndex } from './tab-
  * 다크: 검은 유리 · 흰 글자, 네이비: 남색 유리. iOS 26 이면 진짜 유리(GlassView), 아니면 웹 CSS 의 반투명 색.
  * 탭 이름 · 주소 · 잠김은 사이트가 알려 준다(components/app-shell/expo-tabs.tsx).
  */
-export type ShellTab = { href: string; label: string; icon: string; locked?: boolean };
+/** locked — 누르면 그 기능의 첫 설정(setup), 또는 출시 전 베타라 안내만 하고 안 옮김(beta — 2026-10-29, native/src/shell/release.ts) */
+export type ShellTab = { href: string; label: string; icon: string; locked?: boolean; lockReason?: 'setup' | 'beta' };
 
 export const DEFAULT_TABS: ShellTab[] = [
   /* 차례 홈 · 투구 · 트레이닝 · 기록 · 덕아웃(2026-10-29 확정 디자인, 웹 lib/nav.ts APP_TABS). 더보기는 각 탭 위 오른쪽 메뉴(shell/menu-button.tsx) */
@@ -289,6 +290,14 @@ export function TabBar({
     const i = now.tabs.findIndex((t) => t.href === href);
     if (i < 0) return;
     if (pendingTimer.current) clearTimeout(pendingTimer.current);
+    /* 출시 전 베타로 잠긴 탭 — 렌즈를 옮기지 않고 지금 칸으로 되돌린다. 안내는 껍데기가 띄운다(onPress → noticeLocked) */
+    if (now.tabs[i].lockReason === 'beta') {
+      pending.current = null;
+      setPreview(now.index);
+      pos.set(reduce ? now.index : withSpring(now.index, POS_SPRING));
+      now.onPress(now.tabs[i]);
+      return;
+    }
     if (href === now.active) {
       pending.current = null;
       if (retap) {
@@ -440,7 +449,8 @@ export function TabBar({
             key={t.href}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
-            accessibilityLabel={t.locked ? `${t.label}(설정 전)` : t.label}
+            accessibilityLabel={t.locked ? `${t.label}, ${t.lockReason === 'beta' ? '준비 중' : '설정 전'}` : t.label}
+            accessibilityHint={t.lockReason === 'beta' ? '아직 열리지 않은 기능이에요. 누르면 안내가 나와요.' : undefined}
             onPress={() => {
               // 물리 터치는 위의 입력 면, VoiceOver/키보드는 이 버튼으로 처리한다.
               if (!on) tick();

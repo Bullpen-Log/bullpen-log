@@ -13,6 +13,7 @@ import { Icon, type IconName } from '~/shell/icon';
 import { MENU_ICON as ICON, useMenu, type MenuGroup } from '~/shell/menu-store';
 import { tabBarOcclusion, type ShellTab } from '~/shell/tab-bar';
 import { destinationOf, leaveTo, leaveWhenShown, openWebAfter } from '~/shell/web-nav';
+import { canOpen, noticeLocked, useRelease } from '~/shell/release';
 import { beginMotion, endMotion } from '~/shell/transition';
 import { useSpace } from '~/org/space-store';
 
@@ -99,6 +100,9 @@ export default function MoreScreen() {
   const theme = useTheme();
   const L = LOOK[theme];
   const { spaces } = useSpace();
+  /* 출시 전 베타 — 잠긴 칸은 자물쇠 · '준비 중', 누르면 안내만(shell/release.ts). 관리 업무 칸은 기존 권한 그대로(준관리자) */
+  const release = useRelease();
+  const betaLocked = (href: string) => !canOpen(href, release);
   const reduce = useReducedMotion();
   /* 타일 크기는 화면 높이가 정한다 — 굴리지 않고 한 장에(웹 --tile: clamp(40px, (100dvh − 34rem) / 5, 52px)) */
   const tile = Math.max(40, Math.min(52, (height - 34 * 16) / 5));
@@ -199,12 +203,15 @@ export default function MoreScreen() {
       close();
     } else holdLeave(leaveWhenShown(href, close));
   };
-  const tileOf = (key: string, label: string, icon: IconName, onPress: () => void, locked = false) => (
+  const tileOf = (key: string, label: string, icon: IconName, onPress: () => void, setupLocked = false, beta = false) => {
+    const locked = setupLocked || beta;
+    return (
     <Pressable
       key={key}
       accessibilityRole="button"
-      accessibilityLabel={locked ? `${label}(설정 전)` : label}
-      onPress={onPress}
+      accessibilityLabel={beta ? `${label}, 준비 중` : locked ? `${label}(설정 전)` : label}
+      accessibilityHint={beta ? '아직 열리지 않은 기능이에요. 누르면 안내가 나와요.' : undefined}
+      onPress={beta ? noticeLocked : onPress}
       disabled={leaving != null}
       accessibilityState={{ busy: leaving === key, disabled: leaving != null }}
       style={({ pressed }) => [styles.tile, wideFolder && { width: '25%' }, pressed && { transform: [{ scale: 0.95 }] }]}
@@ -235,7 +242,8 @@ export default function MoreScreen() {
         {label}
       </Text>
     </Pressable>
-  );
+    );
+  };
 
   const folders = folderGroups(groups, tabs);
   const body = (
@@ -249,7 +257,7 @@ export default function MoreScreen() {
       onContentSizeChange={(_, h) => setContentH(h)}
     >
       {/* 공간 고르개(계약 8-4 · U1) — 팀 · 레슨장에 들어간 사람만. 더보기를 닫고 고르개 시트를 연다 */}
-      {spaces.length ? (
+      {spaces.length && !betaLocked('/org') ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="지금 공간 내 싱커, 공간 바꾸기"
@@ -266,14 +274,14 @@ export default function MoreScreen() {
       {folders.map((g, gi) => (
         <View key={g.title ?? `g${gi}`} style={[styles.grid, gi > 0 && { marginTop: 4 }]}>
           {g.title ? <Text style={[styles.groupTitle, { color: L.fg, opacity: 0.6 }]}>{g.title}</Text> : null}
-          {g.items.map((it) => tileOf(it.href, it.label, ICON[it.icon] ?? 'menu', () => open(it.href), it.locked))}
+          {g.items.map((it) => tileOf(it.href, it.label, ICON[it.icon] ?? 'menu', () => open(it.href), it.locked, betaLocked(it.href)))}
         </View>
       ))}
       {/* 설정 — 묶음 뒤 따로 한 줄(웹 detail-menu: 모든 묶음 뒤) */}
       <View style={[styles.grid, { marginTop: 12 }]}>
         {tileOf('settings', '설정', 'settings', () => router.push('/settings' as Href))}
         {/* 소속 관리(계약 8-4) — 들어간 팀 · 레슨장 · 코드로 들어가기 · 지난 소속 · 나가기. 공간 바꾸기는 홈 머리 · 아래의 고르개 */}
-        {tileOf('org', '소속 관리', 'people', () => router.push('/org' as Href))}
+        {tileOf('org', '소속 관리', 'people', () => router.push('/org' as Href), false, betaLocked('/org'))}
       </View>
       {/* 내 정보 — 폴더 밑 줄(웹 Avatar · 닉네임 · '내 정보') */}
       <Pressable

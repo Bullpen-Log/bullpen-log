@@ -5,6 +5,7 @@ import HomePage from '@/app/(app)/today/home-page';
 import Loading from '@/app/(app)/@home/today/loading';
 import { ArrowRight } from '@/components/icon';
 import { isExpoUserAgent, isNativeUserAgent } from '@/lib/app-env';
+import { betaPanelHidden } from '@/lib/dal';
 
 /**
  * 홈 판 — 주소가 /today 가 아니어도(다른 탭 · 하위 화면) 판 넘기기 자리에 늘 떠 있다(components/tab-pager.tsx). 홈은 잠금이 없다.
@@ -12,6 +13,8 @@ import { isExpoUserAgent, isNativeUserAgent } from '@/lib/app-env';
  * 웹(브라우저)이면 맨 위에 '내 싱커' 대시보드(/sinker)로 가는 단추 하나(2026-10-21 금윤호: "내 싱커 화면은 싱커의 홈에서 따로 단추로"). 앱은 없음.
  */
 export default async function HomeSlotDefault() {
+  /* 출시 전 베타 — 베타 홈은 틀이 그린다. 이 판(예전 홈의 통계 · 플랜)은 그리지 않는다(lib/dal.ts betaPanelHidden) */
+  if (await betaPanelHidden()) return null;
   const ua = (await headers()).get('user-agent');
   /* 새 앱은 앱 홈 화면이 덮는다 — @home/today/page.tsx 와 같은 까닭으로 안 그린다 */
   if (isExpoUserAgent(ua)) return null;

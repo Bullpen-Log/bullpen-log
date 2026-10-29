@@ -61,6 +61,8 @@ export default async function LabSamplePage({
       previous={mine ? previous : null}
       /* 샘플에 키가 비어 있으면(예전 샘플) 내 샘플일 때만 가입 때 적은 키로 — 3D 인형 크기 · 점검 cm */
       ownerHeightCm={sample.ownerId === user.id ? (user.heightCm ?? null) : null}
+      /* 출시 전 베타의 일반 · 준관리자는 트레이닝이 잠겨 있다 — 보고서의 트레이닝 단추를 뺀다 */
+      trainingOpen={!isRestrictedNow(user)}
     />
   );
 }

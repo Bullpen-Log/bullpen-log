@@ -147,6 +147,21 @@ ok(!releaseAccessOf(USER, 'released').restricted, '출시 요약은 제한 없�
 /* 요약이 없으면(아직 모름 · 꺼진 망에 저장 없음) 막힌 쪽 — 홈 · 계정만 */
 ok(!accessAllowsPath(null, '/lab') && !accessAllowsPath(null, '/training-today') && accessAllowsPath(null, '/settings'), '모를 때는 덜 열린 쪽');
 
+/*
+ * 앱 껍데기가 판정하는 주소(native/src/app/index.tsx · more.tsx · lab/report.tsx · _layout.tsx) — 일반 · 준관리자 · 모름 · 대표 · 출시.
+ * 탭 판(투구 · 트레이닝 첫 화면 · 기록 · 덕아웃 · 영양)은 붙이지 않고, 더보기 · 설정 · 내 정보 · 투구 3D 길만 연다
+ */
+const SHELL_LOCKED = ['/videos', '/training?view=home', '/records', '/?dugout=1', '/nutrition', '/org', '/training?view=mechanics', '/training-mechanics', '/pitch/2026-10-29', '/notice', '/velocity?mode=speed'];
+const SHELL_OPEN = ['/', '/today', '/more', '/settings', '/profile', '/account', '/lab', '/lab/new', '/lab/guide?s=frame', '/lab/0f0c4e6a-1b2c-4d5e-8f90-123456789abc', '/support'];
+for (const h of SHELL_LOCKED) ok(!accessAllowsPath(ua, h), `일반 앱: ${h} 잠김`);
+for (const h of SHELL_OPEN) ok(accessAllowsPath(ua, h), `일반 앱: ${h} 열림`);
+for (const h of SHELL_LOCKED.filter((x) => !x.startsWith('/velocity'))) ok(!accessAllowsPath(ma, h), `준관리자 앱: ${h} 잠김`);
+ok(accessAllowsPath(ma, '/admin') && accessAllowsPath(ma, '/admin/shoot/2') && !accessAllowsPath(ma, '/admin/support'), '준관리자 앱: 관리 업무는 기존 권한대로');
+for (const h of [...SHELL_LOCKED, '/lab/new', '/more']) ok(accessAllowsPath(null, h) === ['/more'].includes(h), `모름: ${h} ${['/more'].includes(h) ? '열림' : '잠김'}`);
+for (const h of SHELL_LOCKED) ok(accessAllowsPath(releaseAccessOf(ADMIN, 'restricted_beta'), h) && accessAllowsPath(releaseAccessOf(USER, 'released'), h), `대표 · 출시: ${h} 열림`);
+/* 옛 서버(access 칸 없음)는 정식 출시로 본다 — native/src/shell/release.ts setReleaseFromMe 와 같은 값 */
+ok(accessAllowsPath({ stage: 'released', policyVersion: 'x', restricted: false, allowed: [], adminPerms: [] }, '/videos'), '옛 서버 = 출시');
+
 /* 탭 — 순서 · 모양 그대로, 홈만 열리고 잠김 까닭 'beta'. 앱에 보내는 탭은 주소 그대로 */
 const appTabs = applyBetaLocks(APP_TABS, ua, { keepHref: true });
 eq(appTabs.map((t) => t.href), APP_TABS.map((t) => t.href), '앱 탭 순서 · 주소 그대로');
@@ -215,5 +230,20 @@ for (const f of readdirSync('app/actions').filter((f) => f.endsWith('.ts'))) {
 const upload = readFileSync('app/api/pitch-lab/upload-url/route.ts', 'utf8');
 ok(/allowFeature\(sportParam == null \|\| sportParam === 'pitch' \? 'pitch3d' : 'swing3d'\)/.test(upload), 'upload-url 은 sport 로 가름');
 ok(upload.indexOf('allowFeature(') < upload.indexOf('await getCurrentUser()'), 'upload-url 은 사람을 읽기 전에 밝힘');
+
+/* 판 넘기기 자리 — 베타면 맨 앞에서 빠진다(Next 가 병렬 경로를 따로 그려 보내므로 틀이 안 놓는 것만으로는 조회가 돈다) */
+for (const file of [
+  'app/(app)/@home/default.tsx',
+  'app/(app)/@home/today/page.tsx',
+  'app/(app)/@videos/default.tsx',
+  'app/(app)/@videos/videos/page.tsx',
+  'app/(app)/@hitting/default.tsx',
+  'app/(app)/@hitting/hitting/page.tsx',
+]) {
+  const src = readFileSync(file, 'utf8');
+  const body = src.slice(src.indexOf('export default async function'));
+  const first = body.slice(body.indexOf('{') + 1).replace(/\/\*[\s\S]*?\*\//g, '').trim();
+  ok(first.startsWith('if (await betaPanelHidden()) return null;'), `${file} 맨 앞에서 베타면 빠짐`);
+}
 
 console.log(`release-access: ${n}개 통과`);

@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { readSession, passwordFingerprint } from '@/lib/session';
 import { ensureSim } from '@/lib/clock-server';
 import { can, type Permission } from '@/lib/permissions';
-import { allowAdmin, enforceRelease } from '@/lib/release-gate';
+import { allowAdmin, enforceRelease, isRestrictedNow } from '@/lib/release-gate';
 
 /**
  * 세션의 사용자 — 출시 단계 관문을 거치지 않는다. 관문 자신(RPC 입구가 미리 판정할 때)만 쓴다. 화면 · 동작은 getCurrentUser.
@@ -94,6 +94,16 @@ export async function getCurrentUser() {
   const user = await loadSessionUserUnchecked();
   if (user) await enforceRelease(user);
   return user;
+}
+
+/**
+ * 출시 전 베타라 판 넘기기 자리(@home · @videos · @hitting)를 그리지 않을 사람인가 — 판 맨 위에서 부른다.
+ * 베타 틀((app)/layout.tsx BetaAppLayout)은 판을 화면에 안 놓지만, Next 는 병렬 경로 자리를 따로 그려 보내므로(RSC 조각) 판 안의 조회가 그대로 돌았다.
+ * 판이 이것을 보고 아무것도 안 그린다(잠긴 기능의 조회 · 내용이 응답에 실리지 않게).
+ */
+export async function betaPanelHidden(): Promise<boolean> {
+  const user = await loadSessionUserUnchecked();
+  return !!user && isRestrictedNow(user);
 }
 
 /** 로그인이 필요한 페이지에서 사용. 비로그인 시 /login으로 보낸다. */

@@ -35,6 +35,7 @@ export function LabDetail({
   drills = [],
   youth = false,
   mine = false,
+  trainingOpen = true,
   focus = null,
   previous = null,
   preview,
@@ -50,6 +51,8 @@ export function LabDetail({
   youth?: boolean;
   /** 내 샘플 — 처방을 시작할 수 있다 */
   mine?: boolean;
+  /** 출시 전 베타면 false — 보고서의 트레이닝 단추를 뺀다(report-parts.tsx RxCard) */
+  trainingOpen?: boolean;
   /** 이 리포트의 처방이 메카닉에서 진행 중이면 n / 9 */
   focus?: FocusProgress;
   /** 바로 앞 내 리포트와 견주기(page.tsx, 내 것만) */
@@ -322,7 +325,7 @@ export function LabDetail({
             </div>
           )}
           {report && <FlowCard report={report} onPick={onScene} />}
-          {report && <RxCard report={report} mine={mine} focus={focus} />}
+          {report && <RxCard report={report} mine={mine} focus={focus} trainingOpen={trainingOpen} />}
           {report && previous && <CompareCard prev={previous} />}
 
           {result && (

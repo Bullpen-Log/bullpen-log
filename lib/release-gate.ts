@@ -47,9 +47,11 @@ export const isRestrictedNow = (subject: AccessSubject) => isBetaRestricted(subj
 /** 서버가 막았다 — 기계용 코드는 FEATURE_LOCKED_BETA(권한 없는 관리 업무는 PERMISSION_DENIED) */
 export class FeatureLockedError extends Error {
   readonly code: string;
-  constructor(readonly decision: AccessDecision) {
+  readonly decision: AccessDecision;
+  constructor(decision: AccessDecision) {
     super(decision.reason === 'permission_denied' ? 'PERMISSION_DENIED' : FEATURE_LOCKED_BETA);
     this.code = this.message;
+    this.decision = decision;
   }
 }
 

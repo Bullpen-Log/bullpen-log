@@ -35,6 +35,8 @@ export default async function PitchLabPage() {
       samples={samples}
       defaultHeightCm={user.heightCm ?? null}
       defaultHand={labHandOf(user.throwingHand)}
+      /* 출시 전 베타 — 부모 '투구'(/videos)가 잠겨 있어 '‹' 는 베타 홈으로 */
+      back={isRestrictedNow(user) ? { href: '/today', label: '홈' } : undefined}
     />
   );
 }

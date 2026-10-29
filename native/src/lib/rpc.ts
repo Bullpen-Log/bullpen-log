@@ -1,5 +1,6 @@
 import { APP_API_HEADER, APP_API_LEVEL } from '@/lib/app-api';
 import { deviceTimeZone } from '@/lib/time-zone';
+import { BETA_LOCK_BODY, BETA_LOCK_TITLE, FEATURE_LOCKED_BETA } from '@/lib/release-access';
 import { SITE_URL } from '~/lib/site';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { createReadShare } from './read-share';
@@ -101,6 +102,8 @@ async function call<T>(action: string, payload: string | FormData, headers: Reco
     | { ok: false; error: string }
     | null;
   if (res.status === 426) throw new RpcError('앱을 업데이트해 주세요.', 'update');
+  /* 출시 전 베타에 잠긴 기능(2026-10-29, lib/release-gate.ts) — 일반 오류와 갈라 다시 시도하지 않는다(대기열은 멈추고 남긴다) */
+  if (res.status === 403 && body && !body.ok && body.error === FEATURE_LOCKED_BETA) throw new RpcError(`${BETA_LOCK_TITLE} ${BETA_LOCK_BODY}`, FEATURE_LOCKED_BETA);
   if (!body || !body.ok) throw new RpcError('서버에서 처리하지 못했어요.', body?.error ?? 'server');
   if ('redirect' in body) throw new RpcError('다시 로그인해 주세요.', 'redirect', body.redirect);
   if (!isRead(action)) markWrite();
