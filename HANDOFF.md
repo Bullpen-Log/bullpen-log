@@ -11,6 +11,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-30 · 금윤호(Claude, 윤호 맥북) — 출시 전 베타(투구 3D 만)를 main 에 올렸다 · 네 앱 틀을 고쳤다 · **새 서버 동작은 표에 올려야 한다**
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만이라 업데이트로 나간다). 금윤호: 대표관리자 말고는 투구 3D · 홈 · 설정 · 내 정보만, 나머지는 회색 + 자물쇠(누르면 '준비 중인 기능입니다.').
+**Vercel 환경변수 `RELEASE_STAGE=restricted_beta` 를 금윤호가 넣으면 켜진다**(없으면 정식 출시 그대로). 설계 · 접근 표 · 되돌리기는 `docs/designs/pitch-3d-beta-access-impl.md`.
+- **켜지면 준관리자(MANAGER)도 일반과 같다** — 구속 측정 · ABS · 관리 업무 · 고객센터도 잠긴다. 역할 · 권한 표는 그대로라 변수를 지우면 예전대로.
+- **새로 만드는 서버 동작 · RPC 모듈은 기본으로 막힌다**(베타일 때) — `lib/release-ops.ts` 표에 기능을 적고, 베타에 열 것이면 함수 맨 위에 `allowFeature('pitch3d')` 같은 줄. `npm run release-access:test` 가 registry 의 모든 모듈이 표에 있는지 본다.
+- **네 앱 영역 고친 곳**: `native/src/app/index.tsx`(정책 받기 · 잠긴 탭은 판 안 붙임 · 베타면 홈 = `home/beta-home.tsx`, 투구 = `pitch/tab.tsx BetaPitchTab`) · `app/_layout.tsx`(잠긴 화면 딥링크 닫기) ·
+  `shell/tab-bar.tsx` · `app/more.tsx`(잠긴 칸 회색 + 자물쇠 — 모양은 새 `shell/locked.tsx`) · `lab/report.tsx`(베타면 훈련 길 숨김) · `lib/rpc.ts`(403 FEATURE_LOCKED_BETA) · 대기열 둘(그 오류는 지우지 않고 남김). 판정은 `shell/release.ts canOpen`.
+- 실기기 · 시뮬레이터 확인은 아직 — 금윤호가 변수를 넣은 뒤 일반 계정 폰으로 본다.
+
 ## 금윤호에게 — 2026-10-27 · 김민(Codex, 타격·투구 첫 화면 정렬)
 
 사용자가 두 첫 화면의 제목 위치·상단 오른쪽 도구·기록 카드 위치와 비율을 맞추고 배포하라고 요청했다. 투구 첫 화면의 로고와 타격 첫 화면의 오른쪽 기록 버튼을 제거했다. 카드 안 기록 버튼과 기록 목록의 입력 기능은 유지한다.
