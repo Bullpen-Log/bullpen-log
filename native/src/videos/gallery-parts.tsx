@@ -46,8 +46,8 @@ export function StarButton({ on, onPress, light }: { on: boolean; onPress: () =>
   );
 }
 
-/** 칸 상태 — 보내는 중(동기화 대기) · 이 폰에 없음 · 즐겨찾기 해제됨(즐겨찾기 보기에서 조건을 바꿀 때까지 남긴 칸) · 고르기에서 못 고름 */
-export type CellState = { pending: boolean; missing: boolean; unstarred?: boolean; blocked?: string | null; selected?: boolean };
+/** 칸 상태 — 보내는 중(동기화 대기) · 저장 실패(서버가 거절 · 여러 번 못 받음 — 칸은 남김) · 이 폰에 없음 · 즐겨찾기 해제됨(즐겨찾기 보기에서 조건을 바꿀 때까지 남긴 칸) · 고르기에서 못 고름 */
+export type CellState = { pending: boolean; failed?: boolean; missing: boolean; unstarred?: boolean; blocked?: string | null; selected?: boolean };
 
 /**
  * 칸의 두 줄 — 첫 줄은 영상 메모(최대 두 줄, 검색이면 걸린 글 조각), 메모가 없으면 실제 정보(기록 종류 · 공 수, 없으면 '투구 영상').
@@ -64,7 +64,7 @@ function linesOf(row: FilteredRow, cell: CellState, showWhere: boolean, showDate
     v.sport === 'hit' ? '타격' : null,
     v.dateSource === 'log' ? '기록 날짜' : null,
     cell.unstarred ? '즐겨찾기 해제됨' : null,
-    cell.blocked ?? (cell.pending ? '동기화 대기' : cell.missing ? '이 기기에 없음' : null),
+    cell.blocked ?? (cell.failed ? '저장 실패 · 눌러서 다시 보내기' : cell.pending ? '동기화 대기' : cell.missing ? '이 기기에 없음' : null),
   ].filter(Boolean) as string[];
   return { title, meta, captionOnly: !snippet && !v.note };
 }

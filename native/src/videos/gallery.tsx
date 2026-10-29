@@ -1,10 +1,10 @@
 import { File } from 'expo-file-system';
 import { Image } from 'expo-image';
-import { type Href, router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { type ReactNode, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  ActionSheetIOS,
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   SectionList,
@@ -34,15 +34,15 @@ import {
 import { isPhoneVideoPath, phoneAssetId } from '@/lib/phone-video-path';
 import { CONTENT_MAX, WIDE_MAX } from '~/lib/layout';
 import { TYPE, usePalette, withAlpha } from '~/lib/ui';
+import { discardServerVideo, removePhoneOrphans } from '~/pitch/api';
 import { thumbSource, usePathThumbs, type Thumb } from '~/pitch/store';
 import { Icon, type IconName } from '~/shell/icon';
-import { useMenu } from '~/shell/menu-store';
 import { Press } from '~/shell/press';
 import { toast } from '~/shell/toast';
 import { LocalVideo } from '../../modules/local-video';
 import { galleryAnchor, setGalleryAnchor, useGalleryUi } from './filters';
 import { FilterSheet, GridTile, ListCard, MAX_FONT, MonthSheet, listCardHeight, tileTextHeight, type CellState } from './gallery-parts';
-import { videoOutbox } from './outbox';
+import { drainVideos, removeQueuedVideo, retryVideo, takeAdded, useVideoDraft, videoOutbox } from './outbox';
 import { refreshMyVideos, toggleFavorite, useMyVideos } from './store';
 import { durationText, monthText, todayKey, videoCaption, videoDateText } from './text';
 
@@ -92,8 +92,8 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
     if (q === text && q !== filter.text) setFilter({ ...filter, text: q });
   }, [q, text, filter, setFilter]);
   const today = todayKey();
-  const menu = useMenu();
-  const canAbs = menu.isAdmin === true || menu.groups.some((g) => g.items.some((i) => i.href === '/abs'));
+  /* 쓰다 만 영상 — 위에 '이어서 작성' 한 줄(고르기 화면엔 없음) */
+  const draft = useVideoDraft();
 
   /* 아직 못 보낸 영상(동기화 대기) — 서버 목록에 생기면 그쪽이 이긴다(같은 경로는 하나) */
   const pending = useSyncExternalStore(videoOutbox.subscribe, videoOutbox.snapshot);
@@ -117,6 +117,15 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
   const rows = useMemo(
     () => sortRows(filterVideos(all, filter, today, keep), order).filter((r) => r.item.path !== aPath),
     [all, filter, today, keep, order, aPath]
+  );
+  /* 영상 추가에서 돌아왔을 때 — 방금 저장한 영상이 지금 조건 · 즐겨찾기에 가려 안 보이면 알린다(조건 · 위치는 그대로) */
+  useFocusEffect(
+    useCallback(() => {
+      if (pick) return;
+      const added = takeAdded();
+      if (added && all.some((v) => v.path === added) && !rows.some((r) => r.item.path === added))
+        toast('방금 저장한 영상은 지금 조건에서 안 보여요. 조건을 지우면 보여요.', 'info');
+    }, [pick, all, rows])
   );
 
   /* 칸 크기 — 실제 목록 폭 · 글자 배율로(기기 이름이 아니라). 좁거나 큰 글씨면 열을 줄이고 넓은 아이패드는 늘린다(폰 목업 폭으로 묶지 않음) */
@@ -200,6 +209,7 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
   const cellOf = useCallback(
     (path: string): CellState => ({
       pending: pendingPaths.has(path),
+      failed: videoOutbox.stateOf(path)?.state === 'failed',
       missing: missing.has(path),
       unstarred: keep.has(path),
       blocked: blockedOf(path),
@@ -319,8 +329,35 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
         pick.onSelect(v);
         return;
       }
+      const q = videoOutbox.stateOf(v.path);
+      if (q?.state === 'failed') {
+        /* 저장 실패 — 조용히 버리지 않고 사람이 고른다(다시 보내기 · 지우기). 지우기는 이 기기 사본도(어디에도 안 붙었을 때만) */
+        Alert.alert('영상 정보를 저장하지 못했어요', `${q.error ?? ''}\n영상과 메모는 이 기기에 그대로 있어요.`.trim(), [
+          { text: '닫기', style: 'cancel' },
+          { text: '다시 보내기', onPress: () => void retryVideo(q.clientId) },
+          {
+            text: '영상 지우기',
+            style: 'destructive',
+            onPress: () =>
+              Alert.alert('이 영상을 지울까요?', '아직 서버에 저장되지 않은 영상이에요. 이 기기의 사본도 지워요. 앨범 원본은 그대로예요.', [
+                { text: '취소', style: 'cancel' },
+                {
+                  text: '지우기',
+                  style: 'destructive',
+                  onPress: () =>
+                    void removeQueuedVideo(q.clientId).then(
+                      () => (isPhoneVideoPath(v.path) ? removePhoneOrphans([v.path]) : discardServerVideo(v.path)),
+                      () => toast('지우지 못했어요. 잠시 뒤 다시 해 주세요.', 'error')
+                    ),
+                },
+              ]),
+          },
+        ]);
+        return;
+      }
       if (pendingPaths.has(v.path)) {
-        toast('아직 보내는 중이에요. 저장이 끝나면 열 수 있어요. 영상은 이 기기에 그대로 있어요.', 'info');
+        void drainVideos();
+        toast('아직 동기화 대기 중이에요. 연결되면 저장이 끝나요. 영상은 이 기기에 그대로 있어요.', 'info');
         return;
       }
       router.push({ pathname: '/my-videos/view' as never, params: { path: v.path } });
@@ -328,16 +365,10 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
     [pick, blockedOf, pendingPaths]
   );
   const kind = filter.sport === 'hit' ? 'hit' : 'pitch';
+  /* 빈 목록의 단추도 + 시트와 같은 화면으로 바로(시트의 두 길과 같음) */
   const addFrom = (source: 'camera' | 'album') => router.push({ pathname: '/my-videos/new' as never, params: { source, sport: kind } });
-  const openAdd = () => {
-    const options = ['촬영하기', '앨범에서 가져오기', '구속 측정', ...(canAbs ? ['ABS 판정'] : []), '취소'];
-    ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: options.length - 1 }, (i) => {
-      if (options[i] === '촬영하기') addFrom('camera');
-      else if (options[i] === '앨범에서 가져오기') addFrom('album');
-      else if (options[i] === '구속 측정') router.push('/velocity?mode=speed' as Href);
-      else if (options[i] === 'ABS 판정') router.push('/velocity?mode=abs' as Href);
-    });
-  };
+  /* + → 추가 방법 시트(앨범 · 촬영이 먼저, 구속 측정 · ABS 는 그 밑 '측정 도구') */
+  const openAdd = () => router.push({ pathname: '/my-videos/add' as never, params: { sport: kind } });
   const resetAll = () => {
     setText('');
     setFilter({ ...EMPTY_VIDEO_FILTER, favoriteOnly: filter.favoriteOnly });
@@ -456,6 +487,22 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
       </View>
       <View style={[styles.controls, { maxWidth: WIDE_MAX }]}>
         {pick ? <PickA a={pick.a} /> : null}
+        {!pick && draft ? (
+          <Press
+            accessibilityRole="button"
+            accessibilityLabel="작성 중인 영상 이어서 — 저장 전 영상이 있어요"
+            onPress={() => router.push({ pathname: '/my-videos/new' as never, params: { resume: '1' } })}
+            style={[styles.draftRow, { backgroundColor: withAlpha(c.action, 0.1) }]}
+          >
+            <Icon name="pencil" size={17} color={c.link} />
+            <Text maxFontSizeMultiplier={1.6} numberOfLines={1} style={[TYPE.body, { flex: 1, color: c.ink }]}>
+              저장 전 영상이 있어요
+            </Text>
+            <Text maxFontSizeMultiplier={1.6} style={[TYPE.buttonCompact, { color: c.link }]}>
+              이어서 작성
+            </Text>
+          </Press>
+        ) : null}
         <View style={styles.searchRow}>
           <View style={[styles.search, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Icon name="search" size={17} color={c.muted} />
@@ -767,6 +814,7 @@ const styles = StyleSheet.create({
   barButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, textAlign: 'center', fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
   addButton: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  draftRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingHorizontal: 14, borderRadius: 16 },
   controls: { width: '100%', alignSelf: 'center', paddingHorizontal: SIDE, gap: 10, paddingBottom: 6 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   search: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, borderRadius: 24, paddingHorizontal: 16 },

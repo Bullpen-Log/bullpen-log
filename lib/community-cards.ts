@@ -75,13 +75,14 @@ const velocityCard = (s: VelocityRow, hide: boolean): CommunityCard => ({
   pr: s.pr,
   hide,
 });
-const pitchCard = (l: PitchRow, hide: boolean): CommunityCard => ({
+/** video = false — 카드에 그 기록의 영상을 안 싣는다(내 영상 → 덕아웃 공유: 고른 사본 하나만 공개, 기록의 다른 · 원본 영상은 안 나감) */
+const pitchCard = (l: PitchRow, hide: boolean, video = true): CommunityCard => ({
   kind: 'pitch',
   id: l.id,
   date: l.date.toISOString().slice(0, 10),
   sessionType: l.sessionType,
   pitchCount: l.pitchCount,
-  video: l.videoPaths.find((p) => !isPhoneVideoPath(p)) ?? null,
+  video: video ? (l.videoPaths.find((p) => !isPhoneVideoPath(p)) ?? null) : null,
   hide,
 });
 
@@ -141,8 +142,8 @@ export async function recentCardOptions(userId: string, include?: string): Promi
   return options;
 }
 
-/** ref 로 내 기록에서 카드를 다시 만든다 — 내 것이 아니거나 없으면 null */
-export async function buildCard(userId: string, ref: string, hide: boolean): Promise<CommunityCard | null> {
+/** ref 로 내 기록에서 카드를 다시 만든다 — 내 것이 아니거나 없으면 null. opts.video = false 면 투구 기록 카드에 영상을 안 싣는다 */
+export async function buildCard(userId: string, ref: string, hide: boolean, opts: { video?: boolean } = {}): Promise<CommunityCard | null> {
   const [kind, id] = ref.split(':');
   if (!id) return null;
   if (kind === 'velocity') {
@@ -151,7 +152,7 @@ export async function buildCard(userId: string, ref: string, hide: boolean): Pro
   }
   if (kind === 'pitch') {
     const l = await prisma.pitchLog.findFirst({ where: { id, userId }, select: PITCH_SELECT });
-    return l ? pitchCard(l, hide) : null;
+    return l ? pitchCard(l, hide, opts.video !== false) : null;
   }
   if (kind === 'lab') {
     const job = await loadLabJob(userId, id).catch(() => null);

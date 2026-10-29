@@ -15,6 +15,7 @@ import { rpc } from '~/lib/rpc';
 import { DetailPlayer, type PlayerAvail } from '~/videos/detail-player';
 import { startPickUi } from '~/videos/filters';
 import { keepNoteDraft, loadNoteDraft } from '~/videos/note-drafts';
+import { useShareDraftStage } from '~/videos/share-drafts';
 import { deleteVideo, findMyVideo, linkVideo, refreshMyVideos, saveMyVideo, toggleFavorite, useMyVideos } from '~/videos/store';
 import { durationText, videoDateText } from '~/videos/text';
 
@@ -46,6 +47,7 @@ export default function MyVideoScreen() {
   const [linking, setLinking] = useState(false);
   const [topError, setTopError] = useState<string | null>(null);
   const gone = useRef(false);
+  const shareStage = useShareDraftStage(path ?? null);
 
   if (!v) {
     const waiting = list.loading || (!list.items && !list.error);
@@ -133,7 +135,14 @@ export default function MyVideoScreen() {
         .join('\n')
     );
   const more = () => {
-    const options = ['덕아웃에 올리기', '기록 연결 관리', '영상 정보', '영상 지우기', '취소'];
+    /* 쓰던 공유가 있으면 그 상태로(결과 확인이 남았으면 그것부터 — 다시 올려 중복을 만들지 않게) */
+    const shareLabel =
+      shareStage === 'uncertain' || shareStage === 'register'
+        ? '덕아웃 게시 여부 확인'
+        : shareStage && shareStage !== 'done'
+          ? '덕아웃에 올리기 · 작성 중'
+          : '덕아웃에 올리기';
+    const options = [shareLabel, '기록 연결 관리', '영상 정보', '영상 지우기', '취소'];
     ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: 4, destructiveButtonIndex: 3 }, (i) => {
       /* 덕아웃은 기존 작성 화면으로(공유용 사본 · 나라 · 고른 정보만) — 한 번에 올리지 않는다 */
       if (i === 0) router.push({ pathname: '/my-videos/share' as never, params: { path: v.path } });

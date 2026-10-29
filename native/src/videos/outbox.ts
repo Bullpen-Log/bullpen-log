@@ -1,57 +1,75 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { MyVideoItem, NewVideo } from '@/lib/my-videos';
 import { isPhoneVideoPath } from '@/lib/phone-video-path';
-import { rpc } from '~/lib/rpc';
+import { rpc, RpcError } from '~/lib/rpc';
 import { outboxOwner } from '~/workout/outbox';
+import { createDraftStore, createVideoQueue, type KV, type QueueRow, type VideoDraft } from './queue-core';
 import { refreshMyVideos } from './store';
 
 /**
- * 영상만 저장의 대기열(폰) — 운동 세트 대기열(workout/outbox.ts)과 같은 규칙.
- *   - [저장]을 누르면 여기에 담고 곧바로 보낸다. 신호가 없으면 남겨 두고 '동기화 대기'로 보인다 — 저장 완료로 보이지 않는다.
- *   - 같은 번호(clientId)를 다시 보내도 서버가 하나만 남긴다. 서버가 거절(retry: false)한 것은 뺀다. 서버 오류가 8번이면 뺀다.
- *   - 줄마다 주인(owner) — 다른 계정이 로그인하면 앞사람 것은 보내지도 보이지도 않는다.
- * 찍거나 고른 직후의 '저장 전'(draft)도 폰에 둔다 — 앱이 죽어 [저장]을 못 눌렀어도 다음에 켤 때 메모 없이 저장한다(찍은 영상을 잃지 않게).
+ * 영상 추가의 폰 쪽 — 저장 전 초안 · 보낼 줄(규칙은 ./queue-core.ts, 셀프테스트가 본다). 여기는 AsyncStorage · rpc 를 꽂을 뿐.
+ *   - 초안: 계정마다 하나, 고칠 때마다 남긴다. 앱을 다시 켜도 저절로 등록하지 않는다 — 목록의 '작성 중인 영상 이어서'로 돌아온다.
+ *   - 줄: [저장]이 폰에 먼저 적고 → 초안을 지우고 → 보낸다. 신호가 없으면 '동기화 대기', 서버가 거절 · 여러 번 못 받으면 '저장 실패'로 남긴다(지우지 않음).
+ *   - 계정이 바뀌면 앞사람 줄 · 초안은 보내지도 보이지도 않는다(주인이 다르면 건너뜀). 로그아웃해도 폰에 남아 그 사람이 다시 들어오면 이어진다.
  */
-type Row = { owner: string; input: NewVideo; fails: number };
-type Draft = { owner: string; input: NewVideo };
-
-const KEY = 'bullpen-my-videos:outbox:v1';
-const DRAFT_KEY = 'bullpen-my-videos:draft:v1';
-const FAIL_LIMIT = 8;
-
-let rows: readonly Row[] = [];
-const listeners = new Set<() => void>();
-function set(next: readonly Row[]) {
-  rows = next;
-  listeners.forEach((l) => l());
-  void (next.length ? AsyncStorage.setItem(KEY, JSON.stringify(next)) : AsyncStorage.removeItem(KEY)).catch(() => undefined);
-}
-const loaded: Promise<void> = AsyncStorage.getItem(KEY)
-  .then((raw) => {
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed)) return;
-    const stored = (parsed as Row[]).filter((r) => r && typeof r.owner === 'string' && typeof r.input?.clientId === 'string');
-    const extra = stored.filter((s) => !rows.some((r) => r.input.clientId === s.input.clientId));
-    if (extra.length) set([...extra, ...rows]);
-  })
-  .catch(() => undefined);
-
-let cache: { owner: string | null; src: readonly Row[]; out: MyVideoItem[] } = { owner: null, src: [], out: [] };
-export const videoOutbox = {
-  subscribe(l: () => void) {
-    listeners.add(l);
-    return () => {
-      listeners.delete(l);
-    };
-  },
-  /** 지금 계정의 보내지 못한 영상 — 갤러리 카드 꼴로(같은 값이면 같은 배열) */
-  snapshot(): MyVideoItem[] {
-    const owner = outboxOwner();
-    if (cache.owner !== owner || cache.src !== rows)
-      cache = { owner, src: rows, out: rows.filter((r) => r.owner === owner).map((r) => itemOf(r.input)) };
-    return cache.out;
-  },
+const kv: KV = {
+  get: (k) => AsyncStorage.getItem(k),
+  set: (k, v) => AsyncStorage.setItem(k, v),
+  remove: (k) => AsyncStorage.removeItem(k),
 };
+
+const queue = createVideoQueue({
+  kv,
+  key: 'bullpen-my-videos:outbox:v1',
+  owner: outboxOwner,
+  send: (input) => rpc<{ ok: true } | { ok: false; error: string; retry?: false }>('my-videos.createMyVideo', input),
+  /* 서버에 못 닿음(응답을 잃었을 수도) = offline — 그 밖(서버 오류 · 앱 판 · 다시 로그인)은 셈한다 */
+  fault: (e) => (e instanceof RpcError && e.code === 'offline' ? 'offline' : 'server'),
+  onSent: () => void refreshMyVideos(true),
+});
+const drafts = createDraftStore(kv, 'bullpen-my-videos:drafts:v2', 'bullpen-my-videos:draft:v1');
+
+/** 담긴 영상을 보낸다 — 앱을 켤 때 · 로그인 뒤 · 앱이 앞에 올 때(index.tsx drainQueues) · 저장할 때 */
+export const drainVideos = () => queue.drain();
+export const enqueueVideo = (owner: string, input: NewVideo) => queue.enqueue(owner, input);
+export const sendVideoNow = (clientId: string, waitMs?: number) => queue.sendNow(clientId, waitMs);
+export const videoStatusOf = (clientId: string) => queue.statusOf(clientId);
+export const retryVideo = (clientId: string) => queue.retry(clientId);
+export const removeQueuedVideo = (clientId: string) => queue.remove(clientId);
+export const sendStopped = () => queue.stopped();
+export const subscribeQueue = queue.subscribe;
+
+export type QueueState = 'queued' | 'failed';
+let cache: { owner: string | null; src: readonly QueueRow[]; out: MyVideoItem[]; state: Map<string, { state: QueueState; error: string | null; clientId: string }> } = {
+  owner: null,
+  src: [],
+  out: [],
+  state: new Map(),
+};
+function snap() {
+  const owner = outboxOwner();
+  const src = queue.rows();
+  if (cache.owner !== owner || cache.src !== src) {
+    const mine = src.filter((r) => r.owner === owner);
+    cache = {
+      owner,
+      src,
+      out: mine.map((r) => itemOf(r.input)),
+      state: new Map(mine.map((r) => [r.input.path, { state: r.state, error: r.error, clientId: r.input.clientId }])),
+    };
+  }
+  return cache;
+}
+export const videoOutbox = {
+  subscribe: queue.subscribe,
+  /** 지금 계정의 아직 서버에 없는 영상 — 갤러리 카드 꼴로(같은 값이면 같은 배열) */
+  snapshot: (): MyVideoItem[] => snap().out,
+  /** 경로 → 대기 · 실패(까닭) */
+  stateOf: (path: string) => snap().state.get(path) ?? null,
+};
+/** 화면이 줄 상태를 들을 때 — 바뀌면 다시 그린다 */
+export const useQueueVersion = () => useSyncExternalStore(queue.subscribe, queue.rows);
 
 const itemOf = (v: NewVideo): MyVideoItem => ({
   path: v.path,
@@ -69,66 +87,53 @@ const itemOf = (v: NewVideo): MyVideoItem => ({
   clip: null,
 });
 
-/** [저장] — 담고 보낸다 */
-export function addVideo(input: NewVideo) {
+/* ── 저장 전(초안) ── 화면이 고칠 때마다 남기고, 목록이 '이어서 작성'을 보인다 */
+const draftListeners = new Set<() => void>();
+const draftChanged = () => draftListeners.forEach((l) => l());
+export const loadVideoDraft = (owner: string) => drafts.load(owner);
+/** 남긴다 — 실패하면 던진다 */
+export async function keepVideoDraft(d: VideoDraft): Promise<void> {
+  await drafts.save(d);
+  draftChanged();
+}
+/** 그 번호의 초안만 지운다 */
+export async function clearVideoDraft(owner: string, clientId: string): Promise<boolean> {
+  const done = await drafts.clear(owner, clientId);
+  draftChanged();
+  return done;
+}
+/** 목록의 '작성 중인 영상 이어서' — 지금 계정 초안(대기열에 이미 있는 번호면 없는 것으로) */
+export function useVideoDraft(): VideoDraft | null {
   const owner = outboxOwner();
-  if (!owner) return;
-  set([...rows.filter((r) => r.input.clientId !== input.clientId), { owner, input, fails: 0 }]);
-  void drainVideos();
+  const [d, setD] = useState<{ owner: string | null; v: VideoDraft | null }>({ owner: null, v: null });
+  useEffect(() => {
+    let alive = true;
+    const read = () => {
+      if (!owner) return setD({ owner, v: null });
+      void drafts.load(owner).then(
+        (v) => alive && setD({ owner, v: v && !queue.rows().some((r) => r.input.clientId === v.input.clientId) ? v : null }),
+        () => alive && setD({ owner, v: null })
+      );
+    };
+    read();
+    draftListeners.add(read);
+    const off = queue.subscribe(read);
+    return () => {
+      alive = false;
+      draftListeners.delete(read);
+      off();
+    };
+  }, [owner]);
+  return d.owner === owner ? d.v : null;
 }
 
-let draining = false;
-/** 담긴 영상을 하나씩 보낸다 — 앱을 켤 때 · 로그인 뒤(index.tsx drainQueues) · 담을 때 */
-export async function drainVideos(): Promise<void> {
-  await loaded;
-  await adoptDraft();
-  if (draining) return;
-  draining = true;
-  let sent = 0;
-  try {
-    for (;;) {
-      const owner = outboxOwner();
-      const row = rows.find((r) => r.owner === owner);
-      if (!row || !owner) break;
-      let res: { ok: true } | { ok: false; error: string; retry?: false };
-      try {
-        res = await rpc('my-videos.createMyVideo', row.input);
-      } catch {
-        /* 신호 없음 · 서버 오류 — 여덟 번이면 뺀다(한 줄이 뒤를 다 막지 않게) */
-        if (row.fails + 1 >= FAIL_LIMIT) set(rows.filter((r) => r !== row));
-        else set(rows.map((r) => (r === row ? { ...r, fails: r.fails + 1 } : r)));
-        break;
-      }
-      if (res.ok || res.retry === false) {
-        set(rows.filter((r) => r.input.clientId !== row.input.clientId));
-        if (res.ok) sent++;
-      } else break; // 로그인이 풀림 — 다음에
-    }
-  } finally {
-    draining = false;
-  }
-  if (sent) void refreshMyVideos(true);
-}
-
-/** 찍거나 고른 직후 — 아직 저장 전. 앱이 죽으면 다음에 켤 때 저장한다 */
-export async function saveDraft(input: NewVideo) {
-  const owner = outboxOwner();
-  if (owner) await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify({ owner, input } satisfies Draft)).catch(() => undefined);
-}
-export async function clearDraft() {
-  await AsyncStorage.removeItem(DRAFT_KEY).catch(() => undefined);
-}
-/** 남은 '저장 전' — 지금 계정 것이면 메모 없이 저장으로 옮긴다(저장 화면이 열려 있는 동안은 그 화면이 정한다) */
-let editing = false;
-export const setDraftEditing = (on: boolean) => {
-  editing = on;
+/* 방금 저장한 영상 — 목록으로 돌아갔을 때 지금 조건에 안 보이면 알린다(목록의 조건 · 위치는 그대로 둔다) */
+let lastAdded: string | null = null;
+export const markAdded = (path: string) => {
+  lastAdded = path;
 };
-async function adoptDraft() {
-  if (editing) return;
-  const raw = await AsyncStorage.getItem(DRAFT_KEY).catch(() => null);
-  if (!raw) return;
-  const d = JSON.parse(raw) as Draft;
-  if (d?.owner !== outboxOwner() || !d.input) return;
-  await clearDraft();
-  set([...rows.filter((r) => r.input.clientId !== d.input.clientId), { owner: d.owner, input: d.input, fails: 0 }]);
+export function takeAdded(): string | null {
+  const p = lastAdded;
+  lastAdded = null;
+  return p;
 }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { canWriteIn, dugoutOf, OTHER_DUGOUT, YOUNG_ABROAD, youngAbroad } from '@/lib/community-country';
-import { hasKoreaDugout } from '@/lib/country';
+import { COUNTRY_LABEL, hasKoreaDugout } from '@/lib/country';
 import { redirect } from 'next/navigation';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -193,7 +193,7 @@ export async function createPost(
 async function tryCreatePost(
   user: Me | null,
   formData: FormData
-): Promise<{ error: string } | { id: string }> {
+): Promise<{ error: string } | { id: string; country: string }> {
   if (!user) return { error: LOGIN_NEEDED };
   const read = readPostForm(user, formData);
   if ('error' in read) return read;
@@ -205,49 +205,74 @@ async function tryCreatePost(
   if (youngAbroad(country, user.birthDate ? ageFromBirthDate(user.birthDate) : null)) return { error: YOUNG_ABROAD };
 
   /*
-   * 1분 안 같은 글이면 새로 안 만든다 — 저장은 됐는데 응답이 끊겨(앱 '신호가 약해 보내지 못했어요') 다시 누르면 같은 글이 둘 생겼다.
-   * createdAt 은 DB 의 실제 시각이라 Date.now 와 견준다. 도배 막기보다 먼저(다시 보내기를 도배로 세지 않게).
+   * 같은 사진 · 영상(올린 경로)으로 이미 만든 글이면 그 글 — 같은 게시 시도를 다시 보낸 것이다(응답만 잃음 · 두 번 누름 · 1분 넘어 다시 시도).
+   * 올린 파일 경로는 올릴 때마다 새로 생겨서, 같은 글이라도 다른 영상이면 새 글이다. 한 사람의 같은 파일 묶음은 잠금으로 한 줄씩(동시에 두 번 보내도 하나만).
    */
-  const same = await prisma.communityPost.findFirst({
-    where: {
-      userId: user.id,
-      category: d.category,
-      title: d.title,
-      body: d.body,
-      createdAt: { gte: new Date(Date.now() - 60_000) },
-    },
-    select: { id: true },
-  });
-  if (same) return { id: same.id };
-  const fast = await tooFast('post', user.id);
-  if (fast) return { error: fast };
+  const create = async (tx: Prisma.TransactionClient | typeof prisma): Promise<{ error: string } | { id: string; country: string }> => {
+    if (d.media.length) {
+      const prev = await tx.communityPost.findFirst({ where: { userId: user.id, media: { hasSome: d.media } }, select: { id: true, country: true } });
+      if (prev) return { id: prev.id, country: prev.country };
+    }
+    /*
+     * 1분 안 같은 글이면 새로 안 만든다 — 저장은 됐는데 응답이 끊겨(앱 '신호가 약해 보내지 못했어요') 다시 누르면 같은 글이 둘 생겼다.
+     * 사진 · 영상까지 같을 때만(같은 글에 다른 영상을 일부러 올리는 것은 새 글). createdAt 은 DB 의 실제 시각이라 Date.now 와 견준다.
+     * 도배 막기보다 먼저(다시 보내기를 도배로 세지 않게).
+     */
+    const same = await tx.communityPost.findFirst({
+      where: {
+        userId: user.id,
+        category: d.category,
+        title: d.title,
+        body: d.body,
+        media: { equals: d.media },
+        createdAt: { gte: new Date(Date.now() - 60_000) },
+      },
+      select: { id: true, country: true },
+    });
+    if (same) return { id: same.id, country: same.country };
+    const fast = await tooFast('post', user.id);
+    if (fast) return { error: fast };
 
-  /* 싱커 기록 카드 — 화면은 ref 만 보내고, 카드는 내 기록에서 다시 만든다(남의 기록 · 고친 숫자를 못 붙이게) */
-  const cardRef = field(formData, 'card');
-  const card = cardRef ? await buildCard(user.id, cardRef, field(formData, 'cardHide') === '1') : null;
-  if (cardRef && !card) return { error: '붙인 기록을 찾지 못했어요. 다시 골라 주세요.' };
+    /* 싱커 기록 카드 — 화면은 ref 만 보내고, 카드는 내 기록에서 다시 만든다(남의 기록 · 고친 숫자를 못 붙이게). cardVideo=0 이면 카드에 기록 영상을 안 싣는다 */
+    const cardRef = field(formData, 'card');
+    const card = cardRef
+      ? await buildCard(user.id, cardRef, field(formData, 'cardHide') === '1', { video: field(formData, 'cardVideo') !== '0' })
+      : null;
+    if (cardRef && !card) return { error: '붙인 기록을 찾지 못했어요. 다시 골라 주세요.' };
 
-  const post = await prisma.communityPost.create({
-    data: {
-      userId: user.id,
-      country,
-      category: d.category,
-      tag: d.tag,
-      title: d.title,
-      body: d.body,
-      media: d.media,
-      byStaff: d.byStaff,
-      ...(card ? { card: card as unknown as Prisma.InputJsonValue } : {}),
-      ...(d.form
-        ? { form: d.form as Prisma.InputJsonValue, region: d.region, district: d.district, meetAt: d.meetAt }
-        : {}),
-    },
-    select: { id: true },
-  });
+    const post = await tx.communityPost.create({
+      data: {
+        userId: user.id,
+        country,
+        category: d.category,
+        tag: d.tag,
+        title: d.title,
+        body: d.body,
+        media: d.media,
+        byStaff: d.byStaff,
+        ...(card ? { card: card as unknown as Prisma.InputJsonValue } : {}),
+        ...(d.form
+          ? { form: d.form as Prisma.InputJsonValue, region: d.region, district: d.district, meetAt: d.meetAt }
+          : {}),
+      },
+      select: { id: true },
+    });
+    return { id: post.id, country };
+  };
+  const made = d.media.length
+    ? await prisma.$transaction(
+        async (tx) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`post-media:${user.id}:${[...d.media].sort().join('|')}`}, 0))`;
+          return create(tx);
+        },
+        { maxWait: 10_000, timeout: 30_000 }
+      )
+    : await create(prisma);
+  if ('error' in made) return made;
 
   revalidatePath('/community');
   revalidatePath('/me/community');
-  return { id: post.id };
+  return made;
 }
 
 /**
@@ -1067,6 +1092,8 @@ export async function createAppPost(input: {
   media?: unknown;
   card?: unknown;
   cardHide?: unknown;
+  /** false = 기록 카드에 그 기록의 영상을 싣지 않는다(내 영상 공유 — 고른 사본만 공개, 2026-10-29) */
+  cardVideo?: unknown;
 }) {
   const user = await getCurrentUser();
   const fd = new FormData();
@@ -1077,8 +1104,38 @@ export async function createAppPost(input: {
   if (Array.isArray(input?.media)) for (const m of input.media) if (typeof m === 'string') fd.append('media', m);
   if (typeof input?.card === 'string' && input.card) fd.set('card', input.card);
   if (input?.cardHide === true) fd.set('cardHide', '1');
+  if (input?.cardVideo === false) fd.set('cardVideo', '0');
   const made = await tryCreatePost(user, fd);
-  return 'id' in made ? { ok: true as const, id: made.id } : fail(made);
+  return 'id' in made ? { ok: true as const, id: made.id, country: made.country } : fail(made);
+}
+
+/**
+ * 내 영상 공유의 '게시 여부 확인'(2026-10-29) — 이 공유 사본으로 만든 내 글이 있나. 등록 답을 못 받았을 때 새 글을 또 만들지 않고 먼저 묻는다.
+ * id = null 이면 아직 그 사본으로 만든 글이 없다(같은 시도로 다시 보내도 서버가 하나만 만든다 — tryCreatePost).
+ */
+export async function loadSharePost(path: unknown) {
+  const user = await getCurrentUser();
+  if (!user) return fail({ error: LOGIN_NEEDED });
+  if (typeof path !== 'string' || !isOwnedBy(path, user.id) || !isMediaPath(path) || path.includes('..'))
+    return fail({ error: '확인할 영상이 올바르지 않아요.' });
+  const post = await prisma.communityPost.findFirst({ where: { userId: user.id, media: { has: path } }, select: { id: true, country: true } });
+  return { ok: true as const, id: post?.id ?? null, country: post?.country ?? null };
+}
+
+/**
+ * 내 영상 공유가 올라갈 덕아웃 — 서버가 계정으로 정한다(앱이 고르지 않음). blocked = 이 계정은 지금 글을 못 씀(해외 덕아웃 나이 한도).
+ * 확인 화면에 들어갈 때 · 올리기 직전에 묻는다 — 그 사이 나라가 바뀌었으면 화면이 다시 확인받는다.
+ */
+export async function loadShareTarget() {
+  const user = await getCurrentUser();
+  if (!user) return fail({ error: LOGIN_NEEDED });
+  const country = dugoutOf(user);
+  return {
+    ok: true as const,
+    country,
+    label: `${COUNTRY_LABEL[country]} 덕아웃`,
+    blocked: youngAbroad(country, user.birthDate ? ageFromBirthDate(user.birthDate) : null) ? YOUNG_ABROAD : null,
+  };
 }
 
 /**
