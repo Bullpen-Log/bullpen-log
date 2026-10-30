@@ -717,5 +717,64 @@ st = readProgramState(test.row.progress);
 assert.equal(st.level, null);
 assert.equal(st.focusHistory.length, 3);
 assert.equal(test.row.sessionsDone, sessions);
+// 2026-10-31 실행 02 · 완료 03: 드릴 기록 스냅샷 · 응답 유실 조회 · 완료 요약 · 같은 마무리 다시 보내기
+{
+  const { startMechanicsProgram, loadMechanicsDrillStatus, loadMechanicsFinish } = await import('../app/actions/mechanics.ts');
+  test.guide = throwingGuide;
+  test.guides = [throwingGuide, other];
+  test.blocked = null;
+  reset();
+  const first = input({ throws: 12, effortPct: 60 });
+  assert.deepEqual(await recordMechanicsDrill(first), { ok: true });
+  const rec = readProgramState(test.row.progress).attempt.records[throwingGuide.id];
+  assert.equal(rec.count, 12, '저장한 그대로(오늘 이 드릴 합계)');
+  assert.equal(rec.kind, 'throws');
+  assert.equal(rec.effortPct, 60);
+  assert.equal(rec.feel, 'ok');
+  assert.equal(rec.slot, throwingGuide.id);
+  const writesBefore = test.writes;
+  assert.deepEqual(await loadMechanicsDrillStatus({ attemptId: 'attempt-1', requestId: first.requestId }), { status: 'saved', record: rec });
+  assert.deepEqual(await loadMechanicsDrillStatus({ attemptId: 'attempt-1', requestId: 'never-sent' }), { status: 'missing' });
+  assert.deepEqual(await loadMechanicsDrillStatus({ attemptId: 'other-attempt', requestId: first.requestId }), { status: 'stale' });
+  assert.equal((await loadMechanicsFinish({ attemptId: 'attempt-1' })).status, 'open');
+  assert.equal(test.writes, writesBefore, '상태 조회는 아무것도 쓰지 않는다');
+
+  const part = await finish();
+  assert.equal(part.status, 'partial');
+  assert.equal(part.summary.status, 'partial');
+  assert.deepEqual(part.summary.savedSlots, [throwingGuide.id], '저장한 칸만 센다');
+  assert.equal(part.summary.progress.after, 0, '일부 수행은 진도를 올리지 않는다');
+  assert.equal(readProgramState(test.row.progress).finishedRuns.length, 0, '일부 수행은 완료 기록으로 남기지 않는다');
+  assert.equal(test.row.sessionsDone, 0);
+
+  await recordMechanicsDrill({ ...input({ throws: 5 }), guideId: other.id, requestId: 'second-req', feel: 'hard' });
+  const done1 = await finish();
+  assert.equal(done1.status, 'completed');
+  assert.equal(done1.replay, undefined, '처음 마친 응답');
+  assert.equal(done1.summary.records.length, 2);
+  assert.equal(done1.summary.records[1].feel, 'hard');
+  assert.deepEqual(done1.summary.progress, { kind: 'level', level: 'beginner', before: 0, after: 1, total: 12 });
+  assert.equal(test.row.sessionsDone, 1);
+  const again = await finish();
+  assert.equal(again.replay, true, '같은 마무리를 다시 보내면 확인 응답');
+  assert.deepEqual(again.summary, done1.summary, '마친 때 묶은 요약을 그대로 돌려준다');
+  assert.equal(test.row.sessionsDone, 1, '진도를 다시 세지 않는다');
+
+  const s3 = readProgramState(test.row.progress);
+  const nextAttempt = await openMechanicsAttempt('test-user', mechanicsPlanKey(test.row.id, test.row.sessionsDone, s3), s3.attempt.items);
+  assert.notEqual(nextAttempt.id, 'attempt-1');
+  const kept = await finish();
+  assert.equal(kept.replay, true, '다음 세션이 열린 뒤에도 잃은 응답의 마무리는 같은 완료로');
+  assert.deepEqual(kept.summary, done1.summary);
+  assert.equal(test.row.sessionsDone, 1);
+  const readBack = await loadMechanicsFinish({ attemptId: 'attempt-1' });
+  assert.equal(readBack.status, 'completed');
+  assert.deepEqual(readBack.summary, done1.summary, '지난 완료는 묶어 둔 요약만 읽는다');
+  assert.deepEqual((await loadMechanicsFinish()).summary, done1.summary, 'id 가 없으면 가장 최근 완료');
+  assert.equal(readProgramState(test.row.progress).attempt.id, nextAttempt.id, '완료 읽기는 새 세션을 열지 않는다');
+  assert.deepEqual(await loadMechanicsDrillStatus({ attemptId: 'attempt-1', requestId: first.requestId }), { status: 'stale' });
+  await startMechanicsProgram('intermediate');
+  assert.equal(readProgramState(test.row.progress).finishedRuns.length, 1, '난이도를 바꿔도 지난 완료 기록은 남는다');
+}
 console.log('메카닉 기록 회귀 검사 통과: 운동 단위·통증 제한·완료·동시 저장·재전송·롤백·세션 구분 (운영 DB 접근 없음)');
 process.exit(0);

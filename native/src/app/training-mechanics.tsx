@@ -1,11 +1,12 @@
-import { FocusHistory } from '~/mechanics/focus-review';
-import { MechanicsEquipment } from '~/mechanics/focus-progress';
+import { SymbolView } from 'expo-symbols';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { ActivityIndicator, Text, View, type ScrollViewInstance } from 'react-native';
 import { MECHANICS_ELEMENTS, MECHANICS_SYMPTOMS, mechanicsElement } from '@/lib/mechanics/elements';
 import type { AppMechanicsElementsTab, AppMechanicsProgramTab } from '@/lib/mechanics/home-load';
 import { LevelOffer, ThrowNoteCard, leave } from '~/mechanics/parts';
+import { GearSheet, ManageSheet, MechanicsStart, MechanicsTraining } from '~/training/mechanics-home';
+import { Press } from '~/shell/press';
 import { rpc } from '~/lib/rpc';
 import { FavButton } from '~/training/fav-button';
 import { isFav, useFavVersion } from '~/training/favorites';
@@ -19,12 +20,8 @@ import {
   FilmCard,
   FocusCard,
   FocusStartSheet,
-  LevelProgress,
-  LevelSettings,
-  NoProgram,
   OverviewDetail,
   OverviewFold,
-  SessionCard,
   SymptomChips,
 } from '~/training/mechanics-parts';
 import { Fold, Screen, s, useJump, useScreenData } from '~/training/screen';
@@ -38,7 +35,7 @@ import { useRememberPart } from '~/training/remember';
  * 시작은 앱 따라 하기(/mechanics · /mechanics?anyway=1 — 웹이 내는 주소 그대로). ?el= 은 그 요소 카드를 펴고 내려간다.
  */
 const TABS = [
-  { value: 'program', label: '프로그램' },
+  { value: 'program', label: '훈련' },
   { value: 'elements', label: '요소별 드릴' },
 ] as const;
 type Tab = (typeof TABS)[number]['value'];
@@ -63,6 +60,7 @@ export default function TrainingMechanicsScreen() {
   };
   const data = state.data && state.data.tab === tab ? state.data : null;
   const [favOpen, setFavOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   return (
     <Screen
       title="메카닉"
@@ -71,10 +69,24 @@ export default function TrainingMechanicsScreen() {
       onTab={pick}
       state={{ ...state, data }}
       scrollRef={scroll}
-      right={<FavButton onPress={() => setFavOpen(true)} c={c} />}
+      right={
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {data?.tab === 'program' ? (
+            <Press
+              onPress={() => setManageOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="훈련 관리"
+              style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: c.chip }}
+            >
+              <SymbolView name="ellipsis" size={17} weight="semibold" tintColor={c.ink} />
+            </Press>
+          ) : null}
+          <FavButton onPress={() => setFavOpen(true)} c={c} />
+        </View>
+      }
     >
       {data?.tab === 'program' ? (
-        <ProgramTab data={data} reload={state.load} c={c} />
+        <ProgramTab data={data} fresh={state.fresh} reload={state.load} c={c} />
       ) : data?.tab === 'elements' ? (
         <ElementsTab data={data} focus={typeof params.el === 'string' ? params.el : null} scroll={scroll} c={c} />
       ) : null}
@@ -94,6 +106,9 @@ export default function TrainingMechanicsScreen() {
         />
       ) : null}
       {favOpen ? <FavSheet elements={data?.tab === 'elements' ? data : null} onClose={() => setFavOpen(false)} c={c} /> : null}
+      {manageOpen && data?.tab === 'program' ? (
+        <ManageSheet program={data.program} fresh={state.fresh} reload={state.load} onClose={() => setManageOpen(false)} c={c} />
+      ) : null}
     </Screen>
   );
 }
@@ -152,41 +167,38 @@ function FavSheet({ elements, onClose, c }: { elements: AppMechanicsElementsTab 
   );
 }
 
-/** 프로그램 칸 — 웹 MechanicsProgram 과 같은 차례 */
-function ProgramTab({ data, reload, c }: { data: AppMechanicsProgramTab; reload: () => Promise<void>; c: Palette }) {
+/**
+ * 훈련 칸(2026-10-31 확정 시안 01) — 오늘 훈련 카드 · 장비 한 줄 · 구성 · 진도(~/training/mechanics-home), 그 밑에 3D 처방 · 남은 투구 기록 ·
+ * 권하기 · 영상 비교 · 안내. 난이도 변경 · 처음부터 · 이전 3D 훈련은 오른쪽 위 관리(…)로 옮겼다.
+ */
+function ProgramTab({ data, fresh, reload, c }: { data: AppMechanicsProgramTab; fresh: boolean; reload: () => Promise<void>; c: Palette }) {
   const { program } = data;
+  const [gearOpen, setGearOpen] = useState(false);
   if (!program?.level)
     return (
-      <>
-        <NoProgram reload={reload} c={c} />
-        <FocusHistory history={program?.history ?? []} reload={reload} c={c} />
-      </>
+      <View style={{ gap: 14 }}>
+        <MechanicsStart reload={reload} fresh={fresh} c={c} />
+        <OverviewFold c={c} />
+      </View>
     );
   if (!Array.isArray(program.blockers) || !Array.isArray(program.equipment) || !Array.isArray(program.history))
     return <Text style={{ color: c.muted }}>세션 업데이트를 적용하고 있어요. 잠시 뒤 다시 불러와 주세요.</Text>;
   const rx = program.focus && !program.focus.finished ? program.focus : null;
-  /* 처방이 남았으면 수준 12세션을 마쳤어도 처방 세션을 이어 한다 */
   const completed = program.week == null && !rx;
   return (
-    <View style={{ gap: 12 }}>
-      <MechanicsEquipment key={program.equipment.join(',')} equipment={program.equipment} reload={reload} c={c} />
-      {program.focus ? <FocusCard focus={program.focus} reload={reload} c={c} /> : null}
-      {/* 오늘 드릴로 던진 공 — 투구 기록에 남기라고(트레이닝 탭 카드 · 따라 하기 끝 화면과 같은 알림) */}
+    <View style={{ gap: 14 }}>
+      <MechanicsTraining data={data} fresh={fresh} reload={reload} openGear={() => setGearOpen(true)} c={c} />
+      {completed ? <CompletedCard program={program} reload={reload} c={c} /> : null}
+      {/* 오늘 드릴로 던진 공 중 투구 기록에 아직 안 남긴 것(서버가 셈한 알림)만 */}
       {data.throwNote ? <ThrowNoteCard note={data.throwNote} c={c} /> : null}
-      {completed ? (
-        <CompletedCard program={program} reload={reload} c={c} />
-      ) : (
-        <SessionCard program={program} session={data.session} doneToday={data.doneToday} painFold={data.painFold} c={c} />
-      )}
       {!completed && program.advice && program.advice.kind !== 'done' && program.advice.to ? (
-        <LevelOffer kind={program.advice.kind} to={program.advice.to} onChanged={() => void reload()} keepLabel="지금 수준 계속" c={c} />
+        <LevelOffer kind={program.advice.kind} to={program.advice.to} onChanged={() => void reload()} keepLabel="지금 난이도 계속" c={c} />
       ) : null}
-      <LevelProgress program={program} c={c} />
-      {/* 처방 중엔 다시 재기 안내가 처방 카드 하나라 촬영 권유를 숨긴다 */}
+      {/* 3D 처방 — 다음 날 반응 · 단계 전환 · 재측정 비교 · 그만두기는 이 카드의 따로 된 단추들 */}
+      {program.focus ? <FocusCard focus={program.focus} reload={reload} c={c} /> : null}
       {program.focus ? null : <FilmCard sessionsDone={program.sessionsDone} films={program.films} c={c} />}
-      <LevelSettings current={program.level} index={program.index} reload={reload} c={c} />
-      <FocusHistory history={program.history} reload={reload} c={c} />
       <OverviewFold c={c} />
+      {gearOpen ? <GearSheet program={program} reload={reload} onClose={() => setGearOpen(false)} c={c} /> : null}
     </View>
   );
 }

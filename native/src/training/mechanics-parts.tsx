@@ -9,31 +9,24 @@ import { Thumb } from '~/lib/thumb';
 import { josa } from '@/lib/korean';
 import { DRILL_STAGES } from '@/lib/exercise-meta';
 import { MECHANICS_ELEMENTS, MECHANICS_OVERVIEW, MECHANICS_SOURCE_NOTE, MECHANICS_SYMPTOMS, sideText, type MechanicsElement } from '@/lib/mechanics/elements';
-import { MECHANICS_LEVELS, PER_WEEK, SESSIONS_PER_LEVEL, WEEKS, mechanicsLevel, type LevelKey, type MechanicsLevel } from '@/lib/mechanics/levels';
+import { MECHANICS_LEVELS, PER_WEEK, WEEKS, mechanicsLevel, type LevelKey, type MechanicsLevel } from '@/lib/mechanics/levels';
 import {
   FILM_EVERY,
   FILM_VERDICTS,
-  MECHANICS_FOLD_BUTTONS,
-  MECHANICS_FOLD_TEXT,
   RX_LEVEL_TEXT,
   RX_REPORT_TEXT,
   filmPrompt,
-  foldSession,
-  isArmLoaded,
   type FilmNote,
   type FocusView,
-  type MechanicsPainFold,
 } from '@/lib/mechanics/program';
 import type { MechanicsDrillView } from '@/lib/mechanics/drills';
 import type { ElementReportView, MechanicsProgramView } from '@/lib/mechanics/load';
-import type { AppSessionDrill } from '@/lib/mechanics/home-load';
 import { ExerciseMedia } from '~/armcare/parts';
 import { act, Description, FilmVerdictButtons, leave } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Fold, s } from './screen';
 import { Star } from './fav-button';
 import { Sheet } from '~/workout/sheets';
-import { fromApp } from '~/shell/web-nav';
 import { Press } from '~/shell/press';
 import { TYPE } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
@@ -143,25 +136,8 @@ function Num({ n, done, c }: { n: number; done?: boolean; c: Palette }) {
 
 /* ----------------------------- 프로그램 칸 ----------------------------- */
 
-/** 수준을 안 골랐을 때 — 한 줄 소개 · 고르기 카드 넷 · 투구의 흐름(웹과 같다) */
-export function NoProgram({ reload, c }: { reload: Reload; c: Palette }) {
-  return (
-    <View style={{ gap: 12 }}>
-      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 6 }]}>
-        <Text style={[s.title, { color: c.ink }]}>투구 메카닉 향상 프로그램</Text>
-        <Text style={[s.body, { color: c.ink }]}>{SESSIONS_PER_LEVEL}회 연습 순서예요. 기간을 정해두지 않고 오늘 투구 계획에 맞춰 해요.</Text>
-        <Fold label="자세히" c={c}>
-          <Text style={[s.body, { color: c.muted }]}>선택한 동작을 짧게 연습해요. 단계는 학습 난이도이고, 던지는 양과 세기는 오늘 투구 계획을 따라요. 처음이면 입문부터.</Text>
-        </Fold>
-      </View>
-      <LevelPicker current={null} index={0} reload={reload} c={c} />
-      <OverviewFold c={c} />
-    </View>
-  );
-}
-
 /** 수준 고르기 — 카드 넷. 하던 중에 바꾸면 한 번 묻는다(진행이 처음으로) */
-function LevelPicker({ current, index, reload, c }: { current: LevelKey | null; index: number; reload: Reload; c: Palette }) {
+export function LevelPicker({ current, index, reload, c }: { current: LevelKey | null; index: number; reload: Reload; c: Palette }) {
   const { start, pending, error } = useStartLevel(reload);
   const choose = (lv: MechanicsLevel) => {
     if (current && index > 0) {
@@ -214,144 +190,9 @@ function LevelPicker({ current, index, reload, c }: { current: LevelKey | null; 
   );
 }
 
-/**
- * 오늘(다음) 세션 — 드릴 셋 · 시작(웹 SessionCard). 아픈 날은 팔에 싣는 드릴을 접고 '무브먼트 드릴만 하기', 성인의 통증 날만 '펼치기 → 그래도 하기'
- * (/mechanics?anyway=1). 펼친 것은 이 화면에서만 — 다시 열면 다시 접힌다.
- */
-export function SessionCard({
-  program,
-  session,
-  doneToday,
-  painFold,
-  c,
-}: {
-  program: MechanicsProgramView;
-  session: AppSessionDrill[];
-  doneToday: string[];
-  painFold: MechanicsPainFold | null;
-  c: Palette;
-}) {
-  const [unfolded, setUnfolded] = useState(false);
-  const level = mechanicsLevel(program.level!);
-  const done = new Set(program.finishedToday ? [] : doneToday);
-  const folding = painFold != null && !(unfolded && painFold.canUnfold);
-  const anyway = painFold != null && unfolded && painFold.canUnfold;
-  const { open, folded } = foldSession(session, folding ? painFold : null);
-  const started = open.some((d) => done.has(d.guideId));
-  const openDone = folding && open.length > 0 && open.every((d) => done.has(d.guideId));
-  const go = (href: string) => router.push(fromApp(href) as Href);
-
-  return (
-    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <View style={s.between}>
-        <Text style={[s.title, { color: c.ink }]}>{program.finishedToday ? '다음 세션' : '오늘의 세션'}</Text>
-        <Text style={[s.tiny, { color: c.muted, flexShrink: 1, textAlign: 'right' }]}>
-          {level.name} ·{' '}
-          {program.focus && !program.focus.finished
-            ? program.focus.skill
-              ? `${program.focus.stage} 연습`
-              : `처방 ${program.focus.done + 1}/${program.focus.total}`
-            : `${program.index + 1}번 세션`}{' '}
-          · {level.key === 'intermediate' || level.key === 'advanced' ? '20~25분' : '15~20분'}
-        </Text>
-      </View>
-      {program.finishedToday ? (
-        <Text style={[s.bodyBold, { color: c.link }]}>✓ 오늘 세션을 마쳤어요. 더 하고 싶으면 다음 세션을 이어서 해도 돼요.</Text>
-      ) : null}
-      {painFold ? (
-        folding ? (
-          <Text style={[s.bodyBold, s.box, { color: c.warn, backgroundColor: c.warnBg }]}>{painFold.reason}</Text>
-        ) : (
-          <View style={[st.foldBar, { backgroundColor: c.warnBg }]}>
-            <Text style={[s.bodyBold, { color: c.warn, flex: 1 }]}>{MECHANICS_FOLD_TEXT.anyway(painFold.label)}</Text>
-            <Press onPress={() => setUnfolded(false)} accessibilityRole="button" style={s.textBtn}>
-              <Text style={[s.smallBold, { color: c.warn }]}>{MECHANICS_FOLD_BUTTONS.refold}</Text>
-            </Press>
-          </View>
-        )
-      ) : null}
-      {open.map((d, i) => {
-        const loaded = anyway && isArmLoaded(d.category);
-        return (
-          <View key={d.guideId} style={[st.drill, { backgroundColor: c.page }]}>
-            <Num n={i + 1} done={done.has(d.guideId)} c={c} />
-            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-              {d.rx ? <RxTag element={d.rx.element} c={c} /> : null}
-              <Text style={[s.bodyBold, { color: c.ink }]}>{d.title}</Text>
-              <Text style={[s.small, { color: c.muted }]}>
-                {d.required === false ? '보조 · 선택' : '필수'} · {d.element} · {d.stage} · {d.tool}
-              </Text>
-              {d.dose ? <Text style={[TYPE.buttonCompact, { color: c.ink }]}>{d.dose}</Text> : null}
-              {d.gearNote?.replaced ? (
-                <Text style={[s.small, { color: c.muted }]}>
-                  {d.gearNote.replaced}에는 {d.gearNote.need}
-                  {josa(d.gearNote.need, '이/가')} 있어야 해서 같은 단계 드릴로 바꿨어요
-                </Text>
-              ) : null}
-              {loaded ? <Text style={[s.smallBold, { color: c.warn }]}>{MECHANICS_FOLD_TEXT.loadedTag}</Text> : null}
-            </View>
-          </View>
-        );
-      })}
-      {folding && folded.length > 0 ? (
-        <View style={[st.drill, { borderWidth: 1, borderStyle: 'dashed', borderColor: c.line }]}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={[s.bodyBold, { color: c.ink }]}>접어 둔 드릴 {folded.length}개</Text>
-            <Text style={[s.small, { color: c.muted }]}>{folded.map((f) => f.title).join(' · ')}</Text>
-          </View>
-          {painFold?.canUnfold ? (
-            <Press onPress={() => setUnfolded(true)} accessibilityRole="button" style={[s.chip, { backgroundColor: c.chip }]}>
-              <Text style={[s.smallBold, { color: c.ink }]}>{MECHANICS_FOLD_BUTTONS.unfold} ▾</Text>
-            </Press>
-          ) : null}
-        </View>
-      ) : null}
-      {program.blockers.length > 0 && !program.canFinalize ? (
-        <Text style={[s.body, s.box, { color: c.warn }]}>{program.blockers.join('\n')}</Text>
-      ) : program.canFinalize ? (
-        <Start label="세션 완료 확인" onPress={() => go('/mechanics')} c={c} />
-      ) : folding ? (
-        open.length === 0 ? (
-          <Text style={[s.bodyBold, { color: c.ink }]}>{MECHANICS_FOLD_TEXT.allFolded}</Text>
-        ) : openDone ? (
-          <Text style={[s.bodyBold, { color: c.link }]}>✓ {MECHANICS_FOLD_TEXT.openDone}</Text>
-        ) : (
-          <Start label={started ? '이어서 하기' : MECHANICS_FOLD_BUTTONS.openOnly} onPress={() => go('/mechanics')} c={c} />
-        )
-      ) : (
-        <Start
-          label={anyway ? MECHANICS_FOLD_BUTTONS.anyway : started ? '이어서 하기' : '세션 시작'}
-          onPress={() => go(anyway ? '/mechanics?anyway=1' : '/mechanics')}
-          c={c}
-        />
-      )}
-      <Fold label="하는 법" c={c}>
-        <Text style={[s.small, { color: c.muted }]}>
-          드릴마다 느낌을 눌러요. 쉬움이 여러 요소에서 쌓이면 다음 수준을 권해요. 워밍업 뒤 오늘 투구 계획에 포함해 연습해요. 추가
-          투구량으로 따로 쌓지 않아요.
-        </Text>
-      </Fold>
-    </View>
-  );
-}
-
-function Start({ label, onPress, c }: { label: string; onPress: () => void; c: Palette }) {
-  return (
-    <Press onPress={onPress} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
-      <SymbolView name="play.fill" size={13} tintColor="#fff" />
-      <Text style={[s.bodyBold, { color: '#fff', fontSize: 17 }]}>{label}</Text>
-    </Press>
-  );
-}
-
 /* ----------------------------- 3D 리포트 처방 ----------------------------- */
 
 type FocusOffer = { reportId: string; jobId: string; rx: { element: string; level: 'improve' | 'edge' }[] };
-
-/** 처방 칸 드릴의 '처방' 꼬리표(웹 RxTag) */
-function RxTag({ element, c }: { element: string; c: Palette }) {
-  return <Text style={[s.smallBold, s.tag, { alignSelf: 'flex-start', color: '#fff', backgroundColor: c.sky }]}>처방 · {element}</Text>;
-}
 
 /** 요소 칩 '브레이크 집중' · '몸통 회전 보조'(웹 RxChips) */
 function RxChips({ rx, c }: { rx: FocusOffer['rx']; c: Palette }) {
@@ -611,42 +452,6 @@ export function CompletedCard({ program, reload, c }: { program: MechanicsProgra
   );
 }
 
-/** 이 수준의 12칸 — 주마다 세 칸, 마친 칸 · 다음 칸 */
-export function LevelProgress({ program, c }: { program: MechanicsProgramView; c: Palette }) {
-  const level = mechanicsLevel(program.level!);
-  return (
-    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <View style={s.between}>
-        <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>{level.name} 프로그램</Text>
-        <Text style={[s.small, { color: c.muted }]}>
-          {program.index} / {program.total}
-        </Text>
-      </View>
-      <View style={st.weeks} accessibilityLabel={`${program.total}번 중 ${program.index}번 마침`}>
-        {Array.from({ length: WEEKS }, (_, w) => (
-          <View key={w} style={{ flex: 1, gap: 4 }}>
-            <View style={{ flexDirection: 'row', gap: 3 }}>
-              {Array.from({ length: PER_WEEK }, (_, d) => {
-                const i = w * PER_WEEK + d;
-                return (
-                  <View
-                    key={d}
-                    style={[st.cell, { backgroundColor: i < program.index ? c.sky : i === program.index ? c.sky + '66' : c.chip }]}
-                  />
-                );
-              })}
-            </View>
-            <Text style={[s.tiny, s.center, { color: c.muted }]}>
-              {w * PER_WEEK + 1}~{(w + 1) * PER_WEEK}회
-            </Text>
-          </View>
-        ))}
-      </View>
-      <Text style={[s.small, { color: c.muted }]}>{level.what}</Text>
-    </View>
-  );
-}
-
 /** 영상으로 확인 — 첫 세션 전 · 6번째마다(웹 FilmCard). 견준 기록은 쌓인다 */
 export function FilmCard({ sessionsDone, films, c }: { sessionsDone: number; films: FilmNote[]; c: Palette }) {
   const kind = filmPrompt(sessionsDone);
@@ -726,43 +531,6 @@ function FilmHistory({ films, c }: { films: FilmNote[]; c: Palette }) {
           </Text>
         </View>
       ))}
-    </View>
-  );
-}
-
-/** 수준 바꾸기(펼치면 고르기 카드) · 처음부터(웹 LevelSettings) */
-export function LevelSettings({ current, index, reload, c }: { current: LevelKey; index: number; reload: Reload; c: Palette }) {
-  const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const reset = () =>
-    Alert.alert('처음부터 다시 할까요?', '수준 고르기로 돌아가요. 지금까지 한 드릴 기록은 남아요.', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '처음부터',
-        style: 'destructive',
-        onPress: async () => {
-          setPending(true);
-          setError(null);
-          const res = await act<{ ok: true }>('mechanics.resetMechanicsProgram');
-          if ('error' in res) setError(res.error);
-          else await reload();
-          setPending(false);
-        },
-      },
-    ]);
-  return (
-    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <Press onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={[s.row, { minHeight: 44 }]}>
-        <Text style={[s.bodyBold, { color: c.ink, flex: 1, fontSize: 17 }]}>수준 바꾸기</Text>
-        <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-      </Press>
-      {open ? <LevelPicker current={current} index={index} reload={reload} c={c} /> : null}
-      {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
-      <Press onPress={reset} disabled={pending} accessibilityRole="button" style={[s.row, { minHeight: 44, gap: 6, opacity: pending ? 0.5 : 1 }]}>
-        <SymbolView name="arrow.counterclockwise" size={13} tintColor={c.muted} />
-        <Text style={[s.smallBold, { color: c.muted }]}>{pending ? '되돌리는 중…' : '처음부터 다시 하기'}</Text>
-      </Press>
     </View>
   );
 }

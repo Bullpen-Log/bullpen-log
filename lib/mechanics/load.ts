@@ -73,6 +73,10 @@ export type MechanicsProgramView = {
   films: FilmNote[];
   /** 3D 리포트 처방(진행 중 · 마침) — 없으면 null. 진행 중이면 수준 12세션을 마친 뒤에도 세션이 있다 */
   focus: FocusView | null;
+  /** 가장 최근에 마친 세션(마친 때 묶은 요약에서) — 첫 화면의 '오늘 훈련 끝 · 수행 기록 보기'. 없으면 null */
+  lastFinish: { attemptId: string; on: string; label: string; saved: number; total: number } | null;
+  /** 진행 중인 세션이 열려 있나(오늘 · 지금 계획) — 장비를 바꿔도 이 세션의 배정은 그대로라는 안내 */
+  activeAttempt: boolean;
 };
 
 /**
@@ -216,6 +220,11 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     advice: levelAdvice(state),
     films: state.films,
     focus: state.focus ? focusView(state.focus, todayKey) : null,
+    lastFinish: (() => {
+      const last = state.finishedRuns?.at(-1);
+      return last ? { attemptId: last.attemptId, on: last.on, label: last.label, saved: last.savedSlots.length, total: last.items.length } : null;
+    })(),
+    activeAttempt: false,
   };
   const gear =
     state.gear?.on === todayKey ? state.gear.equipment : equipmentForToday(user?.ownedEquipment ?? [], setup?.availableEquipment);
@@ -288,6 +297,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     state.attempt.planKey === program.planKey
       ? state.attempt
       : null;
+  program.activeAttempt = !!active;
   const session = active
     ? active.items.map((item) => ({
         ...item,

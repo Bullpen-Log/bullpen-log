@@ -6,6 +6,9 @@ import { createPlaybackUrls } from '@/lib/storage';
 import { groupDrills, type MechanicsDrillView } from '@/lib/mechanics/drills';
 import { loadElementReport, loadMechanicsProgram, type ElementReportView, type MechanicsProgramView } from '@/lib/mechanics/load';
 import type { DrillThrowNote, MechanicsPainFold, SessionItem } from '@/lib/mechanics/program';
+import type { MechanicsVariant } from '@/lib/mechanics/drills';
+import { appNow } from '@/lib/clock';
+import { toDateKey } from '@/lib/pitch-stats';
 
 /**
  * 아이폰 앱 메카닉 화면(native/src/app/training-mechanics.tsx)이 그릴 것 — 웹 메카닉 칸(app/(app)/training/mechanics-section.tsx)과 같은
@@ -18,11 +21,16 @@ type AppUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 /** 프로그램 칸 목록의 드릴 한 줄 — 웹 SessionCard 가 그리는 칸만 */
 export type AppSessionDrill = Pick<
   SessionItem,
-  'title' | 'guideId' | 'element' | 'stage' | 'tool' | 'dose' | 'category' | 'gearNote' | 'rx' | 'required'
->;
+  'title' | 'guideId' | 'element' | 'stage' | 'tool' | 'dose' | 'category' | 'gearNote' | 'rx' | 'required' | 'cue'
+> & {
+  /** 드릴 상세(첫 화면 01)의 시범 영상 · 즐겨찾기 — 누를 때만 영상을 받는다 */
+  video: Pick<MechanicsVariant, 'id' | 'videoPath' | 'referenceVideoId' | 'thumbUrl' | 'aspectRatio' | 'favorite'>;
+};
 
 export type AppMechanicsProgramTab = {
   tab: 'program';
+  /** 서버가 이 값을 만든 날(YYYY-MM-DD) — 받아 둔 어제 값으로 오늘 시작을 확정하지 않게 */
+  today: string;
   program: MechanicsProgramView | null;
   session: AppSessionDrill[];
   doneToday: string[];
@@ -46,8 +54,9 @@ export async function loadAppMechanicsTab(
     const { program, session, doneToday, painFold, throwNote } = await loadMechanicsProgram(user.id);
     return {
       tab,
+      today: toDateKey(appNow()),
       program,
-      session: session.map(({ title, guideId, element, stage, tool, dose, category, gearNote, rx, required }) => ({
+      session: session.map(({ title, guideId, element, stage, tool, dose, category, gearNote, rx, required, cue, variant }) => ({
         title,
         guideId,
         element,
@@ -58,6 +67,15 @@ export async function loadAppMechanicsTab(
         gearNote,
         rx,
         required,
+        cue,
+        video: {
+          id: variant.id,
+          videoPath: variant.videoPath,
+          referenceVideoId: variant.referenceVideoId,
+          thumbUrl: variant.thumbUrl,
+          aspectRatio: variant.aspectRatio,
+          favorite: variant.favorite,
+        },
       })),
       doneToday,
       painFold,

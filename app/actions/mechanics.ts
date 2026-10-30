@@ -21,6 +21,7 @@ import { groupDrills } from '@/lib/mechanics/drills';
 import { effortFields } from '@/lib/pitch-effort';
 import { withMechanicsTransaction, mechanicsPlanKey } from '@/lib/mechanics/store';
 import { requireUser } from '@/lib/dal';
+import { prisma as db } from '@/lib/prisma';
 import { loadLabJob } from '@/lib/pitch-lab';
 import { visibleGuides, trainingGuides } from '@/lib/library-cache';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -48,8 +49,13 @@ import {
   withFilm,
   withThrowLog,
   practiceInput,
+  buildFinishSummary,
+  slotDone,
+  FINISHED_KEEP,
+  type DrillRecordSnapshot,
   type DrillThrowNote,
   type FilmNote,
+  type MechanicsFinishSummary,
 } from '@/lib/mechanics/program';
 
 /**
@@ -84,6 +90,8 @@ export async function startMechanicsProgram(level: string): Promise<Result> {
         ...(prevState?.gear ? { gear: prevState.gear } : {}),
         films: prevState?.films ?? [],
         practice: prevState?.practice ?? [],
+        /* 마친 세션의 완료 요약도 지킨다 — 수준을 바꿔도 지난 완료 기록은 그대로 보인다 */
+        finishedRuns: prevState?.finishedRuns ?? [],
         /* 오늘 드릴로 던진 공 알림도 지킨다 — 같은 날 수준을 바꿔도 남길 공은 그대로 */
         throwLog: prevState?.throwLog ?? null,
         /* 3D 리포트 처방도 지킨다 — 처방은 수준 세션의 드릴 칸만 바꾸는 것이라 수준을 바꿔도 이어 간다 */
@@ -136,6 +144,7 @@ export async function startMechanicsFocus(input: {
           practice: prevState?.practice ?? [],
           ...(prevState?.gear ? { gear: prevState.gear } : {}),
           films: prevState?.films ?? [],
+          finishedRuns: prevState?.finishedRuns ?? [],
           throwLog: prevState?.throwLog ?? null,
         };
     const runId = randomUUID();
@@ -374,22 +383,36 @@ export async function recordMechanicsDrill(input: {
           { ...actual, recorded: true, guideId, on: today },
         ]
       : state.practice;
+    const savedSkill = assigned?.skill && feedback ? { ...feedback, quality: feel === 'hard' ? ('no' as const) : feedback.quality } : null;
+    const alternative = assigned.alternatives.find((a) => a.variants.some((v) => v.id === guideId));
+    const doneVariant = alternative?.variants.find((v) => v.id === guideId);
+    /* 완료 화면이 다시 읽을 '저장한 그대로' — 오늘 합계는 그 뒤에 다시 고칠 수 있어 practice 와 따로 이 세션의 칸에 남긴다 */
+    const record: DrillRecordSnapshot = {
+      guideId,
+      slot: assigned.guideId,
+      title: alternative?.title ?? assigned.title,
+      tool: doneVariant?.tool ?? assigned.tool,
+      category: guide.category,
+      kind: actual.kind === 'repetitions' ? 'repetitions' : 'throws',
+      count: actual.reps ?? actual.throws,
+      effortPct: actual.effortPct,
+      response: actual.response,
+      feel,
+      alreadyLogged: actual.alreadyLogged,
+      ...(savedSkill ? { skill: savedSkill } : {}),
+      on: today,
+      savedAt: appNow().toISOString(),
+    };
     const next = {
       ...state,
       practice,
       attempt: {
         ...attempt,
-        ...(assigned?.skill && feedback
-          ? {
-              skillFeedback: {
-                ...attempt.skillFeedback,
-                [guideId]: { ...feedback, quality: feel === 'hard' ? ('no' as const) : feedback.quality },
-              },
-            }
-          : {}),
+        ...(savedSkill ? { skillFeedback: { ...attempt.skillFeedback, [guideId]: savedSkill } } : {}),
         painGuideIds: [...new Set([...(attempt.painGuideIds ?? []), ...(actual?.response === 'pain' ? [guideId] : [])])],
         doneIds: [...new Set([...attempt.doneIds, guideId])],
-        receipts: [...(attempt.receipts ?? []), { id: requestId, fingerprint }],
+        receipts: [...(attempt.receipts ?? []), { id: requestId, fingerprint, slot: assigned.guideId }],
+        records: { ...attempt.records, [assigned.guideId]: record },
       },
       feels: countFeel(state.feels, element, feel, today),
     };
@@ -454,6 +477,10 @@ export async function finishMechanicsSession(opts?: {
       message: string | null;
       advice: ReturnType<typeof levelAdvice>;
       throwNote: DrillThrowNote | null;
+      /** 완료 화면(03)이 그릴 요약 — 완료는 마친 때 묶은 값 그대로(다시 보내도 같다), 일부는 이 응답에만. 옛 세션의 완료 재확인이면 null */
+      summary: MechanicsFinishSummary | null;
+      /** 이미 마친 같은 세션을 다시 확인한 응답 — 새 완료 효과를 다시 보이지 않는다 */
+      replay?: boolean;
     }
   | { error: string }
 > {
@@ -467,6 +494,10 @@ export async function finishMechanicsSession(opts?: {
     const state = readProgramState(program.progress);
     if (!state.level) return { error: '수준을 먼저 골라 주세요.' };
     const attempt = state.attempt;
+    /* 응답을 잃은 사이 다음 세션이 열렸어도(같은 날 · 다음 날) 이미 마친 그 세션의 완료로 돌려준다 — 진도를 다시 세지 않는다 */
+    const kept = opts?.attemptId && attempt?.id !== opts.attemptId ? state.finishedRuns?.find((r) => r.attemptId === opts.attemptId) : null;
+    if (kept && kept.session === opts?.session)
+      return { ok: true, status: 'completed', message: null, advice: kept.advice, throwNote: null, summary: kept, replay: true };
     if (
       !opts?.attemptId ||
       !attempt ||
@@ -481,8 +512,10 @@ export async function finishMechanicsSession(opts?: {
         ok: true,
         status: 'completed',
         message: null,
-        advice: levelAdvice(state),
+        advice: attempt.summary?.advice ?? levelAdvice(state),
         throwNote: null,
+        summary: attempt.summary ?? null,
+        replay: true,
       };
     if (attempt.on !== toDateKey(appNow()) || attempt.planKey !== mechanicsPlanKey(program.id, program.sessionsDone, state))
       return { error: '날짜나 프로그램이 바뀌었어요. 세션을 다시 열어 주세요.' };
@@ -491,14 +524,18 @@ export async function finishMechanicsSession(opts?: {
       requiredItems.length > 0 &&
       requiredItems.every((item) => item.alternatives.some((a) => a.variants.some((v) => attempt.doneIds.includes(v.id))));
     const throwNote = current.throwNote;
+    const today = toDateKey(appNow());
+    const finishedAt = appNow().toISOString();
     if (!complete) {
       revalidatePath(PROGRAM_PATH);
+      const message = '수행한 드릴은 저장했어요. 남은 드릴이 있어 세션 진행은 유지해요.';
       return {
         ok: true,
         status: 'partial',
-        message: '수행한 드릴은 저장했어요. 남은 드릴이 있어 세션 진행은 유지해요.',
+        message,
         advice: null,
         throwNote,
+        summary: buildFinishSummary({ attempt, before: state, after: state, status: 'partial', today, finishedAt, message, throwNote }),
       };
     }
     let completedState = finishState(state, false);
@@ -541,9 +578,15 @@ export async function finishMechanicsSession(opts?: {
         focus: { ...completedState.focus, progression: { ...progression, evidence: [...progression.evidence, ...evidence] } },
       };
     }
+    const message =
+      completedState.focus?.progression && state.focus && focusActive(state.focus)
+        ? '필수 드릴 수행을 저장했어요. 다음 날 반응을 확인한 뒤 단계 진행을 선택해 주세요.'
+        : null;
+    const summary = buildFinishSummary({ attempt, before: state, after: completedState, status: 'completed', today, finishedAt, message, throwNote });
     const next = {
       ...completedState,
-      attempt: { ...attempt, completed: true },
+      attempt: { ...attempt, completed: true, summary },
+      finishedRuns: [...(completedState.finishedRuns ?? []).filter((r) => r.attemptId !== attempt.id), summary].slice(-FINISHED_KEEP),
     };
     await prisma.mechanicsProgram.update({
       where: { userId: user.id },
@@ -557,12 +600,10 @@ export async function finishMechanicsSession(opts?: {
     return {
       ok: true,
       status: 'completed',
-      message:
-        next.focus?.progression && state.focus && focusActive(state.focus)
-          ? '필수 드릴 수행을 저장했어요. 다음 날 반응을 확인한 뒤 단계 진행을 선택해 주세요.'
-          : null,
-      advice: levelAdvice(next),
+      message,
+      advice: summary.advice,
       throwNote,
+      summary,
     };
   });
 }
@@ -693,4 +734,50 @@ export async function advanceMechanicsStage(input: {
     revalidatePath(PROGRAM_PATH);
     return { ok: true };
   });
+}
+
+/**
+ * 드릴 저장의 응답을 잃었을 때 — 같은 세션(attemptId) · 같은 요청(requestId)이 서버에 남았는지 읽기만 한다(실행 화면 02의 '저장 상태 확인').
+ * saved: 그 요청이 저장됐다(다시 보내지 않는다) · missing: 이 세션에 그 요청이 없다(같은 입력으로 다시 보내도 된다) · stale: 그 세션이 이제 아니다
+ * (다음 세션이 열렸거나 지웠다 — 다시 열어야 한다). 새 세션을 열거나 아무것도 쓰지 않는다.
+ */
+export async function loadMechanicsDrillStatus(input: {
+  attemptId: string;
+  requestId: string;
+}): Promise<{ status: 'saved'; record: DrillRecordSnapshot | null } | { status: 'missing' } | { status: 'stale' }> {
+  const user = await requireUser();
+  const row = await db.mechanicsProgram.findUnique({ where: { userId: user.id }, select: { progress: true } });
+  const attempt = row ? readProgramState(row.progress).attempt : null;
+  if (!attempt || typeof input?.attemptId !== 'string' || attempt.id !== input.attemptId) return { status: 'stale' };
+  const receipt = attempt.receipts?.find((r) => r.id === input.requestId);
+  if (!receipt) return { status: 'missing' };
+  return { status: 'saved', record: (receipt.slot && attempt.records?.[receipt.slot]) || null };
+}
+
+/**
+ * 마친 세션의 완료 요약 읽기(완료 화면 03 · 첫 화면 '수행 기록 보기') — 마친 때 묶어 둔 값만 읽는다. loadMechanicsPlay(새 세션을 열 수 있다)를
+ * 쓰지 않는다. attemptId 가 없으면 가장 최근 완료. open: 그 세션이 아직 마무리 전(같은 세션 마무리만 다시 하면 된다) · missing: 남은 요약이 없다.
+ */
+export async function loadMechanicsFinish(input?: {
+  attemptId?: string | null;
+}): Promise<
+  | { status: 'completed'; summary: MechanicsFinishSummary }
+  | { status: 'open'; saved: number; required: number; session: number }
+  | { status: 'missing' }
+> {
+  const user = await requireUser();
+  const row = await db.mechanicsProgram.findUnique({ where: { userId: user.id }, select: { progress: true } });
+  if (!row) return { status: 'missing' };
+  const state = readProgramState(row.progress);
+  const id = typeof input?.attemptId === 'string' ? input.attemptId : null;
+  const attempt = state.attempt;
+  if (id && attempt?.id === id && !attempt.completed) {
+    const required = attempt.items.filter((i) => i.required !== false);
+    return { status: 'open', saved: required.filter((i) => slotDone(i, attempt.doneIds)).length, required: required.length, session: attempt.session };
+  }
+  const runs = state.finishedRuns ?? [];
+  const summary = id
+    ? (attempt?.id === id && attempt.summary) || runs.find((r) => r.attemptId === id)
+    : (runs.at(-1) ?? (attempt?.completed ? attempt.summary : null));
+  return summary ? { status: 'completed', summary } : { status: 'missing' };
 }

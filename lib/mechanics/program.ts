@@ -31,7 +31,7 @@ import {
   mechanicsElement,
   type MechanicsElementName,
 } from '@/lib/mechanics/elements';
-import { isLevelKey, levelSession, nextLevel, prevLevel, SESSIONS_PER_LEVEL, type LevelKey } from '@/lib/mechanics/levels';
+import { isLevelKey, levelSession, mechanicsLevel, nextLevel, prevLevel, SESSIONS_PER_LEVEL, type LevelKey } from '@/lib/mechanics/levels';
 import type { ElementRx } from '@/lib/pitch-3d/v2/report';
 
 export type DrillStage = (typeof DRILL_STAGE_NAMES)[number];
@@ -94,6 +94,11 @@ export type ProgramState = {
   /** 시작 때의 배정과 이 세션에서 한 드릴. 날짜별 체크와 구분한다. */
   attempt?: MechanicsAttempt | null;
   gear?: { on: string; equipment: string[] };
+  /**
+   * 마친 세션의 완료 요약(2026-10-31 완료 화면 03) — attempt 는 다음 세션을 열면 바뀌고 practice 는 같은 날 다시 고치면 바뀐다. 지난 완료를
+   * 다시 볼 때 그 둘로 거꾸로 셈하지 않고 마친 때 묶어 둔 이것만 읽는다. 최근 FINISHED_KEEP 개.
+   */
+  finishedRuns?: MechanicsFinishSummary[];
 };
 
 export type MechanicsAttempt = {
@@ -105,10 +110,172 @@ export type MechanicsAttempt = {
   items: SessionDrillView[];
   doneIds: string[];
   completed: boolean;
-  receipts?: { id: string; fingerprint: string }[];
+  /** slot: 그 기록이 들어간 배정 칸(item.guideId) — 응답을 잃은 저장을 다시 물을 때 그 칸의 기록을 돌려준다 */
+  receipts?: { id: string; fingerprint: string; slot?: string }[];
   skillFeedback?: Record<string, SkillFeedback>;
   painGuideIds?: string[];
+  /** 배정 칸마다 이 세션에서 저장한 기록(저장한 그대로) — 2026-10-31 앞에 연 세션에는 없다 */
+  records?: Record<string, DrillRecordSnapshot>;
+  /** 세션을 마친 때 묶은 요약 — 같은 마무리를 다시 보내도 이 값을 그대로 돌려준다 */
+  summary?: MechanicsFinishSummary | null;
 };
+
+/**
+ * 드릴 하나를 저장한 그대로(2026-10-31 실행 화면 02 · 완료 화면 03). count 는 오늘 이 드릴의 합계(서버 계약 그대로) — 세션에서 새로 한 양이 아니다.
+ * 같은 칸을 다시 저장하면 바뀐다(마지막 저장). 처방(목표량)은 여기 넣지 않는다.
+ */
+export type DrillRecordSnapshot = {
+  /** 실제로 한 동작 · 도구의 드릴 id */
+  guideId: string;
+  /** 배정 칸(item.guideId) */
+  slot: string;
+  title: string;
+  tool: string;
+  category: string;
+  kind: 'throws' | 'repetitions';
+  count: number;
+  effortPct: number;
+  response: 'clear' | 'pain';
+  feel: DrillFeel;
+  alreadyLogged: boolean;
+  /** 3D 연계 칸이면 서버에 남긴 자가 확인(어려움이면 quality 가 no 로 바뀐 값) */
+  skill?: SkillFeedback;
+  on: string;
+  savedAt: string;
+};
+
+export type MechanicsFinishProgress =
+  | { kind: 'level'; level: LevelKey; before: number; after: number; total: number }
+  | { kind: 'skill'; elements: { element: string; stage: DrillStage; finished: boolean }[] }
+  | { kind: 'focus'; before: number; after: number; total: number };
+
+/**
+ * 세션 마무리의 요약(완료 화면 03) — 마친 그 순간의 배정 · 저장한 칸 · 기록 · 진도 · 권하기를 묶는다. 완료면 attempt.summary 와
+ * finishedRuns 에 남고(다시 보내도 같은 값), 일부(partial)는 남기지 않고 그 응답에만 싣는다(같은 세션을 이어서 하니까).
+ */
+export type MechanicsFinishSummary = {
+  v: 1;
+  attemptId: string;
+  session: number;
+  on: string;
+  finishedAt: string;
+  status: 'completed' | 'partial';
+  /** '입문 · 2번째 훈련' · '3D 연계 · 드리프트 · 기초' */
+  label: string;
+  kind: 'level' | 'linked' | 'focus';
+  items: { slot: string; title: string; required: boolean; category: string }[];
+  /** 저장한 칸(서버 doneIds 기준 — 기록 세부가 없는 옛 칸도 센다) */
+  savedSlots: string[];
+  /** 기록 세부 — 칸 차례. 2026-10-31 앞에 저장한 칸은 없을 수 있다(그때는 세부를 보이지 않는다) */
+  records: DrillRecordSnapshot[];
+  progress: MechanicsFinishProgress | null;
+  message: string | null;
+  advice: { kind: 'done' | 'up' | 'down'; to: LevelKey | null } | null;
+  /** 이 세션을 마쳐 영상 비교 차례가 됐나 */
+  film: 'compare' | null;
+  /** 마친 때 아직 투구 기록에 안 남긴 드릴 공 — 다시 볼 때는 쓰지 않는다(그새 남겼을 수 있다) */
+  throwNote: DrillThrowNote | null;
+};
+
+/** 남겨 둘 완료 요약 수 */
+export const FINISHED_KEEP = 30;
+
+function readFinishedRuns(raw: unknown): MechanicsFinishSummary[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (x): x is MechanicsFinishSummary =>
+        !!x &&
+        typeof x === 'object' &&
+        (x as MechanicsFinishSummary).v === 1 &&
+        typeof (x as MechanicsFinishSummary).attemptId === 'string' &&
+        !!dayOf((x as MechanicsFinishSummary).on) &&
+        Array.isArray((x as MechanicsFinishSummary).items) &&
+        Array.isArray((x as MechanicsFinishSummary).savedSlots) &&
+        Array.isArray((x as MechanicsFinishSummary).records)
+    )
+    .slice(-FINISHED_KEEP);
+}
+
+/** 배정 칸 하나가 저장됐나 — 칸의 어느 동작 · 도구로 했어도 */
+export const slotDone = (item: { alternatives: { variants: { id: string }[] }[] }, doneIds: readonly string[]) =>
+  item.alternatives.some((a) => a.variants.some((v) => doneIds.includes(v.id)));
+
+/** 이 세션의 이름 — 완료 요약 · 실행 화면 머리. 3D 연계 처방 중이면 그 요소 · 단계, 아니면 수준 · 몇 번째 */
+export function attemptLabel(state: ProgramState, today: string): { label: string; kind: MechanicsFinishSummary['kind'] } {
+  return labelOf(state.focus ? focusView(state.focus, today) : null, state.level, state.index);
+}
+
+/** attemptLabel 의 화면 쪽 — 프로그램 칸 자료(MechanicsProgramView)로도 같은 이름을 짓는다(실행 화면 머리 · 첫 화면 카드) */
+export function labelOf(
+  fv: FocusView | null,
+  level: LevelKey | null,
+  index: number
+): { label: string; kind: MechanicsFinishSummary['kind'] } {
+  if (fv && !fv.finished) {
+    if (fv.skill) {
+      const el = fv.skill.elements.find((e) => !e.finished) ?? fv.skill.elements[0];
+      return { kind: 'linked', label: `3D 연계 · ${el?.element ?? fv.rx[0]?.element ?? ''} · ${el?.stage ?? fv.stage ?? '기초'}` };
+    }
+    return { kind: 'focus', label: `3D 처방 · ${Math.min(fv.done + 1, fv.total)}/${fv.total}` };
+  }
+  return { kind: 'level', label: level ? `${mechanicsLevel(level).name} · ${Math.min(index + 1, SESSIONS_PER_LEVEL)}번째 훈련` : '메커니즘 훈련' };
+}
+
+/**
+ * 마무리 요약을 묶는다(순수) — before 는 마치기 전 상태, after 는 마친 뒤(일부면 before 그대로). 기록 세부는 attempt.records 에 남은 것만.
+ */
+export function buildFinishSummary({
+  attempt,
+  before,
+  after,
+  status,
+  today,
+  finishedAt,
+  message,
+  throwNote,
+}: {
+  attempt: MechanicsAttempt;
+  before: ProgramState;
+  after: ProgramState;
+  status: 'completed' | 'partial';
+  today: string;
+  finishedAt: string;
+  message: string | null;
+  throwNote: DrillThrowNote | null;
+}): MechanicsFinishSummary {
+  const { label, kind } = attemptLabel(before, today);
+  const items = attempt.items.map((i) => ({ slot: i.guideId, title: i.title, required: i.required !== false, category: i.category }));
+  const savedSlots = attempt.items.filter((i) => slotDone(i, attempt.doneIds)).map((i) => i.guideId);
+  const records = savedSlots.flatMap((slot) => (attempt.records?.[slot] ? [attempt.records[slot]] : []));
+  const fv = after.focus ? focusView(after.focus, today) : null;
+  const progress: MechanicsFinishProgress | null =
+    kind === 'linked' && fv?.skill
+      ? { kind: 'skill', elements: fv.skill.elements.map((e) => ({ element: e.element, stage: e.stage, finished: e.finished })) }
+      : kind === 'focus' && before.focus && after.focus
+        ? { kind: 'focus', before: before.focus.done, after: after.focus.done, total: FOCUS_SESSIONS }
+        : before.level
+          ? { kind: 'level', level: before.level, before: before.index, after: after.index, total: SESSIONS_PER_LEVEL }
+          : null;
+  return {
+    v: 1,
+    attemptId: attempt.id,
+    session: attempt.session,
+    on: attempt.on,
+    finishedAt,
+    status,
+    label,
+    kind,
+    items,
+    savedSlots,
+    records,
+    progress,
+    message,
+    advice: status === 'completed' ? levelAdvice(after) : null,
+    film: status === 'completed' && kind === 'level' && filmPrompt(attempt.session) === 'compare' ? 'compare' : null,
+    throwNote,
+  };
+}
 
 function readAttempt(value: unknown): MechanicsAttempt | null {
   if (!value || typeof value !== 'object') return null;
@@ -375,6 +542,7 @@ export function readProgramState(json: unknown): ProgramState {
       : [],
     practice: readPractice(raw.practice),
     attempt: readAttempt(raw.attempt),
+    finishedRuns: readFinishedRuns(raw.finishedRuns),
     ...(raw.gear &&
     typeof raw.gear === 'object' &&
     dayOf((raw.gear as Record<string, unknown>).on) &&
@@ -404,6 +572,7 @@ export function programStateJson(state: ProgramState) {
     focusHistory: state.focusHistory ?? [],
     practice: state.practice ?? [],
     attempt: state.attempt ?? null,
+    finishedRuns: (state.finishedRuns ?? []).slice(-FINISHED_KEEP),
     ...(state.gear ? { gear: state.gear } : {}),
   };
 }

@@ -2,8 +2,7 @@ import 'server-only';
 import { openMechanicsAttempt } from '@/lib/mechanics/store';
 import type { getCurrentUser } from '@/lib/dal';
 import { loadMechanicsProgram, type SessionDrillView } from '@/lib/mechanics/load';
-import { mechanicsLevel } from '@/lib/mechanics/levels';
-import { playItemsFor, resumeAt } from '@/lib/mechanics/program';
+import { labelOf, playItemsFor, resumeAt, type DrillRecordSnapshot } from '@/lib/mechanics/program';
 
 /**
  * 메카닉 세션 따라 하기에 무엇을 띄울지 — 웹 화면(app/(session)/mechanics/play/page.tsx)과 아이폰 앱 화면(app/actions/app-mechanics.ts →
@@ -27,6 +26,10 @@ export type MechanicsPlay = {
   sessionNumber: number;
   attemptId: string;
   doneGuideIds: string[];
+  /** 이 세션에서 앞서 저장한 칸의 기록(저장한 그대로) — 이어서 할 때 저장 확인 · 완료 목록에 쓴다. 옛 세션은 빈 목록 */
+  records: DrillRecordSnapshot[];
+  /** 이 세션이 3D 연계 처방인가 · 수준 연습인가 — 완료 화면의 진도 칸 */
+  kind: 'level' | 'linked' | 'focus';
   isAdmin: boolean;
   partial: boolean;
   painLabel: string | null;
@@ -78,17 +81,11 @@ export async function loadMechanicsPlay(
     backHref: MECHANICS_BACK,
     items,
     startAt: resumeAt(items, done),
-    label:
-      program.focus && !program.focus.finished
-        ? program.focus.skill
-          ? `${program.focus.stage} 연습 ${program.focus.done + 1}회`
-          : `처방 ${program.focus.done + 1}/${program.focus.total}`
-        : program.level && program.week
-          ? `${mechanicsLevel(program.level).name} ${program.index + 1}번 세션`
-          : `${program.sessionsDone + 1}번째 세션`,
+    ...labelOf(program.focus, program.level, program.index),
     sessionNumber: attempt.session,
     attemptId: attempt.id,
     doneGuideIds: [...done],
+    records: Object.values(attempt.records ?? {}),
     isAdmin: user.role === 'ADMIN',
     partial,
     painLabel: painFold && anyway ? painFold.label : null,
