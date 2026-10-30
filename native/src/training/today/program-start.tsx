@@ -1,5 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
+import { type Href, router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { dateKeyOf, toDateKey } from '@/lib/pitch-stats';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
@@ -41,7 +42,7 @@ const perWeekText = (p: ProgramChoice) =>
   `${p.weeks.length}주 · 주 ${p.perWeek.length > 1 ? `${Math.min(...p.perWeek)}~${Math.max(...p.perWeek)}` : p.perWeek[0]}번`;
 
 /** 'YYYY-MM-DD' → 오늘(한국 날짜, 서버와 같은 기준) 만 나이. 모양이 아니거나 없는 날(2008-02-30)이면 null — 시작을 눌러서야 막히지 않게 */
-function ageOf(birth: string): number | null {
+export function ageOf(birth: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birth)) return null;
   const [by, bm, bd] = birth.split('-').map(Number);
   if (dateKeyOf(by, bm - 1, bd) !== birth) return null;
@@ -50,7 +51,7 @@ function ageOf(birth: string): number | null {
 }
 
 /** 숫자만 받아 '2008-03-14' 꼴로 */
-const birthText = (t: string) => {
+export const birthText = (t: string) => {
   const d = t.replace(/\D/g, '').slice(0, 8);
   return d.length > 6 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}` : d.length > 4 ? `${d.slice(0, 4)}-${d.slice(4)}` : d;
 };
@@ -151,7 +152,7 @@ function StartSheet({
   ];
   const [step, setStep] = useState<Step>(startWith ? 'intro' : 'list');
   const [goal, setGoal] = useState<ProgramGoal>('strength');
-  const [choice, setChoice] = useState<ProgramChoice | null>(startWith);
+  const [choice] = useState<ProgramChoice | null>(startWith);
   const [weeksOpen, setWeeksOpen] = useState(false);
   const [perWeekPick, setPerWeekPick] = useState<PerWeek | null>(null);
   const [birth, setBirth] = useState('');
@@ -201,12 +202,10 @@ function StartSheet({
     if (n) go(n);
   };
   const back = () => (at <= 0 ? go('intro') : go(steps[at - 1]));
+  /* 목록에서 고르면 프로그램 상세(2026-10-30 시안 01) — 설명 · 시작 준비는 거기서 한 길로 */
   const pick = (p: ProgramChoice) => {
-    setChoice(p);
-    setPins(null);
-    setPerWeekPick(null);
-    setWeeksOpen(false);
-    go('intro');
+    onClose();
+    router.push(`/training/program/${p.id}` as Href);
   };
   /* 마지막으로 연 칸 — 빠르게 두 칸을 눌렀을 때 앞 칸의 후보가 늦게 와 뒤 칸 목록으로 보이지 않게 */
   const asked = useRef<VariantKey | null>(null);

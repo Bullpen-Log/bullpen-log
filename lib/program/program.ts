@@ -975,10 +975,13 @@ export function variantLabel(v: VariantKey, audience: ProgramAudience = 'adult')
   return audience === 'basics' && v === 'medball' ? '던지기 · 점프' : VARIANT_LABELS[v];
 }
 
-/** 이 프로그램이 쓰는 변형 — 시작 시트 · 고정 운동 바꾸기는 이것만 보여 준다 */
-export function usedVariants(def: ProgramDef): VariantKey[] {
+/**
+ * 이 프로그램이 쓰는 변형 — 시작 시트 · 고정 운동 바꾸기는 이것만 보여 준다. perWeek 를 주면 그 주당 횟수에서 쓰는 것만(운동 구성 확인 — 시안 03,
+ * 주 2번과 3번의 합집합을 한 사람의 구성처럼 보이지 않게).
+ */
+export function usedVariants(def: ProgramDef, perWeekOnly?: PerWeek): VariantKey[] {
   const used = new Set<VariantKey>();
-  for (const perWeek of def.perWeek) {
+  for (const perWeek of perWeekOnly && def.perWeek.includes(perWeekOnly) ? [perWeekOnly] : def.perWeek) {
     for (let day = 1; day <= def.weeks * perWeek; day++) {
       const week = Math.ceil(day / perWeek);
       for (const x of def.build(day, week, perWeek, def.lightWeeks.includes(week)).items)
@@ -986,6 +989,113 @@ export function usedVariants(def: ProgramDef): VariantKey[] {
     }
   }
   return VARIANT_KEYS.filter((v) => used.has(v));
+}
+
+/**
+ * 칸의 성격 — 프로그램 상세 · 운동 구성 확인(2026-10-30 확정 시안 01 · 03)이 '고정 주요 운동'과 '세션마다 바뀌는 운동'을 가르는 데 쓴다.
+ *   main     — 4주 내내 같은 운동(무게 흐름 — 스쿼트 · 힌지 · 밀기 · 당기기 본운동). 고른 것이 고정된다.
+ *   rotating — 같은 칸 후보를 그 칸이 나올 때마다 돌린다(ROTATING_VARIANTS · 기본기 전부). 고른 것은 '첫 운동'일 뿐이다(rotatedPick).
+ *   assist   — 보조 칸. 장비 · 사람마다 세션에서 정한다(accessoryPick) — 고를 수 없다.
+ * 한 프로그램 안에서 같은 칸이 날마다 성격이 다르면 고정(main) 쪽으로 본다(고른 것이 실제로 쓰이므로).
+ */
+export type VariantKind = 'main' | 'rotating' | 'assist';
+
+export function variantKindOf(def: ProgramDef, variant: VariantKey, perWeek?: PerWeek): VariantKind {
+  /* 보조 메뉴 칸은 고정하지 않는다(VARIANT_KEYS 밖 — pickPinned 가 안 본다) */
+  if (ACCESSORY_KEYS.includes(variant)) return 'assist';
+  if (audienceOf(def) === 'basics') return 'rotating';
+  let assist = false;
+  let plain = false;
+  for (const pw of perWeek ? [perWeek] : def.perWeek) {
+    for (let day = 1; day <= def.weeks * pw; day++) {
+      const week = Math.ceil(day / pw);
+      for (const x of def.build(day, week, pw, def.lightWeeks.includes(week)).items) {
+        if (x.variant !== variant) continue;
+        if (x.assist) assist = true;
+        else plain = true;
+      }
+    }
+  }
+  if (plain) return ROTATING_VARIANTS.includes(variant) ? 'rotating' : 'main';
+  return assist ? 'assist' : 'main';
+}
+
+/** 프로그램 개요의 운동 한 줄 — 칸 이름 · 처방 한 줄(무게는 사람마다라 % 그대로) */
+export type OutlineItem = {
+  variant: VariantKey;
+  label: string;
+  line: string;
+  kind: VariantKind;
+  /** 메디신볼 던지기 칸 — 공이 있으면 선택 운동(isOptionalProgramExercise) */
+  optionalSlot: boolean;
+  /** 앞 운동과 묶음 */
+  group: boolean;
+};
+
+export type ProgramOutline = {
+  perWeek: PerWeek;
+  totalDays: number;
+  weeks: number;
+  /** 첫 주의 세션들(A · B · C) — '대표 구성'. 실제 운동은 장비 · 경력으로 정해진다 */
+  sessions: { day: number; label: string; items: OutlineItem[] }[];
+  /** 주차마다 그 주 세션들의 본운동 처방(보조 칸 뺌) — 주차 고르기는 미리보기다 */
+  weekRows: { week: number; light: boolean; note: string | null; days: { day: number; label: string; items: { label: string; line: string }[] }[] }[];
+};
+
+/**
+ * 프로그램 상세(시안 01)의 개요 — 고른 주당 횟수로 같은 기준(dayPlan)에서 만든다. 화면이 같은 셈을 따로 하지 않게 순수 함수로 둔다.
+ * 프로그램마다 단계 이름(준비 · 성장 …)을 지어내지 않는다 — 가벼운 주 · 주차 메모(weekNotes)만 정의 그대로.
+ */
+export function programOutline(def: ProgramDef, perWeek: PerWeek): ProgramOutline | null {
+  if (!def.perWeek.includes(perWeek)) return null;
+  const plan: ProgramPlan = {
+    key: programKeyOf(def.id, perWeek),
+    def,
+    perWeek,
+    totalWeeks: def.weeks,
+    totalDays: def.weeks * perWeek,
+  };
+  const audience = audienceOf(def);
+  const kinds = new Map<VariantKey, VariantKind>();
+  const kindOf = (v: VariantKey) => {
+    if (!kinds.has(v)) kinds.set(v, variantKindOf(def, v, perWeek));
+    return kinds.get(v) as VariantKind;
+  };
+  const labelOfDay = (day: number, i: number) => dayPlan(plan, day).label ?? `${i + 1}번 세션`;
+  const sessions = Array.from({ length: perWeek }, (_, i) => {
+    const day = i + 1;
+    return {
+      day,
+      label: labelOfDay(day, i),
+      items: dayPlan(plan, day).items.map((x) => ({
+        variant: x.variant,
+        label: variantLabel(x.variant, audience),
+        line: prescriptionLine(x),
+        kind: kindOf(x.variant),
+        optionalSlot: x.variant === 'medball' || x.variant === 'rotationalThrow',
+        group: x.group,
+      })),
+    };
+  });
+  const weekRows = Array.from({ length: def.weeks }, (_, w) => {
+    const week = w + 1;
+    return {
+      week,
+      light: isLightWeek(plan, week),
+      note: def.weekNotes?.[week] ?? null,
+      days: Array.from({ length: perWeek }, (_, i) => {
+        const day = w * perWeek + i + 1;
+        return {
+          day,
+          label: labelOfDay(day, i),
+          items: dayPlan(plan, day)
+            .items.filter((x) => !x.assist)
+            .map((x) => ({ label: variantLabel(x.variant, audience), line: prescriptionLine(x) })),
+        };
+      }),
+    };
+  });
+  return { perWeek, totalDays: plan.totalDays, weeks: def.weeks, sessions, weekRows };
 }
 
 /*
@@ -2552,6 +2662,11 @@ export type SessionProgramTag = {
   week: number;
   /** 운동 시작 때 판정한 쉰 기간(일) — 운동 중 [교체]의 무게가 카드와 같게. 2026-10-07 앞의 판에는 없다 */
   gapDays?: number | null;
+  /**
+   * 이 판을 연 프로그램 회차(UserTrainingProgram.id, 2026-10-30) — 같은 프로그램을 그만두고 다시 시작해도 옛 판이 새 회차의 일차를 넘기거나
+   * 완료 화면이 새 회차 결과를 읽지 않게. 그 앞에 연 판에는 없다 — 그때는 예전처럼 키 + 진행 중으로 찾는다.
+   */
+  rowId?: string;
 };
 
 /** 얼린 목록의 program 을 읽는다. 모양이 아니면 null(프로그램 아닌 날) */
@@ -2570,6 +2685,7 @@ export function readSessionProgram(value: unknown): SessionProgramTag | null {
     day: v.day as number,
     week: v.week as number,
     ...(typeof v.gapDays === 'number' ? { gapDays: v.gapDays } : {}),
+    ...(typeof v.rowId === 'string' && v.rowId ? { rowId: v.rowId } : {}),
   };
 }
 

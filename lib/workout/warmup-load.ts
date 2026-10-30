@@ -34,7 +34,9 @@ type SessionUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 /** 영상 전 워밍업의 루틴 종류 — 고정 루틴 넷의 kind 와 같은 이름 */
 const isRoutineKind = (kind: string): kind is WarmupRoutineKind =>
   kind in WARMUP_ROUTINE_LABEL;
-export async function loadWarmup(user: SessionUser): Promise<{ to: string } | { themeLabel: string; cards: WarmupCard[] }> {
+export async function loadWarmup(
+  user: SessionUser
+): Promise<{ to: string } | { themeLabel: string; cards: WarmupCard[]; sessionId: string; dateKey: string }> {
   /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
   if (featureLocks(user).training) return { to: SETUP_PATH.training };
 
@@ -64,22 +66,7 @@ export async function loadWarmup(user: SessionUser): Promise<{ to: string } | { 
    * 그 칸이 없다. 목록은 캐시에 통째로 올라와 있어(lib/library-cache.ts)
    * DB 를 가지 않는다.
    */
-  const details = await exercisesByIds(plan.exercises.map((e) => e.id));
-  const patternOf = new Map(details.map((d) => [d.id, d.movementPattern ?? null]));
-
-  const todayKind = warmupKindFor(
-    plan.themeKey,
-    plan.exercises.map((e) => ({
-      slot: e.slot,
-      movementPattern: patternOf.get(e.id) ?? null,
-    }))
-  );
-
-  /*
-   * 공통 루틴은 언제나 함께 뜬다. 공통이 앞이다 — 몸 데우기 · 동적 가동(공통) 뒤에 그날 근육 깨우기 · 터뜨리기(그날)가
-   * 이어지는 차례라서(2026-10-16 워밍업 루틴 네 단계).
-   */
-  const kinds = todayKind ? [COMMON_WARMUP_KIND, todayKind] : [COMMON_WARMUP_KIND];
+  const kinds = await warmupKindsOf(plan);
 
   const routines = await prisma.warmupRoutine.findMany({
     where: { kind: { in: kinds }, hiddenAt: null },
@@ -152,5 +139,47 @@ export async function loadWarmup(user: SessionUser): Promise<{ to: string } | { 
     ];
   });
 
-  return { themeLabel: plan.themeLabel, cards };
+  return {
+    themeLabel: plan.themeLabel,
+    cards,
+    sessionId: session.id,
+    /* 체크 초안을 이 판 · 이 날에 묶는다(앱 — 어제 판 · 다른 판의 체크가 섞이지 않게) */
+    dateKey: session.date.toISOString().slice(0, 10),
+  };
+}
+
+/**
+ * 오늘 루틴 종류 — 공통이 늘 앞, 그날 본운동의 동작 계열로 고른 루틴이 뒤(세션 이름이 아니라 실제 운동으로).
+ * 공통이 앞인 까닭: 몸 데우기 · 동적 가동(공통) 뒤에 그날 근육 깨우기 · 터뜨리기(그날)가 이어지는 차례(2026-10-16 워밍업 루틴 네 단계).
+ * 오늘 목적을 정하려면 본운동의 동작 계열이 필요한데 찍어 둔 목록에는 그 칸이 없다 — 목록은 캐시라 DB 를 가지 않는다.
+ */
+async function warmupKindsOf(plan: NonNullable<ReturnType<typeof readFrozenPlan>>): Promise<string[]> {
+  const details = await exercisesByIds(plan.exercises.map((e) => e.id));
+  const patternOf = new Map(details.map((d) => [d.id, d.movementPattern ?? null]));
+  const todayKind = warmupKindFor(
+    plan.themeKey,
+    plan.exercises.map((e) => ({
+      slot: e.slot,
+      movementPattern: patternOf.get(e.id) ?? null,
+    }))
+  );
+  return todayKind ? [COMMON_WARMUP_KIND, todayKind] : [COMMON_WARMUP_KIND];
+}
+
+/** 이 판의 워밍업 창에 나오는 운동 id — [본운동 시작]이 받은 체크를 거르는 데 쓴다(finishWarmup). 못 읽으면 빈 집합(그때는 거르지 않는다) */
+export async function warmupIdsOf(session: { plan: unknown }): Promise<Set<string>> {
+  const plan = readFrozenPlan(session.plan);
+  if (!plan) return new Set();
+  const kinds = await warmupKindsOf(plan);
+  const routines = await prisma.warmupRoutine.findMany({
+    where: { kind: { in: kinds }, hiddenAt: null },
+    select: { kind: true, items: { select: { exerciseId: true } } },
+  });
+  const out = new Set<string>();
+  for (const kind of kinds) {
+    const r = routines.find((x) => x.kind === kind);
+    if (r && r.items.length > 0) r.items.forEach((i) => out.add(i.exerciseId));
+    else SHOOT_WARMUPS.filter((w) => w.routine === kind).forEach((w) => out.add(w.id));
+  }
+  return out;
 }

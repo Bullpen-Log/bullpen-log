@@ -47,8 +47,9 @@ import {
 import { clampRecordedAt } from '@/lib/workout/set-time';
 import { dayStart, isAbandoned, sessionEnd, STALE_AFTER_MS } from '@/lib/workout/stale';
 import { closeAbandoned, lastSetAt, summaryWrites } from '@/lib/workout/close-stale';
+import { warmupIdsOf } from '@/lib/workout/warmup-load';
 import { intensityOfEffort } from '@/lib/workout/effort';
-import { saveTrainingNote } from '@/app/actions/exercise-log';
+import { finishReceipt, recoverFollowUps, writeDailyNote, type FinishReceipt } from '@/lib/workout/finish';
 import { startProgramWorkout } from '@/app/actions/program';
 
 /**
@@ -152,20 +153,34 @@ export async function startWorkout() {
 export async function finishWarmup(input: {
   skipped: boolean;
   doneIds: string[];
+  /** 워밍업 창이 연 판(2026-10-30) — 주면 그 판만. 그사이 판이 바뀌었으면(어제 판이 닫히고 새 판) 덮지 않는다. 안 주면 옛 앱처럼 열린 판 */
+  sessionId?: string;
 }): Promise<{ error: string } | never> {
   const user = await requireUser();
-  const session = await activeSession(user.id);
-  if (!session) redirect('/training');
+  const session =
+    typeof input.sessionId === 'string' && input.sessionId
+      ? await prisma.trainingSession.findFirst({ where: { id: input.sessionId, userId: user.id } })
+      : await activeSession(user.id);
+  if (!session || session.status !== 'ACTIVE') {
+    if (session?.status === 'FINISHED') return { error: '이미 마친 운동이에요. 트레이닝에서 다시 열어 주세요.' };
+    redirect('/training');
+  }
 
   /* 이미 지난 창이다. 두 번 누르거나 뒤로가기로 들어와도 시각을 덮지 않는다. */
   if (session.mainStartedAt) redirect('/workout/run', RedirectType.replace);
 
+  /* 체크한 것 중 이 판의 워밍업 루틴에 있는 운동만 — 루틴이 비어 이름만 있는 워밍업(lib/shoot/warmups.ts)도 그 id 로 받는다 */
+  const known = await warmupIdsOf(session);
   const doneIds = Array.isArray(input.doneIds)
-    ? [...new Set(input.doneIds.filter((v) => typeof v === 'string' && v))].slice(0, 50)
+    ? [...new Set(input.doneIds.filter((v) => typeof v === 'string' && v && (known.size === 0 || known.has(v))))].slice(0, 50)
     : [];
 
-  await prisma.trainingSession.update({
-    where: { id: session.id },
+  /*
+   * 시작 시각이 아직 없을 때만 찍는다(조건부 한 번 쓰기) — 두 기기 · 끊긴 응답에 다시 누름이 거의 같이 오면 예전엔 둘 다 '아직 없음'을 읽고
+   * 뒤에 온 쪽이 시각과 건너뜀 여부를 덮었다. 0 건이면 다른 쪽이 먼저 넘긴 것 — 그 시각 그대로 본운동으로.
+   */
+  await prisma.trainingSession.updateMany({
+    where: { id: session.id, userId: user.id, status: 'ACTIVE', mainStartedAt: null },
     data: {
       mainStartedAt: appNow(),
       warmupOutcome: input.skipped ? 'SKIPPED' : 'DONE',
@@ -463,17 +478,7 @@ export async function deleteSet(input: {
 
 /* ------------------------------ 종료 ------------------------------ */
 
-/**
- * 운동을 닫는다.
- *
- * 세트에서 운동별 요약을 다시 계산해 UserExerciseLog 에 채운다. 부하 지수·
- * 부위별 세트 수·달력이 전부 그 표를 읽으므로, 여기까지 해야 오늘 한 것이
- * 앱 전체에 반영된다.
- *
- * 세트가 하나도 없는 운동은 건드리지 않는다. 열었다가 아무것도 안 한 운동을
- * '했다'로 남길 수는 없다.
- */
-export async function finishWorkout(input: {
+type FinishInput = {
   /**
    * 마칠 판. 운동 화면이 들고 있는 판 번호를 보낸다.
    *
@@ -485,91 +490,159 @@ export async function finishWorkout(input: {
   sessionId?: string;
   intensity?: number | null;
   memo?: string | null;
-}): Promise<{ error: string } | never> {
-  const user = await requireUser();
-  const session = await sessionForSet(user.id, input.sessionId);
-  if (!session) redirect('/training');
+};
 
+/** 마치기 창의 강도 · 메모 — 강도는 1~10 정수(선택), 메모는 1000자. 메모만은 받지 않는다(강도와 같이 남는 계약) */
+function finishNoteInput(input: FinishInput): { intensity: number | null; memo: string | null } | { error: string } {
+  const raw = input.intensity;
+  const intensity =
+    raw == null ? null : typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 && raw <= 10 ? raw : NaN;
+  if (Number.isNaN(intensity)) return { error: '운동 강도를 1~10 중에서 골라 주세요.' };
+  const memo = typeof input.memo === 'string' ? input.memo.trim().slice(0, 1000) || null : null;
+  if (memo && intensity == null) return { error: '느낀점을 남기려면 강도도 골라 주세요.' };
+  return { intensity: intensity as number | null, memo };
+}
+
+/**
+ * 판을 닫는다(조건부) — 닫기 · 시간 더하기 · 요약 · 제출한 강도 · 메모(판 줄의 finishNote)를 한 트랜잭션으로. 닫았으면 true.
+ * 0 건이면 다른 요청이 먼저 닫은 것 — 시간을 두 번 더하지 않는다(2026-10-16 점검 15b).
+ */
+async function closeSession(
+  userId: string,
+  session: NonNullable<Awaited<ReturnType<typeof activeSession>>>,
+  note: { intensity: number | null; memo: string | null }
+): Promise<boolean> {
   /*
    * 본운동을 시작한 뒤로 흐른 시간. 워밍업은 안 들어간다.
-   *
-   * 마지막 세트 뒤로 3시간 넘게 지나서 누른 종료면, 그 마지막 세트가 끝이다
-   * (lib/workout/stale.ts 의 sessionEnd). 아침 판의 종료를 저녁에야 눌렀다고
-   * 그 사이가 운동 시간이 되지는 않는다.
+   * 마지막 세트 뒤로 3시간 넘게 지나서 누른 종료면, 그 마지막 세트가 끝이다(lib/workout/stale.ts 의 sessionEnd).
    */
-  const { endedAt, segmentSeconds } = sessionEnd(
-    session,
-    await lastSetAt(session.id),
-    appNow()
-  );
-
-  /*
-   * 상태를 바꾸는 쓰기는 아직 ACTIVE 일 때만 걸린다(updateMany). [종료]를 거의 동시에 두 번 보내면(두 탭 · 끊긴 응답에 다시 누름)
-   * 예전에는 둘 다 activeSeconds 를 더해 운동 시간이 두 배가 됐다(2026-10-16 점검 15b). 요약 쓰기는 같은 값을 다시 쓰는 것이라
-   * 두 번 돌아도 달라지지 않는다(close-stale.ts 와 같은 규칙). 0 건이면 다른 쪽이 이미 마친 것 — 더 쓰지 않고 축하 화면으로.
-   */
+  const { endedAt, segmentSeconds } = sessionEnd(session, await lastSetAt(session.id), appNow());
+  const raw = session.plan && typeof session.plan === 'object' ? (session.plan as Record<string, unknown>) : {};
   const results = await prisma.$transaction([
-    ...(await summaryWrites(user.id, session)),
+    ...(await summaryWrites(userId, session)),
     prisma.trainingSession.updateMany({
       where: { id: session.id, status: 'ACTIVE' },
       data: {
         status: 'FINISHED',
         endedAt,
-        /*
-         * 이 구간의 운동 시간을 더한다. 다시 열어 이어 한 판이면 앞 구간에
-         * 쌓이고, 처음 마치는 판이면 0 에 더해진다 (스키마의 activeSeconds).
-         */
+        /* 이 구간의 운동 시간을 더한다. 다시 열어 이어 한 판이면 앞 구간에 쌓인다(스키마의 activeSeconds) */
         activeSeconds: { increment: segmentSeconds },
+        /* 무엇을 제출했는지 — 응답을 못 받아도 · 뒤처리가 실패해도 다시 확인할 수 있게(lib/workout/finish.ts) */
+        plan: { ...raw, finishNote: { ...note, at: appNow().toISOString() } } as Prisma.InputJsonValue,
       },
     }),
   ]);
-  const finished = (results[results.length - 1] as Prisma.BatchPayload).count > 0;
-  if (!finished) {
-    redirect(`/workout/done?id=${encodeURIComponent(session.id)}`, RedirectType.replace);
-  }
+  return (results[results.length - 1] as Prisma.BatchPayload).count > 0;
+}
 
-  /* 프로그램 날이면 일차를 넘긴다(처방 세트 절반 이상일 때만, 한 번만 — lib/program/advance.ts) */
-  await advanceProgramDay(session.id);
-
-  /*
-   * 체감 강도는 세션 날짜로 남긴다 — 자정을 넘겨도 세트와 짝이 맞게.
-   * 강도 없이 온 메모는 버린다(2판 P2 — 마치기 창이 강도를 선택으로 풀면서, 메모만 적고 강도가 없으면 창이 막는다).
-   * 강도를 안 고른 날은 축하 화면의 힘듦 칩(rateWorkoutEffort)이 한 번 더 묻는다.
-   */
-  if (typeof input.intensity === 'number') {
-    await saveTrainingNote(input.intensity, input.memo ?? '', toDateKey(session.date));
-  }
-
+/**
+ * 운동을 닫는다(웹 · 옛 앱) — 마치면 축하 화면으로 보낸다.
+ *
+ * 세트에서 운동별 요약을 다시 계산해 UserExerciseLog 에 채운다. 부하 지수·부위별 세트 수·달력이 전부 그 표를 읽는다.
+ * 닫은 뒤 일차 넘기기 · 그날 강도는 lib/workout/finish.ts 가 따로 하고 따로 확인한다 — 이미 닫힌 판을 다시 누르면(응답이 끊겨) 닫기는 건너뛰고
+ * 그 뒤처리만 다시 해 본다(예전엔 바로 트레이닝으로 보내 실패한 뒤처리를 다시 할 길이 없었다).
+ */
+export async function finishWorkout(input: FinishInput): Promise<{ error: string } | never> {
+  const user = await requireUser();
+  const note = finishNoteInput(input);
+  if ('error' in note) return note;
+  const any =
+    typeof input.sessionId === 'string' && input.sessionId
+      ? await prisma.trainingSession.findFirst({ where: { id: input.sessionId, userId: user.id } })
+      : await activeSession(user.id);
+  if (!any || any.status === 'ABANDONED') redirect('/training');
+  if (any.status === 'ACTIVE') await closeSession(user.id, any, note);
+  const closed = await prisma.trainingSession.findUnique({ where: { id: any.id } });
+  if (closed?.status === 'FINISHED') await recoverFollowUps(closed);
   /* 홈 · 트레이닝 · 영양(소모) · 분석이 다 읽는다 — 레이아웃째 한 번(맨 위 설명) */
   revalidatePath('/', 'layout');
-  /*
-   * 축하 화면으로 — 링 · 세 숫자 · 새 최고를 보이고 [완료]로 트레이닝에 간다(app/(session)/workout/done,
-   * 2026-10-01 '감성'). 예전에는 곧장 트레이닝 목록이라 한 시간 운동의 끝이 화면 바뀜뿐이었다.
-   * 바꿔 넣는다(replace) — 뒤로 가기로 닫힌 운동 화면에 돌아가지 않게.
-   */
-  redirect(`/workout/done?id=${encodeURIComponent(session.id)}`, RedirectType.replace);
+  /* 축하 화면으로 — 바꿔 넣는다(replace) · 뒤로 가기로 닫힌 운동 화면에 돌아가지 않게 */
+  redirect(`/workout/done?id=${encodeURIComponent(any.id)}`, RedirectType.replace);
+}
+
+/**
+ * 운동을 닫고 영수증을 돌려준다(앱, 2026-10-30 확정 시안 08). 화면은 이 답으로 축하 화면(09)으로 가고, 답을 못 받으면 finishStatus 로 판 상태부터 본다.
+ *   - 열린 판이면 닫고 뒤처리(일차 · 강도)를 한다.
+ *   - 이미 마친 판이면(앞 요청이 닫았는데 답만 못 받음) 다시 닫지 않고 뒤처리만 한 번 더 해 본다 — 같은 제출로, 일차 · 시간은 한 번만.
+ *   - 저절로 닫힌 판(ABANDONED)은 마칠 수 없다(state 'closed').
+ * 오류는 { error, state } — 'active' 면 판은 아직 열려 있다(재시도해도 된다).
+ */
+export async function finishSession(
+  input: FinishInput
+): Promise<{ ok: true; receipt: FinishReceipt } | { error: string; state: 'active' | 'missing' | 'closed' }> {
+  const user = await requireUser();
+  const note = finishNoteInput(input);
+  if ('error' in note) return { ...note, state: 'active' };
+  if (typeof input.sessionId !== 'string' || !input.sessionId) return { error: '운동을 찾지 못했어요.', state: 'missing' };
+  const session = await prisma.trainingSession.findFirst({ where: { id: input.sessionId, userId: user.id } });
+  if (!session) return { error: '운동을 찾지 못했어요.', state: 'missing' };
+  if (session.status === 'ABANDONED') return { error: '오래 멈춰 있던 운동이라 이미 기록으로 닫혔어요.', state: 'closed' };
+  if (session.status === 'ACTIVE') await closeSession(user.id, session, note);
+  const closed = await prisma.trainingSession.findUnique({ where: { id: session.id } });
+  if (!closed || closed.status !== 'FINISHED') return { error: '운동을 마치지 못했어요. 다시 눌러 주세요.', state: 'active' };
+  const receipt = await recoverFollowUps(closed);
+  revalidatePath('/', 'layout');
+  return { ok: true, receipt };
+}
+
+/** 마치기의 답을 못 받았을 때 — 판 상태만 읽는다(쓰지 않는다). 마친 판이면 세 결과까지 */
+export async function finishStatus(input: { sessionId: string }): Promise<
+  { state: 'ACTIVE' | 'ABANDONED' | 'missing' } | { state: 'FINISHED'; receipt: FinishReceipt }
+> {
+  const user = await requireUser();
+  if (typeof input?.sessionId !== 'string' || !input.sessionId) return { state: 'missing' };
+  const session = await prisma.trainingSession.findFirst({ where: { id: input.sessionId, userId: user.id } });
+  if (!session) return { state: 'missing' };
+  if (session.status === 'FINISHED') return { state: 'FINISHED', receipt: await finishReceipt(session) };
+  return { state: session.status === 'ACTIVE' ? 'ACTIVE' : 'ABANDONED' };
+}
+
+/** 마친 판의 뒤처리(일차 · 강도)를 다시 해 본다 — 축하 화면의 '다시 확인'. 몇 번을 눌러도 한 번만 반영된다 */
+export async function recoverFinish(input: { sessionId: string }): Promise<{ ok: true; receipt: FinishReceipt } | { error: string }> {
+  const user = await requireUser();
+  if (typeof input?.sessionId !== 'string' || !input.sessionId) return { error: '운동을 찾지 못했어요.' };
+  const session = await prisma.trainingSession.findFirst({ where: { id: input.sessionId, userId: user.id } });
+  if (!session || session.status !== 'FINISHED') return { error: '마친 운동을 찾지 못했어요.' };
+  const receipt = await recoverFollowUps(session);
+  revalidatePath('/', 'layout');
+  return { ok: true, receipt };
+}
+
+/**
+ * 이 판에 서버가 가진 세트 — 마치기 창이 '못 보낸 세트'를 빼기 전에 같은 열쇠(판 · 운동 · 번호)로 견준다(시안 08 — 답만 못 받아 서버에는 있는
+ * 세트를 '없다'고 빼지 않게). 본인 판만, 읽기만.
+ */
+export async function sessionSets(input: { sessionId: string }): Promise<{ sets: SavedSet[] } | { error: string }> {
+  const user = await requireUser();
+  if (typeof input?.sessionId !== 'string' || !input.sessionId) return { error: '운동을 찾지 못했어요.' };
+  const session = await prisma.trainingSession.findFirst({ where: { id: input.sessionId, userId: user.id }, select: { id: true } });
+  if (!session) return { error: '운동을 찾지 못했어요.' };
+  return { sets: await setsOf(session.id) };
 }
 
 /* ---------------------------- 힘듦 한 번 ---------------------------- */
 
 /**
- * 축하 화면의 힘듦 칩 — 마치기 창에서 강도를 안 고른 날, 마친 뒤 칩 하나를 누르면 그날 DailyTrainingNote 로 남긴다
- * (트레이닝 추천 2판 P2, lib/workout/effort.ts 의 눈금 3 · 5 · 7 · 9).
+ * 축하 화면의 강도 — 마치기 창에서 강도를 안 고른 날, 마친 뒤 그날 DailyTrainingNote 로 남긴다.
+ * 2026-10-30 부터 1~10 정수(intensity)를 그대로 받는다(시안 09 슬라이더 — 4 · 6 · 8 · 10 도 그대로). 옛 칩(effort 'light' · 'normal' · 'hard' · 'max' → 3 · 5 · 7 · 9)도 받는다.
  *
- * - 본인 판이면 된다(FINISHED 조건 없음). 마친 뒤 같은 날 '운동 더 하기'로 다시 열면 판이 ACTIVE 로 돌아가는데, 뒤로 가기로
- *   남은 축하 화면에서 눌렀다고 거절할 까닭이 없다 — 힘듦은 날짜마다 한 줄이라 판 상태와 무관하다.
- * - 그새 적은 줄이 있으면(트레이닝 탭 · 다른 기기) 덮지 않고 그 값을 돌려준다. saveTrainingNote 는 메모까지 비우므로
- *   여기서 먼저 본다. 화면은 돌려받은 값의 칩을 고정한다.
- * - 저장은 saveTrainingNote 를 세션 날짜로 부른다 — finishWorkout 과 같은 날짜 규칙(자정을 넘겨도 세트와 짝). 7일 넘은 판은
- *   그쪽 검사가 거절하고 화면이 한 줄로 알린다.
+ * - 본인 판이면 된다(FINISHED 조건 없음) — 힘듦은 날짜마다 한 줄이라 판 상태와 무관하다.
+ * - 그새 적은 줄이 있으면(트레이닝 탭 · 다른 기기) 덮지 않고 그 값을 돌려준다(existing). 화면은 돌려받은 값을 보인다. 메모는 건드리지 않는다.
+ * - 날짜는 세션 날짜 — finishWorkout 과 같은 규칙. 7일 넘은 판은 거절하고 화면이 한 줄로 알린다.
  */
 export async function rateWorkoutEffort(input: {
   sessionId: string;
-  effort: string;
-}): Promise<{ ok: true; intensity: number } | { error: string }> {
+  effort?: string;
+  intensity?: number;
+}): Promise<{ ok: true; intensity: number; existing?: boolean } | { error: string }> {
   const user = await requireUser();
-  const intensity = intensityOfEffort(input?.effort);
-  if (intensity == null) return { error: '얼마나 힘들었는지 골라 주세요.' };
+  const intensity =
+    input?.intensity !== undefined
+      ? typeof input.intensity === 'number' && Number.isInteger(input.intensity) && input.intensity >= 1 && input.intensity <= 10
+        ? input.intensity
+        : null
+      : intensityOfEffort(input?.effort);
+  if (intensity == null) return { error: '얼마나 힘들었는지 1~10 중에서 골라 주세요.' };
   if (typeof input.sessionId !== 'string' || !input.sessionId) {
     return { error: '운동을 찾지 못했어요.' };
   }
@@ -586,13 +659,13 @@ export async function rateWorkoutEffort(input: {
     },
     select: { intensity: true },
   });
-  if (existing) return { ok: true, intensity: existing.intensity };
+  if (existing) return { ok: true, intensity: existing.intensity, existing: true };
 
-  const res = await saveTrainingNote(intensity, '', dateKey);
+  const res = await writeDailyNote(user.id, dateKey, intensity, null);
   if ('error' in res) return res;
   /* 힘듦은 날 종류(R2) · 홈 요약이 읽는다 — 다른 탭이 30초 옛 값을 보이지 않게 레이아웃째(맨 위 설명) */
   revalidatePath('/', 'layout');
-  return { ok: true, intensity };
+  return { ok: true, intensity: res.intensity, existing: false };
 }
 
 /* ---------------------------- 목록 고치기 ---------------------------- */

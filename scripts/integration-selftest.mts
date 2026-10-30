@@ -485,9 +485,12 @@ console.log(
   );
   check(
     '운동 마치기 — 아직 진행 중인 판일 때만 마친다(두 번 보내도 운동 시간이 한 번만 더해짐)',
+    /* 2026-10-30 — 닫는 쓰기를 closeSession 하나로 모으고 웹(finishWorkout) · 앱(finishSession)이 같이 부른다 */
     /updateMany\(\{\s*where: \{ id: session\.id, status: 'ACTIVE' \}/.test(
-      fnBody('app/actions/workout.ts', 'finishWorkout')
-    )
+      src('app/actions/workout.ts').slice(src('app/actions/workout.ts').indexOf('async function closeSession('), src('app/actions/workout.ts').indexOf('export async function finishWorkout'))
+    ) &&
+      /closeSession\(/.test(fnBody('app/actions/workout.ts', 'finishWorkout')) &&
+      /closeSession\(/.test(fnBody('app/actions/workout.ts', 'finishSession'))
   );
 }
 

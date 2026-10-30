@@ -883,6 +883,10 @@ export function programTodayOf(view: ProgramDayView): ProgramTodayInput | null {
 
 /** 트레이닝 카드(program-card.tsx)가 받는 것 — 날짜 · Json · 라이브러리 줄 없이 글과 숫자만 */
 export type ProgramCardProps = {
+  /** 프로그램 정의 id(카드 · 상세가 같은 프로그램인지 가른다) — 옛 프로그램 · 모르는 키면 null */
+  programId: string | null;
+  /** 고른 주당 횟수 */
+  perWeek: number;
   name: string;
   /** 기본기 4주인가 — 카드 머리가 '기본기 프로그램' */
   basics: boolean;
@@ -930,6 +934,15 @@ export type ProgramCardProps = {
     variant: VariantKey;
     /** 오늘만 바꾼 줄이면 원래 운동 — 줄에 '바꿈' 표시 · 시트에 '원래대로' */
     swappedFrom: { id: string; title: string } | null;
+    /**
+     * 세트마다의 목표(시안 05 세트 표) — 횟수 · '+'(할 수 있는 만큼) · 무게(% 방식이면 세트마다, 그 밖은 추천 하나를 같은 값으로 두지 않고 null).
+     * 처방 글(line)을 다시 읽어 만들지 않는다 — 그날 처방(ItemRx)에서 바로 옮긴다.
+     */
+    sets: { reps: number; plus: boolean; kg: number | null }[];
+    /** 좌우 각각 하는 운동 */
+    perSide: boolean;
+    /** 세트 사이 쉬는 시간(초) */
+    restSeconds: number;
   }[];
   dropped: { title: string; reason: string }[];
   pinned: { variant: VariantKey; label: string; title: string | null }[];
@@ -975,6 +988,8 @@ export function programCardProps(
   const plan = view.plan;
   const audience = audienceOf(plan.def);
   return {
+    programId: plan.def.id,
+    perWeek: plan.perWeek,
     name: plan.def.name,
     basics: audience === 'basics',
     subtitle: planSubtitle(plan),
@@ -1016,6 +1031,9 @@ export function programCardProps(
       thumbUrl: r.exercise.referenceVideoId ? referenceThumbUrl(r.exercise.referenceVideoId) : null,
       variant: r.variant,
       swappedFrom: r.swappedFrom,
+      sets: r.rx.sets.slice(0, r.sets).map((x, i) => ({ reps: x.reps, plus: x.plus === true, kg: r.kgs?.[i] ?? null })),
+      perSide: r.exercise.perSide === true,
+      restSeconds: r.rx.restSeconds,
     })),
     dropped: view.dropped.map((d) => ({ title: d.title, reason: d.reason })),
     pinned: usedVariants(plan.def).map((v) => ({

@@ -30,7 +30,7 @@ export async function loadAppWorkout(): Promise<
  * 갈 곳(to)을 돌려준다 — '/workout/run' 이면 앱이 운동 화면으로, 나머지는 웹으로. 마치기는 웹과 같은 workout.finishWarmup(→ '/workout/run').
  */
 export async function loadAppWarmup(): Promise<
-  { ok: true; themeLabel: string; cards: WarmupCard[] } | { ok: false; to: string }
+  { ok: true; themeLabel: string; cards: WarmupCard[]; sessionId: string; dateKey: string } | { ok: false; to: string }
 > {
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };

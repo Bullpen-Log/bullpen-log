@@ -21,8 +21,11 @@ export async function advanceProgramDay(sessionId: string): Promise<boolean> {
   const program = plan?.program ?? null;
   if (!plan || !program) return false;
 
+  /* 이 판을 연 회차(rowId) — 같은 프로그램을 다시 시작한 새 회차를 옛 판이 넘기지 않게(2026-10-30). 옛 판은 키로 */
   const row = await prisma.userTrainingProgram.findFirst({
-    where: { userId: session.userId, status: 'active', programKey: program.key },
+    where: program.rowId
+      ? { id: program.rowId, userId: session.userId, status: 'active' }
+      : { userId: session.userId, status: 'active', programKey: program.key },
     select: { id: true, nextDay: true },
   });
   if (!row) return false;

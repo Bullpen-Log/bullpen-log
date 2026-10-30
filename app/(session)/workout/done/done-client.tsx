@@ -21,6 +21,13 @@ export type DoneRow = {
   summary: ExerciseSummary;
   /** 오늘 지난 최고를 넘었으면 그 기록과 넘기 전 값 */
   record: (NewRecord & { before: number | null }) | null;
+  /**
+   * 그 운동의 실제 세트(원래 번호 · 무게 · 횟수 · 초 · 여유) — 앱 완료 화면(시안 09)의 세트 표. 요약(summary)의 최고 무게와 최빈 횟수는 서로 다른
+   * 세트일 수 있어 한 세트처럼 묶지 않는다 — 실제 조합은 이 표에서 본다. 웹은 아직 안 쓴다.
+   */
+  sets?: { setNo: number; weightKg: number | null; reps: number | null; holdSeconds: number | null; rir: number | null }[];
+  /** 수행량을 읽는 법 — 한 손 무게 · 좌우 각각 · 시간(유산소는 분) · 무게 필수. 목록에서 뺀 운동은 라이브러리 값 */
+  meta?: { perHand: boolean; perSide: boolean; isHold: boolean; inMinutes: boolean; needsWeight: boolean };
 };
 
 /** 기록 값을 사람 말로 — 102.5kg · 15회 · 1분 05초 */

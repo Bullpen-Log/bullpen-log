@@ -1,5 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
+import { type Href, router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Thumb } from '~/lib/thumb';
@@ -109,14 +110,15 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
       {going && !finishedToday && !p.canStart ? (
         <Text style={[s.body, { color: c.muted }]}>오늘은 할 수 있는 운동이 없어요. 뺀 까닭은 아래에 있어요.</Text>
       ) : null}
+      {/*
+        하는 날 — 운동 중이면 바로 이어 가고, 아니면 오늘 운동 준비(2026-10-30 시안 05)에서 목록 · 무게를 확인한 뒤 [운동 시작](판은 거기서 연다)
+      */}
       {going && !finishedToday && p.canStart ? (
-        <BigButton
-          c={c}
-          icon="play.fill"
-          label={p.todayState === 'active' ? '운동 이어서 하기' : '운동 시작'}
-          busy={a.starting}
-          onPress={() => a.start(true)}
-        />
+        p.todayState === 'active' ? (
+          <BigButton c={c} icon="play.fill" label="운동 이어서 하기" busy={a.starting} onPress={() => a.start(true)} />
+        ) : (
+          <BigButton c={c} label="오늘 운동 확인" onPress={() => router.push('/training/program-today' as Href)} />
+        )
       ) : null}
       {p.kind === 'needCheckin' ? <BigButton c={c} label="체크인 하기" onPress={a.checkin} /> : null}
 

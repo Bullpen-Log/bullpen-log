@@ -21,7 +21,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AMOUNT_LIMITS, WEIGHT_STEP, formatSeconds, storedKg } from '@/lib/exercise-meta';
 import {
   asksReserve as asksReserveFor,
-  finishLine,
   isOptionalProgramExercise,
   setsNeeded,
   warmupLine,
@@ -42,12 +41,14 @@ import { consumeOrgReturn } from '~/org/space-store';
 import { REST_DAY } from '~/training/rest-day';
 import { prefetchWorkoutDone } from '~/workout/done-prefetch';
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
-import { drainOutbox, onSent, outbox, withPending, type ShownSet } from '~/workout/outbox';
+import { drainOutbox, onSent, outbox, outboxOwner, withPending, type ShownSet } from '~/workout/outbox';
 import { NoteBox, NumberPad, RestPill, RirQuestion, SetDots, clockText } from '~/workout/parts';
 import { useLiveActivity } from '~/shell/live-activity';
 import { ExerciseMedia } from '~/armcare/parts';
 import { HistoryPanel } from '~/training/history';
-import { FinishSheet, ListSheet, SwapSheet } from '~/workout/sheets';
+import { ListSheet, Sheet, SwapSheet } from '~/workout/sheets';
+import { FinishSheet, type FinishPhase, type FinishProgram } from '~/workout/finish-sheet';
+import type { FinishReceipt } from '@/lib/workout/finish';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { READABLE, useBarSide } from '~/lib/layout';
 import { Press } from '~/shell/press';
@@ -238,6 +239,30 @@ function LiveRestPill({ since, target, c }: { since: string; target: number | nu
 
 const tick = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
+/**
+ * 본운동 경과 — 1초마다 다시 그리는 것은 이 글자뿐(화면 전체 · 입력 · 영상은 그대로). 앱으로 돌아오면 시각으로 다시 맞춘다. 화면 읽기는 초마다 알리지
+ * 않는다(포커스할 때만 읽힌다).
+ */
+function Elapsed({ since, c }: { since: number; c: Palette }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') setNow(Date.now());
+    });
+    return () => {
+      clearInterval(id);
+      sub.remove();
+    };
+  }, []);
+  const sec = Math.max(0, Math.floor((now - since) / 1000));
+  return (
+    <Text accessibilityLabel={`본운동 ${Math.floor(sec / 60)}분`} style={{ color: c.muted, fontSize: 11, fontVariant: ['tabular-nums'] }}>
+      · {clockText(sec)}
+    </Text>
+  );
+}
+
 /* ----------------------------- 본체 ----------------------------- */
 
 function Run({
@@ -248,6 +273,7 @@ function Run({
   initialSets,
   openedAt,
   priorSeconds,
+  dailyNote = null,
   c,
 }: RunPayload & { c: Palette }) {
   const inset = useSafeAreaInsets();
@@ -278,7 +304,18 @@ function Run({
   const openSheet = (which: 'list' | 'swap' | 'finish') => setSheet((p) => ({ which, n: p.n + 1 }));
   const closeSheet = () => setSheet((p) => ({ ...p, which: null }));
   const [finishError, setFinishError] = useState<string | null>(null);
-  const [ending, setEnding] = useState(false);
+  /* 마치기의 처리 상태 — busy(보내는 중) · unknown(답을 못 받음) · checking(판 상태를 묻는 중). 이 동안 입력은 잠기고 초안은 남는다 */
+  const [phase, setPhase] = useState<FinishPhase>('idle');
+  const ending = phase !== 'idle';
+  /* 마치기 창의 강도 · 메모 초안 — 창을 닫고 운동으로 돌아가도 남는다(이 판 · 이 계정에 묶어 폰에도) */
+  const [finishDraft, setFinishDraft] = useState<{ intensity: number | null; memo: string }>({ intensity: null, memo: '' });
+  /* 지금 운동 메뉴(즐겨찾기 · 바꾸기/더하기 · 마치기) */
+  const [menu, setMenu] = useState(false);
+  const [finishMinutes, setFinishMinutes] = useState(0);
+  /* 처방 세트를 다 채운 운동에서 '세트 더 하기'를 누른 운동 — 그때만 큰 단추가 다시 세트 완료 */
+  const [extra, setExtra] = useState<ReadonlySet<string>>(new Set());
+  /* 폰 저장소에 못 쓴 상태(~/workout/outbox) — 메모리에만 있는 세트를 '폰에 저장해 두었다'고 말하지 않게 */
+  const persistFailed = useSyncExternalStore(outbox.subscribe, outbox.persistFailed);
   const [listError, setListError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   /* 숫자판은 누를 때만 올린다 — 늘 펴 두면 방금 남긴 세트 · 쉰 시간이 밀려난다 */
@@ -321,6 +358,29 @@ function Run({
   useEffect(() => {
     void AsyncStorage.setItem(atKey(sessionId), ex.id).catch(() => undefined);
   }, [sessionId, ex.id]);
+
+  /* 마치기 초안 — 이 판 · 이 계정 것만 되살린다(다른 계정 · 다른 판의 초안이 섞이지 않게) */
+  const draftKey = `bullpen-workout-finish:${outboxOwner() ?? 'anon'}:${sessionId}`;
+  useEffect(() => {
+    AsyncStorage.getItem(draftKey).then(
+      (raw) => {
+        if (!raw) return;
+        const d = JSON.parse(raw) as { intensity?: unknown; memo?: unknown };
+        setFinishDraft({
+          intensity: typeof d.intensity === 'number' && Number.isInteger(d.intensity) && d.intensity >= 1 && d.intensity <= 10 ? d.intensity : null,
+          memo: typeof d.memo === 'string' ? d.memo.slice(0, 1000) : '',
+        });
+      },
+      () => undefined
+    );
+  }, [draftKey]);
+  const updateFinishDraft = (next: { intensity: number | null; memo: string }) => {
+    setFinishDraft(next);
+    void (next.intensity == null && next.memo === ''
+      ? AsyncStorage.removeItem(draftKey)
+      : AsyncStorage.setItem(draftKey, JSON.stringify(next))
+    ).catch(() => undefined);
+  };
 
   /* 자판(메모 쓰기)이 떠 있는 동안 아래 막대를 감춘다 — 그 막대에는 자판으로 넣는 칸이 없고, 쓰는 메모가 가려진다(웹과 같다) */
   useEffect(() => {
@@ -387,17 +447,18 @@ function Run({
     for (const x of sets) counts.set(x.exerciseId, (counts.get(x.exerciseId) ?? 0) + 1);
     return counts;
   }, [sets]);
-  /* 프로그램 날의 끝내기 한 줄 — 처방 세트 절반 · 아직 안 답한 '몇 개 더?'(웹과 같은 셈) */
-  const programFinish = useMemo(() => {
+  /* 프로그램 날의 마치기 안내 — 처방 세트 절반 · 아직 안 답한 '몇 개 더?'(lib/program/advance.ts 와 같은 셈 — 최종 판정은 서버) */
+  const programFinish = useMemo<FinishProgram>(() => {
     if (programDay == null) return null;
-    /* 선택 운동(메디신볼 던지기)은 세지 않는다 — lib/program/advance.ts 와 같은 셈 */
+    /* 선택 운동(메디신볼 던지기)은 세지 않는다 */
     const slotted = list.filter((e) => e.programSlot && !isOptionalProgramExercise(e));
     const planned = slotted.reduce((n, e) => n + (e.plannedSets ?? 0), 0);
     const logged = sets.filter((x) => slotted.some((e) => e.id === x.exerciseId)).length;
     const unanswered = slotted
       .filter((e) => asksReserve(e) && sets.some((x) => x.exerciseId === e.id && x.setNo === e.plannedSets && x.rir == null))
-      .map((e) => e.title);
-    return { line: finishLine(programDay, planned, logged), reached: logged >= setsNeeded(planned), unanswered };
+      .map((e) => ({ exerciseId: e.id, title: e.title, setNo: e.plannedSets as number }));
+    const needed = setsNeeded(planned);
+    return { planned, logged, needed, reached: planned > 0 && logged >= needed, day: programDay, unanswered };
   }, [programDay, list, sets]);
   const record = useMemo(() => newRecord(ex, mine, ex.best), [ex, mine]);
 
@@ -447,13 +508,21 @@ function Run({
     };
   }, [flush]);
 
-  /* 운동을 옮기면 입력칸을 비우고 위로 올린다 */
+  /*
+   * 운동마다 아직 안 남긴 입력 — 다른 운동으로 갔다 돌아오면 그대로, 다른 운동에는 넘기지 않는다(시안 07). 고치던 세트는 초안이 아니다
+   * (고치기는 그 세트의 값이라) — 옮길 때 고치기를 그만두고 고치기 전 초안을 남긴다.
+   */
+  const drafts = useRef(new Map<string, { weight: string; count: string; field: 'weight' | 'count' }>());
+  /* 운동을 옮기면 그 운동의 초안(없으면 빈칸)으로 바꾸고 위로 올린다 */
   const goTo = (next: number, from: RunExercise[] = list) => {
     const i = Math.min(from.length - 1, Math.max(0, next));
+    drafts.current.set(ex.id, editing ? editing.draft : { weight, count, field });
+    const target = from[i];
+    const back = drafts.current.get(target.id);
     setAt(i);
-    setWeight('');
-    setCount('');
-    setField(from[i].needsWeight ? 'weight' : 'count');
+    setWeight(back?.weight ?? '');
+    setCount(back?.count ?? '');
+    setField(back?.field ?? (target.needsWeight ? 'weight' : 'count'));
     setPad(false);
     setError(null);
     setEditing(null);
@@ -628,7 +697,11 @@ function Run({
     const q = askRir;
     setAskRir(null);
     if (!q || n == null) return;
-    const t = sets.find((x) => x.exerciseId === q.exerciseId && x.setNo === q.setNo);
+    answerRirFor(q.exerciseId, q.setNo, n);
+  };
+  /** 같은 세트(판 · 운동 · 번호)를 무게 · 횟수 · 시각 그대로 '몇 개 더?'만 붙여 다시 담는다 — 0 도 답이다(null 은 미응답) */
+  const answerRirFor = (exerciseId: string, setNo: number, n: number) => {
+    const t = sets.find((x) => x.exerciseId === exerciseId && x.setNo === setNo);
     if (!t) return;
     tick();
     outbox.add({
@@ -708,43 +781,137 @@ function Run({
     }
   };
 
-  /* 마지막 운동의 처방 세트를 다 남겼으면 큰 단추가 [운동 종료](2026-10-12 사용자) */
-  const allDone = at === list.length - 1 && editIndex < 0 && (ex.plannedSets ?? 1) > 0 && mine.length >= (ex.plannedSets ?? 1);
+  /*
+   * 처방 세트를 다 남긴 운동 — 큰 단추가 [다음 운동](마지막이면 [운동 마치기]), 세트를 더 하려면 따로 '세트 더 하기'(시안 07). 저절로 넘기지 않는다.
+   * 처방이 없는 운동(직접 넣은 운동)은 늘 세트 완료.
+   */
+  const targetMet = editIndex < 0 && ex.plannedSets != null && ex.plannedSets > 0 && mine.length >= ex.plannedSets && !extra.has(ex.id);
+  const allDone = targetMet && at === list.length - 1;
+  const nextExercise = () => goTo(at + 1);
   const openFinish = () => {
-    setFinishError(null);
+    if (phase === 'idle') setFinishError(null);
+    /* 마치기 창을 연 때의 본운동 시간(창 안에서는 멈춘 숫자 — 최종 값은 서버가 다시 셈) */
+    setFinishMinutes(Math.max(0, Math.round((priorSeconds * 1000 + (Date.now() - Date.parse(openedAt))) / 60000)));
     openSheet('finish');
     /* 못 보낸 세트가 있으면 지금 한 번 더 보내 본다 */
     void flush();
   };
 
-  const finish = async (intensity: number | null, memo: string) => {
-    setFinishError(null);
-    setEnding(true);
+  /* 마쳤다 — 축하 화면(09)으로 바꿔 넣는다(뒤로 가기로 닫힌 운동 화면에 돌아가지 않게). 초안은 지운다 */
+  const finished = (receipt: FinishReceipt) => {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    void AsyncStorage.removeItem(draftKey).catch(() => undefined);
+    closeSheet();
+    prefetchWorkoutDone(receipt.sessionId);
+    router.replace(`/workout-done?id=${receipt.sessionId}&fresh=1` as Href);
+  };
+
+  /** 판 상태부터 본다(답을 못 받았을 때) — 마쳤으면 완료로, 아직 열려 있으면 같은 제출로 다시 마칠 수 있게, 못 물으면 미확인 그대로 */
+  const checkFinish = async () => {
+    setPhase('checking');
     try {
-      const res = await rpc<{ error: string } | null>('workout.finishWorkout', { sessionId, intensity, memo });
-      /* 성공하면 서버가 축하 화면으로 보낸다(redirect) — 답이 그냥 오면 실패한 것 */
-      if (res && 'error' in res) setFinishError(res.error);
-      setEnding(false);
-    } catch (e) {
-      if (e instanceof RpcError && e.code === 'redirect') {
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        closeSheet();
-        /*
-         * 앞서 누른 마치기가 서버에선 됐는데 답만 못 받았으면, 다시 누를 때 판이 이미 닫혀 서버가 트레이닝으로 보낸다 — 그때도 마친 것이니
-         * 축하 화면으로(이 판 번호로)
-         */
-        const to = e.to && !e.to.startsWith('/training') ? e.to : `/workout/done?id=${sessionId}`;
-        /* 축하 화면은 앱 화면으로(판 7) — 이 화면을 바꿔서, 웹을 거치지 않고 */
-        const doneId = /^\/workout\/done\?id=([\w-]+)/.exec(to)?.[1];
-        if (doneId) {
-          prefetchWorkoutDone(doneId);
-          return router.replace(`/workout-done?id=${doneId}` as Href);
-        }
-        return leave(to);
+      const st = await rpc<{ state: 'ACTIVE' | 'ABANDONED' | 'missing' } | { state: 'FINISHED'; receipt: FinishReceipt }>('workout.finishStatus', { sessionId });
+      if (st.state === 'FINISHED') return finished(st.receipt);
+      if (st.state === 'ACTIVE') {
+        setPhase('idle');
+        setFinishError('운동은 아직 열려 있어요. 적은 내용 그대로 다시 마칠 수 있어요.');
+        return;
       }
-      setEnding(false);
-      setFinishError('신호가 약해 마치지 못했어요. 신호가 잡히면 다시 눌러 주세요.');
+      setPhase('idle');
+      closeSheet();
+      return leave(TRAINING_HOME_HREF);
+    } catch (e) {
+      if (e instanceof RpcError && e.code === 'redirect') return leave(e.to ?? '/login');
+      setPhase('unknown');
     }
+  };
+
+  const finish = async () => {
+    if (phase !== 'idle') return;
+    setFinishError(null);
+    setPhase('busy');
+    try {
+      const res = await rpc<{ ok: true; receipt: FinishReceipt } | { error: string; state: 'active' | 'missing' | 'closed' }>('workout.finishSession', {
+        sessionId,
+        intensity: finishDraft.intensity,
+        memo: finishDraft.memo.trim() || null,
+      });
+      if ('ok' in res) return finished(res.receipt);
+      setPhase('idle');
+      if (res.state === 'missing' || res.state === 'closed') {
+        closeSheet();
+        Alert.alert(res.error);
+        return leave(TRAINING_HOME_HREF);
+      }
+      setFinishError(res.error);
+    } catch (e) {
+      if (e instanceof RpcError && e.code === 'redirect') return leave(e.to ?? '/login');
+      /* 서버가 닫았는데 답만 못 받았을 수 있다 — 다시 마치기 전에 판 상태부터(같은 초안) */
+      setPhase('unknown');
+      void checkFinish();
+    }
+  };
+
+  /**
+   * '이 세트 빼고 마치기'(시안 08 예외) — 가는 중인 보내기를 기다리고, 서버가 가진 세트와 같은 열쇠로 견준 뒤 서버에 이미 있는 세트는 대기열에서만
+   * 걷고(보낸 것으로), 서버에 없는 것만 뺀다. 견줄 수 없으면(신호 없음) 아무것도 빼지 않는다.
+   */
+  const excludeAndFinish = () => {
+    const mineP = pending;
+    const lines = mineP.map((p) => `${list.find((e) => e.id === p.exerciseId)?.title ?? '운동'} ${p.setNo}번 세트`).join('\n');
+    Alert.alert(`세트 ${mineP.length}개를 빼고 마칠까요?`, `${lines}\n\n서버에 이미 들어간 세트는 그대로 남기고, 없는 세트만 빼요. 뺀 세트는 되돌릴 수 없어요.`, [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '빼고 마치기',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setPhase('busy');
+            setFinishError(null);
+            await flush();
+            await outbox.idle();
+            let server: SavedSet[];
+            try {
+              const r = await rpc<{ sets: SavedSet[] } | { error: string }>('workout.sessionSets', { sessionId });
+              if ('error' in r) throw new Error(r.error);
+              server = r.sets;
+            } catch {
+              setPhase('idle');
+              setFinishError('서버에 있는 세트를 확인하지 못해 아무것도 빼지 않았어요. 신호가 잡히면 다시 해 주세요.');
+              return;
+            }
+            const now = outbox.snapshot().filter((p) => p.sessionId === sessionId);
+            for (const p of now) {
+              const there = server.find((x) => x.exerciseId === p.exerciseId && x.setNo === p.setNo);
+              const same =
+                there &&
+                there.weightKg === p.weightKg &&
+                there.reps === p.reps &&
+                there.holdSeconds === p.holdSeconds &&
+                (p.rir === undefined || (there.rir ?? null) === p.rir);
+              if (same) {
+                outbox.remove(p);
+                continue;
+              }
+              outbox.drop(p);
+              try {
+                const d = await rpc<SetResult>('workout.deleteSet', { sessionId, exerciseId: p.exerciseId, setNo: p.setNo });
+                if (!('error' in d)) server = d.sets;
+              } catch {
+                /* 지우기를 못 보냈다 — 서버에 다른 값이 남았을 수 있다. 마치지 않고 알린다 */
+                setPhase('idle');
+                setSaved(server);
+                setFinishError('세트를 빼는 중에 신호가 끊겼어요. 다시 해 주세요.');
+                return;
+              }
+            }
+            setSaved(server);
+            setPhase('idle');
+            void finish();
+          })();
+        },
+      },
+    ]);
   };
 
   const fields = [
@@ -780,9 +947,12 @@ function Run({
               </Text>
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={1} style={[s.tiny, { color: c.muted }]}>
-                {themeLabel}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text numberOfLines={1} style={[s.tiny, { color: c.muted, flexShrink: 1 }]}>
+                  {themeLabel}
+                </Text>
+                <Elapsed since={startedMs} c={c} />
+              </View>
               <View style={s.segments}>
                 {list.map((item, i) => {
                   const n = setCounts.get(item.id) ?? 0;
@@ -801,36 +971,46 @@ function Run({
           </Press>
         </View>
 
-        {/* 못 보낸 세트가 있을 때만 — 신호가 없다는 것과 세트는 안전하다는 것을 같이 말한다 */}
+        {/*
+          못 보낸 세트가 있을 때만. 폰 저장소에 쓴 것이 확인된 때만 '폰에 저장해 두었다'고 말한다 — 저장소 쓰기가 실패하면 메모리에만 있어
+          앱을 닫으면 사라질 수 있다(시안 07 '이 기기 저장 실패')
+        */}
         {pending.length > 0 ? (
-          <View accessibilityRole="alert" style={[s.banner, { backgroundColor: offline ? c.warnBg : c.chip, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
-            {/* 웹과 같은 구름 끊김 그림 · 주의색 — 잃은 것이 아니라 기다리는 것이라 빨강이 아니다 */}
-            <SymbolView name="icloud.slash" size={16} tintColor={offline ? c.warn : c.muted} />
-            <Text style={[s.small, { flex: 1, color: offline ? c.warn : c.muted }]}>
-              {offline
-                ? `신호가 없어요. 세트 ${pending.length}개를 폰에 저장해 두었고, 신호가 잡히면 저절로 보내요.`
-                : `세트 ${pending.length}개 보내는 중…`}
+          <View accessibilityRole="alert" style={[s.banner, { backgroundColor: persistFailed ? c.danger + '14' : offline ? c.warnBg : c.chip, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+            <SymbolView name="icloud.slash" size={16} tintColor={persistFailed ? c.danger : offline ? c.warn : c.muted} />
+            <Text style={[s.small, { flex: 1, color: persistFailed ? c.danger : offline ? c.warn : c.muted }]}>
+              {persistFailed
+                ? `세트 ${pending.length}개를 이 기기에 저장하지 못했어요. 앱을 닫으면 사라질 수 있어요.`
+                : offline
+                  ? `신호가 없어요. 세트 ${pending.length}개를 폰에 저장해 두었고, 신호가 잡히면 저절로 보내요.`
+                  : `세트 ${pending.length}개 보내는 중…`}
             </Text>
+            {persistFailed ? (
+              <Press onPress={() => void outbox.retryPersist().then(() => flush())} accessibilityRole="button" style={s.textBtn}>
+                <Text style={[s.smallBold, { color: c.link }]}>다시 저장</Text>
+              </Press>
+            ) : null}
           </View>
         ) : null}
 
         <ScrollView ref={scrollRef} style={s.fill} contentContainerStyle={[s.content, READABLE]} keyboardShouldPersistTaps="handled">
           <Text style={[s.smallBold, { color: c.muted }]}>{ex.category}</Text>
           <View style={s.titleRow}>
-            <Text style={[s.title, { color: c.ink }]}>{ex.title}</Text>
+            <Text style={[s.title, { color: c.ink }]}>
+              {ex.title}
+              {favorites.has(ex.id) ? <Text style={{ color: c.link, fontSize: 18 }}> ★</Text> : null}
+            </Text>
+            {/* 지금 운동 메뉴 — 즐겨찾기 · 교체(기록 전) / 추가(기록 후) · 운동 마치기(시안 07: 자주 하는 세트 기록을 앞에 두고 나머지는 한 곳에) */}
             <Press
-              onPress={() => void toggleStar()}
+              onPress={() => setMenu(true)}
               disabled={starring}
               accessibilityRole="button"
-              accessibilityState={{ selected: favorites.has(ex.id) }}
-              accessibilityLabel={favorites.has(ex.id) ? '즐겨찾기에서 빼기' : '즐겨찾기에 담기'}
-              style={s.iconBtn}
+              accessibilityLabel={`${ex.title} 메뉴`}
+              style={[s.iconBtn, { marginTop: 2 }]}
             >
-              <SymbolView name={favorites.has(ex.id) ? 'star.fill' : 'star'} size={24} tintColor={favorites.has(ex.id) ? c.sky : c.muted} />
-            </Press>
-            {/* 세트를 남긴 운동이면 [추가] — 하던 운동은 두고 바로 뒤에 더한다 */}
-            <Press onPress={() => openSheet('swap')} accessibilityRole="button" style={[s.chipBtn, { backgroundColor: c.card }]}>
-              <Text style={[s.smallBold, { color: c.ink }]}>{mine.length > 0 ? '＋ 추가' : '⇄ 교체'}</Text>
+              <View style={[s.circle, { backgroundColor: c.chip, width: 36, height: 36, borderRadius: 18 }]}>
+                <Icon name="ellipsis" size={18} color={c.ink} />
+              </View>
             </Press>
           </View>
           {ex.prescription ? (
@@ -1089,15 +1269,30 @@ function Run({
 
                 {/* 서버를 기다리지 않는다 — 폰에 담는 순간 끝난다 */}
                 <Pressable
-                  onPress={tapOnce(allDone ? openFinish : save)}
+                  onPress={targetMet && !allDone ? nextExercise : tapOnce(allDone ? openFinish : save)}
                   disabled={allDone && ending}
                   accessibilityRole="button"
                   style={({ pressed }) => [s.big, { height: pad && short ? 64 : 72, backgroundColor: c.action, opacity: pressed ? 0.85 : 1 }]}
                 >
-                  <Text style={s.bigText}>
-                    {editIndex >= 0 ? `✎ ${editIndex + 1}세트 고치기` : allDone ? '✓ 운동 종료' : `✓ ${mine.length + 1}세트 완료`}
+                  <Text numberOfLines={1} style={[s.bigText, { paddingHorizontal: 16 }]}>
+                    {editIndex >= 0
+                      ? `✎ ${editIndex + 1}세트 고치기`
+                      : allDone
+                        ? '운동 마치기'
+                        : targetMet
+                          ? `다음 운동 · ${list[at + 1]?.title ?? ''}`
+                          : `✓ ${mine.length + 1}세트 완료`}
                   </Text>
                 </Pressable>
+                {targetMet ? (
+                  <Press
+                    onPress={() => setExtra((prev) => new Set(prev).add(ex.id))}
+                    accessibilityRole="button"
+                    style={[s.fillBtn, { alignSelf: 'center' }]}
+                  >
+                    <Text style={[s.smallBold, { color: c.link }]}>＋ 세트 더 하기</Text>
+                  </Press>
+                ) : null}
               </>
             )}
 
@@ -1164,38 +1359,90 @@ function Run({
         key={`finish-${sheet.n}`}
         open={sheet.which === 'finish'}
         sets={sets}
-        startedAt={openedAt}
-        priorSeconds={priorSeconds}
-        pendingCount={pending.length}
+        exercises={list}
+        minutes={finishMinutes}
+        pending={pending}
+        offline={offline}
+        persistFailed={persistFailed}
         program={programFinish}
-        busy={ending}
+        phase={phase}
         error={finishError}
-        onFinish={(i, m) => void finish(i, m)}
-        onDropAndFinish={(i, m) =>
-          Alert.alert('못 보낸 세트를 빼고 마칠까요?', `세트 ${pending.length}개는 기록에 남지 않아요. 되돌릴 수 없어요.`, [
-            { text: '취소', style: 'cancel' },
-            {
-              text: '빼고 마치기',
-              style: 'destructive',
-              onPress: () => {
-                for (const p of pending) outbox.drop(p);
-                void finish(i, m);
-              },
-            },
-          ])
-        }
+        intensity={finishDraft.intensity}
+        memo={finishDraft.memo}
+        dailyNote={dailyNote}
+        unit={wUnit}
+        onIntensity={(v) => updateFinishDraft({ ...finishDraft, intensity: v })}
+        onMemo={(t) => updateFinishDraft({ ...finishDraft, memo: t })}
+        onRir={(id, no, n) => answerRirFor(id, no, n)}
+        onRetrySend={() => void outbox.retryPersist().then(() => flush())}
+        onExclude={excludeAndFinish}
+        onFinish={() => void finish()}
+        onCheck={() => void checkFinish()}
         onClose={() => {
+          if (phase === 'busy' || phase === 'checking') return;
           closeSheet();
-          setFinishError(null);
+          if (phase === 'idle') setFinishError(null);
         }}
         c={c}
       />
+      {/* 지금 운동 메뉴 */}
+      <Sheet fit open={menu} onClose={() => setMenu(false)} title={ex.title} c={c}>
+        <View style={{ gap: 4 }}>
+          <MenuRow
+            icon="star"
+            label={favorites.has(ex.id) ? '즐겨찾기에서 빼기' : '즐겨찾기에 담기'}
+            onPress={() => {
+              setMenu(false);
+              void toggleStar();
+            }}
+            c={c}
+          />
+          {/* 세트를 남긴 운동이면 [추가] — 하던 운동은 두고 바로 뒤에 더한다 */}
+          <MenuRow
+            icon={mine.length > 0 ? 'plus' : 'arrow-left-right'}
+            label={mine.length > 0 ? '운동 추가' : '운동 바꾸기'}
+            onPress={() => {
+              setMenu(false);
+              openSheet('swap');
+            }}
+            c={c}
+          />
+          <MenuRow
+            icon="list"
+            label="오늘 운동 목록"
+            onPress={() => {
+              setMenu(false);
+              openSheet('list');
+            }}
+            c={c}
+          />
+          <MenuRow
+            icon="circle-check"
+            label="운동 마치기"
+            onPress={() => {
+              setMenu(false);
+              openFinish();
+            }}
+            c={c}
+          />
+        </View>
+      </Sheet>
     </View>
+  );
+}
+
+function MenuRow({ icon, label, onPress, c }: { icon: 'star' | 'plus' | 'arrow-left-right' | 'list' | 'circle-check'; label: string; onPress: () => void; c: Palette }) {
+  return (
+    <Press onPress={onPress} accessibilityRole="button" style={[s.menuRow, { backgroundColor: c.card }]}>
+      <Icon name={icon} size={18} color={c.ink} />
+      <Text style={[s.bodyBold, { color: c.ink, flex: 1 }]}>{label}</Text>
+    </Press>
   );
 }
 
 const s = StyleSheet.create({
   fill: { flex: 1 },
+  menuRow: { minHeight: 52, borderRadius: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   centerBox: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   header: {
     flexDirection: 'row',

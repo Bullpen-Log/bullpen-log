@@ -39,12 +39,39 @@ export const outboxOwner = () => owner;
 const dropped = new Set<string>();
 const listeners = new Set<() => void>();
 
+/**
+ * 폰 저장소 쓰기가 실패했는가 — 실패하면 세트는 메모리에만 있다(앱을 닫으면 사라질 수 있다). 화면은 이것으로 '신호 기다림'과 '이 기기에
+ * 저장 못 함'을 가른다(2026-10-30 시안 07 — 메모리에만 있는 세트를 '폰에 안전하게 저장'이라고 말하지 않게). 다음 쓰기가 되면 풀린다.
+ */
+let persistFailed = false;
+/* 쓰기 차례 — 늦게 끝난 앞 쓰기가 새 목록을 옛 목록으로 덮지 않게 하나씩 */
+let writing: Promise<void> = Promise.resolve();
+
+function persist() {
+  writing = writing.then(async () => {
+    const now = items;
+    try {
+      if (now.length) await AsyncStorage.setItem(KEY, JSON.stringify(now));
+      else await AsyncStorage.removeItem(KEY);
+      if (persistFailed) {
+        persistFailed = false;
+        listeners.forEach((l) => l());
+      }
+    } catch {
+      /* 못 쓰면 메모리에만 — 이 화면을 닫기 전까지는 똑같이 보낸다. 화면이 알린다 */
+      if (!persistFailed) {
+        persistFailed = true;
+        listeners.forEach((l) => l());
+      }
+    }
+  });
+  return writing;
+}
+
 function set(next: readonly Stored[]) {
   items = next;
   listeners.forEach((l) => l());
-  void (next.length ? AsyncStorage.setItem(KEY, JSON.stringify(next)) : AsyncStorage.removeItem(KEY)).catch(() => {
-    /* 못 쓰면 메모리에만 — 이 화면을 닫기 전까지는 똑같이 보낸다 */
-  });
+  void persist();
 }
 
 const isPending = (v: unknown): v is PendingSet => {
@@ -93,12 +120,20 @@ export const outbox = {
     if (items.some((x) => same(x, k))) set(items.filter((x) => !same(x, k)));
   },
   isDropped: (k: SetKey) => dropped.has(keyText(k)),
+  /** 폰 저장소에 못 쓴 상태인가 — subscribe 로 바뀜을 듣는다 */
+  persistFailed: () => persistFailed,
+  /** 저장소 쓰기를 다시 해 본다 — 되면 풀린다 */
+  retryPersist: () => persist().then(() => !persistFailed),
+  /** 보내는 중인 것이 끝날 때까지 — 마치기 창이 '못 보낸 세트'를 견주기 전에 가는 중인 보내기를 기다린다 */
+  idle: (): Promise<void> => drainRun,
   remove(k: SetKey) {
     if (items.some((x) => same(x, k))) set(items.filter((x) => !same(x, k)));
   },
 };
 
 let draining = false;
+/** 지금 도는 보내기(없으면 끝난 약속) — outbox.idle 이 기다린다 */
+let drainRun: Promise<void> = Promise.resolve();
 /** 같은 세트에서 서버 오류가 난 횟수 — 여덟이면 거절로 본다(메모리만, 앱을 다시 켜면 다시 센다) */
 const serverFails = new Map<string, number>();
 /* 여덟 번(운동 화면은 15초마다 — 약 2분) — 배포 중 잠깐 나는 오류로 세트를 버리지 않을 만큼 */
@@ -125,6 +160,8 @@ export async function drainOutbox<R>(
 ): Promise<'done' | 'offline' | 'busy'> {
   if (draining) return 'busy';
   draining = true;
+  let finish: () => void = () => undefined;
+  drainRun = new Promise<void>((r) => (finish = r));
   try {
     await loaded;
     /* 지금 계정을 모르면 보내지 않는다 — 계정 없이 담은 줄이 다른 사람 쿠키로 나갈 수 있다(2026-10-18 통합 점검). 다음 기회에 */
@@ -166,6 +203,7 @@ export async function drainOutbox<R>(
     }
   } finally {
     draining = false;
+    finish();
   }
 }
 

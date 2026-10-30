@@ -46,6 +46,7 @@
     "time-zone:test": "node --import ./scripts/alias-register.mjs scripts/time-zone-selftest.mts",
     "shared-lib:test": "node scripts/shared-lib-selftest.mts",
     "program:test": "node --import ./scripts/alias-register.mjs scripts/program-selftest.mts",
+    "program-workout:test": "node --import ./scripts/alias-register.mjs scripts/program-workout-selftest.mts",
     "pitch-lab:test": "node --import ./scripts/alias-register.mjs scripts/pitch-lab-selftest.mts",
     "release-access:test": "node --import ./scripts/alias-register.mjs scripts/release-access-selftest.mts",
     "release-gate:test": "node --import ./scripts/alias-register.mjs scripts/release-gate-test.mjs",

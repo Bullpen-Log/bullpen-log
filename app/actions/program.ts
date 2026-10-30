@@ -30,13 +30,17 @@ import {
   pickPinned,
   pinnedJson,
   programDef,
+  programOutline,
   readDaySwaps,
   readPinned,
   startProgramKey,
   usedVariants,
   variantCandidates,
+  variantKindOf,
   variantLabel,
   weekOfDay,
+  type PerWeek,
+  type VariantKind,
   type Pinned,
   type VariantKey,
 } from '@/lib/program/program';
@@ -66,8 +70,22 @@ export async function startProgram(input: {
   birthDate?: string | null;
   trainingLevel?: string | null;
   ownedEquipment?: string[] | null;
-  pinned?: Record<string, string> | null;
-}): Promise<Result> {
+  /** 고른 운동 — 칸 → 운동 id. 확인 화면에서 '없음'으로 본 칸은 null 로 보낸다 */
+  pinned?: Record<string, string | null> | null;
+  /**
+   * 이 등록 요청의 번호(앱이 만든다, 2026-10-30 시안 04). 같은 번호로 다시 보내면(응답 유실 · 두 번 누름) 새로 만들지 않고 처음 것을 돌려준다.
+   * 결과 조회(loadProgramStartStatus)도 이 번호로 한다. 옛 화면은 안 보낸다 — 그때는 예전처럼.
+   */
+  requestId?: string | null;
+  /**
+   * 사람이 운동 구성을 확인했다(시안 03 · 04) — 서버가 같은 조건으로 다시 고른 구성이 보낸 것과 다르면(장비 · 경력 · 후보가 그새 바뀜)
+   * 조용히 다른 구성으로 등록하지 않고 code 'changed' 와 바뀐 칸을 돌려준다.
+   */
+  confirm?: boolean;
+}): Promise<
+  | { ok: true; programKey: string; same?: boolean }
+  | { error: string; code?: 'changed' | 'exists' | 'busy'; changed?: { variant: VariantKey; label: string; from: string | null; to: string | null }[] }
+> {
   if (!PROGRAMS_ENABLED) return { error: '지금은 프로그램을 시작할 수 없어요.' };
   const programKey = startProgramKey(input.programId, input.perWeek);
   const def = programDef(input.programId);
@@ -112,6 +130,9 @@ export async function startProgram(input: {
     return { error: eligible.kind === 'ask' ? eligible.message : eligible.reason };
   }
 
+  const requestId =
+    typeof input.requestId === 'string' && /^[\w-]{8,64}$/.test(input.requestId) ? input.requestId : null;
+
   /* 고정 운동 — 보낸 것 중 후보에 있는 것만 지키고, 나머지는 규칙대로 고른다(안 쓰는 변형도 골라 둔다 — 해가 없다) */
   const library = await visibleExercises();
   const keep: Pinned = readPinned(input.pinned ?? {});
@@ -124,16 +145,45 @@ export async function startProgram(input: {
     isYouthAge(birthDate ? ageFromBirthDate(birthDate, now) : null)
   );
 
+  /*
+   * 확인한 구성과 서버가 다시 고른 구성 — 고를 수 있는 칸(보조 칸 빼고)에서 보낸 것과 다르면 등록하지 않고 알린다(시안 03 '장비 변경 후 갱신').
+   * 보낸 칸만 견준다(옛 화면은 다 안 보낸다).
+   */
+  if (input.confirm && input.pinned && typeof input.pinned === 'object') {
+    const perWeek = input.perWeek === 2 ? 2 : 3;
+    const titleOf = new Map(library.map((e) => [e.id, e.title]));
+    const sent = input.pinned as Record<string, unknown>;
+    const changed = usedVariants(def, perWeek)
+      .filter((v) => variantKindOf(def, v, perWeek) !== 'assist' && Object.prototype.hasOwnProperty.call(sent, v))
+      .filter((v) => (typeof sent[v] === 'string' ? sent[v] : null) !== (pinned[v] ?? null))
+      .map((v) => ({
+        variant: v,
+        label: variantLabel(v, audience),
+        from: typeof sent[v] === 'string' ? (titleOf.get(sent[v] as string) ?? null) : null,
+        to: pinned[v] ? (titleOf.get(pinned[v] as string) ?? null) : null,
+      }));
+    if (changed.length > 0) {
+      return { error: '조건이 바뀌어 운동 구성이 달라졌어요. 바뀐 구성을 확인한 뒤 시작해요.', code: 'changed', changed };
+    }
+  }
+
   /* 직렬화 — 두 탭 · 재시도가 동시에 오면 둘 다 '없음'을 보고 진행 중이 둘 생겼다(재활 rehab.ts 와 같은 꼴, 2026-10-18) */
-  let result: 'exists' | 'created';
+  let result: 'exists' | 'created' | 'same';
   try {
     result = await prisma.$transaction(
       async (tx) => {
+        /*
+         * 한 사람의 등록은 하나씩 — 결과 조회(loadProgramStartStatus)도 같은 자물쇠를 기다려, 처리 중인 등록을 '없음'으로 읽지 않는다.
+         * 트랜잭션이 끝나면 저절로 풀린다(pg_advisory_xact_lock).
+         */
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`program-start:${user.id}`}, 0))`;
         /* 진행 중은 한 사람 하나 — Prisma 가 조건 붙은 유일 규칙을 못 적어 트랜잭션 안에서 본다(재활과 같다) */
         const existing = await tx.userTrainingProgram.findFirst({
           where: { userId: user.id, status: 'active' },
-          select: { id: true, programKey: true },
+          select: { id: true, programKey: true, pinned: true },
         });
+        /* 같은 요청을 다시 보낸 것(응답 유실 · 두 번 누름) — 처음 것이 이미 등록했다 */
+        if (existing && requestId && requestOf(existing.pinned) === requestId) return 'same' as const;
         /* 모르는 키의 줄(지운 프로그램)은 이어 갈 수 없다 — 바뀜으로 닫고 새로 시작한다 */
         if (existing && parseProgram(existing.programKey) == null) {
           await tx.userTrainingProgram.update({
@@ -147,7 +197,8 @@ export async function startProgram(input: {
             programKey,
             /* 시즌은 묻지 않는다(2026-10-10) — 칸은 옛 줄 때문에 남기고 늘 'off' */
             season: 'off',
-            pinned,
+            /* 요청 번호는 고정 운동 상자에 함께 — readPinned 는 칸 이름만 읽고, 다음 고정 운동 쓰기(pinnedJson)에서 저절로 빠진다(DB 구조 그대로) */
+            pinned: requestId ? { ...pinned, [REQUEST_KEY]: requestId } : pinned,
           },
         });
         const profile: {
@@ -169,14 +220,49 @@ export async function startProgram(input: {
     );
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') {
-      return { error: '다른 곳에서 동시에 시작하고 있어요. 다시 눌러 주세요.' };
+      return { error: '다른 곳에서 동시에 시작하고 있어요. 등록 결과를 확인해 주세요.', code: 'busy' };
     }
     throw e;
   }
-  if (result === 'exists') return { error: '이미 진행 중인 프로그램이 있어요.' };
+  if (result === 'exists') return { error: '이미 진행 중인 프로그램이 있어요.', code: 'exists' };
 
   revalidatePath('/training');
-  return { ok: true };
+  return { ok: true, programKey, ...(result === 'same' ? { same: true } : {}) };
+}
+
+/** 등록 요청 번호를 담는 칸 — 칸 이름(VariantKey)과 겹치지 않게 */
+const REQUEST_KEY = '@request';
+const requestOf = (pinned: unknown): string | null => {
+  const v = pinned && typeof pinned === 'object' ? (pinned as Record<string, unknown>)[REQUEST_KEY] : null;
+  return typeof v === 'string' ? v : null;
+};
+
+/**
+ * 등록 결과 — 응답을 못 받았을 때 같은 요청 번호로 묻는다(시안 04 '등록 결과 확인 필요'). 등록과 같은 자물쇠를 잡고 읽어, 아직 처리 중인
+ * 등록이 있으면 그것이 끝난 뒤의 상태를 본다 — '없음'이 한 번 읽힌 것으로 끝나지 않게. 읽기만 한다.
+ */
+export async function loadProgramStartStatus(input: { requestId: string }): Promise<
+  | { state: 'registered'; programId: string; perWeek: number }
+  | { state: 'other'; programId: string | null; name: string }
+  | { state: 'none' }
+  | { error: string }
+> {
+  const user = await requireUser();
+  const requestId = typeof input?.requestId === 'string' ? input.requestId : '';
+  if (!requestId) return { error: '요청을 찾지 못했어요.' };
+  const row = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`program-start:${user.id}`}, 0))`;
+    return tx.userTrainingProgram.findFirst({
+      where: { userId: user.id, status: 'active' },
+      select: { programKey: true, pinned: true },
+    });
+  });
+  if (!row) return { state: 'none' };
+  const plan = parseProgram(row.programKey);
+  if (requestOf(row.pinned) === requestId && plan) {
+    return { state: 'registered', programId: plan.def.id, perWeek: plan.perWeek };
+  }
+  return { state: 'other', programId: plan?.def.id ?? null, name: plan?.def.name ?? '진행 중인 프로그램' };
 }
 
 /** 시트에서 고른 장비(배열로 왔으면)가 이긴다 — 시작할 때마다 고른다(2026-10-20). 안 왔으면 저장된 것, 그것도 없으면 맨몸만 */
@@ -193,6 +279,8 @@ export async function programChoices(input: {
   programId?: string | null;
   ownedEquipment?: string[] | null;
   trainingLevel?: string | null;
+  /** 시작 준비에서 받은 생년월일(저장 전) — 후보 · 등록이 같은 나이 기준(성장기)을 쓰게. 저장된 생년월일이 있으면 그것 */
+  birthDate?: string | null;
 }): Promise<
   { choices: { id: string; title: string; equipment: string[] }[] } | { error: string }
 > {
@@ -211,7 +299,7 @@ export async function programChoices(input: {
       owned,
       level,
       def ? audienceOf(def) : 'adult',
-      isYouthAge(user.birthDate ? ageFromBirthDate(user.birthDate) : null)
+      isYouthAge(ageOfDraft(user.birthDate, input.birthDate))
     ).map((e) => ({
       id: e.id,
       title: e.title,
@@ -220,41 +308,75 @@ export async function programChoices(input: {
   };
 }
 
+/** 저장된 생년월일이 먼저, 없으면 준비 화면에서 받은 것(모양이 아니면 null) — 후보 · 구성 · 등록이 같은 나이를 본다 */
+function ageOfDraft(saved: Date | null, draft: string | null | undefined): number | null {
+  const birth = saved ?? (draft ? parseBirthDate(draft) : null);
+  return birth ? ageFromBirthDate(birth) : null;
+}
+
 /** 시작 시트 ④ 의 첫 목록 — 아직 시작 전이라 장비 · 경력은 시트에서 고른 값으로. 그 프로그램이 쓰는 변형만 */
 export async function previewPinned(input: {
   programId: string;
   ownedEquipment?: string[] | null;
   trainingLevel?: string | null;
+  /** 준비 화면의 생년월일(저장 전) — 등록(startProgram)과 같은 나이 기준으로 고른다 */
+  birthDate?: string | null;
+  /** 고른 주당 횟수 — 주면 그 횟수에서 쓰는 칸만 · 칸의 성격(고정 · 세션마다 · 보조)과 나오는 세션을 같이 준다(시안 03) */
+  perWeek?: number | null;
+  /** 지금 고른 운동(칸 → id) — 새 조건에서도 후보에 있으면 지키고, 없어진 칸만 다시 고른다(바뀐 칸은 화면이 알린다) */
+  keep?: Record<string, string | null> | null;
 }): Promise<{
   pinned: {
     variant: VariantKey;
     label: string;
     id: string | null;
     title: string | null;
+    equipment?: string[];
+    kind?: VariantKind;
+    /** 이 칸이 나오는 세션 이름(첫 주 — 'A 날' …) */
+    sessions?: string[];
   }[];
 }> {
   const user = await requireUser();
   const owned = sheetEquipment(user.ownedEquipment, input.ownedEquipment);
   const level = user.trainingLevel ?? input.trainingLevel ?? null;
   const library = await visibleExercises();
-  const byId = new Map(library.map((e) => [e.id, e.title]));
+  const byId = new Map(library.map((e) => [e.id, e]));
   const def = programDef(input.programId);
   const audience = def ? audienceOf(def) : 'adult';
   const pinned = pickPinned(
     library,
     owned,
     level,
-    {},
+    readPinned(input.keep ?? {}),
     audience,
-    isYouthAge(user.birthDate ? ageFromBirthDate(user.birthDate) : null)
+    isYouthAge(ageOfDraft(user.birthDate, input.birthDate))
   );
+  const perWeek: PerWeek | undefined = input.perWeek === 2 ? 2 : input.perWeek === 3 ? 3 : undefined;
+  const outline = def && perWeek ? programOutline(def, perWeek) : null;
+  /* 보조 메뉴 칸(고르지 않음) — 구성 확인이 '세션마다 정해요'로 보이게 칸 이름만 더한다 */
+  const fixed = def ? usedVariants(def, perWeek) : [...VARIANT_KEYS];
+  const assist = outline
+    ? [...new Set(outline.sessions.flatMap((x) => x.items.filter((it) => it.kind === 'assist').map((it) => it.variant)))].filter((v) => !fixed.includes(v))
+    : [];
   return {
-    pinned: (def ? usedVariants(def) : VARIANT_KEYS).map((v) => ({
-      variant: v,
-      label: variantLabel(v, audience),
-      id: pinned[v] ?? null,
-      title: pinned[v] ? (byId.get(pinned[v] as string) ?? null) : null,
-    })),
+    pinned: [...fixed, ...assist].map((v) => {
+      const isAssist = assist.includes(v);
+      const ex = !isAssist && pinned[v] ? byId.get(pinned[v] as string) : undefined;
+      return {
+        variant: v,
+        label: variantLabel(v, audience),
+        id: isAssist ? null : (pinned[v] ?? null),
+        title: ex?.title ?? null,
+        ...(def && perWeek
+          ? {
+              equipment: ex?.equipment ?? [],
+              kind: variantKindOf(def, v, perWeek),
+              sessions: (outline?.sessions ?? []).filter((x) => x.items.some((it) => it.variant === v)).map((x) => x.label),
+            }
+          : {}),
+      };
+    }),
   };
 }
 
@@ -308,6 +430,8 @@ export async function startProgramWorkout() {
       day: view.day,
       week: weekOfDay(view.plan, view.day),
       gapDays: view.decision.gapDays,
+      /* 이 판을 연 회차 — 일차 넘기기 · 완료 화면이 같은 회차만 본다(lib/program/advance.ts) */
+      rowId: row.id,
     },
     exercises: view.rows.map((r) =>
       freezeProgramExercise(r.exercise, r.rx, {

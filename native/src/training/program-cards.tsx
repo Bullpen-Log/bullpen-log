@@ -8,12 +8,11 @@ import type { ProgramShelf } from '@/lib/report/training-home-data';
 import { SPACE, usePalette, useTheme, withAlpha, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
-import { toast } from '~/shell/toast';
 
 /**
  * 트레이닝 탭 '프로그램' — 옆으로 넘기는 큰 커버 카드(2026-10-29 확정 디자인). 다음 카드가 조금 보이고 카드 폭마다 멈춘다, 밑에 위치 점 · 'n / N' ·
  * 이전 · 다음 단추(손가락 말고도 넘기게). 목록 · 자격은 서버(lib/report/training-home-data.ts programShelfData), 글은 프로그램 정의(lib/program/program.ts) 그대로 —
- * 기간 · 빈도 · 한 줄 설명을 시안 글로 박지 않는다. 카드를 누르면 트레이닝 오늘 화면의 그 프로그램 소개(시작 시트 — 자격 · 장비 · 시작은 거기서).
+ * 기간 · 빈도 · 한 줄 설명을 시안 글로 박지 않는다. 카드를 누르면 프로그램 상세(/training/program/[id] — 시작 준비 · 오늘 운동은 거기서).
  * 스크롤로 넘기다 손을 뗀 것은 누름이 아니다(ScrollView 가 응답을 가져간다).
  */
 const GAP = 12;
@@ -38,12 +37,13 @@ export function ProgramCards({ shelf, today }: { shelf: ProgramShelf; today: str
     setIndex(next);
     scroll.current?.scrollTo({ x: next * step, animated: true });
   };
+  /*
+   * 카드 → 프로그램 상세(2026-10-30 확정 시안 01). 진행 중 · 다른 프로그램 진행 중 · 오늘 일정이 있는 날도 설명은 볼 수 있다 — 시작할 수 있는지는
+   * 상세의 아래 단추가 서버 판정으로 가른다(예전엔 여기서 알림 한 줄로 끝나 설명을 못 봤다). 상세를 열기만 해서는 아무것도 저장하지 않는다.
+   */
   const open = (id: string) => {
     void Haptics.selectionAsync();
-    if (shelf.activeId === id) return router.push({ pathname: '/training-today' as Href as never, params: { today } });
-    if (shelf.activeId) return toast('지금 하는 프로그램이 있어요. 바꾸려면 그 프로그램을 먼저 그만둬요.', 'info');
-    if (!shelf.canStart) return toast('오늘은 운동 일정을 만들어서, 프로그램은 내일 시작할 수 있어요.', 'info');
-    router.push({ pathname: '/training-today' as Href as never, params: { today, program: id } });
+    router.push(`/training/program/${id}` as Href);
   };
   if (!items.length) return null;
   return (
@@ -138,8 +138,8 @@ export function ProgramCards({ shelf, today }: { shelf: ProgramShelf; today: str
   );
 }
 
-/** 커버 — 옅은 파랑 면 위 프로그램마다 다른 소프트 솔리드 그림 하나(목표 이름은 위 작은 글) */
-function Cover({ p, c, active }: { p: ProgramChoice; c: Palette; active: boolean }) {
+/** 커버 — 옅은 파랑 면 위 프로그램마다 다른 소프트 솔리드 그림 하나(목표 이름은 위 작은 글). 프로그램 상세(시안 01)도 같은 커버로 이어진다 */
+export function Cover({ p, c, active }: { p: ProgramChoice; c: Palette; active: boolean }) {
   const dark = useTheme() !== 'light';
   return (
     <View style={[styles.cover, { backgroundColor: dark ? '#123049' : '#e3effb' }]}>

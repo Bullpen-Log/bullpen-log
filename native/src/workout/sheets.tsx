@@ -6,20 +6,19 @@ import Animated, { Easing, FadeIn, FadeOut, SlideInDown, SlideOutDown } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { matchesSearch } from '@/lib/korean';
-import { summarizeSets } from '@/lib/workout/summarize';
-import { TRAINING_EFFORT_ASK, TRAINING_EFFORT_LEVELS, TRAINING_EFFORT_NOTE, trainingEffortLevel } from '@/lib/training-effort';
+import { TRAINING_EFFORT_ASK, TRAINING_EFFORT_LEVELS, TRAINING_EFFORT_NOTE } from '@/lib/training-effort';
 import { equipmentLabel, type SwapMode } from '@/lib/workout/swap';
 import type { SwapChoices, SwapPick } from '@/app/actions/workout';
 import type { RunExercise } from '@/lib/workout/run-exercises';
+import type { VariantKey } from '@/lib/program/program';
 import { rpc } from '~/lib/rpc';
 import type { Palette } from '~/lib/ui';
 import type { ShownSet } from './outbox';
 import { READABLE } from '~/lib/layout';
 import { Press } from '~/shell/press';
-import { useDraftGuard } from '~/community/draft-guard';
 
 /**
- * 운동 진행 화면의 아래 시트 셋 — 오늘 목록(웹 exercise-sheet.tsx) · 마치기(finish-sheet.tsx) · 교체(swap-sheet.tsx). Sheet 는 트레이닝 운동 화면의 시트도 쓴다.
+ * 운동 진행 화면의 아래 시트 — 오늘 목록(웹 exercise-sheet.tsx) · 교체(swap-sheet.tsx). 마치기는 ./finish-sheet.tsx(시안 08). Sheet 는 트레이닝 운동 화면의 시트도 쓴다.
  * 아이폰 기본 시트(pageSheet)라 끌어내려 닫기가 저절로 온다.
  */
 /** 내용만큼 올라오는 시트가 내려가며 걷히는 시간 — 그 뒤에 onClose */
@@ -232,157 +231,7 @@ function IconButton({
   );
 }
 
-/* ----------------------------- 마치기 ----------------------------- */
-
-/**
- * 마치기 직전 — 체감 강도(선택)와 느낀점. 강도를 안 고르면 축하 화면이 칩 하나로 한 번 더 묻는다(웹과 같다). 느낀점만 적고 강도가 없으면
- * 막는다(강도 없이 온 메모는 서버가 버린다). 못 보낸 세트가 있으면 마치기를 막는다 — 마치면 그 세트는 요약에서 빠지고 판이 닫힌다.
- */
-export function FinishSheet({
-  open,
-  sets,
-  startedAt,
-  priorSeconds,
-  pendingCount,
-  program,
-  busy,
-  error,
-  onFinish,
-  onDropAndFinish,
-  onClose,
-  c,
-}: {
-  open: boolean;
-  sets: ShownSet[];
-  startedAt: string;
-  priorSeconds: number;
-  pendingCount: number;
-  program: { line: string; reached: boolean; unanswered: string[] } | null;
-  busy: boolean;
-  error: string | null;
-  onFinish: (intensity: number | null, memo: string) => void;
-  /** 못 보낸 세트를 대기열에서 빼고 마치기(묻는 것은 부르는 쪽) — 서버가 끝내 못 받는 세트가 7일 동안 마치기를 막았다 */
-  onDropAndFinish?: (intensity: number | null, memo: string) => void;
-  onClose: () => void;
-  c: Palette;
-}) {
-  const [intensity, setIntensity] = useState<number | null>(null);
-  const [memo, setMemo] = useState('');
-  /* 적던 느낀점이 있으면 나가기 전에 묻는다 — 마치는 중(busy)에는 축하 화면으로 바꿔야 하니 묻지 않는다 */
-  useDraftGuard(open && !busy && memo.trim() !== '');
-  const memoNeedsIntensity = memo.trim() !== '' && intensity == null;
-  /* 연 시각으로 못박는다 — 고르는 동안 숫자가 올라가면 산만하다 */
-  const [openedAt] = useState(() => Date.now());
-  const minutes = Math.max(0, Math.round((priorSeconds * 1000 + (openedAt - Date.parse(startedAt))) / 60000));
-  const exerciseCount = summarizeSets(sets).length;
-  const level = intensity != null ? trainingEffortLevel(intensity) : null;
-  const off = busy || memoNeedsIntensity || pendingCount > 0;
-
-  const footer = (
-    <View style={{ gap: 8 }}>
-      {error ? <Text style={[st.error, { color: c.danger, backgroundColor: c.danger + '14' }]}>{error}</Text> : null}
-      {pendingCount > 0 ? (
-        <View style={{ gap: 2 }}>
-          <Text style={[st.small, st.center, { color: c.danger }]}>
-            아직 못 보낸 세트가 {pendingCount}개 있어요. 신호가 잡혀 저절로 보내지면 마칠 수 있어요.
-          </Text>
-          {onDropAndFinish ? (
-            <Press
-              onPress={() => onDropAndFinish(intensity, memo)}
-              disabled={busy || memoNeedsIntensity}
-              accessibilityRole="button"
-              style={[st.textBtn, (busy || memoNeedsIntensity) && { opacity: 0.4 }]}
-            >
-              <Text style={[st.bodyBold, { color: c.danger }]}>이 세트 빼고 마치기</Text>
-            </Press>
-          ) : null}
-        </View>
-      ) : memoNeedsIntensity ? (
-        <Text style={[st.small, st.center, { color: c.muted }]}>느낀점을 남기려면 강도도 골라 주세요.</Text>
-      ) : null}
-      <Pressable
-        onPress={() => !off && onFinish(intensity, memo)}
-        disabled={off}
-        accessibilityRole="button"
-        style={({ pressed }) => [st.big, { backgroundColor: c.action, opacity: off ? 0.4 : pressed ? 0.85 : 1 }]}
-      >
-        <Text style={st.bigText}>{busy ? '정리 중' : '✓ 운동 마치기'}</Text>
-      </Pressable>
-      <Press onPress={onClose} disabled={busy} accessibilityRole="button" style={st.textBtn}>
-        <Text style={[st.bodyBold, { color: c.link }]}>더 하기</Text>
-      </Press>
-    </View>
-  );
-
-  return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      title="오늘 운동을 마칠까요?"
-      description={sets.length > 0 ? `운동 ${exerciseCount}개 · ${sets.length}세트 · ${minutes}분` : `${minutes}분`}
-      footer={footer}
-      c={c}
-    >
-      {program ? (
-        <View style={[st.note, { backgroundColor: c.chip }]}>
-          <Text style={[st.body, { color: c.ink, fontWeight: program.reached ? '600' : '400' }]}>{program.line}</Text>
-          {program.unanswered.length > 0 ? (
-            <Text style={[st.body, { color: c.muted }]}>아직 안 답한 ‘몇 개 더?’: {program.unanswered.join(', ')}</Text>
-          ) : null}
-        </View>
-      ) : null}
-      {sets.length === 0 ? (
-        <Text style={[st.note, st.body, { backgroundColor: c.chip, color: c.muted }]}>
-          남긴 세트가 없어요. 이대로 마치면 오늘은 기록이 남지 않아요.
-        </Text>
-      ) : null}
-      <Text style={[st.question, { color: c.ink }]}>
-        오늘 얼마나 힘들었나요? <Text style={[st.small, { color: c.muted }]}>선택</Text>
-      </Text>
-      <Text style={[st.small, { color: c.muted }]}>얼마나 힘들었는지 골라요. 운동 부하를 이 숫자로 셈해요(나중에 골라도 돼요).</Text>
-      {/* 밀대가 아니라 열 칸 — 손을 대는 순간 어딘가가 골라지면 '안 고름'을 남길 수 없다 */}
-      <View style={st.levels}>
-        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-          <Press
-            select
-            selected={intensity === n}
-            key={n}
-            onPress={() => setIntensity(n)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: intensity === n }}
-            style={[st.level, { backgroundColor: intensity === n ? c.sky : c.chip }]}
-          >
-            <Text style={[st.levelText, { color: intensity === n ? '#fff' : c.ink }]}>{n}</Text>
-          </Press>
-        ))}
-      </View>
-      <View style={st.levelEnds}>
-        <Text style={[st.tiny, { color: c.muted }]}>1 아주 가벼움</Text>
-        <Text style={[st.tiny, { color: c.muted }]}>10 최대</Text>
-      </View>
-      {/* 감으로 찍으면 그 뒤 계산이 흔들린다 — 고른 칸의 기준을 바로 밑에 */}
-      {level ? (
-        <Text style={[st.small, { color: c.muted }]}>
-          <Text style={{ fontWeight: '700', color: c.ink }}>{level.label}</Text> · {level.detail}
-        </Text>
-      ) : null}
-      <EffortGuide c={c} />
-      <Text style={[st.bodyBold, { color: c.ink, marginTop: 12 }]}>
-        느낀점 <Text style={[st.tiny, { color: c.muted, fontWeight: '400' }]}>선택</Text>
-      </Text>
-      <TextInput
-        value={memo}
-        onChangeText={setMemo}
-        multiline
-        placeholder="안 적어도 돼요. 무거웠던 곳, 잘 된 동작 같은 것."
-        placeholderTextColor={c.muted}
-        style={[st.input, { backgroundColor: c.chip, color: c.ink }]}
-      />
-    </Sheet>
-  );
-}
-
-/** '강도를 어떻게 정하나요?' — 웹 마치기 창 IntensityGuide(kind training)와 같은 접이: 다섯 단계 + '오늘 운동 전체' 안내 */
+/** '강도를 어떻게 정하나요?' — 웹 마치기 창 IntensityGuide(kind training)와 같은 접이: 다섯 단계 + '오늘 운동 전체' 안내(트레이닝 화면이 쓴다) */
 export function EffortGuide({ c }: { c: Palette }) {
   const [open, setOpen] = useState(false);
   return (
@@ -444,15 +293,22 @@ export function SwapSheet({
   inPlanIds,
   onDone,
   onClose,
+  program,
   c,
 }: {
   open: boolean;
-  sessionId: string;
-  current: RunExercise;
+  /** 운동 중 바꾸기면 판 번호 — 오늘 운동 준비의 '오늘만 바꾸기'(program)면 없다 */
+  sessionId?: string;
+  current: Pick<RunExercise, 'id' | 'title'>;
   mode: SwapMode;
   inPlanIds: string[];
-  onDone: (exercise: RunExercise, mode: SwapMode) => void;
+  onDone?: (exercise: RunExercise, mode: SwapMode) => void;
   onClose: () => void;
+  /**
+   * 오늘 운동 준비(시안 05)의 '오늘만 바꾸기' — 같은 창 · 같은 후보(비슷한 · 즐겨찾기 · 최근 · 찾기 · 주의)를 프로그램 칸 기준으로 받고
+   * (program.programSwapChoices), 고르면 그날 바꿈만 저장한다(program.swapProgramToday — 고정 운동 · 다음 세션은 그대로). 원래 운동을 고르면 바꿈을 지운다.
+   */
+  program?: { variant: VariantKey; swappedFromId: string | null; onSwapped: () => void };
   c: Palette;
 }) {
   const [choices, setChoices] = useState<SwapChoices | null>(null);
@@ -463,16 +319,24 @@ export function SwapSheet({
   const [tab, setTab] = useState<Tab>('similar');
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE);
+  const programVariant = program?.variant ?? null;
 
   /* 열 때만 묻는다 — 창은 닫힌 채로도 붙어 있다(닫히는 움직임), 열 때마다 새로 그려져 그때 한 번 */
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    rpc<SwapChoices | { error: string }>('workout.swapChoices', {
-      sessionId,
-      exerciseId: current.id,
-      withLibrary: libraryCache == null,
-    }).then(
+    (programVariant
+      ? rpc<SwapChoices | { error: string }>('program.programSwapChoices', {
+          exerciseId: current.id,
+          variant: programVariant,
+          withLibrary: libraryCache == null,
+        })
+      : rpc<SwapChoices | { error: string }>('workout.swapChoices', {
+          sessionId,
+          exerciseId: current.id,
+          withLibrary: libraryCache == null,
+        })
+    ).then(
       (res) => {
         if (!alive) return;
         if ('error' in res) return setLoadError(res.error);
@@ -487,11 +351,26 @@ export function SwapSheet({
     return () => {
       alive = false;
     };
-  }, [open, sessionId, current.id]);
+  }, [open, sessionId, current.id, programVariant]);
 
   const pick = async (id: string) => {
     setError(null);
     setBusyId(id);
+    if (program) {
+      try {
+        const r = await rpc<{ ok: true } | { error: string }>('program.swapProgramToday', {
+          variant: program.variant,
+          exerciseId: id === program.swappedFromId ? null : id,
+        });
+        if ('error' in r) setError(r.error);
+        else program.onSwapped();
+      } catch {
+        setError('신호가 없어 바꾸지 못했어요. 지금 운동은 그대로예요.');
+      } finally {
+        setBusyId(null);
+      }
+      return;
+    }
     try {
       const res = await rpc<{ exercise: RunExercise; mode: SwapMode } | { error: string }>('workout.changeSessionExercise', {
         sessionId,
@@ -500,7 +379,7 @@ export function SwapSheet({
         mode,
       });
       if ('error' in res) setError(res.error);
-      else onDone(res.exercise, res.mode);
+      else onDone?.(res.exercise, res.mode);
     } catch {
       setError('신호가 없어 넣지 못했어요. 신호가 잡히면 다시 눌러 주세요.');
     } finally {
@@ -564,11 +443,13 @@ export function SwapSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title={mode === 'replace' ? '운동 교체' : '운동 추가'}
+      title={program ? '오늘만 바꾸기' : mode === 'replace' ? '운동 교체' : '운동 추가'}
       description={
-        mode === 'replace'
-          ? `‘${current.title}’ 대신 할 운동을 고르세요.`
-          : `이미 세트를 남긴 운동이라 그대로 두고, 고른 운동을 ‘${current.title}’ 바로 다음에 더해요.`
+        program
+          ? `‘${current.title}’ 대신 오늘 할 운동을 골라요. 고정 운동과 다음 세션은 그대로예요.`
+          : mode === 'replace'
+            ? `‘${current.title}’ 대신 할 운동을 고르세요.`
+            : `이미 세트를 남긴 운동이라 그대로 두고, 고른 운동을 ‘${current.title}’ 바로 다음에 더해요.`
       }
       c={c}
     >
@@ -642,7 +523,9 @@ export function SwapSheet({
           ) : null}
         </>
       )}
-      <Text style={[st.tiny, st.center, { color: c.muted }]}>바꾼 운동은 오늘 운동에만 반영돼요. 트레이닝 화면의 일정은 그대로예요.</Text>
+      <Text style={[st.tiny, st.center, { color: c.muted }]}>
+        {program ? '오늘 세션에만 바뀌어요. 늘 바꾸려면 프로그램의 고정 운동 바꾸기에서.' : '바꾼 운동은 오늘 운동에만 반영돼요. 트레이닝 화면의 일정은 그대로예요.'}
+      </Text>
     </Sheet>
   );
 }

@@ -4,6 +4,9 @@ import type { getCurrentUser } from '@/lib/dal';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { dayLabel, isLightWeek, parseProgram, weekOfDay } from '@/lib/program/program';
 import { withJosa } from '@/lib/korean';
+import { weightKindOf } from '@/lib/program/next-weight';
+import { exercisesByIds } from '@/lib/library-cache';
+import { programOutcomeOf, noteOutcomeOf, type NoteOutcome, type ProgramOutcome } from '@/lib/workout/finish';
 import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { priorBests } from '@/lib/workout/prior-bests';
 import { newRecord } from '@/lib/workout/bests';
@@ -16,7 +19,13 @@ type SessionUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
 /** 축하 화면의 재료 — 웹 /workout/done(page.tsx)과 앱(native/src/app/workout-done.tsx, app-workout.loadAppWorkoutDone)이 같이 쓴다 */
 export type WorkoutDone = {
-  program: { headline: string; note: string | null; lifts: { title: string; suggested: number; actual: number | null; rir: number | null }[] } | null;
+  program: {
+    headline: string;
+    note: string | null;
+    lifts: { title: string; suggested: number; actual: number | null; rir: number | null }[];
+    /** 결과 갈래(lib/workout/finish-state.ts) — 기준 미달과 '아직 처리 안 됨'을 가른다. 옛 웹 화면은 headline 만 읽는다 */
+    outcome: ProgramOutcome;
+  } | null;
   nutritionLine: NutritionLine | null;
   themeLabel: string;
   dateLabel: string;
@@ -25,6 +34,12 @@ export type WorkoutDone = {
   volumeKg: number;
   rows: DoneRow[];
   askEffort: { sessionId: string } | null;
+  /** 이 판 번호 — 앱 완료 화면의 강도 저장 · 다시 확인이 쓴다 */
+  sessionId: string;
+  /** 그날 실제 강도 · 메모(없으면 null) — 있으면 숫자로 읽기만, 없을 때만 슬라이더로 묻는다 */
+  dailyNote: { intensity: number; memo: string | null } | null;
+  /** 마치기 창에서 제출한 강도 · 메모가 실제로 남았는지(saved · pending · none) */
+  noteOutcome: NoteOutcome;
 };
 
 /**
@@ -73,7 +88,7 @@ export async function loadWorkoutDone(user: SessionUser, id: unknown): Promise<{
           date: new Date(`${toDateKey(session.date)}T00:00:00.000Z`),
         },
       },
-      select: { intensity: true },
+      select: { intensity: true, memo: true },
     }),
   ]);
   if (sets.length === 0) return { to: '/training' };
@@ -82,11 +97,13 @@ export async function loadWorkoutDone(user: SessionUser, id: unknown): Promise<{
   const frozen = plan?.exercises ?? [];
   const order = new Map(frozen.map((e, i) => [e.id, i]));
   const byId = new Map(frozen.map((e) => [e.id, e]));
-  const bests = await priorBests(
-    user.id,
-    [...new Set(sets.map((s) => s.exerciseId))],
-    session.date
-  );
+  const doneIds = [...new Set(sets.map((s) => s.exerciseId))];
+  const [bests, library] = await Promise.all([
+    priorBests(user.id, doneIds, session.date),
+    /* 목록에서 뺀 운동(얼린 목록에 없음)의 이름 · 수행량 읽는 법 — 캐시라 DB 를 가지 않는다 */
+    exercisesByIds(doneIds.filter((id) => !byId.has(id))),
+  ]);
+  const libById = new Map(library.map((e) => [e.id, e]));
 
   /* 목록 순서대로 — 운동할 때 찍어 둔 목록의 차례. 목록에서 뺀 운동의 세트는 맨 뒤에 */
   const rows: DoneRow[] = summarizeSets(sets)
@@ -101,10 +118,23 @@ export async function loadWorkoutDone(user: SessionUser, id: unknown): Promise<{
             prior
           )
         : null;
+      const lib = libById.get(summary.exerciseId);
+      const equipment = ex?.equipment ?? lib?.equipment ?? [];
+      const isHold = ex?.isHold ?? (lib ? lib.holdSeconds != null && lib.reps == null : false);
       return {
         id: summary.exerciseId,
-        title: ex?.title ?? '목록에서 뺀 운동',
+        title: ex?.title ?? lib?.title ?? '목록에서 뺀 운동',
         summary,
+        sets: sets
+          .filter((x) => x.exerciseId === summary.exerciseId)
+          .map((x) => ({ setNo: x.setNo, weightKg: x.weightKg, reps: x.reps, holdSeconds: x.holdSeconds, rir: x.rir })),
+        meta: {
+          perHand: weightKindOf(equipment) === 'dumbbell',
+          perSide: ex?.perSide ?? false,
+          isHold,
+          inMinutes: (ex?.category ?? lib?.category) === '유산소',
+          needsWeight: ex?.needsWeight ?? false,
+        },
         record: record && {
           ...record,
           /* 넘기 전의 최고 — '100 → 102.5kg' 처럼 얼마나 넘었는지 */
@@ -128,17 +158,9 @@ export async function loadWorkoutDone(user: SessionUser, id: unknown): Promise<{
         const tag = plan.program as NonNullable<typeof plan.program>;
         const pp = programPlan;
         const last = tag.day >= pp.totalDays;
-        const row = await prisma.userTrainingProgram.findFirst({
-          where: {
-            userId: user.id,
-            programKey: tag.key,
-            status: { in: ['active', 'done'] },
-          },
-          orderBy: { startedAt: 'desc' },
-          select: { nextDay: true, status: true },
-        });
-        const advanced =
-          row != null && (row.nextDay > tag.day || row.status === 'done');
+        /* 결과는 lib/workout/finish.ts 한 곳에서 — 이 판의 회차(rowId)만 본다. 읽기만 한다(넘기기는 [종료]가 했다) */
+        const outcome = await programOutcomeOf({ ...session, userId: user.id, status: 'FINISHED' });
+        const advanced = outcome.state === 'advanced' || outcome.state === 'done';
         const nextWeek = weekOfDay(pp, tag.day + 1);
         const lifts = frozen
           .filter((e) => e.programSlot && e.suggestedKg != null)
@@ -160,11 +182,14 @@ export async function loadWorkoutDone(user: SessionUser, id: unknown): Promise<{
           .filter((l) => l.actual != null);
         return {
           headline:
-            last && advanced
+            outcome.state === 'done' || (last && advanced)
               ? '프로그램을 다 마쳤어요'
               : advanced
                 ? `${dayLabel(pp, tag.day)} 완료 · 다음 ${dayLabel(pp, tag.day + 1)}`
-                : `절반이 안 돼 ${withJosa(dayLabel(pp, tag.day), '을/를')} 다시 해요`,
+                : outcome.state === 'below'
+                  ? `절반이 안 돼 ${withJosa(dayLabel(pp, tag.day), '을/를')} 다시 해요`
+                  : '프로그램 진행을 아직 확인하지 못했어요',
+          outcome,
           note: !advanced
             ? null
             : last
@@ -204,5 +229,8 @@ export async function loadWorkoutDone(user: SessionUser, id: unknown): Promise<{
     rows,
     /* 강도를 이미 남긴 날(마치기 창 · 트레이닝 탭)은 안 묻는다 */
     askEffort: note ? null : { sessionId: session.id },
+    sessionId: session.id,
+    dailyNote: note ? { intensity: note.intensity, memo: note.memo } : null,
+    noteOutcome: await noteOutcomeOf({ ...session, userId: user.id, status: 'FINISHED' }),
   };
 }

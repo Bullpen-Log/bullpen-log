@@ -79,6 +79,11 @@ export type RunPayload = {
   openedAt: string;
   /** 다시 연 판이면 앞서 마친 구간의 시간. 종료 요약이 여기에 더해 보여준다. */
   priorSeconds: number;
+  /**
+   * 그날 이미 남긴 강도 · 메모(같은 날 다른 판 · 트레이닝 탭) — 마치기 창(시안 08)이 그 값을 읽어 보이고, 손대지 않으면 다시 보내지 않는다
+   * (빈 메모로 덮지 않게). 없으면 null.
+   */
+  dailyNote: { intensity: number; memo: string | null } | null;
 };
 
 export async function runPayload(
@@ -86,7 +91,7 @@ export async function runPayload(
   session: ActiveSession & { mainStartedAt: Date },
   plan: FrozenPlan
 ): Promise<RunPayload> {
-  const [sets, exercises] = await Promise.all([
+  const [sets, exercises, note] = await Promise.all([
     prisma.userExerciseSet.findMany({
       where: { sessionId: session.id },
       orderBy: [{ exerciseId: 'asc' }, { setNo: 'asc' }],
@@ -105,6 +110,10 @@ export async function runPayload(
      * 바꿔 넣은 운동도 같은 곳에서 만든다(lib/workout/run-exercises.ts).
      */
     runExercises(userId, plan.exercises, session.date),
+    prisma.dailyTrainingNote.findUnique({
+      where: { userId_date: { userId, date: new Date(`${session.date.toISOString().slice(0, 10)}T00:00:00.000Z`) } },
+      select: { intensity: true, memo: true },
+    }),
   ]);
 
   return {
@@ -115,5 +124,6 @@ export async function runPayload(
     initialSets: sets.map((s) => ({ ...s, recordedAt: s.recordedAt.toISOString() })),
     openedAt: session.mainStartedAt.toISOString(),
     priorSeconds: session.activeSeconds,
+    dailyNote: note ? { intensity: note.intensity, memo: note.memo } : null,
   };
 }
