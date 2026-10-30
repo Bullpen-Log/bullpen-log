@@ -1,19 +1,20 @@
 import { ARMCARE_PURPOSE_TEXT } from '@/lib/pitching-content';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState, type RefObject } from 'react';
-import { ActivityIndicator, Pressable, Text, View, type ScrollViewInstance } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { toDateKey } from '@/lib/pitch-stats';
 import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
-import type { AppArmcareGuideTab, AppArmcareTodayTab } from '@/lib/armcare/today-load';
+import type { AppArmcareGuideTab, AppArmcareItem, AppArmcareTodayTab } from '@/lib/armcare/today-load';
 import { drainChecks, onCheckResult } from '~/armcare/outbox';
-import { PainGuideButton, type PainView } from '~/armcare/pain-guide-sheet';
+import { PainGuideButton } from '~/armcare/pain-guide-sheet';
 import { MyRoutinesProvider } from '~/armcare/add-to-routine';
 import { sendCheck } from '~/armcare/send';
 import { act, leave, offlineAs } from '~/mechanics/parts';
 import { rpc } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { leaveWhenShown, openCheckin } from '~/shell/web-nav';
-import { AREAS_BY_JOINT, AreaCard, Checklist, ExerciseRow, PainNote, RehabCard, RoutineCard, WeekDots, openPlay } from '~/training/armcare-parts';
+import { AREAS_BY_JOINT, AreaCard, Checklist, ExerciseRow, PainNote, RehabCard, RoutineCard, WeekDots, doneWith, openPlay, useCheckIntents } from '~/training/armcare-parts';
 import { isFav, useFavVersion } from '~/training/favorites';
 import { FavButton } from '~/training/fav-button';
 import { Fold, Screen, SectionHead, s, useJump, useScreenData } from '~/training/screen';
@@ -81,7 +82,7 @@ export default function TrainingArmcareScreen() {
       right={<FavButton onPress={() => setFavOpen(true)} c={c} />}
     >
       {data?.tab === 'today' ? (
-        <TodayTab data={data} fresh={state.fresh} reload={load} c={c} />
+        <TodayTab data={data} fresh={state.fresh} failed={state.failed != null} reload={load} c={c} />
       ) : data?.tab === 'guide' ? (
         <GuideTab data={data} scroll={scroll} c={c} />
       ) : null}
@@ -143,92 +144,46 @@ function FavSheet({ guide, onClose, c }: { guide: AppArmcareGuideTab | null; onC
 
 /* ----------------------------- 루틴 칸 ----------------------------- */
 
-function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh: boolean; reload: () => Promise<void>; c: Palette }) {
+/*
+ * 2026-10-30 시안 01 — 오늘 할 행동이 먼저: 오늘 루틴 카드 하나(상태마다 주 단추 하나) → 접힌 구성 → 내 루틴 → 최근 7일 → 암케어 안내.
+ * 열기만으로는 읽기다 — 루틴 만들기 · 다시 만들기 · 체크는 누를 때만. 받아 둔 값(fresh 아님)이거나 다른 날 것이면 시작 · 만들기 · 체크를 막는다.
+ */
+function TodayTab({ data, fresh, failed, reload, c }: { data: AppArmcareTodayTab; fresh: boolean; failed: boolean; reload: () => Promise<void>; c: Palette }) {
   const [open, setOpen] = useState<string | null>(null);
   const { custom } = data;
+  /* 이 폰의 오늘과 다른 날의 값(밤새 열어 둔 화면 · 어제 받아 둔 값) — 새로 받기 전에는 오늘 것으로 확정하지 않는다 */
+  const oldDay = data.dateKey !== toDateKey(new Date());
+  const ready = fresh && !oldDay;
   return (
-    <View style={{ gap: 20 }}>
-      <View style={[s.card, { backgroundColor: c.card, gap: 8 }]}>
-        <Text style={[s.bodyBold, { color: c.ink }]}>준비 · 정리 · 강화</Text>
-        <Text style={[s.small, { color: c.muted }]}>{ARMCARE_PURPOSE_TEXT.cooldown}</Text>
-        <Text style={[s.small, { color: c.muted }]}>{ARMCARE_PURPOSE_TEXT.strength}</Text>
-        <Press onPress={() => router.push('/library/warmup' as Href)} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}><Text style={[s.bodyBold, { color: c.link }]}>던지기 전 워밍업 보기 ›</Text></Press>
-      </View>
-      <View style={{ gap: 10 }}>
-        {custom.kind === 'rehab' ? (
-          <SectionHead title="오늘 재활" desc="아픈 곳에 맞춰 단계별로 · 맞춤 루틴 대신" c={c} />
-        ) : (
-          <SectionHead title="맞춤 루틴" desc="오늘 몸 상태로 짜요" c={c} />
-        )}
-        {custom.kind === 'rehab' ? (
-          <RehabCard rehab={custom.rehab} dateKey={data.dateKey} c={c} />
-        ) : custom.kind === 'checkin' ? (
-          <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-            <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>오늘 체크인을 먼저 남겨 주세요</Text>
-            <Text style={[s.body, { color: c.muted }]}>30초면 돼요. 몸 상태를 보고 루틴을 짜요.</Text>
-            <Press
-              onPress={() => openCheckin('/training?view=home')}
-              accessibilityRole="button"
-              style={[s.pill, { backgroundColor: c.sky }]}
-            >
-              <Text style={[s.bodyBold, { color: '#fff' }]}>체크인하기 ›</Text>
-            </Press>
-          </View>
-        ) : custom.kind === 'rest' ? (
-          <View style={[s.card, { backgroundColor: c.warnBg }]}>
-            <Text style={[s.bodyBold, { color: c.warn }]}>오늘은 팔을 쉬는 날이에요</Text>
-            <Text style={[s.body, { color: c.warn }]}>{custom.reason}</Text>
-            {custom.pain ? (
-              data.painView ? (
-                <PainGuideButton pain={data.painView} tone="warn" c={c} />
-              ) : (
-                <Press onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.card, alignSelf: 'flex-start' }]}>
-                  <Text style={[s.smallBold, { color: c.warn }]}>통증 안내 보기 ›</Text>
-                </Press>
-              )
-            ) : null}
-            <Press
-              onPress={() => openCheckin('/training?view=home')}
-              accessibilityRole="button"
-              style={s.textBtn}
-            >
-              <Text style={[s.smallBold, { color: c.link }]}>통증이 아니면 체크인 고치기</Text>
-            </Press>
-          </View>
-        ) : (
-          <CustomRoutine custom={custom} painView={data.painView ?? null} dateKey={data.dateKey} fresh={fresh} reload={reload} c={c} />
-        )}
-        {data.rehabStart ? <RehabStartRow start={data.rehabStart} c={c} /> : null}
-      </View>
+    <View style={{ gap: 16 }}>
+      {custom.kind === 'rehab' ? (
+        <RehabCard rehab={custom.rehab} dateKey={data.dateKey} c={c} />
+      ) : (
+        <TodayCard data={data} ready={ready} oldDay={oldDay} failed={failed} reload={reload} c={c} />
+      )}
+      {data.rehabStart ? <RehabStartRow start={data.rehabStart} c={c} /> : null}
 
       <View style={{ gap: 10 }}>
-        <SectionHead title="내 루틴" desc="내가 골라 둔 운동 · 언제든" c={c} />
+        <SectionHead title="내 루틴" c={c} />
         {data.painToday && data.routines.length > 0 ? (
           <Text style={[s.small, s.box, { color: c.warn, backgroundColor: c.warnBg }]}>오늘 통증을 남기셨어요. 쉬는 걸 권해요.</Text>
         ) : null}
-        {data.routines.length === 0 ? (
-          <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 6 }]}>
-            <Text style={[s.bodyBold, { color: c.ink }]}>아직 만든 루틴이 없어요</Text>
-            <Text style={[s.small, { color: c.muted }]}>자주 하는 운동만 골라 이름을 붙여 두세요.</Text>
-          </View>
-        ) : (
-          data.routines.map((r) => (
-            <RoutineCard
-              key={r.id}
-              routine={r}
-              dateKey={data.dateKey}
-              fresh={fresh}
-              open={open === r.id}
-              onToggle={() => setOpen(open === r.id ? null : r.id)}
-              onChanged={() => void reload()}
-              c={c}
-            />
-          ))
-        )}
+        {data.routines.map((r) => (
+          <RoutineCard
+            key={r.id}
+            routine={r}
+            dateKey={data.dateKey}
+            fresh={ready}
+            open={open === r.id}
+            onToggle={() => setOpen(open === r.id ? null : r.id)}
+            onChanged={() => void reload()}
+            c={c}
+          />
+        ))}
         {data.routines.length < data.routineMax ? (
           <Press onPress={() => router.push('/training/routine/new' as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
-            <Text style={[s.body, { color: c.ink, flex: 1 }]}>새 루틴 만들기</Text>
-            <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} />
+            <Text style={[s.body, { color: c.link, flex: 1 }]}>{data.routines.length === 0 ? '내 루틴 만들기' : '새 루틴 만들기'}</Text>
+            <SymbolView name="plus" size={14} weight="semibold" tintColor={c.link} />
           </Press>
         ) : (
           <Text style={[s.tiny, { color: c.muted, paddingHorizontal: 4 }]}>루틴은 {data.routineMax}개까지 둘 수 있어요.</Text>
@@ -236,120 +191,316 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
       </View>
 
       <WeekDots week={data.week} c={c} />
+      <ArmcareGuideNote c={c} />
     </View>
   );
 }
 
-/** 맞춤 루틴 — 아직 안 만들었으면 권하는 종류 · [맞춤 루틴 만들기], 만들었으면 머리 · [따라하기] · [다시 만들기] · 체크 목록(웹 ArmcareToday) */
-function CustomRoutine({
-  custom,
-  painView,
-  dateKey,
-  fresh,
+/** 암케어 안내 — 목적과 던지기 전 워밍업 길(작은 진입, 펴서 본다) */
+function ArmcareGuideNote({ c }: { c: Palette }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={{ alignItems: 'center', gap: 8 }}>
+      <Press onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={[s.textBtn, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+        <Text style={[s.smallBold, { color: c.link }]}>암케어 안내</Text>
+        <Icon name="info" size={14} color={c.link} />
+      </Press>
+      {open ? (
+        <View style={[s.card, { backgroundColor: c.card, alignSelf: 'stretch', gap: 8 }]}>
+          <Text style={[s.bodyBold, { color: c.ink }]}>준비 · 정리 · 강화</Text>
+          <Text style={[s.small, { color: c.muted }]}>{ARMCARE_PURPOSE_TEXT.cooldown}</Text>
+          <Text style={[s.small, { color: c.muted }]}>{ARMCARE_PURPOSE_TEXT.strength}</Text>
+          <Press onPress={() => router.push('/library/warmup' as Href)} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}>
+            <Text style={[s.bodyBold, { color: c.link }]}>던지기 전 워밍업 보기 ›</Text>
+          </Press>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/* 오늘 루틴 카드 — 남색 판(라이트 · 다크 · 네이비 같게, 흰 글자 대비 12:1 넘음) */
+const HERO_BG = '#16314f';
+const HERO_SUB = '#c9d7e8';
+const HERO_BTN = '#3d8fe0';
+
+/**
+ * 오늘 루틴 카드 — 상태마다 주 단추 하나:
+ *   체크인 전 → 체크인하기 · 만들기 전 → 오늘 루틴 만들기(운동 수 · 시간 없음) · 준비 → 시작하기 · 일부 → 이어하기 · 모두 → 기록 확인 ·
+ *   쉬는 날 → 시작 단추 없음 · 구성 바뀜 → 바뀐 구성 확인(구성을 펴서 다시 만들기 · 이대로 시작) · 다른 날 값 → 다시 불러오기.
+ * 수행 수는 서버 값 + 폰 대기열의 의도(대기는 '전송 대기'로 가른다). 시작은 루틴 만들기 · 일반 운동 시작이 아니다(따라 하기 화면이 서버 조건을 다시 본다).
+ */
+function TodayCard({
+  data,
+  ready,
+  oldDay,
+  failed,
   reload,
   c,
 }: {
-  custom: Extract<AppArmcareTodayTab['custom'], { kind: 'routine' }>;
-  /** 팔 통증 안내 시트에 넣을 값 — 옛 서버면 없어 웹으로 보낸다 */
-  painView: PainView | null;
-  dateKey: string;
-  fresh: boolean;
+  data: AppArmcareTodayTab;
+  ready: boolean;
+  oldDay: boolean;
+  failed: boolean;
   reload: () => Promise<void>;
   c: Palette;
 }) {
+  const custom = data.custom;
+  const dateKey = data.dateKey;
   const [making, setMaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { decision, routine } = custom;
+  const [showList, setShowList] = useState(false);
+  const intents = useCheckIntents(dateKey);
   const make = async () => {
-    if (making) return;
+    if (making || !ready) return;
     setMaking(true);
     setError(null);
     const res = await act<{ ok: true }>('armcare.makeArmcareRoutine');
+    /* 실패하면 지금 루틴 · 체크는 그대로(서버가 아무것도 안 바꿨다) */
     if ('error' in res) setError(offlineAs(res.error, '루틴을 만들지 못했어요.'));
     else await reload();
     setMaking(false);
   };
-  const extra = (
+
+  const shell = (body: ReactNode, tone: 'hero' | 'warn' = 'hero') => (
+    <View style={[st.today, tone === 'hero' ? { backgroundColor: HERO_BG } : { backgroundColor: c.warnBg }]}>
+      <Text style={[s.smallBold, { color: tone === 'hero' ? HERO_SUB : c.warn }]}>오늘 루틴</Text>
+      {body}
+    </View>
+  );
+  const main = (label: string, onPress: () => void, disabled = false, symbol: 'play.fill' | 'chevron.right' = 'chevron.right') => (
+    <Press onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={[st.mainBtn, { backgroundColor: HERO_BTN, opacity: disabled ? 0.55 : 1 }]}>
+      <Text style={[s.bodyBold, { color: '#fff', flex: 1 }]}>{label}</Text>
+      <SymbolView name={symbol} size={15} weight="bold" tintColor="#fff" />
+    </Press>
+  );
+  const title = (t: string) => (
+    <Text style={[st.todayTitle, { color: '#fff' }]} accessibilityRole="header">
+      {t}
+    </Text>
+  );
+  const sub = (t: string) => <Text style={[s.body, { color: HERO_SUB }]}>{t}</Text>;
+  /* 받아 둔 값 — 새로 받기 전에는 시작 · 만들기를 막고 까닭을 한 줄 */
+  const staleLine = !ready ? (
+    <Text style={[s.small, { color: HERO_SUB }]}>
+      {oldDay ? '이전 날짜의 루틴이에요. 새로 불러온 뒤 시작해요.' : failed ? '최신 상태를 확인하지 못했어요. 다시 불러온 뒤 시작해요.' : '최신 상태를 확인하는 중이에요.'}
+    </Text>
+  ) : null;
+
+  if (oldDay)
+    return shell(
+      <>
+        {title('새로 불러와 주세요')}
+        {staleLine}
+        {main('다시 불러오기', () => void reload())}
+      </>
+    );
+
+  if (custom.kind === 'checkin')
+    return shell(
+      <>
+        {title('오늘 상태부터')}
+        {sub('체크인을 남기면 오늘 루틴을 정해요.')}
+        {main('체크인하기', () => openCheckin('/training?view=home'))}
+      </>
+    );
+
+  if (custom.kind === 'rest')
+    return shell(
+      <>
+        <Text style={[st.todayTitle, { color: c.warn }]} accessibilityRole="header">
+          오늘은 팔 쉬기
+        </Text>
+        <Text style={[s.body, { color: c.ink }]}>{custom.reason}</Text>
+        {custom.pain ? (
+          data.painView ? (
+            <PainGuideButton pain={data.painView} tone="warn" c={c} />
+          ) : (
+            <Press onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.card, alignSelf: 'flex-start' }]}>
+              <Text style={[s.smallBold, { color: c.warn }]}>통증 안내 보기 ›</Text>
+            </Press>
+          )
+        ) : null}
+        <Text style={[s.small, { color: c.muted }]}>오늘 시작할 수 있는 루틴은 없어요.</Text>
+        <Press onPress={() => openCheckin('/training?view=home')} accessibilityRole="button" style={[s.textBtn, { paddingHorizontal: 0, alignSelf: 'flex-start' }]}>
+          <Text style={[s.smallBold, { color: c.link }]}>체크인 확인하기</Text>
+        </Press>
+      </>,
+      'warn'
+    );
+
+  if (custom.kind !== 'routine') return null;
+  const { decision, routine } = custom;
+  const extras = (
     <>
-      {custom.afterThrowing ? <Text style={[s.bodyBold, { color: c.ink }]}>{custom.afterThrowing}</Text> : null}
-      {custom.pain ? (
-        painView ? (
-          <PainGuideButton pain={painView} tone="sky" c={c} />
-        ) : (
-          <Press onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start' }]}>
-            <Text style={[s.smallBold, { color: c.link }]}>통증 안내 보기 ›</Text>
-          </Press>
-        )
-      ) : null}
+      {custom.afterThrowing ? <Text style={[s.small, { color: '#fff' }]}>{custom.afterThrowing}</Text> : null}
+      {custom.pain && data.painView ? <PainGuideButton pain={data.painView} tone="sky" c={c} /> : null}
     </>
   );
-  const errorLine = error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null;
+  const errorLine = error ? <Text style={[s.small, st.errorBox, { color: c.danger, backgroundColor: c.dangerBg }]}>{error}</Text> : null;
 
-  if (!routine) {
-    return (
-      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, borderWidth: 1, borderColor: c.sky + '40' }]}>
-        <Text style={[s.title, { color: c.ink }]}>오늘은 {decision.label}을 권해요</Text>
-        <Text style={[s.bodyBold, { color: c.link }]}>{decision.reason}</Text>
-        {extra}
-        <Press
-          onPress={() => void make()}
-          disabled={making || !fresh}
-          accessibilityRole="button"
-          style={[s.pill, { backgroundColor: c.sky, opacity: making || !fresh ? 0.6 : 1 }]}
-        >
-          <Text style={[s.bodyBold, { color: '#fff' }]}>{making ? '만드는 중…' : '맞춤 루틴 만들기'}</Text>
-        </Press>
+  if (!routine)
+    return shell(
+      <>
+        {title(decision.label)}
+        {sub(decision.reason)}
+        {extras}
+        {staleLine}
+        {main(making ? '만드는 중…' : '오늘 루틴 만들기', () => void make(), making || !ready)}
         {errorLine}
-      </View>
+      </>
     );
-  }
 
-  const kindChanged = routine.kind !== decision.kind;
-  const unsafeCount = routine.items.filter((it) => it.unsafe).length;
+  const n = routine.items.length;
+  const done = routine.items.filter((it) => doneWith(it, intents)).length;
+  const waiting = routine.items.filter((it) => intents.get(it.exercise.id) === 'done').length;
+  const allDone = n > 0 && done === n;
+  const unsafeCount = routine.items.filter((it) => it.unsafe && !doneWith(it, intents)).length;
+  const changed = !allDone && (routine.kind !== decision.kind || unsafeCount > 0);
+  const startQuery = `d=${dateKey}`;
+  const start = () => openPlay('today', startQuery);
+
   return (
     <View style={{ gap: 10 }}>
-      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, borderWidth: 1, borderColor: c.sky + '40' }]}>
-        <View style={s.between}>
-          <Text style={[s.title, { color: c.ink, flexShrink: 1 }]}>오늘의 {routine.label}</Text>
-          <Text style={[s.small, { color: c.muted }]}>
-            <Text style={[s.bodyBold, { color: c.ink }]}>{routine.items.length}</Text>개 · 약{' '}
-            <Text style={[s.bodyBold, { color: c.ink }]}>{routine.estimatedMinutes}</Text>분
-          </Text>
-        </View>
-        <Text style={[s.bodyBold, { color: c.link }]}>{routine.reason}</Text>
-        {extra}
-        {routine.notes.length > 0 ? (
-          <Fold label={`안내 ${routine.notes.length}개`} c={c}>
-            {routine.notes.map((n) => (
-              <Text key={n} style={[s.small, { color: c.muted }]}>
-                {n}
+      {shell(
+        <>
+          {title(allDone ? '오늘 루틴 끝' : routine.label)}
+          {allDone ? sub(routine.label) : changed ? sub(routine.kind !== decision.kind ? `체크인이 바뀌어 구성을 다시 확인해요. ${decision.reason}` : `몸 상태가 바뀌어 지금은 권하지 않는 운동이 ${unsafeCount}개 있어요.`) : sub(routine.reason)}
+          {extras}
+          <View style={st.stats}>
+            <Text style={[s.small, { color: HERO_SUB }]}>
+              <Text style={st.statNum}>{n}</Text>개 운동
+            </Text>
+            {!allDone ? (
+              <Text style={[s.small, { color: HERO_SUB }]}>
+                약 <Text style={st.statNum}>{routine.estimatedMinutes}</Text>분
               </Text>
-            ))}
-          </Fold>
-        ) : null}
-        {kindChanged || unsafeCount > 0 ? (
-          <Text style={[s.small, s.box, { color: c.warn, backgroundColor: c.warnBg }]}>
-            {kindChanged ? `몸 상태가 바뀌었어요. ${decision.reason}.` : `몸 상태가 바뀌어 무리인 운동이 ${unsafeCount}개 있어요.`} 다시 만들어도 체크한 것은 남아요.
-          </Text>
-        ) : null}
-        <View style={[s.row, { borderTopWidth: 1, borderTopColor: c.line, paddingTop: 12, flexWrap: 'wrap' }]}>
-          <Press onPress={() => openPlay('today', `d=${dateKey}`)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky }]}>
-            <SymbolView name="play.fill" size={12} tintColor="#fff" />
-            <Text style={[s.bodyBold, { color: '#fff' }]}>따라하기</Text>
-          </Press>
-          <Press
-            onPress={() => void make()}
-            disabled={making || !fresh}
-            accessibilityRole="button"
-            style={[s.smallPill, { backgroundColor: c.chip, opacity: making || !fresh ? 0.6 : 1 }]}
-          >
-            <SymbolView name="arrow.clockwise" size={12} tintColor={c.ink} />
-            <Text style={[s.smallBold, { color: c.ink }]}>{making ? '만드는 중…' : '다시 만들기'}</Text>
-          </Press>
+            ) : null}
+          </View>
+          <View style={{ gap: 6 }} accessible accessibilityLabel={`${n}개 중 ${done}개 수행${waiting ? `, ${waiting}개 전송 대기` : ''}`}>
+            <View style={s.between}>
+              <Text style={[s.smallBold, { color: '#fff' }]}>
+                {allDone ? '모두 수행' : `${done}개 수행`}
+                {waiting ? <Text style={{ color: HERO_SUB, fontWeight: '400' }}>{` · ${waiting}개 전송 대기`}</Text> : null}
+              </Text>
+              <Text style={[s.small, { color: HERO_SUB, fontVariant: ['tabular-nums'] }]}>
+                {done} / {n}
+              </Text>
+            </View>
+            <View style={st.bars}>
+              {routine.items.map((it) => (
+                <View key={it.exercise.id} style={[st.barSeg, { backgroundColor: doneWith(it, intents) ? '#ffffff' : 'rgba(255,255,255,0.22)' }]} />
+              ))}
+            </View>
+          </View>
+          {staleLine}
+          {allDone
+            ? main('기록 확인', start, !ready)
+            : changed
+              ? main(showList ? '구성을 확인하고 있어요' : '바뀐 구성 확인', () => setShowList(true), showList)
+              : main(done > 0 ? '이어하기' : '시작하기', start, !ready, 'play.fill')}
+          {changed ? <Text style={[s.small, { color: HERO_SUB }]}>이미 수행한 {done}개 운동은 그대로 남아요. 바뀐 구성은 다시 만든 뒤 적용돼요.</Text> : null}
+          {errorLine}
+        </>
+      )}
+      <Composition
+        items={routine.items}
+        notes={routine.notes}
+        dateKey={dateKey}
+        ready={ready}
+        open={showList}
+        onOpen={setShowList}
+        allDone={allDone}
+        changed={changed}
+        making={making}
+        onMake={() => void make()}
+        onStart={start}
+        reload={reload}
+        c={c}
+      />
+    </View>
+  );
+}
+
+/**
+ * 운동 구성 — 접혀서 시작, 펴면 운동 이름 · 처방 · 수동 체크 · 자세 · 영상. 다시 만들기는 여기 보조 행동이다(모두 수행한 날은 막는다 — 완료가 먼저).
+ * 구성이 바뀐 날은 여기서 다시 만들거나 이대로 시작한다(따라 하기는 지금 권하지 않는 운동을 빼고 연다).
+ */
+function Composition({
+  items,
+  notes,
+  dateKey,
+  ready,
+  open,
+  onOpen,
+  allDone,
+  changed,
+  making,
+  onMake,
+  onStart,
+  reload,
+  c,
+}: {
+  items: AppArmcareItem[];
+  notes: string[];
+  dateKey: string;
+  ready: boolean;
+  open: boolean;
+  onOpen: (v: boolean) => void;
+  allDone: boolean;
+  changed: boolean;
+  making: boolean;
+  onMake: () => void;
+  onStart: () => void;
+  reload: () => Promise<void>;
+  c: Palette;
+}) {
+  return (
+    <View style={[st.compo, { backgroundColor: c.card, boxShadow: c.float }]}>
+      <Press onPress={() => onOpen(!open)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.compoHead}>
+        <Text style={[s.bodyBold, { color: c.ink, flex: 1 }]}>운동 구성</Text>
+        <Text style={[s.small, { color: c.muted }]}>{items.length}개</Text>
+        <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
+      </Press>
+      {open ? (
+        <View style={{ gap: 12, paddingBottom: 14 }}>
+          {notes.length > 0 ? (
+            <Fold label={`안내 ${notes.length}개`} c={c}>
+              {notes.map((t) => (
+                <Text key={t} style={[s.small, { color: c.muted }]}>
+                  {t}
+                </Text>
+              ))}
+            </Fold>
+          ) : null}
+          <Checklist items={items} dateKey={dateKey} fresh={ready} compact onChanged={() => void reload()} c={c} />
+          <View style={[s.row, { flexWrap: 'wrap' }]}>
+            {changed ? (
+              <Press onPress={onMake} disabled={making || !ready} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.action, opacity: making || !ready ? 0.6 : 1 }]}>
+                <SymbolView name="arrow.clockwise" size={12} tintColor={c.onAction} />
+                <Text style={[s.smallBold, { color: c.onAction }]}>{making ? '만드는 중…' : '구성 다시 만들기'}</Text>
+              </Press>
+            ) : null}
+            {changed ? (
+              <Press onPress={onStart} disabled={!ready} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.chip, opacity: ready ? 1 : 0.6 }]}>
+                <Text style={[s.smallBold, { color: c.ink }]}>이대로 시작하기</Text>
+              </Press>
+            ) : (
+              <Press
+                onPress={onMake}
+                disabled={making || !ready || allDone}
+                accessibilityRole="button"
+                accessibilityHint={allDone ? '오늘 루틴을 모두 수행해 다시 만들지 않아요' : undefined}
+                style={[s.smallPill, { backgroundColor: c.chip, opacity: making || !ready || allDone ? 0.5 : 1 }]}
+              >
+                <SymbolView name="arrow.clockwise" size={12} tintColor={c.ink} />
+                <Text style={[s.smallBold, { color: c.ink }]}>{making ? '만드는 중…' : '다시 만들기'}</Text>
+              </Press>
+            )}
+          </View>
+          {changed ? <Text style={[s.small, { color: c.muted }]}>이대로 시작하면 지금 권하지 않는 운동은 빼고 열어요. 다시 만들어도 체크한 운동은 남아요.</Text> : null}
         </View>
-        {errorLine}
-      </View>
-      <Checklist items={routine.items} dateKey={dateKey} fresh={fresh} onChanged={() => void reload()} c={c} />
+      ) : null}
     </View>
   );
 }
@@ -431,3 +582,16 @@ function RehabStartRow({ start, c }: { start: NonNullable<AppArmcareTodayTab['re
     </Press>
   );
 }
+
+const st = StyleSheet.create({
+  today: { borderRadius: 24, padding: 20, gap: 10 },
+  todayTitle: { fontSize: 26, fontWeight: '800', letterSpacing: -0.6, lineHeight: 32 },
+  mainBtn: { minHeight: 52, borderRadius: 18, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  stats: { flexDirection: 'row', alignItems: 'baseline', gap: 14, paddingTop: 4 },
+  statNum: { color: '#fff', fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  bars: { flexDirection: 'row', gap: 4 },
+  barSeg: { flex: 1, height: 5, borderRadius: 3 },
+  errorBox: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, overflow: 'hidden' },
+  compo: { borderRadius: 20, paddingHorizontal: 16 },
+  compoHead: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 8 },
+});

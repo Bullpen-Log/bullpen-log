@@ -28,6 +28,7 @@
     "outbox:test": "node --import ./scripts/alias-register.mjs scripts/outbox-selftest.mts",
     "native-outbox:test": "node --import ./scripts/native-test-register.mjs scripts/native-outbox-selftest.mts",
     "native-check-outbox:test": "node --import ./scripts/native-test-register.mjs scripts/native-check-outbox-selftest.mts",
+    "native-armcare-run:test": "node --import ./scripts/native-test-register.mjs scripts/native-armcare-run-selftest.mts",
     "native-load-core:test": "node --import ./scripts/native-test-register.mjs scripts/native-load-core-selftest.mts",
     "native-today-card:test": "node --import ./scripts/native-test-register.mjs scripts/native-today-card-selftest.mts",
     "native-org-video:test": "node --import ./scripts/native-test-register.mjs scripts/native-org-video-selftest.mts",

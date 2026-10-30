@@ -2,7 +2,7 @@ import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { AppState, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Thumb } from '~/lib/thumb';
 import { methodByKey, type ArmcareMethodKey } from '@/lib/armcare/methods';
 import { REHAB_FEEL_OPTIONS, REHAB_LEFTOVER_OPTIONS } from '@/lib/armcare/rehab-regions';
@@ -11,51 +11,12 @@ import type { RehabCheckInitial } from '@/app/(session)/armcare/play/[id]/rehab-
 import { rpc, RpcError } from '~/lib/rpc';
 import { leaveTo } from '~/shell/web-nav';
 import type { Palette } from '~/lib/ui';
-import { ExerciseVideo, clockText } from '~/workout/parts';
+import { ExerciseVideo } from '~/workout/parts';
 import { Press } from '~/shell/press';
 import { InstructionText } from '~/shell/instruction-text';
 import { TYPE } from '~/lib/ui';
 
 /** 암케어 따라 하기(native/src/app/armcare/[id].tsx)의 작은 조각 — 웹 app/(session)/armcare/play/[id] 의 같은 이름 부품을 옮겼다 */
-
-export type Clock = { kind: 'hold' | 'rest'; endsAt: number; total: number };
-
-/**
- * 버티기 · 쉬기 시계 — 남은 시간과 막대. 스스로 초를 센다(웹과 같은 까닭 — 화면 전체를 자주 다시 그리지 않게). 시계마다 새로
- * 만들어(key) 시작하는 그 순간부터 센다. 앱으로 돌아오면 곧바로 맞춘다(잠긴 동안 멈춘 타이머).
- */
-export function Countdown({ clock, label, c }: { clock: Clock; label: string; c: Palette }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 250);
-    const sub = AppState.addEventListener('change', (st) => {
-      if (st === 'active') setNow(Date.now());
-    });
-    return () => {
-      clearInterval(id);
-      sub.remove();
-    };
-  }, []);
-  const left = Math.max(0, Math.ceil((clock.endsAt - now) / 1000));
-  return (
-    <View accessibilityRole="timer" accessibilityLabel={`${label} ${clockText(left)}`} style={{ gap: 8 }}>
-      <View style={s.clockRow}>
-        <Text style={[s.bodyBold, { color: c.muted }]}>{label}</Text>
-        <Text style={[s.clock, { color: c.ink }]}>{clockText(left)}</Text>
-      </View>
-      <View style={[s.bar, { backgroundColor: c.chip }]}>
-        <View
-          style={{
-            width: `${clock.total ? (left / clock.total) * 100 : 0}%`,
-            height: '100%',
-            borderRadius: 4,
-            backgroundColor: clock.kind === 'hold' ? c.sky : c.muted,
-          }}
-        />
-      </View>
-    </View>
-  );
-}
 
 /**
  * 영상 칸 — 미리보기를 먼저 보이고 누르면 튼다(웹 LibraryVideo 처럼 누르기 전에는 영상을 받지 않는다). 영상이 없고 미리보기만 있으면 그림만.
@@ -66,14 +27,68 @@ export function ExerciseMedia({
   referenceVideoId,
   thumbUrl,
   aspectRatio,
+  compact = false,
+  c,
 }: {
   path: string | null;
   referenceVideoId: string | null;
   thumbUrl: string | null;
   aspectRatio: number | null;
+  /**
+   * 따라 하기(2026-10-30 시안 02) — 작은 띠로 시작해 운동 이름 · 목표를 밀어내지 않는다. 누르면 그 영상 하나만 받아 원래 비율 그대로(높이 420 안),
+   * [영상 접기]로 다시 띠로. 영상이 없으면 한 줄 안내(설명 · 수행은 그대로 쓸 수 있다).
+   */
+  compact?: boolean;
+  c?: Palette;
 }) {
   const [play, setPlay] = useState(false);
+  const [w, setW] = useState(0);
   const hasVideo = Boolean(path || referenceVideoId);
+  if (compact && c) {
+    if (play && hasVideo) {
+      const ratio = aspectRatio ?? (path ? 9 / 16 : 16 / 9);
+      return (
+        <View style={{ gap: 4 }} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+          <View style={{ width: w ? Math.min(w, 420 * ratio) : '100%', alignSelf: 'center' }}>
+            <ExerciseVideo path={path} referenceVideoId={referenceVideoId} aspectRatio={aspectRatio} />
+          </View>
+          <Press onPress={() => setPlay(false)} accessibilityRole="button" style={s.textBtn}>
+            <Text style={[TYPE.buttonCompact, { color: c.link, textAlign: 'center' }]}>영상 접기</Text>
+          </Press>
+        </View>
+      );
+    }
+    if (!hasVideo && !thumbUrl)
+      return (
+        <View style={[s.strip, { backgroundColor: c.card, boxShadow: c.float, minHeight: 56 }]}>
+          <Icon name="film" size={18} color={c.muted} />
+          <Text style={[TYPE.sub, { color: c.muted, flex: 1 }]}>시범 영상 없음 · 설명은 볼 수 있어요</Text>
+        </View>
+      );
+    const body = (
+      <>
+        <View style={{ flex: 1, gap: 8 }}>
+          {hasVideo ? (
+            <View style={s.stripPlay}>
+              <Icon name="play" size={16} color="#fff" />
+            </View>
+          ) : null}
+          <Text style={[TYPE.buttonCompact, { color: '#fff' }]}>{hasVideo ? '시범 영상 보기' : '자세 그림'}</Text>
+        </View>
+        {thumbUrl ? (
+          <View style={s.stripThumb}>
+            <Thumb uri={thumbUrl} style={StyleSheet.absoluteFill} contentFit="contain" />
+          </View>
+        ) : null}
+      </>
+    );
+    if (!hasVideo) return <View style={[s.strip, { backgroundColor: '#16314f' }]}>{body}</View>;
+    return (
+      <Press onPress={() => setPlay(true)} accessibilityRole="button" accessibilityLabel="시범 영상 틀기" style={[s.strip, { backgroundColor: '#16314f' }]}>
+        {body}
+      </Press>
+    );
+  }
   if (play && hasVideo) return <ExerciseVideo path={path} referenceVideoId={referenceVideoId} aspectRatio={aspectRatio} />;
   if (!hasVideo && !thumbUrl) return null;
   /* ExerciseVideo 와 같은 비율 — 직접 찍은 영상은 세로, 유튜브는 가로 */
@@ -310,10 +325,10 @@ export function RehabCheck({
 }
 
 const s = StyleSheet.create({
-  clockRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  clock: { fontSize: 36, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  bar: { height: 8, borderRadius: 4, overflow: 'hidden' },
   media: { width: '100%', maxHeight: 420, borderRadius: 16, backgroundColor: '#000', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  strip: { minHeight: 112, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12, overflow: 'hidden' },
+  stripPlay: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+  stripThumb: { width: 120, height: 88, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.35)', overflow: 'hidden' },
   playMark: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   howTo: { borderRadius: 12, paddingHorizontal: 14 },
   howToHead: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6 },

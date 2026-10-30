@@ -40,6 +40,11 @@ export type ArmcarePlay = {
   notice: string | null;
   items: PlayerItem[];
   rehabCheck: { initial: RehabCheckInitial } | null;
+  /**
+   * 그날까지 최근 7일 — 날마다 암케어를 기록했나(lib/armcare/today.ts 의 week, 루틴 칸 맨 아래 점과 같은 셈). 앱 완료 화면의 '최근 7일'이 읽는다
+   * (2026-10-30 시안 03). 옛 앱 · 웹 따라 하기는 안 읽는다.
+   */
+  week?: { key: string; done: boolean }[];
 };
 
 /**
@@ -231,5 +236,6 @@ export async function loadArmcarePlay(
     notice,
     items,
     rehabCheck,
+    week: data.week,
   };
 }

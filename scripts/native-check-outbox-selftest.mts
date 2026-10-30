@@ -27,12 +27,12 @@ await AsyncStorage.setItem(
     { exerciseId: 'Y', dateKey: '2026-10-25', recordedAt: recent(2), owner: 'A' },
   ])
 );
-const { checkOutbox, drainChecks } = await import('~/armcare/outbox');
+const { checkOutbox, drainChecks, settleWrites } = await import('~/armcare/outbox');
 const { setOutboxOwner } = await import('~/workout/outbox');
 
 const D = '2026-10-26';
 const ids = () => checkOutbox.visible().map((p) => `${p.exerciseId}@${p.dateKey}`).sort();
-const stored = async () => (JSON.parse((await AsyncStorage.getItem(KEY)) ?? '[]') as { exerciseId: string; owner?: string; recordedAt: string }[]).map((x) => `${x.owner ?? '-'}:${x.exerciseId}`).sort();
+const stored = async () => (await settleWrites(), JSON.parse((await AsyncStorage.getItem(KEY)) ?? '[]') as { exerciseId: string; owner?: string; recordedAt: string }[]).map((x) => `${x.owner ?? '-'}:${x.exerciseId}`).sort();
 const defer = <T,>() => {
   let resolve!: (v: T) => void;
   let reject!: (e: unknown) => void;
@@ -105,6 +105,7 @@ await new Promise((r) => setTimeout(r, 0));
 checkOutbox.add({ exerciseId: 'X', dateKey: D, recordedAt: recent(30) });
 v1.resolve({ ok: true });
 await run;
+await settleWrites();
 const left = JSON.parse((await AsyncStorage.getItem(KEY)) ?? '[]') as { recordedAt: string; owner?: string }[];
 eq(left.map((x) => [x.owner, x.recordedAt]), [['B', recent(30)]], '새 판이 남음');
 

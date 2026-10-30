@@ -9,7 +9,9 @@ import { ARMCARE_AREAS, ARMCARE_MUSCLES, areaOfMuscle, type ArmcareArea, type Ar
 import type { ArmcareExerciseView } from '@/app/(app)/training/armcare-media';
 import type { AppArmcareItem, AppMyRoutine, AppRehabSummary } from '@/lib/armcare/today-load';
 import type { ArmPainLine } from '@/lib/armcare/coverage-load';
-import { checkId, checkOutbox } from '~/armcare/outbox';
+import { checkOutbox, drainChecks, type NativeCheck } from '~/armcare/outbox';
+import { sendCheck } from '~/armcare/send';
+import { Week } from '~/armcare/done';
 import { ExerciseMedia, HowTo } from '~/armcare/parts';
 import { act, leave, offlineAs } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
@@ -30,6 +32,22 @@ import { TYPE } from '~/lib/ui';
 /** 따라 하기 앱 화면 — 웹 주소 /armcare/play/<id>?… 와 같은 물음 */
 export const openPlay = (id: string, query: string) => router.push(fromApp(query ? `/armcare/${id}?${query}` : `/armcare/${id}`) as Href);
 
+/**
+ * 폰 대기열에 담긴 그 날의 체크 의도 — 운동마다 'done'(보낼 체크) · 'undo'(보낼 해제). 서버 값보다 최신 의도다(목록 · 내 루틴 · 첫 화면이 같은 셈).
+ * 대기열에 줄이 있으면 서버에 아직 확정되지 않은 것 — 화면은 수행으로 보이되 '전송 대기'로 가른다.
+ */
+export function useCheckIntents(dateKey: string): Map<string, 'done' | 'undo'> {
+  const pending = useSyncExternalStore(checkOutbox.subscribe, checkOutbox.visible);
+  return intentsOf(pending, dateKey);
+}
+export const intentsOf = (pending: readonly NativeCheck[], dateKey: string) =>
+  new Map(pending.filter((p) => p.dateKey === dateKey).map((p) => [p.exerciseId, p.undo ? ('undo' as const) : ('done' as const)]));
+/** 서버 값 + 폰 대기열의 의도 — 지금 수행으로 보일까 */
+export const doneWith = (it: { done: boolean; exercise: { id: string } }, intents: Map<string, 'done' | 'undo'>) => {
+  const i = intents.get(it.exercise.id);
+  return i ? i === 'done' : it.done;
+};
+
 /** 운동 한 줄의 겉 — 이름 · 처방 · 근육 · 강도 · 미리보기 · [별](fav 를 넘긴 곳), '자세 · 영상'을 누르면 영상과 설명 */
 export function ExerciseRow({
   ex,
@@ -38,9 +56,12 @@ export function ExerciseRow({
   check,
   fav,
   highlight,
+  compact = false,
   c,
 }: {
   ex: ArmcareExerciseView;
+  /** 오늘 루틴 구성(2026-10-30 시안 01) — 줄에는 이름 · 처방 · 주의만, 근육 · 강도 · 장비는 '자세·영상 보기' 안으로 */
+  compact?: boolean;
   note?: string | null;
   warning?: string | null;
   check?: { done: boolean; disabled: boolean; onToggle: () => void };
@@ -76,8 +97,8 @@ export function ExerciseRow({
           </Text>
           {ex.prescription ? <Text style={[TYPE.buttonCompact, { color: c.ink }]}>{ex.prescription}</Text> : null}
           {warning ? <Text style={[TYPE.body, { color: c.warn }]}>{warning}</Text> : null}
-          {ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={2} highlight={highlight} c={c} /> : null}
-          <Text style={[s.tiny, { color: c.muted }]}>{meta}</Text>
+          {!compact && ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={2} highlight={highlight} c={c} /> : null}
+          {!compact ? <Text style={[s.tiny, { color: c.muted }]}>{meta}</Text> : null}
           {/* 부위별 보강에서만(루틴 목록을 넘긴 곳) — 웹 AddToRoutine 처럼 운동 줄 안 [담기] */}
           <AddToRoutine exerciseId={ex.id} title={ex.title} c={c} />
         </View>
@@ -97,6 +118,12 @@ export function ExerciseRow({
       </View>
       {open ? (
         <View style={{ gap: 10, paddingHorizontal: 12, paddingBottom: 12 }}>
+          {compact ? (
+            <>
+              {ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={3} highlight={highlight} c={c} /> : null}
+              <Text style={[s.tiny, { color: c.muted }]}>{meta}</Text>
+            </>
+          ) : null}
           <ExerciseMedia path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
           <HowTo exerciseId={ex.id} method={ex.method} inline c={c} />
         </View>
@@ -116,10 +143,13 @@ export function Checklist({
   fresh,
   grouped = true,
   doneLabel = '오늘 암케어 끝',
+  compact = false,
   onChanged,
   c,
 }: {
   items: AppArmcareItem[];
+  /** 줄을 짧게(ExerciseRow compact) */
+  compact?: boolean;
   dateKey: string;
   fresh: boolean;
   grouped?: boolean;
@@ -136,9 +166,8 @@ export function Checklist({
     setSeen(initial);
     setItems(initial);
   }
-  const pending = useSyncExternalStore(checkOutbox.subscribe, checkOutbox.visible);
-  const waiting = new Set(pending.map(checkId));
-  const doneOf = (it: AppArmcareItem) => it.done || waiting.has(checkId({ exerciseId: it.exercise.id, dateKey }));
+  const intents = useCheckIntents(dateKey);
+  const doneOf = (it: AppArmcareItem) => doneWith(it, intents);
 
   /* 보내는 중인 운동 — 빠른 두 번 누름이 켜기 · 끄기를 엇갈려 보내지 않게 */
   const sending = useRef(new Set<string>());
@@ -146,9 +175,17 @@ export function Checklist({
     const target = items.find((it) => it.exercise.id === id);
     if (!target || sending.current.has(id)) return;
     const key = { exerciseId: id, dateKey };
-    /* 폰에만 담긴 체크(따라 하기에서 신호 없이 마침)를 푼다 — 서버에 간 적이 없으니 대기열에서 빼기만(서버 값으로 풀면 대기열이 나중에 다시 체크했다) */
-    if (!target.done && waiting.has(checkId(key))) {
-      checkOutbox.drop(key);
+    /*
+     * 폰 대기열에 이 체크가 있으면(따라 하기에서 담음 · 앞서 푼 것) 바꾼 뜻도 대기열로 — 서버로 바로 보내면 대기열의 옛 요청이 뒤에 도착해 푼 체크를
+     * 되살렸다. 보낸 적 없는 체크는 빼기만, 이미 보냈을 수 있는 체크는 해제를 보낸다(~/armcare/outbox.ts drop).
+     */
+    if (intents.has(id)) {
+      if (intents.get(id) === 'done') await checkOutbox.drop(key);
+      else {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        await checkOutbox.add({ ...key, recordedAt: new Date().toISOString() });
+      }
+      void drainChecks(sendCheck, () => undefined).then(() => onChanged?.());
       return;
     }
     const next = !doneOf(target);
@@ -204,6 +241,7 @@ export function Checklist({
                 note={it.note}
                 warning={it.unsafe && !done ? '지금 몸 상태에는 권하지 않는 운동이에요' : null}
                 check={{ done, disabled: !fresh, onToggle: () => void toggle(it.exercise.id) }}
+                compact={compact}
                 c={c}
               />
             );
@@ -214,45 +252,9 @@ export function Checklist({
   );
 }
 
-/** 이번 주 암케어 — 최근 7일(오늘 포함) 점 7개(웹 WeekDots) */
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+/** 최근 7일(오늘 포함) — 기록한 날(서버에 저장된 체크가 있는 날). 루틴 완료율 · 연속 출석 · 회복이 아니다(2026-10-30 시안 01) */
 export function WeekDots({ week, c }: { week: { key: string; done: boolean }[]; c: Palette }) {
-  const days = week.filter((d) => d.done).length;
-  return (
-    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]} accessibilityLabel={`이번 주 암케어 최근 7일 중 ${days}일`}>
-      <View style={s.between}>
-        <Text style={[s.bodyBold, { color: c.ink }]}>이번 주 암케어</Text>
-        <Text style={[s.small, { color: c.muted }]}>
-          <Text style={[s.bodyBold, { color: c.ink }]}>{days}</Text>/7일
-        </Text>
-      </View>
-      <View style={st.week}>
-        {week.map((d, i) => {
-          const [y, m, dd] = d.key.split('-').map(Number);
-          const isToday = i === week.length - 1;
-          return (
-            <View key={d.key} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
-              <View
-                style={[
-                  st.dot,
-                  d.done
-                    ? { backgroundColor: c.sky }
-                    : isToday
-                      ? { borderWidth: 2, borderStyle: 'dashed', borderColor: c.sky + '66' }
-                      : { backgroundColor: c.chip },
-                ]}
-              >
-                {d.done ? <SymbolView name="checkmark" size={11} weight="bold" tintColor="#fff" /> : null}
-              </View>
-              <Text style={[s.tiny, { color: isToday ? c.ink : c.muted, fontWeight: isToday ? '700' : '400' }]}>
-                {isToday ? '오늘' : WEEKDAYS[new Date(y, m - 1, dd).getDay()]}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
-    </View>
-  );
+  return <Week days={week} c={c} />;
 }
 
 /** 내 루틴 하나 — 이름 · 운동 수 · 오늘 몇 개, 펼치면 체크 목록. ▶ 따라 하기(앱), 연필 고치기(앱 화면 /training/routine/<id>) */
@@ -265,10 +267,10 @@ export function RoutineCard({ routine: r, dateKey, fresh, open, onToggle, onChan
   onChanged?: () => void;
   c: Palette;
 }) {
-  const pending = useSyncExternalStore(checkOutbox.subscribe, checkOutbox.visible);
+  const intents = useCheckIntents(dateKey);
   const all = r.items.length;
   /* 폰에 담긴 체크도 한 것으로(체크 목록과 같은 셈) — 목록에서 누른 것은 화면이 다시 받으면(onChanged) 따라온다 */
-  const done = r.items.filter((it) => it.done || pending.some((p) => p.exerciseId === it.exercise.id && p.dateKey === dateKey)).length;
+  const done = r.items.filter((it) => doneWith(it, intents)).length;
   return (
     <View style={[st.routine, { backgroundColor: c.card, boxShadow: c.float, borderColor: open ? c.sky + '66' : c.line }]}>
       <View style={s.row}>
@@ -566,8 +568,6 @@ const st = StyleSheet.create({
   disclose: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderTopWidth: StyleSheet.hairlineWidth },
   bar: { height: 8, borderRadius: 4, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 4 },
-  week: { flexDirection: 'row', gap: 4 },
-  dot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   routine: { borderRadius: 18, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 4, gap: 4 },
   routineHead: { flex: 1, minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10 },
   circleHit: { width: 44, height: 52, alignItems: 'center', justifyContent: 'center' },
