@@ -15,7 +15,7 @@ import { rpc } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { leaveWhenShown, openCheckin } from '~/shell/web-nav';
 import { AREAS_BY_JOINT, AreaCard, Checklist, ExerciseRow, PainNote, RehabCard, RoutineCard, WeekDots, doneWith, openPlay, useCheckIntents } from '~/training/armcare-parts';
-import { isFav, useFavVersion } from '~/training/favorites';
+import { useFavs } from '~/training/favorites';
 import { FavButton } from '~/training/fav-button';
 import { Fold, Screen, SectionHead, s, useJump, useScreenData } from '~/training/screen';
 import { Sheet } from '~/workout/sheets';
@@ -99,7 +99,7 @@ function FavSheet({ guide, onClose, c }: { guide: AppArmcareGuideTab | null; onC
   const [got, setGot] = useState<AppArmcareGuideTab | null>(null);
   const [failed, setFailed] = useState(false);
   const data = guide ?? got;
-  useFavVersion();
+  const favs = useFavs();
   useEffect(() => {
     if (guide) return;
     let alive = true;
@@ -116,7 +116,7 @@ function FavSheet({ guide, onClose, c }: { guide: AppArmcareGuideTab | null; onC
     };
   }, [guide]);
   const favIds = data?.favoriteIds ?? [];
-  const list = data ? data.exercises.filter((ex) => isFav('exercise', ex.id, favIds.includes(ex.id))) : [];
+  const list = data ? data.exercises.filter((ex) => favs.fav('exercise', ex.id, favIds.includes(ex.id))) : [];
   return (
     <Sheet fit open onClose={onClose} title="즐겨찾기" description="별을 단 암케어 운동" c={c}>
       {!data ? (

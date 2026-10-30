@@ -6,7 +6,8 @@ import { DRILL_EQUIPMENT, DRILL_STAGE_NAMES, FOCUS_POINTS } from '@/lib/exercise
 import { matchesSearch } from '@/lib/korean';
 import { Bar, BarButton, leave } from '~/community/parts';
 import { useMenu } from '~/shell/menu-store';
-import { ChipRow, DRILL_LIST, FilterSheet, filterChips, filterCount, matchesFilter, FoldHead, GridRow, LibraryGrid, SearchField, gridRows, recall, remember, st, type Drill, LibraryTabs } from '~/library/parts';
+import { useFavs } from '~/training/favorites';
+import { ChipRow, DRILL_LIST, FilterSheet, filterChips, filterCount, matchesFilter, FoldHead, GridRow, LibraryGrid, SearchField, gridRows, remember, st, type Drill, LibraryTabs } from '~/library/parts';
 import { DrillDetail } from '~/library/detail';
 import { usePalette } from '~/lib/ui';
 import { useScreenData } from '~/training/screen';
@@ -51,11 +52,14 @@ export default function DrillLibraryScreen() {
   const [openId, setOpenId] = useState<string | null>(null);
 
   const data = state.data;
-  const drills = useMemo(() => {
+  /* 별은 공용 저장소의 값 — 상세 · 다른 화면에서 바꾼 것이 바로 보이고, 늦게 온 옛 목록이 덮지 않는다(~/training/favorites) */
+  const favs = useFavs();
+  const listed = useMemo(() => {
     if (!data) return [];
     remember(data.drills);
-    return data.drills.map((g) => recall<Drill>(g.id) ?? g);
+    return data.drills;
   }, [data]);
+  const drills = listed.map((g) => ({ ...g, favorite: favs.fav('drill', g.id, g.favorite) }));
   const favCount = drills.filter((g) => g.favorite).length;
   const filtering = query.trim() !== '' || onlyFav || filterCount(filter) > 0;
   const matched = useMemo(() => {

@@ -13,6 +13,7 @@ import { STATE_NOTICE_TEXT, moreText, type StateNotice } from '@/lib/report/stat
 import type { TodayGroup, TodayMake, TodayPlan, TodayRow, TrainingToday } from '@/lib/report/training-today-data';
 import { ExerciseMedia } from '~/armcare/parts';
 import { act, offlineAs } from '~/mechanics/parts';
+import { setFavorite, useFavs } from '~/training/favorites';
 import { withAlpha, type Palette } from '~/lib/ui';
 import { EffortGuide, Sheet } from '~/workout/sheets';
 import { trainingEffortLevel } from '@/lib/training-effort';
@@ -299,8 +300,8 @@ export function MakeCard({
 
 /* ----------------------------- 일정 카드 · 목록 · 메모 ----------------------------- */
 
-type Local = { done: Record<string, boolean>; fav: Record<string, boolean>; gone: string[] };
-const EMPTY: Local = { done: {}, fav: {}, gone: [] };
+type Local = { done: Record<string, boolean>; gone: string[] };
+const EMPTY: Local = { done: {}, gone: [] };
 
 /**
  * 만든 날 — 일정 머리(목표 · 까닭) · 체크 목록 · 오늘 운동 메모(웹 training-page 의 일정 갈래). 체크 · 별 · 빼기는 화면을 먼저 바꾸고 서버에
@@ -333,13 +334,15 @@ export function PlanBody({
   const pending = useRef(new Set<string>());
   const [listOpen, setListOpen] = useState(false);
   const unit = useWeightUnit();
+  const favs = useFavs();
 
   const groups: TodayGroup[] = plan.groups
     .map((g) => ({
       ...g,
       items: g.items
         .filter((r) => !local.gone.includes(r.id))
-        .map((r) => ({ ...r, done: local.done[r.id] ?? r.done, favorite: local.fav[r.id] ?? r.favorite })),
+        /* 별은 공용 저장소 — 운동 영상 · 운동 진행에서 바꾼 것이 바로 보인다(~/training/favorites) */
+        .map((r) => ({ ...r, done: local.done[r.id] ?? r.done, favorite: favs.fav('exercise', r.id, r.favorite) })),
     }))
     .filter((g) => g.items.length > 0);
   const all = groups.flatMap((g) => g.items);
@@ -359,20 +362,13 @@ export function PlanBody({
       setError(offlineAs(res.error, '저장하지 못했어요.'));
     }
   };
-  const starring = useRef(new Set<string>());
-  const star = async (r: TodayRow) => {
-    /* 빠른 두 번 누름 — 하나씩, 바라는 값을 보낸다(뒤집기를 두 번 보내면 서버와 화면이 엇갈렸다) */
-    if (starring.current.has(r.id)) return;
-    starring.current.add(r.id);
-    tick();
-    setLocal((l) => ({ ...l, fav: { ...l.fav, [r.id]: !r.favorite } }));
-    const res = await act<{ favorite: boolean }>('favorite.setExerciseFavorite', r.id, !r.favorite);
-    starring.current.delete(r.id);
-    if ('error' in res) {
-      setLocal((l) => ({ ...l, fav: { ...l.fav, [r.id]: r.favorite } }));
-      setError(offlineAs(res.error, '저장하지 못했어요.'));
-    } else setLocal((l) => ({ ...l, fav: { ...l.fav, [r.id]: res.favorite } }));
+  /* 받은 서버 값(별) — 공용 저장소가 늦게 온 옛 목록과 새 값을 가른다 */
+  const served = new Map(plan.groups.flatMap((g) => g.items.map((r) => [r.id, r.favorite] as const)));
+  const star = (r: TodayRow) => {
+    setError(null);
+    setFavorite('exercise', r.id, !r.favorite, served.get(r.id) ?? false);
   };
+  const starError = all.map((r) => favs.status('exercise', r.id).error).find(Boolean) ?? null;
   /* 웹처럼 밀어서 [빼기]를 누르면 바로 뺀다(묻지 않음) — 실패하면 되돌리고 알린다 */
   const remove = async (r: TodayRow) => {
     setError(null);
@@ -402,7 +398,7 @@ export function PlanBody({
           <Text style={[s.tiny, { color: c.muted }]}>완료한 운동을 체크하면 운동 부하와 다음 일정에 반영돼요.</Text>
         ) : null}
       </View>
-      {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
+      {error ?? starError ? <Text style={[s.small, { color: c.danger }]}>{error ?? starError}</Text> : null}
       {groups.map((g) => (
         <View key={g.slot} style={{ gap: 8 }}>
           <Text style={[s.bodyBold, { color: c.ink, paddingHorizontal: 4 }]}>

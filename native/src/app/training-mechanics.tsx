@@ -9,7 +9,7 @@ import { GearSheet, ManageSheet, MechanicsStart, MechanicsTraining } from '~/tra
 import { Press } from '~/shell/press';
 import { rpc } from '~/lib/rpc';
 import { FavButton } from '~/training/fav-button';
-import { isFav, useFavVersion } from '~/training/favorites';
+import { useFavs } from '~/training/favorites';
 import { Sheet } from '~/workout/sheets';
 import { usePalette, type Palette } from '~/lib/ui';
 import {
@@ -121,7 +121,7 @@ function FavSheet({ elements, onClose, c }: { elements: AppMechanicsElementsTab 
   const [got, setGot] = useState<AppMechanicsElementsTab | null>(null);
   const [failed, setFailed] = useState(false);
   const data = elements ?? got;
-  useFavVersion();
+  const favs = useFavs();
   useEffect(() => {
     if (elements) return;
     let alive = true;
@@ -137,7 +137,7 @@ function FavSheet({ elements, onClose, c }: { elements: AppMechanicsElementsTab 
       alive = false;
     };
   }, [elements]);
-  const list = data ? data.drills.filter((d) => d.variants.some((v) => isFav('drill', v.id, v.favorite))) : [];
+  const list = data ? data.drills.filter((d) => d.variants.some((v) => favs.fav('drill', v.id, v.favorite))) : [];
   return (
     <Sheet fit open onClose={onClose} title="즐겨찾기" description="별을 단 드릴" c={c}>
       {!data ? (
@@ -157,7 +157,7 @@ function FavSheet({ elements, onClose, c }: { elements: AppMechanicsElementsTab 
               key={d.title}
               drill={d}
               secondary={false}
-              start={Math.max(0, d.variants.findIndex((v) => isFav('drill', v.id, v.favorite)))}
+              start={Math.max(0, d.variants.findIndex((v) => favs.fav('drill', v.id, v.favorite)))}
               c={c}
             />
           ))}

@@ -1,4 +1,5 @@
 import { Icon } from '~/shell/icon';
+import { useFavs } from '~/training/favorites';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ScrollLockScope } from '~/shell/scroll-lock';
 import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -390,19 +391,24 @@ export function SwapSheet({
   const byId = useMemo(() => new Map((library ?? []).map((p) => [p.id, p])), [library]);
   const inPlan = useMemo(() => new Set(inPlanIds), [inPlanIds]);
   const blocked = useMemo(() => new Set(choices?.blockedIds ?? []), [choices]);
-  const favorites = useMemo(() => new Set(choices?.favoriteIds ?? []), [choices]);
+  /* 별은 공용 저장소의 값 — 운동 영상 · 운동 진행에서 바꾼 것이 바로(~/training/favorites). 서버가 준 즐겨찾기 차례 뒤에 이 앱에서 새로 단 것 */
+  const favs = useFavs();
+  const served = new Set(choices?.favoriteIds ?? []);
+  const favoriteIds = [
+    ...(choices?.favoriteIds ?? []).filter((id) => favs.fav('exercise', id, true)),
+    ...(library ?? []).flatMap((p) => (!served.has(p.id) && favs.fav('exercise', p.id, false) ? [p.id] : [])),
+  ];
+  const favorites = new Set(favoriteIds);
   const pickable = (ids: readonly string[]) =>
     ids.flatMap((id) => {
       const found = id === current.id ? undefined : byId.get(id);
       return found ? [found] : [];
     });
-  const matched = useMemo(() => {
-    if (!library) return [];
-    const text = query.trim();
-    return library
-      .filter((p) => p.id !== current.id && (matchesSearch(p.title, text) || matchesSearch(p.category, text)))
-      .sort((a, b) => Number(favorites.has(b.id)) - Number(favorites.has(a.id)));
-  }, [library, query, favorites, current.id]);
+  /* 별이 바뀌면(공용 저장소) 다시 줄 세운다 — 수백 개라 그릴 때마다 해도 가볍다 */
+  const text = query.trim();
+  const matched = (library ?? [])
+    .filter((p) => p.id !== current.id && (matchesSearch(p.title, text) || matchesSearch(p.category, text)))
+    .sort((a, b) => Number(favorites.has(b.id)) - Number(favorites.has(a.id)));
   const halted = choices?.halted ?? null;
   const kind = (p: SwapPick) => `${p.category} · ${equipmentLabel(p.equipment)}`;
 
@@ -436,7 +442,7 @@ export function SwapSheet({
   };
 
   const empty = (text: string) => <Text style={[st.empty, { backgroundColor: c.chip, color: c.muted }]}>{text}</Text>;
-  const favoritePicks = pickable(choices?.favoriteIds ?? []);
+  const favoritePicks = pickable(favoriteIds);
   const recentPicks = pickable(choices?.recentIds ?? []);
 
   return (

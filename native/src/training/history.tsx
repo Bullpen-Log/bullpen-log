@@ -54,30 +54,51 @@ export function HistoryPanel({
   excludeSessionId,
   unit,
   c,
+  hideNote = false,
+  recentFirst = false,
 }: {
   exerciseId: string;
   /** 운동 화면에서 열었으면 지금 하는 판 — 그 판의 세트는 '지난 기록'이 아니라 뺀다(웹 ExerciseHistoryPanel 과 같다) */
   excludeSessionId?: string;
   unit: WeightUnit;
   c: Palette;
+  /** 운동 영상 상세(2026-10-31) — 메모는 위 '운동 방법'에서 고치므로 여기선 안 보인다 */
+  hideNote?: boolean;
+  /** 운동 영상 상세 — 최근 날짜별 세트를 먼저, 최고 기록 · 흐름은 [기록 요약]을 펴서 */
+  recentFirst?: boolean;
 }) {
-  const [got, setGot] = useState<{ history: ExerciseHistory; note: string | null } | { error: string } | null>(null);
+  type Got = { history: ExerciseHistory; note: string | null } | { error: string };
+  /* 어느 운동 · 판 · 몇 번째 받기의 답인지 같이 — 앞 운동의 답이 다음 운동 밑에 잠깐도 안 보이게 */
+  const [got, setGot] = useState<{ key: string; r: Got } | null>(null);
+  const [tries, setTries] = useState(0);
+  const key = `${exerciseId}|${excludeSessionId ?? ''}|${tries}`;
   const [more, setMore] = useState(false);
+  const [summary, setSummary] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
   useEffect(() => {
     let alive = true;
     void act<{ history: ExerciseHistory; note: string | null }>('exercise-history.exerciseHistory', { exerciseId, excludeSessionId }).then((r) => {
-      if (alive) setGot(r);
+      if (alive) setGot({ key: `${exerciseId}|${excludeSessionId ?? ''}|${tries}`, r });
     });
     return () => {
       alive = false;
     };
-  }, [exerciseId, excludeSessionId]);
+  }, [exerciseId, excludeSessionId, tries]);
 
-  if (!got) return <Text style={[s.small, s.center, { color: c.muted, paddingVertical: 24 }]}>기록을 불러오는 중…</Text>;
-  if ('error' in got) return <Text style={[s.small, s.center, st.empty, { color: c.muted, backgroundColor: c.card }]}>{got.error}</Text>;
+  if (got?.key !== key) return <Text style={[s.small, s.center, { color: c.muted, paddingVertical: 24 }]}>기록을 불러오는 중…</Text>;
+  /* 못 받음 — 0번으로 보이지 않게 따로, 이 칸만 다시 받는다 */
+  if ('error' in got.r)
+    return (
+      <View style={[st.empty, { backgroundColor: c.card, gap: 8, alignItems: 'center' }]}>
+        <Text style={[s.small, s.center, { color: c.muted }]}>내 기록을 불러오지 못했어요. {got.r.error}</Text>
+        <Press onPress={() => setTries((n) => n + 1)} accessibilityRole="button" style={s.textBtn}>
+          <Text style={[s.smallBold, { color: c.link }]}>다시 불러오기</Text>
+        </Press>
+      </View>
+    );
 
-  const { history, note } = got;
+  const { history } = got.r;
+  const note = hideNote ? null : got.r.note;
   const { kind, days } = history;
   const noteBox = note ? (
     <View style={[s.box, { backgroundColor: c.card, boxShadow: c.float, gap: 4 }]}>
@@ -119,9 +140,8 @@ export function HistoryPanel({
   const picked = hover == null ? null : trend[hover];
   const shown = more ? days : days.slice(0, SHOWN);
 
-  return (
-    <View style={{ gap: 16 }}>
-      {noteBox}
+  const summaryEl = (
+    <>
       {/* 세 칸 높이를 같게(셋째 칸은 밑 줄이 없을 때가 많다 — 가운데로 떠 보였다) */}
       <View style={[s.row, { alignItems: 'stretch' }]}>
         {[first, second, third].map((x) => (
@@ -180,6 +200,9 @@ export function HistoryPanel({
         </View>
       ) : null}
 
+    </>
+  );
+  const recentEl = (
       <View style={{ gap: 6 }}>
         <Text style={[s.smallBold, { color: c.muted }]}>최근 기록</Text>
         <View style={[st.list, { backgroundColor: c.card, boxShadow: c.float }]}>
@@ -204,6 +227,23 @@ export function HistoryPanel({
           </Press>
         ) : null}
       </View>
+  );
+  if (recentFirst)
+    return (
+      <View style={{ gap: 16 }}>
+        {noteBox}
+        {recentEl}
+        <Press onPress={() => setSummary((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: summary }} style={[s.textBtn, { alignSelf: 'flex-start' }]}>
+          <Text style={[s.smallBold, { color: c.link }]}>{summary ? '기록 요약 접기' : '기록 요약 · 최고 기록 · 흐름 보기'}</Text>
+        </Press>
+        {summary ? summaryEl : null}
+      </View>
+    );
+  return (
+    <View style={{ gap: 16 }}>
+      {noteBox}
+      {summaryEl}
+      {recentEl}
     </View>
   );
 }

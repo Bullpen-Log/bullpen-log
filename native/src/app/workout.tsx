@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, Stack, useLocalSearchParams } from 'expo-router';
+import { retryFav } from '~/library/sync';
+import { setFavorite, useFavs } from '~/training/favorites';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator,
@@ -298,7 +300,6 @@ function Run({
   const [favorites, setFavorites] = useState<ReadonlySet<string>>(
     () => new Set(exercises.filter((e) => e.favorite).map((e) => e.id))
   );
-  const [starring, setStarring] = useState(false);
   /* 시트 셋 — 열 때마다 key 를 올려 새로 그린다(고르던 강도 · 찾던 글이 다음에 안 남게), 닫은 뒤에도 붙어 있어 내려가는 움직임이 보인다 */
   const [sheet, setSheet] = useState<{ which: 'list' | 'swap' | 'finish' | null; n: number }>({ which: null, n: 0 });
   const openSheet = (which: 'list' | 'swap' | 'finish') => setSheet((p) => ({ which, n: p.n + 1 }));
@@ -567,34 +568,17 @@ function Run({
     goTo(mode === 'replace' ? at : at + 1, next);
   };
 
-  /** ★ — 누르는 즉시 바꿔 보이고 뒤에서 저장한다. 원하는 상태를 보내므로 다시 눌러도 어긋나지 않는다. 못 했으면 되돌린다 */
-  const toggleStar = async () => {
-    const id = ex.id;
-    const on = !favorites.has(id);
-    const mark = (value: boolean) =>
-      setFavorites((prev) => {
-        const next = new Set(prev);
-        if (value) next.add(id);
-        else next.delete(id);
-        return next;
-      });
+  /**
+   * ★ — 공용 저장소(~/training/favorites)로: 누르는 즉시 바뀌고, 같은 운동은 하나씩 바라는 값을 보낸다. 운동 영상 목록 · 상세 · 운동 추가와
+   * 같은 값을 본다. 실패하면 되돌리고 제목 밑에 [다시 시도].
+   */
+  const favs = useFavs();
+  const starred = (id: string) => favs.fav('exercise', id, favorites.has(id));
+  const toggleStar = () => {
     setError(null);
-    mark(on);
-    tick();
-    setStarring(true);
-    try {
-      const res = await rpc<{ favorite: boolean } | { error: string }>('favorite.setExerciseFavorite', id, on);
-      if ('error' in res) {
-        mark(!on);
-        setError(res.error);
-      }
-    } catch {
-      mark(!on);
-      setError('신호가 없어 즐겨찾기를 바꾸지 못했어요. 신호가 잡히면 다시 눌러 주세요.');
-    } finally {
-      setStarring(false);
-    }
+    setFavorite('exercise', ex.id, !starred(ex.id), favorites.has(ex.id));
   };
+  const starState = favs.status('exercise', ex.id);
 
   /** 고치기를 마치거나 그만둔다 — 누르기 전에 넣고 있던 값을 되돌려 놓는다 */
   const endEdit = () => {
@@ -998,12 +982,11 @@ function Run({
           <View style={s.titleRow}>
             <Text style={[s.title, { color: c.ink }]}>
               {ex.title}
-              {favorites.has(ex.id) ? <Text style={{ color: c.link, fontSize: 18 }}> ★</Text> : null}
+              {starred(ex.id) ? <Text style={{ color: c.link, fontSize: 18 }}> ★</Text> : null}
             </Text>
             {/* 지금 운동 메뉴 — 즐겨찾기 · 교체(기록 전) / 추가(기록 후) · 운동 마치기(시안 07: 자주 하는 세트 기록을 앞에 두고 나머지는 한 곳에) */}
             <Press
               onPress={() => setMenu(true)}
-              disabled={starring}
               accessibilityRole="button"
               accessibilityLabel={`${ex.title} 메뉴`}
               style={[s.iconBtn, { marginTop: 2 }]}
@@ -1013,6 +996,14 @@ function Run({
               </View>
             </Press>
           </View>
+          {starState.error ? (
+            <Press onPress={() => retryFav('exercise', ex.id, favorites.has(ex.id))} accessibilityRole="button" style={[s.textBtn, { alignSelf: 'flex-start' }]}>
+              <Text style={[s.small, { color: c.danger }]}>
+                {starState.lost ? starState.error : `즐겨찾기를 저장하지 못했어요. ${starState.error}`}
+                {starState.canRetry ? <Text style={{ color: c.link, fontWeight: '700' }}> 다시 시도</Text> : null}
+              </Text>
+            </Press>
+          ) : null}
           {ex.prescription ? (
             <Text style={[s.body, { color: c.muted }]}>
               {ex.prescription}
@@ -1081,6 +1072,19 @@ function Run({
               {/* 운동마다 새 재생기 — 같은 자리라 앞 운동의 영상이 다음 운동에서도 돌지 않게. 웹 LibraryVideo 처럼 미리보기 그림 → 눌러 재생 */}
               <ExerciseMedia key={ex.id} path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
               {ex.description ? <Text style={[TYPE.reading, { color: c.ink }]}>{ex.description}</Text> : null}
+              {/* 운동 상세 — 위에 쌓여 이 판(입력 중인 세트 · 쉬는 시계 · 지금 운동)은 그대로. 오늘 배정된 구성을 같이 넘긴다 */}
+              <Press
+                onPress={() =>
+                  router.push({
+                    pathname: '/library/exercise/[id]',
+                    params: { id: ex.id, session: sessionId, today: ex.prescription ? `${ex.prescription}${ex.perSide ? ' (좌우 각각)' : ''}` : '' },
+                  } as Href)
+                }
+                accessibilityRole="link"
+                style={[s.textBtn, { alignSelf: 'flex-start', paddingHorizontal: 0 }]}
+              >
+                <Text style={[s.smallBold, { color: c.link }]}>운동 상세 · 설명 · 근육 · 내 기록 ›</Text>
+              </Press>
             </View>
           ) : null}
           {showHistory ? (
@@ -1390,10 +1394,10 @@ function Run({
         <View style={{ gap: 4 }}>
           <MenuRow
             icon="star"
-            label={favorites.has(ex.id) ? '즐겨찾기에서 빼기' : '즐겨찾기에 담기'}
+            label={starred(ex.id) ? '즐겨찾기에서 빼기' : '즐겨찾기에 담기'}
             onPress={() => {
               setMenu(false);
-              void toggleStar();
+              toggleStar();
             }}
             c={c}
           />

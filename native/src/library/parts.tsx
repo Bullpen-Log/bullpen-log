@@ -6,7 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { Thumb } from '~/lib/thumb';
 import type { LibraryExercise } from '@/lib/library-load';
 import type { GuideItem } from '@/app/(app)/library/mechanics/mechanics-client';
-import { act } from '~/mechanics/parts';
+import { useFav } from '~/training/favorites';
 import { withAlpha, type Palette } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
 import { Sheet } from '~/workout/sheets';
@@ -36,36 +36,13 @@ export function recall<T extends Exercise | Drill>(id: string): T | null {
   return (items.get(id) as T | undefined) ?? null;
 }
 
-/** 별 — 누르면 바로 바꾸고, 서버가 거절하면 되돌린다(웹 FavoriteButton 과 같은 동작 · 같은 서버 길) */
+/**
+ * 별 — 운동 영상 · 투구 드릴 상세의 [즐겨찾기에 담기]. 목록 · 운동 진행 · 암케어와 같은 저장소(~/training/favorites)를 본다 — 예전엔 제 상태와
+ * 받은 줄 기억(items)을 따로 고쳐 늦게 온 목록이 바꾼 별을 덮을 수 있었다.
+ */
 export function useStar(item: Exercise | Drill, kind: 'exercise' | 'drill') {
-  const [on, setOn] = useState(item.favorite);
-  /* 목록을 새로 받아 별 값이 바뀌면 따라간다 — 낡은 값으로 누르면 드릴은 서버가 뒤집기만 해서 뜻과 반대로 바뀌었다 */
-  const [seen, setSeen] = useState(item.favorite);
-  if (seen !== item.favorite) {
-    setSeen(item.favorite);
-    setOn(item.favorite);
-  }
-  const [note, setNote] = useState<string | null>(null);
-  const toggle = async () => {
-    const next = !on;
-    void Haptics.selectionAsync();
-    setOn(next);
-    setNote(null);
-    items.set(item.id, { ...item, favorite: next });
-    const r =
-      kind === 'exercise'
-        ? await act<{ favorite: boolean }>('favorite.setExerciseFavorite', item.id, next)
-        : await act<{ favorite: boolean }>('favorite.toggleDrillFavorite', item.id);
-    if ('error' in r) {
-      setOn(!next);
-      items.set(item.id, { ...item, favorite: !next });
-      setNote(r.error);
-      return;
-    }
-    setOn(r.favorite);
-    items.set(item.id, { ...item, favorite: r.favorite });
-  };
-  return { on, note, toggle };
+  const f = useFav(kind, item.id, item.favorite);
+  return { on: f.on, note: f.error, toggle: f.toggle };
 }
 
 /** 목록 한 줄 — 미리보기 · 이름 · 한 줄 설명 · 별 */
@@ -473,6 +450,7 @@ export function FilterSheet({
   groups,
   value,
   onChange,
+  onApply,
   resultCount,
   c,
 }: {
@@ -481,6 +459,8 @@ export function FilterSheet({
   groups: readonly FilterGroup[];
   value: FilterState;
   onChange: (f: FilterState) => void;
+  /** 운동 영상 목록(2026-10-31) — 시트 안 고르기는 초안이고 [N개 운동 보기]에서만 반영, 닫으면 초안을 버린다. 안 주면 예전처럼 바로 반영(투구 드릴) */
+  onApply?: () => void;
   resultCount: number | null;
   c: Palette;
 }) {
@@ -506,8 +486,10 @@ export function FilterSheet({
           >
             <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>모두 지우기</Text>
           </Press>
-          <Press accessibilityRole="button" onPress={onClose} style={[st.foot, { flex: 1, backgroundColor: c.action }]}>
-            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{resultCount != null ? `${resultCount}개 보기` : '완료'}</Text>
+          <Press accessibilityRole="button" onPress={onApply ?? onClose} style={[st.foot, { flex: 1, backgroundColor: c.action }]}>
+            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>
+              {onApply ? `${resultCount ?? 0}개 운동 보기` : resultCount != null ? `${resultCount}개 보기` : '완료'}
+            </Text>
           </Press>
         </View>
       }

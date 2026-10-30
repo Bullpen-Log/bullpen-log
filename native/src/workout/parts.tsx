@@ -1,10 +1,11 @@
 import { Icon } from '~/shell/icon';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView, type SFSymbol } from 'expo-symbols';
+import { useFocusEffect } from 'expo-router';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { ActivityIndicator, Alert, Animated, AppState, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { EXERCISE_NOTE_MAX, cleanExerciseNote } from '@/lib/exercise-meta';
 import { referenceEmbedUrl, referenceWatchUrl } from '@/lib/reference-video';
@@ -15,6 +16,8 @@ import { call, loadMe } from '~/pitch/api';
 import { LocalVideo } from '../../modules/local-video';
 import { Press } from '~/shell/press';
 import { useDraftGuard } from '~/community/draft-guard';
+import { rememberNote } from '~/library/sync';
+import { useFavs } from '~/training/favorites';
 
 /** 운동 진행 화면(native/src/app/workout.tsx)의 작은 조각 — 웹 app/(session)/workout/run/session-client.tsx 의 같은 이름 부품을 옮겼다 */
 
@@ -197,20 +200,31 @@ type Draft = { exerciseId: string; text: string; base: string; error?: string };
 
 export function NoteBox({
   exerciseId,
-  note,
+  note: given,
   onSaved,
   c,
 }: {
   exerciseId: string;
+  /** 화면이 받은 서버 메모 — 다른 화면(운동 영상 상세 · 운동 진행)에서 저장한 것이 있으면 그것을 보인다(~/library/sync) */
   note: string | null;
-  onSaved: (exerciseId: string, note: string | null) => void;
+  onSaved?: (exerciseId: string, note: string | null) => void;
   c: Palette;
 }) {
+  const note = useFavs().note(exerciseId, given);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const writing = draft?.exerciseId === exerciseId ? draft : null;
+  const dirty = (d: Draft | null) => !!d && cleanExerciseNote(d.text) !== d.base;
   /* 고치던 메모가 있으면(다른 운동 것이어도) 화면을 나가기 전에 묻는다 */
-  useDraftGuard(!!draft && cleanExerciseNote(draft.text) !== draft.base);
+  useDraftGuard(dirty(draft));
+  /* [취소] — 고친 글이 있으면 버릴지 묻는다(계속 쓰면 초안 그대로) */
+  const cancel = () => {
+    if (!dirty(writing)) return setDraft(null);
+    Alert.alert('메모를 저장하지 않고 닫을까요?', undefined, [
+      { text: '계속 쓰기', style: 'cancel' },
+      { text: '버리기', style: 'destructive', onPress: () => setDraft(null) },
+    ]);
+  };
 
   const save = async () => {
     if (!writing) return;
@@ -229,12 +243,13 @@ export function NoteBox({
       });
       if ('error' in res) settle((d) => ({ ...d, error: res.error }));
       else {
-        onSaved(target, res.note);
+        rememberNote(target, res.note, given);
+        onSaved?.(target, res.note);
         /* 저장하는 동안 더 쓴 글이 있으면 닫지 않는다 — 한 번 더 누르면 된다 */
         settle((d) => (d.text === sent ? null : d));
       }
     } catch {
-      settle((d) => ({ ...d, error: '신호가 없어 메모를 저장하지 못했어요. 신호가 잡히면 다시 눌러 주세요.' }));
+      settle((d) => ({ ...d, error: '신호가 없어 저장됐는지 확인하지 못했어요. 신호가 잡히면 저장을 다시 눌러 주세요(같은 글로 다시 저장해요).' }));
     } finally {
       setSaving(false);
     }
@@ -245,7 +260,7 @@ export function NoteBox({
       <View style={[s.noteBox, { borderColor: c.sky, backgroundColor: c.card, boxShadow: c.float }]}>
         <View style={s.noteHead}>
           <Text style={[s.smallBold, { color: c.link, flex: 1 }]}>내 메모</Text>
-          <Press onPress={() => setDraft(null)} disabled={saving} style={s.noteBtn} accessibilityRole="button">
+          <Press onPress={cancel} disabled={saving} style={s.noteBtn} accessibilityRole="button">
             <Text style={[s.smallBold, { color: c.muted }]}>취소</Text>
           </Press>
           <Press
@@ -314,19 +329,25 @@ export function ExerciseVideo({
   path,
   referenceVideoId,
   aspectRatio,
+  height,
 }: {
   path: string | null;
   referenceVideoId: string | null;
   aspectRatio: number | null;
+  /**
+   * 운동 영상 상세(2026-10-31 시안 02)만 — 이 높이의 판 안에 원래 비율 그대로(contain) 담고, 직접 찍은 영상 밑에 조작 줄(멈춤 · 처음부터 ·
+   * 0.5배 · 크게 보기), 화면을 떠나거나 앱이 뒤로 가면 멈춘다. 안 주면 예전 그대로(운동 진행 · 암케어 · 워밍업).
+   */
+  height?: number;
 }) {
   const admin = useIsAdmin();
-  if (path) return <LibraryClip path={path} aspectRatio={aspectRatio} />;
+  if (path) return <LibraryClip path={path} aspectRatio={aspectRatio} height={height} />;
   /* 유튜브 영상 번호만(11자) — 이 글이 사이트 주소(baseUrl)로 도는 웹뷰에 그대로 들어가니, 다른 글자가 섞인 번호는 그리지 않는다 */
   if (!referenceVideoId || !/^[A-Za-z0-9_-]{11}$/.test(referenceVideoId)) return null;
   const html = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:#000;height:100%}iframe{border:0;width:100%;height:100%}</style><iframe src="${referenceEmbedUrl(referenceVideoId)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
   return (
     <View style={{ gap: 6 }}>
-      <View style={[s.video, { aspectRatio: aspectRatio ?? 16 / 9 }]}>
+      <View style={[s.video, height ? { height } : { aspectRatio: aspectRatio ?? 16 / 9 }]}>
         <WebView
           source={{ html, baseUrl: SITE_URL }}
           allowsInlineMediaPlayback
@@ -374,39 +395,48 @@ async function libraryUri(path: string): Promise<string | null> {
   return got ? `file://${got.path}` : url;
 }
 
-function LibraryClip({ path, aspectRatio }: { path: string; aspectRatio: number | null }) {
-  const [state, setState] = useState<{ path: string; uri: string | null; failed: boolean } | null>(null);
+function LibraryClip({ path, aspectRatio, height }: { path: string; aspectRatio: number | null; height?: number }) {
+  const [state, setState] = useState<{ path: string; uri: string | null; failed: boolean; tries: number } | null>(null);
+  /* [다시 불러오기] — 이 영상만 다시 받는다(설명 · 기록 · 별은 그대로) */
+  const [tries, setTries] = useState(0);
   useEffect(() => {
     let alive = true;
     libraryUri(path).then(
-      (uri) => alive && setState({ path, uri, failed: !uri }),
-      () => alive && setState({ path, uri: null, failed: true })
+      (uri) => alive && setState({ path, uri, failed: !uri, tries }),
+      () => alive && setState({ path, uri: null, failed: true, tries })
     );
     return () => {
       alive = false;
     };
-  }, [path]);
-  const box = [s.video, { aspectRatio: aspectRatio ?? 9 / 16 }];
-  if (state?.path !== path || (!state.uri && !state.failed))
+  }, [path, tries]);
+  const box = [s.video, height ? { height } : { aspectRatio: aspectRatio ?? 9 / 16 }];
+  if (state?.path !== path || state.tries !== tries || (!state.uri && !state.failed))
     return (
-      <View style={[box, s.centerBox]}>
+      <View style={[box, s.centerBox]} accessibilityLabel="영상을 불러오는 중">
         <ActivityIndicator color="#fff" />
       </View>
     );
+  const retry = (
+    <Press onPress={() => setTries((n) => n + 1)} accessibilityRole="button" style={s.clipRetry}>
+      <Text style={[s.smallBold, { color: '#fff' }]}>다시 불러오기</Text>
+    </Press>
+  );
   if (!state.uri)
     return (
-      <View style={[box, s.centerBox]}>
+      <View style={[box, s.centerBox, { gap: 8 }]}>
         <Text style={[s.small, { color: 'rgba(255,255,255,0.8)' }]}>영상을 불러오지 못했어요.</Text>
+        {retry}
       </View>
     );
-  return <ClipPlayer uri={state.uri} aspectRatio={aspectRatio} />;
+  return <ClipPlayer key={`${state.uri}#${tries}`} uri={state.uri} aspectRatio={aspectRatio} height={height} retry={retry} />;
 }
 
 /*
  * 운동 영상 — 아이폰 기본 재생 단추(가운데 큰 재생 · 10초 건너뛰기)가 영상의 동작을 가려서(2026-10-20 김민) 기본 단추를 끄고,
  * 화면을 누르면 멈춤 · 재생, 오른쪽 아래 작은 단추 둘(재생 · 멈춤, 크게 보기 — 크게 보기 안에서는 기본 단추가 다시 나온다).
+ * height(운동 영상 상세)면 단추를 영상 밖 밑 줄로 — 동작을 가리지 않게, 누르는 자리 44pt.
  */
-function ClipPlayer({ uri, aspectRatio }: { uri: string; aspectRatio: number | null }) {
+function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRatio: number | null; height?: number; retry: ReactNode }) {
   const view = useRef<VideoView>(null);
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;
@@ -414,26 +444,69 @@ function ClipPlayer({ uri, aspectRatio }: { uri: string; aspectRatio: number | n
     p.play();
   });
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+  const { status } = useEvent(player, 'statusChange', { status: player.status });
+  const [slow, setSlow] = useState(false);
+  const detail = height != null;
+  /* 상세만 — 화면을 떠나면(뒤로 · 다른 운동) · 앱이 뒤로 가면 멈춘다. 돌아와도 저절로 다시 틀지 않는다 */
+  useFocusEffect(
+    useCallback(() => {
+      if (!detail) return;
+      return () => player.pause();
+    }, [detail, player])
+  );
+  useEffect(() => {
+    if (!detail) return;
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st !== 'active') player.pause();
+    });
+    return () => sub.remove();
+  }, [detail, player]);
   const toggle = () => togglePlay(player);
-  return (
-    <View style={[s.video, { aspectRatio: aspectRatio ?? 9 / 16 }]}>
+  const grow = () => void view.current?.enterFullscreen().catch(() => undefined);
+  if (status === 'error')
+    return (
+      <View style={[s.video, s.centerBox, { gap: 8 }, detail ? { height } : { aspectRatio: aspectRatio ?? 9 / 16 }]}>
+        <Text style={[s.small, { color: 'rgba(255,255,255,0.8)' }]}>영상을 재생하지 못했어요.</Text>
+        {retry}
+      </View>
+    );
+  const video = (
+    <View style={[s.video, detail ? { height } : { aspectRatio: aspectRatio ?? 9 / 16 }]}>
       <VideoView ref={view} player={player} style={StyleSheet.absoluteFill} nativeControls={false} contentFit="contain" />
       <Pressable onPress={toggle} accessibilityRole="button" accessibilityLabel={isPlaying ? '영상 멈춤' : '영상 재생'} style={StyleSheet.absoluteFill} />
-      <View style={s.clipTools}>
-        <Press onPress={toggle} hitSlop={6} accessibilityRole="button" accessibilityLabel={isPlaying ? '멈춤' : '재생'} style={s.clipTool}>
-          <SymbolView name={isPlaying ? 'pause.fill' : 'play.fill'} size={13} tintColor="#fff" />
-        </Press>
-        <Press
-          onPress={() => void view.current?.enterFullscreen().catch(() => undefined)}
-          hitSlop={6}
-          accessibilityRole="button"
-          accessibilityLabel="크게 보기"
-          style={s.clipTool}
-        >
-          <SymbolView name="arrow.up.left.and.arrow.down.right" size={13} tintColor="#fff" />
-        </Press>
+      {detail ? null : (
+        <View style={s.clipTools}>
+          <Press onPress={toggle} hitSlop={6} accessibilityRole="button" accessibilityLabel={isPlaying ? '멈춤' : '재생'} style={s.clipTool}>
+            <SymbolView name={isPlaying ? 'pause.fill' : 'play.fill'} size={13} tintColor="#fff" />
+          </Press>
+          <Press onPress={grow} hitSlop={6} accessibilityRole="button" accessibilityLabel="크게 보기" style={s.clipTool}>
+            <SymbolView name="arrow.up.left.and.arrow.down.right" size={13} tintColor="#fff" />
+          </Press>
+        </View>
+      )}
+    </View>
+  );
+  if (!detail) return video;
+  return (
+    <View style={{ gap: 4 }}>
+      {video}
+      <View style={s.detailTools}>
+        <ClipTool label={isPlaying ? '멈춤' : '재생'} icon={isPlaying ? 'pause.fill' : 'play.fill'} onPress={toggle} />
+        <ClipTool label="처음부터" icon="backward.end.fill" onPress={() => restart(player)} />
+        <ClipTool label={slow ? '0.5배' : '1배'} icon="tortoise.fill" onPress={() => setSlow(setRate(player, !slow))} on={slow} />
+        <ClipTool label="크게 보기" icon="arrow.up.left.and.arrow.down.right" onPress={grow} />
       </View>
     </View>
+  );
+}
+
+/** 상세 영상 밑 조작 하나 — 44pt, 고른 것(0.5배)은 파랑 */
+function ClipTool({ label, icon, onPress, on = false }: { label: string; icon: SFSymbol; onPress: () => void; on?: boolean }) {
+  return (
+    <Press onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: on }} style={s.detailTool}>
+      <SymbolView name={icon} size={15} tintColor={on ? '#0a84d6' : '#8e8e93'} />
+      <Text style={[s.smallBold, { color: on ? '#0a84d6' : '#8e8e93' }]}>{label}</Text>
+    </Press>
   );
 }
 
@@ -442,10 +515,22 @@ function togglePlay(p: VideoPlayer) {
   if (p.playing) p.pause();
   else p.play();
 }
+function restart(p: VideoPlayer) {
+  p.currentTime = 0;
+  p.play();
+}
+/** 0.5배 ↔ 1배 — 크게 보기에서도 같은 재생기라 배속 · 자리가 그대로다 */
+function setRate(p: VideoPlayer, slow: boolean) {
+  p.playbackRate = slow ? 0.5 : 1;
+  return slow;
+}
 
 const s = StyleSheet.create({
   clipTools: { position: 'absolute', right: 8, bottom: 8, flexDirection: 'row', gap: 6 },
   clipTool: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+  clipRetry: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center' },
+  detailTools: { flexDirection: 'row', justifyContent: 'space-between' },
+  detailTool: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   rest: { alignSelf: 'center', minHeight: 40, borderRadius: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
   restClock: { fontSize: 18, fontWeight: '600', fontVariant: ['tabular-nums'] },
   small: { fontSize: 13 },
