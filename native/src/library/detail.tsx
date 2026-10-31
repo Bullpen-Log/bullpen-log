@@ -24,6 +24,8 @@ export type DetailEntry = {
   sessionId: string | null;
   today: string | null;
   routine?: { kind: string; name: string; section: 'common' | 'extra'; note: string | null } | null;
+  /** 암케어 루틴 만들기(edit) · 운동 추가(pick)에서 열람 — 그 초안의 세트(pick 이면 담을 때의 기본 세트). 세션 칸에 넣지 않는다 */
+  builder?: { from: 'edit' | 'pick'; name: string; sets: number } | null;
 };
 
 /**
@@ -63,7 +65,15 @@ export function ExerciseDetail({ item, entry, c }: { item: Exercise; entry: Deta
       <View style={{ gap: 20, display: tab === 'how' ? 'flex' : 'none' }}>
         {/* 오늘 구성(운동 진행에서 옴) — 그 판에 배정 · 교체된 그대로. 기본 수행량은 라이브러리 값이라 출처를 따로 적는다 */}
         <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 6 }]}>
-          {entry.routine ? (
+          {entry.builder ? (
+            <>
+              <Text style={[s.smallBold, { color: c.link }]}>
+                {entry.builder.name} · {entry.builder.from === 'edit' ? `지금 ${entry.builder.sets}세트로 담음` : `담으면 기본 ${entry.builder.sets}세트`}
+              </Text>
+              <Text style={[s.bodyBold, { color: c.ink }]}>{base?.replace(/^\d+세트 × /, '') ?? '정해 둔 수행 안내가 없어요'}</Text>
+              <Text style={[s.small, { color: c.muted }]}>세트당 기본 수행 안내 · 보기만 해서는 루틴이 바뀌지 않아요</Text>
+            </>
+          ) : entry.routine ? (
             <>
               <Text style={[s.smallBold, { color: c.link }]}>
                 {entry.routine.name} · {entry.routine.section === 'common' ? '공통 구간' : '추가 운동'}

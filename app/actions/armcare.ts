@@ -1,6 +1,7 @@
 'use server';
 
 import { appNow } from '@/lib/clock';
+import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -10,12 +11,12 @@ import { buildArmcareRoutine } from '@/lib/armcare/routine';
 import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { visibleExercises } from '@/lib/library-cache';
 import {
-  MY_ROUTINE_MAX,
   isRoutineId,
   normalizeRoutineInput,
   readRoutineItems,
   type MyRoutineItem,
 } from '@/lib/armcare/my-routines';
+import { createRoutineOnce, updateRoutine, type RoutineRefused, type RoutineSaved } from '@/lib/armcare/my-routines-save';
 
 /**
  * 오늘의 암케어를 만든다 — 처음 만들 때와 '다시 만들기'가 같은 동작이다.
@@ -91,71 +92,40 @@ async function armcareIds(): Promise<Map<string, { sets: number | null }>> {
 }
 
 /**
- * 내 루틴을 저장한다 — id 가 없으면 새로 만들고, 있으면 고친다.
+ * 내 루틴을 저장한다 — id 가 있으면 고치고, 없으면 새로 만든다(웹 화면 · 옛 앱). 새 앱의 새 루틴은 createMyArmcareRoutine(같은 시도 key).
  *
- * 규칙은 lib/armcare/my-routines.ts 한 곳에 있다(만들기 화면도 같은 것을 본다).
- * 여기서 더 보는 것은 둘이다 — 담은 운동이 정말 보이는 암케어 운동인가, 남의 루틴을
- * 고치려는 것은 아닌가.
+ * 규칙은 lib/armcare/my-routines.ts, DB 일은 lib/armcare/my-routines-save.ts 한 곳에 있다(만들기 화면도 같은 규칙을 본다).
+ * 여기서는 누구인지와 담을 수 있는 운동(보이는 암케어)만 넘긴다. error 는 쓰지 않은 것이 확정된 거절이다(code 로 까닭을 가른다).
  */
 export async function saveMyArmcareRoutine(input: {
   id?: string | null;
   name: string;
   items: MyRoutineItem[];
-}): Promise<{ ok: true; id: string } | { error: string }> {
+}): Promise<RoutineSaved | RoutineRefused> {
   const user = await requireUser();
-  const clean = normalizeRoutineInput(input);
-  if (!clean.ok) return { error: clean.error };
+  const known = new Set((await armcareIds()).keys());
+  /* id 없는 옛 만들기는 이번 요청에만 쓰는 key — 답이 끊겨 다시 누르면 새 key 라 하나 더 생길 수 있다(옛 화면의 한계, 새 앱은 key 를 정해 보낸다) */
+  const res = input.id
+    ? await updateRoutine(prisma, user.id, input.id, input, known)
+    : await createRoutineOnce(prisma, user.id, randomUUID(), input, known);
+  if ('ok' in res) revalidatePath('/training', 'layout');
+  return res;
+}
 
-  const known = await armcareIds();
-  const unknown = clean.items.filter((it) => !known.has(it.exerciseId));
-  if (unknown.length) {
-    return {
-      error: '담을 수 없는 운동이 섞여 있어요. 화면을 새로고침한 뒤 다시 담아 주세요.',
-    };
-  }
-  const items = clean.items as unknown as Prisma.InputJsonValue;
-
-  if (input.id) {
-    if (!isRoutineId(input.id)) return { error: '잘못된 요청이에요.' };
-    const res = await prisma.userArmcareRoutine.updateMany({
-      where: { id: input.id, userId: user.id },
-      data: { name: clean.name, items },
-    });
-    if (res.count === 0) return { error: '루틴을 찾을 수 없어요.' };
-    revalidatePath('/training', 'layout');
-    return { ok: true, id: input.id };
-  }
-
-  /*
-   * 세고 만들기를 한 트랜잭션(직렬화)으로 — 두 창에서 동시에 만들면 둘 다 9개를 세고
-   * 11개가 됐다(2026-09-26 검토). 겹치면 DB 가 한쪽을 되돌리고, 다시 눌러 달라고 한다.
-   */
-  let created: { id: string } | null;
-  try {
-    created = await prisma.$transaction(
-      async (tx) => {
-        const count = await tx.userArmcareRoutine.count({ where: { userId: user.id } });
-        if (count >= MY_ROUTINE_MAX) return null;
-        return tx.userArmcareRoutine.create({
-          data: { userId: user.id, name: clean.name, items },
-          select: { id: true },
-        });
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
-    );
-  } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') {
-      return { error: '다른 곳에서 동시에 루틴을 만들고 있어요. 다시 눌러 주세요.' };
-    }
-    throw e;
-  }
-  if (!created) {
-    return {
-      error: `내 루틴은 ${MY_ROUTINE_MAX}개까지 둘 수 있어요. 안 쓰는 루틴을 지우고 만들어 주세요.`,
-    };
-  }
-  revalidatePath('/training', 'layout');
-  return { ok: true, id: created.id };
+/**
+ * 새 루틴을 한 번만 만든다(2026-10-31 앱 루틴 만들기) — key 는 앱이 그 초안을 열 때 정해 둔 새 루틴 id. 같은 key 를 다시 보내면(결과 확인 ·
+ * 연타 · 답이 끊긴 뒤) 이미 만든 그 루틴을 돌려준다. 남의 key 는 거절한다(있는지도 알리지 않는다).
+ */
+export async function createMyArmcareRoutine(input: {
+  key: string;
+  name: string;
+  items: MyRoutineItem[];
+}): Promise<RoutineSaved | RoutineRefused> {
+  const user = await requireUser();
+  const known = new Set((await armcareIds()).keys());
+  const res = await createRoutineOnce(prisma, user.id, input?.key, { name: input?.name, items: input?.items }, known);
+  if ('ok' in res) revalidatePath('/training', 'layout');
+  return res;
 }
 
 /** 내 루틴을 지운다. 체크해 둔 운동 기록은 그대로 남는다(기록은 운동 기록 표에 있다). */

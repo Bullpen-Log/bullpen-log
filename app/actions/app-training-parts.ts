@@ -5,7 +5,8 @@ import { getCurrentUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { loadAppArmcareTab, type AppArmcareGuideTab, type AppArmcareTodayTab } from '@/lib/armcare/today-load';
 import { loadAppMechanicsTab, type AppMechanicsElementsTab, type AppMechanicsProgramTab } from '@/lib/mechanics/home-load';
-import { loadRoutineBuilder, type RoutineBuilderData } from '@/lib/armcare/routine-builder-load';
+import { loadBuilderExercises, loadRoutineBuilder, type RoutineBuilderData } from '@/lib/armcare/routine-builder-load';
+import type { BuilderExercise } from '@/app/(app)/training/routine/[id]/routine-builder';
 import { toDateKey } from '@/lib/pitch-stats';
 import { trainingDay, type TrainingDayDetail } from '@/lib/report/training-history';
 import { loadTrainingStrip, type TrainingStripDay } from '@/lib/training-week';
@@ -42,6 +43,17 @@ export async function loadAppRoutine(id: unknown, add: unknown): Promise<{ ok: t
   if (!user) return { ok: false, to: '/login' };
   if (featureLocks(user).training) return { ok: false, to: SETUP_PATH.training };
   return { ok: true, routine: typeof id === 'string' ? await loadRoutineBuilder(user.id, id, add) : null };
+}
+
+/**
+ * 운동 추가(native/src/app/training/routine/pick.tsx) — 루틴에 담을 수 있는 운동 전부(보이는 암케어). 읽기만 한다 — 담기는 앱 초안에서, 저장은
+ * armcare.createMyArmcareRoutine · saveMyArmcareRoutine 이 운동을 다시 확인한다.
+ */
+export async function loadAppRoutineCatalog(): Promise<{ ok: true; exercises: BuilderExercise[] } | Closed> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, to: '/login' };
+  if (featureLocks(user).training) return { ok: false, to: SETUP_PATH.training };
+  return { ok: true, exercises: await loadBuilderExercises() };
 }
 
 export type AppTrainingDay = { today: string; detail: TrainingDayDetail; strip: TrainingStripDay[] };

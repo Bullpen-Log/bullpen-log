@@ -26,6 +26,27 @@ export type RoutineBuilderData = {
 };
 
 /**
+ * 담을 수 있는 운동 — 보이는 암케어 운동 전부와 담을 때 쓰는 기본 세트 · 부위 · 세트별 분 · 세트 뺀 처방.
+ * 루틴 만들기와 앱의 운동 추가(app-training-parts.loadAppRoutineCatalog)가 같이 쓴다. 저장은 이것과 따로 다시 확인한다(app/actions/armcare.ts).
+ */
+export async function loadBuilderExercises(): Promise<BuilderExercise[]> {
+  const armcare = (await visibleExercises()).filter((ex) => ex.category === ARMCARE_CATEGORY);
+  const views = await toArmcareViews(armcare);
+  return armcare.map((ex, i) => {
+    const muscles = ex.targetMuscles ?? [];
+    const one = formatPrescription({ ...ex, sets: 1 });
+    return {
+      view: views[i],
+      defaultSets: clampRoutineSets(ex.sets ?? 2),
+      area: primaryArea(muscles)?.key ?? null,
+      minutes: [1, 2, 3, 4, 5].map((s) => armcareMinutes({ ...ex, targetMuscles: muscles }, s)),
+      /* '1세트 × 10회 …'에서 세트를 뗀 것 — 세트는 이 화면에서 따로 고른다 */
+      dose: one ? one.replace(/^1세트 × /, '') : null,
+    };
+  });
+}
+
+/**
  * id 는 'new' 또는 루틴 번호. 없는 루틴이면 null(웹은 notFound).
  * add 가 암케어 운동 id 면 그 운동을 담은 채로 시작한다 — 부위별 보강의 '이 운동으로 새 루틴 만들기'.
  */
@@ -38,28 +59,11 @@ export async function loadRoutineBuilder(
   const routine = !isNew && isRoutineId(id) ? await loadMyRoutine(userId, id) : null;
   if (!isNew && !routine) return null;
 
-  const [library, mine] = await Promise.all([
-    visibleExercises(),
+  const [exercises, mine] = await Promise.all([
+    loadBuilderExercises(),
     isNew ? loadMyRoutines(userId) : Promise.resolve([]),
   ]);
-  const armcare = library.filter((ex) => ex.category === ARMCARE_CATEGORY);
-  const views = await toArmcareViews(armcare);
-
-  const exercises: BuilderExercise[] = armcare.map((ex, i) => {
-    const muscles = ex.targetMuscles ?? [];
-    const one = formatPrescription({ ...ex, sets: 1 });
-    return {
-      view: views[i],
-      defaultSets: clampRoutineSets(ex.sets ?? 2),
-      area: primaryArea(muscles)?.key ?? null,
-      minutes: [1, 2, 3, 4, 5].map((s) =>
-        armcareMinutes({ ...ex, targetMuscles: muscles }, s)
-      ),
-      /* '1세트 × 10회 …'에서 세트를 뗀 것 — 세트는 이 화면에서 따로 고른다 */
-      dose: one ? one.replace(/^1세트 × /, '') : null,
-    };
-  });
-  const known = new Set(armcare.map((ex) => ex.id));
+  const known = new Set(exercises.map((e) => e.view.id));
 
   const items = routine
     ? routine.items.filter((it) => known.has(it.exerciseId))

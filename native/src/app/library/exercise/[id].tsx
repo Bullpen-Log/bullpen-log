@@ -19,7 +19,18 @@ import { Icon } from '~/shell/icon';
  */
 export default function ExerciseDetailScreen() {
   const c = usePalette();
-  const params = useLocalSearchParams<{ id: string; session?: string; today?: string; warmup?: string; rname?: string; section?: string; rnote?: string }>();
+  const params = useLocalSearchParams<{
+    id: string;
+    session?: string;
+    today?: string;
+    warmup?: string;
+    rname?: string;
+    section?: string;
+    rnote?: string;
+    builder?: string;
+    bname?: string;
+    bsets?: string;
+  }>();
   const id = params.id ?? '';
   /* 워밍업 루틴에서 왔으면 그 루틴(정해 둔 모양의 종류만) — 세션 칸에 넣지 않는다 */
   const warmup = validKind(params.warmup);
@@ -27,9 +38,16 @@ export default function ExerciseDetailScreen() {
     warmup && !params.session
       ? { kind: warmup, name: (params.rname || '워밍업 루틴').slice(0, 40), section: params.section === 'common' ? ('common' as const) : ('extra' as const), note: params.rnote?.trim().slice(0, 300) || null }
       : null;
-  const entry: DetailEntry = { sessionId: params.session || null, today: params.today || null, routine };
+  /* 암케어 루틴 만들기 · 운동 추가에서 왔으면 — 읽기만(세트 · 선택 · 저장은 그 화면 몫) */
+  const bsets = Number(params.bsets);
+  const from: 'edit' | 'pick' | null = params.builder === 'edit' ? 'edit' : params.builder === 'pick' ? 'pick' : null;
+  const builder =
+    from && !params.session && !warmup
+      ? { from, name: (params.bname || (from === 'pick' ? '운동 추가' : '루틴')).slice(0, 20), sets: Number.isInteger(bsets) && bsets >= 1 && bsets <= 5 ? bsets : 1 }
+      : null;
+  const entry: DetailEntry = { sessionId: params.session || null, today: params.today || null, routine, builder };
   const kept = id ? recall<Exercise>(id) : null;
-  const back = entry.sessionId ? '운동으로' : routine ? routine.name : '운동 영상';
+  const back = entry.sessionId ? '운동으로' : routine ? routine.name : builder ? builder.name : '운동 영상';
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       {kept ? <Body item={kept} entry={entry} back={back} c={c} /> : <FromList id={id} entry={entry} back={back} c={c} />}
