@@ -149,7 +149,24 @@ export async function call<T extends { ok: boolean }>(action: string, ...args: u
 /** 위 막대 — 왼쪽 ‹ 뒤로(이름), 가운데 제목, 오른쪽 동작 하나 */
 /** modal = 아래에서 올라온 창(설정 · 내 정보) — 창은 시계 자리 밑에서 시작해 위 여백을 또 넣으면 80pt 가 비었다 */
 /** shown — 본문에 큰 제목(PageHead)을 둔 화면: 큰 제목이 막대 밑으로 굴러 가면 막대 제목이 옅게 뜬다(useTitleCollapse, 웹 NavTitle) */
-export function Bar({ back, title, right, c, modal = false, shown }: { back?: string; title?: string; right?: ReactNode; c: Palette; modal?: boolean; shown?: boolean }) {
+export function Bar({
+  back,
+  title,
+  right,
+  c,
+  modal = false,
+  shown,
+  onBack,
+}: {
+  back?: string;
+  title?: string;
+  right?: ReactNode;
+  c: Palette;
+  modal?: boolean;
+  shown?: boolean;
+  /** 뒤로를 누르면 — 안 주면 router.back(). 바로 열린 주소처럼 뒤가 없을 때 갈 곳을 정하는 화면이 준다 */
+  onBack?: () => void;
+}) {
   const inset = useSafeAreaInsets();
   const reduce = useReducedMotion();
   const o = useSharedValue(shown === false ? 0 : 1);
@@ -162,7 +179,7 @@ export function Bar({ back, title, right, c, modal = false, shown }: { back?: st
       {/* 웹 위 막대의 뒤로(back-link.tsx): 화살표 그림 24 + 글 17, 하늘색 */}
       {/* back 이 없으면(커뮤니티 하단바의 ← 가 대신) 자리만 비운다 */}
       {back ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`${back}(으)로 돌아가기`} onPress={() => router.back()} hitSlop={10} style={({ pressed }) => [s.side, s.backRow, pressed && { opacity: 0.6 }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${back}(으)로 돌아가기`} onPress={onBack ?? (() => router.back())} hitSlop={10} style={({ pressed }) => [s.side, s.backRow, pressed && { opacity: 0.6 }]}>
           <Icon name="back" size={24} color={c.link} />
           <Text style={{ color: c.link, fontSize: 17, flexShrink: 1 }} numberOfLines={1}>
             {back}

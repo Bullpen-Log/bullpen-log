@@ -6,14 +6,12 @@ import { favOf, resetLibrarySync, retryFav, setFavSender, subscribeSync, syncSna
 
 /**
  * 운동 · 드릴의 즐겨찾기 — 암케어 · 메카닉 줄, 운동 영상 목록 · 상세, 운동 진행 · 운동 추가가 같은 값을 본다(~/library/sync).
- * 저장은 웹과 같은 서버 동작: 운동은 바라는 값(favorite.setExerciseFavorite), 드릴은 뒤집기(favorite.toggleDrillFavorite) — 같은 것을 하나씩 보낸다.
- * 신호가 없어 답을 못 받으면(lost) 서버가 거절한 것과 따로 알리고, [다시 시도]는 같은 바람을 다시 보낸다.
+ * 저장은 바라는 값을 보낸다(favorite.setExerciseFavorite · setDrillFavorite) — 같은 것을 하나씩. 드릴도 2026-10-31 부터 뒤집기(toggle)가 아니다:
+ * 저장된 뒤 응답만 잃고 다시 보내면 toggle 은 반대로 뒤집혔다. 신호가 없어 답을 못 받으면(lost) 서버가 거절한 것과 따로 알리고, [다시 시도]는 같은 바람을 다시 보낸다.
  */
 setFavSender(async (kind, id, want) => {
   try {
-    return kind === 'exercise'
-      ? await rpc<{ favorite: boolean }>('favorite.setExerciseFavorite', id, want)
-      : await rpc<{ favorite: boolean }>('favorite.toggleDrillFavorite', id);
+    return await rpc<{ favorite: boolean }>(kind === 'exercise' ? 'favorite.setExerciseFavorite' : 'favorite.setDrillFavorite', id, want);
   } catch (e) {
     if (e instanceof RpcError && e.code === 'redirect') leave(e.to ?? '/login');
     if (e instanceof RpcError && e.code === 'offline') return { error: '신호가 없어 저장됐는지 확인하지 못했어요.', lost: true };

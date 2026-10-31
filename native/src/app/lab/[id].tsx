@@ -589,7 +589,7 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
               right={
                 <>
                   <ElementGrid c={c} report={report} onPick={(it) => jump(it.frame, false)} onScene={onScene} />
-                  <RxCard c={c} report={report} mine={r.mine} focus={r.focus} />
+                  <RxCard c={c} report={report} mine={r.mine} focus={r.focus} resultId={data.id} />
                   {r.previous ? <CompareCard c={c} prev={r.previous} /> : null}
                   <Details c={c} r={r} active={active} id={data.id} req={data.request} onJump={jump} onStarted={onReload} />
                 </>

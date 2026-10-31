@@ -6,7 +6,6 @@ import { formatPrescription } from '@/lib/exercise-meta';
 import { rpc } from '~/lib/rpc';
 import type { Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
-import { ExerciseMedia } from '~/armcare/parts';
 import { ExerciseVideo, NoteBox } from '~/workout/parts';
 import { Thumb } from '~/lib/thumb';
 import { Segmented } from '~/shell/heading';
@@ -15,7 +14,7 @@ import { MuscleChips } from '~/armcare/muscle-info';
 import { HistoryPanel } from '~/training/history';
 import { s } from '~/training/screen';
 import { Press } from '~/shell/press';
-import { FavoriteFull, Tags, useStar, type Drill, type Exercise } from './parts';
+import { Tags, type Exercise } from './parts';
 
 /** 운동 상세에 어디서 왔나 — 운동 진행에서 왔으면 그 판 · 그때 배정된 구성(라이브러리 기본값으로 덮지 않는다) */
 export type DetailEntry = { sessionId: string | null; today: string | null };
@@ -134,7 +133,8 @@ function Description({ id, c }: { id: string; c: Palette }) {
  * 시범 영상 자리 — 누르기 전에는 미리보기 그림만(영상 주소 · 받기 · 재생기 없음). 높이는 휴대폰 218 · 넓은 화면 320, 원래 비율 그대로 다 보이게.
  * 영상 경로도 참고 영상도 없으면 '영상 준비 중'(분류가 나중에 촬영이어도 영상이 있으면 튼다).
  */
-function DetailMedia({ item, c }: { item: Exercise; c: Palette }) {
+type MediaItem = Pick<Exercise, 'title' | 'videoPath' | 'referenceVideoId' | 'thumbUrl' | 'aspectRatio'>;
+export function DetailMedia({ item, c }: { item: MediaItem; c: Palette }) {
   const { width } = useWindowDimensions();
   const height = width >= 700 ? 320 : 218;
   const [play, setPlay] = useState(false);
@@ -148,17 +148,14 @@ function DetailMedia({ item, c }: { item: Exercise; c: Palette }) {
         <View style={st.mediaNote}>
           <Icon name="film" size={20} color={c.muted} />
           <Text style={[s.smallBold, { color: c.ink }]}>영상 준비 중</Text>
-          <Text style={[s.small, { color: c.muted, textAlign: 'center' }]}>아직 재생할 영상이 없어요. 설명과 기록은 볼 수 있어요.</Text>
+          <Text style={[s.small, { color: c.muted, textAlign: 'center' }]}>아직 재생할 영상이 없어요. 아래 내용은 그대로 볼 수 있어요.</Text>
         </View>
       </View>
     );
   return (
     <Press onPress={() => setPlay(true)} accessibilityRole="button" accessibilityLabel={`${item.title} 시범 영상 재생`} style={[st.media, { height, backgroundColor: '#000' }]}>
-      {thumb ?? (
-        <View style={st.mediaNote}>
-          <Text style={[s.small, { color: 'rgba(255,255,255,0.7)' }]}>미리보기 없음</Text>
-        </View>
-      )}
+      {/* 미리보기만 없음 — 영상은 있어 재생된다. 글은 재생 표시와 겹치지 않게 아래에 */}
+      {thumb ?? <Text style={[s.small, st.noThumb, { color: 'rgba(255,255,255,0.7)' }]}>미리보기 없음</Text>}
       <View style={st.mediaPlay}>
         <Icon name="play" size={22} color="#fff" fill="#fff" />
       </View>
@@ -170,47 +167,7 @@ const st = StyleSheet.create({
   name: { fontSize: 24, fontWeight: '700', lineHeight: 31 },
   media: { width: '100%', borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   mediaNote: { alignItems: 'center', gap: 6, paddingHorizontal: 24 },
+  noThumb: { position: 'absolute', bottom: 12 },
   mediaPlay: { position: 'absolute', width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', paddingLeft: 3 },
 });
 
-/**
- * 드릴 하나의 내용 — 상세 화면과 목록의 그 자리 펼침(웹 GuideDetail)이 같이 쓴다: 영상 · 이름(· 닫기) · 종류 · 요소(맨 앞이 주 요소) · 단계 · 장비 ·
- * 설명 · [즐겨찾기에 담기]. 설명은 목록에 같이 온다.
- */
-export function DrillDetail({ item, c, onClose }: { item: Drill; c: Palette; onClose?: () => void }) {
-  const star = useStar(item, 'drill');
-  const [main, ...more] = item.focusPoints;
-  return (
-    /* 별을 단 드릴은 펼친 카드 테두리가 주황(웹 GuideDetail border-warn-line) */
-    <View style={[{ gap: 16 }, onClose && [s.card, { backgroundColor: c.card, boxShadow: c.float, borderWidth: 1, borderColor: star.on ? c.warn + '66' : c.sky + '40' }]]}>
-      <ExerciseMedia path={item.videoPath} referenceVideoId={item.referenceVideoId} thumbUrl={item.thumbUrl} aspectRatio={item.aspectRatio} />
-      <View style={[s.row, { alignItems: 'flex-start' }]}>
-        <View style={{ flex: 1, gap: 6 }}>
-          <Text selectable style={[s.title, { color: c.ink }]}>
-            {item.title}
-          </Text>
-          <Text style={[s.small, { color: c.muted }]}>{item.category}</Text>
-        </View>
-        {onClose ? (
-          <Press accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} hitSlop={8} style={s.iconBtn}>
-            <Icon name="x" size={18} color={c.muted} />
-          </Press>
-        ) : null}
-      </View>
-      {main ? (
-        <Text style={[s.small, { color: c.muted }]}>
-          주 요소 <Text style={{ color: c.link, fontWeight: '700' }}>{main}</Text>
-          {more.length > 0 ? ` · 함께 쓰는 요소 ${more.join(' · ')}` : ''}
-        </Text>
-      ) : null}
-      <Tags items={[...(item.stage ? [item.stage] : []), ...item.equipment]} c={c} />
-      {item.description ? (
-        <InstructionText text={item.description} c={c} />
-      ) : (
-        <Text style={[s.small, { color: c.muted }]}>아직 적힌 설명이 없어요.</Text>
-      )}
-      {/* 예전엔 '학습 완료로 표시'였다 — 오늘 할 것을 고를 때 이 드릴을 다시 찾기 쉽게 별로(웹과 같다) */}
-      <FavoriteFull on={star.on} onPress={() => void star.toggle()} note={star.note} c={c} />
-    </View>
-  );
-}

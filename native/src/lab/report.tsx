@@ -259,7 +259,18 @@ export function ElementGrid({
 /* ───────────────────────────── 처방 ───────────────────────────── */
 
 /** 추천 훈련 한 요소 — 목적(관찰 기반 한 줄)과 대표 드릴(전체에서 많아야 2개). 주차별 계획은 훈련 상세에서 */
-function RxBlock({ c, rx, drills }: { c: Palette; rx: ElementRx; drills: (ElementRx['weeks'][number]['drills'][number] & { stage: string })[] }) {
+function RxBlock({
+  c,
+  rx,
+  drills,
+  find,
+}: {
+  c: Palette;
+  rx: ElementRx;
+  drills: (ElementRx['weeks'][number]['drills'][number] & { stage: string })[];
+  /** 이 요소로 투구 드릴 찾기(2026-10-31) — 같은 결과로 돌아올 수 있게 결과 번호를 싣는다. 라이브러리가 잠겼으면 없음 */
+  find: (() => void) | null;
+}) {
   const improve = rx.level === 'improve';
   return (
     <View style={{ gap: 10 }}>
@@ -287,6 +298,12 @@ function RxBlock({ c, rx, drills }: { c: Palette; rx: ElementRx; drills: (Elemen
           </View>
         </View>
       ))}
+      {find ? (
+        <Pressable onPress={find} accessibilityRole="link" style={({ pressed }) => [s.step, { backgroundColor: c.page, opacity: pressed ? 0.7 : 1 }]}>
+          <Text style={[TYPE.buttonCompact, { color: c.ink, flex: 1 }]}>투구 드릴에서 ‘{rx.element}’ 드릴 찾기</Text>
+          <Text style={[s.chev, { color: c.muted }]}>›</Text>
+        </Pressable>
+      ) : null}
       {rx.target ? (
         <View style={[s.target, { backgroundColor: c.page }]}>
           <Text style={[TYPE.sub, { color: c.muted }]}>다음에 볼 숫자 · {rx.target.label}</Text>
@@ -319,11 +336,14 @@ export function RxCard({
   report,
   mine,
   focus,
+  resultId,
 }: {
   c: Palette;
   report: PitchReport;
   mine: boolean;
   focus: FocusProgress;
+  /** 이 결과 화면의 번호 — 투구 드릴에서 찾은 뒤 같은 결과로 돌아온다 */
+  resultId: string;
 }) {
   /*
    * 출시 전 베타 — 트레이닝 · 메커니즘이 잠겼으면 그리로 가는 길(요소별 드릴 · 프로그램)을 걷는다. 리포트의 드릴 이름 · 설명은 그대로 보인다.
@@ -331,6 +351,7 @@ export function RxCard({
    */
   const release = useRelease();
   const trainingOpen = canOpen('/training?view=mechanics', release) && canOpen('/training-mechanics', release);
+  const libraryOpen = canOpen('/library/mechanics', release);
   if (report.criteria !== REPORT_CRITERIA || report.rx.length === 0) {
     const steps = (report.criteria === REPORT_CRITERIA && report.coverage ? nextStepsOf(report) : []).filter((st) => trainingOpen || st.kind === 'guide');
     return (
@@ -396,7 +417,20 @@ export function RxCard({
       </View>
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 18 }]}>
         {blocks.map((b) => (
-          <RxBlock key={b.rx.element} c={c} rx={b.rx} drills={b.drills} />
+          <RxBlock
+            key={b.rx.element}
+            c={c}
+            rx={b.rx}
+            drills={b.drills}
+            find={
+              libraryOpen
+                ? () => {
+                    void Haptics.selectionAsync();
+                    router.push({ pathname: '/library/mechanics', params: { from: 'analysis', result: resultId, el: b.rx.element } });
+                  }
+                : null
+            }
+          />
         ))}
         {report.later.length > 0 ? <Text style={[TYPE.sub, { color: c.muted }]}>다음 차례 · {report.later.join(' · ')}</Text> : null}
         {ctaOpen ? (

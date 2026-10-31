@@ -7,7 +7,7 @@ import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_NAMES } from '@/lib/exercise-
 import type { WarmupFolder } from '@/app/(app)/library/training/training-client';
 import { Bar, leave } from '~/community/parts';
 import { useMenu } from '~/shell/menu-store';
-import { EXERCISE_LIST, FilterSheet, SearchField, remember, type Exercise } from '~/library/parts';
+import { EXERCISE_LIST, EmptyAction, FilterSheet, LibrarySkeleton, SearchField, remember, type Exercise } from '~/library/parts';
 import { EMPTY_FILTERS, WARMUP, activeConditions, browse, categoriesOf, filterCount, nearestIndex, shortCategory, type LibraryFilters, type LibraryView, type WarmupGroup } from '~/library/browse';
 import { libraryView, saveLibraryView } from '~/library/sync';
 import { useFav, useFavs } from '~/training/favorites';
@@ -215,7 +215,7 @@ export default function ExerciseLibraryScreen() {
         </Press>
       </View>
     ) : (
-      <Skeleton cols={cols} c={c} />
+      <LibrarySkeleton cols={cols} label="운동을 불러오는 중" c={c} />
     )
   ) : exercises.length === 0 ? (
     <View style={st.empty}>
@@ -379,35 +379,6 @@ function ChipLine({ chips, onPick, label, c }: { chips: { key: string; label: st
         </Press>
       ))}
     </ScrollView>
-  );
-}
-
-function EmptyAction({ label, onPress, c }: { label: string; onPress: () => void; c: Palette }) {
-  return (
-    <Press onPress={onPress} accessibilityRole="button" style={[st.action, { backgroundColor: c.chip }]}>
-      <Text style={[st.bold, { color: c.ink }]}>{label}</Text>
-    </Press>
-  );
-}
-
-/** 처음 받는 동안 — 카드 모양 자리(수는 아직 모른다고 보고 적지 않는다) */
-function Skeleton({ cols, c }: { cols: number; c: Palette }) {
-  return (
-    <View accessibilityLabel="운동을 불러오는 중" style={{ gap: 12 }}>
-      {Array.from({ length: 3 }, (_, r) => (
-        <View key={r} style={st.gridRow}>
-          {Array.from({ length: cols }, (_, i) => (
-            <View key={i} style={[st.card, { flex: 1, backgroundColor: c.card }]}>
-              <View style={[st.thumb, { backgroundColor: c.chip }]} />
-              <View style={st.cardText}>
-                <View style={{ height: 14, width: '80%', borderRadius: 7, backgroundColor: c.chip }} />
-                <View style={{ height: 12, width: '50%', borderRadius: 6, backgroundColor: c.chip }} />
-              </View>
-            </View>
-          ))}
-        </View>
-      ))}
-    </View>
   );
 }
 

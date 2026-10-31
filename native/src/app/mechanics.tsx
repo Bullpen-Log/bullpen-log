@@ -248,6 +248,22 @@ function Player({
     return null;
   };
   const nextIndex = after(index);
+  /*
+   * 드릴 상세 — 위에 쌓아 열어 이 실행(지금 드릴 · 입력 중인 기록 · 세트 체크)은 그대로 둔다. 상세는 읽기만 해서(별만 저장) 세션 · 기록 · 진도가
+   * 바뀌지 않고, 뒤로 오면 같은 자리다.
+   */
+  const detailLink = (at: 'perform' | 'input') => (
+    <Press
+      onPress={() =>
+        router.push({ pathname: '/library/drill/[id]', params: { id: view.guideId, from: 'mechanics', pos: `${index + 1}/${items.length}`, phase: at } })
+      }
+      accessibilityRole="link"
+      style={[s.detailLink, { backgroundColor: c.card, boxShadow: c.float }]}
+    >
+      <Text style={[s.bodyBold, { color: c.link, flex: 1 }]}>드릴 상세 · 요소 · 준비물</Text>
+      <Text style={[s.small, { color: c.muted }]}>›</Text>
+    </Press>
+  );
   const blockedHere = !!stop && isArmLoaded(view.variant.category);
 
   const [openedMs] = useState(() => Date.now());
@@ -674,6 +690,7 @@ function Player({
     return shell(
       <View style={{ gap: 16 }}>
         <DrillHead item={item} view={view} c={c} />
+        {detailLink('input')}
         <PracticeInput
           skill={item.skill}
           category={view.variant.category}
@@ -755,6 +772,7 @@ function Player({
           <Description key={`desc-${view.guideId}`} guideId={view.guideId} c={c} />
         </View>
       </View>
+      {detailLink('perform')}
       {swappable ? (
         <Press onPress={() => setSwapOpen(true)} accessibilityRole="button" style={[s.swap, { backgroundColor: c.card, boxShadow: c.float }]}>
           <SymbolView name="arrow.triangle.2.circlepath" size={14} tintColor={c.link} />
@@ -1021,6 +1039,7 @@ const s = StyleSheet.create({
   tag: { fontSize: 13, fontWeight: '700', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
   goal: { borderRadius: 18, padding: 16, gap: 4 },
   linkRow: { flexDirection: 'row', gap: 8 },
+  detailLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingHorizontal: 14 },
   swap: { minHeight: 48, borderRadius: 14, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8 },
   setRow: { flexDirection: 'row', gap: 8 },
   setBtn: { flex: 1, minHeight: 44, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

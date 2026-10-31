@@ -110,3 +110,32 @@ export async function toggleDrillFavorite(guideId: string): Promise<Result> {
   revalidatePath('/training');
   return { favorite: !existing };
 }
+
+/**
+ * 드릴 별을 켜거나 끈다 — 앱의 별(2026-10-31 투구 드릴 라이브러리). setExerciseFavorite 와 같은 까닭: toggle 은 저장된 뒤 응답만 잃고
+ * 다시 보내면 반대로 뒤집힌다. 원하는 상태를 보내면 몇 번을 보내도 같다. 웹 · 옛 앱의 toggleDrillFavorite 는 그대로 둔다.
+ */
+export async function setDrillFavorite(guideId: string, favorite: boolean): Promise<Result> {
+  const user = await requireUser();
+  if (!guideId) return { error: '드릴을 찾을 수 없어요.' };
+
+  if (favorite) {
+    /* 숨긴 드릴에는 달지 않는다 — 목록(visibleGuides)에 없는 것에 별만 남지 않게 */
+    const guide = await prisma.mechanicsGuide.findFirst({
+      where: { id: guideId, hiddenAt: null },
+      select: { id: true },
+    });
+    if (!guide) return { error: '드릴을 찾을 수 없어요.' };
+    await prisma.userDrillFavorite.upsert({
+      where: { userId_guideId: { userId: user.id, guideId } },
+      create: { userId: user.id, guideId },
+      update: {},
+    });
+  } else {
+    await prisma.userDrillFavorite.deleteMany({ where: { userId: user.id, guideId } });
+  }
+
+  revalidatePath('/library/mechanics');
+  revalidatePath('/training');
+  return { favorite };
+}

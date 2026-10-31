@@ -1,4 +1,5 @@
 import { EMPTY_VIEW, type LibraryView } from '~/library/browse';
+import { EMPTY_DRILL_VIEW, type DrillView } from '~/library/drill-browse';
 
 /**
  * 운동 별 · 메모를 화면끼리 같은 값으로(2026-10-31 시안 01 · 02) — 목록 · 상세 · 운동 진행 · 운동 추가 · 암케어가 같은 저장소를 본다.
@@ -36,8 +37,8 @@ export const syncSnap = () => snap;
 export type FavKind = 'exercise' | 'drill';
 /** 서버에 보낸 답 — lost 는 응답을 못 받음(저장됐는지 모름), 그 밖의 error 는 서버가 확인한 실패 */
 export type FavReply = { favorite: boolean } | { error: string; lost?: boolean };
-/** want: 바라는 값, confirmed: 마지막으로 확인된 값(드릴은 서버가 뒤집기만 해서 같으면 보내지 않는다) */
-type Sender = (kind: FavKind, id: string, want: boolean, confirmed: boolean) => Promise<FavReply>;
+/** 바라는 값을 그대로 보낸다(운동 · 드릴 모두 '켜라 / 꺼라' — 같은 값을 다시 보내도 같다) */
+type Sender = (kind: FavKind, id: string, want: boolean) => Promise<FavReply>;
 
 type FavEntry = {
   value: boolean;
@@ -101,8 +102,7 @@ async function pump(kind: FavKind, id: string, e: FavEntry) {
   bump();
   for (;;) {
     const want = e.value;
-    if (want === e.confirmed && kind === 'drill') break;
-    const res = await sender(kind, id, want, e.confirmed);
+    const res = await sender(kind, id, want);
     /* 그새 계정이 바뀌었으면(reset) 이 답은 버린다 */
     if (favs[kind].get(id) !== e) return;
     if ('error' in res) {
@@ -153,6 +153,12 @@ export const libraryView = () => view;
 export const saveLibraryView = (next: LibraryView) => {
   view = next;
 };
+/** 투구 드릴 목록의 조건 — 같은 규칙. 3D 분석 · 훈련에서 들어온 목록은 제 조건을 따로 쓰고 여기 남기지 않는다 */
+let drill: DrillView = EMPTY_DRILL_VIEW;
+export const drillView = () => drill;
+export const saveDrillView = (next: DrillView) => {
+  drill = next;
+};
 
 /** 로그아웃 · 계정 바뀜 — 앞사람의 별 · 메모 · 목록 조건과 보내던 답을 버린다 */
 export function resetLibrarySync() {
@@ -160,6 +166,7 @@ export function resetLibrarySync() {
   favs.drill.clear();
   notes.clear();
   view = EMPTY_VIEW;
+  drill = EMPTY_DRILL_VIEW;
   bump();
 }
 
