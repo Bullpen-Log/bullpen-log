@@ -48,10 +48,11 @@ export function useBallRotation(start = START_ROTATION): BallRotation {
 }
 
 /** 한 번 돌리기 — 누를 때 · 처음 한 번(홈) */
-export function spinBall(r: BallRotation, amount = SPIN, ms = SPIN_MS) {
+export function spinBall(r: BallRotation, amount?: number, ms?: number) {
   'worklet';
+  // worklet의 캡처 값은 함수 본문에서 복원된다. 기본 매개변수에서 읽으면 UI 런타임에서 찾지 못한다.
   cancelAnimation(r.ry);
-  r.ry.set(withTiming(r.ry.get() + amount, { duration: ms, easing: EASE_OUT }));
+  r.ry.set(withTiming(r.ry.get() + (amount ?? SPIN), { duration: ms ?? SPIN_MS, easing: EASE_OUT }));
 }
 
 export function SinkerBall({
