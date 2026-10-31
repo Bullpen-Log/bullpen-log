@@ -179,7 +179,7 @@ export function Bar({
       {/* 웹 위 막대의 뒤로(back-link.tsx): 화살표 그림 24 + 글 17, 하늘색 */}
       {/* back 이 없으면(커뮤니티 하단바의 ← 가 대신) 자리만 비운다 */}
       {back ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`${back}(으)로 돌아가기`} onPress={onBack ?? (() => router.back())} hitSlop={10} style={({ pressed }) => [s.side, s.backRow, pressed && { opacity: 0.6 }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${back}(으)로 돌아가기`} onPress={onBack ?? (() => router.back())} hitSlop={10} style={({ pressed }) => [s.side, s.backRow, !title && s.backWide, pressed && { opacity: 0.6 }]}>
           <Icon name="back" size={24} color={c.link} />
           <Text style={{ color: c.link, fontSize: 17, flexShrink: 1 }} numberOfLines={1}>
             {back}
@@ -352,6 +352,8 @@ export const s = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, minHeight: 44 },
   side: { width: 96, minHeight: 44, justifyContent: 'center' },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 0, marginLeft: -6 },
+  /* 가운데 제목이 없으면 뒤로 글이 제 길이만큼(‘워밍업 루틴’ · 루틴 이름이 잘리지 않게) */
+  backWide: { width: 'auto', maxWidth: '70%' },
   barTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600' },
   pill: { minHeight: 44, paddingHorizontal: 24, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   badge: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },

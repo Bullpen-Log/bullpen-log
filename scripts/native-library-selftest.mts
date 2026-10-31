@@ -144,6 +144,54 @@ eq(nearestIndex([], 'c', ['c']), 0, '빈 목록');
   eq(performance.now() - t0 < 50, true, '600개 한 번 거르기 50ms 안');
 }
 
+/* ----------------------------- 워밍업 루틴 ----------------------------- */
+{
+  const { buildWarmup, commonRowsFor, countsOf, guideOf, validKind } = await import('~/library/warmup-model');
+  const X = (id: string, sets: number | null = 2, reps: number | null = 10, extra: Record<string, unknown> = {}) => ({ id, title: `운동 ${id}`, thumbUrl: null, sets, reps, holdSeconds: null, restSeconds: null, perSide: false, note: '내 개인 메모', ...extra });
+  const EX = [X('a'), X('b'), X('c'), X('d', 1, null, { holdSeconds: 30 }), X('e', null, null), X('f', 2, 8, { perSide: true })];
+  const it = (exerciseId: string, note: string | null = null, available = true) => ({ exerciseId, note, available });
+  const R = (kind: string, sortOrder: number, items: ReturnType<typeof it>[], name = `${kind} 루틴`, description = '') => ({ kind, name, description, sortOrder, items });
+  const ROUT = [
+    R('FULL', 4, [it('b')]),
+    R('LOWER', 1, [it('a', '좌우 10회씩'), it('d'), it('e'), it('g', '숨김 안내', false), it('h')]),
+    R('COMMON', 0, [it('a', ' 30초 가볍게 '), it('b'), it('c', '   ')]),
+    R('UPPER_PUSH', 2, []),
+    R('NEW_KIND', 3, [it('f', '한쪽 5m · 양쪽')]),
+  ];
+  const m = buildWarmup(ROUT, EX);
+  const rid = (rows: { exerciseId: string }[]) => rows.map((r) => r.exerciseId);
+  eq(m.common?.kind, 'COMMON', '공통은 따로');
+  eq(rid(m.common!.rows), ['a', 'b', 'c'], '공통 차례 그대로');
+  eq(m.purposes.map((r) => r.kind), ['LOWER', 'UPPER_PUSH', 'NEW_KIND', 'FULL'], '목적별은 정렬 차례 · 모르는 종류도 그대로');
+  const low = m.purposes[0];
+  eq(rid(low.rows), ['d', 'e', 'g', 'h'], '추가는 공통 뺀 것(합집합 길이가 아님)');
+  eq(low.rows.map((r) => r.order), [1, 2, 3, 4], '구간 안 차례');
+  eq(countsOf(low.rows), { total: 4, unsure: 2 }, '추가 4 · 확인 필요 2');
+  eq(countsOf(m.common!.rows).total + countsOf(low.rows).total, 7, '공통 + 추가 = 고유 7(공통 a 를 두 번 세지 않음)');
+  eq(low.overlap, [{ exerciseId: 'a', note: '좌우 10회씩' }], '공통과 겹친 원래 관계 · 그 루틴 안내 보존');
+  eq(m.common!.rows.map((r) => r.guide), ['30초 가볍게', '2세트 × 10회', '2세트 × 10회'], '공통 안내: 루틴 안내 → 기본 수행량(공백뿐이면 기본)');
+  eq(commonRowsFor(m.common, low)[0].alsoNote, '좌우 10회씩', '목적별 상세의 공통 줄에 그 루틴 안내를 곁에(공통 안내는 그대로)');
+  eq(commonRowsFor(m.common, low)[0].guide, '30초 가볍게', '공통 안내를 덮지 않음');
+  eq(commonRowsFor(m.common, m.purposes[3])[1].alsoNote, null, '안내가 없으면 곁에 안 붙음');
+  eq(low.rows.map((r) => [r.state, r.guide]), [['ok', '1세트 × 30초 버티기'], ['ok', null], ['hidden', null], ['missing', null]], '안내 없음은 생략 · 숨김 · 확인 못 함은 제목 · 안내를 채우지 않음');
+  eq(low.rows[2].exercise, null, '숨긴 운동은 운동 정보도 싣지 않음');
+  eq(m.purposes[1].rows.length, 0, '빈 루틴은 준비 중(지어내지 않음)');
+  eq(m.purposes[3].rows.length, 0, '공통과만 겹친 루틴도 추가 0 → 준비 중');
+  eq(m.purposes[2].rows[0].guide, '한쪽 5m · 양쪽', '원문 안내 그대로(파싱 · 타이머 없음)');
+  eq(m.purposes[2].rows[0].routineNote, '한쪽 5m · 양쪽', '운동 상세로 넘길 루틴 안내');
+  eq(EX[0].note, '내 개인 메모', '개인 메모를 건드리지 않음');
+  eq(EX[0].sets, 2, '운동 기본값을 루틴 안내로 덮지 않음');
+  eq(buildWarmup(ROUT.filter((r) => r.kind !== 'COMMON'), EX).common, null, '공통이 없으면 만들지 않음');
+  eq(rid(buildWarmup(ROUT.filter((r) => r.kind !== 'COMMON'), EX).purposes[0].rows), ['a', 'd', 'e', 'g', 'h'], '공통이 없으면 목적별은 제 것 전부');
+  eq(buildWarmup([], EX), { common: null, purposes: [] }, '등록 없음');
+  eq(guideOf('  ', { sets: 3, reps: 5, category: '유산소' }), '3세트 × 5회', '안내 우선순위(공백 → 기본)');
+  eq(guideOf(null, null), null, '둘 다 없으면 생략');
+  eq([validKind('LOWER'), validKind('NEW_KIND'), validKind('lower'), validKind('../x'), validKind(undefined)], ['LOWER', 'NEW_KIND', null, null, null], '주소 종류는 정해 둔 모양만');
+  /* 실행 화면과 다른 점 — 운동 화면은 공통 카드 · 그날 카드를 따로 그려 공통에도 있는 a 가 두 번(안내도 각각) 나온다. 열람은 한 번 */
+  const execRows = ROUT.find((r) => r.kind === 'COMMON')!.items.length + ROUT.find((r) => r.kind === 'LOWER')!.items.length;
+  eq(execRows - (countsOf(m.common!.rows).total + countsOf(low.rows).total), 1, '실행 줄 수와 차이 = 겹친 1개(실행은 바꾸지 않음)');
+}
+
 /* ----------------------------- 별 저장소 ----------------------------- */
 type Reply = { favorite: boolean } | { error: string; lost?: boolean };
 const sent: { kind: string; id: string; want: boolean }[] = [];

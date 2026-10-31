@@ -16,8 +16,15 @@ import { s } from '~/training/screen';
 import { Press } from '~/shell/press';
 import { Tags, type Exercise } from './parts';
 
-/** 운동 상세에 어디서 왔나 — 운동 진행에서 왔으면 그 판 · 그때 배정된 구성(라이브러리 기본값으로 덮지 않는다) */
-export type DetailEntry = { sessionId: string | null; today: string | null };
+/**
+ * 운동 상세에 어디서 왔나 — 운동 진행에서 왔으면 그 판 · 그때 배정된 구성(라이브러리 기본값으로 덮지 않는다).
+ * 워밍업 루틴에서 왔으면 그 루틴 · 구간 · 루틴에만 적은 안내(note) — 세션 배정처럼 꾸미지 않고 따로 든다(2026-10-31 워밍업 시안 02).
+ */
+export type DetailEntry = {
+  sessionId: string | null;
+  today: string | null;
+  routine?: { kind: string; name: string; section: 'common' | 'extra'; note: string | null } | null;
+};
 
 /**
  * 운동 영상 상세 본문(2026-10-31 시안 02) — 이름 · 분류/장비 → 영상(누르기 전에는 미리보기만) → [운동 방법 | 내 기록].
@@ -56,7 +63,17 @@ export function ExerciseDetail({ item, entry, c }: { item: Exercise; entry: Deta
       <View style={{ gap: 20, display: tab === 'how' ? 'flex' : 'none' }}>
         {/* 오늘 구성(운동 진행에서 옴) — 그 판에 배정 · 교체된 그대로. 기본 수행량은 라이브러리 값이라 출처를 따로 적는다 */}
         <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 6 }]}>
-          {entry.today ? (
+          {entry.routine ? (
+            <>
+              <Text style={[s.smallBold, { color: c.link }]}>
+                {entry.routine.name} · {entry.routine.section === 'common' ? '공통 구간' : '추가 운동'}
+              </Text>
+              <Text style={[s.bodyBold, { color: c.ink }]}>{entry.routine.note ?? base ?? '정해 둔 수행 안내가 없어요'}</Text>
+              <Text style={[s.small, { color: c.muted }]}>
+                {entry.routine.note ? `루틴 안내 · 라이브러리 기본 수행량은 ${base ?? '정해 둔 값 없음'}` : '이 루틴은 라이브러리 기본 수행량대로 해요'}
+              </Text>
+            </>
+          ) : entry.today ? (
             <>
               <Text style={[s.smallBold, { color: c.link }]}>오늘 구성 · 지금 하는 운동에 배정된 양</Text>
               <Text style={[s.bodyBold, { color: c.ink }]}>{entry.today}</Text>

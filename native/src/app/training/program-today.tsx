@@ -171,6 +171,25 @@ export default function ProgramTodayScreen() {
           {going && p.caution ? <Text style={[st.small, { color: c.ink }]}>{p.caution}</Text> : null}
         </View>
 
+        {/*
+         * 워밍업 루틴 보기 — 시작 전에만. 루틴 화면은 읽기만 해서(세션 · 체크 · 계획을 건드리지 않음) 다녀와도 이 준비가 그대로다.
+         * 오늘 루틴 종류는 [운동 시작]이 쓰는 셈과 같은 값(서버 warmupKind) — 옛 서버 답에 없으면 '오늘 구성' 표시 없이 연다.
+         */}
+        {going && p.canStart && !active ? (
+          <Press
+            accessibilityRole="link"
+            onPress={() => router.push({ pathname: '/library/warmup', params: { from: 'prep', ...(p.warmupKind ? { today: p.warmupKind } : {}) } } as Href)}
+            style={[st.warmup, { backgroundColor: c.card, boxShadow: c.float }]}
+          >
+            <Icon name="flame" size={18} color={c.link} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[st.bodyBold, { color: c.ink }]}>워밍업 루틴 보기</Text>
+              <Text style={[st.small, { color: c.muted }]}>시작하면 공통 워밍업{p.warmupKind ? '과 오늘 운동에 맞는 루틴을' : '을'} 먼저 해요</Text>
+            </View>
+            <Icon name="chevron-right" size={16} color={c.muted} />
+          </Press>
+        ) : null}
+
         {p.rows.length > 0 ? (
           <View style={{ gap: 6 }}>
             <Text style={[st.section, { color: c.ink }]}>운동 {p.rows.length}개</Text>
@@ -328,6 +347,7 @@ function SetTable({ row, unit, c }: { row: Row; unit: 'kg' | 'lb'; c: Palette })
 }
 
 const st = StyleSheet.create({
+  warmup: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
   card: { borderRadius: 22, padding: 16, gap: 6 },
   title: { fontSize: 24, fontWeight: '800', letterSpacing: -0.4 },
   status: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, minHeight: 44, marginTop: 6 },

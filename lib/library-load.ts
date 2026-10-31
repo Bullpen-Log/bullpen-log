@@ -16,10 +16,24 @@ import type { GuideItem } from '@/app/(app)/library/mechanics/mechanics-client';
 
 export type LibraryExercise = Omit<ExerciseItem, 'usedCount'>;
 
+/**
+ * 워밍업 루틴 원래 모습(2026-10-31 워밍업 라이브러리) — 루틴마다 담긴 차례 그대로 · 루틴에만 적은 안내(note) · 지금 볼 수 있는 운동인가.
+ * warmupFolders(공통 + 그날 합집합) · warmupCommon 은 옛 소비자(운동 영상의 워밍업 칸 · 웹)를 위해 그대로 두고 이것을 더했다.
+ * note 는 이 루틴에서만 쓰는 안내다 — 운동의 개인 메모(LibraryExercise.note)와 다른 값이다.
+ * available 이 false 면 숨긴 운동(관리자가 아니면 운동 목록에 없다) — 안내를 싣지 않는다. true 인데 운동 목록에 없으면 목록 캐시가 아직 못 따라온 것.
+ */
+export type WarmupRoutineView = {
+  kind: string;
+  name: string;
+  description: string;
+  sortOrder: number;
+  items: { exerciseId: string; note: string | null; available: boolean }[];
+};
+
 export async function loadExerciseLibrary(
   userId: string,
   isAdmin: boolean
-): Promise<{ exercises: LibraryExercise[]; warmupFolders: WarmupFolder[]; warmupCommon: WarmupFolder | null }> {
+): Promise<{ exercises: LibraryExercise[]; warmupFolders: WarmupFolder[]; warmupCommon: WarmupFolder | null; warmupRoutines: WarmupRoutineView[] }> {
   /* 숨긴 운동은 관리자에게만 — 숨김은 지우기 대신 쓰는 것이라 되돌릴 사람에게는 보여야 한다 */
   const all = await allExercises();
   const rows = isAdmin ? all : all.filter((ex) => ex.hiddenAt == null);
@@ -39,7 +53,8 @@ export async function loadExerciseLibrary(
         kind: true,
         name: true,
         description: true,
-        items: { orderBy: { sortOrder: 'asc' }, select: { exerciseId: true } },
+        sortOrder: true,
+        items: { orderBy: { sortOrder: 'asc' }, select: { exerciseId: true, note: true, exercise: { select: { hiddenAt: true } } } },
       },
     }),
     /* 미리보기 이미지 주소는 한 번의 요청으로 모아서 받는다 */
@@ -64,6 +79,17 @@ export async function loadExerciseLibrary(
 
   return {
     warmupFolders,
+    warmupRoutines: routines.map((r) => ({
+      kind: r.kind,
+      name: r.name,
+      description: r.description,
+      sortOrder: r.sortOrder,
+      /* 숨김은 DB 에서 바로 본다 — 운동 목록(캐시)에 아직 없는 새 운동을 숨김으로 잘못 알리지 않게(그건 앱이 '확인 필요'로 다시 받는다) */
+      items: r.items.map((i) => {
+        const available = isAdmin || i.exercise.hiddenAt == null;
+        return { exerciseId: i.exerciseId, note: available ? (i.note?.trim() || null) : null, available };
+      }),
+    })),
     /* 공통 루틴 따로 — 앱 워밍업 화면이 웹(/library/warmup)처럼 한 장으로 따로 보인다 */
     warmupCommon: commonRoutine
       ? { kind: commonRoutine.kind, name: commonRoutine.name, description: commonRoutine.description, exerciseIds: common }

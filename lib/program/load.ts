@@ -21,6 +21,7 @@ import { equipmentForToday } from '@/lib/report/equipment';
 import type { loadTodayCore } from '@/lib/report/today-data';
 import type { CachedExercise } from '@/lib/library-cache';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
+import { warmupKindFor } from '@/lib/workout/warmup-kind';
 import {
   programTodayFrom,
   type ProgramTodayExercise,
@@ -904,6 +905,11 @@ export type ProgramCardProps = {
   restText: string | null;
   /** [운동 시작]을 둘 수 있나 — 매일 일정이 프로그램 날로 보는 조건과 같다(programTodayOf). 하는 날인데 할 운동이 다 빠지면 false */
   canStart: boolean;
+  /**
+   * 오늘 [운동 시작]이 얼릴 운동으로 고른 워밍업 루틴 종류(공통 다음에 붙는 것 — LOWER · UPPER_PUSH · UPPER_PULL · FULL) — 워밍업 루틴 화면의 '오늘 구성'.
+   * 시작이 쓰는 것과 같은 셈(lib/workout/warmup-kind.ts, 날 종류는 늘 'lower' · 코어 칸만 'core')을 읽기만 해서 한다. 시작할 수 없거나 붙을 것이 없으면 null.
+   */
+  warmupKind: string | null;
   rows: {
     id: string;
     title: string;
@@ -1004,6 +1010,13 @@ export function programCardProps(
     caution: view.caution,
     restText: view.restText,
     canStart: programTodayOf(view) != null,
+    warmupKind:
+      programTodayOf(view) != null
+        ? warmupKindFor(
+            'lower',
+            view.rows.map((r) => ({ slot: r.rx.slot === 'core' ? 'core' : 'main', movementPattern: r.exercise.movementPattern ?? null }))
+          )
+        : null,
     rows: view.rows.map((r) => ({
       id: r.exercise.id,
       title: r.exercise.title,

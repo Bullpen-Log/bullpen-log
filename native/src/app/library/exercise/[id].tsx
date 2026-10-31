@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette, type Palette } from '~/lib/ui';
@@ -8,6 +8,7 @@ import { EXERCISE_LIST, recall, type Exercise } from '~/library/parts';
 import { useFav } from '~/training/favorites';
 import { s, useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
+import { validKind } from '~/library/warmup-model';
 import { Press } from '~/shell/press';
 import { Icon } from '~/shell/icon';
 
@@ -18,17 +19,29 @@ import { Icon } from '~/shell/icon';
  */
 export default function ExerciseDetailScreen() {
   const c = usePalette();
-  const params = useLocalSearchParams<{ id: string; session?: string; today?: string }>();
+  const params = useLocalSearchParams<{ id: string; session?: string; today?: string; warmup?: string; rname?: string; section?: string; rnote?: string }>();
   const id = params.id ?? '';
-  const entry: DetailEntry = { sessionId: params.session || null, today: params.today || null };
+  /* 워밍업 루틴에서 왔으면 그 루틴(정해 둔 모양의 종류만) — 세션 칸에 넣지 않는다 */
+  const warmup = validKind(params.warmup);
+  const routine =
+    warmup && !params.session
+      ? { kind: warmup, name: (params.rname || '워밍업 루틴').slice(0, 40), section: params.section === 'common' ? ('common' as const) : ('extra' as const), note: params.rnote?.trim().slice(0, 300) || null }
+      : null;
+  const entry: DetailEntry = { sessionId: params.session || null, today: params.today || null, routine };
   const kept = id ? recall<Exercise>(id) : null;
-  const back = entry.sessionId ? '운동으로' : '운동 영상';
+  const back = entry.sessionId ? '운동으로' : routine ? routine.name : '운동 영상';
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       {kept ? <Body item={kept} entry={entry} back={back} c={c} /> : <FromList id={id} entry={entry} back={back} c={c} />}
     </View>
   );
 }
+
+/* 뒤가 없으면(바로 열린 주소) 워밍업 루틴 · 운동 영상으로. 운동 진행에서 온 것은 예전처럼 그냥 뒤로(그 화면이 판을 지킨다) */
+const onBackOf = (entry: DetailEntry) =>
+  entry.sessionId
+    ? undefined
+    : () => (router.canGoBack() ? router.back() : router.replace((entry.routine ? `/library/warmup/${entry.routine.kind}` : '/library/training') as Href));
 
 /** 목록에 없던 운동(앱을 막 켜 상세 주소로 바로 옴 · 운동 진행에서 옴) — 목록을 받아 찾는다(세션을 열거나 만들지 않는다) */
 function FromList({ id, entry, back, c }: { id: string; entry: DetailEntry; back: string; c: Palette }) {
@@ -42,7 +55,7 @@ function FromList({ id, entry, back, c }: { id: string; entry: DetailEntry; back
     : state.failed;
   return (
     <>
-      <Bar back={back} c={c} />
+      <Bar back={back} onBack={onBackOf(entry)} c={c} />
       {note ? (
         <View style={{ padding: 32, gap: 12, alignItems: 'center' }}>
           <Text style={[s.body, s.center, { color: c.muted }]}>{note}</Text>
@@ -66,6 +79,7 @@ function Body({ item, entry, back, c }: { item: Exercise; entry: DetailEntry; ba
     <>
       <Bar
         back={back}
+        onBack={onBackOf(entry)}
         c={c}
         right={
           <Press

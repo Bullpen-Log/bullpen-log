@@ -1,7 +1,7 @@
 'use server';
 
 import { getCurrentUser } from '@/lib/dal';
-import { loadDrillLibrary, loadExerciseLibrary, type LibraryExercise } from '@/lib/library-load';
+import { loadDrillLibrary, loadExerciseLibrary, type LibraryExercise, type WarmupRoutineView } from '@/lib/library-load';
 import type { WarmupFolder } from '@/app/(app)/library/training/training-client';
 import type { GuideItem } from '@/app/(app)/library/mechanics/mechanics-client';
 
@@ -11,7 +11,15 @@ import type { GuideItem } from '@/app/(app)/library/mechanics/mechanics-client';
  * /api/rpc/app-library.loadAppExerciseLibrary · loadAppDrillLibrary 로 부른다.
  */
 export async function loadAppExerciseLibrary(): Promise<
-  { ok: true; exercises: LibraryExercise[]; warmupFolders: WarmupFolder[]; warmupCommon: WarmupFolder | null } | { ok: false; to: string }
+  | {
+      ok: true;
+      exercises: LibraryExercise[];
+      warmupFolders: WarmupFolder[];
+      warmupCommon: WarmupFolder | null;
+      /** 워밍업 루틴 원래 모습(2026-10-31) — 옛 서버 답에는 없다 */
+      warmupRoutines: WarmupRoutineView[];
+    }
+  | { ok: false; to: string }
 > {
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
