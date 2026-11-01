@@ -4,6 +4,9 @@ import { coachPaid } from '@/lib/coach-access';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
 import { weekdayOf, type DaySlot } from '@/lib/coach/week';
+import { healthConsentFor } from '@/lib/analysis-consent-store';
+import { movementKeyOf, type ClassifiableExercise } from '@/lib/engine/exercise-class';
+import { SWAPPED_MIN } from '@/lib/report/score';
 
 /**
  * 코치 진행 중인 사람의 그날 칸(docs/designs/ai-coach.md 10-5) — 트레이닝 쪽이 읽는다. 코치가 아니거나 · 유료가 아니거나 · 그 주 틀이 없으면 null.
@@ -38,4 +41,41 @@ export async function takeDayFromCoach(userId: string, dateKey: string, slot: Da
   if (!row) return;
   const slots = (row.slots as unknown as DaySlot[]).map((s) => (s.date === dateKey ? { ...s, owner: 'user' as const } : s));
   await prisma.coachWeek.update({ where: { userId_weekStart: { userId, weekStart } }, data: { slots: slots as unknown as object } });
+}
+
+/** 불편 동작을 뒤로 미루는 기간(날) — 지난 7일 */
+export const DISCOMFORT_DAYS = 7;
+
+/**
+ * 지난 7일 운동 끝에 고른 불편 동작(U36) — 그 운동과 같은 움직임 열쇠의 운동 id. 오늘 운동 만들기가 '오늘 뺀 운동'처럼 맨 뒤로 미룬다(빼지는 않음 —
+ * 대신할 것이 없으면 나온다). 건강정보라 지금 동의가 있을 때만 읽는다. 코치 아닌 사람은 줄이 없어 빈 목록.
+ */
+async function discomfortIds(
+  userId: string,
+  todayKey: string,
+  library: readonly (ClassifiableExercise & { id: string })[]
+): Promise<Set<string>> {
+  const rows = await prisma.dailyTrainingNote.findMany({
+    where: { userId, date: { gte: dbDate(shiftDateKey(todayKey, -DISCOMFORT_DAYS)), lte: dbDate(todayKey) } },
+    select: { discomfort: true },
+  });
+  const list = rows.flatMap((r) => (Array.isArray(r.discomfort) ? (r.discomfort as { id?: unknown; move?: unknown }[]) : []));
+  if (!list.length || !(await healthConsentFor(userId)).valid) return new Set();
+  const ids = new Set(list.map((x) => x.id).filter((x): x is string => typeof x === 'string'));
+  const moves = new Set(list.map((x) => x.move).filter((x): x is string => typeof x === 'string'));
+  for (const ex of library) {
+    const m = movementKeyOf(ex);
+    if (m && moves.has(m)) ids.add(ex.id);
+  }
+  return ids;
+}
+
+/** 일정 만들기의 '60일 바꿔서 뺀 횟수'(swappedOut)에 불편 동작을 얹는다 — 점수가 '여러 번 뺀 운동'으로 보고 뒤로 미룬다(lib/report/score.ts, 판정은 그대로) */
+export async function pushBackDiscomfort(
+  swappedOut: Map<string, number>,
+  userId: string,
+  todayKey: string,
+  library: readonly (ClassifiableExercise & { id: string })[]
+): Promise<void> {
+  for (const id of await discomfortIds(userId, todayKey, library)) swappedOut.set(id, Math.max(swappedOut.get(id) ?? 0, SWAPPED_MIN));
 }

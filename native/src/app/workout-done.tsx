@@ -16,6 +16,7 @@ import { rpc, RpcError } from '~/lib/rpc';
 import { takeWorkoutDone } from '~/workout/done-prefetch';
 import { outboxOwner } from '~/workout/outbox';
 import { IntensitySlider } from '~/workout/intensity-slider';
+import { DiscomfortAsk } from '~/coach/discomfort';
 import { Sheet } from '~/workout/sheets';
 import { usePalette, withAlpha, type Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
@@ -289,6 +290,7 @@ export default function WorkoutDoneScreen() {
           c={c}
         />
         {checkError ? <Text style={[st.small, { color: c.danger }]}>{checkError}</Text> : null}
+        {data.dailyNote ? <DiscomfortAsk sessionId={data.sessionId} c={c} /> : null}
 
         {data.nutritionLine ? (
           <Pressable

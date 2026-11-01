@@ -11,7 +11,7 @@ import { featureLocks } from '@/lib/feature-locks';
 import { ageOn } from '@/lib/nutrition/targets';
 import { hasFinishedBasics } from '@/lib/program/load';
 import { toDateKey } from '@/lib/pitch-stats';
-import { coachMinutesOf, coachSlotOf, takeDayFromCoach } from '@/lib/coach/today';
+import { coachMinutesOf, coachSlotOf, pushBackDiscomfort, takeDayFromCoach } from '@/lib/coach/today';
 import { pickMany } from '@/lib/exercise-meta';
 import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import {
@@ -402,6 +402,9 @@ export async function generateTodayPlan(formData: FormData) {
    */
   const previousIds = readPlanExerciseIds(before?.plan);
   const rotationSeed = [user.id, toDateKey(today), ...previousIds].join('|');
+
+  /* 코치 되먹임(U36) — 지난 7일 운동 끝에 고른 불편 동작은 '여러 번 바꿔서 뺀 운동'처럼 뒤로 미룬다(빼지는 않음) */
+  await pushBackDiscomfort(swappedOut, user.id, toDateKey(today), library);
 
   /*
    * 자동 맞춤이면 여기서 목표·시간을 규칙으로 정한다.

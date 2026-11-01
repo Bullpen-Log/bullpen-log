@@ -24,6 +24,9 @@ import { startProgram } from '@/app/actions/program';
 import { slotStateOf } from '@/lib/coach/status';
 import { applyAdjust, readAdjust } from '@/lib/coach/adjust';
 import { coachSlotOf } from '@/lib/coach/today';
+import { readFrozenPlan } from '@/lib/workout/session-plan';
+import { visibleExercises } from '@/lib/library-cache';
+import { movementKeyOf } from '@/lib/engine/exercise-class';
 import { loadTrainingDone } from '@/lib/training-week';
 import { COACH_STEPS, mergeStep, savedOf, slotLine, type CoachSaved, type CoachStep } from '@/lib/coach/answers';
 
@@ -317,5 +320,50 @@ export async function takeBackToday(): Promise<{ ok: true } | { error: string }>
   const slots = (row.slots as unknown as DaySlot[]).map((s) => (s.date === today ? { ...s, owner: 'coach' as const } : s));
   await prisma.coachWeek.update({ where: { userId_weekStart: { userId: user.id, weekStart } }, data: { slots: slots as unknown as object } });
   revalidatePath('/coach');
+  return { ok: true };
+}
+
+/* ─────────── 되먹임(10-5 U36) — 운동 끝 '불편했던 동작'. 건강정보라 코치 진행 중 · 건강 동의가 있을 때만 묻고 저장한다 ─────────── */
+
+type Discomfort = { id: string; move: string | null };
+
+async function discomfortSession(user: Awaited<ReturnType<typeof requireUser>>, sessionId: unknown) {
+  if (typeof sessionId !== 'string' || !sessionId) return null;
+  const [profile, session, consent] = await Promise.all([
+    prisma.coachProfile.findUnique({ where: { userId: user.id }, select: { status: true } }),
+    prisma.trainingSession.findFirst({ where: { id: sessionId, userId: user.id }, select: { date: true, plan: true } }),
+    healthConsentFor(user.id),
+  ]);
+  if (profile?.status !== 'active' || !session || !consent.valid || !(await coachPaid(user))) return null;
+  const plan = readFrozenPlan(session.plan);
+  if (!plan) return null;
+  const items = [...new Map(plan.exercises.map((e) => [e.id, { id: e.id, name: e.title }])).values()];
+  return { date: session.date, items };
+}
+
+/** 운동 끝 화면 — 물을까(아니면 ask false) · 그 판의 운동 · 이미 고른 것 */
+export async function loadDiscomfortAsk(sessionId: unknown) {
+  const user = await requireUser();
+  const s = await discomfortSession(user, sessionId);
+  if (!s) return { ok: true as const, ask: false, items: [] as { id: string; name: string }[], chosen: [] as string[] };
+  const note = await prisma.dailyTrainingNote.findUnique({ where: { userId_date: { userId: user.id, date: s.date } }, select: { discomfort: true } });
+  const chosen = Array.isArray(note?.discomfort) ? (note.discomfort as Discomfort[]).map((x) => x.id) : [];
+  return { ok: true as const, ask: true, items: s.items, chosen };
+}
+
+/** 고른 불편 동작 저장(없음 = 빈 목록) — 그날 힘듦 기록 줄에 붙인다. 움직임 열쇠로 다음 운동에서 같은 동작을 뒤로 미룬다(training-setup.ts) */
+export async function saveDiscomfort(sessionId: unknown, ids: unknown): Promise<{ ok: true } | { error: string }> {
+  const user = await requireUser();
+  const s = await discomfortSession(user, sessionId);
+  if (!s) return { error: '지금은 저장할 수 없어요.' };
+  if (!Array.isArray(ids) || ids.length > 30 || !ids.every((x) => typeof x === 'string' && s.items.some((i) => i.id === x)))
+    return { error: '오늘 한 운동 중에서 골라 주세요.' };
+  const lib = new Map((await visibleExercises()).map((e) => [e.id, e]));
+  const list: Discomfort[] = [...new Set(ids as string[])].map((id) => {
+    const ex = lib.get(id);
+    return { id, move: ex ? movementKeyOf(ex) : null };
+  });
+  const done = await prisma.dailyTrainingNote.updateMany({ where: { userId: user.id, date: s.date }, data: { discomfort: list } });
+  if (done.count === 0) return { error: '힘듦부터 골라 주세요.' };
   return { ok: true };
 }

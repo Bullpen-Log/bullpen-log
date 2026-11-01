@@ -1258,6 +1258,8 @@ model DailyTrainingNote {
   intensity Int
   /// 그날 느낀점. 안 적어도 된다.
   memo      String?
+  /// 운동 끝에 고른 '불편했던 동작'(유료 코치 · 건강정보 동의가 있을 때만, docs/designs/ai-coach.md 10-5 U36) — [{ id: 운동 id, move: 움직임 열쇠 | null }]. 동의를 거두면 지운다
+  discomfort Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

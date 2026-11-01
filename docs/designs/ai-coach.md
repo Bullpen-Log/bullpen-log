@@ -480,6 +480,10 @@
   트레이닝 운동 화면 위 한 줄(`native/src/coach/note.tsx` — 코치 계획 · 직접 하는 날), 코치 탭 오늘 카드에 [오늘 다시 코치에게](`takeBackToday`).
   설계와 다르게: [코치 계획으로 | 직접 만들기] 고르기 화면은 안 만듦(만들기가 하나라 한 줄 안내로 충분), 운동 넣기 · 빼기는 주인을 안 바꿈.
 - ⑤ 끝: 홈 '오늘의 코치 계획' 카드(`native/src/coach/home-card.tsx`, 홈 오늘 계획 밑) — 유료 · 코치 진행 중일 때만, 누르면 코치 탭. C4 끝 — 다음 C5(되먹임 · 주간 리뷰 · 알림 · 크론).
+- C5 ①~③ 끝: DB `DailyTrainingNote.discomfort Json?`(마이그레이션 `20261101170000_training_note_discomfort`, 백업 db-2026-11-01-13-50). 앱 운동 끝 화면(힘듦을 고른 뒤)에 '불편했던 동작이 있었나요?'(`native/src/coach/discomfort.tsx`)
+  — 서버 `loadDiscomfortAsk` · `saveDiscomfort`(코치 진행 중 · 유료 · 건강 동의, 그 판의 운동만, 움직임 열쇠 같이 저장). 다음 운동 만들기가 지난 7일 불편 동작과 같은 움직임 열쇠의 운동을
+  60일 '바꿔서 뺀 횟수'에 `SWAPPED_MIN` 으로 얹어 뒤로 미룬다(`lib/coach/today.ts pushBackDiscomfort` — 점수 판정 그대로, 서버 동작은 score.ts 를 직접 import 하지 않는 약속 지킴). 건강 동의를 거두면 읽지 않는다.
+  남은 것: 건강 동의 철회 화면(B4)이 생기면 그때 `discomfort` 를 지운다(지금은 읽기만 막음).
 
 ### 10-6. 6단계 — AI: 대화 · 설명 문장(U39~U44 확정, 기준 origin/main `83946b61`)
 
