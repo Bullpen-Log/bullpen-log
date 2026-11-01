@@ -30,11 +30,12 @@ export default function JoinOrgScreen() {
     run(async () => {
       const r = await call<Res>('app-org.joinOrgApp', code, consent);
       if (!r.ok) return r.error;
-      toast('들어갔어요');
-      /* 들어간 직후 그 공간으로 옮길지 묻는다(U4, 기본 '옮기기') — 내 싱커는 그대로 남는다 */
+      const staff = r.role !== 'PLAYER';
+      toast(staff ? '코치로 들어갔어요' : r.outcome === 'already' ? '이미 들어가 있어요' : '들어갔어요');
+      /* 들어간 직후 그 공간으로 옮길지 묻는다(U4, 기본 '옮기기') — 내 싱커는 그대로 남는다. 코치 코드면 코치 공간(G01 — 서버가 준 자격대로) */
       await refreshSpaces();
-      const key = spaceKeyOf({ orgId: r.orgId, role: 'PLAYER' });
-      Alert.alert('그 공간으로 옮길까요?', '내 싱커는 그대로 있고, 위의 공간 고르개로 언제든 오가요.', [
+      const key = spaceKeyOf({ orgId: r.orgId, role: r.role });
+      Alert.alert(staff ? '코치 공간으로 옮길까요?' : '그 공간으로 옮길까요?', '내 싱커는 그대로 있고, 위의 공간 고르개로 언제든 오가요.', [
         { text: '나중에', style: 'cancel', onPress: () => router.replace('/org' as Href) },
         {
           text: '옮기기',
@@ -69,7 +70,7 @@ export default function JoinOrgScreen() {
         <View style={{ gap: 6 }}>
           <GroupTitle title="코치에게 보여 줄 기록" c={c} />
           <ConsentList value={consent} onChange={setConsent} c={c} />
-          <Text style={[TYPE.sub, { color: c.muted, paddingHorizontal: 4 }]}>언제든 바꿀 수 있어요. 끈 기록은 코치가 볼 수 없어요.</Text>
+          <Text style={[TYPE.sub, { color: c.muted, paddingHorizontal: 4 }]}>언제든 바꿀 수 있어요. 끈 기록은 코치가 볼 수 없어요. 코치 코드면 이 고름은 쓰지 않아요(코치 임명은 기록 공유가 아니에요).</Text>
         </View>
         {error ? <Text style={[TYPE.body, { color: c.danger }]}>{error}</Text> : null}
         <Primary label={busy ? '들어가는 중…' : '들어가기'} onPress={() => void submit()} disabled={!ok || busy} c={c} />

@@ -46,6 +46,9 @@ const PRESET: Record<OrgRole, readonly OrgCapability[]> = {
   PLAYER: ['schedule.read'],
 };
 
+/** 역할의 기본 묶음(읽기용) — 참여 화면이 '코치 업무'를 적을 때 */
+export const roleCapabilities = (role: OrgRole): readonly OrgCapability[] => PRESET[role];
+
 /** 역할마다 기본 범위 — 코치는 배정 선수(지금 구현은 조직 전체 선수가 배정과 같다 — 배정 표가 생기면 좁힌다), 선수는 본인 */
 const PRESET_SCOPE: Record<OrgRole, OrgScope> = { MASTER: 'organization', STAFF: 'organization', PLAYER: 'self' };
 

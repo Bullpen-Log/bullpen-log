@@ -7,10 +7,13 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/dal';
 import { createInviteCode } from '@/lib/org/invite';
+import { JOIN_ERROR_TEXT } from '@/lib/org/join';
+import { MembershipConflict, redeemInviteTx } from '@/lib/org/membership-transitions';
 import {
   ORG_NAME_MAX,
   ORG_NOTE_MAX,
   ORG_REGION_MAX,
+  consentNone,
   inviteUsable,
   normalizeInviteCode,
   orgNameOk,
@@ -176,42 +179,20 @@ export async function joinAsStaff(
           role: true,
           expiresAt: true,
           usedAt: true,
+          usedById: true,
           org: { select: { name: true } },
         },
       })
     : null;
-  if (!invite || invite.role !== 'STAFF' || !inviteUsable(invite, new Date()))
+  if (!invite || invite.role !== 'STAFF' || (!inviteUsable(invite, new Date()) && invite.usedById !== user.id))
     return { error: '코치 초대 코드가 맞지 않거나 기한이 지났어요.' };
-  await prisma.$transaction(async (tx) => {
-    const existing = await tx.orgMember.findUnique({
-      where: { orgId_userId: { orgId: invite.orgId, userId: user.id } },
-      select: { id: true, role: true },
-    });
-    if (existing) {
-      await tx.orgMember.update({
-        where: { id: existing.id },
-        data: {
-          status: 'ACTIVE',
-          leftAt: null,
-          role: existing.role === 'MASTER' ? 'MASTER' : 'STAFF',
-        },
-      });
-    } else {
-      await tx.orgMember.create({
-        data: {
-          orgId: invite.orgId,
-          userId: user.id,
-          role: 'STAFF',
-          status: 'ACTIVE',
-          nickname: user.nickname,
-        },
-      });
-    }
-    await tx.orgInvite.update({
-      where: { id: invite.id },
-      data: { usedById: user.id, usedAt: new Date() },
-    });
-  });
+  /* 코드 차지 · 회원 전이는 한 트랜잭션(G02 · G03) — 선수로 활동 중인 줄은 코치로 안 올린다(role_conflict) · 나간 코치는 다시 임명 · 소유자는 그대로 */
+  try {
+    await prisma.$transaction((tx) => redeemInviteTx(tx, { inviteId: invite.id, user, consent: consentNone(), now: new Date() }));
+  } catch (e) {
+    if (e instanceof MembershipConflict) return { error: JOIN_ERROR_TEXT[e.reason] };
+    throw e;
+  }
   (await cookies()).set(ORG_COOKIE, invite.orgId, {
     path: '/',
     maxAge: 60 * 60 * 24 * 365,

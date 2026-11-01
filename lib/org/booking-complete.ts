@@ -8,7 +8,7 @@ import { passUsable } from '@/lib/org/rules';
  */
 export type CompleteTx = {
   lessonBooking: {
-    updateMany(a: { where: { id: string; status: string }; data: { status: string } }): Promise<{ count: number }>;
+    updateMany(a: { where: { id: string; status: string; orgId?: string }; data: { status: string } }): Promise<{ count: number }>;
   };
   lessonPass: {
     findMany(a: {
@@ -28,9 +28,10 @@ export type CompleteResult =
 
 export async function completeBookingTx(
   tx: CompleteTx,
-  a: { bookingId: string; memberId: string | null; lessonDay: string }
+  a: { bookingId: string; memberId: string | null; lessonDay: string; orgId?: string }
 ): Promise<CompleteResult> {
-  const moved = await tx.lessonBooking.updateMany({ where: { id: a.bookingId, status: 'CONFIRMED' }, data: { status: 'DONE' } });
+  /* 조직 조건은 이 조건부 갱신에 같이 건다 — 빈 갱신(data: {})은 행 잠금이 아니라(2차 검토) 선점은 이 한 줄이다 */
+  const moved = await tx.lessonBooking.updateMany({ where: { id: a.bookingId, status: 'CONFIRMED', ...(a.orgId ? { orgId: a.orgId } : {}) }, data: { status: 'DONE' } });
   if (moved.count !== 1) return { done: false };
   if (!a.memberId) return { done: true, passId: null };
   const passes = await tx.lessonPass.findMany({

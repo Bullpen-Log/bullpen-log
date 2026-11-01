@@ -6,6 +6,9 @@ import type { MySpace } from '@/app/actions/app-org';
 import { ME, NO_ORG, parseSpaceKey, resolveSpace, spaceKeyOf, type SpaceKey } from '@/lib/org/space-nav';
 import { rpc } from '~/lib/rpc';
 import { loadJson, saveJson } from '~/lib/store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinkQueue, type PendingLink } from '~/org/link-queue';
+import { onSent, outbox } from '~/workout/outbox';
 import { toast } from '~/shell/toast';
 import { SITE_URL } from '~/lib/site';
 import { openWebAfter } from '~/shell/web-nav';
@@ -29,11 +32,9 @@ type State = {
   key: SpaceKey;
   /** 공간마다 마지막 탭 — 내 싱커의 탭 · 종목 바 상태와 따로 */
   tabs: Record<string, string>;
-  /** 일정에 잇기를 기다리는 내 운동(교정 F08) — 서버가 받을 때까지 폰에 남긴다. key 로 같은 것을 두 번 안 넣는다 */
-  links: PendingLink[];
 };
-export type PendingLink = { key: string; memberId: string; eventId: string; since: number; tries: number; lastError?: string };
-const EMPTY: State = { owner: null, ready: false, hasSinker: true, spaces: [], former: [], key: ME, tabs: {}, links: [] };
+export type { PendingLink };
+const EMPTY: State = { owner: null, ready: false, hasSinker: true, spaces: [], former: [], key: ME, tabs: {} };
 let state: State = EMPTY;
 const subs = new Set<() => void>();
 const set = (patch: Partial<State>) => {
@@ -42,7 +43,7 @@ const set = (patch: Partial<State>) => {
 };
 const storeKey = (userId: string) => `bullpen-space:${userId}`;
 const persist = () => {
-  if (state.owner) void saveJson(storeKey(state.owner), { key: state.key, hasSinker: state.hasSinker, spaces: state.spaces, former: state.former, tabs: state.tabs, links: state.links });
+  if (state.owner) void saveJson(storeKey(state.owner), { key: state.key, hasSinker: state.hasSinker, spaces: state.spaces, former: state.former, tabs: state.tabs });
 };
 
 export const useSpace = () =>
@@ -71,9 +72,9 @@ export async function spaceOwner(userId: string) {
         spaces: saved.spaces,
         former: Array.isArray(saved.former) ? saved.former : [],
         tabs: saved.tabs && typeof saved.tabs === 'object' ? saved.tabs : {},
-        links: Array.isArray(saved.links) ? saved.links.filter((l) => l && typeof l.key === 'string') : [],
       });
   }
+  await linkQueue.setOwner(userId);
   await refreshSpaces();
 }
 
@@ -104,8 +105,7 @@ export async function refreshSpaces(): Promise<void> {
 export function setSpace(key: SpaceKey, tab?: string) {
   if (key !== ME && key !== NO_ORG && !spaceOf(key)) return;
   if (key === ME && !state.hasSinker) return;
-  if (orgReturn?.event) orgReturn = { ...orgReturn, key: orgReturn.key, nav: false };
-  else orgReturn = null;
+  orgReturn = null; /* 돌아갈 곳만 버린다 — 귀속은 잇기 대기열에 남아 있다(교정 F08) */
   set({ key, tabs: tab ? { ...state.tabs, [key]: tab } : state.tabs });
   persist();
 }
@@ -121,23 +121,31 @@ export function resetSpace() {
   drafts.clear();
   state = EMPTY;
   subs.forEach((f) => f());
+  void linkQueue.setOwner(null);
 }
 
 /* ── 조직 일에서 연 개인 운동 — 마치면 그 공간 · 탭으로(계약 8-4) ── */
 
 /**
- * event: 일정 하나에서 연 운동이면 마칠 때 그 뒤에 한 내 세트를 그 일정에 잇는다(계약 9-6 ③-2, app-team.linkMyWork).
- * 돌아갈 곳(nav)과 기록 귀속(event)을 가른다(교정 F08) — 공간을 바꾸면 nav 만 버리고, 귀속은 폰에 남겼다 서버가 받을 때까지 다시 보낸다.
+ * 돌아갈 곳(nav)은 메모리 — 공간을 바꾸면 버린다. 기록 귀속(어느 일정에 이을지)은 잇기 대기열(~/org/link-queue.ts)이 활동을 **시작할 때** 폰에 적는다(2차 검토 G04) —
+ * 앱이 꺼졌다 켜져도 남고, 운동 판 번호를 붙여 그 판의 세트만 잇는다(bindLinkSession). 운동 화면을 나가면 finishLinks — 세트가 다 간 뒤 보내고 뺀다.
  */
-let orgReturn: { key: SpaceKey; tab: string; nav: boolean; event?: { memberId: string; eventId: string; since: number } } | null = null;
-export const setOrgReturn = (key: SpaceKey, tab: string, event?: { memberId: string; eventId: string }) => {
-  orgReturn = { key, tab, nav: true, ...(event ? { event: { ...event, since: Date.now() } } : {}) };
+let orgReturn: { key: SpaceKey; tab: string; nav: boolean } | null = null;
+export const setOrgReturn = (key: SpaceKey, tab: string) => {
+  orgReturn = { key, tab, nav: true };
 };
-/** 운동을 마치거나 나갈 때 — 출발한 조직 공간이 아직 있으면 쌓인 화면을 걷고 그 탭으로(true). 없으면 false(부르는 쪽이 원래대로). 잇기는 대기열에 남긴 뒤 보낸다 */
+/** 일정에서 '운동하기' — 돌아갈 곳 + 귀속 시작(폰에 적힐 때까지 기다린다). 저장 실패는 linkQueue.persistFailed 로 화면이 본다 */
+export async function startLinkedWorkout(key: SpaceKey, tab: string, event: { memberId: string; eventId: string }): Promise<void> {
+  setOrgReturn(key, tab);
+  await linkQueue.start(event);
+}
+/** 운동 판이 열렸다(app/workout.tsx) — 조직에서 연 활동이면 그 판 번호를 귀속에 붙인다 */
+export const bindLinkSession = (sessionId: string) => linkQueue.bindSession(sessionId);
+/** 운동을 마치거나 나갈 때 — 출발한 조직 공간이 아직 있으면 쌓인 화면을 걷고 그 탭으로(true). 없으면 false(부르는 쪽이 원래대로). 귀속은 '끝'으로 두고 보낸다 */
 export function consumeOrgReturn(): boolean {
   const r = orgReturn;
   orgReturn = null;
-  if (r?.event) queueLink(r.event);
+  void linkQueue.finish().then(() => linkQueue.flush());
   if (!r || !r.nav || !spaceOf(r.key)) return false;
   if (router.canDismiss()) router.dismissAll();
   set({ key: r.key, tabs: { ...state.tabs, [r.key]: r.tab } });
@@ -145,47 +153,38 @@ export function consumeOrgReturn(): boolean {
   return true;
 }
 
-/* ── 일정 잇기 대기열(교정 F08) — 폰에 남기고(계정 열쇠), 서버가 받을 때까지 켤 때 · 앱이 앞으로 올 때 · 소속 확인 뒤 다시 보낸다 ── */
+/* ── 일정 잇기 대기열(교정 F08 · 2차 검토 G04) — 폰에 남기고(계정 열쇠), 서버가 마지막 답을 줄 때까지 켤 때 · 앱이 앞으로 올 때 · 세트가 간 뒤 · 소속 확인 뒤 다시 ── */
 
-export const linkKeyOf = (e: { memberId: string; eventId: string; since: number }) => `${e.memberId}:${e.eventId}:${e.since}`;
-function queueLink(e: { memberId: string; eventId: string; since: number }) {
-  const key = linkKeyOf(e);
-  if (state.links.some((l) => l.key === key)) return void flushLinks();
-  set({ links: [...state.links, { key, ...e, tries: 0 }] });
-  persist();
-  void flushLinks();
-}
-let flushing = false;
-/**
- * 기다리는 잇기를 보낸다 — 서버가 받으면(ok) 뺀다(권한 없음 · 일정 없음도 서버가 정한 답이라 뺀다 — 개인 운동은 그대로 남고 조직 연결만 거절된 것).
- * 꺼진 망 · 서버 오류는 남겨 두고 다음에 다시. 같은 요청은 서버가 멱등(이미 이은 세트는 안 건드림)이라 겹쳐 보내도 두 번 세지 않는다.
- */
-export async function flushLinks(): Promise<void> {
-  if (flushing || !state.owner || !state.links.length) return;
-  flushing = true;
-  const owner = state.owner;
-  try {
-    for (const l of [...state.links]) {
-      if (state.owner !== owner) return;
-      try {
-        const res = await rpc<{ ok: boolean; linked?: number; error?: string }>('app-team.linkMyWork', l.memberId, l.eventId, l.since);
-        if (state.owner !== owner) return;
-        set({ links: state.links.filter((x) => x.key !== l.key) });
-        persist();
-        if (res.ok && res.linked) toast(`일정에 내 기록 ${res.linked}세트를 이었어요`);
-        else if (!res.ok) toast(`일정에 잇지 못했어요. ${res.error ?? ''}`.trim(), 'error');
-      } catch (e) {
-        /* 못 보냈다 — 남겨 두고 횟수 · 까닭만 적는다 */
-        set({ links: state.links.map((x) => (x.key === l.key ? { ...x, tries: x.tries + 1, lastError: e instanceof Error ? e.message : String(e) } : x)) });
-        persist();
-      }
-    }
-  } finally {
-    flushing = false;
-  }
-}
-/** 화면용 — 아직 서버에 안 닿은 잇기 수 */
-export const pendingLinkCount = () => state.links.length;
+export const linkQueue = new LinkQueue({
+  load: loadJson,
+  save: async (key, value) => {
+    await AsyncStorage.setItem(key, JSON.stringify(value)); /* saveJson 은 실패를 삼킨다 — 여기선 던져서 persistFailed 로 드러낸다 */
+  },
+  send: (l) => rpc<{ ok: true; linked: number } | { ok: false; error: string }>('app-team.linkMyWork', l.memberId, l.eventId, l.since, l.sessionId),
+  pendingSets: (sessionId) => outbox.snapshot().filter((p) => p.sessionId === sessionId).length,
+  now: Date.now,
+});
+/* 세트 하나가 서버에 닿을 때마다 — 그 판의 잇기가 기다리고 있으면 다시 */
+onSent((p) => void linkQueue.onSetsChanged(p.sessionId));
+let lastToast = 0;
+linkQueue.subscribe(() => {
+  const sum = linkQueue.snapshot().reduce((n, l) => n + l.linked, 0);
+  if (sum > lastToast) toast(`일정에 내 기록 ${sum - lastToast}세트를 이었어요`);
+  lastToast = sum;
+});
+export const flushLinks = () => linkQueue.flush();
+/** 화면용 — 잇기 줄(지금 계정) · 저장 실패 */
+export const useLinks = () =>
+  useSyncExternalStore(
+    (f) => linkQueue.subscribe(f),
+    () => linkQueue.snapshot()
+  );
+export const useLinkPersistFailed = () =>
+  useSyncExternalStore(
+    (f) => linkQueue.subscribe(f),
+    () => linkQueue.persistFailed()
+  );
+export const pendingSetsOf = (sessionId: string | null) => (sessionId ? outbox.snapshot().filter((p) => p.sessionId === sessionId).length : 0);
 
 /* ── 쓰던 글 — 조직 쓰기 화면이 저장 안 한 내용이 있으면 알린다(계약 8-5) ── */
 

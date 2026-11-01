@@ -10,12 +10,12 @@ import { memberScope } from '@/lib/org/access';
 import { CONSENT_SCOPES, type Consent, type OrgKind } from '@/lib/org/rules';
 import { ARM_MISSING_TEXT, armUnknown, type CoachArmStatus } from '@/lib/org/arm-view';
 import { WATCH_KINDS, WATCH_LINE, watchKindOf, type WatchKind } from '@/lib/org/watch';
-import { joinWithCode } from '@/lib/org/join';
+import { JOIN_ERROR_TEXT, joinWithCode, type JoinResult } from '@/lib/org/join';
 import { createInviteCode } from '@/lib/org/invite';
 import { loadMember, loadPlayers, memberCardOf, pitcherBoardOf, type MemberCard } from '@/lib/org/player-data';
 import { coachOrgCan, myMember } from '@/lib/org/app-access';
 import { orgAuthz } from '@/lib/org/authz';
-import { redactMembers, redactToday, type HiddenKind } from '@/lib/org/dto-scope';
+import { redactMembers, redactToday, visibleMembers, type HiddenKind } from '@/lib/org/dto-scope';
 import { commentCounts } from '@/lib/org/comment-load';
 import { formatExercise, readExercises } from '@/lib/org/lesson-work';
 import { noteKey } from '@/lib/org/lesson-pitch';
@@ -195,7 +195,8 @@ export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: stri
     }),
   ]);
   const active = members.map((m) => m.id);
-  /* 답을 만든 뒤 보는 사람의 업무 권한 · 대상으로 가린다(F05) — 지금 코치는 조직 전체 · training 가능이라 그대로 지나간다 */
+  const visible = visibleMembers(c.lens, members);
+  /* 답을 만든 뒤 보는 사람의 업무 권한 · 대상으로 가린다(F05 · G05) — 지금 코치는 조직 전체 · training 가능이라 그대로 지나간다 */
   return redactToday({
     ok: true as const,
     org: { id: c.org.id, kind: c.org.kind, name: c.org.name },
@@ -216,10 +217,11 @@ export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: stri
     }),
     next: next ? { ...next, date: toDateKey(next.date) } : null,
     briefing: await briefingOf(orgId, todayKey, members, c.org.kind),
+    /* 합계는 보는 사람의 명단 대상 안 회원만(G05 — 가린 회원 수가 합계로 새지 않게) */
     counts: {
-      members: members.length,
-      pending: members.filter((m) => m.user && !m.consent).length,
-      placeholders: members.filter((m) => !m.user).length,
+      members: visible.length,
+      pending: visible.filter((m) => m.user && !m.consent).length,
+      placeholders: visible.filter((m) => !m.user).length,
     },
     alerts: board.rows
       .filter((r) => r.status.level !== 'safe')
@@ -793,22 +795,16 @@ export async function leaveOrg(memberId: string): Promise<{ ok: boolean; error?:
   return { ok: true };
 }
 
-const JOIN_ERROR: Record<'code' | 'expired' | 'staff' | 'master', string> = {
-  code: '초대 코드 여섯 글자를 확인해 주세요.',
-  expired: '코드가 맞지 않거나 기한이 지났어요. 코치에게 새 코드를 받아 주세요.',
-  staff: '이 코드로는 들어갈 수 없어요. 코치 · 선수 코드를 받아 주세요.',
-  master: '선수 코드는 선수 계정으로 넣어 주세요. 이 계정은 팀 · 레슨장 관리용이에요.',
-};
 
 /** 초대 코드로 들어가기 — 공유 범위를 함께 고른다(웹 joinOrg 와 같은 lib/org/join.ts) */
 export async function joinOrgApp(
   code: string,
   consent: unknown
-): Promise<{ ok: true; orgId: string; memberId: string } | { ok: false; error: string }> {
+): Promise<Extract<JoinResult, { ok: true }> | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const res = await joinWithCode(user, code, readConsent(consent));
-  if (!res.ok) return { ok: false, error: JOIN_ERROR[res.error] };
+  if (!res.ok) return { ok: false, error: JOIN_ERROR_TEXT[res.error] };
   revalidatePath('/manage', 'layout');
   return res;
 }

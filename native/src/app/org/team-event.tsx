@@ -9,6 +9,7 @@ import { OUTING_ROLES, OUTING_ROLE_LABEL, OUTING_STATUS_LABEL, PITCH_LIMIT_MAX, 
 import { EXCEPTION_LABEL, WORK_REASON_LABEL, WORK_STATUS_LABEL, confirmSummary } from '@/lib/org/team-session';
 import { EFFORT_CHIPS, effortScaleText } from '@/lib/pitch-effort';
 import { Bar, LoadState, call, useLoad } from '~/community/parts';
+import { HiddenNote } from '~/org/coach';
 import { READABLE } from '~/lib/layout';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { Segmented } from '~/shell/heading';
@@ -239,6 +240,7 @@ function Confirm({ d, org, send, busy, c, onDone }: Part & { onDone: () => void 
       {d.plans.length ? (
         <View style={{ gap: 6 }}>
           <GroupTitle title={`선수 ${d.members.length}명 — 다르게 한 선수만 눌러 고쳐요`} c={c} />
+          {d.hidden?.length ? <HiddenNote hidden={d.hidden} c={c} /> : null}
           <Card c={c} style={{ paddingVertical: 4 }}>
             {d.members.map((m, i) => (
               <Pressable

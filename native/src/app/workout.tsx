@@ -39,7 +39,7 @@ import { BullpenNative } from '../../modules/bullpen-native';
 import { rpc, RpcError } from '~/lib/rpc';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
-import { consumeOrgReturn } from '~/org/space-store';
+import { bindLinkSession, consumeOrgReturn } from '~/org/space-store';
 import { REST_DAY } from '~/training/rest-day';
 import { prefetchWorkoutDone } from '~/workout/done-prefetch';
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
@@ -110,8 +110,11 @@ export default function WorkoutScreen() {
       .then(
       (r) => {
         if (!alive) return;
-        if (r.ok) setData(r);
-        else leave(r.to ?? '/training');
+        if (r.ok) {
+          setData(r);
+          /* 조직 일정에서 연 운동이면 이 판 번호를 귀속에 붙인다(G04 — 그 판의 세트만 잇는다) */
+          void bindLinkSession(r.sessionId);
+        } else leave(r.to ?? '/training');
       },
       (e: unknown) => {
         if (!alive) return;

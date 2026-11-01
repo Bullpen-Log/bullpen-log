@@ -43,6 +43,7 @@ import {
 export type BookingActionResult = { ok: true; notice: string } | { ok: false; error: string };
 const lostResult = (l: Lost): BookingActionResult => ({ ok: false, error: l.reason === 'already' ? BOOKING_RESULT_TEXT.already : BOOKING_RESULT_TEXT.conflict });
 import { orgOpenHref } from '@/lib/org/space-nav';
+import { MembershipConflict } from '@/lib/org/membership-transitions';
 
 /**
  * 덕아웃 레슨 예약(2판, 2026-10-21) — 선수: 요청 · 취소 · 후기(requireUser). 코치: 프로필 공개 · 확정 · 거절 · 끝남(requireOperator → requireOrgCan, 2026-11-01).
@@ -199,9 +200,16 @@ export async function confirmBooking(formData: FormData): Promise<BookingActionR
   const chosen = which === 2 ? b.slot2! : b.slot1;
   const { dateKey, time } = slotParts(chosen);
   /* 공유 동의는 만들지 않는다 — 예약 확정은 회원 연결만, 무엇을 보여 줄지는 선수가 싱커에서 고른다(2026-10-25 0단계 계약 2-1) */
-  const r = await prisma.$transaction((tx) =>
-    confirmBookingTx(tx, { bookingId: id, orgId: org.id, userId: b.userId, nickname: b.user.nickname, chosen, date: dbDate(dateKey), time, reply, createdById: user.id })
-  );
+  let r: Awaited<ReturnType<typeof confirmBookingTx>>;
+  try {
+    r = await prisma.$transaction((tx) =>
+      confirmBookingTx(tx, { bookingId: id, orgId: org.id, userId: b.userId, nickname: b.user.nickname, chosen, date: dbDate(dateKey), time, reply, createdById: user.id })
+    );
+  } catch (e) {
+    /* 회원 전이 충돌(이 사람이 이 조직의 활동 중인 코치 · 소유자) — 트랜잭션이 되돌아가 예약은 REQUESTED 그대로(G02) */
+    if (e instanceof MembershipConflict) return { ok: false, error: BOOKING_RESULT_TEXT.roleConflict };
+    throw e;
+  }
   if (!r.ok) return lostResult(r);
   await notify(b.userId, {
     kind: 'booking',

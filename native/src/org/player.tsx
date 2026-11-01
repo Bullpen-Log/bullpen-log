@@ -13,6 +13,7 @@ import { LoadState, useLoad } from '~/community/parts';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { Card, Empty, GroupTitle, KIND_WORD, Primary, dayLabel, scopeText, st } from '~/org/parts';
 import { openDugout, setOrgReturn, setSpaceTab } from '~/org/space-store';
+import { LinkStatus } from '~/org/link-status';
 
 /**
  * 선수(회원) 공간의 탭 화면 — S단계(docs/designs/sinker-team-lesson-contract.md 8-3): 팀 오늘 · 일정 · 내 훈련 · 더보기,
@@ -361,6 +362,7 @@ function MyEvents({ memberId, orgId }: { memberId: string; orgId: string }) {
   return (
     <View style={{ gap: 6 }}>
       <GroupTitle title="다가오는 일정" c={c} />
+      <LinkStatus memberId={memberId} />
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : data.events.length === 0 ? (

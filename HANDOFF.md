@@ -11,6 +11,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-11-01 · 금윤호(Claude, 윤호 맥북) — 팀 · 레슨 통합 2차 검토 교정(G01~G05, DB 무변경) · **네 앱 화면 · 공간 저장소를 고쳤다** · `linkMyWork` 인자 하나 늘었다
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). 검토 `docs/designs/sinker-dugout-team-lesson-platform-review2-2026-11-01.md`, 대응은 `-stage0.md` 0-2 절. 전부 코드 + node 시험이고 실기기 · 로그인 화면은 안 봤다.
+- **회원 전이 한 표**(`lib/org/membership-transitions.ts`): 초대 코드 받기(웹 · 앱 · 웹 코치 합류 · 가입 스태프 코드)와 예약 확정의 선수 등록이 같은 규칙 — 나간 코치가 선수 코드로 들어오면 **선수**(코치 권한 안 돌아옴), 활동 중인 코치 · 소유자는 선수로 안 내림(`role_conflict`), 활동 중인 선수에게 코치 코드는 `role_conflict`. 한 번 쓰는 코드(STAFF · 자리)는 트랜잭션 안 조건부 차지(둘이 동시에 넣으면 하나만). `JoinResult` 에 `role · outcome` 이 늘었고 오류 키에 `used · role_conflict · conflict` 가 더해졌다(글은 `JOIN_ERROR_TEXT` 한 표 — 앱 `joinOrgApp` 도 이것).
+- **네 앱 파일**: `app/org/join.tsx`(서버가 준 `r.role` 로 공간 열기 — 코치 코드면 코치 공간), `app/org/my-event.tsx`('운동하기'가 `startLinkedWorkout` 으로 귀속을 폰에 적은 뒤 연다 + `LinkStatus`), `app/workout.tsx`(판이 열리면 `bindLinkSession(sessionId)`), `org/player.tsx`(일정 탭 위 `LinkStatus`), `org/coach.tsx`(가린 기록 수를 0 이 아니라 '비공개'로 · `HiddenNote` — export 라 `team-event.tsx` 도 씀), `org/space-store.ts`(잇기 대기열을 새 `org/link-queue.ts` 로 — `setOrgReturn(key, tab)` 두 인자만, 귀속은 `startLinkedWorkout`). 새 파일 `org/link-queue.ts` · `org/link-status.tsx`.
+- **서버**: `app-team.linkMyWork(memberId, eventId, since?, sessionId?)` — 판 번호가 오면 그 판의 세트만 잇는다(옛 앱은 since 그대로). `loadTeamTraining` 의 `recorded · issues` 가 선택 칸(훈련 대상이 좁은 사람에겐 빠짐 — 지금 grants 가 비어 코치에겐 늘 있다). `coachOrgCan` 이 `memberId` 도 돌려준다. native-api 모양 갱신(더하기 · 선택 칸).
+- 시험: org:test 527 · native-link-queue:test 47(새) · release-gate 102(모의 `$queryRaw` 배열로 고쳐 'rows is not iterable' 없앰) · release-access 687 · dugout 164 · native-api 302. **폰에서 볼 것**: 일정 '운동하기' → 앱 죽이고 다시 켜 → 운동 마침 → 일정에 이어지나(잇기 상태 줄), 비행기 모드에서 세트 남긴 뒤 켜면 '세트 N개를 먼저 보내는 중' → 이어짐, 코치 코드로 덕아웃 `/teams/join` 수락 → '관리로 가기'.
+
 ## 김민에게 — 2026-11-01 · 금윤호(Claude, 윤호 맥북) — 출시 전 베타도 화면은 원래 모양 · 잠긴 기능은 누를 때만 안내 · **네 앱 틀을 다시 고쳤다**
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). 금윤호: "인터페이스는 원래대로 모두 동일하게, 문이 잠겨 있듯이 못 들어가게만". 10-30 의 베타 화면을 걷었다(12b21d57).

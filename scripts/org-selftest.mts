@@ -74,7 +74,9 @@ import {
 import { isOutingTitle } from '@/lib/calendar-event';
 import { ORG_CAPABILITIES, RECORD_CAPABILITIES, canGrant, capabilityScope, capabilityTarget, hasCapability, scopeCovers } from '@/lib/org/capabilities';
 import { cancelBookingTx, confirmBookingTx, declineBookingTx, finishBookingTx } from '@/lib/org/booking-transitions';
-import { lensOf, redactEventDetail, redactMembers, redactToday } from '@/lib/org/dto-scope';
+import { MembershipConflict, planMembership, redeemInviteTx } from '@/lib/org/membership-transitions';
+import { invitePreview } from '@/lib/org/join-preview';
+import { lensOf, redactEventDetail, redactMembers, redactToday, redactTrainingRows, visibleMembers } from '@/lib/org/dto-scope';
 import { completeBookingTx } from '@/lib/org/booking-complete';
 import {
   ME,
@@ -566,7 +568,7 @@ console.log(
   check('회원 코드는 써도 다시 쓸 수 있음', inviteUsable({ role: 'PLAYER', expiresAt: later, usedAt: used }, now));
   check('가입 전 자리 코드는 한 번만', !inviteUsable({ role: 'PLAYER', expiresAt: later, usedAt: used, memberId: 'm1' }, now));
   check('가입 전 자리 코드도 안 썼으면 됨', inviteUsable({ role: 'PLAYER', expiresAt: later, usedAt: null, memberId: 'm1' }, now));
-  check('가입 하면 자리 코드를 씀 처리', src('lib/org/join.ts').includes("invite.role !== 'PLAYER' || invite.memberId"));
+  check('가입 하면 자리 코드를 씀 처리 — 한 번 쓰는 코드(STAFF · 자리)는 트랜잭션 안 조건부 차지(G03)', src('lib/org/membership-transitions.ts').includes("const singleUse = invite.role !== 'PLAYER' || !!invite.memberId;") && src('lib/org/membership-transitions.ts').includes("usedAt: null, expiresAt: { gt: a.now }"));
   const rpc = src('native/src/lib/rpc.ts');
   check('앱 rpcForm 이 폼 하나만 받는 동작도 부름(lead)', rpc.includes('lead: unknown[] = [null]') && rpc.includes('JSON.stringify(lead)'));
   /* 앱이 웹 폼 동작을 부를 때 — (지난 상태, 폼) 꼴이면 기본, (폼) 꼴이면 single(lead []) 이어야 한다 */
@@ -1000,9 +1002,9 @@ console.log(
     );
     check(
       '내 기록 잇기 — 내 세트 · 그날 · 아직 안 이은 것 · 메뉴 운동(없으면 시작 뒤 것만)',
-      team.includes('where: { userId: r.user.id, date: e.date, enteredById: null, orgEventId: null, ...(ids.length ? { exerciseId: { in: ids } } : {}), ...(from ? { recordedAt: { gte: from } } : {}) }') && team.includes('if (!ids.length && !from) return { ok: true, linked: 0 };')
+      team.includes("...(session ? { sessionId: session } : {})") && team.includes("...(!session && ids.length ? { exerciseId: { in: ids } } : {})") && team.includes('...(from ? { recordedAt: { gte: from } } : {})') && team.includes('if (!session && !ids.length && !from) return { ok: true, linked: 0 };')
     );
-    check("일정 화면 '운동하기'는 메뉴를 오늘 운동에 넣고, 마치면 이 일정에 잇기", src('native/src/app/org/my-event.tsx').includes("'app-team.menuToToday'") && src('native/src/org/space-store.ts').includes("('app-team.linkMyWork', l.memberId, l.eventId, l.since)"));
+    check("일정 화면 '운동하기'는 메뉴를 오늘 운동에 넣고, 마치면 이 일정에 잇기", src('native/src/app/org/my-event.tsx').includes("'app-team.menuToToday'") && src('native/src/org/space-store.ts').includes("('app-team.linkMyWork', l.memberId, l.eventId, l.since, l.sessionId)"));
   }
   {
     /* 다시 쓰기 · 오늘 브리핑(계약 10-4) */
@@ -1203,10 +1205,10 @@ console.log(
   /* 쓰기 동작은 읽기 권한으로 열리지 않는다 — 저장 · 확인 · 배정 · 초대는 manage/assign/record */
   const team = readFileSync(join(ROOT, 'app/actions/app-team.ts'), 'utf8');
   for (const [fn, cap] of [['savePlan', 'training.assign'], ['saveActual', 'training.recordForAthlete'], ['confirmTeamWork', 'training.recordForAthlete'], ['loadTeamTraining', 'training.read']] as const)
-    check(`app-team ${fn} → ${cap}`, team.slice(team.indexOf(`export async function ${fn}(`)).split('\nexport ')[0].includes(`coachOrgCan(orgId, '${cap}')`));
+    check(`app-team ${fn} → ${cap}`, (() => { const body = team.slice(team.indexOf(`export async function ${fn}(`)).split('\nexport ')[0]; return body.includes(`coachOrgCan(orgId, '${cap}')`) || body.includes(`orgAuthz(orgId, '${cap}')`); })());
   const org = readFileSync(join(ROOT, 'app/actions/app-org.ts'), 'utf8');
   check('app-org makeInvite → roster.manage', org.slice(org.indexOf('export async function makeInvite(')).split('\nexport ')[0].includes("coachOrgCan(orgId, 'roster.manage')"));
-  check('app-access coachOrgCan 은 hasCapability 로 판정', readFileSync(join(ROOT, 'lib/org/app-access.ts'), 'utf8').includes('hasCapability({ role }, cap)'));
+  check('app-access coachOrgCan 은 hasCapability 로 판정', readFileSync(join(ROOT, 'lib/org/app-access.ts'), 'utf8').includes('hasCapability({ role: r.role }, cap)'));
 }
 
 
@@ -1247,7 +1249,7 @@ console.log(
   type Booking = { id: string; orgId: string; userId: string; status: string; memberId: string | null; eventId: string | null; chosen?: Date; reply?: string | null };
   type Pass = { id: string; total: number; used: number; expiresAt: Date | null };
   type Ev = { id: string; status: string };
-  type Mem = { id: string; orgId: string; userId: string; status: string; consent: { memberId: string } | null };
+  type Mem = { id: string; orgId: string; userId: string; role: 'PLAYER' | 'STAFF' | 'MASTER'; status: 'ACTIVE' | 'LEFT' | 'INVITED'; consent: { memberId: string } | null };
   type Store = { booking: Booking; passes: Pass[]; events: Ev[]; members: Mem[]; seq: number };
   const clone = (s: Store): Store => structuredClone(s);
   /* 메모리 트랜잭션 — 함수가 던지면 되돌린다(실제 DB 처럼). 한 번에 한 트랜잭션만 커밋하지만, 단계마다 await 가 끼어 두 요청이 겹친다 */
@@ -1294,9 +1296,20 @@ console.log(
         },
       },
       orgMember: {
-        async findUnique(a: { where: { orgId_userId: { orgId: string; userId: string } } }) { await Promise.resolve(); return live.members.find((m) => m.orgId === a.where.orgId_userId.orgId && m.userId === a.where.orgId_userId.userId) ?? null; },
-        async update(a: { where: { id: string }; data: { status: string } }) { await Promise.resolve(); const m = live.members.find((x) => x.id === a.where.id); if (m) m.status = a.data.status; return m; },
-        async create(a: { data: { orgId: string; userId: string } }) { await Promise.resolve(); const m = { id: `m${++live.seq}`, orgId: a.data.orgId, userId: a.data.userId, status: 'ACTIVE', consent: null }; live.members.push(m); return { id: m.id }; },
+        async findUnique(a: { where: { orgId_userId: { orgId: string; userId: string } } }) { await Promise.resolve(); const m = live.members.find((m) => m.orgId === a.where.orgId_userId.orgId && m.userId === a.where.orgId_userId.userId); return m ? { id: m.id, role: m.role, status: m.status } : null; },
+        async updateMany(a: { where: { id: string; orgId: string; userId?: null; status?: string }; data: { userId?: string; role?: Mem['role']; status: 'ACTIVE' } }) {
+          await Promise.resolve();
+          const m = live.members.find((x) => x.id === a.where.id && x.orgId === a.where.orgId && (a.where.userId !== null || !x.userId) && (!a.where.status || x.status === a.where.status));
+          if (!m) return { count: 0 };
+          if (a.data.userId) m.userId = a.data.userId;
+          if (a.data.role) m.role = a.data.role;
+          m.status = a.data.status;
+          return { count: 1 };
+        },
+        async create(a: { data: { orgId: string; userId: string; role: Mem['role'] } }) { await Promise.resolve(); const m: Mem = { id: `m${++live.seq}`, orgId: a.data.orgId, userId: a.data.userId, role: a.data.role, status: 'ACTIVE', consent: null }; live.members.push(m); return { id: m.id }; },
+      },
+      shareConsent: {
+        async findUnique(a: { where: { memberId: string } }) { await Promise.resolve(); const m = live.members.find((x) => x.id === a.where.memberId); return m?.consent ?? null; },
       },
       orgEvent: {
         async create() { await Promise.resolve(); const e = { id: `e${++live.seq}`, status: 'planned' }; live.events.push(e); return { id: e.id }; },
@@ -1403,6 +1416,242 @@ console.log(
     check('취소: 남의 예약은 못 취소(주인 조건)', !won(c) && live2.booking.status === 'CONFIRMED');
   }
 
+  /* ───── 2차 검토 G02 · G03(2026-11-01) — 회원 전이 표 · 초대 원자 차지(실제 함수 + 메모리 트랜잭션 · 행 잠금 · 되돌림) ───── */
+  {
+    type Role = 'PLAYER' | 'STAFF' | 'MASTER';
+    type St = 'ACTIVE' | 'LEFT' | 'INVITED';
+    /* 효력 — orgsFor · OPERATOR_WHERE · loadMySpaces 가 보는 것과 같은 조건(활동 중 + 소유자/스태프 역할) */
+    const operates = (m: { role: Role; status: St } | null) => !!m && m.status === 'ACTIVE' && hasCapability({ role: m.role }, 'roster.manage');
+    const plays = (m: { role: Role; status: St } | null) => !!m && m.status === 'ACTIVE' && m.role === 'PLAYER';
+    /* 표 전체(기존 역할 × 상태 × 들어오는 자격) */
+    const table: Record<string, string> = {};
+    for (const role of ['PLAYER', 'STAFF', 'MASTER'] as const)
+      for (const status of ['ACTIVE', 'LEFT', 'INVITED'] as const)
+        for (const incoming of ['PLAYER', 'STAFF'] as const) {
+          const p = planMembership({ id: 'm', role, status }, incoming);
+          table[`${role}/${status}+${incoming}`] = p.action === 'reactivate' ? `${p.action}:${p.role}` : p.action;
+        }
+    check('G02 표: 선수 자격은 나간 코치 · 선수를 선수로만 되살린다(코치 권한 안 되살림)', table['STAFF/LEFT+PLAYER'] === 'reactivate:PLAYER' && table['STAFF/INVITED+PLAYER'] === 'reactivate:PLAYER' && table['PLAYER/LEFT+PLAYER'] === 'reactivate:PLAYER');
+    check('G02 표: 활동 중인 코치 · 소유자를 선수로 몰래 내리지 않는다(role_conflict) · 소유자 줄은 바꾸지 않는다', table['STAFF/ACTIVE+PLAYER'] === 'conflict' && table['MASTER/ACTIVE+PLAYER'] === 'conflict' && table['MASTER/LEFT+PLAYER'] === 'conflict' && table['MASTER/LEFT+STAFF'] === 'conflict' && table['MASTER/ACTIVE+STAFF'] === 'none');
+    check('G02 표: 코치 임명은 STAFF 코드로만 — 활동 중인 선수 줄엔 못 더함(conflict) · 나간 코치 · 나간 선수는 임명', table['PLAYER/ACTIVE+STAFF'] === 'conflict' && table['STAFF/LEFT+STAFF'] === 'reactivate:STAFF' && table['PLAYER/LEFT+STAFF'] === 'reactivate:STAFF' && table['STAFF/ACTIVE+STAFF'] === 'none' && table['PLAYER/ACTIVE+PLAYER'] === 'none');
+    check('G02 표: 줄이 없으면 그 자격으로 새로', planMembership(null, 'PLAYER').action === 'create' && planMembership(null, 'STAFF').action === 'create');
+    /* 표의 모든 칸에서 — 선수 자격으로 새로 운영 권한이 생기는 칸이 없다 */
+    const gained = Object.entries(table).filter(([k, v]) => k.endsWith('+PLAYER') && v === 'reactivate:STAFF');
+    check('G02 표: 선수 자격이 운영 권한을 만드는 칸 0', gained.length === 0, gained.map(([k]) => k).join());
+
+    /* 메모리 트랜잭션 — 초대 · 회원 · 동의. 첫 갱신에서 행 잠금(전역 하나)을 얻고 그때 되돌림 지점을 찍는다. 던지면 되돌린다 */
+    type Inv = { id: string; orgId: string; role: Role; memberId: string | null; expiresAt: Date; usedAt: Date | null; usedById: string | null };
+    type M = { id: string; orgId: string; userId: string | null; role: Role; status: St; nickname: string };
+    type Db = { invites: Inv[]; members: M[]; consents: Record<string, string>; seq: number };
+    let lock: Promise<void> = Promise.resolve();
+    const dbTx = (live: Db) => {
+      let mine = false;
+      let release: (() => void) | undefined;
+      let snap: Db | null = null;
+      const write = async () => {
+        if (mine) return;
+        const prev = lock;
+        let rel: () => void = () => undefined;
+        lock = new Promise<void>((r) => (rel = r));
+        await prev;
+        mine = true;
+        release = rel;
+        snap = structuredClone(live);
+      };
+      const tx = {
+        orgInvite: {
+          async findUnique(a: { where: { id: string } }) { await Promise.resolve(); const i = live.invites.find((x) => x.id === a.where.id); return i ? { ...i } : null; },
+          async updateMany(a: { where: { id: string; orgId: string; role: Role; usedAt: null; expiresAt: { gt: Date } }; data: { usedById: string; usedAt: Date } }) {
+            await write();
+            await Promise.resolve();
+            const i = live.invites.find((x) => x.id === a.where.id && x.orgId === a.where.orgId && x.role === a.where.role && x.usedAt === null && x.expiresAt.getTime() > a.where.expiresAt.gt.getTime());
+            if (!i) return { count: 0 };
+            Object.assign(i, a.data);
+            return { count: 1 };
+          },
+        },
+        orgMember: {
+          async findUnique(a: { where: { orgId_userId: { orgId: string; userId: string } } }) { await Promise.resolve(); const m = live.members.find((x) => x.orgId === a.where.orgId_userId.orgId && x.userId === a.where.orgId_userId.userId); return m ? { id: m.id, role: m.role, status: m.status } : null; },
+          async updateMany(a: { where: { id: string; orgId: string; userId?: null; status?: St }; data: { userId?: string; role?: Role; status: 'ACTIVE' } }) {
+            await write();
+            await Promise.resolve();
+            const m = live.members.find((x) => x.id === a.where.id && x.orgId === a.where.orgId && (a.where.userId !== null || x.userId === null) && (!a.where.status || x.status === a.where.status));
+            if (!m) return { count: 0 };
+            if (a.data.userId) m.userId = a.data.userId;
+            if (a.data.role) m.role = a.data.role;
+            m.status = a.data.status;
+            return { count: 1 };
+          },
+          async create(a: { data: { orgId: string; userId: string; role: Role; nickname: string } }) { await write(); const m: M = { id: `m${++live.seq}`, orgId: a.data.orgId, userId: a.data.userId, role: a.data.role, status: 'ACTIVE', nickname: a.data.nickname }; live.members.push(m); return { id: m.id }; },
+        },
+        shareConsent: {
+          async upsert(a: { where: { memberId: string }; create: { byUserId: string } }) { await write(); live.consents[a.where.memberId] = a.create.byUserId; return {}; },
+        },
+        _rollback: () => { if (snap) Object.assign(live, snap); },
+        _end: () => { if (mine) { mine = false; release?.(); } },
+      };
+      return tx;
+    };
+    type Out = { ok: true; memberId: string; role: Role; outcome: string } | { ok: false; error: string };
+    const redeem = async (live: Db, inviteId: string, user: { id: string; nickname: string }): Promise<Out> => {
+      const tx = dbTx(live);
+      try {
+        const r = await redeemInviteTx(tx, { inviteId, user, consent: consentDefaults(), now: NOW });
+        return { ok: true, memberId: r.memberId, role: r.role, outcome: r.outcome };
+      } catch (e) {
+        tx._rollback();
+        return { ok: false, error: e instanceof MembershipConflict ? e.reason : `threw:${e instanceof Error ? e.message : String(e)}` };
+      } finally {
+        tx._end();
+      }
+    };
+    const NOW = new Date('2026-11-01T03:00:00Z');
+    const later = new Date('2026-11-10T00:00:00Z');
+    const inv = (role: Role, extra: Partial<Inv> = {}): Inv => ({ id: 'i', orgId: 'o', role, memberId: null, expiresAt: later, usedAt: null, usedById: null, ...extra });
+    const db = (invites: Inv[], members: M[] = []): Db => ({ invites, members, consents: {}, seq: 10 });
+    const A = { id: 'uA', nickname: 'A' };
+    const B = { id: 'uB', nickname: 'B' };
+    const memOf = (live: Db, userId: string) => live.members.find((m) => m.userId === userId) ?? null;
+
+    /* G02 재현 — 나간 코치가 선수 코드로 들어오면 코치 권한이 되살아나지 않는다 */
+    {
+      const live = db([inv('PLAYER')], [{ id: 'm1', orgId: 'o', userId: 'uA', role: 'STAFF', status: 'LEFT', nickname: 'A' }]);
+      const r = await redeem(live, 'i', A);
+      const m = memOf(live, 'uA');
+      check('G02 재현: LEFT STAFF + 선수 코드 → 같은 줄이 ACTIVE PLAYER(재합류) · 운영 효력 없음 · 선수 효력 있음', r.ok && r.outcome === 'rejoined' && r.role === 'PLAYER' && m?.id === 'm1' && m.role === 'PLAYER' && m.status === 'ACTIVE' && !operates(m) && plays(m) && live.members.length === 1, JSON.stringify(r));
+      check('G02 재현: 선수 재합류에 공유 동의가 적힌다', live.consents.m1 === 'uA');
+    }
+    {
+      const live = db([inv('PLAYER')], [{ id: 'm1', orgId: 'o', userId: 'uA', role: 'STAFF', status: 'ACTIVE', nickname: 'A' }]);
+      const r = await redeem(live, 'i', A);
+      const m = memOf(live, 'uA');
+      check('G02 활동 중인 코치 + 선수 코드 → role_conflict · 줄 그대로(내리지 않음)', !r.ok && r.error === 'role_conflict' && m?.role === 'STAFF' && m.status === 'ACTIVE' && operates(m));
+    }
+    {
+      const live = db([inv('STAFF')], [{ id: 'm1', orgId: 'o', userId: 'uA', role: 'PLAYER', status: 'ACTIVE', nickname: 'A' }]);
+      const r = await redeem(live, 'i', A);
+      check('G02 활동 중인 선수 + 코치 코드 → role_conflict · 코드는 안 쓴 채 남음(되돌림)', !r.ok && r.error === 'role_conflict' && live.invites[0].usedAt === null && memOf(live, 'uA')?.role === 'PLAYER');
+    }
+    {
+      const live = db([inv('STAFF')], [{ id: 'm1', orgId: 'o', userId: 'uA', role: 'STAFF', status: 'LEFT', nickname: 'A' }]);
+      const r = await redeem(live, 'i', A);
+      const m = memOf(live, 'uA');
+      check('G02 나간 코치 + 새 STAFF 코드 → 다시 임명(appointed) · 운영 효력 · 동의는 안 적음', r.ok && r.outcome === 'appointed' && operates(m) && live.invites[0].usedById === 'uA' && !('m1' in live.consents));
+    }
+    {
+      const live = db([inv('PLAYER')], [{ id: 'm1', orgId: 'o', userId: 'uA', role: 'MASTER', status: 'LEFT', nickname: 'A' }]);
+      const r = await redeem(live, 'i', A);
+      check('G02 나간 소유자 줄 + 선수 코드 → role_conflict(소유자 줄은 바꾸지 않음)', !r.ok && r.error === 'role_conflict' && memOf(live, 'uA')?.role === 'MASTER');
+    }
+    /* 예약 확정의 선수 등록 — 같은 표 */
+    {
+      const live = fresh('REQUESTED', { members: [{ id: 'm1', orgId: 'o', userId: 'u', role: 'STAFF', status: 'LEFT', consent: null }] });
+      const r = await confirmA(live);
+      const m = live.members[0];
+      check('G02 예약 확정: LEFT STAFF 는 선수로 등록(코치 권한 안 되살림) · 동의 대기', won(r) && m.role === 'PLAYER' && m.status === 'ACTIVE' && !operates(m) && (r as { consentPending?: boolean }).consentPending === true && live.members.length === 1);
+      const live2 = fresh('REQUESTED', { members: [{ id: 'm1', orgId: 'o', userId: 'u', role: 'STAFF', status: 'ACTIVE', consent: null }] });
+      const r2 = await confirmA(live2);
+      check('G02 예약 확정: 활동 중인 코치는 선수로 등록 못 함 — 되돌려 REQUESTED · 시간표 없음 · 줄 그대로', (r2 as { threw?: boolean; msg?: string }).threw === true && (r2 as { msg?: string }).msg === 'membership:role_conflict' && live2.booking.status === 'REQUESTED' && live2.events.length === 0 && live2.members[0].role === 'STAFF');
+      const live3 = fresh('REQUESTED', { members: [{ id: 'm1', orgId: 'o', userId: 'u', role: 'PLAYER', status: 'LEFT', consent: { memberId: 'm1' } }] });
+      const r3 = await confirmA(live3);
+      check('G02 예약 확정: 나간 선수는 재합류 · 동의가 남아 있으면 대기 아님', won(r3) && live3.members[0].status === 'ACTIVE' && (r3 as { consentPending?: boolean }).consentPending === false);
+    }
+    /* G03 — 한 STAFF 코드를 두 사람이 동시에 */
+    {
+      const live = db([inv('STAFF')]);
+      const [a, b] = await Promise.all([redeem(live, 'i', A), redeem(live, 'i', B)]);
+      const winners = [a, b].filter((r) => r.ok);
+      const loser = [a, b].find((r) => !r.ok) as { ok: false; error: string } | undefined;
+      check('G03 STAFF 코드 겹침: 한 사람만 들어가고 다른 사람은 used · 회원 줄 하나 · usedById 는 이긴 사람', winners.length === 1 && loser?.error === 'used' && live.members.length === 1 && live.invites[0].usedById === live.members[0].userId, JSON.stringify({ a, b }));
+      const again = await redeem(live, 'i', live.members[0].userId === 'uA' ? A : B);
+      check('G03 같은 사람 재시도(답을 못 받고 다시): already · 제 줄 그대로 · 둘째 줄 없음', again.ok && again.outcome === 'already' && again.memberId === live.members[0].id && live.members.length === 1);
+      const other = await redeem(live, 'i', live.members[0].userId === 'uA' ? B : A);
+      check('G03 쓴 코드를 다른 사람이: used', !other.ok && other.error === 'used');
+    }
+    /* G03 — 가입 전 자리 코드를 두 사람이 */
+    {
+      const live = db([inv('PLAYER', { memberId: 'ph' })], [{ id: 'ph', orgId: 'o', userId: null, role: 'PLAYER', status: 'INVITED', nickname: '자리' }]);
+      const [a, b] = await Promise.all([redeem(live, 'i', A), redeem(live, 'i', B)]);
+      const w = [a, b].find((r) => r.ok) as { ok: true; memberId: string } | undefined;
+      const ph = live.members.find((m) => m.id === 'ph')!;
+      check('G03 자리 코드 겹침: 한 사람만 자리를 잇고(userId) 다른 사람은 used · 새 줄 없음', !!w && w.memberId === 'ph' && [a, b].filter((r) => r.ok).length === 1 && ph.userId !== null && ph.status === 'ACTIVE' && live.members.length === 1);
+    }
+    {
+      /* 자리를 남이 이미 이은 뒤(코드는 아직 안 쓴 어긋난 상태) — 덮지 않고 conflict, 코드 차지도 되돌림 */
+      const live = db([inv('PLAYER', { memberId: 'ph' })], [{ id: 'ph', orgId: 'o', userId: 'uB', role: 'PLAYER', status: 'ACTIVE', nickname: 'B' }]);
+      const r = await redeem(live, 'i', A);
+      check('G03 남이 이은 자리는 덮지 않음(conflict) · 코드 차지 되돌림 · 새 줄 없음', !r.ok && r.error === 'conflict' && live.members.find((m) => m.id === 'ph')?.userId === 'uB' && live.invites[0].usedAt === null && live.members.length === 1);
+    }
+    /* G03 — 기한 · 취소(지움)를 트랜잭션 안에서 다시 본다 */
+    {
+      const live = db([inv('STAFF', { expiresAt: new Date('2026-11-01T02:59:59Z') })]);
+      const r = await redeem(live, 'i', A);
+      check('G03 미리보기 뒤 기한이 지난 코드: expired · 아무것도 안 바뀜', !r.ok && r.error === 'expired' && live.members.length === 0 && live.invites[0].usedAt === null);
+      const live2 = db([]);
+      const r2 = await redeem(live2, 'i', A);
+      check('G03 지운(취소한) 코드: expired', !r2.ok && r2.error === 'expired');
+    }
+    /* G03 — 차지 뒤 실패면 차지까지 되돌림 */
+    {
+      const live = db([inv('PLAYER', { memberId: 'ph' })], [{ id: 'ph', orgId: 'o', userId: null, role: 'PLAYER', status: 'INVITED', nickname: '자리' }]);
+      const tx = dbTx(live);
+      tx.shareConsent.upsert = async () => { throw new Error('boom'); };
+      let threw = '';
+      try { await redeemInviteTx(tx, { inviteId: 'i', user: A, consent: consentDefaults(), now: NOW }); } catch (e) { threw = (e as Error).message; tx._rollback(); } finally { tx._end(); }
+      check('G03 차지 뒤 동의 저장 실패: 되돌려 코드 미사용 · 자리 미연결', threw === 'boom' && live.invites[0].usedAt === null && live.members[0].userId === null);
+      const again = await redeem(live, 'i', A);
+      check('G03 되돌린 뒤 다시 넣으면 들어간다', again.ok && again.memberId === 'ph');
+    }
+    /* 선수(회원) 코드는 여럿이 쓴다 — 차지하지 않는다 */
+    {
+      const live = db([inv('PLAYER')]);
+      const [a, b] = await Promise.all([redeem(live, 'i', A), redeem(live, 'i', B)]);
+      check('선수 코드는 두 사람 다 들어가고 코드는 안 쓴 채', a.ok && b.ok && live.members.length === 2 && live.invites[0].usedAt === null);
+    }
+    /* 웹 · 앱 두 길이 같은 함수 · 같은 답 글 */
+    const joinSrc2 = readFileSync(join(ROOT, 'lib/org/join.ts'), 'utf8');
+    const webJoin = readFileSync(join(ROOT, 'app/actions/org-join.ts'), 'utf8');
+    const appJoin = readFileSync(join(ROOT, 'app/actions/app-org.ts'), 'utf8');
+    check('G02/G03 웹(joinOrg) · 앱(joinOrgApp) 둘 다 joinWithCode → redeemInviteTx(트랜잭션) · 답 글 한 표', webJoin.includes('joinWithCode(user') && appJoin.includes('joinWithCode(user') && appJoin.includes('JOIN_ERROR_TEXT[res.error]') && joinSrc2.includes('prisma.$transaction((tx) => redeemInviteTx(tx'));
+    check('G03 웹 마스터 코치 합류(org.ts joinAsStaff) · 가입의 스태프 코드(auth.ts)도 트랜잭션 안 조건부 차지', readFileSync(join(ROOT, 'app/actions/org.ts'), 'utf8').includes('redeemInviteTx(tx, { inviteId: invite.id') && readFileSync(join(ROOT, 'app/actions/auth.ts'), 'utf8').includes("role: 'STAFF', usedAt: null, expiresAt: { gt: now }"));
+    check('G02 예약 확정 동작이 role_conflict 를 typed 답으로', readFileSync(join(ROOT, 'app/actions/lessons.ts'), 'utf8').includes('if (e instanceof MembershipConflict) return { ok: false, error: BOOKING_RESULT_TEXT.roleConflict }'));
+    check('2차 검토: 끝냄 선점은 빈 갱신(data: {})이 아니라 CONFIRMED→DONE 조건부 갱신에 조직 조건을 같이 건다', !readFileSync(join(ROOT, 'lib/org/booking-transitions.ts'), 'utf8').includes('data: {} }') && readFileSync(join(ROOT, 'lib/org/booking-complete.ts'), 'utf8').includes("...(a.orgId ? { orgId: a.orgId } : {})"));
+  }
+
+  /* ───── 2차 검토 G01 — 참여 화면의 미리보기 계약(역할 픽스처) · 코치 수락 흐름 · 링크 ───── */
+  {
+    const now = new Date('2026-11-01T03:00:00Z');
+    const later = new Date('2026-11-10T00:00:00Z');
+    const ordinary = { id: 'uA', accountType: 'PLAYER' as const };
+    const masterAcc = { id: 'uM', accountType: 'MASTER' as const };
+    const staffInv = { role: 'STAFF' as const, memberId: null, expiresAt: later, usedAt: null, usedById: null };
+    const playerInv = { role: 'PLAYER' as const, memberId: null, expiresAt: later, usedAt: null, usedById: null };
+    const pv = (invite: Parameters<typeof invitePreview>[0]['invite'], mine: Parameters<typeof invitePreview>[0]['mine'], user: Parameters<typeof invitePreview>[0]['user'] = ordinary) => invitePreview({ invite, mine, user, now });
+    check('G01 일반 계정 + 유효한 STAFF 코드 → staff 수락 화면(새 임명)', JSON.stringify(pv(staffInv, null)) === '{"state":"staff","rejoin":false}');
+    check('G01 일반 계정 + 선수 코드 → player 등록 화면', JSON.stringify(pv(playerInv, null)) === '{"state":"player","rejoin":false}');
+    check('G01 활동 중인 선수 + STAFF 코드 → role_conflict(선수)', JSON.stringify(pv(staffInv, { id: 'm', role: 'PLAYER', status: 'ACTIVE' })) === '{"state":"role_conflict","role":"PLAYER"}');
+    check('G01 나간 코치 + 선수 코드 → player 재합류(코치 권한 안 돌아옴을 화면이 말함)', JSON.stringify(pv(playerInv, { id: 'm', role: 'STAFF', status: 'LEFT' })) === '{"state":"player","rejoin":true}');
+    check('G01 나간 코치 + STAFF 코드 → staff 다시 임명', JSON.stringify(pv(staffInv, { id: 'm', role: 'STAFF', status: 'LEFT' })) === '{"state":"staff","rejoin":true}');
+    check('G01 활동 중인 코치 + STAFF 코드 → already(코드 안 씀)', JSON.stringify(pv(staffInv, { id: 'm', role: 'STAFF', status: 'ACTIVE' })) === '{"state":"already","role":"STAFF"}');
+    check('G01 남이 쓴 STAFF 코드 → used', pv({ ...staffInv, usedAt: now, usedById: 'uZ' }, null).state === 'used');
+    check('G01 내가 쓴 STAFF 코드(답을 못 받고 다시 열면) → already', pv({ ...staffInv, usedAt: now, usedById: 'uA' }, { id: 'm', role: 'STAFF', status: 'ACTIVE' }).state === 'already');
+    check('G01 기한 지남 · 없음 · 소유자 코드 → expired', pv({ ...staffInv, expiresAt: now }, null).state === 'expired' && pv(null, null).state === 'expired' && pv({ ...staffInv, role: 'MASTER' }, null).state === 'expired');
+    check('G01 마스터 계정 + 선수 코드 → master', pv(playerInv, null, masterAcc).state === 'master');
+    check('G01 마스터 계정 + STAFF 코드 → staff(계정 종류로 막지 않음)', pv(staffInv, null, masterAcc).state === 'staff');
+    /* 화면 · 동작 소스 — 코치 수락 폼이 실제로 있고 동의 체크박스가 없다, 수락 뒤 관리로 */
+    const view = readFileSync(join(ROOT, 'components/org/join-view.tsx'), 'utf8');
+    const staffBlock = view.slice(view.indexOf("preview?.state === 'staff' && ("), view.indexOf("preview?.state === 'already' && !joined"));
+    check('G01 join-view: 코치 코드에 수락 폼(joinOrg) · 업무 목록 · 동의 체크박스 없음', staffBlock.includes('<SafeForm action={joinOrg}') && staffBlock.includes('STAFF_DUTIES.map') && !staffBlock.includes('scope-') && staffBlock.includes('코치로 들어가기'));
+    check('G01 join-view: 선수 코드에만 공유 범위 체크박스', view.slice(view.indexOf("preview?.state === 'player' && ("), view.indexOf("preview?.state === 'staff' && (")).includes("name={`scope-${s.key}`}"));
+    check('G01 join-view: usable 을 PLAYER 로 못박지 않는다 · 미리보기는 invitePreview', !view.includes("invite.role === 'PLAYER'") && view.includes('invitePreview({ invite, mine, user, now: realNow() })'));
+    check('G01 join-view: 수락 뒤 관리로 가기 · 싱커 공간 새로 받기 안내 · role_conflict 설명', view.includes('href="/manage"') && view.includes('공간 고르개에 생겨요') && view.includes("preview?.state === 'role_conflict'"));
+    const act2 = readFileSync(join(ROOT, 'app/actions/org-join.ts'), 'utf8');
+    check('G01 joinOrg: 코치면 관리 조직 쿠키를 두고 as=staff 로 돌아온다 · 오류 키 그대로', act2.includes("if (res.role !== 'PLAYER') (await cookies()).set(ORG_COOKIE, res.orgId") && act2.includes('&as=${') && act2.includes('redirect(`${base}?error=${res.error}`)'));
+    check('G01 CopyJoinLink 는 덕아웃 /teams/join 으로 · 옛 /join 도 같은 본문', readFileSync(join(ROOT, 'components/master/copy-join-link.tsx'), 'utf8').includes('/teams/join?code=${code}') && readFileSync(join(ROOT, 'app/(app)/join/page.tsx'), 'utf8').includes('<JoinView') && readFileSync(join(ROOT, 'app/(dugout)/teams/join/page.tsx'), 'utf8').includes('<JoinView'));
+    check('G01 앱 참여 화면은 서버가 준 자격으로 공간을 연다', readFileSync(join(ROOT, 'native/src/app/org/join.tsx'), 'utf8').includes('spaceKeyOf({ orgId: r.orgId, role: r.role })'));
+    check('G01 STAFF 코드 받기에 동의는 안 적힌다(redeemInviteTx)', readFileSync(join(ROOT, 'lib/org/membership-transitions.ts'), 'utf8').includes("if (m.role === 'PLAYER' && m.outcome !== 'already')"));
+  }
+
   /* F04 — 위임 규칙 */
   const owner = { role: 'MASTER' as const };
   check('F04 소유자만 위임 · 위임 밖 업무(org.manage · permission.manage · 회계 · 내보내기)는 못 줌', canGrant(owner, { capability: 'schedule.manage', scope: 'organization' }) && !canGrant(owner, { capability: 'org.manage', scope: 'organization' }) && !canGrant(owner, { capability: 'permission.manage', scope: 'organization' }) && !canGrant(owner, { capability: 'finance.manage', scope: 'organization' }));
@@ -1423,7 +1672,7 @@ console.log(
   for (const f of ['app/(master)/layout.tsx', 'app/(master)/manage/page.tsx', 'app/(master)/manage/players/page.tsx', 'app/actions/org.ts', 'app/actions/org-notes.ts', 'app/actions/lessons.ts'])
     check(`F03 ${f}: requireOperator 로`, !/\brequireMaster\(\)/.test(readFileSync(join(ROOT, f), 'utf8')) && readFileSync(join(ROOT, f), 'utf8').includes('requireOperator'));
   check('F03 덕아웃 위 막대 관리 입구는 isOperator', readFileSync(join(ROOT, 'app/(dugout)/layout.tsx'), 'utf8').includes('await isOperator(user)'));
-  check('F05 없는 소속을 STAFF 로 짐작하지 않는다(access · app-access)', acc.includes("return m ? (m.role as OrgRole) : null") && readFileSync(join(ROOT, 'lib/org/app-access.ts'), 'utf8').includes("return m ? (m.role as OrgRole) : null"));
+  check('F05 없는 소속을 STAFF 로 짐작하지 않는다(access · app-access)', acc.includes("return m ? (m.role as OrgRole) : null") && readFileSync(join(ROOT, 'lib/org/app-access.ts'), 'utf8').includes("return m ? { role: m.role as OrgRole, memberId: m.id } : null"));
   const ll = readFileSync(join(ROOT, 'lib/market/lesson-load.ts'), 'utf8');
   check('F06 예약 목록에 투구 기록 건수 없음', !ll.includes('pitchLogs') && !ll.includes('records:') && !readFileSync(join(ROOT, 'app/(master)/manage/bookings/page.tsx'), 'utf8').includes('records'));
   const les = readFileSync(join(ROOT, 'app/actions/lessons.ts'), 'utf8');
@@ -1431,60 +1680,106 @@ console.log(
   check('F01/F02 서버 동작이 전이 함수를 쓴다(확정 · 거절 · 끝냄 · 취소) · 알림은 이긴 뒤', ['confirmBookingTx(tx', 'declineBookingTx(tx', 'finishBookingTx(tx', 'cancelBookingTx(tx'].every((x) => les.includes(x)) && les.indexOf('confirmBookingTx(tx') < les.indexOf("title: '레슨 예약이 확정됐어요'"));
   /* F08 — 앱 잇기 대기열 */
   const ss = readFileSync(join(ROOT, 'native/src/org/space-store.ts'), 'utf8');
-  check('F08 잇기 대기열을 폰에 남기고(links · persist) 소속 확인 뒤 다시 보낸다(flushLinks)', ss.includes('links: state.links') && ss.includes('void flushLinks();') && ss.includes('export async function flushLinks'));
-  check('F08 공간을 바꿔도 기록 귀속(event)은 남긴다 · 오류를 삼키지 않고 남긴다', ss.includes('if (orgReturn?.event) orgReturn = { ...orgReturn, key: orgReturn.key, nav: false };') && ss.includes('lastError:') && !ss.includes('.catch(() => {})'));
+  check('F08 → G04 잇기 대기열(~/org/link-queue.ts)을 계정 열쇠로 폰에 두고 소속 확인 뒤 다시 보낸다(flushLinks)', ss.includes('export const linkQueue = new LinkQueue({') && ss.includes('void flushLinks();') && ss.includes('await linkQueue.setOwner(userId);'));
+  check('F08 → G04 공간을 바꿔도 기록 귀속은 대기열에 남는다 · 저장 실패를 삼키지 않는다', ss.includes('orgReturn = null; /* 돌아갈 곳만 버린다') && ss.includes('await AsyncStorage.setItem(key, JSON.stringify(value));') && !ss.includes('.catch(() => {})'));
 }
 
 
-/* 교정 F05(2026-11-01) — 조회 답 가리기(lib/org/dto-scope.ts): 일정만 · 명단만 · 묶음 범위 · 조직 전체 코치를 서로 다른 권한 주체로 */
+/* 교정 F05(2026-11-01) → 2차 검토 G05 — 조회 답 가리기(lib/org/dto-scope.ts): 명단 · 훈련 대상이 **따로**인 주체들 · 회원 없는 합계 · 허용 목록 */
 {
-  const lensFor = (subject: Parameters<typeof capabilityTarget>[0]) => lensOf((cap) => capabilityTarget(subject, cap));
+  const lensFor = (subject: Parameters<typeof capabilityTarget>[0], selfId: string | null = null) => lensOf((cap) => capabilityTarget(subject, cap), selfId);
   const coach = lensFor({ role: 'STAFF' });
+  const owner = lensFor({ role: 'MASTER' });
   const schedulerOnly = lensFor({ role: 'PLAYER', grants: [{ capability: 'schedule.read', scope: 'organization' }, { capability: 'schedule.manage', scope: 'organization' }] });
   const rosterOnly = lensFor({ role: 'PLAYER', grants: [{ capability: 'roster.read', scope: 'organization' }] });
+  /* 검토 재현: 명단은 조직 전체 · 훈련은 m1 만 */
+  const trainM1 = lensFor({ role: 'PLAYER', grants: [{ capability: 'roster.read', scope: 'organization' }, { capability: 'training.read', scope: 'explicit_group', targets: ['m1'] }] });
+  /* 좁은 명단 + 넓은 훈련 */
+  const rosterM1 = lensFor({ role: 'PLAYER', grants: [{ capability: 'roster.read', scope: 'explicit_group', targets: ['m1'] }, { capability: 'training.read', scope: 'organization' }] });
   const groupCoach = lensFor({ role: 'PLAYER', grants: [{ capability: 'roster.read', scope: 'explicit_group', targets: ['m1'] }, { capability: 'training.read', scope: 'explicit_group', targets: ['m1'] }] });
-  check('F05 렌즈: 코치는 조직 전체 · training', coach.training && coach.members === null);
+  /* 미래의 학부모 — 자녀 둘 + 따로 받은 운영 업무 하나(공지) */
+  const guardian = lensFor({ role: 'PLAYER', grants: [{ capability: 'roster.read', scope: 'linked_children', targets: ['m1', 'm2'] }, { capability: 'training.read', scope: 'linked_children', targets: ['m1', 'm2'] }, { capability: 'notice.publish', scope: 'organization' }] });
+  /* self 범위 — 실제 회원 줄로 */
+  const selfOnly = lensFor({ role: 'PLAYER', grants: [{ capability: 'roster.read', scope: 'self' }, { capability: 'training.read', scope: 'self' }] }, 'm2');
+  check('G05 렌즈: 대상 집합이 타입에(캐스트 없음) — 코치 · 소유자는 전부 null', coach.training && coach.members === null && coach.trainingTargets === null && coach.checkinTargets === null && owner.trainingTargets === null);
+  check('G05 렌즈: 훈련만 m1 — members null · trainingTargets {m1} · checkin 도 {m1}', trainM1.members === null && trainM1.trainingTargets?.size === 1 && trainM1.checkinTargets?.has('m1') === true);
+  check('G05 렌즈: 좁은 명단 + 넓은 훈련 — members {m1} · trainingTargets null', rosterM1.members?.size === 1 && rosterM1.trainingTargets === null);
+  check('G05 렌즈: self 는 실제 회원 줄', selfOnly.members?.has('m2') === true && selfOnly.trainingTargets?.has('m2') === true && !lensFor({ role: 'PLAYER', grants: [{ capability: 'roster.read', scope: 'self' }] }, null).members?.size);
   check('F05 렌즈: 일정 담당은 회원 집합 비어 있음 · training 없음', !schedulerOnly.training && schedulerOnly.members?.size === 0);
   check('F05 렌즈: 명단만은 회원 전체 · training 없음', !rosterOnly.training && rosterOnly.members === null);
-  check('F05 렌즈: 묶음 코치는 m1 만', groupCoach.training && !!groupCoach.members?.has('m1') && groupCoach.members.size === 1);
+  check('G05 렌즈: 학부모 — 자녀 둘만 · 공지 업무는 렌즈와 무관', guardian.members?.size === 2 && guardian.trainingTargets?.size === 2 && !guardian.members.has('m3'));
 
+  const ev = (o: Partial<Parameters<typeof redactToday>[0]['events'][number]> & { id: string; memberId: string | null }) => ({ time: null, kind: 'training', title: 't', status: 'planned', memberName: null, ...o });
   const today = {
-    events: [{ id: 'e1', memberId: null, recorded: 3, selfRecorded: 1, issues: 1 }, { id: 'e2', memberId: 'm2', recorded: 1 }],
-    briefing: { review: [{ kind: 'work', id: 'e1', memberId: null }, { kind: 'homework', id: 'h', memberId: 'm2' }] },
+    events: [ev({ id: 'e1', memberId: null, targets: 3, plans: 2, confirmed: true, recorded: 3, selfRecorded: 1, issues: 1 }), ev({ id: 'e2', memberId: 'm2', memberName: 'b', targets: 1, plans: 1, confirmed: true, recorded: 1 }), ev({ id: 'e3', memberId: 'm1', memberName: 'a', recorded: 1 })],
+    briefing: { review: [{ kind: 'work', id: 'e1', memberId: null }, { kind: 'homework', id: 'h', memberId: 'm2' }, { kind: 'homework', id: 'h1', memberId: 'm1' }] },
     alerts: [{ memberId: 'm1', level: 'danger' }, { memberId: 'm2', level: 'caution' }],
-    watch: [{ kind: 'attention', memberId: 'm1' }, { kind: 'pending', memberId: 'm2' }, { kind: 'unlinked', memberId: 'm3' }],
+    watch: [{ kind: 'attention', memberId: 'm1' }, { kind: 'pending', memberId: 'm2' }, { kind: 'unlinked', memberId: 'm3' }, { kind: 'attention', memberId: 'm2' }],
     counts: { members: 3, pending: 1, placeholders: 1 },
   };
   const t0 = redactToday(today, coach);
-  check('F05 오늘: 코치는 그대로 · hidden 없음', t0.hidden.length === 0 && t0.alerts.length === 2 && t0.events[0].recorded === 3);
+  check('F05 오늘: 코치는 그대로 · hidden 없음', t0.hidden.length === 0 && t0.alerts.length === 2 && t0.events[0].recorded === 3 && t0.events[0].targets === 3 && t0.briefing?.review.length === 3);
+  check('G05 오늘: 소유자도 그대로', redactToday(today, owner).hidden.length === 0);
   const t1 = redactToday(today, rosterOnly);
-  check('F05 오늘: 명단만 — 팔 상태 · 수행 수 · 브리핑 · 주의 살핌은 빠지고 동의 · 연결 대기는 남음 · hidden=training', t1.hidden.includes('training') && t1.alerts.length === 0 && t1.events.every((e) => !('recorded' in e)) && t1.briefing?.review.length === 0 && t1.watch.map((w) => w.kind).join() === 'pending,unlinked');
-  const t2 = redactToday(today, groupCoach);
-  check('F05 오늘: 묶음 코치 — m2 의 레슨 일정 · 알림 · 살핌은 안 보이고 m1 만, 팀 일정(회원 없음)은 보임', t2.events.map((e) => e.id).join() === 'e1' && t2.alerts.length === 1 && t2.alerts[0].memberId === 'm1' && t2.watch.length === 1 && t2.hidden.includes('members'));
-  const rows = [{ memberId: 'm1', nickname: 'a', arm: { level: 'danger' }, watch: 'attention' as const }, { memberId: 'm2', nickname: 'b', arm: null, watch: 'pending' as const }];
+  check('F05 오늘: 명단만 — 팔 상태 · 수행 수 · 브리핑 · 주의 살핌은 빠지고 동의 · 연결 대기는 남음 · hidden=training', t1.hidden.includes('training') && t1.alerts.length === 0 && t1.events.every((e) => !('recorded' in e) && !('issues' in e)) && t1.briefing?.review.length === 0 && t1.watch.map((w) => w.kind).join() === 'pending,unlinked' && t1.events[0].targets === 3);
+  const t2 = redactToday(today, trainM1);
+  check('G05 재현(훈련 m1 만): 팀 합계(recorded · selfRecorded · issues)와 팀 브리핑은 빠지고 m1 것만 · m2 줄은 보이되 수행 없음', !('recorded' in t2.events[0]) && !('issues' in t2.events[0]) && t2.events[1].recorded === undefined && t2.events[2].recorded === 1 && t2.briefing?.review.map((r) => r.id).join() === 'h1' && t2.alerts.map((a) => a.memberId).join() === 'm1' && t2.watch.map((w) => `${w.kind}:${w.memberId}`).join() === 'attention:m1,pending:m2,unlinked:m3' && t2.hidden.includes('training') && t2.events.length === 3 && t2.events[0].targets === 3);
+  const t3 = redactToday(today, rosterM1);
+  check('G05 좁은 명단 + 넓은 훈련: m2 · m3 줄 · 살핌은 빠지고, 팀 합계 recorded 는 남되 명단 크기 targets 는 빠짐', t3.events.map((e) => e.id).join() === 'e1,e3' && t3.events[0].recorded === 3 && t3.events[0].targets === undefined && t3.hidden.includes('members') && t3.alerts.length === 1 && t3.watch.length === 1);
+  const t4 = redactToday(today, groupCoach);
+  check('F05 오늘: 묶음 코치 — m2 레슨 일정 · 알림 · 살핌 안 보이고 m1 만, 팀 일정은 보이되 합계 없음', t4.events.map((e) => e.id).join() === 'e1,e3' && t4.alerts.length === 1 && t4.alerts[0].memberId === 'm1' && t4.watch.length === 1 && t4.hidden.includes('members') && !('recorded' in t4.events[0]) && t4.events[0].plans === 2);
+  const t5 = redactToday(today, schedulerOnly);
+  check('G05 일정 담당: 팀 일정 줄은 보이되(plans · confirmed) 합계 · 명단 크기 · 회원 일정 모두 없음', t5.events.map((e) => e.id).join() === 'e1' && t5.events[0].plans === 2 && t5.events[0].confirmed === true && !('targets' in t5.events[0]) && !('recorded' in t5.events[0]) && t5.alerts.length === 0 && t5.watch.length === 0);
+  const t6 = redactToday(today, guardian);
+  check('G05 학부모: 자녀 둘의 일정 · 살핌 · 숙제만, 팀 합계 없음, m3 연결 대기 안 보임', t6.events.map((e) => e.id).join() === 'e1,e2,e3' && t6.events[1].recorded === 1 && !('recorded' in t6.events[0]) && t6.watch.map((w) => w.memberId).join() === 'm1,m2,m2' && t6.briefing?.review.map((r) => r.id).join() === 'h,h1');
+  /* 허용 목록 — 새로 생긴 민감한 칸은 목록에 없으면 안 나간다 */
+  const leaky = { ...today, events: [{ ...today.events[0], secretArmNote: 'x' } as unknown as (typeof today.events)[number]] };
+  check('G05 허용 목록: 목록에 없는 칸은 누구에게도 안 나간다(새 민감 칸이 정책을 비켜 가지 않게)', !('secretArmNote' in redactToday(leaky, rosterOnly).events[0]) && !('secretArmNote' in redactToday(leaky, coach).events[0]));
+
+  const rows = [{ memberId: 'm1', nickname: 'a', tags: ['투수'], hasUser: true, consentPending: false, pitchOk: true, arm: { level: 'danger' }, watch: 'attention' as const }, { memberId: 'm2', nickname: 'b', tags: [], hasUser: true, consentPending: true, pitchOk: false, arm: null, watch: 'pending' as const }];
   const r1 = redactMembers(rows, rosterOnly);
-  check('F05 명단: 명단만 — 팔 상태 null · 주의 살핌 null · 동의 대기는 남음 · hidden=training', r1.members.length === 2 && r1.members[0].arm === null && r1.members[0].watch === null && r1.members[1].watch === 'pending' && r1.hidden.includes('training'));
+  check('F05 명단: 명단만 — 팔 상태 null · 주의 살핌 null · 동의 대기는 남음 · hidden=training', r1.members.length === 2 && r1.members[0].arm === null && r1.members[0].watch === null && r1.members[1].watch === 'pending' && r1.hidden.includes('training') && r1.members[0].tags[0] === '투수');
   const r2 = redactMembers(rows, groupCoach);
   check('F05 명단: 묶음 코치는 m1 만 · hidden=members', r2.members.length === 1 && r2.members[0].memberId === 'm1' && r2.hidden.includes('members'));
   const r3 = redactMembers(rows, schedulerOnly);
   check('F05 명단: 일정 담당은 아무 회원도 못 봄(명단 권한 없음)', r3.members.length === 0 && r3.hidden.includes('members'));
+  const r4 = redactMembers(rows, trainM1);
+  check('G05 명단: 훈련 m1 만 — m2 는 보이되 팔 상태 · 주의 살핌 없음', r4.members.length === 2 && r4.members[0].arm !== null && r4.members[1].arm === null && r4.members[1].watch === 'pending');
+
   const detail = {
-    members: [{ memberId: 'm1', exception: { items: [] }, values: [{ planId: 'p', pitchCount: 20 }], status: 'recorded', reasons: [], held: [], selfSets: 2, sameAsGroup: [], fixes: [{ id: 'f', body: '정정' }], outingNote: '체크인과 다름', pending: true }, { memberId: 'm2', exception: null, values: [], status: null, reasons: [], held: [], selfSets: 0, sameAsGroup: [], fixes: [], outingNote: null, pending: false }],
-    plans: [{ id: 'p', actual: [{ exerciseId: 'x' }], actualLines: [{ name: 'x' }], actualSet: true }],
+    members: [
+      { memberId: 'm1', nickname: 'a', tags: ['투수'], hasUser: true, canTrain: true, canPitch: true, left: false, outing: { role: 'starter' }, exception: { items: [] }, values: [{ planId: 'p', pitchCount: 20 }], status: 'recorded', reasons: [], held: [], selfSets: 2, sameAsGroup: [], fixes: [{ id: 'f', body: '정정' }], outingNote: '체크인과 다름', pending: true },
+      { memberId: 'm2', nickname: 'b', tags: ['야수'], hasUser: true, canTrain: true, canPitch: false, left: false, outing: null, exception: null, values: [{ planId: 'p', pitchCount: 5 }], status: 'recorded', reasons: [], held: [], selfSets: 1, sameAsGroup: [], fixes: [], outingNote: '오늘 체크인 던지는 일정 없음', pending: false },
+    ],
+    plans: [{ id: 'p', memberIds: ['m1', 'm2'], targets: ['m1', 'm2'], actual: [{ exerciseId: 'x' }], actualLines: [{ name: 'x' }], actualSet: true }],
     others: [{ memberId: 'm3' }],
+    tags: ['투수', '야수'],
   };
   const d0 = redactEventDetail(detail, coach);
-  check('F05 일정 상세: 코치는 그대로', d0.hidden.length === 0 && d0.members[0].values.length === 1 && d0.plans[0].actualSet === true);
+  check('F05 일정 상세: 코치는 그대로', d0.hidden.length === 0 && d0.members[0].values.length === 1 && d0.plans[0].actualSet === true && d0.members[1].outingNote !== null);
   const d1 = redactEventDetail(detail, schedulerOnly);
-  check('F05 일정 상세: 일정 담당 — 회원 줄 0 · 조 실제 가림 · hidden 에 training · members', d1.members.length === 0 && d1.plans[0].actualSet === false && d1.plans[0].actual.length === 0 && d1.hidden.includes('training') && d1.hidden.includes('members'));
+  const d1Tags: string[] = d1.tags ?? [];
+  check('F05 일정 상세: 일정 담당 — 회원 줄 0 · 조 실제 가림 · hidden 에 training · members', d1.members.length === 0 && d1.plans[0].actualSet === false && d1.plans[0].actual.length === 0 && d1.hidden.includes('training') && d1.hidden.includes('members') && d1.plans[0].memberIds.length === 0 && d1Tags.length === 0);
   const d2 = redactEventDetail(detail, rosterOnly);
-  check('F05 일정 상세: 명단만 — 회원 줄은 보이되 수행 값 · 정정 · 체크인 한 줄 · 예외 없음', d2.members.length === 2 && d2.members[0].values.length === 0 && d2.members[0].fixes.length === 0 && d2.members[0].outingNote === null && d2.members[0].exception === null && d2.hidden.includes('checkin'));
+  check('F05 일정 상세: 명단만 — 회원 줄은 보이되 수행 값 · 정정 · 체크인 한 줄 · 예외 없음', d2.members.length === 2 && d2.members[0].values.length === 0 && d2.members[0].fixes.length === 0 && d2.members[0].outingNote === null && d2.members[0].exception === null && d2.hidden.includes('checkin') && d2.members[0].outing !== null);
   const d3 = redactEventDetail(detail, groupCoach);
-  check('F05 일정 상세: 묶음 코치 — m1 수행 값 그대로 · m2 · m3 안 보임', d3.members.length === 1 && d3.members[0].values.length === 1 && d3.others.length === 0);
-  /* 서버 조회가 렌즈를 쓴다(소스) */
+  check('F05 일정 상세: 묶음 코치 — m1 수행 값 그대로 · m2 · m3 안 보임 · 조 대상도 m1 만 · 태그는 보이는 회원 것', d3.members.length === 1 && d3.members[0].values.length === 1 && d3.others.length === 0 && d3.plans[0].targets.join() === 'm1' && (d3.tags ?? []).join() === '투수');
+  const d4 = redactEventDetail(detail, trainM1);
+  check('G05 재현(훈련 m1 만): m2 의 values 가 비면 outingNote 도 비어야 한다 · 조 실제(팀 값)도 가림', d4.members[1].values.length === 0 && d4.members[1].outingNote === null && d4.members[0].outingNote === '체크인과 다름' && d4.plans[0].actualSet === false && d4.hidden.includes('checkin'));
+  const d5 = redactEventDetail(detail, rosterM1);
+  check('G05 좁은 명단 + 넓은 훈련: m1 만 보이되 수행 값 그대로 · 조 실제 그대로', d5.members.length === 1 && d5.members[0].values.length === 1 && d5.plans[0].actualSet === true && d5.others.length === 0);
+  const leakyDetail = { ...detail, members: [{ ...detail.members[1], hrNote: '심박' } as unknown as (typeof detail.members)[number]] };
+  check('G05 허용 목록(상세 · 명단): 목록에 없는 칸은 누구에게도 안 나간다', !('hrNote' in redactEventDetail(leakyDetail, trainM1).members[0]) && !('hrNote' in redactEventDetail(leakyDetail, coach).members[0]) && !('hrNote' in redactMembers([{ ...rows[0], hrNote: 1 } as unknown as (typeof rows)[number]], coach).members[0]));
+  const tr = [{ id: 'e', recorded: 3, issues: 1, confirmed: true }];
+  check('G05 훈련 탭 합계: 훈련 대상이 조직 전체가 아니면 recorded · issues 칸이 빠진다(0 아님)', !('recorded' in redactTrainingRows(tr, trainM1).rows[0]) && redactTrainingRows(tr, trainM1).hidden.includes('training') && redactTrainingRows(tr, coach).rows[0].recorded === 3);
+  check('G05 visibleMembers — 합계는 보이는 회원만', visibleMembers(groupCoach, [{ id: 'm1' }, { id: 'm2' }]).length === 1 && visibleMembers(coach, [{ id: 'm1' }, { id: 'm2' }]).length === 2);
+  /* 서버 조회가 렌즈를 쓴다(소스) · 화면은 가린 값을 0 으로 안 그린다 */
   const appOrg2 = readFileSync(join(ROOT, 'app/actions/app-org.ts'), 'utf8');
-  check('F05 loadOrgToday · loadOrgMembers 가 orgAuthz + redact 를 쓴다', appOrg2.includes("orgAuthz(orgId, 'roster.read')") && appOrg2.includes('return redactToday({') && appOrg2.includes('redactMembers('));
-  check('F05 loadEventDetail 이 orgAuthz + redactEventDetail 을 쓴다', (() => { const t = readFileSync(join(ROOT, 'app/actions/app-team.ts'), 'utf8'); return t.includes("orgAuthz(orgId, 'schedule.read')") && t.includes('return redactEventDetail({'); })());
+  check('F05 loadOrgToday · loadOrgMembers 가 orgAuthz + redact 를 쓴다 · 합계는 보이는 회원만', appOrg2.includes("orgAuthz(orgId, 'roster.read')") && appOrg2.includes('return redactToday({') && appOrg2.includes('redactMembers(') && appOrg2.includes('members: visible.length'));
+  check('F05 loadEventDetail · loadTeamTraining 이 orgAuthz + redact 를 쓴다', (() => { const t = readFileSync(join(ROOT, 'app/actions/app-team.ts'), 'utf8'); return t.includes("orgAuthz(orgId, 'schedule.read')") && t.includes('return redactEventDetail({') && t.includes("orgAuthz(orgId, 'training.read')") && t.includes('redactTrainingRows('); })());
+  check('G05 authz 가 self 를 실제 회원 줄로 푼다', readFileSync(join(ROOT, 'lib/org/authz.ts'), 'utf8').includes('capabilityTarget(subject, cap), c.memberId)'));
+  const coachUi = readFileSync(join(ROOT, 'native/src/org/coach.tsx'), 'utf8');
+  check('G05 앱 화면: 가린 기록 수를 0 으로 그리지 않는다(비공개) · 가린 종류 한 줄', !coachUi.includes('e.recorded ?? 0') && coachUi.includes("e.recorded == null ? '확인함 · 기록 비공개'") && coachUi.includes("r.recorded == null ? ' · 확인함 · 기록 비공개'") && coachUi.includes('<HiddenNote hidden={data.hidden}') && readFileSync(join(ROOT, 'native/src/app/org/team-event.tsx'), 'utf8').includes('<HiddenNote hidden={d.hidden}'));
 }
 
 console.log(

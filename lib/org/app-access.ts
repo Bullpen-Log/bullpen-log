@@ -28,16 +28,16 @@ export async function coachOrg(orgId: string) {
 export async function coachOrgCan(orgId: string, cap: OrgCapability) {
   const c = await coachOrg(orgId);
   if (!c) return null;
-  const role = await orgRoleOf(c.user, c.org);
-  if (!role || !hasCapability({ role }, cap)) return null;
-  return { ...c, role };
+  const r = await orgRoleOf(c.user, c.org);
+  if (!r || !hasCapability({ role: r.role }, cap)) return null;
+  return { ...c, role: r.role, memberId: r.memberId };
 }
 
-/** 조직 안 역할 — 회원 줄이 없거나 선수면 null(교정 F05: 없는 소속을 STAFF 로 짐작하지 않는다) */
-async function orgRoleOf(user: { id: string; role: string }, org: { id: string; ownerId: string }): Promise<OrgRole | null> {
-  if (user.role === 'ADMIN' || org.ownerId === user.id) return 'MASTER';
-  const m = await prisma.orgMember.findFirst({ where: { orgId: org.id, userId: user.id, status: 'ACTIVE', role: { in: ['MASTER', 'STAFF'] } }, select: { role: true } });
-  return m ? (m.role as OrgRole) : null;
+/** 조직 안 역할 · 제 회원 줄 — 회원 줄이 없거나 선수면 null(교정 F05: 없는 소속을 STAFF 로 짐작하지 않는다). 소유자 · 관리자는 회원 줄 없이도 MASTER(memberId null 가능) */
+async function orgRoleOf(user: { id: string; role: string }, org: { id: string; ownerId: string }): Promise<{ role: OrgRole; memberId: string | null } | null> {
+  const m = await prisma.orgMember.findFirst({ where: { orgId: org.id, userId: user.id, status: 'ACTIVE', role: { in: ['MASTER', 'STAFF'] } }, select: { id: true, role: true } });
+  if (user.role === 'ADMIN' || org.ownerId === user.id) return { role: 'MASTER', memberId: m?.id ?? null };
+  return m ? { role: m.role as OrgRole, memberId: m.id } : null;
 }
 
 /** 내 회원 줄인가(떠난 곳 포함) — 아니면 null */

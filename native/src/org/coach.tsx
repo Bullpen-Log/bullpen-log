@@ -108,6 +108,12 @@ function TodayTab({ space, c }: { space: MySpace; c: Palette }) {
   );
 }
 
+/** 권한 밖이라 가린 종류(G05) — 0 · 없음과 다르게 한 줄로 */
+export function HiddenNote({ hidden, c }: { hidden: readonly string[]; c: Palette }) {
+  const words = hidden.map((h) => (h === 'training' ? '훈련 기록' : h === 'checkin' ? '체크인' : '일부 선수')).filter((w, i, a) => a.indexOf(w) === i);
+  return <Text style={[TYPE.sub, { color: c.muted, paddingHorizontal: 4 }]}>{`${words.join(' · ')}은 내 권한 밖이라 가려져 있어요(0 이 아니라 비공개).`}</Text>;
+}
+
 /** 오늘 일정 줄 — 시각 · 이름 · 단계(계획 · 확인 대기 · 확인함) · 결과 수. 없으면 한 줄 + 다음 일정 하나 */
 function TodayEvents({ space, data, c }: { space: MySpace; data: Extract<Today, { ok: true }>; c: Palette }) {
   const team = space.kind === 'TEAM';
@@ -116,7 +122,8 @@ function TodayEvents({ space, data, c }: { space: MySpace; data: Extract<Today, 
     return [
       e.targets != null ? `명단 ${e.targets}` : '',
       e.plans ? `활동 ${e.plans}` : '활동 만들기',
-      e.confirmed ? `확인함 · 기록 ${e.recorded ?? 0}` : e.plans ? '확인 대기' : '',
+      /* 가린 값은 0 이 아니라 '비공개'(G05 — 서버가 칸을 뺀다) */
+      e.confirmed ? (e.recorded == null ? '확인함 · 기록 비공개' : `확인함 · 기록 ${e.recorded}`) : e.plans ? '확인 대기' : '',
       e.issues ? `확인 필요 ${e.issues}` : '',
       e.selfRecorded ? `선수 기록 ${e.selfRecorded}` : '',
     ]
@@ -126,6 +133,7 @@ function TodayEvents({ space, data, c }: { space: MySpace; data: Extract<Today, 
   return (
     <View style={{ gap: 6 }}>
       <GroupTitle title={`오늘 · ${dayLabel(data.todayKey)}`} c={c} />
+      {data.hidden?.length ? <HiddenNote hidden={data.hidden} c={c} /> : null}
       <Card c={c} float style={{ paddingVertical: 4 }}>
         {data.events.length === 0 ? (
           <>
@@ -702,6 +710,7 @@ function TrainingTab({ space, c }: { space: MySpace; c: Palette }) {
   if (!data) return <LoadState error={error} onRetry={() => void reload()} c={c} />;
   const coming = data.rows.filter((r) => r.date >= data.todayKey);
   const past = data.rows.filter((r) => r.date < data.todayKey).reverse();
+  const hiddenNote = data.hidden?.length ? <HiddenNote hidden={data.hidden} c={c} /> : null;
   const open = (id: string) => router.push(`/org/team-event?org=${space.orgId}&id=${id}` as Href);
   const list = (rows: typeof data.rows, done: boolean) =>
     rows.length === 0 ? (
@@ -721,7 +730,7 @@ function TrainingTab({ space, c }: { space: MySpace; c: Palette }) {
             {/* 활동이 없으면 경고색 대신 할 일로(계약 9-4) — 누르면 훈련 하나 */}
             <Text style={[TYPE.sub, { color: r.plans.length ? (done && r.plans.length && (!r.confirmed || r.issues) ? c.warn : c.muted) : c.link }]} numberOfLines={1}>
               {r.plans.length ? `활동 ${r.plans.join(' · ')}` : '활동 만들기'}
-              {done && r.plans.length ? (r.confirmed ? ` · 확인함 · 기록 ${r.recorded}명${r.issues ? ` · 확인 필요 ${r.issues}` : ''}` : ' · 실제 확인 전') : ''}
+              {done && r.plans.length ? (r.confirmed ? (r.recorded == null ? ' · 확인함 · 기록 비공개' : ` · 확인함 · 기록 ${r.recorded}명${r.issues ? ` · 확인 필요 ${r.issues}` : ''}`) : ' · 실제 확인 전') : ''}
             </Text>
           </View>
           <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
@@ -738,6 +747,7 @@ function TrainingTab({ space, c }: { space: MySpace; c: Palette }) {
       </View>
       <View style={{ gap: 6 }}>
         <GroupTitle title="지난 2주" c={c} />
+        {hiddenNote}
         <Card c={c} style={{ paddingVertical: 4 }}>
           {list(past, true)}
         </Card>

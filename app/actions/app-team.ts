@@ -12,7 +12,7 @@ import { allExercises, allGuides, trainingGuides, visibleExercises } from '@/lib
 import { isDateKey, ORG_DUPLICATE_MS } from '@/lib/org/rules';
 import { coachOrgCan, myMember } from '@/lib/org/app-access';
 import { orgAuthz } from '@/lib/org/authz';
-import { redactEventDetail, type HiddenKind } from '@/lib/org/dto-scope';
+import { redactEventDetail, redactTrainingRows, type HiddenKind } from '@/lib/org/dto-scope';
 import { ORG_LOST, orgOpenHref } from '@/lib/org/space-nav';
 import { Prisma } from '@prisma/client';
 import { cleanHomeworkItems, homeworkDose, readHomeworkItems } from '@/lib/org/homework';
@@ -748,16 +748,16 @@ export type TrainingRow = {
   kind: string;
   title: string;
   plans: string[];
-  /** 개인 기록이 생긴 선수 수 */
-  recorded: number;
+  /** 개인 기록이 생긴 선수 수 — 보는 사람의 훈련 대상이 조직 전체가 아니면 없음(비공개, G05) */
+  recorded?: number;
   /** '이대로 확인'을 했나 */
   confirmed: boolean;
-  /** 확인 필요 · 저장 실패 선수 수 */
-  issues: number;
+  /** 확인 필요 · 저장 실패 선수 수 — recorded 와 같은 조건 */
+  issues?: number;
 };
 
-export async function loadTeamTraining(orgId: string): Promise<{ ok: false; to: string } | { ok: true; todayKey: string; rows: TrainingRow[] }> {
-  const c = await coachOrgCan(orgId, 'training.read');
+export async function loadTeamTraining(orgId: string): Promise<{ ok: false; to: string } | { ok: true; todayKey: string; rows: TrainingRow[]; hidden?: HiddenKind[] }> {
+  const c = await orgAuthz(orgId, 'training.read');
   if (!c) return NO_ACCESS;
   const todayKey = toDateKey(appNow());
   const events = await prisma.orgEvent.findMany({
@@ -779,10 +779,9 @@ export async function loadTeamTraining(orgId: string): Promise<{ ok: false; to: 
         prisma.orgEventAttendee.findMany({ where: { eventId: { in: ids }, workStatus: { not: null } }, select: { eventId: true, workStatus: true } }),
       ])
     : [[], []];
-  return {
-    ok: true,
-    todayKey,
-    rows: events.map((e) => {
+  /* 팀 전체 합계는 훈련 대상이 조직 전체일 때만(G05) — 아니면 칸을 뺀다 */
+  const scoped = redactTrainingRows(
+    events.map((e) => {
       const mine = results.filter((r) => r.eventId === e.id);
       return {
         id: e.id,
@@ -796,7 +795,9 @@ export async function loadTeamTraining(orgId: string): Promise<{ ok: false; to: 
         issues: mine.filter((r) => r.workStatus === 'needs_check' || r.workStatus === 'failed').length,
       };
     }),
-  };
+    c.lens
+  );
+  return { ok: true, todayKey, rows: scoped.rows, hidden: scoped.hidden };
 }
 
 /* ── 선수: 다가오는 일정 · 내 활동 · 확정된 등판 · 공지 읽음 ── */
@@ -978,20 +979,31 @@ async function reapplyMine(event: { id: string; confirmedAt: Date | null; confir
 }
 
 /**
- * 내 기록을 이 일정에 잇기 — '운동하기'로 한 뒤(since = 시작 시각) 또는 '내 기록 잇기'(그날 내 활동 운동). 선수 세트에 일정을 달 뿐 세트는 그대로라
- * 부하 · 달력은 한 번만 센다. 이은 운동은 코치 확인에서 내 기록으로 맞춘다(결정 3). 활동이 없으면 since 뒤의 세트만.
+ * 내 기록을 이 일정에 잇기 — '운동하기'로 한 뒤(앱 잇기 대기열 native/src/org/link-queue.ts) 또는 '내 기록 잇기'(그날 내 활동 운동). 선수 세트에 일정을 달 뿐 세트는 그대로라
+ * 부하 · 달력은 한 번만 센다. 이은 운동은 코치 확인에서 내 기록으로 맞춘다(결정 3).
+ * 원본 식별(2차 검토 G04): 앱이 운동 판 번호(sessionId)를 주면 **그 판의 세트만** 잇는다(같은 날 다른 개인 운동은 안 섞임). 판 번호 없는 옛 줄만 since 시각 뒤.
+ * 소속 · 상태는 매번 다시 본다(myMember — 나간 회원이면 거절, 개인 운동은 그대로). 멱등 — 이미 이은 세트는 안 건드린다.
  */
-export async function linkMyWork(memberId: string, eventId: string, since?: unknown): Promise<{ ok: true; linked: number } | { ok: false; error: string }> {
+export async function linkMyWork(memberId: string, eventId: string, since?: unknown, sessionId?: unknown): Promise<{ ok: true; linked: number } | { ok: false; error: string }> {
   const r = await myMember(memberId);
-  if (!r || r.m.status !== 'ACTIVE') return { ok: false, error: '이을 수 없어요.' };
+  if (!r || r.m.status !== 'ACTIVE') return { ok: false, error: '이을 수 없어요. 이 팀 · 레슨장의 회원이 아니에요.' };
   const e = await myEventOf(r.m.org.id, r.m.id, eventId);
   if (!e || e.status === 'canceled') return { ok: false, error: '일정을 찾을 수 없어요.' };
   if (toDateKey(e.date) > toDateKey(appNow())) return { ok: false, error: '아직 오지 않은 일정이에요.' };
-  const ids = await myMenuExercises(r.m.org.id, r.m.id, e);
-  const from = typeof since === 'number' && Number.isFinite(since) ? new Date(since) : null;
-  if (!ids.length && !from) return { ok: true, linked: 0 };
+  const session = typeof sessionId === 'string' && sessionId ? sessionId : null;
+  const ids = session ? [] : await myMenuExercises(r.m.org.id, r.m.id, e);
+  const from = !session && typeof since === 'number' && Number.isFinite(since) ? new Date(since) : null;
+  if (!session && !ids.length && !from) return { ok: true, linked: 0 };
   const res = await prisma.userExerciseSet.updateMany({
-    where: { userId: r.user.id, date: e.date, enteredById: null, orgEventId: null, ...(ids.length ? { exerciseId: { in: ids } } : {}), ...(from ? { recordedAt: { gte: from } } : {}) },
+    where: {
+      userId: r.user.id,
+      date: e.date,
+      enteredById: null,
+      orgEventId: null,
+      ...(session ? { sessionId: session } : {}),
+      ...(!session && ids.length ? { exerciseId: { in: ids } } : {}),
+      ...(from ? { recordedAt: { gte: from } } : {}),
+    },
     data: { orgEventId: e.id },
   });
   if (res.count) await reapplyMine(e, r.m.id);

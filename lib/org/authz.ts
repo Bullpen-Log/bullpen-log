@@ -21,5 +21,6 @@ export async function orgAuthz(orgId: string, base: OrgCapability): Promise<OrgA
   const grants: readonly OrgGrant[] = [];
   const subject = { role: c.role as OrgRole, grants };
   const can = (cap: OrgCapability) => hasCapability(subject, cap);
-  return { ...c, grants, can, lens: lensOf((cap) => capabilityTarget(subject, cap)) };
+  /* self 범위는 보는 사람의 실제 회원 줄로(G05) */
+  return { ...c, grants, can, lens: lensOf((cap) => capabilityTarget(subject, cap), c.memberId) };
 }

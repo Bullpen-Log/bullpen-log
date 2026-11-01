@@ -1,4 +1,5 @@
 import { completeBookingTx, type CompleteTx } from '@/lib/org/booking-complete';
+import { enrollMemberTx, type MembershipTx } from '@/lib/org/membership-transitions';
 
 /**
  * 레슨 예약 상태 전이 계약(2026-11-01 교정 F01 · F02 — docs/designs/sinker-dugout-team-lesson-platform-review-2026-11-01.md).
@@ -24,7 +25,7 @@ export const ALLOWED_FROM: Record<'confirm' | 'decline' | 'finish' | 'cancel', B
   cancel: ['REQUESTED', 'CONFIRMED'],
 };
 
-export type TransitionTx = CompleteTx & {
+export type TransitionTx = CompleteTx & MembershipTx & {
   lessonBooking: {
     updateMany(a: {
       where: { id: string; status?: string | { in: string[] }; orgId?: string; userId?: string };
@@ -32,13 +33,8 @@ export type TransitionTx = CompleteTx & {
     }): Promise<{ count: number }>;
     findUnique(a: { where: { id: string }; select: { status: true; eventId?: true } }): Promise<{ status: string; eventId?: string | null } | null>;
   };
-  orgMember: {
-    findUnique(a: {
-      where: { orgId_userId: { orgId: string; userId: string } };
-      select: { id: true; status: true; consent: { select: { memberId: true } } };
-    }): Promise<{ id: string; status: string; consent: { memberId: string } | null } | null>;
-    update(a: { where: { id: string }; data: { status: 'ACTIVE'; leftAt: null } }): Promise<unknown>;
-    create(a: { data: { orgId: string; userId: string; role: 'PLAYER'; status: 'ACTIVE'; nickname: string }; select: { id: true } }): Promise<{ id: string }>;
+  shareConsent: {
+    findUnique(a: { where: { memberId: string }; select: { memberId: true } }): Promise<{ memberId: string } | null>;
   };
   orgEvent: {
     create(a: {
@@ -71,21 +67,13 @@ export async function confirmBookingTx(
     data: { status: 'CONFIRMED', chosen: a.chosen, reply: a.reply, confirmedAt: new Date() },
   });
   if (claimed.count !== 1) return lost(tx, a.bookingId, 'CONFIRMED');
-  const existing = await tx.orgMember.findUnique({
-    where: { orgId_userId: { orgId: a.orgId, userId: a.userId } },
-    select: { id: true, status: true, consent: { select: { memberId: true } } },
-  });
-  let memberId: string;
-  if (existing) {
-    memberId = existing.id;
-    if (existing.status !== 'ACTIVE') await tx.orgMember.update({ where: { id: existing.id }, data: { status: 'ACTIVE', leftAt: null } });
-  } else {
-    const m = await tx.orgMember.create({
-      data: { orgId: a.orgId, userId: a.userId, role: 'PLAYER', status: 'ACTIVE', nickname: a.nickname },
-      select: { id: true },
-    });
-    memberId = m.id;
-  }
+  /*
+   * 선수 등록은 회원 전이 표(membership-transitions.ts, G02)대로 — 나간 코치 줄은 선수로 다시 들어오고(코치 권한 안 되살림), 활동 중인 코치 · 소유자는
+   * 선수로 못 등록한다(MembershipConflict → 트랜잭션 되돌림, 예약은 REQUESTED 그대로 남는다)
+   */
+  const m = await enrollMemberTx(tx, { orgId: a.orgId, user: { id: a.userId, nickname: a.nickname }, incoming: 'PLAYER', now: new Date() });
+  const memberId = m.memberId;
+  const consent = m.existed ? await tx.shareConsent.findUnique({ where: { memberId }, select: { memberId: true } }) : null;
   const ev = await tx.orgEvent.create({
     data: { orgId: a.orgId, date: a.date, time: a.time, kind: 'lesson', title: `${a.nickname} 레슨(덕아웃 예약)`, memberId, createdById: a.createdById },
     select: { id: true },
@@ -93,7 +81,7 @@ export async function confirmBookingTx(
   /* 선점한 줄에 회원 · 시간표를 잇는다 — 상태 조건을 다시 건다(그새 바뀌었을 리 없지만 바뀌었으면 0줄 → 던져서 되돌림) */
   const linked = await tx.lessonBooking.updateMany({ where: { id: a.bookingId, status: 'CONFIRMED' }, data: { memberId, eventId: ev.id } });
   if (linked.count !== 1) throw new Error('booking vanished during confirm');
-  return { ok: true, eventId: ev.id, memberId, consentPending: !existing?.consent };
+  return { ok: true, eventId: ev.id, memberId, consentPending: !consent };
 }
 
 /** 거절 — REQUESTED → DECLINED */
@@ -122,9 +110,7 @@ export async function finishBookingTx(
   tx: TransitionTx,
   a: { bookingId: string; orgId: string; memberId: string | null; lessonDay: string }
 ): Promise<{ ok: true; passId: string | null } | Lost> {
-  /* 조직 조건까지 — completeBookingTx 는 id · 상태만 본다 */
-  const mine = await tx.lessonBooking.updateMany({ where: { id: a.bookingId, orgId: a.orgId, status: 'CONFIRMED' }, data: {} });
-  if (mine.count !== 1) return lost(tx, a.bookingId, 'DONE');
+  /* 조직 조건은 completeBookingTx 의 CONFIRMED → DONE 조건부 갱신에 같이 건다(빈 갱신으로 '잠그는' 척하지 않는다 — 2차 검토) */
   const r = await completeBookingTx(tx, a);
   if (!r.done) return lost(tx, a.bookingId, 'DONE');
   return { ok: true, passId: r.passId };
@@ -139,4 +125,5 @@ export const BOOKING_RESULT_TEXT = {
   canceled: '예약을 취소했어요.',
   already: '이미 처리된 예약이에요.',
   conflict: '예약 상태가 그새 바뀌어 처리하지 못했어요. 목록을 새로 봐 주세요.',
+  roleConflict: '이 사람은 이 조직의 코치 · 대표 계정이라 회원(선수)으로 등록할 수 없어요. 선수 계정으로 다시 예약하게 해 주세요.',
 } as const;

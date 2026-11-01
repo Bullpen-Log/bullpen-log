@@ -48,14 +48,16 @@ const model = (name) => new Proxy({}, { get: (_, op) => async () => {
   g.db.push(key);
   if (WRITE.test(String(op))) g.writes.push(key);
   if (name === 'user' && op === 'findUnique') return g.user;
-  if (op === 'findMany') return [];
+  if (op === 'findMany' || op === 'groupBy') return [];
   if (op === 'count') return 0;
   if (String(op).startsWith('find') || op === 'aggregate') return null;
   return {};
 } });
 export const prisma = new Proxy({}, { get: (_, k) => {
   if (k === '$transaction') return async (x) => (typeof x === 'function' ? x(prisma) : Promise.all(x));
-  if (k === '$executeRaw' || k === '$queryRaw' || k === '$executeRawUnsafe') return async () => { g.db.push(String(k)); g.writes.push(String(k)); return 0; };
+  /* 진짜 클라이언트처럼 — $queryRaw 는 줄 배열(빈 배열), $executeRaw 는 바뀐 줄 수. 예전엔 둘 다 0 이라 홈 읽기가 'rows is not iterable' 로 깨졌다(2차 검토) */
+  if (k === '$queryRaw' || k === '$queryRawUnsafe') return async () => { g.db.push(String(k)); return []; };
+  if (k === '$executeRaw' || k === '$executeRawUnsafe') return async () => { g.db.push(String(k)); g.writes.push(String(k)); return 0; };
   if (typeof k === 'symbol' || k === 'then') return undefined;
   return model(String(k));
 } });`;
@@ -263,6 +265,7 @@ check(locked(r) && onlyUserRead(), '일반: 영양 읽기 RPC 막힘 · 조회 0
 /* 홈 · 투구 첫 화면 읽기는 베타에도 연다(2026-11-01 — 원래 화면을 그리고 안의 기능만 잠근다) */
 r = await rpc('app.loadAppHome');
 check(!locked(r), '일반: 홈 읽기 RPC 는 베타에도 열림');
+check(r.status === 200 && r.body.result && r.body.result.ok === true, '일반: 홈 읽기가 실제로 성공 답(ok)을 돌려준다 — 모의 DB 오류 없음');
 r = await rpc('swing-lab.saveSwingSample', [{ id: '0b7b1a4e-0000-4000-8000-000000000000', meta: {} }]);
 check(locked(r) && sideEffects() === 0, '일반: 스윙 3D 저장 막힘 · 저장소 0');
 r = await rpc('velocity.saveVelocitySession', [{}]);
@@ -328,6 +331,8 @@ for (const acct of ['PLAYER', 'MASTER']) {
 as('ADMIN');
 for (const a of ['nutrition.setWeight', 'swing-lab.saveSwingSample', 'app.loadAppHome', 'velocity.loadVelocityStart'])
   check(!locked(await rpc(a, [])), `대표관리자: ${a} 는 베타 잠금 없음`);
+r = await rpc('app.loadAppHome');
+check(r.status === 200 && r.body.result?.ok === true, '대표관리자: 홈 읽기 성공 답(ok)');
 r = await rpc('app.loadAppMe');
 check(r.body.result.access.restricted === false, '대표 요약은 제한 없음');
 setStage('released');

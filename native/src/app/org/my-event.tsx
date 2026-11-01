@@ -11,7 +11,8 @@ import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { toast } from '~/shell/toast';
 import { Card, Empty, GroupTitle, Primary } from '~/org/parts';
 import { MyEvent } from '~/org/player';
-import { setOrgReturn } from '~/org/space-store';
+import { startLinkedWorkout } from '~/org/space-store';
+import { LinkStatus } from '~/org/link-status';
 
 /**
  * 선수의 일정 하나(계약 9-6 ③-2 · 11-6) — 내 활동 · 확정 등판, 팀 훈련 기록(코치 확인), 이 일정에서 내가 한 기록.
@@ -73,6 +74,7 @@ function Work({ data, org, member, reload, c }: { data: Extract<Loaded, { ok: tr
     <>
       <View style={{ gap: 6 }}>
         <GroupTitle title="이 일정에서 내가 한 운동" c={c} />
+        <LinkStatus memberId={member} eventId={e.id} />
         <Card c={c}>
           {data.mine.sets ? (
             <>
@@ -110,7 +112,8 @@ function Work({ data, org, member, reload, c }: { data: Extract<Loaded, { ok: tr
                     setBusy(false);
                     if (!r.ok) return toast(('error' in r && r.error) || '오늘 운동에 넣지 못했어요.', 'error');
                   }
-                  setOrgReturn(`${org}:p`, 'schedule', { memberId: member, eventId: e.id });
+                  /* 귀속을 폰에 적은 뒤 연다(G04) — 앱이 꺼져도 이 일정에 잇는다 */
+                  await startLinkedWorkout(`${org}:p`, 'schedule', { memberId: member, eventId: e.id });
                   router.push('/workout' as Href);
                 })()
               }

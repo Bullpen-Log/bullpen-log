@@ -38,6 +38,7 @@ import {
   normalizeInviteCode,
   orgNameOk,
 } from '@/lib/org/rules';
+import { MembershipConflict } from '@/lib/org/membership-transitions';
 
 /**
  * field — 문제가 난 칸의 name. 가입은 여러 단계로 나뉘어 있어서(app/login/auth-form.tsx)
@@ -347,6 +348,13 @@ async function trySignupMaster(
         },
         select: { id: true, role: true },
       });
+      /* 한 번 쓰는 코드는 트랜잭션 안에서 조건부로 차지한다(G03) — 그새 남이 썼거나 기한이 지났으면 0줄 → 되돌림(계정도 안 만든다) */
+      const now = new Date();
+      const claimed = await tx.orgInvite.updateMany({
+        where: { id: invite.id, orgId: invite.orgId, role: 'STAFF', usedAt: null, expiresAt: { gt: now } },
+        data: { usedById: created.id, usedAt: now },
+      });
+      if (claimed.count !== 1) throw new MembershipConflict('used');
       await tx.orgMember.create({
         data: {
           orgId: invite.orgId,
@@ -356,12 +364,16 @@ async function trySignupMaster(
           nickname: base.nickname,
         },
       });
-      await tx.orgInvite.update({
-        where: { id: invite.id },
-        data: { usedById: created.id, usedAt: new Date() },
-      });
       return created;
+    }).catch((e: unknown) => {
+      if (e instanceof MembershipConflict) return null;
+      throw e;
     });
+    if (!staff)
+      return {
+        error: '그새 다른 사람이 쓴 코드거나 기한이 지났어요. 마스터에게 새 코드를 받아 주세요.',
+        field: 'staffCode',
+      };
     await createSession({
       userId: staff.id,
       role: staff.role,
