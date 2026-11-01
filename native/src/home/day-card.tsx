@@ -1,4 +1,5 @@
-import { type Href, router } from 'expo-router';
+import { type Href } from 'expo-router';
+import { pushOpen } from '~/shell/release';
 import { useEffect, useState, useRef } from 'react';
 import { hasNutrition } from '@/lib/country';
 import { useCountry } from '~/lib/country-store';
@@ -195,7 +196,7 @@ export function DayCards({
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
             {!ahead && focus !== 'schedule' ? (
-              <Press accessibilityRole="link" onPress={() => router.push(`/analysis?view=${focus === 'training' ? 'training' : 'pitch'}&date=${date}` as Href)} hitSlop={{ top: 6, bottom: 6 }} style={styles.headLink}>
+              <Press accessibilityRole="link" onPress={() => pushOpen(`/analysis?view=${focus === 'training' ? 'training' : 'pitch'}&date=${date}` as Href)} hitSlop={{ top: 6, bottom: 6 }} style={styles.headLink}>
                 <Text style={{ color: c.muted, fontSize: 15, fontWeight: '400' }}>그날 분석</Text>
               </Press>
             ) : null}
@@ -308,7 +309,7 @@ function tabLink(focus: Focus, date: string, today: string, empty: boolean, clip
   return null;
 }
 function go(href: string, onTab: (href: string) => void) {
-  if (href.startsWith('/pitch/') || href.startsWith('/training/day/')) return router.push(href as Href);
+  if (href.startsWith('/pitch/') || href.startsWith('/training/day/')) return pushOpen(href as Href);
   const [path, query] = href.split('?');
   const date = new URLSearchParams(query ?? '').get('date');
   if (date && path === '/nutrition') openTabAt('nutrition', date);

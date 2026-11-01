@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
+import { allowFeature } from '@/lib/release-gate';
 import { dateKeyOf, isFutureDateKey } from '@/lib/pitch-stats';
 import { loadDayDetail } from '@/lib/day-detail';
 
@@ -10,6 +11,8 @@ import { loadDayDetail } from '@/lib/day-detail';
  * 요약뿐이고, 이것까지 미리 읽기에는 크다.
  */
 export async function GET(req: NextRequest) {
+  /* 홈 · 투구 첫 화면의 달력 읽기 — 출시 전 베타에도 연다(쓰기는 그대로 잠김, 2026-11-01) */
+  allowFeature('home');
   const user = await getCurrentUser();
   if (!user)
     return NextResponse.json({ error: '로그인이 필요해요.' }, { status: 401 });

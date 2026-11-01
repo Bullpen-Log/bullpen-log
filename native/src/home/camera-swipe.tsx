@@ -1,11 +1,11 @@
 import * as Haptics from 'expo-haptics';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector, type GestureType } from 'react-native-gesture-handler';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Icon } from '~/shell/icon';
-import { noticeLocked } from '~/shell/release';
+import { canOpen, noticeLocked, pushOpen } from '~/shell/release';
 
 /**
  * 홈에서 오른쪽으로 쓸면 카메라(구속 측정 · ABS 판정을 열린 뒤 고른다).
@@ -55,7 +55,13 @@ export function CameraSwipe({ enabled, locked = false, children }: { enabled: bo
     }, [dx, away])
   );
   const open = () => {
-    router.push('/velocity');
+    /* 출시 전 베타로 잠긴 카메라 — 모양은 그대로 따라오다, 놓으면 열지 않고 안내만 하고 제자리로(문이 잠긴 것처럼, 2026-11-01) */
+    if (!canOpen('/velocity')) {
+      noticeLocked();
+      dx.set(withTiming(0, { duration: 200 }));
+      return;
+    }
+    pushOpen('/velocity');
     setTimeout(() => {
       if (!away.get()) dx.set(withTiming(0, { duration: 200 }));
     }, 1500);

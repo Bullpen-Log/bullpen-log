@@ -1,4 +1,5 @@
-import { type Href, router } from 'expo-router';
+import { type Href } from 'expo-router';
+import { pushOpen } from '~/shell/release';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { effortText } from '@/lib/pitch-effort';
@@ -32,7 +33,7 @@ export function PitchDayPanel({ date, logs, full = false }: { date: string; logs
   const c = usePalette();
   const speed = usePrefs().speed;
   const measured = useVelocityDays()?.[date];
-  const open = () => router.push(`/pitch/${date}` as Href);
+  const open = () => pushOpen(`/pitch/${date}` as Href);
 
   if (!logs.length)
     return (

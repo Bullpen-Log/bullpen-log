@@ -1,3 +1,4 @@
+import { type Href, router } from 'expo-router';
 import { useSyncExternalStore } from 'react';
 import {
   BETA_LOCK_TITLE,
@@ -99,4 +100,15 @@ export function noticeLocked() {
   if (now - lastNotice < 2500) return;
   lastNotice = now;
   toast(BETA_LOCK_TITLE, 'info');
+}
+
+/**
+ * 화면 안에서 다른 화면으로 갈 때 — 열린 곳이면 그대로 가고, 잠긴 곳이면 들어가지 않고 안내만(2026-11-01 금윤호: "인터페이스는 원래대로, 문이 잠긴 것처럼
+ * 못 들어가게만"). 베타 동안 일반 · 준관리자도 원래 홈 · 투구 화면을 보므로, 그 안의 링크 · 단추는 이것으로 문을 연다.
+ * 판정은 주소만(쿼리 포함) — { pathname, params } 꼴은 pathname 으로 본다.
+ */
+export function pushOpen(href: Href) {
+  const path = typeof href === 'string' ? href : String((href as { pathname?: unknown }).pathname ?? '');
+  if (!canOpen(path)) return noticeLocked();
+  router.push(href);
 }

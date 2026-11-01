@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { TYPE, usePalette, type Palette } from '~/lib/ui';
+import { usePalette, type Palette } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
 import { noticeLocked } from '~/shell/release';
 
@@ -89,55 +89,7 @@ export function LockedBlock({ icon, size, label, style }: { icon: IconName; size
 /** 읽어 주는 글 — 잠긴 칸 모두 같게 */
 export const LOCKED_HINT = '준비 중인 기능이에요. 누르면 안내만 나와요.';
 
-/**
- * 잠긴 기능 한 줄(카드) — 회색 판, 흐린 아이콘 + 자물쇠, 회색 이름, 오른쪽 '준비 중'. 누르면 안내만.
- * 투구 탭 베타 판의 '오늘 투구 기록' 같은 자리에.
- */
-export function LockedRow({ icon, label, style }: { icon: IconName; label: string; style?: StyleProp<ViewStyle> }) {
-  const c = usePalette();
-  const k = lockedColors(c);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${label}, 준비 중`}
-      accessibilityHint={LOCKED_HINT}
-      accessibilityState={{ disabled: true }}
-      onPress={noticeLocked}
-      style={({ pressed }) => [s.row, { backgroundColor: k.fill, opacity: pressed ? 0.8 : 1 }, style]}
-    >
-      <LockedGlyph locked badge={16} ring={k.fill}>
-        <Icon name={icon} size={24} color={k.glyph} />
-      </LockedGlyph>
-      <Text numberOfLines={1} style={[TYPE.body, { flex: 1, color: k.label }]}>
-        {label}
-      </Text>
-      <Text style={[TYPE.sub, { color: k.label }]}>준비 중</Text>
-    </Pressable>
-  );
-}
 
-/** 잠긴 기능 칸(작은 네모) — 베타 홈의 '준비 중인 기능' 격자에. 회색 판, 흐린 아이콘 + 자물쇠, 회색 이름 */
-export function LockedTile({ icon, label, style }: { icon: IconName; label: string; style?: StyleProp<ViewStyle> }) {
-  const c = usePalette();
-  const k = lockedColors(c);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${label}, 준비 중`}
-      accessibilityHint={LOCKED_HINT}
-      accessibilityState={{ disabled: true }}
-      onPress={noticeLocked}
-      style={({ pressed }) => [s.tile, { backgroundColor: k.fill, opacity: pressed ? 0.8 : 1 }, style]}
-    >
-      <LockedGlyph locked badge={18} ring={k.fill}>
-        <Icon name={icon} size={28} color={k.glyph} />
-      </LockedGlyph>
-      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[TYPE.sub, { color: k.label, fontWeight: '600' }]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
 
 const s = StyleSheet.create({
   badge: { alignItems: 'center', justifyContent: 'center' },

@@ -1,4 +1,5 @@
-import { type Href, router } from 'expo-router';
+import { type Href } from 'expo-router';
+import { pushOpen } from '~/shell/release';
 import { StyleSheet, Text, View } from 'react-native';
 import { isRestSession } from '@/lib/session-type';
 import { round1, speedLabel, toSpeed } from '@/lib/units';
@@ -56,7 +57,7 @@ export function RecentPitches({
               key={l.id}
               accessibilityRole="button"
               accessibilityLabel={`${l.sessionType}, ${sub}, ${rest ? '휴식' : `${l.pitchCount}구`}`}
-              onPress={() => router.push(`/pitch/${key}` as Href)}
+              onPress={() => pushOpen(`/pitch/${key}` as Href)}
               style={[styles.row, { borderTopColor: c.line }]}
             >
               <View style={{ flex: 1, minWidth: 0, gap: 4 }}>

@@ -1,4 +1,5 @@
-import { type Href, router } from 'expo-router';
+import { type Href } from 'expo-router';
+import { pushOpen } from '~/shell/release';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -190,20 +191,20 @@ export function HomeTab({
   const cols = useColumns({ ratio: [1, 1], gap: SPACE.section });
 
   const openNotice = () =>
-    router.push({
+    pushOpen({
       pathname: '/notice' as Href as never,
       params: { date: today, checkin: home?.checkinDone ? '1' : '0', pitch: home?.pitchDone ? '1' : '0', locked: home?.pitchLocked ? '1' : '0' },
     });
   const pending = useUnreadNotifications();
   const { spaces } = useSpace();
 
-  const go = (to: string) => router.push(to as Href);
+  const go = (to: string) => pushOpen(to as Href);
   const openPitch = () => (home?.pitchLocked ? go('/setup/pitch') : go(`/pitch/${today}`));
   const openWorkout = () => {
     if (home?.trainingLocked) return go('/setup/training');
     const w = home?.workout;
     if (w && w.total > 0 && w.done >= w.total) return go(`/training/day/${today}`);
-    router.push({ pathname: '/training-today' as Href as never, params: { today } });
+    pushOpen({ pathname: '/training-today' as Href as never, params: { today } });
   };
   /* 기록 탭의 그날로 — 탭 판이 늘 붙어 있어 주소 대신 부탁(shell/tab-intent)을 남기고 탭을 옮긴다 */
   const openRecords = (date: string) => {

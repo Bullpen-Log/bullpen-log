@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { appNowMs } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
+import { allowFeature } from '@/lib/release-gate';
 import { isOwnedBy } from '@/lib/storage';
 import { deleteUnreferenced } from '@/lib/video-refs';
 import { isRestSession, validateSessionType } from '@/lib/session-type';
@@ -199,6 +200,8 @@ function checkVideoPaths(
  * 넘는다. 달력은 한 번에 한 달만 보여주므로 그 달치만 있으면 된다.
  */
 export async function GET(req: Request) {
+  /* 홈 · 투구 첫 화면의 달력 읽기 — 출시 전 베타에도 연다(쓰기는 그대로 잠김, 2026-11-01) */
+  allowFeature('home');
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });

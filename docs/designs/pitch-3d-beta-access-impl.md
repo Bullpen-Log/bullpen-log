@@ -9,6 +9,13 @@
 - 대표관리자(role ADMIN)만 베타 제한에서 빠진다. 계정 종류 MASTER 는 예외가 아니다(`isMasterUser` 안 씀). 역할 · 계정 종류 · 권한 표는 안 바꾼다.
 - **2026-10-30 바뀜(금윤호, 폰 확인 뒤)**: 준관리자(MANAGER)도 일반 사용자와 **똑같다** — 관리 업무(구속 측정 관리 · ABS · 촬영 · 녹화 · 관리 첫 화면)도 베타 동안 잠긴다.
   고객센터도 잠근다. 열린 것은 **투구 3D 분석 · 홈 · 설정 · 내 정보**뿐(+ 약관 · 앱 갱신 바탕). 역할 · 권한 표는 그대로라 정식 출시면 예전 권한으로 돌아간다.
+- **2026-11-01 바뀜(금윤호: "인터페이스는 원래대로 모두 동일하게, 문이 잠긴 것처럼 못 들어가게만")** — 앱은 베타에도 **원래 홈 · 투구 탭 · 하단 탭 · 더보기**를 그린다
+  (베타 홈 `beta-home.tsx` · `BetaPitchTab` 지움, 회색 · 자물쇠 모양 없음). 잠긴 곳은 누를 때만 막는다: 탭 · 더보기 · 웹 이동은 껍데기가, 화면 안 단추는 `shell/release.ts pushOpen`,
+  홈 카메라 쓸기는 놓으면 제자리로 + 안내. 원래 화면을 그리려고 서버는 **자기 기록 읽기만** 연다 — `app.loadAppHome · loadAppEvents · loadAppPitchToday · loadAppFeatured ·
+  loadAppNoteDays · loadAppVelocityDays`, `notifications.loadBellNotifications · countBellNotifications`, `GET /api/pitch-log · /api/day-detail`(기능 'home'). 쓰기와 그 안의 기능 화면은 그대로 잠김.
+  웹(PC)도 같은 날 같게: 베타 틀(`BetaAppLayout`) · 웹 베타 홈을 지우고 원래 싱커 틀 · 위 막대 · 메뉴 · 홈 판을 그린다. 잠긴 곳으로 가는 링크는
+  `components/beta/beta-link-guard.tsx`(문서 캡처 단계 클릭)가 들어가지 않고 '준비 중인 기능입니다.'만 띄운다. 체크인 관문 · 대기열 보내기 · 영상 맞추기만 베타에 안 둔다.
+  잠긴 판(@videos · @hitting)은 그대로 `betaPanelHidden`. 아래 줄들의 '베타 홈 · 회색 · 자물쇠' 설명은 옛 것이다.
 - **잠긴 기능은 숨기지 않고 보인다** — 앱 화면의 버튼은 회색 + 아이콘 위 자물쇠, 누르면 '준비 중인 기능입니다.'만 뜨고 들어가지 않는다(`native/src/shell/locked.tsx`).
   앱 투구 탭 첫 화면은 열려 있고(3D 분석의 입구), 그 안의 구속 측정 · ABS · 투구 기록이 잠긴 모양이다.
 - **켜는 법(2026-10-30 바뀜): 코드 기본값이 베타**(`lib/release-access.ts RELEASE_STAGE_DEFAULT`). Vercel 변수가 두 번 연속 안 들어가 바꿨다.

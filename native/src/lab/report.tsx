@@ -21,7 +21,7 @@ import { compareDeltaText, compareRangeText, prevDateText, PREV_CONFIRM, type Pr
 import { TYPE, type Palette } from '~/lib/ui';
 import { type Href, router } from 'expo-router';
 import { leaveTo } from '~/shell/web-nav';
-import { canOpen, useRelease } from '~/shell/release';
+import { canOpen, noticeLocked, pushOpen } from '~/shell/release';
 
 /**
  * 투구 진단 리포트 조각(앱, 2026-10-27 개편 — 장면 → 근거 → 해석 → 다음 선택) — 웹 app/(app)/videos/lab/[id]/report-parts.tsx 와 같은 차례 · 같은 글
@@ -320,15 +320,19 @@ function RxBlock({
 
 /** 개선 드릴 카드 단추가 갈 곳(앱) — 무엇을 할지는 lib/pitch-3d/v2/report.ts rxAction(웹과 같은 판단). 메카닉은 앱 화면(training-mechanics) */
 function goRx(kind: ReturnType<typeof rxAction>['kind'], elementKey: string) {
-  if (kind === 'progress') return router.push('/training-mechanics' as Href);
-  if (kind === 'retake') return router.push('/lab/new' as Href);
-  leaveTo(`/training?view=mechanics&tab=elements&el=${elementKey}`);
+  if (kind === 'progress') return pushOpen('/training-mechanics' as Href);
+  if (kind === 'retake') return pushOpen('/lab/new' as Href);
+  const href = `/training?view=mechanics&tab=elements&el=${elementKey}`;
+  if (!canOpen(href)) return noticeLocked();
+  leaveTo(href);
 }
 
 /** 처방이 없을 때 이어 갈 길(앱) — 촬영 안내는 앱 화면, 요소 설명은 요소별 드릴과 같은 곳(goRx 'drills') */
 function goStep(st: ReportNextStep) {
-  if (st.kind === 'guide') return router.push('/lab/guide?s=frame' as Href);
-  leaveTo(`/training?view=mechanics&tab=elements&el=${st.elementKey}`);
+  if (st.kind === 'guide') return pushOpen('/lab/guide?s=frame' as Href);
+  const href = `/training?view=mechanics&tab=elements&el=${st.elementKey}`;
+  if (!canOpen(href)) return noticeLocked();
+  leaveTo(href);
 }
 
 export function RxCard({
@@ -346,12 +350,10 @@ export function RxCard({
   resultId: string;
 }) {
   /*
-   * 출시 전 베타 — 트레이닝 · 메커니즘이 잠겼으면 그리로 가는 길(요소별 드릴 · 프로그램)을 걷는다. 리포트의 드릴 이름 · 설명은 그대로 보인다.
-   * 웹 report-parts.tsx RxCard 의 trainingOpen 과 같다
+   * 출시 전 베타에도 훈련으로 가는 길(요소별 드릴 · 프로그램 · 드릴 찾기)은 그대로 보인다 — 잠겼으면 누를 때 안내만(2026-11-01 금윤호: "문이 잠긴 것처럼")
    */
-  const release = useRelease();
-  const trainingOpen = canOpen('/training?view=mechanics', release) && canOpen('/training-mechanics', release);
-  const libraryOpen = canOpen('/library/mechanics', release);
+  const trainingOpen = true;
+  const libraryOpen = true;
   if (report.criteria !== REPORT_CRITERIA || report.rx.length === 0) {
     const steps = (report.criteria === REPORT_CRITERIA && report.coverage ? nextStepsOf(report) : []).filter((st) => trainingOpen || st.kind === 'guide');
     return (
@@ -426,7 +428,7 @@ export function RxCard({
               libraryOpen
                 ? () => {
                     void Haptics.selectionAsync();
-                    router.push({ pathname: '/library/mechanics', params: { from: 'analysis', result: resultId, el: b.rx.element } });
+                    pushOpen({ pathname: '/library/mechanics', params: { from: 'analysis', result: resultId, el: b.rx.element } });
                   }
                 : null
             }

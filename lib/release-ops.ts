@@ -102,6 +102,18 @@ export const RPC_ACTION_CAPABILITY: Record<string, OpAccess> = {
   /* 앱 시작 정보 · 앱스토어 나라 알림 — 바탕(베타 홈이 계정 · 판정을 받는 곳) */
   'app.loadAppMe': { cap: 'appInfra' },
   'app.reportStorefront': { cap: 'appInfra' },
+  /*
+   * 홈 · 투구 첫 화면 읽기(2026-11-01 금윤호: "인터페이스는 원래대로, 문이 잠긴 것처럼 못 들어가게만") — 베타에도 원래 홈 · 투구 탭을 그리므로
+   * 자기 기록 읽기만 연다. 쓰기와 그 안의 기능 화면은 그대로 잠김
+   */
+  'app.loadAppHome': { cap: 'home' },
+  'app.loadAppEvents': { cap: 'home' },
+  'app.loadAppPitchToday': { cap: 'home' },
+  'app.loadAppFeatured': { cap: 'home' },
+  'app.loadAppNoteDays': { cap: 'home' },
+  'app.loadAppVelocityDays': { cap: 'home' },
+  'notifications.loadBellNotifications': { cap: 'home' },
+  'notifications.countBellNotifications': { cap: 'home' },
   /* 시험용 나라 바꾸기 — 대표관리자만 */
   'app.setMyCountry': { cap: 'admin' },
   /* 준관리자 관리 첫 화면 · 구속 관리자(기존 권한 표의 adminHome · velocityAdmin) */

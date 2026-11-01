@@ -162,7 +162,7 @@ const PATH_RULES: PathRule[] = [
 
   /*
    * 앱 투구 탭 첫 화면(도구 도크 — 3D 분석이 여기서 들어간다). 베타에도 열고 안의 구속 측정 · ABS · 투구 기록은 각자 잠근다(회색 + 자물쇠).
-   * 앱의 베타 판(native/src/pitch/tab.tsx BetaPitchTab)은 투구 기록 조회를 하지 않는다. 웹 /videos(투구 기록을 읽는 화면)와 앱 기록(?view=log)은 잠김
+   * 앱은 베타에도 원래 투구 탭을 그린다(첫 화면 읽기만 열림 — lib/release-ops.ts, 2026-11-01). 웹 /videos 와 앱 기록(?view=log)은 잠김
    */
   { prefix: '/videos', exact: true, surface: 'native', cap: 'home', query: (q) => (q.get('view') ? 'pitchLog' : null) },
 

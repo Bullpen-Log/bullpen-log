@@ -1,5 +1,6 @@
 import { ActionButton } from '~/shell/action-button';
-import { type Href, router } from 'expo-router';
+import { pushOpen } from '~/shell/release';
+import { type Href } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
@@ -172,7 +173,7 @@ export function PitchTodayCard({ today, logs = null, state }: { today: string; l
         </View>
         {note ? <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{note}</Text> : null}
       </View>
-      <ActionButton label={button.label} icon={button.icon} onPress={() => router.push(go as Href)} style={{ borderRadius: 16 }} />
+      <ActionButton label={button.label} icon={button.icon} onPress={() => pushOpen(go as Href)} style={{ borderRadius: 16 }} />
     </Animated.View>
   );
 }

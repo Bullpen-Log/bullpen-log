@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser, requireUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
@@ -32,6 +33,8 @@ export type BellNotification = {
 };
 
 export async function loadBellNotifications(): Promise<{ items: BellNotification[]; unread: number }> {
+  /* 홈 위 종 — 출시 전 베타에도 읽기는 연다(2026-11-01) */
+  allowFeature('home');
   const user = await getCurrentUser();
   if (!user) return { items: [], unread: 0 };
   const [rows, unread] = await Promise.all([
@@ -59,6 +62,8 @@ export async function loadBellNotifications(): Promise<{ items: BellNotification
 
 /** 종의 점 — 안 읽은 알림 수(로그인 전 0) */
 export async function countBellNotifications(): Promise<number> {
+  /* 홈 위 종 — 출시 전 베타에도 읽기는 연다(2026-11-01) */
+  allowFeature('home');
   const user = await getCurrentUser();
   if (!user) return 0;
   return prisma.notification.count({ where: { userId: user.id, readAt: null } });

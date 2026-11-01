@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
-import { type Href, router } from 'expo-router';
+import { pushOpen } from '~/shell/release';
+import { type Href } from 'expo-router';
 import { type ComponentRef, memo, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ActionSheetIOS, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
@@ -361,7 +362,7 @@ export function ComparePickBar({ bottom }: { bottom: number }) {
           onPress={() => {
             const [a, b] = picked;
             if (!a?.path || !b?.path) return;
-            router.push({
+            pushOpen({
               pathname: '/pitch/compare' as Href as never,
               params: { a: a.path, al: `${spokenDate(a.date)} ${a.sessionType}`, b: b.path, bl: `${spokenDate(b.date)} ${b.sessionType}` },
             });
@@ -423,7 +424,7 @@ const LogRow = memo(function LogRow({
         <Press
           accessibilityRole="button"
           accessibilityState={selecting ? { selected: slot != null, disabled: !x.path } : onOpen ? { selected: current } : undefined}
-          onPress={() => (selecting ? pickClip(x) : onOpen ? onOpen(x.date) : router.push(`/pitch/${x.date}` as Href))}
+          onPress={() => (selecting ? pickClip(x) : onOpen ? onOpen(x.date) : pushOpen(`/pitch/${x.date}` as Href))}
           style={[styles.row, selecting && slot != null && { backgroundColor: c.skyTint }, selecting && !x.path && { opacity: 0.4 }, { flex: 1 }]}
         >
           <View>

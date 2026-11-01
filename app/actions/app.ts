@@ -157,6 +157,8 @@ export async function loadAppHome(): Promise<
     }
   | { ok: false; error: string }
 > {
+  /* 출시 전 베타에도 홈 · 투구 첫 화면은 원래 모양으로 그린다 — 자기 기록 읽기만 연다(2026-11-01) */
+  allowFeature('home');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const today = toDateKey(appNow());
@@ -377,6 +379,8 @@ export async function loadAppRecords(from: unknown, to: unknown): Promise<{ ok: 
  * 고르기는 featured-video.setFeaturedVideo(웹과 같은 동작)로.
  */
 export async function loadAppFeatured(): Promise<{ ok: true; featured: Record<string, string> } | { ok: false; error: string }> {
+  /* 출시 전 베타에도 홈 · 투구 첫 화면은 원래 모양으로 그린다 — 자기 기록 읽기만 연다(2026-11-01) */
+  allowFeature('home');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const rows = await prisma.dailyFeaturedVideo.findMany({ where: { userId: user.id }, select: { date: true, videoPath: true } });
@@ -385,6 +389,8 @@ export async function loadAppFeatured(): Promise<{ ok: true; featured: Record<st
 
 /** 체크인 메모를 남긴 날 — 투구 달력 칸의 작은 쪽지(웹 videos-page noteDays). 하루 한 줄이라 전부 읽어도 가볍다 */
 export async function loadAppNoteDays(): Promise<{ ok: true; days: string[] } | { ok: false; error: string }> {
+  /* 출시 전 베타에도 홈 · 투구 첫 화면은 원래 모양으로 그린다 — 자기 기록 읽기만 연다(2026-11-01) */
+  allowFeature('home');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const rows = await prisma.dailyCheckin.findMany({ where: { userId: user.id, note: { not: null } }, select: { date: true, note: true } });
@@ -394,6 +400,8 @@ export async function loadAppNoteDays(): Promise<{ ok: true; days: string[] } | 
 export async function loadAppVelocityDays(): Promise<
   { ok: true; days: Record<string, { n: number; max: number; clips: number; sig: string }> } | { ok: false; error: string }
 > {
+  /* 출시 전 베타에도 홈 · 투구 첫 화면은 원래 모양으로 그린다 — 자기 기록 읽기만 연다(2026-11-01) */
+  allowFeature('home');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   return { ok: true, days: await loadVelocityByDate(user.id) };
@@ -403,6 +411,8 @@ export async function loadAppVelocityDays(): Promise<
  * 앱 홈 달력의 일정 전부 — 웹 홈(home-page.tsx)과 같은 범위 · 같은 상한(3,000). 달력 칸 밑 일정 막대 · 그날 칸 · 알림 다시 걸기가 쓴다.
  */
 export async function loadAppEvents(): Promise<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }> {
+  /* 출시 전 베타에도 홈 · 투구 첫 화면은 원래 모양으로 그린다 — 자기 기록 읽기만 연다(2026-11-01) */
+  allowFeature('home');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const rows = await prisma.calendarEvent.findMany({
@@ -533,6 +543,8 @@ export async function loadAppPitchToday(): Promise<
     }
   | { ok: false; error: string }
 > {
+  /* 출시 전 베타에도 홈 · 투구 첫 화면은 원래 모양으로 그린다 — 자기 기록 읽기만 연다(2026-11-01) */
+  allowFeature('home');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const now = appNow();

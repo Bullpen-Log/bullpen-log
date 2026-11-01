@@ -97,8 +97,8 @@ export async function getCurrentUser() {
 }
 
 /**
- * 출시 전 베타라 판 넘기기 자리(@home · @videos · @hitting)를 그리지 않을 사람인가 — 판 맨 위에서 부른다.
- * 베타 틀((app)/layout.tsx BetaAppLayout)은 판을 화면에 안 놓지만, Next 는 병렬 경로 자리를 따로 그려 보내므로(RSC 조각) 판 안의 조회가 그대로 돌았다.
+ * 출시 전 베타라 판 넘기기 자리(@videos · @hitting — 잠긴 투구 기록 · 타격)를 그리지 않을 사람인가 — 판 맨 위에서 부른다.
+ * 판은 화면 주소와 상관없이 Next 가 따로 그려 보내므로(RSC 조각) 여기서 빠지지 않으면 잠긴 기능의 조회가 돈다. 홈 판은 베타에도 그린다(2026-11-01).
  * 판이 이것을 보고 아무것도 안 그린다(잠긴 기능의 조회 · 내용이 응답에 실리지 않게).
  */
 export async function betaPanelHidden(): Promise<boolean> {

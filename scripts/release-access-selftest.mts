@@ -178,7 +178,7 @@ for (const h of SHELL_OPEN) ok(accessAllowsPath(ua, h), `일반 앱: ${h} 열림
 for (const h of SHELL_LOCKED) ok(!accessAllowsPath(ma, h), `준관리자 앱: ${h} 잠김`);
 for (const h of SHELL_OPEN) ok(accessAllowsPath(ma, h), `준관리자 앱: ${h} 열림`);
 for (const h of [...SHELL_LOCKED, '/lab/new', '/more']) ok(accessAllowsPath(null, h) === ['/more'].includes(h), `모름: ${h} ${['/more'].includes(h) ? '열림' : '잠김'}`);
-/* 모를 때 투구 탭 첫 화면은 그린다 — 베타 판(BetaPitchTab)이라 투구 기록을 안 읽고, 안의 3D(/lab)는 정책이 오기 전엔 잠김 */
+/* 모를 때 투구 탭 첫 화면은 그린다 — 원래 투구 탭(읽기는 베타에도 열림, 2026-11-01), 안의 3D(/lab)는 정책이 오기 전엔 잠김 */
 ok(accessAllowsPath(null, '/videos'), '모름: 앱 투구 첫 화면(베타 판)은 열림');
 for (const h of SHELL_LOCKED) ok(accessAllowsPath(releaseAccessOf(ADMIN, 'restricted_beta'), h) && accessAllowsPath(releaseAccessOf(USER, 'released'), h), `대표 · 출시: ${h} 열림`);
 /* 옛 서버(access 칸 없음)는 정식 출시로 본다 — native/src/shell/release.ts setReleaseFromMe 와 같은 값 */
@@ -210,7 +210,9 @@ ok(modules.length > 60, `registry 모듈 ${modules.length}`);
 for (const m of modules) ok(Object.hasOwn(RPC_MODULE_CAPABILITY, m), `RPC 모듈 분류: ${m}`);
 eq(rpcAccessOf('nope.fn').cap, 'unclassified', '모르는 모듈은 unclassified');
 eq(rpcAccessOf('app.loadAppMe').cap, 'appInfra', 'loadAppMe 는 바탕');
-eq(rpcAccessOf('app.loadAppHome').cap, 'records', '예전 홈 통계는 잠김');
+eq(rpcAccessOf('app.loadAppHome').cap, 'home', '홈 읽기는 베타에도 열림(원래 홈을 그린다)');
+eq(rpcAccessOf('app.loadAppTraining').cap, 'records', '그 밖의 app 동작은 잠김');
+eq(rpcAccessOf('notifications.readBellNotifications').cap, 'notifications', '종 읽음 표시(쓰기)는 잠김');
 eq(rpcAccessOf('app-analysis.loadAppAnalysis').cap, 'analysis', '투구량 통계는 투구 3D 가 아니다');
 eq(rpcAccessOf('swing-lab.saveSwingSample').cap, 'swing3d', '스윙 저장 잠김');
 eq(rpcAccessOf('app-admin.loadAppAdmin'), { cap: 'admin', perm: 'adminHome' }, '관리 첫 화면');
@@ -247,10 +249,24 @@ for (const [mod, line] of Object.entries({
   'app-admin': 'allowAdmin(perm)',
 }))
   ok(readFileSync(`app/actions/${mod}.ts`, 'utf8').includes(line), `${mod} 권한 헬퍼 밝힘 줄`);
-for (const a of Object.keys(RPC_ACTION_CAPABILITY).filter((a) => a.startsWith('app.load') || a.startsWith('app.report')))
-  ok(bodyOf(readFileSync('app/actions/app.ts', 'utf8'), a.split('.')[1]).includes("allowFeature('appInfra')"), `${a} 밝힘 줄`);
+for (const [a, acc] of Object.entries(RPC_ACTION_CAPABILITY).filter(([a, acc]) => a.startsWith('app.') || acc.cap === 'home')) {
+  if (acc.cap !== 'appInfra' && acc.cap !== 'home') continue;
+  const [mod, fn] = a.split('.');
+  ok(bodyOf(readFileSync(`app/actions/${mod}.ts`, 'utf8'), fn).includes(`allowFeature('${acc.cap}')`), `${a} 밝힘 줄`);
+}
+/* 홈 읽기를 연 모듈의 다른 함수는 잠긴 채 — 밝힘 줄이 없어야 한다 */
+{
+  const src = readFileSync('app/actions/notifications.ts', 'utf8');
+  for (const fn of exportsOf('app/actions/notifications.ts'))
+    if (!Object.hasOwn(RPC_ACTION_CAPABILITY, `notifications.${fn}`)) ok(!/allowFeature\(/.test(bodyOf(src, fn)), `notifications.${fn} 은 잠긴 채`);
+}
+for (const f of ['app/api/pitch-log/route.ts', 'app/api/day-detail/route.ts']) {
+  const src = readFileSync(f, 'utf8');
+  ok(bodyOf(src.replace('export async function GET(', 'export async function GET('), 'GET').includes("allowFeature('home')"), `${f} GET 은 홈 읽기로 열림`);
+  ok(!/allowFeature\(/.test(src.slice(src.indexOf('export async function', src.indexOf('export async function GET(') + 10))), `${f} 쓰기는 잠긴 채`);
+}
 /* 반대로 — 잠긴 모듈의 함수에는 베타 밝힘 줄이 없어야 한다(잘못 열린 것 찾기) */
-const OPEN_SET = new Set([...Object.keys(OPEN_MODULES), 'velocity-admin', 'velocity-recording', 'shoot', 'app-shoot', 'app-admin', 'app']);
+const OPEN_SET = new Set([...Object.keys(OPEN_MODULES), 'velocity-admin', 'velocity-recording', 'shoot', 'app-shoot', 'app-admin', 'app', 'notifications']);
 for (const f of readdirSync('app/actions').filter((f) => f.endsWith('.ts'))) {
   const mod = f.replace(/\.ts$/, '');
   if (OPEN_SET.has(mod)) continue;
@@ -263,8 +279,6 @@ ok(upload.indexOf('allowFeature(') < upload.indexOf('await getCurrentUser()'), '
 
 /* 판 넘기기 자리 — 베타면 맨 앞에서 빠진다(Next 가 병렬 경로를 따로 그려 보내므로 틀이 안 놓는 것만으로는 조회가 돈다) */
 for (const file of [
-  'app/(app)/@home/default.tsx',
-  'app/(app)/@home/today/page.tsx',
   'app/(app)/@videos/default.tsx',
   'app/(app)/@videos/videos/page.tsx',
   'app/(app)/@hitting/default.tsx',

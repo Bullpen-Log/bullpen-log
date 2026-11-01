@@ -1,4 +1,5 @@
-import { type Href, router } from 'expo-router';
+import { type Href } from 'expo-router';
+import { pushOpen } from '~/shell/release';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +20,7 @@ import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 import { useTabIntent } from '~/shell/tab-intent';
 import { useMenu } from '~/shell/menu-store';
 import { MenuButton } from '~/shell/menu-button';
-import { LockedBlock, LockedRow } from '~/shell/locked';
+import { LockedBlock } from '~/shell/locked';
 
 /**
  * 투구 탭(앱 화면) — 첫 화면과 투구 기록이 이 판 하나를 나눠 쓴다(2026-10-20 김민: 종목 홈 추가).
@@ -135,7 +136,7 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="지난 영상 가져오기"
-              onPress={() => router.push('/pitch/import' as Href)}
+              onPress={() => pushOpen('/pitch/import' as Href)}
               style={({ pressed }) => [styles.importBtn, { backgroundColor: c.chip }, pressed && PRESSED]}
             >
               <Icon name="film" size={16} color={c.link} />
@@ -151,7 +152,7 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
               ...(canVelocityAdmin ? [{ value: 'velocity' as const, label: '구속 측정 관리자' }] : []),
             ]}
             value={view}
-            onChange={(v) => (v === 'velocity' ? router.push('/admin/velocity?from=pitch' as Href) : setView(v))}
+            onChange={(v) => (v === 'velocity' ? pushOpen('/admin/velocity?from=pitch' as Href) : setView(v))}
           />
           <View
             onLayout={(e) => {
@@ -252,79 +253,22 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
 }
 
 /**
- * 출시 전 베타의 투구 탭(2026-10-29 금윤호: "3D 분석만 쓰고 나머지는 아이콘 위 자물쇠 · 회색, 누르면 '준비 중인 기능입니다'") — 일반 · 준관리자.
- * 생김새는 투구 첫 화면 그대로(제목 · 날짜 · 도구 도크)이고, 3D 동작 분석만 열린다. 구속 측정 · ABS · 오늘 투구 기록 · 최근 투구는 회색 + 자물쇠.
- * 투구 기록 · 팔 상태 조회(서버가 막는 것)는 부르지 않는다 — 그래서 PitchTab 과 따로 둔다(훅 차례가 다르다).
- */
-export function BetaPitchTab({ today, bottom }: { today: string; bottom: number }) {
-  const c = usePalette();
-  const inset = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollViewInstance>(null);
-  useRetapTop(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
-  return (
-    <ScrollView
-      ref={scrollRef}
-      style={{ flex: 1, backgroundColor: c.page }}
-      contentContainerStyle={[{ paddingTop: inset.top + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap }, READABLE_WIDE]}
-    >
-      <View style={styles.title}>
-        <Text accessibilityRole="header" style={[TYPE.title, { flex: 1, color: c.ink, lineHeight: 40 }]}>투구</Text>
-        <MenuButton />
-      </View>
-      <View style={styles.dateRow}>
-        <View style={styles.date} accessible accessibilityLabel={`오늘 ${Number(today.slice(5, 7))}월 ${Number(today.slice(8, 10))}일 ${weekdayKo(today)}요일`}>
-          <Text style={[TYPE.num, { color: c.ink, fontSize: 28, lineHeight: 32 }]}>{Number(today.slice(8, 10))}</Text>
-          <Text style={{ color: c.muted, fontSize: 12 }}>{`${Number(today.slice(5, 7))}월 · ${weekdayKo(today)}요일`}</Text>
-        </View>
-      </View>
-      <ToolDock canAbs={false} beta />
-      <View style={{ gap: 10 }}>
-        <LockedRow icon="log" label="오늘 투구 기록" />
-        <LockedRow icon="calendar-days" label="최근 투구 · 투구 기록" />
-      </View>
-    </ScrollView>
-  );
-}
-
-/**
  * 도구 도크(2026-10-29 확정 디자인 '소프트 솔리드 툴 도크') — 왼쪽 세로 카드 3D 동작 분석(V6 관절 추적 투수), 오른쪽 위 구속 측정(계기판) · 아래 ABS(3×3 존).
  * 높이는 시안의 154 · 128 · 틈 12(≈294)를 바닥으로만 — 큰 글씨면 글이 늘어난 만큼 커진다. 그림과 이름을 카드 가운데에 맞춘다.
  * ABS 는 권한(사이트 메뉴 · 관리자)이 있을 때만 연다 — 없으면 같은 자리에 '준비 중'으로 흐리게(눌리지 않음).
- * beta(출시 전 베타): 구속 측정 · ABS 를 회색 판 · 회색 그림 + 자물쇠로, 누르면 안내만(들어가지 않음). 3D 동작 분석은 그대로 열린다.
+ * 출시 전 베타에도 모양은 그대로 — 잠긴 구속 측정 · ABS 는 누르면 들어가지 않고 안내만(shell/release.ts pushOpen, 2026-11-01).
  */
-function ToolDock({ canAbs, beta = false }: { canAbs: boolean; beta?: boolean }) {
+function ToolDock({ canAbs }: { canAbs: boolean }) {
   const c = usePalette();
   const { width } = useWindowDimensions();
   /* 3D 카드 폭 ≈ (화면 − 옆 여백 − 틈) / 2 — 그림은 그 82%(시안 V6 · 여백 줄인 판), 넓은 화면에서는 168 에서 멈춘다 */
   const art = Math.min(168, Math.max(110, ((Math.min(width, 520) - SPACE.side * 2 - 12) / 2) * 0.82));
-  if (beta) {
-    return (
-      <View style={styles.dock}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="3D 동작 분석"
-          onPress={() => router.push('/lab' as Href)}
-          style={({ pressed }) => [styles.tool3d, { backgroundColor: c.skyTint, boxShadow: c.float }, pressed && PRESSED]}
-        >
-          <PitcherMark size={art} />
-          <Text lineBreakStrategyIOS="hangul-word" style={[styles.toolBig, { color: c.ink }]}>
-            3D 동작 분석
-          </Text>
-        </Pressable>
-        <View style={styles.dockSide}>
-          {/* 구속 측정 · ABS — 블럭째 회색 + 한가운데 자물쇠, 누르면 작은 안내만(shell/locked.tsx LockedBlock) */}
-          <LockedBlock icon="gauge" size={54} label="구속 측정" style={{ minHeight: 154 }} />
-          <LockedBlock icon="zone" size={44} label="ABS" style={{ minHeight: 128 }} />
-        </View>
-      </View>
-    );
-  }
   return (
     <View style={styles.dock}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="3D 동작 분석"
-        onPress={() => router.push('/lab' as Href)}
+        onPress={() => pushOpen('/lab' as Href)}
         style={({ pressed }) => [styles.tool3d, { backgroundColor: c.skyTint, boxShadow: c.float }, pressed && PRESSED]}
       >
         <PitcherMark size={art} />
@@ -336,7 +280,7 @@ function ToolDock({ canAbs, beta = false }: { canAbs: boolean; beta?: boolean })
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="구속 측정"
-          onPress={() => router.push('/velocity?mode=speed' as Href)}
+          onPress={() => pushOpen('/velocity?mode=speed' as Href)}
           style={({ pressed }) => [styles.toolSmall, { minHeight: 154, backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
         >
           <GaugeMark size={66} c={c} />
@@ -348,7 +292,7 @@ function ToolDock({ canAbs, beta = false }: { canAbs: boolean; beta?: boolean })
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="ABS"
-            onPress={() => router.push('/velocity?mode=abs' as Href)}
+            onPress={() => pushOpen('/velocity?mode=abs' as Href)}
             style={({ pressed }) => [styles.toolSmall, { minHeight: 128, backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
           >
             <ZoneMark size={46} c={c} />

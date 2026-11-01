@@ -1,4 +1,5 @@
-import { type Href, router } from 'expo-router';
+import { type Href } from 'expo-router';
+import { pushOpen } from '~/shell/release';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -112,7 +113,7 @@ export function RecentList({ logs }: { logs: PitchLog[] | null }) {
                       <Press
                         key={l.id}
                         accessibilityRole="button"
-                        onPress={() => router.push(`/pitch/${key}` as Href)}
+                        onPress={() => pushOpen(`/pitch/${key}` as Href)}
                         style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }]}
                       >
                         <View style={{ flex: 1, minWidth: 0 }}>

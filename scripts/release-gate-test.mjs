@@ -260,8 +260,11 @@ let r = await rpc('nutrition.setWeight', ['2026-10-29', 80]);
 check(locked(r), '일반: 영양 쓰기 RPC 는 403 FEATURE_LOCKED_BETA');
 check(sideEffects() === 0 && onlyUserRead(), '일반: 막힌 영양 RPC 는 DB 쓰기 · 읽기 0');
 check(r.body.policyVersion && r.body.capability === 'nutrition', '403 에 기능 · 정책 판');
+r = await rpc('app.loadAppTraining');
+check(locked(r) && onlyUserRead(), '일반: 트레이닝 읽기 RPC 막힘 · 조회 0');
+/* 홈 · 투구 첫 화면 읽기는 베타에도 연다(2026-11-01 — 원래 화면을 그리고 안의 기능만 잠근다) */
 r = await rpc('app.loadAppHome');
-check(locked(r) && onlyUserRead(), '일반: 예전 홈 통계 RPC 막힘 · 통계 조회 0');
+check(!locked(r), '일반: 홈 읽기 RPC 는 베타에도 열림');
 r = await rpc('swing-lab.saveSwingSample', [{ id: '0b7b1a4e-0000-4000-8000-000000000000', meta: {} }]);
 check(locked(r) && sideEffects() === 0, '일반: 스윙 3D 저장 막힘 · 저장소 0');
 r = await rpc('velocity.saveVelocitySession', [{}]);
@@ -390,7 +393,7 @@ check(!(await direct({ 'x-bp-entry': 'page', 'x-bp-path': '/admin/users' }, () =
 g.session = null;
 check((await direct({ 'x-bp-entry': 'page', 'x-bp-path': '/market' }, () => dal.getCurrentUser())).value === null, '비로그인은 사람 없음 — 관문이 막지 않는다');
 
-/* 판 넘기기 자리(@home · @videos · @hitting) — 베타 틀이 화면에 놓지 않아도 Next 는 병렬 경로를 따로 그려 보낸다. 판이 스스로 빠지는지 */
+/* 판 넘기기 자리(@videos · @hitting — 홈 판은 베타에도 그린다) — Next 는 병렬 경로를 따로 그려 보낸다. 잠긴 판이 스스로 빠지는지 */
 const hidden = async () => {
   reset();
   g.headers = { 'x-bp-entry': 'page', 'x-bp-path': '/today' };

@@ -30,7 +30,6 @@ import { resetLibraryItems } from '~/library/parts';
 import { resetImported } from '~/pitch/attach';
 import { resetScanned } from '~/nutrition/scanned';
 import { HomeTab, resetHomeCache } from '~/home/tab';
-import { BetaHome } from '~/home/beta-home';
 import { accessAllowsPath } from '@/lib/release-access';
 import { canOpen, isBetaView, noticeLocked, releaseLookupFailed, resetRelease, restoreRelease, useRelease } from '~/shell/release';
 import { resetNotificationList } from '~/home/notifications';
@@ -59,7 +58,7 @@ import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { drainOutbox, setOutboxOwner } from '~/workout/outbox';
 import { drainChecks } from '~/armcare/outbox';
 import { sendCheck } from '~/armcare/send';
-import { BetaPitchTab, PitchTab } from '~/pitch/tab';
+import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_SPORT_BARS, DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, useTabBarOcclusion, type ShellTab, type SportKey } from '~/shell/tab-bar';
 import { TabPager } from '~/shell/tab-pager';
 import { ClockVeil } from '~/shell/clock-veil';
@@ -884,26 +883,12 @@ export default function SiteScreen() {
   const tabBottom = useTabBarOcclusion();
   const { home: seenHome, pitch: seenPitch, training: seenTraining, records: seenRecords, nutrition: seenNutrition } = seen;
   /*
-   * 출시 전 베타 — 홈 판은 베타 홈(투구 3D 만), 잠긴 판은 아예 붙이지 않는다(그 판의 서버 부름 · 대기열도 안 돈다). 정책이 바뀌면(로그아웃 → 다른 계정)
-   * 열쇠가 달라 판이 새로 만들어진다
+   * 출시 전 베타에도 홈 · 투구 판은 원래 모양 그대로(2026-11-01 금윤호: "인터페이스는 원래대로, 문이 잠긴 것처럼 못 들어가게만") — 그 안의 잠긴 기능은
+   * 누르면 안내만(shell/release.ts pushOpen · canOpen). 잠긴 탭의 판은 아예 붙이지 않는다(그 판의 서버 부름 · 대기열도 안 돈다)
    */
-  const homeSlot =
-    today && seenHome ? (
-      beta ? (
-        <BetaHome key="beta-home" bottom={tabBottom} />
-      ) : (
-        <HomeTab key="home" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} />
-      )
-    ) : null;
-  /* 베타면 투구 탭은 베타 판(3D 분석만 열리고 구속 측정 · ABS · 투구 기록은 회색 + 자물쇠 — 투구 기록 조회는 안 함) */
+  const homeSlot = today && seenHome ? <HomeTab key="home" today={today} bottom={tabBottom} onWeb={openWeb} onTab={goTab} /> : null;
   const pitchSlot =
-    today && seenPitch && open('/videos') ? (
-      beta ? (
-        <BetaPitchTab key="beta-pitch" today={today} bottom={tabBottom} />
-      ) : (
-        <PitchTab key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} log={pitchLog} />
-      )
-    ) : null;
+    today && seenPitch && open('/videos') ? <PitchTab key="pitch" today={today} bottom={tabBottom} onWeb={openWeb} log={pitchLog} /> : null;
   const trainingSlot = today && seenTraining && open(TRAINING_HOME_HREF) ? <TrainingTab key="training" today={today} bottom={tabBottom} onWeb={openWeb} /> : null;
   const recordsSlot = today && seenRecords && open(RECORDS_PATH) ? <RecordsTab key="records" today={today} bottom={tabBottom} /> : null;
   const dugoutSlot = today && seen.dugout && open('/?dugout=1') ? <DugoutTab key="dugout" bottom={tabBottom} onWeb={openWeb} /> : null;

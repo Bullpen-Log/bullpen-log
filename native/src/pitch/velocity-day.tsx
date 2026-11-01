@@ -1,5 +1,6 @@
 import * as Haptics from 'expo-haptics';
-import { type Href, router } from 'expo-router';
+import { pushOpen } from '~/shell/release';
+import { type Href } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -203,7 +204,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
         <Press
           accessibilityRole="button"
           onPress={() =>
-            router.push({
+            pushOpen({
               pathname: '/pitch/edit' as Href as never,
               params: {
                 date,
