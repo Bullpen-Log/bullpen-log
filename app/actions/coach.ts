@@ -21,6 +21,8 @@ import { isOutingTitle } from '@/lib/calendar-event';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { planWeek, suggestProgram, weekdayOf, type DaySlot, type FixedDay, type WeekInput } from '@/lib/coach/week';
 import { startProgram } from '@/app/actions/program';
+import { slotStateOf } from '@/lib/coach/status';
+import { loadTrainingDone } from '@/lib/training-week';
 import { COACH_STEPS, mergeStep, savedOf, type CoachSaved, type CoachStep } from '@/lib/coach/answers';
 
 /**
@@ -171,12 +173,26 @@ export async function previewCoachWeek() {
   };
 }
 
-/** 시작 — 관문을 다시 보고, 고르면 제안 프로그램을 시작하고, 이번 주 틀을 저장한다 */
+/** 그 주 틀을 저장 — 같은 주를 다시 맞추면 지난 날 · 사용자가 고친 날은 그대로(planWeek prev) */
+async function saveWeek(userId: string, input: WeekInput): Promise<DaySlot[]> {
+  const weekStart = dbDate(input.weekStart);
+  const old = await prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId, weekStart } }, select: { slots: true } });
+  const slots = planWeek({ ...input, prev: old ? (old.slots as unknown as DaySlot[]) : null });
+  const fingerprint = createHash('sha1').update(JSON.stringify({ ...input, today: null })).digest('hex').slice(0, 16);
+  await prisma.coachWeek.upsert({
+    where: { userId_weekStart: { userId, weekStart } },
+    create: { userId, weekStart, slots, fingerprint },
+    update: { slots, fingerprint, generatedAt: new Date() },
+  });
+  return slots;
+}
+
+/** 시작 — 관문을 다시 보고, 고르면 제안 프로그램을 시작하고, 이번 주 틀을 저장한다. 다시 시작(답 고치기)이면 지난 날은 그대로 */
 export async function startCoach(input: { program?: unknown }): Promise<{ ok: true } | { error: string }> {
   const user = await requireUser();
   const { gate, healthOk } = await gateOf(user);
   if (gate !== 'ready') return { error: gate === 'consent' ? '건강정보 동의가 필요해요.' : '코치를 시작할 수 없어요.' };
-  const profile = await prisma.coachProfile.findUnique({ where: { userId: user.id }, select: { answers: true } });
+  const profile = await prisma.coachProfile.findUnique({ where: { userId: user.id }, select: { answers: true, status: true } });
   const saved = savedOf(profile?.answers);
   if (!saved.days?.length) return { error: '운동할 수 있는 요일부터 골라 주세요.' };
   let week = await weekInputOf(user, saved, healthOk);
@@ -187,27 +203,40 @@ export async function startCoach(input: { program?: unknown }): Promise<{ ok: tr
     if ('error' in started) return { error: started.error };
     week = { ...week, program: { perWeek: pick.perWeek } };
   }
-  const slots: DaySlot[] = planWeek(week);
-  const fingerprint = createHash('sha1').update(JSON.stringify({ ...week, today: null })).digest('hex').slice(0, 16);
-  const weekStart = dbDate(week.weekStart);
-  await prisma.$transaction([
-    prisma.coachWeek.upsert({
-      where: { userId_weekStart: { userId: user.id, weekStart } },
-      create: { userId: user.id, weekStart, slots, fingerprint },
-      update: { slots, fingerprint, generatedAt: new Date() },
-    }),
-    prisma.coachProfile.update({ where: { userId: user.id }, data: { status: 'active', startedAt: new Date() } }),
-  ]);
+  await saveWeek(user.id, week);
+  if (profile?.status !== 'active')
+    await prisma.coachProfile.update({ where: { userId: user.id }, data: { status: 'active', startedAt: new Date() } });
   revalidatePath('/coach');
   return { ok: true };
 }
 
-/** 이번 주 틀(코치 탭 · PC 읽기) — 없으면 null */
+/**
+ * 이번 주 틀(코치 탭 · PC 읽기) + 칸 상태 · 오늘 체크인 했나. 진행 중인데 이번 주 틀이 없으면(새 주) 처음 열 때 짓는다(10-5 — 크론 없이).
+ * 건강 동의를 거둔 뒤에도 코치는 이어 간다 — 통증만 안 읽는다(healthOk false).
+ */
 export async function loadCoachWeek() {
   const user = await requireUser();
-  if (!(await coachPaid(user))) return { ok: true as const, week: null };
+  if (!(await coachPaid(user))) return { ok: true as const, week: null, states: null, checkedIn: false };
   const today = toDateKey(appNow());
   const weekStart = shiftDateKey(today, -weekdayOf(today));
-  const row = await prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId: user.id, weekStart: dbDate(weekStart) } }, select: { slots: true } });
-  return { ok: true as const, today, weekStart, week: row ? (row.slots as unknown as DaySlot[]) : null };
+  const [row, profile, checkin, done] = await Promise.all([
+    prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId: user.id, weekStart: dbDate(weekStart) } }, select: { slots: true } }),
+    prisma.coachProfile.findUnique({ where: { userId: user.id }, select: { status: true, answers: true } }),
+    prisma.dailyCheckin.findFirst({ where: { userId: user.id, date: dbDate(today) }, select: { id: true } }),
+    loadTrainingDone(user.id, weekStart, shiftDateKey(weekStart, 6)),
+  ]);
+  let week = row ? (row.slots as unknown as DaySlot[]) : null;
+  if (!week && profile?.status === 'active') {
+    const { gate, healthOk } = await gateOf(user);
+    const saved = savedOf(profile.answers);
+    if ((gate === 'ready' || gate === 'consent') && saved.days?.length) week = await saveWeek(user.id, await weekInputOf(user, saved, healthOk));
+  }
+  return {
+    ok: true as const,
+    today,
+    weekStart,
+    week,
+    states: week ? week.map((s) => slotStateOf(s, done[s.date], today)) : null,
+    checkedIn: checkin != null,
+  };
 }

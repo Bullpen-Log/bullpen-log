@@ -8,6 +8,7 @@ import { dayKindOf } from '@/lib/engine/microcycle';
 import { PROGRAMS, REQUIRED_EQUIPMENT, BASICS_REQUIRED_EQUIPMENT } from '@/lib/program/program';
 import { STRENGTH_PER_WEEK } from '@/lib/armcare/routine';
 import { shiftDateKey } from '@/lib/pitch-stats';
+import { slotStateOf, startsOf } from '@/lib/coach/status';
 import { dayRuleOf, planWeek, suggestProgram, weekdayOf, type CoachAnswers, type DaySlot, type WeekInput, type Weekday } from '@/lib/coach/week';
 
 let pass = 0;
@@ -205,6 +206,21 @@ check('④ 입문(기본기 안 마침) → 기본기 4주', pick({ level: '입�
 check('④ 만 12세 → 없음', pick({ age: 12 }) === null);
 check('④ 장비 없음 → 없음', pick({ ownedEquipment: [] }) === null);
 check('④ 주 1일 → 없음', pick({ trainingDays: 1 }) === null);
+
+/* ─────────── ⑤ 칸 상태 · 시작 ─────────── */
+const slotOf = (date: string, items: DaySlot['items']): DaySlot => ({ date, items, reasons: [], owner: 'coach', rule: 'none', rank: 'none' });
+const NONE = { workout: false, armcare: false, drill: false };
+const T = '2026-11-04';
+const trainSlot = (d: string) => slotOf(d, [{ kind: 'train', fence: { minutes: 60, heavyLower: true, light: false } }]);
+check('⑤ 지난 운동 날 · 기록 없음 → 못 함', slotStateOf(trainSlot('2026-11-03'), NONE, T) === 'missed');
+check('⑤ 지난 운동 날 · 마침 → 한 것', slotStateOf(trainSlot('2026-11-03'), { ...NONE, workout: true }, T) === 'done');
+check('⑤ 지난 쉬는 날 · 기록 없음 → 못 함 아님', slotStateOf(slotOf('2026-11-03', [{ kind: 'rest' }]), NONE, T) === 'off');
+check('⑤ 지난 날 암케어 제안만 · 안 함 → 못 함 아님', slotStateOf(slotOf('2026-11-03', [{ kind: 'rest' }, { kind: 'armcare', mode: 'strength', suggested: true }]), undefined, T) === 'off');
+check('⑤ 쉬는 날에 암케어를 했다 → 한 것', slotStateOf(slotOf('2026-11-03', [{ kind: 'rest' }]), { ...NONE, armcare: true }, T) === 'done');
+check('⑤ 오늘 · 아직 → 오늘', slotStateOf(trainSlot(T), NONE, T) === 'today');
+check('⑤ 뒤 날 → 뒤', slotStateOf(trainSlot('2026-11-05'), NONE, T) === 'later');
+check('⑤ 시작 차례: 운동 → 메커니즘 → 암케어', startsOf(slotOf(T, [{ kind: 'armcare', mode: 'recovery', suggested: true }, { kind: 'mechanics' }, { kind: 'program', heavyLower: false }])).map((x) => x.kind).join() === 'train,mechanics,armcare');
+check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ kind: 'fixed', what: 'team' }])).length === 0);
 
 console.log(`coach: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''} (불변 입력 ${n}가지)`);
 for (const f of fails.slice(0, 20)) console.log(`  - ${f}`);

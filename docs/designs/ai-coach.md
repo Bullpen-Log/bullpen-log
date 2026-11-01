@@ -463,6 +463,11 @@
 
 **시간(Claude 기준)**: 코치 메인 · 조정 · 하루의 주인 8~10h · 되먹임 · 리뷰 · 알림 · 크론 5~7h · 홈 카드 · 트레이닝 탭 안내 2~3h.
 
+**진행(2026-11-01)** — C4 를 다섯으로 나눠 차례로: ① 코치 메인 ② 조정 단추 ③ 그날 운동을 칸대로 ④ 하루의 주인 ⑤ 홈 요약 카드.
+- ① 끝: 칸 상태 순수 `lib/coach/status.ts`(`slotStateOf` — 한 것 · 못 함 · 오늘 · 뒤 · 쉰 날, `startsOf` — [시작] 주소: `/training-today` · `/training-mechanics` · `/training-armcare`) + coach:test.
+  기록은 `lib/training-week.ts loadTrainingDone`(날짜 띠와 같은 판정). `loadCoachWeek` 가 칸 상태 · 오늘 체크인 했나를 같이 주고, 진행 중인데 이번 주 틀이 없으면(새 주) 처음 열 때 짓는다.
+  `startCoach` 를 다시 부르면(답 고치기) 지난 날 · 사용자가 고친 날은 그대로(`saveWeek` → planWeek prev). 앱 코치 탭: 오늘 카드(무엇 · 까닭 · [체크인부터] 또는 [시작] + 다른 시작) → 7칸(✓ · 못 함) → 리뷰 → '코치 답 고치기'. PC 카드도 ✓ · 못 함.
+
 ### 10-6. 6단계 — AI: 대화 · 설명 문장(U39~U44 확정, 기준 origin/main `83946b61`)
 
 **AI 가 하는 일은 둘(U39)**. 자유글 칸을 따로 두지 않고 대화 하나로 합친다.

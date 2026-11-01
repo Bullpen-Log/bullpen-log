@@ -2,17 +2,19 @@ import { Card } from '@/components/ui';
 import { loadCoachWeek } from '@/app/actions/coach';
 import { WEEKDAY_LABELS, slotLine } from '@/lib/coach/answers';
 import type { DaySlot } from '@/lib/coach/week';
+import type { SlotState } from '@/lib/coach/status';
+import { Check } from '@/components/icon';
 
 /**
  * 이번 주 코치 틀 — PC 웹은 읽기만(docs/designs/ai-coach.md U33). 시작 · 조정은 앱(native/src/app/coach-start.tsx · 코치 탭)에서.
  * 칸 글은 앱 코치 탭과 같은 `slotLine`. 유료가 아니면 page.tsx 가 소개를 먼저 그려 여기 오지 않는다.
  */
 export async function CoachWeekCard() {
-  const { today, week } = await loadCoachWeek();
-  return <CoachWeekView today={today} week={week} />;
+  const { today, week, states } = await loadCoachWeek();
+  return <CoachWeekView today={today} week={week} states={states} />;
 }
 
-export function CoachWeekView({ today, week }: { today?: string; week: DaySlot[] | null }) {
+export function CoachWeekView({ today, week, states }: { today?: string; week: DaySlot[] | null; states?: SlotState[] | null }) {
   if (!week) {
     return (
       <Card className="p-(--block-pad)">
@@ -29,7 +31,9 @@ export function CoachWeekView({ today, week }: { today?: string; week: DaySlot[]
           return (
             <li key={s.date} className="flex items-baseline gap-3 py-2 text-sm" aria-current={isToday ? 'date' : undefined}>
               <span className={isToday ? 'w-8 shrink-0 font-semibold text-sky' : 'w-8 shrink-0 text-muted'}>{isToday ? '오늘' : WEEKDAY_LABELS[k]}</span>
-              <span className={isToday ? 'font-semibold text-ink' : 'text-ink'}>{slotLine(s)}</span>
+              <span className={isToday ? 'flex-1 font-semibold text-ink' : states?.[k] === 'missed' ? 'flex-1 text-muted' : 'flex-1 text-ink'}>{slotLine(s)}</span>
+              {states?.[k] === 'done' ? <Check className="size-4 shrink-0 self-center text-sky" aria-label="한 날" /> : null}
+              {states?.[k] === 'missed' ? <span className="shrink-0 text-xs text-muted">못 함</span> : null}
             </li>
           );
         })}
