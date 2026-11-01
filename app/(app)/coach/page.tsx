@@ -12,6 +12,7 @@ import { AnalysisBody } from './analysis-body';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { coachPaid } from '@/lib/coach-access';
 import { CoachIntro } from './coach-intro';
+import { CoachWeekCard } from './week-card';
 
 /**
  * 분석 · 그래프 — 홈의 '분석 · 그래프 더 보기'(2026-10-05 홈 정리).
@@ -62,6 +63,7 @@ export default async function CoachPage({
         <BackLink href="/videos">투구 기록</BackLink>
       )}
       <PageHeading title={view === 'training' ? '트레이닝 분석' : '투구 분석'} />
+      <CoachWeekCard />
       <AnalysisBody
         today={today}
         initialDate={date}
