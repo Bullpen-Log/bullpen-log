@@ -472,6 +472,13 @@
   까닭 코드 셋(skipped · moved · busy). 서버 `previewCoachAdjust` → 바뀐 칸(전 · 뒤 한 줄) + 토큰(그 틀의 지문) → `applyCoachAdjust(adj, token)` 은 지문이 같을 때만.
   앱 `native/src/coach/adjust.tsx`: [오늘 시간] [오늘 쉬기] [날 바꾸기] [이번 주 바빠요] → 시트 하나에서 고르기 → 미리보기 → [적용].
   설계와 다르게: '장소 · 장비' 단추는 ③(그날 운동을 칸대로)과 같이 — 장소 · 장비는 그날 엔진 입력이라서.
+- ③ 끝: `lib/coach/today.ts`(`coachSlotOf` · `coachMinutesOf`) — 오늘 운동 만들기(`app/actions/training-setup.ts generateTodayPlan`, 자동 맞춤)가 코치 운동 날이면 그 칸의 분을
+  기본 시간(`decideAutoFence` 의 defaultMinutes)으로 넘긴다. 엔진은 그대로 그 밑으로만 줄인다(상태 · 주당 위 끝) — 판정은 안 바꿨다. 까닭 줄 맨 앞에 '코치 계획 N분'.
+  큰 하체 · 가볍게는 엔진이 같은 규칙(planWeek 가 엔진 표를 읽음)으로 그날 다시 정한다. **'장소 · 장비' 단추는 뺐다** — 오늘 운동 만들기가 매일 장비를 이미 묻는다.
+  training:test 의 원문 검사 하나(decideAutoSetup 넘기는 짝)를 코치 분 칸을 허용하게 고침 — 1821 통과 · 실패 2(P4 화면 · P6-5)는 고치기 전과 같다.
+- ④ 끝(줄임): 코치가 쉬라고 한 날에 오늘 운동을 만들면 그 칸 `owner:'user'`(`takeDayFromCoach`) → 코치가 그날 시간을 안 넣고 다시 맞추지 않는다. 코치 운동 날에 만든 것은 코치 시간을 따랐으니 그대로 코치 것.
+  트레이닝 운동 화면 위 한 줄(`native/src/coach/note.tsx` — 코치 계획 · 직접 하는 날), 코치 탭 오늘 카드에 [오늘 다시 코치에게](`takeBackToday`).
+  설계와 다르게: [코치 계획으로 | 직접 만들기] 고르기 화면은 안 만듦(만들기가 하나라 한 줄 안내로 충분), 운동 넣기 · 빼기는 주인을 안 바꿈.
 
 ### 10-6. 6단계 — AI: 대화 · 설명 문장(U39~U44 확정, 기준 origin/main `83946b61`)
 

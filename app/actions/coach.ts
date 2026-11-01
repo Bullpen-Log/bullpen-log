@@ -23,6 +23,7 @@ import { planWeek, suggestProgram, weekdayOf, type DaySlot, type FixedDay, type 
 import { startProgram } from '@/app/actions/program';
 import { slotStateOf } from '@/lib/coach/status';
 import { applyAdjust, readAdjust } from '@/lib/coach/adjust';
+import { coachSlotOf } from '@/lib/coach/today';
 import { loadTrainingDone } from '@/lib/training-week';
 import { COACH_STEPS, mergeStep, savedOf, slotLine, type CoachSaved, type CoachStep } from '@/lib/coach/answers';
 
@@ -290,6 +291,31 @@ export async function applyCoachAdjust(raw: unknown, token: unknown): Promise<{ 
   if ('error' in r) return { error: r.error };
   /* ponytail: 토큰 확인과 저장 사이가 아주 짧아 한 사람의 겹친 요청만 걱정 — 잠금 없이 둔다, 여럿이 같은 틀을 고치게 되면 조건부 갱신으로 */
   await prisma.coachWeek.update({ where: { userId_weekStart: { userId: user.id, weekStart } }, data: { slots: r.week as unknown as object, generatedAt: new Date() } });
+  revalidatePath('/coach');
+  return { ok: true };
+}
+
+/** 트레이닝 운동 화면의 코치 한 줄(하루의 주인 U38) — 코치 진행 중일 때만. 사용자가 그날을 가져갔으면 owner 'user' */
+export async function loadCoachToday() {
+  const user = await requireUser();
+  const slot = await coachSlotOf(user, toDateKey(appNow()));
+  if (!slot) return { ok: true as const, coach: null };
+  return {
+    ok: true as const,
+    coach: { line: slotLine(slot), owner: slot.owner, work: slot.items.some((x) => x.kind === 'train' || x.kind === 'program') },
+  };
+}
+
+/** 코치 메인 [오늘 다시 코치에게] — 사용자가 가져간 오늘을 코치에게 돌려준다. 그날 이미 만든 운동은 그대로(다시 만들면 코치 시간) */
+export async function takeBackToday(): Promise<{ ok: true } | { error: string }> {
+  const user = await requireUser();
+  if (!(await coachPaid(user))) return { error: '코치를 쓸 수 없어요.' };
+  const today = toDateKey(appNow());
+  const weekStart = dbDate(shiftDateKey(today, -weekdayOf(today)));
+  const row = await prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId: user.id, weekStart } }, select: { slots: true } });
+  if (!row) return { error: '이번 주 일정이 없어요.' };
+  const slots = (row.slots as unknown as DaySlot[]).map((s) => (s.date === today ? { ...s, owner: 'coach' as const } : s));
+  await prisma.coachWeek.update({ where: { userId_weekStart: { userId: user.id, weekStart } }, data: { slots: slots as unknown as object } });
   revalidatePath('/coach');
   return { ok: true };
 }

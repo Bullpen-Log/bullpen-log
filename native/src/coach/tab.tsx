@@ -16,6 +16,7 @@ import { MenuButton } from '~/shell/menu-button';
 import { Press } from '~/shell/press';
 import { pushOpen } from '~/shell/release';
 import { useFocusRefresh } from '~/shell/tab-pager';
+import { toast } from '~/shell/toast';
 import { openCheckin } from '~/shell/web-nav';
 import { AdjustBar } from './adjust';
 
@@ -102,7 +103,7 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
             </Press>
           ) : null}
           {week && data && todayAt >= 0 ? (
-            <TodayCard slot={week[todayAt]} state={data.states?.[todayAt] ?? 'today'} checkedIn={data.checkedIn} />
+            <TodayCard slot={week[todayAt]} state={data.states?.[todayAt] ?? 'today'} checkedIn={data.checkedIn} onDone={loadWeek} />
           ) : null}
           {week && data?.states ? <AdjustBar week={week} states={data.states} today={data.today} onDone={loadWeek} /> : null}
           {week && data ? (
@@ -156,8 +157,23 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
 }
 
 /** 오늘 계획(크게) — 무엇을 · 왜 · [시작]. 운동 날인데 체크인 전이면 체크인부터(오늘 상태를 알아야 맞춘다), 시작 단추는 밑에 그대로 */
-function TodayCard({ slot, state, checkedIn }: { slot: DaySlot; state: SlotState; checkedIn: boolean }) {
+function TodayCard({ slot, state, checkedIn, onDone }: { slot: DaySlot; state: SlotState; checkedIn: boolean; onDone: () => void }) {
   const c = usePalette();
+  const [busy, setBusy] = useState(false);
+  /* 하루의 주인(U38) — 사용자가 가져간 오늘을 코치에게 돌려준다 */
+  const takeBack = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await rpc<{ ok: true } | { error: string }>('coach.takeBackToday');
+      if ('error' in r) toast(r.error);
+      else onDone();
+    } catch {
+      toast('신호가 약해요. 다시 눌러 주세요.');
+    } finally {
+      setBusy(false);
+    }
+  };
   const starts = startsOf(slot);
   const needCheckin = !checkedIn && starts.some((x) => x.kind === 'train');
   const why = slot.reasons.filter((r) => r !== 'rest').map((r) => REASON_TEXT[r]);
@@ -176,6 +192,14 @@ function TodayCard({ slot, state, checkedIn }: { slot: DaySlot; state: SlotState
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Icon name="circle-check" size={18} color={c.link} />
           <Text style={[TYPE.body, { color: c.ink }]}>오늘 한 것이 있어요</Text>
+        </View>
+      ) : null}
+      {slot.owner === 'user' ? (
+        <View style={{ gap: 2 }}>
+          <Text style={[TYPE.sub, { color: c.muted }]}>오늘은 직접 만든 운동으로 해요.</Text>
+          <Press accessibilityRole="button" disabled={busy} onPress={() => void takeBack()} style={st.link}>
+            <Text style={[TYPE.card, { color: c.link }]}>오늘 다시 코치에게</Text>
+          </Press>
         </View>
       ) : null}
       {needCheckin ? <Text style={[TYPE.sub, { color: c.muted }]}>체크인하면 오늘 몸 상태에 맞춰 만들어요.</Text> : null}

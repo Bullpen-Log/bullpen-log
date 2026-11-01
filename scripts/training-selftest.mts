@@ -23635,7 +23635,8 @@ console.log(
     );
     check(
       'P5 주당 (마) 위 끝은 자동 맞춤에만 — 일정 만들기는 2주 기록을 통째로 decideAutoSetup 에 넘기고, 그 안의 decideAutoFence 만 weeklyCap 을 받는다(직접 고르기의 buildDailyPlan 은 안 받음)',
-      /decideAutoSetup\(\{ user, facts, plan, today, strengthDates \}\)/.test(setup) &&
+      /* 코치 진행 중이면 그날 칸의 분을 기본 시간으로 넘긴다(2026-11-01 유료 코치 C4 — 2주 기록을 통째로 넘기는 짝은 그대로) */
+      /decideAutoSetup\(\{ user, facts, plan, today, strengthDates(, coachMinutes: coachMinutesOf\(coachSlot\))? \}\)/.test(setup) &&
         /strengthDates: StrengthHistory;/.test(setup) &&
         /weeklyCap: strengthDates\.weeklyMinutesCap,/.test(setup) &&
         setup.split('weeklyMinutesCap').length - 1 === 1 &&
