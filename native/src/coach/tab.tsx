@@ -108,6 +108,17 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
             <TodayCard slot={week[todayAt]} state={data.states?.[todayAt] ?? 'today'} checkedIn={data.checkedIn} onDone={loadWeek} />
           ) : null}
           {week && data?.states ? <AdjustBar week={week} states={data.states} today={data.today} onDone={loadWeek} /> : null}
+          {week ? (
+            <Press
+              accessibilityRole="button"
+              onPress={() => router.push('/coach-chat' as Href)}
+              style={[st.row, st.group, { backgroundColor: c.card, boxShadow: c.float }]}
+            >
+              <Icon name="chat" size={20} color={c.link} />
+              <Text style={[TYPE.card, { flex: 1, color: c.ink }]}>코치에게 말하기</Text>
+              <Icon name="chevron-right" size={18} color={c.muted} />
+            </Press>
+          ) : null}
           {week && data ? (
             <>
               <SectionHead title="이번 주" />

@@ -572,6 +572,16 @@
 
 **시간(Claude 기준)**: 동의 화면 · 게이트 · 비용 셈 · 처리방침 3~4h · 대화(서버 · 앱 시트 · 미리보기 연결 · 보관) 6~8h · 설명 문장 · 하루 저장 2~3h · 시험 2h.
 
+**진행(2026-11-01)** — 사용자 결정: 열쇠는 지금 넣음 · 월 상한 $30 · 동의 글의 Anthropic 보관 · 학습 미사용은 '확인 중' 자리로 두고 출시 전에 채움.
+- 6-① 끝: 순수 `lib/coach/ai-gate.ts`(판정 차례 · 하루 30 · 상한 읽기 · 막힘 글) · `ai-price.ts`(Opus 5.5 문서값, Haiku 5.5 캐시값은 어림) · `ai-prompt.ts`(시스템 글 고정 · 맥락 덩이 — 개인 정보 칸 없음) ·
+  `adjust.ts sanitizeAdjusts` + `npm run coach:ai-test` 21개(API 안 부름).
+- 6-② 끝: 동의 `lib/coach/ai-consent.ts`(purpose 'coachAi', 보관 · 학습 미사용 = 확인 중 자리) · `coachAiConsentFor`. 처리방침 4조 표 · 9조에 Anthropic.
+- 6-③ 끝: `lib/coach/ai.ts chatTurn`(@anthropic-ai/sdk 1.3 `beta.messages.parse` + `betaZodOutputFormat`, effort low, 자동 캐시, fallbacks 'default', 거절 먼저, 15초 · 재시도 2) ·
+  `app/actions/coach-chat.ts`(`loadCoachChat` · `agreeCoachAi` · `revokeCoachAi` · `clearCoachChat` · `sendCoachMessage` — 비용은 CoachLog, 대화는 CoachMessage, 실패면 정해진 문장). 크론이 30일 지난 대화를 지운다.
+- 6-④ 끝: 앱 `native/src/app/coach-chat.tsx`(아래 시트 — 처음이면 동의, 예시 칩 셋, 바꿀 거리 카드 [미리보기] → [적용]은 조정 단추와 같은 서버 길, 5번 남으면 한 줄, '이름 · 연락처는 적지 마세요').
+  설계와 다르게: 'place' · 'fixed' 바꿀 거리는 뺐다(조정 단추와 같은 넷만 — 장비는 운동 만들기가 매일 묻고, 달력은 사용자가 적게 안내). 적용함 · 취소함은 그 화면에서만 굳는다.
+- 남은 것: 6-⑤ 설명 문장(오늘 칸 까닭 · 주간 리뷰, Haiku 5.5, 하루 한 번 저장) · 실제 호출 시험(열쇠 넣은 뒤, 돈 듦 — 한국어 말 10개) · 코치 설정 'AI 끄기 · 대화 지우기' 화면.
+
 ### 10-7. 7단계 — 결제: 건너뜀(U45)
 
 지금은 설계하지 않는다. 유료 여부는 `Entitlement`(source 'admin', 관리자 화면에서 켜고 끔)로 시작하고, 인앱결제를 붙일 때(7절 E) 같은 표에 source 'iap' 로 더한다. 처리방침 3조 '무료' 문구도 그때 바꾼다.

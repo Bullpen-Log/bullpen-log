@@ -46,6 +46,8 @@ export const RPC_MODULE_CAPABILITY: Record<string, OpAccess> = {
   'app-analysis': { cap: 'analysis' },
   /* 코치(2026-11-01) — /coach 와 같은 능력. 유료 · 나이 · 건강 동의는 서버 동작 안에서 본다 */
   coach: { cap: 'analysis' },
+  /* 코치 AI 대화(2026-11-01) — 코치와 같은 능력 */
+  'coach-chat': { cap: 'analysis' },
   'app-armcare': { cap: 'armcare' },
   armcare: { cap: 'armcare' },
   rehab: { cap: 'armcare' },

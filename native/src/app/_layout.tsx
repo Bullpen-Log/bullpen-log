@@ -127,6 +127,7 @@ export default function RootLayout() {
         <Stack.Screen name="nutrition/add" options={{ presentation: 'modal' }} />
         {/* 설정 · 내 정보 — 웹처럼 창으로(더보기 폴더 위에 뜨고 닫으면 폴더가 그대로) */}
         <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="coach-chat" options={{ presentation: 'modal' }} />
         <Stack.Screen name="profile" options={{ presentation: 'modal' }} />
         {/* 더보기 — 뒤를 덮는 막 + 가운데 유리 폴더(웹 휴대폰 폴더와 같다) */}
         <Stack.Screen name="more" options={{ presentation: 'transparentModal', animation: 'none' }} />

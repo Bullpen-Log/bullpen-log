@@ -132,3 +132,30 @@ export function applyAdjust(
   if (!changed.length) return { error: '바뀌는 게 없어요.' };
   return { week: next, changed };
 }
+
+/**
+ * AI 대화가 낸 바꿀 거리 거르기(docs/designs/ai-coach.md 10-6) — 모양 검사(readAdjust) + 날짜는 이번 주 · 오늘 뒤 · 안 잠긴 날만 + 같은 것 한 번 + 최대 3개.
+ * 남은 것만 미리보기로 간다. AI 글이 이상해도(주입 포함) 일정을 바꾸는 길은 이 거르기 → 사용자 [적용]뿐이다.
+ */
+export const AI_MAX_ADJUSTS = 3;
+
+export function sanitizeAdjusts(raw: unknown, week: readonly DaySlot[], today: string, locked: (date: string) => boolean): CoachAdjust[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CoachAdjust[] = [];
+  const seen = new Set<string>();
+  const ok = (d: string) => d >= today && !locked(d) && week.some((s) => s.date === d);
+  for (const r of raw) {
+    if (!r || typeof r !== 'object') continue;
+    const clean = Object.fromEntries(Object.entries(r as Record<string, unknown>).filter(([, v]) => v != null));
+    const a = readAdjust(clean);
+    if (!a) continue;
+    const dates = a.kind === 'minutes' || a.kind === 'skip' ? [a.date] : a.kind === 'move' ? [a.from, a.to] : [];
+    if (!dates.every(ok)) continue;
+    const key = JSON.stringify(a);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(a);
+    if (out.length >= AI_MAX_ADJUSTS) break;
+  }
+  return out;
+}

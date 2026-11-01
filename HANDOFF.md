@@ -11,6 +11,12 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 유료 코치 AI 대화 · **받으면 `npm ci`**(패키지 둘 더함)
+
+받은 뒤 할 일: **`npm ci`** — `@anthropic-ai/sdk` · `zod` 를 다시 넣었다(10-07 에 뺀 것, 유료 코치 대화에만 — 설계 10-6). DB 그대로(C2 의 CoachLog · CoachMessage 를 처음 씀).
+- 새 서버 모듈 `app/actions/coach-chat.ts`(registry · release-ops 'analysis'), 앱 새 화면 `native/src/app/coach-chat.tsx`(`_layout.tsx` 에 모달 한 줄), 처리방침에 Anthropic 한 줄.
+- 환경변수(Vercel): `ANTHROPIC_API_KEY`(김민이 넣음) · 선택 `COACH_AI_MONTHLY_USD`(기본 30, 0 이면 AI 끔) · `COACH_MODEL_CHAT`. 이름은 `.env.example`.
+
 ## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 운동 끝 '불편했던 동작' 칸 · **받으면 `npx prisma generate`** · 네 운동 끝 화면에 한 칸
 
 받은 뒤 할 일: **`npx prisma generate`** — `DailyTrainingNote.discomfort Json?`(비워 둘 수 있음, 옛 코드도 돈다). 마이그레이션 `20261101170000_training_note_discomfort`(ADD COLUMN 만)는 이 푸시의 Vercel 빌드가 건다. 직전 백업 `db-2026-11-01-13-50.json`.

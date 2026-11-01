@@ -1,7 +1,8 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { coachPaid } from '@/lib/coach-access';
-import { shiftDateKey } from '@/lib/pitch-stats';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
+import { appNow } from '@/lib/clock';
 import { dbDate } from '@/lib/nutrition/days';
 import { weekdayOf, type DaySlot } from '@/lib/coach/week';
 import { healthConsentFor } from '@/lib/analysis-consent-store';
@@ -78,4 +79,16 @@ export async function pushBackDiscomfort(
   library: readonly (ClassifiableExercise & { id: string })[]
 ): Promise<void> {
   for (const id of await discomfortIds(userId, todayKey, library)) swappedOut.set(id, Math.max(swappedOut.get(id) ?? 0, SWAPPED_MIN));
+}
+
+/** 이번 주 틀 + 못 바꾸는 날(지난 날 · 오늘 운동을 이미 시작했으면 오늘) — 조정 단추 · AI 대화가 같이 쓴다 */
+export async function coachWeekBase(userId: string) {
+  const today = toDateKey(appNow());
+  const weekStart = dbDate(shiftDateKey(today, -weekdayOf(today)));
+  const [row, started] = await Promise.all([
+    prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId, weekStart } }, select: { slots: true } }),
+    prisma.trainingSession.findFirst({ where: { userId, date: dbDate(today) }, select: { id: true } }),
+  ]);
+  const locked = (d: string) => d < today || (d === today && started != null);
+  return { today, weekStart, slots: row ? (row.slots as unknown as DaySlot[]) : null, locked };
 }

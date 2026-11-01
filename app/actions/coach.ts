@@ -23,7 +23,7 @@ import { planWeek, suggestProgram, weekdayOf, type DaySlot, type FixedDay, type 
 import { startProgram } from '@/app/actions/program';
 import { slotStateOf } from '@/lib/coach/status';
 import { applyAdjust, readAdjust } from '@/lib/coach/adjust';
-import { coachSlotOf } from '@/lib/coach/today';
+import { coachSlotOf, coachWeekBase } from '@/lib/coach/today';
 import { buildReview, reviewWeekOf, type WeekReview } from '@/lib/coach/review';
 import { zonedFormat } from '@/lib/time-zone';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
@@ -287,24 +287,13 @@ export async function ackWeeklyReview(weekStart: unknown): Promise<{ ok: true } 
 
 const slotsKey = (slots: unknown) => createHash('sha1').update(JSON.stringify(slots)).digest('hex').slice(0, 16);
 
-/** 이번 주 틀 + 못 바꾸는 날(지난 날 · 오늘 운동을 이미 시작했으면 오늘) */
-async function adjustBase(userId: string) {
-  const today = toDateKey(appNow());
-  const weekStart = dbDate(shiftDateKey(today, -weekdayOf(today)));
-  const [row, started] = await Promise.all([
-    prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId, weekStart } }, select: { slots: true } }),
-    prisma.trainingSession.findFirst({ where: { userId, date: dbDate(today) }, select: { id: true } }),
-  ]);
-  const locked = (d: string) => d < today || (d === today && started != null);
-  return { weekStart, slots: row ? (row.slots as unknown as DaySlot[]) : null, locked };
-}
 
 export async function previewCoachAdjust(raw: unknown) {
   const user = await requireUser();
   if (!(await coachPaid(user))) return { error: '코치를 쓸 수 없어요.' } as const;
   const adj = readAdjust(raw);
   if (!adj) return { error: '다시 골라 주세요.' } as const;
-  const { slots, locked } = await adjustBase(user.id);
+  const { slots, locked } = await coachWeekBase(user.id);
   if (!slots) return { error: '이번 주 일정이 없어요.' } as const;
   const r = applyAdjust(slots, adj, locked);
   if ('error' in r) return { error: r.error } as const;
@@ -324,7 +313,7 @@ export async function applyCoachAdjust(raw: unknown, token: unknown): Promise<{ 
   if (!(await coachPaid(user))) return { error: '코치를 쓸 수 없어요.' };
   const adj = readAdjust(raw);
   if (!adj) return { error: '다시 골라 주세요.' };
-  const { weekStart, slots, locked } = await adjustBase(user.id);
+  const { weekStart, slots, locked } = await coachWeekBase(user.id);
   if (!slots) return { error: '이번 주 일정이 없어요.' };
   if (token !== slotsKey(slots)) return { error: '그새 일정이 바뀌었어요. 다시 골라 주세요.' };
   const r = applyAdjust(slots, adj, locked);
