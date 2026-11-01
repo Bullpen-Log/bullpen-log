@@ -3,6 +3,7 @@ import { loadCoachWeek } from '@/app/actions/coach';
 import { WEEKDAY_LABELS, slotLine } from '@/lib/coach/answers';
 import type { DaySlot } from '@/lib/coach/week';
 import type { SlotState } from '@/lib/coach/status';
+import type { WeekReview } from '@/lib/coach/review';
 import { Check } from '@/components/icon';
 
 /**
@@ -10,11 +11,21 @@ import { Check } from '@/components/icon';
  * 칸 글은 앱 코치 탭과 같은 `slotLine`. 유료가 아니면 page.tsx 가 소개를 먼저 그려 여기 오지 않는다.
  */
 export async function CoachWeekCard() {
-  const { today, week, states } = await loadCoachWeek();
-  return <CoachWeekView today={today} week={week} states={states} />;
+  const { today, week, states, review } = await loadCoachWeek();
+  return <CoachWeekView today={today} week={week} states={states} review={review} />;
 }
 
-export function CoachWeekView({ today, week, states }: { today?: string; week: DaySlot[] | null; states?: SlotState[] | null }) {
+export function CoachWeekView({
+  today,
+  week,
+  states,
+  review,
+}: {
+  today?: string;
+  week: DaySlot[] | null;
+  states?: SlotState[] | null;
+  review?: WeekReview | null;
+}) {
   if (!week) {
     return (
       <Card className="p-(--block-pad)">
@@ -24,6 +35,16 @@ export function CoachWeekView({ today, week, states }: { today?: string; week: D
   }
   return (
     <Card className="p-(--block-pad)">
+      {review ? (
+        <div className="mb-4 rounded-xl bg-surface-2 p-3 text-sm">
+          <p className="font-semibold text-ink">돌아보기 · {review.planned ? `${review.done} / ${review.planned}일` : '쉬어 간 주'}</p>
+          <ul className="mt-1 space-y-0.5 text-muted">
+            {review.lines.map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <p className="text-base font-semibold text-ink">이번 주</p>
       <ul className="mt-3 divide-y divide-line">
         {week.map((s, k) => {

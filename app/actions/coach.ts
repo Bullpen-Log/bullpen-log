@@ -24,6 +24,8 @@ import { startProgram } from '@/app/actions/program';
 import { slotStateOf } from '@/lib/coach/status';
 import { applyAdjust, readAdjust } from '@/lib/coach/adjust';
 import { coachSlotOf } from '@/lib/coach/today';
+import { buildReview, reviewWeekOf, type WeekReview } from '@/lib/coach/review';
+import { zonedFormat } from '@/lib/time-zone';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { visibleExercises } from '@/lib/library-cache';
 import { movementKeyOf } from '@/lib/engine/exercise-class';
@@ -221,8 +223,9 @@ export async function startCoach(input: { program?: unknown }): Promise<{ ok: tr
  */
 export async function loadCoachWeek() {
   const user = await requireUser();
-  if (!(await coachPaid(user))) return { ok: true as const, week: null, states: null, checkedIn: false };
-  const today = toDateKey(appNow());
+  if (!(await coachPaid(user))) return { ok: true as const, week: null, states: null, checkedIn: false, review: null };
+  const now = appNow();
+  const today = toDateKey(now);
   const weekStart = shiftDateKey(today, -weekdayOf(today));
   const [row, profile, checkin, done] = await Promise.all([
     prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId: user.id, weekStart: dbDate(weekStart) } }, select: { slots: true } }),
@@ -243,7 +246,41 @@ export async function loadCoachWeek() {
     week,
     states: week ? week.map((s) => slotStateOf(s, done[s.date], today)) : null,
     checkedIn: checkin != null,
+    review: profile?.status === 'active' ? await reviewOf(user.id, today, Number(zonedFormat('en-US', { hour: 'numeric', hourCycle: 'h23' }).format(now))) : null,
   };
+}
+
+/** 주간 리뷰(U37) — 일요일 18시 ~ 월요일, [확인] 전까지. 칸 상태는 기록에서, 힘듦 · 불편 동작은 그날 기록 줄에서(불편은 건강 동의가 있을 때만) */
+async function reviewOf(userId: string, today: string, hour: number): Promise<WeekReview | null> {
+  const ws = reviewWeekOf(today, hour);
+  if (!ws) return null;
+  const end = shiftDateKey(ws, 6);
+  const row = await prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId, weekStart: dbDate(ws) } }, select: { slots: true, reviewAckAt: true } });
+  if (!row || row.reviewAckAt) return null;
+  const slots = row.slots as unknown as DaySlot[];
+  const [done, notes, consent] = await Promise.all([
+    loadTrainingDone(userId, ws, end),
+    prisma.dailyTrainingNote.findMany({ where: { userId, date: { gte: dbDate(ws), lte: dbDate(end) } }, select: { date: true, intensity: true, discomfort: true } }),
+    healthConsentFor(userId),
+  ]);
+  const efforts: Record<string, number> = {};
+  const discomfort: Record<string, string[]> = {};
+  for (const n of notes) {
+    const d = keyOfDbDate(n.date);
+    efforts[d] = n.intensity;
+    if (consent.valid && Array.isArray(n.discomfort))
+      discomfort[d] = (n.discomfort as { id?: unknown; move?: unknown }[]).map((x) => String(x.move ?? x.id ?? '')).filter(Boolean);
+  }
+  return buildReview({ weekStart: ws, slots, states: slots.map((s) => slotStateOf(s, done[s.date], today)), efforts, discomfort });
+}
+
+/** 주간 리뷰 [확인] — 그 주 카드를 접는다 */
+export async function ackWeeklyReview(weekStart: unknown): Promise<{ ok: true } | { error: string }> {
+  const user = await requireUser();
+  if (typeof weekStart !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) return { error: '다시 눌러 주세요.' };
+  await prisma.coachWeek.updateMany({ where: { userId: user.id, weekStart: dbDate(weekStart), reviewAckAt: null }, data: { reviewAckAt: new Date() } });
+  revalidatePath('/coach');
+  return { ok: true };
 }
 
 /* ─────────── 조정 단추(10-5 U35) — 미리보기 → 적용. 미리본 그 틀일 때만 적용(그새 바뀌었으면 다시 미리보기) ─────────── */

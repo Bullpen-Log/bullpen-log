@@ -484,6 +484,8 @@
   — 서버 `loadDiscomfortAsk` · `saveDiscomfort`(코치 진행 중 · 유료 · 건강 동의, 그 판의 운동만, 움직임 열쇠 같이 저장). 다음 운동 만들기가 지난 7일 불편 동작과 같은 움직임 열쇠의 운동을
   60일 '바꿔서 뺀 횟수'에 `SWAPPED_MIN` 으로 얹어 뒤로 미룬다(`lib/coach/today.ts pushBackDiscomfort` — 점수 판정 그대로, 서버 동작은 score.ts 를 직접 import 하지 않는 약속 지킴). 건강 동의를 거두면 읽지 않는다.
   남은 것: 건강 동의 철회 화면(B4)이 생기면 그때 `discomfort` 를 지운다(지금은 읽기만 막음).
+- C5 ④ 끝: 순수 `lib/coach/review.ts`(`reviewWeekOf` — 일요일 18시(한국) ~ 월요일, `buildReview` — 계획 · 한 날 · 계획 밖 · 못 함 · 힘듦 평균과 흐름 · 같은 움직임 3일 넘게 불편이면 '전문가와 상의') + coach:test.
+  `loadCoachWeek` 이 `review` 를 같이 준다(확인 전까지). 앱 코치 탭 맨 위 카드 [확인] → `ackWeeklyReview`(CoachWeek.reviewAckAt). PC 카드엔 읽기만. '다음 주가 바뀐 까닭'은 다음 주 틀이 월요일에 지어져 뺐다.
 
 ### 10-6. 6단계 — AI: 대화 · 설명 문장(U39~U44 확정, 기준 origin/main `83946b61`)
 

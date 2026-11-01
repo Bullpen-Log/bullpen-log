@@ -10,6 +10,7 @@ import { STRENGTH_PER_WEEK } from '@/lib/armcare/routine';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { slotStateOf, startsOf } from '@/lib/coach/status';
 import { applyAdjust, readAdjust } from '@/lib/coach/adjust';
+import { buildReview, reviewWeekOf } from '@/lib/coach/review';
 import { dayRuleOf, planWeek, suggestProgram, weekdayOf, type CoachAnswers, type DaySlot, type WeekInput, type Weekday } from '@/lib/coach/week';
 
 let pass = 0;
@@ -272,6 +273,31 @@ check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ ki
     }
   }
   check('⑥ 옮긴 뒤 이틀 잇는 큰 하체 없음', consec === 0, String(consec));
+}
+
+/* ─────────── ⑦ 주간 리뷰 ─────────── */
+{
+  check('⑦ 일요일 17시 → 아직', reviewWeekOf('2026-11-08', 17) === null);
+  check('⑦ 일요일 18시 → 이번 주', reviewWeekOf('2026-11-08', 18) === '2026-11-02');
+  check('⑦ 월요일 → 지난주', reviewWeekOf('2026-11-09', 9) === '2026-11-02');
+  check('⑦ 화요일 → 없음', reviewWeekOf('2026-11-10', 20) === null);
+  const ws = '2026-11-02';
+  const day = (i: number) => shiftDateKey(ws, i);
+  const tr = (i: number): DaySlot => ({ date: day(i), items: [{ kind: 'train', fence: { minutes: 60, heavyLower: false, light: false } }], reasons: [], owner: 'coach', rule: 'none', rank: 'none' });
+  const rs = (i: number): DaySlot => ({ date: day(i), items: [{ kind: 'rest' }], reasons: ['rest'], owner: 'coach', rule: 'none', rank: 'none' });
+  const slots = [tr(0), rs(1), tr(2), rs(3), tr(4), rs(5), rs(6)];
+  const r = buildReview({
+    weekStart: ws, slots,
+    states: ['done', 'done', 'missed', 'off', 'done', 'off', 'off'],
+    efforts: { [day(0)]: 5, [day(1)]: 6, [day(4)]: 8 },
+    discomfort: { [day(0)]: ['hinge'], [day(1)]: ['hinge'], [day(4)]: ['hinge', 'hinge'] },
+  });
+  check('⑦ 계획 3 · 한 것 2 · 계획 밖 1 · 못 함 1', r.planned === 3 && r.done === 2 && r.extra === 1 && r.missed === 1, JSON.stringify(r));
+  check('⑦ 힘듦 평균 · 갈수록 힘들어짐', r.effortAvg === 6.3 && r.lines.some((l) => l.includes('갈수록 힘들어졌어요')), JSON.stringify(r.lines));
+  check('⑦ 같은 동작 3일 → 전문가 한 줄(같은 날 두 번은 하루로)', r.repeated && r.lines.some((l) => l.includes('전문가')), JSON.stringify(r));
+  const r2 = buildReview({ weekStart: ws, slots, states: ['missed', 'off', 'missed', 'off', 'done', 'off', 'off'], efforts: {}, discomfort: { [day(0)]: ['hinge'], [day(2)]: ['hinge'] } });
+  check('⑦ 이틀 불편은 아직 · 못 한 날 많음 한 줄', !r2.repeated && r2.lines.some((l) => l.includes('못 한 날이 많았어요')), JSON.stringify(r2));
+  check('⑦ 글에 줄표 없음', [...r.lines, ...r2.lines].every((l) => !l.includes('—')));
 }
 
 console.log(`coach: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''} (불변 입력 ${n}가지)`);

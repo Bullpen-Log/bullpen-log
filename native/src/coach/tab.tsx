@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, type Href } from 'expo-router';
 import { REASON_TEXT, WEEKDAY_LABELS, slotLine } from '@/lib/coach/answers';
+import type { WeekReview } from '@/lib/coach/review';
 import { startsOf, type SlotState } from '@/lib/coach/status';
 import type { DaySlot } from '@/lib/coach/week';
 import { COACH_POINTS } from '@/lib/coach-intro';
@@ -50,7 +51,7 @@ const REVIEWS = [
   { view: 'training', label: '트레이닝 분석' },
 ] as const;
 
-type CoachWeekData = { today: string; week: DaySlot[] | null; states: SlotState[] | null; checkedIn: boolean };
+type CoachWeekData = { today: string; weekStart?: string; week: DaySlot[] | null; states: SlotState[] | null; checkedIn: boolean; review?: WeekReview | null };
 
 /**
  * 코치 탭(하단 탭 둘째, docs/designs/ai-coach.md 10-1 · 10-5) — 무료면 소개, 유료면 코치 메인: 오늘 계획(크게) → 이번 주 7칸(한 것 · 못 함) → 리뷰 → 답 고치기.
@@ -102,6 +103,7 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
               <Text style={[TYPE.card, { color: c.onAction }]}>코치 시작하기</Text>
             </Press>
           ) : null}
+          {data?.review ? <ReviewCard review={data.review} thisWeek={data.review.weekStart === data.weekStart} onDone={loadWeek} /> : null}
           {week && data && todayAt >= 0 ? (
             <TodayCard slot={week[todayAt]} state={data.states?.[todayAt] ?? 'today'} checkedIn={data.checkedIn} onDone={loadWeek} />
           ) : null}
@@ -153,6 +155,41 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
         </>
       ) : null}
     </ScrollView>
+  );
+}
+
+/** 주간 리뷰(U37) — 일요일 저녁 ~ 월요일, [확인]하면 접힌다. 글은 서버가 정해진 문장으로(lib/coach/review.ts) */
+function ReviewCard({ review, thisWeek, onDone }: { review: WeekReview; thisWeek: boolean; onDone: () => void }) {
+  const c = usePalette();
+  const [busy, setBusy] = useState(false);
+  const ack = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await rpc<{ ok: true } | { error: string }>('coach.ackWeeklyReview', review.weekStart);
+      if ('error' in r) toast(r.error ?? '다시 눌러 주세요.');
+      else onDone();
+    } catch {
+      toast('신호가 약해요. 다시 눌러 주세요.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <View style={[SURFACE.card, { backgroundColor: c.card, boxShadow: c.float }]}>
+      <Text style={[TYPE.sub, { color: c.muted }]}>{thisWeek ? '이번 주 돌아보기' : '지난주 돌아보기'}</Text>
+      <Text style={[TYPE.hero, { color: c.ink }]}>{review.planned ? `${review.done} / ${review.planned}일` : '쉬어 간 주'}</Text>
+      <View style={{ gap: 4 }}>
+        {review.lines.map((l) => (
+          <Text key={l} style={[TYPE.body, { color: c.ink }]}>
+            {l}
+          </Text>
+        ))}
+      </View>
+      <Press accessibilityRole="button" disabled={busy} onPress={() => void ack()} style={[st.start, { backgroundColor: c.action }]}>
+        <Text style={[TYPE.card, { color: c.onAction }]}>확인</Text>
+      </Press>
+    </View>
   );
 }
 
