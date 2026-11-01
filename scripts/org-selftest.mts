@@ -1736,7 +1736,7 @@ console.log(
   const leaky = { ...today, events: [{ ...today.events[0], secretArmNote: 'x' } as unknown as (typeof today.events)[number]] };
   check('G05 허용 목록: 목록에 없는 칸은 누구에게도 안 나간다(새 민감 칸이 정책을 비켜 가지 않게)', !('secretArmNote' in redactToday(leaky, rosterOnly).events[0]) && !('secretArmNote' in redactToday(leaky, coach).events[0]));
 
-  const rows = [{ memberId: 'm1', nickname: 'a', tags: ['투수'], hasUser: true, consentPending: false, pitchOk: true, arm: { level: 'danger' }, watch: 'attention' as const }, { memberId: 'm2', nickname: 'b', tags: [], hasUser: true, consentPending: true, pitchOk: false, arm: null, watch: 'pending' as const }];
+  const rows = [{ memberId: 'm1', nickname: 'a', tags: ['투수'], hasUser: true, consentPending: false, pitchOk: true, arm: { level: 'danger' }, watch: 'attention' as string | null }, { memberId: 'm2', nickname: 'b', tags: [], hasUser: true, consentPending: true, pitchOk: false, arm: null, watch: 'pending' as string | null }];
   const r1 = redactMembers(rows, rosterOnly);
   check('F05 명단: 명단만 — 팔 상태 null · 주의 살핌 null · 동의 대기는 남음 · hidden=training', r1.members.length === 2 && r1.members[0].arm === null && r1.members[0].watch === null && r1.members[1].watch === 'pending' && r1.hidden.includes('training') && r1.members[0].tags[0] === '투수');
   const r2 = redactMembers(rows, groupCoach);
