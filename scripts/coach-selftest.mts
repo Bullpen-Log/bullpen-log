@@ -1,0 +1,211 @@
+/**
+ * 코치 주간 계획기 자체 시험(lib/coach/week.ts, docs/designs/ai-coach.md 10-3) — `npm run coach:test`.
+ * ① 날 종류가 진짜 엔진(dayKindOf)과 같은가 ② 설계의 장면들 ③ 여러 입력을 돌려 불변(등판 날 큰 하체 0 · 이어진 이틀 큰 하체 0 · 쉬는 날 ≥ 1 ·
+ * 가능 요일 밖 운동 0 · 강화 암케어 잇지 않음 · 메커니즘은 팔 쓴 날 밖) ④ 프로그램 제안.
+ */
+import { buildFacts, type CheckinLike } from '@/lib/report/facts';
+import { dayKindOf } from '@/lib/engine/microcycle';
+import { PROGRAMS, REQUIRED_EQUIPMENT, BASICS_REQUIRED_EQUIPMENT } from '@/lib/program/program';
+import { STRENGTH_PER_WEEK } from '@/lib/armcare/routine';
+import { shiftDateKey } from '@/lib/pitch-stats';
+import { dayRuleOf, planWeek, suggestProgram, weekdayOf, type CoachAnswers, type DaySlot, type WeekInput, type Weekday } from '@/lib/coach/week';
+
+let pass = 0;
+const fails: string[] = [];
+function check(name: string, ok: boolean, detail = '') {
+  if (ok) pass++;
+  else fails.push(`${name}${detail ? ` — ${detail}` : ''}`);
+}
+
+/* ─────────── ① 날 종류 = 엔진 ─────────── */
+const TODAY = new Date('2026-11-04T09:00:00+09:00');
+const D = '2026-11-04';
+const checkin = (date: string, throwPlan: string | null): CheckinLike => ({
+  date,
+  condition: 7,
+  sleep: '보통',
+  shoulder: '정상',
+  elbow: '정상',
+  wrist: '정상',
+  lowerBack: '정상',
+  lowerBody: '정상',
+  preferredParts: [],
+  preferredWorkout: null,
+  throwPlan,
+});
+const facts = (plan: string | null, yesterdayGame = false) =>
+  buildFacts({
+    nickname: '시험',
+    age: 22,
+    heightCm: 180,
+    baselineDailyLoad: 100,
+    today: TODAY,
+    logs: yesterdayGame
+      ? [{ date: new Date(TODAY.getTime() - 86_400_000).toISOString(), pitchCount: 95, intensity: 10, sessionType: '경기', maxVelocity: 130, avgVelocity: 120 }]
+      : [],
+    checkins: plan ? [checkin(D, plan)] : [],
+    memos: [],
+  });
+const CROSS: { name: string; f: ReturnType<typeof facts>; outings: { date: string; soft: boolean }[] }[] = [
+  { name: '오늘 등판', f: facts('오늘 등판'), outings: [{ date: D, soft: false }] },
+  { name: '내일 등판', f: facts('내일 등판'), outings: [{ date: shiftDateKey(D, 1), soft: false }] },
+  { name: '2~3일 뒤(3일)', f: facts('2~3일 뒤'), outings: [{ date: shiftDateKey(D, 3), soft: false }] },
+  { name: '2~3일 뒤(2일)', f: facts('2~3일 뒤'), outings: [{ date: shiftDateKey(D, 2), soft: false }] },
+  { name: '4일 이상 뒤', f: facts('4일 이상 뒤'), outings: [{ date: shiftDateKey(D, 4), soft: false }] },
+  { name: '어제 경기 95구', f: facts(null, true), outings: [{ date: shiftDateKey(D, -1), soft: false }] },
+  { name: '모름', f: facts(null), outings: [] },
+];
+for (const c of CROSS) {
+  const eng = dayKindOf(c.f);
+  const mine = dayRuleOf(D, c.outings);
+  check(`① 날 종류 = 엔진 · ${c.name}`, eng.rule === mine.rule, `엔진 ${eng.rule} · 계획기 ${mine.rule}`);
+  if (eng.rank === 'strength')
+    check(`① 큰 하체 = 엔진 · ${c.name}`, eng.heavyLowerAllowed === mine.heavyLower, `엔진 ${eng.heavyLowerAllowed} · 계획기 ${mine.heavyLower}`);
+}
+
+/* ─────────── ② 장면 ─────────── */
+const MON = '2026-11-02';
+const ALL: Weekday[] = [0, 1, 2, 3, 4, 5, 6];
+const answers = (o: Partial<CoachAnswers> = {}): CoachAnswers => ({ days: [0, 1, 2, 3, 4, 5], minutes: 60, outingDays: [], outingEvery: null, teamDays: [], ...o });
+const input = (o: Partial<WeekInput> = {}): WeekInput => ({
+  weekStart: MON,
+  today: MON,
+  answers: answers(),
+  fixed: [],
+  outingDate: null,
+  lastOuting: null,
+  youth: false,
+  painArm: false,
+  effortSpike: false,
+  level: '중급',
+  baselineFreq: null,
+  program: null,
+  mechanics: null,
+  ...o,
+});
+const kinds = (s: DaySlot) => s.items.map((x) => x.kind);
+const workouts = (w: DaySlot[]) => w.filter((s) => s.items.some((x) => x.kind === 'train' || x.kind === 'program'));
+const heavy = (s: DaySlot) => s.items.some((x) => (x.kind === 'train' && x.fence.heavyLower) || (x.kind === 'program' && x.heavyLower));
+
+{
+  /* 선발 5일 간격 — 지난 등판 10-30(금) → 11-04(수) · 11-09(월, 다음 주) 짐작 */
+  const w = planWeek(input({ answers: answers({ outingEvery: 5 }), lastOuting: '2026-10-30' }));
+  const wed = w[2];
+  check('② 선발 5일 · 등판 짐작 날은 운동 없음 · 보조', wed.rule === 'softOutingNear' && !kinds(wed).includes('program') && !heavy(wed), JSON.stringify(wed));
+  check('② 선발 5일 · 짐작 등판 다음 날은 회복이 아니다(짐작은 가볍게 하는 쪽에만)', w[3].rule !== 'hard', w[3].rule);
+}
+{
+  /* 확실한 등판(체크인 답 11-05 목) — 목 회복 · 금 회복 · 수 보조 */
+  const w = planWeek(input({ outingDate: '2026-11-05' }));
+  check('② 확실한 등판 날 · 다음 날은 운동 안 함 · 회복 암케어 제안', [w[3], w[4]].every((s) => workouts([s]).length === 0 && s.items.some((x) => x.kind === 'armcare' && x.mode === 'recovery')), JSON.stringify([w[3], w[4]].map(kinds)));
+  check('② 등판 전날은 보조(큰 하체 없음)', w[2].rule === 'outingTomorrow' && !heavy(w[2]), JSON.stringify(w[2]));
+}
+{
+  const w = planWeek(input({ answers: answers({ teamDays: [1, 3] }) }));
+  check('② 팀 훈련 화 · 목 — 그날 코치 운동 없음', [w[1], w[3]].every((s) => kinds(s).includes('fixed') && workouts([s]).length === 0));
+}
+{
+  const w = planWeek(input({ fixed: [{ date: '2026-11-04', kind: 'lesson' }], baselineFreq: 3 }));
+  check('② 레슨 있는 날은 운동량에 셈 — 코치 운동 날 2개 + 레슨', workouts(w).length === 2 && workouts([w[2]]).length === 0, String(workouts(w).length));
+}
+{
+  const w = planWeek(input({ program: { perWeek: 3 }, outingDate: '2026-11-08' }));
+  const p = w.filter((s) => kinds(s).includes('program'));
+  check('② 프로그램 주 3번 — 3날, 등판 전날(보조) 아님', p.length === 3 && p.every((s) => s.rank !== 'light'), JSON.stringify(p.map((s) => s.date)));
+  check('② 프로그램 날은 이어지지 않음', p.every((s, i) => i === 0 || shiftDateKey(p[i - 1].date, 1) !== s.date));
+}
+{
+  const w = planWeek(input({ baselineFreq: 4 }));
+  check('② 프로그램 없음 — 평소 횟수(4)만큼 그날그날 운동', workouts(w).length === 4 && w.every((s) => !kinds(s).includes('program')));
+}
+{
+  const w = planWeek(input({ answers: answers({ days: [1, 4] }), baselineFreq: 5 }));
+  check('② 가능 요일 둘뿐 — 운동은 화 · 금만', workouts(w).length === 2 && workouts(w).every((s) => [1, 4].includes(weekdayOf(s.date))));
+}
+{
+  const w = planWeek(input({ answers: answers({ days: ALL }), baselineFreq: 7 }));
+  check('② 매일 가능 · 7번 원해도 쉬는 날 하루', w.filter((s) => kinds(s).includes('rest')).length >= 1, String(workouts(w).length));
+}
+{
+  const w = planWeek(input({ painArm: true, mechanics: { perWeek: 2 } }));
+  check('② 통증 — 메커니즘 · 강화 암케어 없음', w.every((s) => !s.items.some((x) => x.kind === 'mechanics' || (x.kind === 'armcare' && x.mode === 'strength'))) && w.some((s) => s.reasons.includes('pain')));
+}
+{
+  const w = planWeek(input({ youth: true, baselineFreq: 5 }));
+  check('② 성장기 — 큰 하체 0 · 주 3번까지', w.every((s) => !heavy(s)) && workouts(w).length <= 3, String(workouts(w).length));
+}
+{
+  const a = workouts(planWeek(input({ baselineFreq: 4 }))).length;
+  const b = workouts(planWeek(input({ baselineFreq: 4, effortSpike: true }))).length;
+  check('② 힘듦 급증 주 — 운동 날 하나 줄임', b === a - 1, `${a} → ${b}`);
+}
+{
+  /* 수요일에 다시 맞춤 — 월(지난 날, 운동 칸)은 못 했어도 그대로 · 그 몫을 뒤로 몰지 않음 */
+  const first = planWeek(input({ baselineFreq: 3 }));
+  const again = planWeek(input({ baselineFreq: 3, today: '2026-11-04', prev: first }));
+  check('② 다시 맞춤 — 지난 날은 그대로', JSON.stringify(again.slice(0, 2)) === JSON.stringify(first.slice(0, 2)));
+  check('② 다시 맞춤 — 못 한 날을 몰아넣지 않음(주 운동 수 그대로)', workouts(again).length === workouts(first).length, `${workouts(first).length} → ${workouts(again).length}`);
+}
+{
+  const first = planWeek(input({ baselineFreq: 3 }));
+  const mine: DaySlot = { ...first[5], owner: 'user', items: [{ kind: 'rest' }], reasons: ['rest'] };
+  const prev = first.map((s, i) => (i === 5 ? mine : s));
+  const again = planWeek(input({ baselineFreq: 3, today: '2026-11-04', prev, outingDate: '2026-11-08' }));
+  check('② 사용자가 고친 날은 안 덮음', JSON.stringify(again[5]) === JSON.stringify(mine));
+}
+{
+  const a = planWeek(input({ program: { perWeek: 2 }, mechanics: { perWeek: 2 }, answers: answers({ outingEvery: 5, teamDays: [2] }), lastOuting: '2026-10-31' }));
+  const b = planWeek(input({ program: { perWeek: 2 }, mechanics: { perWeek: 2 }, answers: answers({ outingEvery: 5, teamDays: [2] }), lastOuting: '2026-10-31' }));
+  check('② 같은 입력 같은 결과', JSON.stringify(a) === JSON.stringify(b));
+}
+
+/* ─────────── ③ 불변 ─────────── */
+const DAY_SETS: Weekday[][] = [[0, 2, 4], [1, 3], ALL, [0, 1, 2, 3, 4], [5, 6], [0, 1, 3, 4, 5]];
+let n = 0;
+for (const days of DAY_SETS)
+  for (const outing of [null, '2026-11-03', '2026-11-06', '2026-11-08'])
+    for (const every of [null, 5, 7])
+      for (const program of [null, { perWeek: 2 }, { perWeek: 3 }])
+        for (const team of [[], [2], [1, 3]] as Weekday[][])
+          for (const flags of [0, 1, 2, 3]) {
+            n++;
+            const inp = input({
+              answers: answers({ days, outingEvery: every, outingDays: every ? [] : [5], teamDays: team }),
+              outingDate: outing,
+              lastOuting: '2026-10-31',
+              program,
+              mechanics: { perWeek: 2 },
+              youth: flags === 1,
+              painArm: flags === 2,
+              effortSpike: flags === 3,
+              baselineFreq: 4,
+            });
+            const w = planWeek(inp);
+            const tag = JSON.stringify({ days, outing, every, program, team, flags });
+            const outingDays = w.filter((s) => s.rule === 'outingToday' || s.rule === 'hard');
+            check('③ 등판 날 · 다음 날 운동 0', outingDays.every((s) => workouts([s]).length === 0), tag);
+            check('③ 이어진 이틀 큰 하체 0', w.every((s, i) => i === 0 || !(heavy(s) && heavy(w[i - 1]))), tag);
+            check('③ 쉬는 날 ≥ 1', w.some((s) => !s.items.some((x) => x.kind === 'train' || x.kind === 'program' || (x.kind === 'fixed' && x.what !== 'game'))), tag);
+            check('③ 가능 요일 밖 운동 0', workouts(w).every((s) => days.includes(weekdayOf(s.date))), tag);
+            const str = w.map((s, i) => (s.items.some((x) => x.kind === 'armcare' && x.mode === 'strength') ? i : -1)).filter((i) => i >= 0);
+            check('③ 강화 암케어 ≤ 주 3 · 잇지 않음 · 모두 제안', str.length <= STRENGTH_PER_WEEK && str.every((x, k) => k === 0 || x - str[k - 1] > 1) && w.every((s) => s.items.every((x) => x.kind !== 'armcare' || x.suggested)), tag);
+            check('③ 메커니즘은 팔 쓴 날 · 등판 전날 밖', w.every((s) => !s.items.some((x) => x.kind === 'mechanics') || !['outingToday', 'hard', 'outingTomorrow'].includes(s.rule)), tag);
+            check('③ 성장기 큰 하체 0', !inp.youth || w.every((s) => !heavy(s)), tag);
+            check('③ 칸 7 · 날짜 차례', w.length === 7 && w.every((s, i) => s.date === shiftDateKey(MON, i)), tag);
+          }
+
+/* ─────────── ④ 프로그램 제안 ─────────── */
+const ALL_GEAR = [...new Set([...REQUIRED_EQUIPMENT, ...BASICS_REQUIRED_EQUIPMENT, ...PROGRAMS.flatMap((p) => p.required ?? [])])];
+const pick = (o: Partial<Parameters<typeof suggestProgram>[0]>) =>
+  suggestProgram({ age: 25, level: '중급', ownedEquipment: ALL_GEAR, basicsDone: false, priority: null, trainingDays: 3, ...o });
+check('④ 구속 우선 · 중급 → 파워 프로그램', pick({ priority: 'velocity' })?.id === 'pitcher-power', JSON.stringify(pick({ priority: 'velocity' })));
+check('④ 초급 → 스트롱리프트 주 3', JSON.stringify(pick({ level: '초급' })) === JSON.stringify({ id: 'stronglifts-5x5', perWeek: 3 }), JSON.stringify(pick({ level: '초급' })));
+check('④ 초급 · 주 2일 → 주 3 프로그램은 건너뜀', pick({ level: '초급', trainingDays: 2 })?.perWeek === 2, JSON.stringify(pick({ level: '초급', trainingDays: 2 })));
+check('④ 입문(기본기 안 마침) → 기본기 4주', pick({ level: '입문' })?.id === 'basics-4w', JSON.stringify(pick({ level: '입문' })));
+check('④ 만 12세 → 없음', pick({ age: 12 }) === null);
+check('④ 장비 없음 → 없음', pick({ ownedEquipment: [] }) === null);
+check('④ 주 1일 → 없음', pick({ trainingDays: 1 }) === null);
+
+console.log(`coach: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''} (불변 입력 ${n}가지)`);
+for (const f of fails.slice(0, 20)) console.log(`  - ${f}`);
+if (fails.length) process.exit(1);

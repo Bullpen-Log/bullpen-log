@@ -100,7 +100,8 @@
     "shoot:plan": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/shoot-plan.mts",
     "shoot:refs": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/shoot-refs.mts",
     "shoot:outdoor": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/shoot-plan-outdoor.mts",
-    "library:bundle": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/library-bundle.mts"
+    "library:bundle": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/library-bundle.mts",
+    "coach:test": "node --import ./scripts/alias-register.mjs scripts/coach-selftest.mts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
