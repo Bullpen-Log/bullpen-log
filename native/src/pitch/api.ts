@@ -81,7 +81,8 @@ export async function call<T>(path: string, init: { method: string; body?: unkno
 
 /** country — 옛 서버 답에는 없다(그때는 한국, lib/country.ts countryOf) */
 /** access — 출시 전 베타 판정 요약(2026-10-29, lib/release-access.ts). 옛 서버 답에는 없다(그때는 정식 출시, shell/release.ts) */
-export type Me = { userId: string; nickname: string; isAdmin: boolean; today: string; locks: { pitch: boolean }; country?: string; access?: unknown };
+/** coachPaid — 코치 탭(유료)을 쓰나(lib/coach-access.ts, 2026-11-01). 옛 서버 답에는 없다(그때는 무료로 본다) */
+export type Me = { userId: string; nickname: string; isAdmin: boolean; coachPaid?: boolean; today: string; locks: { pitch: boolean }; country?: string; access?: unknown };
 let meCache: Promise<Me> | null = null;
 export function loadMe(): Promise<Me> {
   if (meCache) return meCache;

@@ -74,6 +74,8 @@ export type NavIconName =
   | 'users'
   /* 앱 하단 탭 '기록'(2026-10-29 확정 디자인 — 막대 그래프) */
   | 'records'
+  /* 앱 하단 탭 '코치'(2026-11-01, docs/designs/ai-coach.md 10-1 — 클립보드) */
+  | 'coach'
   | 'menu';
 
 export type NavItem = {
@@ -540,17 +542,31 @@ export const MOBILE_TABS: NavItem[] = [
 ];
 
 /**
- * 앱 하단 탭(2026-10-29 확정 디자인 — 홈 · 투구 · 트레이닝 · 기록 · 덕아웃). 더보기는 탭이 아니라 각 탭 위 오른쪽 메뉴(☰)다.
- * 앱 화면 판(BullpenNative/<n>) APP_TABS_LEVEL 부터 이 목록을 보낸다 — 옛 앱은 더보기가 탭에만 있어 MOBILE_TABS 그대로(components/app-shell/expo-tabs.tsx).
- * 기록(RECORDS_HREF)은 앱 화면만 있는 탭이다 — 앱이 웹으로 보내지 않는다(native/src/app/index.tsx pressTab). PC 웹은 그대로 MOBILE_TABS.
+ * 앱 하단 탭 — 더보기는 탭이 아니라 각 탭 위 오른쪽 메뉴(☰)다. 판(BullpenNative/<n>) APP_TABS_LEVEL(13)이면 APP_TABS_V13, APP_COACH_LEVEL(14)부터 APP_TABS,
+ * 그보다 옛 앱은 더보기가 탭에만 있어 MOBILE_TABS 그대로(app/(app)/layout.tsx). PC 웹은 그대로 MOBILE_TABS.
+ * 기록(RECORDS_HREF)은 앱 화면만 있는 곳이다 — 앱이 웹으로 보내지 않는다(native/src/app/index.tsx pressTab · goTab, 웹 '/records' 는 없다).
  */
 export const RECORDS_HREF = '/records';
 export const APP_TABS_LEVEL = 13;
-export const APP_TABS: NavItem[] = [
+/** 판 13 앱(코치 탭을 모름) — 기록이 제 탭 */
+export const APP_TABS_V13: NavItem[] = [
   { href: '/today', label: '홈', icon: 'home' },
   { href: '/videos', label: '투구', icon: 'baseball', lock: 'pitch' },
   { href: TRAINING_HOME_HREF, label: '트레이닝', icon: 'dumbbell', lock: 'training' },
   { href: RECORDS_HREF, label: '기록', icon: 'records' },
+  { href: DUGOUT_HREF, label: '덕아웃', icon: 'users' },
+];
+/**
+ * 판 14 부터(2026-11-01 김민, docs/designs/ai-coach.md U1) — 홈 · 코치 · 투구 · 트레이닝 · 덕아웃. 기록은 투구 탭 맨 위 [투구 | 기록] 고르개로(앱 화면,
+ * native/src/pitch/seg.tsx). 코치 탭은 앱 화면만 있다(웹 /coach 는 PC 의 분석 · 소개) — 앱이 웹으로 보내지 않는다(native/src/app/index.tsx pressTab).
+ */
+export const COACH_HREF = '/coach';
+export const APP_COACH_LEVEL = 14;
+export const APP_TABS: NavItem[] = [
+  { href: '/today', label: '홈', icon: 'home' },
+  { href: COACH_HREF, label: '코치', icon: 'coach' },
+  { href: '/videos', label: '투구', icon: 'baseball', lock: 'pitch' },
+  { href: TRAINING_HOME_HREF, label: '트레이닝', icon: 'dumbbell', lock: 'training' },
   { href: DUGOUT_HREF, label: '덕아웃', icon: 'users' },
 ];
 

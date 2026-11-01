@@ -49,6 +49,8 @@ function harness({ count = 5, reduce = false, glass = true, width = 390, deferSp
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 34, left: 0, right: 0 }) },
     '~/lib/ui': { usePalette: () => ({ sky: '#0070c9', muted: '#666666', ink: '#111111' }), useTheme: () => 'light', withAlpha: () => 'rgba(0,0,0,.1)' },
     '~/shell/icon': { Icon: 'Icon' },
+    /* 잠긴 탭 그림(2026-10-30 베타) — 시험은 잠김 모양을 안 본다 */
+    '~/shell/locked': { LOCK_DIM: 0.38, LockBadge: 'LockBadge' },
     './tab-pager': { emitRetap: () => retaps++ },
   };
   const cache = new Map();

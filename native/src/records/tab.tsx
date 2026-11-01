@@ -24,8 +24,8 @@ import { useMyVideos } from '~/videos/store';
 import { FILTERS, KIND_LABEL, dayRecords, filterOf, kindsOn, korDay, monthCells, noteOf, sameDayIn, searchRecords, shiftMonth, timeText, titleOf, valueOf, weekOf, type RecordFilter } from './model';
 import { loadOlderMonth, reloadRecords, resetRecordsStore, useRecords } from './store';
 
-/** 기록 탭의 껍데기 주소(웹에는 없다 — 앱 화면만, app/index.tsx pressTab) */
-export const RECORDS_PATH = '/records';
+import { PitchSeg, RECORDS_PATH } from '~/pitch/seg';
+export { RECORDS_PATH };
 
 let labCount: { epoch: number; n: number } | null = null;
 export const resetRecordsCache = () => {
@@ -41,7 +41,7 @@ export const resetRecordsCache = () => {
  * 찾기 결과 없음 · 불러오기 실패는 따로 말한다. 변화는 기존 전문 분석(투구 · 트레이닝 분석 화면)으로 가는 문 — 여기서 그래프를 줄여 다시 그리지 않는다.
  * 자료는 이미 남은 기록을 읽기만 한다(app.loadAppRecords). 카드를 누르면 그 기록의 화면(고치기 · 지우기는 거기서).
  */
-export function RecordsTab({ today, bottom }: { today: string; bottom: number }) {
+export function RecordsTab({ today, bottom, onTab }: { today: string; bottom: number; onTab: (href: string) => void }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const s = useRecords(today);
@@ -106,6 +106,7 @@ export function RecordsTab({ today, bottom }: { today: string; bottom: number })
       <PageHead title="기록">
         <MenuButton />
       </PageHead>
+      <PitchSeg value={RECORDS_PATH} onTab={onTab} />
       <Segmented<'log' | 'trends'>
         label="기록 보기 방식"
         options={[

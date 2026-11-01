@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 하단 탭 홈 · 코치 · 투구 · 트레이닝 · 덕아웃(앱 판 14) · 기록은 투구 탭 고르개로 · **네 앱 틀 · 탭 막대를 고쳤다**
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만이라 업데이트로 나간다). 김민: 유료 AI 코치 설계(`docs/designs/ai-coach.md` 10-1, 결정 U1 · U9~U14)의 1단계.
+- **탭 목록**: `lib/nav.ts` 판 14+ `APP_TABS`(코치 `/coach`, 아이콘 'coach'), 판 13 은 `APP_TABS_V13`(기록 탭 그대로), `app/(app)/layout.tsx` 가 판으로 고른다. 앱 `site.ts` 판 13 → **14**, `DEFAULT_TABS` 새 차례.
+- **앱 껍데기 `native/src/app/index.tsx`**: 판 차례 `home · coach · pitch · records · training · dugout · nutrition`(기록은 투구 옆이라 고르개를 누르면 옆으로 미끄러짐). 코치 · 기록은 앱 화면만(pressTab 이 웹을 안 옮김),
+  `goTab('/records')` 는 탭에 없어도 기록 판으로(홈 '이번 주'가 씀). `tabOf` 에서 `/coach` 를 홈 묶음에서 뺐다.
+- **기록**: `native/src/pitch/seg.tsx`(RECORDS_PATH 가 이리로 — records/tab 이 다시 내보냄) `PitchSeg` 를 투구 첫 화면 · 기록 화면 머리 밑에. `PitchTab` · `RecordsTab` 에 `onTab` 칸이 늘었다.
+- **코치 탭** `native/src/coach/tab.tsx`: 무료면 소개(결제 안내 · 링크 없음), 유료면 리뷰 두 줄(지금 분석 화면을 연다) + '자동 일정은 곧'. 유료는 서버 `lib/coach-access.ts coachPaid`(지금은 대표관리자만) → `loadAppMe` 의 `coachPaid`.
+- **분석 막기**: `loadAppAnalysis` 가 유료가 아니면 `{ ok: false, to: '/coach', need: 'paid' }` — 새 앱은 분석 화면에 소개, 옛 앱은 웹 `/coach` 로 떠나 소개(page.tsx 가 OpenNative 보다 먼저 소개). 베타에선 /coach 가 'analysis' 라 원래도 잠김.
+- 시험: 앱 · 웹 tsc 0 · 바꾼 파일 eslint 0 · tab-bar 706(빠진 가짜 부품 `~/shell/locked` 더함) · release-access 688 · release-gate 102 · native-api(모양 둘 갱신 — 더하기 · 선택 칸, APP_API_LEVEL 그대로).
+  org:test 의 '나가기는 소속 관리 화면에서만' 실패는 윈도우 경로(`\`) 탓, integration 실패 4 는 팀 · 레슨 쪽 파일이라 손 안 댔다. **폰 · 시뮬레이터는 아직** — 하단 탭 다섯 · 코치(대표 계정 · 일반 계정) · 투구 ↔ 기록 고르개 · 홈 '이번 주' → 기록을 봐 줘.
+
 ## 김민에게 — 2026-11-01 · 금윤호(Claude, 윤호 맥북) — 베타에 트레이닝 · 기록 · 알림 · 고객센터를 열었다 · 잠긴 칸은 다시 회색 + 자물쇠 · **네 앱 틀 · 트레이닝 탭을 고쳤다**
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). 금윤호: "막힌 기능은 ABS 처럼 자물쇠로 가려줘, 트레이닝 · 기록 · 알림 · 고객센터는 열어둬"(e9176bfb, 바로 밑 글을 이어 고침).
