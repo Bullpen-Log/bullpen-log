@@ -374,7 +374,9 @@
 **진행(2026-11-01)**: C1 계획기 끝 — `lib/coach/week.ts`(`planWeek` · `dayRuleOf` · `suggestProgram`) + `npm run coach:test`(장면 · 불변 2,592 입력 · 엔진 `dayKindOf` 와 견줌 7). 엔진 파일은 안 바꿨다.
 - 엔진은 '오늘 한 날'을 facts 로 판정해 미래 날에 못 쓴다 → `dayRuleOf` 가 '등판까지 며칠'로 같은 규칙 이름 · 문턱(`DAY_RULE_RANK` · `HEAVY_LOWER_BLOCK_WITHIN_DAYS` · `FAR_OUTING_MIN_DAYS`)을 읽고, 시험이 진짜 `dayKindOf` 와 맞는지 본다.
 - 칸 상태(한 것 · 못 함)는 계획기에 안 둔다 — 5단계대로 기록에서 읽는다. 등판 질문은 요일 짐작(`outingDays`)과 선발 간격(`outingEvery`) 둘로 받는다.
-- 남은 것: C1-2 레슨 '한 일' → 그날 운동량(엔진 공통 — 판정이 바뀌어 따로 묻기) · C1-3 체크인 등판 화면(코치 진행 중 = C2 표가 있어야) · C2 DB 표.
+- 남은 것: C1-2 레슨 '한 일' → 그날 운동량(엔진 공통 — 판정이 바뀌어 따로 묻기) · C1-3 체크인 등판 화면(코치 진행 중 = C2 표가 있어야).
+- C2 끝(같은 날): 표 다섯(`Entitlement` · `CoachProfile` · `CoachWeek` · `CoachLog` · `CoachMessage`, 마이그레이션 `20261101130000_coach_tables` CREATE 만) · `coachPaid` 가 권한 표를 읽음(대표관리자는 늘) ·
+  PC 관리자 회원 줄 '코치 켬/끔'. `CoachWeek.reviewAckAt`(주간 리뷰 [확인]) 칸을 미리 넣었다. 앱 관리자 화면의 켜기는 아직.
 
 ### 10-4. 4단계 — 코치 처음 질문 흐름(U29~U33 확정, 앱만)
 

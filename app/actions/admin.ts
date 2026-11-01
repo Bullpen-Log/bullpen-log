@@ -7,12 +7,32 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteUserCompletely } from '@/lib/delete-user';
 import { ROLE_LABEL, parseRole } from '@/lib/permissions';
+import { COACH_PRODUCT, activeEntitlementWhere } from '@/lib/coach-access';
 
 export type AdminState = { error?: string; success?: string; tempPassword?: string } | undefined;
 
 async function assertAdmin() {
   const user = await getCurrentUser();
   return user?.role === 'ADMIN' ? user : null;
+}
+
+/**
+ * 코치(유료) 켜기 · 끄기 — 인앱결제 전에는 관리자가 직접 켠다(docs/designs/ai-coach.md R7 · U45). 켜면 권한 줄 하나(source 'admin'),
+ * 끄면 켜진 줄을 모두 거둔다(revokedAt — 지우지 않아 언제 누가 켰는지 남는다). 대표관리자만.
+ */
+export async function setCoachEntitlement(_prev: AdminState, formData: FormData): Promise<AdminState> {
+  const admin = await assertAdmin();
+  if (!admin) return { error: '관리자만 사용할 수 있습니다.' };
+  const userId = String(formData.get('userId') ?? '');
+  const on = formData.get('on') === '1';
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { nickname: true } });
+  if (!target) return { error: '대상을 찾을 수 없습니다.' };
+  const now = new Date();
+  const active = await prisma.entitlement.findMany({ where: { userId, ...activeEntitlementWhere(now) }, select: { id: true } });
+  if (on && active.length === 0) await prisma.entitlement.create({ data: { userId, product: COACH_PRODUCT, source: 'admin', grantedBy: admin.id } });
+  if (!on && active.length) await prisma.entitlement.updateMany({ where: { id: { in: active.map((a) => a.id) } }, data: { revokedAt: now } });
+  revalidatePath('/admin');
+  return { success: `${target.nickname}님 코치를 ${on ? '켰어요' : '껐어요'}.` };
 }
 
 /**

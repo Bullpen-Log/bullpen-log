@@ -79,7 +79,7 @@ export async function loadAppMe(): Promise<
     userId: user.id,
     nickname: user.nickname,
     isAdmin: user.role === 'ADMIN',
-    coachPaid: coachPaid(user),
+    coachPaid: await coachPaid(user),
     today: toDateKey(appNow()),
     locks: featureLocks(user),
     country: countryOf(user.country),

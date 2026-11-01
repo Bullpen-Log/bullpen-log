@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { KeyRound, Trash2 } from '@/components/icon';
 import { ROLE_LABEL, type Role } from '@/lib/permissions';
-import { deleteUser, resetUserPassword, toggleUserRole, type AdminState } from '@/app/actions/admin';
+import { deleteUser, resetUserPassword, setCoachEntitlement, toggleUserRole, type AdminState } from '@/app/actions/admin';
 import { guardFormAction } from '@/lib/action-offline';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { toast } from '@/components/toast';
@@ -134,6 +134,30 @@ export function RolePicker({
         confirmLabel="바꾸기"
         pending={false}
       />
+    </form>
+  );
+}
+
+/** 코치(유료) 켜기 · 끄기 — 한 번 묻고 바꾼다(setCoachEntitlement). 대표관리자는 늘 코치를 써서 칸이 없다 */
+export function CoachToggle({ userId, nickname, on, owner }: { userId: string; nickname: string; on: boolean; owner: boolean }) {
+  const [state, formAction] = useActionState<AdminState, FormData>(guardFormAction(setCoachEntitlement), undefined);
+  useErrorToast(state);
+  if (owner) return null;
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="userId" value={userId} />
+      <input type="hidden" name="on" value={on ? '0' : '1'} />
+      <ActionButton
+        label={`${nickname} 코치 ${on ? '끄기' : '켜기'}`}
+        title={on ? '코치 끄기' : '코치 켜기'}
+        ask={{
+          title: on ? `${nickname}님 코치를 끌까요?` : `${nickname}님 코치를 켤까요?`,
+          detail: on ? '코치 탭이 소개 화면으로 돌아가요. 남긴 기록은 그대로예요.' : '코치 탭(리뷰 · 자동 일정)을 쓸 수 있어요. 결제 없이 관리자가 켜는 거예요.',
+          confirmLabel: on ? '끄기' : '켜기',
+        }}
+      >
+        {on ? '코치 켬' : '코치 끔'}
+      </ActionButton>
     </form>
   );
 }

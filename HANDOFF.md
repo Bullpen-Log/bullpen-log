@@ -11,6 +11,15 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 코치 표 다섯을 더했다 · **받으면 `npx prisma generate`** · 주간 계획기
+
+받은 뒤 할 일: **`npx prisma generate`** — 새 표 `Entitlement`(유료 권한) · `CoachProfile` · `CoachWeek` · `CoachLog` · `CoachMessage`, `User` 에 관계 다섯(onDelete Cascade — 탈퇴가 같이 지운다).
+마이그레이션 `20261101130000_coach_tables` 는 **CREATE 만**(지우기 · 이름 바꾸기 없음)이고, 이 푸시의 Vercel 빌드(`prisma migrate deploy`)가 공유 DB 에 건다 — 손으로 걸지 않았다. 직전 백업 `db-2026-11-01-12-41.json`.
+SQL 은 DB 에 붙지 않고 옛 스키마 ↔ 새 스키마로 만들었다(`migrate diff --from-schema`) — 그래서 늘 나오던 `VelocityAttempt` 외래키 셋은 안 들어갔다.
+- **유료 판단** `lib/coach-access.ts coachPaid` 가 이제 비동기: 대표관리자는 늘, 그 밖은 켜진 `Entitlement`(product 'coach'). PC 관리자 회원 줄에 '코치 켬/끔'(`setCoachEntitlement`, 끄면 지우지 않고 revokedAt). 앱 관리자 화면에는 아직 없다.
+- **주간 계획기** `lib/coach/week.ts`(순수) + `npm run coach:test` — 엔진 파일은 안 바꿨다. 날 종류는 엔진 규칙 이름 · 문턱을 읽고 시험이 `dayKindOf` 와 견준다.
+- 설계 `docs/designs/ai-coach.md` 10-3 '진행'. 시험: tsc 0 · eslint 0 · coach 20,771 · release-access 688 · native-api 302(모양 그대로) · integration 의 실패 4 는 전과 같은 팀 · 레슨 쪽.
+
 ## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 하단 탭 홈 · 코치 · 투구 · 트레이닝 · 덕아웃(앱 판 14) · 기록은 투구 탭 고르개로 · **네 앱 틀 · 탭 막대를 고쳤다**
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만이라 업데이트로 나간다). 김민: 유료 AI 코치 설계(`docs/designs/ai-coach.md` 10-1, 결정 U1 · U9~U14)의 1단계.

@@ -22,7 +22,7 @@ export async function loadAppAnalysis(
    * 분석은 코치 탭의 리뷰라 유료만(docs/designs/ai-coach.md U10). 화면만 막으면 옛 앱 · 직접 부르기로 열린다.
    * need 를 모르는 옛 앱은 to 로 떠나 웹 /coach 의 소개를 본다(app/(app)/coach/page.tsx)
    */
-  if (!coachPaid(user)) return { ok: false, to: '/coach', need: 'paid' };
+  if (!(await coachPaid(user))) return { ok: false, to: '/coach', need: 'paid' };
   const today = toDateKey(appNow());
   const kind = view === 'training' ? 'training' : 'pitch';
   const asked = typeof date === 'string' ? readDateParam(date) : null;
