@@ -11,6 +11,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-11-01 · 금윤호(Claude, 윤호 맥북) — 출시 전 베타도 화면은 원래 모양 · 잠긴 기능은 누를 때만 안내 · **네 앱 틀을 다시 고쳤다**
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). 금윤호: "인터페이스는 원래대로 모두 동일하게, 문이 잠겨 있듯이 못 들어가게만". 10-30 의 베타 화면을 걷었다(12b21d57).
+- **앱**: `home/beta-home.tsx` · `pitch/tab.tsx BetaPitchTab` 지움 — 베타에도 원래 홈 · 투구 탭(`app/index.tsx`). `shell/tab-bar.tsx` · `app/more.tsx` 의 회색 · 자물쇠 모양 걷음(누르면 안내만은 그대로).
+  화면 안 이동은 새 `shell/release.ts pushOpen(href)`(잠긴 곳이면 안내만) — 홈 · 투구의 `router.push` 열 군데를 바꿨다. **잠긴 기능으로 가는 새 단추는 `pushOpen` 으로** 써 줘.
+- **웹(PC)**: `(app)/layout.tsx` 의 `BetaAppLayout` · `components/beta/beta-home.tsx` 지움 — 원래 틀, 잠긴 링크는 `components/beta/beta-link-guard.tsx` 가 막는다. 베타면 체크인 관문 · 대기열 보내기만 안 둔다.
+- **서버**: 원래 화면을 그리려고 홈 · 투구 첫 화면 읽기를 베타에 열었다(`lib/release-ops.ts` 기능 'home' — app.loadAppHome 등 여섯 · 종 읽기 둘 · GET /api/pitch-log · /api/day-detail). 쓰기는 그대로 잠김.
+
 ## 김민에게 — 2026-11-01 · 금윤호(Claude, 윤호 맥북) — 싱커 × 덕아웃 팀 · 레슨 통합 0단계 조사 + 1단계 첫 묶음 · **네 앱 동작의 코치 판정이 바뀌었다** · DB 제안은 조율 뒤
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 화면 그대로). 브리프 `docs/designs/sinker-dugout-team-lesson-platform-claude-prompt.md`, 조사 · 대응표 · 제안은 같은 폴더 `-stage0.md`.
