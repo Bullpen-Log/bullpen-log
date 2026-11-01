@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
@@ -10,6 +11,7 @@ import { isTutorialKey } from '@/lib/feature-locks';
  * 닫힐 때 부른다. 같은 열쇠를 두 번 적지 않는다. 막대 · 홈이 같은 값을 보므로 레이아웃까지 새로 읽게 한다.
  */
 export async function markTutorialDone(key: string): Promise<{ ok: boolean }> {
+  allowFeature('records');
   const user = await getCurrentUser();
   if (!user || !isTutorialKey(key)) return { ok: false };
   if (!user.tutorialsDone.includes(key)) {
@@ -26,6 +28,7 @@ export async function markTutorialDone(key: string): Promise<{ ok: boolean }> {
  * 튜토리얼을 다시 보려고 지운다(설정 › 정보 '사용 안내 다시 보기'). 열쇠 하나만.
  */
 export async function resetTutorial(key: string): Promise<{ ok: boolean }> {
+  allowFeature('records');
   const user = await getCurrentUser();
   if (!user || !isTutorialKey(key)) return { ok: false };
   await prisma.user.update({

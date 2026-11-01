@@ -42,8 +42,8 @@ const MANAGER_MASTER = { role: 'MANAGER', accountType: 'MASTER' };
 
 /* ── 1. 역할 × 기능 ── */
 const LOCKED: Capability[] = [
-  'support', 'pitchLog', 'velocity', 'abs', 'pitchReading', 'hitting', 'swing3d', 'training', 'armcare', 'mechanics', 'nutrition', 'records',
-  'analysis', 'library', 'myVideos', 'checkin', 'calendar', 'notifications', 'board', 'dugout', 'chat', 'org', 'unclassified',
+  'pitchLog', 'velocity', 'abs', 'pitchReading', 'hitting', 'swing3d', 'armcare', 'mechanics', 'nutrition',
+  'analysis', 'library', 'myVideos', 'checkin', 'calendar', 'board', 'dugout', 'chat', 'org', 'unclassified',
 ];
 for (const who of [USER, USER_MASTER]) {
   for (const c of BETA_ALLOWED) ok(decideAccess(who, c, BETA).allowed, `일반(${JSON.stringify(who)}) 베타 허용: ${c}`);
@@ -71,7 +71,7 @@ for (const who of [MANAGER, MANAGER_MASTER]) {
   for (const perm of ['adminHome', 'shoot', 'velocityAdmin', 'recording', 'abs'] as const)
     ok(decideAccess(who, 'admin', { ...REL, perm }).allowed, `출시 뒤 준관리자 관리 업무 ${perm}`);
 }
-ok(!BETA_ALLOWED.has('support'), '고객센터도 베타에 잠김(설정의 메일 문의는 그대로)');
+for (const c of ['training', 'records', 'notifications', 'support'] as const) ok(BETA_ALLOWED.has(c), `베타에 열림(2026-11-01): ${c}`);
 eq(BETA_LOCK_TITLE, '준비 중인 기능입니다.', '잠긴 기능 안내 글');
 for (const c of [...BETA_ALLOWED, ...LOCKED]) ok(decideAccess(ADMIN, c, BETA).allowed, `대표관리자 예외: ${c}`);
 ok(!isBetaRestricted(ADMIN, 'restricted_beta'), '대표관리자는 제한 밖');
@@ -152,7 +152,7 @@ ok(!decidePath(USER, '/admin', BETA).allowed, '일반 관리 첫 화면 거부')
 /* ── 3. 앱이 받는 요약(그리기용) ── */
 const ua = releaseAccessOf(USER, 'restricted_beta');
 ok(ua.restricted && ua.adminPerms.length === 0, '일반 요약');
-ok(accessAllowsPath(ua, '/lab/new') && !accessAllowsPath(ua, '/training-today') && !accessAllowsPath(ua, '/swing'), '일반 앱 경로');
+ok(accessAllowsPath(ua, '/lab/new') && accessAllowsPath(ua, '/training-today') && !accessAllowsPath(ua, '/swing'), '일반 앱 경로');
 const ma = releaseAccessOf(MANAGER, 'restricted_beta');
 ok(ma.restricted && ma.adminPerms.length === 0, '준관리자 요약 — 관리 업무 없음');
 eq(ma.allowed, ua.allowed, '준관리자 = 일반(열린 기능이 같다)');
@@ -168,11 +168,11 @@ ok(!accessAllowsPath(null, '/lab') && !accessAllowsPath(null, '/training-today')
  * 탭 판(투구 · 트레이닝 첫 화면 · 기록 · 덕아웃 · 영양)은 붙이지 않고, 더보기 · 설정 · 내 정보 · 투구 3D 길만 연다
  */
 const SHELL_LOCKED = [
-  '/videos?view=log', '/training?view=home', '/records', '/?dugout=1', '/nutrition', '/org', '/training?view=mechanics', '/training-mechanics',
-  '/pitch/2026-10-29', '/pitch/import', '/notice', '/velocity?mode=speed', '/velocity?mode=abs', '/velocity', '/support', '/support/new', '/admin',
+  '/videos?view=log', '/?dugout=1', '/nutrition', '/org', '/training?view=mechanics', '/training-mechanics',
+  '/pitch/2026-10-29', '/pitch/import', '/velocity?mode=speed', '/velocity?mode=abs', '/velocity', '/admin',
   '/admin/velocity', '/admin/shoot/2', '/swing', '/pitch-reading', '/my-videos', '/analysis?view=pitch', '/calendar', '/library',
 ];
-const SHELL_OPEN = ['/', '/today', '/videos', '/more', '/settings', '/profile', '/account', '/lab', '/lab/new', '/lab/guide?s=frame', '/lab/consent', '/lab/0f0c4e6a-1b2c-4d5e-8f90-123456789abc'];
+const SHELL_OPEN = ['/', '/today', '/videos', '/more', '/settings', '/profile', '/account', '/training?view=home', '/training-today', '/records', '/notice', '/support', '/support/new', '/lab', '/lab/new', '/lab/guide?s=frame', '/lab/consent', '/lab/0f0c4e6a-1b2c-4d5e-8f90-123456789abc'];
 for (const h of SHELL_LOCKED) ok(!accessAllowsPath(ua, h), `일반 앱: ${h} 잠김`);
 for (const h of SHELL_OPEN) ok(accessAllowsPath(ua, h), `일반 앱: ${h} 열림`);
 for (const h of SHELL_LOCKED) ok(!accessAllowsPath(ma, h), `준관리자 앱: ${h} 잠김`);
@@ -187,14 +187,14 @@ ok(accessAllowsPath({ stage: 'released', policyVersion: 'x', restricted: false, 
 /* 탭 — 순서 · 모양 그대로, 홈만 열리고 잠김 까닭 'beta'. 앱에 보내는 탭은 주소 그대로 */
 const appTabs = applyBetaLocks(APP_TABS, ua, { keepHref: true, surface: 'native' });
 eq(appTabs.map((t) => t.href), APP_TABS.map((t) => t.href), '앱 탭 순서 · 주소 그대로');
-eq(appTabs.map((t) => !!t.locked), [false, false, true, true, true], '홈 · 투구(첫 화면)만 열림(트레이닝 · 기록 · 덕아웃 잠김)');
-eq(applyBetaLocks(APP_TABS, ma, { keepHref: true, surface: 'native' }).map((t) => !!t.locked), [false, false, true, true, true], '준관리자 앱 탭도 같다');
+eq(appTabs.map((t) => !!t.locked), [false, false, false, false, true], '홈 · 투구 · 트레이닝 · 기록 열림(덕아웃 잠김)');
+eq(applyBetaLocks(APP_TABS, ma, { keepHref: true, surface: 'native' }).map((t) => !!t.locked), [false, false, false, false, true], '준관리자 앱 탭도 같다');
 ok(appTabs.filter((t) => t.locked).every((t) => t.lockReason === 'beta'), '잠김 까닭은 beta(첫 설정과 섞지 않음)');
 const webTabs = applyBetaLocks(MOBILE_TABS, ua);
 ok(webTabs.filter((t) => t.locked).every((t) => t.href === '/today'), '웹의 잠긴 칸은 베타 홈을 가리킨다');
 eq(applyBetaLocks(APP_TABS, releaseAccessOf(ADMIN, 'restricted_beta')), APP_TABS, '대표는 그대로');
 const g = betaGroups([{ title: 'x', items: [{ href: '/videos/lab', label: '3D', icon: 'clapper' }, { href: '/nutrition', label: '영양', icon: 'utensils' }, { href: '/support', label: '고객센터', icon: 'support' }] }] as never, ua);
-eq(g[0].items.map((i) => i.href), ['/videos/lab'], '웹 메뉴는 열린 항목만(고객센터도 잠김)');
+eq(g[0].items.map((i) => i.href), ['/videos/lab', '/support'], '웹 메뉴는 열린 항목만(고객센터는 2026-11-01 부터 열림)');
 /* 앱에 보내는 메뉴는 잠긴 항목도 남긴다 — 더보기가 회색 + 자물쇠로 그린다. 주소는 그대로(앱이 다시 판정) */
 const appMenu = betaGroups(
   [{ title: 'x', items: [{ href: '/videos/lab', label: '3D', icon: 'clapper' }, { href: '/nutrition', label: '영양', icon: 'utensils' }, { href: '/admin/velocity', label: '구속 측정 관리자', icon: 'gauge' }] }] as never,
@@ -211,8 +211,9 @@ for (const m of modules) ok(Object.hasOwn(RPC_MODULE_CAPABILITY, m), `RPC 모듈
 eq(rpcAccessOf('nope.fn').cap, 'unclassified', '모르는 모듈은 unclassified');
 eq(rpcAccessOf('app.loadAppMe').cap, 'appInfra', 'loadAppMe 는 바탕');
 eq(rpcAccessOf('app.loadAppHome').cap, 'home', '홈 읽기는 베타에도 열림(원래 홈을 그린다)');
-eq(rpcAccessOf('app.loadAppTraining').cap, 'records', '그 밖의 app 동작은 잠김');
-eq(rpcAccessOf('notifications.readBellNotifications').cap, 'notifications', '종 읽음 표시(쓰기)는 잠김');
+eq(rpcAccessOf('app.loadAppTraining').cap, 'training', '트레이닝 읽기는 training');
+eq(rpcAccessOf('app.loadAppNutrition').cap, 'nutrition', '영양 읽기는 잠김');
+eq(rpcAccessOf('notifications.readBellNotifications').cap, 'notifications', '종 읽음 표시는 알림(열림)');
 eq(rpcAccessOf('app-analysis.loadAppAnalysis').cap, 'analysis', '투구량 통계는 투구 3D 가 아니다');
 eq(rpcAccessOf('swing-lab.saveSwingSample').cap, 'swing3d', '스윙 저장 잠김');
 eq(rpcAccessOf('app-admin.loadAppAdmin'), { cap: 'admin', perm: 'adminHome' }, '관리 첫 화면');
@@ -232,6 +233,21 @@ const OPEN_MODULES: Record<string, string> = {
   profile: "allowFeature('account')",
   'login-ticket': "allowFeature('account')",
   push: "allowFeature('appInfra')",
+  notifications: "allowFeature('notifications')",
+  'app-training': "allowFeature('training')",
+  'app-training-parts': "allowFeature('training')",
+  'app-workout': "allowFeature('training')",
+  workout: "allowFeature('training')",
+  warmup: "allowFeature('training')",
+  program: "allowFeature('training')",
+  'plan-edit': "allowFeature('training')",
+  'training-days': "allowFeature('training')",
+  'training-setup': "allowFeature('training')",
+  'exercise-history': "allowFeature('training')",
+  'exercise-log': "allowFeature('training')",
+  'exercise-note': "allowFeature('training')",
+  'sinker-log': "allowFeature('records')",
+  'onboarding-state': "allowFeature('records')",
   support: "allowFeature('support')",
   velocity: "allowFeature('velocity')",
   abs: "allowFeature('abs')",
@@ -250,23 +266,28 @@ for (const [mod, line] of Object.entries({
 }))
   ok(readFileSync(`app/actions/${mod}.ts`, 'utf8').includes(line), `${mod} 권한 헬퍼 밝힘 줄`);
 for (const [a, acc] of Object.entries(RPC_ACTION_CAPABILITY).filter(([a, acc]) => a.startsWith('app.') || acc.cap === 'home')) {
-  if (acc.cap !== 'appInfra' && acc.cap !== 'home') continue;
+  if (!['appInfra', 'home', 'training', 'records'].includes(acc.cap)) continue;
   const [mod, fn] = a.split('.');
   ok(bodyOf(readFileSync(`app/actions/${mod}.ts`, 'utf8'), fn).includes(`allowFeature('${acc.cap}')`), `${a} 밝힘 줄`);
 }
-/* 홈 읽기를 연 모듈의 다른 함수는 잠긴 채 — 밝힘 줄이 없어야 한다 */
-{
-  const src = readFileSync('app/actions/notifications.ts', 'utf8');
-  for (const fn of exportsOf('app/actions/notifications.ts'))
-    if (!Object.hasOwn(RPC_ACTION_CAPABILITY, `notifications.${fn}`)) ok(!/allowFeature\(/.test(bodyOf(src, fn)), `notifications.${fn} 은 잠긴 채`);
+/* 모듈 기본은 잠겼는데 한 함수만 연 것 — 그 함수에만 밝힘 줄 */
+for (const mod of ['day-cards', 'favorite']) {
+  const src = readFileSync(`app/actions/${mod}.ts`, 'utf8');
+  for (const fn of exportsOf(`app/actions/${mod}.ts`)) {
+    const acc = RPC_ACTION_CAPABILITY[`${mod}.${fn}`];
+    ok(acc ? bodyOf(src, fn).includes(`allowFeature('${acc.cap}')`) : !/allowFeature\(/.test(bodyOf(src, fn)), `${mod}.${fn} 밝힘 줄 ${acc ? '있음' : '없음'}`);
+  }
 }
+/* app 모듈에서 잠긴 기능의 읽기(영양 · 체크인 · 달력 · 구속)는 밝힘 줄이 없어야 한다 */
+for (const fn of ['loadAppNutrition', 'loadAppCheckin', 'loadAppDayEvents', 'loadAppVelocityDay'])
+  ok(!/allowFeature\(/.test(bodyOf(readFileSync('app/actions/app.ts', 'utf8'), fn)), `app.${fn} 은 잠긴 채`);
 for (const f of ['app/api/pitch-log/route.ts', 'app/api/day-detail/route.ts']) {
   const src = readFileSync(f, 'utf8');
   ok(bodyOf(src.replace('export async function GET(', 'export async function GET('), 'GET').includes("allowFeature('home')"), `${f} GET 은 홈 읽기로 열림`);
   ok(!/allowFeature\(/.test(src.slice(src.indexOf('export async function', src.indexOf('export async function GET(') + 10))), `${f} 쓰기는 잠긴 채`);
 }
 /* 반대로 — 잠긴 모듈의 함수에는 베타 밝힘 줄이 없어야 한다(잘못 열린 것 찾기) */
-const OPEN_SET = new Set([...Object.keys(OPEN_MODULES), 'velocity-admin', 'velocity-recording', 'shoot', 'app-shoot', 'app-admin', 'app', 'notifications']);
+const OPEN_SET = new Set([...Object.keys(OPEN_MODULES), 'velocity-admin', 'velocity-recording', 'shoot', 'app-shoot', 'app-admin', 'app', 'day-cards', 'favorite']);
 for (const f of readdirSync('app/actions').filter((f) => f.endsWith('.ts'))) {
   const mod = f.replace(/\.ts$/, '');
   if (OPEN_SET.has(mod)) continue;

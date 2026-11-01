@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
@@ -28,6 +29,7 @@ export async function updateWarmupRoutine(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  allowFeature('training');
   if (!(await assertAdmin())) return { error: '관리자만 고칠 수 있습니다.' };
 
   const id = String(formData.get('id') ?? '');
@@ -49,6 +51,7 @@ export async function updateWarmupRoutine(
  * 두 번 들어갈 이유가 없고, 두 번 눌렀다고 오류를 보여줄 일도 아니다.
  */
 export async function addWarmupItem(formData: FormData) {
+  allowFeature('training');
   if (!(await assertAdmin())) return;
 
   const routineId = String(formData.get('routineId') ?? '');
@@ -78,6 +81,7 @@ export async function addWarmupItem(formData: FormData) {
 
 /** 루틴에서 운동을 뺀다. 운동 자체는 그대로 남는다. */
 export async function removeWarmupItem(formData: FormData) {
+  allowFeature('training');
   if (!(await assertAdmin())) return;
 
   const routineId = String(formData.get('routineId') ?? '');
@@ -95,6 +99,7 @@ export async function removeWarmupItem(formData: FormData) {
  * 생기는데, 한 루틴에 몇 개 안 들어가는 자리에서 그럴 이유가 없다.
  */
 export async function moveWarmupItem(formData: FormData) {
+  allowFeature('training');
   if (!(await assertAdmin())) return;
 
   const routineId = String(formData.get('routineId') ?? '');

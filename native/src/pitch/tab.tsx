@@ -1,5 +1,5 @@
 import { type Href } from 'expo-router';
-import { pushOpen } from '~/shell/release';
+import { canOpen, pushOpen, useRelease } from '~/shell/release';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -260,6 +260,8 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
  */
 function ToolDock({ canAbs }: { canAbs: boolean }) {
   const c = usePalette();
+  /* 정책이 바뀌면(로그인 · 서버 답) 다시 그린다 */
+  const release = useRelease();
   const { width } = useWindowDimensions();
   /* 3D 카드 폭 ≈ (화면 − 옆 여백 − 틈) / 2 — 그림은 그 82%(시안 V6 · 여백 줄인 판), 넓은 화면에서는 168 에서 멈춘다 */
   const art = Math.min(168, Math.max(110, ((Math.min(width, 520) - SPACE.side * 2 - 12) / 2) * 0.82));
@@ -277,6 +279,10 @@ function ToolDock({ canAbs }: { canAbs: boolean }) {
         </Text>
       </Pressable>
       <View style={styles.dockSide}>
+        {/* 출시 전 베타로 잠긴 일반 · 준관리자 — ABS 와 같은 잠긴 블럭(회색 판 + 자물쇠, 누르면 안내만) */}
+        {!canOpen('/velocity?mode=speed', release) ? (
+          <LockedBlock icon="gauge" size={54} label="구속 측정" style={{ minHeight: 154 }} />
+        ) : (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="구속 측정"
@@ -288,7 +294,8 @@ function ToolDock({ canAbs }: { canAbs: boolean }) {
             구속 측정
           </Text>
         </Pressable>
-        {canAbs ? (
+        )}
+        {canAbs && canOpen('/velocity?mode=abs', release) ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="ABS"

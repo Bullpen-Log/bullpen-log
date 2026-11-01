@@ -1,4 +1,6 @@
 import { ActionButton } from '~/shell/action-button';
+import { LockCover } from '~/shell/locked';
+import { canOpen, useRelease } from '~/shell/release';
 import * as Haptics from 'expo-haptics';
 import { type Href, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -123,6 +125,8 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
   const topRef = useRef<ScrollViewInstance>(null);
   useRetapTop(() => topRef.current?.scrollTo({ y: 0, animated: true }));
 
+  /* 출시 전 베타 정책 — 잠긴 카드에 자물쇠 덮개(정책이 바뀌면 다시 그린다) */
+  const release = useRelease();
   const cardOf = (app: TrainingPart) => data?.cards.find((x) => x.app === app) ?? null;
   const todayCard = cardOf('today');
   const armcare = cardOf('armcare');
@@ -168,8 +172,17 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
 
       {armcare || mechanics ? (
         <View style={styles.pair}>
-          {armcare ? <MiniCard card={armcare} title="암케어" glyph="shield-plus" fallback="루틴 보기" onPress={() => (armcare.action ? act(armcare.action) : openPart('armcare'))} onOpen={() => openPart('armcare')} /> : null}
-          {mechanics ? <MiniCard card={mechanics} title="메커니즘" glyph="focus" fallback="프로그램 보기" onPress={() => (mechanics.action ? act(mechanics.action) : openPart('mechanics'))} onOpen={() => openPart('mechanics')} /> : null}
+          {/* 출시 전 베타로 잠긴 것(암케어 · 메커니즘)은 카드째 자물쇠 덮개 — 구속 측정 · ABS 와 같은 모양, 누르면 안내만(shell/locked.tsx LockCover) */}
+          {armcare ? (
+            <LockCover locked={!canOpen('/training-armcare', release)} label="암케어" radius={RADIUS.card} style={{ flex: 1 }}>
+              <MiniCard card={armcare} title="암케어" glyph="shield-plus" fallback="루틴 보기" onPress={() => (armcare.action ? act(armcare.action) : openPart('armcare'))} onOpen={() => openPart('armcare')} />
+            </LockCover>
+          ) : null}
+          {mechanics ? (
+            <LockCover locked={!canOpen('/training-mechanics', release)} label="메커니즘" radius={RADIUS.card} style={{ flex: 1 }}>
+              <MiniCard card={mechanics} title="메커니즘" glyph="focus" fallback="프로그램 보기" onPress={() => (mechanics.action ? act(mechanics.action) : openPart('mechanics'))} onOpen={() => openPart('mechanics')} />
+            </LockCover>
+          ) : null}
         </View>
       ) : data ? null : (
         <View style={styles.pair}>
@@ -190,8 +203,8 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
             { href: '/library/mechanics', title: '투구 드릴', sub: '메커니즘 요소별 드릴 영상', icon: 'target' },
           ] as const
         ).map((it, i) => (
+          <LockCover key={it.href} locked={!canOpen(it.href, release)} label={it.title} radius={0}>
           <Press
-            key={it.href}
             accessibilityRole="button"
             accessibilityLabel={`${it.title}, ${it.sub}`}
             onPress={() => router.push(it.href as Href)}
@@ -206,6 +219,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
             </View>
             <Icon name="chevron-right" size={18} color={c.muted} />
           </Press>
+          </LockCover>
         ))}
       </View>
     </ScrollView>

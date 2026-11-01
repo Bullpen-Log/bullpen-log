@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
@@ -54,6 +55,7 @@ export async function setExerciseDone(
    */
   dateKey?: string
 ): Promise<{ ok: true } | { error: string }> {
+  allowFeature('training');
   const user = await requireUser();
   const res = await saveDone(user.id, exerciseId, done, dateKey);
   if ('error' in res) return res;
@@ -76,12 +78,14 @@ export async function markExerciseDone(
   exerciseId: string,
   dateKey: string
 ): Promise<{ ok: true } | { error: string }> {
+  allowFeature('training');
   const user = await requireUser();
   return saveDone(user.id, exerciseId, true, dateKey);
 }
 
 /** 따라하기를 마쳤다 — 조용히 남긴 체크가 목록·홈에 보이게 한 번 새로 그린다 */
 export async function refreshTrainingLists(): Promise<void> {
+  allowFeature('training');
   await requireUser();
   revalidatePath('/today');
   revalidatePath('/training');
@@ -184,6 +188,7 @@ export async function saveTrainingNote(
    */
   dateKey?: string
 ): Promise<{ ok: true } | { error: string }> {
+  allowFeature('training');
   const user = await requireUser();
 
   const value = positiveNumber(intensity, 10);

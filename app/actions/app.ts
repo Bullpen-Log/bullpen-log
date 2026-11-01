@@ -323,6 +323,7 @@ export async function loadAppTraining(): Promise<
     }
   | { ok: false; error: string; to?: string }
 > {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   if (featureLocks(user).training) return { ok: false, error: '트레이닝 첫 설정을 먼저 해 주세요.', to: SETUP_PATH.training };
@@ -361,6 +362,7 @@ export async function loadAppTraining(): Promise<
  * 읽기만 한다. from · to 는 날짜 키(그 사이 최대 400일) — 화면은 달마다, 찾기는 최근 1년을 부른다.
  */
 export async function loadAppRecords(from: unknown, to: unknown): Promise<{ ok: true; items: RecordItem[] } | { ok: false; error: string }> {
+  allowFeature('records');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const key = /^\d{4}-\d{2}-\d{2}$/;

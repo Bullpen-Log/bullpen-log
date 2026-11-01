@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { cookies } from 'next/headers';
 import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
@@ -18,6 +19,7 @@ import {
  * /api/rpc/app-training.loadAppTrainingToday 로 부른다.
  */
 export async function loadAppTrainingToday(): Promise<({ ok: true } & TrainingToday) | { ok: false; to: string }> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   if (featureLocks(user).training) return { ok: false, to: SETUP_PATH.training };
@@ -26,6 +28,7 @@ export async function loadAppTrainingToday(): Promise<({ ok: true } & TrainingTo
 
 /** 같은 화면의 '운동 추가' 창을 열 때 — 웹 AddExercise 가 받는 목록과 같은 것(더하기는 웹과 같은 plan-edit.addToTodayPlan) */
 export async function loadAppTrainingPicker(): Promise<{ ok: true; items: TodayPickItem[] } | { ok: false; to: string }> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   if (featureLocks(user).training) return { ok: false, to: SETUP_PATH.training };
@@ -38,6 +41,7 @@ export async function loadAppTrainingPicker(): Promise<{ ok: true; items: TodayP
  * 앱의 fetch 쿠키는 웹뷰와 같은 저장소라(sharedCookiesEnabled) 웹 화면도 같은 값을 본다. /api/rpc/app-training.rememberTrainingPart
  */
 export async function rememberTrainingPart(part: unknown): Promise<{ ok: boolean }> {
+  allowFeature('training');
   const p = readTrainingPart(typeof part === 'string' ? part : null);
   if (!p || !(await getCurrentUser())) return { ok: false };
   (await cookies()).set(TRAINING_PART_COOKIE, p, { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' });

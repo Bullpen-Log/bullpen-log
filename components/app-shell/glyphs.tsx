@@ -98,7 +98,7 @@ export function TopIcon({
 }) {
   const Icon = NAV_ICONS[item.icon];
   /* 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 아이콘 오른쪽 아래 자물쇠(NavGlyph). 링크는 산다 — 누르면 설정 화면 */
-  const name = item.locked ? `${item.label}(설정 전)` : item.label;
+  const name = item.locked ? `${item.label}(${item.lockReason === 'beta' ? '준비 중' : '설정 전'})` : item.label;
   return (
     <Link
       href={item.href}

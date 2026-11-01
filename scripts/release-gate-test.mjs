@@ -137,8 +137,6 @@ export const RPC_MODULES = {
     async noGrant() { g.ran = 'profile.noGrant'; const u = await getCurrentUser(); g.writes.push('profile.noGrant.write'); return { ok: true, id: u?.id }; },
     async swallow() { try { await getCurrentUser(); } catch { return { ok: false, error: '처리 못 함' }; } g.writes.push('profile.swallow.write'); return { ok: true }; },
   },
-  /* 고객센터 — 베타에 잠김(2026-10-29 금윤호: 3D · 설정 · 내 정보 · 홈 말고 전부). 표가 먼저 막아 함수가 안 돈다 */
-  support: { async ask() { g.ran = 'support.ask'; await getCurrentUser(); g.writes.push('support.write'); return { ok: true }; } },
   /* 표에 없는 새 모듈 — 부르지도 않고 막혀야 한다 */
   'brand-new': { async go() { g.ran = 'brand-new.go'; await getCurrentUser(); g.writes.push('brand-new.write'); return { ok: true }; } },
 };`;
@@ -260,8 +258,8 @@ let r = await rpc('nutrition.setWeight', ['2026-10-29', 80]);
 check(locked(r), '일반: 영양 쓰기 RPC 는 403 FEATURE_LOCKED_BETA');
 check(sideEffects() === 0 && onlyUserRead(), '일반: 막힌 영양 RPC 는 DB 쓰기 · 읽기 0');
 check(r.body.policyVersion && r.body.capability === 'nutrition', '403 에 기능 · 정책 판');
-r = await rpc('app.loadAppTraining');
-check(locked(r) && onlyUserRead(), '일반: 트레이닝 읽기 RPC 막힘 · 조회 0');
+r = await rpc('app.loadAppNutrition', ['2026-10-29']);
+check(locked(r) && onlyUserRead(), '일반: 영양 읽기 RPC 막힘 · 조회 0');
 /* 홈 · 투구 첫 화면 읽기는 베타에도 연다(2026-11-01 — 원래 화면을 그리고 안의 기능만 잠근다) */
 r = await rpc('app.loadAppHome');
 check(!locked(r), '일반: 홈 읽기 RPC 는 베타에도 열림');
@@ -271,8 +269,8 @@ r = await rpc('velocity.saveVelocitySession', [{}]);
 check(locked(r) && sideEffects() === 0, '일반: 구속 측정 저장 막힘');
 r = await rpc('app-admin.loadAppAdmin');
 check(locked(r) && sideEffects() === 0, '일반: 관리 첫 화면은 베타 잠금');
-r = await rpc('support.ask');
-check(locked(r) && g.ran === null && sideEffects() === 0, '일반: 고객센터도 베타 잠금(함수를 부르지 않음)');
+r = await rpc('nutrition.setWeight', ['2026-10-29', 80]);
+check(locked(r) && g.ran === null && sideEffects() === 0, '일반: 잠긴 기능은 함수를 부르지 않음');
 r = await rpc('brand-new.go');
 check(locked(r) && g.ran === null && sideEffects() === 0, '표에 없는 모듈은 부르지도 않고 막힘(기본 거부)');
 r = await rpc('profile.noGrant');
@@ -361,7 +359,7 @@ x = await direct({ 'x-bp-entry': 'action', 'x-bp-path': '/videos/lab' }, () => n
 check(isLocked(x) && g.writes.length === 0, '열린 화면 주소로 잠긴 동작을 보내도 막힘');
 x = await direct({ 'x-bp-entry': 'action', 'x-bp-path': '/videos/lab' }, () => pitchLab.loadAppLabList('mine'));
 check(x.ok && x.value.ok === true, '열린 화면에서 투구 3D 동작');
-x = await direct({ 'x-bp-entry': 'action', 'x-bp-path': '/training' }, () => pitchLab.loadAppLabList('mine'));
+x = await direct({ 'x-bp-entry': 'action', 'x-bp-path': '/nutrition' }, () => pitchLab.loadAppLabList('mine'));
 check(isLocked(x), '잠긴 화면 주소로 보낸 투구 3D 동작도 막힘(동작 뒤 다시 그리는 화면이 잠긴 것)');
 x = await direct({}, () => nutrition.setWeight('2026-10-29', 80));
 check(isLocked(x) && g.writes.length === 0, 'proxy 머리가 없으면 동작 취급 — 밝힘 없는 것은 막힘');
@@ -373,8 +371,10 @@ check(isLocked(x) && g.writes.length === 0, '준관리자: 웹 구속 관리 동
 as('USER');
 
 /* ───────── 6. 화면(page) ───────── */
-x = await direct({ 'x-bp-entry': 'page', 'x-bp-path': '/training' }, () => dal.getCurrentUser());
+x = await direct({ 'x-bp-entry': 'page', 'x-bp-path': '/nutrition' }, () => dal.getCurrentUser());
 check(!x.ok && x.e.digest === 'NEXT_REDIRECT;replace;/today;307;', '잠긴 화면은 베타 홈으로');
+x = await direct({ 'x-bp-entry': 'page', 'x-bp-path': '/training' }, () => dal.getCurrentUser());
+check(x.ok, '트레이닝 화면은 열림(2026-11-01)');
 x = await direct({ 'x-bp-entry': 'page', 'x-bp-path': '/videos/lab/abc' }, () => dal.getCurrentUser());
 check(x.ok && x.value?.id === 'u-user', '투구 3D 화면은 열림');
 x = await direct({ 'x-bp-entry': 'page', 'x-bp-path': '/videos' }, () => dal.getCurrentUser());
@@ -386,7 +386,7 @@ check(!x.ok, '모르는 화면은 막힘');
 as('MANAGER');
 check(!(await direct({ 'x-bp-entry': 'page', 'x-bp-path': '/admin/velocity' }, () => dal.getCurrentUser())).ok, '준관리자 구속 관리 화면도 베타 잠금');
 check(!(await direct({ 'x-bp-entry': 'page', 'x-bp-path': '/admin' }, () => dal.getCurrentUser())).ok, '준관리자 관리 첫 화면 베타 잠금');
-check(!(await direct({ 'x-bp-entry': 'page', 'x-bp-path': '/support' }, () => dal.getCurrentUser())).ok, '준관리자 고객센터 베타 잠금');
+check((await direct({ 'x-bp-entry': 'page', 'x-bp-path': '/support' }, () => dal.getCurrentUser())).ok, '준관리자 고객센터 열림(2026-11-01)');
 check(!(await direct({ 'x-bp-entry': 'page', 'x-bp-path': '/admin/dev3d' }, () => dal.getCurrentUser())).ok, '준관리자 3D 개발 화면 거부');
 check(!(await direct({ 'x-bp-entry': 'page', 'x-bp-path': '/admin/users' }, () => dal.getCurrentUser())).ok, '준관리자 대표 전용 화면 거부');
 /* 비로그인 — 관문을 안 거친다(사람이 없음). 공개 읽기는 각 화면 그대로(2026-10-29 결정) */

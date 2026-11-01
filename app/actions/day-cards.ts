@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
@@ -63,6 +64,7 @@ export async function saveTrainingPrefs(input: {
    */
   focus?: string | null;
 }): Promise<DayCardResult> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
   if (typeof input.date !== 'string' || !validateCheckinDate(input.date))

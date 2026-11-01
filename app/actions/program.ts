@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
@@ -86,6 +87,7 @@ export async function startProgram(input: {
   | { ok: true; programKey: string; same?: boolean }
   | { error: string; code?: 'changed' | 'exists' | 'busy'; changed?: { variant: VariantKey; label: string; from: string | null; to: string | null }[] }
 > {
+  allowFeature('training');
   if (!PROGRAMS_ENABLED) return { error: '지금은 프로그램을 시작할 수 없어요.' };
   const programKey = startProgramKey(input.programId, input.perWeek);
   const def = programDef(input.programId);
@@ -247,6 +249,7 @@ export async function loadProgramStartStatus(input: { requestId: string }): Prom
   | { state: 'none' }
   | { error: string }
 > {
+  allowFeature('training');
   const user = await requireUser();
   const requestId = typeof input?.requestId === 'string' ? input.requestId : '';
   if (!requestId) return { error: '요청을 찾지 못했어요.' };
@@ -284,6 +287,7 @@ export async function programChoices(input: {
 }): Promise<
   { choices: { id: string; title: string; equipment: string[] }[] } | { error: string }
 > {
+  allowFeature('training');
   const user = await requireUser();
   if (!VARIANT_KEYS.includes(input.variant)) return { error: '모르는 칸이에요.' };
   const owned = sheetEquipment(user.ownedEquipment, input.ownedEquipment);
@@ -337,6 +341,7 @@ export async function previewPinned(input: {
     sessions?: string[];
   }[];
 }> {
+  allowFeature('training');
   const user = await requireUser();
   const owned = sheetEquipment(user.ownedEquipment, input.ownedEquipment);
   const level = user.trainingLevel ?? input.trainingLevel ?? null;
@@ -386,6 +391,7 @@ export async function previewPinned(input: {
  * 오늘 프로그램 날의 운동을 연다. 카드가 보인 목록 · 무게(lib/program/load.ts)를 그대로 얼린다(U1.4).
  */
 export async function startProgramWorkout() {
+  allowFeature('training');
   const user = await requireUser();
   /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
   if (featureLocks(user).training) redirect(SETUP_PATH.training);
@@ -450,6 +456,7 @@ export async function startProgramWorkout() {
 
 /** 경기 앞뒤로 쉬는 날을 넘긴다(D24) — 오늘 하루만 */
 export async function overrideProgramRest(): Promise<Result> {
+  allowFeature('training');
   const user = await requireUser();
   const today = new Date(`${toDateKey(appNow())}T00:00:00.000Z`);
   const moved = await prisma.userTrainingProgram.updateMany({
@@ -463,6 +470,7 @@ export async function overrideProgramRest(): Promise<Result> {
 
 /** 이 날 건너뛰기(§13-16) — 건너뜀으로 세고 다음 일차로. 마지막 일차를 넘으면 끝. */
 export async function skipProgramDay(input: { day: number }): Promise<Result> {
+  allowFeature('training');
   const user = await requireUser();
   const row = await activeProgram(user.id);
   if (!row) return { error: '진행 중인 프로그램이 없어요.' };
@@ -504,6 +512,7 @@ export async function skipProgramDay(input: { day: number }): Promise<Result> {
 
 /** 그만두기(§13-16) — 이 판은 끝, 기록은 남는다 */
 export async function stopProgram(): Promise<Result> {
+  allowFeature('training');
   const user = await requireUser();
   const moved = await prisma.userTrainingProgram.updateMany({
     where: { userId: user.id, status: 'active' },
@@ -519,6 +528,7 @@ export async function repinProgramExercise(input: {
   variant: VariantKey;
   exerciseId: string;
 }): Promise<Result> {
+  allowFeature('training');
   const user = await requireUser();
   if (!VARIANT_KEYS.includes(input.variant)) return { error: '모르는 칸이에요.' };
   const row = await activeProgram(user.id);
@@ -553,6 +563,7 @@ export async function programSwapChoices(input: {
   variant: VariantKey;
   withLibrary: boolean;
 }): Promise<SwapChoices | { error: string }> {
+  allowFeature('training');
   const user = await requireUser();
   if (!VARIANT_KEYS.includes(input.variant)) return { error: '모르는 칸이에요.' };
   const row = await activeProgram(user.id);
@@ -603,6 +614,7 @@ export async function swapProgramToday(input: {
   variant: VariantKey;
   exerciseId: string | null;
 }): Promise<Result> {
+  allowFeature('training');
   const user = await requireUser();
   if (!VARIANT_KEYS.includes(input.variant)) return { error: '모르는 칸이에요.' };
   const row = await activeProgram(user.id);

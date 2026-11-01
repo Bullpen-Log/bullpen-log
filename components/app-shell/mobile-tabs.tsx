@@ -405,7 +405,7 @@ export function MobileTabs({
                 data-nav={slideTo(tabs.indexOf(tab))}
                 aria-current={active ? 'page' : undefined}
                 /* 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 아이콘 오른쪽 아래 자물쇠. 링크는 산다 — 누르면 설정 화면 */
-                aria-label={tab.locked ? `${tab.label}(설정 전)` : undefined}
+                aria-label={tab.locked ? `${tab.label}(${tab.lockReason === 'beta' ? '준비 중' : '설정 전'})` : undefined}
                 data-locked={tab.locked ? '' : undefined}
                 /*
                  * 누르면 렌즈가 곧바로 이 칸으로 간다(화면이 오기 전에). 지금 탭을 한 번 더 누르면 — 그 탭의 첫 화면이면

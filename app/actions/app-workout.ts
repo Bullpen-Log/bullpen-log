@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { getCurrentUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { openRunSession, runPayload, type RunPayload } from '@/lib/workout/run-load';
@@ -15,6 +16,7 @@ import type { WarmupCard } from '@/app/(session)/workout/warmup/warmup-client';
 export async function loadAppWorkout(): Promise<
   ({ ok: true } & RunPayload) | { ok: false; error: string; to?: string }
 > {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.', to: '/login' };
   if (featureLocks(user).training)
@@ -32,6 +34,7 @@ export async function loadAppWorkout(): Promise<
 export async function loadAppWarmup(): Promise<
   { ok: true; themeLabel: string; cards: WarmupCard[]; sessionId: string; dateKey: string } | { ok: false; to: string }
 > {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   const got = await loadWarmup(user);
@@ -44,6 +47,7 @@ export async function loadAppWarmup(): Promise<
  * 아직 하는 판 · 세트 없음) 갈 곳(to)을 돌려준다. 힘듦 칩은 웹과 같은 workout.rateWorkoutEffort.
  */
 export async function loadAppWorkoutDone(id: unknown): Promise<({ ok: true } & WorkoutDone) | { ok: false; to: string }> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   const got = await loadWorkoutDone(user, id);

@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
@@ -28,6 +29,7 @@ export async function exerciseHistory(input: {
    */
   excludeSessionId?: string;
 }): Promise<{ history: ExerciseHistory; note: string | null } | { error: string }> {
+  allowFeature('training');
   const user = await requireUser();
   const exerciseId = typeof input?.exerciseId === 'string' ? input.exerciseId : '';
   if (!exerciseId) return { error: '운동을 찾을 수 없어요.' };

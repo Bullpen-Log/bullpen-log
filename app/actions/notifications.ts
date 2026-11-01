@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 
 /** 알림함(2026-10-21 개편 5단계 5-2) — 읽음 표시. 하나 또는 전부 */
 export async function markNotificationsRead(formData: FormData): Promise<void> {
+  allowFeature('notifications');
   const user = await requireUser();
   const id = String(formData.get('id') ?? '');
   await prisma.notification.updateMany({
@@ -33,8 +34,7 @@ export type BellNotification = {
 };
 
 export async function loadBellNotifications(): Promise<{ items: BellNotification[]; unread: number }> {
-  /* 홈 위 종 — 출시 전 베타에도 읽기는 연다(2026-11-01) */
-  allowFeature('home');
+  allowFeature('notifications');
   const user = await getCurrentUser();
   if (!user) return { items: [], unread: 0 };
   const [rows, unread] = await Promise.all([
@@ -62,8 +62,7 @@ export async function loadBellNotifications(): Promise<{ items: BellNotification
 
 /** 종의 점 — 안 읽은 알림 수(로그인 전 0) */
 export async function countBellNotifications(): Promise<number> {
-  /* 홈 위 종 — 출시 전 베타에도 읽기는 연다(2026-11-01) */
-  allowFeature('home');
+  allowFeature('notifications');
   const user = await getCurrentUser();
   if (!user) return 0;
   return prisma.notification.count({ where: { userId: user.id, readAt: null } });
@@ -71,6 +70,7 @@ export async function countBellNotifications(): Promise<number> {
 
 /** 종 창에서 읽음 — 하나(id) 또는 전부(id 없음). 화면 다시 그리기는 부르는 쪽이 한다(창이 닫히지 않게 revalidate 하지 않는다) */
 export async function readBellNotifications(id?: string): Promise<number> {
+  allowFeature('notifications');
   const user = await requireUser();
   await prisma.notification.updateMany({
     where: { userId: user.id, readAt: null, ...(id ? { id } : {}) },

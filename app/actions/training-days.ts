@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { requireUser } from '@/lib/dal';
 import { appNow } from '@/lib/clock';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
@@ -11,6 +12,7 @@ import { TRAINING_CALENDAR_BACK_DAYS } from '@/lib/training-part';
  * 탭이 그만큼 늦게 뜬다).
  */
 export async function trainingMarkedDays(): Promise<string[]> {
+  allowFeature('training');
   const user = await requireUser();
   const today = toDateKey(appNow());
   return loadTrainingMarkedDays(user.id, shiftDateKey(today, -TRAINING_CALENDAR_BACK_DAYS), today);

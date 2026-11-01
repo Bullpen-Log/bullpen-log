@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
@@ -62,6 +63,7 @@ export async function setExerciseFavorite(
   exerciseId: string,
   favorite: boolean
 ): Promise<Result> {
+  allowFeature('training');
   const user = await requireUser();
   if (!exerciseId) return { error: '운동을 찾을 수 없어요.' };
 

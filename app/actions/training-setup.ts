@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { redirect, RedirectType } from 'next/navigation';
@@ -127,6 +128,7 @@ function returnPath(formData: FormData): string {
  * '다시 만들기'를 누르면 된다.
  */
 export async function saveTrainingSettings(formData: FormData) {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
@@ -144,6 +146,7 @@ export async function saveTrainingSettings(formData: FormData) {
 
 /** 가지고 있는 장비만 저장한다. 경력은 건드리지 않는다. */
 export async function saveOwnedEquipment(formData: FormData) {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
@@ -166,6 +169,7 @@ export async function saveOwnedEquipment(formData: FormData) {
 type AppSettingsResult = { ok: true } | { ok: false; error: string };
 
 export async function saveAppTrainingLevel(level: unknown): Promise<AppSettingsResult> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const fd = new FormData();
@@ -179,6 +183,7 @@ export async function saveAppTrainingLevel(level: unknown): Promise<AppSettingsR
 }
 
 export async function saveAppOwnedEquipment(names: unknown): Promise<AppSettingsResult> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const fd = new FormData();
@@ -193,6 +198,7 @@ export async function saveAppOwnedEquipment(names: unknown): Promise<AppSettings
 export async function loadAppTrainingSettings(): Promise<
   { ok: true; trainingLevel: string | null; ownedEquipment: string[] } | { ok: false; to: string }
 > {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   return { ok: true, trainingLevel: user.trainingLevel ?? null, ownedEquipment: user.ownedEquipment ?? [] };
@@ -224,6 +230,7 @@ function readPlanExerciseIds(plan: unknown): string[] {
 }
 
 export async function generateTodayPlan(formData: FormData) {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
@@ -564,6 +571,7 @@ export async function generateTodayPlan(formData: FormData) {
  * '/training' — 끝나면 웹처럼 redirect 하고, 앱은 그 답을 '만들었어요'로 받아 다시 읽는다. 글자 아닌 줄은 버린다(검사는 generateTodayPlan 이 한다).
  */
 export async function generateAppTodayPlan(fields: unknown) {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) redirect('/login');
   const formData = new FormData();
@@ -631,6 +639,7 @@ async function decideAutoSetup({
 export async function finishTrainingSetup(
   fields: [string, string][]
 ): Promise<{ ok: true } | { ok: false; error: string; field?: string }> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const form = formOfRows(fields);
@@ -711,6 +720,7 @@ export async function loadAppTrainingSetup(): Promise<
     }
   | { ok: false; to: string }
 > {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   const hasSetup = !featureLocks(user).training;

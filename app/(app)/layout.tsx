@@ -109,8 +109,12 @@ export default async function AppLayout({
     forCountry(isNative ? items : withoutDugoutTab(items), country);
   const groupsOf = <G extends { items: { href: string }[] }>(groups: G[]) =>
     forCountryGroups(isNative ? groups : withoutDugoutTabGroups(groups), country);
-  /* 앱(웹뷰)에 보내는 탭 · 메뉴는 베타 잠김 까닭('beta')을 단다 — 앱 껍데기가 그것으로 누를 때 안내만 한다. 웹 막대는 원래 그대로(링크 지킴이가 막는다) */
+  /*
+   * 베타면 잠긴 탭 · 메뉴에 잠김 까닭('beta')을 단다 — 앱(웹뷰)에 보내는 것은 앱 껍데기가 회색 + 자물쇠로, 웹 막대 · 메뉴는 흐리게 + 자물쇠로 그린다
+   * (2026-11-01 금윤호: "막힌 기능들은 ABS 처럼 자물쇠로"). 주소는 그대로 — 누르면 앱은 껍데기가, 웹은 링크 지킴이가 안내만 한다
+   */
   const forApp = <T extends NavItem>(items: T[]) => (access ? applyBetaLocks(items, access, { keepHref: true, surface: 'native' }) : items);
+  const forWeb = <T extends NavItem>(items: T[]) => (access ? applyBetaLocks(items, access, { keepHref: true }) : applyLocks(items, locks));
 
   /* PC 브라우저의 선수 화면은 덕아웃 틀 안(2026-10-21 2단계, docs/designs/sinker-dugout.md 5-1) — 위 막대 하나, 앱(싱커 웹뷰)은 안 그린다 */
   const [unread, alerts] = isNative
@@ -187,17 +191,17 @@ export default async function AppLayout({
       )}
       <AppNav
         groups={groupsOf(
-          access && isNative
-            ? betaGroups(visibleGroups(user.role, isNative), access, { showLocked: true })
+          access
+            ? betaGroups(visibleGroups(user.role, isNative), access, { showLocked: true, surface: isNative ? 'native' : 'web' })
             : applyLocksToGroups(visibleGroups(user.role, isNative), locks)
         )}
-        quick={tabsOf(applyLocks(quickTabs(), locks))}
-        tabs={tabsOf(applyLocks(MOBILE_TABS, locks))}
+        quick={tabsOf(forWeb(quickTabs()))}
+        tabs={tabsOf(forWeb(MOBILE_TABS))}
         appTabs={isNative ? tabsOf(access ? forApp(appTabs) : applyLocks(appTabs, locks)) : undefined}
         back={back}
         sportBars={{
-          pitch: applyLocks(SPORT_BARS.pitch, locks),
-          hit: applyLocks(SPORT_BARS.hit, locks),
+          pitch: forWeb(SPORT_BARS.pitch),
+          hit: forWeb(SPORT_BARS.hit),
         }}
         nickname={user.nickname}
         avatarUrl={avatarUrl}

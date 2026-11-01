@@ -270,7 +270,7 @@ export function DockGrid({
           const kind: FlyKind = icons === 'hover' && !quick ? 'pop' : 'fly';
           const named = icons !== 'none';
           /* 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 자물쇠 — 막대(TopIcon)와 같은 NavGlyph */
-          const name = item.locked ? `${item.label}(설정 전)` : item.label;
+          const name = item.locked ? `${item.label}(${item.lockReason === 'beta' ? '준비 중' : '설정 전'})` : item.label;
           return (
             <Link
               key={item.href}

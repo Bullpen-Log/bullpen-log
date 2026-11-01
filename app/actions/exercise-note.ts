@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { cleanExerciseNote } from '@/lib/exercise-meta';
@@ -20,6 +21,7 @@ export async function saveExerciseNote(input: {
   exerciseId: string;
   body: string;
 }): Promise<{ note: string | null } | { error: string }> {
+  allowFeature('training');
   const user = await requireUser();
   const exerciseId = typeof input?.exerciseId === 'string' ? input.exerciseId : '';
   if (!exerciseId) return { error: '운동을 찾을 수 없어요.' };

@@ -411,7 +411,7 @@ export function DetailMenu({
                           href={item.href}
                           aria-current={active ? 'page' : undefined}
                           aria-label={
-                            item.locked ? `${item.label}(설정 전)` : undefined
+                            item.locked ? `${item.label}(${item.lockReason === 'beta' ? '준비 중' : '설정 전'})` : undefined
                           }
                           data-locked={item.locked ? '' : undefined}
                           data-tile

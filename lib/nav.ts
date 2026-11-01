@@ -613,9 +613,10 @@ export const BETA_LOCKED_HREF = '/today';
  * 메뉴 묶음 — 웹은 열린 항목만 남긴다. 앱(showLocked)은 잠긴 항목도 남기고 '준비 중' 표시를 단다 — 앱 더보기가 회색 + 자물쇠로 그리고
  * 누르면 안내만 한다(2026-10-29 금윤호: 잠긴 기능도 보이되 누가 봐도 비활성으로). 주소는 그대로 둔다 — 앱이 주소로 잠김을 다시 판정한다.
  */
-export function betaGroups(groups: NavGroup[], access: ReleaseAccess, opts: { showLocked?: boolean } = {}): NavGroup[] {
+export function betaGroups(groups: NavGroup[], access: ReleaseAccess, opts: { showLocked?: boolean; surface?: 'web' | 'native' } = {}): NavGroup[] {
   if (!access.restricted) return groups;
-  if (opts.showLocked) return groups.map((g) => ({ ...g, items: applyBetaLocks(g.items, access, { keepHref: true, surface: 'native' }) }));
+  /* 웹도 잠긴 항목을 남긴다(2026-11-01 — 흐리게 + 자물쇠, 누르면 components/beta/beta-link-guard.tsx 가 안내만) */
+  if (opts.showLocked) return groups.map((g) => ({ ...g, items: applyBetaLocks(g.items, access, { keepHref: true, surface: opts.surface ?? 'native' }) }));
   return groups
     .map((g) => ({ ...g, items: g.items.filter((i) => accessAllowsPath(access, i.href, 'web')) }))
     .filter((g) => g.items.length > 0);

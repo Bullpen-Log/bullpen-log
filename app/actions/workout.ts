@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { redirect, RedirectType } from 'next/navigation';
@@ -76,6 +77,7 @@ import { startProgramWorkout } from '@/app/actions/program';
  * 들어왔다고 새 판을 열면 오전에 한 것과 합계가 갈린다.
  */
 export async function startWorkout() {
+  allowFeature('training');
   const user = await requireUser();
   /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 — 시작만 막고 진행 중인 판은 건드리지 않는다 */
   if (featureLocks(user).training) redirect(SETUP_PATH.training);
@@ -156,6 +158,7 @@ export async function finishWarmup(input: {
   /** 워밍업 창이 연 판(2026-10-30) — 주면 그 판만. 그사이 판이 바뀌었으면(어제 판이 닫히고 새 판) 덮지 않는다. 안 주면 옛 앱처럼 열린 판 */
   sessionId?: string;
 }): Promise<{ error: string } | never> {
+  allowFeature('training');
   const user = await requireUser();
   const session =
     typeof input.sessionId === 'string' && input.sessionId
@@ -316,6 +319,7 @@ async function setsOf(sessionId: string): Promise<SavedSet[]> {
  * 그렇다 — 두 번 쌓이면 부하가 두 배가 된다.
  */
 export async function logSet(input: SetInput): Promise<SetResult> {
+  allowFeature('training');
   const user = await requireUser();
   const session =
     (await sessionForSet(user.id, input.sessionId)) ??
@@ -461,6 +465,7 @@ export async function deleteSet(input: {
   exerciseId: string;
   setNo: number;
 }): Promise<SetResult> {
+  allowFeature('training');
   const user = await requireUser();
   const session = await sessionForSet(user.id, input.sessionId);
   if (!session) return { error: '이미 마친 운동이라 지울 수 없어요.' };
@@ -543,6 +548,7 @@ async function closeSession(
  * 그 뒤처리만 다시 해 본다(예전엔 바로 트레이닝으로 보내 실패한 뒤처리를 다시 할 길이 없었다).
  */
 export async function finishWorkout(input: FinishInput): Promise<{ error: string } | never> {
+  allowFeature('training');
   const user = await requireUser();
   const note = finishNoteInput(input);
   if ('error' in note) return note;
@@ -570,6 +576,7 @@ export async function finishWorkout(input: FinishInput): Promise<{ error: string
 export async function finishSession(
   input: FinishInput
 ): Promise<{ ok: true; receipt: FinishReceipt } | { error: string; state: 'active' | 'missing' | 'closed' }> {
+  allowFeature('training');
   const user = await requireUser();
   const note = finishNoteInput(input);
   if ('error' in note) return { ...note, state: 'active' };
@@ -589,6 +596,7 @@ export async function finishSession(
 export async function finishStatus(input: { sessionId: string }): Promise<
   { state: 'ACTIVE' | 'ABANDONED' | 'missing' } | { state: 'FINISHED'; receipt: FinishReceipt }
 > {
+  allowFeature('training');
   const user = await requireUser();
   if (typeof input?.sessionId !== 'string' || !input.sessionId) return { state: 'missing' };
   const session = await prisma.trainingSession.findFirst({ where: { id: input.sessionId, userId: user.id } });
@@ -599,6 +607,7 @@ export async function finishStatus(input: { sessionId: string }): Promise<
 
 /** 마친 판의 뒤처리(일차 · 강도)를 다시 해 본다 — 축하 화면의 '다시 확인'. 몇 번을 눌러도 한 번만 반영된다 */
 export async function recoverFinish(input: { sessionId: string }): Promise<{ ok: true; receipt: FinishReceipt } | { error: string }> {
+  allowFeature('training');
   const user = await requireUser();
   if (typeof input?.sessionId !== 'string' || !input.sessionId) return { error: '운동을 찾지 못했어요.' };
   const session = await prisma.trainingSession.findFirst({ where: { id: input.sessionId, userId: user.id } });
@@ -613,6 +622,7 @@ export async function recoverFinish(input: { sessionId: string }): Promise<{ ok:
  * 세트를 '없다'고 빼지 않게). 본인 판만, 읽기만.
  */
 export async function sessionSets(input: { sessionId: string }): Promise<{ sets: SavedSet[] } | { error: string }> {
+  allowFeature('training');
   const user = await requireUser();
   if (typeof input?.sessionId !== 'string' || !input.sessionId) return { error: '운동을 찾지 못했어요.' };
   const session = await prisma.trainingSession.findFirst({ where: { id: input.sessionId, userId: user.id }, select: { id: true } });
@@ -635,6 +645,7 @@ export async function rateWorkoutEffort(input: {
   effort?: string;
   intensity?: number;
 }): Promise<{ ok: true; intensity: number; existing?: boolean } | { error: string }> {
+  allowFeature('training');
   const user = await requireUser();
   const intensity =
     input?.intensity !== undefined
@@ -734,6 +745,7 @@ export async function reorderSession(
   /** 고칠 판 — 운동 화면이 들고 있는 판 번호. 안 주면 열려 있는 판(finishWorkout 과 같은 까닭) */
   sessionId?: string
 ): Promise<{ ids: string[] } | { error: string }> {
+  allowFeature('training');
   const user = await requireUser();
   const session = await sessionForSet(user.id, sessionId);
   if (!session) return { error: '열려 있는 운동이 없어요.' };
@@ -848,6 +860,7 @@ export async function swapChoices(input: {
   exerciseId: string;
   withLibrary: boolean;
 }): Promise<SwapChoices | { error: string }> {
+  allowFeature('training');
   const user = await requireUser();
   const session = await sessionForSet(user.id, input.sessionId);
   if (!session) return { error: '이미 마친 운동이라 바꿀 수 없어요.' };
@@ -925,6 +938,7 @@ export async function changeSessionExercise(input: {
   toId: string;
   mode: SwapMode;
 }): Promise<{ exercise: RunExercise; mode: SwapMode } | { error: string }> {
+  allowFeature('training');
   const user = await requireUser();
   const session = await sessionForSet(user.id, input.sessionId);
   if (!session) return { error: '이미 마친 운동이라 바꿀 수 없어요.' };

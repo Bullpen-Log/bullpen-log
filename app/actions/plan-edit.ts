@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
@@ -54,6 +55,7 @@ async function savePlan(userId: string, date: Date, next: DailyPlan) {
  * 잡히고 목록에는 없는 어긋난 상태가 된다. 다시 넣고 다시 체크하면 된다.
  */
 export async function removeFromTodayPlan(exerciseId: string): Promise<Result> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { error: '로그인이 필요해요.' };
 
@@ -135,6 +137,7 @@ export async function removeFromTodayPlan(exerciseId: string): Promise<Result> {
  * 애초에 목록 자체가 안 나오므로 여기까지 오지 않는다.
  */
 export async function addToTodayPlan(exerciseId: string): Promise<Result> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { error: '로그인이 필요해요.' };
 

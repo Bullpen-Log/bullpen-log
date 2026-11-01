@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
 import { requireUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
@@ -19,6 +20,7 @@ export async function updatePitchLog(
   _prev: SinkerLogState,
   formData: FormData
 ): Promise<SinkerLogState> {
+  allowFeature('records');
   const user = await requireUser();
   const id = String(formData.get('id') ?? '');
   const log = await prisma.pitchLog.findUnique({
@@ -65,6 +67,7 @@ export async function updatePitchLog(
 }
 
 export async function deletePitchLog(formData: FormData): Promise<void> {
+  allowFeature('records');
   const user = await requireUser();
   const id = String(formData.get('id') ?? '');
   await prisma.pitchLog.deleteMany({ where: { id, userId: user.id } });

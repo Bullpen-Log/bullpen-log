@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { usePalette, type Palette } from '~/lib/ui';
+import { usePalette, withAlpha, type Palette } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
 import { noticeLocked } from '~/shell/release';
 
@@ -89,12 +89,40 @@ export function LockedBlock({ icon, size, label, style }: { icon: IconName; size
 /** 읽어 주는 글 — 잠긴 칸 모두 같게 */
 export const LOCKED_HINT = '준비 중인 기능이에요. 누르면 안내만 나와요.';
 
-
+/**
+ * 잠긴 카드 덮개(2026-11-01 금윤호: "막힌 기능들은 ABS 가 막혀 있는 것처럼 자물쇠로 가려줘") — 카드 · 줄을 그대로 두고 그 위를 회색 판으로 덮어
+ * 한가운데 자물쇠 · '준비 중'을 놓는다(LockedBlock 과 같은 색 · 자물쇠). 덮개가 누름을 받아 안내만 하고 밑의 카드는 눌리지 않는다.
+ * locked 가 아니면 그대로 그린다. radius 는 덮는 카드의 모서리와 같게.
+ */
+export function LockCover({ locked, label, radius = 20, style, children }: { locked: boolean; label: string; radius?: number; style?: StyleProp<ViewStyle>; children: ReactNode }) {
+  const c = usePalette();
+  if (!locked) return <>{children}</>;
+  const k = lockedColors(c);
+  return (
+    <View style={style}>
+      <View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={{ opacity: LOCK_DIM, flexGrow: 1 }}>
+        {children}
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label}, 준비 중`}
+        accessibilityHint={LOCKED_HINT}
+        accessibilityState={{ disabled: true }}
+        onPress={noticeLocked}
+        style={({ pressed }) => [s.cover, { borderRadius: radius, backgroundColor: withAlpha(k.fill, 0.72), borderColor: c.lineStrong }, pressed && { opacity: 0.85 }]}
+      >
+        <LockBadge size={30} ring="transparent" />
+        <Text style={{ color: k.label, fontSize: 12, fontWeight: '600' }}>준비 중</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 const s = StyleSheet.create({
   badge: { alignItems: 'center', justifyContent: 'center' },
   center: { alignItems: 'center', justifyContent: 'center' },
   centerBadge: { position: 'absolute' },
+  cover: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderStyle: 'dashed' },
   block: { borderRadius: 24, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 12, paddingVertical: 16, borderWidth: 1, borderStyle: 'dashed' },
   blockLabel: { fontSize: 15, fontWeight: '600', letterSpacing: -0.3, textAlign: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 56, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 12 },

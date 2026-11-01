@@ -16,6 +16,11 @@
   웹(PC)도 같은 날 같게: 베타 틀(`BetaAppLayout`) · 웹 베타 홈을 지우고 원래 싱커 틀 · 위 막대 · 메뉴 · 홈 판을 그린다. 잠긴 곳으로 가는 링크는
   `components/beta/beta-link-guard.tsx`(문서 캡처 단계 클릭)가 들어가지 않고 '준비 중인 기능입니다.'만 띄운다. 체크인 관문 · 대기열 보내기 · 영상 맞추기만 베타에 안 둔다.
   잠긴 판(@videos · @hitting)은 그대로 `betaPanelHidden`. 아래 줄들의 '베타 홈 · 회색 · 자물쇠' 설명은 옛 것이다.
+- **2026-11-01 더 바뀜(금윤호)**: "트레이닝과 기록은 열어둬" · "알림과 고객센터도 열어둬" — `BETA_ALLOWED` 에 training · records · notifications · support(정책 판 2026-11-01.1).
+  그 모듈의 동작에 밝힘 줄을 넣었다(app-training · workout · program 등 12개 → training, sinker-log · onboarding-state · app.loadAppRecords → records, notifications 전부,
+  day-cards.saveTrainingPrefs · favorite.setExerciseFavorite → training). 암케어 · 메커니즘 · 영양 · 체크인 · 라이브러리 · 구속 · 덕아웃 · 팀은 그대로 잠김.
+  "막힌 기능들은 ABS 처럼 자물쇠로 가려줘" — 앱 하단 탭 · 더보기는 다시 회색 + 자물쇠, 투구 도크의 구속 측정은 ABS 와 같은 `LockedBlock`, 트레이닝 탭의 암케어 · 메커니즘 카드 ·
+  영상 줄은 `LockCover`(회색 덮개 + 자물쇠). 웹 막대 · 메뉴도 잠긴 항목을 흐리게 + 자물쇠로 남긴다(누르면 링크 지킴이가 안내만).
 - **잠긴 기능은 숨기지 않고 보인다** — 앱 화면의 버튼은 회색 + 아이콘 위 자물쇠, 누르면 '준비 중인 기능입니다.'만 뜨고 들어가지 않는다(`native/src/shell/locked.tsx`).
   앱 투구 탭 첫 화면은 열려 있고(3D 분석의 입구), 그 안의 구속 측정 · ABS · 투구 기록이 잠긴 모양이다.
 - **켜는 법(2026-10-30 바뀜): 코드 기본값이 베타**(`lib/release-access.ts RELEASE_STAGE_DEFAULT`). Vercel 변수가 두 번 연속 안 들어가 바꿨다.

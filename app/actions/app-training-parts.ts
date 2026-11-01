@@ -1,5 +1,6 @@
 'use server';
 
+import { allowFeature } from '@/lib/release-gate';
 import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
@@ -19,6 +20,7 @@ import { loadTrainingStrip, type TrainingStripDay } from '@/lib/training-week';
 type Closed = { ok: false; to: string };
 
 export async function loadAppArmcare(tab: unknown): Promise<({ ok: true } & (AppArmcareTodayTab | AppArmcareGuideTab)) | Closed> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   if (featureLocks(user).training) return { ok: false, to: SETUP_PATH.training };
@@ -27,6 +29,7 @@ export async function loadAppArmcare(tab: unknown): Promise<({ ok: true } & (App
 }
 
 export async function loadAppMechanics(tab: unknown): Promise<({ ok: true } & (AppMechanicsProgramTab | AppMechanicsElementsTab)) | Closed> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   if (featureLocks(user).training) return { ok: false, to: SETUP_PATH.training };
@@ -39,6 +42,7 @@ export async function loadAppMechanics(tab: unknown): Promise<({ ok: true } & (A
  * id 는 'new' 또는 루틴 번호. 없는 루틴이면 routine null(웹은 notFound). 저장 · 지우기는 웹과 같은 armcare.saveMyArmcareRoutine · deleteMyArmcareRoutine.
  */
 export async function loadAppRoutine(id: unknown, add: unknown): Promise<{ ok: true; routine: RoutineBuilderData | null } | Closed> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   if (featureLocks(user).training) return { ok: false, to: SETUP_PATH.training };
@@ -50,6 +54,7 @@ export async function loadAppRoutine(id: unknown, add: unknown): Promise<{ ok: t
  * armcare.createMyArmcareRoutine · saveMyArmcareRoutine 이 운동을 다시 확인한다.
  */
 export async function loadAppRoutineCatalog(): Promise<{ ok: true; exercises: BuilderExercise[] } | Closed> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   if (featureLocks(user).training) return { ok: false, to: SETUP_PATH.training };
@@ -63,6 +68,7 @@ export type AppTrainingDay = { today: string; detail: TrainingDayDetail; strip: 
  * trainingDay · loadTrainingStrip. 없는 날짜(2026-02-31 같은 것)면 day null(웹은 notFound). 체크는 웹과 같은 exercise-log.setExerciseDone.
  */
 export async function loadAppTrainingDay(date: unknown): Promise<{ ok: true; day: AppTrainingDay | null } | Closed> {
+  allowFeature('training');
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   if (featureLocks(user).training) return { ok: false, to: SETUP_PATH.training };
