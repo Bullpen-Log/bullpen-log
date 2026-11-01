@@ -101,7 +101,8 @@ export async function revokeAnalysisConsent(): Promise<{ ok: true; state: Consen
   allowFeature('pitch3d');
   const user = await requireUser();
   try {
-    await prisma.analysisConsent.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+    /* 3D 분석 동의만 거둔다 — 같은 표의 건강정보 동의(purpose 'health')는 그대로 */
+    await prisma.analysisConsent.updateMany({ where: { userId: user.id, purpose: 'pitch3d', revokedAt: null }, data: { revokedAt: new Date() } });
     return { ok: true, state: await consentStateFor(user.id) };
   } catch {
     return { error: '철회를 저장하지 못했어요. 다시 해 주세요.' };

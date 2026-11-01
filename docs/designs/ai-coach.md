@@ -309,6 +309,10 @@
 
 **지킬 것**: 체크인 흐름(`components/checkin-flow/*` · 앱 `checkin.tsx`)과 가입은 여러 세션이 고친 곳 — 시작 직전 최신 확인 · HANDOFF. 공유 DB 라 시험 가입 · 보호자 메일은 시험 계정으로만(만들기 전 사용자 허락).
 
+**진행(2026-11-01)**: B1 끝 — `lib/health-consent.ts`(문서 · `healthConsentOf`, 우리 문서라 늘 확정) · `lib/guardian.ts`(`guardianStateOf` — 'none' · 'needed' · 'pending' · 'verified' · 'expired',
+7일은 보호자 줄을 처음 만든 때부터 — U22 옛 계정이 곧바로 지워지지 않게) · 시험 13(`analysis-consent:test`). DB: `AnalysisConsent.purpose`(기본 'pitch3d') · `GuardianConsent`(마이그레이션 `20261101150000_health_guardian_consent`).
+3D 분석 동의 읽기 · 거두기를 purpose 'pitch3d' 로 걸렀다(같은 표에 건강 동의가 들어와서). 화면 · 막기는 B2 · B4.
+
 ### 10-3. 3단계 — 주간 자동 일정 규칙(U23~U28 확정)
 
 **목표**: 일주일 7칸에 날마다 '무엇을 · 몇 분 · 어느 쪽'을 정한다. 운동 목록은 그날 기존 엔진이 만든다(R2). 새 안전 규칙을 만들지 않고 지금 엔진의 판정을 가져다 쓴다.

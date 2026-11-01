@@ -11,6 +11,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 건강정보 · 보호자 동의 판정 + DB 칸 · 표 · **받으면 `npx prisma generate`** · 네 3D 동의 읽기를 고쳤다
+
+받은 뒤 할 일: **`npx prisma generate`** — `AnalysisConsent.purpose`(기본 'pitch3d' — 옛 줄은 모두 3D 동의라 그대로 맞다) · 새 표 `GuardianConsent`(만 14세 미만 보호자 동의, `User.guardianConsent`).
+마이그레이션 `20261101150000_health_guardian_consent`(ADD COLUMN 기본값 있음 · CREATE 만)는 이 푸시의 Vercel 빌드가 건다. 직전 백업 `db-2026-11-01-12-52.json`.
+- **네 3D 동의(10-29)를 조금 고쳤다**: 같은 표에 건강정보 동의(purpose 'health')가 들어오므로 `lib/analysis-consent-store.ts consentRecordsOf` 가 purpose 로 거르고(기본 'pitch3d'),
+  `revokeAnalysisConsent` 도 'pitch3d' 줄만 거둔다. 새로 읽는 곳을 만들면 purpose 를 꼭 걸어 줘.
+- 순수 판정 `lib/health-consent.ts`(문서 · `healthConsentOf`) · `lib/guardian.ts`(`guardianStateOf`) + `analysis-consent:test` 13개. 화면 · 서버 막기는 아직(설계 10-2 B2 · B4).
+
 ## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 코치 표 다섯을 더했다 · **받으면 `npx prisma generate`** · 주간 계획기
 
 받은 뒤 할 일: **`npx prisma generate`** — 새 표 `Entitlement`(유료 권한) · `CoachProfile` · `CoachWeek` · `CoachLog` · `CoachMessage`, `User` 에 관계 다섯(onDelete Cascade — 탈퇴가 같이 지운다).
