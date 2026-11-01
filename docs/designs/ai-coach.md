@@ -486,6 +486,8 @@
   남은 것: 건강 동의 철회 화면(B4)이 생기면 그때 `discomfort` 를 지운다(지금은 읽기만 막음).
 - C5 ④ 끝: 순수 `lib/coach/review.ts`(`reviewWeekOf` — 일요일 18시(한국) ~ 월요일, `buildReview` — 계획 · 한 날 · 계획 밖 · 못 함 · 힘듦 평균과 흐름 · 같은 움직임 3일 넘게 불편이면 '전문가와 상의') + coach:test.
   `loadCoachWeek` 이 `review` 를 같이 준다(확인 전까지). 앱 코치 탭 맨 위 카드 [확인] → `ackWeeklyReview`(CoachWeek.reviewAckAt). PC 카드엔 읽기만. '다음 주가 바뀐 까닭'은 다음 주 틀이 월요일에 지어져 뺐다.
+- C5 ⑤ 끝: `vercel.json` crons 매일 UTC 09:00(한국 18시) → `/api/cron/daily`(`CRON_SECRET` 머리로만, 없으면 401). 일요일이면 `lib/coach/notices.ts sendWeeklyReviewNotices` — 코치 진행 중 · 유료에게 알림 한 번(알림 종류 'coach', 싱커, 20시간 안 같은 알림은 안 보냄, 누르면 /coach).
+  **사용자 몫: Vercel 환경변수 `CRON_SECRET`(아무 긴 글자)** — 없으면 크론이 401 로 아무것도 안 한다. '만 14세 미만 7일 지나 지우기'는 B2 · B3(보호자 동의)와 같이. **C5 끝.**
 
 ### 10-6. 6단계 — AI: 대화 · 설명 문장(U39~U44 확정, 기준 origin/main `83946b61`)
 

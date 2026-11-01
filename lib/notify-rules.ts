@@ -5,7 +5,7 @@
  * 싱커 안에서 그 글 · 예약이 열린다. 장터 · 거래 채팅은 늘 덕아웃 앱 먼저(싱커는 장터를 안 연다). 코치 · 학부모 · 팬(선수 아님)은 예전처럼 덕아웃 앱.
  */
 export type NotifyKind =
-  'chat' | 'listing' | 'booking' | 'venue' | 'community' | 'lesson' | 'team' | 'record';
+  'chat' | 'listing' | 'booking' | 'venue' | 'community' | 'lesson' | 'team' | 'record' | 'coach';
 export type AppName = 'sinker' | 'dugout';
 
 export const KIND_LABEL: Record<NotifyKind, string> = {
@@ -17,6 +17,8 @@ export const KIND_LABEL: Record<NotifyKind, string> = {
   lesson: '레슨 기록',
   team: '팀',
   record: '기록',
+  /* 유료 코치 — 주간 리뷰 알림(2026-11-01, docs/designs/ai-coach.md 10-5). 싱커로 */
+  coach: '코치',
 };
 
 const DUGOUT_FIRST: ReadonlySet<NotifyKind> = new Set([

@@ -14,6 +14,7 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 ## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 운동 끝 '불편했던 동작' 칸 · **받으면 `npx prisma generate`** · 네 운동 끝 화면에 한 칸
 
 받은 뒤 할 일: **`npx prisma generate`** — `DailyTrainingNote.discomfort Json?`(비워 둘 수 있음, 옛 코드도 돈다). 마이그레이션 `20261101170000_training_note_discomfort`(ADD COLUMN 만)는 이 푸시의 Vercel 빌드가 건다. 직전 백업 `db-2026-11-01-13-50.json`.
+- 같은 날 이어서: `vercel.json` 에 크론 하나(`/api/cron/daily`, 매일 한국 18시 — 일요일 코치 주간 리뷰 알림). Vercel 환경변수 `CRON_SECRET` 이 있어야 돈다(김민이 넣음 — 없으면 401 로 아무것도 안 함). 알림 종류에 'coach'(`lib/notify-rules.ts`).
 - 유료 코치 C5(설계 10-5 U36): 앱 `native/src/app/workout-done.tsx` 힘듦 밑에 `<DiscomfortAsk />`(유료 · 코치 진행 중 · 건강 동의일 때만 서버가 묻게 함). 고른 동작은 `app/actions/training-setup.ts` 가 지난 7일 몫을 '여러 번 바꿔서 뺀 운동'처럼 뒤로 미룬다(`lib/coach/today.ts pushBackDiscomfort` — 점수 판정 그대로).
 
 ## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 코치 처음 질문 흐름(앱 `/coach-start`) · 새 RPC 모듈 `coach`
