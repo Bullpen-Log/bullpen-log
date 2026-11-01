@@ -74,7 +74,11 @@ export type ReasonCode =
   | 'lower-yesterday'
   | 'youth'
   | 'effort-spike'
-  | 'pain';
+  | 'pain'
+  /* 조정 단추(5단계 U35) — 사용자가 코치에게 시킨 것 */
+  | 'skipped'
+  | 'moved'
+  | 'busy';
 
 export type DaySlot = {
   date: string;

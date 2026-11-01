@@ -9,6 +9,7 @@ import { PROGRAMS, REQUIRED_EQUIPMENT, BASICS_REQUIRED_EQUIPMENT } from '@/lib/p
 import { STRENGTH_PER_WEEK } from '@/lib/armcare/routine';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { slotStateOf, startsOf } from '@/lib/coach/status';
+import { applyAdjust, readAdjust } from '@/lib/coach/adjust';
 import { dayRuleOf, planWeek, suggestProgram, weekdayOf, type CoachAnswers, type DaySlot, type WeekInput, type Weekday } from '@/lib/coach/week';
 
 let pass = 0;
@@ -221,6 +222,57 @@ check('⑤ 오늘 · 아직 → 오늘', slotStateOf(trainSlot(T), NONE, T) === 
 check('⑤ 뒤 날 → 뒤', slotStateOf(trainSlot('2026-11-05'), NONE, T) === 'later');
 check('⑤ 시작 차례: 운동 → 메커니즘 → 암케어', startsOf(slotOf(T, [{ kind: 'armcare', mode: 'recovery', suggested: true }, { kind: 'mechanics' }, { kind: 'program', heavyLower: false }])).map((x) => x.kind).join() === 'train,mechanics,armcare');
 check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ kind: 'fixed', what: 'team' }])).length === 0);
+
+/* ─────────── ⑥ 조정 단추 ─────────── */
+{
+  const W0: WeekInput = {
+    weekStart: '2026-11-02', today: '2026-11-04',
+    answers: { days: [0, 1, 2, 3, 4, 5], minutes: 60, outingDays: [], outingEvery: null, teamDays: [3] },
+    fixed: [{ date: '2026-11-07', kind: 'game' }], outingDate: null, lastOuting: null, youth: false, painArm: false,
+    effortSpike: false, level: '중급', baselineFreq: 3, program: null, mechanics: null,
+  };
+  const wk = planWeek(W0);
+  const TODAY = '2026-11-04';
+  const lockPast = (d: string) => d < TODAY;
+  const trainDays = wk.filter((s) => s.items.some((x) => x.kind === 'train')).map((s) => s.date);
+  const future = trainDays.filter((d) => d >= TODAY);
+  check('⑥ 시험 주에 오늘 뒤 운동 날이 있다', future.length > 0, JSON.stringify(trainDays));
+  const d0 = future[0];
+  const m = applyAdjust(wk, { kind: 'minutes', date: d0, minutes: 30 }, lockPast);
+  check('⑥ 시간 바꾸기 → 그날만 30분', 'week' in m && m.changed.join() === d0 && m.week.find((s) => s.date === d0)!.items.some((x) => x.kind === 'train' && x.fence.minutes === 30), JSON.stringify(m));
+  const sk = applyAdjust(wk, { kind: 'skip', date: d0 }, lockPast);
+  check('⑥ 쉬기 → 운동 빠지고 쉬기 · 까닭', 'week' in sk && sk.week.find((s) => s.date === d0)!.items.every((x) => x.kind !== 'train') && sk.week.find((s) => s.date === d0)!.reasons.includes('skipped'), JSON.stringify(sk));
+  const past = trainDays.find((d) => d < TODAY);
+  if (past) check('⑥ 지난 날은 못 바꿈', 'error' in applyAdjust(wk, { kind: 'skip', date: past }, lockPast));
+  const game = applyAdjust(wk, { kind: 'move', from: d0, to: '2026-11-07' }, lockPast);
+  check('⑥ 경기 날로는 못 옮김', 'error' in game, JSON.stringify(game));
+  const eve = wk.find((s) => s.date === '2026-11-06')!;
+  const free = wk.find((s) => s.date >= TODAY && s.date !== d0 && !s.items.some((x) => x.kind === 'train') && s.rank !== 'recovery');
+  if (free) {
+    const mv = applyAdjust(wk, { kind: 'move', from: d0, to: free.date }, lockPast);
+    check('⑥ 옮기기 → 새 날에 운동 · 옛 날은 쉬기', 'week' in mv && mv.week.find((s) => s.date === free.date)!.items.some((x) => x.kind === 'train') && !mv.week.find((s) => s.date === d0)!.items.some((x) => x.kind === 'train'), JSON.stringify(mv));
+  }
+  if (eve.rank === 'light' && d0 !== eve.date) {
+    const toEve = applyAdjust(wk, { kind: 'move', from: d0, to: eve.date }, lockPast);
+    check('⑥ 등판 전날로 옮기면 가볍게 · 큰 하체 끔', 'week' in toEve && toEve.week.find((s) => s.date === eve.date)!.items.some((x) => x.kind === 'train' && x.fence.light && !x.fence.heavyLower), JSON.stringify(toEve));
+  }
+  const busy = applyAdjust(wk, { kind: 'busy' }, lockPast);
+  check('⑥ 바쁜 주 → 운동 날 하나 줄임', 'week' in busy && busy.week.filter((s) => s.items.some((x) => x.kind === 'train')).length === trainDays.length - 1, JSON.stringify(busy));
+  check('⑥ 같은 시간이면 바뀌는 게 없음', 'error' in applyAdjust(wk, { kind: 'minutes', date: d0, minutes: 60 }, lockPast));
+  check('⑥ 모양 검사: 범위 밖 분 · 같은 날 옮기기 거름', readAdjust({ kind: 'minutes', date: d0, minutes: 61 }) === null && readAdjust({ kind: 'move', from: d0, to: d0 }) === null && readAdjust({ kind: 'busy' }) !== null);
+  /* 이틀 잇는 큰 하체는 어떤 옮기기 뒤에도 없다 */
+  let consec = 0;
+  for (const a of wk) for (const b of wk) {
+    if (a.date === b.date) continue;
+    const r = applyAdjust(wk, { kind: 'move', from: a.date, to: b.date }, lockPast);
+    if (!('week' in r)) continue;
+    for (let i = 1; i < 7; i++) {
+      const h = (s: DaySlot) => s.items.some((x) => (x.kind === 'train' && x.fence.heavyLower) || (x.kind === 'program' && x.heavyLower));
+      if (r.week[i].date >= TODAY && h(r.week[i - 1]) && h(r.week[i])) consec++;
+    }
+  }
+  check('⑥ 옮긴 뒤 이틀 잇는 큰 하체 없음', consec === 0, String(consec));
+}
 
 console.log(`coach: ${pass}개 통과${fails.length ? `, ${fails.length}개 실패` : ''} (불변 입력 ${n}가지)`);
 for (const f of fails.slice(0, 20)) console.log(`  - ${f}`);

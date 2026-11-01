@@ -22,8 +22,9 @@ import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { planWeek, suggestProgram, weekdayOf, type DaySlot, type FixedDay, type WeekInput } from '@/lib/coach/week';
 import { startProgram } from '@/app/actions/program';
 import { slotStateOf } from '@/lib/coach/status';
+import { applyAdjust, readAdjust } from '@/lib/coach/adjust';
 import { loadTrainingDone } from '@/lib/training-week';
-import { COACH_STEPS, mergeStep, savedOf, type CoachSaved, type CoachStep } from '@/lib/coach/answers';
+import { COACH_STEPS, mergeStep, savedOf, slotLine, type CoachSaved, type CoachStep } from '@/lib/coach/answers';
 
 /**
  * 코치 시작 흐름(앱, docs/designs/ai-coach.md 10-4) — 관문(유료 · 만 14세 · 건강정보 동의) → 질문(화면마다 저장) → 첫 주 미리보기 → 시작.
@@ -239,4 +240,56 @@ export async function loadCoachWeek() {
     states: week ? week.map((s) => slotStateOf(s, done[s.date], today)) : null,
     checkedIn: checkin != null,
   };
+}
+
+/* ─────────── 조정 단추(10-5 U35) — 미리보기 → 적용. 미리본 그 틀일 때만 적용(그새 바뀌었으면 다시 미리보기) ─────────── */
+
+const slotsKey = (slots: unknown) => createHash('sha1').update(JSON.stringify(slots)).digest('hex').slice(0, 16);
+
+/** 이번 주 틀 + 못 바꾸는 날(지난 날 · 오늘 운동을 이미 시작했으면 오늘) */
+async function adjustBase(userId: string) {
+  const today = toDateKey(appNow());
+  const weekStart = dbDate(shiftDateKey(today, -weekdayOf(today)));
+  const [row, started] = await Promise.all([
+    prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId, weekStart } }, select: { slots: true } }),
+    prisma.trainingSession.findFirst({ where: { userId, date: dbDate(today) }, select: { id: true } }),
+  ]);
+  const locked = (d: string) => d < today || (d === today && started != null);
+  return { weekStart, slots: row ? (row.slots as unknown as DaySlot[]) : null, locked };
+}
+
+export async function previewCoachAdjust(raw: unknown) {
+  const user = await requireUser();
+  if (!(await coachPaid(user))) return { error: '코치를 쓸 수 없어요.' } as const;
+  const adj = readAdjust(raw);
+  if (!adj) return { error: '다시 골라 주세요.' } as const;
+  const { slots, locked } = await adjustBase(user.id);
+  if (!slots) return { error: '이번 주 일정이 없어요.' } as const;
+  const r = applyAdjust(slots, adj, locked);
+  if ('error' in r) return { error: r.error } as const;
+  return {
+    ok: true as const,
+    token: slotsKey(slots),
+    changed: r.changed.map((date) => ({
+      date,
+      before: slotLine(slots.find((s) => s.date === date)!),
+      after: slotLine(r.week.find((s) => s.date === date)!),
+    })),
+  };
+}
+
+export async function applyCoachAdjust(raw: unknown, token: unknown): Promise<{ ok: true } | { error: string }> {
+  const user = await requireUser();
+  if (!(await coachPaid(user))) return { error: '코치를 쓸 수 없어요.' };
+  const adj = readAdjust(raw);
+  if (!adj) return { error: '다시 골라 주세요.' };
+  const { weekStart, slots, locked } = await adjustBase(user.id);
+  if (!slots) return { error: '이번 주 일정이 없어요.' };
+  if (token !== slotsKey(slots)) return { error: '그새 일정이 바뀌었어요. 다시 골라 주세요.' };
+  const r = applyAdjust(slots, adj, locked);
+  if ('error' in r) return { error: r.error };
+  /* ponytail: 토큰 확인과 저장 사이가 아주 짧아 한 사람의 겹친 요청만 걱정 — 잠금 없이 둔다, 여럿이 같은 틀을 고치게 되면 조건부 갱신으로 */
+  await prisma.coachWeek.update({ where: { userId_weekStart: { userId: user.id, weekStart } }, data: { slots: r.week as unknown as object, generatedAt: new Date() } });
+  revalidatePath('/coach');
+  return { ok: true };
 }

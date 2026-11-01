@@ -17,6 +17,7 @@ import { Press } from '~/shell/press';
 import { pushOpen } from '~/shell/release';
 import { useFocusRefresh } from '~/shell/tab-pager';
 import { openCheckin } from '~/shell/web-nav';
+import { AdjustBar } from './adjust';
 
 /**
  * 코치 소개(2026-11-01, docs/designs/ai-coach.md U13) — 유료가 아닌 사람이 코치 탭 · 분석 화면을 열면. 결제 안내 · 밖 링크는 두지 않는다(애플 심사).
@@ -103,6 +104,7 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
           {week && data && todayAt >= 0 ? (
             <TodayCard slot={week[todayAt]} state={data.states?.[todayAt] ?? 'today'} checkedIn={data.checkedIn} />
           ) : null}
+          {week && data?.states ? <AdjustBar week={week} states={data.states} today={data.today} onDone={loadWeek} /> : null}
           {week && data ? (
             <>
               <SectionHead title="이번 주" />

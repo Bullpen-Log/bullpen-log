@@ -116,6 +116,9 @@ export const REASON_TEXT: Record<ReasonCode, string> = {
   youth: '성장기',
   'effort-spike': '최근 힘들었음',
   pain: '팔 통증',
+  skipped: '쉬기로 함',
+  moved: '옮긴 날',
+  busy: '바쁜 주라 줄임',
 };
 
 function itemText(x: SlotItem): string {

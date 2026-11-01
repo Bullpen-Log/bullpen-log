@@ -467,6 +467,11 @@
 - ① 끝: 칸 상태 순수 `lib/coach/status.ts`(`slotStateOf` — 한 것 · 못 함 · 오늘 · 뒤 · 쉰 날, `startsOf` — [시작] 주소: `/training-today` · `/training-mechanics` · `/training-armcare`) + coach:test.
   기록은 `lib/training-week.ts loadTrainingDone`(날짜 띠와 같은 판정). `loadCoachWeek` 가 칸 상태 · 오늘 체크인 했나를 같이 주고, 진행 중인데 이번 주 틀이 없으면(새 주) 처음 열 때 짓는다.
   `startCoach` 를 다시 부르면(답 고치기) 지난 날 · 사용자가 고친 날은 그대로(`saveWeek` → planWeek prev). 앱 코치 탭: 오늘 카드(무엇 · 까닭 · [체크인부터] 또는 [시작] + 다른 시작) → 7칸(✓ · 못 함) → 리뷰 → '코치 답 고치기'. PC 카드도 ✓ · 못 함.
+- ② 끝: 순수 `lib/coach/adjust.ts`(`CoachAdjust` = minutes · skip · move · busy, `readAdjust` 모양 검사, `applyAdjust`) + coach:test.
+  계획기를 다시 돌리지 않고 칸만 옮긴다(고르지 않은 날이 안 바뀌게). 지난 날 · 오늘 운동을 시작했으면 오늘은 못 바꿈, 등판 · 회복 날로는 못 옮김, 옮긴 날 몫에 맞춰 가볍게 · 큰 하체 끔, 이틀 잇는 큰 하체는 뒷날을 끔.
+  까닭 코드 셋(skipped · moved · busy). 서버 `previewCoachAdjust` → 바뀐 칸(전 · 뒤 한 줄) + 토큰(그 틀의 지문) → `applyCoachAdjust(adj, token)` 은 지문이 같을 때만.
+  앱 `native/src/coach/adjust.tsx`: [오늘 시간] [오늘 쉬기] [날 바꾸기] [이번 주 바빠요] → 시트 하나에서 고르기 → 미리보기 → [적용].
+  설계와 다르게: '장소 · 장비' 단추는 ③(그날 운동을 칸대로)과 같이 — 장소 · 장비는 그날 엔진 입력이라서.
 
 ### 10-6. 6단계 — AI: 대화 · 설명 문장(U39~U44 확정, 기준 origin/main `83946b61`)
 
