@@ -37,10 +37,10 @@ export type OrgScope = (typeof ORG_SCOPES)[number];
 /** 기록을 여는 권한 — 이것은 공유 동의와 교집합으로만 쓴다(업무 위임으로는 안 열림) */
 export const RECORD_CAPABILITIES: ReadonlySet<OrgCapability> = new Set(['training.read', 'training.recordForAthlete', 'export.data']);
 
-/** 역할마다 기본 묶음 — 소유자는 전부, 코치는 운영 · 훈련, 선수는 보기만(자기 범위) */
+/** 역할마다 기본 묶음 — 소유자는 전부, 코치는 운영 · 훈련 · 명단(선수 초대는 지금도 코치가 한다 — 코치 초대만 소유자, app-org.ts canInviteCoach), 선수는 보기만(자기 범위) */
 const PRESET: Record<OrgRole, readonly OrgCapability[]> = {
   MASTER: ORG_CAPABILITIES,
-  STAFF: ['roster.read', 'schedule.read', 'schedule.manage', 'training.assign', 'training.read', 'training.recordForAthlete', 'lesson.manage', 'booking.manage', 'notice.publish', 'chat.moderate'],
+  STAFF: ['roster.read', 'roster.manage', 'schedule.read', 'schedule.manage', 'training.assign', 'training.read', 'training.recordForAthlete', 'lesson.manage', 'booking.manage', 'notice.publish', 'chat.moderate'],
   PLAYER: ['schedule.read'],
 };
 

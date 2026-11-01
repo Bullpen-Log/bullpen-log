@@ -13,7 +13,7 @@ import { WATCH_KINDS, WATCH_LINE, watchKindOf, type WatchKind } from '@/lib/org/
 import { joinWithCode } from '@/lib/org/join';
 import { createInviteCode } from '@/lib/org/invite';
 import { loadMember, loadPlayers, memberCardOf, pitcherBoardOf, type MemberCard } from '@/lib/org/player-data';
-import { coachOrg, myMember } from '@/lib/org/app-access';
+import { coachOrgCan, myMember } from '@/lib/org/app-access';
 import { commentCounts } from '@/lib/org/comment-load';
 import { formatExercise, readExercises } from '@/lib/org/lesson-work';
 import { noteKey } from '@/lib/org/lesson-pitch';
@@ -163,7 +163,7 @@ export type OrgToday = {
 
 /** 코치 '오늘' — 오늘 조직 일정 · 공유 대기 회원 수 · 팔 상태 주의 회원 */
 export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: string } | ({ ok: true } & OrgToday)> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'roster.read');
   if (!c) return NO_ACCESS;
   const now = appNow();
   const todayKey = toDateKey(now);
@@ -291,7 +291,7 @@ export type OrgMemberRow = {
 
 /** 코치 '회원' — 활동 중인 회원 전부, 이름순 */
 export async function loadOrgMembers(orgId: string): Promise<{ ok: false; to: string } | { ok: true; kind: OrgKind; members: OrgMemberRow[] }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'roster.read');
   if (!c) return NO_ACCESS;
   const [members, board] = await Promise.all([loadPlayers(orgId), pitcherBoardOf(orgId, appNow())]);
   const armOf = new Map(board.rows.map((r) => [r.memberId, armLine(r.status)]));
@@ -395,7 +395,7 @@ async function notesOf(
 
 /** 레슨장 코치 '레슨일지' 탭(S단계) — 조직 전체 일지 최신순 40개씩, before(그 날짜 앞)로 더 읽기. 말 수는 전체만(회원 안 푼 말은 '받은 것') */
 export async function loadOrgNotes(orgId: string, before: string | null): Promise<{ ok: false; to: string } | { ok: true; notes: LessonNoteView[] }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.read');
   if (!c) return NO_ACCESS;
   const where = { member: { orgId }, ...(before && /^\d{4}-\d{2}-\d{2}$/.test(before) ? { date: { lt: dbDate(before) } } : {}) };
   return { ok: true, notes: await notesOf(where, 40, c.user.id, null) };
@@ -403,7 +403,7 @@ export async function loadOrgNotes(orgId: string, before: string | null): Promis
 
 /** 알림 · 받은 것이 가리키는 일지 하나(계약 9-6 ①-3 C) — 코치. 지웠으면 note null(권한 잃음과 가른다) */
 export async function loadCoachNote(orgId: string, noteId: string): Promise<{ ok: false; to: string } | { ok: true; note: LessonNoteView | null }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.read');
   if (!c) return NO_ACCESS;
   const n = await prisma.lessonNote.findFirst({ where: { id: String(noteId), member: { orgId } }, select: { member: { select: { userId: true } } } });
   if (!n) return { ok: true, note: null };
@@ -434,7 +434,7 @@ export async function loadMemberCard(
       notes: LessonNoteView[];
     }
 > {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.read');
   if (!c) return NO_ACCESS;
   const member = await loadMember(orgId, memberId);
   if (!member || member.role !== 'PLAYER' || member.status !== 'ACTIVE') return NO_ACCESS;
@@ -468,7 +468,7 @@ async function liveInvite(orgId: string, role: 'PLAYER' | 'STAFF'): Promise<Invi
 }
 
 /** 코치(스태프) 초대 코드는 만든 대표와 관리자만 — 코치는 코치를 못 부른다(웹 org.createInvite 와 같은 규칙) */
-const canInviteCoach = (c: NonNullable<Awaited<ReturnType<typeof coachOrg>>>) => c.user.role === 'ADMIN' || c.org.ownerId === c.user.id;
+const canInviteCoach = (c: NonNullable<Awaited<ReturnType<typeof coachOrgCan>>>) => c.user.role === 'ADMIN' || c.org.ownerId === c.user.id;
 
 /**
  * 지금 쓸 수 있는 초대 코드 — 회원(선수) 코드는 기한까지 여럿이, 코치 코드는 한 번 쓰면 끝(안 쓴 것만). 코치 코드 칸은 대표 · 관리자만 받는다.
@@ -476,7 +476,7 @@ const canInviteCoach = (c: NonNullable<Awaited<ReturnType<typeof coachOrg>>>) =>
 export async function loadInvite(
   orgId: string
 ): Promise<{ ok: false; to: string } | { ok: true; player: InviteView; staff: InviteView; canInviteCoach: boolean }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'roster.manage');
   if (!c) return NO_ACCESS;
   const coach = canInviteCoach(c);
   const [player, staff] = await Promise.all([liveInvite(orgId, 'PLAYER'), coach ? liveInvite(orgId, 'STAFF') : null]);
@@ -493,7 +493,7 @@ export async function makeInvite(
   /** 가입 전 자리(OrgMember.id) — 주면 그 자리를 이어받는 한 번 쓰는 회원 코드 */
   memberId?: string | null
 ): Promise<{ ok: true; code: string; until: string } | { ok: false; error: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'roster.manage');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const r = role === 'STAFF' ? 'STAFF' : 'PLAYER';
   if (r === 'STAFF' && !canInviteCoach(c)) return { ok: false, error: '코치 초대는 대표만 할 수 있어요.' };
@@ -528,7 +528,7 @@ export async function loadOrgEvents(
   fromKey: string,
   days: number
 ): Promise<{ ok: false; to: string } | { ok: true; kind: OrgKind; todayKey: string; members: { id: string; nickname: string }[]; events: OrgEventView[] }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'schedule.read');
   if (!c) return NO_ACCESS;
   const from = /^\d{4}-\d{2}-\d{2}$/.test(fromKey) ? fromKey : toDateKey(appNow());
   const span = Math.min(42, Math.max(1, Math.floor(Number(days) || 7)));
@@ -582,7 +582,7 @@ async function noticesOf(orgId: string, take: number): Promise<NoticeView[]> {
 export async function loadOrgNotices(
   orgId: string
 ): Promise<{ ok: false; to: string } | { ok: true; notices: NoticeView[]; players: number; reads: Record<string, number> }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'schedule.read');
   if (!c) return NO_ACCESS;
   const notices = await noticesOf(orgId, 50);
   return { ok: true, notices, ...(await noticeReads(orgId, notices.map((n) => n.id))) };
@@ -593,7 +593,7 @@ export async function loadOrgMember(
   orgId: string,
   memberId: string
 ): Promise<{ ok: false; to: string } | { ok: true; member: { id: string; nickname: string; tags: string[]; memo: string | null; hasUser: boolean } }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'roster.read');
   if (!c) return NO_ACCESS;
   const m = await prisma.orgMember.findFirst({
     where: { id: memberId, orgId, role: 'PLAYER', status: 'ACTIVE' },
@@ -607,7 +607,7 @@ export async function loadOrgMember(
 export async function loadProxyLogs(
   orgId: string
 ): Promise<{ ok: false; to: string } | { ok: true; logs: { id: string; key: string; nickname: string; sessionType: string; pitchCount: number; effortPct: number | null }[] }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.read');
   if (!c) return NO_ACCESS;
   const [logs, members] = await Promise.all([
     prisma.pitchLog.findMany({
@@ -646,7 +646,7 @@ export async function loadNotePitchDay(
   memberId: string,
   dateKey: string
 ): Promise<{ ok: false; to: string } | { ok: true; canWrite: boolean; why: string | null; logs: DayPitchLog[] }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.read');
   if (!c) return NO_ACCESS;
   const m = await prisma.orgMember.findFirst({
     where: { id: memberId, orgId, role: 'PLAYER', status: 'ACTIVE' },
@@ -686,7 +686,7 @@ export async function loadLessonNote(
       };
     }
 > {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.read');
   if (!c) return NO_ACCESS;
   const n = await prisma.lessonNote.findFirst({
     where: { id: noteId, member: { orgId } },

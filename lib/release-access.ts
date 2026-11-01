@@ -221,6 +221,7 @@ const PATH_RULES: PathRule[] = [
   /* 팀 · 레슨장 */
   { prefix: '/manage', cap: 'org' },
   { prefix: '/join', cap: 'org' },
+  { prefix: '/teams', cap: 'org' },
   { prefix: '/org', cap: 'org' },
   { prefix: '/report', cap: 'org' },
 

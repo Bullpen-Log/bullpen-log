@@ -2,6 +2,7 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { orgsFor } from '@/lib/org/access';
+import { hasCapability, type OrgCapability, type OrgRole } from '@/lib/org/capabilities';
 
 /**
  * 앱(app/actions/app-org.ts · app-lesson.ts)의 팀 · 레슨장 권한 — 코치 쪽은 **그 조직의 소유자 · 스태프 회원**(orgsFor — 관리자는 전부),
@@ -17,6 +18,25 @@ export async function coachOrg(orgId: string) {
   if (!user) return null;
   const org = (await orgsFor(user)).find((o) => o.id === orgId);
   return org ? { user, org } : null;
+}
+
+/**
+ * 이 조직에서 이 업무를 할 수 있는 코치인가(2026-11-01 2단계) — 코치 + 조직 역할의 업무 권한(lib/org/capabilities.ts). 아니면 null.
+ * 역할: 관리자 · 소유자 = MASTER, 그 밖은 회원 줄의 role(STAFF). 위임(grants)은 저장 표가 생기면(M-A) 여기서 읽는다 — 지금은 역할 기본 묶음만.
+ * 기록을 여는 업무(training.read 등)는 이것에 더해 선수의 공유 동의(memberScope)를 동작이 그대로 본다.
+ */
+export async function coachOrgCan(orgId: string, cap: OrgCapability) {
+  const c = await coachOrg(orgId);
+  if (!c) return null;
+  const role = await orgRoleOf(c.user, c.org);
+  if (!hasCapability({ role }, cap)) return null;
+  return { ...c, role };
+}
+
+async function orgRoleOf(user: { id: string; role: string }, org: { id: string; ownerId: string }): Promise<OrgRole> {
+  if (user.role === 'ADMIN' || org.ownerId === user.id) return 'MASTER';
+  const m = await prisma.orgMember.findFirst({ where: { orgId: org.id, userId: user.id, status: 'ACTIVE' }, select: { role: true } });
+  return m?.role === 'MASTER' ? 'MASTER' : 'STAFF';
 }
 
 /** 내 회원 줄인가(떠난 곳 포함) — 아니면 null */

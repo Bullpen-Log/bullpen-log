@@ -668,7 +668,7 @@ console.log(
   const lesson = src('app/actions/app-lesson.ts');
   const fns = [...lesson.matchAll(/export async function (\w+)\([^]*?\n\}/g)];
   check('app-lesson 동작이 있다', fns.length >= 10);
-  for (const m of fns) check(`app-lesson.${m[1]} 이 권한부터 본다`, /coachOrg\(|myMember\(/.test(m[0]));
+  for (const m of fns) check(`app-lesson.${m[1]} 이 권한부터 본다`, /coachOrg(Can)?\(|myMember\(/.test(m[0]));
 }
 
 /* ─────────────────────── 13. 2단계 빈칸 — 조직 영상 · 영상 시점 말 ─────────────────────── */
@@ -845,7 +845,7 @@ console.log(
   const team = src('app/actions/app-team.ts');
   const fns = [...team.matchAll(/export async function (\w+)\([^]*?\n\}/g)];
   check('app-team 동작이 있다', fns.length >= 12);
-  for (const m of fns) check(`app-team.${m[1]} 이 권한부터 본다`, /coachOrg\(|myMember\(/.test(m[0]));
+  for (const m of fns) check(`app-team.${m[1]} 이 권한부터 본다`, /coachOrg(Can)?\(|myMember\(/.test(m[0]));
   check('앱 팀 동작이 허용 목록에', src('app/api/rpc/registry.ts').includes("'app-team': appTeam"));
   const sessionStore = src('lib/org/team-session-store.ts');
   check('실제 확인은 선수 운동 판에 코치 세트로(writeOrgWork) · 선수마다 따로', sessionStore.includes('await writeOrgWork({ userId: m.userId, dateKey, orgEventId: event.id') && sessionStore.includes('for (const r of rows) {'));
@@ -1185,6 +1185,37 @@ console.log(
   const appAccess = readFileSync(join(ROOT, 'lib/org/app-access.ts'), 'utf8');
   check('app-access.ts: 코치 판정에 계정 종류(isMasterUser)를 안 쓴다', !appAccess.includes('isMasterUser'));
   check('app-access.ts: 코치 판정은 조직 회원 역할(orgsFor)로', appAccess.includes('orgsFor(user)'));
+}
+
+
+/* 2단계(2026-11-01) — 앱 코치 동작마다 업무 권한. 세 파일의 코치 판정은 모두 coachOrgCan(orgId, '권한') 이고 권한 이름은 표에 있는 것 */
+{
+  const caps = new Set<string>(ORG_CAPABILITIES);
+  for (const f of ['app/actions/app-org.ts', 'app/actions/app-team.ts', 'app/actions/app-lesson.ts']) {
+    const src2 = readFileSync(join(ROOT, f), 'utf8');
+    const bare = src2.replace(/coachOrgCan\(/g, '').includes('coachOrg(');
+    const used = [...src2.matchAll(/coachOrgCan\(orgId, '([a-zA-Z.]+)'\)/g)].map((m) => m[1]);
+    check(`${f}: 코치 판정은 모두 coachOrgCan(권한)`, !bare && used.length > 0, `bare=${bare} used=${used.length}`);
+    check(`${f}: 권한 이름이 표에 있다`, used.every((c) => caps.has(c)), used.filter((c) => !caps.has(c)).join(','));
+  }
+  /* 쓰기 동작은 읽기 권한으로 열리지 않는다 — 저장 · 확인 · 배정 · 초대는 manage/assign/record */
+  const team = readFileSync(join(ROOT, 'app/actions/app-team.ts'), 'utf8');
+  for (const [fn, cap] of [['savePlan', 'training.assign'], ['saveActual', 'training.recordForAthlete'], ['confirmTeamWork', 'training.recordForAthlete'], ['loadTeamTraining', 'training.read']] as const)
+    check(`app-team ${fn} → ${cap}`, team.slice(team.indexOf(`export async function ${fn}(`)).split('\nexport ')[0].includes(`coachOrgCan(orgId, '${cap}')`));
+  const org = readFileSync(join(ROOT, 'app/actions/app-org.ts'), 'utf8');
+  check('app-org makeInvite → roster.manage', org.slice(org.indexOf('export async function makeInvite(')).split('\nexport ')[0].includes("coachOrgCan(orgId, 'roster.manage')"));
+  check('app-access coachOrgCan 은 hasCapability 로 판정', readFileSync(join(ROOT, 'lib/org/app-access.ts'), 'utf8').includes('hasCapability({ role }, cap)'));
+}
+
+
+/* 2단계(2026-11-01) — 가입은 덕아웃: 두 주소가 같은 본문, 되돌아갈 주소는 목록에 있는 것만 */
+{
+  const view = readFileSync(join(ROOT, 'components/org/join-view.tsx'), 'utf8');
+  check('참여 본문 하나(components/org/join-view.tsx) — 폼이 back 을 싣는다', view.includes('name="back" value={base}') && view.includes("JOIN_BASES = ['/join', '/teams/join']"));
+  check('덕아웃 /teams/join 이 본문을 그리고 로그인 전은 로그인으로', (() => { const p = readFileSync(join(ROOT, 'app/(dugout)/teams/join/page.tsx'), 'utf8'); return p.includes('<JoinView') && p.includes("base=\"/teams/join\"") && p.includes("redirect(`/login?next="); })());
+  check('싱커 /join 도 같은 본문(옛 링크 · 앱 호환)', readFileSync(join(ROOT, 'app/(app)/join/page.tsx'), 'utf8').includes('base="/join"'));
+  const act = readFileSync(join(ROOT, 'app/actions/org-join.ts'), 'utf8');
+  check('joinOrg 는 폼의 back 을 목록(isJoinBase)으로만 믿는다', act.includes("isJoinBase(back) ? back : '/join'") && !act.includes('redirect(String('));
 }
 
 console.log(

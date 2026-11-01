@@ -8,7 +8,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
 import { isDateKey, ORG_DUPLICATE_MS } from '@/lib/org/rules';
 import { trainingGuides, visibleExercises, allExercises, allGuides } from '@/lib/library-cache';
-import { coachOrg, myMember } from '@/lib/org/app-access';
+import { coachOrgCan, myMember } from '@/lib/org/app-access';
 import { ORG_LOST, orgOpenHref, type OpenRecord } from '@/lib/org/space-nav';
 import { commentCounts } from '@/lib/org/comment-load';
 import {
@@ -69,7 +69,7 @@ export async function loadHomeworkLibrary(orgId: string): Promise<
   | { ok: false; to: string }
   | { ok: true; exercises: { id: string; name: string; category: string }[]; drills: { id: string; name: string; category: string }[] }
 > {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.assign');
   if (!c) return NO_ACCESS;
   const [ex, gd] = await Promise.all([visibleExercises(), trainingGuides()]);
   return {
@@ -85,7 +85,7 @@ export async function assignHomework(
   memberId: string,
   input: unknown
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.assign');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const member = await prisma.orgMember.findFirst({
     where: { id: memberId, orgId, role: 'PLAYER', status: 'ACTIVE' },
@@ -127,7 +127,7 @@ export async function assignHomework(
 
 /** 코치가 숙제 상태 바꾸기 — 안 함으로 되돌림 · 면제 · 취소(완료는 선수 기록으로만) */
 export async function setHomeworkStatus(orgId: string, id: string, status: unknown): Promise<{ ok: boolean; error?: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.assign');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   if (!isHomeworkStatus(status) || !COACH_STATUSES.includes(status)) return { ok: false, error: '바꿀 수 없는 상태예요.' };
   /* 'done' 은 코치 확인 — 기록 증거는 안 붙인다(증거는 기록으로 맞출 때만). 되돌리면 증거도 지운다 */
@@ -233,7 +233,7 @@ async function homeworkOf(memberId: string, userId: string | null, only?: unknow
 
 /** 코치: 회원 카드의 숙제 */
 export async function loadMemberHomework(orgId: string, memberId: string, only?: unknown): Promise<{ ok: false; to: string } | { ok: true; homework: HomeworkView[] }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.read');
   if (!c) return NO_ACCESS;
   const m = await prisma.orgMember.findFirst({ where: { id: memberId, orgId, role: 'PLAYER' }, select: { id: true, userId: true } });
   if (!m) return NO_ACCESS;
@@ -349,7 +349,7 @@ async function targetVideos(t: CommentTarget): Promise<string[]> {
 
 /** 코치: 일지 · 숙제 하나의 말 */
 export async function loadCoachThread(orgId: string, kind: unknown, id: unknown): Promise<{ ok: false; to: string } | { ok: true; comments: CommentView[]; videos: string[] }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.read');
   const t = commentTarget(kind, id);
   if (!c || !t) return NO_ACCESS;
   const owner = await targetOwner(t);
@@ -379,7 +379,7 @@ export async function addCoachComment(
   videoPath?: unknown,
   atSec?: unknown
 ): Promise<{ ok: boolean; error?: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'lesson.manage');
   const t = commentTarget(kind, id);
   const text = cleanCommentBody(body);
   if (!c || !t) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
@@ -468,7 +468,7 @@ const recordOf = (t: CommentTarget): OpenRecord => ('noteId' in t ? { kind: 'not
 
 /** 코치: 받은 것 하나 풀기(답 없이 처리했을 때) */
 export async function resolveComment(orgId: string, id: string): Promise<{ ok: boolean; error?: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'lesson.manage');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const r = await prisma.orgComment.updateMany({ where: { id, orgId, resolvedAt: null }, data: { resolvedAt: appNow() } });
   return r.count ? { ok: true } : { ok: false, error: '이미 풀었거나 없는 말이에요.' };
@@ -489,7 +489,7 @@ export type InboxItem = {
 
 /** 코치 '받은 것' — 회원이 쓴 말 가운데 안 푼 것, 새 것부터 30 */
 export async function loadInbox(orgId: string): Promise<{ ok: false; to: string } | { ok: true; items: InboxItem[] }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'lesson.manage');
   if (!c) return NO_ACCESS;
   const members = await prisma.orgMember.findMany({ where: { orgId, role: 'PLAYER', userId: { not: null } }, select: { id: true, userId: true, nickname: true } });
   const players = members.map((m) => m.userId!);
@@ -551,7 +551,7 @@ async function videoTarget(userId: string, meta: unknown): Promise<UploadTarget>
 
 /** 코치 영상 올리기 주소(일지에 붙일 영상) */
 export async function coachVideoUpload(orgId: string, meta: unknown): Promise<UploadTarget> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'lesson.manage');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   return videoTarget(c.user.id, meta);
 }
@@ -565,7 +565,7 @@ export async function myVideoUpload(memberId: string, meta: unknown): Promise<Up
 
 /** 일지에 영상 붙이기 — 코치가 올린 조직 영상만, 일지 하나에 두 개 */
 export async function addNoteVideo(orgId: string, noteId: string, path: unknown): Promise<{ ok: boolean; error?: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'lesson.manage');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   if (!isOwnOrgVideoPath(path, c.user.id)) return { ok: false, error: '영상을 다시 올려 주세요.' };
   const note = await prisma.lessonNote.findFirst({ where: { id: noteId, member: { orgId } }, select: { id: true, videoPaths: true, member: { select: { userId: true } } } });
@@ -579,7 +579,7 @@ export async function addNoteVideo(orgId: string, noteId: string, path: unknown)
 
 /** 일지 영상 빼기 — 올린 코치의 파일이면 저장소에서도 지운다(조직 영상 앞말이라 다른 파일은 안 건드림) */
 export async function removeNoteVideo(orgId: string, noteId: string, path: string): Promise<{ ok: boolean; error?: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'lesson.manage');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const note = await prisma.lessonNote.findFirst({ where: { id: noteId, member: { orgId } }, select: { id: true, videoPaths: true } });
   if (!note || !note.videoPaths.includes(path)) return { ok: false, error: '영상을 찾을 수 없어요.' };
@@ -603,7 +603,7 @@ async function allowedVideos(paths: unknown, scope: { orgId: string } | { member
 
 /** 코치: 조직 영상 재생 주소 */
 export async function coachVideoUrls(orgId: string, paths: unknown): Promise<{ ok: false; to: string } | { ok: true; urls: Record<string, string> }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.read');
   if (!c) return NO_ACCESS;
   return { ok: true, urls: await createPlaybackUrls(await allowedVideos(paths, { orgId })) };
 }

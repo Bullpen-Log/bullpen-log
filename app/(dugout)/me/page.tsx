@@ -87,6 +87,18 @@ export default async function MePage() {
         )}
       </div>
 
+      {/* 팀 · 레슨장 참여(2026-11-01 — 가입은 덕아웃) */}
+      <Link
+        href="/teams/join"
+        className="flex items-center justify-between rounded-2xl border border-line bg-surface px-(--block-pad) py-4 text-sm transition-colors hover:bg-ink/3"
+      >
+        <span>
+          <span className="font-semibold text-ink">팀 · 레슨장 참여</span>
+          <span className="ml-2 text-muted">초대 코드로 들어가고 공유 범위를 골라요</span>
+        </span>
+        <span className="text-muted">›</span>
+      </Link>
+
       {/* 커뮤니티 활동(2026-10-26) — 내 글 · 댓글 · 저장 · 참가 · 팀 신청 */}
       <Link
         href="/me/community"

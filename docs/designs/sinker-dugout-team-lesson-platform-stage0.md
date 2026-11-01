@@ -42,13 +42,13 @@
 | permission.manage | ○ | × | × | 소유자만 |
 
 \* 기록을 여는 권한 — 선수의 `ShareConsent` 와 교집합으로만 열린다. 위임은 아직 저장할 표가 없다(M-A) — 지금은 역할 기본 묶음만 서버에 닿고, 함수는 grants 를 받을 준비가 돼 있다.
-**아직 서버 동작은 이 표를 부르지 않는다** — `coachOrg`(소유자 · 스태프 = 전부 허용)가 그대로다. 2단계에서 동작마다 `hasCapability` 로 좁힌다.
+**2단계(같은 날)**: 앱 코치 동작 42곳이 `coachOrgCan(orgId, '권한')`(lib/org/app-access.ts)으로 판정한다 — 읽기는 roster.read · schedule.read · training.read, 배정 · 초대 · 기록은 training.assign · roster.manage · training.recordForAthlete · lesson.manage. 역할 기본 묶음만이라 지금 코치(STAFF)의 동작 범위는 전과 같다(코치에게 roster.manage 를 주었다 — 선수 초대는 지금도 코치가 한다). 웹 마스터 동작(`org-*.ts`, requireMaster + requireOrg)은 아직 안 옮겼다.
 
 ## 3. 요구사항 대응표(R01~R14)
 
 | ID | 화면 · 서버 동작(지금) | 데이터 원본 | 권한 | 시험 | 단계 | 상태 |
 | --- | --- | --- | --- | --- | --- | --- |
-| R01 팀 가입 · 초대 · 승인 · 관리는 덕아웃 | 웹 `/manage/*`(마스터 틀) · 앱 `native/src/app/org/*` · `org-join.ts`(코드 가입) | OrgMember · OrgInvite | requireMaster/requireOrg | org:test(소스) | 2 | **확인** — 관리 화면이 아직 싱커 앱(native/org)에도 있음. 덕아웃으로 옮기기 2단계 |
+| R01 팀 가입 · 초대 · 승인 · 관리는 덕아웃 | **덕아웃 `/teams/join`(새, 2단계)** · 옛 `/join`(같은 본문 `components/org/join-view.tsx`) · `/me` 의 참여 길 · 웹 `/manage/*` · 앱 `native/src/app/org/*` | OrgMember · OrgInvite | requireUser(코드 가입) · coachOrgCan('roster.manage')(초대) | org:test 4 · release-access 2 | 2 | **됨(코드 가입 덕아웃 진입) · 남음(코드 없는 가입 요청 → 승인, 관리 화면의 덕아웃 이전)** |
 | R02 싱커 개인 훈련 · 왼쪽 위 공간 선택 | `native/src/org/space-store.ts` · `space-pick.tsx` · `lib/org/space-nav.ts` | 화면 문맥(권한 아님) | — | org:test 8절 | 2 | **확인** — 있음. 진행 중 운동 귀속 고정은 `team-work-store`(orgEventId)로 확인, 전환 중 이어 하기 안내는 미확인 |
 | R03 싱커 훈련이 동의 범위로 덕아웃에 보임 | `lib/org/player-data.ts` · 코치 화면 | 선수 원본 그대로 | memberScope | — | 2 | **확인** — 조회는 있음. 저장 뒤 갱신 이벤트(아웃박스) 없음 → 2단계 |
 | R04 코치가 배정 · 실제 · 정정 검토 | `OrgPlan` · `team-session-store.ts`(recorded/reconciled/needs_check) | OrgEventAttendee | coachOrg | org:test | 2 | **확인** — 있음(10-27 계약). 범위(assigned_players)는 M-A 뒤 |
@@ -89,10 +89,11 @@
 
 ## 6. 안 한 것 · 이어서 할 자리(정확히)
 
-1. **2단계 팀 수직 흐름** — 덕아웃 가입 화면(지금 코드 가입만) · 승인 · 동의 설정 화면 · 싱커 소속 갱신(포그라운드 · 로그인 · 딥링크) · 아웃박스(M-F). 시작점: `app/actions/org-join.ts`, `native/src/org/space-store.ts refreshSpaces`.
-2. **서버 동작마다 `hasCapability`** — `app/actions/app-org.ts` · `app-team.ts` · `app-lesson.ts` · `org-*.ts`(42곳 `coachOrg`). 지금은 소유자 · 스태프 전부 허용.
+1. **2단계 팀 수직 흐름** — 된 것: 덕아웃 가입 화면(`/teams/join`, 코드 가입 + 공유 범위) · `/me` 진입 · 싱커 소속 갱신은 이미 있음(앱 `index.tsx askMe` → `ownerKnown` → `space-store.ts spaceOwner/refreshSpaces` — 켤 때 · 앱이 앞으로 올 때 · 로그인 · 권한 없음 뒤).
+   남은 것: 코드 없는 가입 **요청 → 감독 승인**(팀 공개 목록이 없고, `OrgMemberStatus.INVITED` 는 안 쓰는 값이라 '대기'로 쓸 수 있다 — 승인 화면이 코치 앱(김민)에 필요) · 동의 바꾸기 화면(지금은 참여 때만) · 아웃박스(M-F).
+2. **서버 동작마다 `hasCapability`** — 된 것: 앱 동작 42곳(app-org · app-team · app-lesson). 남은 것: 웹 마스터 동작 `org-*.ts`(requireMaster + requireOrg → coachOrgCan 꼴로), 위임(grants) 읽기(M-A 뒤).
 3. **3단계 레슨** — 동시 마지막 자리(코치 시간 · 자원 용량 원자 검사), 변경 요청(원 예약 보존), 예약자 ≠ 수강자, 원장(M-C), 노트 공개/내부 구분.
 4. **4단계** — 방(M-D) · 참석(M-E) · 공지 확인 기한 · 반복 일정.
 5. **5단계** — 옛 앱 호환 · 측정(p95) · 단계적 공개(베타 해제는 별도 제품 결정).
 6. 브리프 필수 시나리오 가운데 한 것: 동시 완료 1회 차감 · 재시도 · 취소 보존(소스) · 총무 위임 범위(규칙) · 베타 차단 유지. **안 한 것**: 두 팀 + 레슨 같은 날, 보호자 두 자녀 · 타 자녀 URL, 권한 회수 중 열린 화면, 역순 갱신 · 오프라인 업로드, 마지막 자리 동시 예약, 방 경계, 앱 간 이동, 구버전 클라이언트.
-7. 화면 확인 없음 — 이번 변경은 화면을 바꾸지 않았다(취소 뒤 일정이 '취소'로 남는 것은 코치 시간표에 보인다 — 실기기 · 로그인 확인은 아직).
+7. 화면 확인 — `/teams/join` · `/join` 은 로그인 전 307(로그인으로, 돌아올 주소 포함)만 개발 서버에서 확인. 로그인한 화면 · 실기기는 아직. 취소 뒤 일정이 '취소'로 남는 것은 코치 시간표에 보인다(미확인).

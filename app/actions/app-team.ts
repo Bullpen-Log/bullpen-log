@@ -10,7 +10,7 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
 import { allExercises, allGuides, trainingGuides, visibleExercises } from '@/lib/library-cache';
 import { isDateKey, ORG_DUPLICATE_MS } from '@/lib/org/rules';
-import { coachOrg, myMember } from '@/lib/org/app-access';
+import { coachOrgCan, myMember } from '@/lib/org/app-access';
 import { ORG_LOST, orgOpenHref } from '@/lib/org/space-nav';
 import { Prisma } from '@prisma/client';
 import { cleanHomeworkItems, homeworkDose, readHomeworkItems } from '@/lib/org/homework';
@@ -167,7 +167,7 @@ export type EventDetail = {
 };
 
 export async function loadEventDetail(orgId: string, eventId: string): Promise<{ ok: false; to: string } | ({ ok: true } & EventDetail)> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'schedule.read');
   if (!c) return NO_ACCESS;
   const event = await eventOf(orgId, eventId);
   if (!event) return NO_ACCESS;
@@ -269,7 +269,7 @@ export async function loadEventDetail(orgId: string, eventId: string): Promise<{
 
 /** 명단 고치기 — 나중에 들어온 선수는 코치가 더할 때만(명단은 준비할 때 담아 고정). 이미 기록한 선수는 빼지 않고 '빠짐'으로 */
 export async function setRosterMember(orgId: string, eventId: string, memberId: string, inRoster: unknown): Promise<{ ok: boolean; error?: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.assign');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const event = await eventOf(orgId, eventId);
   if (!event || event.memberId) return { ok: false, error: '일정을 찾을 수 없어요.' };
@@ -297,7 +297,7 @@ const GROUP_NAME_MAX = 20;
  * 조는 담은 명단(memberIds)이 대상이고 이름(groupName)은 표시일 뿐. 개인 '바꾸기'는 그 선수의 조 활동 하나를 대신한다.
  */
 export async function savePlan(orgId: string, eventId: string, input: unknown): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.assign');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const event = await eventOf(orgId, eventId);
   if (!event) return { ok: false, error: '일정을 찾을 수 없어요.' };
@@ -364,7 +364,7 @@ async function tellPlan(orgId: string, event: { id: string; date: Date; time: st
 
 /** 활동 지우기 — 그 활동을 대신하던 개인 '바꾸기'도 같이 */
 export async function deletePlan(orgId: string, planId: string): Promise<{ ok: boolean; error?: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.assign');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const r = await prisma.orgPlan.deleteMany({ where: { orgId, OR: [{ id: String(planId) }, { replacesPlanId: String(planId) }] } });
   return r.count ? { ok: true } : { ok: false, error: '활동을 찾을 수 없어요.' };
@@ -381,7 +381,7 @@ export async function loadPlan(
       plan: { id: string; eventId: string; title: string; items: unknown; memberIds: string[]; scope: PlanScope; groupName: string | null; replacesPlanId: string | null; valueMode: ValueMode } | null;
     }
 > {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.read');
   if (!c) return NO_ACCESS;
   const p = planId
     ? await prisma.orgPlan.findFirst({
@@ -404,7 +404,7 @@ export type PlanSource = { id: string; date: string; time: string | null; title:
 
 /** 활동을 가져올 일정 — 활동이 있는 이 조직 일정, 가까운 날부터 30(지난 60일 ~ 앞으로 14일) */
 export async function loadPlanSources(orgId: string, eventId: string): Promise<{ ok: false; to: string } | { ok: true; sources: PlanSource[] }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.read');
   if (!c) return NO_ACCESS;
   const today = toDateKey(appNow());
   const events = await prisma.orgEvent.findMany({
@@ -462,7 +462,7 @@ async function createCopies(tx: Prisma.TransactionClient, orgId: string, eventId
 
 /** 지난 일정의 활동을 이 일정으로 — 'add' 더하기 · 'replace' 이 일정의 활동을 바꾸기. 2분 안 같은 복사는 한 번 */
 export async function copyPlansFrom(orgId: string, fromEventId: string, toEventId: string, mode: unknown): Promise<{ ok: true; copied: number } | { ok: false; error: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.assign');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   if (mode !== 'add' && mode !== 'replace') return { ok: false, error: '더할지 바꿀지 골라 주세요.' };
   const [from, to] = await Promise.all([eventOf(orgId, fromEventId), eventOf(orgId, toEventId)]);
@@ -495,7 +495,7 @@ export async function copyPlansFrom(orgId: string, fromEventId: string, toEventI
  * 떠난 회원의 레슨은 안 옮긴다. 알림은 선수마다 한 번('다음 주 일정 n개가 잡혔어요'). 새 일정의 명단은 처음 고칠 때 담는다.
  */
 export async function copyWeek(orgId: string, fromMonday: string, toMonday: string): Promise<{ ok: true; events: number; skipped: number } | { ok: false; error: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.assign');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const monday = (k: string) => isDateKey(k) && new Date(`${k}T00:00:00Z`).getUTCDay() === 1;
   if (!monday(fromMonday) || !monday(toMonday) || fromMonday === toMonday) return { ok: false, error: '복사할 주를 다시 골라 주세요.' };
@@ -553,7 +553,7 @@ async function knownLibrary() {
 
 /** 조 실제 — 활동 하나가 실제로 한 처방(무게는 조 공통으로 안 적는다). null 이면 계획으로 되돌림 */
 export async function saveActual(orgId: string, eventId: string, planId: string, items: unknown): Promise<{ ok: boolean; error?: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.recordForAthlete');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const plan = await prisma.orgPlan.findFirst({ where: { id: String(planId), orgId, eventId: String(eventId) }, select: { id: true } });
   if (!plan) return { ok: false, error: '활동을 찾을 수 없어요.' };
@@ -578,7 +578,7 @@ async function rosterEvent(orgId: string, eventId: string) {
 
 /** 선수 한 명의 예외 · 값 — 비우면 '조와 같음'. 적어 두기만 한다(개인 기록은 '이대로 확인' 때) */
 export async function saveMemberResult(orgId: string, eventId: string, memberId: string, input: unknown): Promise<{ ok: boolean; error?: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.recordForAthlete');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const r = await rosterEvent(orgId, eventId);
   if (!r) return { ok: false, error: '일정을 찾을 수 없어요.' };
@@ -598,7 +598,7 @@ export async function saveMemberResult(orgId: string, eventId: string, memberId:
 
 /** 투구를 선수마다 받는 활동 하나의 칸 — [{ memberId, pitchCount, effortPct, maxVelocity }]. 빈 투구 수는 그 선수 값을 지운다 */
 export async function saveTeamValues(orgId: string, eventId: string, planId: string, rows: unknown): Promise<{ ok: boolean; error?: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.recordForAthlete');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const r = await rosterEvent(orgId, eventId);
   if (!r) return { ok: false, error: '일정을 찾을 수 없어요.' };
@@ -637,7 +637,7 @@ export async function confirmTeamWork(
   eventId: string,
   memberIds?: unknown
 ): Promise<{ ok: true; results: MemberResult[]; changed: number } | { ok: false; error: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.recordForAthlete');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const r = await rosterEvent(orgId, eventId);
   if (!r) return { ok: false, error: '일정을 찾을 수 없어요.' };
@@ -653,7 +653,7 @@ export async function confirmTeamWork(
 
 /** 확인 필요 풀기(코치) — 'link' 선수의 그날 그 운동을 이 훈련에 잇기(선수 기록으로 맞춤) · 'separate' 따로 한 운동(팀 기록도 남김) */
 export async function resolveTeamCheck(orgId: string, eventId: string, memberId: string, exerciseId: string, answer: unknown): Promise<{ ok: boolean; error?: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.recordForAthlete');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const event = await eventOf(orgId, eventId);
   if (!event?.confirmedAt) return { ok: false, error: '확인한 훈련이 아니에요.' };
@@ -679,7 +679,7 @@ async function settleCheck(event: SessionEvent & { confirmedById: string | null 
 
 /** 일정을 지우거나 취소하기 전 — 남긴 기록이 있나(있으면 앱이 '기록도 뺄까요'를 묻는다, 결정 4) */
 export async function loadEventWork(orgId: string, eventId: string): Promise<{ ok: false; to: string } | { ok: true; sets: number; players: number }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.read');
   if (!c) return NO_ACCESS;
   if (!(await eventOf(orgId, eventId))) return { ok: true, sets: 0, players: 0 };
   const [work, pitch] = await Promise.all([eventWorkOf(String(eventId)), teamPitchOf(String(eventId))]);
@@ -690,7 +690,7 @@ export async function loadEventWork(orgId: string, eventId: string): Promise<{ o
 
 /** 선수 한 명의 등판 — role null 이면 지운다. 고치면 다시 '짜는 중'(확정은 따로) */
 export async function saveOuting(orgId: string, eventId: string, memberId: string, role: unknown, pitchLimit: unknown): Promise<{ ok: boolean; error?: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.assign');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const event = await eventOf(orgId, eventId);
   if (!event) return { ok: false, error: '일정을 찾을 수 없어요.' };
@@ -712,7 +712,7 @@ export async function saveOuting(orgId: string, eventId: string, memberId: strin
 
 /** 짜는 중인 등판을 모두 확정 — 확정만 선수의 다음 등판 재료가 된다. 선수에게 알림 */
 export async function confirmOutings(orgId: string, eventId: string): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.assign');
   if (!c) return { ok: false, error: '이 곳을 관리할 권한이 없어요.' };
   const event = await eventOf(orgId, eventId);
   if (!event) return { ok: false, error: '일정을 찾을 수 없어요.' };
@@ -752,7 +752,7 @@ export type TrainingRow = {
 };
 
 export async function loadTeamTraining(orgId: string): Promise<{ ok: false; to: string } | { ok: true; todayKey: string; rows: TrainingRow[] }> {
-  const c = await coachOrg(orgId);
+  const c = await coachOrgCan(orgId, 'training.read');
   if (!c) return NO_ACCESS;
   const todayKey = toDateKey(appNow());
   const events = await prisma.orgEvent.findMany({

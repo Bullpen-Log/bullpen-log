@@ -138,6 +138,8 @@ eq(capabilityOfPath('/admin/shoot/3').perm, 'shoot', '촬영 관리');
 eq(capabilityOfPath('/admin/dev3d').perm, 'dev3d', '3D 개발');
 eq(capabilityOfPath('/admin/users').perm, undefined, '표에 없는 관리 화면은 대표만');
 eq(cap('/manage/players'), 'org', '팀 · 레슨장 관리(MASTER)');
+eq(cap('/teams/join?code=ABC234'), 'org', '덕아웃 팀 참여(2026-11-01)는 조직 기능 — 베타에 잠김');
+eq(cap('/join'), 'org', '싱커 옛 참여 주소도 조직 기능');
 eq(cap('/some-new-thing'), 'unclassified', '모르는 주소');
 ok(!decidePath(USER, '/some-new-thing', BETA).allowed, '모르는 주소는 베타에 막힘');
 ok(!decidePath(MANAGER, '/admin/velocity', BETA).allowed, '준관리자 구속 관리 화면도 베타 잠금');
