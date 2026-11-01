@@ -38,11 +38,11 @@
 | schedule.read / manage | ○ / ○ | ○ / ○ | ○(self) / × | ○ |
 | training.assign / read* / recordForAthlete* | ○ | ○ | × | ○(범위 필수) |
 | lesson.manage · booking.manage · notice.publish · chat.moderate | ○ | ○ | × | ○ |
-| finance.manage · export.data* | ○ | × | × | ○(소유자가) |
+| finance.manage · export.data* · org.manage | ○ | × | × | ○(소유자가) |
 | permission.manage | ○ | × | × | 소유자만 |
 
 \* 기록을 여는 권한 — 선수의 `ShareConsent` 와 교집합으로만 열린다. 위임은 아직 저장할 표가 없다(M-A) — 지금은 역할 기본 묶음만 서버에 닿고, 함수는 grants 를 받을 준비가 돼 있다.
-**2단계(같은 날)**: 앱 코치 동작 42곳이 `coachOrgCan(orgId, '권한')`(lib/org/app-access.ts)으로 판정한다 — 읽기는 roster.read · schedule.read · training.read, 배정 · 초대 · 기록은 training.assign · roster.manage · training.recordForAthlete · lesson.manage. 역할 기본 묶음만이라 지금 코치(STAFF)의 동작 범위는 전과 같다(코치에게 roster.manage 를 주었다 — 선수 초대는 지금도 코치가 한다). 웹 마스터 동작(`org-*.ts`, requireMaster + requireOrg)은 아직 안 옮겼다.
+**2단계(같은 날)**: 앱 코치 동작 42곳이 `coachOrgCan(orgId, '권한')`(lib/org/app-access.ts)으로 판정한다 — 읽기는 roster.read · schedule.read · training.read, 배정 · 초대 · 기록은 training.assign · roster.manage · training.recordForAthlete · lesson.manage. 역할 기본 묶음만이라 지금 코치(STAFF)의 동작 범위는 전과 같다(코치에게 roster.manage 를 주었다 — 선수 초대는 지금도 코치가 한다). 웹 마스터 동작(`org.ts` · `org-calendar.ts` · `org-notes.ts` · `org-notices.ts` · `org-record.ts` · `lessons.ts` 코치 쪽 27곳)도 `requireOrgCan(user, orgId, '권한')`(lib/org/access.ts)로 — 같은 역할 판정. 새 권한 `org.manage`(조직 설정 · 코치 프로필 공개)는 **소유자만** — 코치(STAFF)는 이제 웹에서 조직 이름 · 코치 프로필을 못 바꾼다(브리프 4절: 감독이 조직 설정). 그 밖은 전과 같다.
 
 ## 3. 요구사항 대응표(R01~R14)
 
@@ -91,7 +91,7 @@
 
 1. **2단계 팀 수직 흐름** — 된 것: 덕아웃 가입 화면(`/teams/join`, 코드 가입 + 공유 범위) · `/me` 진입 · 싱커 소속 갱신은 이미 있음(앱 `index.tsx askMe` → `ownerKnown` → `space-store.ts spaceOwner/refreshSpaces` — 켤 때 · 앱이 앞으로 올 때 · 로그인 · 권한 없음 뒤).
    남은 것: 코드 없는 가입 **요청 → 감독 승인**(팀 공개 목록이 없고, `OrgMemberStatus.INVITED` 는 안 쓰는 값이라 '대기'로 쓸 수 있다 — 승인 화면이 코치 앱(김민)에 필요) · 동의 바꾸기 화면(지금은 참여 때만) · 아웃박스(M-F).
-2. **서버 동작마다 `hasCapability`** — 된 것: 앱 동작 42곳(app-org · app-team · app-lesson). 남은 것: 웹 마스터 동작 `org-*.ts`(requireMaster + requireOrg → coachOrgCan 꼴로), 위임(grants) 읽기(M-A 뒤).
+2. **서버 동작마다 `hasCapability`** — 된 것: 앱 동작 42곳(app-org · app-team · app-lesson) + 웹 마스터 동작 27곳(requireOrgCan). 남은 것: 위임(grants) 읽기(M-A 뒤), 마스터 **화면**(app/(master) 페이지의 조회 — requireOrg 그대로, 읽기 권한은 역할 기본 묶음으로 모두 열려 있어 동작과 어긋나지 않는다).
 3. **3단계 레슨** — 동시 마지막 자리(코치 시간 · 자원 용량 원자 검사), 변경 요청(원 예약 보존), 예약자 ≠ 수강자, 원장(M-C), 노트 공개/내부 구분.
 4. **4단계** — 방(M-D) · 참석(M-E) · 공지 확인 기한 · 반복 일정.
 5. **5단계** — 옛 앱 호환 · 측정(p95) · 단계적 공개(베타 해제는 별도 제품 결정).

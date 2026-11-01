@@ -1218,6 +1218,27 @@ console.log(
   check('joinOrg 는 폼의 back 을 목록(isJoinBase)으로만 믿는다', act.includes("isJoinBase(back) ? back : '/join'") && !act.includes('redirect(String('));
 }
 
+
+/* 2단계(2026-11-01) — 웹 마스터 동작(org-*.ts · lessons.ts 코치 쪽)도 업무 권한: requireOrg → requireOrgCan(권한) */
+{
+  const caps = new Set<string>(ORG_CAPABILITIES);
+  for (const f of ['app/actions/org.ts', 'app/actions/org-calendar.ts', 'app/actions/org-notes.ts', 'app/actions/org-notices.ts', 'app/actions/org-record.ts', 'app/actions/lessons.ts']) {
+    const src2 = readFileSync(join(ROOT, f), 'utf8');
+    const code = src2.split('\n').filter((l) => !l.trim().startsWith('*') && !l.startsWith('import'));
+    const bare = code.some((l) => /\brequireOrg\(/.test(l));
+    const used = [...src2.matchAll(/requireOrgCan\(user, [^;]+?, (?:'([a-zA-Z.]+)'|cap)\)/g)].map((m) => m[1] ?? 'cap');
+    check(`${f}: 조직 판정은 모두 requireOrgCan(권한)`, !bare && used.length > 0, `bare=${bare} used=${used.length}`);
+    check(`${f}: 권한 이름이 표에 있다`, used.every((c) => c === 'cap' || caps.has(c)), used.filter((c) => c !== 'cap' && !caps.has(c)).join(','));
+  }
+  const notes = readFileSync(join(ROOT, 'app/actions/org-notes.ts'), 'utf8');
+  check('org-notes memberOf 가 업무 권한을 받는다', notes.includes('cap: OrgCapability') && notes.includes("memberOf(user, note.memberId, 'lesson.manage')") && notes.includes("'booking.manage')"));
+  check('조직 설정(org.manage)은 소유자만 — 코치는 못 바꿈', hasCapability({ role: 'MASTER' }, 'org.manage') && !hasCapability({ role: 'STAFF' }, 'org.manage'));
+  const orgAct = readFileSync(join(ROOT, 'app/actions/org.ts'), 'utf8');
+  check('org.ts updateOrg → org.manage · createInvite → roster.manage', orgAct.includes("requireOrgCan(user, String(formData.get('orgId') ?? ''), 'org.manage')") && orgAct.includes("'roster.manage')"));
+  check('lessons.ts 예약 확정 · 거절 · 끝냄 → booking.manage', (readFileSync(join(ROOT, 'app/actions/lessons.ts'), 'utf8').match(/'booking\.manage'\)/g) ?? []).length === 3);
+  check('access.ts requireOrgCan 은 hasCapability 로 판정하고 없으면 notFound', (() => { const a = readFileSync(join(ROOT, 'lib/org/access.ts'), 'utf8'); return a.includes('if (!hasCapability({ role }, cap)) notFound();'); })());
+}
+
 console.log(
   `\n${pass} 통과${fails.length ? `, ${fails.length} 실패:\n  - ${fails.join('\n  - ')}` : ''}`
 );

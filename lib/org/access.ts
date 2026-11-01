@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireMaster } from '@/lib/dal';
 import type { OrgKind } from '@/lib/org/rules';
+import { hasCapability, type OrgCapability, type OrgRole } from '@/lib/org/capabilities';
 export { memberScope } from '@/lib/org/rules';
 
 /**
@@ -71,6 +72,24 @@ export async function requireOrg(user: MasterUser, orgId: string): Promise<OrgRo
   const org = list.find((o) => o.id === orgId);
   if (!org) notFound();
   return org;
+}
+
+/**
+ * 이 조직에서 이 업무를 할 권한이 있나(2026-11-01 팀 · 레슨 통합 2단계) — requireOrg + 조직 역할의 업무 권한(lib/org/capabilities.ts). 없으면 notFound.
+ * 역할: 관리자 · 소유자 = MASTER, 그 밖은 회원 줄의 role(STAFF). 앱 동작은 같은 판정의 lib/org/app-access.ts coachOrgCan.
+ * 기록을 여는 업무(training.read 등)는 이것에 더해 선수의 공유 동의(memberScope)를 동작이 그대로 본다.
+ */
+export async function requireOrgCan(user: MasterUser, orgId: string, cap: OrgCapability): Promise<OrgRow & { role: OrgRole }> {
+  const org = await requireOrg(user, orgId);
+  const role = await orgRoleOf(user, org);
+  if (!hasCapability({ role }, cap)) notFound();
+  return { ...org, role };
+}
+
+async function orgRoleOf(user: { id: string; role: string }, org: { id: string; ownerId: string }): Promise<OrgRole> {
+  if (user.role === 'ADMIN' || org.ownerId === user.id) return 'MASTER';
+  const m = await prisma.orgMember.findFirst({ where: { orgId: org.id, userId: user.id, status: 'ACTIVE' }, select: { role: true } });
+  return m?.role === 'MASTER' ? 'MASTER' : 'STAFF';
 }
 
 /** 지금 보는 조직 — 쿠키의 것, 권한이 없으면 첫 조직, 하나도 없으면 null(관리자가 조직이 없을 때) */

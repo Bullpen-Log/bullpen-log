@@ -13,6 +13,8 @@ export type OrgRole = 'MASTER' | 'STAFF' | 'PLAYER';
 
 /** 업무 권한 — 이름은 제안 명칭(브리프 4절)을 그대로 */
 export const ORG_CAPABILITIES = [
+  /** 조직 자체의 설정(이름 · 지역 · 코치 프로필 공개) — 소유자만 */
+  'org.manage',
   'roster.read',
   'roster.manage',
   'schedule.read',
@@ -86,6 +88,7 @@ export function canGrant(by: OrgSubject | null | undefined, grant: OrgGrant): bo
 /** 역할 이름(화면) */
 export const ORG_ROLE_LABEL: Record<OrgRole, string> = { MASTER: '감독 · 소유자', STAFF: '코치', PLAYER: '선수' };
 export const ORG_CAPABILITY_LABEL: Record<OrgCapability, string> = {
+  'org.manage': '조직 설정',
   'roster.read': '명단 보기',
   'roster.manage': '명단 관리',
   'schedule.read': '일정 보기',

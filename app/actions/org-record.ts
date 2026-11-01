@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireMaster } from '@/lib/dal';
-import { memberScope, requireOrg } from '@/lib/org/access';
+import { memberScope, requireOrgCan } from '@/lib/org/access';
 import { isDateKey } from '@/lib/org/rules';
 import { dbDate } from '@/lib/nutrition/days';
 import { appNowMs } from '@/lib/clock';
@@ -28,7 +28,7 @@ export type OrgActionState = { error?: string; success?: string } | undefined;
 
 export async function createPitchLogs(_prev: OrgActionState, formData: FormData): Promise<OrgActionState> {
   const user = await requireMaster();
-  const org = await requireOrg(user, String(formData.get('orgId') ?? ''));
+  const org = await requireOrgCan(user, String(formData.get('orgId') ?? ''), 'training.recordForAthlete');
   const date = String(formData.get('date') ?? '');
   if (!isDateKey(date)) return { error: '날짜를 골라 주세요.' };
   if (isFutureDateKey(date)) return { error: '아직 오지 않은 날짜에는 기록할 수 없어요.' };
@@ -131,7 +131,7 @@ export async function deleteProxyPitchLog(formData: FormData) {
     select: { id: true, orgId: true, enteredById: true },
   });
   if (!log || !log.orgId || !log.enteredById) return;
-  await requireOrg(user, log.orgId);
+  await requireOrgCan(user, log.orgId, 'training.recordForAthlete');
   await prisma.pitchLog.delete({ where: { id: log.id } });
   revalidatePath('/manage', 'layout');
 }

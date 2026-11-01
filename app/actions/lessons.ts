@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { notify } from '@/lib/notify';
 import { geocode } from '@/lib/geocode';
 import { requireAdmin, requireMaster, requireUser } from '@/lib/dal';
-import { requireOrg } from '@/lib/org/access';
+import { requireOrgCan } from '@/lib/org/access';
 import { dbDate } from '@/lib/nutrition/days';
 import {
   BOOKING_NOTE_MAX,
@@ -47,7 +47,7 @@ export async function updateCoachProfile(
   formData: FormData
 ): Promise<LessonState> {
   const user = await requireMaster();
-  const org = await requireOrg(user, String(formData.get('orgId') ?? ''));
+  const org = await requireOrgCan(user, String(formData.get('orgId') ?? ''), 'org.manage');
   if (org.kind !== 'LESSON') return { error: '레슨장만 코치 프로필을 열 수 있어요.' };
   if (user.role !== 'ADMIN' && org.ownerId !== user.id)
     return { error: '프로필은 레슨장을 만든 사람만 고쳐요.' };
@@ -179,7 +179,7 @@ export async function confirmBooking(formData: FormData) {
     },
   });
   if (!b) return;
-  const org = await requireOrg(user, b.orgId);
+  const org = await requireOrgCan(user, b.orgId, 'booking.manage');
   if (!canConfirm(b, which, new Date())) return;
   const chosen = which === 2 ? b.slot2! : b.slot1;
   const { dateKey, time } = slotParts(chosen);
@@ -258,7 +258,7 @@ export async function declineBooking(formData: FormData) {
     select: { orgId: true, status: true, userId: true },
   });
   if (!b || b.status !== 'REQUESTED') return;
-  await requireOrg(user, b.orgId);
+  await requireOrgCan(user, b.orgId, 'booking.manage');
   await prisma.lessonBooking.update({
     where: { id },
     data: { status: 'DECLINED', reply },
@@ -286,7 +286,7 @@ export async function finishBooking(formData: FormData) {
     select: { orgId: true, status: true, memberId: true, chosen: true, slot1: true },
   });
   if (!b || b.status !== 'CONFIRMED') return;
-  await requireOrg(user, b.orgId);
+  await requireOrgCan(user, b.orgId, 'booking.manage');
   const lessonDay = slotParts(b.chosen ?? b.slot1).dateKey;
   await prisma.$transaction((tx) => completeBookingTx(tx, { bookingId: id, memberId: b.memberId, lessonDay }));
   revalidatePath('/manage', 'layout');

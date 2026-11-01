@@ -13,7 +13,8 @@ import {
   readBounded,
 } from '@/lib/org/lesson-work';
 import { requireMaster } from '@/lib/dal';
-import { requireOrg } from '@/lib/org/access';
+import { requireOrgCan } from '@/lib/org/access';
+import type { OrgCapability } from '@/lib/org/capabilities';
 import {
   GUARDIAN_DAYS,
   HOMEWORK_MAX,
@@ -44,7 +45,9 @@ export type OrgActionState = { error?: string; success?: string } | undefined;
 
 async function memberOf(
   user: Awaited<ReturnType<typeof requireMaster>>,
-  memberId: string
+  memberId: string,
+  /** 이 회원에게 할 업무(lib/org/capabilities.ts) — 2026-11-01 2단계 */
+  cap: OrgCapability
 ) {
   const member = await prisma.orgMember.findUnique({
     where: { id: memberId },
@@ -57,7 +60,7 @@ async function memberOf(
     },
   });
   if (!member) return null;
-  await requireOrg(user, member.orgId);
+  await requireOrgCan(user, member.orgId, cap);
   return member;
 }
 
@@ -199,7 +202,7 @@ export async function createLessonNote(
   formData: FormData
 ): Promise<OrgActionState> {
   const user = await requireMaster();
-  const member = await memberOf(user, String(formData.get('memberId') ?? ''));
+  const member = await memberOf(user, String(formData.get('memberId') ?? ''), 'lesson.manage');
   if (!member) return { error: '구성원을 찾을 수 없어요.' };
   const form = await readNoteForm(formData, member);
   if ('error' in form) return { error: form.error };
@@ -265,7 +268,7 @@ export async function updateLessonNote(
     select: { id: true, memberId: true, eventId: true, date: true },
   });
   if (!note) return { error: '일지를 찾을 수 없어요.' };
-  const member = await memberOf(user, note.memberId);
+  const member = await memberOf(user, note.memberId, 'lesson.manage');
   if (!member) return { error: '구성원을 찾을 수 없어요.' };
   const form = await readNoteForm(formData, member);
   if ('error' in form) return { error: form.error };
@@ -302,7 +305,7 @@ export async function deleteLessonNote(formData: FormData) {
     select: { id: true, memberId: true, eventId: true, videoPaths: true, member: { select: { orgId: true, userId: true } } },
   });
   if (!note) return;
-  await requireOrg(user, note.member.orgId);
+  await requireOrgCan(user, note.member.orgId, 'lesson.manage');
   const userId = note.member.userId;
   await prisma.$transaction(async (tx) => {
     if (userId) {
@@ -324,7 +327,7 @@ export async function addPass(
   formData: FormData
 ): Promise<OrgActionState> {
   const user = await requireMaster();
-  const member = await memberOf(user, String(formData.get('memberId') ?? ''));
+  const member = await memberOf(user, String(formData.get('memberId') ?? ''), 'booking.manage');
   if (!member) return { error: '구성원을 찾을 수 없어요.' };
   const total = Number.parseInt(String(formData.get('total') ?? ''), 10);
   if (!Number.isInteger(total) || total < 1 || total > PASS_TOTAL_MAX)
@@ -362,7 +365,7 @@ export async function adjustPass(formData: FormData) {
     },
   });
   if (!pass) return;
-  await requireOrg(user, pass.member.orgId);
+  await requireOrgCan(user, pass.member.orgId, 'booking.manage');
   const delta = formData.get('delta') === '-1' ? -1 : 1;
   const used = Math.max(0, Math.min(pass.total, pass.used + delta));
   await prisma.lessonPass.update({ where: { id: pass.id }, data: { used } });
@@ -377,7 +380,7 @@ export async function deletePass(formData: FormData) {
     select: { id: true, memberId: true, member: { select: { orgId: true } } },
   });
   if (!pass) return;
-  await requireOrg(user, pass.member.orgId);
+  await requireOrgCan(user, pass.member.orgId, 'booking.manage');
   await prisma.lessonPass.delete({ where: { id: pass.id } });
   revalidatePath(`/manage/players/${pass.memberId}`);
   revalidatePath('/manage');
@@ -391,7 +394,7 @@ export async function createGuardianLink(
   formData: FormData
 ): Promise<OrgActionState> {
   const user = await requireMaster();
-  const member = await memberOf(user, String(formData.get('memberId') ?? ''));
+  const member = await memberOf(user, String(formData.get('memberId') ?? ''), 'roster.manage');
   if (!member) return { error: '구성원을 찾을 수 없어요.' };
   const code = makeGuardianCode();
   const token = randomUUID().replace(/-/g, '');
@@ -416,7 +419,7 @@ export async function revokeGuardianLink(formData: FormData) {
     select: { id: true, memberId: true, member: { select: { orgId: true } } },
   });
   if (!r) return;
-  await requireOrg(user, r.member.orgId);
+  await requireOrgCan(user, r.member.orgId, 'roster.manage');
   await prisma.guardianReport.delete({ where: { id: r.id } });
   revalidatePath(`/manage/players/${r.memberId}`);
 }

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireMaster } from '@/lib/dal';
-import { requireOrg } from '@/lib/org/access';
+import { requireOrgCan } from '@/lib/org/access';
 import { EVENT_MEMO_MAX, EVENT_TITLE_MAX, isDateKey, isEventKind, timeOk } from '@/lib/org/rules';
 import { dbDate } from '@/lib/nutrition/days';
 import { appNow } from '@/lib/clock';
@@ -23,7 +23,7 @@ export type OrgActionState = { error?: string; success?: string } | undefined;
 
 export async function saveOrgEvent(_prev: OrgActionState, formData: FormData): Promise<OrgActionState> {
   const user = await requireMaster();
-  const org = await requireOrg(user, String(formData.get('orgId') ?? ''));
+  const org = await requireOrgCan(user, String(formData.get('orgId') ?? ''), 'schedule.manage');
   const id = String(formData.get('id') ?? '').trim();
   const date = String(formData.get('date') ?? '');
   if (!isDateKey(date)) return { error: '날짜를 골라 주세요.' };
@@ -72,7 +72,7 @@ export async function deleteOrgEvent(formData: FormData) {
     select: { id: true, orgId: true, date: true, time: true, title: true, memberId: true, status: true },
   });
   if (!ev) return;
-  await requireOrg(user, ev.orgId);
+  await requireOrgCan(user, ev.orgId, 'schedule.manage');
   /* 알릴 사람은 지우기 전에(계약 9-6 ③-1) — 오늘 · 앞으로의 살아 있는 일정만. 지운 일정은 열 곳이 없어 일정 탭으로 */
   const tell = toDateKey(ev.date) >= toDateKey(appNow()) && ev.status !== 'canceled' ? await eventPlayerUsers(ev.orgId, ev) : [];
   /* 3단계 참석 · 메뉴 · 등판도 같이 지운다. 남긴 수행일지(선수 운동 세트)는 실제로 한 운동일 수 있어 기본은 그대로 —
@@ -100,7 +100,7 @@ export async function setOrgEventStatus(formData: FormData): Promise<OrgActionSt
     select: { id: true, orgId: true, status: true, date: true, time: true, title: true, memberId: true },
   });
   if (!ev) return { error: '일정을 찾을 수 없어요.' };
-  await requireOrg(user, ev.orgId);
+  await requireOrgCan(user, ev.orgId, 'schedule.manage');
   /* 취소하며 '남긴 수행일지도 빼기'를 고른 때(결정 4) */
   if (status === 'canceled' && formData.get('work') === 'remove') await clearTeamWork(ev.id, user.id);
   if (ev.status !== status) {
