@@ -1,3 +1,4 @@
+import { isOperator } from '@/lib/org/access';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { getCurrentUser } from '@/lib/dal';
@@ -45,7 +46,7 @@ export default async function DugoutLayout({
       alerts={alerts}
       /* 덕아웃 앱은 위 막대에도 싱커 S 단추를 안 둔다(2026-10-26 김민 — 첫 화면과 같게) */
       sinker={!!user && usesSinker(user) && surface !== 'dugout-app'}
-      manage={!!user && (user.accountType === 'MASTER' || user.role === 'ADMIN')}
+      manage={!!user && (await isOperator(user))}
       native={native}
       surface={surface}
       country={countryOf(user?.country)}

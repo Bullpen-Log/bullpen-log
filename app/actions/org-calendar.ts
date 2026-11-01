@@ -1,9 +1,8 @@
 'use server';
 
+import { requireOperator, requireOrgCan } from '@/lib/org/access';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { requireMaster } from '@/lib/dal';
-import { requireOrgCan } from '@/lib/org/access';
 import { EVENT_MEMO_MAX, EVENT_TITLE_MAX, isDateKey, isEventKind, timeOk } from '@/lib/org/rules';
 import { dbDate } from '@/lib/nutrition/days';
 import { appNow } from '@/lib/clock';
@@ -22,7 +21,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 export type OrgActionState = { error?: string; success?: string } | undefined;
 
 export async function saveOrgEvent(_prev: OrgActionState, formData: FormData): Promise<OrgActionState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const org = await requireOrgCan(user, String(formData.get('orgId') ?? ''), 'schedule.manage');
   const id = String(formData.get('id') ?? '').trim();
   const date = String(formData.get('date') ?? '');
@@ -66,7 +65,7 @@ export async function saveOrgEvent(_prev: OrgActionState, formData: FormData): P
 }
 
 export async function deleteOrgEvent(formData: FormData) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const ev = await prisma.orgEvent.findUnique({
     where: { id: String(formData.get('id') ?? '') },
     select: { id: true, orgId: true, date: true, time: true, title: true, memberId: true, status: true },
@@ -92,7 +91,7 @@ export async function deleteOrgEvent(formData: FormData) {
 
 /** 지도 활동 확인(2단계, 결정 6) — 예정 · 실시 · 취소. 출석 · 수강권과 무관하다. 실시로 바꾼 때를 남긴다 */
 export async function setOrgEventStatus(formData: FormData): Promise<OrgActionState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const status = String(formData.get('status') ?? '');
   if (!isEventStatus(status)) return { error: '상태를 골라 주세요.' };
   const ev = await prisma.orgEvent.findUnique({

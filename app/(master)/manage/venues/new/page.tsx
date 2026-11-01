@@ -1,9 +1,9 @@
 import { PageHeading } from '@/components/ui';
 import { VenueForm } from '@/components/master/venue-form';
-import { requireMaster } from '@/lib/dal';
+import { requireOperator } from '@/lib/org/access';
 
 export default async function NewVenuePage() {
-  await requireMaster();
+  await requireOperator();
   return (
     <div className="stack-page">
       <PageHeading title="장소 등록" description="영업시간과 한 칸 길이만 적으면 덕아웃에서 빈 칸을 골라 예약해요." />

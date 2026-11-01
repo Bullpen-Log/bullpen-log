@@ -1,15 +1,14 @@
+import { requireCurrentOrg, requireOperator } from '@/lib/org/access';
 import Link from 'next/link';
 import { Badge, Card, EmptyState, PageHeading } from '@/components/ui';
 import { CalendarDays } from '@/components/icon';
 import { BookingActions } from '@/components/master/booking-actions';
-import { requireMaster } from '@/lib/dal';
-import { requireCurrentOrg } from '@/lib/org/access';
 import { loadOrgBookings } from '@/lib/market/lesson-load';
 import { audienceLabel, bookingStatusLabel, formatSlot, payMethodLabel, specialtyLabel } from '@/lib/market/lessons';
 
 /** 덕아웃 레슨 요청(코치 쪽, 2판) — 요청부터. 확정하면 회원 · 시간표에 들어간다 */
 export default async function BookingsPage() {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const { org } = await requireCurrentOrg(user);
   const rows = org.kind === 'LESSON' ? await loadOrgBookings(org.id) : [];
   return (
@@ -35,7 +34,6 @@ export default async function BookingsPage() {
                 ) : (
                   <span className="font-semibold text-ink">{b.player.nickname}</span>
                 )}
-                <span className="text-xs text-muted">투구 기록 {b.player.records}건</span>
                 <span className="ml-auto text-xs text-muted">{b.chosen ? formatSlot(b.chosen) : `${formatSlot(b.slot1)}${b.slot2 ? ` 또는 ${formatSlot(b.slot2)}` : ''}`}</span>
               </div>
               {(b.specialty || b.audience || b.payMethod) && (

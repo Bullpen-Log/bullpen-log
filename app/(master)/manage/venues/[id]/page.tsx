@@ -5,13 +5,13 @@ import { PageHeading } from '@/components/ui';
 import { ConfirmButton } from '@/components/master/confirm-button';
 import { VenueForm } from '@/components/master/venue-form';
 import { deleteVenue } from '@/app/actions/venues';
-import { requireMaster } from '@/lib/dal';
+import { requireOperator } from '@/lib/org/access';
 import { prisma } from '@/lib/prisma';
 import { createPlaybackUrls } from '@/lib/storage';
 import { parseHours } from '@/lib/market/venues';
 
 export default async function EditVenuePage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const { id } = await params;
   const v = await prisma.venue.findUnique({ where: { id } });
   if (!v || v.hiddenAt || (v.ownerId !== user.id && user.role !== 'ADMIN')) notFound();

@@ -1,3 +1,4 @@
+import { requireCurrentOrg, requireOperator } from '@/lib/org/access';
 import { KeyRound } from '@/components/icon';
 import { SafeForm } from '@/components/safe-form';
 import { Badge, Button, Card, PageHeading } from '@/components/ui';
@@ -8,8 +9,6 @@ import { OrgInfoForm } from '@/components/master/org-info-form';
 import { CoachProfileForm } from '@/components/master/coach-profile-form';
 import { parseHours } from '@/lib/market/venues';
 import { createInvite, removeMember, revokeInvite } from '@/app/actions/org';
-import { requireMaster } from '@/lib/dal';
-import { requireCurrentOrg } from '@/lib/org/access';
 import { INVITE_DAYS, ORG_WORDS, inviteUsable, realNow } from '@/lib/org/rules';
 import { prisma } from '@/lib/prisma';
 
@@ -24,7 +23,7 @@ const PLAN_LABEL: Record<string, string> = {
  * 로그인한 마스터가 다른 조직의 코치로 들어가는 칸도 여기(스태프 코드).
  */
 export default async function SettingsPage() {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const { org } = await requireCurrentOrg(user);
   const words = ORG_WORDS[org.kind];
   const owner = user.role === 'ADMIN' || org.ownerId === user.id;

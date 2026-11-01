@@ -1,11 +1,10 @@
+import { requireCurrentOrg, requireOperator } from '@/lib/org/access';
 import Link from 'next/link';
 import { Users } from '@/components/icon';
 import { Badge, Button, Card, EmptyState, Input, PageHeading } from '@/components/ui';
 import { AddMemberForm } from '@/components/master/add-member-form';
 import { ConfirmButton } from '@/components/master/confirm-button';
 import { removeMember } from '@/app/actions/org';
-import { requireMaster } from '@/lib/dal';
-import { requireCurrentOrg } from '@/lib/org/access';
 import { CONSENT_SCOPES, ORG_WORDS, passLeft, passUsable } from '@/lib/org/rules';
 import { appNow } from '@/lib/clock';
 import { dbDate } from '@/lib/nutrition/days';
@@ -20,7 +19,7 @@ const one = (v: string | string[] | undefined) => ((Array.isArray(v) ? v[0] : v)
  * 카드(기록 · 성장 그래프 · 노트)는 /manage/players/[memberId].
  */
 export default async function PlayersPage({ searchParams }: { searchParams: Promise<SP> }) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const { org } = await requireCurrentOrg(user);
   const words = ORG_WORDS[org.kind];
   const sp = await searchParams;

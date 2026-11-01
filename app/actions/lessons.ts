@@ -5,8 +5,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { notify } from '@/lib/notify';
 import { geocode } from '@/lib/geocode';
-import { requireAdmin, requireMaster, requireUser } from '@/lib/dal';
-import { requireOrgCan } from '@/lib/org/access';
+import { requireAdmin, requireUser } from '@/lib/dal';
+import { requireOperator, requireOrgCan } from '@/lib/org/access';
 import { dbDate } from '@/lib/nutrition/days';
 import {
   BOOKING_NOTE_MAX,
@@ -30,11 +30,22 @@ import {
 } from '@/lib/market/lessons';
 import { parseHours, readHours, slotValid, weekdayOf } from '@/lib/market/venues';
 import { ORG_NAME_MAX, ORG_REGION_MAX } from '@/lib/org/rules';
-import { completeBookingTx } from '@/lib/org/booking-complete';
+import {
+  BOOKING_RESULT_TEXT,
+  cancelBookingTx,
+  confirmBookingTx,
+  declineBookingTx,
+  finishBookingTx,
+  type Lost,
+} from '@/lib/org/booking-transitions';
+
+/** 코치 · 선수 예약 동작의 답(2026-11-01 교정 F07) — SafeForm 이 notice 는 알림으로, error 는 폼 밑 한 줄로 보인다. 옛 화면은 무시해도 된다(void 와 호환) */
+export type BookingActionResult = { ok: true; notice: string } | { ok: false; error: string };
+const lostResult = (l: Lost): BookingActionResult => ({ ok: false, error: l.reason === 'already' ? BOOKING_RESULT_TEXT.already : BOOKING_RESULT_TEXT.conflict });
 import { orgOpenHref } from '@/lib/org/space-nav';
 
 /**
- * 덕아웃 레슨 예약(2판, 2026-10-21) — 선수: 요청 · 취소 · 후기(requireUser). 코치: 프로필 공개 · 확정 · 거절 · 끝남(requireMaster → requireOrg).
+ * 덕아웃 레슨 예약(2판, 2026-10-21) — 선수: 요청 · 취소 · 후기(requireUser). 코치: 프로필 공개 · 확정 · 거절 · 끝남(requireOperator → requireOrgCan, 2026-11-01).
  * 확정되면 선수는 그 레슨장의 회원이 되고(ShareConsent 는 기본값 — 선수가 /join 에서 바꾼다) 시간표(OrgEvent lesson)에 들어간다.
  */
 
@@ -46,7 +57,7 @@ export async function updateCoachProfile(
   _prev: LessonState,
   formData: FormData
 ): Promise<LessonState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const org = await requireOrgCan(user, String(formData.get('orgId') ?? ''), 'org.manage');
   if (org.kind !== 'LESSON') return { error: '레슨장만 코치 프로필을 열 수 있어요.' };
   if (user.role !== 'ADMIN' && org.ownerId !== user.id)
@@ -157,9 +168,12 @@ export async function adminSetCoachPublic(formData: FormData) {
   revalidatePath('/lessons', 'layout');
 }
 
-/** 코치가 요청 하나를 확정(which 1 · 2) — 회원 줄 · 시간표 줄을 만든다 */
-export async function confirmBooking(formData: FormData) {
-  const user = await requireMaster();
+/**
+ * 코치가 요청 하나를 확정(which 1 · 2) — 회원 줄 · 시간표 줄을 만든다.
+ * 2026-11-01 교정 F02: 전이를 트랜잭션 안에서 선점(lib/org/booking-transitions.ts confirmBookingTx) — 겹친 두 확정이 시간표를 둘 만들던 것. 알림은 이긴 요청만.
+ */
+export async function confirmBooking(formData: FormData): Promise<BookingActionResult> {
+  const user = await requireOperator();
   const id = String(formData.get('id') ?? '');
   const which = formData.get('which') === '2' ? 2 : 1;
   const reply =
@@ -178,64 +192,24 @@ export async function confirmBooking(formData: FormData) {
       user: { select: { nickname: true } },
     },
   });
-  if (!b) return;
+  if (!b) return { ok: false, error: BOOKING_RESULT_TEXT.conflict };
   const org = await requireOrgCan(user, b.orgId, 'booking.manage');
-  if (!canConfirm(b, which, new Date())) return;
+  /* 미리 읽은 상태는 안내용일 뿐 — 전이는 트랜잭션 안의 조건부 갱신이 정한다 */
+  if (!canConfirm({ ...b, status: 'REQUESTED' }, which, new Date())) return { ok: false, error: '지난 시간은 확정할 수 없어요.' };
   const chosen = which === 2 ? b.slot2! : b.slot1;
   const { dateKey, time } = slotParts(chosen);
-  const consentPending = await prisma.$transaction(async (tx) => {
-    const existing = await tx.orgMember.findUnique({
-      where: { orgId_userId: { orgId: org.id, userId: b.userId } },
-      select: { id: true, status: true, consent: { select: { memberId: true } } },
-    });
-    let memberId: string;
-    if (existing) {
-      memberId = existing.id;
-      if (existing.status !== 'ACTIVE')
-        await tx.orgMember.update({
-          where: { id: existing.id },
-          data: { status: 'ACTIVE', leftAt: null },
-        });
-    } else {
-      const m = await tx.orgMember.create({
-        data: {
-          orgId: org.id,
-          userId: b.userId,
-          role: 'PLAYER',
-          status: 'ACTIVE',
-          nickname: b.user.nickname,
-        },
-        select: { id: true },
-      });
-      memberId = m.id;
-      /* 공유 동의는 만들지 않는다 — 예약 확정은 회원 연결만, 무엇을 보여 줄지는 선수가 싱커에서 고른다(2026-10-25 0단계 계약 2-1).
-         동의 줄이 없는 계정 회원은 아무것도 안 보인다(lib/org/access.ts memberScope) */
-    }
-    const ev = await tx.orgEvent.create({
-      data: {
-        orgId: org.id,
-        date: dbDate(dateKey),
-        time,
-        kind: 'lesson',
-        title: `${b.user.nickname} 레슨(덕아웃 예약)`,
-        memberId,
-        createdById: user.id,
-      },
-      select: { id: true },
-    });
-    await tx.lessonBooking.update({
-      where: { id },
-      data: { status: 'CONFIRMED', chosen, reply, memberId, eventId: ev.id, confirmedAt: new Date() },
-    });
-    return !existing?.consent;
-  });
+  /* 공유 동의는 만들지 않는다 — 예약 확정은 회원 연결만, 무엇을 보여 줄지는 선수가 싱커에서 고른다(2026-10-25 0단계 계약 2-1) */
+  const r = await prisma.$transaction((tx) =>
+    confirmBookingTx(tx, { bookingId: id, orgId: org.id, userId: b.userId, nickname: b.user.nickname, chosen, date: dbDate(dateKey), time, reply, createdById: user.id })
+  );
+  if (!r.ok) return lostResult(r);
   await notify(b.userId, {
     kind: 'booking',
     title: '레슨 예약이 확정됐어요',
     body: formatSlot(chosen),
     link: '/me',
   });
-  if (consentPending)
+  if (r.consentPending)
     await notify(b.userId, {
       kind: 'lesson',
       title: `${org.name}에 연결됐어요`,
@@ -244,10 +218,11 @@ export async function confirmBooking(formData: FormData) {
     });
   revalidatePath('/manage', 'layout');
   revalidatePath('/', 'layout');
+  return { ok: true, notice: BOOKING_RESULT_TEXT.confirmed };
 }
 
-export async function declineBooking(formData: FormData) {
-  const user = await requireMaster();
+export async function declineBooking(formData: FormData): Promise<BookingActionResult> {
+  const user = await requireOperator();
   const id = String(formData.get('id') ?? '');
   const reply =
     String(formData.get('reply') ?? '')
@@ -257,12 +232,10 @@ export async function declineBooking(formData: FormData) {
     where: { id },
     select: { orgId: true, status: true, userId: true },
   });
-  if (!b || b.status !== 'REQUESTED') return;
-  await requireOrgCan(user, b.orgId, 'booking.manage');
-  await prisma.lessonBooking.update({
-    where: { id },
-    data: { status: 'DECLINED', reply },
-  });
+  if (!b) return { ok: false, error: BOOKING_RESULT_TEXT.conflict };
+  const org = await requireOrgCan(user, b.orgId, 'booking.manage');
+  const r = await prisma.$transaction((tx) => declineBookingTx(tx, { bookingId: id, orgId: org.id, reply }));
+  if (!r.ok) return lostResult(r);
   await notify(b.userId, {
     kind: 'booking',
     title: '레슨 요청을 받지 못했어요',
@@ -271,6 +244,7 @@ export async function declineBooking(formData: FormData) {
   });
   revalidatePath('/manage', 'layout');
   revalidatePath('/', 'layout');
+  return { ok: true, notice: BOOKING_RESULT_TEXT.declined };
 }
 
 /**
@@ -278,19 +252,22 @@ export async function declineBooking(formData: FormData) {
  * 수강권 차감은 덕아웃 운영의 일이라 싱커의 레슨 노트 저장에서 옮겨 왔다(2026-10-25 0단계 계약 2-1).
  * 2026-11-01: 끝냄 · 차감은 조건부 갱신(lib/org/booking-complete.ts) — 두 요청이 겹쳐도 한 번만 끝나고 한 회만 준다(미리 읽은 상태는 안 믿는다).
  */
-export async function finishBooking(formData: FormData) {
-  const user = await requireMaster();
+export async function finishBooking(formData: FormData): Promise<BookingActionResult> {
+  const user = await requireOperator();
   const id = String(formData.get('id') ?? '');
   const b = await prisma.lessonBooking.findUnique({
     where: { id },
     select: { orgId: true, status: true, memberId: true, chosen: true, slot1: true },
   });
-  if (!b || b.status !== 'CONFIRMED') return;
-  await requireOrgCan(user, b.orgId, 'booking.manage');
+  if (!b) return { ok: false, error: BOOKING_RESULT_TEXT.conflict };
+  const org = await requireOrgCan(user, b.orgId, 'booking.manage');
   const lessonDay = slotParts(b.chosen ?? b.slot1).dateKey;
-  await prisma.$transaction((tx) => completeBookingTx(tx, { bookingId: id, memberId: b.memberId, lessonDay }));
+  const r = await prisma.$transaction((tx) => finishBookingTx(tx, { bookingId: id, orgId: org.id, memberId: b.memberId, lessonDay }));
+  if (!r.ok) return lostResult(r);
   revalidatePath('/manage', 'layout');
   revalidatePath('/', 'layout');
+  /* 수강권 없이 끝낸 것은 그대로 알린다(F07) — 나중에 수강권을 넣어도 지난 끝냄을 저절로 차감하지 않는다(정정은 원장 단계 M-C) */
+  return { ok: true, notice: r.passId ? BOOKING_RESULT_TEXT.finished : BOOKING_RESULT_TEXT.finishedNoPass };
 }
 
 /* ── 선수 ── */
@@ -364,26 +341,24 @@ export async function requestBooking(
   return { success: '요청을 보냈어요. 코치가 확정하면 알려 드려요.', bookingId: created.id };
 }
 
-export async function cancelBooking(formData: FormData) {
+/**
+ * 선수 본인의 취소 — 상태만 바꾼다(2026-11-01). 확정 때 만든 시간표 줄(OrgEvent)은 지우지 않고 예정인 것만 '취소'로 — 그 활동에 붙은 일지 · 투구 기록 · 숙제 연결이 끊기지 않게.
+ * 교정 F01: 전이를 트랜잭션 안에서 주인 · 이전 상태(REQUESTED · CONFIRMED) 조건으로 선점 — 끝냄(DONE · 수강권 차감)과 겹쳐도 DONE 을 덮지 않는다.
+ */
+export async function cancelBooking(formData: FormData): Promise<BookingActionResult> {
   const user = await requireUser();
   const id = String(formData.get('id') ?? '');
   const b = await prisma.lessonBooking.findUnique({
     where: { id },
-    select: { userId: true, status: true, orgId: true, eventId: true },
+    select: { userId: true, orgId: true },
   });
-  if (!b || b.userId !== user.id || !['REQUESTED', 'CONFIRMED'].includes(b.status))
-    return;
-  /*
-   * 취소는 상태만 바꾼다(2026-11-01, 브리프 2절 알려진 문제 5). 예전엔 확정 때 만든 시간표 줄(OrgEvent)을 지워, 그 활동에 붙은 일지 · 투구 기록 · 숙제 연결이
-   * 끊겼다. 이제 일정은 남기고 '취소'로만 — 이미 '실시'(done)한 활동은 손대지 않는다(한 일은 지우지 않는다).
-   */
-  await prisma.$transaction(async (tx) => {
-    await tx.lessonBooking.update({ where: { id }, data: { status: 'CANCELED' } });
-    if (b.eventId) await tx.orgEvent.updateMany({ where: { id: b.eventId, status: 'planned' }, data: { status: 'canceled' } });
-  });
+  if (!b || b.userId !== user.id) return { ok: false, error: BOOKING_RESULT_TEXT.conflict };
+  const r = await prisma.$transaction((tx) => cancelBookingTx(tx, { bookingId: id, userId: user.id }));
+  if (!r.ok) return lostResult(r);
   revalidatePath('/me');
   revalidatePath(`/lessons/${b.orgId}`);
   revalidatePath('/manage', 'layout');
+  return { ok: true, notice: BOOKING_RESULT_TEXT.canceled };
 }
 
 export async function writeReview(

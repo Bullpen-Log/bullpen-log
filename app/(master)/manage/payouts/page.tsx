@@ -1,7 +1,6 @@
+import { requireCurrentOrg, requireOperator } from '@/lib/org/access';
 import { Lock } from '@/components/icon';
 import { Badge, Card, PageHeading } from '@/components/ui';
-import { requireMaster } from '@/lib/dal';
-import { requireCurrentOrg } from '@/lib/org/access';
 import { prisma } from '@/lib/prisma';
 import {
   LESSON_FEE_RATE,
@@ -16,7 +15,7 @@ import { formatPrice } from '@/lib/market/specs';
  * 정산(4판 껍데기) — 이번 달 확정 · 끝난 레슨과 장소 예약을 가격으로 셈한 '받을 돈'. 결제가 열리기 전이라 숫자는 예상이고, 정산 계좌 칸은 잠겨 있다.
  */
 export default async function PayoutsPage() {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const { org } = await requireCurrentOrg(user);
   const now = new Date();
   const month = monthKeyOf(now);

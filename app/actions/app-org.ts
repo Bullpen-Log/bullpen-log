@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser, isMasterUser } from '@/lib/dal';
+import { getCurrentUser } from '@/lib/dal';
 import { appNow } from '@/lib/clock';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
@@ -25,7 +25,7 @@ import { notifyCoaches } from '@/lib/org/notify-org';
 /**
  * 아이폰 앱(native/src/app/org/*)의 팀 · 레슨장 공간 — 1단계(docs/designs/sinker-team-lesson-contract.md 2-1).
  * 웹 마스터 화면(app/(master))의 폼 동작과 달리 JSON 인자 · JSON 답이고, 지금 보는 조직은 쿠키가 아니라 인자(orgId)로 받는다.
- * 코치 쪽은 마스터 계정 · 관리자만(isMasterUser) + 그 조직을 볼 권한(orgsFor). 선수 쪽은 제 회원 줄(userId 가 나)만.
+ * 코치 쪽은 그 조직의 소유자 · 스태프 회원(조직 역할, coachOrgCan — 계정 종류는 안 본다, 2026-11-01). 선수 쪽은 제 회원 줄(userId 가 나)만.
  * 공유 동의가 끈 범위는 서버에서 아예 읽지 않는다(lib/org/player-data.ts memberCardOf). /api/rpc/app-org.<함수> 로 부른다.
  */
 
@@ -62,10 +62,10 @@ const armLine = (s: CoachArmStatus): ArmLine => ({
 export async function loadMySpaces(): Promise<{ ok: false; to: string } | { ok: true; hasSinker: boolean; spaces: MySpace[]; former: MySpace[] }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
-  /* 관리자도 제가 만들었거나 코치로 든 조직만 — 웹 orgsFor 처럼 모든 조직(더미 코치 포함)을 고르개에 늘어놓지 않는다 */
+  /* 관리자도 제가 만들었거나 코치로 든 조직만 — 웹 orgsFor 처럼 모든 조직(더미 코치 포함)을 고르개에 늘어놓지 않는다.
+     코치 조직은 계정 종류와 무관하게 조직 역할(소유자 · 스태프 회원)로 찾는다(2026-11-01 교정 F03) — 일반 계정도 스태프로 들었으면 그 공간이 뜬다 */
   const [coachOrgs, memberships] = await Promise.all([
-    isMasterUser(user)
-      ? prisma.org.findMany({
+    prisma.org.findMany({
           where: {
             OR: [
               { ownerId: user.id },
@@ -80,8 +80,7 @@ export async function loadMySpaces(): Promise<{ ok: false; to: string } | { ok: 
             ownerId: true,
             members: { where: { userId: user.id }, select: { role: true } },
           },
-        })
-      : [],
+        }),
     user.accountType === 'MASTER'
       ? []
       : prisma.orgMember.findMany({
@@ -792,7 +791,7 @@ export async function leaveOrg(memberId: string): Promise<{ ok: boolean; error?:
 const JOIN_ERROR: Record<'code' | 'expired' | 'staff' | 'master', string> = {
   code: '초대 코드 여섯 글자를 확인해 주세요.',
   expired: '코드가 맞지 않거나 기한이 지났어요. 코치에게 새 코드를 받아 주세요.',
-  staff: '코치 초대 코드예요. 선수 코드를 받아 주세요.',
+  staff: '이 코드로는 들어갈 수 없어요. 코치 · 선수 코드를 받아 주세요.',
   master: '선수 코드는 선수 계정으로 넣어 주세요. 이 계정은 팀 · 레슨장 관리용이에요.',
 };
 

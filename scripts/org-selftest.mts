@@ -72,7 +72,8 @@ import {
   type SessionPlan,
 } from '@/lib/org/team-session';
 import { isOutingTitle } from '@/lib/calendar-event';
-import { ORG_CAPABILITIES, RECORD_CAPABILITIES, canGrant, capabilityScope, hasCapability } from '@/lib/org/capabilities';
+import { ORG_CAPABILITIES, RECORD_CAPABILITIES, canGrant, capabilityScope, capabilityTarget, hasCapability, scopeCovers } from '@/lib/org/capabilities';
+import { cancelBookingTx, confirmBookingTx, declineBookingTx, finishBookingTx } from '@/lib/org/booking-transitions';
 import { completeBookingTx } from '@/lib/org/booking-complete';
 import {
   ME,
@@ -277,8 +278,8 @@ console.log('\n[5] 선수 계정이 관리 화면에 못 들어가는가 — 코
 {
   const layout = src('app/(master)/layout.tsx');
   check(
-    '(master) 틀이 requireMaster 를 기다린다',
-    /await requireMaster\(\)/.test(layout)
+    '(master) 틀이 requireOperator(조직 운영자 관문, 2026-11-01)를 기다린다',
+    /await requireOperator\(\)/.test(layout)
   );
   check(
     '(master) 틀은 선수 껍데기(components/app-shell)를 안 쓴다',
@@ -314,10 +315,10 @@ console.log('\n[5] 선수 계정이 관리 화면에 못 들어가는가 — 코
       name: m[1],
       body: org.slice(m.index, heads[i + 1]?.index ?? org.length),
     }))
-    .filter((f) => !/requireMaster\(|requireAdmin\(/.test(f.body))
+    .filter((f) => !/requireOperator\(|requireAdmin\(/.test(f.body))
     .map((f) => f.name);
   check(
-    `app/actions/org.ts 의 동작 ${heads.length}개가 모두 requireMaster(관리자 칸은 requireAdmin)를 거친다`,
+    `app/actions/org.ts 의 동작 ${heads.length}개가 모두 requireOperator(관리자 칸은 requireAdmin)를 거친다`,
     heads.length >= 5 && open.length === 0,
     open.join(', ')
   );
@@ -420,10 +421,10 @@ console.log(
         name: m[1],
         body: text.slice(m.index, heads[i + 1]?.index ?? text.length),
       }))
-      .filter((x) => !/requireMaster\(/.test(x.body))
+      .filter((x) => !/requireOperator\(/.test(x.body))
       .map((x) => x.name);
     check(
-      `app/actions/${f}.ts 의 동작 ${heads.length}개가 모두 requireMaster 를 거친다`,
+      `app/actions/${f}.ts 의 동작 ${heads.length}개가 모두 requireOperator 를 거친다`,
       heads.length >= 2 && open.length === 0,
       open.join(', ')
     );
@@ -540,7 +541,7 @@ console.log(
   check('예약 확정은 공유 동의를 만들지 않음', !confirm.includes('shareConsent'));
   const finish = lessons.slice(lessons.indexOf('export async function finishBooking'), lessons.indexOf('/* ── 선수 ── */'));
   /* 2026-11-01: 차감은 조건부 갱신(lib/org/booking-complete.ts) — 끝냄 동작이 그 함수를 부르는지로 본다 */
-  check('수강권 차감은 예약 끝남에서', finish.includes('completeBookingTx('));
+  check('수강권 차감은 예약 끝남에서', finish.includes('finishBookingTx(tx'));
   const notes = src('app/actions/org-notes.ts');
   const create = notes.slice(notes.indexOf('export async function createLessonNote'), notes.indexOf('export async function deleteLessonNote'));
   check('레슨 노트 저장은 수강권을 안 바꿈', !create.includes('lessonPass') && !create.includes('countPass'));
@@ -1000,7 +1001,7 @@ console.log(
       '내 기록 잇기 — 내 세트 · 그날 · 아직 안 이은 것 · 메뉴 운동(없으면 시작 뒤 것만)',
       team.includes('where: { userId: r.user.id, date: e.date, enteredById: null, orgEventId: null, ...(ids.length ? { exerciseId: { in: ids } } : {}), ...(from ? { recordedAt: { gte: from } } : {}) }') && team.includes('if (!ids.length && !from) return { ok: true, linked: 0 };')
     );
-    check("일정 화면 '운동하기'는 메뉴를 오늘 운동에 넣고, 마치면 이 일정에 잇기", src('native/src/app/org/my-event.tsx').includes("'app-team.menuToToday'") && src('native/src/org/space-store.ts').includes("rpc<{ ok: boolean; linked?: number }>('app-team.linkMyWork', ev.memberId, ev.eventId, ev.since)"));
+    check("일정 화면 '운동하기'는 메뉴를 오늘 운동에 넣고, 마치면 이 일정에 잇기", src('native/src/app/org/my-event.tsx').includes("'app-team.menuToToday'") && src('native/src/org/space-store.ts').includes("('app-team.linkMyWork', l.memberId, l.eventId, l.since)"));
   }
   {
     /* 다시 쓰기 · 오늘 브리핑(계약 10-4) */
@@ -1097,11 +1098,11 @@ console.log(
   check('권한: 떠난 회원은 아무것도 못 함', !hasCapability(left, 'schedule.read'));
   check('권한: 총무는 일정 · 공지만 — 훈련 기록 · 명단은 못 봄', hasCapability(treasurer, 'schedule.manage') && hasCapability(treasurer, 'notice.publish') && !hasCapability(treasurer, 'training.read') && !hasCapability(treasurer, 'roster.read'));
   check('권한: 기록 여는 권한은 셋 — 동의와 교집합으로만', RECORD_CAPABILITIES.size === 3 && RECORD_CAPABILITIES.has('training.read'));
-  check('위임: 소유자만 권한 관리를 준다', canGrant(owner, { capability: 'permission.manage', scope: 'organization' }) && !canGrant(coach, { capability: 'schedule.manage', scope: 'organization' }));
+  check('위임: 소유자만 위임한다 · 권한 관리 자체는 못 넘긴다(2026-11-01 F04)', !canGrant(owner, { capability: 'permission.manage', scope: 'organization' }) && canGrant(owner, { capability: 'schedule.manage', scope: 'organization' }) && !canGrant(coach, { capability: 'schedule.manage', scope: 'organization' }));
   check('위임: 총무 · 선수는 아무것도 못 준다', !canGrant(treasurer, { capability: 'schedule.read', scope: 'self' }) && !canGrant(player, { capability: 'schedule.read', scope: 'self' }));
-  check('위임: 코치에게 permission.manage 를 묶음 범위로 줘도 조직 전체 범위는 못 준다', (() => {
-    const sub = { role: 'STAFF' as const, grants: [{ capability: 'permission.manage' as const, scope: 'explicit_group' as const }] };
-    return canGrant(sub, { capability: 'schedule.manage', scope: 'explicit_group' }) && !canGrant(sub, { capability: 'schedule.manage', scope: 'organization' }) && !canGrant(sub, { capability: 'permission.manage', scope: 'explicit_group' });
+  check('위임: 코치에게 permission.manage 를 묶음 범위로 줘도 아무것도 못 준다(소유자만 위임, 2026-11-01 F04)', (() => {
+    const sub = { role: 'STAFF' as const, grants: [{ capability: 'permission.manage' as const, scope: 'explicit_group' as const, targets: ['m1'] }] };
+    return !canGrant(sub, { capability: 'schedule.manage', scope: 'explicit_group', targets: ['m1'] }) && !canGrant(sub, { capability: 'schedule.manage', scope: 'organization' }) && !canGrant(sub, { capability: 'permission.manage', scope: 'explicit_group', targets: ['m1'] });
   })());
 
   /* 예약 끝냄 — 메모리 트랜잭션(조건부 갱신 의미 그대로)으로 두 요청을 겹쳐 돌린다 */
@@ -1179,9 +1180,9 @@ console.log(
 
   /* 소스 — 서버 동작이 새 길을 쓰고 옛 길(상태 미리 읽고 update · 취소 때 일정 삭제 · 코치 = 계정 종류)이 남지 않았나 */
   const lessons = readFileSync(join(ROOT, 'app/actions/lessons.ts'), 'utf8');
-  check('lessons.ts: finishBooking 이 completeBookingTx 를 쓴다', lessons.includes('completeBookingTx(tx'));
+  check('lessons.ts: finishBooking 이 finishBookingTx(조건부 전이 + completeBookingTx)를 쓴다', lessons.includes('finishBookingTx(tx') && readFileSync(join(ROOT, 'lib/org/booking-transitions.ts'), 'utf8').includes('await completeBookingTx(tx, a)'));
   check('lessons.ts: 취소가 일정을 지우지 않는다(orgEvent.deleteMany 없음)', !lessons.includes('orgEvent.deleteMany'));
-  check('lessons.ts: 취소는 예정 일정만 취소로(실시한 것은 그대로)', lessons.includes("status: 'planned' }, data: { status: 'canceled' }"));
+  check('취소는 예정 일정만 취소로(실시한 것은 그대로) — booking-transitions.ts', readFileSync(join(ROOT, 'lib/org/booking-transitions.ts'), 'utf8').includes("status: 'planned' }, data: { status: 'canceled' }"));
   const appAccess = readFileSync(join(ROOT, 'lib/org/app-access.ts'), 'utf8');
   check('app-access.ts: 코치 판정에 계정 종류(isMasterUser)를 안 쓴다', !appAccess.includes('isMasterUser'));
   check('app-access.ts: 코치 판정은 조직 회원 역할(orgsFor)로', appAccess.includes('orgsFor(user)'));
@@ -1236,7 +1237,201 @@ console.log(
   const orgAct = readFileSync(join(ROOT, 'app/actions/org.ts'), 'utf8');
   check('org.ts updateOrg → org.manage · createInvite → roster.manage', orgAct.includes("requireOrgCan(user, String(formData.get('orgId') ?? ''), 'org.manage')") && orgAct.includes("'roster.manage')"));
   check('lessons.ts 예약 확정 · 거절 · 끝냄 → booking.manage', (readFileSync(join(ROOT, 'app/actions/lessons.ts'), 'utf8').match(/'booking\.manage'\)/g) ?? []).length === 3);
-  check('access.ts requireOrgCan 은 hasCapability 로 판정하고 없으면 notFound', (() => { const a = readFileSync(join(ROOT, 'lib/org/access.ts'), 'utf8'); return a.includes('if (!hasCapability({ role }, cap)) notFound();'); })());
+  check('access.ts requireOrgCan 은 hasCapability 로 판정하고 없으면 notFound', (() => { const a = readFileSync(join(ROOT, 'lib/org/access.ts'), 'utf8'); return a.includes('if (!role || !hasCapability({ role }, cap)) notFound();'); })());
+}
+
+
+/* ───────── 교정(2026-11-01 검토 F01~F08) — 예약 전이 겹침(실제 전이 함수 + 메모리 트랜잭션 · 되돌림) · 위임 규칙 · 소스 ───────── */
+{
+  type Booking = { id: string; orgId: string; userId: string; status: string; memberId: string | null; eventId: string | null; chosen?: Date; reply?: string | null };
+  type Pass = { id: string; total: number; used: number; expiresAt: Date | null };
+  type Ev = { id: string; status: string };
+  type Mem = { id: string; orgId: string; userId: string; status: string; consent: { memberId: string } | null };
+  type Store = { booking: Booking; passes: Pass[]; events: Ev[]; members: Mem[]; seq: number };
+  const clone = (s: Store): Store => structuredClone(s);
+  /* 메모리 트랜잭션 — 함수가 던지면 되돌린다(실제 DB 처럼). 한 번에 한 트랜잭션만 커밋하지만, 단계마다 await 가 끼어 두 요청이 겹친다 */
+  /* 예약 줄의 행 잠금 — 한 트랜잭션이 그 줄을 갱신하면 끝날 때까지 다른 트랜잭션의 갱신은 기다린다(PostgreSQL 의 UPDATE 행 잠금처럼) */
+  let rowLock: Promise<void> = Promise.resolve();
+  const txOf = (live: Store, mine: { locked: boolean; release?: () => void } = { locked: false }) => {
+    /* 줄 서기 — 기다리기 전에 제 차례 약속을 먼저 걸어 둔다(둘이 같은 해제된 약속을 함께 기다려 둘 다 잠그는 일이 없게) */
+    const acquire = async () => {
+      if (mine.locked) return;
+      const prev = rowLock;
+      let rel: () => void = () => undefined;
+      rowLock = new Promise<void>((r) => (rel = r));
+      await prev;
+      mine.locked = true;
+      mine.release = rel;
+    };
+    const tx = {
+      _mine: mine,
+      _acquire: acquire,
+      lessonBooking: {
+        async updateMany(a: { where: { id: string; status?: string | { in: readonly string[] }; orgId?: string; userId?: string }; data: Record<string, unknown> }) {
+          await acquire();
+          await Promise.resolve();
+          const b = live.booking;
+          if (b.id !== a.where.id) return { count: 0 };
+          if (a.where.orgId && b.orgId !== a.where.orgId) return { count: 0 };
+          if (a.where.userId && b.userId !== a.where.userId) return { count: 0 };
+          const st = a.where.status;
+          if (typeof st === 'string' && b.status !== st) return { count: 0 };
+          if (st && typeof st === 'object' && !st.in.includes(b.status)) return { count: 0 };
+          Object.assign(b, a.data);
+          return { count: 1 };
+        },
+        async findUnique() { await Promise.resolve(); return { status: live.booking.status, eventId: live.booking.eventId }; },
+      },
+      lessonPass: {
+        async findMany() { await Promise.resolve(); return live.passes.map((p) => ({ ...p })); },
+        async updateMany(a: { where: { id: string; used: { lt: number } }; data: { used: { increment: number } } }) {
+          await Promise.resolve();
+          const p = live.passes.find((x) => x.id === a.where.id);
+          if (!p || !(p.used < a.where.used.lt)) return { count: 0 };
+          p.used += a.data.used.increment;
+          return { count: 1 };
+        },
+      },
+      orgMember: {
+        async findUnique(a: { where: { orgId_userId: { orgId: string; userId: string } } }) { await Promise.resolve(); return live.members.find((m) => m.orgId === a.where.orgId_userId.orgId && m.userId === a.where.orgId_userId.userId) ?? null; },
+        async update(a: { where: { id: string }; data: { status: string } }) { await Promise.resolve(); const m = live.members.find((x) => x.id === a.where.id); if (m) m.status = a.data.status; return m; },
+        async create(a: { data: { orgId: string; userId: string } }) { await Promise.resolve(); const m = { id: `m${++live.seq}`, orgId: a.data.orgId, userId: a.data.userId, status: 'ACTIVE', consent: null }; live.members.push(m); return { id: m.id }; },
+      },
+      orgEvent: {
+        async create() { await Promise.resolve(); const e = { id: `e${++live.seq}`, status: 'planned' }; live.events.push(e); return { id: e.id }; },
+        async updateMany(a: { where: { id: string; status: string }; data: { status: string } }) { await Promise.resolve(); const e = live.events.find((x) => x.id === a.where.id && x.status === a.where.status); if (!e) return { count: 0 }; e.status = a.data.status; return { count: 1 }; },
+      },
+    };
+    return tx;
+  };
+  /* 트랜잭션처럼 — 던지면 live 를 시작 때로 되돌린다 */
+  const transaction = async <T,>(live: Store, fn: (tx: ReturnType<typeof txOf>) => Promise<T>, pre?: ReturnType<typeof txOf>): Promise<T | { threw: true; msg: string }> => {
+    const tx = pre ?? txOf(live);
+    let snap: Store | null = null;
+    const orig = tx.lessonBooking.updateMany;
+    /* 되돌림 지점은 잠금을 얻은 순간(다른 트랜잭션이 커밋한 뒤)에 찍는다 */
+    tx.lessonBooking.updateMany = async (a) => {
+      if (!tx._mine.locked) {
+        await tx._acquire();
+        snap = clone(live);
+      }
+      return orig(a);
+    };
+    try {
+      return await fn(tx);
+    } catch (e) {
+      if (snap) Object.assign(live, snap);
+      return { threw: true, msg: e instanceof Error ? e.message : String(e) };
+    } finally {
+      if (tx._mine.locked) {
+        tx._mine.locked = false;
+        tx._mine.release?.();
+        tx._mine.release = undefined;
+      }
+    }
+  };
+  const fresh = (status: string, extra: Partial<Store> = {}): Store => ({
+    booking: { id: 'b', orgId: 'o', userId: 'u', status, memberId: null, eventId: null },
+    passes: [{ id: 'p', total: 10, used: 0, expiresAt: null }],
+    events: [],
+    members: [],
+    seq: 0,
+    ...extra,
+  });
+  const day = '2026-11-01';
+  const confirmA = (live: Store) => transaction(live, (tx) => confirmBookingTx(tx, { bookingId: 'b', orgId: 'o', userId: 'u', nickname: '선수', chosen: new Date(), date: new Date(), time: '10:00', reply: null, createdById: 'coach' }));
+  const decline = (live: Store) => transaction(live, (tx) => declineBookingTx(tx, { bookingId: 'b', orgId: 'o', reply: null }));
+  const cancel = (live: Store) => transaction(live, (tx) => cancelBookingTx(tx, { bookingId: 'b', userId: 'u' }));
+  const finish = (live: Store) => transaction(live, (tx) => finishBookingTx(tx, { bookingId: 'b', orgId: 'o', memberId: live.booking.memberId, lessonDay: day }));
+  const won = (r: unknown) => !!r && typeof r === 'object' && (r as { ok?: boolean }).ok === true;
+
+  {
+    const live = fresh('REQUESTED');
+    const [a, b] = await Promise.all([confirmA(live), confirmA(live)]);
+    check('F02 확정/확정 겹침: 하나만 이기고 시간표 줄 하나 · 회원 줄 하나', [a, b].filter(won).length === 1 && live.events.length === 1 && live.members.length === 1 && live.booking.eventId === live.events[0].id, JSON.stringify({ a, b, ev: live.events.length }));
+    const again = await confirmA(live);
+    check('F02 확정 재시도: already', !won(again) && (again as { reason?: string }).reason === 'already');
+  }
+  for (const order of ['confirm-first', 'cancel-first'] as const) {
+    const live = fresh('REQUESTED');
+    const [a, b] = order === 'confirm-first' ? await Promise.all([confirmA(live), cancel(live)]) : await Promise.all([cancel(live), confirmA(live)]);
+    const winners = [a, b].filter(won).length;
+    /* 행 잠금 아래에선 둘 다 이길 수 있다(확정 뒤 취소 = 정상 차례) — 그때 일정은 하나 · 취소, 아니면 하나만 이기고 상태가 일관 */
+    const both = winners === 2 && live.booking.status === 'CANCELED' && live.events.length === 1 && live.events[0].status === 'canceled';
+    const one = winners === 1 && (live.booking.status === 'CONFIRMED' ? live.events.length === 1 && live.events[0].status === 'planned' : live.booking.status === 'CANCELED' && live.events.length === 0);
+    check(`F01/F02 확정/취소 겹침(${order}): 상태 · 시간표가 일관됨(두 번 만든 일정 없음)`, (both || one) && live.events.length <= 1, JSON.stringify({ a, b, st: live.booking.status, ev: live.events }));
+  }
+  {
+    const live = fresh('REQUESTED');
+    const [a, b] = await Promise.all([confirmA(live), decline(live)]);
+    check('F02 확정/거절 겹침: 하나만 이김', [a, b].filter(won).length === 1 && ['CONFIRMED', 'DECLINED'].includes(live.booking.status));
+  }
+  {
+    const live = fresh('CONFIRMED', { booking: { id: 'b', orgId: 'o', userId: 'u', status: 'CONFIRMED', memberId: 'm1', eventId: 'e1' }, events: [{ id: 'e1', status: 'planned' }] });
+    const [a, b] = await Promise.all([finish(live), finish(live)]);
+    check('F01 끝냄/끝냄 겹침: 한 번만 끝내고 수강권 한 회', [a, b].filter(won).length === 1 && live.passes[0].used === 1 && live.booking.status === 'DONE', JSON.stringify({ a, b, used: live.passes[0].used }));
+  }
+  for (const order of ['finish-first', 'cancel-first'] as const) {
+    const live = fresh('CONFIRMED', { booking: { id: 'b', orgId: 'o', userId: 'u', status: 'CONFIRMED', memberId: 'm1', eventId: 'e1' }, events: [{ id: 'e1', status: 'planned' }] });
+    const [a, b] = order === 'finish-first' ? await Promise.all([finish(live), cancel(live)]) : await Promise.all([cancel(live), finish(live)]);
+    const ok = [a, b].filter(won).length === 1 && ((live.booking.status === 'DONE' && live.passes[0].used === 1 && live.events[0].status === 'planned') || (live.booking.status === 'CANCELED' && live.passes[0].used === 0 && live.events[0].status === 'canceled'));
+    check(`F01 끝냄/취소 겹침(${order}): DONE 이면 차감 1 · 일정 그대로, CANCELED 면 차감 0 · 일정 취소 — 둘이 섞이지 않음`, ok, JSON.stringify({ a, b, st: live.booking.status, used: live.passes[0].used, ev: live.events[0] }));
+  }
+  {
+    const live = fresh('CANCELED');
+    const r = await confirmA(live);
+    check('F02 취소된 예약에 늦게 온 확정: conflict · 되살리지 않음', !won(r) && (r as { reason?: string }).reason === 'conflict' && live.booking.status === 'CANCELED' && live.events.length === 0);
+    const live2 = fresh('DONE', { passes: [{ id: 'p', total: 10, used: 1, expiresAt: null }] });
+    const c = await cancel(live2);
+    check('F01 끝난 예약에 늦게 온 취소: conflict · DONE · 차감 그대로', !won(c) && live2.booking.status === 'DONE' && live2.passes[0].used === 1);
+  }
+  {
+    /* 선점 뒤 실패 — 시간표 만들기가 던지면 선점(CONFIRMED)까지 되돌아간다 */
+    const live = fresh('REQUESTED');
+    const tx = txOf(live);
+    tx.orgEvent.create = async () => { throw new Error('boom'); };
+    const r = await transaction(live, (t) => confirmBookingTx(t, { bookingId: 'b', orgId: 'o', userId: 'u', nickname: '선수', chosen: new Date(), date: new Date(), time: null, reply: null, createdById: 'c' }), tx);
+    check('F02 선점 뒤 실패: 트랜잭션이 되돌려 REQUESTED 그대로 · 회원 줄 없음', (r as { threw?: boolean }).threw === true && live.booking.status === 'REQUESTED' && live.members.length === 0);
+  }
+  {
+    const live = fresh('CONFIRMED', { booking: { id: 'b', orgId: 'other', userId: 'u', status: 'CONFIRMED', memberId: 'm1', eventId: null } });
+    const r = await finish(live);
+    check('끝냄: 다른 조직의 예약은 못 끝냄(조직 조건)', !won(r) && live.booking.status === 'CONFIRMED');
+    const live2 = fresh('CONFIRMED', { booking: { id: 'b', orgId: 'o', userId: 'someone-else', status: 'CONFIRMED', memberId: null, eventId: null } });
+    const c = await cancel(live2);
+    check('취소: 남의 예약은 못 취소(주인 조건)', !won(c) && live2.booking.status === 'CONFIRMED');
+  }
+
+  /* F04 — 위임 규칙 */
+  const owner = { role: 'MASTER' as const };
+  check('F04 소유자만 위임 · 위임 밖 업무(org.manage · permission.manage · 회계 · 내보내기)는 못 줌', canGrant(owner, { capability: 'schedule.manage', scope: 'organization' }) && !canGrant(owner, { capability: 'org.manage', scope: 'organization' }) && !canGrant(owner, { capability: 'permission.manage', scope: 'organization' }) && !canGrant(owner, { capability: 'finance.manage', scope: 'organization' }));
+  check('F04 검토 재현: permission.manage(self)만 가진 선수는 아무것도 못 줌', !canGrant({ role: 'PLAYER', grants: [{ capability: 'permission.manage', scope: 'self' }] }, { capability: 'org.manage', scope: 'explicit_group', targets: ['x'] }) && !canGrant({ role: 'PLAYER', grants: [{ capability: 'permission.manage', scope: 'self' }] }, { capability: 'schedule.read', scope: 'self' }));
+  check('F04 코치(STAFF)는 위임 못 함', !canGrant({ role: 'STAFF' }, { capability: 'schedule.read', scope: 'self' }));
+  check('F04 사람 범위에 대상이 비면 못 줌', !canGrant(owner, { capability: 'training.read', scope: 'explicit_group' }) && canGrant(owner, { capability: 'training.read', scope: 'explicit_group', targets: ['m1'] }));
+  check('F04 범위는 크기 순서가 아니다 — 자녀 범위가 배정 선수 범위를 품지 않음', !scopeCovers({ scope: 'linked_children', targets: ['a'] }, { scope: 'assigned_players', targets: ['a'] }) && scopeCovers({ scope: 'explicit_group', targets: ['a', 'b'] }, { scope: 'explicit_group', targets: ['b'] }) && !scopeCovers({ scope: 'explicit_group', targets: ['a'] }, { scope: 'explicit_group', targets: ['a', 'c'] }));
+  check('F04 deny 줄은 기본 묶음에서 뺀다 · 모르는 역할은 거부', !hasCapability({ role: 'STAFF', grants: [{ capability: 'training.recordForAthlete', scope: 'organization', deny: true }] }, 'training.recordForAthlete') && !hasCapability({ role: 'GUEST' as never }, 'schedule.read'));
+  check('F04 위임 대상(targets)이 범위에 실린다', JSON.stringify(capabilityTarget({ role: 'PLAYER', grants: [{ capability: 'training.read', scope: 'explicit_group', targets: ['m1', 'm2'] }] }, 'training.read')) === JSON.stringify({ scope: 'explicit_group', targets: ['m1', 'm2'] }));
+
+  /* 소스 — F03 · F05 · F06 · F07 */
+  const joinSrc = readFileSync(join(ROOT, 'lib/org/join.ts'), 'utf8');
+  check('F03 join.ts: 스태프 코드를 계정 종류로 막지 않는다', !joinSrc.includes("user.accountType !== 'MASTER'") && joinSrc.includes("invite.role === 'MASTER'"));
+  const appOrg = readFileSync(join(ROOT, 'app/actions/app-org.ts'), 'utf8');
+  check('F03 loadMySpaces: 코치 조직을 isMasterUser 로 가르지 않는다', !appOrg.includes('isMasterUser'));
+  const acc = readFileSync(join(ROOT, 'lib/org/access.ts'), 'utf8');
+  check('F03 requireOperator: 조직 소유자 · 스태프 회원도 지난다 · 관계 없으면 /today', acc.includes('export async function requireOperator') && acc.includes("redirect('/today')") && acc.includes("role: { in: ['MASTER', 'STAFF'] }, status: 'ACTIVE'"));
+  for (const f of ['app/(master)/layout.tsx', 'app/(master)/manage/page.tsx', 'app/(master)/manage/players/page.tsx', 'app/actions/org.ts', 'app/actions/org-notes.ts', 'app/actions/lessons.ts'])
+    check(`F03 ${f}: requireOperator 로`, !/\brequireMaster\(\)/.test(readFileSync(join(ROOT, f), 'utf8')) && readFileSync(join(ROOT, f), 'utf8').includes('requireOperator'));
+  check('F03 덕아웃 위 막대 관리 입구는 isOperator', readFileSync(join(ROOT, 'app/(dugout)/layout.tsx'), 'utf8').includes('await isOperator(user)'));
+  check('F05 없는 소속을 STAFF 로 짐작하지 않는다(access · app-access)', acc.includes("return m ? (m.role as OrgRole) : null") && readFileSync(join(ROOT, 'lib/org/app-access.ts'), 'utf8').includes("return m ? (m.role as OrgRole) : null"));
+  const ll = readFileSync(join(ROOT, 'lib/market/lesson-load.ts'), 'utf8');
+  check('F06 예약 목록에 투구 기록 건수 없음', !ll.includes('pitchLogs') && !ll.includes('records:') && !readFileSync(join(ROOT, 'app/(master)/manage/bookings/page.tsx'), 'utf8').includes('records'));
+  const les = readFileSync(join(ROOT, 'app/actions/lessons.ts'), 'utf8');
+  check('F07 finishBooking 이 수강권 없는 끝냄을 돌려준다 · 폼이 보인다', les.includes('BOOKING_RESULT_TEXT.finishedNoPass') && readFileSync(join(ROOT, 'components/safe-form.tsx'), 'utf8').includes('result.notice') && !readFileSync(join(ROOT, 'components/master/booking-actions.tsx'), 'utf8').includes('doneToast'));
+  check('F01/F02 서버 동작이 전이 함수를 쓴다(확정 · 거절 · 끝냄 · 취소) · 알림은 이긴 뒤', ['confirmBookingTx(tx', 'declineBookingTx(tx', 'finishBookingTx(tx', 'cancelBookingTx(tx'].every((x) => les.includes(x)) && les.indexOf('confirmBookingTx(tx') < les.indexOf("title: '레슨 예약이 확정됐어요'"));
+  /* F08 — 앱 잇기 대기열 */
+  const ss = readFileSync(join(ROOT, 'native/src/org/space-store.ts'), 'utf8');
+  check('F08 잇기 대기열을 폰에 남기고(links · persist) 소속 확인 뒤 다시 보낸다(flushLinks)', ss.includes('links: state.links') && ss.includes('void flushLinks();') && ss.includes('export async function flushLinks'));
+  check('F08 공간을 바꿔도 기록 귀속(event)은 남긴다 · 오류를 삼키지 않고 남긴다', ss.includes('if (orgReturn?.event) orgReturn = { ...orgReturn, key: orgReturn.key, nav: false };') && ss.includes('lastError:') && !ss.includes('.catch(() => {})'));
 }
 
 console.log(

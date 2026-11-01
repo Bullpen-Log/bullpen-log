@@ -1,11 +1,11 @@
 'use server';
 
+import { ORG_COOKIE, requireOperator, requireOrgCan } from '@/lib/org/access';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin, requireMaster } from '@/lib/dal';
-import { ORG_COOKIE, requireOrgCan } from '@/lib/org/access';
+import { requireAdmin } from '@/lib/dal';
 import { createInviteCode } from '@/lib/org/invite';
 import {
   ORG_NAME_MAX,
@@ -26,7 +26,7 @@ export type OrgActionState = { error?: string; success?: string } | undefined;
 
 /** 지금 볼 조직을 고른다(쿠키) — 조직 목록 · 위 막대 고르개 */
 export async function chooseOrg(formData: FormData) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const org = await requireOrgCan(user, String(formData.get('orgId') ?? ''), 'schedule.read');
   (await cookies()).set(ORG_COOKIE, org.id, {
     path: '/',
@@ -42,7 +42,7 @@ export async function updateOrg(
   _prev: OrgActionState,
   formData: FormData
 ): Promise<OrgActionState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const org = await requireOrgCan(user, String(formData.get('orgId') ?? ''), 'org.manage');
   if (user.role !== 'ADMIN' && org.ownerId !== user.id)
     return { error: '조직 정보는 만든 사람만 고칠 수 있어요.' };
@@ -63,7 +63,7 @@ export async function updateOrg(
 
 /** 초대 코드 만들기 — 회원(선수) 코드는 기한까지 여럿이 쓰고, 스태프 코드는 한 번 */
 export async function createInvite(formData: FormData) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const org = await requireOrgCan(user, String(formData.get('orgId') ?? ''), 'roster.manage');
   const role = formData.get('role') === 'STAFF' ? 'STAFF' : 'PLAYER';
   /* 코치(스태프) 초대는 만든 마스터와 관리자만 — 스태프는 설정 · 스태프 관리를 못 한다(5단계) */
@@ -75,7 +75,7 @@ export async function createInvite(formData: FormData) {
 
 /** 초대 코드 지우기 — 더는 못 쓰게 */
 export async function revokeInvite(formData: FormData) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const invite = await prisma.orgInvite.findUnique({
     where: { id: String(formData.get('id') ?? '') },
     select: { id: true, orgId: true },
@@ -89,7 +89,7 @@ export async function revokeInvite(formData: FormData) {
 
 /** 구성원 빼기 — 기록은 선수 것이라 남고, 조직 화면에서만 사라진다(LEFT) */
 export async function removeMember(formData: FormData) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const member = await prisma.orgMember.findUnique({
     where: { id: String(formData.get('id') ?? '') },
     select: { id: true, orgId: true, role: true },
@@ -109,7 +109,7 @@ export async function updateMember(
   _prev: OrgActionState,
   formData: FormData
 ): Promise<OrgActionState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const member = await prisma.orgMember.findUnique({
     where: { id: String(formData.get('id') ?? '') },
     select: { id: true, orgId: true },
@@ -138,7 +138,7 @@ export async function addPlaceholderMember(
   _prev: OrgActionState,
   formData: FormData
 ): Promise<OrgActionState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const org = await requireOrgCan(user, String(formData.get('orgId') ?? ''), 'roster.manage');
   const nickname = String(formData.get('nickname') ?? '')
     .trim()
@@ -165,7 +165,7 @@ export async function joinAsStaff(
   _prev: OrgActionState,
   formData: FormData
 ): Promise<OrgActionState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const code = normalizeInviteCode(formData.get('code'));
   const invite = code
     ? await prisma.orgInvite.findUnique({

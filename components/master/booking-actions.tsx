@@ -20,11 +20,9 @@ export function BookingActions({
 }) {
   const [reply, setReply] = useState('');
   if (status === 'CONFIRMED') {
+    /* 결과 글(수강권 차감 · 없이 끝남 · 이미 처리됨)은 동작이 돌려준다(2026-11-01 F07) */
     return (
-      <SafeForm
-        action={finishBooking}
-        doneToast="끝남으로 적었어요. 선수가 후기를 쓸 수 있어요."
-      >
+      <SafeForm action={finishBooking}>
         <input type="hidden" name="id" value={id} />
         <Button type="submit" variant="secondary" size="sm">
           레슨 끝남
@@ -43,10 +41,7 @@ export function BookingActions({
         className="text-xs"
       />
       <div className="flex flex-wrap gap-2">
-        <SafeForm
-          action={confirmBooking}
-          doneToast="확정했어요. 시간표와 회원에 들어갔어요."
-        >
+        <SafeForm action={confirmBooking}>
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="which" value="1" />
           <input type="hidden" name="reply" value={reply} />
@@ -55,10 +50,7 @@ export function BookingActions({
           </Button>
         </SafeForm>
         {slot2 && (
-          <SafeForm
-            action={confirmBooking}
-            doneToast="확정했어요. 시간표와 회원에 들어갔어요."
-          >
+          <SafeForm action={confirmBooking}>
             <input type="hidden" name="id" value={id} />
             <input type="hidden" name="which" value="2" />
             <input type="hidden" name="reply" value={reply} />
@@ -67,7 +59,7 @@ export function BookingActions({
             </Button>
           </SafeForm>
         )}
-        <SafeForm action={declineBooking} doneToast="거절했어요.">
+        <SafeForm action={declineBooking}>
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="reply" value={reply} />
           <Button type="submit" variant="ghost" size="sm">

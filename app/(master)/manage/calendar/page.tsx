@@ -1,9 +1,8 @@
+import { requireCurrentOrg, requireOperator } from '@/lib/org/access';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from '@/components/icon';
 import { Badge, Card, PageHeading } from '@/components/ui';
 import { CalendarDay, type EventView } from '@/components/master/calendar-day';
-import { requireMaster } from '@/lib/dal';
-import { requireCurrentOrg } from '@/lib/org/access';
 import { EVENT_KIND_LABEL, isDateKey, type EventKind } from '@/lib/org/rules';
 import { appNow } from '@/lib/clock';
 import { dbDate } from '@/lib/nutrition/days';
@@ -26,7 +25,7 @@ const DOT: Record<EventKind, string> = {
  * ?month=YYYY-MM&day=YYYY-MM-DD — 새로 고쳐도 같은 달 · 같은 날.
  */
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<SP> }) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const { org } = await requireCurrentOrg(user);
   const sp = await searchParams;
   const todayKey = toDateKey(appNow());

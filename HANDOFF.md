@@ -22,8 +22,10 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 ## 김민에게 — 2026-11-01 · 금윤호(Claude, 윤호 맥북) — 싱커 × 덕아웃 팀 · 레슨 통합 0단계 조사 + 1단계 첫 묶음 · **네 앱 동작의 코치 판정이 바뀌었다** · DB 제안은 조율 뒤
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 화면 그대로). 브리프 `docs/designs/sinker-dugout-team-lesson-platform-claude-prompt.md`, 조사 · 대응표 · 제안은 같은 폴더 `-stage0.md`.
-- **코치 판정**: `lib/org/app-access.ts coachOrg` 가 계정 종류(`isMasterUser`)를 안 본다 — 그 조직의 소유자 · 스태프(`orgsFor`)면 코치. 네 앱 동작 42곳(app-org · app-team · app-lesson)이 이 함수를 쓰니,
-  일반 계정이 스태프 초대로 들어오면 이제 코치 화면이 열린다(의도 — 학부모 총무 위임의 바탕). 관리자는 그대로 전부.
+- **코치 판정**: `lib/org/app-access.ts coachOrgCan` 이 계정 종류(`isMasterUser`)를 안 본다 — 그 조직의 소유자 · 스태프 회원이면 코치, 업무는 `lib/org/capabilities.ts` 역할 기본 묶음. 네 앱 동작 42곳(app-org · app-team · app-lesson)이 이 함수를 쓴다.
+  **11-01 교정(검토 F03 — 앞 글의 "일반 계정이 스태프 초대로 들어오면 코치 화면이 열린다"는 그때 틀렸다)**: 이제야 실제로 이어진다 — `lib/org/join.ts` 가 스태프 코드를 계정 종류로 안 막고, `loadMySpaces` 가 코치 조직을 조직 역할로 찾고, 웹 관리는 `requireOperator`(lib/org/access.ts). 그래도 **로그인한 실제 계정 · 폰에서 확인한 것은 없다**. 학부모 총무(일정 · 공지만)는 아직 없다 — STAFF 로 흉내 내지 않는다.
+- **예약 전이(검토 F01 · F02 · F07)**: 확정 · 거절 · 끝냄 · 취소가 `lib/org/booking-transitions.ts` 로 — 트랜잭션 안 조건부 갱신으로 선점, 겹친 요청은 한쪽만. 코치 예약 동작이 `{ ok, notice | error }` 를 돌려주고 웹 `SafeForm` 이 보인다(수강권 없이 끝남도 알림). 예약 목록의 '투구 기록 N건'은 뺐다(F06).
+- **앱 잇기 대기열(검토 F08)**: `native/src/org/space-store.ts` — 운동 ↔ 일정 잇기를 계정별 저장(`links`)에 남겨 `flushLinks` 로 다시 보낸다(켤 때 · 앞으로 올 때 · 소속 확인 뒤). 공간을 바꿔도 귀속은 남는다. 폰에서 '운동하기 → 마침 → 일정에 N세트 이었어요'와 비행기 모드 뒤 복귀를 한 번 봐 줘.
 - **예약 끝냄**: `finishBooking` 이 `lib/org/booking-complete.ts completeBookingTx`(조건부 갱신)로 — 겹친 두 요청이 수강권을 두 번 줄이던 것. **취소**는 시간표 줄(OrgEvent)을 지우지 않고 예정인 것만 '취소'로.
 - 새 순수 규칙 `lib/org/capabilities.ts`(조직 업무 권한 · 위임 · 범위) — 아직 서버 동작이 안 부른다(2단계).
 - **DB 제안 여섯 묶음(M-A~F)은 적용 안 했다** — `-stage0.md` 5절. 넣기 전에 너와 맞추고 `npm run backup`. `prisma/migrations` 에는 안 둠(main 빌드가 적용해서).

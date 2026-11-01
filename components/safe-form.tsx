@@ -16,6 +16,10 @@ const OFFLINE = Symbol('offline');
  * 하던 대로 다른 화면으로 보낸다(redirect 는 그대로 넘긴다 — lib/action-offline.ts). 안의 제출 단추는 useFormStatus 로
  * '보내는 중'을 그대로 알 수 있다.
  */
+/** 동작이 돌려준 답(2026-11-01) — { ok:false, error } 는 폼 밑 한 줄, { ok:true, notice } 는 그 글을 알림으로(doneToast 대신). 그 밖은 예전처럼 */
+const isResult = (v: unknown): v is { ok: boolean; error?: string; notice?: string } =>
+  !!v && typeof v === 'object' && typeof (v as { ok?: unknown }).ok === 'boolean';
+
 export function SafeForm({
   action,
   className,
@@ -52,6 +56,8 @@ export function SafeForm({
           throw signal;
         }
         if (result === OFFLINE) setError(OFFLINE_MESSAGE);
+        else if (isResult(result) && !result.ok) setError(result.error);
+        else if (isResult(result) && result.notice) toast(result.notice);
         else if (doneToast) toast(doneToast);
       }}
     >

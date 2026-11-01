@@ -1,3 +1,4 @@
+import { requireCurrentOrg, requireOperator } from '@/lib/org/access';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ClipboardList } from '@/components/icon';
@@ -10,8 +11,6 @@ import { HomeworkCard } from '@/components/master/homework-card';
 import { commentCounts } from '@/lib/org/comment-load';
 import { PassCard } from '@/components/master/pass-card';
 import { GuardianLinkCard } from '@/components/master/guardian-link-card';
-import { requireMaster } from '@/lib/dal';
-import { requireCurrentOrg } from '@/lib/org/access';
 import { loadMember, memberCardOf } from '@/lib/org/player-data';
 import { CONSENT_SCOPES, ORG_WORDS, realNow } from '@/lib/org/rules';
 import { SLEEP_QUALITY_LEVELS } from '@/lib/checkin';
@@ -30,7 +29,7 @@ export default async function MemberPage({
 }: {
   params: Promise<{ memberId: string }>;
 }) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const { org } = await requireCurrentOrg(user);
   const { memberId } = await params;
   const member = await loadMember(org.id, memberId);

@@ -3,6 +3,19 @@
 브리프 `sinker-dugout-team-lesson-platform-claude-prompt.md` · 계획 `-plan.md` 의 0단계(현행 조사 · 원본 지도 · 권한 표 · 요구사항 대응 · 옛 계약 충돌)와
 1단계 가운데 **DB 변경 없이 되는 것**을 했다. 상태 표기: **됨**(코드 + 시험) · **확인**(코드로 확인만) · **제안**(설계만) · **막힘**(공유 DB · 사람 결정 필요).
 
+## 0-1. 검토 교정(2026-11-01 `-review-2026-11-01.md` F01~F08 — DB 변경 없는 묶음)
+
+| 항목 | 판정 | 한 것 | 증거 |
+| --- | --- | --- | --- |
+| F01 완료/취소 경합 | **고침** | `lib/org/booking-transitions.ts` — 모든 전이가 트랜잭션 안 조건부 갱신(이전 상태 · 주인 · 조직)으로 선점, 이긴 요청만 뒤따르는 일. 취소는 선점 뒤 트랜잭션 안에서 eventId 를 다시 읽는다(밖에서 읽은 값을 믿다 일정이 남던 것 — 이번 시험이 잡음). DONE 은 못 덮음 | org:test — 끝냄/취소 양 순서(행 잠금 흉내) · 끝냄/끝냄 · 끝난 예약에 늦은 취소 |
+| F02 동일 예약 중복 확정 | **고침** | `confirmBookingTx` — REQUESTED→CONFIRMED 선점이 1줄일 때만 회원 · 시간표를 만들고 잇는다. 거절도 조건부. 늦은 확정은 conflict | org:test — 확정/확정 · 확정/취소 양 순서 · 확정/거절 · 취소된 것에 늦은 확정 · 선점 뒤 실패 되돌림 |
+| F03 일반 계정의 조직 운영 진입 | **고침(코드 가입 · 공간 · 웹 관문)** | `lib/org/join.ts` 스태프 코드를 계정 종류로 안 막음 · `loadMySpaces` 코치 조직을 조직 역할로 · `lib/org/access.ts requireOperator`(관리자 · 마스터 계정 · 어느 조직의 소유자/스태프 회원)로 (master) 틀 · 페이지 · 동작 전부 · 덕아웃 위 막대 '관리'는 `isOperator`. 개인 운동(내 싱커)은 계정 종류 그대로 | org:test 소스 검사. **로그인한 실제 계정 확인은 아직** |
+| F04 위임 규칙 | **고침(규칙)** | `canGrant` — 소유자만, DELEGABLE 안(org.manage · permission.manage · 회계 · 내보내기 제외), 위임자도 그 업무를 할 수 있어야, 대상 집합 포함(`scopeCovers` — 범위는 순서가 아님, 사람 범위엔 대상 필수). `OrgGrant.targets` · `deny`. 저장은 아직(M-A) | org:test 7 |
+| F05 조회 범위 분리 | **일부** | 없는 소속을 STAFF 로 짐작하지 않음(access · app-access 둘 다 null → 거부). DTO 분리 · 대상 필터는 **안 함** — 역할 기본 묶음만 서버에 닿는 지금은 코치 = 조직 전체라 어긋나지 않지만, grants 를 잇기 전에 해야 한다 | — |
+| F06 예약 목록의 투구 기록 건수 | **고침** | `loadOrgBookings` · 예약 화면에서 뺌 | org:test 소스 |
+| F07 수강권 없는 끝냄 | **고침** | 동작이 `{ ok, notice | error }` 를 돌려주고 `SafeForm` 이 보인다(차감 · 없이 끝남 · 이미 처리됨 · 상태 충돌). 수강권을 나중에 넣어도 지난 끝냄은 자동 차감하지 않는다(정정은 원장 M-C) | org:test 소스 · 화면 글은 `BOOKING_RESULT_TEXT` |
+| F08 운동 ↔ 일정 잇기 | **고침(앱, 코드만)** | `space-store.ts` — 돌아갈 곳(nav)과 기록 귀속(event)을 가르고, 귀속은 계정별 저장(`links`)에 넣어 서버가 받을 때까지 켤 때 · 앞으로 올 때 · 소속 확인 뒤 다시 보낸다. 서버 `linkMyWork` 는 멱등(이미 이은 세트 안 건드림). 권한 없음은 서버 답대로 빼고 개인 운동은 그대로 | 소스 검사. **실기기 · 오프라인 · 재시작 확인은 아직**. 원본 세션/세트 id 귀속은 안 함(since 시각 기준 그대로 — 더 좁히려면 세트 id 전달 필요) |
+
 ## 0. 이번에 바꾼 코드(1단계 첫 묶음)
 
 | 파일 | 한 일 | 시험 |
@@ -56,12 +69,12 @@
 | R06 업무 위임(학부모 총무) | `capabilities.ts canGrant`(순수) | 저장 표 없음 | — | org:test 9 | 1 | **됨(규칙) · 막힘(저장 M-A)** |
 | R07 일정 · 대회 · 공지 · 출석 · 편의 | `org-calendar.ts` · `org-notices.ts`(공지 읽음 OrgNoticeRead) | OrgEvent · OrgNotice | coachOrg | — | 4 | **확인** — 일정 · 공지 있음. 반복 · 회차 · 참석(RSVP ≠ 출석) · 확인 기한 없음 |
 | R08 팀 단체 채팅 | 없음(Conversation 은 1:1) | — | — | — | 4 | **막힘**(M-D) |
-| R09 코치 찾기 · 예약 · 변경 요청 | `/lessons/*` · `requestBooking` · `cancelBooking` | LessonBooking | requireUser | dugout:test 164 | 3 | **확인** — 찾기 · 요청 · 취소 있음. 변경 요청 · 용량 · 동시 마지막 자리 없음 |
+| R09 코치 찾기 · 예약 · 변경 요청 | `/lessons/*` · `requestBooking` · `cancelBooking`(조건부 · 기록 보존) | LessonBooking | requireUser | dugout:test 164 · org:test | 3 | **확인 · 취소는 됨** — 변경 요청 · 코치/자원 용량 · 동시 마지막 자리(서로 다른 예약)는 없음(DB 제약 · 잠금 설계 필요) |
 | R10 코치 레슨 운영 · 이용권 | `confirmBooking` · `finishBooking`(조건부) · `LessonPass` | LessonBooking · LessonPass | requireMaster+requireOrg | org:test 6 | 3 | **됨(중복 차감 방지) · 확인(나머지)** — 원장(ledger)은 M-C |
 | R11 레슨 공간이 싱커에 · 개인으로 돌아감 | `space-store.ts` · 확정 때 OrgMember 생성(`lessons.ts`) | OrgMember | — | — | 3 | **확인** |
 | R12 회원 본인 이력 · 숙제 · 다음 계획 | `native/src/org/player.tsx` · `OrgAssignment` · `LessonNote`(초안/공개 구분 없음) | LessonNote · OrgAssignment | myMember | — | 3 | **확인** — 공개/내부 메모 구분 칸 없음(M-C) |
 | R13 코치-회원 소통은 덕아웃 | 없음(장터 채팅뿐) | — | — | — | 4 | **막힘**(M-D) |
-| R14 기존 데이터 · 옛 앱 · 베타 유지 | `release-ops.ts`(org/dugout/chat 잠김) · 426 옛 앱 | — | 관문 | release-gate 98 · access 623 | 1~5 | **됨(유지)** — 이번 변경은 DB 무변경 · 동작 호환 |
+| R14 기존 데이터 · 옛 앱 · 베타 유지 | `release-ops.ts`(org/dugout/chat 잠김) · 426 옛 앱 | — | 관문 | release-gate 99 · access 638 · native-api 302 | 1~5 | **됨(유지)** — 이번 변경은 DB 무변경 · 동작 호환(예약 동작이 값을 돌려주지만 옛 폼은 무시) |
 
 ## 4. 옛 계약과 부딪히는 것 — 폐기 표시
 
@@ -80,7 +93,8 @@
 
 - **M-A 위임** `OrgGrant { id, memberId→OrgMember, capability String, scope String, grantedById, createdAt, revokedAt?, note? }` + `@@index([memberId, revokedAt])`. 감사 `OrgAudit { id, orgId, actorId, action, targetId?, detail Json?, at }`.
 - **M-B 보호자** `GuardianLink { id, guardianUserId, childUserId, status (invited/active/revoked/disputed), invitedById, expiresAt?, verifiedAt?, revokedAt?, createdAt }` `@@unique([guardianUserId, childUserId])`. `ShareConsent` 에 `grantedByGuardianId?` · `effectiveFrom?` · `effectiveTo?`.
-- **M-C 레슨** `LessonBooking` 에 `athleteUserId?`(실제 수강자 — 비면 userId) · `idempotencyKey? @unique` · `rescheduleOf?`. `LessonPassLedger { id, passId, bookingId?, delta Int, reason, key @unique, byId, at }`(원장 — 지금의 조건부 `used` 갱신은 그 전 단계). `LessonNote` 에 `visibility String @default("published")`(draft/published/staff).
+- **M-C 레슨** `LessonBooking` 에 `athleteUserId?`(실제 수강자 — 비면 userId) · `idempotencyKey? @unique` · `rescheduleOf?`. `LessonPassLedger { id, passId, bookingId?, delta Int, reason, key @unique, byId, at }`(원장 — 지금의 조건부 `used` 갱신은 그 전 단계; 끝냄 한 건에 `key = booking:<id>:finish` 로 한 줄, 되돌림은 `…:reverse` 한 줄만). `LessonNote` 에 `visibility String @default("published")`(draft/published/staff).
+  **용량(서로 다른 예약)**: `OrgEvent` 에 `@@unique([orgId, date, time, memberId])` 같은 제약은 코치 한 명 가정이라 부족 — 코치 · 자원 표(`OrgResource`)와 `OrgSlotHold { resourceId, startsAt, endsAt, bookingId, expiresAt }` + 겹침 제약(PostgreSQL `EXCLUDE USING gist` 또는 트랜잭션에서 `SELECT … FOR UPDATE` 로 자원 줄 잠금)으로. 마지막 자리 동시 요청은 격리된 PostgreSQL 에서만 증명한다(메모리 모의는 행 잠금 흉내일 뿐).
 - **M-D 대화방** `OrgRoom { id, orgId, kind (team/staff/group/dm), title?, createdAt }` · `OrgRoomMember { roomId, userId, joinedAt, mutedAt?, lastReadAt? @@id([roomId,userId]) }` · `OrgRoomMessage { id, roomId, authorId, body, clientKey @unique, createdAt, hiddenAt? }`. 장터 Conversation 은 그대로.
 - **M-E 참석 · 반복** `OrgEvent` 에 `recurrenceId?` · `locationNote?` · `arriveAt?`. `OrgRsvp { eventId, memberId, reply, note?, at @@id }` · `OrgAttendance { eventId, memberId, present Boolean, byId, at @@id }` — 옛 `reply/attended` 칸은 안 쓴다.
 - **M-F 갱신 아웃박스** `OrgChange { id, orgId, kind, refId, version, createdAt }` — 저장 트랜잭션 안에서 한 줄, 화면은 마지막 id 로 다시 받기(p95 5초 목표는 이것을 넣고 재야 한다).
@@ -91,7 +105,8 @@
 
 1. **2단계 팀 수직 흐름** — 된 것: 덕아웃 가입 화면(`/teams/join`, 코드 가입 + 공유 범위) · `/me` 진입 · 싱커 소속 갱신은 이미 있음(앱 `index.tsx askMe` → `ownerKnown` → `space-store.ts spaceOwner/refreshSpaces` — 켤 때 · 앱이 앞으로 올 때 · 로그인 · 권한 없음 뒤).
    남은 것: 코드 없는 가입 **요청 → 감독 승인**(팀 공개 목록이 없고, `OrgMemberStatus.INVITED` 는 안 쓰는 값이라 '대기'로 쓸 수 있다 — 승인 화면이 코치 앱(김민)에 필요) · 동의 바꾸기 화면(지금은 참여 때만) · 아웃박스(M-F).
-2. **서버 동작마다 `hasCapability`** — 된 것: 앱 동작 42곳(app-org · app-team · app-lesson) + 웹 마스터 동작 27곳(requireOrgCan). 남은 것: 위임(grants) 읽기(M-A 뒤), 마스터 **화면**(app/(master) 페이지의 조회 — requireOrg 그대로, 읽기 권한은 역할 기본 묶음으로 모두 열려 있어 동작과 어긋나지 않는다).
+2. **서버 동작마다 `hasCapability`** — 된 것: 앱 동작 42곳(app-org · app-team · app-lesson) + 웹 마스터 동작 27곳(requireOrgCan). 남은 것(F05): 조회 DTO 를 명단/일정/훈련/몸 상태/영상/내부 메모로 갈라 `capabilityTarget`(범위 · 대상)을 쿼리에 거는 것 — grants 저장(M-A)을 잇기 **전에** 해야 한다. 마스터 **화면**(app/(master) 페이지)은 requireOrg 그대로.
+2-1. **F03 남은 것** — 일반 계정 운영자의 실제 흐름(스태프 코드 받기 → 덕아웃 '관리' → /manage)은 코드로만 확인. 선수 겸 코치(한 조직에 회원 줄 하나)는 `OrgMember.role` 하나뿐이라 아직 못 적는다 — M-A 의 grants 로 '선수 + 운영 업무'를 더하는 길이 설계. 학부모 총무는 **아직 만들지 않는다**(STAFF 로 흉내 내지 않음).
 3. **3단계 레슨** — 동시 마지막 자리(코치 시간 · 자원 용량 원자 검사), 변경 요청(원 예약 보존), 예약자 ≠ 수강자, 원장(M-C), 노트 공개/내부 구분.
 4. **4단계** — 방(M-D) · 참석(M-E) · 공지 확인 기한 · 반복 일정.
 5. **5단계** — 옛 앱 호환 · 측정(p95) · 단계적 공개(베타 해제는 별도 제품 결정).

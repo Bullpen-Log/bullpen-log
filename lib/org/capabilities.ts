@@ -49,8 +49,17 @@ const PRESET: Record<OrgRole, readonly OrgCapability[]> = {
 /** 역할마다 기본 범위 — 코치는 배정 선수(지금 구현은 조직 전체 선수가 배정과 같다 — 배정 표가 생기면 좁힌다), 선수는 본인 */
 const PRESET_SCOPE: Record<OrgRole, OrgScope> = { MASTER: 'organization', STAFF: 'organization', PLAYER: 'self' };
 
-/** 개별 위임 한 줄 — 총무에게 schedule.manage · notice.publish 만, 학부모 코치에게 training.read 를 explicit_group 으로 */
-export type OrgGrant = { capability: OrgCapability; scope: OrgScope };
+/**
+ * 개별 위임 한 줄 — 총무에게 schedule.manage · notice.publish 만, 학부모 코치에게 training.read 를 explicit_group 으로.
+ * targets: 범위가 사람 · 묶음을 가리키면(linked_children · assigned_players · explicit_group) 그 회원 id 들 — 범위 이름만으로는 대상을 모른다(교정 F04).
+ * deny: 역할 기본 묶음에서 빼는 줄(코치인데 training.recordForAthlete 는 못 하게) — 더하기만으로는 줄이기를 못 적는다.
+ */
+export type OrgGrant = { capability: OrgCapability; scope: OrgScope; targets?: readonly string[]; deny?: true };
+
+/** 위임할 수 있는 업무 — 조직 설정 · 권한 관리 · 회계 · 내보내기는 소유자 몫이라 위임 밖(소유권 이전은 별도 업무) */
+export const DELEGABLE: ReadonlySet<OrgCapability> = new Set(
+  ORG_CAPABILITIES.filter((c) => !['org.manage', 'permission.manage', 'finance.manage', 'export.data'].includes(c))
+);
 
 export type OrgSubject = {
   role: OrgRole;
@@ -58,31 +67,54 @@ export type OrgSubject = {
   grants?: readonly OrgGrant[];
 };
 
-/** 이 회원이 이 업무를 할 수 있나 — 떠난 회원은 아무것도 못 한다. 기본 묶음 또는 위임 */
+/** 이 회원이 이 업무를 할 수 있나 — 떠난 회원 · 모르는 역할은 아무것도 못 한다. deny 줄이 있으면 기본 묶음에서도 뺀다. 기본 묶음 또는 위임 */
 export function hasCapability(subject: OrgSubject | null | undefined, cap: OrgCapability): boolean {
   if (!subject || (subject.status && subject.status !== 'ACTIVE')) return false;
-  if (PRESET[subject.role]?.includes(cap)) return true;
-  return (subject.grants ?? []).some((g) => g.capability === cap);
+  if (!(subject.role in PRESET)) return false;
+  const grants = subject.grants ?? [];
+  if (grants.some((g) => g.capability === cap && g.deny)) return false;
+  if (PRESET[subject.role].includes(cap)) return true;
+  return grants.some((g) => g.capability === cap && !g.deny);
 }
 
-/** 이 업무의 범위 — 위임이 있으면 그 범위, 아니면 역할 기본. 못 하면 null */
+/** 이 업무의 범위 — 위임(allow)이 있으면 그 범위 · 대상, 아니면 역할 기본. 못 하면 null */
 export function capabilityScope(subject: OrgSubject | null | undefined, cap: OrgCapability): OrgScope | null {
+  return capabilityTarget(subject, cap)?.scope ?? null;
+}
+export function capabilityTarget(subject: OrgSubject | null | undefined, cap: OrgCapability): { scope: OrgScope; targets?: readonly string[] } | null {
   if (!hasCapability(subject, cap)) return null;
-  const g = (subject!.grants ?? []).find((x) => x.capability === cap);
-  if (g) return g.scope;
-  return PRESET_SCOPE[subject!.role];
+  const g = (subject!.grants ?? []).find((x) => x.capability === cap && !x.deny);
+  if (g) return { scope: g.scope, targets: g.targets };
+  return { scope: PRESET_SCOPE[subject!.role] };
 }
 
 /**
- * 위임할 수 있나 — permission.manage 가 있는 사람만, 제 범위 밖(조직 전체가 아닌데 organization 범위)으로는 못 주고, permission.manage 자체는 소유자만 준다.
- * 전역 서비스 역할(ADMIN · MANAGER)은 여기서 못 만든다 — 조직 권한은 조직 안의 일이다.
+ * a 가 b 를 품나 — organization 은 전부. 그 밖은 같은 범위이면서 대상 집합이 부분집합일 때만(self · linked_children · assigned_players · explicit_group 은
+ * 크기 순서가 아니다 — 자녀 범위가 배정 선수 범위를 품지 않는다). 사람을 가리키는 범위에 대상이 비어 있으면 품지 않는다(교정 F04).
+ */
+export function scopeCovers(a: { scope: OrgScope; targets?: readonly string[] }, b: { scope: OrgScope; targets?: readonly string[] }): boolean {
+  if (a.scope === 'organization') return true;
+  if (a.scope !== b.scope) return false;
+  if (a.scope === 'self') return true;
+  const mine = new Set(a.targets ?? []);
+  const theirs = b.targets ?? [];
+  return theirs.length > 0 && theirs.every((t) => mine.has(t));
+}
+
+/**
+ * 위임할 수 있나(교정 F04) — 지금은 **소유자(MASTER 역할, 활동 중)만**. 위임하는 업무는 DELEGABLE 안이고 위임자 자신도 그 업무를 할 수 있어야 하며,
+ * 대상은 위임자의 대상 안(scopeCovers). permission.manage 는 못 넘긴다(위임의 위임 없음). 전역 서비스 역할(ADMIN · MANAGER)은 여기서 못 만든다.
+ * 저장 표(M-A)가 생기면 감사(누가 · 누구에게 · 무엇 · 대상 · 언제) · 마지막 소유자 보호는 그 동작이 맡는다 — 이 함수는 규칙만.
  */
 export function canGrant(by: OrgSubject | null | undefined, grant: OrgGrant): boolean {
+  if (!by || by.role !== 'MASTER' || (by.status && by.status !== 'ACTIVE')) return false;
   if (!hasCapability(by, 'permission.manage')) return false;
-  if (grant.capability === 'permission.manage' && by!.role !== 'MASTER') return false;
-  const mine = capabilityScope(by, 'permission.manage');
-  if (mine !== 'organization' && grant.scope === 'organization') return false;
-  return true;
+  if (!DELEGABLE.has(grant.capability)) return false;
+  if (!hasCapability(by, grant.capability)) return false;
+  const mine = capabilityTarget(by, grant.capability);
+  if (!mine) return false;
+  if (grant.scope !== 'organization' && grant.scope !== 'self' && !(grant.targets?.length)) return false;
+  return scopeCovers(mine, grant);
 }
 
 /** 역할 이름(화면) */

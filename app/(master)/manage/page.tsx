@@ -1,3 +1,4 @@
+import { currentOrg, memberScope, requireOperator, type OrgRow } from '@/lib/org/access';
 import Link from 'next/link';
 import { InboxCard } from '@/components/master/inbox-card';
 import { redirect } from 'next/navigation';
@@ -6,8 +7,6 @@ import { RoundPeople } from '@/components/round-icon';
 import { Badge, ButtonLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { InviteCodeCard } from '@/components/master/invite-code-card';
 import { PitcherBoard } from '@/components/master/pitcher-board';
-import { requireMaster } from '@/lib/dal';
-import { currentOrg, memberScope, type OrgRow } from '@/lib/org/access';
 import { checkinSummaryOf, loadPlayers, pitcherBoardOf } from '@/lib/org/player-data';
 import { countOrgRequests } from '@/lib/market/lesson-load';
 import { countVenueRequests } from '@/lib/market/venue-load';
@@ -34,7 +33,7 @@ import { prisma } from '@/lib/prisma';
  * 날짜는 앱 시계(appNow) — 시험 계정의 날짜와 같은 눈금.
  */
 export default async function MasterHome() {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const { org } = await currentOrg(user);
   if (!org) {
     if (user.role === 'ADMIN') redirect('/manage/orgs');

@@ -5,7 +5,8 @@ import { geocode } from '@/lib/geocode';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { notify } from '@/lib/notify';
-import { requireMaster, requireUser } from '@/lib/dal';
+import { requireUser } from '@/lib/dal';
+import { requireOperator } from '@/lib/org/access';
 import { isOwnedBy } from '@/lib/storage';
 import { dbDate } from '@/lib/nutrition/days';
 import { appNow } from '@/lib/clock';
@@ -98,7 +99,7 @@ export async function saveVenue(
   _prev: VenueState,
   formData: FormData
 ): Promise<VenueState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const id = String(formData.get('id') ?? '').trim();
   const read = readVenue(formData, user.id);
   if ('error' in read) return { error: read.error };
@@ -125,7 +126,7 @@ export async function saveVenue(
 }
 
 export async function deleteVenue(formData: FormData) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const id = String(formData.get('id') ?? '');
   const found = await prisma.venue.findUnique({
     where: { id },
@@ -143,7 +144,7 @@ export async function deleteVenue(formData: FormData) {
 
 /** 사장님 — 승인 · 거절 */
 export async function answerVenueBooking(formData: FormData) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const id = String(formData.get('id') ?? '');
   const ok = formData.get('ok') === '1';
   const reply =

@@ -3,7 +3,7 @@ import { MapPin, Plus } from '@/components/icon';
 import { SafeForm } from '@/components/safe-form';
 import { Badge, Button, ButtonLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { answerVenueBooking } from '@/app/actions/venues';
-import { requireMaster } from '@/lib/dal';
+import { requireOperator } from '@/lib/org/access';
 import { loadMyVenues, loadOwnerVenueBookings } from '@/lib/market/venue-load';
 import { minToTime, venueBookingStatusLabel, venueKindLabel } from '@/lib/market/venues';
 import { appNow } from '@/lib/clock';
@@ -11,7 +11,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 
 /** 내 장소(3판) — 등록한 연습장 · 구장과 그 예약(요청 먼저). 장소는 조직이 아니라 마스터 계정에 붙는다 */
 export default async function VenuesAdminPage() {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const todayKey = toDateKey(appNow());
   const [venues, bookings] = await Promise.all([loadMyVenues(user.id), loadOwnerVenueBookings(user.id, todayKey)]);
   const fmt = (k: string) => `${Number(k.slice(5, 7))}/${Number(k.slice(8))}`;

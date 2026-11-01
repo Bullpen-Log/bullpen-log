@@ -1,5 +1,6 @@
 'use server';
 
+import { requireOperator, requireOrgCan, type MasterUser } from '@/lib/org/access';
 import { revalidatePath } from 'next/cache';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
@@ -12,8 +13,6 @@ import {
   parseExercises,
   readBounded,
 } from '@/lib/org/lesson-work';
-import { requireMaster } from '@/lib/dal';
-import { requireOrgCan } from '@/lib/org/access';
 import type { OrgCapability } from '@/lib/org/capabilities';
 import {
   GUARDIAN_DAYS,
@@ -44,7 +43,7 @@ import { effortFields, scaleToEffortPct } from '@/lib/pitch-effort';
 export type OrgActionState = { error?: string; success?: string } | undefined;
 
 async function memberOf(
-  user: Awaited<ReturnType<typeof requireMaster>>,
+  user: MasterUser,
   memberId: string,
   /** 이 회원에게 할 업무(lib/org/capabilities.ts) — 2026-11-01 2단계 */
   cap: OrgCapability
@@ -201,7 +200,7 @@ export async function createLessonNote(
   _prev: OrgActionState,
   formData: FormData
 ): Promise<OrgActionState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const member = await memberOf(user, String(formData.get('memberId') ?? ''), 'lesson.manage');
   if (!member) return { error: '구성원을 찾을 수 없어요.' };
   const form = await readNoteForm(formData, member);
@@ -262,7 +261,7 @@ export async function updateLessonNote(
   _prev: OrgActionState,
   formData: FormData
 ): Promise<OrgActionState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const note = await prisma.lessonNote.findUnique({
     where: { id: String(formData.get('id') ?? '') },
     select: { id: true, memberId: true, eventId: true, date: true },
@@ -299,7 +298,7 @@ export async function updateLessonNote(
 
 /** 일지 지우기 — 그 일지가 만든 코치 줄만 지우고, 이은 선수 줄은 연결만 푼다(다른 일지가 같은 활동을 쓰면 그대로). 활동은 남긴다(지도는 있었다) */
 export async function deleteLessonNote(formData: FormData) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const note = await prisma.lessonNote.findUnique({
     where: { id: String(formData.get('id') ?? '') },
     select: { id: true, memberId: true, eventId: true, videoPaths: true, member: { select: { orgId: true, userId: true } } },
@@ -326,7 +325,7 @@ export async function addPass(
   _prev: OrgActionState,
   formData: FormData
 ): Promise<OrgActionState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const member = await memberOf(user, String(formData.get('memberId') ?? ''), 'booking.manage');
   if (!member) return { error: '구성원을 찾을 수 없어요.' };
   const total = Number.parseInt(String(formData.get('total') ?? ''), 10);
@@ -353,7 +352,7 @@ export async function addPass(
 
 /** 쓴 회수 손으로 맞추기(+1 · −1) — 노트 없이 한 레슨, 잘못 센 것 */
 export async function adjustPass(formData: FormData) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const pass = await prisma.lessonPass.findUnique({
     where: { id: String(formData.get('id') ?? '') },
     select: {
@@ -374,7 +373,7 @@ export async function adjustPass(formData: FormData) {
 }
 
 export async function deletePass(formData: FormData) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const pass = await prisma.lessonPass.findUnique({
     where: { id: String(formData.get('id') ?? '') },
     select: { id: true, memberId: true, member: { select: { orgId: true } } },
@@ -393,7 +392,7 @@ export async function createGuardianLink(
   _prev: OrgActionState,
   formData: FormData
 ): Promise<OrgActionState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const member = await memberOf(user, String(formData.get('memberId') ?? ''), 'roster.manage');
   if (!member) return { error: '구성원을 찾을 수 없어요.' };
   const code = makeGuardianCode();
@@ -413,7 +412,7 @@ export async function createGuardianLink(
 }
 
 export async function revokeGuardianLink(formData: FormData) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const r = await prisma.guardianReport.findUnique({
     where: { id: String(formData.get('id') ?? '') },
     select: { id: true, memberId: true, member: { select: { orgId: true } } },

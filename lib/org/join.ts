@@ -28,9 +28,12 @@ export async function joinWithCode(
     },
   });
   if (!invite || !inviteUsable(invite, new Date())) return { ok: false, error: 'expired' };
-  /* 스태프 코드는 마스터 계정이 쓰는 것(5단계) — 선수 계정에는 안 맞는다 */
-  if (invite.role !== 'PLAYER' && user.accountType !== 'MASTER') return { ok: false, error: 'staff' };
-  /* 마스터 계정엔 내 싱커가 없다(결정 3) — 선수로도 뛰는 코치는 선수 계정을 따로 쓴다(계약 8-2) */
+  /*
+   * 스태프(코치) 코드는 어느 계정이든 받는다(2026-11-01 교정 F03 — 코치인가는 계정 종류가 아니라 조직 역할). 일반 계정이 코치로 들어오면 그 조직의 코치
+   * 공간이 생기고(app-org.loadMySpaces) 개인 운동(내 싱커)은 그대로다. 소유자(MASTER 역할) 코드는 없다 — 소유권은 별도 업무.
+   * 마스터 계정엔 내 싱커가 없다(결정 3) — 선수로도 뛰는 코치는 선수 계정을 따로 쓴다(계약 8-2)
+   */
+  if (invite.role === 'MASTER') return { ok: false, error: 'staff' };
   if (invite.role === 'PLAYER' && user.accountType === 'MASTER') return { ok: false, error: 'master' };
 
   const memberId = await prisma.$transaction(async (tx) => {

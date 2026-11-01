@@ -1,10 +1,9 @@
+import { memberScope, requireCurrentOrg, requireOperator } from '@/lib/org/access';
 import Link from 'next/link';
 import { Badge, Card, PageHeading } from '@/components/ui';
 import { ConfirmButton } from '@/components/master/confirm-button';
 import { RecordForm, type RecordRow } from '@/components/master/record-form';
 import { deleteProxyPitchLog } from '@/app/actions/org-record';
-import { requireMaster } from '@/lib/dal';
-import { memberScope, requireCurrentOrg } from '@/lib/org/access';
 import { loadPlayers } from '@/lib/org/player-data';
 import { ORG_WORDS } from '@/lib/org/rules';
 import { appNow } from '@/lib/clock';
@@ -16,7 +15,7 @@ import { prisma } from '@/lib/prisma';
  * 아래는 이 조직에서 코치가 적은 최근 기록 — 잘못 적은 것은 여기서 되돌린다.
  */
 export default async function RecordPage() {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const { org } = await requireCurrentOrg(user);
   const words = ORG_WORDS[org.kind];
   const todayKey = toDateKey(appNow());

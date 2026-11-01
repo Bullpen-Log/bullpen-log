@@ -1,9 +1,8 @@
 'use server';
 
+import { requireOperator, requireOrgCan } from '@/lib/org/access';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { requireMaster } from '@/lib/dal';
-import { requireOrgCan } from '@/lib/org/access';
 import { NOTICE_BODY_MAX, NOTICE_TITLE_MAX } from '@/lib/org/rules';
 
 /** 조직 공지(OrgNotice, 5단계) — 앱 전체 공지(SupportNotice)와 다른 표. 선수는 /join 의 '참여한 팀 · 레슨장'에서 본다 */
@@ -11,7 +10,7 @@ import { NOTICE_BODY_MAX, NOTICE_TITLE_MAX } from '@/lib/org/rules';
 export type OrgActionState = { error?: string; success?: string } | undefined;
 
 export async function saveOrgNotice(_prev: OrgActionState, formData: FormData): Promise<OrgActionState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const org = await requireOrgCan(user, String(formData.get('orgId') ?? ''), 'notice.publish');
   const id = String(formData.get('id') ?? '').trim();
   const title = String(formData.get('title') ?? '').trim().slice(0, NOTICE_TITLE_MAX);
@@ -33,7 +32,7 @@ export async function saveOrgNotice(_prev: OrgActionState, formData: FormData): 
 }
 
 export async function deleteOrgNotice(formData: FormData) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const n = await prisma.orgNotice.findUnique({ where: { id: String(formData.get('id') ?? '') }, select: { id: true, orgId: true } });
   if (!n) return;
   await requireOrgCan(user, n.orgId, 'notice.publish');

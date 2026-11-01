@@ -1,9 +1,8 @@
 'use server';
 
+import { memberScope, requireOperator, requireOrgCan } from '@/lib/org/access';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { requireMaster } from '@/lib/dal';
-import { memberScope, requireOrgCan } from '@/lib/org/access';
 import { isDateKey } from '@/lib/org/rules';
 import { dbDate } from '@/lib/nutrition/days';
 import { appNowMs } from '@/lib/clock';
@@ -27,7 +26,7 @@ const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 export type OrgActionState = { error?: string; success?: string } | undefined;
 
 export async function createPitchLogs(_prev: OrgActionState, formData: FormData): Promise<OrgActionState> {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const org = await requireOrgCan(user, String(formData.get('orgId') ?? ''), 'training.recordForAthlete');
   const date = String(formData.get('date') ?? '');
   if (!isDateKey(date)) return { error: '날짜를 골라 주세요.' };
@@ -125,7 +124,7 @@ export async function createPitchLogs(_prev: OrgActionState, formData: FormData)
 
 /** 코치가 적은 기록 되돌리기 — 그 조직에서 적은 줄만, 선수가 고친 뒤라도 코치가 적은 줄이면 지운다 */
 export async function deleteProxyPitchLog(formData: FormData) {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const log = await prisma.pitchLog.findUnique({
     where: { id: String(formData.get('id') ?? '') },
     select: { id: true, orgId: true, enteredById: true },

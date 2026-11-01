@@ -481,7 +481,8 @@ export type CoachBooking = {
   specialty: string | null;
   payMethod: string | null;
   createdAt: Date;
-  player: { id: string; nickname: string; records: number };
+  /** 예약은 공유 동의가 아니다(2026-11-01 교정 F06) — 개인 기록 건수는 싣지 않는다 */
+  player: { id: string; nickname: string };
   memberId: string | null;
 };
 
@@ -505,7 +506,7 @@ export async function loadOrgBookings(orgId: string): Promise<CoachBooking[]> {
       createdAt: true,
       memberId: true,
       user: {
-        select: { id: true, nickname: true, _count: { select: { pitchLogs: true } } },
+        select: { id: true, nickname: true },
       },
     },
   });
@@ -530,11 +531,7 @@ export async function loadOrgBookings(orgId: string): Promise<CoachBooking[]> {
       payMethod: r.payMethod,
       createdAt: r.createdAt,
       memberId: r.memberId,
-      player: {
-        id: r.user.id,
-        nickname: r.user.nickname,
-        records: r.user._count.pitchLogs,
-      },
+      player: { id: r.user.id, nickname: r.user.nickname },
     }))
     .sort(
       (a, b) =>

@@ -1,14 +1,13 @@
+import { requireCurrentOrg, requireOperator } from '@/lib/org/access';
 import { PageHeading } from '@/components/ui';
 import { NoticeBoard } from '@/components/master/notice-board';
-import { requireMaster } from '@/lib/dal';
-import { requireCurrentOrg } from '@/lib/org/access';
 import { ORG_WORDS } from '@/lib/org/rules';
 import { prisma } from '@/lib/prisma';
 import { noticeReads } from '@/lib/org/team-load';
 
 /** 조직 공지(5단계) — 선수는 /join 의 참여한 조직 칸 · 싱커 앱 선수 공간에서 본다. 3단계: 앱에서 본 선수 수(읽음) */
 export default async function NoticesPage() {
-  const user = await requireMaster();
+  const user = await requireOperator();
   const { org } = await requireCurrentOrg(user);
   const notices = await prisma.orgNotice.findMany({
     where: { orgId: org.id },

@@ -29,14 +29,15 @@ export async function coachOrgCan(orgId: string, cap: OrgCapability) {
   const c = await coachOrg(orgId);
   if (!c) return null;
   const role = await orgRoleOf(c.user, c.org);
-  if (!hasCapability({ role }, cap)) return null;
+  if (!role || !hasCapability({ role }, cap)) return null;
   return { ...c, role };
 }
 
-async function orgRoleOf(user: { id: string; role: string }, org: { id: string; ownerId: string }): Promise<OrgRole> {
+/** 조직 안 역할 — 회원 줄이 없거나 선수면 null(교정 F05: 없는 소속을 STAFF 로 짐작하지 않는다) */
+async function orgRoleOf(user: { id: string; role: string }, org: { id: string; ownerId: string }): Promise<OrgRole | null> {
   if (user.role === 'ADMIN' || org.ownerId === user.id) return 'MASTER';
-  const m = await prisma.orgMember.findFirst({ where: { orgId: org.id, userId: user.id, status: 'ACTIVE' }, select: { role: true } });
-  return m?.role === 'MASTER' ? 'MASTER' : 'STAFF';
+  const m = await prisma.orgMember.findFirst({ where: { orgId: org.id, userId: user.id, status: 'ACTIVE', role: { in: ['MASTER', 'STAFF'] } }, select: { role: true } });
+  return m ? (m.role as OrgRole) : null;
 }
 
 /** 내 회원 줄인가(떠난 곳 포함) — 아니면 null */
