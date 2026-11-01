@@ -11,6 +11,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-11-01 · 금윤호(Claude, 윤호 맥북) — 베타에 트레이닝 · 기록 · 알림 · 고객센터를 열었다 · 잠긴 칸은 다시 회색 + 자물쇠 · **네 앱 틀 · 트레이닝 탭을 고쳤다**
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). 금윤호: "막힌 기능은 ABS 처럼 자물쇠로 가려줘, 트레이닝 · 기록 · 알림 · 고객센터는 열어둬"(e9176bfb, 바로 밑 글을 이어 고침).
+- **표**: `lib/release-access.ts BETA_ALLOWED` 에 training · records · notifications · support(정책 판 2026-11-01.1). 서버 동작은 `allowFeature('training' | 'records' | 'notifications')` 밝힘 줄을 달았다
+  (app-training · app-workout · workout · program · warmup · plan-edit · training-* · exercise-* · sinker-log · onboarding-state · notifications, app.loadAppTraining · loadAppRecords · day-cards.saveTrainingPrefs · favorite.setExerciseFavorite).
+  영양 · 체크인 · 달력 · 구속 측정 · 영상 라이브러리 · 암케어 · 메커니즘은 그대로 잠김.
+- **앱**: 하단 탭 · 더보기의 회색 + 자물쇠를 되살렸다(`shell/tab-bar.tsx` · `app/more.tsx`). 새 `shell/locked.tsx LockCover`(카드 위 회색 판 + 자물쇠, 누르면 안내) —
+  `training/tab.tsx` 암케어 · 메커니즘 카드와 영상 줄, `pitch/tab.tsx` 구속 측정 칸은 ABS 와 같은 `LockedBlock`. 잠긴 기능 카드를 새로 그리면 `LockCover` 로 감싸 줘.
+- **웹**: 잠긴 메뉴 · 탭은 흐린 아이콘 + 자물쇠(`applyBetaLocks keepHref`, 이름 '준비 중'). 실기기 · 베타 계정 화면은 아직 안 봤다.
+
 ## 김민에게 — 2026-11-01 · 금윤호(Claude, 윤호 맥북) — 팀 · 레슨 통합 2차 검토 교정(G01~G05, DB 무변경) · **네 앱 화면 · 공간 저장소를 고쳤다** · `linkMyWork` 인자 하나 늘었다
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). 검토 `docs/designs/sinker-dugout-team-lesson-platform-review2-2026-11-01.md`, 대응은 `-stage0.md` 0-2 절. 전부 코드 + node 시험이고 실기기 · 로그인 화면은 안 봤다.
