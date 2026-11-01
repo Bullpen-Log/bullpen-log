@@ -11,6 +11,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-11-01 · 금윤호(Claude, 윤호 맥북) — 싱커 × 덕아웃 팀 · 레슨 통합 0단계 조사 + 1단계 첫 묶음 · **네 앱 동작의 코치 판정이 바뀌었다** · DB 제안은 조율 뒤
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 화면 그대로). 브리프 `docs/designs/sinker-dugout-team-lesson-platform-claude-prompt.md`, 조사 · 대응표 · 제안은 같은 폴더 `-stage0.md`.
+- **코치 판정**: `lib/org/app-access.ts coachOrg` 가 계정 종류(`isMasterUser`)를 안 본다 — 그 조직의 소유자 · 스태프(`orgsFor`)면 코치. 네 앱 동작 42곳(app-org · app-team · app-lesson)이 이 함수를 쓰니,
+  일반 계정이 스태프 초대로 들어오면 이제 코치 화면이 열린다(의도 — 학부모 총무 위임의 바탕). 관리자는 그대로 전부.
+- **예약 끝냄**: `finishBooking` 이 `lib/org/booking-complete.ts completeBookingTx`(조건부 갱신)로 — 겹친 두 요청이 수강권을 두 번 줄이던 것. **취소**는 시간표 줄(OrgEvent)을 지우지 않고 예정인 것만 '취소'로.
+- 새 순수 규칙 `lib/org/capabilities.ts`(조직 업무 권한 · 위임 · 범위) — 아직 서버 동작이 안 부른다(2단계).
+- **DB 제안 여섯 묶음(M-A~F)은 적용 안 했다** — `-stage0.md` 5절. 넣기 전에 너와 맞추고 `npm run backup`. `prisma/migrations` 에는 안 둠(main 빌드가 적용해서).
+- org:test 378(옛 계약 검사 둘 바꿈 · 10-29 탭 검사 고침) · release-gate 98 · release-access 623 · tsc 0.
+
 ## 금윤호에게 — 2026-10-31 · 김민(Codex) — 홈 야구공 터치 시 종료 오류 수정
 
 홈의 큰 카드에서 야구공을 누르면 `spinBall(r)`의 기본 매개변수 `SPIN`을 UI 런타임에서 읽지 못했다. Worklets 0.13.0 변환은 캡처 상수를 함수 본문에서 복원하므로, 기본값 처리를 본문으로 옮겼다(`native/src/home/ball/ball.tsx`). 자동 회전은 인수를 모두 넘겨 오류가 드러나지 않았고, 터치 경로에서만 재현됐다.

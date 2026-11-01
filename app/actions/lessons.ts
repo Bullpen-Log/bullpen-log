@@ -29,7 +29,8 @@ import {
   SLOT_MIN_DEFAULT,
 } from '@/lib/market/lessons';
 import { parseHours, readHours, slotValid, weekdayOf } from '@/lib/market/venues';
-import { ORG_NAME_MAX, ORG_REGION_MAX, passUsable } from '@/lib/org/rules';
+import { ORG_NAME_MAX, ORG_REGION_MAX } from '@/lib/org/rules';
+import { completeBookingTx } from '@/lib/org/booking-complete';
 import { orgOpenHref } from '@/lib/org/space-nav';
 
 /**
@@ -275,6 +276,7 @@ export async function declineBooking(formData: FormData) {
 /**
  * 레슨을 했다 — 끝남으로. 후기를 쓸 수 있게 된다. 수강권은 여기서 한 회 준다 — 쓸 수 있는 것 가운데 기한이 가까운 것부터.
  * 수강권 차감은 덕아웃 운영의 일이라 싱커의 레슨 노트 저장에서 옮겨 왔다(2026-10-25 0단계 계약 2-1).
+ * 2026-11-01: 끝냄 · 차감은 조건부 갱신(lib/org/booking-complete.ts) — 두 요청이 겹쳐도 한 번만 끝나고 한 회만 준다(미리 읽은 상태는 안 믿는다).
  */
 export async function finishBooking(formData: FormData) {
   const user = await requireMaster();
@@ -286,18 +288,7 @@ export async function finishBooking(formData: FormData) {
   if (!b || b.status !== 'CONFIRMED') return;
   await requireOrg(user, b.orgId);
   const lessonDay = slotParts(b.chosen ?? b.slot1).dateKey;
-  await prisma.$transaction(async (tx) => {
-    await tx.lessonBooking.update({ where: { id }, data: { status: 'DONE' } });
-    if (!b.memberId) return;
-    const passes = await tx.lessonPass.findMany({
-      where: { memberId: b.memberId },
-      orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true, total: true, used: true, expiresAt: true },
-    });
-    const pick = passes.find((p) => passUsable(p, lessonDay));
-    if (pick)
-      await tx.lessonPass.update({ where: { id: pick.id }, data: { used: { increment: 1 } } });
-  });
+  await prisma.$transaction((tx) => completeBookingTx(tx, { bookingId: id, memberId: b.memberId, lessonDay }));
   revalidatePath('/manage', 'layout');
   revalidatePath('/', 'layout');
 }
@@ -382,9 +373,13 @@ export async function cancelBooking(formData: FormData) {
   });
   if (!b || b.userId !== user.id || !['REQUESTED', 'CONFIRMED'].includes(b.status))
     return;
+  /*
+   * 취소는 상태만 바꾼다(2026-11-01, 브리프 2절 알려진 문제 5). 예전엔 확정 때 만든 시간표 줄(OrgEvent)을 지워, 그 활동에 붙은 일지 · 투구 기록 · 숙제 연결이
+   * 끊겼다. 이제 일정은 남기고 '취소'로만 — 이미 '실시'(done)한 활동은 손대지 않는다(한 일은 지우지 않는다).
+   */
   await prisma.$transaction(async (tx) => {
     await tx.lessonBooking.update({ where: { id }, data: { status: 'CANCELED' } });
-    if (b.eventId) await tx.orgEvent.deleteMany({ where: { id: b.eventId } });
+    if (b.eventId) await tx.orgEvent.updateMany({ where: { id: b.eventId, status: 'planned' }, data: { status: 'canceled' } });
   });
   revalidatePath('/me');
   revalidatePath(`/lessons/${b.orgId}`);

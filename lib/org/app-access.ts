@@ -1,17 +1,20 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser, isMasterUser } from '@/lib/dal';
+import { getCurrentUser } from '@/lib/dal';
 import { orgsFor } from '@/lib/org/access';
 
 /**
- * 앱(app/actions/app-org.ts · app-lesson.ts)의 팀 · 레슨장 권한 — 코치 쪽은 마스터 계정 · 관리자 + 그 조직을 볼 권한(orgsFor),
+ * 앱(app/actions/app-org.ts · app-lesson.ts)의 팀 · 레슨장 권한 — 코치 쪽은 **그 조직의 소유자 · 스태프 회원**(orgsFor — 관리자는 전부),
  * 선수 쪽은 제 회원 줄(userId 가 나)만. 웹 마스터 화면은 lib/org/access.ts requireOrg(쿠키 · redirect)를 쓴다.
+ *
+ * 2026-11-01(팀 · 레슨 통합 1단계, 브리프 2절 알려진 문제 1): 코치 판정에서 계정 종류(accountType MASTER)를 뺐다 — 코치인가는 조직 안의 역할(OrgMember MASTER · STAFF)이
+ * 정한다. 그래야 일반(선수 · 학부모) 계정이 스태프로 초대받아 조직 업무를 맡을 수 있다(lib/org/capabilities.ts). 전역 서비스 역할 · 계정 종류는 조직 권한의 근거가 아니다.
  */
 
-/** 이 조직의 코치인가 — 아니면 null */
+/** 이 조직의 코치(소유자 · 스태프)인가 — 아니면 null */
 export async function coachOrg(orgId: string) {
   const user = await getCurrentUser();
-  if (!user || !isMasterUser(user)) return null;
+  if (!user) return null;
   const org = (await orgsFor(user)).find((o) => o.id === orgId);
   return org ? { user, org } : null;
 }
