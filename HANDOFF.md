@@ -11,6 +11,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 코치 처음 질문 흐름(앱 `/coach-start`) · 새 RPC 모듈 `coach`
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). 설계 `docs/designs/ai-coach.md` 10-4 '진행'.
+- 서버 `app/actions/coach.ts`(registry 에 `coach`, `lib/release-ops.ts` 'analysis' — 베타에선 대표관리자만, `allowFeature` 줄 없음). 유료 · 만 14세 · 건강 동의는 동작 안에서 본다.
+- 앱 새 화면 `native/src/app/coach-start.tsx`(네 `~/setup/frame` 부품을 그대로 씀) · 코치 탭 `native/src/coach/tab.tsx` 유료 칸에 [코치 시작하기] / 이번 주 7칸. `lib/release-access.ts` 경로 표에 `/coach-start`.
+- 시험: 앱 · 웹 tsc 0 · 바꾼 파일 eslint 0 · native-api 308(모양 여섯 더함) · release-access 690 · coach 20,771 · integration 실패 4 는 전과 같은 팀 · 레슨 쪽. **폰 · 시뮬레이터는 아직**(대표 계정으로 코치 탭 → 시작 → 미리보기 → 시작 → 탭에 7칸).
+
 ## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 건강정보 · 보호자 동의 판정 + DB 칸 · 표 · **받으면 `npx prisma generate`** · 네 3D 동의 읽기를 고쳤다
 
 받은 뒤 할 일: **`npx prisma generate`** — `AnalysisConsent.purpose`(기본 'pitch3d' — 옛 줄은 모두 3D 동의라 그대로 맞다) · 새 표 `GuardianConsent`(만 14세 미만 보호자 동의, `User.guardianConsent`).

@@ -1,16 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { Href } from 'expo-router';
+import { router, type Href } from 'expo-router';
+import { WEEKDAY_LABELS, slotLine } from '@/lib/coach/answers';
+import type { DaySlot } from '@/lib/coach/week';
 import { COACH_POINTS } from '@/lib/coach-intro';
 import { loadMe } from '~/pitch/api';
 import { READABLE_WIDE } from '~/lib/layout';
+import { rpc } from '~/lib/rpc';
 import { SPACE, SURFACE, TYPE, usePalette } from '~/lib/ui';
 import { PageHead, SectionHead } from '~/shell/heading';
 import { Icon } from '~/shell/icon';
 import { MenuButton } from '~/shell/menu-button';
 import { Press } from '~/shell/press';
 import { pushOpen } from '~/shell/release';
+import { useFocusRefresh } from '~/shell/tab-pager';
 
 /**
  * 코치 소개(2026-11-01, docs/designs/ai-coach.md U13) — 유료가 아닌 사람이 코치 탭 · 분석 화면을 열면. 결제 안내 · 밖 링크는 두지 않는다(애플 심사).
@@ -62,6 +66,18 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
       alive = false;
     };
   }, []);
+  /* 이번 주 틀(시작했으면) — 코치 시작 화면에서 돌아오거나 탭이 다시 보일 때 새로 받는다. undefined = 아직 모름 */
+  const [week, setWeek] = useState<DaySlot[] | null | undefined>(undefined);
+  const loadWeek = useCallback(() => {
+    rpc<{ ok: true; week: DaySlot[] | null }>('coach.loadCoachWeek').then(
+      (r) => setWeek(r.week),
+      () => undefined
+    );
+  }, []);
+  useEffect(() => {
+    if (paid) loadWeek();
+  }, [paid, loadWeek]);
+  useFocusRefresh(() => paid && loadWeek());
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: c.page }}
@@ -76,7 +92,29 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
       {paid === false ? <CoachIntro /> : null}
       {paid ? (
         <>
-          <Text style={[TYPE.body, { color: c.muted }]}>자동 일정은 곧 열려요.</Text>
+          {week === null ? (
+            <Press
+              accessibilityRole="button"
+              onPress={() => router.push('/coach-start' as Href)}
+              style={[st.start, { backgroundColor: c.action }]}
+            >
+              <Text style={[TYPE.card, { color: c.onAction }]}>코치 시작하기</Text>
+            </Press>
+          ) : null}
+          {week ? (
+            <>
+              <SectionHead title="이번 주" />
+              <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
+                {week.map((s, k) => (
+                  <View key={s.date} style={[st.day, k > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
+                    <Text style={[TYPE.body, { width: 22, fontWeight: '700', color: c.muted }]}>{WEEKDAY_LABELS[k]}</Text>
+                    <Text style={[TYPE.body, { flex: 1, color: c.ink }]}>{slotLine(s)}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={[TYPE.sub, { color: c.muted }]}>그날 운동은 몸 상태를 보고 만들어요.</Text>
+            </>
+          ) : null}
           <SectionHead title="리뷰" />
           <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
             {REVIEWS.map((r, i) => (
@@ -101,4 +139,6 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
 const st = StyleSheet.create({
   group: { borderRadius: 20, overflow: 'hidden' },
   row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
+  day: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
+  start: { minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
 });

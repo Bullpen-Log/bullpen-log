@@ -415,6 +415,15 @@
 
 **시간(Claude 기준)**: 앱 화면 10장 · 저장 6~8h · 서버 동작 2~3h · PC 읽기 화면 1~2h. 3단계 계획기 · 2단계 동의 · DB 표(C2)가 먼저 있어야 한다.
 
+**진행(2026-11-01)**: C3 앱 흐름 끝 — 폰 확인 전. DB 그대로(C2 표 · B1 칸만 씀).
+- 서버 `app/actions/coach.ts`(registry · `release-ops` 'analysis' · `release-access` 경로 `/coach-start` · native-api 모양 갱신): `loadCoachStart` · `agreeHealthConsent` · `saveCoachAnswer` · `previewCoachWeek` · `startCoach` · `loadCoachWeek`.
+  관문 `gateOf` = 무료 → 만 14세 미만 · 나이 모름 → 건강 동의 없음 → 준비. 답 모양 · 선택지 · 칸 글은 순수 `lib/coach/answers.ts`(앱 · 서버 같이).
+- 앱 `native/src/app/coach-start.tsx`(첫 설정 부품 `~/setup/frame`): 소개 → 내 정보 확인 → [동의] → 목표 → 역할 · 등판 → 고정 일정 → 가능 요일 · 시간 → 장소 → 제한 → 첫 주 미리보기 [이 프로그램으로 | 프로그램 없이] → 시작.
+  코치 탭(`native/src/coach/tab.tsx`) 유료 칸: 이번 주가 없으면 [코치 시작하기], 있으면 7칸 한 줄씩(돌아오면 새로 받음).
+- 설계와 다르게 한 것(줄인 것): ① 2번 '고치기'는 없음 — '다르면 설정에서 고친 뒤 다시' 한 줄 ② 목표는 우선순위 맨 앞 하나 · 시점 없음 ③ 고정 일정은 매주 팀 훈련 요일만(경기는 달력 `isOutingTitle` 을 저절로 읽음 · 레슨 시간 없음)
+  ④ 7번 장비 확인 · 요일별 자세히 없음(장비는 앱에 있는 것 — U4) ⑤ 9번 후속 화면 없음 ⑥ '오늘 이미 계획이 있으면' 묻기 없음 — 7칸은 틀이라 오늘 운동은 그대로 만든다(하루 주인은 5단계)
+  ⑦ 메커니즘 프로그램은 주 2번으로 둔다(주당 칸이 없어서 — `ponytail:`). PC `/coach` 의 7칸 읽기(U33)는 아직.
+
 ### 10-5. 5단계 — 코치 메인 화면 · 되먹임(U34~U38 확정)
 
 **코치 메인(앱, 한 화면 위→아래 — U34)**

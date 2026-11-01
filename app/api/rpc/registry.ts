@@ -26,6 +26,7 @@ import * as appTraining from '@/app/actions/app-training';
 import * as appTrainingParts from '@/app/actions/app-training-parts';
 import * as appWorkout from '@/app/actions/app-workout';
 import * as armcare from '@/app/actions/armcare';
+import * as coach from '@/app/actions/coach';
 import * as auth from '@/app/actions/auth';
 import * as board from '@/app/actions/board';
 import * as calendarEvent from '@/app/actions/calendar-event';
@@ -87,6 +88,7 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   'app-dugout': appDugout,
   'app-shoot': appShoot,
   'app-analysis': appAnalysis,
+  coach: coach,
   'app-armcare': appArmcare,
   'app-library': appLibrary,
   'app-mechanics': appMechanics,
