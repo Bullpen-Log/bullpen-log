@@ -11,6 +11,8 @@ import { dbDate } from '@/lib/nutrition/days';
 import { allExercises, allGuides, trainingGuides, visibleExercises } from '@/lib/library-cache';
 import { isDateKey, ORG_DUPLICATE_MS } from '@/lib/org/rules';
 import { coachOrgCan, myMember } from '@/lib/org/app-access';
+import { orgAuthz } from '@/lib/org/authz';
+import { redactEventDetail, type HiddenKind } from '@/lib/org/dto-scope';
 import { ORG_LOST, orgOpenHref } from '@/lib/org/space-nav';
 import { Prisma } from '@prisma/client';
 import { cleanHomeworkItems, homeworkDose, readHomeworkItems } from '@/lib/org/homework';
@@ -164,10 +166,12 @@ export type EventDetail = {
   tags: string[];
   /** 운동 · 드릴 이름(예외 고치기 화면) */
   names: Record<string, string>;
+  /** 보는 사람의 권한으로 가린 종류(교정 F05, lib/org/dto-scope.ts) — 비면 다 보임 */
+  hidden?: HiddenKind[];
 };
 
 export async function loadEventDetail(orgId: string, eventId: string): Promise<{ ok: false; to: string } | ({ ok: true } & EventDetail)> {
-  const c = await coachOrgCan(orgId, 'schedule.read');
+  const c = await orgAuthz(orgId, 'schedule.read');
   if (!c) return NO_ACCESS;
   const event = await eventOf(orgId, eventId);
   if (!event) return NO_ACCESS;
@@ -225,8 +229,9 @@ export async function loadEventDetail(orgId: string, eventId: string): Promise<{
     for (const e of m.exception?.items ?? []) for (const l of e.items ?? []) used.add(l.exerciseId ?? l.guideId ?? '');
     for (const x of m.exception?.extra ?? []) for (const l of x.items) used.add(l.exerciseId ?? l.guideId ?? '');
   }
-  return {
-    ok: true,
+  /* 답을 만든 뒤 보는 사람의 업무 권한 · 대상으로 가린다(F05) — 개인 수행 값 · 정정 요청 · 체크인 한 줄은 training.read 가 있어야 */
+  return redactEventDetail({
+    ok: true as const,
     kind: c.org.kind,
     todayKey: today,
     event: {
@@ -264,7 +269,7 @@ export async function loadEventDetail(orgId: string, eventId: string): Promise<{
     others,
     tags: [...new Set(members.filter((m) => !m.left).flatMap((m) => m.tags))].sort((a, b) => a.localeCompare(b, 'ko')),
     names: Object.fromEntries([...used].filter((id) => id && names.has(id)).map((id) => [id, names.get(id)!])),
-  };
+  }, c.lens);
 }
 
 /** 명단 고치기 — 나중에 들어온 선수는 코치가 더할 때만(명단은 준비할 때 담아 고정). 이미 기록한 선수는 빼지 않고 '빠짐'으로 */

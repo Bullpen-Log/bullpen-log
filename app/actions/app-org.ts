@@ -14,6 +14,8 @@ import { joinWithCode } from '@/lib/org/join';
 import { createInviteCode } from '@/lib/org/invite';
 import { loadMember, loadPlayers, memberCardOf, pitcherBoardOf, type MemberCard } from '@/lib/org/player-data';
 import { coachOrgCan, myMember } from '@/lib/org/app-access';
+import { orgAuthz } from '@/lib/org/authz';
+import { redactMembers, redactToday, type HiddenKind } from '@/lib/org/dto-scope';
 import { commentCounts } from '@/lib/org/comment-load';
 import { formatExercise, readExercises } from '@/lib/org/lesson-work';
 import { noteKey } from '@/lib/org/lesson-pitch';
@@ -158,11 +160,13 @@ export type OrgToday = {
   alerts: ({ memberId: string; nickname: string } & ArmLine)[];
   /** 살필 선수(계약 9-6 ①-1) — 주의 · 위험 / 정보 부족 / 투구 비공개 / 공유 동의 대기 / 앱 연결 대기. 살필 것 없는 선수는 없음 */
   watch: { kind: WatchKind; memberId: string; nickname: string; line: string }[];
+  /** 보는 사람의 권한으로 가린 종류(교정 F05, lib/org/dto-scope.ts) — 비면 다 보임. 옛 앱은 이 칸을 모른다 */
+  hidden?: HiddenKind[];
 };
 
 /** 코치 '오늘' — 오늘 조직 일정 · 공유 대기 회원 수 · 팔 상태 주의 회원 */
 export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: string } | ({ ok: true } & OrgToday)> {
-  const c = await coachOrgCan(orgId, 'roster.read');
+  const c = await orgAuthz(orgId, 'roster.read');
   if (!c) return NO_ACCESS;
   const now = appNow();
   const todayKey = toDateKey(now);
@@ -191,8 +195,9 @@ export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: stri
     }),
   ]);
   const active = members.map((m) => m.id);
-  return {
-    ok: true,
+  /* 답을 만든 뒤 보는 사람의 업무 권한 · 대상으로 가린다(F05) — 지금 코치는 조직 전체 · training 가능이라 그대로 지나간다 */
+  return redactToday({
+    ok: true as const,
     org: { id: c.org.id, kind: c.org.kind, name: c.org.name },
     todayKey,
     events: events.map(({ rosterAt, confirmedAt, ...e }) => {
@@ -220,7 +225,7 @@ export async function loadOrgToday(orgId: string): Promise<{ ok: false; to: stri
       .filter((r) => r.status.level !== 'safe')
       .map((r) => ({ memberId: r.memberId, nickname: r.nickname, ...armLine(r.status) })),
     watch: watchOf(members, board.rows),
-  };
+  }, c.lens);
 }
 
 async function briefingOf(orgId: string, todayKey: string, members: Awaited<ReturnType<typeof loadPlayers>>, kind: OrgKind): Promise<NonNullable<OrgToday['briefing']>> {
@@ -289,16 +294,14 @@ export type OrgMemberRow = {
 };
 
 /** 코치 '회원' — 활동 중인 회원 전부, 이름순 */
-export async function loadOrgMembers(orgId: string): Promise<{ ok: false; to: string } | { ok: true; kind: OrgKind; members: OrgMemberRow[] }> {
-  const c = await coachOrgCan(orgId, 'roster.read');
+export async function loadOrgMembers(orgId: string): Promise<{ ok: false; to: string } | { ok: true; kind: OrgKind; members: OrgMemberRow[]; hidden?: HiddenKind[] }> {
+  const c = await orgAuthz(orgId, 'roster.read');
   if (!c) return NO_ACCESS;
   const [members, board] = await Promise.all([loadPlayers(orgId), pitcherBoardOf(orgId, appNow())]);
   const armOf = new Map(board.rows.map((r) => [r.memberId, armLine(r.status)]));
   const statusOf = new Map(board.rows.map((r) => [r.memberId, r.status]));
-  return {
-    ok: true,
-    kind: c.org.kind,
-    members: members.map((m) => ({
+  const scoped = redactMembers(
+    members.map((m) => ({
       memberId: m.id,
       nickname: m.nickname,
       tags: m.tags,
@@ -308,7 +311,9 @@ export async function loadOrgMembers(orgId: string): Promise<{ ok: false; to: st
       pitchOk: !!m.user && memberScope(m.consent, true).pitch,
       watch: watchKindOf({ hasUser: !!m.user, consent: m.consent }, statusOf.get(m.id) ?? null),
     })),
-  };
+    c.lens
+  );
+  return { ok: true, kind: c.org.kind, members: scoped.members, hidden: scoped.hidden };
 }
 
 export type LessonNoteView = {

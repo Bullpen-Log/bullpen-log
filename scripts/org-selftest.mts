@@ -74,6 +74,7 @@ import {
 import { isOutingTitle } from '@/lib/calendar-event';
 import { ORG_CAPABILITIES, RECORD_CAPABILITIES, canGrant, capabilityScope, capabilityTarget, hasCapability, scopeCovers } from '@/lib/org/capabilities';
 import { cancelBookingTx, confirmBookingTx, declineBookingTx, finishBookingTx } from '@/lib/org/booking-transitions';
+import { lensOf, redactEventDetail, redactMembers, redactToday } from '@/lib/org/dto-scope';
 import { completeBookingTx } from '@/lib/org/booking-complete';
 import {
   ME,
@@ -669,7 +670,7 @@ console.log(
   const lesson = src('app/actions/app-lesson.ts');
   const fns = [...lesson.matchAll(/export async function (\w+)\([^]*?\n\}/g)];
   check('app-lesson 동작이 있다', fns.length >= 10);
-  for (const m of fns) check(`app-lesson.${m[1]} 이 권한부터 본다`, /coachOrg(Can)?\(|myMember\(/.test(m[0]));
+  for (const m of fns) check(`app-lesson.${m[1]} 이 권한부터 본다`, /coachOrg(Can)?\(|orgAuthz\(|myMember\(/.test(m[0]));
 }
 
 /* ─────────────────────── 13. 2단계 빈칸 — 조직 영상 · 영상 시점 말 ─────────────────────── */
@@ -846,7 +847,7 @@ console.log(
   const team = src('app/actions/app-team.ts');
   const fns = [...team.matchAll(/export async function (\w+)\([^]*?\n\}/g)];
   check('app-team 동작이 있다', fns.length >= 12);
-  for (const m of fns) check(`app-team.${m[1]} 이 권한부터 본다`, /coachOrg(Can)?\(|myMember\(/.test(m[0]));
+  for (const m of fns) check(`app-team.${m[1]} 이 권한부터 본다`, /coachOrg(Can)?\(|orgAuthz\(|myMember\(/.test(m[0]));
   check('앱 팀 동작이 허용 목록에', src('app/api/rpc/registry.ts').includes("'app-team': appTeam"));
   const sessionStore = src('lib/org/team-session-store.ts');
   check('실제 확인은 선수 운동 판에 코치 세트로(writeOrgWork) · 선수마다 따로', sessionStore.includes('await writeOrgWork({ userId: m.userId, dateKey, orgEventId: event.id') && sessionStore.includes('for (const r of rows) {'));
@@ -1195,7 +1196,7 @@ console.log(
   for (const f of ['app/actions/app-org.ts', 'app/actions/app-team.ts', 'app/actions/app-lesson.ts']) {
     const src2 = readFileSync(join(ROOT, f), 'utf8');
     const bare = src2.replace(/coachOrgCan\(/g, '').includes('coachOrg(');
-    const used = [...src2.matchAll(/coachOrgCan\(orgId, '([a-zA-Z.]+)'\)/g)].map((m) => m[1]);
+    const used = [...src2.matchAll(/(?:coachOrgCan|orgAuthz)\(orgId, '([a-zA-Z.]+)'\)/g)].map((m) => m[1]);
     check(`${f}: 코치 판정은 모두 coachOrgCan(권한)`, !bare && used.length > 0, `bare=${bare} used=${used.length}`);
     check(`${f}: 권한 이름이 표에 있다`, used.every((c) => caps.has(c)), used.filter((c) => !caps.has(c)).join(','));
   }
@@ -1432,6 +1433,58 @@ console.log(
   const ss = readFileSync(join(ROOT, 'native/src/org/space-store.ts'), 'utf8');
   check('F08 잇기 대기열을 폰에 남기고(links · persist) 소속 확인 뒤 다시 보낸다(flushLinks)', ss.includes('links: state.links') && ss.includes('void flushLinks();') && ss.includes('export async function flushLinks'));
   check('F08 공간을 바꿔도 기록 귀속(event)은 남긴다 · 오류를 삼키지 않고 남긴다', ss.includes('if (orgReturn?.event) orgReturn = { ...orgReturn, key: orgReturn.key, nav: false };') && ss.includes('lastError:') && !ss.includes('.catch(() => {})'));
+}
+
+
+/* 교정 F05(2026-11-01) — 조회 답 가리기(lib/org/dto-scope.ts): 일정만 · 명단만 · 묶음 범위 · 조직 전체 코치를 서로 다른 권한 주체로 */
+{
+  const lensFor = (subject: Parameters<typeof capabilityTarget>[0]) => lensOf((cap) => capabilityTarget(subject, cap));
+  const coach = lensFor({ role: 'STAFF' });
+  const schedulerOnly = lensFor({ role: 'PLAYER', grants: [{ capability: 'schedule.read', scope: 'organization' }, { capability: 'schedule.manage', scope: 'organization' }] });
+  const rosterOnly = lensFor({ role: 'PLAYER', grants: [{ capability: 'roster.read', scope: 'organization' }] });
+  const groupCoach = lensFor({ role: 'PLAYER', grants: [{ capability: 'roster.read', scope: 'explicit_group', targets: ['m1'] }, { capability: 'training.read', scope: 'explicit_group', targets: ['m1'] }] });
+  check('F05 렌즈: 코치는 조직 전체 · training', coach.training && coach.members === null);
+  check('F05 렌즈: 일정 담당은 회원 집합 비어 있음 · training 없음', !schedulerOnly.training && schedulerOnly.members?.size === 0);
+  check('F05 렌즈: 명단만은 회원 전체 · training 없음', !rosterOnly.training && rosterOnly.members === null);
+  check('F05 렌즈: 묶음 코치는 m1 만', groupCoach.training && !!groupCoach.members?.has('m1') && groupCoach.members.size === 1);
+
+  const today = {
+    events: [{ id: 'e1', memberId: null, recorded: 3, selfRecorded: 1, issues: 1 }, { id: 'e2', memberId: 'm2', recorded: 1 }],
+    briefing: { review: [{ kind: 'work', id: 'e1', memberId: null }, { kind: 'homework', id: 'h', memberId: 'm2' }] },
+    alerts: [{ memberId: 'm1', level: 'danger' }, { memberId: 'm2', level: 'caution' }],
+    watch: [{ kind: 'attention', memberId: 'm1' }, { kind: 'pending', memberId: 'm2' }, { kind: 'unlinked', memberId: 'm3' }],
+    counts: { members: 3, pending: 1, placeholders: 1 },
+  };
+  const t0 = redactToday(today, coach);
+  check('F05 오늘: 코치는 그대로 · hidden 없음', t0.hidden.length === 0 && t0.alerts.length === 2 && t0.events[0].recorded === 3);
+  const t1 = redactToday(today, rosterOnly);
+  check('F05 오늘: 명단만 — 팔 상태 · 수행 수 · 브리핑 · 주의 살핌은 빠지고 동의 · 연결 대기는 남음 · hidden=training', t1.hidden.includes('training') && t1.alerts.length === 0 && t1.events.every((e) => !('recorded' in e)) && t1.briefing?.review.length === 0 && t1.watch.map((w) => w.kind).join() === 'pending,unlinked');
+  const t2 = redactToday(today, groupCoach);
+  check('F05 오늘: 묶음 코치 — m2 의 레슨 일정 · 알림 · 살핌은 안 보이고 m1 만, 팀 일정(회원 없음)은 보임', t2.events.map((e) => e.id).join() === 'e1' && t2.alerts.length === 1 && t2.alerts[0].memberId === 'm1' && t2.watch.length === 1 && t2.hidden.includes('members'));
+  const rows = [{ memberId: 'm1', nickname: 'a', arm: { level: 'danger' }, watch: 'attention' as const }, { memberId: 'm2', nickname: 'b', arm: null, watch: 'pending' as const }];
+  const r1 = redactMembers(rows, rosterOnly);
+  check('F05 명단: 명단만 — 팔 상태 null · 주의 살핌 null · 동의 대기는 남음 · hidden=training', r1.members.length === 2 && r1.members[0].arm === null && r1.members[0].watch === null && r1.members[1].watch === 'pending' && r1.hidden.includes('training'));
+  const r2 = redactMembers(rows, groupCoach);
+  check('F05 명단: 묶음 코치는 m1 만 · hidden=members', r2.members.length === 1 && r2.members[0].memberId === 'm1' && r2.hidden.includes('members'));
+  const r3 = redactMembers(rows, schedulerOnly);
+  check('F05 명단: 일정 담당은 아무 회원도 못 봄(명단 권한 없음)', r3.members.length === 0 && r3.hidden.includes('members'));
+  const detail = {
+    members: [{ memberId: 'm1', exception: { items: [] }, values: [{ planId: 'p', pitchCount: 20 }], status: 'recorded', reasons: [], held: [], selfSets: 2, sameAsGroup: [], fixes: [{ id: 'f', body: '정정' }], outingNote: '체크인과 다름', pending: true }, { memberId: 'm2', exception: null, values: [], status: null, reasons: [], held: [], selfSets: 0, sameAsGroup: [], fixes: [], outingNote: null, pending: false }],
+    plans: [{ id: 'p', actual: [{ exerciseId: 'x' }], actualLines: [{ name: 'x' }], actualSet: true }],
+    others: [{ memberId: 'm3' }],
+  };
+  const d0 = redactEventDetail(detail, coach);
+  check('F05 일정 상세: 코치는 그대로', d0.hidden.length === 0 && d0.members[0].values.length === 1 && d0.plans[0].actualSet === true);
+  const d1 = redactEventDetail(detail, schedulerOnly);
+  check('F05 일정 상세: 일정 담당 — 회원 줄 0 · 조 실제 가림 · hidden 에 training · members', d1.members.length === 0 && d1.plans[0].actualSet === false && d1.plans[0].actual.length === 0 && d1.hidden.includes('training') && d1.hidden.includes('members'));
+  const d2 = redactEventDetail(detail, rosterOnly);
+  check('F05 일정 상세: 명단만 — 회원 줄은 보이되 수행 값 · 정정 · 체크인 한 줄 · 예외 없음', d2.members.length === 2 && d2.members[0].values.length === 0 && d2.members[0].fixes.length === 0 && d2.members[0].outingNote === null && d2.members[0].exception === null && d2.hidden.includes('checkin'));
+  const d3 = redactEventDetail(detail, groupCoach);
+  check('F05 일정 상세: 묶음 코치 — m1 수행 값 그대로 · m2 · m3 안 보임', d3.members.length === 1 && d3.members[0].values.length === 1 && d3.others.length === 0);
+  /* 서버 조회가 렌즈를 쓴다(소스) */
+  const appOrg2 = readFileSync(join(ROOT, 'app/actions/app-org.ts'), 'utf8');
+  check('F05 loadOrgToday · loadOrgMembers 가 orgAuthz + redact 를 쓴다', appOrg2.includes("orgAuthz(orgId, 'roster.read')") && appOrg2.includes('return redactToday({') && appOrg2.includes('redactMembers('));
+  check('F05 loadEventDetail 이 orgAuthz + redactEventDetail 을 쓴다', (() => { const t = readFileSync(join(ROOT, 'app/actions/app-team.ts'), 'utf8'); return t.includes("orgAuthz(orgId, 'schedule.read')") && t.includes('return redactEventDetail({'); })());
 }
 
 console.log(

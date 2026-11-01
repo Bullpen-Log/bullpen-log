@@ -11,7 +11,7 @@
 | F02 동일 예약 중복 확정 | **고침** | `confirmBookingTx` — REQUESTED→CONFIRMED 선점이 1줄일 때만 회원 · 시간표를 만들고 잇는다. 거절도 조건부. 늦은 확정은 conflict | org:test — 확정/확정 · 확정/취소 양 순서 · 확정/거절 · 취소된 것에 늦은 확정 · 선점 뒤 실패 되돌림 |
 | F03 일반 계정의 조직 운영 진입 | **고침(코드 가입 · 공간 · 웹 관문)** | `lib/org/join.ts` 스태프 코드를 계정 종류로 안 막음 · `loadMySpaces` 코치 조직을 조직 역할로 · `lib/org/access.ts requireOperator`(관리자 · 마스터 계정 · 어느 조직의 소유자/스태프 회원)로 (master) 틀 · 페이지 · 동작 전부 · 덕아웃 위 막대 '관리'는 `isOperator`. 개인 운동(내 싱커)은 계정 종류 그대로 | org:test 소스 검사. **로그인한 실제 계정 확인은 아직** |
 | F04 위임 규칙 | **고침(규칙)** | `canGrant` — 소유자만, DELEGABLE 안(org.manage · permission.manage · 회계 · 내보내기 제외), 위임자도 그 업무를 할 수 있어야, 대상 집합 포함(`scopeCovers` — 범위는 순서가 아님, 사람 범위엔 대상 필수). `OrgGrant.targets` · `deny`. 저장은 아직(M-A) | org:test 7 |
-| F05 조회 범위 분리 | **일부** | 없는 소속을 STAFF 로 짐작하지 않음(access · app-access 둘 다 null → 거부). DTO 분리 · 대상 필터는 **안 함** — 역할 기본 묶음만 서버에 닿는 지금은 코치 = 조직 전체라 어긋나지 않지만, grants 를 잇기 전에 해야 한다 | — |
+| F05 조회 범위 분리 | **고침(앱 조회 셋 · 규칙)** | 권한 문맥 `lib/org/authz.ts orgAuthz`(역할 + grants(아직 빈 배열) → `can` · `lens`) + 순수 가리기 `lib/org/dto-scope.ts`(training · checkin · members 렌즈, 가린 것은 null/빈 배열 + `hidden` 표시 — 0 과 다르게). `loadOrgToday` · `loadOrgMembers` · `loadEventDetail` 이 답을 만든 뒤 렌즈로 거른다. 없는 소속을 STAFF 로 짐작하지 않음. 남은 것: 웹 마스터 페이지 · 다른 조회(일지 · 숙제 · 영상 주소) · 검색 · 알림 · 내보내기에 같은 렌즈 | org:test 16(일정만 · 명단만 · 묶음 코치 · 조직 코치를 서로 다른 주체로 — 목록 · 상세) |
 | F06 예약 목록의 투구 기록 건수 | **고침** | `loadOrgBookings` · 예약 화면에서 뺌 | org:test 소스 |
 | F07 수강권 없는 끝냄 | **고침** | 동작이 `{ ok, notice | error }` 를 돌려주고 `SafeForm` 이 보인다(차감 · 없이 끝남 · 이미 처리됨 · 상태 충돌). 수강권을 나중에 넣어도 지난 끝냄은 자동 차감하지 않는다(정정은 원장 M-C) | org:test 소스 · 화면 글은 `BOOKING_RESULT_TEXT` |
 | F08 운동 ↔ 일정 잇기 | **고침(앱, 코드만)** | `space-store.ts` — 돌아갈 곳(nav)과 기록 귀속(event)을 가르고, 귀속은 계정별 저장(`links`)에 넣어 서버가 받을 때까지 켤 때 · 앞으로 올 때 · 소속 확인 뒤 다시 보낸다. 서버 `linkMyWork` 는 멱등(이미 이은 세트 안 건드림). 권한 없음은 서버 답대로 빼고 개인 운동은 그대로 | 소스 검사. **실기기 · 오프라인 · 재시작 확인은 아직**. 원본 세션/세트 id 귀속은 안 함(since 시각 기준 그대로 — 더 좁히려면 세트 id 전달 필요) |
@@ -105,7 +105,7 @@
 
 1. **2단계 팀 수직 흐름** — 된 것: 덕아웃 가입 화면(`/teams/join`, 코드 가입 + 공유 범위) · `/me` 진입 · 싱커 소속 갱신은 이미 있음(앱 `index.tsx askMe` → `ownerKnown` → `space-store.ts spaceOwner/refreshSpaces` — 켤 때 · 앱이 앞으로 올 때 · 로그인 · 권한 없음 뒤).
    남은 것: 코드 없는 가입 **요청 → 감독 승인**(팀 공개 목록이 없고, `OrgMemberStatus.INVITED` 는 안 쓰는 값이라 '대기'로 쓸 수 있다 — 승인 화면이 코치 앱(김민)에 필요) · 동의 바꾸기 화면(지금은 참여 때만) · 아웃박스(M-F).
-2. **서버 동작마다 `hasCapability`** — 된 것: 앱 동작 42곳(app-org · app-team · app-lesson) + 웹 마스터 동작 27곳(requireOrgCan). 남은 것(F05): 조회 DTO 를 명단/일정/훈련/몸 상태/영상/내부 메모로 갈라 `capabilityTarget`(범위 · 대상)을 쿼리에 거는 것 — grants 저장(M-A)을 잇기 **전에** 해야 한다. 마스터 **화면**(app/(master) 페이지)은 requireOrg 그대로.
+2. **서버 동작마다 `hasCapability`** — 된 것: 앱 동작 42곳 + 웹 마스터 동작 27곳(requireOrgCan) + 앱 복합 조회 셋의 DTO 가리기(orgAuthz · dto-scope). 남은 것(F05): 일지 · 숙제 · 영상 주소 · 투구 대리 기록 조회와 웹 마스터 페이지(app/(master) — requireOrg 뒤 여러 종류를 바로 읽음)에 같은 렌즈, 검색 · 알림 · 내보내기. 쿼리 단계에서 대상 집합을 거는 것(지금은 답을 만든 뒤 거름 — 비용은 같지만 grants 가 좁아지면 쿼리부터 좁혀야 한다).
 2-1. **F03 남은 것** — 일반 계정 운영자의 실제 흐름(스태프 코드 받기 → 덕아웃 '관리' → /manage)은 코드로만 확인. 선수 겸 코치(한 조직에 회원 줄 하나)는 `OrgMember.role` 하나뿐이라 아직 못 적는다 — M-A 의 grants 로 '선수 + 운영 업무'를 더하는 길이 설계. 학부모 총무는 **아직 만들지 않는다**(STAFF 로 흉내 내지 않음).
 3. **3단계 레슨** — 동시 마지막 자리(코치 시간 · 자원 용량 원자 검사), 변경 요청(원 예약 보존), 예약자 ≠ 수강자, 원장(M-C), 노트 공개/내부 구분.
 4. **4단계** — 방(M-D) · 참석(M-E) · 공지 확인 기한 · 반복 일정.
