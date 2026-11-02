@@ -15,7 +15,6 @@ import {
   SPOT_DEFS,
   partsFromSpots,
   spotId,
-  spotLabel,
   type BodySpots,
   type SpotSide,
 } from '@/lib/body-spots';
@@ -94,21 +93,25 @@ export function ConditionStep({
   return (
     <div className="flex h-full flex-col">
       <h1 className={TITLE}>오늘 컨디션은 어때요?</h1>
-      {/* 그림 위 · 슬라이더는 그림 밑에 가로로(2026-10-13 사용자: "스크롤은 전부 그림 하단에 가로로") */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
-        {/* 야구 선수 5단계 — 저장 점수와 통증 확인 규칙은 그대로, 자세·표정·표시 문구만 세분화. */}
-        <OutlinePerson score={value} className="h-44 w-28 shrink-0" />
-        <div className="flex items-baseline gap-2">
-          <p
-            className={`text-6xl font-black tabular-nums leading-none ${tone}`}
-            aria-hidden
-          >
-            {unset ? '?' : value}
-          </p>
-          <p className={`text-lg font-semibold ${tone}`}>
-            {value == null ? '밀어서 골라요' : bandWord(value)}
-          </p>
+      <p className="mt-1 text-sm text-muted">지금 몸 상태를 점수로 골라 주세요.</p>
+      <div className="flex flex-1 flex-col justify-center gap-5 py-3">
+        <div className="flex items-center justify-center gap-5 rounded-3xl bg-surface px-4 py-3">
+          {/* 기존 5단계 야구 선수 그림을 유지하고, 화면 안에서 점수와 나란히 본다. */}
+          <OutlinePerson score={value} className="h-36 w-24 shrink-0" />
+          <div className="min-w-0 text-left">
+            <p className="text-[11px] font-bold tracking-wide text-muted">TODAY&apos;S CONDITION</p>
+            <div className="mt-1 flex items-baseline gap-1">
+              <p className={`text-6xl font-black tabular-nums leading-none ${tone}`} aria-hidden>
+                {unset ? '?' : value}
+              </p>
+              <span className="text-sm font-semibold text-muted">/ 10</span>
+            </div>
+            <p className={`mt-1 text-base font-bold ${tone}`}>
+              {value == null ? '밀어서 골라요' : bandWord(value)}
+            </p>
+          </div>
         </div>
+        <p className="text-center text-xs font-medium text-muted">막대를 누르거나 밀어 점수를 선택하세요</p>
         <input
           type="range"
           min={MIN_CONDITION}
@@ -121,9 +124,9 @@ export function ConditionStep({
           aria-valuetext={
             value == null ? '아직 안 고름' : `${value}점, ${bandWord(value)}`
           }
-          className={`checkin-range w-full max-w-xs ${unset ? 'checkin-range-unset' : ''}`}
+          className={`checkin-range w-full ${unset ? 'checkin-range-unset' : ''}`}
         />
-        <ol className="flex w-full max-w-xs text-caption text-muted" aria-hidden>
+        <ol className="flex w-full text-caption text-muted" aria-hidden>
           {CONDITION_VISUAL_STAGES.map((stage) => (
             <li
               key={stage.key}
@@ -178,25 +181,10 @@ export function ConditionStep({
 export function PainStep({
   spots,
   onSpots,
-  armSpots,
-  onArmSpots,
-  armLevel,
-  onArmLevel,
 }: {
   spots: BodySpots;
   onSpots: (s: BodySpots) => void;
-  armSpots: string[];
-  onArmSpots: (s: string[]) => void;
-  armLevel: number | null;
-  onArmLevel: (l: number | null) => void;
 }) {
-  const parts = partsFromSpots(spots);
-  const joints = (['shoulder', 'elbow'] as const).filter((j) => parts[j] === '통증');
-  const picked = Object.entries(spots);
-  const toggleArm = (key: string) =>
-    onArmSpots(
-      armSpots.includes(key) ? armSpots.filter((k) => k !== key) : [...armSpots, key]
-    );
   /* 몸 그림이 가리키는 근육 — 이름 목록에서 고른 것도 같은 자리로(그림이 그 근육을 비추고 정도 단추가 뜬다) */
   const [active, setActive] = useState<string | null>(null);
   /* 이름으로 골라도 가리키기만 — 정도는 그림 밑 단추로 고른다(기본 '뻐근' 없음) */
@@ -218,31 +206,34 @@ export function PainStep({
         heightClass="h-[26rem] desk:h-[24rem]"
       />
       <MuscleFinder spots={spots} onPick={pickByName} />
-      {picked.length > 0 && (
-        <ul className="flex flex-wrap gap-2" aria-label="고른 근육">
-          {picked.map(([id, level]) => (
-            <li key={id}>
-              <button
-                type="button"
-                onClick={() => {
-                  const next = { ...spots };
-                  delete next[id];
-                  onSpots(next);
-                }}
-                className={`inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ${
-                  level === '통증'
-                    ? 'bg-danger-bg text-danger'
-                    : 'bg-amber-500/15 text-warn'
-                }`}
-                aria-label={`${spotLabel(id)} ${level} 빼기`}
-              >
-                {spotLabel(id)} · {level}
-                <span aria-hidden>×</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+    </div>
+  );
+}
+
+/** 어깨·팔꿈치가 실제 통증으로 선택됐을 때만 이어지는 상세 질문. */
+export function ArmPainDetailStep({
+  spots,
+  armSpots,
+  onArmSpots,
+  armLevel,
+  onArmLevel,
+}: {
+  spots: BodySpots;
+  armSpots: string[];
+  onArmSpots: (s: string[]) => void;
+  armLevel: number | null;
+  onArmLevel: (l: number | null) => void;
+}) {
+  const parts = partsFromSpots(spots);
+  const joints = (['shoulder', 'elbow'] as const).filter((j) => parts[j] === '통증');
+  const toggleArm = (key: string) =>
+    onArmSpots(armSpots.includes(key) ? armSpots.filter((k) => k !== key) : [...armSpots, key]);
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className={TITLE}>팔은 어디가 아파요?</h1>
+        <p className="mt-1 text-sm text-muted">어깨·팔꿈치 통증을 자세히 알려주면 암케어 안내에 반영해요.</p>
+      </div>
       {joints.map((joint) => (
         <ArmDetail
           key={joint}
@@ -466,10 +457,12 @@ export function SleepStep({
 export function MemoStep({
   value,
   onChange,
+  summary,
   error,
 }: {
   value: string;
   onChange: (v: string) => void;
+  summary: { condition: number | null; sleep: number | null; spots: BodySpots };
   error: string | null;
 }) {
   return (
@@ -479,8 +472,13 @@ export function MemoStep({
           남길 말이 있나요?
         </h1>
         <p className="mt-1 text-sm text-muted">
-          캘린더 그날 메모에 남아요. 없으면 그냥 완료.
+          지금까지 고른 내용을 확인하고 저장해요. 메모는 선택이에요.
         </p>
+      </div>
+      <div className="flex flex-wrap gap-2 rounded-2xl bg-surface p-3 text-xs font-semibold text-ink" aria-label="오늘 체크인 요약">
+        <span className="rounded-full bg-sky/10 px-3 py-2 text-sky">컨디션 {summary.condition ?? '—'}/10</span>
+        <span className="rounded-full bg-sky/10 px-3 py-2 text-sky">잠 {summary.sleep == null ? '—' : SLEEP_QUALITY_LEVELS[summary.sleep - 1]}</span>
+        <span className="rounded-full bg-ink/6 px-3 py-2">{Object.keys(summary.spots).length ? `불편한 곳 ${Object.keys(summary.spots).length}곳` : '불편한 곳 없음'}</span>
       </div>
       <textarea
         aria-labelledby="checkin-memo-title"
@@ -489,7 +487,7 @@ export function MemoStep({
         maxLength={CHECKIN_NOTE_MAX}
         rows={5}
         placeholder="예) 어제 롱토스 뒤 어깨 뒤가 당겼다"
-        className="w-full flex-1 resize-none rounded-2xl border border-transparent bg-surface px-4 py-3 text-base text-ink placeholder:text-muted/60 focus:border-sky focus:outline-none"
+        className="h-36 w-full resize-none rounded-2xl border border-transparent bg-surface px-4 py-3 text-base text-ink placeholder:text-muted/60 focus:border-sky focus:outline-none"
       />
       <p className="text-right text-caption tabular-nums text-muted">
         {value.length} / {CHECKIN_NOTE_MAX}

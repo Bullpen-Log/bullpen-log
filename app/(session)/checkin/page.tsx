@@ -14,6 +14,6 @@ export default async function CheckinPage({ searchParams }: { searchParams: Prom
   const user = await requireUser();
   const { next } = await searchParams;
   const ctx = await loadCheckinFlowContext(user);
-  const returnTo = next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') ? next : '/';
+  const returnTo = next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') ? next : '/today';
   return <CheckinFlow variant="page" ctx={ctx} returnTo={returnTo} />;
 }
