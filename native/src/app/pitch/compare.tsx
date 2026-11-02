@@ -1,12 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createDocument, type ComparisonDocument, type NewSource } from '~/compare/doc';
 import { compareStorage, discardImported, filesPickSupported, IMPORT_FAIL_TEXT, importForCompare, releaseHold, useCompareStore, type ImportKind } from '~/compare/store';
 import { todayVsPast } from '~/compare/sources';
+import { ComparePicker } from '~/compare/ui/compare-picker';
 import { sourceFromItem, Workbench } from '~/compare/ui/workbench';
-import { READABLE } from '~/lib/layout';
+import { pageSlice, pageText, perPage } from '~/compare/workspace-layout';
 import { TYPE, usePalette } from '~/lib/ui';
 import { dateKeyOf } from '~/pitch/api';
 import { useAllLogs } from '~/pitch/store';
@@ -14,7 +15,6 @@ import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
 import { toast } from '~/shell/toast';
 import { startPickUi } from '~/videos/filters';
-import { VideoGallery } from '~/videos/gallery';
 import { useMyVideos } from '~/videos/store';
 import { todayKey } from '~/videos/text';
 
@@ -170,21 +170,17 @@ function StartPicker({ onPick, onBack, holdKey }: { onPick: (s: NewSource[]) => 
       ? [{ label: '오늘 vs 지난 투구', icon: 'film' as const, onPress: () => onPick([sourceFromItem(pair.today, pair.today.path), sourceFromItem(pair.past, pair.past.path)]) }]
       : []),
   ];
+  /* 비교 전용 쪽 넘김 고르기(굴리지 않음 — 2026-11-02 한 화면). 내 영상 목록과 같은 자료 · 찾기 · 필터 */
   return (
-    <VideoGallery
-      pick={{
-        a: null,
-        aPath: '',
-        selected: null,
-        onSelect: () => undefined,
-        onBack,
-        next: { label: picked.length >= 2 ? '두 영상 비교' : '이 영상 열기', onPress: () => picked.length && onPick(picked.map((p) => sourceFromItem(itemOf(p), p))) },
-        start: {
-          picked,
-          onToggle: (v) => setPicked((cur) => (cur.includes(v.path) ? cur.filter((x) => x !== v.path) : cur.length >= 2 ? [cur[1], v.path] : [...cur, v.path])),
-          actions,
-        },
-      }}
+    <ComparePicker
+      title="비교할 영상"
+      max={2}
+      picked={picked}
+      onToggle={(v) => setPicked((cur) => (cur.includes(v.path) ? cur.filter((x) => x !== v.path) : cur.length >= 2 ? [cur[1], v.path] : [...cur, v.path]))}
+      actions={actions}
+      foot={picked.length === 0 ? '영상 하나 또는 둘을 골라요.' : picked.length === 1 ? 'A 골랐어요 · 하나만 보거나 B 도 골라요' : 'A · B 골랐어요'}
+      confirm={{ label: picked.length >= 2 ? '두 영상 비교' : '이 영상 열기', enabled: picked.length > 0, onPress: () => picked.length && onPick(picked.map((p) => sourceFromItem(itemOf(p), p))) }}
+      onCancel={onBack}
     />
   );
 }
@@ -212,6 +208,12 @@ function LogPicker({ onPick }: { onPick: (a: LogPick, b: LogPick) => void }) {
     [all.logs]
   );
   const toggle = (v: LogPick) => setPicked((p) => (p.some((x) => x.key === v.key) ? p.filter((x) => x.key !== v.key) : p.length >= 2 ? [p[1], v] : [...p, v]));
+  /* 굴리지 않고 쪽으로(받은 높이에 들어가는 줄 수) — 고른 것은 쪽을 넘겨도 남는다 */
+  const { fontScale } = useWindowDimensions();
+  const rowH = Math.max(52, Math.ceil(24 * Math.min(fontScale, 1.6) + 20));
+  const [listH, setListH] = useState(0);
+  const [page, setPage] = useState(0);
+  const view = pageSlice(videos, perPage(listH, rowH, 8), page);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
@@ -225,31 +227,48 @@ function LogPicker({ onPick }: { onPick: (a: LogPick, b: LogPick) => void }) {
           </Text>
         </View>
       </View>
-      <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 110 }, READABLE]}>
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
         <Text style={[TYPE.body, { color: c.muted }]}>견줄 영상 둘을 골라 주세요.</Text>
-        {!all.logs ? <ActivityIndicator style={{ marginTop: 24 }} /> : null}
-        {all.logs && videos.length === 0 ? <Text style={[TYPE.body, { color: c.muted, paddingVertical: 24, textAlign: 'center' }]}>영상이 붙은 기록이 없어요.</Text> : null}
-        {videos.map((v) => {
-          const n = picked.findIndex((x) => x.key === v.key);
-          return (
-            <Press
-              select
-              selected={n >= 0}
-              key={v.key}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: n >= 0 }}
-              onPress={() => toggle(v)}
-              style={[st.logRow, { backgroundColor: c.card, boxShadow: c.float }]}
-            >
-              <View style={[st.check, { borderColor: n >= 0 ? c.action : c.line, backgroundColor: n >= 0 ? c.action : 'transparent' }]}>
-                {n >= 0 ? <Text style={st.checkText}>{n === 0 ? 'A' : 'B'}</Text> : null}
-              </View>
-              <Text style={[TYPE.card, { flex: 1, color: c.ink }]}>{v.label}</Text>
-            </Press>
-          );
-        })}
-      </ScrollView>
-      <View style={[st.foot, { paddingBottom: inset.bottom + 12, backgroundColor: c.page, borderTopColor: c.line }]}>
+        <View style={{ flex: 1, minHeight: 0, gap: 8 }} onLayout={(e) => setListH(Math.round(e.nativeEvent.layout.height))}>
+          {!all.logs ? <ActivityIndicator style={{ marginTop: 24 }} /> : null}
+          {all.logs && videos.length === 0 ? <Text style={[TYPE.body, { color: c.muted, paddingVertical: 24, textAlign: 'center' }]}>영상이 붙은 기록이 없어요.</Text> : null}
+          {listH > 0
+            ? view.items.map((v) => {
+                const n = picked.findIndex((x) => x.key === v.key);
+                return (
+                  <Press
+                    select
+                    selected={n >= 0}
+                    key={v.key}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: n >= 0 }}
+                    onPress={() => toggle(v)}
+                    style={[st.logRow, { minHeight: rowH, backgroundColor: c.card, boxShadow: c.float }]}
+                  >
+                    <View style={[st.check, { borderColor: n >= 0 ? c.action : c.line, backgroundColor: n >= 0 ? c.action : 'transparent' }]}>
+                      {n >= 0 ? <Text style={st.checkText}>{n === 0 ? 'A' : 'B'}</Text> : null}
+                    </View>
+                    <Text numberOfLines={1} style={[TYPE.card, { flex: 1, color: c.ink }]}>
+                      {v.label}
+                    </Text>
+                  </Press>
+                );
+              })
+            : null}
+        </View>
+        <View style={st.pageRow}>
+          <Press accessibilityRole="button" accessibilityLabel="이전 쪽" accessibilityState={{ disabled: view.page <= 0 }} disabled={view.page <= 0} onPress={() => setPage(view.page - 1)} style={[st.barButton, view.page <= 0 && { opacity: 0.35 }]}>
+            <Icon name="chevron-left" size={22} color={c.link} />
+          </Press>
+          <Text style={[TYPE.sub, { color: c.muted, fontVariant: ['tabular-nums'] }]} accessibilityLabel={`${view.pages}쪽 중 ${view.page + 1}쪽`}>
+            {pageText(view)} · {videos.length}개
+          </Text>
+          <Press accessibilityRole="button" accessibilityLabel="다음 쪽" accessibilityState={{ disabled: view.page >= view.pages - 1 }} disabled={view.page >= view.pages - 1} onPress={() => setPage(view.page + 1)} style={[st.barButton, view.page >= view.pages - 1 && { opacity: 0.35 }]}>
+            <Icon name="chevron-right" size={22} color={c.link} />
+          </Press>
+        </View>
+      </View>
+      <View style={[st.foot, { paddingBottom: inset.bottom + 12, borderTopColor: c.line }]}>
         <Press
           accessibilityRole="button"
           accessibilityState={{ disabled: picked.length < 2 }}
@@ -271,7 +290,8 @@ const st = StyleSheet.create({
   barTitle: { fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 24 },
   primary: { minHeight: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 8 },
-  foot: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 10, gap: 8, borderTopWidth: StyleSheet.hairlineWidth },
+  foot: { paddingHorizontal: 16, paddingTop: 10, gap: 8, borderTopWidth: StyleSheet.hairlineWidth },
+  pageRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44 },
   logRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, borderRadius: 14, paddingHorizontal: 14 },
   check: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   checkText: { color: '#fff', fontSize: 13, fontWeight: '700' },

@@ -2,11 +2,11 @@ import * as Haptics from 'expo-haptics';
 import { Stack } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { VideoView, type VideoPlayer } from 'expo-video';
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ActionSheetIOS, ActivityIndicator, Alert, AppState, BackHandler, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { type ReactNode, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, ActionSheetIOS, ActivityIndicator, Alert, AppState, BackHandler, Keyboard, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MyVideoItem } from '@/lib/my-videos';
-import { applyEdit, historyOf, SCENE_TOL, visibleList, WIDTHS, COLORS, type Annotation, type Geometry, type History, type MetricKey } from '~/compare/annotations';
+import { applyEdit, compareMetric, historyOf, METRIC_LABEL, METRIC_TOOLS, SCENE_TOL, visibleList, VIEW_LABEL, WIDTHS, COLORS, type Annotation, type Geometry, type History, type MetricKey, type ViewKey } from '~/compare/annotations';
 import {
   activePair,
   addNote,
@@ -36,7 +36,7 @@ import {
   type SourceRef,
 } from '~/compare/doc';
 import { IDENTITY_REG, IDENTITY_VIEW, nudgeReg, type Pt, type ViewTransform } from '~/compare/geometry';
-import { anchorFromEvents, normalizedAnchors, timeOf, type PitchEvent, EVENT_SHORT } from '~/compare/pitch-events';
+import { anchorFromEvents, compareInterval, DEFAULT_INTERVALS, EVENT_LABEL, EVENT_SHORT, intervalOf, normalizedAnchors, orderIssues, PITCH_EVENTS, sharedEvents, timeOf, type PitchEvent } from '~/compare/pitch-events';
 import { createAutosaver, SAVE_LABEL, type SaveState } from '~/compare/storage';
 import { applyPick, beginPick, type PickChoice, type PickSlot } from '~/compare/source-pick';
 import { compareOwner, compareStorage, deleteComparison, discardImported, holdPaths, refreshRecent, releaseHold, useCompareStore } from '~/compare/store';
@@ -44,6 +44,8 @@ import {
   buildNormalized,
   clock,
   COMPARE_RATES,
+  durationText,
+  EMPTY_FACTS,
   normalizeFacts,
   offsetRange,
   rateLabel,
@@ -52,22 +54,27 @@ import {
   stepInfo,
   syncQuality,
   trimmedRange,
+  type MediaFacts,
   type RelRange,
 } from '~/compare/timing';
 import { phaseLabel, isBusy } from '~/compare/transport';
 import type { DrawTool } from '~/compare/ui/annotation-layer';
-import { Pane, type PaneDraw, type SideInfo, type SideKey } from '~/compare/ui/pane';
-import { Chip, DrawPanel, EventsPanel, ExportPanel, NotesPanel, Row, SourceInfoSheet, Storyboard, TextSheet, exportPlanFor, type SpanChoice } from '~/compare/ui/panels';
+import { NoteEditor } from '~/compare/ui/note-editor';
+import { Pane, type PaneBadge, type PaneDraw, type SideInfo, type SideKey } from '~/compare/ui/pane';
+import { DRAW_HINT, DRAW_TOOLS, exportPlanFor, PITCH_TYPES, SPAN_LABEL, TextSheet, type SpanChoice } from '~/compare/ui/panels';
 import { SourcePicker } from '~/compare/ui/source-picker';
+import { Timeline, type TimelineMarker } from '~/compare/ui/timeline';
 import { useCompareTransport } from '~/compare/ui/transport-hook';
-import { READABLE } from '~/lib/layout';
+import { chipRowsH, ctlH, headRow, IconBtn, Inspector, rowOf, Seg, ShotPair, subRow, TextBtn, Wrap, type IRow } from '~/compare/ui/workspace-parts';
+import { backStep, closeInspector, fixTarget, INITIAL_UI, openContext, QUICK_DRAW, TARGET_LABEL, targetsFor, toggleInspector, type Inspector as InspectorName, type PlayTarget, type ToolContext, type WorkspaceUi } from '~/compare/workspace-context';
+import { FALLBACK_ASPECT, paginateText, planStage, sideDock, textCapacity, textRowHeight, type StageMode, type StageShape } from '~/compare/workspace-layout';
 import { TYPE, usePalette, withAlpha } from '~/lib/ui';
-import { Icon } from '~/shell/icon';
+import { Icon, type IconName } from '~/shell/icon';
 import { Press } from '~/shell/press';
 import { toast } from '~/shell/toast';
 import { bothMarked, navBack, navCompare, navOpenPick, navPickNext, navRealign, navRestore, navStart, navSwipeOk, relText, type CompareNav } from '~/videos/compare-math';
 import { startPickUi } from '~/videos/filters';
-import { Scrubber, ScrubLabels, playerCall } from '~/videos/player-parts';
+import { playerCall } from '~/videos/player-parts';
 import { useMyVideos } from '~/videos/store';
 import { videoCaption, videoDateText } from '~/videos/text';
 
@@ -75,9 +82,10 @@ import { videoCaption, videoDateText } from '~/videos/text';
  * 투구 영상 분석(2026-11-02 — 설계 docs/designs/sinker-pitch-video-workbench-plan.md). 한 문서(compare/doc.ts)를 고치며 자동으로 저장한다.
  * 단계: 고르기(pick) → 기준 맞추기(align) → 함께 보기(compare). B 가 없으면 한 영상 보기(single — align 단계에서 B 가 없을 때 그린다).
  * 뒤로 길은 compare-math 의 nav*(셀프테스트가 고리 없음을 본다). 짝 상태(기준 · 보기 · 반복)는 문서에 남아 B 를 바꿨다 돌아오면 그대로다.
+ *
+ * 한 화면(2026-11-02 — docs/designs/sinker-pitch-video-single-screen-plan.md, UI01~UI12): 화면은 굴리지 않는다.
+ * 머리(44) · 영상 무대(남는 자리 전부) · 타임라인 · 재생 줄 · 도구 줄이 늘 같은 자리. 도구는 도구 줄을 바꾸거나 무대 위 작은 창 하나(쪽 넘기기)로.
  */
-type Tool = 'align' | 'draw' | 'events' | 'notes' | 'export';
-const TOOL_LABEL: Record<Tool, string> = { align: '맞추기', draw: '그리기', events: '투구 장면', notes: '메모', export: '내보내기' };
 
 /**
  * 저장할 만한 문서인가(한 영상 정책 — F02 · F08):
@@ -246,9 +254,9 @@ export function Workbench({
     return { a: (p.anchors.a ?? 0) + (p.anchors.a != null ? p.rel : 0), b: (p.anchors.b ?? 0) + (p.anchors.b != null ? p.rel : 0) };
   });
   const [expand, setExpand] = useState<SideKey | null>(null);
-  /* 자세한 도구는 고를 때만 펼친다(F08 — 기본 화면은 영상 · 함께 재생 · 속도 · 맞추기만) */
-  const [tool, setTool] = useState<Tool | null>(null);
-  const [sheet, setSheet] = useState<null | { kind: 'note'; edit?: NoteRef } | { kind: 'label'; side: SideKey; p: Pt } | { kind: 'calibrate'; side: SideKey; geom: Geometry } | { kind: 'info'; side: SideKey } | { kind: 'title' }>(null);
+  /* 도구 하나 · 작은 창 하나(UI05~UI08 — compare/workspace-context.ts) */
+  const [ui, setUi] = useState<WorkspaceUi>(INITIAL_UI);
+  const [sheet, setSheet] = useState<null | { kind: 'label'; side: SideKey; p: Pt } | { kind: 'calibrate'; side: SideKey; geom: Geometry } | { kind: 'title' } | { kind: 'time' }>(null);
 
   /* ---- 두 칸 정보 ---- */
   const [sides, setSides] = useState<{ a: SideInfo | null; b: SideInfo | null }>({ a: null, b: null });
@@ -458,7 +466,11 @@ export function Workbench({
     setTimes({ a: ra?.start ?? 0, b: rb?.start ?? 0 });
     setNav(navCompare(nav));
   };
+  /* 뒤로 — 메모 쓰기(쓴 글은 남김) → 작은 창 → 도구 → 단계 → 나가기 */
   const back = () => {
+    if (noteEdit) return closeNoteEditor(true);
+    const b = backStep(ui);
+    if (b) return setUi(b);
     const r = navBack(nav, !!snap);
     if (r.to === 'restore' && snap) return restoreSnap(snap);
     if (r.to === 'stage') return setNav(r.nav);
@@ -522,22 +534,6 @@ export function Workbench({
     if (!range) return;
     userSeek(rel + dir * stepOf('a').step);
   };
-  const pickRate = () => {
-    const options = [...COMPARE_RATES.map(rateLabel), '취소'];
-    ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: options.length - 1, title: '재생 속도' }, (i) => {
-      const r = COMPARE_RATES[i];
-      if (r == null) return;
-      edit({ ...docRef.current, transport: { ...docRef.current.transport, rate: r } });
-    });
-  };
-  const pickAudio = () => {
-    const options = ['소리 없음', 'A 소리', 'B 소리', '취소'];
-    ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: 3, title: '들을 소리' }, (i) => {
-      const audio = (['none', 'a', 'b'] as const)[i];
-      if (!audio) return;
-      edit({ ...docRef.current, transport: { ...docRef.current.transport, audio } });
-    });
-  };
   const togglePlay = () => {
     takeControl();
     return phase === 'playing' || isBusy(phase) ? transport.pause() : transport.play();
@@ -580,8 +576,8 @@ export function Workbench({
   const [metric, setMetric] = useState<MetricKey | null>(null);
   const [drawSide, setDrawSide] = useState<SideKey>('a');
   const [selId, setSelId] = useState<string | null>(null);
-  const drawing = tool === 'draw' && (stage === 'compare' || single);
-  /* 손가락으로 그리는 그 동안만 화면 굴림을 멈춘다(F08 — 그리기 도구를 켰다고 화면을 잠그면 영상 밑 도구에 못 간다) */
+  const drawing = ui.context === 'draw' && (stage === 'compare' || single);
+  /* 손가락으로 그리는 동안 — 뒤로 쓸기 손짓을 막는다(화면은 원래 굴리지 않는다) */
   const [stroking, setStroking] = useState(false);
   useEffect(() => {
     if (drawing && phase !== 'idle') transport.pause();
@@ -694,12 +690,12 @@ export function Workbench({
           });
         },
       },
-      { label: 'A 영상 정보', run: () => setSheet({ kind: 'info', side: 'a' }) },
+      { label: 'A 영상 정보', run: () => openInfo('a') },
     ];
     actions.push({ label: 'A 영상 바꾸기', run: () => openPick('a') });
     if (bSrc) {
       actions.push({ label: 'B 영상 바꾸기', run: () => openPick('b') });
-      actions.push({ label: 'B 영상 정보', run: () => setSheet({ kind: 'info', side: 'b' }) });
+      actions.push({ label: 'B 영상 정보', run: () => openInfo('b') });
       actions.push({
         label: 'A · B 바꾸기',
         run: () => {
@@ -755,26 +751,28 @@ export function Workbench({
     ActionSheetIOS.showActionSheetWithOptions({ options, cancelButtonIndex: options.length - 1, destructiveButtonIndex: destructiveButtonIndex >= 0 ? destructiveButtonIndex : undefined }, (i) => actions[i]?.run());
   };
 
-  /* ---- 배치 ---- */
-  const [bodyW, setBodyW] = useState<number | null>(null);
-  const big = fontScale >= 1.3;
-  const wide = winW > winH;
-  const shape = big ? 'stack' : doc.transport.layout === 'auto' ? (wide ? 'side' : 'stack') : doc.transport.layout;
-  /* 칸 폭은 실제로 받은 본문 폭(onLayout — READABLE 한도 · 안전 영역 · 분할 창이 이미 들어 있다). 재기 전엔 같은 셈으로 어림(F08) */
-  const W = bodyW ?? Math.min(winW, 720) - 32 - 2 * Math.max(inset.left, inset.right);
-  const aspA = sides.a?.aspect ?? aSrc?.facts?.displayAspect ?? 9 / 16;
-  const aspB = sides.b?.aspect ?? bSrc?.facts?.displayAspect ?? 9 / 16;
-  const boxAspect = Math.min(2, Math.max(0.45, single ? aspA : Math.min(aspA, aspB)));
-  const colW = shape === 'side' && !single && !overlay.on ? (W - 12) / 2 : W;
-  /* 세로로 쌓으면 두 칸이 화면을 다 먹지 않게 — 칸 높이는 창 높이의 31%(가로면 60%) 안 */
-  const maxH = single || overlay.on ? winH * (wide ? 0.62 : 0.46) : shape === 'side' ? winH * (wide ? 0.6 : 0.42) : winH * 0.31;
-  const boxH = Math.round(Math.min(colW / boxAspect, maxH));
-  const box = { w: Math.round(Math.min(colW, boxH * boxAspect)), h: boxH };
+  /* ---- 한 화면 배치(UI01~UI04 — 화면은 굴리지 않는다. 남는 자리를 재서 영상에) ---- */
+  const fsC = Math.min(2, Math.max(1, fontScale));
+  const [rootSize, setRootSize] = useState<{ w: number; h: number }>({ w: winW, h: winH });
+  const [stageSize, setStageSize] = useState<{ w: number; h: number } | null>(null);
+  const landscape = sideDock(rootSize.w, rootSize.h);
+  const sideW = landscape ? Math.round(Math.min(240, Math.max(176, rootSize.w * 0.3))) : 0;
+  const narrow = rootSize.w - sideW < 360;
+  /* 둘 다 · A 크게 · B 크게 — 살펴보는 동안만(문서엔 안 남김). 기본 비교는 늘 둘 다 보인다 */
+  const [focusMode, setFocusMode] = useState<'pair' | 'focusA' | 'focusB'>('pair');
+  const aspA = sides.a?.aspect ?? aSrc?.facts?.displayAspect ?? null;
+  const aspB = sides.b?.aspect ?? bSrc?.facts?.displayAspect ?? null;
+  const drawingNow = ui.context === 'draw';
+  const stageMode: StageMode = single ? 'single' : overlay.on && stage === 'compare' && !drawingNow ? 'overlay' : stage === 'align' ? 'pair' : focusMode;
+  const [autoShape, setAutoShape] = useState<StageShape | null>(null);
+  const plan = stageSize ? planStage({ w: stageSize.w, h: stageSize.h, aspectA: aspA, aspectB: bSrc ? aspB : null, hasB: !!bSrc, mode: stageMode, pref: doc.transport.layout, prev: autoShape }) : null;
+  if (plan && doc.transport.layout === 'auto' && stageMode === 'pair' && plan.shape !== autoShape) setAutoShape(plan.shape);
+  const shape: StageShape = plan?.shape ?? 'stack';
 
   const labelOf = (s: SideKey) => {
     const src = srcOf(s);
     const item = itemOf(src?.path ?? null);
-    return item ? videoDateText(item.date) : (src?.label ?? (src?.date ? videoDateText(src.date) : '영상'));
+    return item ? videoDateText(item.date) : (src?.label ?? (src?.date ? videoDateText(src.date) : src?.origin === 'photos' ? '사진 앱에서 가져온 영상' : src?.origin === 'camera' ? '앱에서 찍은 영상' : '영상'));
   };
   const subOf = (s: SideKey) => {
     const src = srcOf(s);
@@ -784,25 +782,101 @@ export function Workbench({
     const facts = [log ? `${log.type} ${log.count}구 · 투구 기록` : null, clip ? `구속 측정 ${clip.kmh.toFixed(1)}km/h · 카메라 측정` : null].filter(Boolean).join(' · ');
     return facts || (item ? (item.note ?? videoCaption(item)) : src?.origin === 'photos' ? '사진 앱에서 가져옴' : src?.origin === 'camera' ? '앱에서 촬영' : null);
   };
-  const markTextOf = (s: SideKey) => {
-    if (single) return '한 영상 보기';
-    if (startBased) return '시작점 기준';
+  const anchorShort = (sem: AnchorSemantic) => (sem === 'footContact' ? '착지' : sem === 'release' ? '릴리스' : sem === 'start' ? '시작점' : '직접');
+  const badgeOf = (s: SideKey): PaneBadge => {
+    if (single) return { anchor: null, marked: false, title: labelOf(s) };
+    if (startBased) return { anchor: '시작점 기준', marked: true, title: labelOf(s) };
     const m = marks[s];
-    return m != null ? `${ANCHOR_LABEL[semantic]} 기준 ${clock(m)}` : `${ANCHOR_LABEL[semantic]} 지정 전`;
+    return { anchor: m != null ? `${anchorShort(semantic)} ${clock(m)}` : `${anchorShort(semantic)} 지정 전`, marked: m != null, title: labelOf(s) };
   };
+
+  /* ---- 재생 대상(함께 · A · B) ---- */
+  const aligning = stage === 'align' && !single;
+  const [target, setTarget] = useState<PlayTarget>('both');
+  const allowed = targetsFor({ single, aligning, aErr: !!errA, bErr: !!errB });
+  const tgt: PlayTarget = aligning ? focus : fixTarget(target, allowed);
+  const sideT: SideKey | null = single ? null : tgt === 'both' ? null : tgt;
+  /* 맞추기 중 한 영상만 재생 — 함께 재생 기계 밖이라 자리는 여기서 읽는다 */
+  const [sidePlaying, setSidePlaying] = useState(false);
+  const sidePlayer = sideT ? playerOf(sideT) : null;
+  useEffect(() => {
+    if (!sidePlaying || !sideT || !sidePlayer) return;
+    const s = sideT;
+    const p = sidePlayer;
+    const id = setInterval(() => {
+      const t = playerCall.time(p);
+      setTimes((x) => ({ ...x, [s]: t }));
+      let on = true;
+      try {
+        on = p.playing;
+      } catch {
+        on = false;
+      }
+      if (!on) setSidePlaying(false);
+    }, 100);
+    return () => clearInterval(id);
+  }, [sidePlaying, sideT, sidePlayer, setTimes]);
+  const stopSide = () => {
+    if (!sidePlaying) return;
+    playerCall.pause(sidePlayer);
+    setSidePlaying(false);
+  };
+  const chooseTarget = (t: PlayTarget) => {
+    stopSide();
+    if (aligning) {
+      if (t !== 'both') setFocus(t);
+      return;
+    }
+    if (t === tgt) return;
+    transport.pause();
+    takeControl();
+    if (t === 'both') {
+      setTarget('both');
+      /* 따로 옮긴 쪽을 지금 공통 자리(A 기준)로 다시 붙인다 — 기준은 그대로 */
+      if (range) userSeek(rel);
+      AccessibilityInfo.announceForAccessibility('함께 — 두 영상을 같은 자리로 맞췄어요.');
+      return;
+    }
+    setTarget(t);
+    setFocus(t);
+    setEventSide(t);
+    setDrawSide(t);
+    AccessibilityInfo.announceForAccessibility(`${t.toUpperCase()} 만 따로 옮겨요. 기준은 바뀌지 않아요.`);
+  };
+  const stepPress = (dir: 1 | -1) => {
+    if (sideT) {
+      stopSide();
+      transport.pause();
+      return nudgeSide(sideT, dir);
+    }
+    nudgeRel(dir);
+  };
+  const playPress = () => {
+    if (sideT && aligning) {
+      const p = playerOf(sideT);
+      if (sidePlaying) return stopSide();
+      playerCall.rate(p, rate);
+      playerCall.play(p);
+      return setSidePlaying(true);
+    }
+    if (sideT) setTarget('both');
+    togglePlay();
+  };
+  const sideDur = sideT ? (infoOf(sideT)?.duration ?? srcOf(sideT)?.facts?.durationSec ?? null) : null;
+  const sideReady = sideT ? !!infoOf(sideT)?.ready : false;
+  const playOk = sideT && aligning ? sideReady : canSync;
+  const playing = sideT && aligning ? sidePlaying : phase === 'playing';
+  const playLabel = phaseLabel(phase);
+  const playText = sideT && aligning ? (sidePlaying ? `${sideT.toUpperCase()} 멈춤` : `${sideT.toUpperCase()} 재생`) : sideT ? '함께 재생' : single ? (phase === 'playing' ? '멈춤' : '재생') : playLabel;
+
   const paneProps = (s: SideKey) => ({
     side: s,
     path: s === 'a' ? aPath : (bPath ?? ''),
     rate,
     time: times[s],
-    box,
-    width: colW,
-    title: labelOf(s),
-    sub: subOf(s),
-    markText: markTextOf(s),
-    marked: !single && !startBased && marks[s] != null,
-    aligning: stage === 'align' && !single,
-    focused: (stage === 'align' || tool === 'events' || tool === 'notes') && !single && focus === s,
+    badge: badgeOf(s),
+    aligning,
+    focused: (aligning || ui.context !== 'view' || !!sideT) && !single && focus === s,
     muted: doc.transport.audio !== s,
     view: shownView(s),
     onView: (v: ViewTransform) => setView(s, v),
@@ -811,11 +885,134 @@ export function Workbench({
       setFocus(s);
       setEventSide(s);
       setDrawSide(s);
+      if (!aligning && sideT) setTarget(s);
     },
     onInfo: s === 'a' ? infoA : infoB,
     onExpand: () => setExpand(s),
     onExit: back,
   });
+
+  /* ---- 타임라인 ---- */
+  const markersOf = (s: SideKey, off: number): TimelineMarker[] => {
+    const src = srcOf(s);
+    const out: TimelineMarker[] = [];
+    if (src)
+      for (const e of PITCH_EVENTS) {
+        const t = timeOf(src.events, e);
+        if (t != null) out.push({ key: `${s}:${e}`, t: t - off, label: `${s.toUpperCase()} ${EVENT_SHORT[e]}`, kind: 'event' });
+      }
+    if (!single && !startBased && marks[s] != null) out.push({ key: `${s}:anchor`, t: (marks[s] as number) - off, label: `${s.toUpperCase()} 기준`, kind: 'anchor' });
+    return out;
+  };
+  const [loopEdit, setLoopEdit] = useState(false);
+  const [handle, setHandle] = useState<'start' | 'end' | null>(null);
+  const setLoopEdge = (edge: 'start' | 'end', t: number) => {
+    if (!range) return;
+    const cur = loopSpan ?? { start: range.min, end: range.max };
+    const raw = edge === 'start' ? { start: Math.min(t, cur.end - 0.1), end: cur.end } : { start: cur.start, end: Math.max(t, cur.start + 0.1) };
+    const next = fitLoop(raw, range);
+    if (next) edit(updatePair(docRef.current, { loop: next }));
+  };
+  const nudgeHandle = (dir: 1 | -1) => {
+    if (!loopSpan || !handle) return;
+    const step = stepOf('a').step;
+    setLoopEdge(handle, (handle === 'start' ? loopSpan.start : loopSpan.end) + dir * step);
+  };
+  const [cluster, setCluster] = useState<TimelineMarker[]>([]);
+  const jumpMarker = (m: TimelineMarker) => {
+    setUi((u) => closeInspector(u));
+    if (sideT) return seekSide(sideT, m.t);
+    userSeek(m.t);
+  };
+  const tl = sideT
+    ? {
+        value: times[sideT],
+        min: 0,
+        max: sideDur ?? 1,
+        disabled: !sideReady,
+        step: stepOf(sideT).step,
+        label: `${sideT.toUpperCase()} 영상 장면`,
+        valueText: clock(times[sideT]),
+        left: '0:00',
+        right: clock(sideDur),
+        markers: markersOf(sideT, 0),
+      }
+    : {
+        value: rel,
+        min: range?.min ?? 0,
+        max: range?.max ?? 1,
+        disabled: !canSync,
+        step: stepOf('a').step,
+        label: single ? '영상 위치' : startBased ? '처음부터 함께 재생할 위치' : '기준 장면부터 함께 재생할 위치',
+        valueText: single ? clock(rel) : relText(rel),
+        left: range ? (single ? clock(range.min) : relText(range.min)) : '—',
+        right: range ? (single ? clock(range.max) : relText(range.max)) : '—',
+        markers: markersOf('a', ma ?? 0),
+      };
+
+  /* ---- 도구(한 번에 하나 · 작은 창 하나) ---- */
+  const toggle = (name: InspectorName) => setUi((u) => toggleInspector(u, name));
+  const enterContext = (ctx: ToolContext) => {
+    stopSide();
+    if (ctx !== 'view') transport.pause();
+    setUi((u) => openContext(u, ctx));
+  };
+  const [curEvent, setCurEvent] = useState<PitchEvent>('footContact');
+  const evSide: SideKey = single ? 'a' : eventSide;
+  const evVal = srcOf(evSide)?.events[curEvent];
+  const evStatus = (v: number | 'obscured' | undefined) => (v == null ? '안 짚음' : v === 'obscured' ? '가려짐' : clock(v));
+  const goEvent = () => {
+    const src = srcOf(evSide);
+    const t = src ? timeOf(src.events, curEvent) : null;
+    if (t == null) return;
+    if (sideT || aligning) return seekSide(evSide, t);
+    if (evSide === 'a') return jumpEvent(curEvent);
+    if (mb != null && !normalized) return userSeek(t - mb);
+    seekSide('b', t);
+  };
+  const stepEvent = (dir: 1 | -1) => {
+    const i = PITCH_EVENTS.indexOf(curEvent);
+    setCurEvent(PITCH_EVENTS[(i + dir + PITCH_EVENTS.length) % PITCH_EVENTS.length]);
+  };
+  const [infoSide, setInfoSide] = useState<SideKey>('a');
+  const openInfo = (s: SideKey) => {
+    setInfoSide(s);
+    setUi((u) => ({ ...u, inspector: 'info' }));
+  };
+  const [compareStart, setCompareStart] = useState<string | null>(null);
+
+  /* ---- 메모 쓰기(UI08) — 재생 · 도구 줄 자리를 잠시 편집 줄로. 쓰던 글은 닫혀도 남는다 ---- */
+  const drafts = useRef(new Map<string, string>());
+  const [noteEdit, setNoteEdit] = useState<{ key: string; edit: NoteRef | null; side: SideKey; t: number } | null>(null);
+  const openNoteEditor = (n: NoteRef | null) => {
+    stopSide();
+    transport.pause();
+    const side = n ? (n.sourceId === bSrc?.id ? 'b' : 'a') : noteSide;
+    const t = n ? (n.t ?? 0) : times[noteSide];
+    setUi((u) => closeInspector(u));
+    setNoteEdit({ key: n ? `e:${n.id}` : `n:${side}:${Math.round(t * 100)}`, edit: n, side, t });
+  };
+  const closeNoteEditor = (keep: boolean) => {
+    if (noteEdit && !keep) drafts.current.delete(noteEdit.key);
+    else if (noteEdit && drafts.current.get(noteEdit.key)?.trim()) toast('쓰던 메모는 남겨 뒀어요. 다시 열면 이어서 써요.', 'info');
+    setNoteEdit(null);
+    Keyboard.dismiss();
+  };
+  const onDraft = useCallback(
+    (t: string) => {
+      if (noteEdit) drafts.current.set(noteEdit.key, t);
+    },
+    [noteEdit]
+  );
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    const a = Keyboard.addListener('keyboardWillShow', (e) => setKb(e.endCoordinates.height));
+    const b = Keyboard.addListener('keyboardWillHide', () => setKb(0));
+    return () => {
+      a.remove();
+      b.remove();
+    };
+  }, []);
 
   if (stage === 'pick') {
     return (
@@ -842,10 +1039,7 @@ export function Workbench({
 
   const bothReady = readyA && readyB;
   const canStart = bothMarked(marks) && bothReady && !errA && !errB;
-  const focusReady = !!infoOf(focus)?.ready;
-  const focusDur = infoOf(focus)?.duration ?? null;
   const F = focus.toUpperCase();
-  const playLabel = phaseLabel(phase);
   const expandPlayer = expand === 'a' ? pa : expand === 'b' ? pb : null;
   const review = doc.reviewSet;
   const syncLabel = single
@@ -860,478 +1054,834 @@ export function Workbench({
     single || startBased || normalized || quality.state === 'measuring' || quality.p95 == null
       ? null
       : `재생기 시간 알림으로 어림하면 어긋남의 95%가 ${Math.round(quality.p95)}ms 안이에요. 실제 화면에 보인 장면끼리 잰 값은 아니에요.`;
-  const plan = exportPlanFor(range, loop, ma, mb, rate, overlay.on ? 'overlay' : shape === 'side' ? 'side' : 'stack', { normalized: !!normalized, approx: quality.state === 'approx', start: startBased });
-  const storyRows = (['kneePeak', 'handSep', 'footContact', 'maxER', 'release', 'followThrough'] as PitchEvent[])
-    .map((e) => ({ event: e, a: aSrc ? timeOf(aSrc.events, e) : null, b: bSrc ? timeOf(bSrc.events, e) : null }))
-    .filter((r) => r.a != null || r.b != null);
+  const plan2 = exportPlanFor(range, loop, ma, mb, rate, overlay.on ? 'overlay' : shape === 'side' ? 'side' : 'stack', { normalized: !!normalized, approx: quality.state === 'approx', start: startBased });
+  const storyRows = PITCH_EVENTS.map((e) => ({ event: e, a: aSrc ? timeOf(aSrc.events, e) : null, b: bSrc ? timeOf(bSrc.events, e) : null })).filter((r) => r.a != null || r.b != null);
+  const saveFailed = save === 'failed' || save === 'conflict';
+  const saveText = !doc.ownerId ? '로그인 확인 중 · 아직 저장 안 됨' : save === 'idle' ? (worthSaving(doc) ? '저장 기다림' : '저장할 것 없음') : SAVE_LABEL[save];
+
+  /* ---- 작은 창 줄들 ---- */
+  const inspW = Math.max(200, (stageSize?.w ?? rootSize.w) - 12 - 20);
+  const inspAvail = Math.max(96, (stageSize?.h ?? 300) - 12);
+  const fs = fsC;
+  const segRow = (key: string, node: ReactNode) => rowOf(key, ctlH(fs), node);
+  const chipRow = (key: string, labels: string[], node: ReactNode) => rowOf(key, chipRowsH(labels, inspW, fs), <Wrap>{node}</Wrap>);
+  const rowsFor = (name: InspectorName): { title: string; rows: IRow[] } => {
+    switch (name) {
+      case 'compareSet': {
+        const rows: IRow[] = [headRow('h1', '기준 · 시간', fs)];
+        if (syncLabel) rows.push(subRow('sync', syncLabel, inspW, fs, quality.state === 'approx'));
+        if (syncDetail) rows.push(subRow('detail', syncDetail, inspW, fs));
+        rows.push(
+          chipRow(
+            'base',
+            ['맞춘 장면으로', '장면 다시 맞추기'],
+            <>
+              <TextBtn label="맞춘 장면으로" disabled={!canSync} onPress={() => userSeek(0)} />
+              <TextBtn label="장면 다시 맞추기" onPress={() => (setUi(INITIAL_UI), realign())} />
+            </>
+          )
+        );
+        rows.push(
+          segRow(
+            'mode',
+            <Seg
+              label="시간 맞춤 방식"
+              value={normalized ? 'normalized' : 'offset'}
+              onChange={(v) => edit(updatePair(docRef.current, { mode: v }))}
+              options={[
+                { value: 'offset', label: '실제 시간' },
+                { value: 'normalized', label: '동작 길이 맞춤', disabled: !normOk, a11y: normOk ? '동작 길이 맞춤, 짚은 투구 장면들이 같은 자리에 오게 늘이고 줄여요' : '동작 길이 맞춤, 두 영상에 같은 투구 장면을 둘 이상 짚어야 해요' },
+              ]}
+            />
+          )
+        );
+        rows.push(
+          subRow(
+            'norm',
+            normalized ? '동작 길이 맞춤 · 실제 시간과 달라요. 짚은 첫 장면부터 마지막 장면까지만 재생하고, 걸린 시간 · 속도는 견주지 않아요.' : '두 영상이 함께 재생되는 구간만 보여요. A 를 주인 시계로 B 를 따라 맞춰요.',
+            inspW,
+            fs
+          )
+        );
+        rows.push(headRow('h2', '반복 구간', fs));
+        rows.push(
+          chipRow(
+            'loop',
+            ['여기서 시작', '여기서 끝', '반복 풀기', '손잡이로 고치기'],
+            <>
+              <TextBtn label="여기서 시작" disabled={!canSync || !!sideT} onPress={() => setLoopHere('start')} />
+              <TextBtn label="여기서 끝" disabled={!canSync || !!sideT} onPress={() => setLoopHere('end')} />
+              {loop ? <TextBtn label="반복 풀기" onPress={() => (setLoopEdit(false), setHandle(null), edit(updatePair(docRef.current, { loop: null })))} /> : null}
+              <TextBtn label="손잡이로 고치기" on={loopEdit} disabled={!loop || !!sideT} onPress={() => (setLoopEdit(!loopEdit), setHandle(loopEdit ? null : 'start'))} />
+            </>
+          )
+        );
+        if (loopEdit && loop)
+          rows.push(
+            chipRow(
+              'handle',
+              ['시작 손잡이', '끝 손잡이', '‹', '›'],
+              <>
+                <Seg label="고칠 손잡이" value={handle ?? 'start'} onChange={setHandle} options={[{ value: 'start', label: '시작' }, { value: 'end', label: '끝' }]} />
+                <IconBtn icon="chevron-left" label={`${handle === 'end' ? '끝' : '시작'} 손잡이 한 장면 앞으로`} onPress={() => nudgeHandle(-1)} />
+                <IconBtn icon="chevron-right" label={`${handle === 'end' ? '끝' : '시작'} 손잡이 한 장면 뒤로`} onPress={() => nudgeHandle(1)} />
+              </>
+            )
+          );
+        rows.push(headRow('h3', '배치', fs));
+        rows.push(
+          segRow(
+            'layout',
+            <Seg
+              label="영상 배치"
+              value={overlay.on ? 'overlay' : doc.transport.layout}
+              onChange={(v) => {
+                let d = updatePair(docRef.current, { overlay: { ...overlay, on: v === 'overlay' } });
+                if (v !== 'overlay') d = { ...d, transport: { ...d.transport, layout: v } };
+                edit(d);
+                if (v === 'overlay') setFocusMode('pair');
+              }}
+              options={[
+                { value: 'auto', label: '자동', a11y: '자동, 영상 비율로 위아래나 나란히' },
+                { value: 'stack', label: '위아래' },
+                { value: 'side', label: '나란히' },
+                { value: 'overlay', label: '겹쳐', a11y: '겹쳐 보기' },
+              ]}
+            />
+          )
+        );
+        rows.push(
+          segRow(
+            'focus',
+            <Seg
+              label="크게 볼 영상"
+              value={focusMode}
+              onChange={setFocusMode}
+              options={[
+                { value: 'pair', label: '둘 다' },
+                { value: 'focusA', label: 'A 크게', disabled: overlay.on },
+                { value: 'focusB', label: 'B 크게', disabled: overlay.on || !!errB },
+              ]}
+            />
+          )
+        );
+        rows.push(
+          chipRow(
+            'view',
+            ['확대 같이', 'A 반전', 'B 반전'],
+            <>
+              <TextBtn label="확대 같이" on={views.linked} onPress={() => edit(updatePair(docRef.current, { views: { ...views, linked: !views.linked } }))} a11y={views.linked ? '두 영상 확대 같이 하는 중, 누르면 따로' : '두 영상 확대 같이 하기'} />
+              <TextBtn label="A 반전" on={viewOf('a').mirror} onPress={() => setView('a', { ...shownView('a'), mirror: !shownView('a').mirror })} a11y={`A 좌우 반전 ${viewOf('a').mirror ? '끄기' : '켜기'}`} />
+              <TextBtn label="B 반전" on={viewOf('b').mirror} onPress={() => setView('b', { ...shownView('b'), mirror: !shownView('b').mirror })} a11y={`B 좌우 반전 ${viewOf('b').mirror ? '끄기' : '켜기'}`} />
+            </>
+          )
+        );
+        if (overlay.on) {
+          rows.push(headRow('h4', '겹쳐 보기', fs));
+          rows.push(
+            segRow(
+              'opacity',
+              <Seg
+                label="B 투명도"
+                value={[0.3, 0.5, 0.7].find((o) => Math.abs(overlay.opacity - o) < 0.01) ?? 0.5}
+                onChange={(o) => edit(updatePair(docRef.current, { overlay: { ...overlay, opacity: o } }))}
+                options={[0.3, 0.5, 0.7].map((o) => ({ value: o, label: `B ${Math.round(o * 100)}%` }))}
+              />
+            )
+          );
+          rows.push(
+            chipRow(
+              'reg',
+              ['반반 나누기', '왼쪽', '오른쪽', '위', '아래', '크게', '작게', '자리 풀기'],
+              <>
+                <TextBtn label={overlay.wipe == null ? '반반 나누기' : '나누기 끄기'} onPress={() => edit(updatePair(docRef.current, { overlay: { ...overlay, wipe: overlay.wipe == null ? 0.5 : null } }))} />
+                {(
+                  [
+                    ['left', '왼쪽'],
+                    ['right', '오른쪽'],
+                    ['up', '위'],
+                    ['down', '아래'],
+                    ['bigger', '크게'],
+                    ['smaller', '작게'],
+                  ] as const
+                ).map(([k, l]) => (
+                  <TextBtn key={k} label={l} a11y={`겹친 B 를 ${l}로 조금`} onPress={() => edit(updatePair(docRef.current, { overlay: { ...overlay, reg: nudgeReg(overlay.reg, k) } }))} />
+                ))}
+                <TextBtn label="자리 풀기" onPress={() => edit(updatePair(docRef.current, { overlay: { ...overlay, reg: { ...IDENTITY_REG } } }))} />
+              </>
+            )
+          );
+        }
+        return { title: '맞추기 · 보기', rows };
+      }
+      case 'playback': {
+        const rows: IRow[] = [headRow('h', '재생 속도', fs)];
+        rows.push(
+          segRow(
+            'rate',
+            <Seg label="재생 속도" value={rate} compact onChange={(r) => edit({ ...docRef.current, transport: { ...docRef.current.transport, rate: r } })} options={COMPARE_RATES.map((r) => ({ value: r, label: rateLabel(r) }))} />
+          )
+        );
+        rows.push(headRow('ha', '소리', fs));
+        rows.push(
+          segRow(
+            'audio',
+            <Seg
+              label="들을 소리"
+              value={doc.transport.audio}
+              onChange={(a) => edit({ ...docRef.current, transport: { ...docRef.current.transport, audio: a } })}
+              options={[{ value: 'none', label: '없음' }, { value: 'a', label: 'A 소리' }, ...(bSrc ? [{ value: 'b' as const, label: 'B 소리' }] : [])]}
+            />
+          )
+        );
+        rows.push(
+          chipRow(
+            'more',
+            ['반복 구간 고치기', '시각 넣기'],
+            <>
+              {!single ? <TextBtn label="반복 구간 고치기" onPress={() => (setCompareStart('h2'), setUi((u) => ({ ...u, inspector: 'compareSet' })))} /> : null}
+              <TextBtn label="시각 넣기" a11y="정확한 시각을 숫자로 넣기" onPress={() => (setUi((u) => closeInspector(u)), setSheet({ kind: 'time' }))} />
+            </>
+          )
+        );
+        return { title: '재생', rows };
+      }
+      case 'drawTools': {
+        const per = Math.max(3, Math.floor((inspW + 6) / 70));
+        const rows: IRow[] = [];
+        for (let i = 0; i < DRAW_TOOLS.length; i += per) {
+          const group = DRAW_TOOLS.slice(i, i + per);
+          rows.push(
+            rowOf(
+              `t${i}`,
+              Math.ceil(56 * Math.min(fs, 1.3)),
+              <Wrap>
+                {group.map((t) => (
+                  <ToolTile
+                    key={t.kind}
+                    label={t.label}
+                    icon={t.icon}
+                    on={drawTool === t.kind}
+                    onPress={() => {
+                      setDrawTool(t.kind);
+                      setSelId(null);
+                      setUi((u) => closeInspector(u));
+                    }}
+                  />
+                ))}
+              </Wrap>
+            )
+          );
+        }
+        rows.push(subRow('hint', DRAW_HINT[drawTool] ?? '한 손가락으로 그리거나 짚어요. 두 손가락은 확대 · 이동이에요.', inspW, fs));
+        return { title: '그리기 도구', rows };
+      }
+      case 'color':
+        return {
+          title: '선 색',
+          rows: [
+            rowOf(
+              'c',
+              ctlH(fs),
+              <Wrap>
+                {COLORS.map((col, i) => (
+                  <Swatch key={col} color={col} on={color === col} label={`선 색 ${i + 1}`} onPress={() => (setColor(col), setUi((u) => closeInspector(u)))} />
+                ))}
+              </Wrap>
+            ),
+          ],
+        };
+      case 'width':
+        return {
+          title: '선 굵기',
+          rows: [segRow('w', <Seg label="선 굵기" value={strokeW} onChange={(w) => (setStrokeW(w), setUi((u) => closeInspector(u)))} options={WIDTHS.map((w, i) => ({ value: w, label: `굵기 ${i + 1}` }))} />)],
+        };
+      case 'drawSet': {
+        const metrics = (Object.keys(METRIC_LABEL) as MetricKey[]).filter((m) => METRIC_TOOLS[m].includes(drawTool as never));
+        const rows: IRow[] = [headRow('h', '보이는 때', fs)];
+        rows.push(
+          segRow(
+            'span',
+            <Seg label="그림이 보이는 때" value={span} onChange={setSpan} options={(['scene', 'loop', 'always'] as SpanChoice[]).map((s) => ({ value: s, label: SPAN_LABEL[s], disabled: s === 'loop' && !loop }))} />
+          )
+        );
+        if (metrics.length) {
+          rows.push(headRow('hm', '이름표(A · B 견주기)', fs));
+          rows.push(
+            chipRow(
+              'metric',
+              ['없음', ...metrics.map((m) => METRIC_LABEL[m])],
+              <>
+                <TextBtn label="없음" on={metric == null} onPress={() => setMetric(null)} />
+                {metrics.map((m) => (
+                  <TextBtn key={m} label={METRIC_LABEL[m]} on={metric === m} onPress={() => setMetric(m)} />
+                ))}
+              </>
+            )
+          );
+        }
+        rows.push(
+          chipRow(
+            'acts',
+            ['이 장면 그림 지우기', '길이 보정 다시'],
+            <>
+              <TextBtn label="이 장면 그림 지우기" onPress={clearScene} />
+              <TextBtn label={srcOf(drawSideK)?.calibration ? '길이 보정 다시' : '길이 보정'} hint="같은 평면의 아는 길이로 cm 를 셈해요" onPress={startCalibrate} />
+            </>
+          )
+        );
+        return { title: '그리기 설정', rows };
+      }
+      case 'eventPick':
+        return {
+          title: `${evSide.toUpperCase()} 투구 장면`,
+          rows: [
+            chipRow(
+              'ev',
+              PITCH_EVENTS.map((e) => `${EVENT_SHORT[e]} ${evStatus(srcOf(evSide)?.events[e])}`),
+              <>
+                {PITCH_EVENTS.map((e) => (
+                  <TextBtn
+                    key={e}
+                    label={`${EVENT_SHORT[e]} · ${evStatus(srcOf(evSide)?.events[e])}`}
+                    a11y={`${EVENT_LABEL[e]}, ${evStatus(srcOf(evSide)?.events[e])}`}
+                    on={curEvent === e}
+                    onPress={() => (setCurEvent(e), setUi((u) => closeInspector(u)))}
+                  />
+                ))}
+              </>
+            ),
+          ],
+        };
+      case 'eventResults':
+        return { title: '장면 결과', rows: eventResultRows({ a: aSrc, b: bSrc, metricRows, w: inspW, fs, onJump: (e) => (setUi((u) => closeInspector(u)), jumpEvent(e)), onAnchor: (e) => (setUi((u) => closeInspector(u)), anchorAt(e)) }) };
+      case 'notes': {
+        const rows: IRow[] = [];
+        if (!pairNotes.length) rows.push(subRow('none', '장면마다 글 메모를 남겨요. 목소리 메모는 새 앱 기능이 필요해 아직 없어요.', inspW, fs));
+        for (const n of pairNotes) {
+          const parts = paginateText(n.text, Math.max(60, textCapacity(inspW, inspAvail - 160, 15 * fs, 22 * fs)));
+          parts.forEach((r, i) =>
+            rows.push(
+              rowOf(
+                `${n.id}:${i}`,
+                textRowHeight(n.text.slice(r.start, r.end), inspW, 15, 22, Math.min(fs, 1.5)) + (i === 0 ? 22 : 0),
+                <Press accessibilityRole="button" accessibilityLabel={`${noteLabel(n)} 메모${parts.length > 1 ? ` ${i + 1}/${parts.length}` : ''}, 그 장면으로 가기, ${n.text.slice(r.start, r.end)}`} onPress={() => openNote(n)} style={{ minHeight: 44, justifyContent: 'center' }}>
+                  {i === 0 ? (
+                    <Text maxFontSizeMultiplier={1.4} style={[TYPE.sub, { color: c.link }]}>
+                      {noteLabel(n)}
+                    </Text>
+                  ) : null}
+                  <Text maxFontSizeMultiplier={1.5} style={[TYPE.body, { color: c.ink }]}>
+                    {n.text.slice(r.start, r.end)}
+                  </Text>
+                </Press>,
+                i < parts.length - 1
+              )
+            )
+          );
+          rows.push(
+            rowOf(
+              `${n.id}:acts`,
+              ctlH(fs),
+              <Wrap>
+                <TextBtn label="고치기" a11y={`${noteLabel(n)} 메모 고치기`} onPress={() => openNoteEditor(n)} />
+                <TextBtn label="지우기" a11y={`${noteLabel(n)} 메모 지우기`} onPress={() => edit(removeNote(docRef.current, n.id))} />
+              </Wrap>
+            )
+          );
+        }
+        return { title: `메모 ${pairNotes.length}개`, rows };
+      }
+      case 'storyboard': {
+        const size = 96;
+        const per = Math.max(2, Math.floor((inspW + 8) / (size + 8)));
+        const rows: IRow[] = [];
+        if (!storyRows.length) rows.push(subRow('none', '투구 장면을 짚으면 장면 모음이 생겨요.', inspW, fs));
+        for (let i = 0; i < storyRows.length; i += per) {
+          const g = storyRows.slice(i, i + per);
+          rows.push(
+            rowOf(
+              `s${i}`,
+              20 * Math.min(fs, 1.3) + 4 + (pb ? 2 : 1) * (size * 0.9 + 4),
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {g.map((r) => (
+                  <ShotPair key={r.event} pa={pa} pb={pb} ta={r.a} tb={r.b} label={EVENT_SHORT[r.event]} size={size} />
+                ))}
+              </View>
+            )
+          );
+        }
+        if (plan2) rows.push(subRow('plan', `만들 영상 ${plan2.durationSec.toFixed(1)}초 · 약 ${Math.max(1, Math.round(plan2.estimateBytes / 1e6))}MB${plan2.disclosures.length ? ` · ${plan2.disclosures.join(' · ')}` : ''}`, inspW, fs));
+        rows.push(subRow('na', '두 영상을 한 파일로 엮는 내보내기 · 목소리 해설 녹화는 영상 합성 기능이 든 새 앱이 필요해 아직 못 해요. 장면 모음은 실제 영상 장면이에요.', inspW, fs));
+        return { title: '장면 모음', rows };
+      }
+      case 'info':
+        return { title: `${infoSide.toUpperCase()} 영상 정보`, rows: infoRows(infoSide) };
+      case 'markers':
+        return {
+          title: '장면 고르기',
+          rows: [
+            chipRow(
+              'm',
+              cluster.map((m) => m.label),
+              <>
+                {cluster.map((m) => (
+                  <TextBtn key={m.key} label={m.label} onPress={() => jumpMarker(m)} />
+                ))}
+              </>
+            ),
+          ],
+        };
+      case 'trim':
+        return {
+          title: `${F} 다듬기`,
+          rows: [
+            subRow('t', '이 비교에서 쓸 앞 · 뒤를 정해요. 원본 파일은 그대로예요.', inspW, fs),
+            chipRow(
+              'b',
+              [`${F} 여기부터`, `${F} 여기까지`, '다듬기 풀기'],
+              <>
+                <TextBtn label={`${F} 여기부터`} disabled={!infoOf(focus)?.ready} onPress={() => trimHere(focus, 'start')} hint="이 장면 앞은 이 비교에서 안 써요" />
+                <TextBtn label={`${F} 여기까지`} disabled={!infoOf(focus)?.ready} onPress={() => trimHere(focus, 'end')} hint="이 장면 뒤는 이 비교에서 안 써요" />
+                {pair?.trims[focus] ? <TextBtn label="다듬기 풀기" onPress={() => edit(clearTrim(docRef.current, focus))} /> : null}
+              </>
+            ),
+          ],
+        };
+      default:
+        return { title: '', rows: [] };
+    }
+  };
+  function infoRows(s: SideKey): IRow[] {
+    const src = srcOf(s);
+    if (!src) return [];
+    const info = infoOf(s);
+    const facts = src.facts;
+    const lines = [
+      labelOf(s),
+      subOf(s),
+      src.date ? `찍은 날 ${videoDateText(src.date)}` : null,
+      [facts?.durationSec ? `${facts.durationSec.toFixed(1)}초` : null, (info?.fps ?? facts?.nominalFps) ? `${Math.round((info?.fps ?? facts?.nominalFps) as number)}fps` : null, info?.width && info?.height ? `${info.width}×${info.height}` : null, info?.codec].filter(Boolean).join(' · ') || null,
+      src.origin === 'photos' ? '사진 앱에서 가져온 앱 안 복사본' : src.origin === 'camera' ? '앱에서 찍은 영상' : null,
+    ].filter((x): x is string => !!x);
+    const rows: IRow[] = lines.map((l, i) => subRow(`l${i}`, l, inspW, fs));
+    rows.push(headRow('hh', '던지는 손', fs));
+    rows.push(
+      segRow(
+        'hand',
+        <Seg label="던지는 손" value={src.hand ?? 'none'} onChange={(v) => edit(updateSource(docRef.current, src.id, { hand: v === 'none' ? null : v }))} options={[{ value: 'none', label: '모름' }, { value: 'R', label: '오른손' }, { value: 'L', label: '왼손' }]} />
+      )
+    );
+    const views0 = Object.keys(VIEW_LABEL) as ViewKey[];
+    rows.push(headRow('hv', '촬영 방향', fs));
+    rows.push(
+      chipRow(
+        'view',
+        ['모름', ...views0.map((v) => VIEW_LABEL[v])],
+        <>
+          <TextBtn label="모름" on={src.view == null} onPress={() => edit(updateSource(docRef.current, src.id, { view: null }))} />
+          {views0.map((v) => (
+            <TextBtn key={v} label={VIEW_LABEL[v]} on={src.view === v} onPress={() => edit(updateSource(docRef.current, src.id, { view: v }))} />
+          ))}
+        </>
+      )
+    );
+    rows.push(headRow('hp', '구종', fs));
+    rows.push(
+      chipRow(
+        'pt',
+        ['모름', ...PITCH_TYPES],
+        <>
+          <TextBtn label="모름" on={src.pitchType == null} onPress={() => edit(updateSource(docRef.current, src.id, { pitchType: null }))} />
+          {PITCH_TYPES.map((p) => (
+            <TextBtn key={p} label={p} on={src.pitchType === p} onPress={() => edit(updateSource(docRef.current, src.id, { pitchType: p }))} />
+          ))}
+        </>
+      )
+    );
+    rows.push(headRow('hd', '이 투구', fs));
+    rows.push(
+      segRow(
+        'verdict',
+        <Seg label="이 투구" value={src.verdict ?? 'none'} onChange={(v) => edit(updateSource(docRef.current, src.id, { verdict: v === 'none' ? null : v }))} options={[{ value: 'none', label: '정하지 않음' }, { value: 'good', label: '잘 됨' }, { value: 'work', label: '아쉬움' }]} />
+      )
+    );
+    rows.push(subRow('why', '견주기 · 거르기에 써요. 모르면 비워 두세요. 비운 값은 짐작하지 않아요.', inspW, fs));
+    rows.push(chipRow('rep', [`${s.toUpperCase()} 영상 바꾸기`], <TextBtn label={`${s.toUpperCase()} 영상 바꾸기`} onPress={() => (setUi(INITIAL_UI), openPick(s))} />));
+    return rows;
+  }
+  const drawSideK: SideKey = single ? 'a' : drawSide;
+  function clearScene() {
+    const src = srcOf(drawSideK);
+    if (!src) return;
+    const scope = { kind: 'scene' as const, sourceId: src.id, t: times[drawSideK] };
+    const n = visibleList(history.items, src.id, times[drawSideK]).filter((x) => x.span.kind !== 'always').length;
+    if (!n) return toast('이 장면에 지울 그림이 없어요.', 'info');
+    Alert.alert(`이 장면 그림 ${n}개를 지울까요?`, '되돌리기로 다시 살릴 수 있어요.', [
+      { text: '취소', style: 'cancel' },
+      { text: '지우기', style: 'destructive', onPress: () => applyHistory(applyEdit(history, { op: 'clear', scope })) },
+    ]);
+  }
+  function startCalibrate() {
+    pendingCal.current = drawSideK;
+    setDrawTool('line');
+    setUi((u) => closeInspector(u));
+    toast('같은 평면에서 길이를 아는 두 점을 이어 선을 그려 주세요(예: 사람 키 · 막대).', 'info');
+  }
+
+  /* ---- 그리기 · 장면 · 메모 · 맞추기 줄(도구 줄 자리를 바꾼다) ---- */
+  const quick = QUICK_DRAW.map((k) => DRAW_TOOLS.find((t) => t.kind === k)).filter((t): t is (typeof DRAW_TOOLS)[number] => !!t);
+  const sideToggle = (cur: SideKey, set: (s: SideKey) => void, what: string) =>
+    single ? null : (
+      <TextBtn
+        label={cur.toUpperCase()}
+        a11y={`${what} ${cur.toUpperCase()}, 누르면 ${cur === 'a' ? 'B' : 'A'}`}
+        on
+        onPress={() => {
+          const n: SideKey = cur === 'a' ? 'b' : 'a';
+          set(n);
+          setFocus(n);
+        }}
+      />
+    );
+  /* 가로 폰은 도구 줄이 오른쪽 세로 칸에 — 줄이 칸 폭에 맞춰 감긴다 */
+  const ctxRowStyle = landscape ? [st.ctxRow, st.ctxWrap] : st.ctxRow;
+  const contextRows: ReactNode[] = [];
+  if (aligning) {
+    const sem = semantic === 'start' ? 'manual' : semantic;
+    contextRows.push(
+      <View key="a1" style={ctxRowStyle}>
+        <View style={{ flex: 1 }}>
+          <Seg
+            label="기준 뜻"
+            value={sem}
+            onChange={chooseSemantic}
+            options={(['footContact', 'release', 'manual'] as AnchorSemantic[]).map((s) => ({ value: s, label: anchorShort(s), a11y: ANCHOR_LABEL[s] }))}
+          />
+        </View>
+        <IconBtn icon="ruler" label={`${F} 다듬기, 이 비교에서 쓸 앞 · 뒤`} on={ui.inspector === 'trim'} onPress={() => toggle('trim')} />
+      </View>,
+      <View key="a2" style={ctxRowStyle}>
+        {snap ? <TextBtn label="취소" a11y="맞추기 취소, 전에 보던 비교로" onPress={back} /> : null}
+        <TextBtn label="처음부터" a11y="기준 없이 처음부터 보기" disabled={!bothReady} onPress={startFromBeginning} />
+        <TextBtn
+          label={`${F} ${anchorShort(sem)} 지정`}
+          a11y={`${F} 지금 장면을 ${ANCHOR_LABEL[sem]}로 지정`}
+          primary
+          grow
+          disabled={!infoOf(focus)?.ready}
+          onPress={markSide}
+        />
+        <IconBtn icon="arrow-right" label="맞춘 장면으로 비교" on={canStart} disabled={!canStart} onPress={startCompare} />
+      </View>
+    );
+  } else if (ui.context === 'draw') {
+    contextRows.push(
+      <View key="d1" style={ctxRowStyle}>
+        {sideToggle(drawSide, setDrawSide, '그릴 영상')}
+        {quick.map((t) => (
+          <IconBtn key={t.kind} icon={t.icon} label={t.label} on={drawTool === t.kind} onPress={() => (setDrawTool(t.kind), setSelId(null))} />
+        ))}
+        <IconBtn icon="move" label="고르기 · 옮기기" on={drawTool === 'select'} onPress={() => setDrawTool('select')} />
+        <IconBtn icon="squares" label={`그리기 도구 전체, 지금 ${DRAW_TOOLS.find((t) => t.kind === drawTool)?.label ?? ''}`} on={ui.inspector === 'drawTools'} onPress={() => toggle('drawTools')} />
+      </View>,
+      <View key="d2" style={ctxRowStyle}>
+        <Press accessibilityRole="button" accessibilityLabel={`선 색 바꾸기, 지금 ${COLORS.indexOf(color as (typeof COLORS)[number]) + 1}번`} onPress={() => toggle('color')} style={st.colorBtn}>
+          <View style={[st.colorDot, { backgroundColor: color, borderColor: c.line }]} />
+        </Press>
+        <IconBtn icon="minus" label={`선 굵기, 지금 ${WIDTHS.indexOf(strokeW as (typeof WIDTHS)[number]) + 1}`} on={ui.inspector === 'width'} onPress={() => toggle('width')} />
+        <IconBtn icon="settings2" label="그리기 설정, 보이는 때 · 이름표 · 지우기 · 길이 보정" on={ui.inspector === 'drawSet'} onPress={() => toggle('drawSet')} />
+        <IconBtn icon="rotate-ccw" label="되돌리기" disabled={history.past.length === 0} onPress={() => applyHistory(applyEdit(history, { op: 'undo' }))} />
+        <IconBtn icon="rotate-cw" label="다시 하기" disabled={history.future.length === 0} onPress={() => applyHistory(applyEdit(history, { op: 'redo' }))} />
+        {selectedAnn ? <IconBtn icon="trash2" label="고른 그림 지우기" color={c.danger} onPress={() => selId && (applyHistory(applyEdit(history, { op: 'remove', id: selId })), setSelId(null))} /> : null}
+        <View style={{ flex: 1 }} />
+        <TextBtn label="완료" primary onPress={() => enterContext('draw')} a11y="그리기 끝내기" />
+      </View>
+    );
+  } else if (ui.context === 'events') {
+    contextRows.push(
+      <View key="e1" style={ctxRowStyle}>
+        {sideToggle(eventSide, setEventSide, '짚을 영상')}
+        <IconBtn icon="chevron-left" label="이전 투구 장면" onPress={() => stepEvent(-1)} />
+        <View style={{ flex: 1 }}>
+          <TextBtn label={`${EVENT_SHORT[curEvent]} · ${evStatus(evVal)}`} a11y={`${evSide.toUpperCase()} ${EVENT_LABEL[curEvent]}, ${evStatus(evVal)}, 다른 장면 고르기`} on={ui.inspector === 'eventPick'} onPress={() => toggle('eventPick')} />
+        </View>
+        <IconBtn icon="chevron-right" label="다음 투구 장면" onPress={() => stepEvent(1)} />
+        <IconBtn icon="x" label="장면 짚기 끝내기" onPress={() => enterContext('events')} />
+      </View>,
+      <View key="e2" style={ctxRowStyle}>
+        <TextBtn label="지금 장면" a11y={`${evSide.toUpperCase()} ${EVENT_LABEL[curEvent]}을 지금 장면 ${clock(times[evSide])}로`} primary grow onPress={() => markEvent(curEvent, times[evSide])} />
+        <TextBtn label="가려짐" on={evVal === 'obscured'} onPress={() => markEvent(curEvent, evVal === 'obscured' ? null : 'obscured')} hint="잘 안 보이면 짐작해 채우지 않고 가려짐으로" />
+        {evVal != null ? <IconBtn icon="trash2" label={`${EVENT_SHORT[curEvent]} 표시 지우기`} onPress={() => markEvent(curEvent, null)} /> : null}
+        <IconBtn icon="arrow-right" label={`${EVENT_SHORT[curEvent]} 장면으로 가기`} disabled={typeof evVal !== 'number'} onPress={goEvent} />
+        <IconBtn icon="clipboard-list" label="장면 결과, 구간 시간 · 2D 참고 측정" on={ui.inspector === 'eventResults'} onPress={() => toggle('eventResults')} />
+      </View>
+    );
+  } else if (ui.context === 'notes') {
+    contextRows.push(
+      <View key="n1" style={ctxRowStyle}>
+        <TextBtn label={`${noteSide.toUpperCase()} ${clock(times[noteSide])} 메모 쓰기`} primary grow onPress={() => openNoteEditor(null)} />
+        <IconBtn icon="list" label={`메모 ${pairNotes.length}개 보기`} on={ui.inspector === 'notes'} onPress={() => toggle('notes')} />
+        <IconBtn icon="x" label="메모 끝내기" onPress={() => enterContext('notes')} />
+      </View>
+    );
+  }
+  const dock: { key: string; icon: IconName; label: string; a11y?: string; on: boolean; run: () => void }[] = single
+    ? [
+        { key: 'draw', icon: 'pencil', label: '그리기', on: false, run: () => enterContext('draw') },
+        { key: 'events', icon: 'flag', label: '장면', on: false, run: () => enterContext('events') },
+        { key: 'notes', icon: 'sticky-note', label: '메모', on: false, run: () => enterContext('notes') },
+        { key: 'add', icon: 'plus', label: '비교 영상', a11y: '비교 영상 추가', on: false, run: () => openPick('b') },
+        { key: 'story', icon: 'layers', label: '모음', a11y: '장면 모음', on: ui.inspector === 'storyboard', run: () => toggle('storyboard') },
+      ]
+    : [
+        { key: 'align', icon: 'target', label: '맞추기', a11y: '맞추기 · 반복 · 배치', on: ui.inspector === 'compareSet', run: () => (setCompareStart(null), toggle('compareSet')) },
+        { key: 'draw', icon: 'pencil', label: '그리기', on: false, run: () => enterContext('draw') },
+        { key: 'events', icon: 'flag', label: '장면', on: false, run: () => enterContext('events') },
+        { key: 'notes', icon: 'sticky-note', label: '메모', on: false, run: () => enterContext('notes') },
+        { key: 'story', icon: 'layers', label: '모음', a11y: '장면 모음', on: ui.inspector === 'storyboard', run: () => toggle('storyboard') },
+      ];
+  const dockNode = (
+    <View style={landscape ? st.dockCol : st.dock} accessibilityRole="toolbar">
+      {dock.map((d) => (
+        <Press
+          key={d.key}
+          accessibilityRole="button"
+          accessibilityLabel={d.a11y ?? d.label}
+          accessibilityState={{ selected: d.on }}
+          onPress={d.run}
+          style={[st.dockItem, d.on && { backgroundColor: withAlpha(c.action, 0.14) }]}
+        >
+          <Icon name={d.icon} size={20} color={d.on ? c.link : c.ink} />
+          <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={[st.dockText, { color: d.on ? c.link : c.muted }]}>
+            {d.label}
+          </Text>
+        </Press>
+      ))}
+    </View>
+  );
+  const ctxNode = contextRows.length ? <View style={{ gap: 4 }}>{contextRows}</View> : dockNode;
+
+  const insp = ui.inspector ? rowsFor(ui.inspector) : null;
+  const editing = !!noteEdit;
+  const editLines = Math.max(2, Math.min(6, Math.floor((rootSize.h - kb - inset.top - 44 - 120 - 140) / (22 * fsC))));
+  const transportNode = (
+    <View style={st.transport}>
+      {allowed.length > 1 ? (
+        narrow ? (
+          <TextBtn
+            label={TARGET_LABEL[tgt]}
+            on={tgt !== 'both'}
+            a11y={`재생 대상 ${TARGET_LABEL[tgt]}, 누르면 ${TARGET_LABEL[allowed[(allowed.indexOf(tgt) + 1) % allowed.length]]}`}
+            onPress={() => chooseTarget(allowed[(allowed.indexOf(tgt) + 1) % allowed.length])}
+          />
+        ) : (
+          <Seg label="재생 대상" value={tgt} onChange={chooseTarget} compact options={allowed.map((t) => ({ value: t, label: TARGET_LABEL[t], a11y: t === 'both' ? '함께, 두 영상' : `${TARGET_LABEL[t]} 만 따로` }))} />
+        )
+      ) : null}
+      <View style={{ flex: 1 }} />
+      <IconBtn icon="chevron-left" label={sideT ? `${sideT.toUpperCase()} 이전 장면` : single ? '이전 장면' : '두 영상 이전 장면'} disabled={sideT ? !sideReady : !canSync} onPress={() => stepPress(-1)} />
+      <Press
+        accessibilityRole="button"
+        accessibilityLabel={playText}
+        accessibilityState={{ disabled: !playOk, busy: !sideT && isBusy(phase) }}
+        disabled={!playOk}
+        onPress={playPress}
+        style={[st.play, { backgroundColor: c.action }, !playOk && { opacity: 0.35 }]}
+      >
+        {!sideT && isBusy(phase) ? <ActivityIndicator color={c.onAction} /> : <Icon name={playing ? 'pause' : 'play'} size={22} color={c.onAction} />}
+      </Press>
+      <IconBtn icon="chevron-right" label={sideT ? `${sideT.toUpperCase()} 다음 장면` : single ? '다음 장면' : '두 영상 다음 장면'} disabled={sideT ? !sideReady : !canSync} onPress={() => stepPress(1)} />
+      <View style={{ flex: 1 }} />
+      <TextBtn label={rateLabel(rate)} on={ui.inspector === 'playback'} a11y={`재생 속도 ${rateLabel(rate)}, 속도 · 소리 · 시각 넣기`} onPress={() => toggle('playback')} />
+    </View>
+  );
+  const timelineNode = (
+    <Timeline
+      value={tl.value}
+      min={tl.min}
+      max={tl.max}
+      step={tl.step}
+      disabled={tl.disabled}
+      label={tl.label}
+      valueText={tl.valueText}
+      leftText={tl.left}
+      rightText={tl.right}
+      markers={tl.markers}
+      loop={sideT ? null : loop}
+      loopEdit={loopEdit && !sideT}
+      selectedHandle={handle}
+      onStart={() => {
+        stopSide();
+        if (sideT) {
+          transport.pause();
+          playerCall.pause(playerOf(sideT));
+        } else {
+          takeControl();
+          transport.pause();
+        }
+      }}
+      onSeek={(t) => (sideT ? seekSide(sideT, t) : userSeek(t))}
+      onJump={jumpMarker}
+      onCluster={(ms) => {
+        setCluster(ms);
+        setUi((u) => ({ ...u, inspector: 'markers' }));
+      }}
+      onHandle={setLoopEdge}
+      onHandleSelect={setHandle}
+    />
+  );
+  const statusText = phase === 'error' && !sideT ? '두 영상을 같은 자리로 맞추지 못했어요. 다시 재생해 주세요.' : null;
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Stack.Screen options={{ gestureEnabled: swipeOk && !drawing }} />
-      {/* 머리 — 뒤로 · 이름 · 저장 상태 · 더보기 */}
-      <View style={[st.bar, { paddingTop: inset.top + 4, paddingLeft: inset.left + 8, paddingRight: inset.right + 8 }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="뒤로" onPress={back} hitSlop={6} style={st.barButton}>
+    <View
+      style={{ flex: 1, backgroundColor: c.page, paddingTop: inset.top, paddingLeft: inset.left, paddingRight: inset.right }}
+      onLayout={(e) => {
+        const w = Math.round(e.nativeEvent.layout.width);
+        const h = Math.round(e.nativeEvent.layout.height);
+        if (w !== rootSize.w || h !== rootSize.h) setRootSize({ w, h });
+      }}
+    >
+      <Stack.Screen options={{ gestureEnabled: swipeOk && !drawing && !stroking && !editing }} />
+      {/* 머리 — 뒤로 · 이름 · 저장 표시 · 더보기(44) */}
+      <View style={st.bar}>
+        <Pressable accessibilityRole="button" accessibilityLabel={editing ? '메모 쓰기 닫기, 쓴 글은 남겨요' : ui.inspector ? '작은 창 닫기' : ui.context !== 'view' ? '도구 끝내기' : '뒤로'} onPress={back} hitSlop={4} style={st.barButton}>
           <Icon name="back" size={22} color={c.link} />
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={`비교 이름 ${doc.title}, 바꾸기`} onPress={() => setSheet({ kind: 'title' })} style={st.barMid}>
-          <Text numberOfLines={1} maxFontSizeMultiplier={1.5} style={[st.barTitle, { color: c.ink }]}>
-            {doc.title}
-          </Text>
-          <Text numberOfLines={1} maxFontSizeMultiplier={1.4} style={[TYPE.sub, { color: save === 'failed' || save === 'conflict' ? c.danger : c.muted }]} accessibilityLiveRegion="polite">
-            {!doc.ownerId ? '로그인 확인 중 · 아직 저장 안 됨' : save === 'idle' ? (worthSaving(doc) ? '저장 중' : '투구 영상 분석') : SAVE_LABEL[save]}
+          <Text numberOfLines={1} maxFontSizeMultiplier={1.4} style={[st.barTitle, { color: c.ink }]}>
+            {aligning ? `같은 동작에 맞추기 · ${F}` : doc.title}
           </Text>
         </Pressable>
+        {review ? (
+          <View style={st.review}>
+            <IconBtn icon="chevron-left" label="이전 B" onPress={() => (stopAll(), edit(moveReview(docRef.current, -1)))} />
+            <Text maxFontSizeMultiplier={1.3} style={[TYPE.sub, { color: c.muted, fontVariant: ['tabular-nums'] }]} accessibilityLabel={`기준 A 고정, B ${review.candidateIds.length}개 중 ${review.index + 1}번째`}>
+              B {review.index + 1}/{review.candidateIds.length}
+            </Text>
+            <IconBtn icon="chevron-right" label="다음 B" onPress={() => (stopAll(), edit(moveReview(docRef.current, 1)))} />
+          </View>
+        ) : null}
+        <Press
+          accessibilityRole="button"
+          accessibilityLabel={saveFailed ? `${saveText}, 다시 저장하기` : saveText}
+          accessibilityLiveRegion="polite"
+          disabled={!saveFailed}
+          onPress={() => (saver.schedule(docRef.current), void saver.flush())}
+          style={st.barButton}
+        >
+          {save === 'saving' ? (
+            <ActivityIndicator color={c.muted} />
+          ) : (
+            <Icon name={saveFailed ? 'circle-alert' : save === 'saved' ? 'circle-check' : !doc.ownerId ? 'lock' : 'circle-dot'} size={20} color={saveFailed ? c.danger : c.muted} />
+          )}
+        </Press>
         <Press accessibilityRole="button" accessibilityLabel="더보기" onPress={more} style={st.barButton}>
-          <Icon name="settings2" size={22} color={c.link} />
+          <Icon name="ellipsis" size={22} color={c.link} />
         </Press>
       </View>
-      <ScrollView
-        scrollEnabled={!stroking}
-        contentContainerStyle={[{ paddingHorizontal: 16 + Math.max(inset.left, inset.right), paddingTop: 4, gap: 14, paddingBottom: inset.bottom + (stage === 'align' && !single ? 200 : 40) }, READABLE]}
-      >
-        {review ? (
-          <Row>
-            <Text maxFontSizeMultiplier={1.5} style={[TYPE.sub, { color: c.muted, flex: 1 }]}>
-              기준 A 고정 · B {review.index + 1}/{review.candidateIds.length}
-            </Text>
-            <Chip label="이전 B" onPress={() => (stopAll(), edit(moveReview(docRef.current, -1)))} />
-            <Chip label="다음 B" onPress={() => (stopAll(), edit(moveReview(docRef.current, 1)))} />
-          </Row>
-        ) : null}
-        {!single ? (
-          <View style={st.subhead}>
-            <Text maxFontSizeMultiplier={1.6} style={[TYPE.section, { color: c.ink, flex: 1 }]} accessibilityRole="header">
-              {stage === 'align' ? '같은 동작에 맞추기' : '함께 보기'}
-            </Text>
-            {big ? null : (
-              <Chip
-                label={overlay.on ? '겹쳐 보기' : shape === 'side' ? '나란히' : '위아래'}
-                onPress={() => {
-                  const order = ['stack', 'side', 'overlay'] as const;
-                  const cur = overlay.on ? 'overlay' : shape;
-                  const next = order[(order.indexOf(cur as never) + 1) % order.length];
-                  let d = updatePair(docRef.current, { overlay: { ...overlay, on: next === 'overlay' } });
-                  if (next !== 'overlay') d = { ...d, transport: { ...d.transport, layout: next } };
-                  edit(d);
-                }}
-                hint="위아래 · 나란히 · 겹쳐 보기를 바꿔요"
-              />
-            )}
-          </View>
-        ) : null}
-
-        {/* 영상 칸 — 본문 폭을 여기서 잰다 */}
-        <View
-          onLayout={(e) => {
-            const w = Math.round(e.nativeEvent.layout.width);
-            if (w > 0 && w !== bodyW) setBodyW(w);
-          }}
-          style={shape === 'side' && !single && !overlay.on ? { flexDirection: 'row', gap: 12 } : { gap: 14 }}
-        >
-          <Pane key={aSrc?.id ?? 'a'} {...paneProps('a')} onReplace={() => openPick('a', errA && (errA.kind === 'missing' || errA.kind === 'gone') ? (aSrc?.id ?? null) : null)} />
-          {bSrc ? (
-            <Pane
-              key={bSrc.id}
-              {...paneProps('b')}
-              hidden={overlay.on && stage === 'compare'}
-              onReplace={() => openPick('b', errB && (errB.kind === 'missing' || errB.kind === 'gone') ? bSrc.id : null)}
-            />
-          ) : null}
-        </View>
-        {overlay.on && stage === 'compare' && pa && pb ? (
-          <OverlayBox pa={pa} pb={pb} box={box} opacity={overlay.opacity} wipe={overlay.wipe} reg={overlay.reg} mirrorA={views.a.mirror} mirrorB={views.b.mirror} />
-        ) : null}
-
-        {single ? (
-          <SinglePanel
-            time={times.a}
-            duration={sides.a?.duration ?? null}
-            ready={readyA}
-            stepText={stepOf('a').exact ? '한 장면' : '짐작한 장면 간격'}
-            rate={rate}
-            playLabel={playLabel}
-            busy={isBusy(phase)}
-            onScrub={(t) => userSeek(t)}
-            onStart={() => (takeControl(), transport.pause())}
-            onNudge={(d) => nudgeSide('a', d)}
-            onToggle={togglePlay}
-            onRate={pickRate}
-            onAdd={() => openPick('b')}
-          />
-        ) : stage === 'align' ? (
-          <View style={[st.panel, { backgroundColor: c.card }]}>
-            <Text maxFontSizeMultiplier={1.6} style={[TYPE.sub, { color: c.ink }]}>
-              두 영상에서 같은 순간을 짚어 주세요.
-            </Text>
-            <Row wrap>
-              {(['footContact', 'release', 'manual'] as AnchorSemantic[]).map((s) => (
-                <Chip key={s} label={ANCHOR_LABEL[s]} on={semantic === s} onPress={() => chooseSemantic(s)} />
-              ))}
-            </Row>
-            <View accessibilityRole="radiogroup" accessibilityLabel="장면을 맞출 영상" style={[st.segment, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
-              {(['a', 'b'] as const).map((s) => {
-                const on = focus === s;
-                const off = !!infoOf(s)?.error;
-                return (
-                  <Press
-                    key={s}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: on, disabled: off }}
-                    disabled={off}
-                    onPress={() => setFocus(s)}
-                    style={[st.segItem, on && { backgroundColor: c.card }, off && { opacity: 0.4 }]}
-                  >
-                    <Text maxFontSizeMultiplier={1.4} style={[TYPE.buttonCompact, { color: on ? c.ink : c.muted }]}>
-                      {s.toUpperCase()} 장면
-                    </Text>
-                  </Press>
-                );
-              })}
-            </View>
-            <Text maxFontSizeMultiplier={1.6} style={[TYPE.card, { color: c.ink, fontVariant: ['tabular-nums'] }]}>
-              {F} {clock(times[focus])}
-            </Text>
-            <Scrubber
-              value={times[focus]}
-              max={focusDur ?? 1}
-              disabled={!focusReady}
-              onStart={() => playerCall.pause(playerOf(focus))}
-              onSeek={(t) => seekSide(focus, t)}
-              step={stepOf(focus).step}
-              label={`${F} 영상 장면 선택`}
-              valueText={clock(times[focus])}
-            />
-            <ScrubLabels left="0:00" right={clock(focusDur)} />
-            <View style={st.row}>
-              <Press accessibilityRole="button" accessibilityLabel={`${F} 이전 장면`} disabled={!focusReady} onPress={() => nudgeSide(focus, -1)} style={st.iconBtn}>
-                <Icon name="chevron-left" size={24} color={focusReady ? c.link : c.muted} />
-              </Press>
-              <Press
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !focusReady }}
-                disabled={!focusReady}
-                onPress={markSide}
-                style={[st.primary, { flex: 1, backgroundColor: c.action }, !focusReady && { opacity: 0.4 }]}
-              >
-                <Text maxFontSizeMultiplier={1.4} numberOfLines={2} style={[TYPE.button, { color: c.onAction, textAlign: 'center' }]}>
-                  {F} {ANCHOR_LABEL[semantic === 'start' ? 'manual' : semantic]}로 지정
-                </Text>
-              </Press>
-              <Press accessibilityRole="button" accessibilityLabel={`${F} 다음 장면`} disabled={!focusReady} onPress={() => nudgeSide(focus, 1)} style={st.iconBtn}>
-                <Icon name="chevron-right" size={24} color={focusReady ? c.link : c.muted} />
-              </Press>
-            </View>
-            <Text maxFontSizeMultiplier={1.6} style={[TYPE.sub, { color: c.muted }]}>
-              {stepOf(focus).exact ? '이전 · 다음은 이 영상의 한 장면씩이에요.' : '이전 · 다음은 짐작한 장면 간격이에요(장면 간격이 고른지 모름).'}
-            </Text>
-            {/* 영상별 다듬기(R09) — 이 짝에서 쓸 앞 · 뒤. 원본 파일은 그대로 */}
-            <Row wrap>
-              <Chip label={`${F} 여기부터`} disabled={!focusReady} onPress={() => trimHere(focus, 'start')} hint="이 장면 앞은 이 비교에서 안 써요" />
-              <Chip label={`${F} 여기까지`} disabled={!focusReady} onPress={() => trimHere(focus, 'end')} hint="이 장면 뒤는 이 비교에서 안 써요" />
-              {pair?.trims[focus] ? <Chip label={`${F} 다듬기 풀기`} onPress={() => edit(clearTrim(docRef.current, focus))} /> : null}
-            </Row>
-          </View>
-        ) : (
-          <View style={[st.panel, { backgroundColor: c.card }]}>
-            <Text maxFontSizeMultiplier={1.5} style={[TYPE.sub, { color: quality.state === 'approx' ? c.danger : c.muted }]} accessibilityLiveRegion="polite">
-              {syncLabel}
-            </Text>
-            <View style={st.row}>
-              <Text maxFontSizeMultiplier={1.6} style={[TYPE.card, { color: c.ink, flex: 1, fontVariant: ['tabular-nums'] }]}>
-                {startBased ? `처음부터 ${relText(rel)}` : `기준 장면 ${relText(rel)}`}
-              </Text>
-              <Chip label={doc.transport.audio === 'none' ? '소리 없음' : `${doc.transport.audio.toUpperCase()} 소리`} onPress={pickAudio} />
-              <Chip label={rateLabel(rate)} onPress={pickRate} disabled={!canSync} />
-            </View>
-            <Scrubber
-              value={rel}
-              min={range?.min ?? 0}
-              max={range?.max ?? 1}
-              disabled={!canSync}
-              onStart={() => (takeControl(), transport.pause())}
-              onSeek={(t) => userSeek(t)}
-              step={stepOf('a').step}
-              label="함께 재생할 위치"
-              valueText={relText(rel)}
-            />
-            <ScrubLabels left={range ? relText(loop?.min ?? range.min) : '—'} right={range ? relText(loop?.max ?? range.max) : '—'} />
-            <View style={st.row}>
-              <Press accessibilityRole="button" accessibilityLabel="두 영상 이전 장면" disabled={!canSync} onPress={() => nudgeRel(-1)} style={st.iconBtn}>
-                <Icon name="chevron-left" size={24} color={canSync ? c.link : c.muted} />
-              </Press>
-              <Press
-                accessibilityRole="button"
-                accessibilityLabel={playLabel}
-                accessibilityState={{ disabled: !canSync, busy: isBusy(phase) }}
-                disabled={!canSync}
-                onPress={togglePlay}
-                style={[st.primary, { flex: 1, flexDirection: 'row', gap: 8, backgroundColor: c.action }, !canSync && { opacity: 0.4 }]}
-              >
-                {isBusy(phase) ? <ActivityIndicator color={c.onAction} /> : <Icon name={phase === 'playing' ? 'pause' : 'play'} size={20} color={c.onAction} />}
-                <Text maxFontSizeMultiplier={1.4} style={[TYPE.button, { color: c.onAction }]}>
-                  {playLabel}
-                </Text>
-              </Press>
-              <Press accessibilityRole="button" accessibilityLabel="두 영상 다음 장면" disabled={!canSync} onPress={() => nudgeRel(1)} style={st.iconBtn}>
-                <Icon name="chevron-right" size={24} color={canSync ? c.link : c.muted} />
-              </Press>
-            </View>
-            {phase === 'error' ? (
-              <Text maxFontSizeMultiplier={1.6} style={[TYPE.sub, { color: c.danger }]}>
-                두 영상을 같은 자리로 맞추지 못했어요. 다시 재생해 주세요.
-              </Text>
-            ) : null}
-            {/* 도구 */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }} accessibilityRole="tablist">
-              {(Object.keys(TOOL_LABEL) as Tool[]).map((k) => (
-                <Chip key={k} label={TOOL_LABEL[k]} on={tool === k} onPress={() => setTool(tool === k ? null : k)} />
-              ))}
-            </ScrollView>
-            {tool === 'align' ? (
-              <View style={{ gap: 8 }}>
-                <Row wrap>
-                  <Chip label="맞춘 장면으로" disabled={!canSync} onPress={() => userSeek(0)} />
-                  <Chip label="장면 다시 맞추기" onPress={realign} />
-                  <Chip label="여기서 반복 시작" disabled={!canSync} onPress={() => setLoopHere('start')} />
-                  <Chip label="여기서 반복 끝" disabled={!canSync} onPress={() => setLoopHere('end')} />
-                  {loop ? <Chip label="반복 풀기" onPress={() => edit(updatePair(docRef.current, { loop: null }))} /> : null}
-                </Row>
-                <Row wrap>
-                  <Chip label="실제 시간" on={!normalized} onPress={() => edit(updatePair(docRef.current, { mode: 'offset' }))} />
-                  <Chip
-                    label="동작 길이 맞춤"
-                    on={!!normalized}
-                    disabled={!normOk}
-                    hint={normOk ? '짚은 투구 장면들이 같은 자리에 오게 늘이고 줄여요' : '두 영상에 같은 투구 장면을 둘 이상 짚어야 해요'}
-                    onPress={() => edit(updatePair(docRef.current, { mode: 'normalized' }))}
-                  />
-                </Row>
-                {overlay.on ? (
-                  <Row wrap>
-                    <Text style={[TYPE.sub, { color: c.muted }]}>B 투명도</Text>
-                    {[0.3, 0.5, 0.7].map((o) => (
-                      <Chip key={o} label={`${Math.round(o * 100)}%`} on={Math.abs(overlay.opacity - o) < 0.01} onPress={() => edit(updatePair(docRef.current, { overlay: { ...overlay, opacity: o } }))} />
-                    ))}
-                    <Chip label={overlay.wipe == null ? '반반 나누기' : '나누기 끄기'} onPress={() => edit(updatePair(docRef.current, { overlay: { ...overlay, wipe: overlay.wipe == null ? 0.5 : null } }))} />
-                  </Row>
-                ) : null}
-                {overlay.on ? (
-                  /* 겹쳐 보기 자리 맞춤(R11) — B 를 A 의 몸 위에 손으로 맞춘다. 시간 맞춤과 따로 */
-                  <Row wrap>
-                    <Text style={[TYPE.sub, { color: c.muted }]}>B 자리</Text>
-                    {(
-                      [
-                        ['left', '왼쪽'],
-                        ['right', '오른쪽'],
-                        ['up', '위'],
-                        ['down', '아래'],
-                        ['bigger', '크게'],
-                        ['smaller', '작게'],
-                      ] as const
-                    ).map(([k, label]) => (
-                      <Chip key={k} label={label} onPress={() => edit(updatePair(docRef.current, { overlay: { ...overlay, reg: nudgeReg(overlay.reg, k) } }))} hint={`겹친 B 를 ${label}로 조금`} />
-                    ))}
-                    <Chip label="자리 풀기" onPress={() => edit(updatePair(docRef.current, { overlay: { ...overlay, reg: { ...IDENTITY_REG } } }))} />
-                  </Row>
-                ) : null}
-                <Text maxFontSizeMultiplier={1.6} style={[TYPE.sub, { color: c.muted }]}>
-                  {normalized
-                    ? '동작 길이 맞춤 · 실제 시간과 달라요. 짚은 첫 장면부터 마지막 장면까지만 재생하고, 걸린 시간 · 속도는 견주지 않아요.'
-                    : '두 영상이 함께 재생되는 구간만 보여요. 기준은 A 를 주인 시계로 B 를 따라 맞춰요.'}
-                </Text>
-                {syncDetail ? (
-                  <Text maxFontSizeMultiplier={1.6} style={[TYPE.sub, { color: c.muted }]}>
-                    {syncDetail}
-                  </Text>
-                ) : null}
-              </View>
-            ) : null}
-            {tool === 'draw' ? (
-              <DrawPanel
-                tool={drawTool}
-                onTool={(t) => {
-                  setDrawTool(t);
-                  setSelId(null);
-                }}
-                color={color}
-                onColor={setColor}
-                width={strokeW}
-                onWidth={setStrokeW}
-                span={span}
-                onSpan={setSpan}
-                hasLoop={!!loop}
-                metric={metric}
-                onMetric={setMetric}
-                side={drawSide}
-                onSide={setDrawSide}
-                canUndo={history.past.length > 0}
-                canRedo={history.future.length > 0}
-                onUndo={() => applyHistory(applyEdit(history, { op: 'undo' }))}
-                onRedo={() => applyHistory(applyEdit(history, { op: 'redo' }))}
-                selected={selectedAnn}
-                onDelete={() => selId && (applyHistory(applyEdit(history, { op: 'remove', id: selId })), setSelId(null))}
-                onClear={() => {
-                  const src = srcOf(drawSide);
-                  if (!src) return;
-                  const scope = { kind: 'scene' as const, sourceId: src.id, t: times[drawSide] };
-                  const n = visibleList(history.items, src.id, times[drawSide]).filter((x) => x.span.kind !== 'always').length;
-                  if (!n) return toast('이 장면에 지울 그림이 없어요.', 'info');
-                  Alert.alert(`이 장면 그림 ${n}개를 지울까요?`, '되돌리기로 다시 살릴 수 있어요.', [
-                    { text: '취소', style: 'cancel' },
-                    { text: '지우기', style: 'destructive', onPress: () => applyHistory(applyEdit(history, { op: 'clear', scope })) },
-                  ]);
-                }}
-                onCalibrate={() => {
-                  pendingCal.current = drawSide;
-                  setDrawTool('line');
-                  toast('같은 평면에서 길이를 아는 두 점을 이어 선을 그려 주세요(예: 사람 키 · 막대).', 'info');
-                }}
-                calibrated={!!srcOf(drawSide)?.calibration}
-                twoSides={!!bSrc}
-              />
-            ) : null}
-            {tool === 'events' ? (
-              <EventsPanel
-                sides={{ a: aSrc, b: bSrc }}
-                focus={eventSide}
-                onFocus={setEventSide}
-                times={times}
-                onMark={(e) => markEvent(e, times[eventSide])}
-                onObscure={(e) => markEvent(e, srcOf(eventSide)?.events[e] === 'obscured' ? null : 'obscured')}
-                onClear={(e) => markEvent(e, null)}
-                onJump={jumpEvent}
-                onAnchorHere={anchorAt}
-                metricRows={metricRows}
-              />
-            ) : null}
-            {tool === 'notes' ? (
-              <NotesPanel
-                notes={pairNotes}
-                labelOf={noteLabel}
-                onAdd={() => setSheet({ kind: 'note' })}
-                onOpen={openNote}
-                onEdit={(n) => setSheet({ kind: 'note', edit: n })}
-                onDelete={(n) => edit(removeNote(docRef.current, n.id))}
-              />
-            ) : null}
-            {tool === 'export' ? (
-              <ExportPanel plan={plan}>
-                <Storyboard pa={pa} pb={pb} rows={storyRows} />
-              </ExportPanel>
-            ) : null}
-          </View>
-        )}
-
-        {single ? (
-          <View style={[st.panel, { backgroundColor: c.card }]}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-              {(['draw', 'events', 'notes'] as Tool[]).map((k) => (
-                <Chip key={k} label={TOOL_LABEL[k]} on={tool === k} onPress={() => setTool(tool === k ? null : k)} />
-              ))}
-            </ScrollView>
-            {tool === 'draw' ? (
-              <DrawPanel
-                tool={drawTool}
-                onTool={setDrawTool}
-                color={color}
-                onColor={setColor}
-                width={strokeW}
-                onWidth={setStrokeW}
-                span={span}
-                onSpan={setSpan}
-                hasLoop={false}
-                metric={metric}
-                onMetric={setMetric}
-                side="a"
-                onSide={() => undefined}
-                canUndo={history.past.length > 0}
-                canRedo={history.future.length > 0}
-                onUndo={() => applyHistory(applyEdit(history, { op: 'undo' }))}
-                onRedo={() => applyHistory(applyEdit(history, { op: 'redo' }))}
-                selected={selectedAnn}
-                onDelete={() => selId && (applyHistory(applyEdit(history, { op: 'remove', id: selId })), setSelId(null))}
-                onClear={() => aSrc && applyHistory(applyEdit(history, { op: 'clear', scope: { kind: 'scene', sourceId: aSrc.id, t: times.a } }))}
-                onCalibrate={() => {
-                  pendingCal.current = 'a';
-                  setDrawTool('line');
-                  toast('같은 평면에서 길이를 아는 두 점을 이어 선을 그려 주세요.', 'info');
-                }}
-                calibrated={!!aSrc?.calibration}
-                twoSides={false}
-              />
-            ) : null}
-            {tool === 'events' ? (
-              <EventsPanel
-                sides={{ a: aSrc, b: null }}
-                focus="a"
-                onFocus={() => undefined}
-                times={times}
-                onMark={(e) => markEvent(e, times.a)}
-                onObscure={(e) => markEvent(e, aSrc?.events[e] === 'obscured' ? null : 'obscured')}
-                onClear={(e) => markEvent(e, null)}
-                onJump={(e) => {
-                  const t = aSrc ? timeOf(aSrc.events, e) : null;
-                  if (t != null) userSeek(t);
-                }}
-                onAnchorHere={() => undefined}
-                metricRows={[]}
-              />
-            ) : null}
-            {tool === 'notes' ? (
-              <NotesPanel notes={pairNotes} labelOf={noteLabel} onAdd={() => setSheet({ kind: 'note' })} onOpen={openNote} onEdit={(n) => setSheet({ kind: 'note', edit: n })} onDelete={(n) => edit(removeNote(docRef.current, n.id))} />
-            ) : null}
-          </View>
-        ) : null}
-      </ScrollView>
-
-      {stage === 'align' && !single ? (
-        <View style={[st.foot, { paddingBottom: inset.bottom + 12, backgroundColor: c.page, borderTopColor: c.line }]}>
-          <Text maxFontSizeMultiplier={1.6} numberOfLines={2} style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>
-            {errB ? 'B 영상을 확인하면 비교할 수 있어요.' : errA ? 'A 영상을 확인하면 비교할 수 있어요.' : bothMarked(marks) ? '두 영상의 기준 장면을 지정했어요.' : `A와 B에서 ${ANCHOR_LABEL[semantic === 'start' ? 'manual' : semantic]} 장면을 지정해 주세요.`}
+      {saveFailed ? (
+        <Press accessibilityRole="button" onPress={() => (saver.schedule(docRef.current), void saver.flush())} style={[st.saveFail, { backgroundColor: withAlpha(c.danger, 0.12) }]}>
+          <Text numberOfLines={1} maxFontSizeMultiplier={1.4} style={[TYPE.sub, { color: c.danger }]}>
+            {save === 'conflict' ? '다른 곳에서 바뀌었어요 · 사본으로 남겼어요' : '저장하지 못했어요 · 눌러서 다시 저장'}
           </Text>
-          <Row>
-            <Press accessibilityRole="button" accessibilityState={{ disabled: !bothReady }} disabled={!bothReady} onPress={startFromBeginning} style={[st.secondary, { borderColor: c.line }, !bothReady && { opacity: 0.4 }]}>
-              <Text maxFontSizeMultiplier={1.3} style={[TYPE.buttonCompact, { color: c.link }]}>
-                처음부터 보기
-              </Text>
-            </Press>
-            <Press
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !canStart }}
-              disabled={!canStart}
-              onPress={startCompare}
-              style={[st.primary, { flex: 1, backgroundColor: c.action }, !canStart && { opacity: 0.4 }]}
-            >
-              <Text maxFontSizeMultiplier={1.4} style={[TYPE.button, { color: c.onAction }]}>
-                맞춘 장면으로 비교
-              </Text>
-            </Press>
-          </Row>
-        </View>
+        </Press>
       ) : null}
 
+      <View style={{ flex: 1, flexDirection: landscape ? 'row' : 'column' }}>
+        <View style={{ flex: 1 }}>
+          {/* 무대 — 남는 자리 전부. 영상은 실제 비율로, 타임라인 쪽에 붙여서 */}
+          <View
+            style={st.stage}
+            onLayout={(e) => {
+              const w = Math.round(e.nativeEvent.layout.width);
+              const h = Math.round(e.nativeEvent.layout.height);
+              if (!stageSize || stageSize.w !== w || stageSize.h !== h) setStageSize({ w, h });
+            }}
+          >
+            <Pane
+              key={aSrc?.id ?? 'a'}
+              {...paneProps('a')}
+              rect={plan?.panes.a ?? null}
+              onReplace={() => openPick('a', errA && (errA.kind === 'missing' || errA.kind === 'gone') ? (aSrc?.id ?? null) : null)}
+            />
+            {bSrc ? <Pane key={bSrc.id} {...paneProps('b')} rect={plan?.panes.b ?? null} onReplace={() => openPick('b', errB && (errB.kind === 'missing' || errB.kind === 'gone') ? bSrc.id : null)} /> : null}
+            {stageMode === 'overlay' && pa && pb && plan?.panes.a ? (
+              <OverlayBox pa={pa} pb={pb} rect={plan.panes.a} opacity={overlay.opacity} wipe={overlay.wipe} reg={overlay.reg} mirrorA={views.a.mirror} mirrorB={views.b.mirror} />
+            ) : null}
+            {statusText ? (
+              <Text style={[st.status, { color: c.danger, backgroundColor: c.card }]} maxFontSizeMultiplier={1.4} accessibilityLiveRegion="polite">
+                {statusText}
+              </Text>
+            ) : null}
+            {insp && !editing ? (
+              <View style={st.inspWrap}>
+                <Inspector key={`${ui.inspector}:${infoSide}:${compareStart}`} title={insp.title} rows={insp.rows} avail={inspAvail} width={(stageSize?.w ?? rootSize.w) - 12} onClose={() => setUi((u) => closeInspector(u))} startRow={ui.inspector === 'compareSet' ? compareStart : null} />
+              </View>
+            ) : null}
+          </View>
+          {editing && noteEdit ? (
+            <View style={[st.controls, { paddingBottom: kb > 0 ? kb + 4 : inset.bottom + 4 }]}>
+              <NoteEditor
+                key={noteEdit.key}
+                title={noteEdit.edit ? '메모 고치기' : `${noteEdit.side.toUpperCase()} ${clock(noteEdit.t)} 메모`}
+                initial={drafts.current.get(noteEdit.key) ?? noteEdit.edit?.text ?? ''}
+                lines={editLines}
+                onDraft={onDraft}
+                onCancel={() => closeNoteEditor(false)}
+                onSave={(t) => {
+                  if (!t) return closeNoteEditor(false);
+                  if (noteEdit.edit) edit(editNote(docRef.current, noteEdit.edit.id, t));
+                  else edit(addNote(docRef.current, { sourceId: srcOf(noteEdit.side)?.id ?? null, t: noteEdit.t, text: t }, nowIso()));
+                  closeNoteEditor(false);
+                }}
+              />
+            </View>
+          ) : (
+            <View style={[st.controls, { paddingBottom: landscape ? inset.bottom + 2 : 0 }]}>
+              {timelineNode}
+              {transportNode}
+            </View>
+          )}
+          {!landscape && !editing ? <View style={[st.controls, { paddingBottom: inset.bottom + 4, paddingTop: 2 }]}>{ctxNode}</View> : null}
+        </View>
+        {landscape && !editing ? <View style={[st.sideCol, { width: sideW, paddingBottom: inset.bottom + 4 }]}>{contextRows.length ? <View style={{ gap: 4 }}>{contextRows}</View> : dockNode}</View> : null}
+      </View>
+
       {expand && expandPlayer ? (
-        <ExpandView player={expandPlayer} side={expand} aspect={(expand === 'a' ? aspA : aspB) || boxAspect} time={times[expand]} playLabel={stage === 'compare' || single ? playLabel : null} canPlay={canSync} onToggle={togglePlay} onClose={() => setExpand(null)} />
+        <ExpandView
+          player={expandPlayer}
+          side={expand}
+          aspect={(expand === 'a' ? aspA : aspB) ?? FALLBACK_ASPECT}
+          time={times[expand]}
+          playLabel={stage === 'compare' || single ? playLabel : null}
+          canPlay={canSync}
+          onToggle={togglePlay}
+          onClose={() => setExpand(null)}
+        />
       ) : null}
 
       {sheet?.kind === 'title' ? (
         <TextSheet title="비교 이름" initial={doc.title} placeholder="예: 11월 불펜 vs 10월" max={40} onClose={() => setSheet(null)} onDone={(t) => (edit(rename(docRef.current, t)), setSheet(null))} />
       ) : null}
-      {sheet?.kind === 'note' ? (
-        <TextSheet
-          title={sheet.edit ? '메모 고치기' : `${noteSide.toUpperCase()} ${clock(times[noteSide])} 메모`}
-          initial={sheet.edit?.text}
-          placeholder="이 장면에서 본 것"
-          onClose={() => setSheet(null)}
-          onDone={(t) => {
-            if (sheet.edit) edit(editNote(docRef.current, sheet.edit.id, t));
-            else edit(addNote(docRef.current, { sourceId: srcOf(noteSide)?.id ?? null, t: times[noteSide], text: t }, nowIso()));
-            setSheet(null);
-          }}
-        />
-      ) : null}
       {sheet?.kind === 'label' ? (
         <TextSheet title="글 그림" placeholder="예: 팔꿈치 높이" max={60} onClose={() => setSheet(null)} onDone={(t) => (createAnn(sheet.side, { kind: 'label', p: sheet.p, text: t }), setSheet(null))} />
+      ) : null}
+      {sheet?.kind === 'time' ? (
+        <TextSheet
+          title={sideT ? `${sideT.toUpperCase()} 시각(초)` : single ? '시각(초)' : '기준 장면부터(초, 앞은 −)'}
+          placeholder={sideT || single ? '예: 2.35' : '예: -0.4'}
+          numeric
+          max={8}
+          onClose={() => setSheet(null)}
+          onDone={(t) => {
+            const v = Number(t.replace(',', '.').replace('−', '-'));
+            if (!Number.isFinite(v)) return toast('시각을 숫자로 넣어 주세요.', 'error');
+            setSheet(null);
+            if (sideT) return seekSide(sideT, v);
+            if (range) userSeek(Math.min(range.max, Math.max(range.min, v)));
+          }}
+        />
       ) : null}
       {sheet?.kind === 'calibrate' ? (
         <TextSheet
@@ -1351,81 +1901,6 @@ export function Workbench({
           }}
         />
       ) : null}
-      {sheet?.kind === 'info' && srcOf(sheet.side) ? (
-        <SourceInfoSheet src={srcOf(sheet.side) as SourceRef} onClose={() => setSheet(null)} onChange={(p) => edit(updateSource(docRef.current, (srcOf(sheet.side) as SourceRef).id, p))} />
-      ) : null}
-    </View>
-  );
-}
-
-function SinglePanel({
-  time,
-  duration,
-  ready,
-  stepText,
-  rate,
-  playLabel,
-  busy,
-  onScrub,
-  onStart,
-  onNudge,
-  onToggle,
-  onRate,
-  onAdd,
-}: {
-  time: number;
-  duration: number | null;
-  ready: boolean;
-  stepText: string;
-  rate: number;
-  playLabel: string;
-  busy: boolean;
-  onScrub: (t: number) => void;
-  onStart: () => void;
-  onNudge: (d: 1 | -1) => void;
-  onToggle: () => void;
-  onRate: () => void;
-  onAdd: () => void;
-}) {
-  const c = usePalette();
-  return (
-    <View style={[st.panel, { backgroundColor: c.card }]}>
-      <View style={st.row}>
-        <Text maxFontSizeMultiplier={1.6} style={[TYPE.card, { color: c.ink, flex: 1, fontVariant: ['tabular-nums'] }]}>
-          {clock(time)}
-        </Text>
-        <Chip label={rateLabel(rate)} onPress={onRate} disabled={!ready} />
-      </View>
-      <Scrubber value={time} max={duration ?? 1} disabled={!ready} onStart={onStart} onSeek={onScrub} step={1 / 30} label="영상 위치" valueText={clock(time)} />
-      <ScrubLabels left="0:00" right={clock(duration)} />
-      <View style={st.row}>
-        <Press accessibilityRole="button" accessibilityLabel="이전 장면" disabled={!ready} onPress={() => onNudge(-1)} style={st.iconBtn}>
-          <Icon name="chevron-left" size={24} color={ready ? c.link : c.muted} />
-        </Press>
-        <Press
-          accessibilityRole="button"
-          accessibilityLabel={playLabel === '함께 재생' ? '재생' : playLabel === '함께 멈춤' ? '멈춤' : playLabel}
-          disabled={!ready}
-          onPress={onToggle}
-          style={[st.primary, { flex: 1, flexDirection: 'row', gap: 8, backgroundColor: c.action }, !ready && { opacity: 0.4 }]}
-        >
-          {busy ? <ActivityIndicator color={c.onAction} /> : <Icon name={playLabel === '함께 멈춤' ? 'pause' : 'play'} size={20} color={c.onAction} />}
-          <Text maxFontSizeMultiplier={1.4} style={[TYPE.button, { color: c.onAction }]}>
-            {playLabel === '함께 재생' ? '재생' : playLabel === '함께 멈춤' ? '멈춤' : playLabel}
-          </Text>
-        </Press>
-        <Press accessibilityRole="button" accessibilityLabel="다음 장면" disabled={!ready} onPress={() => onNudge(1)} style={st.iconBtn}>
-          <Icon name="chevron-right" size={24} color={ready ? c.link : c.muted} />
-        </Press>
-      </View>
-      <Text maxFontSizeMultiplier={1.6} style={[TYPE.sub, { color: c.muted }]}>
-        이전 · 다음: {stepText}
-      </Text>
-      <Press accessibilityRole="button" onPress={onAdd} style={[st.primary, { backgroundColor: withAlpha(c.action, 0.12) }]}>
-        <Text maxFontSizeMultiplier={1.4} style={[TYPE.button, { color: c.link }]}>
-          비교 영상 추가
-        </Text>
-      </Press>
     </View>
   );
 }
@@ -1434,7 +1909,7 @@ function SinglePanel({
 function OverlayBox({
   pa,
   pb,
-  box,
+  rect,
   opacity,
   wipe,
   reg,
@@ -1443,7 +1918,7 @@ function OverlayBox({
 }: {
   pa: VideoPlayer;
   pb: VideoPlayer;
-  box: { w: number; h: number };
+  rect: { x: number; y: number; w: number; h: number };
   opacity: number;
   wipe: number | null;
   reg: { dx: number; dy: number; scale: number };
@@ -1451,29 +1926,134 @@ function OverlayBox({
   mirrorB: boolean;
 }) {
   const c = usePalette();
+  const box = { w: rect.w, h: rect.h };
   return (
-    <View style={{ gap: 6 }}>
-      <View style={{ width: box.w, height: box.h, alignSelf: 'center', borderRadius: 16, overflow: 'hidden', backgroundColor: '#0e1a26' }} accessible accessibilityLabel={`겹쳐 보기, B 투명도 ${Math.round(opacity * 100)}%`}>
-        <View style={[StyleSheet.absoluteFill, { transform: [{ scaleX: mirrorA ? -1 : 1 }] }]} pointerEvents="none">
-          <VideoView player={pa} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />
-        </View>
-        <View
-          pointerEvents="none"
-          style={[
-            wipe != null ? { position: 'absolute', top: 0, bottom: 0, left: box.w * wipe, right: 0, overflow: 'hidden' } : StyleSheet.absoluteFill,
-            { opacity: wipe != null ? 1 : opacity },
-          ]}
-        >
-          <View style={{ position: 'absolute', top: 0, bottom: 0, width: box.w, left: wipe != null ? -box.w * wipe : 0, transform: [{ translateX: reg.dx * box.w }, { translateY: reg.dy * box.h }, { scale: reg.scale }, { scaleX: mirrorB ? -1 : 1 }] }}>
-            <VideoView player={pb} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />
-          </View>
-        </View>
-        {wipe != null ? <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: box.w * wipe - 1, width: 2, backgroundColor: '#fff' }} /> : null}
-        <Text style={[st.tag, { left: 8 }]}>A</Text>
-        <Text style={[st.tag, { right: 8, backgroundColor: c.action }]}>B</Text>
+    <View style={{ position: 'absolute', left: rect.x, top: rect.y, width: box.w, height: box.h, borderRadius: 10, overflow: 'hidden', backgroundColor: '#0e1a26' }} accessible accessibilityLabel={`겹쳐 보기, B 투명도 ${Math.round(opacity * 100)}%`}>
+      <View style={[StyleSheet.absoluteFill, { transform: [{ scaleX: mirrorA ? -1 : 1 }] }]} pointerEvents="none">
+        <VideoView player={pa} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />
       </View>
+      <View
+        pointerEvents="none"
+        style={[wipe != null ? { position: 'absolute', top: 0, bottom: 0, left: box.w * wipe, right: 0, overflow: 'hidden' } : StyleSheet.absoluteFill, { opacity: wipe != null ? 1 : opacity }]}
+      >
+        <View style={{ position: 'absolute', top: 0, bottom: 0, width: box.w, left: wipe != null ? -box.w * wipe : 0, transform: [{ translateX: reg.dx * box.w }, { translateY: reg.dy * box.h }, { scale: reg.scale }, { scaleX: mirrorB ? -1 : 1 }] }}>
+          <VideoView player={pb} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />
+        </View>
+      </View>
+      {wipe != null ? <View pointerEvents="none" style={{ position: 'absolute', top: 0, bottom: 0, left: box.w * wipe - 1, width: 2, backgroundColor: '#fff' }} /> : null}
+      <Text style={[st.tag, { left: 6 }]}>A</Text>
+      <Text style={[st.tag, { right: 6, backgroundColor: c.action }]}>B</Text>
     </View>
   );
+}
+
+function ToolTile({ label, icon, on, onPress }: { label: string; icon: IconName; on: boolean; onPress: () => void }) {
+  const c = usePalette();
+  return (
+    <Press accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: on }} onPress={onPress} style={[st.tile, { backgroundColor: on ? c.action : withAlpha(c.ink, 0.07) }]}>
+      <Icon name={icon} size={18} color={on ? c.onAction : c.link} />
+      <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={[st.tileText, { color: on ? c.onAction : c.ink }]}>
+        {label}
+      </Text>
+    </Press>
+  );
+}
+function Swatch({ color, on, label, onPress }: { color: string; on: boolean; label: string; onPress: () => void }) {
+  const c = usePalette();
+  return (
+    <Press accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: on }} onPress={onPress} style={[st.swatchHit, { borderColor: on ? c.action : 'transparent' }]}>
+      <View style={[st.swatch, { backgroundColor: color }]} />
+    </Press>
+  );
+}
+
+/** 장면 결과(R30 · R32) — 순서 문제 · 두 영상 장면으로 가기 · 구간 시간 · 2D 참고 측정. 쪽으로 나눈다 */
+function eventResultRows(o: {
+  a: SourceRef | null;
+  b: SourceRef | null;
+  metricRows: { metric: MetricKey; a: Annotation | null; b: Annotation | null; aspectA: number; aspectB: number }[];
+  w: number;
+  fs: number;
+  onJump: (e: PitchEvent) => void;
+  onAnchor: (e: PitchEvent) => void;
+}): IRow[] {
+  const rows: IRow[] = [];
+  const { a, b, w, fs } = o;
+  for (const [k, src] of [
+    ['A', a],
+    ['B', b],
+  ] as const) {
+    const issues = src ? orderIssues(src.events) : [];
+    if (issues.length) rows.push(subRow(`iss${k}`, `${k}: ${issues.map(([x, y]) => `${EVENT_SHORT[y]}이(가) ${EVENT_SHORT[x]}보다 앞이에요`).join(' · ')}. 다시 확인해 주세요.`, w, fs, true));
+  }
+  const shared = a && b ? sharedEvents(a.events, b.events) : [];
+  if (shared.length) {
+    rows.push(headRow('hs', '두 영상 장면으로 가기', fs));
+    rows.push(
+      rowOf(
+        'jump',
+        chipRowsH(shared.map((e) => EVENT_SHORT[e]), w, fs),
+        <Wrap>
+          {shared.map((e) => (
+            <TextBtn key={e} label={EVENT_SHORT[e]} onPress={() => o.onJump(e)} hint="A 를 그 장면으로 옮기고 B 는 기준대로 따라가요" />
+          ))}
+        </Wrap>
+      )
+    );
+    const anchors = shared.filter((e) => e === 'footContact' || e === 'release');
+    if (anchors.length)
+      rows.push(
+        rowOf(
+          'anchor',
+          chipRowsH(anchors.map((e) => `${EVENT_SHORT[e]}을 기준으로`), w, fs),
+          <Wrap>
+            {anchors.map((e) => (
+              <TextBtn key={e} label={`${EVENT_SHORT[e]}을 기준으로`} onPress={() => o.onAnchor(e)} />
+            ))}
+          </Wrap>
+        )
+      );
+  }
+  const factsOf = (s: SourceRef | null): MediaFacts => s?.facts ?? EMPTY_FACTS;
+  const intervals: IRow[] = [];
+  for (const [from, to] of DEFAULT_INTERVALS) {
+    const ia = a ? intervalOf(a.events, from, to, factsOf(a)) : null;
+    const ib = b ? intervalOf(b.events, from, to, factsOf(b)) : null;
+    if (!ia && !ib) continue;
+    const cmp = compareInterval(ia, ib);
+    const one = (iv: typeof ia) => (!iv ? '—' : iv.real != null ? durationText(iv.real, iv.plusMinus) : `재생 ${durationText(iv.presentation, null)}${iv.mapping === 'unknown' ? '(실제 시간 모름)' : ''}`);
+    const diff = !b
+      ? ''
+      : cmp.basis === 'real'
+        ? ` · 차이 ${cmp.diff >= 0 ? '+' : '−'}${durationText(Math.abs(cmp.diff), cmp.plusMinus)} (실제 시간)`
+        : cmp.basis === 'presentation'
+          ? ` · 차이 ${cmp.diff >= 0 ? '+' : '−'}${Math.abs(cmp.diff).toFixed(2)}초 (재생 시간 기준 · 슬로모션 여부 모름)`
+          : cmp.reason === 'timebase'
+            ? ' · 시간 축이 달라(슬로모션 · 일반) 견주지 않아요'
+            : ' · 두 영상 모두 짚으면 견줘요';
+    intervals.push(subRow(`iv${from}${to}`, `${EVENT_SHORT[from]} → ${EVENT_SHORT[to]} · A ${one(ia)}${b ? ` · B ${one(ib)}` : ''}${diff}`, w, fs));
+  }
+  if (intervals.length) rows.push(headRow('hi', '구간 시간', fs), ...intervals);
+  if (o.metricRows.length) {
+    rows.push(headRow('hm', '2D 참고 측정', fs));
+    for (const r of o.metricRows) {
+      const cmp = compareMetric(r.metric, r.a ? { geom: r.a.geom, aspect: r.aspectA, cal: a?.calibration ?? null, view: a?.view ?? null } : null, r.b ? { geom: r.b.geom, aspect: r.aspectB, cal: b?.calibration ?? null, view: b?.view ?? null } : null);
+      const unit = (u: string) => (u === '°' ? '°' : u === 'cm' ? 'cm' : '(화면 비율)');
+      const text = cmp.ok
+        ? `A ${cmp.a.toFixed(1)}${unit(cmp.unit)} · B ${cmp.b.toFixed(1)}${unit(cmp.unit)} · 차이 ${cmp.diff >= 0 ? '+' : '−'}${Math.abs(cmp.diff).toFixed(1)}`
+        : cmp.reason === 'viewUnknown'
+          ? '촬영 방향을 정하면 견줘요(영상 정보)'
+          : cmp.reason === 'view'
+            ? '촬영 방향이 달라 견주지 않아요'
+            : cmp.reason === 'unit'
+              ? '길이 보정이 한쪽만 있어 견주지 않아요'
+              : '두 영상에 같은 이름표를 그리면 견줘요';
+      rows.push(subRow(`m${r.metric}`, `${METRIC_LABEL[r.metric]} · ${text}`, w, fs));
+    }
+    rows.push(subRow('mnote', '화면에 투영된 2D 값이에요. 촬영 방향 · 거리가 다르면 같은 자세도 다르게 보여요. 관절 부담 · 부상 위험은 이 값으로 셈하지 않아요.', w, fs));
+  }
+  if (!rows.length) rows.push(subRow('none', '멈춘 장면에서 \'지금 장면\'을 누르면 구간 시간이 생겨요. 잘 안 보이면 \'가려짐\'으로 두어요.', w, fs));
+  return rows;
 }
 
 /** 크게 보기 — 같은 재생기를 화면 가득 한 번 더 붙인다. 보는 동안만 가로로 돌릴 수 있게 */
@@ -1516,21 +2096,34 @@ function ExpandView({ player, side, aspect, time, playLabel, canPlay, onToggle, 
 }
 
 const st = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6, minHeight: 56, gap: 4 },
+  bar: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: 2 },
   barButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  barMid: { flex: 1, alignItems: 'center', minHeight: 44, justifyContent: 'center' },
-  barTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.4 },
-  subhead: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
-  panel: { borderRadius: 20, padding: 16, gap: 10 },
-  segment: { flexDirection: 'row', borderRadius: 14, padding: 3, gap: 3 },
-  segItem: { flex: 1, minHeight: 44, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconBtn: { width: 44, height: 48, alignItems: 'center', justifyContent: 'center' },
-  primary: { minHeight: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 8 },
-  secondary: { minHeight: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderWidth: StyleSheet.hairlineWidth },
-  foot: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 10, gap: 8, borderTopWidth: StyleSheet.hairlineWidth },
+  barMid: { flex: 1, minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
+  barTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.4, textAlign: 'center' },
+  review: { flexDirection: 'row', alignItems: 'center' },
+  saveFail: { minHeight: 32, marginHorizontal: 8, borderRadius: 8, paddingHorizontal: 10, justifyContent: 'center' },
+  stage: { flex: 1, minHeight: 0 },
+  inspWrap: { position: 'absolute', left: 6, right: 6, bottom: 6, alignItems: 'center' },
+  status: { position: 'absolute', left: 8, right: 8, top: 6, fontSize: 13, lineHeight: 18, padding: 6, borderRadius: 8, overflow: 'hidden', textAlign: 'center' },
+  controls: { paddingHorizontal: 8, gap: 2 },
+  transport: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44 },
+  play: { width: 56, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  dock: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'stretch', minHeight: 48 },
+  dockCol: { flex: 1, justifyContent: 'space-evenly', gap: 2 },
+  dockItem: { flex: 1, minHeight: 48, minWidth: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 1, paddingHorizontal: 2 },
+  dockText: { fontSize: 11, fontWeight: '600' },
+  ctxRow: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44 },
+  sideCol: { paddingHorizontal: 6, paddingTop: 4, justifyContent: 'flex-end' },
+  ctxWrap: { flexWrap: 'wrap' },
+  colorBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  colorDot: { width: 24, height: 24, borderRadius: 12, borderWidth: 2 },
+  tile: { width: 64, minHeight: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 2 },
+  tileText: { fontSize: 11, fontWeight: '600' },
+  swatchHit: { width: 44, height: 44, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  swatch: { width: 24, height: 24, borderRadius: 7 },
+  primary: { minHeight: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   fullBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48 },
   fullTitle: { color: '#fff', fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'], paddingLeft: 4 },
   fullClose: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' },
-  tag: { position: 'absolute', top: 8, color: '#fff', fontSize: 12, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: 'hidden', backgroundColor: 'rgba(16,40,59,0.72)' },
+  tag: { position: 'absolute', top: 6, color: '#fff', fontSize: 12, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: 'hidden', backgroundColor: 'rgba(16,40,59,0.72)' },
 });

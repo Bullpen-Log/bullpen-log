@@ -11,6 +11,15 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-11-02 · 금윤호(Claude, 윤호 맥북) — 영상 비교를 굴리지 않는 한 화면으로 · **네 갤러리 필터 시트에 쪽 변형 하나**
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만이라 업데이트로 나간다). 금윤호: "영상은 위, 조작은 아래라 굴려야 한다 · 영상이 작다 · 한 화면에서 다 되게, 굴림 금지".
+지시 `docs/designs/sinker-pitch-video-single-screen-claude-prompt.md` UI01~UI12, 무엇이 됐고 안 됐는지는 대장 `docs/designs/sinker-pitch-video-workbench-ledger.md` '한 화면' 절. **시뮬레이터 · Metro · 실기기 확인은 하나도 안 했다.**
+- 비교 화면(`native/src/compare/ui/workbench.tsx`): 머리 · 영상 무대 · 공통 타임라인(`ui/timeline.tsx`) · 재생 줄(함께 · A · B) · 도구 줄. 도구는 줄을 바꾸거나 무대 위 작은 창 하나(쪽 넘기기). 배치는 순수 `compare/workspace-layout.ts`, 도구 상태 `compare/workspace-context.ts`.
+  F01~F08 논리는 그대로(회귀 66 → 75 모두 통과). 그림은 끄는 동안 문서에 안 쓰고 뗄 때 한 번(`compare/shape-edit.ts` 손잡이), 메모 쓰기는 `ui/note-editor.tsx`.
+- **네 영역**: `native/src/videos/gallery-parts.tsx` `FilterSheet` 에 선택 칸 `paged`(묶음을 한 쪽씩 — 비교 고르기만 씀). 안 주면 예전과 같다(묶음마다 View 하나로 감쌌을 뿐, 차례 · 간격 그대로). 비교는 이제 `VideoGallery` 의 pick 모드를 안 쓴다(지우지 않았다).
+- 시험: `npm run native-compare:test`(318 + regress 75 + 새 screen 468) · my-videos 117 + 69 · release-access 692. 폰에서 볼 것은 대장 16~21.
+
 ## 김민에게 — 2026-11-02 · 금윤호(Claude, 윤호 맥북) — 영상 비교 독립 검토 교정(F01~F08) · **네 갤러리 · 아이콘 부품을 조금 고쳤다**
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). 검토 `docs/designs/sinker-pitch-video-workbench-review-2026-11-02.md`, 결과 표는 대장 `-ledger.md` 의 'F01–F08' 절.

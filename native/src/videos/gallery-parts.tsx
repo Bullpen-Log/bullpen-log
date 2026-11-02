@@ -244,6 +244,7 @@ const LINKED: { value: LinkedFilter; label: string }[] = [
   { value: 'linked', label: '연결됨' },
   { value: 'unlinked', label: '연결 없음' },
 ];
+const SECTIONS = ['sport', 'period', 'linked', 'order'] as const;
 const ORDERS: { value: VideoOrder; label: string }[] = [
   { value: 'new', label: '최신순' },
   { value: 'old', label: '오래된순' },
@@ -267,7 +268,7 @@ function Chip({ on, label, onPress }: { on: boolean; label: string; onPress: () 
   );
 }
 
-function SheetFrame({ title, onCancel, right, children, footer }: { title: string; onCancel: () => void; right?: React.ReactNode; children: React.ReactNode; footer?: React.ReactNode }) {
+function SheetFrame({ title, onCancel, right, children, footer, fixed }: { title: string; onCancel: () => void; right?: React.ReactNode; children: React.ReactNode; footer?: React.ReactNode; fixed?: boolean }) {
   const c = usePalette();
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onCancel}>
@@ -281,7 +282,8 @@ function SheetFrame({ title, onCancel, right, children, footer }: { title: strin
           </Text>
           <View style={{ minWidth: 44, alignItems: 'flex-end' }}>{right}</View>
         </View>
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 32 }}>{children}</ScrollView>
+        {/* fixed — 영상 비교의 고르기(한 화면 · 굴리지 않음): 한 쪽씩 보여 준다(FilterSheet paged) */}
+        {fixed ? <View style={{ flex: 1, padding: 16, gap: 18 }}>{children}</View> : <ScrollView contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 32 }}>{children}</ScrollView>}
         {footer ? <View style={[styles.sheetFoot, { borderTopColor: c.line }]}>{footer}</View> : null}
       </View>
     </Modal>
@@ -331,6 +333,7 @@ export function FilterSheet({
   today,
   onApply,
   onClose,
+  paged,
 }: {
   items: readonly MyVideoItem[];
   filter: VideoFilter;
@@ -338,15 +341,19 @@ export function FilterSheet({
   today: string;
   onApply: (f: VideoFilter, o: VideoOrder) => void;
   onClose: () => void;
+  /** 영상 비교의 고르기 — 묶음을 한 쪽씩(굴리지 않음). 내 영상 목록은 그대로 한 장에 굴려 본다 */
+  paged?: boolean;
 }) {
   const c = usePalette();
   const [f, setF] = useState(filter);
   const [o, setO] = useState(order);
+  const [pg, setPg] = useState(0);
   const types = useMemo(() => recordTypes(items), [items]);
   const count = useMemo(() => filterVideos(items, f, today).length, [items, f, today]);
   return (
     <SheetFrame
       title="영상 필터"
+      fixed={paged}
       onCancel={onClose}
       right={
         <Pressable accessibilityRole="button" onPress={() => { setF({ ...EMPTY_VIDEO_FILTER, text: f.text, favoriteOnly: f.favoriteOnly }); setO('new'); }} hitSlop={8}>
@@ -359,33 +366,53 @@ export function FilterSheet({
         </Press>
       }
     >
-      <Section title="종목">
-        <Segmented options={SPORTS} value={f.sport ?? 'all'} onChange={(v) => setF({ ...f, sport: v === 'all' ? null : v })} label="종목" />
-      </Section>
-      <Section title="기간">
-        <PeriodPicker value={f.period} onChange={(period) => setF({ ...f, period })} today={today} />
-      </Section>
-      <Section title="붙은 기록">
-        <Segmented options={LINKED} value={f.linked} onChange={(linked) => setF({ ...f, linked })} label="기록 연결" />
-        {types.length ? (
-          <View style={styles.chipWrap}>
-            {types.map((t) => (
-              <Chip
-                key={t.type}
-                on={f.types.includes(t.type)}
-                label={`${t.type} ${t.count}`}
-                onPress={() => setF({ ...f, types: f.types.includes(t.type) ? f.types.filter((x) => x !== t.type) : [...f.types, t.type] })}
-              />
-            ))}
+      {(paged ? [SECTIONS[pg]] : SECTIONS).map((k) => (
+        <View key={k} style={{ gap: 18 }}>
+          {k === 'sport' ? (
+            <Section title="종목">
+              <Segmented options={SPORTS} value={f.sport ?? 'all'} onChange={(v) => setF({ ...f, sport: v === 'all' ? null : v })} label="종목" />
+            </Section>
+          ) : k === 'period' ? (
+            <Section title="기간">
+              <PeriodPicker value={f.period} onChange={(period) => setF({ ...f, period })} today={today} />
+            </Section>
+          ) : k === 'linked' ? (
+            <Section title="붙은 기록">
+              <Segmented options={LINKED} value={f.linked} onChange={(linked) => setF({ ...f, linked })} label="기록 연결" />
+              {types.length ? (
+                <View style={styles.chipWrap}>
+                  {types.map((t) => (
+                    <Chip
+                      key={t.type}
+                      on={f.types.includes(t.type)}
+                      label={`${t.type} ${t.count}`}
+                      onPress={() => setF({ ...f, types: f.types.includes(t.type) ? f.types.filter((x) => x !== t.type) : [...f.types, t.type] })}
+                    />
+                  ))}
           </View>
         ) : (
-          <Text style={[TYPE.sub, { color: c.muted }]}>기록에 붙은 영상이 아직 없어요.</Text>
+                <Text style={[TYPE.sub, { color: c.muted }]}>기록에 붙은 영상이 아직 없어요.</Text>
         )}
-        <Text style={[TYPE.sub, { color: c.muted }]}>영상이 기록 여럿에 붙었으면 그중 하나라도 맞으면 보여요.</Text>
-      </Section>
-      <Section title="정렬">
-        <Segmented options={ORDERS} value={o} onChange={setO} label="정렬" />
-      </Section>
+              <Text style={[TYPE.sub, { color: c.muted }]}>영상이 기록 여럿에 붙었으면 그중 하나라도 맞으면 보여요.</Text>
+            </Section>
+          ) : (
+            <Section title="정렬">
+              <Segmented options={ORDERS} value={o} onChange={setO} label="정렬" />
+            </Section>
+          )}
+        </View>
+      ))}
+      {paged ? (
+        <View style={styles.pageRow}>
+          <Pressable accessibilityRole="button" accessibilityLabel="필터 이전 쪽" accessibilityState={{ disabled: pg === 0 }} disabled={pg === 0} onPress={() => setPg(pg - 1)} style={[styles.pageBtn, pg === 0 && { opacity: 0.35 }]}>
+            <Text style={[TYPE.body, { color: c.link }]}>‹ 이전</Text>
+          </Pressable>
+          <Text style={[TYPE.sub, { color: c.muted }]}>{`${pg + 1}/${SECTIONS.length}`}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="필터 다음 쪽" accessibilityState={{ disabled: pg === SECTIONS.length - 1 }} disabled={pg === SECTIONS.length - 1} onPress={() => setPg(pg + 1)} style={[styles.pageBtn, pg === SECTIONS.length - 1 && { opacity: 0.35 }]}>
+            <Text style={[TYPE.body, { color: c.link }]}>다음 ›</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </SheetFrame>
   );
 }
@@ -450,6 +477,8 @@ export function MonthSheet({
 }
 
 const styles = StyleSheet.create({
+  pageRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' },
+  pageBtn: { minHeight: 44, minWidth: 64, justifyContent: 'center', paddingHorizontal: 8 },
   star: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   starAt: { position: 'absolute', top: 4, right: 4 },
   tile: { borderRadius: 18, overflow: 'hidden', borderWidth: 0, borderColor: 'transparent' },

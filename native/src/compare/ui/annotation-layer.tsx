@@ -3,6 +3,7 @@ import { type GestureResponderEvent, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 import { measureText, simplifyFree, type Annotation, type Geometry, type ToolKind } from '~/compare/annotations';
+import { handlesOf, translate, withHandle } from '~/compare/shape-edit';
 import { clampPt, inside, panBy, toScreen, toSource, zoomAt, type Calibration, type Pane, type Pt, type Px, type ViewTransform } from '~/compare/geometry';
 
 /**
@@ -30,6 +31,7 @@ export function AnnotationLayer({
   onView,
   onNeedText,
   onStroke,
+  onTouch,
 }: {
   pane: Pane;
   view: ViewTransform;
@@ -47,13 +49,17 @@ export function AnnotationLayer({
   onView: (v: ViewTransform) => void;
   /** 글 도구 — 글자를 물어 받는다(화면이 창을 띄운다) */
   onNeedText: (p: Pt) => void;
-  /** 손가락으로 그리는 중인가(F08 — 그 동안만 바깥 화면 굴림을 멈춘다. 그리기 도구를 켰다고 화면 전체를 잠그지 않는다) */
+  /** 손가락으로 그리는 중인가(F08) — 화면은 굴리지 않지만, 그리는 동안 뒤로 쓸기 · 다른 손짓을 막는 데 쓴다 */
   onStroke?: (active: boolean) => void;
+  /** 손가락 자리(돋보기용) — 뗐으면 null */
+  onTouch?: (p: Px | null) => void;
 }) {
   const [draft, setDraft] = useState<Geometry | null>(null);
   const [anglePts, setAnglePts] = useState<Pt[]>([]);
   /* 한 손가락 — RN 터치(responder). 두 손가락이 닿으면 밑의 확대 손짓이 가져가 이 터치는 끊긴다(onResponderTerminate) */
-  const touch = useRef<{ x0: number; y0: number; t0: number; moved: boolean; start: Pt; free: Pt[]; grab: { id: string; from: Pt; geom: Geometry } | null; draft: Geometry | null } | null>(null);
+  /* 고른 그림 끌기는 한 번에 하나의 고침(UI06) — 끄는 동안은 이 판에서만 그리고(live), 손을 뗄 때 한 번만 문서에 쓴다(되돌리기 한 번 = 끌기 한 번) */
+  const touch = useRef<{ x0: number; y0: number; t0: number; moved: boolean; start: Pt; free: Pt[]; grab: { id: string; from: Pt; geom: Geometry; handle: number | null } | null; draft: Geometry | null; live: Geometry | null } | null>(null);
+  const [live, setLive] = useState<{ id: string; geom: Geometry } | null>(null);
   const [pinchBase, setPinchBase] = useState<ViewTransform | null>(null);
   const toolKey = `${tool}:${drawing}`;
   const [ptsFor, setPtsFor] = useState(toolKey);
@@ -77,23 +83,41 @@ export function AnnotationLayer({
     return best?.a ?? null;
   };
 
+  /* 고른 그림의 손잡이(꼭짓점) — 누르는 자리 44pt(반지름 22) */
+  const handleHit = (x: number, y: number): { a: Annotation; i: number } | null => {
+    const a = tool === 'select' && selectedId ? items.find((it) => it.id === selectedId) : null;
+    if (!a) return null;
+    let best: { i: number; d: number } | null = null;
+    handlesOf(a.geom).forEach((h, i) => {
+      const s = scr(h);
+      const d = Math.hypot(s.x - x, s.y - y);
+      if (d <= HANDLE_HIT && (!best || d < best.d)) best = { i, d };
+    });
+    return best ? { a, i: (best as { i: number }).i } : null;
+  };
   const down = (e: GestureResponderEvent) => {
     const { locationX: x, locationY: y } = e.nativeEvent;
     const p = src(x, y);
-    const hit = tool === 'select' ? hitTest(x, y) : null;
-    touch.current = { x0: x, y0: y, t0: Date.now(), moved: false, start: p, free: [p], grab: hit ? { id: hit.id, from: p, geom: hit.geom } : null, draft: null };
+    const h = handleHit(x, y);
+    const hit = h ? h.a : tool === 'select' ? hitTest(x, y) : null;
+    touch.current = { x0: x, y0: y, t0: Date.now(), moved: false, start: p, free: [p], grab: hit ? { id: hit.id, from: p, geom: hit.geom, handle: h ? h.i : null } : null, draft: null, live: null };
     onStroke?.(true);
+    onTouch?.({ x, y });
     if (hit) onSelect(hit.id);
   };
   const move = (e: GestureResponderEvent) => {
     const t = touch.current;
     if (!t) return;
     const { locationX: x, locationY: y } = e.nativeEvent;
+    onTouch?.({ x, y });
     if (!t.moved && Math.hypot(x - t.x0, y - t.y0) < 4) return;
     t.moved = true;
     const p = src(x, y);
     if (tool === 'select') {
-      if (t.grab) onMove(t.grab.id, translate(t.grab.geom, p.u - t.grab.from.u, p.v - t.grab.from.v));
+      if (t.grab) {
+        t.live = t.grab.handle != null ? withHandle(t.grab.geom, t.grab.handle, clampPt(p)) : translate(t.grab.geom, p.u - t.grab.from.u, p.v - t.grab.from.v);
+        setLive({ id: t.grab.id, geom: t.live });
+      }
       return;
     }
     if (!isDrag(tool) || !inside(t.start)) return;
@@ -123,8 +147,14 @@ export function AnnotationLayer({
     const t = touch.current;
     touch.current = null;
     setDraft(null);
+    setLive(null);
     onStroke?.(false);
+    onTouch?.(null);
     if (!t) return;
+    if (t.grab) {
+      if (t.moved && t.live) onMove(t.grab.id, t.live);
+      return;
+    }
     if (!t.moved) return tapAt(t.start, t.x0, t.y0);
     const d = t.draft;
     if (!d) return;
@@ -139,7 +169,9 @@ export function AnnotationLayer({
   const cancel = () => {
     touch.current = null;
     setDraft(null);
+    setLive(null);
     onStroke?.(false);
+    onTouch?.(null);
   };
 
   const pinch = Gesture.Pinch()
@@ -175,9 +207,16 @@ export function AnnotationLayer({
       >
         {pane.w > 0 ? (
           <Svg width={pane.w} height={pane.h} pointerEvents="none">
-            {items.map((a) => (
-              <Shape key={a.id} g={a.geom} color={a.color} width={a.width} scr={scr} pane={pane} label={measureText(a.geom, pane.aspect, calibration)} selected={a.id === selectedId} />
-            ))}
+            {items.map((a) => {
+              const g = live && live.id === a.id ? live.geom : a.geom;
+              return <Shape key={a.id} g={g} color={a.color} width={a.width} scr={scr} pane={pane} label={measureText(g, pane.aspect, calibration)} selected={a.id === selectedId} />;
+            })}
+            {drawing && tool === 'select'
+              ? items
+                  .filter((a) => a.id === selectedId)
+                  .flatMap((a) => handlesOf(live && live.id === a.id ? live.geom : a.geom).map((h, i) => ({ s: scr(h), i, key: `${a.id}:${i}` })))
+                  .map((h) => <Circle key={h.key} cx={h.s.x} cy={h.s.y} r={7} stroke="#93C5FD" strokeWidth={2} fill={SHADE} />)
+              : null}
             {draft ? <Shape g={draft} color={color} width={width} scr={scr} pane={pane} label={measureText(draft, pane.aspect, calibration)} selected={false} /> : null}
             {anglePts.map((p, i) => {
               const s = scr(p);
@@ -218,30 +257,7 @@ function tooSmall(g: Geometry, scr: (p: Pt) => Px): boolean {
   return false;
 }
 
-/** 그림 통째 옮기기(원본 좌표) */
-function translate(g: Geometry, du: number, dv: number): Geometry {
-  const m = (p: Pt): Pt => ({ u: p.u + du, v: p.v + dv });
-  switch (g.kind) {
-    case 'free':
-      return { ...g, pts: g.pts.map(m) };
-    case 'line':
-    case 'arrow':
-    case 'rect':
-    case 'tilt':
-      return { ...g, a: m(g.a), b: m(g.b) };
-    case 'circle':
-      return { ...g, c: m(g.c), edge: m(g.edge) };
-    case 'label':
-    case 'point':
-      return { ...g, p: m(g.p) };
-    case 'href':
-      return { ...g, v: Math.min(1, Math.max(0, g.v + dv)) };
-    case 'vref':
-      return { ...g, u: Math.min(1, Math.max(0, g.u + du)) };
-    case 'angle':
-      return { ...g, a: m(g.a), vtx: m(g.vtx), b: m(g.b) };
-  }
-}
+const HANDLE_HIT = 22;
 
 const segDist = (p: Px, a: Px, b: Px) => {
   const dx = b.x - a.x;

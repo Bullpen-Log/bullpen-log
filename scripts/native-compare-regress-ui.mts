@@ -13,6 +13,9 @@ import * as geometry from '~/compare/geometry';
 import * as events from '~/compare/pitch-events';
 import * as storage from '~/compare/storage';
 import * as nav from '~/videos/compare-math';
+import * as wsLayout from '~/compare/workspace-layout';
+import * as wsContext from '~/compare/workspace-context';
+import * as shapeEdit from '~/compare/shape-edit';
 /* 고르기 규칙은 없을 수도 있다(고치기 전 판에서 돌릴 때) — 없으면 그 시험만 실패로 */
 const sourcePick: Record<string, unknown> = await import('~/compare/source-pick').catch(() => ({}));
 
@@ -168,7 +171,7 @@ const playerCall = {
   seek: (p: Player | null, t: number) => void (p && (p.currentTime = Math.max(0, t))),
 };
 
-const jsx = (type: unknown, props: Record<string, unknown>) => ({ type, props });
+const jsx = (type: unknown, props: Record<string, unknown>, key?: unknown) => ({ type, props, key });
 const appState = { listeners: [] as ((s: string) => void)[] };
 /* 동작 시트에서 고를 글(다음 한 번) */
 const sheetPick: { label: string | null } = { label: null };
@@ -199,6 +202,7 @@ const rn = {
   },
   Modal: 'Modal',
   KeyboardAvoidingView: 'KeyboardAvoidingView',
+  Keyboard: { addListener: () => ({ remove() {} }), dismiss() {} },
   Platform: { OS: 'ios' },
 };
 /* 화면용 가짜 — 모르는 이름은 부품 이름(글자) 또는 아무것도 안 하는 함수 */
@@ -532,6 +536,8 @@ export async function run(check: Check) {
   /* =========================================================== F07 — 영상 고르기 */
   await runSourcePick(check);
   await runWorkbenchPick(check);
+  await runSingleScreen(check);
+  await runDrawTransaction(check);
 }
 
 /* ---- Workbench 하네스 ---- */
@@ -573,7 +579,18 @@ function workbenchHarness(o: WbOpts) {
     '~/compare/store': store,
     '~/compare/storage': { ...storage, createAutosaver: () => ({ base() {}, schedule: (d: doc.ComparisonDocument) => void schedules.push(d), flush: async () => {}, stop() {}, dirty: false }) },
     '~/compare/ui/pane': { Pane: 'Pane' },
-    '~/compare/ui/panels': loose({ exportPlanFor: () => null }),
+    '~/compare/ui/panels': loose({ exportPlanFor: () => null, DRAW_TOOLS: [{ kind: 'line', label: '선', icon: 'minus' }, { kind: 'angle', label: '각도', icon: 'chevron-right' }, { kind: 'free', label: '자유선', icon: 'pencil' }, { kind: 'point', label: '점', icon: 'circle-dot' }], DRAW_HINT: {}, SPAN_LABEL: { scene: '이 장면만', loop: '반복 구간 동안', always: '영상 내내' }, PITCH_TYPES: ['직구'] }),
+    '~/compare/ui/timeline': { Timeline: 'Timeline' },
+    '~/compare/ui/note-editor': { NoteEditor: 'NoteEditor' },
+    '~/compare/ui/workspace-parts': loose({
+      ctlH: () => 44,
+      chipRowsH: () => 44,
+      rowOf: (key: string, h: number, node: unknown, head = false) => ({ key, h, node, head }),
+      headRow: (key: string, text: string) => ({ key, h: 21, node: text, head: true }),
+      subRow: (key: string, text: string) => ({ key, h: 19, node: text }),
+    }),
+    '~/compare/workspace-layout': wsLayout,
+    '~/compare/workspace-context': wsContext,
     '~/compare/ui/source-picker': { SourcePicker: 'SourcePicker' },
     '~/compare/source-pick': sourcePick,
     '~/compare/ui/transport-hook': {
@@ -632,6 +649,20 @@ function workbenchHarness(o: WbOpts) {
     confirms,
     clock: () => lastClock,
     find: (pred: (n: { type: unknown; props: Record<string, unknown> }) => boolean) => findAll(tree, pred),
+    /** 무대(영상 자리)가 이 크기로 놓였다고 알린다(onLayout) */
+    stage(w: number, h: number) {
+      const st = findAll(tree, (n) => typeof n.props.onLayout === 'function' && (n.props.style as { minHeight?: number } | undefined)?.minHeight === 0)[0];
+      assert(st, '무대 없음');
+      (st.props.onLayout as (e: unknown) => void)({ nativeEvent: { layout: { x: 0, y: 0, width: w, height: h } } });
+      render();
+    },
+    press(label: string) {
+      /* 단추 이름 — RN 단추는 accessibilityLabel, 작은 부품(IconBtn · TextBtn)은 label · a11y */
+      const n = findAll(tree, (x) => (x.props.accessibilityLabel === label || x.props.a11y === label || x.props.label === label) && typeof x.props.onPress === 'function')[0];
+      assert(n, `단추 없음: ${label}`);
+      (n.props.onPress as () => void)();
+      render();
+    },
     async settle() {
       for (let k = 0; k < 5; k++) {
         await sleep(3);
@@ -654,26 +685,27 @@ const texts = (x: Tree, out: string[] = []): string[] => {
   return out;
 };
 async function runWorkbench(check: Check) {
-  await check('F08 그리기 도구를 켜도 화면은 굴러감 — 손가락으로 그리는 동안만 멈춤', async () => {
+  await check('UI01 한 화면 — 굴리는 판이 없고, 그리기를 켜도 · 그리는 동안에도 없음(뒤로 쓸기만 막음)', async () => {
     const h = workbenchHarness({ initial: { ...pairDoc(0), revision: 2 } });
     h.ready('a');
     h.ready('b');
     await h.settle();
-    const chip = h.find((n) => n.type === 'Chip' && n.props.label === '그리기')[0];
-    assert(chip, '그리기 칩');
-    (chip.props.onPress as () => void)();
+    const scrolls = () => h.find((n) => n.type === 'ScrollView' || n.type === 'FlatList' || n.type === 'SectionList');
+    assert(scrolls().length === 0, '보기에서 굴림 없음');
+    h.press('그리기');
     await h.settle();
-    const scroll = () => h.find((n) => n.type === 'ScrollView' && 'scrollEnabled' in n.props)[0];
-    assert(scroll()?.props.scrollEnabled === true, '도구만 켜면 굴림 그대로');
+    assert(scrolls().length === 0, '그리기에서 굴림 없음');
     const pa = h.panes().find((x) => x.props.side === 'a')!;
     const draw = pa.props.draw as { drawing: boolean; onStroke: (b: boolean) => void };
     assert(draw.drawing, '그리기 켜짐');
     draw.onStroke(true);
     h.render();
-    assert(scroll()?.props.scrollEnabled === false, '그리는 동안 멈춤');
+    const screen = () => h.find((n) => n.type === 'Screen')[0]?.props.options as { gestureEnabled: boolean };
+    assert(screen().gestureEnabled === false, '그리는 동안 뒤로 쓸기 막음');
+    assert(h.find((n) => n.type === 'Timeline').length === 1, '그리는 동안에도 타임라인');
     draw.onStroke(false);
     h.render();
-    assert(scroll()?.props.scrollEnabled === true, '다 그리면 다시 굴림');
+    assert(scrolls().length === 0, '다 그린 뒤에도 굴림 없음');
   });
   await check('F08 동작 길이 맞춤 — 재생 구간은 짚은 첫 장면 ~ 마지막 장면', async () => {
     let d = pairDoc(0, { a: 2, b: 3 });
@@ -714,10 +746,11 @@ async function runWorkbench(check: Check) {
     h.ready('a');
     h.ready('b');
     await h.settle();
-    const chip = h.find((n) => n.type === 'Chip' && n.props.label === '맞추기')[0];
-    (chip.props.onPress as () => void)();
+    h.press('맞추기 · 반복 · 배치');
     await h.settle();
-    const all = texts(h.tree);
+    const insp = h.find((n) => n.type === 'Inspector')[0];
+    assert(insp, '맞추기 작은 창');
+    const all = (insp.props.rows as { node: unknown }[]).flatMap((r) => texts(r.node as Tree));
     assert(!all.some((t) => t.includes('최대')), '"최대" 없음');
     assert(all.some((t) => t.includes('95%') && t.includes('어림')), `95% 어림 설명: ${all.filter((t) => t.includes('ms')).join(' / ')}`);
   });
@@ -783,10 +816,7 @@ async function runWorkbenchPick(check: Check) {
     const h = workbenchHarness({ initial: d0, start: 'align' });
     h.ready('a');
     await h.settle();
-    const single = h.find((n) => typeof n.props.onAdd === 'function')[0];
-    assert(single, '한 영상 보기의 비교 영상 추가');
-    (single.props.onAdd as () => void)();
-    h.render();
+    h.press('비교 영상 추가');
     const p = pickEl(h);
     assert(p, '고르기 화면');
     assert(p.props.slot === 'b' && p.props.relink === null, 'B 더하기');
@@ -905,5 +935,210 @@ async function runSourcePick(check: Check) {
     d = doc.updateSource(d, 'sb', { events: { release: 1.2 } });
     const r = applyPick(beginPick(d, 'b', { relink: 'sb' }), { kind: 'new', source: SRC('u1/local-new', true) }, '2026-11-02T00:00:01.000Z');
     assert(r.ok && doc.sourceOf(r.doc, 'sb')!.path === 'u1/local-new' && doc.sourceOf(r.doc, 'sb')!.events.release === 1.2, '같은 칸에 새 경로');
+  });
+}
+
+/* ---- 한 화면(UI01~UI10) — 실제 workbench.tsx 를 가짜 훅 순서로 ---- */
+async function runSingleScreen(check: Check) {
+  type R = { x: number; y: number; w: number; h: number };
+  const rectOf = (h: ReturnType<typeof workbenchHarness>, side: 'a' | 'b') => h.panes().find((x) => x.props.side === side)?.props.rect as R | null | undefined;
+  const keysOf = (h: ReturnType<typeof workbenchHarness>) => h.panes().map((x) => (x as unknown as { key: unknown }).key).join('|');
+  const inspector = (h: ReturnType<typeof workbenchHarness>) => h.find((n) => n.type === 'Inspector')[0] as unknown as { props: { rows: { node: Tree }[]; title: string } } | undefined;
+  const inRows = (h: ReturnType<typeof workbenchHarness>, pred: (n: { type: unknown; props: Record<string, unknown> }) => boolean) =>
+    (inspector(h)?.props.rows ?? []).flatMap((r) => findAll(r.node, pred));
+  await check('UI03 무대를 재면 두 영상이 실제 비율 사각형으로 · 무대 안 · 겹치지 않음 · 타임라인 쪽에 붙음', async () => {
+    const h = workbenchHarness({ initial: { ...pairDoc(0), revision: 2 } });
+    h.ready('a');
+    h.ready('b');
+    await h.settle();
+    assert(rectOf(h, 'a') == null, '재기 전엔 자리 없음(칸은 붙어 있음)');
+    h.stage(382, 560);
+    const a = rectOf(h, 'a')!;
+    const b = rectOf(h, 'b')!;
+    assert(a && b, '두 칸 자리');
+    for (const r of [a, b]) assert(r.x >= 0 && r.y >= 0 && r.x + r.w <= 382.5 && r.y + r.h <= 560.5, `무대 밖: ${JSON.stringify(r)}`);
+    const overlap = !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
+    assert(!overlap, '겹침');
+    near(a.w / a.h, 9 / 16, 'A 원본 비율', 0.01);
+    assert(Math.max(a.y + a.h, b.y + b.h) >= 560 - 0.5, '마지막 영상 아래가 타임라인 쪽 끝');
+    assert(a.y === b.y, '세로 영상 둘은 나란히(같은 높이)');
+  });
+  await check('UI10 배치 · 겹쳐 · 크게 보기 · 작은 창을 바꿔도 칸(재생기)은 같은 부품 그대로', async () => {
+    const h = workbenchHarness({ initial: { ...pairDoc(0.5), revision: 2 } });
+    h.ready('a');
+    h.ready('b');
+    await h.settle();
+    h.stage(382, 560);
+    const k0 = keysOf(h);
+    h.press('맞추기 · 반복 · 배치');
+    const seg = (label: string) => inRows(h, (n) => n.type === 'Seg' && n.props.label === label)[0];
+    (seg('영상 배치').props.onChange as (v: string) => void)('stack');
+    h.render();
+    assert(keysOf(h) === k0, `위아래: ${keysOf(h)} ≠ ${k0}`);
+    const a = rectOf(h, 'a')!;
+    const b = rectOf(h, 'b')!;
+    assert(b.y >= a.y + a.h, '위아래로 놓임');
+    (seg('영상 배치').props.onChange as (v: string) => void)('overlay');
+    h.render();
+    assert(keysOf(h) === k0, '겹쳐 보기에서도 같은 칸');
+    assert(rectOf(h, 'b') == null && rectOf(h, 'a') != null, '겹쳐 보기 — B 칸은 숨기고(재생기는 살림) 겹친 판 하나');
+    assert(h.find((n) => typeof n.type === 'function' && (n.type as { name: string }).name === 'OverlayBox').length === 1, '겹친 판');
+    (seg('영상 배치').props.onChange as (v: string) => void)('auto');
+    h.render();
+    (seg('크게 볼 영상').props.onChange as (v: string) => void)('focusB');
+    h.render();
+    assert(rectOf(h, 'a') == null && rectOf(h, 'b') != null, 'B 크게 — A 칸만 숨김');
+    assert(keysOf(h) === k0, '크게 보기에서도 같은 칸');
+    const last = h.schedules.at(-1);
+    assert(!last || doc.activePair(last)?.rel === 0.5, '배치를 바꿔도 자리 그대로');
+  });
+  await check('UI04 · UI05 타임라인 · 재생 줄은 보기 · 맞추기 · 그리기 · 장면 · 메모에서 늘 있고, 메모 쓰기만 잠시 편집 줄로', async () => {
+    const h = workbenchHarness({ initial: { ...pairDoc(0), revision: 2 } });
+    h.ready('a');
+    h.ready('b');
+    await h.settle();
+    const tl = () => h.find((n) => n.type === 'Timeline').length;
+    const play = () => h.find((n) => n.props.accessibilityLabel === '함께 재생' || n.props.accessibilityLabel === '함께 멈춤').length;
+    assert(tl() === 1 && play() === 1, '보기');
+    for (const tool of ['그리기', '장면', '메모']) {
+      h.press(tool);
+      assert(tl() === 1, `${tool} — 타임라인`);
+      assert(h.find((n) => n.type === 'Seg' && n.props.label === '재생 대상').length === 1, `${tool} — 함께 · A · B`);
+      h.press('도구 끝내기');
+    }
+    h.press('메모');
+    h.press(`A ${timing.clock(2)} 메모 쓰기`);
+    assert(h.find((n) => n.type === 'NoteEditor').length === 1, '메모 쓰기 줄');
+    assert(tl() === 0, '메모 쓰기 동안 타임라인 자리에 편집 줄');
+    const ed = h.find((n) => n.type === 'NoteEditor')[0];
+    (ed.props.onDraft as (t: string) => void)('쓰던 글');
+    h.press('메모 쓰기 닫기, 쓴 글은 남겨요');
+    assert(h.find((n) => n.type === 'NoteEditor').length === 0 && tl() === 1, '뒤로 — 편집 닫고 타임라인 돌아옴');
+    h.press(`A ${timing.clock(2)} 메모 쓰기`);
+    assert(h.find((n) => n.type === 'NoteEditor')[0].props.initial === '쓰던 글', '쓰던 글을 이어서');
+  });
+  await check('UI05 맞추기 — 같은 타임라인 · 재생 줄로 A → B 지정, 취소하면 보던 비교 그대로', async () => {
+    const h = workbenchHarness({ initial: { ...pairDoc(1.25), revision: 2 } });
+    h.ready('a');
+    h.ready('b');
+    await h.settle();
+    h.press('맞추기 · 반복 · 배치');
+    const again = inRows(h, (n) => n.props.label === '장면 다시 맞추기')[0];
+    (again.props.onPress as () => void)();
+    h.render();
+    assert(h.find((n) => n.type === 'Timeline').length === 1, '맞추기에도 같은 타임라인');
+    const tgt = h.find((n) => n.type === 'Seg' && n.props.label === '재생 대상')[0];
+    assert(tgt && JSON.stringify((tgt.props.options as { value: string }[]).map((o) => o.value)) === '["a","b"]', '맞추기는 A · B 만');
+    assert(h.find((n) => n.props.label === 'A 착지 지정').length === 1, 'A 지정 단추');
+    (tgt.props.onChange as (v: string) => void)('b');
+    h.render();
+    assert(h.find((n) => n.props.label === 'B 착지 지정').length === 1, 'B 로 바꾸면 B 지정');
+    h.press('맞추기 취소, 전에 보던 비교로');
+    await h.settle();
+    const last = h.schedules.at(-1)!;
+    assert(JSON.stringify(doc.activePair(last)?.anchors) === '{"a":2,"b":3}' && doc.activePair(last)?.rel === 1.25, '기준 · 자리 그대로');
+  });
+  await check('UI07 뒤로는 작은 창 → 도구 → 나가기 차례 · 작은 창은 하나만', async () => {
+    let exited = 0;
+    const h = workbenchHarness({ initial: { ...pairDoc(0), revision: 2 } });
+    void exited;
+    h.ready('a');
+    h.ready('b');
+    await h.settle();
+    h.press('장면');
+    h.press('장면 결과, 구간 시간 · 2D 참고 측정');
+    assert(inspector(h)?.props.title === '장면 결과', '결과 창');
+    h.press(`A 착지, 안 짚음, 다른 장면 고르기`.replace('A 착지', 'A 앞발 착지'));
+    assert(h.find((n) => n.type === 'Inspector').length === 1, '창은 하나(바꿔 엶)');
+    assert(inspector(h)?.props.title === 'A 투구 장면', '장면 고르기 창');
+    h.press('작은 창 닫기');
+    assert(!inspector(h), '먼저 창');
+    assert(h.find((n) => n.props.accessibilityLabel === '도구 끝내기').length === 1, '아직 도구 안');
+    h.press('도구 끝내기');
+    assert(h.find((n) => n.props.accessibilityLabel === '뒤로').length === 1, '그다음 도구');
+    exited = 1;
+  });
+  await check('UI04 따로 옮기기(A · B)는 기준을 바꾸지 않고 함께로 돌아오면 A 자리에 다시 붙음', async () => {
+    const h = workbenchHarness({ initial: { ...pairDoc(0.5), revision: 2 } });
+    h.ready('a');
+    h.ready('b');
+    await h.settle();
+    const tgt = () => h.find((n) => n.type === 'Seg' && n.props.label === '재생 대상')[0];
+    (tgt().props.onChange as (v: string) => void)('b');
+    h.render();
+    const tl = h.find((n) => n.type === 'Timeline')[0];
+    assert(tl.props.label === 'B 영상 장면', 'B 만 옮기는 타임라인');
+    (tl.props.onSeek as (t: number) => void)(6);
+    h.render();
+    const n0 = h.seeks.length;
+    (tgt().props.onChange as (v: string) => void)('both');
+    h.render();
+    assert(h.seeks.length === n0 + 1, '함께로 — 한 번 다시 붙임');
+    const last = h.schedules.at(-1);
+    assert(!last || JSON.stringify(doc.activePair(last)?.anchors) === '{"a":2,"b":3}', '기준 그대로');
+  });
+  await check('UI06 그리기 — 빠른 도구 넷 · 되돌리기 · 완료가 한 줄에, 완료하면 보기', async () => {
+    const h = workbenchHarness({ initial: { ...pairDoc(0), revision: 2 } });
+    h.ready('a');
+    h.ready('b');
+    await h.settle();
+    h.press('그리기');
+    for (const l of ['선', '각도', '자유선', '점', '되돌리기', '그리기 끝내기']) assert(h.find((n) => n.props.label === l || n.props.a11y === l || n.props.accessibilityLabel === l).length >= 1, `없음: ${l}`);
+    h.press('그리기 끝내기');
+    assert(h.find((n) => n.props.accessibilityLabel === '뒤로').length === 1, '보기로');
+  });
+}
+
+/* ---- 그림 끌기 한 번 = 고침 한 번(UI06) — 실제 annotation-layer.tsx ---- */
+async function runDrawTransaction(check: Check) {
+  const chain: unknown = new Proxy(function () {}, { get: (_t, k) => (k === 'then' ? undefined : () => chain), apply: () => chain });
+  const layerHarness = (props: Record<string, unknown>) => {
+    const h = hookRuntime();
+    const m = {
+      ...base(h.api),
+      'react-native-gesture-handler': { Gesture: chain, GestureDetector: 'GestureDetector' },
+      'react-native-svg': loose(),
+      '~/compare/shape-edit': shapeEdit,
+    };
+    const { AnnotationLayer } = compile('native/src/compare/ui/annotation-layer.tsx', m) as { AnnotationLayer: (p: unknown) => Tree };
+    let tree: Tree = null;
+    const render = () => (tree = h.render(() => AnnotationLayer(props)));
+    render();
+    const surface = () => findAll(tree, (n) => typeof n.props.onResponderGrant === 'function')[0];
+    return { render, surface, tree: () => tree };
+  };
+  const pane = { w: 300, h: 400, aspect: 0.75 };
+  const line = { id: 'g1', sourceId: 'sa', span: { kind: 'always' }, geom: { kind: 'line', a: { u: 0.2, v: 0.2 }, b: { u: 0.8, v: 0.8 } }, color: '#fff', width: 3, metric: null, createdAt: '' };
+  const ev = (x: number, y: number) => ({ nativeEvent: { locationX: x, locationY: y } });
+  await check('UI06 고른 그림 끌기 — 끄는 동안 문서에 안 쓰고 손을 뗄 때 한 번(되돌리기 한 번)', async () => {
+    const moves: unknown[] = [];
+    const touches: unknown[] = [];
+    const L = layerHarness({ pane, view: geometry.IDENTITY_VIEW, items: [line], drawing: true, tool: 'select', color: '#fff', width: 3, selectedId: 'g1', calibration: null, onCreate() {}, onMove: (id: string, g: unknown) => moves.push([id, g]), onSelect() {}, onView() {}, onNeedText() {}, onStroke() {}, onTouch: (p: unknown) => touches.push(p) });
+    const s = L.surface();
+    assert(s, '손가락 판');
+    /* 선 가운데(통째 옮기기) */
+    (s.props.onResponderGrant as (e: unknown) => void)(ev(150, 200));
+    for (let i = 1; i <= 30; i++) (s.props.onResponderMove as (e: unknown) => void)(ev(150 + i, 200 + i));
+    assert(moves.length === 0, `끄는 동안 문서에 ${moves.length}번`);
+    (s.props.onResponderRelease as () => void)();
+    assert(moves.length === 1, `손을 뗀 뒤 ${moves.length}번`);
+    const g = (moves[0] as [string, { kind: string; a: { u: number } }])[1];
+    near(g.a.u, 0.2 + 30 / 300, '30px 옮김(원본 좌표)', 1e-6);
+    assert(touches.at(-1) === null && touches.length >= 2, '돋보기 자리 알림 · 뗄 때 null');
+  });
+  await check('UI06 손잡이(끝점)만 끌면 그 점만 옮김 · 두 손가락에 빼앗기면 아무것도 안 씀', async () => {
+    const moves: unknown[] = [];
+    const L = layerHarness({ pane, view: geometry.IDENTITY_VIEW, items: [line], drawing: true, tool: 'select', color: '#fff', width: 3, selectedId: 'g1', calibration: null, onCreate() {}, onMove: (id: string, g: unknown) => moves.push([id, g]), onSelect() {}, onView() {}, onNeedText() {}, onStroke() {} });
+    const s = L.surface();
+    const end = geometry.toScreen({ u: 0.8, v: 0.8 }, pane, geometry.IDENTITY_VIEW);
+    (s.props.onResponderGrant as (e: unknown) => void)(ev(end.x + 10, end.y - 10));
+    for (let i = 1; i <= 10; i++) (s.props.onResponderMove as (e: unknown) => void)(ev(end.x + 10 - i * 3, end.y - 10));
+    (s.props.onResponderRelease as () => void)();
+    const g = (moves[0] as [string, { a: { u: number; v: number }; b: { u: number; v: number } }])[1];
+    assert(moves.length === 1 && g.a.u === 0.2 && g.a.v === 0.2 && Math.abs(g.b.u - 0.8) > 0.01, `끝점만: ${JSON.stringify(g)}`);
+    (s.props.onResponderGrant as (e: unknown) => void)(ev(150, 200));
+    (s.props.onResponderMove as (e: unknown) => void)(ev(170, 220));
+    (s.props.onResponderTerminate as () => void)();
+    assert(moves.length === 1, '빼앗긴 끌기는 버림');
   });
 }
