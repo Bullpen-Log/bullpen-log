@@ -15,6 +15,7 @@ import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { createRoutineOnce, updateRoutine } from '@/lib/armcare/my-routines-save';
+import { appendToOwnedRoutine } from '@/lib/armcare/routine-add';
 import { MY_ROUTINE_MAX } from '@/lib/armcare/my-routines';
 
 let passed = 0;
@@ -145,6 +146,27 @@ await db.userArmcareRoutine.delete({ where: { id: k2 } });
 const gone = await updateRoutine(db, A.id, k2, { name: '되살리기', items: [{ exerciseId: 'ex1', sets: 1 }] }, known);
 ok('error' in gone && gone.code === 'notFound', '지운 루틴 고치기 → notFound');
 ok((await db.userArmcareRoutine.findUnique({ where: { id: k2 } })) == null, '지운 루틴을 다시 만들지 않음');
+
+/* 11. 부위별 보강: 실제 Prisma CAS 추가 — 구성/순서/한도/소유권 */
+const target = await db.userArmcareRoutine.create({ data: { userId: A.id, name: '부위 보강', items: [{ exerciseId: 'keep', sets: 5 }] } });
+const append = (exerciseId: string, userId = A.id) => appendToOwnedRoutine(db, userId, target.id, exerciseId, 3, () => new Date(0));
+const adds = await Promise.all([append('append-a'), append('append-b')]);
+ok(adds.every((r) => 'ok' in r), '서로 다른 운동 동시 추가 모두 성공');
+let contents = (await db.userArmcareRoutine.findUniqueOrThrow({ where: { id: target.id } })).items as { exerciseId: string; sets: number }[];
+ok(contents.length === 3 && contents[0].exerciseId === 'keep' && contents[0].sets === 5, '기존 순서/세트 보존하고 새 운동만 추가');
+const repeats = await Promise.all([append('duplicate'), append('duplicate')]);
+ok(repeats.filter((r) => 'ok' in r && r.added).length === 1, '같은 운동 동시 추가 1회');
+const foreign = await append('foreign', B.id);
+ok('error' in foreign && foreign.code === 'missing', '남의 루틴 쓰기 거절');
+await db.userArmcareRoutine.update({ where: { id: target.id }, data: { items: Array.from({length:14}, (_,i) => ({ exerciseId: `base-${i}`, sets: 2 })) } });
+const last = await Promise.all([append('last-a'), append('last-b')]);
+contents = (await db.userArmcareRoutine.findUniqueOrThrow({ where: { id: target.id } })).items as { exerciseId: string; sets: number }[];
+ok(contents.length === 15 && last.filter((r) => 'error' in r && r.code === 'full').length === 1, '14개에서 동시 추가해도 15개 상한');
+const existing = await append(contents[14].exerciseId);
+ok('ok' in existing && !existing.added, '15개여도 이미 담김이 한도보다 우선');
+await db.userArmcareRoutine.delete({ where: { id: target.id } });
+const deletedTarget = await append('gone');
+ok('error' in deletedTarget && deletedTarget.code === 'missing', '삭제된 대상 재생성하지 않음');
 
 await db.$disconnect();
 await server.stop();

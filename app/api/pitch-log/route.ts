@@ -9,6 +9,7 @@ import { isRestSession, validateSessionType } from '@/lib/session-type';
 import { isFutureDateKey, toDateKey } from '@/lib/pitch-stats';
 import { cleanCues, isRatedSession, readSatisfaction } from '@/lib/pitch-satisfaction';
 import { effortUpdate, readEffortInput } from '@/lib/pitch-effort';
+import { linkSessionsToLog } from '@/lib/velocity-link';
 
 const MAX_VIDEOS = 2;
 
@@ -252,18 +253,15 @@ function nextMonthStart(month: string) {
 /**
  * 구속 측정으로 채운 기록이면 그 세션들을 이 기록에 잇는다(2026-10-16 — 측정은 투구 기록을 만들지 않고, 투구 탭 카드가 '아직 안 남긴
  * 측정'을 알린다. 이으면 그 알림이 사라진다). 본인 것 · 같은 날 · 아직 안 이어진 세션만 — 못 이어도 기록 저장은 끝났다.
+ * 잇고 나서 실제로 이 기록을 가리키는지 다시 읽어 돌려준다(lib/velocity-link.ts — 연결만 다시 하는 /api/pitch-log/link 와 같은 함수).
+ * 앱은 이것으로 '저장됨'과 '측정 연결 확인됨'을 따로 보인다. 칸이 하나 늘었을 뿐이라 웹 · 옛 앱은 그대로 돈다.
  */
 async function linkVelocitySessions(raw: unknown, userId: string, date: Date, logId: string) {
   const ids = Array.isArray(raw)
     ? raw.filter((x): x is string => typeof x === 'string').slice(0, 20)
     : [];
-  if (ids.length === 0) return;
-  await prisma.velocitySession
-    .updateMany({
-      where: { id: { in: ids }, userId, date, pitchLogId: null },
-      data: { pitchLogId: logId },
-    })
-    .catch((err: unknown) => console.error('[POST /api/pitch-log] 구속 세션 잇기 실패', err));
+  if (ids.length === 0) return null;
+  return linkSessionsToLog(ids, userId, date, logId);
 }
 
 export async function POST(req: Request) {
@@ -342,8 +340,8 @@ export async function POST(req: Request) {
       orderBy: { createdAt: 'desc' },
     });
     if (duplicate) {
-      await linkVelocitySessions(body.velocitySessionIds, user.id, parsedDate, duplicate.id);
-      return NextResponse.json(duplicate, { status: 200 });
+      const velocityLink = await linkVelocitySessions(body.velocitySessionIds, user.id, parsedDate, duplicate.id);
+      return NextResponse.json({ ...duplicate, velocityLink }, { status: 200 });
     }
 
     const log = await prisma.pitchLog.create({
@@ -355,9 +353,9 @@ export async function POST(req: Request) {
         videoPaths: paths,
       },
     });
-    await linkVelocitySessions(body.velocitySessionIds, user.id, parsedDate, log.id);
+    const velocityLink = await linkVelocitySessions(body.velocitySessionIds, user.id, parsedDate, log.id);
 
-    return NextResponse.json(log, { status: 201 });
+    return NextResponse.json({ ...log, velocityLink }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/pitch-log]', error);
     return NextResponse.json({ error: '데이터 저장 실패' }, { status: 500 });

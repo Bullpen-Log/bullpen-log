@@ -16,6 +16,7 @@ import { Press } from '~/shell/press';
 import { toast } from '~/shell/toast';
 import { isPhoneVideoPath, removePhoneOrphans } from './api';
 import { PitchVideo, UrlVideo } from './video';
+import { measuredFrom, type MeasuredSource } from './entry-model';
 
 /**
  * 그날 화면의 구속 측정 칸(앱) — 웹 app/(app)/pitch-log/velocity-section.tsx 와 같은 꼴:
@@ -66,12 +67,27 @@ const removePhoneClips = (pitches: VelocityPitchView[]) =>
   void removePhoneOrphans(pitches.flatMap((p) => (p.clip ? [p.clip.url] : [])));
 const editOf = (p: VelocityPitchView): PitchEdit => ({ pitchType: p.pitchType, zone: p.zone, result: p.result, gunKmh: p.gunKmh, memo: p.memo });
 
-export function VelocityDay({ date, logCount }: { date: string; logCount: number }) {
+/**
+ * onRecord — 그날 화면이 '측정한 N구 기록 남기기'를 받아 같은 화면의 퀵스텝으로 연다(서버가 그 날 · 그 계정으로 확인한 측정 그대로,
+ * 주소의 숫자를 거치지 않는다). 없으면 예전처럼 기록 창(/pitch/edit)을 연다.
+ * refreshKey — 기록 하나를 고치거나 남겨 이 측정이 이어졌을 수 있을 때 다시 받는다(기록 수가 같아도).
+ */
+export function VelocityDay({
+  date,
+  logCount,
+  refreshKey = '',
+  onRecord,
+}: {
+  date: string;
+  logCount: number;
+  refreshKey?: string;
+  onRecord?: (m: MeasuredSource) => void;
+}) {
   const c = usePalette();
   const unit = usePrefs().speed;
   /* 기록 수가 바뀌면(측정값으로 남겼으면) 다시 받는다 — '남기기' 줄이 걷히게. 고치거나 지우면 rev 로 다시 */
   const [rev, setRev] = useState(0);
-  const data = useVelocityDay(date, `${logCount}:${rev}`);
+  const data = useVelocityDay(date, `${logCount}:${refreshKey}:${rev}`);
   const [viewing, setViewing] = useState<VelocityPitchView | null>(null);
   const [editing, setEditing] = useState<VelocityPitchView | null>(null);
   const [open, setOpen] = useState(false);
@@ -204,17 +220,10 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
         <Press
           accessibilityRole="button"
           onPress={() =>
-            pushOpen({
+            onRecord ? onRecord(measuredFrom(pf, data.sessions)) : pushOpen({
               pathname: '/pitch/edit' as Href as never,
-              params: {
-                date,
-                vsids: JSON.stringify(pf.sessionIds),
-                vtype: pf.sessionType ?? '',
-                vcount: String(pf.pitchCount),
-                vmax: pf.maxVelocity != null ? String(pf.maxVelocity) : '',
-                vavg: pf.avgVelocity != null ? String(pf.avgVelocity) : '',
-                veffort: pf.effortPct != null ? String(pf.effortPct) : '',
-              },
+              /* 세션만 넘긴다 — 값은 기록 창이 서버에 다시 물어 맞춘다(주소의 숫자를 믿지 않는다) */
+              params: { date, vsids: JSON.stringify(pf.sessionIds) },
             })
           }
           style={[styles.prefill, { backgroundColor: c.action }]}

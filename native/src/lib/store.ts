@@ -18,6 +18,27 @@ export async function saveJson(key: string, value: unknown): Promise<void> {
   }
 }
 
+/** saveJson 과 같은데 남겼는지 알려 준다 — '이 폰에 남겨 뒀어요'처럼 남긴 것을 약속하는 곳만 쓴다(못 남겼으면 그렇게 말하지 않게). null 은 지운다 */
+export async function trySaveJson(key: string, value: unknown): Promise<boolean> {
+  try {
+    if (value == null) await AsyncStorage.removeItem(key);
+    else await AsyncStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 열쇠 앞머리가 같은 값 가운데 drop 이 고른 것을 지운다 — 다른 계정의 초안 정리 */
+export async function removeKeysWhere(prefix: string, drop: (key: string) => boolean): Promise<void> {
+  try {
+    const keys = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(prefix) && drop(k));
+    if (keys.length) await AsyncStorage.multiRemove(keys);
+  } catch {
+    /* 다음에 다시 */
+  }
+}
+
 /**
  * 받아 둔 서버 값을 폰에 — 앱을 껐다 켜도 화면이 빈칸 없이 먼저 그려진다(검토 D10 '받아 둔 값 먼저'). 열쇠는 모두 'bullpen-cache:' 로 시작하고,
  * 로그아웃하면(껍데기가 로그인 화면을 보면) 다 지운다 — 같은 폰에 다른 사람이 로그인했을 때 앞사람 기록이 비치지 않게.

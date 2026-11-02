@@ -160,18 +160,24 @@ export function useScreenData<T>(action: string, arg: string, key: string) {
 /** 머리 · 고르개 · 몸통(당겨서 새로고침) — 받기 전이면 돌개, 못 받았으면 '다시 불러오기' */
 export function Screen<K extends string>({
   title,
-  tabs,
+  tabs = [],
   tab,
-  onTab,
+  onTab = () => {},
+  backLabel = '트레이닝',
+  showHeading = true,
+  loading,
   state,
   scrollRef,
   right,
   children,
 }: {
   title: string;
-  tabs: readonly { value: K; label: string }[];
-  tab: K;
-  onTab: (t: K) => void;
+  tabs?: readonly { value: K; label: string }[];
+  tab?: K;
+  onTab?: (t: K) => void;
+  backLabel?: string;
+  showHeading?: boolean;
+  loading?: ReactNode;
   state: { data: unknown; failed: string | null; refreshing: boolean; load: () => void; refresh: () => void };
   scrollRef?: RefObject<ScrollViewInstance | null>;
   /** 큰 제목 오른쪽 — 즐겨찾기 모음 같은 단추 */
@@ -184,15 +190,17 @@ export function Screen<K extends string>({
     <View style={[s.fill, { backgroundColor: c.page }]}>
       {/* 웹 휴대폰 위 막대의 '‹ 트레이닝'(back-link) — 제목은 본문 큰 제목이 맡는다 */}
       <View style={[st.bar, { paddingTop: inset.top + 4, backgroundColor: c.page }]}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="트레이닝으로 돌아가기" style={({ pressed }) => [st.back, pressed && { opacity: 0.6 }]}>
+        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={`${backLabel}으로 돌아가기`} style={({ pressed }) => [st.back, pressed && { opacity: 0.6 }]}>
           <Icon name="back" size={24} color={c.link} />
-          <Text style={{ color: c.link, fontSize: 17 }}>트레이닝</Text>
+          <Text style={{ color: c.link, fontSize: 17 }}>{backLabel}</Text>
         </Pressable>
+        {!showHeading ? <View style={{ marginLeft: 'auto' }}>{right}</View> : null}
       </View>
       {/* 부위별 보강의 3D 근육 그림을 돌리는 동안 화면이 같이 굴러가지 않게(shell/scroll-lock, 2026-10-20 김민) */}
       <ScrollLockScope>
         {(scrollEnabled) => (
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         ref={scrollRef}
         scrollEnabled={scrollEnabled}
         style={s.fill}
@@ -200,9 +208,9 @@ export function Screen<K extends string>({
         refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={state.refresh} />}
       >
         {/* 큰 제목 — 오른쪽 '설정' 알약은 암케어에서도 뺐다(2026-10-20 김민). 오른쪽 자리는 부르는 쪽이 채운다(right) */}
-        <PageHead title={title}>{right}</PageHead>
+        {showHeading ? <PageHead title={title}>{right}</PageHead> : null}
         {/* 웹 Segmented(흰 칸이 미끄러짐) — 다른 탭 고르개와 같은 부품 */}
-        <Segmented label={title} size="md" value={tab} onChange={onTab} options={tabs} />
+        {tabs.length && tab !== undefined ? <Segmented label={title} size="md" value={tab} onChange={onTab} options={tabs} /> : null}
         {state.failed ? (
           <View style={[s.notice, { backgroundColor: c.danger + '14' }]}>
             <Text style={[s.small, { color: c.danger, flex: 1 }]}>{state.failed}</Text>
@@ -211,7 +219,7 @@ export function Screen<K extends string>({
             </Press>
           </View>
         ) : null}
-        {state.data ? children : state.failed ? null : <ActivityIndicator style={{ paddingVertical: 32 }} />}
+        {state.data ? children : state.failed ? null : loading ?? <ActivityIndicator style={{ paddingVertical: 32 }} />}
       </ScrollView>
         )}
       </ScrollLockScope>

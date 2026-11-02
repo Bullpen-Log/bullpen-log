@@ -1,5 +1,8 @@
 'use server';
 
+import { appendToOwnedRoutine } from '@/lib/armcare/routine-add';
+import { loadMyRoutines } from '@/lib/armcare/my-routines-store';
+import { type AddRoutineResult, type RoutineChoice } from '@/lib/armcare/routine-target';
 import { appNow } from '@/lib/clock';
 import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
@@ -12,8 +15,6 @@ import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { visibleExercises } from '@/lib/library-cache';
 import {
   isRoutineId,
-  normalizeRoutineInput,
-  readRoutineItems,
   type MyRoutineItem,
 } from '@/lib/armcare/my-routines';
 import { createRoutineOnce, updateRoutine, type RoutineRefused, type RoutineSaved } from '@/lib/armcare/my-routines-save';
@@ -148,50 +149,18 @@ export async function deleteMyArmcareRoutine(
  * 이미 담겨 있으면 그대로 두고 알린다(두 번 담기지 않게). 세트는 그 운동에 적힌
  * 처방을 따른다 — 만들기 화면에서 바꿀 수 있다.
  */
-export async function addToMyArmcareRoutine(
-  routineId: string,
-  exerciseId: string
-): Promise<{ ok: true; added: boolean } | { error: string }> {
+/** Raw membership includes hidden exercises; reading does not mutate the routine. */
+export async function loadMyArmcareTargets(): Promise<RoutineChoice[]> {
   const user = await requireUser();
-  if (!isRoutineId(routineId)) return { error: '잘못된 요청이에요.' };
-  const known = await armcareIds();
-  const exercise = known.get(exerciseId);
-  if (!exercise) return { error: '담을 수 없는 운동이에요.' };
+  return (await loadMyRoutines(user.id)).map((r) => ({ id: r.id, name: r.name, exerciseIds: r.items.map((it) => it.exerciseId) }));
+}
 
-  /*
-   * 읽은 때와 쓰는 때 사이에 누가 고쳤으면 다시 읽고 다시 더한다(updatedAt 으로 본다).
-   * 그러지 않으면 담기를 빠르게 두 번 누를 때 둘 다 같은 목록을 읽어, 뒤에 쓴 쪽이 앞의
-   * 것을 덮어 운동 하나가 말없이 사라졌다(2026-09-26 검토).
-   */
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const row = await prisma.userArmcareRoutine.findFirst({
-      where: { id: routineId, userId: user.id },
-      select: { name: true, items: true, updatedAt: true },
-    });
-    if (!row) return { error: '루틴을 찾을 수 없어요.' };
-    const items = readRoutineItems(row.items);
-    if (items.some((it) => it.exerciseId === exerciseId)) {
-      return { ok: true, added: false };
-    }
-    const next = normalizeRoutineInput({
-      name: row.name,
-      items: [...items, { exerciseId, sets: exercise.sets ?? 2 }],
-    });
-    if (!next.ok) return { error: next.error };
-
-    const res = await prisma.userArmcareRoutine.updateMany({
-      where: { id: routineId, userId: user.id, updatedAt: row.updatedAt },
-      data: {
-        items: next.items as unknown as Prisma.InputJsonValue,
-        updatedAt: appNow(),
-      },
-    });
-    if (res.count === 1) {
-      revalidatePath('/training', 'layout');
-      return { ok: true, added: true };
-    }
-  }
-  return {
-    error: '이 루틴이 다른 곳에서 고쳐지는 중이에요. 잠시 뒤 다시 담아 주세요.',
-  };
+export async function addToMyArmcareRoutine(routineId: string, exerciseId: string): Promise<AddRoutineResult> {
+  const user = await requireUser();
+  if (!isRoutineId(routineId) || !isRoutineId(exerciseId)) return { code: 'invalid', error: '잘못된 요청이에요.' };
+  const exercise = (await armcareIds()).get(exerciseId);
+  if (!exercise) return { code: 'exercise', error: '담을 수 없는 운동이에요.' };
+  const result = await appendToOwnedRoutine(prisma, user.id, routineId, exerciseId, exercise.sets, appNow);
+  if ('ok' in result && result.added) revalidatePath('/training', 'layout');
+  return result;
 }

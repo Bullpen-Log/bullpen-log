@@ -65,6 +65,26 @@ export async function refreshMonth(month: string): Promise<void> {
   emit();
 }
 
+/**
+ * 서버가 확인해 준 기록 하나를 받아 둔 달에 바로 넣는다(새로 · 고침) — 저장 뒤 그날 화면 · 달력이 다시 받기를 기다리지 않고 보인다.
+ * 다시 받기(refreshMonth)는 뒤에서 이어 간다 — 그게 실패해도 저장이 실패한 것은 아니다. 그새 로그아웃했으면(epoch) 넣지 않는다.
+ */
+export function applySavedLog(log: PitchLog, epoch: number) {
+  if (epoch !== cacheEpoch()) return;
+  const order = (a: PitchLog, b: PitchLog) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt);
+  /* 서버 답에 붙은 측정 연결 결과는 기록에 남기지 않는다 */
+  const clean = { ...log } as PitchLog & { velocityLink?: unknown };
+  delete clean.velocityLink;
+  for (const key of [monthOf(clean.date.slice(0, 10)), ALL]) {
+    const now = months.get(key);
+    if (!now?.logs) continue;
+    const logs = [...now.logs.filter((l) => l.id !== clean.id), clean].sort(order);
+    months.set(key, { ...now, logs });
+    if (key !== ALL) void cacheSet(`pitch:${key}`, logs);
+  }
+  emit();
+}
+
 export function useMonth(month: string) {
   const entry = useSyncExternalStore(
     (l) => {
