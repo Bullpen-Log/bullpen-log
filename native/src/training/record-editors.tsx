@@ -206,9 +206,7 @@ export function RecordEditors({
           void reload();
           toast('완료 표시를 확인했어요.');
         } else
-          setError(
-            '아직 변경 결과를 확인하지 못했어요. 다시 보내지 않고 확인만 진행해요.'
-          );
+          setError('아직 변경 결과를 확인하지 못했어요. 잠시 뒤 다시 확인해 주세요.');
       }
     } catch (e) {
       if (current()) {
@@ -295,77 +293,95 @@ export function RecordEditors({
       if (current()) setBusy(false);
     }
   };
+  const showSection =
+    r.exercises.some((e) => e.done) ||
+    r.session != null ||
+    note != null ||
+    !r.noteKnown ||
+    pending != null;
   return (
     <>
-      <View style={rs.sectionHead}>
-        <Text style={[rs.section, { color: c.ink }]}>그날의 기록</Text>
-        {r.editable && r.noteKnown ? (
-          <RecordLink
-            label={note ? '수정' : '남기기'}
-            onPress={onOpenNote}
-            c={c}
-            disabled={!ready || busy || Boolean(pending)}
-          />
-        ) : null}
-      </View>
-      {pending ? (
-        <View style={[rs.notice, { backgroundColor: c.danger + '12' }]}>
-          <Text style={[rs.small, { color: c.danger }]}>
-            {error ?? '저장 결과 확인이 필요해요.'}
-          </Text>
-          <RecordLink
-            label={busy ? '확인 중…' : '저장 여부 확인'}
-            onPress={() => void verify()}
-            c={c}
-            disabled={busy}
-          />
-        </View>
-      ) : null}
-      {!r.noteKnown ? (
-        <RecordNotice c={c} retry={() => void reload()}>
-          강도와 메모를 불러오지 못했어요.
-        </RecordNotice>
-      ) : (
-        <View style={[rs.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-          <View style={rs.split}>
-            <Text style={[rs.small, { color: c.muted }]}>체감 강도</Text>
-            <Text style={[rs.body, { color: c.ink, fontWeight: '700' }]}>
-              {note
-                ? `${trainingEffortLevel(note.intensity)?.label ?? ''} · ${note.intensity}/10`
-                : '미입력'}
-            </Text>
+      {showSection ? (
+        <>
+          <View style={rs.sectionHead}>
+            <Text style={[rs.section, { color: c.ink }]}>그날의 기록</Text>
+            {r.editable && r.noteKnown ? (
+              <RecordLink
+                label={note ? '수정' : '남기기'}
+                onPress={onOpenNote}
+                c={c}
+                disabled={!ready || busy || Boolean(pending)}
+              />
+            ) : null}
           </View>
-          {note ? (
-            <View
-              style={{ flexDirection: 'row', gap: 3, marginTop: 12, marginBottom: 6 }}
-              accessible={false}
-            >
-              {Array.from({ length: 10 }, (_, i) => (
-                <View
-                  key={i}
-                  style={{
-                    flex: 1,
-                    height: 5,
-                    borderRadius: 4,
-                    backgroundColor: i < note.intensity ? c.link : c.chip,
-                  }}
-                />
-              ))}
+          {pending ? (
+            <View style={[rs.notice, { backgroundColor: c.danger + '12' }]}>
+              <Text style={[rs.small, { color: c.danger }]}>
+                {error ?? '저장 결과 확인이 필요해요.'}
+              </Text>
+              <RecordLink
+                label={busy ? '확인 중…' : '저장 여부 확인'}
+                onPress={() => void verify()}
+                c={c}
+                disabled={busy}
+              />
             </View>
           ) : null}
-          <View
-            style={[
-              rs.line,
-              { borderColor: c.line, borderBottomWidth: 0, marginTop: 8 },
-            ]}
-          >
-            <Text style={[rs.small, { color: c.muted }]}>메모</Text>
-            <Text selectable style={[rs.body, { color: note?.memo ? c.ink : c.muted }]}>
-              {note?.memo ?? '없음'}
-            </Text>
-          </View>
-        </View>
-      )}
+          {!r.noteKnown ? (
+            <RecordNotice c={c} retry={() => void reload()}>
+              강도와 메모를 불러오지 못했어요.
+            </RecordNotice>
+          ) : (
+            <View style={[rs.card, { backgroundColor: c.card, boxShadow: c.float }]}>
+              <View style={rs.split}>
+                <Text style={[rs.small, { color: c.muted }]}>체감 강도</Text>
+                <Text style={[rs.body, { color: c.ink, fontWeight: '700' }]}>
+                  {note
+                    ? `${trainingEffortLevel(note.intensity)?.label ?? ''} · ${note.intensity}/10`
+                    : '미입력'}
+                </Text>
+              </View>
+              {note ? (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    gap: 3,
+                    marginTop: 12,
+                    marginBottom: 6,
+                  }}
+                  accessible={false}
+                >
+                  {Array.from({ length: 10 }, (_, i) => (
+                    <View
+                      key={i}
+                      style={{
+                        flex: 1,
+                        height: 5,
+                        borderRadius: 4,
+                        backgroundColor: i < note.intensity ? c.link : c.chip,
+                      }}
+                    />
+                  ))}
+                </View>
+              ) : null}
+              <View
+                style={[
+                  rs.line,
+                  { borderColor: c.line, borderBottomWidth: 0, marginTop: 8 },
+                ]}
+              >
+                <Text style={[rs.small, { color: c.muted }]}>메모</Text>
+                <Text
+                  selectable
+                  style={[rs.body, { color: note?.memo ? c.ink : c.muted }]}
+                >
+                  {note?.memo ?? '없음'}
+                </Text>
+              </View>
+            </View>
+          )}
+        </>
+      ) : null}
       <Sheet
         fit
         open={open != null}
@@ -396,7 +412,7 @@ export function RecordEditors({
       >
         {pending ? (
           <Text style={[rs.body, { color: c.muted }]}>
-            저장됐는지 먼저 확인해 주세요. 같은 변경을 다시 보내지 않아요.
+            저장됐는지 먼저 확인해 주세요.
           </Text>
         ) : open === 'note' ? (
           <>

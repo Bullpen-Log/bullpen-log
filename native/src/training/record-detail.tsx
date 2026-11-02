@@ -204,7 +204,8 @@ export function TrainingRecordScreen({
               disabled={
                 !current?.editable ||
                 !current.setsKnown ||
-                current.session?.status === 'ACTIVE'
+                current.session?.status === 'ACTIVE' ||
+                !current.exercises.some((e) => e.canToggle)
               }
               c={c}
             />
