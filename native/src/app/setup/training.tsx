@@ -1,5 +1,6 @@
 import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { BASELINE_WORKOUT_FREQ, THROWING_HANDS } from '@/lib/baseline';
@@ -17,9 +18,10 @@ import {
   type TrainingStepKey,
 } from '@/lib/training/setup-answers';
 import { rpc, RpcError } from '~/lib/rpc';
-import { usePalette, type Palette } from '~/lib/ui';
+import { usePalette } from '~/lib/ui';
 import { leaveTo, openWebAfter } from '~/shell/web-nav';
-import { ChoiceChips, StepFrame, SummaryRows } from '~/setup/frame';
+import { SummaryRows } from '~/setup/frame';
+import { TrainingFrame, TrainingOption } from '~/setup/training-frame';
 import { OFFLINE_TEXT } from '~/mechanics/parts';
 import { Press } from '~/shell/press';
 
@@ -34,6 +36,7 @@ type Loaded =
 
 export default function TrainingSetupScreen() {
   const c = usePalette();
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
   const [data, setData] = useState<Extract<Loaded, { ok: true }> | null>(null);
   const [failed, setFailed] = useState(false);
   const [tries, setTries] = useState(0);
@@ -67,19 +70,24 @@ export default function TrainingSetupScreen() {
       </View>
     );
   }
-  return <Wizard {...data} />;
+  return <Wizard {...data} requestedEdit={typeof edit === 'string' ? edit : undefined} />;
 }
 
-function Wizard({ name, age, askHand, hasSetup, basicsDone, initial }: Extract<Loaded, { ok: true }>) {
+function Wizard({ age, askHand, hasSetup, basicsDone, initial, requestedEdit }: Extract<Loaded, { ok: true }> & { requestedEdit?: string }) {
   const c = usePalette();
-  const steps = visibleTrainingSteps({ askHand, hasWeight: false });
-  const [a, setA] = useState<TrainingSetupAnswers>(initial);
+  const fullSteps = visibleTrainingSteps({ askHand, hasWeight: false });
+  const editStep = hasSetup && (requestedEdit === 'level' || requestedEdit === 'workoutFreq' || requestedEdit === 'minutes' || (askHand && requestedEdit === 'hand')) ? requestedEdit : null;
+  /* 다시 설정할 때는 고른 질문→요약. 옛 계정에 빈 필수값이 있으면 그 질문도 거쳐 서버 검사에 걸리지 않게 한다. */
+  const steps: TrainingStepKey[] = editStep
+    ? [...new Set<TrainingStepKey>([editStep, ...fullSteps.filter((key) => key !== 'summary' && checkTrainingStep(key, initial) != null), 'summary'])]
+    : fullSteps;
+  /* 새 사용자는 기본 60분을 답으로 오해하지 않게 시간을 직접 고른다. 다시 설정은 저장값을 그대로 보여 준다. */
+  const [a, setA] = useState<TrainingSetupAnswers>(() => hasSetup ? initial : { ...initial, dailyWorkoutMinutes: '' });
   const [index, setIndex] = useState(0);
   const [problem, setProblem] = useState<{ error: string; field: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const step = steps[index];
   const last = steps.length - 1;
-  const who = name ? `${name} 님, ` : '';
   const patch = (p: Partial<TrainingSetupAnswers>) => {
     setA((prev) => ({ ...prev, ...p }));
     setProblem(null);
@@ -107,6 +115,11 @@ function Wizard({ name, age, askHand, hasSetup, basicsDone, initial }: Extract<L
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         /* 웹 틀이 탭 잠금을 다시 읽게(안 하면 앱을 껐다 켤 때까지 탭이 잠긴 채였다 — 영양 첫 설정과 같게) */
         openWebAfter('#refresh');
+        if (editStep) {
+          if (router.canGoBack()) router.back();
+          else router.replace('/training/settings');
+          return;
+        }
         return leaveTo('/training');
       }
       goTo(r.field ? trainingStepOfField(r.field) : null);
@@ -122,45 +135,49 @@ function Wizard({ name, age, askHand, hasSetup, basicsDone, initial }: Extract<L
   const heading = (() => {
     switch (step) {
       case 'level':
-        return { title: `${who}웨이트는 얼마나 해 봤어요?`, desc: '경력에 비해 이른 운동은 빼고 골라요. 근력 · 파워 프로그램을 시작할 수 있는지도 여기서 봐요.' };
+        return { title: '웨이트는 얼마나 해 봤어요?', desc: '기간을 고르면 운동을 고를 때 참고해요.', why: '경력은 실력 등급이 아니에요. 웨이트를 해 온 기간만 골라 주세요.' };
       case 'workoutFreq':
-        return { title: '일주일에 몇 번 해요?', desc: '기록이 쌓이기 전까지 운동 부하 지수를 이 값으로 셈해요.' };
+        return { title: '평소 일주일에 몇 번 운동해요?', desc: '최근 기록이 쌓이기 전까지 시작 기준으로 써요.', why: '목표 횟수보다 평소 하던 횟수를 골라 주세요.' };
       case 'minutes':
-        return { title: '하루에 얼마나 할 수 있어요?', desc: '일정을 이 시간에 맞춰 짜요. 만들 때마다 바꿀 수 있어요.' };
+        return { title: '하루에 운동할 수 있는 시간은?', desc: '오늘 운동을 만들 때 다시 바꿀 수 있어요.', why: '암케어 시간은 따로 계산해요.' };
       case 'hand':
-        return { title: '어느 손으로 던져요?', desc: '암케어와 메카닉이 어느 팔을 볼지 정해요. 투구 기록에서도 같은 값을 써요.' };
+        return { title: '어느 손으로 던져요?', desc: '암케어와 메카닉에서 볼 팔을 정해요.', why: '던지는 손을 이미 설정했다면 이 질문은 나타나지 않아요.' };
       case 'burnCard':
-        return { title: '운동을 적으면 영양이 따라와요' };
+        return { title: '운동을 적으면 영양이 따라와요', desc: '' };
       case 'summary':
         return {
-          title: `${name ? `${name} 님의 ` : ''}트레이닝 설정이에요`,
-          desc: hasSetup ? '저장하면 트레이닝 탭이 이 값으로 운동을 골라요. 트레이닝 설정에서 고칠 수 있어요.' : '시작하면 트레이닝 탭이 열려요.',
+          title: '내 트레이닝 기준을 확인해요',
+          desc: editStep ? '저장하면 새 운동 계획을 만들 때 반영돼요.' : '저장하면 트레이닝 화면에서 운동을 시작할 수 있어요.',
         };
     }
   })();
 
+  const answered = step === 'level' ? !!a.trainingLevel : step === 'workoutFreq' ? !!a.baselineWorkoutFreq : step === 'minutes' ? !!a.dailyWorkoutMinutes : step === 'hand' ? !!a.throwingHand : true;
+
   return (
-    <StepFrame
+    <TrainingFrame
       progress={(index + 1) / steps.length}
       counter={`${index + 1} / ${steps.length}`}
+      progressLabel={editStep || hasSetup ? '트레이닝 설정' : '트레이닝 첫 설정'}
+      eyebrow={step === 'summary' ? 'READY TO TRAIN' : 'YOUR TRAINING BASE'}
       title={heading.title}
       desc={heading.desc}
+      why={'why' in heading ? heading.why : undefined}
       problem={problem?.error ?? null}
       back={
         index === 0
-          ? { label: hasSetup ? '그만두기' : '홈으로', onPress: () => leaveTo(hasSetup ? '/training' : '/today') }
+          ? { label: editStep ? '취소' : hasSetup ? '그만두기' : '홈으로', onPress: () => editStep ? router.back() : leaveTo(hasSetup ? '/training' : '/today'), disabled: saving }
           : { label: '이전', onPress: () => (setProblem(null), setIndex((i) => i - 1)), disabled: saving }
       }
-      next={index < last ? { label: '다음', onPress: next } : { label: saving ? '저장하는 중…' : hasSetup ? '저장하기' : '시작하기', onPress: () => void save(), disabled: saving }}
-      c={c}
+      next={index < last ? { label: '다음', onPress: next, disabled: !answered || saving } : { label: saving ? '저장하는 중…' : editStep || hasSetup ? '설정 저장' : '트레이닝 시작', onPress: () => void save(), disabled: saving }}
     >
       {step === 'level' ? (
         <View style={{ gap: 10 }}>
           {TRAINING_LEVELS.map((l) => (
-            <OptionCard
+            <TrainingOption
               key={l.name}
               label={l.name}
-              hint={l.desc}
+              hint={l.name === '입문' ? '안 해봤거나 6개월 미만' : l.name === '초급' ? '6개월~1년' : l.name === '중급' ? '1~3년' : '3년 이상'}
               on={a.trainingLevel === l.name}
               invalid={problem?.field === 'trainingLevel'}
               onPress={() => patch({ trainingLevel: l.name })}
@@ -170,75 +187,25 @@ function Wizard({ name, age, askHand, hasSetup, basicsDone, initial }: Extract<L
         </View>
       ) : null}
       {step === 'workoutFreq' ? (
-        <ChoiceChips
-          options={BASELINE_WORKOUT_FREQ.map((o) => ({ value: o.name, label: o.name }))}
-          value={a.baselineWorkoutFreq}
-          onChange={(baselineWorkoutFreq) => patch({ baselineWorkoutFreq })}
-          invalid={problem?.field === 'baselineWorkoutFreq'}
-          hint="이 답과 하루 운동 시간으로 첫날부터 운동 부하 지수를 내요."
-          c={c}
-        />
+        <View style={{ gap: 10 }}>{BASELINE_WORKOUT_FREQ.map((o) => <TrainingOption key={o.name} label={o.name} on={a.baselineWorkoutFreq === o.name} invalid={problem?.field === 'baselineWorkoutFreq'} onPress={() => patch({ baselineWorkoutFreq: o.name })} c={c} />)}</View>
       ) : null}
       {step === 'minutes' ? (
-        <ChoiceChips
-          options={WORKOUT_MINUTES_CHOICES.map((m) => ({ value: String(m), label: `${m}분` }))}
-          value={a.dailyWorkoutMinutes}
-          onChange={(dailyWorkoutMinutes) => patch({ dailyWorkoutMinutes })}
-          invalid={problem?.field === 'dailyWorkoutMinutes'}
-          hint="암케어는 이 시간에 안 들어가요. 따로 해요."
-          c={c}
-        />
+        <View style={{ gap: 10 }}>{WORKOUT_MINUTES_CHOICES.map((m) => <TrainingOption key={m} label={`${m}분`} on={a.dailyWorkoutMinutes === String(m)} invalid={problem?.field === 'dailyWorkoutMinutes'} onPress={() => patch({ dailyWorkoutMinutes: String(m) })} c={c} />)}</View>
       ) : null}
       {step === 'hand' ? (
-        <ChoiceChips
-          options={THROWING_HANDS.map((h) => ({ value: h, label: h }))}
-          value={a.throwingHand}
-          onChange={(throwingHand) => patch({ throwingHand })}
-          invalid={problem?.field === 'throwingHand'}
-          c={c}
-        />
+        <View style={{ gap: 10 }}>{THROWING_HANDS.map((h) => <TrainingOption key={h} label={h} on={a.throwingHand === h} invalid={problem?.field === 'throwingHand'} onPress={() => patch({ throwingHand: h })} c={c} />)}</View>
       ) : null}
       {step === 'summary' ? (
         <View style={{ gap: 16 }}>
           <SummaryRows rows={trainingAnswerLines(a, { askHand })} c={c} />
-          {/* 근력 · 파워 프로그램 자격 — 시작 자격과 같은 글(lib/program/program.ts) */}
-          <Text style={{ color: c.ink, fontSize: 15, lineHeight: 22, borderWidth: 1, borderColor: c.sky + '40', backgroundColor: c.action + '0d', borderRadius: 16, padding: 14, overflow: 'hidden' }}>
-            {programNote(a, age, basicsDone)}
-          </Text>
-          <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>저장하면 오늘 운동 일정을 바로 만들 수 있어요. 일정은 체크인을 남긴 날에 만들어요.</Text>
+          <View style={{ backgroundColor: c.skyTint, borderRadius: 14, padding: 14, gap: 5 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Icon name="circle-check" size={16} color={c.link} /><Text style={{ color: c.ink, fontSize: 14, fontWeight: '700' }}>이 설정으로 시작해요</Text></View>
+            <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{hasSetup ? '경력은 운동 선택에, 횟수와 시간은 새 계획의 시작 기준에 반영돼요. 이미 만든 오늘 일정은 그대로예요.' : '경력은 운동 선택에, 횟수와 시간은 첫 계획의 시작 기준에 반영돼요.'}</Text>
+          </View>
+          <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>{programNote(a, age, basicsDone)}</Text>
+          {!hasSetup ? <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>오늘 운동 일정은 체크인을 남긴 뒤 만들 수 있어요.</Text> : null}
         </View>
       ) : null}
-    </StepFrame>
-  );
-}
-
-/** 설명이 붙은 고르기 카드(웹 OptionCards) */
-function OptionCard({ label, hint, on, invalid, onPress, c }: { label: string; hint: string; on: boolean; invalid: boolean; onPress: () => void; c: Palette }) {
-  return (
-    <Press
-      accessibilityRole="radio"
-      accessibilityState={{ selected: on }}
-      onPress={() => {
-        void Haptics.selectionAsync();
-        onPress();
-      }}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        borderRadius: 16,
-        borderWidth: on ? 2 : 1,
-        borderColor: on ? c.sky : invalid ? c.danger : c.line,
-        backgroundColor: c.card,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-      }}
-    >
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>{label}</Text>
-        <Text style={{ color: c.muted, fontSize: 15, lineHeight: 20 }}>{hint}</Text>
-      </View>
-      {on ? <Icon name="circle-check" size={22} color={c.link} /> : null}
-    </Press>
+    </TrainingFrame>
   );
 }

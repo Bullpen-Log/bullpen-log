@@ -8,6 +8,12 @@
 - 스키마/패키지/네이티브 구성 변경 없음. 서버와 앱 화면을 함께 배포합니다. 현재 코치/영상 비교 작업을 유지합니다.
 - 검증: root/native 타입·린트(기존 경고만), Next 빌드, iOS export, 신규 격리 Prisma/PGlite 포함38개, 접근정책692개, 앱 호출324개/주소10개. 실제 RN 화면의 웹 어댑터에서 세트 펼침/메모 저장/응답 유실 후 조회만/320px·다크·iPad 폭 확인. 실기기·VoiceOver·네이티브 애니메이션 성능은 미검증입니다.
 
+## 금윤호에게 — 2026-11-02 · 김민(Codex, 트레이닝 설정 시안 적용)
+
+- 트레이닝 첫 설정을 선택한 단계별 질문 시안으로 바꿨습니다. `native/src/app/setup/training.tsx`와 새 `native/src/setup/training-frame.tsx`가 경력·평소 횟수·기본 시간·필요할 때 던지는 손·요약을 그립니다.
+- `native/src/app/training/settings.tsx`에서 각 값을 보고 해당 질문부터 다시 설정할 수 있습니다. 저장은 기존 `training-setup.finishTrainingSetup`을 사용하고, 이미 만든 오늘 일정은 건드리지 않습니다.
+- 네 앱 공용 아이콘 `native/src/shell/icon.tsx`에 Lucide `clock-3` 선 하나만 추가했습니다. DB 구조·패키지·앱 바닥·환경변수 변경은 없습니다. 받은 뒤 별도 작업은 없습니다.
+
 ## 금윤호에게 — 2026-11-02 · 김민(Codex, 확정 시안 앱 적용)
 
 - 투구 기록은 `native/src/pitch/quick-step.tsx`로 신규/수정/측정/가져오기 입력을 통합했습니다. 기존 퀵 스텝 작업을 최신 main 위에 통합했으며 코치 탭·비교 작업·베타 제한은 유지합니다.
