@@ -48,11 +48,11 @@ const KIND_ICON: Record<SignupKind, IconName> = { player: 'pitcher', lesson: 'le
 function titleOf(step: WebSignupStep, a: SignupAnswers): { title: string; desc: string } {
   switch (step) {
     case 'kind':
-      return { title: '어떻게 쓰실 건가요?', desc: '선수는 내 기록을 남기고, 레슨장 · 팀은 선수들의 기록을 관리해요. 가입한 뒤에는 바꿀 수 없어요.' };
+      return { title: '어떤 자리에서 시작하나요?', desc: '선수는 내 기록을, 레슨장·팀은 선수단을 관리해요. 가입 후에는 바꿀 수 없어요.' };
     case 'name':
       return {
         title: '계정 만들기',
-        desc: isMasterKind(a.kind) ? '관리에 쓸 이름(대표 · 감독 · 코치) · 이메일 · 비밀번호를 적어 주세요.' : '이름 · 이메일 · 비밀번호를 적어 주세요.',
+        desc: isMasterKind(a.kind) ? '관리자 계정에 사용할 정보를 적어 주세요.' : '내 기록을 이어 볼 계정을 만들어요.',
       };
     case 'org':
       return {
@@ -60,11 +60,11 @@ function titleOf(step: WebSignupStep, a: SignupAnswers): { title: string; desc: 
         desc: `${a.kind === 'team' ? '선수가' : '회원이'} 초대 코드로 들어올 때 보는 이름이에요. 지역 · 소개는 나중에 바꿀 수 있어요.`,
       };
     case 'birth':
-      return { title: '생년월일 · 성별', desc: '안전한 투구수 한도와 영양 기준을 정할 때 써요.' };
+      return { title: '안전한 투구 기준을 맞춰요', desc: '생년월일은 나이에 맞는 투구 한도와 이용 기준에 써요.' };
     case 'body':
-      return { title: '키 · 몸무게', desc: '영양 목표와 보폭을 견줄 때 써요.' };
+      return { title: '키 · 몸무게', desc: '동작 분석과 훈련에 필요한 신체 정보를 적어 주세요.' };
     case 'terms':
-      return { title: '약관 동의', desc: '마지막이에요. 읽고 동의해 주세요.' };
+      return { title: '약관 동의', desc: `필수 항목을 읽고 동의하면 ${isMasterKind(a.kind) ? '관리 화면' : '싱커 홈'}으로 들어가요.` };
   }
 }
 
@@ -100,10 +100,10 @@ export default function SignupScreen() {
   const [joining, setJoining] = useState(false);
   const scroll = useRef<ScrollViewInstance>(null);
 
-  /* 차례는 고른 종류에 따라 — 선수 넷(계정 · 생년월일 · 몸 · 약관), 레슨장 · 팀 셋(계정 · 조직 · 약관). 종류 화면은 세지 않는다 */
+  /* 고른 종류에 따라 차례가 다르며, 역할 선택부터 진행 단계에 포함한다. */
   const steps = signupStepsOf(a);
   const index = Math.max(0, steps.indexOf(step));
-  const total = steps.length - 1;
+  const total = steps.length;
   const master = isMasterKind(a.kind);
   const set = (patch: Partial<SignupAnswers>) => {
     setA((now) => ({ ...now, ...patch }));
@@ -151,11 +151,9 @@ export default function SignupScreen() {
   };
 
   const back = () => (index === 0 ? router.back() : go(steps[index - 1]));
-  /* 종류는 누르면 골라진 것을 잠깐 보이고 다음 화면으로 — 고르는 것 말고 할 일이 없는 화면이라 '다음' 단추를 두지 않는다 */
   const pickKind = (kind: SignupKind) => {
     void Haptics.selectionAsync();
     set({ kind });
-    setTimeout(() => go('name'), 180);
   };
   const toggleJoining = (on: boolean) => {
     setJoining(on);
@@ -180,11 +178,11 @@ export default function SignupScreen() {
           <Icon name="back" size={24} color={c.link} />
           <Text style={[TYPE.button, { color: c.link, fontWeight: '400' }]}>{index === 0 ? '로그인' : '이전'}</Text>
         </Pressable>
-        <Text style={[TYPE.body, { color: c.muted }]}>{index > 0 ? `${index} / ${total}` : ''}</Text>
+        <Text style={[TYPE.body, { color: c.muted }]}>{index + 1} / {total}</Text>
         <View style={{ minWidth: 80 }} />
       </View>
       <View style={[st.track, { backgroundColor: c.chip }]}>
-        <View style={{ width: `${(index / total) * 100}%`, height: '100%', backgroundColor: c.action, borderRadius: 2 }} />
+        <View style={{ width: `${((index + 1) / total) * 100}%`, height: '100%', backgroundColor: c.action, borderRadius: 2 }} />
       </View>
 
       <ScrollView
@@ -233,19 +231,20 @@ export default function SignupScreen() {
         ) : null}
 
         {step === 'name' ? (
-          <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
+          <View style={{ gap: 14 }}>
             <Input
+              label="이름"
               value={a.nickname}
               onChange={(t) => set({ nickname: t })}
-              placeholder={master ? '이름(대표 · 감독 · 코치)' : '이름(앱에서 부를 이름)'}
+              placeholder={master ? '대표 · 감독 · 코치 이름' : '앱에서 부를 이름'}
               bad={bad('nickname')}
               maxLength={MAX_NICKNAME}
               textContentType="nickname"
               c={c}
             />
-            <Input value={a.email} onChange={(t) => set({ email: t })} placeholder="이메일" bad={bad('email')} keyboardType="email-address" textContentType="username" autoComplete="email" c={c} />
-            <Input value={a.password} onChange={(t) => set({ password: t })} placeholder="비밀번호(8자 이상)" bad={bad('password')} secure c={c} />
-            <Input value={a.passwordConfirm} onChange={(t) => set({ passwordConfirm: t })} placeholder="비밀번호 한 번 더" bad={bad('passwordConfirm')} secure last c={c} />
+            <Input label="이메일" value={a.email} onChange={(t) => set({ email: t })} placeholder="pitcher@example.com" bad={bad('email')} keyboardType="email-address" textContentType="username" autoComplete="email" c={c} />
+            <Input label="비밀번호" value={a.password} onChange={(t) => set({ password: t })} placeholder="8자 이상" bad={bad('password')} secure c={c} />
+            <Input label="비밀번호 확인" value={a.passwordConfirm} onChange={(t) => set({ passwordConfirm: t })} placeholder="같은 비밀번호를 입력" bad={bad('passwordConfirm')} secure c={c} />
           </View>
         ) : null}
 
@@ -417,15 +416,13 @@ export default function SignupScreen() {
       </ScrollView>
 
       {/* 다음 · 가입 단추는 바닥에 붙인다(자판이 오르면 자판 위로) — 칸 수에 따라 화면 가운데를 떠다니지 않게 */}
-      {step !== 'kind' ? (
-        <View style={[st.footer, READABLE, { paddingBottom: keyboardUp ? 12 : inset.bottom + 12 }]}>
-          <Pressable accessibilityRole="button" onPress={() => void next()} disabled={busy} style={({ pressed }) => [st.primary, { backgroundColor: c.action, opacity: busy ? 0.6 : pressed ? 0.85 : 1 }]}>
-            <Text style={[TYPE.button, { color: '#fff' }]}>
-              {busy ? (step === 'terms' ? '만드는 중…' : '확인 중…') : step === 'terms' ? '가입하고 시작하기' : '다음'}
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
+      <View style={[st.footer, READABLE, { paddingBottom: keyboardUp ? 12 : inset.bottom + 12 }]}>
+        <Pressable accessibilityRole="button" onPress={() => void next()} disabled={busy} style={({ pressed }) => [st.primary, { backgroundColor: c.action, opacity: busy ? 0.6 : pressed ? 0.85 : 1 }]}>
+          <Text style={[TYPE.button, { color: '#fff' }]}>
+            {busy ? (step === 'terms' ? '만드는 중…' : '확인 중…') : step === 'terms' ? '가입하고 시작하기' : step === 'kind' ? '계속' : '다음'}
+          </Text>
+        </Pressable>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -440,35 +437,46 @@ function FieldRow({ label, bad, last, children, c }: { label: string; bad?: bool
   );
 }
 
-function Input({ value, onChange, placeholder, bad, secure, last, maxLength, keyboardType, textContentType, autoComplete, c }: {
+function Input({ label, value, onChange, placeholder, bad, secure, maxLength, keyboardType, textContentType, autoComplete, c }: {
+  label: string;
   value: string;
   onChange: (t: string) => void;
   placeholder: string;
   bad: boolean;
   secure?: boolean;
-  last?: boolean;
   maxLength?: number;
   keyboardType?: 'email-address';
   textContentType?: 'nickname' | 'username';
   autoComplete?: 'email';
   c: Palette;
 }) {
+  const [visible, setVisible] = useState(false);
   return (
-    <TextInput
-      value={value}
-      onChangeText={onChange}
-      placeholder={placeholder}
-      placeholderTextColor={c.muted}
-      secureTextEntry={secure}
-      textContentType={secure ? 'newPassword' : textContentType}
-      autoComplete={secure ? 'new-password' : autoComplete}
-      keyboardType={keyboardType}
-      maxLength={maxLength}
-      autoCapitalize="none"
-      autoCorrect={false}
-      accessibilityLabel={placeholder}
-      style={[st.input, { color: bad ? c.danger : c.ink }, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: bad ? c.danger : c.line }]}
-    />
+    <View style={{ gap: 7 }}>
+      <Text style={{ color: bad ? c.danger : c.muted, fontSize: 13 }}>{label}</Text>
+      <View style={[st.accountRow, { backgroundColor: c.card, borderColor: bad ? c.danger : c.line }]}>
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          placeholder={placeholder}
+          placeholderTextColor={c.muted}
+          secureTextEntry={secure && !visible}
+          textContentType={secure ? 'newPassword' : textContentType}
+          autoComplete={secure ? 'new-password' : autoComplete}
+          keyboardType={keyboardType}
+          maxLength={maxLength}
+          autoCapitalize="none"
+          autoCorrect={false}
+          accessibilityLabel={label}
+          style={[st.accountInput, { color: bad ? c.danger : c.ink }]}
+        />
+        {secure ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`${label} ${visible ? '숨기기' : '보기'}`} onPress={() => setVisible((v) => !v)} hitSlop={8} style={st.passwordToggle}>
+            <Text style={{ color: c.link, fontSize: 14, fontWeight: '600' }}>{visible ? '숨기기' : '보기'}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
@@ -518,7 +526,9 @@ const st = StyleSheet.create({
   track: { height: 4, marginHorizontal: 20, borderRadius: 2, overflow: 'hidden' },
   group: { borderRadius: 14, overflow: 'hidden' },
   inline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 16 },
-  input: { fontSize: 17, paddingHorizontal: 16, minHeight: 52 },
+  accountRow: { flexDirection: 'row', alignItems: 'center', minHeight: 52, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth * 2 },
+  accountInput: { flex: 1, fontSize: 17, paddingHorizontal: 14, minHeight: 52 },
+  passwordToggle: { minHeight: 44, minWidth: 62, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, minHeight: 56 },
   chip: { flex: 1, minHeight: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   primary: { minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },

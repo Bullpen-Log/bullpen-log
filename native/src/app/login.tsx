@@ -89,20 +89,21 @@ export default function LoginScreen() {
     setError('error' in r ? r.error : (r.state?.error ?? '로그인하지 못했어요.'));
   };
 
-  const [hint, setHint] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Stack.Screen options={{ gestureEnabled: false }} />
-      {/* 웹 로그인(StepCard)과 같은 차례 — 로고 · 제목 · 한 줄 · 이름 붙은 칸 둘 · 체크 줄 · 아래 [계정 만들기][로그인] */}
       <ScrollView
         contentContainerStyle={[{ flexGrow: 1, paddingHorizontal: 20, paddingTop: inset.top + 20, paddingBottom: inset.bottom + 20 }, READABLE]}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
       >
         <Wordmark size={24} color={c.ink} />
-        <Text style={{ color: c.ink, fontSize: 28, fontWeight: '800', marginTop: 24 }}>로그인</Text>
-        <Text style={{ color: c.muted, fontSize: 15, lineHeight: 22, marginTop: 10 }}>기록을 이어서 보려면 로그인해 주세요.</Text>
+        <View style={[st.hero, { backgroundColor: c.skyTint }]}>
+          <Text accessibilityRole="header" style={{ color: c.ink, fontSize: 28, fontWeight: '800' }}>로그인</Text>
+          <Text style={{ color: c.muted, fontSize: 15, lineHeight: 22, marginTop: 8 }}>지난 기록을 확인하고 오늘 훈련을 시작하세요.</Text>
+        </View>
 
         <View style={{ flex: 1, gap: 20, marginTop: 24 }}>
           {error ? (
@@ -128,24 +129,29 @@ export default function LoginScreen() {
             />
           </Labeled>
           <Labeled label="비밀번호" c={c}>
-            <TextInput
-              ref={passwordRef}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              placeholderTextColor={c.muted}
-              secureTextEntry
-              textContentType="password"
-              autoComplete="current-password"
-              returnKeyType="go"
-              onSubmitEditing={() => void submit()}
-              accessibilityLabel="비밀번호"
-              style={[st.input, { color: c.ink, backgroundColor: c.card, borderColor: c.line }]}
-            />
+            <View style={[st.passwordRow, { backgroundColor: c.card, borderColor: c.line }]}>
+              <TextInput
+                ref={passwordRef}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                placeholderTextColor={c.muted}
+                secureTextEntry={!showPassword}
+                textContentType="password"
+                autoComplete="current-password"
+                returnKeyType="go"
+                onSubmitEditing={() => void submit()}
+                accessibilityLabel="비밀번호"
+                style={[st.passwordInput, { color: c.ink }]}
+              />
+              <Pressable accessibilityRole="button" accessibilityLabel={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'} onPress={() => setShowPassword((v) => !v)} hitSlop={8} style={st.passwordToggle}>
+                <Text style={{ color: c.link, fontSize: 14, fontWeight: '600' }}>{showPassword ? '숨기기' : '보기'}</Text>
+              </Pressable>
+            </View>
           </Labeled>
 
-          <View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+          <View style={{ gap: 4 }}>
+            <View style={st.helpRow}>
               <CheckLine
                 label="아이디 기억하기"
                 value={remember}
@@ -155,34 +161,19 @@ export default function LoginScreen() {
                 }}
                 c={c}
               />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="자동 로그인 · 아이디 기억하기 설명"
-                accessibilityState={{ expanded: hint }}
-                onPress={() => setHint((h) => !h)}
-                hitSlop={8}
-                style={{ marginLeft: 'auto', width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Icon name="info" size={18} color={hint ? c.link : c.muted} strokeWidth={2} />
+              <Pressable accessibilityRole="button" onPress={forgotPassword} hitSlop={8} style={({ pressed }) => [st.text, { paddingHorizontal: 0 }, pressed && { opacity: 0.6 }]}>
+                <Text style={{ color: c.link, fontSize: 14, fontWeight: '600' }}>비밀번호를 잊었어요</Text>
               </Pressable>
             </View>
-            {hint ? (
-              <View style={{ gap: 6, marginTop: 4 }}>
-                <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>앱은 자동 로그인이에요. 앱을 닫아도 30일 동안 로그인이 유지돼요.</Text>
-                <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>아이디 기억하기: 다음에 올 때 이메일 칸을 채워 둬요. 비밀번호는 저장하지 않아요.</Text>
-              </View>
-            ) : null}
+            <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>아이디만 저장해요. 로그인은 30일간 유지돼요.</Text>
           </View>
-          <Pressable accessibilityRole="button" onPress={forgotPassword} style={({ pressed }) => [st.text, { alignSelf: 'flex-start', paddingHorizontal: 0 }, pressed && { opacity: 0.6 }]}>
-            <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>비밀번호를 잊었어요</Text>
-          </Pressable>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
-          <Pressable accessibilityRole="link" onPress={() => router.push('/signup' as Href)} style={({ pressed }) => [st.text, pressed && { backgroundColor: c.line }]}>
-            <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>계정 만들기</Text>
+        <View style={{ gap: 10, marginTop: 24 }}>
+          <ActionButton onPress={() => void submit()} busy={busy} label={busy ? '로그인 중…' : '로그인'} style={{ width: '100%' }} />
+          <Pressable accessibilityRole="link" onPress={() => router.push('/signup' as Href)} style={({ pressed }) => [st.createButton, { backgroundColor: pressed ? c.chip : c.card, borderColor: c.line }]}>
+            <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>처음이라면 계정 만들기</Text>
           </Pressable>
-          <ActionButton onPress={() => void submit()} busy={busy} label={busy ? '로그인 중…' : '로그인'} />
         </View>
       </ScrollView>
     </View>
@@ -217,7 +208,12 @@ function CheckLine({ label, value, onChange, c }: { label: string; value: boolea
 
 const st = StyleSheet.create({
   input: { fontSize: 17, paddingHorizontal: 14, minHeight: 52, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth * 2 },
+  hero: { marginTop: 24, padding: 18, borderRadius: 18 },
+  passwordRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: StyleSheet.hairlineWidth * 2 },
+  passwordInput: { flex: 1, minHeight: 52, fontSize: 17, paddingLeft: 14, paddingRight: 4 },
+  passwordToggle: { minHeight: 44, minWidth: 62, alignItems: 'center', justifyContent: 'center' },
+  helpRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 12 },
+  createButton: { minHeight: 52, borderRadius: 26, borderWidth: StyleSheet.hairlineWidth * 2, alignItems: 'center', justifyContent: 'center' },
   box: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   text: { minHeight: 48, paddingHorizontal: 16, borderRadius: 12, justifyContent: 'center' },
-  primary: { minHeight: 48, paddingHorizontal: 28, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
 });
