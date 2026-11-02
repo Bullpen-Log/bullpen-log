@@ -21,6 +21,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 이 맥의 `native/node_modules` 가 10-21 판이라 `cd native && npm ci`(잠금 파일 그대로)를 돌렸다 — 패키지를 바꾼 것은 아니다.
 - 시험: `npm run native-compare:test`(318 + 회귀 66). 실기기 · 시뮬레이터는 안 봤다.
 
+## 김민에게 — 2026-11-02 · 김민(Claude, 데스크톱 · 아키텍처) — 유료 AI 코치를 맥에서 이어 하기
+
+김민: "지금까지 했던 AI 코치 기능 내 맥에서 이어서 하려고 해서 전부 내 맥한테 전달해줘." 코드는 모두 main(마지막 코치 커밋 `5052aa59`).
+**먼저 읽을 것: `docs/claude/ai-coach-handoff-2026-11-02.md`** — 맥에서 처음 할 일(`git pull` → `npm ci` → `npx prisma generate` → 시험 둘), 사용자 몫(Vercel `ANTHROPIC_API_KEY` · `CRON_SECRET` 넣었는지 먼저 묻기),
+된 것 · 남은 것(추천 차례: 실제 AI 호출 시험 → 코치 설정 화면 → 설명 문장) · 파일 지도 · 지킨 규칙. 설계 · 결정은 `docs/designs/ai-coach.md` 10절.
+다 읽고 맥에서 이어 하기 시작하면 이 글은 지운다.
+
 ## 김민에게 — 2026-11-02 · 금윤호(Claude, 윤호 맥북) — 투구 탭에 '영상 비교'(투구 영상 분석) · 비교 화면을 문서로 저장 · **네 앱 틀 · 갤러리 · 투구 탭을 고쳤다**
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만이라 업데이트로 나간다). 금윤호: `docs/designs/sinker-pitch-video-workbench-claude-prompt.md` R01~R42 구현. 무엇이 됐고 안 됐는지는 `docs/designs/sinker-pitch-video-workbench-ledger.md`(항목마다 파일 · 시험 · 상태). **시뮬레이터 · Metro · 실기기 확인은 하나도 안 했다.**
