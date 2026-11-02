@@ -320,7 +320,7 @@ function EventRow({ r, last, c }: { r: RecordItem; last: boolean; c: Palette }) 
   const go = () => {
     if (r.kind === 'pitch') return router.push(`/pitch/${r.date}` as Href);
     if (r.kind === 'checkin') return router.push(`/calendar?date=${r.date}` as Href);
-    router.push(`/training/day/${r.date}` as Href);
+    router.push(`/training/day/${r.date}?kind=${r.kind}` as Href);
   };
   const pitch = r.kind === 'pitch' && !r.rested ? r : null;
   const value = valueOf(r);

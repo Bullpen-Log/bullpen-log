@@ -107,7 +107,8 @@
     "shoot:outdoor": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/shoot-plan-outdoor.mts",
     "library:bundle": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/library-bundle.mts",
     "coach:test": "node --import ./scripts/alias-register.mjs scripts/coach-selftest.mts",
-    "coach:ai-test": "node --import ./scripts/alias-register.mjs scripts/coach-ai-selftest.mts"
+    "coach:ai-test": "node --import ./scripts/alias-register.mjs scripts/coach-ai-selftest.mts",
+    "workout-record:test": "node --import ./scripts/alias-register.mjs scripts/workout-record-selftest.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

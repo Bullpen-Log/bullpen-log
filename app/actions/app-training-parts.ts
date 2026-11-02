@@ -11,6 +11,12 @@ import type { BuilderExercise } from '@/app/(app)/training/routine/[id]/routine-
 import { toDateKey } from '@/lib/pitch-stats';
 import { trainingDay, type TrainingDayDetail } from '@/lib/report/training-history';
 import { loadTrainingStrip, type TrainingStripDay } from '@/lib/training-week';
+import { loadWorkoutRecord, readRecordNote } from '@/lib/workout/record-load';
+import { validRecordDate, type WorkoutRecord } from '@/lib/workout/record-model';
+import { saveRecordNote } from '@/lib/workout/record-note';
+import { prisma } from '@/lib/prisma';
+import { saveRecordChecks } from '@/lib/workout/record-checks';
+import { revalidatePath } from 'next/cache';
 
 /**
  * 아이폰 앱의 암케어 · 메카닉 전체 화면(native/src/app/training-armcare.tsx · training-mechanics.tsx)을 열 때 — 웹 트레이닝의
@@ -79,4 +85,44 @@ export async function loadAppTrainingDay(date: unknown): Promise<{ ok: true; day
   const today = toDateKey(appNow());
   const [detail, strip] = await Promise.all([trainingDay(user.id, date), loadTrainingStrip(user.id, date, today)]);
   return { ok: true, day: { today, detail, strip } };
+}
+
+/** Read-only historical detail; opening a record never closes a session or advances a program. */
+export async function loadAppTrainingRecord(date: unknown, kind: unknown = 'training'): Promise<{ ok: true; record: WorkoutRecord | null } | Closed> {
+  allowFeature('training');
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, to: '/login' };
+  if (featureLocks(user).training) return { ok: false, to: SETUP_PATH.training };
+  if (!validRecordDate(date)) return { ok: true, record: null };
+  return { ok: true, record: await loadWorkoutRecord(user.id, date, kind === 'armcare' || kind === 'drill' ? kind : 'training') };
+}
+
+export async function loadAppTrainingRecordNote(date: unknown) {
+  allowFeature('training');
+  const user = await getCurrentUser();
+  if (!user) return { ok: false as const, to: '/login' };
+  if (!validRecordDate(date)) return { ok: false as const, to: '/training' };
+  return { ok: true as const, note: await readRecordNote(user.id, date) };
+}
+
+export async function saveAppTrainingRecordNote(date: string, input: { intensity: number; memo: string; version: string | null }) {
+  allowFeature('training');
+  const user = await getCurrentUser();
+  if (!user) return { error: '로그인이 필요해요.' };
+  const result = await saveRecordNote(prisma, user.id, date, input, toDateKey(appNow()), appNow());
+  if ('ok' in result) revalidatePath('/training', 'layout');
+  return result;
+}
+
+/** Explicit correction only, after checking ownership, date window, membership and the absence of raw sets. */
+export async function setAppTrainingRecordDone(date: string, changes: { exerciseId: string; before: boolean; done: boolean }[]) {
+  allowFeature('training');
+  const user = await getCurrentUser();
+  if (!user) return { error: '로그인이 필요해요.' };
+  if (!validRecordDate(date) || !Array.isArray(changes) || !changes.length || changes.length > 50 || changes.some(c => !c || typeof c.exerciseId !== 'string' || typeof c.done !== 'boolean' || typeof c.before !== 'boolean') || new Set(changes.map(c => c.exerciseId)).size !== changes.length) return { error: '기록을 확인해 주세요.' };
+  const record = await loadWorkoutRecord(user.id, date, 'training');
+  if (changes.some(c => { const e = record.exercises.find(e => e.id === c.exerciseId); return !e?.canToggle || e.done !== c.before; })) return { error: '기록이 바뀌었거나 수정할 수 없어요. 다시 불러와 주세요.' };
+  const result = await saveRecordChecks(prisma, user.id, date, changes, new Set(record.exercises.filter(e => e.canToggle).map(e => e.id)), toDateKey(appNow()));
+  if ('ok' in result) revalidatePath('/training', 'layout');
+  return result;
 }

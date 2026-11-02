@@ -208,7 +208,8 @@ export type TrainingDayDetail = {
 /** 날짜 하나의 자세한 내용. 달력에서 그 날을 눌렀을 때만 부른다. */
 export async function trainingDay(
   userId: string,
-  dateKey: string
+  dateKey: string,
+  options: { skipNote?: boolean } = {}
 ): Promise<TrainingDayDetail> {
   const date = new Date(`${dateKey}T00:00:00.000Z`);
 
@@ -246,7 +247,7 @@ export async function trainingDay(
         },
       },
     }),
-    prisma.dailyTrainingNote.findUnique({
+    options.skipNote ? Promise.resolve(null) : prisma.dailyTrainingNote.findUnique({
       where: { userId_date: { userId, date } },
       select: { intensity: true, memo: true },
     }),

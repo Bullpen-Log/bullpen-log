@@ -52,6 +52,7 @@ const TREND_POINTS = 12;
 export function HistoryPanel({
   exerciseId,
   excludeSessionId,
+  beforeDate,
   unit,
   c,
   hideNote = false,
@@ -60,6 +61,7 @@ export function HistoryPanel({
   exerciseId: string;
   /** 운동 화면에서 열었으면 지금 하는 판 — 그 판의 세트는 '지난 기록'이 아니라 뺀다(웹 ExerciseHistoryPanel 과 같다) */
   excludeSessionId?: string;
+  beforeDate?: string;
   unit: WeightUnit;
   c: Palette;
   /** 운동 영상 상세(2026-10-31) — 메모는 위 '운동 방법'에서 고치므로 여기선 안 보인다 */
@@ -71,19 +73,19 @@ export function HistoryPanel({
   /* 어느 운동 · 판 · 몇 번째 받기의 답인지 같이 — 앞 운동의 답이 다음 운동 밑에 잠깐도 안 보이게 */
   const [got, setGot] = useState<{ key: string; r: Got } | null>(null);
   const [tries, setTries] = useState(0);
-  const key = `${exerciseId}|${excludeSessionId ?? ''}|${tries}`;
+  const key = `${exerciseId}|${excludeSessionId ?? ''}|${beforeDate ?? ''}|${tries}`;
   const [more, setMore] = useState(false);
   const [summary, setSummary] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
   useEffect(() => {
     let alive = true;
-    void act<{ history: ExerciseHistory; note: string | null }>('exercise-history.exerciseHistory', { exerciseId, excludeSessionId }).then((r) => {
-      if (alive) setGot({ key: `${exerciseId}|${excludeSessionId ?? ''}|${tries}`, r });
+    void act<{ history: ExerciseHistory; note: string | null }>('exercise-history.exerciseHistory', { exerciseId, excludeSessionId, beforeDate }).then((r) => {
+      if (alive) setGot({ key: `${exerciseId}|${excludeSessionId ?? ''}|${beforeDate ?? ''}|${tries}`, r });
     });
     return () => {
       alive = false;
     };
-  }, [exerciseId, excludeSessionId, tries]);
+  }, [exerciseId, excludeSessionId, beforeDate, tries]);
 
   if (got?.key !== key) return <Text style={[s.small, s.center, { color: c.muted, paddingVertical: 24 }]}>기록을 불러오는 중…</Text>;
   /* 못 받음 — 0번으로 보이지 않게 따로, 이 칸만 다시 받는다 */

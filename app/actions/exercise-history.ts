@@ -5,6 +5,7 @@ import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
+import { validRecordDate } from '@/lib/workout/record-model';
 import { buildExerciseHistory, type ExerciseHistory } from '@/lib/workout/history';
 
 /**
@@ -28,13 +29,17 @@ export async function exerciseHistory(input: {
    * 뺀다 — 지금 적고 있는 것을 '지난 기록'이라고 보여줄 수는 없다.
    */
   excludeSessionId?: string;
+  /** Historical detail: strictly before this day. */
+  beforeDate?: string;
 }): Promise<{ history: ExerciseHistory; note: string | null } | { error: string }> {
   allowFeature('training');
   const user = await requireUser();
   const exerciseId = typeof input?.exerciseId === 'string' ? input.exerciseId : '';
   if (!exerciseId) return { error: '운동을 찾을 수 없어요.' };
 
-  const todayKey = toDateKey(appNow());
+  if (input.beforeDate != null && !validRecordDate(input.beforeDate)) return { error: '날짜를 확인해 주세요.' };
+  const todayKey = input.beforeDate ?? toDateKey(appNow());
+  const before = input.beforeDate ? new Date(`${input.beforeDate}T00:00:00Z`) : null;
   const from = new Date(`${todayKey}T00:00:00.000Z`);
   from.setUTCDate(from.getUTCDate() - WINDOW_DAYS);
 
@@ -51,7 +56,7 @@ export async function exerciseHistory(input: {
       where: {
         userId: user.id,
         exerciseId,
-        date: { gte: from },
+        date: { gte: from, ...(before ? { lt: before } : {}) },
         ...(session && { sessionId: { not: session.id } }),
       },
       orderBy: [{ date: 'desc' }, { setNo: 'asc' }],
@@ -70,7 +75,7 @@ export async function exerciseHistory(input: {
         userId: user.id,
         exerciseId,
         completed: true,
-        date: session ? { gte: from, not: session.date } : { gte: from },
+        date: { gte: from, ...(session ? { not: session.date } : {}), ...(before ? { lt: before } : {}) },
       },
       orderBy: { date: 'desc' },
       select: {
