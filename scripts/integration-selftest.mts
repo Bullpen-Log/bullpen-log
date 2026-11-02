@@ -636,7 +636,7 @@ console.log(
     'native/src/pitch/api.ts', // removePhoneOrphans 자신
     'native/src/pitch/attach.ts', // 경로를 못 받은 방금 넣은 파일
     'native/src/app/pitch/import.tsx', // 넣다 막힌 방금 넣은 파일
-    'native/src/app/pitch/edit.tsx', // dropUnsaved(서버에 물음) · 이 폼에서 새로 넣은 것(fresh)
+    'native/src/pitch/quick-step.tsx', // 닫을 때 서버에 물어 안 붙은 것만(phoneOrphans) · 창을 닫은 뒤 막 넣은 파일
     'native/src/velocity/session.ts', // 붙이지 못한 방금 옮긴 클립
     'native/src/app/my-videos/new.tsx', // 영상만 저장 화면에서 [버리기] — 방금 넣고 아직 저장 안 한 파일
     'native/src/lib/cap-bridge.ts', // 웹뷰 다리(웹이 discardPhoneVideos 로 거른다)

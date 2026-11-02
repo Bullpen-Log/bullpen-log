@@ -1,24 +1,20 @@
 import { ARMCARE_PURPOSE_TEXT } from '@/lib/pitching-content';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { toDateKey } from '@/lib/pitch-stats';
-import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
+import { GuideTab, GuideSkeleton } from '~/armcare/guide';
 import type { AppArmcareGuideTab, AppArmcareItem, AppArmcareTodayTab } from '@/lib/armcare/today-load';
 import { drainChecks, onCheckResult } from '~/armcare/outbox';
 import { PainGuideButton } from '~/armcare/pain-guide-sheet';
-import { MyRoutinesProvider } from '~/armcare/add-to-routine';
 import { sendCheck } from '~/armcare/send';
 import { act, leave, offlineAs } from '~/mechanics/parts';
-import { rpc } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
-import { leaveWhenShown, openCheckin } from '~/shell/web-nav';
-import { AREAS_BY_JOINT, AreaCard, Checklist, ExerciseRow, PainNote, RehabCard, RoutineCard, WeekDots, doneWith, openPlay, useCheckIntents } from '~/training/armcare-parts';
-import { useFavs } from '~/training/favorites';
+import { openCheckin } from '~/shell/web-nav';
+import { Checklist, RehabCard, RoutineCard, WeekDots, doneWith, openPlay, useCheckIntents } from '~/training/armcare-parts';
 import { FavButton } from '~/training/fav-button';
-import { Fold, Screen, SectionHead, s, useJump, useScreenData } from '~/training/screen';
-import { Sheet } from '~/workout/sheets';
+import { Fold, Screen, SectionHead, s, useScreenData } from '~/training/screen';
 import { useRememberPart } from '~/training/remember';
 import { Press } from '~/shell/press';
 import { Icon } from '~/shell/icon';
@@ -70,23 +66,22 @@ export default function TrainingArmcareScreen() {
   };
 
   const data = state.data && state.data.tab === tab ? state.data : null;
-  const [favOpen, setFavOpen] = useState(false);
   return (
     <Screen
       title="암케어"
+      loading={tab === 'guide' ? <GuideSkeleton c={c} /> : undefined}
       tabs={TABS}
       tab={tab}
       onTab={pick}
       state={{ ...state, data }}
       scrollRef={scroll}
-      right={<FavButton onPress={() => setFavOpen(true)} c={c} />}
+      right={<FavButton onPress={() => router.push('/training/armcare-area?area=favorites' as Href)} c={c} />}
     >
       {data?.tab === 'today' ? (
         <TodayTab data={data} fresh={state.fresh} failed={state.failed != null} reload={load} c={c} />
       ) : data?.tab === 'guide' ? (
-        <GuideTab data={data} scroll={scroll} c={c} />
+        <GuideTab data={data} reload={load} c={c} />
       ) : null}
-      {favOpen ? <FavSheet guide={data?.tab === 'guide' ? data : null} onClose={() => setFavOpen(false)} c={c} /> : null}
     </Screen>
   );
 }
@@ -95,53 +90,6 @@ export default function TrainingArmcareScreen() {
  * 즐겨찾기 모음 — 별을 단 암케어 운동만(2026-10-20 김민: "즐겨찾기한 운동을 빨리 찾는 입구"). 부위별 보강 칸의 자료(운동 · 별 · 내 루틴)를 쓰고,
  * 루틴 칸에서 열면 그 자료를 한 번 받는다. 별을 끄면 목록에서 빠진다.
  */
-function FavSheet({ guide, onClose, c }: { guide: AppArmcareGuideTab | null; onClose: () => void; c: Palette }) {
-  const [got, setGot] = useState<AppArmcareGuideTab | null>(null);
-  const [failed, setFailed] = useState(false);
-  const data = guide ?? got;
-  const favs = useFavs();
-  useEffect(() => {
-    if (guide) return;
-    let alive = true;
-    rpc<({ ok: true } & AppArmcareGuideTab) | { ok: false; to: string }>('app-training-parts.loadAppArmcare', 'guide').then(
-      (r) => {
-        if (!alive) return;
-        if (!r.ok) return leave(r.to);
-        setGot(r);
-      },
-      () => alive && setFailed(true)
-    );
-    return () => {
-      alive = false;
-    };
-  }, [guide]);
-  const favIds = data?.favoriteIds ?? [];
-  const list = data ? data.exercises.filter((ex) => favs.fav('exercise', ex.id, favIds.includes(ex.id))) : [];
-  return (
-    <Sheet fit open onClose={onClose} title="즐겨찾기" description="별을 단 암케어 운동" c={c}>
-      {!data ? (
-        failed ? (
-          <Text style={[s.small, { color: c.muted }]}>신호가 약해 불러오지 못했어요.</Text>
-        ) : (
-          <ActivityIndicator style={{ paddingVertical: 24 }} />
-        )
-      ) : list.length === 0 ? (
-        <Text style={[s.body, s.box, { color: c.muted, backgroundColor: c.card }]}>
-          아직 즐겨찾기한 운동이 없어요. 부위별 보강에서 운동 옆 별을 눌러 담아요.
-        </Text>
-      ) : (
-        <MyRoutinesProvider routines={data.routines ?? null}>
-          <View style={{ gap: 10 }}>
-            {list.map((ex) => (
-              <ExerciseRow key={ex.id} ex={ex} fav={favIds.includes(ex.id)} c={c} />
-            ))}
-          </View>
-        </MyRoutinesProvider>
-      )}
-    </Sheet>
-  );
-}
-
 /* ----------------------------- 루틴 칸 ----------------------------- */
 
 /*
@@ -506,66 +454,6 @@ function Composition({
 }
 
 /* ----------------------------- 부위별 보강 칸 ----------------------------- */
-
-function GuideTab({ data, scroll, c }: { data: AppArmcareGuideTab; scroll: RefObject<ScrollViewInstance | null>; c: Palette }) {
-  const [open, setOpen] = useState<ArmcareAreaKey | null>(null);
-  /* 통증 칩을 누르면 그 부위 카드를 펴고 그리로 내려간다 — 카드는 이 칸 바로 밑에 둔다(useJump) */
-  const jump = useJump(scroll);
-  const showArea = (key: ArmcareAreaKey) => {
-    setOpen(key);
-    jump.jump(key);
-  };
-  return (
-    <MyRoutinesProvider routines={data.routines ?? null}>
-      <View onLayout={jump.onRoot} style={{ gap: 12 }}>
-        <Text style={[s.small, { color: c.muted }]}>근육을 누르거나 부위를 펼쳐 보세요.</Text>
-        {data.coverage.pain ? <PainNote pain={data.coverage.pain} onArea={showArea} c={c} /> : null}
-        {/* 3D 근육 지도(웹) — 큰 단추로(2026-10-20 김민). 웹이 지도를 그린 뒤에 이 화면을 걷는다(leaveWhenShown — 트레이닝 첫 화면이 비치지 않게) */}
-        <Pressable
-          onPress={() => leaveWhenShown('/training?view=armcare&tab=guide')}
-          accessibilityRole="link"
-          style={({ pressed }) => [s.card, { backgroundColor: c.card, boxShadow: c.float, flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 84 }, pressed && { opacity: 0.7 }]}
-        >
-          <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: c.sky + '1a', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="armcare" size={28} color={c.sky} />
-          </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>3D 근육 지도 보기</Text>
-            <Text style={[s.small, { color: c.muted }]}>근육을 눌러 운동을 찾아요. 근력·회복 상태를 측정한 지도는 아니에요</Text>
-          </View>
-          <SymbolView name="chevron.right" size={14} weight="semibold" tintColor={c.muted} />
-        </Pressable>
-        <View style={[s.card, { backgroundColor: c.card }]}>
-          <Fold label="최근 2주 수행 기록 · 최근 20개" c={c}>
-            <Text style={[s.small, { color: c.muted }]}>{ARMCARE_PURPOSE_TEXT.record}</Text>
-            {(data.history ?? []).length === 0 ? <Text style={[s.small, { color: c.muted }]}>남긴 수행 기록이 없어요.</Text> : (data.history ?? []).map((r, i) => <View key={`${r.on}:${i}`} style={{ paddingVertical: 6 }}><Text style={[s.bodyBold, { color: c.ink }]}>{r.title}</Text><Text style={[s.small, { color: c.muted }]}>{r.on} · {r.amount}</Text></View>)}
-          </Fold>
-        </View>
-        {AREAS_BY_JOINT.flatMap(({ joint, areas }) => [
-          <Text key={joint} accessibilityRole="header" style={[s.section, { color: c.ink, paddingHorizontal: 4, paddingTop: 8 }]}>
-            {joint}
-          </Text>,
-          ...areas.map((area) => (
-            <AreaCard
-              key={area.key}
-              area={area}
-              exercises={data.exercises}
-              open={open === area.key}
-              onToggle={() => setOpen(open === area.key ? null : area.key)}
-              onLayout={jump.onItem(area.key)}
-              favIds={data.favoriteIds}
-              c={c}
-            />
-          )),
-        ])}
-        <Text style={[s.tiny, { color: c.muted }]}>운동이 부상을 막아 준다는 보장은 없어요. 아프면 쉬고 진료를 받으세요.</Text>
-        {data.untagged > 0 ? (
-          <Text style={[s.tiny, { color: c.muted }]}>근육을 아직 적지 않은 암케어 운동 {data.untagged}개는 여기 나오지 않아요.</Text>
-        ) : null}
-      </View>
-    </MyRoutinesProvider>
-  );
-}
 
 /** '팔이 아프면 · 재활 프로그램' 줄 — 앱 시작 화면(rehab-start.tsx)으로. 오늘 체크인의 아픈 자리 · 정도 · 나이를 미리 넘긴다 */
 function RehabStartRow({ start, c }: { start: NonNullable<AppArmcareTodayTab['rehabStart']>; c: Palette }) {

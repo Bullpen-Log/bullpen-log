@@ -3,7 +3,7 @@ import { loadArmcareHistory, type ArmcareHistoryItem } from '@/lib/armcare/histo
 import type { getCurrentUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
-import { ARMCARE_AREAS, ARMCARE_CATEGORY, findArmcareArea, primaryArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
+import { ARMCARE_AREAS, areasOf, ARMCARE_CATEGORY, findArmcareArea, primaryArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import { loadArmcareToday, notAdvised, type ArmcareTodayData } from '@/lib/armcare/today';
 import { AFTER_THROWING_TEXT, ARMCARE_KIND_TEXT, armcareMinutes, type ArmcareKind } from '@/lib/armcare/routine';
 import { loadArmcareCoverage, type ArmPainLine } from '@/lib/armcare/coverage-load';
@@ -165,6 +165,7 @@ export type AppArmcareTodayTab = {
 export type AppArmcareGuideTab = {
   history?: ArmcareHistoryItem[];
   tab: 'guide';
+  auxiliary?: { pain: boolean; routines: boolean; favorites: boolean; history: boolean; media: boolean };
   dateKey: string;
   exercises: ArmcareExerciseView[];
   /** 내 팔 지도의 글 몫 — 3D 그림은 웹 */
@@ -190,27 +191,29 @@ export async function loadAppArmcareTab(
     const library = await visibleExercises();
     const armcareLib = library.filter((ex) => ex.category === ARMCARE_CATEGORY);
     const dateKey = toDateKey(today);
-    const [exercises, map, mine, favorites, history] = await Promise.all([
+    // Authentication/setup are checked by the action before these independent reads.
+    const [media, coverage, mine, favorites, history] = await Promise.allSettled([
       toArmcareViews(armcareLib),
       loadArmcareCoverage(user.id, dateKey, library),
       loadMyRoutines(user.id),
       favoriteExerciseIds(user.id),
       loadArmcareHistory(user.id, dateKey),
     ]);
+    const exercises = media.status === 'fulfilled' ? media.value : await toArmcareViews(armcareLib, undefined, true);
+    const map = coverage.status === 'fulfilled' ? coverage.value : null;
     return {
-      tab: 'guide',
-      history,
-      dateKey,
-      exercises,
+      tab: 'guide', dateKey, exercises,
+      auxiliary: { pain: !!map, routines: mine.status === 'fulfilled', favorites: favorites.status === 'fulfilled', history: history.status === 'fulfilled', media: media.status === 'fulfilled' },
+      history: history.status === 'fulfilled' ? history.value : undefined,
       coverage: {
-        gaps: map.gaps.map((key) => ({ key, label: ARMCARE_AREAS.find((a) => a.key === key)?.label ?? key })),
-        allCovered: map.allCovered,
-        total: map.coverage.total,
-        pain: map.pain,
+        gaps: map?.gaps.map((key) => ({ key, label: ARMCARE_AREAS.find((a) => a.key === key)?.label ?? key })) ?? [],
+        allCovered: map?.allCovered ?? false,
+        total: map?.coverage.total ?? 0,
+        pain: map?.pain ?? null,
       },
-      untagged: exercises.filter((ex) => ex.targetMuscles.length === 0).length,
-      routines: mine.map((r) => ({ id: r.id, name: r.name, exerciseIds: r.items.map((it) => it.exerciseId) })),
-      favoriteIds: exercises.filter((ex) => favorites.has(ex.id)).map((ex) => ex.id),
+      untagged: exercises.filter((ex) => areasOf(ex.targetMuscles).length === 0).length,
+      routines: mine.status === 'fulfilled' ? mine.value.map((r) => ({ id: r.id, name: r.name, exerciseIds: r.items.map((it) => it.exerciseId) })) : undefined,
+      favoriteIds: favorites.status === 'fulfilled' ? exercises.filter((ex) => favorites.value.has(ex.id)).map((ex) => ex.id) : undefined,
     };
   }
 

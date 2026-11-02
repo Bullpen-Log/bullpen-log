@@ -129,7 +129,10 @@ export function Muscle3D({ name, area, onPick, c }: { name?: string; area?: stri
   useEffect(() => {
     if (ready && name) web.current?.injectJavaScript(`window.__musclePick&&window.__musclePick(${JSON.stringify(name)});true;`);
   }, [name, ready]);
-  if (gone) return null;
+  if (gone) return <View style={{ padding: 16, gap: 12 }}>
+    <Text style={{ color: c.muted }}>3D 지도를 불러오지 못했어요. 부위 목록은 계속 볼 수 있어요.</Text>
+    <Press onPress={() => { setGone(false); setReady(false); setLoaded(false); }} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ color: c.link, fontWeight: '600' }}>지도 다시 불러오기</Text></Press>
+  </View>;
   const onMessage = (e: WebViewMessageEvent) => {
     let m: FromWeb;
     try {
