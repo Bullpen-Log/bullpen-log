@@ -23,7 +23,7 @@ import { doseOf, doseText } from '@/lib/mechanics/program';
 import { prescribedTitles } from '@/lib/mechanics/prescriptions';
 import { plantFrame, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { mechChecks, DROP_RISE_MAX, type MechChecks } from '@/lib/pitch-3d/v2/mech-checks';
-import { BLOCK_IMPLAUSIBLE_SINK_DEG, DRIFT_GOOD, DRIFT_LOW, MECH_CONF_MIN, TRUNK_PLANT_NORM } from '@/lib/pitch-3d/v2/mech-judge';
+import { BLOCK_IMPLAUSIBLE_SINK_DEG, DRIFT_GOOD, DRIFT_LOW, MECH_CONF_MIN, TRUNK_PLANT_ERR, TRUNK_PLANT_NORM } from '@/lib/pitch-3d/v2/mech-judge';
 
 type ElementName = (typeof FOCUS_POINTS)[number];
 type DrillStage = (typeof DRILL_STAGE_NAMES)[number];
@@ -86,10 +86,10 @@ const EXT_BAND: Band = { up: true, cut: -14, edgeEnd: -4.1, fairEnd: 2.1, lo: -2
 const TRUNK_BAND: Band = { up: true, cut: 13, edgeEnd: 17.6, fairEnd: 22.3, lo: 0, hi: 45 };
 /** 스로잉 · 착지 어깨 벌림(°) — 자료 10 / 25% 72 / 78.6°, 엔진 4.1 → 2σ ≈ 9°. 등급 B 라 지금은 참고 */
 const ARM_BAND: Band = { up: true, cut: 63, edgeEnd: 72, fairEnd: 78.6, lo: 40, hi: 110 };
-/** 착지 때 상체 열림(°, 작을수록 닫힘) — 지금 판정과 같게 위 25% 까지 좋아요 · 위 10% 넘으면 고칠 점(엔진이 13° 닫힌 쪽으로 읽어 후하다) */
+/** 착지 때 상체 열림(°, 작을수록 닫힘) — 위 25% 까지 좋아요 · 위 10~25% 보통 · 위 10% 를 넘되 엔진 오차 안이면 경계 · 그 너머(약 0°)는 고칠 점 */
 const sepBand = (hand: 'R' | 'L'): Band => {
   const N = TRUNK_PLANT_NORM[hand];
-  return { up: false, cut: N.p90, edgeEnd: N.p75, fairEnd: N.p75, lo: -45, hi: 20 };
+  return { up: false, cut: N.p90 + TRUNK_PLANT_ERR, edgeEnd: N.p90, fairEnd: N.p75, lo: -45, hi: 20 };
 };
 
 const RANK: Record<ReportStatus, number> = { improve: 4, edge: 3, fair: 2, good: 1, note: 0, unsure: 0 };
@@ -355,7 +355,8 @@ const LINES: Record<FaultKey | ElementName, Partial<Record<ReportStatus, string>
     improve: '다리를 든 뒤 많이 덜 가라앉아요.',
   },
   'drop.float': { edge: '다리를 든 뒤 몸이 거의 가라앉지 않아요.', improve: '다리를 든 뒤 몸이 가라앉지 않고 떠요.' },
-  '상하체 분리': { good: '앞발이 닿을 때 상체가 잘 닫혀 있어요.', fair: '앞발이 닿을 때 상체가 닫혀 있어요.' },
+  /* 단정하지 않는다 — 장면이 빠진 영상에서 엔진이 열린 어깨를 15° 닫힌 쪽으로 읽은 촬영이 있다(2026-11-02 마커 10-12). '고칠 점'만 확실할 때 낸다 */
+  '상하체 분리': { good: '앞발이 닿을 때 상체가 열린 게 보이지 않아요.', fair: '앞발이 닿을 때 상체가 조금 열렸을 수 있어요.' },
   'sep.openAtPlant': {
     edge: '앞발이 닿을 때 상체가 조금 열려 있어요.',
     improve: '앞발이 닿을 때 상체가 많이 열려 있어요.',
@@ -511,7 +512,7 @@ export function judgeElements(
         '착지 때 상체(어깨선)',
         { ...b, value: v },
         frames.plant,
-        `${Math.round(Math.abs(b.edgeEnd))}° 닫힘보다 닫힘`
+        `${Math.round(Math.abs(b.fairEnd))}° 닫힘보다 닫힘`
       );
     }
   }

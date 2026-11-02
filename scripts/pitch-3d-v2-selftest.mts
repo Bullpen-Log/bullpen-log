@@ -3164,9 +3164,9 @@ console.log('■ 메카닉 점검 판정(mech-judge) — 문턱 · 여러 구 �
       judgeMechanics([mk({ half: 47, hand: 'L' })]).items.find((i) => i.key === 'trunkTiming')!.status === 'good'
   );
   check(
-    '판정: 착지 때 상체 — 20° 닫힘 좋아요 · 10° 닫힘 보통 · 0° 고칠 점(이미 열림) · 옛 분리 크기 · 시점은 화면에 안 냄',
+    '판정: 착지 때 상체 — 20° 닫힘 좋아요 · 10° 닫힘 · 0°(엔진 오차 안) 보통 · 5° 열림 고칠 점 · 옛 분리 크기 · 시점은 화면에 안 냄',
     st(judgeMechanics([mk({ open: -20 })]), 'trunkAtPlant') === 'good' && st(judgeMechanics([mk({ open: -10 })]), 'trunkAtPlant') === 'fair' &&
-      st(judgeMechanics([mk({ open: 0 })]), 'trunkAtPlant') === 'improve' &&
+      st(judgeMechanics([mk({ open: 0 })]), 'trunkAtPlant') === 'fair' && st(judgeMechanics([mk({ open: 5 })]), 'trunkAtPlant') === 'improve' &&
       judgeMechanics([mk({ open: 3 })]).items.find((i) => i.key === 'trunkAtPlant')!.detail.includes('3° 열림') &&
       !judgeMechanics([mk({})]).items.find((i) => i.key === 'separation')!.shown
   );
@@ -3593,8 +3593,12 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   check('성장기 몸통 앞 기울기는 참고', st(m4, { ...mound, youth: true })['몸통 회전'] === 'note');
 
   const m5 = base();
-  m5.separation.trunkOpenAtPlantDeg = 0;
-  check('착지 때 상체가 이미 열렸으면 고칠 점', st(m5)['상하체 분리'] === 'improve');
+  m5.separation.trunkOpenAtPlantDeg = -3;
+  check('착지 때 상체가 위 10% 를 넘되 엔진 오차 안이면 경계', st(m5)['상하체 분리'] === 'edge');
+  m5.separation.trunkOpenAtPlantDeg = -9;
+  check('착지 때 상체가 위 10~25% 면 보통(처방 없음)', st(m5)['상하체 분리'] === 'fair');
+  m5.separation.trunkOpenAtPlantDeg = 5;
+  check('착지 때 상체가 이미 열렸으면(엔진 오차 너머) 고칠 점', st(m5)['상하체 분리'] === 'improve');
   m5.separation.trunkConf = 20;
   check('확신 30 밑은 판정 안 함', st(m5)['상하체 분리'] === 'unsure');
 
