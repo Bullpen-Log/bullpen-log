@@ -316,6 +316,6 @@ export function analysisOverviewOf({
           note: { text: `${formatShortDate(bestVelocity.date)} 기록`, tone: 'muted' },
         }
       : null,
-    bestEmpty: { text: '스피드건이 없으면 비워두세요', tone: 'faint' },
+    bestEmpty: { text: '구속 기록 없음', tone: 'faint' },
   };
 }

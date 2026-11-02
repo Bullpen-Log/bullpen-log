@@ -178,7 +178,7 @@ export function noteOf(key: MetricKey, got: number[], fmt: (v: number) => [strin
       return `${thrown.length}일 던짐 · 평균 ${fmt(mean(thrown)).join('')}`;
     }
     case 'velocity':
-      return `${got.length}일 잼 · 평균 ${fmt(mean(got)).join('')}`;
+      return `측정 ${got.length}일 · 평균 ${fmt(mean(got)).join('')}`;
     case 'condition':
       return `${got.length}일 평균`;
     case 'weight':
