@@ -10,6 +10,10 @@ import { playerCall } from '~/videos/player-parts';
 const END_EPS = 0.03;
 /** 이만큼 넘게 어긋나면 B 를 A 에 다시 붙인다(시간 알림마다 — 매 장면 그리기가 아니라) */
 const DRIFT_FIX_SEC = 0.06;
+/** B 를 다시 붙인 직후의 잠깐 받기(loading)는 버퍼링으로 치지 않는다 — 다만 이 시간 뒤에도 받는 중이면 버퍼링으로(한쪽만 계속 가지 않게) */
+const FIX_GRACE_MS = 500;
+/** 재생기가 '섰다'를 받기(loading) 알림보다 먼저 보낼 때가 있다 — 이만큼 기다렸다가 받는 중인지 다시 본다(사용자가 멈춘 것으로 오해하지 않게) */
+const STALL_CHECK_MS = 250;
 const SAMPLE_LIMIT = 120;
 
 /**
@@ -57,8 +61,9 @@ export function useCompareTransport(opts: {
   const { pa, pb, clock, rate, enabled, onTimes } = opts;
   const [tr, setTr] = useState<TransportState>(INITIAL_TRANSPORT);
   const trRef = useRef(tr);
-  const target = useRef(0);
   const lastFix = useRef(0);
+  /* 확인 기다리는 '옮기기'(복원) 세대 — 다른 옮기기 · 재생이 오면 옛 확인은 버린다 */
+  const seekGen = useRef(0);
   const samples = useRef<number[]>([]);
   const [driftMs, setDriftMs] = useState<number[]>([]);
   const map = useRef<NormalizedMap | null>(null);
@@ -85,12 +90,31 @@ export function useCompareTransport(opts: {
   const timesAt = (rel: number) => timesFor(clock, rel);
   const clampRel = (r: number) => (clock ? Math.min(clock.range.max, Math.max(clock.range.min, r)) : 0);
   const relNow = () => (clock && pa ? clampRel(playerCall.time(pa) - clock.ma) : 0);
+  /**
+   * 지금 두 영상이 함께 닿은 자리 — 받기가 시작될 때 잡아 둔다(F03). 그냥 맞춤이면 A · B 상대 자리 중 뒤처진 쪽(둘 다 본 곳),
+   * 동작 길이 맞춤이면 A 자리(B 는 A 를 따라 늘인 자리라). 시각을 못 읽으면 null(지난 자리 그대로).
+   */
+  const commonRel = (): number | null => {
+    const v = live.current;
+    const ck = v.clock;
+    if (!ck || !v.pa) return null;
+    try {
+      const ra = playerCall.time(v.pa) - ck.ma;
+      if (!Number.isFinite(ra)) return null;
+      if (!v.pb || ck.mb == null || map.current) return clampWith(ck, ra);
+      const rb = playerCall.time(v.pb) - ck.mb;
+      return clampWith(ck, Number.isFinite(rb) ? Math.min(ra, rb) : ra);
+    } catch {
+      return null;
+    }
+  };
 
   /*
    * 기계가 시킨 일 — 재생기 · 시계는 마지막 그림의 값(live)으로. 알림 · 단추에서만 불린다(그리는 중엔 안 부름).
    * 함수는 효과(useEffect)에서 갈아 끼워 늘 최신 값을 본다.
    */
   const live = useRef({ pa, pb, clock, rate, onTimes });
+  const clampWith = (ck: Clock, r: number) => Math.min(ck.range.max, Math.max(ck.range.min, r));
   const runRef = useRef<(fx: TransportEffect, gen: number) => void>(() => undefined);
   const dispatch = (e: TransportEvent) => {
     const r = step(trRef.current, e);
@@ -124,7 +148,7 @@ export function useCompareTransport(opts: {
         if (!pa0 || !ck) return dispatch({ type: 'seekDone', gen, ok: false });
         playerCall.pause(pa0);
         playerCall.pause(v.pb);
-        const t = timesFor(ck, target.current);
+        const t = timesFor(ck, clampWith(ck, trRef.current.target));
         playerCall.seek(pa0, t.a);
         if (v.pb && ck.mb != null) playerCall.seek(v.pb, t.b);
         v.onTimes(t);
@@ -138,18 +162,35 @@ export function useCompareTransport(opts: {
     let r = relNow();
     const lo = clock.loop ?? clock.range;
     if (r >= lo.max - END_EPS || r < lo.min) r = lo.min;
-    target.current = r;
-    dispatch({ type: 'play' });
+    seekGen.current++;
+    dispatch({ type: 'play', rel: r });
   };
-  const pause = () => dispatch({ type: 'pause' });
+  const pause = () => {
+    seekGen.current++;
+    dispatch({ type: 'pause' });
+  };
   /** 옮기기(멈춘 채) — 함께 재생 중이면 멈추고 옮긴다 */
   const seekRel = (rel: number) => {
     if (!clock) return;
+    seekGen.current++;
     if (trRef.current.phase !== 'idle') dispatch({ type: 'scrub' });
     const t = timesAt(clampRel(rel));
     playerCall.seek(pa, t.a);
     if (clock.mb != null) playerCall.seek(pb, t.b);
     onTimes(t);
+  };
+  /**
+   * 옮기고 두 재생기가 실제로 그 자리 · 준비에 닿았는지까지(복원 — F02). 요청만 하고 시간이 지났다고 성공으로 치지 않는다.
+   * 그사이 다른 옮기기 · 재생 · 멈춤 · 영상 바꿈이 오면 false.
+   */
+  const seekConfirmed = async (rel: number): Promise<boolean> => {
+    if (!clock || !pa) return false;
+    seekRel(rel);
+    const my = seekGen.current;
+    const gen = trRef.current.gen;
+    const t = timesAt(clampRel(rel));
+    const ok = await waitSeek(pa, clock.mb != null ? pb : null, t.a, t.b, () => seekGen.current === my && trRef.current.gen === gen && trRef.current.phase === 'idle');
+    return ok && seekGen.current === my;
   };
 
   /* ---- 재생기 알림 ---- */
@@ -159,9 +200,8 @@ export function useCompareTransport(opts: {
     const lo = clock.loop;
     if (lo && rel >= lo.max - END_EPS) {
       /* 반복 구간 — 둘 다 처음으로 맞춰 다시(한쪽만 되풀이하지 않는다) */
-      target.current = lo.min;
       dispatch({ type: 'pause' });
-      dispatch({ type: 'play' });
+      dispatch({ type: 'play', rel: lo.min });
       return;
     }
     if (rel >= clock.range.max - END_EPS) return dispatch({ type: 'end' });
@@ -189,17 +229,43 @@ export function useCompareTransport(opts: {
     }
     onTimes({ a: ta, b: tb });
   });
+  const anyLoading = () => {
+    const v = live.current;
+    return v.pa?.status === 'loading' || (!!v.pb && v.clock?.mb != null && v.pb.status === 'loading');
+  };
+  const bothReadyNow = () => {
+    const v = live.current;
+    return v.pa?.status === 'readyToPlay' && (!v.pb || v.clock?.mb == null || v.pb.status === 'readyToPlay');
+  };
+  const toBuffering = () => dispatch({ type: 'buffering', rel: commonRel() });
+  /* 우리가 멈추지 않았는데 한쪽이 섰다 — 받는 중이면 둘 다 기다리고, 아니면(끝 · 시스템) 둘 다 멈춘다 */
+  const settleStop = (gen: number) => {
+    if (trRef.current.gen !== gen || trRef.current.phase !== 'playing') return;
+    if (anyLoading()) return toBuffering();
+    const v = live.current;
+    if (v.clock && v.pa && playerCall.time(v.pa) - v.clock.ma >= v.clock.range.max - 0.2) dispatch({ type: 'end' });
+    else dispatch({ type: 'pause' });
+  };
   const onPlaying = useEffectEvent((p: VideoPlayer, isPlaying: boolean) => {
     if (isPlaying || trRef.current.phase !== 'playing') return;
-    /* 우리가 멈추지 않았는데 한쪽이 섰다 — 받는 중이면 둘 다 기다리고, 아니면(끝 · 시스템) 둘 다 멈춘다 */
-    if (p.status === 'loading') return dispatch({ type: 'buffering' });
-    if (clock && pa && playerCall.time(pa) - clock.ma >= clock.range.max - 0.2) dispatch({ type: 'end' });
-    else dispatch({ type: 'pause' });
+    if (p.status === 'loading') return toBuffering();
+    /* '섰다'가 '받는 중'보다 먼저 올 수 있다 — 잠깐 기다렸다 다시 본다(그사이 같은 세대일 때만) */
+    const gen = trRef.current.gen;
+    setTimeout(() => settleStop(gen), STALL_CHECK_MS);
   });
   const onStatus = useEffectEvent((s: VideoPlayerStatus) => {
     if (s === 'error' && trRef.current.phase !== 'idle') return dispatch({ type: 'playerError' });
-    if (s === 'loading' && trRef.current.phase === 'playing' && Date.now() - lastFix.current > 500) return dispatch({ type: 'buffering' });
-    if (trRef.current.phase === 'buffering' && pa?.status === 'readyToPlay' && (!pb || clock?.mb == null || pb.status === 'readyToPlay')) dispatch({ type: 'bothReady' });
+    if (s === 'loading' && trRef.current.phase === 'playing') {
+      const since = Date.now() - lastFix.current;
+      if (since > FIX_GRACE_MS) return toBuffering();
+      /* B 를 다시 붙인 직후 — 잠깐 봐주되, 봐주는 시간이 끝나도 받는 중이면 버퍼링으로 */
+      const gen = trRef.current.gen;
+      setTimeout(() => {
+        if (trRef.current.gen === gen && trRef.current.phase === 'playing' && anyLoading()) toBuffering();
+      }, FIX_GRACE_MS - since + 10);
+      return;
+    }
+    if (trRef.current.phase === 'buffering' && bothReadyNow()) dispatch({ type: 'bothReady' });
   });
   const onEnd = useEffectEvent(() => {
     if (trRef.current.phase === 'playing') dispatch({ type: 'end' });
@@ -222,20 +288,28 @@ export function useCompareTransport(opts: {
   }, [pa, pb]);
 
   /* B 가 바뀌면(바꾸기 · 되돌리기) 옛 맞춤 · 재생을 버린다 */
-  const onSource = useEffectEvent(() => {
+  const shown = useRef<{ pa: VideoPlayer | null; pb: VideoPlayer | null } | null>(null);
+  const onSource = useEffectEvent((next: { pa: VideoPlayer | null; pb: VideoPlayer | null }) => {
+    const prev = shown.current;
+    shown.current = next;
+    /* 처음 붙을 때는 바뀐 것이 아니다(그사이 누른 재생을 버리지 않게) */
+    if (!prev || (prev.pa === next.pa && prev.pb === next.pb)) return;
+    seekGen.current++;
     samples.current = [];
     setDriftMs([]);
     if (trRef.current.phase !== 'idle') dispatch({ type: 'sourceChanged' });
   });
   useEffect(() => {
     /* 다음 장면에 — 효과 안에서 바로 상태를 바꾸지 않는다 */
-    const id = requestAnimationFrame(() => onSource());
+    const next = { pa, pb };
+    const id = requestAnimationFrame(() => onSource(next));
     return () => cancelAnimationFrame(id);
   }, [pa, pb]);
 
   /* 화면을 떠나거나 앱이 뒤로 가면 멈춘다 — 돌아와도 저절로 다시 틀지 않는다 */
   const focused = useIsFocused();
   const onHide = useEffectEvent(() => {
+    seekGen.current++;
     if (trRef.current.phase !== 'idle') dispatch({ type: 'background' });
   });
   useEffect(() => {
@@ -255,5 +329,5 @@ export function useCompareTransport(opts: {
     }
   }, [rate, pa, pb]);
 
-  return { state: tr, play, pause, seekRel, relNow, driftMs };
+  return { state: tr, play, pause, seekRel, seekConfirmed, relNow, driftMs };
 }

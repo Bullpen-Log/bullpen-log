@@ -8,11 +8,17 @@ export type Pt = { u: number; v: number };
 export type Px = { x: number; y: number };
 export type Rect = { x: number; y: number; w: number; h: number };
 
-/** 칸의 보기 변환 — 사용자가 바꾸는 것(저장된다). crop 은 원본 비율 좌표의 부분 사각형(없으면 전체) */
+/**
+ * 칸의 보기 변환 — 사용자가 바꾸는 것(저장된다). crop 은 원본 비율 좌표의 부분 사각형(없으면 전체).
+ * panX · panY 는 **칸 크기에 대한 비율**(칸 폭 · 높이의 몇 배) — 화면 px 가 아니다. 그래서 돌리기 · 창 크기 바꾸기 · 다른 기기에서 열어도
+ * 같은 부분이 보인다(F08 — 예전 판은 px 로 남겨 칸 크기가 바뀌면 다른 곳을 보였다).
+ */
 export type ViewTransform = { zoom: number; panX: number; panY: number; mirror: boolean; crop: Rect | null };
 export const IDENTITY_VIEW: ViewTransform = { zoom: 1, panX: 0, panY: 0, mirror: false, crop: null };
 export const MIN_ZOOM = 1;
 export const MAX_ZOOM = 6;
+/** 비율 이동의 한계 — 확대 6배에서 칸 반의 다섯 배. 이보다 큰 저장 값은 옛 px 판이라 0 으로(위치를 짐작하지 않는다) */
+const MAX_PAN = (MAX_ZOOM - 1) / 2;
 
 const FULL: Rect = { x: 0, y: 0, w: 1, h: 1 };
 const fin = (n: number, d = 0) => (Number.isFinite(n) ? n : d);
@@ -22,10 +28,14 @@ export function normalizeView(raw: unknown): ViewTransform {
   if (!raw || typeof raw !== 'object') return { ...IDENTITY_VIEW };
   const r = raw as Partial<ViewTransform>;
   const crop = r.crop && typeof r.crop === 'object' ? clampCrop(r.crop) : null;
+  const pan = (v: unknown) => {
+    const n = fin(Number(v));
+    return Math.abs(n) > MAX_PAN ? 0 : n;
+  };
   return {
     zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, fin(Number(r.zoom), 1))),
-    panX: fin(Number(r.panX)),
-    panY: fin(Number(r.panY)),
+    panX: pan(r.panX),
+    panY: pan(r.panY),
     mirror: r.mirror === true,
     crop,
   };
@@ -65,7 +75,7 @@ export function toScreen(p: Pt, pane: Pane, view: ViewTransform): Px {
   const py = r.y + ((p.v - c.y) / c.h) * r.h;
   const cx = pane.w / 2;
   const cy = pane.h / 2;
-  return { x: cx + (px - cx) * view.zoom + view.panX, y: cy + (py - cy) * view.zoom + view.panY };
+  return { x: cx + (px - cx) * view.zoom + view.panX * pane.w, y: cy + (py - cy) * view.zoom + view.panY * pane.h };
 }
 
 /** 칸 화면 px → 원본 좌표(손가락이 짚은 자리). 레터박스 밖이면 영상 밖 좌표가 나온다 — inside 로 거른다 */
@@ -75,8 +85,8 @@ export function toSource(s: Px, pane: Pane, view: ViewTransform): Pt {
   const cx = pane.w / 2;
   const cy = pane.h / 2;
   const z = view.zoom || 1;
-  const px = cx + (s.x - view.panX - cx) / z;
-  const py = cy + (s.y - view.panY - cy) / z;
+  const px = cx + (s.x - view.panX * pane.w - cx) / z;
+  const py = cy + (s.y - view.panY * pane.h - cy) / z;
   const cx0 = view.mirror ? 1 - (c.x + c.w) : c.x;
   const um = r.w > 0 ? cx0 + ((px - r.x) / r.w) * c.w : 0;
   const v = r.h > 0 ? c.y + ((py - r.y) / r.h) * c.h : 0;
@@ -94,17 +104,19 @@ export function zoomAt(view: ViewTransform, pane: Pane, focal: Px, nextZoom: num
   const cy = pane.h / 2;
   const k = z / view.zoom;
   /* focal 의 확대 전 위치를 고정: f = c + (p − c)·z + pan → pan' = f − c − (f − c − pan)·k */
-  const panX = focal.x - cx - (focal.x - cx - view.panX) * k;
-  const panY = focal.y - cy - (focal.y - cy - view.panY) * k;
-  return clampPan({ ...view, zoom: z, panX, panY }, pane);
+  const panX = focal.x - cx - (focal.x - cx - view.panX * pane.w) * k;
+  const panY = focal.y - cy - (focal.y - cy - view.panY * pane.h) * k;
+  return clampPan({ ...view, zoom: z, panX: pane.w > 0 ? panX / pane.w : 0, panY: pane.h > 0 ? panY / pane.h : 0 }, pane);
 }
 
 /** 이동은 영상이 칸 밖으로 다 나가지 않게(확대한 만큼만) */
-export function clampPan(view: ViewTransform, pane: Pane): ViewTransform {
-  const lim = (size: number) => (size * (view.zoom - 1)) / 2;
-  const lx = lim(pane.w);
-  const ly = lim(pane.h);
-  return { ...view, panX: Math.min(lx, Math.max(-lx, view.panX)), panY: Math.min(ly, Math.max(-ly, view.panY)) };
+export function clampPan(view: ViewTransform, _pane?: Pane): ViewTransform {
+  const l = (view.zoom - 1) / 2;
+  return { ...view, panX: Math.min(l, Math.max(-l, view.panX)), panY: Math.min(l, Math.max(-l, view.panY)) };
+}
+/** 손가락이 움직인 px 만큼 이동(비율로 바꿔) */
+export function panBy(view: ViewTransform, pane: Pane, dxPx: number, dyPx: number): ViewTransform {
+  return clampPan({ ...view, panX: view.panX + (pane.w > 0 ? dxPx / pane.w : 0), panY: view.panY + (pane.h > 0 ? dyPx / pane.h : 0) });
 }
 
 export const resetView = (v: ViewTransform): ViewTransform => ({ ...IDENTITY_VIEW, mirror: v.mirror, crop: v.crop });
@@ -201,6 +213,16 @@ export function normalizeReg(raw: unknown): Registration {
     dy: Math.min(1, Math.max(-1, fin(Number(r.dy)))),
     scale: Math.min(3, Math.max(0.33, fin(Number(r.scale), 1))),
   };
+}
+/** 겹쳐 보기 맞춤을 손으로 조금씩(R11) — 이동은 칸의 2%, 크기는 3%씩. 범위는 normalizeReg 와 같다 */
+export function nudgeReg(r: Registration, move: 'up' | 'down' | 'left' | 'right' | 'bigger' | 'smaller'): Registration {
+  const step = 0.02;
+  const next = {
+    dx: r.dx + (move === 'left' ? -step : move === 'right' ? step : 0),
+    dy: r.dy + (move === 'up' ? -step : move === 'down' ? step : 0),
+    scale: r.scale * (move === 'bigger' ? 1.03 : move === 'smaller' ? 1 / 1.03 : 1),
+  };
+  return normalizeReg(next);
 }
 /** 두 점 쌍(A 의 기준 두 점 ↔ B 의 같은 두 점)으로 이동 · 배율을 셈한다 — 돌림은 뺀다(촬영 방향이 다르면 겹쳐 보기가 맞지 않는다) */
 export function registrationFrom(a1: Pt, a2: Pt, b1: Pt, b2: Pt): Registration | null {

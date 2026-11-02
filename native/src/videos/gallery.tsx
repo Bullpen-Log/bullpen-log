@@ -78,8 +78,19 @@ export type PickProps = {
    * 처음 고르기(투구 탭 '영상 비교', 2026-11-02) — A 없이 한두 개를 차례로 고른다(첫째 A · 둘째 B). 하나만 골라도 연다.
    * actions = 목록 위 가져오기 단추(사진 앱 · 촬영) — 기록 · 내 영상에 없는 영상도 비교에 쓴다.
    */
-  start?: { picked: string[]; onToggle: (v: MyVideoItem) => void; actions: { label: string; icon: IconName; onPress: () => void; busy?: boolean }[] };
+  start?: { picked: string[]; onToggle: (v: MyVideoItem) => void; actions: PickAction[] };
+  /**
+   * 비교 영상 고르기(B 더하기 · A/B 바꾸기 · 다시 잇기 — F07): 처음 고르기와 같은 가져오기 단추(사진 앱 · 촬영 · 파일)와
+   * 목록 위 칸(extra — 이 비교에 이미 있는 영상 · 같은 영상 한 칸 더). foot 이 있으면 아래 글 · 단추를 그것으로.
+   */
+  actions?: PickAction[];
+  extra?: ReactNode;
+  title?: string;
+  foot?: { text: string; enabled: boolean };
+  /** 고정해 둔 쪽 표시(내 영상이 아닌 가져온 영상이어도 이름이 보이게) — 없으면 '기준 영상 A' */
+  fixed?: { side: 'A' | 'B'; title: string | null };
 };
+export type PickAction = { label: string; icon: IconName; onPress: () => void; busy?: boolean };
 
 export function VideoGallery({ pick }: { pick?: PickProps }) {
   const scope = pick ? 'pick' : 'main';
@@ -430,8 +441,8 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
       );
     if (others.length === 0)
       return pick ? (
-        pick.start ? (
-          <EmptyState icon="film" title="앱에 남긴 영상이 없어요" text="위의 사진 앱 · 촬영으로 가져오면 바로 비교할 수 있어요." actions={[{ label: '돌아가기', onPress: pick.onBack }]} />
+        pick.start || pick.actions?.length ? (
+          <EmptyState icon="film" title="앱에 남긴 영상이 없어요" text="위의 사진 앱 · 촬영 · 파일로 가져오면 바로 비교할 수 있어요." actions={[{ label: '돌아가기', onPress: pick.onBack }]} />
         ) : (
           <EmptyState icon="film" title="비교할 다른 영상이 없어요" text="영상을 하나 더 남기면 나란히 볼 수 있어요." actions={[{ label: '영상으로 돌아가기', onPress: pick.onBack }]} />
         )
@@ -478,6 +489,7 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
       ? `${filter.favoriteOnly ? '즐겨찾기' : '영상'} ${rows.length}개${keep.size ? ` · 해제 ${keep.size}개 포함` : ''}${narrowed ? ` · 전체 ${others.length}개 중` : ''}`
       : ' ';
 
+  const pickCanNext = !pick ? false : pick.foot ? pick.foot.enabled : pick.start ? pick.start.picked.length > 0 : !!pick.selected;
   const header = (
     <View style={{ paddingTop: inset.top + 4, backgroundColor: c.page, zIndex: 1 }}>
       <View style={styles.bar}>
@@ -485,7 +497,7 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
           <Icon name="back" size={22} color={c.link} />
         </Pressable>
         <Text accessibilityRole="header" numberOfLines={1} maxFontSizeMultiplier={1.6} style={[styles.title, { color: c.ink }]}>
-          {pick?.start ? '영상 비교' : pick ? '비교할 영상' : '내 영상'}
+          {pick?.title ?? (pick?.start ? '영상 비교' : pick ? '비교할 영상' : '내 영상')}
         </Text>
         {pick ? (
           <View style={styles.barButton} />
@@ -496,10 +508,10 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
         )}
       </View>
       <View style={[styles.controls, { maxWidth: WIDE_MAX }]}>
-        {pick && !pick.start ? <PickA a={pick.a} /> : null}
-        {pick?.start ? (
+        {pick && !pick.start && (pick.a || pick.fixed) ? <PickA a={pick.a} side={pick.fixed?.side ?? 'A'} title={pick.fixed?.title ?? null} /> : null}
+        {pick && (pick.start?.actions ?? pick.actions)?.length ? (
           <View style={styles.startActions}>
-            {pick.start.actions.map((x) => (
+            {(pick.start?.actions ?? pick.actions ?? []).map((x) => (
               <Press
                 key={x.label}
                 accessibilityRole="button"
@@ -516,6 +528,7 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
             ))}
           </View>
         ) : null}
+        {pick?.extra ?? null}
         {!pick && draft ? (
           <Press
             accessibilityRole="button"
@@ -679,7 +692,9 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
       {pick ? (
         <View style={[styles.pickFoot, { paddingBottom: inset.bottom + 12, backgroundColor: c.page, borderTopColor: c.line }]}>
           <Text maxFontSizeMultiplier={1.6} style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]} numberOfLines={2}>
-            {pick.start
+            {pick.foot
+              ? pick.foot.text
+              : pick.start
               ? pick.start.picked.length
                 ? pick.start.picked.map((p, i) => `${i === 0 ? 'A' : 'B'} · ${pickedLabel(all.find((v) => v.path === p) ?? null)}`).join('\n')
                 : '영상을 하나 고르면 바로 보고, 둘을 고르면 함께 봐요.'
@@ -689,11 +704,11 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
           </Text>
           <Press
             accessibilityRole="button"
-            accessibilityState={{ disabled: pick.start ? !pick.start.picked.length : !pick.selected }}
-            accessibilityHint={(pick.start ? pick.start.picked.length : pick.selected) ? undefined : '먼저 영상을 골라 주세요'}
-            disabled={pick.start ? !pick.start.picked.length : !pick.selected}
+            accessibilityState={{ disabled: !pickCanNext }}
+            accessibilityHint={pickCanNext ? undefined : '먼저 영상을 골라 주세요'}
+            disabled={!pickCanNext}
             onPress={pick.next.onPress}
-            style={[styles.primary, { backgroundColor: c.action }, !(pick.start ? pick.start.picked.length : pick.selected) && { opacity: 0.4 }]}
+            style={[styles.primary, { backgroundColor: c.action }, !pickCanNext && { opacity: 0.4 }]}
           >
             <Text maxFontSizeMultiplier={1.6} style={[TYPE.button, { color: '#fff' }]}>
               {pick.next.label}
@@ -757,27 +772,27 @@ function GroupHead({ height, date, month, count, today }: { height: number; date
 }
 
 /** 고르기 위 — 기준 영상 A(다시 고르지 않는다) */
-function PickA({ a }: { a: MyVideoItem | null }) {
+function PickA({ a, side, title }: { a: MyVideoItem | null; side: 'A' | 'B'; title: string | null }) {
   const c = usePalette();
   const thumbs = usePathThumbs(a ? [a.path] : []);
   const t = a ? thumbs[a.path] : undefined;
   const dur = a ? durationText(a.durationSec) : null;
   return (
-    <View style={[styles.pickA, { backgroundColor: c.card, boxShadow: c.float }]} accessible accessibilityLabel={`기준 영상 A, ${a ? pickedLabel(a) : ''}`}>
+    <View style={[styles.pickA, { backgroundColor: c.card, boxShadow: c.float }]} accessible accessibilityLabel={`${side === 'A' ? '기준 영상 A' : '그대로 둘 B'}, ${a ? pickedLabel(a) : (title ?? '')}`}>
       <View style={[styles.pickAThumb, { backgroundColor: '#1b2b3b' }]}>
         {t ? <Image source={thumbSource(t as Thumb)} style={StyleSheet.absoluteFill} contentFit="contain" /> : <Icon name="film" size={18} color="rgba(255,255,255,0.6)" />}
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[TYPE.sub, { color: c.link, fontWeight: '600' }]}>기준 영상 A</Text>
+        <Text style={[TYPE.sub, { color: c.link, fontWeight: '600' }]}>{side === 'A' ? '기준 영상 A' : '그대로 둘 B'}</Text>
         <Text numberOfLines={1} maxFontSizeMultiplier={1.6} style={[TYPE.card, { color: c.ink }]}>
-          {a ? (a.note ?? videoCaption(a)) : '영상'}
+          {a ? (a.note ?? videoCaption(a)) : (title ?? '영상')}
         </Text>
         <Text numberOfLines={1} maxFontSizeMultiplier={1.6} style={[TYPE.sub, { color: c.muted }]}>
           {[a ? videoDateText(a.date) : null, dur].filter(Boolean).join(' · ')}
         </Text>
       </View>
       <View style={[styles.aBadge, { backgroundColor: c.action }]}>
-        <Text style={styles.aBadgeText}>A</Text>
+        <Text style={styles.aBadgeText}>{side}</Text>
       </View>
     </View>
   );

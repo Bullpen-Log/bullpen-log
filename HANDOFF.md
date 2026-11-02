@@ -11,6 +11,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-11-02 · 금윤호(Claude, 윤호 맥북) — 영상 비교 독립 검토 교정(F01~F08) · **네 갤러리 · 아이콘 부품을 조금 고쳤다**
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). 검토 `docs/designs/sinker-pitch-video-workbench-review-2026-11-02.md`, 결과 표는 대장 `-ledger.md` 의 'F01–F08' 절.
+- **네 영역 고친 곳**: `native/src/videos/gallery.tsx` — 고르기 모드(`PickProps`)에 선택 칸 `actions`(가져오기 단추) · `extra`(목록 위 칸) · `title` · `foot` · `fixed`(고정한 쪽 이름 A/B) — 안 넘기면 예전과 같다.
+  `native/src/shell/icon.tsx` 에 'copy' · 'folder' 그림 둘.
+- 비교 저장 · 고르기: `compare/storage.ts` 가 계정 한 줄로(목록 경합 · 참조 중인 복사본 지움 · 끊긴 저장 · 미래 판 덮기 고침), `compare/store.ts importForCompare(kind, multi, holdKey)` 인자가 셋이 됐고 '파일'(expo-file-system 의 `File.pickFileAsync`)이 생겼다.
+  재생 상태 기계 사건 `play` · `buffering` 이 자리(rel)를 싣는다.
+- 이 맥의 `native/node_modules` 가 10-21 판이라 `cd native && npm ci`(잠금 파일 그대로)를 돌렸다 — 패키지를 바꾼 것은 아니다.
+- 시험: `npm run native-compare:test`(318 + 회귀 66). 실기기 · 시뮬레이터는 안 봤다.
+
 ## 김민에게 — 2026-11-02 · 금윤호(Claude, 윤호 맥북) — 투구 탭에 '영상 비교'(투구 영상 분석) · 비교 화면을 문서로 저장 · **네 앱 틀 · 갤러리 · 투구 탭을 고쳤다**
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만이라 업데이트로 나간다). 금윤호: `docs/designs/sinker-pitch-video-workbench-claude-prompt.md` R01~R42 구현. 무엇이 됐고 안 됐는지는 `docs/designs/sinker-pitch-video-workbench-ledger.md`(항목마다 파일 · 시험 · 상태). **시뮬레이터 · Metro · 실기기 확인은 하나도 안 했다.**

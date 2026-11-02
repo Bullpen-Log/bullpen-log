@@ -43,6 +43,8 @@ export type SourceRef = {
   events: EventMarks;
   /** 같은 평면 길이 보정(R14) */
   calibration: Calibration | null;
+  /** 한 영상 보기에서 마지막으로 본 자리(초, 원본 시각) — 다시 열면 여기서 멈춘 채. 모르면 null */
+  lastTime: number | null;
   addedAt: string;
 };
 
@@ -54,14 +56,27 @@ export type PairState = {
   b: string;
   semantic: AnchorSemantic;
   anchors: { a: number | null; b: number | null };
+  /** 영상 원본 시각의 다듬기(절대 — 0 이상) */
   trims: { a: Range | null; b: Range | null };
-  loop: Range | null;
+  /** 반복 구간 — 기준 장면에서 잰 상대 시각(음수 가능: 기준 앞). 다듬기와 다른 뜻이라 따로 검사한다(F05) */
+  loop: RelSpan | null;
   views: { a: ViewTransform; b: ViewTransform; linked: boolean };
   overlay: { on: boolean; opacity: number; wipe: number | null; reg: Registration };
   mode: 'offset' | 'normalized';
   /** 마지막으로 본 상대 자리(초) — 다시 열면 여기서 멈춘 채 */
   rel: number;
 };
+
+/** 기준 장면에서 잰 상대 구간(초) — 음수 가능 */
+export type RelSpan = { start: number; end: number };
+/** 반복 구간이 이 짝의 공통 구간과 겹치는 만큼만(0.1초 미만이면 없음) — 기준 · 다듬기가 바뀌어 뜻이 달라진 반복은 버린다 */
+export const MIN_LOOP_SEC = 0.1;
+export function fitLoop(loop: RelSpan | null, range: { min: number; max: number } | null): RelSpan | null {
+  if (!loop || !range) return null;
+  const start = Math.max(loop.start, range.min);
+  const end = Math.min(loop.end, range.max);
+  return end - start >= MIN_LOOP_SEC - 1e-9 ? { start, end } : null;
+}
 
 export type NoteRef = { id: string; sourceId: string | null; t: number | null; text: string; createdAt: string };
 
@@ -110,7 +125,7 @@ export function makeId(prefix: string, now = Date.now()): string {
   return `${prefix}${now.toString(36)}${seq.toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
 }
 
-export type NewSource = Omit<SourceRef, 'id' | 'addedAt' | 'events' | 'calibration' | 'facts' | 'hand' | 'pitchType' | 'view' | 'sessionType' | 'verdict'> &
+export type NewSource = Omit<SourceRef, 'id' | 'addedAt' | 'events' | 'calibration' | 'facts' | 'hand' | 'pitchType' | 'view' | 'sessionType' | 'verdict' | 'lastTime'> &
   Partial<Pick<SourceRef, 'facts' | 'hand' | 'pitchType' | 'view' | 'sessionType' | 'verdict'>>;
 
 export function newSource(s: NewSource, nowIso: string, id = makeId('s')): SourceRef {
@@ -129,6 +144,7 @@ export function newSource(s: NewSource, nowIso: string, id = makeId('s')): Sourc
     verdict: s.verdict ?? null,
     events: {},
     calibration: null,
+    lastTime: null,
     addedAt: nowIso,
   };
 }
@@ -231,6 +247,27 @@ export function updatePair(d: ComparisonDocument, patch: Partial<Omit<PairState,
   return { ...d, pairs: d.pairs.map((p) => (p.a === a && p.b === b ? { ...p, ...patch } : p)) };
 }
 
+/**
+ * 영상별 다듬기(R09) — 원본 시각에서 이 짝이 쓸 앞 · 뒤(절대, 0 이상). 시작은 끝보다 0.1초 앞이어야 한다. 기준 장면이 다듬은 구간 밖이면
+ * 받지 않는다(맞춘 장면이 사라지지 않게). 다듬으면 반복 구간은 화면이 fitLoop 로 다시 맞춘다.
+ */
+export function setTrim(d: ComparisonDocument, side: 'a' | 'b', edge: 'start' | 'end', t: number, duration: number | null): ComparisonDocument | null {
+  const p = d.active.b ? pairOf(d, d.active.a, d.active.b) : null;
+  if (!p || !Number.isFinite(t) || duration == null || !(duration > 0)) return null;
+  const cur = p.trims[side] ?? { start: 0, end: duration };
+  const x = Math.min(duration, Math.max(0, t));
+  const next = edge === 'start' ? { start: x, end: cur.end } : { start: cur.start, end: x };
+  if (next.end - next.start < 0.1) return null;
+  const anchor = p.anchors[side];
+  if (p.semantic !== 'start' && anchor != null && (anchor < next.start || anchor > next.end)) return null;
+  const full = next.start <= 0.0005 && next.end >= duration - 0.0005;
+  return updatePair(d, { trims: { ...p.trims, [side]: full ? null : next } });
+}
+export const clearTrim = (d: ComparisonDocument, side: 'a' | 'b'): ComparisonDocument => {
+  const p = d.active.b ? pairOf(d, d.active.a, d.active.b) : null;
+  return p ? updatePair(d, { trims: { ...p.trims, [side]: null } }) : d;
+};
+
 export function updateSource(d: ComparisonDocument, id: string, patch: Partial<Omit<SourceRef, 'id' | 'path' | 'owned' | 'origin' | 'addedAt'>>): ComparisonDocument {
   return { ...d, sources: d.sources.map((s) => (s.id === id ? { ...s, ...patch } : s)) };
 }
@@ -316,11 +353,21 @@ export type ParseResult = { ok: true; doc: ComparisonDocument } | { ok: false; r
 const str = (v: unknown, max = 200): string | null => (typeof v === 'string' && v ? v.slice(0, max) : null);
 const iso = (v: unknown, d: string) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : d);
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+/** 원본 시각 구간(다듬기) — 0 이상 */
 function range(v: unknown): Range | null {
   if (!v || typeof v !== 'object') return null;
   const s = num((v as Range).start);
   const e = num((v as Range).end);
   return s != null && e != null && e > s && s >= 0 ? { start: s, end: e } : null;
+}
+/** 상대 구간(반복) — 음수 가능, 유한 · 순서 · 최소 길이 · 크기(10분 안)만 본다. 공통 구간과의 겹침은 화면이 fitLoop 로 */
+const MAX_REL_SEC = 600;
+function relSpan(v: unknown): RelSpan | null {
+  if (!v || typeof v !== 'object') return null;
+  const s = num((v as RelSpan).start);
+  const e = num((v as RelSpan).end);
+  if (s == null || e == null || e - s < MIN_LOOP_SEC - 1e-9 || Math.abs(s) > MAX_REL_SEC || Math.abs(e) > MAX_REL_SEC) return null;
+  return { start: s, end: e };
 }
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ORIGINS = new Set<SourceOrigin>(['myVideos', 'log', 'photos', 'camera']);
@@ -352,6 +399,10 @@ function parseSource(raw: unknown, epoch: string): SourceRef | null {
       cal && typeof cal === 'object' && num(cal.cm) && cal.a && cal.b && num(cal.a.u) != null && num(cal.a.v) != null && num(cal.b.u) != null && num(cal.b.v) != null
         ? { a: { u: cal.a.u, v: cal.a.v }, b: { u: cal.b.u, v: cal.b.v }, cm: cal.cm }
         : null,
+    lastTime: (() => {
+      const t = num(s.lastTime);
+      return t != null && t >= 0 ? t : null;
+    })(),
     addedAt: iso(s.addedAt, epoch),
   };
 }
@@ -376,7 +427,7 @@ function parsePair(raw: unknown, ids: ReadonlySet<string>): PairState | null {
     semantic: SEMANTICS.has(p.semantic as AnchorSemantic) ? (p.semantic as AnchorSemantic) : 'manual',
     anchors: { a: anchor(an.a), b: anchor(an.b) },
     trims: { a: range(tr.a), b: range(tr.b) },
-    loop: range(p.loop),
+    loop: relSpan(p.loop),
     views: { a: normalizeView(vw.a), b: normalizeView(vw.b), linked: vw.linked === true },
     overlay: {
       on: ov.on === true,

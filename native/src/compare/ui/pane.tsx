@@ -50,6 +50,7 @@ export type PaneDraw = {
   onMove: (id: string, g: Geometry) => void;
   onSelect: (id: string | null) => void;
   onNeedText: (p: Pt) => void;
+  onStroke?: (active: boolean) => void;
 };
 
 /**
@@ -169,7 +170,7 @@ export function Pane({
 
   const pane = { w: box.w, h: box.h, aspect: aspect ?? box.w / Math.max(1, box.h) };
   const zoomed = view.zoom > 1.001;
-  const transform = [{ translateX: view.panX }, { translateY: view.panY }, { scale: view.zoom }, { scaleX: view.mirror ? -1 : 1 }];
+  const transform = [{ translateX: view.panX * box.w }, { translateY: view.panY * box.h }, { scale: view.zoom }, { scaleX: view.mirror ? -1 : 1 }];
 
   if (hidden) return null;
   return (
@@ -222,6 +223,7 @@ export function Pane({
             onSelect={draw.onSelect}
             onView={onView}
             onNeedText={draw.onNeedText}
+            onStroke={draw.onStroke}
           />
         ) : null}
         {error ? (

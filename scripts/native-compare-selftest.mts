@@ -184,8 +184,8 @@ const facts = (p: Partial<MediaFacts>): MediaFacts => ({ ...EMPTY_FACTS, ...p })
     { pane: { w: 300, h: 400, aspect: 9 / 16 }, view: IDENTITY_VIEW, name: '세로 영상 · 세로 칸' },
     { pane: { w: 400, h: 200, aspect: 9 / 16 }, view: IDENTITY_VIEW, name: '세로 영상 · 가로 칸(옆 레터박스)' },
     { pane: { w: 300, h: 400, aspect: 16 / 9 }, view: { ...IDENTITY_VIEW, mirror: true }, name: '가로 영상 · 반전' },
-    { pane: { w: 320, h: 480, aspect: 9 / 16 }, view: { zoom: 2.5, panX: 30, panY: -40, mirror: false, crop: null }, name: '확대 · 이동' },
-    { pane: { w: 320, h: 480, aspect: 9 / 16 }, view: { zoom: 1.5, panX: -10, panY: 5, mirror: true, crop: { x: 0.1, y: 0.2, w: 0.6, h: 0.5 } }, name: '자르기 · 반전 · 확대' },
+    { pane: { w: 320, h: 480, aspect: 9 / 16 }, view: { zoom: 2.5, panX: 0.09, panY: -0.08, mirror: false, crop: null }, name: '확대 · 이동' },
+    { pane: { w: 320, h: 480, aspect: 9 / 16 }, view: { zoom: 1.5, panX: -0.03, panY: 0.01, mirror: true, crop: { x: 0.1, y: 0.2, w: 0.6, h: 0.5 } }, name: '자르기 · 반전 · 확대' },
   ];
   for (const c of cases) {
     for (const p of [{ u: 0, v: 0 }, { u: 1, v: 1 }, { u: 0.3, v: 0.7 }, { u: 0.5, v: 0.5 }]) {
@@ -340,29 +340,29 @@ const facts = (p: Partial<MediaFacts>): MediaFacts => ({ ...EMPTY_FACTS, ...p })
     const r = step(acc.s, e);
     return { s: r.state, fx: [...acc.fx, r.effect] };
   }, { s: s0, fx: [] });
-  let r = run([{ type: 'play' }]);
+  let r = run([{ type: 'play', rel: 0 }]);
   eq(r.s.phase, 'seeking', '재생은 먼저 맞춤');
   const g = r.s.gen;
   r = run([{ type: 'seekDone', gen: g, ok: true }], r.s);
   eq([r.s.phase, r.fx[0]], ['playing', 'playBoth'], '맞춘 뒤 함께 재생');
   /* 늦은 옛 맞춤 완료는 무시 */
-  let s = run([{ type: 'play' }]).s;
+  let s = run([{ type: 'play', rel: 0 }]).s;
   const old = s.gen;
-  s = run([{ type: 'pause' }, { type: 'play' }], s).s;
+  s = run([{ type: 'pause' }, { type: 'play', rel: 0 }], s).s;
   const late = step(s, { type: 'seekDone', gen: old, ok: true });
   eq([late.state.phase, late.effect], ['seeking', 'none'], '옛 세대 답은 버림');
   /* B 바꾸는 중 맞춤 → 재생 안 함 */
-  s = run([{ type: 'play' }]).s;
+  s = run([{ type: 'play', rel: 0 }]).s;
   const g2 = s.gen;
   s = run([{ type: 'sourceChanged' }], s).s;
   eq(step(s, { type: 'seekDone', gen: g2, ok: true }).effect, 'none', '바꾼 B 의 옛 답은 재생 안 함');
   /* 시간 초과(실패)는 재생하지 않음 */
-  s = run([{ type: 'play' }]).s;
+  s = run([{ type: 'play', rel: 0 }]).s;
   const f = step(s, { type: 'seekDone', gen: s.gen, ok: false });
   eq([f.state.phase, f.state.error, f.effect], ['error', 'seek', 'pauseBoth'], '맞춤 실패는 재생 안 함');
   /* 한쪽 받는 중 → 둘 다 멈춤 → 준비되면 다시 맞춰 재생 */
-  s = run([{ type: 'play' }]).s;
-  r = run([{ type: 'seekDone', gen: s.gen, ok: true }, { type: 'buffering' }], s);
+  s = run([{ type: 'play', rel: 0 }]).s;
+  r = run([{ type: 'seekDone', gen: s.gen, ok: true }, { type: 'buffering', rel: null }], s);
   eq([r.s.phase, r.fx[1]], ['buffering', 'pauseBoth'], '받는 중이면 둘 다 멈춤');
   const rb = step(r.s, { type: 'bothReady' });
   eq([rb.state.phase, rb.effect], ['seeking', 'seekThenConfirm'], '준비되면 다시 맞춤');
@@ -373,11 +373,11 @@ const facts = (p: Partial<MediaFacts>): MediaFacts => ({ ...EMPTY_FACTS, ...p })
   const bg = run([{ type: 'background' }], r.s);
   eq([bg.s.phase, bg.s.intent], ['idle', false], '뒤로 가면 멈추고 다시 안 틂');
   /* 끝 */
-  s = run([{ type: 'play' }]).s;
+  s = run([{ type: 'play', rel: 0 }]).s;
   const e = run([{ type: 'seekDone', gen: s.gen, ok: true }, { type: 'end' }], s);
   eq([e.s.phase, e.fx[1]], ['ended', 'pauseBoth'], '구간 끝 — 둘 다 멈춤');
   /* 빠르게 여러 번 */
-  const rapid = run([{ type: 'play' }, { type: 'play' }, { type: 'pause' }, { type: 'play' }, { type: 'scrub' }, { type: 'play' }]);
+  const rapid = run([{ type: 'play', rel: 0 }, { type: 'play', rel: 0 }, { type: 'pause' }, { type: 'play', rel: 0 }, { type: 'scrub' }, { type: 'play', rel: 0 }]);
   eq(rapid.s.phase, 'seeking', '연타 끝은 마지막 요청');
   eq(rapid.fx.filter((x) => x === 'seekThenConfirm').length, 3, '재생 중 재생은 겹치지 않음');
 }
@@ -498,18 +498,20 @@ const memFs = (opts: { failMoveAt?: number; failWrite?: (name: string) => boolea
   ok(after.ok && after.doc.revision === 1, '끊긴 뒤에도 앞 판이 남음');
   /* 목록이 깨지면 다시 만든다 · 남은 tmp 정리 */
   files.set('index.json', 'garbage');
+  files.set('c1.tmp', 'half');
   files.set('zz.tmp', 'half');
   eq((await st.recent()).map((e) => e.id), ['c1'], '목록 다시 만듦');
-  ok(!files.has('zz.tmp'), '남은 tmp 지움');
+  ok(!files.has('c1.tmp'), '정상 판이 있는 문서의 남은 tmp 는 지움');
+  ok(files.has('zz.tmp'), '정상 판 없는 tmp 는 참조의 흔적이라 둠');
   /* 지우기 — 다른 문서가 쓰는 앱 안 복사본은 남김 */
   const dB = createDocument(OWNER, [srcB], NOW, { doc: 'c2', sources: ['sX'] });
   const loadedC1 = (await st.load('c1')) as { doc: ComparisonDocument };
   await st.save({ ...loadedC1.doc });
   await st.save(dB);
   const del1 = await st.remove('c1');
-  eq(del1.orphanPaths, [], '다른 문서가 쓰는 복사본은 안 지움');
+  eq(del1.deleted, [], '다른 문서가 쓰는 복사본은 안 지움');
   const del2 = await st.remove('c2');
-  eq(del2.orphanPaths, ['u1/local-bbb'], '마지막 문서를 지우면 복사본도');
+  eq(del2.deleted, ['u1/local-bbb'], '마지막 문서를 지우면 복사본도');
   eq(await st.load('c1'), { ok: false, reason: 'missing' }, '지운 문서는 없음');
   eq(await st.load('../x'), { ok: false, reason: 'missing' }, '이상한 번호 거절');
 }

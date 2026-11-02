@@ -1,9 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createDocument, type ComparisonDocument, type NewSource } from '~/compare/doc';
-import { compareStorage, importForCompare, useCompareStore } from '~/compare/store';
+import { compareStorage, discardImported, filesPickSupported, IMPORT_FAIL_TEXT, importForCompare, releaseHold, useCompareStore, type ImportKind } from '~/compare/store';
 import { todayVsPast } from '~/compare/sources';
 import { sourceFromItem, Workbench } from '~/compare/ui/workbench';
 import { READABLE } from '~/lib/layout';
@@ -33,7 +33,7 @@ export default function PitchCompareScreen() {
   const params = useLocalSearchParams<{ a?: string; al?: string; b?: string; bl?: string; src?: string; doc?: string; new?: string }>();
   const { owner } = useCompareStore();
   const { items } = useMyVideos();
-  const [made, setMade] = useState<{ doc: ComparisonDocument; stage: 'pick' | 'align' | 'compare'; exitIsBack: boolean; onExit: () => void } | null>(null);
+  const [made, setMade] = useState<{ doc: ComparisonDocument; stage: 'pick' | 'align' | 'compare'; exitIsBack: boolean; onExit: () => void; importHold?: string } | null>(null);
   /* 주소로 영상이 정해져 온 길(내 영상 · 2분할) — 처음 그릴 때 한 번 문서를 만든다 */
   const [fromParams] = useState<ComparisonDocument | null>(() => {
     if (!params.a) return null;
@@ -44,12 +44,13 @@ export default function PitchCompareScreen() {
   });
 
   if (params.doc) return <DocLoader id={params.doc} />;
-  if (made) return <Workbench key={made.doc.id} initial={made.doc} start={made.stage} onExit={made.onExit} exitIsBack={made.exitIsBack} />;
+  if (made) return <Workbench key={made.doc.id} initial={made.doc} start={made.stage} onExit={made.onExit} exitIsBack={made.exitIsBack} importHold={made.importHold} />;
   if (fromParams) return <Workbench initial={fromParams} start={params.b ? 'align' : 'pick'} onExit={() => router.back()} exitIsBack />;
   if (params.new)
     return (
       <StartPicker
-        onPick={(srcs) => setMade({ doc: createDocument(owner ?? '', srcs, new Date().toISOString()), stage: 'align', exitIsBack: true, onExit: () => router.back() })}
+        holdKey={START_HOLD}
+        onPick={(srcs) => setMade({ doc: createDocument(owner ?? '', srcs, new Date().toISOString()), stage: 'align', exitIsBack: true, onExit: () => router.back(), importHold: START_HOLD })}
         onBack={() => router.back()}
       />
     );
@@ -120,8 +121,13 @@ function DocLoader({ id }: { id: string }) {
   );
 }
 
-/** 처음 고르기 — 내 영상(투구 기록 영상 포함)에서 하나 · 둘, 또는 사진 앱 · 바로 촬영. 기록 · 업로드 없이 바로 비교 */
-function StartPicker({ onPick, onBack }: { onPick: (s: NewSource[]) => void; onBack: () => void }) {
+const START_HOLD = 'compare-start';
+
+/**
+ * 처음 고르기 — 내 영상(투구 기록 영상 포함)에서 하나 · 둘, 또는 사진 앱 · 바로 촬영 · 파일. 기록 · 업로드 없이 바로 비교.
+ * 하나만 가져와도 바로 열어 한 영상으로 본다 — 그 화면의 '비교 영상 추가'가 같은 가져오기(사진 앱 · 촬영 · 파일)를 다시 준다(F07).
+ */
+function StartPicker({ onPick, onBack, holdKey }: { onPick: (s: NewSource[]) => void; onBack: () => void; holdKey: string }) {
   const { items } = useMyVideos();
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -129,33 +135,37 @@ function StartPicker({ onPick, onBack }: { onPick: (s: NewSource[]) => void; onB
   useEffect(() => startPickUi(), []);
   const itemOf = (p: string) => items?.find((v) => v.path === p) ?? null;
   const pair = useMemo(() => (items ? todayVsPast(items, todayKey()) : null), [items]);
-  const imp = async (kind: 'photos' | 'camera') => {
+  /* 닫힌 뒤 늦게 끝난 가져오기는 정리한다 */
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  const imp = async (kind: ImportKind) => {
     if (busy) return;
     setBusy(true);
     try {
-      const r = await importForCompare(kind, kind === 'photos' && picked.length === 0);
-      if (!Array.isArray(r)) {
-        toast(
-          r.error === 'permission'
-            ? '카메라 권한이 없어요. 설정 › 싱커에서 카메라를 켜 주세요.'
-            : r.error === 'owner'
-              ? '로그인을 확인하는 중이에요. 잠시 뒤 다시 해 주세요.'
-              : '영상을 가져오지 못했어요. 저장 공간을 확인하고 다시 해 주세요.',
-          'error'
-        );
+      const r = await importForCompare(kind, kind !== 'camera' && picked.length === 0, holdKey);
+      if (!alive.current) {
+        releaseHold(holdKey);
+        await discardImported(r.sources.map((s) => s.path));
         return;
       }
-      if (!r.length) return;
+      if (r.error) toast(IMPORT_FAIL_TEXT[r.error], r.sources.length ? 'info' : 'error');
+      if (!r.sources.length) return;
       /* 이미 고른 게 하나 있으면 그것이 A, 가져온 것이 B */
-      const fromList = picked.slice(0, 2 - r.length).map((p) => sourceFromItem(itemOf(p), p));
-      onPick([...fromList, ...r].slice(0, 2));
+      const fromList = picked.slice(0, 2 - r.sources.length).map((p) => sourceFromItem(itemOf(p), p));
+      onPick([...fromList, ...r.sources].slice(0, 2));
     } finally {
-      setBusy(false);
+      if (alive.current) setBusy(false);
     }
   };
   const actions = [
     { label: '사진 앱에서', icon: 'image-plus' as const, onPress: () => void imp('photos'), busy },
     { label: '바로 촬영', icon: 'video' as const, onPress: () => void imp('camera'), busy },
+    ...(filesPickSupported() ? [{ label: '파일에서', icon: 'folder' as const, onPress: () => void imp('files'), busy }] : []),
     ...(pair && picked.length === 0
       ? [{ label: '오늘 vs 지난 투구', icon: 'film' as const, onPress: () => onPick([sourceFromItem(pair.today, pair.today.path), sourceFromItem(pair.past, pair.past.path)]) }]
       : []),

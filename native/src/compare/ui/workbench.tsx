@@ -10,11 +10,16 @@ import { applyEdit, historyOf, SCENE_TOL, visibleList, WIDTHS, COLORS, type Anno
 import {
   activePair,
   addNote,
+  clearTrim,
+  duplicate,
+  setTrim,
   addSource,
   ANCHOR_LABEL,
   editNote,
+  fitLoop,
   makeId,
   moveReview,
+  ownedPathsOf,
   removeNote,
   rename,
   setActive,
@@ -27,12 +32,14 @@ import {
   type ComparisonDocument,
   type NewSource,
   type NoteRef,
+  type PairState,
   type SourceRef,
 } from '~/compare/doc';
-import { IDENTITY_VIEW, type Pt, type ViewTransform } from '~/compare/geometry';
+import { IDENTITY_REG, IDENTITY_VIEW, nudgeReg, type Pt, type ViewTransform } from '~/compare/geometry';
 import { anchorFromEvents, normalizedAnchors, timeOf, type PitchEvent, EVENT_SHORT } from '~/compare/pitch-events';
 import { createAutosaver, SAVE_LABEL, type SaveState } from '~/compare/storage';
-import { compareOwner, compareStorage, deleteComparison, refreshRecent, useCompareStore } from '~/compare/store';
+import { applyPick, beginPick, type PickChoice, type PickSlot } from '~/compare/source-pick';
+import { compareOwner, compareStorage, deleteComparison, discardImported, holdPaths, refreshRecent, releaseHold, useCompareStore } from '~/compare/store';
 import {
   buildNormalized,
   clock,
@@ -51,6 +58,7 @@ import { phaseLabel, isBusy } from '~/compare/transport';
 import type { DrawTool } from '~/compare/ui/annotation-layer';
 import { Pane, type PaneDraw, type SideInfo, type SideKey } from '~/compare/ui/pane';
 import { Chip, DrawPanel, EventsPanel, ExportPanel, NotesPanel, Row, SourceInfoSheet, Storyboard, TextSheet, exportPlanFor, type SpanChoice } from '~/compare/ui/panels';
+import { SourcePicker } from '~/compare/ui/source-picker';
 import { useCompareTransport } from '~/compare/ui/transport-hook';
 import { READABLE } from '~/lib/layout';
 import { TYPE, usePalette, withAlpha } from '~/lib/ui';
@@ -59,7 +67,6 @@ import { Press } from '~/shell/press';
 import { toast } from '~/shell/toast';
 import { bothMarked, navBack, navCompare, navOpenPick, navPickNext, navRealign, navRestore, navStart, navSwipeOk, relText, type CompareNav } from '~/videos/compare-math';
 import { startPickUi } from '~/videos/filters';
-import { VideoGallery } from '~/videos/gallery';
 import { Scrubber, ScrubLabels, playerCall } from '~/videos/player-parts';
 import { useMyVideos } from '~/videos/store';
 import { videoCaption, videoDateText } from '~/videos/text';
@@ -72,9 +79,29 @@ import { videoCaption, videoDateText } from '~/videos/text';
 type Tool = 'align' | 'draw' | 'events' | 'notes' | 'export';
 const TOOL_LABEL: Record<Tool, string> = { align: '맞추기', draw: '그리기', events: '투구 장면', notes: '메모', export: '내보내기' };
 
-/** 저장할 만한 문서인가 — 한 영상만 잠깐 본 것은 남기지 않는다(목록이 지저분해지지 않게) */
-const worthSaving = (d: ComparisonDocument) =>
-  d.sources.length >= 2 || d.annotations.length > 0 || d.notes.length > 0 || d.sources.some((s) => Object.keys(s.events).length > 0);
+/**
+ * 저장할 만한 문서인가(한 영상 정책 — F02 · F08):
+ *  - 두 영상 이상 · 그림 · 메모 · 장면 표시가 있으면 저장한다.
+ *  - 사진 앱 · 촬영에서 가져온 영상(앱 안 복사본)이 있으면 한 영상이어도 저장한다 — 안 남기면 가져온 것이 사라지고 복사본만 남는다.
+ *  - 내 영상 · 기록의 한 영상을 잠깐 본 것만은 남기지 않는다(최근 목록이 지저분해지지 않게 — 그 영상은 원래 자리에 그대로 있다).
+ */
+export const worthSaving = (d: ComparisonDocument) =>
+  d.sources.length >= 2 || d.annotations.length > 0 || d.notes.length > 0 || d.sources.some((s) => s.owned || Object.keys(s.events).length > 0);
+
+/** 이 문서가 다시 열 때 돌아갈 자리 — 짝이면 상대 자리, 한 영상이면 그 영상의 마지막 자리 */
+export const restoreTargetOf = (d: ComparisonDocument): number => {
+  const p = activePair(d);
+  if (p) return p.rel;
+  return sourceOf(d, d.active.a)?.lastTime ?? 0;
+};
+export const pairKeyOf = (d: ComparisonDocument) => `${d.active.a}|${d.active.b ?? ''}`;
+/**
+ * 복원 단계(F02) — 짝(또는 한 영상)마다: waiting(재생기 준비 · 옮긴 뒤 두 재생기 확인 기다림) → done | failed.
+ * done 이 되기 전에는 지금 자리를 문서에 쓰지 않는다(아직 0 에 있는 재생기 자리로 저장된 자리를 덮지 않게).
+ * 사용자가 직접 옮기거나 재생하면 그 순간부터 done(사용자가 정한 자리가 이긴다).
+ */
+export type RestorePhase = 'waiting' | 'done' | 'failed';
+export type RestoreState = { key: string; target: number; phase: RestorePhase; nonce: number };
 
 export function sourceFromItem(v: MyVideoItem | null, path: string, label?: string | null): NewSource {
   return {
@@ -89,8 +116,26 @@ export function sourceFromItem(v: MyVideoItem | null, path: string, label?: stri
 }
 
 const nowIso = () => new Date().toISOString();
+const intersect = (x: RelRange, y: RelRange): RelRange | null => {
+  const min = Math.max(x.min, y.min);
+  const max = Math.min(x.max, y.max);
+  return max - min > 0.04 ? { min, max } : null;
+};
 
-export function Workbench({ initial, start, onExit, exitIsBack }: { initial: ComparisonDocument; start: 'pick' | 'align' | 'compare'; onExit: () => void; exitIsBack: boolean }) {
+export function Workbench({
+  initial,
+  start,
+  onExit,
+  exitIsBack,
+  importHold,
+}: {
+  initial: ComparisonDocument;
+  start: 'pick' | 'align' | 'compare';
+  onExit: () => void;
+  exitIsBack: boolean;
+  /** 처음 고르기에서 가져온 복사본을 붙들던 열쇠 — 이 화면이 제 문서로 붙든 뒤 놓는다 */
+  importHold?: string;
+}) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const { width: winW, height: winH, fontScale } = useWindowDimensions();
@@ -104,6 +149,7 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
   const [save, setSave] = useState<SaveState>(initial.revision > 0 ? 'saved' : 'idle');
   /* 그림 편집 기록 — 문서의 annotations 와 늘 같은 값(고칠 때 둘 다) */
   const [history, setHistory] = useState<History>(() => historyOf(initial.annotations));
+  const [restore, setRestore] = useState<RestoreState>(() => ({ key: pairKeyOf(initial), target: restoreTargetOf(initial), phase: 'waiting', nonce: 0 }));
   const [saver] = useState(() =>
     createAutosaver(
       (d) => {
@@ -112,9 +158,9 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
       },
       {
         onState: (s) => setSave(s),
-        onSaved: (d) => {
-          if (d.revision === 1) void refreshRecent();
-          else void refreshRecent();
+        onSaved: () => {
+          everSaved.current = true;
+          void refreshRecent();
         },
         onConflict: (cur) => {
           /* 다른 곳에서 바뀌었다 — 이 판은 사본으로 남기고 새 판을 받아들인다(둘 다 잃지 않게) */
@@ -124,6 +170,7 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
           docRef.current = cur;
           setDocState(cur);
           setHistory(historyOf(cur.annotations));
+          setRestore((r) => ({ key: pairKeyOf(cur), target: restoreTargetOf(cur), phase: 'waiting', nonce: r.nonce + 1 }));
           saverRef.current?.base(cur.revision);
           toast('다른 곳에서 바뀐 비교라 새 판을 열고, 고친 것은 사본으로 남겼어요.', 'info');
         },
@@ -131,11 +178,27 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
     )
   );
   const saverRef = useRef(saver);
+  const everSaved = useRef(initial.revision > 0);
+  const holdKey = `wb:${initial.id}`;
   useEffect(() => {
     saver.base(initial.revision);
-    /* 떠날 때 남은 것을 바로 쓴다(멈추지는 않는다 — 개발 모드의 두 번 붙이기에서도 저장이 이어지게) */
-    return () => void saver.flush();
-  }, [saver, initial.revision]);
+    /*
+     * 떠날 때 남은 것을 바로 쓴다(멈추지는 않는다 — 개발 모드의 두 번 붙이기에서도 저장이 이어지게).
+     * 다 쓴 뒤 이 화면이 붙들던 경로를 놓는다. 한 번도 저장되지 않은 문서(로그인 확인 전에 닫음 · 저장 실패)의 가져온 복사본은 정리한다.
+     */
+    return () =>
+      void saver.flush().finally(() => {
+        releaseHold(holdKey);
+        if (!everSaved.current) void discardImported(ownedPathsOf(docRef.current));
+      });
+  }, [saver, initial.revision, holdKey]);
+  /* 이 화면의 문서가 쓰는 영상 경로를 붙든다 — 아직 파일에 안 적힌 고침이어도 다른 비교를 지울 때 지워지지 않게(F01) */
+  const pathKey = doc.sources.map((x) => x.path).join('|');
+  const holdNow = useEffectEvent(() => {
+    holdPaths(holdKey, docRef.current.sources.map((x) => x.path));
+    if (importHold) releaseHold(importHold);
+  });
+  useEffect(() => holdNow(), [pathKey]);
   /* 로그인한 사람을 늦게 알았으면 주인으로 — 다른 사람으로 바뀌면 저장을 멈춘다 */
   const adoptOwner = useEffectEvent((o: string | null) => {
     const d = docRef.current;
@@ -169,14 +232,22 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
   const [nav, setNav] = useState<CompareNav>(() => (start === 'compare' ? navCompare(navStart(true)) : navStart(start !== 'pick')));
   const stage = nav.stage;
   const single = stage !== 'pick' && !bSrc;
-  const [snap, setSnap] = useState<{ b: string; marks: { a: number | null; b: number | null }; rel: number } | null>(null);
-  const [selected, setSelected] = useState<string | null>(bPath);
+  /* 다시 맞추기 · B 고르기 전의 짝 — 취소하면 기준 · 자리 · 반복 · 보기를 그대로 되돌린다 */
+  const [snap, setSnap] = useState<{ a: string; b: string; marks: { a: number | null; b: number | null }; rel: number; loop: PairState['loop']; views: PairState['views'] } | null>(null);
+  /* 영상 고르기 — 어느 칸을(B 더하기 · A/B 바꾸기 · 다시 잇기) */
+  const [pickTarget, setPickTarget] = useState<{ slot: PickSlot; relink: string | null }>({ slot: 'b', relink: null });
   const [pickOpened, setPickOpened] = useState(start !== 'pick');
   const [missing, setMissing] = useState<ReadonlySet<string>>(() => new Set());
   const [focus, setFocus] = useState<SideKey>('a');
-  const [times, setTimes] = useState({ a: marks.a ?? 0, b: marks.b ?? 0 });
+  /* 보이는 시각 — 처음엔 저장된 자리(복원이 끝나면 재생기 값으로 바뀐다) */
+  const [times, setTimes] = useState(() => {
+    const p = activePair(initial);
+    if (!p) return { a: sourceOf(initial, initial.active.a)?.lastTime ?? 0, b: 0 };
+    return { a: (p.anchors.a ?? 0) + (p.anchors.a != null ? p.rel : 0), b: (p.anchors.b ?? 0) + (p.anchors.b != null ? p.rel : 0) };
+  });
   const [expand, setExpand] = useState<SideKey | null>(null);
-  const [tool, setTool] = useState<Tool>('align');
+  /* 자세한 도구는 고를 때만 펼친다(F08 — 기본 화면은 영상 · 함께 재생 · 속도 · 맞추기만) */
+  const [tool, setTool] = useState<Tool | null>(null);
   const [sheet, setSheet] = useState<null | { kind: 'note'; edit?: NoteRef } | { kind: 'label'; side: SideKey; p: Pt } | { kind: 'calibrate'; side: SideKey; geom: Geometry } | { kind: 'info'; side: SideKey } | { kind: 'title' }>(null);
 
   /* ---- 두 칸 정보 ---- */
@@ -222,13 +293,18 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
   const ra = trimmedRange(sides.a?.duration ?? aSrc?.facts?.durationSec ?? null, pair?.trims.a ?? null);
   const rb = trimmedRange(sides.b?.duration ?? bSrc?.facts?.durationSec ?? null, pair?.trims.b ?? null);
   const startBased = semantic === 'start';
-  const range: RelRange | null = single ? (ra ? { min: ra.start, max: ra.end } : null) : startBased ? startRange(ra, rb) : offsetRange(marks.a, marks.b, ra, rb);
+  const baseRange: RelRange | null = single ? (ra ? { min: ra.start, max: ra.end } : null) : startBased ? startRange(ra, rb) : offsetRange(marks.a, marks.b, ra, rb);
   const normEvents = aSrc && bSrc ? normalizedAnchors(aSrc.events, bSrc.events) : null;
-  const normOk = !!normEvents && buildNormalized(normEvents.a, normEvents.b).ok;
+  const normOk = !!normEvents && buildNormalized(normEvents.a, normEvents.b).ok && !startBased && marks.a != null;
   const normalized = pair?.mode === 'normalized' && normOk && normEvents ? { a: normEvents.a, b: normEvents.b } : null;
-  const loop = pair?.loop ? { min: pair.loop.start, max: pair.loop.end } : null;
   const ma = single ? 0 : startBased ? (ra?.start ?? 0) : marks.a;
   const mb = single ? null : startBased ? (rb?.start ?? 0) : marks.b;
+  /* 동작 길이 맞춤은 짚은 첫 장면 ~ 마지막 장면 사이만(F08 — 그 밖은 B 가 끝 장면에 멈춘 채 A 만 가서 비교가 아니다) */
+  const range: RelRange | null =
+    normalized && baseRange && ma != null ? intersect(baseRange, { min: normalized.a[0] - ma, max: normalized.a[normalized.a.length - 1] - ma }) : baseRange;
+  /* 반복 구간은 상대 시각 — 지금 공통 구간과 겹치는 만큼만(뜻이 바뀐 반복은 없음으로) */
+  const loopSpan = fitLoop(pair?.loop ?? null, range);
+  const loop = loopSpan ? { min: loopSpan.start, max: loopSpan.end } : null;
   const canSync = (stage === 'compare' || single) && readyA && (single || readyB) && !!range && ma != null;
   const transport = useCompareTransport({
     pa,
@@ -241,21 +317,48 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
   const phase = transport.state.phase;
   const rel = ma != null && range ? Math.min(range.max, Math.max(range.min, times.a - ma)) : 0;
   const quality = syncQuality(transport.driftMs, sides.a?.fps ? 1000 / sides.a.fps : null);
-  /* 마지막 자리를 문서에(다시 열면 여기서 멈춘 채) — 멈췄을 때만 */
-  const relKey = phase === 'idle' || phase === 'ended' ? Math.round(rel * 100) : null;
+
+  /* ---- 복원(F02) — 짝이 바뀌면(B 바꿈 · A·B 바꿈 · 차례로 보기) 그 짝의 자리로 다시 ---- */
+  const pairKey = pairKeyOf(doc);
+  if (restore.key !== pairKey) setRestore({ key: pairKey, target: restoreTargetOf(doc), phase: 'waiting', nonce: restore.nonce + 1 });
+  /* 재생기가 다시 준비되면(실패한 영상을 다시 불러옴) 실패한 복원을 한 번 더 */
+  const [syncSeen, setSyncSeen] = useState(canSync);
+  if (syncSeen !== canSync) {
+    setSyncSeen(canSync);
+    if (canSync && restore.phase === 'failed') setRestore({ ...restore, phase: 'waiting', nonce: restore.nonce + 1 });
+  }
+  /* 옮기기를 건 복원 번호(같은 복원을 두 번 걸지 않게) — 끝나면 단계를 done · failed 로(비동기로) */
+  const restoreInflight = useRef(-1);
+  const runRestore = useEffectEvent(() => {
+    if (restore.phase !== 'waiting' || restore.key !== pairKey || !canSync || restoreInflight.current === restore.nonce) return;
+    const my = restore.nonce;
+    restoreInflight.current = my;
+    void transport.seekConfirmed(restore.target).then((ok) => setRestore((r) => (r.nonce === my && r.phase === 'waiting' ? { ...r, phase: ok ? 'done' : 'failed' } : r)));
+  });
+  useEffect(() => runRestore(), [restore.phase, restore.nonce, canSync, pairKey]);
+  /** 사용자가 자리를 정했다 — 기다리던 복원은 버리고 지금부터 자리를 저장한다 */
+  const takeControl = () => {
+    if (restore.phase !== 'done') setRestore((r) => ({ ...r, phase: 'done', nonce: r.nonce + 1 }));
+  };
+  const userSeek = (r: number) => {
+    takeControl();
+    transport.seekRel(r);
+  };
+  /* 마지막 자리를 문서에(다시 열면 여기서 멈춘 채) — 함께 보기(또는 한 영상)에서 · 복원이 끝난 뒤 · 멈췄을 때만 */
+  const restoredHere = restore.phase === 'done' && restore.key === pairKey;
+  const relKey = restoredHere && canSync && (phase === 'idle' || phase === 'ended') ? Math.round(rel * 100) : null;
   const keepRel = useEffectEvent(() => {
-    if (relKey == null || !pair || Math.abs(pair.rel - rel) < 0.01) return;
-    edit(updatePair(docRef.current, { rel }));
+    if (relKey == null) return;
+    const d = docRef.current;
+    if (single) {
+      const src = sourceOf(d, d.active.a);
+      if (src && Math.abs((src.lastTime ?? 0) - rel) >= 0.01) edit(updateSource(d, src.id, { lastTime: rel }));
+      return;
+    }
+    const p = activePair(d);
+    if (p && Math.abs(p.rel - rel) >= 0.01) edit(updatePair(d, { rel }));
   });
   useEffect(() => keepRel(), [relKey]);
-  /* 처음 열 때 저장된 자리로(멈춘 채) */
-  const restored = useRef(false);
-  const restoreRel = useEffectEvent(() => {
-    if (restored.current || !canSync || !pair || stage !== 'compare') return;
-    restored.current = true;
-    if (pair.rel) transport.seekRel(pair.rel);
-  });
-  useEffect(() => restoreRel(), [canSync]);
 
   /* ---- 단계 오가기 ---- */
   const stopAll = () => {
@@ -263,44 +366,54 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
     setExpand(null);
   };
   const restoreSnap = (s: NonNullable<typeof snap>) => {
-    let d = setActive(docRef.current, doc.active.a, s.b);
-    d = updatePair(d, { anchors: s.marks, rel: s.rel });
+    let d = setActive(docRef.current, s.a, s.b);
+    d = updatePair(d, { anchors: s.marks, rel: s.rel, loop: s.loop, views: s.views });
     edit(d);
-    setSelected(sourceOf(d, s.b)?.path ?? null);
+    setRestore((r) => ({ key: pairKeyOf(d), target: s.rel, phase: 'waiting', nonce: r.nonce + 1 }));
     setSnap(null);
     setNav(navRestore);
   };
-  const snapNow = () => (bSrc ? { b: bSrc.id, marks: { ...marks }, rel } : null);
-  const openPick = () => {
-    if (stage === 'compare') {
+  const snapNow = () => (aSrc && bSrc && pair ? { a: aSrc.id, b: bSrc.id, marks: { ...marks }, rel, loop: pair.loop, views: pair.views } : null);
+  const openPick = (slot: PickSlot = 'b', relink: string | null = null) => {
+    if (stage === 'compare' || stage === 'align') {
       stopAll();
-      setSnap(snapNow());
+      if (stage === 'compare') setSnap(snapNow());
     }
     if (!pickOpened) {
       setPickOpened(true);
       startPickUi();
     }
-    setSelected(bPath);
+    setPickTarget({ slot, relink });
     setNav(navOpenPick(nav));
   };
-  const pickNext = () => {
-    if (!selected || selected === aPath || missing.has(selected)) return;
-    if (snap && selected === sourceOf(doc, snap.b)?.path) return restoreSnap(snap);
-    let d = docRef.current;
-    const existing = d.sources.find((s) => s.path === selected && s.id !== d.active.a);
-    let id = existing?.id;
-    if (!id) {
-      const r = addSource(d, sourceFromItem(itemOf(selected), selected), nowIso());
-      if (!r) return toast('한 비교에 영상은 12개까지 넣을 수 있어요.', 'info');
-      d = r.doc;
-      id = r.id;
+  const pickHold = `pick:${initial.id}`;
+  /* 고른 것을 문서에 — 같은 규칙(compare/source-pick.ts)으로. 고르는 사이 계정이 바뀌었으면 버린다 */
+  const onPicked = (choice: PickChoice) => {
+    const r = applyPick(beginPick(docRef.current, pickTarget.slot, { relink: pickTarget.relink ?? undefined }), choice, nowIso(), compareOwner());
+    if (!r.ok) {
+      releaseHold(pickHold);
+      if (choice.kind === 'new' && choice.source.owned) void discardImported([choice.source.path]);
+      if (r.reason === 'unchanged') return snap ? restoreSnap(snap) : back();
+      return toast(r.reason === 'full' ? '한 비교에 영상은 12개까지 넣을 수 있어요.' : r.reason === 'owner' ? '로그인이 바뀌어 고른 영상을 넣지 않았어요.' : '그 영상을 찾지 못했어요.', 'info');
     }
-    d = setActive(d, d.active.a, id);
-    edit(d);
-    const p = activePair(d);
+    const relinkedPath = pickTarget.relink ? (sourceOf(docRef.current, pickTarget.relink)?.path ?? null) : null;
+    edit(r.doc);
+    /* 넘긴 복사본은 이제 이 화면의 문서가 붙든다 */
+    holdPaths(holdKey, r.doc.sources.map((x) => x.path));
+    releaseHold(pickHold);
+    setSnap(null);
+    if (pickTarget.relink) {
+      if (relinkedPath) setMissing((m) => new Set([...m].filter((p) => p !== relinkedPath)));
+      return setNav(navRestore);
+    }
+    const p = activePair(r.doc);
     setTimes((t) => ({ a: p?.anchors.a ?? t.a, b: p?.anchors.b ?? 0 }));
     setFocus(p?.anchors.a == null ? 'a' : p.anchors.b == null ? 'b' : focus);
     setNav(navPickNext(nav));
+  };
+  const onPickCancel = () => {
+    releaseHold(pickHold);
+    back();
   };
   const realign = () => {
     const s = snapNow();
@@ -312,21 +425,34 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
     setFocus('a');
     setNav(navRealign(nav));
   };
-  const setMarks = (m: { a: number | null; b: number | null }, sem: AnchorSemantic = semantic === 'start' ? 'footContact' : semantic) =>
-    edit(updatePair(docRef.current, { anchors: m, semantic: sem }));
+  /* 기준이 바뀌면 상대 시각의 뜻이 바뀐다 — 반복 구간은 풀고(조용히 다른 장면을 되풀이하지 않게) 자리는 기준 장면으로 */
+  const trimHere = (s: SideKey, edge: 'start' | 'end') => {
+    const d = setTrim(docRef.current, s, edge, times[s], infoOf(s)?.duration ?? null);
+    if (!d) return toast(edge === 'start' ? '기준 장면보다 뒤에서는 시작할 수 없어요.' : '기준 장면보다 앞에서는 끝낼 수 없어요.', 'info');
+    edit(d);
+  };
+  const setMarks = (m: { a: number | null; b: number | null }, sem: AnchorSemantic = semantic === 'start' ? 'footContact' : semantic) => {
+    const p = activePair(docRef.current);
+    const moved = !p || p.anchors.a !== m.a || p.anchors.b !== m.b;
+    edit(updatePair(docRef.current, moved ? { anchors: m, semantic: sem, loop: null, rel: 0 } : { anchors: m, semantic: sem }));
+  };
   const startCompare = () => {
     if (!bothMarked(marks) || !readyA || !readyB || errA || errB) return;
+    /* 기준을 안 바꾸고 돌아오면 보던 자리로, 바꿨으면 기준 장면으로 */
+    const resume = snap && snap.marks.a === marks.a && snap.marks.b === marks.b ? snap.rel : 0;
     setSnap(null);
-    playerCall.seek(pa, marks.a);
-    playerCall.seek(pb, marks.b);
-    setTimes({ a: marks.a, b: marks.b });
+    playerCall.seek(pa, marks.a + resume);
+    playerCall.seek(pb, marks.b + resume);
+    setTimes({ a: marks.a + resume, b: marks.b + resume });
+    setRestore((r) => ({ ...r, target: resume, phase: 'waiting', nonce: r.nonce + 1 }));
     setNav(navCompare(nav));
   };
   /* 기준 없이 처음끼리 먼저 보기 — '시작점 기준'으로 분명히 적는다(같은 동작으로 맞춘 것이 아님) */
   const startFromBeginning = () => {
     if (!readyA || !readyB) return;
-    edit(updatePair(docRef.current, { semantic: 'start' }));
+    edit(updatePair(docRef.current, { semantic: 'start', loop: null, rel: 0 }));
     setSnap(null);
+    setRestore((r) => ({ ...r, target: 0, phase: 'waiting', nonce: r.nonce + 1 }));
     playerCall.seek(pa, ra?.start ?? 0);
     playerCall.seek(pb, rb?.start ?? 0);
     setTimes({ a: ra?.start ?? 0, b: rb?.start ?? 0 });
@@ -335,10 +461,7 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
   const back = () => {
     const r = navBack(nav, !!snap);
     if (r.to === 'restore' && snap) return restoreSnap(snap);
-    if (r.to === 'stage') {
-      setSelected(bPath);
-      return setNav(r.nav);
-    }
+    if (r.to === 'stage') return setNav(r.nav);
     stopAll();
     void saver.flush();
     onExit();
@@ -397,7 +520,7 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
   /* ---- 함께 보기 조작 ---- */
   const nudgeRel = (dir: 1 | -1) => {
     if (!range) return;
-    transport.seekRel(rel + dir * stepOf('a').step);
+    userSeek(rel + dir * stepOf('a').step);
   };
   const pickRate = () => {
     const options = [...COMPARE_RATES.map(rateLabel), '취소'];
@@ -415,12 +538,16 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
       edit({ ...docRef.current, transport: { ...docRef.current.transport, audio } });
     });
   };
-  const togglePlay = () => (phase === 'playing' || isBusy(phase) ? transport.pause() : transport.play());
+  const togglePlay = () => {
+    takeControl();
+    return phase === 'playing' || isBusy(phase) ? transport.pause() : transport.play();
+  };
   const setLoopHere = (edge: 'start' | 'end') => {
     if (!range) return;
-    const cur = pair?.loop ?? { start: range.min, end: range.max };
-    const next = edge === 'start' ? { start: Math.min(rel, cur.end - 0.1), end: cur.end } : { start: cur.start, end: Math.max(rel, cur.start + 0.1) };
-    if (next.end - next.start < 0.1) return toast('반복 구간이 너무 짧아요.', 'info');
+    const cur = loopSpan ?? { start: range.min, end: range.max };
+    const raw = edge === 'start' ? { start: Math.min(rel, cur.end - 0.1), end: cur.end } : { start: cur.start, end: Math.max(rel, cur.start + 0.1) };
+    const next = fitLoop(raw, range);
+    if (!next) return toast('반복 구간이 너무 짧아요.', 'info');
     edit(updatePair(docRef.current, { loop: next }));
   };
 
@@ -429,14 +556,16 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
   const [singleView, setSingleView] = useState<ViewTransform>(IDENTITY_VIEW);
   const viewOf = (s: SideKey): ViewTransform => (single ? singleView : s === 'a' ? views.a : views.b);
   /* 확대는 손가락을 따라 장면마다 바뀐다 — 화면 상태로 바로, 문서엔 조금 뒤에 */
-  const [liveViews, setLiveViews] = useState<{ a: ViewTransform; b: ViewTransform } | null>(null);
+  /* 손가락을 따라가는 값은 그 짝에만(F08 — 짝 · A·B 를 바꾸면 옛 짝의 확대가 새 짝을 덮지 않게) */
+  const [liveViews, setLiveViews] = useState<{ key: string; a: ViewTransform; b: ViewTransform } | null>(null);
   const setView = (s: SideKey, v: ViewTransform) => {
     if (single) return setSingleView(v);
-    const both = views.linked ? { a: { ...v, mirror: views.a.mirror }, b: { ...v, mirror: views.b.mirror } } : { a: s === 'a' ? v : views.a, b: s === 'b' ? v : views.b };
-    setLiveViews(both);
+    const base = liveViews && liveViews.key === pairKey ? liveViews : views;
+    const both = views.linked ? { a: { ...v, mirror: base.a.mirror }, b: { ...v, mirror: base.b.mirror } } : { a: s === 'a' ? v : base.a, b: s === 'b' ? v : base.b };
+    setLiveViews({ key: pairKey, ...both });
     edit(updatePair(docRef.current, { views: { ...both, linked: views.linked } }));
   };
-  const shownView = (s: SideKey) => (liveViews ? liveViews[s] : viewOf(s));
+  const shownView = (s: SideKey) => (liveViews && liveViews.key === pairKey ? liveViews[s] : viewOf(s));
   const overlay = pair?.overlay ?? { on: false, opacity: 0.5, wipe: null, reg: { dx: 0, dy: 0, scale: 1 } };
 
   /* ---- 그림 ---- */
@@ -452,6 +581,8 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
   const [drawSide, setDrawSide] = useState<SideKey>('a');
   const [selId, setSelId] = useState<string | null>(null);
   const drawing = tool === 'draw' && (stage === 'compare' || single);
+  /* 손가락으로 그리는 그 동안만 화면 굴림을 멈춘다(F08 — 그리기 도구를 켰다고 화면을 잠그면 영상 밑 도구에 못 간다) */
+  const [stroking, setStroking] = useState(false);
   useEffect(() => {
     if (drawing && phase !== 'idle') transport.pause();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -492,6 +623,7 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
       onMove: (id, g) => applyHistory(applyEdit(history, { op: 'update', id, patch: { geom: g } })),
       onSelect: setSelId,
       onNeedText: (p) => setSheet({ kind: 'label', side: s, p }),
+      onStroke: setStroking,
     };
   };
   const selectedAnn = history.items.find((x) => x.id === selId) ?? null;
@@ -511,7 +643,7 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
     if (!aSrc) return;
     const ta = timeOf(aSrc.events, e);
     if (ta == null || ma == null) return;
-    transport.seekRel(ta - ma);
+    userSeek(ta - ma);
     const tb = bSrc ? timeOf(bSrc.events, e) : null;
     if (tb != null && mb != null && !normalized) {
       const off = tb - mb - (ta - ma);
@@ -524,7 +656,7 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
     const tb = timeOf(bSrc.events, e);
     if (ta == null || tb == null) return;
     setMarks({ a: ta, b: tb }, e === 'footContact' || e === 'release' ? e : 'manual');
-    transport.seekRel(0);
+    userSeek(0);
   };
   const metricRows = useMemo(() => {
     const keys = [...new Set(history.items.map((x) => x.metric).filter((m): m is MetricKey => !!m))];
@@ -542,7 +674,7 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
   const openNote = (n: NoteRef) => {
     if (n.t == null) return;
     const s: SideKey = n.sourceId === bSrc?.id ? 'b' : 'a';
-    if (stage === 'compare' && ma != null) transport.seekRel(s === 'a' ? n.t - ma : n.t - (mb ?? 0));
+    if (stage === 'compare' && ma != null) userSeek(s === 'a' ? n.t - ma : n.t - (mb ?? 0));
     else seekSide(s, n.t);
   };
 
@@ -550,9 +682,23 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
   const more = () => {
     const actions: { label: string; run: () => void; destructive?: boolean }[] = [
       { label: '이름 바꾸기', run: () => setSheet({ kind: 'title' }) },
+      {
+        label: '이 비교 사본 만들기',
+        run: () => {
+          const st = compareStorage();
+          if (!st || !docRef.current.ownerId) return toast('로그인을 확인한 뒤에 만들 수 있어요.', 'info');
+          /* 사본은 영상을 '같이 쓴다'(owned 꺼짐) — 원본을 지워도 사본이 쓰는 영상은 남는다(F01) */
+          void st.save(duplicate(docRef.current, nowIso())).then((r) => {
+            void refreshRecent();
+            toast(r.ok ? '사본을 만들었어요. 최근 비교에서 열 수 있어요.' : '사본을 만들지 못했어요.', r.ok ? 'success' : 'error');
+          });
+        },
+      },
       { label: 'A 영상 정보', run: () => setSheet({ kind: 'info', side: 'a' }) },
     ];
+    actions.push({ label: 'A 영상 바꾸기', run: () => openPick('a') });
     if (bSrc) {
+      actions.push({ label: 'B 영상 바꾸기', run: () => openPick('b') });
       actions.push({ label: 'B 영상 정보', run: () => setSheet({ kind: 'info', side: 'b' }) });
       actions.push({
         label: 'A · B 바꾸기',
@@ -597,6 +743,8 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
               style: 'destructive',
               onPress: () => {
                 saver.stop();
+                everSaved.current = true; /* 지우기가 복사본을 정리한다 — 닫을 때 한 번 더 정리하지 않게 */
+                releaseHold(holdKey);
                 void deleteComparison(docRef.current.id).then(() => onExit());
               },
             },
@@ -608,10 +756,12 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
   };
 
   /* ---- 배치 ---- */
+  const [bodyW, setBodyW] = useState<number | null>(null);
   const big = fontScale >= 1.3;
   const wide = winW > winH;
   const shape = big ? 'stack' : doc.transport.layout === 'auto' ? (wide ? 'side' : 'stack') : doc.transport.layout;
-  const W = Math.min(winW - inset.left - inset.right, 1000) - 32;
+  /* 칸 폭은 실제로 받은 본문 폭(onLayout — READABLE 한도 · 안전 영역 · 분할 창이 이미 들어 있다). 재기 전엔 같은 셈으로 어림(F08) */
+  const W = bodyW ?? Math.min(winW, 720) - 32 - 2 * Math.max(inset.left, inset.right);
   const aspA = sides.a?.aspect ?? aSrc?.facts?.displayAspect ?? 9 / 16;
   const aspB = sides.b?.aspect ?? bSrc?.facts?.displayAspect ?? 9 / 16;
   const boxAspect = Math.min(2, Math.max(0.45, single ? aspA : Math.min(aspA, aspB)));
@@ -671,16 +821,20 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
     return (
       <>
         <Stack.Screen options={{ gestureEnabled: swipeOk }} />
-        <VideoGallery
-          pick={{
-            a: itemOf(aPath),
-            aPath,
-            selected,
-            onSelect: (v) => setSelected((s) => (s === v.path ? null : v.path)),
-            onBack: back,
-            next: { label: snap && selected === sourceOf(doc, snap.b)?.path ? '비교로 돌아가기' : '기준 장면 맞추기', onPress: pickNext },
-            knownMissing: missing,
+        <SourcePicker
+          doc={doc}
+          slot={pickTarget.slot}
+          relink={pickTarget.relink}
+          missing={missing}
+          itemOf={itemOf}
+          labelOf={(id) => {
+            const x = sourceOf(doc, id);
+            const it = itemOf(x?.path ?? null);
+            return it ? videoDateText(it.date) : (x?.label ?? (x?.date ? videoDateText(x.date) : x?.origin === 'photos' ? '사진 앱에서 가져온 영상' : x?.origin === 'camera' ? '앱에서 찍은 영상' : '영상'));
           }}
+          holdKey={pickHold}
+          onPick={onPicked}
+          onCancel={onPickCancel}
         />
       </>
     );
@@ -700,7 +854,12 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
       ? '시작점 기준 · 같은 동작으로 맞추지 않았어요'
       : normalized
         ? '동작 길이 맞춤 · 실제 시간과 다름'
-        : `${ANCHOR_LABEL[semantic]} 기준 · ${quality.state === 'measuring' ? '재생하면 맞춤 정도를 재요' : quality.state === 'close' ? `대략 맞음(재생기 기준 95% ${Math.round(quality.p95 ?? 0)}ms 안)` : `대략 맞춤(어긋남 최대 ${Math.round(quality.p95 ?? 0)}ms)`}`;
+        : `${ANCHOR_LABEL[semantic]} 기준${quality.state === 'measuring' ? '' : quality.state === 'close' ? ' · 대략 맞음' : ' · 대략 맞춤'}`;
+  /* 맞춤 정도의 자세한 말 — 재생기 시간 알림으로 어림한 값이다(화면에 실제 보인 장면끼리 잰 것이 아니다). 최대가 아니라 95% */
+  const syncDetail =
+    single || startBased || normalized || quality.state === 'measuring' || quality.p95 == null
+      ? null
+      : `재생기 시간 알림으로 어림하면 어긋남의 95%가 ${Math.round(quality.p95)}ms 안이에요. 실제 화면에 보인 장면끼리 잰 값은 아니에요.`;
   const plan = exportPlanFor(range, loop, ma, mb, rate, overlay.on ? 'overlay' : shape === 'side' ? 'side' : 'stack', { normalized: !!normalized, approx: quality.state === 'approx', start: startBased });
   const storyRows = (['kneePeak', 'handSep', 'footContact', 'maxER', 'release', 'followThrough'] as PitchEvent[])
     .map((e) => ({ event: e, a: aSrc ? timeOf(aSrc.events, e) : null, b: bSrc ? timeOf(bSrc.events, e) : null }))
@@ -727,7 +886,7 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
         </Press>
       </View>
       <ScrollView
-        scrollEnabled={!drawing}
+        scrollEnabled={!stroking}
         contentContainerStyle={[{ paddingHorizontal: 16 + Math.max(inset.left, inset.right), paddingTop: 4, gap: 14, paddingBottom: inset.bottom + (stage === 'align' && !single ? 200 : 40) }, READABLE]}
       >
         {review ? (
@@ -761,10 +920,23 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
           </View>
         ) : null}
 
-        {/* 영상 칸 */}
-        <View style={shape === 'side' && !single && !overlay.on ? { flexDirection: 'row', gap: 12 } : { gap: 14 }}>
-          <Pane key={aSrc?.id ?? 'a'} {...paneProps('a')} />
-          {bSrc ? <Pane key={bSrc.id} {...paneProps('b')} hidden={overlay.on && stage === 'compare'} onReplace={openPick} /> : null}
+        {/* 영상 칸 — 본문 폭을 여기서 잰다 */}
+        <View
+          onLayout={(e) => {
+            const w = Math.round(e.nativeEvent.layout.width);
+            if (w > 0 && w !== bodyW) setBodyW(w);
+          }}
+          style={shape === 'side' && !single && !overlay.on ? { flexDirection: 'row', gap: 12 } : { gap: 14 }}
+        >
+          <Pane key={aSrc?.id ?? 'a'} {...paneProps('a')} onReplace={() => openPick('a', errA && (errA.kind === 'missing' || errA.kind === 'gone') ? (aSrc?.id ?? null) : null)} />
+          {bSrc ? (
+            <Pane
+              key={bSrc.id}
+              {...paneProps('b')}
+              hidden={overlay.on && stage === 'compare'}
+              onReplace={() => openPick('b', errB && (errB.kind === 'missing' || errB.kind === 'gone') ? bSrc.id : null)}
+            />
+          ) : null}
         </View>
         {overlay.on && stage === 'compare' && pa && pb ? (
           <OverlayBox pa={pa} pb={pb} box={box} opacity={overlay.opacity} wipe={overlay.wipe} reg={overlay.reg} mirrorA={views.a.mirror} mirrorB={views.b.mirror} />
@@ -779,12 +951,12 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
             rate={rate}
             playLabel={playLabel}
             busy={isBusy(phase)}
-            onScrub={(t) => transport.seekRel(t)}
-            onStart={() => transport.pause()}
+            onScrub={(t) => userSeek(t)}
+            onStart={() => (takeControl(), transport.pause())}
             onNudge={(d) => nudgeSide('a', d)}
             onToggle={togglePlay}
             onRate={pickRate}
-            onAdd={openPick}
+            onAdd={() => openPick('b')}
           />
         ) : stage === 'align' ? (
           <View style={[st.panel, { backgroundColor: c.card }]}>
@@ -852,6 +1024,12 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
             <Text maxFontSizeMultiplier={1.6} style={[TYPE.sub, { color: c.muted }]}>
               {stepOf(focus).exact ? '이전 · 다음은 이 영상의 한 장면씩이에요.' : '이전 · 다음은 짐작한 장면 간격이에요(장면 간격이 고른지 모름).'}
             </Text>
+            {/* 영상별 다듬기(R09) — 이 짝에서 쓸 앞 · 뒤. 원본 파일은 그대로 */}
+            <Row wrap>
+              <Chip label={`${F} 여기부터`} disabled={!focusReady} onPress={() => trimHere(focus, 'start')} hint="이 장면 앞은 이 비교에서 안 써요" />
+              <Chip label={`${F} 여기까지`} disabled={!focusReady} onPress={() => trimHere(focus, 'end')} hint="이 장면 뒤는 이 비교에서 안 써요" />
+              {pair?.trims[focus] ? <Chip label={`${F} 다듬기 풀기`} onPress={() => edit(clearTrim(docRef.current, focus))} /> : null}
+            </Row>
           </View>
         ) : (
           <View style={[st.panel, { backgroundColor: c.card }]}>
@@ -870,8 +1048,8 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
               min={range?.min ?? 0}
               max={range?.max ?? 1}
               disabled={!canSync}
-              onStart={() => transport.pause()}
-              onSeek={(t) => transport.seekRel(t)}
+              onStart={() => (takeControl(), transport.pause())}
+              onSeek={(t) => userSeek(t)}
               step={stepOf('a').step}
               label="함께 재생할 위치"
               valueText={relText(rel)}
@@ -906,13 +1084,13 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
             {/* 도구 */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }} accessibilityRole="tablist">
               {(Object.keys(TOOL_LABEL) as Tool[]).map((k) => (
-                <Chip key={k} label={TOOL_LABEL[k]} on={tool === k} onPress={() => setTool(k)} />
+                <Chip key={k} label={TOOL_LABEL[k]} on={tool === k} onPress={() => setTool(tool === k ? null : k)} />
               ))}
             </ScrollView>
             {tool === 'align' ? (
               <View style={{ gap: 8 }}>
                 <Row wrap>
-                  <Chip label="맞춘 장면으로" disabled={!canSync} onPress={() => transport.seekRel(0)} />
+                  <Chip label="맞춘 장면으로" disabled={!canSync} onPress={() => userSeek(0)} />
                   <Chip label="장면 다시 맞추기" onPress={realign} />
                   <Chip label="여기서 반복 시작" disabled={!canSync} onPress={() => setLoopHere('start')} />
                   <Chip label="여기서 반복 끝" disabled={!canSync} onPress={() => setLoopHere('end')} />
@@ -937,11 +1115,35 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
                     <Chip label={overlay.wipe == null ? '반반 나누기' : '나누기 끄기'} onPress={() => edit(updatePair(docRef.current, { overlay: { ...overlay, wipe: overlay.wipe == null ? 0.5 : null } }))} />
                   </Row>
                 ) : null}
+                {overlay.on ? (
+                  /* 겹쳐 보기 자리 맞춤(R11) — B 를 A 의 몸 위에 손으로 맞춘다. 시간 맞춤과 따로 */
+                  <Row wrap>
+                    <Text style={[TYPE.sub, { color: c.muted }]}>B 자리</Text>
+                    {(
+                      [
+                        ['left', '왼쪽'],
+                        ['right', '오른쪽'],
+                        ['up', '위'],
+                        ['down', '아래'],
+                        ['bigger', '크게'],
+                        ['smaller', '작게'],
+                      ] as const
+                    ).map(([k, label]) => (
+                      <Chip key={k} label={label} onPress={() => edit(updatePair(docRef.current, { overlay: { ...overlay, reg: nudgeReg(overlay.reg, k) } }))} hint={`겹친 B 를 ${label}로 조금`} />
+                    ))}
+                    <Chip label="자리 풀기" onPress={() => edit(updatePair(docRef.current, { overlay: { ...overlay, reg: { ...IDENTITY_REG } } }))} />
+                  </Row>
+                ) : null}
                 <Text maxFontSizeMultiplier={1.6} style={[TYPE.sub, { color: c.muted }]}>
                   {normalized
-                    ? '동작 길이 맞춤에서는 걸린 시간 · 속도를 견주지 않아요. 실제 시간으로 돌아가려면 ‘실제 시간’.'
+                    ? '동작 길이 맞춤 · 실제 시간과 달라요. 짚은 첫 장면부터 마지막 장면까지만 재생하고, 걸린 시간 · 속도는 견주지 않아요.'
                     : '두 영상이 함께 재생되는 구간만 보여요. 기준은 A 를 주인 시계로 B 를 따라 맞춰요.'}
                 </Text>
+                {syncDetail ? (
+                  <Text maxFontSizeMultiplier={1.6} style={[TYPE.sub, { color: c.muted }]}>
+                    {syncDetail}
+                  </Text>
+                ) : null}
               </View>
             ) : null}
             {tool === 'draw' ? (
@@ -1024,7 +1226,7 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
           <View style={[st.panel, { backgroundColor: c.card }]}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
               {(['draw', 'events', 'notes'] as Tool[]).map((k) => (
-                <Chip key={k} label={TOOL_LABEL[k]} on={tool === k} onPress={() => setTool(tool === k ? 'align' : k)} />
+                <Chip key={k} label={TOOL_LABEL[k]} on={tool === k} onPress={() => setTool(tool === k ? null : k)} />
               ))}
             </ScrollView>
             {tool === 'draw' ? (
@@ -1069,7 +1271,7 @@ export function Workbench({ initial, start, onExit, exitIsBack }: { initial: Com
                 onClear={(e) => markEvent(e, null)}
                 onJump={(e) => {
                   const t = aSrc ? timeOf(aSrc.events, e) : null;
-                  if (t != null) transport.seekRel(t);
+                  if (t != null) userSeek(t);
                 }}
                 onAnchorHere={() => undefined}
                 metricRows={[]}

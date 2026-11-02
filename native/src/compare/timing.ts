@@ -174,7 +174,7 @@ export function syncQuality(samplesMs: readonly number[], frameMs: number | null
  */
 export const MIN_PHASE_SEC = 0.04;
 export type NormalizedMap = { a: number[]; b: number[] };
-export type NormalizedError = 'tooFew' | 'lengthMismatch' | 'notIncreasing' | 'tooShort' | 'invalid';
+export type NormalizedError = 'tooFew' | 'lengthMismatch' | 'notIncreasing' | 'tooShort' | 'invalid' | 'stretch';
 export function buildNormalized(a: readonly number[], b: readonly number[]): { ok: true; map: NormalizedMap } | { ok: false; error: NormalizedError } {
   if (a.length !== b.length) return { ok: false, error: 'lengthMismatch' };
   if (a.length < 2) return { ok: false, error: 'tooFew' };
@@ -187,8 +187,15 @@ export function buildNormalized(a: readonly number[], b: readonly number[]): { o
       }
     }
   }
+  /* 구간마다 B 속도 = A 속도 × 늘임 — 재생기가 고르게 낼 수 있는 배율(¼ ~ 4배) 밖이면 맞추지 않는다(F08) */
+  for (let i = 0; i < a.length - 1; i++) {
+    const k = (b[i + 1] - b[i]) / (a[i + 1] - a[i]);
+    if (!(k >= 1 / MAX_STRETCH && k <= MAX_STRETCH)) return { ok: false, error: 'stretch' };
+  }
   return { ok: true, map: { a: [...a], b: [...b] } };
 }
+/** 동작 길이 맞춤에서 B 를 늘이거나 줄이는 한계(배) */
+export const MAX_STRETCH = 4;
 
 /** 정규화 축 u → 두 영상 시각(구간 안 선형). u 는 [0, n−1] 로 묶는다 */
 export function normalizedTimes(m: NormalizedMap, u: number): { a: number; b: number } {
