@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, type Href } from 'expo-router';
 import { REASON_TEXT, WEEKDAY_LABELS, slotLine } from '@/lib/coach/answers';
@@ -10,9 +10,9 @@ import { COACH_POINTS } from '@/lib/coach-intro';
 import { loadMe } from '~/pitch/api';
 import { READABLE_WIDE } from '~/lib/layout';
 import { rpc } from '~/lib/rpc';
-import { SPACE, SURFACE, TYPE, usePalette } from '~/lib/ui';
+import { SPACE, SURFACE, TYPE, usePalette, useTheme, type Palette } from '~/lib/ui';
 import { PageHead, SectionHead } from '~/shell/heading';
-import { Icon } from '~/shell/icon';
+import { Icon, type IconName } from '~/shell/icon';
 import { MenuButton } from '~/shell/menu-button';
 import { Press } from '~/shell/press';
 import { pushOpen } from '~/shell/release';
@@ -28,17 +28,16 @@ import { AdjustBar } from './adjust';
 export function CoachIntro() {
   const c = usePalette();
   return (
-    <View style={[SURFACE.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <Icon name="clipboard-list" size={28} color={c.ink} />
-      <Text style={[TYPE.card, { color: c.ink }]}>내 상태에 맞춰 한 주 운동을 짜고 매일 고쳐 주는 코치예요.</Text>
-      <View style={{ gap: 6 }}>
+    <View style={[SURFACE.card, { backgroundColor: c.card, boxShadow: c.floatHero }]}>
+      <View style={[st.introIcon, { backgroundColor: c.skyTint }]}><Icon name="clipboard-list" size={25} color={c.link} /></View>
+      <Text style={[TYPE.hero, { color: c.ink }]}>내 일정에 맞춘 한 주 훈련</Text>
+      <Text style={[TYPE.body, { color: c.muted }]}>몸 상태와 경기 일정을 살펴 매일 계획을 조정해요.</Text>
+      <View style={[st.introPoints, { borderTopColor: c.line }]}>
         {COACH_POINTS.map((p) => (
-          <Text key={p} style={[TYPE.body, { color: c.muted }]}>
-            {p}
-          </Text>
+          <View key={p} style={st.introPoint}><Icon name="circle-check" size={17} color={c.link} /><Text style={[TYPE.body, { color: c.ink, flex: 1 }]}>{p}</Text></View>
         ))}
       </View>
-      <Text style={[TYPE.body, { color: c.ink, fontWeight: '600' }]}>유료 요금제 전용이에요.</Text>
+      <Text style={[TYPE.sub, { color: c.muted }]}>유료 요금제 전용이에요.</Text>
     </View>
   );
 }
@@ -61,31 +60,66 @@ type CoachWeekData = { today: string; weekStart?: string; week: DaySlot[] | null
 export function CoachMainTab({ bottom }: { bottom: number }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  /* null = 아직 모름(소개를 먼저 그렸다 바꾸면 유료 사용자에게 소개가 번쩍인다) */
-  const [paid, setPaid] = useState<boolean | null>(null);
-  useEffect(() => {
-    let alive = true;
-    loadMe().then(
-      (me) => alive && setPaid(me.coachPaid === true),
-      () => alive && setPaid(false)
-    );
-    return () => {
-      alive = false;
-    };
-  }, []);
-  /* 이번 주 — 코치 시작 화면 · 운동에서 돌아오거나 탭이 다시 보일 때 새로 받는다. undefined = 아직 모름 */
+  const [access, setAccess] = useState<'loading' | 'paid' | 'free' | 'error'>('loading');
   const [data, setData] = useState<CoachWeekData | undefined>(undefined);
-  const loadWeek = useCallback(() => {
-    rpc<CoachWeekData>('coach.loadCoachWeek').then(setData, () => undefined);
+  const [weekLoading, setWeekLoading] = useState(true);
+  const [weekError, setWeekError] = useState(false);
+  const [view, setView] = useState<'today' | 'week'>('today');
+  const [selectedDay, setSelectedDay] = useState(0);
+  const scroll = useRef<ScrollViewInstance>(null);
+  const accessRequest = useRef(0);
+  const weekRequest = useRef(0);
+  const checkAccess = useCallback(() => {
+    const request = ++accessRequest.current;
+    loadMe().then(
+      (me) => {
+        if (request !== accessRequest.current) return;
+        if (me.coachPaid !== true) setData(undefined);
+        setAccess(me.coachPaid === true ? 'paid' : 'free');
+      },
+      () => request === accessRequest.current && setAccess('error')
+    );
   }, []);
   useEffect(() => {
-    if (paid) loadWeek();
-  }, [paid, loadWeek]);
-  useFocusRefresh(() => paid && loadWeek());
+    checkAccess();
+    return () => {
+      accessRequest.current += 1;
+      weekRequest.current += 1;
+    };
+  }, [checkAccess]);
+  const loadWeek = useCallback(() => {
+    const request = ++weekRequest.current;
+    rpc<CoachWeekData>('coach.loadCoachWeek').then(
+      (next) => {
+        if (request !== weekRequest.current) return;
+        setData(next);
+        const today = next.week?.findIndex((s) => s.date === next.today) ?? -1;
+        if (today >= 0) setSelectedDay(today);
+        setWeekLoading(false);
+      },
+      () => {
+        if (request !== weekRequest.current) return;
+        setWeekError(true);
+        setWeekLoading(false);
+      }
+    );
+  }, []);
+  useEffect(() => {
+    if (access === 'paid') loadWeek();
+  }, [access, loadWeek]);
+  useFocusRefresh(() => access === 'paid' && loadWeek());
+  const retryAccess = () => { setAccess('loading'); checkAccess(); };
+  const retryWeek = () => { setWeekLoading(true); setWeekError(false); loadWeek(); };
   const week = data?.week ?? null;
   const todayAt = week && data ? week.findIndex((s) => s.date === data.today) : -1;
+  const openWeek = (day = todayAt) => {
+    if (day >= 0) setSelectedDay(day);
+    setView('week');
+    scroll.current?.scrollTo({ y: 0, animated: false });
+  };
   return (
     <ScrollView
+      ref={scroll}
       style={{ flex: 1, backgroundColor: c.page }}
       contentContainerStyle={[
         { paddingTop: inset.top + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap },
@@ -93,83 +127,105 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
       ]}
     >
       <PageHead title="코치">
+        {access === 'paid' && week ? (
+          <Press accessibilityRole="button" accessibilityLabel="코치 설정" onPress={() => router.push('/coach-settings' as Href)} style={st.setting}>
+            <Icon name="settings" size={21} color={c.ink} />
+          </Press>
+        ) : null}
         <MenuButton />
       </PageHead>
-      {paid === false ? <CoachIntro /> : null}
-      {paid ? (
-        <>
-          {data && !week ? (
-            <Press accessibilityRole="button" onPress={() => router.push('/coach-start' as Href)} style={[st.start, { backgroundColor: c.action }]}>
-              <Text style={[TYPE.card, { color: c.onAction }]}>코치 시작하기</Text>
-            </Press>
-          ) : null}
-          {data?.review ? <ReviewCard review={data.review} thisWeek={data.review.weekStart === data.weekStart} onDone={loadWeek} /> : null}
-          {week && data && todayAt >= 0 ? (
-            <TodayCard slot={week[todayAt]} state={data.states?.[todayAt] ?? 'today'} checkedIn={data.checkedIn} onDone={loadWeek} />
-          ) : null}
-          {week && data?.states ? <AdjustBar week={week} states={data.states} today={data.today} onDone={loadWeek} /> : null}
-          {week ? (
-            <Press
-              accessibilityRole="button"
-              onPress={() => router.push('/coach-chat' as Href)}
-              style={[st.row, st.group, { backgroundColor: c.card, boxShadow: c.float }]}
-            >
-              <Icon name="chat" size={20} color={c.link} />
-              <Text style={[TYPE.card, { flex: 1, color: c.ink }]}>코치에게 말하기</Text>
-              <Icon name="chevron-right" size={18} color={c.muted} />
-            </Press>
-          ) : null}
-          {week && data ? (
-            <>
-              <SectionHead title="이번 주" />
-              <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
-                {week.map((s, k) => {
-                  const state = data.states?.[k];
-                  const isToday = k === todayAt;
-                  return (
-                    <View key={s.date} style={[st.day, k > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
-                      <Text style={[TYPE.body, { width: 30, fontWeight: '700', color: isToday ? c.link : c.muted }]}>{isToday ? '오늘' : WEEKDAY_LABELS[k]}</Text>
-                      <Text style={[TYPE.body, { flex: 1, color: state === 'missed' ? c.muted : c.ink }]}>{slotLine(s)}</Text>
-                      {state === 'done' ? <Icon name="check" size={18} color={c.link} /> : null}
-                      {state === 'missed' ? <Text style={[TYPE.sub, { color: c.muted }]}>못 함</Text> : null}
-                    </View>
-                  );
-                })}
-              </View>
-            </>
-          ) : null}
-          <SectionHead title="리뷰" />
-          <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
-            {REVIEWS.map((r, i) => (
-              <Press
-                key={r.view}
-                accessibilityRole="link"
-                onPress={() => pushOpen(`/analysis?view=${r.view}` as Href)}
-                style={[st.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}
-              >
-                <Icon name="chart-no-axes-column" size={20} color={c.link} />
-                <Text style={[TYPE.card, { flex: 1, color: c.ink }]}>{r.label}</Text>
-                <Icon name="chevron-right" size={18} color={c.muted} />
-              </Press>
-            ))}
-          </View>
-          {week ? (
-            <Press
-              accessibilityRole="link"
-              onPress={() => router.push('/coach-start' as Href)}
-              style={[st.row, st.group, { backgroundColor: c.card, boxShadow: c.float }]}
-            >
-              <Text style={[TYPE.card, { flex: 1, color: c.ink }]}>코치 답 고치기</Text>
-              <Icon name="chevron-right" size={18} color={c.muted} />
-            </Press>
-          ) : null}
-        </>
+      {access === 'loading' || (access === 'paid' && weekLoading && !data) ? <ActivityIndicator color={c.action} style={st.loading} /> : null}
+      {access === 'error' ? <ErrorState title="코치 이용 상태를 확인하지 못했어요" detail="네트워크를 확인하고 다시 시도해 주세요." onRetry={retryAccess} c={c} /> : null}
+      {access === 'free' ? <CoachIntro /> : null}
+      {access === 'paid' && weekError ? (
+        <ErrorState title={data ? '새 계획을 확인하지 못했어요' : '이번 주 계획을 불러오지 못했어요'} detail={data ? '마지막으로 불러온 계획이 보여요.' : '다시 불러오면 이어서 볼 수 있어요.'} onRetry={retryWeek} c={c} />
+      ) : null}
+      {access === 'paid' && data && !week ? (
+        <View style={[st.startCard, { backgroundColor: c.card, boxShadow: c.floatHero }]}>
+          <Text style={[st.kicker, { color: c.link }]}>PERSONAL COACH</Text>
+          <Text style={[TYPE.hero, { color: c.ink }]}>코치를 시작해 볼까요?</Text>
+          <Text style={[TYPE.body, { color: c.muted }]}>목표와 등판 일정, 운동할 수 있는 시간을 알려 주면 첫 주 계획을 미리 보여 드려요.</Text>
+          <Press accessibilityRole="button" onPress={() => router.push('/coach-start' as Href)} style={[st.start, { backgroundColor: c.action }]}>
+            <Text style={[TYPE.button, { color: c.onAction }]}>코치 시작하기</Text>
+          </Press>
+        </View>
+      ) : null}
+      {access === 'paid' && data && !week ? <><SectionHead title="리뷰" /><View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>{REVIEWS.map((r, i) => <Press key={r.view} accessibilityRole="link" onPress={() => pushOpen(`/analysis?view=${r.view}` as Href)} style={[st.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}><Icon name="chart-no-axes-column" size={19} color={c.link} /><Text style={[TYPE.body, { flex: 1, color: c.ink }]}>{r.label}</Text><Icon name="chevron-right" size={17} color={c.muted} /></Press>)}</View></> : null}
+      {access === 'paid' && data && week ? (
+        view === 'today' ? (
+          <>
+            <View style={st.titleRow}>
+              <View style={{ flex: 1 }}><Text style={[st.kicker, { color: c.link }]}>{weekLabel(week)} · 오늘</Text><Text accessibilityRole="header" style={[TYPE.hero, { color: c.ink }]}>오늘의 계획</Text></View>
+              <TextLink label="한 주 보기" onPress={() => openWeek()} c={c} />
+            </View>
+            {todayAt >= 0 ? <TodayCard slot={week[todayAt]} state={data.states?.[todayAt] ?? 'today'} checkedIn={data.checkedIn} onDone={loadWeek} onAdjust={() => openWeek()} /> : <ErrorState title="오늘 계획을 확인할 수 없어요" detail="이번 주 계획을 다시 불러와 주세요." onRetry={retryWeek} c={c} />}
+            <SectionHead title="이번 주 한눈에" action="전체 일정" onAction={() => openWeek()} />
+            <WeekRail week={week} states={data.states} todayAt={todayAt} selectedDay={todayAt} onSelect={openWeek} c={c} />
+            <View style={st.legend}><Legend color={c.ok} text="완료" c={c} /><Legend color={c.link} text="오늘" c={c} /><Legend color={c.warn} text="못 한 운동" c={c} /></View>
+            {data.review ? <NavRow label="지난주 돌아보기" icon="chart-no-axes-column" onPress={() => openWeek()} c={c} /> : null}
+            <NavRow label="코치에게 일정 말하기" icon="chat" onPress={() => router.push('/coach-chat' as Href)} c={c} />
+          </>
+        ) : (
+          <>
+            <View style={st.titleRow}>
+              <View style={{ flex: 1 }}><Text style={[st.kicker, { color: c.link }]}>{weekLabel(week)}</Text><Text accessibilityRole="header" style={[TYPE.hero, { color: c.ink }]}>이번 주</Text></View>
+              <TextLink label="오늘 보기" onPress={() => { setView('today'); scroll.current?.scrollTo({ y: 0, animated: false }); }} c={c} />
+            </View>
+            <Text style={[TYPE.body, { color: c.muted }]}>날마다 큰 방향을 정해요. 운동 목록은 그날 몸 상태를 확인한 뒤 만들어요.</Text>
+            <WeekRail week={week} states={data.states} todayAt={todayAt} selectedDay={selectedDay} onSelect={setSelectedDay} c={c} />
+            <View style={[st.selected, { backgroundColor: c.card, boxShadow: c.float }]}>
+              <View style={st.titleRow}><Text style={[TYPE.card, { flex: 1, color: c.ink }]}>{WEEKDAY_LABELS[selectedDay]}요일 · {slotLine(week[selectedDay] ?? week[0])}</Text><Text style={[st.pill, { color: c.link, backgroundColor: c.skyTint }]}>{statusText(data.states?.[selectedDay] ?? 'later')}</Text></View>
+              <Text style={[TYPE.body, { color: c.muted }]}>{(week[selectedDay] ?? week[0]).reasons.filter((r) => r !== 'rest').map((r) => REASON_TEXT[r]).join(' · ') || '이번 주 기본 계획'}</Text>
+            </View>
+            {data.states ? <AdjustBar week={week} states={data.states} today={data.today} onDone={loadWeek} /> : null}
+            <SectionHead title="7일 계획" />
+            <WeekRows week={week} states={data.states} todayAt={todayAt} c={c} />
+            {data.review ? <ReviewCard review={data.review} thisWeek={data.review.weekStart === data.weekStart} onDone={loadWeek} /> : null}
+            <SectionHead title="리뷰" />
+            <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>{REVIEWS.map((r, i) => <Press key={r.view} accessibilityRole="link" onPress={() => pushOpen(`/analysis?view=${r.view}` as Href)} style={[st.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}><Icon name="chart-no-axes-column" size={19} color={c.link} /><Text style={[TYPE.body, { flex: 1, color: c.ink }]}>{r.label}</Text><Icon name="chevron-right" size={17} color={c.muted} /></Press>)}</View>
+            <View style={st.bottomActions}><Press accessibilityRole="button" onPress={() => router.push('/coach-start' as Href)} style={[st.secondaryButton, { backgroundColor: c.card, borderColor: c.line }]}><Text style={[TYPE.body, { color: c.ink, fontWeight: '600' }]}>답 고치기</Text></Press><Press accessibilityRole="button" onPress={() => router.push('/coach-settings' as Href)} style={[st.secondaryButton, { backgroundColor: c.card, borderColor: c.line }]}><Text style={[TYPE.body, { color: c.ink, fontWeight: '600' }]}>코치 설정</Text></Press></View>
+          </>
+        )
       ) : null}
     </ScrollView>
   );
 }
 
-/** 주간 리뷰(U37) — 일요일 저녁 ~ 월요일, [확인]하면 접힌다. 글은 서버가 정해진 문장으로(lib/coach/review.ts) */
+const statusText = (state: SlotState) => ({ done: '완료', missed: '못 함', today: '오늘', later: '예정', off: '지난 휴식' })[state];
+const weekLabel = (week: DaySlot[]) => `${week[0]?.date.slice(5).replace('-', '.') ?? ''}—${week[6]?.date.slice(5).replace('-', '.') ?? ''}`;
+
+function ErrorState({ title, detail, onRetry, c }: { title: string; detail: string; onRetry: () => void; c: Palette }) {
+  return <View style={[st.error, { backgroundColor: c.warnBg, borderColor: c.warnLine }]}><Text style={[TYPE.card, { color: c.ink }]}>{title}</Text><Text style={[TYPE.body, { color: c.muted }]}>{detail}</Text><Press accessibilityRole="button" onPress={onRetry} style={[st.retry, { backgroundColor: c.card, borderColor: c.line }]}><Icon name="rotate-ccw" size={16} color={c.link} /><Text style={[TYPE.body, { color: c.link, fontWeight: '600' }]}>다시 확인</Text></Press></View>;
+}
+
+function TextLink({ label, onPress, c }: { label: string; onPress: () => void; c: Palette }) {
+  return <Press accessibilityRole="button" onPress={onPress} style={st.textLink}><Text style={[TYPE.body, { color: c.link, fontWeight: '600' }]}>{label} →</Text></Press>;
+}
+
+function NavRow({ label, icon, onPress, c }: { label: string; icon: IconName; onPress: () => void; c: Palette }) {
+  return <Press accessibilityRole="button" onPress={onPress} style={[st.navRow, { backgroundColor: c.card, boxShadow: c.float }]}><Icon name={icon} size={19} color={c.link} /><Text style={[TYPE.body, { flex: 1, color: c.ink, fontWeight: '600' }]}>{label}</Text><Icon name="chevron-right" size={17} color={c.muted} /></Press>;
+}
+
+function WeekRail({ week, states, todayAt, selectedDay, onSelect, c }: { week: DaySlot[]; states: SlotState[] | null; todayAt: number; selectedDay: number; onSelect: (day: number) => void; c: Palette }) {
+  return <View style={st.rail}>{week.map((slot, index) => {
+    const state = states?.[index] ?? 'later';
+    const selected = index === selectedDay;
+    return <Press key={slot.date} accessibilityRole="button" accessibilityLabel={`${WEEKDAY_LABELS[index]}요일 ${statusText(state)}, ${slotLine(slot)}`} accessibilityState={{ selected }} select selected={selected} onPress={() => onSelect(index)} style={[st.railDay, { backgroundColor: selected ? c.skyTint : c.card, borderColor: selected ? c.link : c.line }]}><Text style={[TYPE.sub, { color: selected || index === todayAt ? c.link : c.muted }]}>{WEEKDAY_LABELS[index]}</Text><Text style={[TYPE.card, { color: selected ? c.link : c.ink }]}>{Number(slot.date.slice(8))}</Text><View style={[st.dot, { backgroundColor: state === 'done' ? c.ok : state === 'missed' ? c.warn : index === todayAt ? c.link : c.lineStrong }]} /></Press>;
+  })}</View>;
+}
+
+function Legend({ color, text, c }: { color: string; text: string; c: Palette }) {
+  return <View style={st.legendItem}><View style={[st.dot, { backgroundColor: color }]} /><Text style={[TYPE.sub, { color: c.muted }]}>{text}</Text></View>;
+}
+
+function WeekRows({ week, states, todayAt, c }: { week: DaySlot[]; states: SlotState[] | null; todayAt: number; c: Palette }) {
+  return <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>{week.map((slot, index) => {
+    const status = states?.[index] ?? 'later';
+    return <View key={slot.date} style={[st.row, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }, index === todayAt && { backgroundColor: c.skyTint }]}><Text style={[TYPE.body, { width: 28, color: index === todayAt ? c.link : c.muted, fontWeight: '700' }]}>{WEEKDAY_LABELS[index]}</Text><Text style={[TYPE.body, { flex: 1, color: status === 'missed' ? c.muted : c.ink }]}>{slotLine(slot)}</Text><Text style={[TYPE.sub, { color: status === 'done' ? c.ok : status === 'missed' ? c.warn : c.muted }]}>{statusText(status)}</Text></View>;
+  })}</View>;
+}
+
+/** 주간 리뷰(U37) — 일요일 저녁 ~ 월요일, [확인]하면 접힌다. */
 function ReviewCard({ review, thisWeek, onDone }: { review: WeekReview; thisWeek: boolean; onDone: () => void }) {
   const c = usePalette();
   const [busy, setBusy] = useState(false);
@@ -188,8 +244,8 @@ function ReviewCard({ review, thisWeek, onDone }: { review: WeekReview; thisWeek
   };
   return (
     <View style={[SURFACE.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <Text style={[TYPE.sub, { color: c.muted }]}>{thisWeek ? '이번 주 돌아보기' : '지난주 돌아보기'}</Text>
-      <Text style={[TYPE.hero, { color: c.ink }]}>{review.planned ? `${review.done} / ${review.planned}일` : '쉬어 간 주'}</Text>
+      <Text style={[st.kicker, { color: c.link }]}>{thisWeek ? '이번 주 돌아보기' : '지난주 돌아보기'}</Text>
+      <Text style={[TYPE.section, { color: c.ink }]}>{review.planned ? `${review.planned}일 중 ${review.done}일 완료` : '쉬어 간 주'}</Text>
       <View style={{ gap: 4 }}>
         {review.lines.map((l) => (
           <Text key={l} style={[TYPE.body, { color: c.ink }]}>
@@ -197,16 +253,17 @@ function ReviewCard({ review, thisWeek, onDone }: { review: WeekReview; thisWeek
           </Text>
         ))}
       </View>
-      <Press accessibilityRole="button" disabled={busy} onPress={() => void ack()} style={[st.start, { backgroundColor: c.action }]}>
-        <Text style={[TYPE.card, { color: c.onAction }]}>확인</Text>
+      <Press accessibilityRole="button" disabled={busy} onPress={() => void ack()} style={[st.reviewAck, { backgroundColor: c.skyTint }]}>
+        <Text style={[TYPE.body, { color: c.link, fontWeight: '600' }]}>리뷰 확인</Text>
       </Press>
     </View>
   );
 }
 
 /** 오늘 계획(크게) — 무엇을 · 왜 · [시작]. 운동 날인데 체크인 전이면 체크인부터(오늘 상태를 알아야 맞춘다), 시작 단추는 밑에 그대로 */
-function TodayCard({ slot, state, checkedIn, onDone }: { slot: DaySlot; state: SlotState; checkedIn: boolean; onDone: () => void }) {
+function TodayCard({ slot, state, checkedIn, onDone, onAdjust }: { slot: DaySlot; state: SlotState; checkedIn: boolean; onDone: () => void; onAdjust: () => void }) {
   const c = usePalette();
+  const theme = useTheme();
   const [busy, setBusy] = useState(false);
   /* 하루의 주인(U38) — 사용자가 가져간 오늘을 코치에게 돌려준다 */
   const takeBack = async () => {
@@ -226,53 +283,67 @@ function TodayCard({ slot, state, checkedIn, onDone }: { slot: DaySlot; state: S
   const needCheckin = !checkedIn && starts.some((x) => x.kind === 'train');
   const why = slot.reasons.filter((r) => r !== 'rest').map((r) => REASON_TEXT[r]);
   const main = needCheckin
-    ? { label: '체크인부터', onPress: () => openCheckin() }
+    ? { label: '몸 상태 체크인', onPress: () => openCheckin() }
     : starts[0]
       ? { label: starts[0].label, onPress: () => pushOpen(starts[0].path as Href) }
       : null;
   const more = needCheckin ? starts : starts.slice(1);
-  return (
-    <View style={[SURFACE.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <Text style={[TYPE.sub, { color: c.muted }]}>오늘</Text>
-      <Text style={[TYPE.hero, { color: c.ink }]}>{slotLine(slot)}</Text>
-      {why.length ? <Text style={[TYPE.body, { color: c.muted }]}>{why.join(' · ')}</Text> : null}
-      {state === 'done' ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Icon name="circle-check" size={18} color={c.link} />
-          <Text style={[TYPE.body, { color: c.ink }]}>오늘 한 것이 있어요</Text>
-        </View>
-      ) : null}
-      {slot.owner === 'user' ? (
-        <View style={{ gap: 2 }}>
-          <Text style={[TYPE.sub, { color: c.muted }]}>오늘은 직접 만든 운동으로 해요.</Text>
-          <Press accessibilityRole="button" disabled={busy} onPress={() => void takeBack()} style={st.link}>
-            <Text style={[TYPE.card, { color: c.link }]}>오늘 다시 코치에게</Text>
-          </Press>
-        </View>
-      ) : null}
-      {needCheckin ? <Text style={[TYPE.sub, { color: c.muted }]}>체크인하면 오늘 몸 상태에 맞춰 만들어요.</Text> : null}
-      {main ? (
-        <Press accessibilityRole="button" onPress={main.onPress} style={[st.start, { backgroundColor: c.action }]}>
-          <Text style={[TYPE.card, { color: c.onAction }]}>{main.label}</Text>
-        </Press>
-      ) : null}
-      {more.length ? (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 20 }}>
-          {more.map((x) => (
-            <Press key={x.kind} accessibilityRole="link" onPress={() => pushOpen(x.path as Href)} style={st.link}>
-              <Text style={[TYPE.card, { color: c.link }]}>{x.label}</Text>
-            </Press>
-          ))}
-        </View>
-      ) : null}
+  return <>
+    <View style={[st.focus, { backgroundColor: theme === 'light' ? '#132c50' : '#18365e' }]}>
+      <Text style={st.focusKicker}>TODAY&apos;S FOCUS</Text>
+      <Text style={[TYPE.hero, { color: '#ffffff' }]}>{slotLine(slot)}</Text>
+      <Text style={st.focusCopy}>{why.length ? why.join(' · ') : '이번 주 일정에 맞춘 계획이에요.'}</Text>
+      {state === 'done' ? <Text style={st.focusDone}>✓ 오늘 한 것이 있어요</Text> : null}
+      {slot.owner === 'user' ? <Text style={st.focusCopy}>오늘은 직접 만든 운동으로 해요.</Text> : null}
+      {needCheckin ? <Text style={st.focusCopy}>체크인하면 오늘 몸 상태에 맞춰 운동을 만들어요.</Text> : null}
+      {main ? <Press accessibilityRole="button" onPress={main.onPress} style={st.focusButton}><Text style={[TYPE.button, { color: '#17345a' }]}>{main.label} →</Text></Press> : null}
     </View>
-  );
+    {more.length || slot.owner === 'user' ? <View style={st.extraActions}>
+      {more.map((x) => <Press key={x.kind} accessibilityRole="link" onPress={() => pushOpen(x.path as Href)} style={st.link}><Text style={[TYPE.body, { color: c.link, fontWeight: '600' }]}>{x.label} →</Text></Press>)}
+      {slot.owner === 'user' ? <Press accessibilityRole="button" disabled={busy} onPress={() => void takeBack()} style={st.link}><Text style={[TYPE.body, { color: c.link, fontWeight: '600' }]}>오늘 다시 코치에게</Text></Press> : null}
+    </View> : null}
+    <SectionHead title="오늘 이렇게 잡은 이유" />
+    <View style={[st.reasonCard, { backgroundColor: c.card, boxShadow: c.float }]}>
+      <View style={st.reasonRow}><Icon name="calendar-days" size={20} color={c.link} /><View style={{ flex: 1, gap: 4 }}><Text style={[TYPE.card, { color: c.ink }]}>{why.length ? why.join(' · ') : '이번 주 기본 계획'}</Text><Text style={[TYPE.body, { color: c.muted }]}>이번 주 일정과 기록을 반영했어요.</Text></View></View>
+      <Press accessibilityRole="button" onPress={onAdjust} style={[st.reasonLink, { borderTopColor: c.line }]}><Icon name="move" size={17} color={c.link} /><Text style={[TYPE.body, { flex: 1, color: c.ink, fontWeight: '600' }]}>오늘 시간이 달라졌나요?</Text><Icon name="chevron-right" size={17} color={c.muted} /></Press>
+    </View>
+  </>;
 }
 
 const st = StyleSheet.create({
+  introIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  introPoints: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, gap: 11 },
+  introPoint: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   group: { borderRadius: 20, overflow: 'hidden' },
   row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
-  day: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
   start: { minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   link: { minHeight: 44, justifyContent: 'center' },
+  loading: { marginTop: 70 },
+  setting: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  kicker: { fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 5 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
+  textLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 3 },
+  startCard: { borderRadius: 20, padding: 20, gap: 14 },
+  error: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 8 },
+  retry: { minHeight: 44, borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, marginTop: 4 },
+  rail: { flexDirection: 'row', gap: 5 },
+  railDay: { flex: 1, minWidth: 0, minHeight: 66, borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  navRow: { minHeight: 54, borderRadius: 16, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  selected: { borderRadius: 18, padding: 16, gap: 6 },
+  pill: { borderRadius: 12, overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 5, fontSize: 12, fontWeight: '700' },
+  bottomActions: { flexDirection: 'row', gap: 8 },
+  secondaryButton: { flex: 1, minHeight: 47, borderRadius: 13, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  focus: { borderRadius: 22, padding: 20, gap: 11 },
+  focusKicker: { color: '#d5e6ff', fontSize: 12, fontWeight: '700', letterSpacing: 1 },
+  focusCopy: { color: '#dce9fb', fontSize: 14, lineHeight: 20 },
+  focusDone: { color: '#c7f7df', fontSize: 14, fontWeight: '600' },
+  focusButton: { minHeight: 50, borderRadius: 14, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center', marginTop: 4, paddingHorizontal: 12 },
+  extraActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  reasonCard: { borderRadius: 17, paddingHorizontal: 15, paddingTop: 15 },
+  reasonRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, paddingBottom: 13 },
+  reasonLink: { borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 50 },
+  reviewAck: { minHeight: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
 });

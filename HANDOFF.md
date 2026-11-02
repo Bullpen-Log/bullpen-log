@@ -11,6 +11,10 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-11-02 · 김민(Codex, 코치 UI) — 코치 설정 모달 경로 추가
+
+사용자가 승인한 코치 1차 시안을 새 앱에 반영했다. 네 앱 틀 영역 `native/src/app/_layout.tsx`에는 `/coach-settings` 모달 등록 한 줄만 추가했다. 코치 탭은 오늘·이번 주 보기, 오류 재시도, 일정 조정 진입을 정리했고 새 설정 화면에서 기존 서버 동작 `coach-chat.revokeCoachAi`·`clearCoachChat`을 부른다. `scripts/native-api-shapes.json`에 두 동작을 반영했다. DB 구조·패키지·앱 바닥 변경은 없다.
+
 ## 김민에게 — 2026-11-02 · 금윤호(Claude, 윤호 맥북) — 영상 비교 독립 검토 교정(F01~F08) · **네 갤러리 · 아이콘 부품을 조금 고쳤다**
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). 검토 `docs/designs/sinker-pitch-video-workbench-review-2026-11-02.md`, 결과 표는 대장 `-ledger.md` 의 'F01–F08' 절.

@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { agreeHealthConsent, loadCoachStart, previewCoachWeek, saveCoachAnswer, startCoach } from '@/app/actions/coach';
 import { COACH_POINTS } from '@/lib/coach-intro';
@@ -21,6 +21,8 @@ import { rpc } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { ChoiceChips, StepFrame, SummaryRows } from '~/setup/frame';
 import { toast } from '~/shell/toast';
+import { ActionButton } from '~/shell/action-button';
+import { Icon } from '~/shell/icon';
 
 /**
  * 코치 시작(앱 화면, docs/designs/ai-coach.md 10-4) — 소개 → 내 정보 확인 → (건강정보 동의) → 목표 · 등판 · 팀 훈련 · 가능 요일 · 장소 · 제한 →
@@ -42,25 +44,23 @@ export default function CoachStartScreen() {
   const [preview, setPreview] = useState<Extract<Preview, { ok: true }> | null>(null);
   const [withProgram, setWithProgram] = useState(true);
 
-  useEffect(() => {
-    let alive = true;
+  const loadStart = useCallback(() => {
     rpc<Start>('coach.loadCoachStart').then(
       (r) => {
-        if (!alive) return;
         setStart(r);
         setA(r.answers);
       },
-      () => alive && setFailed(true)
+      () => setFailed(true)
     );
-    return () => {
-      alive = false;
-    };
   }, []);
+  useEffect(() => {
+    loadStart();
+  }, [loadStart]);
 
   if (!start) {
     return (
       <View style={[st.center, { backgroundColor: c.page }]}>
-        {failed ? <Text style={{ color: c.ink, fontSize: 15 }}>신호가 약해 불러오지 못했어요.</Text> : <ActivityIndicator />}
+        {failed ? <View style={{ padding: 20, gap: 12, alignItems: 'center' }}><Text style={{ color: c.ink, fontSize: 15 }}>코치 시작 정보를 불러오지 못했어요.</Text><ActionButton label="다시 확인" compact onPress={() => { setFailed(false); loadStart(); }} /></View> : <ActivityIndicator />}
       </View>
     );
   }
@@ -82,8 +82,8 @@ export default function CoachStartScreen() {
       setA(r.answers);
       if (order[at + 1] === 'preview') await loadPreview();
       next();
-    } catch {
-      setProblem('신호가 약해 저장하지 못했어요. 다시 해 주세요.');
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : '신호가 약해 저장하지 못했어요. 다시 해 주세요.');
     } finally {
       setBusy(false);
     }
@@ -137,12 +137,12 @@ export default function CoachStartScreen() {
 
   /* 관문 — 무료 · 나이는 소개에서 멈춘다(결제 안내 · 링크 없음, U13) */
   if (start.gate === 'free' || start.gate === 'age')
-    return frame('코치', start.gate === 'free' ? '유료 요금제 전용이에요.' : '만 14세부터 쓸 수 있어요.', { label: '닫기', onPress: () => router.back() }, <Points c={c} />);
+    return frame('코치', start.gate === 'free' ? '유료 요금제 전용이에요.' : '만 14세부터 쓸 수 있어요.', { label: '닫기', onPress: () => router.back() }, <Points />);
 
   const i = start.info;
   switch (page) {
     case 'intro':
-      return frame('코치 시작하기', '2~3분이면 돼요. 고른 답은 화면마다 저장돼요.', { label: '시작', onPress: next }, <Points c={c} />);
+      return frame('코치 시작하기', '2~3분이면 돼요. 고른 답은 화면마다 저장돼요.', { label: '시작', onPress: next }, <Points />);
     case 'info':
       return frame(
         '내 정보가 맞나요?',
@@ -269,13 +269,14 @@ export default function CoachStartScreen() {
   }
 }
 
-function Points({ c }: { c: Palette }) {
+function Points() {
   return (
-    <View style={{ gap: 8 }}>
+    <View style={[st.introPanel, { backgroundColor: '#132c50' }]}>
+      <Text style={st.introKicker}>PERSONAL COACH</Text>
+      <Text style={st.introTitle}>내 일정에 맞춘 한 주 훈련</Text>
+      <Text style={st.introDesc}>계획을 먼저 보고, 상황이 바뀌면 직접 조정해요.</Text>
       {COACH_POINTS.map((p) => (
-        <Text key={p} style={{ color: c.ink, fontSize: 17, lineHeight: 24 }}>
-          {p}
-        </Text>
+        <View key={p} style={st.pointRow}><Icon name="circle-check" size={17} color="#c8e5ff" /><Text style={{ color: '#ffffff', fontSize: 15, lineHeight: 22, flex: 1 }}>{p}</Text></View>
       ))}
     </View>
   );
@@ -328,6 +329,11 @@ function DayChips(p: { legend?: string; value: readonly Weekday[]; onChange: (v:
 
 const st = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  introPanel: { borderRadius: 21, padding: 20, gap: 10 },
+  introKicker: { color: '#c8e5ff', fontSize: 12, fontWeight: '700', letterSpacing: 1 },
+  introTitle: { color: '#ffffff', fontSize: 24, fontWeight: '800', letterSpacing: -0.6, lineHeight: 31 },
+  introDesc: { color: '#dce9fb', fontSize: 15, lineHeight: 22, marginBottom: 5 },
+  pointRow: { flexDirection: 'row', gap: 9, alignItems: 'flex-start' },
   chip: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   week: { borderRadius: 20, overflow: 'hidden' },
   row: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'flex-start' },
