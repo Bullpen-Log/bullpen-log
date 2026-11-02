@@ -126,3 +126,19 @@ export function ZoneMark({ size, c }: { size: number; c: Palette }) {
     </View>
   );
 }
+
+/** 영상 비교 — 나란한 두 화면(왼쪽 진한 · 오른쪽 옅은 파랑)과 가운데 같은 장면 줄. 계기판 · 존과 같은 굵기 · 색 */
+export function CompareMark({ size, c }: { size: number; c: Palette }) {
+  const dark = useTheme() !== 'light';
+  const strong = dark ? '#3d9be2' : '#1572bf';
+  const soft = dark ? withAlpha('#5aa7dd', 0.45) : withAlpha(c.sky, 0.32);
+  return (
+    <Svg width={size} height={size * 0.78} viewBox="0 0 64 50" accessible={false}>
+      <Path d="M6 9 Q6 5 10 5 H27 Q31 5 31 9 V41 Q31 45 27 45 H10 Q6 45 6 41 Z" fill={strong} />
+      <Path d="M35 9 Q35 5 39 5 H54 Q58 5 58 9 V41 Q58 45 54 45 H39 Q35 45 35 41 Z" fill={soft} />
+      <Path d="M2 25 H62" stroke={dark ? '#d1eeff' : '#0b4f86'} strokeWidth={2.4} strokeLinecap="round" strokeDasharray="4 3" />
+      <Circle cx="18.5" cy="25" r="3.4" fill={c.card} />
+      <Circle cx="46.5" cy="25" r="3.4" fill={strong} />
+    </Svg>
+  );
+}

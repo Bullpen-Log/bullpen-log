@@ -10,7 +10,8 @@ import { ComparePickBar, LogList } from './log-list';
 import { MonthGrid } from './month-grid';
 import { PitchDayPanel } from './day-panel';
 import { ArmStatusChip, ArmStatusPanel, PitchTodayCard, usePitchTodayState } from './today-card';
-import { GaugeMark, PitcherMark, ZoneMark } from './dock-art';
+import { CompareMark, GaugeMark, PitcherMark, ZoneMark } from './dock-art';
+import { RecentComparisons } from './recent-compare';
 import { RecentPitches } from './recent-rows';
 import { weekdayKo } from '~/home/plan-model';
 import { monthOf, reloadFeatured, reloadNoteDays, useAllLogs, useDayThumbs, useMonth, useNoteDays } from './store';
@@ -253,63 +254,89 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
 }
 
 /**
- * 도구 도크(2026-10-29 확정 디자인 '소프트 솔리드 툴 도크') — 왼쪽 세로 카드 3D 동작 분석(V6 관절 추적 투수), 오른쪽 위 구속 측정(계기판) · 아래 ABS(3×3 존).
- * 높이는 시안의 154 · 128 · 틈 12(≈294)를 바닥으로만 — 큰 글씨면 글이 늘어난 만큼 커진다. 그림과 이름을 카드 가운데에 맞춘다.
- * ABS 는 권한(사이트 메뉴 · 관리자)이 있을 때만 연다 — 없으면 같은 자리에 '준비 중'으로 흐리게(눌리지 않음).
- * 출시 전 베타에도 모양은 그대로 — 잠긴 구속 측정 · ABS 는 누르면 들어가지 않고 안내만(shell/release.ts pushOpen, 2026-11-01).
+ * 도구 도크(2026-10-29 확정 디자인 '소프트 솔리드 툴 도크' → 2026-11-02 영상 비교를 3D 와 같은 줄로) — 2×2:
+ *   3D 동작 분석 | 영상 비교
+ *   구속 측정    | ABS
+ * 큰 3D 카드가 혼자 차지하던 자리를 줄여 두 분석 도구(3D · 영상 비교)를 첫 화면에 같이 둔다. 높이는 시작값(위 136 · 아래 120)을 바닥으로만
+ * — 큰 글씨면 글이 늘어난 만큼 커진다. 좁은 창 · 큰 글씨(카드 폭 140 밑)는 한 줄에 하나씩 쌓는다(자르지 않음).
+ * ABS 는 권한(사이트 메뉴 · 관리자)이 있을 때만 연다 — 없으면 같은 자리에 잠긴 블럭. 출시 전 베타로 잠긴 기능은 모양은 그대로, 누르면 안내만
+ * (shell/release.ts — 영상 비교는 /pitch/* 라 지금 베타 정책상 잠겨 있다. 공개 범위는 정책 표가 정하고 여기서 넓히지 않는다).
  */
 function ToolDock({ canAbs }: { canAbs: boolean }) {
   const c = usePalette();
   /* 정책이 바뀌면(로그인 · 서버 답) 다시 그린다 */
   const release = useRelease();
-  const { width } = useWindowDimensions();
-  /* 3D 카드 폭 ≈ (화면 − 옆 여백 − 틈) / 2 — 그림은 그 82%(시안 V6 · 여백 줄인 판), 넓은 화면에서는 168 에서 멈춘다 */
-  const art = Math.min(168, Math.max(110, ((Math.min(width, 520) - SPACE.side * 2 - 12) / 2) * 0.82));
+  const { width, fontScale } = useWindowDimensions();
+  const cardW = (Math.min(width, 520) - SPACE.side * 2 - 12) / 2;
+  const stacked = cardW < 140 * Math.min(fontScale, 2);
+  /* 3D 그림은 카드 폭의 52%(110~132) — 위 줄 높이 136 안에 이름과 같이 든다 */
+  const art = Math.min(132, Math.max(76, cardW * 0.52));
+  const compareOpen = canOpen('/pitch/compare', release);
+  const row = stacked ? styles.dockCol : styles.dockRow;
   return (
     <View style={styles.dock}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="3D 동작 분석"
-        onPress={() => pushOpen('/lab' as Href)}
-        style={({ pressed }) => [styles.tool3d, { backgroundColor: c.skyTint, boxShadow: c.float }, pressed && PRESSED]}
-      >
-        <PitcherMark size={art} />
-        <Text lineBreakStrategyIOS="hangul-word" style={[styles.toolBig, { color: c.ink }]}>
-          3D 동작 분석
-        </Text>
-      </Pressable>
-      <View style={styles.dockSide}>
-        {/* 출시 전 베타로 잠긴 일반 · 준관리자 — ABS 와 같은 잠긴 블럭(회색 판 + 자물쇠, 누르면 안내만) */}
-        {!canOpen('/velocity?mode=speed', release) ? (
-          <LockedBlock icon="gauge" size={54} label="구속 측정" style={{ minHeight: 154 }} />
-        ) : (
+      <View style={row}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="구속 측정"
-          onPress={() => pushOpen('/velocity?mode=speed' as Href)}
-          style={({ pressed }) => [styles.toolSmall, { minHeight: 154, backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
+          accessibilityLabel="3D 동작 분석"
+          onPress={() => pushOpen('/lab' as Href)}
+          style={({ pressed }) => [styles.tool, styles.top, { backgroundColor: c.skyTint, boxShadow: c.float }, pressed && PRESSED]}
         >
-          <GaugeMark size={66} c={c} />
-          <Text lineBreakStrategyIOS="hangul-word" style={[styles.toolLabel, { color: c.ink }]}>
-            구속 측정
+          <PitcherMark size={art} />
+          <Text lineBreakStrategyIOS="hangul-word" style={[styles.toolBig, { color: c.ink }]}>
+            3D 동작 분석
           </Text>
         </Pressable>
+        {compareOpen ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="영상 비교"
+            accessibilityHint="두 투구 영상을 같은 동작에 맞춰 함께 봐요"
+            onPress={() => pushOpen({ pathname: '/pitch/compare' as Href as never, params: { new: '1', src: 'pitch' } })}
+            style={({ pressed }) => [styles.tool, styles.top, { backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
+          >
+            <CompareMark size={Math.min(84, art * 0.72)} c={c} />
+            <Text lineBreakStrategyIOS="hangul-word" style={[styles.toolBig, { color: c.ink }]}>
+              영상 비교
+            </Text>
+          </Pressable>
+        ) : (
+          <LockedBlock icon="film" size={54} label="영상 비교" style={[styles.flex, { minHeight: 136 }]} />
+        )}
+      </View>
+      <View style={row}>
+        {/* 출시 전 베타로 잠긴 일반 · 준관리자 — ABS 와 같은 잠긴 블럭(회색 판 + 자물쇠, 누르면 안내만) */}
+        {!canOpen('/velocity?mode=speed', release) ? (
+          <LockedBlock icon="gauge" size={50} label="구속 측정" style={[styles.flex, { minHeight: 120 }]} />
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="구속 측정"
+            onPress={() => pushOpen('/velocity?mode=speed' as Href)}
+            style={({ pressed }) => [styles.tool, styles.bottom, { backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
+          >
+            <GaugeMark size={60} c={c} />
+            <Text lineBreakStrategyIOS="hangul-word" style={[styles.toolLabel, { color: c.ink }]}>
+              구속 측정
+            </Text>
+          </Pressable>
         )}
         {canAbs && canOpen('/velocity?mode=abs', release) ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="ABS"
             onPress={() => pushOpen('/velocity?mode=abs' as Href)}
-            style={({ pressed }) => [styles.toolSmall, { minHeight: 128, backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
+            style={({ pressed }) => [styles.tool, styles.bottom, { backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
           >
-            <ZoneMark size={46} c={c} />
+            <ZoneMark size={44} c={c} />
             <Text style={[styles.toolLabel, { color: c.ink }]}>ABS</Text>
           </Pressable>
         ) : (
           /* 권한이 없으면 베타의 잠긴 블럭과 같은 모양 — 회색 판 + 자물쇠, 누르면 작은 안내 */
-          <LockedBlock icon="zone" size={44} label="ABS" style={{ minHeight: 128 }} />
+          <LockedBlock icon="zone" size={44} label="ABS" style={[styles.flex, { minHeight: 120 }]} />
         )}
       </View>
+      {compareOpen ? <RecentComparisons /> : null}
     </View>
   );
 }
@@ -320,11 +347,13 @@ const styles = StyleSheet.create({
   title: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: -4 },
   date: { flexDirection: 'row', alignItems: 'baseline', gap: 9, flexShrink: 1 },
-  dock: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
-  dockSide: { flex: 1, gap: 12 },
-  /* 3D — 위 · 아래 두 칸(154 + 12 + 128)을 합친 높이가 바닥 */
-  tool3d: { flex: 1, minHeight: 294, borderRadius: 26, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 12, paddingVertical: 18 },
-  toolSmall: { borderRadius: 24, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 12, paddingVertical: 16 },
+  dock: { gap: 12 },
+  dockRow: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
+  dockCol: { gap: 12 },
+  flex: { flex: 1 },
+  tool: { flex: 1, borderRadius: 24, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 14 },
+  top: { minHeight: 136 },
+  bottom: { minHeight: 120 },
   toolBig: { fontSize: 20, fontWeight: '700', letterSpacing: -0.6, textAlign: 'center' },
   toolLabel: { fontSize: 15, fontWeight: '600', letterSpacing: -0.3, textAlign: 'center' },
   /* 머리 오른쪽 '가져오기' 알약 — '분석' 알약(AnalysisPill)과 같은 44 */

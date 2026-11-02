@@ -74,6 +74,11 @@ export type PickProps = {
   next: { label: string; onPress: () => void };
   /** 이 기기에 없다고 확인된 영상(비교 화면이 재생 준비 중에 알아낸 것까지) */
   knownMissing?: ReadonlySet<string>;
+  /**
+   * 처음 고르기(투구 탭 '영상 비교', 2026-11-02) — A 없이 한두 개를 차례로 고른다(첫째 A · 둘째 B). 하나만 골라도 연다.
+   * actions = 목록 위 가져오기 단추(사진 앱 · 촬영) — 기록 · 내 영상에 없는 영상도 비교에 쓴다.
+   */
+  start?: { picked: string[]; onToggle: (v: MyVideoItem) => void; actions: { label: string; icon: IconName; onPress: () => void; busy?: boolean }[] };
 };
 
 export function VideoGallery({ pick }: { pick?: PickProps }) {
@@ -213,9 +218,9 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
       missing: missing.has(path),
       unstarred: keep.has(path),
       blocked: blockedOf(path),
-      selected: pick?.selected === path,
+      selected: pick?.start ? pick.start.picked.includes(path) : pick?.selected === path,
     }),
-    [pendingPaths, missing, keep, blockedOf, pick?.selected]
+    [pendingPaths, missing, keep, blockedOf, pick]
   );
 
   /* 장면 그림은 화면에 보이는 칸만(그리드 줄이면 그 줄의 칸 모두) — 받은 것은 앱이 쥐고 있어 되돌아와도 바로 */
@@ -326,7 +331,8 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
           );
           return;
         }
-        pick.onSelect(v);
+        if (pick.start) pick.start.onToggle(v);
+        else pick.onSelect(v);
         return;
       }
       const q = videoOutbox.stateOf(v.path);
@@ -424,7 +430,11 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
       );
     if (others.length === 0)
       return pick ? (
-        <EmptyState icon="film" title="비교할 다른 영상이 없어요" text="영상을 하나 더 남기면 나란히 볼 수 있어요." actions={[{ label: '영상으로 돌아가기', onPress: pick.onBack }]} />
+        pick.start ? (
+          <EmptyState icon="film" title="앱에 남긴 영상이 없어요" text="위의 사진 앱 · 촬영으로 가져오면 바로 비교할 수 있어요." actions={[{ label: '돌아가기', onPress: pick.onBack }]} />
+        ) : (
+          <EmptyState icon="film" title="비교할 다른 영상이 없어요" text="영상을 하나 더 남기면 나란히 볼 수 있어요." actions={[{ label: '영상으로 돌아가기', onPress: pick.onBack }]} />
+        )
       ) : (
         <EmptyState
           icon="film"
@@ -475,7 +485,7 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
           <Icon name="back" size={22} color={c.link} />
         </Pressable>
         <Text accessibilityRole="header" numberOfLines={1} maxFontSizeMultiplier={1.6} style={[styles.title, { color: c.ink }]}>
-          {pick ? '비교할 영상' : '내 영상'}
+          {pick?.start ? '영상 비교' : pick ? '비교할 영상' : '내 영상'}
         </Text>
         {pick ? (
           <View style={styles.barButton} />
@@ -486,7 +496,26 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
         )}
       </View>
       <View style={[styles.controls, { maxWidth: WIDE_MAX }]}>
-        {pick ? <PickA a={pick.a} /> : null}
+        {pick && !pick.start ? <PickA a={pick.a} /> : null}
+        {pick?.start ? (
+          <View style={styles.startActions}>
+            {pick.start.actions.map((x) => (
+              <Press
+                key={x.label}
+                accessibilityRole="button"
+                accessibilityState={{ busy: !!x.busy, disabled: !!x.busy }}
+                disabled={!!x.busy}
+                onPress={x.onPress}
+                style={[styles.startAction, { backgroundColor: c.card, boxShadow: c.float }, x.busy && { opacity: 0.5 }]}
+              >
+                <Icon name={x.icon} size={18} color={c.link} />
+                <Text maxFontSizeMultiplier={1.4} numberOfLines={1} style={[TYPE.buttonCompact, { color: c.ink, flexShrink: 1 }]}>
+                  {x.label}
+                </Text>
+              </Press>
+            ))}
+          </View>
+        ) : null}
         {!pick && draft ? (
           <Press
             accessibilityRole="button"
@@ -650,15 +679,21 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
       {pick ? (
         <View style={[styles.pickFoot, { paddingBottom: inset.bottom + 12, backgroundColor: c.page, borderTopColor: c.line }]}>
           <Text maxFontSizeMultiplier={1.6} style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]} numberOfLines={2}>
-            {pick.selected ? `B · ${pickedLabel(all.find((v) => v.path === pick.selected) ?? null)}` : '비교할 영상 B를 골라 주세요.'}
+            {pick.start
+              ? pick.start.picked.length
+                ? pick.start.picked.map((p, i) => `${i === 0 ? 'A' : 'B'} · ${pickedLabel(all.find((v) => v.path === p) ?? null)}`).join('\n')
+                : '영상을 하나 고르면 바로 보고, 둘을 고르면 함께 봐요.'
+              : pick.selected
+                ? `B · ${pickedLabel(all.find((v) => v.path === pick.selected) ?? null)}`
+                : '비교할 영상 B를 골라 주세요.'}
           </Text>
           <Press
             accessibilityRole="button"
-            accessibilityState={{ disabled: !pick.selected }}
-            accessibilityHint={pick.selected ? undefined : '먼저 비교할 영상 B를 골라 주세요'}
-            disabled={!pick.selected}
+            accessibilityState={{ disabled: pick.start ? !pick.start.picked.length : !pick.selected }}
+            accessibilityHint={(pick.start ? pick.start.picked.length : pick.selected) ? undefined : '먼저 영상을 골라 주세요'}
+            disabled={pick.start ? !pick.start.picked.length : !pick.selected}
             onPress={pick.next.onPress}
-            style={[styles.primary, { backgroundColor: c.action }, !pick.selected && { opacity: 0.4 }]}
+            style={[styles.primary, { backgroundColor: c.action }, !(pick.start ? pick.start.picked.length : pick.selected) && { opacity: 0.4 }]}
           >
             <Text maxFontSizeMultiplier={1.6} style={[TYPE.button, { color: '#fff' }]}>
               {pick.next.label}
@@ -810,6 +845,8 @@ function EmptyState({
 }
 
 const styles = StyleSheet.create({
+  startActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  startAction: { flexGrow: 1, flexBasis: 140, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, borderRadius: 14, paddingHorizontal: 14 },
   bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 4, minHeight: 56 },
   barButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, textAlign: 'center', fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },

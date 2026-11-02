@@ -11,6 +11,17 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-11-02 · 금윤호(Claude, 윤호 맥북) — 투구 탭에 '영상 비교'(투구 영상 분석) · 비교 화면을 문서로 저장 · **네 앱 틀 · 갤러리 · 투구 탭을 고쳤다**
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만이라 업데이트로 나간다). 금윤호: `docs/designs/sinker-pitch-video-workbench-claude-prompt.md` R01~R42 구현. 무엇이 됐고 안 됐는지는 `docs/designs/sinker-pitch-video-workbench-ledger.md`(항목마다 파일 · 시험 · 상태). **시뮬레이터 · Metro · 실기기 확인은 하나도 안 했다.**
+- **투구 탭**(`native/src/pitch/tab.tsx` ToolDock): 도크가 2×2 — 3D 동작 분석 | 영상 비교 / 구속 측정 | ABS(카드 높이 136 · 120, 좁은 창 · 큰 글씨면 쌓임). 밑에 '최근 비교' 1~2줄(`pitch/recent-compare.tsx`). 그림 `dock-art.tsx CompareMark`.
+  영상 비교는 `/pitch/compare` 라 지금 베타 정책상 **잠긴 블럭**이다(정책 표는 안 바꿨다 — 여는 제안은 대장 문서 '출시 정책 제안').
+- **비교 화면**(`native/src/app/pitch/compare.tsx` → 엔진은 새 `native/src/compare/ui/workbench.tsx`): 들어오는 길(내 영상 상세 `?a=` · 투구 기록 2분할 `?a=&b=` · 메카닉 인자 없음)은 그대로, 새로 `?new=1`(투구 탭) · `?doc=`(최근 비교). 기존 고르기 → 맞추기 → 비교 · 뒤로 길(compare-math nav)은 그대로 쓴다.
+  재생은 순수 상태 기계 `compare/transport.ts` + `compare/ui/transport-hook.ts`(세대로 늦은 답 버림 · 한쪽 받는 중이면 둘 다 멈춤). 한 영상 보기 · 기준 뜻(앞발 착지 · 릴리스 · 직접) · 시작점 기준 · 반복 구간 · 속도 0.1~1× · 소리 A/B · 겹쳐 보기 · 그림 열두 가지 · 투구 장면 여섯 · 메모 · 장면 모음.
+- **저장**: 계정마다 앱 문서 폴더 `compare/<userId>/`(`compare/fs.ts` · `storage.ts` — 원자 쓰기 · 앞판 복구 · 판 충돌 사본). 서버 · DB 안 씀. `native/src/app/index.tsx` 의 ownerKnown 에 `setCompareOwner(userId)`, resetAccount 에 `resetCompareDocs()`(메모리만 — 문서는 그 사람 폴더에 남는다) 두 줄을 더했다.
+- **네 영역 고친 곳 더**: `native/src/videos/gallery.tsx` PickProps 에 선택 칸 `start`(A 없이 한두 개 고르기 · 사진 앱 · 촬영 단추) — 기존 B 고르기는 그대로. `shell/icon.tsx` 에 'square' 한 줄.
+- 시험: `npm run native-compare:test`(새, 317) · my-videos 117+69 그대로. 앱 tsc 의 남은 오류는 이 맥 설치에 없는 expo-screen-orientation · expo-notifications 와 옛 경로 캐스트 둘(전부터).
+
 ## 김민에게 — 2026-11-01 · 금윤호(Claude, 윤호 맥북) — 베타에 트레이닝 · 기록 · 알림 · 고객센터를 열었다 · 잠긴 칸은 다시 회색 + 자물쇠 · **네 앱 틀 · 트레이닝 탭을 고쳤다**
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). 금윤호: "막힌 기능은 ABS 처럼 자물쇠로 가려줘, 트레이닝 · 기록 · 알림 · 고객센터는 열어둬"(e9176bfb, 바로 밑 글을 이어 고침).

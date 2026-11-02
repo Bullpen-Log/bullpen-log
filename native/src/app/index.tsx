@@ -26,6 +26,7 @@ import { countryNow, followStorefront, useCountry } from '~/lib/country-store';
 import { registerPush, usePushTaps } from '~/shell/push';
 import { resetPitchStore } from '~/pitch/store';
 import { resetCompare } from '~/pitch/log-list';
+import { resetCompareDocs, setCompareOwner } from '~/compare/store';
 import { resetLibraryItems } from '~/library/parts';
 import { resetImported } from '~/pitch/attach';
 import { resetScanned } from '~/nutrition/scanned';
@@ -261,6 +262,8 @@ function resetAccount() {
   setOutboxOwner(null);
   resetPitchStore();
   resetCompare();
+  /* 비교 문서 — 메모리만(문서는 그 사람 폴더에 남는다, compare/store.ts) */
+  resetCompareDocs();
   resetLibraryItems();
   resetHomeCache();
   resetRecordsCache();
@@ -290,6 +293,8 @@ function resetAccount() {
 /** 누가 로그인했는지 안 때 — 대기열 주인을 정하고, 다른 계정이 맡긴 구속 세션은 지우고, 폰에 남은 것을 보낸다 */
 function ownerKnown(userId: string) {
   setOutboxOwner(userId);
+  /* 비교 문서는 그 사람 폴더 — 베타 잠금과 무관하게 정한다(잠겨 있으면 화면에 안 열릴 뿐) */
+  setCompareOwner(userId);
   void dropDraftNotOf(userId);
   /*
    * 출시 전 베타(일반 · 준관리자) — 팀 · 레슨장 공간과 폰에 남은 운동 세트 · 암케어 체크 · 투구 영상은 잠긴 기능이라 손대지 않는다.
