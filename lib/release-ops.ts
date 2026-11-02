@@ -124,6 +124,7 @@ export const RPC_ACTION_CAPABILITY: Record<string, OpAccess> = {
   'app.loadAppNutrition': { cap: 'nutrition' },
   'app.loadAppCheckin': { cap: 'checkin' },
   'app.loadAppDayEvents': { cap: 'calendar' },
+  'app.loadAppCalendarEvents': { cap: 'calendar' },
   'app.loadAppVelocityDay': { cap: 'velocity' },
   /* 시험용 나라 바꾸기 — 대표관리자만 */
   'app.setMyCountry': { cap: 'admin' },

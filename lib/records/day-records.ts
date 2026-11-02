@@ -93,6 +93,11 @@ export async function loadRecordsRange(userId: string, from: string, to: string)
       active: s.status === 'ACTIVE',
     });
   }
+  /* Legacy completion checks can exist without a TrainingSession. They are still actual saved exercise records. */
+  const sessionDays = new Set(sessions.map((s) => keyOfDbDate(s.date)));
+  for (const [date, count] of workByDay) {
+    if (!sessionDays.has(date)) items.push({ kind: 'training', id: `training:${date}`, date, at: null, title: '운동', count, minutes: null, active: false });
+  }
   for (const [date, count] of armByDay) items.push({ kind: 'armcare', id: `armcare:${date}`, date, at: null, count });
   for (const g of drills) {
     const date = keyOfDbDate(g.date);

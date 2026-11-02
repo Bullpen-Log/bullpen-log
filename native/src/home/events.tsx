@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ActionSheetIOS, Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import {
@@ -113,6 +113,16 @@ const put = (edit: (list: CalendarEventView[]) => CalendarEventView[]) => {
   store = { list: sortEvents(edit(store.list ?? [])) };
   emit();
 };
+
+/** The calendar display cache is separate; explicit successful edits still update home and this one alarm. */
+export function rememberCalendarEvent(event: CalendarEventView) {
+  put((list) => [...list.filter((e) => e.id !== event.id), event]);
+  syncAlarm(event);
+}
+export function forgetCalendarEvent(id: string) {
+  put((list) => list.filter((e) => e.id !== id));
+  cancelEventAlarm(id);
+}
 
 export function useEvents(): CalendarEventView[] | null {
   return useSyncExternalStore(subscribe, () => store).list;
@@ -241,18 +251,24 @@ export function DayEvents({ date }: { date: string }) {
   );
 }
 
-function EventForm({
+export function EventForm({
   date,
   event,
   onDone,
   onCancel,
   onDeleted,
+  autoFocus = true,
+  onDirtyChange,
+  onBusyChange,
 }: {
   date: string;
   event: CalendarEventView | null;
   onDone: (saved: CalendarEventView) => void;
   onCancel?: () => void;
   onDeleted?: () => void;
+  autoFocus?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const c = usePalette();
   const [title, setTitle] = useState(event?.title ?? '');
@@ -262,9 +278,16 @@ function EventForm({
   const remind = remindPick === 'auto' ? defaultRemind(time.trim() || null) : remindPick;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lock = useRef(false);
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  useEffect(() => {
+    onDirtyChange?.(title !== (event?.title ?? '') || time !== (event?.time ?? '') || memo !== (event?.memo ?? '') || remindPick !== (event ? event.remindMin : 'auto'));
+  }, [title, time, memo, remindPick, event, onDirtyChange]);
 
   const save = async () => {
-    if (busy || !title.trim()) return;
+    if (lock.current || !title.trim()) return;
+    lock.current = true;
+    const ownerEpoch = cacheEpoch();
     setBusy(true);
     setError(null);
     try {
@@ -273,6 +296,7 @@ function EventForm({
         event?.id ?? null,
         { date, title, time: fullTime(time) || null, memo: memo.trim() || null, remindMin: remind }
       );
+      if (ownerEpoch !== cacheEpoch()) return;
       if (!res.ok) return setError(res.error);
       toast(event ? '고쳤어요' : '일정을 더했어요');
       if (!event) {
@@ -285,6 +309,7 @@ function EventForm({
     } catch {
       setError('신호가 약해 저장하지 못했어요. 적은 것은 그대로 있어요.');
     } finally {
+      lock.current = false;
       setBusy(false);
     }
   };
@@ -296,15 +321,20 @@ function EventForm({
         text: '지우기',
         style: 'destructive',
         onPress: async () => {
+          if (lock.current) return;
+          lock.current = true;
+          const ownerEpoch = cacheEpoch();
           setBusy(true);
           try {
             const res = await rpc<{ ok: true } | { ok: false; error: string }>('calendar-event.deleteCalendarEvent', event.id);
+            if (ownerEpoch !== cacheEpoch()) return;
             if (!res.ok) return setError(res.error);
             toast('지웠어요');
             onDeleted?.();
           } catch {
             setError('신호가 약해 지우지 못했어요.');
           } finally {
+            lock.current = false;
             setBusy(false);
           }
         },
@@ -333,7 +363,7 @@ function EventForm({
           maxLength={EVENT_TITLE_MAX}
           placeholder="예: 연습 경기, 병원"
           placeholderTextColor={c.muted}
-          autoFocus={event === null}
+          autoFocus={autoFocus && event === null}
           returnKeyType="done"
           onSubmitEditing={() => void save()}
           style={input}

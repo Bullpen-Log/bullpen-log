@@ -17,6 +17,8 @@ import { revalidatePath } from 'next/cache';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { prisma } from '@/lib/prisma';
 import { isOutingTitle, sortEvents, type CalendarEventView } from '@/lib/calendar-event';
+import { calendarReadRange } from '@/lib/calendar-month';
+import { readCalendarEvents } from '@/lib/calendar-load';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { loadVelocityByDate, loadVelocityDay, withMissedAttempts } from '@/lib/velocity-load';
 import { logPrefillOf, unloggedSessions, type LogPrefill, type VelocitySessionView } from '@/lib/velocity-meta';
@@ -437,6 +439,18 @@ export async function loadAppEvents(): Promise<{ ok: true; events: CalendarEvent
       }))
     ),
   };
+}
+
+/** Calendar display only. Never pass this month subset to the full-list alarm synchroniser. */
+export async function loadAppCalendarEvents(
+  from: unknown,
+  to: unknown
+): Promise<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }> {
+  allowFeature('calendar');
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  if (!calendarReadRange(from, to) || typeof to !== 'string') return { ok: false, error: '날짜가 올바르지 않아요.' };
+  return { ok: true, events: await readCalendarEvents(prisma, user, from, to) };
 }
 
 /**

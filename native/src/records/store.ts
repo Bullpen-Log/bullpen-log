@@ -1,7 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import type { RecordItem } from '@/lib/records/day-records';
 import { shiftDateKey } from '@/lib/pitch-stats';
-import { rpc, RpcError } from '~/lib/rpc';
+import { lastWriteAt, rpc, RpcError } from '~/lib/rpc';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 
 /**
@@ -28,9 +28,11 @@ const messageOf = (e: unknown) =>
   e instanceof RpcError && e.code === 'offline' ? '신호가 약해 새로 받지 못했어요.' : e instanceof RpcError && e.code === 'update' ? '앱을 업데이트해 주세요.' : '기록을 불러오지 못했어요.';
 
 let inflight: Promise<void> | null = null;
+let loadedWrite = -1;
 export function reloadRecords(today: string): Promise<void> {
   if (inflight) return inflight;
   const e = cacheEpoch();
+  const write = lastWriteAt();
   const from = shiftDateKey(today, -WINDOW_DAYS);
   if (!state.items || state.today !== today)
     void cacheGet(KEY).then((v) => {
@@ -40,6 +42,7 @@ export function reloadRecords(today: string): Promise<void> {
   inflight = fetchRange(from, today)
     .then((items) => {
       if (e !== cacheEpoch()) return;
+      loadedWrite = write;
       set({ today, from, items, error: null, older: state.today === today ? state.older : {} });
       void cacheSet(KEY, { today, from, items });
     })
@@ -86,8 +89,15 @@ export function useRecords(today: string): State {
 }
 
 export function resetRecordsStore() {
+  loadedWrite = -1;
   state = { today: null, from: null, items: null, older: {}, error: null };
   inflight = null;
   olderLoading.clear();
   listeners.forEach((l) => l());
+}
+
+/** Calendar reuses a complete, current records window; partial months or stale writes must be read separately. */
+export function cachedRecordsRange(from: string, to: string): RecordItem[] | null {
+  if (!state.items || state.error || !state.from || !state.today || from < state.from || to > state.today || loadedWrite < lastWriteAt()) return null;
+  return state.items.filter((r) => r.date >= from && r.date <= to);
 }
