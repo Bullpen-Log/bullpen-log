@@ -9,11 +9,12 @@ import { useCountry } from '~/lib/country-store';
 import { useTheme } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { MENU_ICON, useMenu, type MenuItem } from '~/shell/menu-store';
+import { canOpen, noticeLocked, useRelease } from '~/shell/release';
 import { openWebAfter } from '~/shell/web-nav';
 
 /**
  * 탭 머리 오른쪽 공통 메뉴 — '세라믹 런처'(2026-10-29 확정 시안). 하단 탭의 더보기를 걷고, 이 단추 밑에 붙어 뜨는 둥근 팝오버로 옮겼다.
- *   [내 프로필 · 선수 정보 · 계정] → [영양 | 팀·레슨장] 큰 타일 → 선 → [알림 | 설정 | 고객센터]. 관리 권한이 있으면 그 밑에 사이트가 보낸 '관리' 묶음만 더한다.
+ *   [내 프로필 · 선수 정보 · 계정] → [알림 | 설정 | 고객센터] → [소속 관리]. 관리 권한이 있으면 그 밑에 사이트가 보낸 '관리' 묶음만 더한다.
  * 영양은 그 나라에 영양이 열려 있을 때만(lib/country.ts hasNutrition — 2026-10-28 모든 나라에서 숨김, 다시 열면 저절로 나온다). 잠김은 사이트가 보낸 메뉴 값.
  * 홈 · 투구 · 트레이닝 · 기록 · 덕아웃은 하단 탭에 있어 다시 넣지 않는다. 투구 드릴 · 운동 영상은 트레이닝 탭, 내 영상 · 분석 결과는 기록 탭.
  * 그림은 흰 세라믹 아이콘(assets/menu — 시안의 3D 모델을 288px 로 다시 뽑은 정적 그림, 앱에서 3D 를 돌리지 않는다).
@@ -76,6 +77,8 @@ function Launcher({ anchor, onClosed }: { anchor: Rect; onClosed: () => void }) 
   const reduce = useReducedMotion();
   const country = useCountry();
   const { groups } = useMenu();
+  const release = useRelease();
+  const orgLocked = !canOpen('/org', release);
   const [visible, setVisible] = useState(true);
   const after = useRef<(() => void) | null>(null);
   const p = useSharedValue(0);
@@ -125,12 +128,6 @@ function Launcher({ anchor, onClosed }: { anchor: Rect; onClosed: () => void }) 
   const push = (href: string) => () => router.push(href as Href);
   const web = (href: string) => () => openWebAfter(href);
 
-  const primary: { key: keyof typeof ICONS; label: string; go: () => void; locked?: boolean }[] = [
-    ...(showNutrition ? [{ key: 'nutrition' as const, label: '영양', go: web(nutrition?.href ?? '/nutrition'), locked: nutrition?.locked }] : []),
-    { key: 'team', label: '팀·레슨장', go: push('/org') },
-  ];
-  /* 큰 타일이 하나뿐이면(영양을 숨긴 나라 · 지금) 큰 정사각 대신 가로 한 줄 — 넓은 빈 타일이 화면을 차지하지 않게 */
-  const solo = primary.length === 1;
   const utility: { key: keyof typeof ICONS; label: string; go: () => void }[] = [
     { key: 'bell', label: '알림', go: push('/notice') },
     { key: 'settings', label: '설정', go: push('/settings') },
@@ -176,40 +173,55 @@ function Launcher({ anchor, onClosed }: { anchor: Rect; onClosed: () => void }) 
             <Icon name="chevron-right" size={18} color={L.muted} />
           </Pressable>
 
-          <View style={st.primary}>
-            {primary.map((it) => (
-              <Pressable
-                key={it.key}
-                accessibilityRole="button"
-                accessibilityLabel={it.locked ? `${it.label}(설정 전)` : it.label}
-                onPress={() => close(it.go)}
-                style={({ pressed }) => [st.tile, solo && st.tileSolo, { backgroundColor: L.ice, boxShadow: `inset 0 1px 0 ${L.line}` }, pressed && st.pressed]}
-              >
-                <Image source={ICONS[it.key]} style={solo ? st.tileImgSolo : st.tileImg} contentFit="contain" accessibilityIgnoresInvertColors />
-                <Text style={[st.tileLabel, { color: L.ink }]}>{it.label}</Text>
-                {it.locked ? (
-                  <View style={[st.lock, { backgroundColor: L.panel }]}>
-                    <Icon name="lock" size={12} color={L.muted} />
-                  </View>
-                ) : null}
-              </Pressable>
-            ))}
-          </View>
-
-          <View style={[st.utility, { borderTopColor: L.line }]}>
+          <View style={st.utility}>
             {utility.map((it) => (
               <Pressable
                 key={it.key}
                 accessibilityRole="button"
                 accessibilityLabel={it.label}
                 onPress={() => close(it.go)}
-                style={({ pressed }) => [st.util, pressed && st.pressed]}
+                style={({ pressed }) => [st.util, { backgroundColor: L.tile }, pressed && st.pressed]}
               >
                 <Image source={ICONS[it.key]} style={st.utilImg} contentFit="contain" accessibilityIgnoresInvertColors />
                 <Text style={[st.utilLabel, { color: L.ink }]}>{it.label}</Text>
               </Pressable>
             ))}
           </View>
+
+          {/* 영양이 다시 열리는 나라에서는 기존 진입점과 첫 설정 잠금을 보존한다. 지금은 모든 나라에서 숨김. */}
+          {showNutrition ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={nutrition?.locked ? '영양(설정 전)' : '영양'}
+              onPress={() => close(web(nutrition?.href ?? '/nutrition'))}
+              style={({ pressed }) => [st.nutrition, { backgroundColor: L.ice }, pressed && st.pressed]}
+            >
+              <Image source={ICONS.nutrition} style={st.nutritionImg} contentFit="contain" accessibilityIgnoresInvertColors />
+              <Text style={[st.nutritionLabel, { color: L.ink }]}>영양</Text>
+              {nutrition?.locked ? <Icon name="lock" size={15} color={L.muted} /> : null}
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={orgLocked ? '소속 관리, 준비 중' : '소속 관리, 팀·레슨장'}
+            accessibilityHint={orgLocked ? '아직 열리지 않은 기능이에요. 누르면 안내가 나와요.' : undefined}
+            onPress={() => close(orgLocked ? noticeLocked : push('/org'))}
+            style={({ pressed }) => [st.team, { borderTopColor: L.line }, pressed && st.pressed]}
+          >
+            <Image source={ICONS.team} style={[st.teamImg, orgLocked && st.teamImgLocked]} contentFit="contain" accessibilityIgnoresInvertColors />
+            <View style={st.teamText}>
+              <Text style={[st.teamTitle, { color: L.ink }]}>소속 관리</Text>
+              <Text style={[st.teamSub, { color: L.muted }]}>{orgLocked ? '팀·레슨장 · 준비 중' : '팀·레슨장'}</Text>
+            </View>
+            {orgLocked ? (
+              <View style={[st.teamLock, { backgroundColor: L.tile }]}>
+                <Icon name="lock" size={14} color={L.muted} />
+              </View>
+            ) : (
+              <Icon name="chevron-right" size={17} color={L.muted} />
+            )}
+          </Pressable>
 
           {/* 관리 — 사이트가 이 계정에 보낸 관리 항목만(역할 · 권한은 서버가 거른다). 일반 사용자에게는 묶음이 오지 않는다 */}
           {manage.length ? (
@@ -252,17 +264,20 @@ const st = StyleSheet.create({
   avatarImg: { width: 46, height: 46 },
   profileTitle: { fontSize: 18, fontWeight: '700', letterSpacing: -0.3 },
   profileSub: { fontSize: 13, marginTop: 2 },
-  primary: { flexDirection: 'row', gap: 8, marginTop: 17 },
-  tile: { flex: 1, minHeight: 165, alignItems: 'center', justifyContent: 'center', gap: 10, paddingTop: 15, paddingBottom: 18, paddingHorizontal: 10, borderRadius: 25 },
-  tileImg: { width: 83, height: 83 },
-  tileSolo: { flexDirection: 'row', justifyContent: 'flex-start', minHeight: 96, gap: 14, paddingVertical: 12, paddingHorizontal: 16 },
-  tileImgSolo: { width: 64, height: 64 },
-  tileLabel: { fontSize: 17, fontWeight: '700', letterSpacing: -0.3, textAlign: 'center' },
-  lock: { position: 'absolute', top: 12, right: 12, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  utility: { flexDirection: 'row', gap: 4, marginTop: 18, paddingTop: 17, borderTopWidth: 1 },
-  util: { flex: 1, minHeight: 86, alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 5 },
+  utility: { flexDirection: 'row', gap: 4, marginTop: 13 },
+  util: { flex: 1, minHeight: 94, alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 5, borderRadius: 15 },
   utilImg: { width: 46, height: 46 },
   utilLabel: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  nutrition: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 58, marginTop: 11, paddingHorizontal: 12, borderRadius: 18 },
+  nutritionImg: { width: 42, height: 42 },
+  nutritionLabel: { flex: 1, fontSize: 15, fontWeight: '600' },
+  team: { flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: 62, marginTop: 11, paddingTop: 8, paddingHorizontal: 8, borderTopWidth: StyleSheet.hairlineWidth },
+  teamImg: { width: 42, height: 42 },
+  teamImgLocked: { opacity: 0.45 },
+  teamText: { flex: 1, minWidth: 0 },
+  teamTitle: { fontSize: 14, fontWeight: '600' },
+  teamSub: { fontSize: 11, marginTop: 1 },
+  teamLock: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   manage: { marginTop: 12, paddingTop: 10, borderTopWidth: 1 },
   manageTitle: { fontSize: 12, fontWeight: '600', paddingHorizontal: 6, paddingBottom: 2 },
   manageRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44, paddingHorizontal: 6, borderRadius: 12 },
