@@ -3,7 +3,7 @@ import { type GestureResponderEvent, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 import { measureText, simplifyFree, type Annotation, type Geometry, type ToolKind } from '~/compare/annotations';
-import { clampPt, inside, toScreen, toSource, zoomAt, clampPan, type Calibration, type Pane, type Pt, type Px, type ViewTransform } from '~/compare/geometry';
+import { clampPt, inside, panBy, toScreen, toSource, zoomAt, type Calibration, type Pane, type Pt, type Px, type ViewTransform } from '~/compare/geometry';
 
 /**
  * 비교 칸 위 그림 판(R12 · R13) — 그림은 원본 영상 좌표로 받고(geometry.toSource), 화면에는 칸의 보기 변환(확대 · 이동 · 반전)을 거쳐 그린다.
@@ -29,6 +29,7 @@ export function AnnotationLayer({
   onSelect,
   onView,
   onNeedText,
+  onStroke,
 }: {
   pane: Pane;
   view: ViewTransform;
@@ -46,6 +47,8 @@ export function AnnotationLayer({
   onView: (v: ViewTransform) => void;
   /** 글 도구 — 글자를 물어 받는다(화면이 창을 띄운다) */
   onNeedText: (p: Pt) => void;
+  /** 손가락으로 그리는 중인가(F08 — 그 동안만 바깥 화면 굴림을 멈춘다. 그리기 도구를 켰다고 화면 전체를 잠그지 않는다) */
+  onStroke?: (active: boolean) => void;
 }) {
   const [draft, setDraft] = useState<Geometry | null>(null);
   const [anglePts, setAnglePts] = useState<Pt[]>([]);
@@ -79,6 +82,7 @@ export function AnnotationLayer({
     const p = src(x, y);
     const hit = tool === 'select' ? hitTest(x, y) : null;
     touch.current = { x0: x, y0: y, t0: Date.now(), moved: false, start: p, free: [p], grab: hit ? { id: hit.id, from: p, geom: hit.geom } : null, draft: null };
+    onStroke?.(true);
     if (hit) onSelect(hit.id);
   };
   const move = (e: GestureResponderEvent) => {
@@ -119,6 +123,7 @@ export function AnnotationLayer({
     const t = touch.current;
     touch.current = null;
     setDraft(null);
+    onStroke?.(false);
     if (!t) return;
     if (!t.moved) return tapAt(t.start, t.x0, t.y0);
     const d = t.draft;
@@ -134,6 +139,7 @@ export function AnnotationLayer({
   const cancel = () => {
     touch.current = null;
     setDraft(null);
+    onStroke?.(false);
   };
 
   const pinch = Gesture.Pinch()
@@ -150,7 +156,7 @@ export function AnnotationLayer({
     .onUpdate((e) => {
       const base = pinchBase ?? view;
       if (view.zoom <= 1) return;
-      onView(clampPan({ ...view, panX: base.panX + e.translationX, panY: base.panY + e.translationY }, pane));
+      onView(panBy(base, pane, e.translationX, e.translationY));
     });
   const gesture = Gesture.Simultaneous(pinch, twoPan);
 
