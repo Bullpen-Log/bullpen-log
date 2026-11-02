@@ -109,6 +109,8 @@
     "coach:test": "node --import ./scripts/alias-register.mjs scripts/coach-selftest.mts",
     "coach:ai-test": "node --import ./scripts/alias-register.mjs scripts/coach-ai-selftest.mts",
     "workout-record:test": "node --import ./scripts/alias-register.mjs scripts/workout-record-selftest.mts",
+    "notification-inbox:test": "node --import ./scripts/alias-register.mjs scripts/notification-inbox-selftest.mts",
+    "notification-inbox:db-test": "node --import ./scripts/alias-register.mjs scripts/notification-inbox-db-selftest.mts",
     "calendar-edit:test": "node --import ./scripts/alias-register.mjs scripts/calendar-edit-selftest.mts",
     "calendar-edit:db-test": "node --import ./scripts/alias-register.mjs scripts/calendar-edit-db-selftest.mts",
     "native-calendar:test": "node --import ./scripts/alias-register.mjs scripts/native-calendar-selftest.mts"

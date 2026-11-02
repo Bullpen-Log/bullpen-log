@@ -135,7 +135,7 @@ export default function RootLayout() {
         {/* 알림 종의 오늘 할 일 — 내용만큼만 올라오는 아래 시트(웹 휴대폰 종 시트와 같다) */}
         <Stack.Screen
           name="notice"
-          options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', sheetGrabberVisible: true, sheetCornerRadius: 28 }}
+          options={{ presentation: 'formSheet', sheetAllowedDetents: [0.9, 1], sheetGrabberVisible: true, sheetCornerRadius: 28 }}
         />
         {/* 공간 고르개(팀 · 레슨장, 계약 8-4) — 내용만큼 올라오는 아래 시트 */}
         <Stack.Screen
