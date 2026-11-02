@@ -288,11 +288,17 @@ for (const f of ['app/api/pitch-log/route.ts', 'app/api/day-detail/route.ts']) {
   ok(!/allowFeature\(/.test(src.slice(src.indexOf('export async function', src.indexOf('export async function GET(') + 10))), `${f} 쓰기는 잠긴 채`);
 }
 /* 반대로 — 잠긴 모듈의 함수에는 베타 밝힘 줄이 없어야 한다(잘못 열린 것 찾기) */
-const OPEN_SET = new Set([...Object.keys(OPEN_MODULES), 'velocity-admin', 'velocity-recording', 'shoot', 'app-shoot', 'app-admin', 'app', 'day-cards', 'favorite']);
+const OPEN_SET = new Set([...Object.keys(OPEN_MODULES), 'velocity-admin', 'velocity-recording', 'shoot', 'app-shoot', 'app-admin', 'app', 'day-cards', 'favorite', 'calendar-event']);
 for (const f of readdirSync('app/actions').filter((f) => f.endsWith('.ts'))) {
   const mod = f.replace(/\.ts$/, '');
   if (OPEN_SET.has(mod)) continue;
   ok(!/allowFeature\(|allowAdmin\(/.test(readFileSync(`app/actions/${f}`, 'utf8')), `잠긴 모듈 ${mod} 에 밝힘 줄 없음`);
+}
+/* 새 일정 편집 계약은 calendar 범위만 밝힌다. 베타에서 calendar 자체는 계속 잠겨 있다. */
+for (const fn of exportsOf('app/actions/calendar-event.ts')) {
+  const body = bodyOf(readFileSync('app/actions/calendar-event.ts', 'utf8'), fn);
+  const declared = ['loadAppCalendarEvent', 'saveAppCalendarEvent', 'loadAppCalendarEventResult'].includes(fn);
+  ok(declared ? body.includes("allowFeature('calendar')") : !/allowFeature\(/.test(body), `calendar-event.${fn} calendar 범위만 밝힘`);
 }
 /* 같은 업로드 주소가 투구 · 스윙을 같이 받는다 — sport 로 가르고, 모르는 값은 잠긴 쪽 */
 const upload = readFileSync('app/api/pitch-lab/upload-url/route.ts', 'utf8');

@@ -418,7 +418,10 @@ export async function loadAppVelocityDays(): Promise<
 /**
  * 앱 홈 달력의 일정 전부 — 웹 홈(home-page.tsx)과 같은 범위 · 같은 상한(3,000). 달력 칸 밑 일정 막대 · 그날 칸 · 알림 다시 걸기가 쓴다.
  */
-export async function loadAppEvents(): Promise<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }> {
+export async function loadAppEvents(): Promise<
+  | { ok: true; events: CalendarEventView[]; complete: boolean }
+  | { ok: false; error: string }
+> {
   /* 출시 전 베타에도 홈 · 투구 첫 화면은 원래 모양으로 그린다 — 자기 기록 읽기만 연다(2026-11-01) */
   allowFeature('home');
   const user = await getCurrentUser();
@@ -426,16 +429,26 @@ export async function loadAppEvents(): Promise<{ ok: true; events: CalendarEvent
   const rows = await prisma.calendarEvent.findMany({
     where: user.role === 'ADMIN' ? { user: { role: 'ADMIN' } } : { userId: user.id },
     orderBy: { date: 'asc' },
-    take: 3000,
-    select: { id: true, date: true, title: true, time: true, memo: true, remindMin: true, userId: true, user: { select: { nickname: true } } },
+    take: 3001,
+    select: {
+      id: true,
+      date: true,
+      title: true,
+      time: true,
+      memo: true,
+      remindMin: true,
+      userId: true,
+      user: { select: { nickname: true } },
+    },
   });
   return {
     ok: true,
+    complete: rows.length <= 3000,
     events: sortEvents(
-      rows.map(({ userId, user: owner, ...e }) => ({
+      rows.slice(0, 3000).map(({ userId, user: owner, ...e }) => ({
         ...e,
         date: keyOfDbDate(e.date),
-        ...(userId === user.id ? {} : { owner: owner.nickname }),
+        ...(userId === user.id ? {} : { owner: owner.nickname || '다른 관리자' }),
       }))
     ),
   };

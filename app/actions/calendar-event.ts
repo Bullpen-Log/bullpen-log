@@ -6,6 +6,12 @@ import { getCurrentUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
 import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
+import { allowFeature } from '@/lib/release-gate';
+import {
+  readCalendarEvent,
+  verifyCalendarEvent,
+  writeCalendarEvent,
+} from '@/lib/calendar-write';
 import {
   cleanEvent,
   type CalendarEventInput,
@@ -90,4 +96,34 @@ export async function deleteCalendarEvent(
  */
 function refreshAfterEvent() {
   revalidatePath('/', 'layout');
+}
+
+/** Additive native editor contract; legacy web/app calls above remain compatible. */
+export async function loadAppCalendarEvent(id: unknown) {
+  allowFeature('calendar');
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  return readCalendarEvent(prisma, user, id);
+}
+
+export async function saveAppCalendarEvent(command: unknown) {
+  allowFeature('calendar');
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  const result = await writeCalendarEvent(
+    prisma,
+    user.id,
+    command,
+    toDateKey(appNow()),
+    new Date()
+  );
+  if (result.ok) refreshAfterEvent();
+  return result;
+}
+
+export async function loadAppCalendarEventResult(command: unknown) {
+  allowFeature('calendar');
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  return verifyCalendarEvent(prisma, user.id, command, toDateKey(appNow()));
 }
