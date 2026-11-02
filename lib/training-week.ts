@@ -72,3 +72,16 @@ export async function loadTrainingMarkedDays(
   const done = await doneByDate(userId, from, to);
   return [...new Set([...done.workout, ...done.armcare, ...done.drill])].sort();
 }
+
+/** from ~ to 날짜마다 무엇을 했나 — 코치 이번 주 칸 상태(lib/coach/status.ts)가 읽는다 */
+export async function loadTrainingDone(
+  userId: string,
+  from: string,
+  to: string
+): Promise<Record<string, TrainingStripDay>> {
+  const done = await doneByDate(userId, from, to);
+  const out: Record<string, TrainingStripDay> = {};
+  for (let d = from; d <= to; d = shiftDateKey(d, 1))
+    out[d] = { date: d, workout: done.workout.has(d), armcare: done.armcare.has(d), drill: done.drill.has(d) };
+  return out;
+}

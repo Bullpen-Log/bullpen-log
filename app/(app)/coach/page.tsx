@@ -10,6 +10,9 @@ import { loadPitchHistory, readDateParam } from '@/app/(app)/today/history';
 import { readCoachView } from './tabs';
 import { AnalysisBody } from './analysis-body';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
+import { coachPaid } from '@/lib/coach-access';
+import { CoachIntro } from './coach-intro';
+import { CoachWeekCard } from './week-card';
 
 /**
  * 분석 · 그래프 — 홈의 '분석 · 그래프 더 보기'(2026-10-05 홈 정리).
@@ -39,6 +42,9 @@ export default async function CoachPage({
   const today = toDateKey(appNow());
   const date = readDateParam(params.date) ?? today;
 
+  /* 코치 탭(유료)의 리뷰 — 아니면 소개만(PC 웹 · 앱 웹뷰 둘 다, docs/designs/ai-coach.md U14). 앱 화면으로 넘기기보다 먼저 — 앱 분석 화면도 막혀 되돌아온다 */
+  if (!(await coachPaid(user))) return <CoachIntro />;
+
   /*
    * 새 아이폰 앱(Expo)이 분석 화면을 아는 판(BullpenNative/5 부터)이면 앱 화면으로 연다(native/src/app/analysis.tsx) — 카드 · 그래프 재료는
    * 같은 곳에서 읽는다(lib/report/analysis-data.ts). 오늘이면 date 를 빼고 넘긴다(앱이 오늘로 연다).
@@ -57,6 +63,7 @@ export default async function CoachPage({
         <BackLink href="/videos">투구 기록</BackLink>
       )}
       <PageHeading title={view === 'training' ? '트레이닝 분석' : '투구 분석'} />
+      <CoachWeekCard />
       <AnalysisBody
         today={today}
         initialDate={date}

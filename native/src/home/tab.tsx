@@ -31,6 +31,7 @@ import { nextAction, todayCount, type NextAction } from './plan-model';
 import { WeekCard } from './week-card';
 import { openTabAt } from '~/shell/tab-intent';
 import { TodayPlan } from './today-plan';
+import { CoachHomeCard } from '~/coach/home-card';
 
 /**
  * 홈 탭(앱 화면) — 2026-10-27 승인 시안 '시안 1 볼 컨트롤 + 새 하단', 2026-10-29 확정 디자인으로 아래만 바꿨다:
@@ -269,6 +270,7 @@ export function HomeTab({
                     onCheckin={() => openCheckin()}
                     onLoad={() => go('/analysis?view=pitch')}
                   />
+                  <CoachHomeCard onOpen={() => onTab('/coach')} />
                   {home.goodNote ? <GoodDayNote note={home.goodNote} /> : null}
                 </View>
                 <View style={columnCell(cols.two, 1, 22)}>

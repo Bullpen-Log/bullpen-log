@@ -21,6 +21,7 @@ import { Icon } from '~/shell/icon';
 import { PageHead } from '~/shell/heading';
 import { useRememberPart } from '~/training/remember';
 import { Press } from '~/shell/press';
+import { CoachNote } from '~/coach/note';
 
 /**
  * 트레이닝 '운동' 앱 화면 — 웹 /training(기본 칸, app/(app)/training/training-page.tsx)을 옮겼다. 앱 트레이닝 탭(native/src/training/tab.tsx)의 운동
@@ -239,6 +240,7 @@ export default function TrainingTodayScreen() {
         <View style={columnCell(wide, 1, GAP)}>
         {heading}
         {failed ? <Text style={[s.small, { color: c.danger }]}>{failed}</Text> : null}
+        <CoachNote />
 
         {data.programCard ? <ProgramCardView p={data.programCard} c={c} a={actions} /> : null}
         {data.programDone ? <ProgramDoneView result={data.programDone} c={c} /> : null}

@@ -11,6 +11,7 @@ import { featureLocks } from '@/lib/feature-locks';
 import { ageOn } from '@/lib/nutrition/targets';
 import { hasFinishedBasics } from '@/lib/program/load';
 import { toDateKey } from '@/lib/pitch-stats';
+import { coachMinutesOf, coachSlotOf, pushBackDiscomfort, takeDayFromCoach } from '@/lib/coach/today';
 import { pickMany } from '@/lib/exercise-meta';
 import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import {
@@ -296,7 +297,10 @@ export async function generateTodayPlan(formData: FormData) {
       );
 
   const today = appNow();
+  /* 유료 코치 진행 중이면 그날 칸(docs/designs/ai-coach.md 10-5) — 자동 맞춤의 기본 시간만 바꾼다. 엔진 판정(줄이기)은 그대로. 아래 모으기와 같이 돈다 */
+  const coachSlotP = coachSlotOf(user, toDateKey(today));
   const { facts, plan, state: gathered } = await gatherFactsAndPlan(user, today);
+  const coachSlot = await coachSlotP;
 
   /*
    * 오늘 체크인을 남긴 날에만 만든다 (2026-09-23 사용자분과 정함).
@@ -399,6 +403,9 @@ export async function generateTodayPlan(formData: FormData) {
   const previousIds = readPlanExerciseIds(before?.plan);
   const rotationSeed = [user.id, toDateKey(today), ...previousIds].join('|');
 
+  /* 코치 되먹임(U36) — 지난 7일 운동 끝에 고른 불편 동작은 '여러 번 바꿔서 뺀 운동'처럼 뒤로 미룬다(빼지는 않음) */
+  await pushBackDiscomfort(swappedOut, user.id, toDateKey(today), library);
+
   /*
    * 자동 맞춤이면 여기서 목표·시간을 규칙으로 정한다.
    *
@@ -411,7 +418,7 @@ export async function generateTodayPlan(formData: FormData) {
   /* 프로그램 날은 목표 · 시간을 정할 것이 없다(그날 운동은 프로그램이 정했다) — 자동 맞춤의 까닭이 프로그램 날 글을 가리지 않게 안 부른다 */
   const made =
     auto && !programToday && (!plan.halted || plan.rehab)
-      ? await decideAutoSetup({ user, facts, plan, today, strengthDates })
+      ? await decideAutoSetup({ user, facts, plan, today, strengthDates, coachMinutes: coachMinutesOf(coachSlot) })
       : null;
   const choice: {
     goal: string | null;
@@ -526,6 +533,9 @@ export async function generateTodayPlan(formData: FormData) {
     });
   }
 
+  /* 코치가 쉬라고 한 날에 만들었으면 그날은 사용자 것(U38) — 코치가 그날을 다시 맞추지 않는다 */
+  if (!isHalted(built)) await takeDayFromCoach(user.id, toDateKey(today), coachSlot);
+
   /*
    * 이 조건을 앞으로도 쓰겠다고 했으면 기본값으로 굳힌다.
    *
@@ -596,6 +606,7 @@ async function decideAutoSetup({
   plan,
   today,
   strengthDates,
+  coachMinutes = null,
 }: {
   user: {
     id: string;
@@ -606,18 +617,20 @@ async function decideAutoSetup({
   plan: PitchPlan;
   today: Date;
   strengthDates: StrengthHistory;
+  /** 코치 칸의 분 — 있으면 저장해 둔 기본 시간 대신 이것이 바탕(넘지 않고 줄이기만) */
+  coachMinutes?: number | null;
 }): Promise<AutoRecord> {
   const workout = await trainingLoad(user, today);
   const fence = decideAutoFence({
     facts,
     plan,
     workout,
-    defaultMinutes: user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES,
+    defaultMinutes: coachMinutes ?? user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES,
     lastLowerKey: strengthDates.lower,
     lastUpperKey: strengthDates.upper,
     weeklyCap: strengthDates.weeklyMinutesCap,
   });
-  return { ...fence.draft, by: 'rules', rules: fence.rules };
+  return { ...fence.draft, by: 'rules', rules: coachMinutes != null ? [`코치 계획 ${coachMinutes}분`, ...fence.rules] : fence.rules };
 }
 
 /* ─────────────────────────── 트레이닝 첫 설정(/training/setup) ─────────────────────────── */

@@ -22,6 +22,57 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **네 영역 고친 곳 더**: `native/src/videos/gallery.tsx` PickProps 에 선택 칸 `start`(A 없이 한두 개 고르기 · 사진 앱 · 촬영 단추) — 기존 B 고르기는 그대로. `shell/icon.tsx` 에 'square' 한 줄.
 - 시험: `npm run native-compare:test`(새, 317) · my-videos 117+69 그대로. 앱 tsc 의 남은 오류는 이 맥 설치에 없는 expo-screen-orientation · expo-notifications 와 옛 경로 캐스트 둘(전부터).
 
+## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 유료 코치 AI 대화 · **받으면 `npm ci`**(패키지 둘 더함)
+
+받은 뒤 할 일: **`npm ci`** — `@anthropic-ai/sdk` · `zod` 를 다시 넣었다(10-07 에 뺀 것, 유료 코치 대화에만 — 설계 10-6). DB 그대로(C2 의 CoachLog · CoachMessage 를 처음 씀).
+- 새 서버 모듈 `app/actions/coach-chat.ts`(registry · release-ops 'analysis'), 앱 새 화면 `native/src/app/coach-chat.tsx`(`_layout.tsx` 에 모달 한 줄), 처리방침에 Anthropic 한 줄.
+- 환경변수(Vercel): `ANTHROPIC_API_KEY`(김민이 넣음) · 선택 `COACH_AI_MONTHLY_USD`(기본 30, 0 이면 AI 끔) · `COACH_MODEL_CHAT`. 이름은 `.env.example`.
+
+## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 운동 끝 '불편했던 동작' 칸 · **받으면 `npx prisma generate`** · 네 운동 끝 화면에 한 칸
+
+받은 뒤 할 일: **`npx prisma generate`** — `DailyTrainingNote.discomfort Json?`(비워 둘 수 있음, 옛 코드도 돈다). 마이그레이션 `20261101170000_training_note_discomfort`(ADD COLUMN 만)는 이 푸시의 Vercel 빌드가 건다. 직전 백업 `db-2026-11-01-13-50.json`.
+- 같은 날 이어서: `vercel.json` 에 크론 하나(`/api/cron/daily`, 매일 한국 18시 — 일요일 코치 주간 리뷰 알림). Vercel 환경변수 `CRON_SECRET` 이 있어야 돈다(김민이 넣음 — 없으면 401 로 아무것도 안 함). 알림 종류에 'coach'(`lib/notify-rules.ts`).
+- 유료 코치 C5(설계 10-5 U36): 앱 `native/src/app/workout-done.tsx` 힘듦 밑에 `<DiscomfortAsk />`(유료 · 코치 진행 중 · 건강 동의일 때만 서버가 묻게 함). 고른 동작은 `app/actions/training-setup.ts` 가 지난 7일 몫을 '여러 번 바꿔서 뺀 운동'처럼 뒤로 미룬다(`lib/coach/today.ts pushBackDiscomfort` — 점수 판정 그대로).
+
+## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 코치 처음 질문 흐름(앱 `/coach-start`) · 새 RPC 모듈 `coach`
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). 설계 `docs/designs/ai-coach.md` 10-4 '진행'.
+- 서버 `app/actions/coach.ts`(registry 에 `coach`, `lib/release-ops.ts` 'analysis' — 베타에선 대표관리자만, `allowFeature` 줄 없음). 유료 · 만 14세 · 건강 동의는 동작 안에서 본다.
+- 앱 새 화면 `native/src/app/coach-start.tsx`(네 `~/setup/frame` 부품을 그대로 씀) · 코치 탭 `native/src/coach/tab.tsx` 유료 칸에 [코치 시작하기] / 이번 주 7칸. `lib/release-access.ts` 경로 표에 `/coach-start`.
+- 시험: 앱 · 웹 tsc 0 · 바꾼 파일 eslint 0 · native-api 308(모양 여섯 더함) · release-access 690 · coach 20,771 · integration 실패 4 는 전과 같은 팀 · 레슨 쪽. **폰 · 시뮬레이터는 아직**(대표 계정으로 코치 탭 → 시작 → 미리보기 → 시작 → 탭에 7칸).
+- **같은 날 이어서(C4 — 설계 10-5 '진행')**: 코치 탭 = 오늘 카드 · 조정 단추(`native/src/coach/adjust.tsx`) · 7칸 ✓/못 함. **네 앱 트레이닝 화면 `native/src/app/training-today.tsx` 에 한 줄**(`<CoachNote />` — 유료 · 코치 진행 중일 때만 보임).
+  서버 `app/actions/training-setup.ts generateTodayPlan` 이 코치 진행 중이면 그날 칸의 분을 자동 맞춤 기본 시간으로 넘기고(엔진 판정 그대로), 코치가 쉬라고 한 날에 만들면 그날을 사용자 것으로 둔다.
+  `scripts/training-selftest.mts` 원문 검사 한 줄을 그에 맞게(1821 통과 · 실패 2 는 전과 같음).
+
+## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 건강정보 · 보호자 동의 판정 + DB 칸 · 표 · **받으면 `npx prisma generate`** · 네 3D 동의 읽기를 고쳤다
+
+받은 뒤 할 일: **`npx prisma generate`** — `AnalysisConsent.purpose`(기본 'pitch3d' — 옛 줄은 모두 3D 동의라 그대로 맞다) · 새 표 `GuardianConsent`(만 14세 미만 보호자 동의, `User.guardianConsent`).
+마이그레이션 `20261101150000_health_guardian_consent`(ADD COLUMN 기본값 있음 · CREATE 만)는 이 푸시의 Vercel 빌드가 건다. 직전 백업 `db-2026-11-01-12-52.json`.
+- **네 3D 동의(10-29)를 조금 고쳤다**: 같은 표에 건강정보 동의(purpose 'health')가 들어오므로 `lib/analysis-consent-store.ts consentRecordsOf` 가 purpose 로 거르고(기본 'pitch3d'),
+  `revokeAnalysisConsent` 도 'pitch3d' 줄만 거둔다. 새로 읽는 곳을 만들면 purpose 를 꼭 걸어 줘.
+- 순수 판정 `lib/health-consent.ts`(문서 · `healthConsentOf`) · `lib/guardian.ts`(`guardianStateOf`) + `analysis-consent:test` 13개. 화면 · 서버 막기는 아직(설계 10-2 B2 · B4).
+
+## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 코치 표 다섯을 더했다 · **받으면 `npx prisma generate`** · 주간 계획기
+
+받은 뒤 할 일: **`npx prisma generate`** — 새 표 `Entitlement`(유료 권한) · `CoachProfile` · `CoachWeek` · `CoachLog` · `CoachMessage`, `User` 에 관계 다섯(onDelete Cascade — 탈퇴가 같이 지운다).
+마이그레이션 `20261101130000_coach_tables` 는 **CREATE 만**(지우기 · 이름 바꾸기 없음)이고, 이 푸시의 Vercel 빌드(`prisma migrate deploy`)가 공유 DB 에 건다 — 손으로 걸지 않았다. 직전 백업 `db-2026-11-01-12-41.json`.
+SQL 은 DB 에 붙지 않고 옛 스키마 ↔ 새 스키마로 만들었다(`migrate diff --from-schema`) — 그래서 늘 나오던 `VelocityAttempt` 외래키 셋은 안 들어갔다.
+- **유료 판단** `lib/coach-access.ts coachPaid` 가 이제 비동기: 대표관리자는 늘, 그 밖은 켜진 `Entitlement`(product 'coach'). PC 관리자 회원 줄에 '코치 켬/끔'(`setCoachEntitlement`, 끄면 지우지 않고 revokedAt). 앱 관리자 화면에는 아직 없다.
+- **주간 계획기** `lib/coach/week.ts`(순수) + `npm run coach:test` — 엔진 파일은 안 바꿨다. 날 종류는 엔진 규칙 이름 · 문턱을 읽고 시험이 `dayKindOf` 와 견준다.
+- 설계 `docs/designs/ai-coach.md` 10-3 '진행'. 시험: tsc 0 · eslint 0 · coach 20,771 · release-access 688 · native-api 302(모양 그대로) · integration 의 실패 4 는 전과 같은 팀 · 레슨 쪽.
+
+## 금윤호에게 — 2026-11-01 · 김민(Claude, 데스크톱 · 아키텍처) — 하단 탭 홈 · 코치 · 투구 · 트레이닝 · 덕아웃(앱 판 14) · 기록은 투구 탭 고르개로 · **네 앱 틀 · 탭 막대를 고쳤다**
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만이라 업데이트로 나간다). 김민: 유료 AI 코치 설계(`docs/designs/ai-coach.md` 10-1, 결정 U1 · U9~U14)의 1단계.
+- **탭 목록**: `lib/nav.ts` 판 14+ `APP_TABS`(코치 `/coach`, 아이콘 'coach'), 판 13 은 `APP_TABS_V13`(기록 탭 그대로), `app/(app)/layout.tsx` 가 판으로 고른다. 앱 `site.ts` 판 13 → **14**, `DEFAULT_TABS` 새 차례.
+- **앱 껍데기 `native/src/app/index.tsx`**: 판 차례 `home · coach · pitch · records · training · dugout · nutrition`(기록은 투구 옆이라 고르개를 누르면 옆으로 미끄러짐). 코치 · 기록은 앱 화면만(pressTab 이 웹을 안 옮김),
+  `goTab('/records')` 는 탭에 없어도 기록 판으로(홈 '이번 주'가 씀). `tabOf` 에서 `/coach` 를 홈 묶음에서 뺐다.
+- **기록**: `native/src/pitch/seg.tsx`(RECORDS_PATH 가 이리로 — records/tab 이 다시 내보냄) `PitchSeg` 를 투구 첫 화면 · 기록 화면 머리 밑에. `PitchTab` · `RecordsTab` 에 `onTab` 칸이 늘었다.
+- **코치 탭** `native/src/coach/tab.tsx`: 무료면 소개(결제 안내 · 링크 없음), 유료면 리뷰 두 줄(지금 분석 화면을 연다) + '자동 일정은 곧'. 유료는 서버 `lib/coach-access.ts coachPaid`(지금은 대표관리자만) → `loadAppMe` 의 `coachPaid`.
+- **분석 막기**: `loadAppAnalysis` 가 유료가 아니면 `{ ok: false, to: '/coach', need: 'paid' }` — 새 앱은 분석 화면에 소개, 옛 앱은 웹 `/coach` 로 떠나 소개(page.tsx 가 OpenNative 보다 먼저 소개). 베타에선 /coach 가 'analysis' 라 원래도 잠김.
+- 시험: 앱 · 웹 tsc 0 · 바꾼 파일 eslint 0 · tab-bar 706(빠진 가짜 부품 `~/shell/locked` 더함) · release-access 688 · release-gate 102 · native-api(모양 둘 갱신 — 더하기 · 선택 칸, APP_API_LEVEL 그대로).
+  org:test 의 '나가기는 소속 관리 화면에서만' 실패는 윈도우 경로(`\`) 탓, integration 실패 4 는 팀 · 레슨 쪽 파일이라 손 안 댔다. **폰 · 시뮬레이터는 아직** — 하단 탭 다섯 · 코치(대표 계정 · 일반 계정) · 투구 ↔ 기록 고르개 · 홈 '이번 주' → 기록을 봐 줘.
+
 ## 김민에게 — 2026-11-01 · 금윤호(Claude, 윤호 맥북) — 베타에 트레이닝 · 기록 · 알림 · 고객센터를 열었다 · 잠긴 칸은 다시 회색 + 자물쇠 · **네 앱 틀 · 트레이닝 탭을 고쳤다**
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). 금윤호: "막힌 기능은 ABS 처럼 자물쇠로 가려줘, 트레이닝 · 기록 · 알림 · 고객센터는 열어둬"(e9176bfb, 바로 밑 글을 이어 고침).

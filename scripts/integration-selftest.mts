@@ -357,6 +357,8 @@ console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한
     'app/api/app-update/route.ts',
     /* 앱 업데이트 올리기 — 굽기 전용 열쇠로만(lib/build-token.ts, /api/library/bundle 과 같은 열쇠) */
     'app/api/app-update/publish/route.ts',
+    /* 정해진 시각 작업(Vercel cron) — CRON_SECRET 머리로만 열린다(없으면 늘 401). 사람 화면이 아니다(docs/designs/ai-coach.md 10-5) */
+    'app/api/cron/daily/route.ts',
   ]);
   const unchecked = routes.filter((r) => !OPEN_ROUTES.has(r) && !AUTH.test(src(r)));
   check(

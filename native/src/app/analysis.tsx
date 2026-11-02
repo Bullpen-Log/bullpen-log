@@ -38,6 +38,7 @@ import { fadeIn, Pulse } from '~/shell/motion';
 import { READABLE } from '~/lib/layout';
 import { DateNavButton } from '~/shell/mini-calendar';
 import { Press } from '~/shell/press';
+import { CoachIntro } from '~/coach/tab';
 
 /**
  * 투구 분석 · 트레이닝 분석(앱 화면) — 웹 /coach?view=…&date=…(app/(app)/coach/page.tsx)를 옮겼다. 사이트의 분석 화면이 앱(BullpenNative/5 부터)이면
@@ -47,7 +48,8 @@ import { Press } from '~/shell/press';
  * 그래프의 날을 톡 치면 그날까지의 기록으로 분석을 다시 연다(웹은 마우스로 누를 때만). 그래프 기간은 웹처럼 4주 · 12주 · 기간 설정,
  * 구속 · 무게는 설정의 단위(웹 useSpeedUnit · 무게 단위와 같다).
  */
-type LoadResult = ({ ok: true } & AppAnalysis) | { ok: false; to: string };
+/* need 'paid' — 분석은 코치 탭의 리뷰라 유료만(app/actions/app-analysis.ts, 2026-11-01). 그때는 떠나지 않고 코치 소개를 보인다 */
+type LoadResult = ({ ok: true } & AppAnalysis) | { ok: false; to: string; need?: 'paid' };
 
 /** 마지막으로 받은 오늘 분석(투구 · 트레이닝 칸마다) — 다시 열 때 먼저 그린다 */
 const lastAnalysis = new Map<Kind, { epoch: number; data: AppAnalysis }>();
@@ -71,6 +73,7 @@ export default function AnalysisScreen() {
   /* data 가 어느 요청(date)의 답인가 — 서버가 앞날을 오늘로 바꿔 돌려줘도 기다림이 안 끝나는 일이 없게 날짜가 아니라 요청으로 견준다 */
   const [loadedFor, setLoadedFor] = useState<string | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
+  const [paidOnly, setPaidOnly] = useState(false);
   const [tries, setTries] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const scroll = useRef<ScrollViewInstance>(null);
@@ -85,7 +88,7 @@ export default function AnalysisScreen() {
       (r) => {
         if (!alive || e !== cacheEpoch()) return;
         setRefreshing(false);
-        if (!r.ok) return leave(r.to);
+        if (!r.ok) return r.need === 'paid' ? setPaidOnly(true) : leave(r.to);
         if (date == null) lastAnalysis.set(view, { epoch: e, data: r });
         /* 그래프 · 목록을 다시 그리는 일은 화면이 들어오는 움직임이 끝난 뒤에(2026-10-26 2차 — 열자마자 답이 오면 밀려 들어오는 중에 그렸다) */
         afterMotion(() => {
@@ -134,6 +137,18 @@ export default function AnalysisScreen() {
       <View style={[s.iconBtn, s.backBtn]} />
     </View>
   );
+
+  if (paidOnly) {
+    return (
+      <View style={[s.fill, { backgroundColor: c.page }]}>
+        {header}
+        <View style={[s.content, READABLE]}>
+          <Text accessibilityRole="header" style={[TYPE.title, { color: c.ink }]}>{TITLE[view]}</Text>
+          <CoachIntro />
+        </View>
+      </View>
+    );
+  }
 
   if (!data && !failed) {
     /* 불러오는 동안 — 웹 coach/loading.tsx 와 같은 모양(제목 · 큰 칸 하나 · 작은 칸 여섯)이 숨 쉬듯 옅어졌다 진해짐 */

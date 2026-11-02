@@ -203,6 +203,8 @@ const PATH_RULES: PathRule[] = [
 
   { prefix: '/nutrition', cap: 'nutrition' },
   { prefix: '/coach', cap: 'analysis' },
+  { prefix: '/coach-start', cap: 'analysis' },
+  { prefix: '/coach-chat', cap: 'analysis' },
   { prefix: '/analysis', cap: 'analysis' },
   { prefix: '/records', cap: 'records' },
   { prefix: '/sinker', cap: 'records' },

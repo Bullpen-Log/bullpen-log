@@ -207,6 +207,12 @@ model User {
   mealPlans         MealPlan[]
   dailyNutrition    DailyNutrition[]
   analysisConsents  AnalysisConsent[]
+  entitlements      Entitlement[]
+  coachProfile      CoachProfile?
+  coachWeeks        CoachWeek[]
+  coachLogs         CoachLog[]
+  coachMessages     CoachMessage[]
+  guardianConsent   GuardianConsent?
 }
 
 /// 3D 동작 분석 — 개인정보 국외 이전 동의 이력(2026-10-29 김민: 가입 때 별도 선택 · 첫 분석 때 없으면 한 번, 개인정보 보호법 제28조의8).
@@ -218,12 +224,121 @@ model AnalysisConsent {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// 동의한 문서 판(lib/analysis-consent.ts ANALYSIS_CONSENT.version)
   version   String
-  /// 받은 곳 — 'signup'(가입) · 'first_use'(첫 분석 전) · 'settings'(설정에서 다시)
+  /// 받은 곳 — 'signup'(가입) · 'first_use'(첫 분석 전) · 'settings'(설정에서 다시) · 'guardian'(14세 미만 보호자)
   source    String
+  /// 무엇의 동의인가 — 'pitch3d'(3D 분석 국외 이전) · 'health'(건강정보, lib/health-consent.ts) · 나중 'coachAi'. 읽고 거둘 때 늘 이것으로 거른다
+  purpose   String    @default("pitch3d")
   agreedAt  DateTime  @default(now())
   revokedAt DateTime?
 
   @@index([userId, agreedAt])
+}
+
+/// 만 14세 미만의 보호자 동의(lib/guardian.ts, docs/designs/ai-coach.md U19~U22) — 링크 열쇠는 해시만 둔다.
+model GuardianConsent {
+  id            String    @id @default(uuid())
+  childUserId   String    @unique
+  child         User      @relation(fields: [childUserId], references: [id], onDelete: Cascade)
+  guardianEmail String
+  tokenHash     String    @unique
+  sentAt        DateTime?
+  sendCount     Int       @default(0)
+  /// 처음 만든 때 + 7일 — 그때까지 동의가 없으면 계정을 지운다(U20)
+  expiresAt     DateTime
+  agreedAt      DateTime?
+  /// 보호자가 건강정보(선택)에도 동의했나(U21)
+  healthAgreed  Boolean?
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+/// 유료 권한(docs/designs/ai-coach.md 3절 · R7) — 지금은 관리자가 켜고(source 'admin'), 인앱결제가 붙으면 같은 표에 'iap'.
+/// 쓰는 쪽은 lib/coach-access.ts 하나 — 끝나지 않았고(endsAt) 거두지 않은(revokedAt) 줄이 있으면 유료.
+model Entitlement {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 'coach'
+  product   String
+  /// 'admin' · 'iap'
+  source    String
+  startsAt  DateTime  @default(now())
+  endsAt    DateTime?
+  revokedAt DateTime?
+  /// 켠 관리자(source 'admin') — 관계 없이 id 만
+  grantedBy String?
+
+  @@index([userId, product])
+}
+
+/// 코치 처음 질문의 답(4단계) — 앱에 없는 답만(lib/coach/week.ts CoachAnswers). 중간 저장 · 나중에 고치기.
+model CoachProfile {
+  id        String    @id @default(uuid())
+  userId    String    @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers   Json
+  /// 질문 판 — 질문이 바뀌면 올린다
+  version   Int       @default(1)
+  /// 'draft' · 'active' · 'paused'
+  status    String    @default("draft")
+  startedAt DateTime?
+  updatedAt DateTime  @updatedAt
+}
+
+/// 코치의 한 주 틀(월~일 7칸, lib/coach/week.ts planWeek) — 운동 목록은 안 담는다(그날 엔진이 만든다, R2). 칸 상태는 기록에서 읽는다.
+model CoachWeek {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 그 주 월요일(한국 날짜)
+  weekStart   DateTime @db.Date
+  slots       Json
+  /// 짠 입력의 지문 — 같으면 다시 안 짠다
+  fingerprint String
+  /// 'rules' · 'ai'
+  by          String   @default("rules")
+  generatedAt DateTime @default(now())
+  /// 주간 리뷰 [확인](U37)
+  reviewAckAt DateTime?
+
+  @@unique([userId, weekStart])
+}
+
+/// AI 호출 한 번(6단계 — 하루 30번 · 월 비용 상한을 줄 세기로). 글은 안 담는다.
+model CoachLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 'chat' · 'explain'
+  kind      String
+  model     String
+  ok        Boolean
+  ms        Int
+  inTok     Int      @default(0)
+  outTok    Int      @default(0)
+  cacheTok  Int      @default(0)
+  /// 백만분의 1달러
+  costMicro Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+/// 코치 대화 한 마디(6단계, U44) — 30일 뒤 매일 작업이 지운다 · 사용자가 지울 수 있다.
+model CoachMessage {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 'user' · 'coach'
+  role      String
+  text      String
+  /// 그 마디의 바꿀 거리 · 적용 여부(미리보기 카드 다시 그리기)
+  adjusts   Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 /// 하루 한 번 남기는 몸상태 체크인. 운동 처방과 리포트의 입력이 된다.
@@ -1143,6 +1258,8 @@ model DailyTrainingNote {
   intensity Int
   /// 그날 느낀점. 안 적어도 된다.
   memo      String?
+  /// 운동 끝에 고른 '불편했던 동작'(유료 코치 · 건강정보 동의가 있을 때만, docs/designs/ai-coach.md 10-5 U36) — [{ id: 운동 id, move: 움직임 열쇠 | null }]. 동의를 거두면 지운다
+  discomfort Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

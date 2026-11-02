@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PRESSED, SPACE, TYPE, usePalette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { PageHead, Segmented } from '~/shell/heading';
+import { PitchSeg } from '~/pitch/seg';
 import { ComparePickBar, LogList } from './log-list';
 import { MonthGrid } from './month-grid';
 import { PitchDayPanel } from './day-panel';
@@ -30,7 +31,19 @@ import { LockedBlock } from '~/shell/locked';
  * 기록(/videos?view=log): 찾기 · 달력(그날 공 수 · 영상 점) + 목록 · 지난 영상 가져오기. 날짜를 누르면 그날 화면(/pitch/[date]).
  * 웹 투구 탭(app/(app)/videos)과 같은 규칙.
  */
-export function PitchTab({ today, bottom, onWeb, log = false }: { today: string; bottom: number; onWeb: (href: string) => void; log?: boolean }) {
+export function PitchTab({
+  today,
+  bottom,
+  onWeb,
+  onTab,
+  log = false,
+}: {
+  today: string;
+  bottom: number;
+  onWeb: (href: string) => void;
+  onTab: (href: string) => void;
+  log?: boolean;
+}) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   /* [캘린더 | 목록] — 웹 투구 탭 고르개(pitch-log-heading.tsx PITCH_VIEW_OPTIONS). 찾기는 목록에만(웹 video-gallery 와 같다) */
@@ -217,6 +230,7 @@ export function PitchTab({ today, bottom, onWeb, log = false }: { today: string;
             <Text accessibilityRole="header" style={[TYPE.title, { flex: 1, color: c.ink, lineHeight: 40 }]}>투구</Text>
             <MenuButton />
           </View>
+          <PitchSeg value="/videos" onTab={onTab} />
           <View style={styles.dateRow}>
             <View style={styles.date} accessible accessibilityLabel={`오늘 ${Number(today.slice(5, 7))}월 ${Number(today.slice(8, 10))}일 ${weekdayKo(today)}요일`}>
               <Text style={[TYPE.num, { color: c.ink, fontSize: 28, lineHeight: 32 }]}>{Number(today.slice(8, 10))}</Text>

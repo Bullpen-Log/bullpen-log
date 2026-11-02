@@ -11,6 +11,7 @@ import { loadTrainingWeekCounts, type TrainingWeekCounts } from '@/lib/report/tr
 import { pickArmPain, pickCheckinParts, todayOutingRole, validateCheckinDate, type CheckinPartKey } from '@/lib/checkin';
 import { GOOD_DAY_MIN, RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
+import { coachPaid } from '@/lib/coach-access';
 import { countryOf, countryOfStorefront, isCountry, type Country } from '@/lib/country';
 import { revalidatePath } from 'next/cache';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
@@ -56,6 +57,8 @@ export async function loadAppMe(): Promise<
       userId: string;
       nickname: string;
       isAdmin: boolean;
+      /** 코치 탭(유료)을 쓰나 — lib/coach-access.ts 하나가 정한다. 옛 서버 답에는 없다(앱은 그때 무료로 본다) */
+      coachPaid: boolean;
       today: string;
       locks: { pitch: boolean; training: boolean; nutrition: boolean };
       /** 나라(lib/country.ts) — 앱이 사이트 탭을 받기 전의 기본 탭에서 그 나라에 없는 칸을 뺀다 */
@@ -76,6 +79,7 @@ export async function loadAppMe(): Promise<
     userId: user.id,
     nickname: user.nickname,
     isAdmin: user.role === 'ADMIN',
+    coachPaid: await coachPaid(user),
     today: toDateKey(appNow()),
     locks: featureLocks(user),
     country: countryOf(user.country),

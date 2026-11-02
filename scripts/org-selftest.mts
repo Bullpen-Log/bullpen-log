@@ -1068,8 +1068,8 @@ console.log(
   check('껍데기 — 앱이 앞으로 올 때 공간을 다시 확인', shell.includes('void spaceOwner(userId);'));
   check('앱 useLoad — 권한 없음은 화면을 무작정 걷지 않음', src('native/src/community/parts.tsx').includes('if (to === ORG_LOST) orgLost();'));
   const tabBar = src('native/src/shell/tab-bar.tsx');
-  /* 2026-10-29 확정 디자인 뒤 탭은 홈 · 투구 · 트레이닝 · 기록 · 덕아웃(DEFAULT_TABS) — 타격은 종목 바에만, 더보기는 위 막대 메뉴로. 이 검사는 그 뒤 깨져 있었다(2026-11-01 고침) */
-  check('내 싱커 아래 탭 그대로(홈 · 투구 · 트레이닝 · 기록 · 덕아웃)', ["label: '홈'", "label: '투구'", "label: '트레이닝'", "label: '기록'", "label: '덕아웃'"].every((x) => tabBar.includes(x)));
+  /* 2026-11-01 판 14 뒤 탭은 홈 · 코치 · 투구 · 트레이닝 · 덕아웃(DEFAULT_TABS) — 기록은 투구 탭 고르개, 타격은 종목 바에만, 더보기는 위 막대 메뉴로 */
+  check('내 싱커 아래 탭 그대로(홈 · 코치 · 투구 · 트레이닝 · 덕아웃)', ["label: '홈'", "label: '코치'", "label: '투구'", "label: '트레이닝'", "label: '덕아웃'"].every((x) => tabBar.includes(x)));
   check('쓰기 화면이 쓰던 글을 알림', ['note', 'homework', 'plan', 'actual', 'exception', 'notice', 'event'].every((n) => src(`native/src/app/org/${n}.tsx`).includes('useDraftGuard(')));
   /* 참석 기능을 걷었다(2026-10-27 김민, 계약 11-9 2) — 앱 · PC · 서버 어디에도 참석 응답 · 참석 확인 · 모두 왔어요 · 참석한 선수 모두 메뉴대로가 없다 */
   const teamFiles = ['app/actions/app-team.ts', 'app/actions/app-org.ts', 'components/master/team-event.tsx', 'native/src/app/org/team-event.tsx', 'native/src/app/org/my-event.tsx', 'native/src/org/player.tsx', 'native/src/org/coach.tsx'];

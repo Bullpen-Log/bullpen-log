@@ -9,7 +9,8 @@ import { requirePermission } from '@/lib/dal';
 import { can, isOwner, parseRole } from '@/lib/permissions';
 import { Badge, Card, PageHeading } from '@/components/ui';
 import { ageFromBirthDate } from '@/lib/profile';
-import { DeleteUser, RolePicker, TempPassword } from './user-row-actions';
+import { CoachToggle, DeleteUser, RolePicker, TempPassword } from './user-row-actions';
+import { activeEntitlementWhere } from '@/lib/coach-access';
 import { AdminOrgSwitch } from '@/components/master/admin-org-switch';
 import { AdminCountrySwitch } from '@/components/admin/admin-country-switch';
 import { countryOf } from '@/lib/country';
@@ -51,6 +52,7 @@ export default async function AdminPage() {
           birthDate: true,
           heightCm: true,
           _count: { select: { pitchLogs: true, articles: true } },
+          entitlements: { where: activeEntitlementWhere(new Date()), select: { id: true }, take: 1 },
           pitchLogs: {
             orderBy: { date: 'desc' },
             take: 1,
@@ -162,6 +164,7 @@ export default async function AdminPage() {
 
                 <div className="flex shrink-0 items-center gap-2">
                   <RolePicker userId={u.id} nickname={u.nickname} role={parseRole(u.role)} disabled={isSelf} />
+                  <CoachToggle userId={u.id} nickname={u.nickname} on={u.entitlements.length > 0} owner={u.role === 'ADMIN'} />
                   <TempPassword userId={u.id} nickname={u.nickname} disabled={isSelf} />
                   <DeleteUser userId={u.id} nickname={u.nickname} disabled={isSelf} />
                 </div>

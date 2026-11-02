@@ -18,7 +18,7 @@ import {
   type Capability,
 } from '../lib/release-access.ts';
 import { RPC_ACTION_CAPABILITY, RPC_MODULE_CAPABILITY, rpcAccessOf } from '../lib/release-ops.ts';
-import { applyBetaLocks, betaGroups, APP_TABS, MOBILE_TABS } from '../lib/nav.ts';
+import { applyBetaLocks, betaGroups, APP_TABS, APP_TABS_V13, MOBILE_TABS } from '../lib/nav.ts';
 import { can } from '../lib/permissions.ts';
 
 let n = 0;
@@ -187,8 +187,9 @@ ok(accessAllowsPath({ stage: 'released', policyVersion: 'x', restricted: false, 
 /* 탭 — 순서 · 모양 그대로, 홈만 열리고 잠김 까닭 'beta'. 앱에 보내는 탭은 주소 그대로 */
 const appTabs = applyBetaLocks(APP_TABS, ua, { keepHref: true, surface: 'native' });
 eq(appTabs.map((t) => t.href), APP_TABS.map((t) => t.href), '앱 탭 순서 · 주소 그대로');
-eq(appTabs.map((t) => !!t.locked), [false, false, false, false, true], '홈 · 투구 · 트레이닝 · 기록 열림(덕아웃 잠김)');
-eq(applyBetaLocks(APP_TABS, ma, { keepHref: true, surface: 'native' }).map((t) => !!t.locked), [false, false, false, false, true], '준관리자 앱 탭도 같다');
+eq(appTabs.map((t) => !!t.locked), [false, true, false, false, true], '홈 · 투구 · 트레이닝 열림(코치 · 덕아웃 잠김, 2026-11-01 판 14)');
+eq(applyBetaLocks(APP_TABS, ma, { keepHref: true, surface: 'native' }).map((t) => !!t.locked), [false, true, false, false, true], '준관리자 앱 탭도 같다');
+eq(applyBetaLocks(APP_TABS_V13, ua, { keepHref: true, surface: 'native' }).map((t) => !!t.locked), [false, false, false, false, true], '판 13 앱 탭 — 홈 · 투구 · 트레이닝 · 기록 열림(덕아웃 잠김)');
 ok(appTabs.filter((t) => t.locked).every((t) => t.lockReason === 'beta'), '잠김 까닭은 beta(첫 설정과 섞지 않음)');
 const webTabs = applyBetaLocks(MOBILE_TABS, ua);
 ok(webTabs.filter((t) => t.locked).every((t) => t.href === '/today'), '웹의 잠긴 칸은 베타 홈을 가리킨다');
