@@ -20,6 +20,7 @@ const post = (msg: ToApp) => (window as unknown as Bridge).ReactNativeWebView?.p
 
 export function MuscleEmbed({ muscle, area, side, bg }: { muscle: string | null; area: ArmcareAreaKey | null; side: 'right' | 'left'; bg: string | null }) {
   /* 웹 근육 설명(armcare-info-body InfoGraphic)과 같은 고름 — 그 근육의 부위 · 근육 · 누른 갈래 */
+  const [shownSide, setShownSide] = useState(side);
   const [pick, setPick] = useState<{ name: string | null; part: string | null }>({ name: muscle, part: null });
   const selection = useMemo<MapSelection>(
     () => ({ area: area ?? (pick.name ? (areaOfMuscle(pick.name)?.key ?? null) : null), muscle: pick.name, part: pick.part }),
@@ -38,8 +39,11 @@ export function MuscleEmbed({ muscle, area, side, bg }: { muscle: string | null;
     /* data-safe-area: 앱 안 웹 화면이 몸에 주는 시계 · 홈 막대 여백(globals.css)을 뺀다 — 이 웹뷰는 창 가운데의 작은 칸이다 */
     <div data-safe-area className="h-dvh w-full" style={{ background: bg ?? 'transparent' }}>
       <style>{'html,body{background:transparent!important}'}</style>
+      <div style={{ position: 'absolute', zIndex: 2, top: 8, left: 8, display: 'flex', gap: 4 }}>
+        {(['right', 'left'] as const).map((value) => <button key={value} aria-pressed={shownSide === value} onClick={() => setShownSide(value)} style={{ minHeight: 44, padding: '8px 12px', borderRadius: 22, background: shownSide === value ? '#0078d4' : '#eef3f8', color: shownSide === value ? 'white' : '#243448' }}>{value === 'right' ? '오른팔' : '왼팔'}</button>)}
+      </div>
       <MuscleMap3D
-        side={side}
+        side={shownSide}
         selection={selection}
         onPick={(next) => {
           /* 부위만 고르거나 빈 곳을 누르면 그대로 — 창은 근육 하나의 설명이다 */

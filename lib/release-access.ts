@@ -177,6 +177,7 @@ const PATH_RULES: PathRule[] = [
   { prefix: '/embed/abs', cap: 'abs' },
 
   /* 트레이닝 · 암케어 · 메커니즘 */
+  { prefix: '/training/armcare-area', cap: 'armcare' },
   {
     prefix: '/training',
     cap: 'training',

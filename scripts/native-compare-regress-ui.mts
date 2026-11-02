@@ -175,7 +175,7 @@ const jsx = (type: unknown, props: Record<string, unknown>, key?: unknown) => ({
 const appState = { listeners: [] as ((s: string) => void)[] };
 /* 동작 시트에서 고를 글(다음 한 번) */
 const sheetPick: { label: string | null } = { label: null };
-let focused = true;
+const focused = true;
 const rn = {
   StyleSheet: { create: <T,>(s: T) => s, absoluteFill: {}, hairlineWidth: 1 },
   AppState: {

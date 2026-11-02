@@ -1,3 +1,14 @@
+## 금윤호에게 — 2026-11-02 · 김민(Codex, 확정 시안 앱 적용)
+
+- 투구 기록은 `native/src/pitch/quick-step.tsx`로 신규/수정/측정/가져오기 입력을 통합했습니다. 기존 퀵 스텝 작업을 최신 main 위에 통합했으며 코치 탭·비교 작업·베타 제한은 유지합니다.
+- 부위별 보강은 8부위 카드, `/training/armcare-area` 목록, 선택→확정 루틴 시트입니다. 운동 상세와 새 루틴 만들기는 기존 화면으로 연결됩니다.
+- `armcare.loadMyArmcareTargets`는 숨김 운동 포함 본인 루틴 membership을 읽습니다. 루틴 추가는 CAS로 기존 순서·세트를 보존하고 중복·15개 한도·소유권을 검사합니다.
+- 응답 유실 시 계정별 미확인 요청을 보관하고 조회만 합니다. 투구 기록 저장과 구속 세션 연결 성공은 분리됩니다(`POST /api/pitch-log/link`).
+- guide 읽기는 필수 카탈로그와 부가 정보 실패를 분리했습니다. 3D 부위 지도는 필요할 때 열고 좌우를 전환합니다.
+- 스키마/의존성/환경변수 변경 및 운영 데이터 조작 없음. 사용자가 배포를 승인해 최신 main(781fa217)의 영상 비교 수정과 통합하고 서버·앱 화면 업데이트를 함께 배포합니다. 네이티브 구성은 변경하지 않았습니다.
+- 검증: root/native 타입·린트, iOS export 통과(기존 린트 경고 있음). Quick Step 87, guide 20, 격리 Prisma/PGlite 38, 빌더 48, 접근정책 692 검사 통과. 전체 integration은 기준 main에서도 동일한 5개 실패(44통과)입니다.
+- 실제 RN 컴포넌트의 웹 어댑터에서 선택/확정/응답 유실 및 좁은 화면/iPad 크기/다크 확인. 실기기·실제 미디어·WebGL 성능은 미검증입니다.
+
 # 받은 뒤 할 일 — 서로에게 남기는 말
 
 두 사람 다 Claude 로 작업한다. 이 파일은 `CLAUDE.md` 가 불러오므로, 이 저장소에서
@@ -19,6 +30,10 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   F01~F08 논리는 그대로(회귀 66 → 75 모두 통과). 그림은 끄는 동안 문서에 안 쓰고 뗄 때 한 번(`compare/shape-edit.ts` 손잡이), 메모 쓰기는 `ui/note-editor.tsx`.
 - **네 영역**: `native/src/videos/gallery-parts.tsx` `FilterSheet` 에 선택 칸 `paged`(묶음을 한 쪽씩 — 비교 고르기만 씀). 안 주면 예전과 같다(묶음마다 View 하나로 감쌌을 뿐, 차례 · 간격 그대로). 비교는 이제 `VideoGallery` 의 pick 모드를 안 쓴다(지우지 않았다).
 - 시험: `npm run native-compare:test`(318 + regress 75 + 새 screen 468) · my-videos 117 + 69 · release-access 692. 폰에서 볼 것은 대장 16~21.
+
+## 금윤호에게 — 2026-11-02 · 김민(Codex, 코치 UI) — 코치 설정 모달 경로 추가
+
+사용자가 승인한 코치 1차 시안을 새 앱에 반영했다. 네 앱 틀 영역 `native/src/app/_layout.tsx`에는 `/coach-settings` 모달 등록 한 줄만 추가했다. 코치 탭은 오늘·이번 주 보기, 오류 재시도, 일정 조정 진입을 정리했고 새 설정 화면에서 기존 서버 동작 `coach-chat.revokeCoachAi`·`clearCoachChat`을 부른다. `scripts/native-api-shapes.json`에 두 동작을 반영했다. DB 구조·패키지·앱 바닥 변경은 없다.
 
 ## 김민에게 — 2026-11-02 · 금윤호(Claude, 윤호 맥북) — 영상 비교 독립 검토 교정(F01~F08) · **네 갤러리 · 아이콘 부품을 조금 고쳤다**
 

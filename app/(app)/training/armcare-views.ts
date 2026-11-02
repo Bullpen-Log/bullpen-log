@@ -1,4 +1,5 @@
 import 'server-only';
+import { clampRoutineSets } from '@/lib/armcare/my-routines';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
@@ -17,9 +18,10 @@ import type { ArmcareExerciseView } from './armcare-media';
 export async function toArmcareViews(
   list: CachedExercise[],
   /** 운동마다 할 세트 — 루틴은 운동에 적힌 세트와 다를 수 있다 */
-  sets?: Map<string, number>
+  sets?: Map<string, number>,
+  skipThumbs = false
 ): Promise<ArmcareExerciseView[]> {
-  const thumbs = await createPlaybackUrls(
+  const thumbs = skipThumbs ? {} : await createPlaybackUrls(
     list.map((ex) => ex.thumbPath).filter((p): p is string => !!p)
   );
   return list.map((ex) => ({
@@ -30,6 +32,7 @@ export async function toArmcareViews(
     equipment: ex.equipment,
     /* 마이그레이션 전에 캐시에 담긴 줄에는 이 칸이 없을 수 있다(lib/library-cache.ts) */
     targetMuscles: ex.targetMuscles ?? [],
+    defaultSets: clampRoutineSets(ex.sets),
     prescription: formatPrescription({ ...ex, sets: sets?.get(ex.id) ?? ex.sets }),
     thumbUrl: ex.referenceVideoId
       ? referenceThumbUrl(ex.referenceVideoId)

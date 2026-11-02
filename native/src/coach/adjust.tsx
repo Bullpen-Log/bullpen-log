@@ -8,6 +8,7 @@ import type { DaySlot } from '@/lib/coach/week';
 import { rpc } from '~/lib/rpc';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { ActionButton } from '~/shell/action-button';
+import { Icon, type IconName } from '~/shell/icon';
 import { Press } from '~/shell/press';
 import { toast } from '~/shell/toast';
 import { Sheet } from '~/workout/sheets';
@@ -64,11 +65,11 @@ export function AdjustBar({ week, states, today, onDone }: { week: DaySlot[]; st
     }
   };
 
-  const chips: { label: string; onPress: () => void }[] = [];
-  if (todayOpen && t.items.some((x) => x.kind === 'train')) chips.push({ label: '오늘 시간', onPress: () => setStep({ kind: 'minutes' }) });
-  if (todayOpen && isMain(t)) chips.push({ label: '오늘 쉬기', onPress: () => preview({ kind: 'skip', date: today }) });
-  if (movable.some(isMain)) chips.push({ label: '날 바꾸기', onPress: () => setStep({ kind: 'move', from: null }) });
-  if (movable.some((s) => s.items.some((x) => x.kind === 'train' || x.kind === 'program'))) chips.push({ label: '이번 주 바빠요', onPress: () => preview({ kind: 'busy' }) });
+  const chips: { label: string; icon: IconName; onPress: () => void }[] = [];
+  if (todayOpen && t.items.some((x) => x.kind === 'train')) chips.push({ label: '오늘 시간', icon: 'history', onPress: () => setStep({ kind: 'minutes' }) });
+  if (todayOpen && isMain(t)) chips.push({ label: '오늘 쉬기', icon: 'moon', onPress: () => preview({ kind: 'skip', date: today }) });
+  if (movable.some(isMain)) chips.push({ label: '날 바꾸기', icon: 'move', onPress: () => setStep({ kind: 'move', from: null }) });
+  if (movable.some((s) => s.items.some((x) => x.kind === 'train' || x.kind === 'program'))) chips.push({ label: '이번 주 바빠요', icon: 'calendar-days', onPress: () => preview({ kind: 'busy' }) });
   if (!chips.length) return null;
 
   const minutesNow = t?.items.find((x) => x.kind === 'train');
@@ -76,9 +77,12 @@ export function AdjustBar({ week, states, today, onDone }: { week: DaySlot[]; st
 
   return (
     <View style={{ gap: 8 }}>
-      <View style={st.chips}>
+      <Text accessibilityRole="header" style={[TYPE.section, { color: c.ink }]}>일정 조정</Text>
+      <Text style={[TYPE.body, { color: c.muted }]}>바뀌는 날짜를 먼저 확인하고 직접 적용해요.</Text>
+      <View style={st.choiceGrid}>
         {chips.map((x) => (
-          <Press key={x.label} accessibilityRole="button" disabled={busy} onPress={x.onPress} style={[st.chip, { backgroundColor: c.card, borderColor: c.line }]}>
+          <Press key={x.label} accessibilityRole="button" disabled={busy} onPress={x.onPress} style={[st.choiceCard, { backgroundColor: c.card, borderColor: c.line }]}>
+            <Icon name={x.icon} size={20} color={c.link} />
             <Text style={[TYPE.body, { color: c.ink, fontWeight: '600' }]}>{x.label}</Text>
           </Press>
         ))}
@@ -170,6 +174,8 @@ function ErrLine({ err, c }: { err: string | null; c: Palette }) {
 }
 
 const st = StyleSheet.create({
+  choiceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  choiceCard: { width: '48%', minHeight: 82, borderWidth: StyleSheet.hairlineWidth, borderRadius: 15, padding: 13, justifyContent: 'space-between', alignItems: 'flex-start' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   dayRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, borderRadius: 14 },

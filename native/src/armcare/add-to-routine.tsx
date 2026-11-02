@@ -1,118 +1,78 @@
-import { Icon } from '~/shell/icon';
-import * as Haptics from 'expo-haptics';
+import { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react';
+import { Text, View } from 'react-native';
 import { type Href, router } from 'expo-router';
-import { createContext, useContext, useState, type ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { MY_ROUTINE_MAX, MY_ROUTINE_MAX_ITEMS } from '@/lib/armcare/my-routines';
+import { MY_ROUTINE_MAX } from '@/lib/armcare/my-routines';
+import { targetStatus, type RoutineChoice } from '@/lib/armcare/routine-target';
 import type { Palette } from '~/lib/ui';
-import { act, offlineAs } from '~/mechanics/parts';
-import { Sheet } from '~/workout/sheets';
+import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
+import { Sheet } from '~/workout/sheets';
+import { s } from '~/training/screen';
+import { initializeTargets, useRoutineTargets, refreshTargets, addToTarget, confirmTarget } from './routine-target-store';
+export type { RoutineChoice } from '@/lib/armcare/routine-target';
 
-/**
- * 부위별 보강의 운동 줄에서 내 루틴에 담는 단추 · 창 — 웹 app/(app)/training/add-to-routine.tsx 를 옮겼다(같은 서버 동작
- * armcare.addToMyArmcareRoutine). 루틴 목록은 부위별 보강 칸이 한 번 넘겨 준다(Provider) — 없는 곳(오늘 루틴 체크 목록)에서는 단추를 안 그린다.
- */
-export type RoutineChoice = { id: string; name: string; exerciseIds: string[] };
+const Enabled = createContext(false);
 
-const RoutinesContext = createContext<RoutineChoice[] | null>(null);
-
-export function MyRoutinesProvider({ routines, children }: { routines: RoutineChoice[] | null; children: ReactNode }) {
-  return <RoutinesContext.Provider value={routines}>{children}</RoutinesContext.Provider>;
+/** One account-scoped source for every exercise row, including after closing a sheet. */
+export function MyRoutinesProvider({ children }: { routines: RoutineChoice[] | null; children: ReactNode }) {
+  useEffect(() => { void initializeTargets(); }, []);
+  return <Enabled.Provider value>{children}</Enabled.Provider>;
 }
-
-export function AddToRoutine({ exerciseId, title, c }: { exerciseId: string; title: string; c: Palette }) {
-  const routines = useContext(RoutinesContext);
+export function RoutineOperationNotice({ c }: { c: Palette }) {
+  const st = useRoutineTargets();
+  if (!st.op && !st.message) return null;
+  return <View accessibilityLiveRegion="polite" style={[s.card, { backgroundColor: c.chip, gap: 8 }]}>
+    <Text style={[s.small, { color: c.ink }]}>{st.op ? `${st.op.title} · ${st.op.status === 'adding' ? '루틴에 담는 중…' : '담기 결과 확인 필요'}` : st.message}</Text>
+    {st.op?.status === 'unknown' ? <Press onPress={() => void confirmTarget()} disabled={st.checking} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}><Text style={[s.bodyBold, { color: c.link }]}>{st.checking ? '확인 중…' : '담기 결과 확인'}</Text></Press> : null}
+  </View>;
+}
+export function AddToRoutine({ exerciseId, title, defaultSets, c }: { exerciseId: string; title: string; defaultSets?: number; c: Palette }) {
+  const enabled = useContext(Enabled);
+  const st = useRoutineTargets();
   const [open, setOpen] = useState(false);
-  /* 이 창에서 담은 것 — 다시 받기 전에도 ✓ 가 보이게 */
-  const [addedTo, setAddedTo] = useState<string[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  if (!routines) return null;
-
-  const contains = (r: RoutineChoice) => r.exerciseIds.includes(exerciseId) || addedTo.includes(r.id);
-  const add = async (r: RoutineChoice) => {
-    if (pending) return;
-    setPending(true);
-    setMessage(null);
-    const res = await act<{ ok: true; added: boolean }>('armcare.addToMyArmcareRoutine', r.id, exerciseId);
-    setPending(false);
-    /* 신호가 끊겼으면 웹 add-to-routine 과 같은 글 */
-    if ('error' in res) return setMessage(offlineAs(res.error, '담지 못했어요.'));
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setAddedTo((prev) => [...prev, r.id]);
-    setMessage(res.added ? `'${r.name}'에 담았어요.` : `'${r.name}'에 이미 있어요.`);
-  };
-
-  return (
-    <>
-      <Press
-        onPress={() => {
-          setMessage(null);
-          setOpen(true);
-        }}
-        accessibilityRole="button"
-        accessibilityLabel={`${title} 내 루틴에 담기`}
-        style={[st.add, { borderColor: c.line }]}
-      >
-        <Icon name="plus" size={11} color={c.muted} />
-        <Text style={[st.addText, { color: c.muted }]}>담기</Text>
-      </Press>
-      <Sheet open={open} onClose={() => setOpen(false)} title="내 루틴에 담기" description={title} c={c}>
-        <View style={{ gap: 12 }}>
-          {routines.length === 0 ? (
-            <Text style={[st.body, { color: c.muted }]}>저장한 루틴이 없어요.</Text>
-          ) : (
-            routines.map((r) => {
-              const inside = contains(r);
-              const full = !inside && r.exerciseIds.length >= MY_ROUTINE_MAX_ITEMS;
-              return (
-                <Press
-                  key={r.id}
-                  onPress={() => void add(r)}
-                  disabled={pending || inside || full}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: pending || inside || full, selected: inside }}
-                  style={[st.choice, inside ? { borderColor: c.sky, backgroundColor: c.action + '14' } : { borderColor: c.line, backgroundColor: c.card }]}
-                >
-                  <Text style={[st.body, { color: inside ? c.link : c.ink, fontWeight: '600', flex: 1 }]}>{r.name}</Text>
-                  {inside ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Icon name="check" size={12} color={c.link} />
-                      <Text style={[st.small, { color: c.link, fontWeight: '600' }]}>담김</Text>
-                    </View>
-                  ) : (
-                    <Text style={[st.small, { color: c.muted }]}>{full ? `${MY_ROUTINE_MAX_ITEMS}개 꽉 참` : `운동 ${r.exerciseIds.length}개`}</Text>
-                  )}
-                </Press>
-              );
-            })
-          )}
-          {message ? <Text style={[st.body, { color: c.link }]}>{message}</Text> : null}
-          {routines.length < MY_ROUTINE_MAX ? (
-            <Press
-              onPress={() => {
-                setOpen(false);
-                router.push(`/training/routine/new?add=${exerciseId}` as Href);
-              }}
-              accessibilityRole="button"
-              style={[st.newBtn, { backgroundColor: c.chip }]}
-            >
-              <Icon name="plus" size={14} color={c.ink} />
-              <Text style={[st.body, { color: c.ink, fontWeight: '600' }]}>이 운동으로 새 루틴 만들기</Text>
-            </Press>
-          ) : null}
-        </View>
-      </Sheet>
-    </>
-  );
+  const [selected, setSelected] = useState<string | null>(null);
+  const submitted = useRef<string | null>(null);
+  useEffect(() => {
+    if (st.completed?.exerciseId === exerciseId && st.completed.routineId === submitted.current) {
+      submitted.current = null;
+      setOpen(false);
+    }
+  }, [st.completed, exerciseId]);
+  const routines = st.routines;
+  const busy = !!st.op || st.checking;
+  const target = routines?.find((r) => r.id === selected);
+  const allInside = !!routines?.length && st.fresh && routines.every((r) => targetStatus(r, exerciseId) === 'inside');
+  const noneAvailable = !!routines?.length && st.fresh && routines.every((r) => targetStatus(r, exerciseId) !== 'available');
+  const valid = !!target && targetStatus(target, exerciseId) === 'available' && st.fresh && !st.loading && !busy;
+  if (!enabled) return null;
+  return <>
+    <Press onPress={() => { setSelected(null); setOpen(true); void initializeTargets(); }} accessibilityRole="button" accessibilityLabel={`${title} 내 루틴에 담기`} style={{ minWidth: 52, minHeight: 44, borderRadius: 22, backgroundColor: c.chip, alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={[s.smallBold, { color: c.link }]}>담기</Text>
+    </Press>
+    <Sheet open={open} fit onClose={() => setOpen(false)} title="내 루틴에 담기" description={title} c={c} footer={<View style={{ gap: 8 }}>
+      {target && valid ? <Text style={[s.small, { color: c.muted }]}>{target.name}에 담기</Text> : null}
+      <Press disabled={!valid && !allInside} accessibilityRole="button" accessibilityState={{ disabled: !valid && !allInside }} onPress={() => { if (allInside) return setOpen(false); if (target) { submitted.current = target.id; void addToTarget(target.id, exerciseId, title); } }} style={{ minHeight: 52, padding: 14, borderRadius: 20, alignItems: 'center', backgroundColor: valid ? c.action : c.chip }}><Text style={[s.bodyBold, { color: valid ? '#fff' : c.muted }]}>{allInside ? '목록으로 돌아가기' : st.op?.status === 'adding' ? '담는 중…' : '선택한 루틴에 담기'}</Text></Press>
+    </View>}>
+      <View style={{ gap: 12 }}>
+        {defaultSets != null ? <Text style={[s.small, { color: c.muted }]}>기본 {defaultSets}세트</Text> : null}
+        <RoutineOperationNotice c={c} />
+        {st.loading ? <Text style={[s.small, { color: c.muted }]}>내 루틴 확인 중…</Text> : null}
+        {st.error ? <View><Text style={[s.small, { color: c.warn }]}>{st.error}</Text><Press accessibilityRole="button" onPress={() => void initializeTargets()} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={[s.bodyBold, { color: c.link }]}>다시 불러오기</Text></Press></View> : null}
+        {selected && !target && !st.loading ? <Text style={[s.small, { color: c.warn }]}>선택한 루틴이 바뀌었어요. 다른 루틴을 선택해 주세요.</Text> : null}
+        {routines?.length === 0 && st.fresh ? <Text style={[s.body, { color: c.muted }]}>저장한 루틴이 없어요.</Text> : null}
+        {allInside ? <Text style={[s.small, { color: c.muted }]}>모든 루틴에 이미 담겨 있어요.</Text> : noneAvailable ? <Text style={[s.small, { color: c.muted }]}>지금 담을 수 있는 루틴이 없어요.</Text> : null}
+        {routines?.map((r) => {
+          const status = targetStatus(r, exerciseId);
+          const disabled = busy || !st.fresh || st.loading || status !== 'available';
+          const chosen = selected === r.id && status === 'available';
+          return <Press key={r.id} onPress={() => setSelected(r.id)} disabled={disabled} accessibilityRole="radio" accessibilityState={{ checked: chosen, disabled }} style={{ padding: 16, borderRadius: 20, borderWidth: 1, borderColor: chosen ? c.action : c.line, backgroundColor: chosen ? c.chip : c.card, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ flex: 1, gap: 5 }}><Text style={[s.bodyBold, { color: c.ink }]}>{r.name}</Text><Text style={[s.small, { color: c.muted }]}>{status === 'inside' ? '이미 담김' : status === 'full' ? '운동 15개 · 가득 참' : `운동 ${r.exerciseIds.length}개${r.exerciseIds.length === 14 ? ' · 1개 더 담을 수 있어요' : ''}`}</Text></View>
+            <Icon name={chosen || status === 'inside' ? 'check' : 'plus'} size={18} color={chosen ? c.link : c.muted} />
+          </Press>;
+        })}
+        {st.fresh && !st.loading && routines ? <Press disabled={busy} accessibilityRole="button" onPress={() => { setOpen(false); router.push((routines.length < MY_ROUTINE_MAX ? `/training/routine/new?add=${exerciseId}` : '/training-armcare?tab=today') as Href); }} style={{ minHeight: 48, justifyContent: 'center' }}><Text style={[s.bodyBold, { color: busy ? c.muted : c.link }]}>{routines.length < MY_ROUTINE_MAX ? '이 운동으로 새 루틴 만들기' : '내 루틴 관리'}</Text></Press> : null}
+        {!st.fresh && !st.loading && !st.error ? <Press onPress={() => void refreshTargets()} style={{ minHeight: 44 }}><Text style={{ color: c.link }}>내 루틴 확인</Text></Press> : null}
+      </View>
+    </Sheet>
+  </>;
 }
-
-const st = StyleSheet.create({
-  add: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 32, borderWidth: 1, borderRadius: 16, paddingHorizontal: 10, alignSelf: 'flex-start' },
-  addText: { fontSize: 13, fontWeight: '600' },
-  body: { fontSize: 15, lineHeight: 22 },
-  small: { fontSize: 13 },
-  choice: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 },
-  newBtn: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12 },
-});

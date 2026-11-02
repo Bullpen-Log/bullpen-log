@@ -20,6 +20,7 @@ export type ArmcareExerciseView = {
   targetMuscles: string[];
   /** '1세트 × 10회 (좌우 각각)' — 루틴은 오늘 할 세트로 바꿔 적는다 */
   prescription: string | null;
+  defaultSets?: number;
   thumbUrl: string | null;
   videoPath: string | null;
   referenceVideoId: string | null;

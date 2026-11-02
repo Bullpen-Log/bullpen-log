@@ -35,6 +35,8 @@
     "native-armcare-run:test": "node --import ./scripts/native-test-register.mjs scripts/native-armcare-run-selftest.mts",
     "native-load-core:test": "node --import ./scripts/native-test-register.mjs scripts/native-load-core-selftest.mts",
     "native-today-card:test": "node --import ./scripts/native-test-register.mjs scripts/native-today-card-selftest.mts",
+    "native-armcare-guide:test": "node --import ./scripts/native-test-register.mjs scripts/native-armcare-guide-selftest.mts",
+    "native-pitch-entry:test": "node --import ./scripts/native-test-register.mjs scripts/native-pitch-entry-selftest.mts",
     "native-org-video:test": "node --import ./scripts/native-test-register.mjs scripts/native-org-video-selftest.mts",
     "native-columns:test": "node --import ./scripts/native-test-register.mjs scripts/native-columns-selftest.mts",
     "native-palette:test": "node --import ./scripts/native-test-register.mjs scripts/native-palette-selftest.mts",

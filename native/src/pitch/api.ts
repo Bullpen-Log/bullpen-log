@@ -52,15 +52,29 @@ export type PitchEntry = {
   velocitySessionIds?: string[];
 };
 
-export class ApiError extends Error {}
-/** 서버에 닿지 못함(신호 끊김) — 폼이 적은 것을 폰에 남겨 둘 때 가른다 */
+export class ApiError extends Error {
+  /** 서버가 답한 HTTP 상태(404 지워짐 · 409 겹침 등). 서버에 못 닿았으면 없다 */
+  constructor(
+    message: string,
+    readonly status?: number
+  ) {
+    super(message);
+  }
+}
+/**
+ * 서버에 닿지 못했거나 답을 못 받음(신호 끊김 · 응답 늦음) — 폼이 적은 것을 폰에 남겨 둘 때 가른다.
+ * 보낸 뒤 끊겼을 수도 있어 서버가 저장했는지는 모른다(퀵스텝이 그 달을 다시 읽어 확인한다).
+ */
 export class OfflineError extends ApiError {}
 
 const READ_ONLY_POSTS = new Set(['/api/pitch-log/video-url', '/api/pitch-log/thumb-url']);
 
-export async function call<T>(path: string, init: { method: string; body?: unknown }): Promise<T> {
+export async function call<T>(path: string, init: { method: string; body?: unknown; timeoutMs?: number }): Promise<T> {
   await syncSession();
   let res: Response;
+  /* 오래 매달리지 않게(저장) — 끊으면 신호 끊김과 같이 다룬다 */
+  const abort = init.timeoutMs ? new AbortController() : null;
+  const timer = abort ? setTimeout(() => abort.abort(), init.timeoutMs) : null;
   try {
     res = await fetch(`${SITE_URL}${path}`, {
       method: init.method,
@@ -68,12 +82,16 @@ export async function call<T>(path: string, init: { method: string; body?: unkno
       /* 기기 시간대 — 서버가 '오늘'을 이 기기 날짜로(lib/time-zone.ts) */
       headers: { 'content-type': 'application/json', [APP_API_HEADER]: String(APP_API_LEVEL), 'x-bp-tz': deviceTimeZone() ?? '' },
       ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+      ...(abort ? { signal: abort.signal } : {}),
     });
   } catch {
     throw new OfflineError('신호가 약해 서버에 닿지 못했어요.');
+  } finally {
+    if (timer) clearTimeout(timer);
   }
   const body = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
-  if (!res.ok) throw new ApiError(body?.error ?? '서버에서 처리하지 못했어요.');
+  if (!body || res.status >= 500) throw new OfflineError('서버 응답을 확인하지 못했어요.');
+  if (!res.ok) throw new ApiError(body?.error ?? '서버에서 처리하지 못했어요.', res.status);
   /* 주소를 묻기만 하는 POST(영상 · 장면 그림 서명 주소)는 쓰기가 아니다 — 쓰기로 세면 영상을 본 뒤 돌아올 때 판 넷이 다 다시 받았다(2026-10-24) */
   if (init.method !== 'GET' && !READ_ONLY_POSTS.has(path)) markWrite();
   return body as T;
@@ -109,8 +127,25 @@ export const resetMe = () => {
 export const loadMonth = (month: string) => call<PitchLog[]>(`/api/pitch-log?month=${month}`, { method: 'GET' });
 /** 모든 기록 — 찾기(느낌으로 찾기)가 켜졌을 때만 */
 export const loadAll = () => call<PitchLog[]>('/api/pitch-log', { method: 'GET' });
-export const createLog = (e: PitchEntry) => call<PitchLog>('/api/pitch-log', { method: 'POST', body: e });
-export const updateLog = (id: string, e: PitchEntry) => call<PitchLog>('/api/pitch-log', { method: 'PATCH', body: { id, ...e } });
+
+/**
+ * 구속 측정 연결 결과(서버 lib/velocity-link.ts) — 새 기록 답에 실려 온다. 옛 서버는 이 칸이 없다(undefined — 앱이 따로 확인한다).
+ * 기록 저장과 연결은 따로 성공한다: 기록은 저장됐는데 연결을 못 했을 수 있다.
+ */
+export type VelocityLink = {
+  requested: string[];
+  linked: string[];
+  failed: { id: string; reason: 'other' | 'missing' | 'date' | 'error' }[];
+};
+/** 저장은 25초를 넘기면 끊는다 — 끊긴 것은 '저장 여부 확인'으로 다룬다(pitch/entry-save.ts) */
+const SAVE_TIMEOUT_MS = 25_000;
+export const createLog = (e: PitchEntry) =>
+  call<PitchLog & { velocityLink?: VelocityLink | null }>('/api/pitch-log', { method: 'POST', body: e, timeoutMs: SAVE_TIMEOUT_MS });
+export const updateLog = (id: string, e: PitchEntry) =>
+  call<PitchLog>('/api/pitch-log', { method: 'PATCH', body: { id, ...e }, timeoutMs: SAVE_TIMEOUT_MS });
+/** 저장된 기록에 측정 연결만 다시 — 기록을 새로 만들지 않는다 */
+export const linkVelocity = (id: string, sessionIds: string[]) =>
+  call<VelocityLink>('/api/pitch-log/link', { method: 'POST', body: { id, sessionIds }, timeoutMs: SAVE_TIMEOUT_MS });
 
 /**
  * 어느 기록에도 안 붙은 폰 영상 경로만 돌려준다(/api/pitch-log/discard 의 orphans) — 저장은 됐는데 답만 못 받은 기록(신호 끊김)의

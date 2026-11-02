@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
 import { ActivityIndicator, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { applyCoachAdjust, previewCoachAdjust } from '@/app/actions/coach';
@@ -10,6 +11,7 @@ import { SheetHead } from '~/home/sheet-head';
 import { ActionButton } from '~/shell/action-button';
 import { Press } from '~/shell/press';
 import { toast } from '~/shell/toast';
+import { Icon } from '~/shell/icon';
 
 type Chat = Extract<Awaited<ReturnType<typeof loadCoachChat>>, { ok: true }>;
 type Msg = Chat['messages'][number];
@@ -56,12 +58,13 @@ export default function CoachChatScreen() {
       (r) => {
         if (!r.ok) return setFailed(r.error);
         setChat(r);
+        setFailed(null);
         setNotice(r.block);
       },
       () => setFailed('신호가 약해 대화를 불러오지 못했어요.')
     );
   }, []);
-  useEffect(load, [load]);
+  useFocusEffect(load);
 
   const agree = async () => {
     if (!chat) return;
@@ -105,9 +108,12 @@ export default function CoachChatScreen() {
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-        <SheetHead c={c} title="코치에게 말하기" />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ flex: 1 }}><SheetHead c={c} title="코치에게 말하기" /></View>
+          <Press accessibilityRole="button" accessibilityLabel="코치 설정" onPress={() => router.push('/coach-settings')} style={st.settingsButton}><Icon name="settings" size={19} color={c.ink} /></Press>
+        </View>
       </View>
-      {failed ? <Text style={[TYPE.body, { color: c.danger, padding: 16 }]}>{failed}</Text> : null}
+      {failed ? <View style={{ padding: 16, gap: 10 }}><Text style={[TYPE.body, { color: c.danger }]}>{failed}</Text><ActionButton label="다시 확인" compact tone="secondary" onPress={() => { setFailed(null); load(); }} /></View> : null}
       {!chat && !failed ? <ActivityIndicator style={{ marginTop: 40 }} /> : null}
       {chat && !chat.consented ? <ConsentView chat={chat} onAgree={() => void agree()} c={c} /> : null}
       {chat && chat.consented ? (
@@ -220,6 +226,7 @@ function AdjustCard({ a, c }: { a: CoachAdjust; c: Palette }) {
   };
   return (
     <View style={[st.card, { backgroundColor: c.card, borderColor: c.line }]}>
+      <Text style={[TYPE.sub, { color: c.link, fontWeight: '700' }]}>제안 · 자동 적용 안 됨</Text>
       <Text style={[TYPE.body, { color: c.ink, fontWeight: '600' }]}>{adjustLabel(a)}</Text>
       {state === 'applied' ? <Text style={[TYPE.sub, { color: c.link }]}>적용함</Text> : null}
       {state === 'cancelled' ? <Text style={[TYPE.sub, { color: c.muted }]}>취소함</Text> : null}
@@ -250,6 +257,7 @@ function AdjustCard({ a, c }: { a: CoachAdjust; c: Palette }) {
 }
 
 const st = StyleSheet.create({
+  settingsButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   bubble: { maxWidth: '86%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },

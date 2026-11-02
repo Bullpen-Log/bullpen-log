@@ -1,3 +1,4 @@
+import { resetRoutineTargets } from '~/armcare/routine-target-store';
 import * as Linking from 'expo-linking';
 import { type Href, router } from 'expo-router';
 import { hideSplashUnlessIntro } from '~/shell/intro';
@@ -25,6 +26,7 @@ import { forCountry, hasNutrition, hiddenIn } from '@/lib/country';
 import { countryNow, followStorefront, useCountry } from '~/lib/country-store';
 import { registerPush, usePushTaps } from '~/shell/push';
 import { resetPitchStore } from '~/pitch/store';
+import { dropPitchDraftsNotOf, resetLinkNotes } from '~/pitch/entry-save';
 import { resetCompare } from '~/pitch/log-list';
 import { resetCompareDocs, setCompareOwner } from '~/compare/store';
 import { resetLibraryItems } from '~/library/parts';
@@ -264,6 +266,8 @@ function resetAccount() {
   resetRelease();
   setOutboxOwner(null);
   resetPitchStore();
+  /* 저장 뒤 측정 연결 확인 줄 — 앞사람 것이 다음 사람 그날 화면에 뜨지 않게 */
+  resetLinkNotes();
   resetCompare();
   /* 비교 문서 — 메모리만(문서는 그 사람 폴더에 남는다, compare/store.ts) */
   resetCompareDocs();
@@ -274,6 +278,7 @@ function resetAccount() {
   resetNutritionStore();
   resetTrainingCache();
   resetFavorites();
+  resetRoutineTargets();
   resetPitchTodayCache();
   resetVelocityDayCache();
   resetImported();
@@ -299,6 +304,7 @@ function ownerKnown(userId: string) {
   /* 비교 문서는 그 사람 폴더 — 베타 잠금과 무관하게 정한다(잠겨 있으면 화면에 안 열릴 뿐) */
   setCompareOwner(userId);
   void dropDraftNotOf(userId);
+  dropPitchDraftsNotOf(userId);
   /*
    * 출시 전 베타(일반 · 준관리자) — 팀 · 레슨장 공간과 폰에 남은 운동 세트 · 암케어 체크 · 투구 영상은 잠긴 기능이라 손대지 않는다.
    * 지우지 않고 그대로 두어 정식 출시 뒤(또는 다음에 열린 계정으로) 보낸다. 서버도 막아 보내 봐야 FEATURE_LOCKED_BETA(대기열은 'offline' 으로 남긴다)
