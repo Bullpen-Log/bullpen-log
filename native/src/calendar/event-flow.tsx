@@ -27,7 +27,7 @@ import {
   syncCalendarAlarm,
 } from '~/home/events';
 import { READABLE } from '~/lib/layout';
-import { rpc, RpcError } from '~/lib/rpc';
+import { markWrite, rpc, RpcError } from '~/lib/rpc';
 import { cacheEpoch, tryLoadJson, trySaveJson } from '~/lib/store';
 import { useKeyboardUp } from '~/lib/use-keyboard-up';
 import type { Palette } from '~/lib/ui';
@@ -129,6 +129,8 @@ export function CalendarEventFlow({
   const operation = useSyncExternalStore(ops.subscribe, ops.snapshot);
   useEffect(() => {
     ops.setCompleted((result, pending) => {
+      // A read may confirm a write whose response was lost. Refresh the other tabs too.
+      markWrite();
       if (result.event) {
         rememberCalendarEvent(result.event, false);
         void syncCalendarAlarm(result.event);
