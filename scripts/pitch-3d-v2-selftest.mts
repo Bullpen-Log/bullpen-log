@@ -43,6 +43,7 @@ import {
   DAILY_FAIL_LIMIT,
   DAILY_REQUEST_LIMIT,
   MAX_ACTIVE,
+  busyTimeout,
   fileFingerprint,
   finishRequest,
   guardBlock,
@@ -530,6 +531,11 @@ console.log('■ 작업 상태(job.json)');
     T0 + 60_000 + V2_JOB_TIMEOUT_MS
   );
   check('15분 넘으면 timeout', to.status === 'failed' && to.fail?.code === 'timeout');
+  const busy = busyTimeout(q2, to);
+  check('GPU 를 한 번도 못 잡은 timeout(대기열)은 gpu — 하루 실패에 안 셈', busy.status === 'failed' && busy.fail?.code === 'gpu' && /붐벼요/.test(busy.fail.reason));
+  const r2 = applyGpuStatus(q2, JOB_ID2, { kind: 'running' }, false, T0 + 70_000);
+  const rto = busyTimeout(r2, applyGpuStatus(r2, JOB_ID2, { kind: 'running' }, false, T0 + 60_000 + V2_JOB_TIMEOUT_MS));
+  check('돌기 시작한 뒤의 timeout 은 그대로 timeout', r2.status === 'running' && rto.fail?.code === 'timeout');
   const unk = applyGpuStatus(q2, JOB_ID2, { kind: 'unknown' }, false, T0 + 70_000);
   check('묻기 실패(unknown)는 상태 그대로(다음 물음에 다시)', unk.status === 'queued');
 

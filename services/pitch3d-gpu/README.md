@@ -44,7 +44,7 @@ modal deploy app.py
 ```
 
 끝에 찍히는 `web` 주소(`https://<workspace>--bullpen-pitch3d-web.modal.run`)가 `PITCH3D_GPU_URL`. 처음 한 번 `modal run app.py::warm` 으로
-모델을 받아 두면 첫 분석의 +30초가 준다. GPU 는 기본 L4(`PITCH3D_GPU` 로 바꿈), 함수 시간 상한 15분.
+모델을 받아 두면 첫 분석의 +30초가 준다. GPU 는 L4 → A10G → L40S 차례로 빈 것(`PITCH3D_GPU` 에 쉼표로 바꿈), 함수 시간 상한 15분.
 
 ## 4. 점검
 
