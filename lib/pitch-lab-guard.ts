@@ -18,7 +18,7 @@
  *   4 하루 요청 상한 · 5 동시 작업 상한 — 걸 때 센다(recordRequest), 끝나면 뺀다(finishRequest). 관리자는 안 센다(마커 묶음 다시 분석)
  *   6 지문 · 찍은 시각은 서버가 올라간 파일에서 직접 읽는다(lib/pitch-lab.ts labServerFacts) — 화면이 보낸 값은 믿지 않는다
  */
-import { V2_VIDEO_FAULT, type V2FailCode } from '@/lib/pitch-3d/v2/contract';
+import { V2_VIDEO_FAULT, type Pitch3dV2Job, type V2FailCode } from '@/lib/pitch-3d/v2/contract';
 import { LAB_VIEWS, type LabFile, type LabMeta } from '@/lib/pitch-lab-meta';
 import type { LabFileFacts } from '@/lib/pitch-lab-file';
 
@@ -247,6 +247,15 @@ export function guardBlock(
 /** GPU 를 쓰고 끝난 실패만 센다 — GPU 를 못 부른 것(gpu · gpu-auth)은 사용자 탓도 비용도 아니다 */
 export function countsAsFail(code: V2FailCode): boolean {
   return code !== 'gpu' && code !== 'gpu-auth';
+}
+
+/**
+ * 15분 동안 GPU 를 한 번도 못 잡고 대기열에만 있다 끝난 timeout — 서버가 붐빈 것이라 GPU 를 못 부른 실패(gpu)로 돌린다(하루 실패에 안 셈).
+ * contract.ts 가 아니라 여기 두는 까닭: contract.ts 는 GPU 엔진 묶음에 들어 고치면 엔진 지문이 바뀌어 모든 결과가 '예전 엔진'으로 보인다.
+ */
+export function busyTimeout(prev: Pitch3dV2Job, next: Pitch3dV2Job): Pitch3dV2Job {
+  if (prev.status !== 'queued' || next.fail?.code !== 'timeout') return next;
+  return { ...next, fail: { code: 'gpu', reason: '분석 서버가 붐벼요. 조금 뒤 다시 해 주세요.' } };
 }
 
 /** 실패 하나를 적는다 — 영상 탓이면 지문도 */

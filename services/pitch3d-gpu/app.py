@@ -16,7 +16,9 @@ import time
 import modal
 
 APP_NAME = "bullpen-pitch3d"
-GPU = os.environ.get("PITCH3D_GPU", "L4")
+# 앞에서부터 빈 것을 잡는다 — L4 만 두면 Modal 에 L4 가 동난 때 대기열에서 15분을 넘겨 실패했다(2026-11-02, 1시간 넘게 못 잡음).
+# 같은 GPU 종류끼리는 2D 가 똑같고, 종류가 바뀌면 판정 숫자가 1~2° 안에서 달라진다(같은 날 A10G · L40S 로 같은 투구를 견줌)
+GPU = os.environ.get("PITCH3D_GPU", "L4,A10G,L40S").split(",")
 TIMEOUT_SEC = 15 * 60  # 웹 쪽 15분 timeout 과 같다
 
 image = (

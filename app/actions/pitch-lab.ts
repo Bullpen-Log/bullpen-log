@@ -30,7 +30,7 @@ import {
 } from '@/lib/pitch-lab';
 import { analysisConsentReady } from '@/lib/analysis-consent';
 import { consentStateFor } from '@/lib/analysis-consent-store';
-import { finishRequest, guardBlock, labMetaBlock, readLabGuard, recordRequest, serverPairBlock } from '@/lib/pitch-lab-guard';
+import { busyTimeout, finishRequest, guardBlock, labMetaBlock, readLabGuard, recordRequest, serverPairBlock } from '@/lib/pitch-lab-guard';
 import {
   applyGpuStatus,
   canRequestV2,
@@ -409,7 +409,7 @@ async function refreshV2Job(
       else status = { kind: 'failed', code: 'internal', stages: status.stages };
     }
   }
-  let next = applyGpuStatus(job, job.jobId, status, resultSaved, now);
+  let next = busyTimeout(job, applyGpuStatus(job, job.jobId, status, resultSaved, now));
   /* 끝났으면 진단 리포트 요약을 같이 적는다(목록 꼬리표) — 셈이 실패해도 결과는 저장한다 */
   if (next !== job && next.status === 'done' && saved?.ok)
     next = await withReport(next, saved, owner, input.id, user).catch(() => next);
