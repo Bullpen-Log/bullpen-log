@@ -65,11 +65,11 @@ const locked = (d: string) => d < T;
 const nul = { date: null, minutes: null, from: null, to: null };
 const s = sanitizeAdjusts(
   [
-    { ...nul, kind: 'minutes', date: '2026-11-04', minutes: 30 },
+    { ...nul, kind: 'minutes', date: '2026-11-04', minutes: 45 },
     { ...nul, kind: 'skip', date: '2026-11-03' },
     { ...nul, kind: 'skip', date: '2026-11-20' },
     { ...nul, kind: 'minutes', date: '2026-11-06', minutes: 61 },
-    { ...nul, kind: 'minutes', date: '2026-11-04', minutes: 30 },
+    { ...nul, kind: 'minutes', date: '2026-11-04', minutes: 45 },
     { ...nul, kind: 'delete-all' },
     { ...nul, kind: 'move', from: '2026-11-06', to: '2026-11-07' },
     { ...nul, kind: 'busy' },
@@ -81,7 +81,7 @@ const s = sanitizeAdjusts(
 );
 check(
   '④ 지난 날 · 주 밖 · 범위 밖 분 · 모르는 종류 · 같은 것은 버리고 3개까지',
-  JSON.stringify(s) === JSON.stringify([{ kind: 'minutes', date: '2026-11-04', minutes: 30 }, { kind: 'move', from: '2026-11-06', to: '2026-11-07' }, { kind: 'busy' }]),
+  JSON.stringify(s) === JSON.stringify([{ kind: 'minutes', date: '2026-11-04', minutes: 45 }, { kind: 'move', from: '2026-11-06', to: '2026-11-07' }, { kind: 'busy' }]),
   JSON.stringify(s)
 );
 check('④ 배열이 아니면 빈 목록', sanitizeAdjusts('skip everything', week, T, locked).length === 0);

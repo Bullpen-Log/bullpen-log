@@ -26529,7 +26529,8 @@ console.log(
       fn.length > 0 &&
         fn.split('await Promise.all(').length - 1 === 1 &&
         /* P6 검토로 바뀜 — 같은 Promise.all 에 오늘 투구 기록 종류(프로그램 없는 사람의 팔 예산)를 더했다. 조회는 여전히 한 번에 */
-        /swappedOutRecently\(user\.id, today\),\s*favoriteExerciseIds\(user\.id\),\s*activeProgram\(user\.id\),\s*pitchTypesToday\(user\.id, toDateKey\(today\)\),\s*\]\);/.test(
+        /* 2026-11-03 유료 코치 — 같은 Promise.all 끝에 이번 주 코치 틀(지금 상태로 맞춤 · 그날 칸 · 피할 동작)을 더했다 */
+        /swappedOutRecently\(user\.id, today\),\s*favoriteExerciseIds\(user\.id\),\s*activeProgram\(user\.id\),\s*pitchTypesToday\(user\.id, toDateKey\(today\)\),[\s\S]*?currentCoachWeek\(user, facts\),\s*\]\);/.test(
           fn
         ) &&
         /score: \{\s*programPatterns: program\.patterns,\s*patternsDone14d: strengthDates\.patternsDone14d,\s*swappedOut,\s*swappedOutToday: swappedOutOf\(before\?\.plan\),\s*favoriteIds,\s*\},/.test(

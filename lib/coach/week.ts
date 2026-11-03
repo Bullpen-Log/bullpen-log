@@ -2,6 +2,7 @@ import { STRENGTH_PER_WEEK } from '@/lib/armcare/routine';
 import { DAY_RULE_RANK, FAR_OUTING_MIN_DAYS, type DayRank, type DayRule } from '@/lib/engine/microcycle';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { HEAVY_LOWER_BLOCK_WITHIN_DAYS } from '@/lib/report/prescription';
+import type { CoachLimit } from '@/lib/coach/answers';
 import {
   BASICS_REQUIRED_EQUIPMENT,
   PROGRAMS,
@@ -78,7 +79,9 @@ export type ReasonCode =
   /* 조정 단추(5단계 U35) — 사용자가 코치에게 시킨 것 */
   | 'skipped'
   | 'moved'
-  | 'busy';
+  | 'busy'
+  /* 피해야 할 동작(코치 질문) 때문에 큰 하체 · 메커니즘을 뺀 칸 */
+  | 'limit';
 
 export type DaySlot = {
   date: string;
@@ -86,6 +89,8 @@ export type DaySlot = {
   reasons: ReasonCode[];
   /** 사용자가 트레이닝 탭에서 그날을 고쳤으면 'user' — 다시 맞출 때 안 덮는다(U38) */
   owner: 'coach' | 'user';
+  /** 조정 단추 · AI 대화로 사용자가 바꾼 칸 — 주중에 다시 맞출 때 안 덮는다(U24 · U35) */
+  adjusted?: true;
   /** 엔진 날 종류(규칙 이름)와 그 몫 — 칸 그림 · 시험이 읽는다 */
   rule: DayRule;
   rank: DayRank;
@@ -96,6 +101,8 @@ export type WeekInput = {
   weekStart: string;
   /** 오늘 — 다시 맞출 때 이 날 앞은 그대로 */
   today: string;
+  /** 오늘 운동을 이미 시작했나 — 그렇다면 오늘 칸도 그대로 */
+  todayLocked?: boolean;
   answers: CoachAnswers;
   fixed: readonly FixedDay[];
   /** 체크인 답이 하루로 못 박은 다음 등판(lib/checkin.ts exactOutingDay 를 날짜로) — 확실 */
@@ -114,9 +121,12 @@ export type WeekInput = {
   baselineFreq: number | null;
   /** 진행 중 근력 프로그램 — 있으면 그 횟수만큼 프로그램 날, 없으면 그날그날 운동(U26) */
   program: { perWeek: number } | null;
+  /** 피해야 할 동작(건강정보 동의가 있을 때만 넘긴다) — 무거운 하체면 운동 칸에 큰 하체를 안 넣고, 던지기면 메커니즘을 안 넣는다.
+   *  나머지(점프 · 머리 위로 밀기)는 그날 운동 목록에서 뺀다(lib/coach/limits.ts) */
+  limits?: readonly CoachLimit[];
   /** 진행 중 메커니즘 프로그램의 주당 세션 */
   mechanics: { perWeek: number } | null;
-  /** 다시 맞출 때 지난 계획 — 오늘 앞 날 · 사용자가 고친 날은 그대로(U24 · U38) */
+  /** 다시 맞출 때 지난 계획 — 오늘 앞 날 · 사용자가 가져간 날 · 조정한 날 · 시작한 오늘은 그대로(U24 · U35 · U38) */
   prev?: readonly DaySlot[] | null;
 };
 
@@ -204,8 +214,10 @@ export function planWeek(input: WeekInput): DaySlot[] {
   const kept = new Map<number, DaySlot>();
   for (const s of input.prev ?? []) {
     const i = dates.indexOf(s.date);
-    if (i >= 0 && (s.date < input.today || s.owner === 'user')) kept.set(i, s);
+    if (i >= 0 && (s.date < input.today || s.owner === 'user' || s.adjusted || (input.todayLocked && s.date === input.today))) kept.set(i, s);
   }
+  /* 쉬기로 함 · 바쁜 주로 뺀 운동 날도 이번 주 몫을 쓴 것 — 다시 맞출 때 다른 날로 되살리지 않는다 */
+  const dropped = [...kept.values()].filter((s) => s.reasons.includes('skipped') || s.reasons.includes('busy')).length;
 
   const slots: DaySlot[] = dates.map((date, i) => {
     const old = kept.get(i);
@@ -236,7 +248,7 @@ export function planWeek(input: WeekInput): DaySlot[] {
   let target: number;
   let picks: number[];
   if (input.program) {
-    target = Math.min(room, Math.max(0, input.program.perWeek - keptCount('program')));
+    target = Math.min(room, Math.max(0, input.program.perWeek - keptCount('program') - dropped));
     /* 프로그램은 무게를 드는 날 — 보조 날(등판 전날)은 피하고 큰 하체를 들 수 있는 날 먼저 */
     const strong = trainable.filter((i) => slots[i].rank !== 'light');
     picks = spread([...strong.filter(heavyOk), ...strong.filter((i) => !heavyOk(i))], target, new Set([...kept.keys()].filter((i) => kept.get(i)!.items.some((x) => x.kind === 'program'))));
@@ -245,28 +257,31 @@ export function planWeek(input: WeekInput): DaySlot[] {
     let base = input.baselineFreq ?? LEVEL_FREQ[input.level ?? ''] ?? DEFAULT_FREQ;
     if (input.youth) base = Math.min(base, YOUTH_MAX_FREQ);
     if (input.effortSpike) base -= 1;
-    target = Math.min(room, Math.max(0, base - lessons - keptCount('train')));
+    target = Math.min(room, Math.max(0, base - lessons - keptCount('train') - dropped));
     picks = spread(trainable, target);
   }
+  /* 프로그램 칸은 프로그램이 정한 대로라 그대로 둔다(진행 중 프로그램은 피할 동작을 모른다 — 프로그램 제안도 안 한다) */
+  const noHeavy = !input.program && !!input.limits?.includes('heavyLower');
   for (const i of picks) {
-    const heavyLower = heavyOk(i);
+    const heavyLower = heavyOk(i) && !noHeavy;
     slots[i].items.push(
       input.program
         ? { kind: 'program', heavyLower }
         : { kind: 'train', fence: { minutes: answers.minutes, heavyLower, light: slots[i].rank === 'light' } }
     );
     if (input.youth && dayRuleOf(dates[i], outings).heavyLower) slots[i].reasons.push('youth');
+    else if (noHeavy && heavyOk(i)) slots[i].reasons.push('limit');
   }
   if (input.effortSpike && !input.program) slots.find((s, i) => !kept.has(i) && !isWorkoutDay(s))?.reasons.push('effort-spike');
 
-  /* 이어진 이틀 큰 하체 없음(keepsLowerBudget 과 같은 약속) — 앞날이 큰 하체면 오늘은 뺀다 */
-  for (let i = 1; i < 7; i++) {
-    if (kept.has(i) || !heavyOfSlot(slots[i - 1])) continue;
+  /* 이어진 이틀 큰 하체 없음(keepsLowerBudget 과 같은 약속) — 앞날이 큰 하체면 오늘은 뺀다. 그대로 둔 뒷날이 큰 하체여도 */
+  for (let i = 0; i < 7; i++) {
+    if (kept.has(i) || !((i > 0 && heavyOfSlot(slots[i - 1])) || (kept.has(i + 1) && heavyOfSlot(slots[i + 1])))) continue;
     const cur = slots[i].items.find((x) => x.kind === 'train' || x.kind === 'program');
     if (!cur || !heavyOfItem(cur)) continue;
     if (cur.kind === 'train') cur.fence.heavyLower = false;
     else if (cur.kind === 'program') cur.heavyLower = false;
-    slots[i].reasons.push('lower-yesterday');
+    if (i > 0 && heavyOfSlot(slots[i - 1])) slots[i].reasons.push('lower-yesterday');
   }
 
   /* 암케어 제안(U23) — 등판 날 · 다음 날은 회복, 강화는 주 STRENGTH_PER_WEEK 번 · 이어서 안 함 · 통증이면 빼고. '제안'이라 안 해도 못 함이 아니다 */
@@ -282,6 +297,7 @@ export function planWeek(input: WeekInput): DaySlot[] {
   /* 메커니즘 드릴(U23) — 가능한 날, 팔을 다 쓴 날(등판 · 다음 날) · 등판 전날 · 팀 훈련 날은 빼고, 통증이면 안 넣는다(mechanicsFoldOf 와 같은 쪽) */
   if (input.mechanics) {
     if (input.painArm) slots.find((s, i) => !kept.has(i))?.reasons.push('pain');
+    else if (input.limits?.includes('throwing')) slots.find((s, i) => !kept.has(i))?.reasons.push('limit');
     else {
       const ok = free.filter((i) => answers.days.includes(i as Weekday) && slots[i].rank !== 'recovery' && slots[i].rule !== 'outingTomorrow' && !slots[i].items.some((x) => x.kind === 'fixed' && x.what === 'team'));
       const order = [...ok.filter((i) => !slots[i].items.some((x) => x.kind === 'program')), ...ok.filter((i) => slots[i].items.some((x) => x.kind === 'program'))];
