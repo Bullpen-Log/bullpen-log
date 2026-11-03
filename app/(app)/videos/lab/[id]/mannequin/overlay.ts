@@ -40,13 +40,12 @@ import {
 
 type ThreeNS = typeof import('three');
 type ColorKey = keyof typeof MEASURE_COLOR;
-type Values = Parameters<typeof measureSpec>[4];
 
 export type Overlay = {
   bones: Three.Group;
   lines: Three.Group;
   /** 장면의 뼈 · 선 자리를 다시 잡고 이름표 명세를 돌려준다(도형은 안 만든다) */
-  update: (J: MannequinJoints, F: MannequinFrame, values: Values) => Label[];
+  update: (J: MannequinJoints, F: MannequinFrame) => Label[];
   /** 옅어짐 — 뼈 · 선 · 부채꼴 재질만(인형 재질은 body-3d 가 fig.materials 로) */
   setAna: (a: number) => void;
   dispose: () => void;
@@ -197,12 +196,12 @@ export function createOverlay(THREE: ThreeNS, opts: { heightM: number; onReady?:
   const beads = Array.from({ length: BEADS }, () => mesh(bones, SPHERE, bm.bone));
   const skull = mesh(bones, SPHERE, bm.bone);
 
-  /* ── 잰 선(한 번만) — 선 9 · 점 4 · 호 5(관 + 부채꼴) ── */
-  const segs = Array.from({ length: 6 }, () => mesh(lines, keep(new THREE.CylinderGeometry(LW, LW, 1, 8)), lm.ref));
+  /* ── 잰 선(한 번만) — 선 4 · 점 4 · 호 1(관 + 부채꼴, 몸통 기울기) ── */
+  const segs = Array.from({ length: 4 }, () => mesh(lines, keep(new THREE.CylinderGeometry(LW, LW, 1, 8)), lm.ref));
   const dots = Array.from({ length: 4 }, () => mesh(lines, SPHERE, lm.ref));
   const tubeIndex = loftIndices(ARC_CAP - 1, TUBE_K, true);
   const fanIndex = fanIndices(ARC_CAP);
-  const arcs = Array.from({ length: 2 }, () => {
+  const arcs = Array.from({ length: 1 }, () => {
     const n = loftVertexCount(ARC_CAP - 1, TUBE_K, true);
     const pos = new Float32Array(n * 3);
     const nor = new Float32Array(n * 3);
@@ -241,10 +240,10 @@ export function createOverlay(THREE: ThreeNS, opts: { heightM: number; onReady?:
     if (normals) (g.attributes.normal as Three.BufferAttribute).needsUpdate = true;
   };
 
-  const update = (J: MannequinJoints, F: MannequinFrame, values: Values) => {
+  const update = (J: MannequinJoints, F: MannequinFrame) => {
     const T = torsoModel(J, F.pelvis, F.chest, k);
     const bs = boneSpec(J, F, T, k);
-    const spec = measureSpec(J, F.pelvis, F.chest, k, values);
+    const spec = measureSpec(J, F.pelvis, F.chest, k);
 
     bs.joints.forEach((p, i) => placeEll(jointBalls[i], p, jr, jr, jr));
     bs.bones.forEach((b, i) => {

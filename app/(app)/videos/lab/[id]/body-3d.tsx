@@ -19,7 +19,7 @@ import { shownEvents, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { displayTrack, playbackTimes } from '@/lib/pitch-3d/v2/display';
 import type { LabGround } from '@/lib/pitch-lab-meta';
 import { blendMannequin, canonicalFrames, mannequinFrames } from '@/lib/pitch-3d/v2/mannequin-frames';
-import { labelText, labelValues, measureAngles, momentOf, type Label } from '@/lib/pitch-3d/v2/mannequin-measure';
+import { labelText, type Label } from '@/lib/pitch-3d/v2/mannequin-measure';
 import { anaMaterials, LEGEND, placeLabels, projectToScreen } from '@/lib/pitch-3d/v2/mannequin-pause';
 import { mannequinTrack } from '@/lib/pitch-3d/v2/mannequin-prep';
 import { createFigure } from './mannequin/figure';
@@ -412,7 +412,7 @@ export const Body3D = forwardRef<
         posed = key;
         const { J, F } = blendMannequin(mann.joints, mann.frames, k, u);
         fig.update(J, F);
-        labels = ov.update(J, F, labelValues(measureAngles(J), momentOf(k, shownEvents(result.events)), result.metrics));
+        labels = ov.update(J, F);
         if (!isPlaying) setSaid(labels.map((l) => `${l.name} ${labelText(l.key, l.value)}${l.off && l.table != null ? ` (결과 표 ${Math.round(l.table)}°)` : ''}`));
         dirty = true;
       };

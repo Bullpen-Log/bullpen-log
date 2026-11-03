@@ -2210,16 +2210,16 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
         labelText('separation', sepAt(225, 180)) === '45°' && labelText('separation', sepAt(225, 270)) === '풀림' &&
         labelText('separation', -0.4) === '0°' && labelText('trunk', -12) === '-12°'
     );
-    /* 선 명세 — 호의 점은 반지름 위, 가운데 점은 반각, 이름표는 상하체 분리 하나 */
-    const spec = measureSpec(fr[fp], F[fp].pelvis, F[fp].chest, k, atPlant);
+    /* 선 명세 — 호의 점은 반지름 위, 가운데 점은 반각, 이름표 없음(상하체 분리도 뺌) */
+    const spec = measureSpec(fr[fp], F[fp].pelvis, F[fp].chest, k);
     const arcOk = spec.arcs.every((a) => {
       const r = Math.hypot(...sub(a.points[0], a.c));
       return a.points.every((p) => Math.abs(Math.hypot(...sub(p, a.c)) - r) < 1e-9) && Math.abs(Math.hypot(...sub(a.mid, a.c)) - r) < 1e-9;
     });
     check(
-      '선 명세: 이름표는 상하체 분리 하나 · 호 둘(분리 · 몸통) · 선 여섯 · 점 넷(팔꿈치 · 어깨 · 무릎 선 없음) · 호의 점이 반지름 위',
-      spec.arcs.length === 2 && spec.labels.length === 1 && spec.labels[0].key === 'separation' && arcOk && spec.segments.length === 6 &&
-        spec.dots.length === 4 && spec.arcs.every((a) => a.key === 'separation' || a.key === 'trunk')
+      '선 명세: 이름표 없음 · 호 하나(몸통) · 선 넷 · 점 넷(분리 · 팔꿈치 · 어깨 · 무릎 선 없음) · 호의 점이 반지름 위',
+      spec.arcs.length === 1 && spec.labels.length === 0 && arcOk && spec.segments.length === 4 &&
+        spec.dots.length === 4 && spec.arcs[0].key === 'trunk'
     );
   }
 }
