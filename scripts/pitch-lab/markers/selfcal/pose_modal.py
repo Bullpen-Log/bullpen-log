@@ -31,7 +31,7 @@ def flip_index():
 WORK = os.environ.get("MARKER_WORK", os.path.join(os.getcwd(), "work"))  # 영상 · 찾은 자료 폴더(저장소 밖) — 기본은 지금 폴더/work
 
 
-@app.function(gpu="L4", timeout=1200, max_containers=8)
+@app.function(gpu=["L4", "A10G", "L40S"], timeout=1200, max_containers=8)
 def pose(name: str, data: bytes, flip: bool = False) -> tuple[str, bytes, str]:
     import tempfile, time
     import av, numpy as np
