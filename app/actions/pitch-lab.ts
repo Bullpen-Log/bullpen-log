@@ -63,6 +63,7 @@ import {
   labViewLabel,
   LAB_EXTRA_LABEL,
   type LabGround,
+  type LabHand,
   type LabShifts,
   readLabMeta,
 } from '@/lib/pitch-lab-meta';
@@ -548,8 +549,8 @@ export type AppLabDetail = {
   } | null;
 };
 
-/** 앱으로 보내는 작업 요약(진행 화면) */
-function appJobOf(job: Pitch3dV2Job | null, nowMs: number): AppLabDetail['job'] {
+/** 앱으로 보내는 작업 요약(진행 화면) — 실패 글의 '옆(3루 쪽)'은 던지는 손에 맞춘다(좌투는 1루) */
+function appJobOf(job: Pitch3dV2Job | null, nowMs: number, hand: LabHand): AppLabDetail['job'] {
   if (!job) return null;
   const code = job.fail?.code ?? null;
   return {
@@ -560,7 +561,7 @@ function appJobOf(job: Pitch3dV2Job | null, nowMs: number): AppLabDetail['job'] 
     active: isV2JobActive(job, nowMs),
     fail:
       job.status === 'failed' && job.fail && code
-        ? { code, reason: job.fail.reason, kind: V2_VIDEO_FAULT.has(code) ? 'video' : code === 'timeout' ? 'timeout' : 'server' }
+        ? { code, reason: forHand(job.fail.reason, hand), kind: V2_VIDEO_FAULT.has(code) ? 'video' : code === 'timeout' ? 'timeout' : 'server' }
         : null,
   };
 }
@@ -673,7 +674,7 @@ export async function loadAppLabDetail(input: {
         fixSection: fix?.section ?? null,
       };
     })(),
-    job: appJobOf(job, now),
+    job: appJobOf(job, now, hand),
     sync: result ? { t: result.t.map((x) => Math.round(x * 1000) / 1000), tBack: result.tBack.map((x) => Math.round(x * 1000) / 1000) } : null,
     capture: meta
       ? {
