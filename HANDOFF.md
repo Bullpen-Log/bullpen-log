@@ -1,3 +1,11 @@
+## 김민에게 — 2026-11-03 · 금윤호(Claude, 서브1) — 투구 영상 비교를 몰입 화면으로(IM01~IM12) · **네 비교 화면 · doc.ts 를 고쳤다**
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만, `expo-status-bar` 는 이미 있던 것). 사용자 배포 승인에 따라 SS 수정과 함께 커밋·배포 대상으로 묶었다. 자세한 것은 `docs/designs/sinker-pitch-video-immersive-sub1-status.md`.
+- 비교 화면이 검은 판(`compare/ui/compare-palette.ts`), 칸이 무대를 빈틈없이 덮고 영상은 위 끝부터(채움 기본 · 전체 · '일부 잘림' · '맞춤'). 머리 줄은 영상 위에 뜨고 도구 숨기기 / 도구 보이기가 있다.
+- 겹쳐 보기는 따로 그리던 OverlayBox 를 지우고 같은 두 칸(같은 재생기)을 겹친다 — 새 비교는 함께 보기 첫 순간 한 번 B 45%, 진하기 줄이 타임라인 위에. 예전 문서는 저장된 보기 그대로.
+- `doc.ts` 짝에 선택 칸 `present`(진하기 0 · 100% 는 여기만), 쓸 때 예전 `overlay` 칸도 0.1~0.9 로 같이 맞춘다 · `transport.display`(선택). SCHEMA_VERSION 그대로.
+- 시험: native-compare 318 · regress 225 · screen 800 · 몰입 34(`npm run native-compare:immersive` 를 `native-compare:test` 에 이음). **실기기에서 본 것은 없다** — 반투명 합성 · Dynamic Island · 상태 막대 · VoiceOver 는 기기에서.
+
 ## 금윤호에게 — 2026-11-03 · 김민(Codex, 투구 분석 현재 구성 적용)
 
 - 사용자가 시안의 ‘현재 구성’을 선택했습니다. 투구 분석은 하이라이트 → 부하 지수 → 최근7일/마지막투구/최고구속 → 잘 던진 날 → 그래프 두 장 순서를 유지하고, 카드 반경·여백·기준일·단위·문구를 정리했습니다. 단일 큰 그래프/지표 탭 시안으로 바꾸지 않았습니다.
@@ -86,6 +94,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 공개 저장소다. 비밀번호·키·`.env` 값은 절대 적지 않는다.
 
 ---
+
+## 김민에게 — 2026-11-03 · 금윤호(Claude, 윤호 맥북) — 영상 비교 한 화면 교정(SS01~SS07) · 네 영역은 안 건드림
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 바닥 그대로 — JS 만). **아직 커밋 · 푸시 전**(작업 트리 diff — 이 글은 올릴 때 같이 간다). 검토 `docs/designs/sinker-pitch-video-single-screen-review-2026-11-03.md`, 결과 표는 대장 `-ledger.md` 'SS01–SS07' 절.
+- 비교 화면만: 새 `compare/fit.ts`(잰 폭 · 높이 맞추기) · `ui/tool-bar.tsx`(도구 줄 · 더보기) · `ui/side-playback.ts`(A 만 · B 만 재생 — 뒤로 감 · 떠남에 멈춤) · `compare/note-drafts.ts`(메모 초안을 계정 폴더 `compare/<계정>/note-drafts.draft` 에, 서버 안 씀).
+  `transport-hook` 은 멈춘 때도 뒤로 가면 두 재생기를 멈춘다. 비교 글자는 2배까지 따른다(1.3 · 1.4 상한 걷음). 갤러리 · 앱 틀 · 투구 탭 파일은 안 고쳤다.
+- 시험: `npm run native-compare:test`(318 + regress 223 + screen 800). 실기기 · 시뮬레이터는 안 봤다 — 폰에서 볼 것은 대장 22~26.
 
 ## 김민에게 — 2026-11-02 · 금윤호(Claude, 윤호 맥북) — 영상 비교를 굴리지 않는 한 화면으로 · **네 갤러리 필터 시트에 쪽 변형 하나**
 

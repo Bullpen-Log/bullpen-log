@@ -8,6 +8,8 @@
  */
 import { normalizeAnnotation, type Annotation, type ViewKey, VIEW_LABEL } from '~/compare/annotations';
 import { IDENTITY_REG, IDENTITY_VIEW, normalizeReg, normalizeView, type Calibration, type Registration, type ViewTransform } from '~/compare/geometry';
+import type { DisplayMode } from '~/compare/immersive/geometry';
+import { legacyOverlayOf, newPresentation, parsePresentation, type Presentation } from '~/compare/immersive/presentation';
 import { normalizeMarks, type EventMarks } from '~/compare/pitch-events';
 import { DEFAULT_RATE, isCompareRate, normalizeFacts, type MediaFacts, type Range, type CompareRate } from '~/compare/timing';
 
@@ -62,6 +64,12 @@ export type PairState = {
   loop: RelSpan | null;
   views: { a: ViewTransform; b: ViewTransform; linked: boolean };
   overlay: { on: boolean; opacity: number; wipe: number | null; reg: Registration };
+  /**
+   * 몰입 비교 보기(IM04 · IM09, 2026-11-03 — 선택 칸): 분할/겹침 · 채움/전체 · 위 영상 · 진하기 0~1 · 반반.
+   * 없으면(예전 문서) overlay 칸에서 옮겨 읽는다(presentOf). 쓸 때는 overlay 칸도 같이 맞춰 옛 앱이 같은 보기를 연다(setPresent).
+   * 예전 overlay.opacity 는 0.1~0.9 로만 읽혀서 진하기 0 · 100% 끝점은 이 칸에만 남는다.
+   */
+  present?: Presentation;
   mode: 'offset' | 'normalized';
   /** 마지막으로 본 상대 자리(초) — 다시 열면 여기서 멈춘 채 */
   rel: number;
@@ -110,7 +118,8 @@ export type ComparisonDocument = {
   annotations: Annotation[];
   notes: NoteRef[];
   reviewSet: ReviewSet | null;
-  transport: { rate: CompareRate; audio: 'none' | 'a' | 'b'; layout: 'auto' | 'stack' | 'side' };
+  /** display — 한 영상 보기(짝 없음)의 채움/전체(선택 칸 · 2026-11-03). 짝은 present.display */
+  transport: { rate: CompareRate; audio: 'none' | 'a' | 'b'; layout: 'auto' | 'stack' | 'side'; display?: DisplayMode };
   evidence: EvidenceRef[];
   /** 클라우드 백업은 아직 없다(R21) — 늘 local. 서버에 맞춘 것처럼 보이지 않게 */
   sync: { state: 'local' };
@@ -159,9 +168,21 @@ export function newPair(a: string, b: string): PairState {
     loop: null,
     views: { a: { ...IDENTITY_VIEW }, b: { ...IDENTITY_VIEW }, linked: false },
     overlay: { on: false, opacity: 0.5, wipe: null, reg: { ...IDENTITY_REG } },
+    present: newPresentation(),
     mode: 'offset',
     rel: 0,
   };
+}
+
+/** 짝의 몰입 보기 — 예전 문서(칸 없음)는 저장된 겹침 켬/끔 · 진하기 · 반반을 그대로 옮겨 읽는다 */
+export const presentOf = (p: PairState): Presentation => p.present ?? parsePresentation(undefined, p.overlay);
+
+/** 지금 짝의 몰입 보기 바꾸기 — 예전 overlay 칸(켬/끔 · 진하기 · 반반)도 같이 맞춘다. 맞춤(reg)은 그대로 */
+export function setPresent(d: ComparisonDocument, next: Presentation): ComparisonDocument {
+  const { a, b } = d.active;
+  const p = b ? pairOf(d, a, b) : null;
+  if (!p) return d;
+  return updatePair(d, { present: next, overlay: { ...p.overlay, ...legacyOverlayOf(next) } });
 }
 
 export function defaultTitle(sources: readonly SourceRef[]): string {
@@ -435,6 +456,11 @@ function parsePair(raw: unknown, ids: ReadonlySet<string>): PairState | null {
       wipe: wipe != null ? Math.min(1, Math.max(0, wipe)) : null,
       reg: normalizeReg(ov.reg),
     },
+    present: parsePresentation(p.present, {
+      on: ov.on === true,
+      opacity: opacity != null ? Math.min(0.9, Math.max(0.1, opacity)) : 0.5,
+      wipe: wipe != null ? Math.min(1, Math.max(0, wipe)) : null,
+    }),
     mode: p.mode === 'normalized' ? 'normalized' : 'offset',
     rel: num(p.rel) ?? 0,
   };
@@ -513,6 +539,7 @@ export function parseDocument(raw: unknown, ownerId: string): ParseResult {
       rate: isCompareRate(tr.rate) ? tr.rate : DEFAULT_RATE,
       audio: tr.audio === 'a' || tr.audio === 'b' ? tr.audio : 'none',
       layout: tr.layout === 'stack' || tr.layout === 'side' ? tr.layout : 'auto',
+      ...(tr.display === 'fill' || tr.display === 'full' ? { display: tr.display as DisplayMode } : {}),
     },
     evidence,
     sync: { state: 'local' },

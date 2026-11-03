@@ -5,9 +5,12 @@ import { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Annotation, Geometry } from '~/compare/annotations';
 import type { Calibration, Pane as PaneGeom, Pt, Px, ViewTransform } from '~/compare/geometry';
+import { FS_MAX } from '~/compare/fit';
 import { clock } from '~/compare/timing';
+import { isCropped, isFramed, layerMap, shownFraction, type DisplayMode, type LayerMap } from '~/compare/immersive/geometry';
 import { AnnotationLayer, type DrawTool } from '~/compare/ui/annotation-layer';
-import { TYPE, usePalette } from '~/lib/ui';
+import { TYPE } from '~/lib/ui';
+import { useComparePalette } from '~/compare/ui/compare-palette';
 import { thumbSource, usePathThumbs } from '~/pitch/store';
 import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
@@ -56,9 +59,23 @@ export type PaneDraw = {
 /** 칸 위 작은 표시(UI03 — 제목 줄 · 보조 줄 · 기준 줄 대신 영상 위에 작게) */
 export type PaneBadge = { anchor: string | null; marked: boolean; title: string };
 
+/** 겹쳐 보기의 한 겹(IM04 · IM05) — 두 칸이 같은 자리에 겹친다. 자리는 위(workbench)가 overlayTopMap 으로 셈한 LayerMap 하나 */
+export type PaneLayer = {
+  /** 원본 전체가 칸 안에 그려지는 사각형(칸 좌표) — null 이면 이 칸이 스스로 셈한다 */
+  map: LayerMap | null;
+  /** 영상 그림의 진하기 0~1 — 조작 · 표시 글자는 흐리게 하지 않는다 */
+  opacity: number;
+  /** 반반 비교 — 이 겹은 칸 폭의 이 몫(0~1)부터 오른쪽만 보인다 */
+  clipLeft: number | null;
+  /** 위 겹은 손가락을 받지 않는다(밑 겹이 확대 · 고르기를 받는다) — 오류 단추만 */
+  role: 'base' | 'top';
+};
+
 /**
- * 비교 칸 하나 — 자기 재생기를 갖는다(영상이 바뀌면 key 로 새로). 칸 = 화면에 보이는 영상 사각형(rect, 무대가 원본 비율로 셈해 준다).
- * 확대 · 이동 · 반전은 보기 변환(view)으로 영상과 그림에 같이 걸린다. rect 가 null 이면(겹쳐 보기 · 다른 쪽 집중 보기) 재생기는 살려 두고 화면엔 안 그린다.
+ * 비교 칸 하나 — 자기 재생기를 갖는다(영상이 바뀌면 key 로 새로). 칸(rect) = 무대를 나눈 자리(IM03, 2026-11-03 — 예전처럼 영상 맞춤 사각형이 아니다).
+ * 칸 안에서 영상은 표시 방식(display: 채움 · 전체)대로 LayerMap 사각형에 그린다 — 원본 비율 그대로, 찌그러뜨리지 않는다. 그림 판도 같은 LayerMap 을 쓴다.
+ * display 를 안 주면 예전처럼 칸 안 contain 가운데(같은 값).
+ * 확대 · 이동 · 반전은 보기 변환(view)으로 영상과 그림에 같이 걸린다. rect 가 null 이면(다른 쪽 집중 보기) 재생기는 살려 두고 화면엔 안 그린다.
  * 배치가 바뀌어도(위아래 ↔ 나란히 · 돌림 · 도구 창) 같은 자리의 같은 부품이라 재생기 · 자리 · 그림이 그대로다(UI10).
  */
 export function Pane({
@@ -79,6 +96,9 @@ export function Pane({
   onReplace,
   onExpand,
   onExit,
+  display,
+  layer,
+  overlayTop = 0,
 }: {
   side: SideKey;
   path: string;
@@ -98,8 +118,14 @@ export function Pane({
   onReplace?: () => void;
   onExpand: () => void;
   onExit: () => void;
+  /** 칸 안 영상 표시(채움 · 전체). 없으면 예전 contain 가운데 */
+  display?: DisplayMode;
+  /** 겹쳐 보기의 한 겹 — 없으면 보통 칸 */
+  layer?: PaneLayer | null;
+  /** 무대 위 끝에서 이 높이까지는 위의 머리 줄이 영상 위에 떠 있다 — 칸 위 표시를 그 밑으로(무대 좌표) */
+  overlayTop?: number;
 }) {
-  const c = usePalette();
+  const c = useComparePalette();
   const L = side.toUpperCase();
   const settled = useScreenSettled();
   const [attempt, setAttempt] = useState(0);
@@ -168,27 +194,48 @@ export function Pane({
   if (!rect || rect.w < 1 || rect.h < 1) return null;
   const box = { w: rect.w, h: rect.h };
   const pane = { w: box.w, h: box.h, aspect: aspect ?? box.w / Math.max(1, box.h) };
-  const zoomed = view.zoom > 1.001;
-  const transform = [{ translateX: view.panX * box.w }, { translateY: view.panY * box.h }, { scale: view.zoom }, { scaleX: view.mirror ? -1 : 1 }];
+  const mode: DisplayMode = display ?? 'full';
+  const align = display ? 'top' : 'center';
+  /* 원본 ↔ 칸 화면의 하나뿐인 변환 — 영상 · 썸네일 · 그림 · 돋보기가 같은 사각형을 쓴다(IM05) */
+  const map = layer?.map ?? layerMap(box, aspect, view, mode, align);
+  const framed = isFramed(view);
+  const cropped = display === 'fill' && isCropped(shownFraction(box, aspect, 'fill', view.crop));
+  const top = layer?.role === 'top';
+  const media = { position: 'absolute' as const, left: map.x, top: map.y, width: map.w, height: map.h, transform: [{ scaleX: map.mirror ? -1 : 1 }] };
   const tiny = box.w < 120 || box.h < 120;
+  const clip = layer?.clipLeft ?? null;
   return (
-    <View style={{ position: 'absolute', left: rect.x, top: rect.y, width: box.w, height: box.h }}>
+    <View style={{ position: 'absolute', left: rect.x, top: rect.y, width: box.w, height: box.h, zIndex: top ? 2 : 1 }} pointerEvents={top && !error ? 'none' : 'box-none'}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${L} 영상, ${badge.title}${badge.anchor ? `, ${badge.anchor}` : ''}${view.mirror ? ', 좌우 반전' : ''}${aligning ? ', 이 영상 고르기' : ''}${error ? `, ${errText}` : ready ? '' : ', 불러오는 중'}`}
         accessibilityState={{ selected: focused }}
-        disabled={!!draw?.drawing}
+        accessibilityElementsHidden={top && !error}
+        importantForAccessibility={top && !error ? 'no-hide-descendants' : 'auto'}
+        disabled={!!draw?.drawing || (top && !error)}
         onPress={onFocus}
-        style={[st.media, { width: box.w, height: box.h, borderColor: focused ? c.action : 'transparent' }]}
+        style={[st.media, { width: box.w, height: box.h, backgroundColor: top ? 'transparent' : '#000' }]}
       >
-        <View style={[StyleSheet.absoluteFill, { transform }]} pointerEvents="none">
-          {thumb && !ready && !error ? <Image source={thumbSource(thumb)} style={StyleSheet.absoluteFill} contentFit="contain" /> : null}
-          {ready ? <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} pointerEvents="none" /> : null}
+        {/* 영상 그림만 진하기 · 반반을 받는다 — 표시 글자 · 단추는 그대로(IM04) */}
+        <View
+          style={[clip != null ? { position: 'absolute', top: 0, bottom: 0, left: box.w * clip, right: 0, overflow: 'hidden' } : StyleSheet.absoluteFill, { opacity: layer ? layer.opacity : 1 }]}
+          pointerEvents="none"
+        >
+          <View style={{ position: 'absolute', top: 0, left: clip != null ? -box.w * clip : 0, width: box.w, height: box.h }}>
+            <View style={media}>
+              {thumb && !ready && !error ? <Image source={thumbSource(thumb)} style={StyleSheet.absoluteFill} contentFit="contain" /> : null}
+              {/* 사각형이 이미 원본 비율이라 contain 이 꽉 찬다 — 비율을 아직 모를 때도 찌그러지지 않게 contain */}
+              {ready ? <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} pointerEvents="none" /> : null}
+            </View>
+          </View>
         </View>
+        {clip != null && top ? <View pointerEvents="none" style={[st.wipe, { left: box.w * clip - 1 }]} /> : null}
         {ready && draw ? (
           <AnnotationLayer
             pane={pane}
             view={view}
+            display={display}
+            map={layer?.map ?? null}
             items={draw.items}
             drawing={draw.drawing}
             tool={draw.tool}
@@ -208,12 +255,12 @@ export function Pane({
         {error ? (
           <View style={[StyleSheet.absoluteFill, st.center]}>
             <Icon name={error.kind === 'missing' ? 'film' : 'circle-alert'} size={22} color="rgba(255,255,255,0.8)" />
-            <Text maxFontSizeMultiplier={1.4} style={st.errText} numberOfLines={3}>
+            <Text maxFontSizeMultiplier={FS_MAX} style={st.errText} numberOfLines={4}>
               {errText}
             </Text>
             {errAction ? (
               <Press accessibilityRole="button" accessibilityLabel={`${L} ${errAction.label}`} onPress={errAction.run} style={st.errBtn}>
-                <Text maxFontSizeMultiplier={1.3} style={[TYPE.buttonCompact, { color: '#fff' }]}>
+                <Text maxFontSizeMultiplier={FS_MAX} style={[TYPE.buttonCompact, { color: '#fff' }]}>
                   {errAction.label}
                 </Text>
               </Press>
@@ -224,8 +271,9 @@ export function Pane({
             <ActivityIndicator color="#fff" />
           </View>
         ) : null}
-        {/* 작은 표시 — A/B · 반전 · 기준 */}
-        <View style={st.topRow} pointerEvents="none">
+        {focused && !layer ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, st.focusRing, { borderColor: c.action }]} /> : null}
+        {/* 작은 표시 — A/B · 반전 · 기준 (겹침의 위 겹은 오른쪽에) */}
+        <View style={[st.topRow, top ? st.topRowEnd : null, { top: 6 + Math.max(0, overlayTop - rect.y) }]} pointerEvents="none">
           <Text style={[st.tag, { backgroundColor: side === 'a' ? 'rgba(16,40,59,0.78)' : c.action }]} maxFontSizeMultiplier={1.2}>
             {L}
             {view.mirror ? ' ⇋' : ''}
@@ -236,18 +284,23 @@ export function Pane({
               {badge.anchor}
             </Text>
           ) : null}
+          {cropped && !tiny && !top ? (
+            <Text numberOfLines={1} style={[st.tag, { backgroundColor: 'rgba(0,0,0,0.55)', flexShrink: 0 }]} maxFontSizeMultiplier={1.2} accessibilityLabel="채움, 영상 가장자리가 일부 잘려 보여요">
+              일부 잘림
+            </Text>
+          ) : null}
         </View>
-        {ready ? (
+        {ready && !top ? (
           <>
             {!tiny ? (
               <Text style={st.timeChip} maxFontSizeMultiplier={1.2} accessibilityElementsHidden importantForAccessibility="no">
                 {clock(time)}
               </Text>
             ) : null}
-            {zoomed ? (
-              <Press accessibilityRole="button" accessibilityLabel={`${L} 확대 되돌리기`} onPress={() => onView({ ...view, zoom: 1, panX: 0, panY: 0 })} style={st.fit}>
+            {framed ? (
+              <Press accessibilityRole="button" accessibilityLabel={`${L} 확대 · 이동 되돌리기`} onPress={() => onView({ ...view, zoom: 1, panX: 0, panY: 0 })} style={st.fit}>
                 <Text maxFontSizeMultiplier={1.2} style={st.fitText}>
-                  {`${view.zoom.toFixed(1)}× 맞춤`}
+                  {view.zoom > 1.001 ? `${view.zoom.toFixed(1)}× 맞춤` : '맞춤'}
                 </Text>
               </Press>
             ) : null}
@@ -259,25 +312,24 @@ export function Pane({
           </>
         ) : null}
       </Pressable>
-      {touchAt && ready && draw?.drawing ? <Loupe player={player} pane={pane} view={view} at={touchAt} color={draw.color} /> : null}
+      {touchAt && ready && draw?.drawing ? <Loupe player={player} pane={pane} map={map} at={touchAt} color={draw.color} /> : null}
     </View>
   );
 }
 
 const LOUPE = 104;
 const LOUPE_ZOOM = 2.5;
-/** 손가락에 가린 자리를 크게 — 손가락 위(모자라면 아래)에 동그랗게, 칸의 보기 변환을 그대로 키워서. 가운데 십자가 짚는 자리 */
-function Loupe({ player, pane, view, at, color }: { player: VideoPlayer; pane: PaneGeom; view: ViewTransform; at: Px; color: string }) {
+/** 손가락에 가린 자리를 크게 — 손가락 위(모자라면 아래)에 동그랗게, 칸의 영상 사각형(LayerMap)을 그대로 키워서. 가운데 십자가 짚는 자리 */
+function Loupe({ player, pane, map, at, color }: { player: VideoPlayer; pane: PaneGeom; map: LayerMap; at: Px; color: string }) {
   const R = LOUPE / 2;
   const Z = LOUPE_ZOOM;
   const above = at.y - R - 56 >= -R;
   const top = above ? at.y - LOUPE - 44 : at.y + 44;
   const left = Math.min(Math.max(at.x - R, -R / 2), pane.w - LOUPE + R / 2);
-  const t = [{ translateX: view.panX * pane.w * Z }, { translateY: view.panY * pane.h * Z }, { scale: view.zoom }, { scaleX: view.mirror ? -1 : 1 }];
   return (
     <View pointerEvents="none" style={[st.loupe, { left, top, borderColor: color }]} accessibilityElementsHidden importantForAccessibility="no">
       <View style={{ position: 'absolute', left: R - at.x * Z, top: R - at.y * Z, width: pane.w * Z, height: pane.h * Z }}>
-        <View style={[StyleSheet.absoluteFill, { transform: t }]}>
+        <View style={{ position: 'absolute', left: map.x * Z, top: map.y * Z, width: map.w * Z, height: map.h * Z, transform: [{ scaleX: map.mirror ? -1 : 1 }] }}>
           <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} pointerEvents="none" />
         </View>
       </View>
@@ -288,7 +340,11 @@ function Loupe({ player, pane, view, at, color }: { player: VideoPlayer; pane: P
 }
 
 const st = StyleSheet.create({
-  media: { borderRadius: 10, backgroundColor: '#0e1a26', overflow: 'hidden', borderWidth: 2 },
+  /* 칸은 모서리 · 테두리 없이 검은 바탕 끝까지(IM02) — 고른 칸은 안쪽 가는 테두리로만 */
+  media: { backgroundColor: '#000', overflow: 'hidden' },
+  focusRing: { borderWidth: 2 },
+  wipe: { position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: '#fff' },
+  topRowEnd: { justifyContent: 'flex-end' },
   center: { alignItems: 'center', justifyContent: 'center', padding: 8, gap: 6 },
   errText: { color: 'rgba(255,255,255,0.9)', fontSize: 13, lineHeight: 18, textAlign: 'center' },
   errBtn: { minHeight: 44, paddingHorizontal: 14, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.18)' },
@@ -310,6 +366,6 @@ const st = StyleSheet.create({
   fit: { position: 'absolute', alignSelf: 'center', bottom: 0, minHeight: 44, minWidth: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
   fitText: { color: '#fff', fontSize: 12, fontWeight: '700', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: 'hidden', backgroundColor: 'rgba(16,40,59,0.72)' },
   expand: { position: 'absolute', right: 0, bottom: 0, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  loupe: { position: 'absolute', width: LOUPE, height: LOUPE, borderRadius: LOUPE / 2, overflow: 'hidden', borderWidth: 2, backgroundColor: '#0e1a26' },
+  loupe: { position: 'absolute', width: LOUPE, height: LOUPE, borderRadius: LOUPE / 2, overflow: 'hidden', borderWidth: 2, backgroundColor: '#000' },
   cross: { position: 'absolute' },
 });

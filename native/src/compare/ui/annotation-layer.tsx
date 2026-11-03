@@ -5,6 +5,7 @@ import Svg, { Circle, G, Line, Path, Polygon, Rect, Text as SvgText } from 'reac
 import { measureText, simplifyFree, type Annotation, type Geometry, type ToolKind } from '~/compare/annotations';
 import { handlesOf, translate, withHandle } from '~/compare/shape-edit';
 import { clampPt, inside, panBy, toScreen, toSource, zoomAt, type Calibration, type Pane, type Pt, type Px, type ViewTransform } from '~/compare/geometry';
+import { layerMap, mapToScreen, mapToSource, panByFor, zoomAtFor, type DisplayMode, type LayerMap } from '~/compare/immersive/geometry';
 
 /**
  * 비교 칸 위 그림 판(R12 · R13) — 그림은 원본 영상 좌표로 받고(geometry.toSource), 화면에는 칸의 보기 변환(확대 · 이동 · 반전)을 거쳐 그린다.
@@ -18,6 +19,8 @@ const HIT = 24;
 export function AnnotationLayer({
   pane,
   view,
+  display,
+  map: mapIn,
   items,
   drawing,
   tool,
@@ -35,6 +38,10 @@ export function AnnotationLayer({
 }: {
   pane: Pane;
   view: ViewTransform;
+  /** 칸 안 영상 표시(IM03) — 주면 칸 = 영상 칸, 영상은 채움/전체(위 붙임)로 그려진 그 사각형(LayerMap)과 같은 변환을 쓴다. 없으면 예전 contain 가운데 */
+  display?: DisplayMode;
+  /** 겹쳐 보기의 위 겹 — 위(workbench)가 셈한 사각형을 그대로(없으면 display 로 셈) */
+  map?: LayerMap | null;
   /** 지금 보이는 그림(이 칸 · 이 시각) */
   items: Annotation[];
   drawing: boolean;
@@ -69,8 +76,10 @@ export function AnnotationLayer({
     setDraft(null);
   }
 
-  const src = (x: number, y: number) => toSource({ x, y }, pane, view);
-  const scr = (p: Pt) => toScreen(p, pane, view);
+  /* 원본 ↔ 화면은 영상 칸(pane.tsx)과 같은 LayerMap 하나로 — 그림 · 터치 · 측정이 영상과 어긋나지 않는다(IM05) */
+  const map = mapIn ?? (display ? layerMap(pane, pane.aspect, view, display) : null);
+  const src = (x: number, y: number) => (map ? mapToSource({ x, y }, map) : toSource({ x, y }, pane, view));
+  const scr = (p: Pt) => (map ? mapToScreen(p, map) : toScreen(p, pane, view));
   const dragTools: ToolKind[] = ['free', 'line', 'arrow', 'rect', 'circle', 'tilt'];
   const isDrag = (t: DrawTool): t is ToolKind => dragTools.includes(t as ToolKind);
 
@@ -179,7 +188,7 @@ export function AnnotationLayer({
     .onBegin(() => setPinchBase(view))
     .onUpdate((e) => {
       const base = pinchBase ?? view;
-      onView(zoomAt(base, pane, { x: e.focalX, y: e.focalY }, base.zoom * e.scale));
+      onView(display ? zoomAtFor(base, pane, pane.aspect, display, { x: e.focalX, y: e.focalY }, base.zoom * e.scale) : zoomAt(base, pane, { x: e.focalX, y: e.focalY }, base.zoom * e.scale));
     })
     .onFinalize(() => setPinchBase(null));
   const twoPan = Gesture.Pan()
@@ -188,7 +197,7 @@ export function AnnotationLayer({
     .onUpdate((e) => {
       const base = pinchBase ?? view;
       if (view.zoom <= 1) return;
-      onView(panBy(base, pane, e.translationX, e.translationY));
+      onView(display ? panByFor(base, pane, pane.aspect, display, e.translationX, e.translationY) : panBy(base, pane, e.translationX, e.translationY));
     });
   const gesture = Gesture.Simultaneous(pinch, twoPan);
 
