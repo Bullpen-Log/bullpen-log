@@ -58,7 +58,6 @@ export type MeasureSpec = {
 };
 
 const deg = (r: number) => (r * 180) / Math.PI;
-const flat = (v: Vec3): Vec3 => normalize([v[0], v[1], 0]);
 const mid3 = (a: Vec3, b: Vec3): Vec3 => scale(add(a, b), 0.5);
 const angle = (a: Vec3, b: Vec3) => Math.acos(Math.max(-1, Math.min(1, dot(normalize(a), normalize(b)))));
 const rotateAxis = rotateAbout;
@@ -143,17 +142,16 @@ function arcOf(c: Vec3, u0: Vec3, v0: Vec3, r: number, key: MeasureKey): Arc {
 }
 
 /**
- * 멈춤 화면의 선 · 호 · 이름표 — 예시 page.js draw 의 '멈췄을 때'에서 골반 · 어깨 선, 상하체 분리, 몸통 축만. k = 키 / 1.8.
- * 값은 labelValues 로 정한 것(보기용 값 · 순간의 표 값)을 쓴다.
- * 이름표는 상하체 분리 하나만, 앞무릎 · 어깨 벌림 · 팔꿈치를 재던 선과 호는 뺐다(2026-10-13 김민: "각도 상자는 상하체 분리만 남기고,
- * 삐져나온 팔꿈치 · 어깨 · 무릎 각도 선은 빼"). 잰 값 다섯(measureAngles)은 그대로 — 화면 읽기(말하기)와 시험이 쓴다.
+ * 멈춤 화면의 선 · 호 — 예시 page.js draw 의 '멈췄을 때'에서 골반 · 어깨 선과 몸통 축만. k = 키 / 1.8.
+ * 앞무릎 · 어깨 벌림 · 팔꿈치를 재던 선과 호는 뺐고(2026-10-13 김민), 마지막 이름표였던 상하체 분리와 허리 높이 부채꼴도 뺐다
+ * (2026-11-03 김민: "분리는 아예 빼버려" — 판정에 안 쓰고, 같은 영상도 GPU 종류에 따라 값이 7° 넘게 달랐다). 그래서 이름표는 없다 —
+ * 이름표 그리기(labels · labelValues)는 남겨 두었다. 잰 값 다섯(measureAngles)은 그대로 — 시험이 쓴다.
  */
 export function measureSpec(
   J: MannequinJoints,
   pelvis: Frame,
   chest: Frame,
-  k: number,
-  values: Record<MeasureKey, LabelValue>
+  k: number
 ): MeasureSpec {
   const hm = mid3(J.rh, J.lh);
   const shm = mid3(J.sh, J.gs);
@@ -162,9 +160,6 @@ export function measureSpec(
   const segments: Segment[] = [];
   const dots: Dot[] = [];
   const arcs: Arc[] = [];
-  const labels: Label[] = [];
-  const label = (p: Vec3, key: MeasureKey, off: Vec3) =>
-    labels.push({ p: add(p, off), key, name: MEASURE_LABEL[key], ...values[key] });
 
   /* 골반 · 어깨 선(실제 자리) */
   const pd = scale(sub(J.rh, J.lh), 0.5);
@@ -174,24 +169,13 @@ export function measureSpec(
   segments.push({ a: sub(shm, scale(sd, 1.45)), b: add(shm, scale(sd, 1.45)), color: 'chest' });
   dots.push({ p: J.sh, color: 'chest' }, { p: J.gs, color: 'chest' });
 
-  /* 분리: 위에서 본 두 방향을 허리 높이 한 판에 */
-  const wc: Vec3 = [hm[0], hm[1], J.td[2]];
-  const u = flat(pd);
-  const v = flat(sd);
-  const rr = 0.36 * k;
-  segments.push({ a: wc, b: add(wc, scale(u, rr * 1.12)), color: 'pelvis' });
-  segments.push({ a: wc, b: add(wc, scale(v, rr * 1.12)), color: 'chest' });
-  const sa = arcOf(wc, u, v, rr * 0.8, 'separation');
-  arcs.push(sa);
-  label(sa.mid, 'separation', scale(normalize(sub(sa.mid, wc)), 0.13 * k));
-
   /* 몸통 기울기: 수직선과 몸통 축 */
   segments.push({ a: hm, b: add(hm, scale(Tr, Math.hypot(...sub(shm, hm)) * 1.3)), color: 'trunk' });
   segments.push({ a: hm, b: add(hm, scale(hz, 0.36 * k)), color: 'ref' });
   const ta = arcOf(hm, hz, Tr, 0.22 * k, 'trunk');
   arcs.push(ta);
 
-  return { measures: measureAngles(J), segments, dots, arcs, labels };
+  return { measures: measureAngles(J), segments, dots, arcs, labels: [] };
 }
 
 /** 골반 · 가슴 틀은 선 명세에 안 쓰지만, 화면이 뼈 고리를 놓을 때 같이 넘긴다 — 타입만 다시 내보냄 */
