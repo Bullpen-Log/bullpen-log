@@ -71,7 +71,7 @@ export function V2EmptyWell({
     title = v2WaitingText(job, now);
     line = '화면을 떠나도 분석은 계속돼요. 돌아오면 이어서 보여요.';
   } else if (job?.status === 'failed' && job.fail) {
-    title = job.fail.reason;
+    title = forHand(job.fail.reason, hand);
     const fix = LAB_FAIL_FIX[job.fail.code];
     if (V2_VIDEO_FAULT.has(job.fail.code)) {
       line =
