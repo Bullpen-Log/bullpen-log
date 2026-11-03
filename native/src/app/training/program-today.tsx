@@ -1,3 +1,4 @@
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
@@ -34,6 +35,7 @@ type Row = ProgramCardProps['rows'][number];
 
 export default function ProgramTodayScreen() {
   const c = usePalette();
+  const inset = useSafeAreaInsets();
   const unit = useWeightUnit();
   const { data, failed, reload } = useTrainingToday();
   const [detail, setDetail] = useState<Row | null>(null);
@@ -75,7 +77,7 @@ export default function ProgramTodayScreen() {
 
   if (!p) {
     return (
-      <View style={{ flex: 1, backgroundColor: c.page }}>
+      <View style={{ flex: 1, paddingTop: inset.top, backgroundColor: c.page }}>
         <FlowBar title="오늘 운동" onBack={() => router.back()} />
         <View style={{ padding: 24, alignItems: 'center', gap: 12 }}>
           {failed ? (
@@ -154,7 +156,7 @@ export default function ProgramTodayScreen() {
   const preview = !going || !p.canStart;
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.page }}>
+    <View style={{ flex: 1, paddingTop: inset.top, backgroundColor: c.page }}>
       <FlowBar title="오늘 운동" onBack={() => router.back()} />
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 14, paddingBottom: 24 }, READABLE]}>
         <View style={[st.card, { backgroundColor: withAlpha(c.action, 0.08) }]}>

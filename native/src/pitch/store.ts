@@ -50,6 +50,10 @@ export function resetPitchStore() {
   velocityLoading = null;
   velocityListeners.forEach((l) => l());
   featured = null;
+  confirmedFeatured = null;
+  pendingFeatured.clear();
+  featuredQueues.clear();
+  featuredRevision++;
   featuredLoading = null;
   emitFeatured();
   noteDays = null;
@@ -274,22 +278,41 @@ export function useVelocityDays(): VelocityDays | null {
  * 고르기는 setFeatured(웹 featured-video.setFeaturedVideo 와 같은 동작) — 바로 바꿔 보이고, 실패하면 되돌린다.
  */
 let featured: Record<string, string> | null = null;
+let confirmedFeatured: Record<string, string> | null = null;
+const pendingFeatured = new Map<string, { token: object; path: string }>();
+const featuredQueues = new Map<string, Promise<boolean>>();
+let featuredRevision = 0;
 const featuredListeners = new Set<() => void>();
 const emitFeatured = () => featuredListeners.forEach((l) => l());
+const renderFeatured = () => {
+  featured = confirmedFeatured || pendingFeatured.size ? { ...confirmedFeatured } : null;
+  for (const [date, next] of pendingFeatured) featured![date] = next.path;
+  emitFeatured();
+};
 let featuredLoading: Promise<void> | null = null;
+const invalidateFeaturedRead = () => {
+  featuredRevision++;
+  featuredLoading = null;
+};
 export function reloadFeatured(): Promise<void> {
-  const e = cacheEpoch();
-  featuredLoading ??= rpc<{ ok: true; featured: Record<string, string> } | { ok: false; error: string }>('app.loadAppFeatured')
+  // 선택 쓰기가 끝나면 다시 읽는다. 중간 스냅샷으로 선택을 되돌리지 않는다.
+  if (pendingFeatured.size) return Promise.resolve();
+  if (featuredLoading) return featuredLoading;
+  const epoch = cacheEpoch();
+  const generation = resetGeneration;
+  const revision = featuredRevision;
+  const task = rpc<{ ok: true; featured: Record<string, string> } | { ok: false; error: string }>('app.loadAppFeatured')
     .then((r) => {
-      if (!r.ok || e !== cacheEpoch()) return;
-      featured = r.featured;
-      emitFeatured();
+      if (!r.ok || epoch !== cacheEpoch() || generation !== resetGeneration || revision !== featuredRevision) return;
+      confirmedFeatured = r.featured;
+      renderFeatured();
     })
     .catch(() => undefined)
     .finally(() => {
-      featuredLoading = null;
+      if (featuredLoading === task) featuredLoading = null;
     });
-  return featuredLoading;
+  featuredLoading = task;
+  return task;
 }
 export function useFeatured(): Record<string, string> {
   const v = useSyncExternalStore(
@@ -305,19 +328,39 @@ export function useFeatured(): Record<string, string> {
   return v ?? EMPTY_FEATURED;
 }
 const EMPTY_FEATURED: Record<string, string> = {};
-export async function setFeatured(date: string, path: string): Promise<boolean> {
-  const before = featured;
-  featured = { ...(featured ?? {}), [date]: path };
-  emitFeatured();
-  try {
-    const r = await rpc<{ videoPath: string } | { error: string }>('featured-video.setFeaturedVideo', date, path);
-    if ('error' in r) throw new Error(r.error);
-    return true;
-  } catch {
-    featured = before;
-    emitFeatured();
-    return false;
-  }
+export function setFeatured(date: string, path: string): Promise<boolean> {
+  const epoch = cacheEpoch();
+  const generation = resetGeneration;
+  const current = () => epoch === cacheEpoch() && generation === resetGeneration;
+  const token = {};
+  pendingFeatured.set(date, { token, path });
+  invalidateFeaturedRead();
+  renderFeatured();
+  // 같은 날의 쓰기는 입력 순서로 보낸다. 다른 날은 서로 막거나 복원하지 않는다.
+  const previous = featuredQueues.get(date) ?? Promise.resolve(true);
+  const task = previous.then(async () => {
+    if (!current()) return false;
+    try {
+      const r = await rpc<{ videoPath: string } | { error: string }>('featured-video.setFeaturedVideo', date, path);
+      if (!current()) return false;
+      if ('error' in r) throw new Error(r.error);
+      confirmedFeatured = { ...confirmedFeatured, [date]: r.videoPath };
+      return true;
+    } catch {
+      return false;
+    } finally {
+      if (current()) {
+        invalidateFeaturedRead();
+        if (pendingFeatured.get(date)?.token === token) pendingFeatured.delete(date);
+        if (featuredQueues.get(date) === task) featuredQueues.delete(date);
+        renderFeatured();
+        // 응답 유실로 저장된 경우도 조회로 확인한다. 쓰기를 다시 보내지는 않는다.
+        if (!pendingFeatured.size) void reloadFeatured();
+      }
+    }
+  });
+  featuredQueues.set(date, task);
+  return task;
 }
 /** 그날 대표 — 고른 것이 그날 영상에 있으면 그것, 아니면 처음 영상 */
 export const repOf = (paths: string[], pick: string | undefined) => (pick && paths.includes(pick) ? pick : (paths[0] ?? null));

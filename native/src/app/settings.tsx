@@ -4,7 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { type Href, router } from 'expo-router';
 import Constants from 'expo-constants';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LENGTH_UNITS, SPEED_UNITS, WEIGHT_UNITS } from '@/lib/units';
 import { CC_BY_SA_URL, CONTACT, MEDICAL_NOTICE, MODEL_CREDIT_CHANGES, MODEL_CREDIT_INTRO, MODEL_CREDITS } from '@/lib/site-info';
@@ -31,6 +31,11 @@ export default function SettingsScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const prefs = usePrefs();
+  const { width, fontScale } = useWindowDimensions();
+  const [themeWidth, setThemeWidth] = useState(0);
+  const gridWidth = themeWidth || Math.min(width, 760) - 32;
+  const themeColumns = gridWidth >= 4 * 76 * Math.max(1, fontScale) + 24 ? 4 : 2;
+  const themeCardWidth = (gridWidth - (themeColumns - 1) * 8) / themeColumns;
   const [sheet, setSheet] = useState<InfoSheet>(null);
   const [bundle, setBundle] = useState<BundleInfo | null>(null);
   const release = useRelease();
@@ -41,8 +46,8 @@ export default function SettingsScreen() {
       : '확인 중…'
     : release.stage === 'restricted_beta'
       ? release.restricted
-        ? '베타 체험(3D 분석만)'
-        : '베타 켜짐 · 이 계정은 다 열림'
+        ? '베타 이용 중'
+        : '베타 · 전체 이용 가능'
       : '정식(잠금 없음)';
   const version = Constants.expoConfig?.version ?? '확인 중…';
   const updateText = !bundle ? '확인 중…' : bundle.dev ? '개발' : bundle.update ? `화면 ${bundle.update}` : '앱에 든 그대로';
@@ -66,7 +71,7 @@ export default function SettingsScreen() {
         <Text style={[st.intro, { color: c.muted }]}>화면과 단위는 고르면 바로 적용돼요.</Text>
 
         <Section title="화면" c={c}>
-          <View accessibilityRole="radiogroup" style={st.themeGrid}>
+          <View accessibilityRole="radiogroup" accessibilityLabel="화면 테마" onLayout={(e) => setThemeWidth(e.nativeEvent.layout.width)} style={st.themeGrid}>
             {THEME_CARDS.map((option) => {
               const selected = prefs.theme === option.value;
               return (
@@ -76,7 +81,7 @@ export default function SettingsScreen() {
                   accessibilityLabel={`${option.label}, ${option.hint}`}
                   accessibilityState={{ selected }}
                   onPress={() => pick('theme', option.value)}
-                  style={({ pressed }) => [st.themeCard, { backgroundColor: selected ? c.skyTint : c.card, borderColor: selected ? c.link : c.line, opacity: pressed ? 0.7 : 1 }]}
+                  style={({ pressed }) => [st.themeCard, { width: themeCardWidth, backgroundColor: selected ? c.skyTint : c.card, borderColor: selected ? c.link : c.line, opacity: pressed ? 0.7 : 1 }]}
                 >
                   <Icon name={option.icon} size={19} color={selected ? c.link : c.ink} />
                   <Text style={[st.themeLabel, { color: selected ? c.link : c.ink }]}>{option.label}</Text>
@@ -176,13 +181,16 @@ function UnitRow<V extends string>({ label, hint, options, value, onChange, c, l
   c: Palette;
   last?: boolean;
 }) {
+  const { width, fontScale } = useWindowDimensions();
+  const [rowWidth, setRowWidth] = useState(0);
+  const stacked = (rowWidth || Math.min(width, 760) - 32) - 30 < 260 * Math.max(1, fontScale);
   return (
-    <View style={[st.unitRow, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }]}>
-      <View style={{ flex: 1, minWidth: 0 }}>
+    <View onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)} style={[st.unitRow, stacked && st.unitRowStack, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }]}>
+      <View style={stacked ? { minWidth: 0 } : { flex: 1, minWidth: 0 }}>
         <Text style={[st.unitLabel, { color: c.ink }]}>{label}</Text>
-        <Text style={[st.unitHint, { color: c.muted }]} numberOfLines={2}>{hint}</Text>
+        <Text style={[st.unitHint, { color: c.muted }]}>{hint}</Text>
       </View>
-      <View accessibilityRole="radiogroup" accessibilityLabel={`${label} 단위`} style={[st.segment, { backgroundColor: c.chip }]}>
+      <View accessibilityRole="radiogroup" accessibilityLabel={`${label} 단위`} style={[st.segment, stacked && st.segmentStack, { backgroundColor: c.chip }]}>
         {options.map((option) => {
           const selected = value === option.value;
           return (
@@ -222,12 +230,14 @@ const st = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: '700', paddingHorizontal: 3 },
   note: { ...TYPE.sub, lineHeight: 18, paddingHorizontal: 3 },
   medical: { ...TYPE.sub, lineHeight: 18, paddingHorizontal: 3 },
-  themeGrid: { flexDirection: 'row', gap: 8 },
-  themeCard: { flex: 1, minWidth: 0, minHeight: 92, alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 2, borderWidth: 1, borderRadius: 16 },
+  themeGrid: { flexWrap: 'wrap', flexDirection: 'row', gap: 8 },
+  themeCard: { minWidth: 0, minHeight: 92, alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 2, paddingVertical: 10, borderWidth: 1, borderRadius: 16 },
   themeLabel: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
-  themeHint: { fontSize: 11, textAlign: 'center' },
+  themeHint: { fontSize: 12, textAlign: 'center' },
   group: { borderRadius: RADIUS.card, overflow: 'hidden' },
   unitRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 62, paddingHorizontal: 15 },
+  unitRowStack: { flexDirection: 'column', alignItems: 'stretch', paddingVertical: 14, gap: 10 },
+  segmentStack: { width: '100%', maxWidth: '100%' },
   unitLabel: { fontSize: 15, fontWeight: '500' },
   unitHint: { ...TYPE.sub },
   segment: { width: '50%', maxWidth: 150, minWidth: 128, flexDirection: 'row', borderRadius: 12, padding: 3, gap: 3 },
