@@ -61,7 +61,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar modal back="더보기" title="설정" c={c} />
+      <Bar modal back="뒤로" title="설정" c={c} />
       <ScrollView contentContainerStyle={[st.body, { paddingBottom: inset.bottom + 32 }, READABLE]}>
         <Text style={[st.intro, { color: c.muted }]}>화면과 단위는 고르면 바로 적용돼요.</Text>
 

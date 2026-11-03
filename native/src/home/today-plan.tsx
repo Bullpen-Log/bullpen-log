@@ -29,7 +29,9 @@ export function TodayPlan({
 }) {
   const c = usePalette();
   /* 카드 둘이 나란히(320pt 폰까지) — 큰 글씨면 기준 폭이 같이 커져 좁은 폰에서만 위아래로 */
-  const basis = 120 * Math.max(1, useWindowDimensions().fontScale);
+  const { width, fontScale } = useWindowDimensions();
+  const basis = 120 * Math.max(1, fontScale);
+  const stackStatus = width < 360 || fontScale >= 1.3;
   const pitch = pitchCard(home);
   const work = workoutCard(home.workout, !!home.trainingLocked);
   const board = home.board;
@@ -68,13 +70,13 @@ export function TodayPlan({
           onPress={onWorkout}
         />
       </View>
-      <View style={[styles.status, { backgroundColor: c.card, boxShadow: c.float }]}>
+      <View style={[styles.status, stackStatus && styles.statusStack, { backgroundColor: c.card, boxShadow: c.float }]}>
         <Press
           accessibilityRole="button"
           accessibilityLabel={`컨디션, ${board?.condition ? `${board.condition.value}점 ${board.condition.label}` : home.checkinDone ? '기록함' : '기록 전'}`}
           accessibilityHint="체크인을 열어요"
           onPress={onCheckin}
-          style={styles.cell}
+          style={stackStatus ? styles.cellStack : styles.cell}
         >
           <View style={styles.cellLabel}>
             <Icon name="heart-pulse" size={12} color={c.muted} strokeWidth={2.4} />
@@ -85,7 +87,7 @@ export function TodayPlan({
             {board?.condition ? <Text style={[styles.cellSmall, { color: c.muted }]}>  {board.condition.label}</Text> : null}
           </Text>
         </Press>
-        <View style={[styles.split, { backgroundColor: c.line }]} />
+        <View style={[stackStatus ? styles.splitStack : styles.split, { backgroundColor: c.line }]} />
         <Press
           accessibilityRole="button"
           accessibilityLabel={`부하 지수, ${
@@ -93,7 +95,7 @@ export function TodayPlan({
           }`}
           accessibilityHint="투구 분석을 열어요"
           onPress={onLoad}
-          style={styles.cell}
+          style={stackStatus ? styles.cellStack : styles.cell}
         >
           <View style={styles.cellLabel}>
             <Icon name="activity" size={12} color={c.muted} strokeWidth={2.4} />
@@ -188,6 +190,9 @@ const styles = StyleSheet.create({
   planMeta: { fontSize: 13, lineHeight: 20, paddingRight: 18 },
   arrow: { position: 'absolute', right: 13, bottom: 13 },
   status: { flexDirection: 'row', marginTop: 10, borderRadius: 16, overflow: 'hidden' },
+  statusStack: { flexDirection: 'column' },
+  cellStack: { minHeight: 57, paddingVertical: 10, paddingHorizontal: 13, justifyContent: 'center', gap: 3 },
+  splitStack: { height: StyleSheet.hairlineWidth },
   cell: { flex: 1, minHeight: 57, paddingVertical: 10, paddingHorizontal: 13, justifyContent: 'center', gap: 3 },
   cellLabel: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   statusLabel: { fontSize: 13, lineHeight: 19 },

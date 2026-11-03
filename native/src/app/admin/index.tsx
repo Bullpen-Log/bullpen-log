@@ -37,7 +37,7 @@ export default function AdminScreen() {
   const { data, error, reload } = useLoad<Loaded>('app-admin.loadAppAdmin');
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="더보기" title="관리자" shown={!data || shown} c={c} />
+      <Bar back="뒤로" title="관리자" shown={!data || shown} c={c} />
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (

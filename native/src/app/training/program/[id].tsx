@@ -147,7 +147,7 @@ export default function ProgramDetailScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <FlowBar title="프로그램" onBack={() => router.back()} backLabel="트레이닝으로 돌아가기" />
+      <FlowBar title="프로그램" onBack={() => router.back()} backLabel="뒤로 가기" />
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: 24 }, READABLE]}>
         {/* 카드에서 이어지는 커버 — 같은 그림 · 같은 둥근 면 */}
         <View style={[st.cover, { backgroundColor: c.card, boxShadow: c.float }]}>

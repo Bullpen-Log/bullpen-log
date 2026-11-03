@@ -64,7 +64,7 @@ export function RecentPitches({
                 <Text numberOfLines={1} style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>
                   {rest ? '휴식' : l.sessionType}
                 </Text>
-                <Text numberOfLines={1} style={{ color: c.muted, fontSize: 12 }}>
+                <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>
                   {sub}
                 </Text>
               </View>

@@ -19,10 +19,10 @@ const GAP = 12;
 /* 탭 화면의 옆 여백(SPACE.side) — 카드 줄만 화면 끝까지 */
 const BLEED = SPACE.side;
 
-const weeksText = (p: ProgramChoice) =>
+export const weeksText = (p: ProgramChoice) =>
   `${p.weeks.length}주 · 주 ${p.perWeek.length > 1 ? `${Math.min(...p.perWeek)}–${Math.max(...p.perWeek)}` : p.perWeek[0]}회`;
 
-export function ProgramCards({ shelf, today }: { shelf: ProgramShelf; today: string }) {
+export function ProgramCards({ shelf }: { shelf: ProgramShelf; today: string }) {
   const c = usePalette();
   const all = useMemo(() => programChoiceList(), []);
   const items = shelf.items.map((it) => ({ ...it, p: all.find((p) => p.id === it.id) })).filter((x): x is typeof x & { p: ProgramChoice } => x.p != null);
@@ -55,11 +55,7 @@ export function ProgramCards({ shelf, today }: { shelf: ProgramShelf; today: str
         <Press
           accessibilityRole="button"
           accessibilityLabel={`프로그램 전체 ${items.length}개 보기`}
-          onPress={() =>
-            shelf.activeId || !shelf.canStart
-              ? router.push({ pathname: '/training-today' as Href as never, params: { today } })
-              : router.push({ pathname: '/training-today' as Href as never, params: { today, program: 'all' } })
-          }
+          onPress={() => router.push('/training/programs' as Href)}
           style={styles.headBtn}
         >
           <Text style={{ color: c.link, fontSize: 13, fontWeight: '600' }}>전체 {items.length}</Text>

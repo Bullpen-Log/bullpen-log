@@ -1,6 +1,6 @@
 import { type Href, router } from 'expo-router';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RecordItem } from '@/lib/records/day-records';
@@ -44,6 +44,8 @@ export const resetRecordsCache = () => {
 export function RecordsTab({ today, bottom, onTab }: { today: string; bottom: number; onTab: (href: string) => void }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
+  const { width, fontScale } = useWindowDimensions();
+  const stackMonth = width < 380 || fontScale >= 1.3;
   const s = useRecords(today);
   const [seg, setSeg] = useState<'log' | 'trends'>('log');
   const [selected, setSelected] = useState(today);
@@ -122,7 +124,7 @@ export function RecordsTab({ today, bottom, onTab }: { today: string; bottom: nu
       ) : (
         <>
           {/* 달 · 이전 · 오늘 · 다음 — 달을 누르면 달 전체를 펴고 접는다(편 동안 이전 · 다음은 달 단위) */}
-          <View style={styles.monthRow}>
+          <View style={[styles.monthRow, stackMonth && styles.monthStack]}>
             <Press
               accessibilityRole="button"
               accessibilityState={{ expanded }}
@@ -316,6 +318,9 @@ const GLYPH: Record<RecordItem['kind'], IconName> = { pitch: 'circle-dot', train
 /** 시간순 줄 — 왼쪽 종류 동그라미 · 이어지는 선, 오른쪽 카드(종류 · 시각 · 이름 · 값). 투구는 투구량을 가장 크게, 구속은 따로 */
 function EventRow({ r, last, c }: { r: RecordItem; last: boolean; c: Palette }) {
   const speed = usePrefs().speed;
+  const { width, fontScale } = useWindowDimensions();
+  const [metricWidth, setMetricWidth] = useState(0);
+  const stackMetrics = (metricWidth || Math.max(0, width - 108)) < 240 * Math.max(1, fontScale);
   const time = timeText(r.at);
   const go = () => {
     if (r.kind === 'pitch') return router.push(`/pitch/${r.date}` as Href);
@@ -346,22 +351,24 @@ function EventRow({ r, last, c }: { r: RecordItem; last: boolean; c: Palette }) 
         {pitch ? (
           <>
             <Text style={[TYPE.section, { color: c.ink }]}>{pitch.title}</Text>
-            <View style={styles.metrics}>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[TYPE.num, { color: c.ink, fontSize: 40, lineHeight: 44 }]}>
-                  {pitch.pitches}
-                  <Text style={{ color: c.muted, fontSize: 15, fontWeight: '500' }}> 구</Text>
-                </Text>
+            <View onLayout={(e) => setMetricWidth(e.nativeEvent.layout.width)} style={[styles.metrics, stackMetrics && styles.metricsStack]}>
+              <View style={stackMetrics ? styles.metricStack : styles.metricCell}>
+                <View style={styles.metricValue}>
+                  <Text numberOfLines={1} style={[TYPE.num, { color: c.ink, fontSize: 40, lineHeight: 48 }]}>
+                    {pitch.pitches}
+                  </Text>
+                  <Text style={{ color: c.muted, fontSize: 15, fontWeight: '500' }}>구</Text>
+                </View>
                 <Text style={{ color: c.muted, fontSize: 13 }}>투구량</Text>
               </View>
-              <View style={[styles.metricLine, { backgroundColor: c.line }]} />
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[TYPE.num, { color: pitch.maxKmh != null ? c.ink : c.muted, fontSize: 28, lineHeight: 44 }]}>
-                  {pitch.maxKmh != null ? round1(toSpeed(pitch.maxKmh, speed)) : '—'}
-                </Text>
-                <Text style={{ color: c.muted, fontSize: 13 }}>
-                  최고 구속 <Text style={{ fontSize: 11 }}>{speedLabel(speed)}</Text>
-                </Text>
+              <View style={[stackMetrics ? styles.metricLineStack : styles.metricLine, { backgroundColor: c.line }]} />
+              <View style={stackMetrics ? styles.metricStack : styles.metricCell}>
+                <View style={styles.metricValue}>
+                  <Text numberOfLines={1} style={[TYPE.num, { color: pitch.maxKmh != null ? c.ink : c.muted, fontSize: 28, lineHeight: 44 }]}>
+                    {pitch.maxKmh != null ? round1(toSpeed(pitch.maxKmh, speed)) : '—'}
+                  </Text>
+                </View>
+                <Text style={{ color: c.muted, fontSize: 13 }}>최고 구속 · {speedLabel(speed)}</Text>
               </View>
             </View>
             <View style={[styles.foot, { borderTopColor: c.line }]}>
@@ -507,6 +514,7 @@ function Shortcuts({ c }: { c: Palette }) {
 
 const styles = StyleSheet.create({
   monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  monthStack: { flexDirection: 'column', alignItems: 'flex-start', gap: 2 },
   monthBtn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 8 },
   tools: { flexDirection: 'row', alignItems: 'center' },
   navBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
@@ -537,6 +545,11 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   metrics: { flexDirection: 'row', alignItems: 'flex-end', gap: 14 },
+  metricsStack: { flexDirection: 'column', alignItems: 'stretch', gap: 10 },
+  metricCell: { flex: 1, minWidth: 0, gap: 2 },
+  metricStack: { gap: 2 },
+  metricValue: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 4 },
+  metricLineStack: { height: StyleSheet.hairlineWidth, alignSelf: 'stretch' },
   metricLine: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', marginVertical: 4 },
   foot: { flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 2 },
   compact: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },

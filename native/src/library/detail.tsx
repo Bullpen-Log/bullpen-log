@@ -71,7 +71,7 @@ export function ExerciseDetail({ item, entry, c }: { item: Exercise; entry: Deta
                 {entry.builder.name} · {entry.builder.from === 'edit' ? `지금 ${entry.builder.sets}세트로 담음` : `담으면 기본 ${entry.builder.sets}세트`}
               </Text>
               <Text style={[s.bodyBold, { color: c.ink }]}>{base?.replace(/^\d+세트 × /, '') ?? '정해 둔 수행 안내가 없어요'}</Text>
-              <Text style={[s.small, { color: c.muted }]}>세트당 기본 수행 안내 · 보기만 해서는 루틴이 바뀌지 않아요</Text>
+              <Text style={[s.small, { color: c.muted }]}>세트당 수행량</Text>
             </>
           ) : entry.routine ? (
             <>

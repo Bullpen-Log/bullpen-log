@@ -33,7 +33,7 @@ export default function ProfileScreen() {
   const { data, error, reload } = useLoad<Loaded>('profile.loadAppProfile');
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      {data ? <Body key={data.email + data.today} p={data} reload={reload} c={c} /> : <><Bar modal back="더보기" title="내 정보" c={c} /><LoadState error={error} onRetry={reload} c={c} /></>}
+      {data ? <Body key={data.email + data.today} p={data} reload={reload} c={c} /> : <><Bar modal back="뒤로" title="내 정보" c={c} /><LoadState error={error} onRetry={reload} c={c} /></>}
     </View>
   );
 }
@@ -148,7 +148,7 @@ function Body({ p, reload, c }: { p: AppProfile; reload: () => void; c: Palette 
   return (
     <View ref={frame} style={{ flex: 1, backgroundColor: c.page, paddingBottom: keyboardPad }}>
       <Stack.Screen options={{ gestureEnabled: !editing }} />
-      <Bar modal back={editing ? '내 정보' : '더보기'} title={editing ? '정보 수정' : '내 정보'} onBack={back} c={c} />
+      <Bar modal back={editing ? '내 정보' : '뒤로'} title={editing ? '정보 수정' : '내 정보'} onBack={back} c={c} />
       {editing ? (
         <>
           <ScrollView contentContainerStyle={[{ padding: 16, gap: 22, paddingBottom: 24 }, READABLE]} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">

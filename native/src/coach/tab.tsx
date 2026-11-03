@@ -123,7 +123,7 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
       ref={scroll}
       style={{ flex: 1, backgroundColor: c.page }}
       contentContainerStyle={[
-        { paddingTop: inset.top + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap },
+        { paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap },
         READABLE_WIDE,
       ]}
     >
