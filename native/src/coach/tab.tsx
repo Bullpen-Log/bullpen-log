@@ -93,6 +93,7 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
       (next) => {
         if (request !== weekRequest.current) return;
         setData(next);
+        setWeekError(false);
         const today = next.week?.findIndex((s) => s.date === next.today) ?? -1;
         if (today >= 0) setSelectedDay(today);
         setWeekLoading(false);

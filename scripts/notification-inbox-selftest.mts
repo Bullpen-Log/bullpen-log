@@ -56,6 +56,12 @@ function setup() {
   const t = setup();await t.cache.load();t.write(async () => { throw Error(); });await t.cache.mark(command);t.verify(async () => { throw Error(); });await t.cache.verify();check(!!t.cache.snapshot().pending && t.stats().writes === 1, 'failed verification keeps recoverable pending');t.cache.reset();await t.cache.load();check(t.cache.snapshot().pending?.scope === 'all', 're-entry restores per-account command');t.switch('b');await t.cache.load();check(!t.cache.snapshot().pending, 'other account cannot see journal');t.switch('a');await t.cache.load();check(!!t.cache.snapshot().pending, 'returning account restores own journal');
 }
 {
+  const t = setup();await t.cache.load();t.write(async () => { throw Error('ack lost'); });await t.cache.mark(command);t.write(async () => ({ ok: true, unread: 23 }));await t.cache.mark({ scope: 'one', id: id(3) });check(t.stats().queries === 1 && t.stats().writes === 2 && !t.cache.snapshot().pending, 'new tap checks stale pending first, then marks');
+}
+{
+  const t = setup();await t.cache.load();t.write(async () => { throw Error('ack lost'); });await t.cache.mark(command);await t.cache.load(true);await tick();await tick();check(t.stats().queries === 1 && !t.cache.snapshot().pending && t.cache.snapshot().unread === 0, 'reload resolves stale pending');
+}
+{
   const t = setup();await t.cache.load();t.failClear();await t.cache.mark(command);check(!!t.cache.snapshot().pending && t.stats().writes === 1, 'cleanup failure keeps pending, no duplicate');
 }
 {

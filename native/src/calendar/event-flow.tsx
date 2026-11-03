@@ -106,6 +106,8 @@ export function CalendarEventFlow({
   const [readBusy, setReadBusy] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
+  /* 계정 · 확인 정보를 못 읽었을 때 다시 시도 — 화면을 나갔다 오지 않아도 */
+  const [initTry, setInitTry] = useState(0);
   const [picker, setPicker] = useState<EventPicker | null>(null);
   const sequence = useRef(0);
   const seen = useRef<number | null>(null);
@@ -148,10 +150,14 @@ export function CalendarEventFlow({
       })
       .catch(() => {
         if (active && epoch === cacheEpoch())
-          setInitError('계정을 확인하지 못했어요. 다시 열어주세요.');
+          setInitError('계정을 확인하지 못했어요. 신호를 확인하고 다시 시도해 주세요.');
       });
     return () => {
       active = false;
+    };
+  }, [ops, initTry]);
+  useEffect(() => {
+    return () => {
       // Mutable request token, not a rendered node. Invalidate the latest read on unmount.
       // eslint-disable-next-line react-hooks/exhaustive-deps
       sequence.current++;
@@ -362,7 +368,15 @@ export function CalendarEventFlow({
             ]}
           >
             {initError || (!operation.ready && operation.error) ? (
-              <EventNotice text={initError ?? operation.error!} c={c} />
+              <EventNotice
+                text={initError ?? operation.error!}
+                action="다시 시도"
+                onPress={() => {
+                  setInitError(null);
+                  setInitTry((n) => n + 1);
+                }}
+                c={c}
+              />
             ) : !operation.ready ? (
               <ActivityIndicator
                 accessibilityLabel="저장 확인 정보 불러오는 중"
@@ -386,9 +400,12 @@ export function CalendarEventFlow({
             {operation.ready && operation.error ? (
               <EventNotice
                 text={operation.error}
-                action={operation.conflict && base ? '최신 내용 확인' : undefined}
+                action={operation.conflict ? '최신 내용 확인' : undefined}
                 onPress={
-                  base ? () => void load(base.id, mode === 'edit', true) : undefined
+                  /* 새 일정의 충돌 = 이미 만들어진 뒤 다른 곳에서 바뀐 것 — 그 일정(같은 id)을 불러와 이어서 고친다 */
+                  operation.conflict
+                    ? () => void load(base?.id ?? createId, mode === 'edit', true)
+                    : undefined
                 }
                 c={c}
               />

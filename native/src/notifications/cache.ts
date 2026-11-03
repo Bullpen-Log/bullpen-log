@@ -162,6 +162,8 @@ export function createInboxCache(deps: {
           next: r.next,
           newer: r.items.length === 0 && r.unread > 0,
         });
+        /* 신호가 돌아와 목록을 받았으면 남은 읽음 확인도 저절로 */
+        if (state.pending && !lock) void verify();
       } catch (e) {
         if (valid(t) && seq === pageSeq)
           set({
@@ -243,7 +245,15 @@ export function createInboxCache(deps: {
     });
   const mark = async (raw: InboxRead) => {
     sync();
-    if (lock || state.pending) return;
+    if (lock) return;
+    /* 앞서 답을 못 받은 읽음이 있으면 먼저 확인한다 — 안 그러면 그 뒤 어떤 알림도 읽히지 않는다 */
+    if (state.pending) {
+      const was = JSON.stringify(state.pending);
+      await verify();
+      if (lock || state.pending) return;
+      /* 같은 읽음이면 확인으로 끝 — 안 됐으면 '다시 시도'(retry)로 따로 보낸다 */
+      if (JSON.stringify(inboxRead(raw)) === was) return;
+    }
     const command = inboxRead(raw);
     if (!command) return;
     lock = true;

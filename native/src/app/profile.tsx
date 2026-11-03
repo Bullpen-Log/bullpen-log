@@ -3,8 +3,8 @@ import { Image } from 'expo-image';
 import { type Href, router, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, BackHandler, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
+import { ActivityIndicator, Alert, BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AppProfile } from '@/app/actions/profile';
 import { APP_API_HEADER, APP_API_LEVEL } from '@/lib/app-api';
@@ -16,7 +16,7 @@ import { rpc, RpcError, syncSession } from '~/lib/rpc';
 import { SITE_URL } from '~/lib/site';
 import { usePalette, type Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
-import { useKeyboardUp } from '~/lib/use-keyboard-up';
+import { useKeyboardPad, useKeyboardUp } from '~/lib/use-keyboard-up';
 import { setMenuNickname } from '~/shell/menu-store';
 import { leaveTo } from '~/shell/web-nav';
 import { READABLE } from '~/lib/layout';
@@ -41,6 +41,8 @@ export default function ProfileScreen() {
 function Body({ p, reload, c }: { p: AppProfile; reload: () => void; c: Palette }) {
   const inset = useSafeAreaInsets();
   const keyboardUp = useKeyboardUp();
+  const frame = useRef<ComponentRef<typeof View>>(null);
+  const keyboardPad = useKeyboardPad(frame);
   const unit = useWeightUnit();
   const lengthUnit = usePrefs().length;
   const [override, setOverride] = useState<{ base: AppProfile; next: AppProfile } | null>(null);
@@ -144,7 +146,7 @@ function Body({ p, reload, c }: { p: AppProfile; reload: () => void; c: Palette 
   };
 
   return (
-    <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
+    <View ref={frame} style={{ flex: 1, backgroundColor: c.page, paddingBottom: keyboardPad }}>
       <Stack.Screen options={{ gestureEnabled: !editing }} />
       <Bar modal back={editing ? '내 정보' : '더보기'} title={editing ? '정보 수정' : '내 정보'} onBack={back} c={c} />
       {editing ? (
@@ -223,7 +225,7 @@ function Body({ p, reload, c }: { p: AppProfile; reload: () => void; c: Palette 
           </Group>
         </ScrollView>
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

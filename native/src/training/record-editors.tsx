@@ -182,8 +182,22 @@ export function RecordEditors({
           onClose();
           void reload();
           toast('저장된 기록을 확인했어요.');
-        } else
-          setError('아직 저장된 내용을 확인하지 못했어요. 잠시 뒤 다시 확인해 주세요.');
+        } else {
+          /* 서버를 읽었는데 그 내용이 아니면 저장 안 된 것 — 대기를 풀고 적던 값 그대로 다시 저장할 수 있게(지금 판으로) */
+          const moved = (result.note?.version ?? null) !== pending.version;
+          setNote(result.note);
+          setScore(pending.intensity);
+          setMemo(pending.memo);
+          setVersion(result.note?.version ?? null);
+          await clear();
+          if (!current()) return;
+          dirty.current = true;
+          setError(
+            moved
+              ? '그사이 다른 곳에서 기록이 바뀌었어요. 확인하고 다시 저장해 주세요.'
+              : '저장되지 않았어요. 다시 저장해 주세요.'
+          );
+        }
       } else {
         const result = await limited(
           rpc<{ ok: true; record: WorkoutRecord | null }>(
@@ -205,8 +219,13 @@ export function RecordEditors({
           onClose();
           void reload();
           toast('완료 표시를 확인했어요.');
-        } else
-          setError('아직 변경 결과를 확인하지 못했어요. 잠시 뒤 다시 확인해 주세요.');
+        } else {
+          /* 완료 표시는 한 번에 다 바뀌거나 하나도 안 바뀐다(서버 트랜잭션) — 안 바뀌었으니 대기를 풀고 다시 저장할 수 있게 */
+          await clear();
+          if (!current()) return;
+          void reload();
+          setError('완료 표시가 바뀌지 않았어요. 확인하고 다시 저장해 주세요.');
+        }
       }
     } catch (e) {
       if (current()) {
@@ -269,7 +288,23 @@ export function RecordEditors({
       if (!current()) return;
       if ('error' in result) {
         setError(result.error);
-        if ('conflict' in result && result.conflict) void reload();
+        if ('conflict' in result && result.conflict) {
+          void reload();
+          /* 새 판을 받아 둔다 — 안 받으면 다시 저장해도 옛 판이라 늘 충돌 */
+          if (p.kind === 'note')
+            void limited(
+              rpc<{ ok: true; note: RecordNote | null } | { ok: false; to: string }>(
+                'app-training-parts.loadAppTrainingRecordNote',
+                r.date
+              )
+            )
+              .then((x) => {
+                if (!current() || !x.ok) return;
+                setNote(x.note);
+                setVersion(x.note?.version ?? null);
+              })
+              .catch(() => {});
+        }
       } else {
         if (p.kind === 'note' && 'note' in result)
           setNote((result as { ok: true; note: RecordNote }).note);

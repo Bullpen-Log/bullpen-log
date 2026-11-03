@@ -55,7 +55,8 @@ export async function reconcileCreate(entry: PitchEntry, knownIds: ReadonlySet<s
     return { kind: 'unknown', message: '저장됐는지 확인하지 못했어요. 신호가 돌아오면 확인해 주세요.' };
   }
   const found = findCreated(logs, entry, knownIds);
-  if (!found) return { kind: 'unknown', message: '아직 저장된 기록을 확인하지 못했어요. 잠시 뒤 다시 확인해 주세요.' };
+  /* 그 달을 읽었는데 없으면 저장 안 된 것 — 확인만 되풀이하면 그 날짜를 영영 못 남긴다 */
+  if (!found) return { kind: 'notSaved', message: '저장되지 않았어요. 입력한 내용은 그대로 있어요. 다시 저장해 주세요.' };
   const ids = entry.velocitySessionIds ?? [];
   const link = ids.length ? await confirmLinkViaDay(entry.date, found.id, ids) : null;
   return { kind: 'saved', log: found, link, linkStatus: linkStatus(link, ids) };
