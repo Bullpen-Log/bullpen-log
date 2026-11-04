@@ -60,7 +60,7 @@ export type Transport = {
   reason: 'tick' | 'seek' | 'toggle' | 'speed';
 };
 /** seek: 장면으로 · view: 시점 바꾸기(앱 결과 화면의 원본 옆 · 뒤 전환이 3D 도 그 시점으로, 2026-10-29) */
-export type Body3DHandle = { seek: (frame: number) => void; view: (v: ViewName) => void };
+export type Body3DHandle = { seek: (frame: number) => void; view: (v: ViewName) => void; snapshot: () => string | null; exportVideo: (onProgress?: (progress: number) => void) => Promise<Blob> };
 
 /** 재생 중 자세를 다시 짓는 가장 짧은 간격(ms) — 초당 60번쯤. 120Hz 화면에서도 두 장면에 한 번 */
 const POSE_MIN_MS = 15;
@@ -143,6 +143,8 @@ export const Body3D = forwardRef<
     play: (on: boolean) => void;
     speed: (s: Speed) => void;
     view: (v: ViewName, animate: boolean) => void;
+    snapshot: () => string | null;
+    exportVideo: (onProgress?: (progress: number) => void) => Promise<Blob>;
   } | null>(null);
   const transport = useRef(onTransport);
   useEffect(() => {
@@ -383,6 +385,8 @@ export const Body3D = forwardRef<
       let isPlaying = !reduced;
       let spd: Speed = 0.25;
       let lastTick = 0;
+      let exporting = false;
+      let exportAbort: AbortController | null = null;
 
       /*
        * 뼈 · 각도 보기 — 늘 켬(인형 비침 + 속 뼈 · 잰 선 · 이름표). 뼈 · 선 자리는 장면이 바뀔 때만 다시 잡는다(rAF 마다가 아니다).
@@ -413,7 +417,7 @@ export const Body3D = forwardRef<
         const { J, F } = blendMannequin(mann.joints, mann.frames, k, u);
         fig.update(J, F);
         labels = ov.update(J, F);
-        if (!isPlaying) setSaid(labels.map((l) => `${l.name} ${labelText(l.key, l.value)}${l.off && l.table != null ? ` (결과 표 ${Math.round(l.table)}°)` : ''}`));
+        if (!isPlaying && !exporting) setSaid(labels.map((l) => `${l.name} ${labelText(l.key, l.value)}${l.off && l.table != null ? ` (결과 표 ${Math.round(l.table)}°)` : ''}`));
         dirty = true;
       };
       /* 효과가 다시 돌 때(새 결과) 범례 · 재질을 비침으로 */
@@ -445,6 +449,7 @@ export const Body3D = forwardRef<
       ctrl.current = {
         frame: () => cur,
         seek: (k) => {
+          if (exporting) return;
           isPlaying = false;
           setPlaying(false);
           show(k);
@@ -452,6 +457,7 @@ export const Body3D = forwardRef<
           emit('seek');
         },
         play: (on) => {
+          if (exporting) return;
           isPlaying = on;
           setPlaying(on);
           if (on && cur >= n - 1) {
@@ -465,11 +471,65 @@ export const Body3D = forwardRef<
           emit('toggle');
         },
         speed: (s) => {
+          if (exporting) return;
           spd = s;
           setSpeed(s);
           emit('speed');
         },
-        view: moveTo,
+        view: (name, animate) => { if (!exporting) { setView(name); moveTo(name, animate); } },
+        snapshot: () => {
+          if (exporting) return null;
+          render();
+          const source = renderer.domElement;
+          const canvas = document.createElement('canvas');
+          const scale = Math.min(1, 720 / Math.max(source.width, source.height));
+          canvas.width = Math.max(1, Math.round(source.width * scale));
+          canvas.height = Math.max(1, Math.round(source.height * scale));
+          const context = canvas.getContext('2d', { alpha: false });
+          if (!context) return null;
+          context.drawImage(source, 0, 0, canvas.width, canvas.height);
+          paintExportLabels(context, canvas.width, canvas.height);
+          return canvas.toDataURL('image/jpeg', 0.8);
+        },
+        exportVideo: async (onProgress) => {
+          if (exporting) throw new Error('이미 영상을 만들고 있어요.');
+          const previous = { frame: cur, time: clock, playing: isPlaying };
+          const previousControls = controls.enabled;
+          exporting = true;
+          exportAbort = new AbortController();
+          controls.enabled = false;
+          tween = null;
+          isPlaying = false;
+          setPlaying(false);
+          emit('toggle');
+          try {
+            const { encodeAngleVideo } = await import('@/lib/pitch-3d/v2/export-video');
+            return await encodeAngleVideo({
+              source: renderer.domElement, start: t0, end: tEnd, speed: spd, signal: exportAbort.signal, onProgress,
+              overlay: paintExportLabels,
+              draw: (time) => {
+                const k = frameAt(time);
+                const next = Math.min(n - 1, k + 1);
+                pose(k, next > k ? Math.min(1, Math.max(0, (time - tp[k]) / (tp[next] - tp[k] || 1))) : 0);
+                render();
+              },
+            });
+          } finally {
+            exportAbort = null;
+            exporting = false;
+            if (!disposed) {
+              controls.enabled = previousControls;
+              cur = previous.frame;
+              clock = previous.time;
+              isPlaying = previous.playing;
+              posed = '';
+              show(cur);
+              setPlaying(isPlaying);
+              dirty = true;
+              emit(isPlaying ? 'toggle' : 'seek');
+            }
+          }
+        },
       };
       show(cur);
       setPlaying(isPlaying);
@@ -588,6 +648,49 @@ export const Body3D = forwardRef<
         placeLabelsDom();
       };
 
+      /* The legend and numerical labels are HTML, not WebGL. Paint the visible labels into exported images/videos. */
+      const paintExportLabels = (context: CanvasRenderingContext2D, width: number, height: number) => {
+        const bounds = host.getBoundingClientRect();
+        if (!bounds.width || !bounds.height) return;
+        const sx = width / bounds.width;
+        const sy = height / bounds.height;
+        const paint = (el: HTMLElement, label: boolean) => {
+          if (!el.textContent?.trim() || el.style.display === 'none') return;
+          const rect = el.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          const x = (rect.left - bounds.left) * sx;
+          const y = (rect.top - bounds.top) * sy;
+          const w = rect.width * sx;
+          const h = rect.height * sy;
+          if (x + w < 0 || y + h < 0 || x > width || y > height) return;
+          context.save();
+          if (label) {
+            context.fillStyle = 'rgba(12,16,22,.7)';
+            context.fillRect(x, y, w, h);
+            context.fillStyle = el.style.borderLeftColor || '#fff';
+            context.fillRect(x, y, 3 * sx, h);
+          }
+          const style = getComputedStyle(el);
+          let textX = x + (label ? 5 : 0) * sx;
+          if (!label) {
+            const swatch = el.querySelector('i');
+            if (swatch) {
+              const mark = swatch.getBoundingClientRect();
+              context.fillStyle = getComputedStyle(swatch).backgroundColor;
+              context.fillRect((mark.left - bounds.left) * sx, (mark.top - bounds.top) * sy, mark.width * sx, mark.height * sy);
+              textX = (mark.right - bounds.left + 5) * sx;
+            }
+          }
+          context.font = `${label ? '600' : '400'} ${Math.max(10, parseFloat(style.fontSize) * sy)}px -apple-system, sans-serif`;
+          context.textBaseline = 'middle';
+          context.fillStyle = style.color || '#fff';
+          context.fillText(el.textContent.trim(), textX, y + h / 2, Math.max(1, x + w - textX));
+          context.restore();
+        };
+        legendRef.current?.querySelectorAll('li').forEach((el) => paint(el, false));
+        labelEls.forEach((el) => paint(el, true));
+      };
+
       let last = performance.now();
       let lastPose = 0;
       let raf = 0;
@@ -595,6 +698,7 @@ export const Body3D = forwardRef<
         raf = requestAnimationFrame(loop);
         const dt = Math.min(0.1, (now - last) / 1000);
         last = now;
+        if (exporting) return;
         if (isPlaying) {
           clock += dt * spd;
           /* 되풀이 — 원본 영상도 곧바로 처음으로(예전엔 다음 알림까지 끝 장면에 남았다) */
@@ -645,6 +749,7 @@ export const Body3D = forwardRef<
       setStatus('ready');
 
       cleanup = () => {
+        exportAbort?.abort();
         cancelAnimationFrame(raf);
         sizer.disconnect();
         controls.dispose();
@@ -672,9 +777,10 @@ export const Body3D = forwardRef<
     () => ({
       seek: (k) => ctrl.current?.seek(k),
       view: (v) => {
-        setView(v);
         ctrl.current?.view(v, true);
       },
+      exportVideo: (onProgress) => ctrl.current?.exportVideo(onProgress) ?? Promise.reject(new Error('3D 화면을 불러온 뒤 다시 시도해 주세요.')),
+      snapshot: () => ctrl.current?.snapshot() ?? null,
     }),
     []
   );
@@ -818,7 +924,6 @@ export const Body3D = forwardRef<
         label="시점"
         value={view}
         onChange={(v) => {
-          setView(v);
           ctrl.current?.view(v, true);
         }}
         options={VIEWS}

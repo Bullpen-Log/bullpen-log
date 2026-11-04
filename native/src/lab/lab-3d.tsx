@@ -3,6 +3,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useGrabProps } from '~/shell/scroll-lock';
 import { WebView, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 import { APP_UA, SITE_URL } from '~/lib/site';
+import { File, Paths } from 'expo-file-system';
+import { decodeExportChunk } from '@/lib/pitch-3d/v2/export-bridge';
 
 /**
  * 3D 동작 분석 결과의 3D 칸 — 사이트 app/embed/lab/[id] 를 작은 웹뷰로 띄운다(2026-10-18 김민: 둘레는 앱, 3D 는 웹 WebGL — 같은 부품을 두 벌
@@ -27,12 +29,17 @@ export type LabTransport = {
   cam3?: number;
   cam4?: number;
 };
-export type Lab3DHandle = { seek: (frame: number) => void; view: (v: 'side' | 'back' | 'catcher' | 'top') => void };
+export type Lab3DHandle = { seek: (frame: number) => void; view: (v: 'side' | 'back' | 'catcher' | 'top') => void; snapshot: () => Promise<string | null>; exportVideo: (onProgress?: (progress: number) => void) => Promise<File> };
 
 type FromWeb =
   | { t: 'lab'; kind: 'ready' }
   | { t: 'lab'; kind: 'size'; h: number }
-  | ({ t: 'lab'; kind: 'transport' } & LabTransport);
+  | ({ t: 'lab'; kind: 'transport' } & LabTransport)
+  | { t: 'lab'; kind: 'export-progress'; id: string; progress: number }
+  | { t: 'lab'; kind: 'export-chunk'; id: string; index: number; data: string }
+  | { t: 'lab'; kind: 'export-done'; id: string; chunks: number; bytes: number }
+  | { t: 'lab'; kind: 'export-error'; id: string; message: string };
+type Snapshot = { t: 'lab'; kind: 'snapshot'; id: string; data: string | null };
 
 type WebViewHandle = { injectJavaScript(script: string): void; reload(): void };
 /* react-native-webview 14 의 타입은 ref 를 안 받지만 실제 부품은 forwardRef 다(index.tsx · velocity/engine.tsx 와 같다) */
@@ -60,6 +67,25 @@ export const Lab3D = forwardRef<
   const [height, setHeight] = useState(() => Math.round(width * 1.25) + 132);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const snapshot = useRef<{ id: string; resolve: (data: string | null) => void; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const transfer = useRef<{
+    id: string; file: File; handle: ReturnType<File['open']>; index: number; bytes: number;
+    timer: ReturnType<typeof setTimeout>; resolve: (file: File) => void; reject: (error: Error) => void;
+    onProgress?: (progress: number) => void;
+  } | null>(null);
+  const failTransfer = (message: string) => {
+    const t = transfer.current;
+    if (!t) return;
+    transfer.current = null;
+    clearTimeout(t.timer);
+    try { t.handle.close(); } catch { /* already closed */ }
+    try { if (t.file.exists) t.file.delete(); } catch { /* cache cleanup */ }
+    t.reject(new Error(message));
+  };
+  useEffect(() => () => {
+    failTransfer('화면이 닫혀 영상 만들기가 취소됐어요.');
+    if (snapshot.current) { clearTimeout(snapshot.current.timer); snapshot.current.resolve(null); snapshot.current = null; }
+  }, []);
   const base = `${SITE_URL}/embed/lab/${id}`;
   /* 실패를 화면에 알린다(같은 값이면 안 부른다) · 25초 안에 ready 가 안 오면 실패로 */
   const failedCb = useRef(onFailed);
@@ -83,18 +109,81 @@ export const Lab3D = forwardRef<
     () => ({
       seek: (k) => web.current?.injectJavaScript(`window.__labSeek&&window.__labSeek(${Math.max(0, Math.round(k))});true;`),
       view: (v) => web.current?.injectJavaScript(`window.__labView&&window.__labView(${JSON.stringify(v)});true;`),
+      snapshot: () => {
+        if (!ready || failed || !web.current || snapshot.current) return Promise.resolve(null);
+        return new Promise<string | null>((resolve) => {
+          const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          const timer = setTimeout(() => { snapshot.current = null; resolve(null); }, 3000);
+          snapshot.current = { id, resolve, timer };
+          web.current?.injectJavaScript(`window.__labSnapshot&&window.__labSnapshot(${JSON.stringify(id)});true;`);
+        });
+      },
+      exportVideo: (onProgress) => {
+        if (!ready || failed || !web.current) return Promise.reject(new Error('3D 화면을 불러온 뒤 다시 시도해 주세요.'));
+        if (transfer.current) return Promise.reject(new Error('이미 영상을 만들고 있어요.'));
+        return new Promise<File>((resolve, reject) => {
+          let file: File | undefined;
+          try {
+            const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            file = new File(Paths.cache, `sinker-3d-${id}.mp4`);
+            file.create();
+            const handle = file.open();
+            const timer = setTimeout(() => failTransfer('영상 만들기 시간이 초과됐어요. 다시 시도해 주세요.'), 180_000);
+            transfer.current = { id, file, handle, index: 0, bytes: 0, timer, resolve, reject, onProgress };
+            web.current?.injectJavaScript(`if(window.__labExport){window.__labExport(${JSON.stringify(id)})}else{window.ReactNativeWebView.postMessage(JSON.stringify({t:'lab',kind:'export-error',id:${JSON.stringify(id)},message:'3D 화면을 다시 불러와 주세요.'}))}true;`);
+          } catch {
+            if (transfer.current) { failTransfer('영상 저장 공간을 준비하지 못했어요.'); return; }
+            try { if (file?.exists) file.delete(); } catch { /* cache cleanup */ }
+            reject(new Error('영상 저장 공간을 준비하지 못했어요.'));
+          }
+        });
+      },
     }),
-    []
+    [ready, failed]
   );
 
   const onMessage = (e: WebViewMessageEvent) => {
-    let m: FromWeb;
+    let m: FromWeb | Snapshot;
     try {
-      m = JSON.parse(e.nativeEvent.data) as FromWeb;
+      m = JSON.parse(e.nativeEvent.data) as FromWeb | Snapshot;
     } catch {
       return;
     }
-    if (m?.t !== 'lab') return;
+    if (m?.t !== 'lab' || typeof m.kind !== 'string') return;
+    if (m.kind === 'snapshot') {
+      const pending = snapshot.current;
+      if (!pending || pending.id !== m.id) return;
+      clearTimeout(pending.timer);
+      snapshot.current = null;
+      pending.resolve(typeof m.data === 'string' && m.data.length <= 2_000_000 && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(m.data) ? m.data : null);
+      return;
+    }
+    if (m.kind.startsWith('export-')) {
+      const t = transfer.current;
+      if (!t || !('id' in m) || m.id !== t.id) return;
+      if (m.kind === 'export-progress') {
+        if (Number.isFinite(m.progress)) t.onProgress?.(Math.max(0, Math.min(1, m.progress)));
+      } else if (m.kind === 'export-chunk') {
+        const ack = (ok: boolean) => web.current?.injectJavaScript(`window.__labExportAck&&window.__labExportAck(${JSON.stringify(t.id)},${m.index},${ok});true;`);
+        try {
+          if (m.index !== t.index || typeof m.data !== 'string') throw new Error('영상 순서가 맞지 않아요.');
+          const bytes = decodeExportChunk(m.data);
+          if (t.bytes + bytes.byteLength > 32 * 1024 * 1024) throw new Error('영상이 너무 커요.');
+          void t.handle.writeBytes(bytes).then(() => {
+            if (transfer.current !== t) return;
+            t.bytes += bytes.byteLength;
+            t.index++;
+            ack(true);
+          }, () => { if (transfer.current === t) { ack(false); failTransfer('영상을 기기에 저장하지 못했어요.'); } });
+        } catch { ack(false); failTransfer('영상 조각을 확인하지 못했어요.'); }
+      } else if (m.kind === 'export-done') {
+        if (m.chunks !== t.index || m.bytes !== t.bytes || t.bytes === 0) return failTransfer('완성된 영상을 확인하지 못했어요.');
+        transfer.current = null;
+        clearTimeout(t.timer);
+        try { t.handle.close(); t.resolve(t.file); } catch { t.reject(new Error('영상 파일을 마무리하지 못했어요.')); }
+      } else if (m.kind === 'export-error') failTransfer(typeof m.message === 'string' ? m.message.slice(0, 160) : '영상을 만들지 못했어요.');
+      return;
+    }
     if (m.kind === 'ready') setReady(true);
     else if (m.kind === 'size') {
       if (m.h > 80) setHeight(m.h);
@@ -118,9 +207,9 @@ export const Lab3D = forwardRef<
         /* 이 칸은 3D 하나만 — 다른 주소로 옮겨 가지 않는다(로그인 화면 등은 앱 화면이 먼저 막는다) */
         onShouldStartLoadWithRequest={(r) => r.url === url || r.url.startsWith(`${base}?`) || r.url === base || r.url === 'about:blank'}
         onMessage={onMessage}
-        onError={() => setFailed(true)}
-        onHttpError={() => setFailed(true)}
-        onContentProcessDidTerminate={() => web.current?.reload()}
+        onError={() => { failTransfer('3D 화면이 중단돼 영상 만들기를 취소했어요.'); setFailed(true); }}
+        onHttpError={() => { failTransfer('3D 화면이 중단돼 영상 만들기를 취소했어요.'); setFailed(true); }}
+        onContentProcessDidTerminate={() => { failTransfer('3D 화면이 중단돼 영상 만들기를 취소했어요.'); web.current?.reload(); }}
       />
       {(!ready || failed) && (
         <View style={[StyleSheet.absoluteFill, styles.cover]}>
