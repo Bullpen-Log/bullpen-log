@@ -28,7 +28,7 @@ function useVideoOrientation() {
   }, []);
 }
 
-/** 운동 원본 위에 조작부를 겹치지 않는다. 닫기와 재생 줄은 로딩·오류에도 같은 자리에 남는다. */
+/** 닫기와 재생바는 영상 바깥에, 작은 재생/일시정지만 영상 중앙에 둔다. 닫기는 로딩·오류에도 남는다. */
 export function ExerciseVideoFullscreen({ player, onClose, retry }: { player: VideoPlayer; onClose: () => void; retry: ReactNode }) {
   useVideoOrientation();
   return (
@@ -109,19 +109,21 @@ function FullscreenContent({ player, onClose, retry }: { player: VideoPlayer; on
           </View>
         ) : <>
           <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} fullscreenOptions={{ enable: false }} pointerEvents="none" />
-          {status === 'loading' ? <ActivityIndicator color="#fff" accessibilityLabel="영상을 불러오는 중" /> : null}
-        </>}
-      </View>
-      <View style={s.controls}>
+          {status === 'loading' ? <ActivityIndicator color="#fff" accessibilityLabel="영상을 불러오는 중" /> : (
         <Press
           accessibilityRole="button"
           accessibilityLabel={isPlaying ? '영상 일시정지' : '영상 재생'}
-          disabled={status === 'error' || drag != null}
+          disabled={drag != null}
           onPress={() => isPlaying ? pause(player) : play(player)}
-          style={s.play}
+          style={[s.play, s.centerPlay]}
         >
           <View style={s.playDisc}><Icon name={isPlaying ? 'pause' : 'play'} size={15} color={MEDIA.onAction} fill={MEDIA.onAction} /></View>
         </Press>
+          )}
+        </>}
+      </View>
+      <View style={s.controls}>
+
         <View style={s.timeline}>
           <View
             ref={seekView}
@@ -189,6 +191,7 @@ const s = StyleSheet.create({
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 0 },
   controls: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 4, paddingBottom: 2, width: '100%', maxWidth: 800, alignSelf: 'center' },
   play: { width: CONTROL.icon, height: CONTROL.icon, alignItems: 'center', justifyContent: 'center' },
+  centerPlay: { position: 'absolute', top: '50%', left: '50%', marginTop: -CONTROL.icon / 2, marginLeft: -CONTROL.icon / 2 },
   playDisc: { width: 32, height: 32, borderRadius: RADIUS.control, backgroundColor: MEDIA.action, alignItems: 'center', justifyContent: 'center' },
   timeline: { flex: 1, minWidth: 0 },
   seekHit: { height: 44, justifyContent: 'center' },
