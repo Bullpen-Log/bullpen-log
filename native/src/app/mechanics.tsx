@@ -1,9 +1,10 @@
+import { LoadingExit } from '~/shell/loading-exit';
 import { PracticeInput, emptyPractice, newRequestId, practiceError, practiceTouched, FEEL_LABEL, SKILL_TEXT, type PracticeForm } from '~/mechanics/practice-input';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { josa } from '@/lib/korean';
@@ -107,7 +108,7 @@ export default function MechanicsPlayScreen() {
           <Action label="닫기" onPress={() => router.back()} primary={false} c={c} />
         </>
       ) : (
-        <ActivityIndicator />
+        <LoadingExit />
       )}
     </View>
   );

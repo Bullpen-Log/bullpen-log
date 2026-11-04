@@ -1,3 +1,4 @@
+import { LabPracticeCard } from '~/lab/practice-card';
 import * as Haptics from 'expo-haptics';
 import { ScrollLockScope } from '~/shell/scroll-lock';
 import { SymbolView } from 'expo-symbols';
@@ -590,6 +591,7 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
                 <>
                   <ElementGrid c={c} report={report} onPick={(it) => jump(it.frame, false)} onScene={onScene} />
                   <RxCard c={c} report={report} mine={r.mine} focus={r.focus} resultId={data.id} />
+                  {r.mine ? <LabPracticeCard key={data.id} id={data.id} suggestedGoal={report.rx[0]?.cue ?? ''} /> : null}
                   {r.previous ? <CompareCard c={c} prev={r.previous} /> : null}
                   <Details c={c} r={r} active={active} id={data.id} req={data.request} onJump={jump} onStarted={onReload} />
                 </>

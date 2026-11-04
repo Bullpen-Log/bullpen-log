@@ -1,5 +1,10 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
+import { toDateKey } from '@/lib/pitch-stats';
+import { loadMyVideos } from '@/lib/my-videos-load';
+import { readLabPractice, type LabJourney, type LabPractice } from '@/lib/lab-journey';
+import { listOwnLabMeta, loadLabPractices, saveLabPracticeOnce } from '@/lib/pitch-lab';
 import { allowFeature, isRestrictedNow } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
 import { contextForAnalysis } from '@/lib/mechanics/comparison';
@@ -170,6 +175,15 @@ export async function saveLabSample(input: {
   const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
   const meta = readLabMeta(input.meta, new Date().toISOString());
+  if (meta.sourcePaths || meta.previousReportId) {
+    const owner = await findLabOwner(input.id, user);
+    if (owner && owner !== user.id) return { error: '내 분석에만 원본과 이전 분석을 연결할 수 있어요.' };
+  }
+  if (meta.sourcePaths && Object.keys(meta.sourcePaths).length) {
+    const owned = new Set((await loadMyVideos(user.id)).filter((v) => v.sport === 'pitch').map((v) => v.path));
+    if (Object.values(meta.sourcePaths).some((path) => !owned.has(path))) return { error: '내 영상에서 선택한 원본을 확인할 수 없어요.' };
+  }
+  if (meta.previousReportId && (meta.previousReportId === input.id || !await loadLabMetaRaw(user.id, meta.previousReportId))) return { error: '이전 분석을 확인할 수 없어요. 내 분석에서 다시 시작해 주세요.' };
   /* 화면 녹화 · 따로 찍은 짝은 받지 않는다(2026-10-15 사용자 — 화면도 막지만 옛 화면 · 직접 부름까지) */
   const block = labMetaBlock(input.meta, meta);
   if (block) {
@@ -785,3 +799,38 @@ export async function loadAppLabList(scope?: string): Promise<
   };
 }
 
+
+
+export async function loadMyVideoReports(path: string): Promise<{ id: string; createdAt: string; view: 'side' | 'back' }[]> {
+  allowFeature('pitch3d');
+  const user = await requireUser();
+  if (typeof path !== 'string' || !(await loadMyVideos(user.id)).some((v) => v.path === path)) return [];
+  return (await listOwnLabMeta(user.id)).flatMap(({ id, meta }) => LAB_VIEWS.flatMap((view) => meta.sourcePaths?.[view] === path ? [{ id, createdAt: meta.createdAt, view }] : []));
+}
+
+export async function loadLabJourney(id: string): Promise<LabJourney> {
+  allowFeature('pitch3d');
+  const user = await requireUser();
+  if (!isLabId(id)) throw new Error('분석을 확인할 수 없어요.');
+  const raw = await loadLabMetaRaw(user.id, id);
+  if (!raw) throw new Error('내 분석을 찾지 못했어요.');
+  const meta = readLabMeta(raw, '');
+  const [practices, all] = await Promise.all([loadLabPractices(user.id, id), listOwnLabMeta(user.id)]);
+  const prev = meta.previousReportId && all.find((x) => x.id === meta.previousReportId);
+  return {
+    practices, sourcePaths: meta.sourcePaths ?? {},
+    previous: prev ? { id: prev.id, practices: (await loadLabPractices(user.id, prev.id)).filter((p) => p.savedAt <= meta.createdAt) } : null,
+    retakes: all.filter((x) => x.meta.previousReportId === id).map((x) => ({ id: x.id, createdAt: x.meta.createdAt })),
+  };
+}
+
+export async function recordLabPractice(id: string, input: unknown): Promise<{ ok: true } | { error: string }> {
+  allowFeature('pitch3d');
+  const user = await requireUser();
+  const practice = readLabPractice(input);
+  if (!isLabId(id) || !practice) return { error: '날짜·연습 목표·메모를 확인해 주세요.' };
+  if (practice.date > toDateKey(appNow()) || practice.date < '2000-01-01') return { error: '연습한 날짜는 오늘 이전으로 골라 주세요.' };
+  if (!await loadLabMetaRaw(user.id, id)) return { error: '내 분석을 찾지 못했어요.' };
+  await saveLabPracticeOnce(user.id, id, { ...practice, savedAt: new Date().toISOString() } satisfies LabPractice);
+  return { ok: true };
+}

@@ -9,6 +9,7 @@
  *
  * 시험: npm run my-videos:test
  */
+import { matchesFind, isFindActive, type FindQuery } from '@/lib/pitch-find';
 import { isPhoneVideoPath } from '@/lib/phone-video-path';
 
 export type VideoSport = 'pitch' | 'hit';
@@ -32,6 +33,7 @@ export type MyVideoLog = {
   memo: string | null;
   cuesGood: string[];
   cuesBad: string[];
+  satisfaction?: number | null;
 };
 
 /** 구속 측정 공의 클립(회원 세션 · 보정용 아님) */
@@ -232,6 +234,8 @@ export type VideoFilter = {
   /** 붙은 기록의 종류(불펜 · 경기 …) — 비면 거르지 않음. 기록 여럿 중 하나라도 맞으면 */
   types: readonly string[];
   linked: LinkedFilter;
+  /** Linked record feelings, never copied into the individual video note. */
+  feeling?: Omit<FindQuery, 'text'>;
 };
 export const EMPTY_VIDEO_FILTER: VideoFilter = {
   text: '',
@@ -247,7 +251,7 @@ export type MatchWhere = 'note' | 'memo' | 'cue' | 'other';
 export const MATCH_LABEL: Record<MatchWhere, string> = {
   note: '영상 메모에서',
   memo: '기록 총평에서',
-  cue: '감각 칩에서',
+  cue: '연결된 기록의 감각에서',
   other: '종류 · 날짜에서',
 };
 
@@ -300,9 +304,12 @@ export function filterVideos(
     if (range.unknownOnly ? item.date !== null : (range.from || range.to) && (item.date === null || (range.from && item.date < range.from) || (range.to && item.date > range.to))) continue;
     if (f.linked === 'linked' && item.logs.length === 0) continue;
     if (f.linked === 'unlinked' && item.logs.length > 0) continue;
-    if (types.size && !item.logs.some((l) => types.has(l.type))) continue;
+    const feeling = { text: '', cues: f.feeling?.cues ?? {}, satisfaction: f.feeling?.satisfaction ?? null };
+    const feelingOn = isFindActive(feeling);
+    const matchedLog = item.logs.find((l) => (!types.size || types.has(l.type)) && matchesFind({ ...l, sessionType: l.type }, feeling));
+    if ((types.size || feelingOn) && !matchedLog) continue;
     if (!words.length) {
-      out.push({ item, where: null, snippet: null });
+      out.push({ item, where: feelingOn ? 'cue' : null, snippet: feelingOn && matchedLog ? `${matchedLog.date} 기록 · ${Object.entries(feeling.cues).map(([cue, side]) => `${cue} ${side === 'good' ? '좋음' : '아쉬움'}`).concat(feeling.satisfaction ? [`만족도 ${matchedLog.satisfaction}/5`] : []).join(' · ')}` : null });
       continue;
     }
     const memoText = item.logs.map((l) => l.memo).filter(Boolean).join(' · ');
@@ -404,7 +411,7 @@ export function recordTypes(items: readonly MyVideoItem[]): { type: string; coun
   return [...n].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count || a.type.localeCompare(b.type));
 }
 
-export type FilterChipKey = 'text' | 'sport' | 'favorite' | 'period' | 'linked' | `type:${string}`;
+export type FilterChipKey = 'text' | 'sport' | 'favorite' | 'period' | 'linked' | 'satisfaction' | `cue:${string}` | `type:${string}`;
 const shortDate = (key: string) => `${Number(key.slice(5, 7))}/${Number(key.slice(8))}`;
 /** 켜진 조건 칩(하나씩 지울 수 있게) */
 export function filterChips(f: VideoFilter, today: string): { key: FilterChipKey; label: string }[] {
@@ -423,10 +430,14 @@ export function filterChips(f: VideoFilter, today: string): { key: FilterChipKey
   if (f.sport) out.push({ key: 'sport', label: f.sport === 'hit' ? '타격' : '투구' });
   if (f.favoriteOnly) out.push({ key: 'favorite', label: '즐겨찾기' });
   for (const t of f.types) out.push({ key: `type:${t}`, label: t });
+  if (f.feeling?.satisfaction) out.push({ key: 'satisfaction', label: f.feeling.satisfaction === 'good' ? '만족한 기록' : '아쉬운 기록' });
+  for (const [cue, side] of Object.entries(f.feeling?.cues ?? {})) out.push({ key: `cue:${cue}`, label: `${cue} ${side === 'good' ? '좋음' : '아쉬움'}` });
   if (f.linked !== 'any') out.push({ key: 'linked', label: f.linked === 'linked' ? '기록 연결됨' : '기록 연결 없음' });
   return out;
 }
 export function clearChip(f: VideoFilter, key: FilterChipKey): VideoFilter {
+  if (key === 'satisfaction') return { ...f, feeling: { cues: f.feeling?.cues ?? {}, satisfaction: null } };
+  if (key.startsWith('cue:')) return { ...f, feeling: { satisfaction: f.feeling?.satisfaction ?? null, cues: Object.fromEntries(Object.entries(f.feeling?.cues ?? {}).filter(([cue]) => `cue:${cue}` !== key)) } };
   if (key === 'text') return { ...f, text: '' };
   if (key === 'period') return { ...f, period: { kind: 'all' } };
   if (key === 'sport') return { ...f, sport: null };

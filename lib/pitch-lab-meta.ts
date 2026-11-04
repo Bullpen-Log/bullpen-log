@@ -72,6 +72,10 @@ export type LabFile = {
 };
 
 export type LabMeta = {
+  /** Gallery originals actually selected for this analysis; owner checked by saveLabSample. */
+  sourcePaths?: Partial<Record<LabView, string>>;
+  /** Explicit retake link, never inferred from dates. */
+  previousReportId?: string;
   /** 같은 공을 두 대로 동시에 찍었는가 — 아니면 한 대로 옆 · 뒤를 나눠 찍은 것 */
   synced: boolean;
   /** 슬로모 초당 장수 — 모르면 null */
@@ -190,7 +194,15 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
     if (typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= 30) offs[key] = x;
   }
   const extraOffsets = Object.keys(offs).length ? offs : null;
+  const sourcePaths: Partial<Record<LabView, string>> = {};
+  const source = v.sourcePaths && typeof v.sourcePaths === 'object' ? v.sourcePaths as Record<string, unknown> : {};
+  for (const view of LAB_VIEWS) {
+    const path = source[view];
+    if (typeof path === 'string' && path.length <= 500 && /^[^/]+\/[^/]+$/.test(path) && !path.includes('..')) sourcePaths[view] = path;
+  }
   return {
+    ...(Object.keys(sourcePaths).length ? { sourcePaths } : {}),
+    ...(typeof v.previousReportId === 'string' && isLabId(v.previousReportId) ? { previousReportId: v.previousReportId } : {}),
     synced: v.synced !== false,
     slowmoFps: v.slowmoFps === 120 || v.slowmoFps === 240 ? v.slowmoFps : null,
     screenRecorded: v.screenRecorded !== false,

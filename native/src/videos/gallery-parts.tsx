@@ -1,3 +1,4 @@
+import { FIND_CUES, cycleCue } from '@/lib/pitch-find';
 import { Image } from 'expo-image';
 import { memo, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -244,7 +245,8 @@ const LINKED: { value: LinkedFilter; label: string }[] = [
   { value: 'linked', label: '연결됨' },
   { value: 'unlinked', label: '연결 없음' },
 ];
-const SECTIONS = ['sport', 'period', 'linked', 'order'] as const;
+const SECTIONS = ['sport', 'period', 'linked', 'feeling', 'order'] as const;
+const PAGED_SECTIONS = ['sport', 'period', 'linked', 'feeling', 'cues1', 'cues2', 'order'] as const;
 const ORDERS: { value: VideoOrder; label: string }[] = [
   { value: 'new', label: '최신순' },
   { value: 'old', label: '오래된순' },
@@ -348,6 +350,7 @@ export function FilterSheet({
   const [f, setF] = useState(filter);
   const [o, setO] = useState(order);
   const [pg, setPg] = useState(0);
+  const sections = paged ? PAGED_SECTIONS : SECTIONS;
   const types = useMemo(() => recordTypes(items), [items]);
   const count = useMemo(() => filterVideos(items, f, today).length, [items, f, today]);
   return (
@@ -366,7 +369,7 @@ export function FilterSheet({
         </Press>
       }
     >
-      {(paged ? [SECTIONS[pg]] : SECTIONS).map((k) => (
+      {(paged ? [sections[pg]] : sections).map((k) => (
         <View key={k} style={{ gap: 18 }}>
           {k === 'sport' ? (
             <Section title="종목">
@@ -395,6 +398,29 @@ export function FilterSheet({
         )}
               <Text style={[TYPE.sub, { color: c.muted }]}>영상이 기록 여럿에 붙었으면 그중 하나라도 맞으면 보여요.</Text>
             </Section>
+          ) : k === 'feeling' || k === 'cues1' || k === 'cues2' ? (
+            <Section title="연결된 기록의 느낌">
+              {k === 'feeling' ? <>
+              <Text style={[TYPE.sub, { color: c.muted }]}>그날 기록에 남긴 감각으로 찾아요. 개별 영상의 평가와는 달라요. 여러 조건은 같은 기록에서 모두 맞아야 해요.</Text>
+              <View style={styles.chipWrap}>
+                {(['good', 'bad'] as const).map((value) => <Chip key={value} on={f.feeling?.satisfaction === value} label={value === 'good' ? '만족 (4~5)' : '아쉬움 (1~2)'} onPress={() => setF({ ...f, feeling: { cues: f.feeling?.cues ?? {}, satisfaction: f.feeling?.satisfaction === value ? null : value } })} />)}
+              </View>
+              </> : null}
+              {!paged || k !== 'feeling' ? <>
+              <Text style={[TYPE.sub, { color: c.muted }]}>감각을 누르면 좋음 → 아쉬움 → 선택 해제로 바뀌어요.</Text>
+              <View style={styles.chipWrap}>
+                {(k === 'cues1' ? FIND_CUES.slice(0, 4) : k === 'cues2' ? FIND_CUES.slice(4) : FIND_CUES).map((cue) => {
+                  const side = f.feeling?.cues[cue];
+                  return <Chip key={cue} on={!!side} label={`${cue}${side ? side === 'good' ? ' · 좋음' : ' · 아쉬움' : ''}`} onPress={() => {
+                    const cues = { ...f.feeling?.cues };
+                    const next = cycleCue(side);
+                    if (next) cues[cue] = next; else delete cues[cue];
+                    setF({ ...f, feeling: { satisfaction: f.feeling?.satisfaction ?? null, cues } });
+                  }} />;
+                })}
+              </View>
+              </> : null}
+            </Section>
           ) : (
             <Section title="정렬">
               <Segmented options={ORDERS} value={o} onChange={setO} label="정렬" />
@@ -407,8 +433,8 @@ export function FilterSheet({
           <Pressable accessibilityRole="button" accessibilityLabel="필터 이전 쪽" accessibilityState={{ disabled: pg === 0 }} disabled={pg === 0} onPress={() => setPg(pg - 1)} style={[styles.pageBtn, pg === 0 && { opacity: 0.35 }]}>
             <Text style={[TYPE.body, { color: c.link }]}>‹ 이전</Text>
           </Pressable>
-          <Text style={[TYPE.sub, { color: c.muted }]}>{`${pg + 1}/${SECTIONS.length}`}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="필터 다음 쪽" accessibilityState={{ disabled: pg === SECTIONS.length - 1 }} disabled={pg === SECTIONS.length - 1} onPress={() => setPg(pg + 1)} style={[styles.pageBtn, pg === SECTIONS.length - 1 && { opacity: 0.35 }]}>
+          <Text style={[TYPE.sub, { color: c.muted }]}>{`${pg + 1}/${sections.length}`}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="필터 다음 쪽" accessibilityState={{ disabled: pg === sections.length - 1 }} disabled={pg === sections.length - 1} onPress={() => setPg(pg + 1)} style={[styles.pageBtn, pg === sections.length - 1 && { opacity: 0.35 }]}>
             <Text style={[TYPE.body, { color: c.link }]}>다음 ›</Text>
           </Pressable>
         </View>

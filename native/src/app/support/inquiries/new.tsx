@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { type Href, router } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,8 +17,9 @@ import { Press } from '~/shell/press';
 export default function NewInquiryScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  const [category, setCategory] = useState<InquiryCategory | null>(null);
-  const [title, setTitle] = useState('');
+  const coach = useLocalSearchParams<{ topic?: string }>().topic === 'coach';
+  const [category, setCategory] = useState<InquiryCategory | null>(coach ? 'other' : null);
+  const [title, setTitle] = useState(coach ? '코치 이용 문의' : '');
   const [body, setBody] = useState('');
   const send = useBusy();
   const allowLeave = useDraftGuard(!!(title.trim() || body.trim()));

@@ -1,9 +1,10 @@
+import { LoadingExit } from '~/shell/loading-exit';
 import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore } from 'react';
-import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatSeconds } from '@/lib/exercise-meta';
 import { useLiveActivity } from '~/shell/live-activity';
@@ -88,7 +89,7 @@ export default function ArmcarePlayScreen() {
           </Press>
         </>
       ) : (
-        <ActivityIndicator accessibilityLabel="루틴을 불러오는 중" />
+        <LoadingExit label="루틴을 불러오는 중" />
       )}
     </View>
   );

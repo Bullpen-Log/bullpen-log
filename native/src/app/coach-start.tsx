@@ -1,3 +1,4 @@
+import { CoachAccessActions } from '~/coach/access-actions';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -135,9 +136,9 @@ export default function CoachStartScreen() {
     </StepFrame>
   );
 
-  /* 관문 — 무료 · 나이는 소개에서 멈춘다(결제 안내 · 링크 없음, U13) */
+  /* 권한 없는 계정은 관리자 승인 문의 · 재확인으로. 나이 제한은 그대로. */
   if (start.gate === 'free' || start.gate === 'age')
-    return frame('코치', start.gate === 'free' ? '유료 요금제 전용이에요.' : '만 14세부터 쓸 수 있어요.', { label: '닫기', onPress: () => router.back() }, <Points />);
+    return frame('코치', start.gate === 'free' ? '관리자 승인 후 이용할 수 있어요.' : '만 14세부터 쓸 수 있어요.', { label: '닫기', onPress: () => router.back() }, <><Points />{start.gate === 'free' ? <CoachAccessActions onGranted={loadStart} /> : null}</>);
 
   const i = start.info;
   switch (page) {

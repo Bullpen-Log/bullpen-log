@@ -1,3 +1,5 @@
+import { cacheEpoch } from '~/lib/store';
+import { galleryLabAsset } from './gallery-source';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { createVideoPlayer, type VideoThumbnail } from 'expo-video';
@@ -31,6 +33,7 @@ import { rpc } from '~/lib/rpc';
  */
 export type LabPicked = {
   asset: ImagePicker.ImagePickerAsset;
+  sourcePath?: string;
   fps: number | null;
   cap: LabCapture & { fp: string };
   /** 파일 머리에서 읽은 것(길이 · 해상도 · 렌즈) — 못 읽은 칸은 null */
@@ -40,6 +43,7 @@ export type LabPicked = {
 };
 export type LabSlowmo = 'unknown' | '120' | '240';
 export type LabUploadInfo = {
+  previousReportId?: string;
   slowmo: LabSlowmo;
   hand: LabHand;
   ground: LabGround;
@@ -118,14 +122,23 @@ export function useLabUpload(hand: LabHand, sport: LabSport = 'pitch') {
     if (both.every((x): x is number => x != null && x >= 100)) setAutoSlowmo(Math.min(...both) >= 200 ? '240' : '120');
   };
 
-  const pick = async (view: LabView) => {
+  const pick = async (view: LabView, sourcePath?: string) => {
     setError(null);
     setBlocked(false);
-    const res = await ImagePicker.launchImageLibraryAsync(PICK_ORIGINAL);
-    const asset = res.canceled ? null : res.assets[0];
-    if (!asset) return;
+    const epoch = cacheEpoch();
     const token = ++tokens.current[view];
-    const stale = () => tokens.current[view] !== token;
+    const stale = () => tokens.current[view] !== token || epoch !== cacheEpoch();
+    let asset: ImagePicker.ImagePickerAsset | null;
+    setCheckingOf((c) => ({ ...c, [view]: true }));
+    try {
+      if (sourcePath) asset = await galleryLabAsset(sourcePath);
+      else { const res = await ImagePicker.launchImageLibraryAsync(PICK_ORIGINAL); asset = res.canceled ? null : res.assets[0]; }
+    } catch (e) {
+      if (!stale()) { setSlotError((x) => ({ ...x, [view]: { text: e instanceof Error ? e.message : '영상을 읽지 못했어요.', blocked: false } })); setCheckingOf((c) => ({ ...c, [view]: false })); }
+      return;
+    }
+    if (stale()) { if (asset) dropPickerTemp(asset.uri); return; }
+    if (!asset) { setCheckingOf((c) => ({ ...c, [view]: false })); return; }
     /* 짝이 바뀐다 — 다음 올리기는 새 샘플 번호. 바뀌기 전 파일은 앱 캐시에서 지운다 */
     resetTarget();
     const old = pickedRef.current[view];
@@ -137,6 +150,7 @@ export function useLabUpload(hand: LabHand, sport: LabSport = 'pitch') {
       setSlotError((e) => ({ ...e, [view]: { text, blocked: isBlocked } }));
       setError(`${viewLabel(view)} 영상: ${text}`);
       setBlocked(isBlocked);
+      setCheckingOf((c) => ({ ...c, [view]: false }));
     };
     if ((asset.fileSize ?? 0) > LAB_MAX_VIDEO_BYTES) return fail(`영상 하나에 ${LAB_MAX_VIDEO_MB}MB까지 올릴 수 있어요. 이 영상은 ${Math.round((asset.fileSize ?? 0) / 1048576)}MB예요.`, false);
     setCheckingOf((c) => ({ ...c, [view]: true }));
@@ -146,11 +160,11 @@ export function useLabUpload(hand: LabHand, sport: LabSport = 'pitch') {
        * 2026-10-14 사용자: 이상한 영상으로 계속 실패해 GPU 비용이 나가지 않게.
        */
       const probe = await probeLabAsset(asset);
-      if (stale()) return;
+      if (stale()) { dropPickerTemp(asset.uri); return; }
       const block = labVideoBlock(probe.info);
       if (block) return fail(block, true);
       setPicked((p) => {
-        const next = { ...p, [view]: { asset, fps: probe.info.fps, cap: probe.capture, info: probe.info } };
+        const next = { ...p, [view]: { asset, ...(sourcePath ? { sourcePath } : {}), fps: probe.info.fps, cap: probe.capture, info: probe.info } };
         slowmoOf(next);
         return next;
       });
@@ -214,6 +228,8 @@ export function useLabUpload(hand: LabHand, sport: LabSport = 'pitch') {
 
   /** 두 영상을 올리고 샘플 정보를 저장한다 — 된 샘플 번호, 실패면 null(error 에 까닭). 같은 짝으로 다시 부르면 끝난 칸은 건너뛴다 */
   const upload = async (info: LabUploadInfo): Promise<string | null> => {
+    const epoch = cacheEpoch(), sideToken = tokens.current.side, backToken = tokens.current.back;
+    const current = () => epoch === cacheEpoch() && sideToken === tokens.current.side && backToken === tokens.current.back;
     setError(null);
     setBlocked(false);
     const id = (labId.current ??= newLabId());
@@ -221,6 +237,7 @@ export function useLabUpload(hand: LabHand, sport: LabSport = 'pitch') {
     setSending(Object.fromEntries(LAB_VIEWS.map((v) => [v, { sent: uploaded.current.has(v) ? sizeOf(v) : 0, total: sizeOf(v), done: uploaded.current.has(v) }])));
     try {
       for (const view of LAB_VIEWS) {
+        if (!current()) return null;
         if (uploaded.current.has(view)) continue;
         setProgress({ view, percent: 0 });
         await uploadLabVideo(
@@ -255,6 +272,8 @@ export function useLabUpload(hand: LabHand, sport: LabSport = 'pitch') {
         distanceM: null,
         distances: info.distances ?? {},
         memo: info.memo,
+        sourcePaths: Object.fromEntries(LAB_VIEWS.flatMap((v) => picked[v]?.sourcePath ? [[v, picked[v]!.sourcePath]] : [])),
+        ...(info.previousReportId ? { previousReportId: info.previousReportId } : {}),
         ...(info.subject ? { subject: info.subject } : {}),
         kind: info.kind ?? 'sample',
         ...(info.bat ? { bat: info.bat } : {}),
@@ -274,7 +293,9 @@ export function useLabUpload(hand: LabHand, sport: LabSport = 'pitch') {
           })
         ),
       };
+      if (!current()) return null;
       const r = await rpc<{ ok: true } | { error: string }>(sport === 'hit' ? 'swing-lab.saveSwingSample' : 'pitch-lab.saveLabSample', { id, meta });
+      if (!current()) return null;
       if ('error' in r) {
         setError(r.error);
         return null;

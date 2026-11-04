@@ -34,19 +34,22 @@ function setOverride(path: string, o: Partial<Override>) {
 }
 
 let inflight: Promise<void> | null = null;
+let generation = 0;
 /** after = 방금 바꾼 뒤 — 이미 받는 중이면 그 뒤에 한 번 더(바꾸기 전에 떠난 물음의 답이 옛 목록이라서) */
 export function refreshMyVideos(after = false): Promise<void> {
-  if (inflight) return after ? inflight.then(() => refreshMyVideos()) : inflight;
+  const g = generation;
+  if (inflight) return after ? inflight.then(() => { if (g === generation) return refreshMyVideos(); }) : inflight;
   const e = cacheEpoch();
   const startedAt = Date.now();
+  const current = () => e === cacheEpoch() && g === generation;
   if (!state.items)
     void cacheGet(KEY).then((v) => {
-      if (e === cacheEpoch() && !state.items && Array.isArray(v)) set({ items: withOverrides(v as MyVideoItem[]), fresh: false });
+      if (current() && !state.items && Array.isArray(v)) set({ items: withOverrides(v as MyVideoItem[]), fresh: false });
     });
   set({ loading: true });
   inflight = rpc<ListResult>('my-videos.loadMyVideoList')
     .then((r) => {
-      if (e !== cacheEpoch()) return;
+      if (!current()) return;
       if (r.ok) {
         pruneOverrides(overrides, startedAt);
         set({ items: withOverrides(r.items), error: null, fresh: true });
@@ -54,9 +57,10 @@ export function refreshMyVideos(after = false): Promise<void> {
       } else set({ error: r.error });
     })
     .catch(() => {
-      if (e === cacheEpoch()) set({ error: '신호가 약해 새로 받지 못했어요.' });
+      if (current()) set({ error: '신호가 약해 새로 받지 못했어요.' });
     })
     .finally(() => {
+      if (!current()) return;
       inflight = null;
       set({ loading: false });
     });
@@ -118,6 +122,7 @@ export function toggleFavorite(path: string): boolean | null {
 
 /** 로그아웃 — 앞사람 목록을 지운다(폰 저장은 cacheClear) */
 export function resetMyVideos() {
+  generation++;
   inflight = null;
   overrides.clear();
   favQueue.reset();

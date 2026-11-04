@@ -112,6 +112,37 @@ public class LocalVideoModule: Module {
             Self.keep(url, move: false, promise)
         }
 
+        // Explicit original backup/restore. Original files are never removed or overwritten.
+        AsyncFunction("prepareBackup") { (options: [String: Any], promise: Promise) in
+            guard let id = options["id"] as? String, let source = Self.stored(id) else {
+                return promise.reject("missing", "이 기기에 원본이 없어요.")
+            }
+            do {
+                let backup = try LocalVideoBackup.prepare(source: source, temporaryRoot: Self.folder)
+                promise.resolve(["path": backup.file.absoluteString, "size": backup.bytes, "sha256": backup.sha256])
+            } catch { promise.reject("backup", "원본 사본을 준비하지 못했어요. 저장 공간을 확인해 주세요.") }
+        }
+
+        AsyncFunction("restoreBackup") { (options: [String: Any], promise: Promise) in
+            guard let id = options["id"] as? String, UUID(uuidString: id) != nil,
+                  let raw = options["path"] as? String,
+                  let digest = options["sha256"] as? String, digest.count == 64,
+                  digest.allSatisfy({ $0.isHexDigit }) else {
+                return promise.reject("backup", "보관 사본 정보를 확인할 수 없어요.")
+            }
+            let source = URL(fileURLWithPath: Self.plainPath(raw)).resolvingSymlinksInPath()
+            guard Self.savableRoots.contains(where: { source.path.hasPrefix($0 + "/") }),
+                  ["mov", "mp4", "m4v"].contains(source.pathExtension.lowercased()) else {
+                return promise.reject("path", "복원할 수 없는 파일이에요.")
+            }
+            do {
+                try LocalVideoBackup.restore(source: source, store: Self.store, id: id, sha256: digest)
+                promise.resolve(["restored": true])
+            } catch {
+                promise.reject("restore", "원본을 복원하지 못했어요. 이미 원본이 있거나 보관 사본이 손상됐을 수 있어요. 저장 공간도 확인해 주세요.")
+            }
+        }
+
         // MARK: 꺼내기
 
         AsyncFunction("load") { (options: [String: Any], promise: Promise) in

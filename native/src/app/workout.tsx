@@ -1,3 +1,4 @@
+import { LoadingExit } from '~/shell/loading-exit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
@@ -6,7 +7,6 @@ import { retryFav } from '~/library/sync';
 import { setFavorite, useFavs } from '~/training/favorites';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   AppState,
   Keyboard,
@@ -104,12 +104,13 @@ export default function WorkoutScreen() {
         : Promise.resolve(true);
     opened
       .then(() => {
+        if (!alive) return null;
         started.current = true;
         return rpc<LoadResult>('app-workout.loadAppWorkout');
       })
       .then(
       (r) => {
-        if (!alive) return;
+        if (!alive || !r) return;
         if (r.ok) {
           setData(r);
           /* 조직 일정에서 연 운동이면 이 판 번호를 귀속에 붙인다(G04 — 그 판의 세트만 잇는다) */
@@ -161,7 +162,7 @@ export default function WorkoutScreen() {
           </Press>
         </>
       ) : (
-        <ActivityIndicator />
+        <LoadingExit />
       )}
     </View>
   );

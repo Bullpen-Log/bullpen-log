@@ -38,6 +38,7 @@ export async function loadMyVideos(userId: string): Promise<MyVideoItem[]> {
         memo: true,
         cuesGood: true,
         cuesBad: true,
+        satisfaction: true,
         videoPaths: true,
       },
     }),
@@ -59,6 +60,7 @@ export async function loadMyVideos(userId: string): Promise<MyVideoItem[]> {
         memo: l.memo,
         cuesGood: l.cuesGood,
         cuesBad: l.cuesBad,
+        satisfaction: l.satisfaction,
       },
     })),
     ...hitLogs.map((l) => ({

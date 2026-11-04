@@ -1,3 +1,4 @@
+import { readLabPractice, type LabPractice } from '@/lib/lab-journey';
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { createPlaybackUrls, videoBucket } from '@/lib/storage';
@@ -582,3 +583,47 @@ export async function deleteLabSample(userId: string, id: string, sport: LabSpor
 
 /** 결과 화면이 돌릴 영상 주소 — 가벼운 영상이 있으면 그것(시각 차는 labVideoShifts 가 같은 규칙으로) */
 export const shownVideoUrl = (v: LabVideoFile | undefined): string | null => v?.previewUrl ?? v?.url ?? null;
+
+/** Lightweight owner-only metadata listing: no GPU status requests or playback URL generation. */
+export async function listOwnLabMeta(userId: string) {
+  const rows: { id: string; meta: LabMeta }[] = [];
+  const dirs = await labFolderFiles(`${userId}/${LAB_DIR}`);
+  // Bound parallel reads per page for accounts with long histories.
+  const ids = dirs.filter((d) => d.id == null && /^[a-f0-9-]{36}$/i.test(d.name));
+  for (let i = 0; i < ids.length; i += 12) {
+    const page = await Promise.all(ids.slice(i, i + 12).map(async (d) => {
+      const { data, error } = await videoBucket().download(`${folder(userId, d.name)}/meta.json`);
+      if (error && String((error as { statusCode?: string }).statusCode) === '404') return null;
+      if (error || !data) throw new Error('분석 정보를 불러오지 못했어요. 다시 확인해 주세요.');
+      const meta = readLabMeta(JSON.parse(await data.text()), '');
+      return meta.kind === 'marker' ? null : { id: d.name, meta };
+    }));
+    rows.push(...page.filter((r): r is NonNullable<typeof r> => r != null));
+  }
+  return rows.sort((a, b) => b.meta.createdAt.localeCompare(a.meta.createdAt));
+}
+
+export async function loadLabPractices(userId: string, id: string): Promise<LabPractice[]> {
+  const names = (await labFolderFiles(folder(userId, id))).filter((f) => /^practice-[a-f0-9-]{36}\.json$/i.test(f.name));
+  const rows: LabPractice[] = [];
+  for (let i = 0; i < names.length; i += 12) {
+    const page = await Promise.all(names.slice(i, i + 12).map(async (f) => {
+      const { data, error } = await videoBucket().download(`${folder(userId, id)}/${f.name}`);
+      if (error || !data) throw new Error('연습 기록을 불러오지 못했어요.');
+      const row = readLabPractice(JSON.parse(await data.text()));
+      if (!row) throw new Error('연습 기록을 확인할 수 없어요.');
+      return row;
+    }));
+    rows.push(...page);
+  }
+  return rows.sort((a, b) => b.date.localeCompare(a.date) || b.savedAt.localeCompare(a.savedAt));
+}
+
+/** Immutable request ID means a lost response can be retried without creating a duplicate. */
+export async function saveLabPracticeOnce(userId: string, id: string, practice: LabPractice) {
+  const path = `${folder(userId, id)}/practice-${practice.id}.json`;
+  const { error } = await videoBucket().upload(path, new Blob([JSON.stringify(practice)], { type: 'application/json' }), { upsert: false, contentType: 'application/json' });
+  if (!error) return;
+  const old = readLabPractice(await getJson(path));
+  if (!old || old.date !== practice.date || old.goal !== practice.goal || old.note !== practice.note) throw new Error('저장 여부를 확인하지 못했어요. 같은 내용으로 다시 확인해 주세요.');
+}
