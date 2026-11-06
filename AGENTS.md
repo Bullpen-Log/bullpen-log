@@ -76,3 +76,8 @@ DB 구조는 이렇게만 바꾼다.
   바닥 코드가 바뀌면(바닥 판 = 지문이 바뀜) 저절로 굽고 TestFlight 에 올린다(25분 + 애플 처리). 잇따라 올리면 마지막 것만. 웹만 바꾼 푸시는 Vercel 배포로 끝.
 - 앱 안 새 웹뷰는 `applicationNameForUserAgent={APP_UA}` 를 단다(안 달면 휴대폰 막기에 걸린다). 휴대폰 사파리 창으로 열어야 하는 새 주소는 `proxy.ts` 의 `OPEN` 에 더한다.
 - 운동 · 드릴 영상은 앱 안에 든다(`native/plugins/library-videos`). 새 영상을 올리면 맥에서 `npm run library:bundle -- --hevc` 를 돌려야 다음 굽기에 들어간다(안 돌리면 앱이 처음 볼 때 받는다).
+
+## 맥 미니 메인·맥북 서브 인계(2026-11-06)
+- 맥 미니가 메인, 맥북은 서브. 금윤호 일본/일본어/법률, 김민 미국/영어/법률 담당.
+- 출시 작업은 docs/releases/sinker-us-jp-launch-2026-11.md, 영상비교는 docs/releases/sinker-video-compare-launch-checklist.md를 먼저 읽는다. 구속/ABS 이번 출시 제외.
+- 맥북 작업 종료마다 HANDOFF.md에 변경·검사·미검증·다음 일을 기록해 문서 커밋/푸시로 공유한다(사용자 지속 승인). 앱 코드 배포 승인은 별도 범위를 확인한다. 맥 미니 실제 수신을 추정하지 않는다.
