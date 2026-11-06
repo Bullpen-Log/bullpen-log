@@ -4,7 +4,7 @@ import {
   sleepQualityOf,
   type CheckinPartKey,
 } from '@/lib/checkin';
-import { cleanBodySpots, type BodySpots } from '@/lib/body-spots';
+import { cleanBodySpots, type BodySpots, type SpotSide } from '@/lib/body-spots';
 
 /**
  * 체크인 3판 흐름(components/checkin-flow/flow.tsx)이 받는 것 — 저장된 체크인 한 건을 화면이 채울 수 있는 모양으로.
@@ -34,6 +34,8 @@ export type CheckinFlowContext = {
   recent: CheckinPrefill[];
   /** 두 달치 체크인한 날 — 완료 화면의 'N일 연속' */
   streakDays: string[];
+  /** 불편한 곳 그림이 처음 보일 쪽 — 던지는 팔(좌투면 왼쪽, 모르면 오른쪽) */
+  throwingSide: SpotSide;
 };
 
 /** DB 줄 → 화면이 채울 모양 */

@@ -17,6 +17,7 @@ export const CHECKIN_STREAK_MS = 62 * 86_400_000;
 export async function loadCheckinFlowContext(user: {
   id: string;
   nickname: string;
+  throwingHand?: string | null;
 }): Promise<CheckinFlowContext> {
   const [recent, streak] = await Promise.all([
     prisma.dailyCheckin.findMany({
@@ -34,13 +35,14 @@ export async function loadCheckinFlowContext(user: {
       select: { date: true, condition: true },
     }),
   ]);
-  return contextFrom(user.nickname, recent, streak);
+  return contextFrom(user.nickname, recent, streak, user.throwingHand);
 }
 
 export function contextFrom(
   nickname: string,
   recent: Parameters<typeof prefillOf>[0][],
-  streak: { date: Date; condition: number }[]
+  streak: { date: Date; condition: number }[],
+  throwingHand?: string | null
 ): CheckinFlowContext {
   const days = streak.map((c) => ({
     date: c.date.toISOString().slice(0, 10),
@@ -51,5 +53,6 @@ export function contextFrom(
     usualCondition: usualConditionOf(days, toDateKey(appNow()))?.median ?? null,
     recent: recent.map(prefillOf),
     streakDays: days.map((d) => d.date),
+    throwingSide: throwingHand === '좌투' ? 'L' : 'R',
   };
 }
