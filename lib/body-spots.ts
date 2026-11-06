@@ -28,8 +28,8 @@ export type SpotGroupKey = (typeof SPOT_GROUPS)[number]['key'];
 
 /**
  * 자리 그림 — public/checkin-body/<이름>.jpg. 오른쪽 몸 기준으로 그렸고 왼쪽은 좌우로 뒤집어 쓴다.
- * 2026-11-06 GPT Image 2.5(힉스필드)로 만든 선 그림(같은 기준 그림으로 그림체를 맞춤) — 하늘색 몸을 살색(#f3c6a5)으로 바꿔 칠했다
- * (바탕과 몸 색이 비슷해 안 보였다, 김민). 빨간 번짐은 그림에 없고 화면이 얹는다.
+ * 2026-11-06 GPT Image 2.5(힉스필드)로 만든 캐주얼 플랫 그림(흰 티 · 파란 반바지, 얼굴 없음 — 상체 앞을 기준 그림으로 나머지 여섯을 맞춤)
+ * 빨간 번짐은 그림에 없고 화면이 얹는다.
  */
 export type SpotPicture = 'front' | 'back' | 'arm-inner' | 'arm-outer' | 'arm-back' | 'legs-front' | 'legs-back';
 
@@ -49,26 +49,26 @@ export type SpotDef = {
 };
 
 export const SPOT_DEFS: readonly SpotDef[] = [
-  { key: 'shoulder-front', chip: '앞쪽', label: '어깨 앞쪽', group: 'shoulder', part: 'shoulder', picture: 'front', x: 26, y: 27 },
-  { key: 'shoulder-back', chip: '뒤쪽', label: '어깨 뒤쪽', group: 'shoulder', part: 'shoulder', picture: 'back', x: 74, y: 26 },
-  { key: 'shoulder-top', chip: '위쪽', label: '어깨 위쪽', group: 'shoulder', part: 'shoulder', picture: 'front', x: 27, y: 17 },
-  { key: 'scapula', chip: '날개뼈', label: '날개뼈', group: 'shoulder', part: 'shoulder', picture: 'back', x: 61, y: 33 },
-  { key: 'elbow-inner', chip: '안쪽', label: '팔꿈치 안쪽', group: 'elbow', part: 'elbow', picture: 'arm-inner', x: 40, y: 42 },
-  { key: 'elbow-outer', chip: '바깥쪽', label: '팔꿈치 바깥쪽', group: 'elbow', part: 'elbow', picture: 'arm-outer', x: 36, y: 44 },
-  { key: 'elbow-back', chip: '뒤쪽', label: '팔꿈치 뒤쪽', group: 'elbow', part: 'elbow', picture: 'arm-back', x: 75, y: 9 },
-  { key: 'elbow-front', chip: '앞쪽', label: '팔꿈치 앞쪽', group: 'elbow', part: 'elbow', picture: 'front', x: 17, y: 47 },
-  { key: 'forearm', chip: '아래팔', label: '아래팔', group: 'elbow', part: 'wrist', picture: 'arm-inner', x: 58, y: 44 },
-  { key: 'wrist', chip: '손목·손', label: '손목·손', group: 'elbow', part: 'wrist', picture: 'arm-outer', x: 80, y: 46 },
-  { key: 'low-back', chip: '허리', label: '허리', group: 'trunk', part: 'lowerBack', picture: 'back', x: 50, y: 64 },
-  { key: 'flank', chip: '옆구리', label: '옆구리', group: 'trunk', part: 'lowerBack', picture: 'front', x: 31, y: 56 },
-  { key: 'abs', chip: '배', label: '배', group: 'trunk', part: 'lowerBack', picture: 'front', x: 50, y: 52 },
-  { key: 'glute', chip: '엉덩이', label: '엉덩이', group: 'lower', part: 'lowerBody', picture: 'legs-back', x: 58, y: 13 },
-  { key: 'hip-front', chip: '고관절', label: '고관절', group: 'lower', part: 'lowerBody', picture: 'legs-front', x: 37, y: 15 },
-  { key: 'thigh-front', chip: '허벅지 앞', label: '허벅지 앞', group: 'lower', part: 'lowerBody', picture: 'legs-front', x: 37, y: 32 },
-  { key: 'thigh-back', chip: '허벅지 뒤', label: '허벅지 뒤', group: 'lower', part: 'lowerBody', picture: 'legs-back', x: 61, y: 33 },
-  { key: 'knee', chip: '무릎', label: '무릎', group: 'lower', part: 'lowerBody', picture: 'legs-front', x: 36, y: 45 },
-  { key: 'calf', chip: '종아리', label: '종아리', group: 'lower', part: 'lowerBody', picture: 'legs-back', x: 61, y: 58 },
-  { key: 'ankle', chip: '발목·발', label: '발목·발', group: 'lower', part: 'lowerBody', picture: 'legs-back', x: 64, y: 80 },
+  { key: 'shoulder-front', chip: '앞쪽', label: '어깨 앞쪽', group: 'shoulder', part: 'shoulder', picture: 'front', x: 28, y: 23 },
+  { key: 'shoulder-back', chip: '뒤쪽', label: '어깨 뒤쪽', group: 'shoulder', part: 'shoulder', picture: 'back', x: 72, y: 22 },
+  { key: 'shoulder-top', chip: '위쪽', label: '어깨 위쪽', group: 'shoulder', part: 'shoulder', picture: 'front', x: 28, y: 16 },
+  { key: 'scapula', chip: '날개뼈', label: '날개뼈', group: 'shoulder', part: 'shoulder', picture: 'back', x: 62, y: 28 },
+  { key: 'elbow-inner', chip: '안쪽', label: '팔꿈치 안쪽', group: 'elbow', part: 'elbow', picture: 'arm-inner', x: 42, y: 48 },
+  { key: 'elbow-outer', chip: '바깥쪽', label: '팔꿈치 바깥쪽', group: 'elbow', part: 'elbow', picture: 'arm-outer', x: 37, y: 47 },
+  { key: 'elbow-back', chip: '뒤쪽', label: '팔꿈치 뒤쪽', group: 'elbow', part: 'elbow', picture: 'arm-back', x: 76, y: 9 },
+  { key: 'elbow-front', chip: '앞쪽', label: '팔꿈치 앞쪽', group: 'elbow', part: 'elbow', picture: 'front', x: 20, y: 45 },
+  { key: 'forearm', chip: '아래팔', label: '아래팔', group: 'elbow', part: 'wrist', picture: 'arm-inner', x: 60, y: 48 },
+  { key: 'wrist', chip: '손목·손', label: '손목·손', group: 'elbow', part: 'wrist', picture: 'arm-outer', x: 75, y: 46 },
+  { key: 'low-back', chip: '허리', label: '허리', group: 'trunk', part: 'lowerBack', picture: 'back', x: 50, y: 55 },
+  { key: 'flank', chip: '옆구리', label: '옆구리', group: 'trunk', part: 'lowerBack', picture: 'front', x: 36, y: 50 },
+  { key: 'abs', chip: '배', label: '배', group: 'trunk', part: 'lowerBack', picture: 'front', x: 50, y: 45 },
+  { key: 'glute', chip: '엉덩이', label: '엉덩이', group: 'lower', part: 'lowerBody', picture: 'legs-back', x: 60, y: 18 },
+  { key: 'hip-front', chip: '고관절', label: '고관절', group: 'lower', part: 'lowerBody', picture: 'legs-front', x: 38, y: 18 },
+  { key: 'thigh-front', chip: '허벅지 앞', label: '허벅지 앞', group: 'lower', part: 'lowerBody', picture: 'legs-front', x: 36, y: 40 },
+  { key: 'thigh-back', chip: '허벅지 뒤', label: '허벅지 뒤', group: 'lower', part: 'lowerBody', picture: 'legs-back', x: 61, y: 40 },
+  { key: 'knee', chip: '무릎', label: '무릎', group: 'lower', part: 'lowerBody', picture: 'legs-front', x: 36, y: 57 },
+  { key: 'calf', chip: '종아리', label: '종아리', group: 'lower', part: 'lowerBody', picture: 'legs-back', x: 61, y: 63 },
+  { key: 'ankle', chip: '발목·발', label: '발목·발', group: 'lower', part: 'lowerBody', picture: 'legs-back', x: 62, y: 83 },
 ];
 
 const DEF_BY_KEY = new Map(SPOT_DEFS.map((d) => [d.key, d]));
