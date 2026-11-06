@@ -26,14 +26,14 @@ export function SinkerMark({ height }: { height: number }) {
 }
 
 /** size = 글자 크기(웹 text-2xl = 24) — S 몸통이 대문자 높이(0.7em), 아래 막대가 기준선에 앉고 화살표만 밑으로(MARK_EM · MARK_DROP) */
-export function Wordmark({ size = 24, color }: { size?: number; color: string }) {
+export function Wordmark({ size = 24, color, allowFontScaling = true }: { size?: number; color: string; allowFontScaling?: boolean }) {
   return (
     <View accessible accessibilityRole="header" accessibilityLabel="싱커" style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
       {/* DIN Condensed 의 글자 상자 밑은 기준선보다 0.3em 쯤 아래(시작 연출 화면에서 잼) — 그만큼 띄워 로고 바닥을 기준선에 */}
       <View style={{ marginRight: size * 0.05, marginBottom: size * (0.3 - MARK_DROP) }}>
         <SinkerMark height={size * MARK_EM} />
       </View>
-      <Text style={{ fontFamily: 'DINCondensed-Bold', fontSize: size, color, letterSpacing: size * 0.02, lineHeight: size }}>INKER</Text>
+      <Text allowFontScaling={allowFontScaling} style={{ fontFamily: 'DINCondensed-Bold', fontSize: size, color, letterSpacing: size * 0.02, lineHeight: size }}>INKER</Text>
     </View>
   );
 }
