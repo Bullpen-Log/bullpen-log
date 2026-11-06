@@ -28,7 +28,8 @@ export type SpotGroupKey = (typeof SPOT_GROUPS)[number]['key'];
 
 /**
  * 자리 그림 — public/checkin-body/<이름>.jpg. 오른쪽 몸 기준으로 그렸고 왼쪽은 좌우로 뒤집어 쓴다.
- * 2026-11-06 GPT Image 2.5(힉스필드)로 만든 선 그림(같은 기준 그림으로 그림체를 맞춤). 빨간 번짐은 그림에 없고 화면이 얹는다.
+ * 2026-11-06 GPT Image 2.5(힉스필드)로 만든 선 그림(같은 기준 그림으로 그림체를 맞춤) — 하늘색 몸을 살색(#f3c6a5)으로 바꿔 칠했다
+ * (바탕과 몸 색이 비슷해 안 보였다, 김민). 빨간 번짐은 그림에 없고 화면이 얹는다.
  */
 export type SpotPicture = 'front' | 'back' | 'arm-inner' | 'arm-outer' | 'arm-back' | 'legs-front' | 'legs-back';
 

@@ -133,7 +133,7 @@ export function BodySpotPicker({
                           left: `${side === 'L' ? 100 - d.x : d.x}%`,
                           top: `${d.y}%`,
                           background:
-                            'radial-gradient(circle, rgba(232,76,84,0.62) 0 32%, rgba(232,76,84,0.26) 47%, rgba(232,76,84,0.1) 60%, rgba(232,76,84,0) 70%)',
+                            'radial-gradient(circle, rgba(226,58,70,0.72) 0 32%, rgba(226,58,70,0.32) 47%, rgba(226,58,70,0.12) 60%, rgba(226,58,70,0) 70%)',
                         }}
                       />
                       <span className="absolute top-2 left-2 rounded-full bg-white/90 px-2.5 py-1 text-footnote font-semibold text-[#1d1d1f]">
