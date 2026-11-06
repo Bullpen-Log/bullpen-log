@@ -36,7 +36,8 @@ export type ArmcareArea = {
   joint: ArmcareJoint;
   /**
    * 화면 이름 — '어깨 뒤쪽'. 체크인의 아픈 자리 카드(lib/body-spots SPOT_DEFS)와 같은 말이다 — 2026-11-06 김민: 암케어 · 운동 설명도
-   * 체크인과 같은 큰 부위로 단순화('어깨 후방 · 견갑 · 팔꿈치 내측'처럼 몸에서 바로 찾기 어려운 말을 걷음).
+   * 체크인과 같은 큰 부위로 단순화('어깨 후방 · 팔꿈치 내측'처럼 몸에서 바로 찾기 어려운 말을 걷음).
+   * 견갑은 '날개뼈'로 바꿨다가 김민이 되돌렸다(같은 날 — '견갑'으로).
    */
   label: string;
   /**
@@ -130,7 +131,7 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
   {
     key: 'scapula',
     joint: '어깨',
-    label: '날개뼈',
+    label: '견갑',
     color: '#10b981',
     injuries: [
       {

@@ -1,6 +1,6 @@
 import { areasOf, primaryArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import type { ArmcareExerciseView } from '@/app/(app)/training/armcare-media';
-export const AREA_SHORT: Record<ArmcareAreaKey, string> = { 'shoulder-back': '뒤쪽', 'shoulder-front': '앞쪽', 'shoulder-top': '위쪽', scapula: '날개뼈', 'elbow-inner': '안쪽', 'elbow-outer': '바깥쪽', 'elbow-back': '뒤쪽', 'elbow-front': '앞쪽' };
+export const AREA_SHORT: Record<ArmcareAreaKey, string> = { 'shoulder-back': '뒤쪽', 'shoulder-front': '앞쪽', 'shoulder-top': '위쪽', scapula: '견갑', 'elbow-inner': '안쪽', 'elbow-outer': '바깥쪽', 'elbow-back': '뒤쪽', 'elbow-front': '앞쪽' };
 export const uniqueExercises = (list: readonly ArmcareExerciseView[]) => [...new Map(list.map((e) => [e.id, e])).values()];
 export const inArea = (list: readonly ArmcareExerciseView[], area: ArmcareAreaKey | null) => uniqueExercises(list).filter((e) => !area || areasOf(e.targetMuscles).some((a) => a.key === area));
 const norm = (s: string) => s.normalize('NFC').trim().toLowerCase();

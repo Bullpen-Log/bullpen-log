@@ -52,7 +52,7 @@ export const SPOT_DEFS: readonly SpotDef[] = [
   { key: 'shoulder-front', chip: '앞쪽', label: '어깨 앞쪽', group: 'shoulder', part: 'shoulder', picture: 'front', x: 28, y: 23 },
   { key: 'shoulder-back', chip: '뒤쪽', label: '어깨 뒤쪽', group: 'shoulder', part: 'shoulder', picture: 'back', x: 72, y: 22 },
   { key: 'shoulder-top', chip: '위쪽', label: '어깨 위쪽', group: 'shoulder', part: 'shoulder', picture: 'front', x: 28, y: 16 },
-  { key: 'scapula', chip: '날개뼈', label: '날개뼈', group: 'shoulder', part: 'shoulder', picture: 'back', x: 62, y: 28 },
+  { key: 'scapula', chip: '견갑', label: '견갑', group: 'shoulder', part: 'shoulder', picture: 'back', x: 62, y: 28 },
   { key: 'elbow-inner', chip: '안쪽', label: '팔꿈치 안쪽', group: 'elbow', part: 'elbow', picture: 'arm-inner', x: 42, y: 48 },
   { key: 'elbow-outer', chip: '바깥쪽', label: '팔꿈치 바깥쪽', group: 'elbow', part: 'elbow', picture: 'arm-outer', x: 37, y: 47 },
   { key: 'elbow-back', chip: '뒤쪽', label: '팔꿈치 뒤쪽', group: 'elbow', part: 'elbow', picture: 'arm-back', x: 76, y: 9 },
