@@ -680,6 +680,33 @@ export function heelContact(
   return fp;
 }
 
+/**
+ * '공 놓음' 다시 고르기 — 옆 영상 2D(30fps)로 고른 공 놓음 ±RELEASE_SEARCH_SEC 안에서 던지는 손목의 앞쪽 빠르기가 가장 큰 장면 + RELEASE_AFTER_WRIST_PEAK_SEC
+ * 에 가장 가까운 장면. fwd = 장면마다 손목의 앞(디딤 방향) 자리, t = 장면 시각(초). 찾은 장면이 첫 닿음보다 앞이면 그대로 둔다.
+ * 2D 로 고른 공 놓음은 마커 정답(네 대 교차 손목에 같은 규칙) 15구에서 평균 41ms 늦었다(최대 69) → 이 규칙은 가운데 +6 · 절대 평균 13 · 최대 31ms.
+ * 드라이브라인 공개 자료 402구에서 공 놓음 − 손목 앞쪽 빠르기 최고 = 평균 15.6 · 표준편차 4.4ms, 가상 촬영 89구에서 90% ±9ms(2026-11-07, scripts/pitch-lab/obp/obp-synth.mts).
+ */
+export const RELEASE_SEARCH_SEC = 0.1;
+export const RELEASE_AFTER_WRIST_PEAK_SEC = 0.016;
+export function wristRelease(fwd: ArrayLike<number>, t: ArrayLike<number>, e: { release: number; footContact?: number; footPlant: number }): number {
+  const rl = e.release;
+  let best = -Infinity;
+  let bk = -1;
+  for (let k = 1; k < t.length - 1; k++) {
+    if (Math.abs(t[k] - t[rl]) > RELEASE_SEARCH_SEC) continue;
+    const v = (fwd[k + 1] - fwd[k - 1]) / (t[k + 1] - t[k - 1]);
+    if (v > best) {
+      best = v;
+      bk = k;
+    }
+  }
+  if (bk < 0 || !(best > 0)) return rl;
+  const target = t[bk] + RELEASE_AFTER_WRIST_PEAK_SEC;
+  let nk = bk;
+  while (nk + 1 < t.length && Math.abs(t[nk + 1] - target) < Math.abs(t[nk] - target)) nk++;
+  return nk > (e.footContact ?? e.footPlant) ? nk : rl;
+}
+
 /** 사용자에게 보이는 '착지' 장면 — 앞발이 처음 닿은 장면(옛 결과는 발목이 닿은 장면) */
 export const plantFrame = (e: { footPlant: number; footContact?: number }): number => e.footContact ?? e.footPlant;
 /** 화면에 보이는 순간 — '착지'만 앞발이 처음 닿은 장면으로 */

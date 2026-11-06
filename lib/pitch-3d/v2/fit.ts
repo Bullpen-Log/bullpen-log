@@ -40,6 +40,7 @@ import {
   V2_PAIRS,
   V2J,
   heelContact,
+  wristRelease,
   v2Fail,
   type Pitch3dV2Ok,
   type Pitch3dV2Result,
@@ -1553,8 +1554,15 @@ function fitOnce(raw: V2Input): {
     X.map((fr) => (dot(sub(fr[leadHe], origin), axes.U) - ground) / H),
     core.evIdx
   );
-  const evIdx = { ...core.evIdx, footContact };
-  const spanOld = synced[evIdx.release].t - synced[core.evIdx.footContact].t;
+  /* ── 공 놓음도 맞춘 던지는 손목의 앞쪽 빠르기로 다시 고른다(wristRelease) — 2D(30fps)로 고른 것은 평균 41ms 늦었다 ── */
+  const thrWr = core.hand === 'L' ? V2J.lWr : V2J.rWr;
+  const release = wristRelease(
+    X.map((fr) => dot(fr[thrWr], axes.F)),
+    synced.map((f) => f.t),
+    { ...core.evIdx, footContact }
+  );
+  const evIdx = { ...core.evIdx, footContact, release };
+  const spanOld = synced[core.evIdx.release].t - synced[core.evIdx.footContact].t;
   const plantMs =
     core.plantMs == null || !(spanOld > 0)
       ? core.plantMs

@@ -25,6 +25,8 @@ const dir = process.argv[2];
 const arg = (k: string, d: string) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) ?? d;
 const N = +arg('n', '60');
 const SEED = +arg('seed', '1');
+/** 촬영 씨앗 — 같은 투구를 다른 폰 자리 · 잡음으로 다시 '찍는다'(반복성) */
+const CAM = +arg('cam', String(SEED));
 const [PART, PARTS] = arg('part', '0/1').split('/').map(Number);
 const OUT = arg('out', '');
 const motionTemplate = process.argv.includes('--no-template')
@@ -266,7 +268,7 @@ for (const [i, pitch] of pick.entries()) {
   };
   const at = (t: number) => aOf(t).map(toSyn);
   /* 가상 폰 — 옆은 가슴 쪽(우투 3루 · 좌투 1루), 뒤는 2루 쪽에서 각도만큼, 안내 범위 안에서 투구마다 */
-  const r = rng(SEED * 1000 + i * 31 + 7);
+  const r = rng(CAM * 1000 + i * 31 + 7);
   const u = (a: number, b: number) => a + (b - a) * r.u();
   const s0 = at(start);
   /* 가슴 쪽 = 투구 방향에 수직인 두 쪽 중 첫 장면 가슴이 향한 쪽(첫 장면에 이미 몸을 틀었어도 옆에서 본다) */
@@ -282,8 +284,8 @@ for (const [i, pitch] of pick.entries()) {
   const camS = lookAt(add(target, add(scale(chest, side.D), [0, side.up, 0])), target, side.k * 1920, side.W, side.H, side.roll);
   const camB = lookAt(add(target, add(scale(backDir, back.D), [0, back.up, 0])), target, back.k * 1920, back.W, back.H, back.roll);
   const offB = u(0.05, 0.4);
-  const sideT = track(at, start, end, ev.br, camS, side, 'side', 0, Hm, i * 10 + 1);
-  const backT = track(at, start - offB * 0.5, end + 0.1, ev.br, camB, back, 'back', offB, Hm, i * 10 + 2);
+  const sideT = track(at, start, end, ev.br, camS, side, 'side', 0, Hm, i * 10 + 1 + CAM * 7777);
+  const backT = track(at, start - offB * 0.5, end + 0.1, ev.br, camB, back, 'back', offB, Hm, i * 10 + 2 + CAM * 7777);
   const seg = pickSegment({ side: dec(sideT, 30), back: dec(backT, 30), fps: { side: 120, back: 120 } } as never) as never as {
     ok: boolean; code?: string; side: { fromSec: number; toSec: number }; back: { fromSec: number; toSec: number }; events: never;
   };
