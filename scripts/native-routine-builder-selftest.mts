@@ -67,7 +67,7 @@ ok(ids(filterCatalog(list, { q: 'TRX 레이즈', area: null, gear: null })) === 
 ok(ids(filterCatalog(list, { q: 'TRX 굴곡', area: null, gear: null })) === 'b', '근육 낱말도 찾음(AND)');
 ok(ids(filterCatalog(list, { q: '밴드 손목', area: null, gear: null })) === '', 'AND 라 둘 다 없으면 0');
 ok(ids(filterCatalog(list, { q: '극하근', area: null, gear: null })) === 'a', '등록 근육으로 찾기');
-ok(ids(filterCatalog(list, { q: '팔꿈치 내측', area: null, gear: null })).includes('b'), '관련 부위 이름으로도 찾음');
+ok(ids(filterCatalog(list, { q: '팔꿈치 안쪽', area: null, gear: null })).includes('b'), '관련 부위 이름으로도 찾음');
 ok(ids(filterCatalog(list, { q: '', area: 'elbow-inner', gear: null })) === 'b,c', '부위 필터는 관련 부위 포함(b 의 둘째 근육)');
 ok(list[1].area === 'shoulder-back', '관련 부위로 찾혀도 주 부위는 그대로');
 ok(ids(filterCatalog(list, { q: '', area: 'elbow-inner', gear: '덤벨' })) === 'c', '부위 AND 장비');

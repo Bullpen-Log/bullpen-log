@@ -5930,8 +5930,8 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     ),
   });
   check(
-    "빈 부위의 조사가 맞다 — '어깨 상부는' ('은' 아님)",
-    !noTop.notes.some((n) => n.includes('상부은')) && !noTop.items.some((it) => it.area === 'shoulder-top'),
+    "빈 부위의 조사가 맞다 — '어깨 위쪽은' ('는' 아님)",
+    !noTop.notes.some((n) => n.includes('위쪽는')) && !noTop.items.some((it) => it.area === 'shoulder-top'),
     noTop.notes.join(' / ')
   );
   const dumbbellRecovery = build('recovery', {
@@ -6273,7 +6273,7 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   check(
     '통증 루틴 — 운동이 모자라면 있는 만큼만(무거운 것으로 안 채움), 빠진 자리를 알린다',
     scarce.items.map((it) => it.exerciseId).join(',') === 'scap-light' &&
-      scarce.notes.some((n) => n.includes('팔꿈치 내측')),
+      scarce.notes.some((n) => n.includes('팔꿈치 안쪽')),
     `${scarce.items.map((it) => it.exerciseId).join(',')} / ${scarce.notes.join(' / ')}`
   );
 
