@@ -36,7 +36,7 @@ import { project } from '../lib/pitch-3d/camera.ts';
 import type { MetricKey } from '../lib/pitch-3d/metrics.ts';
 import { fitPitch3dV2, fixHingeFlips } from '../lib/pitch-3d/v2/fit.ts';
 import { add, cross, dot, norm, normalize, scale, sub, type Vec3 } from '../lib/pitch-3d/linalg.ts';
-import { pickSegment, readV2Events, runFit, segmentWindow } from '../lib/pitch-3d/v2/run-node.ts';
+import { eventsImplausible, pickSegment, readV2Events, runFit, segmentWindow } from '../lib/pitch-3d/v2/run-node.ts';
 import { toPoseTrack } from '../lib/pitch-3d/v2/track.ts';
 import {
   ACTIVE_TTL_MS,
@@ -866,6 +866,10 @@ console.log('■ node 실행기(segment · fit)');
     );
   }
   check('segment: 입력 모양이 틀리면 video', !pickSegment({ side: null, back: {} }).ok);
+  check(
+    '순간 검사: 실제 투구(니업 → 착지 0.58 · 착지 → 공 0.29초)와 30fps 슬로모션은 통과, 착지 → 공이 1.8초면 잘못 잡은 것',
+    !eventsImplausible(1.576, 2.156, 2.444) && !eventsImplausible(6, 10.9, 13.53) && !eventsImplausible(null, 0.4, 2.2) && eventsImplausible(0.07, 0.4, 2.2)
+  );
   {
     /* 2026-10-10 샘플 5 — 240 슬로모션을 30fps 로 구운 영상(니업 6.0 · 착지 10.9 · 릴리스 13.5초, 길이 19.4초) */
     const w30 = segmentWindow({ kneeUp: 6, footPlant: 10.9, release: 13.53, first: 0, last: 19.37, fineFps: 30 });

@@ -71,6 +71,16 @@ function fineFpsOf(v: unknown): number {
   return Math.min(120, fps);
 }
 
+/**
+ * 순간을 잘못 잡았나 — 착지 → 공 놓음이 니업 → 착지보다 1.5배 넘게 길면 다른 장면을 잡은 것이다(엉뚱한 리포트 대신 '순간 못 찾음').
+ * 실제 영상(마커 · 실험실 40여 개)은 0.1~0.5배, 드라이브라인 가상 촬영(2026-11-06, scripts/pitch-lab/obp/obp-synth.mts)에서 순간을 틀린 셋은 3~6배.
+ * 비율이라 슬로모션(시간이 늘어난 영상)도 같다. 니업을 못 찾았으면 보지 않는다.
+ */
+export const EVENT_GAP_RATIO = 1.5;
+export function eventsImplausible(kneeUp: number | null, footPlant: number, release: number): boolean {
+  return kneeUp != null && footPlant > kneeUp && release - footPlant > (footPlant - kneeUp) * EVENT_GAP_RATIO;
+}
+
 export function pickSegment(input: {
   side: unknown;
   back: unknown;
@@ -110,7 +120,7 @@ export function pickSegment(input: {
   };
   const fp = ev.footPlant?.t;
   const rel = ev.release?.t;
-  if (fp == null || rel == null || !(rel > fp))
+  if (fp == null || rel == null || !(rel > fp) || eventsImplausible(ev.kneeUp?.t ?? null, fp, rel))
     return {
       ok: false,
       code: 'events',
