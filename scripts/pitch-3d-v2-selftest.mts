@@ -18,6 +18,7 @@ import {
   readPitch3dV2Job,
   readPitch3dV2Result,
   heelContact,
+  wristRelease,
   RTMW_INDEX,
   storedV2ResultJson,
   V2_FAIL_TEXT,
@@ -288,6 +289,15 @@ const good = (): Pitch3dV2Ok => {
         tp[40] === t[40] &&
         tp.every((v, k) => k === 0 || v > tp[k - 1])
     );
+  }
+  /* '공 놓음'(wristRelease) — 2D 로 고른 공 놓음 ±0.1초 안 손목 앞쪽 빠르기 최고 + 16ms, 첫 닿음보다 앞이면 그대로 */
+  {
+    const t = Array.from({ length: 60 }, (_, k) => k / 120);
+    /* 손목 앞 자리 — 빠르기가 30번 장면(0.25초)에서 가장 크다 */
+    const fwd = t.map((x) => Math.tanh((x - 0.25) * 40));
+    const r1 = wristRelease(fwd, t, { release: 36, footContact: 20, footPlant: 22 });
+    const r2 = wristRelease(fwd, t, { release: 36, footContact: 33, footPlant: 34 });
+    check(`공 놓음: 손목 앞쪽 빠르기 최고 + 16ms(${r1} · 32) · 첫 닿음보다 앞이면 그대로(${r2} · 36)`, r1 === 32 && r2 === 36);
   }
   /*
    * '착지'(heelContact) — 뒤꿈치가 디딘 높이(묶인 뒤 가장 낮음) + 키 4/180 안에 처음 들어온 장면, 2D 첫 닿음 앞으로는 안 간다, 끝까지 안 들어오면 발 묶임.
