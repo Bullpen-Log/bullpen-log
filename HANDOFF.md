@@ -1,3 +1,17 @@
+## 김민에게 — 2026-11-06 · 금윤호(Claude, 윤호 맥북) — 외부 투구 영상 접수(초대 링크 `/submit`) · **아직 안 넣음 · DB 표 12개 추가 예정**
+
+**지금 상태: 커밋 · 푸시 전. 공유 DB · 버킷 · 환경변수 모두 미적용**(이 글은 올릴 때 같이 간다). 설계 `docs/designs/external-intake.md`, 요구 대조표 `docs/designs/external-intake-verification.md`.
+받은 뒤 할 일(적용 전에 금윤호와 맞출 것):
+- **`npm ci`**(`tus-js-client` 추가) → **마이그레이션 적용 뒤 `npx prisma generate`**. 새 표 12개(`IntakeInvitation` 등), 기존 표 변경 없음. 마이그레이션 `20261106120000_external_intake` 는 main 에 올리는 순간 Vercel 빌드가 건다 — **올리기 전에 `npm run backup` 과 서로 알림 먼저**.
+- 환경변수(Vercel): `SUPABASE_PUBLISHABLE_KEY`(공개 키, TUS apikey) · `CRON_SECRET`(이미 쓰는 것). 선택 `INTAKE_MAX_FILE_BYTES` · `INTAKE_MAX_TOTAL_BYTES` · `INTAKE_ALLOW_DRAFT_ANALYSIS`. 이름은 `.env.example`.
+- 크론: `vercel.json` 에 `/api/cron/intake` 5분(Vercel Pro 이상 필요).
+- 버킷: 비공개 `external-intake`(한도 1GiB). `npm run intake:setup-bucket` 은 보기만, 쓰려면 `-- --apply`. 프로젝트 전체 파일 한도가 1GiB 이상인지 Supabase 대시보드에서 먼저 볼 것. 사람 허가 뒤에만.
+- **네 영역 고친 곳**: `proxy.ts` `OPEN`(`/submit` 만) · `lib/nav.ts`('외부 영상 접수') · `lib/permissions.ts`('intake', 대표관리자만) · `lib/release-access.ts`(정책 판 2026-11-06.1) · `lib/release-ops.ts` · `lib/pitch-lab-file.ts`(export · 선택 칸 하나) · `app/robots.ts` · `vercel.json`.
+- 시험: tsc 0 · 접수 시험 여섯 모두 통과(349 · 547 · 540 · 130 · 132 · 391) · 격리 브라우저 공개 58 · 관리 46(보유 기간 작업 전 코드 기준). `integration:test` 는 46 통과 · 5 실패다. 실패 다섯은 HEAD 와 글자까지 같고 접수 이름은 없다(접수는 까닭을 단 예외와 대신 보는 시험 둘을 넣었다). **실기기 · 실제 원본 · 실제 Supabase · 실제 GPU 는 하나도 안 봤다.**
+- `lib/pitch-lab-file.ts` 는 export 말고 선택 칸 `focal35` 하나가 늘었다. 기존 호출은 그대로다.
+- **원본 보유(2026-11-06 금윤호 결정, 코드 반영)**: 공개한 날(공개 안 했으면 접수한 날, 철회했으면 철회한 날)부터 90일 뒤 원본 · 미리보기를 지운다. 모델 동의도 예외 없다. 철회한 접수의 판에 안 오른 파일은 7일 뒤. 새 일감 `purge_originals`(`lib/intake/purge.ts`, 규칙 `lib/intake/retention.ts`). 같은 마이그레이션에 `IntakeSubmission.withdrawnAt` 칸이 늘었다. 고침 기다림 상한 14일은 구현이 정한 값이라 금윤호 확인이 남았다.
+- 사람이 정할 것: 대리 동의 범위 · `ANALYSIS_CONSENT` PENDING 다섯 건 · 분석 결과 보유 기간. 분석 전 미리보기는 범위 제외로 정했다. 대조표 끝에 지적 43건의 상태가 있다.
+
 ## 맥 미니 금윤호에게 — 2026-11-06 · 맥북 서브
 
 출시 통합 계획과 영상비교 체크리스트를 docs/releases/에 공유했다. AGENTS.md에 작업 후 인계 규칙을 추가했다. 문서만 변경, 앱/DB 변경 없음. 실행 검사 없음. 받은 뒤 두 문서를 읽고 영상비교 실기기·일본어 검수부터 진행. 맥 미니 수신은 아직 확인하지 못했다.

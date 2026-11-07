@@ -1,0 +1,13 @@
+/* 격리 PGlite 만 읽는다 — 이름으로 초대 · 동의 · 감사 상태를 낸다 */
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: 'postgresql://postgres@127.0.0.1:54329/postgres?sslmode=disable', max: 1 }) });
+const out: Record<string, unknown> = {};
+for (const name of process.argv.slice(2)) {
+  const s = await db.intakeSubmission.findFirstOrThrow({ where: { athleteName: name }, include: { invitation: true } });
+  const consents = await db.intakeConsent.findMany({ where: { submissionId: s.id, kind: 'model' }, orderBy: { agreedAt: 'asc' } });
+  const audit = await db.intakeAudit.findMany({ where: { submissionId: s.id }, select: { action: true } });
+  out[name] = { failures: s.invitation.accessCodeFailures, lockedAt: s.invitation.accessCodeLockedAt, model: consents.map((c) => [c.granted, c.withdrawnAt != null]), audit: audit.map((a) => a.action) };
+}
+console.log(JSON.stringify(out));
+await db.$disconnect();

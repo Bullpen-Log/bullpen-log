@@ -21,6 +21,8 @@ export type LabFileFacts = {
   durationSec: number | null;
   /** 카메라 렌즈 정보가 있나(아이폰 카메라 영상은 늘 있다) */
   hasLens: boolean;
+  /** 35mm 환산 초점거리(mm) — 숫자로 못 읽으면 null */
+  focal35?: number | null;
   make: string | null;
   model: string | null;
 };
@@ -38,21 +40,21 @@ const APPLE = {
   model: 'com.apple.quicktime.model',
 } as const;
 
-type Box = { type: string; start: number; end: number; body: number };
+export type Box = { type: string; start: number; end: number; body: number };
 
-const fourcc = (b: Uint8Array, at: number) =>
+export const fourcc = (b: Uint8Array, at: number) =>
   String.fromCharCode(b[at], b[at + 1], b[at + 2], b[at + 3]);
 
-function u32(b: Uint8Array, at: number): number {
+export function u32(b: Uint8Array, at: number): number {
   return ((b[at] << 24) >>> 0) + (b[at + 1] << 16) + (b[at + 2] << 8) + b[at + 3];
 }
 
-function u64(b: Uint8Array, at: number): number {
+export function u64(b: Uint8Array, at: number): number {
   return u32(b, at) * 2 ** 32 + u32(b, at + 4);
 }
 
 /** buf[from, to) 안의 상자들 */
-function boxesIn(b: Uint8Array, from: number, to: number): Box[] {
+export function boxesIn(b: Uint8Array, from: number, to: number): Box[] {
   const out: Box[] = [];
   let p = from;
   while (p + 8 <= to && out.length < 512) {
@@ -196,6 +198,12 @@ function readMeta(b: Uint8Array, meta: Box, into: Map<string, string | number>) 
   }
 }
 
+/** 초점거리 값 — 파일에 따라 숫자 또는 글자로 적힌다 */
+function focalOf(v: string | number | undefined): number | null {
+  const n = typeof v === 'string' ? Number.parseFloat(v) : v;
+  return n != null && Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /** '2026-10-15T14:03:22+0900' → ms(시간대의 쌍점이 없어도) */
 export function parseAppleDate(text: string): number | null {
   const iso = text.trim().replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
@@ -247,6 +255,7 @@ export async function readLabFileFacts(file: Blob | ByteReader): Promise<LabFile
       timeSource: appleMs != null ? 'apple' : head.ms != null ? 'mvhd' : null,
       durationSec: head.durationSec,
       hasLens: str(APPLE.lens) != null || values.has(APPLE.focal35),
+      focal35: focalOf(values.get(APPLE.focal35)),
       make: str(APPLE.make),
       model: str(APPLE.model),
     };

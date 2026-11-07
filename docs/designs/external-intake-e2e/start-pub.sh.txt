@@ -1,0 +1,11 @@
+#!/bin/zsh
+cd "$(dirname "$0")/clone"
+. ../run-env.sh
+export NEXT_TELEMETRY_DISABLED=1
+nohup node --import ./scripts/alias-register.mjs scripts/e2e-harness.mts > ../harness.log 2>&1 &
+echo $! > ../harness.pid
+for i in {1..60}; do grep -q 'harness ready' ../harness.log && break; sleep 0.5; done
+nohup npx next dev --port 3101 > ../dev.log 2>&1 &
+echo $! > ../dev.pid
+for i in {1..60}; do curl -s -o /dev/null --max-time 2 http://localhost:3101/submit && break; sleep 1; done
+curl -s -o /dev/null -w 'submit %{http_code}\n' --max-time 60 http://localhost:3101/submit

@@ -1,0 +1,11 @@
+/* 격리 PGlite 만 건드린다 — 다른 관리자가 공개를 바꾼 상황을 만든다 */
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: 'postgresql://postgres@127.0.0.1:54329/postgres?sslmode=disable', max: 1 }) });
+const sid = process.argv[2];
+const active = await db.intakePublication.findUniqueOrThrow({ where: { activeFor: sid } });
+const other = await db.intakeAnalysisRun.findFirstOrThrow({ where: { submissionId: sid, status: 'succeeded', id: { not: active.runId } } });
+await db.intakePublication.update({ where: { id: active.id }, data: { activeFor: null, unpublishedAt: new Date(), unpublishedByAdminId: '22222222-2222-4222-8222-222222222222' } });
+const made = await db.intakePublication.create({ data: { submissionId: sid, runId: other.id, number: active.number + 1, activeFor: sid, publishedByAdminId: '22222222-2222-4222-8222-222222222222', publishedAt: new Date() } as never });
+console.log('swapped', made.number);
+await db.$disconnect();

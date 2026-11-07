@@ -251,6 +251,7 @@
 
 ## 4. 진행 중인 일
 
+- **외부 투구 영상 접수(2026-11-06, 윤호 맥북) — 코드 끝, 커밋 · 적용 전.** 공개 `/submit#토큰` · 관리 `/admin/intake` · 코드 `lib/intake/` · `components/intake/`. 대조표 `docs/designs/external-intake-verification.md`(지적 43건 상태 포함). 남은 것: 백업 · 김민 알림 뒤 마이그레이션(main 에 올리면 빌드가 적용) · 버킷 `external-intake` · `SUPABASE_PUBLISHABLE_KEY` · 실기기 시험 · 사람 결정 넷(대리 동의 범위 · 철회 때 모델 동의 · 철회 접수의 미접수 파일 · 분석 전 미리보기). 함정: Next fetch 는 signal 없는 GET 응답을 tee 해서 `body.cancel()` 이 멈춘다(서버 GET 엔 늘 signal). tsc 전체는 기본 힙에서 죽을 수 있어 `NODE_OPTIONS=--max-old-space-size=8192`.
 - **마커 촬영 2차(2026-10-16, 데스크톱에서 계획 — 맥북에서 이어 받기).** 계획서는 claude.ai 비공개 문서 '마커 촬영 계획서 3판 (카메라 3대)'
   https://claude.ai/code/artifact/12fdf82d-b687-44ce-a6c5-c3c6b561a640 (Docs 커넥터 `read` 로 읽는다). 조건: 카메라 3대(모두 120fps — 지하 조명 깜빡임 때문),
   실내 평지 · 거울은 안 보이는 각도, 막대 대신 배트(반 나무색 · 반 검정), 공 대신 흰 양말 뭉치(처음으로 릴리스 시점 참값), 스티커 46개(골반은 벨트 ·

@@ -2864,3 +2864,322 @@ model FacilityCandidate {
   @@index([region])
   @@index([mergedIntoId])
 }
+
+/// ── 외부 투구 영상 접수(2026-11-06, docs/designs/external-intake.md) ──────────────────────────────
+/// 앱 계정이 없는 사람이 초대 링크로 옆 · 뒤 원본을 보낸다. 기존 표는 건드리지 않고, 사용자 표와 잇지 않는다(선수는 회원이 아니다).
+/// 상태 값의 뜻과 옮겨 갈 수 있는 길은 lib/intake/state.ts 한 곳이다. 관리자 번호 칸은 기록일 뿐 권한의 근거가 아니다(권한은 lib/permissions.ts 'intake').
+
+/// 초대 — 링크 하나 = 접수 하나. 토큰 원문은 저장하지 않고 SHA-256 만 둔다. 올리기 만료와 결과 보기 만료는 따로다.
+model IntakeInvitation {
+  id               String    @id @default(uuid())
+  tokenHash        String    @unique
+  /// active · revoked
+  status           String    @default("active")
+  /// 관리자가 알아보려고 적는 메모(공개 화면에 안 나간다)
+  note             String?
+  createdByAdminId String?
+  /// 이때까지만 새 올리기 · 고치기 · 완료가 된다
+  uploadExpiresAt  DateTime
+  /// 결과 보기 만료 — 비어 있으면 만료 없음
+  resultExpiresAt  DateTime?
+  /// 결과 보기 접근 코드(scrypt, lib/intake/token.ts) — 비어 있으면 코드 없음
+  accessCodeHash   String?
+  /// 틀린 접근 코드 누적 횟수 — 맞게 낸 시도는 안 센다. 관리자가 풀면 0
+  accessCodeFailures Int     @default(0)
+  /// 누적 횟수를 넘겨 결과 보기를 잠근 시각 — 관리자만 푼다
+  accessCodeLockedAt DateTime?
+  /// 이 초대만의 한도 — 비면 lib/intake/limits.ts 기본값. 버킷 한도를 넘을 수 없다
+  maxFileBytes     BigInt?
+  maxTotalBytes    BigInt?
+  revokedAt        DateTime?
+  revokedByAdminId String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  submission IntakeSubmission?
+
+  @@index([status, createdAt])
+}
+
+/// 접수 — 선수(영상 속 사람)와 보내는 사람(부모 · 코치일 수 있다)을 따로 적는다. 같은 이름을 한 사람으로 합치지 않는다.
+/// version 은 낙관 잠금이다 — 고른 영상 · 초안 글이 바뀔 때마다 오른다. 올리기 진행은 안 올린다(두 기기가 서로 다른 칸을 올릴 수 있게).
+model IntakeSubmission {
+  id                    String    @id @default(uuid())
+  invitationId          String    @unique
+  /// draft · submitted · verified · needs_attention · correction_requested · withdrawn
+  status                String    @default("draft")
+  version               Int       @default(0)
+  /// 사람이 읽는 접수 번호 — 처음 완료할 때 정해진다
+  receiptCode           String?   @unique
+  athleteName           String?
+  /// 14_or_over · under_14 — 생년월일을 받지 않고 동의 가능 여부만 확인한다(만 14세 미만은 접수를 막는다)
+  athleteAgeBand        String?
+  /// R · L — 3D 분석에 쓴다. 비어 있으면 관리자가 정한다
+  throwingHand          String?
+  /// self · parent · coach · other
+  submitterRelation     String    @default("self")
+  submitterName         String?
+  /// 두 영상이 같은 공을 동시에 찍었다는 보내는 사람의 확인
+  samePitchConfirmed    Boolean   @default(false)
+  /// 지금 고른 자산 — 칸이 바뀌면 새 자산을 가리킨다(옛 자산의 바이트는 그대로)
+  sideAssetId           String?
+  rearAssetId           String?
+  /// 가장 최근에 얼린 판
+  currentRevisionId     String?
+  /// none · ready · queued · running · succeeded · failed
+  analysisStatus        String    @default("none")
+  /// unpublished · published
+  publicationStatus     String    @default("unpublished")
+  /// 고쳐 달라는 요청 — { fields: string[], views: string[], message: string|null }
+  correction            Json?
+  correctionRequestedAt DateTime?
+  assigneeAdminId       String?
+  /// 처음 완료한 시각(서버) — 접수일. 촬영일이 아니다
+  receivedAt            DateTime?
+  lastFinalizedAt       DateTime?
+  /// 필수 동의를 철회한 시각 — 보유 기간을 여기서 세는 접수가 있다(lib/intake/retention.ts)
+  withdrawnAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  invitation   IntakeInvitation    @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  assets       IntakeAsset[]
+  revisions    IntakeRevision[]
+  consents     IntakeConsent[]
+  runs         IntakeAnalysisRun[]
+  publications IntakePublication[]
+  notes        IntakeAdminNote[]
+  reads        IntakeAdminRead[]
+
+  @@index([status, receivedAt])
+  @@index([analysisStatus])
+  @@index([publicationStatus])
+  @@index([athleteName])
+  @@index([assigneeAdminId])
+}
+
+/// 얼린 판 — 완료할 때 짝과 그때의 이름을 그대로 남긴다. 고침 요청 뒤 다시 완료하면 새 줄이 생기고 옛 줄은 안 바뀐다.
+model IntakeRevision {
+  id                String    @id @default(uuid())
+  submissionId      String
+  number            Int
+  sideAssetId       String
+  rearAssetId       String
+  athleteName       String
+  throwingHand      String?
+  submitterRelation String
+  submitterName     String?
+  /// 이 판을 만들 때 유효했던 동의(판 · 본문 해시)
+  consentSnapshot   Json
+  /// 완료 요청 키 — 같은 키를 다시 보내면 같은 영수증을 돌려준다
+  finalizeKey       String
+  /// pending · verified · failed
+  status            String    @default("pending")
+  /// 실패 까닭 코드(same_file · asset_rejected 등)
+  failureCode       String?
+  finalizedAt       DateTime
+  settledAt         DateTime?
+  createdAt         DateTime  @default(now())
+
+  submission IntakeSubmission    @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  runs       IntakeAnalysisRun[]
+
+  @@unique([submissionId, number])
+  @@unique([submissionId, finalizeKey])
+}
+
+/// 자산 — 올린 파일 하나. 한 번 만든 경로는 다시 쓰지 않고 덮어쓰지 않는다. 다시 고르면 새 줄이 생긴다.
+model IntakeAsset {
+  id                 String    @id @default(uuid())
+  submissionId       String
+  /// side · rear
+  view               String
+  /// 서버가 정한 경로(lib/intake/paths.ts). 이름 · 확장자를 넣지 않는다
+  objectPath         String    @unique
+  /// reserved · uploading · uploaded · verifying · verified · unconfirmed · rejected · replaced · abandoned · purged
+  status             String    @default("reserved")
+  /// 브라우저가 알려 준 이름 · 종류 · 크기 — 표시용일 뿐 믿지 않는다
+  originalName       String
+  declaredType       String?
+  declaredSize       BigInt
+  /// 브라우저가 전체 파일로 잰 SHA-256(소문자 hex)
+  clientSha256       String
+  /// 서버가 올라간 객체로 다시 잰 SHA-256 · 크기
+  serverSha256       String?
+  storedBytes        BigInt?
+  /// 파일 머리에서 읽은 사실(lib/intake/media.ts). fps 는 카메라 원본의 증거가 아니다
+  mediaFacts         Json?
+  /// 파일에서 읽은 촬영 시각과 그 출처(apple · mvhd) — 접수일과 다르다
+  captureAt          DateTime?
+  captureAtSource    String?
+  /// 검증에서 막힌 까닭 코드
+  rejectCode         String?
+  /// TUS 업로드 주소(서명 토큰이 없으면 쓸 수 없다)
+  uploadUrl          String?
+  /// 업로드 주소 만료(저장소 규칙 24시간) — 초대 만료와 다르다
+  transportExpiresAt DateTime?
+  tokenIssuedAt      DateTime?
+  tokenCount         Int       @default(0)
+  uploadedAt         DateTime?
+  verifiedAt         DateTime?
+  purgedAt           DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  submission IntakeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, view])
+  @@index([status, updatedAt])
+}
+
+/// 동의 — 덧붙이기만 한다. 판 · 본문 해시 · 시각 · 대리 여부를 남긴다. 관리자 동의로 대신하지 않는다.
+model IntakeConsent {
+  id           String    @id @default(uuid())
+  submissionId String
+  /// submission · overseas · model
+  kind         String
+  docVersion   String
+  textHash     String
+  granted      Boolean
+  /// 선수 본인이 아니라 부모 · 코치가 대신 보냈나
+  proxy        Boolean   @default(false)
+  relation     String
+  agreedAt     DateTime
+  withdrawnAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  submission IntakeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, kind])
+}
+
+/// 분석 실행 — 얼린 판 하나 + 엔진 하나. dedupeKey 는 유일해서 같은 입력을 두 번 못 돌린다. 실패하면 비워 다시 돌릴 수 있게 한다.
+model IntakeAnalysisRun {
+  id                 String    @id @default(uuid())
+  submissionId       String
+  revisionId         String
+  engineKey          String
+  dedupeKey          String?   @unique
+  /// requested · running · succeeded · failed
+  status             String    @default("requested")
+  gpuCallId          String?
+  requestedByAdminId String?
+  /// 결과가 놓인 경로(external-intake 버킷)
+  resultPath         String?
+  resultMeta         Json?
+  failureCode        String?
+  failureDetail      String?
+  requestedAt        DateTime  @default(now())
+  startedAt          DateTime?
+  finishedAt         DateTime?
+
+  submission   IntakeSubmission    @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  revision     IntakeRevision      @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  publications IntakePublication[]
+
+  @@index([submissionId, requestedAt])
+  @@index([revisionId])
+  @@index([status])
+}
+
+/// 공개 — 특정 성공 실행에 묶인다. 재분석은 이 줄을 안 바꾼다. activeFor 는 공개 중일 때만 접수 번호라 한 접수에 공개는 하나뿐이다.
+model IntakePublication {
+  id                  String    @id @default(uuid())
+  submissionId        String
+  runId               String
+  /// 접수 안에서 몇 번째 공개인가
+  number              Int
+  activeFor           String?   @unique
+  /// 공개 화면에 보일 승인된 설명
+  explanation         String?
+  publishedByAdminId  String
+  publishedAt         DateTime
+  unpublishedAt       DateTime?
+  unpublishedByAdminId String?
+  createdAt           DateTime  @default(now())
+
+  submission IntakeSubmission  @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  run        IntakeAnalysisRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, number])
+  @@index([runId])
+}
+
+/// 감사 기록 — 덧붙이기만 한다. 접수를 지워도 남는다. 토큰 · 서명 주소는 넣지 않는다(lib/intake/audit.ts 가 거른다).
+model IntakeAudit {
+  id           String   @id @default(uuid())
+  submissionId String?
+  invitationId String?
+  /// admin · invitee · system
+  actorKind    String
+  actorId      String?
+  action       String
+  detail       Json?
+  createdAt    DateTime @default(now())
+
+  @@index([submissionId, createdAt])
+  @@index([invitationId, createdAt])
+}
+
+/// 관리자 내부 메모 — 공개 화면에 안 나간다.
+model IntakeAdminNote {
+  id           String    @id @default(uuid())
+  submissionId String
+  adminId      String
+  body         String
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
+
+  submission IntakeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, createdAt])
+}
+
+/// 관리자별 읽음 — 함께 보는 상태와 따로 둔다.
+model IntakeAdminRead {
+  id           String   @id @default(uuid())
+  submissionId String
+  adminId      String
+  readAt       DateTime
+
+  submission IntakeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, adminId])
+  @@index([adminId])
+}
+
+/// 지속 작업 — 화면을 닫아도 돈다. leaseUntil 이 지나면 다른 일꾼이 이어 받는다(lib/intake/jobs.ts).
+model IntakeJob {
+  id          String    @id @default(uuid())
+  /// verify_asset · register_revision · poll_analysis · cleanup_uploads · purge_originals
+  kind        String
+  /// 같은 일을 두 번 넣지 않게 하는 열쇠
+  dedupeKey   String?   @unique
+  payload     Json
+  /// queued · running · done · failed
+  status      String    @default("queued")
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(8)
+  /// 크론이 실패한 일감을 저절로 다시 건 횟수 — 상한까지만 건다(lib/intake/job-handlers.ts)
+  autoRequeues Int      @default(0)
+  runAfter    DateTime  @default(now())
+  leaseOwner  String?
+  leaseUntil  DateTime?
+  lastError   String?
+  finishedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, runAfter])
+  @@index([kind, status])
+}
+
+/// 횟수 제한 — 고정 창. key 는 '범위:해시한 주소'다. 원래 IP 는 저장하지 않는다.
+model IntakeRateLimit {
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@id([key, windowStart])
+  @@index([windowStart])
+}

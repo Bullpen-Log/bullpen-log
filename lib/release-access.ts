@@ -23,7 +23,7 @@ export type ReleaseStage = 'restricted_beta' | 'released';
 export const RELEASE_STAGE_DEFAULT: ReleaseStage = 'restricted_beta';
 
 /** 정책 판 — 허용 목록 · 경로 표를 바꾸면 올린다. 앱이 들고 있는 정책을 이 값으로 갈라 버린다(계정 · 판이 다르면 다시 묻는다) */
-export const RELEASE_POLICY_VERSION = '2026-11-01.1';
+export const RELEASE_POLICY_VERSION = '2026-11-06.1';
 
 /**
  * 기능(사용자가 쓰는 한 덩어리 일). 경로 · 서버 동작 · API 가 모두 이 이름으로 묶인다.
@@ -159,6 +159,7 @@ const PATH_RULES: PathRule[] = [
   { prefix: '/admin/velocity', cap: 'admin', perm: 'velocityAdmin' },
   { prefix: '/admin/shoot', cap: 'admin', perm: 'shoot' },
   { prefix: '/admin/dev3d', cap: 'admin', perm: 'dev3d' },
+  { prefix: '/admin/intake', cap: 'admin', perm: 'intake' },
   { prefix: '/admin', cap: 'admin' },
 
   /*
@@ -311,7 +312,7 @@ const ALL_CAPS: Capability[] = [
   'training', 'armcare', 'mechanics', 'nutrition', 'records', 'analysis', 'library', 'myVideos', 'checkin', 'calendar', 'notifications',
   'board', 'dugout', 'chat', 'org',
 ];
-const ALL_PERMS: Permission[] = ['adminHome', 'shoot', 'velocityAdmin', 'recording', 'abs', 'dev3d'];
+const ALL_PERMS: Permission[] = ['adminHome', 'shoot', 'velocityAdmin', 'recording', 'abs', 'dev3d', 'intake'];
 
 export function releaseAccessOf(subject: AccessSubject, stage: ReleaseStage): ReleaseAccess {
   return {

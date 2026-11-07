@@ -1,0 +1,211 @@
+/* 격리 시험대 — 메모리 PostgreSQL + 가짜 Supabase Storage(TUS 포함). 저장소에 넣지 않는다. 운영 값을 읽지 않는다 */
+import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { appendFileSync, createReadStream, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { PGlite } from '@electric-sql/pglite';
+import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { INTAKE_BUCKET } from '@/lib/intake/paths';
+import { TUS_CHUNK_BYTES } from '@/lib/intake/limits';
+import { INTAKE_CONSENT_DOCS } from '@/lib/intake/consent';
+import { createInvitation, requestCorrection } from '@/lib/intake/service';
+import { mov120, mov240 } from './intake-fixtures.mts';
+import { publishRun, unpublish } from '@/lib/intake/publication';
+import { createIntakeStorage } from '@/lib/intake/storage-core';
+import { runResultPath } from '@/lib/intake/analysis';
+import { fitPitch3dV2 } from '@/lib/pitch-3d/v2/fit';
+import { base, cameras, EV } from './pitch-lab/synth.mts';
+import { makeV2Track } from './pitch-lab/synth-v2.mts';
+
+const DB_PORT = 54399, ST_PORT = 54398;
+const dirs = readdirSync('prisma/migrations').filter((d) => d.endsWith('_external_intake'));
+const pg = await PGlite.create();
+await pg.exec(readFileSync(`prisma/migrations/${dirs[0]}/migration.sql`, 'utf8'));
+const socket = new PGLiteSocketServer({ db: pg, port: DB_PORT, host: '127.0.0.1', maxConnections: 16 } as never);
+await socket.start();
+const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: `postgresql://postgres@127.0.0.1:${DB_PORT}/postgres?sslmode=disable`, max: 1, idleTimeoutMillis: 100 }) });
+
+const dir = mkdtempSync(path.join(tmpdir(), 'intake-e2e-'));
+const SECRET = randomBytes(16);
+const SERVICE_KEY = 'e2e-service';
+const fx = { side: mov240(20 * 1024 * 1024 + 123), rear: mov120(14 * 1024 * 1024 + 77), big: mov240(3000) };
+const server = { uploads: new Map<string, any>(), objects: new Map<string, string>(), cutPatchAfter: null as number | null, patches: 0, delayMs: 0 };
+
+const CORS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': '*, authorization, x-signature, apikey, tus-resumable, upload-length, upload-metadata, upload-offset, content-type, x-upsert',
+  'Access-Control-Allow-Methods': 'GET,POST,PATCH,HEAD,DELETE,OPTIONS',
+  'Access-Control-Expose-Headers': 'Location, Upload-Offset, Upload-Length, Tus-Resumable, Tus-Version, Content-Range',
+};
+function sign(url: string, ttl: number) {
+  const b = (v: object) => Buffer.from(JSON.stringify(v)).toString('base64url');
+  const head = `${b({ alg: 'HS256' })}.${b({ url, upsert: false, exp: Math.floor(Date.now() / 1000) + ttl })}`;
+  return `${head}.${createHmac('sha256', SECRET).update(head).digest('base64url')}`;
+}
+function verify(token: unknown, name: string) {
+  if (typeof token !== 'string') return 'Missing x-signature header';
+  const [h, p, s] = token.split('.');
+  if (!s || createHmac('sha256', SECRET).update(`${h}.${p}`).digest('base64url') !== s) return 'invalid signature';
+  const pl = JSON.parse(Buffer.from(p, 'base64url').toString());
+  if (pl.url !== `${INTAKE_BUCKET}/${name}`) return 'invalid signature';
+  if (pl.exp * 1000 < Date.now()) return 'jwt expired signature';
+  return null;
+}
+const send = (res: ServerResponse, status: number, body: unknown = null, headers: Record<string, string> = {}) => {
+  res.writeHead(status, { ...CORS, 'Tus-Resumable': '1.0.0', 'Content-Type': 'application/json', ...headers });
+  res.end(body == null ? undefined : JSON.stringify(body));
+};
+const bodyOf = (req: IncomingMessage) => new Promise<string>((r) => { let s = ''; req.on('data', (c) => (s += c)); req.on('end', () => r(s)); });
+const meta = (h: unknown) => Object.fromEntries(String(h ?? '').split(',').map((x) => x.trim().split(' ')).map(([k, v]) => [k, Buffer.from(v ?? '', 'base64').toString()]));
+
+async function tus(req: IncomingMessage, res: ServerResponse, id: string | null) {
+  if (req.method === 'POST') {
+    const m = meta(req.headers['upload-metadata']);
+    const why = verify(req.headers['x-signature'], m.objectName);
+    if (why) return send(res, 400, { message: why });
+    if (server.objects.has(m.objectName)) return send(res, 409, { message: 'Asset Already Exists' });
+    const uid = randomBytes(12).toString('hex');
+    const file = path.join(dir, `tus-${uid}`);
+    writeFileSync(file, '');
+    server.uploads.set(uid, { object: m.objectName, length: Number(req.headers['upload-length']), offset: 0, file });
+    return send(res, 201, null, { Location: `http://127.0.0.1:${ST_PORT}/storage/v1/upload/resumable/sign/${uid}` });
+  }
+  const up = id ? server.uploads.get(id) : null;
+  if (!up) return send(res, 404, { message: 'Upload not found' });
+  const why = verify(req.headers['x-signature'], up.object);
+  if (why) return send(res, 400, { message: why });
+  if (req.method === 'HEAD') return send(res, 200, null, { 'Upload-Offset': String(up.offset), 'Upload-Length': String(up.length), 'Cache-Control': 'no-store' });
+  if (req.method === 'PATCH') {
+    if (Number(req.headers['upload-offset']) !== up.offset) return send(res, 409, { message: 'offset conflict' });
+    if (server.delayMs) await new Promise((r) => setTimeout(r, server.delayMs));
+    const chunks: Buffer[] = [];
+    const cut = server.cutPatchAfter;
+    let got = 0;
+    await new Promise<void>((resolve) => {
+      req.on('data', (c: Buffer) => {
+        chunks.push(c); got += c.length;
+        if (cut != null && got >= cut) { server.cutPatchAfter = null; req.socket.destroy(); resolve(); }
+      });
+      req.on('end', () => resolve());
+      req.on('close', () => resolve());
+    });
+    if (req.socket.destroyed && !req.complete) return;
+    const data = Buffer.concat(chunks);
+    server.patches++;
+    const final = up.offset + data.length >= up.length;
+    if (!final && data.length !== TUS_CHUNK_BYTES) return send(res, 400, { message: 'chunk must be 6MB' });
+    appendFileSync(up.file, data);
+    up.offset += data.length;
+    if (up.offset === up.length) server.objects.set(up.object, up.file);
+    return send(res, 204, null, { 'Upload-Offset': String(up.offset) });
+  }
+  send(res, 405);
+}
+async function rest(req: IncomingMessage, res: ServerResponse, url: URL) {
+  const su = /^\/storage\/v1\/object\/upload\/sign\/([^/]+)\/(.+)$/.exec(url.pathname);
+  if (su && req.method === 'POST') {
+    await bodyOf(req);
+    const name = decodeURIComponent(su[2]);
+    if (server.objects.has(name)) return send(res, 400, { statusCode: '409', error: 'Duplicate', message: 'The resource already exists' });
+    const token = sign(`${su[1]}/${name}`, 7200);
+    return send(res, 200, { url: `/object/upload/sign/${su[1]}/${name}?token=${token}`, token });
+  }
+  const sr = /^\/storage\/v1\/object\/sign\/([^/]+)\/(.+)$/.exec(url.pathname);
+  if (sr && req.method === 'POST') {
+    await bodyOf(req);
+    const name = decodeURIComponent(sr[2]);
+    if (!server.objects.has(name)) return send(res, 400, { statusCode: '404', error: 'not_found', message: 'Object not found' });
+    return send(res, 200, { signedURL: `/object/sign/${sr[1]}/${name}?token=read-${randomBytes(4).toString('hex')}` });
+  }
+  if (sr && req.method === 'GET') {
+    const file = server.objects.get(decodeURIComponent(sr[2]));
+    if (!file) return send(res, 404, { message: 'nf' });
+    const size = statSync(file).size;
+    const range = /^bytes=(\d+)-(\d+)?$/.exec(req.headers.range ?? '');
+    if (range) {
+      const start = Number(range[1]); const end = Math.min(size - 1, Number(range[2] ?? size - 1));
+      res.writeHead(206, { 'Content-Type': 'video/quicktime', 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(end - start + 1) });
+      return void createReadStream(file, { start, end }).pipe(res);
+    }
+    res.writeHead(200, { 'Content-Type': 'video/quicktime', 'Content-Length': String(size) });
+    return void createReadStream(file).pipe(res);
+  }
+  send(res, 404, { message: 'no route' });
+}
+async function control(req: IncomingMessage, res: ServerResponse, url: URL) {
+  const name = url.pathname.split('/')[2];
+  const q = url.searchParams;
+  if (name === 'fixture') {
+    const b = fx[q.get('f') as keyof typeof fx];
+    res.writeHead(200, { ...CORS, 'Content-Type': 'video/quicktime', 'Content-Length': String(b.length) });
+    return void res.end(b);
+  }
+  if (name === 'invite') {
+    const c = await createInvitation(db, { adminId: 'e2e-admin', uploadExpiresAt: q.get('expired') ? new Date(Date.now() - 1000) : undefined }, new Date());
+    return send(res, 200, c);
+  }
+  if (name === 'cut') { server.cutPatchAfter = Number(q.get('n') ?? 1_000_000); return send(res, 200, { ok: true }); }
+  if (name === 'delay') { server.delayMs = Number(q.get('ms') ?? 0); return send(res, 200, { ok: true }); }
+  if (name === 'revoke') { await db.intakeInvitation.update({ where: { id: q.get('id')! }, data: { status: 'revoked', revokedAt: new Date() } }); return send(res, 200, { ok: true }); }
+  if (name === 'correct') { await requestCorrection(db, { adminId: 'e2e-admin', submissionId: q.get('id')!, fields: ['athleteName'], views: ['rear'], message: '뒤 영상에서 발이 잘렸어요. 다시 골라 주세요.' }); return send(res, 200, { ok: true }); }
+  if (name === 'run') {
+    const sc = base; const { side: cs, back: cb } = cameras(sc);
+    const ts = makeV2Track(sc, cs, sc.side, 'side', 11); const tb = makeV2Track(sc, cb, sc.back, 'back', 12);
+    const id = randomBytes(16).toString('hex').replace(/^(.{8})(.{4}).(.{3}).(.{3})(.{12}).*$/, '$1-$2-4$3-8$4-$5');
+    await db.intakeSubmission.update({ where: { id: q.get('id')! }, data: { throwingHand: 'R' } });
+    const sub = await db.intakeSubmission.findUniqueOrThrow({ where: { id: q.get('id')! } });
+    const revRow = await db.intakeRevision.findUniqueOrThrow({ where: { id: sub.currentRevisionId! } });
+    const r = fitPitch3dV2({ side: ts.track, back: tb.track, hand: sc.hand, heightCm: 183, jobId: id, poseModel: 'synth', screenRecorded: true, slowmoFps: 240, events: { kneeUp: ts.toMedia(EV.kneeUp), footPlant: ts.toMedia(EV.footPlant), release: ts.toMedia(EV.release) } }).result;
+    const raw = JSON.stringify(r);
+    const key = runResultPath(sub.id, id);
+    const f = path.join(dir, `res-${id}`); writeFileSync(f, raw); server.objects.set(key, f);
+    await db.intakeAnalysisRun.create({ data: { id, submissionId: sub.id, revisionId: sub.currentRevisionId!, engineKey: 'e2e', status: 'succeeded', resultPath: key, resultMeta: { input: { side: revRow.sideAssetId, rear: revRow.rearAssetId, hand: 'R' }, sha256: createHash('sha256').update(raw).digest('hex') }, finishedAt: new Date() } });
+    return send(res, 200, { runId: id });
+  }
+  if (name === 'publish') {
+    const st = createIntakeStorage({ url: `http://127.0.0.1:${ST_PORT}`, serviceKey: SERVICE_KEY });
+    const runRow = await db.intakeAnalysisRun.findUniqueOrThrow({ where: { id: q.get('run')! } });
+    const active = await db.intakePublication.findUnique({ where: { activeFor: runRow.submissionId } });
+    return send(res, 200, await publishRun({ runId: q.get('run')!, adminId: 'e2e-admin', explanation: q.get('x'), expectedActivePublicationId: active?.id ?? null }, { db, storage: st } as never));
+  }
+  if (name === 'unpublish') {
+    const st = createIntakeStorage({ url: `http://127.0.0.1:${ST_PORT}`, serviceKey: SERVICE_KEY });
+    const active = await db.intakePublication.findUnique({ where: { activeFor: q.get('id')! } });
+    return send(res, 200, await unpublish({ submissionId: q.get('id')!, adminId: 'e2e-admin', expectedActivePublicationId: active?.id ?? null }, { db, storage: st } as never));
+  }
+  if (name === 'stale') { await db.intakeConsent.updateMany({ where: { submissionId: q.get('id')!, kind: 'overseas' }, data: { docVersion: 'old', textHash: 'old' } }); return send(res, 200, { ok: true }); }
+  if (name === 'expire') { const s = await db.intakeSubmission.findUniqueOrThrow({ where: { id: q.get('id')! } }); await db.intakeInvitation.update({ where: { id: s.invitationId }, data: { uploadExpiresAt: new Date(Date.now() - 1000) } }); return send(res, 200, { ok: true }); }
+  if (name === 'correct2') { await requestCorrection(db, { adminId: 'e2e-admin', submissionId: q.get('id')!, fields: ['athleteName'], views: [], message: '이름을 다시 적어 주세요.' }); return send(res, 200, { ok: true }); }
+  if (name === 'correct3') { await requestCorrection(db, { adminId: 'e2e-admin', submissionId: q.get('id')!, fields: ['submitterRelation'], views: [], message: '누가 보냈는지 다시 골라 주세요.' }); return send(res, 200, { ok: true }); }
+  if (name === 'nameless') {
+    /* 두 파일이 다 왔는데 나이를 고치며 이름이 지워진 초안 */
+    const c = await createInvitation(db, { adminId: 'e2e-admin' }, new Date());
+    const ids: string[] = [];
+    for (const [view, sha] of [['side', 'a'], ['rear', 'b']] as const) {
+      const id = randomBytes(16).toString('hex').replace(/^(.{8})(.{4}).(.{3}).(.{3})(.{12}).*$/, '$1-$2-4$3-8$4-$5');
+      await db.intakeAsset.create({ data: { id, submissionId: c.submissionId, view, objectPath: `sub/${c.submissionId}/${id}/original`, status: 'verified', originalName: `${view}.mov`, declaredSize: BigInt(1000), clientSha256: sha.repeat(64), serverSha256: sha.repeat(64), storedBytes: BigInt(1000), mediaFacts: { container: 'mov', hasVideo: true, nominalFps: 240, averageFps: 240, frameTiming: 'constant', editList: { present: false, segments: 0, retimed: false, shiftSec: 0 } } } });
+      ids.push(id);
+    }
+    await db.intakeSubmission.update({ where: { id: c.submissionId }, data: { sideAssetId: ids[0], rearAssetId: ids[1], athleteAgeBand: '14_or_over', samePitchConfirmed: true, submitterRelation: 'self', version: 3 } });
+    for (const d of INTAKE_CONSENT_DOCS.filter((x) => x.required)) await db.intakeConsent.create({ data: { submissionId: c.submissionId, kind: d.kind, docVersion: d.version, textHash: d.textHash, granted: true, relation: 'self', agreedAt: new Date() } });
+    return send(res, 200, c);
+  }
+  if (name === 'bumpname') { await db.intakeSubmission.update({ where: { id: q.get('id')! }, data: { athleteName: '다른기기', version: { increment: 1 } } }); return send(res, 200, { ok: true }); }
+  if (name === 'set') { await db.intakeSubmission.update({ where: { id: q.get('id')! }, data: { analysisStatus: q.get('analysis')! } }); return send(res, 200, { ok: true }); }
+  if (name === 'info') {
+    const s = await db.intakeSubmission.findUnique({ where: { id: q.get('id')! }, include: { assets: true, revisions: true, consents: true } });
+    const sha = (f: string) => createHash('sha256').update(readFileSync(f)).digest('hex');
+    return send(res, 200, JSON.parse(JSON.stringify({ s, stored: [...server.objects].map(([k, f]) => ({ k, size: statSync(f).size, sha: sha(f) })), fx: { side: createHash('sha256').update(fx.side).digest('hex'), rear: createHash('sha256').update(fx.rear).digest('hex') }, patches: server.patches }, (_, v) => (typeof v === 'bigint' ? Number(v) : v))));
+  }
+  send(res, 404);
+}
+createServer((req, res) => {
+  const url = new URL(req.url!, 'http://127.0.0.1');
+  if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return void res.end(); }
+  const t = /^\/storage\/v1\/upload\/resumable\/sign(?:\/([^/]+))?$/.exec(url.pathname);
+  const p = url.pathname.startsWith('/__/') ? control(req, res, url) : t ? tus(req, res, t[1] ?? null) : rest(req, res, url);
+  p.catch((e) => { console.error(e); if (!res.headersSent) send(res, 500, { message: 'fake' }); });
+}).listen(ST_PORT, '127.0.0.1', () => console.log('harness ready'));

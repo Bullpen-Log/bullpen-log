@@ -1,0 +1,1039 @@
+/**
+ * 외부 영상 접수의 관리자 쪽 — 목록 · 상세 · 초대 · 담당자 · 메모 · 고침 요청 · 철회 기록 · 다시 확인 · 원본 주소. 화면과 서버 동작(app/actions/intake-admin.ts)이 여기를 부른다.
+ *
+ * ── 약속 ──────────────────────────────
+ * - 함수마다 맨 앞에서 actor 의 권한을 본다(assertIntakeAdmin). 서버 동작이 먼저 보지만, 여기서 또 본다 — 새 화면이 이 파일을 바로 불러도 뚫리지 않게.
+ * - 권한의 근거는 lib/permissions.ts 'intake' 하나다. 초대를 누가 만들었는지는 권한과 상관없다(대표관리자 둘이 같은 접수를 본다).
+ * - 함께 보는 상태: 담당자는 '알던 담당자'를 맞춰 본 뒤 바꾼다(비교 후 교체). 고침 요청은 접수 version 을 잠근 뒤 맞춰 본다.
+ *   담당자 · 메모는 version 을 안 올린다 — version 은 받는 사람의 낙관 잠금이라, 관리자 일로 받는 사람의 화면이 '최신 내용을 불러오라'고 하면 안 된다.
+ * - 관리자별 상태: 읽음(IntakeAdminRead)은 사람마다 따로다. 접수가 내가 읽은 뒤 바뀌면(updatedAt > readAt) 다시 '안 읽음'이 된다.
+ *   접수를 끝낸 것(receivedAt)만 센다 — 받는 사람이 초안을 쓰는 동안 알림이 쌓이지 않게.
+ * - 돌려주는 값에 토큰 해시 · 코드 해시 · 저장 경로 · TUS 주소를 넣지 않는다. 서명 주소는 issueOriginalLinks 만 주고, 5분짜리다.
+ *   일감의 오류 글도 주소 · 경로를 지우고 내보낸다(jobErrorText).
+ * - 묶음 파일을 만들지 않는다 — 짝 내려받기는 원본 두 개의 서명 주소다(몇 GB 를 메모리에 올리지 않는다).
+ */
+import { Prisma, type PrismaClient } from '@prisma/client';
+import { ACCESS_CODE_MAX_FAILURES, uploadExpired } from '@/lib/intake/access';
+import { writeAudit } from '@/lib/intake/audit';
+import { consentDecisionRows, hasRequiredConsents, latestConsents, modelUseAllowed } from '@/lib/intake/consent';
+import { IntakeError } from '@/lib/intake/errors';
+import { GIB, INTAKE_BUCKET_MAX_BYTES, READ_URL_TTL_SEC, intakeLimits, type IntakeLimits } from '@/lib/intake/limits';
+import { fpsLabel, integrityLabel, timingNote, type IntakeMediaFacts } from '@/lib/intake/media';
+import { downloadFileName, isIntakeId, isSubmissionPath, originalExtension } from '@/lib/intake/paths';
+import { requeueJob } from '@/lib/intake/jobs';
+import { correctionHoldUntil, originalRetention, originalsPurgedAt, type RetentionBasis } from '@/lib/intake/retention';
+import {
+  cancelCorrection,
+  createInvitation,
+  extendUploadWindow,
+  requestCorrection,
+  requeueVerification,
+  resetAccessCodeLock,
+  withdrawRequiredConsent,
+  type CreatedInvitation,
+  withdrawModelConsentForInvitee,
+} from '@/lib/intake/service';
+import {
+  ANALYSIS_STATUSES,
+  CORRECTABLE_FIELDS,
+  INVITATION_STATUSES,
+  PUBLICATION_STATUSES,
+  SUBMISSION_STATUSES,
+  isIntakeView,
+  readCorrection,
+  verifyTargetIds,
+  type CorrectableField,
+  type CorrectionRequest,
+  type IntakeView,
+} from '@/lib/intake/state';
+import type { IntakeStorage } from '@/lib/intake/storage-core';
+import { sampleDurationLabel, viewProgressOf, type ViewProgress } from '@/lib/intake/admin-labels';
+import { can } from '@/lib/permissions';
+
+type Db = PrismaClient;
+type Tx = Prisma.TransactionClient;
+
+const DAY_MS = 86_400_000;
+export const INTAKE_PAGE_SIZE = 20;
+const MAX_SEARCH_CHARS = 60;
+const MAX_NOTE_CHARS = 2000;
+const MAX_AUDIT_ROWS = 200;
+/** 받는 사람 쪽 기록은 따로 세어 잘라낸다 — 링크를 쥔 사람이 동의를 뒤집어 관리자 · 일꾼의 기록을 화면 밖으로 밀어내지 못하게 */
+const MAX_INVITEE_AUDIT_ROWS = 60;
+/** 화면에 싣는 동의 줄 — 답을 뒤집어 쌓인 줄이 상세 화면을 부풀리지 않게. 판단에 드는 줄은 이 수와 상관없이 다 싣는다 */
+const MAX_CONSENT_ROWS = 100;
+const MAX_JOB_ISSUES = 20;
+/** 크론 세 바퀴 — 이만큼 지나도 안 돌면 멈춘 것으로 본다 */
+const JOB_STALL_MS = 15 * 60_000;
+/** 올리기 기간 · 결과 보기 기간의 범위(일) */
+const MAX_UPLOAD_DAYS = 60;
+const MAX_RESULT_DAYS = 365;
+const MIN_LIMIT_BYTES = 1024 * 1024;
+
+export type IntakeActor = { id: string; role: string | null | undefined };
+
+/** 'intake' 권한이 없으면 던진다 */
+export function assertIntakeAdmin(actor: IntakeActor | null | undefined): asserts actor is IntakeActor {
+  if (!actor?.id || !can(actor.role, 'intake')) throw new IntakeError('admin_forbidden');
+}
+
+const mustSubmissionId = (id: string) => {
+  if (!isIntakeId(id)) throw new IntakeError('submission_not_found');
+};
+
+/* ────────────────────────────── 담당자 후보 ────────────────────────────── */
+
+export type IntakeAdminPerson = { id: string; name: string };
+
+/** 'intake' 권한이 있는 역할 — 권한 표가 바뀌면 저절로 따라간다 */
+const INTAKE_ROLES = (['ADMIN', 'MANAGER'] as const).filter((r) => can(r, 'intake'));
+
+async function intakeAdmins(db: Db): Promise<IntakeAdminPerson[]> {
+  const rows = await db.user.findMany({ where: { role: { in: [...INTAKE_ROLES] } }, select: { id: true, nickname: true }, orderBy: { nickname: 'asc' } });
+  return rows.map((u) => ({ id: u.id, name: u.nickname }));
+}
+
+/* ────────────────────────────── 목록 ────────────────────────────── */
+
+export type IntakeListFilters = {
+  q: string | null;
+  status: string | null;
+  analysis: string | null;
+  publication: string | null;
+  invitation: string | null;
+  /** 'me' · 'none' · 관리자 번호 */
+  assignee: string | null;
+  unread: boolean;
+  page: number;
+};
+
+const firstOf = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+const oneOf = (v: string | undefined, allowed: readonly string[]) => (v && allowed.includes(v) ? v : null);
+
+/** 주소의 값 → 거름 조건. 모르는 값은 버린다(그 칸을 안 거른다) */
+export function parseIntakeFilters(raw: Record<string, string | string[] | undefined>): IntakeListFilters {
+  const q = firstOf(raw.q)?.normalize('NFC').replace(/\p{C}/gu, '').trim();
+  const assignee = firstOf(raw.assignee);
+  const page = Number.parseInt(firstOf(raw.page) ?? '', 10);
+  return {
+    q: q ? [...q].slice(0, MAX_SEARCH_CHARS).join('') : null,
+    status: oneOf(firstOf(raw.status), SUBMISSION_STATUSES),
+    analysis: oneOf(firstOf(raw.analysis), ANALYSIS_STATUSES),
+    publication: oneOf(firstOf(raw.publication), PUBLICATION_STATUSES),
+    invitation: oneOf(firstOf(raw.invitation), INVITATION_STATUSES),
+    assignee: assignee === 'me' || assignee === 'none' || isIntakeId(assignee) ? (assignee as string) : null,
+    unread: firstOf(raw.unread) === '1',
+    page: Number.isFinite(page) && page >= 1 ? Math.min(page, 100_000) : 1,
+  };
+}
+
+export type IntakeListRow = {
+  id: string;
+  athleteName: string | null;
+  /** 초대 메모 — 이름이 아직 없을 때 알아보는 데 쓴다 */
+  invitationNote: string | null;
+  receiptCode: string | null;
+  /** 접수일(서버 시각). 촬영일이 아니다 */
+  receivedAt: string | null;
+  createdAt: string;
+  side: ViewProgress;
+  rear: ViewProgress;
+  status: string;
+  analysisStatus: string;
+  publicationStatus: string;
+  invitationStatus: string;
+  uploadExpired: boolean;
+  assigneeId: string | null;
+  assigneeName: string | null;
+  unread: boolean;
+  /** 원본을 지울 날 — 시계가 없는 초안은 null */
+  originalPurgeAt: string | null;
+  /** 원본을 다 지운 시각 — 남아 있으면 null */
+  originalsPurgedAt: string | null;
+};
+
+export type IntakeListResult = {
+  rows: IntakeListRow[];
+  total: number;
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  /** 거름과 상관없이 이 관리자의 안 읽은 접수 수 */
+  unreadCount: number;
+  admins: IntakeAdminPerson[];
+};
+
+/** 이 관리자가 안 읽은 접수 번호 — 두 칸을 견주는 조건이라 SQL 로 잰다 */
+async function unreadIds(db: Db, adminId: string): Promise<string[]> {
+  const rows = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
+    SELECT s."id"
+    FROM "IntakeSubmission" s
+    LEFT JOIN "IntakeAdminRead" r ON r."submissionId" = s."id" AND r."adminId" = ${adminId}
+    WHERE s."receivedAt" IS NOT NULL AND (r."readAt" IS NULL OR r."readAt" < s."updatedAt")
+  `);
+  return rows.map((r) => r.id);
+}
+
+function listWhere(f: IntakeListFilters, adminId: string, unread: readonly string[]): Prisma.IntakeSubmissionWhereInput {
+  const where: Prisma.IntakeSubmissionWhereInput = {};
+  if (f.status) where.status = f.status;
+  if (f.analysis) where.analysisStatus = f.analysis;
+  if (f.publication) where.publicationStatus = f.publication;
+  if (f.invitation) where.invitation = { status: f.invitation };
+  if (f.assignee === 'none') where.assigneeAdminId = null;
+  else if (f.assignee) where.assigneeAdminId = f.assignee === 'me' ? adminId : f.assignee;
+  if (f.unread) where.id = { in: [...unread] };
+  if (f.q) {
+    const contains = { contains: f.q, mode: 'insensitive' as const };
+    where.OR = [{ athleteName: contains }, { receiptCode: contains }, { submitterName: contains }, { invitation: { note: contains } }];
+  }
+  return where;
+}
+
+type RetentionSource = {
+  withdrawnAt: Date | null;
+  lastFinalizedAt: Date | null;
+  publications: { publishedAt: Date }[];
+  revisions: { sideAssetId: string; rearAssetId: string }[];
+  assets: { id: string; purgedAt: Date | null }[];
+};
+
+/** 목록 · 상세가 같은 말을 하게 — 판에 오른 파일을 다 지웠으면 지운 시각이다. 판이 없는 접수는 있는 파일 전부를 본다 */
+function retentionOf(s: RetentionSource) {
+  const plan = originalRetention({ publishedAts: s.publications.map((p) => p.publishedAt), lastFrozenAt: s.lastFinalizedAt, withdrawnAt: s.withdrawnAt });
+  const frozen = new Set(s.revisions.flatMap((r) => [r.sideAssetId, r.rearAssetId]));
+  return { plan, purgedAt: originalsPurgedAt(frozen.size ? s.assets.filter((a) => frozen.has(a.id)) : s.assets) };
+}
+
+/** 대표관리자가 함께 보는 접수함 — 만든 사람으로 거르지 않는다 */
+export async function loadIntakeList(db: Db, actor: IntakeActor, f: IntakeListFilters, now: Date = new Date()): Promise<IntakeListResult> {
+  assertIntakeAdmin(actor);
+  const unread = await unreadIds(db, actor.id);
+  const unreadSet = new Set(unread);
+  const where = listWhere(f, actor.id, unread);
+  const [total, admins] = await Promise.all([db.intakeSubmission.count({ where }), intakeAdmins(db)]);
+  const pageCount = Math.max(1, Math.ceil(total / INTAKE_PAGE_SIZE));
+  const page = Math.min(f.page, pageCount);
+  const subs = await db.intakeSubmission.findMany({
+    where,
+    orderBy: [{ receivedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }, { id: 'asc' }],
+    skip: (page - 1) * INTAKE_PAGE_SIZE,
+    take: INTAKE_PAGE_SIZE,
+    include: {
+      invitation: { select: { status: true, uploadExpiresAt: true, note: true } },
+      assets: { select: { id: true, status: true, purgedAt: true } },
+      revisions: { select: { sideAssetId: true, rearAssetId: true } },
+      publications: { select: { publishedAt: true } },
+    },
+  });
+  const nameOf = new Map(admins.map((a) => [a.id, a.name]));
+  const rows = subs.map((s): IntakeListRow => {
+    const statusOf = (id: string | null) => (id ? (s.assets.find((a) => a.id === id)?.status ?? null) : null);
+    const retention = retentionOf(s);
+    return {
+      id: s.id,
+      athleteName: s.athleteName,
+      invitationNote: s.invitation.note,
+      receiptCode: s.receiptCode,
+      receivedAt: s.receivedAt?.toISOString() ?? null,
+      createdAt: s.createdAt.toISOString(),
+      side: viewProgressOf(statusOf(s.sideAssetId)),
+      rear: viewProgressOf(statusOf(s.rearAssetId)),
+      status: s.status,
+      analysisStatus: s.analysisStatus,
+      publicationStatus: s.publicationStatus,
+      invitationStatus: s.invitation.status,
+      uploadExpired: uploadExpired(s.invitation, now),
+      assigneeId: s.assigneeAdminId,
+      assigneeName: s.assigneeAdminId ? (nameOf.get(s.assigneeAdminId) ?? '알 수 없음') : null,
+      unread: unreadSet.has(s.id),
+      originalPurgeAt: iso(retention.plan?.purgeAt),
+      originalsPurgedAt: iso(retention.purgedAt),
+    };
+  });
+  return { rows, total, page, pageCount, pageSize: INTAKE_PAGE_SIZE, unreadCount: unread.length, admins };
+}
+
+/* ────────────────────────────── 상세 ────────────────────────────── */
+
+export type IntakeAssetDetail = {
+  id: string;
+  view: IntakeView;
+  status: string;
+  /** 지금 칸이 가리키는 자산인가 */
+  current: boolean;
+  /** 이 자산을 얼린 판 번호 */
+  revisions: number[];
+  fileName: string;
+  declaredType: string | null;
+  declaredBytes: number;
+  storedBytes: number | null;
+  clientSha256: string;
+  serverSha256: string | null;
+  /** 서버가 잰 해시가 고른 파일과 같다 */
+  hashMatched: boolean;
+  rejectCode: string | null;
+  integrity: string | null;
+  fps: string | null;
+  averageFps: number | null;
+  timing: string | null;
+  container: string | null;
+  brand: string | null;
+  codec: string | null;
+  width: number | null;
+  height: number | null;
+  rotation: number | null;
+  frameCount: number | null;
+  frameTiming: string | null;
+  /** 표본 시간 — 재생 길이가 아니다. 촬영 길이라고 말해도 되는지는 durationLabel 이 정한다 */
+  sampleDurationSec: number | null;
+  /** sampleDurationSec 칸의 이름 — '촬영 길이' 또는 '표본 시간' */
+  durationLabel: string;
+  playbackDurationSec: number | null;
+  make: string | null;
+  model: string | null;
+  /** 파일에 적힌 촬영 시각과 그 출처 — 접수일이 아니다 */
+  captureAt: string | null;
+  captureAtSource: string | null;
+  uploadedAt: string | null;
+  verifiedAt: string | null;
+  createdAt: string;
+  /** 저장소에 바이트가 있어 미리보기 · 내려받기를 줄 수 있나 */
+  available: boolean;
+  /** 저장소에서 지운 시각 — 해시 · 파일 사실은 남는다 */
+  purgedAt: string | null;
+};
+
+/** 끝나지 못한 일감 — 접수가 '확인 중'에 멈춘 까닭을 관리자가 본다 */
+export type IntakeJobIssue = {
+  id: string;
+  kind: string;
+  /** failed 시도를 다 씀 · retrying 실패 뒤 기다림 · stalled 차례가 지났는데 안 돎 */
+  state: 'failed' | 'retrying' | 'stalled';
+  attempts: number;
+  maxAttempts: number;
+  /** 주소 · 저장 경로를 지운 오류 글 */
+  lastError: string | null;
+  view: IntakeView | null;
+  revisionNumber: number | null;
+  updatedAt: string;
+  /** '다시 확인'으로 풀 수 있는 일감인가 */
+  canRequeue: boolean;
+};
+
+export type IntakeDetail = {
+  id: string;
+  /** 낙관 잠금 — 고침 요청이 이 값을 보낸다 */
+  version: number;
+  status: string;
+  analysisStatus: string;
+  publicationStatus: string;
+  receiptCode: string | null;
+  receivedAt: string | null;
+  lastFinalizedAt: string | null;
+  createdAt: string;
+  athleteName: string | null;
+  athleteAgeBand: string | null;
+  throwingHand: string | null;
+  submitterRelation: string;
+  submitterName: string | null;
+  samePitchConfirmed: boolean;
+  assigneeId: string | null;
+  admins: IntakeAdminPerson[];
+  unread: boolean;
+  correction: CorrectionRequest | null;
+  correctionRequestedAt: string | null;
+  invitation: {
+    id: string;
+    status: string;
+    note: string | null;
+    createdBy: string | null;
+    createdAt: string;
+    uploadExpiresAt: string;
+    uploadExpired: boolean;
+    resultExpiresAt: string | null;
+    revokedAt: string | null;
+    revokedBy: string | null;
+    /** 코드 값은 저장돼 있지 않다 — 걸려 있는지만 안다 */
+    hasAccessCode: boolean;
+    /** 틀린 코드로 결과 보기가 잠겼나 — 풀면 코드는 그대로다 */
+    accessCodeLocked: boolean;
+    accessCodeFailures: number;
+    /** 관리자가 풀어 줄 것이 있나 — 잠겼거나, 한도를 채운 시도가 끝을 못 적어 잠기기 전에 막혀 있다 */
+    accessCodeNeedsReset: boolean;
+    limits: IntakeLimits;
+  };
+  assets: IntakeAssetDetail[];
+  revisions: { id: string; number: number; status: string; failureCode: string | null; athleteName: string; finalizedAt: string; settledAt: string | null; current: boolean }[];
+  consents: { id: string; kind: string; granted: boolean; docVersion: string; proxy: boolean; relation: string; agreedAt: string; withdrawnAt: string | null }[];
+  /** 위 목록에 못 실은 오래된 동의 줄 수 — 판단에 드는 줄은 늘 실린다 */
+  consentsHidden: number;
+  consentRequiredOk: boolean;
+  modelUseAllowed: boolean;
+  /** 거둘 모델 동의가 남아 있나 — 마지막 답이 동의일 때다. 동의 판이 낡거나 관계가 바뀌어 modelUseAllowed 가 false 여도 답은 남아 있을 수 있다. 거부 줄만 있으면 false 다 */
+  modelConsentOpen: boolean;
+  publications: { id: string; number: number; runId: string; active: boolean; explanation: string | null; publishedAt: string; publishedBy: string; unpublishedAt: string | null; unpublishedBy: string | null }[];
+  /** 지금 공개 번호 — 공개 · 내리기가 '알던 공개'로 보낸다. 없으면 null */
+  activePublicationId: string | null;
+  /** 시도를 다 썼거나 멈춘 일감 */
+  jobIssues: IntakeJobIssue[];
+  /** 원본 보유 — 끝내지 않은 초안은 null */
+  retention: {
+    purgeAt: string;
+    anchorAt: string;
+    basis: RetentionBasis;
+    /** 다 지운 시각 — 남아 있으면 null */
+    purgedAt: string | null;
+    /** 열린 고침을 기다려 주는 끝 — 기다리지 않으면 null */
+    heldUntil: string | null;
+  } | null;
+  notes: { id: string; body: string; authorId: string; author: string; mine: boolean; createdAt: string }[];
+  audit: { id: string; action: string; actor: string; actorKind: string; detail: Record<string, unknown> | null; createdAt: string }[];
+};
+
+const iso = (d: Date | null | undefined) => d?.toISOString() ?? null;
+const numberOrNull = (v: bigint | null | undefined) => (v == null ? null : Number(v));
+
+/** 바이트가 저장소에 있나 — 도착 기록이 있고 지운 것이 아니면 된다 */
+const hasBytes = (a: { status: string; uploadedAt: Date | null; storedBytes: bigint | null }) =>
+  a.status !== 'purged' && a.status !== 'abandoned' && (a.uploadedAt != null || a.storedBytes != null);
+
+type JobRow = {
+  id: string;
+  kind: string;
+  status: string;
+  attempts: number;
+  maxAttempts: number;
+  lastError: string | null;
+  runAfter: Date;
+  leaseUntil: Date | null;
+  updatedAt: Date;
+  payload: { assetId?: string; revisionId?: string; runId?: string } | null;
+};
+
+/** 일감 오류 글은 저장소 예외에서 온다 — 서명 주소 · 저장 경로가 섞여도 화면으로 안 나가게 지운다 */
+export function jobErrorText(raw: string | null): string | null {
+  return raw?.replace(/\bhttps?:\/\/\S+/g, '[주소]').replace(/\bsub\/[^\s'")]+/g, '[저장 경로]') ?? null;
+}
+
+function jobStateOf(j: JobRow, now: Date): IntakeJobIssue['state'] | null {
+  if (j.status === 'failed') return 'failed';
+  const overdue = now.getTime() - j.runAfter.getTime() > JOB_STALL_MS;
+  if (j.status === 'running') return j.leaseUntil && j.leaseUntil < now ? 'stalled' : null;
+  if (j.status !== 'queued') return null;
+  if (overdue) return 'stalled';
+  return j.lastError ? 'retrying' : null;
+}
+
+/** 이 접수의 끝나지 못한 일감 — 일감 표에는 접수 번호 칸이 없어 payload 의 접수 · 자산 · 판 · 실행 번호로 찾는다 */
+async function jobIssuesOf(
+  db: Db,
+  input: { submissionId: string; assets: { id: string; view: string; status: string }[]; revisions: { id: string; number: number }[]; runs: { id: string; status: string }[]; currentRevisionId: string | null; verifyTargets: readonly string[] },
+  now: Date,
+): Promise<IntakeJobIssue[]> {
+  const ids = [input.submissionId, ...input.assets.map((a) => a.id), ...input.revisions.map((r) => r.id), ...input.runs.map((r) => r.id)];
+  const rows = await db.$queryRaw<JobRow[]>(Prisma.sql`
+    SELECT "id", "kind", "status", "attempts", "maxAttempts", "lastError", "runAfter", "leaseUntil", "updatedAt", "payload"
+    FROM "IntakeJob"
+    WHERE "status" <> 'done'
+      AND ("payload"->>'assetId' = ANY(${ids}) OR "payload"->>'revisionId' = ANY(${ids}) OR "payload"->>'runId' = ANY(${ids}) OR "payload"->>'submissionId' = ANY(${ids}))
+    ORDER BY "updatedAt" DESC
+    LIMIT ${MAX_JOB_ISSUES}
+  `);
+  const issues: IntakeJobIssue[] = [];
+  for (const j of rows) {
+    const state = jobStateOf(j, now);
+    if (!state) continue;
+    /* 일감이 멈춘 뒤 고침으로 넘어간 대상은 더 볼 일이 없다 — 남겨 두면 '다시 확인'이 안 받는, 풀 수 없는 경고가 된다 */
+    const asset = input.assets.find((a) => a.id === j.payload?.assetId);
+    if (j.kind === 'verify_asset' && asset && ((asset.status !== 'uploaded' && asset.status !== 'verifying') || !input.verifyTargets.includes(asset.id))) continue;
+    if (j.kind === 'register_revision' && j.payload?.revisionId !== input.currentRevisionId) continue;
+    if (j.kind === 'poll_analysis' && input.runs.some((r) => r.id === j.payload?.runId && (r.status === 'succeeded' || r.status === 'failed'))) continue;
+    const view = asset?.view;
+    issues.push({
+      id: j.id,
+      kind: j.kind,
+      state,
+      attempts: j.attempts,
+      maxAttempts: j.maxAttempts,
+      lastError: jobErrorText(j.lastError),
+      view: isIntakeView(view) ? view : null,
+      revisionNumber: input.revisions.find((r) => r.id === j.payload?.revisionId)?.number ?? null,
+      updatedAt: j.updatedAt.toISOString(),
+      /* 줄에 있거나 도는 일감은 일꾼이 집어 간다 — 다시 걸 것은 시도를 다 쓴 일감뿐이다 */
+      canRequeue: state === 'failed' && (j.kind === 'verify_asset' || j.kind === 'register_revision'),
+    });
+  }
+  return issues;
+}
+
+/** 접수 하나 — 읽기만 한다. 읽음 표시는 화면이 붙은 뒤에 따로 부른다(미리 받기가 읽음으로 만들지 않게) */
+export async function loadIntakeDetail(db: Db, actor: IntakeActor, submissionId: string, now: Date = new Date()): Promise<IntakeDetail> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(submissionId);
+  const s = await db.intakeSubmission.findUnique({
+    where: { id: submissionId },
+    include: {
+      invitation: true,
+      assets: { orderBy: { createdAt: 'asc' } },
+      revisions: { orderBy: { number: 'desc' } },
+      consents: { orderBy: { agreedAt: 'desc' }, take: MAX_CONSENT_ROWS },
+      publications: { orderBy: { number: 'desc' } },
+      notes: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },
+      reads: { where: { adminId: actor.id }, select: { readAt: true } },
+      runs: { select: { id: true, status: true } },
+    },
+  });
+  if (!s) throw new IntakeError('submission_not_found');
+
+  const verifyTargets = verifyTargetIds(s, s.revisions.find((r) => r.id === s.currentRevisionId) ?? null);
+  const jobIssues = await jobIssuesOf(db, { submissionId: s.id, assets: s.assets, revisions: s.revisions, runs: s.runs, currentRevisionId: s.currentRevisionId, verifyTargets }, now);
+  const [decision, consentTotal] = await Promise.all([consentDecisionRows(db, s.id), db.intakeConsent.count({ where: { submissionId: s.id } })]);
+  const shown = new Set(s.consents.map((c) => c.id));
+  const consents = [...s.consents, ...decision.filter((c) => !shown.has(c.id))].sort((a, b) => b.agreedAt.getTime() - a.agreedAt.getTime());
+  const auditScope = { OR: [{ submissionId: s.id }, { invitationId: s.invitationId }] };
+  const [staffAudit, inviteeAudit] = await Promise.all([
+    db.intakeAudit.findMany({ where: { ...auditScope, actorKind: { not: 'invitee' } }, orderBy: { createdAt: 'desc' }, take: MAX_AUDIT_ROWS }),
+    db.intakeAudit.findMany({ where: { ...auditScope, actorKind: 'invitee' }, orderBy: { createdAt: 'desc' }, take: MAX_INVITEE_AUDIT_ROWS }),
+  ]);
+  const audit = [...staffAudit, ...inviteeAudit].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+  const admins = await intakeAdmins(db);
+  const personIds = new Set<string>();
+  const note = (id: string | null | undefined) => {
+    if (id) personIds.add(id);
+  };
+  note(s.invitation.createdByAdminId);
+  note(s.invitation.revokedByAdminId);
+  s.notes.forEach((n) => note(n.adminId));
+  s.publications.forEach((p) => {
+    note(p.publishedByAdminId);
+    note(p.unpublishedByAdminId);
+  });
+  audit.forEach((a) => note(a.actorId));
+  const people = await db.user.findMany({ where: { id: { in: [...personIds] } }, select: { id: true, nickname: true } });
+  const nameOf = new Map(people.map((u) => [u.id, u.nickname]));
+  const person = (id: string | null | undefined) => (id ? (nameOf.get(id) ?? '알 수 없는 관리자') : null);
+
+  const frozenIn = (assetId: string) => s.revisions.filter((r) => r.sideAssetId === assetId || r.rearAssetId === assetId).map((r) => r.number);
+  const assets = s.assets.map((a): IntakeAssetDetail => {
+    const facts = a.mediaFacts as IntakeMediaFacts | null;
+    return {
+      id: a.id,
+      view: a.view as IntakeView,
+      status: a.status,
+      current: a.id === s.sideAssetId || a.id === s.rearAssetId,
+      revisions: frozenIn(a.id),
+      fileName: a.originalName,
+      declaredType: a.declaredType,
+      declaredBytes: Number(a.declaredSize),
+      storedBytes: numberOrNull(a.storedBytes),
+      clientSha256: a.clientSha256,
+      serverSha256: a.serverSha256,
+      hashMatched: a.serverSha256 != null && a.serverSha256 === a.clientSha256,
+      rejectCode: a.rejectCode,
+      integrity: integrityLabel(a.status),
+      fps: facts ? fpsLabel(facts) : null,
+      averageFps: facts?.averageFps ?? null,
+      timing: facts ? timingNote(facts) : null,
+      container: facts?.container ?? null,
+      brand: facts?.brand ?? null,
+      codec: facts?.codec ?? null,
+      width: facts?.width ?? null,
+      height: facts?.height ?? null,
+      rotation: facts?.rotation ?? null,
+      frameCount: facts?.frameCount ?? null,
+      frameTiming: facts?.frameTiming ?? null,
+      sampleDurationSec: facts?.sampleDurationSec ?? null,
+      durationLabel: sampleDurationLabel(facts),
+      playbackDurationSec: facts?.playbackDurationSec ?? null,
+      make: facts?.make ?? null,
+      model: facts?.model ?? null,
+      captureAt: iso(a.captureAt),
+      captureAtSource: a.captureAtSource,
+      uploadedAt: iso(a.uploadedAt),
+      verifiedAt: iso(a.verifiedAt),
+      createdAt: a.createdAt.toISOString(),
+      available: hasBytes(a),
+      purgedAt: iso(a.purgedAt),
+    };
+  });
+
+  const { plan, purgedAt } = retentionOf(s);
+  const heldUntil = correctionHoldUntil(plan, { status: s.status, invitationStatus: s.invitation.status, uploadExpiresAt: s.invitation.uploadExpiresAt }, now);
+
+  const readAt = s.reads[0]?.readAt ?? null;
+  return {
+    id: s.id,
+    version: s.version,
+    status: s.status,
+    analysisStatus: s.analysisStatus,
+    publicationStatus: s.publicationStatus,
+    receiptCode: s.receiptCode,
+    receivedAt: iso(s.receivedAt),
+    lastFinalizedAt: iso(s.lastFinalizedAt),
+    createdAt: s.createdAt.toISOString(),
+    athleteName: s.athleteName,
+    athleteAgeBand: s.athleteAgeBand,
+    throwingHand: s.throwingHand,
+    submitterRelation: s.submitterRelation,
+    submitterName: s.submitterName,
+    samePitchConfirmed: s.samePitchConfirmed,
+    assigneeId: s.assigneeAdminId,
+    admins,
+    unread: s.receivedAt != null && (readAt == null || readAt < s.updatedAt),
+    correction: readCorrection(s.correction),
+    correctionRequestedAt: iso(s.correctionRequestedAt),
+    invitation: {
+      id: s.invitation.id,
+      status: s.invitation.status,
+      note: s.invitation.note,
+      createdBy: person(s.invitation.createdByAdminId),
+      createdAt: s.invitation.createdAt.toISOString(),
+      uploadExpiresAt: s.invitation.uploadExpiresAt.toISOString(),
+      uploadExpired: uploadExpired(s.invitation, now),
+      resultExpiresAt: iso(s.invitation.resultExpiresAt),
+      revokedAt: iso(s.invitation.revokedAt),
+      revokedBy: person(s.invitation.revokedByAdminId),
+      hasAccessCode: s.invitation.accessCodeHash != null,
+      accessCodeLocked: s.invitation.accessCodeLockedAt != null,
+      accessCodeFailures: s.invitation.accessCodeFailures,
+      accessCodeNeedsReset: s.invitation.accessCodeLockedAt != null || s.invitation.accessCodeFailures >= ACCESS_CODE_MAX_FAILURES,
+      limits: intakeLimits(s.invitation),
+    },
+    assets,
+    revisions: s.revisions.map((r) => ({
+      id: r.id,
+      number: r.number,
+      status: r.status,
+      failureCode: r.failureCode,
+      athleteName: r.athleteName,
+      finalizedAt: r.finalizedAt.toISOString(),
+      settledAt: iso(r.settledAt),
+      current: r.id === s.currentRevisionId,
+    })),
+    consents: consents.map((c) => ({
+      id: c.id,
+      kind: c.kind,
+      granted: c.granted,
+      docVersion: c.docVersion,
+      proxy: c.proxy,
+      relation: c.relation,
+      agreedAt: c.agreedAt.toISOString(),
+      withdrawnAt: iso(c.withdrawnAt),
+    })),
+    consentsHidden: Math.max(0, consentTotal - consents.length),
+    consentRequiredOk: hasRequiredConsents(decision, s.submitterRelation),
+    modelUseAllowed: modelUseAllowed(decision, s.submitterRelation),
+    modelConsentOpen: latestConsents(decision).get('model')?.granted === true,
+    publications: s.publications.map((p) => ({
+      id: p.id,
+      number: p.number,
+      runId: p.runId,
+      active: p.activeFor != null,
+      explanation: p.explanation,
+      publishedAt: p.publishedAt.toISOString(),
+      publishedBy: person(p.publishedByAdminId) ?? '알 수 없는 관리자',
+      unpublishedAt: iso(p.unpublishedAt),
+      unpublishedBy: person(p.unpublishedByAdminId),
+    })),
+    activePublicationId: s.publications.find((p) => p.activeFor != null)?.id ?? null,
+    jobIssues,
+    retention: plan ? { purgeAt: plan.purgeAt.toISOString(), anchorAt: plan.anchorAt.toISOString(), basis: plan.basis, purgedAt: iso(purgedAt), heldUntil: iso(heldUntil) } : null,
+    notes: s.notes.map((n) => ({
+      id: n.id,
+      body: n.body,
+      authorId: n.adminId,
+      author: person(n.adminId) ?? '알 수 없는 관리자',
+      mine: n.adminId === actor.id,
+      createdAt: n.createdAt.toISOString(),
+    })),
+    audit: audit.map((a) => ({
+      id: a.id,
+      action: a.action,
+      actor: a.actorKind === 'admin' ? (person(a.actorId) ?? '알 수 없는 관리자') : a.actorKind === 'invitee' ? '보내는 분' : '시스템',
+      actorKind: a.actorKind,
+      detail: (a.detail as Record<string, unknown> | null) ?? null,
+      createdAt: a.createdAt.toISOString(),
+    })),
+  };
+}
+
+/* ────────────────────────────── 초대 ────────────────────────────── */
+
+export type AdminInvitationInput = {
+  note?: string | null;
+  /** 올리기 기간(일) — 비우면 기본값 */
+  uploadDays?: number | null;
+  /** 결과 보기 기간(일) — 비우면 만료 없음 */
+  resultDays?: number | null;
+  accessCode?: string | null;
+  maxFileBytes?: number | null;
+  maxTotalBytes?: number | null;
+};
+
+const wholeInRange = (v: number, min: number, max: number) => Number.isInteger(v) && v >= min && v <= max;
+
+/** 초대를 만든다 — 돌려준 토큰은 이 응답에서만 볼 수 있다. 저장 · 기록하지 말 것 */
+export async function adminCreateInvitation(db: Db, actor: IntakeActor, input: AdminInvitationInput, now: Date = new Date()): Promise<CreatedInvitation> {
+  assertIntakeAdmin(actor);
+  if (input.uploadDays != null && !wholeInRange(input.uploadDays, 1, MAX_UPLOAD_DAYS)) throw new IntakeError('invalid_input', { field: 'uploadDays', max: MAX_UPLOAD_DAYS });
+  if (input.resultDays != null && !wholeInRange(input.resultDays, 1, MAX_RESULT_DAYS)) throw new IntakeError('invalid_input', { field: 'resultDays', max: MAX_RESULT_DAYS });
+  /* 한도는 버킷 한도 안에서만 — 프로젝트 전체 한도가 더 낮으면 저장소가 막는다(lib/intake/limits.ts) */
+  if (input.maxFileBytes != null && !wholeInRange(input.maxFileBytes, MIN_LIMIT_BYTES, INTAKE_BUCKET_MAX_BYTES)) throw new IntakeError('invalid_input', { field: 'maxFileBytes', max: INTAKE_BUCKET_MAX_BYTES });
+  if (input.maxTotalBytes != null && !wholeInRange(input.maxTotalBytes, MIN_LIMIT_BYTES, 2 * INTAKE_BUCKET_MAX_BYTES)) throw new IntakeError('invalid_input', { field: 'maxTotalBytes', max: 2 * GIB });
+  if (input.maxFileBytes != null && input.maxTotalBytes != null && input.maxTotalBytes < input.maxFileBytes) throw new IntakeError('invalid_input', { field: 'maxTotalBytes' });
+  const uploadExpiresAt = input.uploadDays != null ? new Date(now.getTime() + input.uploadDays * DAY_MS) : undefined;
+  const resultExpiresAt = input.resultDays != null ? new Date(now.getTime() + input.resultDays * DAY_MS) : null;
+  if (uploadExpiresAt && resultExpiresAt && resultExpiresAt < uploadExpiresAt) throw new IntakeError('invalid_input', { field: 'resultDays' });
+  return createInvitation(
+    db,
+    {
+      adminId: actor.id,
+      note: input.note ?? null,
+      uploadExpiresAt,
+      resultExpiresAt,
+      accessCode: input.accessCode?.trim() ? input.accessCode.trim() : null,
+      maxFileBytes: input.maxFileBytes ?? null,
+      maxTotalBytes: input.maxTotalBytes ?? null,
+    },
+    now,
+  );
+}
+
+/**
+ * 초대를 폐기한다 — 새 토큰 · 완료 · 결과 보기 · 새 분석이 막힌다. 두 번 눌러도 처음 시각이 남는다.
+ * 동의 철회는 아니다 — 원본은 계속 열리고, 돌던 분석은 끝까지 받는다. 받는 사람이 철회를 알렸으면 adminWithdrawConsent 로 따로 남긴다.
+ * 이미 낸 전송 토큰은 저장소에서 바로 거둘 수 없어 수명까지 산다(docs/designs/external-intake.md).
+ */
+export async function adminRevokeInvitation(db: Db, actor: IntakeActor, input: { submissionId: string }, now: Date = new Date()): Promise<{ revoked: boolean }> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  return db.$transaction(async (tx) => {
+    const sub = await tx.intakeSubmission.findUnique({ where: { id: input.submissionId }, select: { id: true, invitationId: true } });
+    if (!sub) throw new IntakeError('submission_not_found');
+    const moved = await tx.intakeInvitation.updateMany({
+      where: { id: sub.invitationId, status: 'active' },
+      data: { status: 'revoked', revokedAt: now, revokedByAdminId: actor.id },
+    });
+    if (moved.count === 0) return { revoked: false };
+    await writeAudit(tx, { actor: { kind: 'admin', id: actor.id }, action: 'invitation.revoked', invitationId: sub.invitationId, submissionId: sub.id }, now);
+    return { revoked: true };
+  });
+}
+
+/* ────────────────────────────── 담당자 ────────────────────────────── */
+
+export type AssignInput = {
+  submissionId: string;
+  assigneeId: string | null;
+  /** 화면이 알던 담당자 — 그사이 바뀌었으면 막는다 */
+  expectedAssigneeId: string | null;
+};
+
+/** 비교 후 교체 — 두 관리자가 동시에 눌러도 하나만 된다. 진 쪽은 'stale_assignee'(지금 담당자를 detail 로) */
+export async function assignSubmission(db: Db, actor: IntakeActor, input: AssignInput, now: Date = new Date()): Promise<{ assigneeId: string | null; changed: boolean }> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  if (input.assigneeId != null) {
+    const person = await db.user.findUnique({ where: { id: input.assigneeId }, select: { role: true } });
+    if (!person || !can(person.role, 'intake')) throw new IntakeError('invalid_input', { field: 'assigneeId' });
+  }
+  return db.$transaction(async (tx) => {
+    const moved = await tx.intakeSubmission.updateMany({
+      where: { id: input.submissionId, assigneeAdminId: input.expectedAssigneeId },
+      data: { assigneeAdminId: input.assigneeId },
+    });
+    if (moved.count === 0) {
+      const sub = await tx.intakeSubmission.findUnique({ where: { id: input.submissionId }, select: { assigneeAdminId: true } });
+      if (!sub) throw new IntakeError('submission_not_found');
+      /* 같은 사람을 또 눌렀다 — 이미 된 일이다 */
+      if (sub.assigneeAdminId === input.assigneeId) return { assigneeId: input.assigneeId, changed: false };
+      throw new IntakeError('stale_assignee', { currentAssigneeId: sub.assigneeAdminId });
+    }
+    await writeAudit(tx, { actor: { kind: 'admin', id: actor.id }, action: 'assignee.changed', submissionId: input.submissionId, detail: { from: input.expectedAssigneeId, to: input.assigneeId } }, now);
+    await touchRead(tx, actor.id, input.submissionId);
+    return { assigneeId: input.assigneeId, changed: true };
+  });
+}
+
+/* ────────────────────────────── 읽음(관리자별) ────────────────────────────── */
+
+/** 내가 방금 한 일로 '안 읽음'이 되지 않게 — 읽은 시각은 실제 지금이다(updatedAt 이 실제 시각이라 견줄 수 있어야 한다) */
+async function touchRead(db: Db | Tx, adminId: string, submissionId: string): Promise<void> {
+  const readAt = new Date();
+  await db.intakeAdminRead.upsert({
+    where: { submissionId_adminId: { submissionId, adminId } },
+    create: { submissionId, adminId, readAt },
+    update: { readAt },
+  });
+}
+
+/** 이 관리자의 읽음만 바꾼다 */
+export async function markIntakeRead(db: Db, actor: IntakeActor, submissionId: string): Promise<void> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(submissionId);
+  if (!(await db.intakeSubmission.count({ where: { id: submissionId } }))) throw new IntakeError('submission_not_found');
+  try {
+    await touchRead(db, actor.id, submissionId);
+  } catch (e) {
+    /* 탭 두 개가 같은 순간에 처음 읽으면 한쪽이 유일 제약에 걸린다 — 어차피 읽은 것이다 */
+    if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e;
+  }
+}
+
+export async function markIntakeUnread(db: Db, actor: IntakeActor, submissionId: string): Promise<void> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(submissionId);
+  await db.intakeAdminRead.deleteMany({ where: { submissionId, adminId: actor.id } });
+}
+
+/* ────────────────────────────── 내부 메모 ────────────────────────────── */
+
+function cleanNote(raw: unknown): string {
+  if (typeof raw !== 'string') throw new IntakeError('invalid_input', { field: 'note' });
+  const body = raw.normalize('NFC').replace(/[^\P{C}\n]/gu, '').trim();
+  if (!body || [...body].length > MAX_NOTE_CHARS) throw new IntakeError('invalid_input', { field: 'note', max: MAX_NOTE_CHARS });
+  return body;
+}
+
+export async function addIntakeNote(db: Db, actor: IntakeActor, input: { submissionId: string; body: string }, now: Date = new Date()): Promise<{ id: string }> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  const body = cleanNote(input.body);
+  return db.$transaction(async (tx) => {
+    if (!(await tx.intakeSubmission.count({ where: { id: input.submissionId } }))) throw new IntakeError('submission_not_found');
+    const note = await tx.intakeAdminNote.create({ data: { submissionId: input.submissionId, adminId: actor.id, body, createdAt: now } });
+    /* 메모 내용은 감사 기록에 넣지 않는다 */
+    await writeAudit(tx, { actor: { kind: 'admin', id: actor.id }, action: 'note.added', submissionId: input.submissionId, detail: { noteId: note.id } }, now);
+    return { id: note.id };
+  });
+}
+
+/** 메모를 숨긴다 — 쓴 사람만. 줄은 남는다 */
+export async function deleteIntakeNote(db: Db, actor: IntakeActor, input: { submissionId: string; noteId: string }, now: Date = new Date()): Promise<void> {
+  assertIntakeAdmin(actor);
+  await db.$transaction(async (tx) => {
+    const moved = await tx.intakeAdminNote.updateMany({
+      where: { id: input.noteId, submissionId: input.submissionId, adminId: actor.id, deletedAt: null },
+      data: { deletedAt: now },
+    });
+    if (moved.count === 0) throw new IntakeError('note_not_found');
+    await writeAudit(tx, { actor: { kind: 'admin', id: actor.id }, action: 'note.deleted', submissionId: input.submissionId, detail: { noteId: input.noteId } }, now);
+  });
+}
+
+/* ────────────────────────────── 고침 요청 ────────────────────────────── */
+
+export type AdminCorrectionInput = {
+  submissionId: string;
+  expectedVersion: number;
+  fields?: readonly string[];
+  views?: readonly string[];
+  message?: string | null;
+  /** 올리기 기간을 오늘부터 며칠 늘릴까 */
+  extendDays?: number | null;
+};
+
+/** 요청한 칸만 다시 연다. 올리기 기간이 끝났는데 안 늘리면 받는 사람이 못 고치니 막는다 */
+export async function adminRequestCorrection(db: Db, actor: IntakeActor, input: AdminCorrectionInput, now: Date = new Date()): Promise<{ version: number }> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  if (input.extendDays != null && !wholeInRange(input.extendDays, 1, MAX_UPLOAD_DAYS)) throw new IntakeError('invalid_input', { field: 'extendDays', max: MAX_UPLOAD_DAYS });
+  const fields = (input.fields ?? []).filter((f): f is CorrectableField => (CORRECTABLE_FIELDS as readonly string[]).includes(f));
+  const views = (input.views ?? []).filter(isIntakeView);
+  if (fields.length !== (input.fields ?? []).length || views.length !== (input.views ?? []).length) throw new IntakeError('invalid_input', { field: 'correction' });
+
+  const sub = await db.intakeSubmission.findUnique({ where: { id: input.submissionId }, select: { invitation: { select: { uploadExpiresAt: true } } } });
+  if (!sub) throw new IntakeError('submission_not_found');
+  const extendUploadUntil = input.extendDays != null ? new Date(now.getTime() + input.extendDays * DAY_MS) : undefined;
+  if (uploadExpired(sub.invitation, now) && !extendUploadUntil) throw new IntakeError('invalid_input', { field: 'extendDays' });
+
+  const result = await requestCorrection(db, { adminId: actor.id, submissionId: input.submissionId, fields, views, message: input.message, extendUploadUntil, expectedVersion: input.expectedVersion }, now);
+  await touchRead(db, actor.id, input.submissionId);
+  return result;
+}
+
+/** 고침 요청을 거둔다 — 접수는 지금 판의 상태로 돌아간다 */
+export async function adminCancelCorrection(db: Db, actor: IntakeActor, input: { submissionId: string; expectedVersion: number }, now: Date = new Date()): Promise<{ version: number; status: string }> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  const result = await cancelCorrection(db, { adminId: actor.id, submissionId: input.submissionId, expectedVersion: input.expectedVersion }, now);
+  await touchRead(db, actor.id, input.submissionId);
+  return result;
+}
+
+/** 올리기 기간을 오늘부터 며칠로 늘린다 — 초안 · 고침 중에만 뜻이 있다 */
+export async function adminExtendUploadWindow(db: Db, actor: IntakeActor, input: { submissionId: string; days: number }, now: Date = new Date()): Promise<{ uploadExpiresAt: string }> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  if (!wholeInRange(input.days, 1, MAX_UPLOAD_DAYS)) throw new IntakeError('invalid_input', { field: 'days', max: MAX_UPLOAD_DAYS });
+  const result = await extendUploadWindow(db, { adminId: actor.id, submissionId: input.submissionId, until: new Date(now.getTime() + input.days * DAY_MS) }, now);
+  await touchRead(db, actor.id, input.submissionId);
+  return result;
+}
+
+/** 틀린 코드로 잠긴 결과 보기를 푼다 — 코드는 안 바뀐다 */
+export async function adminResetAccessCodeLock(db: Db, actor: IntakeActor, input: { submissionId: string }, now: Date = new Date()): Promise<{ reset: boolean }> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  const result = await resetAccessCodeLock(db, { adminId: actor.id, submissionId: input.submissionId }, now);
+  await touchRead(db, actor.id, input.submissionId);
+  return result;
+}
+
+/**
+ * 받는 사람이 담당자에게 알린 필수 동의 철회를 남긴다 — 동의 글이 약속한 길이다. 관리자 동의로 대신하는 일이 아니라, 받은 요청을 적는 일이다.
+ * 동의 줄 · 접수 · 공개가 한 트랜잭션에서 닫힌다(service.ts). 그 뒤로 새 분석 · 공개 · 원본 주소 · 미리보기가 막힌다.
+ * 이미 돌던 분석은 멈출 수 없어서, 일꾼이 결과를 읽지 않고 실패로 닫는다(analysis.ts). 원본은 보유 기간 규칙대로 나중에 지운다. 모델 개발 동의는 함께 거두지 않는다.
+ */
+export async function adminWithdrawConsent(db: Db, actor: IntakeActor, input: { submissionId: string; note?: string | null }, now: Date = new Date()): Promise<{ withdrawn: boolean; unpublished: boolean }> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  const result = await withdrawRequiredConsent(db, { adminId: actor.id, submissionId: input.submissionId, note: input.note ?? null }, now);
+  await touchRead(db, actor.id, input.submissionId);
+  return result;
+}
+
+/**
+ * 받는 사람이 알린 모델 개발 동의 철회를 남긴다. 링크가 폐기됐으면 받는 사람의 화면이 없어서 이 길뿐이다.
+ * 필수 동의 철회와 묶지 않는다 — 따로 남긴다고 사람이 정했다(2026-11-06). 동의 글이 그렇게 말한다.
+ */
+export async function adminWithdrawModelConsent(db: Db, actor: IntakeActor, input: { submissionId: string; note?: string | null }, now: Date = new Date()): Promise<{ withdrawn: boolean }> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  const result = await withdrawModelConsentForInvitee(db, { adminId: actor.id, submissionId: input.submissionId, note: input.note ?? null }, now);
+  await touchRead(db, actor.id, input.submissionId);
+  return result;
+}
+
+/**
+ * '다시 확인' — 멈춘 검증 · 등록을 다시 건다. 자산을 주면 그 하나, 안 주면 지금 판의 두 파일과 칸의 파일(고침 중 새로 고른 것), 등록 일감이다.
+ * 끝난 자산은 다시 재지 않는다. 이 접수의 자산이 아니면 없는 것으로 나온다.
+ */
+export async function adminRequeueVerification(db: Db, actor: IntakeActor, input: { submissionId: string; assetId?: string }, now: Date = new Date()): Promise<{ requeued: number }> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  const sub = await db.intakeSubmission.findUnique({ where: { id: input.submissionId } });
+  if (!sub) throw new IntakeError('submission_not_found');
+  if (sub.status === 'withdrawn') throw new IntakeError('original_locked');
+
+  let requeued = 0;
+  if (input.assetId !== undefined) {
+    if (!isIntakeId(input.assetId) || !(await db.intakeAsset.count({ where: { id: input.assetId, submissionId: sub.id } }))) throw new IntakeError('asset_not_found');
+    if ((await requeueVerification(db, { adminId: actor.id, assetId: input.assetId }, now)).requeued) requeued++;
+  } else {
+    const revision = sub.currentRevisionId ? await db.intakeRevision.findUnique({ where: { id: sub.currentRevisionId } }) : null;
+    const open = await db.intakeAsset.findMany({ where: { id: { in: verifyTargetIds(sub, revision) }, submissionId: sub.id, status: { in: ['uploaded', 'verifying'] } }, select: { id: true } });
+    for (const a of open) if ((await requeueVerification(db, { adminId: actor.id, assetId: a.id }, now)).requeued) requeued++;
+    if (revision && (await requeueJob(db, `register_revision:${revision.id}`, now))) {
+      requeued++;
+      await writeAudit(db, { actor: { kind: 'admin', id: actor.id }, action: 'revision.register_requeued', submissionId: sub.id, detail: { revision: revision.number } }, now);
+    }
+  }
+  await touchRead(db, actor.id, input.submissionId);
+  return { requeued };
+}
+
+/* ────────────────────────────── 원본 주소 ────────────────────────────── */
+
+export type OriginalPurpose = 'preview' | 'download';
+
+export type OriginalLink = {
+  assetId: string;
+  view: IntakeView;
+  /** 내려받기 이름 — athlete_receipt-date_receipt-id_side-or-rear_original.ext */
+  fileName: string;
+  url: string;
+  expiresInSec: number;
+};
+
+export type OriginalLinksInput = {
+  submissionId: string;
+  purpose: OriginalPurpose;
+  /** 자산 하나 — 비우면 얼린 짝(없으면 지금 고른 짝) 둘 */
+  assetId?: string;
+};
+
+/**
+ * 원본의 짧은 서명 주소를 준다. 묶음을 만들지 않는다 — 짝이면 주소 둘이다. 주소를 낼 때마다 감사 기록을 남긴다(주소 자체는 안 남긴다).
+ * 동의를 거둔 접수는 원본을 열지 않는다. 보유 기간이 끝나 지운 원본은 'original_purged' 로 막는다.
+ */
+export async function issueOriginalLinks(db: Db, storage: IntakeStorage, actor: IntakeActor, input: OriginalLinksInput, now: Date = new Date()): Promise<OriginalLink[]> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  if (input.purpose !== 'preview' && input.purpose !== 'download') throw new IntakeError('invalid_input', { field: 'purpose' });
+  const sub = await db.intakeSubmission.findUnique({ where: { id: input.submissionId } });
+  if (!sub) throw new IntakeError('submission_not_found');
+  if (sub.status === 'withdrawn') throw new IntakeError('original_locked');
+
+  const revision = sub.currentRevisionId ? await db.intakeRevision.findUnique({ where: { id: sub.currentRevisionId } }) : null;
+  let wanted: string[];
+  if (input.assetId) {
+    if (!isIntakeId(input.assetId)) throw new IntakeError('asset_not_found');
+    wanted = [input.assetId];
+  } else {
+    const side = revision?.sideAssetId ?? sub.sideAssetId;
+    const rear = revision?.rearAssetId ?? sub.rearAssetId;
+    if (!side || !rear) throw new IntakeError('assets_incomplete');
+    wanted = [side, rear];
+  }
+  /* submissionId 로 묶어 찾는다 — 다른 접수의 번호는 없는 것으로 나온다 */
+  const rows = await db.intakeAsset.findMany({ where: { id: { in: wanted }, submissionId: sub.id } });
+  if (rows.length !== wanted.length) throw new IntakeError('asset_not_found');
+  const assets = wanted.map((id) => rows.find((r) => r.id === id)!);
+  if (assets.some((a) => a.status === 'purged')) throw new IntakeError('original_purged');
+  if (!assets.every(hasBytes)) throw new IntakeError('original_unavailable');
+
+  const links: OriginalLink[] = [];
+  for (const a of assets) {
+    const view = a.view as IntakeView;
+    const facts = a.mediaFacts as IntakeMediaFacts | null;
+    const fileName = downloadFileName({
+      athleteName: revision?.athleteName ?? sub.athleteName ?? 'athlete',
+      receivedAt: sub.receivedAt ?? a.createdAt,
+      receiptCode: sub.receiptCode ?? 'draft',
+      view,
+      ext: originalExtension(facts?.container, a.originalName),
+    });
+    const url = await storage.readUrl(a.objectPath, { ttlSec: READ_URL_TTL_SEC, ...(input.purpose === 'download' ? { download: fileName } : {}) });
+    links.push({ assetId: a.id, view, fileName, url, expiresInSec: READ_URL_TTL_SEC });
+  }
+  await db.$transaction(async (tx) => {
+    for (const l of links) {
+      await writeAudit(tx, { actor: { kind: 'admin', id: actor.id }, action: `original.${input.purpose}_issued`, submissionId: sub.id, detail: { assetId: l.assetId, view: l.view } }, now);
+    }
+  });
+  return links;
+}
+
+/**
+ * 실행이 만든 미리보기 영상의 주소 — 브라우저가 못 푸는 HEVC/MOV 를 볼 때 쓴다. 원본을 대신하지 않는다. 실행이 성공했는지는 안 본다(실패한 실행의 영상도 관리자에게는 쓸모가 있다).
+ * 분석을 안 돌린 접수에는 없다 — 영상을 바꿔 구울 수 있는 곳이 분석 서버뿐이라, 분석 전 미리보기는 만들지 않았다(대조표 '원본 처리').
+ * 경로는 실행 줄에서 서버가 읽는다. 화면이 경로를 보내지 않는다.
+ */
+export async function issueRunPreviewLink(
+  db: Db,
+  storage: IntakeStorage,
+  actor: IntakeActor,
+  input: { submissionId: string; runId: string; view: IntakeView },
+  now: Date = new Date(),
+): Promise<{ url: string; expiresInSec: number }> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  if (!isIntakeView(input.view) || !isIntakeId(input.runId)) throw new IntakeError('invalid_input', { field: 'preview' });
+  const sub = await db.intakeSubmission.findUnique({ where: { id: input.submissionId }, select: { status: true } });
+  if (!sub) throw new IntakeError('submission_not_found');
+  if (sub.status === 'withdrawn') throw new IntakeError('original_locked');
+  const run = await db.intakeAnalysisRun.findFirst({ where: { id: input.runId, submissionId: input.submissionId }, select: { resultMeta: true, revision: { select: { sideAssetId: true, rearAssetId: true } } } });
+  /* 미리보기는 원본과 같이 지운다. 파일이 없다고만 말하면 까닭을 모른다 */
+  if (run && (await db.intakeAsset.count({ where: { id: { in: [run.revision.sideAssetId, run.revision.rearAssetId] }, status: 'purged' } })) > 0) throw new IntakeError('original_purged');
+  const previews = (run?.resultMeta as { previews?: Partial<Record<IntakeView, unknown>> } | null | undefined)?.previews;
+  const path = previews?.[input.view];
+  if (typeof path !== 'string' || !isSubmissionPath(path, input.submissionId)) throw new IntakeError('original_unavailable');
+  /* 실패한 실행도 굽다 만 영상이 있으면 보여 준다. 만들어지기 전에 끝난 실행에는 파일이 없다 */
+  if (!(await storage.stat(path))) throw new IntakeError('original_unavailable');
+  const url = await storage.readUrl(path, { ttlSec: READ_URL_TTL_SEC });
+  await writeAudit(db, { actor: { kind: 'admin', id: actor.id }, action: 'preview.issued', submissionId: input.submissionId, detail: { runId: input.runId, view: input.view } }, now);
+  return { url, expiresInSec: READ_URL_TTL_SEC };
+}

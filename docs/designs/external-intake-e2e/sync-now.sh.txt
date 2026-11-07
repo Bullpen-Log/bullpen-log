@@ -1,0 +1,9 @@
+#!/bin/zsh
+# 지금 작업 트리를 격리 복사본 둘에 맞춘다. .env 는 옮기지 않는다. 복사본 전용 파일(e2e-harness, iso-*, iso-login)은 남는다.
+set -e
+S=/tmp/intake-rig
+cd /Users/yuno/Developer/bullpen-log
+for C in $S/intake-e2e/clone $S/iso-admin; do
+  rsync -a --exclude='.env*' --exclude='api/iso-login' app components lib proxy.ts prisma scripts package.json package-lock.json $C/
+  sed -i '' 's/max: 8, idleTimeoutMillis/max: 1, idleTimeoutMillis/' $C/lib/prisma.ts
+done

@@ -1,0 +1,108 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { PGlite } from '@electric-sql/pglite';
+import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { adminCreateInvitation, adminRevokeInvitation, addIntakeNote, assignSubmission } from '@/lib/intake/admin';
+import { assetObjectPath } from '@/lib/intake/paths';
+import { INTAKE_CONSENT_DOCS } from '@/lib/intake/consent';
+/* prisma 명령 없이 저장소의 마이그레이션 SQL 을 차례로 깐다 */
+const pg = await PGlite.create();
+await pg.exec('CREATE TABLE "_prisma_migrations" (id text, migration_name text, finished_at timestamptz, rolled_back_at timestamptz, started_at timestamptz, checksum text, logs text, applied_steps_count int)');
+for (const d of readdirSync('prisma/migrations').filter((x) => /^\d/.test(x)).sort()) await pg.exec(readFileSync(`prisma/migrations/${d}/migration.sql`, 'utf8'));
+const server = new PGLiteSocketServer({ db: pg, port: 54329, host: '127.0.0.1', maxConnections: 40 } as never);
+await server.start();
+const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: 'postgresql://postgres@127.0.0.1:54329/postgres?sslmode=disable', max: 1 }) });
+const mk = (id: string, nickname: string, role: 'ADMIN' | 'USER' | 'MANAGER') => db.user.create({ data: { id, email: `${nickname}@iso.test`, password: 'x', nickname, role, pitchSetupAt: new Date(), trainingSetupAt: new Date(), sinkerStartedAt: new Date() } });
+const A = await mk('11111111-1111-4111-8111-111111111111', '금윤호', 'ADMIN');
+const B = await mk('22222222-2222-4222-8222-222222222222', '김민', 'ADMIN');
+await mk('33333333-3333-4333-8333-333333333333', '일반', 'USER');
+await mk('44444444-4444-4444-8444-444444444444', '준관리', 'MANAGER');
+const a = { id: A.id, role: 'ADMIN' }, b = { id: B.id, role: 'ADMIN' };
+const now = new Date();
+const facts = (fps: number) => ({ container: 'mov', brand: 'qt', hasVideo: true, codec: 'hvc1', width: 1920, height: 1080, rotation: 90, frameCount: 960, sampleDurationSec: 4.0, playbackDurationSec: 18.2, averageFps: fps - 0.24, nominalFps: fps, frameTiming: 'constant', editList: { present: true, segments: 3, retimed: true, shiftSec: 0 }, captureAtMs: now.getTime(), captureSource: 'apple', make: 'Apple', model: 'iPhone 15 Pro', hasLensInfo: true });
+async function asset(sid: string, view: string, status: string, extra = {}) {
+  const id = crypto.randomUUID();
+  await db.intakeAsset.create({ data: { id, submissionId: sid, view, objectPath: assetObjectPath(sid, id), status, originalName: `IMG_${view === 'side' ? 1042 : 1043}.MOV`, declaredType: 'video/quicktime', declaredSize: 734003200n, clientSha256: (view === 'side' ? 'ab' : 'cd').repeat(32), serverSha256: status === 'verified' ? (view === 'side' ? 'ab' : 'cd').repeat(32) : null, storedBytes: status === 'verified' ? 734003200n : null, uploadedAt: status === 'verified' || status === 'rejected' ? now : null, mediaFacts: status === 'verified' ? facts(240) : undefined, captureAt: status === 'verified' ? now : null, captureAtSource: status === 'verified' ? 'apple' : null, rejectCode: status === 'rejected' ? 'hash_mismatch' : null, ...extra } });
+  await db.intakeSubmission.update({ where: { id: sid }, data: { [view === 'side' ? 'sideAssetId' : 'rearAssetId']: id } });
+  return id;
+}
+async function sub(o: { name?: string | null; status?: string; analysis?: string; pub?: string; note?: string; hours?: number; code?: string; hand?: string | null; revision?: boolean }) {
+  const inv = await adminCreateInvitation(db, a, { note: o.note ?? null, accessCode: o.code ?? null });
+  const receivedAt = o.status === 'draft' ? null : new Date(now.getTime() - (o.hours ?? 1) * 3600e3);
+  await db.intakeSubmission.update({ where: { id: inv.submissionId }, data: { athleteName: o.name === undefined ? '이름' : o.name, status: o.status ?? 'verified', analysisStatus: o.analysis ?? 'none', publicationStatus: o.pub ?? 'unpublished', receivedAt, receiptCode: receivedAt ? `IN-261106-${crypto.randomUUID().slice(0, 6).toUpperCase()}` : null, throwingHand: o.hand === undefined ? 'R' : o.hand, athleteAgeBand: '14_or_over', samePitchConfirmed: true, submitterRelation: 'coach', submitterName: '박코치' } });
+  return inv.submissionId;
+}
+const s1 = await sub({ name: '김서준', analysis: 'succeeded', pub: 'published', hours: 2, note: '○○고 투수', code: 'abcd-1234' });
+const s1a = await asset(s1, 'side', 'verified'); const s1b = await asset(s1, 'rear', 'verified');
+const rev = await db.intakeRevision.create({ data: { submissionId: s1, number: 1, sideAssetId: s1a, rearAssetId: s1b, athleteName: '김서준', submitterRelation: 'coach', consentSnapshot: [], finalizeKey: 'k'.repeat(16), status: 'verified', finalizedAt: now, settledAt: now } });
+await db.intakeSubmission.update({ where: { id: s1 }, data: { currentRevisionId: rev.id, lastFinalizedAt: now } });
+const r1 = await db.intakeAnalysisRun.create({ data: { submissionId: s1, revisionId: rev.id, engineKey: '2.0.0+7897975fbc95', status: 'succeeded', resultPath: 'x', resultMeta: { frames: 372, previews: { side: `sub/${s1}/runs/x/preview-side.mp4`, rear: `sub/${s1}/runs/x/preview-rear.mp4` } }, finishedAt: now } });
+await db.intakeAnalysisRun.create({ data: { submissionId: s1, revisionId: rev.id, engineKey: '2.0.0+older', status: 'failed', failureCode: 'framing', failureDetail: '투수가 작게 찍혔어요', finishedAt: now, requestedAt: new Date(now.getTime() - 86400e3) } });
+await db.intakeAnalysisRun.create({ data: { submissionId: s1, revisionId: rev.id, engineKey: '2.0.0+newer', status: 'succeeded', resultPath: 'y', finishedAt: now } });
+await db.intakePublication.create({ data: { submissionId: s1, runId: r1.id, number: 1, activeFor: s1, explanation: '착지 때 앞발 방향을 먼저 보세요.', publishedByAdminId: A.id, publishedAt: now } });
+await addIntakeNote(db, a, { submissionId: s1, body: '영상 화질 좋음. 뒤 카메라 기울기 확인 필요' });
+await addIntakeNote(db, b, { submissionId: s1, body: '다음 주 불펜 뒤에 다시 받기로 함' });
+await assignSubmission(db, b, { submissionId: s1, assigneeId: B.id, expectedAssigneeId: null });
+for (const [i, kind] of (['submission', 'overseas'] as const).entries()) await db.intakeConsent.create({ data: { submissionId: s1, kind, docVersion: `v${i}`, textHash: 'h', granted: true, proxy: true, relation: 'coach', agreedAt: now } });
+const s2 = await sub({ name: 'Liam O’Brien-Park', status: 'needs_attention', hours: 5, hand: null }); await asset(s2, 'side', 'verified'); await asset(s2, 'rear', 'rejected');
+const s3 = await sub({ name: '이도윤', status: 'submitted', hours: 1 }); await asset(s3, 'side', 'verifying'); await asset(s3, 'rear', 'uploaded');
+const s4 = await sub({ name: null, status: 'draft', note: '○○리틀 코치님 전달용' }); await asset(s4, 'side', 'uploading');
+const s5 = await sub({ name: '박지호', status: 'withdrawn', hours: 40 }); await asset(s5, 'side', 'verified'); await asset(s5, 'rear', 'verified'); await adminRevokeInvitation(db, b, { submissionId: s5 });
+await db.intakeConsent.create({ data: { submissionId: s5, kind: 'model', docVersion: 'v1', textHash: 'h', granted: true, relation: 'self', agreedAt: now } });
+await db.intakeAsset.updateMany({ where: { submissionId: s2, status: 'rejected' }, data: { rejectCode: 'unsupported_container' } });
+const s6 = await sub({ name: '최민재', status: 'verified', analysis: 'ready', hours: 9 }); await asset(s6, 'side', 'verified'); await asset(s6, 'rear', 'verified');
+const s7 = await sub({ name: '정우진', status: 'correction_requested', analysis: 'failed', hours: 11 }); await asset(s7, 'side', 'verified'); await asset(s7, 'rear', 'verified');
+await db.intakeSubmission.update({ where: { id: s7 }, data: { correction: { fields: ['athleteName'], views: ['rear'], message: '뒤 영상에서 투수 전신이 잘렸어요.' }, correctionRequestedAt: now } });
+for (let i = 0; i < 22; i++) await sub({ name: `시험선수${i + 1}`, status: 'verified', analysis: 'none', hours: 50 + i });
+
+/* S8SEED */
+const s8 = await sub({ name: '고침검사', status: 'needs_attention', analysis: 'none', hours: 3, code: 'abcd-1234' });
+const o1 = await asset(s8, 'side', 'replaced'); const o2 = await asset(s8, 'rear', 'replaced');
+const n1 = await asset(s8, 'side', 'verified'); const n2 = await asset(s8, 'rear', 'rejected', { rejectCode: 'not_video', verifiedAt: null, mediaFacts: { ...facts(240), container: 'unknown' } });
+const rv1 = await db.intakeRevision.create({ data: { submissionId: s8, number: 1, sideAssetId: o1, rearAssetId: o2, athleteName: '고침검사', submitterRelation: 'coach', consentSnapshot: [], finalizeKey: 'a'.repeat(16), status: 'verified', finalizedAt: now } as never });
+const rv2 = await db.intakeRevision.create({ data: { submissionId: s8, number: 2, sideAssetId: n1, rearAssetId: n2, athleteName: '고침검사', submitterRelation: 'coach', consentSnapshot: [], finalizeKey: 'b'.repeat(16), status: 'failed', failureCode: 'asset_rejected', finalizedAt: now } as never });
+await db.intakeSubmission.update({ where: { id: s8 }, data: { currentRevisionId: rv2.id, lastFinalizedAt: now } });
+const sub8 = await db.intakeSubmission.findUniqueOrThrow({ where: { id: s8 } });
+await db.intakeInvitation.update({ where: { id: sub8.invitationId }, data: { accessCodeFailures: 10, accessCodeLockedAt: now } });
+for (const [i, kind] of (['submission', 'overseas'] as const).entries()) await db.intakeConsent.create({ data: { submissionId: s8, kind, docVersion: `v${i}`, textHash: 'h', granted: true, relation: 'coach', proxy: false, agreedAt: now } as never });
+const a3 = await db.intakeAsset.findFirstOrThrow({ where: { submissionId: s3, view: 'side' } });
+await db.intakeJob.create({ data: { kind: 'verify_asset', dedupeKey: `verify_asset:${a3.id}`, payload: { assetId: a3.id }, status: 'failed', attempts: 8, maxAttempts: 8, lastError: 'storage 503 at https://x.test/secret?token=sig sub/abc/def/original', runAfter: now } as never });
+const inv4 = (await db.intakeSubmission.findUniqueOrThrow({ where: { id: s4 } })).invitationId;
+await db.intakeInvitation.update({ where: { id: inv4 }, data: { uploadExpiresAt: new Date(now.getTime() - 86400000) } });
+for (const [i, kind] of (['submission', 'overseas'] as const).entries()) await db.intakeConsent.create({ data: { submissionId: s4, kind, docVersion: `v${i}`, textHash: 'h', granted: true, relation: 'coach', proxy: false, agreedAt: now } as never });
+const a6 = await db.intakeAsset.findMany({ where: { submissionId: s6 } });
+const rv6 = await db.intakeRevision.create({ data: { submissionId: s6, number: 1, sideAssetId: a6.find((a) => a.view === 'side')!.id, rearAssetId: a6.find((a) => a.view === 'rear')!.id, athleteName: '최민재', submitterRelation: 'coach', consentSnapshot: [], finalizeKey: 'c'.repeat(16), status: 'verified', finalizedAt: now } as never });
+await db.intakeSubmission.update({ where: { id: s6 }, data: { currentRevisionId: rv6.id, lastFinalizedAt: now, throwingHand: 'R' } });
+await db.intakeAsset.update({ where: { id: a6.find((a) => a.view === 'side')!.id }, data: { mediaFacts: { ...facts(60), averageFps: 60, nominalFps: 60, frameTiming: 'variable', hasLensInfo: false, editList: { present: true, segments: 2, retimed: true, trimmed: false, shiftSec: 0 } } as never } });
+await db.intakeAnalysisRun.create({ data: { submissionId: s6, revisionId: rv6.id, engineKey: '2.0.0+fail', status: 'failed', failureCode: 'framing', failureDetail: '투수가 작아요', resultMeta: { previews: { side: `sub/${s6}/runs/x/preview-side.mp4`, rear: `sub/${s6}/runs/x/preview-rear.mp4` }, timingDropped: true }, finishedAt: now } as never });
+
+/* 마지막 고침을 보는 접수 */
+const withCode = async (name: string, failures: number, locked: boolean) => {
+  const id = await sub({ name, status: 'verified', hours: 4, code: 'abcd-1234' });
+  const row = await db.intakeSubmission.findUniqueOrThrow({ where: { id } });
+  await db.intakeInvitation.update({ where: { id: row.invitationId }, data: { accessCodeFailures: failures, accessCodeLockedAt: locked ? now : null } });
+  return id;
+};
+await withCode('잠금자리', 10, false);
+await withCode('코드틀림', 3, false);
+const consent = (submissionId: string, kind: string, granted: boolean, minutes: number, relation = 'coach') => { const doc = INTAKE_CONSENT_DOCS.find((d) => d.kind === kind)!; return db.intakeConsent.create({ data: { submissionId, kind, docVersion: doc.version, textHash: doc.textHash, granted, relation, proxy: relation !== 'self', agreedAt: new Date(now.getTime() + minutes * 60_000) } as never }); };
+const many = await sub({ name: '동의많음', status: 'verified', hours: 4 });
+await consent(many, 'submission', true, -9000); await consent(many, 'overseas', true, -9000);
+for (let i = 0; i < 130; i++) await consent(many, 'model', i % 2 === 1, -800 + i);
+const grantThenRefuse = await sub({ name: '모델거부뒤', status: 'verified', hours: 4 });
+await consent(grantThenRefuse, 'submission', true, -30); await consent(grantThenRefuse, 'overseas', true, -30);
+await consent(grantThenRefuse, 'model', true, -20); await consent(grantThenRefuse, 'model', false, -10);
+const refuseOnly = await sub({ name: '모델거부만', status: 'verified', hours: 4 });
+await consent(refuseOnly, 'submission', true, -30); await consent(refuseOnly, 'overseas', true, -30); await consent(refuseOnly, 'model', false, -10);
+const refuseThenGrant = await sub({ name: '모델재동의', status: 'verified', hours: 4 });
+await consent(refuseThenGrant, 'submission', true, -30); await consent(refuseThenGrant, 'overseas', true, -30);
+await consent(refuseThenGrant, 'model', false, -20); await consent(refuseThenGrant, 'model', true, -10);
+const otherRelation = await sub({ name: '모델다른관계', status: 'verified', hours: 4 });
+await consent(otherRelation, 'submission', true, -30); await consent(otherRelation, 'overseas', true, -30);
+await consent(otherRelation, 'model', true, -20, 'coach'); await consent(otherRelation, 'model', false, -10, 'self');
+console.log('new', JSON.stringify({ many, grantThenRefuse, refuseOnly, refuseThenGrant, otherRelation }));
+console.log('S8', s8, 's3', s3, 's4', s4, 's6', s6, 's7', s7);
+await db.$disconnect();
+console.log('ready', s1, s2, s6);
+await new Promise(() => {});

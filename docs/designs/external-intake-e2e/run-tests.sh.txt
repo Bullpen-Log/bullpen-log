@@ -1,0 +1,20 @@
+#!/bin/zsh
+cd /Users/yuno/Developer/bullpen-log
+O=$1
+: > $O/results.txt
+unset DATABASE_URL DIRECT_URL SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY
+r() { n=$1; shift; "$@" > $O/$n.log 2>&1; echo "$n exit $?" >> $O/results.txt; }
+NODE_OPTIONS=--max-old-space-size=8192 r tsc npx tsc --noEmit
+r eslint npx eslint app/\(intake\) app/\(app\)/admin/intake app/\(app\)/admin/page.tsx app/\(app\)/admin/dev3d/dev3d-client.tsx app/actions/intake-admin.ts app/api/intake app/api/cron/intake components/intake lib/intake lib/nav.ts lib/permissions.ts lib/pitch-lab-file.ts lib/release-access.ts lib/release-ops.ts proxy.ts app/robots.ts components/icon.tsx scripts/intake-admin-selftest.mts scripts/intake-analysis-selftest.mts scripts/intake-core-selftest.mts scripts/intake-db-selftest.mts scripts/intake-fixtures.mts scripts/intake-public-selftest.mts scripts/intake-transfer-selftest.mts scripts/release-access-selftest.mts
+r intake-core npm run -s intake:test
+r intake-db npm run -s intake:db-test
+r intake-admin npm run -s intake:admin-test
+r intake-transfer npm run -s intake:transfer-test
+r intake-public npm run -s intake:public-test
+r intake-analysis npm run -s intake:analysis-test
+r release-access npm run -s release-access:test
+r release-gate npm run -s release-gate:test
+r integration npm run -s integration:test
+r pitch-lab npm run -s pitch-lab:test
+r analysis-consent npm run -s analysis-consent:test
+echo done >> $O/results.txt
