@@ -101,6 +101,22 @@ await consent(refuseThenGrant, 'model', false, -20); await consent(refuseThenGra
 const otherRelation = await sub({ name: '모델다른관계', status: 'verified', hours: 4 });
 await consent(otherRelation, 'submission', true, -30); await consent(otherRelation, 'overseas', true, -30);
 await consent(otherRelation, 'model', true, -20, 'coach'); await consent(otherRelation, 'model', false, -10, 'self');
+/* 보유 삭제 화면 — 지운 접수 · 지우는 접수 · 분석 끝난 뒤 지운 접수 · 고침이 열린 지운 접수 */
+const past = new Date(now.getTime() - 91 * 86400e3);
+async function goneSub(name: string, st: [string, string], analysis = 'ready', status = 'verified') {
+  const id = await sub({ name, status, analysis, hours: 2200 });
+  const extra = (s: string) => (s === 'purged' ? { purgedAt: new Date(now.getTime() - 3600e3) } : {});
+  const a1 = await asset(id, 'side', st[0], extra(st[0]));
+  const a2 = await asset(id, 'rear', st[1], extra(st[1]));
+  const r = await db.intakeRevision.create({ data: { submissionId: id, number: 1, sideAssetId: a1, rearAssetId: a2, athleteName: name, submitterRelation: 'coach', consentSnapshot: [], finalizeKey: `k-${id}`, finalizedAt: past, status: 'verified', settledAt: past } as never });
+  await db.intakeSubmission.update({ where: { id }, data: { currentRevisionId: r.id, lastFinalizedAt: past, ...(status === 'correction_requested' ? { correction: { fields: [], views: ['side', 'rear'], message: '지운 칸을 다시 보내 주세요' } } : {}) } as never });
+  return id;
+}
+const gone1 = await goneSub('지운접수', ['purged', 'purged']);
+const gone2 = await goneSub('지우는접수', ['purging', 'purging']);
+const gone3 = await goneSub('분석끝지움', ['purged', 'purged'], 'succeeded');
+const gone4 = await goneSub('고침지움', ['purged', 'purged'], 'ready', 'correction_requested');
+console.log('gone', JSON.stringify({ gone1, gone2, gone3, gone4 }));
 console.log('new', JSON.stringify({ many, grantThenRefuse, refuseOnly, refuseThenGrant, otherRelation }));
 console.log('S8', s8, 's3', s3, 's4', s4, 's6', s6, 's7', s7);
 await db.$disconnect();

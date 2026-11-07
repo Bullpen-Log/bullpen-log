@@ -236,10 +236,12 @@
 | 참조를 보는 고아 정리 · 진행 중 전송 보호 | `cleanupStaleUploads` | `intake:db-test` | DONE |
 | 지울 날 규칙(공개 · 다시 냄 · 철회 · 경계) | `lib/intake/retention.ts` `originalRetention` · 한도 `limits.ts` | `intake:test`(날짜 경계 · 시계 다시 돌기 · 철회가 안 늦춤) · `intake:db-test` | DONE |
 | 받은 원본 삭제는 보유 기간 뒤 | `lib/intake/purge.ts`, 일감 `purge_originals`, 크론 `enqueueDuePurges`(한 번에 찾기 50 · 지우기 10). 모든 판의 원본 + 미리보기를 지우고 결과 JSON · DB 줄 · 해시 · 감사는 남긴다 | `intake:db-test`(90일 1ms 전 · 옛 판 · 미리보기 · 모델 동의 예외 없음 · 크론 끝까지 · 접수마다 감사 한 줄). **실제 Supabase `remove` · Vercel 크론으로는 안 봄** | UNVERIFIED (physical) |
-| 저장소 실패 · 재실행 | 지운 뒤 `stat` 으로 확인하고서야 'purged'. 실패는 던져 재시도, 시도를 다 쓰면 6시간마다 다시 건다 | `intake:db-test`(실패 · 일부만 지움 · 답만 하고 안 지움 · 다시 돌림) | DONE |
+| 삭제 시작 표시 · 틈 막기 | 자산 'purging' 을 커밋한 뒤에야 저장소를 부른다. 표시된 파일은 새 판 · 새 실행 · 공개 · 주소에 못 들어가고 'purged' 로만 간다 | `intake:db-test` · `intake:analysis-test`(공개 끼어들기 · 다시 내기 · 일감 재시도 틈 · 일꾼 둘) · `intake:retention-fuzz` | DONE |
+| 저장소 실패 · 재실행 | 지운 뒤 `stat` 으로 자산별로 확인하고서야 'purged'. 실패는 던져 재시도, 시도를 다 쓰면 6시간마다 다시 건다 | `intake:db-test`(실패 · 일부만 지움 · 답만 하고 안 지움 · 다시 돌림) | DONE |
 | 분석 · 검증 · 고침 중에는 기다림 | 대기 · 실행 · 시작 응답 모름 · 끝난 뒤 1시간 · 살아 있는 검증 일감 · 고칠 수 있는 고침(지울 날 + 14일까지) | `intake:db-test` | DONE. 고침 상한 14일 · 1시간은 구현이 정한 값이다(`external-intake.md`) |
 | 접수 폴더 밖은 못 지움 · 결과 JSON 보호 | `isPurgeablePath`, 어긋나면 저장소를 안 부르고 던진다 | `intake:test` · `intake:db-test` | DONE |
 | 철회한 접수의 판에 안 오른 파일 7일 뒤 삭제 | `cleanupStaleUploads`, 참조 다시 보기 유지, `IntakeSubmission.withdrawnAt` | `intake:db-test`(7일 1ms 전 · 7일 · 판에 얼린 자산은 안 지움) | DONE |
+| 지운 뒤 글 · 재동의 | `currentOriginalsGone` → 공개 상태 글 · 영수증 머리 · 재동의 · 고침 안내 줄. 목록 칩 · 확인창 | `intake:test`(글 격자) · `intake:db-test` · `detail.selftest` · 앱 브라우저(지운 · 지우는 중 · 분석 끝 · 실패 · 고침 · 다시 내기, 375 넘침 0) | DONE |
 | 지운 뒤 화면 · 동작 | 상세 '지워짐' · 내려받기 · 미리보기 꺼짐, 새 분석 `original_purged`, 공개 결과 그대로, 고침은 지운 칸을 넣어 새 파일을 받는다. 목록 · 상세 · 영수증에 날짜 | `intake:admin-test` · `intake:analysis-test` · `intake:db-test` · `detail.selftest`. **브라우저로는 안 봤다**: 목록 칸 · 영수증 줄 · 고침 화면의 칸 글은 코드 · 정적 그리기까지다 | UNVERIFIED (physical) |
 
 ## 디자인 · 접근성

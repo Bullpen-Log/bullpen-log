@@ -14,6 +14,8 @@ import { INTAKE_CONSENT_DOCS } from '@/lib/intake/consent';
 import { createInvitation, requestCorrection } from '@/lib/intake/service';
 import { mov120, mov240 } from './intake-fixtures.mts';
 import { publishRun, unpublish } from '@/lib/intake/publication';
+import { purgeSubmissionOriginals } from '@/lib/intake/purge';
+import { assetObjectPath } from '@/lib/intake/paths';
 import { createIntakeStorage } from '@/lib/intake/storage-core';
 import { runResultPath } from '@/lib/intake/analysis';
 import { fitPitch3dV2 } from '@/lib/pitch-3d/v2/fit';
@@ -21,9 +23,9 @@ import { base, cameras, EV } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
 
 const DB_PORT = 54399, ST_PORT = 54398;
-const dirs = readdirSync('prisma/migrations').filter((d) => d.endsWith('_external_intake'));
+const dirs = readdirSync('prisma/pending-migrations').filter((d) => d.endsWith('_external_intake'));
 const pg = await PGlite.create();
-await pg.exec(readFileSync(`prisma/migrations/${dirs[0]}/migration.sql`, 'utf8'));
+await pg.exec(readFileSync(`prisma/pending-migrations/${dirs[0]}/migration.sql`, 'utf8'));
 const socket = new PGLiteSocketServer({ db: pg, port: DB_PORT, host: '127.0.0.1', maxConnections: 16 } as never);
 await socket.start();
 const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: `postgresql://postgres@127.0.0.1:${DB_PORT}/postgres?sslmode=disable`, max: 1, idleTimeoutMillis: 100 }) });
@@ -105,6 +107,11 @@ async function tus(req: IncomingMessage, res: ServerResponse, id: string | null)
   send(res, 405);
 }
 async function rest(req: IncomingMessage, res: ServerResponse, url: URL) {
+  if (req.method === 'DELETE' && /^\/storage\/v1\/object\/[^/]+\/?$/.test(url.pathname)) {
+    const { prefixes = [] } = JSON.parse((await bodyOf(req)) || '{}') as { prefixes?: string[] };
+    const gone = prefixes.filter((p) => server.objects.delete(p));
+    return send(res, 200, gone.map((name) => ({ name })));
+  }
   const su = /^\/storage\/v1\/object\/upload\/sign\/([^/]+)\/(.+)$/.exec(url.pathname);
   if (su && req.method === 'POST') {
     await bodyOf(req);
@@ -192,6 +199,27 @@ async function control(req: IncomingMessage, res: ServerResponse, url: URL) {
     await db.intakeSubmission.update({ where: { id: c.submissionId }, data: { sideAssetId: ids[0], rearAssetId: ids[1], athleteAgeBand: '14_or_over', samePitchConfirmed: true, submitterRelation: 'self', version: 3 } });
     for (const d of INTAKE_CONSENT_DOCS.filter((x) => x.required)) await db.intakeConsent.create({ data: { submissionId: c.submissionId, kind: d.kind, docVersion: d.version, textHash: d.textHash, granted: true, relation: 'self', agreedAt: new Date() } });
     return send(res, 200, c);
+  }
+  if (name === 'gone') {
+    /* 낸 뒤 검증까지 끝낸 접수를 만들고, 90일이 지난 것으로 지운다. mode=deleting 이면 표시만 걸린 채 멈춘다 */
+    const c = await createInvitation(db, { adminId: 'e2e-admin' }, new Date());
+    const past = new Date(Date.now() - 91 * 86400_000);
+    const ids: string[] = [];
+    for (const [view, sha] of [['side', 'a'], ['rear', 'b']] as const) {
+      const id = randomBytes(16).toString('hex').replace(/^(.{8})(.{4}).(.{3}).(.{3})(.{12}).*$/, '$1-$2-4$3-8$4-$5');
+      const objectPath = assetObjectPath(c.submissionId, id);
+      await db.intakeAsset.create({ data: { id, submissionId: c.submissionId, view, objectPath, status: 'verified', originalName: `${view}.mov`, declaredSize: BigInt(1000), clientSha256: sha.repeat(64), serverSha256: sha.repeat(64) } as never });
+      const f = path.join(dir, `obj-${id}`); writeFileSync(f, Buffer.from('x')); server.objects.set(objectPath, f);
+      ids.push(id);
+    }
+    const rev = await db.intakeRevision.create({ data: { submissionId: c.submissionId, number: 1, sideAssetId: ids[0], rearAssetId: ids[1], athleteName: '지운선수', submitterRelation: 'self', throwingHand: 'R', consentSnapshot: [], finalizeKey: `k-${c.submissionId}`, finalizedAt: past, status: 'verified', settledAt: past } as never });
+    await db.intakeSubmission.update({ where: { id: c.submissionId }, data: { sideAssetId: ids[0], rearAssetId: ids[1], athleteName: '지운선수', athleteAgeBand: '14_or_over', samePitchConfirmed: true, submitterRelation: 'self', status: 'verified', analysisStatus: q.get('analysis') ?? 'ready', currentRevisionId: rev.id, lastFinalizedAt: past, receivedAt: past, receiptCode: `IN-${c.submissionId.slice(0, 6).toUpperCase()}`, version: { increment: 1 } } as never });
+    for (const d of INTAKE_CONSENT_DOCS.filter((x) => x.required)) await db.intakeConsent.create({ data: { submissionId: c.submissionId, kind: d.kind, docVersion: d.version, textHash: d.textHash, granted: true, relation: 'self', agreedAt: past } as never });
+    const st = createIntakeStorage({ url: `http://127.0.0.1:${ST_PORT}`, serviceKey: SERVICE_KEY });
+    const mode = q.get('mode');
+    const shaky = mode === 'deleting' ? { ...st, remove: async () => { throw new Error('연결 끊김'); } } : st;
+    const r = await purgeSubmissionOriginals({ db, storage: shaky as never, now: () => new Date() }, c.submissionId).catch((e) => ({ threw: String(e) }));
+    return send(res, 200, { ...c, purge: r });
   }
   if (name === 'bumpname') { await db.intakeSubmission.update({ where: { id: q.get('id')! }, data: { athleteName: '다른기기', version: { increment: 1 } } }); return send(res, 200, { ok: true }); }
   if (name === 'set') { await db.intakeSubmission.update({ where: { id: q.get('id')! }, data: { analysisStatus: q.get('analysis')! } }); return send(res, 200, { ok: true }); }

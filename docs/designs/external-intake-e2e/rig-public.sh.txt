@@ -1,0 +1,10 @@
+#!/bin/zsh
+# 격리 공개 시험대 — 운영 값을 안 쓴다. 3101 · 54398 · 54399 만 쓴다
+cd "$(dirname "$0")/clone" || exit 1
+. ../run-env.sh
+export NEXT_TELEMETRY_DISABLED=1
+node --import ./scripts/alias-register.mjs scripts/e2e-harness.mts > ../harness.log 2>&1 &
+H=$!
+trap 'kill $H 2>/dev/null' EXIT INT TERM
+for i in {1..80}; do grep -q 'harness ready' ../harness.log && break; sleep 0.5; done
+npx next dev --port 3101

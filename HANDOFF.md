@@ -1,37 +1,34 @@
-## 맥 미니 금윤호에게 — 2026-11-07 · 맥북 서브(Claude) — 외부 투구 영상 접수 이어서 하기 · **이 작업은 main 에 없다**
+## 맥북 금윤호에게 — 2026-11-07 · 맥 미니(Claude) — 외부 투구 영상 접수: 보유 삭제 지적을 다 고쳤다 · **이 작업은 아직 main 에 없다**
 
-맥북에서 맥 미니로 옮기는 작업이다. 코드는 브랜치 `intake/external-video-submission` 에 있다. **그 브랜치를 main 에 합치거나 main 으로 올리지 않는다** — 아래 1 · 3번이 끝나고 사용자가 허락할 때까지다. 원본을 되돌릴 수 없게 지우는 코드가 들어 있고, 알려진 지적 12건이 남아 있다.
+맥북이 넘긴 1 · 2단계를 맥 미니에서 끝냈다. 코드는 브랜치 `intake/external-video-submission` 에만 올렸다. **main 에 합치거나 올리지 않았다.** 사용 가이드(변경점 · 쓰는 법 · 만든 방식 · 고칠 곳): https://claude.ai/artifact/41VLQX2pzemY6tRJe6kSm7
 
-받는 법(사용자 허락 뒤):
+받는 법(맥북에서, 사용자 허락 뒤):
 
 ```bash
 git fetch origin
 git switch intake/external-video-submission
+git pull --ff-only
 npm ci
 npx prisma generate
 ```
 
-- `npm ci` 는 새 패키지(`tus-js-client`, `@noble/hashes`) 때문이다. `native/` 는 안 바뀌었다.
-- `prisma generate` 는 새 표 12개 타입을 만든다. DB 는 안 건드린다.
-- 공유 DB 에는 표가 없다. 그래서 이 브랜치에서도 `/submit` 의 API 는 로컬 서버에서 돌지 않는다. 시험은 PGlite 로 돈다. 3000 번 서버에 접수 API 를 부르지 않는다.
-- 금지: `prisma migrate dev` · `db push` · `migrate reset` · `npm run build` · `npm run intake:setup-bucket -- --apply`(허락 전).
-- 마이그레이션은 `prisma/pending-migrations/` 에 있다. 브랜치 미리보기 빌드도 `prisma migrate deploy` 를 돌려서 `prisma/migrations` 에 두지 않았다. **허락 전에 `prisma/migrations` 로 옮기지 않는다.**
+- DB · 버킷 · 환경변수는 그대로다. 마이그레이션은 여전히 `prisma/pending-migrations/` 에 있다. **허락 전에 `prisma/migrations` 로 옮기지 않는다.**
+- 금지는 그대로: `prisma migrate dev` · `db push` · `migrate reset` · `npm run build` · `npm run intake:setup-bucket -- --apply`. 3000 번 서버에 접수 API 를 부르지 않는다.
 
-맥북에서 합친 코드로 돌린 결과(2026-11-07): tsc 0 · eslint 0 · 접수 시험 349 · 547 · 540 · 130 · 132 · 391 통과 · `integration:test` 46 통과 5 실패(접수와 무관, 전부터 있던 다섯). 격리 브라우저 공개 58 · 관리 46 은 보유 삭제를 넣기 전 코드 기준이다.
+한 것:
+
+1. 보유 삭제 지적 12건 + 고치는 동안 공격 시험이 찾은 12건을 고쳤다. 고친 뒤 독립 검증을 두 번 더 돌려(반박 검토 포함) 사실인 33건을 고쳤다. 표는 `docs/designs/external-intake-retention-findings.md` 의 '고친 결과' · '고친 뒤 독립 검증 두 번'.
+2. 시험(맥 미니): `intake:test` 440 · `intake:db-test` 798 · `intake:admin-test` 627 · `intake:analysis-test` 424 · `intake:public-test` 132 · `intake:transfer-test` 211 · `intake:retention-fuzz` 통과 · 상세 300 · tsc 0 · eslint 0. 새 시험 시계 `scripts/intake-test-clock.mts`.
+3. 격리 시험대(공개 3101 · 관리 3010)를 띄워 앱 안 브라우저로 지운 접수 화면을 눌러 봤다. **`flow.mjs` · `admin.mjs` 전체 흐름은 맥 미니에 헤드리스 크로미움이 없어 안 돌렸다** — 크로미움이 있는 맥북에서 돌려 줘(`docs/designs/external-intake-e2e/README.md`).
 
 다음 할 일, 이 차례로:
 
-1. **보유 삭제 지적 12건을 고친다**(높음 2건 먼저). `docs/designs/external-intake-retention-findings.md` 에 재현과 고칠 방향이 있다. 맥북에서는 하나도 안 고쳤다.
-2. 고친 뒤 삭제 안전성을 다시 독립 검증하고, 격리 브라우저 흐름을 돌린다(`docs/designs/external-intake-e2e/README.md`, 지운 접수 화면 시험을 더한다).
-3. 사용자에게 확인받는다: 고침이 열린 접수는 삭제를 최대 14일 기다려 90일을 넘길 수 있는 것, 다시 내면 낸 날부터 90일을 다시 세는 것. 같은 문서 끝의 판단 목록을 본다.
-4. 사용자 허락을 받고 적용한다: 김민 알림 → `npm run backup` → 마이그레이션을 `prisma/migrations` 로 옮김 → 버킷 `external-intake`(프로젝트 파일 한도 1GiB 이상인지 먼저) → Vercel 환경변수 `SUPABASE_PUBLISHABLE_KEY` · `CRON_SECRET` → main. 자세한 것은 브랜치 `HANDOFF.md` 맨 위 김민 앞 글.
-5. 실제 기기 · 실제 Supabase TUS · 실제 GPU · 1GiB 전송 · Vercel 크론 시험. 아직 하나도 안 했다. `docs/designs/external-intake-verification.md` 의 UNVERIFIED 를 본다.
+1. 맥북에서 `flow.mjs` · `admin.mjs` 전체 흐름.
+2. 사용자에게 확인받는다(같은 지적 문서 끝 '구현자가 판단한 것'): 고침 기다림 14일로 90일을 넘길 수 있음 · 다시 내면 90일을 다시 셈 · 공개 안 한 접수의 철회가 지울 날을 미룸 · 정리 철회 틈 · 고침에서 같은 영상 다시 보내기 막음(`same_as_sent`).
+3. 허락 뒤 적용: 김민 알림 → `npm run backup` → 마이그레이션을 `prisma/migrations` 로 → 버킷 `external-intake`(프로젝트 파일 한도 1GiB 이상인지 먼저) → Vercel `SUPABASE_PUBLISHABLE_KEY` · `CRON_SECRET` → main.
+4. 실제 기기 · 실제 Supabase(`remove` · `stat` 의 '없음' 문구) · 실제 GPU · 1GiB 전송 · Vercel 크론. 아직 하나도 안 했다.
 
-사람이 정할 것: 대리 동의 범위 · `ANALYSIS_CONSENT` PENDING 다섯 건(이게 끝나기 전에는 GPU 가 막힌다) · 분석 결과 보유 기간. 사용자가 정한 것: 원본은 공개 뒤 90일(공개 없으면 접수 · 철회 뒤 90일, 모델 동의도 예외 없음), 철회 때 모델 동의는 따로 유지, 판에 안 오른 철회 파일은 7일 뒤 삭제, 분석 전 미리보기는 범위 제외.
-
-명세 원문은 `docs/designs/external-intake-spec.md`, 결정은 `docs/designs/external-intake.md`, 요구 대조표는 `docs/designs/external-intake-verification.md`.
-
-맥북의 접수 작업본은 `git stash` 한 칸에 남겼다('외부 접수 작업본 — 브랜치에 올림'). 필요 없다. 핫스팟으로 일하면 `~/.claude/settings.json` 의 `env` 에 `CLAUDE_CODE_RETRY_WATCHDOG=1` 을 넣으면 끊겨도 오래 다시 시도한다(맥북에는 넣어 두었다). 맥 미니 수신은 확인하지 못했다.
+사람이 정할 것: 대리 동의 범위 · `ANALYSIS_CONSENT` PENDING 다섯 건(끝나기 전에는 GPU 가 막힌다) · 분석 결과 보유 기간.
 
 ## 김민에게 — 2026-11-06 · 금윤호(Claude, 윤호 맥북) — 외부 투구 영상 접수(초대 링크 `/submit`) · **아직 안 넣음 · DB 표 12개 추가 예정**
 
@@ -42,7 +39,7 @@ npx prisma generate
 - 크론: `vercel.json` 에 `/api/cron/intake` 5분(Vercel Pro 이상 필요).
 - 버킷: 비공개 `external-intake`(한도 1GiB). `npm run intake:setup-bucket` 은 보기만, 쓰려면 `-- --apply`. 프로젝트 전체 파일 한도가 1GiB 이상인지 Supabase 대시보드에서 먼저 볼 것. 사람 허가 뒤에만.
 - **네 영역 고친 곳**: `proxy.ts` `OPEN`(`/submit` 만) · `lib/nav.ts`('외부 영상 접수') · `lib/permissions.ts`('intake', 대표관리자만) · `lib/release-access.ts`(정책 판 2026-11-06.1) · `lib/release-ops.ts` · `lib/pitch-lab-file.ts`(export · 선택 칸 하나) · `app/robots.ts` · `vercel.json`.
-- 시험: tsc 0 · 접수 시험 여섯 모두 통과(349 · 547 · 540 · 130 · 132 · 391) · 격리 브라우저 공개 58 · 관리 46(보유 기간 작업 전 코드 기준). `integration:test` 는 46 통과 · 5 실패다. 실패 다섯은 HEAD 와 글자까지 같고 접수 이름은 없다(접수는 까닭을 단 예외와 대신 보는 시험 둘을 넣었다). **실기기 · 실제 원본 · 실제 Supabase · 실제 GPU 는 하나도 안 봤다.**
+- 시험(2026-11-07 맥 미니, 보유 삭제 고친 뒤): tsc 0 · 접수 시험 일곱 모두 통과(440 · 798 · 627 · 424 · 132 · 211 · 무작위 보유 시험) · 상세 300. 격리 브라우저 공개 58 · 관리 46 은 보유 기간 작업 전 코드 기준이다. `integration:test` 는 46 통과 · 5 실패다. 실패 다섯은 HEAD 와 글자까지 같고 접수 이름은 없다(접수는 까닭을 단 예외와 대신 보는 시험 둘을 넣었다). **실기기 · 실제 원본 · 실제 Supabase · 실제 GPU 는 하나도 안 봤다.**
 - `lib/pitch-lab-file.ts` 는 export 말고 선택 칸 `focal35` 하나가 늘었다. 기존 호출은 그대로다.
 - **원본 보유(2026-11-06 금윤호 결정, 코드 반영)**: 공개한 날(공개 안 했으면 접수한 날, 철회했으면 철회한 날)부터 90일 뒤 원본 · 미리보기를 지운다. 모델 동의도 예외 없다. 철회한 접수의 판에 안 오른 파일은 7일 뒤. 새 일감 `purge_originals`(`lib/intake/purge.ts`, 규칙 `lib/intake/retention.ts`). 같은 마이그레이션에 `IntakeSubmission.withdrawnAt` 칸이 늘었다. 고침 기다림 상한 14일은 구현이 정한 값이라 금윤호 확인이 남았다.
 - 사람이 정할 것: 대리 동의 범위 · `ANALYSIS_CONSENT` PENDING 다섯 건 · 분석 결과 보유 기간. 분석 전 미리보기는 범위 제외로 정했다. 대조표 끝에 지적 43건의 상태가 있다.
