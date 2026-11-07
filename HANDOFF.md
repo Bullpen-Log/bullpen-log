@@ -1,6 +1,6 @@
 ## 김민에게 — 2026-11-06 · 금윤호(Claude, 윤호 맥북) — 외부 투구 영상 접수(초대 링크 `/submit`) · **아직 안 넣음 · DB 표 12개 추가 예정**
 
-**지금 상태: 커밋 · 푸시 전. 공유 DB · 버킷 · 환경변수 모두 미적용**(이 글은 올릴 때 같이 간다). 설계 `docs/designs/external-intake.md`, 요구 대조표 `docs/designs/external-intake-verification.md`.
+**지금 상태: 브랜치 `intake/external-video-submission` 에만 있다. 공유 DB · 버킷 · 환경변수 모두 미적용**(이 글은 main 에 올릴 때 같이 간다). 마이그레이션은 적용 전까지 `prisma/pending-migrations/` 에 둔다. 설계 `docs/designs/external-intake.md`, 요구 대조표 `docs/designs/external-intake-verification.md`.
 받은 뒤 할 일(적용 전에 금윤호와 맞출 것):
 - **`npm ci`**(`tus-js-client` 추가) → **마이그레이션 적용 뒤 `npx prisma generate`**. 새 표 12개(`IntakeInvitation` 등), 기존 표 변경 없음. 마이그레이션 `20261106120000_external_intake` 는 main 에 올리는 순간 Vercel 빌드가 건다 — **올리기 전에 `npm run backup` 과 서로 알림 먼저**.
 - 환경변수(Vercel): `SUPABASE_PUBLISHABLE_KEY`(공개 키, TUS apikey) · `CRON_SECRET`(이미 쓰는 것). 선택 `INTAKE_MAX_FILE_BYTES` · `INTAKE_MAX_TOTAL_BYTES` · `INTAKE_ALLOW_DRAFT_ANALYSIS`. 이름은 `.env.example`.
