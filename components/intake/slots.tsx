@@ -8,7 +8,7 @@ import type { Picked } from '@/components/intake/pick';
 import { formatBytes } from '@/lib/intake/limits';
 import { MEDIA_REJECT_TEXT } from '@/lib/intake/media';
 import type { PublicAsset } from '@/lib/intake/public-client';
-import { assetArrived, assetInTransit, type IntakeView } from '@/lib/intake/state';
+import { assetArrived, assetGone, assetInTransit, type IntakeView } from '@/lib/intake/state';
 
 export const VIEW_LABEL: Record<IntakeView, string> = { side: '옆 영상', rear: '뒤 영상' };
 
@@ -120,7 +120,7 @@ export function SlotCard({
   useFocusOnPick(picked, card);
 
   return (
-    <section ref={card} tabIndex={-1} aria-label={VIEW_LABEL[view]} className="rounded-2xl bg-surface p-(--block-pad) outline-none focus-visible:outline-2 focus-visible:outline-sky">
+    <section ref={card} id={`slot-${view}`} tabIndex={-1} aria-label={VIEW_LABEL[view]} className="rounded-2xl bg-surface p-(--block-pad) outline-none focus-visible:outline-2 focus-visible:outline-sky">
       <PickStatus picked={picked} />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -141,7 +141,9 @@ export function SlotCard({
       {!picked && (
         <p className="mt-2 text-footnote leading-5 break-keep text-muted">
           {requested
-            ? '이 영상을 다시 골라 주세요.'
+            ? asset && assetGone(asset.status)
+              ? '이 영상을 다시 골라 주세요.'
+              : '새 영상을 골라 주세요.'
             : arrived
               ? (asset?.integrity ?? '도착했어요. 파일을 확인하고 있어요.')
               : transit

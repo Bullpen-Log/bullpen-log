@@ -114,7 +114,7 @@ function DeskTable({ rows }: { rows: IntakeListRow[] }) {
       <table className="w-full min-w-[56rem] text-left text-sm">
         <thead>
           <tr className="border-b border-line text-xs text-muted">
-            {['이름', '접수일', '옆 · 뒤', '검증', '분석', '공개', '담당', '원본 삭제 예정일'].map((h) => (
+            {['이름', '접수일', '옆 · 뒤', '검증', '분석', '공개', '담당', '삭제 예정일'].map((h) => (
               <th key={h} scope="col" className="px-3 py-2 font-medium">
                 {h}
               </th>
@@ -142,7 +142,7 @@ function DeskTable({ rows }: { rows: IntakeListRow[] }) {
                 <StatusChip tone={submissionTone(r.status)}>{textOf(SUBMISSION_STATUS_TEXT, r.status)}</StatusChip>
               </td>
               <td className="px-3 py-2.5">
-                <AnalysisChip status={r.analysisStatus} originalsPurgedAt={r.originalsPurgedAt} originalsPurging={r.originalsPurging} />
+                <AnalysisChip status={r.analysisStatus} block={r.analysisBlock} />
               </td>
               <td className="px-3 py-2.5">
                 <StatusChip tone={publicationTone(r.publicationStatus)}>{textOf(PUBLICATION_STATUS_TEXT, r.publicationStatus)}</StatusChip>
@@ -177,7 +177,7 @@ function PhoneList({ rows }: { rows: IntakeListRow[] }) {
               <span className="flex flex-wrap gap-1">
                 <Views row={r} />
                 <StatusChip tone={submissionTone(r.status)}>{textOf(SUBMISSION_STATUS_TEXT, r.status)}</StatusChip>
-                <AnalysisChip status={r.analysisStatus} originalsPurgedAt={r.originalsPurgedAt} originalsPurging={r.originalsPurging} />
+                <AnalysisChip status={r.analysisStatus} block={r.analysisBlock} />
                 <StatusChip tone={publicationTone(r.publicationStatus)}>{textOf(PUBLICATION_STATUS_TEXT, r.publicationStatus)}</StatusChip>
                 <InvitationNote row={r} />
               </span>

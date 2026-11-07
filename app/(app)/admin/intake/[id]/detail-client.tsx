@@ -493,9 +493,12 @@ export function AnalysisPanel({
   const { pending, error, run, refresh } = useAction();
   const [confirmDraft, setConfirmDraft] = useState(false);
   const busy = analysisStatus === 'queued' || analysisStatus === 'running';
-  const blockers = readiness.blockers.filter((b) => b.code !== 'analysis_confirm_required');
-  const runnable = !busy && !withdrawn && blockers.length === 0 && (!readiness.needsDraftConfirm || confirmDraft);
-  const notes = withdrawn ? [] : readiness.inputNotes;
+  /* 원본이 없으면 다른 까닭을 풀어도 돌릴 수 없다 — 손 고르기 · 분석 전 주의 · 국외 이전 확인을 묻지 않고 그 까닭만 보인다 */
+  const purged = readiness.blockers.some((b) => b.code === 'original_purged');
+  const blockers = readiness.blockers.filter((b) => (purged ? b.code === 'original_purged' : b.code !== 'analysis_confirm_required'));
+  const askable = !withdrawn && !purged;
+  const runnable = !busy && askable && blockers.length === 0 && (!readiness.needsDraftConfirm || confirmDraft);
+  const notes = askable ? readiness.inputNotes : [];
   const start = () =>
     run(() => runIntakeAnalysis(submissionId, confirmDraft), (r) => {
       toast(r.created ? '분석을 걸었어요' : '같은 입력의 분석이 이미 있어요');
@@ -503,7 +506,7 @@ export function AnalysisPanel({
     });
   return (
     <div className="space-y-3">
-      {!hand && readiness.hand == null && !withdrawn && (
+      {!hand && readiness.hand == null && askable && (
         <div className="space-y-2">
           <p className="text-sm text-ink">분석하려면 던지는 손을 정해 주세요.</p>
           <div className="flex gap-2">
@@ -533,7 +536,7 @@ export function AnalysisPanel({
           {notes.some((n) => n.dropsTiming) && <p className="text-xs">이대로 돌리면 착지에서 릴리스까지의 시간 지표는 빠져요. 막지는 않아요.</p>}
         </div>
       )}
-      {readiness.needsDraftConfirm && (
+      {readiness.needsDraftConfirm && askable && (
         <label className="flex min-h-10 cursor-pointer items-start gap-2 text-sm text-ink">
           <input type="checkbox" checked={confirmDraft} onChange={(e) => setConfirmDraft(e.target.checked)} className="mt-0.5 h-4 w-4 accent-(--color-sky)" />
           국외 이전 안내가 아직 확정 전인 것을 알고 실행해요.

@@ -10,19 +10,35 @@
  */
 import assert from 'node:assert/strict';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
-import { appendFileSync, createReadStream, mkdtempSync, openAsBlob, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, createReadStream, mkdtempSync, openAsBlob, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { firstProblemTarget, goneViewsToPick, reviewProblems, staleRequiredDocs, type ReviewForm } from '@/components/intake/review-rules';
+import {
+  GONE_VIEW_TEXT,
+  REPICK_VIEW_TEXT,
+  SAME_AS_SENT_TEXT,
+  correctionConsentDocs,
+  correctionProblem,
+  correctionStopViews,
+  firstProblemTarget,
+  goneViewsToPick,
+  pickViewText,
+  reviewProblems,
+  sentAssetOf,
+  slotNeedsRepick,
+  staleRequiredDocs,
+  type ReviewForm,
+} from '@/components/intake/review-rules';
 import { INTAKE_CONSENT_DOCS, PROXY_CONSENT_NOTE, agreedAfterDocs, changedConsentKinds, consentCheckLabel, consentDocOf, isProxyRelation } from '@/lib/intake/consent';
-import { IntakeError } from '@/lib/intake/errors';
+import { INTAKE_ERROR_TEXT, IntakeError } from '@/lib/intake/errors';
 import { TUS_CHUNK_BYTES, TUS_URL_TTL_MS } from '@/lib/intake/limits';
 import { readIntakeMediaFacts, fpsLabel } from '@/lib/intake/media';
 import { IntakeRequestError, type IntakeReceipt, type PublicIntakeState, type PublicStateResponse } from '@/lib/intake/public-client';
 import { INTAKE_BUCKET } from '@/lib/intake/paths';
 import { removeAndFindLeft } from '@/lib/intake/remove';
+import { receiptHead, receiptRetentionRows } from '@/lib/intake/state';
 import { createIntakeStorage } from '@/lib/intake/storage-core';
 import {
   HASH_SLICE_BYTES,
@@ -71,6 +87,8 @@ const server = {
   headFail: [] as number[],
   /** 다음 서명 읽기 GET 들이 이 답을 한다 — body 가 글자면 그대로 보낸다 */
   readAnswer: null as { status: number; body: unknown } | null,
+  /** 서명 주소를 만드는 POST 가 이 답을 한다 — body 가 글자면 그대로 보낸다 */
+  signAnswer: null as { status: number; body: unknown } | null,
   /** 지웠다고 답하고 객체는 그대로 둔다 */
   removeNoop: false,
   log: { posts: 0, heads: 0, patchSizes: [] as number[], patchBytes: 0, firstPatchOffset: [] as number[], badAuth: 0, signedUploads: 0 },
@@ -203,6 +221,14 @@ async function restRoute(req: IncomingMessage, res: ServerResponse, url: URL) {
   const signRead = /^\/storage\/v1\/object\/sign\/([^/]+)\/(.+)$/.exec(url.pathname);
   if (signRead && req.method === 'POST') {
     await bodyOf(req);
+    if (server.signAnswer) {
+      const { status, body } = server.signAnswer;
+      if (typeof body === 'string') {
+        res.writeHead(status, { 'Content-Type': 'text/html' });
+        return void res.end(body);
+      }
+      return send(res, status, body);
+    }
     const name = decodeURIComponent(signRead[2]);
     if (!server.objects.has(name)) return send(res, 400, { statusCode: '404', error: 'not_found', message: 'Object not found' });
     return send(res, 200, { signedURL: `/object/sign/${signRead[1]}/${name}?token=read-${randomBytes(4).toString('hex')}` });
@@ -217,7 +243,8 @@ async function restRoute(req: IncomingMessage, res: ServerResponse, url: URL) {
       return send(res, status, body);
     }
     const file = server.objects.get(decodeURIComponent(signRead[2]));
-    if (!file) return send(res, 404, { message: 'not found' });
+    /* 호스팅 서버와 같이 없는 객체는 400 + 몸통 statusCode '404' 다(서명 단계와 같은 답) */
+    if (!file) return send(res, 400, { statusCode: '404', error: 'not_found', message: 'Object not found' });
     const size = statSync(file).size;
     const range = /^bytes=(\d+)-(\d+)?$/.exec(req.headers.range ?? '');
     const download = url.searchParams.get('download');
@@ -578,7 +605,7 @@ const resetLog = () => {
   ok((await storage.stat(objectPath)) === null, "400 + 몸통 '404' 는 없는 객체다");
   server.readAnswer = { status: 400, body: { statusCode: 404, error: 'not_found', message: 'Object not found' } };
   ok((await storage.stat(objectPath)) === null, '몸통의 숫자 404 도 없는 객체다');
-  for (const answer of [noPermission, { status: 400, body: {} }, { status: 400, body: '<html>Bad Request</html>' }, { status: 400, body: 'null' }]) {
+  for (const answer of [noPermission, { status: 400, body: {} }, { status: 400, body: '<html>Bad Request</html>' }, { status: 400, body: 'null' }, { status: 400, body: { statusCode: '404', error: 'Bucket not found', message: 'Bucket not found' } }]) {
     server.readAnswer = answer;
     await assert.rejects(storage.stat(objectPath), statUnavailable, `없다는 말이 아닌 400 은 던진다: ${JSON.stringify(answer.body)}`);
     passed++;
@@ -595,6 +622,34 @@ const resetLog = () => {
   passed++;
   server.readAnswer = null;
   ok((await removeAndFindLeft(storage, [leftName])).join() === leftName, '지웠다는 답만 오면 남은 경로를 돌려준다');
+  /*
+   * 검증 지적: 서명은 됐는데 원본 GET 이 몸통 없는 404 를 준다(게이트웨이 · 상태 글만) — 객체가 없다는 말이 아니다.
+   * 없음으로 읽으면 지웠다는 답만 오고 남은 파일을 'purged' 로 적는다. 저장소가 낸 '객체 없음' 몸통일 때만 없음이다.
+   */
+  for (const body of ['<html><body>Not Found</body></html>', 'Not Found', '', { message: 'not found' }, {}, { statusCode: '404', error: 'Bucket not found', message: 'Bucket not found' }]) {
+    server.readAnswer = { status: 404, body };
+    await assert.rejects(removeAndFindLeft(storage, [leftName]), statUnavailable, `몸통 없는 404 는 지운 증거가 아니다: ${JSON.stringify(body)}`);
+    passed++;
+    ok(server.objects.has(leftName), `객체는 그대로 남아 있다: ${JSON.stringify(body)}`);
+  }
+  server.readAnswer = { status: 404, body: { statusCode: '404', error: 'not_found', message: 'Object not found' } };
+  ok((await storage.stat(leftName)) === null, "저장소가 낸 '객체 없음' 몸통의 404 는 없음이다");
+  server.readAnswer = null;
+
+  /* 검증 지적: 서명 단계의 'not found' 도 객체가 없다는 말일 때만 없음이다. 버킷 · 테넌트가 없거나 몸통 없는 게이트웨이 404 면 객체는 남아 있을 수 있다 */
+  const signUnavailable = (e: unknown) => e instanceof IntakeError && e.code === 'storage_unavailable' && e.detail?.cause === 'sign_read';
+  for (const answer of [
+    { status: 400, body: { statusCode: '404', error: 'Bucket not found', message: 'Bucket not found' } },
+    { status: 404, body: '<html><body>Not Found</body></html>' },
+    { status: 400, body: { statusCode: '400', error: 'Tenant config not found', message: 'Tenant config not found' } },
+  ]) {
+    server.signAnswer = answer;
+    await assert.rejects(removeAndFindLeft(storage, [leftName]), signUnavailable, `객체 없음이 아닌 서명 답은 지운 증거가 아니다: ${JSON.stringify(answer.body)}`);
+    passed++;
+  }
+  server.signAnswer = { status: 400, body: { statusCode: '404', error: 'not_found', message: 'Object not found' } };
+  ok((await storage.stat(leftName)) === null, '서명 단계의 객체 없음 답은 그대로 없음이다');
+  server.signAnswer = null;
   server.removeNoop = false;
   ok((await removeAndFindLeft(storage, [leftName])).length === 0, '실제로 없어지면 빈 목록이다');
   ok(!server.objects.has(leftName), '가짜 저장소에서도 없어졌다');
@@ -787,6 +842,35 @@ const stale = () => new IntakeRequestError('stale_version', '낡았어요', 409,
   ok(after.statusText === '파일이 잘 도착했는지 확인하고 있어요', '지금 상태 글도 맞춘다');
   ok(after.draft.athleteName === '금윤호' && after.draft.samePitchConfirmed, '이름 · 확인을 영수증에서 채운다');
 
+  /* 검증 지적: 지운 접수를 고쳐 다시 냈다 — 새 판이 얼었으니 지금 판의 원본은 살아 있다. 옛 판의 '지웠어요'를 머리 · 줄에 남기지 않는다 */
+  const goneBefore = { ...before, screen: 'correction', submissionStatus: 'correction_requested', originalsGone: 'deleted', originalDeletedDate: '2026-04-01', originalDeleting: null, originalDeleteDate: '2026-04-01' } as unknown as PublicIntakeState;
+  const refrozen = stateAfterReceipt(goneBefore, RECEIPT);
+  ok(refrozen.originalsGone === null && refrozen.originalDeletedDate === null && refrozen.originalDeleting === null && refrozen.originalDeleteDate === null, '다시 낸 영수증은 옛 판의 지운 사실을 안 쥔다');
+  ok(receiptHead(refrozen).title === '영상이 잘 도착했어요' && !receiptHead(refrozen).desc.includes('나오지 않아요'), '머리가 방금 보낸 영상을 지웠다고 말하지 않는다');
+  ok(receiptRetentionRows(refrozen).length === 0, '옛 판의 지운 날 줄이 없다');
+  const deletingBefore = { ...goneBefore, originalsGone: 'deleting', originalDeletedDate: null, originalDeleting: 'current' } as unknown as PublicIntakeState;
+  const refrozen2 = stateAfterReceipt(deletingBefore, RECEIPT);
+  ok(receiptHead(refrozen2).title === '영상이 잘 도착했어요' && receiptRetentionRows(refrozen2).length === 0, '지우는 중에 다시 내도 같다');
+  /* 같은 키 재시도(created false)가 화면이 알던 그 판이면 서버가 아는 사실을 그대로 두고, 지금 상태 글도 그 사실과 맞춘다 */
+  const knownReceipt = { code: 'IN-1', receivedAt: RECEIPT.receivedAt, receiptDate: RECEIPT.receiptDate, revision: 1 };
+  const retry = stateAfterReceipt({ ...goneBefore, receipt: knownReceipt, submissionStatus: 'verified', analysisStatus: 'ready' } as PublicIntakeState, { ...RECEIPT, created: false, submissionStatus: 'verified' });
+  ok(retry.originalsGone === 'deleted' && retry.statusText.includes('원본을 지웠어요'), '같은 판의 같은 키 재시도는 지운 사실과 그 글을 지킨다');
+  /*
+   * 검증 지적: 고쳐 다시 낸 뒤 완료 응답을 잃어 같은 키로 받은 영수증(created false)이다. 다른 기기가 먼저 낸 경우도 같다.
+   * 영수증의 판(2)이 화면이 알던 판(1)과 다르니 새로 얼린 판이다 — 옛 판의 '지웠어요 · 지우는 중'과 분석 상태를 들고 있으면 방금 보낸 영상을 지웠다고 말한다.
+   */
+  const lostAnswer = { ...RECEIPT, created: false, revision: 2 };
+  for (const [gone, fixBefore] of [
+    ['deleted', { ...goneBefore, receipt: knownReceipt, analysisStatus: 'succeeded' }],
+    ['deleting', { ...deletingBefore, receipt: knownReceipt, analysisStatus: 'none' }],
+  ] as const) {
+    const shown = stateAfterReceipt(fixBefore as unknown as PublicIntakeState, lostAnswer);
+    ok(shown.originalsGone === null && shown.originalDeleting === null && shown.originalDeletedDate === null && shown.originalDeleteDate === null, `응답을 잃은 재시도도 새 판이면 옛 판의 원본 사실을 안 쥔다: ${gone}`);
+    ok(shown.analysisStatus === 'none' && shown.receipt?.revision === 2, `새 판의 분석은 아직 없다: ${gone}`);
+    assert.deepEqual([receiptHead(shown).title, receiptRetentionRows(shown), shown.statusText], ['영상이 잘 도착했어요', [], '파일이 잘 도착했는지 확인하고 있어요'], `머리 · 보유 줄 · 상태 글이 방금 보낸 영상을 지웠다고 안 한다: ${gone}`);
+    passed++;
+  }
+
   let tries = 0;
   const net = new IntakeRequestError('network', '끊겼어요');
   const flaky = await refreshQuietly(async () => {
@@ -837,15 +921,89 @@ const stale = () => new IntakeRequestError('stale_version', '낡았어요', 409,
   ok(left.length === 1 && left[0].kind === 'overseas', '바뀐 필수 글만 다시 묻는다');
 
   /* 지적 4: 지운 칸은 새 파일을 골라야 보낼 수 있다 */
-  const fix = (side: string | null, rear: string | null, views: ('side' | 'rear')[]) =>
-    ({ assets: { side: side ? { status: side } : null, rear: rear ? { status: rear } : null }, correction: { fields: [], views, message: null } }) as unknown as Parameters<typeof goneViewsToPick>[0];
+  /* 칸의 자산 번호는 칸 이름 + 'new', 얼린 판의 번호는 칸 이름 + 'old' — 따로 주지 않으면 새로 고른 파일이다 */
+  const fix = (side: string | null, rear: string | null, views: ('side' | 'rear')[], frozen: { side?: string; rear?: string } = {}) =>
+    ({
+      assets: { side: side ? { id: frozen.side ?? 'side-new', status: side } : null, rear: rear ? { id: frozen.rear ?? 'rear-new', status: rear } : null },
+      correction: { fields: [], views, message: null },
+      frozenAssetIds: { side: 'side-old', rear: 'rear-old' },
+    }) as unknown as Parameters<typeof goneViewsToPick>[0];
   const nothing = { side: null, rear: null };
   ok(goneViewsToPick(fix('purged', 'purged', ['side', 'rear']), nothing).join() === 'side,rear', '안 고른 지운 칸을 다 말한다');
   ok(goneViewsToPick(fix('purged', 'purged', ['side', 'rear']), { side: {}, rear: null }).join() === 'rear', '고른 칸은 뺀다');
   ok(goneViewsToPick(fix('purging', 'verified', ['side', 'rear']), nothing).join() === 'side', '지우는 칸도 다시 골라야 한다');
-  ok(goneViewsToPick(fix('rejected', 'verified', ['side']), nothing).length === 0, '살아 있는 칸은 서버가 말한다');
   ok(goneViewsToPick(fix('purged', 'verified', []), nothing).length === 0, '요청받지 않은 칸은 안 본다');
-  ok(goneViewsToPick({ assets: { side: null, rear: null }, correction: null } as never, nothing).length === 0, '고침이 없으면 말이 없다');
+  ok(goneViewsToPick({ assets: { side: null, rear: null }, correction: null, frozenAssetIds: { side: null, rear: null } } as never, nothing).length === 0, '고침이 없으면 말이 없다');
+  /*
+   * 검증 지적: 요청받은 칸을 새로 안 고르고 보내면 서버가 막는데 화면은 몰랐다. 막힌 파일('rejected')과 얼린 그 파일 그대로인 칸이다.
+   * 막힌 칸은 서버가 '전송이 아직 끝나지 않았어요'라고 해서 거짓이었다. 둘 다 서버와 같은 판단으로 보내기 전에 말한다.
+   */
+  ok(goneViewsToPick(fix('rejected', 'verified', ['side']), nothing).join() === 'side', '막힌 칸은 다시 골라야 한다');
+  ok(goneViewsToPick(fix('verified', 'verified', ['side'], { side: 'side-old' }), nothing).join() === 'side', '얼린 파일 그대로인 칸도 다시 골라야 한다');
+  ok(goneViewsToPick(fix('verified', 'verified', ['side'], { side: 'side-old' }), { side: {}, rear: null }).length === 0, '새로 고르면 막지 않는다');
+  ok(goneViewsToPick(fix('verified', 'verified', ['side']), nothing).length === 0, '이미 새로 받은 칸은 막지 않는다');
+  ok(goneViewsToPick(fix('uploading', 'verified', ['side']), nothing).length === 0, '오는 중인 칸은 서버가 기다리라고 말한다');
+  /* 요청받지 않은 막힌 칸은 서버가 요청에 넣는다(requestCorrection · 막힐 때 · 낼 때) — 화면은 요청받은 칸만 본다 */
+  ok(goneViewsToPick(fix('verified', 'rejected', ['side'], { side: 'side-old', rear: 'rear-old' }), nothing).join() === 'side', '요청받지 않은 칸은 화면이 따로 보지 않는다');
+  ok(pickViewText({ status: 'verified' } as never) === REPICK_VIEW_TEXT && pickViewText({ status: 'rejected' } as never) === REPICK_VIEW_TEXT, '살아 있는 칸은 새 영상을 골라 달라고 한다');
+  ok(!REPICK_VIEW_TEXT.includes('지웠') && !REPICK_VIEW_TEXT.includes('지우') && !REPICK_VIEW_TEXT.includes('전송'), '살아 있는 칸을 지웠다거나 전송 중이라고 하지 않는다');
+
+  /*
+   * 검증 지적: 고침 중 새 파일이 이미 도착한 칸에도 '다시 골라 주세요'라고 했다. 칸 글도 막힘과 같은 판단으로 정한다.
+   */
+  ok(!slotNeedsRepick(fix('uploaded', 'verified', ['side']), 'side'), '새 파일이 도착한 칸은 다시 고르라고 하지 않는다');
+  ok(slotNeedsRepick(fix('verified', 'verified', ['side'], { side: 'side-old' }), 'side'), '얼린 그 파일 그대로인 칸은 다시 고르라고 한다');
+  ok(slotNeedsRepick(fix('purged', 'verified', ['side']), 'side'), '지운 칸은 다시 고르라고 한다');
+  ok(!slotNeedsRepick(fix('verified', 'verified', ['rear'], { side: 'side-old' }), 'side'), '요청받지 않은 칸은 다시 고르라고 하지 않는다');
+
+  /*
+   * 검증 지적: 요청받은 칸에 얼린 파일과 같은 영상을 다시 고르면 화면이 막지 않았다. 서버는 얼린 자산을 그대로 돌려줘 같은 막힘이 되풀이됐다.
+   * 고를 때 확인을 마친 얼린 파일과 견준다 — 서버의 same_as_sent 와 같은 판단이다.
+   */
+  const sentOf = (status: string, id = 'side-old', correction: unknown = { fields: [], views: ['side'], message: null }) =>
+    sentAssetOf({ assets: { side: { id, status, sha256: 'f'.repeat(64) }, rear: null }, correction, frozenAssetIds: { side: 'side-old', rear: 'rear-old' } } as never, 'side');
+  ok(sentOf('verified')?.sha256 === 'f'.repeat(64) && sentOf('unconfirmed') != null, '얼린 파일 그대로인 칸은 같은 영상인지 견준다');
+  ok(sentOf('verified', 'side-new') == null, '새로 받은 칸은 견주지 않는다');
+  ok([sentOf('rejected'), sentOf('purged'), sentOf('uploaded')].every((a) => a == null), '막혔거나 지웠거나 확인 전인 파일은 같은 영상을 다시 받는다');
+  ok(sentOf('verified', 'side-old', null) == null, '고침이 아니면 견주지 않는다');
+  ok(SAME_AS_SENT_TEXT === INTAKE_ERROR_TEXT.same_as_sent && !SAME_AS_SENT_TEXT.includes('—'), '고를 때와 서버가 같은 글이다');
+  const flowSrc = readFileSync('components/intake/intake-flow.tsx', 'utf8');
+  const repickSet = flowSrc.slice(flowSrc.indexOf('const REPICK'), flowSrc.indexOf('\n', flowSrc.indexOf('const REPICK')));
+  ok(repickSet.includes("'same_as_sent'"), '서버가 같은 영상이라고 하면 그 칸을 다시 고르게 한다');
+  ok(flowSrc.includes('sentAssetOf(data.state, view)') && flowSrc.includes('SAME_AS_SENT_TEXT'), '고를 때 얼린 파일과 견준다');
+  /* 서버가 칸을 말한 'correction_incomplete' — 그 칸의 고른 파일을 비우고 칸 곁에 말한다 */
+  ok(correctionStopViews({ code: 'correction_incomplete', detail: { views: ['rear', 'x'] } }).join() === 'rear', '서버가 말한 칸만 다시 고르게 한다');
+  ok(correctionStopViews({ code: 'correction_incomplete', detail: { empty: ['side'] } }).length === 0, '칸이 없으면 비우지 않는다');
+  ok(correctionStopViews({ code: 'stale_version', detail: { views: ['side'] } }).length === 0, '다른 까닭은 비우지 않는다');
+  ok(flowSrc.includes('correctionStopViews(stop)'), '멈춤을 풀 때 그 칸을 비운다');
+
+  /* 검증 지적: 끊긴 전송을 정리가 버려 칸이 비었다 — 요청받은 빈 칸도 새 파일을 골라야 낼 수 있다 */
+  ok(goneViewsToPick(fix(null, 'purged', ['side', 'rear']), nothing).join() === 'side,rear', '정리가 비운 칸도 다시 골라야 한다');
+  ok(goneViewsToPick(fix(null, 'purged', ['side', 'rear']), { side: {}, rear: {} }).length === 0, '둘 다 고르면 막지 않는다');
+  ok(goneViewsToPick(fix(null, 'verified', ['rear']), nothing).length === 0, '요청받지 않은 빈 칸은 안 본다');
+  ok(pickViewText(null) !== GONE_VIEW_TEXT && pickViewText({ status: 'purged' } as never) === GONE_VIEW_TEXT, '빈 칸은 지웠다고 안 하고 골라 달라고 한다');
+  /* 검증 지적: 지우고 있는 칸도 '지웠어요'라고 했다 */
+  ok(pickViewText({ status: 'purging' } as never) === '이 칸의 원본을 지우고 있어요. 영상을 다시 골라 주세요.', '지우고 있는 칸은 지우고 있다고 말한다');
+
+  /* 검증 지적: 고침 화면의 막힘은 화면 차례(이름 → 영상 → 같은 투구 → 동의)로 고르고, 그 칸으로 초점을 옮긴다 */
+  const fixCheck = { nameAsked: false, name: '', missing: [] as ('side' | 'rear')[], viewsAsked: true, same: false, needsConsent: true, docs, agreed: {} as Record<string, boolean> };
+  assert.deepEqual(correctionProblem(fixCheck), { problem: 'same', target: 'fix-same-pitch' }, '같은 투구 칸이 동의 칸보다 위다');
+  passed++;
+  assert.deepEqual(correctionProblem({ ...fixCheck, same: true }), { problem: 'consent', target: 'consent-submission' }, '그다음 빠진 동의 칸');
+  passed++;
+  assert.deepEqual(correctionProblem({ ...fixCheck, missing: ['rear'] }), { problem: 'file', target: 'slot-rear' }, '영상 칸이 같은 투구보다 위다');
+  passed++;
+  assert.deepEqual(correctionProblem({ ...fixCheck, nameAsked: true, missing: ['rear'] }), { problem: 'name', target: 'fix-name' }, '이름이 맨 먼저');
+  passed++;
+  ok(correctionProblem({ ...fixCheck, same: true, agreed: { submission: true, overseas: true } }) === null, '다 채우면 막힘이 없다');
+  ok(correctionProblem({ ...fixCheck, viewsAsked: false, needsConsent: false }) === null, '묻지 않은 칸으로는 안 막는다');
+
+  /* 검증 지적: 고침 화면은 필수 동의만 보인다 — 보이지 않은 모델 동의를 '거부'로 적지 않는다 */
+  const fixDocs = correctionConsentDocs(docs);
+  ok(fixDocs.length === docs.filter((d) => d.required).length && fixDocs.every((d) => d.required), '고침은 필수 동의만 남긴다');
+  const flow = readFileSync('components/intake/intake-flow.tsx', 'utf8');
+  ok(flow.includes('consentAnswers(correctionConsentDocs(data.consentDocs), s.agreed)'), '고침 보내기가 그 목록으로 남긴다');
+  ok(!readFileSync('components/intake/model-consent.tsx', 'utf8').includes('분석은 그대로 진행돼요'), '모델 동의 칸이 상태와 상관없는 말만 한다');
 }
 
 /* ────────────────────────── 14 동의 글 ────────────────────────── */

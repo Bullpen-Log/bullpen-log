@@ -8,7 +8,7 @@ import { CheckRow, RequiredConsents } from '@/components/intake/consent-block';
 import type { Picked } from '@/components/intake/pick';
 import { FieldError, NoteBox, PrimaryButton, Screen, SecondaryButton } from '@/components/intake/shell';
 import { SlotCard, VIEW_LABEL } from '@/components/intake/slots';
-import { GONE_VIEW_TEXT, goneViewsToPick, staleRequiredDocs } from '@/components/intake/review-rules';
+import { correctionProblem, goneViewsToPick, pickViewText, slotNeedsRepick, staleRequiredDocs, type CorrectionProblem } from '@/components/intake/review-rules';
 import { PROXY_CONSENT_NOTE, SUBMITTER_RELATIONS, SUBMITTER_RELATION_TEXT, isProxyRelation } from '@/lib/intake/consent';
 import { INTAKE_ERROR_TEXT } from '@/lib/intake/errors';
 import { formatBytes } from '@/lib/intake/limits';
@@ -385,20 +385,23 @@ export function CorrectionStep({
     setAgreed(state.consent.granted);
   }
   const [same, setSame] = useState(false);
-  const [problem, setProblem] = useState<'name' | 'file' | 'consent' | 'same' | null>(null);
+  const [problem, setProblem] = useState<CorrectionProblem | null>(null);
   /* 관계를 바꾸면 옛 동의는 다른 사람의 것이다 — 새 관계로 다시 받는다 */
   const relationChanged = fields.includes('submitterRelation') && relation !== state.draft.submitterRelation;
   const needsConsent = !state.consent.requiredOk || relationChanged;
   const proxy = isProxyRelation(fields.includes('submitterRelation') ? relation : state.draft.submitterRelation);
 
-  /* 지운 칸은 새 파일이 있어야 낼 수 있다 — 보낸 뒤에 전송이 안 끝났다는 글을 보이지 않고 여기서 그 칸을 말한다 */
+  /* 지운 칸 · 비운 칸 · 막힌 칸 · 얼린 그 파일 그대로인 칸은 새 파일이 있어야 낼 수 있다 — 보낸 뒤에 막연한 글을 보이지 않고 여기서 그 칸을 말한다 */
   const missing = goneViewsToPick(state, picked);
 
   const submit = () => {
-    if (fields.includes('athleteName') && !name.trim()) return setProblem('name');
-    if (missing.length > 0) return setProblem('file');
-    if (needsConsent && docs.some((d) => d.required && agreed[d.kind] !== true)) return setProblem('consent');
-    if (views.length > 0 && !same) return setProblem('same');
+    const stop = correctionProblem({ nameAsked: fields.includes('athleteName'), name, missing, viewsAsked: views.length > 0, same, needsConsent, docs, agreed });
+    if (stop) {
+      setProblem(stop.problem);
+      /* 바닥 단추를 누르면 막힌 칸이 화면 밖일 수 있다 — 그 칸으로 초점을 옮겨 보이게 한다 */
+      document.getElementById(stop.target)?.focus();
+      return;
+    }
     setProblem(null);
     const patch: CorrectionSubmit['patch'] = {};
     if (fields.includes('athleteName')) patch.athleteName = name.trim();
@@ -479,9 +482,9 @@ export function CorrectionStep({
             asset={asset}
             picked={picked[view]}
             inspecting={inspecting === view}
-            error={pickError?.view === view ? pickError.message : problem === 'file' && missing.includes(view) ? GONE_VIEW_TEXT : null}
+            error={pickError?.view === view ? pickError.message : problem === 'file' && missing.includes(view) ? pickViewText(asset) : null}
             note={notes[view] ?? null}
-            requested={asset != null && (assetArrived(asset.status) || assetGone(asset.status))}
+            requested={asset != null && (assetArrived(asset.status) || assetGone(asset.status)) && slotNeedsRepick(state, view)}
             onPick={(f) => onPick(view, f)}
           />
         );
@@ -489,7 +492,7 @@ export function CorrectionStep({
 
       {views.length > 0 && (
         <div className="space-y-1">
-          <CheckRow checked={same} onChange={setSame} label="두 영상은 같은 투구를 동시에 찍은 영상이에요" invalid={problem === 'same'} describedBy={problem === 'same' ? 'fix-same' : undefined} />
+          <CheckRow id="fix-same-pitch" checked={same} onChange={setSame} label="두 영상은 같은 투구를 동시에 찍은 영상이에요" invalid={problem === 'same'} describedBy={problem === 'same' ? 'fix-same' : undefined} />
           {problem === 'same' && <FieldError id="fix-same">{INTAKE_ERROR_TEXT.same_pitch_required}</FieldError>}
         </div>
       )}

@@ -6,6 +6,8 @@
  * 한계: PGlite 는 연결이 하나라 동시 호출이 줄을 서서 돈다 — 같은 키의 결과는 확인하지만 두 연결이 같은 순간에 잠금을 다투는 모습은 재현되지 않는다.
  * 진짜 분석 서버 · 진짜 저장소에 대해서는 이 시험으로 말할 수 없다.
  */
+/* 맨 앞 — 다른 모듈보다 먼저 시험 시계를 건다 */
+import './intake-test-clock.mts';
 import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -229,7 +231,7 @@ const consents = (): ConsentAnswer[] =>
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 const put = (path: string, b: Buffer) => objects.set(path, b);
 
-/** 검증 → 등록 차례로 — 등록 일감은 검증이 끝나야 생긴다. 일감의 시각은 실제 시각이라 하루 앞으로 돌린다 */
+/** 검증 → 등록 차례로 — 등록 일감은 검증이 끝나야 생긴다. 검증 처리기는 프로세스 시계(시험 시계, intake-test-clock.mts)로 일감을 넣어서 하루 앞으로 돌린다 */
 async function settleJobs() {
   for (const kind of ['verify_asset', 'register_revision'] as const) {
     await runDueJobs(db, intakeJobHandlers(rt), { owner: 'test', kinds: [kind], limit: 10, now: () => new Date(Date.now() + 86_400_000) });
@@ -830,8 +832,11 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
   await recordConsents(db, scope, { answers: consents() }, new Date(nowMs));
   const file = mov120(2048);
   const { asset } = await reserveAsset(db, scope, { view: 'side', expectedAssetId: null, fileName: 'a.mov', sizeBytes: file.length, sha256: sha(file) }, new Date(nowMs));
+  /*
+   * 대사 처리기는 이 프로세스의 시계로 '10분 지난 토큰'을 찾는다(reconcileUploads 의 기본값). 그 시계는 시험 시계에서 출발하지만(intake-test-clock.mts)
+   * nowMs 는 앞에서 앞당겨 놓아 그보다 뒤다. 그래서 토큰은 프로세스 시계로 10분 전에 낸다. 날짜와 상관없이 초대 기간(nowMs 부터 14일) 안이다.
+   */
   await issueUploadToken(db, storage, scope, { assetId: asset.id }, new Date(Date.now() - 10 * 60_000));
-  await db.intakeAsset.update({ where: { id: asset.id }, data: { tokenIssuedAt: new Date(Date.now() - 10 * 60_000) } });
   put(assetObjectPath(scope.submissionId, asset.id), file);
   await enqueueJob(db, { kind: 'cleanup_uploads', dedupeKey: 'cleanup_uploads:manual', payload: {}, runAfter: new Date(nowMs) });
   await runDueJobs(db, intakeJobHandlers(rt), { owner: 'cron-6', kinds: ['cleanup_uploads'], now: () => new Date(nowMs) });
@@ -872,11 +877,12 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
   await issueUploadToken(db, storage, c.scope, { assetId: finalAsset.id }, new Date(nowMs));
   ok(version > 0, '고침 칸을 두 번 바꾼다');
 
-  const soon = await cleanupStaleUploads(db, storage, new Date(Date.now() + 60_000));
+  /* 정리 시각은 시험 시계로 센다 — 초대 기간을 nowMs 에서 셌다. 실제 시계로 정리하면 날짜가 지나며 기간이 끝난 것처럼 된다 */
+  const soon = await cleanupStaleUploads(db, storage, new Date(nowMs + 60_000));
   eq(soon.purged, 0, '막 바뀐 전송은 아직 안 지운다');
   ok(objects.has(assetObjectPath(c.submissionId, newAsset.id)), '진행 중일 수 있는 파일이 남는다');
 
-  const later = new Date(Date.now() + TUS_URL_TTL_MS + 4 * 3_600_000);
+  const later = new Date(nowMs + TUS_URL_TTL_MS + 4 * 3_600_000);
   const swept = await cleanupStaleUploads(db, storage, later);
   ok(swept.purged >= 1, '어디서도 안 쓰는 전송은 지운다');
   ok(!objects.has(assetObjectPath(c.submissionId, newAsset.id)), '바뀐 전송 파일이 사라진다');
@@ -1490,6 +1496,13 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
   eq((await loadRunResult(run.id, rt)).jobId, run.id, '관리자도 결과를 본다');
   eq((await listRuns(m.submissionId, rt))[0].previewPaths, null, '지운 미리보기는 없는 것으로 보인다');
   ok((await listRuns(m.submissionId, rt))[0].hasResult, '결과는 있다고 보인다');
+
+  /* 검증 지적: 초대를 폐기한 뒤 지운 접수 — 고침을 요청할 수 없으니 막힘 글이 고침을 권하지 않는다 */
+  ok((await analysisReadiness(m.submissionId, rt)).blockers.find((b) => b.code === 'original_purged')?.text.includes('고침'), '초대가 살아 있으면 고침을 권한다');
+  await db.intakeInvitation.update({ where: { id: m.invitationId }, data: { status: 'revoked', revokedAt: new Date(nowMs) } });
+  const revokedText = (await analysisReadiness(m.submissionId, rt)).blockers.find((b) => b.code === 'original_purged')?.text ?? '';
+  ok(revokedText.includes('보유 기간') && !revokedText.includes('고침'), '폐기한 접수에는 할 수 없는 고침을 권하지 않는다');
+  await db.intakeInvitation.update({ where: { id: m.invitationId }, data: { status: 'active', revokedAt: null } });
   nowMs = startedAt;
 }
 

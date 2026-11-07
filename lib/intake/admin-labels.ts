@@ -124,6 +124,7 @@ export const AUDIT_ACTION_TEXT: Record<string, string> = {
   'correction.requested': '고침을 요청했어요',
   'correction.updated': '고침 요청을 바꿨어요',
   'correction.cancelled': '고침 요청을 거뒀어요',
+  'correction.widened': '막힌 영상 칸을 고침 요청에 더했어요',
   'draft.age_band_changed': '나이 확인을 바꿨어요',
   'revision.register_requeued': '분석 등록을 다시 걸었어요',
   'upload_window.extended': '올리기 기간을 늘렸어요',
@@ -158,7 +159,8 @@ export const JOB_KIND_TEXT: Record<string, string> = {
 export const RETENTION_BASIS_TEXT: Record<RetentionBasis, string> = {
   published: `공개한 날부터 ${INTAKE_ORIGINAL_RETENTION_DAYS}일`,
   resubmitted: `다시 낸 날부터 ${INTAKE_ORIGINAL_RETENTION_DAYS}일`,
-  submitted: `접수한 날부터 ${INTAKE_ORIGINAL_RETENTION_DAYS}일`,
+  /* 시계는 마지막으로 낸 판이다 — 공개한 적 없이 고쳐 다시 내도 이 이름이다(lib/intake/retention.ts) */
+  submitted: `마지막으로 낸 날부터 ${INTAKE_ORIGINAL_RETENTION_DAYS}일`,
   withdrawn: `철회한 날부터 ${INTAKE_ORIGINAL_RETENTION_DAYS}일`,
   withdrawn_draft: `철회한 날부터 ${INTAKE_WITHDRAWN_DRAFT_GRACE_DAYS}일`,
 };
@@ -194,6 +196,18 @@ export function viewProgressOf(assetStatus: string | null | undefined): ViewProg
   return 'empty';
 }
 
+/**
+ * 칸 하나의 모습 — 목록 칸과 상세의 빈 영상 글이 같이 쓴다. 칸이 가리키는 파일이 있으면 그 상태다.
+ * 칸이 비었는데 그 칸의 파일을 다 지웠으면 '지워짐'이다. 끊긴 전송을 정리가 버리면 칸을 비워서,
+ * 그냥 '없음'이라고 하면 받은 적 없는 칸처럼 읽힌다. 살아 있는 파일이 남은 칸(고침 중 얼린 원본 · 아직 안 지운 버린 파일)은 '없음' 그대로다.
+ */
+export function slotProgressOf(assets: readonly { view: string; status: string }[], view: IntakeView, slotStatus: string | null): ViewProgress {
+  if (slotStatus != null) return viewProgressOf(slotStatus);
+  const files = assets.filter((a) => a.view === view);
+  if (files.length === 0 || !files.every((a) => assetGone(a.status))) return 'empty';
+  return files.some((a) => a.status === 'purging') ? 'deleting' : 'deleted';
+}
+
 export const VIEW_PROGRESS_TEXT: Record<ViewProgress, string> = {
   empty: '없음',
   transit: '전송 중',
@@ -219,20 +233,65 @@ const SEOUL_TIME = new Intl.DateTimeFormat('ko-KR', {
 export const seoulDateText = (iso: string | null | undefined) => (iso ? SEOUL_DATE.format(new Date(iso)) : '-');
 export const seoulTimeText = (iso: string | null | undefined) => (iso ? SEOUL_TIME.format(new Date(iso)) : '-');
 
-type RetentionCell = { originalPurgeAt: string | null; originalsPurgedAt: string | null; originalsPurging: string | null };
-
-/** 목록의 원본 칸 — 지금 판을 지우는 중이면 그 사실을, 지운 뒤에는 지운 날을, 아니면 지울 날을 보인다. 지우는 중에 철회로 밀린 날을 지울 날이라고 말하지 않는다 */
-export const retentionCellText = (r: RetentionCell) =>
-  r.originalsPurging === 'current' ? '지우는 중' : r.originalsPurgedAt ? `지워짐 · ${seoulDateText(r.originalsPurgedAt)}` : seoulDateText(r.originalPurgeAt);
+/** hasRevision: 판에 오른 적이 있나 — 없으면 이 접수의 파일은 원본이 아니라 받은 영상이다(상세 fileWords · 칩 analysisBlockOf 와 같은 낱말) */
+type RetentionCell = { originalPurgeAt: string | null; originalsPurgedAt: string | null; originalsPurging: string | null; hasRevision: boolean };
 
 /**
- * 분석 칩을 대신할 글 — 지금 판의 원본이 없으면 '분석 가능' · '분석 전'은 거짓이다. 없으면 null 이고 칩은 분석 상태를 그대로 말한다.
- * 분석이 끝났거나 실패한 접수는 그 사실이 그대로 참이라 안 바꾼다. 상세의 분석 칸이 쓸 수 없다는 까닭을 말한다.
+ * 지금 지우는 파일이 이 접수의 지금 파일인가 — 판이 있으면 지금 판의 파일('current')이다.
+ * 판이 없으면 purgingScope 는 판을 몰라 'older' 라고 하지만 지우는 파일이 다 받은 영상이다(상세 purgingFiles 와 같다).
  */
-export function analysisGoneText(analysisStatus: string, r: Pick<RetentionCell, 'originalsPurgedAt' | 'originalsPurging'>): string | null {
-  if (analysisStatus !== 'ready' && analysisStatus !== 'none') return null;
-  return r.originalsPurging === 'current' ? '원본 지우는 중' : r.originalsPurgedAt ? '원본 지워짐' : null;
+const purgingNow = (r: RetentionCell) => r.originalsPurging === 'current' || (!r.hasRevision && r.originalsPurging != null);
+
+/** 목록의 보유 칸 — 지금 파일을 지우는 중이면 그 사실을, 지운 뒤에는 지운 날을, 아니면 지울 날을 보인다. 지우는 중에 철회로 밀린 날을 지울 날이라고 말하지 않는다 */
+export const retentionCellText = (r: RetentionCell) =>
+  purgingNow(r) ? '지우는 중' : r.originalsPurgedAt ? `지워짐 · ${seoulDateText(r.originalsPurgedAt)}` : seoulDateText(r.originalPurgeAt);
+
+/**
+ * 이 접수로 새 분석을 할 수 없는 까닭 — 서버의 분석 막힘(lib/intake/analysis.ts submissionBlockers) 가운데 고칠 길이 없거나 영상이 없는 것만이다. 없으면 null.
+ * 'deleting' · 'deleted' 지금 판의 원본을 지우고 있거나 지웠다, 'withdrawn' 필수 동의를 철회했다, 'revoked' 초대를 폐기했다, 'overdue' 지울 날이 지나 새 분석을 안 받는다.
+ * 'received_deleting' · 'received_deleted' 는 지금 판이 없는 접수(끝내지 않은 초안 · 판에 오른 적 없이 철회)의 받은 영상을 지우고 있거나 지웠다. '원본'은 판에 얼린 파일만 부른다.
+ * 목록 · 상세 칩과 목록의 '분석 가능' 거름이 같은 말을 하게 이 함수 하나로 정한다(거름은 lib/intake/admin.ts 가 같은 조건을 SQL 로 쓴다).
+ * 판이 없는 접수는 '분석 가능'이 될 수 없어(판을 정산해야 ready 가 된다) 거름이 받은 영상 쪽을 따로 안 본다.
+ */
+export type AnalysisBlock = 'deleting' | 'deleted' | 'received_deleting' | 'received_deleted' | 'withdrawn' | 'revoked' | 'overdue';
+
+export function analysisBlockOf(
+  f: RetentionCell & { status: string; invitationStatus: string },
+  now: Date,
+): AnalysisBlock | null {
+  /* 판이 없으면 지우는 파일이 다 받은 영상이다 — purgingScope 는 판을 모르면 'older' 라고 한다 */
+  if (!f.hasRevision) {
+    if (f.originalsPurging) return 'received_deleting';
+    if (f.originalsPurgedAt) return 'received_deleted';
+  }
+  if (f.originalsPurging === 'current') return 'deleting';
+  if (f.originalsPurgedAt) return 'deleted';
+  if (f.status === 'withdrawn') return 'withdrawn';
+  if (f.invitationStatus !== 'active') return 'revoked';
+  if (f.originalPurgeAt && new Date(f.originalPurgeAt).getTime() <= now.getTime()) return 'overdue';
+  return null;
 }
 
-/** 휴대폰 목록의 줄 — 칸 제목이 없어 날짜가 지울 날일 때만 이름을 붙인다 */
-export const retentionLineText = (r: RetentionCell) => (r.originalsPurging === 'current' || r.originalsPurgedAt ? retentionCellText(r) : `원본 삭제 예정일 ${retentionCellText(r)}`);
+const ANALYSIS_BLOCK_TEXT: Record<AnalysisBlock, string> = {
+  deleting: '원본 지우는 중',
+  deleted: '원본 지워짐',
+  received_deleting: '영상 지우는 중',
+  received_deleted: '영상 지워짐',
+  withdrawn: '분석 불가',
+  revoked: '분석 불가',
+  overdue: '분석 불가',
+};
+
+/**
+ * 분석 칩을 대신할 글 — 막힘이 있으면 '분석 가능' · '분석 전'은 거짓이다. 없으면 null 이고 칩은 분석 상태를 그대로 말한다.
+ * 분석이 끝났거나 실패한 접수는 그 사실이 그대로 참이라 안 바꾼다. 까닭은 상세의 분석 칸이 말한다.
+ */
+export function analysisChipText(analysisStatus: string, block: AnalysisBlock | null | undefined): string | null {
+  if (analysisStatus !== 'ready' && analysisStatus !== 'none') return null;
+  return block ? ANALYSIS_BLOCK_TEXT[block] : null;
+}
+
+/** 휴대폰 목록의 줄 — 칸 제목이 없어 날짜가 지울 날일 때만 이름을 붙인다. '원본'은 판에 얼린 파일만 부른다 */
+export const retentionLineText = (r: RetentionCell) =>
+  purgingNow(r) || r.originalsPurgedAt ? retentionCellText(r) : `${r.hasRevision ? '원본' : '영상'} 삭제 예정일 ${retentionCellText(r)}`;
+

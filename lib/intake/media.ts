@@ -17,6 +17,7 @@
  *
  * 브라우저에서도 돈다(폰이 고른 파일의 사실을 미리 보일 때). 서버는 서명 주소 범위 읽기로 같은 함수를 쓴다.
  */
+import { assetGone } from '@/lib/intake/state';
 import {
   boxesIn,
   fourcc,
@@ -440,13 +441,19 @@ export function fpsLabel(f: Pick<IntakeMediaFacts, 'nominalFps' | 'frameTiming'>
   return f.frameTiming === 'variable' ? `약 ${f.nominalFps}fps 감지` : `${f.nominalFps}fps 감지`;
 }
 
-/** 전송 무결성 이름표 — 서버가 해시까지 맞춘 뒤에만 '그대로' 라고 말한다. 카메라 원본 여부와는 다른 말이다 */
-export function integrityLabel(status: string): string | null {
+/**
+ * 전송 무결성 이름표 — 서버가 해시까지 맞춘 뒤에만 '그대로' 라고 말한다. 카메라 원본 여부와는 다른 말이다.
+ * frozen: 판에 오른 적이 있나. 판에 오른 적 없이 지운 파일은 원본이 아니라 접수에 안 쓰인 임시 파일이다(끊긴 전송 · 고침 중 버린 파일을 정리가 지움).
+ * 그 파일을 '보유 기간이 지나 원본을 지웠다'고 하면 까닭이 틀린다. 판을 모르는 쪽은 예전처럼 원본으로 말한다.
+ * byWithdrawal: 판에 안 오른 파일을 철회 유예가 끝나 지웠나(철회 뒤에 지웠나). 그때 까닭은 철회다 — 임시 파일이라 지웠다고 하면 철회가 안 보인다.
+ */
+export function integrityLabel(status: string, frozen = true, byWithdrawal = false): string | null {
   if (status === 'verified') return '선택한 파일 그대로 전송됨';
   if (status === 'rejected' || status === 'unconfirmed') return '영상 정보 확인 필요';
-  if (status === 'purging') return '보유 기간이 지나 원본을 지우고 있어요';
-  if (status === 'purged') return '보유 기간이 지나 원본을 지웠어요';
-  return null;
+  if (!assetGone(status)) return null;
+  const done = status === 'purging' ? '지우고 있어요' : '지웠어요';
+  if (frozen) return `보유 기간이 지나 원본을 ${done}`;
+  return byWithdrawal ? `접수를 철회해서 ${done}` : `접수에 쓰이지 않은 임시 파일이라 ${done}`;
 }
 
 /** 재생과 표본이 다를 때의 안내 — 없으면 null. 표본 시간을 촬영 길이라고 말하지 않는다 */

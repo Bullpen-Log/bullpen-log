@@ -268,14 +268,21 @@ export async function finishRun(
 
 /**
  * 영수증을 받은 직후의 상태 — 서버를 다시 못 읽어도 접수가 끝난 사실은 화면에 있어야 한다.
- * 분석 · 공개 칸은 다음 읽기가 채운다. 같은 키의 재시도면(created false) 분석 상태는 안 건드린다.
+ * 분석 · 공개 칸은 다음 읽기가 채운다. 화면이 알던 그 판의 영수증이면(같은 판 · created false) 분석 상태 · 원본 사실은 안 건드린다.
+ * 새 판이면 지금 판은 방금 보낸 두 파일이다 — 옛 판의 '지웠어요 · 지우는 중'을 들고 있으면 머리가 방금 보낸 영상을 지웠다고 말한다.
+ * 새 판인지는 created 만으로 모른다: 완료 응답을 잃고 같은 키로 다시 내면(finishRun 의 retryNetwork) 서버는 방금 얼린 판을 created false 로 준다.
+ * 다른 기기가 먼저 낸 경우도 같다. 그래서 영수증의 판이 화면이 알던 판과 다르면 새 판으로 본다.
+ * 새 지울 날은 서버만 알아서 비워 둔다. 옛 판을 지우는 중인지도 다음 읽기가 다시 채운다.
  */
 export function stateAfterReceipt(state: PublicIntakeState, r: IntakeReceipt): PublicIntakeState {
-  const analysisStatus = r.created ? 'none' : state.analysisStatus;
+  const fresh = r.created || r.revision !== state.receipt?.revision;
+  const analysisStatus = fresh ? 'none' : state.analysisStatus;
+  const originals = fresh ? { originalsGone: null, originalDeleting: null, originalDeletedDate: null, originalDeleteDate: null } : {};
   return {
     ...state,
+    ...originals,
     screen: 'receipt',
-    statusText: publicStatusText(r.submissionStatus, analysisStatus, false),
+    statusText: publicStatusText(r.submissionStatus, analysisStatus, false, { originalsGone: fresh ? null : state.originalsGone }),
     version: r.version,
     submissionStatus: r.submissionStatus,
     analysisStatus,

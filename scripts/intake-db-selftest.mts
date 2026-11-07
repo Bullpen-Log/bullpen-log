@@ -5,6 +5,8 @@
  * 저장소는 메모리 가짜다(전송 자체는 intake:transfer-test 가 본다).
  * 한계: PGlite 는 연결이 하나라 동시 요청이 줄을 서서 돈다 — 두 번 눌림 · 같은 키의 결과는 확인하지만, 운영에서 두 연결이 같은 순간에 잠금을 다투는 모습은 재현되지 않는다.
  */
+/* 맨 앞 — 다른 모듈보다 먼저 시험 시계를 건다 */
+import './intake-test-clock.mts';
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
@@ -22,7 +24,9 @@ import { enqueueJob, leaseJobs, requeueJob, runDueJobs } from '@/lib/intake/jobs
 import { DEFAULT_MAX_TOTAL_BYTES, TUS_CHUNK_BYTES, TUS_URL_TTL_MS } from '@/lib/intake/limits';
 import { seoulDateKey } from '@/lib/intake/paths';
 import { PURGE_RUN_SETTLE_MS, enqueueDuePurges, purgeJobKey, purgeSubmissionOriginals } from '@/lib/intake/purge';
-import { receiptHead } from '@/lib/intake/state';
+import { receiptHead, receiptRetentionRows } from '@/lib/intake/state';
+import { stateAfterReceipt } from '@/lib/intake/upload-run';
+import { goneViewsToPick } from '@/components/intake/review-rules';
 import { enforceRateLimit, hitRateLimit, pruneRateLimits } from '@/lib/intake/rate-limit';
 import { removeAndFindLeft, removeLeftObject } from '@/lib/intake/remove';
 import { ORIGINAL_RETENTION_MS } from '@/lib/intake/retention';
@@ -554,6 +558,155 @@ const finalize = (scope: IntakeScope, version: number, idempotencyKey = key(), e
   eq(s.analysisStatus, 'none', '분석 준비가 안 된다');
 }
 {
+  /*
+   * 검증 지적: 고침 화면이 '요청받은 칸을 새로 안 고른 경우'를 못 잡았다. 화면은 막지 않고 보냈다.
+   * (가) 얼린 파일이 살아 있는 칸 — 서버는 'correction_incomplete' 로 막는다. (나) 해시가 달라 막힌 칸 — 서버가 '전송이 아직 끝나지 않았어요'라고 했다.
+   * 전송은 끝났고 파일이 막혔을 뿐이라 그 글은 거짓이다. 공개 상태로 화면이 같은 칸을 보내기 전에 막는다.
+   */
+  const none = { side: null, rear: null };
+  const live = await ready();
+  await finalize(live.scope, live.state.version);
+  await verifyAsset(db, storage, live.sideId, NOW);
+  await verifyAsset(db, storage, live.rearId, NOW);
+  await requestCorrection(db, { adminId: 'a', submissionId: live.submissionId, views: ['side'] }, at(HOUR));
+  const ls = await loadPublicState(db, live.scope, { now: at(HOUR) });
+  eq([ls.submissionStatus, ls.assets.side?.status], ['correction_requested', 'verified'], '(가) 옆 원본은 살아 있다');
+  eq(ls.frozenAssetIds, { side: live.sideId, rear: live.rearId }, '(가) 공개 상태가 지금 판의 짝을 안다');
+  eq(goneViewsToPick(ls, none), ['side'], '(가) 얼린 파일 그대로인 칸은 다시 골라야 한다');
+  await fails(finalize(live.scope, ls.version), 'correction_incomplete', '(가) 서버도 같은 칸으로 막는다');
+
+  const bad = await ready();
+  await finalize(bad.scope, bad.state.version);
+  const badRow = await db.intakeAsset.findUniqueOrThrow({ where: { id: bad.sideId } });
+  const tampered = Buffer.from(bad.side);
+  tampered[tampered.length - 1] ^= 1;
+  objects.set(badRow.objectPath, tampered);
+  eq(await verifyAsset(db, storage, bad.sideId, NOW), 'rejected', '(나) 해시가 달라 막힌다');
+  await verifyAsset(db, storage, bad.rearId, NOW);
+  eq((await loadPublicState(db, bad.scope, { now: NOW })).submissionStatus, 'needs_attention', '(나) 담당자 확인');
+  await requestCorrection(db, { adminId: 'a', submissionId: bad.submissionId, views: ['side'] }, at(HOUR));
+  const bs = await loadPublicState(db, bad.scope, { now: at(HOUR) });
+  eq(bs.assets.side?.status, 'rejected', '(나) 칸에는 막힌 파일이 있다');
+  eq(goneViewsToPick(bs, none), ['side'], '(나) 막힌 칸은 다시 골라야 한다');
+  ok(goneViewsToPick(bs, { side: {}, rear: null }).length === 0, '(나) 새 파일을 고르면 막지 않는다');
+  await fails(finalize(bad.scope, bs.version), 'correction_incomplete', '(나) 전송이 안 끝났다고 하지 않고 고치라고 답한다');
+
+  /* 새 파일을 받으면 같은 접수가 끝까지 간다 */
+  await sendFile(bad.scope, 'side', mov240(4096), bad.sideId);
+  const after = await loadPublicState(db, bad.scope, { now: at(HOUR) });
+  eq(goneViewsToPick(after, none), [], '(나) 새 파일이 온 칸은 막지 않는다');
+  const fixed = await finalize(bad.scope, after.version, key(), { samePitchConfirmed: true });
+  ok(fixed.created && fixed.revision === 2, '(나) 새 판이 생긴다');
+  /* 걸어 둔 확인 일감을 여기서 끝낸다 — 뒤 시험의 저장소 실패 주입이 이 일감에 걸리지 않게 */
+  await runDueJobs(db, intakeCoreJobHandlers(db, storage), { owner: 'w-repick', limit: 50, now: () => at(HOUR) });
+  eq((await db.intakeSubmission.findUniqueOrThrow({ where: { id: bad.submissionId } })).status, 'verified', '(나) 새 파일이 맞으면 검증된다');
+}
+{
+  /*
+   * 검증 지적: 요청받지 않은 칸의 판 파일이 막혀 있으면 받는 사람이 그 칸을 고칠 수 없었다. 내면 '두 영상의 전송이 아직 끝나지 않았어요'가 나왔다(거짓이다).
+   * 막힌 파일로는 판을 얼릴 수 없다 — 지운 칸처럼 막힌 칸도 요청에 늘 넣는다. 요청한 뒤에 막혀도 넣는다.
+   */
+  const none = { side: null, rear: null };
+  const tamper = async (assetId: string, bytes: Buffer) => {
+    const row = await db.intakeAsset.findUniqueOrThrow({ where: { id: assetId } });
+    const t = Buffer.from(bytes);
+    t[t.length - 1] ^= 1;
+    objects.set(row.objectPath, t);
+  };
+  const stateAt = (scope: IntakeScope) => loadPublicState(db, scope, { now: at(HOUR) });
+
+  /* (다) 관리자가 막힌 뒤 칸을 빼고 옆만 요청했다 */
+  const a = await ready();
+  await finalize(a.scope, a.state.version);
+  await tamper(a.rearId, a.rear);
+  eq(await verifyAsset(db, storage, a.rearId, NOW), 'rejected', '(다) 뒤 파일이 막힌다');
+  await verifyAsset(db, storage, a.sideId, NOW);
+  await requestCorrection(db, { adminId: 'a', submissionId: a.submissionId, views: ['side'] }, at(HOUR));
+  const as = await stateAt(a.scope);
+  eq(as.correction?.views, ['side', 'rear'], '(다) 막힌 칸은 요청에 늘 들어간다');
+  eq(goneViewsToPick(as, none), ['side', 'rear'], '(다) 화면이 두 칸 다 새로 고르라고 한다');
+  await fails(finalize(a.scope, as.version, key(), { samePitchConfirmed: true }), 'correction_incomplete', '(다) 안 고치고 내면 전송 중이라고 하지 않는다');
+  await sendFile(a.scope, 'side', mov240(4096), a.sideId);
+  await sendFile(a.scope, 'rear', mov120(4096), a.rearId);
+  const aDone = await finalize(a.scope, (await stateAt(a.scope)).version, key(), { samePitchConfirmed: true });
+  ok(aDone.created && aDone.revision === 2, '(다) 두 칸을 새로 받으면 낼 수 있다');
+
+  /* (라) 글만 요청해도 막힌 칸이 들어간다 */
+  const b = await ready();
+  await finalize(b.scope, b.state.version);
+  await tamper(b.sideId, b.side);
+  await verifyAsset(db, storage, b.sideId, NOW);
+  await verifyAsset(db, storage, b.rearId, NOW);
+  await requestCorrection(db, { adminId: 'a', submissionId: b.submissionId, fields: ['athleteName'] }, at(HOUR));
+  const bs = await stateAt(b.scope);
+  eq([bs.correction?.fields, bs.correction?.views], [['athleteName'], ['side']], '(라) 글만 요청해도 막힌 칸이 요청에 들어간다');
+  eq(goneViewsToPick(bs, none), ['side'], '(라) 화면이 그 칸을 고르라고 한다');
+
+  /* (마) 요청한 뒤에 파일이 막혔다 — 요청할 때는 막힌 칸이 없어 관리자가 고를 수 없었다 */
+  const c = await ready();
+  await finalize(c.scope, c.state.version);
+  await requestCorrection(db, { adminId: 'a', submissionId: c.submissionId, fields: ['athleteName'] }, at(HOUR));
+  const cBefore = await stateAt(c.scope);
+  eq(cBefore.correction?.views, [], '(마) 요청할 때는 영상 칸이 없다');
+  await tamper(c.sideId, c.side);
+  eq(await verifyAsset(db, storage, c.sideId, at(HOUR)), 'rejected', '(마) 요청 뒤에 옆 파일이 막힌다');
+  await verifyAsset(db, storage, c.rearId, at(HOUR));
+  const cs = await stateAt(c.scope);
+  eq([cs.submissionStatus, cs.correction?.views], ['correction_requested', ['side']], '(마) 막힌 칸을 요청에 더한다');
+  ok(cs.version > cBefore.version, '(마) 판이 올라 낡은 화면은 다시 읽는다');
+  eq(await db.intakeAudit.count({ where: { submissionId: c.submissionId, action: 'correction.widened' } }), 1, '(마) 요청에 더한 기록이 남는다');
+  eq(goneViewsToPick(cs, none), ['side'], '(마) 화면이 그 칸을 고르라고 한다');
+  const cv = (await saveDraft(db, c.scope, { expectedVersion: cs.version, athleteName: '금윤호2' }, at(HOUR))).version;
+  await fails(finalize(c.scope, cv), 'correction_incomplete', '(마) 이름만 고쳐 내면 그 칸을 고치라고 답한다');
+  await verifyAsset(db, storage, c.sideId, at(HOUR));
+  eq(await db.intakeAudit.count({ where: { submissionId: c.submissionId, action: 'correction.widened' } }), 1, '(마) 다시 불러도 한 번만 더한다');
+
+  /* (바) 막힌 칸이 빠진 요청이 남아 있으면(앞선 판 · 손으로 고친 줄) 내기를 누를 때 서버가 그 칸을 넣고 고치라고 답한다 */
+  const d = await ready();
+  await finalize(d.scope, d.state.version);
+  await tamper(d.rearId, d.rear);
+  await verifyAsset(db, storage, d.rearId, NOW);
+  await verifyAsset(db, storage, d.sideId, NOW);
+  await requestCorrection(db, { adminId: 'a', submissionId: d.submissionId, views: ['side'] }, at(HOUR));
+  await db.intakeSubmission.update({ where: { id: d.submissionId }, data: { correction: { fields: [], views: ['side'], message: null }, version: { increment: 1 } } });
+  await sendFile(d.scope, 'side', mov240(4096), d.sideId);
+  const dv = (await stateAt(d.scope)).version;
+  await fails(finalize(d.scope, dv, key(), { samePitchConfirmed: true }), 'correction_incomplete', '(바) 전송 중이라고 하지 않고 고치라고 답한다');
+  const ds = await stateAt(d.scope);
+  eq(ds.correction?.views, ['side', 'rear'], '(바) 막힌 칸을 요청에 넣어 받는 사람이 고칠 수 있다');
+  ok(ds.version > dv, '(바) 판이 올라 화면이 다시 읽는다');
+  eq(goneViewsToPick(ds, none), ['rear'], '(바) 새로 받은 옆 칸은 막지 않고 뒤 칸만 고르라고 한다');
+  await runDueJobs(db, intakeCoreJobHandlers(db, storage), { owner: 'w-blocked', limit: 50, now: () => at(HOUR) });
+}
+{
+  /*
+   * 검증 지적: 요청받은 칸에 얼린 파일과 같은 영상을 다시 고르면 서버가 얼린 자산을 그대로 돌려줬다. 칸이 안 바뀌어 '요청받은 내용을 먼저 고쳐 주세요'가 되풀이됐다.
+   * 이미 보낸 영상이라고 고를 때 바로 답한다.
+   */
+  const stateAt = (scope: IntakeScope) => loadPublicState(db, scope, { now: at(HOUR) });
+  const e = await ready();
+  await finalize(e.scope, e.state.version);
+  await verifyAsset(db, storage, e.sideId, NOW);
+  await verifyAsset(db, storage, e.rearId, NOW);
+  await requestCorrection(db, { adminId: 'a', submissionId: e.submissionId, views: ['side'] }, at(HOUR));
+  const again = (expectedAssetId: string) => reserveAsset(db, e.scope, { view: 'side', expectedAssetId, fileName: 'side.MOV', sizeBytes: e.side.length, sha256: sha(e.side) }, at(HOUR));
+  await fails(again(e.sideId), 'same_as_sent', '(사) 얼린 파일과 같은 영상이면 이미 보낸 영상이라고 답한다');
+  eq((await stateAt(e.scope)).assets.side?.id, e.sideId, '(사) 칸은 그대로다');
+  const newSide = await sendFile(e.scope, 'side', mov240(4096), e.sideId);
+  await fails(again(newSide), 'same_as_sent', '(사) 새 파일을 고른 뒤 옛 파일로 돌아가도 같다');
+  eq((await stateAt(e.scope)).assets.side?.id, newSide, '(사) 새로 고른 파일이 칸에 남는다');
+  const eDone = await finalize(e.scope, (await stateAt(e.scope)).version, key(), { samePitchConfirmed: true });
+  ok(eDone.created && eDone.revision === 2, '(사) 다른 영상을 보내면 낼 수 있다');
+
+  /* (아) 확인이 끝나지 않은 얼린 파일 — 같은 영상을 다시 받아 새로 확인한다(막혀서 되돌아오지 않는다) */
+  const f = await ready();
+  await finalize(f.scope, f.state.version);
+  await requestCorrection(db, { adminId: 'a', submissionId: f.submissionId, views: ['side'] }, at(HOUR));
+  const re = await reserveAsset(db, f.scope, { view: 'side', expectedAssetId: f.sideId, fileName: 'side.MOV', sizeBytes: f.side.length, sha256: sha(f.side), pairConfirmed: true }, at(HOUR));
+  ok(re.created && re.asset.id !== f.sideId, '(아) 확인이 안 끝난 파일은 같은 영상으로 다시 받는다');
+  await runDueJobs(db, intakeCoreJobHandlers(db, storage), { owner: 'w-same-sent', limit: 50, now: () => at(HOUR) });
+}
+{
   /* 이름 · 종류를 영상처럼 꾸민 글 파일 */
   const i = await invite();
   await named(i.scope);
@@ -790,10 +943,11 @@ const finalize = (scope: IntakeScope, version: number, idempotencyKey = key(), e
   const swap = await reserveAsset(db, j.scope, { view: 'side', expectedAssetId: oldId, fileName: 'n', sizeBytes: f2.length, sha256: sha(f2) }, NOW);
   await issueUploadToken(db, storage, j.scope, { assetId: swap.asset.id }, NOW);
 
-  const soon = await cleanupStaleUploads(db, storage, new Date(), 500);
+  /* 시각은 시험 시계(NOW)로 센다 — 초대 기간을 NOW 에서 셌다. 실제 시계로 정리하면 날짜가 지나며 기간이 끝난 것처럼 된다 */
+  const soon = await cleanupStaleUploads(db, storage, NOW, 500);
   ok(objects.has(old.objectPath) && soon.purged === 0, '주소가 끝나기 전에는 안 지운다');
 
-  const far = new Date(Date.now() + 3 * DAY);
+  const far = new Date(NOW.getTime() + 3 * DAY);
   const c = await cleanupStaleUploads(db, storage, far, 500);
   ok(c.purged >= 1 && !objects.has(old.objectPath), '교체된 자산을 지운다');
   eq((await db.intakeAsset.findUniqueOrThrow({ where: { id: oldId } })).status, 'purged', '지운 것을 남긴다');
@@ -801,7 +955,7 @@ const finalize = (scope: IntakeScope, version: number, idempotencyKey = key(), e
   eq((await db.intakeAsset.findUniqueOrThrow({ where: { id: swap.asset.id } })).status, 'uploading', '기간이 남은 진행 중 전송은 안 건드린다');
 
   /* 기간이 끝나면 칸이 가리키는 미완료 전송도 정리한다 */
-  await db.intakeInvitation.update({ where: { id: j.invitationId }, data: { uploadExpiresAt: new Date(Date.now() - 1000) } });
+  await db.intakeInvitation.update({ where: { id: j.invitationId }, data: { uploadExpiresAt: new Date(NOW.getTime() - 1000) } });
   const d = await cleanupStaleUploads(db, storage, far, 500);
   ok(d.abandoned >= 1, '끝난 초대의 미완료 전송을 버린다');
   eq((await db.intakeAsset.findUniqueOrThrow({ where: { id: swap.asset.id } })).status, 'purged', '버린 전송을 지운다');
@@ -2070,6 +2224,17 @@ const verifyAll = async (...ids: string[]) => {
   await fails(finalizeSubmission(db, fin.scope, { expectedVersion: (await subRow(fin.submissionId)).version, idempotencyKey: key() }, D(105)), 'correction_incomplete', '지운 칸이 남았으면 요청을 고치라고 답한다');
   eq(await db.intakeRevision.count({ where: { submissionId: fin.submissionId } }), 1, '판이 안 생긴다');
 
+  /* 검증 지적: 끊긴 전송을 정리가 버려 요청받은 칸이 비었다 — 오는 중인 전송이 없으니 기다리라고 하지 않고 그 칸을 고치라고 답한다 */
+  const freshRear = await sendFile(fin.scope, 'rear', mov240(4096), fin.rearId, 'rear3.MOV');
+  await db.intakeJob.updateMany({ where: { dedupeKey: `verify_asset:${freshRear}` }, data: { status: 'done' } });
+  await db.intakeSubmission.update({ where: { id: fin.submissionId }, data: { sideAssetId: null, samePitchConfirmed: false, version: { increment: 1 } } });
+  await fails(
+    finalizeSubmission(db, fin.scope, { expectedVersion: (await subRow(fin.submissionId)).version, idempotencyKey: key(), samePitchConfirmed: true }, D(105)),
+    'correction_incomplete',
+    '요청받은 칸이 비었으면 전송을 기다리라고 안 한다',
+  );
+  eq(await db.intakeRevision.count({ where: { submissionId: fin.submissionId } }), 1, '빈 칸으로는 판이 안 생긴다');
+
   /* 철회는 막지 않고, 철회로 날짜가 밀려도 끝까지 지운다 */
   const wd = await sent();
   fail.removePartial = 1;
@@ -2098,7 +2263,23 @@ const verifyAll = async (...ids: string[]) => {
   await requestCorrection(db, { adminId: 'a', submissionId: nv.submissionId, views: ['side', 'rear'] }, D(91));
   const nvSide = await sendFile(nv.scope, 'side', mov120(4096), nv.sideId, 'nv-side.MOV');
   const nvRear = await sendFile(nv.scope, 'rear', mov240(4096), nv.rearId, 'nv-rear.MOV');
-  await finalizeSubmission(db, nv.scope, { expectedVersion: (await subRow(nv.submissionId)).version, idempotencyKey: key() }, D(92));
+  /* 검증 지적: 지우는 중에 고쳐 다시 낸 직후 — 화면이 쥔 상태로 그린 영수증이 방금 보낸 영상을 지웠다고 말하지 않는다 */
+  const nvBefore = await loadPublicState(db, nv.scope, { now: D(92) });
+  eq(nvBefore.originalsGone, 'deleting', '다시 내기 전에는 지우는 중이다');
+  const nvKey = key();
+  const nvReceipt = await finalizeSubmission(db, nv.scope, { expectedVersion: nvBefore.version, idempotencyKey: nvKey }, D(92));
+  const nvShown = stateAfterReceipt(nvBefore, nvReceipt);
+  eq([receiptHead(nvShown).title, receiptRetentionRows(nvShown)], ['영상이 잘 도착했어요', []], '영수증 머리 · 줄이 옛 판의 지우는 중을 말하지 않는다');
+  /* 검증 지적: 완료 응답을 잃고 같은 키로 다시 낸다(finishRun 의 retryNetwork) — 서버는 created false 로 같은 판을 준다. 화면은 아직 다시 내기 전 상태를 쥐고 있다 */
+  const nvRetry = await finalizeSubmission(db, nv.scope, { expectedVersion: nvBefore.version, idempotencyKey: nvKey }, D(92));
+  eq([nvRetry.created, nvRetry.revision], [false, nvReceipt.revision], '같은 키 재시도는 같은 판의 영수증이다');
+  const nvRetryShown = stateAfterReceipt(nvBefore, nvRetry);
+  eq(
+    [receiptHead(nvRetryShown).title, receiptRetentionRows(nvRetryShown), nvRetryShown.statusText, nvRetryShown.originalsGone],
+    ['영상이 잘 도착했어요', [], '파일이 잘 도착했는지 확인하고 있어요', null],
+    '응답을 잃은 재시도의 영수증도 방금 보낸 영상을 지우고 있다고 말하지 않는다',
+  );
+  eq((await loadPublicState(db, nv.scope, { now: D(92) })).originalsGone, null, '서버도 지금 판은 살아 있다고 말한다');
   await verifyAll(nvSide, nvRear);
   await db.intakeJob.updateMany({ where: { dedupeKey: { in: [`verify_asset:${nvSide}`, `verify_asset:${nvRear}`] } }, data: { status: 'done' } });
   eq((await subRow(nv.submissionId)).status, 'verified', '두 파일을 새로 받으면 낼 수 있다');

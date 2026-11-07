@@ -39,8 +39,12 @@ type Bench = {
   confirms: Record<string, Handler>;
   refreshes: number;
   toasts: string[];
+  /** 받는 사람 화면 시험 — 입력 칸 · 체크 칸의 처리기(id 별)와 고침 화면의 상태 칸 */
+  inputs: Record<string, (e: { currentTarget: { value: string } }) => void>;
+  checks: Record<string, (next: boolean) => void>;
+  hooks: { slots: unknown[]; i: number };
 };
-const bench: Bench = { React, calls: [], answers: {}, clicks: {}, confirms: {}, refreshes: 0, toasts: [] };
+const bench: Bench = { React, calls: [], answers: {}, clicks: {}, confirms: {}, refreshes: 0, toasts: [], inputs: {}, checks: {}, hooks: { slots: [], i: 0 } };
 (globalThis as unknown as { __detailTest: Bench }).__detailTest = bench;
 
 const ACTIONS = [
@@ -82,23 +86,56 @@ export function Button({ children, onClick, disabled, type }) {
   if (onClick) b.clicks[name] = onClick;
   return h('button', { type, disabled }, children);
 }
-export function Textarea(props) { return h('textarea', { 'aria-label': props['aria-label'], defaultValue: props.value ?? props.defaultValue }); }`,
+export function Textarea(props) { return h('textarea', { 'aria-label': props['aria-label'], defaultValue: props.value ?? props.defaultValue }); }
+export function Input(props) {
+  if (props.id) b.inputs[props.id] = props.onChange;
+  return h('input', { id: props.id, defaultValue: props.value, 'aria-invalid': props['aria-invalid'], 'aria-describedby': props['aria-describedby'] });
+}`,
+  /* 받는 사람 화면의 틀 — 바닥 단추의 처리기를 쥔다 */
+  '@/components/intake/shell': `const b = globalThis.__detailTest; const h = b.React.createElement;
+const words = (n) => (Array.isArray(n) ? n.map(words).join('') : typeof n === 'string' ? n : n?.props?.children ? words(n.props.children) : '');
+export function Screen({ title, desc, actions, children }) { return h('main', null, h('h1', null, title), desc ? h('p', null, desc) : null, children, h('footer', null, actions)); }
+export function PrimaryButton({ children, onClick, disabled }) { b.clicks[words(children).trim()] = onClick; return h('button', { disabled }, children); }
+export function SecondaryButton({ children, onClick }) { b.clicks[words(children).trim()] = onClick; return h('button', null, children); }
+export function FieldError({ id, children }) { return h('p', { id, 'data-field-error': '' }, children); }
+export function NoteBox({ children }) { return h('aside', null, children); }`,
+  /* 체크 칸 — 처리기를 id 로 쥔다. 진짜 부품이 같은 id 를 그리는지는 시험이 따로 본다 */
+  '@/components/intake/consent-block': `const b = globalThis.__detailTest; const h = b.React.createElement;
+export function CheckRow({ id, checked, onChange, label, invalid, describedBy }) {
+  if (id) b.checks[id] = onChange;
+  return h('label', null, h('input', { id, type: 'checkbox', defaultChecked: checked, 'aria-invalid': invalid || undefined, 'aria-describedby': describedBy }), label);
+}
+export function RequiredConsents({ docs, agreed, onChange, invalid }) {
+  return h('div', null, docs.filter((d) => d.required).map((d) => {
+    b.checks['consent-' + d.kind] = (next) => onChange(d.kind, next);
+    return h('input', { key: d.kind, id: 'consent-' + d.kind, type: 'checkbox', defaultChecked: agreed[d.kind] === true, 'aria-invalid': (invalid && agreed[d.kind] !== true) || undefined });
+  }));
+}
+export function ConsentText({ body }) { return h('p', null, body); }`,
   '@/components/confirm-delete': `const b = globalThis.__detailTest; const h = b.React.createElement;
 export function ConfirmDialog({ title, detail, onConfirm, open }) {
   b.confirms[title] = onConfirm;
   return h('aside', { 'data-confirm': title, 'data-open': open }, detail);
 }`,
   '@/components/icon': `const h = globalThis.__detailTest.React.createElement; const I = () => h('i');
-export { I as Download, I as Play, I as Trash2, I as RefreshCw, I as RotateCcw, I as Send };`,
+export { I as Download, I as Play, I as Trash2, I as RefreshCw, I as RotateCcw, I as Send, I as CircleAlert, I as CircleCheck, I as Clock3, I as Copy, I as Loader2, I as Check, I as FileVideo };`,
 };
 
 const reactUrl = import.meta.resolve('react');
 /* useAction 은 전환 안에서 돈다 — 서버 그리기에는 전환이 없어 이 파일에만 바로 도는 판을 준다 */
 const FAKE_REACT = `export const useState = (v) => [v, () => {}]; export const useTransition = () => [false, (f) => { globalThis.__detailTest.last = f(); }];`;
+/* 받는 사람 고침 화면은 상태를 바꾼 뒤 다시 그려 봐야 한다 — 부른 차례로 칸을 쥐는 작은 useState 를 준다(그리기마다 hooks.i 를 0 으로) */
+const HOOKS_REACT = `const s = globalThis.__detailTest.hooks;
+export function useState(init) {
+  const k = s.i++;
+  if (!(k in s.slots)) s.slots[k] = typeof init === 'function' ? init() : init;
+  return [s.slots[k], (v) => { s.slots[k] = typeof v === 'function' ? v(s.slots[k]) : v; }];
+}`;
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === 'react' && context.parentURL?.endsWith('/use-action.ts')) return { url: `data:text/javascript,${encodeURIComponent(FAKE_REACT)}`, shortCircuit: true };
+    if (specifier === 'react' && context.parentURL?.endsWith('/components/intake/status-steps.tsx')) return { url: `data:text/javascript,${encodeURIComponent(HOOKS_REACT)}`, shortCircuit: true };
     if (specifier === 'react') return { url: reactUrl, shortCircuit: true };
     if (Object.hasOwn(STUBS, specifier)) return { url: `data:text/javascript,${encodeURIComponent(STUBS[specifier])}`, shortCircuit: true };
     /* 앱은 같은 폴더 파일도 확장자 없이 부른다 */
@@ -365,6 +402,13 @@ const panel = (over: Record<string, unknown>) =>
   ok(bench.refreshes === 1, '끝나면 새로 받는다');
   ok(!(draw(h(CorrectionPanel, { ...base, editable: false })), bench.clicks['요청 바꾸기']), '폐기된 초대는 거두기만 된다');
   ok(bench.clicks['고침 요청 거두기'], '폐기돼도 거둘 수 있다');
+  /* 검증 지적: 폐기된 초대의 고침에 '기간을 늘려 주세요'를 권했다 — 폐기된 초대는 기간을 늘릴 수 없고, 늘리기 칸도 없다 */
+  for (const uploadExpired of [true, false]) {
+    const revoked = draw(h(CorrectionPanel, { ...base, editable: false, uploadExpired }));
+    ok(!revoked.includes('기간을 늘려') && !revoked.includes('올리기 기간이 끝나'), `폐기된 초대에는 기간 늘리기를 권하지 않는다: 기간 끝남 ${uploadExpired}`);
+    ok(revoked.includes('초대를 폐기해 받는 분이 고칠 수 없어요') && revoked.includes('고침 요청을 거둘 수 있어요'), `폐기한 까닭과 할 수 있는 일을 말한다: 기간 끝남 ${uploadExpired}`);
+  }
+  ok(!draw(h(CorrectionPanel, base)).includes('초대를 폐기'), '살아 있는 초대에는 폐기 글이 없다');
   const form = draw(h(CorrectionPanel, { ...base, requested: false, correction: null, requestedAt: null, uploadExpired: false, suggestViews: ['rear'] }));
   ok(/<input[^>]*checked[^>]*value="rear"|<input[^>]*value="rear"[^>]*checked/.test(form), '막힌 칸은 미리 골라 둔다');
   ok(!/<input[^>]*checked[^>]*value="side"|<input[^>]*value="side"[^>]*checked/.test(form), '멀쩡한 칸은 안 고른다');
@@ -457,64 +501,445 @@ const panel = (over: Record<string, unknown>) =>
   eq([olderGone.label, olderGone.date], ['원본 지운 날', '2027-02-04T01:00:00.000Z'], '지금 판을 지웠으면 지운 날을 말한다');
   ok(olderGone.note?.includes('옛 판'), '옛 판이 남았다고 같이 말한다');
 
-  /* 철회 배너 */
-  eq(rules.withdrawnRetentionText(null), '', '지울 날이 없으면 안 말한다');
-  ok(rules.withdrawnRetentionText(base as never).includes('에 지워요'), '지울 날을 말한다');
-  ok(rules.withdrawnRetentionText({ ...base, purgedAt: '2027-02-04T01:00:00.000Z' } as never).includes('에 지웠어요'), '지운 날을 말한다');
-  eq(rules.withdrawnRetentionText({ ...current, purgeAt: '2027-05-07T00:00:00.000Z' } as never), ' 원본을 지우고 있어요.', '철회로 밀린 날을 지울 날이라고 안 말한다');
-  ok(rules.withdrawnRetentionText(older as never).includes('에 지워요'), '옛 판만 지우면 지금 판의 지울 날을 말한다');
+  /* 철회 배너 — 시각을 늘 넘긴다. 기본값(지금)에 기대면 지울 날(2027-02-04)이 지난 뒤 시험이 깨진다 */
+  const beforeDue = new Date('2027-01-10T00:00:00.000Z');
+  eq(rules.withdrawnRetentionText(null, beforeDue), '', '지울 날이 없으면 안 말한다');
+  ok(rules.withdrawnRetentionText(base as never, beforeDue).includes('에 지워요'), '지울 날을 말한다');
+  ok(rules.withdrawnRetentionText({ ...base, purgedAt: '2027-02-04T01:00:00.000Z' } as never, beforeDue).includes('에 지웠어요'), '지운 날을 말한다');
+  eq(rules.withdrawnRetentionText({ ...current, purgeAt: '2027-05-07T00:00:00.000Z' } as never, beforeDue), ' 원본을 지우고 있어요.', '철회로 밀린 날을 지울 날이라고 안 말한다');
+  ok(rules.withdrawnRetentionText(older as never, beforeDue).includes('에 지워요'), '옛 판만 지우면 지금 판의 지울 날을 말한다');
 
   const page = readFileSync(fileURLToPath(new URL('./page.tsx', import.meta.url)), 'utf8');
-  ok(page.includes('pairDownloadable(d)') && page.includes('RETENTION_BASIS_TEXT'), '화면이 규칙을 쓴다');
+  ok(page.includes('pairDownloadable(d)') && page.includes('retentionFactRows(d.retention, d.filesPurgedAt, now)'), '화면이 규칙을 쓴다');
   ok(!page.includes('보유 기간이 정해질 때까지'), '옛 약속이 안 남는다');
   const manage = readFileSync(fileURLToPath(new URL('./detail-manage.tsx', import.meta.url)), 'utf8');
   ok(manage.includes('모델 개발 동의는 이 기록으로 거둬지지 않고 따로 남아요'), '철회 확인창이 모델 동의를 말한다');
   ok(!manage.includes('보유 기간이 정해질 때까지'), '철회 확인창의 옛 약속이 없다');
   const list = readFileSync(fileURLToPath(new URL('../page.tsx', import.meta.url)), 'utf8');
-  ok(list.includes('원본 삭제 예정일'), '목록에 칸이 있다');
+  /* 검증 지적: 칸 머리가 판에 안 오른 철회 초안의 파일까지 '원본'이라고 불렀다 — 낱말은 칸 글 쪽이 고른다(retentionLineText · 상세 fileWords) */
+  ok(list.includes("'삭제 예정일'") && !list.includes('원본 삭제 예정일'), '목록 칸 머리가 모든 줄을 원본이라고 부르지 않는다');
   ok(list.includes('retentionCellText(r)') && list.includes('retentionLineText(r)'), '목록이 지우는 중을 아는 글을 쓴다');
-  ok(page.includes('withdrawnRetentionText(d.retention)'), '철회 배너가 지우는 중을 아는 글을 쓴다');
+  ok(page.includes('withdrawnRetentionText(d.retention, now)'), '철회 배너가 지우는 중을 아는 글을 쓴다');
 }
 
 /* ── 지운 접수의 칩과 확인창 글(지적 5 · 8) ── */
 {
-  const { analysisGoneText, viewProgressOf, VIEW_PROGRESS_TEXT } = await import('@/lib/intake/admin-labels');
+  const { analysisBlockOf, analysisChipText, viewProgressOf, VIEW_PROGRESS_TEXT } = await import('@/lib/intake/admin-labels');
   eq([viewProgressOf('purging'), viewProgressOf('purged'), viewProgressOf(null)], ['deleting', 'deleted', 'empty'], '지운 칸과 받은 적 없는 칸을 가른다');
   eq([VIEW_PROGRESS_TEXT.deleting, VIEW_PROGRESS_TEXT.deleted], ['지우는 중', '지워짐'], '칩 글');
-  const none = { originalsPurgedAt: null, originalsPurging: null };
-  const purged = { originalsPurgedAt: '2027-02-04T00:00:00.000Z', originalsPurging: null };
-  eq(analysisGoneText('ready', none), null, '살아 있으면 분석 칩 그대로다');
-  eq(analysisGoneText('ready', purged), '원본 지워짐', '지운 접수를 분석 가능이라고 안 말한다');
-  eq(analysisGoneText('none', purged), '원본 지워짐', '분석 전도 같다');
-  eq(analysisGoneText('ready', { originalsPurgedAt: null, originalsPurging: 'current' }), '원본 지우는 중', '지우는 중도 말한다');
-  eq(analysisGoneText('ready', { originalsPurgedAt: null, originalsPurging: 'older' }), null, '옛 판만 지우면 지금 판은 분석할 수 있다');
-  eq(analysisGoneText('ready', { originalsPurgedAt: '2027-02-04T00:00:00.000Z', originalsPurging: 'older' }), '원본 지워짐', '지금 판을 지웠으면 옛 판과 상관없다');
-  eq(analysisGoneText('succeeded', purged), null, '끝난 분석은 그대로다');
-  eq(analysisGoneText('failed', purged), null, '실패도 그대로다');
+  const at = new Date('2027-01-01T00:00:00.000Z');
+  const live = { status: 'verified', invitationStatus: 'active', originalPurgeAt: '2027-02-04T00:00:00.000Z', originalsPurgedAt: null, originalsPurging: null, hasRevision: true };
+  const block = (f: Record<string, unknown>) => analysisBlockOf({ ...live, ...f } as never, at);
+  eq(block({}), null, '살아 있으면 막힘이 없다');
+  eq(block({ originalsPurgedAt: '2027-02-04T00:00:00.000Z' }), 'deleted', '지운 접수');
+  eq(block({ originalsPurging: 'current' }), 'deleting', '지우는 중');
+  eq(block({ originalsPurging: 'older' }), null, '옛 판만 지우면 지금 판은 분석할 수 있다');
+  eq(block({ originalsPurgedAt: '2027-02-04T00:00:00.000Z', originalsPurging: 'older' }), 'deleted', '지금 판을 지웠으면 옛 판과 상관없다');
+  eq(block({ status: 'withdrawn' }), 'withdrawn', '철회');
+  eq(block({ invitationStatus: 'revoked' }), 'revoked', '폐기');
+  eq(block({ originalPurgeAt: '2026-12-31T00:00:00.000Z' }), 'overdue', '지울 날이 지났다');
+  eq(block({ originalPurgeAt: null }), null, '시계가 없으면 지울 날로 안 막는다');
+  eq(analysisChipText('ready', null), null, '막힘이 없으면 분석 칩 그대로다');
+  eq(analysisChipText('ready', 'deleted'), '원본 지워짐', '지운 접수를 분석 가능이라고 안 말한다');
+  eq(analysisChipText('none', 'deleted'), '원본 지워짐', '분석 전도 같다');
+  eq(analysisChipText('ready', 'deleting'), '원본 지우는 중', '지우는 중도 말한다');
+  eq([analysisChipText('ready', 'withdrawn'), analysisChipText('ready', 'revoked'), analysisChipText('ready', 'overdue')], ['분석 불가', '분석 불가', '분석 불가'], '철회 · 폐기 · 지울 날 지남은 분석 불가다');
+  eq(analysisChipText('succeeded', 'deleted'), null, '끝난 분석은 그대로다');
+  eq(analysisChipText('failed', 'withdrawn'), null, '실패도 그대로다');
 
   const alive = { purgeAt: '2027-02-04T00:00:00.000Z', anchorAt: '2026-11-06T00:00:00.000Z', basis: 'published', purgedAt: null, heldUntil: null, purging: null };
   const gone = { ...alive, purgedAt: '2027-02-04T01:00:00.000Z' };
   const deleting = { ...alive, purging: { since: '2027-02-04T00:10:00.000Z', files: 2, scope: 'current' } };
   const olderOnly = { ...alive, purging: { since: '2027-02-04T00:10:00.000Z', files: 1, scope: 'older' } };
-  ok(rules.cancelCorrectionDetail(alive as never).includes('그대로예요'), '살아 있으면 그대로라고 말한다');
-  ok(rules.cancelCorrectionDetail(gone as never).includes('이미 지웠어요') && !rules.cancelCorrectionDetail(gone as never).includes('그대로예요'), '지웠으면 지웠다고 말한다');
-  ok(rules.cancelCorrectionDetail(deleting as never).includes('지우고 있어요'), '지우는 중이면 그렇게 말한다');
-  ok(rules.cancelCorrectionDetail(olderOnly as never).includes('그대로예요'), '옛 판만 지우면 지금 판은 그대로다');
-  ok(rules.cancelCorrectionDetail(null).includes('그대로예요'), '지울 날이 없어도 그대로다');
-  ok(rules.revokeRetentionText(alive as never).includes('2027. 02. 04') && rules.revokeRetentionText(alive as never).includes('까지 열려요'), '폐기해도 지울 날까지만 열린다');
-  ok(!rules.revokeRetentionText(alive as never).includes('계속'), '계속 열린다고 안 말한다');
-  ok(rules.revokeRetentionText(gone as never).includes('이미 지웠어요') && !rules.revokeRetentionText(gone as never).includes('열려요'), '지웠으면 열린다고 안 말한다');
-  ok(rules.revokeRetentionText(deleting as never).includes('지우고 있어요'), '지우는 중이면 그렇게 말한다');
-  eq(rules.revokeRetentionText(null), '동의 철회는 아니에요.', '지울 날이 없으면 날짜를 안 말한다');
+  /* 시각을 늘 넘긴다 — 기본값(지금)에 기대면 지울 날(2027-02-04)이 지난 뒤 '그대로 · 까지 열려요' 시험이 깨진다 */
+  const early = new Date('2027-01-10T00:00:00.000Z');
+  ok(rules.cancelCorrectionDetail(alive as never, early).includes('그대로예요'), '살아 있으면 그대로라고 말한다');
+  ok(rules.cancelCorrectionDetail(gone as never, early).includes('이미 지웠어요') && !rules.cancelCorrectionDetail(gone as never, early).includes('그대로예요'), '지웠으면 지웠다고 말한다');
+  ok(rules.cancelCorrectionDetail(deleting as never, early).includes('지우고 있어요'), '지우는 중이면 그렇게 말한다');
+  ok(rules.cancelCorrectionDetail(olderOnly as never, early).includes('그대로예요'), '옛 판만 지우면 지금 판은 그대로다');
+  ok(rules.cancelCorrectionDetail(null, early).includes('그대로예요'), '지울 날이 없어도 그대로다');
+  ok(rules.revokeRetentionText(alive as never, { now: early }).includes('2027. 02. 04') && rules.revokeRetentionText(alive as never, { now: early }).includes('까지 열려요'), '폐기해도 지울 날까지만 열린다');
+  ok(!rules.revokeRetentionText(alive as never, { now: early }).includes('계속'), '계속 열린다고 안 말한다');
+  ok(rules.revokeRetentionText(gone as never, { now: early }).includes('이미 지웠어요') && !rules.revokeRetentionText(gone as never, { now: early }).includes('열려요'), '지웠으면 열린다고 안 말한다');
+  ok(rules.revokeRetentionText(deleting as never, { now: early }).includes('지우고 있어요'), '지우는 중이면 그렇게 말한다');
+  eq(rules.revokeRetentionText(null, { now: early }), '동의 철회는 아니에요.', '지울 날이 없으면 날짜를 안 말한다');
 
   const page = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8');
   const list = readFileSync(new URL('../page.tsx', import.meta.url), 'utf8');
   ok(page.includes('<AnalysisChip') && !page.includes('analysisTone('), '상세 칩이 지운 사실을 안다');
   ok(list.split('<AnalysisChip').length === 3 && !list.includes('analysisTone('), '목록 두 칩이 지운 사실을 안다');
-  ok(page.includes('cancelDetail={cancelCorrectionDetail(d.retention)}') && page.includes('retentionLine={revokeRetentionText(d.retention)}'), '두 확인창이 지운 사실을 안다');
+  ok(page.includes('cancelDetail={cancelCorrectionDetail(d.retention, now)}') && page.includes('retentionLine={revokeRetentionText(d.retention, { status: d.status, now })}'), '두 확인창이 지운 사실 · 지울 날 · 철회를 안다');
+  ok(page.includes('retentionLine={withdrawConsentRetentionText(d.retention, now)}') && page.includes('goneViews={goneViewsOf(d.assets)}') && page.includes('emptyVideosText(d.assets)'), '철회 확인창 · 고침 칸 · 빈 영상 칸이 지운 사실 · 지울 날을 안다');
+  ok(page.includes('<AnalysisChip status={d.analysisStatus} block={d.analysisBlock} />') && list.split('block={r.analysisBlock}').length === 3, '칩은 서버가 정한 막힘을 그대로 쓴다');
   const manage = readFileSync(new URL('./detail-manage.tsx', import.meta.url), 'utf8');
   const client = readFileSync(new URL('./detail-client.tsx', import.meta.url), 'utf8');
   ok(!manage.includes('얼린 판의 원본은 그대로예요') && !client.includes('원본은 계속 열려요'), '고정 글이 안 남는다');
+}
+
+/* ── 검증 지적: 지울 날이 지난 접수 · 철회한 접수의 확인창 글, 지운 접수의 칸 ── */
+{
+  const at = new Date('2027-02-10T00:00:00.000Z');
+  const before = new Date('2027-01-10T00:00:00.000Z');
+  const due = { purgeAt: '2027-02-04T00:00:00.000Z', anchorAt: '2026-11-06T00:00:00.000Z', basis: 'submitted', purgedAt: null, heldUntil: '2027-02-18T00:00:00.000Z', purging: null };
+  const alive = { ...due, heldUntil: null };
+
+  /* 고침 거두기 — 기다리던 삭제가 이어진다 */
+  const cancel = rules.cancelCorrectionDetail(due as never, at);
+  ok(!cancel.includes('그대로예요') && cancel.includes('다음 정리 때') && cancel.includes('되돌릴 수 없어요'), '지울 날이 지나 기다리는 원본은 거두면 지운다고 말한다');
+  ok(!rules.cancelCorrectionDetail({ ...due, heldUntil: null } as never, at).includes('그대로예요'), '기다림 없이 지울 날이 지난 원본도 그대로라고 안 한다');
+  ok(rules.cancelCorrectionDetail(alive as never, before).includes('그대로예요'), '지울 날 전에는 그대로다');
+
+  /* 초대 폐기 — 지난 날짜까지 열린다고 안 하고, 철회한 접수에는 열린다고 안 한다 */
+  const revokeDue = rules.revokeRetentionText(due as never, { status: 'correction_requested', now: at });
+  ok(!revokeDue.includes('까지 열려요') && revokeDue.includes('다음 정리 때'), '지난 날짜까지 열린다고 안 한다');
+  ok(rules.revokeRetentionText(alive as never, { status: 'verified', now: before }).includes('까지 열려요'), '지울 날 전에는 그날까지 열린다');
+  const revokeWithdrawn = rules.revokeRetentionText(alive as never, { status: 'withdrawn', now: before });
+  ok(revokeWithdrawn.includes('철회한 접수') && !revokeWithdrawn.includes('열려요') && !revokeWithdrawn.includes('동의 철회는 아니'), '철회한 접수에는 원본이 열린다고 안 한다');
+  eq(rules.revokeRetentionText(null, { status: 'withdrawn', now: before }), '이미 철회한 접수예요.', '지울 날 없는 철회 초안');
+  ok(!rules.withdrawnRetentionText({ ...alive, basis: 'published' } as never, at).includes('2027. 02. 04.에 지워요'), '철회 배너도 지난 날짜에 지운다고 안 한다');
+
+  /* 필수 동의 철회 — 이미 지운 원본을 앞으로 지운다고 안 한다 */
+  const gone = { ...alive, purgedAt: '2027-02-04T01:00:00.000Z' };
+  const deleting = { ...alive, purging: { since: '2027-02-04T00:10:00.000Z', files: 2, scope: 'current' } };
+  const wGone = rules.withdrawConsentRetentionText(gone as never, at);
+  ok(wGone.includes('이미 지웠어요') && !wGone.includes('90일 뒤 지우고'), '지운 원본은 지웠다고 한다');
+  ok(rules.withdrawConsentRetentionText(deleting as never, at).includes('지우고 있어요'), '지우는 중이면 그렇게 말한다');
+  ok(rules.withdrawConsentRetentionText(alive as never, before).includes('90일 뒤 지우고'), '살아 있으면 규칙을 말한다');
+  /*
+   * 검증 지적: 공개한 적이 있는 접수는 철회가 지울 날을 늦추지 않는다(retention.ts). 지울 날이 지나 고침을 기다리던 원본은
+   * 철회하면 기다림(status 'correction_requested')이 끝나 다음 정리 때 지운다 — 폐기 · 거두기 창과 같이 그렇게 말해야 한다.
+   */
+  for (const basis of ['published', 'resubmitted'] as const) {
+    const wDue = rules.withdrawConsentRetentionText({ ...due, basis } as never, at);
+    ok(wDue.includes('다음 정리 때') && wDue.includes('되돌릴 수 없어요') && !wDue.includes('원래 지울 날에 지워요'), `공개한 적 있는 지난 원본은 다음 정리 때 지운다고 한다: ${basis}`);
+    ok(rules.withdrawConsentRetentionText({ ...alive, basis } as never, before).includes('원래 지울 날'), `지울 날 전이면 규칙을 그대로 말한다: ${basis}`);
+  }
+  /* 공개한 적 없는 접수는 철회한 날부터 다시 센다 — 지난 날짜라도 곧 지운다고 안 한다 */
+  const wFresh = rules.withdrawConsentRetentionText(due as never, at);
+  ok(wFresh.includes('철회한 날부터 90일 뒤') && !wFresh.includes('다음 정리 때'), '공개한 적 없으면 철회한 날부터 센다');
+  const wDialog = draw(h(WithdrawConsentButton, { submissionId: SID, retentionLine: '원본 줄 자리' }));
+  ok(wDialog.includes('원본 줄 자리') && !wDialog.includes('철회한 날부터'), '확인창이 받은 원본 줄을 쓴다');
+
+  /* 삭제 기준 — 지운 뒤에는 지금 시계를 지운 근거라고 안 말하고, 접수 시계는 마지막으로 낸 날이다 */
+  const facts = (r: unknown, files: string | null = null) => rules.retentionFactRows(r as never, files, at).map(([k]) => k);
+  eq(facts(gone), ['원본 지운 날'], '지운 뒤에는 삭제 기준 줄이 없다');
+  eq(facts(deleting), ['원본 지우는 중'], '지우는 중에도 없다');
+  eq(facts(alive), ['원본 삭제 예정일', '삭제 기준'], '살아 있으면 기준을 말한다');
+  ok(rules.retentionFactRows(alive as never, null, at)[1][1].includes('마지막으로 낸 날'), '공개한 적 없는 접수의 시계는 마지막으로 낸 날이다');
+  eq(rules.retentionFactRows(null, '2026-11-08T00:00:00.000Z', at).map(([k]) => k), ['영상 지운 날'], '시계 없는 초안도 지운 날을 말한다');
+  eq(rules.retentionFactRows(null, null, at), [], '없으면 없다');
+
+  /* 고침 칸 — 지운 칸은 끝내지 못한 접수처럼 말하지 않는다 */
+  const panel = { submissionId: SID, version: 7, requested: false, correction: null, requestedAt: null, uploadExpired: false, editable: true, extendChoices: [3, 7], cancelDetail: '거두기 글' };
+  const goneForm = draw(h(CorrectionPanel, { ...panel, suggestViews: ['side', 'rear'], goneViews: ['side', 'rear'] }));
+  ok(!goneForm.includes('다시 받아야 접수를 끝낼 수 있어요') && goneForm.includes('원본을 지웠어요'), '지운 칸은 지웠다고 말한다');
+  const mixed = draw(h(CorrectionPanel, { ...panel, suggestViews: ['side', 'rear'], goneViews: ['rear'] }));
+  ok(mixed.includes('옆 영상을 다시 받아야 접수를 끝낼 수 있어요') && mixed.includes('뒤 영상 원본을 지웠어요'), '막힌 칸과 지운 칸을 가른다');
+  eq(rules.goneViewsOf([{ view: 'side', status: 'purged', current: true }, { view: 'rear', status: 'rejected', current: true }]), ['side'], '지운 칸만 고른다');
+
+  /* 분석 칸 — 원본이 없으면 손 고르기 · 분석 전 주의 · 국외 이전 확인을 안 보인다 */
+  const over = {
+    runnable: false,
+    blockers: [
+      { code: 'original_purged', text: '보유 기간이 끝난 원본이라 쓸 수 없어요.' },
+      { code: 'analysis_hand_required', text: '던지는 손을 먼저 정해 주세요.' },
+      { code: 'analysis_confirm_required', text: '확인' },
+    ],
+    needsDraftConfirm: true,
+    hand: null,
+    inputNotes: [{ view: 'side', code: 'zoom_unknown', text: '옆 영상: 줌 배율을 읽지 못했어요. 1배로 찍었다고 보고 돌려요.', dropsTiming: false }],
+  };
+  const panelHtml = draw(h(AnalysisPanel, { submissionId: SID, analysisStatus: 'ready', readiness: over, runs: [], hand: null, withdrawn: false, activePublicationId: null }));
+  ok(!panelHtml.includes('던지는 손을 정해') && !panelHtml.includes('던지는 손을 먼저') && !panelHtml.includes('분석 전에 볼 것') && !panelHtml.includes('국외 이전 안내'), '돌릴 수 없는 접수에 손 · 주의 · 확인 칸이 없다');
+  ok(panelHtml.includes('보유 기간이 끝난 원본'), '까닭은 보인다');
+
+  /* 분석 칩 — 칩은 서버가 준 막힘을 그대로 말한다 */
+  const { AnalysisChip } = await import('../status-chip.tsx');
+  const chip = (status: string, block: unknown) => renderToStaticMarkup(h(AnalysisChip, { status, block }));
+  ok(chip('ready', 'withdrawn').includes('분석 불가') && chip('ready', 'revoked').includes('분석 불가') && chip('ready', 'overdue').includes('분석 불가'), '철회 · 폐기 · 지울 날 지남은 분석 불가다');
+  ok(chip('ready', 'deleted').includes('원본 지워짐') && chip('none', 'deleting').includes('원본 지우는 중'), '지운 사실을 말한다');
+  ok(chip('ready', null).includes('분석 가능') && chip('failed', 'withdrawn').includes('분석 실패'), '막힘이 없거나 끝난 분석은 그대로다');
+}
+
+/*
+ * ── 받는 사람 고침 화면 — 막힘 차례 · 초점 · 칸 글이 순수 규칙(review-rules)과 이어져 있나 ──
+ * 검증 지적: 규칙 함수만 시험해서, 화면이 옛 차례로 막거나 초점을 안 옮기거나 칸 글을 고정 글로 바꾸거나 초점 대상 id 를 지워도 몰랐다.
+ * 진짜 CorrectionStep 을 그리고, 바닥 단추 처리기를 부르고, 다시 그려 본다. 초점은 그려진 마크업에 그 id 가 있을 때만 옮겨진 것으로 친다.
+ */
+{
+  const { CorrectionStep } = await import('@/components/intake/status-steps');
+  const real = await import('../../../../../components/intake/consent-block.tsx');
+  const { EMPTY_VIEW_TEXT, GONE_VIEW_TEXT, correctionProblem } = await import('@/components/intake/review-rules');
+  const { INTAKE_ERROR_TEXT } = await import('@/lib/intake/errors');
+  type Props = Parameters<typeof CorrectionStep>[0];
+  type Picked = Props['picked']['side'];
+
+  let markup = '';
+  const focused: string[] = [];
+  const g = globalThis as unknown as { document?: unknown };
+  const hadDocument = 'document' in g;
+  const oldDocument = g.document;
+  g.document = { getElementById: (id: string) => (markup.includes(`id="${id}"`) ? { focus: () => focused.push(id) } : null) };
+
+  const doc = (kind: string, required: boolean) => ({ kind, version: `${kind}-v`, title: `${kind} 글`, required, defaultGranted: false, body: '본문', textHash: 'x' });
+  const docs = [doc('submission', true), doc('overseas', true), doc('model', false)] as unknown as Props['docs'];
+  const asset = (status: string) => ({ id: 'A1', view: 'side', status, fileName: 'IMG.MOV', sizeBytes: 1000, sha256: 'a'.repeat(64), integrity: null, fps: null, timing: null, codec: null, width: null, height: null, sampleDurationSec: null, rejectCode: null });
+  /* 옆 칸은 원본을 지웠고, 뒤 칸은 끊긴 전송을 정리가 버려 비었다. 이름 · 두 영상 · 동의를 다시 받는다 */
+  const state = {
+    screen: 'correction',
+    submissionStatus: 'correction_requested',
+    analysisStatus: 'none',
+    draft: { athleteName: '', athleteAgeBand: '14_or_over', throwingHand: 'R', submitterRelation: 'self', submitterName: null, samePitchConfirmed: true },
+    assets: { side: asset('purged'), rear: null },
+    consent: { requiredOk: false, granted: { submission: false, overseas: false, model: false } },
+    correction: { fields: ['athleteName'], views: ['side', 'rear'], message: null },
+  } as unknown as Props['state'];
+  const submits: unknown[] = [];
+  const none = { side: null, rear: null } as Props['picked'];
+  const file = { file: { name: 'new.MOV', size: 2000 }, url: 'blob:x', facts: null } as unknown as Picked;
+  const both = { side: file, rear: file } as Props['picked'];
+  const render = (picked: Props['picked']) => {
+    bench.hooks.i = 0;
+    bench.clicks = {};
+    bench.inputs = {};
+    bench.checks = {};
+    markup = renderToStaticMarkup(
+      h(CorrectionStep, { state, docs, picked, inspecting: null, pickError: null, notes: {}, busy: false, error: null, consentEpoch: 0, onPick: () => {}, onSubmit: (x: unknown) => submits.push(x) }),
+    );
+    return markup;
+  };
+  /** 바닥 단추를 누르고, 옮긴 초점을 돌려준 뒤 다시 그린다 */
+  const send = (picked: Props['picked']) => {
+    focused.length = 0;
+    const click = bench.clicks['고친 내용 보내기'];
+    assert.ok(click, '고친 내용 보내기 단추가 있어요');
+    click();
+    const moved = [...focused];
+    render(picked);
+    return moved;
+  };
+  const between = (from: string, to: string | null, text: string) => {
+    const start = markup.indexOf(`id="${from}"`);
+    const end = to ? markup.indexOf(`id="${to}"`) : markup.length;
+    const at = markup.indexOf(text, start);
+    return start >= 0 && at > start && at < end;
+  };
+
+  bench.hooks.slots = [];
+  render(none);
+  for (const id of ['fix-name', 'slot-side', 'slot-rear', 'fix-same-pitch', 'consent-submission', 'consent-overseas']) ok(markup.includes(`id="${id}"`), `초점 대상 칸이 그려진다: ${id}`);
+  ok(!markup.includes('id="consent-model"'), '고침 화면에 선택 동의 칸은 없다');
+
+  /* 1 이름 — 아래 칸이 다 막혀도 맨 위 칸이 먼저다 */
+  eq(send(none), ['fix-name'], '이름이 비면 이름 칸으로 초점이 간다');
+  ok(markup.includes(INTAKE_ERROR_TEXT.athlete_name_required) && markup.includes('aria-describedby="fix-name-error"'), '이름 칸 곁에 막힌 까닭을 말한다');
+  eq(submits.length, 0, '막히면 안 보낸다');
+
+  /* 2 영상 — 지운 칸과 비운 칸을 가른다 */
+  bench.inputs['fix-name']({ currentTarget: { value: '금윤호' } });
+  render(none);
+  eq(send(none), ['slot-side'], '다시 골라야 할 첫 영상 칸으로 초점이 간다');
+  ok(between('slot-side', 'slot-rear', GONE_VIEW_TEXT), '지운 옆 칸은 지웠다고 말한다');
+  ok(between('slot-rear', 'fix-same-pitch', EMPTY_VIEW_TEXT) && !between('slot-rear', 'fix-same-pitch', GONE_VIEW_TEXT), '정리가 비운 뒤 칸은 지웠다고 안 하고 골라 달라고 한다');
+  /* 검증 지적: 지우고 있는 칸도 '지웠어요'라고 했다 — 같은 화면에서 옆 칸만 지우는 중으로 바꿔 본다 */
+  const slotAssets = state.assets as unknown as Record<string, unknown>;
+  slotAssets.side = asset('purging');
+  render(none);
+  ok(between('slot-side', 'slot-rear', '이 칸의 원본을 지우고 있어요. 영상을 다시 골라 주세요.') && !between('slot-side', 'slot-rear', GONE_VIEW_TEXT), '지우고 있는 옆 칸은 지우고 있다고 말한다');
+  slotAssets.side = asset('purged');
+  render(none);
+  ok(!markup.includes(INTAKE_ERROR_TEXT.athlete_name_required), '고친 칸의 글은 걷힌다');
+
+  /* 3 같은 투구 — 동의 칸보다 위다 */
+  render(both);
+  eq(send(both), ['fix-same-pitch'], '같은 투구 확인으로 초점이 간다(동의보다 먼저)');
+  ok(markup.includes(INTAKE_ERROR_TEXT.same_pitch_required) && !markup.includes(GONE_VIEW_TEXT), '같은 투구 칸 곁에 말하고 영상 칸 글은 걷힌다');
+
+  /* 4 동의 — 빠진 첫 필수 동의로 간다 */
+  bench.checks['fix-same-pitch'](true);
+  render(both);
+  eq(send(both), ['consent-submission'], '빠진 첫 필수 동의로 초점이 간다');
+  ok(markup.includes(INTAKE_ERROR_TEXT.consent_required), '동의 칸 곁에 말한다');
+
+  /* 5 다 채우면 보낸다 — 초점은 안 옮긴다 */
+  bench.checks['consent-submission'](true);
+  bench.checks['consent-overseas'](true);
+  render(both);
+  eq(send(both), [], '막힘이 없으면 초점을 안 옮긴다');
+  eq(submits, [{ patch: { athleteName: '금윤호' }, agreed: { submission: true, overseas: true, model: false }, samePitch: true }], '고친 이름 · 동의 · 같은 투구 확인을 보낸다');
+
+  /* 화면이 쓰는 막힘 차례와 규칙의 차례가 같다 — 위 차례가 규칙에서 나온 것인지 한 번 더 본다 */
+  const check = { nameAsked: true, name: '', missing: ['side'] as const, viewsAsked: true, same: false, needsConsent: true, docs, agreed: {} };
+  eq(
+    [correctionProblem(check)?.target, correctionProblem({ ...check, name: 'x' })?.target, correctionProblem({ ...check, name: 'x', missing: [] })?.target, correctionProblem({ ...check, name: 'x', missing: [], same: true })?.target],
+    ['fix-name', 'slot-side', 'fix-same-pitch', 'consent-submission'],
+    '규칙의 차례와 화면의 초점 차례가 같다',
+  );
+
+  /* 쥔 처리기는 가짜 부품의 것이다 — 진짜 부품도 같은 id 를 그리는지 본다 */
+  const realConsents = renderToStaticMarkup(h(real.RequiredConsents, { docs, agreed: {}, onChange: () => {}, invalid: false }));
+  ok(realConsents.includes('id="consent-submission"') && realConsents.includes('id="consent-overseas"'), '진짜 동의 칸이 초점 대상 id 를 그린다');
+  ok(renderToStaticMarkup(h(real.CheckRow, { id: 'fix-same-pitch', checked: false, onChange: () => {}, label: '같은 투구' })).includes('id="fix-same-pitch"'), '진짜 체크 칸이 초점 대상 id 를 그린다');
+
+  /*
+   * 검증 지적: 요청받은 칸을 새로 안 고른 경우를 화면이 못 잡았다 — 얼린 파일이 살아 있는 칸, 해시가 달라 막힌 칸.
+   * 화면은 막지 않고 보냈고, 서버는 막힌 칸에 '전송이 아직 끝나지 않았어요'라고 했다. 보내기 전에 그 칸으로 초점을 옮기고 새 영상을 골라 달라고 한다.
+   */
+  const { REPICK_VIEW_TEXT } = await import('@/components/intake/review-rules');
+  for (const [kind, status] of [
+    ['얼린 파일 그대로', 'verified'],
+    ['막힌 파일', 'rejected'],
+  ] as const) {
+    const live = {
+      ...(state as unknown as Record<string, unknown>),
+      draft: { ...(state as unknown as { draft: object }).draft, athleteName: '금윤호' },
+      assets: { side: { ...asset(status), rejectCode: status === 'rejected' ? 'hash_mismatch' : null }, rear: { ...asset('verified'), id: 'A2', view: 'rear' } },
+      consent: { requiredOk: true, granted: { submission: true, overseas: true, model: false } },
+      correction: { fields: [], views: ['side'], message: null },
+      frozenAssetIds: { side: 'A1', rear: 'A2' },
+    } as unknown as Props['state'];
+    const before = submits.length;
+    bench.hooks.slots = [];
+    const drawLive = (picked: Props['picked']) => {
+      bench.hooks.i = 0;
+      bench.clicks = {};
+      bench.checks = {};
+      markup = renderToStaticMarkup(
+        h(CorrectionStep, { state: live, docs, picked, inspecting: null, pickError: null, notes: {}, busy: false, error: null, consentEpoch: 0, onPick: () => {}, onSubmit: (x: unknown) => submits.push(x) }),
+      );
+    };
+    drawLive(none);
+    bench.checks['fix-same-pitch'](true);
+    drawLive(none);
+    focused.length = 0;
+    bench.clicks['고친 내용 보내기']();
+    eq([...focused], ['slot-side'], `새로 안 고른 요청 칸으로 초점이 간다: ${kind}`);
+    eq(submits.length, before, `새로 안 고르면 보내지 않는다: ${kind}`);
+    drawLive(none);
+    ok(between('slot-side', 'fix-same-pitch', REPICK_VIEW_TEXT), `그 칸 곁에 새 영상을 골라 달라고 한다: ${kind}`);
+    const sideOnly = { side: file, rear: null } as Props['picked'];
+    drawLive(sideOnly);
+    focused.length = 0;
+    bench.clicks['고친 내용 보내기']();
+    eq([[...focused], submits.length], [[], before + 1], `새로 고르면 보낸다: ${kind}`);
+  }
+
+  /*
+   * 검증 지적: 고침 중에 새 파일이 이미 도착한 칸(얼린 파일은 A1, 칸은 A3)에도 '이 영상을 다시 골라 주세요'라고 했다. 막힘 판단은 다시 고를 필요가 없다고 보는데 칸 글만 달랐다.
+   * 그 칸은 도착 글을 보이고, 얼린 그 파일 그대로인 칸만 새 영상을 골라 달라고 한다. 같은 영상을 다시 고르라는 말로 읽히지 않게 '새 영상'이라고 한다.
+   */
+  const slotFor = (sideId: string, status: string) => {
+    const shown = {
+      ...(state as unknown as Record<string, unknown>),
+      draft: { ...(state as unknown as { draft: object }).draft, athleteName: '금윤호' },
+      assets: { side: { ...asset(status), id: sideId }, rear: { ...asset('verified'), id: 'A2', view: 'rear' } },
+      consent: { requiredOk: true, granted: { submission: true, overseas: true, model: false } },
+      correction: { fields: [], views: ['side'], message: null },
+      frozenAssetIds: { side: 'A1', rear: 'A2' },
+    } as unknown as Props['state'];
+    bench.hooks.slots = [];
+    bench.hooks.i = 0;
+    markup = renderToStaticMarkup(
+      h(CorrectionStep, { state: shown, docs, picked: none, inspecting: null, pickError: null, notes: {}, busy: false, error: null, consentEpoch: 0, onPick: () => {}, onSubmit: () => {} }),
+    );
+  };
+  slotFor('A3', 'uploaded');
+  ok(!between('slot-side', 'fix-same-pitch', '골라 주세요') && between('slot-side', 'fix-same-pitch', '도착했어요'), '새 파일이 도착한 칸은 다시 고르라고 하지 않고 도착 글을 보인다');
+  slotFor('A1', 'verified');
+  ok(between('slot-side', 'fix-same-pitch', '새 영상을 골라 주세요.') && !between('slot-side', 'fix-same-pitch', '이 영상을 다시 골라 주세요'), '얼린 그 파일 그대로인 칸은 새 영상을 골라 달라고 한다');
+  slotFor('A1', 'purged');
+  ok(between('slot-side', 'fix-same-pitch', '이 영상을 다시 골라 주세요.'), '지운 칸은 그 영상을 다시 보내 달라고 한다');
+
+  if (hadDocument) g.document = oldDocument;
+  else delete g.document;
+}
+
+/* ── 검증 지적(낮음): 지우는 중을 지웠다고 함 · 칸 하나만 지운 빈 영상 칸 · 판에 안 오른 파일의 낱말 ── */
+{
+  const { slotProgressOf, analysisBlockOf, analysisChipText } = await import('@/lib/intake/admin-labels');
+
+  /* 1 고침 칸 — 지우고 있는 원본을 '지웠어요'라고 안 하고, 지운 칸 · 지우는 칸이 섞이면 둘 다 말한다 */
+  const corr = { submissionId: SID, version: 7, requested: false, correction: null, requestedAt: null, uploadExpired: false, editable: true, extendChoices: [3, 7], cancelDetail: '거두기 글' };
+  const correctionFor = (side: string, rear: string) => {
+    const assets = [
+      { view: 'side', status: side, current: true },
+      { view: 'rear', status: rear, current: true },
+    ] as never;
+    return draw(h(CorrectionPanel, { ...corr, suggestViews: rules.viewsToResend(assets), goneViews: rules.goneViewsOf(assets), deletingViews: rules.deletingViewsOf(assets) }));
+  };
+  const deletingBoth = correctionFor('purging', 'purging');
+  ok(deletingBoth.includes('옆 영상 · 뒤 영상 원본을 지우고 있어요. 다시 분석하려면 영상을 다시 받아야 해요.') && !deletingBoth.includes('지웠어요'), '지우고 있는 원본을 지웠다고 안 한다');
+  const mixedGone = correctionFor('purged', 'purging');
+  ok(mixedGone.includes('옆 영상 원본을 지웠어요. 뒤 영상 원본을 지우고 있어요.'), '지운 칸과 지우는 칸을 따로 말한다');
+  const doneBoth = correctionFor('purged', 'purged');
+  ok(doneBoth.includes('옆 영상 · 뒤 영상 원본을 지웠어요.') && !doneBoth.includes('지우고 있어요'), '다 지운 칸은 지웠다고 한다');
+  const deletingBlocked = correctionFor('rejected', 'purging');
+  ok(deletingBlocked.includes('옆 영상을 다시 받아야 접수를 끝낼 수 있어요') && deletingBlocked.includes('뒤 영상 원본을 지우고 있어요.') && !deletingBlocked.includes('지웠어요'), '막힌 칸 · 지우는 칸을 가른다');
+  eq(rules.deletingViewsOf([{ view: 'side', status: 'purging', current: true }, { view: 'rear', status: 'purged', current: true }, { view: 'rear', status: 'purging', current: false }] as never), ['side'], '지우는 칸은 지금 칸의 purging 뿐이다');
+  const page = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8');
+  ok(page.includes('deletingViews={deletingViewsOf(d.assets)}'), '고침 칸이 지우는 칸을 안다');
+
+  /* 2 빈 영상 칸 — 목록 칸(slotProgressOf)과 칸마다 같은 판단이다. 칸 하나만 지워도 받은 적 없는 접수처럼 안 말한다 */
+  const file = (view: string, status: string, revisions: number[] = []) => ({ view, status, current: false, revisions });
+  eq(rules.emptyVideosText([file('side', 'purged'), file('rear', 'abandoned')] as never), '옆 영상은 지웠어요. 뒤 영상은 없어요.', '옆만 지우고 뒤는 버린 초안');
+  eq(rules.emptyVideosText([file('side', 'purging'), file('rear', 'abandoned')] as never), '옆 영상은 지우고 있어요. 뒤 영상은 없어요.', '지우는 칸은 지우고 있다고 한다');
+  eq(rules.emptyVideosText([file('rear', 'purged')] as never), '옆 영상은 없어요. 뒤 영상은 지웠어요.', '받은 적 없는 칸은 없다고 한다');
+  eq(rules.emptyVideosText([file('side', 'purged'), file('rear', 'purging')] as never), '옆 영상은 지웠어요. 뒤 영상은 지우고 있어요.', '지운 칸 · 지우는 칸이 섞이면 둘 다 말한다');
+  eq(rules.emptyVideosText([file('side', 'purged'), file('rear', 'purged')] as never), '받은 영상을 지웠어요.', '다 지웠으면 한 줄이다');
+  eq(rules.emptyVideosText([file('side', 'purging'), file('rear', 'purging')] as never), '받은 영상을 지우고 있어요.', '다 지우는 중이면 한 줄이다');
+  eq(rules.emptyVideosText([file('side', 'verified', [1]), file('rear', 'verified', [1]), file('side', 'purged')] as never), '새로 받은 영상이 없어요. 판에 얼린 원본은 아래 이전에 고른 영상에 있어요.', '얼린 원본이 살아 있으면 지금 글이다');
+  eq(rules.emptyVideosText([]), '아직 고른 영상이 없어요.', '받은 적 없으면 그대로다');
+  /* 칸 넷의 모든 짝 — 글이 칸마다 목록과 같은 판단을 말한다 */
+  const kinds: (string | null)[] = [null, 'abandoned', 'purged', 'purging'];
+  for (const s of kinds)
+    for (const r of kinds) {
+      const assets = [...(s ? [file('side', s)] : []), ...(r ? [file('rear', r)] : [])];
+      const text = rules.emptyVideosText(assets as never);
+      const progress = (['side', 'rear'] as const).map((v) => slotProgressOf(assets, v, null));
+      for (const [i, v] of (['옆', '뒤'] as const).entries()) {
+        const p = progress[i];
+        const said = text.includes(`${v} 영상은 지웠어요`) || (text === '받은 영상을 지웠어요.' && p === 'deleted');
+        const saying = text.includes(`${v} 영상은 지우고 있어요`) || (text === '받은 영상을 지우고 있어요.' && p === 'deleting');
+        ok(said === (p === 'deleted') && saying === (p === 'deleting'), `칸마다 목록과 같다: 옆 ${s} · 뒤 ${r} → ${text}`);
+      }
+    }
+
+  /* 3 판에 안 오른 파일 — '원본'은 판에 얼린 파일만 부른다. 철회 초안의 보유 줄 · 배너 · 칩은 '영상' · '받은 영상'이다 */
+  const now = new Date('2026-11-20T00:00:00.000Z');
+  const draftR = { purgeAt: '2026-11-17T00:00:00.000Z', anchorAt: '2026-11-10T00:00:00.000Z', basis: 'withdrawn_draft', purgedAt: null, heldUntil: null, purging: null };
+  eq(rules.retentionText(draftR as never, new Date('2026-11-12T00:00:00.000Z')).label, '영상 삭제 예정일', '철회 초안의 지울 날은 영상 삭제 예정일이다');
+  eq(rules.retentionText({ ...draftR, purgedAt: '2026-11-17T01:00:00.000Z' } as never, now).label, '영상 지운 날', '지운 뒤에는 영상 지운 날이다');
+  eq(rules.retentionText({ ...draftR, purging: { since: '2026-11-17T00:10:00.000Z', files: 1, scope: 'current' } } as never, now).label, '영상 지우는 중', '지우는 중도 영상이다');
+  /* 판이 없으면 purgingScope 는 'older' 라고 한다 — 옛 판이 없는 초안에 '옛 판 파일'이라고 하지 않고 지우는 중이라고 한다 */
+  const draftOlder = rules.retentionText({ ...draftR, purging: { since: '2026-11-17T00:10:00.000Z', files: 1, scope: 'older' } } as never, now);
+  ok(draftOlder.label === '영상 지우는 중' && !draftOlder.note?.includes('옛 판'), '판 없는 초안의 지우는 파일은 옛 판이 아니다');
+  eq(rules.retentionFactRows({ ...draftR, purgedAt: '2026-11-17T01:00:00.000Z' } as never, '2026-11-17T01:00:00.000Z', now).map(([k]) => k), ['영상 지운 날'], '보유 줄도 영상 지운 날이다');
+  eq(rules.retentionFactRows(draftR as never, null, new Date('2026-11-12T00:00:00.000Z')).map(([k]) => k), ['영상 삭제 예정일', '삭제 기준'], '지울 날 줄도 영상이다');
+  const banner = rules.withdrawnRetentionText({ ...draftR, purgedAt: '2026-11-17T01:00:00.000Z' } as never, now);
+  ok(banner.includes('받은 영상은') && banner.includes('지웠어요') && !banner.includes('원본'), `철회 배너가 받은 영상이라고 한다: ${banner}`);
+  const bannerDue = rules.withdrawnRetentionText(draftR as never, new Date('2026-11-12T00:00:00.000Z'));
+  ok(bannerDue.includes('받은 영상은') && !bannerDue.includes('원본'), `지울 날 전 배너도 받은 영상이다: ${bannerDue}`);
+  ok(!rules.withdrawnRetentionText(draftR as never, now).includes('원본'), '지울 날이 지난 배너도 원본이라고 안 한다');
+  ok(!rules.revokeRetentionText(draftR as never, { status: 'withdrawn', now }).includes('원본'), '폐기 확인창도 판에 안 오른 파일을 원본이라고 안 한다');
+  /* 배너 첫 줄도 같은 낱말이다 — 한 배너에서 '원본'과 '받은 영상'이 섞이지 않게 */
+  eq(rules.withdrawnBannerLead({ revisions: [] } as never), '필수 동의가 철회된 접수예요. 받은 영상을 열거나 분석할 수 없어요.', '판에 안 오른 철회 초안의 배너는 받은 영상이다');
+  eq(rules.withdrawnBannerLead({ revisions: [{ number: 1 }] } as never), '필수 동의가 철회된 접수예요. 원본을 열거나 분석할 수 없어요.', '판이 있으면 원본이다');
+  ok(page.includes('{withdrawnBannerLead(d)}') && !page.includes('원본을 열거나 분석할 수 없어요'), '배너가 낱말 규칙을 쓴다');
+  /* 판이 있는 접수는 그대로 '원본'이다 */
+  eq(rules.retentionText({ ...draftR, basis: 'withdrawn', purgedAt: '2026-11-17T01:00:00.000Z' } as never, now).label, '원본 지운 날', '판이 있으면 원본이다');
+  ok(rules.withdrawnRetentionText({ ...draftR, basis: 'withdrawn', purgedAt: '2026-11-17T01:00:00.000Z' } as never, now).includes('원본은'), '판이 있는 철회 배너는 원본이다');
+
+  /* 칩 — 지금 판이 없는 접수에서 지운 파일은 '영상 지워짐'이다. 판이 있으면 '원본 지워짐' 그대로 */
+  const at = new Date('2027-01-01T00:00:00.000Z');
+  const noRev = { status: 'draft', invitationStatus: 'active', originalPurgeAt: null, originalsPurgedAt: '2026-12-01T00:00:00.000Z', originalsPurging: null, hasRevision: false };
+  const noRevBlock = analysisBlockOf(noRev, at);
+  eq([noRevBlock, analysisChipText('none', noRevBlock)], ['received_deleted', '영상 지워짐'], '판이 없는 접수의 지운 파일은 영상 지워짐이다');
+  const noRevDeleting = analysisBlockOf({ ...noRev, originalsPurgedAt: null, originalsPurging: 'current' }, at);
+  eq([noRevDeleting, analysisChipText('none', noRevDeleting)], ['received_deleting', '영상 지우는 중'], '지우는 중도 영상이다');
+  eq(analysisBlockOf({ ...noRev, originalsPurgedAt: null, originalsPurging: 'older' }, at), 'received_deleting', '판이 없으면 older 도 받은 영상을 지우는 중이다');
+  const withRev = analysisBlockOf({ ...noRev, status: 'verified', hasRevision: true }, at);
+  eq([withRev, analysisChipText('ready', withRev)], ['deleted', '원본 지워짐'], '판이 있으면 원본 지워짐 그대로다');
+  ok(analysisBlockOf({ ...noRev, status: 'withdrawn' }, at) === 'received_deleted', '철회한 초안도 지운 사실을 먼저 말한다');
 }
 
 console.log(`intake detail: ${passed}개 통과`);

@@ -949,6 +949,15 @@ const auditCount = () => db.intakeAudit.count();
   const withFile = (await loadIntakeDetail(db, A, noFile.submissionId, NOW)).retention;
   eq([withFile?.purgeAt, withFile?.basis, withFile?.purgedAt], [grace, 'withdrawn_draft', null], '파일이 있으면 유예 끝날을 보인다');
   eq((await draftRow()).originalPurgeAt, grace, '목록도 같은 날이다');
+  /* 검증 지적: 판에 안 오른 철회 초안의 파일을 목록 줄이 '원본'이라고 불렀다 — 상세 · 칩은 '영상'이라고 한다 */
+  const graceRow = await draftRow();
+  eq([graceRow.hasRevision, retentionLineText(graceRow)], [false, `영상 삭제 예정일 ${seoulDateText(grace)}`], '휴대폰 줄이 판에 안 오른 파일을 영상이라고 부른다');
+  ok(!retentionLineText({ ...graceRow, hasRevision: true }).startsWith('영상'), '판이 있으면 원본이라고 부른다');
+  /* 판이 없으면 지우는 파일이 다 받은 영상이다(상세 purgingFiles · 칩 'received_deleting' 과 같다) — 지울 날을 말하지 않는다 */
+  await db.intakeAsset.updateMany({ where: { submissionId: noFile.submissionId }, data: { status: 'purging' } });
+  const purgingRow = await draftRow();
+  eq([purgingRow.originalsPurging, purgingRow.analysisBlock], ['older', 'received_deleting'], '판이 없는 철회 초안의 지우는 중');
+  eq([retentionCellText(purgingRow), retentionLineText(purgingRow)], ['지우는 중', '지우는 중'], '목록 칸과 휴대폰 줄이 지우는 중을 말한다');
 
   /* 고침이 열려 있으면 기다리는 끝을 보인다 */
   const inv = await db.intakeSubmission.findUniqueOrThrow({ where: { id } });
@@ -1101,7 +1110,7 @@ const auditCount = () => db.intakeAudit.count();
   eq([gone.retention?.purgedAt, gone.retention?.heldUntil], [at.toISOString(), null], '다 지운 뒤에도 기다린다고 안 말한다');
   const goneRow = (await loadIntakeList(db, A, parseIntakeFilters({ q: '지운뒤고침' }), at)).rows[0];
   eq(retentionLineText(goneRow), `지워짐 · ${seoulDateText(at.toISOString())}`, '휴대폰 줄이 지운 날에 예정일 이름을 안 붙인다');
-  eq(retentionLineText({ originalPurgeAt: at.toISOString(), originalsPurgedAt: null, originalsPurging: 'older' }), `원본 삭제 예정일 ${seoulDateText(at.toISOString())}`, '옛 판만 지우면 지금 판의 예정일을 말한다');
+  eq(retentionLineText({ originalPurgeAt: at.toISOString(), originalsPurgedAt: null, originalsPurging: 'older', hasRevision: true }), `원본 삭제 예정일 ${seoulDateText(at.toISOString())}`, '옛 판만 지우면 지금 판의 예정일을 말한다');
 }
 
 /* 필수 동의 철회는 모델 동의를 함께 거두지 않는다 */
@@ -1114,6 +1123,137 @@ const auditCount = () => db.intakeAudit.count();
   eq(rows.filter((c) => c.withdrawnAt != null).map((c) => c.kind).sort(), ['overseas', 'submission'], '필수 둘만 거둔다');
   eq((await db.intakeSubmission.findUniqueOrThrow({ where: { id: r.submissionId } })).withdrawnAt, NOW, '철회 시각을 접수에 남긴다');
   eq((await loadIntakeDetail(db, A, r.submissionId, NOW)).modelConsentOpen, true, '모델 동의는 거둘 수 있게 남아 있다');
+}
+
+/* ─────────────── 검증 지적: '분석 가능'은 돌릴 수 있는 접수만 — 목록 거름 · 칩 · 상세가 같은 판단이다 ─────────────── */
+{
+  const DAY = 86_400_000;
+  const tag = 'READYGATE';
+  const { ANALYSIS_STATUS_TEXT, analysisChipText } = await import('@/lib/intake/admin-labels');
+  let n = 0;
+  const mkReady = async (name: string, extra: Record<string, unknown> = {}) => {
+    const r = await mk({ name: `${tag}${name}`, status: 'verified', analysis: 'ready' });
+    const side = await mkAsset(r.submissionId, 'side');
+    const rear = await mkAsset(r.submissionId, 'rear');
+    const rev = await db.intakeRevision.create({
+      data: { submissionId: r.submissionId, number: 1, sideAssetId: side, rearAssetId: rear, athleteName: name, submitterRelation: 'self', consentSnapshot: [], finalizeKey: `g${String(++n).padStart(15, '0')}`, finalizedAt: NOW },
+    });
+    await db.intakeSubmission.update({ where: { id: r.submissionId }, data: { currentRevisionId: rev.id, lastFinalizedAt: NOW, ...extra } });
+    return { id: r.submissionId, side, rear };
+  };
+  const alive = await mkReady('살아있음');
+  const purged = await mkReady('지움');
+  await db.intakeAsset.updateMany({ where: { id: { in: [purged.side, purged.rear] } }, data: { status: 'purged', purgedAt: NOW } });
+  const purging = await mkReady('지우는중');
+  await db.intakeAsset.update({ where: { id: purging.side }, data: { status: 'purging' } });
+  await mkReady('철회', { status: 'withdrawn', withdrawnAt: NOW });
+  const revoked = await mkReady('폐기');
+  await adminRevokeInvitation(db, A, { submissionId: revoked.id }, NOW);
+  await mkReady('지날날', { lastFinalizedAt: new Date(NOW.getTime() - 91 * DAY) });
+  const late = await mkReady('공개뒤', { lastFinalizedAt: new Date(NOW.getTime() - 120 * DAY) });
+  const run = await db.intakeAnalysisRun.create({ data: { submissionId: late.id, revisionId: (await db.intakeRevision.findFirstOrThrow({ where: { submissionId: late.id } })).id, engineKey: 'e-late', status: 'succeeded', requestedAt: NOW, finishedAt: NOW } });
+  await db.intakePublication.create({ data: { submissionId: late.id, runId: run.id, number: 1, activeFor: null, publishedByAdminId: A.id, publishedAt: new Date(NOW.getTime() - 10 * DAY), unpublishedAt: NOW } });
+
+  const ready = (await loadIntakeList(db, A, parseIntakeFilters({ q: tag, analysis: 'ready' }), NOW)).rows.map((r) => r.id).sort();
+  eq(ready, [alive.id, late.id].sort(), "'분석 가능' 거름은 돌릴 수 있는 접수만 준다(공개로 시계가 다시 돈 접수는 든다)");
+  const all = (await loadIntakeList(db, A, parseIntakeFilters({ q: tag }), NOW)).rows;
+  eq(all.length, 7, '거름 없이 다 보인다');
+  const chip = (r: { analysisStatus: string; analysisBlock: Parameters<typeof analysisChipText>[1] }) => analysisChipText(r.analysisStatus, r.analysisBlock) ?? ANALYSIS_STATUS_TEXT[r.analysisStatus];
+  eq(all.filter((r) => chip(r) === '분석 가능').map((r) => r.id).sort(), ready, "'분석 가능' 칩도 거름과 같은 접수뿐이다");
+  for (const r of all) eq((await loadIntakeDetail(db, A, r.id, NOW)).analysisBlock, r.analysisBlock, `상세와 목록이 같은 판단이다: ${r.athleteName}`);
+
+  /* 끝내지 않은 초안의 임시 파일을 정리가 지웠다 — 칸은 비어도 받은 적 없는 접수처럼 읽히면 안 된다 */
+  const { emptyVideosText } = await import('../app/(app)/admin/intake/[id]/detail-rules.ts');
+  for (const kind of ['draft', 'withdrawn'] as const) {
+    const dr = await mk({ name: `${tag}${kind}초안`, status: kind, receivedAt: null });
+    if (kind === 'withdrawn') await db.intakeSubmission.update({ where: { id: dr.submissionId }, data: { withdrawnAt: new Date(NOW.getTime() - 10 * DAY) } });
+    await mkAsset(dr.submissionId, 'side', 'purged', { purgedAt: NOW });
+    await mkAsset(dr.submissionId, 'rear', 'purged', { purgedAt: NOW });
+    await db.intakeSubmission.update({ where: { id: dr.submissionId }, data: { sideAssetId: null, rearAssetId: null } });
+    const row = (await loadIntakeList(db, A, parseIntakeFilters({ q: `${tag}${kind}초안` }), NOW)).rows[0];
+    eq([row.side, row.rear], ['deleted', 'deleted'], `비운 칸도 지운 영상이라고 말한다: ${kind}`);
+    const d = await loadIntakeDetail(db, A, dr.submissionId, NOW);
+    eq([d.filesPurgedAt, d.analysisBlock], [row.originalsPurgedAt, row.analysisBlock], `상세가 목록과 같은 지운 날 · 판단을 준다: ${kind}`);
+    ok(d.filesPurgedAt != null, `지운 날이 있다: ${kind}`);
+    eq(emptyVideosText(d.assets), '받은 영상을 지웠어요.', `받은 적 없는 접수처럼 안 읽힌다: ${kind}`);
+    /* 검증 지적: 철회 유예가 끝나 지운 파일을 '쓰이지 않은 임시 파일'이라고 했다. 철회 뒤에 지웠으면 까닭은 철회다 */
+    const why = kind === 'withdrawn' ? '접수를 철회해서 지웠어요' : '접수에 쓰이지 않은 임시 파일이라 지웠어요';
+    eq(d.assets.map((a) => a.integrity), [why, why], `정리가 지운 파일의 까닭을 사실대로 말하고 보유 기간 때문이라고 안 한다: ${kind}`);
+    /* 검증 지적: 판에 오른 적 없는 파일을 칩이 '원본 지워짐'이라고 했다 */
+    eq([row.analysisBlock, analysisChipText(row.analysisStatus, row.analysisBlock)], ['received_deleted', '영상 지워짐'], `판이 없는 접수의 칩은 원본이라고 안 한다: ${kind}`);
+    eq(d.analysisBlock, row.analysisBlock, `상세 칩도 같다: ${kind}`);
+  }
+  eq(emptyVideosText([]), '아직 고른 영상이 없어요.', '받은 적 없으면 그대로다');
+
+  /* 검증 지적: 철회하기 전에 정리가 지운 임시 파일은 철회가 까닭이 아니다 */
+  {
+    const early = await mk({ name: `${tag}철회전정리`, status: 'withdrawn', receivedAt: null });
+    await db.intakeSubmission.update({ where: { id: early.submissionId }, data: { withdrawnAt: new Date(NOW.getTime() - 10 * DAY) } });
+    await mkAsset(early.submissionId, 'side', 'purged', { purgedAt: new Date(NOW.getTime() - 12 * DAY) });
+    await mkAsset(early.submissionId, 'rear', 'purged', { purgedAt: NOW });
+    await db.intakeSubmission.update({ where: { id: early.submissionId }, data: { sideAssetId: null, rearAssetId: null } });
+    const ed = await loadIntakeDetail(db, A, early.submissionId, NOW);
+    eq(Object.fromEntries(ed.assets.map((a) => [a.view, a.integrity])), { side: '접수에 쓰이지 않은 임시 파일이라 지웠어요', rear: '접수를 철회해서 지웠어요' }, '철회 전에 지운 파일 · 철회 뒤에 지운 파일을 가른다');
+    eq(ed.retention?.basis, 'withdrawn_draft', '판에 안 오른 철회 초안이다');
+  }
+
+  /*
+   * 검증 지적: 옆 파일은 지웠고 뒤 파일은 버렸지만 아직 안 지운 초안 — 목록은 [지워짐, 없음]인데 상세는 '아직 고른 영상이 없어요'라고 했다.
+   * 상세 글은 목록 칸과 같은 칸별 판단(slotProgressOf)으로 만든다.
+   */
+  for (const [kind, sideStatus, want, wantRow] of [
+    ['옆만지움', 'purged', '옆 영상은 지웠어요. 뒤 영상은 없어요.', ['deleted', 'empty']],
+    ['옆만지우는중', 'purging', '옆 영상은 지우고 있어요. 뒤 영상은 없어요.', ['deleting', 'empty']],
+  ] as const) {
+    const half = await mk({ name: `${tag}${kind}`, status: 'draft', receivedAt: null });
+    await mkAsset(half.submissionId, 'side', sideStatus, sideStatus === 'purged' ? { purgedAt: NOW } : {});
+    await mkAsset(half.submissionId, 'rear', 'abandoned');
+    await db.intakeSubmission.update({ where: { id: half.submissionId }, data: { sideAssetId: null, rearAssetId: null } });
+    const row = (await loadIntakeList(db, A, parseIntakeFilters({ q: `${tag}${kind}` }), NOW)).rows[0];
+    eq([row.side, row.rear], wantRow, `목록 칸: ${kind}`);
+    eq(emptyVideosText((await loadIntakeDetail(db, A, half.submissionId, NOW)).assets), want, `상세 글이 목록 칸과 같은 판단이다: ${kind}`);
+  }
+
+  /*
+   * 검증 지적: 고침 중 두 칸을 요청했고, 받는 사람이 새로 고른 두 파일을 정리가 버려 칸을 비웠다. 판 1에 얼린 원본은 살아 있다.
+   * 칸이 비었다고 '받은 영상을 지웠어요'라고 하면 바로 아래 살아 있는 원본과 어긋나고, 목록('없음')과도 어긋난다.
+   */
+  const FROZEN_ALIVE = '새로 받은 영상이 없어요. 판에 얼린 원본은 아래 이전에 고른 영상에 있어요.';
+  for (const [kind, newStatus, frozenStatus, want] of [
+    ['고침새파일지움', 'purged', 'verified', FROZEN_ALIVE],
+    ['고침새파일버림', 'abandoned', 'verified', FROZEN_ALIVE],
+    ['고침다지움', 'purged', 'purged', '받은 영상을 지웠어요.'],
+    ['고침원본지움', 'abandoned', 'purged', '새로 받은 영상이 없어요. 판에 얼린 원본은 지웠어요.'],
+  ] as const) {
+    const fx = await mkReady(kind, { status: 'correction_requested' });
+    if (frozenStatus === 'purged') await db.intakeAsset.updateMany({ where: { id: { in: [fx.side, fx.rear] } }, data: { status: 'purged', purgedAt: NOW } });
+    const gone = newStatus === 'purged' ? { purgedAt: NOW } : {};
+    const newSide = await mkAsset(fx.id, 'side', newStatus, gone);
+    await mkAsset(fx.id, 'rear', newStatus, gone);
+    await db.intakeSubmission.update({ where: { id: fx.id }, data: { sideAssetId: null, rearAssetId: null } });
+    const d = await loadIntakeDetail(db, A, fx.id, NOW);
+    eq([d.assets.filter((a) => a.current).length, d.assets.filter((a) => a.revisions.length > 0).map((a) => a.status)], [0, [frozenStatus, frozenStatus]], `칸은 비었고 판 1의 두 파일이 있다: ${kind}`);
+    eq(emptyVideosText(d.assets), want, `빈 영상 칸이 살아 있는 원본 · 지운 원본을 사실대로 말한다: ${kind}`);
+    const row = (await loadIntakeList(db, A, parseIntakeFilters({ q: `${tag}${kind}` }), NOW)).rows[0];
+    eq([row.side, row.rear], frozenStatus === 'purged' && newStatus === 'purged' ? ['deleted', 'deleted'] : ['empty', 'empty'], `목록 칸과 같은 판단이다: ${kind}`);
+    /* 판에 오른 적 없는 파일을 정리가 지웠으면 보유 기간 때문이 아니다 */
+    const fresh = d.assets.find((a) => a.id === newSide)!;
+    if (newStatus === 'purged') eq(fresh.integrity, '접수에 쓰이지 않은 임시 파일이라 지웠어요', `판에 안 오른 지운 파일은 보유 기간이 까닭이 아니다: ${kind}`);
+    if (frozenStatus === 'purged') eq(d.assets.find((a) => a.id === fx.side)!.integrity, '보유 기간이 지나 원본을 지웠어요', `판에 얼린 원본은 보유 기간이 까닭이다: ${kind}`);
+  }
+
+  /* 철회 유예가 지났는데 저장소가 안 지운 임시 파일 — 정리 일감은 접수에 안 묶여 있어도 상세가 멈춘 일감으로 보인다 */
+  const stuck = async (name: string, withdrawnDaysAgo: number) => {
+    const st = await mk({ name: `${tag}${name}`, status: 'withdrawn', receivedAt: null });
+    await db.intakeSubmission.update({ where: { id: st.submissionId }, data: { withdrawnAt: new Date(NOW.getTime() - withdrawnDaysAgo * DAY) } });
+    await mkAsset(st.submissionId, 'side', 'abandoned', { updatedAt: new Date(NOW.getTime() - (withdrawnDaysAgo - 1) * DAY) });
+    await db.intakeSubmission.update({ where: { id: st.submissionId }, data: { sideAssetId: null } });
+    return (await loadIntakeDetail(db, A, st.submissionId, NOW)).jobIssues.filter((j) => j.kind === 'cleanup_uploads');
+  };
+  await db.intakeJob.create({ data: { kind: 'cleanup_uploads', dedupeKey: `cleanup_uploads:test-${tag}`, payload: {}, status: 'failed', attempts: 3, maxAttempts: 3, lastError: 'IntakeError: storage_unavailable (remove_left_object)', runAfter: NOW, finishedAt: NOW } });
+  const left = await stuck('남은파일', 10);
+  eq(left.map((j) => [j.view, j.canRequeue, j.lastError]), [['side', false, 'IntakeError: storage_unavailable (remove_left_object)']], '지울 때가 지났는데 남은 임시 파일을 보인다');
+  eq(await stuck('유예안', 3), [], '유예 안의 파일은 멈춘 것으로 안 본다');
 }
 
 await db.$disconnect();

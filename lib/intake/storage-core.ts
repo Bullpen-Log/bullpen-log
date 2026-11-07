@@ -85,6 +85,14 @@ export function tokenTtlOf(token: string, nowMs: number): number {
 
 const unavailable = (cause: string) => new IntakeError('storage_unavailable', { cause });
 
+/**
+ * 'not found' 이지만 객체가 없다는 말이 아닌 답 — 버킷 · 테넌트 설정이 없거나, 몸통 없는 게이트웨이 404 를 SDK 가 상태 글('Not Found')로 옮긴 것이다.
+ * 이것을 없음으로 읽으면 지웠다는 답만 오고 남은 파일을 'purged' 로 적는다. 그 줄은 다시 보는 곳이 없다.
+ * 객체 없음의 글(호스팅 서버 'Object not found')을 정확히 못 박지는 않는다 — 실제 버킷으로 확인하기 전에 좁히면, 아직 안 올라온 파일을 묻는 전송 확인 · 대사가 막힌다.
+ */
+const NOT_OBJECT_MISSING = [/^bucket not found$/i, /^tenant config not found$/i, /^not found$/i];
+const notObjectMissing = (message: unknown) => typeof message === 'string' && NOT_OBJECT_MISSING.some((re) => re.test(message.trim()));
+
 /** 크기 확인 · 범위 읽기의 제한 시간 — 작은 읽기라 이보다 오래 걸리면 저장소 문제로 본다 */
 const READ_TIMEOUT_MS = 30_000;
 
@@ -112,7 +120,8 @@ export function createIntakeStorage(cfg: IntakeStorageConfig): IntakeRunStorage 
   async function signedRead(objectPath: string, ttlSec: number): Promise<string | null> {
     const { data, error } = await bucket().createSignedUrl(objectPath, ttlSec);
     if (error || !data?.signedUrl) {
-      if (/not.?found/i.test(error?.message ?? '')) return null;
+      const message = error?.message ?? '';
+      if (/not.?found/i.test(message) && !notObjectMissing(message)) return null;
       throw unavailable('sign_read');
     }
     return data.signedUrl;
@@ -124,14 +133,16 @@ export function createIntakeStorage(cfg: IntakeStorageConfig): IntakeRunStorage 
     const res = await doFetch(url, noTee({ Range: 'bytes=0-0' })).catch(() => {
       throw unavailable('stat_fetch');
     });
-    /* 호스팅 서버는 없는 객체를 HTTP 400 + 몸통 statusCode '404' 로 답한다. 다른 까닭의 400 을 없음으로 읽으면 삭제 확인이 남은 파일을 지웠다고 적는다 */
-    if (res.status === 400) {
-      const body = (await res.json().catch(() => null)) as { statusCode?: unknown } | null;
-      if (String(body?.statusCode) === '404') return null;
+    /*
+     * 호스팅 서버는 없는 객체를 HTTP 400 + 몸통 statusCode '404' 로 답한다. 다른 까닭의 400 을 없음으로 읽으면 삭제 확인이 남은 파일을 지웠다고 적는다.
+     * 맨 404 도 같다 — 저장소가 낸 '객체 없음' 몸통일 때만 없음이다. 몸통 없는 게이트웨이 404 · HTML · 상태 글('Not Found')은 객체가 남아 있을 수 있다.
+     */
+    if (res.status === 400 || res.status === 404) {
+      const body = (await res.json().catch(() => null)) as { statusCode?: unknown; message?: unknown } | null;
+      if (String(body?.statusCode) === '404' && !notObjectMissing(body?.message)) return null;
       throw unavailable('stat');
     }
     await res.body?.cancel().catch(() => {});
-    if (res.status === 404) return null;
     if (res.status === 416) {
       const empty = /\/(\d+)$/.exec(res.headers.get('content-range') ?? '');
       return empty ? { size: Number(empty[1]), contentType: res.headers.get('content-type') } : null;

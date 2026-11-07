@@ -69,6 +69,7 @@ import {
   canEditView,
   canMoveAsset,
   correctionReceiptLine,
+  correctionRepickViews,
   isIntakeView,
   publicStatusText,
   currentOriginalsGone,
@@ -272,6 +273,11 @@ export type PublicIntakeState = {
   originalDeleting: PurgingScope | null;
   /** 지금 판의 원본이 없나 — 있으면 이 판으로는 더 분석할 수 없다. 고침으로 새 판이 오면 풀린다 */
   originalsGone: OriginalsGone | null;
+  /**
+   * 가장 마지막 판에 얼린 칸별 파일 번호 — 판이 없으면 둘 다 null. 고침 화면이 요청받은 칸을 새로 골랐는지 서버와 같은 판단(correctionRepickViews)으로 본다.
+   * 번호는 assets 에도 나가는 자산 번호다. 이것만으로는 아무것도 못 한다.
+   */
+  frozenAssetIds: Record<IntakeView, string | null>;
 };
 
 /** 받는 사람에게 보일 고침 요청 — 관리자 쪽 기억(handBefore)은 뺀다 */
@@ -386,6 +392,7 @@ export async function loadPublicState(
     originalDeletedDate: deletedAt ? seoulDateKey(deletedAt) : null,
     originalDeleting: purgingScope(sub.assets, sub.revisions[0] ?? null),
     originalsGone,
+    frozenAssetIds: { side: sub.revisions[0]?.sideAssetId ?? null, rear: sub.revisions[0]?.rearAssetId ?? null },
   };
 }
 
@@ -590,8 +597,16 @@ export async function reserveAsset(
     const slot = slotOf(input.view);
     const currentId = sub[slot];
     const current = currentId ? await tx.intakeAsset.findUnique({ where: { id: currentId } }) : null;
+    /*
+     * 고침 중이면 마지막 판에 얼린 이 칸의 파일이다. 확인을 마친 그 파일과 같은 영상이면 다시 받아도 판이 안 바뀌어 고침을 끝낼 수 없다 — 고를 때 바로 말한다.
+     * 확인이 안 끝났거나 막혔거나 지운 파일은 같은 영상을 다시 받아 새로 확인한다. 얼린 자산을 그대로 돌려주면 칸이 안 바뀌어 같은 막힘으로 되돌아온다.
+     */
+    const latest = sub.status === 'correction_requested' ? await tx.intakeRevision.findFirst({ where: { submissionId: sub.id }, orderBy: { number: 'desc' } }) : null;
+    const frozenId = latest ? slotOfRevision(latest, input.view) : null;
+    const frozen = frozenId == null ? null : frozenId === current?.id ? current : await tx.intakeAsset.findUnique({ where: { id: frozenId } });
+    if (frozen?.clientSha256 === sha && (frozen.status === 'verified' || frozen.status === 'unconfirmed')) throw new IntakeError('same_as_sent', { view: input.view });
     /* 지웠거나 지우는 중인 원본과 같은 파일이어도 바이트는 믿을 수 없다 — 새 자산으로 다시 받는다 */
-    if (current && current.clientSha256 === sha && Number(current.declaredSize) === input.sizeBytes && current.status !== 'rejected' && !assetGone(current.status)) {
+    if (current && current.id !== frozenId && current.clientSha256 === sha && Number(current.declaredSize) === input.sizeBytes && current.status !== 'rejected' && !assetGone(current.status)) {
       return { asset: publicAsset(current), version: sub.version, created: false };
     }
     if ((input.expectedAssetId ?? null) !== (currentId ?? null)) throw new IntakeError('stale_selection', { view: input.view, currentAssetId: currentId });
@@ -838,7 +853,7 @@ async function assertLateFinalize(tx: Tx, sub: IntakeSubmission, inv: IntakeInvi
 export async function finalizeSubmission(db: Db, scope: IntakeScope, input: FinalizeInput, now: Date = new Date()): Promise<IntakeReceipt> {
   if (!isIdempotencyKey(input.idempotencyKey)) throw new IntakeError('invalid_input', { field: 'idempotencyKey' });
 
-  const { receipt, settle } = await db.$transaction(async (tx) => {
+  const out = await db.$transaction(async (tx) => {
     const sub = await lockSubmission(tx, scope);
 
     const same = await tx.intakeRevision.findUnique({ where: { submissionId_finalizeKey: { submissionId: sub.id, finalizeKey: input.idempotencyKey } } });
@@ -871,22 +886,37 @@ export async function finalizeSubmission(db: Db, scope: IntakeScope, input: Fina
     const consentRows = await consentDecisionRows(tx, sub.id);
     if (!hasRequiredConsents(consentRows, sub.submitterRelation)) throw new IntakeError('consent_required');
 
-    if (!sub.sideAssetId || !sub.rearAssetId) throw new IntakeError('assets_incomplete');
+    if (!sub.sideAssetId || !sub.rearAssetId) {
+      /* 고침 중에 요청받은 칸이 비었으면 끊긴 전송을 정리가 버린 칸이다 — 오는 중인 전송이 없으니 기다리라고 하지 않고 그 칸을 고치라고 답한다 */
+      const asked = sub.status === 'correction_requested' ? (readCorrection(sub.correction)?.views ?? []) : [];
+      const empty = (['side', 'rear'] as const).filter((v) => !sub[slotOf(v)]);
+      throw new IntakeError(empty.some((v) => asked.includes(v)) ? 'correction_incomplete' : 'assets_incomplete', { empty });
+    }
     const pair = await tx.intakeAsset.findMany({ where: { id: { in: [sub.sideAssetId, sub.rearAssetId] }, submissionId: sub.id } });
     const side = pair.find((a) => a.id === sub.sideAssetId);
     const rear = pair.find((a) => a.id === sub.rearAssetId);
     if (!side || !rear) throw new IntakeError('assets_incomplete');
+    /*
+     * 막혔거나 지운 칸이 요청에 빠졌다(요청보다 앞선 줄 등) — 받는 사람이 그 칸을 고칠 수 없어 끝낼 수 없다. 요청에 넣고 그 칸을 고치라고 답한다.
+     * 넣은 것은 남아야 해서 여기서 던지지 않고 돌려준다. 거래가 끝난 뒤에 던진다.
+     */
+    const widened = await widenOpenCorrection(tx, sub, now);
+    if (widened.length) return { widened };
     /* 지웠거나 지우는 중인 칸은 전송을 기다릴 일이 아니라 새 파일을 받아야 한다 — 이 파일로 판을 얼리면 시계가 다시 돈 채 원본이 사라진다 */
     if (assetGone(side.status) || assetGone(rear.status)) throw new IntakeError('correction_incomplete', { side: side.status, rear: rear.status });
-    if (!assetArrived(side.status) || !assetArrived(rear.status)) throw new IntakeError('assets_incomplete', { side: side.status, rear: rear.status });
-    if (side.clientSha256 === rear.clientSha256 || (side.serverSha256 && side.serverSha256 === rear.serverSha256)) throw new IntakeError('same_file');
 
     const prior = await tx.intakeRevision.findFirst({ where: { submissionId: sub.id }, orderBy: { number: 'desc' } });
     const correction = sub.status === 'correction_requested' ? readCorrection(sub.correction) : null;
-    if (correction && prior) {
-      const unchanged = correction.views.some((v) => (v === 'side' ? side.id === prior.sideAssetId : rear.id === prior.rearAssetId));
-      if (unchanged) throw new IntakeError('correction_incomplete');
+    /*
+     * 요청받은 칸을 새로 안 받았다 — 막힌 파일이거나 얼린 그 파일 그대로다. 전송은 끝났으니 '전송이 안 끝났다'(assets_incomplete)가 아니라 고치라고 답한다.
+     * 고침 화면도 공개 상태의 frozenAssetIds 로 같은 칸을 보내기 전에 막는다.
+     */
+    if (correction) {
+      const repick = correctionRepickViews(correction.views, { side, rear }, prior ? { side: prior.sideAssetId, rear: prior.rearAssetId } : null);
+      if (repick.length) throw new IntakeError('correction_incomplete', { views: repick });
     }
+    if (!assetArrived(side.status) || !assetArrived(rear.status)) throw new IntakeError('assets_incomplete', { side: side.status, rear: rear.status });
+    if (side.clientSha256 === rear.clientSha256 || (side.serverSha256 && side.serverSha256 === rear.serverSha256)) throw new IntakeError('same_file');
 
     /* 판에는 지금 보내는 사람의 답만 얼린다 — 옛 관계의 답을 얼리면 판의 기록이 앱의 판단과 어긋난다 */
     const latest = latestConsents(consentRows, sub.submitterRelation);
@@ -928,6 +958,8 @@ export async function finalizeSubmission(db: Db, scope: IntakeScope, input: Fina
     await writeAudit(tx, { actor: { kind: 'invitee' }, action: 'submission.finalized', submissionId: sub.id, detail: { revision: revision.number, receiptCode: next.receiptCode } }, now);
     return { receipt: receiptOf(next, revision, true), settle: revision.id };
   });
+  if ('widened' in out) throw new IntakeError('correction_incomplete', { views: out.widened });
+  const { receipt, settle } = out;
 
   /* 두 파일이 이미 검증을 마쳤으면(고침 뒤 다시 낸 경우 등) 일꾼을 기다리지 않는다 */
   if (settle) {
@@ -1011,9 +1043,39 @@ export async function purgedViews(tx: Tx, sub: Pick<IntakeSubmission, 'sideAsset
 }
 
 /**
+ * 새 파일을 받아야 판을 얼릴 수 있는 칸 — 원본을 지웠거나 지우는 중이거나, 파일 검증에서 막힌('rejected') 칸이다. 칸의 파일과 얼린 판의 파일을 둘 다 본다.
+ * 막힌 파일은 받는 사람이 그 칸을 고치지 않으면 끝낼 수 없어서, 요청받지 않은 칸이면 받는 사람이 막힌다.
+ */
+export async function blockedViews(tx: Tx, sub: Pick<IntakeSubmission, 'sideAssetId' | 'rearAssetId'>, rev: Pick<IntakeRevision, 'sideAssetId' | 'rearAssetId'> | null): Promise<IntakeView[]> {
+  const ids = [sub.sideAssetId, sub.rearAssetId, rev?.sideAssetId, rev?.rearAssetId].filter((id): id is string => id != null);
+  const bad = new Set((await tx.intakeAsset.findMany({ where: { id: { in: ids }, status: { in: [...ASSET_GONE, 'rejected'] } }, select: { id: true } })).map((a) => a.id));
+  return (['side', 'rear'] as const).filter((v) => {
+    const slot = sub[slotOf(v)];
+    const frozen = rev?.[slotOf(v)];
+    return (slot != null && bad.has(slot)) || (frozen != null && bad.has(frozen));
+  });
+}
+
+/**
+ * 연 고침 요청에 막힌 칸이 빠졌으면 넣는다 — 요청한 뒤에 파일이 막힌 경우다. 넣은 칸을 돌려준다. 부르는 쪽이 접수를 잠근다.
+ * 판 번호가 같이 올라 낡은 화면은 다시 읽고, 받는 사람은 그 칸에 새 파일을 낼 수 있다.
+ */
+async function widenOpenCorrection(tx: Tx, sub: IntakeSubmission, now: Date): Promise<IntakeView[]> {
+  const open = sub.status === 'correction_requested' ? readCorrection(sub.correction) : null;
+  if (!open) return [];
+  const rev = sub.currentRevisionId ? await tx.intakeRevision.findUnique({ where: { id: sub.currentRevisionId } }) : null;
+  const add = (await blockedViews(tx, sub, rev)).filter((v) => !open.views.includes(v));
+  if (add.length === 0) return [];
+  const correction: CorrectionRequest = { ...open, views: [...open.views, ...add] };
+  await tx.intakeSubmission.update({ where: { id: sub.id }, data: { correction, version: { increment: 1 } } });
+  await writeAudit(tx, { actor: { kind: 'system' }, action: 'correction.widened', submissionId: sub.id, detail: { views: add } }, now);
+  return add;
+}
+
+/**
  * 고쳐 달라고 다시 연다 — 요청한 칸만 열린다. 얼린 판 · 옛 자산은 그대로다.
  * 이미 고침 중이면 요청 내용을 바꾼다: 기간을 늘리거나 칸을 더하고 뺄 수 있다. 뺀 칸에서 받는 사람이 고친 것은 얼린 판 값으로 돌아간다.
- * 원본을 지웠거나 지우는 중인 칸은 언제나 요청에 넣는다 — 그 파일로는 판을 얼릴 수 없어서, 글만 고치라고 하면 받는 사람이 끝낼 수 없다. 삭제가 도는 중에도 고침은 막지 않는다. 새 파일을 받는 길이라서다.
+ * 원본을 지웠거나 지우는 중인 칸 · 파일 검증에서 막힌 칸은 언제나 요청에 넣는다 — 그 파일로는 판을 얼릴 수 없어서, 글만 고치라고 하면 받는 사람이 끝낼 수 없다. 삭제가 도는 중에도 고침은 막지 않는다. 새 파일을 받는 길이라서다.
  */
 export async function requestCorrection(db: Db, input: CorrectionInput, now: Date = new Date()): Promise<{ version: number }> {
   const fields = [...new Set(input.fields ?? [])];
@@ -1034,7 +1096,7 @@ export async function requestCorrection(db: Db, input: CorrectionInput, now: Dat
 
     const open = sub.status === 'correction_requested' ? readCorrection(sub.correction) : null;
     const frozenRev = sub.currentRevisionId ? await tx.intakeRevision.findUnique({ where: { id: sub.currentRevisionId } }) : null;
-    const views = [...new Set([...asked, ...(await purgedViews(tx, sub, frozenRev))])];
+    const views = [...new Set([...asked, ...(await blockedViews(tx, sub, frozenRev))])];
     const rev = open ? frozenRev : null;
     const restored = open && rev ? await restoreFrozen(tx, sub, rev, open.views.filter((v) => !views.includes(v)), open.fields.filter((f) => !fields.includes(f)), open) : {};
 
@@ -1233,9 +1295,16 @@ async function closeVerify(
   now: Date,
 ): Promise<string> {
   const wrote = await db.$transaction(async (tx) => {
+    /* 고침 요청과 차례를 맞춘다 — 요청이 막힌 칸을 보는 것과 여기서 막는 것이 엇갈리지 않게 */
+    await tx.$queryRaw`SELECT "id" FROM "IntakeSubmission" WHERE "id" = ${asset.submissionId} FOR UPDATE`;
     const moved = await tx.intakeAsset.updateMany({ where: { id: asset.id, status: 'verifying' }, data });
     if (moved.count === 0) return false;
     await writeAudit(tx, { actor: { kind: 'system' }, action: `asset.${data.status}`, submissionId: asset.submissionId, detail: { assetId: asset.id, rejectCode: data.rejectCode } }, now);
+    /* 고침이 열린 뒤에 막혔으면 그 칸은 요청에 없을 수 있다 — 받는 사람이 고칠 수 있게 넣는다 */
+    if (data.status === 'rejected') {
+      const sub = await tx.intakeSubmission.findUnique({ where: { id: asset.submissionId } });
+      if (sub) await widenOpenCorrection(tx, sub, now);
+    }
     return true;
   });
   if (!wrote) return (await db.intakeAsset.findUniqueOrThrow({ where: { id: asset.id } })).status;
@@ -1346,7 +1415,7 @@ export async function reconcilePendingRevisions(db: Db, now: Date = new Date(), 
 }
 
 /** 정리가 쓰는 시각 경계 — 줄을 고를 때와 잠근 뒤 다시 볼 때 같은 값을 쓴다 */
-const cleanupCutoffs = (now: Date) => ({ cutoff: new Date(now.getTime() - TUS_URL_TTL_MS - CLEANUP_GRACE_MS), withdrawnCutoff: new Date(now.getTime() - WITHDRAWN_DRAFT_GRACE_MS) });
+export const cleanupCutoffs = (now: Date) => ({ cutoff: new Date(now.getTime() - TUS_URL_TTL_MS - CLEANUP_GRACE_MS), withdrawnCutoff: new Date(now.getTime() - WITHDRAWN_DRAFT_GRACE_MS) });
 
 type AbandonFacts = {
   status: string;

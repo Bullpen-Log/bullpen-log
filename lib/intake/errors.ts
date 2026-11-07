@@ -25,6 +25,7 @@ export const INTAKE_ERROR_TEXT = {
   consent_stale: '동의 내용이 바뀌었어요. 다시 읽고 동의해 주세요.',
   same_pitch_required: '두 영상이 같은 투구인지 확인해 주세요.',
   same_file: '옆과 뒤에 같은 파일을 골랐어요. 다른 영상을 골라 주세요.',
+  same_as_sent: '이미 보낸 영상과 같은 파일이에요. 다른 영상을 골라 주세요.',
   file_too_large: '파일이 너무 커요. 한도 안의 영상을 골라 주세요.',
   total_too_large: '두 영상을 합친 크기가 한도를 넘었어요.',
   file_empty: '비어 있는 파일이에요. 다른 영상을 골라 주세요.',

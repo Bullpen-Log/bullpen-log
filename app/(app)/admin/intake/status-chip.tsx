@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ANALYSIS_STATUS_TEXT, analysisGoneText, textOf } from '@/lib/intake/admin-labels';
+import { ANALYSIS_STATUS_TEXT, analysisChipText, textOf, type AnalysisBlock } from '@/lib/intake/admin-labels';
 
 /** 상태 표시 — 색은 거들 뿐이고 글이 뜻을 말한다 */
 export type ChipTone = 'neutral' | 'info' | 'ok' | 'warn' | 'danger';
@@ -22,10 +22,10 @@ export const submissionTone = (s: string): ChipTone =>
 export const analysisTone = (s: string): ChipTone =>
   s === 'succeeded' ? 'ok' : s === 'failed' ? 'danger' : s === 'running' || s === 'queued' ? 'info' : s === 'ready' ? 'warn' : 'neutral';
 
-/** 분석 칩 — 지금 판의 원본이 없으면 분석 상태 대신 그 사실을 말한다 */
-export function AnalysisChip({ status, originalsPurgedAt, originalsPurging }: { status: string } & Parameters<typeof analysisGoneText>[1]) {
-  const gone = analysisGoneText(status, { originalsPurgedAt, originalsPurging });
-  return <StatusChip tone={gone ? 'neutral' : analysisTone(status)}>{gone ?? textOf(ANALYSIS_STATUS_TEXT, status)}</StatusChip>;
+/** 분석 칩 — 원본이 없거나 철회 · 폐기 · 지울 날 지남으로 새 분석을 못 하면 분석 상태 대신 그 사실을 말한다. 막힘은 서버가 정한다(analysisBlockOf) */
+export function AnalysisChip({ status, block }: { status: string; block: AnalysisBlock | null }) {
+  const blocked = analysisChipText(status, block);
+  return <StatusChip tone={blocked ? 'neutral' : analysisTone(status)}>{blocked ?? textOf(ANALYSIS_STATUS_TEXT, status)}</StatusChip>;
 }
 
 export const publicationTone = (s: string): ChipTone => (s === 'published' ? 'ok' : 'neutral');

@@ -21,9 +21,10 @@ import { GIB, INTAKE_BUCKET_MAX_BYTES, READ_URL_TTL_SEC, intakeLimits, type Inta
 import { fpsLabel, integrityLabel, timingNote, type IntakeMediaFacts } from '@/lib/intake/media';
 import { downloadFileName, isIntakeId, isSubmissionPath, originalExtension } from '@/lib/intake/paths';
 import { requeueJob } from '@/lib/intake/jobs';
-import { correctionHoldUntil, currentOriginalsPurgedAt, originalRetention, retentionDue, shownRetention, type RetentionBasis } from '@/lib/intake/retention';
+import { ORIGINAL_RETENTION_MS, correctionHoldUntil, currentOriginalsPurgedAt, originalRetention, retentionDue, shownRetention, type RetentionBasis } from '@/lib/intake/retention';
 import {
   cancelCorrection,
+  cleanupCutoffs,
   createInvitation,
   extendUploadWindow,
   requestCorrection,
@@ -51,7 +52,7 @@ import {
   type PurgingScope,
 } from '@/lib/intake/state';
 import type { IntakeStorage } from '@/lib/intake/storage-core';
-import { sampleDurationLabel, viewProgressOf, type ViewProgress } from '@/lib/intake/admin-labels';
+import { analysisBlockOf, sampleDurationLabel, slotProgressOf, type AnalysisBlock, type ViewProgress } from '@/lib/intake/admin-labels';
 import { can } from '@/lib/permissions';
 
 type Db = PrismaClient;
@@ -156,6 +157,10 @@ export type IntakeListRow = {
   originalsPurgedAt: string | null;
   /** 원본을 지우는 중인가 — 'older' 면 옛 판의 파일뿐이다. 지금 판이 살아 있는지는 originalsPurgedAt 이 말한다. 아니면 null */
   originalsPurging: PurgingScope | null;
+  /** 판에 오른 적이 있나 — 없으면 파일을 '원본'이 아니라 '영상'이라고 부른다(retentionLineText · analysisBlockOf) */
+  hasRevision: boolean;
+  /** 새 분석을 못 하는 까닭 — 칩이 '분석 가능'이라고 말하지 않게 한다. 없으면 null(analysisBlockOf) */
+  analysisBlock: AnalysisBlock | null;
 };
 
 export type IntakeListResult = {
@@ -180,15 +185,42 @@ async function unreadIds(db: Db, adminId: string): Promise<string[]> {
   return rows.map((r) => r.id);
 }
 
-function listWhere(f: IntakeListFilters, adminId: string, unread: readonly string[]): Prisma.IntakeSubmissionWhereInput {
+/**
+ * '분석 가능'이지만 새 분석을 못 하는 접수 — 칩의 analysisBlockOf 와 같은 조건이다: 지금 판을 지우는 중 · 다 지움 · 철회 · 폐기 · 지울 날 지남.
+ * 지울 날은 originalRetention 을 그대로 옮긴 것이다. 철회는 앞 조건이 먼저 잡으니 남는 것은 마지막으로 낸 날과 마지막 공개 가운데 늦은 날이다.
+ * 판이 없는 접수의 막힘(받은 영상 지움 · 지우는 중)은 안 본다. 판을 정산해야 '분석 가능'이 되므로 그런 접수는 이 거름에 들 수 없다.
+ */
+async function blockedReadyIds(db: Db, now: Date): Promise<string[]> {
+  const cutoff = new Date(now.getTime() - ORIGINAL_RETENTION_MS);
+  const rows = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
+    SELECT s."id"
+    FROM "IntakeSubmission" s
+    JOIN "IntakeInvitation" i ON i."id" = s."invitationId"
+    LEFT JOIN "IntakeRevision" r ON r."id" = s."currentRevisionId"
+    WHERE s."analysisStatus" = 'ready' AND (
+      s."status" = 'withdrawn'
+      OR i."status" <> 'active'
+      OR EXISTS (SELECT 1 FROM "IntakeAsset" a WHERE a."id" IN (r."sideAssetId", r."rearAssetId") AND a."status" = 'purging')
+      OR (SELECT count(*) FROM "IntakeAsset" a WHERE a."id" IN (r."sideAssetId", r."rearAssetId") AND a."purgedAt" IS NOT NULL) = 2
+      OR GREATEST(s."lastFinalizedAt", (SELECT max(p."publishedAt") FROM "IntakePublication" p WHERE p."submissionId" = s."id")) <= ${cutoff}
+    )
+  `);
+  return rows.map((r) => r.id);
+}
+
+function listWhere(f: IntakeListFilters, adminId: string, unread: readonly string[], blockedReady: readonly string[]): Prisma.IntakeSubmissionWhereInput {
   const where: Prisma.IntakeSubmissionWhereInput = {};
+  const and: Prisma.IntakeSubmissionWhereInput[] = [];
   if (f.status) where.status = f.status;
   if (f.analysis) where.analysisStatus = f.analysis;
   if (f.publication) where.publicationStatus = f.publication;
   if (f.invitation) where.invitation = { status: f.invitation };
   if (f.assignee === 'none') where.assigneeAdminId = null;
   else if (f.assignee) where.assigneeAdminId = f.assignee === 'me' ? adminId : f.assignee;
-  if (f.unread) where.id = { in: [...unread] };
+  if (f.unread) and.push({ id: { in: [...unread] } });
+  /* '분석 가능'은 지금 돌릴 수 있다는 뜻이다 — 칩이 '분석 불가 · 원본 지워짐'이라고 말하는 접수는 안 섞는다 */
+  if (f.analysis === 'ready' && blockedReady.length) and.push({ id: { notIn: [...blockedReady] } });
+  if (and.length) where.AND = and;
   if (f.q) {
     const contains = { contains: f.q, mode: 'insensitive' as const };
     where.OR = [{ athleteName: contains }, { receiptCode: contains }, { submitterName: contains }, { invitation: { note: contains } }];
@@ -216,7 +248,7 @@ export async function loadIntakeList(db: Db, actor: IntakeActor, f: IntakeListFi
   assertIntakeAdmin(actor);
   const unread = await unreadIds(db, actor.id);
   const unreadSet = new Set(unread);
-  const where = listWhere(f, actor.id, unread);
+  const where = listWhere(f, actor.id, unread, f.analysis === 'ready' ? await blockedReadyIds(db, now) : []);
   const [total, admins] = await Promise.all([db.intakeSubmission.count({ where }), intakeAdmins(db)]);
   const pageCount = Math.max(1, Math.ceil(total / INTAKE_PAGE_SIZE));
   const page = Math.min(f.page, pageCount);
@@ -227,7 +259,7 @@ export async function loadIntakeList(db: Db, actor: IntakeActor, f: IntakeListFi
     take: INTAKE_PAGE_SIZE,
     include: {
       invitation: { select: { status: true, uploadExpiresAt: true, note: true } },
-      assets: { select: { id: true, status: true, purgedAt: true } },
+      assets: { select: { id: true, view: true, status: true, purgedAt: true } },
       revisions: { select: { id: true, sideAssetId: true, rearAssetId: true } },
       publications: { select: { publishedAt: true } },
     },
@@ -236,6 +268,7 @@ export async function loadIntakeList(db: Db, actor: IntakeActor, f: IntakeListFi
   const rows = subs.map((s): IntakeListRow => {
     const statusOf = (id: string | null) => (id ? (s.assets.find((a) => a.id === id)?.status ?? null) : null);
     const retention = retentionOf(s);
+    const purging = purgingScope(s.assets, s.revisions.find((r) => r.id === s.currentRevisionId) ?? null);
     return {
       id: s.id,
       athleteName: s.athleteName,
@@ -243,8 +276,8 @@ export async function loadIntakeList(db: Db, actor: IntakeActor, f: IntakeListFi
       receiptCode: s.receiptCode,
       receivedAt: s.receivedAt?.toISOString() ?? null,
       createdAt: s.createdAt.toISOString(),
-      side: viewProgressOf(statusOf(s.sideAssetId)),
-      rear: viewProgressOf(statusOf(s.rearAssetId)),
+      side: slotProgressOf(s.assets, 'side', statusOf(s.sideAssetId)),
+      rear: slotProgressOf(s.assets, 'rear', statusOf(s.rearAssetId)),
       status: s.status,
       analysisStatus: s.analysisStatus,
       publicationStatus: s.publicationStatus,
@@ -255,7 +288,12 @@ export async function loadIntakeList(db: Db, actor: IntakeActor, f: IntakeListFi
       unread: unreadSet.has(s.id),
       originalPurgeAt: iso(retention.plan?.purgeAt),
       originalsPurgedAt: iso(retention.purgedAt),
-      originalsPurging: purgingScope(s.assets, s.revisions.find((r) => r.id === s.currentRevisionId) ?? null),
+      originalsPurging: purging,
+      hasRevision: s.currentRevisionId != null,
+      analysisBlock: analysisBlockOf(
+        { status: s.status, invitationStatus: s.invitation.status, originalPurgeAt: iso(retention.plan?.purgeAt), originalsPurgedAt: iso(retention.purgedAt), originalsPurging: purging, hasRevision: s.currentRevisionId != null },
+        now,
+      ),
     };
   });
   return { rows, total, page, pageCount, pageSize: INTAKE_PAGE_SIZE, unreadCount: unread.length, admins };
@@ -382,8 +420,12 @@ export type IntakeDetail = {
   publications: { id: string; number: number; runId: string; active: boolean; explanation: string | null; publishedAt: string; publishedBy: string; unpublishedAt: string | null; unpublishedBy: string | null }[];
   /** 지금 공개 번호 — 공개 · 내리기가 '알던 공개'로 보낸다. 없으면 null */
   activePublicationId: string | null;
-  /** 시도를 다 썼거나 멈춘 일감 */
+  /** 시도를 다 썼거나 멈춘 일감 — 지울 때가 지났는데 남은 임시 파일도 든다(접수에 안 묶인 정리 일감이라 자산 줄로 찾는다) */
   jobIssues: IntakeJobIssue[];
+  /** 새 분석을 못 하는 까닭 — 목록과 같은 판단이다(analysisBlockOf). 없으면 null */
+  analysisBlock: AnalysisBlock | null;
+  /** 받은 파일을 다 지운 시각 — 목록의 originalsPurgedAt 과 같다. 시계가 없는 초안(임시 파일만 지움)도 여기 든다. 남아 있으면 null */
+  filesPurgedAt: string | null;
   /** 원본 보유 — 끝내지 않은 초안과 지울 파일이 없는 철회 초안은 null */
   retention: {
     purgeAt: string;
@@ -402,6 +444,13 @@ export type IntakeDetail = {
 
 const iso = (d: Date | null | undefined) => d?.toISOString() ?? null;
 const numberOrNull = (v: bigint | null | undefined) => (v == null ? null : Number(v));
+
+/**
+ * 판에 안 오른 파일을 철회 때문에 지웠나 — 철회한 접수이고 지운 때(지우는 중이면 그렇게 적은 때)가 철회 뒤다.
+ * 철회 앞에 정리가 지운 파일은 그냥 쓰이지 않은 임시 파일이다.
+ */
+const goneByWithdrawal = (a: { status: string; purgedAt: Date | null; updatedAt: Date }, s: { status: string; withdrawnAt: Date | null }) =>
+  s.status === 'withdrawn' && s.withdrawnAt != null && assetGone(a.status) && (a.purgedAt ?? a.updatedAt).getTime() >= s.withdrawnAt.getTime();
 
 /** 바이트가 저장소에 있나 — 도착 기록이 있고 지웠거나 지우는 중인 것이 아니면 된다 */
 const hasBytes = (a: { status: string; uploadedAt: Date | null; storedBytes: bigint | null }) =>
@@ -478,6 +527,36 @@ async function jobIssuesOf(
   return issues;
 }
 
+/**
+ * 지울 때가 지났는데 남은 판 밖 파일 — 정리 일감(cleanup_uploads)은 모든 접수를 한 번에 훑어 payload 에 접수가 없어서 jobIssuesOf 가 못 찾는다. 그래서 자산 줄로 찾는다.
+ * 조건은 cleanupStaleUploads 가 지울 줄을 고르는 조건과 같다(service.ts cleanupCutoffs). 정리는 15분마다 돌아서, 그 한 칸이 지나도 남은 것만 멈춘 것으로 본다.
+ * 정리는 칸마다 새 일감으로 다시 지우므로 '다시 시도하는 중'이다. 까닭 글은 가장 최근에 오류를 남긴 정리 일감의 것이다 — 다른 접수의 파일 때문에 남은 글일 수도 있다.
+ */
+async function cleanupLeftovers(
+  db: Db,
+  s: { status: string; withdrawnAt: Date | null; sideAssetId: string | null; rearAssetId: string | null; assets: { id: string; view: string; status: string; updatedAt: Date }[] },
+  frozen: ReadonlySet<string>,
+  now: Date,
+): Promise<IntakeJobIssue[]> {
+  const { cutoff, withdrawnCutoff } = cleanupCutoffs(new Date(now.getTime() - JOB_STALL_MS));
+  const overdue = (a: { updatedAt: Date }) => (s.status === 'withdrawn' ? s.withdrawnAt != null && s.withdrawnAt <= withdrawnCutoff : a.updatedAt < cutoff);
+  const left = s.assets.filter((a) => (a.status === 'replaced' || a.status === 'abandoned') && !frozen.has(a.id) && a.id !== s.sideAssetId && a.id !== s.rearAssetId && overdue(a));
+  if (left.length === 0) return [];
+  const job = await db.intakeJob.findFirst({ where: { kind: 'cleanup_uploads', lastError: { not: null } }, orderBy: { updatedAt: 'desc' }, select: { attempts: true, maxAttempts: true, lastError: true, updatedAt: true } });
+  return left.map((a) => ({
+    id: `cleanup:${a.id}`,
+    kind: 'cleanup_uploads',
+    state: 'retrying' as const,
+    attempts: job?.attempts ?? 0,
+    maxAttempts: job?.maxAttempts ?? 0,
+    lastError: jobErrorText(job?.lastError ?? null),
+    view: isIntakeView(a.view) ? a.view : null,
+    revisionNumber: null,
+    updatedAt: (job?.updatedAt ?? a.updatedAt).toISOString(),
+    canRequeue: false,
+  }));
+}
+
 /** 접수 하나 — 읽기만 한다. 읽음 표시는 화면이 붙은 뒤에 따로 부른다(미리 받기가 읽음으로 만들지 않게) */
 export async function loadIntakeDetail(db: Db, actor: IntakeActor, submissionId: string, now: Date = new Date()): Promise<IntakeDetail> {
   assertIntakeAdmin(actor);
@@ -503,7 +582,10 @@ export async function loadIntakeDetail(db: Db, actor: IntakeActor, submissionId:
   /* 지울 일이 남았나 — 지우는 파일이 있거나, 지울 날이 지난 판 파일이 아직 표시 전이다 */
   const frozen = new Set(s.revisions.flatMap((r) => [r.sideAssetId, r.rearAssetId]));
   const purgeLive = s.assets.some((a) => a.status === 'purging') || (retentionDue(plan, now) && s.assets.some((a) => frozen.has(a.id) && !assetGone(a.status)));
-  const jobIssues = await jobIssuesOf(db, { submissionId: s.id, assets: s.assets, revisions: s.revisions, runs: s.runs, currentRevisionId: s.currentRevisionId, verifyTargets, purgeLive }, now);
+  const jobIssues = [
+    ...(await jobIssuesOf(db, { submissionId: s.id, assets: s.assets, revisions: s.revisions, runs: s.runs, currentRevisionId: s.currentRevisionId, verifyTargets, purgeLive }, now)),
+    ...(await cleanupLeftovers(db, s, frozen, now)),
+  ];
   const [decision, consentTotal] = await Promise.all([consentDecisionRows(db, s.id), db.intakeConsent.count({ where: { submissionId: s.id } })]);
   const shown = new Set(s.consents.map((c) => c.id));
   const consents = [...s.consents, ...decision.filter((c) => !shown.has(c.id))].sort((a, b) => b.agreedAt.getTime() - a.agreedAt.getTime());
@@ -534,12 +616,13 @@ export async function loadIntakeDetail(db: Db, actor: IntakeActor, submissionId:
   const frozenIn = (assetId: string) => s.revisions.filter((r) => r.sideAssetId === assetId || r.rearAssetId === assetId).map((r) => r.number);
   const assets = s.assets.map((a): IntakeAssetDetail => {
     const facts = a.mediaFacts as IntakeMediaFacts | null;
+    const revisions = frozenIn(a.id);
     return {
       id: a.id,
       view: a.view as IntakeView,
       status: a.status,
       current: a.id === s.sideAssetId || a.id === s.rearAssetId,
-      revisions: frozenIn(a.id),
+      revisions,
       fileName: a.originalName,
       declaredType: a.declaredType,
       declaredBytes: Number(a.declaredSize),
@@ -548,7 +631,7 @@ export async function loadIntakeDetail(db: Db, actor: IntakeActor, submissionId:
       serverSha256: a.serverSha256,
       hashMatched: a.serverSha256 != null && a.serverSha256 === a.clientSha256,
       rejectCode: a.rejectCode,
-      integrity: integrityLabel(a.status),
+      integrity: integrityLabel(a.status, revisions.length > 0, goneByWithdrawal(a, s)),
       fps: facts ? fpsLabel(facts) : null,
       averageFps: facts?.averageFps ?? null,
       timing: facts ? timingNote(facts) : null,
@@ -660,6 +743,11 @@ export async function loadIntakeDetail(db: Db, actor: IntakeActor, submissionId:
     })),
     activePublicationId: s.publications.find((p) => p.activeFor != null)?.id ?? null,
     jobIssues,
+    analysisBlock: analysisBlockOf(
+      { status: s.status, invitationStatus: s.invitation.status, originalPurgeAt: iso(plan?.purgeAt), originalsPurgedAt: iso(purgedAt), originalsPurging: scope, hasRevision: currentRevision != null },
+      now,
+    ),
+    filesPurgedAt: iso(purgedAt),
     retention: plan ? { purgeAt: plan.purgeAt.toISOString(), anchorAt: plan.anchorAt.toISOString(), basis: plan.basis, purgedAt: iso(purgedAt), heldUntil: iso(heldUntil), purging } : null,
     notes: s.notes.map((n) => ({
       id: n.id,

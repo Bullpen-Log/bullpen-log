@@ -210,6 +210,24 @@ export function canEditView(status: string, correction: CorrectionRequest | null
   return correction?.views.includes(view) ?? false;
 }
 
+/**
+ * 고침에서 새 파일을 받아야 낼 수 있는 칸 — 요청받은 칸 가운데 비었거나 · 원본을 지웠거나(지우는 중 포함) · 막혔거나 · 지금 판에 얼린 그 파일 그대로인 칸이다.
+ * 오는 중인 파일(reserved · uploading)은 넣지 않는다. 그 칸은 전송을 기다리는 일이다.
+ * 완료(finalizeSubmission)가 이 칸으로 'correction_incomplete' 를 내고, 고침 화면도 같은 판단으로 보내기 전에 막는다(공개 상태의 frozenAssetIds).
+ * frozen 은 가장 마지막 판의 짝이다. 판이 없으면 null.
+ */
+export function correctionRepickViews(
+  views: readonly IntakeView[],
+  slots: Readonly<Record<IntakeView, { id: string; status: string } | null>>,
+  frozen: Readonly<Record<IntakeView, string | null>> | null,
+): IntakeView[] {
+  return views.filter((v) => {
+    const a = slots[v];
+    if (a == null || assetGone(a.status) || a.status === 'rejected') return true;
+    return frozen != null && a.id === frozen[v];
+  });
+}
+
 /* ────────────────────────── 다시 찾아왔을 때의 화면 ────────────────────────── */
 
 export const INTAKE_SCREENS = [
@@ -348,6 +366,7 @@ export function receiptHead(s: { screen: string; submissionStatus: string; analy
   if (s.submissionStatus === 'correction_requested') {
     return s.originalsGone ? { title: RECEIPT_HEADS.correction_closed.title, desc: `보유 기간이 끝나 원본을 ${goneVerb(s.originalsGone)}. 링크를 보내 준 분에게 문의해 주세요.` } : RECEIPT_HEADS.correction_closed;
   }
-  if (s.originalsGone) return s.analysisStatus === 'succeeded' ? RECEIPT_HEADS.admin_review : { title: `보유 기간이 끝나 원본을 ${goneVerb(s.originalsGone)}`, desc: `이 영상의 분석 결과는 나오지 않아요. ${CONTACT_FOR_ANALYSIS}.` };
+  /* 결과가 '안 나온다'고 단정하지 않는다 — 재분석이 실패해도 앞선 성공 실행은 원본 없이 남아 공개할 수 있다. 할 수 없는 일만 말한다 */
+  if (s.originalsGone) return s.analysisStatus === 'succeeded' ? RECEIPT_HEADS.admin_review : { title: `보유 기간이 끝나 원본을 ${goneVerb(s.originalsGone)}`, desc: `이 영상으로는 새 분석을 할 수 없어요. ${CONTACT_FOR_ANALYSIS}.` };
   return RECEIPT_HEADS[s.submissionStatus === 'needs_attention' ? 'needs_attention' : s.screen] ?? RECEIPT_HEADS.receipt;
 }

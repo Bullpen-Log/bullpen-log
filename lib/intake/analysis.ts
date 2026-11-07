@@ -190,6 +190,10 @@ const gateCode = (reason: 'consent_doc_draft' | 'needs_confirm'): IntakeErrorCod
 const ADMIN_BLOCKER_TEXT: Partial<Record<IntakeErrorCode, string>> = {
   invitation_revoked: '초대가 폐기돼 새 분석을 시작할 수 없어요.',
 };
+/** 폐기된 초대는 고침을 받지 못한다(requestCorrection 이 막는다) — 할 수 없는 고침을 권하지 않는다 */
+const PURGED_REVOKED_TEXT = '보유 기간이 끝난 원본이라 쓸 수 없어요. 초대가 폐기돼 영상을 다시 받을 수도 없어요.';
+const blockerText = (code: IntakeErrorCode, invitationStatus: string) =>
+  code === 'original_purged' && invitationStatus !== 'active' ? PURGED_REVOKED_TEXT : (ADMIN_BLOCKER_TEXT[code] ?? INTAKE_ERROR_TEXT[code]);
 
 /** 영상 파일 사실로 본 주의 — 막지는 않는다. 관리자가 GPU 를 누르기 전에 본다 */
 export type AnalysisInputNote = {
@@ -265,7 +269,7 @@ export async function analysisReadiness(submissionId: string, rt?: IntakeRuntime
   if (!gate.ok) codes.push(gateCode(gate.reason));
   return {
     runnable: codes.length === 0,
-    blockers: codes.map((code) => ({ code, text: ADMIN_BLOCKER_TEXT[code] ?? INTAKE_ERROR_TEXT[code] })),
+    blockers: codes.map((code) => ({ code, text: blockerText(code, sub.invitation.status) })),
     needsDraftConfirm: codes.includes('analysis_confirm_required'),
     hand: handOf(sub, rev),
     inputNotes: rev ? analysisInputNotes(await r.db.intakeAsset.findMany({ where: { id: { in: [rev.sideAssetId, rev.rearAssetId] } }, orderBy: { view: 'desc' } })) : [],

@@ -13,7 +13,6 @@ import {
   HAND_TEXT,
   INVITATION_STATUS_TEXT,
   PUBLICATION_STATUS_TEXT,
-  RETENTION_BASIS_TEXT,
   REVISION_STATUS_TEXT,
   SUBMISSION_STATUS_TEXT,
   VIEW_TEXT,
@@ -38,8 +37,14 @@ import {
   pairDownloadable,
   pairOriginalWarning,
   cancelCorrectionDetail,
+  deletingViewsOf,
+  emptyVideosText,
+  goneViewsOf,
+  retentionFactRows,
   retentionText,
   revokeRetentionText,
+  withdrawConsentRetentionText,
+  withdrawnBannerLead,
   withdrawnRetentionText,
   splitOlderAssets,
   uploadWindowExtendable,
@@ -66,7 +71,8 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
   const hasRunPreview = analysis !== 'unavailable' && analysis.runs.some((r) => r.hasPreviews);
   const title = d.athleteName ?? d.invitation.note ?? '이름 미입력';
   const withdrawn = d.status === 'withdrawn';
-  const retention = d.retention ? retentionText(d.retention) : null;
+  const now = new Date();
+  const retention = d.retention ? retentionText(d.retention, now) : null;
 
   return (
     <div className="stack-page">
@@ -76,7 +82,7 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
         <PageHeading kicker={d.receiptCode ?? '접수 번호 없음'} title={title} />
         <div className="flex flex-wrap gap-1.5">
           <StatusChip tone={submissionTone(d.status)}>{textOf(SUBMISSION_STATUS_TEXT, d.status)}</StatusChip>
-          <AnalysisChip status={d.analysisStatus} originalsPurgedAt={d.retention?.purgedAt ?? null} originalsPurging={d.retention?.purging?.scope ?? null} />
+          <AnalysisChip status={d.analysisStatus} block={d.analysisBlock} />
           <StatusChip tone={publicationTone(d.publicationStatus)}>{textOf(PUBLICATION_STATUS_TEXT, d.publicationStatus)}</StatusChip>
           {d.invitation.status === 'revoked' && <StatusChip tone="danger">초대 폐기됨</StatusChip>}
           {d.invitation.accessCodeNeedsReset && <StatusChip tone="warn">결과 보기 잠김</StatusChip>}
@@ -85,8 +91,8 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
 
       {withdrawn && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn">
-          필수 동의가 철회된 접수예요. 원본을 열거나 분석할 수 없어요.
-          {withdrawnRetentionText(d.retention)}
+          {withdrawnBannerLead(d)}
+          {withdrawnRetentionText(d.retention, now)}
         </p>
       )}
 
@@ -100,7 +106,7 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
 
           <Section title="영상" action={pairDownloadable(d) ? <PairDownload submissionId={d.id} warning={pairOriginalWarning(d)} /> : null}>
             {current.length === 0 ? (
-              <p className="text-sm text-muted">아직 고른 영상이 없어요.</p>
+              <p className="text-sm text-muted">{emptyVideosText(d.assets)}</p>
             ) : (
               <div className="grid gap-(--block-pad) md:grid-cols-2">
                 {current.map((a) => (
@@ -132,7 +138,9 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
                 editable={d.invitation.status === 'active'}
                 extendChoices={extendChoices}
                 suggestViews={viewsToResend(d.assets)}
-                cancelDetail={cancelCorrectionDetail(d.retention)}
+                goneViews={goneViewsOf(d.assets)}
+                deletingViews={deletingViewsOf(d.assets)}
+                cancelDetail={cancelCorrectionDetail(d.retention, now)}
               />
             </Section>
           )}
@@ -156,7 +164,7 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
                 ['같은 투구 확인', d.samePitchConfirmed ? '확인함' : '아직'],
                 ['접수일', seoulTimeText(d.receivedAt)],
                 ['마지막 완료', seoulTimeText(d.lastFinalizedAt)],
-                ...(retention && d.retention ? ([[retention.label, seoulDateText(retention.date)], ['삭제 기준', RETENTION_BASIS_TEXT[d.retention.basis]]] as [string, string][]) : []),
+                ...retentionFactRows(d.retention, d.filesPurgedAt, now),
               ]}
             />
             {retention?.note && <p className="text-xs text-warn">{retention.note}</p>}
@@ -176,11 +184,11 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
             />
             {d.invitation.accessCodeNeedsReset && <AccessCodeLockBox submissionId={d.id} failures={d.invitation.accessCodeFailures} />}
             {uploadWindowExtendable(d) && <UploadWindowBox submissionId={d.id} expired={d.invitation.uploadExpired} choices={extendChoices} />}
-            {d.invitation.status === 'active' && <RevokeButton submissionId={d.id} retentionLine={revokeRetentionText(d.retention)} />}
+            {d.invitation.status === 'active' && <RevokeButton submissionId={d.id} retentionLine={revokeRetentionText(d.retention, { status: d.status, now })} />}
           </Section>
           <Section title="동의">
             <Consents d={d} />
-            {withdrawalRecordable(d) && <WithdrawConsentButton submissionId={d.id} />}
+            {withdrawalRecordable(d) && <WithdrawConsentButton submissionId={d.id} retentionLine={withdrawConsentRetentionText(d.retention, now)} />}
             {modelWithdrawalRecordable(d) && <WithdrawModelConsentButton submissionId={d.id} />}
           </Section>
           <Section title="내부 메모">

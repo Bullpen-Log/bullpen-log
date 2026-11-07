@@ -483,12 +483,11 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
   eq(receipt({ originalDeleteDate: '2027-05-07', originalDeleting: 'older' }), [{ label: '원본 삭제 예정일', date: '2027-05-07' }, { label: '옛 영상', text: '지우고 있어요' }], '옛 영상을 따로 말한다');
   eq(receipt({ originalDeleteDate: '2027-02-04', originalDeletedDate: '2027-02-05', originalDeleting: 'older' }), [{ label: '원본 지운 날', date: '2027-02-05' }, { label: '옛 영상', text: '지우고 있어요' }], '지운 날과 옛 영상을 같이 말한다');
 
-  /* 'purged' 비교가 새로 생기면 지우는 파일을 있음으로 본다 — 도우미를 쓰게 소스를 훑는다. 예외: 상태 정의, 두 삭제의 끝 쓰기, 지운 글과 지우는 중 글을 가르는 곳 */
+  /* 'purged' 비교가 새로 생기면 지우는 파일을 있음으로 본다 — 도우미를 쓰게 소스를 훑는다. 예외: 상태 정의, 두 삭제의 끝 쓰기 */
   const PURGED_ALLOWED: [string, RegExp][] = [
     ['lib/intake/state.ts', /'purged'/],
     ['lib/intake/purge.ts', /status: 'purged', purgedAt: now/],
     ['lib/intake/service.ts', /status: 'purged', purgedAt: now/],
-    ['lib/intake/media.ts', /if \(status === 'purged'\) return /],
   ];
   const sources = ['lib/intake', 'components/intake', 'app/(app)/admin/intake'].flatMap((root) =>
     (readdirSync(root, { recursive: true }) as string[]).filter((f) => /\.tsx?$/.test(f)).map((f) => `${root}/${f}`),
@@ -515,6 +514,10 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
   ok(!consentDocOf('submission').version.endsWith('.2') && consentDocOf('model').version !== 'intake-model-2026-11-06', '두 문서의 판이 오른다');
   eq(integrityLabel('purged'), '보유 기간이 지나 원본을 지웠어요', '지운 파일을 그대로 전송됨이라고 안 말한다');
   eq(integrityLabel('purging'), '보유 기간이 지나 원본을 지우고 있어요', '지우는 파일도 사실대로 말한다');
+  eq([integrityLabel('purged', false), integrityLabel('purging', false)], ['접수에 쓰이지 않은 임시 파일이라 지웠어요', '접수에 쓰이지 않은 임시 파일이라 지우고 있어요'], '판에 오른 적 없는 파일은 보유 기간이 까닭이라고 안 한다');
+  /* 검증 지적: 철회 유예가 끝나 지운 받은 영상을 '쓰이지 않은 임시 파일'이라고 했다 — 까닭은 철회다 */
+  eq([integrityLabel('purged', false, true), integrityLabel('purging', false, true)], ['접수를 철회해서 지웠어요', '접수를 철회해서 지우고 있어요'], '철회해서 지운 받은 영상은 철회를 까닭으로 말한다');
+  eq(integrityLabel('purged', true, true), '보유 기간이 지나 원본을 지웠어요', '판에 얼린 원본은 보유 기간이 까닭이다');
   eq(new IntakeError('purge_in_progress').httpStatus, 409, '지우는 중 공개는 충돌로 답한다');
 }
 
@@ -565,6 +568,14 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
   eq(receiptHead({ screen: 'receipt', submissionStatus: 'verified', analysisStatus: 'ready', originalsGone: null }).title, '영상이 잘 도착했어요', '살아 있으면 머리가 그대로다');
   eq(receiptHead({ screen: 'receipt', submissionStatus: 'correction_requested', analysisStatus: 'ready', originalsGone: null }).desc, '접수된 내용은 그대로 있어요. 링크를 보내 준 분에게 문의해 주세요.', '안 지웠으면 그대로 있다고 말한다');
   eq(receiptHead({ screen: 'receipt', submissionStatus: 'needs_attention', analysisStatus: 'none', originalsGone: null }).title, '영상을 확인하고 있어요', '확인 중 머리가 그대로다');
+
+  /* 검증 지적: 재분석이 실패한 뒤 지운 접수 — 앞선 성공 실행은 공개할 수 있어 '결과가 안 나온다'고 단정하지 않는다. 할 수 없는 일(새 분석)만 말한다 */
+  for (const gone of ['deleting', 'deleted'] as const) {
+    for (const analysis of ['none', 'ready', 'failed']) {
+      const head = receiptHead({ screen: 'receipt', submissionStatus: 'verified', analysisStatus: analysis, originalsGone: gone });
+      ok(!head.desc.includes('나오지 않아요') && head.desc.includes('새 분석'), `지운 뒤 머리가 결과를 단정하지 않는다: ${gone} ${analysis}`);
+    }
+  }
 }
 
 console.log(`intake core selftest: ${passed} 통과`);

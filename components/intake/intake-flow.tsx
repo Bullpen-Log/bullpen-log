@@ -7,7 +7,7 @@ import { NameStep, ReviewStep, VideoStep, WelcomeStep } from '@/components/intak
 import { consentAnswers } from '@/components/intake/consent-block';
 import { ModelConsentPart } from '@/components/intake/model-consent';
 import { hashOnce, inspectPick, type Picked } from '@/components/intake/pick';
-import { reviewProblems, staleRequiredDocs, type ReviewErrors, type ReviewForm } from '@/components/intake/review-rules';
+import { REPICK_VIEW_TEXT, SAME_AS_SENT_TEXT, correctionConsentDocs, correctionStopViews, reviewProblems, sentAssetOf, staleRequiredDocs, type ReviewErrors, type ReviewForm } from '@/components/intake/review-rules';
 import { SendStep } from '@/components/intake/send-step';
 import { LoadingScreen, NoteBox } from '@/components/intake/shell';
 import { BLOCK_TEXT, CorrectionStep, FinishStep, NoticeScreen, ReceiptStep, ReconsentStep, RecoveryStep, type CorrectionSubmit } from '@/components/intake/status-steps';
@@ -64,7 +64,7 @@ const NO_PICK: Record<IntakeView, Picked | null> = { side: null, rear: null };
 const otherOf = (v: IntakeView): IntakeView => (v === 'side' ? 'rear' : 'side');
 
 /* 이 코드들은 지금 고른 파일을 다시 골라야 풀린다 */
-const REPICK = new Set(['same_file', 'file_too_large', 'total_too_large', 'file_empty', 'file_unreadable', 'asset_rejected', 'upload_size_mismatch']);
+const REPICK = new Set(['same_file', 'same_as_sent', 'file_too_large', 'total_too_large', 'file_empty', 'file_unreadable', 'asset_rejected', 'upload_size_mismatch']);
 /* 이 코드들은 서버의 지금 상태를 다시 봐야 다음 행동을 안다 */
 const RELOAD = new Set([
   'stale_selection',
@@ -292,6 +292,14 @@ function Flow({ token }: { token: string }) {
       setInspecting(null);
       return;
     }
+    /* 고침에서 이미 보낸 그 영상을 다시 고르면 판이 안 바뀐다 — 보낸 뒤에 막연한 글을 보이지 않고 고를 때 말한다 */
+    const sent = sentAssetOf(data.state, view);
+    if (sent && file.size === sent.sizeBytes && (await hashOnce(file).then((h) => h === sent.sha256, () => false))) {
+      URL.revokeObjectURL(r.picked.url);
+      setPickError({ view, message: SAME_AS_SENT_TEXT });
+      setInspecting(null);
+      return;
+    }
     setPicked((p) => {
       const old = p[view];
       if (old) URL.revokeObjectURL(old.url);
@@ -393,9 +401,9 @@ function Flow({ token }: { token: string }) {
       }
       /* 보내는 사람의 관계를 고쳤으면 옛 동의는 그 사람의 것이 아니다 — 판을 저장한 뒤에 받아 새 관계로 남긴다 */
       const relationChanged = s.patch.submitterRelation !== undefined && s.patch.submitterRelation !== data.state.draft.submitterRelation;
-      /* 관계만 바뀐 때는 선택 동의를 묻지 않았다 — '안 함'으로 적지 않고 필수 동의만 받는다. 옛 관계의 선택 동의는 쓰이지 않는다 */
+      /* 고침 화면은 필수 동의만 보인다 — 묻지 않은 선택 동의를 '안 함'으로 적지 않는다. 옛 관계의 선택 동의는 쓰이지 않는다 */
       if (!data.state.consent.requiredOk || relationChanged) {
-        await client.recordConsents(consentAnswers(relationChanged ? data.consentDocs.filter((d) => d.required) : data.consentDocs, s.agreed));
+        await client.recordConsents(consentAnswers(correctionConsentDocs(data.consentDocs), s.agreed));
       }
       beginSend(data.state.correction?.views ?? [], s.samePitch ? true : undefined, version);
     } catch (e) {
@@ -442,6 +450,20 @@ function Flow({ token }: { token: string }) {
         return { ...p, [view]: null };
       });
       setPickError({ view, message: stop.message });
+    }
+    /* 서버가 고칠 칸을 말했다 — 그 칸에 고른 파일은 쓸 수 없으니 비우고, 다시 읽은 고침 화면의 그 칸 곁에 말한다 */
+    const fix = correctionStopViews(stop);
+    if (fix.length) {
+      setPicked((p) => {
+        const next = { ...p };
+        for (const v of fix) {
+          const old = next[v];
+          if (old) URL.revokeObjectURL(old.url);
+          next[v] = null;
+        }
+        return next;
+      });
+      setPickError({ view: fix[0], message: REPICK_VIEW_TEXT });
     }
     if (stop.code === 'consent_stale' || stop.code === 'consent_required') dropAgreement();
     void refresh();
