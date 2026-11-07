@@ -23,6 +23,9 @@ import type { V2FailCode } from '@/lib/pitch-3d/v2/contract';
  * 2026-10-15 사용자: "녹화 영상 금지 · 따로 촬영 금지 · 무조건 동시에", "AirDrop 으로 옮기면 프레임이 떨어진다 — 원본을 유지하며 옮기는 법도".
  * 그래서 확인 목록에 '옮긴 영상도 초당 장수 그대로'를, 화면에 '영상 옮기기' 칸을 더했다(검사는 lib/pitch-lab-guard.ts labVideoBlock · labPairBlock).
  *
+ * 2026-11-07 김민: "몸에 딱 붙는 옷 안내는 찍기 전 확인에 무조건" — 헐렁한 옷은 2D 관절 점(팔꿈치 · 무릎 · 엉덩이)을 옷 가운데로 끌어
+ * 3D 가 어긋난다(마커 촬영도 옷 위 스티커가 골반을 틀리게 했다). 확인 목록 한 줄 + 화면에 담기 칸 한 줄.
+ *
  * 화면 글은 해요체 · 줄표 없음(scripts/pitch-lab-selftest.mts 가 본다).
  */
 
@@ -48,6 +51,7 @@ export const LAB_GUIDE_CHECKS: LabGuideCheck[] = [
   { id: 'slowmo', title: '슬로 모션 240fps, 배율 1×' },
   { id: 'tripod', title: '삼각대에 세우고 수평으로' },
   { id: 'frame', title: '발끝부터 머리, 손까지 화면 안에' },
+  { id: 'clothes', title: '몸에 붙는 옷으로, 헐렁한 옷 · 겉옷은 벗고' },
   { id: 'light', title: '밝은 곳에서' },
   { id: 'original', title: '원본 그대로 옮기고 올리기' },
 ];
@@ -77,6 +81,7 @@ export const LAB_GUIDE_POINTS = {
     '뒤 폰은 세로, 화면 높이의 1/3~절반.',
     '다리를 들어도, 내딛어도 발끝 · 머리 · 손이 화면 밖으로 나가지 않게.',
     '찍는 동안 투수 앞을 아무도 지나가지 않게.',
+    '옷은 몸에 붙게. 헐렁한 후드 · 바람막이 · 통 넓은 바지는 팔꿈치 · 무릎 · 엉덩이 자리를 가려 3D 가 어긋나요.',
   ],
   phone: [
     '아이폰: 설정 › 카메라 › 슬로 모션 녹화 › 1080p 240fps.',
