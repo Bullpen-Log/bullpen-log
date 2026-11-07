@@ -1,3 +1,38 @@
+## 맥 미니 금윤호에게 — 2026-11-07 · 맥북 서브(Claude) — 외부 투구 영상 접수 이어서 하기 · **이 작업은 main 에 없다**
+
+맥북에서 맥 미니로 옮기는 작업이다. 코드는 브랜치 `intake/external-video-submission` 에 있다. **그 브랜치를 main 에 합치거나 main 으로 올리지 않는다** — 아래 1 · 3번이 끝나고 사용자가 허락할 때까지다. 원본을 되돌릴 수 없게 지우는 코드가 들어 있고, 알려진 지적 12건이 남아 있다.
+
+받는 법(사용자 허락 뒤):
+
+```bash
+git fetch origin
+git switch intake/external-video-submission
+npm ci
+npx prisma generate
+```
+
+- `npm ci` 는 새 패키지(`tus-js-client`, `@noble/hashes`) 때문이다. `native/` 는 안 바뀌었다.
+- `prisma generate` 는 새 표 12개 타입을 만든다. DB 는 안 건드린다.
+- 공유 DB 에는 표가 없다. 그래서 이 브랜치에서도 `/submit` 의 API 는 로컬 서버에서 돌지 않는다. 시험은 PGlite 로 돈다. 3000 번 서버에 접수 API 를 부르지 않는다.
+- 금지: `prisma migrate dev` · `db push` · `migrate reset` · `npm run build` · `npm run intake:setup-bucket -- --apply`(허락 전).
+- 마이그레이션은 `prisma/pending-migrations/` 에 있다. 브랜치 미리보기 빌드도 `prisma migrate deploy` 를 돌려서 `prisma/migrations` 에 두지 않았다. **허락 전에 `prisma/migrations` 로 옮기지 않는다.**
+
+맥북에서 합친 코드로 돌린 결과(2026-11-07): tsc 0 · eslint 0 · 접수 시험 349 · 547 · 540 · 130 · 132 · 391 통과 · `integration:test` 46 통과 5 실패(접수와 무관, 전부터 있던 다섯). 격리 브라우저 공개 58 · 관리 46 은 보유 삭제를 넣기 전 코드 기준이다.
+
+다음 할 일, 이 차례로:
+
+1. **보유 삭제 지적 12건을 고친다**(높음 2건 먼저). `docs/designs/external-intake-retention-findings.md` 에 재현과 고칠 방향이 있다. 맥북에서는 하나도 안 고쳤다.
+2. 고친 뒤 삭제 안전성을 다시 독립 검증하고, 격리 브라우저 흐름을 돌린다(`docs/designs/external-intake-e2e/README.md`, 지운 접수 화면 시험을 더한다).
+3. 사용자에게 확인받는다: 고침이 열린 접수는 삭제를 최대 14일 기다려 90일을 넘길 수 있는 것, 다시 내면 낸 날부터 90일을 다시 세는 것. 같은 문서 끝의 판단 목록을 본다.
+4. 사용자 허락을 받고 적용한다: 김민 알림 → `npm run backup` → 마이그레이션을 `prisma/migrations` 로 옮김 → 버킷 `external-intake`(프로젝트 파일 한도 1GiB 이상인지 먼저) → Vercel 환경변수 `SUPABASE_PUBLISHABLE_KEY` · `CRON_SECRET` → main. 자세한 것은 브랜치 `HANDOFF.md` 맨 위 김민 앞 글.
+5. 실제 기기 · 실제 Supabase TUS · 실제 GPU · 1GiB 전송 · Vercel 크론 시험. 아직 하나도 안 했다. `docs/designs/external-intake-verification.md` 의 UNVERIFIED 를 본다.
+
+사람이 정할 것: 대리 동의 범위 · `ANALYSIS_CONSENT` PENDING 다섯 건(이게 끝나기 전에는 GPU 가 막힌다) · 분석 결과 보유 기간. 사용자가 정한 것: 원본은 공개 뒤 90일(공개 없으면 접수 · 철회 뒤 90일, 모델 동의도 예외 없음), 철회 때 모델 동의는 따로 유지, 판에 안 오른 철회 파일은 7일 뒤 삭제, 분석 전 미리보기는 범위 제외.
+
+명세 원문은 `docs/designs/external-intake-spec.md`, 결정은 `docs/designs/external-intake.md`, 요구 대조표는 `docs/designs/external-intake-verification.md`.
+
+맥북의 접수 작업본은 `git stash` 한 칸에 남겼다('외부 접수 작업본 — 브랜치에 올림'). 필요 없다. 핫스팟으로 일하면 `~/.claude/settings.json` 의 `env` 에 `CLAUDE_CODE_RETRY_WATCHDOG=1` 을 넣으면 끊겨도 오래 다시 시도한다(맥북에는 넣어 두었다). 맥 미니 수신은 확인하지 못했다.
+
 ## 맥 미니 금윤호에게 — 2026-11-06 · 맥북 서브
 
 출시 통합 계획과 영상비교 체크리스트를 docs/releases/에 공유했다. AGENTS.md에 작업 후 인계 규칙을 추가했다. 문서만 변경, 앱/DB 변경 없음. 실행 검사 없음. 받은 뒤 두 문서를 읽고 영상비교 실기기·일본어 검수부터 진행. 맥 미니 수신은 아직 확인하지 못했다.
