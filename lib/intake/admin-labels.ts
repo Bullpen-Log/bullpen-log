@@ -5,7 +5,7 @@
 import { INTAKE_ORIGINAL_RETENTION_DAYS, INTAKE_WITHDRAWN_DRAFT_GRACE_DAYS } from '@/lib/intake/limits';
 import type { IntakeMediaFacts } from '@/lib/intake/media';
 import type { RetentionBasis } from '@/lib/intake/retention';
-import type { IntakeView } from '@/lib/intake/state';
+import { assetGone, type IntakeView } from '@/lib/intake/state';
 
 export const VIEW_TEXT: Record<IntakeView, string> = { side: '옆', rear: '뒤' };
 
@@ -181,7 +181,7 @@ export const textOf = (table: Record<string, string>, key: string | null | undef
   key == null ? empty : (table[key] ?? key);
 
 /** 칸 하나의 지금 모습 — 목록의 '옆 · 뒤 완료' 칸 */
-export type ViewProgress = 'empty' | 'transit' | 'arrived' | 'verified' | 'rejected';
+export type ViewProgress = 'empty' | 'transit' | 'arrived' | 'verified' | 'rejected' | 'deleting' | 'deleted';
 
 export function viewProgressOf(assetStatus: string | null | undefined): ViewProgress {
   if (!assetStatus) return 'empty';
@@ -189,6 +189,8 @@ export function viewProgressOf(assetStatus: string | null | undefined): ViewProg
   if (assetStatus === 'rejected') return 'rejected';
   if (assetStatus === 'uploaded' || assetStatus === 'verifying' || assetStatus === 'unconfirmed') return 'arrived';
   if (assetStatus === 'reserved' || assetStatus === 'uploading') return 'transit';
+  /* 파일을 받은 적 없는 칸과 가른다 — '없음'이면 처음부터 안 온 영상처럼 읽힌다 */
+  if (assetGone(assetStatus)) return assetStatus === 'purging' ? 'deleting' : 'deleted';
   return 'empty';
 }
 
@@ -198,6 +200,8 @@ export const VIEW_PROGRESS_TEXT: Record<ViewProgress, string> = {
   arrived: '도착',
   verified: '완료',
   rejected: '막힘',
+  deleting: '지우는 중',
+  deleted: '지워짐',
 };
 
 const SEOUL_DATE = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -220,6 +224,15 @@ type RetentionCell = { originalPurgeAt: string | null; originalsPurgedAt: string
 /** 목록의 원본 칸 — 지금 판을 지우는 중이면 그 사실을, 지운 뒤에는 지운 날을, 아니면 지울 날을 보인다. 지우는 중에 철회로 밀린 날을 지울 날이라고 말하지 않는다 */
 export const retentionCellText = (r: RetentionCell) =>
   r.originalsPurging === 'current' ? '지우는 중' : r.originalsPurgedAt ? `지워짐 · ${seoulDateText(r.originalsPurgedAt)}` : seoulDateText(r.originalPurgeAt);
+
+/**
+ * 분석 칩을 대신할 글 — 지금 판의 원본이 없으면 '분석 가능' · '분석 전'은 거짓이다. 없으면 null 이고 칩은 분석 상태를 그대로 말한다.
+ * 분석이 끝났거나 실패한 접수는 그 사실이 그대로 참이라 안 바꾼다. 상세의 분석 칸이 쓸 수 없다는 까닭을 말한다.
+ */
+export function analysisGoneText(analysisStatus: string, r: Pick<RetentionCell, 'originalsPurgedAt' | 'originalsPurging'>): string | null {
+  if (analysisStatus !== 'ready' && analysisStatus !== 'none') return null;
+  return r.originalsPurging === 'current' ? '원본 지우는 중' : r.originalsPurgedAt ? '원본 지워짐' : null;
+}
 
 /** 휴대폰 목록의 줄 — 칸 제목이 없어 날짜가 지울 날일 때만 이름을 붙인다 */
 export const retentionLineText = (r: RetentionCell) => (r.originalsPurging === 'current' || r.originalsPurgedAt ? retentionCellText(r) : `원본 삭제 예정일 ${retentionCellText(r)}`);

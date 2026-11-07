@@ -15,7 +15,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { firstProblemTarget, reviewProblems, staleRequiredDocs, type ReviewForm } from '@/components/intake/review-rules';
+import { firstProblemTarget, goneViewsToPick, reviewProblems, staleRequiredDocs, type ReviewForm } from '@/components/intake/review-rules';
 import { INTAKE_CONSENT_DOCS, PROXY_CONSENT_NOTE, agreedAfterDocs, changedConsentKinds, consentCheckLabel, consentDocOf, isProxyRelation } from '@/lib/intake/consent';
 import { IntakeError } from '@/lib/intake/errors';
 import { TUS_CHUNK_BYTES, TUS_URL_TTL_MS } from '@/lib/intake/limits';
@@ -835,6 +835,17 @@ const stale = () => new IntakeRequestError('stale_version', '낡았어요', 409,
   /* 이미 지금 판인 글은 다시 묻지 않는다. 선택 동의도 안 묻는다 */
   const left = staleRequiredDocs({ consent: { requiredOk: false, granted: { submission: true, overseas: false, model: false } } }, docs);
   ok(left.length === 1 && left[0].kind === 'overseas', '바뀐 필수 글만 다시 묻는다');
+
+  /* 지적 4: 지운 칸은 새 파일을 골라야 보낼 수 있다 */
+  const fix = (side: string | null, rear: string | null, views: ('side' | 'rear')[]) =>
+    ({ assets: { side: side ? { status: side } : null, rear: rear ? { status: rear } : null }, correction: { fields: [], views, message: null } }) as unknown as Parameters<typeof goneViewsToPick>[0];
+  const nothing = { side: null, rear: null };
+  ok(goneViewsToPick(fix('purged', 'purged', ['side', 'rear']), nothing).join() === 'side,rear', '안 고른 지운 칸을 다 말한다');
+  ok(goneViewsToPick(fix('purged', 'purged', ['side', 'rear']), { side: {}, rear: null }).join() === 'rear', '고른 칸은 뺀다');
+  ok(goneViewsToPick(fix('purging', 'verified', ['side', 'rear']), nothing).join() === 'side', '지우는 칸도 다시 골라야 한다');
+  ok(goneViewsToPick(fix('rejected', 'verified', ['side']), nothing).length === 0, '살아 있는 칸은 서버가 말한다');
+  ok(goneViewsToPick(fix('purged', 'verified', []), nothing).length === 0, '요청받지 않은 칸은 안 본다');
+  ok(goneViewsToPick({ assets: { side: null, rear: null }, correction: null } as never, nothing).length === 0, '고침이 없으면 말이 없다');
 }
 
 /* ────────────────────────── 14 동의 글 ────────────────────────── */

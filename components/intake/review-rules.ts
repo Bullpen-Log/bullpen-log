@@ -4,6 +4,7 @@
  */
 import type { AgeBand, SubmitterRelation } from '@/lib/intake/consent';
 import type { PublicConsentDoc, PublicIntakeState } from '@/lib/intake/public-client';
+import { assetGone, type IntakeView } from '@/lib/intake/state';
 
 export type ReviewForm = {
   name: string;
@@ -50,3 +51,13 @@ export function firstProblemTarget(errors: ReviewErrors, form: ReviewForm, docs:
 /** 다시 받아야 할 필수 동의 — 지금 판으로 이미 있는 글은 다시 묻지 않는다 */
 export const staleRequiredDocs = (state: Pick<PublicIntakeState, 'consent'>, docs: readonly PublicConsentDoc[]) =>
   docs.filter((d) => d.required && state.consent.granted[d.kind] !== true);
+
+/** 고침 화면에서 지운 칸을 안 고르고 보냈을 때의 글 */
+export const GONE_VIEW_TEXT = '이 칸의 원본은 지웠어요. 영상을 다시 골라 주세요.';
+
+/** 고침에서 꼭 다시 골라야 하는 칸 — 지운 원본으로는 판을 얼릴 수 없다 */
+export const goneViewsToPick = (state: Pick<PublicIntakeState, 'assets' | 'correction'>, picked: Readonly<Record<IntakeView, unknown>>): IntakeView[] =>
+  (state.correction?.views ?? []).filter((v) => {
+    const asset = state.assets[v];
+    return asset != null && assetGone(asset.status) && !picked[v];
+  });

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ANALYSIS_STATUS_TEXT, analysisGoneText, textOf } from '@/lib/intake/admin-labels';
 
 /** 상태 표시 — 색은 거들 뿐이고 글이 뜻을 말한다 */
 export type ChipTone = 'neutral' | 'info' | 'ok' | 'warn' | 'danger';
@@ -20,5 +21,11 @@ export const submissionTone = (s: string): ChipTone =>
 
 export const analysisTone = (s: string): ChipTone =>
   s === 'succeeded' ? 'ok' : s === 'failed' ? 'danger' : s === 'running' || s === 'queued' ? 'info' : s === 'ready' ? 'warn' : 'neutral';
+
+/** 분석 칩 — 지금 판의 원본이 없으면 분석 상태 대신 그 사실을 말한다 */
+export function AnalysisChip({ status, originalsPurgedAt, originalsPurging }: { status: string } & Parameters<typeof analysisGoneText>[1]) {
+  const gone = analysisGoneText(status, { originalsPurgedAt, originalsPurging });
+  return <StatusChip tone={gone ? 'neutral' : analysisTone(status)}>{gone ?? textOf(ANALYSIS_STATUS_TEXT, status)}</StatusChip>;
+}
 
 export const publicationTone = (s: string): ChipTone => (s === 'published' ? 'ok' : 'neutral');

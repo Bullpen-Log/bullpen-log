@@ -326,7 +326,7 @@ export function NotesPanel({ submissionId, notes }: { submissionId: string; note
   );
 }
 
-export function RevokeButton({ submissionId }: { submissionId: string }) {
+export function RevokeButton({ submissionId, retentionLine }: { submissionId: string; retentionLine: string }) {
   const { pending, error, run, refresh } = useAction();
   const [ask, setAsk] = useState(false);
   return (
@@ -339,7 +339,7 @@ export function RevokeButton({ submissionId }: { submissionId: string }) {
         open={ask}
         onClose={() => setAsk(false)}
         title="초대를 폐기할까요?"
-        detail="새 전송과 접수 완료, 결과 보기, 새 분석이 막혀요. 되돌릴 수 없어요. 이미 내준 전송 토큰은 저장소에서 바로 거둘 수 없어 수명이 끝날 때까지 살아 있어요. 동의 철회는 아니어서 원본은 계속 열려요. 받는 분이 철회를 알렸다면 동의 칸에서 따로 기록해 주세요."
+        detail={`새 전송과 접수 완료, 결과 보기, 새 분석이 막혀요. 되돌릴 수 없어요. 이미 내준 전송 토큰은 저장소에서 바로 거둘 수 없어 수명이 끝날 때까지 살아 있어요. ${retentionLine} 받는 분이 철회를 알렸다면 동의 칸에서 따로 기록해 주세요.`}
         confirmLabel="폐기"
         pendingLabel="폐기하는 중…"
         pending={pending}

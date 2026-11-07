@@ -8,12 +8,12 @@ import { CheckRow, RequiredConsents } from '@/components/intake/consent-block';
 import type { Picked } from '@/components/intake/pick';
 import { FieldError, NoteBox, PrimaryButton, Screen, SecondaryButton } from '@/components/intake/shell';
 import { SlotCard, VIEW_LABEL } from '@/components/intake/slots';
-import { staleRequiredDocs } from '@/components/intake/review-rules';
+import { GONE_VIEW_TEXT, goneViewsToPick, staleRequiredDocs } from '@/components/intake/review-rules';
 import { PROXY_CONSENT_NOTE, SUBMITTER_RELATIONS, SUBMITTER_RELATION_TEXT, isProxyRelation } from '@/lib/intake/consent';
 import { INTAKE_ERROR_TEXT } from '@/lib/intake/errors';
 import { formatBytes } from '@/lib/intake/limits';
 import type { PublicAsset, PublicConsentDoc, PublicIntakeState } from '@/lib/intake/public-client';
-import { assetArrived, assetGone, receiptRetentionRows, type IntakeView } from '@/lib/intake/state';
+import { assetArrived, assetGone, receiptHead, receiptRetentionRows, type IntakeView } from '@/lib/intake/state';
 
 /* ── 막힌 화면 ── */
 export function NoticeScreen({
@@ -97,21 +97,9 @@ function AssetLine({ view, asset }: { view: IntakeView; asset: PublicAsset | nul
   );
 }
 
-const HEADS: Record<string, { title: string; desc: string }> = {
-  receipt: { title: '영상이 잘 도착했어요', desc: '분석 결과가 준비되고 공개되면 이 링크에서 확인할 수 있어요.' },
-  needs_attention: { title: '영상을 확인하고 있어요', desc: '담당자가 살펴본 뒤 필요하면 이 링크에서 다시 안내해 드려요.' },
-  analysis_running: { title: '영상을 분석하고 있어요', desc: '분석 결과가 준비되고 공개되면 이 링크에서 확인할 수 있어요.' },
-  admin_review: { title: '담당자가 결과를 검토하고 있어요', desc: '공개되면 이 링크에서 확인할 수 있어요.' },
-  /* 고침 요청이 열린 채 올리기 기간이 끝났다 — 고칠 수는 없어도 접수 내용은 그대로 보인다 */
-  correction_closed: { title: '고칠 수 있는 기간이 끝났어요', desc: '접수된 내용은 그대로 있어요. 링크를 보내 준 분에게 문의해 주세요.' },
-};
-
-const headKey = (state: PublicIntakeState) =>
-  state.submissionStatus === 'correction_requested' ? 'correction_closed' : state.submissionStatus === 'needs_attention' ? 'needs_attention' : state.screen;
-
 export function ReceiptStep({ state, extra }: { state: PublicIntakeState; extra?: ReactNode }) {
   const [copied, setCopied] = useState<'ok' | 'fail' | null>(null);
-  const head = HEADS[headKey(state)] ?? HEADS.receipt;
+  const head = receiptHead(state);
 
   return (
     <Screen
@@ -397,14 +385,18 @@ export function CorrectionStep({
     setAgreed(state.consent.granted);
   }
   const [same, setSame] = useState(false);
-  const [problem, setProblem] = useState<'name' | 'consent' | 'same' | null>(null);
+  const [problem, setProblem] = useState<'name' | 'file' | 'consent' | 'same' | null>(null);
   /* 관계를 바꾸면 옛 동의는 다른 사람의 것이다 — 새 관계로 다시 받는다 */
   const relationChanged = fields.includes('submitterRelation') && relation !== state.draft.submitterRelation;
   const needsConsent = !state.consent.requiredOk || relationChanged;
   const proxy = isProxyRelation(fields.includes('submitterRelation') ? relation : state.draft.submitterRelation);
 
+  /* 지운 칸은 새 파일이 있어야 낼 수 있다 — 보낸 뒤에 전송이 안 끝났다는 글을 보이지 않고 여기서 그 칸을 말한다 */
+  const missing = goneViewsToPick(state, picked);
+
   const submit = () => {
     if (fields.includes('athleteName') && !name.trim()) return setProblem('name');
+    if (missing.length > 0) return setProblem('file');
     if (needsConsent && docs.some((d) => d.required && agreed[d.kind] !== true)) return setProblem('consent');
     if (views.length > 0 && !same) return setProblem('same');
     setProblem(null);
@@ -487,7 +479,7 @@ export function CorrectionStep({
             asset={asset}
             picked={picked[view]}
             inspecting={inspecting === view}
-            error={pickError?.view === view ? pickError.message : null}
+            error={pickError?.view === view ? pickError.message : problem === 'file' && missing.includes(view) ? GONE_VIEW_TEXT : null}
             note={notes[view] ?? null}
             requested={asset != null && (assetArrived(asset.status) || assetGone(asset.status))}
             onPick={(f) => onPick(view, f)}

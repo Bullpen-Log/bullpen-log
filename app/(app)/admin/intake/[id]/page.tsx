@@ -6,7 +6,6 @@ import { requirePermission } from '@/lib/dal';
 import { loadIntakeDetail, type IntakeAssetDetail, type IntakeDetail } from '@/lib/intake/admin';
 import {
   AGE_BAND_TEXT,
-  ANALYSIS_STATUS_TEXT,
   ASSET_STATUS_TEXT,
   AUDIT_ACTION_TEXT,
   CONSENT_KIND_TEXT,
@@ -28,7 +27,7 @@ import { isIntakeError } from '@/lib/intake/errors';
 import { formatBytes } from '@/lib/intake/limits';
 import { isIntakeId } from '@/lib/intake/paths';
 import { prisma } from '@/lib/prisma';
-import { StatusChip, analysisTone, publicationTone, submissionTone } from '../status-chip';
+import { AnalysisChip, StatusChip, publicationTone, submissionTone } from '../status-chip';
 import { AnalysisPanel, AssetCard, AssignBox, NotesPanel, PairDownload, ReadMarker, RevokeButton, type RunRow } from './detail-client';
 import { AccessCodeLockBox, CorrectionPanel, JobIssuesPanel, UploadWindowBox, WithdrawConsentButton, WithdrawModelConsentButton } from './detail-manage';
 import {
@@ -38,7 +37,9 @@ import {
   modelWithdrawalRecordable,
   pairDownloadable,
   pairOriginalWarning,
+  cancelCorrectionDetail,
   retentionText,
+  revokeRetentionText,
   withdrawnRetentionText,
   splitOlderAssets,
   uploadWindowExtendable,
@@ -75,7 +76,7 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
         <PageHeading kicker={d.receiptCode ?? '접수 번호 없음'} title={title} />
         <div className="flex flex-wrap gap-1.5">
           <StatusChip tone={submissionTone(d.status)}>{textOf(SUBMISSION_STATUS_TEXT, d.status)}</StatusChip>
-          <StatusChip tone={analysisTone(d.analysisStatus)}>{textOf(ANALYSIS_STATUS_TEXT, d.analysisStatus)}</StatusChip>
+          <AnalysisChip status={d.analysisStatus} originalsPurgedAt={d.retention?.purgedAt ?? null} originalsPurging={d.retention?.purging?.scope ?? null} />
           <StatusChip tone={publicationTone(d.publicationStatus)}>{textOf(PUBLICATION_STATUS_TEXT, d.publicationStatus)}</StatusChip>
           {d.invitation.status === 'revoked' && <StatusChip tone="danger">초대 폐기됨</StatusChip>}
           {d.invitation.accessCodeNeedsReset && <StatusChip tone="warn">결과 보기 잠김</StatusChip>}
@@ -131,6 +132,7 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
                 editable={d.invitation.status === 'active'}
                 extendChoices={extendChoices}
                 suggestViews={viewsToResend(d.assets)}
+                cancelDetail={cancelCorrectionDetail(d.retention)}
               />
             </Section>
           )}
@@ -174,7 +176,7 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
             />
             {d.invitation.accessCodeNeedsReset && <AccessCodeLockBox submissionId={d.id} failures={d.invitation.accessCodeFailures} />}
             {uploadWindowExtendable(d) && <UploadWindowBox submissionId={d.id} expired={d.invitation.uploadExpired} choices={extendChoices} />}
-            {d.invitation.status === 'active' && <RevokeButton submissionId={d.id} />}
+            {d.invitation.status === 'active' && <RevokeButton submissionId={d.id} retentionLine={revokeRetentionText(d.retention)} />}
           </Section>
           <Section title="동의">
             <Consents d={d} />

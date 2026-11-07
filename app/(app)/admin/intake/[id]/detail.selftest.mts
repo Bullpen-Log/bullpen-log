@@ -353,7 +353,7 @@ const panel = (over: Record<string, unknown>) =>
 
 /* ── 고침 요청 바꾸기 · 거두기(#25) ── */
 {
-  const base = { submissionId: SID, version: 7, requested: true, correction: { fields: ['athleteName'], views: ['side'], message: '다시 찍어 주세요' }, requestedAt: '2026-11-06T00:00:00.000Z', uploadExpired: true, editable: true, extendChoices: [3, 7], suggestViews: [] };
+  const base = { submissionId: SID, version: 7, requested: true, correction: { fields: ['athleteName'], views: ['side'], message: '다시 찍어 주세요' }, requestedAt: '2026-11-06T00:00:00.000Z', uploadExpired: true, editable: true, extendChoices: [3, 7], suggestViews: [], cancelDetail: '거두기 글' };
   const made = draw(h(CorrectionPanel, base));
   ok(made.includes('선수 이름 · 옆 영상') && made.includes('다시 찍어 주세요') && made.includes('기간을 늘려'), '연 요청과 막힌 까닭을 보인다');
   ok(bench.clicks['요청 바꾸기'] && bench.clicks['고침 요청 거두기'], '바꾸고 거둘 길이 있다');
@@ -474,6 +474,47 @@ const panel = (over: Record<string, unknown>) =>
   ok(list.includes('원본 삭제 예정일'), '목록에 칸이 있다');
   ok(list.includes('retentionCellText(r)') && list.includes('retentionLineText(r)'), '목록이 지우는 중을 아는 글을 쓴다');
   ok(page.includes('withdrawnRetentionText(d.retention)'), '철회 배너가 지우는 중을 아는 글을 쓴다');
+}
+
+/* ── 지운 접수의 칩과 확인창 글(지적 5 · 8) ── */
+{
+  const { analysisGoneText, viewProgressOf, VIEW_PROGRESS_TEXT } = await import('@/lib/intake/admin-labels');
+  eq([viewProgressOf('purging'), viewProgressOf('purged'), viewProgressOf(null)], ['deleting', 'deleted', 'empty'], '지운 칸과 받은 적 없는 칸을 가른다');
+  eq([VIEW_PROGRESS_TEXT.deleting, VIEW_PROGRESS_TEXT.deleted], ['지우는 중', '지워짐'], '칩 글');
+  const none = { originalsPurgedAt: null, originalsPurging: null };
+  const purged = { originalsPurgedAt: '2027-02-04T00:00:00.000Z', originalsPurging: null };
+  eq(analysisGoneText('ready', none), null, '살아 있으면 분석 칩 그대로다');
+  eq(analysisGoneText('ready', purged), '원본 지워짐', '지운 접수를 분석 가능이라고 안 말한다');
+  eq(analysisGoneText('none', purged), '원본 지워짐', '분석 전도 같다');
+  eq(analysisGoneText('ready', { originalsPurgedAt: null, originalsPurging: 'current' }), '원본 지우는 중', '지우는 중도 말한다');
+  eq(analysisGoneText('ready', { originalsPurgedAt: null, originalsPurging: 'older' }), null, '옛 판만 지우면 지금 판은 분석할 수 있다');
+  eq(analysisGoneText('ready', { originalsPurgedAt: '2027-02-04T00:00:00.000Z', originalsPurging: 'older' }), '원본 지워짐', '지금 판을 지웠으면 옛 판과 상관없다');
+  eq(analysisGoneText('succeeded', purged), null, '끝난 분석은 그대로다');
+  eq(analysisGoneText('failed', purged), null, '실패도 그대로다');
+
+  const alive = { purgeAt: '2027-02-04T00:00:00.000Z', anchorAt: '2026-11-06T00:00:00.000Z', basis: 'published', purgedAt: null, heldUntil: null, purging: null };
+  const gone = { ...alive, purgedAt: '2027-02-04T01:00:00.000Z' };
+  const deleting = { ...alive, purging: { since: '2027-02-04T00:10:00.000Z', files: 2, scope: 'current' } };
+  const olderOnly = { ...alive, purging: { since: '2027-02-04T00:10:00.000Z', files: 1, scope: 'older' } };
+  ok(rules.cancelCorrectionDetail(alive as never).includes('그대로예요'), '살아 있으면 그대로라고 말한다');
+  ok(rules.cancelCorrectionDetail(gone as never).includes('이미 지웠어요') && !rules.cancelCorrectionDetail(gone as never).includes('그대로예요'), '지웠으면 지웠다고 말한다');
+  ok(rules.cancelCorrectionDetail(deleting as never).includes('지우고 있어요'), '지우는 중이면 그렇게 말한다');
+  ok(rules.cancelCorrectionDetail(olderOnly as never).includes('그대로예요'), '옛 판만 지우면 지금 판은 그대로다');
+  ok(rules.cancelCorrectionDetail(null).includes('그대로예요'), '지울 날이 없어도 그대로다');
+  ok(rules.revokeRetentionText(alive as never).includes('2027. 02. 04') && rules.revokeRetentionText(alive as never).includes('까지 열려요'), '폐기해도 지울 날까지만 열린다');
+  ok(!rules.revokeRetentionText(alive as never).includes('계속'), '계속 열린다고 안 말한다');
+  ok(rules.revokeRetentionText(gone as never).includes('이미 지웠어요') && !rules.revokeRetentionText(gone as never).includes('열려요'), '지웠으면 열린다고 안 말한다');
+  ok(rules.revokeRetentionText(deleting as never).includes('지우고 있어요'), '지우는 중이면 그렇게 말한다');
+  eq(rules.revokeRetentionText(null), '동의 철회는 아니에요.', '지울 날이 없으면 날짜를 안 말한다');
+
+  const page = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8');
+  const list = readFileSync(new URL('../page.tsx', import.meta.url), 'utf8');
+  ok(page.includes('<AnalysisChip') && !page.includes('analysisTone('), '상세 칩이 지운 사실을 안다');
+  ok(list.split('<AnalysisChip').length === 3 && !list.includes('analysisTone('), '목록 두 칩이 지운 사실을 안다');
+  ok(page.includes('cancelDetail={cancelCorrectionDetail(d.retention)}') && page.includes('retentionLine={revokeRetentionText(d.retention)}'), '두 확인창이 지운 사실을 안다');
+  const manage = readFileSync(new URL('./detail-manage.tsx', import.meta.url), 'utf8');
+  const client = readFileSync(new URL('./detail-client.tsx', import.meta.url), 'utf8');
+  ok(!manage.includes('얼린 판의 원본은 그대로예요') && !client.includes('원본은 계속 열려요'), '고정 글이 안 남는다');
 }
 
 console.log(`intake detail: ${passed}개 통과`);

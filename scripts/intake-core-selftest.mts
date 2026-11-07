@@ -17,7 +17,7 @@ import { INTAKE_CORRECTION_HOLD_DAYS, INTAKE_ORIGINAL_RETENTION_DAYS, INTAKE_WIT
 import { correctionHoldUntil, currentOriginalsPurgedAt, originalRetention, originalsPurgedAt, retentionDue, shownRetention } from '@/lib/intake/retention';
 import { assertInvitationAllows } from '@/lib/intake/access';
 import { hashRateSubject } from '@/lib/intake/rate-limit';
-import { ASSET_GONE, ASSET_STATUSES, assetArrived, assetGone, assetVerifyDone, canEditField, canEditView, canMoveAsset, canMoveAnalysis, canMovePublication, canMoveSubmission, correctionReceiptLine, publicStatusText, purgingScope, readCorrection, receiptRetentionRows, reconsentOpen, resolveScreen, type ScreenInput } from '@/lib/intake/state';
+import { ASSET_GONE, ASSET_STATUSES, assetArrived, assetGone, assetVerifyDone, canEditField, canEditView, canMoveAsset, canMoveAnalysis, canMovePublication, canMoveSubmission, correctionReceiptLine, currentOriginalsGone, publicStatusText, purgingScope, readCorrection, receiptHead, receiptRetentionRows, reconsentOpen, resolveScreen, type ScreenInput } from '@/lib/intake/state';
 import { directStorageOrigin, tokenTtlOf } from '@/lib/intake/storage-core';
 import { generateInvitationToken, generateReceiptCode, hashAccessCode, hashInvitationToken, isAccessCode, isIdempotencyKey, parseIntakeAuthorization, verifyAccessCode } from '@/lib/intake/token';
 import { buildMov, hugeMoovHeader, mov120, mov240 } from './intake-fixtures.mts';
@@ -516,6 +516,55 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
   eq(integrityLabel('purged'), '보유 기간이 지나 원본을 지웠어요', '지운 파일을 그대로 전송됨이라고 안 말한다');
   eq(integrityLabel('purging'), '보유 기간이 지나 원본을 지우고 있어요', '지우는 파일도 사실대로 말한다');
   eq(new IntakeError('purge_in_progress').httpStatus, 409, '지우는 중 공개는 충돌로 답한다');
+}
+
+/* ── 지금 판의 원본이 없을 때의 글(지적 1 · 3) ── */
+{
+  const rev = { sideAssetId: 's', rearAssetId: 'r' };
+  const row = (id: string, status: string) => ({ id, status });
+  eq(currentOriginalsGone([row('s', 'verified'), row('r', 'verified')], rev), null, '살아 있으면 말이 없다');
+  eq(currentOriginalsGone([row('s', 'purging'), row('r', 'purging')], rev), 'deleting', '표시만 걸려도 지우는 중이다');
+  eq(currentOriginalsGone([row('s', 'purged'), row('r', 'purging')], rev), 'deleting', '하나가 남으면 지우는 중이다');
+  eq(currentOriginalsGone([row('s', 'purged'), row('r', 'purged')], rev), 'deleted', '둘 다 끝나야 지웠다');
+  eq(currentOriginalsGone([row('s', 'purged'), row('r', 'purged'), row('n1', 'verified'), row('n2', 'verified')], { sideAssetId: 'n1', rearAssetId: 'n2' }), null, '옛 판을 지워도 새 판이 살아 있으면 말이 없다');
+  eq(currentOriginalsGone([row('s', 'purged')], null), null, '판이 없으면 말이 없다');
+
+  ok(!reconsentOpen('verified', false, 'deleted') && !reconsentOpen('needs_attention', false, 'deleting'), '지운 접수에는 동의를 다시 안 받는다');
+  ok(reconsentOpen('verified', false, null), '살아 있으면 그대로 받는다');
+  eq(correctionReceiptLine({ submissionStatus: 'verified', revision: 2, publishedCurrent: false, originalsGone: 'deleted' }), null, '지운 판을 담당자가 확인한다고 안 말한다');
+
+  /* 격자 — 어느 상태에서도 없는 영상의 분석을 약속하지 않는다. 끝난 분석의 결과는 남아 공개할 수 있어서 그때만 검토를 말한다 */
+  const bad: string[] = [];
+  const PROMISE = /분석을 기다리|분석하고 있어요|영상을 확인하고|다시 확인하고|잘 도착|다시 확인해 주시면/;
+  const HEAD_PROMISE = /공개되면|잘 도착|영상을 확인하고|분석하고 있어요|그대로 있어요/;
+  for (const gone of ['deleting', 'deleted'] as const) {
+    for (const status of ['submitted', 'verified', 'needs_attention', 'correction_requested']) {
+      for (const analysis of ['none', 'ready', 'queued', 'running', 'failed', 'succeeded']) {
+        for (const uploadExpired of [false, true]) {
+          const text = publicStatusText(status, analysis, false, { uploadExpired, originalsGone: gone });
+          if (PROMISE.test(text)) bad.push(`글 ${gone} ${status} ${analysis}: ${text}`);
+          if (status !== 'correction_requested' && analysis !== 'succeeded' && !text.includes(gone === 'deleted' ? '지웠어요' : '지우고 있어요')) bad.push(`사실 ${gone} ${status} ${analysis}: ${text}`);
+          for (const screen of ['receipt', 'analysis_running', 'admin_review']) {
+            const head = receiptHead({ screen, submissionStatus: status, analysisStatus: analysis, originalsGone: gone });
+            if (analysis !== 'succeeded' && HEAD_PROMISE.test(head.title + head.desc)) bad.push(`머리 ${gone} ${status} ${analysis} ${screen}: ${head.title} / ${head.desc}`);
+            if (status === 'correction_requested' && head.desc.includes('그대로 있어요')) bad.push(`고침 머리 ${gone} ${analysis}: ${head.desc}`);
+          }
+        }
+      }
+    }
+  }
+  eq(bad, [], '지운 뒤 글 격자');
+
+  eq(publicStatusText('verified', 'succeeded', false, { originalsGone: 'deleted' }), '담당자가 결과를 검토하고 있어요', '끝난 분석의 결과는 남는다');
+  eq(receiptHead({ screen: 'admin_review', submissionStatus: 'verified', analysisStatus: 'succeeded', originalsGone: 'deleted' }).title, '담당자가 결과를 검토하고 있어요', '머리도 같은 말이다');
+  eq(publicStatusText('verified', 'ready', true, { originalsGone: 'deleted' }), '결과가 공개됐어요', '공개 중이면 결과를 말한다');
+  eq(publicStatusText('withdrawn', 'ready', false, { originalsGone: 'deleted' }), '접수가 철회됐어요', '철회는 철회를 말한다');
+  ok(publicStatusText('correction_requested', 'ready', false, { uploadExpired: true, originalsGone: 'deleted' }).includes('문의'), '기간이 끝난 고침은 문의를 말한다');
+  eq(publicStatusText('correction_requested', 'ready', false, { originalsGone: 'deleted' }), '고쳐 주셔야 할 내용이 있어요', '고칠 수 있으면 고침을 말한다');
+  eq(publicStatusText('verified', 'ready', false), '파일을 확인했어요. 분석을 기다리고 있어요', '살아 있으면 글이 그대로다');
+  eq(receiptHead({ screen: 'receipt', submissionStatus: 'verified', analysisStatus: 'ready', originalsGone: null }).title, '영상이 잘 도착했어요', '살아 있으면 머리가 그대로다');
+  eq(receiptHead({ screen: 'receipt', submissionStatus: 'correction_requested', analysisStatus: 'ready', originalsGone: null }).desc, '접수된 내용은 그대로 있어요. 링크를 보내 준 분에게 문의해 주세요.', '안 지웠으면 그대로 있다고 말한다');
+  eq(receiptHead({ screen: 'receipt', submissionStatus: 'needs_attention', analysisStatus: 'none', originalsGone: null }).title, '영상을 확인하고 있어요', '확인 중 머리가 그대로다');
 }
 
 console.log(`intake core selftest: ${passed} 통과`);

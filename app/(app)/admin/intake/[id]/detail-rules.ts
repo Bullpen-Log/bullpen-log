@@ -113,3 +113,16 @@ export function withdrawnRetentionText(r: IntakeDetail['retention']): string {
   if (r.purging?.scope === 'current') return ' 원본을 지우고 있어요.';
   return r.purgedAt ? ` 원본은 ${seoulDateText(r.purgedAt)}에 지웠어요.` : ` 원본은 ${seoulDateText(r.purgeAt)}에 지워요.`;
 }
+
+/** 고침 거두기 확인창 — 지운 원본을 그대로라고 말하지 않는다 */
+export function cancelCorrectionDetail(r: IntakeDetail['retention']): string {
+  const originals = r?.purging?.scope === 'current' ? '얼린 판의 원본은 지우고 있어요.' : r?.purgedAt ? '얼린 판의 원본은 이미 지웠어요.' : '얼린 판의 원본은 그대로예요.';
+  return `접수가 지금 판의 상태로 돌아가요. 받는 분이 그사이 새로 고른 영상이나 고친 글은 칸에서 내려가요. ${originals}`;
+}
+
+/** 초대 폐기 확인창의 원본 줄 — 폐기는 철회가 아니어서 보유 기간이 그대로 돈다. 지울 날이 있으면 그날까지만 열린다 */
+export function revokeRetentionText(r: IntakeDetail['retention']): string {
+  if (r?.purging?.scope === 'current') return '동의 철회는 아니에요. 원본은 지우고 있어요.';
+  if (r?.purgedAt) return '동의 철회는 아니에요. 원본은 이미 지웠어요.';
+  return r ? `동의 철회는 아니어서 원본은 지울 날(${seoulDateText(r.purgeAt)})까지 열려요.` : '동의 철회는 아니에요.';
+}

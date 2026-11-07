@@ -71,6 +71,7 @@ import {
   correctionReceiptLine,
   isIntakeView,
   publicStatusText,
+  currentOriginalsGone,
   purgingScope,
   readCorrection,
   reconsentOpen,
@@ -79,6 +80,7 @@ import {
   type CorrectionRequest,
   type IntakeScreen,
   type IntakeView,
+  type OriginalsGone,
   type PurgingScope,
 } from '@/lib/intake/state';
 import type { IntakeStorage } from '@/lib/intake/storage-core';
@@ -268,6 +270,8 @@ export type PublicIntakeState = {
   originalDeletedDate: string | null;
   /** 원본을 지우는 중인가 — 'current' 지금 판의 파일, 'older' 옛 판의 파일뿐이다. 지금 판을 지우는 중이면 originalDeleteDate 는 끝난 날이 아니라 시계가 말하는 날일 뿐이라 화면이 안 보인다(state.ts receiptRetentionRows) */
   originalDeleting: PurgingScope | null;
+  /** 지금 판의 원본이 없나 — 있으면 이 판으로는 더 분석할 수 없다. 고침으로 새 판이 오면 풀린다 */
+  originalsGone: OriginalsGone | null;
 };
 
 /** 받는 사람에게 보일 고침 요청 — 관리자 쪽 기억(handBefore)은 뺀다 */
@@ -308,7 +312,8 @@ export async function loadPublicState(
   const publishedRun = sub.publications[0]?.run ?? null;
   const expired = uploadExpired(sub.invitation, now);
   const resultOver = resultExpired(sub.invitation, now);
-  const needsReconsent = reconsentOpen(sub.status, requiredOk);
+  const originalsGone = currentOriginalsGone(sub.assets, sub.revisions[0] ?? null);
+  const needsReconsent = reconsentOpen(sub.status, requiredOk, originalsGone);
   const publishedRows = await db.intakePublication.findMany({ where: { submissionId: sub.id }, select: { publishedAt: true } });
   const retention = shownRetention(originalRetention({ publishedAts: publishedRows.map((p) => p.publishedAt), lastFrozenAt: sub.lastFinalizedAt, withdrawnAt: sub.withdrawnAt }), sub.assets.length);
   const deletedAt = currentOriginalsPurgedAt(sub.assets, sub.revisions[0] ?? null);
@@ -332,7 +337,7 @@ export async function loadPublicState(
   return {
     submissionId: sub.id,
     screen,
-    statusText: publicStatusText(sub.status, sub.analysisStatus, published, { uploadExpired: expired, needsReconsent }),
+    statusText: publicStatusText(sub.status, sub.analysisStatus, published, { uploadExpired: expired, needsReconsent, originalsGone }),
     version: sub.version,
     submissionStatus: sub.status,
     analysisStatus: sub.analysisStatus,
@@ -373,12 +378,14 @@ export async function loadPublicState(
       submissionStatus: sub.status,
       revision: sub.revisions[0]?.number ?? null,
       publishedCurrent: publishedRun != null && sub.revisions[0] != null && runMatchesCurrent(publishedRun, publishedRun.revision, sub, sub.revisions[0]),
+      originalsGone,
     }),
     needsReconsent,
     assetsOnFile: sub.assets.some((a) => a.status !== 'reserved' && !assetGone(a.status)),
     originalDeleteDate: retention ? seoulDateKey(retention.purgeAt) : null,
     originalDeletedDate: deletedAt ? seoulDateKey(deletedAt) : null,
     originalDeleting: purgingScope(sub.assets, sub.revisions[0] ?? null),
+    originalsGone,
   };
 }
 
@@ -492,8 +499,10 @@ export async function recordConsents(
     const sub = await lockSubmission(tx, scope);
     const editing = sub.status === 'draft' || sub.status === 'correction_requested';
     await recheckScope(tx, scope, editing ? 'edit' : 'read', now);
-    if (!editing && !reconsentOpen(sub.status, hasRequiredConsents(await consentDecisionRows(tx, sub.id), sub.submitterRelation))) {
-      throw new IntakeError('not_editable');
+    if (!editing) {
+      const revision = sub.currentRevisionId ? await tx.intakeRevision.findUnique({ where: { id: sub.currentRevisionId }, select: { sideAssetId: true, rearAssetId: true } }) : null;
+      const gone = currentOriginalsGone(await tx.intakeAsset.findMany({ where: { submissionId: sub.id }, select: { id: true, status: true } }), revision);
+      if (!reconsentOpen(sub.status, hasRequiredConsents(await consentDecisionRows(tx, sub.id), sub.submitterRelation), gone)) throw new IntakeError('not_editable');
     }
     await writeConsents(tx, sub, input.answers, now);
     return { requiredOk: hasRequiredConsents(await consentDecisionRows(tx, sub.id), sub.submitterRelation) };

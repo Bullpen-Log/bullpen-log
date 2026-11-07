@@ -173,6 +173,7 @@ export function CorrectionPanel({
   editable,
   extendChoices,
   suggestViews,
+  cancelDetail,
 }: {
   submissionId: string;
   version: number;
@@ -185,6 +186,8 @@ export function CorrectionPanel({
   editable: boolean;
   extendChoices: readonly number[];
   suggestViews: readonly IntakeView[];
+  /** 거두기 확인창 글 — 원본을 지웠으면 그대로라고 말하면 안 된다 */
+  cancelDetail: string;
 }) {
   const { pending, error, run, refresh } = useAction();
   const [editing, setEditing] = useState(false);
@@ -258,7 +261,7 @@ export function CorrectionPanel({
         open={ask}
         onClose={() => setAsk(false)}
         title="고침 요청을 거둘까요?"
-        detail="접수가 지금 판의 상태로 돌아가요. 받는 분이 그사이 새로 고른 영상이나 고친 글은 칸에서 내려가요. 얼린 판의 원본은 그대로예요."
+        detail={cancelDetail}
         confirmLabel="거두기"
         pendingLabel="거두는 중…"
         pending={pending}

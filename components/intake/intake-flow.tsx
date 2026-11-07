@@ -16,7 +16,7 @@ import { useSend } from '@/components/intake/use-send';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { agreedAfterDocs, changedConsentKinds, isAgeBand, isSubmitterRelation } from '@/lib/intake/consent';
 import { IntakeRequestError, NETWORK_TEXT, createIntakeClient, type IntakeReceipt, type PublicAsset, type PublicConsentDoc, type PublicStateResponse } from '@/lib/intake/public-client';
-import { assetInTransit, type IntakeScreen, type IntakeView } from '@/lib/intake/state';
+import { assetGone, assetInTransit, type IntakeScreen, type IntakeView } from '@/lib/intake/state';
 import { refreshQuietly, stateAfterReceipt, type RunItem, type RunStop } from '@/lib/intake/upload-run';
 
 /** 결과 화면은 3D 를 끌고 와서 공개된 뒤에만 받는다 */
@@ -283,7 +283,9 @@ function Flow({ token }: { token: string }) {
     setInspecting(view);
     setPickError(null);
     const other = otherOf(view);
-    const r = await inspectPick(file, data.state.limits, { picked: picked[other], asset: data.state.assets[other] });
+    /* 지운 파일은 없는 것으로 본다 — 서버의 같은 파일 판정과 같다 */
+    const otherAsset = data.state.assets[other];
+    const r = await inspectPick(file, data.state.limits, { picked: picked[other], asset: otherAsset && !assetGone(otherAsset.status) ? otherAsset : null });
     if (!r.ok) {
       /* 이 칸의 전 선택도, 다른 칸의 선택도 그대로 둔다 */
       setPickError({ view, message: r.message });

@@ -124,9 +124,12 @@ export const assetInTransit = (s: string) => s === 'reserved' || s === 'uploadin
 export const ASSET_GONE = ['purging', 'purged'] as const;
 export const assetGone = (s: string) => s === 'purging' || s === 'purged';
 
-/** 접수 뒤에 필수 동의가 지금 판이 아니면 다시 받을 수 있다 — 동의 글의 판이 바뀐 경우다. 철회한 접수는 'withdrawn' 이라 여기 안 든다 */
-export const reconsentOpen = (submissionStatus: string, requiredOk: boolean) =>
-  !requiredOk && (submissionStatus === 'submitted' || submissionStatus === 'verified' || submissionStatus === 'needs_attention');
+/**
+ * 접수 뒤에 필수 동의가 지금 판이 아니면 다시 받을 수 있다 — 동의 글의 판이 바뀐 경우다. 철회한 접수는 'withdrawn' 이라 여기 안 든다.
+ * 지금 판의 원본이 없으면 안 받는다. 동의를 받아도 이어질 일이 없어서, 받으면 없는 영상에 국외 이전 동의를 요구하는 꼴이 된다.
+ */
+export const reconsentOpen = (submissionStatus: string, requiredOk: boolean, originalsGone: OriginalsGone | null = null) =>
+  !requiredOk && originalsGone == null && (submissionStatus === 'submitted' || submissionStatus === 'verified' || submissionStatus === 'needs_attention');
 
 /**
  * 끝나지 않으면 신경 쓸 파일 — 지금 판의 두 파일과 칸의 파일(고침 중 새로 고른 것)이다.
@@ -142,6 +145,15 @@ export function purgingScope(assets: readonly { id: string; status: string }[], 
   const purging = assets.filter((a) => a.status === 'purging');
   if (purging.length === 0) return null;
   return purging.some((a) => a.id === currentRevision?.sideAssetId || a.id === currentRevision?.rearAssetId) ? 'current' : 'older';
+}
+
+/** 지금 판의 원본 상태 — 'deleted' 두 파일을 다 지웠다, 'deleting' 지우고 있다. 살아 있으면 null 이다 */
+export type OriginalsGone = 'deleting' | 'deleted';
+/** 이 값이 있으면 이 판으로는 더 분석할 수 없다. 고침으로 새 판이 오면 저절로 null 이 된다 */
+export function currentOriginalsGone(assets: readonly { id: string; status: string }[], currentRevision: PairSlots | null): OriginalsGone | null {
+  const current = assets.filter((a) => a.id === currentRevision?.sideAssetId || a.id === currentRevision?.rearAssetId);
+  if (!current.some((a) => assetGone(a.status))) return null;
+  return current.every((a) => a.status === 'purged') ? 'deleted' : 'deleting';
 }
 
 export type ReceiptRetentionRow = { label: string; date: string } | { label: string; text: string };
@@ -284,7 +296,12 @@ export type StatusTextOptions = {
   uploadExpired?: boolean;
   /** 필수 동의를 다시 받아야 하나 */
   needsReconsent?: boolean;
+  /** 지금 판의 원본이 없나 — 있으면 분석을 기다린다는 말이 거짓이다 */
+  originalsGone?: OriginalsGone | null;
 };
+
+const CONTACT_FOR_ANALYSIS = '분석이 필요하면 링크를 보내 준 분에게 문의해 주세요';
+const goneVerb = (g: OriginalsGone) => (g === 'deleted' ? '지웠어요' : '지우고 있어요');
 
 /** 공개 화면의 지금 상태 한 줄 — 알림을 약속하지 않고 사실만 말한다 */
 export function publicStatusText(submissionStatus: string, analysisStatus: string, published: boolean, opts: StatusTextOptions = {}): string {
@@ -294,6 +311,8 @@ export function publicStatusText(submissionStatus: string, analysisStatus: strin
   if (published) return '결과가 공개됐어요';
   if (submissionStatus === 'withdrawn') return '접수가 철회됐어요';
   if (opts.needsReconsent) return '동의 내용이 바뀌었어요. 다시 확인해 주시면 이어서 진행해요';
+  /* 끝난 분석의 결과는 원본 없이 남아 공개할 수 있다 — 그때만 '검토'가 참이다. 볼 영상이 없으니 아래의 '확인하고 있어요'는 다 거짓이다 */
+  if (opts.originalsGone) return analysisStatus === 'succeeded' ? '담당자가 결과를 검토하고 있어요' : `보유 기간이 끝나 원본을 ${goneVerb(opts.originalsGone)}. ${CONTACT_FOR_ANALYSIS}`;
   if (submissionStatus === 'needs_attention') return '영상을 확인하고 있어요. 담당자가 살펴볼 예정이에요';
   if (submissionStatus === 'submitted') return '파일이 잘 도착했는지 확인하고 있어요';
   if (analysisStatus === 'queued' || analysisStatus === 'running') return '분석하고 있어요';
@@ -308,9 +327,27 @@ export function publicStatusText(submissionStatus: string, analysisStatus: strin
  * 고친 내용을 다시 낸 뒤의 상태 한 줄 — 없으면 null. 공개 화면이 옛 결과만 보이면 고침이 접수됐는지 알 길이 없어서 따로 준다.
  * 공개가 이미 지금 입력(두 원본 + 손)의 실행이면 말할 것이 없다 — 이름만 고친 판은 앞 판의 공개에 그대로 반영된다.
  */
-export function correctionReceiptLine(input: { submissionStatus: string; revision: number | null; publishedCurrent: boolean }): string | null {
-  if (input.revision == null || input.revision < 2 || input.publishedCurrent) return null;
+export function correctionReceiptLine(input: { submissionStatus: string; revision: number | null; publishedCurrent: boolean; originalsGone?: OriginalsGone | null }): string | null {
+  if (input.revision == null || input.revision < 2 || input.publishedCurrent || input.originalsGone) return null;
   if (input.submissionStatus === 'submitted') return '고친 내용이 접수됐어요. 파일을 확인하고 있어요';
   if (input.submissionStatus === 'verified' || input.submissionStatus === 'needs_attention') return '고친 내용이 접수됐어요. 담당자가 확인하고 있어요';
   return null;
+}
+
+/** 영수증 머리 글 — 지금 상태 줄(publicStatusText)과 같은 사실을 말해야 한다 */
+const RECEIPT_HEADS: Record<string, { title: string; desc: string }> = {
+  receipt: { title: '영상이 잘 도착했어요', desc: '분석 결과가 준비되고 공개되면 이 링크에서 확인할 수 있어요.' },
+  needs_attention: { title: '영상을 확인하고 있어요', desc: '담당자가 살펴본 뒤 필요하면 이 링크에서 다시 안내해 드려요.' },
+  analysis_running: { title: '영상을 분석하고 있어요', desc: '분석 결과가 준비되고 공개되면 이 링크에서 확인할 수 있어요.' },
+  admin_review: { title: '담당자가 결과를 검토하고 있어요', desc: '공개되면 이 링크에서 확인할 수 있어요.' },
+  /* 고침 요청이 열린 채 올리기 기간이 끝났다 — 고칠 수는 없어도 접수 내용은 그대로 보인다 */
+  correction_closed: { title: '고칠 수 있는 기간이 끝났어요', desc: '접수된 내용은 그대로 있어요. 링크를 보내 준 분에게 문의해 주세요.' },
+};
+
+export function receiptHead(s: { screen: string; submissionStatus: string; analysisStatus: string; originalsGone: OriginalsGone | null }): { title: string; desc: string } {
+  if (s.submissionStatus === 'correction_requested') {
+    return s.originalsGone ? { title: RECEIPT_HEADS.correction_closed.title, desc: `보유 기간이 끝나 원본을 ${goneVerb(s.originalsGone)}. 링크를 보내 준 분에게 문의해 주세요.` } : RECEIPT_HEADS.correction_closed;
+  }
+  if (s.originalsGone) return s.analysisStatus === 'succeeded' ? RECEIPT_HEADS.admin_review : { title: `보유 기간이 끝나 원본을 ${goneVerb(s.originalsGone)}`, desc: `이 영상의 분석 결과는 나오지 않아요. ${CONTACT_FOR_ANALYSIS}.` };
+  return RECEIPT_HEADS[s.submissionStatus === 'needs_attention' ? 'needs_attention' : s.screen] ?? RECEIPT_HEADS.receipt;
 }

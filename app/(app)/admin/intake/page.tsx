@@ -7,7 +7,6 @@ import { BackLink, EmptyState, PageHeading } from '@/components/ui';
 import { requirePermission } from '@/lib/dal';
 import { loadIntakeList, parseIntakeFilters, type IntakeListFilters, type IntakeListResult, type IntakeListRow } from '@/lib/intake/admin';
 import {
-  ANALYSIS_STATUS_TEXT,
   PUBLICATION_STATUS_TEXT,
   SUBMISSION_STATUS_TEXT,
   VIEW_PROGRESS_TEXT,
@@ -20,7 +19,7 @@ import {
 import { prisma } from '@/lib/prisma';
 import { CreateInvitation } from './create-invitation';
 import { IntakeFilters } from './intake-filters';
-import { StatusChip, analysisTone, publicationTone, submissionTone, type ChipTone } from './status-chip';
+import { AnalysisChip, StatusChip, publicationTone, submissionTone, type ChipTone } from './status-chip';
 
 export const metadata: Metadata = { title: '외부 영상 접수' };
 
@@ -81,7 +80,7 @@ const hrefOfRow = (id: string) => `/admin/intake/${id}`;
 
 const titleOf = (r: IntakeListRow) => r.athleteName ?? r.invitationNote ?? '이름 미입력';
 
-const progressTone = (p: ViewProgress): ChipTone => (p === 'verified' ? 'ok' : p === 'rejected' ? 'danger' : p === 'empty' ? 'neutral' : 'info');
+const progressTone = (p: ViewProgress): ChipTone => (p === 'verified' ? 'ok' : p === 'rejected' ? 'danger' : p === 'empty' || p === 'deleting' || p === 'deleted' ? 'neutral' : 'info');
 
 function Views({ row }: { row: IntakeListRow }) {
   return (
@@ -143,7 +142,7 @@ function DeskTable({ rows }: { rows: IntakeListRow[] }) {
                 <StatusChip tone={submissionTone(r.status)}>{textOf(SUBMISSION_STATUS_TEXT, r.status)}</StatusChip>
               </td>
               <td className="px-3 py-2.5">
-                <StatusChip tone={analysisTone(r.analysisStatus)}>{textOf(ANALYSIS_STATUS_TEXT, r.analysisStatus)}</StatusChip>
+                <AnalysisChip status={r.analysisStatus} originalsPurgedAt={r.originalsPurgedAt} originalsPurging={r.originalsPurging} />
               </td>
               <td className="px-3 py-2.5">
                 <StatusChip tone={publicationTone(r.publicationStatus)}>{textOf(PUBLICATION_STATUS_TEXT, r.publicationStatus)}</StatusChip>
@@ -174,11 +173,11 @@ function PhoneList({ rows }: { rows: IntakeListRow[] }) {
                 {seoulDateText(r.receivedAt)}
                 {r.assigneeName ? ` · 담당 ${r.assigneeName}` : ''}
               </span>
-              {r.originalPurgeAt && <span className="block text-xs text-muted">{retentionLineText(r)}</span>}
+              {(r.originalPurgeAt || r.originalsPurgedAt || r.originalsPurging) && <span className="block text-xs text-muted">{retentionLineText(r)}</span>}
               <span className="flex flex-wrap gap-1">
                 <Views row={r} />
                 <StatusChip tone={submissionTone(r.status)}>{textOf(SUBMISSION_STATUS_TEXT, r.status)}</StatusChip>
-                <StatusChip tone={analysisTone(r.analysisStatus)}>{textOf(ANALYSIS_STATUS_TEXT, r.analysisStatus)}</StatusChip>
+                <AnalysisChip status={r.analysisStatus} originalsPurgedAt={r.originalsPurgedAt} originalsPurging={r.originalsPurging} />
                 <StatusChip tone={publicationTone(r.publicationStatus)}>{textOf(PUBLICATION_STATUS_TEXT, r.publicationStatus)}</StatusChip>
                 <InvitationNote row={r} />
               </span>

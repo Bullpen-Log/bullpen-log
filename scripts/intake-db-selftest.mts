@@ -22,6 +22,7 @@ import { enqueueJob, leaseJobs, requeueJob, runDueJobs } from '@/lib/intake/jobs
 import { DEFAULT_MAX_TOTAL_BYTES, TUS_CHUNK_BYTES, TUS_URL_TTL_MS } from '@/lib/intake/limits';
 import { seoulDateKey } from '@/lib/intake/paths';
 import { PURGE_RUN_SETTLE_MS, enqueueDuePurges, purgeJobKey, purgeSubmissionOriginals } from '@/lib/intake/purge';
+import { receiptHead } from '@/lib/intake/state';
 import { enforceRateLimit, hitRateLimit, pruneRateLimits } from '@/lib/intake/rate-limit';
 import { removeAndFindLeft, removeLeftObject } from '@/lib/intake/remove';
 import { ORIGINAL_RETENTION_MS } from '@/lib/intake/retention';
@@ -1809,6 +1810,26 @@ const verifyAll = async (...ids: string[]) => {
   eq((await loadPublicState(db, (await sent()).scope, { now: D(1) })).originalDeletedDate, null, '지우기 전에는 지운 날이 없다');
   eq(pubState.assets.side?.integrity, '보유 기간이 지나 원본을 지웠어요', '받는 사람에게 사실대로 말한다');
   eq(await registerRevision({ db, storage }, (await revisionOf(a.submissionId)).id), 'skipped', '지운 판을 다시 등록해도 실패로 안 쌓인다');
+
+  /* 지적 1 · 3: 지운 접수는 분석을 약속하지 않고, 동의 판이 바뀌어도 다시 묻지 않는다 */
+  eq(pubState.originalsGone, 'deleted', '지운 사실을 준다');
+  eq(pubState.screen, 'receipt', '영수증을 보인다');
+  ok(pubState.statusText.includes('원본을 지웠어요') && !pubState.statusText.includes('기다리고'), '지금 상태가 분석을 약속하지 않는다');
+  const goneHead = receiptHead(pubState);
+  ok(goneHead.title.includes('지웠어요') && !goneHead.desc.includes('공개되면'), '머리도 약속하지 않는다');
+  const gc = await sent();
+  await db.intakeConsent.updateMany({ where: { submissionId: gc.submissionId, kind: 'overseas' }, data: { docVersion: 'old', textHash: 'old' } });
+  ok((await loadPublicState(db, gc.scope, { now: D(1) })).needsReconsent, '지우기 전에는 다시 받는다');
+  fail.remove = 1;
+  await fails(purge(gc.submissionId, D(90)), 'storage_unavailable', '표시만 걸린 채 멈춘다');
+  const goneMid = await loadPublicState(db, gc.scope, { now: D(90) });
+  eq([goneMid.originalsGone, goneMid.needsReconsent], ['deleting', false], '지우는 중에도 안 받는다');
+  ok(goneMid.statusText.includes('지우고 있어요'), '지우는 중이라고 말한다');
+  await fails(recordConsents(db, gc.scope, { answers: REQUIRED }, D(90)), 'not_editable', '지우는 중에는 동의를 안 받는다');
+  await purge(gc.submissionId, D(90));
+  const goneDone = await loadPublicState(db, gc.scope, { now: D(91) });
+  eq([goneDone.originalsGone, goneDone.needsReconsent, goneDone.screen], ['deleted', false, 'receipt'], '지운 뒤에도 영수증이다');
+  await fails(recordConsents(db, gc.scope, { answers: REQUIRED }, D(91)), 'not_editable', '지운 뒤에는 동의를 안 받는다');
 
   /* 옛 판의 파일 · 미리보기 · 분석 결과 */
   const b = await sent();
