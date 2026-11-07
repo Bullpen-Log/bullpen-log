@@ -166,7 +166,7 @@ export default async function AppLayout({
   /* 최근 며칠 투구를 남긴 날 — 종의 할 일과 체크인 창의 '어제 등판 · 몇 구' 줄이 같이 쓴다 */
   const pitchDays = recentPitchDays.map((p) => p.date.toISOString().slice(0, 10));
   /* 체크인 흐름(3판)의 둘레 — 관문과 종이 같은 것을 받는다(components/checkin-flow/types.ts) */
-  const flow = contextFrom(user.nickname, recentCheckins, streakCheckins);
+  const flow = contextFrom(user.nickname, recentCheckins, streakCheckins, user.throwingHand);
   const checkinDays = flow.recent.map((c) => c.date);
 
   return (

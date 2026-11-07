@@ -18,6 +18,7 @@ import {
   readPitch3dV2Job,
   readPitch3dV2Result,
   heelContact,
+  wristRelease,
   RTMW_INDEX,
   storedV2ResultJson,
   V2_FAIL_TEXT,
@@ -36,7 +37,7 @@ import { project } from '../lib/pitch-3d/camera.ts';
 import type { MetricKey } from '../lib/pitch-3d/metrics.ts';
 import { fitPitch3dV2, fixHingeFlips } from '../lib/pitch-3d/v2/fit.ts';
 import { add, cross, dot, norm, normalize, scale, sub, type Vec3 } from '../lib/pitch-3d/linalg.ts';
-import { pickSegment, readV2Events, runFit, segmentWindow } from '../lib/pitch-3d/v2/run-node.ts';
+import { eventsImplausible, pickSegment, readV2Events, runFit, segmentWindow } from '../lib/pitch-3d/v2/run-node.ts';
 import { toPoseTrack } from '../lib/pitch-3d/v2/track.ts';
 import {
   ACTIVE_TTL_MS,
@@ -288,6 +289,15 @@ const good = (): Pitch3dV2Ok => {
         tp[40] === t[40] &&
         tp.every((v, k) => k === 0 || v > tp[k - 1])
     );
+  }
+  /* '공 놓음'(wristRelease) — 2D 로 고른 공 놓음 ±0.1초 안 손목 앞쪽 빠르기 최고 + 16ms, 첫 닿음보다 앞이면 그대로 */
+  {
+    const t = Array.from({ length: 60 }, (_, k) => k / 120);
+    /* 손목 앞 자리 — 빠르기가 30번 장면(0.25초)에서 가장 크다 */
+    const fwd = t.map((x) => Math.tanh((x - 0.25) * 40));
+    const r1 = wristRelease(fwd, t, { release: 36, footContact: 20, footPlant: 22 });
+    const r2 = wristRelease(fwd, t, { release: 36, footContact: 33, footPlant: 34 });
+    check(`공 놓음: 손목 앞쪽 빠르기 최고 + 16ms(${r1} · 32) · 첫 닿음보다 앞이면 그대로(${r2} · 36)`, r1 === 32 && r2 === 36);
   }
   /*
    * '착지'(heelContact) — 뒤꿈치가 디딘 높이(묶인 뒤 가장 낮음) + 키 4/180 안에 처음 들어온 장면, 2D 첫 닿음 앞으로는 안 간다, 끝까지 안 들어오면 발 묶임.
@@ -866,6 +876,10 @@ console.log('■ node 실행기(segment · fit)');
     );
   }
   check('segment: 입력 모양이 틀리면 video', !pickSegment({ side: null, back: {} }).ok);
+  check(
+    '순간 검사: 실제 투구(니업 → 착지 0.58 · 착지 → 공 0.29초)와 30fps 슬로모션은 통과, 착지 → 공이 1.8초면 잘못 잡은 것',
+    !eventsImplausible(1.576, 2.156, 2.444) && !eventsImplausible(6, 10.9, 13.53) && !eventsImplausible(null, 0.4, 2.2) && eventsImplausible(0.07, 0.4, 2.2)
+  );
   {
     /* 2026-10-10 샘플 5 — 240 슬로모션을 30fps 로 구운 영상(니업 6.0 · 착지 10.9 · 릴리스 13.5초, 길이 19.4초) */
     const w30 = segmentWindow({ kneeUp: 6, footPlant: 10.9, release: 13.53, first: 0, last: 19.37, fineFps: 30 });

@@ -362,7 +362,14 @@ import {
 } from '../lib/training-load.ts';
 import { computeAcwr, zoneOf } from '../lib/pitch-stats.ts';
 import { buildTrainingLoad } from '../lib/training-load.ts';
-import { cleanBodySpots, parseBodySpots, partsFromSpots } from '../lib/body-spots.ts';
+import {
+  SPOT_DEFS,
+  armSpotsFromSpots,
+  cleanBodySpots,
+  parseBodySpots,
+  partsFromSpots,
+} from '../lib/body-spots.ts';
+import { ARM_PAIN_SPOTS } from '../lib/checkin.ts';
 import {
   ARM_CARE_CATEGORY,
   buildPartVolume,
@@ -5923,8 +5930,8 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     ),
   });
   check(
-    "빈 부위의 조사가 맞다 — '어깨 상부는' ('은' 아님)",
-    !noTop.notes.some((n) => n.includes('상부은')) && !noTop.items.some((it) => it.area === 'shoulder-top'),
+    "빈 부위의 조사가 맞다 — '어깨 위쪽은' ('는' 아님)",
+    !noTop.notes.some((n) => n.includes('위쪽는')) && !noTop.items.some((it) => it.area === 'shoulder-top'),
     noTop.notes.join(' / ')
   );
   const dumbbellRecovery = build('recovery', {
@@ -6266,7 +6273,7 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   check(
     '통증 루틴 — 운동이 모자라면 있는 만큼만(무거운 것으로 안 채움), 빠진 자리를 알린다',
     scarce.items.map((it) => it.exerciseId).join(',') === 'scap-light' &&
-      scarce.notes.some((n) => n.includes('팔꿈치 내측')),
+      scarce.notes.some((n) => n.includes('팔꿈치 안쪽')),
     `${scarce.items.map((it) => it.exerciseId).join(',')} / ${scarce.notes.join(' / ')}`
   );
 
@@ -8091,27 +8098,57 @@ console.log(
 }
 
 {
-  /* 몸 그림의 근육 → 부위 칸(2026-10-12) — 통증 관문이 근육을 고른 날 놓치지 않게 */
+  /* 불편한 곳 자리 → 부위 칸(2026-11-06 자리 카드) — 통증 관문이 어느 자리를 골랐든 놓치지 않게 */
   const p = partsFromSpots({
-    'R:deltoid_posterior': '뻐근',
-    'L:pectoralis_minor': '통증',
-    'L:quadratus_lumborum': '뻐근',
+    'R:shoulder-back': '뻐근',
+    'L:scapula': '통증',
+    'R:forearm': '뻐근',
+    'L:flank': '뻐근',
   });
   check(
-    '근육 → 부위: 같은 부위는 가장 센 값',
-    p.shoulder === '통증' && p.lowerBack === '뻐근' && p.elbow === '정상',
+    '자리 → 부위: 같은 부위는 가장 센 값 · 아래팔은 손목·전완',
+    p.shoulder === '통증' && p.wrist === '뻐근' && p.lowerBack === '뻐근' && p.elbow === '정상',
     JSON.stringify(p)
   );
   const c = cleanBodySpots({
-    'R:soleus': '통증',
-    'C:soleus': '통증',
+    'R:calf': '통증',
+    'C:calf': '통증',
     'R:nope': '통증',
-    'L:soleus': '아픔',
+    'L:calf': '아픔',
   });
   check(
-    '근육 값 거르기: 모르는 근육 · 좌우 · 값은 버림',
-    JSON.stringify(c) === '{"R:soleus":"통증"}',
+    '자리 값 거르기: 모르는 자리 · 좌우 · 값은 버림',
+    JSON.stringify(c) === '{"R:calf":"통증"}',
     JSON.stringify(c)
+  );
+  /* 예전 3D 근육 값(10-12 ~ 11-06) — 오늘 체크인을 고칠 때 통증이 사라지지 않게 자리로 옮겨 읽는다 */
+  const old = cleanBodySpots({
+    'R:infraspinatus': '뻐근',
+    'R:teres_minor': '통증',
+    'L:superficial_head_of_pronator_teres': '통증',
+    'R:extensor_digitorum_longus': '뻐근',
+    'R:extensor_digitorum': '뻐근',
+    'L:quadratus_lumborum': '뻐근',
+  });
+  check(
+    '옛 근육 → 자리: 한 자리에 둘이면 센 쪽 · 다리 폄근은 발목',
+    JSON.stringify(old) ===
+      '{"R:shoulder-back":"통증","L:elbow-inner":"통증","R:ankle":"뻐근","R:forearm":"뻐근","L:low-back":"뻐근"}',
+    JSON.stringify(old)
+  );
+  /* 어깨 · 팔꿈치 카드 여덟이 곧 팔 통증 자리 — key 가 어긋나면 팔 통증 자리가 비어 저장이 막힌다 */
+  const armKeys = [...ARM_PAIN_SPOTS.shoulder, ...ARM_PAIN_SPOTS.elbow].map((s) => s.key as string);
+  const armDefs = SPOT_DEFS.filter((d) => d.part === 'shoulder' || d.part === 'elbow').map((d) => d.key);
+  check(
+    '어깨 · 팔꿈치 카드 = 팔 통증 자리',
+    JSON.stringify([...armKeys].sort()) === JSON.stringify([...armDefs].sort()),
+    `${armKeys} / ${armDefs}`
+  );
+  check(
+    '팔 통증 자리는 아파요로 고른 어깨 · 팔꿈치만, 좌우는 뗌',
+    JSON.stringify(
+      armSpotsFromSpots({ 'R:elbow-inner': '통증', 'L:elbow-inner': '통증', 'R:scapula': '뻐근', 'R:forearm': '통증' })
+    ) === '["elbow-inner"]'
   );
   check('깨진 JSON 은 빈 것', Object.keys(parseBodySpots('{oops')).length === 0);
 }

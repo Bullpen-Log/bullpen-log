@@ -40,6 +40,34 @@ export const BODY_PARTS = [
 ] as const;
 
 /**
+ * 화면에 보일 큰 부위 — 체크인 아픈 자리의 넷(어깨 · 팔꿈치 · 몸통 · 하체, lib/body-spots SPOT_GROUPS)과 전신.
+ * 저장 값(BODY_PARTS)과 거르기는 그대로 두고 보일 때만 묶는다(2026-11-06 김민: 운동 설명도 같은 부위로 단순화).
+ * 이두 · 삼두는 팔꿈치 — 암케어 부위도 이두근을 팔꿈치 앞쪽, 삼두근을 팔꿈치 뒤쪽에 둔다(lib/armcare/anatomy).
+ */
+const BODY_GROUP: Record<BodyPart, '어깨' | '팔꿈치' | '몸통' | '하체' | '전신'> = {
+  어깨: '어깨',
+  견갑: '어깨',
+  가슴: '몸통',
+  등: '몸통',
+  이두: '팔꿈치',
+  삼두: '팔꿈치',
+  팔꿈치: '팔꿈치',
+  '손목·전완': '팔꿈치',
+  코어: '몸통',
+  고관절: '하체',
+  '햄스트링·둔근': '하체',
+  '종아리·발목': '하체',
+  전신: '전신',
+};
+const BODY_GROUP_ORDER = ['어깨', '팔꿈치', '몸통', '하체', '전신'] as const;
+
+/** 저장된 부위들 → 큰 부위(겹침 없이, 어깨 · 팔꿈치 · 몸통 · 하체 · 전신 차례). 모르는 이름은 뺀다 */
+export function bodyGroups(parts: readonly string[]): string[] {
+  const got = new Set(parts.map((p) => BODY_GROUP[p as BodyPart]).filter(Boolean));
+  return BODY_GROUP_ORDER.filter((g) => got.has(g));
+}
+
+/**
  * 운동 강도 다섯 단계.
  *
  * 이 값은 안전 필터가 직접 쓴다. 부하가 높거나 몸이 안 좋은 날에는

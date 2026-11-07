@@ -1,18 +1,18 @@
 import { ActionButton } from '~/shell/action-button';
 import * as Haptics from 'expo-haptics';
-import { type Href, router, Stack, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, type TextInputInstance, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, type TextInputInstance, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path, Rect } from 'react-native-svg';
 import type { AuthState } from '@/app/actions/auth';
+import { LoginHero } from '~/account/login-hero';
 import { accountForm, clearSession } from '~/account/session';
 import { loadJson, saveJson } from '~/lib/store';
 import { loadMe, resetMe } from '~/pitch/api';
-import { usePalette, type Palette } from '~/lib/ui';
+import { CONTROL, RADIUS, TYPE, usePalette, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { leaveTo } from '~/shell/web-nav';
-import { Wordmark } from '~/shell/wordmark';
-import { READABLE } from '~/lib/layout';
 
 /**
  * 로그인(앱 화면) — 웹 로그인(app/login/auth-form.tsx LoginForm)을 옮겼다. 서버는 같은 auth.login(막힘 · 잠금 규칙 그대로).
@@ -39,11 +39,16 @@ function forgotPassword() {
 export default function LoginScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const compact = height < 740;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showRequired, setShowRequired] = useState(false);
+  const [focused, setFocused] = useState<'email' | 'password' | null>(null);
   const passwordRef = useRef<TextInputInstance>(null);
 
   const { native } = useLocalSearchParams<{ native?: string }>();
@@ -71,9 +76,13 @@ export default function LoginScreen() {
 
   const submit = async () => {
     if (busy) return;
-    if (!email.trim() || !password) return setError('이메일과 비밀번호를 입력해 주세요.');
-    setBusy(true);
     setError(null);
+    if (!email.trim() || !password) {
+      setShowRequired(true);
+      return;
+    }
+    setShowRequired(false);
+    setBusy(true);
     savePrefs({});
     const r = await accountForm<AuthState>('auth.login', {
       email: email.trim(),
@@ -89,103 +98,121 @@ export default function LoginScreen() {
     setError('error' in r ? r.error : (r.state?.error ?? '로그인하지 못했어요.'));
   };
 
-  const [showPassword, setShowPassword] = useState(false);
+  const emailRequired = showRequired && !email.trim();
+  const passwordRequired = showRequired && !password;
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.page }}>
+    <View style={{ flex: 1, backgroundColor: c.card }}>
       <Stack.Screen options={{ gestureEnabled: false }} />
       <ScrollView
-        contentContainerStyle={[{ flexGrow: 1, paddingHorizontal: 20, paddingTop: inset.top + 20, paddingBottom: inset.bottom + 20 }, READABLE]}
+        contentContainerStyle={[
+          st.content,
+          {
+            paddingTop: inset.top + (width >= 600 ? 32 : 6),
+            paddingBottom: inset.bottom + 20,
+            paddingLeft: Math.max(12, inset.left),
+            paddingRight: Math.max(12, inset.right),
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
       >
-        <Wordmark size={24} color={c.ink} />
-        <View style={[st.hero, { backgroundColor: c.skyTint }]}>
-          <Text accessibilityRole="header" style={{ color: c.ink, fontSize: 28, fontWeight: '800' }}>로그인</Text>
-          <Text style={{ color: c.muted, fontSize: 15, lineHeight: 22, marginTop: 8 }}>지난 기록을 확인하고 오늘 훈련을 시작하세요.</Text>
-        </View>
+        <LoginHero compact={compact} />
 
-        <View style={{ flex: 1, gap: 20, marginTop: 24 }}>
-          {error ? (
-            <Text accessibilityRole="alert" style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>
-              {error}
-            </Text>
-          ) : null}
-          <Labeled label="이메일" c={c}>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="pitcher@example.com"
-              placeholderTextColor={c.muted}
-              keyboardType="email-address"
-              textContentType="username"
-              autoComplete="email"
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="next"
-              onSubmitEditing={() => passwordRef.current?.focus()}
-              accessibilityLabel="이메일"
-              style={[st.input, { color: c.ink, backgroundColor: c.card, borderColor: c.line }]}
-            />
-          </Labeled>
-          <Labeled label="비밀번호" c={c}>
-            <View style={[st.passwordRow, { backgroundColor: c.card, borderColor: c.line }]}>
-              <TextInput
-                ref={passwordRef}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="••••••••"
-                placeholderTextColor={c.muted}
-                secureTextEntry={!showPassword}
-                textContentType="password"
-                autoComplete="current-password"
-                returnKeyType="go"
-                onSubmitEditing={() => void submit()}
-                accessibilityLabel="비밀번호"
-                style={[st.passwordInput, { color: c.ink }]}
-              />
-              <Pressable accessibilityRole="button" accessibilityLabel={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'} onPress={() => setShowPassword((v) => !v)} hitSlop={8} style={st.passwordToggle}>
-                <Text style={{ color: c.link, fontSize: 14, fontWeight: '600' }}>{showPassword ? '숨기기' : '보기'}</Text>
-              </Pressable>
+        <View style={[st.form, { marginTop: compact ? 20 : 30 }]}>
+          <Text accessibilityRole="header" style={[TYPE.title, { color: c.ink }]}>로그인</Text>
+          <View style={st.fields}>
+            <View style={st.field}>
+              <View style={[st.inputRow, { backgroundColor: c.page, borderColor: emailRequired ? c.danger : focused === 'email' ? c.link : c.line }]}>
+                <View pointerEvents="none" importantForAccessibility="no-hide-descendants">
+                  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={c.muted} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <Rect x="3" y="5" width="18" height="14" rx="3" />
+                    <Path d="m5 8 5.8 4.5a2 2 0 0 0 2.4 0L19 8" />
+                  </Svg>
+                </View>
+                <TextInput
+                  value={email}
+                  onChangeText={(value) => { setEmail(value); setError(null); }}
+                  placeholder="이메일"
+                  placeholderTextColor={c.muted}
+                  keyboardType="email-address"
+                  textContentType="username"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                  onFocus={() => setFocused('email')}
+                  onBlur={() => setFocused(null)}
+                  onSubmitEditing={() => passwordRef.current?.focus()}
+                  accessibilityLabel="이메일"
+                  style={[st.input, { color: c.ink }]}
+                />
+              </View>
+              {emailRequired ? <LoginError message="이메일을 입력해 주세요." c={c} inline /> : null}
             </View>
-          </Labeled>
-
-          <View style={{ gap: 4 }}>
-            <View style={st.helpRow}>
-              <CheckLine
-                label="아이디 기억하기"
-                value={remember}
-                onChange={(v) => {
-                  setRemember(v);
-                  savePrefs({ email: v ? email.trim() : null });
-                }}
-                c={c}
-              />
-              <Pressable accessibilityRole="button" onPress={forgotPassword} hitSlop={8} style={({ pressed }) => [st.text, { paddingHorizontal: 0 }, pressed && { opacity: 0.6 }]}>
-                <Text style={{ color: c.link, fontSize: 14, fontWeight: '600' }}>비밀번호를 잊었어요</Text>
-              </Pressable>
+            <View style={st.field}>
+              <View style={[st.inputRow, { backgroundColor: c.page, borderColor: passwordRequired ? c.danger : focused === 'password' ? c.link : c.line }]}>
+                <Icon name="lock" size={20} color={c.muted} strokeWidth={1.8} />
+                <TextInput
+                  ref={passwordRef}
+                  value={password}
+                  onChangeText={(value) => { setPassword(value); setError(null); }}
+                  placeholder="비밀번호"
+                  placeholderTextColor={c.muted}
+                  secureTextEntry={!showPassword}
+                  textContentType="password"
+                  autoComplete="current-password"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="go"
+                  onFocus={() => setFocused('password')}
+                  onBlur={() => setFocused(null)}
+                  onSubmitEditing={() => void submit()}
+                  accessibilityLabel="비밀번호"
+                  style={[st.input, { color: c.ink }]}
+                />
+                <Pressable accessibilityRole="button" accessibilityLabel={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'} onPress={() => setShowPassword((v) => !v)} style={({ pressed }) => [st.passwordToggle, pressed && st.pressed]}>
+                  <Text style={[st.link, { color: c.link }]}>{showPassword ? '숨기기' : '보기'}</Text>
+                </Pressable>
+              </View>
+              {passwordRequired ? <LoginError message="비밀번호를 입력해 주세요." c={c} inline /> : null}
             </View>
-            <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>아이디만 저장해요. 로그인은 30일간 유지돼요.</Text>
+            {error ? <LoginError message={error} c={c} /> : null}
           </View>
-        </View>
 
-        <View style={{ gap: 10, marginTop: 24 }}>
-          <ActionButton onPress={() => void submit()} busy={busy} label={busy ? '로그인 중…' : '로그인'} style={{ width: '100%' }} />
-          <Pressable accessibilityRole="link" onPress={() => router.push('/signup' as Href)} style={({ pressed }) => [st.createButton, { backgroundColor: pressed ? c.chip : c.card, borderColor: c.line }]}>
-            <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>처음이라면 계정 만들기</Text>
-          </Pressable>
+          <View style={st.helpRow}>
+            <CheckLine
+              label="이메일 기억하기"
+              value={remember}
+              onChange={(v) => {
+                setRemember(v);
+                savePrefs({ email: v ? email.trim() : null });
+              }}
+              c={c}
+            />
+            <Pressable accessibilityRole="button" onPress={forgotPassword} style={({ pressed }) => [st.textButton, pressed && st.pressed]}>
+              <Text style={[st.link, { color: c.link }]}>비밀번호 찾기</Text>
+            </Pressable>
+          </View>
+
+          <ActionButton onPress={() => void submit()} busy={busy} label={busy ? '로그인 중…' : '로그인'} style={st.submit} />
+          <View style={[st.signup, { borderTopColor: c.line }]}>
+            <Text style={[TYPE.body, { color: c.muted }]}>싱커가 처음이신가요?</Text>
+            <Pressable accessibilityRole="link" onPress={() => router.push('/signup')} style={({ pressed }) => [st.textButton, pressed && st.pressed]}>
+              <Text style={[st.link, { color: c.link }]}>계정 만들기</Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </View>
   );
 }
 
-function Labeled({ label, c, children }: { label: string; c: Palette; children: React.ReactNode }) {
+function LoginError({ message, c, inline = false }: { message: string; c: Palette; inline?: boolean }) {
   return (
-    <View style={{ gap: 8 }}>
-      <Text style={{ color: c.muted, fontSize: 13, fontWeight: '400' }}>{label}</Text>
-      {children}
-    </View>
+    <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[TYPE.sub, st.error, { color: c.danger }, !inline && [st.errorPanel, { backgroundColor: c.dangerBg }]]}>
+      {message}
+    </Text>
   );
 }
 
@@ -196,24 +223,32 @@ function CheckLine({ label, value, onChange, c }: { label: string; value: boolea
       accessibilityRole="checkbox"
       accessibilityState={{ checked: value }}
       onPress={() => onChange(!value)}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 }}
+      style={st.checkLine}
     >
       <View style={[st.box, value ? { backgroundColor: c.action, borderColor: c.sky } : { borderColor: c.muted }]}>
         {value ? <Icon name="check" size={13} color="#fff" strokeWidth={3} /> : null}
       </View>
-      <Text style={{ color: c.muted, fontSize: 15 }}>{label}</Text>
+      <Text style={[TYPE.body, { color: c.ink, flexShrink: 1 }]}>{label}</Text>
     </Pressable>
   );
 }
 
 const st = StyleSheet.create({
-  input: { fontSize: 17, paddingHorizontal: 14, minHeight: 52, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth * 2 },
-  hero: { marginTop: 24, padding: 18, borderRadius: 18 },
-  passwordRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: StyleSheet.hairlineWidth * 2 },
-  passwordInput: { flex: 1, minHeight: 52, fontSize: 17, paddingLeft: 14, paddingRight: 4 },
-  passwordToggle: { minHeight: 44, minWidth: 62, alignItems: 'center', justifyContent: 'center' },
-  helpRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 12 },
-  createButton: { minHeight: 52, borderRadius: 26, borderWidth: StyleSheet.hairlineWidth * 2, alignItems: 'center', justifyContent: 'center' },
-  box: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  text: { minHeight: 48, paddingHorizontal: 16, borderRadius: 12, justifyContent: 'center' },
+  content: { flexGrow: 1, width: '100%', maxWidth: 520, alignSelf: 'center' },
+  form: { marginHorizontal: 14 },
+  fields: { marginTop: 20, gap: 12 },
+  field: { gap: 5 },
+  inputRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, borderRadius: RADIUS.pill, borderWidth: 1.25 },
+  input: { ...TYPE.reading, flex: 1, minWidth: 0, minHeight: 54, paddingVertical: 12 },
+  passwordToggle: { minHeight: CONTROL.icon, minWidth: CONTROL.icon, flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
+  helpRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 12 },
+  checkLine: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: CONTROL.compact, flexShrink: 1 },
+  box: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  textButton: { minHeight: CONTROL.compact, justifyContent: 'center', maxWidth: '100%' },
+  link: { ...TYPE.buttonCompact },
+  pressed: { opacity: 0.65 },
+  submit: { marginTop: 9, minHeight: 56 },
+  signup: { marginTop: 24, paddingTop: 6, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 8 },
+  error: { paddingHorizontal: 14, fontWeight: '600' },
+  errorPanel: { borderRadius: 14, paddingVertical: 9 },
 });

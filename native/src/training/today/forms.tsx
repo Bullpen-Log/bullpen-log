@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
-import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_LEVELS } from '@/lib/exercise-meta';
+import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_LEVELS, bodyGroups } from '@/lib/exercise-meta';
 import { matchesSearch, withJosa } from '@/lib/korean';
 import type { TodayMake, TodayPickItem } from '@/lib/report/training-today-data';
 import { act, leave } from '~/mechanics/parts';
@@ -285,7 +285,7 @@ export function AddSheet({ inPlanIds, onClose, c, a }: {
               ex.unsafe ? '오늘 몸 상태에는 권하지 않는 운동이에요' : null,
               ex.missing.length > 0 ? `${withJosa(ex.missing.join(' · '), '이/가')} 필요해요` : null,
             ].filter(Boolean);
-            const meta = [...ex.bodyParts, ex.intensity, ex.difficulty, ...ex.equipment].filter(Boolean).join(' · ');
+            const meta = [...bodyGroups(ex.bodyParts), ex.intensity, ex.difficulty, ...ex.equipment].filter(Boolean).join(' · ');
             return (
               <View key={ex.id} style={[st.pick, { backgroundColor: c.card, borderColor: c.line }]}>
                 <View style={{ flex: 1, minWidth: 0, gap: 2 }}>

@@ -432,7 +432,7 @@ export const ARM_PAIN_SPOTS = {
     { key: 'shoulder-back', chip: '뒤쪽', label: '어깨 뒤쪽' },
     { key: 'shoulder-front', chip: '앞쪽', label: '어깨 앞쪽' },
     { key: 'shoulder-top', chip: '위쪽', label: '어깨 위쪽' },
-    { key: 'scapula', chip: '날개뼈', label: '날개뼈(견갑)' },
+    { key: 'scapula', chip: '견갑', label: '견갑' },
   ],
   elbow: [
     { key: 'elbow-inner', chip: '안쪽', label: '팔꿈치 안쪽' },

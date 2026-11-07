@@ -13,8 +13,8 @@ import { Check, X } from '@/components/icon';
 import { Wordmark } from '@/components/logo';
 import { saveCheckin } from '@/app/actions/checkin';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
-import { ARM_PAIN_SPOTS, PAIN_FORCED_CONDITION, armPainJointsToday } from '@/lib/checkin';
-import { partsFromSpots, type BodySpots } from '@/lib/body-spots';
+import { PAIN_FORCED_CONDITION, armPainJointsToday } from '@/lib/checkin';
+import { armSpotsFromSpots, partsFromSpots, type BodySpots } from '@/lib/body-spots';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { buzz, haptic } from '@/lib/haptics';
 import { useTodayKey } from '@/components/use-today-key';
@@ -44,7 +44,6 @@ export type Answers = {
   /** '몸에 불편한 곳이 있어요' — 컨디션 PAIN_FORCED_CONDITION 이하면 켜진 것으로 본다(effectivePain) */
   painOn: boolean;
   spots: BodySpots;
-  armSpots: string[];
   armLevel: number | null;
   sleepQuality: number | null;
   note: string;
@@ -60,7 +59,6 @@ const DEFAULT: Answers = {
   condition: null,
   painOn: false,
   spots: {},
-  armSpots: [],
   armLevel: null,
   sleepQuality: null,
   note: '',
@@ -72,7 +70,6 @@ function fromPrefill(p: CheckinPrefill): Answers {
     condition: p.condition,
     painOn: hasPain,
     spots: p.bodySpots,
-    armSpots: p.armPainSpots,
     armLevel: p.armPainLevel,
     sleepQuality: p.sleepQuality ?? DEFAULT.sleepQuality,
     note: p.note ?? '',
@@ -84,7 +81,7 @@ function readDraft(day: string): Answers | null {
     const raw = localStorage.getItem(`${DRAFT_KEY}:${day}`);
     if (!raw) return null;
     const v = JSON.parse(raw) as Partial<Answers>;
-    return { ...DEFAULT, ...v, spots: v.spots ?? {}, armSpots: v.armSpots ?? [] };
+    return { ...DEFAULT, ...v, spots: v.spots ?? {} };
   } catch {
     return null;
   }
@@ -231,10 +228,8 @@ export function CheckinFlow({
       for (const [k, v] of Object.entries(partsFromSpots(spots))) fd.set(k, v);
       fd.set('armpain', '1');
       if (painOn) {
-        const relevantArmSpots = new Set<string>(painJoints.flatMap((j) => ARM_PAIN_SPOTS[j].map((s) => s.key)));
-        for (const s of answers.armSpots) {
-          if (relevantArmSpots.has(s)) fd.append('armPainSpots', s);
-        }
+        /* 팔 통증 자리 = 어깨 · 팔꿈치 카드 가운데 '아파요'로 고른 것(lib/body-spots.ts armSpotsFromSpots) */
+        for (const s of armSpotsFromSpots(spots)) fd.append('armPainSpots', s);
         if (painJoints.length > 0 && answers.armLevel != null)
           fd.set('armPainLevel', String(answers.armLevel));
       }
@@ -268,7 +263,7 @@ export function CheckinFlow({
     if (idx > 0) go(steps[idx - 1], -1);
   };
   const skipPain = () => {
-    patch({ painOn: false, spots: {}, armSpots: [], armLevel: null });
+    patch({ painOn: false, spots: {}, armLevel: null });
     setPainSkipped(true);
     buzz(20);
     go('sleep', 1);
@@ -296,8 +291,8 @@ export function CheckinFlow({
     answers.armLevel === 3 &&
     armPainJointsToday(partsFromSpots(answers.spots)).length > 0;
   /*
-   * 꼭 골라야 '다음'이 눌린다(2026-10-18 사용자) — 컨디션 · 잠은 미리 고르지 않고, 어깨 · 팔꿈치가 '통증'이면 아픈 자리와 정도를 둘 다.
-   * 자리를 안 고르면 '던질 때만' 이어도 가벼운 통증 루틴 대신 쉬기가 나왔다(lib/checkin.ts canDoPainRoutine) — "무조건 알아야지".
+   * 꼭 골라야 '다음'이 눌린다(2026-10-18 사용자) — 컨디션 · 잠은 미리 고르지 않고, 어깨 · 팔꿈치가 '통증'이면 정도까지.
+   * 아픈 자리는 카드로 이미 골랐다(2026-11-06 — 어깨 · 팔꿈치 카드가 곧 팔 통증 자리라 다시 묻지 않는다).
    */
   const missing =
     answers == null
@@ -308,11 +303,6 @@ export function CheckinFlow({
           ? '어젯밤 잠을 골라 주세요'
           : view.cur === 'pain' && Object.keys(answers.spots).length === 0
             ? '불편한 곳을 고르거나 없음을 눌러 주세요'
-          : view.cur === 'arm' &&
-              painJoints.some((j) =>
-                !answers.armSpots.some((s) => ARM_PAIN_SPOTS[j].some((x) => x.key === s))
-              )
-            ? '어디가 아픈지 골라 주세요'
             : view.cur === 'arm' && answers.armLevel == null
               ? '얼마나 아픈지 골라 주세요'
               : null;
@@ -346,14 +336,13 @@ export function CheckinFlow({
           <PainStep
             spots={answers.spots}
             onSpots={(spots) => patch({ spots })}
+            side={ctx.throwingSide}
           />
         );
       case 'arm':
         return (
           <ArmPainDetailStep
             spots={answers.spots}
-            armSpots={answers.armSpots}
-            onArmSpots={(armSpots) => patch({ armSpots })}
             armLevel={answers.armLevel}
             onArmLevel={(armLevel) => patch({ armLevel })}
           />

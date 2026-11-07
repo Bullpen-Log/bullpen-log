@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
-import { ARMCARE_MUSCLES, findArmcareArea } from '@/lib/armcare/anatomy';
+import { findArmcareArea } from '@/lib/armcare/anatomy';
 import { AREA_DETAILS } from '@/lib/armcare/details';
 import type { AppArmcareGuideTab } from '@/lib/armcare/today-load';
 import type { ArmcareExerciseView } from '@/app/(app)/training/armcare-media';
@@ -12,9 +12,9 @@ import { Press } from '~/shell/press';
 import { Fold, Screen, s, useScreenData } from '~/training/screen';
 import { FavButton } from '~/training/fav-button';
 import { useFavs } from '~/training/favorites';
-import { AreaGlyph, GuideAuxiliary, GuidePain } from '~/armcare/guide';
-import { AREA_SHORT, filterGuide, inArea, isPrimary } from '~/armcare/guide-model';
-import { Muscle3D, MuscleChips } from '~/armcare/muscle-info';
+import { GuideAuxiliary, GuidePain } from '~/armcare/guide';
+import { filterGuide, inArea, isPrimary } from '~/armcare/guide-model';
+import { AreaArt } from '~/armcare/area-art';
 import { AddToRoutine, MyRoutinesProvider, RoutineOperationNotice } from '~/armcare/add-to-routine';
 
 export default function ArmcareAreaScreen() {
@@ -40,13 +40,11 @@ export default function ArmcareAreaScreen() {
   return <Screen showHeading={false} backLabel="부위 선택" title="부위별 보강" state={state} right={!favorites ? <FavButton c={c} onPress={() => router.push('/training/armcare-area?area=favorites' as Href)} /> : undefined}>
     {!valid ? <View style={[s.card, { backgroundColor: c.card }]}><Text style={[s.body, { color: c.ink }]}>부위를 찾을 수 없어요.</Text><Press onPress={() => router.back()} style={{ minHeight: 44 }}><Text style={{ color: c.link }}>부위 선택으로 돌아가기</Text></Press></View> : data ? <MyRoutinesProvider routines={data.routines ?? null}><View style={{ gap: 16 }}>
       <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
-        {area ? <AreaGlyph area={area.key} c={c} /> : null}
-        <View style={{ flex: 1, gap: 4 }}><Text accessibilityRole="header" style={{ fontSize: 28, fontWeight: '800', color: c.ink }}>{area ? `${area.joint} ${AREA_SHORT[area.key]}` : favorites ? '즐겨찾기' : '전체 암케어 운동'}</Text><Text style={[s.small, { color: c.muted }]}>{area ? `${area.label} · ` : ''}{favorites && !data.auxiliary?.favorites ? '즐겨찾기 확인 필요' : `운동 ${list.length}개`}</Text></View>
+        {area ? <AreaArt area={area.key} size={88} /> : null}
+        <View style={{ flex: 1, gap: 4 }}><Text accessibilityRole="header" style={{ fontSize: 28, fontWeight: '800', color: c.ink }}>{area ? area.label : favorites ? '즐겨찾기' : '전체 암케어 운동'}</Text><Text style={[s.small, { color: c.muted }]}>{favorites && !data.auxiliary?.favorites ? '즐겨찾기 확인 필요' : `운동 ${list.length}개`}</Text></View>
       </View>
       {area ? <View style={[s.card, { backgroundColor: c.card }]}><Fold label="부위 설명" c={c}>
-        <Muscle3D area={area.key} c={c}/>
         {details ? <><Text style={[s.bodyBold, { color: c.ink }]}>던질 때 하는 일</Text><Text style={[s.body, { color: c.ink }]}>{details.role}</Text><Text style={[s.bodyBold, { color: c.ink }]}>왜 챙겨야 하나요</Text><Text style={[s.body, { color: c.ink }]}>{details.why}</Text></> : null}
-        <MuscleChips muscles={ARMCARE_MUSCLES.filter((m) => m.area === area.key).map((m) => m.name)} c={c}/>
         <Text style={[s.bodyBold, { color: c.ink }]}>흔한 부상</Text>{area.injuries.map((i) => <View key={i.name}><Text style={[s.smallBold, { color: c.ink }]}>{i.name}</Text><Text style={[s.small, { color: c.muted }]}>{i.desc}</Text></View>)}
         {area.notes.map((note) => <Text key={note} style={[s.small, { color: c.muted }]}>{note}</Text>)}
         {details ? <><Text style={[s.bodyBold, { color: c.ink }]}>불편함이 있으면 확인하세요</Text>{details.signs.map((sign) => <Text key={sign} style={[s.small, { color: c.muted }]}>{sign}</Text>)}<Text style={[s.body, { color: c.ink }]}>{details.train}</Text></> : null}
@@ -54,7 +52,7 @@ export default function ArmcareAreaScreen() {
       {(!area || data.coverage.pain?.spots.some((p) => p.key === area.key)) ? <GuidePain data={data} c={c} onArea={(key) => router.push(`/training/armcare-area?area=${key}` as Href)} /> : null}
       <GuideAuxiliary data={data} reload={state.load} c={c}/>
       <View style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 18, backgroundColor: c.card, paddingHorizontal: 12 }}>
-        <Icon name="search" size={18} color={c.muted}/><TextInput accessibilityLabel="운동·근육·장비 검색" placeholder="운동·근육 검색" placeholderTextColor={c.muted} value={q} onChangeText={(v) => { setQ(v); setLimit(20); }} style={{ flex: 1, minHeight: 50, padding: 12, fontSize: 16, color: c.ink }} />
+        <Icon name="search" size={18} color={c.muted}/><TextInput accessibilityLabel="운동·장비 검색" placeholder="운동 검색" placeholderTextColor={c.muted} value={q} onChangeText={(v) => { setQ(v); setLimit(20); }} style={{ flex: 1, minHeight: 50, padding: 12, fontSize: 16, color: c.ink }} />
         {q ? <Press onPress={() => { setQ(''); setLimit(20); }} accessibilityLabel="검색어 지우기" accessibilityRole="button" style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><Icon name="x" size={18} color={c.muted}/></Press> : null}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>

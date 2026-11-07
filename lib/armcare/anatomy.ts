@@ -34,7 +34,11 @@ export type ArmcareAreaKey =
 export type ArmcareArea = {
   key: ArmcareAreaKey;
   joint: ArmcareJoint;
-  /** 화면 이름 — '어깨 후방' */
+  /**
+   * 화면 이름 — '어깨 뒤쪽'. 체크인의 아픈 자리 카드(lib/body-spots SPOT_DEFS)와 같은 말이다 — 2026-11-06 김민: 암케어 · 운동 설명도
+   * 체크인과 같은 큰 부위로 단순화('어깨 후방 · 팔꿈치 내측'처럼 몸에서 바로 찾기 어려운 말을 걷음).
+   * 견갑은 '날개뼈'로 바꿨다가 김민이 되돌렸다(같은 날 — '견갑'으로).
+   */
   label: string;
   /**
    * 부위의 색 — 부위 단추 · 부위 카드 · 근육 칩의 점이 같은 색을 쓴다. 3D 근육 지도는
@@ -61,7 +65,7 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
   {
     key: 'shoulder-back',
     joint: '어깨',
-    label: '어깨 후방',
+    label: '어깨 뒤쪽',
     color: '#3b82f6',
     injuries: [
       {
@@ -86,7 +90,7 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
   {
     key: 'shoulder-front',
     joint: '어깨',
-    label: '어깨 전방',
+    label: '어깨 앞쪽',
     color: '#8b5cf6',
     injuries: [
       {
@@ -107,7 +111,7 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
   {
     key: 'shoulder-top',
     joint: '어깨',
-    label: '어깨 상부',
+    label: '어깨 위쪽',
     color: '#06b6d4',
     injuries: [
       {
@@ -145,7 +149,7 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
   {
     key: 'elbow-inner',
     joint: '팔꿈치',
-    label: '팔꿈치 내측',
+    label: '팔꿈치 안쪽',
     color: '#f97316',
     injuries: [
       {
@@ -170,7 +174,7 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
   {
     key: 'elbow-outer',
     joint: '팔꿈치',
-    label: '팔꿈치 외측',
+    label: '팔꿈치 바깥쪽',
     color: '#eab308',
     injuries: [
       {
@@ -189,7 +193,7 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
   {
     key: 'elbow-back',
     joint: '팔꿈치',
-    label: '팔꿈치 후방',
+    label: '팔꿈치 뒤쪽',
     color: '#ec4899',
     injuries: [
       {
@@ -209,7 +213,7 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
   {
     key: 'elbow-front',
     joint: '팔꿈치',
-    label: '팔꿈치 전방',
+    label: '팔꿈치 앞쪽',
     color: '#ef4444',
     injuries: [
       {
