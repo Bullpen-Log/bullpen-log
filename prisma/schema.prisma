@@ -2996,7 +2996,7 @@ model IntakeAsset {
   view               String
   /// 서버가 정한 경로(lib/intake/paths.ts). 이름 · 확장자를 넣지 않는다
   objectPath         String    @unique
-  /// reserved · uploading · uploaded · verifying · verified · unconfirmed · rejected · replaced · abandoned · purged
+  /// reserved · uploading · uploaded · verifying · verified · unconfirmed · rejected · replaced · abandoned · purging · purged
   status             String    @default("reserved")
   /// 브라우저가 알려 준 이름 · 종류 · 크기 — 표시용일 뿐 믿지 않는다
   originalName       String

@@ -4,7 +4,7 @@
  *   verify_asset      스트리밍 SHA-256 · 크기 · 파일 머리 · 브라우저 해시와 대조(service.ts verifyAsset). 저장소 탓이면 던져서 다시 하고, 파일 탓이면 자산을 닫는다.
  *   register_revision 검증된 판의 원본이 저장소에 그대로 있는지 보고 '분석 가능'으로 등록한다. 같은 입력의 실행이 있으면 분석 상태를 잇는다. GPU 는 걸지 않는다.
  *   poll_analysis     분석 서버에 묻고 결과를 readPitch3dV2Result 로 검사해 적는다(analysis.ts pollIntakeRun).
- *   cleanup_uploads   끝난 전송을 찾아 잇고(대사), 판에 오르지 못한 임시 파일만 지운다. 판에 얼린 원본은 건드리지 않는다.
+ *   cleanup_uploads   끝난 전송을 찾아 잇고(대사), 판에 오르지 못한 임시 파일만 지운다. 판에 얼린 원본은 건드리지 않는다. 파일이 안 지워지면 던져서 다시 돌고, 15분 칸마다 새 일감이 이어 받는다.
  *   purge_originals   보유 기간이 끝난 접수의 원본 · 미리보기를 지운다(purge.ts). 분석이 돌거나 고침을 기다리면 횟수를 안 쓰고 미룬다.
  *
  * 처리기는 같은 일을 두 번 해도 괜찮아야 한다. 임대가 끝나면 다른 일꾼이 이어 받는다.
@@ -20,7 +20,7 @@ import { writeAudit } from '@/lib/intake/audit';
 import { enqueueJob, requeueJob, runDueJobs, type IntakeJobKind, type JobHandlers, type RunSummary } from '@/lib/intake/jobs';
 import { PURGE_RETRY_AFTER_MS, enqueueDuePurges, purgeSubmissionOriginals } from '@/lib/intake/purge';
 import { intakeCoreJobHandlers, reconcilePendingRevisions } from '@/lib/intake/service';
-import { verifyTargetIds } from '@/lib/intake/state';
+import { assetGone, verifyTargetIds } from '@/lib/intake/state';
 import type { IntakeStorage } from '@/lib/intake/storage-core';
 
 const QUARTER_HOUR_MS = 15 * 60_000;
@@ -51,8 +51,8 @@ export async function registerRevision(rt: Pick<IntakeRuntime, 'db' | 'now'> & {
 
   const assets = await db.intakeAsset.findMany({ where: { id: { in: [rev.sideAssetId, rev.rearAssetId] } } });
   if (assets.length !== 2) throw new Error('얼린 판의 자산이 없어요');
-  /* 보유 기간이 끝나 지운 원본은 없는 것이 맞다 — 고침을 거둬 다시 등록해도 실패로 쌓이지 않게 */
-  if (assets.some((a) => a.purgedAt != null)) return 'skipped';
+  /* 보유 기간이 끝나 지웠거나 지우는 중인 원본은 없는 것이 맞다 — 고침을 거둬 다시 등록해도 실패로 쌓이지 않게 */
+  if (assets.some((a) => assetGone(a.status))) return 'skipped';
   for (const a of assets) {
     const stat = await storage.stat(a.objectPath);
     if (!stat) throw new Error(`원본이 저장소에 없어요: ${a.id}`);
@@ -168,7 +168,8 @@ export async function runIntakeCron(rt: IntakeRuntime, input: { owner?: string }
   const purge = await runDueJobs(db, handlers, { owner, limit: PURGE_PER_RUN, kinds: ['purge_originals'], now: clockFn });
   const heavy = await runDueJobs(db, handlers, { owner, limit: VERIFY_PER_RUN, kinds: ['verify_asset'], now: clockFn });
 
-  const pruned = await db.intakeJob.deleteMany({ where: { status: 'done', finishedAt: { lt: new Date(now.getTime() - FINISHED_JOB_KEEP_MS) } } });
+  /* 정리 일감은 열쇠가 15분 칸마다 달라, 안 지워지는 파일이 있으면 실패 줄이 칸마다 쌓인다. 까닭은 새 줄에 계속 남으니 옛 실패 줄도 같이 지운다 */
+  const pruned = await db.intakeJob.deleteMany({ where: { finishedAt: { lt: new Date(now.getTime() - FINISHED_JOB_KEEP_MS) }, OR: [{ status: 'done' }, { status: 'failed', kind: 'cleanup_uploads' }] } });
   return { ...addSummary(addSummary(light, purge), heavy), repaired, settled, pruned: pruned.count, purgesQueued };
 }
 

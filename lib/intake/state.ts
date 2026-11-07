@@ -22,6 +22,8 @@ export const ASSET_STATUSES = [
   'rejected',
   'replaced',
   'abandoned',
+  /* 보유 삭제가 지우기로 정했다 — 되돌리지 않는다. 일부 바이트가 이미 없을 수 있어 없는 것으로 치고 행동한다(lib/intake/purge.ts) */
+  'purging',
   'purged',
 ] as const;
 export type AssetStatus = (typeof ASSET_STATUSES)[number];
@@ -48,19 +50,23 @@ export type RunStatus = (typeof RUN_STATUSES)[number];
 export const REVISION_STATUSES = ['pending', 'verified', 'failed'] as const;
 export type RevisionStatus = (typeof REVISION_STATUSES)[number];
 
-/* 도착한 뒤의 상태에서 'purged' 로 바로 가는 길은 보유 삭제뿐이다(lib/intake/purge.ts). 판에 얼린 원본은 'replaced' · 'abandoned' 를 거치지 않는다 */
+/*
+ * 판에 오른 원본은 'purging' 을 거쳐서만 'purged' 로 간다(lib/intake/purge.ts). 'purging' 에서 돌아오는 길은 없다.
+ * 'purged' 로 바로 가는 길은 임시 파일을 지우는 cleanupStaleUploads 의 'replaced' · 'abandoned' 뿐이다. 판에 얼린 원본은 그 둘을 거치지 않지만, 잘못 적혔어도 보유 삭제가 지울 수 있게 'purging' 을 열어 둔다.
+ */
 const ASSET_FLOW: Record<AssetStatus, readonly AssetStatus[]> = {
   reserved: ['uploading', 'uploaded', 'replaced', 'abandoned'],
   uploading: ['uploaded', 'rejected', 'replaced', 'abandoned'],
-  uploaded: ['verifying', 'verified', 'unconfirmed', 'rejected', 'replaced', 'abandoned', 'purged'],
+  uploaded: ['verifying', 'verified', 'unconfirmed', 'rejected', 'replaced', 'abandoned', 'purging'],
   /* 검증은 도중에 끊겨도 다시 돈다 — 그래서 verifying 에서 verifying 으로 다시 들어가는 일은 이동이 아니다 */
-  verifying: ['verified', 'unconfirmed', 'rejected', 'replaced', 'abandoned', 'purged'],
+  verifying: ['verified', 'unconfirmed', 'rejected', 'replaced', 'abandoned', 'purging'],
   /* 'abandoned' 는 끝내지 않은 접수의 자산만이다 — 얼린 자산은 cleanupStaleUploads 가 건드리지 않는다 */
-  verified: ['replaced', 'abandoned', 'purged'],
-  unconfirmed: ['replaced', 'abandoned', 'purged'],
-  rejected: ['replaced', 'abandoned', 'purged'],
-  replaced: ['purged'],
-  abandoned: ['purged'],
+  verified: ['replaced', 'abandoned', 'purging'],
+  unconfirmed: ['replaced', 'abandoned', 'purging'],
+  rejected: ['replaced', 'abandoned', 'purging'],
+  replaced: ['purging', 'purged'],
+  abandoned: ['purging', 'purged'],
+  purging: ['purged'],
   purged: [],
 };
 
@@ -114,6 +120,9 @@ export const assetArrived = (s: string) => s === 'uploaded' || s === 'verifying'
 export const assetVerifyDone = (s: string) => s === 'verified' || s === 'unconfirmed' || s === 'rejected';
 /** 아직 전송 중이거나 전송을 기다리는가 */
 export const assetInTransit = (s: string) => s === 'reserved' || s === 'uploading';
+/** 바이트가 없다고 치는 상태 — 지우는 중이면 일부가 이미 없을 수 있다. 새 판 · 새 실행 · 새 주소 · 같은 파일 재사용에 못 들어간다 */
+export const ASSET_GONE = ['purging', 'purged'] as const;
+export const assetGone = (s: string) => s === 'purging' || s === 'purged';
 
 /** 접수 뒤에 필수 동의가 지금 판이 아니면 다시 받을 수 있다 — 동의 글의 판이 바뀐 경우다. 철회한 접수는 'withdrawn' 이라 여기 안 든다 */
 export const reconsentOpen = (submissionStatus: string, requiredOk: boolean) =>
@@ -126,6 +135,29 @@ export const reconsentOpen = (submissionStatus: string, requiredOk: boolean) =>
 type PairSlots = { sideAssetId: string | null; rearAssetId: string | null };
 export const verifyTargetIds = (sub: PairSlots, currentRevision: PairSlots | null): string[] =>
   [...new Set([currentRevision?.sideAssetId, currentRevision?.rearAssetId, sub.sideAssetId, sub.rearAssetId])].filter((id): id is string => id != null);
+
+/** 지우는 중인 원본이 어느 쪽인가 — 'current' 지금 판의 파일이 있다, 'older' 옛 판의 파일뿐이다. 'older' 면 지금 판은 살아 있거나 이미 다 지웠다. 어느 쪽인지는 지운 날이 말한다 */
+export type PurgingScope = 'current' | 'older';
+export function purgingScope(assets: readonly { id: string; status: string }[], currentRevision: PairSlots | null): PurgingScope | null {
+  const purging = assets.filter((a) => a.status === 'purging');
+  if (purging.length === 0) return null;
+  return purging.some((a) => a.id === currentRevision?.sideAssetId || a.id === currentRevision?.rearAssetId) ? 'current' : 'older';
+}
+
+export type ReceiptRetentionRow = { label: string; date: string } | { label: string; text: string };
+
+/**
+ * 영수증의 원본 줄 — 지금 판을 지우는 중이면 날짜를 안 말한다. 철회로 밀린 날을 예정일이라고 말하면, 지우고 있는 파일이 그날까지 남는다고 읽힌다.
+ * 옛 영상만 지우는 중이면 지금 판의 날짜 밑에 따로 말한다.
+ */
+export function receiptRetentionRows(s: { originalDeleting: PurgingScope | null; originalDeletedDate: string | null; originalDeleteDate: string | null }): ReceiptRetentionRow[] {
+  const rows: ReceiptRetentionRow[] = [];
+  if (s.originalDeleting === 'current') rows.push({ label: '원본', text: '지우고 있어요' });
+  else if (s.originalDeletedDate) rows.push({ label: '원본 지운 날', date: s.originalDeletedDate });
+  else if (s.originalDeleteDate) rows.push({ label: '원본 삭제 예정일', date: s.originalDeleteDate });
+  if (s.originalDeleting === 'older') rows.push({ label: '옛 영상', text: '지우고 있어요' });
+  return rows;
+}
 
 /** 고침 요청에서 고를 수 있는 글 칸 */
 export const CORRECTABLE_FIELDS = ['athleteName', 'throwingHand', 'submitterName', 'submitterRelation'] as const;

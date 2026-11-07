@@ -427,7 +427,9 @@ const panel = (over: Record<string, unknown>) =>
   ok(!rules.pairDownloadable({ ...pair({ available: true }), status: 'withdrawn' } as never), '철회되면 단추가 없다');
   ok(!rules.pairDownloadable({ status: 'draft', revisions: [], assets: [] } as never), '판이 없으면 단추가 없다');
   eq(rules.viewsToResend([{ view: 'side', status: 'purged', current: true }, { view: 'rear', status: 'purged', current: true }, { view: 'rear', status: 'purged', current: false }]), ['side', 'rear'], '지운 칸은 다시 받을 칸이다');
+  eq(rules.viewsToResend([{ view: 'side', status: 'purging', current: true }, { view: 'rear', status: 'verified', current: true }]), ['side'], '지우는 칸도 다시 받을 칸이다');
   ok(rules.needsFreshView('original_purged'), '지운 뒤 낡은 화면은 새로 받는다');
+  ok(rules.needsFreshView('purge_in_progress'), '지우는 중에 막히면 화면을 새로 받는다');
 
   const base = { purgeAt: '2027-02-04T00:00:00.000Z', anchorAt: '2026-11-06T00:00:00.000Z', basis: 'submitted', purgedAt: null, heldUntil: null };
   const now = new Date('2027-02-05T00:00:00.000Z');
@@ -435,6 +437,32 @@ const panel = (over: Record<string, unknown>) =>
   eq(rules.retentionText({ ...base, purgedAt: '2027-02-04T01:00:00.000Z' } as never, now).label, '원본 지운 날', '지운 뒤에는 지운 날이다');
   ok(rules.retentionText({ ...base, heldUntil: '2027-02-10T00:00:00.000Z' } as never, now).note?.includes('고침'), '기다리는 까닭을 말한다');
   eq(rules.retentionText({ ...base, heldUntil: '2027-02-10T00:00:00.000Z' } as never, new Date('2027-01-01T00:00:00.000Z')).note, null, '지울 날 전에는 말할 것이 없다');
+
+  /* 지우는 중 — 표시는 고침 · 철회를 안 기다린다. 지울 날 · 기다림 글을 말하면 거짓이다 */
+  const since = '2027-02-04T00:10:00.000Z';
+  const current = { ...base, purging: { since, files: 2, scope: 'current' } };
+  const shown = rules.retentionText(current as never, now);
+  eq([shown.label, shown.date], ['원본 지우는 중', since], '지금 판을 지우는 중이면 그렇게 말하고 시작한 때를 보인다');
+  ok(shown.note?.includes('지운 날로 바뀌어요'), '끝나면 어떻게 되는지 말한다');
+  eq(rules.retentionText({ ...current, purgeAt: '2027-05-07T00:00:00.000Z' } as never, now).label, '원본 지우는 중', '철회로 지울 날이 밀려도 지우는 중이다');
+  ok(!rules.retentionText({ ...current, heldUntil: '2027-02-10T00:00:00.000Z' } as never, now).note?.includes('고침'), '고침을 기다린다고 안 말한다');
+
+  /* 옛 판만 지우는 중 — 지금 판의 날짜는 그대로이고, 끝나도 지운 날로 안 바뀐다 */
+  const older = { ...base, purging: { since, files: 1, scope: 'older' } };
+  const olderShown = rules.retentionText(older as never, now);
+  eq([olderShown.label, olderShown.date], ['원본 삭제 예정일', base.purgeAt], '지금 판의 지울 날을 지킨다');
+  ok(olderShown.note?.includes('옛 판') && !olderShown.note.includes('지운 날로 바뀌어요'), '옛 판을 지우는 중이라고 따로 말한다');
+  ok(!rules.retentionText({ ...older, heldUntil: '2027-02-10T00:00:00.000Z' } as never, now).note?.includes('고침'), '옛 판을 말할 때는 기다림 글을 안 섞는다');
+  const olderGone = rules.retentionText({ ...older, purgedAt: '2027-02-04T01:00:00.000Z' } as never, now);
+  eq([olderGone.label, olderGone.date], ['원본 지운 날', '2027-02-04T01:00:00.000Z'], '지금 판을 지웠으면 지운 날을 말한다');
+  ok(olderGone.note?.includes('옛 판'), '옛 판이 남았다고 같이 말한다');
+
+  /* 철회 배너 */
+  eq(rules.withdrawnRetentionText(null), '', '지울 날이 없으면 안 말한다');
+  ok(rules.withdrawnRetentionText(base as never).includes('에 지워요'), '지울 날을 말한다');
+  ok(rules.withdrawnRetentionText({ ...base, purgedAt: '2027-02-04T01:00:00.000Z' } as never).includes('에 지웠어요'), '지운 날을 말한다');
+  eq(rules.withdrawnRetentionText({ ...current, purgeAt: '2027-05-07T00:00:00.000Z' } as never), ' 원본을 지우고 있어요.', '철회로 밀린 날을 지울 날이라고 안 말한다');
+  ok(rules.withdrawnRetentionText(older as never).includes('에 지워요'), '옛 판만 지우면 지금 판의 지울 날을 말한다');
 
   const page = readFileSync(fileURLToPath(new URL('./page.tsx', import.meta.url)), 'utf8');
   ok(page.includes('pairDownloadable(d)') && page.includes('RETENTION_BASIS_TEXT'), '화면이 규칙을 쓴다');
@@ -444,6 +472,8 @@ const panel = (over: Record<string, unknown>) =>
   ok(!manage.includes('보유 기간이 정해질 때까지'), '철회 확인창의 옛 약속이 없다');
   const list = readFileSync(fileURLToPath(new URL('../page.tsx', import.meta.url)), 'utf8');
   ok(list.includes('원본 삭제 예정일'), '목록에 칸이 있다');
+  ok(list.includes('retentionCellText(r)') && list.includes('retentionLineText(r)'), '목록이 지우는 중을 아는 글을 쓴다');
+  ok(page.includes('withdrawnRetentionText(d.retention)'), '철회 배너가 지우는 중을 아는 글을 쓴다');
 }
 
 console.log(`intake detail: ${passed}개 통과`);

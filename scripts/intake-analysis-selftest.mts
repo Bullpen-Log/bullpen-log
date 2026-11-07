@@ -31,7 +31,7 @@ import {
   type IntakeRuntime,
   runPreviewPath,
 } from '@/lib/intake/analysis';
-import { adminWithdrawConsent } from '@/lib/intake/admin';
+import { adminWithdrawConsent, issueOriginalLinks, issueRunPreviewLink } from '@/lib/intake/admin';
 import { consentDocOf, type ConsentAnswer } from '@/lib/intake/consent';
 import { IntakeError, type IntakeErrorCode } from '@/lib/intake/errors';
 import { cronAuthorized, handleCronRequest, intakeJobHandlers, registerRevision, runIntakeCron } from '@/lib/intake/job-handlers';
@@ -103,7 +103,7 @@ const db = new PrismaClient({
 const objects = new Map<string, Buffer>();
 const PUT = 'https://put.example/';
 const READ = 'https://read.example/';
-const fault: { resultUrl: boolean; onSign: (() => Promise<void>) | null } = { resultUrl: false, onSign: null };
+const fault: { resultUrl: boolean; onSign: (() => Promise<void>) | null; removePartial: boolean } = { resultUrl: false, onSign: null, removePartial: false };
 const storage: IntakeRunStorage = {
   uploadOrigin: 'https://proj.storage.supabase.co',
   async issueUpload(objectPath) {
@@ -128,6 +128,11 @@ const storage: IntakeRunStorage = {
     return [...objects.keys()].filter((k) => k.startsWith(prefix));
   },
   async remove(paths) {
+    if (fault.removePartial) {
+      fault.removePartial = false;
+      objects.delete(paths[paths.length - 1]);
+      throw new IntakeError('storage_unavailable', { cause: 'remove' });
+    }
     for (const p of paths) objects.delete(p);
   },
   async resultUploadUrl(p) {
@@ -1486,6 +1491,126 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
   eq((await listRuns(m.submissionId, rt))[0].previewPaths, null, '지운 미리보기는 없는 것으로 보인다');
   ok((await listRuns(m.submissionId, rt))[0].hasResult, '결과는 있다고 보인다');
   nowMs = startedAt;
+}
+
+/* ─────────────────────── 지우기 시작한 원본 — 시계를 다시 돌리는 일과 바이트를 쓰는 일을 막는다 ─────────────────────── */
+{
+  const DAY = 86_400_000;
+  const startedAt = nowMs;
+  const at = () => new Date(nowMs);
+  const purge = (id: string) => purgeSubmissionOriginals(rt, id);
+  const auditCount = (submissionId: string, action: string) => db.intakeAudit.count({ where: { submissionId, action } });
+  const publicationCount = (submissionId: string) => db.intakePublication.count({ where: { submissionId } });
+  /** 표시가 커밋된 뒤, 저장소를 지우기 전의 틈에 끼어든다 — 다음 remove 한 번 앞에서 돈다 */
+  const inRemoveGap = (work: () => Promise<void>) => {
+    const real = storage.remove;
+    storage.remove = async (paths) => {
+      storage.remove = real;
+      await work();
+      await real.call(storage, paths);
+    };
+  };
+  /** 지금 시각에 고침을 열고 두 파일을 새로 받아 낸다 */
+  async function resend(m: Made) {
+    await requestCorrection(db, { adminId: ADMIN, submissionId: m.submissionId, views: ['side', 'rear'], extendUploadUntil: new Date(nowMs + 14 * DAY) }, at());
+    let version = 0;
+    for (const [view, file] of [['side', mov120(4096, { appleFocal: '26' })], ['rear', mov240(4096, { appleFocal: '26' })]] as const) {
+      const sub = await subOf(m.submissionId);
+      const r = await reserveAsset(db, m.scope, { view, expectedAssetId: view === 'side' ? sub.sideAssetId : sub.rearAssetId, fileName: `다시-${view}.mov`, sizeBytes: file.length, sha256: sha(file), pairConfirmed: true }, at());
+      version = r.version;
+      await issueUploadToken(db, storage, m.scope, { assetId: r.asset.id }, at());
+      put(assetObjectPath(m.submissionId, r.asset.id), file);
+      await confirmUpload(db, storage, m.scope, { assetId: r.asset.id }, at());
+    }
+    await finalizeSubmission(db, m.scope, { expectedVersion: version, idempotencyKey: randomBytes(16).toString('hex') }, at());
+    for (const kind of ['verify_asset', 'register_revision'] as const) await runDueJobs(db, intakeJobHandlers(rt), { owner: 'test', kinds: [kind], limit: 10, now: at });
+    eq((await subOf(m.submissionId)).status, 'verified', '새로 낸 판이 검증됐다');
+  }
+
+  /* 지적 2(1): 90일째 지우기로 정한 뒤 저장소를 부르기 전에 공개가 끼어든다 — 공개는 시계를 90일 밀어서, 끼어들면 공개가 약속한 날 전에 원본이 사라진다 */
+  const a = await makeVerified();
+  const { run: aRun } = await start(a.submissionId);
+  await finishGpu(lastCall());
+  nowMs = startedAt + 90 * DAY;
+  inRemoveGap(async () => {
+    await fails(publish({ runId: aRun.id, adminId: ADMIN }), 'purge_in_progress', '지우기로 정한 원본의 실행은 공개하지 못한다');
+  });
+  eq((await purge(a.submissionId)).outcome, 'purged', '지운다');
+  eq(await publicationCount(a.submissionId), 0, '공개가 안 생긴다');
+  const aAssets = await db.intakeAsset.findMany({ where: { submissionId: a.submissionId } });
+  ok(aAssets.every((x) => x.status === 'purged' && !objects.has(x.objectPath)), '원본이 없고 지운 것으로 적혔다');
+  const aPub = await publish({ runId: aRun.id, adminId: ADMIN });
+  ok(aPub.created, '다 지운 뒤에는 결과 JSON 으로 공개한다');
+  await takedown(a.submissionId);
+
+  /* 지적 2(3): 원본 하나를 지우고 끊긴 틈 — 몇 시간 벌어져도 공개 · 주소 · 분석이 막히고, 다음 크론이 끝까지 지운다 */
+  nowMs = startedAt;
+  const b = await makeVerified();
+  const { run: bRun } = await start(b.submissionId);
+  await finishGpu(lastCall());
+  ok((await listRuns(b.submissionId, rt))[0].previewPaths != null, '지우기 전에는 미리보기가 보인다');
+  nowMs = startedAt + 90 * DAY;
+  const bKey = `purge_originals:${b.submissionId}:시험`;
+  await enqueueJob(db, { kind: 'purge_originals', dedupeKey: bKey, payload: { submissionId: b.submissionId }, runAfter: at() });
+  const runPurgeJobs = () => runDueJobs(db, intakeJobHandlers(rt), { owner: 'test', kinds: ['purge_originals'], now: at });
+  fault.removePartial = true;
+  eq((await runPurgeJobs()).retried, 1, '크론이 원본 하나를 지우고 끊겨 일감이 다시 돌 차례가 된다');
+  const left = await db.intakeAsset.findMany({ where: { submissionId: b.submissionId } });
+  ok(left.every((x) => x.status === 'purging') && left.some((x) => !objects.has(x.objectPath)) && left.some((x) => objects.has(x.objectPath)), '한쪽이 없고 둘 다 지우는 중이다');
+  await fails(publish({ runId: bRun.id, adminId: ADMIN }), 'purge_in_progress', '틈에 공개로 시계를 다시 돌리지 못한다');
+  await fails(issueOriginalLinks(db, storage, ACTOR, { submissionId: b.submissionId, purpose: 'download' }, at()), 'original_purged', '틈에 원본 주소를 안 준다');
+  await fails(issueRunPreviewLink(db, storage, ACTOR, { submissionId: b.submissionId, runId: bRun.id, view: 'side' }, at()), 'original_purged', '틈에 미리보기 주소도 안 준다');
+  eq((await analysisReadiness(b.submissionId, rt)).blockers[0].code, 'original_purged', '준비 상태가 까닭을 먼저 말한다');
+  await fails(start(b.submissionId), 'original_purged', '틈에 새 분석을 안 건다');
+  eq((await listRuns(b.submissionId, rt))[0].previewPaths, null, '지우는 미리보기는 없는 것으로 보인다');
+  const gap = await loadPublicState(db, b.scope, { now: at() });
+  eq([gap.originalDeletedDate, gap.originalDeleting, gap.assets.side?.integrity], [null, 'current', '보유 기간이 지나 원본을 지우고 있어요'], '공개 상태가 지우는 중이라고 말한다');
+  nowMs += 3_600_000;
+  eq((await runPurgeJobs()).done, 1, '다음 크론이 끝까지 지운다');
+  ok((await db.intakeAsset.findMany({ where: { submissionId: b.submissionId } })).every((x) => x.status === 'purged' && !objects.has(x.objectPath)), 'not_due 로 끝나지 않고 둘 다 지웠다');
+  eq((await db.intakeJob.findUniqueOrThrow({ where: { dedupeKey: bKey } })).status, 'done', '일감도 끝났다');
+  const done = await loadPublicState(db, b.scope, { now: at() });
+  ok(done.originalDeletedDate != null && done.originalDeleting === null, '끝나면 지운 날을 말한다');
+  eq([await auditCount(b.submissionId, 'originals.purge_started'), await auditCount(b.submissionId, 'originals.purged')], [1, 1], '시작 · 끝 기록이 한 줄씩이다');
+
+  /* 옛 실행의 입력은 다 지웠어도 지금 판을 지우는 중이면 막는다 — 공개가 지금 판의 시계까지 돌리기 때문이다 */
+  nowMs = startedAt;
+  const c = await makeVerified();
+  const { run: cRun } = await start(c.submissionId);
+  await finishGpu(lastCall());
+  nowMs = startedAt + 90 * DAY;
+  eq((await purge(c.submissionId)).outcome, 'purged', '1판을 지운다');
+  nowMs = startedAt + 100 * DAY;
+  await resend(c);
+  nowMs = startedAt + 190 * DAY;
+  inRemoveGap(async () => {
+    await fails(publish({ runId: cRun.id, adminId: ADMIN, allowOlderRevision: true }), 'purge_in_progress', '옛 실행을 공개해도 지우는 지금 판의 시계를 못 돌린다');
+  });
+  eq((await purge(c.submissionId)).outcome, 'purged', '2판을 지운다');
+  eq(await publicationCount(c.submissionId), 0, '공개가 안 생긴다');
+  ok((await publish({ runId: cRun.id, adminId: ADMIN, allowOlderRevision: true })).created, '다 지운 뒤에는 옛 결과도 공개한다');
+  await takedown(c.submissionId);
+
+  /* 옛 판을 지우다 멈춰도 새 판의 분석 · 공개는 막지 않는다 */
+  nowMs = startedAt;
+  const d = await makeVerified();
+  nowMs = startedAt + 90 * DAY;
+  fault.removePartial = true;
+  await fails(purge(d.submissionId), 'storage_unavailable', '옛 판을 지우다 끊긴다');
+  nowMs = startedAt + 91 * DAY;
+  await resend(d);
+  const { run: dRun } = await start(d.submissionId);
+  await finishGpu(lastCall());
+  ok((await publish({ runId: dRun.id, adminId: ADMIN })).created, '새 판의 결과는 공개한다');
+  eq((await purge(d.submissionId)).outcome, 'purged', '옛 파일은 계속 지운다');
+  await takedown(d.submissionId);
+
+  /* 지울 날 앞이어도 지금 판을 지우는 중이면 새 분석을 안 건다 — 날짜가 밀려도 표시는 안 풀린다 */
+  nowMs = startedAt;
+  const e = await makeVerified();
+  await db.intakeAsset.updateMany({ where: { submissionId: e.submissionId }, data: { status: 'purging' } });
+  await fails(start(e.submissionId), 'original_purged', '표시가 걸린 판은 지울 날을 안 보고 막는다');
+  await db.intakeAsset.updateMany({ where: { submissionId: e.submissionId }, data: { status: 'verified' } });
 }
 
 await db.$disconnect();

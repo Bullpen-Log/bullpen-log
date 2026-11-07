@@ -47,6 +47,7 @@ export const ASSET_STATUS_TEXT: Record<string, string> = {
   rejected: '막힘',
   replaced: '교체됨',
   abandoned: '버려짐',
+  purging: '지우는 중',
   purged: '지워짐',
 };
 
@@ -114,6 +115,7 @@ export const AUDIT_ACTION_TEXT: Record<string, string> = {
   'asset.unconfirmed': '바이트는 맞지만 영상인지 확인하지 못했어요',
   'asset.verify_requeued': '파일 확인을 다시 걸었어요',
   'asset.purged': '쓰이지 않는 파일을 지웠어요',
+  'originals.purge_started': '보유 기간이 끝나 원본 지우기를 시작했어요',
   'originals.purged': '보유 기간이 끝나 원본과 미리보기를 지웠어요',
   'submission.finalized': '접수를 마쳤어요',
   'revision.verified': '두 파일이 검증됐어요',
@@ -212,3 +214,12 @@ const SEOUL_TIME = new Intl.DateTimeFormat('ko-KR', {
 /** 서버 시각 → 한국 날짜 글. 없으면 '-' */
 export const seoulDateText = (iso: string | null | undefined) => (iso ? SEOUL_DATE.format(new Date(iso)) : '-');
 export const seoulTimeText = (iso: string | null | undefined) => (iso ? SEOUL_TIME.format(new Date(iso)) : '-');
+
+type RetentionCell = { originalPurgeAt: string | null; originalsPurgedAt: string | null; originalsPurging: string | null };
+
+/** 목록의 원본 칸 — 지금 판을 지우는 중이면 그 사실을, 지운 뒤에는 지운 날을, 아니면 지울 날을 보인다. 지우는 중에 철회로 밀린 날을 지울 날이라고 말하지 않는다 */
+export const retentionCellText = (r: RetentionCell) =>
+  r.originalsPurging === 'current' ? '지우는 중' : r.originalsPurgedAt ? `지워짐 · ${seoulDateText(r.originalsPurgedAt)}` : seoulDateText(r.originalPurgeAt);
+
+/** 휴대폰 목록의 줄 — 칸 제목이 없어 날짜가 지울 날일 때만 이름을 붙인다 */
+export const retentionLineText = (r: RetentionCell) => (r.originalsPurging === 'current' || r.originalsPurgedAt ? retentionCellText(r) : `원본 삭제 예정일 ${retentionCellText(r)}`);

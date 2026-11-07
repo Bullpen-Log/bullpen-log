@@ -11,6 +11,8 @@ import {
   PUBLICATION_STATUS_TEXT,
   SUBMISSION_STATUS_TEXT,
   VIEW_PROGRESS_TEXT,
+  retentionCellText,
+  retentionLineText,
   seoulDateText,
   textOf,
   type ViewProgress,
@@ -76,9 +78,6 @@ async function loadList(user: { id: string; role: string }, filters: IntakeListF
 }
 
 const hrefOfRow = (id: string) => `/admin/intake/${id}`;
-
-/** 지운 뒤에는 지운 날을 보인다 */
-const retentionCell = (r: IntakeListRow) => (r.originalsPurgedAt ? `지워짐 · ${seoulDateText(r.originalsPurgedAt)}` : seoulDateText(r.originalPurgeAt));
 
 const titleOf = (r: IntakeListRow) => r.athleteName ?? r.invitationNote ?? '이름 미입력';
 
@@ -150,7 +149,7 @@ function DeskTable({ rows }: { rows: IntakeListRow[] }) {
                 <StatusChip tone={publicationTone(r.publicationStatus)}>{textOf(PUBLICATION_STATUS_TEXT, r.publicationStatus)}</StatusChip>
               </td>
               <td className="max-w-32 truncate px-3 py-2.5 text-muted">{r.assigneeName ?? '없음'}</td>
-              <td className="whitespace-nowrap px-3 py-2.5 text-muted">{retentionCell(r)}</td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-muted">{retentionCellText(r)}</td>
             </tr>
           ))}
         </tbody>
@@ -175,7 +174,7 @@ function PhoneList({ rows }: { rows: IntakeListRow[] }) {
                 {seoulDateText(r.receivedAt)}
                 {r.assigneeName ? ` · 담당 ${r.assigneeName}` : ''}
               </span>
-              {r.originalPurgeAt && <span className="block text-xs text-muted">원본 삭제 예정일 {retentionCell(r)}</span>}
+              {r.originalPurgeAt && <span className="block text-xs text-muted">{retentionLineText(r)}</span>}
               <span className="flex flex-wrap gap-1">
                 <Views row={r} />
                 <StatusChip tone={submissionTone(r.status)}>{textOf(SUBMISSION_STATUS_TEXT, r.status)}</StatusChip>

@@ -48,6 +48,7 @@ export const INTAKE_ERROR_TEXT = {
   original_locked: '동의가 철회된 접수라 원본을 열 수 없어요.',
   original_unavailable: '아직 저장소에 도착하지 않은 영상이에요.',
   original_purged: '보유 기간이 끝난 원본이라 쓸 수 없어요. 필요하면 고침을 요청해 영상을 다시 받아 주세요.',
+  purge_in_progress: '이 영상의 원본을 지우는 중이에요. 끝난 뒤에 다시 시도해 주세요.',
   /* 분석 · 공개 */
   analysis_not_configured: '분석 서버 설정이 없어요.',
   analysis_not_ready: '아직 분석할 수 없어요. 두 영상의 검증이 끝났는지 확인해 주세요.',
@@ -72,6 +73,7 @@ const STATUS: Partial<Record<IntakeErrorCode, number>> = {
   admin_forbidden: 403,
   original_locked: 403,
   original_purged: 410,
+  purge_in_progress: 409,
   upload_expired: 403,
   result_expired: 403,
   access_code_required: 401,

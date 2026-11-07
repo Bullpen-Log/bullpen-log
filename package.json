@@ -77,6 +77,7 @@
     "intake:transfer-test": "node --import ./scripts/alias-register.mjs scripts/intake-transfer-selftest.mts",
     "intake:public-test": "node --import ./scripts/alias-register.mjs scripts/intake-public-selftest.mts",
     "intake:analysis-test": "node --import ./scripts/alias-register.mjs scripts/intake-analysis-selftest.mts",
+    "intake:retention-fuzz": "node --import ./scripts/alias-register.mjs scripts/intake-retention-fuzz-selftest.mts",
     "community:db-test": "node --import ./scripts/alias-register.mjs scripts/community-db-selftest.mts",
     "armcare-routine:db-test": "node --import ./scripts/alias-register.mjs scripts/armcare-routine-db-selftest.mts",
     "good-days:test": "node --import ./scripts/alias-register.mjs scripts/good-days-selftest.mts",

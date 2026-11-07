@@ -444,6 +444,7 @@ export function fpsLabel(f: Pick<IntakeMediaFacts, 'nominalFps' | 'frameTiming'>
 export function integrityLabel(status: string): string | null {
   if (status === 'verified') return '선택한 파일 그대로 전송됨';
   if (status === 'rejected' || status === 'unconfirmed') return '영상 정보 확인 필요';
+  if (status === 'purging') return '보유 기간이 지나 원본을 지우고 있어요';
   if (status === 'purged') return '보유 기간이 지나 원본을 지웠어요';
   return null;
 }

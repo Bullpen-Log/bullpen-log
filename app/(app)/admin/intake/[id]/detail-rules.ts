@@ -3,9 +3,9 @@
  * 권한 · 상태 이동의 근거는 서버(lib/intake/admin.ts · service.ts)가 다시 본다. 여기는 누를 수 없는 단추를 안 보이게 할 뿐이다.
  */
 import type { IntakeAssetDetail, IntakeDetail } from '@/lib/intake/admin';
-import { CORRECTION_FIELD_TEXT, REJECT_CODE_TEXT, VIEW_TEXT, textOf } from '@/lib/intake/admin-labels';
+import { CORRECTION_FIELD_TEXT, REJECT_CODE_TEXT, VIEW_TEXT, seoulDateText, textOf } from '@/lib/intake/admin-labels';
 import { REQUIRED_CONSENT_KINDS } from '@/lib/intake/consent';
-import type { CorrectionRequest, IntakeView } from '@/lib/intake/state';
+import { assetGone, type CorrectionRequest, type IntakeView } from '@/lib/intake/state';
 
 const DAY_MS = 86_400_000;
 
@@ -19,7 +19,7 @@ export function extendDayChoices(uploadExpiresAt: string, now: Date = new Date()
 }
 
 /** 화면이 낡아서 막힌 답 — 최신 내용을 다시 받아야 다음 판단이 맞다 */
-const FRESH_VIEW_CODES: ReadonlySet<string> = new Set(['run_not_current', 'invalid_state', 'invitation_revoked', 'not_finalized', 'original_locked', 'original_purged', 'result_unavailable']);
+const FRESH_VIEW_CODES: ReadonlySet<string> = new Set(['run_not_current', 'invalid_state', 'invitation_revoked', 'not_finalized', 'original_locked', 'original_purged', 'purge_in_progress', 'result_unavailable']);
 export const needsFreshView = (code: string) => code.startsWith('stale') || FRESH_VIEW_CODES.has(code);
 
 const KNOWN_CONTAINERS: ReadonlySet<string> = new Set(['mov', 'mp4', 'matroska']);
@@ -85,7 +85,7 @@ export const correctionText = (c: CorrectionRequest) =>
 
 /** 받는 사람이 다시 보내야 끝낼 수 있는 칸 — 고침 요청을 쓸 때 미리 골라 둔다. 지운 칸은 빼고 내도 서버가 넣는다 */
 export const viewsToResend = (assets: readonly Pick<IntakeAssetDetail, 'view' | 'status' | 'current'>[]): IntakeView[] =>
-  assets.filter((a) => a.current && (a.status === 'rejected' || a.status === 'unconfirmed' || a.status === 'purged')).map((a) => a.view);
+  assets.filter((a) => a.current && (a.status === 'rejected' || a.status === 'unconfirmed' || assetGone(a.status))).map((a) => a.view);
 
 /** 짝 내려받기 단추 — 서버는 지금 판의 짝을 주므로, 그 둘의 바이트가 있어야 한다 */
 export function pairDownloadable(d: Pick<IntakeDetail, 'assets' | 'revisions' | 'status'>): boolean {
@@ -94,9 +94,22 @@ export function pairDownloadable(d: Pick<IntakeDetail, 'assets' | 'revisions' | 
   return d.assets.filter((a) => a.revisions.includes(revision.number)).every((a) => a.available);
 }
 
-/** 원본 칸에 보일 글 — 지운 날이나 지울 날 */
+/**
+ * 원본 칸에 보일 글 — 지우는 중이면 그 사실, 아니면 지운 날이나 지울 날. 지금 판을 지우는 중이면 날짜는 시작한 때다.
+ * 지우기 시작한 파일은 고침 · 철회를 안 기다리고 끝까지 지운다. 그래서 지울 날이나 기다린다는 글을 보이면 거짓이다.
+ * 옛 판만 지우는 중이면 지금 판의 날짜는 그대로 두고 옛 판을 따로 말한다. 옛 판이 끝나도 지금 판의 지운 날이 생기지는 않는다.
+ */
 export function retentionText(r: NonNullable<IntakeDetail['retention']>, now: Date = new Date()): { label: string; date: string; note: string | null } {
-  if (r.purgedAt) return { label: '원본 지운 날', date: r.purgedAt, note: null };
+  if (r.purging?.scope === 'current') return { label: '원본 지우는 중', date: r.purging.since, note: '저장소에서 지우고 있어요. 끝나면 지운 날로 바뀌어요. 막히면 6시간마다 다시 해요.' };
+  if (r.purgedAt) return { label: '원본 지운 날', date: r.purgedAt, note: r.purging ? '옛 판 파일은 아직 지우고 있어요. 막히면 6시간마다 다시 해요.' : null };
   const waiting = r.heldUntil != null && new Date(r.purgeAt) <= now;
-  return { label: '원본 삭제 예정일', date: r.purgeAt, note: waiting ? '고침 요청이 열려 있어 삭제를 기다리고 있어요. 고쳐서 내면 시계가 새로 돌아요.' : null };
+  const note = r.purging ? '옛 판 파일을 지우고 있어요. 지금 판의 지울 날은 그대로예요.' : waiting ? '고침 요청이 열려 있어 삭제를 기다리고 있어요. 고쳐서 내면 시계가 새로 돌아요.' : null;
+  return { label: '원본 삭제 예정일', date: r.purgeAt, note };
+}
+
+/** 철회 배너 끝에 붙일 글 — 철회가 지울 날을 밀어도 지우기 시작한 원본은 끝까지 지운다 */
+export function withdrawnRetentionText(r: IntakeDetail['retention']): string {
+  if (!r) return '';
+  if (r.purging?.scope === 'current') return ' 원본을 지우고 있어요.';
+  return r.purgedAt ? ` 원본은 ${seoulDateText(r.purgedAt)}에 지웠어요.` : ` 원본은 ${seoulDateText(r.purgeAt)}에 지워요.`;
 }

@@ -55,11 +55,14 @@ import { DEFAULT_UPLOAD_DAYS, TUS_CHUNK_BYTES, TUS_URL_TTL_MS, intakeLimits, typ
 import { fpsLabel, integrityLabel, mediaRejectCode, mediaUnconfirmed, readIntakeMediaFacts, timingNote, type IntakeMediaFacts } from '@/lib/intake/media';
 import { assetObjectPath, isIntakeId, isPurgeablePath, seoulDateKey } from '@/lib/intake/paths';
 import { pruneRateLimits } from '@/lib/intake/rate-limit';
-import { WITHDRAWN_DRAFT_GRACE_MS, originalRetention, originalsPurgedAt } from '@/lib/intake/retention';
+import { removeAndFindLeft, removeLeftObject } from '@/lib/intake/remove';
+import { WITHDRAWN_DRAFT_GRACE_MS, currentOriginalsPurgedAt, originalRetention, shownRetention } from '@/lib/intake/retention';
 import {
+  ASSET_GONE,
   CORRECTABLE_FIELDS,
   assertSubmissionMove,
   assetArrived,
+  assetGone,
   assetInTransit,
   assetVerifyDone,
   canEditField,
@@ -68,6 +71,7 @@ import {
   correctionReceiptLine,
   isIntakeView,
   publicStatusText,
+  purgingScope,
   readCorrection,
   reconsentOpen,
   resolveScreen,
@@ -75,6 +79,7 @@ import {
   type CorrectionRequest,
   type IntakeScreen,
   type IntakeView,
+  type PurgingScope,
 } from '@/lib/intake/state';
 import type { IntakeStorage } from '@/lib/intake/storage-core';
 import { generateInvitationToken, generateReceiptCode, hashAccessCode, hashInvitationToken, isAccessCode, isIdempotencyKey } from '@/lib/intake/token';
@@ -87,6 +92,8 @@ const SHA256_RE = /^[0-9a-f]{64}$/;
 const MAX_NAME_CHARS = 40;
 /** 올리기 주소가 끝나고도 이만큼 기다린 뒤에야 지운다 — 진행 중인 전송을 건드리지 않게 */
 const CLEANUP_GRACE_MS = 2 * 60 * 60_000;
+/** 정리가 한 번에 훑는 줄 수는 한도의 몇 배인가 — 안 지워지는 파일이 한도를 채워도 뒤 파일까지 닿게 하되, 저장소가 이상할 때 함수 시간을 다 쓰지 않게 */
+const CLEANUP_WALK_PAGES = 4;
 
 /* ────────────────────────────── 공용 ────────────────────────────── */
 
@@ -255,10 +262,12 @@ export type PublicIntakeState = {
   needsReconsent: boolean;
   /** 이 접수에 저장소로 넘어온(또는 넘어오는 중인) 파일이 있나 — 막힌 화면이 '보낸 영상은 없어요'라고 말해도 되는지 본다 */
   assetsOnFile: boolean;
-  /** 원본을 지울 날(한국 날짜) — 시계가 없는 초안은 null */
+  /** 원본을 지울 날(한국 날짜) — 시계가 없는 초안과 지울 파일이 없는 철회 초안은 null */
   originalDeleteDate: string | null;
-  /** 원본을 지운 날(한국 날짜) — 지울 파일이 남아 있으면 null */
+  /** 지금 판의 원본을 다 지운 날(한국 날짜) — 남아 있으면 null. 옛 판 파일이 남았어도 지금 판을 지웠으면 날짜가 있다 */
   originalDeletedDate: string | null;
+  /** 원본을 지우는 중인가 — 'current' 지금 판의 파일, 'older' 옛 판의 파일뿐이다. 지금 판을 지우는 중이면 originalDeleteDate 는 끝난 날이 아니라 시계가 말하는 날일 뿐이라 화면이 안 보인다(state.ts receiptRetentionRows) */
+  originalDeleting: PurgingScope | null;
 };
 
 /** 받는 사람에게 보일 고침 요청 — 관리자 쪽 기억(handBefore)은 뺀다 */
@@ -301,10 +310,8 @@ export async function loadPublicState(
   const resultOver = resultExpired(sub.invitation, now);
   const needsReconsent = reconsentOpen(sub.status, requiredOk);
   const publishedRows = await db.intakePublication.findMany({ where: { submissionId: sub.id }, select: { publishedAt: true } });
-  const retention = originalRetention({ publishedAts: publishedRows.map((p) => p.publishedAt), lastFrozenAt: sub.lastFinalizedAt, withdrawnAt: sub.withdrawnAt });
-  const frozen = await db.intakeRevision.findMany({ where: { submissionId: sub.id }, select: { sideAssetId: true, rearAssetId: true } });
-  const frozenIds = new Set(frozen.flatMap((r) => [r.sideAssetId, r.rearAssetId]));
-  const deletedAt = originalsPurgedAt(frozenIds.size ? sub.assets.filter((a) => frozenIds.has(a.id)) : sub.assets);
+  const retention = shownRetention(originalRetention({ publishedAts: publishedRows.map((p) => p.publishedAt), lastFrozenAt: sub.lastFinalizedAt, withdrawnAt: sub.withdrawnAt }), sub.assets.length);
+  const deletedAt = currentOriginalsPurgedAt(sub.assets, sub.revisions[0] ?? null);
 
   const screen = resolveScreen({
     invitationStatus: sub.invitation.status,
@@ -368,9 +375,10 @@ export async function loadPublicState(
       publishedCurrent: publishedRun != null && sub.revisions[0] != null && runMatchesCurrent(publishedRun, publishedRun.revision, sub, sub.revisions[0]),
     }),
     needsReconsent,
-    assetsOnFile: sub.assets.some((a) => a.status !== 'reserved' && a.status !== 'purged'),
+    assetsOnFile: sub.assets.some((a) => a.status !== 'reserved' && !assetGone(a.status)),
     originalDeleteDate: retention ? seoulDateKey(retention.purgeAt) : null,
     originalDeletedDate: deletedAt ? seoulDateKey(deletedAt) : null,
+    originalDeleting: purgingScope(sub.assets, sub.revisions[0] ?? null),
   };
 }
 
@@ -573,22 +581,22 @@ export async function reserveAsset(
     const slot = slotOf(input.view);
     const currentId = sub[slot];
     const current = currentId ? await tx.intakeAsset.findUnique({ where: { id: currentId } }) : null;
-    /* 지운 원본과 같은 파일이어도 바이트는 없다 — 새 자산으로 다시 받는다 */
-    if (current && current.clientSha256 === sha && Number(current.declaredSize) === input.sizeBytes && current.status !== 'rejected' && current.status !== 'purged') {
+    /* 지웠거나 지우는 중인 원본과 같은 파일이어도 바이트는 믿을 수 없다 — 새 자산으로 다시 받는다 */
+    if (current && current.clientSha256 === sha && Number(current.declaredSize) === input.sizeBytes && current.status !== 'rejected' && !assetGone(current.status)) {
       return { asset: publicAsset(current), version: sub.version, created: false };
     }
     if ((input.expectedAssetId ?? null) !== (currentId ?? null)) throw new IntakeError('stale_selection', { view: input.view, currentAssetId: currentId });
 
     const otherId = sub[slotOf(otherView(input.view))];
     const otherRow = otherId ? await tx.intakeAsset.findUnique({ where: { id: otherId } }) : null;
-    /* 지운 원본은 저장소에 없다 — 같은 파일 · 합계 한도를 견줄 때 없는 것으로 본다 */
-    const other = otherRow?.status === 'purged' ? null : otherRow;
+    /* 지웠거나 지우는 중인 원본은 저장소에 없다고 친다 — 같은 파일 · 합계 한도를 견줄 때 없는 것으로 본다 */
+    const other = otherRow && assetGone(otherRow.status) ? null : otherRow;
     if (other?.clientSha256 === sha) throw new IntakeError('same_file', { view: input.view });
 
     const limits = intakeLimits(inv);
     if (input.sizeBytes > limits.maxFileBytes) throw new IntakeError('file_too_large', { maxFileBytes: limits.maxFileBytes });
     if (input.sizeBytes + Number(other?.declaredSize ?? 0) > limits.maxTotalBytes) throw new IntakeError('total_too_large', { maxTotalBytes: limits.maxTotalBytes });
-    if ((await tx.intakeAsset.count({ where: { submissionId: sub.id, status: { not: 'purged' } } })) >= limits.maxAssets) throw new IntakeError('too_many_assets');
+    if ((await tx.intakeAsset.count({ where: { submissionId: sub.id, status: { notIn: [...ASSET_GONE] } } })) >= limits.maxAssets) throw new IntakeError('too_many_assets');
 
     if (current) {
       const frozen = await tx.intakeRevision.count({
@@ -859,6 +867,8 @@ export async function finalizeSubmission(db: Db, scope: IntakeScope, input: Fina
     const side = pair.find((a) => a.id === sub.sideAssetId);
     const rear = pair.find((a) => a.id === sub.rearAssetId);
     if (!side || !rear) throw new IntakeError('assets_incomplete');
+    /* 지웠거나 지우는 중인 칸은 전송을 기다릴 일이 아니라 새 파일을 받아야 한다 — 이 파일로 판을 얼리면 시계가 다시 돈 채 원본이 사라진다 */
+    if (assetGone(side.status) || assetGone(rear.status)) throw new IntakeError('correction_incomplete', { side: side.status, rear: rear.status });
     if (!assetArrived(side.status) || !assetArrived(rear.status)) throw new IntakeError('assets_incomplete', { side: side.status, rear: rear.status });
     if (side.clientSha256 === rear.clientSha256 || (side.serverSha256 && side.serverSha256 === rear.serverSha256)) throw new IntakeError('same_file');
 
@@ -980,10 +990,10 @@ async function lockForAdmin(tx: Tx, submissionId: string) {
   return sub;
 }
 
-/** 원본을 지운 칸 — 칸의 파일이나 얼린 판의 파일이 지워졌으면 그 칸은 새 파일을 받아야 한다 */
+/** 원본을 지웠거나 지우는 중인 칸 — 칸의 파일이나 얼린 판의 파일이 그렇다면 그 칸은 새 파일을 받아야 한다 */
 export async function purgedViews(tx: Tx, sub: Pick<IntakeSubmission, 'sideAssetId' | 'rearAssetId'>, rev: Pick<IntakeRevision, 'sideAssetId' | 'rearAssetId'> | null): Promise<IntakeView[]> {
   const ids = [sub.sideAssetId, sub.rearAssetId, rev?.sideAssetId, rev?.rearAssetId].filter((id): id is string => id != null);
-  const gone = new Set((await tx.intakeAsset.findMany({ where: { id: { in: ids }, status: 'purged' }, select: { id: true } })).map((a) => a.id));
+  const gone = new Set((await tx.intakeAsset.findMany({ where: { id: { in: ids }, status: { in: [...ASSET_GONE] } }, select: { id: true } })).map((a) => a.id));
   return (['side', 'rear'] as const).filter((v) => {
     const slot = sub[slotOf(v)];
     const frozen = rev?.[slotOf(v)];
@@ -994,7 +1004,7 @@ export async function purgedViews(tx: Tx, sub: Pick<IntakeSubmission, 'sideAsset
 /**
  * 고쳐 달라고 다시 연다 — 요청한 칸만 열린다. 얼린 판 · 옛 자산은 그대로다.
  * 이미 고침 중이면 요청 내용을 바꾼다: 기간을 늘리거나 칸을 더하고 뺄 수 있다. 뺀 칸에서 받는 사람이 고친 것은 얼린 판 값으로 돌아간다.
- * 원본을 지운 칸은 언제나 요청에 넣는다 — 지운 파일로는 판을 얼릴 수 없어서, 글만 고치라고 하면 받는 사람이 끝낼 수 없다.
+ * 원본을 지웠거나 지우는 중인 칸은 언제나 요청에 넣는다 — 그 파일로는 판을 얼릴 수 없어서, 글만 고치라고 하면 받는 사람이 끝낼 수 없다. 삭제가 도는 중에도 고침은 막지 않는다. 새 파일을 받는 길이라서다.
  */
 export async function requestCorrection(db: Db, input: CorrectionInput, now: Date = new Date()): Promise<{ version: number }> {
   const fields = [...new Set(input.fields ?? [])];
@@ -1326,11 +1336,37 @@ export async function reconcilePendingRevisions(db: Db, now: Date = new Date(), 
   return settled;
 }
 
-/** 칸에서 내려 버린 것으로 적는다 — 그사이 판에 얼렸으면 건드리지 않는다. 완료와 부딪히지 않게 접수를 잠근 채 다시 본다 */
-async function abandonAsset(db: Db, asset: Pick<IntakeAsset, 'id' | 'submissionId' | 'status'>): Promise<number> {
+/** 정리가 쓰는 시각 경계 — 줄을 고를 때와 잠근 뒤 다시 볼 때 같은 값을 쓴다 */
+const cleanupCutoffs = (now: Date) => ({ cutoff: new Date(now.getTime() - TUS_URL_TTL_MS - CLEANUP_GRACE_MS), withdrawnCutoff: new Date(now.getTime() - WITHDRAWN_DRAFT_GRACE_MS) });
+
+type AbandonFacts = {
+  status: string;
+  updatedAt: Date;
+  submission: { status: string; withdrawnAt: Date | null; invitation: { status: string; uploadExpiresAt: Date; revokedAt: Date | null } };
+};
+
+/** 칸에서 내려도 되나 — cleanupStaleUploads 가 줄을 고르는 두 조회와 같은 말이다. 조회를 고치면 이것도 같이 고친다 */
+function abandonDue(a: AbandonFacts, now: Date): boolean {
+  const { cutoff, withdrawnCutoff } = cleanupCutoffs(now);
+  const { status, withdrawnAt, invitation: inv } = a.submission;
+  if (status === 'withdrawn' && withdrawnAt != null && withdrawnAt <= withdrawnCutoff) return true;
+  if (assetInTransit(a.status)) return a.updatedAt < cutoff && (inv.status === 'revoked' || inv.uploadExpiresAt < now);
+  return (status === 'draft' || status === 'correction_requested') && (inv.uploadExpiresAt < cutoff || (inv.status === 'revoked' && (inv.revokedAt == null || inv.revokedAt < cutoff)));
+}
+
+/**
+ * 칸에서 내려 버린 것으로 적는다. 완료와 부딪히지 않게 접수를 잠근 채 다시 본다 — 그사이 판에 얼렸으면 건드리지 않고, 줄을 고른 조건이 이제 안 맞으면 내리지 않는다.
+ * 줄을 읽은 뒤에 관리자가 기간을 늘렸거나 철회가 들어온 경우다. 기간 늘리기 · 철회도 같은 잠금을 쥐어서, 여기서 보는 값이 최신이다.
+ */
+async function abandonAsset(db: Db, asset: Pick<IntakeAsset, 'id' | 'submissionId' | 'status'>, now: Date): Promise<number> {
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "IntakeSubmission" WHERE "id" = ${asset.submissionId} FOR UPDATE`;
     if (await tx.intakeRevision.count({ where: { OR: [{ sideAssetId: asset.id }, { rearAssetId: asset.id }] } })) return 0;
+    const fresh = await tx.intakeAsset.findUnique({
+      where: { id: asset.id },
+      select: { status: true, updatedAt: true, submission: { select: { status: true, withdrawnAt: true, invitation: { select: { status: true, uploadExpiresAt: true, revokedAt: true } } } } },
+    });
+    if (!fresh || !abandonDue(fresh, now)) return 0;
     const r = await tx.intakeAsset.updateMany({ where: { id: asset.id, status: asset.status }, data: { status: 'abandoned' } });
     if (r.count === 0) return 0;
     /* 칸도 비운다 — 초대 기간을 늘려 다시 열었을 때 지워진 자산을 가리키지 않게. 짝이 깨졌으니 같은 투구 확인도 지운다 */
@@ -1349,10 +1385,20 @@ async function abandonAsset(db: Db, asset: Pick<IntakeAsset, 'id' | 'submissionI
  * - 도착했지만 판에 오르지 못한 자산: 끝내지 않은 접수(초안 · 고침 중)에서, 올리기 기간이나 폐기 뒤로 같은 여유가 지난 것.
  *   이 여유 안에는 받는 사람이 끝낼 수 있고 관리자가 기간을 늘릴 수 있다. 접수되지 않은 임시 파일의 여유일 뿐, 접수된 원본의 보유 기간이 아니다.
  * - 철회한 접수에서 판에 오르지 못한 자산: 철회한 날부터 7일 유예 뒤. 철회한 접수는 끝낼 길이 없어서, 지울 때 업로드 주소의 여유를 또 기다리지 않는다.
+ *
+ * 버리기는 줄을 읽은 뒤 잠근 채 같은 조건을 다시 본다(abandonDue). 그사이 관리자가 기간을 늘렸으면 받는 사람의 파일을 칸에서 내리지 않는다.
+ *
+ * 철회한 접수의 파일은 7일 유예만 본다. 버린 지 오래된 파일이어도 철회한 날부터 7일 안에는 안 지운다.
+ * 줄을 읽은 뒤에 철회가 끼어들 수 있어 지우기 직전에 접수를 다시 본다. 이 길에는 표시 단계가 없어서, 다시 본 뒤 저장소를 부르는 사이의 철회는 못 잡는다. 철회 앞에 정한 지우기로 친다.
+ * 저장소에서 없어진 것을 보고서야 'purged' 로 적는다. 지웠다는 답만 오고 객체가 남은 파일은 건너뛰어 나머지를 지운 뒤 끝에 던진다 — 일감이 다시 돌고 까닭이 lastError 에 남는다.
+ * 남은 파일은 시각을 안 밀어 늘 줄 맨 앞에 있다. 그래서 한도(limit)는 지운 수로 세고, 남은 파일을 건너뛰어 뒤 줄까지 훑는다. 훑는 줄에는 끝이 있다(maxRows).
+ * 연결이 실패하면 바로 던진다. 지워졌는지 모르고, 다음 파일도 같을 테니 함수 시간을 쓰지 않는다.
+ *
+ * 남는 틈: 지운 뒤 답이 끊기면 그 파일은 다음 정리까지 'replaced' · 'abandoned' 로 남아 관리자 화면이 있다고 말한다. 다음 정리가 없어진 것을 보고 끝내서 저절로 풀린다.
+ * 판에 오른 적 없는 파일이고, 여기에 'purging' 을 쓰면 보유 삭제가 판 파일만 다룬다는 약속(lib/intake/purge.ts)을 갈라야 해서 표시를 안 둔다.
  */
-export async function cleanupStaleUploads(db: Db, storage: IntakeStorage, now: Date = new Date(), limit = 50): Promise<{ purged: number; abandoned: number }> {
-  const cutoff = new Date(now.getTime() - TUS_URL_TTL_MS - CLEANUP_GRACE_MS);
-  const withdrawnCutoff = new Date(now.getTime() - WITHDRAWN_DRAFT_GRACE_MS);
+export async function cleanupStaleUploads(db: Db, storage: IntakeStorage, now: Date = new Date(), limit = 50, maxRows = limit * CLEANUP_WALK_PAGES): Promise<{ purged: number; abandoned: number }> {
+  const { cutoff, withdrawnCutoff } = cleanupCutoffs(now);
   const graceOver = { status: 'withdrawn', withdrawnAt: { lte: withdrawnCutoff } };
 
   const stuck = await db.intakeAsset.findMany({
@@ -1376,21 +1422,45 @@ export async function cleanupStaleUploads(db: Db, storage: IntakeStorage, now: D
     ORDER BY a."updatedAt" ASC
     LIMIT ${limit}`;
   let abandoned = 0;
-  for (const a of [...stuck, ...arrived]) abandoned += await abandonAsset(db, a);
+  for (const a of [...stuck, ...arrived]) abandoned += await abandonAsset(db, a, now);
 
-  const rows = await db.intakeAsset.findMany({ where: { status: { in: ['replaced', 'abandoned'] }, OR: [{ updatedAt: { lt: cutoff } }, { submission: graceOver }] }, take: limit });
+  const seen: string[] = [];
   let purged = 0;
-  for (const a of rows) {
-    const frozen = await db.intakeRevision.count({ where: { OR: [{ sideAssetId: a.id }, { rearAssetId: a.id }] } });
-    if (frozen) continue;
-    if (await db.intakeSubmission.count({ where: { OR: [{ sideAssetId: a.id }, { rearAssetId: a.id }] } })) continue;
-    if (!isPurgeablePath(a.objectPath, a.submissionId)) continue;
-    await storage.remove([a.objectPath]);
-    await db.intakeAsset.updateMany({ where: { id: a.id, status: a.status }, data: { status: 'purged', purgedAt: now } });
-    await writeAudit(db, { actor: { kind: 'system' }, action: 'asset.purged', submissionId: a.submissionId, detail: { assetId: a.id, was: a.status } }, now);
-    purged++;
+  let left = false;
+  while (purged < limit && seen.length < maxRows) {
+    const rows = await db.intakeAsset.findMany({
+      where: { id: { notIn: seen }, status: { in: ['replaced', 'abandoned'] }, OR: [{ updatedAt: { lt: cutoff }, submission: { status: { not: 'withdrawn' } } }, { submission: graceOver }] },
+      orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
+      take: Math.min(limit, maxRows - seen.length),
+    });
+    if (rows.length === 0) break;
+    for (const a of rows) {
+      if (purged >= limit) break;
+      seen.push(a.id);
+      const frozen = await db.intakeRevision.count({ where: { OR: [{ sideAssetId: a.id }, { rearAssetId: a.id }] } });
+      if (frozen) continue;
+      const sub = await db.intakeSubmission.findUnique({ where: { id: a.submissionId }, select: { status: true, withdrawnAt: true, sideAssetId: true, rearAssetId: true } });
+      if (!sub || sub.sideAssetId === a.id || sub.rearAssetId === a.id) continue;
+      /* 줄을 읽은 뒤 철회가 끼어들었으면 7일 유예를 다시 본다 */
+      if (sub.status === 'withdrawn' && !(sub.withdrawnAt && sub.withdrawnAt <= withdrawnCutoff)) continue;
+      if (!isPurgeablePath(a.objectPath, a.submissionId)) continue;
+      /* 남은 파일의 updatedAt 은 안 민다 — 밀면 여유 조건에서 빠져 다음 시도에 안 보이고, 일감이 성공으로 끝나 실패 기록까지 지워진다 */
+      if ((await removeAndFindLeft(storage, [a.objectPath])).length > 0) {
+        left = true;
+        continue;
+      }
+      /* 겹쳐 돈 정리가 먼저 적었으면 기록도 수도 안 더한다 */
+      const wrote = await db.$transaction(async (tx) => {
+        const r = await tx.intakeAsset.updateMany({ where: { id: a.id, status: a.status }, data: { status: 'purged', purgedAt: now } });
+        if (r.count !== 1) return false;
+        await writeAudit(tx, { actor: { kind: 'system' }, action: 'asset.purged', submissionId: a.submissionId, detail: { assetId: a.id, was: a.status } }, now);
+        return true;
+      });
+      if (wrote) purged++;
+    }
   }
   await pruneRateLimits(db, now);
+  if (left) throw removeLeftObject();
   return { purged, abandoned };
 }
 

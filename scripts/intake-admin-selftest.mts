@@ -102,7 +102,7 @@ const { assetObjectPath } = await import('@/lib/intake/paths');
 const { openIntakeScope } = await import('@/lib/intake/access');
 const { IntakeError } = await import('@/lib/intake/errors');
 const { hashInvitationToken } = await import('@/lib/intake/token');
-const { AUDIT_ACTION_TEXT, sampleDurationLabel } = await import('@/lib/intake/admin-labels');
+const { ASSET_STATUS_TEXT, AUDIT_ACTION_TEXT, retentionCellText, retentionLineText, sampleDurationLabel, seoulDateText } = await import('@/lib/intake/admin-labels');
 
 const {
   addIntakeNote,
@@ -938,6 +938,18 @@ const auditCount = () => db.intakeAudit.count();
   const empty = await mk({ status: 'draft', receivedAt: null, name: null });
   eq((await loadIntakeDetail(db, A, empty.submissionId, NOW)).retention, null, '끝내지 않은 초안에는 지울 날이 없다');
 
+  /* 지적 9: 파일 없이 철회한 초안은 지울 것이 없어 날짜를 안 보인다 — 보이면 지난 뒤에도 끝내 안 바뀐다. 파일이 있으면 유예 끝날이 보인다 */
+  const noFile = await mk({ status: 'withdrawn', receivedAt: null, name: '철회초안시험' });
+  await db.intakeSubmission.update({ where: { id: noFile.submissionId }, data: { withdrawnAt: NOW } });
+  const draftRow = async () => (await loadIntakeList(db, A, parseIntakeFilters({ q: '철회초안시험' }), NOW)).rows[0];
+  eq((await loadIntakeDetail(db, A, noFile.submissionId, NOW)).retention, null, '상세에 지울 날이 없다');
+  eq([(await draftRow()).originalPurgeAt, (await draftRow()).originalsPurgedAt], [null, null], '목록에도 없다');
+  await mkAsset(noFile.submissionId, 'side', 'uploaded');
+  const grace = new Date(NOW.getTime() + 7 * DAY).toISOString();
+  const withFile = (await loadIntakeDetail(db, A, noFile.submissionId, NOW)).retention;
+  eq([withFile?.purgeAt, withFile?.basis, withFile?.purgedAt], [grace, 'withdrawn_draft', null], '파일이 있으면 유예 끝날을 보인다');
+  eq((await draftRow()).originalPurgeAt, grace, '목록도 같은 날이다');
+
   /* 고침이 열려 있으면 기다리는 끝을 보인다 */
   const inv = await db.intakeSubmission.findUniqueOrThrow({ where: { id } });
   await db.intakeInvitation.update({ where: { id: inv.invitationId }, data: { uploadExpiresAt: new Date(NOW.getTime() + 95 * DAY) } });
@@ -958,11 +970,138 @@ const auditCount = () => db.intakeAudit.count();
   await fails(issueRunPreviewLink(db, storage, A, { submissionId: id, runId: run.id, view: 'side' }, gone), 'original_purged', '분석 미리보기도 까닭을 말한다');
   ok(AUDIT_ACTION_TEXT['originals.purged'], '감사 기록의 글이 있다');
 
-  /* 일감이 멈추면 상세에 보인다 */
-  await db.intakeJob.create({ data: { kind: 'purge_originals', dedupeKey: `purge_originals:${id}:1`, payload: { submissionId: id }, status: 'failed', attempts: 8, lastError: `https://x.example/sub/${id}/a/original 실패`, runAfter: NOW, finishedAt: NOW } });
-  const issue = (await loadIntakeDetail(db, A, id, gone)).jobIssues.find((j) => j.kind === 'purge_originals');
+  /* 다 지운 접수의 실패 줄은 풀 수 없는 경고다 — 마지막 시도에서 일꾼이 죽으면 임대가 끝나 이렇게 닫힌다 */
+  await db.intakeJob.create({ data: { kind: 'purge_originals', dedupeKey: `purge_originals:${id}:dead`, payload: { submissionId: id }, status: 'failed', attempts: 8, lastError: '임대가 끝났고 시도 횟수를 다 썼어요', runAfter: NOW, finishedAt: gone } });
+  eq((await loadIntakeDetail(db, A, id, new Date(gone.getTime() + 300 * DAY))).jobIssues.filter((j) => j.kind === 'purge_originals'), [], '다 지운 접수에는 삭제 일감 경고가 없다');
+}
+
+/* ─────────────────────── 삭제 일감의 경고 — 지울 일이 남았을 때만 보인다 ─────────────────────── */
+{
+  const DAY = 86_400_000;
+  async function frozenPair(name: string, side = 'verified', rear = 'verified') {
+    const r = await mk({ status: 'verified', name });
+    const sideId = await mkAsset(r.submissionId, 'side', side);
+    const rearId = await mkAsset(r.submissionId, 'rear', rear);
+    const rev = await db.intakeRevision.create({
+      data: { submissionId: r.submissionId, number: 1, sideAssetId: sideId, rearAssetId: rearId, athleteName: name, submitterRelation: 'self', consentSnapshot: [], finalizeKey: name.padEnd(16, 'k'), finalizedAt: NOW },
+    });
+    await db.intakeSubmission.update({ where: { id: r.submissionId }, data: { sideAssetId: sideId, rearAssetId: rearId, currentRevisionId: rev.id, lastFinalizedAt: NOW } });
+    await db.intakeJob.create({ data: { kind: 'purge_originals', dedupeKey: `purge_originals:${r.submissionId}:1`, payload: { submissionId: r.submissionId }, status: 'failed', attempts: 8, lastError: `https://x.example/sub/${r.submissionId}/a/original 실패`, runAfter: NOW, finishedAt: NOW } });
+    return { id: r.submissionId, sideId, rearId, rev };
+  }
+  const purgeIssues = async (id: string, at: Date) => (await loadIntakeDetail(db, A, id, at)).jobIssues.filter((j) => j.kind === 'purge_originals');
+
+  /* 지우다 멈춘 파일이 있으면 보인다 */
+  const stuck = await frozenPair('경고지우는중', 'purging', 'purged');
+  const issue = (await purgeIssues(stuck.id, new Date(NOW.getTime() + 91 * DAY)))[0];
   ok(issue && issue.state === 'failed' && !issue.canRequeue, '삭제 일감의 실패가 보이고 크론이 다시 건다');
   ok(!issue?.lastError?.includes('sub/'), '오류 글에 경로가 없다');
+
+  /* 표시도 못 하고 멈췄어도 지울 날이 지났으면 보인다 — 경로가 어긋난 경우다 */
+  const due = await frozenPair('경고지울날');
+  eq((await purgeIssues(due.id, new Date(NOW.getTime() + 90 * DAY))).length, 1, '지울 날이 지난 판 파일이 남아 있으면 보인다');
+  eq((await purgeIssues(due.id, new Date(NOW.getTime() + 89 * DAY))).length, 0, '지울 날 전에는 지울 일이 없다');
+
+  /* 옛 판을 다 지웠고 새 판의 지울 날은 멀다 — 옛 삭제의 실패 줄이 남아도 지금 할 일이 없다 */
+  const moved = await frozenPair('경고새판', 'purged', 'purged');
+  const side2 = await mkAsset(moved.id, 'side');
+  const rear2 = await mkAsset(moved.id, 'rear');
+  const later = new Date(NOW.getTime() + 95 * DAY);
+  const rev2 = await db.intakeRevision.create({
+    data: { submissionId: moved.id, number: 2, sideAssetId: side2, rearAssetId: rear2, athleteName: '경고새판', submitterRelation: 'self', consentSnapshot: [], finalizeKey: 'moved'.padEnd(16, 'm'), finalizedAt: later },
+  });
+  await db.intakeSubmission.update({ where: { id: moved.id }, data: { sideAssetId: side2, rearAssetId: rear2, currentRevisionId: rev2.id, lastFinalizedAt: later } });
+  eq(await purgeIssues(moved.id, new Date(later.getTime() + DAY)), [], '새 판이 살아 있으면 옛 실패 줄을 안 보인다');
+}
+
+/* ─────────────────────── 지우는 중 — 표시가 걸린 파일은 없는 것으로 보이고, 상세 · 목록이 그 사실을 준다 ─────────────────────── */
+{
+  const DAY = 86_400_000;
+  const r = await mk({ status: 'verified', name: '지우는시험' });
+  const id = r.submissionId;
+  const side = await mkAsset(id, 'side');
+  const rear = await mkAsset(id, 'rear');
+  const rev = await db.intakeRevision.create({
+    data: { submissionId: id, number: 1, sideAssetId: side, rearAssetId: rear, athleteName: '지우는시험', submitterRelation: 'self', consentSnapshot: [], finalizeKey: 'p'.repeat(16), finalizedAt: NOW },
+  });
+  await db.intakeSubmission.update({ where: { id }, data: { sideAssetId: side, rearAssetId: rear, currentRevisionId: rev.id, lastFinalizedAt: NOW } });
+  const run = await db.intakeAnalysisRun.create({ data: { submissionId: id, revisionId: rev.id, engineKey: 'purging', status: 'succeeded', resultMeta: { previews: { side: `sub/${id}/runs/y/preview-side.mp4`, rear: `sub/${id}/runs/y/preview-rear.mp4` } } } });
+  const rowOf = async () => (await loadIntakeList(db, A, parseIntakeFilters({ q: '지우는시험' }), NOW)).rows[0];
+  eq([(await loadIntakeDetail(db, A, id, NOW)).retention?.purging, (await rowOf()).originalsPurging], [null, null], '지우는 파일이 없으면 칸이 비어 있다');
+
+  const since = new Date(NOW.getTime() + 90 * DAY);
+  await db.intakeAsset.update({ where: { id: side }, data: { status: 'purging', updatedAt: since } });
+  await db.intakeAsset.update({ where: { id: rear }, data: { status: 'purging', updatedAt: new Date(since.getTime() + 1000) } });
+  const later = new Date(since.getTime() + DAY);
+  const during = await loadIntakeDetail(db, A, id, later);
+  eq(during.retention?.purging, { since: since.toISOString(), files: 2, scope: 'current' }, '언제부터 몇 개를 어느 판에서 지우는지 준다');
+  eq(during.retention?.purgedAt, null, '끝나기 전에는 지운 시각이 없다');
+  ok(during.assets.every((a) => !a.available && a.purgedAt === null), '바이트가 있다고 보이지 않는다');
+  eq(during.assets.map((a) => a.integrity), ['보유 기간이 지나 원본을 지우고 있어요', '보유 기간이 지나 원본을 지우고 있어요'], '자산 칸이 사실대로 말한다');
+  eq((await rowOf()).originalsPurging, 'current', '목록도 지금 판을 지우는 중이라고 준다');
+  await fails(issueOriginalLinks(db, storage, A, { submissionId: id, purpose: 'preview', assetId: side }, later), 'original_purged', '지우는 파일의 주소를 안 준다');
+  await fails(issueOriginalLinks(db, storage, A, { submissionId: id, purpose: 'download' }, later), 'original_purged', '짝 내려받기도 막는다');
+  await fails(issueRunPreviewLink(db, storage, A, { submissionId: id, runId: run.id, view: 'side' }, later), 'original_purged', '미리보기 주소도 막는다');
+  await fails(adminRequeueVerification(db, A, { submissionId: id, assetId: side }, later), 'invalid_state', '지우는 파일을 다시 재지 않는다');
+  eq(await adminRequeueVerification(db, A, { submissionId: id }, later), { requeued: 0 }, '짝 다시 확인도 건너뛴다');
+  eq([ASSET_STATUS_TEXT.purging, typeof AUDIT_ACTION_TEXT['originals.purge_started']], ['지우는 중', 'string'], '이름표가 있다');
+
+  /* 옛 판의 파일만 지우는 중이면 지금 판은 살아 있다고 가른다 */
+  const side2 = await mkAsset(id, 'side');
+  const rear2 = await mkAsset(id, 'rear');
+  const rev2 = await db.intakeRevision.create({
+    data: { submissionId: id, number: 2, sideAssetId: side2, rearAssetId: rear2, athleteName: '지우는시험', submitterRelation: 'self', consentSnapshot: [], finalizeKey: 'q'.repeat(16), finalizedAt: later },
+  });
+  await db.intakeSubmission.update({ where: { id }, data: { sideAssetId: side2, rearAssetId: rear2, currentRevisionId: rev2.id, lastFinalizedAt: later } });
+  const older = await loadIntakeDetail(db, A, id, later);
+  eq([older.retention?.purging?.scope, older.retention?.purging?.files, (await rowOf()).originalsPurging], ['older', 2, 'older'], '옛 판의 파일뿐이라고 가른다');
+  ok(older.assets.filter((a) => a.current).every((a) => a.available), '지금 판의 파일은 그대로 있다고 보인다');
+
+  /* 옛 판이 멈춘 채 지금 판도 지우기 시작했다 — 시작일 · 수는 지금 판 것이다. 옛 판 줄의 시각은 지금 판 파일이 생기기도 전이다 */
+  const { retentionText } = await import('../app/(app)/admin/intake/[id]/detail-rules.ts');
+  const since2 = new Date(later.getTime() + 90 * DAY);
+  await db.intakeAsset.update({ where: { id: side2 }, data: { status: 'purging', updatedAt: since2 } });
+  const mixed = await loadIntakeDetail(db, A, id, since2);
+  eq(mixed.retention?.purging, { since: since2.toISOString(), files: 1, scope: 'current' }, '옛 판이 함께 멈춰도 지금 판의 시작일과 수를 준다');
+  eq(retentionText(mixed.retention!, since2).date, since2.toISOString(), '화면도 지금 판을 지우기 시작한 때를 말한다');
+  await db.intakeAsset.update({ where: { id: rear2 }, data: { status: 'purging', updatedAt: new Date(since2.getTime() + 1000) } });
+  eq((await loadIntakeDetail(db, A, id, since2)).retention?.purging, { since: since2.toISOString(), files: 2, scope: 'current' }, '지금 판 안에서는 가장 이른 시각이다');
+
+  /* 옛 판 파일이 멈춘 채 지금 판을 다 지웠다 — 'older' 는 지금 판이 살아 있다는 뜻이 아니다. 지운 날이 말한다 */
+  const purgedAt = new Date(later.getTime() + 90 * DAY);
+  await db.intakeAsset.updateMany({ where: { id: { in: [side2, rear2] } }, data: { status: 'purged', purgedAt } });
+  const both = await loadIntakeDetail(db, A, id, purgedAt);
+  eq([both.retention?.purgedAt, both.retention?.purging?.scope], [purgedAt.toISOString(), 'older'], '지금 판을 지운 날과 옛 판을 지우는 중을 같이 준다');
+  const row = await rowOf();
+  eq([row.originalsPurgedAt, row.originalsPurging], [purgedAt.toISOString(), 'older'], '목록도 같은 말을 한다');
+  eq(retentionCellText(row), `지워짐 · ${seoulDateText(purgedAt.toISOString())}`, '목록 칸이 지운 날을 말한다');
+}
+
+/* ─────────────────────── 지우기 시작한 뒤의 고침 — 삭제는 고침을 안 기다린다 ─────────────────────── */
+{
+  const DAY = 86_400_000;
+  const r = await mk({ status: 'verified', name: '지운뒤고침' });
+  const id = r.submissionId;
+  const side = await mkAsset(id, 'side', 'purging');
+  const rear = await mkAsset(id, 'rear', 'purged', { purgedAt: new Date(NOW.getTime() + 90 * DAY) });
+  const rev = await db.intakeRevision.create({
+    data: { submissionId: id, number: 1, sideAssetId: side, rearAssetId: rear, athleteName: '지운뒤고침', submitterRelation: 'self', consentSnapshot: [], finalizeKey: 'h'.repeat(16), finalizedAt: NOW },
+  });
+  const inv = await db.intakeSubmission.update({ where: { id }, data: { sideAssetId: side, rearAssetId: rear, currentRevisionId: rev.id, lastFinalizedAt: NOW, status: 'correction_requested', correction: { fields: ['athleteName'], views: ['side', 'rear'], message: null } } });
+  await db.intakeInvitation.update({ where: { id: inv.invitationId }, data: { uploadExpiresAt: new Date(NOW.getTime() + 95 * DAY) } });
+  const at = new Date(NOW.getTime() + 91 * DAY);
+  const during = await loadIntakeDetail(db, A, id, at);
+  eq([during.retention?.purging?.scope, during.retention?.heldUntil], ['current', null], '지금 판을 지우는 중이면 기다린다고 안 말한다');
+  const row = (await loadIntakeList(db, A, parseIntakeFilters({ q: '지운뒤고침' }), at)).rows[0];
+  eq([retentionCellText(row), retentionLineText(row)], ['지우는 중', '지우는 중'], '목록 칸과 휴대폰 줄이 예정일이라고 안 말한다');
+
+  /* 표시가 끝난 뒤도 기다릴 삭제가 없다 */
+  await db.intakeAsset.update({ where: { id: side }, data: { status: 'purged', purgedAt: at } });
+  const gone = await loadIntakeDetail(db, A, id, at);
+  eq([gone.retention?.purgedAt, gone.retention?.heldUntil], [at.toISOString(), null], '다 지운 뒤에도 기다린다고 안 말한다');
+  const goneRow = (await loadIntakeList(db, A, parseIntakeFilters({ q: '지운뒤고침' }), at)).rows[0];
+  eq(retentionLineText(goneRow), `지워짐 · ${seoulDateText(at.toISOString())}`, '휴대폰 줄이 지운 날에 예정일 이름을 안 붙인다');
+  eq(retentionLineText({ originalPurgeAt: at.toISOString(), originalsPurgedAt: null, originalsPurging: 'older' }), `원본 삭제 예정일 ${seoulDateText(at.toISOString())}`, '옛 판만 지우면 지금 판의 예정일을 말한다');
 }
 
 /* 필수 동의 철회는 모델 동의를 함께 거두지 않는다 */

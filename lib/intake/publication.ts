@@ -8,6 +8,7 @@
  * - 공개 · 내리기는 화면이 알던 공개(expectedActivePublicationId, 없으면 null)를 잠금 안에서 맞춰 본다. 다르면 stale_publication —
  *   낡은 화면이 다른 관리자의 공개를 말없이 바꾸지 않게. 담당자의 비교 후 교체와 같은 규칙이다.
  * - 공개할 실행은 지금 판과 같은 입력(두 원본 + 손)이어야 한다. 영상이나 손을 바꾼 고침 앞의 실행을 공개하려면 allowOlderRevision 을 분명히 넘긴다.
+ * - 공개는 시계를 다시 돌린다. 그 실행의 판이나 지금 판의 원본을 지우는 중이면 막는다('purge_in_progress') — 시계가 돈 채 그 원본이 지워지지 않게. 다 지운 뒤에는 결과 JSON 으로 공개할 수 있다.
  * - 고침 뒤 새 판이 와도 공개는 안 바뀐다. 결과 · 설명은 승인한 판 그대로다.
  * - 공개 칸의 선수 이름만은 지금 판에서 읽는다. 이름은 승인한 분석 내용이 아니라 신원 표시이고, 관리자가 고침을 요청해 받은 값이다.
  *   묶인 판의 이름을 쓰면 오타 하나를 고치려고 재공개(실행 판에 따라서는 GPU 재실행)가 필요했다.
@@ -86,6 +87,9 @@ export async function publishRun(input: PublishInput, rt?: PublishRuntime): Prom
 
     const runRevision = await tx.intakeRevision.findUniqueOrThrow({ where: { id: found.revisionId } });
     const currentRevision = sub.currentRevisionId ? await tx.intakeRevision.findUnique({ where: { id: sub.currentRevisionId } }) : null;
+    /* 표시도 같은 잠금 안에서 걸려 틈이 없다. 옛 실행을 공개해도 시계는 지금 판까지 같이 돌려서 지금 판도 본다 */
+    const inputs = [runRevision.sideAssetId, runRevision.rearAssetId, ...(currentRevision ? [currentRevision.sideAssetId, currentRevision.rearAssetId] : [])];
+    if ((await tx.intakeAsset.count({ where: { id: { in: inputs }, status: 'purging' } })) > 0) throw new IntakeError('purge_in_progress');
     const current = currentRevision != null && runMatchesCurrent(found, runRevision, sub, currentRevision);
     if (!current && !input.allowOlderRevision) throw new IntakeAnalysisError('run_not_current', { currentRevisionId: sub.currentRevisionId });
 

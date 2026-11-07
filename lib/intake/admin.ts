@@ -21,7 +21,7 @@ import { GIB, INTAKE_BUCKET_MAX_BYTES, READ_URL_TTL_SEC, intakeLimits, type Inta
 import { fpsLabel, integrityLabel, timingNote, type IntakeMediaFacts } from '@/lib/intake/media';
 import { downloadFileName, isIntakeId, isSubmissionPath, originalExtension } from '@/lib/intake/paths';
 import { requeueJob } from '@/lib/intake/jobs';
-import { correctionHoldUntil, originalRetention, originalsPurgedAt, type RetentionBasis } from '@/lib/intake/retention';
+import { correctionHoldUntil, currentOriginalsPurgedAt, originalRetention, retentionDue, shownRetention, type RetentionBasis } from '@/lib/intake/retention';
 import {
   cancelCorrection,
   createInvitation,
@@ -35,16 +35,20 @@ import {
 } from '@/lib/intake/service';
 import {
   ANALYSIS_STATUSES,
+  ASSET_GONE,
   CORRECTABLE_FIELDS,
   INVITATION_STATUSES,
   PUBLICATION_STATUSES,
   SUBMISSION_STATUSES,
+  assetGone,
   isIntakeView,
+  purgingScope,
   readCorrection,
   verifyTargetIds,
   type CorrectableField,
   type CorrectionRequest,
   type IntakeView,
+  type PurgingScope,
 } from '@/lib/intake/state';
 import type { IntakeStorage } from '@/lib/intake/storage-core';
 import { sampleDurationLabel, viewProgressOf, type ViewProgress } from '@/lib/intake/admin-labels';
@@ -148,8 +152,10 @@ export type IntakeListRow = {
   unread: boolean;
   /** 원본을 지울 날 — 시계가 없는 초안은 null */
   originalPurgeAt: string | null;
-  /** 원본을 다 지운 시각 — 남아 있으면 null */
+  /** 지금 판의 원본을 다 지운 시각 — 남아 있으면 null */
   originalsPurgedAt: string | null;
+  /** 원본을 지우는 중인가 — 'older' 면 옛 판의 파일뿐이다. 지금 판이 살아 있는지는 originalsPurgedAt 이 말한다. 아니면 null */
+  originalsPurging: PurgingScope | null;
 };
 
 export type IntakeListResult = {
@@ -193,16 +199,16 @@ function listWhere(f: IntakeListFilters, adminId: string, unread: readonly strin
 type RetentionSource = {
   withdrawnAt: Date | null;
   lastFinalizedAt: Date | null;
+  currentRevisionId: string | null;
   publications: { publishedAt: Date }[];
-  revisions: { sideAssetId: string; rearAssetId: string }[];
+  revisions: { id: string; sideAssetId: string; rearAssetId: string }[];
   assets: { id: string; purgedAt: Date | null }[];
 };
 
-/** 목록 · 상세가 같은 말을 하게 — 판에 오른 파일을 다 지웠으면 지운 시각이다. 판이 없는 접수는 있는 파일 전부를 본다 */
+/** 목록 · 상세가 같은 말을 하게 — 지금 판의 두 파일을 다 지웠으면 지운 시각이다. 판이 없는 접수는 있는 파일 전부를 본다 */
 function retentionOf(s: RetentionSource) {
-  const plan = originalRetention({ publishedAts: s.publications.map((p) => p.publishedAt), lastFrozenAt: s.lastFinalizedAt, withdrawnAt: s.withdrawnAt });
-  const frozen = new Set(s.revisions.flatMap((r) => [r.sideAssetId, r.rearAssetId]));
-  return { plan, purgedAt: originalsPurgedAt(frozen.size ? s.assets.filter((a) => frozen.has(a.id)) : s.assets) };
+  const plan = shownRetention(originalRetention({ publishedAts: s.publications.map((p) => p.publishedAt), lastFrozenAt: s.lastFinalizedAt, withdrawnAt: s.withdrawnAt }), s.assets.length);
+  return { plan, purgedAt: currentOriginalsPurgedAt(s.assets, s.revisions.find((r) => r.id === s.currentRevisionId) ?? null) };
 }
 
 /** 대표관리자가 함께 보는 접수함 — 만든 사람으로 거르지 않는다 */
@@ -222,7 +228,7 @@ export async function loadIntakeList(db: Db, actor: IntakeActor, f: IntakeListFi
     include: {
       invitation: { select: { status: true, uploadExpiresAt: true, note: true } },
       assets: { select: { id: true, status: true, purgedAt: true } },
-      revisions: { select: { sideAssetId: true, rearAssetId: true } },
+      revisions: { select: { id: true, sideAssetId: true, rearAssetId: true } },
       publications: { select: { publishedAt: true } },
     },
   });
@@ -249,6 +255,7 @@ export async function loadIntakeList(db: Db, actor: IntakeActor, f: IntakeListFi
       unread: unreadSet.has(s.id),
       originalPurgeAt: iso(retention.plan?.purgeAt),
       originalsPurgedAt: iso(retention.purgedAt),
+      originalsPurging: purgingScope(s.assets, s.revisions.find((r) => r.id === s.currentRevisionId) ?? null),
     };
   });
   return { rows, total, page, pageCount, pageSize: INTAKE_PAGE_SIZE, unreadCount: unread.length, admins };
@@ -377,7 +384,7 @@ export type IntakeDetail = {
   activePublicationId: string | null;
   /** 시도를 다 썼거나 멈춘 일감 */
   jobIssues: IntakeJobIssue[];
-  /** 원본 보유 — 끝내지 않은 초안은 null */
+  /** 원본 보유 — 끝내지 않은 초안과 지울 파일이 없는 철회 초안은 null */
   retention: {
     purgeAt: string;
     anchorAt: string;
@@ -386,6 +393,8 @@ export type IntakeDetail = {
     purgedAt: string | null;
     /** 열린 고침을 기다려 주는 끝 — 기다리지 않으면 null */
     heldUntil: string | null;
+    /** 지우는 중인 파일 — since 는 가장 먼저 지우기로 정한 시각이다. scope 'current' 면 since · files 는 지금 판의 파일만 보고, 'older' 면 옛 판의 파일뿐이다. 없으면 null */
+    purging: { since: string; files: number; scope: PurgingScope } | null;
   } | null;
   notes: { id: string; body: string; authorId: string; author: string; mine: boolean; createdAt: string }[];
   audit: { id: string; action: string; actor: string; actorKind: string; detail: Record<string, unknown> | null; createdAt: string }[];
@@ -394,9 +403,9 @@ export type IntakeDetail = {
 const iso = (d: Date | null | undefined) => d?.toISOString() ?? null;
 const numberOrNull = (v: bigint | null | undefined) => (v == null ? null : Number(v));
 
-/** 바이트가 저장소에 있나 — 도착 기록이 있고 지운 것이 아니면 된다 */
+/** 바이트가 저장소에 있나 — 도착 기록이 있고 지웠거나 지우는 중인 것이 아니면 된다 */
 const hasBytes = (a: { status: string; uploadedAt: Date | null; storedBytes: bigint | null }) =>
-  a.status !== 'purged' && a.status !== 'abandoned' && (a.uploadedAt != null || a.storedBytes != null);
+  !assetGone(a.status) && a.status !== 'abandoned' && (a.uploadedAt != null || a.storedBytes != null);
 
 type JobRow = {
   id: string;
@@ -428,7 +437,7 @@ function jobStateOf(j: JobRow, now: Date): IntakeJobIssue['state'] | null {
 /** 이 접수의 끝나지 못한 일감 — 일감 표에는 접수 번호 칸이 없어 payload 의 접수 · 자산 · 판 · 실행 번호로 찾는다 */
 async function jobIssuesOf(
   db: Db,
-  input: { submissionId: string; assets: { id: string; view: string; status: string }[]; revisions: { id: string; number: number }[]; runs: { id: string; status: string }[]; currentRevisionId: string | null; verifyTargets: readonly string[] },
+  input: { submissionId: string; assets: { id: string; view: string; status: string }[]; revisions: { id: string; number: number }[]; runs: { id: string; status: string }[]; currentRevisionId: string | null; verifyTargets: readonly string[]; purgeLive: boolean },
   now: Date,
 ): Promise<IntakeJobIssue[]> {
   const ids = [input.submissionId, ...input.assets.map((a) => a.id), ...input.revisions.map((r) => r.id), ...input.runs.map((r) => r.id)];
@@ -449,6 +458,8 @@ async function jobIssuesOf(
     if (j.kind === 'verify_asset' && asset && ((asset.status !== 'uploaded' && asset.status !== 'verifying') || !input.verifyTargets.includes(asset.id))) continue;
     if (j.kind === 'register_revision' && j.payload?.revisionId !== input.currentRevisionId) continue;
     if (j.kind === 'poll_analysis' && input.runs.some((r) => r.id === j.payload?.runId && (r.status === 'succeeded' || r.status === 'failed'))) continue;
+    /* 다 지운 뒤에 일감을 닫기 전에 일꾼이 죽으면 임대가 끝나 실패로 닫히고, 다시 걸 까닭이 없어 그대로 남는다 */
+    if (j.kind === 'purge_originals' && !input.purgeLive) continue;
     const view = asset?.view;
     issues.push({
       id: j.id,
@@ -486,8 +497,13 @@ export async function loadIntakeDetail(db: Db, actor: IntakeActor, submissionId:
   });
   if (!s) throw new IntakeError('submission_not_found');
 
-  const verifyTargets = verifyTargetIds(s, s.revisions.find((r) => r.id === s.currentRevisionId) ?? null);
-  const jobIssues = await jobIssuesOf(db, { submissionId: s.id, assets: s.assets, revisions: s.revisions, runs: s.runs, currentRevisionId: s.currentRevisionId, verifyTargets }, now);
+  const currentRevision = s.revisions.find((r) => r.id === s.currentRevisionId) ?? null;
+  const verifyTargets = verifyTargetIds(s, currentRevision);
+  const { plan, purgedAt } = retentionOf(s);
+  /* 지울 일이 남았나 — 지우는 파일이 있거나, 지울 날이 지난 판 파일이 아직 표시 전이다 */
+  const frozen = new Set(s.revisions.flatMap((r) => [r.sideAssetId, r.rearAssetId]));
+  const purgeLive = s.assets.some((a) => a.status === 'purging') || (retentionDue(plan, now) && s.assets.some((a) => frozen.has(a.id) && !assetGone(a.status)));
+  const jobIssues = await jobIssuesOf(db, { submissionId: s.id, assets: s.assets, revisions: s.revisions, runs: s.runs, currentRevisionId: s.currentRevisionId, verifyTargets, purgeLive }, now);
   const [decision, consentTotal] = await Promise.all([consentDecisionRows(db, s.id), db.intakeConsent.count({ where: { submissionId: s.id } })]);
   const shown = new Set(s.consents.map((c) => c.id));
   const consents = [...s.consents, ...decision.filter((c) => !shown.has(c.id))].sort((a, b) => b.agreedAt.getTime() - a.agreedAt.getTime());
@@ -559,8 +575,13 @@ export async function loadIntakeDetail(db: Db, actor: IntakeActor, submissionId:
     };
   });
 
-  const { plan, purgedAt } = retentionOf(s);
-  const heldUntil = correctionHoldUntil(plan, { status: s.status, invitationStatus: s.invitation.status, uploadExpiresAt: s.invitation.uploadExpiresAt }, now);
+  const scope = purgingScope(s.assets, currentRevision);
+  /* 지금 판을 지우는 중이면 지금 판의 줄만 본다 — 옛 판이 먼저 멈춰 있으면 그 시각은 지금 판 파일이 생기기도 전이다 */
+  const purgingRows = s.assets.filter((a) => a.status === 'purging' && (scope !== 'current' || a.id === currentRevision?.sideAssetId || a.id === currentRevision?.rearAssetId));
+  /* 지금 판을 지우기 시작했거나 다 지웠으면 기다릴 삭제가 없다 — 표시는 고침을 안 기다린다(lib/intake/purge.ts) */
+  const heldUntil = scope === 'current' || purgedAt ? null : correctionHoldUntil(plan, { status: s.status, invitationStatus: s.invitation.status, uploadExpiresAt: s.invitation.uploadExpiresAt }, now);
+  /* 표시할 때 updatedAt 을 그 시각으로 적고, 그 뒤로 이 줄을 쓰는 곳이 없다 */
+  const purging = scope ? { since: new Date(Math.min(...purgingRows.map((a) => a.updatedAt.getTime()))).toISOString(), files: purgingRows.length, scope } : null;
 
   const readAt = s.reads[0]?.readAt ?? null;
   return {
@@ -639,7 +660,7 @@ export async function loadIntakeDetail(db: Db, actor: IntakeActor, submissionId:
     })),
     activePublicationId: s.publications.find((p) => p.activeFor != null)?.id ?? null,
     jobIssues,
-    retention: plan ? { purgeAt: plan.purgeAt.toISOString(), anchorAt: plan.anchorAt.toISOString(), basis: plan.basis, purgedAt: iso(purgedAt), heldUntil: iso(heldUntil) } : null,
+    retention: plan ? { purgeAt: plan.purgeAt.toISOString(), anchorAt: plan.anchorAt.toISOString(), basis: plan.basis, purgedAt: iso(purgedAt), heldUntil: iso(heldUntil), purging } : null,
     notes: s.notes.map((n) => ({
       id: n.id,
       body: n.body,
@@ -957,7 +978,7 @@ export type OriginalLinksInput = {
 
 /**
  * 원본의 짧은 서명 주소를 준다. 묶음을 만들지 않는다 — 짝이면 주소 둘이다. 주소를 낼 때마다 감사 기록을 남긴다(주소 자체는 안 남긴다).
- * 동의를 거둔 접수는 원본을 열지 않는다. 보유 기간이 끝나 지운 원본은 'original_purged' 로 막는다.
+ * 동의를 거둔 접수는 원본을 열지 않는다. 보유 기간이 끝나 지웠거나 지우는 중인 원본은 'original_purged' 로 막는다. 잠금 밖이라 표시 직전에 읽으면 5분 주소가 나갈 수 있지만 바이트는 그대로 지워진다.
  */
 export async function issueOriginalLinks(db: Db, storage: IntakeStorage, actor: IntakeActor, input: OriginalLinksInput, now: Date = new Date()): Promise<OriginalLink[]> {
   assertIntakeAdmin(actor);
@@ -982,7 +1003,7 @@ export async function issueOriginalLinks(db: Db, storage: IntakeStorage, actor: 
   const rows = await db.intakeAsset.findMany({ where: { id: { in: wanted }, submissionId: sub.id } });
   if (rows.length !== wanted.length) throw new IntakeError('asset_not_found');
   const assets = wanted.map((id) => rows.find((r) => r.id === id)!);
-  if (assets.some((a) => a.status === 'purged')) throw new IntakeError('original_purged');
+  if (assets.some((a) => assetGone(a.status))) throw new IntakeError('original_purged');
   if (!assets.every(hasBytes)) throw new IntakeError('original_unavailable');
 
   const links: OriginalLink[] = [];
@@ -1027,7 +1048,7 @@ export async function issueRunPreviewLink(
   if (sub.status === 'withdrawn') throw new IntakeError('original_locked');
   const run = await db.intakeAnalysisRun.findFirst({ where: { id: input.runId, submissionId: input.submissionId }, select: { resultMeta: true, revision: { select: { sideAssetId: true, rearAssetId: true } } } });
   /* 미리보기는 원본과 같이 지운다. 파일이 없다고만 말하면 까닭을 모른다 */
-  if (run && (await db.intakeAsset.count({ where: { id: { in: [run.revision.sideAssetId, run.revision.rearAssetId] }, status: 'purged' } })) > 0) throw new IntakeError('original_purged');
+  if (run && (await db.intakeAsset.count({ where: { id: { in: [run.revision.sideAssetId, run.revision.rearAssetId] }, status: { in: [...ASSET_GONE] } } })) > 0) throw new IntakeError('original_purged');
   const previews = (run?.resultMeta as { previews?: Partial<Record<IntakeView, unknown>> } | null | undefined)?.previews;
   const path = previews?.[input.view];
   if (typeof path !== 'string' || !isSubmissionPath(path, input.submissionId)) throw new IntakeError('original_unavailable');

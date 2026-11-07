@@ -90,7 +90,9 @@ export async function failJob(
   now: Date = new Date(),
 ): Promise<'retry' | 'failed'> {
   const row = await db.intakeJob.findUnique({ where: { id: job.id }, select: { maxAttempts: true } });
-  const message = (error instanceof Error ? error.message : String(error)).slice(0, MAX_ERROR_LENGTH);
+  /* 같은 글로 뭉뚱그려지는 저장소 실패가 무엇이었는지 남긴다 — 멈춘 일감의 까닭이 '연결 실패'인지 '지웠는데 남음'인지 가른다 */
+  const cause = (error as { detail?: { cause?: unknown } } | null)?.detail?.cause;
+  const message = `${error instanceof Error ? error.message : String(error)}${typeof cause === 'string' ? ` (${cause})` : ''}`.slice(0, MAX_ERROR_LENGTH);
   const giveUp = job.attempts >= (row?.maxAttempts ?? 8);
   await db.intakeJob.updateMany({
     where: mine(job.id, owner),
@@ -101,11 +103,11 @@ export async function failJob(
   return giveUp ? 'failed' : 'retry';
 }
 
-/** 실패로 세지 않고 다시 미룬다 */
+/** 실패로 세지 않고 다시 미룬다. 이번 시도는 실패가 아니라서 앞 시도의 까닭을 지운다 — 남기면 상세가 기다리는 일감을 '다시 시도하는 중'으로 보인다 */
 export async function postponeJob(db: PrismaClient, job: LeasedJob, owner: string, delayMs: number, now: Date = new Date()): Promise<void> {
   await db.intakeJob.updateMany({
     where: mine(job.id, owner),
-    data: { status: 'queued', runAfter: new Date(now.getTime() + delayMs), attempts: { decrement: 1 }, leaseOwner: null, leaseUntil: null },
+    data: { status: 'queued', runAfter: new Date(now.getTime() + delayMs), attempts: { decrement: 1 }, leaseOwner: null, leaseUntil: null, lastError: null },
   });
 }
 

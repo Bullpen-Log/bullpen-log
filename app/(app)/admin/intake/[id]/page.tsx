@@ -39,6 +39,7 @@ import {
   pairDownloadable,
   pairOriginalWarning,
   retentionText,
+  withdrawnRetentionText,
   splitOlderAssets,
   uploadWindowExtendable,
   viewsToResend,
@@ -84,7 +85,7 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
       {withdrawn && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn">
           필수 동의가 철회된 접수예요. 원본을 열거나 분석할 수 없어요.
-          {d.retention?.purgedAt ? ` 원본은 ${seoulDateText(d.retention.purgedAt)}에 지웠어요.` : d.retention ? ` 원본은 ${seoulDateText(d.retention.purgeAt)}에 지워요.` : ''}
+          {withdrawnRetentionText(d.retention)}
         </p>
       )}
 

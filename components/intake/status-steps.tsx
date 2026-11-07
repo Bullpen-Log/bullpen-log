@@ -13,7 +13,7 @@ import { PROXY_CONSENT_NOTE, SUBMITTER_RELATIONS, SUBMITTER_RELATION_TEXT, isPro
 import { INTAKE_ERROR_TEXT } from '@/lib/intake/errors';
 import { formatBytes } from '@/lib/intake/limits';
 import type { PublicAsset, PublicConsentDoc, PublicIntakeState } from '@/lib/intake/public-client';
-import { assetArrived, type IntakeView } from '@/lib/intake/state';
+import { assetArrived, assetGone, receiptRetentionRows, type IntakeView } from '@/lib/intake/state';
 
 /* ── 막힌 화면 ── */
 export function NoticeScreen({
@@ -134,11 +134,11 @@ export function ReceiptStep({ state, extra }: { state: PublicIntakeState; extra?
         {state.receipt && <Row label="접수일">{keyDateText(state.receipt.receiptDate)}</Row>}
         {state.receipt && <Row label="접수 번호">{state.receipt.code}</Row>}
         <Row label="지금 상태">{state.statusText}</Row>
-        {state.originalDeletedDate ? (
-          <Row label="원본 지운 날">{keyDateText(state.originalDeletedDate)}</Row>
-        ) : (
-          state.originalDeleteDate && <Row label="원본 삭제 예정일">{keyDateText(state.originalDeleteDate)}</Row>
-        )}
+        {receiptRetentionRows(state).map((row) => (
+          <Row key={row.label} label={row.label}>
+            {'date' in row ? keyDateText(row.date) : row.text}
+          </Row>
+        ))}
       </dl>
 
       <ul aria-label="보낸 영상" className="divide-y divide-line rounded-2xl bg-surface px-(--block-pad) py-1">
@@ -489,7 +489,7 @@ export function CorrectionStep({
             inspecting={inspecting === view}
             error={pickError?.view === view ? pickError.message : null}
             note={notes[view] ?? null}
-            requested={asset != null && (assetArrived(asset.status) || asset.status === 'purged')}
+            requested={asset != null && (assetArrived(asset.status) || assetGone(asset.status))}
             onPick={(f) => onPick(view, f)}
           />
         );

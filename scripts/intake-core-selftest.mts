@@ -3,6 +3,7 @@
  * DB · 저장소 · 네트워크에 닿지 않는다.
  */
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
 import { analysisRunGate, consentDocOf, consentIsCurrent, hasRequiredConsents, INTAKE_CONSENT_DOCS, latestConsents, modelUseAllowed, REQUIRED_CONSENT_KINDS } from '@/lib/intake/consent';
 import { IntakeError, INTAKE_ERROR_TEXT } from '@/lib/intake/errors';
 import { backoffMs } from '@/lib/intake/jobs';
@@ -13,10 +14,10 @@ import { MEDIA_REJECT_TEXT, captureMs, cleanFileText, fpsLabel, integrityLabel, 
 import { assetObjectPath, downloadFileName, isPurgeablePath, isSubmissionPath, originalExtension, runObjectPrefix, safeNamePart, seoulDateKey } from '@/lib/intake/paths';
 import { cleanAuditDetail } from '@/lib/intake/audit';
 import { INTAKE_CORRECTION_HOLD_DAYS, INTAKE_ORIGINAL_RETENTION_DAYS, INTAKE_WITHDRAWN_DRAFT_GRACE_DAYS } from '@/lib/intake/limits';
-import { correctionHoldUntil, originalRetention, originalsPurgedAt, retentionDue } from '@/lib/intake/retention';
+import { correctionHoldUntil, currentOriginalsPurgedAt, originalRetention, originalsPurgedAt, retentionDue, shownRetention } from '@/lib/intake/retention';
 import { assertInvitationAllows } from '@/lib/intake/access';
 import { hashRateSubject } from '@/lib/intake/rate-limit';
-import { ASSET_STATUSES, assetArrived, assetVerifyDone, canEditField, canEditView, canMoveAsset, canMoveAnalysis, canMovePublication, canMoveSubmission, correctionReceiptLine, publicStatusText, readCorrection, reconsentOpen, resolveScreen, type ScreenInput } from '@/lib/intake/state';
+import { ASSET_GONE, ASSET_STATUSES, assetArrived, assetGone, assetVerifyDone, canEditField, canEditView, canMoveAsset, canMoveAnalysis, canMovePublication, canMoveSubmission, correctionReceiptLine, publicStatusText, purgingScope, readCorrection, receiptRetentionRows, reconsentOpen, resolveScreen, type ScreenInput } from '@/lib/intake/state';
 import { directStorageOrigin, tokenTtlOf } from '@/lib/intake/storage-core';
 import { generateInvitationToken, generateReceiptCode, hashAccessCode, hashInvitationToken, isAccessCode, isIdempotencyKey, parseIntakeAuthorization, verifyAccessCode } from '@/lib/intake/token';
 import { buildMov, hugeMoovHeader, mov120, mov240 } from './intake-fixtures.mts';
@@ -416,6 +417,13 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
   const loose = originalRetention({ ...plain, withdrawnAt: d(5) })!;
   eq([loose.basis, loose.purgeAt], ['withdrawn_draft', d(12)], '판에 오른 적 없는 철회는 7일 유예다');
 
+  /* 지적 9: 표시 도우미 — 지울 파일이 없는 철회 초안만 날짜를 안 보인다. 삭제 판단은 originalRetention 그대로다 */
+  eq(shownRetention(loose, 0), null, '파일이 없는 철회 초안에는 지울 날을 안 보인다');
+  eq(shownRetention(loose, 1), loose, '파일이 있으면 유예 끝날을 보인다');
+  eq(shownRetention(left, 0), left, '판에 오른 철회는 자산 수와 상관없다');
+  eq(shownRetention(sent, 0), sent, '낸 접수도 그대로다');
+  eq(shownRetention(null, 0), null, '시계가 없으면 없다');
+
   const hold = (s: Partial<Parameters<typeof correctionHoldUntil>[1]>, now: Date) => correctionHoldUntil(sent, { status: 'correction_requested', invitationStatus: 'active', uploadExpiresAt: d(95), ...s }, now);
   eq(hold({}, d(91)), d(95), '고칠 수 있는 동안 기다린다');
   eq(hold({ uploadExpiresAt: d(200) }, d(91)), d(90 + INTAKE_CORRECTION_HOLD_DAYS), '기간을 늘려도 상한까지만 기다린다');
@@ -442,9 +450,58 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
   ok(!isPurgeablePath(`sub/${s1}/${a1}/original/x`, s1) && !isPurgeablePath(`sub/${s1}/${a1}/original\n`, s1), '뒤에 무엇이 붙은 경로');
   ok(!isPurgeablePath(assetObjectPath(s1, a1), 'nope'), '접수 번호 모양이 틀림');
 
-  /* 상태표 — 도착한 뒤의 상태에서만 지운 것으로 간다 */
-  for (const from of ['uploaded', 'verifying', 'verified', 'unconfirmed', 'rejected', 'replaced', 'abandoned'] as const) ok(canMoveAsset(from, 'purged'), `${from} → 지움`);
-  for (const from of ['reserved', 'uploading', 'purged'] as const) ok(!canMoveAsset(from, 'purged'), `${from} 는 바로 못 지운다`);
+  /* 상태표 — 판에 오른 원본은 'purging' 을 거쳐서만 지운 것으로 간다 */
+  for (const from of ['uploaded', 'verifying', 'verified', 'unconfirmed', 'rejected', 'replaced', 'abandoned'] as const) ok(canMoveAsset(from, 'purging'), `${from} → 지우는 중`);
+  for (const from of ['reserved', 'uploading', 'purging', 'purged'] as const) ok(!canMoveAsset(from, 'purging'), `${from} 는 지우기로 못 정한다`);
+  for (const from of ['replaced', 'abandoned', 'purging'] as const) ok(canMoveAsset(from, 'purged'), `${from} → 지움`);
+  for (const from of ['reserved', 'uploading', 'uploaded', 'verifying', 'verified', 'unconfirmed', 'rejected', 'purged'] as const) ok(!canMoveAsset(from, 'purged'), `${from} 는 바로 못 지운다`);
+  for (const to of ASSET_STATUSES) if (to !== 'purged') ok(!canMoveAsset('purging', to), `지우는 중에서 ${to} 로 돌아오는 길은 없다`);
+  eq([...ASSET_GONE], ['purging', 'purged'], '바이트가 없다고 치는 상태');
+  for (const s of ASSET_STATUSES) eq(assetGone(s), (ASSET_GONE as readonly string[]).includes(s), `${s} 판정이 목록과 같다`);
+  ok(!assetArrived('purging') && !assetVerifyDone('purging'), '지우는 파일은 도착한 파일로 안 친다');
+
+  /* 지우는 중인 원본이 어느 쪽인가 */
+  const pair = { sideAssetId: 'a', rearAssetId: 'b' };
+  eq(purgingScope([{ id: 'a', status: 'verified' }], pair), null, '지우는 파일이 없다');
+  eq(purgingScope([{ id: 'a', status: 'purging' }, { id: 'c', status: 'purged' }], pair), 'current', '지금 판의 파일을 지운다');
+  eq(purgingScope([{ id: 'a', status: 'verified' }, { id: 'c', status: 'purging' }], pair), 'older', '옛 판의 파일뿐이다');
+  eq(purgingScope([{ id: 'c', status: 'purging' }], null), 'older', '지금 판을 모르면 지금 판이라고 안 말한다');
+
+  /* 화면이 말하는 지운 날 — 지금 판의 두 파일을 본다 */
+  const purgedPair = [{ id: 'a', purgedAt: d(5) }, { id: 'b', purgedAt: d(6) }];
+  eq(currentOriginalsPurgedAt([...purgedPair, { id: 'c', purgedAt: null }], pair), d(6), '옛 판 파일이 남아도 지금 판을 지운 날을 말한다');
+  eq(currentOriginalsPurgedAt([{ id: 'a', purgedAt: d(5) }, { id: 'b', purgedAt: null }, { id: 'c', purgedAt: d(1) }], pair), null, '지금 판이 남았으면 없다');
+  eq(currentOriginalsPurgedAt([{ id: 'c', purgedAt: d(1) }], null), d(1), '판이 없으면 있는 파일을 본다');
+  eq(currentOriginalsPurgedAt([], null), null, '파일이 없으면 없다');
+
+  /* 영수증의 원본 줄 — 지우는 중이면 날짜를 안 말한다 */
+  const receipt = (s: Partial<Parameters<typeof receiptRetentionRows>[0]>) => receiptRetentionRows({ originalDeleting: null, originalDeletedDate: null, originalDeleteDate: null, ...s });
+  eq(receipt({}), [], '시계가 없으면 줄이 없다');
+  eq(receipt({ originalDeleteDate: '2027-02-04' }), [{ label: '원본 삭제 예정일', date: '2027-02-04' }], '지울 날을 말한다');
+  eq(receipt({ originalDeleteDate: '2027-02-04', originalDeletedDate: '2027-02-05' }), [{ label: '원본 지운 날', date: '2027-02-05' }], '지운 뒤에는 지운 날이다');
+  eq(receipt({ originalDeleteDate: '2027-05-07', originalDeleting: 'current' }), [{ label: '원본', text: '지우고 있어요' }], '철회로 밀린 날을 예정일이라고 안 말한다');
+  eq(receipt({ originalDeleteDate: '2027-05-07', originalDeleting: 'older' }), [{ label: '원본 삭제 예정일', date: '2027-05-07' }, { label: '옛 영상', text: '지우고 있어요' }], '옛 영상을 따로 말한다');
+  eq(receipt({ originalDeleteDate: '2027-02-04', originalDeletedDate: '2027-02-05', originalDeleting: 'older' }), [{ label: '원본 지운 날', date: '2027-02-05' }, { label: '옛 영상', text: '지우고 있어요' }], '지운 날과 옛 영상을 같이 말한다');
+
+  /* 'purged' 비교가 새로 생기면 지우는 파일을 있음으로 본다 — 도우미를 쓰게 소스를 훑는다. 예외: 상태 정의, 두 삭제의 끝 쓰기, 지운 글과 지우는 중 글을 가르는 곳 */
+  const PURGED_ALLOWED: [string, RegExp][] = [
+    ['lib/intake/state.ts', /'purged'/],
+    ['lib/intake/purge.ts', /status: 'purged', purgedAt: now/],
+    ['lib/intake/service.ts', /status: 'purged', purgedAt: now/],
+    ['lib/intake/media.ts', /if \(status === 'purged'\) return /],
+  ];
+  const sources = ['lib/intake', 'components/intake', 'app/(app)/admin/intake'].flatMap((root) =>
+    (readdirSync(root, { recursive: true }) as string[]).filter((f) => /\.tsx?$/.test(f)).map((f) => `${root}/${f}`),
+  );
+  ok(sources.length > 30 && !sources.some((f) => f.endsWith('.selftest.mts')), '소스를 훑는다(시험 값은 뺀다)');
+  const comparisons = sources.flatMap((file) =>
+    readFileSync(file, 'utf8')
+      .split('\n')
+      .filter((line) => line.includes("'purged'") && !/^\s*(\*|\/\*|\/\/)/.test(line) && !/outcome/.test(line))
+      .map((line) => ({ file, line: line.trim() })),
+  );
+  eq(comparisons.filter(({ file, line }) => !PURGED_ALLOWED.some(([f, re]) => f === file && re.test(line))), [], "'purged' 를 직접 견주지 않는다 — assetGone · ASSET_GONE 을 쓴다");
+  ok(PURGED_ALLOWED.every(([f]) => comparisons.some((c) => c.file === f)), '허용 목록이 낡지 않았다');
 
   /* 동의 글 — 정한 규칙을 그대로 말한다 */
   const body = consentDocOf('submission').body;
@@ -457,6 +514,8 @@ ok(MEDIA_REJECT_TEXT.unsupported_container.includes('MOV'), '고르는 사람 �
   ok(model.includes('지운 뒤에는 원본을 모델 작업에 쓰지 않아요'), '지운 뒤에는 안 쓴다');
   ok(!consentDocOf('submission').version.endsWith('.2') && consentDocOf('model').version !== 'intake-model-2026-11-06', '두 문서의 판이 오른다');
   eq(integrityLabel('purged'), '보유 기간이 지나 원본을 지웠어요', '지운 파일을 그대로 전송됨이라고 안 말한다');
+  eq(integrityLabel('purging'), '보유 기간이 지나 원본을 지우고 있어요', '지우는 파일도 사실대로 말한다');
+  eq(new IntakeError('purge_in_progress').httpStatus, 409, '지우는 중 공개는 충돌로 답한다');
 }
 
 console.log(`intake core selftest: ${passed} 통과`);

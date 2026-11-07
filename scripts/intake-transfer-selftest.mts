@@ -17,10 +17,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { firstProblemTarget, reviewProblems, staleRequiredDocs, type ReviewForm } from '@/components/intake/review-rules';
 import { INTAKE_CONSENT_DOCS, PROXY_CONSENT_NOTE, agreedAfterDocs, changedConsentKinds, consentCheckLabel, consentDocOf, isProxyRelation } from '@/lib/intake/consent';
+import { IntakeError } from '@/lib/intake/errors';
 import { TUS_CHUNK_BYTES, TUS_URL_TTL_MS } from '@/lib/intake/limits';
 import { readIntakeMediaFacts, fpsLabel } from '@/lib/intake/media';
 import { IntakeRequestError, type IntakeReceipt, type PublicIntakeState, type PublicStateResponse } from '@/lib/intake/public-client';
 import { INTAKE_BUCKET } from '@/lib/intake/paths';
+import { removeAndFindLeft } from '@/lib/intake/remove';
 import { createIntakeStorage } from '@/lib/intake/storage-core';
 import {
   HASH_SLICE_BYTES,
@@ -67,6 +69,10 @@ const server = {
   forgetFinished: false,
   /** 다음 HEAD 들이 이 상태로 답한다 — 잠깐 넘어진 저장소를 흉내 낸다 */
   headFail: [] as number[],
+  /** 다음 서명 읽기 GET 들이 이 답을 한다 — body 가 글자면 그대로 보낸다 */
+  readAnswer: null as { status: number; body: unknown } | null,
+  /** 지웠다고 답하고 객체는 그대로 둔다 */
+  removeNoop: false,
   log: { posts: 0, heads: 0, patchSizes: [] as number[], patchBytes: 0, firstPatchOffset: [] as number[], badAuth: 0, signedUploads: 0 },
 };
 
@@ -202,6 +208,14 @@ async function restRoute(req: IncomingMessage, res: ServerResponse, url: URL) {
     return send(res, 200, { signedURL: `/object/sign/${signRead[1]}/${name}?token=read-${randomBytes(4).toString('hex')}` });
   }
   if (signRead && req.method === 'GET') {
+    if (server.readAnswer) {
+      const { status, body } = server.readAnswer;
+      if (typeof body === 'string') {
+        res.writeHead(status, { 'Content-Type': 'text/html' });
+        return void res.end(body);
+      }
+      return send(res, status, body);
+    }
     const file = server.objects.get(decodeURIComponent(signRead[2]));
     if (!file) return send(res, 404, { message: 'not found' });
     const size = statSync(file).size;
@@ -216,6 +230,12 @@ async function restRoute(req: IncomingMessage, res: ServerResponse, url: URL) {
     }
     res.writeHead(200, { ...common, 'Content-Length': String(size) });
     return void createReadStream(file).pipe(res);
+  }
+  const removeRoute = /^\/storage\/v1\/object\/([^/]+)$/.exec(url.pathname);
+  if (removeRoute && req.method === 'DELETE') {
+    const { prefixes } = JSON.parse(await bodyOf(req)) as { prefixes: string[] };
+    if (!server.removeNoop) for (const name of prefixes) server.objects.delete(name);
+    return send(res, 200, prefixes.map((name) => ({ name })));
   }
   send(res, 404, { message: 'no route' });
 }
@@ -546,6 +566,38 @@ const resetLog = () => {
   const stat = await storage.stat(objectPath);
   ok(stat?.size === SIZE, '범위 읽기로 크기를 안다');
   ok((await storage.stat('sub/none/none/original')) === null, '없는 객체는 null');
+
+  /*
+   * 삭제 확인은 stat 하나에 기댄다. 호스팅 서버는 없는 객체를 HTTP 400 + 몸통 statusCode '404' 로 답한다.
+   * 다른 까닭의 400 까지 없음으로 읽으면, 지웠다는 답만 오고 객체가 남은 파일을 'purged' 로 적는다. 그 줄은 다시 보는 곳이 없다.
+   */
+  const notFound = { status: 400, body: { statusCode: '404', error: 'not_found', message: 'Object not found' } };
+  const noPermission = { status: 400, body: { statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' } };
+  const statUnavailable = (e: unknown) => e instanceof IntakeError && e.code === 'storage_unavailable' && e.detail?.cause === 'stat';
+  server.readAnswer = notFound;
+  ok((await storage.stat(objectPath)) === null, "400 + 몸통 '404' 는 없는 객체다");
+  server.readAnswer = { status: 400, body: { statusCode: 404, error: 'not_found', message: 'Object not found' } };
+  ok((await storage.stat(objectPath)) === null, '몸통의 숫자 404 도 없는 객체다');
+  for (const answer of [noPermission, { status: 400, body: {} }, { status: 400, body: '<html>Bad Request</html>' }, { status: 400, body: 'null' }]) {
+    server.readAnswer = answer;
+    await assert.rejects(storage.stat(objectPath), statUnavailable, `없다는 말이 아닌 400 은 던진다: ${JSON.stringify(answer.body)}`);
+    passed++;
+  }
+  server.readAnswer = null;
+
+  const leftName = 'sub/x/left/original';
+  const leftFile = path.join(dir, 'left');
+  writeFileSync(leftFile, 'left');
+  server.objects.set(leftName, leftFile);
+  server.removeNoop = true;
+  server.readAnswer = noPermission;
+  await assert.rejects(removeAndFindLeft(storage, [leftName]), statUnavailable, '객체가 남고 다른 까닭의 400 이면 없어졌다고 안 말한다');
+  passed++;
+  server.readAnswer = null;
+  ok((await removeAndFindLeft(storage, [leftName])).join() === leftName, '지웠다는 답만 오면 남은 경로를 돌려준다');
+  server.removeNoop = false;
+  ok((await removeAndFindLeft(storage, [leftName])).length === 0, '실제로 없어지면 빈 목록이다');
+  ok(!server.objects.has(leftName), '가짜 저장소에서도 없어졌다');
   const measured = await storage.hash(objectPath);
   ok(measured.sha256 === sourceSha && measured.size === SIZE, '서버 스트리밍 해시 = 원본');
 

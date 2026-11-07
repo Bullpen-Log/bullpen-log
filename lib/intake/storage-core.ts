@@ -124,8 +124,14 @@ export function createIntakeStorage(cfg: IntakeStorageConfig): IntakeRunStorage 
     const res = await doFetch(url, noTee({ Range: 'bytes=0-0' })).catch(() => {
       throw unavailable('stat_fetch');
     });
+    /* 호스팅 서버는 없는 객체를 HTTP 400 + 몸통 statusCode '404' 로 답한다. 다른 까닭의 400 을 없음으로 읽으면 삭제 확인이 남은 파일을 지웠다고 적는다 */
+    if (res.status === 400) {
+      const body = (await res.json().catch(() => null)) as { statusCode?: unknown } | null;
+      if (String(body?.statusCode) === '404') return null;
+      throw unavailable('stat');
+    }
     await res.body?.cancel().catch(() => {});
-    if (res.status === 404 || res.status === 400) return null;
+    if (res.status === 404) return null;
     if (res.status === 416) {
       const empty = /\/(\d+)$/.exec(res.headers.get('content-range') ?? '');
       return empty ? { size: Number(empty[1]), contentType: res.headers.get('content-type') } : null;

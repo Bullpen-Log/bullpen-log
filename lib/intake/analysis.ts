@@ -14,7 +14,7 @@
  * - GPU 걸기의 답을 못 받으면 '안 돌았다'로 치지 않는다. 키를 쥔 채 결과 파일을 기다리고(START_UNKNOWN_WINDOW_MS), 그동안 다시 걸 수 없다.
  * - 철회된 접수 · 폐기된 초대에는 새 실행을 만들지 않는다. 철회 때 이미 돌던 실행은 분석 서버에서 멈출 수 없어서, 다음 상태 묻기에서 결과를 읽지 않고
  *   실패로 닫는다. 그 실행은 공개 · 공개 보기에 쓰이지 않는다. 뒤늦게 올라온 결과 파일은 지우지 않고 아무도 안 읽는다(분석 결과의 보유 기간은 아직 안 정했다).
- * - 원본 보유 기간이 끝나면(지울 날이 지났거나 판의 원본을 지웠으면) 새 실행을 만들지 않는다('original_purged'). 끝난 실행의 결과 JSON 은 남아서 공개 결과는 그대로 열린다.
+ * - 원본 보유 기간이 끝나면(지울 날이 지났거나 판의 원본을 지웠거나 지우는 중이면) 새 실행을 만들지 않는다('original_purged'). 끝난 실행의 결과 JSON 은 남아서 공개 결과는 그대로 열린다.
  *
  * 마지막 인자 rt 는 시험용이다. 앱은 안 넘긴다(그때 prisma · 저장소 · GPU 를 불러 쓴다). 이 파일은 그래서 server-only 를 머리에 달지 않는다.
  */
@@ -27,7 +27,7 @@ import { enqueueJob } from '@/lib/intake/jobs';
 import type { IntakeMediaFacts } from '@/lib/intake/media';
 import { isIntakeId, runObjectPrefix } from '@/lib/intake/paths';
 import { originalRetention, retentionDue } from '@/lib/intake/retention';
-import { canMoveAnalysis, readCorrection, type AnalysisStatus, type IntakeView } from '@/lib/intake/state';
+import { ASSET_GONE, canMoveAnalysis, readCorrection, type AnalysisStatus, type IntakeView } from '@/lib/intake/state';
 import type { IntakeRunStorage } from '@/lib/intake/storage-core';
 import { busyTimeout, labVideoBlock, looksScreenAspect, looksScreenRecording } from '@/lib/pitch-lab-guard';
 import type { GpuJobRequest } from '@/lib/pitch-3d/v2/gpu-client';
@@ -154,16 +154,16 @@ type GateInput = {
   rev: IntakeRevision | null;
   consents: Parameters<typeof hasRequiredConsents>[0];
   invitationStatus: string;
-  /** 지금 판의 원본을 더 쓸 수 없나 — 지울 날이 지났거나 이미 지웠다 */
+  /** 지금 판의 원본을 더 쓸 수 없나 — 지울 날이 지났거나 이미 지웠거나 지우는 중이다 */
   originalsOver: boolean;
 };
 
-/** 지금 판의 원본을 더 쓸 수 없나. 지울 날이 지난 접수는 지우기 전이어도 새 실행을 안 받는다 — 삭제가 돌고 있는 파일을 분석 서버로 보내지 않게 */
+/** 지금 판의 원본을 더 쓸 수 없나. 지울 날이 지난 접수는 지우기 전이어도 새 실행을 안 받는다 — 삭제가 돌고 있는 파일을 분석 서버로 보내지 않게. 지우기 시작한 파일은 철회로 날짜가 밀려도 그대로 막는다 */
 async function originalsOverOf(db: Pick<PrismaClient, 'intakePublication' | 'intakeAsset'>, sub: IntakeSubmission, rev: IntakeRevision | null, now: Date): Promise<boolean> {
   if (!rev) return false;
   const publications = await db.intakePublication.findMany({ where: { submissionId: sub.id }, select: { publishedAt: true } });
   if (retentionDue(originalRetention({ publishedAts: publications.map((p) => p.publishedAt), lastFrozenAt: sub.lastFinalizedAt, withdrawnAt: sub.withdrawnAt }), now)) return true;
-  return (await db.intakeAsset.count({ where: { id: { in: [rev.sideAssetId, rev.rearAssetId] }, status: 'purged' } })) > 0;
+  return (await db.intakeAsset.count({ where: { id: { in: [rev.sideAssetId, rev.rearAssetId] }, status: { in: [...ASSET_GONE] } } })) > 0;
 }
 
 /** 접수 쪽 막힘 — 비어 있으면 돌릴 수 있다. 문서 · 서버 설정은 analysisReadiness 가 더한다 */
@@ -401,7 +401,7 @@ export async function listRuns(submissionId: string, rt?: IntakeRuntime): Promis
   const current = currentInputOf(sub, rev);
   /* 원본과 함께 지운 미리보기는 없는 것으로 보인다 — 결과 JSON 은 남아 있다 */
   const inputs = sub.runs.flatMap((run) => [run.revision.sideAssetId, run.revision.rearAssetId]);
-  const gone = new Set((await r.db.intakeAsset.findMany({ where: { id: { in: inputs }, status: 'purged' }, select: { id: true } })).map((a) => a.id));
+  const gone = new Set((await r.db.intakeAsset.findMany({ where: { id: { in: inputs }, status: { in: [...ASSET_GONE] } }, select: { id: true } })).map((a) => a.id));
   return sub.runs.map((run) => {
     const view = runView(run, run.revision, current, active);
     return gone.has(run.revision.sideAssetId) || gone.has(run.revision.rearAssetId) ? { ...view, previewPaths: null } : view;

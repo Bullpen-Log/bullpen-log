@@ -39,6 +39,12 @@ export function originalRetention(f: RetentionFacts): OriginalRetention | null {
   return f.lastFrozenAt ? after('submitted', f.lastFrozenAt) : null;
 }
 
+/**
+ * 화면에 보일 지울 날 — 파일이 하나도 없는 철회 초안은 지울 것이 없어서, 날짜를 보이면 지난 뒤에도 끝내 안 바뀐다.
+ * 삭제 판단은 originalRetention 을 그대로 쓴다. assetCount 는 그 접수의 자산 수다(지운 자산도 센다. 지운 날을 보여야 해서다).
+ */
+export const shownRetention = (r: OriginalRetention | null, assetCount: number) => (r?.basis === 'withdrawn_draft' && assetCount === 0 ? null : r);
+
 /** 지울 날이 됐나 — 그 시각부터 지운다 */
 export const retentionDue = (r: OriginalRetention | null, now: Date) => r != null && now.getTime() >= r.purgeAt.getTime();
 
@@ -55,8 +61,16 @@ export function correctionHoldUntil(r: OriginalRetention | null, s: CorrectionHo
   return now.getTime() < until ? new Date(until) : null;
 }
 
-/** 지울 파일을 다 지운 시각 — 하나라도 남았거나 파일이 없으면 null. 넘기는 쪽이 어떤 파일을 볼지 고른다(판에 오른 파일, 없으면 전부) */
+/** 지울 파일을 다 지운 시각 — 하나라도 남았거나 파일이 없으면 null */
 export function originalsPurgedAt(assets: readonly { purgedAt: Date | null }[]): Date | null {
   if (assets.length === 0 || assets.some((a) => a.purgedAt == null)) return null;
   return assets.reduce<Date>((latest, a) => (a.purgedAt! > latest ? a.purgedAt! : latest), assets[0].purgedAt!);
+}
+
+/**
+ * 화면이 말하는 지운 날 — 지금 판의 두 파일을 다 지운 시각이다. 판이 없으면 있는 파일 전부를 본다.
+ * 옛 판 파일이 안 지워져 남아도 지금 판을 지운 날은 말한다. 안 말하면 지운 판을 살아 있다고 말하게 된다. 옛 판이 지우는 중이라는 사실은 purgingScope 가 따로 준다.
+ */
+export function currentOriginalsPurgedAt(assets: readonly { id: string; purgedAt: Date | null }[], currentRevision: { sideAssetId: string; rearAssetId: string } | null): Date | null {
+  return originalsPurgedAt(currentRevision ? assets.filter((a) => a.id === currentRevision.sideAssetId || a.id === currentRevision.rearAssetId) : assets);
 }

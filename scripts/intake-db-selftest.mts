@@ -19,10 +19,11 @@ import { consentDecisionRows, consentDocOf, latestConsents, type ConsentAnswer }
 import { IntakeError, type IntakeErrorCode } from '@/lib/intake/errors';
 import { intakeJobHandlers, registerRevision, runIntakeCron } from '@/lib/intake/job-handlers';
 import { enqueueJob, leaseJobs, requeueJob, runDueJobs } from '@/lib/intake/jobs';
-import { TUS_CHUNK_BYTES, TUS_URL_TTL_MS } from '@/lib/intake/limits';
+import { DEFAULT_MAX_TOTAL_BYTES, TUS_CHUNK_BYTES, TUS_URL_TTL_MS } from '@/lib/intake/limits';
 import { seoulDateKey } from '@/lib/intake/paths';
 import { PURGE_RUN_SETTLE_MS, enqueueDuePurges, purgeJobKey, purgeSubmissionOriginals } from '@/lib/intake/purge';
 import { enforceRateLimit, hitRateLimit, pruneRateLimits } from '@/lib/intake/rate-limit';
+import { removeAndFindLeft, removeLeftObject } from '@/lib/intake/remove';
 import { ORIGINAL_RETENTION_MS } from '@/lib/intake/retention';
 import {
   cancelCorrection,
@@ -98,7 +99,7 @@ const db = new PrismaClient({
 
 /* ── 가짜 저장소 ── */
 const objects = new Map<string, Buffer>();
-const fail = { hash: 0, issue: false, remove: 0, removePartial: 0, removeNoop: 0 };
+const fail = { hash: 0, issue: false, remove: 0, removePartial: 0, removeNoop: 0, leave: new Set<string>() };
 /** 지우라고 받은 경로 — 다른 곳을 지우려 했는지 본다 */
 const removed: string[] = [];
 /** 전체 읽기 횟수 — 머리가 나쁜 파일이 큰 읽기를 안 쓰는지 본다 */
@@ -147,7 +148,7 @@ const storage: IntakeStorage = {
       objects.delete(paths[paths.length - 1]);
       throw new IntakeError('storage_unavailable', { cause: 'remove' });
     }
-    for (const p of paths) objects.delete(p);
+    for (const p of paths) if (!fail.leave.has(p)) objects.delete(p);
   },
 };
 
@@ -733,6 +734,14 @@ const finalize = (scope: IntakeScope, version: number, idempotencyKey = key(), e
   /* 기다리는 일 */
   const wait = await runDueJobs(db, { poll_analysis: async () => ({ retryAfterMs: 60_000 }) }, { owner: 'C', limit: 10, now: () => at(10 * DAY + 10 * 60_000), kinds: ['poll_analysis'] });
   ok(wait.postponed === 1 && (await db.intakeJob.findUniqueOrThrow({ where: { dedupeKey: 'no-handler' } })).attempts === 0, '기다림은 실패로 안 센다');
+
+  /* 한 번 실패한 뒤 다시 돌아 기다림으로 끝나면, 앞 실패 글을 안 들고 간다 — 상세가 일감을 '다시 시도하는 중'으로 잘못 보이지 않게 */
+  let pollTries = 0;
+  const flaky = { poll_analysis: async () => (pollTries++ === 0 ? Promise.reject(new Error('잠깐 안 돼요')) : { retryAfterMs: 60_000 }) };
+  await runDueJobs(db, flaky, { owner: 'C', limit: 10, now: () => at(10 * DAY + 20 * 60_000), kinds: ['poll_analysis'] });
+  eq((await db.intakeJob.findUniqueOrThrow({ where: { dedupeKey: 'no-handler' } })).lastError, '잠깐 안 돼요', '실패하면 까닭이 남는다');
+  await runDueJobs(db, flaky, { owner: 'C', limit: 10, now: () => at(10 * DAY + 40 * 60_000), kinds: ['poll_analysis'] });
+  eq((await db.intakeJob.findUniqueOrThrow({ where: { dedupeKey: 'no-handler' } })).lastError, null, '다시 돌아 기다림으로 끝나면 지난 까닭을 지운다');
 
   /* 끝까지 실패하면 멈추고, 다시 걸 수 있다 */
   await enqueueJob(db, { kind: 'register_revision', dedupeKey: 'always-fails', payload: {}, runAfter: t, maxAttempts: 2 });
@@ -1748,6 +1757,16 @@ const verifyAll = async (...ids: string[]) => {
   const pathOf = async (id: string) => (await db.intakeAsset.findUniqueOrThrow({ where: { id } })).objectPath;
   const statusOf = async (id: string) => (await db.intakeAsset.findUniqueOrThrow({ where: { id } })).status;
   const audits = (submissionId: string) => db.intakeAudit.findMany({ where: { submissionId, action: 'originals.purged' } });
+  const starts = (submissionId: string) => db.intakeAudit.findMany({ where: { submissionId, action: 'originals.purge_started' } });
+  /** 표시가 커밋된 뒤, 저장소를 지우기 전의 틈에 끼어든다 — 다음 remove 한 번 앞에서 돈다 */
+  const inRemoveGap = (work: () => Promise<void>) => {
+    const real = storage.remove;
+    storage.remove = async (paths) => {
+      storage.remove = real;
+      await work();
+      await real.call(storage, paths);
+    };
+  };
   /* 낸 뒤 검증까지 끝낸 접수 — 일꾼이 끝낸 것처럼 검증 일감도 닫는다 */
   async function sent(t: Date = T0, extra = {}) {
     const r = await ready({ uploadExpiresAt: at(14 * DAY), ...extra });
@@ -1774,7 +1793,7 @@ const verifyAll = async (...ids: string[]) => {
   ok(objects.has(a.sidePath) && objects.has(a.rearPath), '바이트가 그대로다');
   const before = await db.intakeAsset.findUniqueOrThrow({ where: { id: a.sideId } });
   const r1 = await purge(a.submissionId, D(90));
-  eq(r1, { outcome: 'purged', assets: 2, previewFiles: 0 }, '90일이 되면 지운다');
+  eq(r1, { outcome: 'purged', assets: 2, previewPaths: 0 }, '90일이 되면 지운다');
   ok(!objects.has(a.sidePath) && !objects.has(a.rearPath), '저장소에서 지운다');
   const after = await db.intakeAsset.findUniqueOrThrow({ where: { id: a.sideId } });
   eq([after.status, after.purgedAt], ['purged', D(90)], '지운 뒤에야 적는다');
@@ -1805,10 +1824,11 @@ const verifyAll = async (...ids: string[]) => {
   for (const f of ['analysis.json', 'preview-side.mp4', 'preview-rear.mp4']) objects.set(`${prefix}/${f}`, Buffer.from(f));
   const stranger = await sent();
   eq(await purge(b.submissionId, D(109)), { outcome: 'not_due' }, '마지막으로 낸 날부터 센다');
-  eq(await purge(b.submissionId, D(110)), { outcome: 'purged', assets: 3, previewFiles: 2 }, '지금 판 · 옛 판 원본 셋과 미리보기를 지운다');
+  eq(await purge(b.submissionId, D(110)), { outcome: 'purged', assets: 3, previewPaths: 2 }, '지금 판 · 옛 판 원본 셋과 미리보기를 지운다');
   ok(![b.sidePath, b.rearPath, rear2Path].some((p) => objects.has(p)), '옛 판의 원본도 지운다');
   ok(!objects.has(`${prefix}/preview-side.mp4`) && !objects.has(`${prefix}/preview-rear.mp4`), '미리보기도 지운다');
   ok(objects.has(`${prefix}/analysis.json`), '분석 결과는 남는다');
+  eq(Object.keys((await audits(b.submissionId))[0].detail as object).sort(), ['assets', 'previewPaths'], '끝 기록은 지운 파일 수라고 안 말하고 부른 경로 수를 적는다');
   ok(objects.has(stranger.sidePath), '다른 접수의 파일은 그대로다');
   eq(await statusOf(b.rearId), 'purged', '옛 판의 자산도 지운 것으로 적는다');
 
@@ -1825,16 +1845,18 @@ const verifyAll = async (...ids: string[]) => {
   const f = await sent();
   fail.remove = 1;
   await fails(purge(f.submissionId, D(90)), 'storage_unavailable', '저장소가 실패하면 던진다');
-  eq([await statusOf(f.sideId), objects.has(f.sidePath), (await audits(f.submissionId)).length], ['verified', true, 0], '지운 것으로 안 적는다');
+  eq([await statusOf(f.sideId), objects.has(f.sidePath), (await audits(f.submissionId)).length], ['purging', true, 0], '지운 것으로 안 적는다');
   fail.removePartial = 1;
   await fails(purge(f.submissionId, D(90)), 'storage_unavailable', '일부만 지우고 끊겨도 던진다');
-  eq([await statusOf(f.sideId), await statusOf(f.rearId), (await audits(f.submissionId)).length], ['verified', 'verified', 0], '일부 지운 파일도 아직 적지 않는다');
+  eq([await statusOf(f.sideId), await statusOf(f.rearId), (await audits(f.submissionId)).length], ['purging', 'purging', 0], '연결이 끊기면 지워졌는지 모르니 아무것도 안 적는다');
   ok(objects.has(f.sidePath) !== objects.has(f.rearPath), '한쪽은 이미 없다');
   fail.removeNoop = 1;
   await fails(purge(f.submissionId, D(90)), 'storage_unavailable', '지웠다는 답뿐이고 파일이 남았으면 던진다');
-  eq(await statusOf(f.sideId), 'verified', '남은 파일을 지운 것으로 안 적는다');
-  eq((await purge(f.submissionId, D(91))).outcome, 'purged', '다시 돌면 없는 파일이 있어도 끝난다');
-  eq([await statusOf(f.sideId), await statusOf(f.rearId), (await audits(f.submissionId)).length], ['purged', 'purged', 1], '기록은 한 줄이다');
+  const [goneId, leftId] = objects.has(f.sidePath) ? [f.rearId, f.sideId] : [f.sideId, f.rearId];
+  eq([await statusOf(goneId), await statusOf(leftId)], ['purged', 'purging'], '없어진 자산은 끝내고 남은 파일은 지운 것으로 안 적는다');
+  eq(await purge(f.submissionId, D(91)), { outcome: 'purged', assets: 1, previewPaths: 0 }, '다시 돌면 남은 자산을 끝낸다');
+  eq([await statusOf(f.sideId), await statusOf(f.rearId), (await audits(f.submissionId)).map((a) => (a.detail as { assets: number }).assets).sort()], ['purged', 'purged', [1, 1]], '끝낸 번마다 한 줄, 합이 자산 수다');
+  eq((await starts(f.submissionId)).length, 1, '시작 기록은 표시한 번마다 한 줄이다');
 
   /* 분석이 도는 동안 · 끝난 직후 */
   const h = await sent();
@@ -1876,7 +1898,7 @@ const verifyAll = async (...ids: string[]) => {
   await db.intakeJob.updateMany({ where: { dedupeKey: `verify_asset:${fresh}` }, data: { status: 'done' } });
   eq(await purge(cc.submissionId, D(103)), { outcome: 'held', reason: 'correction' }, '상한 앞에서는 기다린다');
   const vBefore = (await subRow(cc.submissionId)).version;
-  eq(await purge(cc.submissionId, D(104)), { outcome: 'purged', assets: 2, previewFiles: 0 }, '상한이 되면 얼린 원본만 지운다');
+  eq(await purge(cc.submissionId, D(104)), { outcome: 'purged', assets: 2, previewPaths: 0 }, '상한이 되면 얼린 원본만 지운다');
   ok(!objects.has(cc.sidePath) && !objects.has(cc.rearPath), '얼린 원본은 없다');
   ok(objects.has(freshPath), '받는 사람이 방금 고른 파일은 남긴다');
   eq(await statusOf(fresh), 'uploaded', '판에 안 오른 파일은 안 건드린다');
@@ -1924,7 +1946,7 @@ const verifyAll = async (...ids: string[]) => {
   passed++;
   eq(removed.length, calls, '폴더 밖 경로가 끼면 아무것도 안 지운다');
   ok(objects.has(`${foreign.sidePath}-x`) && objects.has(o.rearPath), '바이트가 그대로다');
-  eq([await statusOf(o.sideId), await statusOf(o.rearId)], ['verified', 'verified'], '지운 것으로 안 적는다');
+  eq([await statusOf(o.sideId), await statusOf(o.rearId), (await starts(o.submissionId)).length], ['verified', 'verified', 0], '표시도 기록도 안 걸린다');
   await db.intakeAsset.update({ where: { id: o.sideId }, data: { objectPath: o.sidePath } });
   await purge(o.submissionId, D(90));
   await purge(foreign.submissionId, D(90));
@@ -1942,7 +1964,7 @@ const verifyAll = async (...ids: string[]) => {
   await db.intakeJob.updateMany({ where: { dedupeKey: { in: [`verify_asset:${side2}`, `verify_asset:${rearB}`] } }, data: { status: 'done' } });
   eq((await loadPublicState(db, n.scope, { now: D(102) })).originalDeletedDate, null, '새 파일이 있으면 아직 안 지웠다');
   eq(await purge(n.submissionId, D(190)), { outcome: 'not_due' }, '새로 낸 날부터 센다');
-  eq(await purge(n.submissionId, D(191)), { outcome: 'purged', assets: 2, previewFiles: 0 }, '새 파일만 지운다');
+  eq(await purge(n.submissionId, D(191)), { outcome: 'purged', assets: 2, previewPaths: 0 }, '새 파일만 지운다');
   eq((await audits(n.submissionId)).length, 2, '지운 번마다 한 줄');
 
   /* 고침을 거둬도 지운 판을 등록하다 실패로 쌓이지 않는다 */
@@ -1997,6 +2019,567 @@ const verifyAll = async (...ids: string[]) => {
   eq((await db.intakeJob.findUniqueOrThrow({ where: { dedupeKey: purgeJobKey(k.submissionId, newDue) } })).attempts, 0, '횟수를 새로 준다');
   await db.intakeJob.deleteMany({ where: { kind: 'purge_originals', status: { in: ['queued', 'running'] } } });
   ok(ORIGINAL_RETENTION_MS === 90 * DAY, '시험의 날짜 셈과 규칙이 같다');
+
+  /* ── 삭제 시작 표시 — 저장소를 부르기 전에 'purging' 을 적고, 그 뒤로는 되돌리지 않는다 ── */
+
+  /* 지적 2(2) · 10: 고침 상한에서 지우는 틈에 이름만 고쳐 다시 낸다 — 새 판이 지우는 원본을 얼리거나 시계가 다시 돌면 안 된다 */
+  const fin = await sent();
+  await requestCorrection(db, { adminId: 'a', submissionId: fin.submissionId, fields: ['athleteName'] }, D(85));
+  const seenVersion = (await subRow(fin.submissionId)).version;
+  eq(await purge(fin.submissionId, D(103)), { outcome: 'held', reason: 'correction' }, '상한 앞에서는 기다린다');
+  eq(await statusOf(fin.sideId), 'verified', '기다리는 동안은 표시가 안 걸린다');
+  inRemoveGap(async () => {
+    eq([await statusOf(fin.sideId), await statusOf(fin.rearId)], ['purging', 'purging'], '저장소를 부르기 전에 표시가 커밋됐다');
+    ok(objects.has(fin.sidePath) && objects.has(fin.rearPath), '틈에는 바이트가 아직 있다');
+    eq(readViews(await subRow(fin.submissionId)), ['side', 'rear'], '표시와 함께 지울 칸이 요청에 들어간다');
+    eq(await registerRevision({ db, storage }, (await revisionOf(fin.submissionId)).id), 'skipped', '지우는 판의 등록은 넘어간다');
+    await saveDraft(db, fin.scope, { expectedVersion: (await subRow(fin.submissionId)).version, athleteName: '고친 이름' }, D(104));
+    await fails(finalizeSubmission(db, fin.scope, { expectedVersion: (await subRow(fin.submissionId)).version, idempotencyKey: key() }, D(104)), 'correction_incomplete', '최신 판 번호로 내도 지우는 칸은 다시 받아야 한다');
+    await fails(finalizeSubmission(db, fin.scope, { expectedVersion: seenVersion, idempotencyKey: key() }, D(104)), 'stale_version', '낡은 화면의 판 번호는 막힌다');
+  });
+  eq(await purge(fin.submissionId, D(104)), { outcome: 'purged', assets: 2, previewPaths: 0 }, '다시 내려 해도 지운다');
+  const finRow = await subRow(fin.submissionId);
+  eq([await db.intakeRevision.count({ where: { submissionId: fin.submissionId } }), finRow.lastFinalizedAt, finRow.status], [1, T0, 'correction_requested'], '새 판이 없고 시계도 그대로다');
+  eq(readViews(finRow), ['side', 'rear'], '받는 사람은 두 칸을 새로 낸다');
+  ok(!objects.has(fin.sidePath) && !objects.has(fin.rearPath), '원본이 없다');
+
+  /* 지적 4 서버 쪽: 지운 칸을 안 고르고 내면 전송을 기다리라고 말하지 않는다 */
+  const onlySide = await sendFile(fin.scope, 'side', mov120(4096), fin.sideId, 'side3.MOV');
+  await db.intakeJob.updateMany({ where: { dedupeKey: `verify_asset:${onlySide}` }, data: { status: 'done' } });
+  await fails(finalizeSubmission(db, fin.scope, { expectedVersion: (await subRow(fin.submissionId)).version, idempotencyKey: key() }, D(105)), 'correction_incomplete', '지운 칸이 남았으면 요청을 고치라고 답한다');
+  eq(await db.intakeRevision.count({ where: { submissionId: fin.submissionId } }), 1, '판이 안 생긴다');
+
+  /* 철회는 막지 않고, 철회로 날짜가 밀려도 끝까지 지운다 */
+  const wd = await sent();
+  fail.removePartial = 1;
+  await fails(purge(wd.submissionId, D(90)), 'storage_unavailable', '일부만 지우고 끊긴다');
+  await withdrawRequiredConsent(db, { adminId: 'a', submissionId: wd.submissionId }, D(95));
+  eq((await loadPublicState(db, wd.scope, { now: D(95) })).originalDeleteDate, seoulDateKey(D(185)), '철회가 지울 날을 민다');
+  eq(await purge(wd.submissionId, D(96)), { outcome: 'purged', assets: 2, previewPaths: 0 }, 'not_due 로 끝나지 않고 끝까지 지운다');
+  ok(!objects.has(wd.sidePath) && !objects.has(wd.rearPath), '철회한 사람의 영상이 90일 더 남지 않는다');
+
+  /* 지우는 틈에 글만 고치라는 요청이 와도 칸을 강제로 넣고, 같은 파일을 골라도 새 자산으로 받는다 */
+  const cg = await sent();
+  fail.removePartial = 1;
+  await fails(purge(cg.submissionId, D(90)), 'storage_unavailable', '일부만 지우고 끊긴다');
+  await requestCorrection(db, { adminId: 'a', submissionId: cg.submissionId, fields: ['athleteName'] }, D(91));
+  eq(readViews(await subRow(cg.submissionId)), ['side', 'rear'], '글만 요청해도 지우는 칸이 들어간다');
+  const sameFile = await reserveAsset(db, cg.scope, { view: 'side', expectedAssetId: cg.sideId, fileName: 'same.MOV', sizeBytes: cg.side.length, declaredType: 'video/quicktime', sha256: sha(cg.side), pairConfirmed: true }, D(91));
+  ok(sameFile.created && sameFile.asset.id !== cg.sideId, '지우는 원본과 같은 파일이어도 새 자산이다');
+  eq(await statusOf(cg.sideId), 'purging', '판에 얼린 자산의 표시는 그대로다');
+  eq(await purge(cg.submissionId, D(92)), { outcome: 'purged', assets: 2, previewPaths: 0 }, '열린 고침을 기다리지 않고 끝까지 지운다');
+  eq(await statusOf(sameFile.asset.id), 'reserved', '새로 고른 파일은 안 건드린다');
+
+  /* 멈춘 채 새 판 — 옛 파일을 계속 지우고, 새 원본 · 새 판의 미리보기는 남긴다. 시계는 새로 낸 날이다 */
+  const nv = await sent();
+  fail.remove = 1;
+  await fails(purge(nv.submissionId, D(90)), 'storage_unavailable', '저장소가 실패한다');
+  await requestCorrection(db, { adminId: 'a', submissionId: nv.submissionId, views: ['side', 'rear'] }, D(91));
+  const nvSide = await sendFile(nv.scope, 'side', mov120(4096), nv.sideId, 'nv-side.MOV');
+  const nvRear = await sendFile(nv.scope, 'rear', mov240(4096), nv.rearId, 'nv-rear.MOV');
+  await finalizeSubmission(db, nv.scope, { expectedVersion: (await subRow(nv.submissionId)).version, idempotencyKey: key() }, D(92));
+  await verifyAll(nvSide, nvRear);
+  await db.intakeJob.updateMany({ where: { dedupeKey: { in: [`verify_asset:${nvSide}`, `verify_asset:${nvRear}`] } }, data: { status: 'done' } });
+  eq((await subRow(nv.submissionId)).status, 'verified', '두 파일을 새로 받으면 낼 수 있다');
+  eq((await loadPublicState(db, nv.scope, { now: D(92) })).originalDeleting, 'older', '옛 판의 파일만 지우는 중이라고 가른다');
+  const nvRun = await mkRun(nv.submissionId, 'succeeded', D(92));
+  const nvPreview = `sub/${nv.submissionId}/runs/${nvRun.id}/preview-side.mp4`;
+  objects.set(nvPreview, Buffer.from('preview'));
+  const [nvSidePath, nvRearPath] = [await pathOf(nvSide), await pathOf(nvRear)];
+  eq(await purge(nv.submissionId, D(93)), { outcome: 'purged', assets: 2, previewPaths: 0 }, '지울 날이 밀렸어도 옛 파일을 끝낸다');
+  ok(!objects.has(nv.sidePath) && !objects.has(nv.rearPath), '옛 원본이 없다');
+  ok(objects.has(nvSidePath) && objects.has(nvRearPath) && objects.has(nvPreview), '새 원본과 새 판의 미리보기는 남는다');
+  const nvState = await loadPublicState(db, nv.scope, { now: D(93) });
+  eq([nvState.originalDeleteDate, nvState.originalDeletedDate, nvState.originalDeleting], [seoulDateKey(D(182)), null, null], '시계는 새로 낸 날이고 지금 판은 살아 있다');
+
+  /* 일꾼 둘 — 끝 기록은 한 줄이다 */
+  const two = await sent();
+  const both = await Promise.all([purge(two.submissionId, D(90)), purge(two.submissionId, D(90))]);
+  eq(both.map((r) => r.outcome).sort(), ['nothing', 'purged'], '한쪽만 끝낸다');
+  eq([(await starts(two.submissionId)).length, (await audits(two.submissionId)).length], [1, 1], '시작 · 끝이 한 줄씩이다');
+
+  /* 끝내기는 자산별이다 — 그 자산을 입력으로 쓴 실행의 미리보기가 남으면 그 자산도 안 끝난다 */
+  const pv = await sent();
+  const pvRun = await mkRun(pv.submissionId, 'succeeded', D(1));
+  const pvPath = `sub/${pv.submissionId}/runs/${pvRun.id}/preview-rear.mp4`;
+  objects.set(pvPath, Buffer.from('preview'));
+  fail.leave.add(pvPath);
+  await assert.rejects(purge(pv.submissionId, D(90)), (e: unknown) => e instanceof IntakeError && e.code === 'storage_unavailable' && e.detail?.cause === 'remove_left_object');
+  passed++;
+  eq([await statusOf(pv.sideId), await statusOf(pv.rearId), (await audits(pv.submissionId)).length], ['purging', 'purging', 0], '미리보기가 남은 두 자산은 안 끝난다');
+  ok(!objects.has(pv.sidePath) && !objects.has(pv.rearPath), '원본은 없어졌다');
+  fail.leave.clear();
+  eq(await purge(pv.submissionId, D(91)), { outcome: 'purged', assets: 2, previewPaths: 2 }, '미리보기가 없어지면 끝난다');
+
+  /* stat 의 연결 실패는 아무것도 안 적는다 — 없어졌는지 모른다 */
+  const st = await sent();
+  const realStat = storage.stat;
+  storage.stat = async () => {
+    throw new IntakeError('storage_unavailable', { cause: 'sign_read' });
+  };
+  await assert.rejects(purge(st.submissionId, D(90)), (e: unknown) => e instanceof IntakeError && e.detail?.cause === 'sign_read');
+  passed++;
+  storage.stat = realStat;
+  eq([await statusOf(st.sideId), await statusOf(st.rearId), (await audits(st.submissionId)).length], ['purging', 'purging', 0], '확인 못 한 파일은 안 끝낸다');
+  eq(await purge(st.submissionId, D(91)), { outcome: 'purged', assets: 2, previewPaths: 0 }, '다시 돌면 끝난다');
+
+  /* 공용 확인 함수 */
+  objects.set('sub/x/left', Buffer.from('x'));
+  fail.leave.add('sub/x/left');
+  eq(await removeAndFindLeft(storage, ['sub/x/left', 'sub/x/none']), ['sub/x/left'], '남은 경로를 돌려준다');
+  eq([removeLeftObject().code, removeLeftObject().detail?.cause], ['storage_unavailable', 'remove_left_object'], '남았다는 오류는 저장소 실패로 던진다');
+  fail.leave.clear();
+  eq(await removeAndFindLeft(storage, ['sub/x/left']), [], '없어지면 빈 목록이다');
+  ok(!objects.has('sub/x/left'), '지운다');
+
+  /* 지적 6(1): 판에 오른 적 없는 파일은 보유 삭제가 안 건드린다 — 공개 0일, 85일에 고침을 열어 새 파일, 89일에 철회, 90일에 삭제 */
+  const lo = await sent();
+  await mkPublication(lo.submissionId, D(0));
+  await requestCorrection(db, { adminId: 'a', submissionId: lo.submissionId, views: ['side'] }, D(85));
+  const loose = await sendFile(lo.scope, 'side', mov120(4096), lo.sideId, 'loose.MOV');
+  await db.intakeJob.updateMany({ where: { dedupeKey: `verify_asset:${loose}` }, data: { status: 'done' } });
+  await withdrawRequiredConsent(db, { adminId: 'a', submissionId: lo.submissionId }, D(89));
+  eq((await purge(lo.submissionId, D(90))).outcome, 'purged', '얼린 원본은 지운다');
+  ok(objects.has(await pathOf(loose)), '철회 1일 뒤의 판 밖 파일은 남는다');
+  eq(await statusOf(loose), 'uploaded', '판 밖 파일의 상태도 그대로다');
+  /* 판 밖 파일은 철회한 날부터 7일 유예를 정리가 지킨다 */
+  const sweep = (t: Date) => cleanupStaleUploads(db, storage, t, 5000);
+  await sweep(D(96, -1));
+  ok(objects.has(await pathOf(loose)) && (await statusOf(loose)) === 'uploaded', '유예 끝 1ms 앞까지 남는다');
+  await sweep(D(96));
+  eq([await statusOf(loose), objects.has(await pathOf(loose))], ['purged', false], '철회한 날부터 7일이 되면 지운다');
+
+  /* 지적 6(2): 전송 중 다른 파일로 바뀌어 'replaced' 가 된 자리 — 26시간 여유는 정리 몫이다 */
+  const rp = await sent();
+  await requestCorrection(db, { adminId: 'a', submissionId: rp.submissionId, views: ['rear'] }, D(85));
+  const fileA = mov120(4096);
+  const fileB = mov120(4096);
+  const moving = await reserveAsset(db, rp.scope, { view: 'rear', expectedAssetId: rp.rearId, fileName: 'a.MOV', sizeBytes: fileA.length, declaredType: 'video/quicktime', sha256: sha(fileA), pairConfirmed: true }, NOW);
+  await issueUploadToken(db, storage, rp.scope, { assetId: moving.asset.id }, NOW);
+  await reserveAsset(db, rp.scope, { view: 'rear', expectedAssetId: moving.asset.id, fileName: 'b.MOV', sizeBytes: fileB.length, declaredType: 'video/quicktime', sha256: sha(fileB), pairConfirmed: true }, NOW);
+  eq(await statusOf(moving.asset.id), 'replaced', '바뀐 파일이다');
+  eq(await purge(rp.submissionId, D(104)), { outcome: 'purged', assets: 2, previewPaths: 0 }, '얼린 원본 둘만 지운다');
+  eq(await statusOf(moving.asset.id), 'replaced', '살아 있는 전송 주소의 자리를 지운 것으로 안 적는다');
+  /* 살아 있는 주소로 전송이 끝나 바이트가 생겨도, 여유가 지나면 정리가 지운다. @updatedAt 은 실제 시각이라 시험 시계에 맞춰 직접 적는다 */
+  const movingPath = await pathOf(moving.asset.id);
+  objects.set(movingPath, fileA);
+  await db.intakeAsset.update({ where: { id: moving.asset.id }, data: { updatedAt: D(104) } });
+  const SLACK = TUS_URL_TTL_MS + 2 * HOUR;
+  await sweep(new Date(D(104).getTime() + SLACK));
+  eq([await statusOf(moving.asset.id), objects.has(movingPath)], ['replaced', true], '26시간 여유 안에서는 안 지운다');
+  await sweep(new Date(D(104).getTime() + SLACK + 1));
+  eq([await statusOf(moving.asset.id), objects.has(movingPath)], ['purged', false], '여유가 지나면 늦게 도착한 바이트까지 지운다');
+
+  /* 일감 시험은 앞 묶음이 남긴 접수와 섞이지 않게 더 옛날 시계로 본다 */
+  eq(await db.intakeAsset.count({ where: { status: 'purging' } }), 0, '앞 시험에 지우다 만 접수가 안 남았다');
+  const T1 = at(-3000 * DAY);
+  const E = (n: number, ms = 0) => new Date(T1.getTime() + n * DAY + ms);
+  const runPurges = (t: Date) => runDueJobs(db, intakeJobHandlers({ db, storage: storage as never, gpu: {} as never, now: () => t }), { owner: 'p', kinds: ['purge_originals'], now: () => t });
+  const failedOf = async (id: string) => (await jobsOf(id)).filter((j) => j.status === 'failed').length;
+
+  /* 시도를 다 쓴 뒤 철회로 날짜가 밀려도 같은 줄을 느리게 다시 걸어 끝낸다 */
+  const st1 = await sent(E(0));
+  eq(await enqueueDuePurges(db, E(90)), 1, '지울 날에 일감이 생긴다');
+  fail.remove = 1;
+  eq((await runPurges(E(90))).retried, 1, '저장소가 실패하면 다시 돈다');
+  eq(await statusOf(st1.sideId), 'purging', '표시는 남는다');
+  await withdrawRequiredConsent(db, { adminId: 'a', submissionId: st1.submissionId }, E(95));
+  const st1Key = purgeJobKey(st1.submissionId, E(90));
+  await db.intakeJob.update({ where: { dedupeKey: st1Key }, data: { status: 'failed', attempts: 8, finishedAt: E(95) } });
+  eq(await enqueueDuePurges(db, E(95, HOUR)), 0, '바로는 안 건다');
+  eq(await enqueueDuePurges(db, E(95, 7 * HOUR)), 1, '지울 날이 밀렸어도 느리게 다시 건다');
+  const st1Job = await db.intakeJob.findUniqueOrThrow({ where: { dedupeKey: st1Key } });
+  eq([st1Job.status, st1Job.attempts, (await jobsOf(st1.submissionId)).length], ['queued', 0, 1], '있던 줄을 다시 쓴다');
+  await runPurges(E(95, 7 * HOUR));
+  eq([await statusOf(st1.sideId), await statusOf(st1.rearId), await failedOf(st1.submissionId)], ['purged', 'purged', 0], '끝까지 지우고 멈춘 일감이 안 남는다');
+
+  /* 줄이 없어도 잇는다 */
+  const st2 = await sent(E(0));
+  fail.remove = 1;
+  await fails(purge(st2.submissionId, E(90)), 'storage_unavailable', '표시만 걸린 채 끊긴다');
+  eq(await enqueueDuePurges(db, E(91)), 1, '일감 없이 멈춘 접수도 찾는다');
+  ok((await jobsOf(st2.submissionId))[0].dedupeKey.includes(':resume:'), '날짜와 상관없는 열쇠로 새 줄을 넣는다');
+  await runPurges(E(91));
+  eq(await statusOf(st2.sideId), 'purged', '끝까지 지운다');
+
+  /* 끝나면 날짜가 다른 옛 실패 줄도 닫는다 */
+  const st3 = await sent(E(0));
+  fail.remove = 1;
+  await fails(purge(st3.submissionId, E(90)), 'storage_unavailable', '표시만 걸린 채 끊긴다');
+  await enqueueJob(db, { kind: 'purge_originals', dedupeKey: `purge_originals:${st3.submissionId}:old`, payload: { submissionId: st3.submissionId }, runAfter: E(90) });
+  await db.intakeJob.update({ where: { dedupeKey: `purge_originals:${st3.submissionId}:old` }, data: { status: 'failed', attempts: 8, finishedAt: E(90), lastError: '옛 실패' } });
+  eq(await purge(st3.submissionId, E(91)), { outcome: 'purged', assets: 2, previewPaths: 0 }, '일감 없이도 끝난다');
+  eq(await failedOf(st3.submissionId), 0, '옛 실패 줄이 닫힌다');
+
+  /* 옛 표시가 멈춰도 새 판의 지울 날에는 새 파일을 지운다 — 옛 파일 하나가 새 파일의 90일을 끝없이 미루지 않게 */
+  async function stuckWithNewRevision() {
+    const r = await sent(E(0));
+    fail.leave.add(r.sidePath);
+    await fails(purge(r.submissionId, E(90)), 'storage_unavailable', '옛 파일 하나가 안 지워진다');
+    eq([await statusOf(r.sideId), await statusOf(r.rearId)], ['purging', 'purged'], '끝낼 수 있는 자산은 끝낸다');
+    await requestCorrection(db, { adminId: 'a', submissionId: r.submissionId, views: ['side', 'rear'] }, E(95));
+    const newSide = await sendFile(r.scope, 'side', mov120(4096), r.sideId, 'new-side.MOV');
+    const newRear = await sendFile(r.scope, 'rear', mov240(4096), r.rearId, 'new-rear.MOV');
+    await finalizeSubmission(db, r.scope, { expectedVersion: (await subRow(r.submissionId)).version, idempotencyKey: key() }, E(100));
+    await verifyAll(newSide, newRear);
+    await db.intakeJob.updateMany({ where: { dedupeKey: { in: [`verify_asset:${newSide}`, `verify_asset:${newRear}`] } }, data: { status: 'done' } });
+    return { ...r, newSide, newRear };
+  }
+  const ns = await stuckWithNewRevision();
+  const ns2 = await stuckWithNewRevision();
+  await fails(purge(ns.submissionId, E(189)), 'storage_unavailable', '지울 날 앞에서는 옛 파일만 다시 지운다');
+  eq(await statusOf(ns.newSide), 'verified', '새 판 파일은 지울 날 앞에서 안 건드린다');
+  const nsDue = E(190);
+  eq(await enqueueDuePurges(db, nsDue, 1), 2, '재개 한도에 걸린 접수도 새 판의 지울 날에 일감이 생긴다');
+  eq((await runPurges(nsDue)).retried, 2, '옛 파일이 남아 다시 돈다');
+  for (const r of [ns, ns2]) eq([await statusOf(r.sideId), await statusOf(r.newSide), await statusOf(r.newRear)], ['purging', 'purged', 'purged'], '옛 파일이 멈춰도 새 파일은 지운다');
+  ok((await jobsOf(ns.submissionId))[0].lastError?.includes('(remove_left_object)'), '일감에 지웠는데 남았다고 적는다');
+  /* 지금 판은 지웠고 옛 파일 하나가 남았다 — 지운 날을 안 말하면 지운 판을 살아 있다고 말하게 된다 */
+  const nsState = await loadPublicState(db, ns.scope, { now: nsDue });
+  eq([nsState.originalDeletedDate, nsState.originalDeleting], [seoulDateKey(nsDue), 'older'], '옛 파일이 멈춰도 지금 판을 지운 날을 말한다');
+  fail.leave.clear();
+  await runPurges(new Date(nsDue.getTime() + HOUR));
+  for (const r of [ns, ns2]) eq([await statusOf(r.sideId), await failedOf(r.submissionId)], ['purged', 0], '남은 파일을 마저 지운다');
+
+  /* 기다림은 새 대상에만 걸린다 — 지우는 파일은 끝내고, 새 파일은 일감을 미뤄 다시 본다 */
+  const hs = await stuckWithNewRevision();
+  const hsRun = await mkRun(hs.submissionId, 'requested');
+  fail.leave.clear();
+  eq(await purge(hs.submissionId, E(190)), { outcome: 'held', reason: 'analysis' }, '지우던 파일을 끝낸 뒤에도 기다린다고 답해 일감이 다시 돈다');
+  eq([await statusOf(hs.sideId), await statusOf(hs.newSide), await statusOf(hs.newRear)], ['purged', 'verified', 'verified'], '도는 실행의 입력은 표시하지 않는다');
+  await db.intakeAnalysisRun.update({ where: { id: hsRun.id }, data: { status: 'failed', finishedAt: E(190) } });
+  eq(await purge(hs.submissionId, E(191)), { outcome: 'purged', assets: 2, previewPaths: 2 }, '기다림이 끝나면 새 파일을 지운다');
+
+  /* 일감으로 돌 때 — 지우던 파일을 끝내고 기다림으로 넘어가면 앞의 '지웠는데 남음' 글이 안 남는다. 파일은 이미 없고 고침 · 분석을 기다릴 뿐이다 */
+  const he = await stuckWithNewRevision();
+  const heRun = await mkRun(he.submissionId, 'requested');
+  eq(await enqueueDuePurges(db, E(190)), 1, '멈춘 접수에 일감을 건다');
+  eq((await runPurges(E(190))).retried, 1, '옛 파일이 남아 다시 돈다');
+  ok((await jobsOf(he.submissionId))[0].lastError?.includes('(remove_left_object)'), '까닭이 일감에 남는다');
+  fail.leave.clear();
+  eq((await runPurges(E(191))).postponed, 1, '옛 파일을 끝내고 일감을 미룬다');
+  eq(await statusOf(he.sideId), 'purged', '옛 파일은 끝났다');
+  eq([(await jobsOf(he.submissionId))[0].status, (await jobsOf(he.submissionId))[0].lastError], ['queued', null], '미룬 일감에 지난 실패 글이 안 남는다');
+  await db.intakeAnalysisRun.update({ where: { id: heRun.id }, data: { status: 'failed', finishedAt: E(190) } });
+  await runPurges(E(192));
+
+  /* 지적 12: 시도를 다 쓴 일감이 스캔 자리를 막지 않는다 */
+  const qs = [await sent(E(0)), await sent(E(0, 1000)), await sent(E(0, 2000))];
+  eq(await enqueueDuePurges(db, E(91), 2), 2, '한도만큼 일감이 생긴다');
+  eq((await jobsOf(qs[2].submissionId)).length, 0, '뒤 접수는 아직이다');
+  await db.intakeJob.updateMany({ where: { kind: 'purge_originals', status: 'queued' }, data: { status: 'failed', attempts: 8, finishedAt: E(91) } });
+  eq(await enqueueDuePurges(db, E(91, HOUR), 2), 1, '멈춘 둘을 건너뛰어 뒤 접수를 찾는다');
+  eq((await jobsOf(qs[2].submissionId)).length, 1, '뒤 접수에 일감이 생긴다');
+  eq(await enqueueDuePurges(db, E(91, 7 * HOUR), 2), 2, '때가 되면 앞 접수도 다시 건다');
+  await runPurges(E(91, 7 * HOUR));
+  for (const q of qs) eq([await statusOf(q.sideId), await failedOf(q.submissionId)], ['purged', 0], '셋 다 끝난다');
+
+  /* ── 임시 파일 정리 — 철회 유예 · 없어진 것 확인 · 겹침 ── */
+  const assetRow = (id: string) => db.intakeAsset.findUniqueOrThrow({ where: { id } });
+  const purgedAudits = (submissionId: string) => db.intakeAudit.findMany({ where: { submissionId, action: 'asset.purged' } });
+  const leftOver = (e: unknown) => e instanceof IntakeError && e.code === 'storage_unavailable' && e.detail?.cause === 'remove_left_object';
+  /** 낸 적 없는 초안에 파일을 고쳐 올려, 옛 파일 하나를 'replaced' 로 만든다 */
+  async function draftWithReplaced() {
+    const r = await ready();
+    const swapped = await sendFile(r.scope, 'side', mov240(4096), r.sideId, 'swap.MOV');
+    eq(await statusOf(r.sideId), 'replaced', '바뀐 파일이 생긴다');
+    return { ...r, swapped, oldPath: await pathOf(r.sideId) };
+  }
+
+  /* 지적 6(3): 버린 지 오래된 파일이어도 철회한 접수는 철회한 날부터 7일을 지킨다 */
+  const rw = await draftWithReplaced();
+  await withdrawRequiredConsent(db, { adminId: 'a', submissionId: rw.submissionId }, D(300));
+  await db.intakeAsset.update({ where: { id: rw.sideId }, data: { updatedAt: D(100) } });
+  await sweep(D(302));
+  eq([await statusOf(rw.sideId), objects.has(rw.oldPath)], ['replaced', true], '철회 2일째에는 버린 파일도 남는다');
+  await sweep(D(307, -1));
+  eq(await statusOf(rw.sideId), 'replaced', '유예 끝 1ms 앞까지 남는다');
+  await sweep(D(307));
+  eq([await statusOf(rw.sideId), objects.has(rw.oldPath)], ['purged', false], '철회 7일째에 지운다');
+
+  /* 지적 7: 지웠다는 답뿐이고 객체가 남은 파일은 지운 것으로 안 적는다. 다른 파일은 지운다 */
+  const lf = await ready();
+  const [lfSide, lfRear] = [await pathOf(lf.sideId), await pathOf(lf.rearId)];
+  await withdrawRequiredConsent(db, { adminId: 'a', submissionId: lf.submissionId }, D(400));
+  fail.leave.add(lfSide);
+  await assert.rejects(sweep(D(407)), leftOver, '남은 파일이 있으면 던진다');
+  passed++;
+  const lfRow = await assetRow(lf.sideId);
+  eq([lfRow.status, lfRow.purgedAt, objects.has(lfSide)], ['abandoned', null, true], '남은 파일은 지운 것으로 안 적는다');
+  eq([await statusOf(lf.rearId), objects.has(lfRear)], ['purged', false], '다른 파일은 끝까지 지운다');
+  eq((await purgedAudits(lf.submissionId)).length, 1, '지운 파일만 기록한다');
+  await assert.rejects(sweep(D(408)), leftOver, '하루 뒤에도 조용히 넘어가지 않는다');
+  passed++;
+  fail.leave.clear();
+  eq((await sweep(D(408))).purged, 1, '없어지면 마저 끝낸다');
+  eq([await statusOf(lf.sideId), objects.has(lfSide), (await purgedAudits(lf.submissionId)).length], ['purged', false, 2], '기록은 파일마다 한 줄이다');
+
+  /* 철회 안 한 접수 — 여유 조건이 updatedAt 이라, 밀면 다음 시도에 안 보이고 일감이 성공으로 끝난다 */
+  const nw = await draftWithReplaced();
+  const nwStale = D(500);
+  await db.intakeAsset.update({ where: { id: nw.sideId }, data: { updatedAt: nwStale } });
+  fail.leave.add(nw.oldPath);
+  await assert.rejects(sweep(D(502)), leftOver, '철회 안 한 접수의 파일도 남으면 던진다');
+  passed++;
+  const nwRow = await assetRow(nw.sideId);
+  eq([nwRow.status, nwRow.updatedAt, objects.has(nw.oldPath), (await purgedAudits(nw.submissionId)).length], ['replaced', nwStale, true, 0], '여유 시각을 안 밀고 기록도 안 남긴다');
+  await assert.rejects(sweep(new Date(D(502).getTime() + 30_000)), leftOver, '30초 뒤 재시도에도 그대로 보인다');
+  passed++;
+  fail.leave.clear();
+  eq((await sweep(D(503))).purged, 1, '풀리면 끝낸다');
+  eq([await statusOf(nw.sideId), objects.has(nw.oldPath), await statusOf(nw.swapped)], ['purged', false, 'uploaded'], '칸의 파일은 안 건드린다');
+
+  /* 일감으로 돌 때 — 처리기는 실제 시각을 쓴다. 남은 파일이 있는 동안 일감은 성공으로 안 끝나고 까닭이 남는다 */
+  const nj = await draftWithReplaced();
+  await db.intakeAsset.update({ where: { id: nj.sideId }, data: { updatedAt: new Date(Date.now() - 3 * DAY) } });
+  fail.leave.add(nj.oldPath);
+  const cleanJob = `cleanup_uploads:test:${key()}`;
+  await enqueueJob(db, { kind: 'cleanup_uploads', dedupeKey: cleanJob, payload: {}, runAfter: new Date(Date.now() - 1000), maxAttempts: 3 });
+  const runClean = (t: Date) => runDueJobs(db, intakeCoreJobHandlers(db, storage), { owner: 'clean', kinds: ['cleanup_uploads'], now: () => t });
+  eq((await runClean(new Date())).retried, 1, '일감이 실패로 다시 돈다');
+  const cleanRow = await db.intakeJob.findUniqueOrThrow({ where: { dedupeKey: cleanJob } });
+  eq(cleanRow.status, 'queued', '성공으로 안 끝난다');
+  ok(cleanRow.lastError?.includes('(remove_left_object)'), '지웠는데 남았다는 까닭이 일감에 남는다');
+  fail.leave.clear();
+  eq((await runClean(new Date(Date.now() + 2 * 60_000))).done, 1, '풀리면 일감이 끝난다');
+  const cleanDone = await db.intakeJob.findUniqueOrThrow({ where: { dedupeKey: cleanJob } });
+  eq([cleanDone.status, cleanDone.lastError, await statusOf(nj.sideId)], ['done', null, 'purged'], '까닭이 지워지고 파일도 지운다');
+
+  /* 연결이 실패하면 지워졌는지 모른다 — 바로 던지고 다음 파일로 안 간다. 다시 돌면 끝난다 */
+  const c1 = await draftWithReplaced();
+  const c2 = await draftWithReplaced();
+  await db.intakeAsset.updateMany({ where: { id: { in: [c1.sideId, c2.sideId] } }, data: { updatedAt: D(600) } });
+  const calls2 = removed.length;
+  fail.remove = 1;
+  await assert.rejects(sweep(D(602)), (e: unknown) => e instanceof IntakeError && e.detail?.cause === 'remove');
+  passed++;
+  eq(removed.length, calls2 + 1, '다음 파일로 안 간다');
+  eq([await statusOf(c1.sideId), await statusOf(c2.sideId)], ['replaced', 'replaced'], '아무것도 안 적는다');
+  storage.stat = async () => {
+    throw new IntakeError('storage_unavailable', { cause: 'sign_read' });
+  };
+  await assert.rejects(sweep(D(602)), (e: unknown) => e instanceof IntakeError && e.detail?.cause === 'sign_read');
+  passed++;
+  storage.stat = realStat;
+  eq([await statusOf(c1.sideId), await statusOf(c2.sideId), (await purgedAudits(c1.submissionId)).length], ['replaced', 'replaced', 0], '없어졌는지 못 보면 안 적는다');
+  /* 오래된 파일부터 지운다 — 한도가 차도 가장 오래 남은 바이트가 먼저 빠진다 */
+  await db.intakeAsset.update({ where: { id: c2.sideId }, data: { updatedAt: D(599) } });
+  eq((await cleanupStaleUploads(db, storage, D(602), 1)).purged, 1, '한도만큼 지운다');
+  eq([await statusOf(c2.sideId), await statusOf(c1.sideId)], ['purged', 'replaced'], '오래된 파일이 먼저다');
+  eq((await sweep(D(602))).purged, 1, '다음 번에 마저 지운다');
+
+  /* 줄을 읽은 뒤 철회가 끼어들면, 아직 안 지운 파일은 철회한 날부터 7일을 지킨다 */
+  const wr = await ready();
+  await sendFile(wr.scope, 'side', mov240(4096), wr.sideId, 'wr-side.MOV');
+  await sendFile(wr.scope, 'rear', mov120(4096), wr.rearId, 'wr-rear.MOV');
+  const wrOld = [wr.sideId, wr.rearId];
+  await db.intakeAsset.updateMany({ where: { id: { in: wrOld } }, data: { updatedAt: D(100) } });
+  const wrStatus = async () => (await Promise.all(wrOld.map(statusOf))).sort();
+  inRemoveGap(async () => {
+    await withdrawRequiredConsent(db, { adminId: 'a', submissionId: wr.submissionId }, D(702));
+  });
+  await sweep(D(702));
+  eq(await wrStatus(), ['purged', 'replaced'], '철회 앞에 정한 파일만 지우고 나머지는 남긴다');
+  await sweep(D(709, -1));
+  eq(await wrStatus(), ['purged', 'replaced'], '유예 끝 1ms 앞까지 남는다');
+  await sweep(D(709));
+  eq(await wrStatus(), ['purged', 'purged'], '철회 7일째에 지운다');
+
+  /* 안 지워지는 파일이 한도를 채워도 뒤 파일은 지운다 — 남은 파일의 시각을 안 밀어서 늘 줄 맨 앞에 있다 */
+  const hl = [await draftWithReplaced(), await draftWithReplaced(), await draftWithReplaced()];
+  for (const [i, r] of hl.entries()) await db.intakeAsset.update({ where: { id: r.sideId }, data: { updatedAt: D(800, i * 1000) } });
+  fail.leave.add(hl[0].oldPath).add(hl[1].oldPath);
+  await assert.rejects(cleanupStaleUploads(db, storage, D(802), 2), leftOver, '남은 파일이 있으면 던진다');
+  passed++;
+  eq([await statusOf(hl[0].sideId), await statusOf(hl[1].sideId), await statusOf(hl[2].sideId)], ['replaced', 'replaced', 'purged'], '한도를 넘어 뒤 파일까지 닿는다');
+  ok(!objects.has(hl[2].oldPath), '뒤 파일의 바이트가 없다');
+  fail.leave.clear();
+  eq((await sweep(D(802))).purged, 2, '풀리면 앞 파일도 끝낸다');
+
+  /* 한 번에 훑는 줄에는 끝이 있다 — 안 지워지는 파일이 아주 많아도 함수 시간 안에 끝나게 */
+  const cap = [await draftWithReplaced(), await draftWithReplaced(), await draftWithReplaced()];
+  for (const r of cap) fail.leave.add(r.oldPath);
+  for (const [i, r] of cap.entries()) await db.intakeAsset.update({ where: { id: r.sideId }, data: { updatedAt: D(810, i * 1000) } });
+  const capCalls = removed.length;
+  await assert.rejects(cleanupStaleUploads(db, storage, D(812), 1, 2), leftOver, '끝까지 못 가도 던진다');
+  passed++;
+  eq(removed.length - capCalls, 2, '훑는 줄 상한에서 멈춘다');
+  fail.leave.clear();
+  eq((await sweep(D(812))).purged, 3, '다음 번에 마저 지운다');
+
+  /* 지적 11: 겹쳐 돌아도 파일마다 기록 한 줄, 지운 수도 파일 수다 */
+  await sweep(D(707));
+  const ov = await ready();
+  await withdrawRequiredConsent(db, { adminId: 'a', submissionId: ov.submissionId }, D(700));
+  const overlap = await Promise.all([sweep(D(707)), sweep(D(707))]);
+  eq(overlap[0].purged + overlap[1].purged, 2, '겹쳐도 지운 수가 안 부푼다');
+  eq((await purgedAudits(ov.submissionId)).length, 2, '겹쳐도 기록은 파일마다 한 줄이다');
+  eq([await statusOf(ov.sideId), await statusOf(ov.rearId)], ['purged', 'purged'], '둘 다 지운다');
+
+  /*
+   * 줄을 읽은 뒤에 사정이 바뀌면 안 버린다 — 정리가 줄을 읽고 잠그기 전의 틈에 관리자가 기간을 늘리거나 철회가 들어온다.
+   * 버린 파일은 칸에서 내려가 26시간 뒤 지워진다. 화면은 '아직 보내지 않았어요'로 돌아가 받는 사람이 다시 보내야 한다.
+   */
+  const afterScan = (work: () => Promise<unknown>) => {
+    let done = false;
+    return new Proxy(db, {
+      get(target, prop) {
+        const v = (target as unknown as Record<string | symbol, unknown>)[prop];
+        if (prop !== '$transaction') return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(target) : v;
+        return async (...args: unknown[]) => {
+          if (!done) {
+            done = true;
+            await work();
+          }
+          return (v as (...a: unknown[]) => unknown).apply(target, args);
+        };
+      },
+    }) as typeof db;
+  };
+  const closeWindow = (invitationId: string, t: Date) => db.intakeInvitation.update({ where: { id: invitationId }, data: { uploadExpiresAt: t } });
+  const slotsOf = async (id: string) => {
+    const s = await subRow(id);
+    return [s.sideAssetId, s.rearAssetId, s.samePitchConfirmed, s.version];
+  };
+  /* 빈 시험이 아니다 — 끼어들지 않으면 같은 조건의 파일을 버린다 */
+  const plain = await ready();
+  await closeWindow(plain.invitationId, D(900));
+  eq((await sweep(D(901, 26 * HOUR + 1))).abandoned, 2, '기간이 끝나고 여유가 지나면 버린다');
+  eq([await statusOf(plain.sideId), await statusOf(plain.rearId)], ['abandoned', 'abandoned'], '끼어들지 않으면 그대로다');
+
+  /* 도착한 파일 — 기간을 늘렸으면 받는 사람이 낼 수 있어 그대로 둔다 */
+  const ex = await ready();
+  await closeWindow(ex.invitationId, D(902));
+  const exSlots = await slotsOf(ex.submissionId);
+  const exAt = D(904);
+  const exDone = await cleanupStaleUploads(afterScan(() => extendUploadWindow(db, { adminId: 'a', submissionId: ex.submissionId, until: D(950) }, exAt)), storage, exAt, 5000);
+  eq(exDone.abandoned, 0, '기간을 늘렸으면 안 버린다');
+  eq([await statusOf(ex.sideId), await statusOf(ex.rearId)], ['uploaded', 'uploaded'], '도착한 파일이 그대로다');
+  eq(await slotsOf(ex.submissionId), exSlots, '칸 · 같은 투구 확인 · 판 번호도 그대로다');
+  eq((await loadPublicState(db, ex.scope, { now: exAt })).assets.side?.id, ex.sideId, '화면이 고른 파일을 그대로 보인다');
+
+  /* 전송 중인 파일 — 고침 중인 접수에서 같은 틈을 본다 */
+  const tr = await sent();
+  await requestCorrection(db, { adminId: 'a', submissionId: tr.submissionId, views: ['side'] }, D(905));
+  const trBytes = mov240(4096);
+  const trNew = await reserveAsset(db, tr.scope, { view: 'side', expectedAssetId: tr.sideId, fileName: 'n', sizeBytes: trBytes.length, sha256: sha(trBytes) }, D(905));
+  await issueUploadToken(db, storage, tr.scope, { assetId: trNew.asset.id }, D(905));
+  await db.intakeAsset.update({ where: { id: trNew.asset.id }, data: { updatedAt: D(905) } });
+  await closeWindow(tr.invitationId, D(906));
+  const trSlots = await slotsOf(tr.submissionId);
+  const trAt = D(908);
+  eq((await cleanupStaleUploads(afterScan(() => extendUploadWindow(db, { adminId: 'a', submissionId: tr.submissionId, until: D(950) }, trAt)), storage, trAt, 5000)).abandoned, 0, '전송 중인 파일도 안 버린다');
+  eq(await statusOf(trNew.asset.id), 'uploading', '전송을 이어 갈 수 있다');
+  eq(await slotsOf(tr.submissionId), trSlots, '칸도 그대로다');
+
+  /* 기간을 늘려 토큰을 다시 받은 직후 폐기됐다 — 업로드 주소가 살아 있는 동안은 전송 여유를 지킨다 */
+  await closeWindow(tr.invitationId, D(909));
+  const tr2At = D(910);
+  const reissueThenRevoke = async () => {
+    await extendUploadWindow(db, { adminId: 'a', submissionId: tr.submissionId, until: D(950) }, tr2At);
+    await issueUploadToken(db, storage, tr.scope, { assetId: trNew.asset.id }, tr2At);
+    await db.intakeInvitation.update({ where: { id: tr.invitationId }, data: { status: 'revoked', revokedAt: tr2At } });
+  };
+  eq((await cleanupStaleUploads(afterScan(reissueThenRevoke), storage, tr2At, 5000)).abandoned, 0, '토큰을 막 받은 파일은 폐기돼도 바로 안 버린다');
+  eq(await statusOf(trNew.asset.id), 'uploading', '전송 여유 안이다');
+
+  /* 도착한 파일도 같다 — 기간을 늘린 뒤 폐기됐으면 폐기한 때부터 여유를 센다 */
+  const rv = await ready();
+  await closeWindow(rv.invitationId, D(902));
+  const rvAt = D(904);
+  const extendThenRevoke = async () => {
+    await extendUploadWindow(db, { adminId: 'a', submissionId: rv.submissionId, until: D(950) }, rvAt);
+    await db.intakeInvitation.update({ where: { id: rv.invitationId }, data: { status: 'revoked', revokedAt: rvAt } });
+  };
+  eq((await cleanupStaleUploads(afterScan(extendThenRevoke), storage, rvAt, 5000)).abandoned, 0, '폐기 뒤 여유 안에서는 안 버린다');
+  eq(await statusOf(rv.sideId), 'uploaded', '폐기 직후에는 그대로다');
+  ok((await sweep(new Date(rvAt.getTime() + 26 * HOUR + 1))).abandoned >= 2, '폐기 뒤 여유가 지나면 버린다');
+  eq([await statusOf(rv.sideId), await statusOf(rv.rearId)], ['abandoned', 'abandoned'], '두 파일 다 내려간다');
+
+  /* 철회가 끼어들었으면 철회한 날부터 7일을 지킨다 — 기간이 끝나 버릴 뻔한 파일이어도 그렇다 */
+  const late = await ready();
+  await closeWindow(late.invitationId, D(910));
+  const lateAt = D(912);
+  eq((await cleanupStaleUploads(afterScan(() => withdrawRequiredConsent(db, { adminId: 'a', submissionId: late.submissionId }, lateAt)), storage, lateAt, 5000)).abandoned, 0, '철회가 끼어들면 안 버린다');
+  eq([await statusOf(late.sideId), await statusOf(late.rearId)], ['uploaded', 'uploaded'], '7일 유예 안에서는 그대로다');
+  await sweep(D(919, -1));
+  eq([await statusOf(late.sideId), await statusOf(late.rearId)], ['uploaded', 'uploaded'], '유예 끝 1ms 앞까지 남는다');
+  await sweep(D(919));
+  eq([await statusOf(late.sideId), await statusOf(late.rearId)], ['purged', 'purged'], '7일이 되면 버리고 지운다');
+
+  /*
+   * 지운 파일은 없는 것으로 친다 — 바이트를 믿을 수 없으니 같은 파일 판정 · 합계 한도 · 자산 개수 어디에도 안 잡는다. 'purging' 과 'purged' 둘 다다.
+   * 얼린 원본이 지워진 접수만 있는 일이라, 고침이 열린 접수로 본다.
+   */
+  const inCorrection = async () => {
+    const r = await sent();
+    await requestCorrection(db, { adminId: 'a', submissionId: r.submissionId, views: ['side', 'rear'] }, D(85));
+    return r;
+  };
+  for (const gone of ['purging', 'purged'] as const) {
+    /* 다른 칸의 파일과 같은 해시 */
+    const sf = await inCorrection();
+    const sameAs = (await db.intakeAsset.findUniqueOrThrow({ where: { id: sf.rearId } })).clientSha256;
+    const pickSame = () => reserveAsset(db, sf.scope, { view: 'side', expectedAssetId: sf.sideId, fileName: 'n', sizeBytes: sf.rear.length, sha256: sameAs }, NOW);
+    await fails(pickSame(), 'same_file', '살아 있는 다른 칸과 같은 파일은 막는다');
+    await db.intakeAsset.update({ where: { id: sf.rearId }, data: { status: gone } });
+    eq((await pickSame()).created, true, `다른 칸이 ${gone} 이면 그 파일을 다시 고를 수 있다`);
+
+    /* 합계 한도 */
+    const tl = await inCorrection();
+    await db.intakeAsset.update({ where: { id: tl.rearId }, data: { declaredSize: BigInt(DEFAULT_MAX_TOTAL_BYTES) } });
+    const tlBytes = mov240(4096);
+    const pickSized = () => reserveAsset(db, tl.scope, { view: 'side', expectedAssetId: tl.sideId, fileName: 'n', sizeBytes: tlBytes.length, sha256: sha(tlBytes) }, NOW);
+    await fails(pickSized(), 'total_too_large', '살아 있는 다른 칸은 합계에 든다');
+    await db.intakeAsset.update({ where: { id: tl.rearId }, data: { status: gone } });
+    eq((await pickSized()).created, true, `다른 칸이 ${gone} 이면 합계에서 빠진다`);
+  }
+  /* 자산 개수 — 지운 파일 둘이 있어도 살아 있는 자산을 한도까지 받는다. 둘 가운데 어느 쪽이 세이면 12개째에서 막힌다 */
+  const ct = await inCorrection();
+  await db.intakeAsset.update({ where: { id: ct.sideId }, data: { status: 'purging' } });
+  await db.intakeAsset.update({ where: { id: ct.rearId }, data: { status: 'purged' } });
+  let ctPrev = ct.sideId;
+  const pickNext = () => {
+    const b = mov240();
+    return reserveAsset(db, ct.scope, { view: 'side', expectedAssetId: ctPrev, fileName: 'n', sizeBytes: b.length, sha256: sha(b) }, NOW);
+  };
+  for (let n = 0; n < 12; n++) ctPrev = (await pickNext()).asset.id;
+  eq(await db.intakeAsset.count({ where: { submissionId: ct.submissionId } }), 14, '지운 파일 둘 말고 열두 개를 받는다');
+  await fails(pickNext(), 'too_many_assets', '살아 있는 자산이 한도에 닿으면 막는다');
+
+  /* 정리 일감의 실패 줄은 칸마다 쌓이니 끝난 줄처럼 30일 뒤 지운다. 다른 일감의 실패 줄은 상세에 보여야 해서 남긴다 */
+  const pruneAt = at(5 * DAY);
+  const failedJob = async (kind: 'cleanup_uploads' | 'purge_originals', dedupeKey: string, daysAgo: number) => {
+    await enqueueJob(db, { kind, dedupeKey, payload: { submissionId: 'none' }, runAfter: pruneAt });
+    await db.intakeJob.update({ where: { dedupeKey }, data: { status: 'failed', attempts: 3, lastError: '저장소 실패', finishedAt: new Date(pruneAt.getTime() - daysAgo * DAY) } });
+  };
+  await failedJob('cleanup_uploads', 'prune:old', 31);
+  await failedJob('cleanup_uploads', 'prune:new', 29);
+  await failedJob('purge_originals', 'prune:purge', 31);
+  await cron(pruneAt);
+  eq((await db.intakeJob.findMany({ where: { dedupeKey: { startsWith: 'prune:' } }, orderBy: { dedupeKey: 'asc' } })).map((j) => j.dedupeKey), ['prune:new', 'prune:purge'], '30일 지난 정리 실패 줄만 지운다');
+  await db.intakeJob.deleteMany({ where: { dedupeKey: { startsWith: 'prune:' } } });
+
+  /* 지적 9: 파일 없이 철회한 초안 — 받는 사람에게도 날짜를 안 말한다. 지울 일이 없는 것도 그대로다 */
+  const nf = await invite();
+  await named(nf.scope);
+  await recordConsents(db, nf.scope, { answers: REQUIRED }, NOW);
+  await withdrawRequiredConsent(db, { adminId: 'a', submissionId: nf.submissionId }, NOW);
+  const nfState = await loadPublicState(db, nf.scope, { now: at(30 * DAY) });
+  eq([nfState.originalDeleteDate, nfState.originalDeletedDate], [null, null], '파일이 없으면 지울 날도 지운 날도 없다');
+  eq(await purge(nf.submissionId, at(30 * DAY)), { outcome: 'nothing' }, '삭제 판단은 그대로다');
+  const wf2 = await ready();
+  await withdrawRequiredConsent(db, { adminId: 'a', submissionId: wf2.submissionId }, NOW);
+  eq((await loadPublicState(db, wf2.scope, { now: NOW })).originalDeleteDate, seoulDateKey(at(7 * DAY)), '파일이 있으면 유예 끝날을 말한다');
+
+  /* 불변식 — 낸 접수의 판 밖 파일은 모두 정리 대상이어야 한다. 보유 삭제는 판 밖 파일을 안 보고, 정리는 그 둘과 끝내지 않은 접수만 보니 다른 상태면 영영 남는다 */
+  const outside = await db.$queryRaw<{ id: string; status: string }[]>`
+    SELECT a."id", a."status" FROM "IntakeAsset" a
+    JOIN "IntakeSubmission" s ON s."id" = a."submissionId"
+    WHERE s."status" IN ('submitted', 'verified', 'needs_attention')
+      AND NOT EXISTS (SELECT 1 FROM "IntakeRevision" r WHERE r."sideAssetId" = a."id" OR r."rearAssetId" = a."id")`;
+  ok(outside.length > 0, '고쳐 낸 접수가 판 밖 파일을 남겼다 — 빈 시험이 아니다');
+  eq(outside.filter((a) => !['replaced', 'abandoned', 'purged'].includes(a.status)), [], '낸 접수에 판 밖의 도착 · 전송 자산이 없다');
 }
 
 /* 파일 탓의 쓰기 거절 — 진짜 Postgres 오류 모양으로 본다. 이 뒤에는 DB 를 안 쓴다 */
