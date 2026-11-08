@@ -1469,8 +1469,9 @@ const isWeighted = (ex: PinnableExercise) =>
  * 근력 보조(당기기 · 보조 밀기 · 햄스트링) — 무게를 올려 갈 수 있는 것만. 풀업 · 친업은 맨몸이라도 든다. 2026-10-16 김민: 밴드 · 튜빙 ·
  * 맨몸 회복형(하프닐링 밴드 풀다운 · 인클라인 푸시업 · 햄스트링 다이버 · 보수볼 RDL)이 근력 프로그램 보조로 나왔다 — 그건 암케어 · 회복 몫.
  */
+/* 머신(랫 풀다운 · 45° 백 익스텐션 …)은 보조 칸에만 든다 — isWeighted 에 넣으면 레그 프레스 · 핵 스쿼트가 본운동 스쿼트 후보가 된다(2026-11-08) */
 const loadableAccessory = (ex: PinnableExercise) =>
-  (isWeighted(ex) || /풀업|친업/.test(ex.title)) &&
+  (isWeighted(ex) || ex.equipment.includes('머신') || /풀업|친업/.test(ex.title)) &&
   intensityLevel(ex.intensity) >= 3 &&
   !/보수볼/.test(ex.title);
 

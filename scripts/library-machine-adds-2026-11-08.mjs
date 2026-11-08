@@ -2,7 +2,8 @@
  * 하체 스트렝스에 헬스장 머신 운동 일곱을 더한다(2026-11-08 김민: 라이브러리 검토 뒤 "하체는 시티드 카프 레이즈 빼고 나머지는 넣는데
  * 장비는 그냥 머신으로 통일"). 장비 '머신'은 lib/exercise-meta.ts EXERCISE_EQUIPMENT 에 같은 날 더했다.
  *
- * 영상은 유튜브 참고 영상(나중에 직접 찍어 바꾼다). 같은 이름이 이미 있으면 건너뛴다. 랫 풀다운은 2026-10-26 에 이미 넣었다(케이블).
+ * 영상은 유튜브 참고 영상(나중에 직접 찍어 바꾼다). 같은 이름이 이미 있으면 건너뛴다.
+ * 랫 풀다운(2026-10-26 에 케이블로 넣음)은 장비를 머신으로 바꾼다(같은 날 김민: "랫풀다운 머신으로 바꾸고").
  * --apply 뒤 lib/library-cache.ts 의 library:exercises 이름을 하나 올린다(이 커밋에서 v46).
  *
  *   node --env-file=.env scripts/library-machine-adds-2026-11-08.mjs           # 확인만
@@ -219,5 +220,7 @@ else {
   const now = new Date();
   const r = await prisma.exerciseVideo.createMany({ data: todo.map((x) => ({ ...x, detailsFilledAt: now })) });
   console.log(`넣음 ${r.count}개 — lib/library-cache.ts 의 library:exercises 이름을 올릴 것`);
+  const lat = await prisma.exerciseVideo.updateMany({ where: { title: '랫 풀다운' }, data: { equipment: ['머신'] } });
+  console.log(`랫 풀다운 장비 → 머신 ${lat.count}개`);
 }
 await prisma.$disconnect();
