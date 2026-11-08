@@ -16,6 +16,7 @@ import type { Body3DHandle, Transport } from './body-3d';
 import { useV2Analysis } from './use-v2-analysis';
 import { loadLabVideoShifts } from '@/app/actions/pitch-lab';
 import { followTick, sourceTimesAt } from '@/lib/pitch-3d/v2/video-sync';
+import { reportExportHtml } from '@/lib/pitch-3d/v2/report-export';
 
 /** 3D 보기는 결과가 있을 때만 받는다(three 를 안 여는 화면에 실리지 않게) */
 const Body3D = dynamic(() => import('./body-3d').then((m) => m.Body3D), { ssr: false });
@@ -84,6 +85,10 @@ export function LabDetail({
   /* 영상마다 마지막으로 옮긴 때(performance.now) — followTick 이 옮긴 뒤 잠깐은 다시 안 옮긴다 */
   const seekedAt = useRef<Partial<Record<string, number>>>({});
   const [extrasOn, setExtrasOn] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const exportBusy = useRef(false);
   const lastT = useRef<Transport | null>(null);
 
   /* 원본 영상이 3D 시계를 따라간다 */
@@ -176,6 +181,41 @@ export function LabDetail({
   const hand = meta?.hand ?? 'R';
   const when = labWhenText(meta);
   const stale = result != null && engineBuild != null && result.engine.build !== engineBuild;
+  const exportReport = () => {
+    if (!report) return;
+    const page = window.open('', '_blank');
+    if (!page) { setExportError('리포트를 열 수 없어요. 팝업 허용을 확인해 주세요.'); return; }
+    try {
+      page.opener = null;
+      let image: string | null = null;
+      try { image = body.current?.snapshot() ?? null; } catch { /* report works without a scene */ }
+      page.document.open();
+      page.document.write(reportExportHtml(report, '투구 분석', when ?? '', image));
+      page.document.close();
+      setTimeout(() => page.print(), 300);
+      setExportError(null);
+    } catch { page.close(); setExportError('리포트를 열지 못했어요. 다시 시도해 주세요.'); }
+  };
+  const exportVideo = async () => {
+    if (exportBusy.current) return;
+    exportBusy.current = true;
+    setExporting(true);
+    setExportError(null);
+    setExportProgress(0);
+    try {
+      if (!body.current) throw new Error('3D 화면을 불러온 뒤 다시 시도해 주세요.');
+      const blob = await body.current.exportVideo(setExportProgress);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sinker-3d-analysis.mp4';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) { setExportError(error instanceof Error ? error.message : '영상을 만들지 못했어요.'); }
+    finally { exportBusy.current = false; setExporting(false); }
+  };
   const request = (
     <V2RequestRow
       job={v2.job}
@@ -256,6 +296,8 @@ export function LabDetail({
           action={<V2StatusBadge job={v2.job} now={now} />}
           inlineAction
         />
+        {report && <button type="button" onClick={exportReport} className="min-h-11 rounded-xl bg-ink/5 px-4 text-sm font-semibold text-ink">리포트 인쇄·PDF 저장</button>}
+        {exportError && <ErrorLine>{exportError}</ErrorLine>}
       </div>
 
       {/* 좁은 화면은 핵심이 무대 위 — PC 는 오른쪽 칸 맨 위(같은 부품 둘, 하나만 보인다) */}
@@ -313,6 +355,7 @@ export function LabDetail({
               {request}
             </>
           )}
+          {result && report && <div className="space-y-1"><button type="button" disabled={exporting || !!(v2.job && isV2JobActive(v2.job, now))} onClick={() => void exportVideo()} className="min-h-11 w-full rounded-xl bg-ink/5 px-4 text-sm font-semibold text-ink disabled:opacity-50">{exporting ? `3D 영상 만드는 중 ${Math.round(exportProgress * 100)}%` : '현재 각도로 3D 영상 저장'}</button><p className="text-xs text-muted">화면을 돌려 각도를 고르세요. 3D 동작과 측정선이 저장되며 원본 영상·소리는 포함되지 않아요.</p></div>}
           {/* 원본 영상은 결과 바로 밑에 늘 보인다(2026-10-22 김민: "결과 밑에 원본 영상도 안 나와" — 예전엔 '원본 영상 보기'를 눌러야 폈다) */}
           {sources}
           {v2.offline && <ErrorLine>연결을 확인해 주세요. 마지막 상태를 보고 있어요.</ErrorLine>}

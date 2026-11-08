@@ -1,6 +1,8 @@
+import { LabGalleryPicker } from '~/lab/gallery-picker';
+import { startPickUi } from '~/videos/filters';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { type Href, router, Stack } from 'expo-router';
+import { type Href, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -83,6 +85,9 @@ const todayHead = () => {
 
 function Flow({ heightCm, defaultHand, isAdmin, c }: { heightCm: number | null; defaultHand: LabHand; isAdmin: boolean; c: Palette }) {
   const inset = useSafeAreaInsets();
+  const { sourcePath, previousReportId } = useLocalSearchParams<{ sourcePath?: string; previousReportId?: string }>();
+  const [sourceUsed, setSourceUsed] = useState(false);
+  const [galleryView, setGalleryView] = useState<LabView | null>(null);
   const [step, setStep] = useState<Step>('pick');
   const [hand, setHand] = useState<LabHand>(defaultHand);
   /* 던진 곳은 고르기 전까지 비워 둔다 — 기본값으로 저절로 정하지 않는다 */
@@ -180,6 +185,7 @@ function Flow({ heightCm, defaultHand, isAdmin, c }: { heightCm: number | null; 
         ground: ground ?? 'mound',
         heightCm: heightNum,
         memo: null,
+        ...(previousReportId ? { previousReportId } : {}),
         subject: isAdmin ? subject.trim() || null : null,
       });
       if (!id) return setPhase({ kind: 'upload-failed', reason: '' });
@@ -282,6 +288,7 @@ function Flow({ heightCm, defaultHand, isAdmin, c }: { heightCm: number | null; 
         : null;
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+      {galleryView ? <LabGalleryPicker view={galleryView} onClose={() => setGalleryView(null)} onPick={(path) => { const view = galleryView; setGalleryView(null); void up.pick(view, path); }} /> : null}
       <Head
         title="새 분석"
         onBack={goBack}
@@ -303,7 +310,16 @@ function Flow({ heightCm, defaultHand, isAdmin, c }: { heightCm: number | null; 
       </View>
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: 24 }, READABLE]} keyboardShouldPersistTaps="handled">
         {step === 'pick' ? (
-          <PickStep hand={hand} setHand={setHand} up={up} c={c} />
+          <>
+            {previousReportId ? <Text style={[TYPE.sub, { color: c.link }]}>연습 후 다시 찍는 분석이에요. 완료하면 이전 분석과 연습 기록으로 연결돼요.</Text> : null}
+            {sourcePath && !sourceUsed ? <View style={{ gap: 8 }}>
+              <Text style={[TYPE.body, { color: c.ink }]}>가져온 영상의 촬영 방향을 골라 주세요.</Text>
+              {LAB_VIEWS.map((view) => <Pressable key={view} accessibilityRole="button" disabled={up.checking != null || up.busy} onPress={() => { setSourceUsed(true); void up.pick(view, sourcePath); }} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={[TYPE.buttonCompact, { color: c.link }]}>{view === 'side' ? '옆' : '뒤'} 영상으로 사용</Text></Pressable>)}
+            </View> : null}
+            <PickStep hand={hand} setHand={setHand} up={up} c={c} />
+            <Text style={[TYPE.sub, { color: c.muted }]}>싱커에 보관한 원본도 선택할 수 있어요. 선택 후에도 같은 촬영 조건 검사를 거쳐요.</Text>
+            {LAB_VIEWS.map((view) => <Pressable key={view} accessibilityRole="button" disabled={up.checking != null || up.busy} onPress={() => { startPickUi(); setGalleryView(view); }} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={[TYPE.buttonCompact, { color: c.link }]}>내 영상에서 {view === 'side' ? '옆' : '뒤'} 영상 선택</Text></Pressable>)}
+          </>
         ) : step === 'info' ? (
           <InfoStep
             hand={hand}

@@ -16,8 +16,9 @@ export type CoachSaved = {
   /** 운동할 수 있는 요일 · 하루 시간 */
   days?: Weekday[];
   minutes?: number;
+  /** 운동 장소 — 2026-11-03 부터 묻지 않는다(어디서도 안 읽었다 · 장비 목록이 대신). 옛 답 · 옛 앱 때문에 칸은 둔다 */
   place?: CoachPlace;
-  /** 피해야 할 동작 — 건강정보라 동의가 있을 때만 저장(U18) */
+  /** 피해야 할 동작 — 건강정보라 동의가 있을 때만 저장(U18). 계획기(큰 하체 · 메커니즘)와 오늘 운동 만들기(lib/coach/limits.ts)가 읽는다 */
   limits?: CoachLimit[];
 };
 
@@ -45,7 +46,16 @@ export const COACH_LIMITS = [
   { value: 'heavyLower', label: '무거운 하체' },
   { value: 'throwing', label: '던지기' },
 ] as const;
-export const COACH_MINUTES = [30, 45, 60, 90] as const;
+/**
+ * 하루 운동 시간 — 오늘 운동 만들기(엔진)가 고를 수 있는 값과 같다(lib/report/theme.ts WEIGHT_MINUTES, coach:test 가 견준다).
+ * 예전엔 30분도 있었는데 엔진이 45분으로 올려 만들어 코치 화면('운동 30분')과 실제 운동이 어긋났다(2026-11-03 검토).
+ */
+export const COACH_MINUTES = [45, 60, 75, 90] as const;
+
+/** 옛 답 · 옛 칸의 시간(20 · 30분 등)을 지금 선택지로 — 가장 가까운 값, 짧은 쪽은 올린다(theme.ts nearestMinutesChoice 와 같은 뜻) */
+export function coachMinutes(m: number): number {
+  return COACH_MINUTES.reduce<number>((best, x) => (Math.abs(x - m) < Math.abs(best - m) ? x : best), COACH_MINUTES[0]);
+}
 export const WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 
 export type CoachPriority = (typeof COACH_PRIORITIES)[number]['value'];
@@ -83,7 +93,9 @@ export function mergeStep(prev: CoachSaved, step: CoachStep, v: Record<string, u
     }
     case 'availability': {
       const days = weekdays(v.days);
-      const minutes = (COACH_MINUTES as readonly number[]).includes(Number(v.minutes)) ? Number(v.minutes) : null;
+      /* 옛 앱이 보낸 20 · 30분도 받아 선택지로 맞춘다 */
+      const n = Number(v.minutes);
+      const minutes = n >= 15 && n <= 120 ? coachMinutes(n) : null;
       return days && days.length && minutes ? { ...prev, days, minutes } : null;
     }
     case 'place': {
@@ -119,12 +131,13 @@ export const REASON_TEXT: Record<ReasonCode, string> = {
   skipped: '쉬기로 함',
   moved: '옮긴 날',
   busy: '바쁜 주라 줄임',
+  limit: '피할 동작',
 };
 
 function itemText(x: SlotItem): string {
   switch (x.kind) {
     case 'train':
-      return `운동 ${x.fence.minutes}분${x.fence.light ? ' · 가볍게' : x.fence.heavyLower ? ' · 하체 무겁게' : ''}`;
+      return `운동 ${coachMinutes(x.fence.minutes)}분${x.fence.light ? ' · 가볍게' : x.fence.heavyLower ? ' · 하체 무겁게' : ''}`;
     case 'program':
       return x.heavyLower ? '프로그램 · 하체 무겁게' : '프로그램';
     case 'armcare':

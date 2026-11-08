@@ -1,3 +1,4 @@
+import { CoachAccessActions } from '~/coach/access-actions';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -7,11 +8,11 @@ import { COACH_POINTS } from '@/lib/coach-intro';
 import {
   COACH_LIMITS,
   COACH_MINUTES,
-  COACH_PLACES,
   COACH_PRIORITIES,
   COACH_ROLES,
   REASON_TEXT,
   WEEKDAY_LABELS,
+  coachMinutes,
   slotLine,
   type CoachSaved,
   type CoachStep,
@@ -25,7 +26,7 @@ import { ActionButton } from '~/shell/action-button';
 import { Icon } from '~/shell/icon';
 
 /**
- * 코치 시작(앱 화면, docs/designs/ai-coach.md 10-4) — 소개 → 내 정보 확인 → (건강정보 동의) → 목표 · 등판 · 팀 훈련 · 가능 요일 · 장소 · 제한 →
+ * 코치 시작(앱 화면, docs/designs/ai-coach.md 10-4) — 소개 → 내 정보 확인 → (건강정보 동의) → 목표 · 등판 · 팀 훈련 · 가능 요일 · 제한 →
  * 첫 주 미리보기 → 시작. 질문은 화면마다 저장(CoachProfile 'draft' — 다시 열면 고른 값이 채워져 있다). 서버 app/actions/coach.ts.
  * 앱에 이미 있는 정보(나이 · 키 · 장비 · 수준 · 하루 시간)는 다시 묻지 않고 확인만(U4) — 다르면 설정에서 고친다.
  */
@@ -65,7 +66,7 @@ export default function CoachStartScreen() {
     );
   }
 
-  const order: Page[] = ['intro', 'info', ...(start.gate === 'consent' ? (['consent'] as const) : []), 'goal', 'outing', 'fixed', 'availability', 'place', 'limits', 'preview'];
+  const order: Page[] = ['intro', 'info', ...(start.gate === 'consent' ? (['consent'] as const) : []), 'goal', 'outing', 'fixed', 'availability', 'limits', 'preview'];
   const at = order.indexOf(page);
   const go = (p: Page) => {
     setProblem(null);
@@ -135,9 +136,9 @@ export default function CoachStartScreen() {
     </StepFrame>
   );
 
-  /* 관문 — 무료 · 나이는 소개에서 멈춘다(결제 안내 · 링크 없음, U13) */
+  /* 권한 없는 계정은 관리자 승인 문의 · 재확인으로. 나이 제한은 그대로. */
   if (start.gate === 'free' || start.gate === 'age')
-    return frame('코치', start.gate === 'free' ? '유료 요금제 전용이에요.' : '만 14세부터 쓸 수 있어요.', { label: '닫기', onPress: () => router.back() }, <Points />);
+    return frame('코치', start.gate === 'free' ? '관리자 승인 후 이용할 수 있어요.' : '만 14세부터 쓸 수 있어요.', { label: '닫기', onPress: () => router.back() }, <><Points />{start.gate === 'free' ? <CoachAccessActions onGranted={loadStart} /> : null}</>);
 
   const i = start.info;
   switch (page) {
@@ -216,12 +217,8 @@ export default function CoachStartScreen() {
       }, (
         <View style={{ gap: 20 }}>
           <DayChips c={c} legend="요일" value={a.days ?? []} onChange={(d) => setA({ ...a, days: d })} />
-          <ChoiceChips c={c} legend="하루 시간" options={COACH_MINUTES.map((m) => ({ value: String(m), label: `${m}분` }))} value={a.minutes ? String(a.minutes) : null} onChange={(v) => setA({ ...a, minutes: Number(v) })} />
+          <ChoiceChips c={c} legend="하루 시간" options={COACH_MINUTES.map((m) => ({ value: String(m), label: `${m}분` }))} value={a.minutes ? String(coachMinutes(a.minutes)) : null} onChange={(v) => setA({ ...a, minutes: Number(v) })} />
         </View>
-      ));
-    case 'place':
-      return frame('주로 어디서 운동해요?', '장비는 설정의 장비 목록을 그대로 써요.', { label: '다음', onPress: () => void save('place', { place: a.place }), disabled: !a.place }, (
-        <ChoiceChips c={c} options={[...COACH_PLACES]} value={a.place ?? null} onChange={(v) => setA({ ...a, place: v as CoachSaved['place'] })} />
       ));
     case 'limits':
       return frame('피해야 할 동작이 있나요?', '전문가가 정해 준 것만 골라요. 없으면 다음을 눌러요.', { label: '첫 주 보기', onPress: () => void save('limits', { limits: a.limits ?? [] }) }, (

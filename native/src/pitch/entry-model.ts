@@ -375,6 +375,8 @@ export function isDirty(form: EntryForm, start: EntryForm, videosChanged: boolea
 const sameNum = (a: number | null | undefined, b: number | null | undefined) =>
   (a == null && b == null) || (a != null && b != null && Math.abs(a - b) < 0.05);
 const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+/** 칩은 서버가 정해진 차례로 저장한다(lib/pitch-satisfaction cleanCues) — 누른 차례와 달라도 같은 기록 */
+const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x) => b.includes(x));
 
 export function matchesEntry(log: PitchLog, e: PitchEntry): boolean {
   return (
@@ -383,8 +385,8 @@ export function matchesEntry(log: PitchLog, e: PitchEntry): boolean {
     log.pitchCount === e.pitchCount &&
     (e.effortPct !== undefined ? sameNum(log.effortPct, e.effortPct) : e.intensity === undefined || sameNum(log.intensity, e.intensity)) &&
     (e.satisfaction === undefined || sameNum(log.satisfaction, e.satisfaction)) &&
-    (e.cuesGood === undefined || sameList(log.cuesGood, e.cuesGood)) &&
-    (e.cuesBad === undefined || sameList(log.cuesBad, e.cuesBad)) &&
+    (e.cuesGood === undefined || sameSet(log.cuesGood, e.cuesGood)) &&
+    (e.cuesBad === undefined || sameSet(log.cuesBad, e.cuesBad)) &&
     (log.memo ?? '') === e.memo.trim() &&
     sameNum(log.maxVelocity, e.maxVelocity) &&
     sameNum(log.avgVelocity, e.avgVelocity) &&

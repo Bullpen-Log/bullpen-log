@@ -6,7 +6,6 @@ import {
   EVENT_TITLE_MAX,
   REMIND_OPTIONS,
   defaultRemind,
-  remindAt,
   sortEvents,
   timeLabel,
   type CalendarEventView,
@@ -19,6 +18,11 @@ import { Icon } from '~/shell/icon';
 import { fadeIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import { toast } from '~/shell/toast';
+import {
+  alarmIdsToRemove,
+  createEventAlarmQueue,
+  type EventAlarmState,
+} from '~/calendar/alarm-queue';
 
 /**
  * 홈 달력의 일정 — 웹 홈(home-page.tsx 의 일정 전부 · pitch-log-panel eventCounts · day-schedule.tsx)과 같다.
@@ -49,29 +53,84 @@ const ARMED_KEY = 'bullpen-event-alarms';
 let armedLoad: Promise<Set<string>> | null = null;
 const armedIds = () =>
   (armedLoad ??= loadJson(ARMED_KEY).then(
-    (v) => new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+    (v) =>
+      new Set(
+        Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+      )
   ));
-const markArmed = (id: string, on: boolean) =>
-  void armedIds().then((s) => {
-    if (on === s.has(id)) return;
-    if (on) s.add(id);
-    else s.delete(id);
-    void saveJson(ARMED_KEY, [...s]);
-  });
+const markArmed = async (id: string, on: boolean, epoch: number) => {
+  const s = await armedIds();
+  if (epoch !== cacheEpoch()) return;
+  if (on === s.has(id)) return;
+  if (on) s.add(id);
+  else s.delete(id);
+  await saveJson(ARMED_KEY, [...s]);
+};
 
-function cancelEventAlarm(id: string) {
-  void BullpenNative.cancelAlarm(`event-${id}`).catch(() => undefined);
-  markArmed(id, false);
+const alarms = createEventAlarmQueue({
+  epoch: cacheEpoch,
+  now: Date.now,
+  cancel: (id) => BullpenNative.cancelAlarm(`event-${id}`),
+  schedule: (id, at, title, body) =>
+    BullpenNative.scheduleAlarm(`event-${id}`, at, title, body),
+  armed: markArmed,
+});
+export type EventAlarmIssue = { event: CalendarEventView; state: 'denied' | 'failed' };
+const alarmIssueMap = new Map<string, EventAlarmIssue>();
+let alarmIssues: EventAlarmIssue[] = [];
+const alarmListeners = new Set<() => void>();
+let alarmEmit: ReturnType<typeof setTimeout> | null = null;
+function updateAlarmIssue(e: CalendarEventView, state: EventAlarmState) {
+  if (state === 'denied' || state === 'failed')
+    alarmIssueMap.set(e.id, { event: e, state });
+  else if (!alarmIssueMap.delete(e.id)) return;
+  if (alarmEmit) return;
+  alarmEmit = setTimeout(() => {
+    alarmEmit = null;
+    alarmIssues = [...alarmIssueMap.values()];
+    alarmListeners.forEach((f) => f());
+  }, 50);
+}
+export const useEventAlarmIssues = () =>
+  useSyncExternalStore(
+    (f) => {
+      alarmListeners.add(f);
+      return () => {
+        alarmListeners.delete(f);
+      };
+    },
+    () => alarmIssues
+  );
+export async function syncCalendarAlarm(
+  event: CalendarEventView
+): Promise<EventAlarmState> {
+  const epoch = cacheEpoch();
+  const state = await alarms.run(event);
+  if (epoch === cacheEpoch()) updateAlarmIssue(event, state);
+  return state;
+}
+
+function cancelEventAlarm(id: string, event?: CalendarEventView) {
+  return syncCalendarAlarm({
+    ...(event ?? { id, date: '', title: '일정', time: null, memo: null }),
+    remindMin: null,
+  });
 }
 
 export const resetEventsCache = () => {
+  if (alarmEmit) clearTimeout(alarmEmit);
+  alarmEmit = null;
+  alarmIssueMap.clear();
+  alarmIssues = [];
+  alarmListeners.forEach((f) => f());
   store = { list: null };
   version++;
   /* 로그아웃 전에 떠난 받기가 끝나 앞사람 일정 · 알림을 다시 넣지 않게(reloadEvents 의 세대 확인과 같이) */
   loading = null;
   /* 앞사람 일정 알림은 모두 걷는다 */
   void armedIds().then((s) => {
-    for (const id of s) void BullpenNative.cancelAlarm(`event-${id}`).catch(() => undefined);
+    for (const id of s)
+      void BullpenNative.cancelAlarm(`event-${id}`).catch(() => undefined);
     s.clear();
     void saveJson(ARMED_KEY, []);
   });
@@ -79,26 +138,27 @@ export const resetEventsCache = () => {
 };
 
 function syncAlarm(e: CalendarEventView) {
-  const at = e.owner ? null : remindAt(e);
-  if (at == null || at <= Date.now()) return cancelEventAlarm(e.id);
-  const body = [timeLabel(e.time), e.memo?.split('\n')[0]].filter(Boolean).join(' · ');
-  void BullpenNative.scheduleAlarm(`event-${e.id}`, at, e.title, body).catch(() => undefined);
-  markArmed(e.id, true);
+  void syncCalendarAlarm(e);
 }
 
 /** 일정을 (다시) 받는다 — 홈이 보일 때마다. 알림도 다시 건다 */
 export function reloadEvents(): Promise<void> {
   const epoch = cacheEpoch();
   const from = version;
-  loading ??= rpc<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }>('app.loadAppEvents')
+  loading ??= rpc<
+    | { ok: true; events: CalendarEventView[]; complete?: boolean }
+    | { ok: false; error: string }
+  >('app.loadAppEvents')
     .then(async (r) => {
       /* 그새 고쳤으면(지움 · 저장) 이 받기는 버린다 — 옛 목록이 지운 일정을 되살린다 */
       if (!r.ok || epoch !== cacheEpoch() || from !== version) return;
       store = { list: r.events };
       emit();
-      const ids = new Set(r.events.filter((e) => !e.owner).map((e) => e.id));
-      for (const id of await armedIds()) if (!ids.has(id)) cancelEventAlarm(id);
-      for (const e of r.events) if (!e.owner) syncAlarm(e);
+      const armed = await armedIds();
+      if (epoch !== cacheEpoch() || from !== version) return;
+      for (const id of alarmIdsToRemove(armed, r.events, r.complete ?? r.events.length < 3000))
+        cancelEventAlarm(id);
+      for (const e of r.events) if (e.owner === undefined) syncAlarm(e);
     })
     .catch(() => undefined)
     .finally(() => {
@@ -115,13 +175,14 @@ const put = (edit: (list: CalendarEventView[]) => CalendarEventView[]) => {
 };
 
 /** The calendar display cache is separate; explicit successful edits still update home and this one alarm. */
-export function rememberCalendarEvent(event: CalendarEventView) {
+export function rememberCalendarEvent(event: CalendarEventView, alarm = true) {
   put((list) => [...list.filter((e) => e.id !== event.id), event]);
-  syncAlarm(event);
+  if (alarm) syncAlarm(event);
 }
-export function forgetCalendarEvent(id: string) {
+export function forgetCalendarEvent(id: string, event?: CalendarEventView) {
+  const old = event ?? store.list?.find((e) => e.id === id);
   put((list) => list.filter((e) => e.id !== id));
-  cancelEventAlarm(id);
+  return cancelEventAlarm(id, old);
 }
 
 export function useEvents(): CalendarEventView[] | null {

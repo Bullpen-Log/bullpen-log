@@ -390,7 +390,7 @@ export function VideoGallery({ pick }: { pick?: PickProps }) {
     setText('');
     setFilter({ ...EMPTY_VIDEO_FILTER, favoriteOnly: filter.favoriteOnly });
   };
-  const showWhere = filter.text.trim() !== '';
+  const showWhere = filter.text.trim() !== '' || !!filter.feeling?.satisfaction || Object.keys(filter.feeling?.cues ?? {}).length > 0;
 
   const renderItem = ({ item }: { item: Row | Row[] }) => {
     if (Array.isArray(item)) {

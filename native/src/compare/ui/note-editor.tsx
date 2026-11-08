@@ -1,97 +1,207 @@
 import { useEffect, useRef, useState } from 'react';
-import { Keyboard, StyleSheet, Text, TextInput, type TextInputInstance, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActionSheetIOS, Alert, Keyboard, StyleSheet, Text, TextInput, type TextInputInstance, View, useWindowDimensions } from 'react-native';
 import { MAX_NOTE } from '~/compare/doc';
-import { paginateText, textCapacity } from '~/compare/workspace-layout';
-import { TYPE, usePalette } from '~/lib/ui';
+import { editPage, FS_MAX, fsOf, LINE, pageEndCaret, pageOfCaret, pageOverflows, paginateNote, probablyComposing, textBtnW, textW, type EditorPlan } from '~/compare/fit';
+import { pageText } from '~/compare/workspace-layout';
+import { ToolBar, type ToolItem } from '~/compare/ui/tool-bar';
 import { IconBtn, Pager, TextBtn } from '~/compare/ui/workspace-parts';
+import { TYPE } from '~/lib/ui';
+import { useComparePalette } from '~/compare/ui/compare-palette';
 
 /**
- * 메모 쓰기(UI08) — 재생 줄 · 도구 줄 자리를 잠시 이 편집 줄로 바꾼다(영상은 위에 작게 남는다). 입력칸은 굴리지 않는다.
- * - 긴 글은 쪽으로 나눠 한 쪽씩 고친다. 원문은 쪽을 이어 붙인 것 그대로(빠지는 글자 없음) — 저장하면 한 메모로.
- * - 쪽은 처음 열 때(입력 전) 잰 칸 크기로 한 번만 나눈다. 쓰는 중에는 다시 나누지 않는다(한글 조합 중인 글자를 가르지 않게).
- *   칸이 가득 차면 그 쪽에는 더 안 들어가고 '다음 쪽에 이어 쓰기'로 넘어간다(보이지 않는 곳에 글이 쌓이지 않게).
- * - 쓰는 동안 글은 위(onDraft)가 붙들어, 실수로 닫아도 다시 열면 이어 쓴다. '취소'만 버린다.
+ * 메모 쓰기(UI08 · SS03 · SS04) — 재생 줄 · 도구 줄 자리를 잠시 이 편집 줄로 바꾼다(영상은 위에 작게 멈춘 채 남는다). 입력칸은 굴리지 않는다.
+ * - 원문(text)은 하나, 쪽은 원문의 구간(compare/fit.ts paginateNote — 줄바꿈 · 칸 폭 · 줄 수로 센다). 이어 붙이면 원문 그대로다.
+ *   한 쪽을 고치면 그 자리만 원문에 넣고(editPage), 다시 나눠 넘친 글은 다음 쪽으로 간다(붙여넣기 · 줄바꿈 여럿도 숨지 않는다).
+ * - 한글을 조합하는 중인 듯하면(probablyComposing) 지금 칸의 글을 바꾸지 않고 기다렸다가, 조합이 끝난 다음 고침 · 커서 이동 · 쪽 넘김 ·
+ *   잠깐 멈춤(1.2초) · 저장 때 나눈다. 칸이 실제로 넘쳤다고 재면(onContentSizeChange) 한 줄 글자 수 어림을 줄여 다시 나눈다.
+ * - 커서는 원문 자리로 들고 있다가, 다시 나눠 쪽이 바뀌면 그 쪽의 같은 자리로 옮긴다(자판 · 회전으로 칸이 바뀌어도).
+ * - 글자 한도(500자)는 원문 전체에 건다. 저장 · 닫기(초안 남김) · 버리기(초안 지움)는 서로 다르다.
  */
-export function NoteEditor({ title, initial, lines, onDraft, onSave, onCancel }: { title: string; initial: string; lines: number; onDraft: (t: string) => void; onSave: (t: string) => void; onCancel: () => void }) {
-  const c = usePalette();
-  const [segs, setSegs] = useState<string[]>([initial]);
-  const [k, setK] = useState(0);
-  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
-  const [split, setSplit] = useState(false);
-  const [full, setFull] = useState(false);
-  const caret = useRef(0);
+export function NoteEditor({
+  title,
+  initial,
+  initialCaret,
+  plan,
+  width,
+  onDraft,
+  onSave,
+  onClose,
+  onDiscard,
+}: {
+  title: string;
+  initial: string;
+  initialCaret?: number;
+  plan: EditorPlan;
+  width: number;
+  onDraft: (text: string, caret: number) => void;
+  onSave: (text: string) => void;
+  onClose: () => void;
+  onDiscard: () => void;
+}) {
+  const c = useComparePalette();
+  const fs = fsOf(useWindowDimensions().fontScale);
+  /* 칸이 실제로 넘쳤다고 재면 줄인다(어림이 너그러웠을 때) */
+  const [fit, setFit] = useState(1);
+  /* 입력칸 폭 — 한 줄 모드는 닫기 · 더보기 · 저장 옆에 */
+  const inputW = plan.inline ? width - 44 - 44 - textBtnW('저장', fs) - 12 : width;
+  const geom = { w: Math.max(40, (inputW - 26) * fit), fontPx: LINE.note.size * fs, lines: plan.lines };
+  const geomKey = `${Math.round(geom.w)}|${geom.fontPx}|${geom.lines}`;
+  /* 원문 · 쪽 · 지금 쪽 · 커서(원문 자리) · 다시 나눈 뒤 커서를 놓을 자리(sel — 그 쪽 안) 를 한 상태로 */
+  type Ed = { text: string; pages: ReturnType<typeof paginateNote>; k: number; caret: number; sel: number | null; geomKey: string; pending: boolean; rev: number };
+  const [ed, setEd] = useState<Ed>(() => {
+    const caret = Math.min(initial.length, Math.max(0, initialCaret ?? initial.length));
+    const pages = paginateNote(initial, geom);
+    return { text: initial, pages, k: pageOfCaret(pages, caret), caret, sel: null, geomKey, pending: false, rev: 0 };
+  });
   const input = useRef<TextInputInstance>(null);
-  /* 글자 크기 설정을 따른다(입력칸 글자를 줄여 맞추지 않는다) — 칸 높이 · 쪽 크기도 그만큼 */
-  const fs = Math.min(2, Math.max(1, useWindowDimensions().fontScale));
-  const boxH = Math.ceil(Math.max(1, lines) * 22 * fs + 16);
-  /* 처음 잰 칸 크기로 한 번만 쪽을 나눈다(아직 아무것도 안 쓴 때) */
-  if (box && !split) {
-    setSplit(true);
-    const cap = Math.floor(textCapacity(box.w - 24, box.h - 16, 16 * fs, 22 * fs) * 0.8);
-    const parts = paginateText(initial, cap).map((r) => initial.slice(r.start, r.end));
-    setSegs(parts.length ? parts : ['']);
-    setK(Math.max(0, parts.length - 1));
-  }
-  const text = segs.join('');
-  const others = text.length - (segs[k]?.length ?? 0);
-  const room = Math.max(0, MAX_NOTE - others);
-  /* 쓰는 동안 위에 붙든다 — 닫혀도 다시 열면 이어서 */
-  useEffect(() => onDraft(text), [text, onDraft]);
-  const setSeg = (t: string) => setSegs((s) => s.map((x, i) => (i === k ? t : x)));
-  const goPage = (p: number) => {
-    setK(Math.max(0, Math.min(segs.length - 1, p)));
-    setFull(false);
+  const lastEdit = useRef(0);
+  const { text, pages, k } = ed;
+  const page = pages[Math.min(k, pages.length - 1)] ?? { start: 0, end: text.length };
+  const value = text.slice(page.start, page.end);
+
+  /** 원문을 다시 나누고 커서가 든 쪽으로 */
+  const resolved = (base: Ed, at: number): Ed => {
+    const next = paginateNote(base.text, geom);
+    const nk = pageOfCaret(next, at);
+    return { ...base, pages: next, k: nk, caret: at, sel: Math.max(0, at - next[nk].start), geomKey, pending: false, rev: base.rev + 1 };
   };
-  const addPage = () => {
-    setSegs((s) => [...s.slice(0, k + 1), '', ...s.slice(k + 1)]);
-    setK(k + 1);
-    setFull(false);
-    requestAnimationFrame(() => input.current?.focus());
+  const resolve = () => setEd((e) => resolved(e, e.caret));
+  /* 칸 크기(자판 · 회전 · 글자 크기 · 잰 넘침)가 바뀌면 다시 나눈다 — 조합 중이면 미룬다 */
+  if (ed.geomKey !== geomKey && !ed.pending) setEd(resolved(ed, ed.caret));
+
+  const onChange = (v: string) => {
+    lastEdit.current = Date.now();
+    const composing = probablyComposing(value, v);
+    const r = editPage(text, pages, k, v, MAX_NOTE);
+    if (r.clipped) AccessibilityInfo.announceForAccessibility(`메모는 ${MAX_NOTE}자까지 쓸 수 있어요.`);
+    const base: Ed = { ...ed, text: r.text, pages: r.pages, caret: r.caret };
+    if (composing && !r.clipped) {
+      /* 조합 중 — 칸 글은 그대로 두고, 넘쳤으면 끝난 뒤 나눈다 */
+      setEd({ ...base, pending: base.pending || pageOverflows(r.text, r.pages[k], geom) });
+    } else {
+      const next = resolved(base, r.caret);
+      const shown = next.text.slice(next.pages[next.k].start, next.pages[next.k].end);
+      /* 쪽 · 칸 글이 그대로면 커서를 코드로 다시 놓지 않는다(입력 중 자판 · 자동 고침을 건드리지 않게) */
+      setEd(next.k === k && shown === v ? { ...next, sel: null } : next);
+    }
+    onDraft(r.text, r.caret);
+  };
+  /* 잠깐 멈추면(조합이 끝나지 않았어도) 넘친 글을 나눈다 — 글이 숨은 채 남지 않게 */
+  useEffect(() => {
+    if (!ed.pending) return;
+    const id = setTimeout(resolve, 1200);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ed.pending, ed.text]);
+  /* 다시 나눈 뒤 커서 자리 */
+  const sel = ed.sel;
+  useEffect(() => {
+    if (sel == null) return;
+    const id = requestAnimationFrame(() => input.current?.setSelection(sel, sel));
+    return () => cancelAnimationFrame(id);
+  }, [sel, ed.rev]);
+
+  const goPage = (p: number) => {
+    const np = Math.max(0, Math.min(pages.length - 1, p));
+    /* 쪽 끝(줄바꿈으로 끝나면 그 앞)에 커서 — 다음 쪽 몫인 빈 줄에 두지 않는다 */
+    const at = pageEndCaret(text, pages[np]);
+    if (ed.pending) return setEd(resolved(ed, at));
+    setEd({ ...ed, k: np, caret: at, sel: at - pages[np].start, rev: ed.rev + 1 });
   };
   const save = () => {
     Keyboard.dismiss();
-    onSave(text.trim());
+    onSave(text);
   };
+  const discard = () => {
+    if (!text.trim()) return onDiscard();
+    Alert.alert('쓰던 메모를 버릴까요?', '버리면 이 기기에 남긴 초안도 지워져요.', [
+      { text: '취소', style: 'cancel' },
+      { text: '버리기', style: 'destructive', onPress: onDiscard },
+    ]);
+  };
+  const countText = `${text.length}/${MAX_NOTE}`;
+  const countW = Math.ceil(textW(countText, 13, fs) + 8);
+  const pagerW = 88 + Math.ceil(textW(pageText({ page: k, pages: pages.length }), 13, fs) + 4);
+  const close = <IconBtn icon="x" label="메모 닫기, 쓴 글은 이 기기에 남겨요" onPress={onClose} size={20} color={c.muted} />;
+  const saveBtn = <TextBtn label="저장" primary onPress={save} disabled={!text.trim()} a11y="메모 저장" />;
+  const pager = <Pager page={k} pages={pages.length} onPage={goPage} label="메모 쪽" />;
+  const count = (
+    <Text maxFontSizeMultiplier={FS_MAX} style={[TYPE.sub, { color: text.length >= MAX_NOTE ? c.danger : c.muted, fontVariant: ['tabular-nums'] }]} accessibilityLabel={`${MAX_NOTE}자 중 ${text.length}자`}>
+      {countText}
+    </Text>
+  );
+  const discardItem: ToolItem = { key: 'discard', w: textBtnW('버리기', fs), priority: 2, overflow: true, node: <TextBtn label="버리기" onPress={discard} a11y="쓰던 메모 버리기" />, more: { label: '쓰던 메모 버리기', run: discard, destructive: true } };
+  const pagerItem: ToolItem | null = pages.length > 1 ? { key: 'pager', w: pagerW, essential: true, node: pager } : null;
+  const countItem: ToolItem = { key: 'count', w: countW, priority: 5, node: count };
+  const bar = (items: (ToolItem | null)[], label: string) => <ToolBar label={label} width={width} maxRows={1} items={items.filter((x): x is ToolItem => !!x)} />;
+
+  const inputNode = (
+    <TextInput
+      ref={input}
+      autoFocus
+      multiline
+      scrollEnabled={false}
+      value={value}
+      onChangeText={onChange}
+      onSelectionChange={(e) => {
+        /* 고침 직후의 알림은 건너뛴다(커서는 고친 자리로 이미 셈했다). 사용자가 옮긴 것이면 그 자리 — 조합 중이었다면 끝난 것 */
+        if (Date.now() - lastEdit.current <= 80) return;
+        const end = e.nativeEvent.selection.end;
+        setEd((x) => {
+          const pg = x.pages[Math.min(x.k, x.pages.length - 1)];
+          const at = Math.min(x.text.length, pg.start + end);
+          return x.pending ? resolved({ ...x, sel: null }, at) : at === x.caret && x.sel == null ? x : { ...x, caret: at, sel: null };
+        });
+      }}
+      onBlur={() => ed.pending && resolve()}
+      onContentSizeChange={(e) => {
+        if (e.nativeEvent.contentSize.height > plan.inputH + 2 && fit > 0.5) setFit((f) => Math.max(0.5, f * 0.92));
+      }}
+      placeholder="이 장면에서 본 것"
+      placeholderTextColor={c.muted}
+      maxFontSizeMultiplier={FS_MAX}
+      accessibilityLabel={`${title}, ${pages.length}쪽 중 ${k + 1}쪽`}
+      style={[st.input, { height: plan.inputH, color: c.ink, borderColor: c.line, backgroundColor: c.page }, plan.inline && { flex: 1 }]}
+    />
+  );
+  if (plan.inline) {
+    /* 아주 짧은 화면 — 닫기 · 한 줄 입력 · 더보기(쪽 넘기기 · 버리기) · 저장을 한 줄에 */
+    const moreActs = [
+      ...(pages.length > 1 && k > 0 ? [{ label: '이전 쪽', run: () => goPage(k - 1) }] : []),
+      ...(pages.length > 1 && k < pages.length - 1 ? [{ label: '다음 쪽', run: () => goPage(k + 1) }] : []),
+      { label: '쓰던 메모 버리기', run: discard, destructive: true },
+    ];
+    const openMore = () => {
+      const opts = [...moreActs.map((x) => x.label), '취소'];
+      ActionSheetIOS.showActionSheetWithOptions({ title: `${title} · ${pageText({ page: k, pages: pages.length })} · ${countText}`, options: opts, cancelButtonIndex: opts.length - 1, destructiveButtonIndex: moreActs.length - 1 }, (i) => moreActs[i]?.run());
+    };
+    return (
+      <View style={[st.head, { height: plan.height, alignItems: 'flex-start' }]}>
+        {close}
+        {inputNode}
+        <IconBtn icon="ellipsis" label={`더보기: ${moreActs.map((x) => x.label).join(', ')}`} onPress={openMore} />
+        {saveBtn}
+      </View>
+    );
+  }
+  if (plan.merged)
+    return (
+      <View style={[st.wrap, { height: plan.height }]}>
+        {bar([{ key: 'close', w: 44, essential: true, node: close }, pagerItem, countItem, discardItem, { key: 'save', w: textBtnW('저장', fs), essential: true, push: true, node: saveBtn }], `${title} 편집`)}
+        {inputNode}
+      </View>
+    );
   return (
-    <View style={st.wrap}>
+    <View style={[st.wrap, { height: plan.height }]}>
       <View style={st.head}>
-        <Text numberOfLines={1} maxFontSizeMultiplier={1.4} style={[TYPE.buttonCompact, { color: c.ink, flex: 1 }]} accessibilityRole="header">
+        {close}
+        <Text numberOfLines={1} maxFontSizeMultiplier={FS_MAX} style={[TYPE.buttonCompact, { color: c.ink, flex: 1 }]} accessibilityRole="header">
           {title}
         </Text>
-        <Pager page={k} pages={segs.length} onPage={goPage} label="메모 쪽" />
-        <Text maxFontSizeMultiplier={1.3} style={[TYPE.sub, { color: text.length >= MAX_NOTE ? c.danger : c.muted, fontVariant: ['tabular-nums'] }]} accessibilityLabel={`${MAX_NOTE}자 중 ${text.length}자`}>
-          {text.length}/{MAX_NOTE}
-        </Text>
+        {saveBtn}
       </View>
-      <View onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })} style={{ height: boxH }}>
-        <TextInput
-          ref={input}
-          autoFocus
-          multiline
-          scrollEnabled={false}
-          value={segs[k] ?? ''}
-          maxLength={full ? (segs[k]?.length ?? 0) : (segs[k]?.length ?? 0) + room}
-          onChangeText={setSeg}
-          onSelectionChange={(e) => (caret.current = e.nativeEvent.selection.end)}
-          onContentSizeChange={(e) => setFull(e.nativeEvent.contentSize.height > boxH - 22 * fs)}
-          placeholder="이 장면에서 본 것"
-          placeholderTextColor={c.muted}
-          maxFontSizeMultiplier={2}
-          accessibilityLabel={`${title}, ${segs.length}쪽 중 ${k + 1}쪽`}
-          style={[st.input, { height: boxH, color: c.ink, borderColor: c.line, backgroundColor: c.page }]}
-        />
-      </View>
-      {full ? (
-        <Text maxFontSizeMultiplier={1.4} style={[TYPE.sub, { color: c.muted }]} accessibilityLiveRegion="polite">
-          이 쪽이 가득 찼어요. 다음 쪽에 이어 써 주세요.
-        </Text>
-      ) : null}
-      <View style={st.row}>
-        <TextBtn label="취소" onPress={onCancel} a11y="메모 쓰기 취소, 쓴 글 버리기" />
-        <IconBtn icon="plus" label="다음 쪽에 이어 쓰기" onPress={addPage} disabled={text.length >= MAX_NOTE} />
-        <View style={{ flex: 1 }} />
-        <TextBtn label="저장" primary onPress={save} disabled={!text.trim()} />
-      </View>
+      {inputNode}
+      {bar([discardItem, pagerItem, { ...countItem, push: true }], '메모 쪽 · 버리기')}
     </View>
   );
 }
@@ -99,6 +209,6 @@ export function NoteEditor({ title, initial, lines, onDraft, onSave, onCancel }:
 const st = StyleSheet.create({
   wrap: { gap: 6 },
   head: { flexDirection: 'row', alignItems: 'center', minHeight: 44, gap: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   input: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, fontSize: 16, lineHeight: 22, textAlignVertical: 'top' },
 });
+

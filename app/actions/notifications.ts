@@ -4,6 +4,7 @@ import { allowFeature } from '@/lib/release-gate';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser, requireUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
+import { readInboxPage, verifyInboxRead, writeInboxRead } from '@/lib/notification-inbox-ops';
 
 /** 알림함(2026-10-21 개편 5단계 5-2) — 읽음 표시. 하나 또는 전부 */
 export async function markNotificationsRead(formData: FormData): Promise<void> {
@@ -77,4 +78,24 @@ export async function readBellNotifications(id?: string): Promise<number> {
     data: { readAt: new Date() },
   });
   return prisma.notification.count({ where: { userId: user.id, readAt: null } });
+}
+
+/** Additive native inbox contract. The legacy bell/web contracts above remain unchanged. */
+export async function loadAppInboxPage(request: unknown = null) {
+  allowFeature('notifications');
+  const user = await getCurrentUser();
+  if (!user) return { ok: false as const, error: '로그인이 필요해요.' };
+  return readInboxPage(prisma, user.id, request);
+}
+export async function setAppInboxRead(command: unknown) {
+  allowFeature('notifications');
+  const user = await getCurrentUser();
+  if (!user) return { ok: false as const, error: '로그인이 필요해요.' };
+  return writeInboxRead(prisma, user.id, command);
+}
+export async function loadAppInboxReadResult(command: unknown) {
+  allowFeature('notifications');
+  const user = await getCurrentUser();
+  if (!user) return { ok: false as const, error: '로그인이 필요해요.' };
+  return verifyInboxRead(prisma, user.id, command);
 }

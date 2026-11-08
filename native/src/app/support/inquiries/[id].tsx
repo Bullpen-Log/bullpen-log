@@ -78,6 +78,13 @@ export default function InquiryScreen() {
             <Badge text={inquiryCategoryLabel(q.category)} c={c} />
             <StatusBadge status={q.status} c={c} />
           </View>
+          {!q.staff && !closed ? (
+            <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19 }}>
+              {q.status === 'ANSWERED'
+                ? '운영자의 답변을 확인하고 더 궁금한 내용은 아래에 남겨 주세요.'
+                : '운영자가 확인 중이에요. 추가 내용은 아래에 남길 수 있어요.'}
+            </Text>
+          ) : null}
           <Text selectable style={{ color: c.ink, fontSize: 22, fontWeight: '700' }}>
             {q.title}
           </Text>

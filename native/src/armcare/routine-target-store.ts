@@ -105,7 +105,11 @@ export async function addToTarget(routineId: string, exerciseId: string, title: 
     } else emit({ op: { ...op, status: 'unknown' }, message: '담겼는지 확인이 필요해요.' });
   }
 }
-/** Read only. An absent member is not proof that the original request never committed. */
+/**
+ * Read only. A member that is absent after a fresh read means the add did not commit (or the routine is gone):
+ * release the guard so the user can add again. Adding is idempotent on the server (already inside → added:false),
+ * so a late commit of the first request cannot create a duplicate.
+ */
 export async function confirmTarget() {
   if (!state.op || state.checking || state.op.status === 'adding' || !state.owner) return;
   const s = state;
@@ -117,7 +121,11 @@ export async function confirmTarget() {
     emit({ routines, fresh: true, error: null });
     const r = routines.find((r) => r.id === op.routineId);
     if (r?.exerciseIds.includes(op.exerciseId)) await finish(s, r, false);
-    else emit({ checking: false, message: r ? '아직 담긴 것을 확인하지 못했어요. 잠시 뒤 다시 확인해 주세요.' : '대상 루틴을 확인할 수 없어요. 루틴이 삭제되거나 변경됐을 수 있어요.' });
+    else {
+      await trySaveJson(key(s.owner!), null);
+      if (!current(s)) return;
+      emit({ op: null, checking: false, message: r ? '루틴에 담기지 않았어요. 다시 담아 주세요.' : '대상 루틴이 없어졌어요. 다른 루틴을 골라 주세요.' });
+    }
   } catch (e) {
     if (!current(s)) return;
     accessError(e);

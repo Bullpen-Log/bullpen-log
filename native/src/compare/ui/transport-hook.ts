@@ -306,11 +306,14 @@ export function useCompareTransport(opts: {
     return () => cancelAnimationFrame(id);
   }, [pa, pb]);
 
-  /* 화면을 떠나거나 앱이 뒤로 가면 멈춘다 — 돌아와도 저절로 다시 틀지 않는다 */
+  /*
+   * 화면을 떠나거나 앱이 뒤로 가면 멈춘다 — 돌아와도 저절로 다시 틀지 않는다(SS05).
+   * 함께 재생이 아니어도(멈춘 채 · 맞추기 중) 두 재생기를 다 멈추고 세대를 올린다 — 기다리던 옮기기 확인 · 재개 의도는 버린다.
+   */
   const focused = useIsFocused();
   const onHide = useEffectEvent(() => {
     seekGen.current++;
-    if (trRef.current.phase !== 'idle') dispatch({ type: 'background' });
+    dispatch({ type: 'background' });
   });
   useEffect(() => {
     if (!focused) onHide();
@@ -319,6 +322,16 @@ export function useCompareTransport(opts: {
     const sub = AppState.addEventListener('change', (s) => s !== 'active' && onHide());
     return () => sub.remove();
   }, []);
+
+  /* 화면이 닫히면 두 재생기를 멈춘다(재생기는 칸이 놓지만, 그 전에 소리 · 재생이 이어지지 않게) */
+  useEffect(
+    () => () => {
+      seekGen.current++;
+      playerCall.pause(live.current.pa);
+      playerCall.pause(live.current.pb);
+    },
+    []
+  );
 
   /* 속도를 바꾸면 재생 중에도 바로 */
   useEffect(() => {

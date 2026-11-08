@@ -24,13 +24,20 @@ const Body3D = dynamic(() => import('@/app/(app)/videos/lab/[id]/body-3d').then(
 type ToApp =
   | { t: 'lab'; kind: 'ready' }
   | { t: 'lab'; kind: 'size'; h: number }
-  | ({ t: 'lab'; kind: 'transport'; side: number; back: number; cam3?: number; cam4?: number } & Transport);
+  | ({ t: 'lab'; kind: 'transport'; side: number; back: number; cam3?: number; cam4?: number } & Transport)
+  | { t: 'lab'; kind: 'export-progress'; id: string; progress: number }
+  | { t: 'lab'; kind: 'export-chunk'; id: string; index: number; data: string }
+  | { t: 'lab'; kind: 'export-done'; id: string; chunks: number; bytes: number }
+  | { t: 'lab'; kind: 'export-error'; id: string; message: string };
 
 type Bridge = {
   ReactNativeWebView?: { postMessage(s: string): void };
   __labSeek?: (frame: number) => void;
   /** 시점 바꾸기 — 앱이 원본 옆 · 뒤를 바꿀 때 3D 도 같은 쪽에서 보게(2026-10-29) */
   __labView?: (view: string) => void;
+  __labExport?: (id: string) => void;
+  __labExportAck?: (id: string, index: number, ok: boolean) => void;
+  __labSnapshot?: (id: string) => void;
 };
 
 const post = (msg: ToApp) => (window as unknown as Bridge).ReactNativeWebView?.postMessage(JSON.stringify(msg));
@@ -94,9 +101,54 @@ export function LabEmbed({
 
   useEffect(() => {
     const w = window as unknown as Bridge;
+    let alive = true;
+    let running = false;
+    let ack: { id: string; index: number; finish: (ok: boolean) => void } | null = null;
     w.__labSeek = (k) => body.current?.seek(k);
     w.__labView = (v) => {
       if (v === 'side' || v === 'back' || v === 'catcher' || v === 'top') body.current?.view(v);
+    };
+    w.__labSnapshot = (id) => {
+      if (!/^[a-zA-Z0-9-]{1,80}$/.test(id)) return;
+      let data: string | null = null;
+      try { data = body.current?.snapshot() ?? null; } catch { /* report can be exported without a scene */ }
+      (window as unknown as Bridge).ReactNativeWebView?.postMessage(JSON.stringify({ t: 'lab', kind: 'snapshot', id, data }));
+    };
+    w.__labExportAck = (id, index, ok) => {
+      if (ack?.id === id && ack.index === index) ack.finish(ok);
+    };
+    w.__labExport = (id) => {
+      if (!/^[a-zA-Z0-9-]{1,80}$/.test(id)) return;
+      if (running) { post({ t: 'lab', kind: 'export-error', id, message: '이전 영상을 마무리하고 있어요. 잠시 뒤 다시 시도해 주세요.' }); return; }
+      running = true;
+      void (async () => {
+        try {
+          if (!body.current) throw new Error('3D 화면을 불러온 뒤 다시 시도해 주세요.');
+          const blob = await body.current.exportVideo((progress) => post({ t: 'lab', kind: 'export-progress', id, progress }));
+          const chunkSize = 192 * 1024;
+          const chunks = Math.ceil(blob.size / chunkSize);
+          for (let index = 0; index < chunks; index++) {
+            if (!alive) throw new Error('화면이 닫혔어요.');
+            const data = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onerror = () => reject(new Error('영상 조각을 읽지 못했어요.'));
+              reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result.split(',')[1] ?? '') : reject(new Error('영상 조각을 읽지 못했어요.'));
+              reader.readAsDataURL(blob.slice(index * chunkSize, (index + 1) * chunkSize));
+            });
+            const accepted = new Promise<boolean>((resolve) => {
+              const timer = setTimeout(() => { ack = null; resolve(false); }, 15_000);
+              ack = { id, index, finish: (ok) => { clearTimeout(timer); ack = null; resolve(ok); } };
+            });
+            post({ t: 'lab', kind: 'export-chunk', id, index, data });
+            if (!(await accepted)) throw new Error('영상을 기기에 저장하지 못했어요.');
+          }
+          if (alive) post({ t: 'lab', kind: 'export-done', id, chunks, bytes: blob.size });
+        } catch (error) {
+          if (alive) post({ t: 'lab', kind: 'export-error', id, message: error instanceof Error ? error.message : '영상을 만들지 못했어요.' });
+        } finally {
+          running = false;
+        }
+      })();
     };
     const el = box.current;
     let ro: ResizeObserver | undefined;
@@ -108,9 +160,14 @@ export function LabEmbed({
     }
     post({ t: 'lab', kind: 'ready' });
     return () => {
+      alive = false;
+      if (ack) (ack as { finish: (ok: boolean) => void }).finish(false);
       ro?.disconnect();
       delete w.__labSeek;
       delete w.__labView;
+      delete w.__labExport;
+      delete w.__labExportAck;
+      delete w.__labSnapshot;
     };
   }, []);
 

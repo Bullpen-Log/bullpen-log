@@ -11,7 +11,9 @@ import { featureLocks } from '@/lib/feature-locks';
 import { ageOn } from '@/lib/nutrition/targets';
 import { hasFinishedBasics } from '@/lib/program/load';
 import { toDateKey } from '@/lib/pitch-stats';
-import { coachMinutesOf, coachSlotOf, pushBackDiscomfort, takeDayFromCoach } from '@/lib/coach/today';
+import { coachMinutesOf, pushBackDiscomfort, takeDayFromCoach } from '@/lib/coach/today';
+import { currentCoachWeek } from '@/lib/coach/refresh';
+import { limitedBy } from '@/lib/coach/limits';
 import { pickMany } from '@/lib/exercise-meta';
 import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import {
@@ -297,10 +299,7 @@ export async function generateTodayPlan(formData: FormData) {
       );
 
   const today = appNow();
-  /* 유료 코치 진행 중이면 그날 칸(docs/designs/ai-coach.md 10-5) — 자동 맞춤의 기본 시간만 바꾼다. 엔진 판정(줄이기)은 그대로. 아래 모으기와 같이 돈다 */
-  const coachSlotP = coachSlotOf(user, toDateKey(today));
   const { facts, plan, state: gathered } = await gatherFactsAndPlan(user, today);
-  const coachSlot = await coachSlotP;
 
   /*
    * 오늘 체크인을 남긴 날에만 만든다 (2026-09-23 사용자분과 정함).
@@ -321,6 +320,7 @@ export async function generateTodayPlan(formData: FormData) {
     favoriteIds,
     programRow,
     typesToday,
+    coach,
   ] = await Promise.all([
     /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts) */
     visibleExercises(),
@@ -349,7 +349,15 @@ export async function generateTodayPlan(formData: FormData) {
      * buildProgramDay 가 같은 조회를 한 번 더 하지만, 프로그램 줄을 받기 전이라 갈라 묻지 않는다(같은 Promise.all 이라 왕복은 안 는다).
      */
     pitchTypesToday(user.id, toDateKey(today)),
+    /*
+     * 유료 코치 진행 중이면 이번 주 틀을 지금 상태로 맞춘 뒤 그날 칸(docs/designs/ai-coach.md 10-5) — 자동 맞춤의 기본 시간만 바꾼다(엔진 판정 · 줄이기는 그대로).
+     * 위에서 읽은 facts 를 넘겨 같은 계산을 다시 안 한다.
+     */
+    currentCoachWeek(user, facts),
   ]);
+  const coachSlot = coach.active ? (coach.slots?.find((s) => s.date === toDateKey(today)) ?? null) : null;
+  /* 코치 질문의 '피할 동작'(전문가가 정해 준 것) — 매일 일정에서 그 운동을 뺀다. 프로그램 날은 프로그램이 정한 운동 그대로(코치는 피할 동작이 있으면 프로그램을 권하지 않는다) */
+  const dailyLibrary = coach.active && coach.limits.length ? library.filter((ex) => !limitedBy(ex, coach.limits)) : library;
 
   /*
    * 진행 중인 프로그램을 오늘 상태 한 장에 얹는다 — 고르기 점수가 commitments.program 하나로 '최근에 따르는 프로그램인가 · 다음이 언제인가'를
@@ -442,7 +450,7 @@ export async function generateTodayPlan(formData: FormData) {
     user,
     facts,
     plan,
-    library,
+    library: dailyLibrary,
     /* 폼을 거쳤으면 최소한 맨몸은 들어 있다. 빈 목록이 될 일이 없다. */
     availableToday: availableEquipment,
     requestedMinutes: choice.minutes,

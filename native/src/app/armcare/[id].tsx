@@ -1,11 +1,13 @@
+import { LoadingExit } from '~/shell/loading-exit';
 import { Icon } from '~/shell/icon';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore } from 'react';
-import { ActivityIndicator, Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatSeconds } from '@/lib/exercise-meta';
+import { primaryArea } from '@/lib/armcare/anatomy';
 import { useLiveActivity } from '~/shell/live-activity';
 import { REST_CLOCK_LIMIT_SECONDS } from '@/lib/workout/rest';
 import type { ArmcarePlay } from '@/lib/armcare/play-load';
@@ -88,7 +90,7 @@ export default function ArmcarePlayScreen() {
           </Press>
         </>
       ) : (
-        <ActivityIndicator accessibilityLabel="루틴을 불러오는 중" />
+        <LoadingExit label="루틴을 불러오는 중" />
       )}
     </View>
   );
@@ -450,7 +452,7 @@ function Player({
   const two = twoSides(it);
   const amount = it.holdSeconds != null ? `${formatSeconds(it.holdSeconds)}` : it.reps != null ? `${it.reps}회` : '';
   const prescription = [amount, it.perSide ? '좌우 각각' : null, `${it.sets}세트`].filter(Boolean).join(' · ');
-  const meta = [ex.equipment.join(' · '), ex.targetMuscles[0]].filter(Boolean).join(' · ');
+  const meta = [ex.equipment.join(' · '), primaryArea(ex.targetMuscles)?.label].filter(Boolean).join(' · ');
   const pending = waitingCount + localCount + refusedCount;
 
   /* 세트 판의 상태 한 줄 */

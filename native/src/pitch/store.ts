@@ -15,14 +15,22 @@ const months = new Map<string, Entry>();
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 const EMPTY: Entry = { logs: null, error: null, loading: false };
+// 계정 전환·새 조회·저장 뒤에는 앞서 시작한 응답을 버린다.
+const requests = new Map<string, object>();
+const beginRead = (key: string) => {
+  const token = { epoch: cacheEpoch() };
+  requests.set(key, token);
+  return () => token.epoch === cacheEpoch() && requests.get(key) === token;
+};
+let resetGeneration = 0;
 
 /** 폰에 남긴 달을 먼저 — 서버 값이 먼저 오면 안 덮는다 */
-function warm(key: string) {
+function warm(key: string, current: () => boolean) {
   if (months.get(key)?.logs) return;
   const e = cacheEpoch();
   void cacheGet(`pitch:${key}`).then((v) => {
     /* 그새 로그아웃했으면 앞사람 달을 다시 넣지 않는다 */
-    if (e !== cacheEpoch()) return;
+    if (e !== cacheEpoch() || !current()) return;
     const now = months.get(key) ?? EMPTY;
     if (now.logs || !Array.isArray(v)) return;
     months.set(key, { ...now, logs: v as PitchLog[] });
@@ -32,6 +40,8 @@ function warm(key: string) {
 
 /** 로그아웃 — 앞사람 기록을 지운다(폰 저장은 lib/store.ts cacheClear) */
 export function resetPitchStore() {
+  requests.clear();
+  resetGeneration++;
   months.clear();
   emit();
   /* 날짜별 구속 · 대표 영상 · 메모 날 · 썸네일도 — 남으면 다음 사람 달력에 앞사람 표시가 뜬다 */
@@ -40,6 +50,10 @@ export function resetPitchStore() {
   velocityLoading = null;
   velocityListeners.forEach((l) => l());
   featured = null;
+  confirmedFeatured = null;
+  pendingFeatured.clear();
+  featuredQueues.clear();
+  featuredRevision++;
   featuredLoading = null;
   emitFeatured();
   noteDays = null;
@@ -48,19 +62,20 @@ export function resetPitchStore() {
 
 export async function refreshMonth(month: string): Promise<void> {
   if (months.has(ALL)) void refreshAll();
-  warm(month);
+  const current = beginRead(month);
+  warm(month, current);
   const prev = months.get(month) ?? EMPTY;
   /* 받은 달이어도 '받는 중'을 알린다 — 고치기 화면이 이것을 보고 그 달에 없는 기록을 '못 찾음' 대신 기다린다(2026-10-24 검토) */
   months.set(month, { ...prev, loading: true });
   emit();
-  const e = cacheEpoch();
   try {
     const logs = await loadMonth(month);
-    if (e !== cacheEpoch()) return;
+    if (!current()) return;
     months.set(month, { logs, error: null, loading: false });
     void cacheSet(`pitch:${month}`, logs);
   } catch (e) {
-    months.set(month, { ...prev, error: e instanceof Error ? e.message : '불러오지 못했어요', loading: false });
+    if (!current()) return;
+    months.set(month, { ...(months.get(month) ?? prev), error: e instanceof Error ? e.message : '불러오지 못했어요', loading: false });
   }
   emit();
 }
@@ -78,8 +93,9 @@ export function applySavedLog(log: PitchLog, epoch: number) {
   for (const key of [monthOf(clean.date.slice(0, 10)), ALL]) {
     const now = months.get(key);
     if (!now?.logs) continue;
+    requests.delete(key);
     const logs = [...now.logs.filter((l) => l.id !== clean.id), clean].sort(order);
-    months.set(key, { ...now, logs });
+    months.set(key, { logs, error: null, loading: false });
     if (key !== ALL) void cacheSet(`pitch:${key}`, logs);
   }
   emit();
@@ -103,12 +119,16 @@ export function useMonth(month: string) {
 /** 모든 기록(찾기용) — 달 묶음과 같은 보관에 'all' 이름으로. 남기기 · 고치기 · 지우기 뒤 refreshMonth 가 이것도 다시 받는다 */
 const ALL = 'all';
 async function refreshAll(): Promise<void> {
+  const current = beginRead(ALL);
   const prev = months.get(ALL) ?? EMPTY;
   months.set(ALL, { ...prev, loading: true });
   emit();
   try {
-    months.set(ALL, { logs: await loadAll(), error: null, loading: false });
+    const logs = await loadAll();
+    if (!current()) return;
+    months.set(ALL, { logs, error: null, loading: false });
   } catch (e) {
+    if (!current()) return;
     months.set(ALL, { ...prev, error: e instanceof Error ? e.message : '불러오지 못했어요', loading: false });
   }
   emit();
@@ -142,16 +162,18 @@ export const thumbSource = (t: Thumb) => (typeof t === 'string' ? { uri: t } : t
 /**
  * 그림이 없는 영상(웹: <video #t=0.5> 로 한 장면) — 재생 주소를 받아 0.5초 장면을 하나 뽑는다. 한 번에 하나씩(재생기를 여럿 띄우지 않게).
  */
-async function frameThumbs(paths: string[]): Promise<void> {
+async function frameThumbs(paths: string[], current: () => boolean): Promise<void> {
   const urls = await serverVideoUrls(paths).catch(() => ({}) as Record<string, string>);
   for (const p of paths) {
+    if (!current()) return;
     /* 폰 영상은 앱 안 영상 폴더의 파일에서(이 폰에 없으면 필름 그림) */
     const url = isPhoneVideoPath(p) ? await LocalVideo.fileUrl({ id: phoneAssetId(p) }).then((r) => r.url, () => null) : urls[p];
+    if (!current()) return;
     if (!url) continue;
     const player = createVideoPlayer(url);
     try {
       const [shot] = await player.generateThumbnailsAsync(0.5, { maxWidth: 320 });
-      if (shot) thumbUrls.set(p, shot);
+      if (shot && current()) thumbUrls.set(p, shot);
     } catch {
       /* 못 뽑으면 필름 그림 그대로 */
     } finally {
@@ -167,16 +189,20 @@ export function usePathThumbs(paths: string[]): Record<string, Thumb> {
   useEffect(() => {
     if (!key) return;
     const ask = key.split('|');
+    const epoch = cacheEpoch();
+    const generation = resetGeneration;
     let alive = true;
+    const current = () => alive && epoch === cacheEpoch() && generation === resetGeneration;
     /* 서버에 저장해 둔 그림 먼저(폰 영상은 서버에 없다) */
     void serverThumbUrls(ask.filter((p) => !isPhoneVideoPath(p)))
       .then(async (got) => {
+        if (!current()) return;
         for (const p of ask) thumbUrls.set(p, got[p] ?? null);
-        if (alive) bump();
+        if (current()) bump();
         const none = ask.filter((p) => !got[p]);
         if (none.length) {
-          await frameThumbs(none);
-          if (alive) bump();
+          await frameThumbs(none, current);
+          if (current()) bump();
         }
       })
       .catch(() => {});
@@ -252,22 +278,41 @@ export function useVelocityDays(): VelocityDays | null {
  * 고르기는 setFeatured(웹 featured-video.setFeaturedVideo 와 같은 동작) — 바로 바꿔 보이고, 실패하면 되돌린다.
  */
 let featured: Record<string, string> | null = null;
+let confirmedFeatured: Record<string, string> | null = null;
+const pendingFeatured = new Map<string, { token: object; path: string }>();
+const featuredQueues = new Map<string, Promise<boolean>>();
+let featuredRevision = 0;
 const featuredListeners = new Set<() => void>();
 const emitFeatured = () => featuredListeners.forEach((l) => l());
+const renderFeatured = () => {
+  featured = confirmedFeatured || pendingFeatured.size ? { ...confirmedFeatured } : null;
+  for (const [date, next] of pendingFeatured) featured![date] = next.path;
+  emitFeatured();
+};
 let featuredLoading: Promise<void> | null = null;
+const invalidateFeaturedRead = () => {
+  featuredRevision++;
+  featuredLoading = null;
+};
 export function reloadFeatured(): Promise<void> {
-  const e = cacheEpoch();
-  featuredLoading ??= rpc<{ ok: true; featured: Record<string, string> } | { ok: false; error: string }>('app.loadAppFeatured')
+  // 선택 쓰기가 끝나면 다시 읽는다. 중간 스냅샷으로 선택을 되돌리지 않는다.
+  if (pendingFeatured.size) return Promise.resolve();
+  if (featuredLoading) return featuredLoading;
+  const epoch = cacheEpoch();
+  const generation = resetGeneration;
+  const revision = featuredRevision;
+  const task = rpc<{ ok: true; featured: Record<string, string> } | { ok: false; error: string }>('app.loadAppFeatured')
     .then((r) => {
-      if (!r.ok || e !== cacheEpoch()) return;
-      featured = r.featured;
-      emitFeatured();
+      if (!r.ok || epoch !== cacheEpoch() || generation !== resetGeneration || revision !== featuredRevision) return;
+      confirmedFeatured = r.featured;
+      renderFeatured();
     })
     .catch(() => undefined)
     .finally(() => {
-      featuredLoading = null;
+      if (featuredLoading === task) featuredLoading = null;
     });
-  return featuredLoading;
+  featuredLoading = task;
+  return task;
 }
 export function useFeatured(): Record<string, string> {
   const v = useSyncExternalStore(
@@ -283,19 +328,39 @@ export function useFeatured(): Record<string, string> {
   return v ?? EMPTY_FEATURED;
 }
 const EMPTY_FEATURED: Record<string, string> = {};
-export async function setFeatured(date: string, path: string): Promise<boolean> {
-  const before = featured;
-  featured = { ...(featured ?? {}), [date]: path };
-  emitFeatured();
-  try {
-    const r = await rpc<{ videoPath: string } | { error: string }>('featured-video.setFeaturedVideo', date, path);
-    if ('error' in r) throw new Error(r.error);
-    return true;
-  } catch {
-    featured = before;
-    emitFeatured();
-    return false;
-  }
+export function setFeatured(date: string, path: string): Promise<boolean> {
+  const epoch = cacheEpoch();
+  const generation = resetGeneration;
+  const current = () => epoch === cacheEpoch() && generation === resetGeneration;
+  const token = {};
+  pendingFeatured.set(date, { token, path });
+  invalidateFeaturedRead();
+  renderFeatured();
+  // 같은 날의 쓰기는 입력 순서로 보낸다. 다른 날은 서로 막거나 복원하지 않는다.
+  const previous = featuredQueues.get(date) ?? Promise.resolve(true);
+  const task = previous.then(async () => {
+    if (!current()) return false;
+    try {
+      const r = await rpc<{ videoPath: string } | { error: string }>('featured-video.setFeaturedVideo', date, path);
+      if (!current()) return false;
+      if ('error' in r) throw new Error(r.error);
+      confirmedFeatured = { ...confirmedFeatured, [date]: r.videoPath };
+      return true;
+    } catch {
+      return false;
+    } finally {
+      if (current()) {
+        invalidateFeaturedRead();
+        if (pendingFeatured.get(date)?.token === token) pendingFeatured.delete(date);
+        if (featuredQueues.get(date) === task) featuredQueues.delete(date);
+        renderFeatured();
+        // 응답 유실로 저장된 경우도 조회로 확인한다. 쓰기를 다시 보내지는 않는다.
+        if (!pendingFeatured.size) void reloadFeatured();
+      }
+    }
+  });
+  featuredQueues.set(date, task);
+  return task;
 }
 /** 그날 대표 — 고른 것이 그날 영상에 있으면 그것, 아니면 처음 영상 */
 export const repOf = (paths: string[], pick: string | undefined) => (pick && paths.includes(pick) ? pick : (paths[0] ?? null));

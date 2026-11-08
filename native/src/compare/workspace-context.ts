@@ -9,6 +9,8 @@ export type Inspector =
   | 'loop'
   | 'compareSet'
   | 'drawTools'
+  /** 선 색 · 굵기를 한 창에(SS01 — 좁은 도구 줄은 '모양' 단추 하나) */
+  | 'style'
   | 'color'
   | 'width'
   | 'drawSet'
@@ -19,7 +21,9 @@ export type Inspector =
   | 'storyboard'
   | 'info'
   | 'markers'
-  | 'trim';
+  | 'trim'
+  /** 재생 대상 고르기(SS06 — 좁은 화면은 누를 때마다 도는 단추 대신 고르는 창) */
+  | 'target';
 export type WorkspaceUi = { context: ToolContext; inspector: Inspector | null };
 export const INITIAL_UI: WorkspaceUi = { context: 'view', inspector: null };
 

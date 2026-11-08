@@ -1,4 +1,9 @@
+import { LabPracticeCard } from '~/lab/practice-card';
 import * as Haptics from 'expo-haptics';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import { Asset, requestPermissionsAsync } from 'expo-media-library';
+import { File } from 'expo-file-system';
 import { ScrollLockScope } from '~/shell/scroll-lock';
 import { SymbolView } from 'expo-symbols';
 import { Icon } from '~/shell/icon';
@@ -8,6 +13,7 @@ import { useEventListener } from 'expo';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   AccessibilityInfo,
+  Alert,
   ActivityIndicator,
   AppState,
   Pressable,
@@ -19,6 +25,7 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 import type { ReportItem } from '@/lib/pitch-3d/v2/report';
+import { reportExportHtml } from '@/lib/pitch-3d/v2/report-export';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AppAnalysisConsent } from '@/app/actions/analysis-consent';
 import type { AppLabDetail } from '@/app/actions/pitch-lab';
@@ -384,6 +391,58 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
   const lab = useRef<Lab3DHandle>(null);
   const r = data.result!;
   const report = r.report;
+  const [exporting, setExporting] = useState<'report' | 'video' | null>(null);
+  const [exportProgress, setExportProgress] = useState(0);
+  const exportBusy = useRef(false);
+  const exportReport = async () => {
+    if (exportBusy.current) return;
+    exportBusy.current = true;
+    setExporting('report');
+    let file: File | null = null;
+    try {
+      if (!(await Sharing.isAvailableAsync())) throw new Error('이 기기에서 파일 공유를 사용할 수 없어요.');
+      const scene = await lab.current?.snapshot().catch(() => null);
+      const result = await Print.printToFileAsync({ html: reportExportHtml(report, data.title, data.when ?? '', scene) });
+      file = new File(result.uri);
+      await Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: '리포트 저장 또는 공유' });
+    } catch (error) {
+      Alert.alert('리포트를 만들지 못했어요', error instanceof Error ? error.message : '다시 시도해 주세요.');
+    } finally {
+      try { if (file?.exists) file.delete(); } catch { /* cache cleanup */ }
+      exportBusy.current = false;
+      setExporting(null);
+    }
+  };
+  const exportVideo = async (destination: 'photos' | 'share') => {
+    if (exportBusy.current) return;
+    exportBusy.current = true;
+    setExporting('video');
+    setExportProgress(0);
+    let file: File | null = null;
+    try {
+      if (destination === 'photos') {
+        const permission = await requestPermissionsAsync(true, ['video']);
+        if (!permission.granted) throw new Error('사진 앱에 저장하려면 사진 추가 권한이 필요해요.');
+      } else if (!(await Sharing.isAvailableAsync())) throw new Error('이 기기에서 파일 공유를 사용할 수 없어요.');
+      if (!lab.current) throw new Error('3D 화면을 불러온 뒤 다시 시도해 주세요.');
+      file = await lab.current.exportVideo(setExportProgress);
+      if (destination === 'photos') {
+        await Asset.create(file.uri);
+        toast('3D 영상을 사진 앱에 저장했어요');
+      } else await Sharing.shareAsync(file.uri, { mimeType: 'video/mp4', UTI: 'public.mpeg-4', dialogTitle: '3D 영상 공유' });
+    } catch (error) {
+      Alert.alert('영상을 만들지 못했어요', error instanceof Error ? error.message : '다시 시도해 주세요.');
+    } finally {
+      try { if (file?.exists) file.delete(); } catch { /* cache cleanup */ }
+      exportBusy.current = false;
+      setExporting(null);
+    }
+  };
+  const chooseVideoDestination = () => Alert.alert('3D 영상 저장·공유', '화면을 돌려 고른 각도와 재생 속도로 3D 영상을 만들어요. 원본 영상과 소리는 포함되지 않아요.', [
+    { text: '사진 앱에 저장', onPress: () => void exportVideo('photos') },
+    { text: '파일 저장·공유', onPress: () => void exportVideo('share') },
+    { text: '취소', style: 'cancel' },
+  ]);
 
   /* ── 원본 비교: 하나만 ── */
   const sources = data.videos.filter((v) => v.url);
@@ -549,6 +608,9 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
               <Text style={[s.small, { color: c.muted }]}>{sub}</Text>
               {r.handNote ? <Text style={[s.small, { color: c.muted }]}>{r.handNote}</Text> : null}
             </View>
+            <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!exporting }} disabled={!!exporting} onPress={() => void exportReport()} style={[s.exportButton, { backgroundColor: c.card, borderColor: c.line }]}>
+              <Text style={[s.bodyBold, { color: c.link }]}>{exporting === 'report' ? '리포트 만드는 중…' : '리포트 PDF 저장·공유'}</Text>
+            </Pressable>
             {doneAgain ? (
               <Pressable onPress={onReload} accessibilityRole="button" style={[s.notice, { backgroundColor: c.skyTint, borderColor: c.line }]}>
                 <Text style={[s.small, { flex: 1, color: c.ink }]}>다시 분석이 끝났어요. 지금 보이는 건 이전 결과예요.</Text>
@@ -583,6 +645,9 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
                       {active && data.waiting ? <Reanalyzing /> : null}
                     </View>
                   </View>
+                  <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!exporting || viewerFailed || active }} disabled={!!exporting || viewerFailed || active} onPress={chooseVideoDestination} style={[s.exportButton, { backgroundColor: c.card, borderColor: c.line, opacity: viewerFailed || active ? 0.5 : 1 }]}>
+                    <Text style={[s.bodyBold, { color: c.link }]}>{exporting === 'video' ? `3D 영상 만드는 중 ${Math.round(exportProgress * 100)}%` : '현재 각도로 3D 영상 저장·공유'}</Text>
+                  </Pressable>
                   {compareBlock}
                 </View>
               )}
@@ -590,6 +655,7 @@ function ResultView({ c, data, active, doneAgain, onReload }: { c: Palette; data
                 <>
                   <ElementGrid c={c} report={report} onPick={(it) => jump(it.frame, false)} onScene={onScene} />
                   <RxCard c={c} report={report} mine={r.mine} focus={r.focus} resultId={data.id} />
+                  {r.mine ? <LabPracticeCard key={data.id} id={data.id} suggestedGoal={report.rx[0]?.cue ?? ''} /> : null}
                   {r.previous ? <CompareCard c={c} prev={r.previous} /> : null}
                   <Details c={c} r={r} active={active} id={data.id} req={data.request} onJump={jump} onStarted={onReload} />
                 </>
@@ -830,6 +896,7 @@ const s = StyleSheet.create({
   smallBold: { fontSize: 13, fontWeight: '600' },
   numeric: { fontSize: 17, fontWeight: '600', fontVariant: ['tabular-nums'] },
   pill: { minHeight: 44, paddingHorizontal: 20, borderRadius: 22, justifyContent: 'center' },
+  exportButton: { minHeight: 48, paddingHorizontal: 16, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
   video: { width: '100%', aspectRatio: 4 / 5, maxHeight: 420, borderRadius: 14, backgroundColor: '#000', overflow: 'hidden' },
   stage: { borderRadius: 24, padding: 10, overflow: 'hidden' },

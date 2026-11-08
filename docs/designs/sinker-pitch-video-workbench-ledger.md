@@ -5,6 +5,46 @@
 **이 대장은 '다 됐다'는 보고가 아니다.** 시뮬레이터 · Metro 는 사용자 지시로 켜지 않았고 실기기에서 돌려 본 것은 없다. 그래서 어떤 항목도 `verified`(기기 확인) 가 아니다.
 상태: `not started` · `in progress` · `implemented / runtime unverified`(코드 + 순수 시험까지) · `verified` · `blocked + 까닭`.
 
+## 몰입 비교(IM01–IM12 — 2026-11-03 5차, 서브1 · 계획 [immersive-plan](./sinker-pitch-video-immersive-plan.md) · 진행 [sub1-status](./sinker-pitch-video-immersive-sub1-status.md))
+
+SS 판(인계 [main-ready](./sinker-pitch-video-single-screen-main-ready.md)) 위에 이었다. 커밋 안 함 — 작업 트리 diff. **시뮬레이터 · Metro · 실기기에서 본 것은 없다.** SS 수정은 기준 사본과 견줘 그대로다(팔레트 훅 이름만).
+
+| ID | 한 것 · 파일 | 확인(모의) | 기기 |
+| --- | --- | --- | --- |
+| IM01 | 검은 판 `ui/compare-palette.ts`(비교 부품 전부) · 상태 막대 light(화면 초점 동안) | 몰입 시험 대비 | 미확인 |
+| IM02 | 머리 줄이 영상 위에 뜸(안전 영역 안) · 칸 모서리 · 테두리 · 거터 없음 · 칸 표는 머리 밑 | regress UI03 | 미확인 — Dynamic Island |
+| IM03 | `planImmersive` — 칸이 무대를 다 덮음 · 채움(기본)/전체 · '일부 잘림' · '맞춤' · 채움에서 잘린 만큼 밀기 | regress UI03 · 몰입 시험 | 미확인 |
+| IM04 | 새 비교는 함께 보기 첫 순간 한 번 겹침 B 45% · 타임라인 위 진하기 줄(5% · 25/50/75 · 위 영상 바꾸기) · 반반 | regress IM04 · 몰입 시험 | 미확인 — 반투명 합성 |
+| IM05 | LayerMap 하나(영상 · 그림 · 돋보기 · 확대 · 겹친 위 영상), OverlayBox 지움 — 같은 두 Pane 겹침 | regress UI10 · 몰입 시험 | 미확인 |
+| IM06 · IM07 | 도구 숨기기/보이기 · 뒤로 먼저 · 영상 누르기 · 예약 풀기 · 200ms(동작 줄이기 0) · 칸 키 그대로 | regress IM06 | 미확인 — VoiceOver 초점 이동은 안 함 |
+| IM08 | SS 도구 줄 · 작은 창 그대로, 진하기 줄도 같은 ToolBar | regress SS 전부 | 미확인 |
+| IM09 | `doc.ts` 선택 칸 `present` · `presentOf` · `setPresent`(예전 overlay 칸 같이) · `transport.display` | 몰입 시험(왕복 · 예전 문서) | 옛 앱은 overlay 칸으로 봄 |
+
+UI03 · UI10 회귀의 '칸 = 원본 비율 · 아래 붙임 · 겹친 판 하나' 기대는 같은 이름 아래 몰입 계약으로 바꿨다(지우지 않음). workspace-layout 의 `planStage` · screen 시험 800 은 그대로 둔다(화면은 더 안 씀).
+검사(2026-11-03): `npm run native-compare:test` 318 + regress 225 + screen 800 + 몰입 34 · `npm run my-videos:test` 117 + 69 · `npm run release-access:test` 703 · native tsc 비교 폴더 0(남은 4개는 시작 때와 같은 경로 타입) · native eslint 0 · 시험 파일 경고 1(원래 있던 `_t`).
+
+## 한 화면 교정(SS01–SS07 — 2026-11-03 4차, 검토 [review-2026-11-03](./sinker-pitch-video-single-screen-review-2026-11-03.md) · 지시 [remediation-claude-prompt](./sinker-pitch-video-single-screen-remediation-claude-prompt.md))
+
+기준 HEAD `a7bbda63`(커밋 안 함 — 작업 트리 diff). **시뮬레이터 · Metro · 실기기에서 본 것은 없다.** 아래 '확인'은 실제 소스(workbench · note-editor · side-playback · transport-hook · workspace-parts · panels)를
+가짜 훅 순서 · 가짜 재생기 · 가짜 자판 사건으로 돌린 것과 순수 계산(fit.ts)이다. 단추 폭 · 줄 높이는 글자 폭 어림(한글 1em · 단어 단위 줄바꿈)이고, 화면은 그려진 뒤 잰 폭 · 높이로 다시 나눈다.
+재현: 같은 시험을 고치기 전 판(`git show HEAD:native/src/compare/ui/*` 사본, `COMPARE_UI_ROOT=<사본>`)으로 돌리면 **137개 실패**(SS01 30 · SS02 73 · SS03 4 · SS04 5 · SS05 17 · SS06 5 · SS07 2 · 처음 맞추기 1), 고친 판은 0.
+
+| ID | 재현된 까닭 | 고친 것 · 파일 | 확인(모의) | 기기 |
+| --- | --- | --- | --- | --- |
+| SS01 | 그리기 첫 줄 7단추 = 332 + 여백 16 > 320(가로 칸 213 에선 437). 줄바꿈 · 쪽 없음 | 새 `compare/fit.ts` planBar · planBarAdaptive(꼭 있어야 할 단추는 안 뺌 · 덜 중요한 것부터 '더보기' 동작 시트 · 좁은 모양 · 줄 수는 적은 것부터) · 새 `ui/tool-bar.tsx`(잰 줄 폭 · 단추 폭으로 다시 놓음). 그리기 줄 = 영상(A/B) · **지금 도구(누르면 열두 도구 쪽 고르기)** · 빠른 넷 · 고르기 · **모양(색 · 굵기 한 창 'style')** · 설정 · 되돌리기 · 다시 하기 · 고른 그림 지우기 · 완료. 장면 · 메모 · 맞추기 줄도 같은 부품 | regress SS01 36(6 기기 × 글자 100 · 160 · 200% × 고른 그림 있음/없음 — 적은 폭이 실제보다 작지 않음 · 폭 안 · 되돌리기 · 완료 · 도구 고르기에 열두 도구) · screen SS01 144(16 화면 × 글자 3 × 그리기 · 장면 · 맞추기) | 미확인 — 실제 글꼴 폭 · 동작 시트 |
+| SS02 | 한 행(겹쳐 보기 여덟 = 144) > 본문 96, maxHeight + overflow hidden. 창 = 무대 − 12(거의 다 가림) | 작은 창 줄을 덩어리로(`fit.ts` expandRows — 단추 하나씩 줄로, 긴 글은 쪽 높이만큼 조각, 큰 덩어리는 packPages 가 oversize 로 알림 · 잰 높이가 크면 그 글을 더 잘게) · 영상 가림 한도(inspectorBudget — 무대의 약 36%, 큰 덩어리만큼만 늘고 위 64 는 늘 영상) · **가로 폰은 작은 창을 오른쪽 칸 자리에(영상을 안 가림)** · 고르기 묶음은 두 줄까지 감기고 그보다 크면 '지금 값' 단추 + 동작 시트(segMode) · 겹쳐 보기는 나누기 / 방향 넷 / 크기 · 풀기 줄 · 여섯 장면은 단추 줄 · 장면 모음은 쪽 높이에 맞춰 그림 크기 · A·B 위아래/나란히(shotLayout) · 메모 목록은 이름 / 본문 조각 / 고치기 · 지우기 | regress SS02 73(6 기기 × 글자 100 · 200% × 맞추기·겹쳐 · 여섯 장면 · 장면 모음 · 긴 메모 · 영상 정보 · 재생 — 모든 쪽이 본문 안 · 모든 덩어리에 닿음 · 가림 한도) + 증거 재현(본문 96 · 무대 264×172) · screen SS02 | 미확인 — 실제 높이 · 동작 시트 |
+| SS03 | 머리 44 + 편집기 최소 160 + 자판 여백 220 = 424 > 390 | 자판 윗변을 쥐고(keyboardWillShow · WillChangeFrame · DidChangeFrame · Hide) 화면 아래 끝과 겹치는 높이를 **한 번만** 뺌(keyboardOverlap) · 메모를 쓰는 동안 머리 줄을 걷음 · `fit.ts` planEditor(두 줄 + 미리보기 → 한 줄 모음 + 미리보기 → … → 닫기 · 한 줄 입력 · 더보기 · 저장을 한 줄에) · 저장 · 닫기 · 지금 쓰는 줄이 먼저, 남으면 멈춘 영상 미리보기 | regress SS03 6(가로 390 · 자판 216 / 160% / 예측 자판 260 · 200% / 가로 320 · 자판 200 / 세로 568 · 200% / 세로 844 — 자판이 커지고 내려가는 것까지) · screen SS03 192 | 미확인 — 실제 자판 높이 · 예측 줄 · 회전 · iPad 떠 있는 자판 |
+| SS04 | 12줄 붙여넣기가 두 줄 칸 한 쪽에(쪽 1 · maxLength 38 로 얼림) | `ui/note-editor.tsx` 다시 씀 — 원문 하나 · 쪽 = 원문 구간(paginateNote — 줄바꿈 · 칸 폭 · 줄 수) · 고친 자리만 원문에(editPage) · 넘친 글은 다음 쪽으로 · 한도 500 은 원문 전체에 · 결합 글자를 가르지 않음 · 한글 조합 중인 듯하면(probablyComposing) 칸 글을 안 바꾸고 조합이 끝난 다음 고침 · 커서 옮김 · 쪽 넘김 · 1.2초 멈춤 · 저장에 나눔 · 칸이 실제로 넘쳤다고 재면 글자 수 어림을 줄임 · 커서는 원문 자리로 들고 다시 나누면 그 쪽으로. 저장 · 닫기(초안 남김) · 버리기(확인 뒤 초안 지움) 따로. 새 `compare/note-drafts.ts` — 계정 폴더 `note-drafts.draft` 에 문서 · 영상 · 시각(또는 메모 id)마다 초안, 다른 계정 · 깨진 파일은 빈 목록, 비교를 지우면 같이(store.deleteComparison). 메모 목록에 '쓰던 메모' 이어 쓰기 · 버리기 | regress SS04 8(12줄 · 빈 줄 · 가운데 넣기 · 앞에서 지우기 · 한글 조합 · 그림 문자 · 600자 · 줄바꿈 저장 · 닫기/버리기 · 초안 저장소 · 앱 다시 켬) · screen SS04 | 미확인 — **실제 한글 조합(마크된 글자)이 조합 중 판정과 맞는지**, 커서 setSelection, 붙여넣기 · 받아쓰기 |
+| SS05 | 맞추기 A 단독 재생이 함께 재생 기계 밖이라 뒤로 가도 `playing true → true` | 새 `ui/side-playback.ts` useSidePlayback — A 만 · B 만 재생을 맞추기 · 비교 모두 이 훅으로. 뒤로 감 · 화면 떠남 · 닫힘 · 재생기 바뀜 · 오류면 두 재생기를 다 멈추고 세대를 올림, 끝까지 가면 멈춤. `transport-hook.ts` 는 멈춘(idle) 때도 뒤로 가면 두 재생기를 멈추고 닫힐 때 멈춤. 돌아오면 저절로 안 틂 · 뒤로 가느라 끊긴 복원은 다시(멈춘 채) | regress SS05 17(맞추기 · 비교 × A · B × 뒤로 감 · 떠남 · 닫힘 · 영상 바뀜 + 돌아와도 안 틂 · 함께 재생 훅 idle) · F02 · F03 회귀 그대로 | 미확인 — iOS 의 실제 백그라운드 재생 · 소리 |
+| SS06 | 비교에서 A 를 고르고 재생하면 함께로 바뀜 | 함께 · A · B 는 재생 · 한 장면 · 옮기기 모두 같은 대상. 함께로 돌아오면 **따로 옮기던 쪽 자리**를 기준으로(B 면 B − B 기준, 동작 길이 맞춤이면 늘인 축을 되돌린 A 자리 — `timing.ts` normalizedOfB) 다시 붙이고 짧게 알림. 좁으면 대상은 '지금 대상 이름' 단추 → 고르는 창('target') | regress SS06 5 · screen SS06 96(16 화면 × 글자 3 × 대상 둘 — 재생 줄 폭 안) | 미확인 |
+| SS07 | 단추 1.3 · 1.4배 상한 | 비교 화면 핵심 글자(단추 · 고르기 · 쪽 · 제목 · 도구 이름 · 작은 창 · 편집 줄 · 시트 · 고르기 화면 · 칸 오류)를 **2배(FS_MAX)까지** 그대로, 높이 · 폭 어림도 2배까지. 도구 칸 이름은 칸에 안 들어가면 그림만(이름은 VoiceOver). 작은 창은 modal 아님 · 문지르기(escape)로 닫힘 | regress SS07 2(비교 화면 · 부품에 2배 밑 상한 없음) | 미확인 — VoiceOver 차례 · 초점 되돌림 · 2배 넘는 접근성 글자(2배에서 멈춤) |
+| 처음 쓰기 | — | 맞추기: 앞발 착지 기본 · A 지정 뒤 B · 둘 다 지정하면 '비교 보기'가 주 단추 하나 · 누르면 멈춘 채 기준 장면 | regress 1 | 미확인 |
+
+남긴 상한(까닭): 영상 위 작은 표(A/B · 기준 · 시각 · 확대 — pane.tsx 1.2배, 영상을 가리지 않게. 같은 내용을 VoiceOver 가 읽음), 타임라인 양 끝 시각(1.3배 — 읽어 주는 값 · 칸 시각에 같은 내용).
+UI04 의 '좁으면 한 단추가 돌아감' · UI06 의 두 줄 고정 · UI08 의 '처음 잰 칸으로 한 번만 나눔 · 칸이 차면 멈춤' · UI11 의 1.3 · 1.4배 상한은 이 절이 대신한다.
+검사(2026-11-03): `npm run native-compare:test` 318 + regress 223 + screen 800 모두 통과 · `npm run my-videos:test` 117 + 69 · `npm run release-access:test` 703 · `npx tsc --noEmit -p native/tsconfig.json` 비교 폴더 0(남은 4개는 coach-chat · coach-settings · library/warmup · training/routine 경로 타입 — 시작 때와 같음) · `npx eslint src/compare src/app/pitch/compare.tsx`(native) 0 · 시험 파일 eslint 경고 1(transportHarness `_t` — 원래 있던 것).
+기기에서 볼 것(22~26): 320 세로 그리기 줄 · '더보기' · 지금 도구 고르기 / 가로 폰에서 작은 창이 오른쪽 칸에 / 가로 폰 · 큰 자판 · 예측 줄에서 메모 쓰기, 한글로 칸 끝에서 조합 · 붙여넣기 · 커서 / A 만 재생 중 홈으로 · 전화 · 잠금 · 다른 화면 / 큰 글씨 200% · VoiceOver 로 닫기 · 다음 쪽 · 저장까지.
+
 ## 독립 검토 교정(F01–F08 — 2026-11-02 2차, 검토 [review-2026-11-02](./sinker-pitch-video-workbench-review-2026-11-02.md) · 지시 [remediation-claude-prompt](./sinker-pitch-video-workbench-remediation-claude-prompt.md))
 
 기준 커밋 `760d9859`. 시험은 **고치기 전 코드에서 실패하고 고친 뒤 통과하는 것**만 남겼다 — `npm run native-compare:regress`(scripts/native-compare-regress-selftest.mts · native-compare-regress-ui.mts).

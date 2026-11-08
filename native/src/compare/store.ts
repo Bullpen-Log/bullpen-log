@@ -5,6 +5,7 @@ import { isPhoneVideoPath, phoneAssetId, phoneVideoPath } from '@/lib/phone-vide
 import { LocalVideo } from '../../modules/local-video';
 import { compareFs } from '~/compare/fs';
 import { createStorage, type CompareStorage } from '~/compare/storage';
+import { createDraftStore, type DraftStore } from '~/compare/note-drafts';
 import type { NewSource, RecentEntry } from '~/compare/doc';
 import { normalizeFacts } from '~/compare/timing';
 import { PICK_ORIGINAL, dropPickerTemp, readVideoFacts, saveToPhone } from '~/pitch/attach';
@@ -17,6 +18,8 @@ import { PICK_ORIGINAL, dropPickerTemp, readVideoFacts, saveToPhone } from '~/pi
 type State = { owner: string | null; recent: RecentEntry[] | null; version: number };
 let state: State = { owner: null, recent: null, version: 0 };
 let storage: CompareStorage | null = null;
+/* 메모 초안 — 계정마다 그 폴더에(SS04). 로그아웃 · 다른 계정이면 놓는다 */
+let drafts: DraftStore | null = null;
 const subs = new Set<() => void>();
 const emit = () => subs.forEach((f) => f());
 const set = (p: Partial<State>) => {
@@ -28,6 +31,8 @@ export function setCompareOwner(userId: string) {
   if (state.owner === userId && storage) return;
   holds.clear();
   storage = createStorage(compareFs(userId), userId);
+  void drafts?.flush();
+  drafts = createDraftStore(compareFs(userId), userId);
   set({ owner: userId, recent: null });
   void refreshRecent();
 }
@@ -35,12 +40,16 @@ export function setCompareOwner(userId: string) {
 /** 로그아웃 — 메모리의 목록 · 저장소를 놓는다(열린 비교 화면은 소유자가 바뀐 것을 보고 저장을 멈춘다) */
 export function resetCompareDocs() {
   storage = null;
+  void drafts?.flush();
+  drafts = null;
   holds.clear();
   set({ owner: null, recent: null });
 }
 
 export const compareOwner = () => state.owner;
 export const compareStorage = () => storage;
+/** 지금 계정의 메모 초안 저장소(로그인 확인 전이면 null) */
+export const compareDrafts = () => drafts;
 
 export async function refreshRecent() {
   const s = storage;
@@ -93,6 +102,8 @@ export async function deleteComparison(id: string): Promise<boolean> {
   const s = storage;
   if (!s) return false;
   const r = await s.remove(id, { deleteAssets: removePhoneCopies, keep: heldPaths });
+  /* 지운 비교의 메모 초안도 같이(남기면 다시 열 데가 없다) */
+  if (r.ok && storage === s) drafts?.removeDoc(id);
   await refreshRecent();
   return r.ok;
 }

@@ -230,6 +230,10 @@ ok(countError('505') != null, '…오류로 알린다');
   eq(findCreated([log({ id: 'C', pitchCount: 31, memo: '좋았음' })], e, before), null, '값이 다르면 아님');
   ok(matchesEntry(made, e), '메모 앞뒤 빈칸은 서버처럼 자름');
   ok(!matchesEntry({ ...made, effortPct: 85 }, e), '피로만 다르면 저장 완료로 오판하지 않음');
+  /* 서버는 칩을 정해진 차례로 저장한다(cleanCues) — 누른 차례가 달라도 같은 기록 */
+  const cued = { ...e, cuesGood: ['밸런스', '릴리스'] };
+  ok(matchesEntry({ ...made, cuesGood: ['릴리스', '밸런스'] }, cued), '칩 차례가 달라도 저장된 기록으로 찾음');
+  ok(!matchesEntry({ ...made, cuesGood: ['릴리스'] }, cued), '칩이 빠지면 다른 기록');
 }
 
 /* 15) 초안 — 계정 · 날짜 · 기록이 맞을 때만, 7일, 옛 꼴은 쓰지 않음 */

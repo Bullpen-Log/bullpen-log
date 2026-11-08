@@ -6,7 +6,7 @@
  * 싱커는 app.json 을 손대지 않고 돌려준다 — 바닥 판 지문이 그대로라 이 파일이 생겨도 싱커를 새로 굽지 않는다.
  */
 /* 푸시(expo-notifications)는 싱커만 — 덕아웃 앱은 아직 푸시 토큰을 등록하지 않고, 서명에 푸시 권한을 더하지 않게(2026-10-28) */
-const DUGOUT_DROP = new Set(['./plugins/rest-activity', './plugins/library-videos', 'expo-notifications']);
+const DUGOUT_DROP = new Set(['./plugins/rest-activity', './plugins/library-videos', 'expo-notifications', 'expo-media-library']);
 
 module.exports = ({ config }) => {
   if (process.env.APP_VARIANT !== 'dugout') return config;
@@ -31,7 +31,7 @@ module.exports = ({ config }) => {
     locales: { ko: './locales/dugout/ko.json', en: './locales/dugout/en.json' },
     /* 싱커 것만 뺀다: 쉬는 시간 Live Activity(확장 타깃 · 번들 ID 가 하나 더 든다) · 운동 영상 묶음 */
     plugins: config.plugins
-      .filter((p) => !DUGOUT_DROP.has(p))
+      .filter((p) => !DUGOUT_DROP.has(Array.isArray(p) ? p[0] : p))
       .map((p) => {
         if (p === 'expo-router') return ['expo-router', { root: './src/dugout/app' }];
         if (Array.isArray(p) && p[0] === 'expo-splash-screen') return [p[0], { ...p[1], image: './assets/dugout/splash.png' }];

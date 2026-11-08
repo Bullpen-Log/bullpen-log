@@ -2,6 +2,8 @@ import { NativeModule, requireNativeModule } from 'expo';
 import type { LibraryFile, LibraryStatus, LocalVideoFile, ReadChunk } from './LocalVideo.types';
 
 declare class LocalVideoModule extends NativeModule {
+  prepareBackup?(options: { id: string }): Promise<{ path: string; size: number; sha256: string }>;
+  restoreBackup?(options: { id: string; path: string; sha256: string }): Promise<{ restored: true }>;
   status(): Promise<{ version: number; access: 'authorized' }>;
   requestAccess(): Promise<{ access: 'authorized' }>;
   /** 조금씩 받을 임시 파일 */

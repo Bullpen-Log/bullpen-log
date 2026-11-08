@@ -1,3 +1,5 @@
+import { VideoAnalysisLinks } from '~/videos/analysis-links';
+import { VideoBackupCard } from '~/videos/backup-card';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { formatSpeed } from '@/lib/units';
 import { usePrefs } from '~/lib/prefs';
@@ -42,6 +44,7 @@ export default function MyVideoScreen() {
   const v = path ? findMyVideo(path) : null;
   const featured = useFeatured();
   const speed = usePrefs().speed;
+  const [fileRevision, setFileRevision] = useState(0);
   const [drawing, setDrawing] = useState(false);
   const [avail, setAvail] = useState<PlayerAvail>('loading');
   const [linking, setLinking] = useState(false);
@@ -198,7 +201,7 @@ export default function MyVideoScreen() {
             <Text style={[TYPE.body, { color: c.ink }]}>{topError}</Text>
           </View>
         ) : null}
-        <DetailPlayer path={v.path} drawing={drawing} onDrawingDone={() => setDrawing(false)} onAvail={setAvail} />
+        <DetailPlayer key={`${v.path}:${fileRevision}`} path={v.path} drawing={drawing} onDrawingDone={() => setDrawing(false)} onAvail={setAvail} />
         <View style={styles.actions}>
           <ActionButton icon="squares" label="다른 영상과 비교" disabled={!fileOk} onPress={compare} />
           <ActionButton
@@ -215,6 +218,8 @@ export default function MyVideoScreen() {
           </Text>
         ) : null}
 
+        {v.storage === 'phone' && (avail === 'ready' || avail === 'missing') ? <VideoBackupCard key={v.path} video={v} missing={avail === 'missing'} onRestored={() => { setAvail('loading'); setFileRevision((n) => n + 1); }} /> : null}
+        {v.sport === 'pitch' ? <VideoAnalysisLinks key={v.path} path={v.path} available={fileOk} /> : null}
         <NoteSection key={v.path} v={v} deleted={gone} />
 
         <View style={{ gap: 8 }}>

@@ -4,14 +4,14 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { afterMotion } from '~/shell/transition';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ACWR_ZONES, CHRONIC_WINDOW_DAYS, describeRatio, shiftDateKey } from '@/lib/pitch-stats';
-import { formatSpeed, type SpeedUnit } from '@/lib/units';
+import { formatSpeed, round1, speedLabel, toSpeed, type SpeedUnit } from '@/lib/units';
+import { readAnalysisRange } from '@/lib/report/analysis-range';
 import {
   ANALYSIS_METRICS,
   METRIC_SPECS,
-  agoText,
   daysBetween,
   daysOf,
   formatMetric,
@@ -39,13 +39,14 @@ import { READABLE } from '~/lib/layout';
 import { DateNavButton } from '~/shell/mini-calendar';
 import { Press } from '~/shell/press';
 import { CoachIntro } from '~/coach/tab';
+import { useFocusRefresh } from '~/shell/tab-pager';
 
 /**
  * 투구 분석 · 트레이닝 분석(앱 화면) — 웹 /coach?view=…&date=…(app/(app)/coach/page.tsx)를 옮겼다. 사이트의 분석 화면이 앱(BullpenNative/5 부터)이면
  * 이 화면을 띄우고(page.tsx → OpenNative), 카드 · 그래프 재료는 웹과 같은 곳에서 읽는다(app/actions/app-analysis.ts → lib/report/analysis-data.ts).
  *
- * 웹과 같은 차례: 하이라이트(오늘만) → 부하 지수 → (투구) 이번 주 · 마지막 투구 · 최고 구속 → 잘 던진 날 / (트레이닝) 최근 4주 → 그래프.
- * 그래프의 날을 톡 치면 그날까지의 기록으로 분석을 다시 연다(웹은 마우스로 누를 때만). 그래프 기간은 웹처럼 4주 · 12주 · 기간 설정,
+ * 2026-11-03 사용자가 선택한 현재 구성: 하이라이트(오늘만) → 부하 지수 → (투구) 이번 주 · 마지막 투구 · 최고 구속 → 잘 던진 날 / (트레이닝) 최근 4주 → 그래프.
+ * 날짜 탐색은 화면 위치를 유지하고, 별도 이날 분석 단추로 기준일을 바꾼다. 그래프 기간은 4주 · 12주 · 기간 설정,
  * 구속 · 무게는 설정의 단위(웹 useSpeedUnit · 무게 단위와 같다).
  */
 /* need 'paid' — 분석은 코치 탭의 리뷰라 유료만(app/actions/app-analysis.ts, 2026-11-01). 그때는 떠나지 않고 코치 소개를 보인다 */
@@ -56,18 +57,23 @@ const lastAnalysis = new Map<Kind, { epoch: number; data: AppAnalysis }>();
 type Kind = 'pitch' | 'training';
 
 const TITLE: Record<Kind, string> = { pitch: '투구 분석', training: '트레이닝 분석' };
-const BACK: Record<Kind, string> = { pitch: '투구 기록', training: '트레이닝' };
+const BACK: Record<Kind, string> = { pitch: '뒤로', training: '뒤로' };
 
 export default function AnalysisScreen() {
-  const c = usePalette();
-  const inset = useSafeAreaInsets();
   const params = useLocalSearchParams<{ view?: string; date?: string }>();
   const view: Kind = params.view === 'training' ? 'training' : 'pitch';
+  const initialDate = typeof params.date === 'string' ? params.date : null;
+  return <AnalysisBody key={view + ':' + (initialDate ?? 'today')} view={view} initialDate={initialDate} />;
+}
+
+function AnalysisBody({ view, initialDate }: { view: Kind; initialDate: string | null }) {
+  const c = usePalette();
+  const inset = useSafeAreaInsets();
   /* 보는 날 — 없으면 오늘(서버가 정한다). 그래프의 날을 톡 치면 바뀐다 */
-  const [date, setDate] = useState<string | null>(typeof params.date === 'string' ? params.date : null);
+  const [date, setDate] = useState<string | null>(initialDate);
   /* 다시 열 때는 지난번 분석부터(앱을 켠 동안 · 같은 로그인 · 같은 칸) — 예전엔 열 때마다 회색 뼈대부터였다(2026-10-24 전체 검토). 머리에 돌개가 돌며 새로 받는다 */
   const [data, setData] = useState<AppAnalysis | null>(() => {
-    const m = typeof params.date === 'string' ? undefined : lastAnalysis.get(view);
+    const m = initialDate != null ? undefined : lastAnalysis.get(view);
     return m && m.epoch === cacheEpoch() ? m.data : null;
   });
   /* data 가 어느 요청(date)의 답인가 — 서버가 앞날을 오늘로 바꿔 돌려줘도 기다림이 안 끝나는 일이 없게 날짜가 아니라 요청으로 견준다 */
@@ -87,22 +93,26 @@ export default function AnalysisScreen() {
     rpc<LoadResult>('app-analysis.loadAppAnalysis', view, date).then(
       (r) => {
         if (!alive || e !== cacheEpoch()) return;
-        setRefreshing(false);
-        if (!r.ok) return r.need === 'paid' ? setPaidOnly(true) : leave(r.to);
+        if (!r.ok) {
+          setRefreshing(false);
+          return r.need === 'paid' ? setPaidOnly(true) : leave(r.to);
+        }
         if (date == null) lastAnalysis.set(view, { epoch: e, data: r });
         /* 그래프 · 목록을 다시 그리는 일은 화면이 들어오는 움직임이 끝난 뒤에(2026-10-26 2차 — 열자마자 답이 오면 밀려 들어오는 중에 그렸다) */
         afterMotion(() => {
-          if (!alive) return;
+          if (!alive || e !== cacheEpoch()) return;
+          setPaidOnly(false);
+          setRefreshing(false);
           setData(r);
           setLoadedFor(date);
           setFailed(null);
         });
       },
-      (e: unknown) => {
-        if (!alive) return;
+      (error: unknown) => {
+        if (!alive || e !== cacheEpoch()) return;
         setRefreshing(false);
-        if (e instanceof RpcError && e.code === 'redirect') return leave(e.to ?? '/login');
-        setFailed(e instanceof RpcError && e.code === 'update' ? '앱을 업데이트해 주세요.' : '신호가 약해 분석을 불러오지 못했어요.');
+        if (error instanceof RpcError && error.code === 'redirect') return leave(error.to ?? '/login');
+        setFailed(error instanceof RpcError && error.code === 'update' ? '앱을 업데이트해 주세요.' : '분석을 불러오지 못했어요.');
       }
     );
     return () => {
@@ -112,10 +122,12 @@ export default function AnalysisScreen() {
 
   const retry = () => {
     setFailed(null);
+    setRefreshing(true);
     setTries((n) => n + 1);
   };
+  useFocusRefresh(retry);
   /* 받는 중 — 보던 분석을 그대로 두고 머리에 돌개만(칸이 비었다 채워지면 아래가 통째로 들썩인다) */
-  const waiting = data != null && !failed && loadedFor !== date;
+  const waiting = data != null && !failed && (loadedFor !== date || refreshing);
 
   const jump = (day: string) => {
     if (!data || day === (date ?? data.today)) return;
@@ -127,14 +139,18 @@ export default function AnalysisScreen() {
   const header = (
     <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: scrolled ? c.line : 'transparent' }]}>
       {/* 웹처럼 돌아갈 곳 이름(coach/page.tsx '‹ 투구 기록' · '‹ 트레이닝') */}
-      <Press onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={`뒤로 · ${BACK[view]}`} style={[s.iconBtn, s.backBtn]}>
+      <Press onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="뒤로" style={[s.iconBtn, s.backBtn]}>
         <Icon name="chevron-left" size={20} color={c.link} />
         <Text numberOfLines={1} style={[s.backText, { color: c.link }]}>{BACK[view]}</Text>
       </Press>
       <Text numberOfLines={1} style={[s.headTitle, { color: c.ink, opacity: scrolled ? 1 : 0 }]}>
         {TITLE[view]}
       </Text>
-      <View style={[s.iconBtn, s.backBtn]} />
+      <View style={[s.backBtn, { alignItems: 'flex-end', justifyContent: 'center' }]}>
+        <Press onPress={retry} disabled={refreshing} accessibilityRole="button" accessibilityLabel="새로고침" style={[s.iconBtn, { borderRadius: 22, backgroundColor: c.card }]}>
+          <Icon name="rotate-cw" size={19} color={c.link} />
+        </Press>
+      </View>
     </View>
   );
 
@@ -142,10 +158,10 @@ export default function AnalysisScreen() {
     return (
       <View style={[s.fill, { backgroundColor: c.page }]}>
         {header}
-        <View style={[s.content, READABLE]}>
+        <ScrollView style={s.fill} contentContainerStyle={[s.content, READABLE]}>
           <Text accessibilityRole="header" style={[TYPE.title, { color: c.ink }]}>{TITLE[view]}</Text>
           <CoachIntro />
-        </View>
+        </ScrollView>
       </View>
     );
   }
@@ -219,21 +235,14 @@ export default function AnalysisScreen() {
           </View>
         ) : null}
 
-        {/* 오늘이 아닐 때만 한 줄(웹과 같다) — 앱은 오늘로 돌아가는 단추를 붙인다 */}
-        {shownDate !== data.today ? (
-          <View style={s.dateRow}>
-            {/* 날짜가 바뀔 때마다 살짝 떠오른다(웹 analysis-block 의 fade-in) — 무엇이 바뀌었는지 눈이 따라간다 */}
-            <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' }}>
-              <Animated.Text key={shownDate} entering={fadeIn} style={[s.bodyBold, { color: c.ink, fontFamily: 'Pretendard' }]}>
-                {`${spokenDay(shownDate)} · ${agoText(shownDate, data.today)}`}
-              </Animated.Text>
-              <Text style={[s.body, { color: c.muted }]}> 기준</Text>
-            </View>
+        <View style={s.dateRow}>
+          <Text style={[s.small, { color: c.muted, flex: 1 }]}>{spokenDay(shownDate)} 기준</Text>
+          {shownDate !== data.today ? (
             <Press onPress={() => jump(data.today)} accessibilityRole="button" style={[s.chip, { backgroundColor: c.chip }]}>
-              <Text style={[s.smallBold, { color: c.ink }]}>오늘로</Text>
+              <Text style={[s.smallBold, { color: c.link }]}>오늘로</Text>
             </Press>
-          </View>
-        ) : null}
+          ) : null}
+        </View>
 
         <View>
         {/* 다른 날을 받는 동안 — 보던 분석은 옅게 두고 오른쪽 위에 '불러오는 중' 알약(웹 analysis-block) */}
@@ -247,8 +256,8 @@ export default function AnalysisScreen() {
           {data.highlights.length > 0 ? <Highlights items={data.highlights} c={c} /> : null}
           {view === 'pitch' ? (
             <>
-              <LoadCard v={data.overview.pitching} notices={data.overview.notices} c={c} />
-              <Stats overview={data.overview} c={c} />
+              <LoadCard v={data.overview.pitching} notices={data.overview.notices} onLog={() => router.push(('/pitch/edit?date=' + shownDate) as Href)} c={c} />
+              <Stats data={data} c={c} />
               {data.goodDays ? <GoodDays result={data.goodDays} c={c} /> : null}
             </>
           ) : (
@@ -263,7 +272,7 @@ export default function AnalysisScreen() {
         </Animated.View>
         </View>
 
-        <Trends data={data} onJump={jump} c={c} />
+        <Trends key={view + ':' + shownDate} data={data} onJump={jump} c={c} />
       </ScrollView>
     </View>
   );
@@ -322,13 +331,13 @@ function StatusChip({ tone, label, c }: { tone: 'good' | 'info' | 'warn' | 'bad'
   );
 }
 
-function LoadCard({ v, notices, c }: { v: LoadView; notices?: AnalysisOverview['notices']; c: Palette }) {
+function LoadCard({ v, notices, onLog, c }: { v: LoadView; notices?: AnalysisOverview['notices']; onLog?: () => void; c: Palette }) {
   const zone = v.zone ? ACWR_ZONES[v.zone] : null;
   return (
     <View style={[s.cardFlat, { backgroundColor: c.card }]}>
-      <View style={{ padding: 16, gap: 14 }}>
+      <View style={{ padding: 17, gap: 14 }}>
         <View style={s.between}>
-          <Text style={[s.smallBold, { color: c.muted }]}>{v.name} 부하 지수</Text>
+          <Text style={[s.bodyBold, { color: c.ink }]}>{v.name} 부하 지수</Text>
           {v.signal ? (
             <StatusChip tone={v.signal.tone} label={v.signal.label} c={c} />
           ) : zone ? (
@@ -353,7 +362,7 @@ function LoadCard({ v, notices, c }: { v: LoadView; notices?: AnalysisOverview['
                 </Text>
               )}
               {v.estimated ? (
-                <Text style={[s.small, { color: c.muted }]}>아직 기록이 적어 숫자가 크게 흔들려요. 한 달쯤 기록이 쌓이면 자리를 잡아요.</Text>
+                <Text style={[s.smallBold, { color: c.muted }]}>{v.name === '투구' ? '평소 투구량 추정 포함' : '평소 운동량 추정 포함'}</Text>
               ) : null}
             </View>
             <LoadTrend trend={v.trend} c={c} />
@@ -370,15 +379,20 @@ function LoadCard({ v, notices, c }: { v: LoadView; notices?: AnalysisOverview['
               </View>
             ) : null}
             <Text style={[s.small, { color: c.muted }]}>{v.emptyHint}</Text>
+            {!v.hasRecords && onLog ? (
+              <Press onPress={onLog} accessibilityRole="button" style={[s.pill, { backgroundColor: c.action }]}>
+                <Text style={[s.bodyBold, { color: '#fff' }]}>투구 기록하기</Text>
+              </Press>
+            ) : null}
           </View>
         )}
       </View>
 
       {/* 기록이 빠진 날이 많으면 지수가 실제보다 낮게 나온다 — 낮은 숫자는 '더 던져도 된다'로 읽힌다 */}
       {notices?.missingDays != null ? (
-        <Press onPress={() => leave('/today')} accessibilityRole="link" style={[s.warnRow, { backgroundColor: c.warnBg, borderTopColor: c.warn + '40' }]}>
+        <Press onPress={onLog} accessibilityRole="button" style={[s.warnRow, { backgroundColor: c.warnBg, borderTopColor: c.warn + '40' }]}>
           <Text style={[s.small, { color: c.warn }]}>
-            기록 없는 날이 {notices.missingDays}일이라 지수가 낮게 나올 수 있어요. <Text style={[s.smallBold, { color: c.link }]}>투구 일지</Text>에 남겨 주세요.
+            최근 4주 중 기록 없는 날 {notices.missingDays}일 · 지수가 낮게 나올 수 있어요. <Text style={[s.smallBold, { color: c.link }]}>투구 기록</Text>
           </Text>
         </Press>
       ) : null}
@@ -404,13 +418,13 @@ function Bar({ value, color, c }: { value: number; color: string; c: Palette }) 
 /* ----------------------------- 이번 주 · 마지막 투구 · 최고 구속(웹 app/(app)/coach/overview.tsx) ----------------------------- */
 
 function noteColor(note: StatNote, c: Palette) {
-  return note.tone === 'warn' ? c.warn : note.tone === 'muted' ? c.muted : c.muted + '99';
+  return note.tone === 'warn' ? c.warn : note.tone === 'muted' ? c.muted : c.muted;
 }
 
 const DELTA_ARROW: Record<-1 | 0 | 1, SFSymbol> = { 1: 'arrow.up.right', 0: 'minus', [-1]: 'arrow.down.right' };
 
 function DeltaLine({ delta, c }: { delta: DeltaView | null; c: Palette }) {
-  if (!delta) return <Text style={[s.tiny, { color: c.muted + '99' }]}>비교할 이전 기록 없음</Text>;
+  if (!delta) return <Text style={[s.tiny, { color: c.muted }]}>비교할 이전 기록 없음</Text>;
   const color = toneColor(delta.tone, c);
   return (
     <View style={s.deltaRow}>
@@ -426,6 +440,7 @@ function StatCell({
   unit,
   tone,
   footer,
+  stack = false,
   c,
 }: {
   label: string;
@@ -433,32 +448,39 @@ function StatCell({
   unit?: string;
   tone: 'good' | 'info' | 'warn' | 'bad' | 'neutral';
   footer: ReactNode;
+  stack?: boolean;
   c: Palette;
 }) {
   return (
-    <View style={[s.statCell, { backgroundColor: c.card, boxShadow: c.float }]}>
+    <View style={[stack ? s.statStack : s.statCell, { backgroundColor: c.card, boxShadow: c.float }]}>
       {/* 상태를 알리는 얇은 상단 선 */}
       {tone !== 'neutral' ? <View style={[s.statLine, { backgroundColor: toneColor(tone, c) }]} /> : null}
-      <Text numberOfLines={1} style={[s.tiny, { color: c.muted, fontWeight: '600' }]}>
+      <Text style={[s.tiny, { color: c.muted, fontWeight: '600' }, stack && { width: '100%' }]}>
         {label}
       </Text>
-      <Text numberOfLines={1} adjustsFontSizeToFit style={[s.statValue, { color: c.ink }]}>
-        {value}
-        {unit ? <Text style={[TYPE.unit, { color: c.muted }]}> {unit}</Text> : null}
-      </Text>
+      <View style={s.statReading}>
+        <Text style={[s.statValue, { color: c.ink }]}>{value}</Text>
+        {unit ? <Text style={[s.small, { color: c.muted }]}>{unit}</Text> : null}
+      </View>
       {footer}
     </View>
   );
 }
 
-function Stats({ overview, c }: { overview: AnalysisOverview; c: Palette }) {
+function Stats({ data, c }: { data: AppAnalysis; c: Palette }) {
+  const { width, fontScale } = useWindowDimensions();
+  const stack = width < 330 || fontScale >= 1.3;
+  const overview = data.overview;
   const { week, last, best } = overview;
   const speed = usePrefs().speed;
   const bestNote = best ? best.note : overview.bestEmpty;
+  const since = shiftDateKey(data.date, -6);
+  const recorded = Object.keys(data.series.values.pitches ?? {}).some(day => day >= since && day <= data.date);
   return (
-    <View style={[s.statRow, { backgroundColor: c.line }]}>
-      <StatCell label="이번 주 투구" value={String(week.total)} unit="구" tone={week.tone} footer={<DeltaLine delta={week.delta} c={c} />} c={c} />
+    <View style={[s.statRow, { backgroundColor: c.line }, stack && { flexDirection: 'column' }]}>
+      <StatCell stack={stack} label="최근 7일 투구" value={recorded ? String(week.total) : '—'} unit={recorded ? '구' : undefined} tone={recorded ? week.tone : 'neutral'} footer={recorded ? <DeltaLine delta={week.delta} c={c} /> : <Text style={[s.tiny, { color: c.muted }]}>기록 없음</Text>} c={c} />
       <StatCell
+        stack={stack}
         label="마지막 투구"
         value={last.restDays == null ? '—' : last.restDays === 0 ? '오늘' : String(last.restDays)}
         unit={last.restDays == null || last.restDays === 0 ? '' : '일 전'}
@@ -467,8 +489,10 @@ function Stats({ overview, c }: { overview: AnalysisOverview; c: Palette }) {
         c={c}
       />
       <StatCell
+        stack={stack}
         label="개인 최고 구속"
-        value={best ? (formatSpeed(best.value, speed) ?? '—') : '—'}
+        value={best ? String(round1(toSpeed(best.value, speed))) : '—'}
+        unit={best ? speedLabel(speed) : undefined}
         tone="neutral"
         footer={<Text style={[s.tiny, { color: noteColor(bestNote, c) }]}>{bestNote.text}</Text>}
         c={c}
@@ -491,19 +515,19 @@ function GoodDays({ result, c }: { result: GoodDayResult; c: Palette }) {
         <Text accessibilityRole="header" style={[s.cardTitle, { color: c.ink }]}>
           잘 던진 날
         </Text>
-        <Text style={[s.small, { color: c.muted }]}>불펜 · 라이브 · 경기 뒤 매긴 만족도로 찾아요</Text>
+        <Text style={[s.small, { color: c.muted }]}>불펜 · 라이브 · 경기 후 남긴 만족도 기준</Text>
       </View>
 
       {rated < needed ? (
         <View style={{ gap: 8 }}>
           <Text style={[s.body, { color: c.ink }]}>
-            만족도 매긴 날 {rated}/{needed}일 · 다 차면 찾아 드려요.
+            만족도 기록 {rated}/{needed}일
           </Text>
           <Bar value={rated / needed} color={c.link + '73'} c={c} />
         </View>
       ) : patterns.length === 0 ? (
         <Text style={[s.body, s.center, s.well, { color: c.muted, backgroundColor: c.chip + '80' }]}>
-          {rated}일을 맞대 봤는데 아직 뚜렷한 것이 없어요.{'\n'}더 쌓이면 다시 봐요.
+          뚜렷한 패턴이 없어요 · 만족도 기록 {rated}일
         </Text>
       ) : (
         <View style={{ gap: 14 }}>
@@ -646,7 +670,10 @@ const shortDate = (key: string) => `${Number(key.slice(5, 7))}월 ${Number(key.s
 
 function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) => void; c: Palette }) {
   const [period, setPeriodState] = useState<Period>('4w');
-  const today = data.today;
+  const editedRange = useRef(false);
+  const today = data.date; // 그래프와 위 카드의 분석 기준일을 일치시킨다.
+  const { width, fontScale } = useWindowDimensions();
+  const stack = width < 360 || fontScale >= 1.3;
   /* '기간 설정' — 시작 · 끝을 작은 달력에서 고른다(받아 온 기록 범위 안, 기록 있는 날에 점). 45일까지는 날짜별, 넘으면 주별 */
   const earliest = data.series.from;
   const [custom, setCustom] = useState({ from: shiftDateKey(today, -27), to: today });
@@ -656,11 +683,11 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
   useEffect(() => {
     let alive = true;
     void loadJson(RANGE_KEY).then((v) => {
-      const saved = v as { period?: string; from?: string; to?: string } | null;
-      if (!alive || !saved) return;
-      if (PERIODS.some((x) => x.value === saved.period)) setPeriodState(saved.period as Period);
-      if (saved.from && saved.to && saved.from >= earliest && saved.from <= saved.to && saved.to <= today) setCustom({ from: saved.from, to: saved.to });
-    });
+      if (!alive || editedRange.current) return;
+      const saved = readAnalysisRange(v, earliest, today);
+      setPeriodState(saved.period);
+      setCustom(saved.custom);
+    }).catch(() => {});
     return () => {
       alive = false;
     };
@@ -670,8 +697,9 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
   const span = daysBetween(range.from, range.to) + 1;
   const periodName = period === 'custom' ? `${span}일` : p.label;
   const pickRange = (next: { from: string; to: string }) => {
+    editedRange.current = true;
     setCustom(next);
-    void saveJson(RANGE_KEY, { period: 'custom', ...next });
+    void saveJson(RANGE_KEY, { period: 'custom', ...next }).catch(() => {});
   };
   const { slots, daily } = slotsOf(range);
   const days = daysOf(range);
@@ -702,8 +730,9 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
                 key={x.value}
                 onPress={() => {
                   if (on) return;
+                  editedRange.current = true;
                   setPeriodState(x.value);
-                  void saveJson(RANGE_KEY, { period: x.value, ...custom });
+                  void saveJson(RANGE_KEY, { period: x.value, ...custom }).catch(() => {});
                 }}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: on }}
@@ -715,6 +744,7 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
           })}
         </View>
       </View>
+      <Text style={[s.small, { color: c.muted }]}>{shortDate(range.from)} – {shortDate(range.to)}</Text>
       {period === 'custom' ? (
         <View style={[s.row, { flexWrap: 'wrap', gap: 8 }]}>
           <DateNavButton label={shortDate(custom.from)} date={custom.from} today={custom.to} min={earliest} marked={hasRecord} onPick={(from) => pickRange({ ...custom, from })} />
@@ -726,7 +756,7 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
         </View>
       ) : null}
       {/* 기간을 바꾸면 새로 그린다(key) */}
-      <View key={`${range.from}~${range.to}`} style={s.row}>
+      <View key={`${range.from}~${range.to}`} style={[s.row, { alignItems: 'stretch' }, stack && { flexDirection: 'column' } ]}>
         {specs.map((m) => {
           const fmt = (v: number) => formatMetric(m.key, v, speed, weight);
           return (
@@ -737,7 +767,7 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
               card={trendCardOf(m, valueOf, days, before, slots, fmt, periodName)}
               slots={slots}
               daily={daily}
-              endsToday={range.to === today}
+              endsToday={range.to === data.today}
               format={fmt}
               onJump={onJump}
               c={c}
@@ -745,7 +775,7 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
           );
         })}
       </View>
-      {daily ? <Text style={[s.tiny, s.center, { color: c.muted }]}>날을 톡 치면 그날 분석을 봐요.</Text> : null}
+      {daily ? <Text style={[s.tiny, s.center, { color: c.muted }]}>그래프에서 날짜를 고른 뒤 ‘이날 분석’을 눌러요.</Text> : null}
     </View>
   );
 }
@@ -758,20 +788,20 @@ const s = StyleSheet.create({
   backBtn: { width: 104, flexDirection: 'row', justifyContent: 'flex-start', gap: 2, paddingLeft: 4 },
   backText: { fontSize: 17 },
   headTitle: { flex: 1, fontSize: 17, fontWeight: '700', textAlign: 'center' },
-  content: { paddingHorizontal: 16, paddingTop: 16, gap: 20 },
+  content: { paddingHorizontal: 18, paddingTop: 12, gap: 16 },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingLeft: 14, paddingRight: 4 },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: -4 },
   chip: { minHeight: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
   section: { fontSize: 20, fontWeight: '700' },
-  card: { borderRadius: 20, padding: 16, gap: 12 },
+  card: { borderRadius: 26, padding: 17, gap: 12 },
   bone: { borderRadius: 16 },
   boneGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   boneCell: { width: '47.5%', height: 128 },
   waitPill: { position: 'absolute', right: 12, top: 12, zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  cardFlat: { borderRadius: 20, overflow: 'hidden' },
+  cardFlat: { borderRadius: 26, overflow: 'hidden' },
   cardTitle: { fontSize: 17, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  between: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   status: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 14, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   ratio: { fontSize: 48, fontWeight: '700', lineHeight: 52, fontVariant: ['tabular-nums'] },
@@ -779,9 +809,11 @@ const s = StyleSheet.create({
   warnRow: { paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth },
   bar: { height: 8, borderRadius: 4, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 4 },
-  statRow: { flexDirection: 'row', gap: StyleSheet.hairlineWidth, borderRadius: 20, overflow: 'hidden' },
+  statRow: { flexDirection: 'row', gap: StyleSheet.hairlineWidth, borderRadius: 26, overflow: 'hidden' },
   statCell: { flex: 1, minWidth: 0, paddingHorizontal: 12, paddingVertical: 14, gap: 6 },
+  statStack: { minWidth: 0, paddingHorizontal: 12, paddingVertical: 14, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
   statLine: { position: 'absolute', top: 0, left: 0, right: 0, height: 2 },
+  statReading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: 3 },
   statValue: { fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] },
   deltaRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   divider: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 4, gap: 4 },
@@ -793,7 +825,7 @@ const s = StyleSheet.create({
   segItem: { minHeight: 36, minWidth: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   pill: { minHeight: 48, borderRadius: 24, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center' },
   textBtn: { minHeight: 44, paddingHorizontal: 10, justifyContent: 'center' },
-  tiny: { fontSize: 13, lineHeight: 16 },
+  tiny: { fontSize: 13, lineHeight: 19 },
   small: { fontSize: 13, lineHeight: 18 },
   smallBold: { fontSize: 13, fontWeight: '600' },
   body: { fontSize: 15, lineHeight: 21 },

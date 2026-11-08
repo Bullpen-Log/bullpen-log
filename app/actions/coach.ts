@@ -10,16 +10,11 @@ import { coachPaid } from '@/lib/coach-access';
 import { ageOn, CONSENT_MIN_AGE } from '@/lib/analysis-consent';
 import { HEALTH_CONSENT, HEALTH_PURPOSE } from '@/lib/health-consent';
 import { healthConsentFor } from '@/lib/analysis-consent-store';
-import { gatherFactsAndPlan } from '@/lib/report/gather';
-import { isHardOuting } from '@/lib/report/facts';
-import { outingOf } from '@/lib/engine/outing';
-import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
-import { BASELINE_WORKOUT_FREQ } from '@/lib/baseline';
 import { activeProgram } from '@/lib/program/load';
 import { parseProgram, PROGRAMS } from '@/lib/program/program';
-import { isOutingTitle } from '@/lib/calendar-event';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
-import { planWeek, suggestProgram, weekdayOf, type DaySlot, type FixedDay, type WeekInput } from '@/lib/coach/week';
+import { planWeek, suggestProgram, weekdayOf, type DaySlot } from '@/lib/coach/week';
+import { currentCoachWeek, saveWeek, weekInputOf } from '@/lib/coach/refresh';
 import { startProgram } from '@/app/actions/program';
 import { slotStateOf } from '@/lib/coach/status';
 import { applyAdjust, readAdjust } from '@/lib/coach/adjust';
@@ -104,50 +99,9 @@ export async function saveCoachAnswer(step: unknown, value: unknown): Promise<{ 
   return { ok: true, answers: next };
 }
 
-/** 저장된 답 + 앱의 기록 → 계획기 입력(그 주 월요일부터) */
-async function weekInputOf(user: Awaited<ReturnType<typeof requireUser>>, saved: CoachSaved, healthOk: boolean): Promise<WeekInput> {
-  const now = appNow();
-  const today = toDateKey(now);
-  const weekStart = shiftDateKey(today, -weekdayOf(today));
-  const weekEnd = shiftDateKey(weekStart, 6);
-  const [{ facts }, program, mechanics, events] = await Promise.all([
-    gatherFactsAndPlan(user, now),
-    activeProgram(user.id),
-    prisma.mechanicsProgram.findUnique({ where: { userId: user.id }, select: { id: true } }),
-    prisma.calendarEvent.findMany({ where: { userId: user.id, date: { gte: dbDate(weekStart), lte: dbDate(weekEnd) } }, select: { date: true, title: true } }),
-  ]);
-  const outing = outingOf(facts);
-  const lastHard = (facts.patterns.hardOutings ?? []).filter(isHardOuting).sort((a, b) => a.daysAgo - b.daysAgo)[0];
-  const t = facts.condition.today;
-  const fixed: FixedDay[] = events.filter((e) => isOutingTitle(e.title)).map((e) => ({ date: keyOfDbDate(e.date), kind: 'game' }));
-  const freq = BASELINE_WORKOUT_FREQ.find((f) => f.name === user.baselineWorkoutFreq)?.sessionsPerWeek;
-  return {
-    weekStart,
-    today,
-    answers: {
-      days: saved.days ?? [0, 1, 2, 3, 4, 5],
-      minutes: saved.minutes ?? user.dailyWorkoutMinutes ?? 60,
-      outingDays: saved.outingDays ?? [],
-      outingEvery: saved.outingEvery ?? null,
-      teamDays: saved.teamDays ?? [],
-    },
-    fixed,
-    outingDate: outing.nextDay != null ? shiftDateKey(today, outing.nextDay) : null,
-    lastOuting: lastHard ? shiftDateKey(today, -lastHard.daysAgo) : null,
-    youth: (facts.profile.age ?? 99) < YOUTH_AGE_THRESHOLD,
-    /* 건강정보 — 동의가 있을 때만 읽는다(U18) */
-    painArm: healthOk && !!t && (t.shoulder === '통증' || t.elbow === '통증'),
-    effortSpike: facts.condition.trainingEffort?.spikeFlag ?? false,
-    level: user.trainingLevel,
-    baselineFreq: freq == null ? null : Math.round(freq),
-    program: program ? { perWeek: parseProgram(program.programKey)?.perWeek ?? 3 } : null,
-    /* ponytail: 메커니즘 프로그램엔 주당 횟수 칸이 없다 — 주 2번으로 둔다(12세션 순서는 날짜 의무가 아님), 칸이 생기면 그것으로 */
-    mechanics: mechanics ? { perWeek: 2 } : null,
-  };
-}
-
 const programPick = (user: Awaited<ReturnType<typeof requireUser>>, saved: CoachSaved, hasProgram: boolean) => {
-  if (hasProgram) return null;
+  /* 피할 동작이 있으면 프로그램을 권하지 않는다 — 프로그램은 제 운동을 그대로 해서(머리 위 프레스 · 점프 · 큰 하체) */
+  if (hasProgram || saved.limits?.length) return null;
   const pick = suggestProgram({
     age: ageOn(user.birthDate, appNow()),
     level: user.trainingLevel,
@@ -180,20 +134,6 @@ export async function previewCoachWeek() {
   };
 }
 
-/** 그 주 틀을 저장 — 같은 주를 다시 맞추면 지난 날 · 사용자가 고친 날은 그대로(planWeek prev) */
-async function saveWeek(userId: string, input: WeekInput): Promise<DaySlot[]> {
-  const weekStart = dbDate(input.weekStart);
-  const old = await prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId, weekStart } }, select: { slots: true } });
-  const slots = planWeek({ ...input, prev: old ? (old.slots as unknown as DaySlot[]) : null });
-  const fingerprint = createHash('sha1').update(JSON.stringify({ ...input, today: null })).digest('hex').slice(0, 16);
-  await prisma.coachWeek.upsert({
-    where: { userId_weekStart: { userId, weekStart } },
-    create: { userId, weekStart, slots, fingerprint },
-    update: { slots, fingerprint, generatedAt: new Date() },
-  });
-  return slots;
-}
-
 /** 시작 — 관문을 다시 보고, 고르면 제안 프로그램을 시작하고, 이번 주 틀을 저장한다. 다시 시작(답 고치기)이면 지난 날은 그대로 */
 export async function startCoach(input: { program?: unknown }): Promise<{ ok: true } | { error: string }> {
   const user = await requireUser();
@@ -210,7 +150,7 @@ export async function startCoach(input: { program?: unknown }): Promise<{ ok: tr
     if ('error' in started) return { error: started.error };
     week = { ...week, program: { perWeek: pick.perWeek } };
   }
-  await saveWeek(user.id, week);
+  await saveWeek(user.id, week, { restart: true });
   if (profile?.status !== 'active')
     await prisma.coachProfile.update({ where: { userId: user.id }, data: { status: 'active', startedAt: new Date() } });
   revalidatePath('/coach');
@@ -218,8 +158,8 @@ export async function startCoach(input: { program?: unknown }): Promise<{ ok: tr
 }
 
 /**
- * 이번 주 틀(코치 탭 · PC 읽기) + 칸 상태 · 오늘 체크인 했나. 진행 중인데 이번 주 틀이 없으면(새 주) 처음 열 때 짓는다(10-5 — 크론 없이).
- * 건강 동의를 거둔 뒤에도 코치는 이어 간다 — 통증만 안 읽는다(healthOk false).
+ * 이번 주 틀(코치 탭 · PC 읽기) + 칸 상태 · 오늘 체크인 했나. 열 때마다 지금 상태로 맞춘다(lib/coach/refresh.ts — 새 주면 짓고, 달력 · 체크인 ·
+ * 통증이 바뀌었으면 고치지 않은 날만 다시 맞춘다). 건강 동의를 거둔 뒤에도 코치는 이어 간다 — 통증 · 피할 동작만 안 읽는다.
  */
 export async function loadCoachWeek() {
   const user = await requireUser();
@@ -227,18 +167,11 @@ export async function loadCoachWeek() {
   const now = appNow();
   const today = toDateKey(now);
   const weekStart = shiftDateKey(today, -weekdayOf(today));
-  const [row, profile, checkin, done] = await Promise.all([
-    prisma.coachWeek.findUnique({ where: { userId_weekStart: { userId: user.id, weekStart: dbDate(weekStart) } }, select: { slots: true } }),
-    prisma.coachProfile.findUnique({ where: { userId: user.id }, select: { status: true, answers: true } }),
+  const [{ active, slots: week }, checkin, done] = await Promise.all([
+    currentCoachWeek(user),
     prisma.dailyCheckin.findFirst({ where: { userId: user.id, date: dbDate(today) }, select: { id: true } }),
     loadTrainingDone(user.id, weekStart, shiftDateKey(weekStart, 6)),
   ]);
-  let week = row ? (row.slots as unknown as DaySlot[]) : null;
-  if (!week && profile?.status === 'active') {
-    const { gate, healthOk } = await gateOf(user);
-    const saved = savedOf(profile.answers);
-    if ((gate === 'ready' || gate === 'consent') && saved.days?.length) week = await saveWeek(user.id, await weekInputOf(user, saved, healthOk));
-  }
   return {
     ok: true as const,
     today,
@@ -246,7 +179,7 @@ export async function loadCoachWeek() {
     week,
     states: week ? week.map((s) => slotStateOf(s, done[s.date], today)) : null,
     checkedIn: checkin != null,
-    review: profile?.status === 'active' ? await reviewOf(user.id, today, Number(zonedFormat('en-US', { hour: 'numeric', hourCycle: 'h23' }).format(now))) : null,
+    review: active ? await reviewOf(user.id, today, Number(zonedFormat('en-US', { hour: 'numeric', hourCycle: 'h23' }).format(now))) : null,
   };
 }
 

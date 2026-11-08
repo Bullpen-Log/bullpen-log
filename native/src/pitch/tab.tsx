@@ -128,7 +128,7 @@ export function PitchTab({
       scrollEventThrottle={32}
       style={{ flex: 1, backgroundColor: c.page }}
       contentContainerStyle={[
-        { paddingTop: inset.top + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap },
+        { paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap },
         READABLE_WIDE,
       ]}
     >
@@ -226,10 +226,9 @@ export function PitchTab({
       ) : (
         <>
           {/* 머리 — 제목 · 전체 메뉴(☰), 그 밑 오늘 날짜 · 팔 상태 알약(2026-10-29 확정 디자인) */}
-          <View style={styles.title}>
-            <Text accessibilityRole="header" style={[TYPE.title, { flex: 1, color: c.ink, lineHeight: 40 }]}>투구</Text>
+          <PageHead title="투구">
             <MenuButton />
-          </View>
+          </PageHead>
           <PitchSeg value="/videos" onTab={onTab} />
           <View style={styles.dateRow}>
             <View style={styles.date} accessible accessibilityLabel={`오늘 ${Number(today.slice(5, 7))}월 ${Number(today.slice(8, 10))}일 ${weekdayKo(today)}요일`}>

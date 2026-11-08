@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { planComposition } from '~/compare/export-plan';
+import { FS_MAX } from '~/compare/fit';
 import type { RelRange } from '~/compare/timing';
 import type { DrawTool } from '~/compare/ui/annotation-layer';
-import { TYPE, usePalette } from '~/lib/ui';
+import { TYPE } from '~/lib/ui';
+import { useComparePalette } from '~/compare/ui/compare-palette';
 import { Icon, type IconName } from '~/shell/icon';
 import { Press } from '~/shell/press';
 
@@ -15,7 +17,7 @@ import { Press } from '~/shell/press';
 
 /** 아래에서 올라오는 작은 시트 — 내용이 짧아 굴리지 않는다. 닫기 · 주 단추는 자판 위 */
 export function Sheet({ title, onClose, children, primary }: { title: string; onClose: () => void; children: React.ReactNode; primary?: { label: string; onPress: () => void; disabled?: boolean } }) {
-  const c = usePalette();
+  const c = useComparePalette();
   const inset = useSafeAreaInsets();
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose} supportedOrientations={['portrait', 'landscape-left', 'landscape-right']}>
@@ -23,7 +25,7 @@ export function Sheet({ title, onClose, children, primary }: { title: string; on
         <Pressable accessibilityRole="button" accessibilityLabel="닫기" style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={[st.sheet, { backgroundColor: c.card, paddingBottom: inset.bottom + 12 }]}>
           <View style={st.sheetHead}>
-            <Text accessibilityRole="header" numberOfLines={2} maxFontSizeMultiplier={1.6} style={[TYPE.section, { color: c.ink, flex: 1 }]}>
+            <Text accessibilityRole="header" numberOfLines={2} maxFontSizeMultiplier={FS_MAX} style={[TYPE.section, { color: c.ink, flex: 1 }]}>
               {title}
             </Text>
             <Press accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} style={st.iconBtn}>
@@ -39,7 +41,7 @@ export function Sheet({ title, onClose, children, primary }: { title: string; on
               onPress={primary.onPress}
               style={[st.primary, { backgroundColor: c.action }, primary.disabled && { opacity: 0.4 }]}
             >
-              <Text maxFontSizeMultiplier={1.4} style={[TYPE.button, { color: c.onAction }]}>
+              <Text maxFontSizeMultiplier={FS_MAX} style={[TYPE.button, { color: c.onAction }]}>
                 {primary.label}
               </Text>
             </Press>
@@ -68,7 +70,7 @@ export function TextSheet({
   onDone: (text: string) => void;
   onClose: () => void;
 }) {
-  const c = usePalette();
+  const c = useComparePalette();
   const [text, setText] = useState(initial ?? '');
   const done = () => text.trim() && onDone(text.trim());
   return (

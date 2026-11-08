@@ -4,7 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, Animated, AppState, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { EXERCISE_NOTE_MAX, cleanExerciseNote } from '@/lib/exercise-meta';
@@ -18,6 +18,7 @@ import { Press } from '~/shell/press';
 import { useDraftGuard } from '~/community/draft-guard';
 import { rememberNote } from '~/library/sync';
 import { useFavs } from '~/training/favorites';
+import { ExerciseVideoFullscreen } from './exercise-video-fullscreen';
 
 /** 운동 진행 화면(native/src/app/workout.tsx)의 작은 조각 — 웹 app/(session)/workout/run/session-client.tsx 의 같은 이름 부품을 옮겼다 */
 
@@ -433,11 +434,11 @@ function LibraryClip({ path, aspectRatio, height }: { path: string; aspectRatio:
 
 /*
  * 운동 영상 — 아이폰 기본 재생 단추(가운데 큰 재생 · 10초 건너뛰기)가 영상의 동작을 가려서(2026-10-20 김민) 기본 단추를 끄고,
- * 화면을 누르면 멈춤 · 재생, 오른쪽 아래 작은 단추 둘(재생 · 멈춤, 크게 보기 — 크게 보기 안에서는 기본 단추가 다시 나온다).
+ * 화면을 누르면 멈춤 · 재생, 오른쪽 아래 작은 단추 둘(재생 · 멈춤, 크게 보기).
+ * 크게 보기는 앱 안 모달 — 기본 전체화면에 들어가면 앱의 닫기·작은 조작부를 쓸 수 없어 직접 그린다.
  * height(운동 영상 상세)면 단추를 영상 밖 밑 줄로 — 동작을 가리지 않게, 누르는 자리 44pt.
  */
 function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRatio: number | null; height?: number; retry: ReactNode }) {
-  const view = useRef<VideoView>(null);
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;
     p.loop = true;
@@ -446,6 +447,7 @@ function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRa
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
   const { status } = useEvent(player, 'statusChange', { status: player.status });
   const [slow, setSlow] = useState(false);
+  const [full, setFull] = useState(false);
   const detail = height != null;
   /* 상세만 — 화면을 떠나면(뒤로 · 다른 운동) · 앱이 뒤로 가면 멈춘다. 돌아와도 저절로 다시 틀지 않는다 */
   useFocusEffect(
@@ -462,19 +464,20 @@ function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRa
     return () => sub.remove();
   }, [detail, player]);
   const toggle = () => togglePlay(player);
-  const grow = () => void view.current?.enterFullscreen().catch(() => undefined);
-  if (status === 'error')
-    return (
-      <View style={[s.video, s.centerBox, { gap: 8 }, detail ? { height } : { aspectRatio: aspectRatio ?? 9 / 16 }]}>
-        <Text style={[s.small, { color: 'rgba(255,255,255,0.8)' }]}>영상을 재생하지 못했어요.</Text>
-        {retry}
-      </View>
-    );
+  const grow = () => setFull(true);
   const video = (
     <View style={[s.video, detail ? { height } : { aspectRatio: aspectRatio ?? 9 / 16 }]}>
-      <VideoView ref={view} player={player} style={StyleSheet.absoluteFill} nativeControls={false} contentFit="contain" />
-      <Pressable onPress={toggle} accessibilityRole="button" accessibilityLabel={isPlaying ? '영상 멈춤' : '영상 재생'} style={StyleSheet.absoluteFill} />
-      {detail ? null : (
+      {/* 같은 재생기를 두 VideoView에 동시에 붙이지 않는다(Android). 전체화면에서도 위치·배속은 같은 player에 남는다. */}
+      {!full && (status === 'error' ? (
+        <View style={[StyleSheet.absoluteFill, s.centerBox, { gap: 8 }]}>
+          <Text style={[s.small, { color: 'rgba(255,255,255,0.8)' }]}>영상을 재생하지 못했어요.</Text>
+          {retry}
+        </View>
+      ) : <>
+        <VideoView player={player} style={StyleSheet.absoluteFill} nativeControls={false} fullscreenOptions={{ enable: false }} contentFit="contain" />
+        <Pressable onPress={toggle} accessibilityRole="button" accessibilityLabel={isPlaying ? '영상 멈춤' : '영상 재생'} style={StyleSheet.absoluteFill} />
+      </>)}
+      {detail || full || status === 'error' ? null : (
         <View style={s.clipTools}>
           <Press onPress={toggle} hitSlop={6} accessibilityRole="button" accessibilityLabel={isPlaying ? '멈춤' : '재생'} style={s.clipTool}>
             <SymbolView name={isPlaying ? 'pause.fill' : 'play.fill'} size={13} tintColor="#fff" />
@@ -486,17 +489,19 @@ function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRa
       )}
     </View>
   );
-  if (!detail) return video;
   return (
-    <View style={{ gap: 4 }}>
-      {video}
-      <View style={s.detailTools}>
-        <ClipTool label={isPlaying ? '멈춤' : '재생'} icon={isPlaying ? 'pause.fill' : 'play.fill'} onPress={toggle} />
-        <ClipTool label="처음부터" icon="backward.end.fill" onPress={() => restart(player)} />
-        <ClipTool label={slow ? '0.5배' : '1배'} icon="tortoise.fill" onPress={() => setSlow(setRate(player, !slow))} on={slow} />
-        <ClipTool label="크게 보기" icon="arrow.up.left.and.arrow.down.right" onPress={grow} />
+    <>
+      <View style={{ gap: 4 }}>
+        {video}
+        {detail && !full && status !== 'error' ? <View style={s.detailTools}>
+          <ClipTool label={isPlaying ? '멈춤' : '재생'} icon={isPlaying ? 'pause.fill' : 'play.fill'} onPress={toggle} />
+          <ClipTool label="처음부터" icon="backward.end.fill" onPress={() => restart(player)} />
+          <ClipTool label={slow ? '0.5배' : '1배'} icon="tortoise.fill" onPress={() => setSlow(setRate(player, !slow))} on={slow} />
+          <ClipTool label="크게 보기" icon="arrow.up.left.and.arrow.down.right" onPress={grow} />
+        </View> : null}
       </View>
-    </View>
+      {full ? <ExerciseVideoFullscreen player={player} onClose={() => setFull(false)} retry={retry} /> : null}
+    </>
   );
 }
 

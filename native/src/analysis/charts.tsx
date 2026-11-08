@@ -17,12 +17,13 @@ import {
   type Slot,
   type TrendCard,
 } from '@/lib/report/trends';
-import { TYPE, type Palette } from '~/lib/ui';
+import { type Palette } from '~/lib/ui';
+import { Press } from '~/shell/press';
 
 /**
  * 분석 화면(native/src/app/analysis.tsx)의 그래프 둘 — 부하 지수 2주 흐름(웹 app/(app)/coach/load-trend.tsx)과 기록 그래프 한 장(웹
  * app/(app)/today/home-trends.tsx TrendCell · Chart). 칸 · 묶기 · 눈금 셈은 웹과 같은 lib/report/trends.ts, 그리기만 따로.
- * 손가락으로 훑으면 위 숫자가 그날 값으로 바뀌고 칸을 넘을 때마다 '톡'(웹과 같다). 날짜별 그래프는 톡 친 날로 분석을 다시 연다(onJump).
+ * 손가락으로 훑으면 위 숫자가 그날 값으로 바뀌고 칸을 넘을 때마다 '톡'(웹과 같다). 날짜 탐색은 로컬 선택이고, 별도 단추를 눌렀을 때만 분석을 다시 연다(onJump).
  */
 
 const APath = Animated.createAnimatedComponent(Path);
@@ -72,46 +73,29 @@ export function toneColor(tone: 'good' | 'info' | 'warn' | 'bad' | 'neutral', c:
   return tone === 'good' ? c.ok : tone === 'info' ? c.sky : tone === 'warn' ? c.warn : tone === 'bad' ? c.danger : c.muted;
 }
 
-/** 훑기 — 누른 자리 · 옮긴 자리를 칸 번호로, 떼면 잠깐 남겼다 걷는다. 움직이지 않고 떼면 tap */
-function useScrub(count: number, indexAt: (x: number) => number, canPick: (i: number) => boolean, onTap?: (i: number) => void) {
+/** 날짜 탐색은 로컬 선택이다. 분석 기준일 변경은 별도 단추로만 한다. */
+function useScrub(count: number, indexAt: (x: number) => number, canPick: (i: number) => boolean) {
   const [hover, setHover] = useState<number | null>(null);
   const last = useRef<number | null>(null);
-  const startX = useRef(0);
-  const moved = useRef(false);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(hideTimer.current), []);
-
-  const pick = (e: GestureResponderEvent) => {
-    const i = Math.min(count - 1, Math.max(0, indexAt(e.nativeEvent.locationX)));
-    clearTimeout(hideTimer.current);
+  const select = (index: number) => {
+    if (count <= 0) return;
+    const i = Math.min(count - 1, Math.max(0, index));
     if (last.current !== i && canPick(i)) void Haptics.selectionAsync();
     last.current = i;
     setHover(i);
-    return i;
   };
-  const clear = () => {
-    last.current = null;
-    setHover(null);
-  };
+  const pick = (e: GestureResponderEvent) => select(indexAt(e.nativeEvent.locationX));
+  const clear = () => { last.current = null; setHover(null); };
   const handlers = {
     onStartShouldSetResponder: () => count > 0,
-    onResponderGrant: (e: GestureResponderEvent) => {
-      startX.current = e.nativeEvent.locationX;
-      moved.current = false;
-      pick(e);
-    },
-    onResponderMove: (e: GestureResponderEvent) => {
-      if (Math.abs(e.nativeEvent.locationX - startX.current) > 6) moved.current = true;
-      pick(e);
-    },
-    onResponderRelease: (e: GestureResponderEvent) => {
-      const i = pick(e);
-      if (!moved.current && onTap) onTap(i);
-      hideTimer.current = setTimeout(clear, 1500);
-    },
+    onResponderGrant: pick,
+    onResponderMove: pick,
+    onResponderRelease: pick,
+    // 수직 스크롤을 시작하면 ScrollView가 이어받을 수 있게 한다.
+    onResponderTerminationRequest: () => true,
     onResponderTerminate: clear,
   };
-  return { hover, handlers };
+  return { hover, handlers, clear, select };
 }
 
 /* 적정 구간 — 띠로 깐다 */
@@ -244,10 +228,10 @@ export function TrendCardView({
   const { points } = card;
   const n = points.length;
   const h = 104;
-  /* 세로 눈금 숫자는 오른쪽에 — 좁은 칸은 숫자 없이(웹과 같은 190 기준) */
-  const showY = w >= 190;
+  /* 두 장을 나란히 둔 휴대폰에서도 세로 눈금을 표시한다. */
+  const showY = w >= 130;
   const padL = 4;
-  const padR = showY ? 30 : 6;
+  const padR = showY ? 46 : 6;
   const padT = 12;
   const padB = 18;
   const plotW = Math.max(1, w - padL - padR);
@@ -255,17 +239,16 @@ export function TrendCardView({
   const slotW = plotW / n;
   const base = padT + plotH;
   const dom = domainOf(spec.kind, spec.key, points);
-  const { hover, handlers } = useScrub(
+  const { hover, handlers, clear, select } = useScrub(
     dom ? n : 0,
     (px) => Math.floor((px - padL) / slotW),
-    (i) => points[i] != null,
-    daily ? (i) => onJump(slots[i].end) : undefined
+    (i) => points[i] != null
   );
 
   const picked = hover == null ? undefined : points[hover];
   const shownValue = picked === undefined ? card.value : picked == null ? null : format(picked);
   const shownNote =
-    hover == null ? card.note : daily ? spokenDay(slots[hover].end) : `${shortDate(slots[hover].start)}~${shortDate(slots[hover].end)}`;
+    hover == null ? card.note : daily ? spokenDay(slots[hover].end) + (picked == null ? spec.key === 'velocity' ? ' · 측정 없음' : ' · 기록 없음' : spec.key === 'pitches' && picked === 0 ? ' · 휴식 기록' : '') : `${shortDate(slots[hover].start)}~${shortDate(slots[hover].end)}`;
   const x = (i: number) => padL + slotW * (i + 0.5);
   const y = (v: number) => (dom ? padT + plotH * (1 - (v - dom.lo) / (dom.hi - dom.lo)) : base);
   const last = n - 1;
@@ -280,26 +263,27 @@ export function TrendCardView({
         <Text numberOfLines={1} style={[st.smallBold, { color: c.link, flex: 1 }]}>
           {spec.label}
         </Text>
-        {change && hover == null ? (
-          <View accessibilityLabel={change.spoken} style={[st.changePill, { backgroundColor: c.action + '1a' }]}>
-            <SymbolView name={ARROW[change.dir]} size={10} weight="bold" tintColor={c.sky} />
-            <Text style={[st.tinyBold, { color: c.link }]}>{change.text}</Text>
-          </View>
-        ) : null}
       </View>
-      <Text numberOfLines={1} style={[st.value, { color: hover == null ? c.ink : c.link }]}>
-        {shownValue ? shownValue[0] : '—'}
-        {shownValue ? <Text style={[TYPE.unit, { color: c.muted }]}> {shownValue[1]}</Text> : null}
-      </Text>
-      <Text numberOfLines={1} style={[st.tiny, { color: c.muted, minHeight: 16 }]}>
-        {shownNote}
-      </Text>
+      <View style={st.valueLine}>
+        <Text style={[st.value, { color: hover == null ? c.ink : c.link }]}>{shownValue ? shownValue[0] : '—'}</Text>
+        {shownValue ? <Text style={[st.small, { color: c.muted }]}>{shownValue[1]}</Text> : null}
+      </View>
+      {change && hover == null ? (
+        <View accessibilityLabel={change.spoken} style={st.deltaLine}>
+          <SymbolView name={ARROW[change.dir]} size={12} weight="semibold" tintColor={c.link} />
+          <Text style={[st.tiny, { color: c.muted, flexShrink: 1 }]}>{change.dir === 0 ? '변화 없음' : change.text + ' · 이전 기간 대비'}</Text>
+        </View>
+      ) : null}
+      <Text style={[st.small, { color: c.muted, minHeight: 38 }]}>{shownNote}</Text>
       <View
         style={{ height: h, marginTop: 6 }}
         onLayout={(e) => setW(e.nativeEvent.layout.width)}
-        accessibilityRole="image"
+        accessibilityRole="adjustable"
+        accessibilityValue={{ min: 0, max: Math.max(0, n - 1), now: hover ?? Math.max(0, n - 1), text: shownNote }}
+        accessibilityActions={[{ name: 'increment', label: '다음 날짜' }, { name: 'decrement', label: '이전 날짜' }]}
+        onAccessibilityAction={(e) => select((hover ?? n - 1) + (e.nativeEvent.actionName === 'decrement' ? -1 : 1))}
         accessibilityLabel={`${spec.label}, ${card.value ? card.value.join('') : '기록 없음'}${card.note ? `, ${card.note}` : ''}${change ? `, ${change.spoken}` : ''}`}
-        accessibilityHint={daily ? '날을 톡 치면 그날 분석을 봐요' : undefined}
+        accessibilityHint="날짜를 살펴보고 별도 단추로 분석을 열 수 있어요"
         {...handlers}
       >
         {!dom ? (
@@ -319,8 +303,8 @@ export function TrendCardView({
             ))}
             {showY
               ? dom.ticks.map((t) => (
-                  <SvgText key={`t${t}`} x={w - padR + 6} y={y(t) + 3} fontSize={11} fill={c.muted}>
-                    {tickText(t)}
+                  <SvgText key={`t${t}`} x={w - padR + 6} y={y(t) + 3} fontSize={12} fill={c.muted}>
+                    {spec.key === 'velocity' || spec.key === 'weight' ? format(t)[0] : tickText(t)}
                   </SvgText>
                 ))
               : null}
@@ -329,7 +313,7 @@ export function TrendCardView({
                 key={i}
                 x={i === 0 ? padL : i === last ? w - padR : x(i)}
                 y={h - 3}
-                fontSize={11}
+                fontSize={12}
                 fill={c.muted}
                 textAnchor={i === 0 ? 'start' : i === last ? 'end' : 'middle'}
               >
@@ -375,6 +359,18 @@ export function TrendCardView({
           </Svg>
         ) : null}
       </View>
+      {hover != null ? (
+        <View style={st.actions}>
+          <Press onPress={clear} accessibilityRole="button" style={st.action}>
+            <Text style={[st.small, { color: c.link }]}>기간 요약</Text>
+          </Press>
+          {daily && picked != null ? (
+            <Press onPress={() => onJump(slots[hover].end)} accessibilityRole="button" style={st.action}>
+              <Text style={[st.smallBold, { color: c.link }]}>이날 분석</Text>
+            </Press>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -382,13 +378,17 @@ export function TrendCardView({
 const st = StyleSheet.create({
   trendBox: { borderRadius: 16, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10 },
   trendHead: { minHeight: 20, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-  cell: { flex: 1, minWidth: 0, borderRadius: 20, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 },
+  cell: { flex: 1, minWidth: 0, borderRadius: 24, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8 },
   cellHead: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   changePill: { flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2 },
-  value: { marginTop: 4, fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  valueLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: 4, marginTop: 5, marginBottom: 5 },
+  deltaLine: { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 5 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  action: { minHeight: 44, justifyContent: 'center', paddingVertical: 7 },
+  value: { fontSize: 22, fontWeight: '700', fontVariant: ['tabular-nums'] },
   emptyChart: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  tiny: { fontSize: 11, lineHeight: 16 },
-  tinyBold: { fontSize: 11, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  tiny: { fontSize: 12, lineHeight: 18 },
+  tinyBold: { fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
   small: { fontSize: 13, lineHeight: 18 },
   smallBold: { fontSize: 13, fontWeight: '600' },
   bodyBold: { fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] },

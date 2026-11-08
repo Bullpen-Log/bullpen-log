@@ -5,6 +5,7 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { appNow } from '@/lib/clock';
 import { dbDate } from '@/lib/nutrition/days';
 import { weekdayOf, type DaySlot } from '@/lib/coach/week';
+import { coachMinutes } from '@/lib/coach/answers';
 import { healthConsentFor } from '@/lib/analysis-consent-store';
 import { movementKeyOf, type ClassifiableExercise } from '@/lib/engine/exercise-class';
 import { SWAPPED_MIN } from '@/lib/report/score';
@@ -28,7 +29,7 @@ export async function coachSlotOf(user: { id: string; role: string | null | unde
 export function coachMinutesOf(slot: DaySlot | null): number | null {
   if (!slot || slot.owner === 'user') return null;
   const t = slot.items.find((x) => x.kind === 'train');
-  return t?.kind === 'train' ? t.fence.minutes : null;
+  return t?.kind === 'train' ? coachMinutes(t.fence.minutes) : null;
 }
 
 /**

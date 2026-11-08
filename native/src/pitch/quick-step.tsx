@@ -157,6 +157,16 @@ export function QuickStepEntry({
     if (dirty || step !== (convertRest ? 0 : firstStep(source, start))) untouched.current = false;
   });
 
+  /* 앞서 보내고 답을 못 받은 요청 — 같은 요청을 확인만 한다 */
+  const adoptPending = (request: NonNullable<Awaited<ReturnType<typeof loadPendingEntry>>>) => {
+    pending.current = request.entry;
+    knownIds.current = new Set(request.knownIds);
+    setForm(request.form);
+    setStep(request.step);
+    setVideos(request.entry.videoPaths.map((path) => ({ key: path, path, fresh: false })));
+    setBanner({ tone: 'info', text: '앞서 보낸 기록의 저장 여부를 확인해 주세요.', action: 'check' });
+  };
+
   /* 계정 — 초안 열쇠 · 다른 계정 초안을 쓰지 않게. 처음 한 번, 그 뒤 초안 채우기(측정 · 드릴 · 가져온 영상으로 채운 폼은 그 값이 먼저) */
   useEffect(() => {
     mounted.current = true;
@@ -169,15 +179,7 @@ export function QuickStepEntry({
         if (source.kind !== 'edit') {
           const request = await loadPendingEntry(me.userId, date);
           if (!alive || epoch !== cacheEpoch()) return;
-          if (request) {
-            pending.current = request.entry;
-            knownIds.current = new Set(request.knownIds);
-            setForm(request.form);
-            setStep(request.step);
-            setVideos(request.entry.videoPaths.map((path) => ({ key: path, path, fresh: false })));
-            setBanner({ tone: 'info', text: '앞서 보낸 기록의 저장 여부를 확인해 주세요.', action: 'check' });
-            return;
-          }
+          if (request) return adoptPending(request);
         }
         if (source.kind !== 'new' && source.kind !== 'edit') return;
         if (convertRest) return;
@@ -370,8 +372,27 @@ export function QuickStepEntry({
     return saveEntryDraft({ owner: owner.current, date, recordId: editingId, step, form });
   };
 
+  /* 처음 열 때 계정을 못 읽었으면(신호 없음) 저장할 때 다시 읽는다 — 그사이 그 날짜에 확인할 요청이 있으면 확인부터 */
+  const fillOwner = async (): Promise<'adopted' | 'ok' | 'failed'> => {
+    const epoch = cacheEpoch();
+    const me = await loadMe().catch(() => null);
+    if (!me || epoch !== cacheEpoch()) return 'failed';
+    owner.current = me.userId;
+    if (source.kind === 'edit') return 'ok';
+    const request = await loadPendingEntry(me.userId, date);
+    if (!request || epoch !== cacheEpoch() || !mounted.current) return 'ok';
+    adoptPending(request);
+    return 'adopted';
+  };
+
   const save = async (mode: 'save' | 'check') => {
     if (inFlight.current || attachingRef.current) return;
+    if (!owner.current) {
+      inFlight.current = true;
+      const filled = await fillOwner();
+      inFlight.current = false;
+      if (filled === 'adopted' || !mounted.current) return;
+    }
     if (pending.current) mode = 'check';
     const p = mode === 'check' ? null : saveProblem(form, unit, unitText);
     if (p) {
@@ -439,6 +460,11 @@ export function QuickStepEntry({
     } else if (out.kind === 'deleted') {
       setBanner({ tone: 'error', text: out.message, action: 'close' });
     } else {
+      /* 다시 읽어 보니 저장 안 됨 — 확인 대기를 풀어 다시 저장할 수 있게(같은 요청을 2분 안에 다시 보내도 서버가 한 줄로 받는다) */
+      if (out.kind === 'notSaved') {
+        pending.current = null;
+        if (owner.current && !editingId) await clearPendingEntry(owner.current, date);
+      }
       const kept = await saveDraftFor();
       if (!mounted.current) return;
       if (out.kind === 'unknown') pending.current = entry;

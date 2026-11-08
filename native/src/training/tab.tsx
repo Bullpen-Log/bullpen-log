@@ -4,7 +4,7 @@ import { canOpen, useRelease } from '~/shell/release';
 import * as Haptics from 'expo-haptics';
 import { type Href, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, type ScrollViewInstance, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import type { CardAction, ProgramShelf, TrainingCard } from '@/lib/report/training-home-data';
@@ -47,6 +47,8 @@ const STATE_LABEL: Record<TodayState, string> = { none: '일정 없음', planned
 export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: number; onWeb: (href: string) => void }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
+  const { width, fontScale } = useWindowDimensions();
+  const stackCards = Math.min(width, 760) - SPACE.side * 2 < 320 * Math.max(1, fontScale);
   const [data, setData] = useState<Loaded | null>(() => (cached?.today === today ? cached : null));
   const [error, setError] = useState<string | null>(null);
   /* 이 화면을 연 뒤 서버에서 한 번 받았나 — 받아 둔 카드의 '드릴 공 남기기'는 이미 남긴 뒤일 수 있어, 새로 받은 뒤에만 보인다 */
@@ -171,23 +173,23 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
       ) : null}
 
       {armcare || mechanics ? (
-        <View style={styles.pair}>
+        <View style={[styles.pair, stackCards && styles.pairStack]}>
           {/* 출시 전 베타로 잠긴 것(암케어 · 메커니즘)은 카드째 자물쇠 덮개 — 구속 측정 · ABS 와 같은 모양, 누르면 안내만(shell/locked.tsx LockCover) */}
           {armcare ? (
-            <LockCover locked={!canOpen('/training-armcare', release)} label="암케어" radius={RADIUS.card} style={{ flex: 1 }}>
-              <MiniCard card={armcare} title="암케어" glyph="shield-plus" fallback="루틴 보기" onPress={() => (armcare.action ? act(armcare.action) : openPart('armcare'))} onOpen={() => openPart('armcare')} />
+            <LockCover locked={!canOpen('/training-armcare', release)} label="암케어" radius={RADIUS.card} style={stackCards ? undefined : { flex: 1 }}>
+              <MiniCard stacked={stackCards} card={armcare} title="암케어" glyph="shield-plus" fallback="루틴 보기" onPress={() => (armcare.action ? act(armcare.action) : openPart('armcare'))} onOpen={() => openPart('armcare')} />
             </LockCover>
           ) : null}
           {mechanics ? (
-            <LockCover locked={!canOpen('/training-mechanics', release)} label="메커니즘" radius={RADIUS.card} style={{ flex: 1 }}>
-              <MiniCard card={mechanics} title="메커니즘" glyph="focus" fallback="프로그램 보기" onPress={() => (mechanics.action ? act(mechanics.action) : openPart('mechanics'))} onOpen={() => openPart('mechanics')} />
+            <LockCover locked={!canOpen('/training-mechanics', release)} label="메커니즘" radius={RADIUS.card} style={stackCards ? undefined : { flex: 1 }}>
+              <MiniCard stacked={stackCards} card={mechanics} title="메커니즘" glyph="focus" fallback="프로그램 보기" onPress={() => (mechanics.action ? act(mechanics.action) : openPart('mechanics'))} onOpen={() => openPart('mechanics')} />
             </LockCover>
           ) : null}
         </View>
       ) : data ? null : (
-        <View style={styles.pair}>
-          <Pulse style={[styles.skel, { flex: 1, height: 132, backgroundColor: c.line }]} />
-          <Pulse style={[styles.skel, { flex: 1, height: 132, backgroundColor: c.line }]} />
+        <View style={[styles.pair, stackCards && styles.pairStack]}>
+          <Pulse style={[styles.skel, { flex: stackCards ? undefined : 1, height: 132, backgroundColor: c.line }]} />
+          <Pulse style={[styles.skel, { flex: stackCards ? undefined : 1, height: 132, backgroundColor: c.line }]} />
         </View>
       )}
       {/* 웹 트레이닝 홈의 드릴 공 줄과 같은 부품 — 메카닉 드릴로 던진 공을 투구 기록에 남기라는 한 줄 */}
@@ -243,6 +245,8 @@ function TodayHero({
 }) {
   const c = usePalette();
   const dark = useTheme() !== 'light';
+  const { width, fontScale } = useWindowDimensions();
+  const stackHero = width < 360 || fontScale >= 1.3;
   const state = stateOf(card);
   const plan = card.plan;
   const title = state === 'planned' || state === 'active' ? (plan?.title ?? '오늘 운동') : '오늘 운동';
@@ -267,10 +271,10 @@ function TodayHero({
   const soft = '#b5d5eb';
   return (
     <View style={[styles.hero, { backgroundColor: dark ? '#0d2940' : '#153f60', boxShadow: c.floatHero }]}>
-      <Press accessibilityRole="button" accessibilityLabel={`오늘 트레이닝, ${STATE_LABEL[state]}, ${title}. ${sub}`} onPress={onOpen} style={styles.heroBody}>
-        <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
+      <Press accessibilityRole="button" accessibilityLabel={`오늘 트레이닝, ${STATE_LABEL[state]}, ${title}. ${sub}`} onPress={onOpen} style={[styles.heroBody, stackHero && styles.heroBodyStack]}>
+        <View style={stackHero ? styles.heroCopyStack : styles.heroCopy}>
           <Text style={{ color: soft, fontSize: 12 }}>{STATE_LABEL[state]}</Text>
-          <Text style={[TYPE.hero, { color: ink }]} numberOfLines={2}>
+          <Text style={[TYPE.hero, { color: ink }]}>
             {title}
           </Text>
           <Text style={{ color: card.tone === 'warn' ? '#ffd8a8' : soft, fontSize: 13, lineHeight: 19 }}>
@@ -287,6 +291,7 @@ function TodayHero({
 
 /** 암케어 · 메커니즘 — 이름 · 그림 칩, 오늘 할 것 한 줄(서버 글 그대로), 밑에 누르면 할 일. 카드 전체가 그 한 일이다 */
 function MiniCard({
+  stacked,
   card,
   title,
   glyph,
@@ -294,6 +299,7 @@ function MiniCard({
   onPress,
   onOpen,
 }: {
+  stacked: boolean;
   card: TrainingCard;
   title: string;
   glyph: IconName;
@@ -312,7 +318,7 @@ function MiniCard({
       onAccessibilityAction={onOpen}
       onPress={onPress}
       onLongPress={onOpen}
-      style={[styles.mini, { backgroundColor: c.card, boxShadow: c.float }]}
+      style={[stacked ? styles.miniStack : styles.mini, { backgroundColor: c.card, boxShadow: c.float }]}
     >
       <View style={styles.miniHead}>
         <Text style={[TYPE.card, { color: c.ink, flex: 1 }]}>{title}</Text>
@@ -320,12 +326,12 @@ function MiniCard({
           <Icon name={glyph} size={17} color={c.link} />
         </View>
       </View>
-      <Text numberOfLines={2} style={{ color: tone, fontSize: 15, fontWeight: '600', lineHeight: 21 }}>
+      <Text style={{ color: tone, fontSize: 15, fontWeight: '600', lineHeight: 21 }}>
         {card.tone === 'done' ? '✓ ' : ''}
         {card.status}
       </Text>
       <View style={styles.miniFoot}>
-        <Text style={{ color: c.muted, fontSize: 13, flex: 1 }} numberOfLines={1}>
+        <Text style={{ color: c.muted, fontSize: 13, flex: 1 }}>
           {label}
         </Text>
         <Icon name="chevron-right" size={15} color={c.muted} />
@@ -367,8 +373,13 @@ const styles = StyleSheet.create({
   skel: { borderRadius: 24 },
   hero: { borderRadius: 26, padding: SPACE.pad, gap: 16 },
   heroBody: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 120 },
+  heroBodyStack: { flexDirection: 'column', alignItems: 'stretch' },
+  heroCopy: { flex: 1, minWidth: 0, gap: 6 },
+  heroCopyStack: { gap: 6 },
+  pairStack: { flexDirection: 'column' },
   badge: { position: 'absolute', right: 2, bottom: 2, width: 28, height: 28, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
   pair: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
+  miniStack: { minHeight: 132, borderRadius: RADIUS.card, padding: 16, gap: 8 },
   mini: { flex: 1, minWidth: 0, minHeight: 132, borderRadius: RADIUS.card, padding: 16, gap: 8 },
   miniHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   miniIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },

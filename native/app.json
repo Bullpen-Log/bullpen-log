@@ -48,6 +48,15 @@
       ],
       "expo-video",
       [
+        "expo-media-library",
+        {
+          "photosPermission": "앨범의 투구 · 운동 영상을 고르는 데 사진을 씁니다.",
+          "savePhotosPermission": "3D 분석 영상을 사진 앱에 저장하는 데 씁니다.",
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": ["video"]
+        }
+      ],
+      [
         "expo-font",
         {
           "fonts": [

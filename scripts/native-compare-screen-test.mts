@@ -9,6 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import { handlesOf, translate, withHandle } from '~/compare/shape-edit';
+import * as fit from '~/compare/fit';
 import { backStep, closeInspector, fixTarget, INITIAL_UI, openContext, targetsFor, toggleInspector } from '~/compare/workspace-context';
 import {
   chromeBudget,
@@ -58,16 +59,34 @@ const IPAD: Device[] = [
   { name: 'iPad 분할 375×1180', w: 375, h: 1180, top: 24, bottom: 20, left: 0, right: 0 },
   { name: 'iPad 분할 507×820', w: 507, h: 820, top: 24, bottom: 20, left: 0, right: 0 },
 ];
-/** 글자 배율별 높이 — 단추 글자는 1.4배 · 머리 1.4배 · 도구 이름 1.3배에서 멈춘다(maxFontSizeMultiplier). 줄은 44 아래로 줄지 않는다 */
-function chrome(fs: number, context: 'view' | 'draw' | 'events' | 'align') {
-  const k = Math.min(fs, 1.4);
+/**
+ * 글자 배율별 높이 — 이 기능의 핵심 글자는 2배까지 그대로 따른다(SS07 — 예전 1.3 · 1.4배 상한을 걷었다). 줄은 44 아래로 줄지 않는다.
+ * 도구 줄 줄 수는 실제 계획(fit.planBarAdaptive)으로 셈한다 — 아래 '도구 줄' 시험이 같은 함수로 폭 안을 본다.
+ */
+function chrome(fs: number, context: 'view' | 'draw' | 'events' | 'align', barW = 304) {
+  const k = fit.fsOf(fs);
+  const ctl = fit.ctlH(k);
   const header = Math.max(44, Math.ceil(17 * k * 1.3));
   const timeline = 44;
-  const transport = Math.max(44, Math.ceil(21 * k + 18));
-  const dockRow = Math.max(44, Math.ceil(21 * k + 18));
-  const dock = context === 'view' ? Math.max(48, Math.ceil(20 + 1 + 11 * Math.min(fs, 1.3) * 1.3 + 8)) : 2 * dockRow + 4;
+  const transport = ctl;
+  const dock = context === 'view' ? Math.max(48, Math.ceil(20 + 1 + 11 * k * 1.3 + 8)) : (() => {
+    const lines = fit.planBarAdaptive(barItems(context, k, barW), { width: barW, maxRows: context === 'align' ? 3 : 2 }).lines.length;
+    return lines * ctl + (lines - 1) * 4;
+  })();
   /* controls gap 2 + 도구 줄 위 2 + 아래 4 */
   return { header, timeline, transport, dock, separators: 2 + 2 + 4 };
+}
+/** workbench 의 도구 줄과 같은 단추 · 폭(어림) — 그리기 · 장면 · 맞추기 */
+function barItems(context: 'draw' | 'events' | 'align' | 'view', fs: number, width = 304): fit.BarItem[] {
+  const t = (key: string, label: string, o: Partial<fit.BarItem> = {}): fit.BarItem => ({ key, w: fit.textBtnW(label, fs), ...o });
+  const i = (key: string, o: Partial<fit.BarItem> = {}): fit.BarItem => ({ key, w: fit.iconW, ...o });
+  if (context === 'draw')
+    return [t('target', 'A', { essential: true }), { key: 'tool', w: fit.textBtnW('자유선', fs) + 22, compactW: 44, essential: true }, i('q1', { priority: 4 }), i('q2', { priority: 4.1 }), i('q3', { priority: 4.2 }), i('q4', { priority: 4.3 }), i('sel', { priority: 3 }), i('style', { essential: true }), i('set', { priority: 5, overflow: true }), i('undo', { essential: true }), i('redo', { priority: 6, overflow: true }), i('del', { priority: 1, overflow: true }), t('done', '완료', { essential: true, push: true })];
+  if (context === 'events')
+    return [t('target', 'A', { essential: true }), i('prev', { essential: true }), t('chip', '착지 · 0:02.13', { essential: true, compactW: fit.textBtnW('착지 ✓', fs) }), i('next', { essential: true }), i('close', { essential: true }), t('mark', '지금 장면', { essential: true }), t('ob', '가려짐', { priority: 2, overflow: true }), i('trash', { priority: 3, overflow: true }), i('go', { priority: 1, overflow: true }), i('res', { priority: 4, overflow: true })];
+  if (context === 'align')
+    return [{ key: 'sem', w: Math.min(width, fit.segW(['착지', '릴리스', '직접'], fs)), essential: true }, i('trim', { priority: 2, overflow: true }), t('cancel', '취소', { essential: true }), t('start', '처음부터', { priority: 3, overflow: true }), t('mark', 'A 착지 지정', { essential: true, compactW: fit.textBtnW('지정', fs) }), t('go', '비교 보기', { essential: true, push: true, compactW: 44 })];
+  return [];
 }
 type Case = { device: Device; fs: number; context: 'view' | 'draw' | 'events' | 'align'; aspects: [number | null, number | null]; label: string };
 function layoutFor(c: Case) {
@@ -75,7 +94,7 @@ function layoutFor(c: Case) {
   const rootW = d.w - d.left - d.right;
   const land = sideDock(rootW, d.h - d.top);
   const sideW = land ? Math.round(Math.min(240, Math.max(176, rootW * 0.3))) : 0;
-  const ch = chrome(c.fs, c.context);
+  const ch = chrome(c.fs, c.context, land ? sideW - 12 : rootW - 16);
   /* 가로 폰은 도구 줄이 오른쪽 칸으로 — 아래 줄에서 빠진다 */
   const b = chromeBudget({ rootH: d.h, insetTop: d.top, insetBottom: d.bottom, header: ch.header, timeline: ch.timeline, transport: ch.transport, dock: land ? 0 : ch.dock, separators: land ? 4 : ch.separators });
   const stage = { w: rootW - sideW, h: b.stageH };
@@ -272,6 +291,128 @@ check('UI06 손잡이 — 점 하나만 · 원은 가운데로 통째 · 가장�
   ok(handlesOf(ang).length === 3 && handlesOf({ kind: 'free', pts: [] }).length === 0 && handlesOf({ kind: 'href', v: 0.3 }).length === 1, '손잡이 수');
   const t = translate(line, 0.1, -0.1);
   ok(t.kind === 'line' && near(t.a.u, 0.2, 1e-9) && near(t.b.v, 0.4, 1e-9), '통째');
+});
+
+/* ---- SS01 · SS06 도구 줄 · 재생 줄 — 모든 기기 · 글자 크기에서 꼭 있어야 할 단추가 폭 안(계획 = workbench 가 쓰는 fit.planBarAdaptive) ---- */
+const transportItems = (fs: number, allowed: string[]): fit.BarItem[] => [
+  ...(allowed.length > 1 ? [{ key: 'target', w: fit.segW(allowed, fs), compactW: fit.textBtnW('함께', fs), essential: true }] : []),
+  { key: 'prev', w: 44, essential: true },
+  { key: 'play', w: 56, essential: true },
+  { key: 'next', w: 44, essential: true },
+  { key: 'rate', w: fit.textBtnW('0.25×', fs), essential: true, push: true },
+];
+for (const device of [...PORTRAIT, ...LANDSCAPE, ...IPAD])
+  for (const fs of [1, 1.6, 2]) {
+    const rootW = device.w - device.left - device.right;
+    const land = sideDock(rootW, device.h - device.top);
+    const sideW = land ? Math.round(Math.min(240, Math.max(176, rootW * 0.3))) : 0;
+    const barW = land ? sideW - 12 : rootW - 16;
+    for (const ctx of ['draw', 'events', 'align'] as const)
+      check(`SS01 ${device.name} 글자${Math.round(fs * 100)}% ${ctx} 도구 줄 — 꼭 있어야 할 단추가 폭 ${barW} 안 · 터치 44`, () => {
+        const items = barItems(ctx, fs, barW);
+        const plan = fit.planBarAdaptive(items, { width: barW, maxRows: land ? 6 : ctx === 'align' ? 3 : 2 });
+        const w: Record<string, number> = Object.fromEntries(items.map((x) => [x.key, plan.compact.includes(x.key) ? x.compactW! : x.w]));
+        ok(fit.barFits(plan, w), `안 들어감 ${JSON.stringify(plan.lines)}`);
+        for (const x of items) if (x.essential) ok(!plan.hidden.includes(x.key), `${x.key} 빠짐`);
+        ok(Object.values(w).every((v) => v >= 44), '44 보다 작은 단추');
+      });
+    const tW = (land ? rootW - sideW : rootW) - 16;
+    for (const allowed of [['함께', 'A', 'B'], ['A', 'B']])
+      check(`SS06 ${device.name} 글자${Math.round(fs * 100)}% 재생 줄(${allowed.join('·')}) — 대상 · 이전 · 재생 · 다음 · 속도 폭 ${tW} 안`, () => {
+        const items = transportItems(fs, allowed);
+        const plan = fit.planBarAdaptive(items, { width: tW, maxRows: 2, preferCompact: true });
+        const w: Record<string, number> = Object.fromEntries(items.map((x) => [x.key, plan.compact.includes(x.key) ? x.compactW! : x.w]));
+        ok(fit.barFits(plan, w) && plan.hidden.length === 0, `안 들어감 ${JSON.stringify(plan.lines)}`);
+      });
+  }
+
+/* ---- SS02 작은 창 — 덩어리 단위 쪽 · 영상 가림 한도 ---- */
+check('SS02 겹쳐 보기 여덟 동작 — 큰 묶음(144) 대신 단추 줄로 나뉘어 본문 96 쪽마다 들어감', () => {
+  const labels = ['반반 나누기', '왼쪽', '오른쪽', '위', '아래', '크게', '작게', '자리 풀기'];
+  const rows: fit.InspRow<null>[] = [{ key: 'reg', h: 0, items: labels.map((l) => ({ key: l, w: fit.textBtnW(l, 1), node: null })) }];
+  const blocks = fit.expandRows(rows, { width: 232, bodyH: 96, fs: 1 });
+  const plan = fit.packPages(blocks, 96);
+  ok(plan.oversize.length === 0 && fit.pagesFit(plan, blocks.map((b) => b.h)), JSON.stringify(blocks.map((b) => b.h)));
+  ok(plan.pages.flat().length === blocks.length, '모든 단추에 닿음');
+});
+check('SS02 긴 글 · 빈 줄 · 큰 글씨 — 조각마다 본문 안 · 이어 붙이면 원문', () => {
+  const text = '착지 때 앞무릎이 안으로 무너짐.\n\n\n릴리스 직전 팔꿈치 높이가 어깨선보다 낮음. '.repeat(8);
+  for (const fs of [1, 1.6, 2])
+    for (const [w, bodyH] of [[232, 96], [300, 60], [156, 188], [600, 44]] as const) {
+      const parts = fit.splitTextToHeight(text, w, 15, 22, fs, bodyH);
+      ok(parts.map((p) => text.slice(p.start, p.end)).join('') === text, '원문');
+      for (const p of parts) ok(fit.textBlockH(text.slice(p.start, p.end).replace(/\n$/, ''), w, 15, 22, fs) <= Math.max(bodyH, 22 * fs) + 0.5, `조각이 본문을 넘음 ${w}×${bodyH} 글자${fs}`);
+    }
+});
+check('SS02 영상 가림 — 기본은 무대의 약 1/3, 큰 덩어리만큼만 늘고 영상 미리보기(64)는 남김', () => {
+  for (const stageH of [172, 240, 300, 420, 600])
+    for (const fs of [1, 2])
+      for (const need of [0, 44, 120, 400]) {
+        const b = fit.inspectorBudget({ stageH, fs, needBody: need });
+        ok(b.avail <= Math.max(stageH * 0.36 + 1, stageH - fit.PREVIEW_MIN), '한도 밖');
+        ok(b.avail <= stageH - fit.PREVIEW_MIN + 0.5, `미리보기를 덮음 ${b.avail}/${stageH}`);
+        if (!b.compact) ok(b.bodyH >= need, '덩어리를 못 담는데 compact 아님');
+      }
+});
+check('SS02 장면 모음 — 짧은 쪽에선 A · B 를 나란히 · 그림이 쪽 안', () => {
+  for (const bodyH of [86, 108, 140, 200, 300])
+    for (const fs of [1, 2]) {
+      const l = fit.shotLayout({ bodyH, w: 232, hasB: true, fs });
+      ok(l.h <= bodyH || l.size === 56, `${bodyH}: ${l.h}`);
+      if (bodyH < 160) ok(l.row, '짧으면 나란히');
+    }
+});
+check('SS02 고르기 묶음 — 한 줄 · 두 줄 감기 · 그보다 길거나 높이 밖이면 지금 값 단추', () => {
+  ok(fit.segMode(['자동', '위아래', '나란히', '겹쳐'], 360, 1).mode === 'row', '넓으면 한 줄');
+  ok(fit.segMode(['자동', '위아래', '나란히', '겹쳐'], 200, 1).mode === 'wrap', '좁으면 두 줄');
+  ok(fit.segMode(['0.1×', '0.25×', '0.5×', '0.75×', '1×'], 156, 2).mode === 'pick', '아주 좁고 크면 단추');
+  ok(fit.segMode(['자동', '위아래', '나란히', '겹쳐'], 200, 1, 44).mode === 'pick', '쪽 높이 밖이면 단추');
+});
+
+/* ---- SS03 메모 쓰기 — 자판 · 회전 · 글자 크기 ---- */
+for (const device of [...PORTRAIT, ...LANDSCAPE, ...IPAD])
+  for (const fs of [1, 1.6, 2])
+    for (const kbFrac of [0, 0.38, 0.55, 0.7]) {
+      const kb = Math.round(device.h * kbFrac);
+      check(`SS03 ${device.name} 글자${Math.round(fs * 100)}% 자판 ${kb} — 저장 · 닫기 · 쓰는 줄이 자판 위`, () => {
+        const pad = (kb > 0 ? kb : device.bottom) + 4;
+        const avail = device.h - device.top - pad;
+        const p = fit.planEditor({ avail, fs });
+        if (avail >= Math.max(fit.ctlH(fs), 22 * fit.fsOf(fs) + 16)) ok(p.fits && p.height <= avail + 0.5, `편집 줄 ${p.height} > ${avail}`);
+        ok(p.lines >= 1, '적어도 한 줄');
+      });
+    }
+check('SS03 증거 재현 — 390 높이 · 자판 216: 편집 줄 + 머리 없음 + 자판이 390 안', () => {
+  const avail = 390 - 0 - (216 + 4);
+  const p = fit.planEditor({ avail, fs: 1 });
+  ok(p.fits && p.height + 216 + 4 <= 390, `${p.height}`);
+  ok(fit.keyboardOverlap(390, 390 - 216) === 216 && fit.keyboardOverlap(390, null) === 0 && fit.keyboardOverlap(300, 390 - 216) === 126, '겹침은 한 번');
+});
+
+/* ---- SS04 메모 쪽 — 줄바꿈 · 폭 · 한글 · 그림 문자 ---- */
+check('SS04 메모 쪽 — 이어 붙이면 원문 · 빈틈 없음 · 쪽마다 칸 안(끝 줄바꿈 뒤 빈 줄은 다음 쪽)', () => {
+  const samples = ['', '짧은 메모', '\n'.repeat(12), Array.from({ length: 12 }, (_, i) => `${i + 1}번째 줄`).join('\n'), '착지 때 앞무릎이 안으로 무너짐. '.repeat(30), 'ab😀👍🏽👨‍👩‍👧 가나'.repeat(20), 'x'.repeat(500), '끝 줄바꿈\n'];
+  for (const t of samples)
+    for (const o of [{ w: 294, fontPx: 16, lines: 1 }, { w: 294, fontPx: 16, lines: 2 }, { w: 160, fontPx: 32, lines: 3 }, { w: 700, fontPx: 16, lines: 6 }]) {
+      const pages = fit.paginateNote(t, o);
+      ok(fit.pagesCover(t, pages) && fit.joinPages(t, pages) === t, '원문');
+      for (const p of pages) ok(fit.pageLines(t.slice(p.start, p.end), o.w, o.fontPx) <= o.lines, `칸 밖 ${JSON.stringify(t.slice(p.start, p.end))}`);
+      for (const p of pages.slice(0, -1)) {
+        const c = t.charCodeAt(p.end - 1);
+        ok(!(c >= 0xd800 && c <= 0xdbff) && c !== 0x200d, '글자를 가름');
+      }
+    }
+});
+check('SS04 쪽 고치기 — 바뀐 자리만 원문에 · 한도는 원문 전체 · 커서는 넣은 글 끝', () => {
+  const t = '가나다\n라마바\n사아자';
+  const pages = fit.paginateNote(t, { w: 294, fontPx: 16, lines: 1 });
+  const r = fit.editPage(t, pages, 1, '라마XY바\n', 500);
+  ok(r.text === '가나다\n라마XY바\n사아자' && r.caret === t.indexOf('바') + 2, `${JSON.stringify(r)}`);
+  const big = fit.editPage('', [{ start: 0, end: 0 }], 0, '메'.repeat(600), 500);
+  ok(big.text.length === 500 && big.clipped, '한도');
+  const emo = fit.editPage('a'.repeat(497), [{ start: 0, end: 497 }], 0, 'a'.repeat(497) + '👨‍👩‍👧', 500);
+  ok(emo.text.length <= 500 && !emo.text.endsWith('\u200d') && !(emo.text.charCodeAt(emo.text.length - 1) >= 0xd800 && emo.text.charCodeAt(emo.text.length - 1) <= 0xdbff), '결합 글자를 가르지 않음');
+  ok(fit.probablyComposing('한', '한ㄱ') && fit.probablyComposing('한ㄱ', '한그') && !fit.probablyComposing('한글', '한글 ') && !fit.probablyComposing('', '붙여넣은 글'), '한글 조합 어림');
 });
 
 if (report) console.log(rows.join('\n'));

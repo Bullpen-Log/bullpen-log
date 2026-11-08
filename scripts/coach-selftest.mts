@@ -9,7 +9,10 @@ import { PROGRAMS, REQUIRED_EQUIPMENT, BASICS_REQUIRED_EQUIPMENT } from '@/lib/p
 import { STRENGTH_PER_WEEK } from '@/lib/armcare/routine';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { slotStateOf, startsOf } from '@/lib/coach/status';
-import { applyAdjust, readAdjust } from '@/lib/coach/adjust';
+import { applyAdjust, readAdjust, ADJUST_MINUTES } from '@/lib/coach/adjust';
+import { limitedBy } from '@/lib/coach/limits';
+import { COACH_MINUTES, coachMinutes } from '@/lib/coach/answers';
+import { minutesChoicesFor } from '@/lib/report/theme';
 import { buildReview, reviewWeekOf } from '@/lib/coach/review';
 import { dayRuleOf, planWeek, suggestProgram, weekdayOf, type CoachAnswers, type DaySlot, type WeekInput, type Weekday } from '@/lib/coach/week';
 
@@ -157,6 +160,48 @@ const heavy = (s: DaySlot) => s.items.some((x) => (x.kind === 'train' && x.fence
   check('② 사용자가 고친 날은 안 덮음', JSON.stringify(again[5]) === JSON.stringify(mine));
 }
 {
+  /* 피할 동작(코치 질문, 2026-11-03) — 무거운 하체면 운동 칸에 큰 하체 0, 던지기면 메커니즘 0. 프로그램 칸은 프로그램대로 */
+  const h = planWeek(input({ baselineFreq: 3, limits: ['heavyLower'] }));
+  check('② 피할 동작 무거운 하체 → 큰 하체 0 · 까닭', h.every((s) => !heavy(s)) && h.some((s) => s.reasons.includes('limit')), JSON.stringify(h.map((s) => s.reasons)));
+  const t = planWeek(input({ baselineFreq: 3, limits: ['throwing'], mechanics: { perWeek: 2 } }));
+  check('② 피할 동작 던지기 → 메커니즘 0 · 까닭', t.every((s) => !kinds(s).includes('mechanics')) && t.some((s) => s.reasons.includes('limit')));
+  check('② 피할 동작 점프 · 머리 위 → 주 틀은 그대로(그날 운동에서 뺌)', JSON.stringify(planWeek(input({ baselineFreq: 3, limits: ['jump', 'overhead'] }))) === JSON.stringify(planWeek(input({ baselineFreq: 3 }))));
+  check('② 프로그램 칸은 피할 동작에도 프로그램대로', JSON.stringify(planWeek(input({ program: { perWeek: 3 }, limits: ['heavyLower'] }))) === JSON.stringify(planWeek(input({ program: { perWeek: 3 } }))));
+  const ex = (o: Partial<Parameters<typeof limitedBy>[0]>): Parameters<typeof limitedBy>[0] => ({ title: '운동', category: '상체 스트렝스', intensity: '중간', bodyParts: [], equipment: [], movementPattern: null, ...o });
+  check(
+    '② 피할 동작 거르기: 바벨 하체 · 하체 점프 · 메디신볼 · 숄더 프레스만 걸림',
+    limitedBy(ex({ category: '하체 스트렝스', equipment: ['바벨'] }), ['heavyLower']) &&
+      limitedBy(ex({ category: '파워', movementPattern: '스쿼트' }), ['jump']) &&
+      limitedBy(ex({ category: '파워', equipment: ['메디신볼'] }), ['throwing']) &&
+      limitedBy(ex({ title: '덤벨 숄더 프레스' }), ['overhead']) &&
+      !limitedBy(ex({ title: '덤벨 벤치 프레스' }), ['overhead', 'jump', 'throwing', 'heavyLower']) &&
+      !limitedBy(ex({ category: '하체 스트렝스', equipment: ['바벨'] }), [])
+  );
+}
+{
+  /* 주중 다시 맞춤(U24, 2026-11-03) — 쉬기로 한 날 · 조정한 날은 그대로, 뺀 운동을 다른 날로 되살리지 않음, 시작한 오늘은 그대로 */
+  const TODAY = '2026-11-04';
+  const first = planWeek(input({ baselineFreq: 3 }));
+  const d0 = first.find((s) => s.date >= TODAY && s.items.some((x) => x.kind === 'train'))!.date;
+  const sk = applyAdjust(first, { kind: 'skip', date: d0 }, (d) => d < TODAY);
+  if (!('week' in sk)) check('②-U24 쉬기 조정', false, JSON.stringify(sk));
+  else {
+    check('②-U24 조정한 칸에 표시', sk.week.find((s) => s.date === d0)!.adjusted === true && sk.week.filter((s) => s.adjusted).length === sk.changed.length);
+    const again = planWeek(input({ baselineFreq: 3, today: TODAY, prev: sk.week, painArm: true, fixed: [{ date: '2026-11-07', kind: 'game' }] }));
+    check('②-U24 다시 맞춤 — 쉬기로 한 날 그대로', JSON.stringify(again.find((s) => s.date === d0)) === JSON.stringify(sk.week.find((s) => s.date === d0)));
+    check('②-U24 다시 맞춤 — 뺀 운동을 다른 날로 되살리지 않음', workouts(again).length <= workouts(sk.week).length, `${workouts(sk.week).length} → ${workouts(again).length}`);
+    check('②-U24 다시 맞춤 — 새 경기 날은 운동 0', workouts([again.find((s) => s.date === '2026-11-07')!]).length === 0);
+  }
+  const locked = planWeek(input({ baselineFreq: 3, today: TODAY, prev: first, outingDate: TODAY, todayLocked: true }));
+  const open = planWeek(input({ baselineFreq: 3, today: TODAY, prev: first, outingDate: TODAY }));
+  check('②-U24 운동을 시작한 오늘은 그대로', JSON.stringify(locked[2]) === JSON.stringify(first[2]));
+  check('②-U24 시작 안 한 오늘은 새 상태로(오늘 등판 → 운동 0)', workouts([open[2]]).length === 0 && workouts([first[2]]).length === 1, JSON.stringify(open[2]));
+  /* 그대로 둔 뒷날이 큰 하체면 앞날 새 칸은 큰 하체를 안 든다 */
+  const nextHeavy: DaySlot = { ...first[4], items: [{ kind: 'train', fence: { minutes: 60, heavyLower: true, light: false } }], adjusted: true };
+  const w = planWeek(input({ baselineFreq: 6, today: TODAY, prev: first.map((s, i) => (i === 4 ? nextHeavy : s)) }));
+  check('②-U24 그대로 둔 뒷날 큰 하체 → 앞날 큰 하체 0', !heavy(w[3]), JSON.stringify(w[3]));
+}
+{
   const a = planWeek(input({ program: { perWeek: 2 }, mechanics: { perWeek: 2 }, answers: answers({ outingEvery: 5, teamDays: [2] }), lastOuting: '2026-10-31' }));
   const b = planWeek(input({ program: { perWeek: 2 }, mechanics: { perWeek: 2 }, answers: answers({ outingEvery: 5, teamDays: [2] }), lastOuting: '2026-10-31' }));
   check('② 같은 입력 같은 결과', JSON.stringify(a) === JSON.stringify(b));
@@ -239,8 +284,8 @@ check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ ki
   const future = trainDays.filter((d) => d >= TODAY);
   check('⑥ 시험 주에 오늘 뒤 운동 날이 있다', future.length > 0, JSON.stringify(trainDays));
   const d0 = future[0];
-  const m = applyAdjust(wk, { kind: 'minutes', date: d0, minutes: 30 }, lockPast);
-  check('⑥ 시간 바꾸기 → 그날만 30분', 'week' in m && m.changed.join() === d0 && m.week.find((s) => s.date === d0)!.items.some((x) => x.kind === 'train' && x.fence.minutes === 30), JSON.stringify(m));
+  const m = applyAdjust(wk, { kind: 'minutes', date: d0, minutes: 45 }, lockPast);
+  check('⑥ 시간 바꾸기 → 그날만 45분', 'week' in m && m.changed.join() === d0 && m.week.find((s) => s.date === d0)!.items.some((x) => x.kind === 'train' && x.fence.minutes === 45), JSON.stringify(m));
   const sk = applyAdjust(wk, { kind: 'skip', date: d0 }, lockPast);
   check('⑥ 쉬기 → 운동 빠지고 쉬기 · 까닭', 'week' in sk && sk.week.find((s) => s.date === d0)!.items.every((x) => x.kind !== 'train') && sk.week.find((s) => s.date === d0)!.reasons.includes('skipped'), JSON.stringify(sk));
   const past = trainDays.find((d) => d < TODAY);
@@ -260,7 +305,9 @@ check('⑤ 쉬는 날 · 팀 훈련 → 시작 없음', startsOf(slotOf(T, [{ ki
   const busy = applyAdjust(wk, { kind: 'busy' }, lockPast);
   check('⑥ 바쁜 주 → 운동 날 하나 줄임', 'week' in busy && busy.week.filter((s) => s.items.some((x) => x.kind === 'train')).length === trainDays.length - 1, JSON.stringify(busy));
   check('⑥ 같은 시간이면 바뀌는 게 없음', 'error' in applyAdjust(wk, { kind: 'minutes', date: d0, minutes: 60 }, lockPast));
-  check('⑥ 모양 검사: 범위 밖 분 · 같은 날 옮기기 거름', readAdjust({ kind: 'minutes', date: d0, minutes: 61 }) === null && readAdjust({ kind: 'move', from: d0, to: d0 }) === null && readAdjust({ kind: 'busy' }) !== null);
+  check('⑥ 모양 검사: 범위 밖 분 · 같은 날 옮기기 거름', readAdjust({ kind: 'minutes', date: d0, minutes: 61 }) === null && readAdjust({ kind: 'minutes', date: d0, minutes: 30 }) === null && readAdjust({ kind: 'move', from: d0, to: d0 }) === null && readAdjust({ kind: 'busy' }) !== null);
+  check('⑥ 코치 시간 = 엔진 선택지(코치 30분이 실제로 45분이던 것)', JSON.stringify([...COACH_MINUTES]) === JSON.stringify(minutesChoicesFor(null)) && ADJUST_MINUTES === COACH_MINUTES, JSON.stringify(minutesChoicesFor(null)));
+  check('⑥ 옛 시간 맞추기: 20 · 30 → 45, 60 그대로, 120 → 90', coachMinutes(20) === 45 && coachMinutes(30) === 45 && coachMinutes(60) === 60 && coachMinutes(120) === 90);
   /* 이틀 잇는 큰 하체는 어떤 옮기기 뒤에도 없다 */
   let consec = 0;
   for (const a of wk) for (const b of wk) {

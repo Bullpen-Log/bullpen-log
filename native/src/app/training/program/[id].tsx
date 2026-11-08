@@ -1,3 +1,4 @@
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
@@ -39,6 +40,7 @@ const KIND_LABEL: Record<VariantKind, string> = { main: '고정', rotating: '세
 
 export default function ProgramDetailScreen() {
   const c = usePalette();
+  const inset = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const { id, perWeek: pwParam } = useLocalSearchParams<{ id: string; perWeek?: string }>();
   const { data, failed, reload } = useTrainingToday();
@@ -72,7 +74,7 @@ export default function ProgramDetailScreen() {
   /* 숨김 · 옛 프로그램 — 새로 보이지 않는다. 하는 중인 사람에게만 짧은 안내 */
   if (!choice || !def || !outline) {
     return (
-      <View style={{ flex: 1, backgroundColor: c.page }}>
+      <View style={{ flex: 1, paddingTop: inset.top, backgroundColor: c.page }}>
         <FlowBar title="프로그램" onBack={() => router.back()} />
         <View style={{ padding: 24, gap: 12 }}>
           {isThis && card ? (
@@ -146,8 +148,8 @@ export default function ProgramDetailScreen() {
   const recommended = RECOMMENDED_EQUIPMENT.filter((e) => !choice.required.includes(e));
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.page }}>
-      <FlowBar title="프로그램" onBack={() => router.back()} backLabel="트레이닝으로 돌아가기" />
+    <View style={{ flex: 1, paddingTop: inset.top, backgroundColor: c.page }}>
+      <FlowBar title="프로그램" onBack={() => router.back()} backLabel="뒤로 가기" />
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: 24 }, READABLE]}>
         {/* 카드에서 이어지는 커버 — 같은 그림 · 같은 둥근 면 */}
         <View style={[st.cover, { backgroundColor: c.card, boxShadow: c.float }]}>

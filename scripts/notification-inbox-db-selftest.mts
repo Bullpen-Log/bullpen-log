@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import { execSync } from 'node:child_process';
+import { PGlite } from '@electric-sql/pglite';
+import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { readInboxPage, verifyInboxRead, writeInboxRead } from '@/lib/notification-inbox-ops';
+let passed = 0;const check = (v: unknown, label: string) => { assert.ok(v, label);passed++; };
+const sql = execSync('npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+const pg = await PGlite.create();await pg.exec(sql);const server = new PGLiteSocketServer({ db: pg, port: 0, host: '127.0.0.1' });await server.start();
+const port = (server as unknown as { server: { address(): { port: number } } }).server.address().port;
+const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: `postgresql://postgres@127.0.0.1:${port}/postgres?sslmode=disable`, max: 1 }) });
+const id = (i: number) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
+try {
+  await db.notification.createMany({ data: Array.from({ length: 24 }, (_, i) => ({ id: id(i), userId: 'a', kind: 'team', title: `공지${i}`, createdAt: new Date('2026-01-01T00:00:00Z') })) });
+  await db.notification.create({ data: { id: id(50), userId: 'b', kind: 'team', title: '다른 계정', createdAt: new Date('2026-01-01T00:00:00Z') } });
+  const page = await readInboxPage(db, 'a', null);assert.ok(page.ok && page.next);
+  check(page.items.length === 20 && page.unread === 24, 'page20 plus global unread24');check(page.items[0].id === id(23) && page.items.at(-1)?.id === id(4), 'same timestamp uses stable id ordering');
+  const more = await readInboxPage(db, 'a', { before: page.before, cursor: page.next });assert.ok(more.ok);check(more.items.length === 4 && !more.next, 'second page4');check(new Set([...page.items, ...more.items].map(n => n.id)).size === 24, 'no duplicate/omitted ties');
+  await db.notification.delete({ where: { id: page.next.id } });
+  const afterDelete = await readInboxPage(db, 'a', { before: page.before, cursor: page.next });check(afterDelete.ok && afterDelete.items.length === 4, 'deleted cursor row does not break keyset');
+  await db.notification.create({ data: { id: id(60), userId: 'a', kind: 'team', title: '새로 도착', createdAt: new Date(page.before) } });
+  const command = { scope: 'all', before: page.before };
+  const pending = await verifyInboxRead(db, 'a', command);check(pending.ok && pending.state === 'not-applied', 'verification before write is read-only');check(await db.notification.count({ where: { userId: 'a', readAt: null } }) === 24, 'verification did not mutate');
+  const result = await writeInboxRead(db, 'a', command);check(result.ok && result.unread === 1, 'all-read excludes new boundary arrival');check((await db.notification.findUnique({ where: { id: id(60) } }))?.readAt === null, 'same-ms arrival stays unread');check((await db.notification.findUnique({ where: { id: id(50) } }))?.readAt === null, 'other owner untouched');
+  const applied = await verifyInboxRead(db, 'a', command);check(applied.ok && applied.state === 'applied' && applied.unread === 1, 'verify old scope succeeds with new unread remaining');
+  const oldReadAt = (await db.notification.findUnique({ where: { id: id(0) } }))?.readAt?.toISOString();await writeInboxRead(db, 'a', command);check((await db.notification.findUnique({ where: { id: id(0) } }))?.readAt?.toISOString() === oldReadAt, 'read replay does not rewrite timestamp');
+  await writeInboxRead(db, 'a', { scope: 'one', id: id(50) });check((await db.notification.findUnique({ where: { id: id(50) } }))?.readAt === null, 'single read owner protected');
+  check(!(await writeInboxRead(db, 'a', { scope: 'all', before: '2999-01-01T00:00:00.000Z' })).ok, 'future cutoff rejected');check(!(await readInboxPage(db, 'a', { before: page.before, cursor: { id: 'bad', at: page.before } })).ok, 'invalid cursor rejected');
+  await writeInboxRead(db, 'a', { scope: 'one', id: id(60) });check(await db.notification.count({ where: { userId: 'a', readAt: null } }) === 0, 'single confirmed read');
+  const final = await verifyInboxRead(db, 'a', { scope: 'one', id: id(60) });check(final.ok && final.state === 'applied', 'single verify');
+  console.log(`notification inbox DB: ${passed} checks passed (isolated PGlite only)`);
+} finally { await db.$disconnect();await server.stop();await pg.close(); }

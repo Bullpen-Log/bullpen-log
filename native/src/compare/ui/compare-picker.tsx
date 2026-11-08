@@ -128,13 +128,13 @@ export function ComparePicker({
     <View style={{ flex: 1, backgroundColor: c.page, paddingTop: inset.top, paddingLeft: inset.left, paddingRight: inset.right }}>
       <View style={st.bar}>
         <IconBtn icon="back" label="취소, 비교로 돌아가기" onPress={onCancel} />
-        <Text accessibilityRole="header" numberOfLines={1} maxFontSizeMultiplier={1.4} style={[st.title, { color: c.ink }]}>
+        <Text accessibilityRole="header" numberOfLines={1} maxFontSizeMultiplier={MAX_FONT} style={[st.title, { color: c.ink }]}>
           {title}
         </Text>
         <View style={{ width: 44 }} />
       </View>
       {head ? (
-        <Text numberOfLines={1} maxFontSizeMultiplier={1.4} style={[TYPE.sub, { color: c.muted, paddingHorizontal: 12 }]}>
+        <Text numberOfLines={1} maxFontSizeMultiplier={MAX_FONT} style={[TYPE.sub, { color: c.muted, paddingHorizontal: 12 }]}>
           {head}
         </Text>
       ) : null}
@@ -192,11 +192,11 @@ export function ComparePicker({
                   style={[st.item, { backgroundColor: it.on ? withAlpha(c.action, 0.14) : c.card }, it.disabled && { opacity: 0.45 }]}
                 >
                   <Icon name={it.on ? 'check' : 'film'} size={18} color={it.on ? c.link : c.muted} />
-                  <Text numberOfLines={1} maxFontSizeMultiplier={1.4} style={[TYPE.body, { color: c.ink, flex: 1 }]}>
+                  <Text numberOfLines={1} maxFontSizeMultiplier={MAX_FONT} style={[TYPE.body, { color: c.ink, flex: 1 }]}>
                     {it.label}
                   </Text>
                   {it.sub ? (
-                    <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={[TYPE.sub, { color: c.muted }]}>
+                    <Text numberOfLines={1} maxFontSizeMultiplier={MAX_FONT} style={[TYPE.sub, { color: c.muted }]}>
                       {it.sub}
                     </Text>
                   ) : null}
@@ -206,27 +206,27 @@ export function ComparePicker({
           ) : !items && loading ? (
             <View style={st.center}>
               <ActivityIndicator color={c.muted} />
-              <Text maxFontSizeMultiplier={1.4} style={[TYPE.sub, { color: c.muted }]}>
+              <Text maxFontSizeMultiplier={MAX_FONT} style={[TYPE.sub, { color: c.muted }]}>
                 내 영상을 불러오는 중이에요
               </Text>
             </View>
           ) : !items && error ? (
             <View style={st.center}>
-              <Text maxFontSizeMultiplier={1.4} style={[TYPE.sub, { color: c.danger, textAlign: 'center' }]}>
+              <Text maxFontSizeMultiplier={MAX_FONT} style={[TYPE.sub, { color: c.danger, textAlign: 'center' }]}>
                 {error}
               </Text>
               <TextBtn label="다시 시도" onPress={() => void refreshMyVideos()} />
-              <Text maxFontSizeMultiplier={1.4} style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>
+              <Text maxFontSizeMultiplier={MAX_FONT} style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>
                 위 단추로 사진 앱 · 촬영 · 파일에서 바로 가져올 수도 있어요.
               </Text>
             </View>
           ) : !rows.length ? (
             <View style={st.center}>
-              <Text maxFontSizeMultiplier={1.4} style={[TYPE.body, { color: c.ink, textAlign: 'center' }]}>
+              <Text maxFontSizeMultiplier={MAX_FONT} style={[TYPE.body, { color: c.ink, textAlign: 'center' }]}>
                 {items?.length ? '조건에 맞는 영상이 없어요' : '앱 안 영상이 아직 없어요'}
               </Text>
               {items?.length ? <TextBtn label="조건 지우기" onPress={() => (setText(''), setUi({ filter: { ...filter, text: '', favoriteOnly: false, period: { kind: 'all' }, sport: null, types: [], linked: 'any' } }))} /> : null}
-              <Text maxFontSizeMultiplier={1.4} style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>
+              <Text maxFontSizeMultiplier={MAX_FONT} style={[TYPE.sub, { color: c.muted, textAlign: 'center' }]}>
                 위 단추로 사진 앱 · 촬영 · 파일에서 가져와 비교해요.
               </Text>
             </View>
@@ -261,12 +261,12 @@ export function ComparePicker({
 
         <View style={st.row}>
           <IconBtn icon="chevron-left" label="이전 쪽" disabled={cur.page <= 0} onPress={() => setPage(cur.page - 1)} />
-          <Text maxFontSizeMultiplier={1.3} style={[TYPE.sub, { color: c.muted, fontVariant: ['tabular-nums'] }]} accessibilityLabel={`${cur.pages}쪽 중 ${cur.page + 1}쪽`}>
+          <Text maxFontSizeMultiplier={MAX_FONT} style={[TYPE.sub, { color: c.muted, fontVariant: ['tabular-nums'] }]} accessibilityLabel={`${cur.pages}쪽 중 ${cur.page + 1}쪽`}>
             {pageText(cur)}
             {tab === 'mine' ? ` · ${rows.length}개` : ''}
           </Text>
           <IconBtn icon="chevron-right" label="다음 쪽" disabled={cur.page >= cur.pages - 1} onPress={() => setPage(cur.page + 1)} />
-          <Text numberOfLines={2} maxFontSizeMultiplier={1.4} style={[TYPE.sub, { color: c.ink, flex: 1, textAlign: 'right' }]} accessibilityLiveRegion="polite">
+          <Text numberOfLines={2} maxFontSizeMultiplier={MAX_FONT} style={[TYPE.sub, { color: c.ink, flex: 1, textAlign: 'right' }]} accessibilityLiveRegion="polite">
             {foot}
           </Text>
         </View>

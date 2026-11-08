@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useState, type ReactNode } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { READABLE } from '~/lib/layout';
@@ -61,11 +61,11 @@ function stepsOf(p: LabPhase): StepState[] {
 function textOf(p: LabPhase): { title: string; line: string } {
   switch (p.kind) {
     case 'upload':
-      return { title: '영상을 보내고 있어요.', line: '옆 · 뒤 원본을 분석 서버로 보내는 중이에요.' };
+      return { title: '영상을 보내고 있어요.', line: '옆 · 뒤 영상을 보내고 있어요.' };
     case 'upload-failed':
       return { title: '영상을 다 보내지 못했어요.', line: p.reason };
     case 'accepting':
-      return { title: '분석 요청을 확인하고 있어요.', line: '영상은 다 보냈어요. 서버가 요청을 받았는지 확인하는 중이에요.' };
+      return { title: '분석 요청을 확인하고 있어요.', line: '영상 전송 완료 · 요청 접수를 확인하고 있어요.' };
     case 'request-failed':
       return { title: '분석을 시작하지 못했어요.', line: p.reason };
     case 'queued':
@@ -75,7 +75,7 @@ function textOf(p: LabPhase): { title: string; line: string } {
     case 'delayed':
       return {
         title: '분석이 오래 걸리고 있어요.',
-        line: p.was === 'queued' ? '아직 분석 차례를 기다리고 있어요. 서버 상태를 계속 확인하고 있어요.' : '분석은 계속되고 있어요. 서버 상태를 계속 확인하고 있어요.',
+        line: p.was === 'queued' ? '아직 분석 차례를 기다리고 있어요. 상태를 계속 확인하고 있어요.' : '분석은 계속되고 있어요. 상태를 계속 확인하고 있어요.',
       };
     case 'offline':
       return { title: '상태를 확인하지 못했어요.', line: '연결이 약해 지금 상태를 받지 못했어요. 마지막으로 확인한 단계를 보여 줘요.' };
@@ -119,12 +119,12 @@ function Graphic({ p, c }: { p: LabPhase; c: Palette }) {
   return (
     <View style={g.wrap} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <Animated.View style={[g.side, { backgroundColor: c.card, boxShadow: c.float, left: 6 }, left]}>
-        <Icon name="video" size={16} color={c.sky} />
-        <Text style={[g.sideText, { color: c.sky }]}>옆</Text>
+        <Icon name="video" size={16} color={c.link} />
+        <Text style={[g.sideText, { color: c.link }]}>옆</Text>
       </Animated.View>
       <Animated.View style={[g.side, { backgroundColor: c.card, boxShadow: c.float, right: 6 }, right]}>
-        <Icon name="video" size={16} color={c.sky} />
-        <Text style={[g.sideText, { color: c.sky }]}>뒤</Text>
+        <Icon name="video" size={16} color={c.link} />
+        <Text style={[g.sideText, { color: c.link }]}>뒤</Text>
       </Animated.View>
       <View style={[g.card, { backgroundColor: c.card, boxShadow: c.floatHero }]}>
         <View style={[g.inner, { backgroundColor: c.skyTint }]}>
@@ -192,13 +192,13 @@ export function LabProgress({
         <View style={[x.card, { backgroundColor: c.card, boxShadow: c.float }]}>
           {STEP_NAMES.map((n, i) => {
             const st = steps[i];
-            const tone = st === 'active' ? c.sky : st === 'fail' ? c.warn : st === 'done' ? c.sky : c.muted;
+            const tone = st === 'active' ? c.link : st === 'fail' ? c.warn : st === 'done' ? c.link : c.muted;
             return (
               <View key={n} style={x.step} accessibilityLabel={`${n} ${STEP_TEXT[st]}`}>
                 <View style={[x.stepDot, { backgroundColor: st === 'active' ? c.action : st === 'wait' ? c.chip : st === 'fail' ? c.warnBg : c.skyTint }]}>
                   <Icon name={STEP_ICON[st]} size={14} color={st === 'active' ? '#fff' : tone} />
                 </View>
-                <Text style={[TYPE.body, { flex: 1, color: st === 'active' ? c.sky : c.ink, fontWeight: st === 'active' ? '600' : '400' }]}>{n}</Text>
+                <Text style={[TYPE.body, { flex: 1, color: st === 'active' ? c.link : c.ink, fontWeight: st === 'active' ? '600' : '400' }]}>{n}</Text>
                 <Text style={[TYPE.sub, { color: tone }]}>{STEP_TEXT[st]}</Text>
               </View>
             );
@@ -257,12 +257,14 @@ export function LabProgress({
 
 /** 전송 카드 — 두 파일의 실제 보낸 바이트를 합친 %, 칸마다 대기 · 보내는 중 · 완료 */
 function UploadCard({ p, c }: { p: Extract<LabPhase, { kind: 'upload' }>; c: Palette }) {
+  const { width, fontScale } = useWindowDimensions();
+  const stacked = Math.min(width, 760) - 72 < 300 * Math.max(1, fontScale);
   const pct = p.total > 0 ? Math.min(100, Math.floor((p.sent / p.total) * 100)) : 0;
   const label: Record<SendStep, string> = { wait: '대기', sending: '보내는 중', done: '완료' };
   return (
     <View style={[x.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <Text style={[TYPE.card, { color: c.ink }]}>전체 영상 전송</Text>
+        <Text style={[TYPE.card, { color: c.ink, flex: 1 }]}>전체 영상 전송</Text>
         <Text style={[TYPE.num, { color: c.ink, fontSize: 20 }]} accessibilityLabel={`${pct}퍼센트`}>
           {pct}
           <Text style={[TYPE.unit, { color: c.muted }]}>%</Text>
@@ -278,12 +280,12 @@ function UploadCard({ p, c }: { p: Extract<LabPhase, { kind: 'upload' }>; c: Pal
       <Text style={[TYPE.sub, { color: c.muted }]}>
         {mb(p.sent)}MB / {mb(p.total)}MB
       </Text>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
+      <View style={{ flexDirection: stacked ? 'column' : 'row', gap: 8 }}>
         {(['side', 'back'] as const).map((v) => (
-          <View key={v} style={[x.sendChip, { backgroundColor: p.views[v] === 'done' ? c.skyTint : c.page }]}>
-            <Icon name={p.views[v] === 'done' ? 'check' : 'video'} size={14} color={p.views[v] === 'wait' ? c.muted : c.sky} />
+          <View key={v} style={[x.sendChip, !stacked && { flex: 1 }, { backgroundColor: p.views[v] === 'done' ? c.skyTint : c.page }]}>
+            <Icon name={p.views[v] === 'done' ? 'check' : 'video'} size={14} color={p.views[v] === 'wait' ? c.muted : c.link} />
             <Text style={[TYPE.sub, { color: c.ink }]}>{v === 'side' ? '옆 영상' : '뒤 영상'}</Text>
-            <Text style={[TYPE.sub, { color: p.views[v] === 'wait' ? c.muted : c.sky, marginLeft: 'auto' }]}>{label[p.views[v]]}</Text>
+            <Text style={[TYPE.sub, { color: p.views[v] === 'wait' ? c.muted : c.link, marginLeft: 'auto' }]}>{label[p.views[v]]}</Text>
           </View>
         ))}
       </View>
@@ -306,5 +308,5 @@ const x = StyleSheet.create({
   stepDot: { width: 28, height: 28, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 10 },
   cta: { minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  sendChip: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, borderRadius: 12, paddingHorizontal: 10 },
+  sendChip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
 });

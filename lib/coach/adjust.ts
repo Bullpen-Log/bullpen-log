@@ -1,5 +1,6 @@
 import type { DayRule } from '@/lib/engine/microcycle';
 import type { DaySlot, ReasonCode, SlotItem } from '@/lib/coach/week';
+import { COACH_MINUTES } from '@/lib/coach/answers';
 
 /**
  * 코치 조정 단추(docs/designs/ai-coach.md 10-5 U35) — 이번 주 틀을 사용자가 고친다. 계획기를 처음부터 다시 돌리지 않고 칸만 옮긴다
@@ -13,7 +14,8 @@ export type CoachAdjust =
   | { kind: 'move'; from: string; to: string }
   | { kind: 'busy' };
 
-export const ADJUST_MINUTES = [20, 30, 45, 60, 90] as const;
+/** 오늘 시간 단추 — 코치 질문 · 엔진과 같은 선택지(예전 20 · 30분은 엔진이 45분으로 올려 만들었다) */
+export const ADJUST_MINUTES = COACH_MINUTES;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -130,6 +132,8 @@ export function applyAdjust(
 
   const changed = next.filter((s, i) => JSON.stringify(s) !== JSON.stringify(week[i])).map((s) => s.date);
   if (!changed.length) return { error: '바뀌는 게 없어요.' };
+  /* 사용자가 바꾼 칸 — 주중에 다시 맞출 때 안 덮는다(planWeek prev) */
+  for (const s of next) if (changed.includes(s.date)) s.adjusted = true;
   return { week: next, changed };
 }
 

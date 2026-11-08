@@ -2,25 +2,14 @@
 
 import {
   ARM_PAIN_LEVELS,
-  ARM_PAIN_SPOTS,
   CHECKIN_NOTE_MAX,
-  CHECKIN_PARTS as PART_LABELS,
   MAX_CONDITION,
   MIN_CONDITION,
   SLEEP_QUALITY_LEVELS,
   conditionBand,
-  type ArmPainJoint,
 } from '@/lib/checkin';
-import {
-  SPOT_DEFS,
-  partsFromSpots,
-  spotId,
-  type BodySpots,
-  type SpotSide,
-} from '@/lib/body-spots';
+import { spotLabel, spotOf, type BodySpots, type SpotSide } from '@/lib/body-spots';
 import { BodySpotPicker } from '@/components/body-spot-picker';
-import { useState } from 'react';
-import { Search } from '@/components/icon';
 import { Chip } from '@/components/day-card';
 import { OutlinePerson, SleepPicture } from './pictures';
 import { CONDITION_VISUAL_STAGES, conditionVisualStage } from './condition-visual';
@@ -175,230 +164,74 @@ export function ConditionStep({
 }
 
 /**
- * 불편한 곳 — 네(김민) 3D 몸 그림 그대로(components/body-spot-picker.tsx). 고른 근육이 밑에 칩으로 늘어서고,
- * 어깨 · 팔꿈치가 '통증'이면 자리 · 정도를 더 묻는다(암케어 · 안내가 읽는 ARM_PAIN_SPOTS · ARM_PAIN_LEVELS).
+ * 불편한 곳 — 큰 부위 넷을 펼쳐 자리 그림 카드에서 고른다(components/body-spot-picker.tsx). 고른 자리가 밑에 칩으로 늘어서고,
+ * 어깨 · 팔꿈치를 '아파요'로 고르면 다음 화면에서 얼마나 아픈지 묻는다(암케어 · 안내가 읽는 ARM_PAIN_LEVELS).
  */
 export function PainStep({
   spots,
   onSpots,
+  side,
 }: {
   spots: BodySpots;
   onSpots: (s: BodySpots) => void;
+  /** 처음 펼칠 쪽 — 던지는 팔 */
+  side: SpotSide;
 }) {
-  /* 몸 그림이 가리키는 근육 — 이름 목록에서 고른 것도 같은 자리로(그림이 그 근육을 비추고 정도 단추가 뜬다) */
-  const [active, setActive] = useState<string | null>(null);
-  /* 이름으로 골라도 가리키기만 — 정도는 그림 밑 단추로 고른다(기본 '뻐근' 없음) */
-  const pickByName = (id: string) => setActive(id);
   return (
     <div className="space-y-4">
       <div>
         <h1 className={TITLE}>어디가 불편해요?</h1>
-        <p className="mt-1 text-sm text-muted">
-          자리를 고르고, 근육을 눌러 뻐근한지 아픈지 골라요.
-        </p>
+        <p className="mt-1 text-sm text-muted">부위를 누르고, 그림에서 불편한 자리를 골라요.</p>
       </div>
-      {/* 3D 몸 그림 — 다리까지 보이게 전보다 높게(2026-10-13 사용자: "하단 길이를 조금 더") */}
-      <BodySpotPicker
-        spots={spots}
-        onChange={onSpots}
-        active={active}
-        onActiveChange={setActive}
-        heightClass="h-[26rem] desk:h-[24rem]"
-      />
-      <MuscleFinder spots={spots} onPick={pickByName} />
-    </div>
-  );
-}
-
-/** 어깨·팔꿈치가 실제 통증으로 선택됐을 때만 이어지는 상세 질문. */
-export function ArmPainDetailStep({
-  spots,
-  armSpots,
-  onArmSpots,
-  armLevel,
-  onArmLevel,
-}: {
-  spots: BodySpots;
-  armSpots: string[];
-  onArmSpots: (s: string[]) => void;
-  armLevel: number | null;
-  onArmLevel: (l: number | null) => void;
-}) {
-  const parts = partsFromSpots(spots);
-  const joints = (['shoulder', 'elbow'] as const).filter((j) => parts[j] === '통증');
-  const toggleArm = (key: string) =>
-    onArmSpots(armSpots.includes(key) ? armSpots.filter((k) => k !== key) : [...armSpots, key]);
-  return (
-    <div className="space-y-4">
-      <div>
-        <h1 className={TITLE}>팔은 어디가 아파요?</h1>
-        <p className="mt-1 text-sm text-muted">어깨·팔꿈치 통증을 자세히 알려주면 암케어 안내에 반영해요.</p>
-      </div>
-      {joints.map((joint) => (
-        <ArmDetail
-          key={joint}
-          joint={joint}
-          armSpots={armSpots}
-          onToggle={toggleArm}
-          showLevel={joint === joints[joints.length - 1]}
-          level={armLevel}
-          onLevel={onArmLevel}
-        />
-      ))}
+      <BodySpotPicker spots={spots} onChange={onSpots} defaultSide={side} />
     </div>
   );
 }
 
 /**
- * 이름으로 찾기 — 그림을 눌러 찾기 어려운 근육을 글자로 찾는다(2026-10-13 사용자: "이름을 검색하거나 이름 목록에서 선택").
- * 검색 칸에 적으면 맞는 근육만, 비우면 부위(어깨 · 팔꿈치 · 손목 · 허리 · 하체)별 전체 목록. 줄마다 오른쪽 · 왼쪽 단추.
+ * 어깨 · 팔꿈치를 '아파요'로 골랐을 때만 — 아픈 자리는 앞 화면의 카드가 곧 팔 통증 자리라(lib/body-spots.ts armSpotsFromSpots)
+ * 다시 묻지 않고, 여기서는 정도만 묻는다(2026-11-06).
  */
-function MuscleFinder({
+export function ArmPainDetailStep({
   spots,
-  onPick,
+  armLevel,
+  onArmLevel,
 }: {
   spots: BodySpots;
-  onPick: (id: string) => void;
+  armLevel: number | null;
+  onArmLevel: (l: number | null) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState('');
-  const query = q.trim();
-  const rows = SPOT_DEFS.filter((d) => !query || d.label.includes(query));
-  const groups = PART_LABELS.map((p) => ({
-    part: p,
-    defs: rows.filter((d) => d.part === p.key),
-  })).filter((g) => g.defs.length > 0);
-  const sideBtn = (id: string, word: string) => {
-    const level = spots[id];
-    return (
-      <button
-        key={id}
-        type="button"
-        onClick={() => onPick(id)}
-        aria-pressed={Boolean(level)}
-        className={`inline-flex min-h-10 items-center rounded-full px-3 text-xs font-medium transition-colors ${
-          level === '통증'
-            ? 'bg-danger-bg text-danger'
-            : level === '뻐근'
-              ? 'bg-amber-500/15 text-warn'
-              : 'bg-ink/6 text-ink/80 hover:bg-ink/10'
-        }`}
-      >
-        {word}
-        {level ? ` · ${level}` : ''}
-      </button>
-    );
-  };
+  const where = Object.keys(spots).filter((id) => {
+    const part = spotOf(id)?.def.part;
+    return spots[id] === '통증' && (part === 'shoulder' || part === 'elbow');
+  });
   return (
-    <section className="rounded-2xl bg-surface p-3" aria-label="근육 이름으로 찾기">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 text-left text-sm font-semibold text-ink"
-      >
-        <Search aria-hidden className="h-4 w-4 text-muted" />
-        이름으로 찾기
-        <span className="ml-auto text-xs font-normal text-muted">
-          {open ? '접기' : '검색 · 목록'}
-        </span>
-      </button>
-      {open && (
-        <div className="mt-3 space-y-3">
-          <input
-            type="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="예) 삼각근, 광배근, 햄스트링"
-            aria-label="근육 이름 검색"
-            className="w-full rounded-xl border border-transparent bg-ink/5 px-4 py-2.5 text-sm text-ink placeholder:text-muted/60 focus:border-sky focus:bg-surface focus:outline-none"
-          />
-          {groups.length === 0 ? (
-            <p className="text-xs text-muted">
-              맞는 이름이 없어요. 다른 말로 찾아 봐요.
-            </p>
-          ) : (
-            <div className="max-h-72 space-y-3 overflow-y-auto overscroll-contain pr-1">
-              {groups.map((g) => (
-                <div key={g.part.key} className="space-y-1.5">
-                  <p className="text-caption font-semibold text-muted">
-                    {g.part.label}
-                  </p>
-                  <ul className="space-y-1">
-                    {g.defs.map((d) => (
-                      <li key={d.key} className="flex flex-wrap items-center gap-1.5">
-                        <span className="min-w-0 flex-1 text-sm text-ink">
-                          {d.label}
-                        </span>
-                        {(['R', 'L'] as SpotSide[]).map((side) =>
-                          sideBtn(spotId(side, d.key), side === 'R' ? '오른쪽' : '왼쪽')
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function ArmDetail({
-  joint,
-  armSpots,
-  onToggle,
-  showLevel,
-  level,
-  onLevel,
-}: {
-  joint: ArmPainJoint;
-  armSpots: string[];
-  onToggle: (key: string) => void;
-  showLevel: boolean;
-  level: number | null;
-  onLevel: (l: number | null) => void;
-}) {
-  const label = joint === 'shoulder' ? '어깨' : '팔꿈치';
-  return (
-    <section
-      className="space-y-3 rounded-2xl bg-surface p-4"
-      aria-label={`${label} 통증 자세히`}
-    >
-      <div className="space-y-1.5">
-        <p className="text-sm font-semibold text-ink">{label} 어디가 아파요?</p>
-        <div className="chip-grid flex flex-wrap gap-2" data-cols="4">
-          {ARM_PAIN_SPOTS[joint].map((s) => (
+    <div className="space-y-4">
+      <div>
+        <h1 className={TITLE}>팔은 얼마나 아파요?</h1>
+        <p className="mt-1 text-sm text-muted">정도에 맞춰 암케어 안내를 바꿔요.</p>
+      </div>
+      <section className="space-y-3 rounded-2xl bg-surface p-4" aria-label="팔 통증 정도">
+        <ul className="flex flex-wrap gap-1.5" aria-label="아프다고 고른 곳">
+          {where.map((id) => (
+            <li key={id} className="rounded-full bg-danger-bg px-3 py-1.5 text-xs font-semibold text-danger">
+              {spotLabel(id)}
+            </li>
+          ))}
+        </ul>
+        <div className="chip-grid flex flex-wrap gap-2" data-cols="3">
+          {ARM_PAIN_LEVELS.map((l) => (
             <Chip
-              key={s.key}
-              pressed={armSpots.includes(s.key)}
-              onClick={() => onToggle(s.key)}
+              key={l.value}
+              pressed={armLevel === l.value}
+              onClick={() => onArmLevel(armLevel === l.value ? null : l.value)}
             >
-              {s.chip}
+              {l.label}
             </Chip>
           ))}
         </div>
-        <p className="text-caption text-muted">여러 개 골라도 돼요</p>
-      </div>
-      {showLevel && (
-        <div className="space-y-1.5">
-          <p className="text-sm font-semibold text-ink">얼마나 아파요?</p>
-          <div className="chip-grid flex flex-wrap gap-2" data-cols="3">
-            {ARM_PAIN_LEVELS.map((l) => (
-              <Chip
-                key={l.value}
-                pressed={level === l.value}
-                onClick={() => onLevel(level === l.value ? null : l.value)}
-              >
-                {l.label}
-              </Chip>
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
+      </section>
+    </div>
   );
 }
 

@@ -10,6 +10,18 @@ export async function loadJson(key: string): Promise<unknown> {
   }
 }
 
+/** Mutation recovery must distinguish an unreadable journal from a journal that is actually empty. */
+export async function tryLoadJson(
+  key: string
+): Promise<{ ok: true; value: unknown } | { ok: false }> {
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    return { ok: true, value: raw ? JSON.parse(raw) : null };
+  } catch {
+    return { ok: false };
+  }
+}
+
 export async function saveJson(key: string, value: unknown): Promise<void> {
   try {
     await AsyncStorage.setItem(key, JSON.stringify(value));
@@ -30,9 +42,14 @@ export async function trySaveJson(key: string, value: unknown): Promise<boolean>
 }
 
 /** 열쇠 앞머리가 같은 값 가운데 drop 이 고른 것을 지운다 — 다른 계정의 초안 정리 */
-export async function removeKeysWhere(prefix: string, drop: (key: string) => boolean): Promise<void> {
+export async function removeKeysWhere(
+  prefix: string,
+  drop: (key: string) => boolean
+): Promise<void> {
   try {
-    const keys = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(prefix) && drop(k));
+    const keys = (await AsyncStorage.getAllKeys()).filter(
+      (k) => k.startsWith(prefix) && drop(k)
+    );
     if (keys.length) await AsyncStorage.multiRemove(keys);
   } catch {
     /* 다음에 다시 */
@@ -68,12 +85,16 @@ export async function cacheClear(): Promise<void> {
  * - 글자 값(raw — 무게 단위 'kg' · 'lb' 처럼 따옴표 없이 둔 것) — 웹 설정 창이 고치는 곳이라 늘 웹 값을 따른다
  * 한 열쇠가 깨져도 나머지는 옮긴다.
  */
-export async function adoptWebValues(items: Record<string, string | null>, raw: readonly string[] = []): Promise<void> {
+export async function adoptWebValues(
+  items: Record<string, string | null>,
+  raw: readonly string[] = []
+): Promise<void> {
   for (const [key, value] of Object.entries(items)) {
     if (value == null) continue;
     try {
       if (raw.includes(key)) {
-        if ((await AsyncStorage.getItem(key)) !== value) await AsyncStorage.setItem(key, value);
+        if ((await AsyncStorage.getItem(key)) !== value)
+          await AsyncStorage.setItem(key, value);
         continue;
       }
       if ((await AsyncStorage.getItem(key)) != null) continue;

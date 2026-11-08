@@ -179,7 +179,7 @@ export function Bar({
       {/* 웹 위 막대의 뒤로(back-link.tsx): 화살표 그림 24 + 글 17, 하늘색 */}
       {/* back 이 없으면(커뮤니티 하단바의 ← 가 대신) 자리만 비운다 */}
       {back ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`${back}(으)로 돌아가기`} onPress={onBack ?? (() => router.back())} hitSlop={10} style={({ pressed }) => [s.side, s.backRow, !title && s.backWide, pressed && { opacity: 0.6 }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={back === '뒤로' ? '뒤로 가기' : `${back} 화면으로 돌아가기`} onPress={onBack ?? (() => router.back())} hitSlop={10} style={({ pressed }) => [s.side, s.backRow, !title && s.backWide, pressed && { opacity: 0.6 }]}>
           <Icon name="back" size={24} color={c.link} />
           <Text style={{ color: c.link, fontSize: 17, flexShrink: 1 }} numberOfLines={1}>
             {back}

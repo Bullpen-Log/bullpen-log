@@ -2,7 +2,7 @@ import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-ro
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
+  Linking,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,7 +13,7 @@ import {
 import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isCalendarDate } from '@/lib/calendar-month';
-import { sortEvents, type CalendarEventView } from '@/lib/calendar-event';
+import { sortEvents } from '@/lib/calendar-event';
 import type { RecordItem } from '@/lib/records/day-records';
 import { sleepQualityWord } from '@/lib/checkin';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -23,7 +23,7 @@ import { READABLE } from '~/lib/layout';
 import { usePrefs } from '~/lib/prefs';
 import { usePalette, withAlpha, type Palette } from '~/lib/ui';
 import { homeSnapshot } from '~/home/tab';
-import { EventForm, forgetCalendarEvent, rememberCalendarEvent } from '~/home/events';
+import { syncCalendarAlarm, useEventAlarmIssues } from '~/home/events';
 import { dayRecords } from '~/records/model';
 import { openTabAt } from '~/shell/tab-intent';
 import { Icon, type IconName } from '~/shell/icon';
@@ -32,6 +32,8 @@ import { Press } from '~/shell/press';
 import { Sheet } from '~/workout/sheets';
 import { CalendarGrid, calendarDateLabel } from './parts';
 import { invalidateCalendar, loadCalendarMonth, useCalendarMonth } from './store';
+import { CalendarEventFlow, type EventIntent, type EventRecovery } from './event-flow';
+import { EventNotice } from './event-fields';
 
 const LABEL: Record<RecordItem['kind'], string> = {
   pitch: '투구',
@@ -62,14 +64,17 @@ export default function CalendarScreen() {
   const [month, setMonth] = useState((requested ?? today).slice(0, 7));
   const [expandedEvents, setExpandedEvents] = useState(false);
   const [expandedRecords, setExpandedRecords] = useState(false);
-  const [detail, setDetail] = useState<CalendarEventView | null>(null);
+  const [intent, setIntent] = useState<EventIntent | null>(null);
+  const [recovery, setRecovery] = useState<EventRecovery>({
+    pending: false,
+    blocked: false,
+  });
+  const alarmIssues = useEventAlarmIssues();
+  const [retryAlarm, setRetryAlarm] = useState<string | null>(null);
   const [checkin, setCheckin] = useState<Extract<
     RecordItem,
     { kind: 'checkin' }
   > | null>(null);
-  const [editor, setEditor] = useState<CalendarEventView | 'new' | null>(null);
-  const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState(false);
   const state = useCalendarMonth(month);
   const pick = (date: string) => {
     setSelected(date);
@@ -102,26 +107,22 @@ export default function CalendarScreen() {
   const stale =
     (state.recordError && state.records != null) ||
     (state.eventError && state.events != null);
-  const startEditor = (event: CalendarEventView | 'new') => {
-    setDirty(false);
-    setBusy(false);
-    setDetail(null);
-    setEditor(event);
-  };
-  const closeEditor = () => {
-    if (busy) return;
-    if (!dirty) return setEditor(null);
-    Alert.alert('일정 작성을 그만둘까요?', '작성한 내용은 저장되지 않아요.', [
-      { text: '계속 작성', style: 'cancel' },
-      { text: '나가기', style: 'destructive', onPress: () => setEditor(null) },
-    ]);
-  };
-  const afterEdit = () => {
-    setEditor(null);
-    setDirty(false);
-    invalidateCalendar();
-    void reload();
-  };
+  const openEvent = (kind: EventIntent['kind'], id?: string) =>
+    setIntent({ kind, id, date: selected, serial: Date.now() });
+  const closeEvent = useCallback(() => setIntent(null), []);
+  const afterEdit = useCallback(
+    (date: string | null) => {
+      invalidateCalendar();
+      if (date) {
+        setSelected(date);
+        setMonth(date.slice(0, 7));
+        setExpandedEvents(false);
+        setExpandedRecords(false);
+      }
+      void loadCalendarMonth((date ?? selected).slice(0, 7), true);
+    },
+    [selected]
+  );
   const openRecord = (r: RecordItem) => {
     if (r.kind === 'checkin') return setCheckin(r);
     router.push(
@@ -161,7 +162,7 @@ export default function CalendarScreen() {
           <Press
             accessibilityRole="button"
             accessibilityLabel={`${calendarDateLabel(selected)} 일정 추가`}
-            onPress={() => startEditor('new')}
+            onPress={() => openEvent('new')}
             style={s.iconButton}
           >
             <Icon name="plus" size={24} color={c.link} />
@@ -185,6 +186,59 @@ export default function CalendarScreen() {
           READABLE,
         ]}
       >
+        {recovery.pending || recovery.blocked ? (
+          <View style={{ marginBottom: 12 }}>
+            <EventNotice
+              text={
+                recovery.pending
+                  ? '확인이 필요한 일정이 있어요.'
+                  : '일정 저장 확인 정보를 읽지 못했어요.'
+              }
+              action="이어서 확인"
+              onPress={() => openEvent('resume')}
+              c={c}
+            />
+          </View>
+        ) : null}
+        {alarmIssues
+          .filter((issue) => issue.event.date === selected)
+          .map((issue) => (
+            <View key={issue.event.id} style={{ marginBottom: 12 }}>
+              <EventNotice
+                text={
+                  issue.event.remindMin == null
+                    ? `‘${issue.event.title}’ 알림을 해제하지 못했어요.`
+                    : '일정은 저장했어요. 알림은 설정되지 않았어요.'
+                }
+                action={
+                  retryAlarm === issue.event.id
+                    ? '확인 중…'
+                    : issue.event.remindMin == null
+                      ? '알림 해제 다시 시도'
+                      : '알림만 다시 설정'
+                }
+                onPress={() => {
+                  if (retryAlarm) return;
+                  setRetryAlarm(issue.event.id);
+                  void syncCalendarAlarm(issue.event).finally(() =>
+                    setRetryAlarm(null)
+                  );
+                }}
+                c={c}
+              />
+              {issue.state === 'denied' ? (
+                <Press
+                  accessibilityRole="button"
+                  onPress={() => void Linking.openSettings().catch(() => undefined)}
+                  style={s.smallLink}
+                >
+                  <Text style={{ color: c.link, fontSize: 13 }}>
+                    설정에서 알림 허용
+                  </Text>
+                </Press>
+              ) : null}
+            </View>
+          ))}
         <CalendarGrid
           month={month}
           today={today}
@@ -272,7 +326,7 @@ export default function CalendarScreen() {
               <Text style={{ color: c.muted, fontSize: 15 }}>일정 없음</Text>
               <Press
                 accessibilityRole="button"
-                onPress={() => startEditor('new')}
+                onPress={() => openEvent('new')}
                 style={s.smallLink}
               >
                 <Text style={{ color: c.link, fontSize: 13, fontWeight: '600' }}>
@@ -287,7 +341,7 @@ export default function CalendarScreen() {
                   key={e.id}
                   accessibilityRole="button"
                   accessibilityLabel={`${e.time ?? '종일'}, ${e.title}${e.owner !== undefined ? `, ${e.owner}, 읽기 전용` : ''}`}
-                  onPress={() => setDetail(e)}
+                  onPress={() => openEvent('detail', e.id)}
                   style={[
                     s.event,
                     i > 0 && {
@@ -398,45 +452,6 @@ export default function CalendarScreen() {
           <Icon name="arrow-up-right" size={14} color={c.link} />
         </Press>
       </ScrollView>
-      {detail ? (
-        <Sheet
-          open
-          fit
-          title="개인 일정"
-          description={`${calendarDateLabel(detail.date)} · ${detail.time ?? '종일'}`}
-          onClose={() => setDetail(null)}
-          c={c}
-        >
-          <Text
-            style={{ color: c.ink, fontSize: 23, fontWeight: '700', marginBottom: 14 }}
-          >
-            {detail.title}
-          </Text>
-          {detail.owner !== undefined ? (
-            <Text style={{ color: c.muted, fontSize: 14, marginBottom: 12 }}>
-              {detail.owner || '다른 관리자'} · 읽기 전용
-            </Text>
-          ) : null}
-          {detail.memo ? (
-            <Text
-              style={{ color: c.ink, fontSize: 16, lineHeight: 25, marginBottom: 14 }}
-            >
-              {detail.memo}
-            </Text>
-          ) : null}
-          {detail.owner === undefined ? (
-            <Press
-              accessibilityRole="button"
-              onPress={() => startEditor(detail)}
-              style={[s.primary, { backgroundColor: c.action }]}
-            >
-              <Text style={{ color: c.onAction, fontSize: 16, fontWeight: '600' }}>
-                일정 수정
-              </Text>
-            </Press>
-          ) : null}
-        </Sheet>
-      ) : null}
       {checkin ? (
         <Sheet
           open
@@ -463,37 +478,14 @@ export default function CalendarScreen() {
           ) : null}
         </Sheet>
       ) : null}
-      {editor ? (
-        <Sheet
-          open
-          title={editor === 'new' ? '일정 추가' : '일정 수정'}
-          description={calendarDateLabel(editor === 'new' ? selected : editor.date)}
-          onClose={closeEditor}
-          c={c}
-        >
-          <EventForm
-            key={editor === 'new' ? selected : editor.id}
-            date={editor === 'new' ? selected : editor.date}
-            event={editor === 'new' ? null : editor}
-            autoFocus={false}
-            onDirtyChange={setDirty}
-            onBusyChange={setBusy}
-            onCancel={closeEditor}
-            onDone={(e) => {
-              rememberCalendarEvent(e);
-              afterEdit();
-            }}
-            onDeleted={
-              editor === 'new'
-                ? undefined
-                : () => {
-                    forgetCalendarEvent(editor.id);
-                    afterEdit();
-                  }
-            }
-          />
-        </Sheet>
-      ) : null}
+      <CalendarEventFlow
+        intent={intent}
+        today={today}
+        onClose={closeEvent}
+        onChanged={afterEdit}
+        onRecovery={setRecovery}
+        c={c}
+      />
     </View>
   );
 }

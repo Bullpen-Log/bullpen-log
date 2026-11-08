@@ -2,10 +2,10 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { AddToRoutine } from '~/armcare/add-to-routine';
-import { useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useRef, useState, useSyncExternalStore } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { Thumb } from '~/lib/thumb';
-import { ARMCARE_AREAS, ARMCARE_MUSCLES, areaOfMuscle, type ArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
+import { type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import type { ArmcareExerciseView } from '@/app/(app)/training/armcare-media';
 import type { AppArmcareItem, AppMyRoutine, AppRehabSummary } from '@/lib/armcare/today-load';
 import type { ArmPainLine } from '@/lib/armcare/coverage-load';
@@ -15,11 +15,10 @@ import { Week } from '~/armcare/done';
 import { ExerciseMedia, HowTo } from '~/armcare/parts';
 import { act, leave, offlineAs } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
-import { Fold, s } from './screen';
+import { s } from './screen';
 import { fromApp } from '~/shell/web-nav';
 import { Star } from './fav-button';
-import { Muscle3D, MuscleChips } from '~/armcare/muscle-info';
-import { AREA_DETAILS } from '@/lib/armcare/details';
+import { AreaChips } from '~/armcare/area-art';
 import { Press } from '~/shell/press';
 import { Icon } from '~/shell/icon';
 import { TYPE } from '~/lib/ui';
@@ -48,14 +47,13 @@ export const doneWith = (it: { done: boolean; exercise: { id: string } }, intent
   return i ? i === 'done' : it.done;
 };
 
-/** 운동 한 줄의 겉 — 이름 · 처방 · 근육 · 강도 · 미리보기 · [별](fav 를 넘긴 곳), '자세 · 영상'을 누르면 영상과 설명 */
+/** 운동 한 줄의 겉 — 이름 · 처방 · 부위 · 강도 · 미리보기 · [별](fav 를 넘긴 곳), '자세 · 영상'을 누르면 영상과 설명 */
 export function ExerciseRow({
   ex,
   note,
   warning,
   check,
   fav,
-  highlight,
   compact = false,
   c,
 }: {
@@ -67,8 +65,6 @@ export function ExerciseRow({
   check?: { done: boolean; disabled: boolean; onToggle: () => void };
   /** 서버가 준 즐겨찾기 값 — 넘기면 미리보기 옆에 별(부위별 보강 · 즐겨찾기 모음) */
   fav?: boolean;
-  /** 부위별 보강 — 그 부위의 근육 칩을 강조(웹 GuideExercise highlight) */
-  highlight?: string[];
   c: Palette;
 }) {
   const [open, setOpen] = useState(false);
@@ -97,7 +93,7 @@ export function ExerciseRow({
           </Text>
           {ex.prescription ? <Text style={[TYPE.buttonCompact, { color: c.ink }]}>{ex.prescription}</Text> : null}
           {warning ? <Text style={[TYPE.body, { color: c.warn }]}>{warning}</Text> : null}
-          {!compact && ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={2} highlight={highlight} c={c} /> : null}
+          {!compact ? <AreaChips muscles={ex.targetMuscles} c={c} /> : null}
           {!compact ? <Text style={[s.tiny, { color: c.muted }]}>{meta}</Text> : null}
           {/* 부위별 보강에서만(루틴 목록을 넘긴 곳) — 웹 AddToRoutine 처럼 운동 줄 안 [담기] */}
           <AddToRoutine exerciseId={ex.id} title={ex.title} c={c} />
@@ -120,7 +116,7 @@ export function ExerciseRow({
         <View style={{ gap: 10, paddingHorizontal: 12, paddingBottom: 12 }}>
           {compact ? (
             <>
-              {ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={3} highlight={highlight} c={c} /> : null}
+              <AreaChips muscles={ex.targetMuscles} c={c} />
               <Text style={[s.tiny, { color: c.muted }]}>{meta}</Text>
             </>
           ) : null}
@@ -411,153 +407,7 @@ export function PainNote({ pain, onArea, c }: { pain: ArmPainLine; onArea: (key:
   );
 }
 
-/** 그 부위에 드는 운동 — 주로 키우는 것 먼저, 함께 쓰는 것 뒤에(웹 exercisesFor) */
-function exercisesFor(area: ArmcareArea, exercises: ArmcareExerciseView[]) {
-  const primary: ArmcareExerciseView[] = [];
-  const secondary: ArmcareExerciseView[] = [];
-  for (const ex of exercises) {
-    const areas = ex.targetMuscles.map((m) => areaOfMuscle(m)?.key);
-    if (areas[0] === area.key) primary.push(ex);
-    else if (areas.includes(area.key)) secondary.push(ex);
-  }
-  return { primary, secondary };
-}
-
-/** 부위 카드 — 접힌 머리(이름 · 운동 수), 펼치면 흔한 부상 · 근육 · '자세히'(부상 설명 · 알아 두기 · 근육이 하는 일) · 운동 */
-export function AreaCard({
-  area,
-  exercises,
-  open,
-  onToggle,
-  onLayout,
-  favIds,
-  c,
-}: {
-  area: ArmcareArea;
-  exercises: ArmcareExerciseView[];
-  /** 즐겨찾기한 운동 — 넘기면 운동 줄에 별(옛 서버면 없음) */
-  favIds?: readonly string[];
-  open: boolean;
-  onToggle: () => void;
-  onLayout: (e: LayoutChangeEvent) => void;
-  c: Palette;
-}) {
-  const { primary, secondary } = exercisesFor(area, exercises);
-  const muscles = ARMCARE_MUSCLES.filter((m) => m.area === area.key);
-  const count = primary.length + secondary.length;
-  return (
-    <View
-      onLayout={onLayout}
-      style={[st.routine, { backgroundColor: c.card, boxShadow: c.float, borderColor: open ? c.sky + '66' : c.line }]}
-    >
-      <Press onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.routineHead}>
-        <Text style={[s.bodyBold, { color: c.ink, flex: 1 }]}>
-          {area.label} <Text style={[s.small, { color: c.muted, fontWeight: '400' }]}>운동 {count}개</Text>
-        </Text>
-        <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-      </Press>
-      {open ? (
-        <View style={{ gap: 12, paddingTop: 4 }}>
-          <View style={s.wrap}>
-            {area.injuries.map((i) => (
-              <Text key={i.name} style={[s.smallBold, s.tag, { color: c.warn, backgroundColor: c.warnBg }]}>
-                {i.name}
-              </Text>
-            ))}
-          </View>
-          {/* 근육 — 누르면 그 근육 설명(웹 InfoButton muscle) */}
-          <MuscleChips muscles={muscles.map((m) => m.name)} highlight={muscles.map((m) => m.name)} c={c} />
-          {/* 부위 자세히 — 웹 armcare-info-body AreaInfo 의 차례 · 글(lib/armcare/details AREA_DETAILS) */}
-          <Fold label={`${area.label} 자세히 보기`} c={c}>
-            <Muscle3D area={area.key} c={c} />
-            {AREA_DETAILS[area.key] ? (
-              <>
-                <AreaSection title="던질 때 하는 일" c={c}>
-                  <Text style={[st.areaBody, { color: c.ink }]}>{AREA_DETAILS[area.key].role}</Text>
-                </AreaSection>
-                <AreaSection title="왜 챙겨야 하나요" c={c}>
-                  <Text style={[st.areaBody, { color: c.ink }]}>{AREA_DETAILS[area.key].why}</Text>
-                </AreaSection>
-              </>
-            ) : null}
-            <AreaSection title="흔한 부상" c={c}>
-              {area.injuries.map((i) => (
-                <View key={i.name} style={{ gap: 2 }}>
-                  <Text style={[s.smallBold, { color: c.warn }]}>{i.name}</Text>
-                  <Text style={[s.small, { color: c.ink, opacity: 0.75 }]}>{i.desc}</Text>
-                </View>
-              ))}
-            </AreaSection>
-            <AreaSection title="이 부위의 근육" c={c}>
-              {muscles.map((m) => (
-                <Text key={m.name} style={[s.small, { color: c.ink }]}>
-                  <Text style={{ fontWeight: '700', color: c.link }}>{m.name}</Text> {m.does}
-                </Text>
-              ))}
-            </AreaSection>
-            {area.notes.length ? (
-              <AreaSection title="알아 두기" c={c}>
-                {area.notes.map((n) => (
-                  <Text key={n} style={[s.small, { color: c.ink }]}>
-                    · {n}
-                  </Text>
-                ))}
-              </AreaSection>
-            ) : null}
-            {AREA_DETAILS[area.key] ? (
-              <>
-                <AreaSection title="불편함이 있으면 확인하세요" c={c}>
-                  {AREA_DETAILS[area.key].signs.map((sign) => (
-                    <Text key={sign} style={[s.small, { color: c.ink }]}>
-                      · {sign}
-                    </Text>
-                  ))}
-                </AreaSection>
-                <AreaSection title="이렇게 키워요" c={c}>
-                  <Text style={[st.areaBody, { color: c.ink }]}>{AREA_DETAILS[area.key].train}</Text>
-                </AreaSection>
-              </>
-            ) : null}
-            <Text style={[s.tiny, { color: c.muted }]}>운동이 부상을 막아 준다는 보장은 없어요. 통증이 이어지면 쉬고 진료를 받으세요.</Text>
-          </Fold>
-          <Text style={[s.smallBold, { color: c.muted }]}>운동</Text>
-          {count === 0 ? (
-            <Text style={[s.small, { color: c.muted }]}>이 부위를 키우는 운동이 아직 없어요.</Text>
-          ) : (
-            [...primary, ...secondary].map((ex) => (
-              <ExerciseRow
-                key={ex.id}
-                ex={ex}
-                note={secondary.includes(ex) ? '함께 쓰는 운동' : null}
-                fav={favIds ? favIds.includes(ex.id) : undefined}
-                highlight={muscles.map((m) => m.name)}
-                c={c}
-              />
-            ))
-          )}
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-function AreaSection({ title, children, c }: { title: string; children: ReactNode; c: Palette }) {
-  return (
-    <View style={{ gap: 6 }}>
-      <Text style={[s.smallBold, { color: c.ink }]}>{title}</Text>
-      {children}
-    </View>
-  );
-}
-
-/** 어깨 · 팔꿈치 차례의 부위들 */
-export const AREAS_BY_JOINT = (['어깨', '팔꿈치'] as const).map((joint) => ({
-  joint,
-  areas: ARMCARE_AREAS.filter((a) => a.joint === joint),
-}));
-
 const st = StyleSheet.create({
-  areaBody: { fontSize: 15, lineHeight: 21 },
   row: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   rowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingHorizontal: 12, paddingVertical: 12 },
   checkHit: { width: 32, height: 44, marginTop: -8, marginLeft: -4, alignItems: 'center', justifyContent: 'center' },

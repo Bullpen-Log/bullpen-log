@@ -1,3 +1,4 @@
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
@@ -66,6 +67,7 @@ const KIND_NOTE: Record<VariantKind, string> = {
 
 export default function ProgramStartScreen() {
   const c = usePalette();
+  const inset = useSafeAreaInsets();
   const { id, perWeek: pwParam } = useLocalSearchParams<{ id: string; perWeek?: string }>();
   const { data, failed: todayFailed, reload } = useTrainingToday();
   const choice = programChoiceList().find((p) => p.id === id) ?? null;
@@ -273,7 +275,7 @@ export default function ProgramStartScreen() {
 
   if (!choice || !def) {
     return (
-      <View style={{ flex: 1, backgroundColor: c.page }}>
+      <View style={{ flex: 1, paddingTop: inset.top, backgroundColor: c.page }}>
         <FlowBar title="시작 준비" onBack={() => router.back()} />
         <Text style={[st.body, { color: c.muted, padding: 24 }]}>지금은 시작할 수 없는 프로그램이에요.</Text>
       </View>
@@ -281,7 +283,7 @@ export default function ProgramStartScreen() {
   }
   if (!draft) {
     return (
-      <View style={{ flex: 1, backgroundColor: c.page }}>
+      <View style={{ flex: 1, paddingTop: inset.top, backgroundColor: c.page }}>
         <FlowBar title="시작 준비" onBack={() => router.back()} />
         <View style={{ padding: 24, alignItems: 'center', gap: 12 }}>
           {todayFailed ? (
@@ -386,7 +388,7 @@ export default function ProgramStartScreen() {
   const title = step === 'prepare' ? '시작 준비' : step === 'compose' ? '운동 구성 확인' : step === 'review' ? '최종 확인' : '프로그램 시작';
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.page }}>
+    <View style={{ flex: 1, paddingTop: inset.top, backgroundColor: c.page }}>
       <FlowBar title={title} onBack={back} backDisabled={phase === 'checking'} />
       <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: 24 }, READABLE]}>
         {step !== 'result' ? (

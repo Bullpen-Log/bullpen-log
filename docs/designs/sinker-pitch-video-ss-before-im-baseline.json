@@ -1,0 +1,72 @@
+{
+  "task": "sinker-immersive-2026-11-03-im01-im12",
+  "head": "a7bbda63415bb9e9cae43a0184557211dce63911",
+  "scope": "SS source snapshot after main handoff and before sub1 production integration; not device verification",
+  "snapshot_directory": "/tmp/sinker-supervision-2026-11-03/ss-before-im",
+  "files": [
+    {
+      "path": "native/src/compare/fit.ts",
+      "sha256": "92722c46a45068d8c7d88ed596547f35b72f369772c78bfb932364bd49024398"
+    },
+    {
+      "path": "native/src/compare/note-drafts.ts",
+      "sha256": "573de165d9c82607536dbbad18bcfdb61398de8f8316edd4d2a8e0bfaf2b642f"
+    },
+    {
+      "path": "native/src/compare/ui/tool-bar.tsx",
+      "sha256": "4bff0fc58f5b960c3dc6c3d925b2aa77ebd1fae996c628e4f767708a865bcd77"
+    },
+    {
+      "path": "native/src/compare/ui/side-playback.ts",
+      "sha256": "aefc0f77ad6b1d1727c7e462c9ca1ad2ef338e71334dac644aa320e3fd72afed"
+    },
+    {
+      "path": "native/src/compare/ui/workbench.tsx",
+      "sha256": "b570d4ec1b9854a8f4c1050a9710b379fc4288357fd6e1ca4c8852146a336c59"
+    },
+    {
+      "path": "native/src/compare/ui/workspace-parts.tsx",
+      "sha256": "0b38d52420f18a4761b19888bcc91734366806134571a88b84a689cafc6350cf"
+    },
+    {
+      "path": "native/src/compare/ui/note-editor.tsx",
+      "sha256": "012ac1343c25d464693fb673cfa082c3926056d55dd78068ec3390130cbba5b1"
+    },
+    {
+      "path": "native/src/compare/ui/transport-hook.ts",
+      "sha256": "87b72070ab5581f3836e1d63ed541bc8732908f0003ce0e2a553c68d6cb76370"
+    },
+    {
+      "path": "native/src/compare/ui/panels.tsx",
+      "sha256": "65bff0aa4a82b0cc47db19afcc19ca4e25ec1f431780a1c4ea2b6ab2d9f03151"
+    },
+    {
+      "path": "native/src/compare/ui/pane.tsx",
+      "sha256": "76ab9b5aad08075a46d94239295051b7ade7ef5893b8d05a71fbea957b6dea3c"
+    },
+    {
+      "path": "native/src/compare/ui/compare-picker.tsx",
+      "sha256": "ab1694282f82aa63541cc3425cfb10a0429237264068d692fe4c4df03057e52c"
+    },
+    {
+      "path": "native/src/compare/store.ts",
+      "sha256": "b0af71d9dc844a82697f8fc2755c2021b2dfc571aa23f91f20903b802b7ac2ac"
+    },
+    {
+      "path": "native/src/compare/timing.ts",
+      "sha256": "ab7d27829da9dcd1aa94f4e79afa68c3fd9b7bc5ce56f4838e2fe2978505bd84"
+    },
+    {
+      "path": "native/src/compare/workspace-context.ts",
+      "sha256": "dae9f75d7b5d1f2f5d4ea9a94541ae8ff9b047a68d44b85bd868da12114d7454"
+    },
+    {
+      "path": "scripts/native-compare-regress-ui.mts",
+      "sha256": "d4b5e24473c779f32bc2673d5226c1ab3464d838c474b2b5599c52d6114af6e3"
+    },
+    {
+      "path": "scripts/native-compare-screen-test.mts",
+      "sha256": "d830ac0ab4dd04eab63f852c5453520e6be1a88f3164f6c68e60ae8c6a710e18"
+    }
+  ]
+}

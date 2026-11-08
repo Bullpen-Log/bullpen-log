@@ -1,10 +1,10 @@
 import * as Haptics from 'expo-haptics';
-import { type Href, router } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INQUIRY_BODY_MAX, INQUIRY_CATEGORIES, INQUIRY_TITLE_MAX, type InquiryCategory } from '@/lib/support';
-import { Bar, BarButton, call, Chip, s, useBusy } from '~/community/parts';
+import { Bar, call, Chip, s, useBusy } from '~/community/parts';
 import { useDraftGuard } from '~/community/draft-guard';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
@@ -17,8 +17,9 @@ import { Press } from '~/shell/press';
 export default function NewInquiryScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  const [category, setCategory] = useState<InquiryCategory | null>(null);
-  const [title, setTitle] = useState('');
+  const coach = useLocalSearchParams<{ topic?: string }>().topic === 'coach';
+  const [category, setCategory] = useState<InquiryCategory | null>(coach ? 'other' : null);
+  const [title, setTitle] = useState(coach ? '코치 이용 문의' : '');
   const [body, setBody] = useState('');
   const send = useBusy();
   const allowLeave = useDraftGuard(!!(title.trim() || body.trim()));
@@ -37,7 +38,7 @@ export default function NewInquiryScreen() {
 
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="고객센터" title="문의하기" right={<BarButton label="보내기" onPress={submit} disabled={send.busy} c={c} />} c={c} />
+      <Bar back="고객센터" title="문의하기" c={c} />
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
         <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>운영자가 확인하고 답해 드려요. 답이 오면 문의 화면에 이어서 보여요.</Text>
         <Text style={[s.label, { color: c.muted }]}>어떤 문의인가요?</Text>

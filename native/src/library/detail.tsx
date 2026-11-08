@@ -2,7 +2,9 @@ import { InstructionText } from '~/shell/instruction-text';
 import { Icon } from '~/shell/icon';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { formatPrescription } from '@/lib/exercise-meta';
+import { bodyGroups, formatPrescription } from '@/lib/exercise-meta';
+import { areasOf } from '@/lib/armcare/anatomy';
+import { router, type Href } from 'expo-router';
 import { rpc } from '~/lib/rpc';
 import type { Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
@@ -10,7 +12,7 @@ import { ExerciseVideo, NoteBox } from '~/workout/parts';
 import { Thumb } from '~/lib/thumb';
 import { Segmented } from '~/shell/heading';
 import { shortCategory } from './browse';
-import { MuscleChips } from '~/armcare/muscle-info';
+import { AreaArt } from '~/armcare/area-art';
 import { HistoryPanel } from '~/training/history';
 import { s } from '~/training/screen';
 import { Press } from '~/shell/press';
@@ -30,7 +32,7 @@ export type DetailEntry = {
 
 /**
  * 운동 영상 상세 본문(2026-10-31 시안 02) — 이름 · 분류/장비 → 영상(누르기 전에는 미리보기만) → [운동 방법 | 내 기록].
- * 운동 방법: 기본 수행량(또는 오늘 구성) → 설명(열 때 받음) → 주요 근육(기존 3D 설명) → 내 메모 → 운동 정보.
+ * 운동 방법: 기본 수행량(또는 오늘 구성) → 설명(열 때 받음) → 쓰는 부위(체크인과 같은 그림 카드, 누르면 그 부위 암케어) → 내 메모 → 운동 정보.
  * 내 기록은 탭을 처음 열 때 받는다. 영상은 탭 위에 있어 탭 · 별 · 메모가 바뀌어도 재생기가 그대로다.
  */
 export function ExerciseDetail({ item, entry, c }: { item: Exercise; entry: DetailEntry; c: Palette }) {
@@ -40,7 +42,8 @@ export function ExerciseDetail({ item, entry, c }: { item: Exercise; entry: Deta
   const [historyOpened, setHistoryOpened] = useState(false);
   const meta = [shortCategory(item.category), ...item.equipment].join(' · ');
   const base = formatPrescription(item);
-  const extra = [...item.bodyParts, item.intensity, ...(item.difficulty ? [item.difficulty] : []), ...item.equipment];
+  /* 부위는 큰 부위(어깨 · 팔꿈치 · 몸통 · 하체 · 전신)로 묶어 보인다 — 저장 값은 그대로(lib/exercise-meta bodyGroups) */
+  const extra = [...bodyGroups(item.bodyParts), item.intensity, ...(item.difficulty ? [item.difficulty] : []), ...item.equipment];
   return (
     <View style={{ gap: 16 }}>
       <View style={{ gap: 4 }}>
@@ -71,7 +74,7 @@ export function ExerciseDetail({ item, entry, c }: { item: Exercise; entry: Deta
                 {entry.builder.name} · {entry.builder.from === 'edit' ? `지금 ${entry.builder.sets}세트로 담음` : `담으면 기본 ${entry.builder.sets}세트`}
               </Text>
               <Text style={[s.bodyBold, { color: c.ink }]}>{base?.replace(/^\d+세트 × /, '') ?? '정해 둔 수행 안내가 없어요'}</Text>
-              <Text style={[s.small, { color: c.muted }]}>세트당 기본 수행 안내 · 보기만 해서는 루틴이 바뀌지 않아요</Text>
+              <Text style={[s.small, { color: c.muted }]}>세트당 수행량</Text>
             </>
           ) : entry.routine ? (
             <>
@@ -97,12 +100,7 @@ export function ExerciseDetail({ item, entry, c }: { item: Exercise; entry: Deta
           )}
         </View>
         <Description id={item.id} c={c} />
-        {item.targetMuscles.length > 0 ? (
-          <View style={{ gap: 8 }}>
-            <Text style={[s.smallBold, { color: c.muted }]}>주요 근육 · 누르면 위치와 설명</Text>
-            <MuscleChips muscles={item.targetMuscles} c={c} />
-          </View>
-        ) : null}
+        <UsedAreas muscles={item.targetMuscles} c={c} />
         {/* 내 메모 — 운동마다 하나, 운동 진행 화면과 같은 상자 · 같은 값(~/library/sync) */}
         <NoteBox exerciseId={item.id} note={item.note} c={c} />
         {extra.length > 0 ? (
@@ -117,6 +115,31 @@ export function ExerciseDetail({ item, entry, c }: { item: Exercise; entry: Deta
           <HistoryPanel exerciseId={item.id} excludeSessionId={entry.sessionId ?? undefined} unit={unit} c={c} hideNote recentFirst />
         </View>
       ) : null}
+    </View>
+  );
+}
+
+/** 쓰는 부위 — 근육 이름 · 3D 대신 체크인과 같은 자리 그림 카드(2026-11-06 김민: 큰 부위로 단순화). 누르면 그 부위 암케어 화면 */
+function UsedAreas({ muscles, c }: { muscles: readonly string[]; c: Palette }) {
+  const areas = areasOf(muscles);
+  if (!areas.length) return null;
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={[s.smallBold, { color: c.muted }]}>쓰는 부위</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        {areas.map((a) => (
+          <Press
+            key={a.key}
+            accessibilityRole="button"
+            accessibilityLabel={`${a.label}, 이 부위 암케어 보기`}
+            onPress={() => router.push(`/training/armcare-area?area=${a.key}` as Href)}
+            style={{ width: 96, gap: 6 }}
+          >
+            <AreaArt area={a.key} size={96} />
+            <Text style={[s.small, { color: c.ink, textAlign: 'center' }]}>{a.label}</Text>
+          </Press>
+        ))}
+      </View>
     </View>
   );
 }

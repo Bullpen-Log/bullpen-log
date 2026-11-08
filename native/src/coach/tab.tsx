@@ -1,3 +1,4 @@
+import { CoachAccessActions } from './access-actions';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,7 +8,7 @@ import type { WeekReview } from '@/lib/coach/review';
 import { startsOf, type SlotState } from '@/lib/coach/status';
 import type { DaySlot } from '@/lib/coach/week';
 import { COACH_POINTS } from '@/lib/coach-intro';
-import { loadMe } from '~/pitch/api';
+import { loadMe, resetMe } from '~/pitch/api';
 import { READABLE_WIDE } from '~/lib/layout';
 import { rpc } from '~/lib/rpc';
 import { SPACE, SURFACE, TYPE, usePalette, useTheme, type Palette } from '~/lib/ui';
@@ -22,10 +23,10 @@ import { openCheckin } from '~/shell/web-nav';
 import { AdjustBar } from './adjust';
 
 /**
- * 코치 소개(2026-11-01, docs/designs/ai-coach.md U13) — 유료가 아닌 사람이 코치 탭 · 분석 화면을 열면. 결제 안내 · 밖 링크는 두지 않는다(애플 심사).
+ * 코치 소개 — 2026-11-04 사용자 결정: 관리자 승인 유지, 앱 안 이용 문의와 권한 재확인 제공.
  * 웹 app/(app)/coach/coach-intro.tsx 와 같은 글(lib/coach-intro.ts).
  */
-export function CoachIntro() {
+export function CoachIntro({ onGranted }: { onGranted?: () => void }) {
   const c = usePalette();
   return (
     <View style={[SURFACE.card, { backgroundColor: c.card, boxShadow: c.floatHero }]}>
@@ -37,7 +38,7 @@ export function CoachIntro() {
           <View key={p} style={st.introPoint}><Icon name="circle-check" size={17} color={c.link} /><Text style={[TYPE.body, { color: c.ink, flex: 1 }]}>{p}</Text></View>
         ))}
       </View>
-      <Text style={[TYPE.sub, { color: c.muted }]}>유료 요금제 전용이에요.</Text>
+      <CoachAccessActions onGranted={onGranted} />
     </View>
   );
 }
@@ -71,6 +72,7 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
   const weekRequest = useRef(0);
   const checkAccess = useCallback(() => {
     const request = ++accessRequest.current;
+    resetMe();
     loadMe().then(
       (me) => {
         if (request !== accessRequest.current) return;
@@ -93,6 +95,7 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
       (next) => {
         if (request !== weekRequest.current) return;
         setData(next);
+        setWeekError(false);
         const today = next.week?.findIndex((s) => s.date === next.today) ?? -1;
         if (today >= 0) setSelectedDay(today);
         setWeekLoading(false);
@@ -107,7 +110,7 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
   useEffect(() => {
     if (access === 'paid') loadWeek();
   }, [access, loadWeek]);
-  useFocusRefresh(() => access === 'paid' && loadWeek());
+  useFocusRefresh(() => { if (access === 'paid') loadWeek(); else if (access === 'free') checkAccess(); });
   const retryAccess = () => { setAccess('loading'); checkAccess(); };
   const retryWeek = () => { setWeekLoading(true); setWeekError(false); loadWeek(); };
   const week = data?.week ?? null;
@@ -122,7 +125,7 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
       ref={scroll}
       style={{ flex: 1, backgroundColor: c.page }}
       contentContainerStyle={[
-        { paddingTop: inset.top + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap },
+        { paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap },
         READABLE_WIDE,
       ]}
     >
@@ -136,7 +139,7 @@ export function CoachMainTab({ bottom }: { bottom: number }) {
       </PageHead>
       {access === 'loading' || (access === 'paid' && weekLoading && !data) ? <ActivityIndicator color={c.action} style={st.loading} /> : null}
       {access === 'error' ? <ErrorState title="코치 이용 상태를 확인하지 못했어요" detail="네트워크를 확인하고 다시 시도해 주세요." onRetry={retryAccess} c={c} /> : null}
-      {access === 'free' ? <CoachIntro /> : null}
+      {access === 'free' ? <CoachIntro onGranted={retryAccess} /> : null}
       {access === 'paid' && weekError ? (
         <ErrorState title={data ? '새 계획을 확인하지 못했어요' : '이번 주 계획을 불러오지 못했어요'} detail={data ? '마지막으로 불러온 계획이 보여요.' : '다시 불러오면 이어서 볼 수 있어요.'} onRetry={retryWeek} c={c} />
       ) : null}

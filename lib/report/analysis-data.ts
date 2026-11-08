@@ -14,6 +14,7 @@ import { loadTodayCore } from '@/lib/report/today-data';
 import { trainingSummaries } from '@/lib/report/training-history';
 import { analysisOverviewOf, type AnalysisOverview } from '@/lib/report/analysis-overview';
 import { ANALYSIS_METRICS, daysOf, trendValues, type MetricKey } from '@/lib/report/trends';
+import { analysisWindow } from '@/lib/report/analysis-range';
 
 /**
  * 분석 화면(투구 분석 · 트레이닝 분석)의 카드 재료 — 웹(app/(app)/today/analysis-view.tsx)과 아이폰 앱(app/actions/app-analysis.ts →
@@ -96,6 +97,11 @@ export async function loadAnalysisCards(
       : null,
   ]);
 
+  // 70일 밖의 기록도 '기록 없음'으로 표시하지 않는다. 평소에는 추가 조회가 없다.
+  const hasRecords = logs.length > 0 || best != null || (await prisma.pitchLog.findFirst({
+    where: { userId: user.id, date: { lte: dbDay(date) } },
+    select: { id: true },
+  })) != null;
   const overview = analysisOverviewOf({
     bestVelocity:
       best?.maxVelocity != null ? { value: best.maxVelocity, date: toDateKey(best.date) } : null,
@@ -112,7 +118,7 @@ export async function loadAnalysisCards(
     training,
     user,
     today: asOf,
-    totalRecords: logs.length,
+    totalRecords: hasRecords ? 1 : 0,
   });
 
   return {
@@ -127,17 +133,12 @@ export async function loadAnalysisCards(
   };
 }
 
-/**
- * 그래프가 읽는 기간 — 12주 + 견줄 앞 12주. 앱은 4주 · 12주만 고른다(웹의 '기간 설정'은 아직 없다), 그 둘의 앞 기간까지 덮는다.
- */
-const SERIES_DAYS = 168;
-
 /** 앱 분석 화면 한 장 — 카드 + 그래프 재료 */
 export type AppAnalysis = AnalysisCards & {
   view: AnalysisKind;
   date: string;
   today: string;
-  /** 그래프 재료 — 지표마다 날짜 → 값(값이 있는 날만, 웹 HomeTrends 와 같은 trendValues). from 부터 오늘까지 */
+  /** 그래프 재료 — from부터 분석 기준일(date)까지. 기존 응답 모양은 유지한다. */
   series: { from: string; values: Partial<Record<MetricKey, Record<string, number>>> };
 };
 
@@ -147,12 +148,12 @@ export async function loadAppAnalysisData(
   date: string,
   today: string
 ): Promise<AppAnalysis> {
-  const from = shiftDateKey(today, -(SERIES_DAYS - 1));
+  const { from, to } = analysisWindow(date);
   const [cards, logs, trainingByDay] = await Promise.all([
     loadAnalysisCards(user, date, today, view),
     view === 'pitch'
       ? prisma.pitchLog.findMany({
-          where: { userId: user.id, date: { gte: dbDay(from) } },
+          where: { userId: user.id, date: { gte: dbDay(from), lte: dbDay(to) } },
           select: { date: true, pitchCount: true, maxVelocity: true },
         })
       : [],
@@ -167,7 +168,7 @@ export async function loadAppAnalysisData(
   const values: AppAnalysis['series']['values'] = {};
   for (const key of ANALYSIS_METRICS[view]) {
     const byDay: Record<string, number> = {};
-    for (const day of daysOf({ from, to: today })) {
+    for (const day of daysOf({ from, to })) {
       const v = valueOf(key, day);
       if (v != null) byDay[day] = v;
     }

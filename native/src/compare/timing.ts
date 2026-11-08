@@ -215,6 +215,11 @@ export function normalizedOfA(m: NormalizedMap, ta: number): number {
   return n - 1;
 }
 
+/** B 의 재생 시각 → 정규화 축 u(B 를 따로 옮긴 뒤 함께로 돌아올 때 — SS06). 구간 밖은 끝으로 묶는다 */
+export function normalizedOfB(m: NormalizedMap, tb: number): number {
+  return normalizedOfA({ a: m.b, b: m.a }, tb);
+}
+
 /** 구간마다 B 재생 속도 ÷ A 재생 속도(B 를 A 에 맞추려면 B 를 이만큼 빠르게) — 화면의 '늘임 ×1.3' 알림 */
 export function phaseStretch(m: NormalizedMap): number[] {
   const out: number[] = [];

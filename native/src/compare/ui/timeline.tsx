@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { type AccessibilityActionEvent, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { clusterMarkers, fracOf, handleAt, nearestMarker, timeAt } from '~/compare/workspace-layout';
-import { usePalette, withAlpha } from '~/lib/ui';
+import { withAlpha } from '~/lib/ui';
+import { useComparePalette } from '~/compare/ui/compare-palette';
 
 /**
  * 영상 비교 공통 타임라인(UI04) — 무대 바로 밑에 늘 있다. 끄는 것은 화면 굴리기가 아니라 장면 옮기기다.
@@ -56,7 +57,7 @@ export function Timeline({
   onHandle?: (edge: 'start' | 'end', t: number) => void;
   onHandleSelect?: (edge: 'start' | 'end') => void;
 }) {
-  const c = usePalette();
+  const c = useComparePalette();
   const [w, setW] = useState(0);
   const [drag, setDrag] = useState<number | null>(null);
   /* 끄는 한 번의 상태 — 그림에 안 쓰여 화면 상태가 아니라 닫힌 값(useState 로 한 번 만든다) */
