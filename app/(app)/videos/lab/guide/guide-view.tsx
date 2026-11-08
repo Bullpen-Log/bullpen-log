@@ -6,6 +6,7 @@ import {
   LAB_FAIL_FIX,
   LAB_GUIDE_CAMERA,
   LAB_GUIDE_CAMERA_NOTE,
+  LAB_GUIDE_CLOTHES,
   LAB_GUIDE_FRAME,
   LAB_GUIDE_MOVE,
   LAB_GUIDE_MOVE_NOTES,
@@ -14,7 +15,7 @@ import {
   type LabGuideSection,
 } from '@/lib/pitch-lab-guide';
 import { forHand, type LabHand } from '@/lib/pitch-lab-meta';
-import { FramingArt, PlacementArt } from './guide-art';
+import { ClothesArt, FramingArt, PlacementArt } from './guide-art';
 import { GuideChecklist } from './guide-checklist';
 import { GuideJump } from './guide-jump';
 import { GuideShots } from './guide-shots';
@@ -44,6 +45,14 @@ export function LabGuideView({ hand }: { hand: LabHand }) {
       </Section>
 
       <Section id="shoot" icon={<Film />}>
+        <div className="space-y-3 rounded-xl bg-warn-bg p-3">
+          <p className="flex items-center gap-1.5 text-base font-bold text-warn">
+            <TriangleAlert aria-hidden className="h-5 w-5" />
+            {LAB_GUIDE_CLOTHES.title}
+          </p>
+          <ClothesArt />
+          <p className="text-sm leading-relaxed break-keep text-ink">{LAB_GUIDE_CLOTHES.text}</p>
+        </div>
         <Points items={LAB_GUIDE_SHOOT} />
       </Section>
 

@@ -10,6 +10,8 @@ import {
   LAB_FAIL_FIX,
   LAB_GUIDE_CAMERA,
   LAB_GUIDE_CAMERA_NOTE,
+  LAB_GUIDE_CLOTHES,
+  LAB_CLOTHES_ART,
   LAB_GUIDE_CHECKS,
   LAB_GUIDE_FLOW as FLOW,
   LAB_GUIDE_FRAME,
@@ -82,7 +84,16 @@ export default function LabGuideScreen() {
           </>
         );
       case 'shoot':
-        return <Points items={LAB_GUIDE_SHOOT} c={c} />;
+        return (
+          <>
+            <View style={{ gap: 12, borderRadius: 14, padding: 12, backgroundColor: c.warnBg }}>
+              <Text style={{ color: c.warn, fontSize: 18, fontWeight: '800' }}>⚠︎ {LAB_GUIDE_CLOTHES.title}</Text>
+              <ClothesArt c={c} />
+              <Text style={{ color: c.ink, fontSize: 15, lineHeight: 22 }}>{LAB_GUIDE_CLOTHES.text}</Text>
+            </View>
+            <Points items={LAB_GUIDE_SHOOT} c={c} />
+          </>
+        );
       case 'move':
         return (
           <>
@@ -345,6 +356,38 @@ function FramingArt({ c }: { c: Palette }) {
           <Text style={{ color: k.ok ? c.ok : c.danger, fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
             {k.ok ? '✓ ' : '! '}
             {k.label}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** 헐렁한 옷 — 몸에 붙는 옷(관절 점 제자리) vs 헐렁한 옷(점이 옷 가장자리로 밀림). 좌표는 lib/pitch-lab-guide.ts LAB_CLOTHES_ART(웹 ClothesArt 와 같다) */
+function ClothesArt({ c }: { c: Palette }) {
+  const A = LAB_CLOTHES_ART;
+  return (
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      {[true, false].map((ok) => (
+        <View key={String(ok)} style={{ flex: 1, gap: 6 }}>
+          <View style={{ width: '100%', aspectRatio: 160 / 150, borderRadius: 12, overflow: 'hidden', backgroundColor: c.card }}>
+            <Svg viewBox={A.viewBox} width="100%" height="100%">
+              {ok ? (
+                <Path d={A.bones} stroke={c.sky} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              ) : (
+                <>
+                  <Path d={A.pants} fill={c.muted} opacity={0.75} />
+                  <Path d={A.hoodie} fill={c.sky} opacity={0.85} />
+                </>
+              )}
+              <Circle cx={A.head.cx} cy={A.head.cy} r={A.head.r} fill={c.line} />
+              {(ok ? A.joints : A.slipped).map(([x, y]) => (
+                <Circle key={`${x}-${y}`} cx={x} cy={y} r={3.2} fill={ok ? c.ok : c.danger} stroke={c.card} strokeWidth={1.2} />
+              ))}
+            </Svg>
+          </View>
+          <Text style={{ color: ok ? c.ok : c.danger, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
+            {ok ? `✓ ${LAB_GUIDE_CLOTHES.ok}` : `✕ ${LAB_GUIDE_CLOTHES.bad}`}
           </Text>
         </View>
       ))}
