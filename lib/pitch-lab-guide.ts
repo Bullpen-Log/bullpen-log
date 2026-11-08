@@ -16,7 +16,7 @@ import type { V2FailCode } from '@/lib/pitch-3d/v2/contract';
  *   - 옆 폰은 가로(내딛기 1.5~2m 가 화면 옆으로 간다), 투수 키가 화면 높이의 1/2~2/3. 참고 거리 3.5~5m.
  *   - 뒤 폰은 세로(투수가 카메라에서 멀어지는 쪽으로 내딛어 옆으로 거의 안 움직인다 — 세로면 같은 거리에서 1.8배 크게), 화면 높이의 1/3~1/2.
  *     참고 거리 3~4m — 더 가까우면 내딛는 동안 투수가 1.5m 멀어져 몸 크기가 절반 가까이 줄어 깊이가 흔들린다.
- *   - 같은 화면 크기가 되는 거리는 1배 렌즈의 35mm 환산 초점에 비례(LAB_LENS_DISTANCES) — 24 ↔ 26mm 가 0.3m 남짓이라 투수 키(1.6 ↔ 1.9m)보다 작다.
+ *   - 같은 화면 크기가 되는 거리는 1배 렌즈의 35mm 환산 초점에 비례 — 24 ↔ 26mm 가 0.3m 남짓이라 투수 키(1.6 ↔ 1.9m)보다 작다.
  *     엔진은 폰마다 화각을 영상에서 맞추니 기종이 달라도 계산은 그대로다.
  *   - 실험실 원본 두 샘플(가장 고른 결과)은 옆 · 뒤 3.2~3.4m, 뒤는 세로였다. 화면 녹화 샘플 여섯은 뒤 폰이 1.6~2.6m 로 가까웠다.
  *
@@ -31,9 +31,29 @@ import type { V2FailCode } from '@/lib/pitch-3d/v2/contract';
 
 export const LAB_GUIDE_HREF = '/videos/lab/guide';
 
-/** 안내 화면의 칸(주소 # 로 바로 간다) */
-export type LabGuideSection =
-  'checklist' | 'place' | 'frame' | 'phone' | 'steps' | 'move' | 'upload' | 'fail';
+/**
+ * 안내 화면의 칸(주소 # · 앱 ?s= 로 바로 간다).
+ * 2026-11-08 김민: "중복이 많고 복잡하다, 핵심 위주로 · 카메라 설정 · 촬영 구도 · 영상 조건 · AirDrop 모든 사진 데이터는 그림으로 자세히 · 올리기는 삭제"
+ * → 여덟 칸(자리 · 화면 · 폰 설정 · 순서 · 옮기기 · 올리기 …)을 넷 + 확인 + 실패로. 옛 칸 이름은 LAB_GUIDE_OLD_SECTION 으로 새 칸에 잇는다.
+ */
+export type LabGuideSection = 'camera' | 'frame' | 'shoot' | 'move' | 'checklist' | 'fail';
+
+/** 앞에서 차례로 넘기는 카드(실패 칸은 흐름 밖) */
+export const LAB_GUIDE_FLOW: LabGuideSection[] = ['camera', 'frame', 'shoot', 'move', 'checklist'];
+
+/** 예전 칸 이름 → 새 칸(깔린 옛 화면 · 저장된 링크가 ?s=place 처럼 올 때) */
+export const LAB_GUIDE_OLD_SECTION: Record<string, LabGuideSection> = {
+  place: 'frame',
+  phone: 'camera',
+  steps: 'shoot',
+  upload: 'move',
+};
+
+export function labGuideSectionOf(v: string | null | undefined): LabGuideSection | null {
+  if (!v) return null;
+  if ((LAB_GUIDE_FLOW as string[]).includes(v) || v === 'fail') return v as LabGuideSection;
+  return LAB_GUIDE_OLD_SECTION[v] ?? null;
+}
 
 export function labGuideHref(section?: LabGuideSection): string {
   return section ? `${LAB_GUIDE_HREF}#${section}` : LAB_GUIDE_HREF;
@@ -42,83 +62,87 @@ export function labGuideHref(section?: LabGuideSection): string {
 export type LabGuideCheck = { id: string; title: string };
 
 /**
- * 찍기 전 확인 — 현장에서 하나씩 체크한다(체크는 그 폰에만 남는다). 2026-10-15 김민: "글이 너무 많아 조잡하다" → 제목 한 줄씩,
- * 까닭은 아래 칸들이 말한다.
+ * 찍기 전 확인 — 앞 카드들을 현장에서 하나씩 체크한다(체크는 그 폰에만 남는다). 2026-10-15 김민: "글이 너무 많아 조잡하다" → 제목 한 줄씩.
  */
 export const LAB_GUIDE_CHECKS: LabGuideCheck[] = [
-  { id: 'two', title: '폰 두 대로 같은 공을 동시에' },
+  { id: 'slowmo', title: '슬로 모션 240fps, 배율 1×, AE/AF 잠금' },
   { id: 'angle', title: '옆 폰(3루 쪽)은 가로, 뒤 폰(2루 쪽)은 세로' },
-  { id: 'slowmo', title: '슬로 모션 240fps, 배율 1×' },
   { id: 'tripod', title: '삼각대에 세우고 수평으로' },
   { id: 'frame', title: '발끝부터 머리, 손까지 화면 안에' },
   { id: 'clothes', title: '몸에 붙는 옷으로, 헐렁한 옷 · 겉옷은 벗고' },
   { id: 'light', title: '밝은 곳에서' },
-  { id: 'original', title: '원본 그대로 옮기고 올리기' },
+  { id: 'two', title: '폰 두 대로 같은 공을 동시에' },
+  { id: 'original', title: 'AirDrop 은 모든 사진 데이터를 켜고 보내기' },
 ];
 
-/** 칸 이름(안내의 머리 · '까닭별로 고칠 것'의 바로가기) */
+/** 칸 이름 */
 export const LAB_GUIDE_SECTION_NAME: Record<LabGuideSection, string> = {
-  checklist: '찍기 전 확인',
-  place: '폰 두 대 놓는 자리',
-  frame: '화면에 담기',
-  phone: '폰 설정',
-  steps: '찍는 순서',
+  camera: '카메라 설정',
+  frame: '촬영 구도',
+  shoot: '영상 조건',
   move: '영상 옮기기',
-  upload: '올리기',
+  checklist: '찍기 전 확인',
   fail: '분석이 안 됐다면',
 };
 
-/** 칸마다의 점 목록(웹 guide-view · 앱 native/src/app/lab/guide.tsx 가 같이 쓴다) — 옆 폰 자리 글은 우투 기준(forHand 로 바꾼다) */
-export const LAB_GUIDE_POINTS = {
-  place: [
-    '옆 폰: 3루 쪽에서 투구 방향과 직각으로 3.5~5m.',
-    '뒤 폰: 투수 바로 뒤(2루 쪽) 3~4m 에서 홈을 겨눠요. 좌우로 15° 안 비켜도 괜찮아요.',
-    '두 폰 사이는 90°쯤. 뒤 폰을 비켰다면 옆 폰도 같이 옮겨요.',
-    '높이는 허리에서 가슴(1~1.3m), 수평으로.',
-  ],
-  frame: [
-    '옆 폰은 가로, 투수 키가 화면 높이의 절반~2/3.',
-    '뒤 폰은 세로, 화면 높이의 1/3~절반.',
-    '다리를 들어도, 내딛어도 발끝 · 머리 · 손이 화면 밖으로 나가지 않게.',
-    '찍는 동안 투수 앞을 아무도 지나가지 않게.',
-    '옷은 몸에 붙게. 헐렁한 후드 · 바람막이 · 통 넓은 바지는 팔꿈치 · 무릎 · 엉덩이 자리를 가려 3D 가 어긋나요.',
-  ],
-  phone: [
-    '아이폰: 설정 › 카메라 › 슬로 모션 녹화 › 1080p 240fps.',
-    '아이폰: 배율 1×. Pro 는 1.2× · 1.5× 로 바뀌어 있지 않은지 봐요.',
-    '아이폰: 투수를 길게 눌러 AE/AF 잠금.',
-    '갤럭시: 카메라 › 더보기 › 슬로우 모션, 배율 1배.',
-  ],
-  steps: [
-    '던지기 2초 전에 두 폰 모두 녹화를 켜요.',
-    '한 공을 던져요.',
-    '팔로스루 1초 뒤에 두 폰 모두 멈춰요.',
-    '다음 공은 새로 녹화해요.',
-  ],
-  move: [
-    'AirDrop 은 옵션에서 모든 사진 데이터를 켜고 보내요.',
-    '같은 Apple ID 의 iCloud 사진이면 옮기지 않아도 돼요.',
-    '갤럭시는 퀵 셰어, 기기가 다르면 케이블로 PC 에 옮겨 PC 에서 올려요.',
-  ],
-} as const;
+/**
+ * 그림 속 폰 화면(웹 guide-shots.tsx · 앱 native/src/lab/guide-shots.tsx 가 같은 자료로 그린다).
+ *   list   — 설정 · 옵션처럼 줄이 늘어선 화면. hot = 누를 줄(파란 테두리), check = 고른 줄, on = 켠 스위치
+ *   camera — 카메라 앱. lock 이면 노란 'AE/AF 잠금'
+ *   share  — 사진 앱 공유 화면. hot 이 'options' 면 위의 옵션 ›, 'airdrop' 이면 AirDrop
+ */
+export type LabGuideScreen =
+  | { kind: 'list'; title: string; rows: { label: string; check?: boolean; on?: boolean; hot?: boolean }[]; done?: boolean }
+  | { kind: 'camera'; lock?: boolean }
+  | { kind: 'share'; hot: 'options' | 'airdrop' };
 
-export const LAB_GUIDE_MOVE_NOTE =
-  '메신저 · 메일 · 화면 녹화 · 자른 영상은 안 돼요. 올릴 때 초당 장수가 30 이나 60 으로 보이면 원본이 바뀐 거예요.';
-export const LAB_GUIDE_LENS_NOTE = '키 1.8m 기준이에요. 거리보다 아래 화면에 담기를 먼저 맞춰요.';
-/** 올리기 칸 — 영상 한도(MB)를 넣어 만든다 */
-export const labGuideUploadPoints = (maxMb: number) => [
-  '옆 칸에 옆 폰 영상, 뒤 칸에 뒤 폰 영상을 골라요.',
-  `영상 하나에 ${maxMb}MB 까지예요(240fps 6초면 20MB 남짓).`,
+export type LabGuideShot = { text: string; screen: LabGuideScreen };
+
+/** 카메라 설정 — 아이폰 그림 셋 */
+export const LAB_GUIDE_CAMERA: LabGuideShot[] = [
+  {
+    text: '설정 › 카메라 › 슬로 모션 녹화에서 1080p HD 240fps 를 골라요.',
+    screen: {
+      kind: 'list',
+      title: '슬로 모션 녹화',
+      rows: [{ label: '720p HD 240fps' }, { label: '1080p HD 120fps' }, { label: '1080p HD 240fps', check: true, hot: true }],
+    },
+  },
+  { text: '카메라 앱을 슬로 모션으로 넘기고, 배율은 1× 그대로 둬요. 위에 240 이 보이면 돼요.', screen: { kind: 'camera' } },
+  { text: '화면에서 투수를 길게 눌러 위에 AE/AF 잠금이 뜨게 해요. 던지는 동안 밝기 · 초점이 안 바뀌어요.', screen: { kind: 'camera', lock: true } },
+];
+export const LAB_GUIDE_CAMERA_NOTE = '갤럭시는 카메라 › 더보기 › 슬로우 모션, 배율 1배로 찍어요.';
+
+/** 촬영 구도 — 그림(자리 · 화면) 밑 점. 옆 폰 자리 글은 우투 기준(forHand 로 바꾼다) */
+export const LAB_GUIDE_FRAME = [
+  '옆 폰: 3루 쪽에서 투구 방향과 직각으로 3.5~5m, 가로로. 투수 키가 화면 높이의 절반~2/3.',
+  '뒤 폰: 투수 바로 뒤(2루 쪽) 3~4m 에서 홈을 겨눠 세로로. 투수 키가 화면 높이의 1/3~절반.',
+  '두 폰 모두 삼각대에, 허리~가슴 높이(1~1.3m)로 수평.',
+  '다리를 들어도, 내딛어도 발끝 · 머리 · 손이 화면 밖으로 나가지 않게.',
 ];
 
-/**
- * 렌즈별 참고 거리 — 투수 키 1.8m 가 옆(가로)은 화면 높이의 1/2~2/3, 뒤(세로)는 1/3~1/2 이 되는 거리(손떨림 보정 자름 1.1배 포함, 0.5m 단위로 둥글림).
- * 같은 화면 크기면 거리는 초점에 비례한다. 키가 다르면 키에 비례해 바뀐다.
- */
-export const LAB_LENS_DISTANCES: { lens: string; phones: string; side: string; back: string }[] = [
-  { lens: '24mm', phones: '아이폰 Pro · 갤럭시', side: '3.5~4.5m', back: '3~4m' },
-  { lens: '26mm', phones: '아이폰(Pro 아닌 것)', side: '4~5m', back: '3~4m' },
-  { lens: '28mm', phones: '아이폰 Pro 를 1.2× 로 둔 것', side: '4~5.5m', back: '3~4.5m' },
+/** 영상 조건 */
+export const LAB_GUIDE_SHOOT = [
+  '몸에 붙는 옷으로 찍어요. 헐렁한 후드 · 바람막이 · 통 넓은 바지는 팔꿈치 · 무릎 · 엉덩이를 가려 3D 가 어긋나요.',
+  '밝은 곳에서 찍어요. 어두우면 팔이 번져요.',
+  '두 폰 모두 던지기 2초 전에 켜고, 팔로스루 1초 뒤에 꺼요.',
+  '한 공에 영상 하나씩, 두 폰이 같은 공을 찍어요.',
+  '찍는 동안 투수 앞을 아무도 지나가지 않게 해요.',
+];
+
+/** 영상 옮기기 — 아이폰 AirDrop 그림 셋 */
+export const LAB_GUIDE_MOVE: LabGuideShot[] = [
+  { text: '사진 앱에서 영상을 고르고 공유를 눌러요. 위의 옵션 › 을 눌러요.', screen: { kind: 'share', hot: 'options' } },
+  {
+    text: '모든 사진 데이터를 켜고 완료를 눌러요. 끄면 240fps 원본이 아닌 줄인 영상이 가요.',
+    screen: { kind: 'list', title: '옵션', rows: [{ label: '위치', on: true }, { label: '모든 사진 데이터', on: true, hot: true }], done: true },
+  },
+  { text: 'AirDrop 을 누르고 받을 폰을 골라요.', screen: { kind: 'share', hot: 'airdrop' } },
+];
+export const LAB_GUIDE_MOVE_NOTES = [
+  '같은 Apple ID 의 iCloud 사진이면 옮기지 않아도 돼요.',
+  '갤럭시는 퀵 셰어, 기기가 다르면 케이블로 PC 에 옮겨 PC 에서 올려요.',
+  '메신저 · 메일 · 화면 녹화 · 자른 영상은 안 돼요. 올릴 때 30 이나 60fps 로 보이면 원본이 바뀐 거예요.',
 ];
 
 /**
@@ -130,7 +154,7 @@ export const LAB_FAIL_FIX: Partial<
 > = {
   video: {
     fix: '사진 앱의 원본을 자르거나 내보내지 말고 그대로 올려 주세요.',
-    section: 'upload',
+    section: 'move',
   },
   short: {
     fix: '옆 폰은 가로로 투수가 화면 높이의 절반~2/3, 뒤 폰은 세로로 1/3~절반쯤 되게 찍어 주세요.',
@@ -142,26 +166,26 @@ export const LAB_FAIL_FIX: Partial<
   },
   events: {
     fix: '옆 폰은 3루 쪽에서 투구 방향과 직각으로, 내딛는 발과 공 놓는 손이 다 보이게 세워 주세요.',
-    section: 'place',
+    section: 'frame',
   },
   pair: {
     fix: '두 폰 모두 던지기 전에 녹화를 켜고, 같은 공의 옆 영상과 뒤 영상을 짝으로 올려 주세요.',
-    section: 'steps',
+    section: 'shoot',
   },
   sync: {
     fix: '두 폰 모두 던지기 전에 녹화를 켜고, 같은 공 하나를 같이 찍어 주세요.',
-    section: 'steps',
+    section: 'shoot',
   },
   range: {
     fix: '두 폰 모두 다리를 들기 전부터 팔로스루가 끝날 때까지 찍어 주세요.',
-    section: 'steps',
+    section: 'shoot',
   },
   calibration: {
     fix: '옆 폰과 뒤 폰이 투수를 사이에 두고 90°쯤 되게 세워 주세요.',
-    section: 'place',
+    section: 'frame',
   },
   fit: {
     fix: '밝은 곳에서 240fps 로, 삼각대에 세워 투수가 크게 나오게 다시 찍어 주세요.',
-    section: 'checklist',
+    section: 'shoot',
   },
 };
