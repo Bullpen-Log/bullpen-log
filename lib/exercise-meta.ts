@@ -83,7 +83,7 @@ export const MAX_INTENSITY_LEVEL = 5;
  * 무게를 싣는 장비 — 회복날 · 통증날에 이 장비가 드는 운동을 뺀다(lib/report/theme.ts 의 isRecoveryLight,
  * lib/armcare/routine.ts). 2026-10-09 전에는 두 파일에 같은 목록이 따로 있었다.
  */
-export const HEAVY_EQUIPMENT: readonly string[] = ['덤벨', '바벨', '케틀벨', '원판', '케이블'];
+export const HEAVY_EQUIPMENT: readonly string[] = ['덤벨', '바벨', '케틀벨', '원판', '케이블', '머신'];
 
 export const INTENSITY_CAP = {
   /** 스트레칭·가동성만 */
@@ -159,6 +159,12 @@ export const EXERCISE_EQUIPMENT = [
   // 기구
   '케이블',
   /*
+   * 헬스장 머신(레그 프레스 · 레그 컬 · 핵 스쿼트 · 힙 어덕션 …) — 기구마다 나누지 않고 하나로 묶는다(2026-11-08 김민: "장비는 그냥
+   * 머신으로 통일"). 장비 판정이 '모두 있어야 함'이라 잘게 나누면 헬스장에 가도 후보가 빠진다. 2026-09-01 에 뺀 것은 쓰는 운동이 없어서였다.
+   * 근력 프로그램(lib/program/program.ts isWeighted)은 머신을 안 쓴다 — 본운동 · 보조는 바벨 · 덤벨 · 케이블로 그대로.
+   */
+  '머신',
+  /*
    * 실내 자전거 · 로잉머신 · 악력기는 넣었다가 뺐다(2026-09-27). 트레이닝 설정의 장비에
    * 없는 도구라, 그것을 쓰는 운동은 숨기고 이 목록 안의 도구로만 채우기로 했다(사용자분).
    */
@@ -174,12 +180,12 @@ export const EXERCISE_EQUIPMENT = [
  * 아니라 장력이라 kg으로 적을 수 없고, 메디신볼·짐볼은 무게가 고정이라
  * 매번 적을 값어치가 없다.
  */
-const WEIGHTED_EQUIPMENT: readonly string[] = ['덤벨', '바벨', '원판', '케틀벨'];
+const WEIGHTED_EQUIPMENT: readonly string[] = ['덤벨', '바벨', '원판', '케틀벨', '머신'];
 
 /**
  * 무게를 반드시 적어야 하는 장비.
  *
- * 무게 칸이 뜨는 넷 중 둘만이다. 바벨과 덤벨은 몇 kg 을 들었는지가 곧 그날의
+ * 무게 칸이 뜨는 다섯 중 둘만이다. 바벨과 덤벨은 몇 kg 을 들었는지가 곧 그날의
  * 운동이라, 안 적으면 그 기록으로 할 수 있는 말이 없다. 원판과 케틀벨은
  * 무게가 정해진 물건 하나를 집어 드는 쪽이라 매번 적게 하면 성가시기만 하다.
  */
