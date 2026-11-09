@@ -2893,6 +2893,14 @@ model IntakeInvitation {
   maxTotalBytes    BigInt?
   revokedAt        DateTime?
   revokedByAdminId String?
+  /// 초대 만들기 요청 키(관리 화면이 창마다 만든 UUID) — 응답을 못 받아 다시 눌러도 초대가 하나만 생기게. 토큰이 아니다
+  createRequestKey String?   @unique
+  /// 링크를 새로 바꾼 마지막 시각 — 예전 링크는 이때부터 막혔다
+  tokenReissuedAt  DateTime?
+  /// 링크를 바꾼 횟수 — 두 관리자가 동시에 눌러도 하나만 바꾸게 맞춰 보는 값이다
+  tokenReissueCount Int      @default(0)
+  /// 관리자가 '새 링크 만들기'로 바꾼 마지막 시각 — 있으면 만들기를 다시 눌러도(같은 요청 키) 링크를 바꾸지 못한다. 보냈을 수 있는 링크를 지킨다
+  adminReissuedAt  DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

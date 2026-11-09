@@ -11,6 +11,8 @@ import { NumberInput } from '~/lab/parts';
 import { useLabUpload, type LabSlowmo } from '~/lab/use-lab-upload';
 import { PICK_ORIGINAL } from '~/pitch/attach';
 import { SwingRow } from '~/swing/parts';
+import { INTAKE_WEB_PATH } from '~/admin/intake-nav';
+import { useMenu } from '~/shell/menu-store';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 
@@ -38,6 +40,8 @@ export default function SwingSamplesScreen() {
   const markers = data?.samples.filter((x) => x.marker) ?? [];
   const shown = tab === 'marker' ? markers : normal;
   const isDev = data?.isDev;
+  const { groups } = useMenu();
+  const intake = groups.some((g) => g.items.some((i) => i.href.split('?')[0] === INTAKE_WEB_PATH));
   useEffect(() => {
     if (isDev === false) router.replace('/swing' as Href);
   }, [isDev]);
@@ -58,6 +62,8 @@ export default function SwingSamplesScreen() {
           <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
             <LinkRow label="투구 샘플 · 마커 샘플" onPress={() => router.push('/lab/samples' as Href)} c={c} />
             <LinkRow label="3D 스윙 분석 사용자 화면" onPress={() => router.push('/swing' as Href)} c={c} />
+            {/* 외부 영상 접수(2026-11-09) — 사이트가 이 계정에 '관리' 메뉴로 보낸 때만(서버가 intake 권한으로 거른 목록). 막기는 웹 화면 · 동작이 한다 */}
+            {intake ? <LinkRow label="외부 영상 접수" onPress={() => router.push('/admin/intake' as Href)} c={c} /> : null}
             <LinkRow label="타자 촬영 안내" onPress={() => router.push(`/swing/guide?hand=${data.hand}` as Href)} c={c} last />
           </View>
           <View accessibilityRole="radiogroup" style={s.chips}>

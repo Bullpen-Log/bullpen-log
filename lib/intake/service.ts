@@ -85,7 +85,7 @@ import {
   type PurgingScope,
 } from '@/lib/intake/state';
 import type { IntakeStorage } from '@/lib/intake/storage-core';
-import { generateInvitationToken, generateReceiptCode, hashAccessCode, hashInvitationToken, isAccessCode, isIdempotencyKey } from '@/lib/intake/token';
+import { generateInvitationToken, generateReceiptCode, hashAccessCode, hashInvitationToken, isAccessCode, isIdempotencyKey, verifyAccessCode } from '@/lib/intake/token';
 
 type Db = PrismaClient;
 type Tx = Prisma.TransactionClient;
@@ -187,6 +187,13 @@ export type CreateInvitationInput = {
   accessCode?: string | null;
   maxFileBytes?: number | null;
   maxTotalBytes?: number | null;
+  /**
+   * 만들기 요청 키 — 관리 화면이 창마다 만든 UUID. 서버는 만들었는데 답만 잃고 같은 키로 다시 누르면 초대를 더 만들지 않는다.
+   * 받는 분이 아직 아무것도 안 했으면 그 초대의 링크를 새로 바꿔 돌려주고(잃은 토큰은 막힌다), 이미 시작했거나 관리자가 '새 링크 만들기'로 바꿨으면 'invitation_retry_used' 로 막는다.
+   * 다시 누른 내용(메모 · 기간 · 접근 코드 · 한도)이 처음과 다르면 'invitation_retry_changed' 로 막는다 — 바꾼 내용이 반영된 줄 알고 링크를 보내지 않게.
+   * 안 주면 예전처럼 매번 새로 만든다
+   */
+  createRequestKey?: string | null;
 };
 
 export type CreatedInvitation = {
@@ -195,32 +202,193 @@ export type CreatedInvitation = {
   invitationId: string;
   submissionId: string;
   uploadExpiresAt: Date;
+  /** 같은 요청 키로 다시 눌러 있던 초대의 링크를 새로 바꿨나 — 그러면 앞서 만든 링크는 이미 막혔다 */
+  reissued: boolean;
+  /** 링크를 바꾼 횟수 — 새 링크 만들기가 맞춰 볼 값이다 */
+  reissueCount: number;
+  /** 저장된 초대에 결과 접근 코드가 걸려 있나 — 화면은 지금 폼이 아니라 이 값으로 '코드가 필요해요'를 보인다 */
+  coded: boolean;
 };
+
+const CREATE_REQUEST_KEY_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isCreateRequestKey = (v: unknown): v is string => typeof v === 'string' && CREATE_REQUEST_KEY_RE.test(v);
+
+export type UntouchedFacts = { status: string; version: number; receivedAt: Date | string | null; assets: number; consents: number; revisions: number };
+
+/**
+ * 받는 분이 아직 아무것도 안 한 접수인가 — 초안 그대로(판 0) · 고른 영상 · 동의 · 얼린 판이 없다.
+ * 링크를 열었는지는 모른다(열기는 아무것도 안 바꾸는 읽기라 기록하지 않는다). 그래서 '링크를 못 받았을 수 있는 접수'를 이것으로 가린다.
+ */
+export const isUntouchedSubmission = (f: UntouchedFacts) =>
+  f.status === 'draft' && f.version === 0 && f.receivedAt == null && f.assets === 0 && f.consents === 0 && f.revisions === 0;
+
+/** 접수 줄을 잠그고 손대지 않았는지 본다 — 받는 분의 동작도 같은 줄을 잠그므로 그사이 시작하지 못한다 */
+async function lockUntouched(tx: Tx, submissionId: string): Promise<{ untouched: boolean; assets: number; publicationStatus: string }> {
+  await tx.$queryRaw`SELECT "id" FROM "IntakeSubmission" WHERE "id" = ${submissionId} FOR UPDATE`;
+  const s = await tx.intakeSubmission.findUnique({
+    where: { id: submissionId },
+    select: { status: true, version: true, receivedAt: true, publicationStatus: true, _count: { select: { assets: true, consents: true, revisions: true } } },
+  });
+  if (!s) throw new IntakeError('submission_not_found');
+  return { untouched: isUntouchedSubmission({ ...s, ...s._count }), assets: s._count.assets, publicationStatus: s.publicationStatus };
+}
+
+/** 다시 누른 만들기의 내용 — 기간은 누른 시각부터의 길이(ms)로 둔다. 처음 초대는 만든 시각부터의 길이로 견준다 */
+type CreateRequestShape = {
+  note: string | null;
+  uploadMs: number;
+  resultMs: number | null;
+  accessCode: string | null;
+  maxFileBytes: number | null;
+  maxTotalBytes: number | null;
+};
+
+/** 다시 누른 내용이 처음 만든 초대와 같은가 — 접근 코드는 해시만 있어 맞춰 본다 */
+async function sameCreateRequest(inv: IntakeInvitation, want: CreateRequestShape): Promise<boolean> {
+  const from = inv.createdAt.getTime();
+  const sameBytes = (stored: bigint | null, asked: number | null) => (stored == null ? asked == null : asked != null && stored === BigInt(asked));
+  if (inv.note !== want.note) return false;
+  if (inv.uploadExpiresAt.getTime() - from !== want.uploadMs) return false;
+  if ((inv.resultExpiresAt ? inv.resultExpiresAt.getTime() - from : null) !== want.resultMs) return false;
+  if (!sameBytes(inv.maxFileBytes, want.maxFileBytes) || !sameBytes(inv.maxTotalBytes, want.maxTotalBytes)) return false;
+  if (inv.accessCodeHash == null || want.accessCode == null) return inv.accessCodeHash == null && want.accessCode == null;
+  return verifyAccessCode(want.accessCode, inv.accessCodeHash);
+}
+
+/**
+ * 같은 요청 키의 초대가 이미 있으면 그 링크를 새로 바꿔 돌려준다. 없으면 null.
+ * 부르는 쪽이 키의 자문 잠금을 쥔 트랜잭션 안에서 부른다 — 같은 키의 요청은 줄을 서서, 앞 요청이 만든 줄을 뒤 요청이 본다.
+ *
+ * 링크를 바꿔도 되는 때는 '만든 링크를 아무도 못 받았을 때'뿐이다:
+ * - 관리자가 '새 링크 만들기'로 이미 바꿨으면(adminReissuedAt) 막는다 — 그 링크를 받는 분에게 보냈을 수 있어서, 열어 둔 만들기 창이 며칠 뒤 눌려도 그 링크를 죽이지 않는다.
+ * - 받는 분이 시작했으면 막는다. 다시 누른 내용이 처음과 다르면 막는다(바꾼 내용이 들어간 줄 알고 보내지 않게).
+ * 시간 제한은 두지 않았다 — 위 셋을 지나면 바꿀 링크를 가진 사람이 없다(잃은 토큰은 원문이 어디에도 없다).
+ */
+async function rotateForRetry(tx: Tx, adminId: string, key: string, want: CreateRequestShape, now: Date): Promise<CreatedInvitation | null> {
+  const found = await tx.intakeInvitation.findUnique({ where: { createRequestKey: key }, include: { submission: { select: { id: true } } } });
+  if (!found) return null;
+  /* 키는 만든 관리자의 것이다 — 다른 관리자가 같은 키를 보내도 남의 링크를 받지 못한다 */
+  if (found.createdByAdminId !== adminId) throw new IntakeError('invalid_input', { field: 'createRequestKey' });
+  if (!found.submission) throw new IntakeError('submission_not_found');
+  const submissionId = found.submission.id;
+  /* 새 링크 만들기도 접수 줄을 먼저 잠근다 — 잠근 뒤 초대를 다시 읽어 그사이 끝난 새 링크 · 폐기를 본다 */
+  const facts = await lockUntouched(tx, submissionId);
+  const inv = await tx.intakeInvitation.findUniqueOrThrow({ where: { id: found.id } });
+  if (inv.status !== 'active') throw new IntakeError('invitation_revoked', { submissionId });
+  if (inv.adminReissuedAt) throw new IntakeError('invitation_retry_used', { submissionId, reason: 'admin_reissued' });
+  if (!facts.untouched) throw new IntakeError('invitation_retry_used', { submissionId, reason: 'started' });
+  if (!(await sameCreateRequest(inv, want))) throw new IntakeError('invitation_retry_changed', { submissionId });
+  const token = generateInvitationToken();
+  /* 횟수를 맞춰 보며 바꾼다 — 관리자 새 링크가 끼어들 틈은 위 잠금이 막지만, 한 번 더 지킨다 */
+  const moved = await tx.intakeInvitation.updateMany({
+    where: { id: inv.id, status: 'active', adminReissuedAt: null, tokenReissueCount: inv.tokenReissueCount },
+    data: { tokenHash: hashInvitationToken(token), tokenReissuedAt: now, tokenReissueCount: { increment: 1 } },
+  });
+  if (moved.count === 0) throw new IntakeError('stale_reissue', { submissionId });
+  await writeAudit(tx, { actor: { kind: 'admin', id: adminId }, action: 'invitation.reissued', invitationId: inv.id, submissionId, detail: { reason: 'create_retry' } }, now);
+  return {
+    token,
+    invitationId: inv.id,
+    submissionId,
+    uploadExpiresAt: inv.uploadExpiresAt,
+    reissued: true,
+    reissueCount: inv.tokenReissueCount + 1,
+    coded: inv.accessCodeHash != null,
+  };
+}
 
 /** 초대와 빈 접수를 같이 만든다. 화면 GET 이 아무것도 안 바꾸게 하려고 접수는 여기서 만든다 */
 export async function createInvitation(db: Db, input: CreateInvitationInput, now: Date = new Date()): Promise<CreatedInvitation> {
   if (input.accessCode != null && !isAccessCode(input.accessCode)) throw new IntakeError('invalid_input', { field: 'accessCode' });
+  const key = input.createRequestKey ?? null;
+  if (key != null && !isCreateRequestKey(key)) throw new IntakeError('invalid_input', { field: 'createRequestKey' });
   const token = generateInvitationToken();
   const uploadExpiresAt = input.uploadExpiresAt ?? new Date(now.getTime() + DEFAULT_UPLOAD_DAYS * DAY_MS);
   const accessCodeHash = input.accessCode ? await hashAccessCode(input.accessCode) : null;
+  const note = cleanLabel(input.note, 200);
+  const shape: CreateRequestShape = {
+    note,
+    uploadMs: uploadExpiresAt.getTime() - now.getTime(),
+    resultMs: input.resultExpiresAt ? input.resultExpiresAt.getTime() - now.getTime() : null,
+    accessCode: input.accessCode ? input.accessCode : null,
+    maxFileBytes: input.maxFileBytes ?? null,
+    maxTotalBytes: input.maxTotalBytes ?? null,
+  };
   return db.$transaction(async (tx) => {
+    if (key) {
+      /* 같은 키의 요청을 줄 세운다 — 유일 키 충돌로 트랜잭션을 깨뜨리지 않고, 뒤 요청이 앞 요청의 초대를 잇는다. 끝나면 저절로 풀린다 */
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`intake-invite:${key}`}, 0))`;
+      const retried = await rotateForRetry(tx, input.adminId, key, shape, now);
+      if (retried) return retried;
+    }
     const inv = await tx.intakeInvitation.create({
       data: {
         tokenHash: hashInvitationToken(token),
-        note: cleanLabel(input.note, 200),
+        note,
         createdByAdminId: input.adminId,
         uploadExpiresAt,
         resultExpiresAt: input.resultExpiresAt ?? null,
         accessCodeHash,
         maxFileBytes: input.maxFileBytes != null ? BigInt(input.maxFileBytes) : null,
         maxTotalBytes: input.maxTotalBytes != null ? BigInt(input.maxTotalBytes) : null,
+        createRequestKey: key,
         createdAt: now,
         submission: { create: { createdAt: now } },
       },
       include: { submission: { select: { id: true } } },
     });
     await writeAudit(tx, { actor: { kind: 'admin', id: input.adminId }, action: 'invitation.created', invitationId: inv.id, submissionId: inv.submission!.id }, now);
-    return { token, invitationId: inv.id, submissionId: inv.submission!.id, uploadExpiresAt };
+    return { token, invitationId: inv.id, submissionId: inv.submission!.id, uploadExpiresAt, reissued: false, reissueCount: 0, coded: accessCodeHash != null };
+  });
+}
+
+export type ReissueInvitationInput = {
+  adminId: string;
+  submissionId: string;
+  /** 화면이 본 링크 바꿈 횟수 — 그사이 다른 관리자가 바꿨으면 'stale_reissue'(detail.currentReissueCount) */
+  expectedReissueCount: number;
+};
+
+export type ReissuedInvitation = {
+  /** 새 토큰 원문 — 이 응답에서만 볼 수 있다. 저장 · 기록하지 말 것 */
+  token: string;
+  invitationId: string;
+  submissionId: string;
+  uploadExpiresAt: Date;
+  reissueCount: number;
+  /** 이미 받은 영상이 있었나 — 새 링크로 이어진다 */
+  hadAssets: boolean;
+  /** 결과를 공개 중이었나 — 새 링크로 이어진다 */
+  published: boolean;
+};
+
+/**
+ * 링크를 새로 바꾼다 — 토큰 해시만 바꾸므로 예전 링크는 곧바로 막히고(openIntakeScope 가 해시로 찾는다), 접수 · 받은 영상 · 공개 결과는 새 링크로 이어진다.
+ * 폐기한 초대는 못 바꾼다. 두 관리자가 같이 눌러도 횟수를 맞춰 본 쪽 하나만 바뀐다.
+ * 이미 내준 전송 토큰은 저장소에서 바로 거둘 수 없어 수명까지 산다(폐기와 같다).
+ * adminReissuedAt 을 남긴다 — 그 뒤로는 열어 둔 만들기 창을 다시 눌러도 이 링크를 바꾸지 못한다(rotateForRetry).
+ */
+export async function reissueInvitationToken(db: Db, input: ReissueInvitationInput, now: Date = new Date()): Promise<ReissuedInvitation> {
+  if (!Number.isInteger(input.expectedReissueCount) || input.expectedReissueCount < 0) throw new IntakeError('invalid_input', { field: 'expectedReissueCount' });
+  return db.$transaction(async (tx) => {
+    const sub = await tx.intakeSubmission.findUnique({ where: { id: input.submissionId }, select: { id: true, invitationId: true } });
+    if (!sub) throw new IntakeError('submission_not_found');
+    const facts = await lockUntouched(tx, sub.id);
+    const token = generateInvitationToken();
+    const moved = await tx.intakeInvitation.updateMany({
+      where: { id: sub.invitationId, status: 'active', tokenReissueCount: input.expectedReissueCount },
+      data: { tokenHash: hashInvitationToken(token), tokenReissuedAt: now, adminReissuedAt: now, tokenReissueCount: { increment: 1 } },
+    });
+    const inv = await tx.intakeInvitation.findUnique({ where: { id: sub.invitationId }, select: { status: true, tokenReissueCount: true, uploadExpiresAt: true } });
+    if (!inv) throw new IntakeError('submission_not_found');
+    if (moved.count === 0) {
+      if (inv.status !== 'active') throw new IntakeError('invitation_revoked');
+      throw new IntakeError('stale_reissue', { currentReissueCount: inv.tokenReissueCount });
+    }
+    const hadAssets = facts.assets > 0;
+    const published = facts.publicationStatus === 'published';
+    await writeAudit(tx, { actor: { kind: 'admin', id: input.adminId }, action: 'invitation.reissued', invitationId: sub.invitationId, submissionId: sub.id, detail: { reason: 'admin', hadAssets, published } }, now);
+    return { token, invitationId: sub.invitationId, submissionId: sub.id, uploadExpiresAt: inv.uploadExpiresAt, reissueCount: inv.tokenReissueCount, hadAssets, published };
   });
 }
 
@@ -1318,14 +1486,24 @@ async function closeVerify(
  *
  * 머리는 해시보다 먼저 읽고, 읽은 사실은 해시보다 먼저 저장한다 — 머리가 나쁜 파일이 1GiB 전체 읽기를 쓰지 못하게, 그리고 저장이 파일 탓으로 막히면 곧바로 닫게.
  * 이미 끝난 자산이면 판 정산만 마저 한다. 앞 시도가 자산을 적고 정산 전에 끊겼을 수 있다.
+ *
+ * opts.signal(크론의 실행 예산)이 끊기면 해시 읽기를 멈추고 signal.reason 을 그대로 던진다 — 'verified' 도 'rejected' 도 적지 않는다.
+ * 자산은 'verifying' 에 남고, 다음 시도가 처음부터 다시 읽는다. 끊김을 실패로 셀지는 부른 쪽(job-handlers.ts)이 signal 을 보고 가른다.
  */
-export async function verifyAsset(db: Db, storage: IntakeStorage, assetId: string, now: Date = new Date()): Promise<string> {
+export async function verifyAsset(
+  db: Db,
+  storage: IntakeStorage,
+  assetId: string,
+  now: Date = new Date(),
+  opts: { signal?: AbortSignal; onHashBytes?: (bytesRead: number) => void } = {},
+): Promise<string> {
   const asset = await db.intakeAsset.findUnique({ where: { id: assetId } });
   if (!asset) throw new IntakeError('asset_not_found');
   if (asset.status !== 'uploaded' && asset.status !== 'verifying') {
     if (assetVerifyDone(asset.status)) await settlePendingFor(db, asset.id, now);
     return asset.status;
   }
+  if (opts.signal?.aborted) throw opts.signal.reason;
   await db.intakeAsset.updateMany({ where: { id: asset.id, status: 'uploaded' }, data: { status: 'verifying' } });
 
   const reader = await storage.reader(asset.objectPath);
@@ -1346,7 +1524,7 @@ export async function verifyAsset(db: Db, storage: IntakeStorage, assetId: strin
   const headReject = mediaRejectCode(facts);
   if (headReject) return closeVerify(db, asset, { status: 'rejected', rejectCode: headReject, verifiedAt: null }, now);
 
-  const measured = await storage.hash(asset.objectPath);
+  const measured = await storage.hash(asset.objectPath, { signal: opts.signal, onBytes: opts.onHashBytes });
   const rejectCode = measured.size !== Number(asset.declaredSize) ? 'size_mismatch' : measured.sha256 !== asset.clientSha256 ? 'hash_mismatch' : null;
   const sums = { serverSha256: measured.sha256, storedBytes: BigInt(measured.size) };
   if (rejectCode) return closeVerify(db, asset, { ...sums, status: 'rejected', rejectCode, verifiedAt: null }, now);

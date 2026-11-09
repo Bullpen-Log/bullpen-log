@@ -14,6 +14,10 @@ CREATE TABLE "IntakeInvitation" (
     "maxTotalBytes" BIGINT,
     "revokedAt" TIMESTAMP(3),
     "revokedByAdminId" TEXT,
+    "createRequestKey" TEXT,
+    "tokenReissuedAt" TIMESTAMP(3),
+    "tokenReissueCount" INTEGER NOT NULL DEFAULT 0,
+    "adminReissuedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -225,6 +229,9 @@ CREATE TABLE "IntakeRateLimit" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "IntakeInvitation_tokenHash_key" ON "IntakeInvitation"("tokenHash");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "IntakeInvitation_createRequestKey_key" ON "IntakeInvitation"("createRequestKey");
 
 -- CreateIndex
 CREATE INDEX "IntakeInvitation_status_createdAt_idx" ON "IntakeInvitation"("status", "createdAt");

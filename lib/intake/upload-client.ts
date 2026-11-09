@@ -54,6 +54,15 @@ class HeadRefused extends Error {
   }
 }
 
+/**
+ * 토큰 새로 받기가 응답을 못 받고(끊김 · 시한) 끝났나, 멈춤으로 끝났나 — 서버 거절과 가른다.
+ * 오류의 모양(IntakeRequestError · RunStop)을 여기서 가져오면 서로 부르게 되어 코드 글자로만 본다.
+ */
+const lostOrCancelled = (e: unknown) => {
+  const code = (e as { code?: unknown } | null)?.code;
+  return code === 'network' || code === 'timeout' || code === 'cancelled';
+};
+
 /** 응답 상태 — HEAD 를 우리가 막았으면 그 안에 있다 */
 const statusOf = (err: Error | DetailedError) => {
   const d = err as DetailedError;
@@ -113,14 +122,20 @@ export type RecoveryStore = {
 /** 기록 자리 — 접수 + 자산으로 묶는다 */
 export const recoveryKey = (submissionId: string, assetId: string) => `intake-upload:${submissionId}:${assetId}`;
 
-/** 이 기기의 저장소 — 못 쓰면(사생활 모드 등) 메모리에만 둔다 */
+/*
+ * localStorage 를 못 쓸 때의 메모리 자리 — 페이지에 하나만 둔다.
+ * 부를 때마다 새로 만들면 다시 시도할 때 완료 키 · 이어 올리기 기록이 사라진다(응답을 잃은 완료가 새 키로 나간다).
+ */
+const memory = new Map<string, string>();
+const memoryStore: RecoveryStore = {
+  getItem: (k) => memory.get(k) ?? null,
+  setItem: (k, v) => void memory.set(k, v),
+  removeItem: (k) => void memory.delete(k),
+};
+
+/** 이 기기의 저장소 — 못 쓰면(사생활 모드 등) 이 페이지의 메모리에만 둔다(새로고침하면 사라진다) */
 export function browserRecoveryStore(): RecoveryStore {
-  const memory = new Map<string, string>();
-  const fallback: RecoveryStore = {
-    getItem: (k) => memory.get(k) ?? null,
-    setItem: (k, v) => void memory.set(k, v),
-    removeItem: (k) => void memory.delete(k),
-  };
+  const fallback = memoryStore;
   try {
     const probe = 'intake-upload:probe';
     window.localStorage.setItem(probe, '1');
@@ -195,6 +210,8 @@ export type StartUploadOptions = {
   /** 업로드 주소를 처음 받았을 때 — 서버의 registerUploadUrl 로 남긴다. 실패해도 전송은 계속된다 */
   onUploadUrl?: (uploadUrl: string) => void;
   onProgress?: (sentBytes: number, totalBytes: number) => void;
+  /** 멈춤 — 이미 멈췄으면 시작하지 않는다. 시작한 뒤 멈추면 전송을 멈추고 기록은 남긴다 */
+  signal?: AbortSignal;
   /** 시험용 */
   retryDelays?: number[];
   now?: () => number;
@@ -203,7 +220,7 @@ export type StartUploadOptions = {
 export type UploadHandle = {
   /** 끝나면 풀리고, 실패하면 IntakeUploadError 로 막힌다 */
   done: Promise<void>;
-  /** 멈춘다 — 기록은 남아 나중에 이어 갈 수 있다 */
+  /** 멈춘다 — 기록은 남아 나중에 이어 갈 수 있다. 던지지 않는다 */
   abort: () => Promise<void>;
 };
 
@@ -226,7 +243,8 @@ export function startIntakeUpload(o: StartUploadOptions): UploadHandle {
         tokenExpiresAt = now() + g.tokenTtlMs;
       })
       .catch((e: unknown) => {
-        refreshRefused = true;
+        /* 서버가 거절한 것(폐기 · 만료)만 '권한이 끝났다'로 본다. 응답을 못 받은 것(끊김 · 시한) · 멈춤은 tus 재시도에 맡긴다 */
+        if (!lostOrCancelled(e)) refreshRefused = true;
         throw e;
       })
       .finally(() => {
@@ -239,6 +257,8 @@ export function startIntakeUpload(o: StartUploadOptions): UploadHandle {
   const known = readRecovery(o.store, o.storeKey, new Date(now()));
   const fits = known != null && known.size === o.file.size && known.sha256 === o.sha256;
   const resumeUrl = fits ? known.uploadUrl : o.grant.uploadUrl;
+  /** 서버에 알린(또는 서버가 이미 아는) 업로드 주소 */
+  let announced: string | null = o.grant.uploadUrl;
 
   let settle!: { resolve: () => void; reject: (e: IntakeUploadError) => void };
   const done = new Promise<void>((resolve, reject) => {
@@ -276,19 +296,28 @@ export function startIntakeUpload(o: StartUploadOptions): UploadHandle {
       if (status < 300 || status === 404 || status === 410 || status === 423) return;
       throw new HeadRefused(status);
     },
+    /*
+     * 새로 만들 때도, 이어 갈 때(HEAD 뒤)도 부른다. 기기 기록과 서버 알림은 따로 맞춘다:
+     * 기기 기록은 다를 때만 쓴다. 서버에는 서버가 이 주소를 모를 때 알린다(grant.uploadUrl 이 서버가 아는 주소다).
+     * 기기 기록만 보고 건너뛰면, 앞 시도의 알림이 끊긴 경우 서버는 끝내 주소를 모른다 — 다른 기기 · 지운 브라우저가 못 이어 간다.
+     * 같은 시도 안에서는 한 번만 알린다(tus 재시도마다 다시 부르지 않게). 알림이 끊기면 다음 시도가 다시 알린다.
+     */
     onUploadUrlAvailable: () => {
       const url = upload.url;
       if (!url) return;
       const same = readRecovery(o.store, o.storeKey, new Date(now()));
-      if (same?.uploadUrl === url) return;
-      const record: UploadRecovery = {
-        uploadUrl: url,
-        size: o.file.size,
-        sha256: o.sha256,
-        fileName: o.fileName,
-        transportExpiresAt: new Date(now() + TUS_URL_TTL_MS).toISOString(),
-      };
-      o.store.setItem(o.storeKey, JSON.stringify(record));
+      if (same?.uploadUrl !== url) {
+        const record: UploadRecovery = {
+          uploadUrl: url,
+          size: o.file.size,
+          sha256: o.sha256,
+          fileName: o.fileName,
+          transportExpiresAt: new Date(now() + TUS_URL_TTL_MS).toISOString(),
+        };
+        o.store.setItem(o.storeKey, JSON.stringify(record));
+      }
+      if (url === announced) return;
+      announced = url;
       o.onUploadUrl?.(url);
     },
     onProgress: (sent: number, total: number) => o.onProgress?.(sent, total),
@@ -332,13 +361,32 @@ export function startIntakeUpload(o: StartUploadOptions): UploadHandle {
     },
   });
 
-  upload.start();
-  return {
-    done,
-    abort: async () => {
-      aborted = true;
+  /* 부르는 쪽이 done 을 안 기다려도 처리되지 않은 거절로 남지 않게 받아 둔다(부르는 쪽의 await 는 그대로 거절을 받는다) */
+  done.catch(() => {});
+
+  const abort = async () => {
+    if (aborted) return;
+    aborted = true;
+    try {
       await upload.abort(false);
-      settle.reject(new IntakeUploadError('aborted'));
-    },
+    } catch {
+      /* 이미 끊긴 요청을 멈추다 난 오류는 볼 것이 없다 — 기록은 남아 있다 */
+    }
+    settle.reject(new IntakeUploadError('aborted'));
   };
+
+  const signal = o.signal;
+  if (signal?.aborted) {
+    /* 멈춘 뒤에는 첫 요청도 보내지 않는다 */
+    aborted = true;
+    settle.reject(new IntakeUploadError('aborted'));
+    return { done, abort: async () => {} };
+  }
+  const onAbort = () => void abort();
+  signal?.addEventListener('abort', onAbort, { once: true });
+  const unlisten = () => signal?.removeEventListener('abort', onAbort);
+  done.then(unlisten, unlisten);
+
+  upload.start();
+  return { done, abort };
 }

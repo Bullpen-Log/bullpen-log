@@ -50,7 +50,8 @@ export async function loadAppAdmin() {
   /* 준관리자(2026-10-20)는 연 기능 칸만 — 숫자 · 회원 목록 · 소통 · 패치노트는 대표만(lib/permissions.ts) */
   const a = await staff('adminHome');
   if ('ok' in a) return a;
-  const perms = { owner: isOwner(a.role), velocityAdmin: can(a.role, 'velocityAdmin'), shoot: can(a.role, 'shoot'), dev3d: can(a.role, 'dev3d') };
+  /* intake — 외부 영상 접수(2026-11-09, 앱 관리자 메뉴 줄을 보일지만 정한다. 실제 막기는 웹 화면 requirePermission · 쓰기 assertIntakeAdmin) */
+  const perms = { owner: isOwner(a.role), velocityAdmin: can(a.role, 'velocityAdmin'), shoot: can(a.role, 'shoot'), dev3d: can(a.role, 'dev3d'), intake: can(a.role, 'intake') };
   if (!perms.owner)
     return { ok: true as const, meId: a.id, perms, stats: [], content: { videos: 0, articles: 0, logs: 0 }, openInquiries: 0, openReports: 0, users: [] };
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);

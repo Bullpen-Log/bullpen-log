@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import type { PrismaClient } from '@prisma/client';
 import { BackLink, Card, PageHeading } from '@/components/ui';
 import { requirePermission } from '@/lib/dal';
-import { loadIntakeDetail, type IntakeAssetDetail, type IntakeDetail } from '@/lib/intake/admin';
+import { checkIntakeReadiness, loadIntakeDetail, type IntakeAssetDetail, type IntakeDetail } from '@/lib/intake/admin';
 import {
   AGE_BAND_TEXT,
   ASSET_STATUS_TEXT,
@@ -15,7 +15,10 @@ import {
   PUBLICATION_STATUS_TEXT,
   REVISION_STATUS_TEXT,
   SUBMISSION_STATUS_TEXT,
+  UNTOUCHED_TEXT,
   VIEW_TEXT,
+  devLinkText,
+  readinessLines,
   seoulDateText,
   seoulTimeText,
   textOf,
@@ -27,7 +30,7 @@ import { formatBytes } from '@/lib/intake/limits';
 import { isIntakeId } from '@/lib/intake/paths';
 import { prisma } from '@/lib/prisma';
 import { AnalysisChip, StatusChip, publicationTone, submissionTone } from '../status-chip';
-import { AnalysisPanel, AssetCard, AssignBox, NotesPanel, PairDownload, ReadMarker, RevokeButton, type RunRow } from './detail-client';
+import { AnalysisPanel, AssetCard, AssignBox, NotesPanel, PairDownload, ReadMarker, ReissueButton, RevokeButton, type RunRow } from './detail-client';
 import { AccessCodeLockBox, CorrectionPanel, JobIssuesPanel, UploadWindowBox, WithdrawConsentButton, WithdrawModelConsentButton } from './detail-manage';
 import {
   accessCodeText,
@@ -65,6 +68,8 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
   const d = await loadDetail(user, id);
   if (!d) notFound();
   const analysis = await loadAnalysis(id);
+  /* 새 링크 만들기도 초대 만들기와 같은 준비(표 · 정식 주소)를 본다 */
+  const readiness = d.invitation.status === 'active' ? await checkIntakeReadiness(prisma as unknown as PrismaClient) : null;
   const current = d.assets.filter((a) => a.current);
   const older = splitOlderAssets(d.assets);
   const extendChoices = extendDayChoices(d.invitation.uploadExpiresAt);
@@ -179,9 +184,22 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
                 ['결과 보기 끝', d.invitation.resultExpiresAt ? seoulDateText(d.invitation.resultExpiresAt) : '만료 없음'],
                 ['접근 코드', accessCodeText(d.invitation)],
                 ['파일 한도', `${formatBytes(d.invitation.limits.maxFileBytes)} · 합계 ${formatBytes(d.invitation.limits.maxTotalBytes)}`],
+                ...(d.invitation.reissuedAt ? ([['링크 바꿈', `${d.invitation.reissueCount}번 · 마지막 ${seoulTimeText(d.invitation.reissuedAt)}`]] as [string, string][]) : []),
                 ...(d.invitation.revokedAt ? ([['폐기', `${seoulTimeText(d.invitation.revokedAt)} · ${d.invitation.revokedBy ?? '-'}`]] as [string, string][]) : []),
               ]}
             />
+            {d.invitation.status === 'active' && d.untouched && (
+              <p className="text-xs text-muted">{UNTOUCHED_TEXT}. 링크를 못 받았거나 잃었다면 새 링크를 만들거나 초대를 폐기해 주세요. 링크를 열었는지는 기록하지 않아요.</p>
+            )}
+            {d.invitation.status === 'active' && readiness && (
+              <ReissueButton
+                submissionId={d.id}
+                reissueCount={d.invitation.reissueCount}
+                ready={readiness.ready}
+                blockedText={readinessLines(readiness)[0] ?? null}
+                devNote={readiness.ready ? devLinkText(readiness) : null}
+              />
+            )}
             {d.invitation.accessCodeNeedsReset && <AccessCodeLockBox submissionId={d.id} failures={d.invitation.accessCodeFailures} />}
             {uploadWindowExtendable(d) && <UploadWindowBox submissionId={d.id} expired={d.invitation.uploadExpired} choices={extendChoices} />}
             {d.invitation.status === 'active' && <RevokeButton submissionId={d.id} retentionLine={revokeRetentionText(d.retention, { status: d.status, now })} />}
@@ -359,8 +377,17 @@ const detailText = (action: string, detail: Record<string, unknown> | null) => {
   /* 철회를 누가 어떻게 알렸는지는 이 기록이 하나뿐인 근거다 */
   const note = (action === 'consent.withdrawn_by_admin' || action === 'consent.model_withdrawn_by_admin') && typeof detail.note === 'string' ? detail.note : null;
   const until = action === 'upload_window.extended' && typeof detail.to === 'string' ? `${seoulDateText(detail.to)}까지` : null;
-  return [view, failure, note, until].filter(Boolean).join(' · ') || null;
+  const reissue = action === 'invitation.reissued' ? reissueDetailText(detail) : null;
+  return [view, failure, note, until, reissue].filter(Boolean).join(' · ') || null;
 };
+
+/** 링크를 왜 바꿨는지 — 만들기를 다시 눌러 바꾼 것인지, 관리자가 새 링크를 만든 것인지 */
+function reissueDetailText(detail: Record<string, unknown>): string | null {
+  if (detail.reason === 'create_retry') return '만들기를 다시 눌러 바뀜';
+  if (detail.reason !== 'admin') return null;
+  const carried = [detail.hadAssets === true ? '받은 영상' : null, detail.published === true ? '공개 결과' : null].filter(Boolean);
+  return carried.length ? `새 링크 만들기 · ${carried.join('과 ')} 이어짐` : '새 링크 만들기';
+}
 
 function Audit({ d }: { d: IntakeDetail }) {
   return (

@@ -102,6 +102,7 @@ export const HAND_TEXT: Record<string, string> = { R: '오른손', L: '왼손' }
 export const AUDIT_ACTION_TEXT: Record<string, string> = {
   'invitation.created': '초대를 만들었어요',
   'invitation.revoked': '초대를 폐기했어요',
+  'invitation.reissued': '링크를 새로 바꿨어요',
   'consent.recorded': '동의를 남겼어요',
   'consent.withdrawn': '동의를 철회했어요',
   'consent.withdrawn_by_admin': '담당자가 필수 동의 철회를 기록했어요',
@@ -295,3 +296,49 @@ export function analysisChipText(analysisStatus: string, block: AnalysisBlock | 
 export const retentionLineText = (r: RetentionCell) =>
   purgingNow(r) || r.originalsPurgedAt ? retentionCellText(r) : `${r.hasRevision ? '원본' : '영상'} 삭제 예정일 ${retentionCellText(r)}`;
 
+
+/* ────────────────────────────── 초대 준비 · 링크 ────────────────────────────── */
+
+/** 정식 주소가 아닌 까닭 — lib/intake/link-origin.ts LinkOriginProblem */
+export const LINK_ORIGIN_PROBLEM_TEXT: Record<string, string> = {
+  unparsable: '주소를 읽을 수 없어요',
+  not_https: 'https 주소가 아니에요',
+  has_path: '주소 뒤에 경로가 붙어 있어요',
+  has_port: '포트 번호가 붙어 있어요',
+  credentials: '주소에 계정 정보가 들어 있어요',
+  ip_literal: '도메인이 아니라 IP 주소예요',
+  local_host: '이 컴퓨터나 내부망에서만 열리는 주소예요',
+  preview_host: '미리보기 배포 주소예요',
+};
+
+type ReadinessView = {
+  blockers: readonly string[];
+  link: { source: string; problem: string | null; external: boolean };
+};
+
+/** 설정 칸 이름 — 기본값을 쓰는 중이면 고칠 칸은 NEXT_PUBLIC_SITE_URL 이다 */
+const originVarOf = (source: string) => (source === 'INTAKE_PUBLIC_ORIGIN' ? 'INTAKE_PUBLIC_ORIGIN' : 'NEXT_PUBLIC_SITE_URL');
+
+/** 초대를 못 만드는 까닭 — 화면이 버튼을 끄고 이 글을 보인다. 준비됐으면 빈 목록 */
+export function readinessLines(r: ReadinessView): string[] {
+  const lines: string[] = [];
+  if (r.blockers.includes('db')) lines.push('DB 마이그레이션 적용 전이에요. 외부 접수 표를 만든 뒤에 초대를 만들 수 있어요.');
+  if (r.blockers.includes('origin')) {
+    const why = r.link.problem ? ` ${textOf(LINK_ORIGIN_PROBLEM_TEXT, r.link.problem)}.` : '';
+    lines.push(`외부 주소 설정이 없어요: ${originVarOf(r.link.source)}.${why} 받는 사람이 열 수 있는 https 정식 주소를 넣어 주세요.`);
+  }
+  return lines;
+}
+
+/** 개발용 링크의 경고 — 정식 주소가 아니면 화면이 링크 위에 붙인다. 정식이면 null */
+export function devLinkText(r: Pick<ReadinessView, 'link'>): string | null {
+  if (r.link.external) return null;
+  const why = r.link.problem ? ` (${textOf(LINK_ORIGIN_PROBLEM_TEXT, r.link.problem)})` : '';
+  return `개발용 주소라 받는 사람에게 보내면 안 돼요${why}. 정식 주소는 ${originVarOf(r.link.source)} 설정으로 정해요.`;
+}
+
+/** 새 링크 만들기의 확인 글 — 받은 영상 · 공개 결과는 이어진다 */
+export const REISSUE_WARNING_TEXT = '새 링크로 바꾸면 예전 링크는 바로 막혀요. 이미 받은 영상과 공개한 결과는 새 링크로 이어져요.';
+
+/** 받는 분이 아직 시작하지 않은 접수 — 열었는지는 기록하지 않아 모른다 */
+export const UNTOUCHED_TEXT = '받는 분이 아직 시작하지 않았어요';

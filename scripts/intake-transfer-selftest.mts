@@ -458,12 +458,38 @@ const resetLog = () => {
   await guard.done.catch(() => {});
   ok(guardUrl != null && guardUrl !== record.uploadUrl, '기록의 해시가 파일과 다르면 그 주소를 안 쓴다');
 
+  /* 서버가 이미 이 주소를 안다(grant.uploadUrl) — 이어 가도 다시 알리지 않는다 */
+  const knownAnnounce: string[] = [];
+  const knows = startIntakeUpload({
+    file,
+    fileName: 'IMG.MOV',
+    sha256: sourceSha,
+    grant: { ...(await grantFor(objectPath)), uploadUrl: record.uploadUrl, transportExpiresAt: record.transportExpiresAt },
+    refreshGrant: refreshFor(objectPath),
+    store,
+    storeKey: key,
+    retryDelays: fast,
+    onUploadUrl: (u) => knownAnnounce.push(u),
+    onProgress: (sent) => {
+      if (sent > offset) void knows.abort();
+    },
+  });
+  await knows.done.catch(() => {});
+  ok(knownAnnounce.length === 0, '서버가 아는 주소로 이어 가면 다시 알리지 않는다');
+
+  /*
+   * 앞 시도의 알림이 끊겼다(멈춤 · 끊김) — 서버는 주소를 모르고(grant.uploadUrl null) 기기 기록만 있다.
+   * 이어 갈 때 서버에 다시 알려야 다른 기기 · 지운 브라우저가 이어 간다. 기기 기록이 같다고 건너뛰면 안 된다.
+   */
+  const resumedFrom = up.offset;
   const postsBefore = server.log.posts;
   const before = server.log.patchBytes;
-  const second = startIntakeUpload({ file, fileName: 'IMG.MOV', sha256: sourceSha, grant: await grantFor(objectPath), refreshGrant: refreshFor(objectPath), store, storeKey: key, retryDelays: fast });
+  const announced: string[] = [];
+  const second = startIntakeUpload({ file, fileName: 'IMG.MOV', sha256: sourceSha, grant: await grantFor(objectPath), refreshGrant: refreshFor(objectPath), store, storeKey: key, retryDelays: fast, onUploadUrl: (u) => announced.push(u) });
   await second.done;
+  ok(announced.length === 1 && announced[0] === record.uploadUrl, '서버가 모르는 주소로 이어 가면 그 주소를 한 번 다시 알린다');
   ok(server.log.posts === postsBefore, '이어 갈 때 새 업로드를 안 만든다');
-  ok(server.log.patchBytes - before === SIZE - offset, '남은 바이트만 보낸다');
+  ok(server.log.patchBytes - before === SIZE - resumedFrom, '남은 바이트만 보낸다');
   ok((await hashOf(server.objects.get(objectPath)!)) === sourceSha, '다시 와서 이어도 바이트 그대로');
 }
 

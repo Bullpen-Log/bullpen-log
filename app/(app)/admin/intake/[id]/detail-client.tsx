@@ -4,12 +4,14 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Download, Play, Trash2 } from '@/components/icon';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { ErrorLine } from '@/components/error-line';
+import { Modal } from '@/components/modal';
 import { toast } from '@/components/toast';
 import { Button, Textarea } from '@/components/ui';
 import { orOffline } from '@/lib/action-offline';
 import {
   ASSET_STATUS_TEXT,
   HAND_TEXT,
+  REISSUE_WARNING_TEXT,
   REJECT_CODE_TEXT,
   RUN_STATUS_TEXT,
   VIEW_TEXT,
@@ -31,11 +33,13 @@ import {
   markIntakeSeen,
   markIntakeUnseen,
   publishIntakeRun,
+  reissueIntakeInvitation,
   revokeIntakeInvitation,
   runIntakeAnalysis,
   setIntakeHand,
   unpublishIntake,
 } from '@/app/actions/intake-admin';
+import { IssuedLinkPanel, type ShownLink } from '../create-invitation';
 import { originalWarning, runPreviewVisible } from './detail-rules';
 import { useAction } from './use-action';
 
@@ -323,6 +327,89 @@ export function NotesPanel({ submissionId, notes }: { submissionId: string; note
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * 새 링크 만들기 — 링크를 잃었거나 잘못 보냈을 때. 예전 링크는 바로 막히고 받은 영상 · 공개 결과는 새 링크로 이어진다.
+ * 새 링크는 이 창에서 한 번만 보인다. 그릴 때 본 바꿈 횟수를 보내, 다른 관리자가 먼저 바꿨으면 막고 최신 내용을 다시 받는다.
+ * 준비가 안 됐으면(ready false) 단추를 끄고 까닭을 말한다.
+ */
+export function ReissueButton({
+  submissionId,
+  reissueCount,
+  ready,
+  blockedText,
+  devNote,
+}: {
+  submissionId: string;
+  reissueCount: number;
+  ready: boolean;
+  blockedText: string | null;
+  devNote: string | null;
+}) {
+  const { pending, error, run, refresh } = useAction();
+  const [ask, setAsk] = useState(false);
+  /* 묻는 창을 연 순간의 횟수를 쥔다 — 창 뒤에서 화면이 새로 그려져도 관리자가 본 것으로 맞춰 본다 */
+  const [seen, setSeen] = useState(reissueCount);
+  const [made, setMade] = useState<ShownLink>();
+  return (
+    <>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        disabled={!ready}
+        title={blockedText ?? undefined}
+        onClick={() => {
+          setSeen(reissueCount);
+          setAsk(true);
+        }}
+        className="w-full"
+      >
+        새 링크 만들기
+      </Button>
+      {!ready && blockedText && <p className="text-xs text-warn">{blockedText}</p>}
+      {error && <ErrorLine>{error}</ErrorLine>}
+      <ConfirmDialog
+        open={ask && !made}
+        onClose={() => setAsk(false)}
+        title="새 링크를 만들까요?"
+        detail={`${REISSUE_WARNING_TEXT} 새 링크는 한 번만 보여요. 이미 내준 전송 토큰은 수명이 끝날 때까지 살아 있어요.`}
+        confirmLabel="새 링크 만들기"
+        pendingLabel="만드는 중…"
+        pending={pending}
+        onConfirm={() =>
+          run(
+            () => reissueIntakeInvitation(submissionId, seen),
+            (r) => {
+              setAsk(false);
+              setMade({ link: r.link, external: r.external, expires: r.uploadExpiresAt });
+            },
+            () => setAsk(false),
+          )
+        }
+      />
+      <Modal
+        open={made != null}
+        onClose={() => {
+          setMade(undefined);
+          refresh();
+        }}
+        title={made?.external === false ? '개발용 새 링크예요' : '새 링크를 만들었어요'}
+      >
+        {made && (
+          <IssuedLinkPanel
+            made={made}
+            devNote={devNote}
+            onClose={() => {
+              setMade(undefined);
+              refresh();
+            }}
+          />
+        )}
+      </Modal>
+    </>
   );
 }
 

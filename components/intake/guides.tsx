@@ -3,8 +3,20 @@
 import { useState } from 'react';
 import { Modal } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
-import { LAB_GUIDE_POINTS } from '@/lib/pitch-lab-guide';
+import { LAB_GUIDE_CAMERA, LAB_GUIDE_CAMERA_NOTE, LAB_GUIDE_CLOTHES, LAB_GUIDE_FRAME, LAB_GUIDE_SHOOT } from '@/lib/pitch-lab-guide';
 import { PlacementMap, RearFrame, SideFrame } from '@/components/intake/illustrations';
+
+/*
+ * 3D 동작 분석 촬영 안내(lib/pitch-lab-guide.ts)의 글을 그대로 빌려 쓴다 — 두 안내가 다른 말을 하지 않게.
+ * 2026-11-08 안내가 카드 넷으로 바뀌며 한 묶음 표(LAB_GUIDE_POINTS)가 없어져 여기서 다시 묶는다.
+ */
+const GUIDE = {
+  /* 첫 줄(옆 폰 자리)은 던지는 손에 따라 화면이 따로 쓴다 */
+  place: LAB_GUIDE_FRAME.slice(1, 3),
+  frame: [`${LAB_GUIDE_CLOTHES.title}. ${LAB_GUIDE_CLOTHES.text}`, LAB_GUIDE_FRAME[3], LAB_GUIDE_SHOOT[0], LAB_GUIDE_SHOOT[3]],
+  phone: [...LAB_GUIDE_CAMERA.map((s) => s.text), LAB_GUIDE_CAMERA_NOTE],
+  steps: LAB_GUIDE_SHOOT.slice(1, 3),
+};
 
 function Points({ items }: { items: readonly string[] }) {
   return (
@@ -81,19 +93,19 @@ export function CaptureGuide({ open, onClose }: { open: boolean; onClose: () => 
               hand === 'R'
                 ? '옆 폰: 오른손 투수는 3루 쪽에서 찍어요. 투구 방향과 직각으로 3.5~5m 떨어져요.'
                 : '옆 폰: 왼손 투수는 1루 쪽에서 찍어요. 투구 방향과 직각으로 3.5~5m 떨어져요.',
-              ...LAB_GUIDE_POINTS.place.slice(1),
+              ...GUIDE.place,
             ]}
           />
         </Section>
 
         <Section title="화면에 담기">
-          <Points items={LAB_GUIDE_POINTS.frame} />
+          <Points items={GUIDE.frame} />
         </Section>
         <Section title="폰 설정">
-          <Points items={LAB_GUIDE_POINTS.phone} />
+          <Points items={GUIDE.phone} />
         </Section>
         <Section title="찍는 순서">
-          <Steps items={LAB_GUIDE_POINTS.steps} />
+          <Steps items={GUIDE.steps} />
         </Section>
       </div>
     </Modal>

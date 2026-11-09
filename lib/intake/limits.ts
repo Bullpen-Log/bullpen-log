@@ -30,6 +30,41 @@ export const INTAKE_WITHDRAWN_DRAFT_GRACE_DAYS = 7;
 /** 지울 날이 지나도 열린 고침을 기다려 주는 최대 일수 — 관리자가 기간을 거듭 늘려 삭제가 끝없이 밀리지 않게 */
 export const INTAKE_CORRECTION_HOLD_DAYS = 14;
 
+/*
+ * ── 일감 실행 예산(서버 전용) ── 근거 · 잰 값은 docs/designs/external-intake-large-files.md.
+ * 크론 라우트(app/api/cron/intake/route.ts)의 maxDuration 과 같은 값이어야 한다 — 라우트 설정은 글자 그대로 적어야 해서 시험이 둘을 견준다.
+ */
+/** 크론 함수 한 번의 최대 시간(초) */
+export const INTAKE_CRON_MAX_DURATION_SEC = 300;
+/** 함수가 끊기기 전에 일감을 돌려놓을 여유 — 이 시각에 해시를 끊고 일감을 줄에 되돌린다 */
+export const INTAKE_JOB_SAFETY_MARGIN_MS = 30_000;
+/** 크론 한 번에 일감에 쓸 수 있는 시간 */
+export const INTAKE_CRON_BUDGET_MS = INTAKE_CRON_MAX_DURATION_SEC * 1000 - INTAKE_JOB_SAFETY_MARGIN_MS;
+/**
+ * 파일 검증의 보수적인 읽기 속도(바이트/초) — 저장소에서 내려받으며 SHA-256 을 재는 속도의 아래쪽 짐작이다.
+ * 이 맥의 로컬 해시는 이보다 수십 배 빠르다. 실제 Supabase → Vercel(icn1) 내려받기는 재지 못했다 — 재면 이 값을 고친다.
+ * 8MiB/초면 1GiB 는 128초 + 고정 몫이라, 빈 크론 한 번(270초)에 한 파일은 늘 들어간다.
+ */
+export const VERIFY_MIN_BYTES_PER_SEC = 8 * 1024 * 1024;
+/** 파일 하나 검증의 고정 몫 — 서명 주소 · 머리 범위 읽기 · DB 쓰기 */
+export const VERIFY_FIXED_OVERHEAD_MS = 10_000;
+/** 예산 때문에 해시를 끊은 횟수가 이만큼 쌓이면 크론은 그 파일을 더 시작하지 않고 검증 작업자를 기다린다 */
+export const VERIFY_MAX_BUDGET_ABORTS = 3;
+/** 위처럼 쉬게 둔 파일도 이만큼 지나면 크론이 다시 한 번 해 본다(저장소가 잠깐 느렸을 수 있다) */
+export const VERIFY_PARK_MS = 24 * 60 * 60 * 1000;
+/** 검증 작업자(크론 밖에서 오래 도는 일꾼)의 임대 시간 — 1GiB 를 느린 망으로 읽어도 남는다 */
+export const VERIFY_WORKER_LEASE_MS = 60 * 60 * 1000;
+/**
+ * 빈 크론 한 번으로도 모자라다고 어림한 파일을 그래도 한 번 읽어 보는 조건 — 남은 시간이 예산의 이만큼 이상일 때(가벼운 일만 한 크론).
+ * 끊기면 그때 잰 속도가 남는다. 하루(VERIFY_PARK_MS)에 한 번까지라 같은 읽기가 5분마다 헛돌지 않는다.
+ */
+export const VERIFY_PROBE_MIN_LEFT_FRACTION = 0.8;
+/** 공개 라우트(올리기 확인 · 접수 완료)의 함수 시간(초) — 응답 뒤 after() 검증의 예산이 여기서 나온다. 라우트 설정과 같아야 한다 */
+export const INTAKE_PUBLIC_ROUTE_MAX_DURATION_SEC = 300;
+/** 예산 때문에 기다리는 검증 일감의 글(lastError 칸) 머리말 — 실패가 아니라 기다림이다. 화면 · 관리자 동작이 이것으로 가른다 */
+export const VERIFY_BUDGET_NOTE_PREFIX = '검증 대기:';
+export const isVerifyBudgetNote = (text: string | null | undefined) => text?.startsWith(VERIFY_BUDGET_NOTE_PREFIX) === true;
+
 export type IntakeLimits = { maxFileBytes: number; maxTotalBytes: number; maxAssets: number };
 
 const positive = (v: unknown): number | null => {

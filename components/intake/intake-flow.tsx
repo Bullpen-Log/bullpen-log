@@ -15,7 +15,7 @@ import { LINK_BUTTON, VIEW_LABEL } from '@/components/intake/slots';
 import { useSend } from '@/components/intake/use-send';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { agreedAfterDocs, changedConsentKinds, isAgeBand, isSubmitterRelation } from '@/lib/intake/consent';
-import { IntakeRequestError, NETWORK_TEXT, createIntakeClient, type IntakeReceipt, type PublicAsset, type PublicConsentDoc, type PublicStateResponse } from '@/lib/intake/public-client';
+import { IntakeRequestError, NETWORK_TEXT, TIMEOUT_TEXT, createIntakeClient, type IntakeReceipt, type PublicAsset, type PublicConsentDoc, type PublicStateResponse } from '@/lib/intake/public-client';
 import { assetGone, assetInTransit, type IntakeScreen, type IntakeView } from '@/lib/intake/state';
 import { refreshQuietly, stateAfterReceipt, type RunItem, type RunStop } from '@/lib/intake/upload-run';
 
@@ -85,6 +85,8 @@ const RELOAD = new Set([
   'upload_expired',
   'submission_not_found',
   'asset_not_found',
+  /* 완료를 보낸 뒤 결과를 못 받았다 — 서버의 지금 화면(영수증일 수 있다)을 다시 본다 */
+  'finalize_unknown',
 ]);
 
 const stopPlan = (stop: RunStop) => (REPICK.has(stop.code) ? 'repick' : RELOAD.has(stop.code) ? 'reload' : 'retry');
@@ -123,10 +125,10 @@ function Flow({ token }: { token: string }) {
     pickedRef.current = picked;
   }, [picked]);
 
-  /** 서버 상태를 읽는다. moveTo 면 서버가 말하는 화면으로 간다 */
+  /** 서버 상태를 읽는다. moveTo 면 서버가 말하는 화면으로 간다. 요청은 시한이 있어 멈춘 채 남지 않는다(public-client) */
   const load = useCallback(
-    async (moveTo: boolean) => {
-      const r = await client.state();
+    async (moveTo: boolean, signal?: AbortSignal) => {
+      const r = await client.state({ signal });
       const before = shownDocs.current;
       shownDocs.current = r.consentDocs;
       setData(r);
@@ -165,23 +167,30 @@ function Flow({ token }: { token: string }) {
     [client],
   );
 
-  /** 불러오기 실패를 화면으로 — 폐기 · 틀린 링크는 막힌 화면, 그 밖은 다시 시도 */
+  /**
+   * 불러오기 실패를 화면으로 — 폐기 · 틀린 링크는 막힌 화면, 그 밖(끊김 · 시한 · 서버 오류)은 '다시 시도'가 있는 화면.
+   * 고른 파일 · 적은 글 · 이어 올리기 기록은 이 화면의 상태라 그대로 남는다. 멈춘 요청(화면을 떠남)은 아무것도 안 그린다.
+   */
   const refresh = useCallback(
-    async (moveTo = true) => {
+    async (moveTo = true, signal?: AbortSignal) => {
       try {
-        await load(moveTo);
+        await load(moveTo, signal);
       } catch (e) {
         if (!(e instanceof IntakeRequestError)) throw e;
+        if (e.code === 'cancelled' || signal?.aborted) return;
         if (e.code === 'invitation_invalid' || e.code === 'invitation_revoked') setBoot({ kind: 'blocked', code: e.code });
-        else setBoot({ kind: 'offline', message: e.code === 'network' ? NETWORK_TEXT : e.message });
+        else setBoot({ kind: 'offline', message: e.code === 'network' ? NETWORK_TEXT : e.code === 'timeout' ? TIMEOUT_TEXT : e.message });
       }
     },
     [load],
   );
 
   useEffect(() => {
+    const ctrl = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 서버 응답을 받은 뒤에 칠한다(바로 칠하지 않는다)
-    void refresh();
+    void refresh(true, ctrl.signal);
+    /* 화면이 떨어지면 첫 읽기를 멈춘다 — 늦은 응답이 화면을 안 바꾼다 */
+    return () => ctrl.abort();
   }, [refresh]);
 
   const onReserved = useCallback((view: IntakeView, asset: PublicAsset, version: number) => {
@@ -229,18 +238,27 @@ function Flow({ token }: { token: string }) {
   useEffect(() => {
     if (!followServer) return;
     const quick = data?.state.submissionStatus === 'submitted';
+    const ctrl = new AbortController();
+    /* 한 번에 하나만 묻는다 — 응답이 시한까지 늦어도 묻기가 쌓이지 않는다 */
+    let asking = false;
     const tick = () => {
-      if (document.visibilityState !== 'visible') return;
-      /* 잠깐 끊긴 것으로 화면을 바꾸지 않는다. 폐기 · 틀린 링크만 막는다 */
-      load(true).catch((e: unknown) => {
-        if (e instanceof IntakeRequestError && (e.code === 'invitation_invalid' || e.code === 'invitation_revoked')) setBoot({ kind: 'blocked', code: e.code });
-      });
+      if (document.visibilityState !== 'visible' || asking) return;
+      asking = true;
+      /* 잠깐 끊긴 것 · 늦은 것으로 화면을 바꾸지 않는다. 폐기 · 틀린 링크만 막는다 */
+      load(true, ctrl.signal)
+        .catch((e: unknown) => {
+          if (e instanceof IntakeRequestError && (e.code === 'invitation_invalid' || e.code === 'invitation_revoked')) setBoot({ kind: 'blocked', code: e.code });
+        })
+        .finally(() => {
+          asking = false;
+        });
     };
     const id = window.setInterval(tick, quick ? 5_000 : 30_000);
     document.addEventListener('visibilitychange', tick);
     return () => {
       window.clearInterval(id);
       document.removeEventListener('visibilitychange', tick);
+      ctrl.abort();
     };
   }, [followServer, data?.state.submissionStatus, load]);
 
@@ -602,7 +620,15 @@ function Flow({ token }: { token: string }) {
       );
     case 'send': {
       if (!send.run) return <LoadingScreen />;
-      return <SendStep run={send.run} actionLabel={send.run.stop ? stopLabel(send.run.stop) : null} onAction={() => send.run?.stop && resolveStop(send.run.stop)} />;
+      return (
+        <SendStep
+          run={send.run}
+          actionLabel={send.run.stop ? stopLabel(send.run.stop) : null}
+          onAction={() => send.run?.stop && resolveStop(send.run.stop)}
+          /* 진행이 오래 멈추면 멈추고 '이어서 보내기'로 — 고른 파일 · 이어 올리기 기록 · 완료 키는 그대로 둔다 */
+          onCancel={send.cancel}
+        />
+      );
     }
     case 'recovery':
       return (

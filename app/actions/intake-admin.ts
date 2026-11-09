@@ -8,8 +8,9 @@ import { allowAdmin } from '@/lib/release-gate';
 import {
   addIntakeNote,
   adminCancelCorrection,
-  adminCreateInvitation,
+  adminCreateInvitationLink,
   adminExtendUploadWindow,
+  adminReissueInvitation,
   adminRequestCorrection,
   adminRequeueVerification,
   adminResetAccessCodeLock,
@@ -52,6 +53,18 @@ function revalidate(submissionId?: string) {
   if (submissionId) revalidatePath(`/admin/intake/${submissionId}`);
 }
 
+/**
+ * 링크를 이미 저장한 뒤의 뒷일(읽음 표시 · 화면 새로 고침) — 실패해도 링크는 돌려준다.
+ * 새 토큰은 저장됐고 예전 링크는 막혔다. 여기서 던지면 원문이 사라져 두 링크를 다 잃는다. 기록에는 오류 이름만 남긴다(토큰은 안 닿는다).
+ */
+async function afterIssued(work: () => unknown): Promise<void> {
+  try {
+    await work();
+  } catch (e) {
+    console.warn('[intake] 링크를 만든 뒤 정리 실패', e instanceof Error ? e.name : typeof e);
+  }
+}
+
 /** 권한을 본 뒤 일을 하고, 아는 실패는 답으로 바꾼다. 돌려보내기 · 베타 막힘은 그대로 던진다 */
 async function asAdmin<T extends object>(work: (actor: IntakeActor) => Promise<T>): Promise<IntakeActionResult<T>> {
   allowAdmin('intake');
@@ -64,11 +77,48 @@ async function asAdmin<T extends object>(work: (actor: IntakeActor) => Promise<T
   }
 }
 
-export async function createIntakeInvitation(input: AdminInvitationInput): Promise<IntakeActionResult<{ token: string; submissionId: string; uploadExpiresAt: string }>> {
+/** 보낼 링크 — 서버가 설정의 정식 주소로 만든다. external 이 false 면 개발용 주소라 받는 사람에게 보내면 안 된다 */
+type IssuedLinkResult = { link: string; external: boolean; submissionId: string; uploadExpiresAt: string; reissueCount: number };
+
+/** 만든 초대 — coded 는 저장된 초대에 결과 접근 코드가 걸려 있나(지금 폼이 아니라 서버 값이다) */
+type CreatedLinkResult = IssuedLinkResult & { reissued: boolean; coded: boolean };
+
+/**
+ * 초대를 만든다 — 준비(표 · 정식 주소)가 안 됐으면 'intake_not_ready'. createRequestKey 가 같으면 초대를 더 만들지 않는다:
+ * 받는 분이 아직 시작하지 않았으면 그 초대의 링크를 새로 바꿔 돌려주고(reissued true), 시작했거나 관리자가 새 링크로 바꿨으면 'invitation_retry_used',
+ * 다시 누른 내용이 처음과 다르면 'invitation_retry_changed'. 막힌 답의 detail.submissionId 로 화면이 앞 초대를 연다.
+ */
+export async function createIntakeInvitation(input: AdminInvitationInput): Promise<IntakeActionResult<CreatedLinkResult>> {
   return asAdmin(async (actor) => {
-    const made = await adminCreateInvitation(db, actor, input);
-    revalidate();
-    return { token: made.token, submissionId: made.submissionId, uploadExpiresAt: made.uploadExpiresAt.toISOString() };
+    const made = await adminCreateInvitationLink(db, actor, input);
+    await afterIssued(() => revalidate(made.submissionId));
+    return {
+      link: made.link,
+      external: made.external,
+      submissionId: made.submissionId,
+      uploadExpiresAt: made.uploadExpiresAt.toISOString(),
+      reissueCount: made.reissueCount,
+      reissued: made.reissued,
+      coded: made.coded,
+    };
+  });
+}
+
+/** 링크를 새로 바꾼다 — 예전 링크는 바로 막힌다. expectedReissueCount 는 화면이 본 바꿈 횟수다(그사이 바뀌었으면 'stale_reissue') */
+export async function reissueIntakeInvitation(submissionId: string, expectedReissueCount: number): Promise<IntakeActionResult<IssuedLinkResult & { hadAssets: boolean; published: boolean }>> {
+  return asAdmin(async (actor) => {
+    const made = await adminReissueInvitation(db, actor, { submissionId, expectedReissueCount });
+    await afterIssued(() => markIntakeRead(db, actor, submissionId));
+    await afterIssued(() => revalidate(submissionId));
+    return {
+      link: made.link,
+      external: made.external,
+      submissionId: made.submissionId,
+      uploadExpiresAt: made.uploadExpiresAt.toISOString(),
+      reissueCount: made.reissueCount,
+      hadAssets: made.hadAssets,
+      published: made.published,
+    };
   });
 }
 

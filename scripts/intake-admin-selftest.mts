@@ -108,7 +108,10 @@ const {
   addIntakeNote,
   adminCancelCorrection,
   adminCreateInvitation,
+  adminCreateInvitationLink,
   adminExtendUploadWindow,
+  adminReissueInvitation,
+  checkIntakeReadiness,
   adminRequestCorrection,
   adminRequeueVerification,
   adminResetAccessCodeLock,
@@ -221,6 +224,8 @@ const auditCount = () => db.intakeAudit.count();
     ['loadIntakeDetail', (a) => loadIntakeDetail(db, a!, id)],
     ['adminCreateInvitation', (a) => adminCreateInvitation(db, a!, {})],
     ['adminRevokeInvitation', (a) => adminRevokeInvitation(db, a!, { submissionId: id })],
+    ['adminCreateInvitationLink', (a) => adminCreateInvitationLink(db, a!, {}, {})],
+    ['adminReissueInvitation', (a) => adminReissueInvitation(db, a!, { submissionId: id, expectedReissueCount: 0 }, {})],
     ['assignSubmission', (a) => assignSubmission(db, a!, { submissionId: id, assigneeId: A.id, expectedAssigneeId: null })],
     ['markIntakeRead', (a) => markIntakeRead(db, a!, id)],
     ['markIntakeUnread', (a) => markIntakeUnread(db, a!, id)],
@@ -267,6 +272,7 @@ const auditCount = () => db.intakeAudit.count();
   const CALLS: Record<string, unknown[]> = {
     createIntakeInvitation: [{}],
     revokeIntakeInvitation: [id],
+    reissueIntakeInvitation: [id, 0],
     assignIntake: [id, A.id, null],
     markIntakeSeen: [id],
     markIntakeUnseen: [id],
@@ -314,12 +320,24 @@ const auditCount = () => db.intakeAudit.count();
   /* 대표관리자는 베타에도 지나간다 */
   process.env.RELEASE_STAGE = 'restricted_beta';
   g.session = { userId: A.id, pw: 'fp' };
-  const made = (await actions.createIntakeInvitation({ note: '동작으로 만듦' })) as { ok: true; token: string; submissionId: string };
-  ok(made.ok && /^[A-Za-z0-9_-]{40,}$/.test(made.token), '대표관리자는 초대를 만든다');
+  const made = (await actions.createIntakeInvitation({ note: '동작으로 만듦' })) as unknown as { ok: true; link: string; external: boolean; submissionId: string };
+  const madeToken = made.link.split('#')[1] ?? '';
+  ok(made.ok && /^[A-Za-z0-9_-]{40,}$/.test(madeToken), '대표관리자는 초대를 만든다');
+  ok(!('token' in made), '답에는 토큰 칸 없이 링크만 간다');
+  eq([made.link.startsWith('https://dugout-baseball.com/submit#'), made.external], [true, true], '링크 앞쪽은 서버 설정(기본 정식 주소)이다');
   const stored = await db.intakeInvitation.findFirstOrThrow({ where: { submission: { id: made.submissionId } } });
-  eq(stored.tokenHash, hashInvitationToken(made.token), '토큰은 해시만 저장한다');
+  eq(stored.tokenHash, hashInvitationToken(madeToken), '토큰은 해시만 저장한다');
   const trail = JSON.stringify(await db.intakeAudit.findMany({ where: { submissionId: made.submissionId } }));
-  ok(!trail.includes(made.token), '토큰은 감사 기록에 없다');
+  ok(!trail.includes(madeToken), '토큰은 감사 기록에 없다');
+  /* 새 링크도 동작으로 — 예전 링크는 막히고, 감사 기록에 원문이 없다 */
+  const re = (await actions.reissueIntakeInvitation(made.submissionId, 0)) as unknown as { ok: true; link: string; reissueCount: number };
+  const reToken = re.link.split('#')[1] ?? '';
+  eq([re.ok, re.reissueCount, reToken !== madeToken], [true, 1, true], '대표관리자는 새 링크를 만든다');
+  await fails(openIntakeScope(db, `Intake ${madeToken}`, 'read'), 'invitation_invalid', '동작으로 바꾼 뒤 예전 링크는 막힌다');
+  const reTrail = JSON.stringify(await db.intakeAudit.findMany({ where: { submissionId: made.submissionId } }));
+  ok(!reTrail.includes(reToken) && !reTrail.includes(madeToken), '새 토큰도 감사 기록에 없다');
+  const staleRe = await actions.reissueIntakeInvitation(made.submissionId, 0);
+  ok(!staleRe.ok && staleRe.code === 'stale_reissue', '낡은 횟수로 다시 바꾸면 답으로 막힌다');
 
   const links = (await actions.getIntakePairLinks(id)) as { ok: true; links: { url: string }[] };
   eq([links.ok, links.links.length], [true, 2], '대표관리자는 짝 주소를 받는다');
@@ -1254,6 +1272,268 @@ const auditCount = () => db.intakeAudit.count();
   const left = await stuck('남은파일', 10);
   eq(left.map((j) => [j.view, j.canRequeue, j.lastError]), [['side', false, 'IntakeError: storage_unavailable (remove_left_object)']], '지울 때가 지났는데 남은 임시 파일을 보인다');
   eq(await stuck('유예안', 3), [], '유예 안의 파일은 멈춘 것으로 안 본다');
+}
+
+/* ═══════════ 링크 앞쪽 · 준비 상태 · 다시 누른 만들기 · 새 링크(2026-11-09 검토) ═══════════ */
+{
+  const lo = await import('@/lib/intake/link-origin');
+  const { SITE_URL } = await import('@/lib/site-url');
+  const { readinessLines, devLinkText } = await import('@/lib/intake/admin-labels');
+  const { isMissingTableError } = admin;
+  const tokenOf = (link: string) => link.split('#')[1] ?? '';
+  const scopeOf = (token: string) => openIntakeScope(db, `Intake ${token}`, 'read');
+  const DAY = 86_400_000;
+
+  /* ── 주소 판단(순수) ── */
+  if (!process.env.NEXT_PUBLIC_SITE_URL) eq(SITE_URL, lo.DEFAULT_PUBLIC_ORIGIN, '기본 정식 주소는 lib/site-url.ts 와 같다');
+  for (const good of ['https://dugout-baseball.com', 'https://dugout-baseball.com/', 'https://www.dugout-baseball.com', 'https://bullpen-log.vercel.app', 'https://Dugout-Baseball.com']) {
+    eq(lo.linkOriginProblem(good), null, `정식 주소: ${good}`);
+  }
+  const bad: [string, string][] = [
+    ['http://dugout-baseball.com', 'not_https'],
+    ['http://localhost:3000', 'not_https'],
+    ['https://localhost', 'local_host'],
+    ['https://localhost:3000', 'has_port'],
+    ['https://dugout-baseball.com:8443', 'has_port'],
+    ['https://127.0.0.1', 'ip_literal'],
+    ['https://10.0.0.5', 'ip_literal'],
+    ['https://192.168.0.2', 'ip_literal'],
+    ['https://172.16.3.4', 'ip_literal'],
+    ['https://[::1]', 'ip_literal'],
+    ['https://bullpen-log-git-intake-team.vercel.app', 'preview_host'],
+    ['https://bullpen-log-abc123-yuno.vercel.app', 'preview_host'],
+    ['https://dugout-baseball.com/admin', 'has_path'],
+    ['https://dugout-baseball.com/?x=1', 'has_path'],
+    ['https://a:b@dugout-baseball.com', 'credentials'],
+    ['https://mac.local', 'local_host'],
+    ['https://app.localhost', 'local_host'],
+    ['https://intranet', 'local_host'],
+    ['nonsense', 'unparsable'],
+  ];
+  for (const [raw, problem] of bad) eq(lo.linkOriginProblem(raw), problem, `정식이 아님(${problem}): ${raw}`);
+  eq(lo.resolveLinkOrigin({}), { origin: lo.DEFAULT_PUBLIC_ORIGIN, source: 'default', external: true, problem: null, strict: false }, '설정이 없으면 기본 정식 주소');
+  eq(lo.resolveLinkOrigin({ INTAKE_PUBLIC_ORIGIN: 'https://intake.dugout-baseball.com/', NEXT_PUBLIC_SITE_URL: 'http://localhost:3000' }).origin, 'https://intake.dugout-baseball.com', 'INTAKE_PUBLIC_ORIGIN 이 먼저다');
+  const devOrigin = lo.resolveLinkOrigin({ NEXT_PUBLIC_SITE_URL: 'http://localhost:3000' });
+  eq([devOrigin.origin, devOrigin.source, devOrigin.external, devOrigin.problem], ['http://localhost:3000', 'NEXT_PUBLIC_SITE_URL', false, 'not_https'], '개발 주소는 정식이 아니다');
+  eq(
+    [lo.isStrictDeployment({ VERCEL_ENV: 'production' }), lo.isStrictDeployment({ VERCEL_ENV: 'preview', NODE_ENV: 'production' }), lo.isStrictDeployment({ NODE_ENV: 'production' }), lo.isStrictDeployment({})],
+    [true, false, true, false],
+    '운영 배포 판단 — Vercel 운영 · Vercel 밖 production 만',
+  );
+  eq(lo.invitationLink(lo.resolveLinkOrigin({}), 'tok'), 'https://dugout-baseball.com/submit#tok', '토큰은 주소 조각(#)에만');
+
+  /* ── 준비 상태 ── */
+  const PROD_LOCAL = { VERCEL_ENV: 'production', NEXT_PUBLIC_SITE_URL: 'http://localhost:3000' };
+  const DEV_LOCAL = { NEXT_PUBLIC_SITE_URL: 'http://localhost:3000' };
+  const fine = await checkIntakeReadiness(db, {});
+  eq([fine.ready, fine.blockers, fine.missing], [true, [], []], '표 · 칸 · 정식 주소가 다 있으면 준비됨');
+  const prod = await checkIntakeReadiness(db, PROD_LOCAL);
+  eq([prod.ready, prod.blockers], [false, ['origin']], '운영에서 정식 주소가 아니면 준비 안 됨');
+  ok(readinessLines(prod).some((l) => l.includes('외부 주소 설정이 없어요: NEXT_PUBLIC_SITE_URL')), '고칠 설정 칸 이름을 말한다');
+  const prodPreview = await checkIntakeReadiness(db, { VERCEL_ENV: 'production', INTAKE_PUBLIC_ORIGIN: 'https://bullpen-log-git-x.vercel.app' });
+  ok(readinessLines(prodPreview).some((l) => l.includes('INTAKE_PUBLIC_ORIGIN') && l.includes('미리보기 배포 주소')), '미리보기 주소도 막고 까닭을 말한다');
+  const dev = await checkIntakeReadiness(db, DEV_LOCAL);
+  eq([dev.ready, dev.link.external], [true, false], '개발에서는 개발용 링크로 만들 수 있다');
+  ok(devLinkText(dev)?.startsWith('개발용 주소라 받는 사람에게 보내면 안 돼요'), '개발용 링크라고 붙인다');
+  eq(devLinkText(fine), null, '정식 주소면 개발용 표시가 없다');
+
+  const invCount = () => db.intakeInvitation.count();
+  const before = await invCount();
+  await fails(adminCreateInvitationLink(db, A, { note: '운영막힘' }, PROD_LOCAL, NOW), 'intake_not_ready', '운영에서 정식 주소 없이 만들면 막힌다');
+  eq(await invCount(), before, '막힌 만들기는 초대를 안 남긴다');
+  const devMade = await adminCreateInvitationLink(db, A, { note: '개발링크' }, DEV_LOCAL, NOW);
+  eq([devMade.link.startsWith('http://localhost:3000/submit#'), devMade.external], [true, false], '개발 링크는 정식 아님 표시와 함께 간다');
+
+  /* 표 · 칸이 없을 때 — 이름을 잠깐 바꿔 마이그레이션 전을 흉내 낸다 */
+  await db.$executeRawUnsafe('ALTER TABLE "IntakeInvitation" RENAME COLUMN "createRequestKey" TO "createRequestKeyX"');
+  const noColumn = await checkIntakeReadiness(db, {});
+  eq([noColumn.ready, noColumn.blockers, noColumn.missing], [false, ['db'], ['IntakeInvitation.createRequestKey']], '새 칸이 없으면 준비 안 됨');
+  ok(readinessLines(noColumn)[0].startsWith('DB 마이그레이션 적용 전이에요'), 'DB 준비 안 됨 글');
+  await fails(adminCreateInvitationLink(db, A, {}, {}, NOW), 'intake_not_ready', '칸이 없으면 만들기가 준비 안 됨으로 막힌다');
+  await db.$executeRawUnsafe('ALTER TABLE "IntakeInvitation" RENAME COLUMN "createRequestKeyX" TO "createRequestKey"');
+  await db.$executeRawUnsafe('ALTER TABLE "IntakeRateLimit" RENAME TO "IntakeRateLimitX"');
+  const noTable = await checkIntakeReadiness(db, {});
+  eq([noTable.ready, noTable.missing], [false, ['IntakeRateLimit']], '표가 없으면 준비 안 됨');
+  await db.$executeRawUnsafe('ALTER TABLE "IntakeRateLimitX" RENAME TO "IntakeRateLimit"');
+  /* 실제로 없는 표를 트랜잭션에서 건드리면 PGlite 소켓이 연결을 끊을 때가 있어, 오류 모양은 직접 만들어 본다 */
+  const fake = (code: string) => new Prisma.PrismaClientKnownRequestError('x', { code, clientVersion: 'test' });
+  eq([isMissingTableError(fake('P2021')), isMissingTableError(fake('P2022')), isMissingTableError(fake('P2002')), isMissingTableError(new Error('x'))], [true, true, false, false], '표 · 칸 없음 오류만 준비 안 됨으로 본다');
+  await db.$executeRawUnsafe('ALTER TABLE "IntakeInvitation" RENAME TO "IntakeInvitationX"');
+  await fails(adminCreateInvitationLink(db, A, {}, {}, NOW), 'intake_not_ready', '표가 없으면 서버 동작도 준비 안 됨으로 답한다');
+  await db.$executeRawUnsafe('ALTER TABLE "IntakeInvitationX" RENAME TO "IntakeInvitation"');
+  eq((await checkIntakeReadiness(db, {})).ready, true, '되돌리면 다시 준비됨');
+
+  /* 토큰이 로그로 새지 않나 — 만들기 · 새 링크 동안 콘솔을 붙잡는다 */
+  const logged: string[] = [];
+  const orig = { log: console.log, warn: console.warn, error: console.error, info: console.info };
+  for (const k of ['log', 'warn', 'error', 'info'] as const) console[k] = (...a: unknown[]) => void logged.push(a.map(String).join(' '));
+  const seen: string[] = [];
+  try {
+    /* ── 같은 요청 키로 다시 누름 — 초대는 하나, 링크만 바뀐다 ── */
+    const key = crypto.randomUUID();
+    const first = await adminCreateInvitationLink(db, A, { note: '다시누름', createRequestKey: key }, {}, NOW);
+    const firstToken = tokenOf(first.link);
+    const count1 = await invCount();
+    const again = await adminCreateInvitationLink(db, A, { note: '다시누름', createRequestKey: key }, {}, NOW);
+    const againToken = tokenOf(again.link);
+    seen.push(firstToken, againToken);
+    eq([again.reissued, again.submissionId, again.invitationId, again.reissueCount, again.coded], [true, first.submissionId, first.invitationId, 1, false], '같은 키는 같은 초대의 링크를 바꿔 돌려준다');
+    eq(await invCount(), count1, '두 번째 누름은 초대를 더 만들지 않는다');
+    const row = await db.intakeInvitation.findUniqueOrThrow({ where: { id: first.invitationId } });
+    eq([row.note, row.uploadExpiresAt.getTime(), row.createRequestKey, row.tokenReissueCount, row.tokenReissuedAt?.getTime()], ['다시누름', first.uploadExpiresAt.getTime(), key, 1, NOW.getTime()], '처음 만든 초대 그대로 · 바꿈 횟수만 오른다');
+    eq(again.uploadExpiresAt.getTime(), first.uploadExpiresAt.getTime(), '돌려준 기간도 처음 초대의 것이다');
+    await fails(scopeOf(firstToken), 'invitation_invalid', '잃은 첫 링크는 막힌다');
+    eq((await scopeOf(againToken)).submissionId, first.submissionId, '새 링크는 같은 접수를 연다');
+    const retryAudit = await db.intakeAudit.findMany({ where: { invitationId: first.invitationId, action: 'invitation.reissued' } });
+    eq(
+      retryAudit.map((a) => [a.actorKind, a.actorId, a.detail]),
+      [['admin', A.id, { reason: 'create_retry' }]],
+      '다시 누름은 링크 바꿈으로 기록한다',
+    );
+    eq(await db.intakeAudit.count({ where: { invitationId: first.invitationId, action: 'invitation.created' } }), 1, '만든 기록은 한 줄');
+    await fails(adminCreateInvitationLink(db, B, { createRequestKey: key }, {}, NOW), 'invalid_input', '다른 관리자는 남의 키로 링크를 못 받는다');
+    eq((await scopeOf(againToken)).submissionId, first.submissionId, '막힌 시도는 링크를 안 바꾼다');
+    await fails(adminCreateInvitationLink(db, A, { createRequestKey: 'not-a-uuid' }, {}, NOW), 'invalid_input', '키 모양이 틀리면 막는다');
+
+    /* 다시 누른 내용이 처음과 다르면 링크를 안 바꾼다 — 바꾼 내용이 들어간 줄 알고 보내지 않게(2026-11-09 재검토) */
+    const changedKey = crypto.randomUUID();
+    const changed = await adminCreateInvitationLink(db, A, { note: '처음 내용', uploadDays: 7, createRequestKey: changedKey }, {}, NOW);
+    seen.push(tokenOf(changed.link));
+    for (const [what, input] of [
+      ['메모', { note: '바꾼 메모', uploadDays: 7 }],
+      ['올리기 기간', { note: '처음 내용', uploadDays: 3 }],
+      ['결과 기간', { note: '처음 내용', uploadDays: 7, resultDays: 30 }],
+      ['접근 코드', { note: '처음 내용', uploadDays: 7, accessCode: 'abc123xyz' }],
+      ['파일 한도', { note: '처음 내용', uploadDays: 7, maxFileBytes: 100 * 1024 * 1024 }],
+    ] as const) {
+      const r = await adminCreateInvitationLink(db, A, { ...input, createRequestKey: changedKey }, {}, NOW).then(
+        () => null,
+        (e: InstanceType<typeof IntakeError>) => e,
+      );
+      eq([r?.code, r?.detail?.submissionId], ['invitation_retry_changed', changed.submissionId], `${what}이 다르면 다시 누름으로 안 바꾼다 · 앞 접수를 알려 준다`);
+    }
+    eq((await scopeOf(tokenOf(changed.link))).submissionId, changed.submissionId, '막혔으니 링크는 그대로다');
+    eq((await db.intakeInvitation.findUniqueOrThrow({ where: { id: changed.invitationId } })).tokenReissueCount, 0, '바꿈 횟수도 그대로');
+    /* 하루 뒤에 같은 내용으로 다시 눌러도 같은 내용이다 — 기간은 누른 때부터 센다 */
+    const later = await adminCreateInvitationLink(db, A, { note: '처음 내용', uploadDays: 7, createRequestKey: changedKey }, {}, new Date(NOW.getTime() + DAY));
+    seen.push(tokenOf(later.link));
+    eq([later.reissued, later.invitationId], [true, changed.invitationId], '같은 내용이면 하루 뒤에도 잇는다');
+
+    /* 접근 코드 — 같은 코드면 잇고, 화면에는 저장된 코드 여부를 돌려준다 */
+    const codeKey = crypto.randomUUID();
+    const codedMade = await adminCreateInvitationLink(db, A, { accessCode: 'abc123xyz', createRequestKey: codeKey }, {}, NOW);
+    seen.push(tokenOf(codedMade.link));
+    eq(codedMade.coded, true, '코드를 건 초대는 coded');
+    await fails(adminCreateInvitationLink(db, A, { accessCode: 'zzz999qqq', createRequestKey: codeKey }, {}, NOW), 'invitation_retry_changed', '다른 코드면 막는다');
+    await fails(adminCreateInvitationLink(db, A, { createRequestKey: codeKey }, {}, NOW), 'invitation_retry_changed', '코드를 뺐어도 막는다');
+    const codedAgain = await adminCreateInvitationLink(db, A, { accessCode: ' abc123xyz ', createRequestKey: codeKey }, {}, NOW);
+    seen.push(tokenOf(codedAgain.link));
+    eq([codedAgain.reissued, codedAgain.coded], [true, true], '같은 코드(앞뒤 공백 무시)면 잇고 coded 를 돌려준다');
+
+    /* 관리자가 '새 링크 만들기'로 바꾼 뒤에는, 열어 둔 만들기 창을 다시 눌러도 그 링크를 죽이지 않는다(2026-11-09 재검토 높음) */
+    const openKey = crypto.randomUUID();
+    const lostOne = await adminCreateInvitationLink(db, A, { note: '창 열어 둠', createRequestKey: openKey }, {}, NOW);
+    seen.push(tokenOf(lostOne.link));
+    const sentByB = await adminReissueInvitation(db, B, { submissionId: lostOne.submissionId, expectedReissueCount: 0 }, {}, NOW);
+    seen.push(tokenOf(sentByB.link));
+    const blocked = await adminCreateInvitationLink(db, A, { note: '창 열어 둠', createRequestKey: openKey }, {}, new Date(NOW.getTime() + 3 * DAY)).then(
+      () => null,
+      (e: InstanceType<typeof IntakeError>) => e,
+    );
+    eq([blocked?.code, blocked?.detail?.submissionId, blocked?.detail?.reason], ['invitation_retry_used', lostOne.submissionId, 'admin_reissued'], '새 링크를 만든 초대는 다시 누름으로 안 바꾼다');
+    eq((await scopeOf(tokenOf(sentByB.link))).submissionId, lostOne.submissionId, '관리자가 보낸 새 링크가 그대로 산다');
+    const lostRow = await db.intakeInvitation.findUniqueOrThrow({ where: { id: lostOne.invitationId } });
+    eq([lostRow.tokenReissueCount, lostRow.adminReissuedAt?.getTime()], [1, NOW.getTime()], '바꿈 횟수는 관리자 새 링크 하나뿐 · 관리자 바꿈 시각이 남는다');
+    eq(await db.intakeAudit.count({ where: { invitationId: lostOne.invitationId, action: 'invitation.reissued' } }), 1, '막힌 다시 누름은 기록하지 않는다');
+
+    /* 폐기한 초대의 키 — 다시 누르면 폐기라고 말하고 앞 접수를 알려 준다(화면은 키를 버리고 새로 만든다) */
+    const revKey = crypto.randomUUID();
+    const revMade = await adminCreateInvitationLink(db, A, { createRequestKey: revKey }, {}, NOW);
+    seen.push(tokenOf(revMade.link));
+    await adminRevokeInvitation(db, A, { submissionId: revMade.submissionId }, NOW);
+    const revErr = await adminCreateInvitationLink(db, A, { createRequestKey: revKey }, {}, NOW).then(
+      () => null,
+      (e: InstanceType<typeof IntakeError>) => e,
+    );
+    eq([revErr?.code, revErr?.detail?.submissionId], ['invitation_revoked', revMade.submissionId], '폐기한 초대의 키는 폐기라고 답한다');
+    const fresh2 = await adminCreateInvitationLink(db, A, { createRequestKey: crypto.randomUUID() }, {}, NOW);
+    seen.push(tokenOf(fresh2.link));
+    eq(fresh2.reissued, false, '새 키로는 새 초대를 만든다');
+
+    /* 같은 키 두 요청이 겹쳐도 초대는 하나 — 살아 있는 링크도 하나 */
+    const both = crypto.randomUUID();
+    const pair = await Promise.allSettled([adminCreateInvitationLink(db, A, { createRequestKey: both }, {}, NOW), adminCreateInvitationLink(db, A, { createRequestKey: both }, {}, NOW)]);
+    eq(pair.map((p) => p.status), ['fulfilled', 'fulfilled'], '겹친 두 요청 모두 답을 받는다');
+    eq(await db.intakeInvitation.count({ where: { createRequestKey: both } }), 1, '겹쳐도 초대는 하나');
+    const pairTokens = pair.map((p) => tokenOf((p as PromiseFulfilledResult<{ link: string }>).value.link));
+    seen.push(...pairTokens);
+    const alive = await Promise.all(pairTokens.map((t) => scopeOf(t).then(() => true, () => false)));
+    eq(alive.filter(Boolean).length, 1, '살아 있는 링크는 마지막 하나뿐이다');
+
+    /* 받는 분이 시작했으면 다시 누름으로 링크를 안 바꾼다 */
+    const usedKey = crypto.randomUUID();
+    const used = await adminCreateInvitationLink(db, A, { createRequestKey: usedKey }, {}, NOW);
+    seen.push(tokenOf(used.link));
+    await db.intakeSubmission.update({ where: { id: used.submissionId }, data: { version: 1, athleteName: '시작함' } });
+    await fails(adminCreateInvitationLink(db, A, { createRequestKey: usedKey }, {}, NOW), 'invitation_retry_used', '시작한 접수는 다시 누름으로 링크를 안 바꾼다');
+    eq((await scopeOf(tokenOf(used.link))).submissionId, used.submissionId, '막혔으니 처음 링크가 그대로 산다');
+    const consentKey = crypto.randomUUID();
+    const consented = await adminCreateInvitationLink(db, A, { createRequestKey: consentKey }, {}, NOW);
+    seen.push(tokenOf(consented.link));
+    await db.intakeConsent.create({ data: { submissionId: consented.submissionId, kind: 'submission', docVersion: 'v1', textHash: 'h', granted: true, relation: 'self', agreedAt: NOW } });
+    await fails(adminCreateInvitationLink(db, A, { createRequestKey: consentKey }, {}, NOW), 'invitation_retry_used', '동의만 남겨도 시작한 것이다');
+
+    /* ── 손대지 않은 접수 알아보기 ── */
+    const fresh = await adminCreateInvitationLink(db, A, { note: '안열림' }, {}, NOW);
+    seen.push(tokenOf(fresh.link));
+    const freshList = await loadIntakeList(db, A, parseIntakeFilters({ q: '안열림' }), NOW);
+    eq(freshList.rows.map((r) => r.untouched), [true], '목록이 손대지 않은 접수를 알아본다');
+    const freshDetail = await loadIntakeDetail(db, A, fresh.submissionId, NOW);
+    eq([freshDetail.untouched, freshDetail.invitation.reissueCount, freshDetail.invitation.reissuedAt], [true, 0, null], '상세도 같다');
+    eq((await loadIntakeDetail(db, A, used.submissionId, NOW)).untouched, false, '이름을 적은 접수는 손댄 것이다');
+
+    /* ── 새 링크 만들기 — 받은 영상 · 공개 결과는 이어지고 예전 링크는 막힌다 ── */
+    const pub = await mk({ name: '새링크', publication: 'published' });
+    await mkAsset(pub.submissionId, 'side');
+    const pubOldToken = pub.token;
+    seen.push(pubOldToken);
+    const re1 = await adminReissueInvitation(db, A, { submissionId: pub.submissionId, expectedReissueCount: 0 }, {}, NOW);
+    seen.push(tokenOf(re1.link));
+    eq([re1.reissueCount, re1.hadAssets, re1.published, re1.external], [1, true, true, true], '새 링크 — 받은 영상과 공개 결과가 있었다고 알린다');
+    await fails(scopeOf(pubOldToken), 'invitation_invalid', '새 링크를 만들면 예전 링크는 바로 막힌다');
+    eq((await scopeOf(tokenOf(re1.link))).submissionId, pub.submissionId, '새 링크는 같은 접수를 연다');
+    const kept = await db.intakeSubmission.findUniqueOrThrow({ where: { id: pub.submissionId }, include: { assets: true } });
+    eq([kept.assets.length, kept.publicationStatus], [1, 'published'], '받은 영상 · 공개 상태는 그대로다');
+    const reAudit = await db.intakeAudit.findFirstOrThrow({ where: { submissionId: pub.submissionId, action: 'invitation.reissued' } });
+    eq([reAudit.actorId, reAudit.detail], [A.id, { reason: 'admin', hadAssets: true, published: true }], '새 링크 기록 — 까닭 · 이어진 것');
+    eq((await loadIntakeDetail(db, A, pub.submissionId, NOW)).invitation.reissueCount, 1, '상세가 바꿈 횟수를 보인다');
+
+    /* 두 관리자가 같은 횟수로 동시에 — 하나만 바뀐다 */
+    const race = await Promise.allSettled([
+      adminReissueInvitation(db, A, { submissionId: pub.submissionId, expectedReissueCount: 1 }, {}, NOW),
+      adminReissueInvitation(db, B, { submissionId: pub.submissionId, expectedReissueCount: 1 }, {}, NOW),
+    ]);
+    const wonRe = race.filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof adminReissueInvitation>>> => r.status === 'fulfilled');
+    const lostRe = race.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    eq([wonRe.length, lostRe.length], [1, 1], '같은 횟수로 둘이 눌러도 하나만 바뀐다');
+    eq([(lostRe[0].reason as InstanceType<typeof IntakeError>).code, (lostRe[0].reason as InstanceType<typeof IntakeError>).detail?.currentReissueCount], ['stale_reissue', 2], '진 쪽은 지금 횟수를 받는다');
+    seen.push(tokenOf(wonRe[0].value.link));
+    eq((await scopeOf(tokenOf(wonRe[0].value.link))).submissionId, pub.submissionId, '이긴 쪽 링크가 산다');
+    await fails(scopeOf(tokenOf(re1.link)), 'invitation_invalid', '앞 링크는 막혔다');
+    eq(await db.intakeAudit.count({ where: { submissionId: pub.submissionId, action: 'invitation.reissued' } }), 2, '바꾼 만큼만 기록한다');
+
+    await fails(adminReissueInvitation(db, A, { submissionId: pub.submissionId, expectedReissueCount: -1 }, {}, NOW), 'invalid_input', '횟수 모양이 틀리면 막는다');
+    await fails(adminReissueInvitation(db, A, { submissionId: pub.submissionId, expectedReissueCount: 2 }, PROD_LOCAL, NOW), 'intake_not_ready', '준비가 안 됐으면 새 링크도 막는다');
+    await adminRevokeInvitation(db, A, { submissionId: pub.submissionId }, NOW);
+    await fails(adminReissueInvitation(db, A, { submissionId: pub.submissionId, expectedReissueCount: 2 }, {}, NOW), 'invitation_revoked', '폐기한 초대는 새 링크를 못 만든다');
+    await fails(adminReissueInvitation(db, A, { submissionId: crypto.randomUUID(), expectedReissueCount: 0 }, {}, NOW), 'submission_not_found', '없는 접수');
+  } finally {
+    Object.assign(console, orig);
+  }
+  const trailAll = JSON.stringify(await db.intakeAudit.findMany()) + JSON.stringify(await db.intakeInvitation.findMany(), (_, v) => (typeof v === 'bigint' ? Number(v) : v));
+  ok(seen.length >= 10 && seen.every((t) => t.length >= 40), '시험한 토큰을 모았다');
+  ok(seen.every((t) => !trailAll.includes(t)), '감사 기록 · 초대 줄 어디에도 토큰 원문이 없다');
+  ok(seen.every((t) => !logged.some((l) => l.includes(t))), '콘솔 출력에도 토큰 원문이 없다');
 }
 
 await db.$disconnect();

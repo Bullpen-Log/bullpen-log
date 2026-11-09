@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Button, Input } from '@/components/ui';
+import { CONTROL_TIMEOUT_MS, IntakeRequestError, requestJson } from '@/lib/intake/public-client';
 import { body3dResultOf, type PublicResult } from '@/lib/intake/public-result';
 
 /**
@@ -23,8 +24,6 @@ type Phase =
   | { kind: 'ready'; result: PublicResult }
   | { kind: 'blocked'; text: string; retry: boolean };
 
-const NETWORK_TEXT = '연결이 끊겼어요. 신호를 확인한 뒤 다시 시도해 주세요.';
-
 function dateText(key: string): string {
   const [y, m, d] = key.split('-').map(Number);
   return `${y}년 ${m}월 ${d}일`;
@@ -34,24 +33,35 @@ const waitText = (sec: number) => (sec >= 60 ? `${Math.ceil(sec / 60)}분` : `${
 
 type Answer = { ok: true; result: PublicResult } | { ok: false; code: string; message: string; retryAfterSec: number | null };
 
-async function askResult(token: string, accessCode: string | null): Promise<Answer> {
-  let res: Response;
+/** 응답을 못 받은 것 — 서버 거절이 아니라 다시 물으면 될 수 있다 */
+const lost = (code: string) => code === 'network' || code === 'timeout' || code === 'internal';
+
+/** 결과 한 번 묻기 — 공개 화면의 다른 요청과 같은 시한 · 같은 취소를 쓴다(requestJson). 멈추면 null 이다 */
+async function askResult(token: string, accessCode: string | null, signal: AbortSignal): Promise<Answer | null> {
+  let r: Awaited<ReturnType<typeof requestJson>>;
   try {
-    res = await fetch('/api/intake/public/result', {
-      method: 'POST',
-      headers: { Authorization: `Intake ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(accessCode ? { accessCode } : {}),
-      cache: 'no-store',
-      referrerPolicy: 'no-referrer',
-    });
-  } catch {
-    return { ok: false, code: 'network', message: NETWORK_TEXT, retryAfterSec: null };
+    r = await requestJson(
+      (...a) => fetch(...a),
+      '/api/intake/public/result',
+      {
+        method: 'POST',
+        headers: { Authorization: `Intake ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(accessCode ? { accessCode } : {}),
+        cache: 'no-store',
+        referrerPolicy: 'no-referrer',
+      },
+      { timeoutMs: CONTROL_TIMEOUT_MS, signal },
+    );
+  } catch (e) {
+    const err = e instanceof IntakeRequestError ? e : new IntakeRequestError('network', '');
+    if (err.code === 'cancelled') return null;
+    return { ok: false, code: err.code, message: err.message, retryAfterSec: null };
   }
-  const body = (await res.json().catch(() => null)) as {
+  const body = r.data as {
     result?: PublicResult;
     error?: { code?: string; message?: string; detail?: { retryAfterSec?: number } | null };
   } | null;
-  if (res.ok && body?.result) return { ok: true, result: body.result };
+  if (r.ok && body?.result) return { ok: true, result: body.result };
   return {
     ok: false,
     code: body?.error?.code ?? 'internal',
@@ -64,27 +74,42 @@ export function ResultView({ token, notice, footer }: { token: string; notice?: 
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [code, setCode] = useState('');
 
+  /* 한 번에 한 요청만 산다 — 새로 물으면 앞 요청을 멈추고, 화면이 떨어지면 지금 요청을 멈춘다 */
+  const inflight = useRef<AbortController | null>(null);
+
   const apply = useCallback((a: Answer, accessCode: string | null) => {
+    /* 코드를 넣다 끊겼으면 코드 칸을 그대로 두고 그 아래에 말한다 — 적은 코드는 화면 상태라 남는다 */
     if (a.ok) setPhase({ kind: 'ready', result: a.result });
+    else if (accessCode != null && lost(a.code)) setPhase({ kind: 'code', error: a.message, busy: false });
     else if (a.code === 'access_code_required') setPhase({ kind: 'code', error: null, busy: false });
     else if (a.code === 'access_code_wrong') setPhase({ kind: 'code', error: a.message, busy: false });
     else if (a.code === 'rate_limited') {
       const wait = a.retryAfterSec != null ? `${waitText(a.retryAfterSec)} 뒤에 다시 시도해 주세요.` : a.message;
       setPhase(accessCode != null ? { kind: 'code', error: `시도가 너무 많아요. ${wait}`, busy: false } : { kind: 'blocked', text: `요청이 너무 많아요. ${wait}`, retry: true });
-    } else setPhase({ kind: 'blocked', text: a.message, retry: a.code === 'network' || a.code === 'internal' });
+    } else setPhase({ kind: 'blocked', text: a.message, retry: lost(a.code) });
   }, []);
 
-  const load = useCallback((accessCode: string | null) => askResult(token, accessCode).then((a) => apply(a, accessCode)), [token, apply]);
+  const load = useCallback(
+    async (accessCode: string | null) => {
+      inflight.current?.abort();
+      const ctrl = new AbortController();
+      inflight.current = ctrl;
+      const a = await askResult(token, accessCode, ctrl.signal);
+      /* 멈췄거나 더 새 요청이 있으면 그리지 않는다 */
+      if (!a || ctrl.signal.aborted || inflight.current !== ctrl) return;
+      inflight.current = null;
+      apply(a, accessCode);
+    },
+    [token, apply],
+  );
 
   useEffect(() => {
-    let live = true;
-    void askResult(token, null).then((a) => {
-      if (live) apply(a, null);
-    });
+    void load(null);
     return () => {
-      live = false;
+      inflight.current?.abort();
+      inflight.current = null;
     };
-  }, [token, apply]);
+  }, [load]);
 
   const box = `mx-auto w-full px-5 ${phase.kind === 'ready' ? 'max-w-6xl lg:px-8' : 'max-w-[32.5rem]'}`;
   return (

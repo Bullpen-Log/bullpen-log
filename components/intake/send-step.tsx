@@ -1,10 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Check, CircleCheck, Loader2 } from '@/components/icon';
-import { FieldError, PrimaryButton, Screen } from '@/components/intake/shell';
+import { FieldError, NoteBox, PrimaryButton, Screen, SecondaryButton } from '@/components/intake/shell';
 import { VIEW_LABEL } from '@/components/intake/slots';
 import type { SendRow, SendStage, SendState } from '@/components/intake/use-send';
 import { formatBytes } from '@/lib/intake/limits';
+import { CONTROL_TIMEOUT_MS } from '@/lib/intake/public-client';
 
 const STAGES: { id: 'prepare' | 'send' | 'confirm'; label: string }[] = [
   { id: 'prepare', label: '준비' },
@@ -31,8 +33,39 @@ function rowText(r: SendRow): string {
   }
 }
 
-/** 멈췄을 때의 다음 행동은 부르는 쪽이 코드에 맞게 넘긴다 */
-export function SendStep({ run, actionLabel, onAction }: { run: SendState; actionLabel: string | null; onAction: () => void }) {
+/**
+ * 진행이 이만큼 안 바뀌면 '멈추기' 단추를 보인다. 요청 시한(20초)과 같은 값이다 —
+ * 시한 뒤 한 번 더 묻는 동안(retryNetwork) 사람이 기다리기만 하지 않게, 멈추고 이어서 보낼 길을 먼저 보인다.
+ */
+const STALL_MS = CONTROL_TIMEOUT_MS;
+
+/** 진행이 멈춘 채 STALL_MS 가 지났나 — 진행(바이트 · 단계 · 칸 상태)이 바뀌면 다시 센다 */
+function useStalled(run: SendState): boolean {
+  const mark = `${run.attempt}|${run.stage}|${run.rows.map((r) => `${r.status}:${r.hashed}:${r.sent}`).join(',')}`;
+  const watching = run.running && !run.stop;
+  /* 늦어졌다고 본 진행 표시 — 진행이 바뀌면 표시가 달라져 저절로 풀린다(효과 안에서 곧바로 상태를 바꾸지 않는다) */
+  const [stalledAt, setStalledAt] = useState<string | null>(null);
+  useEffect(() => {
+    if (!watching) return;
+    const t = window.setTimeout(() => setStalledAt(mark), STALL_MS);
+    return () => window.clearTimeout(t);
+  }, [mark, watching]);
+  return watching && stalledAt === mark;
+}
+
+/** 멈췄을 때의 다음 행동은 부르는 쪽이 코드에 맞게 넘긴다. 진행이 오래 멈추면 onCancel 로 멈추는 단추를 보인다 */
+export function SendStep({
+  run,
+  actionLabel,
+  onAction,
+  onCancel,
+}: {
+  run: SendState;
+  actionLabel: string | null;
+  onAction: () => void;
+  onCancel?: () => void;
+}) {
+  const stalled = useStalled(run);
   const total = run.rows.reduce((n, r) => n + r.size, 0) || 1;
   const hashed = run.rows.reduce((n, r) => n + r.hashed, 0);
   const sent = run.rows.reduce((n, r) => n + r.sent, 0);
@@ -54,7 +87,11 @@ export function SendStep({ run, actionLabel, onAction }: { run: SendState; actio
       desc="완료될 때까지 이 화면을 열어두세요."
       step={5}
       actions={
-        run.stop && actionLabel ? <PrimaryButton onClick={onAction}>{actionLabel}</PrimaryButton> : undefined
+        run.stop && actionLabel ? (
+          <PrimaryButton onClick={onAction}>{actionLabel}</PrimaryButton>
+        ) : stalled && onCancel ? (
+          <SecondaryButton onClick={onCancel}>멈추기</SecondaryButton>
+        ) : undefined
       }
     >
       <p aria-live="polite" className="sr-only">
@@ -83,7 +120,8 @@ export function SendStep({ run, actionLabel, onAction }: { run: SendState; actio
         {after ? (
           <p className="flex items-start gap-2 text-sm leading-relaxed break-keep text-ink">
             {!run.stop && <Loader2 aria-hidden className="mt-0.5 h-5 w-5 shrink-0 motion-safe:animate-spin" />}
-            전송이 끝났어요. 파일이 잘 도착했는지 확인하고 있어요.
+            {/* 멈춘 뒤에는 '확인하고 있어요'라고 하지 않는다 — 다음 행동은 아래 단추가 말한다 */}
+            {run.stop ? '영상은 모두 도착했어요.' : '전송이 끝났어요. 파일이 잘 도착했는지 확인하고 있어요.'}
           </p>
         ) : (
           <>
@@ -124,6 +162,9 @@ export function SendStep({ run, actionLabel, onAction }: { run: SendState; actio
       </ul>
 
       {run.stop && <FieldError>{run.stop.message}</FieldError>}
+      {stalled && onCancel && (
+        <NoteBox>서버 응답이 늦어지고 있어요. 멈춘 뒤 이어서 보내면 받은 만큼 이어 가요.</NoteBox>
+      )}
     </Screen>
   );
 }

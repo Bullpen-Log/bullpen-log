@@ -6,7 +6,7 @@ import { INTAKE_ERROR_TEXT } from '@/lib/intake/errors';
 import { formatBytes, type IntakeLimits } from '@/lib/intake/limits';
 import { MEDIA_REJECT_TEXT, mediaRejectCode, readIntakeMediaFacts, type IntakeMediaFacts } from '@/lib/intake/media';
 import type { PublicAsset } from '@/lib/intake/public-client';
-import { hashFileSha256 } from '@/lib/intake/upload-client';
+import { IntakeUploadError, hashFileSha256 } from '@/lib/intake/upload-client';
 
 export type Picked = {
   file: File;
@@ -18,14 +18,19 @@ export type Picked = {
 
 const known = new WeakMap<Blob, string>();
 
-/** 파일 전체 해시 — 한 번 잰 파일은 다시 안 잰다 */
+/**
+ * 파일 전체 해시 — 한 번 잰 파일은 다시 안 잰다.
+ * 멈추면(signal) 조각 사이에서 'aborted' 로 끝난다. 기억은 끝까지 잰 값만 남긴다 — 멈춘 재기는 아무것도 안 남겨 다음에 처음부터 다시 잰다.
+ */
 export async function hashOnce(file: Blob, onProgress?: (done: number, total: number) => void, signal?: AbortSignal): Promise<string> {
+  if (signal?.aborted) throw new IntakeUploadError('aborted');
   const had = known.get(file);
   if (had) {
     onProgress?.(file.size, file.size);
     return had;
   }
   const sha = await hashFileSha256(file, { onProgress, signal, sliceBytes: 4 * 1024 * 1024 });
+  /* 끝까지 잰 값은 맞는 값이다 — 마지막 조각 뒤에 멈췄어도 남겨 둔다. 멈춤은 부르는 쪽(runUpload)이 따로 본다 */
   known.set(file, sha);
   return sha;
 }

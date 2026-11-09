@@ -28,6 +28,38 @@ export type ObjectStat = { size: number; contentType: string | null };
 
 export type HashResult = { sha256: string; size: number };
 
+export type HashOptions = { signal?: AbortSignal; onBytes?: (bytesRead: number) => void };
+
+const abortReason = (signal: AbortSignal) => signal.reason ?? new DOMException('aborted', 'AbortError');
+
+/**
+ * 응답 몸통을 끝까지 읽으며 SHA-256 을 잰다 — 앱의 hash 와 속도 재기(scripts/intake-hash-bench.mts)가 같이 쓴다.
+ * 조각마다 signal 을 본다. fetch 가 signal 을 몸통까지 잇지 않는 환경(가짜 fetch · 일부 폴리필)에서도 멈추게 하려는 것이다.
+ * 끊기면 몸통 읽기를 취소해 연결을 놓고 signal.reason 을 던진다.
+ */
+export async function hashStream(body: ReadableStream<Uint8Array>, opts: HashOptions = {}): Promise<HashResult> {
+  const { signal, onBytes } = opts;
+  const hash = createHash('sha256');
+  let size = 0;
+  const reader = body.getReader();
+  try {
+    for (;;) {
+      if (signal?.aborted) throw abortReason(signal);
+      const { done, value } = await reader.read();
+      if (done) break;
+      hash.update(value);
+      size += value.byteLength;
+      onBytes?.(size);
+    }
+  } catch (e) {
+    await reader.cancel().catch(() => {});
+    /* 읽기가 끊겨 난 오류(AbortError · 끊긴 연결)도 signal 이 끊긴 때면 signal 의 까닭으로 맞춘다 — 부른 쪽이 예산 끊김을 가를 수 있게 */
+    throw signal?.aborted ? abortReason(signal) : e;
+  }
+  /* 끝까지 읽었으면 그 사이 시각이 와도 값을 돌려준다 — 다 읽은 해시를 버리면 다음 시도가 같은 읽기를 처음부터 한다 */
+  return { sha256: hash.digest('hex'), size };
+}
+
 /** 서비스가 쓰는 저장소 모양 — 시험은 이것을 가짜로 넘긴다 */
 export type IntakeStorage = {
   /** TUS 주소가 이 값으로 시작해야 저장소의 주소다 */
@@ -37,8 +69,11 @@ export type IntakeStorage = {
   stat(objectPath: string): Promise<ObjectStat | null>;
   /** 범위 읽기 — 없으면 null */
   reader(objectPath: string): Promise<ByteReader | null>;
-  /** 처음부터 끝까지 스트리밍으로 SHA-256 을 잰다 */
-  hash(objectPath: string, opts?: { signal?: AbortSignal }): Promise<HashResult>;
+  /**
+   * 처음부터 끝까지 스트리밍으로 SHA-256 을 잰다. signal 이 끊기면 읽기를 멈추고 signal.reason 을 던진다(값을 돌려주지 않는다).
+   * onBytes 는 지금까지 읽은 바이트 수를 알린다 — 일꾼이 끊겼을 때 실제 읽기 속도를 남기는 데 쓴다.
+   */
+  hash(objectPath: string, opts?: HashOptions): Promise<HashResult>;
   /** 짧은 서명 읽기 주소. download 를 주면 그 이름으로 내려받는다 */
   readUrl(objectPath: string, opts?: { ttlSec?: number; download?: string }): Promise<string>;
   list(prefix: string): Promise<string[]>;
@@ -201,19 +236,17 @@ export function createIntakeStorage(cfg: IntakeStorageConfig): IntakeRunStorage 
     async hash(objectPath, opts) {
       const url = await signedRead(objectPath, READ_URL_TTL_SEC);
       if (!url) throw unavailable('hash_missing');
-      /* 전체 읽기는 파일 크기에 달려 시간을 안 묶는다 — 끊는 것은 부른 쪽 signal 과 함수 시간 제한이다 */
-      const res = await doFetch(url, noTee(undefined, opts?.signal ?? new AbortController().signal));
-      if (!res.ok || !res.body) throw unavailable('hash_read');
-      const hash = createHash('sha256');
-      let size = 0;
-      const reader = res.body.getReader();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        hash.update(value);
-        size += value.byteLength;
+      /* 전체 읽기는 파일 크기에 달려 시간을 안 묶는다 — 끊는 것은 부른 쪽 signal(크론의 실행 예산)과 함수 시간 제한이다 */
+      const signal = opts?.signal ?? new AbortController().signal;
+      const res = await doFetch(url, noTee(undefined, signal)).catch((e: unknown) => {
+        if (signal.aborted) throw abortReason(signal);
+        throw e;
+      });
+      if (!res.ok || !res.body) {
+        await res.body?.cancel().catch(() => {});
+        throw unavailable('hash_read');
       }
-      return { sha256: hash.digest('hex'), size };
+      return hashStream(res.body, { signal, onBytes: opts?.onBytes });
     },
 
     async readUrl(objectPath, opts) {

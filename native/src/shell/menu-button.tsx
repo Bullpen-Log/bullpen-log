@@ -37,6 +37,14 @@ const LOOK = {
   dark: { panel: '#1a2839', tile: '#23364b', ice: '#183b5b', line: '#324357', ink: '#f3f7fc', muted: '#a4b6ca', scrim: 'rgba(0,0,0,0.32)', shadow: 'rgba(0,0,0,0.4)', blue: '#127fe1' },
 } as const;
 const EASE = Easing.bezier(0.2, 0.85, 0.25, 1);
+/*
+ * 관리 항목 가운데 앱 화면으로 여는 것(웹 주소 → 앱 화면). 3D 개발 관리자는 앱 화면(2026-11-09 6b829da4), 외부 영상 접수는 웹 접수함을 띄우는
+ * 앱 화면(app/admin/intake.tsx — 불러오기 실패 때 다시 불러오기). 나머지는 껍데기 웹으로
+ */
+const NATIVE_MANAGE = new Map([
+  ['/admin/dev3d', '/swing/samples'],
+  ['/admin/intake', '/admin/intake'],
+]);
 type Rect = { x: number; y: number; w: number; h: number };
 
 export function MenuButton({ style }: { style?: StyleProp<ViewStyle> }) {
@@ -127,6 +135,10 @@ function Launcher({ anchor, onClosed }: { anchor: Rect; onClosed: () => void }) 
   const manage = groups.filter((g) => g.title === '관리').flatMap((g) => g.items);
   const push = (href: string) => () => router.push(href as Href);
   const web = (href: string) => () => openWebAfter(href);
+  const manageGo = (href: string) => {
+    const screen = NATIVE_MANAGE.get(href.split('?')[0]);
+    return screen ? push(screen) : web(href);
+  };
 
   const utility: { key: keyof typeof ICONS; label: string; go: () => void }[] = [
     { key: 'bell', label: '알림', go: push('/notice') },
@@ -234,7 +246,7 @@ function Launcher({ anchor, onClosed }: { anchor: Rect; onClosed: () => void }) 
                   key={it.href}
                   accessibilityRole="button"
                   accessibilityLabel={it.label}
-                  onPress={() => close(it.href.split('?')[0] === '/admin/dev3d' ? push('/swing/samples') : web(it.href))}
+                  onPress={() => close(manageGo(it.href))}
                   style={({ pressed }) => [st.manageRow, pressed && st.pressed]}
                 >
                   <Icon name={MENU_ICON[it.icon] ?? 'menu'} size={20} color={L.muted} />

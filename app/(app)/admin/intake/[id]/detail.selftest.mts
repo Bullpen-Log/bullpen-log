@@ -60,6 +60,7 @@ const ACTIONS = [
   'markIntakeUnseen',
   'publishIntakeRun',
   'requestIntakeCorrection',
+  'reissueIntakeInvitation',
   'requeueIntakeVerification',
   'resetIntakeAccessCodeLock',
   'revokeIntakeInvitation',
@@ -112,6 +113,12 @@ export function RequiredConsents({ docs, agreed, onChange, invalid }) {
   }));
 }
 export function ConsentText({ body }) { return h('p', null, body); }`,
+  /* 새 링크 창 — 열렸을 때만 안을 그린다 */
+  '@/components/modal': `const h = globalThis.__detailTest.React.createElement;
+export function Modal({ open, title, children }) { return open ? h('section', { 'data-modal': title }, children) : null; }`,
+  /* 한 번 보이는 링크 칸 — 진짜는 목록 화면 파일에 있다. 여기서는 개발용인지와 링크만 그린다 */
+  '../create-invitation': `const h = globalThis.__detailTest.React.createElement;
+export function IssuedLinkPanel({ made, devNote }) { return h('div', { 'data-link': made.link, 'data-external': String(made.external) }, made.external ? null : devNote); }`,
   '@/components/confirm-delete': `const b = globalThis.__detailTest; const h = b.React.createElement;
 export function ConfirmDialog({ title, detail, onConfirm, open }) {
   b.confirms[title] = onConfirm;
@@ -157,7 +164,7 @@ registerHooks({
 });
 
 const rules = await import('./detail-rules.ts');
-const { AnalysisPanel, AssetCard, PairDownload } = await import('./detail-client.tsx');
+const { AnalysisPanel, AssetCard, PairDownload, ReissueButton } = await import('./detail-client.tsx');
 const { AccessCodeLockBox, CorrectionPanel, JobIssuesPanel, UploadWindowBox, WithdrawConsentButton } = await import('./detail-manage.tsx');
 const { ACCESS_CODE_MIN_CHARS, ACCESS_CODE_MAX_CHARS } = await import('@/lib/intake/token');
 
@@ -940,6 +947,27 @@ const panel = (over: Record<string, unknown>) =>
   const withRev = analysisBlockOf({ ...noRev, status: 'verified', hasRevision: true }, at);
   eq([withRev, analysisChipText('ready', withRev)], ['deleted', '원본 지워짐'], '판이 있으면 원본 지워짐 그대로다');
   ok(analysisBlockOf({ ...noRev, status: 'withdrawn' }, at) === 'received_deleted', '철회한 초안도 지운 사실을 먼저 말한다');
+}
+
+/* ── 새 링크 만들기 — 경고 · 본 횟수를 보낸다 · 준비가 안 되면 꺼진다 ── */
+{
+  const labels = await import('@/lib/intake/admin-labels');
+  const html = draw(h(ReissueButton, { submissionId: SID, reissueCount: 3, ready: true, blockedText: null, devNote: null }));
+  ok(html.includes('새 링크 만들기') && !/<button[^>]*disabled/.test(html), '준비되면 새 링크 단추가 켜진다');
+  ok(html.includes(labels.REISSUE_WARNING_TEXT), '확인 창이 예전 링크가 막히고 자료가 이어진다고 말한다');
+  ok(labels.REISSUE_WARNING_TEXT.includes('예전 링크는 바로 막혀요') && !labels.REISSUE_WARNING_TEXT.includes('—'), '경고 글 — 줄표 없이');
+  await press(bench.confirms['새 링크를 만들까요?'], '새 링크 확인');
+  eq(bench.calls, [['reissueIntakeInvitation', SID, 3]], '그릴 때 본 바꿈 횟수를 보낸다');
+  const off = draw(h(ReissueButton, { submissionId: SID, reissueCount: 0, ready: false, blockedText: 'DB 마이그레이션 적용 전이에요.', devNote: null }));
+  ok(/<button[^>]*disabled/.test(off) && off.includes('DB 마이그레이션 적용 전이에요.'), '준비가 안 되면 단추가 꺼지고 까닭을 말한다');
+  /* 준비 글 · 개발용 표시 */
+  eq(labels.readinessLines({ blockers: [], link: { source: 'default', problem: null, external: true } }), [], '준비되면 안내가 없다');
+  ok(labels.readinessLines({ blockers: ['db', 'origin'], link: { source: 'default', problem: null, external: true } }).length === 2, '막힌 까닭마다 한 줄');
+  ok(labels.devLinkText({ link: { source: 'NEXT_PUBLIC_SITE_URL', problem: 'not_https', external: false } })?.includes('https 주소가 아니에요'), '개발용 표시가 까닭을 말한다');
+  for (const t of [...labels.readinessLines({ blockers: ['db', 'origin'], link: { source: 'INTAKE_PUBLIC_ORIGIN', problem: 'local_host', external: false } }), labels.devLinkText({ link: { source: 'default', problem: 'preview_host', external: false } }) ?? '', labels.UNTOUCHED_TEXT]) {
+    ok(!t.includes('—'), `줄표 없는 글: ${t.slice(0, 20)}`);
+  }
+  ok(labels.AUDIT_ACTION_TEXT['invitation.reissued'] === '링크를 새로 바꿨어요', '링크 바꿈 감사 글');
 }
 
 console.log(`intake detail: ${passed}개 통과`);

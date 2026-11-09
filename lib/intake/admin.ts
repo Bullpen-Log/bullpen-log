@@ -27,13 +27,17 @@ import {
   cleanupCutoffs,
   createInvitation,
   extendUploadWindow,
+  isUntouchedSubmission,
+  reissueInvitationToken,
   requestCorrection,
   requeueVerification,
   resetAccessCodeLock,
   withdrawRequiredConsent,
   type CreatedInvitation,
+  type ReissuedInvitation,
   withdrawModelConsentForInvitee,
 } from '@/lib/intake/service';
+import { resolveLinkOrigin, type LinkOrigin, type LinkOriginEnv } from '@/lib/intake/link-origin';
 import {
   ANALYSIS_STATUSES,
   ASSET_GONE,
@@ -161,6 +165,8 @@ export type IntakeListRow = {
   hasRevision: boolean;
   /** 새 분석을 못 하는 까닭 — 칩이 '분석 가능'이라고 말하지 않게 한다. 없으면 null(analysisBlockOf) */
   analysisBlock: AnalysisBlock | null;
+  /** 받는 분이 아직 아무것도 안 했나 — 링크를 못 받았을 수 있다(service.ts isUntouchedSubmission). 열었는지는 모른다 */
+  untouched: boolean;
 };
 
 export type IntakeListResult = {
@@ -262,6 +268,7 @@ export async function loadIntakeList(db: Db, actor: IntakeActor, f: IntakeListFi
       assets: { select: { id: true, view: true, status: true, purgedAt: true } },
       revisions: { select: { id: true, sideAssetId: true, rearAssetId: true } },
       publications: { select: { publishedAt: true } },
+      _count: { select: { consents: true } },
     },
   });
   const nameOf = new Map(admins.map((a) => [a.id, a.name]));
@@ -294,6 +301,7 @@ export async function loadIntakeList(db: Db, actor: IntakeActor, f: IntakeListFi
         { status: s.status, invitationStatus: s.invitation.status, originalPurgeAt: iso(retention.plan?.purgeAt), originalsPurgedAt: iso(retention.purgedAt), originalsPurging: purging, hasRevision: s.currentRevisionId != null },
         now,
       ),
+      untouched: isUntouchedSubmission({ status: s.status, version: s.version, receivedAt: s.receivedAt, assets: s.assets.length, consents: s._count.consents, revisions: s.revisions.length }),
     };
   });
   return { rows, total, page, pageCount, pageSize: INTAKE_PAGE_SIZE, unreadCount: unread.length, admins };
@@ -407,7 +415,13 @@ export type IntakeDetail = {
     /** 관리자가 풀어 줄 것이 있나 — 잠겼거나, 한도를 채운 시도가 끝을 못 적어 잠기기 전에 막혀 있다 */
     accessCodeNeedsReset: boolean;
     limits: IntakeLimits;
+    /** 링크를 새로 바꾼 횟수 — 새 링크 만들기가 이 값을 보내 맞춰 본다 */
+    reissueCount: number;
+    /** 링크를 마지막으로 바꾼 시각 — 없으면 null */
+    reissuedAt: string | null;
   };
+  /** 받는 분이 아직 아무것도 안 했나 — 링크를 못 받았을 수 있다. 열었는지는 모른다 */
+  untouched: boolean;
   assets: IntakeAssetDetail[];
   revisions: { id: string; number: number; status: string; failureCode: string | null; athleteName: string; finalizedAt: string; settledAt: string | null; current: boolean }[];
   consents: { id: string; kind: string; granted: boolean; docVersion: string; proxy: boolean; relation: string; agreedAt: string; withdrawnAt: string | null }[];
@@ -704,7 +718,10 @@ export async function loadIntakeDetail(db: Db, actor: IntakeActor, submissionId:
       accessCodeFailures: s.invitation.accessCodeFailures,
       accessCodeNeedsReset: s.invitation.accessCodeLockedAt != null || s.invitation.accessCodeFailures >= ACCESS_CODE_MAX_FAILURES,
       limits: intakeLimits(s.invitation),
+      reissueCount: s.invitation.tokenReissueCount,
+      reissuedAt: iso(s.invitation.tokenReissuedAt),
     },
+    untouched: isUntouchedSubmission({ status: s.status, version: s.version, receivedAt: s.receivedAt, assets: s.assets.length, consents: consentTotal, revisions: s.revisions.length }),
     assets,
     revisions: s.revisions.map((r) => ({
       id: r.id,
@@ -768,6 +785,80 @@ export async function loadIntakeDetail(db: Db, actor: IntakeActor, submissionId:
   };
 }
 
+/* ────────────────────────────── 준비 상태 ────────────────────────────── */
+
+/** 초대 쪽 동작이 기대는 표 · 칸 — 마이그레이션(prisma/pending-migrations)을 적용하기 전이면 없다 */
+const INTAKE_TABLES = [
+  'IntakeInvitation',
+  'IntakeSubmission',
+  'IntakeRevision',
+  'IntakeAsset',
+  'IntakeConsent',
+  'IntakeAnalysisRun',
+  'IntakePublication',
+  'IntakeAudit',
+  'IntakeAdminNote',
+  'IntakeAdminRead',
+  'IntakeJob',
+  'IntakeRateLimit',
+] as const;
+const INVITATION_COLUMNS = ['createRequestKey', 'tokenReissueCount', 'tokenReissuedAt', 'adminReissuedAt'] as const;
+
+export type IntakeReadinessBlocker = 'db' | 'origin';
+
+export type IntakeReadiness = {
+  /** 초대를 만들거나 링크를 바꿔도 되나 */
+  ready: boolean;
+  blockers: IntakeReadinessBlocker[];
+  /** DB 에 없는 표 · 칸 — 화면에 그대로 보이지 않고 수만 쓴다 */
+  missing: string[];
+  link: LinkOrigin;
+};
+
+/** 표가 없을 때 Prisma 가 던지는 것 — 표 없음 P2021 · 칸 없음 P2022 */
+export const isMissingTableError = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && (e.code === 'P2021' || e.code === 'P2022');
+
+/**
+ * 초대를 만들 준비가 됐나 — 표 · 칸이 있고, 받는 사람에게 보낼 정식 주소가 있다(운영이면 필수, 개발이면 '개발용 링크'로 만든다 — lib/intake/link-origin.ts).
+ * 화면은 버튼을 끄고 까닭을 말하며, 서버 동작은 같은 판단으로 다시 막는다(assertIntakeReady).
+ */
+export async function checkIntakeReadiness(db: Db, env: LinkOriginEnv = process.env): Promise<IntakeReadiness> {
+  const link = resolveLinkOrigin(env);
+  const rows = await db.$queryRaw<{ table_name: string; column_name: string }[]>(Prisma.sql`
+    SELECT table_name::text AS table_name, column_name::text AS column_name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name::text = ANY(${[...INTAKE_TABLES]})
+  `);
+  const tables = new Set(rows.map((r) => r.table_name));
+  const invitationColumns = new Set(rows.filter((r) => r.table_name === 'IntakeInvitation').map((r) => r.column_name));
+  const missing = [
+    ...INTAKE_TABLES.filter((t) => !tables.has(t)),
+    ...(tables.has('IntakeInvitation') ? INVITATION_COLUMNS.filter((c) => !invitationColumns.has(c)).map((c) => `IntakeInvitation.${c}`) : []),
+  ];
+  const blockers: IntakeReadinessBlocker[] = [];
+  if (missing.length) blockers.push('db');
+  /* 운영에서는 정식 주소가 없으면 막는다. 개발 · 미리보기는 만들되 화면이 '보내면 안 되는 링크'로 보인다. 주소를 아예 못 읽으면 어디서든 막는다 */
+  if (!link.origin || (!link.external && link.strict)) blockers.push('origin');
+  return { ready: blockers.length === 0, blockers, missing, link };
+}
+
+/** 준비가 안 됐으면 던진다 — 서버 동작이 만들기 · 바꾸기 앞에서 부른다 */
+async function assertIntakeReady(db: Db, env: LinkOriginEnv): Promise<IntakeReadiness> {
+  const readiness = await checkIntakeReadiness(db, env);
+  if (!readiness.ready) throw new IntakeError('intake_not_ready', { blockers: readiness.blockers, missing: readiness.missing.length, source: readiness.link.source });
+  return readiness;
+}
+
+/** 표가 없으면 준비 안 됨으로 바꿔 던진다 — 확인과 쓰기 사이에 마이그레이션이 바뀌어도 화면이 오류로 넘어가지 않게 */
+async function orNotReady<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (e) {
+    if (isMissingTableError(e)) throw new IntakeError('intake_not_ready', { blockers: ['db'] });
+    throw e;
+  }
+}
+
 /* ────────────────────────────── 초대 ────────────────────────────── */
 
 export type AdminInvitationInput = {
@@ -779,6 +870,8 @@ export type AdminInvitationInput = {
   accessCode?: string | null;
   maxFileBytes?: number | null;
   maxTotalBytes?: number | null;
+  /** 만들기 요청 키 — 관리 화면이 창마다 만든 UUID(service.ts CreateInvitationInput.createRequestKey) */
+  createRequestKey?: string | null;
 };
 
 const wholeInRange = (v: number, min: number, max: number) => Number.isInteger(v) && v >= min && v <= max;
@@ -805,9 +898,59 @@ export async function adminCreateInvitation(db: Db, actor: IntakeActor, input: A
       accessCode: input.accessCode?.trim() ? input.accessCode.trim() : null,
       maxFileBytes: input.maxFileBytes ?? null,
       maxTotalBytes: input.maxTotalBytes ?? null,
+      createRequestKey: input.createRequestKey ?? null,
     },
     now,
   );
+}
+
+/** 보낼 링크가 붙은 초대 · 새 링크 — 링크는 서버가 설정에서 만든 앞쪽으로 붙인다(window.location 을 쓰지 않는다) */
+export type IssuedLink = {
+  /** 토큰 원문이 담긴 링크 — 이 응답에서만 볼 수 있다. 저장 · 기록하지 말 것 */
+  link: string;
+  /** 받는 사람에게 보내도 되는 정식 주소인가 — 아니면 화면이 '개발용 주소'라고 붙이고 보낼 링크 복사를 주지 않는다 */
+  external: boolean;
+};
+
+const linkOf = (readiness: IntakeReadiness, token: string): IssuedLink => {
+  const origin = readiness.link.origin;
+  /* checkIntakeReadiness 가 앞쪽이 없으면 막는다 — 여기 닿으면 준비 판단이 바뀐 것이다 */
+  if (!origin) throw new IntakeError('intake_not_ready', { blockers: ['origin'] });
+  return { link: `${origin}/submit#${token}`, external: readiness.link.external };
+};
+
+/** 서버 동작의 초대 만들기 — 권한 · 준비 · 만들기 · 링크까지. 토큰 원문은 링크에만 담겨 나간다 */
+export async function adminCreateInvitationLink(
+  db: Db,
+  actor: IntakeActor,
+  input: AdminInvitationInput,
+  env: LinkOriginEnv = process.env,
+  now: Date = new Date(),
+): Promise<IssuedLink & Omit<CreatedInvitation, 'token'>> {
+  assertIntakeAdmin(actor);
+  const readiness = await orNotReady(() => assertIntakeReady(db, env));
+  const { token, ...made } = await orNotReady(() => adminCreateInvitation(db, actor, input, now));
+  return { ...made, ...linkOf(readiness, token) };
+}
+
+/**
+ * 링크를 새로 바꾼다 — 예전 링크는 곧바로 막히고, 받은 영상 · 공개 결과는 새 링크로 이어진다. 폐기한 초대는 못 바꾼다.
+ * expectedReissueCount 는 화면이 본 바꿈 횟수다. 다른 관리자가 먼저 바꿨으면 'stale_reissue'.
+ */
+export async function adminReissueInvitation(
+  db: Db,
+  actor: IntakeActor,
+  input: { submissionId: string; expectedReissueCount: number },
+  env: LinkOriginEnv = process.env,
+  now: Date = new Date(),
+): Promise<IssuedLink & Omit<ReissuedInvitation, 'token'>> {
+  assertIntakeAdmin(actor);
+  mustSubmissionId(input.submissionId);
+  const readiness = await orNotReady(() => assertIntakeReady(db, env));
+  const { token, ...made } = await orNotReady(() =>
+    reissueInvitationToken(db, { adminId: actor.id, submissionId: input.submissionId, expectedReissueCount: input.expectedReissueCount }, now),
+  );
+  return { ...made, ...linkOf(readiness, token) };
 }
 
 /**
