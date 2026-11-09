@@ -118,7 +118,8 @@ export async function loadAppSwingList(scope?: string): Promise<SwingList> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
   const dev = can(user.role, 'dev3d');
-  const all = await listLabSamples(user, SPORT);
+  // 목록은 개수·메타데이터만 사용한다. 재생 주소는 상세를 열 때 만든다.
+  const all = await listLabSamples(user, SPORT, { playbackUrls: false });
   const mine = scope === 'mine' || !dev;
   const samples = mine ? all.filter((s) => s.ownerId === user.id && s.meta?.kind !== 'marker') : all;
   return {

@@ -1,3 +1,11 @@
+## 김민에게 — 2026-11-09 · 금윤호(Codex) — 앱 3D 개발 관리자 진입·무한 대기 보완
+
+- 실제 iPhone 증상은 미재현. 코드상 웹 /admin/dev3d → OpenNative → /swing/samples 우회, 인증·요청·본문 대기 한도 없음, 목록에서 불필요한 재생 주소 생성 대기를 확인했다.
+- 앱 메뉴를 기존 /swing/samples에 직접 연결했다. swing-lab.loadAppSwingList 읽기에만 인증부터 본문까지 20초 제한·abort·동기화 캐시 초기화·재시도 안내를 넣었다. 늦게 끝난 인증은 취소된 목록 요청을 보내지 않는다. 저장·업로드는 그대로다.
+- listLabSamples의 선택 인자 playbackUrls:false를 swing 목록에서만 사용한다. 상세 재생·기존 기본값·권한은 유지한다. 서버와 앱 JS를 함께 반영해야 한다. DB·환경변수·패키지 변경 없음.
+- 실제 rpc.ts 격리 검사 18개, pitch-lab 19개, release-access 706개와 root/native 타입·변경 파일 lint 통과. 실행: node --experimental-strip-types scripts/native-dev3d-load-selftest.mts.
+- 실제 기기·쿠키 동기화·Supabase 지연·메뉴 터치 미검증. 시뮬레이터·Metro·로컬 네이티브 빌드·운영 DB 쓰기·사용자 요청으로 서버와 앱 JS를 함께 배포한다. 외부 접수 브랜치 미병합.
+
 ## 김민에게 — 2026-11-09 · 금윤호(Codex, 싱커 PC 메뉴 Safari 충돌 수정)
 
 - `components/app-shell.tsx`: Safari에서 메뉴를 클릭하면 WebKit의 `Document::matchingAnimations` 정렬 중 EXC_BAD_ACCESS가 나는 것을 실제 로그인 화면에서 재현했다. 문서 전체 getAnimations 조회를 제거하고 메뉴·도크 요소만 조회한다. 전환 빨리 감기를 제거하고 클릭은 판으로 바로 전환한다.

@@ -26,6 +26,8 @@ export const leave = leaveTo;
 const readError = (e: unknown) =>
   e instanceof RpcError && e.code === 'update'
     ? '앱을 업데이트해 주세요.'
+    : e instanceof RpcError && e.code === 'timeout'
+      ? '로그인 확인 또는 목록 읽기가 지연되고 있어요. 연결을 확인하고 다시 불러와 주세요.'
     : e instanceof RpcError && e.code === 'offline'
       ? '신호가 약해 불러오지 못했어요.'
       : '불러오지 못했어요.';
