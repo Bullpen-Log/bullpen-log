@@ -25,6 +25,11 @@ const lit = (s) => `'${String(s).replace(/'/g, "''")}'`;
 const tokenOf = (link) => link.split('#')[1] ?? '';
 const stateOf = async (token) => { const r = await fetch(`${APP}/api/intake/public/state`, { headers: { Authorization: `Intake ${token}` } }); return { status: r.status, body: await r.json().catch(() => null) }; };
 const cron = async () => { const r = await fetch(`${APP}/api/cron/intake`, { headers: { Authorization: 'Bearer e2e-cron-secret' } }); return { status: r.status, body: await r.json().catch(() => null) }; };
+const ackInDialog = async (who) => { /* INTAKE-MAIN/R01 — 3D 가 준비돼 '이 결과 검토 완료'가 켜지면 누른다 */
+  ok('R01 검토 완료 단추는 3D 준비 뒤에 켜진다', await until(() => who.ev(`(()=>{const d=[...document.querySelectorAll('dialog[open]')].at(-1);const b=d&&[...d.querySelectorAll('button')].find(b=>b.innerText.includes('이 결과 검토 완료'));return !!b&&!b.disabled})()`), 30000));
+  await who.ev(`(()=>{const d=[...document.querySelectorAll('dialog[open]')].at(-1);[...d.querySelectorAll('button')].find(b=>b.innerText.includes('이 결과 검토 완료')).click()})()`);
+  await who.waitText('검토 완료를 남겼어요', 20000); await sleep(600);
+};
 const until = async (fn, ms = 30000, step = 250) => { const end = Date.now() + ms; for (;;) { const v = await fn().catch(() => null); if (v) return v; if (Date.now() > end) return null; await sleep(step); } };
 
 /* 파일 고르기용 합성 영상 */
@@ -466,18 +471,23 @@ try {
     await pub.waitText('담당자가 결과를 검토하고 있어요', 60000).catch(() => {});
     ok('5 공개 전 공개 링크: 검토 중 · 3D 없음', (await pub.text()).includes('담당자가 결과를 검토하고 있어요') && !(await pub.ev('!!document.querySelector("canvas")')));
     await a.s('Page.reload'); await a.waitText('감사 기록', 60000); await sleep(1200);
-    ok('5 검토 전에는 공개 단추가 꺼져 있다', (await btnDisabled(a, '이 결과 공개')) === true && (await a.text()).includes('먼저 3D 결과를 검토하면 공개할 수 있어요'));
+    ok('5 검토 완료 전에는 공개 단추가 꺼져 있다', (await btnDisabled(a, '이 결과 공개')) === true && (await a.text()).includes('를 누르면 공개할 수 있어요'));
     await a.click('3D 결과 검토');
     await a.waitText('아직 공개 전이에요', 30000);
     ok('5 3D 검토 창: 공개 전 안내 · 3D 그림', (await dialogText(a)).includes('결과 검토') && (await until(() => a.ev('!!document.querySelector("dialog[open] canvas")'), 20000)));
+    /* R01 — 열기만 하고 닫으면 공개 단추는 그대로 꺼져 있다(열기 ≠ 검토 완료) */
     await a.ev(`(()=>{const d=[...document.querySelectorAll('dialog[open]')].at(-1);const b=[...d.querySelectorAll('button')].find(b=>b.getAttribute('aria-label')==='닫기'||b.innerText.trim()==='닫기');b&&b.click();})()`); await a.s('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape' }); await sleep(800);
-    ok('5 검토 뒤 공개 단추가 켜진다', (await btnDisabled(a, '이 결과 공개')) === false);
+    ok('R01 열기만 해서는 공개 단추가 안 켜진다', (await btnDisabled(a, '이 결과 공개')) === true);
+    ok('R01 열기는 run.review_opened 로만 남는다', (await sql(`SELECT count(*)::int n FROM "IntakeAudit" WHERE "submissionId"=${lit(sid)} AND action='run.review_acknowledged'`))[0].n === 0);
+    await a.click('3D 결과 검토'); await a.waitText('아직 공개 전이에요', 30000);
+    await ackInDialog(a);
+    ok('5 검토 완료 뒤 공개 단추가 켜진다', (await btnDisabled(a, '이 결과 공개')) === false);
     await a.ev(`(()=>{const t=document.querySelector('textarea[aria-label="공개 설명"]');t.focus()})()`); await a.s('Input.insertText', { text: '관리자 시험 공개 설명' });
     await a.click('이 결과 공개');
     await a.waitText('결과를 공개했어요', 30000);
     const pubRow = await sql(`SELECT id, explanation FROM "IntakePublication" WHERE "activeFor"=${lit(sid)}`);
     ok('5 명시적으로 공개 → DB 공개 줄 하나', pubRow.length === 1 && pubRow[0].explanation === '관리자 시험 공개 설명');
-    ok('5 감사 기록: 검토 · 공개', (await sql(`SELECT action FROM "IntakeAudit" WHERE "submissionId"=${lit(sid)} AND action IN ('run.reviewed','publication.published','run.published')`)).length >= 2);
+    ok('5 감사 기록: 검토 완료 · 공개', (await sql(`SELECT action FROM "IntakeAudit" WHERE "submissionId"=${lit(sid)} AND action IN ('run.review_acknowledged','publication.published')`)).length >= 2);
     await pub.s('Page.reload'); await sleep(1500);
     await pub.waitText('관리자 시험 공개 설명', 60000).catch(() => {});
     const pt = await pub.text();
@@ -527,7 +537,7 @@ try {
     /* 먼저 첫 실행을 공개해 둔다 — 검토 후 공개 */
     const firstReview = await a.ev(`(()=>{const bs=[...document.querySelectorAll('button')].filter(b=>b.innerText.includes('3D 결과 검토'));return bs.length})()`);
     await a.ev(`(()=>{const li=[...document.querySelectorAll('li')].find(l=>l.innerText.includes('3D 결과 검토')&&!l.innerText.includes('e2e-second'));[...li.querySelectorAll('button')].find(b=>b.innerText.includes('3D 결과 검토')).click()})()`);
-    await a.waitText('아직 공개 전이에요', 30000); await a.s('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape' }); await sleep(800);
+    await a.waitText('아직 공개 전이에요', 30000); await ackInDialog(a);
     const runs = await sql(`SELECT id, "engineKey" FROM "IntakeAnalysisRun" WHERE "submissionId"=${lit(sid)} AND status='succeeded' ORDER BY "requestedAt"`);
     console.log('runs', JSON.stringify(runs), 'review buttons', firstReview);
     /* 첫 실행(가짜 GPU 결과)의 공개 단추 — 검토한 그 항목 */
@@ -538,7 +548,7 @@ try {
     /* a: 공개 내리기 창 · b: 다른 실행을 검토하고 공개 바꾸기 창 */
     await a.click('공개 내리기'); await a.waitText('공개를 내릴까요?', 10000);
     await b.ev(`(()=>{const li=[...document.querySelectorAll('li')].find(l=>[...l.querySelectorAll('button')].some(x=>x.innerText.includes('이 결과 공개')));[...li.querySelectorAll('button')].find(x=>x.innerText.includes('3D 결과 검토')).click()})()`);
-    await b.waitText('아직 공개 전이에요', 30000); await b.s('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape' }); await sleep(800);
+    await b.waitText('아직 공개 전이에요', 30000); await ackInDialog(b);
     await b.ev(`(()=>{const x=[...document.querySelectorAll('button')].find(b=>b.innerText.includes('이 결과 공개')&&!b.disabled);x.click()})()`);
     await b.waitText('공개 중인 결과를 바꿀까요?', 10000); await sleep(300);
     await Promise.all([dialogClick(a, '내리기'), dialogClick(b, '바꾸기')]);

@@ -52,7 +52,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient, type IntakeAsset } from '@prisma/client';
 import { openIntakeScope, type IntakeScope } from '@/lib/intake/access';
 import { adminRequeueVerification, adminRevokeInvitation, issueOriginalLinks, issueRunPreviewLink, loadIntakeDetail, loadIntakeList, parseIntakeFilters } from '@/lib/intake/admin';
-import { analysisReadiness, listRuns, setAnalysisHand, startIntakeAnalysis, type IntakeGpu, type IntakeRuntime } from '@/lib/intake/analysis';
+import { analysisReadiness, listRuns, loadRunReview, setAnalysisHand, startIntakeAnalysis, type IntakeGpu, type IntakeRuntime } from '@/lib/intake/analysis';
+import { acknowledgeRunReview } from '@/lib/intake/review';
 import { consentDocOf, type ConsentAnswer } from '@/lib/intake/consent';
 import { IntakeError } from '@/lib/intake/errors';
 import { intakeJobHandlers, runIntakeCron } from '@/lib/intake/job-handlers';
@@ -804,7 +805,19 @@ async function actPublish(s: MSub) {
   if (!runs.length) return;
   const run = pick(runs);
   const active = await db.intakePublication.findUnique({ where: { activeFor: s.id } });
-  const r = await attempt('공개', () => publishRun({ runId: run.id, adminId: ADMIN, expectedActivePublicationId: active?.id ?? null, allowOlderRevision: chance(0.5), explanation: `설명${stepNo}` }, rt));
+  /* 화면처럼 검토를 열고 검토 완료를 누른 뒤 공개한다(INTAKE-MAIN/R01). 열 수 없으면(철회 · 회수 등) 검토 완료 없이 공개가 막히는지만 본다 */
+  const acknowledgementId = await (async () => {
+    try {
+      const v = await loadRunReview({ submissionId: s.id, runId: run.id, adminId: ADMIN }, rt);
+      return (await acknowledgeRunReview({ submissionId: s.id, runId: run.id, adminId: ADMIN, resultDigest: v.resultDigest, currentRevisionId: v.currentRevisionId }, rt)).acknowledgementId;
+    } catch (e) {
+      if (e instanceof Crash) throw e;
+      return null;
+    }
+  })();
+  const r = await attempt('공개', () =>
+    publishRun({ runId: run.id, adminId: ADMIN, expectedActivePublicationId: active?.id ?? null, allowOlderRevision: chance(0.5), explanation: `설명${stepNo}`, acknowledgementId }, rt),
+  );
   if (!r?.created) return;
   must(s.withdrawnAt == null, `접수 ${s.no}: 철회한 접수를 공개했다 — 철회는 시계를 늦추지 않는다`);
   s.published.push(nowMs);

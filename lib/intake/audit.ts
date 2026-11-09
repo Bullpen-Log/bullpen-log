@@ -33,8 +33,9 @@ export function cleanAuditDetail(detail: Record<string, unknown>): Record<string
   return out;
 }
 
-export async function writeAudit(db: AuditDb, entry: AuditEntry, now: Date = new Date()): Promise<void> {
-  await db.intakeAudit.create({
+/** 남긴 줄의 번호를 돌려준다 — 검토 완료처럼 뒤에서 그 줄을 가리켜야 하는 기록이 쓴다 */
+export async function writeAudit(db: AuditDb, entry: AuditEntry, now: Date = new Date()): Promise<string> {
+  const row = await db.intakeAudit.create({
     data: {
       submissionId: entry.submissionId ?? null,
       invitationId: entry.invitationId ?? null,
@@ -44,5 +45,7 @@ export async function writeAudit(db: AuditDb, entry: AuditEntry, now: Date = new
       detail: entry.detail ? (cleanAuditDetail(entry.detail) as Prisma.InputJsonValue) : undefined,
       createdAt: now,
     },
+    select: { id: true },
   });
+  return row.id;
 }

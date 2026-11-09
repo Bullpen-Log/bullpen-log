@@ -248,3 +248,15 @@ export function retentionFactRows(r: IntakeDetail['retention'], filesPurgedAt: s
   return rows;
 }
 
+
+/**
+ * 공개 단추가 쓸 검토 완료 번호(INTAKE-MAIN/R01) — 검토 완료를 받을 때의 지금 공개와 지금 그린 공개가 같을 때만.
+ * 그사이 다른 관리자가 공개했거나 내렸으면 서버가 그 번호를 받지 않으니(공개 세대가 바뀜) 단추를 끄고 다시 검토하게 한다.
+ * 화면의 판단일 뿐이다 — 공개를 막고 여는 것은 서버(lib/intake/review.ts)다.
+ */
+export function acknowledgementForPublish(ack: { id: string; publication: string | null } | null, activePublicationId: string | null): string | null {
+  return ack && ack.publication === activePublicationId ? ack.id : null;
+}
+
+/** 이 실패면 쥐고 있던 검토 완료를 버린다 — 서버가 낡았다고 했거나(검토 · 공개가 바뀜) 검토 완료가 없다고 했다 */
+export const dropsAcknowledgement = (code: string) => code === 'stale_review' || code === 'review_required' || code === 'stale_publication';

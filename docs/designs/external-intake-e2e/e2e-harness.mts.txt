@@ -17,7 +17,8 @@ import { publishRun, unpublish } from '@/lib/intake/publication';
 import { purgeSubmissionOriginals } from '@/lib/intake/purge';
 import { assetObjectPath } from '@/lib/intake/paths';
 import { createIntakeStorage } from '@/lib/intake/storage-core';
-import { runResultPath } from '@/lib/intake/analysis';
+import { loadRunReview, runResultPath } from '@/lib/intake/analysis';
+import { acknowledgeRunReview } from '@/lib/intake/review';
 import { fitPitch3dV2 } from '@/lib/pitch-3d/v2/fit';
 import { base, cameras, EV } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
@@ -205,7 +206,11 @@ async function control(req: IncomingMessage, res: ServerResponse, url: URL) {
     const st = createIntakeStorage({ url: `http://127.0.0.1:${ST_PORT}`, serviceKey: SERVICE_KEY });
     const runRow = await db.intakeAnalysisRun.findUniqueOrThrow({ where: { id: q.get('run')! } });
     const active = await db.intakePublication.findUnique({ where: { activeFor: runRow.submissionId } });
-    return send(res, 200, await publishRun({ runId: q.get('run')!, adminId: 'e2e-admin', explanation: q.get('x'), expectedActivePublicationId: active?.id ?? null }, { db, storage: st } as never));
+    /* INTAKE-MAIN/R01 — 공개 전에 같은 관리자가 검토를 열고 검토 완료를 남긴다(리그가 화면 대신) */
+    const rrt = { db, storage: st } as never;
+    const v = await loadRunReview({ submissionId: runRow.submissionId, runId: runRow.id, adminId: 'e2e-admin' }, rrt);
+    const { acknowledgementId } = await acknowledgeRunReview({ submissionId: runRow.submissionId, runId: runRow.id, adminId: 'e2e-admin', resultDigest: v.resultDigest, currentRevisionId: v.currentRevisionId }, rrt);
+    return send(res, 200, await publishRun({ runId: q.get('run')!, adminId: 'e2e-admin', explanation: q.get('x'), expectedActivePublicationId: active?.id ?? null, acknowledgementId }, rrt));
   }
   if (name === 'unpublish') {
     const st = createIntakeStorage({ url: `http://127.0.0.1:${ST_PORT}`, serviceKey: SERVICE_KEY });

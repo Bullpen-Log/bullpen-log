@@ -1009,6 +1009,8 @@ export async function adminRevokeInvitation(db: Db, actor: IntakeActor, input: {
   assertIntakeAdmin(actor);
   mustSubmissionId(input.submissionId);
   return db.$transaction(async (tx) => {
+    /* 접수 줄부터 잠근다 — 공개 · 검토 완료가 같은 줄을 잠그고 초대 상태를 보므로, 회수가 그 사이에 끼어 '회수된 초대의 공개'가 생기지 않게(INTAKE-MAIN/R01) */
+    await tx.$queryRaw`SELECT "id" FROM "IntakeSubmission" WHERE "id" = ${input.submissionId} FOR UPDATE`;
     const sub = await tx.intakeSubmission.findUnique({ where: { id: input.submissionId }, select: { id: true, invitationId: true } });
     if (!sub) throw new IntakeError('submission_not_found');
     const moved = await tx.intakeInvitation.updateMany({

@@ -34,7 +34,7 @@ import {
   type IntakeRuntime,
   runPreviewPath,
 } from '@/lib/intake/analysis';
-import { adminWithdrawConsent, issueOriginalLinks, issueRunPreviewLink } from '@/lib/intake/admin';
+import { adminRevokeInvitation, adminWithdrawConsent, issueOriginalLinks, issueRunPreviewLink } from '@/lib/intake/admin';
 import { consentDocOf, type ConsentAnswer } from '@/lib/intake/consent';
 import { IntakeError, type IntakeErrorCode } from '@/lib/intake/errors';
 import { cronAuthorized, handleCronRequest, intakeJobHandlers, registerRevision, runIntakeCron } from '@/lib/intake/job-handlers';
@@ -43,6 +43,7 @@ import { TUS_URL_TTL_MS } from '@/lib/intake/limits';
 import { assetObjectPath, runObjectPrefix } from '@/lib/intake/paths';
 import { handlePublicResultRequest, loadPublicResult, publishRun, unpublish } from '@/lib/intake/publication';
 import { purgeSubmissionOriginals } from '@/lib/intake/purge';
+import { acknowledgeRunReview, REVIEW_ACK_ACTION, REVIEW_OPENED_ACTION } from '@/lib/intake/review';
 import { body3dResultOf, toPublicView } from '@/lib/intake/public-result';
 import {
   cleanupStaleUploads,
@@ -177,9 +178,23 @@ const start = (submissionId: string, extra: { adminId?: string; confirm?: boolea
   startIntakeAnalysis({ submissionId, adminId: extra.adminId ?? ADMIN, confirmDraftConsent: extra.confirm ?? true }, rt);
 /* 화면처럼 지금 공개를 읽어 보낸다 — 낡은 화면은 아래 시험이 일부러 옛 값을 넘겨 만든다 */
 const activePublicationOf = async (submissionId: string) => (await db.intakePublication.findUnique({ where: { activeFor: submissionId } }))?.id ?? null;
-const publish = async (input: { runId: string; adminId: string; explanation?: string | null; allowOlderRevision?: boolean }) => {
+/**
+ * 화면처럼 검토를 열고 '검토 완료'를 누른다(INTAKE-MAIN/R01) — 공개자 본인의 검토 완료 번호를 돌려준다.
+ * 열 수 없는 결과(끝나지 않은 실행 · 철회 · 회수)면 null — 그런 공개는 그 앞의 검사에서 막히는지를 본다.
+ */
+const ackFor = async (runId: string, adminId: string = ADMIN): Promise<string | null> => {
+  try {
+    const run = await db.intakeAnalysisRun.findUniqueOrThrow({ where: { id: runId } });
+    const v = await loadRunReview({ submissionId: run.submissionId, runId, adminId }, rt);
+    return (await acknowledgeRunReview({ submissionId: run.submissionId, runId, adminId, resultDigest: v.resultDigest, currentRevisionId: v.currentRevisionId }, rt)).acknowledgementId;
+  } catch {
+    return null;
+  }
+};
+const publish = async (input: { runId: string; adminId: string; explanation?: string | null; allowOlderRevision?: boolean; acknowledgementId?: string | null }) => {
   const run = await db.intakeAnalysisRun.findUniqueOrThrow({ where: { id: input.runId } });
-  return publishRun({ ...input, expectedActivePublicationId: await activePublicationOf(run.submissionId) }, rt);
+  const acknowledgementId = input.acknowledgementId !== undefined ? input.acknowledgementId : await ackFor(input.runId, input.adminId);
+  return publishRun({ ...input, acknowledgementId, expectedActivePublicationId: await activePublicationOf(run.submissionId) }, rt);
 };
 const takedown = async (submissionId: string) => unpublish({ submissionId, adminId: ADMIN, expectedActivePublicationId: await activePublicationOf(submissionId) }, rt);
 
@@ -416,7 +431,9 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
   const review = await loadRunReview({ submissionId: m.submissionId, runId: run.id, adminId: 'admin-1' }, rt);
   eq([review.view.joints.length, review.view.hand, review.revisionNumber, review.isCurrentRevision], [realResult.joints.length, realResult.hand, 1, true], '검토는 이 실행의 3D 를 공개 모양으로 준다');
   ok(!('engine' in review.view) && !('quality' in review.view) && !('jobId' in review.view), '검토도 공개 허용 칸만 준다');
-  eq(await db.intakeAudit.count({ where: { submissionId: m.submissionId, action: 'run.reviewed' } }), 1, '검토한 사실을 남긴다');
+  eq(await db.intakeAudit.count({ where: { submissionId: m.submissionId, action: REVIEW_OPENED_ACTION } }), 1, '연 사실을 남긴다(검토 완료가 아니다)');
+  eq(await db.intakeAudit.count({ where: { submissionId: m.submissionId, action: REVIEW_ACK_ACTION } }), 0, '열기만 해서는 검토 완료가 생기지 않는다');
+  ok(/^[0-9a-f]{64}$/.test(review.resultDigest) && review.currentRevisionId === (await subOf(m.submissionId)).currentRevisionId, '서버가 확인한 결과 해시와 지금 판을 같이 준다');
   const other = await makeVerified();
   await fails(loadRunReview({ submissionId: other.submissionId, runId: run.id, adminId: 'admin-1' }, rt), 'run_not_found', '다른 접수의 실행은 안 연다');
   await fails(loadRunReview({ submissionId: m.submissionId, runId: 'not-an-id', adminId: 'admin-1' }, rt), 'run_not_found', '틀린 번호는 안 연다');
@@ -967,18 +984,20 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
   gpuState.build = 'build-a';
 
   /* A 는 공개가 없는 화면을 열어 두었고 그사이 B 가 공개했다 */
-  const pubB = await publishRun({ runId: second.run.id, adminId: ADMIN2, explanation: 'B 설명', expectedActivePublicationId: null }, rt);
-  await assert.rejects(publishRun({ runId: first.run.id, adminId: ADMIN, explanation: 'A 설명', expectedActivePublicationId: null }, rt), (e: unknown) => {
+  const ackA = await ackFor(first.run.id, ADMIN);
+  const ackB = await ackFor(second.run.id, ADMIN2);
+  const pubB = await publishRun({ runId: second.run.id, adminId: ADMIN2, explanation: 'B 설명', expectedActivePublicationId: null, acknowledgementId: ackB }, rt);
+  await assert.rejects(publishRun({ runId: first.run.id, adminId: ADMIN, explanation: 'A 설명', expectedActivePublicationId: null, acknowledgementId: ackA }, rt), (e: unknown) => {
     assert.ok(e instanceof IntakeError);
     eq([e.code, e.httpStatus, e.detail?.currentPublicationId], ['stale_publication', 409, pubB.publicationId], '낡은 화면의 공개는 막히고 지금 공개를 알려 준다');
     ok(e.message.includes('최신'), '무엇을 하면 되는지 말한다');
     return true;
   });
   eq((await loadPublicResult(m.scope, {}, rt)).explanation, 'B 설명', 'B 의 공개가 그대로다');
-  eq((await publishRun({ runId: second.run.id, adminId: ADMIN2, explanation: 'B 설명', expectedActivePublicationId: null }, rt)).created, false, '같은 공개를 다시 눌렀을 뿐이면 낡은 값이어도 그대로 돌려준다');
+  eq((await publishRun({ runId: second.run.id, adminId: ADMIN2, explanation: 'B 설명', expectedActivePublicationId: null, acknowledgementId: ackB }, rt)).created, false, '같은 공개를 다시 눌렀을 뿐이면(응답 유실) 낡은 값이어도 그대로 돌려준다');
 
   /* 옛 판을 보고 내리기 */
-  const pub2 = await publishRun({ runId: second.run.id, adminId: ADMIN2, explanation: 'B 새 설명', expectedActivePublicationId: pubB.publicationId }, rt);
+  const pub2 = await publishRun({ runId: second.run.id, adminId: ADMIN2, explanation: 'B 새 설명', expectedActivePublicationId: pubB.publicationId, acknowledgementId: await ackFor(second.run.id, ADMIN2) }, rt);
   await fails(unpublish({ submissionId: m.submissionId, adminId: ADMIN, expectedActivePublicationId: pubB.publicationId }, rt), 'stale_publication', '옛 판을 보고 내리면 새 판이 안 내려간다');
   await fails(unpublish({ submissionId: m.submissionId, adminId: ADMIN, expectedActivePublicationId: null }, rt), 'stale_publication', '공개가 없는 화면도 못 내린다');
   eq((await subOf(m.submissionId)).publicationStatus, 'published', '공개가 그대로다');
@@ -988,7 +1007,7 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
   /* 옛 화면 코드가 값을 안 보내면 맞춰 볼 수 없어 받지 않는다 */
   await fails(publishRun({ runId: first.run.id, adminId: ADMIN } as never, rt), 'invalid_input', '알던 공개가 없는 요청은 안 받는다');
   await fails(unpublish({ submissionId: m.submissionId, adminId: ADMIN } as never, rt), 'invalid_input', '내리기도 같다');
-  await fails(publishRun({ runId: first.run.id, submissionId: (await makeVerified()).submissionId, adminId: ADMIN, expectedActivePublicationId: null }, rt), 'run_not_found', '다른 접수의 화면에서는 이 실행이 없는 것');
+  await fails(publishRun({ runId: first.run.id, submissionId: (await makeVerified()).submissionId, adminId: ADMIN, expectedActivePublicationId: null, acknowledgementId: null }, rt), 'run_not_found', '다른 접수의 화면에서는 이 실행이 없는 것');
 
   /* 고침으로 영상이 바뀌면 앞 실행은 일부러 넘겨야만 공개된다 */
   const c = await makeVerified({ name: '옛판' });
@@ -1633,6 +1652,193 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
   await db.intakeAsset.updateMany({ where: { submissionId: e.submissionId }, data: { status: 'purging' } });
   await fails(start(e.submissionId), 'original_purged', '표시가 걸린 판은 지울 날을 안 보고 막는다');
   await db.intakeAsset.updateMany({ where: { submissionId: e.submissionId }, data: { status: 'verified' } });
+}
+
+/* ─────────────────────── INTAKE-MAIN/R01 — 공개 전 검토 완료를 서버가 강제한다 ─────────────────────── */
+{
+  const ack = (m: Made, runId: string, adminId = ADMIN, over: { resultDigest?: string; currentRevisionId?: string | null; skipOpen?: boolean } = {}) =>
+    (async () => {
+      const v = over.skipOpen ? null : await loadRunReview({ submissionId: m.submissionId, runId, adminId }, rt);
+      const sub = await subOf(m.submissionId);
+      const run = await runOf(runId);
+      const digest = over.resultDigest ?? v?.resultDigest ?? ((run.resultMeta as { sha256?: string } | null)?.sha256 ?? '');
+      const currentRevisionId = over.currentRevisionId !== undefined ? over.currentRevisionId : (v?.currentRevisionId ?? sub.currentRevisionId);
+      return (await acknowledgeRunReview({ submissionId: m.submissionId, runId, adminId, resultDigest: digest, currentRevisionId }, rt)).acknowledgementId;
+    })();
+  const pub = async (m: Made, runId: string, acknowledgementId: string | null, extra: { adminId?: string; explanation?: string; allowOlderRevision?: boolean; expected?: string | null } = {}) =>
+    publishRun(
+      {
+        runId,
+        submissionId: m.submissionId,
+        adminId: extra.adminId ?? ADMIN,
+        explanation: extra.explanation ?? 'R01',
+        allowOlderRevision: extra.allowOlderRevision,
+        expectedActivePublicationId: extra.expected !== undefined ? extra.expected : await activePublicationOf(m.submissionId),
+        acknowledgementId,
+      },
+      rt,
+    );
+  const counts = async (submissionId: string) => ({
+    pubs: await db.intakePublication.count({ where: { submissionId } }),
+    audits: await db.intakeAudit.count({ where: { submissionId, action: 'publication.published' } }),
+  });
+  const ready = async (opts: { name?: string } = {}) => {
+    const m = await makeVerified(opts);
+    const { run } = await start(m.submissionId);
+    await finishGpu(lastCall());
+    return { m, run };
+  };
+
+  /* 1. 검토를 열지 않았거나 열기만 했거나 예전 기록뿐이면 새 공개 0 */
+  {
+    const { m, run } = await ready();
+    await fails(pub(m, run.id, null), 'review_required', '검토 완료 없이 공개 못 한다');
+    await loadRunReview({ submissionId: m.submissionId, runId: run.id, adminId: ADMIN }, rt);
+    const opened = await db.intakeAudit.findFirstOrThrow({ where: { submissionId: m.submissionId, action: REVIEW_OPENED_ACTION } });
+    await fails(pub(m, run.id, opened.id), 'review_required', '연 기록은 검토 완료가 아니다');
+    const legacy = await db.intakeAudit.create({ data: { submissionId: m.submissionId, actorKind: 'admin', actorId: ADMIN, action: 'run.reviewed', detail: { runId: run.id } } });
+    await fails(pub(m, run.id, legacy.id), 'review_required', '예전 run.reviewed 조회 기록은 검토 완료가 아니다');
+    await fails(pub(m, run.id, 'not-an-id'), 'review_required', '틀린 번호는 없는 것과 같다');
+    /* 모양만 흉내 낸 기록 — 계약 판이 없으면 받지 않는다 */
+    const forged = await db.intakeAudit.create({ data: { submissionId: m.submissionId, actorKind: 'admin', actorId: ADMIN, action: REVIEW_ACK_ACTION, detail: { runId: run.id, explicit: true } } });
+    await fails(pub(m, run.id, forged.id), 'stale_review', '묶음이 모자란 기록으로는 공개 못 한다');
+    eq(await counts(m.submissionId), { pubs: 0, audits: 0 }, '막힌 공개는 공개 · 공개 기록을 안 남긴다');
+    await fails(ack(m, run.id, ADMIN2, { skipOpen: true }), 'review_required', '열어 보지 않은 관리자는 검토 완료를 못 남긴다');
+  }
+
+  /* 2. 화면이 보낸 해시 · 판이 서버 값과 다르면 검토 완료를 안 남긴다 */
+  {
+    const { m, run } = await ready();
+    await fails(ack(m, run.id, ADMIN, { resultDigest: 'f'.repeat(64) }), 'stale_review', '다른 결과 해시로는 검토 완료 못 한다');
+    await fails(ack(m, run.id, ADMIN, { resultDigest: 'xyz' }), 'invalid_input', '해시 모양이 아니면 받지 않는다');
+    await fails(ack(m, run.id, ADMIN, { currentRevisionId: (await makeVerified()).submissionId }), 'stale_review', '다른 판을 봤다면 검토 완료 못 한다');
+    const other = await makeVerified();
+    await fails(acknowledgeRunReview({ submissionId: other.submissionId, runId: run.id, adminId: ADMIN, resultDigest: 'a'.repeat(64), currentRevisionId: null }, rt), 'run_not_found', '다른 접수의 실행은 검토 완료 못 한다');
+  }
+
+  /* 3. 공개자 본인 · 같은 실행 · 같은 접수만 */
+  {
+    const { m, run } = await ready();
+    const byOther = await ack(m, run.id, ADMIN2);
+    await fails(pub(m, run.id, byOther, { adminId: ADMIN }), 'review_required', '다른 관리자의 검토 완료로는 공개 못 한다');
+    gpuState.build = 'build-r01';
+    const second = await start(m.submissionId);
+    await finishGpu(lastCall());
+    gpuState.build = 'build-a';
+    const firstAck = await ack(m, run.id);
+    await fails(pub(m, second.run.id, firstAck), 'stale_review', '다른 실행의 검토 완료로는 공개 못 한다');
+    const other = await ready();
+    const otherAck = await ack(other.m, other.run.id);
+    await fails(pub(m, run.id, otherAck), 'review_required', '다른 접수의 검토 완료로는 공개 못 한다');
+    const ok1 = await pub(m, run.id, firstAck);
+    ok(ok1.created, '맞는 검토 완료로는 공개한다');
+    const audit = await db.intakeAudit.findFirstOrThrow({ where: { submissionId: m.submissionId, action: 'publication.published' } });
+    eq([(audit.detail as Record<string, unknown>).acknowledgementId, (audit.detail as Record<string, unknown>).publicationId], [firstAck, ok1.publicationId], '공개 기록이 쓴 검토 완료와 공개 번호를 가리킨다');
+    const ackRow = await db.intakeAudit.findUniqueOrThrow({ where: { id: firstAck! } });
+    const d = ackRow.detail as Record<string, unknown>;
+    eq([d.contract, d.explicit, d.runId, d.invitationId, ackRow.actorId], ['intake-review/1', true, run.id, m.invitationId, ADMIN], '검토 완료는 계약 판 · 실행 · 초대 · 검토자에 묶인다');
+    ok(/^[0-9a-f]{64}$/.test(String(d.resultSha256)) && d.runInput != null && d.generation != null, '결과 해시 · 입력 · 공개 세대도 묶인다');
+  }
+
+  /* 4. 검토 뒤 바뀌면 낡은 검토 완료로 새 공개를 못 만든다 — 손 · 고침(이름) · 회수 · 철회 · 결과 해시 */
+  {
+    const { m, run } = await ready();
+    const before = await ack(m, run.id);
+    await setAnalysisHand({ submissionId: m.submissionId, adminId: ADMIN, hand: 'L' }, rt);
+    await fails(pub(m, run.id, before, { allowOlderRevision: true }), 'stale_review', '손을 바꾼 뒤에는 옛 검토 완료로 공개 못 한다');
+    await setAnalysisHand({ submissionId: m.submissionId, adminId: ADMIN, hand: 'R' }, rt);
+    const fresh = await ack(m, run.id);
+    eq((await pub(m, run.id, fresh)).created, true, '다시 검토하면 공개한다');
+    await takedown(m.submissionId);
+
+    /* 글만 고친 판 — 분석은 다시 안 돌리고 다시 검토만 한다 */
+    const n = await ready({ name: '고칠이름' });
+    const nAck = await ack(n.m, n.run.id);
+    await requestCorrection(db, { adminId: ADMIN, submissionId: n.m.submissionId, fields: ['athleteName'] }, new Date(nowMs));
+    const st = await loadPublicState(db, n.m.scope, { now: new Date(nowMs) });
+    const saved = await saveDraft(db, n.m.scope, { expectedVersion: st.version, athleteName: '고친이름' }, new Date(nowMs));
+    await finalizeSubmission(db, n.m.scope, { expectedVersion: saved.version, idempotencyKey: randomBytes(16).toString('hex') }, new Date(nowMs));
+    await settleJobs();
+    const calls = gpuCalls.length;
+    await fails(pub(n.m, n.run.id, nAck), 'stale_review', '글만 고친 판이 오면 이름 표시를 다시 검토해야 한다');
+    const review2 = await loadRunReview({ submissionId: n.m.submissionId, runId: n.run.id, adminId: ADMIN }, rt);
+    eq(review2.athleteName, '고친이름', '다시 검토는 지금 판의 이름을 보여 준다(공개 화면과 같은 규칙)');
+    eq((await pub(n.m, n.run.id, await ack(n.m, n.run.id))).created, true, '다시 검토하면 앞 실행을 그대로 공개한다');
+    eq(gpuCalls.length, calls, '분석을 다시 돌리지 않는다');
+
+    /* 회수 · 철회 */
+    const r = await ready();
+    const rAck = await ack(r.m, r.run.id);
+    await adminRevokeInvitation(db, ACTOR, { submissionId: r.m.submissionId }, new Date(nowMs));
+    await fails(pub(r.m, r.run.id, rAck), 'invitation_revoked', '회수 뒤에는 옛 검토 완료로 공개 못 한다');
+    await fails(ack(r.m, r.run.id), 'invitation_revoked', '회수 뒤에는 검토 완료도 못 남긴다');
+    const w = await ready();
+    const wAck = await ack(w.m, w.run.id);
+    await withdrawConsent(db, w.m.scope, { kind: 'submission' }, new Date(nowMs));
+    await fails(pub(w.m, w.run.id, wAck), 'result_unavailable', '철회 뒤에는 공개 못 한다');
+    eq((await counts(r.m.submissionId)).pubs + (await counts(w.m.submissionId)).pubs, 0, '회수 · 철회 뒤 공개가 안 생긴다');
+
+    /* 결과 해시가 그사이 바뀌었다(실행 줄) — 잠금 안 재확인이 잡는다 */
+    const h = await ready();
+    const hAck = await ack(h.m, h.run.id);
+    const hRun = await runOf(h.run.id);
+    await db.intakeAnalysisRun.update({ where: { id: h.run.id }, data: { resultMeta: { ...(hRun.resultMeta as object), sha256: '0'.repeat(64) } } });
+    await fails(pub(h.m, h.run.id, hAck), 'run_not_publishable', '결과 파일이 해시와 안 맞으면 공개 못 한다');
+    await db.intakeAnalysisRun.update({ where: { id: h.run.id }, data: { resultMeta: hRun.resultMeta as object } });
+    eq((await pub(h.m, h.run.id, hAck)).created, true, '되돌리면 같은 검토 완료로 공개한다');
+  }
+
+  /* 5. 공개 세대 — 다른 관리자의 공개 · 내리기 → 다시 공개(지금 공개가 null 로 돌아와도) */
+  {
+    const { m, run } = await ready();
+    const mine = await ack(m, run.id, ADMIN);
+    const theirs = await ack(m, run.id, ADMIN2);
+    const p1 = await pub(m, run.id, theirs, { adminId: ADMIN2, explanation: 'B' });
+    await fails(pub(m, run.id, mine, { explanation: 'A', expected: null }), 'stale_publication', '그사이 다른 관리자가 공개했으면 낡은 화면은 막힌다');
+    await fails(pub(m, run.id, mine, { explanation: 'A', expected: p1.publicationId }), 'stale_review', '공개 번호를 맞춰도 공개 전에 남긴 검토 완료는 낡았다');
+    await unpublish({ submissionId: m.submissionId, adminId: ADMIN, expectedActivePublicationId: p1.publicationId }, rt);
+    await fails(pub(m, run.id, mine, { explanation: 'A', expected: null }), 'stale_review', '내린 뒤 지금 공개가 다시 없음이어도 옛 세대의 검토 완료는 못 쓴다');
+    const afterDown = await ack(m, run.id);
+    const p2 = await pub(m, run.id, afterDown, { explanation: 'A' });
+    await unpublish({ submissionId: m.submissionId, adminId: ADMIN, expectedActivePublicationId: p2.publicationId }, rt);
+    await fails(pub(m, run.id, afterDown, { explanation: 'A', expected: null }), 'stale_review', '한 번 쓴 검토 완료는 내리고 다시 공개하는 데 못 쓴다');
+  }
+
+  /* 6. 응답 유실 · 두 번 누름 — 같은 공개를 돌려주고 공개 · 기록 · 보유 시계를 더하지 않는다 */
+  {
+    const { m, run } = await ready();
+    const a = await ack(m, run.id);
+    const first = await pub(m, run.id, a, { explanation: '같은 설명' });
+    const pubRow = await db.intakePublication.findUniqueOrThrow({ where: { id: first.publicationId } });
+    nowMs += 60_000;
+    const again = await pub(m, run.id, a, { explanation: '같은 설명', expected: null });
+    eq([again.created, again.publicationId, again.number], [false, first.publicationId, first.number], '응답을 잃고 다시 눌러도 같은 공개 · 같은 번호');
+    eq(await counts(m.submissionId), { pubs: 1, audits: 1 }, '공개 · 공개 기록이 늘지 않는다');
+    eq((await db.intakePublication.findUniqueOrThrow({ where: { id: first.publicationId } })).publishedAt.getTime(), pubRow.publishedAt.getTime(), '공개 시각(보유 시계)이 다시 돌지 않는다');
+    const twice = await Promise.all([pub(m, run.id, a, { explanation: '같은 설명', expected: null }), pub(m, run.id, a, { explanation: '같은 설명', expected: null })]);
+    ok(twice.every((t) => !t.created && t.publicationId === first.publicationId), '동시에 두 번 눌러도 같은 공개');
+    await fails(pub(m, run.id, a, { adminId: ADMIN2, explanation: '같은 설명' }), 'review_required', '다른 관리자는 남의 검토 완료로 같은 공개를 되돌려 받지 못한다');
+    await fails(pub(m, run.id, null, { explanation: '같은 설명' }), 'review_required', '같은 실행 · 같은 설명이어도 검토 완료 없이는 지나가지 않는다');
+    await fails(pub(m, run.id, a, { explanation: '다른 설명' }), 'stale_review', '설명을 바꿔 새 공개를 만들려면 다시 검토해야 한다');
+    eq(await counts(m.submissionId), { pubs: 1, audits: 1 }, '그 어느 것도 공개를 더하지 않는다');
+    /* 회수 뒤에는 응답 유실이어도 돌려주지 않는다 — 회수 검사는 예외 밖이다 */
+    await adminRevokeInvitation(db, ACTOR, { submissionId: m.submissionId }, new Date(nowMs));
+    await fails(pub(m, run.id, a, { explanation: '같은 설명' }), 'invitation_revoked', '회수 뒤에는 같은 공개도 돌려주지 않는다');
+  }
+
+  /* 7. 경계 — 검토 완료와 공개 사이에 손 바꿈이 끼어들면(잠금 순서상 공개가 늦게 잡음) 공개가 막힌다. PGlite 연결 하나라 실제 여러 연결 경합은 아니다 */
+  {
+    const { m, run } = await ready();
+    const a = await ack(m, run.id);
+    const [hand, published] = await Promise.allSettled([setAnalysisHand({ submissionId: m.submissionId, adminId: ADMIN, hand: 'L' }, rt), pub(m, run.id, a)]);
+    ok(hand.status === 'fulfilled', '손 바꿈은 된다');
+    const sub = await subOf(m.submissionId);
+    if (published.status === 'fulfilled') ok(published.value.created, '공개가 먼저 잡았으면 그때는 맞는 검토 완료였다');
+    else ok(published.reason instanceof IntakeError && ['stale_review', 'run_not_current'].includes(published.reason.code), `손 바꿈이 먼저면 공개가 막힌다(${(published.reason as IntakeError).code})`);
+    eq(sub.throwingHand, 'L', '손 바꿈이 남는다');
+    const active = await db.intakePublication.count({ where: { submissionId: m.submissionId, activeFor: { not: null } } });
+    ok(active <= 1, '공개는 하나를 넘지 않는다');
+  }
 }
 
 await db.$disconnect();

@@ -1,10 +1,11 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { Button, Input } from '@/components/ui';
 import { CONTROL_TIMEOUT_MS, IntakeRequestError, requestJson } from '@/lib/intake/public-client';
 import { body3dResultOf, type PublicResult } from '@/lib/intake/public-result';
+import { body3dReady } from './body3d-ready';
 
 /**
  * 공개 결과 화면 — 초대 링크로 들어온 사람이 승인된 판 하나를 본다. 데이터는 POST /api/intake/public/result 하나뿐이고, 허용 칸만 온다.
@@ -209,13 +210,44 @@ function ResultPhase({
   );
 }
 
+/** 3D 칸을 지켜보다 준비가 바뀌면 알린다 — 실패해 '다시'를 눌러 다시 불러오는 동안은 준비가 아니다 */
+function useBody3dReady(section: RefObject<HTMLElement | null>, onReadyChange?: (ready: boolean) => void) {
+  const last = useRef<boolean | null>(null);
+  const report = useRef(onReadyChange);
+  useEffect(() => {
+    report.current = onReadyChange;
+  });
+  useEffect(() => {
+    const el = section.current;
+    if (!el || !report.current) return;
+    const check = () => {
+      const ready = body3dReady(el);
+      if (ready !== last.current) {
+        last.current = ready;
+        report.current?.(ready);
+      }
+    };
+    check();
+    const watch = new MutationObserver(check);
+    watch.observe(el, { subtree: true, childList: true, attributes: true, attributeFilter: ['disabled', 'aria-label'] });
+    return () => {
+      watch.disconnect();
+      if (last.current) report.current?.(false);
+      last.current = null;
+    };
+  }, [section]);
+}
+
 /**
  * 결과 본문 — 공개 화면과 관리자 3D 검토가 같이 쓴다(공개 전에 받는 사람이 볼 모양 그대로 확인하게).
  * preview 면 위에 '아직 공개 전'을 말하고 제목 초점을 옮기지 않는다(창 안에서 연다).
+ * onReadyChange 는 관리자 검토만 쓴다 — 3D 가 실제로 그릴 준비가 됐는지(body3dReady). 사람이 봤다는 뜻은 아니다.
  */
-export function ResultBody({ result, preview = false }: { result: PublicResult; preview?: boolean }) {
+export function ResultBody({ result, preview = false, onReadyChange }: { result: PublicResult; preview?: boolean; onReadyChange?: (ready: boolean) => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const stage = useRef<HTMLElement>(null);
   const body3d = useMemo(() => body3dResultOf(result.view), [result.view]);
+  useBody3dReady(stage, onReadyChange);
 
   /* 불러온 뒤 바뀐 화면을 보조 기술이 읽게 제목으로 옮긴다 */
   useEffect(() => {
@@ -237,7 +269,7 @@ export function ResultBody({ result, preview = false }: { result: PublicResult; 
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-        <section aria-label="3D 동작" className="theme-dark min-w-0 rounded-3xl bg-[#151722] p-3 text-ink">
+        <section ref={stage} aria-label="3D 동작" className="theme-dark min-w-0 rounded-3xl bg-[#151722] p-3 text-ink">
           <Body3D result={body3d} />
         </section>
 

@@ -94,6 +94,8 @@ export const ANALYSIS_ERROR_TEXT = {
   stale_publication: '다른 관리자가 공개를 바꿨어요. 최신 내용을 확인한 뒤 다시 시도해 주세요.',
   run_not_current: '지금 판의 영상으로 돌린 실행이 아니에요. 옛 판을 공개하려면 옛 판 공개를 따로 확인해 주세요.',
   analysis_engine_unknown: '분석 서버의 엔진 판을 확인하지 못했어요. 잠시 뒤에 다시 시도해 주세요.',
+  review_required: '이 결과를 먼저 검토하고 \'검토 완료\'를 눌러야 공개할 수 있어요.',
+  stale_review: '검토한 뒤 결과나 접수가 바뀌었어요. 다시 검토해 주세요.',
 } as const;
 export type AnalysisErrorCode = keyof typeof ANALYSIS_ERROR_TEXT;
 
@@ -112,7 +114,7 @@ export class IntakeAnalysisError extends IntakeError {
 
 const clock = (rt: IntakeRuntime) => rt.now?.() ?? new Date();
 /** 실행의 입력 — 얼린 판이 아니라 두 원본과 손이다. 판은 글 칸만 달라도 새로 생긴다 */
-type RunInput = { side: string; rear: string; hand: Hand };
+export type RunInput = { side: string; rear: string; hand: Hand };
 const dedupeKeyOf = (input: RunInput, engineKey: string) => `${input.side}:${input.rear}:${engineKey}:${input.hand}`;
 type RevisionInput = Pick<IntakeRevision, 'sideAssetId' | 'rearAssetId' | 'throwingHand'>;
 export const pollJobKey = (runId: string) => `poll_analysis:${runId}`;
@@ -131,13 +133,13 @@ const handOf = (sub: Pick<IntakeSubmission, 'throwingHand'>, rev: Pick<IntakeRev
 };
 
 /** 지금 판의 입력 — 손을 모르면 null(아직 돌릴 수 없는 판이다) */
-function currentInputOf(sub: Pick<IntakeSubmission, 'throwingHand'>, rev: RevisionInput | null): RunInput | null {
+export function currentInputOf(sub: Pick<IntakeSubmission, 'throwingHand'>, rev: RevisionInput | null): RunInput | null {
   const hand = rev ? handOf(sub, rev) : null;
   return rev && hand ? { side: rev.sideAssetId, rear: rev.rearAssetId, hand } : null;
 }
 
 /** 실행이 쓴 입력 — 실행 줄에 적은 값이 있으면 그것이다. 판의 손은 관리자가 정한 값을 모를 수 있어서 적은 값이 먼저다 */
-const runInputOf = (run: Pick<IntakeAnalysisRun, 'resultMeta'>, revision: RevisionInput): RunInput =>
+export const runInputOf = (run: Pick<IntakeAnalysisRun, 'resultMeta'>, revision: RevisionInput): RunInput =>
   metaOf(run).input ?? { side: revision.sideAssetId, rear: revision.rearAssetId, hand: revision.throwingHand as Hand };
 
 const sameRunInput = (a: RunInput, b: RunInput | null) => b != null && a.side === b.side && a.rear === b.rear && a.hand === b.hand;
@@ -317,7 +319,7 @@ type RunMeta = {
   timingDropped?: boolean;
 };
 
-const metaOf = (run: Pick<IntakeAnalysisRun, 'resultMeta'>): RunMeta => (run.resultMeta && typeof run.resultMeta === 'object' ? (run.resultMeta as RunMeta) : {});
+export const metaOf = (run: Pick<IntakeAnalysisRun, 'resultMeta'>): RunMeta => (run.resultMeta && typeof run.resultMeta === 'object' ? (run.resultMeta as RunMeta) : {});
 
 export type IntakeRunView = {
   id: string;
@@ -454,30 +456,50 @@ export async function loadRunResult(runId: string, rt?: IntakeRuntime): Promise<
   return result;
 }
 
+/** 관리자 3D 검토에 실어 보내는 것 — 받는 사람이 볼 칸과, 서버가 확인한 검토 대상(결과 해시 · 지금 판) */
+export type RunReviewView = {
+  view: PublicPitchView;
+  athleteName: string;
+  revisionNumber: number;
+  isCurrentRevision: boolean;
+  finishedAt: string | null;
+  /** 서버가 결과 파일을 다시 읽어 맞춘 SHA-256 — 검토 완료(acknowledgeRunReview)가 그대로 돌려보낸다 */
+  resultDigest: string;
+  /** 이름을 읽은 지금 판 — 이름 표시도 검토 대상이다. 판이 바뀌면 다시 검토한다 */
+  currentRevisionId: string | null;
+};
+
 /**
- * 관리자 3D 검토 — 공개 전에 받는 사람이 볼 모양 그대로(toPublicView 의 허용 칸) 연다. 공개는 이 실행 번호로만 한다(publishRun).
+ * 관리자 3D 검토 열기 — 공개 전에 받는 사람이 볼 모양 그대로(toPublicView 의 허용 칸) 연다. 공개는 이 실행 번호로만 한다(publishRun).
  * 접수 번호와 실행 번호를 같이 받아 그 접수의 실행인지 본다. 결과 파일의 해시 · 모양 검사는 loadRunResult 를 그대로 쓴다.
- * 연 사실을 감사 기록으로 남긴다 — 무엇을 보고 공개했는지 되짚을 수 있게. 권한은 부르는 쪽(관리자 동작)이 먼저 본다.
+ * 이것은 '열었다'(run.review_opened)일 뿐 검토 완료가 아니다 — 공개는 따로 누르는 검토 완료(lib/intake/review.ts)만 받는다(INTAKE-MAIN/R01).
+ * 이름은 공개 화면과 같은 규칙(지금 판 → 실행 판)으로 읽는다. 권한은 부르는 쪽(관리자 동작)이 먼저 본다.
  */
-export async function loadRunReview(
-  input: { submissionId: string; runId: string; adminId: string },
-  rt?: IntakeRuntime,
-): Promise<{ view: PublicPitchView; athleteName: string; revisionNumber: number; isCurrentRevision: boolean; finishedAt: string | null }> {
+export async function loadRunReview(input: { submissionId: string; runId: string; adminId: string }, rt?: IntakeRuntime): Promise<RunReviewView> {
   if (!isIntakeId(input.submissionId) || !isIntakeId(input.runId)) throw new IntakeError('run_not_found');
   const r = rt ?? (await appIntakeRuntime());
   const run = await r.db.intakeAnalysisRun.findFirst({
     where: { id: input.runId, submissionId: input.submissionId },
-    select: { id: true, finishedAt: true, revision: { select: { id: true, number: true } }, submission: { select: { athleteName: true, currentRevisionId: true } } },
+    select: { id: true, finishedAt: true, resultMeta: true, revision: { select: { id: true, number: true, athleteName: true } }, submission: { select: { currentRevisionId: true } } },
   });
   if (!run) throw new IntakeError('run_not_found');
   const result = await loadRunResult(run.id, r);
-  await writeAudit(r.db, { actor: { kind: 'admin', id: input.adminId }, action: 'run.reviewed', submissionId: input.submissionId, detail: { runId: run.id } }, clock(r));
+  const resultDigest = metaOf(run).sha256 ?? '';
+  const currentRevisionId = run.submission.currentRevisionId;
+  const current = currentRevisionId ? await r.db.intakeRevision.findUnique({ where: { id: currentRevisionId }, select: { athleteName: true } }) : null;
+  await writeAudit(
+    r.db,
+    { actor: { kind: 'admin', id: input.adminId }, action: 'run.review_opened', submissionId: input.submissionId, detail: { runId: run.id, resultSha256: resultDigest, currentRevisionId } },
+    clock(r),
+  );
   return {
     view: toPublicView(result),
-    athleteName: run.submission.athleteName ?? '',
+    athleteName: current?.athleteName ?? run.revision.athleteName ?? '',
     revisionNumber: run.revision.number,
-    isCurrentRevision: run.submission.currentRevisionId === run.revision.id,
+    isCurrentRevision: currentRevisionId === run.revision.id,
     finishedAt: run.finishedAt?.toISOString() ?? null,
+    resultDigest,
+    currentRevisionId,
   };
 }
 

@@ -9,6 +9,7 @@
  *   - 완료 응답을 잃어도 같은 키로 다시 내 같은 영수증을 받고, 서버의 판은 하나다. 완료를 보낸 뒤 멈추면 결과를 되찾는다.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { hashOnce } from '@/components/intake/pick';
 import { SEND_CANCELLED_TEXT, createSendController, type SendControllerInput, type SendState } from '@/components/intake/use-send';
@@ -995,6 +996,28 @@ const sendOptions = () => ({ known: { side: null, rear: null }, round: 0, versio
 /* 늦게 끝나는 약속들의 거절이 처리됐는지 본다 */
 await tick(50);
 eq(unhandled, 0, '처리되지 않은 거절이 없다');
+
+/* ── 관리자 3D 검토의 '준비' 판정(INTAKE-MAIN/R01) — 모듈을 불러온 것만으로는 준비가 아니다 ── */
+{
+  const { body3dReady } = await import('@/components/intake/body3d-ready');
+  const node = (parts: { canvas?: boolean; play?: { disabled: boolean } | null }) =>
+    ({
+      querySelector: (sel: string) => {
+        if (sel === 'canvas') return parts.canvas ? {} : null;
+        if (sel.includes('aria-label')) return parts.play ?? null;
+        return null;
+      },
+    }) as unknown as ParentNode;
+  eq(body3dReady(null), false, '칸이 없으면 준비 아님');
+  eq(body3dReady(node({})), false, '부품을 아직 못 불러왔으면(자리 글만) 준비 아님');
+  eq(body3dReady(node({ canvas: true, play: { disabled: true } })), false, '불러오는 중 · 그릴 수 없음 · 실패(재생 단추 꺼짐)는 준비 아님');
+  eq(body3dReady(node({ canvas: false, play: { disabled: false } })), false, '그림판이 없으면 준비 아님');
+  eq(body3dReady(node({ canvas: true, play: { disabled: false } })), true, '그림판이 붙고 재생 단추가 켜지면 준비');
+  /* 판정이 기대는 공용 부품의 모양 — 바뀌면 여기서 먼저 알게(바뀌면 검토 완료 단추가 안 켜지는 쪽으로 틀린다) */
+  const src = readFileSync('app/(app)/videos/lab/[id]/body-3d.tsx', 'utf8');
+  ok(/disabled=\{status !== 'ready'\}\s*aria-label=\{playing \? '멈춤' : '재생'\}/.test(src), "Body3D 재생 단추는 status 가 'ready' 일 때만 켜지고 이름이 재생/멈춤이다");
+  ok(/renderer\.domElement/.test(src), 'Body3D 는 그림판(canvas)을 칸에 붙인다');
+}
 
 console.log(`intake client selftest: ${passed} 통과`);
 process.exit(0);

@@ -13,12 +13,16 @@
  * - 공개 칸의 선수 이름만은 지금 판에서 읽는다. 이름은 승인한 분석 내용이 아니라 신원 표시이고, 관리자가 고침을 요청해 받은 값이다.
  *   묶인 판의 이름을 쓰면 오타 하나를 고치려고 재공개(실행 판에 따라서는 GPU 재실행)가 필요했다.
  *
+ * - 공개는 공개하는 관리자 본인의 검토 완료(lib/intake/review.ts)를 받아 잠금 안에서 지금 상태와 맞춰 본다. 없거나 낡았으면 review_required · stale_review(INTAKE-MAIN/R01).
+ *   같은 실행 · 같은 설명을 다시 누른 것도 검토 완료가 있어야 쓰기 없이 돌려준다 — 그 공개를 만든 검토 완료이거나(응답 유실), 지금도 유효한 검토 완료여야 한다.
+ *
  * 공개 데이터 경계는 loadPublicResult 하나다. 결과 내용은 lib/intake/public-result.ts 의 허용 칸만 나간다.
  */
 import type { PrismaClient } from '@prisma/client';
 import { assertInvitationAllows, openIntakeScope, verifyResultAccess, type IntakeScope } from '@/lib/intake/access';
-import { appIntakeRuntime, carryInTx, IntakeAnalysisError, readSucceededResult, runMatchesCurrent, type IntakeRuntime } from '@/lib/intake/analysis';
+import { appIntakeRuntime, carryInTx, IntakeAnalysisError, metaOf, readSucceededResult, runMatchesCurrent, type IntakeRuntime } from '@/lib/intake/analysis';
 import { writeAudit } from '@/lib/intake/audit';
+import { assertReviewAcknowledged, currentReviewBinding, bindingMatches, publicationUsedAcknowledgement, readAcknowledgement } from '@/lib/intake/review';
 import { IntakeError, isIntakeError } from '@/lib/intake/errors';
 import { isIntakeId, seoulDateKey } from '@/lib/intake/paths';
 import { PUBLIC_RESPONSE_HEADERS } from '@/lib/intake/public-api';
@@ -47,6 +51,8 @@ export type PublishInput = {
   allowOlderRevision?: boolean;
   /** 화면이 보던 접수 — 넘기면 이 실행이 그 접수의 것인지도 본다 */
   submissionId?: string;
+  /** 공개하는 관리자 본인의 검토 완료 번호(acknowledgeRunReview) — 없으면 공개하지 않는다 */
+  acknowledgementId: string | null;
 };
 export type PublishResult = { publicationId: string; number: number; runId: string; created: boolean; replacedRunId: string | null };
 
@@ -77,21 +83,35 @@ export async function publishRun(input: PublishInput, rt?: PublishRuntime): Prom
     const sub = await tx.intakeSubmission.findUniqueOrThrow({ where: { id: found.submissionId }, include: { invitation: true } });
     if (sub.invitation.status !== 'active') throw new IntakeError('invitation_revoked');
     if (sub.status === 'withdrawn') throw new IntakeError('result_unavailable');
+    /* 잠금 밖에서 읽은 결과가 지금도 그 실행의 결과인가 — 끝난 실행은 안 바뀐다는 주석만 믿지 않는다 */
+    const run = await tx.intakeAnalysisRun.findUniqueOrThrow({ where: { id: found.id } });
+    if (run.status !== found.status || run.resultPath !== found.resultPath || metaOf(run).sha256 !== metaOf(found).sha256) {
+      throw new IntakeAnalysisError('stale_review', { reason: 'result' });
+    }
 
     const active = await tx.intakePublication.findUnique({ where: { activeFor: sub.id } });
-    /* 두 번 누름 — 이미 그대로면 바꿀 것이 없어서 맞춰 보지 않아도 된다 */
-    if (active && active.runId === found.id && active.explanation === explanation) {
-      return { publicationId: active.id, number: active.number, runId: found.id, created: false, replacedRunId: null };
+    /* 두 번 누름 · 응답 유실 — 이미 그대로면 쓰지 않고 돌려준다. 다만 검토 완료 없이 지나가지 않는다:
+       그 공개를 만든 검토 완료(같은 관리자 · 같은 번호)이거나, 지금 상태와 맞는 검토 완료여야 한다 */
+    if (active && active.runId === run.id && active.explanation === explanation) {
+      const sameOperation = await publicationUsedAcknowledgement(tx, { submissionId: sub.id, publicationId: active.id, acknowledgementId: input.acknowledgementId, adminId: input.adminId });
+      if (!sameOperation) {
+        const ack = await readAcknowledgement(tx, { acknowledgementId: input.acknowledgementId, submissionId: sub.id, adminId: input.adminId });
+        if (!ack) throw new IntakeAnalysisError('review_required');
+        if (!bindingMatches(ack.detail, await currentReviewBinding(tx, sub, run))) throw new IntakeAnalysisError('stale_review', { reason: 'changed' });
+      }
+      return { publicationId: active.id, number: active.number, runId: run.id, created: false, replacedRunId: null };
     }
     if ((active?.id ?? null) !== input.expectedActivePublicationId) throw new IntakeAnalysisError('stale_publication', { currentPublicationId: active?.id ?? null });
 
-    const runRevision = await tx.intakeRevision.findUniqueOrThrow({ where: { id: found.revisionId } });
+    const runRevision = await tx.intakeRevision.findUniqueOrThrow({ where: { id: run.revisionId } });
     const currentRevision = sub.currentRevisionId ? await tx.intakeRevision.findUnique({ where: { id: sub.currentRevisionId } }) : null;
     /* 표시도 같은 잠금 안에서 걸려 틈이 없다. 옛 실행을 공개해도 시계는 지금 판까지 같이 돌려서 지금 판도 본다 */
     const inputs = [runRevision.sideAssetId, runRevision.rearAssetId, ...(currentRevision ? [currentRevision.sideAssetId, currentRevision.rearAssetId] : [])];
     if ((await tx.intakeAsset.count({ where: { id: { in: inputs }, status: 'purging' } })) > 0) throw new IntakeError('purge_in_progress');
-    const current = currentRevision != null && runMatchesCurrent(found, runRevision, sub, currentRevision);
+    const current = currentRevision != null && runMatchesCurrent(run, runRevision, sub, currentRevision);
     if (!current && !input.allowOlderRevision) throw new IntakeAnalysisError('run_not_current', { currentRevisionId: sub.currentRevisionId });
+    /* 쓰기 바로 앞 — 공개자 본인의 검토 완료가 지금 초대 · 판 · 실행 · 결과 해시 · 입력 · 공개 세대와 맞아야 한다 */
+    const acknowledgementId = await assertReviewAcknowledged(tx, { acknowledgementId: input.acknowledgementId, adminId: input.adminId, sub, run });
 
     if (active) {
       await tx.intakePublication.update({
@@ -102,17 +122,22 @@ export async function publishRun(input: PublishInput, rt?: PublishRuntime): Prom
     const last = await tx.intakePublication.findFirst({ where: { submissionId: sub.id }, orderBy: { number: 'desc' }, select: { number: true } });
     const number = (last?.number ?? 0) + 1;
     const pub = await tx.intakePublication.create({
-      data: { submissionId: sub.id, runId: found.id, number, activeFor: sub.id, explanation, publishedByAdminId: input.adminId, publishedAt: now },
+      data: { submissionId: sub.id, runId: run.id, number, activeFor: sub.id, explanation, publishedByAdminId: input.adminId, publishedAt: now },
     });
     await tx.intakeSubmission.update({ where: { id: sub.id }, data: { publicationStatus: 'published' } });
     /* 글만 고친 판이 앞 판의 실행을 공개하는 길 — 등록 일감이 아직 안 이었으면 여기서 잇는다 */
     if (current) await carryInTx(tx, sub, currentRevision, now);
     await writeAudit(
       tx,
-      { actor: { kind: 'admin', id: input.adminId }, action: 'publication.published', submissionId: sub.id, detail: { runId: found.id, number, replacedRunId: active?.runId ?? null, olderRevision: !current } },
+      {
+        actor: { kind: 'admin', id: input.adminId },
+        action: 'publication.published',
+        submissionId: sub.id,
+        detail: { runId: run.id, publicationId: pub.id, number, replacedRunId: active?.runId ?? null, olderRevision: !current, acknowledgementId },
+      },
       now,
     );
-    return { publicationId: pub.id, number, runId: found.id, created: true, replacedRunId: active?.runId ?? null };
+    return { publicationId: pub.id, number, runId: run.id, created: true, replacedRunId: active?.runId ?? null };
   });
 }
 

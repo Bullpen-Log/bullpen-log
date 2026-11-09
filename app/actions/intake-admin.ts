@@ -29,10 +29,10 @@ import {
   type OriginalLink,
   type OriginalPurpose,
 } from '@/lib/intake/admin';
-import { loadRunReview, setAnalysisHand, startIntakeAnalysis } from '@/lib/intake/analysis';
-import type { PublicPitchView } from '@/lib/intake/public-result';
+import { loadRunReview, setAnalysisHand, startIntakeAnalysis, type RunReviewView } from '@/lib/intake/analysis';
 import { isIntakeError } from '@/lib/intake/errors';
 import { publishRun, unpublish } from '@/lib/intake/publication';
+import { acknowledgeRunReview } from '@/lib/intake/review';
 import type { IntakeView } from '@/lib/intake/state';
 import { getIntakeStorage } from '@/lib/intake/storage';
 
@@ -254,12 +254,22 @@ export async function getIntakeRunPreview(submissionId: string, runId: string, v
   });
 }
 
-/** 공개 전 3D 검토 — 받는 사람이 볼 허용 칸만 온다. 연 사실은 감사 기록에 남는다 */
-export async function getIntakeRunReview(
+/** 공개 전 3D 검토 열기 — 받는 사람이 볼 허용 칸과 서버가 확인한 검토 대상(결과 해시 · 지금 판)이 온다. '연 것'만 감사에 남고 검토 완료가 아니다 */
+export async function getIntakeRunReview(submissionId: string, runId: string): Promise<IntakeActionResult<RunReviewView>> {
+  return asAdmin(async (actor) => loadRunReview({ submissionId, runId, adminId: actor.id }));
+}
+
+/**
+ * 검토 완료 — 결과 화면이 준비된 뒤 관리자가 분명히 누른다. 지금 권한을 다시 보고, 서버가 지금 상태로 묶어 남긴 번호를 돌려준다.
+ * 공개(publishIntakeRun)는 이 번호를 받아 잠금 안에서 다시 맞춰 본다(lib/intake/review.ts). 번호만 알아서는 공개할 수 없다 — 공개자 본인 것이어야 한다.
+ */
+export async function acknowledgeIntakeRunReview(
   submissionId: string,
   runId: string,
-): Promise<IntakeActionResult<{ view: PublicPitchView; athleteName: string; revisionNumber: number; isCurrentRevision: boolean; finishedAt: string | null }>> {
-  return asAdmin(async (actor) => loadRunReview({ submissionId, runId, adminId: actor.id }));
+  resultDigest: string,
+  currentRevisionId: string | null,
+): Promise<IntakeActionResult<{ acknowledgementId: string }>> {
+  return asAdmin(async (actor) => acknowledgeRunReview({ submissionId, runId, adminId: actor.id, resultDigest, currentRevisionId }));
 }
 
 /* ── 분석 · 공개 — 판단과 쓰기는 lib/intake/analysis.ts · publication.ts 가 한다. 여기는 권한만 보고 넘긴다 ── */
@@ -287,16 +297,25 @@ export async function runIntakeAnalysis(submissionId: string, confirmDraftConsen
  * 이 실행을 공개한다 — 다른 실행이 공개 중이면 바꾸는 것이고, 화면이 먼저 알린다(몰래 바뀌지 않게).
  * expectedActivePublicationId 는 화면이 그릴 때 본 지금 공개(없으면 null)다. 그사이 바뀌었으면 code 'stale_publication' 으로 돌아온다.
  * 영상을 바꾼 고침 앞의 실행은 allowOlderRevision 을 넘겨야 공개된다(code 'run_not_current').
+ * 공개하는 관리자 본인의 검토 완료 번호(acknowledgementId)가 없으면 'review_required', 그 뒤 무엇이 바뀌었으면 'stale_review' 로 돌아온다.
  */
 export async function publishIntakeRun(
   submissionId: string,
   runId: string,
   explanation: string,
   expectedActivePublicationId: string | null,
-  options: { allowOlderRevision?: boolean } = {},
+  options: { allowOlderRevision?: boolean; acknowledgementId?: string | null } = {},
 ): Promise<IntakeActionResult<{ replaced: boolean }>> {
   return asAdmin(async (actor) => {
-    const result = await publishRun({ runId, submissionId, adminId: actor.id, explanation, expectedActivePublicationId, allowOlderRevision: options.allowOlderRevision === true });
+    const result = await publishRun({
+      runId,
+      submissionId,
+      adminId: actor.id,
+      explanation,
+      expectedActivePublicationId,
+      allowOlderRevision: options.allowOlderRevision === true,
+      acknowledgementId: typeof options.acknowledgementId === 'string' ? options.acknowledgementId : null,
+    });
     await markIntakeRead(db, actor, submissionId);
     revalidate(submissionId);
     return { replaced: result.replacedRunId != null };

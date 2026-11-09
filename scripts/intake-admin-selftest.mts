@@ -71,9 +71,14 @@ export async function carryInTx() { return null; }
 export const runMatchesCurrent = () => false;`,
   ],
   [
+    '/lib/intake/review.ts',
+    `const g = globalThis.__intakeTest;
+export async function acknowledgeRunReview(i) { g.calls.push(['ack', i.submissionId, i.runId, i.adminId, i.resultDigest, i.currentRevisionId].join(':')); return { acknowledgementId: 'ack-1' }; }`,
+  ],
+  [
     '/lib/intake/publication.ts',
     `const g = globalThis.__intakeTest;
-export async function publishRun(i) { g.calls.push(['publish', i.runId, i.submissionId, i.explanation, i.expectedActivePublicationId, i.allowOlderRevision].join(':')); return { replacedRunId: null }; }
+export async function publishRun(i) { g.calls.push(['publish', i.runId, i.submissionId, i.explanation, i.expectedActivePublicationId, i.allowOlderRevision, i.acknowledgementId].join(':')); return { replacedRunId: null }; }
 export async function unpublish(i) { g.calls.push(['unpublish', i.submissionId, i.expectedActivePublicationId].join(':')); return { unpublished: true }; }`,
   ],
 ];
@@ -292,6 +297,7 @@ const auditCount = () => db.intakeAudit.count();
     getIntakePairLinks: [id],
     getIntakeRunPreview: [id, id, 'side'],
     getIntakeRunReview: [id, id],
+    acknowledgeIntakeRunReview: [id, id, 'a'.repeat(64), null],
     setIntakeHand: [id, 'R'],
     runIntakeAnalysis: [id],
     publishIntakeRun: [id, id, '설명', null],
@@ -350,14 +356,24 @@ const auditCount = () => db.intakeAudit.count();
 
   g.calls.length = 0;
   await actions.runIntakeAnalysis(id, true);
-  await actions.publishIntakeRun(id, id, '승인한 설명', null);
+  const acked = (await actions.acknowledgeIntakeRunReview(id, id, 'b'.repeat(64), id)) as { ok: true; acknowledgementId: string };
+  await actions.publishIntakeRun(id, id, '승인한 설명', null, { acknowledgementId: acked.acknowledgementId });
   await actions.publishIntakeRun(id, id, '옛 판', id, { allowOlderRevision: true });
+  await actions.publishIntakeRun(id, id, '모양이 틀린 번호', null, { acknowledgementId: 7 as never });
   await actions.unpublishIntake(id, id);
   await actions.setIntakeHand(id, 'L');
   eq(
     g.calls,
-    [`start:${id}:${A.id}:true`, `publish:${id}:${id}:승인한 설명::false`, `publish:${id}:${id}:옛 판:${id}:true`, `unpublish:${id}:${id}`, 'hand:L'],
-    '분석 · 공개는 약속한 함수로 넘기고, 화면이 알던 공개를 그대로 전한다',
+    [
+      `start:${id}:${A.id}:true`,
+      `ack:${id}:${id}:${A.id}:${'b'.repeat(64)}:${id}`,
+      `publish:${id}:${id}:승인한 설명::false:ack-1`,
+      `publish:${id}:${id}:옛 판:${id}:true:`,
+      `publish:${id}:${id}:모양이 틀린 번호::false:`,
+      `unpublish:${id}:${id}`,
+      'hand:L',
+    ],
+    '분석 · 검토 완료 · 공개는 약속한 함수로 넘긴다 — 검토 완료는 지금 관리자 번호로, 공개는 화면이 알던 공개와 검토 완료 번호(글자만)를 그대로 전한다',
   );
 
   /* 동의 철회 — 동의 글이 약속한 길. 서버 동작부터 진짜 lib/dal · admin · service 를 지난다 */

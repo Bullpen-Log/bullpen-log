@@ -43,7 +43,7 @@ import {
   unpublishIntake,
 } from '@/app/actions/intake-admin';
 import { IssuedLinkPanel, type ShownLink } from '../create-invitation';
-import { originalWarning, runPreviewVisible } from './detail-rules';
+import { acknowledgementForPublish, dropsAcknowledgement, originalWarning, runPreviewVisible } from './detail-rules';
 import { RunReview } from './run-review';
 import { useAction } from './use-action';
 
@@ -497,9 +497,15 @@ function RunItem({ submissionId, run: r, activePublicationId, disabled }: { subm
   const seenPublication = useRef(activePublicationId);
   const activeOther = activePublicationId != null && !r.published;
   const canPublish = r.status === 'succeeded' && r.hasResult && !r.published && r.isCurrentRevision && !disabled;
-  /* 공개 전에 받는 사람이 볼 3D 를 연다 — 공개 중이거나 옛 판인 결과도 다시 볼 수 있다. 공개 단추는 이 실행을 연 뒤에 켜진다 */
+  /* 공개 전에 받는 사람이 볼 3D 를 연다 — 공개 중이거나 옛 판인 결과도 다시 볼 수 있다.
+     공개 단추는 이 관리자의 검토 완료 번호가 있을 때만 켜진다. 서버가 그 번호를 잠금 안에서 다시 맞춰 보고, 낡았으면 막는다(INTAKE-MAIN/R01) */
   const reviewable = r.status === 'succeeded' && r.hasResult && !disabled;
-  const [reviewed, setReviewed] = useState(false);
+  const [ack, setAck] = useState<{ id: string; publication: string | null } | null>(null);
+  /* 그린 뒤 공개가 바뀌었으면(다른 관리자 · 내리기) 그 검토 완료는 서버가 받지 않는다 — 다시 검토하게 단추를 끈다 */
+  const acknowledgementId = acknowledgementForPublish(ack, activePublicationId);
+  const dropStaleAck = (f: { code: string }) => {
+    if (dropsAcknowledgement(f.code)) setAck(null);
+  };
   const askFirst = (what: 'publish' | 'unpublish') => {
     seenPublication.current = activePublicationId;
     setAsk(what);
@@ -507,13 +513,17 @@ function RunItem({ submissionId, run: r, activePublicationId, disabled }: { subm
   const closeAsk = () => setAsk(null);
   const publish = (expected: string | null) =>
     run(
-      () => publishIntakeRun(submissionId, r.id, note, expected),
+      () => publishIntakeRun(submissionId, r.id, note, expected, { acknowledgementId }),
       (res) => {
         setAsk(null);
+        setAck(null);
         toast(res.replaced ? '공개 판을 이 결과로 바꿨어요' : '결과를 공개했어요');
         refresh();
       },
-      closeAsk,
+      (f) => {
+        dropStaleAck(f);
+        closeAsk();
+      },
     );
   const unpublish = (expected: string | null) =>
     run(
@@ -546,13 +556,21 @@ function RunItem({ submissionId, run: r, activePublicationId, disabled }: { subm
         </p>
       )}
       {runPreviewVisible(r, disabled) && <PreviewPair submissionId={submissionId} runId={r.id} partial={r.status !== 'succeeded'} />}
-      {reviewable && <RunReview submissionId={submissionId} runId={r.id} explanation={note} onReviewed={() => setReviewed(true)} />}
+      {reviewable && (
+        <RunReview
+          submissionId={submissionId}
+          runId={r.id}
+          explanation={note}
+          acknowledged={acknowledgementId != null}
+          onAcknowledged={(id) => setAck({ id, publication: activePublicationId })}
+        />
+      )}
       {canPublish && (
         <div className="space-y-2">
           <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={1000} placeholder="공개 화면에 보일 설명(선택)" aria-label="공개 설명" />
           {activeOther && <p className="text-xs text-warn">다른 결과가 공개 중이에요. 공개하면 이 결과로 바뀌어요.</p>}
-          {!reviewed && <p className="text-xs text-muted">먼저 3D 결과를 검토하면 공개할 수 있어요.</p>}
-          <Button type="button" size="sm" disabled={pending || !reviewed} onClick={() => (activeOther ? askFirst('publish') : publish(activePublicationId))}>
+          {acknowledgementId == null && <p className="text-xs text-muted">먼저 3D 결과를 열어 보고 ‘이 결과 검토 완료’를 누르면 공개할 수 있어요.</p>}
+          <Button type="button" size="sm" disabled={pending || acknowledgementId == null} onClick={() => (activeOther ? askFirst('publish') : publish(activePublicationId))}>
             이 결과 공개
           </Button>
         </div>

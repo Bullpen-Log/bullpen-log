@@ -48,6 +48,7 @@ const bench: Bench = { React, calls: [], answers: {}, clicks: {}, confirms: {}, 
 (globalThis as unknown as { __detailTest: Bench }).__detailTest = bench;
 
 const ACTIONS = [
+  'acknowledgeIntakeRunReview',
   'addIntakeAdminNote',
   'assignIntake',
   'cancelIntakeCorrection',
@@ -318,14 +319,22 @@ const panel = (over: Record<string, unknown>) =>
   ok(draw(h(AssetCard, { submissionId: SID, asset: ASSET, locked: false, hasRunPreview: true })).includes('미리보기'), '카드는 그대로 그려진다');
 }
 
-/* ── 공개 전 3D 검토(SH05) — 이 화면에서 검토를 연 적이 없으면 공개 단추가 꺼져 있다(서버가 막는 규칙은 아님) ── */
+/* ── 공개 전 3D 검토(INTAKE-MAIN/R01) — 검토 완료 번호가 없으면 공개 단추가 꺼져 있다. 막는 것은 서버고(intake-analysis-selftest), 화면은 그 번호를 들고 간다 ── */
 {
   const html = draw(panel({}));
   ok(html.includes('3D 결과 검토') && typeof bench.clicks['3D 결과 검토'] === 'function', '성공한 실행에는 검토 단추가 있다');
-  ok(/<button[^>]*disabled=""[^>]*>이 결과 공개/.test(html), '검토 전에는 공개 단추가 꺼져 있다');
-  ok(html.includes('먼저 3D 결과를 검토하면 공개할 수 있어요'), '왜 꺼졌는지 한 줄');
+  ok(/<button[^>]*disabled=""[^>]*>이 결과 공개/.test(html), '검토 완료 전에는 공개 단추가 꺼져 있다');
+  ok(html.includes('이 결과 검토 완료') && html.includes('를 누르면 공개할 수 있어요'), '왜 꺼졌는지 한 줄');
   ok(!draw(panel({ runs: [{ ...RUN, status: 'failed', hasResult: false }] })).includes('3D 결과 검토'), '실패한 실행에는 검토 단추가 없다');
   ok(!draw(panel({ withdrawn: true })).includes('3D 결과 검토'), '철회된 접수에는 검토 단추가 없다');
+  /* 검토 완료를 받은 때의 공개와 지금 공개가 같을 때만 그 번호를 쓴다 */
+  const P = '44444444-4444-4444-8444-444444444444';
+  eq(rules.acknowledgementForPublish(null, null), null, '검토 완료가 없으면 번호가 없다');
+  eq(rules.acknowledgementForPublish({ id: 'a1', publication: null }, null), 'a1', '공개가 그대로면 그 번호');
+  eq(rules.acknowledgementForPublish({ id: 'a1', publication: null }, P), null, '그사이 공개됐으면 버린다');
+  eq(rules.acknowledgementForPublish({ id: 'a1', publication: P }, null), null, '그사이 내렸으면 버린다');
+  ok(['stale_review', 'review_required', 'stale_publication'].every(rules.dropsAcknowledgement) && !rules.dropsAcknowledgement('run_not_current'), '서버가 낡았다고 하면 검토 완료를 버린다');
+  ok(rules.needsFreshView('stale_review'), '낡은 검토는 최신 내용을 다시 받는다');
   bench.calls.length = 0;
 }
 
@@ -335,7 +344,7 @@ const panel = (over: Record<string, unknown>) =>
   draw(panel({}));
   bench.answers.publishIntakeRun = { ok: true, replaced: false };
   await press(bench.clicks['이 결과 공개'], '공개');
-  eq(bench.calls, [['publishIntakeRun', SID, RUN.id, '', null]], '공개가 없을 때는 null 을 보낸다');
+  eq(bench.calls, [['publishIntakeRun', SID, RUN.id, '', null, { acknowledgementId: null }]], '공개가 없을 때는 null 을 보낸다(검토 완료가 없으면 번호 없이 — 서버가 막는다)');
   ok(bench.refreshes === 1 && bench.toasts[0] === '결과를 공개했어요', '끝나면 새로 받고 알린다');
 
   draw(panel({ runs: [{ ...RUN, id: 'other', published: true }, RUN], activePublicationId: PUB }));
@@ -343,7 +352,7 @@ const panel = (over: Record<string, unknown>) =>
   eq(bench.calls, [], '다른 공개가 있으면 먼저 묻는다');
   bench.answers.publishIntakeRun = { ok: false, code: 'stale_publication', message: '다른 관리자가 공개를 바꿨어요.' };
   await press(bench.confirms['공개 중인 결과를 바꿀까요?'], '바꿔 공개 확인');
-  eq(bench.calls, [['publishIntakeRun', SID, RUN.id, '', PUB]], '그릴 때 본 공개 번호를 보낸다');
+  eq(bench.calls, [['publishIntakeRun', SID, RUN.id, '', PUB, { acknowledgementId: null }]], '그릴 때 본 공개 번호를 보낸다');
   eq(bench.refreshes, 1, '막히면 최신 내용을 받는다');
   eq(bench.toasts, [], '막혔는데 공개했다고 말하지 않는다');
 
