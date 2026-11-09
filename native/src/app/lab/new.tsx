@@ -440,7 +440,7 @@ function PickStep({ hand, setHand, up, c }: { hand: LabHand; setHand: (h: LabHan
       {up.pairBlock ? (
         <View style={[st.notice, { backgroundColor: c.warnBg }]}>
           <Text style={[TYPE.body, { color: c.ink }]}>{up.pairBlock}</Text>
-          <GuideLink label="두 폰으로 동시에 찍는 법 보기 ›" section="steps" hand={hand} c={c} />
+          <GuideLink label="두 폰으로 동시에 찍는 법 보기 ›" section="shoot" hand={hand} c={c} />
         </View>
       ) : null}
       {up.fpsWarn ? (

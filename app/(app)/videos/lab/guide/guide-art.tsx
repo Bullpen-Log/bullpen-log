@@ -5,6 +5,7 @@
  * 어두운 테마에서도 맞는다. 글자는 SVG 안에 넣지 않는다(작아지면 못 읽는다) — 이름표는 그림 위에 HTML 로 얹는다.
  */
 import type { ReactNode } from 'react';
+import { LAB_CLOTHES_ART, LAB_GUIDE_CLOTHES } from '@/lib/pitch-lab-guide';
 import { CheckCircle2, CircleAlert } from '@/components/icon';
 
 /** 그림 위 이름표 — 그림 칸 기준 % 자리. align 은 그 자리에 이름표의 어느 끝을 맞출지 */
@@ -264,6 +265,41 @@ export function FramingArt() {
               <CircleAlert aria-hidden className="h-3.5 w-3.5" />
             )}
             {c.label}
+          </figcaption>
+        </figure>
+      ))}
+    </div>
+  );
+}
+
+/** 헐렁한 옷 — 몸에 붙는 옷(관절 점 제자리) vs 헐렁한 옷(점이 옷 가장자리로 밀림). 좌표는 lib/pitch-lab-guide.ts LAB_CLOTHES_ART */
+export function ClothesArt() {
+  const A = LAB_CLOTHES_ART;
+  const cases = [
+    { ok: true, label: LAB_GUIDE_CLOTHES.ok },
+    { ok: false, label: LAB_GUIDE_CLOTHES.bad },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {cases.map((k) => (
+        <figure key={k.label} className="space-y-1.5">
+          <svg viewBox={A.viewBox} className="w-full rounded-xl bg-surface" aria-hidden>
+            {k.ok ? (
+              <path d={A.bones} stroke="var(--color-sky)" strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            ) : (
+              <>
+                <path d={A.pants} fill="var(--color-muted)" opacity={0.75} />
+                <path d={A.hoodie} fill="var(--color-sky)" opacity={0.85} />
+              </>
+            )}
+            <circle cx={A.head.cx} cy={A.head.cy} r={A.head.r} fill="var(--color-line-strong)" />
+            {(k.ok ? A.joints : A.slipped).map(([x, y]) => (
+              <circle key={`${x}-${y}`} cx={x} cy={y} r={3.2} fill={k.ok ? 'var(--color-ok)' : 'var(--color-danger)'} stroke="var(--color-surface)" strokeWidth={1.2} />
+            ))}
+          </svg>
+          <figcaption className={`text-center text-xs font-semibold ${k.ok ? 'text-ok' : 'text-danger'}`}>
+            {k.ok ? '✓ ' : '✕ '}
+            {k.label}
           </figcaption>
         </figure>
       ))}

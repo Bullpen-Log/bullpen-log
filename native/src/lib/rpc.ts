@@ -3,6 +3,7 @@ import { deviceTimeZone } from '@/lib/time-zone';
 import { BETA_LOCK_BODY, BETA_LOCK_TITLE, FEATURE_LOCKED_BETA } from '@/lib/release-access';
 import { SITE_URL } from '~/lib/site';
 import { BullpenNative } from '../../modules/bullpen-native';
+import { readDeadline } from './read-deadline';
 import { createReadShare } from './read-share';
 import { cacheEpoch } from './store';
 
@@ -83,11 +84,27 @@ const reads = createReadShare();
 const isRead = (action: string) => /\.(load|fetch|get)[A-Z]/.test(action) || READ_ACTIONS.has(action);
 
 async function call<T>(action: string, payload: string | FormData, headers: Record<string, string>): Promise<T> {
-  await syncSession();
+  const session = syncSession();
+  // 관리자 목록 읽기에만 제한한다. 공유된 읽기도 시간 초과 시 끝나 재시도할 수 있다.
+  if (action === 'swing-lab.loadAppSwingList') {
+    return readDeadline(async (signal) => {
+      await session;
+      if (signal.aborted) throw new RpcError('목록 읽기 시간이 초과됐어요.', 'timeout');
+      return request<T>(action, payload, headers, signal);
+    }, 20_000, () => new RpcError('목록 읽기 시간이 초과됐어요. 다시 불러와 주세요.', 'timeout'), () => {
+      if (synced === session) synced = null;
+    });
+  }
+  await session;
+  return request<T>(action, payload, headers);
+}
+
+async function request<T>(action: string, payload: string | FormData, headers: Record<string, string>, signal?: AbortSignal): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${SITE_URL}/api/rpc/${action}`, {
       method: 'POST',
+      signal,
       credentials: 'include',
       /* 기기 시간대 — 서버가 '오늘'을 이 기기 날짜로 센다(lib/time-zone.ts, 2026-10-28 김민 Q10) */
       headers: { ...headers, [APP_API_HEADER]: String(APP_API_LEVEL), 'x-bp-tz': deviceTimeZone() ?? '' },

@@ -1,35 +1,82 @@
-## 맥북 금윤호에게 — 2026-11-07 · 맥 미니(Claude) — 외부 투구 영상 접수: 보유 삭제 지적을 다 고쳤다 · **이 작업은 아직 main 에 없다**
+## 맥 미니 금윤호에게 — 2026-11-09 · 맥북 Codex 서브1 — 외부 영상 접수 재검토와 개선 계획
 
-맥북이 넘긴 1 · 2단계를 맥 미니에서 끝냈다. 코드는 브랜치 `intake/external-video-submission` 에만 올렸다. **main 에 합치거나 올리지 않았다.** 사용 가이드(변경점 · 쓰는 법 · 만든 방식 · 고칠 곳): https://claude.ai/artifact/41VLQX2pzemY6tRJe6kSm7
+- 사용자가 링크로 외부 영상을 받는 기능을 검토하고 미완성 원인·개선 계획을 요청했다. `origin/intake/external-video-submission`은 fetch 후에도 `524b1f0a`, main은 `6b829da4`였다. 제품 코드·DB·운영 설정 변경 없음.
+- 접수 브랜치의 core440·transfer211·public132·DB798·admin627·analysis424, 합계 2632 검사 통과(환경변수 제외, 격리 DB·가짜 저장소/GPU). 실제 기기·Supabase·GPU·1GiB 시험이나 보유 수정 후 전체 브라우저 재검증으로 간주하지 않는다.
+- 새로 재현한 P1 두 건: public-client call에 fetch+본문 대기 제한/signal이 없어 미완료 응답이 pending으로 남음. runUpload의 reserveAsset에서 abort한 뒤에도 start1·abort0·confirm1이고 성공 반환함(실제 함수와 가짜 의존성 사용). useSend는 unmount abort가 있지만 예약·토큰 대기 중 취소를 sendOne이 놓친다. 단계별 신호 전달·취소 검사·완료 직전 차단과 응답 유실의 같은 완료 키 복구가 필요.
+- 앱의 접수 진입점, 준비 전 초대 버튼, 생성 응답 유실의 초대 재발급 복구를 정리할 것. 대용량 전체 해시/300초 예산·동의 PENDING·보유 정책·실기기 검증을 통과한 뒤 기존 조율/백업/승인 절차로 통합할 것. 실제 1GiB 실패를 확인한 것은 아님.
+- 상세: `docs/designs/external-intake-review-2026-11-09.md`. 이번 공유는 문서만이다. 메인 실제 수신은 미확인이다.
 
-받는 법(맥북에서, 사용자 허락 뒤):
+## 김민에게 — 2026-11-09 · 금윤호(Codex) — 앱 3D 개발 관리자 진입·무한 대기 보완
 
-```bash
-git fetch origin
-git switch intake/external-video-submission
-git pull --ff-only
-npm ci
-npx prisma generate
-```
+- 실제 iPhone 증상은 미재현. 코드상 웹 /admin/dev3d → OpenNative → /swing/samples 우회, 인증·요청·본문 대기 한도 없음, 목록에서 불필요한 재생 주소 생성 대기를 확인했다.
+- 앱 메뉴를 기존 /swing/samples에 직접 연결했다. swing-lab.loadAppSwingList 읽기에만 인증부터 본문까지 20초 제한·abort·동기화 캐시 초기화·재시도 안내를 넣었다. 늦게 끝난 인증은 취소된 목록 요청을 보내지 않는다. 저장·업로드는 그대로다.
+- listLabSamples의 선택 인자 playbackUrls:false를 swing 목록에서만 사용한다. 상세 재생·기존 기본값·권한은 유지한다. 서버와 앱 JS를 함께 반영해야 한다. DB·환경변수·패키지 변경 없음.
+- 실제 rpc.ts 격리 검사 18개, pitch-lab 19개, release-access 706개와 root/native 타입·변경 파일 lint 통과. 실행: node --experimental-strip-types scripts/native-dev3d-load-selftest.mts.
+- 실제 기기·쿠키 동기화·Supabase 지연·메뉴 터치 미검증. 시뮬레이터·Metro·로컬 네이티브 빌드·운영 DB 쓰기·사용자 요청으로 서버와 앱 JS를 함께 배포한다. 외부 접수 브랜치 미병합.
 
-- DB · 버킷 · 환경변수는 그대로다. 마이그레이션은 여전히 `prisma/pending-migrations/` 에 있다. **허락 전에 `prisma/migrations` 로 옮기지 않는다.**
-- 금지는 그대로: `prisma migrate dev` · `db push` · `migrate reset` · `npm run build` · `npm run intake:setup-bucket -- --apply`. 3000 번 서버에 접수 API 를 부르지 않는다.
+## 김민에게 — 2026-11-09 · 금윤호(Codex, 싱커 PC 메뉴 Safari 충돌 수정)
 
-한 것:
+- `components/app-shell.tsx`: Safari에서 메뉴를 클릭하면 WebKit의 `Document::matchingAnimations` 정렬 중 EXC_BAD_ACCESS가 나는 것을 실제 로그인 화면에서 재현했다. 문서 전체 getAnimations 조회를 제거하고 메뉴·도크 요소만 조회한다. 전환 빨리 감기를 제거하고 클릭은 판으로 바로 전환한다.
+- localhost:3000 Safari에서 메뉴 열기/Esc 닫기 5회와 메뉴→투구 화면 이동을 확인했다. 투구 진입 후 기존 체크인 창이 떠서 추가 입력 없이 홈으로 복귀했다. 수정 이후 새 WebContent 충돌 보고서 없음. 타입·변경 파일 eslint 통과. 기존 충돌 안내 배너는 이전 충돌 뒤 남아 있었다.
+- 사용자 요청으로 웹 배포한다. DB·패키지 변경 없음. 다른 브라우저·실제 iPhone은 미검증이다.
 
-1. 보유 삭제 지적 12건 + 고치는 동안 공격 시험이 찾은 12건을 고쳤다. 고친 뒤 독립 검증을 두 번 더 돌려(반박 검토 포함) 사실인 33건을 고쳤다. 표는 `docs/designs/external-intake-retention-findings.md` 의 '고친 결과' · '고친 뒤 독립 검증 두 번'.
-2. 시험(맥 미니): `intake:test` 440 · `intake:db-test` 798 · `intake:admin-test` 627 · `intake:analysis-test` 424 · `intake:public-test` 132 · `intake:transfer-test` 211 · `intake:retention-fuzz` 통과 · 상세 300 · tsc 0 · eslint 0. 새 시험 시계 `scripts/intake-test-clock.mts`.
-3. 격리 시험대(공개 3101 · 관리 3010)를 띄워 앱 안 브라우저로 지운 접수 화면을 눌러 봤다. **`flow.mjs` · `admin.mjs` 전체 흐름은 맥 미니에 헤드리스 크로미움이 없어 안 돌렸다** — 크로미움이 있는 맥북에서 돌려 줘(`docs/designs/external-intake-e2e/README.md`).
+## 맥 미니 금윤호에게 — 2026-11-09 · 맥북 Codex 서브1 — 외부 영상 접수 검토와 앱 관리자 문제
 
-다음 할 일, 이 차례로:
+- 사용자 요청으로 운영과 브랜치 `origin/intake/external-video-submission`(524b1f0a)을 확인했다. 운영 `/submit`, `/admin/intake`는 404였고 접수 기능은 main에 없다. 운영 배포 성공 기록은 다른 변경이다.
+- 격리 복사본에서 `intake:test` 440, `intake:transfer-test` 211 통과. 맥 미니 인계상 보유 삭제 지적 보완은 완료됐지만 전체 브라우저 흐름 재검증, 실제 Supabase·아이폰 120/240fps 원본·GPU·대용량 전송은 남았다. DB·버킷 미적용 기록을 확인했다.
+- 사용자가 웹과 앱에서 링크 생성 메뉴를 못 찾았다. 브랜치 웹은 `/admin/intake`의 초대 만들기로 구현됐지만 native 변경은 없어 앱 관리자에는 외부 접수 진입점이 없다. 3D 개발 관리자에서 링크 생성·접수함을 명확하게 연결해야 한다.
+- 앱의 기존 3D 개발 관리자도 열리지 않는다고 사용자가 보고했다. 앱은 `/swing/samples`에서 `swing-lab.loadAppSwingList`를 부른다. 로그인 동기화와 목록 요청에는 명시적인 시간 제한이 없어 대기 가능성이 있으나, 실제 기기 재현은 못 했고 이것이 원인이라고 확정할 수 없다. 실제 증상·권한·동기화·응답·오류를 진단해 고치고 시간 제한·복구 안내를 검토해 달라. 대표관리자 정책의 정상 경로 허용은 순수 판정으로 확인했다.
+- 다음 순서: 앱 진입 문제 재현·수정 → 웹·앱의 접수 진입점과 링크 생성 연결 → 격리 전체 흐름·권한·원본/보유 삭제 검증 → 동의와 운영 설정 정리 → DB 백업·협업 조율 및 사용자 승인 범위 확인 후 배포·실기기 확인. 기존 접수 브랜치와 다른 작업을 보존한다. 실제 기기 확인 전 원본 보존을 확정하지 않는다.
 
-1. 맥북에서 `flow.mjs` · `admin.mjs` 전체 흐름.
-2. 사용자에게 확인받는다(같은 지적 문서 끝 '구현자가 판단한 것'): 고침 기다림 14일로 90일을 넘길 수 있음 · 다시 내면 90일을 다시 셈 · 공개 안 한 접수의 철회가 지울 날을 미룸 · 정리 철회 틈 · 고침에서 같은 영상 다시 보내기 막음(`same_as_sent`).
-3. 허락 뒤 적용: 김민 알림 → `npm run backup` → 마이그레이션을 `prisma/migrations` 로 → 버킷 `external-intake`(프로젝트 파일 한도 1GiB 이상인지 먼저) → Vercel `SUPABASE_PUBLISHABLE_KEY` · `CRON_SECRET` → main.
-4. 실제 기기 · 실제 Supabase(`remove` · `stat` 의 '없음' 문구) · 실제 GPU · 1GiB 전송 · Vercel 크론. 아직 하나도 안 했다.
+## 맥 미니 금윤호에게 — 2026-11-09 · 맥북 서브(Claude) — 외부 접수: **못 한 것 · 해야 할 것 정리** (코드 변경 없음, 이어서 맥 미니에서)
+
+맥 미니의 2026-11-07 글(브랜치 끝 `524b1f0a`)을 맥북이 받았다. 이번에 맥북이 한 일은 main 받기와 원격 브랜치 읽기뿐이다. 접수 코드는 계속 브랜치 `intake/external-video-submission` 에만 있고 **main 에 합치지 않았다.** 아래는 지금 남은 일의 전부다. 위에서부터 차례로 한다.
+
+**금지(그대로)**: `prisma migrate dev` · `db push` · `migrate reset` · `npm run build` · `npm run intake:setup-bucket -- --apply`(허락 전). 마이그레이션은 허락 전에 `prisma/pending-migrations/` 에서 `prisma/migrations/` 로 옮기지 않는다. 3000 번 서버에 접수 API 를 부르지 않는다(공유 DB 에 표가 없다). 비밀번호 · 키 · 초대 링크 실제 값은 문서에 적지 않는다.
+
+### 1. 못 한 시험 (사용자 허락 없이 할 수 있음)
+
+1. **`flow.mjs` · `admin.mjs` 전체 브라우저 흐름.** 맥 미니에는 헤드리스 크로미움이 없어 못 돌렸고, 맥북도 아직 안 돌렸다(브랜치로 전환하지 않았다). 방법은 `docs/designs/external-intake-e2e/README.md`.
+   - 길 하나: 맥 미니에 크로미움을 깐다(내려받기라 사용자 허락을 받고).
+   - 길 둘: 맥북에서 돌린다. 맥북 main 작업 트리에 접수와 무관한 미커밋 변경이 있어서, 정리 방법을 사용자에게 먼저 묻는다.
+2. 돌린 뒤 결과를 `docs/designs/external-intake-verification.md` 의 해당 줄에 사실대로 적는다. 안 돈 것을 통과로 적지 않는다.
+
+### 2. 사용자에게 확인받을 것 (답이 있어야 다음으로 간다)
+
+판단 다섯 — 근거는 `docs/designs/external-intake-retention-findings.md` 끝 '구현자가 판단한 것':
+
+1. 고침이 열린 접수는 삭제를 최대 14일 기다려 90일을 넘길 수 있다.
+2. 다시 내면 낸 날부터 90일을 다시 센다.
+3. 공개 안 한 접수의 철회가 지울 날을 미룬다.
+4. 정리 철회 틈.
+5. 고침에서 같은 영상 다시 보내기를 막는다(`same_as_sent`).
 
 사람이 정할 것: 대리 동의 범위 · `ANALYSIS_CONSENT` PENDING 다섯 건(끝나기 전에는 GPU 가 막힌다) · 분석 결과 보유 기간.
 
+### 3. 적용 (2번 확인과 사용자 허락 뒤, 이 차례로)
+
+1. 김민에게 알린다(공유 DB 를 바꾸는 일).
+2. `npm run backup`.
+3. 마이그레이션을 `prisma/pending-migrations/` 에서 `prisma/migrations/` 로 옮긴다.
+4. 버킷 `external-intake` 를 만든다. 프로젝트 파일 한도가 1GiB 이상인지 먼저 본다.
+5. Vercel 환경변수 `SUPABASE_PUBLISHABLE_KEY` · `CRON_SECRET`.
+6. main 에 합친다. main 에 올라가면 Vercel 빌드가 마이그레이션을 이 DB 에 바로 적용한다.
+
+### 4. 적용 뒤 실제 시험 (맥북에서도 맥 미니에서도 하나도 안 했다)
+
+실제 기기 · 실제 Supabase TUS(`remove` · `stat` 의 '없음' 문구) · 실제 GPU · 1GiB 전송 · Vercel 크론 · 초대 링크를 실제로 만들어 열어 보기. 목록은 `docs/designs/external-intake-verification.md` 의 UNVERIFIED.
+
+### 참고
+
+- 초대 링크 공유 버튼: 관리자 → 접수 `/admin/intake` → '초대 만들기' → '링크 만들기' → '링크 복사'(`app/(app)/admin/intake/create-invitation.tsx`). 링크는 만든 직후 창에서만 보인다. 적용(3번) 전에는 실제로 못 만든다.
+- 맥북 작업 트리의 미커밋 변경(`AGENTS.md`, `lib/market/lesson-dummy.ts` 등)과 stash 한 칸은 접수와 무관하고 필요 없다. 이 푸시에도 안 실었다.
+- 받는 법(브랜치에 있지 않다면): `git fetch origin` → `git switch intake/external-video-submission` → `git pull --ff-only` → `npm ci` → `npx prisma generate`.
+
+### 5. 맥북 Codex 세션이 같은 날 위에 남긴 글에서 나온 일 (위 글을 먼저 읽는다)
+
+- 앱 관리자에는 외부 접수 진입점이 없다. 브랜치는 웹 `/admin/intake` 의 '초대 만들기'만 구현했고 `native/` 는 안 바뀌었다. 앱에서 링크를 만들고 접수함을 보려면 3D 개발 관리자에서 연결하는 일이 남았다(코드 일, 브랜치에서).
+- 사용자가 앱의 기존 3D 개발 관리자(`/swing/samples`)가 안 열린다고 했다. 원인은 확정하지 못했다. 실제 기기 재현이 필요하다.
+- 운영 `/submit` · `/admin/intake` 는 404 가 맞다(접수 기능이 main 에 없다).
 ## 김민에게 — 2026-11-06 · 금윤호(Claude, 윤호 맥북) — 외부 투구 영상 접수(초대 링크 `/submit`) · **아직 안 넣음 · DB 표 12개 추가 예정**
 
 **지금 상태: 브랜치 `intake/external-video-submission` 에만 있다. 공유 DB · 버킷 · 환경변수 모두 미적용**(이 글은 main 에 올릴 때 같이 간다). 마이그레이션은 적용 전까지 `prisma/pending-migrations/` 에 둔다. 설계 `docs/designs/external-intake.md`, 요구 대조표 `docs/designs/external-intake-verification.md`.

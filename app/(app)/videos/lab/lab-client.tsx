@@ -547,7 +547,7 @@ function UploadCard({
       {pairBlock && (
         <>
           <ErrorLine>{pairBlock}</ErrorLine>
-          <Link href={labGuideHref('steps')} className="-mt-2 block text-sm font-medium text-sky">
+          <Link href={labGuideHref('shoot')} className="-mt-2 block text-sm font-medium text-sky">
             두 폰으로 동시에 찍는 법 보기 ›
           </Link>
         </>

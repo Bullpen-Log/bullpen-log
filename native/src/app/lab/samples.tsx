@@ -255,7 +255,7 @@ function UploadCard({ heightCm, defaultHand, onDone, c }: { heightCm: number | n
       ) : null}
       {error ? <Text style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>{error}</Text> : null}
       {pairBlock ? <Text style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>{pairBlock}</Text> : null}
-      {pairBlock ? <GuideLink label="두 폰으로 동시에 찍는 법 보기 ›" section="steps" hand={hand} c={c} /> : null}
+      {pairBlock ? <GuideLink label="두 폰으로 동시에 찍는 법 보기 ›" section="shoot" hand={hand} c={c} /> : null}
       {error && blocked ? <GuideLink label="어떻게 찍으면 되는지 촬영 안내 보기 ›" section="checklist" hand={hand} c={c} /> : null}
 
       <Pressable

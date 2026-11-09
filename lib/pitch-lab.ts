@@ -469,7 +469,7 @@ export async function loadLabSample(id: string, viewer: LabViewer, sport: LabSpo
 }
 
 /** 보는 사람이 볼 수 있는 샘플(관리자는 모든 관리자 것, 일반 사용자는 자기 것) — 최근 것부터. 재생 주소까지 붙인다 */
-export async function listLabSamples(viewer: LabViewer, sport: LabSport = 'pitch'): Promise<LabSample[]> {
+export async function listLabSamples(viewer: LabViewer, sport: LabSport = 'pitch', options?: { playbackUrls?: boolean }): Promise<LabSample[]> {
   const bucket = videoBucket();
   const per = await Promise.all(
     (await ownerIds(viewer)).map(async (uid) => {
@@ -481,7 +481,7 @@ export async function listLabSamples(viewer: LabViewer, sport: LabSport = 'pitch
     })
   );
   const samples = per.flat().filter((s) => s.meta?.kind !== 'marker' || seesMarkers(viewer, sport));
-  await attachUrls(samples);
+  if (options?.playbackUrls !== false) await attachUrls(samples);
   return samples.sort((a, b) => (b.meta?.createdAt ?? '').localeCompare(a.meta?.createdAt ?? ''));
 }
 

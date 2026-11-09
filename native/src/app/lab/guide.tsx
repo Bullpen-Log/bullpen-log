@@ -1,21 +1,29 @@
+import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View, type ScrollViewInstance } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, ClipPath, Defs, Ellipse, G, Path, Rect } from 'react-native-svg';
 import { V2_FAIL_TEXT, type V2FailCode } from '@/lib/pitch-3d/v2/contract';
 import {
   LAB_FAIL_FIX,
+  LAB_GUIDE_CAMERA,
+  LAB_GUIDE_CAMERA_NOTE,
+  LAB_GUIDE_CLOTHES,
+  LAB_CLOTHES_ART,
   LAB_GUIDE_CHECKS,
-  LAB_GUIDE_LENS_NOTE,
-  LAB_GUIDE_MOVE_NOTE,
-  LAB_GUIDE_POINTS,
+  LAB_GUIDE_FLOW as FLOW,
+  LAB_GUIDE_FRAME,
+  LAB_GUIDE_MOVE,
+  LAB_GUIDE_MOVE_NOTES,
   LAB_GUIDE_SECTION_NAME,
-  LAB_LENS_DISTANCES,
-  labGuideUploadPoints,
+  LAB_GUIDE_SHOOT,
+  labGuideSectionOf,
   type LabGuideSection,
 } from '@/lib/pitch-lab-guide';
-import { forHand, LAB_MAX_VIDEO_MB, type LabHand } from '@/lib/pitch-lab-meta';
+import { forHand, type LabHand } from '@/lib/pitch-lab-meta';
+import { GuideShots } from '~/lab/guide-shots';
 import { Bar, s } from '~/community/parts';
 import { loadJson, saveJson } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
@@ -23,7 +31,10 @@ import { READABLE } from '~/lib/layout';
 
 /**
  * 3D 동작 분석 촬영 안내(앱 화면) — 웹 app/(app)/videos/lab/guide/ 를 옮겼다. 글 · 근거는 둘이 같이 쓰는 lib/pitch-lab-guide.ts 한 곳,
- * 그림은 웹 guide-art.tsx 를 react-native-svg 로 옮겼다(같은 좌표). ?s=<칸> 이면 그 칸으로 굴려 연다(목록 화면의 오류 밑 바로가기).
+ * 그림은 웹 guide-art.tsx 를 react-native-svg 로 옮겼다(같은 좌표). ?s=<칸> 이면 그 카드부터 연다(목록 화면의 오류 밑 바로가기).
+ * 2026-11-08 김민: "밑으로 내리며 보니 읽기 힘들다, 카드로 하나 확인하면 다음" → 한 화면에 카드 하나, 아래 [이전 | 확인했어요].
+ * 2026-11-08 김민: "중복 많고 복잡하다" → 카메라 설정 · 촬영 구도 · 영상 조건 · 영상 옮기기(그림으로) + 찍기 전 확인.
+ * 마지막 카드가 찍기 전 확인(앞 카드들의 요약), '분석이 안 됐다면'은 흐름 밖 카드(그 카드에서 링크 · ?s=fail).
  * 확인 목록 체크는 이 폰에만(앱 저장소 — 웹 localStorage 와 따로).
  */
 const CHECK_KEY = 'bullpen-lab-guide-checks';
@@ -34,93 +45,67 @@ export default function LabGuideScreen() {
   const { s: jump, hand: handParam } = useLocalSearchParams<{ s?: string; hand?: string }>();
   const hand: LabHand = handParam === 'L' ? 'L' : 'R';
   const scroll = useRef<ScrollViewInstance>(null);
-  const tops = useRef<Partial<Record<LabGuideSection, number>>>({});
-  const [laid, setLaid] = useState(0);
+  const [page, setPage] = useState<LabGuideSection>(labGuideSectionOf(jump) ?? FLOW[0]);
+  const idx = FLOW.indexOf(page); // 실패 카드는 −1
+  const last = idx === FLOW.length - 1;
 
-  const go = (section: LabGuideSection) => {
-    const y = tops.current[section];
-    if (y != null) scroll.current?.scrollTo({ y: Math.max(0, y - 8), animated: true });
+  const go = (next: LabGuideSection) => {
+    void Haptics.selectionAsync();
+    setPage(next);
+    scroll.current?.scrollTo({ y: 0, animated: false });
   };
-  /* 칸 자리를 다 잰 뒤 한 번 — 바로가기로 열렸을 때 */
-  const jumped = useRef(false);
-  useEffect(() => {
-    if (jumped.current || !jump || laid < 8) return;
-    jumped.current = true;
-    go(jump as LabGuideSection);
-  }, [jump, laid]);
+  const back = () => (page === 'fail' ? go('checklist') : idx > 0 ? go(FLOW[idx - 1]) : router.back());
+  const forward = () => (last || page === 'fail' ? router.back() : go(FLOW[idx + 1]));
 
-  const section = (id: LabGuideSection, children: ReactNode) => (
-    <View
-      key={id}
-      onLayout={(e) => {
-        tops.current[id] = e.nativeEvent.layout.y;
-        setLaid((n) => n + 1);
-      }}
-      style={{ borderRadius: 14, padding: 14, gap: 12, backgroundColor: c.card, boxShadow: c.float }}
-    >
-      <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>{LAB_GUIDE_SECTION_NAME[id]}</Text>
-      {children}
-    </View>
-  );
-
-  return (
-    <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="3D 분석" title="촬영 안내" c={c} />
-      <ScrollView ref={scroll} contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}>
-        <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21, paddingHorizontal: 4 }}>이대로 찍으면 3D 가 가장 정확해요.</Text>
-        {section('checklist', <Checklist hand={hand} c={c} />)}
-        {section(
-          'place',
+  const body = (id: LabGuideSection): ReactNode => {
+    switch (id) {
+      case 'checklist':
+        return (
+          <>
+            <Checklist hand={hand} c={c} />
+            <Pressable accessibilityRole="link" onPress={() => go('fail')} hitSlop={6} style={{ minHeight: 32, justifyContent: 'center' }}>
+              <Text style={{ color: c.link, fontSize: 15, fontWeight: '600' }}>{LAB_GUIDE_SECTION_NAME.fail} ›</Text>
+            </Pressable>
+          </>
+        );
+      case 'camera':
+        return (
+          <>
+            <GuideShots shots={LAB_GUIDE_CAMERA} hand={hand} c={c} />
+            <Note text={LAB_GUIDE_CAMERA_NOTE} c={c} />
+          </>
+        );
+      case 'frame':
+        return (
           <>
             <PlacementArt hand={hand} c={c} />
-            <Points items={LAB_GUIDE_POINTS.place.map((t) => forHand(t, hand))} c={c} />
-            <Fold title="렌즈별 참고 거리" c={c}>
-              {LAB_LENS_DISTANCES.map((r) => (
-                <View key={r.lens} style={{ flexDirection: 'row', gap: 8, paddingVertical: 6, borderTopWidth: 0.5, borderTopColor: c.line }}>
-                  <View style={{ flex: 1.4 }}>
-                    <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{r.lens}</Text>
-                    <Text style={[s.meta, { color: c.muted }]}>{r.phones}</Text>
-                  </View>
-                  <Text style={{ flex: 1, color: c.ink, fontSize: 15 }}>옆 {r.side}</Text>
-                  <Text style={{ flex: 1, color: c.ink, fontSize: 15 }}>뒤 {r.back}</Text>
-                </View>
-              ))}
-              <Text style={[s.meta, { color: c.muted }]}>{LAB_GUIDE_LENS_NOTE}</Text>
-            </Fold>
-          </>
-        )}
-        {section(
-          'frame',
-          <>
             <FramingArt c={c} />
-            <Points items={LAB_GUIDE_POINTS.frame} c={c} />
+            <Points items={LAB_GUIDE_FRAME.map((t) => forHand(t, hand))} c={c} />
           </>
-        )}
-        {section('phone', <Points items={LAB_GUIDE_POINTS.phone} c={c} />)}
-        {section(
-          'steps',
-          <View style={{ gap: 10 }}>
-            {LAB_GUIDE_POINTS.steps.map((text, i) => (
-              <View key={text} style={{ flexDirection: 'row', gap: 12 }}>
-                <View style={{ width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.action }}>
-                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{i + 1}</Text>
-                </View>
-                <Text style={{ flex: 1, color: c.ink, fontSize: 15, lineHeight: 22, paddingTop: 1 }}>{text}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-        {section(
-          'move',
+        );
+      case 'shoot':
+        return (
           <>
-            <Points items={LAB_GUIDE_POINTS.move} c={c} />
-            <Text style={{ color: c.ink, fontSize: 15, lineHeight: 22, borderRadius: 12, padding: 12, backgroundColor: c.page }}>{LAB_GUIDE_MOVE_NOTE}</Text>
+            <View style={{ gap: 12, borderRadius: 14, padding: 12, backgroundColor: c.warnBg }}>
+              <Text style={{ color: c.warn, fontSize: 18, fontWeight: '800' }}>⚠︎ {LAB_GUIDE_CLOTHES.title}</Text>
+              <ClothesArt c={c} />
+              <Text style={{ color: c.ink, fontSize: 15, lineHeight: 22 }}>{LAB_GUIDE_CLOTHES.text}</Text>
+            </View>
+            <Points items={LAB_GUIDE_SHOOT} c={c} />
           </>
-        )}
-        {section('upload', <Points items={labGuideUploadPoints(LAB_MAX_VIDEO_MB)} c={c} />)}
-        {section(
-          'fail',
-          <Fold title="까닭별로 고칠 것" c={c}>
+        );
+      case 'move':
+        return (
+          <>
+            <GuideShots shots={LAB_GUIDE_MOVE} hand={hand} c={c} />
+            {LAB_GUIDE_MOVE_NOTES.map((t) => (
+              <Note key={t} text={t} c={c} />
+            ))}
+          </>
+        );
+      case 'fail':
+        return (
+          <View style={{ gap: 4 }}>
             {(Object.keys(LAB_FAIL_FIX) as V2FailCode[]).map((code) => {
               const fix = LAB_FAIL_FIX[code];
               if (!fix) return null;
@@ -134,12 +119,53 @@ export default function LabGuideScreen() {
                 </View>
               );
             })}
-          </Fold>
-        )}
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={[s.primary, { backgroundColor: c.action }]}>
-          <Text style={s.primaryText}>영상 올리러 가기</Text>
-        </Pressable>
+          </View>
+        );
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: c.page }}>
+      <Bar back="3D 분석" title="촬영 안내" c={c} />
+      {/* 어디쯤인지 — 칸을 누르면 그 카드로 */}
+      <View style={[{ paddingHorizontal: 16, paddingTop: 4, gap: 8 }, READABLE]}>
+        <View style={{ flexDirection: 'row', gap: 4 }}>
+          {FLOW.map((id, i) => (
+            <Pressable
+              key={id}
+              accessibilityRole="button"
+              accessibilityLabel={`${i + 1}. ${LAB_GUIDE_SECTION_NAME[id]}`}
+              accessibilityState={{ selected: id === page }}
+              onPress={() => go(id)}
+              hitSlop={{ top: 10, bottom: 10 }}
+              style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: idx >= 0 && i <= idx ? c.action : c.line }}
+            />
+          ))}
+        </View>
+        <Text style={[s.meta, { color: c.muted }]}>{idx >= 0 ? `${idx + 1} / ${FLOW.length}` : '도움말'}</Text>
+      </View>
+      <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={[{ padding: 16, paddingTop: 10 }, READABLE]}>
+        <Animated.View key={page} entering={FadeIn.duration(180)} style={{ borderRadius: 16, padding: 16, gap: 14, backgroundColor: c.card, boxShadow: c.float }}>
+          <Text style={{ color: c.ink, fontSize: 22, fontWeight: '700' }}>{LAB_GUIDE_SECTION_NAME[page]}</Text>
+          {body(page)}
+        </Animated.View>
       </ScrollView>
+      <View style={[{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 8, paddingBottom: inset.bottom + 12 }, READABLE]}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={back}
+          style={({ pressed }) => [s.primary, { marginTop: 0, flex: 1, backgroundColor: c.card, borderWidth: 0.5, borderColor: c.line, opacity: pressed ? 0.7 : 1 }]}
+        >
+          <Text style={[s.primaryText, { color: c.ink }]}>{idx === 0 ? '닫기' : '이전'}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={forward}
+          style={({ pressed }) => [s.primary, { marginTop: 0, flex: 2, backgroundColor: c.action, opacity: pressed ? 0.85 : 1 }]}
+        >
+          <Text style={s.primaryText}>{last || page === 'fail' ? '영상 올리러 가기' : '확인했어요'}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -157,17 +183,8 @@ function Points({ items, c }: { items: readonly string[]; c: Palette }) {
   );
 }
 
-function Fold({ title, children, c }: { title: string; children: ReactNode; c: Palette }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <View style={{ borderRadius: 12, paddingHorizontal: 12, backgroundColor: c.page }}>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((v) => !v)} style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{title}</Text>
-        <Text style={{ color: c.muted, fontSize: 15 }}>{open ? '접기' : '펴기'}</Text>
-      </Pressable>
-      {open ? <View style={{ paddingBottom: 10, gap: 6 }}>{children}</View> : null}
-    </View>
-  );
+function Note({ text, c }: { text: string; c: Palette }) {
+  return <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20, borderRadius: 12, padding: 12, backgroundColor: c.page }}>{text}</Text>;
 }
 
 /** 찍기 전 확인 — 현장에서 하나씩 체크(이 폰에만 남는다, 다음 촬영 때 '다시'로 비운다) */
@@ -339,6 +356,38 @@ function FramingArt({ c }: { c: Palette }) {
           <Text style={{ color: k.ok ? c.ok : c.danger, fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
             {k.ok ? '✓ ' : '! '}
             {k.label}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** 헐렁한 옷 — 몸에 붙는 옷(관절 점 제자리) vs 헐렁한 옷(점이 옷 가장자리로 밀림). 좌표는 lib/pitch-lab-guide.ts LAB_CLOTHES_ART(웹 ClothesArt 와 같다) */
+function ClothesArt({ c }: { c: Palette }) {
+  const A = LAB_CLOTHES_ART;
+  return (
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      {[true, false].map((ok) => (
+        <View key={String(ok)} style={{ flex: 1, gap: 6 }}>
+          <View style={{ width: '100%', aspectRatio: 160 / 150, borderRadius: 12, overflow: 'hidden', backgroundColor: c.card }}>
+            <Svg viewBox={A.viewBox} width="100%" height="100%">
+              {ok ? (
+                <Path d={A.bones} stroke={c.sky} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              ) : (
+                <>
+                  <Path d={A.pants} fill={c.muted} opacity={0.75} />
+                  <Path d={A.hoodie} fill={c.sky} opacity={0.85} />
+                </>
+              )}
+              <Circle cx={A.head.cx} cy={A.head.cy} r={A.head.r} fill={c.line} />
+              {(ok ? A.joints : A.slipped).map(([x, y]) => (
+                <Circle key={`${x}-${y}`} cx={x} cy={y} r={3.2} fill={ok ? c.ok : c.danger} stroke={c.card} strokeWidth={1.2} />
+              ))}
+            </Svg>
+          </View>
+          <Text style={{ color: ok ? c.ok : c.danger, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
+            {ok ? `✓ ${LAB_GUIDE_CLOTHES.ok}` : `✕ ${LAB_GUIDE_CLOTHES.bad}`}
           </Text>
         </View>
       ))}

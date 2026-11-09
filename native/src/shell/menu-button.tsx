@@ -234,7 +234,7 @@ function Launcher({ anchor, onClosed }: { anchor: Rect; onClosed: () => void }) 
                   key={it.href}
                   accessibilityRole="button"
                   accessibilityLabel={it.label}
-                  onPress={() => close(web(it.href))}
+                  onPress={() => close(it.href.split('?')[0] === '/admin/dev3d' ? push('/swing/samples') : web(it.href))}
                   style={({ pressed }) => [st.manageRow, pressed && st.pressed]}
                 >
                   <Icon name={MENU_ICON[it.icon] ?? 'menu'} size={20} color={L.muted} />
