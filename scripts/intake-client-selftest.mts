@@ -498,6 +498,9 @@ async function cancelled(h: ReturnType<typeof harness>, label: string) {
   /* 이미 멈췄으면 첫 요청도 안 보내고, 기록은 그대로 둔다 */
   const store = memoryStore();
   const key = recoveryKey(SID, 'A-side');
+  /* 기록 자리는 접수 + 자산 둘로 묶는다 — 함수가 돌려준 값만 다시 읽으면 무엇으로 묶었는지 못 본다 */
+  eq(key, `intake-upload:${SID}:A-side`, '이어 올리기 기록 자리는 접수 번호와 자산 번호를 둘 다 담는다');
+  ok(recoveryKey('sub-a', 'X') !== recoveryKey('sub-b', 'X'), '다른 접수의 같은 자산 번호는 다른 자리');
   const record = JSON.stringify({ uploadUrl: 'http://127.0.0.1:1/x', size: 10, sha256: 'a'.repeat(64), fileName: 'side.MOV', transportExpiresAt: new Date(Date.now() + 1e7).toISOString() });
   store.setItem(key, record);
   const ctrl = new AbortController();
@@ -558,6 +561,8 @@ function fakeServer(opts: ServerOpts = {}) {
     version: opts.version ?? 3,
     revisions: new Map<string, IntakeReceipt>(),
     finalizeCalls: [] as string[],
+    /** 완료 요청 본문 전체 — 다시 낼 때 키뿐 아니라 기대한 자산 짝 · 판도 같은지 본다 */
+    finalizeBodies: [] as Record<string, unknown>[],
     stateCalls: 0,
   };
   let lose = opts.loseFinalize ?? 0;
@@ -585,6 +590,7 @@ function fakeServer(opts: ServerOpts = {}) {
     if (path === 'finalize') {
       const body = JSON.parse(String(init?.body)) as { idempotencyKey: string; expectedVersion: number };
       s.finalizeCalls.push(body.idempotencyKey);
+      s.finalizeBodies.push(body as unknown as Record<string, unknown>);
       if (opts.hangFinalize === 'hang-without-commit') return never<Response>();
       let r = s.revisions.get(body.idempotencyKey);
       if (r) r = { ...r, created: false };
@@ -832,7 +838,7 @@ const finishInput = (extra: Partial<Parameters<typeof finishRun>[1]> = {}) => ({
 /** 보내기 차례를 가짜로 돌린다 — 서버는 fakeServer, 칸 잡기 · 전송은 가짜 */
 function sendRig(opts: { server?: ServerOpts; store?: RecoveryStore; reserve?: () => Promise<void>; upload?: () => Promise<void> } = {}) {
   const f = fakeServer({ version: 3, assets: { side: 'A-side', rear: 'A-rear' }, ...opts.server });
-  const count = { reserve: 0, start: 0, done: 0, reserved: 0, publishAfterDispose: 0, makeKey: 0 };
+  const count = { reserve: 0, start: 0, done: 0, reserved: 0, reservedAfterDispose: 0, publishAfterDispose: 0, makeKey: 0 };
   let disposed = false;
   const client = {
     reserveAsset: async (input: { view: 'side' | 'rear' }) => {
@@ -854,6 +860,7 @@ function sendRig(opts: { server?: ServerOpts; store?: RecoveryStore; reserve?: (
       submissionId: SID,
       onReserved: () => {
         count.reserved++;
+        if (disposed) count.reservedAfterDispose++;
       },
       onDone: (r) => {
         count.done++;
@@ -927,6 +934,36 @@ const sendOptions = () => ({ known: { side: null, rear: null }, round: 0, versio
   eq([r.count.done, r.receipts[0]?.revision, r.f.s.revisions.size], [1, 1, 1], '다시 시도가 같은 판의 영수증으로 끝난다');
   eq(r.count.makeKey, 1, '저장소가 기억 못 해도 완료 키는 한 번만 만든다');
   ok(r.f.s.finalizeCalls.every((k) => k === 'key-1'), '모든 완료가 같은 키');
+}
+{
+  /* 완료가 서버에 닿기 전에 끊겼다 — 다시 시도는 완료를 실제로 다시 내고, 키 · 기대한 자산 짝 · 판이 첫 요청과 같다 */
+  const r = sendRig({ server: { hangFinalize: 'hang-without-commit' } });
+  await r.c.start(items, sendOptions());
+  ok(r.c.state?.stop != null && r.count.done === 0 && r.f.s.revisions.size === 0, '첫 완료는 답이 없어 멈춘다(서버는 아직 안 얼림)');
+  r.f.opts.hangFinalize = undefined;
+  await r.c.retry();
+  eq([r.count.done, r.f.s.revisions.size], [1, 1], '다시 시도가 판 하나로 끝난다');
+  ok(r.f.s.finalizeBodies.length >= 2, `완료를 실제로 다시 냈다(${r.f.s.finalizeBodies.length}번)`);
+  const pick = (b: Record<string, unknown>) => JSON.stringify([b.idempotencyKey, b.expected ?? b.expectedAssets, b.expectedVersion, b.samePitchConfirmed]);
+  ok(new Set(r.f.s.finalizeBodies.map(pick)).size === 1, '다시 낸 완료의 키 · 자산 짝 · 판이 모두 같다');
+  ok(r.f.s.finalizeBodies[0].expected != null || r.f.s.finalizeBodies[0].expectedAssets != null, '완료 본문에 기대한 자산 짝이 실린다');
+}
+{
+  /* 칸 잡기 답과 화면 떨어짐이 어떤 차례로 겹쳐도 — 떨어진 뒤에는 onReserved · 그리기 · onDone 을 안 부른다 */
+  const reachedLate: number[] = [];
+  for (let hops = 0; hops <= 16; hops++) {
+    const later = (n: number, f: () => void): void => (n === 0 ? f() : queueMicrotask(() => later(n - 1, f)));
+    const rig: ReturnType<typeof sendRig> = sendRig({
+      /* 칸 잡기 답을 돌려주는 그때부터 hops 번째 마이크로태스크에 화면이 떨어진다 */
+      reserve: async () => later(hops, () => rig.dispose()),
+    });
+    await rig.c.start(items, sendOptions());
+    await tick(5);
+    eq([rig.count.reservedAfterDispose, rig.count.publishAfterDispose, rig.count.done], [0, 0, 0], `떨어진 뒤 onReserved · 그리기 · onDone 0(마이크로태스크 ${hops})`);
+    if (rig.count.reserve > 0 && rig.count.start === 0) reachedLate.push(hops);
+  }
+  /* 판별력: 적어도 한 차례는 칸 잡기 답이 '떨어진 뒤'에 도착해야 위 검사가 의미가 있다 */
+  ok(reachedLate.length > 0, `칸 잡기 답과 떨어짐이 겹친 차례가 있다(${reachedLate.join(',')})`);
 }
 {
   /* 다시 시도 중(이미 완료를 보냄) 멈춘다 — 'cancelled' 가 아니라 결과를 되찾는다 */

@@ -16,7 +16,7 @@ main(`6b829da4` 뒤 최신)을 합친 위에서 고쳤다. 구현 · 격리 시�
 ### 이번에 고친 것(커밋 `12c8b771` · `87f48b01` · `ea79391b` · `c90f4ed4`)
 | 문제 | 고침 | 시험 |
 |---|---|---|
-| 공개 화면의 요청이 응답 · 본문을 끝없이 기다릴 수 있음 | `public-client.ts requestJson` — 제어 요청 20초 · 접수 마치기 30초, 본문까지 한 신호로 끊고 취소 · 시간 초과 · 연결 · 서버 오류를 나눔. TUS 올리기 자체에는 짧은 기한 없음 | client 121 · 브라우저 stall 15 |
+| 공개 화면의 요청이 응답 · 본문을 끝없이 기다릴 수 있음 | `public-client.ts requestJson` — 제어 요청 20초 · 접수 마치기 30초, 본문까지 한 신호로 끊고 취소 · 시간 초과 · 연결 · 서버 오류를 나눔. TUS 올리기 자체에는 짧은 기한 없음 | client 146 · 브라우저 stall 15 |
 | 예약 · 토큰 대기 중 취소해도 이어서 올리고 성공을 반환 | `upload-run.ts` 모든 경계에서 취소 확인, `use-send.ts` → `createSendController`(시도 번호), 시간 초과 재시도 1번 · 기다림도 취소됨 | client · 브라우저 cancel 10 |
 | 접수 마치기 응답 유실 | 같은 멱등 키로 상태부터 다시 읽음, 모르면 `finalize_unknown` 으로 이어서 보내기 | 브라우저 finalize 6 |
 | 앱 관리자에 접수 입구 없음 | `native/src/app/admin/intake.tsx`(APP_UA 웹뷰 · 25초 · 다시 불러오기 · 로그인 넘김) · 관리 메뉴 짝 `native/src/admin/intake-nav.ts`, 3D 개발 관리자는 그대로 `/swing/samples` | access 132(실기기 미검증) |
@@ -29,8 +29,18 @@ main(`6b829da4` 뒤 최신)을 합친 위에서 고쳤다. 구현 · 격리 시�
 | 마이그레이션 전 관리 목록이 오류로 넘어감 | 날 SQL 의 P2010(표 · 칸 없음)도 준비 안 됨으로 | admin 781 · 브라우저 관리 '준비 안 됨' |
 
 ### 격리 시험(2026-11-10, 모두 끝 코드 0)
-`intake:test` 444 · `intake:db-test` 872 · `intake:admin-test` 781 · `intake:transfer-test` 213 · `intake:public-test` 172 · `intake:analysis-test` 429 · `intake:client-test` 121 · `intake:budget-test` 103 · `intake:access-test` 132 · `detail.selftest.mts` 329 · `intake:retention-fuzz`(64 씨앗) 통과 · `release-access:test` 723 · `npx tsc --noEmit -p .` 0 · 바꾼 파일 eslint 0.
+`intake:test` 444 · `intake:db-test` 872 · `intake:admin-test` 781 · `intake:transfer-test` 213 · `intake:public-test` 172 · `intake:analysis-test` 429 · `intake:client-test` 146 · `intake:budget-test` 103 · `intake:access-test` 132 · `detail.selftest.mts` 329 · `intake:retention-fuzz`(64 씨앗) 통과 · `release-access:test` 723 · `npx tsc --noEmit -p .` 0 · 바꾼 파일 eslint 0.
 `native-api:test` 는 main 의 3D 안내 정리(`pitch-lab.loadAppLabDetail` fixSection)로 모양 하나가 어긋나 있다 — 접수와 무관, main 쪽 일.
+
+### 시험 판별력(2026-11-10, SH16 독립 검사의 돌연변이 반영)
+SH16 이 제품 코드 네 곳을 일부러 망가뜨려도 자기 시험이 통과한다고 알렸다. 같은 돌연변이를 이 브랜치 시험에 돌려 보니 하나(완료 키를 시도마다 새로)만 잡혔다. 시험을 더해 지금은 다섯 중 넷을 잡는다.
+| 돌연변이 | 전 | 지금 | 더한 시험(`scripts/intake-client-selftest.mts`) |
+|---|---|---|---|
+| 완료 키를 시도마다 새로(`use-send.ts`) | 잡음 | 잡음 | — |
+| 떨어진 뒤에도 onReserved(`if (live())` 뺌) | 놓침 | 잡음 | 칸 잡기 답과 화면 떨어짐을 마이크로태스크 0~16 차례로 겹쳐 봄(겹친 차례가 실제로 있는지도 확인) |
+| 이어 올리기 기록 자리에서 접수 번호 뺌(`upload-client.ts`) | 놓침 | 잡음 | 자리 글자 그대로 · 다른 접수는 다른 자리 |
+| 다시 낸 완료의 기대 자산 짝을 비움 | 놓침 | 잡음 | 완료가 서버에 닿기 전 끊김 → 다시 시도가 실제로 다시 내고 키 · 짝 · 판이 같음 |
+| 시도 번호 검사 뺌(`attempt === id`) | 놓침 | 놓침 | 못 가름 — 새 시도는 옛 시도가 끝난 뒤에만 시작돼 지금은 dispose 만 걸린다. 방어 코드로 두고 주석에 적음 |
 
 ### 격리 브라우저(2026-11-10, Playwright 헤드리스 크로미움 1187 — 아이폰 사파리 아님)
 복사본에 `.env` 없음 · PGlite · 가짜 저장소(TUS) · 가짜 GPU · `next dev`. 리그 파일과 실행 차례는 `external-intake-e2e/README.md`.

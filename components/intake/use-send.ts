@@ -100,6 +100,7 @@ export type SendController = ReturnType<typeof createSendController>;
  * 시작은 누름에서만 한다. 멈춰도 항목을 쥐고 있어 '이어서 보내기'가 재기 · 칸 잡기를 되풀이해도 바이트는 이어서 간다.
  *
  * 시도마다 번호를 둔다. 치웠거나(dispose) 더 새 시도가 있으면 옛 시도의 끝은 화면을 안 바꾼다(publish · onDone · onReserved 를 안 부른다).
+ * 지금 차례에서는 새 시도가 옛 시도의 끝(running 이 풀림) 뒤에만 시작돼, 실제로 걸리는 것은 dispose 쪽이다 — 번호 검사는 그 차례가 바뀔 때를 대비한 방어다(시험이 못 가르는 자리, 2026-11-10 SH16 돌연변이로 확인).
  * 다만 서버가 칸을 잡은 사실(known · expected)은 일감에 남긴다 — 다음 시도가 낡은 칸 번호로 부딪히지 않게.
  * 준비 중에 멈추면 전송 · 완료를 시작하지 않는다(runUpload 가 지킨다). 완료를 보낸 뒤에 멈추면 결과를 되찾는다(finishRun).
  */
