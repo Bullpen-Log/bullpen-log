@@ -351,6 +351,12 @@ const panel = (over: Record<string, unknown>) =>
   ok(html.includes('이 결과 검토 완료') && html.includes('를 누르면 공개할 수 있어요'), '왜 꺼졌는지 한 줄');
   ok(!draw(panel({ runs: [{ ...RUN, status: 'failed', hasResult: false }] })).includes('3D 결과 검토'), '실패한 실행에는 검토 단추가 없다');
   ok(!draw(panel({ withdrawn: true })).includes('3D 결과 검토'), '철회된 접수에는 검토 단추가 없다');
+  /* 공개할 수 없는 실행(공개 중 · 옛 판)은 '보기'로만 연다 — 검토 완료 단추가 없는 창 */
+  const PUBX = '55555555-5555-4555-8555-555555555555';
+  const pubHtml = draw(panel({ runs: [{ ...RUN, published: true }], activePublicationId: PUBX }));
+  ok(pubHtml.includes('3D 결과 보기') && !pubHtml.includes('3D 결과 검토'), '공개 중인 실행은 보기만');
+  const oldHtml = draw(panel({ runs: [{ ...RUN, isCurrentRevision: false }] }));
+  ok(oldHtml.includes('3D 결과 보기') && !oldHtml.includes('3D 결과 검토'), '옛 판의 실행은 보기만');
   /* 검토 완료를 받은 때의 공개와 지금 공개가 같을 때만 그 번호를 쓴다 */
   const P = '44444444-4444-4444-8444-444444444444';
   eq(rules.acknowledgementForPublish(null, null), null, '검토 완료가 없으면 번호가 없다');
