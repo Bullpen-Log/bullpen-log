@@ -1,11 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { PrismaClient } from '@prisma/client';
-import { Prisma } from '@prisma/client';
 import { ChevronRight, Film } from '@/components/icon';
 import { BackLink, EmptyState, PageHeading } from '@/components/ui';
 import { requirePermission } from '@/lib/dal';
-import { checkIntakeReadiness, loadIntakeList, parseIntakeFilters, type IntakeListFilters, type IntakeListResult, type IntakeListRow } from '@/lib/intake/admin';
+import { checkIntakeReadiness, isMissingTableError, loadIntakeList, parseIntakeFilters, type IntakeListFilters, type IntakeListResult, type IntakeListRow } from '@/lib/intake/admin';
 import {
   PUBLICATION_STATUS_TEXT,
   SUBMISSION_STATUS_TEXT,
@@ -82,12 +81,12 @@ export default async function IntakeAdminPage({ searchParams }: { searchParams: 
   );
 }
 
-/** 마이그레이션을 적용하기 전이면 표가 없다(P2021) — 화면 전체가 오류로 넘어가지 않게 */
+/** 마이그레이션을 적용하기 전이면 표가 없다(P2021 · 날 SQL 은 P2010) — 화면 전체가 오류로 넘어가지 않게. 판단은 lib/intake/admin.ts isMissingTableError 하나 */
 async function loadList(user: { id: string; role: string }, filters: IntakeListFilters): Promise<IntakeListResult | 'not_ready'> {
   try {
     return await loadIntakeList(prisma as unknown as PrismaClient, user, filters);
   } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2021') return 'not_ready';
+    if (isMissingTableError(e)) return 'not_ready';
     throw e;
   }
 }

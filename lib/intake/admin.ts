@@ -847,8 +847,23 @@ export type IntakeReadiness = {
   link: LinkOrigin;
 };
 
-/** 표가 없을 때 Prisma 가 던지는 것 — 표 없음 P2021 · 칸 없음 P2022 */
-export const isMissingTableError = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && (e.code === 'P2021' || e.code === 'P2022');
+/** 드라이버 어댑터가 옮긴 '표 · 칸 없음' — 날 SQL($queryRaw)은 P2021 · P2022 가 아니라 P2010 에 이 까닭을 싣는다 */
+const MISSING_KINDS = new Set(['TableDoesNotExist', 'ColumnNotFound']);
+/** PostgreSQL undefined_table · undefined_column */
+const MISSING_PG_CODES = new Set(['42P01', '42703']);
+
+/**
+ * 표가 없을 때 Prisma 가 던지는 것 — 표 없음 P2021 · 칸 없음 P2022, 그리고 날 SQL 의 P2010(까닭이 표 · 칸 없음일 때만).
+ * 목록은 안 읽은 접수를 날 SQL 로 먼저 세서(unreadIds) 마이그레이션 전 DB 에서는 P2010 이 먼저 온다 — 그것도 준비 안 됨이다(2026-11-10 격리 관리 시험에서 찾음).
+ */
+export const isMissingTableError = (e: unknown): boolean => {
+  if (!(e instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (e.code === 'P2021' || e.code === 'P2022') return true;
+  if (e.code !== 'P2010') return false;
+  const meta = (e.meta ?? {}) as { code?: unknown; driverAdapterError?: { cause?: { kind?: unknown; originalCode?: unknown } } };
+  const cause = meta.driverAdapterError?.cause;
+  return MISSING_KINDS.has(String(cause?.kind)) || MISSING_PG_CODES.has(String(cause?.originalCode ?? meta.code));
+};
 
 /**
  * 초대를 만들 준비가 됐나 — 표 · 칸이 있고, 받는 사람에게 보낼 정식 주소가 있다(운영이면 필수, 개발이면 '개발용 링크'로 만든다 — lib/intake/link-origin.ts).

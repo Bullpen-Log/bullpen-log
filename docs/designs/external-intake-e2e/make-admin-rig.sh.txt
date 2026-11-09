@@ -1,0 +1,21 @@
+#!/bin/zsh
+# 관리 시험대를 처음부터 만든다(맥 미니 2026-11-10). .env 는 절대 옮기지 않는다. 운영 값 없이 3010 · 3101 · 54329 · 54398 · 54399 만 쓴다.
+# 쓰는 법: zsh make-admin-rig.sh [작업 트리]   — 기본은 접수 브랜치 worktree. 이 폴더(admin/)에 시험대 파일이 .txt 를 뗀 이름으로 있어야 한다
+set -e
+W=${1:-/Users/yuno/Developer/bullpen-log/.claude/worktrees/intake}
+R=/tmp/intake-rig/intake-e2e
+A=$R/admin
+rm -rf $R/clone $R/clone-nr && mkdir -p $R/clone
+# 커밋 안 한 고침까지 담는다(-co). 이름에 한글이 있어 -z 로 넘긴다. .env* 는 뺀다(.env.example 만 따로 둔다)
+(cd $W && git ls-files -z -co --exclude-standard | grep -zv '^\.env' | tar --null -cf - -T -) | tar -xf - -C $R/clone
+cp $W/.env.example $R/clone/.env.example
+cp -cR $W/node_modules $R/clone/node_modules   # APFS 복제
+sed -i '' 's/max: 8, idleTimeoutMillis/max: 1, idleTimeoutMillis/' $R/clone/lib/prisma.ts   # PGlite 소켓은 연결 하나
+# 복사본에서만: 접수 마이그레이션을 migrations 로, 시험 로그인 경로, 시험대 시드 · 가짜 저장소
+cp -R $R/clone/prisma/pending-migrations/*_external_intake $R/clone/prisma/migrations/
+mkdir -p $R/clone/app/api/iso-login && cp $A/iso-login.route.ts $R/clone/app/api/iso-login/route.ts
+cp $A/admin-harness.mts $R/clone/scripts/admin-harness.mts
+for f in iso-seed iso-state iso-swap-pub iso-model-state; do [ -f $A/$f.mts ] && cp $A/$f.mts $R/clone/scripts/$f.mts; done
+# 접수 표가 없는 DB 를 쓰는 두 번째 복사본(3101) — 같은 코드, 다른 .next
+cp -cR $R/clone $R/clone-nr
+echo "env 파일:"; ls -a $R/clone $R/clone-nr | grep -i '^\.env'

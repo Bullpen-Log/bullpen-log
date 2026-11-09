@@ -1,0 +1,15 @@
+#!/bin/zsh
+# 확장 관리 시험대: 가짜 저장소 · 가짜 GPU · PGlite 둘 + next dev 3010(접수 표 있음) · 3101(접수 표 없음). 운영 값 없음
+R=/tmp/intake-rig/intake-e2e; cd $R/clone || exit 1
+. $R/admin/admin-env.sh
+nohup node --import ./scripts/alias-register.mjs scripts/admin-harness.mts > $R/admin/harness.log 2>&1 &
+echo $! > $R/admin/harness.pid
+for i in {1..240}; do grep -q 'harness ready' $R/admin/harness.log && break; sleep 0.5; done
+grep -q 'harness ready' $R/admin/harness.log || { echo 'harness 실패'; tail -20 $R/admin/harness.log; exit 1; }
+export INTAKE_PUBLIC_ORIGIN='http://127.0.0.1:3010' PITCH3D_GPU_URL='http://127.0.0.1:54398/gpu' PITCH3D_GPU_KEY='e2e-gpu-key' PITCH3D_GPU_SECRET='e2e-gpu-secret' CRON_SECRET='e2e-cron-secret' INTAKE_ALLOW_DRAFT_ANALYSIS=1
+nohup npx next dev --port 3010 --hostname 127.0.0.1 > $R/admin/dev3010.log 2>&1 &
+echo $! > $R/admin/dev3010.pid
+cd $R/clone-nr
+DATABASE_URL='postgresql://postgres@127.0.0.1:54399/postgres?sslmode=disable' DIRECT_URL='postgresql://postgres@127.0.0.1:54399/postgres?sslmode=disable' nohup npx next dev --port 3101 --hostname 127.0.0.1 > $R/admin/dev3101.log 2>&1 &
+echo $! > $R/admin/dev3101.pid
+for p in 3010 3101; do for i in {1..120}; do curl -s -o /dev/null --max-time 2 http://127.0.0.1:$p/submit && break; sleep 1; done; curl -s -o /dev/null -w "$p submit %{http_code}\n" --max-time 120 http://127.0.0.1:$p/submit; done

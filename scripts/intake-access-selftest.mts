@@ -112,8 +112,10 @@ ok(/intake: can\(a\.role, 'intake'\)/.test(appAdmin), "loadAppAdmin 의 perms �
 const adminScreen = read('native/src/app/admin/index.tsx');
 ok(/data\.perms\.intake \? <MenuRow[^\n]*label="외부 영상 접수"[^\n]*detail="받은 영상 · 초대 만들기"[^\n]*router\.push\('\/admin\/intake'/.test(adminScreen), '앱 관리자 화면은 perms.intake 일 때만 접수 줄');
 const menu = read('native/src/shell/menu-button.tsx');
-ok(menu.includes("['/admin/dev3d', '/swing/samples']"), '위 메뉴의 3D 개발 관리자는 그대로 앱 화면 /swing/samples(6b829da4)');
-ok(menu.includes("['/admin/intake', '/admin/intake']"), '위 메뉴의 외부 영상 접수는 앱 화면 /admin/intake');
+const navTable = read('native/src/admin/intake-nav.ts');
+ok(navTable.includes("['/admin/dev3d', '/swing/samples']"), '관리 짝 표: 3D 개발 관리자는 그대로 앱 화면 /swing/samples(6b829da4)');
+ok(navTable.includes('[INTAKE_WEB_PATH, INTAKE_WEB_PATH]'), '관리 짝 표: 외부 영상 접수는 앱 화면 /admin/intake');
+ok(menu.includes("from '~/admin/intake-nav'") && /nativeManageScreen\(href\)/.test(menu), '위 메뉴는 같은 짝 표(nativeManageScreen)를 쓴다');
 ok(/manage\.map[\s\S]{0,400}close\(manageGo\(it\.href\)\)/.test(menu), '관리 줄은 manageGo 로(나머지는 껍데기 웹)');
 const samples = read('native/src/app/swing/samples.tsx');
 ok(/intake \? <LinkRow label="외부 영상 접수"/.test(samples) && samples.includes('INTAKE_WEB_PATH'), '3D 개발 관리자의 접수 링크는 사이트 관리 메뉴에 있을 때만');

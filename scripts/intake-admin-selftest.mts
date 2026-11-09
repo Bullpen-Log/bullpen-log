@@ -66,6 +66,7 @@ export function passwordFingerprint() { return 'fp'; }`,
     `const g = globalThis.__intakeTest;
 export async function startIntakeAnalysis(i) { g.calls.push('start:' + i.submissionId + ':' + i.adminId + ':' + i.confirmDraftConsent); return { run: { status: 'requested' }, created: true }; }
 export async function setAnalysisHand(i) { g.calls.push('hand:' + i.hand); }
+export async function loadRunReview(i) { g.calls.push('review:' + i.submissionId + ':' + i.runId + ':' + i.adminId); return { view: {}, athleteName: '', revisionNumber: 1, isCurrentRevision: true, finishedAt: null }; }
 export async function carryInTx() { return null; }
 export const runMatchesCurrent = () => false;`,
   ],
@@ -290,6 +291,7 @@ const auditCount = () => db.intakeAudit.count();
     getIntakeOriginalLink: [id, asset, 'download'],
     getIntakePairLinks: [id],
     getIntakeRunPreview: [id, id, 'side'],
+    getIntakeRunReview: [id, id],
     setIntakeHand: [id, 'R'],
     runIntakeAnalysis: [id],
     publishIntakeRun: [id, id, '설명', null],
@@ -1414,6 +1416,21 @@ const auditCount = () => db.intakeAudit.count();
   /* 실제로 없는 표를 트랜잭션에서 건드리면 PGlite 소켓이 연결을 끊을 때가 있어, 오류 모양은 직접 만들어 본다 */
   const fake = (code: string) => new Prisma.PrismaClientKnownRequestError('x', { code, clientVersion: 'test' });
   eq([isMissingTableError(fake('P2021')), isMissingTableError(fake('P2022')), isMissingTableError(fake('P2002')), isMissingTableError(new Error('x'))], [true, true, false, false], '표 · 칸 없음 오류만 준비 안 됨으로 본다');
+  /* 날 SQL 의 표 · 칸 없음은 P2010 으로 온다(드라이버 어댑터 까닭 · PostgreSQL 코드) — 다른 P2010 은 아니다 */
+  const raw = (meta: object) => new Prisma.PrismaClientKnownRequestError('x', { code: 'P2010', clientVersion: 'test', meta: meta as Record<string, unknown> });
+  eq(
+    [
+      isMissingTableError(raw({ driverAdapterError: { cause: { kind: 'TableDoesNotExist', originalCode: '42P01' } } })),
+      isMissingTableError(raw({ driverAdapterError: { cause: { kind: 'ColumnNotFound', originalCode: '42703' } } })),
+      isMissingTableError(raw({ code: '42P01' })),
+      isMissingTableError(raw({ driverAdapterError: { cause: { kind: 'UniqueConstraintViolation', originalCode: '23505' } } })),
+      isMissingTableError(raw({})),
+    ],
+    [true, true, true, false, false],
+    '날 SQL 의 표 · 칸 없음(P2010)도 준비 안 됨으로 본다',
+  );
+  /* 목록은 안 읽은 접수를 날 SQL(unreadIds)로 먼저 센다 — 마이그레이션 전 DB 에서는 위 P2010 모양이 온다. 실제 표 없는 DB 로는 격리 관리 시험(external-intake-e2e admin-ext 2번)이 본다.
+     여기서 표를 숨겨 부르면 PGlite 소켓이 연결을 끊어 뒤 시험이 못 돈다(위 주석과 같다) */
   await db.$executeRawUnsafe('ALTER TABLE "IntakeInvitation" RENAME TO "IntakeInvitationX"');
   await fails(adminCreateInvitationLink(db, A, {}, {}, NOW), 'intake_not_ready', '표가 없으면 서버 동작도 준비 안 됨으로 답한다');
   await db.$executeRawUnsafe('ALTER TABLE "IntakeInvitationX" RENAME TO "IntakeInvitation"');

@@ -1,0 +1,19 @@
+#!/bin/zsh
+# 공개 시험대를 처음부터 만든다(맥 미니 2026-11-09). .env 는 절대 옮기지 않는다. 운영 값 없이 3101 · 54398 · 54399 만 쓴다.
+# 쓰는 법: zsh make-pub-rig.sh [작업 트리]   — 기본은 접수 브랜치 worktree
+set -e
+W=${1:-/Users/yuno/Developer/bullpen-log/.claude/worktrees/intake}
+R=/tmp/intake-rig/intake-e2e
+D=$W/docs/designs/external-intake-e2e
+rm -rf $R/clone && mkdir -p $R/clone
+# 커밋 안 한 고침까지 담는다(-co). 이름에 한글이 있어 -z 로 넘긴다. .env* 는 뺀다(.env.example 만 따로 둔다)
+(cd $W && git ls-files -z -co --exclude-standard | grep -zv '^\.env' | tar --null -cf - -T -) | tar -xf - -C $R/clone
+cp $W/.env.example $R/clone/.env.example
+cp -cR $W/node_modules $R/clone/node_modules   # APFS 복제 — 바로 끝나고 자리를 거의 안 먹는다
+# PGlite 소켓은 연결 하나 — 복사본에서만 고친다
+sed -i '' 's/max: 8, idleTimeoutMillis/max: 1, idleTimeoutMillis/' $R/clone/lib/prisma.ts
+# 시험대 파일(.txt 를 뗀다) — 복사본과 시험대 폴더에만 둔다. 작업 트리의 app/ · scripts/ 에는 두지 않는다
+cp $D/e2e-harness.mts.txt $R/clone/scripts/e2e-harness.mts
+for f in flow.mjs run-env.sh start-pub.sh stop-pub.sh; do cp $D/$f.txt $R/$f; done
+chmod +x $R/*.sh
+echo "env 파일:"; ls -a $R/clone | grep -i env

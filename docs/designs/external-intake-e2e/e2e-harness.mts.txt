@@ -11,7 +11,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { INTAKE_BUCKET } from '@/lib/intake/paths';
 import { TUS_CHUNK_BYTES } from '@/lib/intake/limits';
 import { INTAKE_CONSENT_DOCS } from '@/lib/intake/consent';
-import { createInvitation, requestCorrection } from '@/lib/intake/service';
+import { createInvitation, reissueInvitationToken, requestCorrection, withdrawRequiredConsent } from '@/lib/intake/service';
 import { mov120, mov240 } from './intake-fixtures.mts';
 import { publishRun, unpublish } from '@/lib/intake/publication';
 import { purgeSubmissionOriginals } from '@/lib/intake/purge';
@@ -33,8 +33,11 @@ const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: `postgre
 const dir = mkdtempSync(path.join(tmpdir(), 'intake-e2e-'));
 const SECRET = randomBytes(16);
 const SERVICE_KEY = 'e2e-service';
-const fx = { side: mov240(20 * 1024 * 1024 + 123), rear: mov120(14 * 1024 * 1024 + 77), big: mov240(3000) };
-const server = { uploads: new Map<string, any>(), objects: new Map<string, string>(), cutPatchAfter: null as number | null, patches: 0, delayMs: 0 };
+/* side2 는 옆과 크기가 같고 바이트가 다르다 — 다른 파일을 이어 붙이지 않는지 본다 */
+const fx = { side: mov240(20 * 1024 * 1024 + 123), side2: mov240(20 * 1024 * 1024 + 123), rear: mov120(14 * 1024 * 1024 + 77), rear2: mov120(14 * 1024 * 1024 + 77), big: mov240(3000) };
+const server = { uploads: new Map<string, any>(), objects: new Map<string, string>(), cutPatchAfter: null as number | null, cutMinOffset: 0, cutTimes: 1, patches: 0, delayMs: 0, hashDelayMs: 0, log: [] as Record<string, unknown>[] };
+/* TUS 기록 — 어느 객체에 무엇이 어느 자리부터 왔나. 끊긴 뒤 이어 가는지(처음부터가 아닌지) 보는 데 쓴다 */
+const tlog = (e: Record<string, unknown>) => server.log.push({ t: Date.now(), ...e });
 
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -73,34 +76,38 @@ async function tus(req: IncomingMessage, res: ServerResponse, id: string | null)
     const file = path.join(dir, `tus-${uid}`);
     writeFileSync(file, '');
     server.uploads.set(uid, { object: m.objectName, length: Number(req.headers['upload-length']), offset: 0, file });
+    tlog({ m: 'POST', uid, object: m.objectName, length: Number(req.headers['upload-length']) });
     return send(res, 201, null, { Location: `http://127.0.0.1:${ST_PORT}/storage/v1/upload/resumable/sign/${uid}` });
   }
   const up = id ? server.uploads.get(id) : null;
   if (!up) return send(res, 404, { message: 'Upload not found' });
   const why = verify(req.headers['x-signature'], up.object);
   if (why) return send(res, 400, { message: why });
+  if (req.method === 'HEAD') tlog({ m: 'HEAD', uid: id, object: up.object, offset: up.offset });
   if (req.method === 'HEAD') return send(res, 200, null, { 'Upload-Offset': String(up.offset), 'Upload-Length': String(up.length), 'Cache-Control': 'no-store' });
   if (req.method === 'PATCH') {
-    if (Number(req.headers['upload-offset']) !== up.offset) return send(res, 409, { message: 'offset conflict' });
+    const at = up.offset;
+    if (Number(req.headers['upload-offset']) !== up.offset) { tlog({ m: 'PATCH', uid: id, object: up.object, offset: Number(req.headers['upload-offset']), have: at, r: 'conflict' }); return send(res, 409, { message: 'offset conflict' }); }
     if (server.delayMs) await new Promise((r) => setTimeout(r, server.delayMs));
     const chunks: Buffer[] = [];
-    const cut = server.cutPatchAfter;
+    const cut = server.cutPatchAfter != null && at >= server.cutMinOffset ? server.cutPatchAfter : null;
     let got = 0;
     await new Promise<void>((resolve) => {
       req.on('data', (c: Buffer) => {
         chunks.push(c); got += c.length;
-        if (cut != null && got >= cut) { server.cutPatchAfter = null; req.socket.destroy(); resolve(); }
+        if (cut != null && got >= cut) { /* 브라우저는 다시 쓴 연결이 끊기면 같은 요청을 한 번 저절로 다시 보낸다 — times 번 끊어야 TUS 쪽 재시도가 돈다 */ if (--server.cutTimes <= 0) server.cutPatchAfter = null; req.socket.destroy(); resolve(); }
       });
       req.on('end', () => resolve());
       req.on('close', () => resolve());
     });
-    if (req.socket.destroyed && !req.complete) return;
+    if (req.socket.destroyed && !req.complete) { tlog({ m: 'PATCH', uid: id, object: up.object, offset: at, len: got, r: cut != null && got >= cut ? 'cut' : 'aborted' }); return; }
     const data = Buffer.concat(chunks);
     server.patches++;
     const final = up.offset + data.length >= up.length;
     if (!final && data.length !== TUS_CHUNK_BYTES) return send(res, 400, { message: 'chunk must be 6MB' });
     appendFileSync(up.file, data);
     up.offset += data.length;
+    tlog({ m: 'PATCH', uid: id, object: up.object, offset: at, len: data.length, r: 'ok' });
     if (up.offset === up.length) server.objects.set(up.object, up.file);
     return send(res, 204, null, { 'Upload-Offset': String(up.offset) });
   }
@@ -130,6 +137,9 @@ async function rest(req: IncomingMessage, res: ServerResponse, url: URL) {
   if (sr && req.method === 'GET') {
     const file = server.objects.get(decodeURIComponent(sr[2]));
     if (!file) return send(res, 404, { message: 'nf' });
+    /* 범위 없는 통째 읽기는 서버 검증(전체 해시)이다 — 늦춰서 '확인하고 있어요' 화면을 붙잡아 본다 */
+    tlog({ m: 'GET', object: decodeURIComponent(sr[2]), range: req.headers.range ?? null, delay: !req.headers.range ? server.hashDelayMs : 0 });
+    if (!req.headers.range && server.hashDelayMs) await new Promise((r) => setTimeout(r, server.hashDelayMs));
     const size = statSync(file).size;
     const range = /^bytes=(\d+)-(\d+)?$/.exec(req.headers.range ?? '');
     if (range) {
@@ -151,10 +161,29 @@ async function control(req: IncomingMessage, res: ServerResponse, url: URL) {
     return void res.end(b);
   }
   if (name === 'invite') {
-    const c = await createInvitation(db, { adminId: 'e2e-admin', uploadExpiresAt: q.get('expired') ? new Date(Date.now() - 1000) : undefined }, new Date());
+    const c = await createInvitation(db, { adminId: 'e2e-admin', uploadExpiresAt: q.get('expired') ? new Date(Date.now() - 1000) : undefined, accessCode: q.get('code') }, new Date());
     return send(res, 200, c);
   }
-  if (name === 'cut') { server.cutPatchAfter = Number(q.get('n') ?? 1_000_000); return send(res, 200, { ok: true }); }
+  if (name === 'cut') { server.cutPatchAfter = q.get('n') === '0' ? null : Number(q.get('n') ?? 1_000_000); server.cutMinOffset = Number(q.get('min') ?? 0); server.cutTimes = Number(q.get('times') ?? 1); return send(res, 200, { ok: true }); }
+  if (name === 'tuslog') { const sub = q.get('sub') ?? ''; return send(res, 200, server.log.filter((e) => String(e.object ?? '').includes(sub))); }
+  /* 머리를 안 보내는 응답 · 머리만 보내고 본문을 끝내지 않는 응답 — 브라우저 쪽이 요청을 여기로 돌린다(CDP Fetch) */
+  if (name === 'stall-headers') { tlog({ m: 'STALL', object: 'stall-headers' }); return; }
+  if (name === 'stall-body') { tlog({ m: 'STALL', object: 'stall-body', origin: req.headers.origin ?? null, auth: req.headers.authorization ? 'yes' : 'no' }); res.writeHead(200, { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.write('{"state":{"screen":'); req.on('close', () => tlog({ m: 'STALL', object: 'stall-body-closed' })); return; }
+  if (name === 'reissue') {
+    const s = await db.intakeSubmission.findUniqueOrThrow({ where: { id: q.get('id')! }, include: { invitation: true } });
+    return send(res, 200, await reissueInvitationToken(db, { adminId: 'e2e-admin', submissionId: s.id, expectedReissueCount: s.invitation.tokenReissueCount }, new Date()));
+  }
+  if (name === 'failures') { const s = await db.intakeSubmission.findUniqueOrThrow({ where: { id: q.get('id')! } }); await db.intakeInvitation.update({ where: { id: s.invitationId }, data: { accessCodeFailures: Number(q.get('n') ?? 0) } }); return send(res, 200, { ok: true }); }
+  if (name === 'codestate') { const s = await db.intakeSubmission.findUniqueOrThrow({ where: { id: q.get('id')! }, include: { invitation: true } }); return send(res, 200, { failures: s.invitation.accessCodeFailures, lockedAt: s.invitation.accessCodeLockedAt }); }
+  if (name === 'withdraw') return send(res, 200, await withdrawRequiredConsent(db, { adminId: 'e2e-admin', submissionId: q.get('id')! }, new Date()));
+  if (name === 'repurge') {
+    /* 지우기가 끊긴 뒤 다시 지운다 — 실제 저장소로 */
+    const st = createIntakeStorage({ url: `http://127.0.0.1:${ST_PORT}`, serviceKey: SERVICE_KEY });
+    const r = await purgeSubmissionOriginals({ db, storage: st as never, now: () => new Date(Date.now() + 16 * 60_000) }, q.get('id')!).catch((e) => ({ threw: String(e) }));
+    const left = [...server.objects.keys()].filter((k) => k.includes(q.get('id')!) && k.endsWith('/original'));
+    return send(res, 200, { purge: r, left });
+  }
+  if (name === 'hashdelay') { server.hashDelayMs = Number(q.get('ms') ?? 0); return send(res, 200, { ok: true }); }
   if (name === 'delay') { server.delayMs = Number(q.get('ms') ?? 0); return send(res, 200, { ok: true }); }
   if (name === 'revoke') { await db.intakeInvitation.update({ where: { id: q.get('id')! }, data: { status: 'revoked', revokedAt: new Date() } }); return send(res, 200, { ok: true }); }
   if (name === 'correct') { await requestCorrection(db, { adminId: 'e2e-admin', submissionId: q.get('id')!, fields: ['athleteName'], views: ['rear'], message: '뒤 영상에서 발이 잘렸어요. 다시 골라 주세요.' }); return send(res, 200, { ok: true }); }
