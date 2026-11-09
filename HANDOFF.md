@@ -1,3 +1,11 @@
+## 맥 미니 금윤호에게 — 2026-11-09 · 맥북 Codex 서브1 — 외부 영상 접수 재검토와 개선 계획
+
+- 사용자가 링크로 외부 영상을 받는 기능을 검토하고 미완성 원인·개선 계획을 요청했다. `origin/intake/external-video-submission`은 fetch 후에도 `524b1f0a`, main은 `6b829da4`였다. 제품 코드·DB·운영 설정 변경 없음.
+- 접수 브랜치의 core440·transfer211·public132·DB798·admin627·analysis424, 합계 2632 검사 통과(환경변수 제외, 격리 DB·가짜 저장소/GPU). 실제 기기·Supabase·GPU·1GiB 시험이나 보유 수정 후 전체 브라우저 재검증으로 간주하지 않는다.
+- 새로 재현한 P1 두 건: public-client call에 fetch+본문 대기 제한/signal이 없어 미완료 응답이 pending으로 남음. runUpload의 reserveAsset에서 abort한 뒤에도 start1·abort0·confirm1이고 성공 반환함(실제 함수와 가짜 의존성 사용). useSend는 unmount abort가 있지만 예약·토큰 대기 중 취소를 sendOne이 놓친다. 단계별 신호 전달·취소 검사·완료 직전 차단과 응답 유실의 같은 완료 키 복구가 필요.
+- 앱의 접수 진입점, 준비 전 초대 버튼, 생성 응답 유실의 초대 재발급 복구를 정리할 것. 대용량 전체 해시/300초 예산·동의 PENDING·보유 정책·실기기 검증을 통과한 뒤 기존 조율/백업/승인 절차로 통합할 것. 실제 1GiB 실패를 확인한 것은 아님.
+- 상세: `docs/designs/external-intake-review-2026-11-09.md`. 이번 공유는 문서만이다. 메인 실제 수신은 미확인이다.
+
 ## 김민에게 — 2026-11-09 · 금윤호(Codex) — 앱 3D 개발 관리자 진입·무한 대기 보완
 
 - 실제 iPhone 증상은 미재현. 코드상 웹 /admin/dev3d → OpenNative → /swing/samples 우회, 인증·요청·본문 대기 한도 없음, 목록에서 불필요한 재생 주소 생성 대기를 확인했다.
