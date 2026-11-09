@@ -6,28 +6,55 @@
 - 앱의 기존 3D 개발 관리자도 열리지 않는다고 사용자가 보고했다. 앱은 `/swing/samples`에서 `swing-lab.loadAppSwingList`를 부른다. 로그인 동기화와 목록 요청에는 명시적인 시간 제한이 없어 대기 가능성이 있으나, 실제 기기 재현은 못 했고 이것이 원인이라고 확정할 수 없다. 실제 증상·권한·동기화·응답·오류를 진단해 고치고 시간 제한·복구 안내를 검토해 달라. 대표관리자 정책의 정상 경로 허용은 순수 판정으로 확인했다.
 - 다음 순서: 앱 진입 문제 재현·수정 → 웹·앱의 접수 진입점과 링크 생성 연결 → 격리 전체 흐름·권한·원본/보유 삭제 검증 → 동의와 운영 설정 정리 → DB 백업·협업 조율 및 사용자 승인 범위 확인 후 배포·실기기 확인. 기존 접수 브랜치와 다른 작업을 보존한다. 실제 기기 확인 전 원본 보존을 확정하지 않는다.
 
-## 맥 미니 금윤호에게 — 2026-11-09 · 맥북 서브(Claude) — 접수 인계 수신 확인 · 이번에 한 일 · **코드 변경은 없다**
+## 맥 미니 금윤호에게 — 2026-11-09 · 맥북 서브(Claude) — 외부 접수: **못 한 것 · 해야 할 것 정리** (코드 변경 없음, 이어서 맥 미니에서)
 
-맥 미니의 2026-11-07 글(브랜치 `intake/external-video-submission` 의 `HANDOFF.md` 맨 위, 브랜치 끝 `524b1f0a`)을 맥북이 받았다. 이 글에는 접수 코드가 없고, 상태만 알린다. 접수 작업은 계속 브랜치에만 있다. **main 에 합치지 않았다.**
+맥 미니의 2026-11-07 글(브랜치 끝 `524b1f0a`)을 맥북이 받았다. 이번에 맥북이 한 일은 main 받기와 원격 브랜치 읽기뿐이다. 접수 코드는 계속 브랜치 `intake/external-video-submission` 에만 있고 **main 에 합치지 않았다.** 아래는 지금 남은 일의 전부다. 위에서부터 차례로 한다.
 
-한 일(맥북, 전부 읽기만 — 파일 · DB · 버킷 · 환경변수는 안 바꿨다):
+**금지(그대로)**: `prisma migrate dev` · `db push` · `migrate reset` · `npm run build` · `npm run intake:setup-bucket -- --apply`(허락 전). 마이그레이션은 허락 전에 `prisma/pending-migrations/` 에서 `prisma/migrations/` 로 옮기지 않는다. 3000 번 서버에 접수 API 를 부르지 않는다(공유 DB 에 표가 없다). 비밀번호 · 키 · 초대 링크 실제 값은 문서에 적지 않는다.
 
-1. `git pull --ff-only` 로 main 을 받았다(`79a960a5` → `aad46569`, 새 커밋 둘은 3D 촬영 안내 화면이라 접수와 무관). 받은 직후 로컬 서버 `localhost:3000` 응답 200 을 봤다. `tsc` 0 은 `79a960a5` 시점이고, 새 커밋 둘을 받은 뒤에는 다시 안 돌렸다.
-2. 브랜치를 전환하지 않고 원격 ref 만 읽었다(`git show` · `git grep` 의 `origin/intake/external-video-submission`). 원격 끝이 `524b1f0a` 로 맥 미니 글과 같음을 확인했다.
-3. 사용자가 물은 '영상 받는 링크 공유 버튼'의 위치를 코드로 찾았다: 관리자 → 접수(`/admin/intake`) → '초대 만들기' → '링크 만들기' → 창 안의 '링크 복사'(`app/(app)/admin/intake/create-invitation.tsx`). 링크는 만든 직후 그 창에서만 보이고, 접근 코드는 링크와 다른 길로 전하라는 안내가 붙어 있다. 만든 초대의 폐기 · 기간 늘리기는 접수 상세의 '초대' 구역.
+### 1. 못 한 시험 (사용자 허락 없이 할 수 있음)
 
-안 한 것 · 못 한 것:
+1. **`flow.mjs` · `admin.mjs` 전체 브라우저 흐름.** 맥 미니에는 헤드리스 크로미움이 없어 못 돌렸고, 맥북도 아직 안 돌렸다(브랜치로 전환하지 않았다). 방법은 `docs/designs/external-intake-e2e/README.md`.
+   - 길 하나: 맥 미니에 크로미움을 깐다(내려받기라 사용자 허락을 받고).
+   - 길 둘: 맥북에서 돌린다. 맥북 main 작업 트리에 접수와 무관한 미커밋 변경이 있어서, 정리 방법을 사용자에게 먼저 묻는다.
+2. 돌린 뒤 결과를 `docs/designs/external-intake-verification.md` 의 해당 줄에 사실대로 적는다. 안 돈 것을 통과로 적지 않는다.
 
-- 맥북에서 브랜치로 전환하지 않았다. 맥북 main 작업 트리에 이 작업과 무관한 미커밋 변경이 있어서다(아래). 그래서 `flow.mjs` · `admin.mjs` 전체 흐름은 아직 안 돌렸다. 사용자가 허락하면 그 변경을 정리한 뒤 전환해서 돌린다.
-- 링크는 실제로는 못 만든다. 공유 DB 에 접수 표가 없고 버킷 `external-intake` 도 없다. 적용은 사용자 허락을 받은 뒤 이 차례다: 김민 알림 → `npm run backup` → 마이그레이션을 `prisma/migrations` 로 → 버킷 → Vercel `SUPABASE_PUBLISHABLE_KEY` · `CRON_SECRET` → main.
-- 실제 기기 · 실제 Supabase · 실제 GPU · 1GiB 전송 · Vercel 크론은 맥북에서도 하나도 안 했다.
+### 2. 사용자에게 확인받을 것 (답이 있어야 다음으로 간다)
 
-맥북 작업 트리에 남은 것(접수와 무관, 건드리지 않았다. 이 푸시에도 안 실었다):
+판단 다섯 — 근거는 `docs/designs/external-intake-retention-findings.md` 끝 '구현자가 판단한 것':
 
-- 미커밋: `AGENTS.md`(Codex 작업 위치 규칙 · 미국/일본 출시 메모), `lib/market/lesson-dummy.ts`, `docs/designs/desktop-audit-2026-10-26/`, `docs/designs/dugout-desktop-layout-v2-*.md`, `scripts/lesson-dummy-2026-10-31.mts`.
-- `git stash` 한 칸('외부 접수 작업본 — 브랜치에 올림'): 브랜치에 이미 올라가 있어 필요 없다.
+1. 고침이 열린 접수는 삭제를 최대 14일 기다려 90일을 넘길 수 있다.
+2. 다시 내면 낸 날부터 90일을 다시 센다.
+3. 공개 안 한 접수의 철회가 지울 날을 미룬다.
+4. 정리 철회 틈.
+5. 고침에서 같은 영상 다시 보내기를 막는다(`same_as_sent`).
 
-다음 할 일은 맥 미니 글 그대로다. 맥북에서 `flow.mjs` · `admin.mjs` → 사용자 확인 다섯 → 허락 뒤 적용 → 실기기 · 실제 서비스 시험.
+사람이 정할 것: 대리 동의 범위 · `ANALYSIS_CONSENT` PENDING 다섯 건(끝나기 전에는 GPU 가 막힌다) · 분석 결과 보유 기간.
+
+### 3. 적용 (2번 확인과 사용자 허락 뒤, 이 차례로)
+
+1. 김민에게 알린다(공유 DB 를 바꾸는 일).
+2. `npm run backup`.
+3. 마이그레이션을 `prisma/pending-migrations/` 에서 `prisma/migrations/` 로 옮긴다.
+4. 버킷 `external-intake` 를 만든다. 프로젝트 파일 한도가 1GiB 이상인지 먼저 본다.
+5. Vercel 환경변수 `SUPABASE_PUBLISHABLE_KEY` · `CRON_SECRET`.
+6. main 에 합친다. main 에 올라가면 Vercel 빌드가 마이그레이션을 이 DB 에 바로 적용한다.
+
+### 4. 적용 뒤 실제 시험 (맥북에서도 맥 미니에서도 하나도 안 했다)
+
+실제 기기 · 실제 Supabase TUS(`remove` · `stat` 의 '없음' 문구) · 실제 GPU · 1GiB 전송 · Vercel 크론 · 초대 링크를 실제로 만들어 열어 보기. 목록은 `docs/designs/external-intake-verification.md` 의 UNVERIFIED.
+
+### 참고
+
+- 초대 링크 공유 버튼: 관리자 → 접수 `/admin/intake` → '초대 만들기' → '링크 만들기' → '링크 복사'(`app/(app)/admin/intake/create-invitation.tsx`). 링크는 만든 직후 창에서만 보인다. 적용(3번) 전에는 실제로 못 만든다.
+- 맥북 작업 트리의 미커밋 변경(`AGENTS.md`, `lib/market/lesson-dummy.ts` 등)과 stash 한 칸은 접수와 무관하고 필요 없다. 이 푸시에도 안 실었다.
+- 받는 법(브랜치에 있지 않다면): `git fetch origin` → `git switch intake/external-video-submission` → `git pull --ff-only` → `npm ci` → `npx prisma generate`.
+
+### 5. 맥북 Codex 세션이 같은 날 위에 남긴 글에서 나온 일 (위 글을 먼저 읽는다)
+
+- 앱 관리자에는 외부 접수 진입점이 없다. 브랜치는 웹 `/admin/intake` 의 '초대 만들기'만 구현했고 `native/` 는 안 바뀌었다. 앱에서 링크를 만들고 접수함을 보려면 3D 개발 관리자에서 연결하는 일이 남았다(코드 일, 브랜치에서).
+- 사용자가 앱의 기존 3D 개발 관리자(`/swing/samples`)가 안 열린다고 했다. 원인은 확정하지 못했다. 실제 기기 재현이 필요하다.
+- 운영 `/submit` · `/admin/intake` 는 404 가 맞다(접수 기능이 main 에 없다).
 
 ## 맥 미니 금윤호에게 — 2026-11-06 · 맥북 서브
 
