@@ -561,6 +561,7 @@ function RunItem({ submissionId, run: r, activePublicationId, disabled }: { subm
           submissionId={submissionId}
           runId={r.id}
           explanation={note}
+          canAcknowledge={canPublish}
           acknowledged={acknowledgementId != null}
           onAcknowledged={(id) => setAck({ id, publication: activePublicationId })}
         />
@@ -569,8 +570,18 @@ function RunItem({ submissionId, run: r, activePublicationId, disabled }: { subm
         <div className="space-y-2">
           <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={1000} placeholder="공개 화면에 보일 설명(선택)" aria-label="공개 설명" />
           {activeOther && <p className="text-xs text-warn">다른 결과가 공개 중이에요. 공개하면 이 결과로 바뀌어요.</p>}
-          {acknowledgementId == null && <p className="text-xs text-muted">먼저 3D 결과를 열어 보고 ‘이 결과 검토 완료’를 누르면 공개할 수 있어요.</p>}
-          <Button type="button" size="sm" disabled={pending || acknowledgementId == null} onClick={() => (activeOther ? askFirst('publish') : publish(activePublicationId))}>
+          {acknowledgementId == null && (
+            <p id={`publish-hint-${r.id}`} className="text-xs text-muted">
+              먼저 3D 결과를 열어 보고 ‘이 결과 검토 완료’를 누르면 공개할 수 있어요.
+            </p>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            disabled={pending || acknowledgementId == null}
+            aria-describedby={acknowledgementId == null ? `publish-hint-${r.id}` : undefined}
+            onClick={() => (activeOther ? askFirst('publish') : publish(activePublicationId))}
+          >
             이 결과 공개
           </Button>
         </div>

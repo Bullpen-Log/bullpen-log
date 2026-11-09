@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { Button, Input } from '@/components/ui';
 import { CONTROL_TIMEOUT_MS, IntakeRequestError, requestJson } from '@/lib/intake/public-client';
 import { body3dResultOf, type PublicResult } from '@/lib/intake/public-result';
-import { body3dReady } from './body3d-ready';
+import { watchBody3dReady } from './body3d-ready';
 
 /**
  * 공개 결과 화면 — 초대 링크로 들어온 사람이 승인된 판 하나를 본다. 데이터는 POST /api/intake/public/result 하나뿐이고, 허용 칸만 온다.
@@ -210,9 +210,8 @@ function ResultPhase({
   );
 }
 
-/** 3D 칸을 지켜보다 준비가 바뀌면 알린다 — 실패해 '다시'를 눌러 다시 불러오는 동안은 준비가 아니다 */
+/** 3D 칸을 지켜보다 준비가 바뀌면 알린다 — 판단 · 정리는 watchBody3dReady(시험이 그대로 돌린다) */
 function useBody3dReady(section: RefObject<HTMLElement | null>, onReadyChange?: (ready: boolean) => void) {
-  const last = useRef<boolean | null>(null);
   const report = useRef(onReadyChange);
   useEffect(() => {
     report.current = onReadyChange;
@@ -220,21 +219,7 @@ function useBody3dReady(section: RefObject<HTMLElement | null>, onReadyChange?: 
   useEffect(() => {
     const el = section.current;
     if (!el || !report.current) return;
-    const check = () => {
-      const ready = body3dReady(el);
-      if (ready !== last.current) {
-        last.current = ready;
-        report.current?.(ready);
-      }
-    };
-    check();
-    const watch = new MutationObserver(check);
-    watch.observe(el, { subtree: true, childList: true, attributes: true, attributeFilter: ['disabled', 'aria-label'] });
-    return () => {
-      watch.disconnect();
-      if (last.current) report.current?.(false);
-      last.current = null;
-    };
+    return watchBody3dReady(el, (ready) => report.current?.(ready));
   }, [section]);
 }
 

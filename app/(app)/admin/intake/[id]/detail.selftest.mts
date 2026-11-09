@@ -43,8 +43,12 @@ type Bench = {
   inputs: Record<string, (e: { currentTarget: { value: string } }) => void>;
   checks: Record<string, (next: boolean) => void>;
   hooks: { slots: unknown[]; i: number };
+  /** 검토 창(run-review.tsx)의 상태 칸 · 나중에 불러오는 조각 · 받은 결과 부품 속성 */
+  rr: { slots: unknown[]; i: number };
+  lazyWaits: Promise<unknown>[];
+  resultBody?: { onReadyChange?: (ready: boolean) => void; preview?: boolean };
 };
-const bench: Bench = { React, calls: [], answers: {}, clicks: {}, confirms: {}, refreshes: 0, toasts: [], inputs: {}, checks: {}, hooks: { slots: [], i: 0 } };
+const bench: Bench = { React, calls: [], answers: {}, clicks: {}, confirms: {}, refreshes: 0, toasts: [], inputs: {}, checks: {}, hooks: { slots: [], i: 0 }, rr: { slots: [], i: 0 }, lazyWaits: [] };
 (globalThis as unknown as { __detailTest: Bench }).__detailTest = bench;
 
 const ACTIONS = [
@@ -81,6 +85,8 @@ export function unstable_rethrow() {}`,
   '@/app/actions/intake-admin': actionStub,
   '@/lib/quiet-refresh': `export function quietRefresh(router) { router.refresh(); }`,
   '@/components/toast': `const b = globalThis.__detailTest; export function toast(t) { b.toasts.push(t); }`,
+  /* 받는 사람 결과 부품 — 검토 창이 넘기는 속성(준비 알림)을 쥔다 */
+  '@/components/intake/result-view': `const b = globalThis.__detailTest; export function ResultBody(props) { b.resultBody = props; return b.React.createElement('div', { 'data-result-body': '' }); }`,
   '@/components/error-line': `const h = globalThis.__detailTest.React.createElement; export function ErrorLine({ children }) { return h('p', { 'data-error': '' }, children); }`,
   '@/components/ui': `const b = globalThis.__detailTest; const h = b.React.createElement;
 const words = (n) => (Array.isArray(n) ? n.map(words).join('') : typeof n === 'string' ? n : n?.props?.children ? words(n.props.children) : '');
@@ -141,8 +147,25 @@ export function useState(init) {
   return [s.slots[k], (v) => { s.slots[k] = typeof v === 'function' ? v(s.slots[k]) : v; }];
 }`;
 
+/* 검토 창 — 상태를 바꾼 뒤 다시 그려 봐야 해서 칸을 쥐는 useState, 나중에 불러오는 조각(lazy)은 불러온 뒤 그린다 */
+const RR_REACT = `const b = globalThis.__detailTest; const s = b.rr;
+export function useState(init) {
+  const k = s.i++;
+  if (!(k in s.slots)) s.slots[k] = typeof init === 'function' ? init() : init;
+  return [s.slots[k], (v) => { s.slots[k] = typeof v === 'function' ? v(s.slots[k]) : v; }];
+}
+export function lazy(factory) {
+  let C = null;
+  b.lazyWaits.push(factory().then((m) => { C = m.default; }));
+  return function Lazy(props) { return C ? b.React.createElement(C, props) : null; };
+}
+export function Suspense({ children }) { return children; }
+export class Component { constructor(props) { this.props = props; } setState(v) { this.state = { ...this.state, ...v }; } }
+Component.prototype.isReactComponent = {};`;
+
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (specifier === 'react' && context.parentURL?.endsWith('/run-review.tsx')) return { url: `data:text/javascript,${encodeURIComponent(RR_REACT)}`, shortCircuit: true };
     if (specifier === 'react' && context.parentURL?.endsWith('/use-action.ts')) return { url: `data:text/javascript,${encodeURIComponent(FAKE_REACT)}`, shortCircuit: true };
     if (specifier === 'react' && context.parentURL?.endsWith('/components/intake/status-steps.tsx')) return { url: `data:text/javascript,${encodeURIComponent(HOOKS_REACT)}`, shortCircuit: true };
     if (specifier === 'react') return { url: reactUrl, shortCircuit: true };
@@ -167,6 +190,7 @@ registerHooks({
 
 const rules = await import('./detail-rules.ts');
 const { AnalysisPanel, AssetCard, JobStateLine, PairDownload, ReissueButton } = await import('./detail-client.tsx');
+const { RunReview } = await import('./run-review.tsx');
 const { AccessCodeLockBox, CorrectionPanel, JobIssuesPanel, UploadWindowBox, WithdrawConsentButton } = await import('./detail-manage.tsx');
 const { ACCESS_CODE_MIN_CHARS, ACCESS_CODE_MAX_CHARS } = await import('@/lib/intake/token');
 
@@ -336,6 +360,70 @@ const panel = (over: Record<string, unknown>) =>
   ok(['stale_review', 'review_required', 'stale_publication'].every(rules.dropsAcknowledgement) && !rules.dropsAcknowledgement('run_not_current'), '서버가 낡았다고 하면 검토 완료를 버린다');
   ok(rules.needsFreshView('stale_review'), '낡은 검토는 최신 내용을 다시 받는다');
   bench.calls.length = 0;
+}
+
+/* ── 검토 창의 연결(INTAKE-MAIN/R01) — 3D 준비 전에는 검토 완료 못 누름 · 누르면 서버가 준 해시 · 판을 보냄 · 받은 번호를 넘김 · 낡았으면 창을 닫음 ── */
+{
+  await Promise.all(bench.lazyWaits);
+  let got: string | null = null;
+  const view = (canAcknowledge = true) =>
+    h(RunReview, { submissionId: SID, runId: RUN.id, explanation: '', canAcknowledge, acknowledged: false, onAcknowledged: (id: string) => (got = id) });
+  const redraw = (canAcknowledge = true) => {
+    bench.rr.i = 0;
+    bench.clicks = {};
+    return renderToStaticMarkup(view(canAcknowledge));
+  };
+  const REVIEW = { ok: true, view: {}, athleteName: '선수', revisionNumber: 1, isCurrentRevision: true, finishedAt: null, resultDigest: 'd'.repeat(64), currentRevisionId: 'cr-1' };
+  const opened = async (canAcknowledge = true) => {
+    bench.rr.slots = [];
+    bench.rr.i = 0;
+    bench.resultBody = undefined;
+    redraw(canAcknowledge);
+    bench.answers = { getIntakeRunReview: REVIEW };
+    bench.calls = [];
+    await press(bench.clicks['3D 결과 검토'] ?? bench.clicks['3D 결과 보기'], '검토 열기');
+    return redraw(canAcknowledge);
+  };
+
+  let html = await opened();
+  ok(html.includes('data-result-body') && bench.resultBody?.preview === true, '열면 받는 사람 결과 부품을 미리보기로 그린다');
+  ok(/<button[^>]*disabled=""[^>]*>이 결과 검토 완료/.test(html), '3D 준비 전에는 검토 완료 단추가 꺼져 있다');
+  ok(typeof bench.resultBody?.onReadyChange === 'function', '결과 부품에 준비 알림을 넘긴다');
+  bench.calls = [];
+  bench.clicks['이 결과 검토 완료']?.();
+  await (bench as unknown as { last?: Promise<unknown> }).last;
+  eq(bench.calls.filter((c) => c[0] === 'acknowledgeIntakeRunReview').length, 0, '준비 전에는 눌러도 서버에 안 간다');
+
+  bench.resultBody!.onReadyChange!(true);
+  html = redraw();
+  ok(!/<button[^>]*disabled=""[^>]*>이 결과 검토 완료/.test(html) && html.includes('이 결과 검토 완료'), '준비되면 검토 완료 단추가 켜진다');
+  bench.answers = { acknowledgeIntakeRunReview: { ok: true, acknowledgementId: 'ack-9' } };
+  bench.calls = [];
+  bench.toasts = [];
+  await press(bench.clicks['이 결과 검토 완료'], '검토 완료');
+  eq(bench.calls, [['acknowledgeIntakeRunReview', SID, RUN.id, 'd'.repeat(64), 'cr-1']], '서버가 준 결과 해시 · 지금 판을 그대로 보낸다');
+  eq([got, bench.toasts.length], ['ack-9', 1], '받은 검토 완료 번호를 실행 줄로 넘기고 알린다');
+  ok(!redraw().includes('data-result-body'), '검토 완료 뒤 창을 닫는다');
+
+  /* 다시 열면 준비부터 다시 — 앞 창의 준비가 남지 않는다 */
+  bench.resultBody!.onReadyChange!(true);
+  html = await opened();
+  ok(/<button[^>]*disabled=""[^>]*>이 결과 검토 완료/.test(html), '다시 열면 준비 전 상태다');
+
+  /* 연 뒤 상태가 바뀌어 서버가 막으면 창을 닫고 번호를 안 넘긴다 */
+  got = null;
+  bench.resultBody!.onReadyChange!(true);
+  redraw();
+  bench.answers = { acknowledgeIntakeRunReview: { ok: false, code: 'stale_review', message: '검토한 뒤 결과나 접수가 바뀌었어요.' } };
+  await press(bench.clicks['이 결과 검토 완료'], '낡은 검토 완료');
+  ok(got === null && !redraw().includes('data-result-body'), '낡았으면 번호 없이 창을 닫는다(다시 열어 보게)');
+
+  /* 공개할 수 없는 실행(공개 중 · 옛 판)은 보기만 */
+  html = await opened(false);
+  ok(html.includes('보기만 해요') && !html.includes('이 결과 검토 완료'), '공개할 수 없는 실행에는 검토 완료 단추가 없다');
+  bench.rr.slots = [];
+  bench.rr.i = 0;
+  bench.resultBody = undefined;
 }
 
 /* ── 공개 · 내리기의 '알던 공개'(#29) ── */

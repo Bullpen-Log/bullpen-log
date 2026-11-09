@@ -29,10 +29,10 @@ import {
   type OriginalLink,
   type OriginalPurpose,
 } from '@/lib/intake/admin';
-import { loadRunReview, setAnalysisHand, startIntakeAnalysis, type RunReviewView } from '@/lib/intake/analysis';
+import { setAnalysisHand, startIntakeAnalysis } from '@/lib/intake/analysis';
 import { isIntakeError } from '@/lib/intake/errors';
 import { publishRun, unpublish } from '@/lib/intake/publication';
-import { acknowledgeRunReview } from '@/lib/intake/review';
+import { acknowledgeRunReview, loadRunReview, type RunReviewView } from '@/lib/intake/review';
 import type { IntakeView } from '@/lib/intake/state';
 import { getIntakeStorage } from '@/lib/intake/storage';
 
@@ -306,6 +306,8 @@ export async function publishIntakeRun(
   expectedActivePublicationId: string | null,
   options: { allowOlderRevision?: boolean; acknowledgementId?: string | null } = {},
 ): Promise<IntakeActionResult<{ replaced: boolean }>> {
+  /* 화면 밖 POST 는 무엇이든 보낼 수 있다 — 모양이 아니면 빈 선택으로 본다(null 로 500 이 나지 않게) */
+  const o: { allowOlderRevision?: unknown; acknowledgementId?: unknown } = options && typeof options === 'object' ? options : {};
   return asAdmin(async (actor) => {
     const result = await publishRun({
       runId,
@@ -313,8 +315,8 @@ export async function publishIntakeRun(
       adminId: actor.id,
       explanation,
       expectedActivePublicationId,
-      allowOlderRevision: options.allowOlderRevision === true,
-      acknowledgementId: typeof options.acknowledgementId === 'string' ? options.acknowledgementId : null,
+      allowOlderRevision: o.allowOlderRevision === true,
+      acknowledgementId: typeof o.acknowledgementId === 'string' ? o.acknowledgementId : null,
     });
     await markIntakeRead(db, actor, submissionId);
     revalidate(submissionId);

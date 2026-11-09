@@ -1013,6 +1013,46 @@ eq(unhandled, 0, '처리되지 않은 거절이 없다');
   eq(body3dReady(node({ canvas: true, play: { disabled: true } })), false, '불러오는 중 · 그릴 수 없음 · 실패(재생 단추 꺼짐)는 준비 아님');
   eq(body3dReady(node({ canvas: false, play: { disabled: false } })), false, '그림판이 없으면 준비 아님');
   eq(body3dReady(node({ canvas: true, play: { disabled: false } })), true, '그림판이 붙고 재생 단추가 켜지면 준비');
+  /* 지켜보기 — 바뀔 때만 알리고, 실패 뒤 다시 불러오는 동안은 준비가 아니고, 떼면 준비였던 것을 거둔다 */
+  const { watchBody3dReady } = await import('@/components/intake/body3d-ready');
+  const parts: { canvas?: boolean; play?: { disabled: boolean } | null } = {};
+  let fire: () => void = () => {};
+  let observed: MutationObserverInit | null = null;
+  let disconnected = false;
+  class FakeObserver {
+    constructor(cb: () => void) {
+      fire = cb;
+    }
+    observe(_t: Node, o: MutationObserverInit) {
+      observed = o;
+    }
+    disconnect() {
+      disconnected = true;
+    }
+  }
+  const el = node(parts) as unknown as ParentNode & Node;
+  (el as unknown as { querySelector: (s: string) => unknown }).querySelector = (sel: string) => (sel === 'canvas' ? (parts.canvas ? {} : null) : sel.includes('aria-label') ? (parts.play ?? null) : null);
+  const seen: boolean[] = [];
+  const stop = watchBody3dReady(el, (r) => seen.push(r), FakeObserver as never);
+  eq(seen, [false], '처음엔 준비 아님을 한 번 알린다');
+  ok(observed != null && (observed as MutationObserverInit).subtree === true && ((observed as MutationObserverInit).attributeFilter ?? []).includes('disabled'), '칸 전체 · 단추의 켜짐을 지켜본다');
+  parts.canvas = true;
+  parts.play = { disabled: true };
+  fire();
+  eq(seen, [false], '불러오는 중(단추 꺼짐)은 알리지 않는다 — 바뀐 것이 없다');
+  parts.play = { disabled: false };
+  fire();
+  eq(seen, [false, true], '단추가 켜지면 준비를 알린다');
+  fire();
+  eq(seen, [false, true], '같은 상태면 다시 알리지 않는다');
+  parts.play = { disabled: true };
+  fire();
+  eq(seen, [false, true, false], '실패 뒤 다시 불러오면 준비가 거둬진다');
+  parts.play = { disabled: false };
+  fire();
+  stop();
+  eq([seen.at(-1), disconnected], [false, true], '떼면 지켜보기를 끝내고 준비였던 것을 거둔다');
+
   /* 판정이 기대는 공용 부품의 모양 — 바뀌면 여기서 먼저 알게(바뀌면 검토 완료 단추가 안 켜지는 쪽으로 틀린다) */
   const src = readFileSync('app/(app)/videos/lab/[id]/body-3d.tsx', 'utf8');
   ok(/disabled=\{status !== 'ready'\}\s*aria-label=\{playing \? '멈춤' : '재생'\}/.test(src), "Body3D 재생 단추는 status 가 'ready' 일 때만 켜지고 이름이 재생/멈춤이다");

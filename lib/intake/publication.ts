@@ -20,9 +20,9 @@
  */
 import type { PrismaClient } from '@prisma/client';
 import { assertInvitationAllows, openIntakeScope, verifyResultAccess, type IntakeScope } from '@/lib/intake/access';
-import { appIntakeRuntime, carryInTx, IntakeAnalysisError, metaOf, readSucceededResult, runMatchesCurrent, type IntakeRuntime } from '@/lib/intake/analysis';
+import { appIntakeRuntime, carryInTx, IntakeAnalysisError, readSucceededResult, runMatchesCurrent, type IntakeRuntime } from '@/lib/intake/analysis';
 import { writeAudit } from '@/lib/intake/audit';
-import { assertReviewAcknowledged, currentReviewBinding, bindingMatches, publicationUsedAcknowledgement, readAcknowledgement } from '@/lib/intake/review';
+import { assertReviewAcknowledged, bindingMatches, currentReviewBinding, publicationUsedAcknowledgement, readAcknowledgement, sameResult } from '@/lib/intake/review';
 import { IntakeError, isIntakeError } from '@/lib/intake/errors';
 import { isIntakeId, seoulDateKey } from '@/lib/intake/paths';
 import { PUBLIC_RESPONSE_HEADERS } from '@/lib/intake/public-api';
@@ -75,7 +75,7 @@ export async function publishRun(input: PublishInput, rt?: PublishRuntime): Prom
 
   const found = await db.intakeAnalysisRun.findUnique({ where: { id: input.runId } });
   if (!found || (input.submissionId !== undefined && found.submissionId !== input.submissionId)) throw new IntakeError('run_not_found');
-  /* 파일 읽기는 트랜잭션 밖에서 — 저장소를 기다리며 줄을 잠그지 않는다. 끝난 실행은 안 바뀌어 다시 볼 것이 없다 */
+  /* 파일 읽기는 트랜잭션 밖에서 — 저장소를 기다리며 줄을 잠그지 않는다. 잠금 안에서 실행 줄을 다시 읽어 그때 읽은 결과와 같은지 본다(끝난 실행은 안 바뀐다는 말에 기대지 않는다) */
   if (!(await readSucceededResult(storage, found))) throw new IntakeError('run_not_publishable');
 
   return db.$transaction(async (tx) => {
@@ -85,7 +85,7 @@ export async function publishRun(input: PublishInput, rt?: PublishRuntime): Prom
     if (sub.status === 'withdrawn') throw new IntakeError('result_unavailable');
     /* 잠금 밖에서 읽은 결과가 지금도 그 실행의 결과인가 — 끝난 실행은 안 바뀐다는 주석만 믿지 않는다 */
     const run = await tx.intakeAnalysisRun.findUniqueOrThrow({ where: { id: found.id } });
-    if (run.status !== found.status || run.resultPath !== found.resultPath || metaOf(run).sha256 !== metaOf(found).sha256) {
+    if (!sameResult(found, run)) {
       throw new IntakeAnalysisError('stale_review', { reason: 'result' });
     }
 

@@ -23,7 +23,6 @@ import {
   carryAnalysisForward,
   listRuns,
   loadRunResult,
-  loadRunReview,
   pollIntakeRun,
   runResultPath,
   setAnalysisHand,
@@ -43,7 +42,7 @@ import { TUS_URL_TTL_MS } from '@/lib/intake/limits';
 import { assetObjectPath, runObjectPrefix } from '@/lib/intake/paths';
 import { handlePublicResultRequest, loadPublicResult, publishRun, unpublish } from '@/lib/intake/publication';
 import { purgeSubmissionOriginals } from '@/lib/intake/purge';
-import { acknowledgeRunReview, REVIEW_ACK_ACTION, REVIEW_OPENED_ACTION } from '@/lib/intake/review';
+import { acknowledgeRunReview, bindingMatches, currentReviewBinding, loadRunReview, REVIEW_ACK_ACTION, REVIEW_CONTRACT, REVIEW_OPENED_ACTION, type ReviewBinding } from '@/lib/intake/review';
 import { body3dResultOf, toPublicView } from '@/lib/intake/public-result';
 import {
   cleanupStaleUploads,
@@ -1736,7 +1735,8 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
     eq([(audit.detail as Record<string, unknown>).acknowledgementId, (audit.detail as Record<string, unknown>).publicationId], [firstAck, ok1.publicationId], '공개 기록이 쓴 검토 완료와 공개 번호를 가리킨다');
     const ackRow = await db.intakeAudit.findUniqueOrThrow({ where: { id: firstAck! } });
     const d = ackRow.detail as Record<string, unknown>;
-    eq([d.contract, d.explicit, d.runId, d.invitationId, ackRow.actorId], ['intake-review/1', true, run.id, m.invitationId, ADMIN], '검토 완료는 계약 판 · 실행 · 초대 · 검토자에 묶인다');
+    eq([d.contract, d.explicit, d.runId, d.invitationId, ackRow.actorId], [REVIEW_CONTRACT, true, run.id, m.invitationId, ADMIN], '검토 완료는 계약 판 · 실행 · 초대 · 검토자에 묶인다');
+    ok(d.marks != null && typeof (d.marks as Record<string, unknown>).submissionVersion === 'number', '바뀜 표시(접수 판 번호 · 손 바꿈 · 실행 수)도 묶인다');
     ok(/^[0-9a-f]{64}$/.test(String(d.resultSha256)) && d.runInput != null && d.generation != null, '결과 해시 · 입력 · 공개 세대도 묶인다');
   }
 
@@ -1824,6 +1824,176 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
     /* 회수 뒤에는 응답 유실이어도 돌려주지 않는다 — 회수 검사는 예외 밖이다 */
     await adminRevokeInvitation(db, ACTOR, { submissionId: m.submissionId }, new Date(nowMs));
     await fails(pub(m, run.id, a, { explanation: '같은 설명' }), 'invitation_revoked', '회수 뒤에는 같은 공개도 돌려주지 않는다');
+  }
+
+  /* 8. 값이 되돌아와도(손 R→L→R) 그사이 바뀜은 바뀜이다 */
+  {
+    const { m, run } = await ready();
+    const before = await ack(m, run.id);
+    await setAnalysisHand({ submissionId: m.submissionId, adminId: ADMIN2, hand: 'L' }, rt);
+    await setAnalysisHand({ submissionId: m.submissionId, adminId: ADMIN2, hand: 'R' }, rt);
+    await fails(pub(m, run.id, before), 'stale_review', '손이 바뀌었다 되돌아와도 그 앞의 검토 완료로는 공개 못 한다');
+    eq((await counts(m.submissionId)).pubs, 0, '공개가 안 생긴다');
+  }
+
+  /* 9. 새 분석이 오면 앞 실행의 검토 완료도 낡는다 — 다시 검토하면 앞 실행을 공개할 수 있다 */
+  {
+    const { m, run } = await ready();
+    const old = await ack(m, run.id);
+    gpuState.build = 'build-r01-9';
+    await start(m.submissionId);
+    await finishGpu(lastCall());
+    gpuState.build = 'build-a';
+    await fails(pub(m, run.id, old), 'stale_review', '새 분석 뒤에는 앞 실행의 옛 검토 완료로 공개 못 한다');
+    eq((await pub(m, run.id, await ack(m, run.id))).created, true, '다시 열어 검토하면 앞 실행도 공개한다');
+  }
+
+  /* 10. 연 뒤 바뀌었으면 검토 완료를 남기지 않는다 — 화면이 본 것과 서버가 묶는 것이 같아야 한다 */
+  {
+    const { m, run } = await ready();
+    const v = await loadRunReview({ submissionId: m.submissionId, runId: run.id, adminId: ADMIN }, rt);
+    await setAnalysisHand({ submissionId: m.submissionId, adminId: ADMIN2, hand: 'L' }, rt);
+    await assert.rejects(acknowledgeRunReview({ submissionId: m.submissionId, runId: run.id, adminId: ADMIN, resultDigest: v.resultDigest, currentRevisionId: v.currentRevisionId }, rt), (e: unknown) => {
+      eq([(e as IntakeError).code, (e as IntakeError).detail?.reason], ['stale_review', 'reopen'], '연 뒤 손이 바뀌면 다시 열라고 한다');
+      return true;
+    });
+    const p0 = await pub(m, run.id, await ack(m, run.id, ADMIN2), { adminId: ADMIN2, allowOlderRevision: true });
+    await fails(acknowledgeRunReview({ submissionId: m.submissionId, runId: run.id, adminId: ADMIN, resultDigest: v.resultDigest, currentRevisionId: v.currentRevisionId }, rt), 'stale_review', '연 뒤 다른 관리자가 공개해도 다시 열어야 한다');
+    ok(p0.created, '그 공개는 그대로다');
+  }
+
+  /* 11. 같은 묶음의 검토 완료를 두 번 누르면 있던 기록 */
+  {
+    const { m, run } = await ready();
+    const v = await loadRunReview({ submissionId: m.submissionId, runId: run.id, adminId: ADMIN }, rt);
+    const input = { submissionId: m.submissionId, runId: run.id, adminId: ADMIN, resultDigest: v.resultDigest, currentRevisionId: v.currentRevisionId };
+    const [a1, a2] = await Promise.all([acknowledgeRunReview(input, rt), acknowledgeRunReview(input, rt)]);
+    const a3 = await acknowledgeRunReview(input, rt);
+    eq([a1.acknowledgementId === a2.acknowledgementId, a2.acknowledgementId === a3.acknowledgementId], [true, true], '두 번 · 동시에 눌러도 같은 번호');
+    eq(await db.intakeAudit.count({ where: { submissionId: m.submissionId, action: REVIEW_ACK_ACTION } }), 1, '검토 완료 줄은 하나');
+  }
+
+  /* 12. 지금 공개만 다른 경우(내리기 — 마지막 번호는 그대로) */
+  {
+    const { m, run } = await ready();
+    const p1 = await pub(m, run.id, await ack(m, run.id), { explanation: '첫' });
+    const whileActive = await ack(m, run.id);
+    await unpublish({ submissionId: m.submissionId, adminId: ADMIN, expectedActivePublicationId: p1.publicationId }, rt);
+    await fails(pub(m, run.id, whileActive, { explanation: '둘', expected: null }), 'stale_review', '공개 중에 남긴 검토 완료는 내린 뒤에 못 쓴다(마지막 번호가 같아도)');
+  }
+
+  /* 13. 잠금 밖에서 읽은 결과와 잠금 안의 실행이 다르면 막는다(끝난 실행은 안 바뀐다는 말에 기대지 않는다) */
+  {
+    const { m, run } = await ready();
+    const v = await loadRunReview({ submissionId: m.submissionId, runId: run.id, adminId: ADMIN }, rt);
+    const original = (await runOf(run.id)).resultPath!;
+    let armed = false;
+    const hooked = {
+      ...rt,
+      storage: {
+        ...storage,
+        reader: async (p: string) => {
+          const r0 = await storage.reader(p);
+          if (armed) {
+            armed = false;
+            await db.intakeAnalysisRun.update({ where: { id: run.id }, data: { resultPath: `${original}.moved` } });
+          }
+          return r0;
+        },
+      },
+    } as IntakeRuntime;
+    armed = true;
+    await assert.rejects(acknowledgeRunReview({ submissionId: m.submissionId, runId: run.id, adminId: ADMIN, resultDigest: v.resultDigest, currentRevisionId: v.currentRevisionId }, hooked), (e: unknown) => {
+      eq([(e as IntakeError).code, (e as IntakeError).detail?.reason], ['stale_review', 'result'], '검토 완료: 잠금 안 재확인이 바뀐 결과를 잡는다');
+      return true;
+    });
+    await db.intakeAnalysisRun.update({ where: { id: run.id }, data: { resultPath: original } });
+    const a = await ack(m, run.id);
+    armed = true;
+    await assert.rejects(
+      publishRun({ runId: run.id, submissionId: m.submissionId, adminId: ADMIN, explanation: 'x', expectedActivePublicationId: null, acknowledgementId: a }, hooked),
+      (e: unknown) => {
+        eq([(e as IntakeError).code, (e as IntakeError).detail?.reason], ['stale_review', 'result'], '공개: 잠금 안 재확인이 바뀐 결과를 잡는다');
+        return true;
+      },
+    );
+    await db.intakeAnalysisRun.update({ where: { id: run.id }, data: { resultPath: original } });
+    eq((await counts(m.submissionId)).pubs, 0, '공개가 안 생긴다');
+  }
+
+  /* 14. 검토 뒤 결과 해시 · 실행 입력이 바뀌면(파일은 맞게 바뀌어도) 낡은 검토 완료로 공개 못 한다 */
+  {
+    const { m, run } = await ready();
+    const a = await ack(m, run.id);
+    const row = await runOf(run.id);
+    const bytes = objects.get(row.resultPath!)!;
+    const rewritten = Buffer.from(JSON.stringify(JSON.parse(bytes.toString('utf8')), null, 1));
+    objects.set(row.resultPath!, rewritten);
+    await db.intakeAnalysisRun.update({ where: { id: run.id }, data: { resultMeta: { ...(row.resultMeta as object), sha256: sha(rewritten) } } });
+    await fails(pub(m, run.id, a), 'stale_review', '결과 해시가 달라지면 검토 완료가 낡는다');
+    objects.set(row.resultPath!, bytes);
+    await db.intakeAnalysisRun.update({ where: { id: run.id }, data: { resultMeta: row.resultMeta as object } });
+
+    const b = await ack(m, run.id);
+    const meta = row.resultMeta as { input: { side: string; rear: string; hand: string } };
+    await db.intakeAnalysisRun.update({ where: { id: run.id }, data: { resultMeta: { ...meta, input: { ...meta.input, hand: meta.input.hand === 'R' ? 'L' : 'R' } } } });
+    await fails(pub(m, run.id, b, { allowOlderRevision: true }), 'stale_review', '실행 입력이 달라지면 검토 완료가 낡는다');
+    await db.intakeAnalysisRun.update({ where: { id: run.id }, data: { resultMeta: row.resultMeta as object } });
+  }
+
+  /* 15. 묶음 칸 하나하나 — 하나라도 다르면 안 맞는다(순수 비교) */
+  {
+    const base: ReviewBinding = {
+      contract: REVIEW_CONTRACT,
+      explicit: true,
+      invitationId: 'inv',
+      runId: 'run',
+      runRevisionId: 'rr',
+      currentRevisionId: 'cr',
+      resultSha256: 'a'.repeat(64),
+      runInput: { side: 's', rear: 'r', hand: 'R' },
+      currentInput: { side: 's', rear: 'r', hand: 'R' },
+      generation: { lastNumber: 2, activeId: 'p' },
+      marks: { submissionVersion: 5, handSets: 1, runCount: 2, latestRunId: 'run' },
+    };
+    ok(bindingMatches(JSON.parse(JSON.stringify(base)), base), '같은 묶음은 맞는다(감사 JSON 을 거쳐도)');
+    const flips: [string, (b: ReviewBinding) => ReviewBinding][] = [
+      ['contract', (b) => ({ ...b, contract: 'intake-review/1' as never })],
+      ['explicit', (b) => ({ ...b, explicit: false as never })],
+      ['invitationId', (b) => ({ ...b, invitationId: 'x' })],
+      ['runId', (b) => ({ ...b, runId: 'x' })],
+      ['runRevisionId', (b) => ({ ...b, runRevisionId: 'x' })],
+      ['currentRevisionId', (b) => ({ ...b, currentRevisionId: null })],
+      ['resultSha256', (b) => ({ ...b, resultSha256: 'b'.repeat(64) })],
+      ['runInput', (b) => ({ ...b, runInput: { ...b.runInput, hand: 'L' } })],
+      ['currentInput', (b) => ({ ...b, currentInput: null })],
+      ['lastNumber', (b) => ({ ...b, generation: { ...b.generation, lastNumber: 3 } })],
+      ['activeId', (b) => ({ ...b, generation: { ...b.generation, activeId: null } })],
+      ['submissionVersion', (b) => ({ ...b, marks: { ...b.marks, submissionVersion: 6 } })],
+      ['handSets', (b) => ({ ...b, marks: { ...b.marks, handSets: 2 } })],
+      ['runCount', (b) => ({ ...b, marks: { ...b.marks, runCount: 3 } })],
+      ['latestRunId', (b) => ({ ...b, marks: { ...b.marks, latestRunId: 'y' } })],
+    ];
+    for (const [field, flip] of flips) ok(!bindingMatches(flip(base), base), `묶음 칸 '${field}' 이 다르면 안 맞는다`);
+    ok(!bindingMatches({ ...base, marks: undefined }, base) && !bindingMatches(null, base), '모자란 기록은 안 맞는다');
+  }
+
+  /* 16. 잠금 순서 — 검토 완료 · 공개 · 회수가 초대 상태를 보기 전에 접수 줄을 잠근다(실제 여러 연결 경합은 PGlite 로 못 본다 — 원문으로 지킨다) */
+  {
+    const lockFirst = (src: string, fn: string, before: RegExp) => {
+      const body = src.slice(src.indexOf(`export async function ${fn}`));
+      const next = body.indexOf('\nexport ', 10);
+      const part = next > 0 ? body.slice(0, next) : body;
+      const lock = part.indexOf('FOR UPDATE');
+      const m2 = before.exec(part);
+      return lock > 0 && m2 != null && lock < m2.index;
+    };
+    const reviewSrc = readFileSync('lib/intake/review.ts', 'utf8');
+    const pubSrc = readFileSync('lib/intake/publication.ts', 'utf8');
+    const adminSrc = readFileSync('lib/intake/admin.ts', 'utf8');
+    ok(lockFirst(reviewSrc, 'acknowledgeRunReview', /invitation\.status/), '검토 완료는 접수 줄을 먼저 잠근다');
+    ok(lockFirst(pubSrc, 'publishRun', /invitation\.status/), '공개는 접수 줄을 먼저 잠근다');
+    ok(lockFirst(adminSrc, 'adminRevokeInvitation', /intakeInvitation\.updateMany/), '회수도 접수 줄을 먼저 잠근다(같은 잠금 순서)');
   }
 
   /* 7. 경계 — 검토 완료와 공개 사이에 손 바꿈이 끼어들면(잠금 순서상 공개가 늦게 잡음) 공개가 막힌다. PGlite 연결 하나라 실제 여러 연결 경합은 아니다 */

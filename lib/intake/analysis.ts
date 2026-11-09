@@ -26,7 +26,6 @@ import { IntakeError, INTAKE_ERROR_TEXT, type IntakeErrorCode } from '@/lib/inta
 import { enqueueJob } from '@/lib/intake/jobs';
 import type { IntakeMediaFacts } from '@/lib/intake/media';
 import { isIntakeId, runObjectPrefix } from '@/lib/intake/paths';
-import { toPublicView, type PublicPitchView } from '@/lib/intake/public-result';
 import { originalRetention, retentionDue } from '@/lib/intake/retention';
 import { ASSET_GONE, canMoveAnalysis, readCorrection, type AnalysisStatus, type IntakeView } from '@/lib/intake/state';
 import type { IntakeRunStorage } from '@/lib/intake/storage-core';
@@ -454,53 +453,6 @@ export async function loadRunResult(runId: string, rt?: IntakeRuntime): Promise<
   const result = await readSucceededResult(r.storage, run);
   if (!result) throw new IntakeError('run_not_publishable');
   return result;
-}
-
-/** 관리자 3D 검토에 실어 보내는 것 — 받는 사람이 볼 칸과, 서버가 확인한 검토 대상(결과 해시 · 지금 판) */
-export type RunReviewView = {
-  view: PublicPitchView;
-  athleteName: string;
-  revisionNumber: number;
-  isCurrentRevision: boolean;
-  finishedAt: string | null;
-  /** 서버가 결과 파일을 다시 읽어 맞춘 SHA-256 — 검토 완료(acknowledgeRunReview)가 그대로 돌려보낸다 */
-  resultDigest: string;
-  /** 이름을 읽은 지금 판 — 이름 표시도 검토 대상이다. 판이 바뀌면 다시 검토한다 */
-  currentRevisionId: string | null;
-};
-
-/**
- * 관리자 3D 검토 열기 — 공개 전에 받는 사람이 볼 모양 그대로(toPublicView 의 허용 칸) 연다. 공개는 이 실행 번호로만 한다(publishRun).
- * 접수 번호와 실행 번호를 같이 받아 그 접수의 실행인지 본다. 결과 파일의 해시 · 모양 검사는 loadRunResult 를 그대로 쓴다.
- * 이것은 '열었다'(run.review_opened)일 뿐 검토 완료가 아니다 — 공개는 따로 누르는 검토 완료(lib/intake/review.ts)만 받는다(INTAKE-MAIN/R01).
- * 이름은 공개 화면과 같은 규칙(지금 판 → 실행 판)으로 읽는다. 권한은 부르는 쪽(관리자 동작)이 먼저 본다.
- */
-export async function loadRunReview(input: { submissionId: string; runId: string; adminId: string }, rt?: IntakeRuntime): Promise<RunReviewView> {
-  if (!isIntakeId(input.submissionId) || !isIntakeId(input.runId)) throw new IntakeError('run_not_found');
-  const r = rt ?? (await appIntakeRuntime());
-  const run = await r.db.intakeAnalysisRun.findFirst({
-    where: { id: input.runId, submissionId: input.submissionId },
-    select: { id: true, finishedAt: true, resultMeta: true, revision: { select: { id: true, number: true, athleteName: true } }, submission: { select: { currentRevisionId: true } } },
-  });
-  if (!run) throw new IntakeError('run_not_found');
-  const result = await loadRunResult(run.id, r);
-  const resultDigest = metaOf(run).sha256 ?? '';
-  const currentRevisionId = run.submission.currentRevisionId;
-  const current = currentRevisionId ? await r.db.intakeRevision.findUnique({ where: { id: currentRevisionId }, select: { athleteName: true } }) : null;
-  await writeAudit(
-    r.db,
-    { actor: { kind: 'admin', id: input.adminId }, action: 'run.review_opened', submissionId: input.submissionId, detail: { runId: run.id, resultSha256: resultDigest, currentRevisionId } },
-    clock(r),
-  );
-  return {
-    view: toPublicView(result),
-    athleteName: current?.athleteName ?? run.revision.athleteName ?? '',
-    revisionNumber: run.revision.number,
-    isCurrentRevision: currentRevisionId === run.revision.id,
-    finishedAt: run.finishedAt?.toISOString() ?? null,
-    resultDigest,
-    currentRevisionId,
-  };
 }
 
 /* ────────────────────────────── 실행 끝내기 ────────────────────────────── */

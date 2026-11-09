@@ -66,13 +66,13 @@ export function passwordFingerprint() { return 'fp'; }`,
     `const g = globalThis.__intakeTest;
 export async function startIntakeAnalysis(i) { g.calls.push('start:' + i.submissionId + ':' + i.adminId + ':' + i.confirmDraftConsent); return { run: { status: 'requested' }, created: true }; }
 export async function setAnalysisHand(i) { g.calls.push('hand:' + i.hand); }
-export async function loadRunReview(i) { g.calls.push('review:' + i.submissionId + ':' + i.runId + ':' + i.adminId); return { view: {}, athleteName: '', revisionNumber: 1, isCurrentRevision: true, finishedAt: null }; }
 export async function carryInTx() { return null; }
 export const runMatchesCurrent = () => false;`,
   ],
   [
     '/lib/intake/review.ts',
     `const g = globalThis.__intakeTest;
+export async function loadRunReview(i) { g.calls.push('review:' + i.submissionId + ':' + i.runId + ':' + i.adminId); return { view: {}, athleteName: '', revisionNumber: 1, isCurrentRevision: true, finishedAt: null, resultDigest: '', currentRevisionId: null }; }
 export async function acknowledgeRunReview(i) { g.calls.push(['ack', i.submissionId, i.runId, i.adminId, i.resultDigest, i.currentRevisionId].join(':')); return { acknowledgementId: 'ack-1' }; }`,
   ],
   [

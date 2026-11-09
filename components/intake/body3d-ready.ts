@@ -10,3 +10,28 @@ export function body3dReady(root: ParentNode | null): boolean {
   const play = root.querySelector<HTMLButtonElement>('button[aria-label="재생"], button[aria-label="멈춤"]');
   return play != null && !play.disabled;
 }
+
+type ObserverCtor = new (cb: () => void) => { observe(target: Node, options: MutationObserverInit): void; disconnect(): void };
+
+/**
+ * 3D 칸을 지켜보다 준비가 바뀔 때만 알린다 — 실패해 '다시'를 눌러 다시 불러오는 동안은 준비가 아니다. 떼면 준비였던 것을 거둔다.
+ * 지켜보는 도구(MutationObserver)를 바꿔 끼울 수 있어 node 시험이 그대로 돌린다. 돌려준 함수가 정리다.
+ */
+export function watchBody3dReady(el: ParentNode & Node, report: (ready: boolean) => void, Observer: ObserverCtor = MutationObserver): () => void {
+  let last: boolean | null = null;
+  const check = () => {
+    const ready = body3dReady(el);
+    if (ready !== last) {
+      last = ready;
+      report(ready);
+    }
+  };
+  check();
+  const watch = new Observer(check);
+  watch.observe(el, { subtree: true, childList: true, attributes: true, attributeFilter: ['disabled', 'aria-label'] });
+  return () => {
+    watch.disconnect();
+    if (last) report(false);
+    last = null;
+  };
+}
