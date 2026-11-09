@@ -29,7 +29,8 @@ import {
   type OriginalLink,
   type OriginalPurpose,
 } from '@/lib/intake/admin';
-import { setAnalysisHand, startIntakeAnalysis } from '@/lib/intake/analysis';
+import { loadRunReview, setAnalysisHand, startIntakeAnalysis } from '@/lib/intake/analysis';
+import type { PublicPitchView } from '@/lib/intake/public-result';
 import { isIntakeError } from '@/lib/intake/errors';
 import { publishRun, unpublish } from '@/lib/intake/publication';
 import type { IntakeView } from '@/lib/intake/state';
@@ -251,6 +252,14 @@ export async function getIntakeRunPreview(submissionId: string, runId: string, v
     const { url } = await issueRunPreviewLink(db, getIntakeStorage(), actor, { submissionId, runId, view });
     return { url };
   });
+}
+
+/** 공개 전 3D 검토 — 받는 사람이 볼 허용 칸만 온다. 연 사실은 감사 기록에 남는다 */
+export async function getIntakeRunReview(
+  submissionId: string,
+  runId: string,
+): Promise<IntakeActionResult<{ view: PublicPitchView; athleteName: string; revisionNumber: number; isCurrentRevision: boolean; finishedAt: string | null }>> {
+  return asAdmin(async (actor) => loadRunReview({ submissionId, runId, adminId: actor.id }));
 }
 
 /* ── 분석 · 공개 — 판단과 쓰기는 lib/intake/analysis.ts · publication.ts 가 한다. 여기는 권한만 보고 넘긴다 ── */

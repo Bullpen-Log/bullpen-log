@@ -23,6 +23,7 @@ import {
   carryAnalysisForward,
   listRuns,
   loadRunResult,
+  loadRunReview,
   pollIntakeRun,
   runResultPath,
   setAnalysisHand,
@@ -411,6 +412,14 @@ const originalsOf = async (id: string) => (await db.intakeAsset.findMany({ where
   ok(views[0].frames === realResult.t.length && views[0].hasResult && views[0].report, '결과 요약과 진단 꼬리표가 남는다');
   ok(row.resultPath === runResultPath(m.submissionId, run.id), '결과 경로가 남는다');
   eq((await loadRunResult(run.id, rt)).jobId, run.id, '관리자는 공개 전 결과를 읽는다');
+  /* 공개 전 3D 검토 — 받는 사람이 볼 허용 칸만, 그 접수의 실행만, 연 사실은 감사 기록에 */
+  const review = await loadRunReview({ submissionId: m.submissionId, runId: run.id, adminId: 'admin-1' }, rt);
+  eq([review.view.joints.length, review.view.hand, review.revisionNumber, review.isCurrentRevision], [realResult.joints.length, realResult.hand, 1, true], '검토는 이 실행의 3D 를 공개 모양으로 준다');
+  ok(!('engine' in review.view) && !('quality' in review.view) && !('jobId' in review.view), '검토도 공개 허용 칸만 준다');
+  eq(await db.intakeAudit.count({ where: { submissionId: m.submissionId, action: 'run.reviewed' } }), 1, '검토한 사실을 남긴다');
+  const other = await makeVerified();
+  await fails(loadRunReview({ submissionId: other.submissionId, runId: run.id, adminId: 'admin-1' }, rt), 'run_not_found', '다른 접수의 실행은 안 연다');
+  await fails(loadRunReview({ submissionId: m.submissionId, runId: 'not-an-id', adminId: 'admin-1' }, rt), 'run_not_found', '틀린 번호는 안 연다');
 
   /* 일감으로 도는 길 — 임대 · 재시도 */
   const m2 = await makeVerified();

@@ -44,6 +44,7 @@ import {
 } from '@/app/actions/intake-admin';
 import { IssuedLinkPanel, type ShownLink } from '../create-invitation';
 import { originalWarning, runPreviewVisible } from './detail-rules';
+import { RunReview } from './run-review';
 import { useAction } from './use-action';
 
 /**
@@ -496,6 +497,9 @@ function RunItem({ submissionId, run: r, activePublicationId, disabled }: { subm
   const seenPublication = useRef(activePublicationId);
   const activeOther = activePublicationId != null && !r.published;
   const canPublish = r.status === 'succeeded' && r.hasResult && !r.published && r.isCurrentRevision && !disabled;
+  /* 공개 전에 받는 사람이 볼 3D 를 연다 — 공개 중이거나 옛 판인 결과도 다시 볼 수 있다. 공개 단추는 이 실행을 연 뒤에 켜진다 */
+  const reviewable = r.status === 'succeeded' && r.hasResult && !disabled;
+  const [reviewed, setReviewed] = useState(false);
   const askFirst = (what: 'publish' | 'unpublish') => {
     seenPublication.current = activePublicationId;
     setAsk(what);
@@ -542,11 +546,13 @@ function RunItem({ submissionId, run: r, activePublicationId, disabled }: { subm
         </p>
       )}
       {runPreviewVisible(r, disabled) && <PreviewPair submissionId={submissionId} runId={r.id} partial={r.status !== 'succeeded'} />}
+      {reviewable && <RunReview submissionId={submissionId} runId={r.id} explanation={note} onReviewed={() => setReviewed(true)} />}
       {canPublish && (
         <div className="space-y-2">
           <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={1000} placeholder="공개 화면에 보일 설명(선택)" aria-label="공개 설명" />
           {activeOther && <p className="text-xs text-warn">다른 결과가 공개 중이에요. 공개하면 이 결과로 바뀌어요.</p>}
-          <Button type="button" size="sm" disabled={pending} onClick={() => (activeOther ? askFirst('publish') : publish(activePublicationId))}>
+          {!reviewed && <p className="text-xs text-muted">먼저 3D 결과를 검토하면 공개할 수 있어요.</p>}
+          <Button type="button" size="sm" disabled={pending || !reviewed} onClick={() => (activeOther ? askFirst('publish') : publish(activePublicationId))}>
             이 결과 공개
           </Button>
         </div>

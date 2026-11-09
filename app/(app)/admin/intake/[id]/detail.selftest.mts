@@ -56,6 +56,7 @@ const ACTIONS = [
   'getIntakeOriginalLink',
   'getIntakePairLinks',
   'getIntakeRunPreview',
+  'getIntakeRunReview',
   'markIntakeSeen',
   'markIntakeUnseen',
   'publishIntakeRun',
@@ -125,7 +126,7 @@ export function ConfirmDialog({ title, detail, onConfirm, open }) {
   return h('aside', { 'data-confirm': title, 'data-open': open }, detail);
 }`,
   '@/components/icon': `const h = globalThis.__detailTest.React.createElement; const I = () => h('i');
-export { I as Download, I as Play, I as Trash2, I as RefreshCw, I as RotateCcw, I as Send, I as CircleAlert, I as CircleCheck, I as Clock3, I as Copy, I as Loader2, I as Check, I as FileVideo };`,
+export { I as Download, I as Play, I as Trash2, I as RefreshCw, I as RotateCcw, I as Send, I as CircleAlert, I as CircleCheck, I as Clock3, I as Copy, I as Loader2, I as Check, I as FileVideo, I as Eye };`,
 };
 
 const reactUrl = import.meta.resolve('react');
@@ -315,6 +316,17 @@ const panel = (over: Record<string, unknown>) =>
   ok(!draw(panel({ runs: [{ ...RUN, status: 'failed', hasPreviews: true }], withdrawn: true })).includes('미리보기 영상'), '철회된 접수는 안 보인다');
   ok(!draw(panel({ runs: [RUN] })).includes('미리보기 영상'), '구운 적 없는 실행에는 없다');
   ok(draw(h(AssetCard, { submissionId: SID, asset: ASSET, locked: false, hasRunPreview: true })).includes('미리보기'), '카드는 그대로 그려진다');
+}
+
+/* ── 공개 전 3D 검토(SH05) — 이 화면에서 검토를 연 적이 없으면 공개 단추가 꺼져 있다(서버가 막는 규칙은 아님) ── */
+{
+  const html = draw(panel({}));
+  ok(html.includes('3D 결과 검토') && typeof bench.clicks['3D 결과 검토'] === 'function', '성공한 실행에는 검토 단추가 있다');
+  ok(/<button[^>]*disabled=""[^>]*>이 결과 공개/.test(html), '검토 전에는 공개 단추가 꺼져 있다');
+  ok(html.includes('먼저 3D 결과를 검토하면 공개할 수 있어요'), '왜 꺼졌는지 한 줄');
+  ok(!draw(panel({ runs: [{ ...RUN, status: 'failed', hasResult: false }] })).includes('3D 결과 검토'), '실패한 실행에는 검토 단추가 없다');
+  ok(!draw(panel({ withdrawn: true })).includes('3D 결과 검토'), '철회된 접수에는 검토 단추가 없다');
+  bench.calls.length = 0;
 }
 
 /* ── 공개 · 내리기의 '알던 공개'(#29) ── */

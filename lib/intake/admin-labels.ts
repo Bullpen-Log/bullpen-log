@@ -138,6 +138,7 @@ export const AUDIT_ACTION_TEXT: Record<string, string> = {
   'original.download_issued': '원본 내려받기 주소를 받았어요',
   'original.preview_issued': '원본 미리보기 주소를 받았어요',
   'preview.issued': '분석 미리보기 주소를 받았어요',
+  'run.reviewed': '3D 결과를 검토했어요',
   'analysis.hand_set': '던지는 손을 정했어요',
   'analysis.requested': '분석을 요청했어요',
   'analysis.carried': '같은 영상의 분석을 새 판에 이어 받았어요',

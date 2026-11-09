@@ -209,15 +209,26 @@ function ResultPhase({
   );
 }
 
-function ResultBody({ result }: { result: PublicResult }) {
+/**
+ * 결과 본문 — 공개 화면과 관리자 3D 검토가 같이 쓴다(공개 전에 받는 사람이 볼 모양 그대로 확인하게).
+ * preview 면 위에 '아직 공개 전'을 말하고 제목 초점을 옮기지 않는다(창 안에서 연다).
+ */
+export function ResultBody({ result, preview = false }: { result: PublicResult; preview?: boolean }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const body3d = useMemo(() => body3dResultOf(result.view), [result.view]);
 
   /* 불러온 뒤 바뀐 화면을 보조 기술이 읽게 제목으로 옮긴다 */
-  useEffect(() => heading.current?.focus(), []);
+  useEffect(() => {
+    if (!preview) heading.current?.focus();
+  }, [preview]);
 
   return (
     <article className="mx-auto w-full max-w-6xl px-5 py-6 lg:px-8">
+      {preview && (
+        <p role="status" className="mb-4 rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm text-warn break-keep">
+          아직 공개 전이에요. 공개하면 받는 사람에게 이 모양 그대로 보여요.
+        </p>
+      )}
       <header className="mb-5 space-y-1">
         <h1 ref={heading} tabIndex={-1} className="text-2xl font-bold text-ink outline-none break-keep">
           {result.athleteName} 선수의 3D 투구 분석

@@ -26,6 +26,7 @@ import { IntakeError, INTAKE_ERROR_TEXT, type IntakeErrorCode } from '@/lib/inta
 import { enqueueJob } from '@/lib/intake/jobs';
 import type { IntakeMediaFacts } from '@/lib/intake/media';
 import { isIntakeId, runObjectPrefix } from '@/lib/intake/paths';
+import { toPublicView, type PublicPitchView } from '@/lib/intake/public-result';
 import { originalRetention, retentionDue } from '@/lib/intake/retention';
 import { ASSET_GONE, canMoveAnalysis, readCorrection, type AnalysisStatus, type IntakeView } from '@/lib/intake/state';
 import type { IntakeRunStorage } from '@/lib/intake/storage-core';
@@ -451,6 +452,33 @@ export async function loadRunResult(runId: string, rt?: IntakeRuntime): Promise<
   const result = await readSucceededResult(r.storage, run);
   if (!result) throw new IntakeError('run_not_publishable');
   return result;
+}
+
+/**
+ * 관리자 3D 검토 — 공개 전에 받는 사람이 볼 모양 그대로(toPublicView 의 허용 칸) 연다. 공개는 이 실행 번호로만 한다(publishRun).
+ * 접수 번호와 실행 번호를 같이 받아 그 접수의 실행인지 본다. 결과 파일의 해시 · 모양 검사는 loadRunResult 를 그대로 쓴다.
+ * 연 사실을 감사 기록으로 남긴다 — 무엇을 보고 공개했는지 되짚을 수 있게. 권한은 부르는 쪽(관리자 동작)이 먼저 본다.
+ */
+export async function loadRunReview(
+  input: { submissionId: string; runId: string; adminId: string },
+  rt?: IntakeRuntime,
+): Promise<{ view: PublicPitchView; athleteName: string; revisionNumber: number; isCurrentRevision: boolean; finishedAt: string | null }> {
+  if (!isIntakeId(input.submissionId) || !isIntakeId(input.runId)) throw new IntakeError('run_not_found');
+  const r = rt ?? (await appIntakeRuntime());
+  const run = await r.db.intakeAnalysisRun.findFirst({
+    where: { id: input.runId, submissionId: input.submissionId },
+    select: { id: true, finishedAt: true, revision: { select: { id: true, number: true } }, submission: { select: { athleteName: true, currentRevisionId: true } } },
+  });
+  if (!run) throw new IntakeError('run_not_found');
+  const result = await loadRunResult(run.id, r);
+  await writeAudit(r.db, { actor: { kind: 'admin', id: input.adminId }, action: 'run.reviewed', submissionId: input.submissionId, detail: { runId: run.id } }, clock(r));
+  return {
+    view: toPublicView(result),
+    athleteName: run.submission.athleteName ?? '',
+    revisionNumber: run.revision.number,
+    isCurrentRevision: run.submission.currentRevisionId === run.revision.id,
+    finishedAt: run.finishedAt?.toISOString() ?? null,
+  };
 }
 
 /* ────────────────────────────── 실행 끝내기 ────────────────────────────── */
