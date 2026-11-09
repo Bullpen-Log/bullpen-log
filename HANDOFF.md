@@ -1,37 +1,25 @@
-## 맥 미니 금윤호에게 — 2026-11-07 · 맥북 서브(Claude) — 외부 투구 영상 접수 이어서 하기 · **이 작업은 main 에 없다**
+## 맥 미니 금윤호에게 — 2026-11-09 · 맥북 서브(Claude) — 접수 인계 수신 확인 · 이번에 한 일 · **코드 변경은 없다**
 
-맥북에서 맥 미니로 옮기는 작업이다. 코드는 브랜치 `intake/external-video-submission` 에 있다. **그 브랜치를 main 에 합치거나 main 으로 올리지 않는다** — 아래 1 · 3번이 끝나고 사용자가 허락할 때까지다. 원본을 되돌릴 수 없게 지우는 코드가 들어 있고, 알려진 지적 12건이 남아 있다.
+맥 미니의 2026-11-07 글(브랜치 `intake/external-video-submission` 의 `HANDOFF.md` 맨 위, 브랜치 끝 `524b1f0a`)을 맥북이 받았다. 이 글에는 접수 코드가 없고, 상태만 알린다. 접수 작업은 계속 브랜치에만 있다. **main 에 합치지 않았다.**
 
-받는 법(사용자 허락 뒤):
+한 일(맥북, 전부 읽기만 — 파일 · DB · 버킷 · 환경변수는 안 바꿨다):
 
-```bash
-git fetch origin
-git switch intake/external-video-submission
-npm ci
-npx prisma generate
-```
+1. `git pull --ff-only` 로 main 을 받았다(`79a960a5` → `aad46569`, 새 커밋 둘은 3D 촬영 안내 화면이라 접수와 무관). 받은 직후 로컬 서버 `localhost:3000` 응답 200 을 봤다. `tsc` 0 은 `79a960a5` 시점이고, 새 커밋 둘을 받은 뒤에는 다시 안 돌렸다.
+2. 브랜치를 전환하지 않고 원격 ref 만 읽었다(`git show` · `git grep` 의 `origin/intake/external-video-submission`). 원격 끝이 `524b1f0a` 로 맥 미니 글과 같음을 확인했다.
+3. 사용자가 물은 '영상 받는 링크 공유 버튼'의 위치를 코드로 찾았다: 관리자 → 접수(`/admin/intake`) → '초대 만들기' → '링크 만들기' → 창 안의 '링크 복사'(`app/(app)/admin/intake/create-invitation.tsx`). 링크는 만든 직후 그 창에서만 보이고, 접근 코드는 링크와 다른 길로 전하라는 안내가 붙어 있다. 만든 초대의 폐기 · 기간 늘리기는 접수 상세의 '초대' 구역.
 
-- `npm ci` 는 새 패키지(`tus-js-client`, `@noble/hashes`) 때문이다. `native/` 는 안 바뀌었다.
-- `prisma generate` 는 새 표 12개 타입을 만든다. DB 는 안 건드린다.
-- 공유 DB 에는 표가 없다. 그래서 이 브랜치에서도 `/submit` 의 API 는 로컬 서버에서 돌지 않는다. 시험은 PGlite 로 돈다. 3000 번 서버에 접수 API 를 부르지 않는다.
-- 금지: `prisma migrate dev` · `db push` · `migrate reset` · `npm run build` · `npm run intake:setup-bucket -- --apply`(허락 전).
-- 마이그레이션은 `prisma/pending-migrations/` 에 있다. 브랜치 미리보기 빌드도 `prisma migrate deploy` 를 돌려서 `prisma/migrations` 에 두지 않았다. **허락 전에 `prisma/migrations` 로 옮기지 않는다.**
+안 한 것 · 못 한 것:
 
-맥북에서 합친 코드로 돌린 결과(2026-11-07): tsc 0 · eslint 0 · 접수 시험 349 · 547 · 540 · 130 · 132 · 391 통과 · `integration:test` 46 통과 5 실패(접수와 무관, 전부터 있던 다섯). 격리 브라우저 공개 58 · 관리 46 은 보유 삭제를 넣기 전 코드 기준이다.
+- 맥북에서 브랜치로 전환하지 않았다. 맥북 main 작업 트리에 이 작업과 무관한 미커밋 변경이 있어서다(아래). 그래서 `flow.mjs` · `admin.mjs` 전체 흐름은 아직 안 돌렸다. 사용자가 허락하면 그 변경을 정리한 뒤 전환해서 돌린다.
+- 링크는 실제로는 못 만든다. 공유 DB 에 접수 표가 없고 버킷 `external-intake` 도 없다. 적용은 사용자 허락을 받은 뒤 이 차례다: 김민 알림 → `npm run backup` → 마이그레이션을 `prisma/migrations` 로 → 버킷 → Vercel `SUPABASE_PUBLISHABLE_KEY` · `CRON_SECRET` → main.
+- 실제 기기 · 실제 Supabase · 실제 GPU · 1GiB 전송 · Vercel 크론은 맥북에서도 하나도 안 했다.
 
-다음 할 일, 이 차례로:
+맥북 작업 트리에 남은 것(접수와 무관, 건드리지 않았다. 이 푸시에도 안 실었다):
 
-1. **보유 삭제 지적 12건을 고친다**(높음 2건 먼저). `docs/designs/external-intake-retention-findings.md` 에 재현과 고칠 방향이 있다. 맥북에서는 하나도 안 고쳤다.
-2. 고친 뒤 삭제 안전성을 다시 독립 검증하고, 격리 브라우저 흐름을 돌린다(`docs/designs/external-intake-e2e/README.md`, 지운 접수 화면 시험을 더한다).
-3. 사용자에게 확인받는다: 고침이 열린 접수는 삭제를 최대 14일 기다려 90일을 넘길 수 있는 것, 다시 내면 낸 날부터 90일을 다시 세는 것. 같은 문서 끝의 판단 목록을 본다.
-4. 사용자 허락을 받고 적용한다: 김민 알림 → `npm run backup` → 마이그레이션을 `prisma/migrations` 로 옮김 → 버킷 `external-intake`(프로젝트 파일 한도 1GiB 이상인지 먼저) → Vercel 환경변수 `SUPABASE_PUBLISHABLE_KEY` · `CRON_SECRET` → main. 자세한 것은 브랜치 `HANDOFF.md` 맨 위 김민 앞 글.
-5. 실제 기기 · 실제 Supabase TUS · 실제 GPU · 1GiB 전송 · Vercel 크론 시험. 아직 하나도 안 했다. `docs/designs/external-intake-verification.md` 의 UNVERIFIED 를 본다.
+- 미커밋: `AGENTS.md`(Codex 작업 위치 규칙 · 미국/일본 출시 메모), `lib/market/lesson-dummy.ts`, `docs/designs/desktop-audit-2026-10-26/`, `docs/designs/dugout-desktop-layout-v2-*.md`, `scripts/lesson-dummy-2026-10-31.mts`.
+- `git stash` 한 칸('외부 접수 작업본 — 브랜치에 올림'): 브랜치에 이미 올라가 있어 필요 없다.
 
-사람이 정할 것: 대리 동의 범위 · `ANALYSIS_CONSENT` PENDING 다섯 건(이게 끝나기 전에는 GPU 가 막힌다) · 분석 결과 보유 기간. 사용자가 정한 것: 원본은 공개 뒤 90일(공개 없으면 접수 · 철회 뒤 90일, 모델 동의도 예외 없음), 철회 때 모델 동의는 따로 유지, 판에 안 오른 철회 파일은 7일 뒤 삭제, 분석 전 미리보기는 범위 제외.
-
-명세 원문은 `docs/designs/external-intake-spec.md`, 결정은 `docs/designs/external-intake.md`, 요구 대조표는 `docs/designs/external-intake-verification.md`.
-
-맥북의 접수 작업본은 `git stash` 한 칸에 남겼다('외부 접수 작업본 — 브랜치에 올림'). 필요 없다. 핫스팟으로 일하면 `~/.claude/settings.json` 의 `env` 에 `CLAUDE_CODE_RETRY_WATCHDOG=1` 을 넣으면 끊겨도 오래 다시 시도한다(맥북에는 넣어 두었다). 맥 미니 수신은 확인하지 못했다.
+다음 할 일은 맥 미니 글 그대로다. 맥북에서 `flow.mjs` · `admin.mjs` → 사용자 확인 다섯 → 허락 뒤 적용 → 실기기 · 실제 서비스 시험.
 
 ## 맥 미니 금윤호에게 — 2026-11-06 · 맥북 서브
 
