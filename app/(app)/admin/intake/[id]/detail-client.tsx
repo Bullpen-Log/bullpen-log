@@ -11,15 +11,18 @@ import { orOffline } from '@/lib/action-offline';
 import {
   ASSET_STATUS_TEXT,
   HAND_TEXT,
+  JOB_STATE_TEXT,
   REISSUE_WARNING_TEXT,
   REJECT_CODE_TEXT,
   RUN_STATUS_TEXT,
   VIEW_TEXT,
+  jobStateTone,
+  jobWaitNoteText,
   seoulDateText,
   seoulTimeText,
   textOf,
 } from '@/lib/intake/admin-labels';
-import type { IntakeAdminPerson, IntakeAssetDetail, IntakeDetail, OriginalLink } from '@/lib/intake/admin';
+import type { IntakeAdminPerson, IntakeAssetDetail, IntakeDetail, IntakeJobIssue, OriginalLink } from '@/lib/intake/admin';
 import type { AnalysisReadiness } from '@/lib/intake/analysis';
 import { formatBytes } from '@/lib/intake/limits';
 import { INTAKE_VIEWS } from '@/lib/intake/state';
@@ -42,6 +45,26 @@ import {
 import { IssuedLinkPanel, type ShownLink } from '../create-invitation';
 import { originalWarning, runPreviewVisible } from './detail-rules';
 import { useAction } from './use-action';
+
+/**
+ * 끝나지 못한 일감 하나의 모습 — 상태 글 · 시도 · 시각, 그리고 까닭.
+ * 큰 파일이라 예산 때문에 기다리는 파일 확인(waiting)은 실패가 아니라 오류 색 없이 보이고, 시도 횟수도 안 쓰니 안 보인다.
+ * JobIssuesPanel(detail-manage.tsx)의 상태 줄 · 오류 줄을 이것으로 바꿔 그린다.
+ */
+export function JobStateLine({ issue: j }: { issue: Pick<IntakeJobIssue, 'state' | 'attempts' | 'maxAttempts' | 'updatedAt' | 'lastError' | 'note'> }) {
+  const waiting = jobStateTone(j.state) === 'neutral';
+  const note = waiting ? jobWaitNoteText(j.note) : null;
+  return (
+    <>
+      <p className="text-xs text-muted">
+        {textOf(JOB_STATE_TEXT, j.state)}
+        {waiting ? '' : ` · 시도 ${j.attempts}/${j.maxAttempts}`} · {seoulTimeText(j.updatedAt)}
+      </p>
+      {note && <p className="break-words text-xs text-muted">{note}</p>}
+      {j.lastError && <p className={`break-words font-mono text-xs ${waiting ? 'text-muted' : 'text-danger'}`}>{j.lastError}</p>}
+    </>
+  );
+}
 
 /** 화면이 받는 실행 한 줄 — 저장 경로는 뺐다 */
 export type RunRow = {

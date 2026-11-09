@@ -17,6 +17,7 @@ import { canOpen, isBetaView, noticeLocked, useRelease } from '~/shell/release';
 import { LOCK_DIM, LockBadge } from '~/shell/locked';
 import { beginMotion, endMotion } from '~/shell/transition';
 import { useSpace } from '~/org/space-store';
+import { nativeManageScreen } from '~/admin/intake-nav';
 
 /**
  * 더보기(앱) — 아이폰 홈 화면 폴더처럼: 뒤 화면을 흐리고 어둡게 가라앉히고(expo-blur), 그 위에 '메뉴' 큰 제목과 반투명 유리 폴더가
@@ -201,6 +202,16 @@ export default function MoreScreen() {
   );
   const open = (href: string) => {
     if (leaving) return;
+    /*
+     * 관리 항목 가운데 앱 화면이 맡는 것(3D 개발 관리자 → /swing/samples, 외부 영상 접수 → /admin/intake) — 위 메뉴(shell/menu-button.tsx)와 같은 짝.
+     * 껍데기의 웹 → 앱 짝(index.tsx nativeOfWeb)에 없어 destinationOf 로는 웹이 된다. 폴더를 걷은 뒤 연다(공간 고르개와 같은 순서)
+     */
+    const screen = nativeManageScreen(href);
+    if (screen) {
+      router.back();
+      router.push(screen as Href);
+      return;
+    }
     const to = destinationOf(href);
     if (to === 'native') return leaveTo(href);
     setLeaving(href);

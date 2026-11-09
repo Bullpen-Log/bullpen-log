@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 import { Bar } from '~/community/parts';
-import { intakePathMove, intakeWebMove, INTAKE_WEB_PATH, type IntakeWebMove } from '~/admin/intake-nav';
+import { intakeNativeMove, intakePathMove, intakeWebMove, INTAKE_WEB_PATH, type IntakeWebMove } from '~/admin/intake-nav';
 import { APP_UA, SITE_HOST, SITE_URL } from '~/lib/site';
 import { usePalette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
@@ -16,6 +16,10 @@ import { leaveTo } from '~/shell/web-nav';
  *   - 로그인은 앱 껍데기와 같은 'session' 쿠키(sharedCookiesEnabled — 3D 결과 칸 lab/lab-3d.tsx 와 같다)
  *   - applicationNameForUserAgent={APP_UA} 를 꼭 단다. 안 달면 proxy.ts 의 휴대폰 막기가 /phone 으로 보낸다
  *   - 접수함 밖으로 가려 하면 이 웹뷰에서 그리지 않는다(admin/intake-nav.ts): 관리자 첫 화면은 뒤로, 사이트의 다른 주소는 껍데기 웹, 다른 사이트(원본 서명 주소)는 사파리
+ *     원본 내려받기(웹 detail-client 의 a.download · 링크)는 저장소의 남의 주소라 이 웹뷰의 맨 위 창 이동으로 온다 — 막고 사파리로 넘기면 사파리가
+ *     download 칸(Content-Disposition: attachment)으로 받는다. 웹뷰 안에서는 받은 파일을 둘 곳이 없어 받지 않는다(onFileDownload 를 안 단다)
+ *   - 로그인이 풀리면: 서버 돌려보냄(/login · /api/session/clear)은 가로채기에서, 그래도 웹 로그인 자리가 그려지면 그 자리가 보내는
+ *     { t: 'native' } 알림에서 껍데기 '/login' 으로 넘긴다 — 이 화면에 웹 로그인 폼을 남기지 않는다(앱 로그인 화면은 껍데기가 연다)
  *   - 못 불러오면(오류 · 25초 안에 다 못 받음 · 웹 내용이 죽음) 덮개에 '다시 불러오기' — 웹뷰를 새로 만든다.
  *     25초가 지나 덮개가 떴어도 그 뒤에 다 받으면(느린 연결) 덮개를 걷는다 — 오류로 끝났는지는 이번 시도의 표시(errored)로 본다
  *   - 위 막대는 웹 틀(MobileTopBar)이 그린다(제목 · '‹ 관리자' → 웹이 /admin 으로 가면 아래 'path' 알림이 앱 뒤로로 바꾼다).
@@ -92,6 +96,15 @@ export default function IntakeAdminScreen() {
     }
     if (msg.t === 'path' && typeof msg.path === 'string') {
       const move = intakePathMove(msg.path, typeof msg.search === 'string' ? msg.search : '');
+      if (move.kind !== 'stay') leave(move);
+      return;
+    }
+    /*
+     * 사이트가 앱 화면을 청했다 — 서버가 로그인으로 돌려보낸 것이 가로채기를 빠져나가 웹 로그인 자리(native-login.tsx)가 이 웹뷰에 그려진 경우 등.
+     * 웹 로그인 폼을 이 화면에 남기지 않고 껍데기에 넘긴다(로그인이면 껍데기가 앞사람 기록을 지우고 앱 로그인 화면을 연다)
+     */
+    if (msg.t === 'native' && typeof msg.path === 'string') {
+      const move = intakeNativeMove(msg.path);
       if (move.kind !== 'stay') leave(move);
     }
   };

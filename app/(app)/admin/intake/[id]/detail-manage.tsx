@@ -6,7 +6,7 @@ import { ConfirmDialog } from '@/components/confirm-delete';
 import { ErrorLine } from '@/components/error-line';
 import { toast } from '@/components/toast';
 import { Button, Textarea } from '@/components/ui';
-import { CORRECTION_FIELD_TEXT, JOB_KIND_TEXT, JOB_STATE_TEXT, VIEW_TEXT, seoulDateText, seoulTimeText, textOf } from '@/lib/intake/admin-labels';
+import { CORRECTION_FIELD_TEXT, JOB_KIND_TEXT, VIEW_TEXT, seoulDateText, seoulTimeText, textOf } from '@/lib/intake/admin-labels';
 import type { IntakeJobIssue } from '@/lib/intake/admin';
 import { CORRECTABLE_FIELDS, INTAKE_VIEWS, type CorrectionRequest, type IntakeView } from '@/lib/intake/state';
 import {
@@ -18,6 +18,7 @@ import {
   withdrawIntakeConsent,
   withdrawIntakeModelConsent,
 } from '@/app/actions/intake-admin';
+import { JobStateLine } from './detail-client';
 import { correctionText, goneViewsText } from './detail-rules';
 import { useAction } from './use-action';
 
@@ -52,10 +53,8 @@ export function JobIssuesPanel({ submissionId, issues, locked }: { submissionId:
               {j.view ? ` · ${VIEW_TEXT[j.view]} 영상` : ''}
               {j.revisionNumber != null ? ` · ${j.revisionNumber}판` : ''}
             </p>
-            <p className="text-xs text-muted">
-              {textOf(JOB_STATE_TEXT, j.state)} · 시도 {j.attempts}/{j.maxAttempts} · {seoulTimeText(j.updatedAt)}
-            </p>
-            {j.lastError && <p className="break-words font-mono text-xs text-danger">{j.lastError}</p>}
+            {/* 큰 파일 검증 대기는 시도 횟수를 안 쓰고 중립색으로 — 한 곳(JobStateLine)에서 그린다 */}
+            <JobStateLine issue={j} />
           </li>
         ))}
       </ul>

@@ -15,6 +15,17 @@ export type IntakeWebMove =
   | { kind: 'outside'; url: string }
   | { kind: 'block' };
 
+/**
+ * 사이트 메뉴 '관리' 항목 가운데 앱 화면으로 여는 것(웹 주소 → 앱 화면) — 위 메뉴(shell/menu-button.tsx)와 더보기 폴더(app/more.tsx)가 같은 짝을 쓴다.
+ * 3D 개발 관리자는 앱 화면(2026-11-09 6b829da4), 외부 영상 접수는 웹 접수함을 띄우는 앱 화면(app/admin/intake.tsx — 못 불러오면 다시 불러오기).
+ * 껍데기의 웹 → 앱 짝(app/index.tsx nativeOfWeb)에는 없어 메뉴가 직접 연다. 쿼리는 보지 않는다.
+ */
+const NATIVE_MANAGE: ReadonlyMap<string, string> = new Map([
+  ['/admin/dev3d', '/swing/samples'],
+  [INTAKE_WEB_PATH, INTAKE_WEB_PATH],
+]);
+export const nativeManageScreen = (href: string): string | null => NATIVE_MANAGE.get(href.split('?')[0]) ?? null;
+
 /** 접수함 · 접수 하나(/admin/intake/<번호>) 주소인가 — '/admin/intakes' 같은 다른 주소는 아니다 */
 export const isIntakePath = (path: string) => path === INTAKE_WEB_PATH || path.startsWith(`${INTAKE_WEB_PATH}/`);
 
@@ -24,6 +35,22 @@ export function intakePathMove(path: string, search = ''): IntakeWebMove {
   if (path === '/admin') return { kind: 'back' };
   const q = search && !search.startsWith('?') ? `?${search}` : search;
   return { kind: 'shell', href: `${path || '/'}${q}` };
+}
+
+/** 로그인 · 가입 주소(껍데기 index.tsx isLoginPath 와 같은 묶음) */
+const isLoginPath = (p: string) => p === '/login' || p.startsWith('/login/') || p === '/signup';
+
+/**
+ * 사이트가 '앱 화면을 열어 줘'({ t: 'native', path })를 보냈을 때 — 이 웹뷰에 접수함 말고 다른 화면이 그려졌다는 뜻이다.
+ * 가장 흔한 것은 로그인이 풀려 웹 로그인 자리(app/login/native-login.tsx)가 그려진 경우 — 웹 로그인 폼을 이 웹뷰에 남기지 않고 껍데기를 '/login' 으로
+ * 넘긴다(그냥 '/login' 이어야 껍데기가 앞사람 기록을 지우고 앱 로그인 화면을 연다 — '/login?native=1' 로 바로 열면 지우기를 건너뛴다).
+ * 그 밖의 앱 화면은 껍데기가 그 주소를 앱 화면으로 연다.
+ */
+export function intakeNativeMove(path: string): IntakeWebMove {
+  const [p] = path.split('?');
+  if (isLoginPath(p)) return { kind: 'shell', href: '/login' };
+  if (isIntakePath(p)) return { kind: 'stay' };
+  return { kind: 'shell', href: path.startsWith('/') ? path : `/${path}` };
 }
 
 /** 웹뷰가 맨 위 창을 새 주소로 옮기려 할 때(onShouldStartLoadWithRequest) */

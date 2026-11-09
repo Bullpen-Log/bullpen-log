@@ -17,12 +17,11 @@ import type { PrismaClient } from '@prisma/client';
 import { openIntakeScope, type IntakeOp, type IntakeScope } from '@/lib/intake/access';
 import { INTAKE_CONSENT_DOCS, type ConsentAnswer, type IntakeConsentDoc } from '@/lib/intake/consent';
 import { IntakeError, isIntakeError } from '@/lib/intake/errors';
-import { runDueJobs } from '@/lib/intake/jobs';
+import { runVerifySoon } from '@/lib/intake/job-handlers';
 import { clientAddress, enforceRateLimit, type RateScope } from '@/lib/intake/rate-limit';
 import {
   confirmUpload,
   finalizeSubmission,
-  intakeCoreJobHandlers,
   issueUploadToken,
   loadPublicState,
   recordConsents,
@@ -123,17 +122,23 @@ function expectedPair(v: unknown): ExpectedPair | undefined {
   return out;
 }
 
-type Ctx = { scope: IntakeScope; body: Record<string, unknown>; now: Date };
+/** startedAtMs: 요청을 받은 벽시계 시각(Date.now) — 응답 뒤 검증의 남은 시간을 여기서 센다. 업무 시각 now 와 따로다(시험은 now 를 옮긴다) */
+type Ctx = { scope: IntakeScope; body: Record<string, unknown>; now: Date; startedAtMs: number };
 
 export function createPublicApi(deps: PublicApiDeps) {
   const clock = deps.now ?? (() => new Date());
   const { db } = deps;
 
-  /** 응답 뒤 곧바로 한 번 검증을 돌린다. 못 돌면 크론이 이어 받으니 여기서는 실패해도 그만이다 */
-  const verifySoon = () => {
+  /**
+   * 응답 뒤 곧바로 한 번 검증을 돌린다. 못 돌면 크론이 이어 받으니 여기서는 실패해도 그만이다.
+   * after() 는 라우트의 maxDuration 안에서만 돈다(요청을 받은 때부터 센다). 그래서 크론과 같은 예산 규칙(runVerifySoon)으로 —
+   * 남은 시간(라우트 시간 − 여유 − 이미 쓴 시간) 안에 끝날 파일만 시작하고, 시각이 오면 해시를 끊어 시도 횟수를 돌려준다.
+   * 라우트 시간은 lib/intake/limits.ts INTAKE_PUBLIC_ROUTE_MAX_DURATION_SEC 와 같아야 한다(intake:budget-test 가 견준다).
+   */
+  const verifySoon = (startedAtMs: number) => {
     deps.schedule?.(async () => {
       try {
-        await runDueJobs(db, intakeCoreJobHandlers(db, deps.storage()), { owner: `public-${randomUUID()}`, limit: 2, kinds: ['verify_asset'] });
+        await runVerifySoon({ db, storage: deps.storage(), now: deps.now }, { startedAtMs, owner: `public-${randomUUID()}`, limit: 2 });
       } catch (e) {
         console.error(`[intake public] verify: ${e instanceof Error ? e.name : 'unknown'}`);
       }
@@ -146,6 +151,7 @@ export function createPublicApi(deps: PublicApiDeps) {
     run: (ctx: Ctx) => Promise<unknown>,
   ) {
     return async (req: Request): Promise<Response> => {
+      const startedAtMs = Date.now();
       const now = clock();
       try {
         const address = clientAddress(req.headers);
@@ -159,7 +165,7 @@ export function createPublicApi(deps: PublicApiDeps) {
         }
         if (opts.limit) await enforceRateLimit(db, { scope: opts.limit, subject: scope.invitationId, now });
         const body = opts.body === false ? {} : await readBody(req);
-        return reply(200, await run({ scope, body, now }));
+        return reply(200, await run({ scope, body, now, startedAtMs }));
       } catch (e) {
         return replyError(e, label);
       }
@@ -229,13 +235,13 @@ export function createPublicApi(deps: PublicApiDeps) {
       registerUploadUrl(db, deps.storage(), scope, { assetId: text(body.assetId, 'assetId'), uploadUrl: text(body.uploadUrl, 'uploadUrl') }, now),
     ),
 
-    confirm: route('confirm', { op: 'confirm' }, async ({ scope, body, now }) => {
+    confirm: route('confirm', { op: 'confirm' }, async ({ scope, body, now, startedAtMs }) => {
       const asset = await confirmUpload(db, deps.storage(), scope, { assetId: text(body.assetId, 'assetId') }, now);
-      verifySoon();
+      verifySoon(startedAtMs);
       return asset;
     }),
 
-    finalize: route('finalize', { op: 'read', limit: 'finalize' }, async ({ scope, body, now }) => {
+    finalize: route('finalize', { op: 'read', limit: 'finalize' }, async ({ scope, body, now, startedAtMs }) => {
       const receipt = await finalizeSubmission(
         db,
         scope,
@@ -248,7 +254,7 @@ export function createPublicApi(deps: PublicApiDeps) {
         },
         now,
       );
-      verifySoon();
+      verifySoon(startedAtMs);
       return receipt;
     }),
   };

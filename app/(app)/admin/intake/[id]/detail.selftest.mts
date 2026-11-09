@@ -164,7 +164,7 @@ registerHooks({
 });
 
 const rules = await import('./detail-rules.ts');
-const { AnalysisPanel, AssetCard, PairDownload, ReissueButton } = await import('./detail-client.tsx');
+const { AnalysisPanel, AssetCard, JobStateLine, PairDownload, ReissueButton } = await import('./detail-client.tsx');
 const { AccessCodeLockBox, CorrectionPanel, JobIssuesPanel, UploadWindowBox, WithdrawConsentButton } = await import('./detail-manage.tsx');
 const { ACCESS_CODE_MIN_CHARS, ACCESS_CODE_MAX_CHARS } = await import('@/lib/intake/token');
 
@@ -393,6 +393,35 @@ const panel = (over: Record<string, unknown>) =>
   const noButton = draw(h(JobIssuesPanel, { submissionId: SID, issues: [{ ...job, state: 'stalled', canRequeue: false }], locked: false }));
   ok(!noButton.includes('다시 확인') && noButton.includes('크론'), '시도가 남은 일감은 단추 대신 안내');
   ok(!draw(h(JobIssuesPanel, { submissionId: SID, issues: [job], locked: true })).includes('다시 확인'), '철회된 접수에는 단추가 없다');
+}
+
+/* ── 큰 파일 검증 기다림: 실패가 아니라 기다림으로 보인다 ── */
+{
+  const labels = await import('@/lib/intake/admin-labels');
+  const { VERIFY_BUDGET_NOTE_PREFIX } = await import('@/lib/intake/limits');
+  const base = { state: 'failed', attempts: 8, maxAttempts: 8, lastError: '저장소 응답 실패 [주소]', note: null, updatedAt: '2026-11-06T00:00:00.000Z' };
+  const failed = draw(h(JobStateLine, { issue: base }));
+  ok(failed.includes('text-danger') && failed.includes('시도를 다 썼어요') && failed.includes('8/8'), '실패는 오류 색 · 시도 횟수');
+
+  const waitNote = `${VERIFY_BUDGET_NOTE_PREFIX} 큰 파일이라 다음 실행에서 이어 확인해요.`;
+  const waiting = draw(h(JobStateLine, { issue: { ...base, state: 'waiting', attempts: 0, lastError: null, note: waitNote } }));
+  ok(waiting.includes('검증 대기') && waiting.includes('다음 실행에서 이어 확인해요'), '기다림 글을 보인다');
+  ok(!waiting.includes('text-danger'), '기다림은 오류 색이 아니다');
+  ok(!waiting.includes('시도 0/'), '횟수를 안 쓰는 기다림이라 시도 칸을 안 보인다');
+  eq((waiting.match(/다음 실행에서 이어 확인해요/g) ?? []).length, 1, '모습 글과 같은 기다림 글은 두 번 말하지 않는다');
+
+  const parked = draw(h(JobStateLine, { issue: { ...base, state: 'waiting', attempts: 0, lastError: null, note: `${VERIFY_BUDGET_NOTE_PREFIX} 시간 안에 다 읽지 못한 일이 거듭돼 검증 작업자를 기다려요.` } }));
+  ok(parked.includes('검증 작업자를 기다려요') && !parked.includes(VERIFY_BUDGET_NOTE_PREFIX), '덧붙일 사정은 머리말 없이 보인다');
+  ok(!labels.JOB_STATE_TEXT.waiting.includes('—'), '기다림 글에 줄표가 없다');
+  eq([labels.jobStateTone('waiting'), labels.jobStateTone('failed'), labels.jobStateTone('stalled')], ['neutral', 'danger', 'danger'], '기다림만 오류 색이 아니다');
+  eq([labels.jobWaitNoteText(null), labels.jobWaitNoteText(waitNote)], [null, null], '빈 글 · 같은 말은 없다');
+
+  /* 기다리는 검증도 '다시 확인'으로 지금 차례로 당길 수 있다(requeueJob 이 기다림을 받는다).
+     패널(detail-manage.tsx JobIssuesPanel)은 아직 JobStateLine 을 안 쓴다 — 시도 칸이 남고 덧붙일 사정(note)이 안 보인다. 여기서는 붉은 줄이 없다는 것만 본다 */
+  const waitIssue = { id: 'j2', kind: 'verify_asset', state: 'waiting', attempts: 0, maxAttempts: 8, lastError: null, note: waitNote, view: 'rear', revisionNumber: null, updatedAt: base.updatedAt, canRequeue: true };
+  const panel = draw(h(JobIssuesPanel, { submissionId: SID, issues: [waitIssue], locked: false }));
+  ok(panel.includes('검증 대기') && panel.includes('뒤 영상') && panel.includes('다시 확인'), '패널이 기다림과 다시 확인 단추를 보인다');
+  ok(!panel.includes('font-mono text-xs text-danger'), '패널에 붉은 오류 줄이 없다');
 }
 
 /* ── 고침 요청 바꾸기 · 거두기(#25) ── */

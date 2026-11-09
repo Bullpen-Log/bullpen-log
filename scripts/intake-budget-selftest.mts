@@ -43,6 +43,7 @@ import {
   INTAKE_CRON_BUDGET_MS,
   INTAKE_CRON_MAX_DURATION_SEC,
   INTAKE_JOB_SAFETY_MARGIN_MS,
+  INTAKE_PUBLIC_ROUTE_MAX_DURATION_SEC,
   VERIFY_FIXED_OVERHEAD_MS,
   VERIFY_MAX_BUDGET_ABORTS,
   VERIFY_MIN_BYTES_PER_SEC,
@@ -63,6 +64,8 @@ import {
   verifyJobKey,
 } from '@/lib/intake/service';
 import { createIntakeStorage, hashStream, type HashOptions, type IntakeRunStorage } from '@/lib/intake/storage-core';
+import { createPublicApi } from '@/lib/intake/public-api';
+import { JOB_STATE_TEXT, jobWaitNoteText } from '@/lib/intake/admin-labels';
 import { mov240 } from './intake-fixtures.mts';
 
 let passed = 0;
@@ -91,6 +94,17 @@ const eq = (a: unknown, b: unknown, label: string) => {
   eq(verifySkipNote(INTAKE_CRON_BUDGET_MS + 1), VERIFY_BUDGET_NOTES.tooBig, '빈 크론으로도 모자라면 작업자');
   eq(verifySkipNote(Infinity), VERIFY_BUDGET_NOTES.parked, '쉬게 둔 파일');
   ok(Object.values(VERIFY_BUDGET_NOTES).every((t) => isVerifyBudgetNote(t) && !t.includes('—') && /요\.$/.test(t)), '관리자 글은 같은 머리말 · 줄표 없음 · 해요체');
+  /* 공개 라우트의 after() 검증은 라우트 함수 시간 안에서 돈다 — 예산 상수와 라우트 설정이 같아야 한다 */
+  for (const file of ['app/api/intake/public/assets/confirm/route.ts', 'app/api/intake/public/finalize/route.ts']) {
+    ok(new RegExp(`export const maxDuration = ${INTAKE_PUBLIC_ROUTE_MAX_DURATION_SEC};`).test(readFileSync(file, 'utf8')), `${file} maxDuration 이 공개 예산 상수와 같다`);
+  }
+  ok(INTAKE_PUBLIC_ROUTE_MAX_DURATION_SEC * 1000 - INTAKE_JOB_SAFETY_MARGIN_MS > VERIFY_FIXED_OVERHEAD_MS, '공개 라우트에도 검증 하나를 시작할 시간이 남는다');
+  /* 관리자 상세의 기다림 글 — 모습 글과 같은 말은 빼고 덧붙일 사정만 남긴다 */
+  eq(jobWaitNoteText(VERIFY_BUDGET_NOTES.wait), null, '다음 실행 기다림은 모습 글이 이미 말한다');
+  for (const k of ['tooBig', 'aborted', 'parked'] as const) {
+    const t = jobWaitNoteText(VERIFY_BUDGET_NOTES[k]);
+    ok(t && !isVerifyBudgetNote(t) && !JOB_STATE_TEXT.waiting.includes(t.replace(/\.$/, '')), `${k} 는 머리말 없이 덧붙인다`);
+  }
 }
 
 /* ── storage-core: 해시 읽기가 signal 에 멈춘다 ── */
@@ -285,6 +299,16 @@ const isolate = (assetId: string) => db.intakeJob.updateMany({ where: { kind: 'v
   /* 같은 일감을 열 번 건너뛰어도 시도 횟수는 그대로다 */
   for (let i = 0; i < 10; i++) await runIntakeCron(rt, { owner: `cron-loop-${i}`, budget: fakeBudget(1_000), verifyBytesPerSec: 100 });
   eq((await jobOf(assetId)).attempts, 0, '건너뛰기를 거듭해도 횟수를 안 쓴다');
+
+  /* 크론이 건너뛸 때마다 손길(updatedAt)을 새로 찍는다 — 관리자 화면은 이것으로 '살아 있는 기다림'과 '크론이 죽은 멈춤'을 가른다(admin.ts jobStateOf) */
+  const { jobStateOf } = await import('@/lib/intake/admin');
+  const old = new Date(Date.now() - 3 * 3_600_000);
+  await db.intakeJob.update({ where: { dedupeKey: verifyJobKey(assetId) }, data: { updatedAt: old, runAfter: old } });
+  eq(jobStateOf(await jobOf(assetId), new Date()), 'stalled', '차례 · 손길이 세 시간 지난 기다림은 멈춤');
+  await runIntakeCron(rt, { owner: 'cron-touch', budget: fakeBudget(1_000), verifyBytesPerSec: 100 });
+  const touched = await jobOf(assetId);
+  ok(touched.updatedAt.getTime() > old.getTime() + 2 * 3_600_000, '건너뛰기가 updatedAt 을 새로 찍는다');
+  eq(jobStateOf(touched, new Date()), 'waiting', '크론이 다시 만진 일은 기다림');
 
   /* 시간이 넉넉하면 한다 */
   const done = await runIntakeCron(rt, { owner: 'cron-long', budget: fakeBudget(INTAKE_CRON_BUDGET_MS), verifyBytesPerSec: 100 });
@@ -586,6 +610,49 @@ const isolate = (assetId: string) => db.intakeJob.updateMany({ where: { kind: 'v
   const parked = await db.intakeJob.findUniqueOrThrow({ where: { dedupeKey: 'budget-public-parked' } });
   eq([parked.status, parked.attempts], ['queued', 0], '쉬는 파일은 빌리지 않았다');
   await db.intakeJob.updateMany({ where: { dedupeKey: 'budget-public-parked' }, data: { status: 'done', finishedAt: NOW } });
+}
+
+/* ─────────── 6-8) 공개 API 의 올리기 확인이 응답 뒤 검증을 예산 규칙(runVerifySoon)으로 건다 ─────────── */
+{
+  const scheduled: (() => Promise<unknown>)[] = [];
+  const api = createPublicApi({ db, storage: () => storage, schedule: (t) => scheduled.push(t), now: () => NOW });
+  const bytes = mov240(8_300);
+  const created = await createInvitation(db, { adminId: 'admin-1', uploadExpiresAt: new Date(NOW.getTime() + 14 * DAY) }, NOW);
+  const scope: IntakeScope = await openIntakeScope(db, `Intake ${created.token}`, 'read', NOW);
+  const state = await loadPublicState(db, scope, { now: NOW });
+  await saveDraft(db, scope, { expectedVersion: state.version, athleteName: '공개예산', athleteAgeBand: '14_or_over', samePitchConfirmed: true }, NOW);
+  await recordConsents(db, scope, { answers: [answer('submission'), answer('overseas')] }, NOW);
+  const r = await reserveAsset(db, scope, { view: 'side', expectedAssetId: null, fileName: 'side.MOV', sizeBytes: bytes.length, declaredType: 'video/quicktime', sha256: sha(bytes), pairConfirmed: true }, NOW);
+  await issueUploadToken(db, storage, scope, { assetId: r.asset.id }, NOW);
+  objects.set((await assetOf(r.asset.id)).objectPath, bytes);
+  /* 쉬게 둔 파일 — 예전 길(예산 없는 runDueJobs)이면 빌려서 시도 횟수를 썼다 */
+  await db.intakeJob.updateMany({ where: { kind: 'verify_asset', status: { in: ['queued', 'running'] } }, data: { status: 'done', finishedAt: NOW } });
+  await enqueueJob(db, {
+    kind: 'verify_asset',
+    dedupeKey: 'budget-public-api-parked',
+    payload: { assetId: 'public-api-parked-asset', budgetAborts: VERIFY_MAX_BUDGET_ABORTS, lastBudgetAbortAt: NOW.toISOString() },
+    runAfter: new Date(NOW.getTime() - 3_600_000),
+  });
+
+  let seenSignal: AbortSignal | undefined;
+  hashHook = async (_p, opts) => {
+    seenSignal = opts?.signal;
+  };
+  const res = await api.confirm(
+    new Request('https://example.test/api/intake/public/assets/confirm', {
+      method: 'POST',
+      headers: { authorization: `Intake ${created.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ assetId: r.asset.id }),
+    }),
+  );
+  eq([res.status, scheduled.length], [200, 1], '확인은 곧바로 답하고 검증을 응답 뒤로 미룬다');
+  for (const t of scheduled.splice(0)) await t();
+  hashHook = null;
+  eq([(await assetOf(r.asset.id)).status, (await assetOf(r.asset.id)).serverSha256], ['verified', sha(bytes)], '응답 뒤 검증이 이 파일을 끝낸다');
+  ok(seenSignal instanceof AbortSignal && !seenSignal.aborted, '해시 읽기에 예산 signal 이 이어진다');
+  const parked = await db.intakeJob.findUniqueOrThrow({ where: { dedupeKey: 'budget-public-api-parked' } });
+  eq([parked.status, parked.attempts], ['queued', 0], '쉬는 파일은 공개 라우트가 빌리지 않는다');
+  await db.intakeJob.updateMany({ where: { dedupeKey: 'budget-public-api-parked' }, data: { status: 'done', finishedAt: NOW } });
 }
 
 /* ─────────── 해시가 틀린 파일은 예산과 상관없이 막는다(무결성 검사를 빼지 않는다) ─────────── */

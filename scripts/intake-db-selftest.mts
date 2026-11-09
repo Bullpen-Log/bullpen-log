@@ -29,6 +29,7 @@ import { stateAfterReceipt } from '@/lib/intake/upload-run';
 import { goneViewsToPick } from '@/components/intake/review-rules';
 import { enforceRateLimit, hitRateLimit, pruneRateLimits } from '@/lib/intake/rate-limit';
 import { removeAndFindLeft, removeLeftObject } from '@/lib/intake/remove';
+import { hashInvitationToken } from '@/lib/intake/token';
 import { ORIGINAL_RETENTION_MS } from '@/lib/intake/retention';
 import {
   cancelCorrection,
@@ -214,7 +215,7 @@ const finalize = (scope: IntakeScope, version: number, idempotencyKey = key(), e
   const i = await invite();
   const row = await db.intakeInvitation.findUniqueOrThrow({ where: { id: i.invitationId } });
   ok(row.tokenHash !== i.token && !JSON.stringify(row, (_, v) => (typeof v === 'bigint' ? Number(v) : v)).includes(i.token), '토큰 원문을 저장하지 않는다');
-  eq(i.scope, { invitationId: i.invitationId, submissionId: i.submissionId }, '머리 → 범위');
+  eq(i.scope, { invitationId: i.invitationId, submissionId: i.submissionId, tokenHash: hashInvitationToken(i.token) }, '머리 → 범위(토큰 해시를 같이 싣는다)');
   await fails(openIntakeScope(db, null, 'read', NOW), 'invitation_invalid', '머리 없음');
   await fails(openIntakeScope(db, `Intake ${'a'.repeat(43)}`, 'read', NOW), 'invitation_invalid', '없는 토큰');
   await fails(openIntakeScope(db, `Bearer ${i.token}`, 'read', NOW), 'invitation_invalid', '다른 방식의 머리');
@@ -259,7 +260,7 @@ const finalize = (scope: IntakeScope, version: number, idempotencyKey = key(), e
   eq([row.note, row.uploadExpiresAt.getTime(), row.tokenReissueCount, row.tokenReissuedAt?.getTime(), row.tokenHash !== first.token], ['처음', at(14 * DAY).getTime(), 1, at(HOUR).getTime(), true], '처음 초대 그대로 · 바꿈 횟수와 시각만');
   await fails(scopeOf(first.token), 'invitation_invalid', '잃은 링크는 막힌다');
   const sc = await scopeOf(again.token);
-  eq(sc, { invitationId: first.invitationId, submissionId: first.submissionId }, '새 링크가 같은 접수를 연다');
+  eq(sc, { invitationId: first.invitationId, submissionId: first.submissionId, tokenHash: hashInvitationToken(again.token) }, '새 링크가 같은 접수를 연다');
   eq((await loadPublicState(db, sc, { now: NOW })).screen, 'welcome', '새 링크로 공개 상태를 읽는다');
   eq(
     (await db.intakeAudit.findMany({ where: { invitationId: first.invitationId }, orderBy: { createdAt: 'asc' } })).map((a) => [a.action, a.actorKind, a.actorId, a.detail]),
@@ -912,7 +913,7 @@ const finalize = (scope: IntakeScope, version: number, idempotencyKey = key(), e
   await fails(issueUploadToken(db, storage, b.scope, { assetId: a.sideId }, NOW), 'asset_not_found', '남의 자산 토큰');
   await fails(registerUploadUrl(db, storage, b.scope, { assetId: a.sideId, uploadUrl: `${storage.uploadOrigin}/storage/v1/upload/resumable/sign/x` }, NOW), 'asset_not_found', '남의 자산 주소');
   await fails(issueUploadToken(db, storage, b.scope, { assetId: '../../etc/passwd' }, NOW), 'asset_not_found', '경로 같은 번호');
-  const forged = { invitationId: b.invitationId, submissionId: a.submissionId };
+  const forged = { ...b.scope, submissionId: a.submissionId };
   await fails(loadPublicState(db, forged, { now: NOW }), 'submission_not_found', '범위를 섞어 읽기');
   await fails(saveDraft(db, forged, { expectedVersion: 0, athleteName: 'x' }, NOW), 'submission_not_found', '범위를 섞어 쓰기');
   await fails(finalize(forged, a.state.version), 'submission_not_found', '범위를 섞어 끝내기');
@@ -2106,6 +2107,17 @@ const verifyAll = async (...ids: string[]) => {
   eq([goneDone.originalsGone, goneDone.needsReconsent, goneDone.screen], ['deleted', false, 'receipt'], '지운 뒤에도 영수증이다');
   await fails(recordConsents(db, gc.scope, { answers: REQUIRED }, D(91)), 'not_editable', '지운 뒤에는 동의를 안 받는다');
 
+  /* 지울 날은 지났는데 크론이 아직 안 돈 틈 — 새 분석은 이미 막혀 있어 '기다리고 있어요' · '이어서 진행해요'가 거짓이다 */
+  const due = await sent();
+  await db.intakeConsent.updateMany({ where: { submissionId: due.submissionId, kind: 'overseas' }, data: { docVersion: 'old', textHash: 'old' } });
+  const dueBefore = await loadPublicState(db, due.scope, { now: D(90, -1) });
+  eq([dueBefore.originalsGone, dueBefore.needsReconsent], [null, true], '지울 날 전에는 살아 있고 다시 받는다');
+  const dueGap = await loadPublicState(db, due.scope, { now: D(90) });
+  eq([dueGap.originalsGone, dueGap.needsReconsent], ['deleting', false], '지울 날이 지나면 표시 전이라도 지우는 중으로 본다');
+  ok(dueGap.statusText.includes('지우고 있어요') && !dueGap.statusText.includes('기다리고') && !dueGap.statusText.includes('이어서'), '틈에서도 분석을 약속하지 않는다');
+  await fails(recordConsents(db, due.scope, { answers: REQUIRED }, D(90)), 'not_editable', '틈에서도 동의를 안 받는다');
+  eq((await db.intakeAsset.findUniqueOrThrow({ where: { id: due.sideId } })).status, 'verified', '읽기만 했다 — 파일 표시는 크론 몫이다');
+
   /* 옛 판의 파일 · 미리보기 · 분석 결과 */
   const b = await sent();
   await requestCorrection(db, { adminId: 'a', submissionId: b.submissionId, views: ['rear'] }, D(10));
@@ -2903,6 +2915,148 @@ const verifyAll = async (...ids: string[]) => {
       AND NOT EXISTS (SELECT 1 FROM "IntakeRevision" r WHERE r."sideAssetId" = a."id" OR r."rearAssetId" = a."id")`;
   ok(outside.length > 0, '고쳐 낸 접수가 판 밖 파일을 남겼다 — 빈 시험이 아니다');
   eq(outside.filter((a) => !['replaced', 'abandoned', 'purged'].includes(a.status)), [], '낸 접수에 판 밖의 도착 · 전송 자산이 없다');
+}
+
+/* ─────────────────────── 링크를 바꾼 뒤의 예전 범위(2026-11-09 재검토 — 재발급 경합) ─────────────────────── */
+/*
+ * 예전 토큰으로 범위를 연 요청이 그 직후의 재발급을 앞질러 쓰기 · 전송 토큰 발급을 끝내지 못한다.
+ * PGlite 는 연결이 하나라 두 요청이 겹치지 않는다 — 범위를 연 뒤 · 서명을 받는 사이에 재발급을 끼워 같은 순서를 만든다.
+ */
+{
+  const reissue = (submissionId: string, expectedReissueCount: number) => reissueInvitationToken(db, { adminId: 'admin-1', submissionId, expectedReissueCount }, NOW);
+  const scopeOf = (token: string, op: 'read' | 'upload' = 'read') => openIntakeScope(db, `Intake ${token}`, op, NOW);
+  const auditCount = (submissionId: string) => db.intakeAudit.count({ where: { submissionId } });
+
+  /* 초안 · 동의 · 고르기 · 끝내기 — 모두 막히고 아무것도 안 남는다 */
+  const i = await invite();
+  const old = i.scope;
+  const oldUpload = await scopeOf(i.token, 'upload');
+  const fresh = await reissue(i.submissionId, 0);
+  const before = await db.intakeSubmission.findUniqueOrThrow({ where: { id: i.submissionId } });
+  const audits = await auditCount(i.submissionId);
+  const side = mov240(4096);
+  await fails(saveDraft(db, old, { expectedVersion: before.version, athleteName: '예전 링크', athleteAgeBand: '14_or_over' }, NOW), 'invitation_invalid', '예전 범위로 초안 저장 막음');
+  await fails(recordConsents(db, old, { answers: REQUIRED }, NOW), 'invitation_invalid', '예전 범위로 동의 막음');
+  await fails(withdrawConsent(db, old, { kind: 'model' }, NOW), 'invitation_invalid', '예전 범위로 철회 막음');
+  await fails(
+    reserveAsset(db, oldUpload, { view: 'side', expectedAssetId: null, fileName: 'a', sizeBytes: side.length, declaredType: 'video/quicktime', sha256: sha(side), pairConfirmed: true }, NOW),
+    'invitation_invalid',
+    '예전 범위로 파일 고르기 막음',
+  );
+  await fails(finalize(old, before.version), 'invitation_invalid', '예전 범위로 끝내기 막음');
+  await fails(scopeOf(i.token), 'invitation_invalid', '예전 토큰은 범위도 못 연다');
+  const still = await db.intakeSubmission.findUniqueOrThrow({ where: { id: i.submissionId } });
+  eq(
+    [still.version, still.athleteName, await db.intakeConsent.count({ where: { submissionId: i.submissionId } }), await db.intakeAsset.count({ where: { submissionId: i.submissionId } }), await auditCount(i.submissionId)],
+    [before.version, null, 0, 0, audits],
+    '막힌 쓰기는 접수 · 동의 · 자산 · 감사 기록을 안 남긴다',
+  );
+
+  /* 새 토큰은 같은 접수를 끝까지 잇는다 */
+  const now1 = await scopeOf(fresh.token);
+  eq(now1.tokenHash, hashInvitationToken(fresh.token), '새 범위는 새 토큰의 해시');
+  await named(now1);
+  await recordConsents(db, now1, { answers: REQUIRED }, NOW);
+  const sideId = await sendFile(now1, 'side', side);
+  await sendFile(now1, 'rear', mov120(4096));
+  const state = await loadPublicState(db, now1, { now: NOW });
+  const k = key();
+  const first = await finalize(now1, state.version, k);
+  ok(first.created, '새 토큰으로 끝낸다');
+  const again = await finalize(now1, state.version, k);
+  eq([again.created, again.receiptCode, again.revision], [false, first.receiptCode, first.revision], '같은 키의 재시도는 같은 영수증');
+
+  /* 끝낸 뒤 한 번 더 바꾸면 — 응답을 잃은 재시도도 새 링크로만 영수증을 받는다 */
+  const fresher = await reissue(i.submissionId, 1);
+  await fails(finalize(now1, state.version, k), 'invitation_invalid', '바뀐 뒤 예전 범위의 같은 키 재시도 막음');
+  const now2 = await scopeOf(fresher.token);
+  const third = await finalize(now2, state.version, k);
+  eq([third.created, third.receiptCode, third.revision], [false, first.receiptCode, first.revision], '새 링크의 같은 키 재시도는 같은 영수증');
+  eq(await db.intakeRevision.count({ where: { submissionId: i.submissionId } }), 1, '판은 하나');
+  eq((await db.intakeAsset.findUniqueOrThrow({ where: { id: sideId } })).tokenCount, 1, '전송 토큰은 새 범위로 한 번');
+}
+{
+  /* 전송 토큰 · 업로드 주소 · 도착 확인 — 범위를 연 뒤 바뀌면 막는다 */
+  const reissue = (submissionId: string, expectedReissueCount: number) => reissueInvitationToken(db, { adminId: 'admin-1', submissionId, expectedReissueCount }, NOW);
+  const i = await invite();
+  await named(i.scope);
+  await recordConsents(db, i.scope, { answers: REQUIRED }, NOW);
+  const bytes = mov240(4096);
+  const r = await reserveAsset(db, i.scope, { view: 'side', expectedAssetId: null, fileName: 'a', sizeBytes: bytes.length, declaredType: 'video/quicktime', sha256: sha(bytes), pairConfirmed: true }, NOW);
+  const fresh = await reissue(i.submissionId, 0);
+  const signed: string[] = [];
+  const counting: IntakeStorage = {
+    ...storage,
+    async issueUpload(p) {
+      signed.push(p);
+      return storage.issueUpload(p);
+    },
+  };
+  await fails(issueUploadToken(db, counting, i.scope, { assetId: r.asset.id }, NOW), 'invitation_invalid', '예전 범위로 전송 토큰 막음');
+  eq(signed.length, 0, '서명을 받기 전에 막는다');
+  await fails(
+    registerUploadUrl(db, storage, i.scope, { assetId: r.asset.id, uploadUrl: `${storage.uploadOrigin}/storage/v1/upload/resumable/sign/x` }, NOW),
+    'invitation_invalid',
+    '예전 범위로 업로드 주소 막음',
+  );
+  await fails(confirmUpload(db, storage, i.scope, { assetId: r.asset.id }, NOW), 'invitation_invalid', '예전 범위로 도착 확인 막음');
+  const row = await db.intakeAsset.findUniqueOrThrow({ where: { id: r.asset.id } });
+  eq([row.status, row.tokenCount, row.tokenIssuedAt, row.uploadUrl], ['reserved', 0, null, null], '자산은 그대로');
+
+  /* 서명을 받는 사이에 바뀜 — 받은 서명을 버리고 내주지 않는다 */
+  const now1 = await openIntakeScope(db, `Intake ${fresh.token}`, 'upload', NOW);
+  let next: string | null = null;
+  const racing: IntakeStorage = {
+    ...storage,
+    async issueUpload(p) {
+      const g = await storage.issueUpload(p);
+      next = (await reissue(i.submissionId, 1)).token;
+      return g;
+    },
+  };
+  await fails(issueUploadToken(db, racing, now1, { assetId: r.asset.id }, NOW), 'invitation_invalid', '서명을 받는 사이 바뀌면 내주지 않는다');
+  eq((await db.intakeAsset.findUniqueOrThrow({ where: { id: r.asset.id } })).tokenCount, 0, '버린 서명은 세지 않는다');
+  ok(next, '경합 속 재발급이 끝났다');
+  const now2 = await openIntakeScope(db, `Intake ${next!}`, 'upload', NOW);
+  const g = await issueUploadToken(db, storage, now2, { assetId: r.asset.id }, NOW);
+  eq([g.assetId, (await db.intakeAsset.findUniqueOrThrow({ where: { id: r.asset.id } })).tokenCount], [r.asset.id, 1], '새 범위는 전송 토큰을 받는다');
+  objects.set(g.objectName, bytes);
+  await registerUploadUrl(db, storage, now2, { assetId: r.asset.id, uploadUrl: `${storage.uploadOrigin}/storage/v1/upload/resumable/sign/y` }, NOW);
+  eq((await confirmUpload(db, storage, now2, { assetId: r.asset.id }, NOW)).status, 'uploaded', '새 범위로 도착 확인');
+
+  /* 폐기 · 기간은 그대로 — 맞는 토큰이면 예전 답을 한다 */
+  await fails(saveDraft(db, now2, { expectedVersion: 0 }, at(15 * DAY)), 'upload_expired', '바꾼 링크도 기간이 끝나면 고치기 막음');
+  await db.intakeInvitation.update({ where: { id: i.invitationId }, data: { status: 'revoked', revokedAt: NOW } });
+  await fails(saveDraft(db, now2, { expectedVersion: 0 }, NOW), 'invitation_revoked', '바꾼 링크도 폐기면 폐기라고 답한다');
+  await fails(openIntakeScope(db, `Intake ${next!}`, 'read', NOW), 'invitation_revoked', '폐기 뒤 범위 열기도 폐기');
+}
+{
+  /* 결과 코드 관문 — 넘긴 범위의 토큰이 낡았으면 자리를 잡지 않는다 */
+  const reissue = (submissionId: string, expectedReissueCount: number) => reissueInvitationToken(db, { adminId: 'admin-1', submissionId, expectedReissueCount }, NOW);
+  const coded = await invite({ accessCode: '123456' });
+  const stale = await db.intakeInvitation.findUniqueOrThrow({ where: { id: coded.invitationId } });
+  const fresh = await reissue(coded.submissionId, 0);
+  const row = await db.intakeInvitation.findUniqueOrThrow({ where: { id: coded.invitationId } });
+  const tryCode = (invitation: typeof row, scope: IntakeScope, code: string) => verifyResultAccess(db, { invitation, submissionId: coded.submissionId, code, scope }, NOW);
+  await fails(tryCode(row, coded.scope, '123456'), 'invitation_invalid', '바뀐 뒤 읽은 줄 + 예전 범위는 맞는 코드도 막음');
+  /* 범위를 연 뒤 · 줄을 읽기 전에 바뀌지 않은 척 — 낡은 줄을 넘겨도 자리 잡기가 DB 의 해시와 다시 맞춘다 */
+  await fails(tryCode(stale, coded.scope, '000000'), 'invitation_invalid', '낡은 줄로도 예전 범위는 자리를 못 잡는다');
+  eq((await db.intakeInvitation.findUniqueOrThrow({ where: { id: coded.invitationId } })).accessCodeFailures, 0, '막힌 시도는 틀린 횟수에 안 들어간다');
+  const now1 = await openIntakeScope(db, `Intake ${fresh.token}`, 'view_result', NOW);
+  await tryCode(row, now1, '123456');
+  passed++;
+  await fails(tryCode(row, now1, '000000'), 'access_code_wrong', '새 범위의 틀린 코드는 그대로 틀림');
+  eq((await db.intakeInvitation.findUniqueOrThrow({ where: { id: coded.invitationId } })).accessCodeFailures, 1, '틀린 횟수는 새 범위의 것만');
+
+  const plain = await invite();
+  const plainFresh = await reissue(plain.submissionId, 0);
+  const plainRow = await db.intakeInvitation.findUniqueOrThrow({ where: { id: plain.invitationId } });
+  await fails(verifyResultAccess(db, { invitation: plainRow, submissionId: plain.submissionId, code: null, scope: plain.scope }, NOW), 'invitation_invalid', '코드 없는 초대도 예전 범위는 막음');
+  await verifyResultAccess(db, { invitation: plainRow, submissionId: plain.submissionId, code: null, scope: await openIntakeScope(db, `Intake ${plainFresh.token}`, 'view_result', NOW) }, NOW);
+  passed++;
+  /* 범위를 안 넘기는 옛 부름은 그대로 — 코드만 본다 */
+  await verifyResultAccess(db, { invitation: plainRow, submissionId: plain.submissionId, code: null }, NOW);
+  passed++;
 }
 
 /* 파일 탓의 쓰기 거절 — 진짜 Postgres 오류 모양으로 본다. 이 뒤에는 DB 를 안 쓴다 */

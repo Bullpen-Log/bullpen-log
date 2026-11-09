@@ -17,7 +17,7 @@ import { ACCESS_CODE_MAX_FAILURES, uploadExpired } from '@/lib/intake/access';
 import { writeAudit } from '@/lib/intake/audit';
 import { consentDecisionRows, hasRequiredConsents, latestConsents, modelUseAllowed } from '@/lib/intake/consent';
 import { IntakeError } from '@/lib/intake/errors';
-import { GIB, INTAKE_BUCKET_MAX_BYTES, READ_URL_TTL_SEC, intakeLimits, type IntakeLimits } from '@/lib/intake/limits';
+import { GIB, INTAKE_BUCKET_MAX_BYTES, READ_URL_TTL_SEC, intakeLimits, isVerifyBudgetNote, type IntakeLimits } from '@/lib/intake/limits';
 import { fpsLabel, integrityLabel, timingNote, type IntakeMediaFacts } from '@/lib/intake/media';
 import { downloadFileName, isIntakeId, isSubmissionPath, originalExtension } from '@/lib/intake/paths';
 import { requeueJob } from '@/lib/intake/jobs';
@@ -74,6 +74,11 @@ const MAX_CONSENT_ROWS = 100;
 const MAX_JOB_ISSUES = 20;
 /** 크론 세 바퀴 — 이만큼 지나도 안 돌면 멈춘 것으로 본다 */
 const JOB_STALL_MS = 15 * 60_000;
+/**
+ * 예산 기다림이 멈춤으로 바뀌는 때 — 크론(5분마다)은 차례가 온 기다림을 건너뛸 때마다 글을 다시 써서 updatedAt 이 새로 찍힌다.
+ * 차례 · 마지막 손길 둘 다 한 시간(열두 바퀴) 넘게 지났으면 크론이 안 도는 것으로 본다. 하루 쉬는 일은 차례가 미래라 그동안은 기다림이다.
+ */
+const JOB_WAIT_STALL_MS = 60 * 60_000;
 /** 올리기 기간 · 결과 보기 기간의 범위(일) */
 const MAX_UPLOAD_DAYS = 60;
 const MAX_RESULT_DAYS = 365;
@@ -361,12 +366,17 @@ export type IntakeAssetDetail = {
 export type IntakeJobIssue = {
   id: string;
   kind: string;
-  /** failed 시도를 다 씀 · retrying 실패 뒤 기다림 · stalled 차례가 지났는데 안 돎 */
-  state: 'failed' | 'retrying' | 'stalled';
+  /**
+   * failed 시도를 다 씀 · retrying 실패 뒤 기다림 · stalled 차례가 지났는데 안 돎 ·
+   * waiting 실패가 아니라 실행 예산 때문에 기다리는 파일 확인(큰 파일 — 크론이 이어 받거나 검증 작업자를 기다린다. 시도 횟수를 안 쓴다)
+   */
+  state: 'failed' | 'retrying' | 'stalled' | 'waiting';
   attempts: number;
   maxAttempts: number;
-  /** 주소 · 저장 경로를 지운 오류 글 */
+  /** 주소 · 저장 경로를 지운 오류 글 — 기다림(waiting)은 오류가 아니라 비워 두고 글을 note 에 둔다 */
   lastError: string | null;
+  /** 기다림 글 — waiting 일 때 왜 기다리는지(lib/intake/job-handlers.ts VERIFY_BUDGET_NOTES). 화면은 오류 색 없이 보인다. 그 밖에는 null */
+  note?: string | null;
   view: IntakeView | null;
   revisionNumber: number | null;
   updatedAt: string;
@@ -488,13 +498,34 @@ export function jobErrorText(raw: string | null): string | null {
   return raw?.replace(/\bhttps?:\/\/\S+/g, '[주소]').replace(/\bsub\/[^\s'")]+/g, '[저장 경로]') ?? null;
 }
 
-function jobStateOf(j: JobRow, now: Date): IntakeJobIssue['state'] | null {
+/** 실행 예산 때문에 줄에서 기다리는 파일 확인인가 — 크론이 '남은 시간이 모자라' 건너뛰었거나 해시를 끊어 되돌린 일이다(lib/intake/jobs.ts) */
+export const isVerifyBudgetWait = (j: Pick<JobRow, 'kind' | 'status' | 'lastError'>) => j.kind === 'verify_asset' && j.status === 'queued' && isVerifyBudgetNote(j.lastError);
+
+/**
+ * 일감의 모습 — 보일 것이 없으면 null.
+ * 예산 때문에 기다리는 파일 확인은 차례가 지나도 '멈춤' · '재시도'가 아니다. 크론은 건너뛸 때 차례를 안 미뤄서(다음 실행에서 먼저 집게) 시간만 보면 멈춘 것처럼 보인다.
+ * 도는 중인데 임대가 끝난 일은 기다림 글이 남아 있어도 일꾼이 죽은 것이라 멈춤이다.
+ * 기다림도 크론이 한 시간 넘게 손대지 않았으면(차례 · updatedAt 둘 다 JOB_WAIT_STALL_MS 넘게 지남) 멈춤이다 — 크론이 죽었는데 조용한 기다림으로 숨지 않게.
+ */
+export function jobStateOf(j: Pick<JobRow, 'kind' | 'status' | 'lastError' | 'runAfter' | 'leaseUntil' | 'updatedAt'>, now: Date): IntakeJobIssue['state'] | null {
   if (j.status === 'failed') return 'failed';
-  const overdue = now.getTime() - j.runAfter.getTime() > JOB_STALL_MS;
   if (j.status === 'running') return j.leaseUntil && j.leaseUntil < now ? 'stalled' : null;
   if (j.status !== 'queued') return null;
-  if (overdue) return 'stalled';
+  if (isVerifyBudgetWait(j)) {
+    const lastTouchMs = Math.max(j.runAfter.getTime(), j.updatedAt.getTime());
+    return now.getTime() - lastTouchMs > JOB_WAIT_STALL_MS ? 'stalled' : 'waiting';
+  }
+  if (now.getTime() - j.runAfter.getTime() > JOB_STALL_MS) return 'stalled';
   return j.lastError ? 'retrying' : null;
+}
+
+/**
+ * '다시 확인'으로 풀 수 있는 일감인가 — 시도를 다 쓴 파일 확인 · 분석 등록, 그리고 예산 때문에 기다리는 파일 확인(requeueJob 이 차례를 지금으로 당기고 끊김 기록을 지운다).
+ * 줄에서 재시도를 기다리거나 도는 일감은 일꾼이 집어 간다.
+ */
+export function canRequeueJob(kind: string, state: IntakeJobIssue['state']): boolean {
+  if (state === 'waiting') return kind === 'verify_asset';
+  return state === 'failed' && (kind === 'verify_asset' || kind === 'register_revision');
 }
 
 /** 이 접수의 끝나지 못한 일감 — 일감 표에는 접수 번호 칸이 없어 payload 의 접수 · 자산 · 판 · 실행 번호로 찾는다 */
@@ -530,12 +561,13 @@ async function jobIssuesOf(
       state,
       attempts: j.attempts,
       maxAttempts: j.maxAttempts,
-      lastError: jobErrorText(j.lastError),
+      /* 기다림 글은 오류가 아니다 — 오류 칸에 두면 화면이 실패처럼 붉게 그린다 */
+      lastError: state === 'waiting' ? null : jobErrorText(j.lastError),
+      note: state === 'waiting' ? jobErrorText(j.lastError) : null,
       view: isIntakeView(view) ? view : null,
       revisionNumber: input.revisions.find((r) => r.id === j.payload?.revisionId)?.number ?? null,
       updatedAt: j.updatedAt.toISOString(),
-      /* 줄에 있거나 도는 일감은 일꾼이 집어 간다 — 다시 걸 것은 시도를 다 쓴 일감뿐이다 */
-      canRequeue: state === 'failed' && (j.kind === 'verify_asset' || j.kind === 'register_revision'),
+      canRequeue: canRequeueJob(j.kind, state),
     });
   }
   return issues;

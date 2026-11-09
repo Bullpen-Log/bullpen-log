@@ -118,10 +118,12 @@ const {
   adminRevokeInvitation,
   adminWithdrawConsent,
   assignSubmission,
+  canRequeueJob,
   deleteIntakeNote,
   issueOriginalLinks,
   issueRunPreviewLink,
   jobErrorText,
+  jobStateOf,
   loadIntakeDetail,
   loadIntakeList,
   markIntakeRead,
@@ -621,6 +623,60 @@ const auditCount = () => db.intakeAudit.count();
   eq(later.jobIssues.filter((j) => j.state === 'stalled').length, 3, '차례가 지나도 안 돌면 멈춘 것으로 본다');
   eq((await loadIntakeDetail(db, A, other.submissionId, NOW)).jobIssues.map((j) => j.lastError), ['남의 오류'], '자기 접수의 일감만 본다');
   eq((await adminCreateInvitation(db, A, {}, NOW).then((x) => loadIntakeDetail(db, A, x.submissionId, NOW))).jobIssues, [], '자산이 없는 접수는 일감도 없다');
+}
+
+/* ═══════════ 6-1b. 큰 파일 검증 기다림 — 실패 · 멈춤이 아니라 기다림, '다시 확인'으로 당긴다 ═══════════ */
+{
+  const { VERIFY_BUDGET_NOTE_PREFIX } = await import('@/lib/intake/limits');
+  const inv = await adminCreateInvitation(db, A, { note: '큰 파일' }, NOW);
+  const id = inv.submissionId;
+  await db.intakeSubmission.update({ where: { id }, data: { athleteName: '큰파일시험', status: 'submitted', receivedAt: NOW, receiptCode: 'IN-261106-BIGW01' } });
+  const side = await mkAsset(id, 'side', 'uploaded');
+  const rear = await mkAsset(id, 'rear', 'verifying');
+  const rev = await db.intakeRevision.create({
+    data: { submissionId: id, number: 1, sideAssetId: side, rearAssetId: rear, athleteName: '큰파일시험', submitterRelation: 'self', consentSnapshot: [], finalizeKey: 'w'.repeat(16), finalizedAt: NOW },
+  });
+  await db.intakeSubmission.update({ where: { id }, data: { currentRevisionId: rev.id } });
+  const wait = `${VERIFY_BUDGET_NOTE_PREFIX} 큰 파일이라 다음 실행에서 이어 확인해요.`;
+  const parked = `${VERIFY_BUDGET_NOTE_PREFIX} 시간 안에 다 읽지 못한 일이 거듭돼 검증 작업자를 기다려요.`;
+  /* 크론이 건너뛴 일 — 차례를 안 미뤄 runAfter 가 오래전이지만, 크론이 5분 전에 글을 다시 썼다(updatedAt). 끊김이 거듭돼 하루 뒤로 민 일 */
+  const H = 3_600_000;
+  await db.intakeJob.create({ data: { kind: 'verify_asset', dedupeKey: `verify_asset:${side}`, payload: { assetId: side }, status: 'queued', attempts: 0, lastError: wait, runAfter: new Date(NOW.getTime() - 3 * H), updatedAt: new Date(NOW.getTime() - 5 * 60_000) } });
+  await db.intakeJob.create({ data: { kind: 'verify_asset', dedupeKey: `verify_asset:${rear}`, payload: { assetId: rear, budgetAborts: 3 }, status: 'queued', attempts: 0, lastError: parked, runAfter: new Date(NOW.getTime() + 24 * H), updatedAt: new Date(NOW.getTime() - H) } });
+
+  const d = await loadIntakeDetail(db, A, id, NOW);
+  eq(d.jobIssues.map((j) => [j.view, j.state, j.canRequeue, j.lastError, j.note]).sort(), [
+    ['rear', 'waiting', true, null, parked],
+    ['side', 'waiting', true, null, wait],
+  ], '차례가 지나도 멈춤이 아니라 기다림 · 오류 칸은 비우고 글은 기다림 칸에 · 다시 걸 수 있다');
+  const statesAt = async (ms: number) => (await loadIntakeDetail(db, A, id, new Date(NOW.getTime() + ms))).jobIssues.map((j) => [j.view, j.state]).sort();
+  eq(await statesAt(50 * 60_000), [['rear', 'waiting'], ['side', 'waiting']], '크론이 한 시간 안에 손댔으면 기다림이다');
+  eq(await statesAt(24 * H + 30 * 60_000), [['rear', 'waiting'], ['side', 'stalled']], '쉬는 일은 쉼이 끝난 뒤 한 시간까지 기다림 · 한 시간 넘게 아무도 안 만진 일은 멈춤');
+  /* 크론이 죽어 아무도 손대지 않으면 조용한 기다림으로 숨지 않는다 — 오류 칸에 그 글이 붉게 남고, '다시 확인' 대신 크론 안내가 나온다 */
+  const dead = (await loadIntakeDetail(db, A, id, new Date(NOW.getTime() + 2 * 24 * H))).jobIssues;
+  eq(dead.map((j) => [j.view, j.state, j.canRequeue, j.note]).sort(), [['rear', 'stalled', false, null], ['side', 'stalled', false, null]], '이틀 동안 손길이 없으면 둘 다 멈춤');
+  eq(dead.find((j) => j.view === 'side')?.lastError, wait, '멈춘 기다림은 글을 오류 칸에 남긴다');
+
+  /* 도는 중인데 임대가 끝났으면 기다림 글이 남아 있어도 일꾼이 죽은 것이다 */
+  await db.intakeJob.updateMany({ where: { dedupeKey: `verify_asset:${side}` }, data: { status: 'running', leaseOwner: 'w', leaseUntil: new Date(NOW.getTime() - 60_000) } });
+  eq((await loadIntakeDetail(db, A, id, NOW)).jobIssues.find((j) => j.view === 'side')?.state, 'stalled', '임대가 끝난 도는 일은 멈춤');
+  await db.intakeJob.updateMany({ where: { dedupeKey: `verify_asset:${side}` }, data: { status: 'queued', leaseOwner: null, leaseUntil: null } });
+
+  /* 기다림 글이 아닌 재시도는 그대로 재시도 · 다른 종류는 기다림 글이어도 기다림이 아니다 */
+  const plain = { kind: 'verify_asset', status: 'queued', lastError: '저장소 응답 실패', runAfter: NOW, leaseUntil: null, updatedAt: NOW };
+  eq(jobStateOf(plain, NOW), 'retrying', '보통 재시도');
+  eq(jobStateOf({ ...plain, kind: 'register_revision', lastError: wait }, NOW), 'retrying', '파일 확인이 아니면 기다림이 아니다');
+  eq(jobStateOf({ ...plain, status: 'failed', lastError: wait }, NOW), 'failed', '시도를 다 쓴 일은 실패');
+  eq([canRequeueJob('verify_asset', 'waiting'), canRequeueJob('register_revision', 'waiting'), canRequeueJob('verify_asset', 'stalled'), canRequeueJob('register_revision', 'failed')], [true, false, false, true], '다시 걸 수 있는 것');
+
+  eq(await adminRequeueVerification(db, A, { submissionId: id }, NOW), { requeued: 2 }, '기다리는 두 검증을 지금으로 당긴다');
+  const jobs = await db.intakeJob.findMany({ where: { dedupeKey: { in: [`verify_asset:${side}`, `verify_asset:${rear}`] } } });
+  eq(jobs.map((j) => [j.status, j.lastError, j.runAfter.getTime(), j.payload]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))), [
+    ['queued', null, NOW.getTime(), { assetId: rear }],
+    ['queued', null, NOW.getTime(), { assetId: side }],
+  ].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))), '곧바로 차례 · 기다림 글 · 끊김 기록을 지운다');
+  eq((await loadIntakeDetail(db, A, id, NOW)).jobIssues, [], '당긴 뒤에는 보일 것이 없다');
+  await db.intakeJob.updateMany({ where: { dedupeKey: { in: [`verify_asset:${side}`, `verify_asset:${rear}`] } }, data: { status: 'done', finishedAt: NOW } });
 }
 
 /* ═══════════ 7. 원본 주소 ═══════════ */

@@ -16,9 +16,10 @@ import type { ConsentAnswer } from '@/lib/intake/consent';
 import { IntakeError } from '@/lib/intake/errors';
 import { createPublicApi, type PublicApi } from '@/lib/intake/public-api';
 import { IntakeRequestError, createIntakeClient, type IntakeClient, type PublicStateResponse } from '@/lib/intake/public-client';
+import { handlePublicResultRequest } from '@/lib/intake/publication';
 import { INTAKE_RATE_RULES } from '@/lib/intake/rate-limit';
-import { createInvitation, requestCorrection } from '@/lib/intake/service';
-import type { IntakeStorage } from '@/lib/intake/storage-core';
+import { createInvitation, reissueInvitationToken, requestCorrection } from '@/lib/intake/service';
+import type { IntakeRunStorage, IntakeStorage } from '@/lib/intake/storage-core';
 import { IntakeUploadError, type RecoveryStore, type StartUploadOptions, type UploadHandle } from '@/lib/intake/upload-client';
 import { RunStop, finalizeKey, finishRun, runUpload, type RunEvent, type RunItem } from '@/lib/intake/upload-run';
 import { mov120, mov240 } from './intake-fixtures.mts';
@@ -232,6 +233,204 @@ async function sent(client: IntakeClient, submissionId: string) {
   await i.client.state();
   const later = await db.intakeSubmission.findUniqueOrThrow({ where: { id: i.submissionId } });
   eq([later.version, later.updatedAt], [before.version, before.updatedAt], '상태 보기는 아무것도 안 바꾼다');
+}
+
+/* ───────────── 링크를 바꾼 직후의 예전 토큰 요청(2026-11-09 재검토 — 재발급 경합) ───────────── */
+/*
+ * 예전 토큰으로 범위를 연 바로 뒤 관리자가 링크를 바꾼다 — 그 요청은 쓰기 · 전송 토큰 발급을 끝내지 못하고, 새 링크는 같은 접수를 끝까지 잇는다.
+ * PGlite 는 연결이 하나라 두 요청이 겹치지 않는다. 범위를 여는 조회(토큰 해시로 찾기) 뒤 · 저장소 서명 뒤에 재발급을 끼워 같은 순서를 만든다.
+ */
+{
+  nextAddress();
+  let rotateAfterLookup: (() => Promise<void>) | null = null;
+  let rotateAfterSign: (() => Promise<void>) | null = null;
+  const bind = (target: object, prop: string | symbol) => {
+    const v = Reflect.get(target, prop, target) as unknown;
+    return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(target) : v;
+  };
+  /* 자산을 읽은 뒤(ownedAsset) · 저장소를 본 뒤(stat)에 바뀜 — 잠그지 않은 읽기와 쓰기 사이의 창 */
+  let rotateAfterAssetRead: (() => Promise<void>) | null = null;
+  let rotateAfterStat: (() => Promise<void>) | null = null;
+  const racingDb = new Proxy(db, {
+    get(target, prop) {
+      if (prop === 'intakeAsset') {
+        return new Proxy(target.intakeAsset, {
+          get(t, p) {
+            if (p !== 'findFirst') return bind(t, p);
+            return async (...args: unknown[]) => {
+              const found = await (t.findFirst as (...a: unknown[]) => Promise<unknown>)(...args);
+              const hook = rotateAfterAssetRead;
+              rotateAfterAssetRead = null;
+              if (hook) await hook();
+              return found;
+            };
+          },
+        });
+      }
+      if (prop !== 'intakeInvitation') return bind(target, prop);
+      const delegate = target.intakeInvitation;
+      return new Proxy(delegate, {
+        get(t, p) {
+          if (p !== 'findUnique') return bind(t, p);
+          return async (...args: unknown[]) => {
+            const found = await (t.findUnique as (...a: unknown[]) => Promise<unknown>)(...args);
+            const hook = rotateAfterLookup;
+            if (hook && (args[0] as { where?: { tokenHash?: string } } | undefined)?.where?.tokenHash) {
+              rotateAfterLookup = null;
+              await hook();
+            }
+            return found;
+          };
+        },
+      });
+    },
+  });
+  let signed = 0;
+  const racingStorage: IntakeStorage = {
+    ...storage,
+    async issueUpload(p) {
+      signed++;
+      const grant = await storage.issueUpload(p);
+      const hook = rotateAfterSign;
+      rotateAfterSign = null;
+      if (hook) await hook();
+      return grant;
+    },
+    async stat(p) {
+      const found = await storage.stat(p);
+      const hook = rotateAfterStat;
+      rotateAfterStat = null;
+      if (hook) await hook();
+      return found;
+    },
+  };
+  const racingApi = createPublicApi({ db: racingDb, storage: () => racingStorage, schedule: (t) => after.push(t), now: () => clock });
+  const racingDispatch: typeof fetch = async (input, init) => {
+    const path = String(input).replace('/api/intake/public/', '');
+    const headers = new Headers(init?.headers);
+    headers.set('x-forwarded-for', address);
+    return racingApi[ROUTES[path]](new Request(`http://local${String(input)}`, { method: init?.method, headers, body: init?.body }));
+  };
+
+  /* 결과 보기의 코드 자리까지 보려고 접근 코드를 건다 — 앞의 쓰기 · 전송은 코드와 무관하다 */
+  const RESULT_CODE = 'bullpen-7';
+  const i = await invite({ accessCode: RESULT_CODE });
+  let token = i.token;
+  let rotations = 0;
+  const rotate = async () => {
+    token = (await reissueInvitationToken(db, { adminId: 'admin-1', submissionId: i.submissionId, expectedReissueCount: rotations }, clock)).token;
+    rotations++;
+  };
+  /** 지금 링크의 화면 */
+  const current = () => createIntakeClient(token, dispatch);
+  /** 지금 링크로 범위를 연 바로 뒤에 링크가 바뀌는 요청 */
+  const raced = () => {
+    rotateAfterLookup = rotate;
+    return createIntakeClient(token, racingDispatch);
+  };
+  const refusedAfterRotate = async (p: Promise<unknown>, label: string) => {
+    const n = rotations;
+    await failsWith(p, 'invitation_invalid', label);
+    eq(rotations, n + 1, `${label} — 그사이 링크가 바뀌었다`);
+  };
+
+  const { state, consentDocs } = await current().state();
+  await refusedAfterRotate(raced().saveDraft({ expectedVersion: state.version, athleteName: '예전 링크', athleteAgeBand: '14_or_over', samePitchConfirmed: true }), '예전 토큰의 초안 저장');
+  await refusedAfterRotate(raced().recordConsents(answers(consentDocs)), '예전 토큰의 동의');
+  await refusedAfterRotate(raced().withdrawModelConsent(), '예전 토큰의 선택 동의 철회');
+  const untouched = await db.intakeSubmission.findUniqueOrThrow({ where: { id: i.submissionId } });
+  eq([untouched.version, untouched.athleteName, await db.intakeConsent.count({ where: { submissionId: i.submissionId } })], [state.version, null, 0], '막힌 쓰기는 아무것도 안 남긴다');
+
+  await drafted(current());
+  const pair = pairOf();
+  const reserveSide = (c: IntakeClient) => c.reserveAsset({ view: 'side', expectedAssetId: null, fileName: 'side.MOV', sizeBytes: pair.side.length, declaredType: 'video/quicktime', sha256: sha(pair.side), pairConfirmed: true });
+  await refusedAfterRotate(reserveSide(raced()), '예전 토큰의 파일 고르기');
+  eq(await db.intakeAsset.count({ where: { submissionId: i.submissionId } }), 0, '막힌 고르기는 자산을 안 만든다');
+  const r = await reserveSide(current());
+
+  await refusedAfterRotate(raced().issueToken(r.asset.id), '예전 토큰의 전송 토큰');
+  eq(signed, 0, '범위를 연 뒤 바뀌면 서명을 받기 전에 막는다');
+  /* 서명을 받는 사이에 바뀜 — 받은 서명을 버린다 */
+  rotateAfterSign = rotate;
+  const before = rotations;
+  await failsWith(createIntakeClient(token, racingDispatch).issueToken(r.asset.id), 'invitation_invalid', '서명을 받는 사이 링크가 바뀌면 전송 토큰을 안 준다');
+  eq([signed, rotations], [1, before + 1], '서명은 받았지만 내주지 않았다');
+  const row = await db.intakeAsset.findUniqueOrThrow({ where: { id: r.asset.id } });
+  eq([row.status, row.tokenCount, row.tokenIssuedAt], ['reserved', 0, null], '버린 서명은 자산에 안 남는다');
+  await refusedAfterRotate(raced().registerUploadUrl(r.asset.id, `${storage.uploadOrigin}/storage/v1/upload/resumable/sign/x`), '예전 토큰의 업로드 주소');
+  await refusedAfterRotate(raced().confirmUpload(r.asset.id), '예전 토큰의 도착 확인');
+  await refusedAfterRotate(raced().state(), '예전 토큰의 상태 보기 — 초안 · 이름이 바뀐 링크로 안 나간다');
+
+  /* 범위를 본 뒤(잠그지 않은 읽기)에 바뀜 — 업로드 주소 · 도착 확인은 잠근 채 다시 보고 쓰지 않는다 */
+  const lateBefore = rotations;
+  rotateAfterAssetRead = rotate;
+  await failsWith(
+    createIntakeClient(token, racingDispatch).registerUploadUrl(r.asset.id, `${storage.uploadOrigin}/storage/v1/upload/resumable/sign/late`),
+    'invitation_invalid',
+    '자산을 읽은 뒤 링크가 바뀌면 업로드 주소를 안 남긴다',
+  );
+  eq([rotations, (await db.intakeAsset.findUniqueOrThrow({ where: { id: r.asset.id } })).uploadUrl], [lateBefore + 1, null], '바뀐 뒤의 업로드 주소는 자산에 없다');
+  const arrivedPath = (await db.intakeAsset.findUniqueOrThrow({ where: { id: r.asset.id } })).objectPath;
+  objects.set(arrivedPath, pair.side);
+  rotateAfterStat = rotate;
+  await failsWith(createIntakeClient(token, racingDispatch).confirmUpload(r.asset.id), 'invitation_invalid', '저장소를 본 뒤 링크가 바뀌면 도착을 안 적는다');
+  const notArrived = await db.intakeAsset.findUniqueOrThrow({ where: { id: r.asset.id } });
+  eq(
+    [rotations, notArrived.status, notArrived.uploadedAt, await db.intakeJob.count({ where: { dedupeKey: `verify_asset:${r.asset.id}` } })],
+    [lateBefore + 2, 'reserved', null, 0],
+    '예전 토큰의 확인은 도착 · 검증 일감을 안 남긴다',
+  );
+  objects.delete(arrivedPath);
+  eq((await raw('state', { auth: `Intake ${i.token}` })).status, 404, '처음 링크는 막혀 있다');
+
+  /* 새 링크는 같은 접수를 끝까지 잇는다 — 같은 키의 완료도 그대로 */
+  await runUpload(runDeps(current(), pair.bufs, fakeStart(pair.bufs), i.submissionId), [item('side', pair.side), item('rear', pair.rear)], { side: r.asset.id, rear: null }, () => {}, signal());
+  const k = key();
+  const receipt = await finishRun(current(), { idempotencyKey: k, expected: {} }, instant);
+  ok(receipt.receiptCode.startsWith('IN-'), '새 링크로 끝낸다');
+  await refusedAfterRotate(raced().finalize({ expectedVersion: 0, idempotencyKey: k }), '예전 토큰의 같은 키 완료 재시도');
+  const again = await current().finalize({ expectedVersion: 0, idempotencyKey: k });
+  eq([again.created, again.receiptCode, again.revision], [false, receipt.receiptCode, receipt.revision], '새 링크의 같은 키 재시도는 같은 영수증');
+  eq(await db.intakeRevision.count({ where: { submissionId: i.submissionId } }), 1, '판은 하나');
+  await flushAfter();
+
+  /*
+   * 결과 보기(POST /api/intake/public/result) — 범위를 연 바로 뒤 링크를 바꾸면 코드 자리를 잡지도, 틀린 횟수를 쌓지도, 결과를 내주지도 않는다.
+   * 공개 판은 줄만 깐다(결과 파일 없음) — 맞는 코드면 코드 관문을 지나 'result_unavailable' 에서 멈춰, 관문을 지났는지 가를 수 있다.
+   */
+  nextAddress();
+  const rev = await db.intakeRevision.findFirstOrThrow({ where: { submissionId: i.submissionId } });
+  const pubRun = await db.intakeAnalysisRun.create({ data: { submissionId: i.submissionId, revisionId: rev.id, engineKey: 'race-test', status: 'succeeded', finishedAt: clock } });
+  await db.intakePublication.create({ data: { submissionId: i.submissionId, runId: pubRun.id, number: 1, activeFor: i.submissionId, publishedByAdminId: 'admin-1', publishedAt: clock } });
+  const resultStorage: IntakeRunStorage = {
+    ...racingStorage,
+    async resultUploadUrl() {
+      throw new Error('결과 올리기는 안 쓴다');
+    },
+  };
+  const resultCall = (viaRacing: boolean, accessCode: string) =>
+    handlePublicResultRequest(
+      new Request('https://x.test/api/intake/public/result', {
+        method: 'POST',
+        headers: { 'x-forwarded-for': address, 'content-type': 'application/json', authorization: `Intake ${token}` },
+        body: JSON.stringify({ accessCode }),
+      }),
+      { db: viaRacing ? racingDb : db, storage: resultStorage, now: () => clock },
+    );
+  const errorOf = async (res: Response) => ((await res.json()) as { error?: { code: string } }).error?.code ?? `status ${res.status}`;
+  const codeFailures = async () => (await db.intakeInvitation.findUniqueOrThrow({ where: { id: i.invitationId } })).accessCodeFailures;
+  const racedResult = async (accessCode: string, label: string) => {
+    const n = rotations;
+    rotateAfterLookup = rotate;
+    eq(await errorOf(await resultCall(true, accessCode)), 'invitation_invalid', label);
+    eq(rotations, n + 1, `${label} — 그사이 링크가 바뀌었다`);
+  };
+  await racedResult('wrong-code-1', '예전 토큰의 틀린 코드는 맞혀 보지 않는다');
+  await racedResult(RESULT_CODE, '예전 토큰의 맞는 코드도 결과를 안 받는다');
+  eq(await codeFailures(), 0, '예전 토큰의 시도는 틀린 횟수에 안 쌓인다');
+  eq(await errorOf(await resultCall(false, RESULT_CODE)), 'result_unavailable', '지금 링크의 맞는 코드는 관문을 지난다');
+  eq(await errorOf(await resultCall(false, 'wrong-code-2')), 'access_code_wrong', '지금 링크의 틀린 코드는 막힌다');
+  eq(await codeFailures(), 1, '지금 링크의 틀린 코드만 센다 — 라우트가 실제로 세는 길이다');
 }
 
 /* ───────────── 틀린 토큰 두드리기 · 횟수 ───────────── */

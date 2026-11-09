@@ -104,19 +104,30 @@
 - `node --import ./scripts/alias-register.mjs scripts/intake-budget-selftest.mts` — PGlite + 가짜 저장소. 2차 검토 고침도 본다: 느린 속도가 하루 뒤엔 안 막음 ·
   빈 크론의 한 번 읽어 보기 · 쉬는 16개 뒤의 작은 파일 검증 · 늙은 임대의 기다림 글 · 끊긴 뒤 진짜 실패는 실패로 셈 · 관리자 다시 확인 · `runVerifySoon`. 시간이 모자라면 시작 안 함 · 횟수 그대로 · 관리자 글,
   해시 중 끊기면 판정 없이 되돌리고 횟수를 돌려줌(시도 1번 남은 일감도 안 멈춤), 다음 실행이 끝냄, 끝난 자산의 재검증은 아무것도 안 함, 두 일꾼 중 하나만 읽음,
-  임대 밖 동시 검증도 판정 하나, 3번 끊기면 쉬고 작업자가 끝냄, 바뀐 파일은 예산과 상관없이 막힘, storage-core 해시가 signal 에 멈추고 연결을 놓음, 라우트 maxDuration = 상수.
+  임대 밖 동시 검증도 판정 하나, 3번 끊기면 쉬고 작업자가 끝냄, 바뀐 파일은 예산과 상관없이 막힘, storage-core 해시가 signal 에 멈추고 연결을 놓음, 라우트 maxDuration = 상수(크론 · 공개 둘),
+  공개 API 올리기 확인 → 응답 뒤 검증이 예산 규칙으로 돌아 이 파일을 끝내고 쉬는 파일은 안 빌림(6-8), 관리자 기다림 글에서 같은 말 빼기.
+- `npm run intake:admin-test` 6-1b — 기다리는 검증은 차례가 지나도 '검증 대기'(멈춤 · 재시도 아님), 오류 칸은 비우고 글은 기다림 칸에, '다시 확인'으로 지금 차례로 당김, 임대가 끝난 도는 일은 멈춤,
+  차례 · 손길(updatedAt)이 한 시간 넘게 지난 기다림은 멈춤(크론이 죽었을 때 — '다시 확인' 대신 크론 안내). 예산 시험이 크론의 건너뛰기가 updatedAt 을 새로 찍는지 본다.
+- `app/(app)/admin/intake/[id]/detail.selftest.mts` — `JobStateLine` 이 기다림을 오류 색 없이 · 시도 칸 없이 보이고, 덧붙일 사정만 머리말 없이 보인다.
 - `scripts/intake-hash-bench.mts` — 위 숫자.
 
 ## 재지 않은 것
 
 - 실제 Supabase TUS 업로드 · 저장소 내려받기 속도, Vercel 함수(icn1)의 CPU · 네트워크 · 실제 300초 제한 동작.
 - 실제 아이폰 MOV(큰 moov) 머리 읽기 시간.
-- 공개 라우트의 `after()` 검증(`lib/intake/public-api.ts`)은 아직 예산 없이 돈다 — 이번 범위 밖 파일이다. 아래 '남은 일'.
 
 ## 남은 일
 
-- 관리자 상세(`lib/intake/admin.ts jobStateOf`)는 `lastError` 가 있으면 '다시 시도하는 중', 15분 넘게 밀리면 '멈춤'으로 보인다. `검증 대기:` 글은 기다림으로 따로 보이게 하고
-  그 줄에도 '다시 확인'을 열어야 한다. 가르는 함수 `isVerifyBudgetNote` 는 `lib/intake/limits.ts` 에 있어 어디서든 부를 수 있다. 하루 쉬는 줄은 차례가 미래라 '멈춤'은 안 되지만 '다시 시도하는 중'으로 보인다.
-- 공개 라우트의 `after()` 검증을 `job-handlers.ts runVerifySoon({ db, storage, now }, { startedAtMs })` 로 바꾼다 — 크론과 같은 예산 · 끊기 · 건너뛰기를 쓴다(시험 6-7).
-  지금 `public-api.ts verifySoon` 은 `intakeCoreJobHandlers` 를 예산 없이 불러, 1GiB 둘을 잘린 함수 안에서 읽다 임대가 늙고 시도 하나를 쓸 수 있다. 하루 쉬는 파일은 차례를 미뤄 두어 그 길도 집지 않는다.
+- (끝남) 관리자 상세: 줄에서 `검증 대기:` 글로 기다리는 파일 확인은 `jobStateOf` 가 `'waiting'`(검증 대기 · 큰 파일이라 다음 실행에서 이어 확인해요)으로 보인다 —
+  차례가 지나도 '멈춤' · '재시도'가 아니고, 오류 칸(`lastError`)은 비우고 글을 `note` 에 둔다. `canRequeueJob` 이 그 줄에도 '다시 확인'을 연다. 도는 중에 임대가 끝난 일은 기다림 글이 있어도 '멈춤'이다.
+  상태 줄 부품은 `detail-client.tsx JobStateLine`(오류 색 없음 · 시도 칸 없음 · 덧붙일 사정만 `jobWaitNoteText`).
+  **아직**: `detail-manage.tsx JobIssuesPanel` 은 자기 상태 줄을 그려 `note` 를 안 보이고, `page.tsx` 칸 제목이 '멈춘 일감'이다 — 그 둘을 `JobStateLine` · 중립 제목으로 바꿔야 덧붙일 사정(검증 작업자 기다림)이 화면에 나온다.
+  크론이 죽으면 기다림이 조용히 숨지 않게, 차례와 마지막 손길(크론이 건너뛸 때마다 글을 다시 써 `updatedAt` 이 찍힌다) 둘 다 한 시간(`JOB_WAIT_STALL_MS`, 크론 열두 바퀴) 넘게 지나면 '멈춤'이다.
+  그때는 글을 오류 칸에 붉게 두고 '다시 확인'을 닫아 '크론이 도는지 확인해 주세요' 안내가 나온다. 하루 쉬는 일은 차례가 미래라 쉼이 끝나고 한 시간까지 기다림이다.
+  한계: 한 실행이 어림하는 일감은 `MAX_PEEK`(100)개까지라, 기다리는 검증이 그보다 많이 밀리면 뒤쪽은 크론이 살아 있어도 멈춤으로 보일 수 있다.
+  **아직(다른 파일)**: 공개 라우트 두 곳(`app/api/intake/public/assets/confirm/route.ts` · `finalize/route.ts`)의 머리 주석이 '못 끝내면 임대가 풀려 크론이 이어 받는다'로 옛 동작을 말한다 —
+  지금은 예산(라우트 시간 − 30초 − 이미 쓴 시간) 안에 못 끝낼 파일은 시작하지 않거나 끊어 시도 횟수 없이 크론에 넘긴다(`runVerifySoon`). 동작은 맞고 `maxDuration = 300` 도 상수와 같다.
+- (끝남) 공개 라우트의 `after()` 검증은 `runVerifySoon({ db, storage, now }, { startedAtMs })` 로 돈다 — `startedAtMs` 는 라우트가 요청을 받은 벽시계 시각이다.
+  Next 의 `after()` 는 그 라우트의 `maxDuration`(요청부터) 안에서만 돌아서, 남은 시간 = `INTAKE_PUBLIC_ROUTE_MAX_DURATION_SEC`(300) − 여유 30초 − 이미 쓴 시간이다. 두 공개 라우트(올리기 확인 · 접수 완료)의 설정이 그 상수와 같은지 시험이 본다.
+  `service.ts intakeCoreJobHandlers` 의 `verify_asset` 도 실행의 signal 을 해시에 잇는다(앱 길은 예산 처리기로 덮어 쓰지 않는다).
 - 검증 작업자의 실행 진입점.

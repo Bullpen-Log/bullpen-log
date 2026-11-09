@@ -6,7 +6,7 @@
  *      → registerUploadUrl → confirmUpload → finalizeSubmission → 일꾼이 verifyAsset → settleRevision → 'verified' + analysisStatus 'ready'.
  *
  * - 공개 함수는 모두 IntakeScope 를 받고, 트랜잭션 안에서 초대를 다시 본다(그사이 폐기되면 막는다). 다른 접수의 번호는 'asset_not_found' 다.
- * - 관리자 함수(createInvitation · requestCorrection · cancelCorrection · extendUploadWindow · withdrawRequiredConsent · withdrawModelConsentForInvitee · requeueVerification · resetAccessCodeLock)는
+ * - 관리자 함수(createInvitation · reissueInvitationToken · requestCorrection · cancelCorrection · extendUploadWindow · withdrawRequiredConsent · withdrawModelConsentForInvitee · requeueVerification · resetAccessCodeLock)는
  *   권한을 보지 않는다 — 부르는 쪽이 먼저 can(role, 'intake') 를 본다.
  * - 실패는 IntakeError(코드 · 글 · httpStatus)를 던진다. 라우트는 그대로 코드를 돌려준다.
  * - 시각 인자 now 는 시험용이고, 앱은 안 넘긴다.
@@ -31,7 +31,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { Prisma, type IntakeAsset, type IntakeInvitation, type IntakeRevision, type IntakeSubmission, type PrismaClient } from '@prisma/client';
-import { recheckScope, assertInvitationAllows, resultExpired, uploadExpired, type IntakeOp, type IntakeScope } from '@/lib/intake/access';
+import { recheckScope, assertInvitationAllows, assertScopeToken, resultExpired, uploadExpired, type IntakeOp, type IntakeScope } from '@/lib/intake/access';
 import { carryInTx, runMatchesCurrent } from '@/lib/intake/analysis';
 import { writeAudit } from '@/lib/intake/audit';
 import {
@@ -56,7 +56,7 @@ import { fpsLabel, integrityLabel, mediaRejectCode, mediaUnconfirmed, readIntake
 import { assetObjectPath, isIntakeId, isPurgeablePath, seoulDateKey } from '@/lib/intake/paths';
 import { pruneRateLimits } from '@/lib/intake/rate-limit';
 import { removeAndFindLeft, removeLeftObject } from '@/lib/intake/remove';
-import { WITHDRAWN_DRAFT_GRACE_MS, currentOriginalsPurgedAt, originalRetention, shownRetention } from '@/lib/intake/retention';
+import { WITHDRAWN_DRAFT_GRACE_MS, currentOriginalsPurgedAt, originalRetention, retentionDue, shownRetention } from '@/lib/intake/retention';
 import {
   ASSET_GONE,
   CORRECTABLE_FIELDS,
@@ -103,11 +103,17 @@ const CLEANUP_WALK_PAGES = 4;
 const slotOf = (view: IntakeView) => (view === 'side' ? 'sideAssetId' : 'rearAssetId');
 const otherView = (view: IntakeView): IntakeView => (view === 'side' ? 'rear' : 'side');
 
-/** 줄을 잠그고 읽는다. 범위와 다른 접수는 없는 것으로 본다 */
+/**
+ * 줄을 잠그고 읽는다. 범위와 다른 접수는 없는 것으로 본다.
+ * 잠근 뒤 범위를 연 토큰이 아직 이 초대의 것인지도 본다 — 링크 바꾸기는 같은 접수 줄을 먼저 잠그고 해시를 바꾸므로, 여기서 읽는 해시는 바꾸기 전이거나 끝난 뒤다.
+ * 폐기 · 만료는 부르는 쪽의 recheckScope 가 op 에 맞춰 본다(그것도 토큰을 다시 맞춘다).
+ */
 async function lockSubmission(tx: Tx, scope: IntakeScope): Promise<IntakeSubmission> {
   await tx.$queryRaw`SELECT "id" FROM "IntakeSubmission" WHERE "id" = ${scope.submissionId} FOR UPDATE`;
-  const sub = await tx.intakeSubmission.findUnique({ where: { id: scope.submissionId } });
-  if (!sub || sub.invitationId !== scope.invitationId) throw new IntakeError('submission_not_found');
+  const row = await tx.intakeSubmission.findUnique({ where: { id: scope.submissionId }, include: { invitation: { select: { id: true, tokenHash: true } } } });
+  if (!row || row.invitationId !== scope.invitationId) throw new IntakeError('submission_not_found');
+  const { invitation, ...sub } = row;
+  assertScopeToken(invitation, scope);
   return sub;
 }
 
@@ -474,6 +480,8 @@ export async function loadPublicState(
     },
   });
   if (!sub || sub.invitationId !== scope.invitationId) throw new IntakeError('submission_not_found');
+  /* 범위를 연 바로 뒤 링크를 바꿨으면 예전 링크의 읽기도 막는다 — 초안 · 이름 · 영수증이 바뀐 링크로 나가지 않게(다른 공개 길과 같다) */
+  assertScopeToken(sub.invitation, scope);
   assertInvitationAllows(sub.invitation, 'read', now);
 
   const byId = new Map(sub.assets.map((a) => [a.id, a]));
@@ -486,10 +494,11 @@ export async function loadPublicState(
   const publishedRun = sub.publications[0]?.run ?? null;
   const expired = uploadExpired(sub.invitation, now);
   const resultOver = resultExpired(sub.invitation, now);
-  const originalsGone = currentOriginalsGone(sub.assets, sub.revisions[0] ?? null);
-  const needsReconsent = reconsentOpen(sub.status, requiredOk, originalsGone);
   const publishedRows = await db.intakePublication.findMany({ where: { submissionId: sub.id }, select: { publishedAt: true } });
-  const retention = shownRetention(originalRetention({ publishedAts: publishedRows.map((p) => p.publishedAt), lastFrozenAt: sub.lastFinalizedAt, withdrawnAt: sub.withdrawnAt }), sub.assets.length);
+  const plan = originalRetention({ publishedAts: publishedRows.map((p) => p.publishedAt), lastFrozenAt: sub.lastFinalizedAt, withdrawnAt: sub.withdrawnAt });
+  const originalsGone = originalsGoneNow(sub.assets, sub.revisions[0] ?? null, plan, now);
+  const needsReconsent = reconsentOpen(sub.status, requiredOk, originalsGone);
+  const retention = shownRetention(plan, sub.assets.length);
   const deletedAt = currentOriginalsPurgedAt(sub.assets, sub.revisions[0] ?? null);
 
   const screen = resolveScreen({
@@ -661,6 +670,21 @@ async function writeConsents(tx: Tx, sub: IntakeSubmission, answers: readonly Co
 }
 
 /**
+ * 지금 판의 원본을 더 쓸 수 없나(받는 사람 화면 · 다시 동의 판정용). 지운 · 지우는 중인 파일 말고도, 지울 날이 지났으면 크론이 아직 표시하기 전이라도
+ * '지우고 있어요'로 본다 — 새 분석은 이미 막혀 있어서(analysis.ts originalsOverOf) '분석을 기다리고 있어요' · '이어서 진행해요'가 거짓이 된다.
+ */
+function originalsGoneNow(
+  assets: readonly { id: string; status: string }[],
+  revision: { sideAssetId: string | null; rearAssetId: string | null } | null,
+  plan: ReturnType<typeof originalRetention>,
+  now: Date,
+): OriginalsGone | null {
+  const gone = currentOriginalsGone(assets, revision);
+  if (gone || !revision) return gone;
+  return retentionDue(plan, now) ? 'deleting' : null;
+}
+
+/**
  * 동의를 남긴다. 같은 답을 다시 보내면 새 줄을 안 만든다. '영상 보내기'를 누른 순간, 바이트보다 먼저 부른다.
  * 접수 뒤에는 필수 동의가 낡은 때만 받는다 — 새 파일을 받는 일이 아니라서 올리기 기간과 상관없다(reconsentOpen).
  */
@@ -676,7 +700,9 @@ export async function recordConsents(
     await recheckScope(tx, scope, editing ? 'edit' : 'read', now);
     if (!editing) {
       const revision = sub.currentRevisionId ? await tx.intakeRevision.findUnique({ where: { id: sub.currentRevisionId }, select: { sideAssetId: true, rearAssetId: true } }) : null;
-      const gone = currentOriginalsGone(await tx.intakeAsset.findMany({ where: { submissionId: sub.id }, select: { id: true, status: true } }), revision);
+      const publishedAts = (await tx.intakePublication.findMany({ where: { submissionId: sub.id }, select: { publishedAt: true } })).map((p) => p.publishedAt);
+      const plan = originalRetention({ publishedAts, lastFrozenAt: sub.lastFinalizedAt, withdrawnAt: sub.withdrawnAt });
+      const gone = originalsGoneNow(await tx.intakeAsset.findMany({ where: { submissionId: sub.id }, select: { id: true, status: true } }), revision, plan, now);
       if (!reconsentOpen(sub.status, hasRequiredConsents(await consentDecisionRows(tx, sub.id), sub.submitterRelation), gone)) throw new IntakeError('not_editable');
     }
     await writeConsents(tx, sub, input.answers, now);
@@ -831,9 +857,14 @@ async function ownedAsset(db: Db | Tx, scope: IntakeScope, assetId: string): Pro
   return asset;
 }
 
+/**
+ * 잠그지 않고 범위를 본다 — 저장소를 오가는 일(전송 토큰 · 도착 확인)이 줄을 오래 쥐지 않게. 링크를 바꾼 뒤의 예전 범위도 여기서 막는다.
+ * 읽은 뒤에 바뀔 수 있으니, 되돌릴 수 없는 것을 내주는 issueUploadToken 과 줄을 쓰는 registerUploadUrl · confirmUpload 는 마지막에 잠근 채 한 번 더 본다.
+ */
 async function openGate(db: Db, scope: IntakeScope, op: IntakeOp, now: Date): Promise<IntakeSubmission & { invitation: IntakeInvitation }> {
   const sub = await db.intakeSubmission.findUnique({ where: { id: scope.submissionId }, include: { invitation: true } });
   if (!sub || sub.invitationId !== scope.invitationId) throw new IntakeError('submission_not_found');
+  assertScopeToken(sub.invitation, scope);
   assertInvitationAllows(sub.invitation, op, now);
   return sub;
 }
@@ -882,11 +913,19 @@ export async function issueUploadToken(
     throw e;
   }
 
-  const moved = await db.intakeAsset.updateMany({
-    where: { id: asset.id, status: { in: ['reserved', 'uploading'] } },
-    data: { status: 'uploading', tokenIssuedAt: now, tokenCount: { increment: 1 } },
+  /*
+   * 내주기 전에 접수 줄을 잠그고 범위를 다시 본다 — 서명을 받는 사이 링크를 바꿨거나(예전 토큰) 폐기 · 기간이 끝났으면 받은 서명을 버린다.
+   * 저장소 토큰은 내준 뒤에는 거둘 수 없어서, 이 잠금을 지난 것만 응답으로 나간다. 바꾸기가 이 잠금 뒤에 오면 그보다 먼저 내준 토큰이다.
+   */
+  await db.$transaction(async (tx) => {
+    await lockSubmission(tx, scope);
+    await recheckScope(tx, scope, 'upload', now);
+    const moved = await tx.intakeAsset.updateMany({
+      where: { id: asset.id, status: { in: ['reserved', 'uploading'] } },
+      data: { status: 'uploading', tokenIssuedAt: now, tokenCount: { increment: 1 } },
+    });
+    if (moved.count === 0) throw new IntakeError('asset_not_selected');
   });
-  if (moved.count === 0) throw new IntakeError('asset_not_selected');
 
   const alive = asset.uploadUrl && asset.transportExpiresAt && asset.transportExpiresAt.getTime() > now.getTime();
   return {
@@ -916,16 +955,33 @@ export async function registerUploadUrl(
   if (!assetInTransit(asset.status)) throw new IntakeError('asset_finished');
   if (asset.uploadUrl === input.uploadUrl && asset.transportExpiresAt) return { transportExpiresAt: asset.transportExpiresAt.toISOString() };
   const transportExpiresAt = new Date(now.getTime() + TUS_URL_TTL_MS);
-  await db.intakeAsset.update({ where: { id: asset.id }, data: { uploadUrl: input.uploadUrl, transportExpiresAt } });
+  /* 적기 전에 접수 줄을 잠그고 범위를 다시 본다 — 위의 읽기 뒤 링크를 바꿨으면(예전 토큰) 주소를 남기지 않는다(issueUploadToken 과 같은 차례) */
+  await db.$transaction(async (tx) => {
+    await lockSubmission(tx, scope);
+    await recheckScope(tx, scope, 'upload', now);
+    const moved = await tx.intakeAsset.updateMany({
+      where: { id: asset.id, status: { in: ['reserved', 'uploading'] } },
+      data: { uploadUrl: input.uploadUrl, transportExpiresAt },
+    });
+    if (moved.count === 0) throw new IntakeError('asset_finished');
+  });
   return { transportExpiresAt: transportExpiresAt.toISOString() };
 }
 
 export const verifyJobKey = (assetId: string) => `verify_asset:${assetId}`;
 
-/** 저장소에 객체가 있으면 '도착'으로 적고 검증을 건다. 크기가 다르면 막는다. confirmUpload · 대사(reconcileUploads)가 같이 쓴다 */
-async function markArrived(db: Db, asset: IntakeAsset, size: number, now: Date): Promise<IntakeAsset> {
+/**
+ * 저장소에 객체가 있으면 '도착'으로 적고 검증을 건다. 크기가 다르면 막는다. confirmUpload · 대사(reconcileUploads)가 같이 쓴다.
+ * scope 는 공개 길(confirmUpload)만 넘긴다 — 접수 줄을 잠그고 범위를 다시 봐, 저장소를 보는 사이 링크를 바꿨으면 예전 토큰의 확인을 적지 않는다.
+ * 대사는 범위 없이 적는다(바이트는 와 있으니 새 링크의 확인이나 다음 대사가 같은 일을 한다).
+ */
+async function markArrived(db: Db, asset: IntakeAsset, size: number, now: Date, scope?: IntakeScope): Promise<IntakeAsset> {
   const sizeOk = size === Number(asset.declaredSize);
   return db.$transaction(async (tx) => {
+    if (scope) {
+      await lockSubmission(tx, scope);
+      await recheckScope(tx, scope, 'confirm', now);
+    }
     const moved = await tx.intakeAsset.updateMany({
       where: { id: asset.id, status: { in: ['reserved', 'uploading'] } },
       data: sizeOk
@@ -956,7 +1012,7 @@ export async function confirmUpload(
   if (!assetInTransit(asset.status)) return publicAsset(asset);
   const stat = await storage.stat(asset.objectPath);
   if (!stat) throw new IntakeError('upload_missing');
-  const next = await markArrived(db, asset, stat.size, now);
+  const next = await markArrived(db, asset, stat.size, now, scope);
   if (next.status === 'rejected') throw new IntakeError('upload_size_mismatch');
   return publicAsset(next);
 }
@@ -1720,12 +1776,16 @@ export async function cleanupStaleUploads(db: Db, storage: IntakeStorage, now: D
   return { purged, abandoned };
 }
 
-/** 이 파일이 맡는 일감의 처리기 — 분석 쪽은 register_revision · poll_analysis 를 더해 runDueJobs 에 넘긴다 */
+/**
+ * 이 파일이 맡는 일감의 처리기 — 분석 쪽은 register_revision · poll_analysis 를 더해 runDueJobs 에 넘긴다.
+ * 앱의 검증 길(크론 · 공개 라우트 after() · 검증 작업자)은 job-handlers.ts 의 예산 처리기로 verify_asset 을 덮는다. 여기 것은 예산 끊김을 기다림으로 바꾸지 않는다 —
+ * 그래도 실행의 signal 은 해시 읽기에 이어, 예산을 준 실행이 이 처리기를 써도 함수 시간을 넘겨 읽지 않게 한다(끊기면 실패 한 번으로 센다).
+ */
 export function intakeCoreJobHandlers(db: Db, storage: IntakeStorage): JobHandlers {
   return {
-    verify_asset: async (job) => {
+    verify_asset: async (job, ctx) => {
       const { assetId } = job.payload as { assetId: string };
-      await verifyAsset(db, storage, assetId);
+      await verifyAsset(db, storage, assetId, undefined, { signal: ctx.signal });
     },
     cleanup_uploads: async () => {
       await reconcileUploads(db, storage);

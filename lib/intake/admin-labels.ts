@@ -2,7 +2,7 @@
  * 외부 영상 접수 관리 화면의 이름표 — 브라우저에서도 부르는 순수 표다. 상태 값의 뜻은 lib/intake/state.ts 가 정하고, 여기는 사람이 읽는 말만 둔다.
  * 색만으로 상태를 알리지 않게 화면은 늘 이 글을 같이 보인다.
  */
-import { INTAKE_ORIGINAL_RETENTION_DAYS, INTAKE_WITHDRAWN_DRAFT_GRACE_DAYS } from '@/lib/intake/limits';
+import { INTAKE_ORIGINAL_RETENTION_DAYS, INTAKE_WITHDRAWN_DRAFT_GRACE_DAYS, VERIFY_BUDGET_NOTE_PREFIX } from '@/lib/intake/limits';
 import type { IntakeMediaFacts } from '@/lib/intake/media';
 import type { RetentionBasis } from '@/lib/intake/retention';
 import { assetGone, type IntakeView } from '@/lib/intake/state';
@@ -170,7 +170,23 @@ export const JOB_STATE_TEXT: Record<string, string> = {
   failed: '시도를 다 썼어요',
   retrying: '다시 시도하는 중이에요',
   stalled: '일꾼이 멈춘 것 같아요',
+  /* 실패가 아니다 — 큰 파일이라 크론 한 번의 시간 안에 다 못 읽어 기다린다. 시도 횟수를 안 쓴다(lib/intake/admin.ts jobStateOf) */
+  waiting: '검증 대기 · 큰 파일이라 다음 실행에서 이어 확인해요',
 };
+
+/** 일감 모습의 색 — 기다림은 오류 색으로 그리지 않는다. 색만으로 알리지 않게 화면은 JOB_STATE_TEXT 를 같이 보인다 */
+export const jobStateTone = (state: string): 'danger' | 'neutral' => (state === 'waiting' ? 'neutral' : 'danger');
+
+/**
+ * 기다림 글(IntakeJobIssue.note)의 보일 부분 — 머리말을 떼고, 모습 글(JOB_STATE_TEXT.waiting)과 같은 말이면 null(두 번 말하지 않는다).
+ * '검증 작업자를 기다려요' · '처음부터 다시 확인해요' 같은 덧붙일 사정만 남는다.
+ */
+export function jobWaitNoteText(note: string | null | undefined): string | null {
+  if (!note) return null;
+  const body = (note.startsWith(VERIFY_BUDGET_NOTE_PREFIX) ? note.slice(VERIFY_BUDGET_NOTE_PREFIX.length) : note).trim();
+  if (!body) return null;
+  return JOB_STATE_TEXT.waiting.includes(body.replace(/\.$/, '')) ? null : body;
+}
 
 /**
  * 표본 시간 칸의 이름. 영상에 적힌 시간이 찍은 시간이라고 말할 수 있는 때는 장면 간격이 일정한 고속 영상이고 재생 속도를 안 바꾼 때뿐이다.

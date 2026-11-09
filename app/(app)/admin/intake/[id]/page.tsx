@@ -104,7 +104,7 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
       <div className="grid gap-(--block-pad) lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="stack-page min-w-0">
           {d.jobIssues.length > 0 && (
-            <Section title="멈춘 일감">
+            <Section title={d.jobIssues.every((j) => j.state === 'waiting') ? '확인 중인 일감' : '끝나지 않은 일감'}>
               <JobIssuesPanel submissionId={d.id} issues={d.jobIssues} locked={withdrawn} />
             </Section>
           )}

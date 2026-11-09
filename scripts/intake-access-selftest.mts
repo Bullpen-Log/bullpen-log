@@ -12,7 +12,7 @@ import { RPC_MODULE_CAPABILITY, rpcAccessOf } from '../lib/release-ops.ts';
 import { visibleGroups } from '../lib/nav.ts';
 import { assertIntakeAdmin } from '../lib/intake/admin.ts';
 import { isIntakeError } from '../lib/intake/errors.ts';
-import { INTAKE_WEB_PATH, intakePathMove, intakeWebMove, isIntakePath } from '../native/src/admin/intake-nav.ts';
+import { INTAKE_WEB_PATH, intakeNativeMove, intakePathMove, intakeWebMove, isIntakePath, nativeManageScreen } from '../native/src/admin/intake-nav.ts';
 
 let n = 0;
 const ok = (cond: unknown, msg: string) => {
@@ -121,6 +121,14 @@ const screen = read('native/src/app/admin/intake.tsx');
 ok(screen.includes('applicationNameForUserAgent={APP_UA}'), '접수 웹뷰는 APP_UA 를 단다(휴대폰 막기 /phone 을 피함)');
 ok(screen.includes('sharedCookiesEnabled'), '접수 웹뷰는 앱 로그인 쿠키를 같이 쓴다');
 ok(/onShouldStartLoadWithRequest=\{onShouldStart\}/.test(screen) && screen.includes('다시 불러오기'), '접수 웹뷰는 이동을 거르고 실패하면 다시 불러오기');
+ok(/msg\.t === 'native'[\s\S]{0,120}intakeNativeMove\(msg\.path\)/.test(screen), '웹 로그인 자리가 그려져 앱 화면을 청하면 껍데기로 넘긴다(웹 로그인 폼을 남기지 않음)');
+/* 더보기 폴더(app/more.tsx)도 위 메뉴와 같은 짝 — 예전엔 접수 · 3D 개발 관리자가 껍데기 웹으로 갔다 */
+const more = read('native/src/app/more.tsx');
+ok(/const screen = nativeManageScreen\(href\);[\s\S]{0,120}router\.push\(screen as Href\)/.test(more), '더보기의 관리 줄은 nativeManageScreen 으로 앱 화면을 먼저 본다');
+eq(nativeManageScreen(INTAKE_WEB_PATH), INTAKE_WEB_PATH, '외부 영상 접수 → 앱 화면 /admin/intake');
+eq(nativeManageScreen(`${INTAKE_WEB_PATH}?status=received`), INTAKE_WEB_PATH, '쿼리가 붙어도 같은 앱 화면');
+eq(nativeManageScreen('/admin/dev3d'), '/swing/samples', '3D 개발 관리자 → 앱 화면 /swing/samples(6b829da4)');
+for (const href of ['/admin', '/admin/intakes', '/admin/velocity', DETAIL]) eq(nativeManageScreen(href), null, `${href} 는 메뉴 짝이 아니다(껍데기가 가른다)`);
 
 /* ── 8. 접수 웹뷰가 어디로 가나(native/src/admin/intake-nav.ts) ── */
 const HOST = 'bullpen-log.vercel.app';
@@ -141,5 +149,8 @@ for (const u of ['about:blank', 'blob:https://x/1', 'data:text/plain,a']) eq(int
 eq(intakePathMove('/admin/intake', '?page=2'), { kind: 'stay' }, "사이트 알림 'path' — 접수함");
 eq(intakePathMove('/admin', ''), { kind: 'back' }, "사이트 알림 'path' — 관리자 첫 화면");
 eq(intakePathMove('/videos', 'view=log'), { kind: 'shell', href: '/videos?view=log' }, "사이트 알림 'path' — 물음표 없는 쿼리도 붙인다");
+for (const p of ['/login?native=1', '/login', '/signup', '/login/qr']) eq(intakeNativeMove(p), { kind: 'shell', href: '/login' }, `사이트 알림 'native' ${p} — 껍데기 '/login'(앞사람 기록 지우기 · 앱 로그인)`);
+eq(intakeNativeMove(INTAKE_WEB_PATH), { kind: 'stay' }, "사이트 알림 'native' — 접수함은 머문다");
+eq(intakeNativeMove('/velocity?mode=abs'), { kind: 'shell', href: '/velocity?mode=abs' }, "사이트 알림 'native' — 다른 앱 화면은 껍데기가 연다");
 
 console.log(`intake-access: ${n}개 통과`);

@@ -159,7 +159,8 @@ export async function loadPublicResult(
   if (!pub) throw new IntakeError('result_not_published');
   const currentRevision = sub.currentRevisionId ? await r.db.intakeRevision.findUnique({ where: { id: sub.currentRevisionId }, select: { athleteName: true } }) : null;
 
-  await verifyResultAccess(r.db, { invitation: sub.invitation, submissionId: sub.id, code: input.accessCode }, now);
+  /* scope 를 넘겨 범위를 연 토큰을 맞춰 본다 — 범위를 연 바로 뒤 링크를 바꿨으면 코드 자리를 잡지도 결과를 내주지도 않는다 */
+  await verifyResultAccess(r.db, { invitation: sub.invitation, submissionId: sub.id, code: input.accessCode, scope }, now);
 
   const result = await readSucceededResult(r.storage, pub.run);
   if (!result) throw new IntakeError('result_unavailable');

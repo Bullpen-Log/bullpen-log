@@ -11,6 +11,8 @@ import { Icon } from '~/shell/icon';
 import { MENU_ICON, useMenu, type MenuItem } from '~/shell/menu-store';
 import { canOpen, noticeLocked, useRelease } from '~/shell/release';
 import { openWebAfter } from '~/shell/web-nav';
+/* 관리 항목 가운데 앱 화면으로 여는 짝 — 더보기 폴더와 같은 표 하나(admin/intake-nav.ts) */
+import { nativeManageScreen } from '~/admin/intake-nav';
 
 /**
  * 탭 머리 오른쪽 공통 메뉴 — '세라믹 런처'(2026-10-29 확정 시안). 하단 탭의 더보기를 걷고, 이 단추 밑에 붙어 뜨는 둥근 팝오버로 옮겼다.
@@ -37,14 +39,6 @@ const LOOK = {
   dark: { panel: '#1a2839', tile: '#23364b', ice: '#183b5b', line: '#324357', ink: '#f3f7fc', muted: '#a4b6ca', scrim: 'rgba(0,0,0,0.32)', shadow: 'rgba(0,0,0,0.4)', blue: '#127fe1' },
 } as const;
 const EASE = Easing.bezier(0.2, 0.85, 0.25, 1);
-/*
- * 관리 항목 가운데 앱 화면으로 여는 것(웹 주소 → 앱 화면). 3D 개발 관리자는 앱 화면(2026-11-09 6b829da4), 외부 영상 접수는 웹 접수함을 띄우는
- * 앱 화면(app/admin/intake.tsx — 불러오기 실패 때 다시 불러오기). 나머지는 껍데기 웹으로
- */
-const NATIVE_MANAGE = new Map([
-  ['/admin/dev3d', '/swing/samples'],
-  ['/admin/intake', '/admin/intake'],
-]);
 type Rect = { x: number; y: number; w: number; h: number };
 
 export function MenuButton({ style }: { style?: StyleProp<ViewStyle> }) {
@@ -136,7 +130,7 @@ function Launcher({ anchor, onClosed }: { anchor: Rect; onClosed: () => void }) 
   const push = (href: string) => () => router.push(href as Href);
   const web = (href: string) => () => openWebAfter(href);
   const manageGo = (href: string) => {
-    const screen = NATIVE_MANAGE.get(href.split('?')[0]);
+    const screen = nativeManageScreen(href);
     return screen ? push(screen) : web(href);
   };
 
