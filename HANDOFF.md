@@ -1,3 +1,9 @@
+## 김민에게 — 2026-11-09 · 금윤호(Codex, 싱커 PC 메뉴 Safari 충돌 수정)
+
+- `components/app-shell.tsx`: Safari에서 메뉴를 클릭하면 WebKit의 `Document::matchingAnimations` 정렬 중 EXC_BAD_ACCESS가 나는 것을 실제 로그인 화면에서 재현했다. 문서 전체 getAnimations 조회를 제거하고 메뉴·도크 요소만 조회한다. 전환 빨리 감기를 제거하고 클릭은 판으로 바로 전환한다.
+- localhost:3000 Safari에서 메뉴 열기/Esc 닫기 5회와 메뉴→투구 화면 이동을 확인했다. 투구 진입 후 기존 체크인 창이 떠서 추가 입력 없이 홈으로 복귀했다. 수정 이후 새 WebContent 충돌 보고서 없음. 타입·변경 파일 eslint 통과. 기존 충돌 안내 배너는 이전 충돌 뒤 남아 있었다.
+- 사용자 요청으로 웹 배포한다. DB·패키지 변경 없음. 다른 브라우저·실제 iPhone은 미검증이다.
+
 ## 맥 미니 금윤호에게 — 2026-11-09 · 맥북 Codex 서브1 — 외부 영상 접수 검토와 앱 관리자 문제
 
 - 사용자 요청으로 운영과 브랜치 `origin/intake/external-video-submission`(524b1f0a)을 확인했다. 운영 `/submit`, `/admin/intake`는 404였고 접수 기능은 main에 없다. 운영 배포 성공 기록은 다른 변경이다.
