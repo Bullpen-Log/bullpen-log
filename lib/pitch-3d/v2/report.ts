@@ -23,7 +23,7 @@ import { doseOf, doseText } from '@/lib/mechanics/program';
 import { prescribedTitles } from '@/lib/mechanics/prescriptions';
 import { plantFrame, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { mechChecks, DROP_RISE_MAX, type MechChecks } from '@/lib/pitch-3d/v2/mech-checks';
-import { BLOCK_IMPLAUSIBLE_SINK_DEG, DRIFT_GOOD, DRIFT_LOW, MECH_CONF_MIN, TRUNK_PLANT_ERR, TRUNK_PLANT_NORM } from '@/lib/pitch-3d/v2/mech-judge';
+import { BLOCK_IMPLAUSIBLE_SINK_DEG, MECH_CONF_MIN, TRUNK_PLANT_ERR, TRUNK_PLANT_NORM } from '@/lib/pitch-3d/v2/mech-judge';
 
 type ElementName = (typeof FOCUS_POINTS)[number];
 type DrillStage = (typeof DRILL_STAGE_NAMES)[number];
@@ -53,14 +53,17 @@ export type ReportMeasurement = {
 };
 export type ReportCoverage = { evaluated: number; reference: number; unavailable: number; total: number };
 
-/** 등급(3-1절) — 'A?' = A 후보(평가 · 처방 안 함, 지금은 없음). B 는 참고만(스로잉 — 정답 자료가 같은 2D 라 검증이 안 된다) */
+/**
+ * 등급(3-1절) — 'A?' = A 후보(평가 · 처방 안 함, 지금은 없음). B 는 참고만(지금은 없음).
+ * 스로잉은 2026-11-10 김민 결정으로 착지 손 높이를 평가한다(예전 어깨 벌림은 B — 참고).
+ */
 export const ELEMENT_GRADE: Record<ElementName, Grade> = {
   드리프트: 'A',
   드롭: 'A',
   '상하체 분리': 'A',
   브레이크: 'A',
   '몸통 회전': 'A',
-  스로잉: 'B',
+  스로잉: 'A',
 };
 
 /** 흐름 차례(4절 2번) — 앞쪽 문제가 뒤쪽을 만든다 */
@@ -72,20 +75,61 @@ export const CHAIN: ElementName[] = ['드리프트', '드롭', '상하체 분리
  */
 type Band = { up: boolean; cut: number; edgeEnd: number; fairEnd: number; lo: number; hi: number };
 
-/** 드리프트(키 비율) — 지금 판정(mech-judge DRIFT_LOW · DRIFT_GOOD) 그대로, 그 위 2σ(엔진 0.7cm ≈ 0.007, 두 배 올림)를 경계 */
-const DRIFT_BAND: Band = { up: true, cut: DRIFT_LOW, edgeEnd: 0.07, fairEnd: DRIFT_GOOD, lo: 0, hi: 0.16 };
-/** 드롭(다리 길이 비율) — 자료 10 / 25 / 50% 0.26 / 0.31 / 0.36, 같은 선수 흔들림 0.01 · 엔진 0.01 → 2σ ≈ 0.03 */
-const DROP_BAND: Band = { up: true, cut: 0.23, edgeEnd: 0.26, fairEnd: 0.31, lo: 0, hi: 0.5 };
+/**
+ * 조인 띠(2026-11-10 김민: "스로잉처럼 후한 곳을 검토" → "가운데를 좋아요 선으로 하되 아주 조금만 풀어서") — 드리프트 · 드롭 · 몸통 회전.
+ * 예전 규칙(아래 25% 만 벗어나면 좋아요 · 아래 10% − 2σ 밑이 고칠 점)은 드라이브라인 투수의 76~80% 가 좋아요, 4% 만 고칠 점이었다.
+ * 이제 고칠 점 < 아래 10% ≤ 경계 < 아래 25% ≤ 보통 < 아래 40% ≤ 좋아요(자료 투수의 60% 가 좋아요 · 10% 가 고칠 점).
+ * 이 셋만 조인 까닭 — 엔진 오차(가상 촬영 109구 가운데)가 칸 폭보다 작다: 드롭 1.2 / 2.5~5.6%p · 몸통 1.8 / 4.6~5.9° · 드리프트 0.8 / 1.1~1.9%p(드리프트는
+ * 칸 끝에서 한 칸 엇갈릴 수 있다). 브레이크(오차 2.5~4°) · 상하체 분리(7.3°)는 오차가 칸 폭만 해 예전 띠 그대로.
+ * 숫자는 자료 투수 109명 한 구씩의 진짜 3D 에 같은 점검 식(mechChecks)을 댄 것(scripts/pitch-lab/obp/obp-synth.mts --dump).
+ */
+const STRICT_FOOT: Record<'improve' | 'edge' | 'fair' | 'good', string> = {
+  improve: '고칠 점 · 잘 던지는 투수 아래 10% 밑',
+  edge: '경계 · 잘 던지는 투수 아래 10~25% 사이',
+  fair: '보통 · 잘 던지는 투수 아래 25~40% 사이',
+  good: '좋아요',
+};
+/** 드리프트(키 비율) — 자료 10 / 25 / 40% 0.073 / 0.092 / 0.103 */
+const DRIFT_BAND: Band = { up: true, cut: 0.073, edgeEnd: 0.092, fairEnd: 0.103, lo: 0, hi: 0.18 };
+/** 드롭(다리 길이 비율) — 자료 10 / 25 / 40% 0.26 / 0.31 / 0.34 */
+const DROP_BAND: Band = { up: true, cut: 0.26, edgeEnd: 0.31, fairEnd: 0.34, lo: 0, hi: 0.5 };
 /** 이만큼(다리 길이 비율) 밑으로만 내려가면 '거의 안 가라앉음' — 평지에서도 고칠 점(김민 정의: 유지되거나 뜨면 나쁨) */
 export const DROP_FLOAT_MAX = 0.05;
 /** 브레이크 · 착지 뒤 더 굽음(°, 작을수록 좋음) — 자료 위 25 / 10% 7.8 / 11.9°, 2σ ≈ 4° */
 const SINK_BAND: Band = { up: false, cut: 16, edgeEnd: 11.9, fairEnd: 7.8, lo: 0, hi: 30 };
 /** 브레이크 · 착지 → 릴리스 무릎 펴짐(°) — 자료 10 / 25% −4.1 / 2.1°, 엔진 3.8 · 같은 선수 3.4 → 2σ ≈ 10° */
 const EXT_BAND: Band = { up: true, cut: -14, edgeEnd: -4.1, fairEnd: 2.1, lo: -25, hi: 30 };
-/** 몸통 회전 · 릴리스 앞 기울기(°) — 자료 10 / 25% 17.6 / 22.3°, 엔진 1.8 · 같은 선수 1.2 → 2σ ≈ 4.5° */
-const TRUNK_BAND: Band = { up: true, cut: 13, edgeEnd: 17.6, fairEnd: 22.3, lo: 0, hi: 45 };
-/** 스로잉 · 착지 어깨 벌림(°) — 자료 10 / 25% 72 / 78.6°, 엔진 4.1 → 2σ ≈ 9°. 등급 B 라 지금은 참고 */
-const ARM_BAND: Band = { up: true, cut: 63, edgeEnd: 72, fairEnd: 78.6, lo: 40, hi: 110 };
+/** 몸통 회전 · 릴리스 앞 기울기(°) — 자료 10 / 25 / 40% 17.5 / 23 / 27.5° */
+const TRUNK_BAND: Band = { up: true, cut: 17.5, edgeEnd: 23, fairEnd: 27.5, lo: 0, hi: 45 };
+/**
+ * 평지 임시 기준(2026-11-10 김민: "평지 부분을 개선" → 경사만큼 낮추는 임시 기준부터, 같은 투수 마운드 · 평지 짝 촬영으로 확인 전).
+ * 기준 자료는 전부 마운드 투구다. 규격 마운드 경사가 1피트에 1인치(4.8°)라 몸통 앞 기울기 띠를 5° 낮춘다 — 실제 차이가 5° 인지는 아직 안 쟀다.
+ * 드롭은 '발 사이 바닥선' 위 높이라 경사가 이미 빠져 있어 마운드와 같은 띠. 우리 평지 샘플 둘: 정강민 10구 드롭 27~36~38% · 몸통 13~27~32°(마운드 기준
+ * 26~36~44% · 17~30~40° 와 비슷하거나 5° 쯤 낮음), 김민 15구 15~20~29% · −8~3~10°(개인 차로 본다).
+ */
+export const FLAT_TRUNK_SHIFT_DEG = 5;
+const FLAT_TRUNK_BAND: Band = { ...TRUNK_BAND, cut: TRUNK_BAND.cut - FLAT_TRUNK_SHIFT_DEG, edgeEnd: TRUNK_BAND.edgeEnd - FLAT_TRUNK_SHIFT_DEG, fairEnd: TRUNK_BAND.fairEnd - FLAT_TRUNK_SHIFT_DEG };
+const flatFeet = (f: Record<'improve' | 'edge' | 'fair' | 'good', string>): Record<'improve' | 'edge' | 'fair' | 'good', string> => ({
+  improve: `${f.improve} · 평지 임시 기준`,
+  edge: `${f.edge} · 평지 임시 기준`,
+  fair: `${f.fair} · 평지 임시 기준`,
+  good: `${f.good} · 평지 임시 기준`,
+});
+/**
+ * 스로잉 · 착지 손 높이((손목 − 어깨 높이) ÷ 팔 길이) — 2026-11-10 김민: "착지 때 손이 어디까지 올라왔느냐", "아래 25% 까지 좋아요는 너무 후하다".
+ * 다른 띠와 달리 자료(드라이브라인 403구 · 앞발 첫 닿음)의 가운데가 좋아요 선: 아래 10 / 30 / 50% = −0.14 / 0 / +0.14(팔 길이 57cm 면 −8 / 0 / +8cm).
+ * 고칠 점 < −0.14 ≤ 경계 < 0(어깨 높이) ≤ 보통 < +0.14 ≤ 좋아요. 2σ 여유를 두지 않는다(김민 결정).
+ * 3D 자리는 정확하다(같은 순간 가상 촬영 1cm · 마커 3cm). 오차의 대부분은 '닿은 순간'을 잡는 오차인데 이때 손이 초당 3m 로 올라간다.
+ * 뒤꿈치 규칙(가운데 −14ms · 90% 41ms)일 땐 5.7cm · 정답과 같은 칸 59% · 잘못 짚은 고칠 점 15/109 였고, 같은 날 착지를 앞발목 규칙으로 바꿔
+ * (contract.ts ankleContact, −3ms · 90% 23ms) 3.4cm · 72% · 7/109(scripts/pitch-lab/obp/obp-synth.mts '판정 hand').
+ */
+const HAND_BAND: Band = { up: true, cut: -0.14, edgeEnd: 0, fairEnd: 0.14, lo: -0.5, hi: 0.5 };
+const HAND_FOOT: Record<'improve' | 'edge' | 'fair' | 'good', string> = {
+  improve: '고칠 점 · 잘 던지는 투수 아래 10% 밑',
+  edge: '경계 · 손이 아직 어깨 높이 밑(아래 10~30%)',
+  fair: '보통 · 손이 어깨 높이쯤(아래 30~50%)',
+  good: '좋아요',
+};
 /** 착지 때 상체 열림(°, 작을수록 닫힘) — 위 25% 까지 좋아요 · 위 10~25% 보통 · 위 10% 를 넘되 엔진 오차 안이면 경계 · 그 너머(약 0°)는 고칠 점 */
 const sepBand = (hand: 'R' | 'L'): Band => {
   const N = TRUNK_PLANT_NORM[hand];
@@ -242,7 +286,7 @@ const HARD_TO_SEE: Record<ElementName, string> = {
   '상하체 분리': '착지에서 릴리스까지 두 어깨가',
   브레이크: '착지에서 릴리스까지 앞다리가',
   '몸통 회전': '릴리스 때 어깨 · 골반이',
-  스로잉: '착지 때 던지는 팔이',
+  스로잉: '착지 때 던지는 팔 · 손이',
 };
 function unsureLine(why: NonNullable<ReportItem['why']>, name: ElementName, kneeUpFound: boolean): string {
   if (why === 'implausible') return '계산값이 정상 범위를 벗어나 수치를 보여 주지 않아요. 분석 확인이 필요해요.';
@@ -300,7 +344,13 @@ const OBS = {
         ? `공을 놓을 때 몸통이 뒤로 ${-n}° 젖혀져 있어요.`
         : '공을 놓을 때 몸통이 앞뒤로 거의 기울지 않았어요.';
   },
-  arm: (deg: number) => `앞발이 닿을 때 던지는 팔의 어깨 벌림은 ${r0(deg)}°예요.`,
+  hand: (ratio: number, cm: number | null | undefined) => {
+    const n = cm != null ? r0(cm) : r0(ratio * 100);
+    const unit = cm != null ? 'cm' : '%(팔 길이)';
+    return n === 0
+      ? '앞발이 닿을 때 던지는 손이 어깨 높이에 있어요.'
+      : `앞발이 닿을 때 던지는 손이 어깨보다 ${Math.abs(n)}${unit} ${n > 0 ? '위' : '아래'}에 있어요.`;
+  },
 };
 
 /** 결론 첫 줄 — 문제(fault)마다 하나(5-7절) */
@@ -312,7 +362,7 @@ export const FAULT_TEXT: Record<FaultKey, string> = {
   'block.collapse': '착지한 뒤 앞무릎이 무너져요.',
   'block.soft': '착지한 뒤 앞무릎이 펴지지 않아요.',
   'trunk.upright': '공을 놓을 때 몸통이 서 있어요.',
-  'arm.late': '앞발이 닿을 때 팔이 덜 올라와요.',
+  'arm.late': '앞발이 닿을 때 손이 덜 올라와요.',
 };
 
 /** 요소가 왜 중요한지 한 줄 */
@@ -322,7 +372,7 @@ const WHY_SHORT: Record<ElementName, string> = {
   '상하체 분리': '상체가 늦게 열려야 골반이 먼저 돌며 꼬임이 생겨요.',
   브레이크: '앞다리가 버텨야 몸이 멈추고 그 힘이 몸통으로 넘어가요.',
   '몸통 회전': '몸통이 앞으로 숙여지며 돌아야 팔에 힘이 실려요.',
-  스로잉: '팔이 제때 올라와야 어깨가 도는 길을 따라가요.',
+  스로잉: '앞발이 닿을 때 손이 올라와 있어야 몸통이 돌 때 팔이 자연스럽게 뒤로 젖혀져요.',
 };
 
 /** 처방 카드의 느낌 신호(lib/mechanics/elements.ts cues 에서 문제에 맞는 한 줄) */
@@ -334,7 +384,7 @@ const FAULT_CUE: Record<FaultKey, string> = {
   'block.collapse': '앞다리는 벽, 밀려나지 않는다.',
   'block.soft': '골반이 돌며 앞무릎이 펴진다.',
   'trunk.upright': '뒷어깨를 목표 쪽으로 돌려 보낸다.',
-  'arm.late': '팔이 어깨 높이에 올라온 뒤에 몸통이 돈다.',
+  'arm.late': '앞발이 닿기 전에 손이 어깨 위로 올라온다.',
 };
 
 const LINES: Record<FaultKey | ElementName, Partial<Record<ReportStatus, string>>> = {
@@ -381,8 +431,8 @@ const LINES: Record<FaultKey | ElementName, Partial<Record<ReportStatus, string>
     edge: '공을 놓을 때 몸통이 조금 서 있어요.',
     improve: '공을 놓을 때 몸통이 서 있어요.',
   },
-  스로잉: { good: '앞발이 닿을 때 팔이 어깨 높이까지 올라와요.', fair: '앞발이 닿을 때 팔이 조금 덜 올라와요.' },
-  'arm.late': { edge: '앞발이 닿을 때 팔이 조금 늦게 올라와요.', improve: '앞발이 닿을 때 팔이 덜 올라와요.' },
+  스로잉: { good: '앞발이 닿을 때 손이 어깨 위로 올라와 있어요.', fair: '앞발이 닿을 때 손이 어깨 높이쯤이에요.' },
+  'arm.late': { edge: '앞발이 닿을 때 손이 아직 어깨 밑이에요.', improve: '앞발이 닿을 때 손이 어깨보다 한참 밑이에요.' },
 };
 
 const STATUS_FOOT: Record<'improve' | 'edge' | 'fair' | 'good', string> = {
@@ -412,7 +462,8 @@ function judged(
   valueLabel: string,
   gauge: ReportGauge,
   frame: number | null,
-  goal?: string
+  goal?: string,
+  feet: Record<'improve' | 'edge' | 'fair' | 'good', string> = STATUS_FOOT
 ): Draft {
   const bad = status === 'improve' || status === 'edge';
   return {
@@ -423,7 +474,7 @@ function judged(
     obs,
     value,
     valueLabel,
-    foot: status === 'good' || !goal ? STATUS_FOOT[status] : `${STATUS_FOOT[status]} · 좋아요는 ${goal}`,
+    foot: status === 'good' || !goal ? feet[status] : `${feet[status]} · 좋아요는 ${goal}`,
     goal: goal ?? null,
     gauge,
     frame,
@@ -464,7 +515,7 @@ export function judgeElements(
   else {
     const v = m.drift.aheadAtKneeUp;
     const value = m.drift.aheadAtKneeUpCm != null ? `${Math.round(m.drift.aheadAtKneeUpCm)}cm` : `키의 ${Math.round(v * 100)}%`;
-    const goal = ctx.heightCm ? `${Math.round(DRIFT_GOOD * ctx.heightCm)}cm 위` : `키의 ${Math.round(DRIFT_GOOD * 100)}% 위`;
+    const goal = ctx.heightCm ? `${Math.round(DRIFT_BAND.fairEnd * ctx.heightCm)}cm 위` : `키의 ${Math.round(DRIFT_BAND.fairEnd * 100)}% 위`;
     out['드리프트'] = judged(
       '드리프트',
       'drift.stuck',
@@ -474,11 +525,13 @@ export function judgeElements(
       '니업 때 골반이 축발보다 앞',
       { ...DRIFT_BAND, value: v },
       frames.kneeUp,
-      goal
+      goal,
+      STRICT_FOOT
     );
   }
 
-  /* 드롭 — '거의 안 가라앉음 · 뜸'은 어디서든 고칠 점, 그 밖은 마운드만(평지 · 성장기는 참고) */
+  /* 드롭 — '거의 안 가라앉음 · 뜸'은 어디서든 고칠 점. 평지도 같은 띠로 평가(임시 기준 — 바닥선 위 높이라 경사가 빠져 있다), 성장기는 참고 */
+  const strictFeet = flat ? flatFeet(STRICT_FOOT) : STRICT_FOOT;
   if (!m.drop) out['드롭'] = reference('notMeasured', null, null, null, null);
   else if (!okConf(m.drop.conf)) out['드롭'] = reference('lowConf', null, null, null, frames.plant);
   else {
@@ -486,12 +539,12 @@ export function judgeElements(
     const gauge = { ...DROP_BAND, value: v };
     const label = '니업 → 착지 골반이 내려간 몫(다리 길이)';
     if (v < DROP_FLOAT_MAX || m.drop.rise > DROP_RISE_MAX)
-      out['드롭'] = judged('드롭', 'drop.float', 'improve', OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`);
+      out['드롭'] = judged('드롭', 'drop.float', 'improve', OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`, strictFeet);
     else
       out['드롭'] = capped(
         '드롭',
-        judged('드롭', 'drop.shallow', bandOf(v, DROP_BAND), OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`),
-        flat ? 'flat' : ctx.youth ? 'youth' : null
+        judged('드롭', 'drop.shallow', bandOf(v, DROP_BAND), OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`, strictFeet),
+        ctx.youth ? 'youth' : null
       );
   }
 
@@ -563,9 +616,10 @@ export function judgeElements(
     }
   }
 
-  /* 몸통 회전 = 릴리스 앞 기울기(평지 · 성장기는 참고) */
+  /* 몸통 회전 = 릴리스 앞 기울기 — 평지는 5° 낮춘 임시 띠로 평가, 성장기는 참고 */
   {
     const t = m.trunkTilt;
+    const band = flat ? FLAT_TRUNK_BAND : TRUNK_BAND;
     if (!okConf(t.conf)) out['몸통 회전'] = reference('lowConf', null, null, null, frames.release);
     else
       out['몸통 회전'] = capped(
@@ -573,38 +627,48 @@ export function judgeElements(
         judged(
           '몸통 회전',
           'trunk.upright',
-          bandOf(t.forwardDeg, TRUNK_BAND),
+          bandOf(t.forwardDeg, band),
           OBS.trunk(t.forwardDeg),
           fmtDeg(t.forwardDeg),
           '릴리스 때 몸통 앞 기울기',
-          { ...TRUNK_BAND, value: t.forwardDeg },
+          { ...band, value: t.forwardDeg },
           frames.release,
-          `${Math.round(TRUNK_BAND.fairEnd)}° 위`
+          `${Math.round(band.fairEnd)}° 위`,
+          strictFeet
         ),
-        flat ? 'flat' : ctx.youth ? 'youth' : null
+        ctx.youth ? 'youth' : null
       );
   }
 
-  /* 스로잉 = 착지 어깨 벌림(등급 B — 4차 마커 전엔 참고) */
+  /* 스로잉 = 착지 손 높이(어깨 기준) — 옛 결과 요약처럼 값이 없으면 못 잰 것 */
   {
     const a = m.arm;
-    if (!okConf(a.conf)) out['스로잉'] = reference('lowConf', null, null, null, frames.plant);
-    else
+    const v = a.handRise;
+    if (v == null) out['스로잉'] = reference('notMeasured', null, null, null, frames.plant);
+    else if (!okConf(a.conf)) out['스로잉'] = reference('lowConf', null, null, null, frames.plant);
+    else if (!Number.isFinite(v) || Math.abs(v) > 1) out['스로잉'] = reference('implausible', null, null, null, frames.plant);
+    else {
+      const cmv = a.handRiseCm;
+      const signed = (n: number, unit: string) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n)}${unit}`;
+      /* 좋아요 선을 cm 로 — 팔 길이(cm) = 높이 차 ÷ 비율, 비율이 0 근처면 못 구해 말로 */
+      const armCm = cmv != null && Math.abs(v) > 0.03 ? cmv / v : null;
       out['스로잉'] = capped(
         '스로잉',
         judged(
           '스로잉',
           'arm.late',
-          bandOf(a.abductionAtPlantDeg, ARM_BAND),
-          OBS.arm(a.abductionAtPlantDeg),
-          fmtDeg(a.abductionAtPlantDeg),
-          '착지 때 어깨 벌림(90° = 팔꿈치가 어깨 높이)',
-          { ...ARM_BAND, value: a.abductionAtPlantDeg },
+          bandOf(v, HAND_BAND),
+          OBS.hand(v, cmv),
+          cmv != null ? signed(Math.round(cmv), 'cm') : signed(Math.round(v * 100), '%'),
+          cmv != null ? '착지 때 손 높이(어깨 기준)' : '착지 때 손 높이(어깨 기준 · 팔 길이의 몫)',
+          { ...HAND_BAND, value: v },
           frames.plant,
-          `${Math.round(ARM_BAND.fairEnd)}° 위`
+          armCm != null ? `어깨보다 ${Math.round(armCm * HAND_BAND.fairEnd)}cm 넘게 위` : '어깨보다 한 뼘 위',
+          HAND_FOOT
         ),
         null
       );
+    }
   }
 
   const confidence: Record<ElementName, number | null | undefined> = {
@@ -634,12 +698,9 @@ export function judgeElements(
           : !okConf(conf)
             ? 'low'
             : 'sufficient';
+    /* 평지는 2026-11-10 부터 임시 기준으로 평가한다('flat' 은 옛 리포트 요약을 읽을 때만 남는다) */
     const applicability: ReportMeasurement['applicability'] =
-      flat && (name === '드롭' || name === '몸통 회전')
-        ? 'flat'
-        : ctx.youth && ['드롭', '브레이크', '몸통 회전'].includes(name)
-          ? 'youth'
-          : 'supported';
+      ctx.youth && ['드롭', '브레이크', '몸통 회전'].includes(name) ? 'youth' : 'supported';
     const assessment = quality === 'sufficient' && d.status !== 'note' && d.status !== 'unsure' ? d.status : null;
     const why: ReportItem['why'] =
       quality === 'invalid'
@@ -693,7 +754,7 @@ export function judgeElements(
 const METRIC_NOTES: Partial<Record<ElementName, string>> = {
   '상하체 분리': '착지 때 어깨선이 열린 각도를 확인해요. 상하체 분리 전체를 평가한 값은 아니에요.',
   '몸통 회전': '릴리스 때 몸통의 앞 기울기를 확인해요. 몸통 회전량이나 회전 속도를 평가한 값은 아니에요.',
-  스로잉: '착지 때 어깨가 벌어진 각도를 확인해요. 팔의 전체 타이밍을 평가한 값은 아니에요.',
+  스로잉: '앞발이 처음 닿는 순간 손이 어깨보다 얼마나 위에 있는지 확인해요. 닿는 순간을 0.01초쯤 다르게 잡으면 3cm 안팎 달라질 수 있어요.',
 };
 
 /** 확인하지 못한 까닭(짧게) — 판독 줄의 둘째 줄 · measurementText */

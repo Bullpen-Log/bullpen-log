@@ -40,6 +40,7 @@ import {
   V2_PAIRS,
   V2J,
   heelContact,
+  ankleContact,
   wristRelease,
   v2Fail,
   type Pitch3dV2Ok,
@@ -1545,15 +1546,26 @@ function fitOnce(raw: V2Input): {
     return { result: v2Fail(jobId, 'fit', 'fit', core.quality) };
 
   /*
-   * ── 첫 닿음을 맞춘 앞 뒤꿈치로 다시 고른다(heelContact) — 옆 영상 2D 로 고른 첫 닿음은 실제보다 가운데 49ms 일러 '착지'와 착지 지표가 발이 아직
+   * ── 첫 닿음을 맞춘 3D 로 다시 고른다(ankleContact, 못 고르면 heelContact) — 옆 영상 2D 로 고른 첫 닿음은 실제보다 가운데 49ms 일러 '착지'와 착지 지표가 발이 아직
    * 뜬 자세였다. 착지 → 릴리스 시간(plantMs)도 같은 비율로 줄인다 ──
    */
   const { origin, ground, R3, axes } = core;
   const leadHe = core.hand === 'L' ? V2J.rHe : V2J.lHe;
-  const footContact = heelContact(
-    X.map((fr) => (dot(sub(fr[leadHe], origin), axes.U) - ground) / H),
-    core.evIdx
-  );
+  const leadAn = core.hand === 'L' ? V2J.rAn : V2J.lAn;
+  /* 2026-11-10 — 앞발목 높이로(ankleContact: 힘판 첫 닿음에 가운데 0 · 90% ±19ms). 니업을 못 찾았으면 예전 뒤꿈치 규칙 */
+  const footContact =
+    ankleContact(
+      X.map((fr) => {
+        const d = sub(fr[leadAn], origin);
+        return [dot(d, axes.F) / H, (dot(d, axes.U) - ground) / H, dot(d, R3) / H];
+      }),
+      synced.map((f) => f.t),
+      core.evIdx
+    ) ??
+    heelContact(
+      X.map((fr) => (dot(sub(fr[leadHe], origin), axes.U) - ground) / H),
+      core.evIdx
+    );
   /* ── 공 놓음도 맞춘 던지는 손목의 앞쪽 빠르기로 다시 고른다(wristRelease) — 2D(30fps)로 고른 것은 평균 41ms 늦었다 ── */
   const thrWr = core.hand === 'L' ? V2J.lWr : V2J.rWr;
   const release = wristRelease(
@@ -1638,6 +1650,7 @@ function fitOnce(raw: V2Input): {
       footContact: remap(evIdx.footContact)!,
       release: remap(evIdx.release)!,
       contactBy: 'heel',
+      contactV: 2,
     },
     metrics,
     quality: core.quality,

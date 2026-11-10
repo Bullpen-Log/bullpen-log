@@ -23,6 +23,7 @@ registerHooks({
     if (s === 'expo-router') return data('export const router={push(){}};');
     if (s === '~/shell/web-nav') return data('export const leaveTo=()=>{};');
     if (s === '~/lib/ui') return data('export const TYPE={};');
+    if (s === '~/shell/release') return data('export const canOpen=()=>true; export const noticeLocked=()=>{}; export const pushOpen=()=>{};');
     if (s === '@/components/ui')
       return data(
         "const h=globalThis.__reportReact.createElement; export const ButtonLink=({children,href})=>h('a',{href},children); export const Button=({children})=>h('button',null,children);"
@@ -53,11 +54,11 @@ const native = await import('../native/src/lab/report.tsx');
 const web = await import('../app/(app)/videos/lab/[id]/report-parts.tsx');
 globalThis.__reportMetrics = {
   hand: 'R',
-  drift: { aheadAtKneeUp: 0.065, conf: 50 },
+  drift: { aheadAtKneeUp: 0.08, conf: 50 },
   drop: { pelvisDrop: 0.36, rise: 0, conf: 50 },
   separation: { trunkOpenAtPlantDeg: -40, trunkConf: 50 },
   trunkTilt: { forwardDeg: 30, conf: 50 },
-  arm: { abductionAtPlantDeg: 88, conf: 50 },
+  arm: { abductionAtPlantDeg: 88, handRise: 0.2, handRiseCm: 11, conf: 50 },
   /* 가장 굽은 장면 13 — 착지(10)와 릴리스(20) 사이. 브레이크 '더 굽음'의 장면은 릴리스가 아니라 이 장면이다 */
   block: { pelvisDecelPct: 95, kneeExtensionDeg: 10, kneeCollapseDeg: 30, worstFrame: 13, conf: 50 },
 };
@@ -79,9 +80,9 @@ const drills = ['기초', '연결', '통합'].map((stage) => ({
 const opts = { heightCm: 180, ground: 'mound', youth: false, drills };
 /* 드리프트 경계 · 브레이크 고칠 점(30°) — 2026-10-26 등급이면 둘 다 평가 · 개선 드릴 */
 const report = buildReport(result, opts);
-globalThis.__reportMetrics.drift.aheadAtKneeUp = 0.1;
+globalThis.__reportMetrics.drift.aheadAtKneeUp = 0.12;
 globalThis.__reportMetrics.block.kneeCollapseDeg = 3;
-/* 모두 좋아요(스로잉만 참고) — 권할 드릴 없음 */
+/* 모두 좋아요 — 권할 드릴 없음 */
 const heldReport = buildReport(result, opts);
 /* 성장기 — 드롭 · 브레이크 · 몸통은 참고(관찰 + 제한 한 줄) */
 const refReport = buildReport(result, { ...opts, youth: true });
@@ -119,7 +120,7 @@ assert.match(webFlow, /border-dashed border-line-strong bg-surface[^"]*"[^>]*><\
 const nativeParts = { ...native, FlowCard: (props) => native.ElementGrid({ ...props, onScene: props.onPick }) };
 for (const components of [nativeParts, web]) {
   const flow = render(components.FlowCard, { report: { ...report, primary: '브레이크' }, onPick() {} });
-  assert.match(flow, /수치 확인 6\/6 · 평가 가능 5\/6/);
+  assert.match(flow, /수치 확인 6\/6 · 평가 가능 6\/6/);
   assert.match(flow, /수치 확인 · 평가 가능/);
   assert.match(flow, /30°/);
   assert.match(flow, /최대 30° 더 굽어져요/, '펴 둔 줄은 수치 관찰부터');
@@ -138,10 +139,10 @@ for (const components of [nativeParts, web]) {
   /* 고칠 점이 없으면 확인 범위만 — 좋다 · 문제라고 만들어 내지 않는다 */
   const scope = render(components.KeyFinding, { report: heldReport, onScene() {} });
   assert.match(scope, /이번 투구에서 확인한 범위/);
-  assert.match(scope, /평가한 5개 지표에 고칠 점이 없어요/);
+  assert.match(scope, /평가한 6개 지표에 고칠 점이 없어요/);
   assert.match(scope, /투구 동작 전체에 대한 결론은 아니에요/);
   assert.doesNotMatch(scope, /먼저 볼 것|장면 보기/);
-  /* 참고(성장기 · 스로잉)는 관찰이 주 설명, 제한은 띠 밑 보조 문구 */
+  /* 참고(성장기)는 관찰이 주 설명, 제한은 띠 밑 보조 문구 */
   const ref = render(components.FlowCard, { report: { ...refReport, primary: '몸통 회전' }, onPick() {} });
   assert.match(ref, /공을 놓을 때 몸통이 앞으로 30° 기울어져 있어요/);
   assert.match(ref, /회전 속도를 평가한 값은 아니에요/);
@@ -150,13 +151,15 @@ for (const components of [nativeParts, web]) {
   assert.ok(ref.indexOf('기울어져 있어요') < ref.indexOf('성장기는 크기보다'), '관찰이 제한 안내보다 먼저');
   assert.doesNotMatch(ref, /판정 기준|참고선/, '참고 칸에는 기준 띠를 안 그린다(목표선처럼 보이지 않게)');
   const armRef = render(components.FlowCard, { report: { ...refReport, primary: '스로잉' }, onPick() {} });
-  assert.match(armRef, /어깨 벌림은 88°예요/);
-  assert.match(armRef, /동작이나 촬영에 문제가 있다는 뜻은 아니에요/);
-  assert.match(armRef, /지표 검증 중/);
+  /* 스로잉 = 착지 손 높이(2026-11-10 부터 평가) — 값 · 판정 띠가 보인다 */
+  assert.match(armRef, /\+11cm/);
+  assert.match(armRef, /착지 때 손 높이/);
+  assert.match(armRef, /수치 확인 · 평가 가능/);
+  assert.doesNotMatch(armRef, /지표 검증 중/);
   assert.match(render(components.FlowCard, { report: { ...refReport, primary: '드롭' }, onPick() {} }), /골반 높이가 다리 길이의 36%만큼 내려가요/);
   const hard = render(components.FlowCard, { report: { ...hardReport, primary: '스로잉' }, onPick() {} });
   assert.match(hard, /확인 어려움/);
-  assert.match(hard, /착지 때 던지는 팔이 영상에서 잘 보이지 않아/);
+  assert.match(hard, /착지 때 던지는 팔 · 손이 영상에서 잘 보이지 않아/);
   assert.match(hard, /수치 확인 5\/6 · 평가 가능 5\/6/);
   /* 개선 드릴 — 한 번 보는 목록, 새 3주 처방 단추 없음 */
   const rx = render(components.RxCard, { report, mine: true, focus: null });
@@ -171,9 +174,10 @@ for (const components of [nativeParts, web]) {
   assert.match(hold, /고칠 점이 없어 따로 권할 드릴이 없어요/);
   assert.doesNotMatch(hold, /처방 시작|자동 처방/);
   /* 처방이 없으면 까닭에 맞는 길 — 참고 지표는 요소 설명(처방이 아님), 확인 못 한 구간은 촬영 안내 */
-  assert.match(hold, /스로잉 요소 설명 보기/);
-  assert.match(hold, /이번 투구에 맞춘 처방은 아니에요/);
-  assert.doesNotMatch(hold, /촬영 안내 보기/);
+  const refHold = render(components.RxCard, { report: refReport, mine: true, focus: null });
+  assert.match(refHold, /요소 설명 보기/);
+  assert.match(refHold, /이번 투구에 맞춘 처방은 아니에요/);
+  assert.doesNotMatch(hold, /촬영 안내 보기|요소 설명 보기/);
   assert.match(render(components.RxCard, { report: hardYouth, mine: true, focus: null }), /촬영 안내 보기/);
   const old = {
     ...report,
@@ -197,4 +201,4 @@ for (const components of [nativeParts, web]) {
   assert.match(held, /분석 엔진 버전이 다르거나/);
   assert.doesNotMatch(held, /같은 자리 · 배율/);
 }
-console.log('앱·웹 리포트 렌더 검사 통과: 확인 범위·평가 5 · 참고 관찰·확인 어려움 구분·개선 드릴(새 3주 처방 없음 · 진행 중 처방 유지)·이전 서버 응답 호환');
+console.log('앱·웹 리포트 렌더 검사 통과: 확인 범위·평가 6 · 참고 관찰·확인 어려움 구분·개선 드릴(새 3주 처방 없음 · 진행 중 처방 유지)·이전 서버 응답 호환');

@@ -18,6 +18,7 @@ import {
   readPitch3dV2Job,
   readPitch3dV2Result,
   heelContact,
+  ankleContact,
   wristRelease,
   RTMW_INDEX,
   storedV2ResultJson,
@@ -215,7 +216,7 @@ const good = (): Pitch3dV2Ok => {
       Array.from({ length: N_V2_JOINTS }, () => 90)
     ),
     lowConf: [[30, 33]],
-    events: { kneeUp: 2, footPlant: 20, release: 30, contactBy: 'heel' },
+    events: { kneeUp: 2, footPlant: 20, release: 30, contactBy: 'heel', contactV: 2 },
     metrics: [
       { key: 'trunkForwardTilt', value: 30.1, unit: 'deg', pm: 3, trust: 'high' },
     ],
@@ -314,13 +315,29 @@ const good = (): Pitch3dV2Ok => {
       `착지: 뒤꿈치가 디딘 높이 4cm 안에 처음 든 장면(${k1} · 18) · 2D 첫 닿음 앞으로 안 감(${k2} · 19) · 못 들면 발 묶임(${k3} · 20) · 이미 땅이면 첫 닿음(${k4} · 8)`,
       k1 === 18 && k2 === 19 && k3 === 20 && k4 === 8
     );
+    /*
+     * 2026-11-10 — '착지'는 앞발목 높이로(ankleContact): 니업 뒤 가장 빠른 장면부터 디딘 높이 + 키 0.8% 안에 처음 든 때에 가까운 장면.
+     * contactV 2 가 아닌 결과(뒤꿈치로 고른 결과 · 더 옛 결과)는 읽을 때 이 규칙으로 다시 고르고, 니업을 모르면 예전 그대로(뒤꿈치).
+     */
+    const ank = Array.from({ length: 40 }, (_, k) => [k < 10 ? 0 : k < 20 ? (k - 10) * 0.03 : 0.3, k < 10 ? 0.2 : k < 20 ? 0.2 - (k - 10) * 0.02 : 0, 0]);
+    const tt = Array.from({ length: 40 }, (_, k) => k / 120);
+    const a1 = ankleContact(ank, tt, { kneeUp: 2, release: 30 });
+    const a2 = ankleContact(ank, tt, { kneeUp: null, release: 30 });
+    const a3 = ankleContact(ank.map((p) => [p[0], 0.2, 0]), tt.map((x, k) => (k < 10 ? x : x)), { kneeUp: 28, release: 30 });
+    check(`착지: 앞발목이 디딘 높이 0.8% 안에 든 때에 가까운 장면(${a1} · 20) · 니업을 모르면 못 고름(${a2}) · 구간이 너무 짧으면 못 고름(${a3})`, a1 === 20 && a2 === null && a3 === null);
     const old = { ...g, events: { kneeUp: 2, footPlant: 20, footContact: 8, release: 30 } };
     const hj = V2J.lHe;
-    old.joints = old.joints.map((fr, k) => fr.map((p, j) => (j === hj ? [p[0], Math.round(heel[k] * 1000), p[2]] : p)));
+    const aj = V2J.lAn;
+    old.joints = old.joints.map((fr, k) =>
+      fr.map((p, j) => (j === hj ? [p[0], Math.round(heel[k] * 1000), p[2]] : j === aj ? ank[k].map((v) => Math.round(v * 1000)) : p))
+    );
     const r = readPitch3dV2Result(old);
+    const rHeel = readPitch3dV2Result({ ...old, events: { ...old.events, contactBy: 'heel' } });
+    const rNoKnee = readPitch3dV2Result({ ...old, events: { ...old.events, kneeUp: null } });
+    const rNew = { ...old, events: { ...old.events, contactBy: 'heel', contactV: 2 } };
     check(
-      `옛 결과는 읽을 때 '착지'를 뒤꿈치로 고른다(${r?.ok ? r.events.footContact : '?'} · 18) · 엔진이 고른 결과는 그대로`,
-      !!r?.ok && r.events.footContact === 18 && r.events.contactBy === undefined && readPitch3dV2Result({ ...old, events: { ...old.events, contactBy: 'heel' } })?.ok === true
+      `옛 결과 · 뒤꿈치로 고른 결과는 읽을 때 '착지'를 앞발목으로 다시 고른다(${r?.ok ? r.events.footContact : '?'} · ${rHeel?.ok ? rHeel.events.footContact : '?'} · 20) · 니업이 없으면 뒤꿈치(${rNoKnee?.ok ? rNoKnee.events.footContact : '?'} · 18) · 지금 엔진 결과는 그대로`,
+      !!r?.ok && r.events.footContact === 20 && !!rHeel?.ok && rHeel.events.footContact === 20 && !!rNoKnee?.ok && rNoKnee.events.footContact === 18 && readPitch3dV2Result(rNew) === rNew
     );
   }
   check(
@@ -642,7 +659,8 @@ function runV2(sc: Scenario, seed: number) {
     };
     const truth = truthMetrics(sc, result.t.map(realOf), {
       kneeUp: result.events.kneeUp ?? 0,
-      footPlant: result.events.footPlant,
+      /* 엔진이 착지 지표를 재는 장면(첫 닿음)과 같은 장면의 정답 — 2026-11-10 앞발목 규칙부터 발 묶임과 다른 장면일 수 있다 */
+      footPlant: result.events.footContact ?? result.events.footPlant,
       release: result.events.release,
     });
     for (const m of result.metrics) {
@@ -3142,7 +3160,7 @@ console.log('■ 메카닉 점검 판정(mech-judge) — 문턱 · 여러 구 �
     block: { pelvisDecelPct: o.decel ?? 95, kneeAtPlantDeg: 30, kneeAtReleaseDeg: 30 - (o.ext ?? 0), kneeExtensionDeg: o.ext ?? 0, kneeCollapseDeg: 5, conf: o.bConf ?? 50, keyConf: o.bConf ?? 50 },
     drop: null,
     trunkTilt: { forwardDeg: 30, lateralDeg: 20, conf: 50 },
-    arm: { abductionAtPlantDeg: 88, conf: 50 },
+    arm: { abductionAtPlantDeg: 88, handRise: 0.2, handRiseCm: 11, conf: 50 },
   });
   const st = (j: ReturnType<typeof judgeMechanics>, k: string) => j.items.find((i) => i.key === k)!.status;
   check(
@@ -3552,7 +3570,7 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   /* 기준 자리의 투수(모두 좋아요) — 하나씩 바꿔 본다 */
   const base = (): MechChecks => ({
     hand: 'R',
-    drift: { aheadAtKneeUp: 0.1, aheadAtKneeUpCm: 18, travel: 0.1, travelCm: 18, speed: 1, speedMs: 1.8, conf: 50 },
+    drift: { aheadAtKneeUp: 0.12, aheadAtKneeUpCm: 22, travel: 0.1, travelCm: 18, speed: 1, speedMs: 1.8, conf: 50 },
     pelvisLevel: { tiltDeg: 0, conf: 50 },
     separation: {
       frame: 10, peakMs: 0, peakDeg: 55, atPlantDeg: 50, trunkOpenAtPlantDeg: -20, pelvisOpenAtPlantDeg: 30,
@@ -3560,7 +3578,7 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
     },
     drop: { pelvisDrop: 0.36, rise: 0, conf: 50 },
     trunkTilt: { forwardDeg: 30, lateralDeg: 25, conf: 50 },
-    arm: { abductionAtPlantDeg: 88, conf: 50 },
+    arm: { abductionAtPlantDeg: 88, handRise: 0.2, handRiseCm: 11, conf: 50 },
     block: { pelvisDecelPct: 95, kneeAtPlantDeg: 50, kneeAtReleaseDeg: 40, kneeExtensionDeg: 10, kneeCollapseDeg: 3, conf: 50, keyConf: 50 },
   });
   const fr = { kneeUp: 5, plant: 10, release: 20 };
@@ -3568,13 +3586,14 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   const st = (m: MechChecks, ctx = mound) => Object.fromEntries(judgeElements(m, ctx, fr).map((i) => [i.element, i.status]));
 
   const good = st(base());
-  check('기준 수치: 다섯 요소 평가(2026-10-26 등급) · 스로잉만 참고', ['드리프트', '드롭', '상하체 분리', '브레이크', '몸통 회전'].every((e) => good[e] === 'good') && good['스로잉'] === 'note', JSON.stringify(good));
+  check('기준 수치: 여섯 요소 모두 평가(2026-11-10 스로잉 = 착지 손 높이)', ['드리프트', '드롭', '상하체 분리', '브레이크', '몸통 회전', '스로잉'].every((e) => good[e] === 'good'), JSON.stringify(good));
 
   const m1 = base();
   m1.drift!.aheadAtKneeUp = 0.04;
-  check('드리프트(A) 0.06 밑은 고칠 점', st(m1)['드리프트'] === 'improve');
-  m1.drift!.aheadAtKneeUp = 0.065;
-  check('드리프트 0.06~0.07 은 경계', st(m1)['드리프트'] === 'edge');
+  check('드리프트(A) 아래 10%(0.073) 밑은 고칠 점', st(m1)['드리프트'] === 'improve');
+  /* 2026-11-10 조인 띠 — 아래 10 / 25 / 40%: 고칠 점 < 0.073 ≤ 경계 < 0.092 ≤ 보통 < 0.103 ≤ 좋아요 */
+  const dr = (v: number) => st({ ...m1, drift: { ...m1.drift!, aheadAtKneeUp: v } })['드리프트'];
+  check('드리프트 띠: 0.072 고칠 점 · 0.08 경계 · 0.1 보통 · 0.103 좋아요', dr(0.072) === 'improve' && dr(0.08) === 'edge' && dr(0.1) === 'fair' && dr(0.103) === 'good', [0.072, 0.08, 0.1, 0.103].map(dr).join(' '));
 
   const m2 = base();
   m2.block.kneeCollapseDeg = 25;
@@ -3591,19 +3610,22 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   check('브레이크 착지 · 가장 굽은 장면이 안 보이면 판정 안 함', st(m2)['브레이크'] === 'unsure');
 
   const m3 = base();
-  m3.drop!.pelvisDrop = 0.27;
-  check('드롭 0.26~0.31 은 보통', st(m3)['드롭'] === 'fair');
+  const dp = (v: number) => st({ ...m3, drop: { ...m3.drop!, pelvisDrop: v } })['드롭'];
+  check('드롭 띠: 0.25 고칠 점 · 0.27 경계 · 0.32 보통 · 0.34 좋아요', dp(0.25) === 'improve' && dp(0.27) === 'edge' && dp(0.32) === 'fair' && dp(0.34) === 'good', [0.25, 0.27, 0.32, 0.34].map(dp).join(' '));
   m3.drop!.pelvisDrop = 0.02;
   check('드롭 거의 안 가라앉음은 고칠 점', st(m3)['드롭'] === 'improve');
   const flatDrop = judgeElements(m3, { ...mound, ground: 'flat' }, fr).find((i) => i.element === '드롭')!;
-  check('평지 드롭은 작은 값도 참고 · 처방 보류', flatDrop.status === 'note' && flatDrop.fault === null && flatDrop.why === 'flat');
-  m3.drop!.pelvisDrop = 0.24;
-  check('평지 드롭 크기는 참고(평지)', judgeElements(m3, { ...mound, ground: 'flat' }, fr).find((i) => i.element === '드롭')!.why === 'flat');
+  /* 2026-11-10 — 평지도 임시 기준으로 평가: 드롭은 마운드와 같은 띠(바닥선 위 높이라 경사가 빠져 있다), 몸통 앞 기울기는 5° 낮춘 띠 */
+  check('평지 드롭도 평가 · 거의 안 가라앉으면 고칠 점(임시 기준 표시)', flatDrop.status === 'improve' && flatDrop.fault === 'drop.float' && flatDrop.why === null && /평지 임시 기준/.test(flatDrop.foot ?? ''));
+  const fdp = (v: number) => st({ ...m3, drop: { ...m3.drop!, pelvisDrop: v } }, { ...mound, ground: 'flat' })['드롭'];
+  check('평지 드롭 띠는 마운드와 같다: 0.25 고칠 점 · 0.27 경계 · 0.34 좋아요', fdp(0.25) === 'improve' && fdp(0.27) === 'edge' && fdp(0.34) === 'good');
 
   const m4 = base();
-  m4.trunkTilt.forwardDeg = 15;
-  check('몸통 앞 기울기 13~17.6 은 경계', st(m4)['몸통 회전'] === 'edge');
-  check('평지 몸통 앞 기울기는 참고', st(m4, { ...mound, ground: 'flat' })['몸통 회전'] === 'note');
+  const tk = (v: number) => st({ ...m4, trunkTilt: { ...m4.trunkTilt, forwardDeg: v } })['몸통 회전'];
+  check('몸통 앞 기울기 띠: 17 고칠 점 · 20 경계 · 25 보통 · 27.5 좋아요', tk(17) === 'improve' && tk(20) === 'edge' && tk(25) === 'fair' && tk(27.5) === 'good', [17, 20, 25, 27.5].map(tk).join(' '));
+  m4.trunkTilt.forwardDeg = 20;
+  const ftk = (v: number) => st({ ...m4, trunkTilt: { ...m4.trunkTilt, forwardDeg: v } }, { ...mound, ground: 'flat' })['몸통 회전'];
+  check('평지 몸통 앞 기울기는 5° 낮춘 띠: 12 고칠 점 · 17 경계 · 20 보통 · 22.5 좋아요', ftk(12) === 'improve' && ftk(17) === 'edge' && ftk(20) === 'fair' && ftk(22.5) === 'good', [12, 17, 20, 22.5].map(ftk).join(' '));
   check('성장기 몸통 앞 기울기는 참고', st(m4, { ...mound, youth: true })['몸통 회전'] === 'note');
 
   const m5 = base();
@@ -3617,19 +3639,23 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   check('확신 30 밑은 판정 안 함', st(m5)['상하체 분리'] === 'unsure');
 
   const m6 = base();
-  m6.arm.abductionAtPlantDeg = 50;
-  check('스로잉(B)은 낮아도 참고', st(m6)['스로잉'] === 'note');
+  const hand = (v: number) => st({ ...m6, arm: { ...m6.arm, handRise: v } })['스로잉'];
+  check('스로잉: 착지 손 높이 띠 — 어깨 위 한 뼘부터 좋아요 · 어깨 높이부터 보통 · 그 밑 경계 · 아래 10% 밑 고칠 점',
+    hand(0.14) === 'good' && hand(0.13) === 'fair' && hand(0) === 'fair' && hand(-0.01) === 'edge' && hand(-0.14) === 'edge' && hand(-0.15) === 'improve',
+    [0.14, 0.13, 0, -0.01, -0.14, -0.15].map(hand).join(' '));
+  check('스로잉: 값이 없거나(옛 계산) 말이 안 되면 판정 안 함', st({ ...m6, arm: { abductionAtPlantDeg: 88, conf: 50 } })['스로잉'] === 'unsure' && hand(NaN) === 'unsure' && hand(1.5) === 'unsure');
+  check('스로잉: 손이 안 보이면(확신 30 밑) 판정 안 함', st({ ...m6, arm: { ...m6.arm, conf: 20 } })['스로잉'] === 'unsure');
 
   /* 주 문제 — 고칠 점 먼저, 없으면 흐름 앞쪽 경계 */
   const m7 = base();
-  m7.trunkTilt.forwardDeg = 15;
+  m7.trunkTilt.forwardDeg = 20;
   m7.block.kneeCollapseDeg = 13;
   m7.drift!.aheadAtKneeUp = 0.04;
   const items7 = judgeElements(m7, mound, fr);
   const p7 = pickProblems(items7);
   check('주 문제는 고칠 점 먼저 · 다음은 흐름 앞쪽 경계', p7.primary?.element === '드리프트' && p7.next?.element === '브레이크' && p7.later.map((i) => i.element).join() === '몸통 회전');
   const m8 = base();
-  m8.trunkTilt.forwardDeg = 15;
+  m8.trunkTilt.forwardDeg = 20;
   m8.block.kneeCollapseDeg = 13;
   check('고칠 점이 없으면 흐름 앞쪽 경계가 주 문제', pickProblems(judgeElements(m8, mound, fr)).primary?.element === '브레이크');
 
