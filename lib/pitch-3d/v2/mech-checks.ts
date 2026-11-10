@@ -83,8 +83,13 @@ export type MechChecks = {
   } | null;
   /** 릴리스 때 몸통(엉덩이 가운데 → 어깨 가운데) 기울기(°) — 앞 = 디딤 방향으로, 옆 = 글러브 쪽으로(+) */
   trunkTilt: { forwardDeg: number; lateralDeg: number; conf: number | null };
-  /** 착지 때 던지는 팔 어깨 벌림(°) — 위팔과 몸통 아래쪽 사이 각(90 = 팔꿈치가 어깨 높이) */
-  arm: { abductionAtPlantDeg: number; conf: number | null };
+  /**
+   * 착지 때 던지는 팔.
+   *   abductionAtPlantDeg — 어깨 벌림(°): 위팔과 몸통 아래쪽 사이 각(90 = 팔꿈치가 어깨 높이). 2026-11-10 부터 판정에는 안 쓴다
+   *   handRise — 손 높이: (손목 높이 − 어깨 높이) ÷ 팔 길이(위팔 + 아래팔). 0 = 손이 어깨 높이, + = 어깨 위(옛 결과 요약엔 없다)
+   *   handRiseCm — 같은 높이 차를 cm 로(키를 알 때만)
+   */
+  arm: { abductionAtPlantDeg: number; handRise?: number; handRiseCm?: number | null; conf: number | null };
   block: {
     /** 골반 앞 빠르기가 착지 전 최고 → 릴리스 사이 줄어든 몫(%) — 블록의 주 지표 */
     pelvisDecelPct: number;
@@ -118,7 +123,7 @@ export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechCh
   // 던지는 쪽 = 축발 · 뒤 엉덩이, 반대쪽 = 앞다리 · 글러브 쪽
   const back = r.hand === 'R' ? 'r' : 'l';
   const lead = r.hand === 'R' ? 'l' : 'r';
-  const J = (side: 'l' | 'r', part: 'Hip' | 'Kn' | 'An' | 'Sh' | 'El') =>
+  const J = (side: 'l' | 'r', part: 'Hip' | 'Kn' | 'An' | 'Sh' | 'El' | 'Wr') =>
     (side + part) as V2JointName;
   const cm = (v: number) => (heightCm ? v * heightCm : null);
   const at = (k: number) => Math.min(n - 1, Math.max(0, k));
@@ -305,9 +310,15 @@ export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechCh
   };
 
   const Tf = sub(shMid(fp), hip(fp));
+  /* 손 높이 — 옆에서 봤을 때 착지 순간 손이 어깨보다 얼마나 올라왔나(2026-11-10 김민: "착지 때 손이 어디까지 올라왔느냐") */
+  const [aSh, aEl, aWr] = [P(fp, J(back, 'Sh')), P(fp, J(back, 'El')), P(fp, J(back, 'Wr'))];
+  const armLen = Math.hypot(...sub(aEl, aSh)) + Math.hypot(...sub(aWr, aEl));
+  const handUp = dot(sub(aWr, aSh), U);
   const arm = {
-    abductionAtPlantDeg: angleDeg(sub(P(fp, J(back, 'El')), P(fp, J(back, 'Sh'))), scale(Tf, -1)),
-    conf: confOf([J(back, 'Sh'), J(back, 'El')], [fp]),
+    abductionAtPlantDeg: angleDeg(sub(aEl, aSh), scale(Tf, -1)),
+    handRise: armLen > 0 ? handUp / armLen : NaN,
+    handRiseCm: cm(handUp / 1000),
+    conf: confOf([J(back, 'Sh'), J(back, 'El'), J(back, 'Wr')], [fp]),
   };
 
   return { hand: r.hand, drift, pelvisLevel, separation, drop, trunkTilt, arm, block };

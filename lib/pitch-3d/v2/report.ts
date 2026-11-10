@@ -53,14 +53,17 @@ export type ReportMeasurement = {
 };
 export type ReportCoverage = { evaluated: number; reference: number; unavailable: number; total: number };
 
-/** 등급(3-1절) — 'A?' = A 후보(평가 · 처방 안 함, 지금은 없음). B 는 참고만(스로잉 — 정답 자료가 같은 2D 라 검증이 안 된다) */
+/**
+ * 등급(3-1절) — 'A?' = A 후보(평가 · 처방 안 함, 지금은 없음). B 는 참고만(지금은 없음).
+ * 스로잉은 2026-11-10 김민 결정으로 착지 손 높이를 평가한다(예전 어깨 벌림은 B — 참고).
+ */
 export const ELEMENT_GRADE: Record<ElementName, Grade> = {
   드리프트: 'A',
   드롭: 'A',
   '상하체 분리': 'A',
   브레이크: 'A',
   '몸통 회전': 'A',
-  스로잉: 'B',
+  스로잉: 'A',
 };
 
 /** 흐름 차례(4절 2번) — 앞쪽 문제가 뒤쪽을 만든다 */
@@ -84,8 +87,20 @@ const SINK_BAND: Band = { up: false, cut: 16, edgeEnd: 11.9, fairEnd: 7.8, lo: 0
 const EXT_BAND: Band = { up: true, cut: -14, edgeEnd: -4.1, fairEnd: 2.1, lo: -25, hi: 30 };
 /** 몸통 회전 · 릴리스 앞 기울기(°) — 자료 10 / 25% 17.6 / 22.3°, 엔진 1.8 · 같은 선수 1.2 → 2σ ≈ 4.5° */
 const TRUNK_BAND: Band = { up: true, cut: 13, edgeEnd: 17.6, fairEnd: 22.3, lo: 0, hi: 45 };
-/** 스로잉 · 착지 어깨 벌림(°) — 자료 10 / 25% 72 / 78.6°, 엔진 4.1 → 2σ ≈ 9°. 등급 B 라 지금은 참고 */
-const ARM_BAND: Band = { up: true, cut: 63, edgeEnd: 72, fairEnd: 78.6, lo: 40, hi: 110 };
+/**
+ * 스로잉 · 착지 손 높이((손목 − 어깨 높이) ÷ 팔 길이) — 2026-11-10 김민: "착지 때 손이 어디까지 올라왔느냐", "아래 25% 까지 좋아요는 너무 후하다".
+ * 다른 띠와 달리 자료(드라이브라인 403구 · 앞발 첫 닿음)의 가운데가 좋아요 선: 아래 10 / 30 / 50% = −0.14 / 0 / +0.14(팔 길이 57cm 면 −8 / 0 / +8cm).
+ * 고칠 점 < −0.14 ≤ 경계 < 0(어깨 높이) ≤ 보통 < +0.14 ≤ 좋아요. 2σ 여유를 두지 않는다(김민 결정).
+ * 3D 자리는 정확하다(같은 순간 가상 촬영 1cm · 마커 3cm). 오차의 대부분은 '닿은 순간'을 잡는 오차(±18ms)인데 이때 손이 초당 3m 로 올라가
+ * 약 ±5cm 가 된다 — 가상 촬영 52구에서 정답과 같은 칸 58%, 잘못 짚은 고칠 점 6(scripts/pitch-lab/obp/obp-synth.mts '판정 hand').
+ */
+const HAND_BAND: Band = { up: true, cut: -0.14, edgeEnd: 0, fairEnd: 0.14, lo: -0.5, hi: 0.5 };
+const HAND_FOOT: Record<'improve' | 'edge' | 'fair' | 'good', string> = {
+  improve: '고칠 점 · 잘 던지는 투수 아래 10% 밑',
+  edge: '경계 · 손이 아직 어깨 높이 밑(아래 10~30%)',
+  fair: '보통 · 손이 어깨 높이쯤(아래 30~50%)',
+  good: '좋아요',
+};
 /** 착지 때 상체 열림(°, 작을수록 닫힘) — 위 25% 까지 좋아요 · 위 10~25% 보통 · 위 10% 를 넘되 엔진 오차 안이면 경계 · 그 너머(약 0°)는 고칠 점 */
 const sepBand = (hand: 'R' | 'L'): Band => {
   const N = TRUNK_PLANT_NORM[hand];
@@ -242,7 +257,7 @@ const HARD_TO_SEE: Record<ElementName, string> = {
   '상하체 분리': '착지에서 릴리스까지 두 어깨가',
   브레이크: '착지에서 릴리스까지 앞다리가',
   '몸통 회전': '릴리스 때 어깨 · 골반이',
-  스로잉: '착지 때 던지는 팔이',
+  스로잉: '착지 때 던지는 팔 · 손이',
 };
 function unsureLine(why: NonNullable<ReportItem['why']>, name: ElementName, kneeUpFound: boolean): string {
   if (why === 'implausible') return '계산값이 정상 범위를 벗어나 수치를 보여 주지 않아요. 분석 확인이 필요해요.';
@@ -300,7 +315,13 @@ const OBS = {
         ? `공을 놓을 때 몸통이 뒤로 ${-n}° 젖혀져 있어요.`
         : '공을 놓을 때 몸통이 앞뒤로 거의 기울지 않았어요.';
   },
-  arm: (deg: number) => `앞발이 닿을 때 던지는 팔의 어깨 벌림은 ${r0(deg)}°예요.`,
+  hand: (ratio: number, cm: number | null | undefined) => {
+    const n = cm != null ? r0(cm) : r0(ratio * 100);
+    const unit = cm != null ? 'cm' : '%(팔 길이)';
+    return n === 0
+      ? '앞발이 닿을 때 던지는 손이 어깨 높이에 있어요.'
+      : `앞발이 닿을 때 던지는 손이 어깨보다 ${Math.abs(n)}${unit} ${n > 0 ? '위' : '아래'}에 있어요.`;
+  },
 };
 
 /** 결론 첫 줄 — 문제(fault)마다 하나(5-7절) */
@@ -312,7 +333,7 @@ export const FAULT_TEXT: Record<FaultKey, string> = {
   'block.collapse': '착지한 뒤 앞무릎이 무너져요.',
   'block.soft': '착지한 뒤 앞무릎이 펴지지 않아요.',
   'trunk.upright': '공을 놓을 때 몸통이 서 있어요.',
-  'arm.late': '앞발이 닿을 때 팔이 덜 올라와요.',
+  'arm.late': '앞발이 닿을 때 손이 덜 올라와요.',
 };
 
 /** 요소가 왜 중요한지 한 줄 */
@@ -322,7 +343,7 @@ const WHY_SHORT: Record<ElementName, string> = {
   '상하체 분리': '상체가 늦게 열려야 골반이 먼저 돌며 꼬임이 생겨요.',
   브레이크: '앞다리가 버텨야 몸이 멈추고 그 힘이 몸통으로 넘어가요.',
   '몸통 회전': '몸통이 앞으로 숙여지며 돌아야 팔에 힘이 실려요.',
-  스로잉: '팔이 제때 올라와야 어깨가 도는 길을 따라가요.',
+  스로잉: '앞발이 닿을 때 손이 올라와 있어야 몸통이 돌 때 팔이 자연스럽게 뒤로 젖혀져요.',
 };
 
 /** 처방 카드의 느낌 신호(lib/mechanics/elements.ts cues 에서 문제에 맞는 한 줄) */
@@ -334,7 +355,7 @@ const FAULT_CUE: Record<FaultKey, string> = {
   'block.collapse': '앞다리는 벽, 밀려나지 않는다.',
   'block.soft': '골반이 돌며 앞무릎이 펴진다.',
   'trunk.upright': '뒷어깨를 목표 쪽으로 돌려 보낸다.',
-  'arm.late': '팔이 어깨 높이에 올라온 뒤에 몸통이 돈다.',
+  'arm.late': '앞발이 닿기 전에 손이 어깨 위로 올라온다.',
 };
 
 const LINES: Record<FaultKey | ElementName, Partial<Record<ReportStatus, string>>> = {
@@ -381,8 +402,8 @@ const LINES: Record<FaultKey | ElementName, Partial<Record<ReportStatus, string>
     edge: '공을 놓을 때 몸통이 조금 서 있어요.',
     improve: '공을 놓을 때 몸통이 서 있어요.',
   },
-  스로잉: { good: '앞발이 닿을 때 팔이 어깨 높이까지 올라와요.', fair: '앞발이 닿을 때 팔이 조금 덜 올라와요.' },
-  'arm.late': { edge: '앞발이 닿을 때 팔이 조금 늦게 올라와요.', improve: '앞발이 닿을 때 팔이 덜 올라와요.' },
+  스로잉: { good: '앞발이 닿을 때 손이 어깨 위로 올라와 있어요.', fair: '앞발이 닿을 때 손이 어깨 높이쯤이에요.' },
+  'arm.late': { edge: '앞발이 닿을 때 손이 아직 어깨 밑이에요.', improve: '앞발이 닿을 때 손이 어깨보다 한참 밑이에요.' },
 };
 
 const STATUS_FOOT: Record<'improve' | 'edge' | 'fair' | 'good', string> = {
@@ -412,7 +433,8 @@ function judged(
   valueLabel: string,
   gauge: ReportGauge,
   frame: number | null,
-  goal?: string
+  goal?: string,
+  feet: Record<'improve' | 'edge' | 'fair' | 'good', string> = STATUS_FOOT
 ): Draft {
   const bad = status === 'improve' || status === 'edge';
   return {
@@ -423,7 +445,7 @@ function judged(
     obs,
     value,
     valueLabel,
-    foot: status === 'good' || !goal ? STATUS_FOOT[status] : `${STATUS_FOOT[status]} · 좋아요는 ${goal}`,
+    foot: status === 'good' || !goal ? feet[status] : `${feet[status]} · 좋아요는 ${goal}`,
     goal: goal ?? null,
     gauge,
     frame,
@@ -585,26 +607,35 @@ export function judgeElements(
       );
   }
 
-  /* 스로잉 = 착지 어깨 벌림(등급 B — 4차 마커 전엔 참고) */
+  /* 스로잉 = 착지 손 높이(어깨 기준) — 옛 결과 요약처럼 값이 없으면 못 잰 것 */
   {
     const a = m.arm;
-    if (!okConf(a.conf)) out['스로잉'] = reference('lowConf', null, null, null, frames.plant);
-    else
+    const v = a.handRise;
+    if (v == null) out['스로잉'] = reference('notMeasured', null, null, null, frames.plant);
+    else if (!okConf(a.conf)) out['스로잉'] = reference('lowConf', null, null, null, frames.plant);
+    else if (!Number.isFinite(v) || Math.abs(v) > 1) out['스로잉'] = reference('implausible', null, null, null, frames.plant);
+    else {
+      const cmv = a.handRiseCm;
+      const signed = (n: number, unit: string) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n)}${unit}`;
+      /* 좋아요 선을 cm 로 — 팔 길이(cm) = 높이 차 ÷ 비율, 비율이 0 근처면 못 구해 말로 */
+      const armCm = cmv != null && Math.abs(v) > 0.03 ? cmv / v : null;
       out['스로잉'] = capped(
         '스로잉',
         judged(
           '스로잉',
           'arm.late',
-          bandOf(a.abductionAtPlantDeg, ARM_BAND),
-          OBS.arm(a.abductionAtPlantDeg),
-          fmtDeg(a.abductionAtPlantDeg),
-          '착지 때 어깨 벌림(90° = 팔꿈치가 어깨 높이)',
-          { ...ARM_BAND, value: a.abductionAtPlantDeg },
+          bandOf(v, HAND_BAND),
+          OBS.hand(v, cmv),
+          cmv != null ? signed(Math.round(cmv), 'cm') : signed(Math.round(v * 100), '%'),
+          cmv != null ? '착지 때 손 높이(어깨 기준)' : '착지 때 손 높이(어깨 기준 · 팔 길이의 몫)',
+          { ...HAND_BAND, value: v },
           frames.plant,
-          `${Math.round(ARM_BAND.fairEnd)}° 위`
+          armCm != null ? `어깨보다 ${Math.round(armCm * HAND_BAND.fairEnd)}cm 넘게 위` : '어깨보다 한 뼘 위',
+          HAND_FOOT
         ),
         null
       );
+    }
   }
 
   const confidence: Record<ElementName, number | null | undefined> = {
@@ -693,7 +724,7 @@ export function judgeElements(
 const METRIC_NOTES: Partial<Record<ElementName, string>> = {
   '상하체 분리': '착지 때 어깨선이 열린 각도를 확인해요. 상하체 분리 전체를 평가한 값은 아니에요.',
   '몸통 회전': '릴리스 때 몸통의 앞 기울기를 확인해요. 몸통 회전량이나 회전 속도를 평가한 값은 아니에요.',
-  스로잉: '착지 때 어깨가 벌어진 각도를 확인해요. 팔의 전체 타이밍을 평가한 값은 아니에요.',
+  스로잉: '앞발이 처음 닿는 순간 손이 어깨보다 얼마나 위에 있는지 확인해요. 닿는 순간을 0.02초쯤 다르게 잡으면 5cm 안팎 달라질 수 있어요.',
 };
 
 /** 확인하지 못한 까닭(짧게) — 판독 줄의 둘째 줄 · measurementText */

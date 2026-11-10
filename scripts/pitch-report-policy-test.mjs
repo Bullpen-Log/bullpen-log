@@ -35,7 +35,7 @@ const base = () => ({
   drop: { pelvisDrop: 0.36, rise: 0, conf: 50 },
   separation: { trunkOpenAtPlantDeg: -40, trunkConf: 50 },
   trunkTilt: { forwardDeg: 30, conf: 50 },
-  arm: { abductionAtPlantDeg: 88, conf: 50 },
+  arm: { abductionAtPlantDeg: 88, handRise: 0.2, handRiseCm: 11, conf: 50 },
   block: { pelvisDecelPct: 95, kneeExtensionDeg: 10, kneeCollapseDeg: 3, conf: 50 },
 });
 const result = {
@@ -75,14 +75,14 @@ const missingLibrary = drills.filter((d) => d.title !== requiredBasic[0]);
 missingLibrary.push({ ...drills[0], title: '다른 드리프트 동작' });
 assert.deepEqual(report(missingRx, { drills: missingLibrary }).rx, [], '같은 요소의 다른 동작으로 빠진 필수 드릴을 채우지 않는다');
 
-/* 2026-10-26 등급: 드롭 · 상하체 분리 · 브레이크 · 몸통 회전은 평가(A), 스로잉만 참고(B) */
+/* 2026-11-10: 여섯 요소 모두 평가(A) — 스로잉은 착지 손 높이 */
 const normal = report();
-assert.deepEqual(normal.coverage, { evaluated: 5, reference: 1, unavailable: 0, total: 6 });
-assert.equal(normal.headline.title, '평가한 5개 지표에 고칠 점이 없어요.\n다른 1개 지표의 수치는 참고로 확인할 수 있어요.');
+assert.deepEqual(normal.coverage, { evaluated: 6, reference: 0, unavailable: 0, total: 6 });
+assert.equal(normal.headline.title, '평가한 6개 지표에 고칠 점이 없어요.');
 assert.doesNotMatch(normal.headline.title, /처방할 항목|추가 확인|크게 고칠 곳이 없|지금 동작을 지켜/);
-assert.equal(summaryChip(reportSummary(normal)).text, '수치 6/6 · 평가 5/6');
-assert.equal(coverageText(normal.coverage), '수치 확인 6/6 · 평가 가능 5/6');
-for (const name of ['드리프트', '드롭', '상하체 분리', '브레이크', '몸통 회전']) {
+assert.equal(summaryChip(reportSummary(normal)).text, '수치 6/6 · 평가 6/6');
+assert.equal(coverageText(normal.coverage), '수치 확인 6/6 · 평가 가능 6/6');
+for (const name of ['드리프트', '드롭', '상하체 분리', '브레이크', '몸통 회전', '스로잉']) {
   const i = item(normal, name);
   assert.equal(i.status, 'good', name);
   assert.equal(i.measurement.validation, 'supported', name);
@@ -90,15 +90,24 @@ for (const name of ['드리프트', '드롭', '상하체 분리', '브레이크'
   assert.equal(i.why, null, name);
 }
 const arm = item(normal, '스로잉');
-assert.equal(arm.status, 'note');
-assert.equal(arm.assessment, 'good', '참고여도 기준상 위치는 계산한다');
-assert.equal(arm.prescriptionEligible, false);
-assert.match(arm.line, /던지는 팔의 어깨 벌림은 88°예요/);
-assert.doesNotMatch(arm.line, /잘 |충분히|덜 |늦|무너|검증|다시 찍/, '참고 관찰에 평가 · 안내 말 없음');
-assert.match(arm.foot, /동작이나 촬영에 문제가 있다는 뜻은 아니에요/);
-assert.match(measurementText(arm), /지표 검증 중/);
+assert.equal(arm.value, '+11cm');
+assert.match(arm.valueLabel, /착지 때 손 높이/);
+assert.equal(arm.prescriptionEligible, false, '좋아요는 처방 대상이 아니다');
+/* 손이 어깨 밑이면 경계 · 한참 밑이면 고칠 점 — 처방 대상 */
+const lowHand = base();
+lowHand.arm = { ...lowHand.arm, handRise: -0.2, handRiseCm: -11 };
+const lh = item(report(lowHand), '스로잉');
+assert.equal(lh.status, 'improve');
+assert.equal(lh.fault, 'arm.late');
+assert.equal(lh.value, '−11cm');
+assert.equal(lh.prescriptionEligible, true);
+assert.match(lh.line, /손이 어깨보다 한참 밑/);
+assert.match(lh.foot, /아래 10% 밑 · 좋아요는 어깨보다 8cm 넘게 위/);
+const edgeHand = base();
+edgeHand.arm = { ...edgeHand.arm, handRise: -0.05, handRiseCm: -3 };
+assert.equal(item(report(edgeHand), '스로잉').status, 'edge');
 assert.match(prescriptionMessage(normal), /고칠 점이 없어 따로 권할 드릴이 없어요/);
-assert.match(prescriptionMessage(normal), /참고 지표의 수치로는 드릴을 권하지 않아요/);
+assert.match(prescriptionMessage(report(base(), { youth: true })), /참고 지표의 수치로는 드릴을 권하지 않아요/);
 assert.doesNotMatch(prescriptionMessage(normal), /자동 처방|다시 촬영|다시 찍/);
 
 /* 큰 브레이크 값은 이제 평가 · 개선 드릴(크게 굽는 실제 동작 — 실험실 c4d8 · f046 이 50~70°) */
@@ -186,7 +195,7 @@ for (const i of one.items.filter((x) => x.status === 'unsure')) {
   assert.equal(i.metricNote, null, '확인 못 한 칸에 지표 정의를 붙이지 않는다');
 }
 assert.match(item(one, '드롭').line, /니업과 착지 때 골반 · 다리가/);
-assert.match(item(one, '스로잉').line, /착지 때 던지는 팔이/);
+assert.match(item(one, '스로잉').line, /착지 때 던지는 팔 · 손이/);
 assert.match(prescriptionMessage(one), /확인하지 못한 항목은 여섯 요소 판독에서 까닭을/);
 assert.doesNotMatch(one.headline.title, /크게 고칠 곳이 없/);
 partial.drift.conf = 0;
@@ -205,9 +214,9 @@ assert.equal(mx.headline.title, '평가한 4개 지표에 고칠 점이 없어�
 assert.equal(summaryChip(reportSummary(mx)).text, '수치 4/6 · 평가 4/6');
 /* 평가 0 · 참고만 남은 경우 */
 const refOnly = base();
-for (const key of ['drift', 'drop', 'trunkTilt', 'block']) refOnly[key].conf = 10;
+for (const key of ['drift', 'drop', 'arm', 'block']) refOnly[key].conf = 10;
 refOnly.separation.trunkConf = 10;
-const ro = report(refOnly);
+const ro = report(refOnly, { ground: 'flat' });
 assert.deepEqual(ro.coverage, { evaluated: 0, reference: 1, unavailable: 5, total: 6 });
 assert.match(ro.headline.title, /1개 지표의 수치를 참고로 확인할 수 있어요\.\n5개는 확인하지 못했어요/);
 
@@ -349,5 +358,5 @@ assert.ok(minAppApiForAction('pitch-lab.loadAppLabDetail') >= 4);
 assert.ok(minAppApiForAction('mechanics.startMechanicsFocus') >= 4);
 assert.ok(minAppApiForAction('mechanics.recordMechanicsDrill') >= 3);
 console.log(
-  '3D 리포트 정책 검사 통과: 등급(평가 5 · 참고 1) · 브레이크 거르기 · 개선 드릴(단계마다 하나 · 새 3주 처방 없음) · 참고 관찰 · 확인 못 함 구분 · 부호 · 경계 · 비정상값 · 확인 범위 · 구형 처방·요약 호환 · 직전 리포트와 견주기'
+  '3D 리포트 정책 검사 통과: 등급(여섯 요소 평가) · 브레이크 거르기 · 개선 드릴(단계마다 하나 · 새 3주 처방 없음) · 참고 관찰 · 확인 못 함 구분 · 부호 · 경계 · 비정상값 · 확인 범위 · 구형 처방·요약 호환 · 직전 리포트와 견주기'
 );

@@ -3142,7 +3142,7 @@ console.log('■ 메카닉 점검 판정(mech-judge) — 문턱 · 여러 구 �
     block: { pelvisDecelPct: o.decel ?? 95, kneeAtPlantDeg: 30, kneeAtReleaseDeg: 30 - (o.ext ?? 0), kneeExtensionDeg: o.ext ?? 0, kneeCollapseDeg: 5, conf: o.bConf ?? 50, keyConf: o.bConf ?? 50 },
     drop: null,
     trunkTilt: { forwardDeg: 30, lateralDeg: 20, conf: 50 },
-    arm: { abductionAtPlantDeg: 88, conf: 50 },
+    arm: { abductionAtPlantDeg: 88, handRise: 0.2, handRiseCm: 11, conf: 50 },
   });
   const st = (j: ReturnType<typeof judgeMechanics>, k: string) => j.items.find((i) => i.key === k)!.status;
   check(
@@ -3560,7 +3560,7 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
     },
     drop: { pelvisDrop: 0.36, rise: 0, conf: 50 },
     trunkTilt: { forwardDeg: 30, lateralDeg: 25, conf: 50 },
-    arm: { abductionAtPlantDeg: 88, conf: 50 },
+    arm: { abductionAtPlantDeg: 88, handRise: 0.2, handRiseCm: 11, conf: 50 },
     block: { pelvisDecelPct: 95, kneeAtPlantDeg: 50, kneeAtReleaseDeg: 40, kneeExtensionDeg: 10, kneeCollapseDeg: 3, conf: 50, keyConf: 50 },
   });
   const fr = { kneeUp: 5, plant: 10, release: 20 };
@@ -3568,7 +3568,7 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   const st = (m: MechChecks, ctx = mound) => Object.fromEntries(judgeElements(m, ctx, fr).map((i) => [i.element, i.status]));
 
   const good = st(base());
-  check('기준 수치: 다섯 요소 평가(2026-10-26 등급) · 스로잉만 참고', ['드리프트', '드롭', '상하체 분리', '브레이크', '몸통 회전'].every((e) => good[e] === 'good') && good['스로잉'] === 'note', JSON.stringify(good));
+  check('기준 수치: 여섯 요소 모두 평가(2026-11-10 스로잉 = 착지 손 높이)', ['드리프트', '드롭', '상하체 분리', '브레이크', '몸통 회전', '스로잉'].every((e) => good[e] === 'good'), JSON.stringify(good));
 
   const m1 = base();
   m1.drift!.aheadAtKneeUp = 0.04;
@@ -3617,8 +3617,12 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   check('확신 30 밑은 판정 안 함', st(m5)['상하체 분리'] === 'unsure');
 
   const m6 = base();
-  m6.arm.abductionAtPlantDeg = 50;
-  check('스로잉(B)은 낮아도 참고', st(m6)['스로잉'] === 'note');
+  const hand = (v: number) => st({ ...m6, arm: { ...m6.arm, handRise: v } })['스로잉'];
+  check('스로잉: 착지 손 높이 띠 — 어깨 위 한 뼘부터 좋아요 · 어깨 높이부터 보통 · 그 밑 경계 · 아래 10% 밑 고칠 점',
+    hand(0.14) === 'good' && hand(0.13) === 'fair' && hand(0) === 'fair' && hand(-0.01) === 'edge' && hand(-0.14) === 'edge' && hand(-0.15) === 'improve',
+    [0.14, 0.13, 0, -0.01, -0.14, -0.15].map(hand).join(' '));
+  check('스로잉: 값이 없거나(옛 계산) 말이 안 되면 판정 안 함', st({ ...m6, arm: { abductionAtPlantDeg: 88, conf: 50 } })['스로잉'] === 'unsure' && hand(NaN) === 'unsure' && hand(1.5) === 'unsure');
+  check('스로잉: 손이 안 보이면(확신 30 밑) 판정 안 함', st({ ...m6, arm: { ...m6.arm, conf: 20 } })['스로잉'] === 'unsure');
 
   /* 주 문제 — 고칠 점 먼저, 없으면 흐름 앞쪽 경계 */
   const m7 = base();

@@ -217,8 +217,10 @@ const KEYS: [string, (m: MechChecks) => number | null | undefined][] = [
   ['앞무릎 착지 °', (m) => m.block?.kneeAtPlantDeg],
   ['앞무릎 펴짐 °', (m) => m.block?.kneeExtensionDeg],
   ['몸통 앞 기울기 °', (m) => m.trunkTilt?.forwardDeg],
+  ['착지 손 높이 cm', (m) => m.arm?.handRiseCm],
+  ['착지 손 높이 팔길이%', (m) => (m.arm?.handRise != null ? m.arm.handRise * 100 : null)],
 ];
-const SHOWN = ['drift', 'trunkTiming', 'trunkAtPlant', 'block'];
+const SHOWN = ['drift', 'trunkTiming', 'trunkAtPlant', 'block', 'hand'];
 
 type Row = { pitch: string; hand: 'R' | 'L'; ok: boolean; code?: string; angle: number; dSide: number; chestOff?: number; diffs: Record<string, number>; geom: Record<string, number>; judge: Record<string, [string, string]>; evMs?: (number | null)[] };
 const rows: Row[] = [];
@@ -339,6 +341,12 @@ for (const [i, pitch] of pick.entries()) {
     if (x != null && y != null && Number.isFinite(x) && Number.isFinite(y)) row.diffs[k] = x - y;
     if (x != null && g != null && Number.isFinite(x) && Number.isFinite(g)) row.geom[k] = x - g;
   }
+  /* 착지 손 높이 띠(report.ts HAND_BAND 와 같은 선 — 팔 길이 비율 −0.14 · 0 · 0.14) */
+  const handBand = (m: MechChecks) => {
+    const v = m.arm?.handRise;
+    return v == null || !Number.isFinite(v) ? '-' : v < -0.14 ? 'improve' : v < 0 ? 'edge' : v < 0.14 ? 'fair' : 'good';
+  };
+  row.judge.hand = [handBand(ma), handBand(mt)];
   const ja = judgeMechanics([ma], hcm).items;
   const jt = judgeMechanics([mt], hcm).items;
   for (const it of ja) if (SHOWN.includes(it.key)) row.judge[it.key] = [it.status, jt.find((x) => x.key === it.key)?.status ?? '-'];
@@ -372,7 +380,7 @@ for (const hand of ['R', 'L', null] as const) {
     const med = (xs: number[]) => q(xs, 0.5);
     console.log(
       `  ${k.padEnd(12)} |차| 가운데 ${med(v.map(Math.abs)).toFixed(1)} · 90% ${q(v.map(Math.abs), 0.9).toFixed(1)} · 치우침(가운데) ${med(v).toFixed(1)}` +
-        `  | 같은 순간: |차| 가운데 ${med(g.map(Math.abs)).toFixed(1)} · 90% ${q(g.map(Math.abs), 0.9).toFixed(1)} · 치우침 ${med(g).toFixed(1)}`
+        (g.length ? `  | 같은 순간: |차| 가운데 ${med(g.map(Math.abs)).toFixed(1)} · 90% ${q(g.map(Math.abs), 0.9).toFixed(1)} · 치우침 ${med(g).toFixed(1)}` : '')
     );
   }
   for (const [n, name] of ['니업', '닿음', '착지', '공 놓음'].entries()) {
