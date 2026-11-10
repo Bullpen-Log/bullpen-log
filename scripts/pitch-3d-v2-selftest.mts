@@ -18,6 +18,7 @@ import {
   readPitch3dV2Job,
   readPitch3dV2Result,
   heelContact,
+  ankleContact,
   wristRelease,
   RTMW_INDEX,
   storedV2ResultJson,
@@ -215,7 +216,7 @@ const good = (): Pitch3dV2Ok => {
       Array.from({ length: N_V2_JOINTS }, () => 90)
     ),
     lowConf: [[30, 33]],
-    events: { kneeUp: 2, footPlant: 20, release: 30, contactBy: 'heel' },
+    events: { kneeUp: 2, footPlant: 20, release: 30, contactBy: 'heel', contactV: 2 },
     metrics: [
       { key: 'trunkForwardTilt', value: 30.1, unit: 'deg', pm: 3, trust: 'high' },
     ],
@@ -314,13 +315,29 @@ const good = (): Pitch3dV2Ok => {
       `착지: 뒤꿈치가 디딘 높이 4cm 안에 처음 든 장면(${k1} · 18) · 2D 첫 닿음 앞으로 안 감(${k2} · 19) · 못 들면 발 묶임(${k3} · 20) · 이미 땅이면 첫 닿음(${k4} · 8)`,
       k1 === 18 && k2 === 19 && k3 === 20 && k4 === 8
     );
+    /*
+     * 2026-11-10 — '착지'는 앞발목 높이로(ankleContact): 니업 뒤 가장 빠른 장면부터 디딘 높이 + 키 0.8% 안에 처음 든 때에 가까운 장면.
+     * contactV 2 가 아닌 결과(뒤꿈치로 고른 결과 · 더 옛 결과)는 읽을 때 이 규칙으로 다시 고르고, 니업을 모르면 예전 그대로(뒤꿈치).
+     */
+    const ank = Array.from({ length: 40 }, (_, k) => [k < 10 ? 0 : k < 20 ? (k - 10) * 0.03 : 0.3, k < 10 ? 0.2 : k < 20 ? 0.2 - (k - 10) * 0.02 : 0, 0]);
+    const tt = Array.from({ length: 40 }, (_, k) => k / 120);
+    const a1 = ankleContact(ank, tt, { kneeUp: 2, release: 30 });
+    const a2 = ankleContact(ank, tt, { kneeUp: null, release: 30 });
+    const a3 = ankleContact(ank.map((p) => [p[0], 0.2, 0]), tt.map((x, k) => (k < 10 ? x : x)), { kneeUp: 28, release: 30 });
+    check(`착지: 앞발목이 디딘 높이 0.8% 안에 든 때에 가까운 장면(${a1} · 20) · 니업을 모르면 못 고름(${a2}) · 구간이 너무 짧으면 못 고름(${a3})`, a1 === 20 && a2 === null && a3 === null);
     const old = { ...g, events: { kneeUp: 2, footPlant: 20, footContact: 8, release: 30 } };
     const hj = V2J.lHe;
-    old.joints = old.joints.map((fr, k) => fr.map((p, j) => (j === hj ? [p[0], Math.round(heel[k] * 1000), p[2]] : p)));
+    const aj = V2J.lAn;
+    old.joints = old.joints.map((fr, k) =>
+      fr.map((p, j) => (j === hj ? [p[0], Math.round(heel[k] * 1000), p[2]] : j === aj ? ank[k].map((v) => Math.round(v * 1000)) : p))
+    );
     const r = readPitch3dV2Result(old);
+    const rHeel = readPitch3dV2Result({ ...old, events: { ...old.events, contactBy: 'heel' } });
+    const rNoKnee = readPitch3dV2Result({ ...old, events: { ...old.events, kneeUp: null } });
+    const rNew = { ...old, events: { ...old.events, contactBy: 'heel', contactV: 2 } };
     check(
-      `옛 결과는 읽을 때 '착지'를 뒤꿈치로 고른다(${r?.ok ? r.events.footContact : '?'} · 18) · 엔진이 고른 결과는 그대로`,
-      !!r?.ok && r.events.footContact === 18 && r.events.contactBy === undefined && readPitch3dV2Result({ ...old, events: { ...old.events, contactBy: 'heel' } })?.ok === true
+      `옛 결과 · 뒤꿈치로 고른 결과는 읽을 때 '착지'를 앞발목으로 다시 고른다(${r?.ok ? r.events.footContact : '?'} · ${rHeel?.ok ? rHeel.events.footContact : '?'} · 20) · 니업이 없으면 뒤꿈치(${rNoKnee?.ok ? rNoKnee.events.footContact : '?'} · 18) · 지금 엔진 결과는 그대로`,
+      !!r?.ok && r.events.footContact === 20 && !!rHeel?.ok && rHeel.events.footContact === 20 && !!rNoKnee?.ok && rNoKnee.events.footContact === 18 && readPitch3dV2Result(rNew) === rNew
     );
   }
   check(
@@ -642,7 +659,8 @@ function runV2(sc: Scenario, seed: number) {
     };
     const truth = truthMetrics(sc, result.t.map(realOf), {
       kneeUp: result.events.kneeUp ?? 0,
-      footPlant: result.events.footPlant,
+      /* 엔진이 착지 지표를 재는 장면(첫 닿음)과 같은 장면의 정답 — 2026-11-10 앞발목 규칙부터 발 묶임과 다른 장면일 수 있다 */
+      footPlant: result.events.footContact ?? result.events.footPlant,
       release: result.events.release,
     });
     for (const m of result.metrics) {

@@ -231,7 +231,11 @@ export type Pitch3dV2Ok = {
    * '착지' · 착지 지표 · 점검, footPlant 와 같거나 앞). footContact 가 없는 옛 결과는 footPlant 로 본다(plantFrame) — 10-15 판의 footFlat 은 안 읽는다.
    */
   /** contactBy = 'heel' 이면 엔진이 footContact 를 앞 뒤꿈치로 고른 결과(heelContact) — 없으면 옛 결과라 읽을 때 같은 규칙으로 고른다 */
-  events: { kneeUp: number | null; footPlant: number; footContact?: number; release: number; contactBy?: 'heel' };
+  /**
+   * contactV = 2 면 엔진이 footContact 를 앞발목 높이로 고른 결과(ankleContact, 2026-11-10) — 아니면 읽을 때 같은 규칙으로 다시 고른다.
+   * contactBy 는 옛 화면이 새 결과를 읽을 수 있게 그대로 'heel' 로 적는다(옛 읽기가 다른 값을 거절한다).
+   */
+  events: { kneeUp: number | null; footPlant: number; footContact?: number; release: number; contactBy?: 'heel'; contactV?: 2 };
   /** v1 정의 그대로(0-3절 결정 ④ 대기) */
   metrics: Metric[];
   quality: Pitch3dQuality;
@@ -367,7 +371,8 @@ export function readPitch3dV2Result(raw: unknown): Pitch3dV2Result | null {
     !(e.footContact === undefined || okIdx(e.footContact)) ||
     !okIdx(e.release) ||
     !(e.kneeUp === null || okIdx(e.kneeUp)) ||
-    !(e.contactBy === undefined || e.contactBy === 'heel')
+    !(e.contactBy === undefined || e.contactBy === 'heel') ||
+    !(e.contactV === undefined || e.contactV === 2)
   )
     return null;
   if (!Array.isArray(r.lowConf)) return null;
@@ -414,8 +419,15 @@ export function readPitch3dV2Result(raw: unknown): Pitch3dV2Result | null {
   if (!seg || !isNum(seg.fromSec) || !isNum(seg.toSec) || seg.toSec < seg.fromSec)
     return null;
   const ok = raw as Pitch3dV2Ok;
+  if (ok.events.contactV === 2) return ok;
+  /*
+   * 옛 결과 — '착지'를 지금 규칙(앞발목)으로 다시 고른다. 못 고르면(니업 없음) 뒤꿈치 규칙으로: 엔진이 뒤꿈치로 고른 결과는 그대로, 더 옛 결과는 여기서.
+   * 착지 지표(metrics)는 엔진이 그때 셈한 그대로다(다시 분석하면 같은 순간이 된다).
+   */
+  const an = V2J[ok.hand === 'L' ? 'rAn' : 'lAn'];
+  const byAnkle = ankleContact(ok.joints.map((fr) => fr[an].map((v) => v / 1000)), ok.t, ok.events);
+  if (byAnkle != null) return { ...ok, events: { ...ok.events, footContact: byAnkle } };
   if (ok.events.contactBy === 'heel') return ok;
-  /* 옛 결과 — '착지'를 같은 뒤꿈치 규칙으로 고른다. 착지 지표(metrics)는 엔진이 그때 셈한 그대로다(다시 분석하면 같은 순간이 된다) */
   const he = V2J[ok.hand === 'L' ? 'rHe' : 'lHe'];
   return { ...ok, events: { ...ok.events, footContact: heelContact(ok.joints.map((fr) => fr[he][1] / 1000), ok.events) } };
 }
@@ -678,6 +690,60 @@ export function heelContact(
   const from = Math.min(fp, Math.max(e.footContact ?? fp, (e.kneeUp ?? -1) + 1));
   for (let k = from; k <= fp; k++) if (heel[k] - low <= HEEL_CONTACT_UP) return k;
   return fp;
+}
+
+/** 첫 닿음 문턱(앞발목) — 디딘 높이에서 키의 이만큼 안(키 1.8m 에 2cm) */
+export const ANKLE_CONTACT_UP = 0.011;
+/**
+ * '착지'(첫 닿음)를 앞발목으로 — 니업 뒤 앞발목이 가장 빠른 장면부터, 발목 높이가 디딘 높이(그 뒤 ~ 공 놓음의 가장 낮은 높이) + ANKLE_CONTACT_UP 안에
+ * 처음 들어온 때(두 장면 사이는 선으로 나눔)에 가장 가까운 장면. ankle = 장면마다 앞발목 [앞, 위, 옆](키 = 1), t = 장면 시각(초). 니업을 모르면 null.
+ * 2026-11-10 김민 "착지 순간부터 고쳐 볼까" — 착지 때 손 높이(스로잉)는 손이 초당 3m 로 올라가는 때라 닿는 순간 오차가 그대로 값 오차가 된다.
+ * 정답은 드라이브라인 공개 자료의 힘판 첫 닿음(fp_10, 체중 10%). 진짜 발목 401구에서 발목 높이 규칙이 가장 고르다(1.5~2cm: 가운데 +3 ~ −3ms · 90% ±17~19ms,
+ * 앞쪽 빠르기 · 감속 규칙은 90% ±19~55ms). 가상 촬영 109구(엔진까지, scripts/pitch-lab/obp/obp-synth.mts --dump)에서 엔진 − 정답:
+ *   뒤꿈치 규칙(heelContact) 가운데 −14ms · 90% 41ms → 발목 1.4cm 0 · 19 → 발목 2cm −3 · 23.
+ * 2cm 로 둔 까닭 — 리포트 판정(정답과 같은 칸 / 109, 괄호는 잘못 짚은 고칠 점)을 같이 봤다:
+ *   뒤꿈치: 드롭 99(1) · 상하체 분리 81(4) · 브레이크 66(13) · 스로잉 64(15) / 1.4cm: 92(3) · 77(14) · 70(11) · 81(5) / 2cm: 94(3) · 81(10) · 72(7) · 78(7).
+ *   닿는 순간이 늦을수록 상체가 열린 장면을 집어 '착지 때 상체'를 잘못 짚는다(몸통이 닿은 뒤 빨리 돈다) — 그 여유는 TRUNK_PLANT_ERR 가 맡는다.
+ * 뒤꿈치 규칙은 뒤꿈치가 4cm 위에 있을 때 걸려 힘이 실리는 순간보다 일렀다. 발 묶임(footPlant)보다 뒤일 수 있다(발 묶임은 발목 높이로 고른 다른 장면).
+ */
+export function ankleContact(
+  ankle: ArrayLike<ArrayLike<number>>,
+  t: ArrayLike<number>,
+  e: { kneeUp: number | null; release: number }
+): number | null {
+  const n = t.length;
+  const ku = e.kneeUp;
+  const rl = Math.min(e.release, n - 1);
+  if (ku == null || rl <= ku + 2) return null;
+  /* 앞뒤 한 장면 평균(2D 떨림) */
+  const sm = (k: number, a: number) => {
+    let s = 0;
+    let c = 0;
+    for (let j = Math.max(0, k - 1); j <= Math.min(n - 1, k + 1); j++) {
+      s += ankle[j][a];
+      c++;
+    }
+    return s / c;
+  };
+  let ip = ku;
+  let top = -1;
+  for (let k = Math.max(ku, 1); k < Math.min(rl, n - 1); k++) {
+    const v = Math.hypot(sm(k + 1, 0) - sm(k - 1, 0), sm(k + 1, 1) - sm(k - 1, 1), sm(k + 1, 2) - sm(k - 1, 2)) / Math.max(t[k + 1] - t[k - 1], 1e-6);
+    if (v > top) {
+      top = v;
+      ip = k;
+    }
+  }
+  let low = Infinity;
+  for (let k = ip; k <= rl; k++) low = Math.min(low, sm(k, 1));
+  for (let k = Math.max(ip, 1); k <= rl; k++) {
+    const b = sm(k, 1) - low;
+    if (b >= ANKLE_CONTACT_UP) continue;
+    const a = sm(k - 1, 1) - low;
+    const tc = a < ANKLE_CONTACT_UP || a === b ? t[k] : t[k - 1] + ((ANKLE_CONTACT_UP - a) / (b - a)) * (t[k] - t[k - 1]);
+    return Math.abs(t[k - 1] - tc) < Math.abs(t[k] - tc) ? k - 1 : k;
+  }
+  return null;
 }
 
 /**

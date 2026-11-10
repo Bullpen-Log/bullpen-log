@@ -4,7 +4,7 @@
  * 서버와 같은 길(pickSegment → fitPitch3dV2, 1배 초점 사전 · 움직임 틀)로 맞춘 뒤, 같은 3D 에서 잰 정답과 메카닉 점검 숫자 · 판정을 견준다.
  * 영상 · GPU 없음 — 2D 관절 모델(RTMW)은 안 거친다(그건 마커 촬영 채점이 본다).
  *
- *   node --import ./scripts/alias-register.mjs scripts/pitch-lab/obp/obp-synth.mts ~/obp-dl [--n=60] [--seed=1] [--part=0/4] [--out=<json>] [--no-template]
+ *   node --import ./scripts/alias-register.mjs scripts/pitch-lab/obp/obp-synth.mts ~/obp-dl [--n=60] [--seed=1] [--part=0/4] [--out=<json>] [--dump=<폴더>] [--no-template]
  *
  * 자료(저장소 밖, CC BY-NC-SA — 결과를 앱에 넣지 않는 안쪽 시험에만): landmarks.csv · poi_metrics.csv(던지는 손) · metadata.csv(키). README.md.
  * 드라이브라인 자료에 없는 점은 몸 비율로 붙인다 — 코 · 귀(어깨선 위), 뒤꿈치 · 발끝(발목에서 무릎이 향한 쪽), 손 점(손 중심 옆). 그래서 착지 순간 ·
@@ -29,6 +29,7 @@ const SEED = +arg('seed', '1');
 const CAM = +arg('cam', String(SEED));
 const [PART, PARTS] = arg('part', '0/1').split('/').map(Number);
 const OUT = arg('out', '');
+const DUMP = arg('dump', '');
 const motionTemplate = process.argv.includes('--no-template')
   ? undefined
   : JSON.parse(readFileSync(new URL('../../../lib/pitch-3d/v2/motion-template.json', import.meta.url), 'utf8'));
@@ -357,6 +358,12 @@ for (const [i, pitch] of pick.entries()) {
   });
   row.evMs = evMs;
   rows.push({ ...row, ok: true });
+  /* --dump=<폴더>: 투구마다 엔진 결과 · 정답 관절 · 정답 순간(결과 시각)을 남긴다 — 순간 찾기 규칙을 밖에서 빨리 바꿔 보려고 */
+  if (DUMP)
+    writeFileSync(
+      `${DUMP}/${pitch}.json`,
+      JSON.stringify({ pitch, hand, heightM: Hm, t: res.t, joints: res.joints, truth: tr.joints, events: res.events, truthT: { pkh: ev.pkh - start, fp10: ev.fp10 - start, fp100: ev.fp100 - start, br: ev.br - start } })
+    );
   if (process.env.V) console.error(`${pitch} ${hand} 각 ${angle.toFixed(0)}° · 순간차ms(니업 · 닿음 · 착지 · 릴리스) ${row.evMs?.join('/')} · ${Object.entries(row.diffs).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(' · ')}`);
 }
 
