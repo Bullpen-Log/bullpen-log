@@ -216,7 +216,7 @@ assert.equal(summaryChip(reportSummary(mx)).text, '수치 4/6 · 평가 4/6');
 const refOnly = base();
 for (const key of ['drift', 'drop', 'arm', 'block']) refOnly[key].conf = 10;
 refOnly.separation.trunkConf = 10;
-const ro = report(refOnly, { ground: 'flat' });
+const ro = report(refOnly, { youth: true });
 assert.deepEqual(ro.coverage, { evaluated: 0, reference: 1, unavailable: 5, total: 6 });
 assert.match(ro.headline.title, /1개 지표의 수치를 참고로 확인할 수 있어요\.\n5개는 확인하지 못했어요/);
 
@@ -289,7 +289,21 @@ for (const bad of [NaN, Infinity, -Infinity]) {
   assert.doesNotMatch(tt.line, /기울어져|젖혀져/);
 }
 
-for (const overrides of [{ ground: 'flat' }, { youth: true }]) {
+{
+  /* 2026-11-10 — 평지도 임시 기준으로 평가(드롭은 같은 띠 · 몸통은 5° 낮춘 띠) */
+  const m = base();
+  m.drop.pelvisDrop = 0.01;
+  m.trunkTilt.forwardDeg = 20;
+  const r = report(m, { ground: 'flat' });
+  assert.equal(item(r, '드롭').status, 'improve');
+  assert.equal(item(r, '드롭').prescriptionEligible, true);
+  assert.match(item(r, '드롭').foot, /평지 임시 기준/);
+  assert.match(measurementText(item(r, '드롭')), /수치 확인 · 평가 가능/);
+  assert.equal(item(r, '몸통 회전').status, 'fair', '평지 몸통 20° 는 보통(마운드면 경계)');
+  assert.equal(item(report(m), '몸통 회전').status, 'edge');
+  assert.deepEqual(r.coverage, { evaluated: 6, reference: 0, unavailable: 0, total: 6 });
+}
+for (const overrides of [{ youth: true }]) {
   const m = base();
   m.drop.pelvisDrop = 0.01;
   const r = report(m, overrides);

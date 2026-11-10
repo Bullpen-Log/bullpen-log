@@ -102,6 +102,20 @@ const EXT_BAND: Band = { up: true, cut: -14, edgeEnd: -4.1, fairEnd: 2.1, lo: -2
 /** 몸통 회전 · 릴리스 앞 기울기(°) — 자료 10 / 25 / 40% 17.5 / 23 / 27.5° */
 const TRUNK_BAND: Band = { up: true, cut: 17.5, edgeEnd: 23, fairEnd: 27.5, lo: 0, hi: 45 };
 /**
+ * 평지 임시 기준(2026-11-10 김민: "평지 부분을 개선" → 경사만큼 낮추는 임시 기준부터, 같은 투수 마운드 · 평지 짝 촬영으로 확인 전).
+ * 기준 자료는 전부 마운드 투구다. 규격 마운드 경사가 1피트에 1인치(4.8°)라 몸통 앞 기울기 띠를 5° 낮춘다 — 실제 차이가 5° 인지는 아직 안 쟀다.
+ * 드롭은 '발 사이 바닥선' 위 높이라 경사가 이미 빠져 있어 마운드와 같은 띠. 우리 평지 샘플 둘: 정강민 10구 드롭 27~36~38% · 몸통 13~27~32°(마운드 기준
+ * 26~36~44% · 17~30~40° 와 비슷하거나 5° 쯤 낮음), 김민 15구 15~20~29% · −8~3~10°(개인 차로 본다).
+ */
+export const FLAT_TRUNK_SHIFT_DEG = 5;
+const FLAT_TRUNK_BAND: Band = { ...TRUNK_BAND, cut: TRUNK_BAND.cut - FLAT_TRUNK_SHIFT_DEG, edgeEnd: TRUNK_BAND.edgeEnd - FLAT_TRUNK_SHIFT_DEG, fairEnd: TRUNK_BAND.fairEnd - FLAT_TRUNK_SHIFT_DEG };
+const flatFeet = (f: Record<'improve' | 'edge' | 'fair' | 'good', string>): Record<'improve' | 'edge' | 'fair' | 'good', string> => ({
+  improve: `${f.improve} · 평지 임시 기준`,
+  edge: `${f.edge} · 평지 임시 기준`,
+  fair: `${f.fair} · 평지 임시 기준`,
+  good: `${f.good} · 평지 임시 기준`,
+});
+/**
  * 스로잉 · 착지 손 높이((손목 − 어깨 높이) ÷ 팔 길이) — 2026-11-10 김민: "착지 때 손이 어디까지 올라왔느냐", "아래 25% 까지 좋아요는 너무 후하다".
  * 다른 띠와 달리 자료(드라이브라인 403구 · 앞발 첫 닿음)의 가운데가 좋아요 선: 아래 10 / 30 / 50% = −0.14 / 0 / +0.14(팔 길이 57cm 면 −8 / 0 / +8cm).
  * 고칠 점 < −0.14 ≤ 경계 < 0(어깨 높이) ≤ 보통 < +0.14 ≤ 좋아요. 2σ 여유를 두지 않는다(김민 결정).
@@ -516,7 +530,8 @@ export function judgeElements(
     );
   }
 
-  /* 드롭 — '거의 안 가라앉음 · 뜸'은 어디서든 고칠 점, 그 밖은 마운드만(평지 · 성장기는 참고) */
+  /* 드롭 — '거의 안 가라앉음 · 뜸'은 어디서든 고칠 점. 평지도 같은 띠로 평가(임시 기준 — 바닥선 위 높이라 경사가 빠져 있다), 성장기는 참고 */
+  const strictFeet = flat ? flatFeet(STRICT_FOOT) : STRICT_FOOT;
   if (!m.drop) out['드롭'] = reference('notMeasured', null, null, null, null);
   else if (!okConf(m.drop.conf)) out['드롭'] = reference('lowConf', null, null, null, frames.plant);
   else {
@@ -524,12 +539,12 @@ export function judgeElements(
     const gauge = { ...DROP_BAND, value: v };
     const label = '니업 → 착지 골반이 내려간 몫(다리 길이)';
     if (v < DROP_FLOAT_MAX || m.drop.rise > DROP_RISE_MAX)
-      out['드롭'] = judged('드롭', 'drop.float', 'improve', OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`, STRICT_FOOT);
+      out['드롭'] = judged('드롭', 'drop.float', 'improve', OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`, strictFeet);
     else
       out['드롭'] = capped(
         '드롭',
-        judged('드롭', 'drop.shallow', bandOf(v, DROP_BAND), OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`, STRICT_FOOT),
-        flat ? 'flat' : ctx.youth ? 'youth' : null
+        judged('드롭', 'drop.shallow', bandOf(v, DROP_BAND), OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`, strictFeet),
+        ctx.youth ? 'youth' : null
       );
   }
 
@@ -601,9 +616,10 @@ export function judgeElements(
     }
   }
 
-  /* 몸통 회전 = 릴리스 앞 기울기(평지 · 성장기는 참고) */
+  /* 몸통 회전 = 릴리스 앞 기울기 — 평지는 5° 낮춘 임시 띠로 평가, 성장기는 참고 */
   {
     const t = m.trunkTilt;
+    const band = flat ? FLAT_TRUNK_BAND : TRUNK_BAND;
     if (!okConf(t.conf)) out['몸통 회전'] = reference('lowConf', null, null, null, frames.release);
     else
       out['몸통 회전'] = capped(
@@ -611,16 +627,16 @@ export function judgeElements(
         judged(
           '몸통 회전',
           'trunk.upright',
-          bandOf(t.forwardDeg, TRUNK_BAND),
+          bandOf(t.forwardDeg, band),
           OBS.trunk(t.forwardDeg),
           fmtDeg(t.forwardDeg),
           '릴리스 때 몸통 앞 기울기',
-          { ...TRUNK_BAND, value: t.forwardDeg },
+          { ...band, value: t.forwardDeg },
           frames.release,
-          `${Math.round(TRUNK_BAND.fairEnd)}° 위`,
-          STRICT_FOOT
+          `${Math.round(band.fairEnd)}° 위`,
+          strictFeet
         ),
-        flat ? 'flat' : ctx.youth ? 'youth' : null
+        ctx.youth ? 'youth' : null
       );
   }
 
@@ -682,12 +698,9 @@ export function judgeElements(
           : !okConf(conf)
             ? 'low'
             : 'sufficient';
+    /* 평지는 2026-11-10 부터 임시 기준으로 평가한다('flat' 은 옛 리포트 요약을 읽을 때만 남는다) */
     const applicability: ReportMeasurement['applicability'] =
-      flat && (name === '드롭' || name === '몸통 회전')
-        ? 'flat'
-        : ctx.youth && ['드롭', '브레이크', '몸통 회전'].includes(name)
-          ? 'youth'
-          : 'supported';
+      ctx.youth && ['드롭', '브레이크', '몸통 회전'].includes(name) ? 'youth' : 'supported';
     const assessment = quality === 'sufficient' && d.status !== 'note' && d.status !== 'unsure' ? d.status : null;
     const why: ReportItem['why'] =
       quality === 'invalid'

@@ -3615,15 +3615,17 @@ console.log('■ 투구 진단 리포트(무료 1구) — 상태 네 칸 · 등�
   m3.drop!.pelvisDrop = 0.02;
   check('드롭 거의 안 가라앉음은 고칠 점', st(m3)['드롭'] === 'improve');
   const flatDrop = judgeElements(m3, { ...mound, ground: 'flat' }, fr).find((i) => i.element === '드롭')!;
-  check('평지 드롭은 작은 값도 참고 · 처방 보류', flatDrop.status === 'note' && flatDrop.fault === null && flatDrop.why === 'flat');
-  m3.drop!.pelvisDrop = 0.24;
-  check('평지 드롭 크기는 참고(평지)', judgeElements(m3, { ...mound, ground: 'flat' }, fr).find((i) => i.element === '드롭')!.why === 'flat');
+  /* 2026-11-10 — 평지도 임시 기준으로 평가: 드롭은 마운드와 같은 띠(바닥선 위 높이라 경사가 빠져 있다), 몸통 앞 기울기는 5° 낮춘 띠 */
+  check('평지 드롭도 평가 · 거의 안 가라앉으면 고칠 점(임시 기준 표시)', flatDrop.status === 'improve' && flatDrop.fault === 'drop.float' && flatDrop.why === null && /평지 임시 기준/.test(flatDrop.foot ?? ''));
+  const fdp = (v: number) => st({ ...m3, drop: { ...m3.drop!, pelvisDrop: v } }, { ...mound, ground: 'flat' })['드롭'];
+  check('평지 드롭 띠는 마운드와 같다: 0.25 고칠 점 · 0.27 경계 · 0.34 좋아요', fdp(0.25) === 'improve' && fdp(0.27) === 'edge' && fdp(0.34) === 'good');
 
   const m4 = base();
   const tk = (v: number) => st({ ...m4, trunkTilt: { ...m4.trunkTilt, forwardDeg: v } })['몸통 회전'];
   check('몸통 앞 기울기 띠: 17 고칠 점 · 20 경계 · 25 보통 · 27.5 좋아요', tk(17) === 'improve' && tk(20) === 'edge' && tk(25) === 'fair' && tk(27.5) === 'good', [17, 20, 25, 27.5].map(tk).join(' '));
   m4.trunkTilt.forwardDeg = 20;
-  check('평지 몸통 앞 기울기는 참고', st(m4, { ...mound, ground: 'flat' })['몸통 회전'] === 'note');
+  const ftk = (v: number) => st({ ...m4, trunkTilt: { ...m4.trunkTilt, forwardDeg: v } }, { ...mound, ground: 'flat' })['몸통 회전'];
+  check('평지 몸통 앞 기울기는 5° 낮춘 띠: 12 고칠 점 · 17 경계 · 20 보통 · 22.5 좋아요', ftk(12) === 'improve' && ftk(17) === 'edge' && ftk(20) === 'fair' && ftk(22.5) === 'good', [12, 17, 20, 22.5].map(ftk).join(' '));
   check('성장기 몸통 앞 기울기는 참고', st(m4, { ...mound, youth: true })['몸통 회전'] === 'note');
 
   const m5 = base();
