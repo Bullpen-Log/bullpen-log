@@ -31,7 +31,7 @@ const {
 const { focusPlan, focusView, freshState, readProgramState, programStateJson } = await import('../lib/mechanics/program.ts');
 const base = () => ({
   hand: 'R',
-  drift: { aheadAtKneeUp: 0.1, aheadAtKneeUpCm: 18, conf: 50 },
+  drift: { aheadAtKneeUp: 0.12, aheadAtKneeUpCm: 18, conf: 50 },
   drop: { pelvisDrop: 0.36, rise: 0, conf: 50 },
   separation: { trunkOpenAtPlantDeg: -40, trunkConf: 50 },
   trunkTilt: { forwardDeg: 30, conf: 50 },
@@ -157,7 +157,7 @@ assert.equal(rxAction(true, { done: 9, total: 9 }).kind, 'retake');
 
 for (const [ahead, level] of [
   [0.04, 'improve'],
-  [0.065, 'edge'],
+  [0.08, 'edge'],
 ]) {
   const m = base();
   m.drift.aheadAtKneeUp = ahead;

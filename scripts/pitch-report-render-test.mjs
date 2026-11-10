@@ -54,7 +54,7 @@ const native = await import('../native/src/lab/report.tsx');
 const web = await import('../app/(app)/videos/lab/[id]/report-parts.tsx');
 globalThis.__reportMetrics = {
   hand: 'R',
-  drift: { aheadAtKneeUp: 0.065, conf: 50 },
+  drift: { aheadAtKneeUp: 0.08, conf: 50 },
   drop: { pelvisDrop: 0.36, rise: 0, conf: 50 },
   separation: { trunkOpenAtPlantDeg: -40, trunkConf: 50 },
   trunkTilt: { forwardDeg: 30, conf: 50 },
@@ -80,7 +80,7 @@ const drills = ['기초', '연결', '통합'].map((stage) => ({
 const opts = { heightCm: 180, ground: 'mound', youth: false, drills };
 /* 드리프트 경계 · 브레이크 고칠 점(30°) — 2026-10-26 등급이면 둘 다 평가 · 개선 드릴 */
 const report = buildReport(result, opts);
-globalThis.__reportMetrics.drift.aheadAtKneeUp = 0.1;
+globalThis.__reportMetrics.drift.aheadAtKneeUp = 0.12;
 globalThis.__reportMetrics.block.kneeCollapseDeg = 3;
 /* 모두 좋아요 — 권할 드릴 없음 */
 const heldReport = buildReport(result, opts);

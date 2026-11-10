@@ -23,7 +23,7 @@ import { doseOf, doseText } from '@/lib/mechanics/program';
 import { prescribedTitles } from '@/lib/mechanics/prescriptions';
 import { plantFrame, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { mechChecks, DROP_RISE_MAX, type MechChecks } from '@/lib/pitch-3d/v2/mech-checks';
-import { BLOCK_IMPLAUSIBLE_SINK_DEG, DRIFT_GOOD, DRIFT_LOW, MECH_CONF_MIN, TRUNK_PLANT_ERR, TRUNK_PLANT_NORM } from '@/lib/pitch-3d/v2/mech-judge';
+import { BLOCK_IMPLAUSIBLE_SINK_DEG, MECH_CONF_MIN, TRUNK_PLANT_ERR, TRUNK_PLANT_NORM } from '@/lib/pitch-3d/v2/mech-judge';
 
 type ElementName = (typeof FOCUS_POINTS)[number];
 type DrillStage = (typeof DRILL_STAGE_NAMES)[number];
@@ -75,18 +75,32 @@ export const CHAIN: ElementName[] = ['드리프트', '드롭', '상하체 분리
  */
 type Band = { up: boolean; cut: number; edgeEnd: number; fairEnd: number; lo: number; hi: number };
 
-/** 드리프트(키 비율) — 지금 판정(mech-judge DRIFT_LOW · DRIFT_GOOD) 그대로, 그 위 2σ(엔진 0.7cm ≈ 0.007, 두 배 올림)를 경계 */
-const DRIFT_BAND: Band = { up: true, cut: DRIFT_LOW, edgeEnd: 0.07, fairEnd: DRIFT_GOOD, lo: 0, hi: 0.16 };
-/** 드롭(다리 길이 비율) — 자료 10 / 25 / 50% 0.26 / 0.31 / 0.36, 같은 선수 흔들림 0.01 · 엔진 0.01 → 2σ ≈ 0.03 */
-const DROP_BAND: Band = { up: true, cut: 0.23, edgeEnd: 0.26, fairEnd: 0.31, lo: 0, hi: 0.5 };
+/**
+ * 조인 띠(2026-11-10 김민: "스로잉처럼 후한 곳을 검토" → "가운데를 좋아요 선으로 하되 아주 조금만 풀어서") — 드리프트 · 드롭 · 몸통 회전.
+ * 예전 규칙(아래 25% 만 벗어나면 좋아요 · 아래 10% − 2σ 밑이 고칠 점)은 드라이브라인 투수의 76~80% 가 좋아요, 4% 만 고칠 점이었다.
+ * 이제 고칠 점 < 아래 10% ≤ 경계 < 아래 25% ≤ 보통 < 아래 40% ≤ 좋아요(자료 투수의 60% 가 좋아요 · 10% 가 고칠 점).
+ * 이 셋만 조인 까닭 — 엔진 오차(가상 촬영 109구 가운데)가 칸 폭보다 작다: 드롭 1.2 / 2.5~5.6%p · 몸통 1.8 / 4.6~5.9° · 드리프트 0.8 / 1.1~1.9%p(드리프트는
+ * 칸 끝에서 한 칸 엇갈릴 수 있다). 브레이크(오차 2.5~4°) · 상하체 분리(7.3°)는 오차가 칸 폭만 해 예전 띠 그대로.
+ * 숫자는 자료 투수 109명 한 구씩의 진짜 3D 에 같은 점검 식(mechChecks)을 댄 것(scripts/pitch-lab/obp/obp-synth.mts --dump).
+ */
+const STRICT_FOOT: Record<'improve' | 'edge' | 'fair' | 'good', string> = {
+  improve: '고칠 점 · 잘 던지는 투수 아래 10% 밑',
+  edge: '경계 · 잘 던지는 투수 아래 10~25% 사이',
+  fair: '보통 · 잘 던지는 투수 아래 25~40% 사이',
+  good: '좋아요',
+};
+/** 드리프트(키 비율) — 자료 10 / 25 / 40% 0.073 / 0.092 / 0.103 */
+const DRIFT_BAND: Band = { up: true, cut: 0.073, edgeEnd: 0.092, fairEnd: 0.103, lo: 0, hi: 0.18 };
+/** 드롭(다리 길이 비율) — 자료 10 / 25 / 40% 0.26 / 0.31 / 0.34 */
+const DROP_BAND: Band = { up: true, cut: 0.26, edgeEnd: 0.31, fairEnd: 0.34, lo: 0, hi: 0.5 };
 /** 이만큼(다리 길이 비율) 밑으로만 내려가면 '거의 안 가라앉음' — 평지에서도 고칠 점(김민 정의: 유지되거나 뜨면 나쁨) */
 export const DROP_FLOAT_MAX = 0.05;
 /** 브레이크 · 착지 뒤 더 굽음(°, 작을수록 좋음) — 자료 위 25 / 10% 7.8 / 11.9°, 2σ ≈ 4° */
 const SINK_BAND: Band = { up: false, cut: 16, edgeEnd: 11.9, fairEnd: 7.8, lo: 0, hi: 30 };
 /** 브레이크 · 착지 → 릴리스 무릎 펴짐(°) — 자료 10 / 25% −4.1 / 2.1°, 엔진 3.8 · 같은 선수 3.4 → 2σ ≈ 10° */
 const EXT_BAND: Band = { up: true, cut: -14, edgeEnd: -4.1, fairEnd: 2.1, lo: -25, hi: 30 };
-/** 몸통 회전 · 릴리스 앞 기울기(°) — 자료 10 / 25% 17.6 / 22.3°, 엔진 1.8 · 같은 선수 1.2 → 2σ ≈ 4.5° */
-const TRUNK_BAND: Band = { up: true, cut: 13, edgeEnd: 17.6, fairEnd: 22.3, lo: 0, hi: 45 };
+/** 몸통 회전 · 릴리스 앞 기울기(°) — 자료 10 / 25 / 40% 17.5 / 23 / 27.5° */
+const TRUNK_BAND: Band = { up: true, cut: 17.5, edgeEnd: 23, fairEnd: 27.5, lo: 0, hi: 45 };
 /**
  * 스로잉 · 착지 손 높이((손목 − 어깨 높이) ÷ 팔 길이) — 2026-11-10 김민: "착지 때 손이 어디까지 올라왔느냐", "아래 25% 까지 좋아요는 너무 후하다".
  * 다른 띠와 달리 자료(드라이브라인 403구 · 앞발 첫 닿음)의 가운데가 좋아요 선: 아래 10 / 30 / 50% = −0.14 / 0 / +0.14(팔 길이 57cm 면 −8 / 0 / +8cm).
@@ -487,7 +501,7 @@ export function judgeElements(
   else {
     const v = m.drift.aheadAtKneeUp;
     const value = m.drift.aheadAtKneeUpCm != null ? `${Math.round(m.drift.aheadAtKneeUpCm)}cm` : `키의 ${Math.round(v * 100)}%`;
-    const goal = ctx.heightCm ? `${Math.round(DRIFT_GOOD * ctx.heightCm)}cm 위` : `키의 ${Math.round(DRIFT_GOOD * 100)}% 위`;
+    const goal = ctx.heightCm ? `${Math.round(DRIFT_BAND.fairEnd * ctx.heightCm)}cm 위` : `키의 ${Math.round(DRIFT_BAND.fairEnd * 100)}% 위`;
     out['드리프트'] = judged(
       '드리프트',
       'drift.stuck',
@@ -497,7 +511,8 @@ export function judgeElements(
       '니업 때 골반이 축발보다 앞',
       { ...DRIFT_BAND, value: v },
       frames.kneeUp,
-      goal
+      goal,
+      STRICT_FOOT
     );
   }
 
@@ -509,11 +524,11 @@ export function judgeElements(
     const gauge = { ...DROP_BAND, value: v };
     const label = '니업 → 착지 골반이 내려간 몫(다리 길이)';
     if (v < DROP_FLOAT_MAX || m.drop.rise > DROP_RISE_MAX)
-      out['드롭'] = judged('드롭', 'drop.float', 'improve', OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`);
+      out['드롭'] = judged('드롭', 'drop.float', 'improve', OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`, STRICT_FOOT);
     else
       out['드롭'] = capped(
         '드롭',
-        judged('드롭', 'drop.shallow', bandOf(v, DROP_BAND), OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`),
+        judged('드롭', 'drop.shallow', bandOf(v, DROP_BAND), OBS.drop(v, m.drop.rise), fmtPct(v), label, gauge, frames.plant, `${fmtPct(DROP_BAND.fairEnd)} 위`, STRICT_FOOT),
         flat ? 'flat' : ctx.youth ? 'youth' : null
       );
   }
@@ -602,7 +617,8 @@ export function judgeElements(
           '릴리스 때 몸통 앞 기울기',
           { ...TRUNK_BAND, value: t.forwardDeg },
           frames.release,
-          `${Math.round(TRUNK_BAND.fairEnd)}° 위`
+          `${Math.round(TRUNK_BAND.fairEnd)}° 위`,
+          STRICT_FOOT
         ),
         flat ? 'flat' : ctx.youth ? 'youth' : null
       );
