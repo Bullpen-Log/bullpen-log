@@ -1,0 +1,350 @@
+{
+  "schema_version": 1,
+  "work_id": "REVIEW-SYNC-20261111",
+  "prepared_on": "2026-11-11",
+  "scope": "메커니즘 투구 드릴 전체 — 직접 촬영/참고/나중에 촬영 포함",
+  "catalog_url": "https://dugout-baseball.com/library/mechanics",
+  "base_ref": "aa9d89848bd2ee182ed2151653466c83ed3a9010",
+  "state": "사용자 검수 대기; 현재 영상 유지",
+  "source_last_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+  "source_modified_time_semantics": "로컬 파일 실제 mtime. 이후 운영 공지 갱신을 포함할 수 있으며 영상 관찰/사용자 판정 시각이 아님.",
+  "catalog_snapshot": {
+    "count": 120,
+    "order": [
+      {
+        "category": "드리프트",
+        "count": 9
+      },
+      {
+        "category": "드롭",
+        "count": 23
+      },
+      {
+        "category": "상하체 분리",
+        "count": 16
+      },
+      {
+        "category": "브레이크",
+        "count": 5
+      },
+      {
+        "category": "몸통 회전",
+        "count": 9
+      },
+      {
+        "category": "스로잉",
+        "count": 12
+      },
+      {
+        "category": "근력 · 안정 드릴",
+        "count": 9
+      },
+      {
+        "category": "나중에 촬영",
+        "count": 37
+      }
+    ],
+    "source_record_reported_date": "2026-11-10",
+    "fresh_live_catalog_checked_on_handoff": false,
+    "identity_rule": "review_id는 로컬 검수 ID이며 DB ID가 아님. drill_id=null은 미확인. asset_id/path는 서명 없는 안전 식별자. 같은 영상의 다른 도구 드릴도 별개 항목."
+  },
+  "current": {
+    "number": 1,
+    "review_id": "mv-0457d3ca2b3a1169",
+    "category": "드리프트",
+    "title": "스텝백 스로우 드릴",
+    "kind": "직접 촬영 영상",
+    "kind_evidence": "현재 상세에 촬영 전/참고 영상 표시 없음, 자체 저장소 video 재생 확인",
+    "status": "사용자 검수 대기",
+    "drill_id": null,
+    "asset_id": "95d8dd7e-6969-4d30-a207-afc89322912f",
+    "asset_path": "pitch-videos/library-720/95d8dd7e-6969-4d30-a207-afc89322912f.mp4",
+    "duration_seconds": 6.87,
+    "playback_last_observed": {
+      "time_seconds": 0,
+      "paused": true,
+      "loop": false,
+      "repeat_requested": true,
+      "repeat_applied": false
+    },
+    "playback_observed_this_handoff": false,
+    "source": {
+      "source_id": "canonical_local_record",
+      "json_pointer": "/current"
+    },
+    "source_last_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+    "last_user_decision": null,
+    "last_user_decision_note": "영상에 대한 오케이/다음 판정 기록 없음. 검수 방식 지시나 GPT 관찰을 완료로 계산하지 않음."
+  },
+  "completed": [],
+  "completed_count": 0,
+  "user_change_requests": [],
+  "user_change_request_count": 0,
+  "last_user_video_decision": null,
+  "last_user_video_change_request": null,
+  "user_decision_event_timestamps_available": false,
+  "next": {
+    "number": 2,
+    "review_id": "mv-8eba0f8a515a6896",
+    "category": "드리프트",
+    "title": "P3 힌지 드라이브 스로우 (작은 공)",
+    "kind": "참고 영상",
+    "drill_id": null,
+    "status": "사용자 승인 전 이동 금지",
+    "source": {
+      "source_id": "canonical_local_record",
+      "json_pointer": "/queue/1"
+    }
+  },
+  "assistant_findings_to_present_when_reached": [
+    {
+      "finding_id": "MV-AI-001",
+      "title_or_scope": "P1 스트레치 스로우 (작은 공)",
+      "finding": "4초 부근 다리 들기와 발 고정 설명 대조. 불일치 관찰.",
+      "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+      "user_approved": false,
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/assistant_findings_to_present_when_reached/0"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "observation_time": null,
+      "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+    },
+    {
+      "finding_id": "MV-AI-002",
+      "title_or_scope": "P1 스트레치 스로우 (큰 공)",
+      "finding": "내딛기·마무리 이동과 발 고정 설명 대조.",
+      "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+      "user_approved": false,
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/assistant_findings_to_present_when_reached/1"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "observation_time": null,
+      "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+    },
+    {
+      "finding_id": "MV-AI-003",
+      "title_or_scope": "오버헤드 메디신볼 스로우",
+      "finding": "실제 투구 및 방법 설명과 왜 하나요의 공을 던지지 않고 문구가 모순.",
+      "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+      "user_approved": false,
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/assistant_findings_to_present_when_reached/2"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "observation_time": null,
+      "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+    },
+    {
+      "finding_id": "MV-AI-004",
+      "title_or_scope": "P4 레터럴 힌지 + 고관절 굴곡근 신전",
+      "finding": "5초·11초 한쪽 무릎을 댄 시범, 19초 옆 힌지. 혼합 시범 순서 안내 누락 후보.",
+      "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+      "user_approved": false,
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/assistant_findings_to_present_when_reached/3"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "observation_time": null,
+      "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+    },
+    {
+      "finding_id": "MV-AI-005",
+      "title_or_scope": "P2 레터럴 힌지 + 흉추 회전",
+      "finding": "8초대 가슴 앞 손 위치와 팔 벌리기/머리 뒤 안내 대조. 후보이며 사용자 확인 필요.",
+      "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+      "user_approved": false,
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/assistant_findings_to_present_when_reached/4"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "observation_time": null,
+      "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+    },
+    {
+      "finding_id": "MV-AI-006",
+      "title_or_scope": "P2 레터럴 힌지 바운드 + 정지",
+      "finding": "두세 셋을 버팁니다 표현 의미 확인.",
+      "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+      "user_approved": false,
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/assistant_findings_to_present_when_reached/5"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "observation_time": null,
+      "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+    },
+    {
+      "finding_id": "MV-AI-007",
+      "title_or_scope": "바우어 드릴",
+      "finding": "4주 입문 프로그램 문구의 현재 구성 일치 확인. 긴 참고 영상 시범 구간 안내 검토.",
+      "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+      "user_approved": false,
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/assistant_findings_to_present_when_reached/6"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "observation_time": null,
+      "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+    },
+    {
+      "finding_id": "MV-AI-008",
+      "title_or_scope": "워킹 와인드업",
+      "finding": "전력 투구 빈도 안내 검수 필요.",
+      "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+      "user_approved": false,
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/assistant_findings_to_present_when_reached/7"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "observation_time": null,
+      "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+    },
+    {
+      "finding_id": "MV-AI-009",
+      "title_or_scope": "스텝 비하인드 스로우",
+      "finding": "구속에 가장 좋은 표현과 전력 투구 빈도 안내 검수 필요.",
+      "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+      "user_approved": false,
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/assistant_findings_to_present_when_reached/8"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "observation_time": null,
+      "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+    },
+    {
+      "finding_id": "MV-AI-010",
+      "title_or_scope": "직접 촬영 야외 드리프트·힌지·회전 영상",
+      "finding": "여러 영상의 인물 크기·발·골반 가시성 및 안전한 확대 범위 확인. 정확한 자르기 시각 미확정.",
+      "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+      "user_approved": false,
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/assistant_findings_to_present_when_reached/9"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "observation_time": null,
+      "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+    }
+  ],
+  "assistant_finding_count": 10,
+  "general_assistant_findings": [
+    {
+      "finding_id": "MV-AI-010",
+      "title_or_scope": "직접 촬영 야외 드리프트·힌지·회전 영상",
+      "finding": "여러 영상의 인물 크기·발·골반 가시성 및 안전한 확대 범위 확인. 정확한 자르기 시각 미확정.",
+      "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+      "user_approved": false,
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/assistant_findings_to_present_when_reached/9"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "observation_time": null,
+      "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+    }
+  ],
+  "filming_needed": [],
+  "filming_needed_note": "현재 직접 촬영 1번은 제외. 빈 목록이 모든 영상 촬영 완료를 뜻하지 않음. 나머지는 차례에 확인.",
+  "playback_policy": {
+    "requested": "현재 검수 영상 자동 반복 재생. 다음 영상은 사용자 승인 후에만.",
+    "per_video_check_required": true,
+    "status": "현재 직접 촬영 기본 재생기 반복 옵션 미제공, 미적용",
+    "observed": {
+      "loop": false,
+      "paused": true,
+      "currentTime": 0,
+      "duration": 6.87
+    },
+    "constraints": "브라우저 반복 메뉴 미노출. 제품 코드 수정·페이지 스크립트 변조 없이 UI로 설정할 수 있는 경로 미확인.",
+    "youtube": "재생 설정 → 옵션 더보기 → 연속 재생 켬 경로를 다음 참고 영상 차례에 실제 확인. 운동영상 세션 결과를 이 영상 성공으로 간주하지 않음."
+  },
+  "country_issues": {
+    "common": [
+      {
+        "review_id": "mv-0457d3ca2b3a1169",
+        "title": "스텝백 스로우 드릴",
+        "issue": "직접 촬영 이용권·출연 동의·음악 권리 증빙 미확보. 수행 강도·추천 대상 설명의 전문 검수 미완료.",
+        "status": "증빙·검토 후보; 법률 적합성 판단 아님",
+        "source_urls": []
+      }
+    ],
+    "KR": {
+      "issues": [],
+      "status": "법률 적용 판단 미수행",
+      "source_urls": []
+    },
+    "US": {
+      "issues": [],
+      "status": "영어·미국은 김민 조율, 법률 적용 판단 미수행",
+      "source_urls": []
+    },
+    "JP": {
+      "issues": [],
+      "status": "일본 출시 준비 세션 조율, 법률 적용 판단 미수행",
+      "source_urls": []
+    },
+    "policy": "국가별 차이는 근거가 있을 때만 제안. 적용 판단 시 공식 자료 확인. 미확보 증빙·후보·확정 사실을 구분."
+  },
+  "pending_or_unverified": [
+    "1번 사용자 오케이/다음 판정 미수신",
+    "전체 영상 연속/프레임 전수검수 아님",
+    "현재 브라우저/로그인/재생/반복/오른쪽 패널 상태는 이 인계에서 확인하지 않음",
+    "다른 맥의 문서 수신·기록 일치·계정 로그인 미확인",
+    "9건 영상별 AI 후보와 1건 일반 후보 모두 사용자 수정 지시 아님",
+    "촬영자/출연 동의/음악 권리와 안전·효능 근거 검수 미완료; 적법성 판정 아님",
+    "DB drill_id 미확인, 120개 순서는 원본 기록 기준이며 현재 운영 변경 여부 미확인"
+  ],
+  "approval_rules": {
+    "advance": "오케이/다음은 현재 항목 판정/다음 이동만. 수정 승인·배포 승인과 별개.",
+    "memo_only": "이 부분 수정 또는 검수 중 반영은 원문/시점/요청 기록만; 다음 의사가 없으면 현재 영상 유지.",
+    "memo_and_advance": "수정 필요, 다음은 메모 후 다음 이동.",
+    "apply_after_review": "전체 검수 종료 뒤 기존→제안→이유·영향을 제시하고 사용자에게 실제 수정 범위를 다시 확인. 종료/과거 반영/AI 후보만으로 적용 금지.",
+    "deployment": "콘텐츠 수정 승인과 운영 DB/업로드/배포 허가 별개. 기존 협업·DB·권한 규칙 유지."
+  },
+  "review_method": [
+    "실제 분류/표시 순서로 고유 드릴 한 편씩, 저장된 current부터 재개",
+    "기존 탭과 현재 재생 상태 확인 후 보존; 승인 없이 다음으로 이동하지 않음",
+    "매 영상 편집·프레이밍·제목/설명·수행/안전/효능/권리 후보 안내. 없으면 확인 범위 내 없음 명시",
+    "영상별 참고/직접 촬영/재생 없음 구분, 직접 촬영 없는 것만 촬영 목록에 누적",
+    "과학/학회/공식 자료를 실제 조회한 경우에만 URL·적용 한계 기록. 법률 적합성/정답 동작 보장 금지",
+    "한국/미국/일본 쟁점 구분, 차이 근거 없으면 형식적 국가별 재작성 금지. 미국/영어 김민, 일본은 일본 출시 담당 조율",
+    "매 사용자 응답을 영상 ID·제목·분류·시점·원문·요청·판정·실제 기록시각으로 보존. 개인정보/개인 건강정보가 섞이면 공개본에서 제외하고 개인 원본에만 보존"
+  ],
+  "handoff_transport": {
+    "status": "로컬 공유용 문서 작성; 이 세션에서 커밋/푸시/다른 맥 수신 확인 안 함",
+    "common_sync_owner": "전체 총괄",
+    "do_not_touch": [
+      "공통 동기화 파일",
+      "제품 코드",
+      "DB",
+      "영상 원본/등록 내용"
+    ]
+  },
+  "privacy": {
+    "export_mode": "운영 콘텐츠 검수 필드만 선별",
+    "source_files_untouched": true,
+    "excluded_fields": [
+      "개인 절대 경로",
+      "세션 ID",
+      "브라우저 탭 ID/임시 표시 상태",
+      "개인 운영 공지 메타데이터",
+      "비민감 기록 외 원본 JSON의 미선별 필드"
+    ],
+    "prohibited_content_found_in_selected_fields": false,
+    "prohibited_content_copied": false,
+    "personal_health_information_copied": false,
+    "signed_urls_copied": false
+  }
+}

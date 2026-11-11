@@ -1,0 +1,3281 @@
+{
+  "schema_version": 1,
+  "work_id": "REVIEW-SYNC-20261111",
+  "catalog_url": "https://dugout-baseball.com/library/mechanics",
+  "order_source": "canonical_local_record /queue; 현재 운영 재조회 아님",
+  "records": [
+    {
+      "number": 1,
+      "review_id": "mv-0457d3ca2b3a1169",
+      "category": "드리프트",
+      "title": "스텝백 스로우 드릴",
+      "kind": "직접 촬영 영상",
+      "kind_evidence": "현재 상세에 촬영 전/참고 영상 표시 없음, 자체 저장소 video 재생 확인",
+      "status": "사용자 검수 대기",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/0"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "이전 GPT 주요 장면 관찰과 상세/재생 확인만 존재. 현재 인계에서 새 재생·실기기 검사 없음.",
+      "filming_needed": {
+        "status": "대상 아님",
+        "reason": "마지막 확인에서 직접 촬영 영상 표시·자체 저장소 영상 재생 확인. 이번 재확인 없음."
+      },
+      "content_change_approved": false,
+      "deployment_approved": false,
+      "asset_id": "95d8dd7e-6969-4d30-a207-afc89322912f",
+      "asset_path": "pitch-videos/library-720/95d8dd7e-6969-4d30-a207-afc89322912f.mp4",
+      "duration_seconds": 6.87,
+      "description_snapshot": "■ 어떤 운동인가\n던지는 방향의 반대쪽으로 한 발 물러섰다가, 그 반동으로 홈 쪽으로 나가며 던지는 드릴입니다.\n\n■ 이렇게 하세요\n1. 던지는 방향을 옆으로 보고 섭니다.\n2. 앞발을 뒷발 쪽으로 한 발 물러 딛습니다.\n3. 그 걸음에 실린 체중이 홈 쪽으로 흘러가기 시작할 때 다리를 듭니다.\n4. 멈추지 말고 이어서 홈 쪽으로 나가 던집니다.\n\n■ 왜 하나요\n물러서는 걸음이 무게중심을 먼저 움직여 드리프트를 쉽게 느끼게 합니다. 드리프트를 익히는 데 스텝백 드릴을 쓰고, 로커에서 하체 차례가 꼬이는 투수에게는 스텝백으로 바꿔 줍니다.\n\n■ 세기\n처음 몇 번은 느린 동작으로 감을 잡고, 50~60% 힘에서 시작해 익숙해지면 올립니다. 전력으로 던지는 드릴이 아닙니다.",
+      "assistant_review": {
+        "editing": "확인 범위에서 수정 후보 없음. 전 프레임 연속 검수 완료는 아님.",
+        "title_description": "확인한 주요 장면에서 확정 불일치 없음.",
+        "safety_and_efficacy": "50~60% 수행 안내 및 특정 투수에게 드릴을 바꿔 준다는 문구의 대상·근거는 전문가 검수 미완료. 확정 결함 아님.",
+        "rights": "직접 촬영으로 표시·재생되나 촬영자 이용권·출연자 동의·음악 권리 증빙은 제공받지 않음. 위반으로 판정하지 않음.",
+        "user_decision": "대기; 수정 미지시"
+      },
+      "playback_last_observed": {
+        "time_seconds": 0,
+        "paused": true,
+        "loop": false,
+        "repeat_requested": true,
+        "repeat_applied": false
+      }
+    },
+    {
+      "number": 2,
+      "review_id": "mv-8eba0f8a515a6896",
+      "category": "드리프트",
+      "title": "P3 힌지 드라이브 스로우 (작은 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/1"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 3,
+      "review_id": "mv-2eddd3dec8d7418e",
+      "category": "드리프트",
+      "title": "P1 레터럴 셔플 스로우 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/2"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 4,
+      "review_id": "mv-10c9c9acb449b625",
+      "category": "드리프트",
+      "title": "P3 힌지 드라이브 스로우 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/3"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 5,
+      "review_id": "mv-a10c408f44c9b8a9",
+      "category": "드리프트",
+      "title": "P3 레터럴 힌지 바운드 스로우 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/4"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 6,
+      "review_id": "mv-02de50d9947bcd8d",
+      "category": "드리프트",
+      "title": "P1 레그 리프트 드리프트",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/5"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 7,
+      "review_id": "mv-665ece52f26c70b2",
+      "category": "드리프트",
+      "title": "P1 지지 레그 리프트 드리프트",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/6"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 8,
+      "review_id": "mv-8134aada711c9d8b",
+      "category": "드리프트",
+      "title": "드롭 스텝 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/7"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 9,
+      "review_id": "mv-a75a9eb14332c7ab",
+      "category": "드리프트",
+      "title": "워킹 와인드업",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [
+        {
+          "finding_id": "MV-AI-008",
+          "title_or_scope": "워킹 와인드업",
+          "finding": "전력 투구 빈도 안내 검수 필요.",
+          "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+          "user_approved": false,
+          "source": {
+            "source_id": "canonical_local_record",
+            "json_pointer": "/assistant_findings_to_present_when_reached/7"
+          },
+          "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+          "observation_time": null,
+          "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+        }
+      ],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/8"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 10,
+      "review_id": "mv-fdb0fc2936315a11",
+      "category": "드롭",
+      "title": "P1 스위치 풋 드롭 힌지 스로우 (작은 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/9"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 11,
+      "review_id": "mv-c28b562cd61ef448",
+      "category": "드롭",
+      "title": "P2 힌지 홉 스로우 (작은 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/10"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 12,
+      "review_id": "mv-2686d434280137be",
+      "category": "드롭",
+      "title": "P3 뎁스 드롭 힌지 스로우 (작은 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/11"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 13,
+      "review_id": "mv-d7bab7bc6d4d7b58",
+      "category": "드롭",
+      "title": "P1 스위치 풋 드롭 힌지 스로우 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/12"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 14,
+      "review_id": "mv-4b418de00f1d1ab5",
+      "category": "드롭",
+      "title": "P2 힌지 홉 스로우 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/13"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 15,
+      "review_id": "mv-cbe2ba628517211a",
+      "category": "드롭",
+      "title": "P2 헤비 메디신볼 힌지 토스 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/14"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 16,
+      "review_id": "mv-8ac8cddbde1d18cb",
+      "category": "드롭",
+      "title": "P3 뎁스 드롭 힌지 스로우 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/15"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 17,
+      "review_id": "mv-c3b0060af15e0b48",
+      "category": "드롭",
+      "title": "P2 레그 리프트 드리프트 → 힌지",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/16"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 18,
+      "review_id": "mv-231f0f29e7cd241a",
+      "category": "드롭",
+      "title": "P2 지지 레그 리프트 드리프트 → 힌지",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/17"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 19,
+      "review_id": "mv-577e2f47b9950c8a",
+      "category": "드롭",
+      "title": "P2 레터럴 맥스뎁스 힌지",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/18"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 20,
+      "review_id": "mv-2ed662192a190043",
+      "category": "드롭",
+      "title": "P2 레터럴 힌지 풋 스톰프",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/19"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 21,
+      "review_id": "mv-abb9decd7b5ed6e5",
+      "category": "드롭",
+      "title": "P3 레터럴 힌지 풋 스톰프 → 내회전",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/20"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 22,
+      "review_id": "mv-d0266dd7ec2f70de",
+      "category": "드롭",
+      "title": "P2 레터럴 힌지 바운드",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/21"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 23,
+      "review_id": "mv-49ca48b1ce7ccb17",
+      "category": "드롭",
+      "title": "P3 레터럴 힌지 바운드 → 내회전",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/22"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 24,
+      "review_id": "mv-54f7fcacf94ee28c",
+      "category": "드롭",
+      "title": "P3 핸드홀드 힌지 + 내회전 → 흉추 신전",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/23"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 25,
+      "review_id": "mv-e19116f129528c13",
+      "category": "드롭",
+      "title": "P3 회전 무릎 슬램",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/24"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 26,
+      "review_id": "mv-76e8ee663fede41e",
+      "category": "드롭",
+      "title": "P1 스위치 풋 드롭 힌지 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/25"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 27,
+      "review_id": "mv-f7320089713f9749",
+      "category": "드롭",
+      "title": "P3 뎁스 드롭 힌지 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/26"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 28,
+      "review_id": "mv-26205443cccdca12",
+      "category": "드롭",
+      "title": "다르빗슈 드릴",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/27"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 29,
+      "review_id": "mv-80918fb3a83ce6b5",
+      "category": "드롭",
+      "title": "로커 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/28"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 30,
+      "review_id": "mv-a586abbc866be32f",
+      "category": "드롭",
+      "title": "기쿠치 드릴",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/29"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 31,
+      "review_id": "mv-ac2da22d1b74969e",
+      "category": "드롭",
+      "title": "훅엠 드릴",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/30"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 32,
+      "review_id": "mv-055d4bbf4d5db80c",
+      "category": "드롭",
+      "title": "재니터 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/31"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 33,
+      "review_id": "mv-6d6266eaa5d0e42c",
+      "category": "상하체 분리",
+      "title": "P4 스플릿 스탠스 스로우 + 모멘텀 (작은 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/32"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 34,
+      "review_id": "mv-9162b172f78ec2ff",
+      "category": "상하체 분리",
+      "title": "P4 스플릿 스탠스 스로우 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/33"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 35,
+      "review_id": "mv-bf20d92fe01c1c39",
+      "category": "상하체 분리",
+      "title": "P2 레그 리프트 드리프트 → 힌지 + 반대회전",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/34"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 36,
+      "review_id": "mv-ad54a89bd17d7b09",
+      "category": "상하체 분리",
+      "title": "P3 레그 리프트 드리프트 → 힌지 + 반대회전 → 내회전",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/35"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 37,
+      "review_id": "mv-9c0b02d222442e4b",
+      "category": "상하체 분리",
+      "title": "P2 레터럴 힌지 + 흉추 회전",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [
+        {
+          "finding_id": "MV-AI-005",
+          "title_or_scope": "P2 레터럴 힌지 + 흉추 회전",
+          "finding": "8초대 가슴 앞 손 위치와 팔 벌리기/머리 뒤 안내 대조. 후보이며 사용자 확인 필요.",
+          "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+          "user_approved": false,
+          "source": {
+            "source_id": "canonical_local_record",
+            "json_pointer": "/assistant_findings_to_present_when_reached/4"
+          },
+          "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+          "observation_time": null,
+          "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+        }
+      ],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/36"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 38,
+      "review_id": "mv-5c6d9b3adbfdddea",
+      "category": "상하체 분리",
+      "title": "P4 힙 스위블",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/37"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 39,
+      "review_id": "mv-e27b2a7195b12011",
+      "category": "상하체 분리",
+      "title": "P4 레터럴 힌지 + 고관절 굴곡근 신전",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [
+        {
+          "finding_id": "MV-AI-004",
+          "title_or_scope": "P4 레터럴 힌지 + 고관절 굴곡근 신전",
+          "finding": "5초·11초 한쪽 무릎을 댄 시범, 19초 옆 힌지. 혼합 시범 순서 안내 누락 후보.",
+          "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+          "user_approved": false,
+          "source": {
+            "source_id": "canonical_local_record",
+            "json_pointer": "/assistant_findings_to_present_when_reached/3"
+          },
+          "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+          "observation_time": null,
+          "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+        }
+      ],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/38"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 40,
+      "review_id": "mv-072e5d184b84925a",
+      "category": "상하체 분리",
+      "title": "P4 스플릿 스탠스 흉추 회전",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/39"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 41,
+      "review_id": "mv-91511011478c99c1",
+      "category": "상하체 분리",
+      "title": "P4 막대 스플릿 스탠스 분리 회전",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/40"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 42,
+      "review_id": "mv-80b44996d638cd72",
+      "category": "상하체 분리",
+      "title": "P4 밴드 가슴 분리",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/41"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 43,
+      "review_id": "mv-c67a195ef9c443e1",
+      "category": "상하체 분리",
+      "title": "P4 스플릿 스탠스 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/42"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 44,
+      "review_id": "mv-b0b115103f2e03ad",
+      "category": "상하체 분리",
+      "title": "P4 스플릿 스탠스 스로우 + 모멘텀",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/43"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 45,
+      "review_id": "mv-b687a6e63ffa0860",
+      "category": "상하체 분리",
+      "title": "P4 반대다리 스플릿 스탠스 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/44"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 46,
+      "review_id": "mv-8ef5302c86449c23",
+      "category": "상하체 분리",
+      "title": "로테이셔널 스텝백 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/45"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 47,
+      "review_id": "mv-610c718df826febe",
+      "category": "상하체 분리",
+      "title": "롤인 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/46"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 48,
+      "review_id": "mv-ea29de5d03258744",
+      "category": "상하체 분리",
+      "title": "리듬 로커",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/47"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 49,
+      "review_id": "mv-0c4ce3354617a49f",
+      "category": "브레이크",
+      "title": "P5 스플릿 스탠스 슬램 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/48"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 50,
+      "review_id": "mv-347d38efd2aed622",
+      "category": "브레이크",
+      "title": "P5 회전 앞다리 슬램 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/49"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 51,
+      "review_id": "mv-d0e415dba9971d3a",
+      "category": "브레이크",
+      "title": "P5 앞다리 찹 스로우 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/50"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 52,
+      "review_id": "mv-ad0bb8468e4b3f95",
+      "category": "브레이크",
+      "title": "P2 레터럴 힌지 바운드 + 정지",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [
+        {
+          "finding_id": "MV-AI-006",
+          "title_or_scope": "P2 레터럴 힌지 바운드 + 정지",
+          "finding": "두세 셋을 버팁니다 표현 의미 확인.",
+          "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+          "user_approved": false,
+          "source": {
+            "source_id": "canonical_local_record",
+            "json_pointer": "/assistant_findings_to_present_when_reached/5"
+          },
+          "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+          "observation_time": null,
+          "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+        }
+      ],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/51"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 53,
+      "review_id": "mv-60d6eb514ba6156c",
+      "category": "브레이크",
+      "title": "메디신볼 턴 앤 번 숏풋",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/52"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 54,
+      "review_id": "mv-cdd0ae237cc2fb7f",
+      "category": "몸통 회전",
+      "title": "크로스언더 메디신볼 회전 토스",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/53"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 55,
+      "review_id": "mv-d3eb9ffcab7eefb7",
+      "category": "몸통 회전",
+      "title": "드롭스텝 → 회전 토스",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/54"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 56,
+      "review_id": "mv-a0ab8643e90a9428",
+      "category": "몸통 회전",
+      "title": "P1 스트레치 스로우 (작은 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [
+        {
+          "finding_id": "MV-AI-001",
+          "title_or_scope": "P1 스트레치 스로우 (작은 공)",
+          "finding": "4초 부근 다리 들기와 발 고정 설명 대조. 불일치 관찰.",
+          "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+          "user_approved": false,
+          "source": {
+            "source_id": "canonical_local_record",
+            "json_pointer": "/assistant_findings_to_present_when_reached/0"
+          },
+          "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+          "observation_time": null,
+          "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+        }
+      ],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/55"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 57,
+      "review_id": "mv-3ddac4760f777c7f",
+      "category": "몸통 회전",
+      "title": "P1 스트레치 스로우 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [
+        {
+          "finding_id": "MV-AI-002",
+          "title_or_scope": "P1 스트레치 스로우 (큰 공)",
+          "finding": "내딛기·마무리 이동과 발 고정 설명 대조.",
+          "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+          "user_approved": false,
+          "source": {
+            "source_id": "canonical_local_record",
+            "json_pointer": "/assistant_findings_to_present_when_reached/1"
+          },
+          "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+          "observation_time": null,
+          "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+        }
+      ],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/56"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 58,
+      "review_id": "mv-44da26cc00848b67",
+      "category": "몸통 회전",
+      "title": "P4 핸드홀드 고관절 내회전",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/57"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 59,
+      "review_id": "mv-36abb53bb4806251",
+      "category": "몸통 회전",
+      "title": "피벗 픽오프",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/58"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 60,
+      "review_id": "mv-dd0ce52b5da15536",
+      "category": "몸통 회전",
+      "title": "메디신볼 워킹 와인드업 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/59"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 61,
+      "review_id": "mv-81cdfde54aa0e9ba",
+      "category": "몸통 회전",
+      "title": "턴 앤 번 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/60"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 62,
+      "review_id": "mv-7289e8d2051a54a2",
+      "category": "몸통 회전",
+      "title": "바우어 드릴",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [
+        {
+          "finding_id": "MV-AI-007",
+          "title_or_scope": "바우어 드릴",
+          "finding": "4주 입문 프로그램 문구의 현재 구성 일치 확인. 긴 참고 영상 시범 구간 안내 검토.",
+          "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+          "user_approved": false,
+          "source": {
+            "source_id": "canonical_local_record",
+            "json_pointer": "/assistant_findings_to_present_when_reached/6"
+          },
+          "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+          "observation_time": null,
+          "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+        }
+      ],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/61"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 63,
+      "review_id": "mv-4eb3f889218b5a91",
+      "category": "스로잉",
+      "title": "오버헤드 메디신볼 스로우",
+      "kind": "참고 표시 없음 — 상세 확인 필요",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [
+        {
+          "finding_id": "MV-AI-003",
+          "title_or_scope": "오버헤드 메디신볼 스로우",
+          "finding": "실제 투구 및 방법 설명과 왜 하나요의 공을 던지지 않고 문구가 모순.",
+          "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+          "user_approved": false,
+          "source": {
+            "source_id": "canonical_local_record",
+            "json_pointer": "/assistant_findings_to_present_when_reached/2"
+          },
+          "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+          "observation_time": null,
+          "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+        }
+      ],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/62"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 64,
+      "review_id": "mv-6cd6fbcff89e89e5",
+      "category": "스로잉",
+      "title": "P5 힌지 오버더톱 슬램 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/63"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 65,
+      "review_id": "mv-95cd87dcca18fff7",
+      "category": "스로잉",
+      "title": "암 패스 서클",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/64"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 66,
+      "review_id": "mv-7bac3dbd007093fb",
+      "category": "스로잉",
+      "title": "암 패스 8자",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/65"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 67,
+      "review_id": "mv-1c3ce10731e38c8c",
+      "category": "스로잉",
+      "title": "스플릿 스탠스 피니시 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/66"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 68,
+      "review_id": "mv-002334c8232dc3cb",
+      "category": "스로잉",
+      "title": "호버 드릴",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/67"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 69,
+      "review_id": "mv-b1e209a665160ac2",
+      "category": "스로잉",
+      "title": "리버스 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/68"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 70,
+      "review_id": "mv-9a43905c4e784584",
+      "category": "스로잉",
+      "title": "무릎 꿇고 짧은 팔 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/69"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 71,
+      "review_id": "mv-d988d6888015f347",
+      "category": "스로잉",
+      "title": "텐 토즈 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/70"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 72,
+      "review_id": "mv-7635ad59b8cad807",
+      "category": "스로잉",
+      "title": "스텝 비하인드 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [
+        {
+          "finding_id": "MV-AI-009",
+          "title_or_scope": "스텝 비하인드 스로우",
+          "finding": "구속에 가장 좋은 표현과 전력 투구 빈도 안내 검수 필요.",
+          "status": "AI 확인 또는 후보; 사용자 판정·수정 지시 전",
+          "user_approved": false,
+          "source": {
+            "source_id": "canonical_local_record",
+            "json_pointer": "/assistant_findings_to_present_when_reached/8"
+          },
+          "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+          "observation_time": null,
+          "observation_time_note": "원본에 개별 관찰 시각 없음. 파일 수정 시각으로 대체하지 않음."
+        }
+      ],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/71"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 73,
+      "review_id": "mv-8727109747bbaac1",
+      "category": "스로잉",
+      "title": "8자 리듬 로커",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/72"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 74,
+      "review_id": "mv-e34a3899bb172d6d",
+      "category": "스로잉",
+      "title": "라소 드릴",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/73"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 75,
+      "review_id": "mv-d20958d93aff544a",
+      "category": "근력 · 안정 드릴",
+      "title": "밴드 보조 레터럴 드라이브 + 워터볼",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/74"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 76,
+      "review_id": "mv-41636e6859188a7f",
+      "category": "근력 · 안정 드릴",
+      "title": "베이스 밴드 저항 고관절 내회전 + 슬라이드",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/75"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 77,
+      "review_id": "mv-4410839d2d775fd1",
+      "category": "근력 · 안정 드릴",
+      "title": "베이스 밴드 저항 고관절 외회전 + 슬라이드",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/76"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 78,
+      "review_id": "mv-f8a4b27c373d09d0",
+      "category": "근력 · 안정 드릴",
+      "title": "밴드 저항 어깨 외전 + 스트라이드",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/77"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 79,
+      "review_id": "mv-29057e117860e76d",
+      "category": "근력 · 안정 드릴",
+      "title": "리드암 외전 + 워터볼",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/78"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 80,
+      "review_id": "mv-813b12e538ebf7b3",
+      "category": "근력 · 안정 드릴",
+      "title": "밴드 보조·저항 앞다리 신전",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/79"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 81,
+      "review_id": "mv-3d283f668e6b7acd",
+      "category": "근력 · 안정 드릴",
+      "title": "P5 어깨 밴드 앞다리 회전",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/80"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 82,
+      "review_id": "mv-517abc2b9119241c",
+      "category": "근력 · 안정 드릴",
+      "title": "P5 더블 밴드 TKE",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/81"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 83,
+      "review_id": "mv-f881a317025ef1c0",
+      "category": "근력 · 안정 드릴",
+      "title": "P5 지지 홀드 TKE",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/82"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 84,
+      "review_id": "mv-9a4fe8385f2258bc",
+      "category": "나중에 촬영",
+      "title": "수평 메디신볼 슬램 + 앞다리 신전",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/83"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 85,
+      "review_id": "mv-1ea7afa944465ad9",
+      "category": "나중에 촬영",
+      "title": "드롭스텝 → 슬램",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/84"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 86,
+      "review_id": "mv-aa64d9995146af79",
+      "category": "나중에 촬영",
+      "title": "크로스오버 스텝 → 회전 토스",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/85"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 87,
+      "review_id": "mv-f97f1089817164df",
+      "category": "나중에 촬영",
+      "title": "크로스오버 스텝 → 슬램",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/86"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 88,
+      "review_id": "mv-aefd71e448a158b2",
+      "category": "나중에 촬영",
+      "title": "싱글렉 포고 홉 → 회전 토스",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/87"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 89,
+      "review_id": "mv-7dada8f2e19d4933",
+      "category": "나중에 촬영",
+      "title": "P1 와이드 스트레치 스로우 (작은 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/88"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 90,
+      "review_id": "mv-99a8a3253cffc85e",
+      "category": "나중에 촬영",
+      "title": "P1 레터럴 셔플 스로우 (작은 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/89"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 91,
+      "review_id": "mv-ef68b49801e17fbd",
+      "category": "나중에 촬영",
+      "title": "P2 힌지 스톰프 스로우 (작은 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/90"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 92,
+      "review_id": "mv-1060d8f0cd4caad3",
+      "category": "나중에 촬영",
+      "title": "P3 레터럴 힌지 바운드 스로우 (작은 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/91"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 93,
+      "review_id": "mv-3274b850fd3dcac1",
+      "category": "나중에 촬영",
+      "title": "P4 스플릿 스탠스 스로우 (작은 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/92"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 94,
+      "review_id": "mv-2ca0e9b87b55d73f",
+      "category": "나중에 촬영",
+      "title": "P5 오버헤드 앞다리 스로우 + 모멘텀 (작은 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/93"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 95,
+      "review_id": "mv-58bb809dd3891914",
+      "category": "나중에 촬영",
+      "title": "P1 와이드 스트레치 스로우 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/94"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 96,
+      "review_id": "mv-2e4211aa062f42bc",
+      "category": "나중에 촬영",
+      "title": "P2 힌지 스톰프 스로우 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/95"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 97,
+      "review_id": "mv-2291b9673d3f9f6e",
+      "category": "나중에 촬영",
+      "title": "P5 오버헤드 앞다리 스로우 + 모멘텀 (큰 공)",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/96"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 98,
+      "review_id": "mv-60ddf9a0ce6d4a21",
+      "category": "나중에 촬영",
+      "title": "밴드 저항 레터럴 푸시 투 베이스",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/97"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 99,
+      "review_id": "mv-acd896b6b6cdb28a",
+      "category": "나중에 촬영",
+      "title": "불안정 드라이브 레그",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/98"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 100,
+      "review_id": "mv-d91818a3ecd79604",
+      "category": "나중에 촬영",
+      "title": "다이내믹 고관절 신전 + 워터백",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/99"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 101,
+      "review_id": "mv-074bd729dc5c67db",
+      "category": "나중에 촬영",
+      "title": "스플릿 스탠스 무릎 아이소메트릭 프레스",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/100"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 102,
+      "review_id": "mv-14e042fb3b373638",
+      "category": "나중에 촬영",
+      "title": "P1 레그 리프트 모멘텀 슬라이드",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/101"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 103,
+      "review_id": "mv-0e3937cf86b76061",
+      "category": "나중에 촬영",
+      "title": "P3 레그 리프트 드리프트 → 힌지 → 내회전",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/102"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 104,
+      "review_id": "mv-e0d2ee675fe3309a",
+      "category": "나중에 촬영",
+      "title": "P2 힌지 홉",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/103"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 105,
+      "review_id": "mv-9813518578222943",
+      "category": "나중에 촬영",
+      "title": "스플릿 스탠스 암 패스 8자 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/104"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 106,
+      "review_id": "mv-e32275fc10c865c0",
+      "category": "나중에 촬영",
+      "title": "90/90 월 드리블",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/105"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 107,
+      "review_id": "mv-d918cad3fa6fa3bd",
+      "category": "나중에 촬영",
+      "title": "P1 스트레치 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/106"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 108,
+      "review_id": "mv-88d029d0977b3915",
+      "category": "나중에 촬영",
+      "title": "P1 와이드 스트레치 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/107"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 109,
+      "review_id": "mv-bacb848cae1785ba",
+      "category": "나중에 촬영",
+      "title": "P1 레터럴 셔플 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/108"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 110,
+      "review_id": "mv-ad10e755ddacc625",
+      "category": "나중에 촬영",
+      "title": "P2 힌지 홉 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/109"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 111,
+      "review_id": "mv-5c9953ba0b9182f0",
+      "category": "나중에 촬영",
+      "title": "P2 힌지 스톰프 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/110"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 112,
+      "review_id": "mv-9c9ebf8235923db4",
+      "category": "나중에 촬영",
+      "title": "P2 레터럴 바운드 힌지 홉 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/111"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 113,
+      "review_id": "mv-90b63889d5d46741",
+      "category": "나중에 촬영",
+      "title": "P3 힌지 드라이브 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/112"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 114,
+      "review_id": "mv-1aa6d7e3d8d4f4e9",
+      "category": "나중에 촬영",
+      "title": "P3 레터럴 힌지 바운드 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/113"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 115,
+      "review_id": "mv-6ef9bfb6047f76c4",
+      "category": "나중에 촬영",
+      "title": "P5 포워드 스플릿 스탠스 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/114"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 116,
+      "review_id": "mv-f19033390cf83888",
+      "category": "나중에 촬영",
+      "title": "P5 포워드 스플릿 스탠스 스로우 + 모멘텀",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/115"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 117,
+      "review_id": "mv-d8c0a3cadb971069",
+      "category": "나중에 촬영",
+      "title": "글러브 팔 밴드 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/116"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 118,
+      "review_id": "mv-dafe4d7c4445f904",
+      "category": "나중에 촬영",
+      "title": "KBO 로커",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/117"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 119,
+      "review_id": "mv-f4c8f3bd42051475",
+      "category": "나중에 촬영",
+      "title": "풋다운 로커",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/118"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    },
+    {
+      "number": 120,
+      "review_id": "mv-3d04bcaa2275e11a",
+      "category": "나중에 촬영",
+      "title": "허들 착지 스로우",
+      "kind": "참고 영상",
+      "kind_evidence": "2026-11-10 실제 라이브러리 카드 표시. 직접 촬영 여부는 차례에 상세/재생으로 재확인.",
+      "status": "미검수",
+      "drill_id": null,
+      "user_decision": null,
+      "user_decided_at": null,
+      "user_change_requests": [],
+      "assistant_findings": [],
+      "source": {
+        "source_id": "canonical_local_record",
+        "json_pointer": "/queue/119"
+      },
+      "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "video_observation": "원본에 이 영상의 개별 관찰 결과 없음. 사용자 미검수.",
+      "filming_needed": {
+        "status": "미확정 — 차례에 상세 source/촬영 전 표시와 재생 재확인",
+        "reason": "목록 카드 참고 배지만으로 촬영 필요 확정하지 않음"
+      },
+      "content_change_approved": false,
+      "deployment_approved": false
+    }
+  ]
+}

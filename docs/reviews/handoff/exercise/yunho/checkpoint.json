@@ -1,0 +1,509 @@
+{
+  "schema_version": 1,
+  "work_order": "REVIEW-SYNC-20261111",
+  "exported_at_utc": "2026-11-11T04:24:52.860500+00:00",
+  "original_json_last_modified_utc": "2026-11-09T17:21:25.150484+00:00",
+  "timestamp_caution": "파일 mtime는 운영체제 메타데이터 원문. 대화의 클라이언트 날짜와 불일치하므로 실제 검수일로 환산/추정하지 않음. 마지막 사람 판정은 아래 대화 순서로 식별.",
+  "original_sha256": "75ab50c05de1c93042903a0c5b5c7a055650efdc6849e23d1276635f31a27743",
+  "source_file_identifier": "exercise-video-review.json (원본은 저장소 밖 세션 디렉터리에 보존; 절대 로컬 경로는 공개본에서 제외)",
+  "scope": "금윤호 담당: 파워 → 코어 → 암케어 → 회복 및 보강. 워밍업/상체/하체/모빌리티는 김민 담당으로 제외.",
+  "category_sequence": [
+    "파워",
+    "코어",
+    "암케어",
+    "회복 및 보강"
+  ],
+  "current_review_id": "EX-Y-P-019",
+  "current_title": "스플릿 스탠스 스로우 (큰 공)",
+  "completed_human_count": 18,
+  "completed_definition": "사람 검수에서 다음 이동 승인. 콘텐츠 수정/법률 검수/배포 완료가 아님.",
+  "last_human_decision": {
+    "review_id": "EX-Y-P-018",
+    "verbatim": "너가 말한 거 반영하고 다음 영상으로 넘어가자.",
+    "meaning": "18번 제안 기록 및19번 이동 승인;19번 판정 없음"
+  },
+  "next_after_approval": {
+    "ordinal": 20,
+    "title": "메디신볼 턴 앤 번 숏풋",
+    "status": "19번 사용자 다음 승인 전 열지 않음"
+  },
+  "order": {
+    "basis": "이 대화에서 관찰한 파워57개 라이브러리 순서. 재개 시 실제 목록 변경 여부 대조; 새로 검수한 목록 아님.",
+    "items": [
+      {
+        "ordinal": 1,
+        "title": "랜드마인 회전 펀치",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 2,
+        "title": "밴드 스피드 로테이션",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 3,
+        "title": "박수 푸시업",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 4,
+        "title": "드롭 푸시업",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 5,
+        "title": "바벨 스피드 벤치 프레스",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 6,
+        "title": "랜드마인 펀치",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 7,
+        "title": "케이블 스피드 로테이션",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 8,
+        "title": "헤비 메디신볼 힌지 토스 (큰 공)",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 9,
+        "title": "스플릿 스탠스 슬램 (큰 공)",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 10,
+        "title": "힌지 오버더톱 슬램 (큰 공)",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 11,
+        "title": "드롭스텝 → 회전 토스",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 12,
+        "title": "싱글렉 브로드 점프",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 13,
+        "title": "레터럴 셔플 스로우 (큰 공)",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 14,
+        "title": "스트레치 스로우 (큰 공)",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 15,
+        "title": "싱글렉 박스 점프",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 16,
+        "title": "크로스언더 메디신볼 회전 토스",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 17,
+        "title": "플라이오 푸시업",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 18,
+        "title": "인클라인 플라이오 푸시업",
+        "status": "human_next_approved"
+      },
+      {
+        "ordinal": 19,
+        "title": "스플릿 스탠스 스로우 (큰 공)",
+        "status": "human_pending"
+      },
+      {
+        "ordinal": 20,
+        "title": "메디신볼 턴 앤 번 숏풋",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 21,
+        "title": "스플릿 스탠스 발목 아이소메트릭 프레스",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 22,
+        "title": "톨닐링 메디신볼 오버헤드 스로우",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 23,
+        "title": "버티컬 점프",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 24,
+        "title": "와이드 스탠스 브로드 점프",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 25,
+        "title": "브로드 점프",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 26,
+        "title": "가속 포지션 아이소 홀드",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 27,
+        "title": "바벨 드롭-캐치(버티며 내리기)",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 28,
+        "title": "밴드 스피드 벤치 프레스",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 29,
+        "title": "케틀벨 스윙",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 30,
+        "title": "파트너 누워서 메디신볼 체스트 패스",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 31,
+        "title": "톨닐링 메디신볼 체스트 패스",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 32,
+        "title": "메디신볼 푸시 슬램",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 33,
+        "title": "오버헤드 메디신볼 슬램",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 34,
+        "title": "밴드 저항 폭발적 레터럴 런지",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 35,
+        "title": "레터럴 바운드 + 메디신볼 슬램",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 36,
+        "title": "레터럴 점프 스틱 랜딩",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 37,
+        "title": "연속 레터럴 바운드",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 38,
+        "title": "싱글렉 로우 포고 홉",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 39,
+        "title": "로우 포고 홉",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 40,
+        "title": "불가리안 스플릿 스쿼트 점프",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 41,
+        "title": "스피드 불가리안 스플릿 스쿼트",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 42,
+        "title": "밴드 보조 스쿼트 점프",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 43,
+        "title": "밴드 저항 스쿼트 점프 (에센트릭)",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 44,
+        "title": "덤벨 스쿼트 점프",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 45,
+        "title": "싱글렉 스냅다운",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 46,
+        "title": "더블렉 스냅다운",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 47,
+        "title": "뎁스 점프 투 박스",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 48,
+        "title": "싱글렉 뎁스 드롭",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 49,
+        "title": "뎁스 드롭",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 50,
+        "title": "박스 점프",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 51,
+        "title": "스피드 밴드 로우",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 52,
+        "title": "밴드 저항 데드리프트",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 53,
+        "title": "핀 스플릿 스쿼트",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 54,
+        "title": "펜들레이 로우",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 55,
+        "title": "밴드 보조 스플릿 스쿼트 점프",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 56,
+        "title": "밴드 보조 플라이오 푸시업",
+        "status": "not_human_reviewed"
+      },
+      {
+        "ordinal": 57,
+        "title": "박스 스쿼트",
+        "status": "not_human_reviewed"
+      }
+    ]
+  },
+  "remaining_categories_order": "코어·암케어·회복보강의 개별 전체 순서는 아직 복원되지 않음. 현 라이브러리에서 읽고 기록하되 검수 완료로 간주하지 않음.",
+  "rules": [
+    "오케이 후에만 다음 영상",
+    "메모만 입력하면 현재 영상 유지; 다음 진행 의사가 명확하면 다음으로",
+    "영상 시간대와 사용자 원문을 기록",
+    "제품/DB/영상/등록내용 수정 및 업로드/배포 보류",
+    "AI 후보를 사용자 승인이나 수정 확정으로 취급하지 않음",
+    "매 영상에 AI 편집/설명 검토 후보와 근거를 안내. 없으면 확인 범위 내 없다고 명시.",
+    "사용자 별도 지시 없는 후보는 수정하지 않음. 전체 검수 후 사용자 지시 항목만 작업 대상.",
+    "한국/미국/일본 출시 관련 안전 안내·효능 주장·권리·현지 표현 쟁점을 구분. 국가별 문구 차이는 필요 근거가 있을 때만 제안. 법률 적합성 전체 완료로 간주하지 않음.",
+    "전체 검수 종료 후 최종 변경안(기존/변경 제안/이유)을 사용자에게 제시하고 실제 수정 승인을 받은 뒤 작업. 메모 확정/다음 진행은 실제 수정 승인이 아님."
+  ],
+  "playback_rule": "유튜브 참고 영상은 현재 영상 자동 반복 설정. 직접 촬영 영상은 현 플레이어가 반복 미지원이므로 사용자 지시로 자동 반복 설정 생략(새 공통 플레이어 적용 전). 모든 다음 영상 이동은 사용자 승인 후.",
+  "title_rule": "원본 영상 제목의 핵심 의미(Explosive=폭발적 등)·운동 변형과 실제 동작을 한국어 제목에 대조. 원본 홍보성 효과 주장을 그대로 복사하지 않으며 변경안은 최종 승인 전 기록만.",
+  "research_rule": "매 운동마다 국내외 논문 원문·학회 지침을 검색하고 목적·동작·부하·세트·횟수·휴식을 대조해 수정안 제시. 연구 대상과 장비, 급성/장기 효과, 투구 전이의 적용 한계 구분. 출처는 검수 기록에 보관하고 제품 설명은 쉽게 작성. 실제 수정은 전체 검수 후 승인.",
+  "research_coverage_caution": "학술근거 절차는5번부터 강화.1~4번의 운동별 직접 학술 검토 완료를 소급 주장하지 않음. 이전 current가 덮어써져 과거 GPT 후보/원문 전체가 JSON에 남지 않은 것은 대화 복원 또는 미보존으로 표시.",
+  "filming_needed": [
+    {
+      "number": 1,
+      "category": "파워",
+      "title": "랜드마인 회전 펀치",
+      "available": "참고 영상만 있음",
+      "evidence": "라이브러리 촬영 전 · 참고 영상 표시",
+      "status": "촬영 필요"
+    },
+    {
+      "number": 2,
+      "category": "파워",
+      "title": "밴드 스피드 로테이션",
+      "status": "참고 영상만 있음",
+      "evidence": "화면: 촬영 전 · 참고 영상"
+    },
+    {
+      "number": 3,
+      "category": "파워",
+      "title": "박수 푸시업",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
+    },
+    {
+      "number": 4,
+      "category": "파워",
+      "title": "드롭 푸시업",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
+    },
+    {
+      "number": 5,
+      "category": "파워",
+      "title": "바벨 스피드 벤치 프레스",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
+    },
+    {
+      "number": 6,
+      "category": "파워",
+      "title": "랜드마인 펀치",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
+    },
+    {
+      "number": 7,
+      "category": "파워",
+      "title": "케이블 스피드 로테이션",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
+    },
+    {
+      "number": 8,
+      "category": "파워",
+      "title": "헤비 메디신볼 힌지 토스 (큰 공)",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
+    },
+    {
+      "number": 9,
+      "category": "파워",
+      "title": "스플릿 스탠스 슬램 (큰 공)",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
+    },
+    {
+      "number": 10,
+      "category": "파워",
+      "title": "힌지 오버더톱 슬램 (큰 공)",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
+    },
+    {
+      "number": 11,
+      "category": "파워",
+      "title": "드롭스텝 → 회전 토스",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
+    },
+    {
+      "number": 13,
+      "category": "파워",
+      "title": "레터럴 셔플 스로우 (큰 공)",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
+    },
+    {
+      "number": 14,
+      "category": "파워",
+      "title": "스트레치 스로우 (큰 공)",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
+    },
+    {
+      "number": 16,
+      "category": "파워",
+      "title": "크로스언더 메디신볼 회전 토스",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
+    },
+    {
+      "number": 19,
+      "category": "파워",
+      "title": "스플릿 스탠스 스로우 (큰 공)",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
+    }
+  ],
+  "filming_count": 15,
+  "owned_videos": [
+    12,
+    15,
+    17,
+    18
+  ],
+  "excluded": [
+    {
+      "title": "리버스 토 워크",
+      "category": "워밍업",
+      "reason": "김민 담당. 금윤호 검수·촬영 필요 집계에서 제외."
+    }
+  ],
+  "pending_ai_findings": [
+    {
+      "title": "전완 수피네이션 아이소메트릭 프레스",
+      "finding": "설명은 막대 끝 바닥 접촉과 팔꿈치 옆구리 고정. 확인한 영상 장면은 막대가 공중에 있고 팔을 앞으로 듦.",
+      "status": "AI 확인; 사용자 판정 전"
+    },
+    {
+      "title": "밴드 스탠딩 파이어 하이드런트",
+      "finding": "설명은 밴드를 발목 위에 착용. 확인한 영상은 무릎 부근 착용.",
+      "status": "AI 확인; 사용자 판정 전"
+    },
+    {
+      "title": "터키쉬 겟업",
+      "finding": "약 4초와 12초 장면에서 든 팔/케틀벨 상단 잘림. 전체화면에서도 관찰. 원본과의 대조는 미수행.",
+      "status": "AI 확인; 사용자 판정 전"
+    },
+    {
+      "title": "레터럴 박스 워크 + 푸시업",
+      "finding": "낮은 파란 받침 사용. 설명에 받침 위치/손 이동 순서 보완 후보.",
+      "status": "AI 후보; 사용자 판정 전"
+    },
+    {
+      "title": "싱글렉 브로드 점프",
+      "finding": "약 2~5초에서 같은 발 착지와 설명의 2초 멈춤 시범 확인 필요.",
+      "status": "미확정 확인 후보"
+    },
+    {
+      "title": "싱글렉 RDL 케틀벨 핸드 패스",
+      "finding": "약 5~10초의 전달 위치 및 지지발/반대 다리/골반 가시성 확인 후보.",
+      "status": "미확정 확인 후보"
+    },
+    {
+      "title": "리스트 익스텐션 에센트릭 오버로드",
+      "finding": "반대 손으로 올리고 한 손으로 내리는 순서 및 설명의 3~5초 내리기와 실제 속도 확인 후보.",
+      "status": "미확정 확인 후보"
+    }
+  ],
+  "legal_review": {
+    "KR": "안전·효능·영상권리 쟁점 검토 후보;국가별 최종 문구 미확정",
+    "US": "효능·안전 주장 및 권리 검토 후보;김민 담당 최종 판단 미확인",
+    "JP": "효능·안전 주장 및 권리 검토 후보;국가별 최종 문구 미확정",
+    "official_sources": [
+      "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance",
+      "https://www.caa.go.jp/policies/policy/representation/fair_labeling/representation_regulation/misleading_representation",
+      "https://www.law.go.kr/법령/표시ㆍ광고의공정화에관한법률/제3조"
+    ],
+    "status": "법률 전체 적합성 확인 완료 아님. 개별19개 운동 국가별 최종 검토·참고영상 이용권 확인 미완료."
+  },
+  "sync_status": "로컬 문서 생성; 커밋·푸시·다른컴퓨터 수신 미확인",
+  "privacy": "계정·로컬 사용자 절대경로·서명URL·영상원본·개인건강정보 제외. 개인 이름은 담당 구분과 승인된경로에만 해당. 공개 YouTube ID와 학술/공식 URL만 포함.",
+  "implementation": "제품·DB·영상·설명 수정 없음. 플레이어는별도VP01 담당이며 이번복원으로 새발주 안함."
+}

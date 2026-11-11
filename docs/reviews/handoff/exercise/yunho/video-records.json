@@ -1,0 +1,743 @@
+[
+  {
+    "review_id": "EX-Y-P-001",
+    "ordinal": 1,
+    "category": "파워",
+    "title_at_review": "랜드마인 회전 펀치",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:6BDnA6TN1DI",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "반영하라는 뜻은 기록해두라는거야. 나중에 한번에 정리해서 작업하자.",
+    "user_requests_summary": {
+      "number": 1,
+      "category": "파워",
+      "title": "랜드마인 회전 펀치",
+      "requests": [
+        "시작 자세 설명을 영상의 가슴·어깨 가까이 잡는 위치와 일치",
+        "안전한 고정 장치·주변 공간·중단 안내 보완",
+        "효과 표현 근거 확인 또는 훈련 목적 중심 표현 검토"
+      ],
+      "user_instruction": "반영은 기록만 의미. 전체 검수 후 최종 변경안을 보여주고 수정 여부를 물은 뒤 작업.",
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-002",
+    "ordinal": 2,
+    "category": "파워",
+    "title_at_review": "밴드 스피드 로테이션",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:iNSlB1wDaaI",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "운동 설명도 팔을 사용한다는 전제인데 애초에 팔을 사용하지 않으니까 이부분도 수정이 필요해.",
+    "user_requests_summary": {
+      "number": 2,
+      "category": "파워",
+      "title": "밴드 스피드 로테이션",
+      "requests": [
+        "회전 파워를 기를 수 있습니다: 근거 확인 또는 훈련 목적 중심 문구로 검토",
+        "밴드를 두 손으로 잡고 가슴 앞에 둔다는 설명을 영상의 허리·골반 부착 방식과 일치시키기",
+        "팔로 밴드를 잡거나 당긴다는 전제의 전체 설명 수정: 시범은 팔로 밴드를 당기는 방식이 아님"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-003",
+    "ordinal": 3,
+    "category": "파워",
+    "title_at_review": "박수 푸시업",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:zmQ3D6BKyqE",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "이 부분 반영하는데 연속으로 해야된다는 설명도 필요할 거 같아.",
+    "user_requests_summary": {
+      "number": 3,
+      "category": "파워",
+      "title": "박수 푸시업",
+      "requests": [
+        "통증 발생 시 중단 안내와 기술 난이도 조절 안내 분리",
+        "플라이오 푸시업과의 불명확한 높이·힘 비교 표현을 동작 중심 설명으로 검토",
+        "착지 후 다음 반복으로 이어지는 연속 수행 설명 추가. 최종 문구에서 통증 시 중단 안내와 충돌하지 않도록 정리"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-004",
+    "ordinal": 4,
+    "category": "파워",
+    "title_at_review": "드롭 푸시업",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:-yRitniIZ4I",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "이름을 뎁스 드롭 플라이오 푸쉬업으로 바꿔야돼.",
+    "user_requests_summary": {
+      "number": 4,
+      "category": "파워",
+      "title": "드롭 푸시업",
+      "proposed_title": "뎁스 드롭 플라이오 푸쉬업",
+      "requests": [
+        "운동 이름을 사용자 지정 표기 뎁스 드롭 플라이오 푸쉬업으로 변경",
+        "원판이 밀리거나 흔들리지 않도록 하는 배치·바닥 상태 및 통증 시 중단 안내 보완",
+        "투구 후 팔·어깨 감속과 직접 연결하는 문구는 근거 확인 또는 훈련 목적 중심으로 정리",
+        "왜 필요한가에 플라이오의 목적 설명 추가: 착지를 받아 곧바로 밀어내는 빠른 전환과 탄성 활용을 설명하는 방향. 생리학적 설명·효과 단정은 최종 문구 작성 시 근거 확인"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ],
+    "normalization_note": "옛 메모의 next_video_approved=false는 당시 시점 값. 이후 사용자 다음 승인 및 완료 목록으로 갱신; 실제 적용 승인은 여전히 없음."
+  },
+  {
+    "review_id": "EX-Y-P-005",
+    "ordinal": 5,
+    "category": "파워",
+    "title_at_review": "바벨 스피드 벤치 프레스",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:LUYI-sD7RJo",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음으로",
+    "user_requests_summary": {
+      "number": 5,
+      "category": "파워",
+      "title": "바벨 스피드 벤치 프레스",
+      "requests": [
+        "추정1RM 약40~60%를 출발 범위로 개인 조절하는 중량 설명",
+        "휴식2~3분 기본 예시 및 회복 부족 시 연장; 1분 이내 고정 삭제",
+        "속도 저하를 중량 하나로 단정하지 않고 세트 종료 후 휴식·중량 조절 안내",
+        "통제 가능한 중량을 빠르게 밀어내는 상체 파워 훈련으로 목적 설명; 무거운 훈련 효과 부정 문구 정리"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/23900903/",
+        "https://pubmed.ncbi.nlm.nih.gov/27097306/",
+        "https://pubmed.ncbi.nlm.nih.gov/24665790/",
+        "https://acsm.org/resistance-training-guidelines-update-2026/"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-006",
+    "ordinal": 6,
+    "category": "파워",
+    "title_at_review": "랜드마인 펀치",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:n-jjDk5N7FI",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음으로",
+    "user_requests_summary": {
+      "number": 6,
+      "category": "파워",
+      "title": "랜드마인 펀치",
+      "requests": [
+        "시범 변형별 발 배치·몸통 회전 설명 구분",
+        "어깨 부담이 더 적다는 비교 단정 대신 바 궤도를 따라 앞·위로 미는 목적 설명",
+        "적합한 랜드마인 고정 장치·복귀 제어 안내",
+        "직접 촬영 시 양발·고정점까지 보이는 구도 확보"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/38834184/"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-007",
+    "ordinal": 7,
+    "category": "파워",
+    "title_at_review": "케이블 스피드 로테이션",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:Ypv4Olh1Sso",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음으로",
+    "user_requests_summary": {
+      "number": 7,
+      "category": "파워",
+      "title": "케이블 스피드 로테이션",
+      "requests": [
+        "발 기준·발과 골반 함께 회전하는 시범 설명 추가",
+        "하체·몸통을 연결해 저항에 맞서 빠르게 회전하는 훈련 목적으로 정리",
+        "빠른 회전과 제어된 복귀 가능한 중량 및 속도·자세 회복 후 다음 세트 기준 보완",
+        "끝에서 제어해 멈추고 무게에 끌리지 않게 천천히 복귀하는 설명"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/36223307/",
+        "https://pubmed.ncbi.nlm.nih.gov/30213227/",
+        "https://researchprofiles.canberra.edu.au/en/publications/the-reliability-of-a-rotational-power-assessment-of-the-core/"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-008",
+    "ordinal": 8,
+    "category": "파워",
+    "title_at_review": "헤비 메디신볼 힌지 토스 (큰 공)",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:zPaIUkm3yXg",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "제목 맞춰야되는 것도 기억해둬.",
+    "user_requests_summary": {
+      "number": 8,
+      "category": "파워",
+      "title": "헤비 메디신볼 힌지 토스 (큰 공)",
+      "requests": [
+        "원본 제목 Explosive의 폭발적 의미를 우리 제목에 반영하는 제목안 마련",
+        "앞으로/뒷엉덩이를 양발 지지·위쪽 토스 시범에 맞춰 정리",
+        "고관절·무릎 폄과 몸통·팔 연결 훈련 목적으로 설명, 근육 이분법·투구 전이 단정 정리",
+        "빠르게 통제 가능한 공 선택 및 같은 공·같은 방식 측정 기준 안내"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/22706576/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC3761701/"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-009",
+    "ordinal": 9,
+    "category": "파워",
+    "title_at_review": "스플릿 스탠스 슬램 (큰 공)",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:EsXd8_luoKE",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음으로",
+    "user_requests_summary": {
+      "number": 9,
+      "category": "파워",
+      "title": "스플릿 스탠스 슬램 (큰 공)",
+      "requests": [
+        "슬램의 거리 측정 대신 같은 공·자세에서 속도·균형·제어 확인 안내",
+        "앞다리 무너지면 힘 샌다는 단정 대신 앞뒤 지지 자세에서 균형 유지하며 빠르게 내려치는 목적 설명; 무릎 완전고정 의미 방지",
+        "슬램용 공·반발 특성·낙하지점·주변 공간 안내",
+        "직접 촬영 시 앞무릎 확인 가능한 측면 구도 보완"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/39157018/"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-010",
+    "ordinal": 10,
+    "category": "파워",
+    "title_at_review": "힌지 오버더톱 슬램 (큰 공)",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:pTETZevHKyE",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "영상을 잘 보면 발을 내딛지는 않고 제자리에서 돌리면서 방향을 투구처럼 전환하고 슬램하는 모습을 보이고 있어.",
+    "user_requests_summary": {
+      "number": 10,
+      "category": "파워",
+      "title": "힌지 오버더톱 슬램 (큰 공)",
+      "requests": [
+        "사용자 시범 확인 정정: 발 내딛기 아님. 제자리에서 발과 몸을 돌려 투구처럼 방향 전환 후 슬램하는 설명 반영",
+        "공의 시작 위치와 백스윙 설명을 시범에 맞춰 구분",
+        "고관절·제자리 방향전환·몸통·팔 연결 훈련 목적으로 설명; 힘이 샌다는 단정 정리",
+        "슬램에 맞게 거리 측정 문구 정리 및 공 적합성·반발·공간 안내"
+      ],
+      "rejected_ai_observation": "앞으로 발 내딛기·스텝 설명은 AI 오판으로 폐기",
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://cdn.uksca.org.uk/assets/pdfs/UkscaIqPdfs/ascc-assessment-pas-technical-model-scenario-1-637672394042677573.pdf"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-011",
+    "ordinal": 11,
+    "category": "파워",
+    "title_at_review": "드롭스텝 → 회전 토스",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:0HueFcop3N4",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "드롭스탭이라는 말에 맞게 대각선으로 빼는게 아니라 제자리에서 드롭스탭을 하는 거라는 걸 설명에 반영하고 너가 말한 거 반영해서 다음으로",
+    "user_requests_summary": {
+      "number": 11,
+      "category": "파워",
+      "title": "드롭스텝 → 회전 토스",
+      "requests": [
+        "사용자 확인: 대각선으로 발 빼기 아님. 제자리 드롭스텝으로 설명 정정",
+        "메디신볼 포함 제목안 및 벽 기준 시작 방향·지지·회전 순서 명확화",
+        "체중 이동·골반·몸통 회전을 투척에 연결하는 훈련 목적 설명; 구속 상관을 인과로 확대 금지",
+        "벽 투척에 맞는 측정 설명과 공·벽·반발 공간 안내"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/34570055/"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-012",
+    "ordinal": 12,
+    "category": "파워",
+    "title_at_review": "싱글렉 브로드 점프",
+    "media": {
+      "kind": "owned",
+      "safe_identifier": "owned:title:싱글렉 브로드 점프",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "2초 버티는 건 영상만 그런 거고 설명은 유지해.",
+    "user_requests_summary": {
+      "number": 12,
+      "category": "파워",
+      "title": "싱글렉 브로드 점프",
+      "requests": [
+        "효과 설명을 한 발로 앞으로 밀어내고 같은 발로 착지를 제어하는 데 집중하는 운동으로 정리",
+        "2초 버티기 설명은 사용자 지시로 유지. 영상 시범의 정지 보완 대상으로 기록",
+        "착지 발·무릎·몸통 충분히 보이도록 촬영 구도 보완"
+      ],
+      "preserve": [
+        "착지 후 2초 정지 설명"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/37123275/",
+        "https://pubmed.ncbi.nlm.nih.gov/35959319/"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-013",
+    "ordinal": 13,
+    "category": "파워",
+    "title_at_review": "레터럴 셔플 스로우 (큰 공)",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:4ngqsUsk4Ho",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "저기서 말한 팔로 던질수 없다는 건 팔로만 던지기에는 무겁기 때문에 전신을 사용하게 된다는 거 같은데 설명이 너무 간추려진 거 같아.",
+    "user_requests_summary": {
+      "number": 13,
+      "category": "파워",
+      "title": "레터럴 셔플 스로우 (큰 공)",
+      "requests": [
+        "사용자 해석 반영: 팔로만 던지기엔 저항이 있어 전신을 연결해 쓰도록 하는 의도를 구체화. 셔플 이동·다리·골반·몸통·팔 연결을 설명하고 너무 무거운 공 선택 유도 금지",
+        "구속과 관계가 크다는 일반화 대신 이동을 회전 투척에 연결하는 목적 설명",
+        "같은 공·이동 거리·조건 측정 및 투척 공간·반발·회수 안내"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/42308802/"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-014",
+    "ordinal": 14,
+    "category": "파워",
+    "title_at_review": "스트레치 스로우 (큰 공)",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:uBCwX1sXvkE",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음 영상으로 넘어가자.",
+    "user_requests_summary": {
+      "number": 14,
+      "category": "파워",
+      "title": "스트레치 스로우 (큰 공)",
+      "requests": [
+        "하체 거의 안쓰고 발 그대로라는 설명을 무릎 들기·지지·체중이동·회전 시범에 맞춰 정리",
+        "공의 저항에 맞춰 하체·골반·몸통·팔 연결하는 목적 구체화",
+        "과도한 허리 꺾임과 정상적인 몸통 기울임 구분, 팔이 어깨 회전면에서 벗어난다는 인과 설명 정리"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/18296963/",
+        "https://pubmed.ncbi.nlm.nih.gov/30349837/"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-015",
+    "ordinal": 15,
+    "category": "파워",
+    "title_at_review": "싱글렉 박스 점프",
+    "media": {
+      "kind": "owned",
+      "safe_identifier": "owned:title:싱글렉 박스 점프",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음 영상으로 넘어가자.",
+    "user_requests_summary": {
+      "number": 15,
+      "category": "파워",
+      "title": "싱글렉 박스 점프",
+      "requests": [
+        "충격 없이/뛰는 힘만 표현을 착지 부담을 줄이며 한발 도약 연습으로 수정. 높이·방식별 차이 명시",
+        "안정 착지 가능하고 과도하게 무릎 끌어올릴 필요 없는 낮은 박스 기준",
+        "첫 문장에 한발 도약·두발 착지 명확화",
+        "박스 고정·미끄럼·공간 점검 추가, 걸어서 내려오기 유지"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/32187147/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC10204452/"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-016",
+    "ordinal": 16,
+    "category": "파워",
+    "title_at_review": "크로스언더 메디신볼 회전 토스",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:z1kyFUwt_ks",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음 영상으로 넘어가자.",
+    "user_requests_summary": {
+      "number": 16,
+      "category": "파워",
+      "title": "크로스언더 메디신볼 회전 토스",
+      "requests": [
+        "투척 방향 기준 교차 발·지지·체중이동·회전 순서 구체화",
+        "교차 디딤 이동을 골반·몸통 회전과 투척에 연결하는 훈련 목적 설명,구속 상관과 인과 구분",
+        "같은 공·스텝·거리 측정 및 발 걸림 공간·반발·회수 안내"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/34570055/"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-017",
+    "ordinal": 17,
+    "category": "파워",
+    "title_at_review": "플라이오 푸시업",
+    "media": {
+      "kind": "owned",
+      "safe_identifier": "owned:title:플라이오 푸시업",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음 영상으로 넘어가자.",
+    "user_requests_summary": {
+      "number": 17,
+      "category": "파워",
+      "title": "플라이오 푸시업",
+      "requests": [
+        "착지를 제어한 직후 다시 밀어내는 빠른 전환의 플라이오 목적 추가",
+        "상체·몸통이 함께 착지를 제어하는 설명",
+        "인클라인에서 전환 기준을 통증 없는 정렬·안정착지·빠른 재도약 유지로 구체화"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/21701289/",
+        "https://pubmed.ncbi.nlm.nih.gov/27193045/"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-018",
+    "ordinal": 18,
+    "category": "파워",
+    "title_at_review": "인클라인 플라이오 푸시업",
+    "media": {
+      "kind": "owned",
+      "safe_identifier": "owned:title:인클라인 플라이오 푸시업",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "다음 이동 승인",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음 영상으로 넘어가자.",
+    "user_requests_summary": {
+      "number": 18,
+      "category": "파워",
+      "title": "인클라인 플라이오 푸시업",
+      "requests": [
+        "손목·어깨 충격 작다는 단정 대신 손 높이로 상체 체중부하 조절하는 단계로 설명",
+        "착지 제어 직후 빠르게 다시 밀어내는 전환 목적 추가",
+        "충분한 손접촉면·고정된 받침 및 통증 없는 정렬·착지·빠른 반복 유지 시 높이 낮추는 기준"
+      ],
+      "status": "기록 확정; 실제 변경 미승인"
+    },
+    "gpt_candidates": [],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/21873902/",
+        "https://pubmed.ncbi.nlm.nih.gov/30284496/",
+        "https://pubmed.ncbi.nlm.nih.gov/27193045/"
+      ],
+      "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-019",
+    "ordinal": 19,
+    "category": "파워",
+    "title_at_review": "스플릿 스탠스 스로우 (큰 공)",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:IaKpCClc3VE",
+      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+    },
+    "human_review_status": "사용자 판단 대기",
+    "content_application_authorized": false,
+    "applied": false,
+    "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
+    "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
+    "user_instruction_verbatim_excerpt": null,
+    "user_requests_summary": null,
+    "gpt_candidates": [
+      "앞무릎 앞으로 밀리지 않기 문구를 무릎 완전고정/발끝 넘기 금지로 해석되지 않게 수정: 앞발 지지·균형·무릎 방향 제어 중심",
+      "골반 먼저 가슴 늦게를 과도한 비틀림·의도적 지연 지시로 읽지 않도록 자연스러운 연결·타이밍 설명. 현재 변형이 실제투구 차례만 분리한다는 단정 완화",
+      "큰공 팔로 던질수 없다는 축약을 공 저항에 맞춘 하체·골반·몸통·팔 연결 목적 및 빠르게 통제 가능한 공 기준으로 구체화",
+      "같은 공·자세·거리 측정 및 벽/반발/공간 안내"
+    ],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/39157018/",
+        "https://pubmed.ncbi.nlm.nih.gov/30213227/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC9497503/"
+      ],
+      "limitations": "실제투구 앞무릎·분절순서 연구와 다른 종목 스플릿스탠스 가슴패스는 현재변형 효과·3x5/90초 최적값 직접입증 아님. 국내 검색 직접 원저 미확인."
+    },
+    "unresolved": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  }
+]

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "work_id": "REVIEW-SYNC-20261111",
+  "prepared_on": "2026-11-11",
+  "sources": [
+    {
+      "source_id": "canonical_local_record",
+      "filename": "mechanics-video-review.json",
+      "last_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
+      "sha256": "f2a6a53d54cbcfe1fdf3c54a579a12031ea50fbf38e65f07d8c8007b01516c50",
+      "preserved_outside_repository": true
+    },
+    {
+      "source_id": "legacy_local_record",
+      "filename": "mechanics-videos-2026-11-09.json",
+      "last_modified_at_kst": "2026-11-09T23:34:52.391137+09:00",
+      "sha256": "9a7b63c00ece3f38af02247f9c7d0f4ac820bf548636576d0122b262d469c8d8",
+      "preserved_outside_repository": true
+    }
+  ],
+  "local_source_locations": "원본 절대 경로는 공개 저장소에 넣지 않고 이 부서 채팅 납품 보고에만 기재. 원본 두 파일 보존.",
+  "source_precedence": "120개 queue·고유 검수 ID·최신 규칙이 있는 mechanics-video-review.json을 기준으로, 이전 파일은 완료0/수정0/첫영상 일치 대조만 사용.",
+  "source_reconciliation": {
+    "same_current_title": true,
+    "same_completed": true,
+    "same_user_requests": true,
+    "same_assistant_candidates_count": true
+  },
+  "coverage": {
+    "catalog_entries": 120,
+    "current_video_records": 1,
+    "completed_by_user": 0,
+    "user_change_requests": 0,
+    "assistant_video_candidates": 9,
+    "assistant_general_candidates": 1,
+    "past_gpt_review_report_only": {
+      "titles_descriptions_read": 120,
+      "own_video_key_scenes": 15,
+      "reference_video_partial_scenes": 6,
+      "new_verification": false,
+      "note": "과거 보고 범위. 이번 작업은 원본 검수 메모 복원만 하며 새 재현/완료/전수검수로 계산하지 않음."
+    }
+  },
+  "source_times": "mtime은 실제 파일 수정 시각이고 사용자 판정 시각을 의미하지 않음. 원본에 없는 개별 이벤트 시각은 null.",
+  "identifiers": "공개 운영 콘텐츠의 제목·분류·검수ID·서명 없는 파일 식별자만 포함. 실제 계정 ID·로그인 정보·임시 서명 주소 없음.",
+  "public_links": [
+    "https://dugout-baseball.com/library/mechanics"
+  ],
+  "source_urls_for_country_legal_claims": [],
+  "legal_claims_verified_on_handoff": false
+}
