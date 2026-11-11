@@ -44,3 +44,18 @@
 ## 맥북 최초 수신
 
 이미 공유된 정상 checkout에서 기존 담당 세션이 `git fetch origin` 후 `git show origin/main:AGENTS.md`와 `git show origin/main:docs/reviews/handoff/README.md`를 읽어 새 규칙을 적용한다. 아직 로컬에 도구가 없고 전체 pull이 다른 미완료 변경과 충돌하면 원격의 검수 도구만 저장소 밖 임시 파일로 받아 해당 저장소를 현재 폴더로 두고 receive를 실행한다. 원격에도 도구가 없으면 도구 준비 중으로 알리고 기록을 git show로 읽기만 한다. 원격의 변경을 무조건 실행하거나 전역 초기화하지 않는다. 최신 검수용 도구가 공개·검사된 ref임을 확인한다. 맥북에서 실제 fetch/receive를 확인하기 전에는 초기 설치·수신 완료가 아니다.
+
+## 동기화 도구 검증과 실행
+
+`python3 scripts/video-review-sync-selftest.py`는 임시 bare 원격과 두 checkout으로 24개 검사를 통과했다. 다른 제품 코드·현재 HEAD·실제 index 보존, 원격 동시 변경, 양쪽 메모 충돌, 삭제 미전파, 오프라인, 안전 경로·민감정보 패턴·심볼릭 링크·알려진 패치노트 hook 범위를 확인했다. 물리적 맥북 수신 검증과 구분한다. Python 3.9 이상이며 새 패키지는 필요 없다.
+
+각 세션이 자기 파트 파일만 고를 때의 예:
+
+```sh
+python3 scripts/video-review-sync.py receive --paths docs/reviews/handoff/exercise/yunho/checkpoint.json docs/reviews/handoff/exercise/yunho/video-records.json docs/reviews/handoff/exercise/yunho/RESUME.txt
+python3 scripts/video-review-sync.py publish --reviewed-public-safe --paths docs/reviews/handoff/exercise/yunho/checkpoint.json docs/reviews/handoff/exercise/yunho/video-records.json docs/reviews/handoff/exercise/yunho/RESUME.txt
+```
+
+메커니즘 담당은 `mechanics/yunho/`의 checkpoint.json, video-records.json, provenance.json, README.md를 지정한다. 기본값은 두 파트 전체이므로 publish 시에는 양쪽 내용을 실제로 확인했을 때만 기본값을 쓴다. `check`와 `--dry-run`은 원격을 읽어 계획만 확인하며 기록은 바꾸지 않는다. `status`는 캐시만 보므로 최신 원격 수신의 증거가 아니다.
+
+충돌 exit 2는 양쪽 기록을 보존해 조율한다. exit 3은 경로·형식·안전 거부, 4는 통신 또는 전송 결과 미확인, 5는 Git/입출력 오류다. 자동 초기화·덮어쓰기·무한 재시도는 하지 않는다. 파일별 교체는 원자적이나 여러 파일 전체의 원자적 교체는 아니므로 중간 실패 시 상태를 확인한다. 일반 편집기와 원격 컴퓨터를 강제로 잠그지 않으며 원격 자체 권한을 만들어 주는 도구도 아니다.
