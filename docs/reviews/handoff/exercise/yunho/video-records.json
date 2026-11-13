@@ -587,6 +587,17 @@
         {
           "status": "Updated and read back stop-condition wording in library: prescribed repetitions remain target; listed form or speed issue during exercise stops current set.",
           "at_utc": "2026-11-13T11:16:04.689296+00:00"
+        },
+        {
+          "status": "Pitching rationale revised and saved, read back, human review pending.",
+          "why_after": "투구에서는 짧은 시간에 상체와 팔을 빠르게 움직이며 힘을 내는 능력이 중요합니다.\n\n이 운동은 자세를 유지하면서 바벨을 빠르게 밀어 올려, 상체로 짧은 시간에 힘을 내는 능력을 기르는 데 도움이 됩니다.",
+          "sources": [
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC11239729/",
+            "https://pubmed.ncbi.nlm.nih.gov/38125451/"
+          ],
+          "limits": "Related power and baseball resistance studies do not demonstrate this particular exercise directly increases pitching velocity, or establish 6x3/3 min as optimal. 40–60% is a starting range, individually adjusted.",
+          "filming": "Reference only; filming needed.",
+          "at_utc": "2026-11-13T11:17:34.510962+00:00"
         }
       ]
     },
