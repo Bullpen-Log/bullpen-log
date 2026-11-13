@@ -4,6 +4,10 @@
 
 The checkpoint contains the current detailed exercise-review writing, terminology, evidence, footage, country review, playback and handoff rules adapted to mechanics. Explain drills in plain Korean for first-time learners with numbered preparation, movement and finish/safety; keep terminology consistent. Distinguish direct and indirect evidence and flag obscured footage or missing owned video. Within existing authorization, save and read back necessary title/description corrections before human review. Collect media editing requests through all videos and handle together after review; media replacement, deletion and upload require separate specific direction. Preserve current item and advance only at the user's direction.
 
+## Lead-leg review principle
+
+For relevant drills, the checkpoint records a plain-language front-foot and lead-leg cue, individual-variation limits and two pitching-study references. Treat springing as an analogy, not literal rebound; do not mandate a locked knee or zero pelvic movement. Check each drill and the sources before applying the cue; do not infer a specific drill improves velocity. No blanket content changes.
+
 ## Current setup: 2026-11-13
 
 Current item **1/120: 스텝백 스로우 드릴**, completed0 and user requests0 preserved. Production shared player displayed the same owned clip and description, played it, and showed **loop ON**. No repeat-end wait or new content review. Right-panel opening is queued because this chat is hidden; actual user-panel exposure is unverified.
