@@ -820,6 +820,29 @@
         {
           "status": "Updated and read back stop-condition wording in library: prescribed repetitions remain target; listed form or speed issue during exercise stops current set.",
           "at_utc": "2026-11-13T11:16:04.689296+00:00"
+        },
+        {
+          "at_utc": "2026-11-13T11:22:04.993968+00:00",
+          "status": "Full metadata checked in admin form, rest 90 to 180 seconds saved and read back, why-needed clarified and left/right dose semantics added.",
+          "metadata": {
+            "bodyParts": [
+              "코어",
+              "고관절",
+              "전신"
+            ],
+            "intensity": "높음",
+            "difficulty": "중급",
+            "equipment": [
+              "케이블"
+            ],
+            "sets": 3,
+            "reps": 5,
+            "holdSeconds": null,
+            "restSeconds": 180,
+            "perSide": true
+          },
+          "source": "https://pubmed.ncbi.nlm.nih.gov/19204579/",
+          "limits": "General power-training starting prescription; no exact exercise optimal dose claim. Shared intensity helper text and equipment display label require code work EX-RX01. Human full metadata approval pending."
         }
       ]
     },

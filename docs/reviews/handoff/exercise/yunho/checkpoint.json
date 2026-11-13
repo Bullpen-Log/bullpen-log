@@ -13,12 +13,12 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-005",
-  "current_title": "바벨 스피드 벤치 프레스",
+  "current_review_id": "EX-Y-P-007",
+  "current_title": "스탠딩 케이블 익스플로시브 로테이션",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User requested next from depth drop; barbell speed bench press awaits user review."
+    "meaning": "Restart from first and review all admin metadata and defaults; implement personal targets and user edits."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -651,25 +651,18 @@
     }
   ],
   "reverification": {
-    "start": 1,
-    "target_inclusive": 21,
-    "completed_count": 4,
-    "current": 5,
-    "approved_items": [
-      "EX-Y-P-007",
-      "EX-Y-P-002",
-      "EX-Y-P-003",
-      "EX-Y-P-004"
-    ],
-    "user_sequence_first": "EX-Y-P-007",
-    "order": "Restart at cable; sequential next only with user. Historical ordinal is identity, not user display order. 20 other previously edited purposes revised; #9 purpose already revised."
+    "pass": "full metadata and dose review",
+    "completed_count": 0,
+    "current": 1,
+    "approved_items": [],
+    "order": "Cable first; next only on human approval"
   },
   "playback_observation": {
-    "item": "EX-Y-P-005",
+    "item": "EX-Y-P-007",
     "source": "REFERENCE",
     "loop_setting": "ON",
-    "actual_playback": "Reference playing; repeat cycle not checked",
-    "updated_at_utc": "2026-11-13T11:17:34.510962+00:00"
+    "actual_playback": "Playing; repeat cycle not checked",
+    "updated_at_utc": "2026-11-13T11:22:04.993968+00:00"
   },
   "equipment_terminology_review": {
     "scope": "21 previously edited exercise descriptions checked; 13 changed and DB readback verified; other library descriptions not yet comprehensively audited.",
@@ -685,5 +678,39 @@
     "scope": "15 exercises in reviewed power set with matching wording; remaining library has not been comprehensively checked.",
     "rule": "Prescribed repetitions are the target; stop the current set if specified form or speed issue occurs during execution. Pain guidance remains separate.",
     "updated_at_utc": "2026-11-13T11:16:04.689296+00:00"
+  },
+  "historical_review_passes": [
+    {
+      "start": 1,
+      "target_inclusive": 21,
+      "completed_count": 4,
+      "current": 5,
+      "approved_items": [
+        "EX-Y-P-007",
+        "EX-Y-P-002",
+        "EX-Y-P-003",
+        "EX-Y-P-004"
+      ],
+      "user_sequence_first": "EX-Y-P-007",
+      "order": "Restart at cable; sequential next only with user. Historical ordinal is identity, not user display order. 20 other previously edited purposes revised; #9 purpose already revised."
+    }
+  ],
+  "review_fields": [
+    "title",
+    "description",
+    "footage/editing",
+    "bodyParts",
+    "intensity",
+    "difficulty",
+    "equipment",
+    "sets",
+    "reps",
+    "holdSeconds",
+    "restSeconds",
+    "perSide"
+  ],
+  "personal_prescription_feature": {
+    "order": "docs/work-orders/EX-RX01.md",
+    "status": "Implementation order prepared, relay requested to department Claude; implementation not verified"
   }
 }
