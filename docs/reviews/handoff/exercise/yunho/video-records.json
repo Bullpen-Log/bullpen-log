@@ -1802,6 +1802,17 @@
             "https://pubmed.ncbi.nlm.nih.gov/17194236/"
           ],
           "limits": "Related research is indirect; dose and exercise-specific pitching effect not validated. Reference only; filming required."
+        },
+        {
+          "at_utc": "2026-11-13T12:00:11.653300+00:00",
+          "status": "User requested natural wording and backwards-step pitching connection; why-needed saved/read back.",
+          "before": "이 운동은 옆으로 이동한 뒤 발을 디디는 동작과 몸의 회전, 팔의 움직임을 연결해 빠르게 힘을 내는 능력을 기르는 데 도움이 됩니다.",
+          "after": "투구에서는 뒷다리로 바닥을 밀어 몸을 이동시키고, 앞발을 디딘 뒤 골반과 몸통의 회전을 팔의 던지는 움직임으로 이어갑니다.\n\n이 운동은 뒤로 스텝하며 만든 움직임을 발을 딛고 공을 던지는 동작으로 이어갑니다. 이를 통해 몸의 이동과 회전을 연결하며 빠르게 힘을 내는 능력을 기르는 데 도움이 됩니다.",
+          "sources": [
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC9532595/",
+            "https://pubmed.ncbi.nlm.nih.gov/39074186/"
+          ],
+          "limits": "Pitching mechanics do not establish direct pitching improvement from this specific exercise. Human review pending."
         }
       ]
     },
