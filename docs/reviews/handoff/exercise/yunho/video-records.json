@@ -874,6 +874,17 @@
           "limits": "Pitching observation and other medicine-ball throw variations are indirect; no proven pitching velocity effect or optimal dose for this specific slam.",
           "filming": "Reference only, filming needed; lateral view for front knee.",
           "at_utc": "2026-11-13T08:23:31.410500+00:00"
+        },
+        {
+          "user_instruction": "Remove how much ball bounces; explain front leg block, knee extension and connection to upper body in accessible language.",
+          "status": "Saved and read back; retained space and recovery guidance. How-to asks front foot pressure and supporting body without forced knee lock. Why section explains lead-leg braking during pitching, possible knee extension, and practice purpose of slam. User review pending.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/22344047/",
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC11329978/",
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC9532595/"
+          ],
+          "scientific_limit": "Observed lead-leg braking and knee-extension relationships are not proof of a unique cause or that static split-stance slam replicates pitch or improves velocity; avoid guaranteed rebound and forced knee extension.",
+          "at_utc": "2026-11-13T08:33:46.616077+00:00"
         }
       ]
     },
