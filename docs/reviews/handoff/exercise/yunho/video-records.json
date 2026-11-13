@@ -758,6 +758,16 @@
           "after_description": "■ 어떤 운동인가\r\n큰 메디신볼을 두 손으로 들고, 양발을 지지한 자세에서 고관절과 무릎을 빠르게 펴 메디신볼을 위쪽으로 던지는 운동입니다.\r\n\r\n■ 이렇게 하세요\r\n1. 메디신볼을 던질 공간과 천장 높이를 확인하고, 메디신볼이 떨어질 곳에 사람이나 물건이 없도록 합니다.\n2. 두 발을 나란히 벌리고 큰 메디신볼을 두 손으로 몸 앞에 듭니다.\n3. 무릎을 살짝 굽히고 엉덩이를 뒤로 보내며 메디신볼을 아래로 내립니다.\n4. 두 발로 바닥을 밀면서 무릎과 엉덩이를 빠르게 펴고, 몸과 팔을 함께 움직여 메디신볼을 위로 던집니다.\n5. 허리만 뒤로 심하게 젖히지 말고 던진 뒤 균형을 잡습니다. 메디신볼이 떨어지는 곳 바로 아래에 서거나 메디신볼을 무리하게 받지 않습니다.\n6. 속도가 느려지거나 자세가 흐트러지면 세트를 끝내고, 통증이 생기면 운동을 중단합니다.\n\n\r\n■ 투수에게 왜 필요한가\r\n하체로 지면을 밀며 고관절·무릎을 펴는 움직임을 몸통과 팔에 연결해 빠르게 힘을 내는 훈련입니다.\r\n\r\n투구에서도 하체와 몸통의 움직임을 팔의 동작과 연결하므로, 전신을 활용한 빠른 힘 발휘를 연습하는 데 활용할 수 있습니다.\r\n\r\n■ 강도\r\n빠르게 던지면서 자세를 제어할 수 있는 메디신볼을 선택합니다. 처음에는 동작을 익히고 이후 빠르게 수행합니다.\r\n\r\n기록을 비교할 때는 같은 메디신볼·시작 자세·던지는 방식·측정 방법을 유지합니다.",
           "status": "Saved and DB read back; user review pending.",
           "at_utc": "2026-11-13T07:08:46.832743+00:00"
+        },
+        {
+          "status": "Saved and read back beginner-friendly exercise summary and purpose, clear intensity choice, retained numbered steps and safety. Human review pending.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/34024247/",
+            "https://pubmed.ncbi.nlm.nih.gov/39074186/"
+          ],
+          "limits": "Backward overhead throw load-kinetics and rotational ball studies are different exercises; they do not establish exact load, rest or pitching velocity benefit for this video.",
+          "filming": "Reference only, filming needed.",
+          "at_utc": "2026-11-13T08:17:22.568571+00:00"
         }
       ]
     },
