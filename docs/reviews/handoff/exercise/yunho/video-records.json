@@ -756,7 +756,7 @@
       "kind": "reference_only",
       "safe_identifier": "youtube:Ae5Z4sRAyR0"
     },
-    "human_review_status": "사용자 판단 대기",
+    "human_review_status": "다음 이동 승인",
     "content_application_authorized": false,
     "applied": false,
     "gpt_candidates": [
@@ -774,9 +774,50 @@
       "limits": "대학 선수 메디신볼 밀기·찍기와 투구 비교 및 투구 관찰연구. 본 변형의 구속 향상이나 3×5/90초 최적값 직접 입증 아님."
     },
     "playback": "YouTube Shorts loop=true, paused=false 확인",
-    "user_requests_summary": null,
+    "user_requests_summary": {
+      "requests": [
+        "Shot Put은 포환던지기식 밀어 던지기 의미. 제목과 투척 방식 명확화",
+        "팔로 던질 수 없다는 표현은 저항에 맞춰 하체·몸통·팔 연결하는 의도로 구체화",
+        "앞다리로 몸을 멈춰야 한다는 단정 대신 앞발 지지·제어하며 회전·투척 연결",
+        "벽·반발·주변공간 안내 및 같은 공·동작 측정"
+      ],
+      "status": "기록만; 실제 수정 미승인"
+    },
     "unresolved": [
       "시작 방향·발 디딤·투척 방식 사용자 판단 대기",
+      "국가별 법률/영상권리 검토 미완료"
+    ],
+    "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음 영상으로 넘어가자."
+  },
+  {
+    "review_id": "EX-Y-P-021",
+    "ordinal": 21,
+    "category": "파워",
+    "title_at_review": "스플릿 스탠스 발목 아이소메트릭 프레스",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:bOotAuEkAYs"
+    },
+    "human_review_status": "사용자 판단 대기",
+    "content_application_authorized": false,
+    "applied": false,
+    "gpt_candidates": [
+      "영상의 랙 구조물과 발 접촉 방향이 가려짐: 설명의 앞발로 벽을 미는 방식 일치 여부 확인",
+      "관절 부담 적게라는 비교 단정은 직접 근거 부족: 자세 유지하며 저항에 힘을 주는 훈련 목적 중심으로 설명",
+      "RSIST 원본 제목과 장비 차이를 확인. 현재 맨몸·벽 설명과 시범 장비 일치 여부 확인",
+      "3세트10초/90초 최적 처방 직접 근거 미확인; 안정된 지지·통증 시 중단 안내 후보"
+    ],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/36978764/",
+        "https://www.mdpi.com/2076-3417/15/17/9666"
+      ],
+      "limits": "발목 각도와 등척성 힘 조절, 농구선수 복합 등척성 프로그램 연구. 현재 벽/랙 변형의 최적10초·90초·투구효과·관절부담 감소 직접 검증 아님."
+    },
+    "playback": "loop=true paused=false 확인",
+    "user_requests_summary": null,
+    "unresolved": [
+      "어느 발과 어느 면이 고정물에 닿는지 사용자 확인",
       "국가별 법률/영상권리 검토 미완료"
     ]
   }
