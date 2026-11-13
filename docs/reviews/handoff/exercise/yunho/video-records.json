@@ -696,6 +696,12 @@
           ],
           "evidence_limit": "Pitching and medicine-ball studies do not establish this exact slam improves pitching performance or validate an optimal prescribed dose.",
           "at_utc": "2026-11-13T06:56:04.838264+00:00"
+        },
+        {
+          "user_instruction": "Explain the phrase about locking the front knee in simpler language.",
+          "after": "앞쪽 무릎을 억지로 끝까지 펴지 말고 자연스럽게 움직입니다. 무릎이 발끝 방향을 따라가도록 하며 균형을 유지하세요.",
+          "status": "Saved to production admin and read back; current video remains awaiting user review.",
+          "at_utc": "2026-11-13T06:58:15.458772+00:00"
         }
       ]
     },
