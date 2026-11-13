@@ -13,12 +13,12 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-012",
-  "current_title": "싱글렉 브로드 점프",
+  "current_review_id": "EX-Y-P-013",
+  "current_title": "레터럴 셔플 스로우 (큰 공)",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User requested next from drop step; single-leg broad jump awaits user review."
+    "meaning": "User requested next from single leg broad jump; lateral shuffle throw awaits user."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -652,8 +652,8 @@
   ],
   "reverification": {
     "pass": "full metadata and dose review",
-    "completed_count": 10,
-    "current": 11,
+    "completed_count": 11,
+    "current": 12,
     "approved_items": [
       "EX-Y-P-007",
       "EX-Y-P-002",
@@ -664,16 +664,17 @@
       "EX-Y-P-008",
       "EX-Y-P-009",
       "EX-Y-P-010",
-      "EX-Y-P-011"
+      "EX-Y-P-011",
+      "EX-Y-P-012"
     ],
     "order": "Cable first; next only on human approval"
   },
   "playback_observation": {
-    "item": "EX-Y-P-012",
-    "source": "OWNED",
-    "loop_setting": "ON (player default, not required for owned)",
+    "item": "EX-Y-P-013",
+    "source": "REFERENCE",
+    "loop_setting": "ON",
     "actual_playback": "Playing; repeat cycle not checked",
-    "updated_at_utc": "2026-11-13T11:55:39.541991+00:00"
+    "updated_at_utc": "2026-11-13T11:57:27.722067+00:00"
   },
   "equipment_terminology_review": {
     "scope": "21 previously edited exercise descriptions checked; 13 changed and DB readback verified; other library descriptions not yet comprehensively audited.",

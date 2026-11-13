@@ -1776,6 +1776,32 @@
         {
           "status": "Updated and read back stop-condition wording in library: prescribed repetitions remain target; listed form or speed issue during exercise stops current set.",
           "at_utc": "2026-11-13T11:16:04.689296+00:00"
+        },
+        {
+          "at_utc": "2026-11-13T11:57:27.722067+00:00",
+          "status": "Pitching direction, purpose, beginner terminology and stop cue revised; rest 90 to 180 sec, perSide true to false; saved/readback verified; human review pending.",
+          "metadata": {
+            "bodyParts": [
+              "코어",
+              "고관절",
+              "전신"
+            ],
+            "intensity": "높음",
+            "difficulty": "상급",
+            "equipment": [
+              "메디신볼"
+            ],
+            "sets": 3,
+            "reps": 5,
+            "holdSeconds": null,
+            "restSeconds": 180,
+            "perSide": false
+          },
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/38125451/",
+            "https://pubmed.ncbi.nlm.nih.gov/17194236/"
+          ],
+          "limits": "Related research is indirect; dose and exercise-specific pitching effect not validated. Reference only; filming required."
         }
       ]
     },
