@@ -906,6 +906,16 @@
           ],
           "limits": "Observed baseball pitcher braking and different medicine ball exercises are indirect; no established direct pitch transfer or velocity improvement for this slam.",
           "at_utc": "2026-11-13T08:40:41.824387+00:00"
+        },
+        {
+          "user_instruction": "Remove sentence saying this drill differs from pitching foot plant; explain connection to rapid upper-body movement.",
+          "status": "Saved and read back. Purpose is training intent with planted lead foot and rapid trunk and arm movement, not a claimed guaranteed pitching effect.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/39074186/",
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC9532595/"
+          ],
+          "limits": "Related pitching and other medicine-ball studies are indirect; stationary slam may not reproduce pitching mechanics or directly improve velocity.",
+          "at_utc": "2026-11-13T08:44:39.855442+00:00"
         }
       ]
     },
