@@ -13,18 +13,16 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-001",
-  "current_title": "랜드마인 회전 펀치",
+  "current_review_id": "EX-Y-P-007",
+  "current_title": "케이블 스피드 로테이션",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "verbatim": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
-    "meaning": "Actual content-edit permission for previously directed #1–21 and explicit restart at #1; not approval of new AI proposals."
+    "verbatim": "첫번째는 케이블 스피드로테이션인데 이것부터 계속하자. 무엇을 수정했는지 수정사항까지 다 말해줘.",
+    "meaning": "User corrected restart order: Cable Speed Rotation is first; viewing and re-verification pending, no next approval."
   },
   "next_after_approval": {
-    "ordinal": 2,
-    "title": "밴드 스피드 로테이션",
-    "status": "Open only after user says next/okay on #1"
+    "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
   },
   "order": {
     "basis": "이 대화에서 관찰한 파워57개 라이브러리 순서. 재개 시 실제 목록 변경 여부 대조; 새로 검수한 목록 아님.",
@@ -599,16 +597,17 @@
     "start": 1,
     "target_inclusive": 22,
     "completed_count": 0,
-    "current": 1,
+    "current": 7,
     "pending_unmodified": 22,
-    "order": "Historical review order, not current library card order; site list reshuffled after saves."
+    "order": "User corrected first item to 케이블 스피드 로테이션; follow displayed library order as user confirms. Historical review_id/ordinal retained for identity, not current position.",
+    "user_sequence_first": "EX-Y-P-007"
   },
   "playback_observation": {
-    "item": "EX-Y-P-001",
-    "route": "production /library/training inline detail",
+    "item": "EX-Y-P-007",
+    "route": "production library detail, selected from library",
     "source": "REFERENCE",
-    "loop_setting": "YouTube continuous replay switch observed ON",
-    "actual_playback": "pause control and elapsed6/13 observed, then controls hidden",
-    "new_player_rollout": "owned by Sub1; this session has not verified deployment/local new-player route"
+    "loop_setting": "shared player loop ON",
+    "actual_playback": "elapsed 6 seconds; player shows pause control",
+    "updated_at_utc": "2026-11-13T06:21:25.511498+00:00"
   }
 }
