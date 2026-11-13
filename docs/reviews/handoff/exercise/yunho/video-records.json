@@ -1939,6 +1939,22 @@
     },
     "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ],
+    "resume_observations": [
+      {
+        "at_utc": "2026-11-13T12:57:43.899629+00:00",
+        "playback": {
+          "item": "EX-Y-P-014",
+          "source": "REFERENCE",
+          "loop_setting": "ON",
+          "actual_playback": "Playing after restart; current time advanced to 4 seconds. Repeat cycle not checked.",
+          "updated_at_utc": "2026-11-13T12:57:43.899629+00:00"
+        },
+        "current_display_verified": "Title, description and metadata match last saved full metadata review: core/hip/full body; high/intermediate; medicine ball; 3x5; rest180; own pitching direction.",
+        "changes_this_resume": [],
+        "human_reverification": "pending",
+        "filming": "required; reference-only"
+      }
     ]
   },
   {

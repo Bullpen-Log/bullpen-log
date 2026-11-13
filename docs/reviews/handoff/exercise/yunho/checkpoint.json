@@ -674,8 +674,8 @@
     "item": "EX-Y-P-014",
     "source": "REFERENCE",
     "loop_setting": "ON",
-    "actual_playback": "Playing; repeat cycle not checked",
-    "updated_at_utc": "2026-11-13T12:05:25.140441+00:00"
+    "actual_playback": "Playing after restart; current time advanced to 4 seconds. Repeat cycle not checked.",
+    "updated_at_utc": "2026-11-13T12:57:43.899629+00:00"
   },
   "equipment_terminology_review": {
     "scope": "21 previously edited exercise descriptions checked; 13 changed and DB readback verified; other library descriptions not yet comprehensively audited.",
@@ -727,5 +727,12 @@
     "status": "Implementation order prepared, relay requested to department Claude; implementation not verified"
   },
   "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits.",
-  "pitching_direction_rule": "For similar pitching-direction drills explain perform in user pitching rotation direction; review each movement and distinguish bilateral training before changing settings."
+  "pitching_direction_rule": "For similar pitching-direction drills explain perform in user pitching rotation direction; review each movement and distinguish bilateral training before changing settings.",
+  "latest_resume": {
+    "at_utc": "2026-11-13T12:57:43.899629+00:00",
+    "item": "EX-Y-P-014",
+    "meaning": "User resumed video review after implementation dispatch; current item restored, no next approval inferred.",
+    "content_change_this_resume": false,
+    "human_review": "pending"
+  }
 }
