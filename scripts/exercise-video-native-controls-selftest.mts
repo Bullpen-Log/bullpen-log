@@ -47,10 +47,11 @@ function production(path: string) {
   }, testModule, testModule.exports);
   return testModule.exports;
 }
-const { ExerciseVideoControls } = production('native/src/workout/exercise-video-controls.tsx');
+const { ExerciseVideoControls, EXERCISE_VIDEO_RATES } = production('native/src/workout/exercise-video-controls.tsx');
 const events: unknown[][] = [];
-const props = { c: { link: '#00aaff' }, playing: true, ready: true, duration: 20, time: 3, loop: true, rate: 1, rates: [0.5,1],
-  onToggle() {}, onRate() {}, onExpand() {}, onLoop() {}, onStep() {},
+const selectedRates: number[] = [];
+const props = { stageTapControls: true, c: { link: '#00aaff' }, playing: true, ready: true, duration: 20, time: 3, loop: true, rate: 1, rates: EXERCISE_VIDEO_RATES,
+  onToggle() {}, onRate(r: number) { selectedRates.push(r); }, onExpand() {}, onLoop() {}, onStep() {},
   onScrubStart: () => events.push(['start']), onScrubDraft: (t: number) => events.push(['draft', t]),
   onScrubEnd: (...args: unknown[]) => events.push(['end', ...args]),
 };
@@ -73,7 +74,7 @@ check(tree.props.style.left === 0 && tree.props.style.right === 0 && tree.props.
 check(!find(tree, (n) => n.type === 'View' && n.props?.style?.backgroundColor === 'rgba(0,0,0,0.28)'), 'R3 no translucent backing behind rail or icons');
 const play = find(tree, (n) => n.type === 'Press' && n.props?.accessibilityLabel === '영상 일시정지');
 const expand = find(tree, (n) => n.type === 'Press' && n.props?.accessibilityLabel === '크게 보기');
-check(play.props.style[0].width === 44 && play.props.style[1].alignItems === 'flex-start' && expand.props.style[1].alignItems === 'flex-end', 'R3 outer glyph alignment retains separate 44pt button targets');
+check(!play && expand.props.style[0].width === 32 && expand.props.style[0].height === 44 && slider.props.style[1].marginLeft === 24, 'R4 no left toggle, separate compact targets and screen-edge scrub inset');
 check(slider.props.style[0].marginHorizontal === undefined, 'R3 bar takes the freed margins between controls');
 check(!find(tree, (n) => n.type === 'Text' && /\d+:\d+/.test(String(n.props.children))), 'no visual elapsed/total line');
 pan!.onBegin({ x: 40 }); pan!.onUpdate({ x: 80, numberOfPointers: 1 }); pan!.onFinalize({ x: 120, canceled: false });
@@ -99,4 +100,9 @@ check(navCalls.length === 1 && navCalls[0].fullScreenGestureEnabled === false &&
 endA(); check(navCalls.length === 1, 'first player cleanup does not reenable another player route');
 endB(); check(navCalls.length === 2 && navCalls[1].fullScreenGestureEnabled === undefined, 'last focus cleanup restores native default');
 guardPlayerScreen(false); check(focus.shift()!() === undefined && navCalls.length === 2, 'no-media screen takes no navigation lease');
+for (const rate of [1, 1.25, 0.25, 0.5]) { props.rate = rate; tree = render(); find(tree, (n) => n.type === 'Press' && n.props?.accessibilityLabel === `재생 속도 ${rate}배, 바꾸기`).props.onPress(); }
+check(JSON.stringify(selectedRates) === '[1.25,0.25,0.5,1]', 'R4 actual rate callbacks cycle two slow steps and max1.25');
+at = 0;
+const externalTree = ExerciseVideoControls({ ...props, stageTapControls: false, overlay: false });
+check(find(externalTree, (n) => n.type === 'Press' && n.props?.accessibilityLabel === '영상 일시정지')?.props.style[0].width === 44, 'official provider external row retains explicit play and44pt targets');
 console.log(`native-control callbacks: ${passed} pass, 0 fail (mocked hooks/native primitives; no device validation)`);

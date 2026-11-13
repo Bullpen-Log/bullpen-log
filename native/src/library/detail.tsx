@@ -180,16 +180,15 @@ function Description({ id, c }: { id: string; c: Palette }) {
 }
 
 /**
- * 시범 영상 자리 — 누르기 전에는 미리보기 그림만(영상 주소 · 받기 · 재생기 없음). 높이는 휴대폰 218 · 넓은 화면 320, 원래 비율 그대로 다 보이게.
+ * 시범 영상 자리 — 상세를 열면 공통 재생기를 붙여 자동 재생한다. 높이는 휴대폰 218 · 넓은 화면 320, 원래 비율 그대로 다 보이게.
  * 영상 경로도 참고 영상도 없으면 '영상 준비 중'(분류가 나중에 촬영이어도 영상이 있으면 튼다).
  */
 type MediaItem = Pick<Exercise, 'title' | 'videoPath' | 'referenceVideoId' | 'thumbUrl' | 'aspectRatio'>;
 export function DetailMedia({ item, c }: { item: MediaItem; c: Palette }) {
   const { width } = useWindowDimensions();
   const height = width >= 700 ? 320 : 218;
-  const [play, setPlay] = useState(false);
   const hasVideo = Boolean(item.videoPath || item.referenceVideoId);
-  if (play && hasVideo) return <ExerciseVideo path={item.videoPath} referenceVideoId={item.referenceVideoId} aspectRatio={item.aspectRatio} height={height} />;
+  if (hasVideo) return <ExerciseVideo path={item.videoPath} referenceVideoId={item.referenceVideoId} aspectRatio={item.aspectRatio} height={height} />;
   const thumb = item.thumbUrl ? <Thumb uri={item.thumbUrl} style={StyleSheet.absoluteFill} contentFit="contain" /> : null;
   if (!hasVideo)
     return (
@@ -202,15 +201,7 @@ export function DetailMedia({ item, c }: { item: MediaItem; c: Palette }) {
         </View>
       </View>
     );
-  return (
-    <Press onPress={() => setPlay(true)} accessibilityRole="button" accessibilityLabel={`${item.title} 시범 영상 재생`} style={[st.media, { height, backgroundColor: '#000' }]}>
-      {/* 미리보기만 없음 — 영상은 있어 재생된다. 글은 재생 표시와 겹치지 않게 아래에 */}
-      {thumb ?? <Text style={[s.small, st.noThumb, { color: 'rgba(255,255,255,0.7)' }]}>미리보기 없음</Text>}
-      <View style={st.mediaPlay}>
-        <Icon name="play" size={22} color="#fff" fill="#fff" />
-      </View>
-    </Press>
-  );
+  return null;
 }
 
 const st = StyleSheet.create({

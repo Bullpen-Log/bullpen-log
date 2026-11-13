@@ -17,7 +17,6 @@ import {
   seekRange,
   serializeCommand,
   stepTime,
-  supportedRates,
   youtubeErrorText,
   ytActiveForPause,
   ytSeekMayStart,
@@ -33,7 +32,7 @@ import { SITE_URL } from '~/lib/site';
 import { PALETTES, usePalette } from '~/lib/ui';
 import { Press } from '~/shell/press';
 import { activeExerciseVideo, nextVideoId } from './exercise-video-active';
-import { ExerciseVideoControls } from './exercise-video-controls';
+import { EXERCISE_VIDEO_RATES, ExerciseVideoControls } from './exercise-video-controls';
 import { useExerciseVideoLifecycle, useOffscreenPause, visibleFraction } from './exercise-video-visibility';
 
 /**
@@ -198,7 +197,7 @@ function YouTubeInner({ videoId, aspectRatio, height, gen, onRetry }: { videoId:
         readyRef.current = true;
         setReady(true);
         setDuration(m.duration > 0 ? m.duration : null);
-        setRates(supportedRates(m.rates));
+        setRates(EXERCISE_VIDEO_RATES.filter((r) => m.rates.includes(r)));
         setMuted(m.muted);
         // 첫 활성화(누른 뒤)지만 준비는 몇 초 뒤일 수 있다 — 그새 굴려 절반 이하로 보이면 스크립트로 틀지 않는다.
         tryPlay(false);

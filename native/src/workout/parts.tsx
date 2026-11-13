@@ -17,7 +17,7 @@ import { useDraftGuard } from '~/community/draft-guard';
 import { rememberNote } from '~/library/sync';
 import { useFavs } from '~/training/favorites';
 import { ExerciseVideoFullscreen } from './exercise-video-fullscreen';
-import { ExerciseVideoControls } from './exercise-video-controls';
+import { EXERCISE_VIDEO_RATES, ExerciseVideoControls } from './exercise-video-controls';
 import { activeExerciseVideo, nextVideoId } from './exercise-video-active';
 import { useExerciseVideoLifecycle, useExerciseVideoNavigationGuard, useOffscreenPause } from './exercise-video-visibility';
 import { YouTubeExerciseVideo } from './exercise-video-youtube';
@@ -431,7 +431,7 @@ function LibraryClip({ path, aspectRatio, height }: { path: string; aspectRatio:
 
 /*
  * 운동 영상(자체 영상) — VP01 기본 플레이어. 관리자 · 일반 사용자, 상세 · 운동 진행 · 암케어 · 워밍업 모두 같다.
- * 현재 영상 반복(토글 가능, 처음 켜짐) · 자체 영상 음소거 · 영상 한 번 탭으로 멈춤/재생 · 영상 안쪽 하단의 얇은 조작부(누르는 자리는 44pt). 화면 이탈 · 앱이 뒤로 · 화면 밖 ·
+ * 현재 영상 반복(토글 가능, 처음 켜짐) · 자체 영상 음소거 · 영상 한 번 탭으로 멈춤/재생 · 영상 안쪽 하단의 얇은 조작부(보조 버튼32×44pt, 영상 탭으로 멈춤/재생). 화면 이탈 · 앱이 뒤로 · 화면 밖 ·
  * 다른 영상 재생 · 해제 때 멈추고, 돌아와도 저절로 틀지 않는다. 크게 보기는 앱 안 모달 — 같은 player, VideoView 는 한 번에 하나.
  * height 는 영상 높이 상한. 실제 영상 비율에 맞춘 영역 안에 조작부를 겹친다.
  */
@@ -664,6 +664,7 @@ function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRa
     syncWant();
   };
   const ctl = {
+    stageTapControls: true,
     playing: want,
     ready: status === 'readyToPlay' && duration != null,
     duration,
@@ -675,7 +676,7 @@ function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRa
     onStep: (dir: 1 | -1) => seekTo(stepTime(player.currentTime, dir, range)),
     loop,
     onLoop: () => { const next = !player.loop; setLoopState(next); setLoop(player, next); },
-    rates: [0.5, 1],
+    rates: EXERCISE_VIDEO_RATES,
     rate: playbackRate,
     onRate: (r: number) => {
       flushPendingPause();
