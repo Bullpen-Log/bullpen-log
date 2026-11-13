@@ -13,12 +13,12 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-004",
-  "current_title": "뎁스 드롭 플라이오 푸쉬업",
+  "current_review_id": "EX-Y-P-001",
+  "current_title": "랜드마인 회전 펀치",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User requested next from clap push-up; depth drop awaits user review."
+    "meaning": "User requested next from depth drop; rotational punch awaits user review."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -627,22 +627,23 @@
   "reverification": {
     "start": 1,
     "target_inclusive": 21,
-    "completed_count": 3,
-    "current": 4,
+    "completed_count": 4,
+    "current": 5,
     "approved_items": [
       "EX-Y-P-007",
       "EX-Y-P-002",
-      "EX-Y-P-003"
+      "EX-Y-P-003",
+      "EX-Y-P-004"
     ],
     "user_sequence_first": "EX-Y-P-007",
     "order": "Restart at cable rotation, then user-confirmed sequence. Historical ordinals remain IDs, not display order. Previously edited 21 items rewritten, not yet approved in this new pass."
   },
   "playback_observation": {
-    "item": "EX-Y-P-004",
+    "item": "EX-Y-P-001",
     "source": "REFERENCE",
     "loop_setting": "ON",
-    "actual_playback": "Video opened; some frames very dark; exact hand placement needs user visual confirmation. Repeat cycle not checked.",
-    "updated_at_utc": "2026-11-13T07:43:17.554519+00:00"
+    "actual_playback": "Reference video opened, original title Landmine Rotational Punch; repeat cycle not checked",
+    "updated_at_utc": "2026-11-13T07:54:39.337630+00:00"
   },
   "equipment_terminology_review": {
     "scope": "21 previously edited exercise descriptions checked; 13 changed and DB readback verified; other library descriptions not yet comprehensively audited.",

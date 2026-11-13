@@ -71,6 +71,16 @@
           "after_description": "■ 어떤 운동인가\r\n랜드마인 고정 장치에 바벨 한쪽 끝을 고정하고, 옆으로 선 자세에서 다리·골반·몸통의 움직임을 연결해 반대쪽 끝을 한 손으로 앞·위로 밀어내는 운동입니다.\r\n\r\n■ 이렇게 하세요\r\n1. 바벨 한쪽 끝을 랜드마인 고정 장치에 끼웁니다. 랜드마인 고정 장치가 흔들리거나 빠지지 않는지, 바벨이 움직일 공간이 충분한지 확인합니다.\n2. 랜드마인 고정 장치를 옆에 두고 두 발을 벌려 섭니다. 바벨의 반대쪽 끝을 뒤쪽에 있는 손으로 잡아 가슴과 어깨 가까이에 둡니다.\n3. 뒤쪽 발로 바닥을 밀면서 발과 골반, 몸을 함께 돌립니다. 바벨을 앞쪽 위로 빠르게 밀어냅니다.\n4. 뒤꿈치는 몸이 돌아가는 움직임에 맞춰 자연스럽게 들고, 몸의 무게를 앞발 쪽으로 옮깁니다. 무릎이나 허리만 억지로 비틀지 마세요.\n5. 바벨을 놓지 않은 채 천천히 가슴과 어깨 가까이로 가져온 뒤 다시 반복합니다.\n6. 통증이 생기거나 랜드마인 고정 장치가 흔들리면 운동을 중단합니다.\n\n\r\n■ 투수에게 왜 필요한가\r\n다리로 지면을 미는 동작과 골반·몸통 회전, 팔의 밀기를 연결하는 연습입니다. 회전하며 빠르게 힘을 내는 훈련 목적으로 활용합니다.",
           "status": "Saved and DB read back; user review pending.",
           "at_utc": "2026-11-13T07:08:46.832743+00:00"
+        },
+        {
+          "status": "Saved and read back clear setup and motion instructions: anchored landmine, opposite hand/rear foot, bar at chest or shoulder, natural rotation and return, load and safety, and plain purpose. User review pending.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/32143191/",
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC4234942/"
+          ],
+          "limits": "Pitching observational data does not show that this landmine exercise improves pitching or validates dose; 3x5/90 seconds retained, not claimed optimal.",
+          "filming": "Reference only, filming required.",
+          "at_utc": "2026-11-13T07:54:39.337630+00:00"
         }
       ]
     },
