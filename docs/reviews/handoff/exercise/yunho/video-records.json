@@ -798,7 +798,7 @@
       "kind": "reference_only",
       "safe_identifier": "youtube:bOotAuEkAYs"
     },
-    "human_review_status": "사용자 판단 대기",
+    "human_review_status": "다음 이동 승인",
     "content_application_authorized": false,
     "applied": false,
     "gpt_candidates": [
@@ -815,10 +815,52 @@
       "limits": "발목 각도와 등척성 힘 조절, 농구선수 복합 등척성 프로그램 연구. 현재 벽/랙 변형의 최적10초·90초·투구효과·관절부담 감소 직접 검증 아님."
     },
     "playback": "loop=true paused=false 확인",
-    "user_requests_summary": null,
+    "user_requests_summary": {
+      "requests": [
+        "앞꿈치를 지면에 대고 렉에 반대로 걸린 바벨을 위로 밀며 등척성 유지하는 설명으로 정정",
+        "기존 앞발로 벽을 미는 설명 교체",
+        "바벨 접촉 신체 부위는 미확인, 영상 대조 후 구체화"
+      ],
+      "accepted_draft": "앞뒤로 선 자세에서 발 앞꿈치를 바닥에 대고 렉에 걸린 바벨을 몸으로 위쪽으로 밀며 움직이지 않는 상태로 버티는 등척성 운동. 발 앞부분으로 바닥을 누르는 자세에서 발목과 앞다리의 지지를 유지하는 연습. 바벨의 움직임이 제한된 렉 상태를 확인하고 자세를 잡아 밀고 버틴 후 천천히 힘을 푼다.",
+      "status": "기록만; 실제 수정 미승인"
+    },
     "unresolved": [
       "어느 발과 어느 면이 고정물에 닿는지 사용자 확인",
       "국가별 법률/영상권리 검토 미완료"
+    ],
+    "user_instruction_verbatim_excerpt": "발 앞꿈치가 지면에 닿아있고 바벨이 렉에 반대로 걸친 상태에서 위쪽으로 밀고 있다는 걸 감안에서 제시안 다시 보여줘. 이 내용으로 기록해두고 다음 영상으로 넘어가자."
+  },
+  {
+    "review_id": "EX-Y-P-022",
+    "ordinal": 22,
+    "category": "파워",
+    "title_at_review": "톨닐링 메디신볼 오버헤드 스로우",
+    "media": {
+      "kind": "owned",
+      "safe_identifier": "owned:title:톨닐링 메디신볼 오버헤드 스로우"
+    },
+    "human_review_status": "사용자 판단 대기",
+    "content_application_authorized": false,
+    "applied": false,
+    "gpt_candidates": [
+      "다리 힘을 빼고 몸통과 팔로만이라는 단정 대신 무릎 지지로 서서 다리로 밀어내는 동작을 줄이고 몸통·팔의 투척에 집중하는 설명",
+      "재활 첫 공 던지기라는 보편적 지시 대신 개인 상태와 전문가 판단에 따른 단계적 활용임을 표시",
+      "영상에서 공을 머리 위에 들 때 몸통이 뒤로 젖는 모습과 설명 대조 요청. 단일 화면만으로 허리 과신전 여부 단정 불가",
+      "공 무게1~3kg·벽 거리2~3m·3세트5회·휴식3분은 모든 사용자에게 최적이라는 근거 없음. 통제 가능한 무게/공간과 반발 회수 안내"
+    ],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/8734893/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC3435939/",
+        "https://pubmed.ncbi.nlm.nih.gov/40021256/"
+      ],
+      "limits": "양손 오버헤드 메디신볼 근활성 및 팔꿈치 재활 단계 관련 자료. 톨닐링 변형의 모든 사람 최적중량·첫 단계/구속 향상 직접 입증 아님."
+    },
+    "playback": "직접 촬영 영상; 사용자 지시로 반복설정 생략",
+    "user_requests_summary": null,
+    "unresolved": [
+      "바벨 접촉 부위는21번 촬영 시 확인",
+      "22번 시범의 몸통 자세 및 사용자 판단 대기"
     ]
   }
 ]
