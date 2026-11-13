@@ -13,12 +13,12 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-004",
-  "current_title": "뎁스 드롭 플라이오 푸쉬업",
+  "current_review_id": "EX-Y-P-005",
+  "current_title": "바벨 스피드 벤치 프레스",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User requested next from clap; depth drop full metadata review awaits user."
+    "meaning": "User asks before and after changes each time and requested next from depth drop; bench awaits user review."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -652,21 +652,22 @@
   ],
   "reverification": {
     "pass": "full metadata and dose review",
-    "completed_count": 3,
-    "current": 4,
+    "completed_count": 4,
+    "current": 5,
     "approved_items": [
       "EX-Y-P-007",
       "EX-Y-P-002",
-      "EX-Y-P-003"
+      "EX-Y-P-003",
+      "EX-Y-P-004"
     ],
     "order": "Cable first; next only on human approval"
   },
   "playback_observation": {
-    "item": "EX-Y-P-004",
+    "item": "EX-Y-P-005",
     "source": "REFERENCE",
     "loop_setting": "ON",
     "actual_playback": "Playing; repeat cycle not checked",
-    "updated_at_utc": "2026-11-13T11:35:36.346225+00:00"
+    "updated_at_utc": "2026-11-13T11:37:20.750812+00:00"
   },
   "equipment_terminology_review": {
     "scope": "21 previously edited exercise descriptions checked; 13 changed and DB readback verified; other library descriptions not yet comprehensively audited.",
@@ -716,5 +717,6 @@
   "personal_prescription_feature": {
     "order": "docs/work-orders/EX-RX01.md",
     "status": "Implementation order prepared, relay requested to department Claude; implementation not verified"
-  }
+  },
+  "reporting_preference": "Show before and after of each change and distinguish previous sessions from current edits."
 }

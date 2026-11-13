@@ -673,6 +673,37 @@
           "limits": "Related power and baseball resistance studies do not demonstrate this particular exercise directly increases pitching velocity, or establish 6x3/3 min as optimal. 40–60% is a starting range, individually adjusted.",
           "filming": "Reference only; filming needed.",
           "at_utc": "2026-11-13T11:17:34.510962+00:00"
+        },
+        {
+          "at_utc": "2026-11-13T11:37:20.750812+00:00",
+          "status": "Updated repetitions and rest prose to reference displayed targets, saved and read back; metadata unchanged.",
+          "before": [
+            "한 세트에 3회 반복하면서 매번 같은 자세로 빠르게 밀어 올립니다.",
+            "세트 사이에 2~3분을 쉬고, 빠르게 밀 수 있을 만큼 회복되지 않았다면 더 쉽니다."
+          ],
+          "after": [
+            "표시된 횟수만큼 반복하면서 매번 같은 자세로 빠르게 밀어 올립니다.",
+            "세트 사이에는 표시된 휴식 시간만큼 쉬고, 빠르게 밀 수 있을 만큼 회복되지 않았다면 더 쉽니다."
+          ],
+          "metadata": {
+            "bodyParts": [
+              "어깨",
+              "가슴",
+              "삼두"
+            ],
+            "intensity": "높음",
+            "difficulty": "중급",
+            "equipment": [
+              "바벨",
+              "벤치"
+            ],
+            "sets": 6,
+            "reps": 3,
+            "holdSeconds": null,
+            "restSeconds": 180,
+            "perSide": false
+          },
+          "limits": "6x3 and rest not established as optimal; assess individual. Prior original rest 60s changed to 180s in earlier session. User review pending. Filming needed."
         }
       ]
     },
