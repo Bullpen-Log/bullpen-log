@@ -1,3 +1,5 @@
+Full metadata pass EX-Y-P-003 clap push-up awaiting user; 3x5 rest 120s, high, advanced, bodyweight, shoulders/chest/triceps, no per-side. Reference playing loop ON; filming needed. No metadata changed.
+
 Current full metadata pass EX-Y-P-002 band exercise, awaiting user. Difficulty beginner to intermediate; rest 90 to 180 sec saved and verified. 3x6 per side, medium intensity, band, core/hip/full body. Reference playing and loop ON; filming needed.
 
 Restart FULL METADATA pass at EX-Y-P-007 cable, no human approvals yet in this pass. 3x5 each side, rest changed 90 to 180 seconds and verified. Intensity high, difficulty intermediate, core/hip/whole body; cable enum retained. User personal-target feature EX-RX01 prepared and lead relay requested; not implemented/verified.

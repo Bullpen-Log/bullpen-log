@@ -360,6 +360,32 @@
         {
           "status": "Updated and read back stop-condition wording in library: prescribed repetitions remain target; listed form or speed issue during exercise stops current set.",
           "at_utc": "2026-11-13T11:16:04.689296+00:00"
+        },
+        {
+          "at_utc": "2026-11-13T11:34:40.067606+00:00",
+          "status": "Admin metadata reviewed; no values changed; awaiting human review.",
+          "metadata": {
+            "bodyParts": [
+              "어깨",
+              "가슴",
+              "삼두"
+            ],
+            "intensity": "높음",
+            "difficulty": "상급",
+            "equipment": [
+              "맨몸"
+            ],
+            "sets": 3,
+            "reps": 5,
+            "holdSeconds": null,
+            "restSeconds": 120,
+            "perSide": false
+          },
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/21986698/",
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC10575843/"
+          ],
+          "limits": "Comparative force and broader training reviews, not exact optimal dose or direct pitching velocity evidence; filming needed."
         }
       ]
     },
