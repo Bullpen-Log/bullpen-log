@@ -516,6 +516,32 @@
         {
           "status": "Updated and read back stop-condition wording in library: prescribed repetitions remain target; listed form or speed issue during exercise stops current set.",
           "at_utc": "2026-11-13T11:16:04.689296+00:00"
+        },
+        {
+          "at_utc": "2026-11-13T11:35:36.346225+00:00",
+          "status": "Admin metadata reviewed; values retained; human review pending.",
+          "metadata": {
+            "bodyParts": [
+              "어깨",
+              "가슴",
+              "삼두"
+            ],
+            "intensity": "높음",
+            "difficulty": "상급",
+            "equipment": [
+              "원판"
+            ],
+            "sets": 3,
+            "reps": 5,
+            "holdSeconds": null,
+            "restSeconds": 120,
+            "perSide": false
+          },
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/21986698/",
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC10575843/"
+          ],
+          "limits": "Studies do not establish exact dose or directly establish pitching velocity effect. Prior reference footage dark; confirm hand position visually. Filming needed."
         }
       ]
     },
