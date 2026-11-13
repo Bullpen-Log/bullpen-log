@@ -220,6 +220,7 @@ export const Pin = weighted(L.Pin);
 export const Users = rounded('people');
 /* 덕아웃 장터(2026-10-20) — 값표 · 가게 */
 export const Tag = weighted(L.Tag);
+export const Copy = weighted(L.Copy);
 export const Download = weighted(L.Download);
 export const Store = weighted(L.Store);
 export const ZoomIn = weighted(L.ZoomIn);

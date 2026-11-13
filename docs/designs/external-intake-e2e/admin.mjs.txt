@@ -1,0 +1,201 @@
+// 격리 관리 시험대(3010 + PGlite 54329)에 헤드리스 크로미움을 붙여 관리 화면을 눌러 본다(기존 46개). 운영 값을 쓰지 않는다. 확장 시나리오는 admin-ext.mjs
+import { execFileSync, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+const DIR = path.dirname(new URL(import.meta.url).pathname);
+const APP = 'http://127.0.0.1:3010', ST = 'http://127.0.0.1:54398';
+const BIN = process.env.INTAKE_E2E_CHROME ?? '/Users/yuno/Library/Caches/ms-playwright/chromium_headless_shell-1187/chrome-mac/headless_shell';
+const PORT = 9348;
+const UA_IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+const results = [];
+const ok = (name, pass, note = '') => { results.push({ name, pass: !!pass, note }); console.log(`${pass ? 'OK  ' : 'FAIL'} ${name}${note ? ' — ' + note : ''}`); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const ctl = (p) => fetch(`${ST}/__/${p}`).then((r) => r.json());
+
+const FILE = (f) => path.join(DIR, `${f}.mov`);
+
+const prof = mkdtempSync(path.join(tmpdir(), 'intake-cdp-'));
+const chrome = spawn(BIN, [`--remote-debugging-port=${PORT}`, `--user-data-dir=${prof}`, '--no-first-run', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', 'about:blank'], { stdio: 'ignore' });
+process.on('exit', () => chrome.kill());
+let ver; for (let i = 0; i < 50; i++) { try { ver = await (await fetch(`http://127.0.0.1:${PORT}/json/version`)).json(); break; } catch { await sleep(200); } }
+const bws = new WebSocket(ver.webSocketDebuggerUrl);
+await new Promise((r) => (bws.onopen = r));
+let mid = 0; const pending = new Map(); const listeners = new Set();
+bws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { const { res, rej } = pending.get(m.id); pending.delete(m.id); m.error ? rej(new Error(JSON.stringify(m.error))) : res(m.result); } else listeners.forEach((l) => l(m)); };
+const send = (method, params = {}, sessionId) => new Promise((res, rej) => { const id = ++mid; pending.set(id, { res, rej }); bws.send(JSON.stringify({ id, method, params, sessionId })); });
+
+async function page({ w = 390, h = 844, ua = UA_IPHONE, mobile = true } = {}) {
+  const { browserContextId } = await send('Target.createBrowserContext');
+  const { targetId } = await send('Target.createTarget', { url: 'about:blank', browserContextId });
+  const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+  const s = (m, p) => send(m, p, sessionId);
+  await s('Page.enable'); await s('Runtime.enable'); await s('DOM.enable'); await s('Network.enable');
+  await s('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 2, mobile });
+  await s('Emulation.setUserAgentOverride', { userAgent: ua });
+  const errors = [];
+  listeners.add((m) => { if (m.sessionId === sessionId && m.method === 'Page.javascriptDialogOpening') void s('Page.handleJavaScriptDialog', { accept: true }); });
+  listeners.add((m) => { if (m.sessionId === sessionId && m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.text); });
+  const ev = async (expr) => { const r = await s('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.text + expr); return r.result.value; };
+  const text = () => ev('document.body.innerText');
+  const waitText = async (t, ms = 30000) => { const end = Date.now() + ms; for (;;) { const b = await text().catch(() => ''); if (b.includes(t)) return true; if (Date.now() > end) throw new Error(`못 찾음: ${t}\n--- 화면\n${b.slice(0, 500)}`); await sleep(120); } };
+  const click = async (t, ms = 30000) => { const end = Date.now() + ms; const q = JSON.stringify(t); for (;;) { const done = await ev(`(()=>{const c=[...document.querySelectorAll('button,a,label,[role=button]')].filter(e=>e.innerText.trim().includes(${q})&&!e.disabled&&e.getAttribute('aria-disabled')!=='true'&&e.offsetParent!==null);const e=c.at(-1);if(!e)return false;e.click();return true})()`); if (done) return; if (Date.now() > end) throw new Error('못 누름: ' + t + '\n' + (await text()).slice(0, 500)); await sleep(120); } };
+  const type = async (sel, v) => { await ev(`(()=>{const e=document.querySelector(${JSON.stringify(sel)});e.focus();e.select&&e.select();})()`); await s('Input.insertText', { text: v }); };
+  const files = async (paths, nth = 0) => { const { root } = await s('DOM.getDocument', { depth: 1 }); const { nodeIds } = await s('DOM.querySelectorAll', { nodeId: root.nodeId, selector: 'input[type=file]' }); await s('DOM.setFileInputFiles', { nodeId: nodeIds[nth], files: paths }); };
+  const go = async (url) => { await s('Page.navigate', { url }); await sleep(400); };
+  const overflow = () => ev('document.documentElement.scrollWidth - document.documentElement.clientWidth');
+  const offline = (on) => s('Network.emulateNetworkConditions', { offline: on, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  return { s, ev, text, waitText, click, type, files, go, overflow, errors, offline, close: () => send('Target.disposeBrowserContext', { browserContextId }) };
+}
+
+
+const ISO = '/tmp/intake-rig/intake-e2e/clone';
+/* 격리 PGlite 만 읽는다 */
+const state = (...names) => JSON.parse(execFileSync('node', ['--import', './scripts/alias-register.mjs', 'scripts/iso-state.mts', ...names], { cwd: ISO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().split('\n').at(-1));
+const openDetail = async (p, name) => {
+  await p.go(`${APP}/admin/intake?q=${encodeURIComponent(name)}`); await p.waitText(name, 30000); await sleep(800);
+  const h = await p.ev(`[...document.querySelectorAll('a[href^="/admin/intake/"]')].map(e=>[e.innerText,e.getAttribute('href')]).find(x=>x[0].includes(${JSON.stringify(name)}))?.[1]`);
+  await p.go(`${APP}${h}`); await p.waitText('감사 기록', 60000); await sleep(800);
+};
+const hasBtn = (p, t) => p.ev(`[...document.querySelectorAll('button')].some(b=>b.innerText.includes(${JSON.stringify(t)}))`);
+const dialogClick = (p, t) => p.ev(`(()=>{const d=[...document.querySelectorAll('dialog[open]')].at(-1);[...d.querySelectorAll('button')].find(b=>b.innerText.trim()===${JSON.stringify(t)}).click()})()`);
+const until = async (fn, ms = 30000) => { const end = Date.now() + ms; for (;;) { if (await fn()) return true; if (Date.now() > end) return false; await sleep(250); } };
+const CHIP = '결과 보기 잠김', RESET = '결과 보기 잠금 풀기', MODEL_BTN = '모델 개발 동의 철회 기록';
+
+const A = '11111111-1111-4111-8111-111111111111', B = '22222222-2222-4222-8222-222222222222', U = '33333333-3333-4333-8333-333333333333', M = '44444444-4444-4444-8444-444444444444';
+const PC = { w: 1440, h: 900, mobile: false, ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36' };
+const login = async (p, id, role) => { await p.go(`${APP}/api/iso-login?id=${id}&role=${role}`); await sleep(1500); };
+try {
+  const anon = await fetch(`${APP}/admin/intake`, { redirect: 'manual' });
+  ok('로그인 안 하면 관리 화면으로 못 간다', anon.status >= 300 && anon.status < 400, `${anon.status} ${anon.headers.get('location')}`);
+  const pu = await page(PC); await login(pu, U, 'USER'); await pu.go(`${APP}/admin/intake`); await sleep(2500);
+  ok('일반 계정은 못 본다', !(await pu.text()).includes('김서준'), await pu.ev('location.pathname'));
+  await pu.close();
+  const pm = await page(PC); await login(pm, M, 'MANAGER'); await pm.go(`${APP}/admin/intake`); await sleep(2500);
+  ok('준관리자는 못 본다', !(await pm.text()).includes('김서준'), await pm.ev('location.pathname'));
+  await pm.close();
+
+  const a = await page(PC); await login(a, A, 'ADMIN'); await a.go(`${APP}/admin/intake`);
+  await a.waitText('김서준', 90000);
+  const t = await a.text();
+  ok('목록: 이름 · 상태들', ['김서준', 'Liam', '이도윤'].every((x) => t.includes(x)), t.split('\n').find((l) => l.includes('건 · 안 읽음')));
+  const b = await page(PC); await login(b, B, 'ADMIN'); await b.go(`${APP}/admin/intake`);
+  await b.waitText('김서준', 60000);
+  ok('두 대표관리자가 같은 접수를 본다', (await b.text()).includes('Liam'));
+  await a.go(`${APP}/admin/intake?q=${encodeURIComponent('Liam')}`); await a.waitText('Liam', 30000); await sleep(800);
+  ok('찾기', !(await a.text()).includes('김서준'));
+  await a.go(`${APP}/admin/intake`); await a.waitText('김서준', 30000);
+  const hrefs = await a.ev(`[...document.querySelectorAll('a[href^="/admin/intake/"]')].map(e=>[e.innerText.split(String.fromCharCode(10))[0],e.getAttribute('href')])`);
+  const row = hrefs.find((h) => h[0].includes('김서준'));
+  ok('상세 주소에 이름이 없다', row && !/[가-힣]/.test(decodeURIComponent(row[1])), row?.[1]);
+  await a.go(`${APP}${row[1]}`);
+  await a.waitText('영상 화질 좋음', 60000);
+  const d = await a.text();
+  const missing = ['공개 기록', '감사 기록', '착지 때 앞발', '선택한 파일 그대로 전송됨'].filter((x) => !d.includes(x));
+  ok('상세: 메모 · 공개 기록 · 얼린 판 · 파일 사실', missing.length === 0, missing.join(','));
+  ok('상세: 240fps 사실 표시', d.includes('240fps 감지') || d.includes('fps'), '');
+  await a.ev(`(()=>{document.querySelector('textarea[aria-label="내부 메모"]').focus()})()`);
+  await a.s('Input.insertText', { text: '브라우저 시험 메모' });
+  await a.click('남기기');
+  await a.waitText('브라우저 시험 메모', 20000);
+  ok('메모 남기기', true);
+  await b.go(`${APP}${row[1]}`);
+  await b.waitText('브라우저 시험 메모', 40000);
+  ok('다른 관리자에게도 같은 메모', true);
+  ok('두 사람 다 화면 오류 없음', a.errors.length + b.errors.length === 0, [...a.errors, ...b.errors].join(' | ').slice(0, 200));
+  /* 폐기 · 철회된 접수에도 모델 동의 철회를 기록할 수 있다 */
+  await a.go(`${APP}/admin/intake?q=${encodeURIComponent('박지호')}`); await a.waitText('박지호', 30000); await sleep(800);
+  const h5 = await a.ev(`[...document.querySelectorAll('a[href^="/admin/intake/"]')].map(e=>[e.innerText,e.getAttribute('href')]).find(x=>x[0].includes('박지호'))?.[1]`);
+  await a.go(`${APP}${h5}`);
+  await a.waitText('모델 개발 동의 철회 기록', 60000);
+  ok('폐기 · 철회된 접수에 모델 동의 철회 단추가 있다', true);
+  await a.click('모델 개발 동의 철회 기록');
+  await a.waitText('모델 개발 동의 철회를 기록할까요?', 10000);
+  await sleep(300);
+  await a.ev(`(()=>{const d=[...document.querySelectorAll('dialog[open]')].at(-1);[...d.querySelectorAll('button')].find(b=>b.innerText.trim()==='철회 기록').click()})()`);
+  for (let i = 0; i < 100 && !(await a.ev(`document.body.textContent.includes('담당자가 모델 개발 동의 철회를 기록했어요')`)); i++) await sleep(300);
+  ok('감사 기록 글이 뜬다', await a.ev(`document.body.textContent.includes('담당자가 모델 개발 동의 철회를 기록했어요')`));
+  await sleep(600);
+  ok('철회가 감사 기록에 남고 단추가 사라진다', !(await a.ev(`[...document.querySelectorAll('button')].some(b=>b.innerText.includes('모델 개발 동의 철회 기록'))`)));
+  /* 막힌 까닭이 코드 그대로 안 나간다 */
+  await a.go(`${APP}/admin/intake?q=${encodeURIComponent('Liam')}`); await a.waitText('Liam', 30000); await sleep(800);
+  const h2 = await a.ev(`[...document.querySelectorAll('a[href^="/admin/intake/"]')].map(e=>[e.innerText,e.getAttribute('href')]).find(x=>x[0].includes('Liam'))?.[1]`);
+  await a.go(`${APP}${h2}`);
+  await a.waitText('받지 않았어요', 60000);
+  ok('MKV 막힘 까닭이 한국어로 보인다', !(await a.text()).includes('unsupported_container'));
+  ok('이어서도 화면 오류 없음', a.errors.length === 0, a.errors.join(' | ').slice(0, 200));
+
+  /* 접근 코드 잠금 칩과 풀기 */
+  await openDetail(a, '고침검사');
+  let lt = await a.text();
+  ok('잠긴 초대: 머리에 잠김 칩', lt.includes(CHIP));
+  ok('잠긴 초대: 초대 칸이 잠김과 횟수를 말한다', lt.includes('있음 · 잠김(틀린 횟수 10번)'));
+  ok('잠긴 초대: 까닭 줄과 풀기 단추', lt.includes('접근 코드를 10번 틀려 결과 보기가 잠겼어요.') && (await hasBtn(a, RESET)));
+  await a.click(RESET);
+  await a.waitText('결과 보기 잠금을 풀까요?', 10000);
+  ok('풀기 전에 확인 창이 코드는 그대로라고 말한다', (await a.text()).includes('코드는 그대로예요'));
+  await sleep(300); await dialogClick(a, '풀기');
+  ok('풀고 나면 칩이 사라진다', await until(async () => !(await a.text()).includes(CHIP)));
+  ok('풀고 나면 풀기 단추가 사라진다', !(await hasBtn(a, RESET)));
+  lt = await a.text();
+  ok('초대 칸은 그냥 있음으로', !lt.includes('잠김(틀린') && !lt.includes('틀린 횟수'));
+  ok('감사 기록에 풀었다고 남는다', await a.ev(`document.body.textContent.includes('접근 코드 막힘을 풀었어요')`));
+  await a.s('Page.reload'); await a.waitText('감사 기록', 60000); await sleep(800);
+  ok('새로 열어도 풀린 그대로', !(await a.text()).includes(CHIP));
+  const st1 = state('고침검사')['고침검사'];
+  ok('DB: 횟수 0 · 잠금 시각 없음 · 감사 줄', st1.failures === 0 && st1.lockedAt === null && st1.audit.includes('access_code.reset'), JSON.stringify(st1).slice(0, 200));
+  /* 끝을 못 적은 마지막 자리: 잠금 시각이 없어도 한도가 찼으면 칩과 풀기 */
+  await openDetail(a, '잠금자리');
+  lt = await a.text();
+  ok('한도가 찼는데 잠금 시각이 없으면 칩과 풀기 단추', lt.includes(CHIP) && (await hasBtn(a, RESET)), lt.split('\n').find((l) => l.includes('틀린 횟수')));
+  await a.click(RESET); await a.waitText('결과 보기 잠금을 풀까요?', 10000); await sleep(300); await dialogClick(a, '풀기');
+  ok('그 자리도 풀린다', await until(async () => !(await a.text()).includes(CHIP)));
+  await openDetail(a, '코드틀림');
+  lt = await a.text();
+  ok('몇 번 틀리기만 했으면 칩 · 단추 없음, 횟수만', !lt.includes(CHIP) && !(await hasBtn(a, RESET)) && lt.includes('있음 · 틀린 횟수 3번'));
+  /* '더 있음' 동의 줄 */
+  await openDetail(a, '동의많음');
+  lt = await a.text();
+  const hidden = /더 있음: 오래된 동의 기록 (\d+)건/.exec(lt);
+  const shown = await a.ev(`[...document.querySelectorAll('li')].filter(e=>/(동의|거부)/.test(e.innerText)&&/\\d{4}|오전|오후|:\\d\\d/.test(e.innerText)&&/개발|필수|제출|국외|접수|분석|이용/.test(e.innerText)&&e.classList.contains('break-words')).length`);
+  ok('동의 줄이 100줄을 넘으면 더 있음 줄', !!hidden, hidden?.[0]);
+  ok('보인 줄 + 줄인 줄 = 전체 132', Number(hidden?.[1]) + shown === 132, `보임 ${shown} · 줄임 ${hidden?.[1]}`);
+  ok('줄인 뒤에도 오래된 필수 동의로 판단한다', lt.includes('필수 동의 있음'));
+  ok('줄인 뒤에도 마지막 답이 동의면 모델 이용 동의', lt.includes('모델 개발 이용 동의') && (await hasBtn(a, MODEL_BTN)));
+  await a.click(MODEL_BTN); await a.waitText('모델 개발 동의 철회를 기록할까요?', 10000); await sleep(300); await dialogClick(a, '철회 기록');
+  ok('줄인 접수에서도 철회를 적으면 단추가 사라진다', await until(async () => !(await hasBtn(a, MODEL_BTN))));
+  const st2 = state('동의많음')['동의많음'];
+  ok('DB: 동의 줄 65개 모두 철회 · 거부 줄 65개는 그대로', st2.model.filter((m) => m[0] && m[1]).length === 65 && st2.model.filter((m) => !m[0] && !m[1]).length === 65, `동의+철회 ${st2.model.filter((m) => m[0] && m[1]).length} · 거부 그대로 ${st2.model.filter((m) => !m[0] && !m[1]).length}`);
+  ok('철회 뒤 모델 이용 미동의', (await a.text()).includes('모델 개발 이용 미동의'));
+  await openDetail(a, '모델거부뒤');
+  lt = await a.text();
+  ok('줄이 적으면 더 있음 줄이 없다', !lt.includes('더 있음'));
+  /* 철회 기록 단추는 마지막 답이 동의일 때만 */
+  ok('동의 뒤 거부: 철회 단추 없음', !(await hasBtn(a, MODEL_BTN)) && lt.includes('모델 개발 이용 미동의'));
+  await openDetail(a, '모델거부만');
+  ok('거부만 있음: 철회 단추 없음', !(await hasBtn(a, MODEL_BTN)));
+  await openDetail(a, '모델다른관계');
+  ok('다른 관계로 낸 거부가 마지막이면 철회 단추 없음', !(await hasBtn(a, MODEL_BTN)));
+  await openDetail(a, '모델재동의');
+  lt = await a.text();
+  ok('거부 뒤 동의: 철회 단추 있음', (await hasBtn(a, MODEL_BTN)) && lt.includes('모델 개발 이용 동의'));
+  await a.click(MODEL_BTN); await a.waitText('모델 개발 동의 철회를 기록할까요?', 10000); await sleep(300); await dialogClick(a, '철회 기록');
+  ok('철회를 적으면 단추가 사라진다', await until(async () => !(await hasBtn(a, MODEL_BTN))));
+  const st3 = state('모델재동의', '모델거부뒤')['모델재동의'];
+  ok('DB: 동의 줄만 철회 · 거부 줄은 그대로 · 감사 줄', JSON.stringify(st3.model) === '[[false,false],[true,true]]' && st3.audit.includes('consent.model_withdrawn_by_admin'), JSON.stringify(st3.model));
+  const st4 = state('모델거부뒤', '모델거부만', '모델다른관계');
+  ok('단추가 없던 접수에는 철회 기록이 안 남는다', Object.values(st4).every((v) => !v.audit.includes('consent.model_withdrawn_by_admin')));
+  ok('새 장면까지 화면 오류 없음', a.errors.length === 0, a.errors.join(' | ').slice(0, 200));
+  await a.go(`${APP}/admin/intake`); await a.waitText('김서준', 30000);
+  await a.click('초대 만들기');
+  await sleep(1200);
+  const form = await a.text();
+  console.log('invite dialog', form.split('\n').filter((l) => /초대|접근 코드|기간/.test(l)).slice(0, 6));
+  await a.close(); await b.close();
+} catch (e) { ok('시나리오 예외', false, String(e.message).slice(0, 700)); }
+const fail = results.filter((r) => !r.pass).length;
+console.log(`\n${results.length - fail}개 통과, ${fail}개 실패`);
+chrome.kill();
+process.exit(fail ? 1 : 0);

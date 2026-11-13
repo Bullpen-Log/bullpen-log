@@ -1,0 +1,8 @@
+#!/bin/bash
+# 쓰는 법: run-rig.sh <rig 폴더> <out 폴더> <모드...>
+S=$(cd "$(dirname "$0")" && pwd); R=$1; OUT=$2; shift 2; mkdir -p $OUT
+(cd $R && env -i PATH=/opt/homebrew/bin:/usr/bin:/bin HOME=$HOME NEXT_TELEMETRY_DISABLED=1 NODE_ENV=development ./node_modules/.bin/next dev --port 3127 --hostname 127.0.0.1 > $OUT/next-dev.log 2>&1) &
+for i in $(seq 1 60); do grep -q "Ready" $OUT/next-dev.log && break; sleep 1; done
+curl -s -o /dev/null -w "warm page %{http_code}\n" http://127.0.0.1:3127/r02-rig
+for m in "$@"; do node $S/drive.mjs $OUT $m > $OUT/drive-$m.log 2>&1; echo "drive $m exit=$?"; done
+kill $(lsof -nP -tiTCP:3127 -sTCP:LISTEN) 2>/dev/null; sleep 1

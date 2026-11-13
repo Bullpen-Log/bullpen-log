@@ -1,0 +1,13 @@
+#!/bin/zsh
+# 3010 만 다시 켠다(시험대 DB · 저장소는 그대로). 덧붙일 환경은 인자로: ./restart-3010.sh INTAKE_ALLOW_DRAFT_ANALYSIS=1 RELEASE_STAGE=released
+R=/tmp/intake-rig/intake-e2e
+[ -f $R/admin/dev3010.pid ] && kill $(cat $R/admin/dev3010.pid) 2>/dev/null
+for pid in $(lsof -tiTCP:3010 -sTCP:LISTEN 2>/dev/null); do kill $pid 2>/dev/null; done
+sleep 2
+cd $R/clone; . $R/admin/admin-env.sh
+export INTAKE_PUBLIC_ORIGIN='http://127.0.0.1:3010' PITCH3D_GPU_URL='http://127.0.0.1:54398/gpu' PITCH3D_GPU_KEY='e2e-gpu-key' PITCH3D_GPU_SECRET='e2e-gpu-secret' CRON_SECRET='e2e-cron-secret'
+for kv in "$@"; do export "$kv"; done
+nohup npx next dev --port 3010 --hostname 127.0.0.1 >> $R/admin/dev3010.log 2>&1 &
+echo $! > $R/admin/dev3010.pid
+for i in {1..120}; do curl -s -o /dev/null --max-time 2 http://127.0.0.1:3010/submit && break; sleep 1; done
+curl -s -o /dev/null -w "3010 submit %{http_code}\n" --max-time 120 http://127.0.0.1:3010/submit

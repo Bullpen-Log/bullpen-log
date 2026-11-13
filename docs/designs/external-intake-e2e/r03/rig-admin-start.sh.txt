@@ -1,0 +1,6 @@
+#!/bin/zsh
+cd <scratch>/rig-admin
+env -i PATH=/opt/homebrew/bin:/usr/bin:/bin HOME=$HOME zsh -c "export DATABASE_URL='postgresql://postgres@127.0.0.1:54329/postgres?sslmode=disable' DIRECT_URL='postgresql://postgres@127.0.0.1:54329/postgres?sslmode=disable' SUPABASE_URL='http://127.0.0.1:54398' SUPABASE_SERVICE_ROLE_KEY='e2e-service' SUPABASE_PUBLISHABLE_KEY='e2e-publishable' SESSION_SECRET='e2e-session-secret-e2e-session-secret-e2e' NEXT_TELEMETRY_DISABLED=1 INTAKE_PUBLIC_ORIGIN='http://127.0.0.1:3127'
+node --import ./scripts/alias-register.mjs scripts/iso-seed.mts > <scratch>/rig-admin-seed.log 2>&1 &
+for i in {1..120}; do grep -q '^ready' <scratch>/rig-admin-seed.log && break; sleep 0.5; done
+NODE_ENV=development ./node_modules/.bin/next dev --port 3128 --hostname 127.0.0.1 > <scratch>/rig-admin-next.log 2>&1 &"

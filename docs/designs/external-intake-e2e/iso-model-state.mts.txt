@@ -1,0 +1,9 @@
+/* 격리 PGlite 만 본다 */
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: 'postgresql://postgres@127.0.0.1:54329/postgres?sslmode=disable', max: 1 }) });
+const rows = await db.intakeConsent.findMany({ where: { kind: 'model' }, select: { id: true, withdrawnAt: true } });
+console.log('before', JSON.stringify(rows));
+console.log('audit', await db.intakeAudit.count({ where: { action: 'consent.model_withdrawn_by_admin' } }));
+if (process.argv[2] === 'reset') { await db.intakeConsent.updateMany({ where: { kind: 'model' }, data: { withdrawnAt: null } }); await db.intakeAudit.deleteMany({ where: { action: 'consent.model_withdrawn_by_admin' } }); }
+await db.$disconnect();

@@ -1,0 +1,328 @@
+/*
+ * R02 브라우저 검증 — 실제 RunReview → lazy ResultBody → dynamic Body3D 를 헤드리스 크로미움(새 프로필)으로 누른다.
+ * 쓰는 법: node drive.mjs <out-dir> [webgl|nowebgl]
+ * 브라우저 네트워크는 127.0.0.1 만(나머지 이름은 NOTFOUND). 클릭 · 키는 CDP Input(실제 포인터 · 키 이벤트)으로.
+ */
+import { spawn } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+const OUT = process.argv[2];
+const MODE = process.argv[3] ?? 'webgl';
+const BASE = 'http://127.0.0.1:3127';
+const BIN = '/Users/yuno/Library/Caches/ms-playwright/chromium_headless_shell-1187/chrome-mac/headless_shell';
+const PORT = MODE === 'webgl' ? 9357 : 9358;
+const prof = mkdtempSync(path.join(tmpdir(), 'r02-chrome-'));
+const flags = [
+  `--remote-debugging-port=${PORT}`,
+  `--user-data-dir=${prof}`,
+  '--no-first-run',
+  '--window-size=1280,1000',
+  '--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1',
+  ...(MODE === 'webgl' ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] : ['--disable-3d-apis']),
+  'about:blank',
+];
+const chrome = spawn(BIN, flags, { stdio: 'ignore' });
+const report = { mode: MODE, flags: flags.filter((f) => !f.startsWith('--user-data-dir')), steps: [], requests: [], console: [], errors: [] };
+const step = (name, data) => {
+  report.steps.push({ name, ...data });
+  console.log(`[${name}]`, JSON.stringify(data));
+};
+const done = () => {
+  writeFileSync(path.join(OUT, `report-${MODE}.json`), JSON.stringify(report, null, 2));
+  chrome.kill();
+  rmSync(prof, { recursive: true, force: true });
+};
+process.on('exit', () => chrome.kill());
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let ver;
+for (let i = 0; i < 50; i++) {
+  try {
+    ver = await (await fetch(`http://127.0.0.1:${PORT}/json/version`)).json();
+    break;
+  } catch {
+    await sleep(200);
+  }
+}
+report.browser = ver.Browser;
+const ws = new WebSocket(ver.webSocketDebuggerUrl);
+await new Promise((r) => (ws.onopen = r));
+let mid = 0;
+const pending = new Map();
+const listeners = new Set();
+ws.onmessage = (e) => {
+  const m = JSON.parse(e.data);
+  if (m.id && pending.has(m.id)) {
+    const { res, rej } = pending.get(m.id);
+    pending.delete(m.id);
+    m.error ? rej(new Error(JSON.stringify(m.error))) : res(m.result);
+  } else listeners.forEach((l) => l(m));
+};
+const rawSend = (method, params = {}, sessionId) =>
+  new Promise((res, rej) => {
+    const id = ++mid;
+    pending.set(id, { res, rej });
+    ws.send(JSON.stringify({ id, method, params, sessionId }));
+  });
+const { targetId } = await rawSend('Target.createTarget', { url: 'about:blank' });
+const { sessionId } = await rawSend('Target.attachToTarget', { targetId, flatten: true });
+const send = (m, p) => rawSend(m, p, sessionId);
+await send('Page.enable');
+await send('Runtime.enable');
+await send('Network.enable');
+await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false });
+
+/* 요청 · 콘솔 기록 */
+listeners.add((m) => {
+  if (m.sessionId !== sessionId) return;
+  if (m.method === 'Network.requestWillBeSent') report.requests.push(m.params.request.url);
+  if (m.method === 'Runtime.consoleAPICalled' && (m.params.type === 'error' || m.params.type === 'warning'))
+    report.console.push(m.params.args.map((a) => a.value ?? a.description ?? '').join(' ').slice(0, 300));
+  if (m.method === 'Runtime.exceptionThrown') report.errors.push(m.params.exceptionDetails.exception?.description?.slice(0, 300) ?? m.params.exceptionDetails.text);
+});
+
+/* 청크 가로채기 — rule(url) 이 'hold' | 'fail' | 'pass' */
+let chunkRule = null;
+const held = [];
+const seenChunks = [];
+listeners.add((m) => {
+  if (m.sessionId !== sessionId || m.method !== 'Fetch.requestPaused') return;
+  const { requestId, request } = m.params;
+  seenChunks.push(request.url);
+  const verdict = chunkRule ? chunkRule(request.url) : 'pass';
+  if (verdict === 'hold') held.push({ requestId, url: request.url });
+  else if (verdict === 'fail') void send('Fetch.failRequest', { requestId, errorReason: 'Failed' });
+  else void send('Fetch.continueRequest', { requestId });
+});
+const intercept = async (rule) => {
+  chunkRule = rule;
+  await send('Fetch.enable', { patterns: [{ urlPattern: '*/_next/static/chunks/*', requestStage: 'Request' }] });
+};
+const stopIntercept = async () => {
+  for (const h of held.splice(0)) await send('Fetch.continueRequest', { requestId: h.requestId });
+  chunkRule = null;
+  await send('Fetch.disable');
+};
+
+const evalJs = async (expr) => {
+  const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true });
+  if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text);
+  return r.result.value;
+};
+const waitFor = async (expr, ms = 20000, label = expr) => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    if (await evalJs(expr)) return Date.now() - t0;
+    await sleep(100);
+  }
+  throw new Error(`시간 초과: ${label}`);
+};
+const ctl = async (body) =>
+  body ? (await fetch(`${BASE}/r02-rig/ctl`, { method: 'POST', body: JSON.stringify(body) })).json() : (await fetch(`${BASE}/r02-rig/ctl`)).json();
+
+/* 실제 포인터로 누른다 — 요소 가운데 */
+const clickAt = async (finder, label) => {
+  const rect = await evalJs(`(() => { const el = ${finder}; if (!el) return null; el.scrollIntoView({block:'center'}); const r = el.getBoundingClientRect(); return { x: r.x + r.width/2, y: r.y + r.height/2, disabled: !!el.disabled }; })()`);
+  if (!rect) throw new Error(`못 찾음: ${label}`);
+  for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased'])
+    await send('Input.dispatchMouseEvent', { type, x: rect.x, y: rect.y, button: 'left', clickCount: type === 'mouseMoved' ? 0 : 1 });
+  return rect;
+};
+const key = async (k) => {
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code: k, windowsVirtualKeyCode: k === 'Escape' ? 27 : 0 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code: k, windowsVirtualKeyCode: k === 'Escape' ? 27 : 0 });
+};
+const shot = async (name) => {
+  const { data } = await send('Page.captureScreenshot', { format: 'png' });
+  writeFileSync(path.join(OUT, `${MODE}-${name}.png`), Buffer.from(data, 'base64'));
+};
+
+/* 찾기 식 */
+const ROWS = `[...document.querySelectorAll('main li')].filter((li) => /판 ·/.test(li.querySelector('span')?.textContent ?? ''))`;
+const LI = (i) => `${ROWS}[${i}]`;
+const btnIn = (scope, text) => `[...(${scope})?.querySelectorAll('button') ?? []].find((b) => b.textContent.includes(${JSON.stringify(text)}))`;
+const DIALOG = `document.querySelector('dialog[open]')`;
+/* 화면 상태 한 줄 */
+const SNAP = `(() => {
+  const d = ${DIALOG};
+  const ack = d && [...d.querySelectorAll('button')].find((b) => /검토 완료|남기는 중/.test(b.textContent));
+  const canvas = d?.querySelector('canvas');
+  const play = d?.querySelector('button[aria-label="재생"], button[aria-label="멈춤"]');
+  const pub = [...(${ROWS}[0]?.querySelectorAll('button') ?? [])].find((b) => b.textContent.includes('이 결과 공개'));
+  const cr = canvas?.getBoundingClientRect();
+  return {
+    dialog: !!d,
+    title: d?.querySelector('h2, [id$=title]')?.textContent ?? null,
+    ack: ack ? { text: ack.textContent, disabled: ack.disabled, describedBy: ack.getAttribute('aria-describedby') } : null,
+    hint: d ? [...d.querySelectorAll('p')].map((p) => p.textContent).filter((t) => /누를 수|눌러 주세요|보기만/.test(t)) : null,
+    canvas: canvas ? { w: Math.round(cr.width), h: Math.round(cr.height), visible: cr.width > 0 && cr.height > 0 } : null,
+    play: play ? { label: play.getAttribute('aria-label'), disabled: play.disabled } : null,
+    body3dText: d ? [...d.querySelectorAll('p')].map((p) => p.textContent).filter((t) => /3D|WebGL|불러오/.test(t)).slice(0, 3) : null,
+    alert: d?.querySelector('[role=alert]')?.textContent ?? null,
+    errorLines: [...document.querySelectorAll('[role=alert], .text-danger')].map((e) => e.textContent).filter(Boolean).slice(0, 4),
+    publish: pub ? { disabled: pub.disabled } : null,
+    rows: ${ROWS}.map((li) => li.querySelector('span')?.textContent),
+    active: document.querySelector('[data-rig-active]')?.getAttribute('data-rig-active'),
+  };
+})()`;
+const snap = async (name) => {
+  const s = await evalJs(SNAP);
+  step(name, s);
+  return s;
+};
+const openReview = async (i) => {
+  await clickAt(btnIn(LI(i), '3D 결과'), `run ${i} review`);
+  await waitFor(`!!${DIALOG}`, 20000, 'dialog');
+};
+const closeDialog = async () => {
+  await key('Escape');
+  await waitFor(`!${DIALOG}`, 5000, 'dialog closed');
+};
+const fresh = async () => {
+  await ctl({ reset: true });
+  await send('Network.setCacheDisabled', { cacheDisabled: true });
+  await send('Page.navigate', { url: `${BASE}/r02-rig` });
+  await waitFor(`${ROWS}.length === 3`, 60000, 'rows');
+};
+const READY = `(() => { const d = ${DIALOG}; const ack = d && [...d.querySelectorAll('button')].find((b) => b.textContent.includes('이 결과 검토 완료')); return !!ack && !ack.disabled; })()`;
+const PLAY_ON = `(() => { const p = ${DIALOG}?.querySelector('button[aria-label="재생"], button[aria-label="멈춤"]'); return !!p && !p.disabled; })()`;
+const isThree = (u) => /three/i.test(u);
+
+try {
+  await fresh();
+  const gl = await evalJs(`(() => { const c = document.createElement('canvas'); const g = c.getContext('webgl2') || c.getContext('webgl'); if (!g) return null; const x = g.getExtension('WEBGL_debug_renderer_info'); return { version: g.getParameter(g.VERSION), vendor: x ? g.getParameter(x.UNMASKED_VENDOR_WEBGL) : g.getParameter(g.VENDOR), renderer: x ? g.getParameter(x.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER) }; })()`);
+  step('webgl', { gl });
+
+  if (MODE === 'nowebgl') {
+    /* WebGL 없음 — Body3D 'unavailable', 검토 완료는 꺼진 채 */
+    await openReview(0);
+    await waitFor(`!!${DIALOG}?.querySelector('section, [class]') && ![...(${DIALOG}?.querySelectorAll('p') ?? [])].some((p) => p.textContent.includes('결과를 불러오는 중'))`, 30000, 'result body');
+    await sleep(2500);
+    const s = await snap('nowebgl-open');
+    await shot('nowebgl-open');
+    step('nowebgl-verdict', { ackDisabled: s.ack?.disabled === true, canvas: s.canvas, play: s.play, calls: (await ctl()).calls.map((c) => c.name) });
+    await closeDialog();
+  } else {
+    /* 1 청크 대기 → 결과 부품은 붙었지만 three 대기 → 놓으면 준비 */
+    await fresh();
+    await intercept((u) => 'hold');
+    await openReview(0);
+    await sleep(1500);
+    await snap('1a-chunks-held');
+    step('1a-held-urls', { held: held.map((h) => h.url.replace(BASE, '')) });
+    /* three 가 아닌 청크만 놓는다 — ResultBody 는 그려지고 Body3D 는 three 를 기다린다 */
+    chunkRule = (u) => (isThree(u) ? 'hold' : 'pass');
+    for (const h of held.splice(0).filter((x) => !isThree(x.url))) await send('Fetch.continueRequest', { requestId: h.requestId });
+    for (let i = 0; i < 40 && !(await evalJs(`!![...(${DIALOG}?.querySelectorAll('p') ?? [])].find((p) => p.textContent.includes('3D 동작을 불러오고 있어요'))`)); i++) await sleep(250);
+    await sleep(800);
+    await snap('1b-module-loaded-three-held');
+    await shot('1b-loading');
+    step('1b-held-urls', { held: held.map((h) => h.url.replace(BASE, '')) });
+    await stopIntercept();
+    const tReady = await waitFor(READY, 60000, 'ack enabled');
+    await sleep(500);
+    const s1 = await snap('1c-ready');
+    await shot('1c-ready');
+    step('1c-time', { msToReady: tReady });
+
+    /* 2 검토 완료 → 공개(다른 결과가 공개 중이라 바꾸기 확인) */
+    await clickAt(btnIn(DIALOG, '이 결과 검토 완료'), 'ack');
+    await waitFor(`!${DIALOG}`, 10000, 'dialog closed after ack');
+    let c = await ctl();
+    const ackCall = c.calls.find((x) => x.name === 'acknowledgeIntakeRunReview');
+    const s2 = await snap('2a-after-ack');
+    step('2a-ack-args', { args: ackCall?.args, acks: c.acks });
+    await clickAt(btnIn(LI(0), '이 결과 공개'), 'publish');
+    await waitFor(`!!${DIALOG} && ${DIALOG}.textContent.includes('공개 중인 결과를 바꿀까요')`, 5000, 'confirm');
+    await clickAt(btnIn(DIALOG, '바꾸기'), 'confirm replace');
+    await waitFor(`document.querySelector('[data-rig-active]')?.getAttribute('data-rig-active') !== 'pub-1'`, 15000, 'published refresh');
+    c = await ctl();
+    step('2b-publish', { call: c.calls.find((x) => x.name === 'publishIntakeRun')?.args, publishedRunId: c.publishedRunId, active: c.activePublicationId });
+    await sleep(600);
+    await snap('2c-after-publish');
+    await shot('2c-published');
+
+    /* 3 보기만 — 방금 공개한 실행 · 옛 판 */
+    for (const [i, name] of [
+      [0, '3a-published-view'],
+      [2, '3b-older-view'],
+    ]) {
+      await openReview(i);
+      await waitFor(PLAY_ON, 60000, 'play on');
+      await snap(name);
+      await shot(name);
+      await closeDialog();
+    }
+
+    /* 4 낡은 검토 · 검토 필요 거절 */
+    for (const code of ['stale_review', 'review_required']) {
+      await fresh();
+      await ctl({ ackRefuse: code });
+      await openReview(0);
+      await waitFor(READY, 60000, 'ready');
+      await clickAt(btnIn(DIALOG, '이 결과 검토 완료'), 'ack refused');
+      await waitFor(`!${DIALOG}`, 10000, 'dialog closed after refusal');
+      await sleep(800);
+      const s = await snap(`4-${code}`);
+      const cc = await ctl();
+      step(`4-${code}-server`, { acks: cc.acks, publishCalls: cc.calls.filter((x) => x.name === 'publishIntakeRun').length });
+      await shot(`4-${code}`);
+    }
+
+    /* 5 그리기 실패(three 청크 실패) → Body3D 오류, 검토 완료 꺼짐 → 그 부품의 '다시' */
+    await fresh();
+    await intercept((u) => (isThree(u) ? 'fail' : 'pass'));
+    await openReview(0);
+    await waitFor(`!![...(${DIALOG}?.querySelectorAll('button') ?? [])].find((b) => b.textContent.trim() === '다시')`, 60000, 'body3d error retry');
+    await sleep(500);
+    await snap('5a-render-error');
+    await shot('5a-render-error');
+    await stopIntercept();
+    await clickAt(`[...(${DIALOG}).querySelectorAll('button')].find((b) => b.textContent.trim() === '다시')`, 'body3d retry');
+    try {
+      const t = await waitFor(READY, 60000, 'ready after body3d retry');
+      step('5b-render-retry', { recovered: true, ms: t });
+    } catch (e) {
+      step('5b-render-retry', { recovered: false, error: String(e) });
+    }
+    await snap('5c-after-render-retry');
+    await shot('5c-after-render-retry');
+    await closeDialog().catch(() => {});
+
+    /* 6 결과 부품 청크 실패 → ChunkBoundary 안에만, 검토 완료 꺼짐 → '다시' */
+    await fresh();
+    await intercept((u) => (isThree(u) ? 'pass' : 'fail'));
+    await openReview(0);
+    try {
+      await waitFor(`!!${DIALOG}?.querySelector('[role=alert]')`, 30000, 'chunk boundary');
+    } catch (e) {
+      step('6-urls', { seen: seenChunks.slice(-20).map((u) => u.replace(BASE, '')) });
+      throw e;
+    }
+    await sleep(500);
+    await snap('6a-chunk-error');
+    await shot('6a-chunk-error');
+    step('6a-page-intact', { rows: await evalJs(`${ROWS}.length`), heading: await evalJs(`document.querySelector('h1')?.textContent`) });
+    await stopIntercept();
+    await clickAt(`${DIALOG}.querySelector('[role=alert] button')`, 'chunk retry');
+    try {
+      const t = await waitFor(READY, 60000, 'ready after chunk retry');
+      step('6b-chunk-retry', { recovered: true, ms: t });
+    } catch (e) {
+      step('6b-chunk-retry', { recovered: false, error: String(e) });
+    }
+    await snap('6c-after-chunk-retry');
+    await shot('6c-after-chunk-retry');
+  }
+} catch (e) {
+  step('FAILED', { error: String(e?.stack ?? e) });
+  await shot('failed').catch(() => {});
+} finally {
+  const hosts = [...new Set(report.requests.map((u) => { try { return new URL(u).host; } catch { return u.slice(0, 30); } }))];
+  report.hosts = hosts;
+  step('network-hosts', { hosts });
+  done();
+  process.exit(0);
+}

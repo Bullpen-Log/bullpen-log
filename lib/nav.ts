@@ -350,6 +350,18 @@ export const NAV_GROUPS: NavGroup[] = [
         adminOnly: true,
         perm: 'dev3d',
       },
+      /*
+       * 외부 영상 접수(2026-11-06) — 초대 링크로 받은 옆 · 뒤 원본. 3D 개발 관리자 화면은 앱에서 앱 화면으로 넘어가서, 웹 입구를 메뉴에 따로 둔다.
+       * 아이콘은 앱(native/src/app/more.tsx)도 아는 이름으로
+       */
+      {
+        href: '/admin/intake',
+        label: '외부 영상 접수',
+        icon: 'film',
+        tone: 'armcare',
+        adminOnly: true,
+        perm: 'intake',
+      },
       /* 덕아웃 레슨 코치 관리 — 공개 · 편집 · 더미 코치(2026-10-22, 대표관리자만) */
       {
         href: '/admin/coaches',

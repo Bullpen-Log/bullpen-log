@@ -1,0 +1,24 @@
+import { readFileSync, existsSync } from 'node:fs';
+import path from 'node:path';
+const root = process.argv[2]; const entries = process.argv.slice(3);
+const seen = new Set(); const pkgs = new Set(); const q = entries.map((e) => path.join(root, e));
+const exts = ['', '.ts', '.tsx', '.mts', '.js', '.mjs', '/index.ts', '/index.tsx', '.json'];
+const resolve = (from, s) => {
+  const base = s.startsWith('@/') ? path.join(root, s.slice(2)) : s.startsWith('.') ? path.resolve(path.dirname(from), s) : null;
+  if (!base) { pkgs.add(s.split('/').slice(0, s.startsWith('@') ? 2 : 1).join('/')); return null; }
+  for (const x of exts) if (existsSync(base + x) && !base.endsWith('/') ) { try { readFileSync(base + x); return base + x; } catch {} }
+  return null;
+};
+while (q.length) {
+  const f = q.pop(); if (seen.has(f)) continue; seen.add(f);
+  const src = readFileSync(f, 'utf8');
+  for (const m of src.matchAll(/(?:^|\n)\s*(?:import|export)\s+(?!type\b)[^'"]*?from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)|(?:^|\n)\s*import\s+['"]([^'"]+)['"]/g)) {
+    const s = m[1] ?? m[2] ?? m[3]; const r = resolve(f, s); if (r) q.push(r);
+  }
+}
+const files = [...seen].map((f) => path.relative(root, f));
+console.log('modules', files.length);
+console.log('packages', [...pkgs].sort().join(' '));
+const bad = files.filter((f) => /prisma|clock-server|lib\/dal|lib\/session|lib\/storage|supabase|lib\/db\b/.test(f));
+console.log('risky files:', bad.length ? bad.join(', ') : 'none');
+console.log('server-only/dotenv/prisma pkgs:', [...pkgs].filter((p) => /server-only|dotenv|prisma|pg$|@supabase/.test(p)).join(' ') || 'none');

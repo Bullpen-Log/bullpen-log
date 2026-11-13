@@ -1,0 +1,107 @@
+'use server';
+/*
+ * R02 시험대 전용 — 실제 서버 동작 대신 메모리 가짜. 실제 권한 · 잠금 · Postgres 를 검증하지 않는다(화면 연결만 본다).
+ * 제품 diff 에 없다. 모양은 app/actions/intake-admin.ts(91834071)와 같다.
+ */
+import { CURRENT_REVISION_ID, RUNS, SID, fixtureView, rigState } from '@/app/r02-rig/state';
+
+export type IntakeActionFailure = { ok: false; code: string; message: string; detail?: Record<string, unknown> };
+export type IntakeActionResult<T extends object = object> = ({ ok: true } & T) | IntakeActionFailure;
+
+const log = (name: string, args: unknown[]) => void rigState().calls.push({ name, args, at: Date.now() });
+const fail = (code: string, message: string): IntakeActionFailure => ({ ok: false, code, message });
+const stub = async (name: string, args: unknown[]): Promise<IntakeActionResult> => (log(name, args), fail('rig_stub', '시험대에서 쓰지 않는 동작이에요.'));
+
+export async function getIntakeRunReview(submissionId: string, runId: string) {
+  log('getIntakeRunReview', [submissionId, runId]);
+  const s = rigState();
+  if (s.reviewDelayMs) await new Promise((r) => setTimeout(r, s.reviewDelayMs));
+  const run = RUNS.find((r) => r.id === runId);
+  if (submissionId !== SID || !run) return fail('not_found', '실행을 찾지 못했어요.');
+  return {
+    ok: true as const,
+    view: fixtureView,
+    athleteName: '합성 투수',
+    revisionNumber: run.revisionNumber,
+    isCurrentRevision: run.isCurrentRevision,
+    finishedAt: null,
+    resultDigest: run.digest,
+    currentRevisionId: CURRENT_REVISION_ID,
+  };
+}
+
+export async function acknowledgeIntakeRunReview(submissionId: string, runId: string, resultDigest: string, currentRevisionId: string | null) {
+  log('acknowledgeIntakeRunReview', [submissionId, runId, resultDigest, currentRevisionId]);
+  const s = rigState();
+  if (s.ackRefuse) {
+    const code = s.ackRefuse;
+    s.ackRefuse = null;
+    return fail(code, code === 'stale_review' ? '검토를 연 뒤 결과나 접수가 바뀌었어요. 다시 열어 확인해 주세요.' : '먼저 3D 결과를 열어 검토해 주세요.');
+  }
+  const run = RUNS.find((r) => r.id === runId);
+  if (!run || run.digest !== resultDigest || currentRevisionId !== CURRENT_REVISION_ID) return fail('stale_review', '검토를 연 뒤 결과나 접수가 바뀌었어요.');
+  const id = `ack-${++s.seq}`;
+  s.acks[id] = { runId, digest: resultDigest, revisionId: currentRevisionId };
+  return { ok: true as const, acknowledgementId: id };
+}
+
+export async function publishIntakeRun(
+  submissionId: string,
+  runId: string,
+  explanation: string,
+  expectedActivePublicationId: string | null,
+  options: { allowOlderRevision?: boolean; acknowledgementId?: string | null } = {},
+) {
+  log('publishIntakeRun', [submissionId, runId, explanation, expectedActivePublicationId, options]);
+  const s = rigState();
+  const ack = options?.acknowledgementId ? s.acks[options.acknowledgementId] : undefined;
+  if (!ack || ack.runId !== runId) return fail('review_required', '먼저 3D 결과를 열어 검토해 주세요.');
+  if (expectedActivePublicationId !== s.activePublicationId) return fail('stale_publication', '그사이 공개가 바뀌었어요.');
+  const replaced = s.publishedRunId != null;
+  s.publishedRunId = runId;
+  s.activePublicationId = `pub-${++s.seq}`;
+  return { ok: true as const, replaced };
+}
+
+export async function unpublishIntake(...a: [string, string | null]) {
+  return stub('unpublishIntake', a);
+}
+export async function addIntakeAdminNote(...a: unknown[]) {
+  return stub('addIntakeAdminNote', a);
+}
+export async function assignIntake(...a: unknown[]) {
+  return stub('assignIntake', a);
+}
+export async function deleteIntakeAdminNote(...a: unknown[]) {
+  return stub('deleteIntakeAdminNote', a);
+}
+export async function getIntakeOriginalLink(...a: unknown[]) {
+  return stub('getIntakeOriginalLink', a);
+}
+export async function getIntakePairLinks(...a: unknown[]) {
+  return stub('getIntakePairLinks', a);
+}
+export async function getIntakeRunPreview(...a: unknown[]) {
+  return stub('getIntakeRunPreview', a);
+}
+export async function markIntakeSeen(...a: unknown[]) {
+  return stub('markIntakeSeen', a);
+}
+export async function markIntakeUnseen(...a: unknown[]) {
+  return stub('markIntakeUnseen', a);
+}
+export async function reissueIntakeInvitation(...a: unknown[]) {
+  return stub('reissueIntakeInvitation', a);
+}
+export async function revokeIntakeInvitation(...a: unknown[]) {
+  return stub('revokeIntakeInvitation', a);
+}
+export async function runIntakeAnalysis(...a: unknown[]) {
+  return stub('runIntakeAnalysis', a);
+}
+export async function setIntakeHand(...a: unknown[]) {
+  return stub('setIntakeHand', a);
+}
+export async function createIntakeInvitation(...a: unknown[]) {
+  return stub('createIntakeInvitation', a);
+}

@@ -33,6 +33,8 @@ export const RPC_MODULE_CAPABILITY: Record<string, OpAccess> = {
   'velocity-recording': { cap: 'admin', perm: 'recording' },
   shoot: { cap: 'admin', perm: 'shoot' },
   'app-shoot': { cap: 'admin', perm: 'shoot' },
+  /* 외부 영상 접수(2026-11-06) — 지금은 웹 화면만 부르고 registry 에는 없다. 앱에 열게 되면 이 분류를 그대로 쓴다 */
+  'intake-admin': { cap: 'admin', perm: 'intake' },
   'patch-note': { cap: 'admin' },
   content: { cap: 'library' },
 

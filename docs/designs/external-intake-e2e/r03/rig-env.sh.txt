@@ -1,0 +1,7 @@
+export DATABASE_URL='postgresql://postgres@127.0.0.1:54399/postgres?sslmode=disable'
+export DIRECT_URL="$DATABASE_URL"
+export SUPABASE_URL='http://127.0.0.1:54398'
+export SUPABASE_SERVICE_ROLE_KEY='e2e-service'
+export SUPABASE_PUBLISHABLE_KEY='e2e-publishable'
+export SESSION_SECRET='e2e-session-secret-e2e-session-secret-e2e'
+export NEXT_TELEMETRY_DISABLED=1

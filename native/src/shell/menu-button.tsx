@@ -11,6 +11,8 @@ import { Icon } from '~/shell/icon';
 import { MENU_ICON, useMenu, type MenuItem } from '~/shell/menu-store';
 import { canOpen, noticeLocked, useRelease } from '~/shell/release';
 import { openWebAfter } from '~/shell/web-nav';
+/* 관리 항목 가운데 앱 화면으로 여는 짝 — 더보기 폴더와 같은 표 하나(admin/intake-nav.ts) */
+import { nativeManageScreen } from '~/admin/intake-nav';
 
 /**
  * 탭 머리 오른쪽 공통 메뉴 — '세라믹 런처'(2026-10-29 확정 시안). 하단 탭의 더보기를 걷고, 이 단추 밑에 붙어 뜨는 둥근 팝오버로 옮겼다.
@@ -127,6 +129,10 @@ function Launcher({ anchor, onClosed }: { anchor: Rect; onClosed: () => void }) 
   const manage = groups.filter((g) => g.title === '관리').flatMap((g) => g.items);
   const push = (href: string) => () => router.push(href as Href);
   const web = (href: string) => () => openWebAfter(href);
+  const manageGo = (href: string) => {
+    const screen = nativeManageScreen(href);
+    return screen ? push(screen) : web(href);
+  };
 
   const utility: { key: keyof typeof ICONS; label: string; go: () => void }[] = [
     { key: 'bell', label: '알림', go: push('/notice') },
@@ -234,7 +240,7 @@ function Launcher({ anchor, onClosed }: { anchor: Rect; onClosed: () => void }) 
                   key={it.href}
                   accessibilityRole="button"
                   accessibilityLabel={it.label}
-                  onPress={() => close(it.href.split('?')[0] === '/admin/dev3d' ? push('/swing/samples') : web(it.href))}
+                  onPress={() => close(manageGo(it.href))}
                   style={({ pressed }) => [st.manageRow, pressed && st.pressed]}
                 >
                   <Icon name={MENU_ICON[it.icon] ?? 'menu'} size={20} color={L.muted} />

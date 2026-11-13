@@ -1,0 +1,1 @@
+cd /Users/yuno/Developer/bullpen-log && rsync -a --exclude='.env*' app components lib proxy.ts /tmp/intake-rig/intake-e2e/clone/

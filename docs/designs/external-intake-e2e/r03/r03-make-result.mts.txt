@@ -1,0 +1,10 @@
+/* 시험대 전용 — 합성 투수로 만든 3D 결과(Pitch3dV2Ok)를 public 에 둔다. 관리자 화면에서 묶음을 만들어 가져오는 데 쓴다 */
+import { writeFileSync } from 'node:fs';
+import { fitPitch3dV2 } from '@/lib/pitch-3d/v2/fit';
+import { base, cameras, EV } from './pitch-lab/synth.mts';
+import { makeV2Track } from './pitch-lab/synth-v2.mts';
+const sc = base; const { side: cs, back: cb } = cameras(sc);
+const ts = makeV2Track(sc, cs, sc.side, 'side', 11); const tb = makeV2Track(sc, cb, sc.back, 'back', 12);
+const r = fitPitch3dV2({ side: ts.track, back: tb.track, hand: sc.hand, heightCm: 183, jobId: '00000000-0000-4000-8000-000000000001', poseModel: 'synth', screenRecorded: true, slowmoFps: 240, events: { kneeUp: ts.toMedia(EV.kneeUp), footPlant: ts.toMedia(EV.footPlant), release: ts.toMedia(EV.release) } }).result;
+writeFileSync('public/r03-result.json', JSON.stringify(r));
+console.log('written', JSON.stringify(r).length);

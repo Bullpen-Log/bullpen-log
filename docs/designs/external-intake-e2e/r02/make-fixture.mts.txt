@@ -1,0 +1,18 @@
+/* R02 시험대 전용 — 합성 투수로 실제 엔진 맞추기를 돌려 공개 칸 JSON 을 만든다. DB · 네트워크 · .env 없음 */
+import { writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { fitPitch3dV2 } from '@/lib/pitch-3d/v2/fit';
+import { toPublicView } from '@/lib/intake/public-result';
+import { base, cameras, EV } from './pitch-lab/synth.mts';
+import { makeV2Track } from './pitch-lab/synth-v2.mts';
+const sc = base;
+const { side: cs, back: cb } = cameras(sc);
+const ts = makeV2Track(sc, cs, sc.side, 'side', 11);
+const tb = makeV2Track(sc, cb, sc.back, 'back', 12);
+const r = fitPitch3dV2({ side: ts.track, back: tb.track, hand: sc.hand, heightCm: 183, jobId: 'r02-synth', poseModel: 'synth', screenRecorded: true, slowmoFps: 240, events: { kneeUp: ts.toMedia(EV.kneeUp), footPlant: ts.toMedia(EV.footPlant), release: ts.toMedia(EV.release) } }).result;
+if (!r.ok) throw new Error('합성 맞추기 실패 ' + JSON.stringify(r).slice(0, 200));
+const raw = JSON.stringify(r);
+const view = toPublicView(r);
+const out = { resultSha256: createHash('sha256').update(raw).digest('hex'), frames: r.t.length, view };
+writeFileSync(process.argv[2], JSON.stringify(out));
+console.log('frames', r.t.length, 'joints', r.joints.length, 'sha', out.resultSha256.slice(0, 16), 'bytes', JSON.stringify(out).length);

@@ -13,8 +13,9 @@ import { isPhoneBrowser, surfaceOf } from '@/lib/app-env';
  * 로그인 뒤는 ?next= 로 돌아간 덕아웃 화면이고, next 가 없는 선수 계정은 /today 로 가서 예전처럼 '앱으로 써 주세요'를 본다(싱커 화면은 그대로 막힘).
  * 비밀번호 찾기 화면은 아직 없다(메일 보내는 길이 없음).
  */
+/* /submit — 초대 링크로 영상을 보내는 공개 화면(2026-11-06 외부 접수). 앱 설치 · 가입 없이 휴대폰 브라우저로 쓰는 곳이라 이 주소 하나만 정확히 연다 */
 const OPEN =
-  /^\/(phone|terms|privacy|embed|velocity-engine|intro|report|market|chat|lessons|venues|gear|me|pay|u|notifications|link|community|search|baseball|login)(\/|$)|^\/$/;
+  /^\/(phone|terms|privacy|embed|velocity-engine|intro|report|market|chat|lessons|venues|gear|me|pay|u|notifications|link|community|search|baseball|login)(\/|$)|^\/$|^\/submit$/;
 
 /*
  * 덕아웃 앱(이름표 DugoutApp — native/src/dugout, 2026-10-24 김민)은 덕아웃 주소에 더해 /login 까지 — 로그인은 앱 화면이 맡고 가입만 아직 웹 폼

@@ -64,6 +64,7 @@ export function Dev3dClient({
       <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
         {[
           { href: '/videos/lab', label: '투구 샘플 · 마커 샘플' },
+          { href: '/admin/intake', label: '외부 영상 접수(초대 링크로 받은 투구 영상)' },
           { href: '/hitting/lab', label: '3D 스윙 분석 사용자 화면' },
           { href: `/hitting/lab/guide?hand=${defaultHand}`, label: '타자 촬영 안내' },
         ].map((x) => (

@@ -1,0 +1,1104 @@
+// 격리 시험대(3101 + 54398)에 헤드리스 크로미움을 붙여 공개 화면을 끝까지 눌러 본다. 운영 값을 쓰지 않는다
+import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+const DIR = path.dirname(new URL(import.meta.url).pathname);
+const APP = 'http://localhost:3101', ST = 'http://127.0.0.1:54398';
+const BIN = process.env.INTAKE_E2E_CHROME ?? '/Users/yuno/Library/Caches/ms-playwright/chromium_headless_shell-1187/chrome-mac/headless_shell';
+const PORT = 9347;
+const UA_IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+const results = [];
+const ok = (name, pass, note = '') => { results.push({ name, pass: !!pass, note }); console.log(`${pass ? 'OK  ' : 'FAIL'} ${name}${note ? ' — ' + note : ''}`); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const ctl = (p) => fetch(`${ST}/__/${p}`).then((r) => r.json());
+
+for (const f of ['side', 'rear', 'big', 'side2', 'rear2']) writeFileSync(path.join(DIR, `${f}.mov`), Buffer.from(await (await fetch(`${ST}/__/fixture?f=${f}`)).arrayBuffer()));
+const FILE = (f) => path.join(DIR, `${f}.mov`);
+
+const prof = mkdtempSync(path.join(tmpdir(), 'intake-cdp-'));
+const chrome = spawn(BIN, [`--remote-debugging-port=${PORT}`, `--user-data-dir=${prof}`, '--no-first-run', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', 'about:blank'], { stdio: 'ignore' });
+process.on('exit', () => chrome.kill());
+let ver; for (let i = 0; i < 50; i++) { try { ver = await (await fetch(`http://127.0.0.1:${PORT}/json/version`)).json(); break; } catch { await sleep(200); } }
+const bws = new WebSocket(ver.webSocketDebuggerUrl);
+await new Promise((r) => (bws.onopen = r));
+let mid = 0; const pending = new Map(); const listeners = new Set();
+bws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { const { res, rej } = pending.get(m.id); pending.delete(m.id); m.error ? rej(new Error(JSON.stringify(m.error))) : res(m.result); } else listeners.forEach((l) => l(m)); };
+const send = (method, params = {}, sessionId) => new Promise((res, rej) => { const id = ++mid; pending.set(id, { res, rej }); bws.send(JSON.stringify({ id, method, params, sessionId })); });
+
+async function page({ w = 390, h = 844, ua = UA_IPHONE, mobile = true } = {}) {
+  const { browserContextId } = await send('Target.createBrowserContext');
+  const { targetId } = await send('Target.createTarget', { url: 'about:blank', browserContextId });
+  const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+  const s = (m, p) => send(m, p, sessionId);
+  await s('Page.enable'); await s('Runtime.enable'); await s('DOM.enable'); await s('Network.enable');
+  await s('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 2, mobile });
+  await s('Emulation.setUserAgentOverride', { userAgent: ua });
+  const errors = [];
+  listeners.add((m) => { if (m.sessionId === sessionId && m.method === 'Page.javascriptDialogOpening') void s('Page.handleJavaScriptDialog', { accept: true }); });
+  listeners.add((m) => { if (m.sessionId === sessionId && m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.text); });
+  const ev = async (expr) => { const r = await s('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.text + expr); return r.result.value; };
+  const text = () => ev('document.body.innerText');
+  const waitText = async (t, ms = 30000) => { const end = Date.now() + ms; for (;;) { const b = await text().catch(() => ''); if (b.includes(t)) return true; if (Date.now() > end) throw new Error(`못 찾음: ${t}\n--- 화면\n${b.slice(0, 500)}`); await sleep(120); } };
+  const click = async (t, ms = 30000) => { const end = Date.now() + ms; const q = JSON.stringify(t); for (;;) { const done = await ev(`(()=>{const c=[...document.querySelectorAll('button,a,label,[role=button]')].filter(e=>e.innerText.trim().includes(${q})&&!e.disabled&&e.getAttribute('aria-disabled')!=='true'&&e.offsetParent!==null);const e=c.at(-1);if(!e)return false;e.click();return true})()`); if (done) return; if (Date.now() > end) throw new Error('못 누름: ' + t + '\n' + (await text()).slice(0, 500)); await sleep(120); } };
+  const type = async (sel, v) => { await ev(`(()=>{const e=document.querySelector(${JSON.stringify(sel)});e.focus();e.select&&e.select();})()`); await s('Input.insertText', { text: v }); };
+  const files = async (paths, nth = 0) => { const { root } = await s('DOM.getDocument', { depth: 1 }); const { nodeIds } = await s('DOM.querySelectorAll', { nodeId: root.nodeId, selector: 'input[type=file]' }); await s('DOM.setFileInputFiles', { nodeId: nodeIds[nth], files: paths }); };
+  const go = async (url) => { await s('Page.navigate', { url }); await sleep(400); };
+  const overflow = () => ev('document.documentElement.scrollWidth - document.documentElement.clientWidth');
+  const offline = (on) => s('Network.emulateNetworkConditions', { offline: on, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  /* CDP Fetch 로 요청을 붙잡는다 — 응답 머리 멈춤 · 본문 멈춤 · 응답 잃음을 흉내 낸다. 처리기가 없으면 그대로 보낸다 */
+  let onPause = null;
+  listeners.add((m) => {
+    if (m.sessionId !== sessionId || m.method !== 'Fetch.requestPaused') return;
+    if (onPause) void Promise.resolve(onPause(m.params)).catch(() => {});
+    else void s('Fetch.continueRequest', { requestId: m.params.requestId }).catch(() => {});
+  });
+  const intercept = async (patterns, handler) => { onPause = handler; await s('Fetch.enable', { patterns }); };
+  const unintercept = async () => { onPause = null; await s('Fetch.disable').catch(() => {}); };
+  const pass = (p) => s('Fetch.continueRequest', { requestId: p.requestId }).catch(() => {});
+  return { intercept, unintercept, pass, s, ev, text, waitText, click, type, files, go, overflow, errors, offline, close: () => send('Target.disposeBrowserContext', { browserContextId }) };
+}
+const url = (inv) => `${APP}/submit#${inv.token}`;
+const subId = (inv) => inv.submissionId ?? inv.submission?.id;
+
+async function toReview(p, name, side = 'side', rear = 'rear') {
+  await p.waitText('시작하기'); await sleep(900); // 개발 서버의 StrictMode 이중 읽기가 끝난 뒤에 누른다
+  await p.click('시작하기');
+  await p.waitText('영상 속 선수의 이름은 무엇인가요?');
+  await p.type('input[type=text],input:not([type])', name);
+  await p.click('다음');
+  await p.waitText('먼저, 옆에서 찍은 영상을 골라주세요');
+  await p.files([FILE(side)]);
+  await p.waitText('이 영상으로 계속');
+  await p.click('이 영상으로 계속');
+  await p.waitText('이번에는 뒤에서 찍은 영상이에요');
+  await p.files([FILE(rear)]);
+  await p.waitText('이 영상으로 계속');
+  await p.click('이 영상으로 계속');
+  await p.waitText('이 두 영상을 보내면 돼요');
+}
+async function agree(p) {
+  await p.click('두 영상은 같은 투구를 동시에 찍은 영상이에요');
+  await p.click('만 14세 이상');
+  await p.click('선수 본인');
+  const n = await p.ev(`(()=>{const c=[...document.querySelectorAll('input[type=checkbox]')].filter(e=>e.id.startsWith('consent-'));c.forEach(e=>{if(!e.checked)e.click()});return c.length})()`);
+  return n;
+}
+
+const only = process.argv[2];
+const want = (n) => !only || only.split(',').includes(n);
+try {
+  if (want('happy')) {
+    const inv = await ctl('invite');
+    const p = await page();
+    await p.go(url(inv));
+    await p.waitText('투구 영상 두 개를 보내주세요');
+    ok('휴대폰 UA 로 /submit 이 앱 설치 안내로 안 간다', (await p.ev('location.pathname')) === '/submit');
+    ok('환영 화면 도움 글 둘', (await p.text()).includes('촬영 방법 보기') && (await p.text()).includes('원본 영상을 고르는 방법'));
+    await p.click('촬영 방법 보기');
+    await p.waitText('왼손');
+    ok('촬영 안내에 왼손 · 오른손 투수 옆 카메라 설명', true);
+    await p.s('Page.reload'); await sleep(800);
+    await p.waitText('투구 영상 두 개를 보내주세요');
+    await toReview(p, '김테스트');
+    const t = await p.text();
+    ok('검토 화면에 이름 · 두 파일 · 동의', t.includes('side.mov') && t.includes('rear.mov'));
+    ok('390px 가로 넘침 없음(검토)', (await p.overflow()) <= 0, String(await p.overflow()));
+    await p.click('영상 보내기');
+    await sleep(300);
+    const miss = await p.text();
+    ok('동의 없이 보내기를 막고 칸 곁에 말함', miss.includes('이 두 영상을 보내면 돼요'));
+    const nConsent = await agree(p);
+    ok('필수 동의가 칸마다 있다', nConsent >= 2, String(nConsent));
+    await p.click('영상 보내기');
+    await p.waitText('영상을 원본 그대로 보내고 있어요');
+    await p.waitText('두 영상이 모두 도착했어요', 60000).catch(() => {});
+    const after = await p.text();
+    if (after.includes('두 영상이 모두 도착했어요')) { await p.click('접수'); }
+    await p.waitText('영상이 잘 도착했어요', 60000);
+    const r = await p.text();
+    ok('영수증: 이름 · 접수일 · 번호 · 상태 · 링크 복사', ['김테스트', '접수일', '접수 번호', '지금 상태', '링크 복사'].every((x) => r.includes(x)));
+    const info = await ctl(`info?id=${subId(inv)}`);
+    const shas = info.stored.map((o) => o.sha);
+    ok('저장된 옆 원본 SHA-256 = 고른 파일', shas.includes(info.fx.side));
+    ok('저장된 뒤 원본 SHA-256 = 고른 파일', shas.includes(info.fx.rear));
+    ok('짝이 판으로 얼었다', info.s.revisions.length === 1);
+    await p.s('Page.reload'); await sleep(1000);
+    await p.waitText('영상이 잘 도착했어요');
+    ok('다시 열면 서버 상태로 영수증', true);
+    await sleep(6000);
+    const verified = await ctl(`info?id=${subId(inv)}`);
+    console.log('assets', verified.s.assets.map((a) => [a.view, a.status, a.frameRateLabel ?? a.fps ?? null]));
+    await ctl(`set?id=${subId(inv)}&analysis=running`);
+    await p.s('Page.reload'); await sleep(1000);
+    await p.waitText('분석');
+    ok('분석 중 상태가 바른 말로', true, (await p.text()).split('\n').find((l) => l.includes('분석')));
+    ok('화면 JS 오류 없음', p.errors.length === 0, p.errors.join(' | ').slice(0, 200));
+    await p.close();
+  }
+  if (want('same')) {
+    const inv = await ctl('invite');
+    const p = await page();
+    await p.go(url(inv));
+    await p.waitText('시작하기'); await sleep(900);
+    await p.click('시작하기');
+    await p.waitText('영상 속 선수의 이름은 무엇인가요?');
+    await p.type('input[type=text],input:not([type])', '같은파일');
+    await p.click('다음');
+    await p.waitText('먼저, 옆에서 찍은 영상을 골라주세요');
+    await p.files([FILE('side')]);
+    await p.click('이 영상으로 계속');
+    await p.waitText('이번에는 뒤에서 찍은 영상이에요');
+    await p.files([FILE('side')]);
+    await sleep(2500);
+    const t = await p.text();
+    const alert = await p.ev(`[...document.querySelectorAll('[role=alert]')].map(e=>e.innerText).join(' / ')`);
+    ok('같은 파일을 뒤 칸에 고르면 곁에서 막는다', /같은/.test(alert) && !t.includes('이 영상으로 계속'), alert);
+    await p.ev(`document.querySelector('button[aria-label="이전 화면"]').click()`);
+    await p.waitText('먼저, 옆에서 찍은 영상을 골라주세요');
+    ok('뒤 칸 실패 뒤에도 옆 선택이 남는다', (await p.text()).includes('side.mov'));
+    await p.close();
+  }
+  if (want('resume')) {
+    const inv = await ctl('invite');
+    const p = await page();
+    await p.go(url(inv));
+    await toReview(p, '끊김시험');
+    await agree(p);
+    await ctl('cut?n=2000000');
+    await ctl('delay?ms=1500');
+    await p.click('영상 보내기');
+    await p.waitText('영상을 원본 그대로 보내고 있어요');
+    await sleep(3500);
+    const before = await ctl(`info?id=${subId(inv)}`);
+    await ctl('delay?ms=0');
+    await p.s('Page.reload'); await sleep(1200);
+    await p.waitText('보내던 영상을 이어서 보낼게요', 20000);
+    ok('보내다 새로고침하면 이어 보내기 화면', true, `patches=${before.patches}`);
+    await p.files([FILE('side')], 0);
+    await sleep(2500);
+    const t = await p.text();
+    ok('같은 파일을 다시 고르면 이어서 보낸다고 말함', t.includes('이어서'));
+    const n = await p.ev(`document.querySelectorAll('input[type=file]').length`);
+    if (n > 1) await p.files([FILE('rear')], 1);
+    await sleep(2500);
+    await p.click('이어서');
+    await p.waitText('두 영상이 모두 도착했어요', 60000).catch(() => {});
+    if ((await p.text()).includes('두 영상이 모두 도착했어요')) await p.click('접수');
+    await p.waitText('영상이 잘 도착했어요', 60000);
+    const info = await ctl(`info?id=${subId(inv)}`);
+    const shas = info.stored.map((o) => o.sha);
+    ok('끊긴 뒤 이어 보낸 옆 · 뒤 SHA-256 일치', shas.includes(info.fx.side) && shas.includes(info.fx.rear));
+    await p.close();
+  }
+  if (want('offline')) {
+    const inv = await ctl('invite');
+    const p = await page();
+    await p.go(url(inv));
+    await toReview(p, '오프라인');
+    await agree(p);
+    await ctl('delay?ms=400');
+    await p.click('영상 보내기');
+    await p.waitText('영상을 원본 그대로 보내고 있어요');
+    await sleep(1500);
+    await p.offline(true);
+    await p.waitText('이어서 보내기', 90000);
+    ok('망이 끊기면 멈추고 이어서 보내기 단추', true);
+    await p.offline(false);
+    await ctl('delay?ms=0');
+    await p.click('이어서 보내기');
+    await p.waitText('두 영상이 모두 도착했어요', 60000).catch(() => {});
+    if ((await p.text()).includes('두 영상이 모두 도착했어요')) await p.click('접수');
+    await p.waitText('영상이 잘 도착했어요', 60000);
+    const info = await ctl(`info?id=${subId(inv)}`);
+    ok('망 복구 뒤 같은 화면에서 끝까지', info.stored.map((o) => o.sha).includes(info.fx.rear));
+    await p.close();
+  }
+  if (want('deny')) {
+    const inv = await ctl('invite');
+    await ctl(`revoke?id=${inv.invitationId ?? inv.invitation?.id ?? inv.id}`);
+    const p = await page();
+    await p.go(url(inv));
+    await sleep(1500);
+    const t = await p.text();
+    ok('폐기된 링크는 막힌 화면', !t.includes('시작하기'), t.slice(0, 80).replace(/\n/g, ' '));
+    const ex = await ctl('invite?expired=1');
+    await p.go('about:blank'); await p.go(url(ex));
+    await sleep(1500);
+    const e = await p.text();
+    ok('올리기 기간이 끝나면 새 올리기를 막는다', !e.includes('시작하기'), e.slice(0, 80).replace(/\n/g, ' '));
+    await p.go(`${APP}/submit`);
+    await sleep(1000);
+    ok('토큰 없는 주소는 막힌 화면', !(await p.text()).includes('시작하기'));
+    await p.close();
+  }
+  if (want('correct')) {
+    const inv = await ctl('invite');
+    const p = await page();
+    await p.go(url(inv));
+    await toReview(p, '고침시험');
+    await agree(p);
+    await p.click('영상 보내기');
+    await p.waitText('두 영상이 모두 도착했어요', 60000).catch(() => {});
+    if ((await p.text()).includes('두 영상이 모두 도착했어요')) await p.click('접수');
+    await p.waitText('영상이 잘 도착했어요', 60000);
+    await sleep(6000);
+    await ctl(`correct?id=${subId(inv)}`);
+    await p.s('Page.reload'); await sleep(1200);
+    await p.waitText('이 내용만 고쳐 주세요');
+    const t = await p.text();
+    ok('고침 요청: 말한 칸만 다시 연다', t.includes('뒤 영상에서 발이 잘렸어요') && !t.includes('옆 영상 선택') , t.replace(/\n/g, ' ').slice(0, 140));
+    await p.close();
+  }
+  if (want('relation')) {
+    const inv = await ctl('invite');
+    const p = await page();
+    await p.go(url(inv));
+    await toReview(p, '관계시험');
+    await p.click('두 영상은 같은 투구를 동시에 찍은 영상이에요');
+    await p.click('만 14세 이상');
+    await p.ev(`[...document.querySelectorAll('input[type=checkbox]')].filter(e=>e.id.startsWith('consent-')).forEach(e=>{if(!e.checked)e.click()})`);
+    await sleep(200);
+    await p.click('영상 보내기');
+    await sleep(500);
+    const miss = await p.text();
+    ok('누가 보내는지 안 고르면 안 보낸다', miss.includes('누가 보내는지 골라 주세요') && miss.includes('이 두 영상을 보내면 돼요'));
+    await p.click('코치');
+    await sleep(200);
+    ok('대리면 체크 글이 달라진다', (await p.text()).includes('선수를 대신해'));
+    await p.ev(`[...document.querySelectorAll('input[type=checkbox]')].filter(e=>e.id.startsWith('consent-')).forEach(e=>{if(!e.checked)e.click()})`);
+    await sleep(200);
+    await p.click('영상 보내기');
+    await p.waitText('두 영상이 모두 도착했어요', 60000).catch(() => {});
+    if ((await p.text()).includes('두 영상이 모두 도착했어요')) await p.click('접수');
+    await p.waitText('영상이 잘 도착했어요', 60000);
+    await sleep(5000);
+    const id = subId(inv);
+    let info = await ctl(`info?id=${id}`);
+    ok('동의 줄에 대리 관계가 남는다', info.s.consents.filter((c) => c.kind !== 'model').every((c) => c.relation === 'coach' && c.proxy === true));
+    await ctl(`correct3?id=${id}`);
+    await p.s('Page.reload'); await sleep(1500);
+    await p.waitText('이 내용만 고쳐 주세요');
+    const before = await p.text();
+    ok('관계를 안 바꾸면 동의를 다시 안 묻는다', !before.includes('내용을 읽었고 동의해요'), before.replace(/\n/g, ' ').slice(0, 120));
+    await p.click('부모 · 보호자');
+    await sleep(300);
+    ok('관계를 바꾸면 동의를 다시 묻고 체크가 비어 있다', (await p.text()).includes('선수를 대신해') && (await p.ev(`[...document.querySelectorAll('input[type=checkbox]')].filter(e=>e.id.startsWith('consent-')).every(e=>!e.checked)`)));
+    await p.ev(`[...document.querySelectorAll('input[type=checkbox]')].filter(e=>e.id.startsWith('consent-')).forEach(e=>e.click())`);
+    await sleep(200);
+    await p.click('고친 내용 보내기').catch(async () => { await p.click('보내기'); });
+    await p.waitText('영상이 잘 도착했어요', 60000);
+    await sleep(1500);
+    info = await ctl(`info?id=${id}`);
+    const rows = info.s.consents.filter((c) => c.kind === 'submission');
+    ok('고친 뒤 새 관계로 동의 줄이 남고 판도 같다', rows.some((c) => c.relation === 'parent') && info.s.revisions.some((r) => r.submitterRelation === 'parent'), JSON.stringify(rows.map((c) => c.relation)));
+    await p.close();
+  }
+  if (want('nameless')) {
+    const inv = await ctl('nameless');
+    const p = await page();
+    await p.go(url(inv));
+    await p.waitText('영상 속 선수의 이름은 무엇인가요?');
+    ok('파일이 다 왔고 이름이 없으면 이름부터 받는다', true);
+    await sleep(900);
+    await p.type('input[type=text],input:not([type])', '이름복구');
+    await p.click('다음');
+    await p.waitText('두 영상이 모두 도착했어요');
+    ok('이름을 적으면 끝내기 화면으로 돌아온다', (await p.text()).includes('이름복구'));
+    await p.click('접수 마치기');
+    await p.waitText('영상이 잘 도착했어요', 30000);
+    ok('막다른 길 없이 접수까지 간다', true);
+    await p.close();
+  }
+  if (want('result')) {
+    const inv = await ctl('invite');
+    const p = await page({ w: 1440, h: 900, mobile: false, ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36' });
+    await p.go(url(inv));
+    await toReview(p, '결과시험');
+    await agree(p);
+    await p.click('영상 보내기');
+    await p.waitText('두 영상이 모두 도착했어요', 60000).catch(() => {});
+    if ((await p.text()).includes('두 영상이 모두 도착했어요')) await p.click('접수');
+    await p.waitText('영상이 잘 도착했어요', 60000);
+    await sleep(5000);
+    const id = subId(inv);
+    const r1 = await ctl(`run?id=${id}`);
+    await ctl(`set?id=${id}&analysis=succeeded`);
+    await p.s('Page.reload'); await sleep(1500);
+    const pre = await p.text();
+    ok('분석이 끝나도 공개 전에는 결과가 안 보인다', !pre.includes('담당자 설명'), pre.replace(/\n/g, ' ').slice(0, 120));
+    const pub = await ctl(`publish?run=${r1.runId}&x=${encodeURIComponent('승인한 설명 한 줄')}`);
+    ok('특정 실행으로 공개', pub.number === 1 && pub.runId === r1.runId);
+    await p.s('Page.reload');
+    await p.waitText('승인한 설명 한 줄', 40000);
+    await sleep(4000);
+    const t = await p.text();
+    const cv = await p.ev(`(()=>{const c=document.querySelector('canvas');if(!c)return null;const r=c.getBoundingClientRect();return {w:Math.round(r.width),h:Math.round(r.height)}})()`);
+    ok('공개 결과에 3D 캔버스', cv && cv.w > 300, JSON.stringify(cv));
+    const secW = await p.ev(`Math.round(document.querySelector('section[aria-label="3D 동작"]').getBoundingClientRect().width)`);
+    const pgW = await p.ev(`Math.round(document.querySelector('section[aria-label="3D 동작"]').parentElement.parentElement.getBoundingClientRect().width)`);
+    ok('결과 칸이 좁은 폼 칸에 안 묶인다', pgW > 560, `3D ${secW}px · 틀 ${pgW}px`);
+    const btns = await p.ev(`[...document.querySelectorAll('section[aria-label="3D 동작"] button')].map(b=>(b.getAttribute('aria-label')||b.innerText).trim()).filter(Boolean).join(' | ')`);
+    console.log('controls', btns);
+    ok('재생 · 속도 · 순간 조작', /재생|멈춤|일시/.test(btns) && /×|배/.test(btns) && /착지|릴리스/.test(btns), btns.slice(0, 160));
+    const before = await p.ev(`document.querySelector('canvas').toDataURL('image/png').length`);
+    ok('결과 날짜가 보인다', /\d{4}년 \d+월 \d+일/.test(t));
+    const r2 = await ctl(`run?id=${id}`);
+    await p.s('Page.reload');
+    await p.waitText('승인한 설명 한 줄', 40000);
+    ok('재분석만으로 공개 판이 안 바뀐다', true, `run2=${r2.runId.slice(0, 8)}`);
+    await ctl(`unpublish?id=${id}`);
+    await p.s('Page.reload'); await sleep(2500);
+    ok('내리면 공개 결과가 사라진다', !(await p.text()).includes('승인한 설명 한 줄'), (await p.text()).replace(/\n/g, ' ').slice(0, 100));
+    ok('화면 JS 오류 없음', p.errors.length === 0, p.errors.join(' | ').slice(0, 300));
+    await p.close();
+  }
+  if (want('http')) {
+    const inv = await ctl('invite');
+    const api = (p, o = {}) => fetch(`${APP}/api/intake/public/${p}`, { redirect: 'manual', ...o });
+    const fetchAs = (ua) => fetch(`${APP}/submit`, { headers: { 'User-Agent': ua }, redirect: 'manual' });
+    const prev = await fetchAs('facebookexternalhit/1.1');
+    const html = await prev.text();
+    ok('미리보기 봇 GET: 200 · 이름 · 토큰 없음', prev.status === 200 && !html.includes(inv.token), String(prev.status));
+    ok('색인 금지 메타', /noindex/.test(html));
+    ok('Referrer 메타 no-referrer', /no-referrer/.test(html));
+    const before = await ctl(`info?id=${subId(inv)}`);
+    await fetchAs('KAKAOTALK-scrap/1.0'); await fetchAs('Slackbot-LinkExpanding');
+    const after = await ctl(`info?id=${subId(inv)}`);
+    ok('미리보기 GET 은 초대 · 접수를 안 바꾼다', after.s.version === before.s.version && after.s.status === before.s.status);
+    const noTok = await api('state');
+    ok('토큰 없는 API 거절', noTok.status >= 400 && noTok.status < 500, String(noTok.status));
+    const bad = await api('state', { headers: { Authorization: 'Intake ' + 'A'.repeat(43) } });
+    ok('틀린 토큰 거절', bad.status >= 400 && bad.status < 500, String(bad.status));
+    const q = await api(`state?token=${inv.token}`);
+    ok('주소의 토큰은 안 받는다', q.status >= 400 && q.status < 500, String(q.status));
+    const good = await api('state', { headers: { Authorization: `Intake ${inv.token}` } });
+    ok('맞는 토큰: 저장 금지 응답', good.status === 200 && /no-store/.test(good.headers.get('cache-control') ?? ''), good.headers.get('cache-control'));
+    const res = await api('result', { method: 'POST', headers: { Authorization: `Intake ${inv.token}`, 'Content-Type': 'application/json' }, body: '{}' });
+    ok('공개 전 결과 요청은 거절', res.status >= 400 && res.status < 500, String(res.status));
+    const cron = await fetch(`${APP}/api/cron/intake`);
+    ok('크론 비밀 없으면 거절', cron.status === 401, String(cron.status));
+    const adm = await fetch(`${APP}/admin/intake`, { redirect: 'manual' });
+    ok('관리 화면은 초대 없이 로그인으로', adm.status >= 300 && adm.status < 400, String(adm.status));
+    const dbl = await ctl('invite');
+    const p = await page();
+    await p.go(url(dbl));
+    await toReview(p, '두번누름');
+    await agree(p);
+    await p.ev(`(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.innerText.includes('영상 보내기'));b.click();b.click();b.click()})()`);
+    await p.waitText('두 영상이 모두 도착했어요', 60000).catch(() => {});
+    if ((await p.text()).includes('두 영상이 모두 도착했어요')) await p.click('접수');
+    await p.waitText('영상이 잘 도착했어요', 60000);
+    const info = await ctl(`info?id=${subId(dbl)}`);
+    ok('보내기를 세 번 눌러도 자산 둘 · 판 하나', info.s.assets.length === 2 && info.s.revisions.length === 1, `assets=${info.s.assets.length} revisions=${info.s.revisions.length}`);
+    await p.close();
+  }
+  if (want('layout')) {
+    const inv = await ctl('invite');
+    const pc = await page({ w: 1440, h: 900, mobile: false, ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36' });
+    await pc.go(url(inv));
+    await pc.waitText('투구 영상 두 개를 보내주세요');
+    const w = await pc.ev(`Math.round(document.querySelector('main').parentElement.getBoundingClientRect().width)`);
+    ok('PC 폼 칸 480~560px', w >= 480 && w <= 560, `${w}px`);
+    await pc.close();
+    const sm = await page({ w: 320, h: 568 });
+    await sm.go(url(inv));
+    await sm.waitText('투구 영상 두 개를 보내주세요');
+    ok('320×568 가로 넘침 없음', (await sm.overflow()) <= 0);
+    const b = await sm.ev(`(()=>{const e=[...document.querySelectorAll('button')].find(x=>x.innerText.includes('시작하기'));const r=e.getBoundingClientRect();return r.bottom<=innerHeight&&r.height>=44})()`);
+    ok('짧은 화면에서도 큰 단추가 보이고 44px 넘음', b);
+    await sm.close();
+  }
+} catch (e) { ok('시나리오 예외', false, String(e.message).slice(0, 600)); }
+/* ───────── 2026-11-09 맥 미니: 아래 시나리오는 하나씩 따로 돈다(한 시나리오의 예외가 다른 것을 막지 않는다) ───────── */
+const shaOf = (f) => createHash('sha256').update(readFileSync(FILE(f))).digest('hex');
+const SIZE = (f) => readFileSync(FILE(f)).length;
+const MB6 = 6 * 1024 * 1024;
+const waitUntil = async (fn, ms = 30000, step = 300) => { const end = Date.now() + ms; for (;;) { const v = await fn().catch(() => null); if (v) return v; if (Date.now() > end) return null; await sleep(step); } };
+const statusOf = (t) => (/지금 상태\s*([^\n]+)/.exec(t) ?? [])[1]?.trim() ?? '';
+const flat = (t) => t.replace(/\s+/g, ' ').slice(0, 160);
+/* 영수증 또는 '두 영상이 모두 도착했어요'(접수만 남음) 중 먼저 오는 것을 기다린다 */
+async function finishSend(p, ms = 90000) {
+  const end = Date.now() + ms;
+  for (;;) {
+    const t = await p.text().catch(() => '');
+    if (t.includes('영상이 잘 도착했어요')) return;
+    if (t.includes('두 영상이 모두 도착했어요')) { await p.click('접수 마치기'); await p.waitText('영상이 잘 도착했어요', ms); return; }
+    if (Date.now() > end) throw new Error('영수증을 못 받음\n' + t.slice(0, 400));
+    await sleep(150);
+  }
+}
+/* 한 객체(원본 자리)의 TUS 기록을 읽는다 */
+const tusOf = (log, object) => log.filter((e) => e.object === object);
+const okPatches = (L) => L.filter((e) => e.m === 'PATCH' && e.r === 'ok');
+const assetOf = (info, view, revisionAssetId) => info.s.assets.find((a) => (revisionAssetId ? a.id === revisionAssetId : a.view === view));
+const storedSha = (info, objectPath) => info.stored.find((o) => o.k === objectPath)?.sha ?? null;
+const checkSame = async (p) => {
+  /* 같은 투구 확인을 묻는 화면이면 체크한다 */
+  const asked = await p.ev(`[...document.querySelectorAll('input[type=checkbox]')].some(e=>!e.id.startsWith('consent-')&&!e.checked&&e.closest('label,div')?.innerText.includes('같은 투구'))`);
+  if (asked) await p.click('두 영상은 같은 투구를 동시에 찍은 영상이에요');
+  return asked;
+};
+
+async function scen(name, fn) {
+  if (!want(name)) return;
+  const t0 = Date.now();
+  console.log(`\n=== ${name}`);
+  try { await fn(); } catch (e) { ok(`${name}: 예외`, false, String(e.message).slice(0, 600)); }
+  console.log(`=== ${name} ${Math.round((Date.now() - t0) / 1000)}s`);
+}
+
+/* S1 행복한 길 — 접수 → 서버 검증 → 분석(가짜 GPU) → 공개. 화면마다 머리와 상태 줄이 다르다 */
+await scen('journey', async () => {
+  const inv = await ctl('invite');
+  const id = subId(inv);
+  /* 서버 검증(전체 해시)을 붙잡아 '확인 중' 화면을 결정적으로 본다 */
+  await ctl('hashdelay?ms=15000');
+  const p = await page();
+  try {
+    await p.go(url(inv));
+    await p.waitText('투구 영상 두 개를 보내주세요');
+    await toReview(p, '여정선수');
+    await agree(p);
+    await p.click('영상 보내기');
+    await p.waitText('영상을 원본 그대로 보내고 있어요');
+    await finishSend(p);
+    const r = await p.text();
+    ok('S1 접수 화면: 머리 · 번호 · 상태 = 확인 중', r.includes('접수 번호') && statusOf(r) === '파일이 잘 도착했는지 확인하고 있어요', statusOf(r));
+    ok('S1 접수 화면은 분석 · 공개를 말하지 않음', !/분석하고 있어요|결과가 공개됐어요|담당자가 결과를 검토/.test(r));
+    const pre = await ctl(`info?id=${id}`);
+    ok('S1 영수증 시점 접수 상태 submitted · 판 1', pre.s.status === 'submitted' && pre.s.revisions.length === 1, `${pre.s.status} rev=${pre.s.revisions.length}`);
+    await p.s('Page.reload');
+    await p.waitText('영상이 잘 도착했어요');
+    ok('S1 검증 중 다시 열어도 확인 중', statusOf(await p.text()) === '파일이 잘 도착했는지 확인하고 있어요', statusOf(await p.text()));
+    await ctl('hashdelay?ms=0');
+    const v = await waitUntil(async () => { const i = await ctl(`info?id=${id}`); return i.s.status === 'verified' ? i : null; }, 90000, 1000);
+    ok('S1 서버 검증 끝: 자산 둘 verified · 접수 verified', v && v.s.assets.filter((a) => a.status === 'verified').length === 2, v ? v.s.assets.map((a) => a.status).join(',') : 'timeout');
+    await p.s('Page.reload');
+    await p.waitText('파일을 확인했어요', 20000);
+    const vt = await p.text();
+    ok('S1 검증 화면: 상태 = 확인했어요 · 분석 기다림', statusOf(vt) === '파일을 확인했어요. 분석을 기다리고 있어요' && vt.includes('영상이 잘 도착했어요'), statusOf(vt));
+    await ctl(`set?id=${id}&analysis=running`);
+    await p.s('Page.reload');
+    await p.waitText('영상을 분석하고 있어요', 20000);
+    const at = await p.text();
+    ok('S1 분석 화면: 머리 = 분석 중 · 상태 = 분석하고 있어요', statusOf(at) === '분석하고 있어요' && !at.includes('영상이 잘 도착했어요'), statusOf(at));
+    const run = await ctl(`run?id=${id}`);
+    await ctl(`set?id=${id}&analysis=succeeded`);
+    await p.s('Page.reload');
+    await p.waitText('담당자가 결과를 검토하고 있어요', 20000);
+    const rv = await p.text();
+    ok('S1 분석 끝 · 공개 전: 검토 중 · 3D 없음 · 설명 없음', !rv.includes('승인 설명 S1') && (await p.ev(`!document.querySelector('canvas')`)), flat(rv));
+    const pub = await ctl(`publish?run=${run.runId}&x=${encodeURIComponent('승인 설명 S1')}`);
+    ok('S1 공개(특정 실행)', pub.runId === run.runId && pub.number === 1, JSON.stringify(pub).slice(0, 120));
+    await p.s('Page.reload');
+    await p.waitText('승인 설명 S1', 40000);
+    const cv = await waitUntil(() => p.ev(`!!document.querySelector('canvas')`), 20000);
+    const pt = await p.text();
+    ok('S1 공개 화면: 설명 · 3D · 영수증 머리 없음', !!cv && pt.includes('승인 설명 S1') && !pt.includes('영상이 잘 도착했어요') && !pt.includes('분석하고 있어요'), flat(pt));
+    ok('S1 화면 JS 오류 없음', p.errors.length === 0, p.errors.join(' | ').slice(0, 200));
+  } finally {
+    await ctl('hashdelay?ms=0');
+    await p.close();
+  }
+});
+
+/* S2 전송 중 연결이 끊김(화면 그대로) — 끊긴 자리부터 이어 가고 처음부터 안 보낸다 */
+await scen('midcut', async () => {
+  const inv = await ctl('invite');
+  const id = subId(inv);
+  const p = await page();
+  try {
+    await p.go(url(inv));
+    await toReview(p, '끊김이음');
+    await agree(p);
+    /* 두 번째 조각(6MB 자리부터)을 1.5MB 받은 뒤 끊는다 */
+    await ctl(`cut?n=1500000&min=${MB6}&times=3`);
+    await p.click('영상 보내기');
+    await finishSend(p);
+    const info = await ctl(`info?id=${id}`);
+    const log = await ctl(`tuslog?sub=${id}`);
+    const cuts = log.filter((e) => e.r === 'cut');
+    const cut = cuts.at(-1);
+    ok('S2 같은 조각이 세 번 끊김(브라우저 자체 재전송까지 끊음)', cuts.length === 3 && cuts.every((c) => c.offset >= MB6 && c.object === cuts[0].object), cuts.map((c) => `${c.offset}+${c.len}`).join(' '));
+    if (cut) {
+      const L = tusOf(log, cut.object);
+      const after = okPatches(L).filter((e) => e.t > cut.t);
+      const asset = info.s.assets.find((a) => a.objectPath === cut.object);
+      ok('S2 같은 객체에 POST 한 번(새 업로드를 다시 안 만듦)', L.filter((e) => e.m === 'POST').length === 1, String(L.filter((e) => e.m === 'POST').length));
+      ok('S2 끊긴 뒤 TUS 가 HEAD 로 서버 자리를 묻는다(브라우저 재전송이 아닌 이어 올리기)', L.some((e) => e.m === 'HEAD' && e.t > cuts[0].t && e.offset === cut.offset), `HEAD ${L.filter((e) => e.m === 'HEAD').length}번`);
+      ok('S2 끊긴 자리부터 이어 보냄', after[0]?.offset === cut.offset, `next=${after[0]?.offset}`);
+      ok('S2 끊긴 뒤 0 부터 다시 안 보냄', !after.some((e) => e.offset === 0));
+      ok('S2 받은 바이트 합 = 파일 크기(겹침 없음)', okPatches(L).reduce((n, e) => n + e.len, 0) === asset?.declaredSize, `${okPatches(L).reduce((n, e) => n + e.len, 0)} / ${asset?.declaredSize}`);
+      ok('S2 저장된 원본 SHA-256 = 고른 파일', storedSha(info, cut.object) === (asset?.view === 'side' ? info.fx.side : info.fx.rear));
+    }
+    ok('S2 판 하나 · 자산 둘', info.s.revisions.length === 1 && info.s.assets.length === 2);
+  } finally {
+    await ctl('cut?n=0');
+    await ctl('delay?ms=0');
+    await p.close();
+  }
+});
+
+/* S3 새로고침 · 다시 찾아옴 — 같은 파일은 이어 가고, 다른 파일은 처음부터(다른 바이트를 잇지 않음) */
+async function partialThenReload(name) {
+  const inv = await ctl('invite');
+  const id = subId(inv);
+  const p = await page();
+  await p.go(url(inv));
+  await toReview(p, name);
+  await agree(p);
+  await ctl('delay?ms=2500');
+  await p.click('영상 보내기');
+  await p.waitText('영상을 원본 그대로 보내고 있어요');
+  /* 옆 영상의 첫 조각(6MB)이 도착할 때까지 */
+  const first = await waitUntil(async () => (await ctl(`tuslog?sub=${id}`)).find((e) => e.m === 'PATCH' && e.r === 'ok'), 40000, 250);
+  const reloadAt = Date.now();
+  await p.s('Page.reload');
+  await sleep(1200);
+  await ctl('delay?ms=0');
+  await p.waitText('보내던 영상을 이어서 보낼게요', 20000);
+  return { inv, id, p, first, reloadAt };
+}
+await scen('revisit', async () => {
+  /* 3a 같은 파일 */
+  {
+    const { id, p, first, reloadAt } = await partialThenReload('다시같은');
+    try {
+      ok('S3a 새로고침 → 이어 보내기 화면', true, `first ok PATCH ${first?.object?.slice(-20)} @${first?.offset}`);
+      await p.files([FILE('side')], 0);
+      await p.waitText('같은 파일이에요', 15000);
+      await p.files([FILE('rear')], 1);
+      await sleep(1500);
+      await checkSame(p);
+      await p.click('이어서 보내기');
+      await finishSend(p);
+      const info = await ctl(`info?id=${id}`);
+      const log = await ctl(`tuslog?sub=${id}`);
+      const side = assetOf(info, 'side');
+      const L = tusOf(log, side.objectPath);
+      const afterReload = okPatches(L).filter((e) => e.t > reloadAt);
+      ok('S3a 옆: POST 한 번(새로 만들지 않음)', L.filter((e) => e.m === 'POST').length === 1, String(L.filter((e) => e.m === 'POST').length));
+      ok('S3a 옆: 다시 찾아온 뒤 첫 조각이 0 이 아님(이어 감)', afterReload.length > 0 && afterReload[0].offset >= MB6, `after=${afterReload.map((e) => e.offset).join(',')}`);
+      ok('S3a 옆: 받은 바이트 합 = 파일 크기', okPatches(L).reduce((n, e) => n + e.len, 0) === SIZE('side'));
+      ok('S3a 옆 · 뒤 SHA-256 일치', storedSha(info, side.objectPath) === shaOf('side') && storedSha(info, assetOf(info, 'rear').objectPath) === shaOf('rear'));
+      ok('S3a 판 하나', info.s.revisions.length === 1);
+    } finally {
+      await p.close();
+    }
+  }
+  /* 3b 다른 파일(크기는 같고 바이트가 다름) */
+  {
+    const { id, p, reloadAt } = await partialThenReload('다시다른');
+    try {
+      const before = await ctl(`info?id=${id}`);
+      const oldSide = assetOf(before, 'side');
+      await p.files([FILE('side2')], 0);
+      await p.waitText('처음 고른 파일과 달라요', 15000);
+      ok('S3b 다른 파일이면 처음부터 보낸다고 말함', (await p.text()).includes('이 파일을 처음부터 보내요'));
+      await p.files([FILE('rear')], 1);
+      await sleep(1500);
+      const asked = await checkSame(p);
+      ok('S3b 다른 파일을 고르면 같은 투구 확인을 다시 받음', asked);
+      await p.click('이어서 보내기');
+      await finishSend(p);
+      const info = await ctl(`info?id=${id}`);
+      const log = await ctl(`tuslog?sub=${id}`);
+      const rev = info.s.revisions[0];
+      const side = info.s.assets.find((a) => a.id === rev.sideAssetId);
+      const Lnew = tusOf(log, side.objectPath);
+      ok('S3b 새 옆 자산(다른 번호 · 다른 자리)', side.id !== oldSide.id && side.objectPath !== oldSide.objectPath, `${oldSide.id.slice(0, 8)} → ${side.id.slice(0, 8)}`);
+      ok('S3b 새 자리는 0 부터 받음', okPatches(Lnew)[0]?.offset === 0 && Lnew.filter((e) => e.m === 'POST').length === 1);
+      ok('S3b 새 자리 바이트 합 = 파일 크기', okPatches(Lnew).reduce((n, e) => n + e.len, 0) === SIZE('side2'));
+      ok('S3b 얼린 옆 원본 SHA-256 = 새 파일(side2)', storedSha(info, side.objectPath) === shaOf('side2') && side.serverSha256 === shaOf('side2'));
+      ok('S3b 옛 자리는 끝나지 않음(이어 붙이지 않음)', storedSha(info, oldSide.objectPath) == null && !okPatches(tusOf(log, oldSide.objectPath)).some((e) => e.t > reloadAt));
+      ok('S3b 판 하나', info.s.revisions.length === 1);
+    } finally {
+      await p.close();
+    }
+  }
+});
+
+/* S4 완료 응답을 잃음(서버는 얼림) — 같은 영수증 · 판 하나. 완료 단추 여러 번 누름 */
+await scen('finalize', async () => {
+  {
+    const inv = await ctl('invite');
+    const id = subId(inv);
+    const p = await page();
+    try {
+      await p.go(url(inv));
+      await toReview(p, '완료잃음');
+      await agree(p);
+      let seen = 0;
+      await p.intercept([{ urlPattern: '*/api/intake/public/finalize', requestStage: 'Response' }], async (ev) => {
+        seen += 1;
+        /* 첫 응답만 버린다 — 서버는 이미 얼렸다 */
+        if (seen === 1) await p.s('Fetch.failRequest', { requestId: ev.requestId, errorReason: 'ConnectionReset' });
+        else await p.pass(ev);
+      });
+      await p.click('영상 보내기');
+      await finishSend(p);
+      await p.unintercept();
+      const info = await ctl(`info?id=${id}`);
+      const t = await p.text();
+      ok('S4a 완료 응답을 잃어도 영수증', t.includes('영상이 잘 도착했어요'), `finalize 응답 ${seen}번`);
+      ok('S4a 판 하나 · 화면 번호 = DB 번호', info.s.revisions.length === 1 && t.includes(info.s.receiptCode), `${info.s.receiptCode} rev=${info.s.revisions.length}`);
+      ok('S4a 첫 응답을 실제로 버렸다(서버는 두 번 이상 받음)', seen >= 1, String(seen));
+    } finally {
+      await p.close();
+    }
+  }
+  {
+    /* 완료가 계속 끊기면 멈춤 → 다시 열면 '두 영상이 모두 도착했어요' → 접수 마치기를 세 번 눌러도 판 하나 */
+    const inv = await ctl('invite');
+    const id = subId(inv);
+    const p = await page();
+    try {
+      await p.go(url(inv));
+      await toReview(p, '완료세번');
+      await agree(p);
+      let blocked = 0;
+      await p.intercept([{ urlPattern: '*/api/intake/public/finalize', requestStage: 'Request' }], async (ev) => {
+        blocked += 1;
+        await p.s('Fetch.failRequest', { requestId: ev.requestId, errorReason: 'InternetDisconnected' });
+      });
+      await p.click('영상 보내기');
+      await p.waitText('이어서 보내기', 60000);
+      const mid = await ctl(`info?id=${id}`);
+      ok('S4b 완료가 안 닿으면 판 0 · 이어서 보내기', mid.s.revisions.length === 0, `blocked=${blocked}`);
+      let reached = 0;
+      await p.intercept([{ urlPattern: '*/api/intake/public/finalize', requestStage: 'Request' }], async (ev) => {
+        reached += 1;
+        await p.pass(ev);
+      });
+      await p.s('Page.reload');
+      await p.waitText('두 영상이 모두 도착했어요', 20000);
+      await sleep(600);
+      await p.ev(`(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.innerText.includes('접수 마치기'));b.click();b.click();b.click()})()`);
+      await p.waitText('영상이 잘 도착했어요', 60000);
+      await p.unintercept();
+      const info = await ctl(`info?id=${id}`);
+      ok('S4b 접수 마치기 세 번 → 판 하나 · 자산 둘', info.s.revisions.length === 1 && info.s.assets.length === 2, `finalize 요청 ${reached}번 rev=${info.s.revisions.length}`);
+      ok('S4b 완료 요청이 한 번만 나감', reached === 1, String(reached));
+    } finally {
+      await p.close();
+    }
+  }
+});
+
+/* S5 제어 요청 멈춤 — 머리가 안 옴 / 본문이 안 끝남. 시한(20초) 뒤 다시 시도 화면, 적은 내용 유지, 다시 시도로 이어 감 */
+await scen('stall', async () => {
+  const STALL = 'http://127.0.0.1:54398/__/';
+  for (const mode of ['stall-headers', 'stall-body']) {
+    const inv = await ctl('invite');
+    const p = await page();
+    try {
+      let held = 0;
+      await p.intercept([{ urlPattern: '*/api/intake/public/state', requestStage: 'Request' }], async (ev) => {
+        held += 1;
+        /* 머리 멈춤은 응답을 아예 안 준다. 본문 멈춤은 시험대가 머리와 본문 일부만 보내고 끝내지 않는다 */
+        if (mode === 'stall-body') await p.s('Fetch.continueRequest', { requestId: ev.requestId, url: `${STALL}stall-body` });
+      });
+      const t0 = Date.now();
+      await p.go(url(inv));
+      await sleep(12000);
+      const mid = await p.text();
+      ok(`S5 ${mode} 첫 읽기: 12초엔 아직 불러오는 중`, !mid.includes('투구 영상 두 개를 보내주세요') && !mid.includes('불러오지 못했어요'), flat(mid));
+      await p.waitText('접수 내용을 불러오지 못했어요', 25000);
+      const dt = Math.round((Date.now() - t0) / 1000);
+      const t = await p.text();
+      if (mode === 'stall-body') {
+        const sl = await ctl('tuslog?sub=stall-body');
+        ok('S5 stall-body: 시험대가 머리를 보냈고 브라우저가 시한에 끊음', sl.some((e) => e.object === 'stall-body') && sl.some((e) => e.object === 'stall-body-closed'), JSON.stringify(sl.slice(-2)));
+      }
+      ok(`S5 ${mode} 첫 읽기: 시한 뒤 다시 시도 화면(${dt}s)`, dt <= 32 && t.includes('서버 응답이 늦어지고 있어요') && t.includes('다시 시도'), `held=${held} ${flat(t)}`);
+      await p.unintercept();
+      await p.click('다시 시도');
+      await p.waitText('투구 영상 두 개를 보내주세요', 20000);
+      ok(`S5 ${mode} 다시 시도로 시작 화면`, true);
+    } finally {
+      await p.close();
+    }
+  }
+  /* 5c 흐름 가운데: 검토 화면에서 보내기 → 초안 저장이 멈춤 → 시한 뒤 같은 화면에 오류, 이름 · 파일 · 동의 그대로 → 다시 누르면 접수 */
+  for (const mode of ['stall-headers', 'stall-body']) {
+    const inv = await ctl('invite');
+    const id = subId(inv);
+    const p = await page();
+    try {
+      await p.go(url(inv));
+      await toReview(p, `멈춤${mode === 'stall-body' ? '본문' : '머리'}`);
+      await agree(p);
+      let held = 0;
+      await p.intercept([{ urlPattern: '*/api/intake/public/draft', requestStage: 'Request' }], async (ev) => {
+        held += 1;
+        if (mode === 'stall-body') await p.s('Fetch.continueRequest', { requestId: ev.requestId, url: `${STALL}stall-body` });
+      });
+      const t0 = Date.now();
+      await p.click('영상 보내기');
+      await p.waitText('서버 응답이 늦어지고 있어요', 32000);
+      const dt = Math.round((Date.now() - t0) / 1000);
+      const t = await p.text();
+      const consents = await p.ev(`[...document.querySelectorAll('input[type=checkbox]')].filter(e=>e.id.startsWith('consent-')).map(e=>e.checked)`);
+      ok(`S5 ${mode} 보내기 중 멈춤: 시한 뒤 같은 검토 화면에 오류(${dt}s)`, dt <= 32 && t.includes('이 두 영상을 보내면 돼요'), `held=${held}`);
+      ok(`S5 ${mode} 적은 내용 유지(이름 · 두 파일 · 동의 · 나이 · 관계)`, t.includes(`멈춤${mode === 'stall-body' ? '본문' : '머리'}`) && t.includes('side.mov') && t.includes('rear.mov') && consents.length >= 2 && consents.every(Boolean)
+        && (await p.ev(`document.querySelector('#age-14_or_over')?.checked===true && document.querySelector('#relation-self')?.checked===true`)), JSON.stringify(consents));
+      const mid = await ctl(`info?id=${id}`);
+      ok(`S5 ${mode} 멈춘 동안 전송 · 판 없음`, (await ctl(`tuslog?sub=${id}`)).length === 0 && mid.s.revisions.length === 0);
+      await p.unintercept();
+      await p.click('영상 보내기');
+      await finishSend(p);
+      const info = await ctl(`info?id=${id}`);
+      ok(`S5 ${mode} 다시 누르면 접수 · 판 하나`, info.s.revisions.length === 1 && info.stored.some((o) => o.sha === info.fx.side));
+    } finally {
+      await p.close();
+    }
+  }
+});
+
+/* S6 준비 중 취소 — 칸 잡기 응답을 붙잡은 채 멈추기/화면 떠나기. 그 뒤 전송 · 완료가 시작되지 않고, 다시 오면 깨끗이 이어 간다 */
+await scen('cancel', async () => {
+  {
+    const inv = await ctl('invite');
+    const id = subId(inv);
+    const p = await page();
+    try {
+      await p.go(url(inv));
+      await toReview(p, '준비취소');
+      await agree(p);
+      const held = [];
+      /* 서버는 칸을 잡았는데 응답이 화면에 안 닿는다 */
+      await p.intercept([{ urlPattern: '*/api/intake/public/assets', requestStage: 'Response' }], (ev) => { held.push(ev.requestId); });
+      await p.click('영상 보내기');
+      await p.waitText('멈추기', 35000);
+      ok('S6a 진행이 멈추면 멈추기 단추', true, `held=${held.length}`);
+      await p.click('멈추기');
+      await p.waitText('보내기를 멈췄어요', 10000);
+      const cancelAt = Date.now();
+      /* 붙잡은 응답을 이제 놓는다 — 늦게 온 칸 잡기가 전송을 시작하면 안 된다 */
+      for (const rid of held) await p.s('Fetch.continueRequest', { requestId: rid }).catch(() => {});
+      await p.unintercept();
+      await sleep(5000);
+      const log = await ctl(`tuslog?sub=${id}`);
+      const mid = await ctl(`info?id=${id}`);
+      ok('S6a 멈춘 뒤 TUS 요청 0 · 판 0', log.length === 0 && mid.s.revisions.length === 0, `tus=${log.length} assets=${mid.s.assets.map((a) => a.status).join(',')}`);
+      ok('S6a 멈춘 화면 그대로(이어서 보내기)', (await p.text()).includes('이어서 보내기'));
+      await p.click('이어서 보내기');
+      await finishSend(p);
+      const info = await ctl(`info?id=${id}`);
+      const L = await ctl(`tuslog?sub=${id}`);
+      const posts = L.filter((e) => e.m === 'POST');
+      ok('S6a 이어서 보내면 접수 · 자산마다 POST 한 번 · SHA 일치', info.s.revisions.length === 1 && posts.length === 2 && posts.every((e) => e.t > cancelAt) && info.stored.some((o) => o.sha === info.fx.side) && info.stored.some((o) => o.sha === info.fx.rear), `posts=${posts.length} assets=${info.s.assets.length}`);
+    } finally {
+      await p.close();
+    }
+  }
+  {
+    /* 6b 칸 잡기 응답을 기다리는 동안 화면을 떠남 → 다시 링크를 연다 */
+    const inv = await ctl('invite');
+    const id = subId(inv);
+    const p = await page();
+    try {
+      await p.go(url(inv));
+      await toReview(p, '떠났다옴');
+      await agree(p);
+      const held = [];
+      await p.intercept([{ urlPattern: '*/api/intake/public/assets', requestStage: 'Response' }], (ev) => { held.push(ev.requestId); });
+      await p.click('영상 보내기');
+      await waitUntil(async () => held.length > 0, 15000, 100);
+      await p.go('about:blank');
+      for (const rid of held) await p.s('Fetch.continueRequest', { requestId: rid }).catch(() => {});
+      await p.unintercept();
+      await sleep(4000);
+      const mid = await ctl(`info?id=${id}`);
+      ok('S6b 떠난 뒤 TUS 요청 0 · 판 0', (await ctl(`tuslog?sub=${id}`)).length === 0 && mid.s.revisions.length === 0, `held=${held.length} assets=${mid.s.assets.map((a) => `${a.view}:${a.status}`).join(',')}`);
+      await p.go(url(inv));
+      await sleep(1500);
+      const back = await p.text();
+      const screen = back.includes('보내던 영상을 이어서 보낼게요') ? 'recovery' : back.includes('시작하기') ? 'welcome' : flat(back);
+      ok('S6b 다시 오면 이어 보내기 또는 처음 화면', screen === 'recovery' || screen === 'welcome', screen);
+      if (screen === 'recovery') {
+        await p.files([FILE('side')], 0);
+        await sleep(1200);
+        await p.files([FILE('rear')], 1);
+        await sleep(1500);
+        await checkSame(p);
+        await p.click('이어서 보내기');
+      } else {
+        await toReview(p, '떠났다옴');
+        await agree(p);
+        await p.click('영상 보내기');
+      }
+      await finishSend(p);
+      const info = await ctl(`info?id=${id}`);
+      ok('S6b 다시 와서 접수 · 판 하나 · SHA 일치', info.s.revisions.length === 1 && info.stored.some((o) => o.sha === info.fx.side) && info.stored.some((o) => o.sha === info.fx.rear));
+    } finally {
+      await p.close();
+    }
+  }
+
+  {
+    /* 6c 보내기를 누르자마자(파일 확인 중) 화면을 떠남 → 전송 · 판 없음 → 다시 오면 깨끗이 끝냄 */
+    const inv = await ctl('invite');
+    const id = subId(inv);
+    const p = await page();
+    try {
+      await p.go(url(inv));
+      await toReview(p, '확인중떠남');
+      await agree(p);
+      await p.ev(`(()=>{[...document.querySelectorAll('button')].find(x=>x.innerText.includes('영상 보내기')).click()})()`);
+      await sleep(30);
+      await p.go('about:blank');
+      await sleep(4000);
+      const mid = await ctl(`info?id=${id}`);
+      ok('S6c 파일 확인 중 떠남 → TUS 0 · 판 0', (await ctl(`tuslog?sub=${id}`)).filter((e) => e.m !== 'GET').length === 0 && mid.s.revisions.length === 0, `assets=${mid.s.assets.map((a) => `${a.view}:${a.status}`).join(',') || '없음'}`);
+      await p.go(url(inv));
+      await sleep(1500);
+      const back = await p.text();
+      if (back.includes('보내던 영상을 이어서 보낼게요')) {
+        await p.files([FILE('side')], 0);
+        await sleep(1200);
+        await p.files([FILE('rear')], 1);
+        await sleep(1500);
+        await checkSame(p);
+        await p.click('이어서 보내기');
+      } else if (back.includes('먼저, 옆에서 찍은 영상을 골라주세요')) {
+        /* 이름 · 동의는 서버에 남아 고르기부터 다시 연다 */
+        await p.files([FILE('side')]);
+        await p.click('이 영상으로 계속');
+        await p.waitText('이번에는 뒤에서 찍은 영상이에요');
+        await p.files([FILE('rear')]);
+        await p.click('이 영상으로 계속');
+        await p.waitText('이 두 영상을 보내면 돼요');
+        ok('S6c 다시 오면 이름이 남아 있음', (await p.text()).includes('확인중떠남'));
+        await agree(p);
+        await p.click('영상 보내기');
+      } else {
+        await toReview(p, '확인중떠남');
+        await agree(p);
+        await p.click('영상 보내기');
+      }
+      await finishSend(p);
+      const info = await ctl(`info?id=${id}`);
+      ok('S6c 다시 와서 접수 · 판 하나 · SHA 일치', info.s.revisions.length === 1 && info.stored.some((o) => o.sha === info.fx.side) && info.stored.some((o) => o.sha === info.fx.rear), back.includes('보내던 영상') ? 'recovery' : back.includes('옆에서 찍은') ? 'side' : 'welcome');
+    } finally {
+      await p.close();
+    }
+  }
+});
+
+/* S7 막힌 링크 — 틀린 토큰 · 폐기 · 만료 · 접근 코드(틀림 · 잠금) · 새 링크(예전 링크 막힘 · 새 링크로 같은 접수) */
+await scen('access', async () => {
+  const p = await page();
+  try {
+    await p.go(`${APP}/submit#${'A'.repeat(43)}`);
+    await p.waitText('이 링크는 쓸 수 없어요', 20000);
+    ok('S7 틀린 토큰(모양은 맞음) → 쓸 수 없는 링크', !(await p.text()).includes('시작하기'));
+    await p.go('about:blank');
+    await p.go(`${APP}/submit#short`);
+    await p.waitText('이 링크는 쓸 수 없어요', 20000);
+    ok('S7 모양이 틀린 토큰 → 쓸 수 없는 링크', true);
+    const rv = await ctl('invite');
+    await ctl(`revoke?id=${rv.invitationId}`);
+    await p.go('about:blank');
+    await p.go(url(rv));
+    await p.waitText('이 링크는 더 쓸 수 없어요', 20000);
+    ok('S7 폐기 → 더 쓸 수 없는 링크', true);
+    const ex = await ctl('invite?expired=1');
+    await p.go('about:blank');
+    await p.go(url(ex));
+    await p.waitText('영상을 보낼 수 있는 기간이 끝났어요', 20000);
+    ok('S7 올리기 기간 끝 → 막힘', !(await p.text()).includes('시작하기'));
+  } finally {
+    await p.close();
+  }
+  /* 접근 코드 */
+  {
+    const CODE = 'bullpen-2026';
+    const inv = await ctl(`invite?code=${CODE}`);
+    const id = subId(inv);
+    const p = await page();
+    try {
+      await p.go(url(inv));
+      await toReview(p, '코드선수');
+      await agree(p);
+      await p.click('영상 보내기');
+      await finishSend(p);
+      await waitUntil(async () => (await ctl(`info?id=${id}`)).s.status === 'verified', 60000, 1000);
+      const run = await ctl(`run?id=${id}`);
+      await ctl(`set?id=${id}&analysis=succeeded`);
+      await ctl(`publish?run=${run.runId}&x=${encodeURIComponent('코드 뒤 설명')}`);
+      await p.s('Page.reload');
+      await p.waitText('접근 코드를 입력해 주세요', 30000);
+      ok('S7 코드 걸린 공개 결과 → 코드 묻기 · 결과 숨김', !(await p.text()).includes('코드 뒤 설명') && (await p.ev(`!document.querySelector('canvas')`)));
+      const enter = async (v) => { await p.type('#intake-access-code', v); await p.ev(`document.querySelector('#intake-access-code').form.requestSubmit()`); };
+      await enter('wrong-code-1');
+      await p.waitText('접근 코드가 맞지 않아요', 15000);
+      ok('S7 틀린 코드 → 맞지 않아요', true, JSON.stringify(await ctl(`codestate?id=${id}`)));
+      await enter(CODE);
+      await p.waitText('코드 뒤 설명', 30000);
+      ok('S7 맞는 코드 → 결과', true);
+      await p.s('Page.reload');
+      await p.waitText('접근 코드를 입력해 주세요', 30000);
+      ok('S7 코드는 기억하지 않음(다시 열면 또 묻는다)', true);
+      await ctl(`failures?id=${id}&n=9`);
+      await enter('wrong-code-2');
+      await p.waitText('접근 코드를 너무 많이 틀려', 15000);
+      const cs = await ctl(`codestate?id=${id}`);
+      ok('S7 10번째 틀림 → 잠금', cs.lockedAt != null, JSON.stringify(cs));
+      ok('S7 잠기면 코드 칸이 사라짐', await p.ev(`!document.querySelector('#intake-access-code')`));
+      const api = await fetch(`${APP}/api/intake/public/result`, { method: 'POST', headers: { Authorization: `Intake ${inv.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ accessCode: CODE }) });
+      const body = await api.json();
+      ok('S7 잠긴 뒤 맞는 코드 API → 403 잠김', api.status === 403 && body.error?.code === 'access_code_locked', `${api.status} ${body.error?.code}`);
+      await p.s('Page.reload');
+      await p.waitText('너무 많이 틀려', 30000);
+      const lockedText = await p.text();
+      ok('S7 잠긴 뒤 다시 열어도 결과 없음', !lockedText.includes('코드 뒤 설명') && (await p.ev(`!document.querySelector('canvas')`)), flat(lockedText));
+    } finally {
+      await p.close();
+    }
+  }
+  /* 새 링크 만들기(재발급) */
+  {
+    const inv = await ctl('invite');
+    const id = subId(inv);
+    const p = await page();
+    try {
+      await p.go(url(inv));
+      await toReview(p, '새링크');
+      await agree(p);
+      await p.click('영상 보내기');
+      await finishSend(p);
+      const code = (await ctl(`info?id=${id}`)).s.receiptCode;
+      const re = await ctl(`reissue?id=${id}`);
+      ok('S7 재발급: 새 토큰 · 같은 접수', re.token && re.token !== inv.token && re.submissionId === id && re.hadAssets === true, `count=${re.reissueCount}`);
+      await p.s('Page.reload');
+      await p.waitText('이 링크는 쓸 수 없어요', 20000);
+      ok('S7 재발급 뒤 예전 링크 → 쓸 수 없는 링크', !(await p.text()).includes(code));
+      const oldApi = await fetch(`${APP}/api/intake/public/state`, { headers: { Authorization: `Intake ${inv.token}` } });
+      ok('S7 예전 토큰 API → 거절', oldApi.status === 404, String(oldApi.status));
+      await p.go('about:blank');
+      await p.go(`${APP}/submit#${re.token}`);
+      await p.waitText('영상이 잘 도착했어요', 20000);
+      const t = await p.text();
+      ok('S7 새 링크 → 같은 접수(번호 · 이름)', t.includes(code) && t.includes('새링크'), code);
+    } finally {
+      await p.close();
+    }
+  }
+});
+
+/* S8 고침 요청 → 요청받은 칸만 다시 고르고 새 판 / 동의 판이 바뀌면 다시 동의 / 모델 동의 거두기 / 필수 동의 철회 */
+await scen('revise', async () => {
+  const inv = await ctl('invite');
+  const id = subId(inv);
+  const p = await page();
+  try {
+    await p.go(url(inv));
+    await toReview(p, '고침전');
+    await agree(p);
+    /* 선택 동의(모델 개발)도 준다 — 뒤에서 거둔다 */
+    await p.ev(`[...document.querySelectorAll('summary')].find(e=>e.innerText.includes('선택 항목')).click()`);
+    await sleep(200);
+    await p.click('모델 개발에 쓰는 것에 동의해요');
+    await p.click('영상 보내기');
+    await finishSend(p);
+    await waitUntil(async () => (await ctl(`info?id=${id}`)).s.status === 'verified', 60000, 1000);
+    await ctl(`correct?id=${id}`);
+    await p.s('Page.reload');
+    await p.waitText('이 내용만 고쳐 주세요', 20000);
+    ok('S8 고침 화면: 요청 글 · 이름 칸 · 뒤 영상 칸만', (await p.text()).includes('뒤 영상에서 발이 잘렸어요') && (await p.ev(`!!document.querySelector('#fix-name')`)) && (await p.ev(`document.querySelectorAll('input[type=file]').length`)) === 1);
+    await p.files([FILE('rear')], 0);
+    await p.waitText('이미 보낸 영상과 같은 파일이에요', 15000);
+    ok('S8 보낸 그 파일을 다시 고르면 고를 때 막음', true);
+    await p.files([FILE('rear2')], 0);
+    await sleep(1500);
+    await p.type('#fix-name', '고침후');
+    await p.click('고친 내용 보내기');
+    await sleep(400);
+    const need = await p.text();
+    if (need.includes('같은 투구')) await p.click('두 영상은 같은 투구를 동시에 찍은 영상이에요');
+    await p.click('고친 내용 보내기');
+    await p.waitText('영상이 잘 도착했어요', 90000);
+    let info = await ctl(`info?id=${id}`);
+    const rev2 = info.s.revisions.find((r) => r.number === 2);
+    const rear2 = rev2 && info.s.assets.find((a) => a.id === rev2.rearAssetId);
+    ok('S8 고친 뒤 판 2 · 이름 고침 · 뒤 원본 = 새 파일 · 옆은 그대로', info.s.revisions.length === 2 && rev2?.athleteName === '고침후' && rear2 && storedSha(info, rear2.objectPath) === shaOf('rear2') && rev2.sideAssetId === info.s.revisions.find((r) => r.number === 1).sideAssetId, info.s.revisions.map((r) => `${r.number}:${r.athleteName}`).join(','));
+    await waitUntil(async () => (await ctl(`info?id=${id}`)).s.status === 'verified', 60000, 1000);
+    /* 다시 동의 */
+    await ctl(`stale?id=${id}`);
+    await p.s('Page.reload');
+    await p.waitText('동의 내용이 바뀌었어요', 20000);
+    ok('S8 동의 판이 바뀌면 다시 동의 화면', !(await p.text()).includes('영상이 잘 도착했어요'));
+    await p.click('동의하고 이어가기');
+    await sleep(500);
+    ok('S8 체크 없이 누르면 막음', (await p.text()).includes('동의 내용이 바뀌었어요'));
+    await p.ev(`[...document.querySelectorAll('input[type=checkbox]')].filter(e=>e.id.startsWith('consent-')).forEach(e=>{if(!e.checked)e.click()})`);
+    await p.click('동의하고 이어가기');
+    await p.waitText('영상이 잘 도착했어요', 20000);
+    info = await ctl(`info?id=${id}`);
+    ok('S8 다시 동의 뒤 영수증 · 새 동의 줄', info.s.consents.some((c) => c.kind === 'overseas' && c.docVersion !== 'old' && c.granted), info.s.consents.filter((c) => c.kind === 'overseas').map((c) => c.docVersion).join(','));
+    /* 모델 개발 동의 거두기 */
+    await p.ev(`[...document.querySelectorAll('summary')].find(e=>e.innerText.includes('모델 개발 이용 동의')).click()`);
+    await sleep(300);
+    await p.click('동의 거두기');
+    await p.click('한 번 더 누르면 동의를 거둬요');
+    await p.waitText('모델 개발 이용 동의를 거뒀어요', 15000);
+    info = await ctl(`info?id=${id}`);
+    const model = info.s.consents.filter((c) => c.kind === 'model');
+    ok('S8 모델 동의 거둠 → DB 에 거둔 표시 · 접수는 그대로', model.some((c) => c.withdrawnAt != null) && info.s.status !== 'withdrawn', JSON.stringify(model.map((c) => [c.granted, !!c.withdrawnAt])));
+    await p.s('Page.reload');
+    await p.waitText('영상이 잘 도착했어요', 20000);
+    ok('S8 거둔 뒤 다시 열면 거두기 칸 없음', !(await p.text()).includes('동의 거두기'));
+    /* 필수 동의 철회(담당자가 남김) */
+    const w = await ctl(`withdraw?id=${id}`);
+    await p.s('Page.reload');
+    await p.waitText('접수가 철회됐어요', 20000);
+    const wt = await p.text();
+    ok('S8 필수 동의 철회 → 철회 화면 · 보내기 없음', w.withdrawn === true && !wt.includes('영상 보내기') && !wt.includes('이어서 보내기'), flat(wt));
+  } finally {
+    await p.close();
+  }
+});
+
+/* S9 원본 삭제 — 지운 접수 · 지우는 중(삭제 실패) · 다시 지우기. 받는 사람에게 분석을 약속하지 않는다 */
+await scen('gone', async () => {
+  const PROMISE = /분석 결과가 준비되고|분석을 기다리고|분석하고 있어요|이 링크에서 확인할 수 있어요|동의 내용이 바뀌었어요/;
+  const p = await page();
+  try {
+    const g = await ctl('gone');
+    await p.go(url(g));
+    await p.waitText('보유 기간이 끝나 원본을 지웠어요', 20000);
+    const t = await p.text();
+    ok('S9 지운 접수: 머리 · 새 분석 불가 안내', t.includes('이 영상으로는 새 분석을 할 수 없어요'), `${JSON.stringify(g.purge)}`);
+    ok('S9 지운 접수: 분석 · 공개를 약속하지 않음', !PROMISE.test(t), flat(t));
+    const gs = await ctl('gone?analysis=succeeded');
+    await p.go('about:blank');
+    await p.go(url(gs));
+    await p.waitText('담당자가 결과를 검토하고 있어요', 20000);
+    const st = await p.text();
+    ok('S9 분석이 끝난 뒤 지운 접수: 검토 중(새 분석 약속 없음)', !/분석하고 있어요|분석을 기다리고/.test(st), statusOf(st));
+    const d = await ctl('gone?mode=deleting');
+    await p.go('about:blank');
+    await p.go(url(d));
+    await p.waitText('보유 기간이 끝나 원본을 지우고 있어요', 20000);
+    const dt = await p.text();
+    ok('S9 지우기 실패(지우는 중): 머리 · 분석 약속 없음', !PROMISE.test(dt) && dt.includes('이 영상으로는 새 분석을 할 수 없어요'), `${JSON.stringify(d.purge).slice(0, 120)}`);
+    const before = await ctl(`info?id=${subId(d)}`);
+    ok('S9 지우기 실패 뒤 원본이 남아 있음', before.stored.filter((o) => o.k.includes(subId(d))).length === 2);
+    const rp = await ctl(`repurge?id=${subId(d)}`);
+    ok('S9 다시 지우기 → 남은 원본 0', rp.left.length === 0, JSON.stringify(rp).slice(0, 160));
+    await p.s('Page.reload');
+    await p.waitText('보유 기간이 끝나 원본을 지웠어요', 20000);
+    ok('S9 다시 지운 뒤 화면 = 지웠어요 · 분석 약속 없음', !PROMISE.test(await p.text()));
+  } finally {
+    await p.close();
+  }
+});
+
+const fail = results.filter((r) => !r.pass).length;
+console.log(`\n${results.length - fail}개 통과, ${fail}개 실패`);
+chrome.kill();
+process.exit(fail ? 1 : 0);

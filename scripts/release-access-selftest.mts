@@ -219,6 +219,19 @@ eq(rpcAccessOf('app-analysis.loadAppAnalysis').cap, 'analysis', '투구량 통�
 eq(rpcAccessOf('swing-lab.saveSwingSample').cap, 'swing3d', '스윙 저장 잠김');
 eq(rpcAccessOf('app-admin.loadAppAdmin'), { cap: 'admin', perm: 'adminHome' }, '관리 첫 화면');
 eq(rpcAccessOf('app-admin.setAppUserRole'), { cap: 'admin' }, '역할 바꾸기는 대표만');
+/* 외부 영상 접수 관리(2026-11-06) — 대표관리자 업무. 준관리자는 베타가 아니어도 못 쓴다 */
+eq(rpcAccessOf('intake-admin.assignIntake'), { cap: 'admin', perm: 'intake' }, '접수 관리 동작은 intake 권한');
+ok(!modules.includes('intake-admin'), '접수 관리 동작은 앱 RPC 입구에 없다(웹 화면만)');
+for (const href of ['/admin/intake', '/admin/intake/00000000-0000-4000-8000-000000000000']) {
+  eq(capabilityOfPath(href), { capability: 'admin', perm: 'intake' }, `${href} 는 관리 업무`);
+  ok(decidePath(ADMIN, href, BETA).allowed, `${href} 대표관리자 베타`);
+  for (const who of [USER, MANAGER]) {
+    ok(!decidePath(who, href, BETA).allowed, `${href} 베타 잠금`);
+    ok(!decidePath(who, href, REL).allowed, `${href} 출시 뒤에도 권한 없음`);
+  }
+}
+ok(!can('MANAGER', 'intake') && can('ADMIN', 'intake'), '외부 접수는 대표관리자만');
+ok(releaseAccessOf(ADMIN, 'released').adminPerms.includes('intake'), '대표관리자 앱 요약에 intake');
 
 /* 동작 파일의 밝힘 줄 — RPC 표가 연 함수는 함수 맨 위에 allowFeature/allowAdmin(또는 모듈 헬퍼)이 있어야 한다. 두 쪽이 모두 열어야 지나간다 */
 const exportsOf = (file: string) => [...readFileSync(file, 'utf8').matchAll(/^export async function (\w+)/gm)].map((m) => m[1]);
@@ -264,6 +277,7 @@ for (const [mod, line] of Object.entries({
   shoot: "allowAdmin('shoot')",
   'app-shoot': "allowAdmin('shoot')",
   'app-admin': 'allowAdmin(perm)',
+  'intake-admin': "allowAdmin('intake')",
 }))
   ok(readFileSync(`app/actions/${mod}.ts`, 'utf8').includes(line), `${mod} 권한 헬퍼 밝힘 줄`);
 for (const [a, acc] of Object.entries(RPC_ACTION_CAPABILITY).filter(([a, acc]) => a.startsWith('app.') || acc.cap === 'home')) {
@@ -288,7 +302,7 @@ for (const f of ['app/api/pitch-log/route.ts', 'app/api/day-detail/route.ts']) {
   ok(!/allowFeature\(/.test(src.slice(src.indexOf('export async function', src.indexOf('export async function GET(') + 10))), `${f} 쓰기는 잠긴 채`);
 }
 /* 반대로 — 잠긴 모듈의 함수에는 베타 밝힘 줄이 없어야 한다(잘못 열린 것 찾기) */
-const OPEN_SET = new Set([...Object.keys(OPEN_MODULES), 'velocity-admin', 'velocity-recording', 'shoot', 'app-shoot', 'app-admin', 'app', 'day-cards', 'favorite', 'calendar-event']);
+const OPEN_SET = new Set([...Object.keys(OPEN_MODULES), 'velocity-admin', 'velocity-recording', 'shoot', 'app-shoot', 'app-admin', 'intake-admin', 'app', 'day-cards', 'favorite', 'calendar-event']);
 for (const f of readdirSync('app/actions').filter((f) => f.endsWith('.ts'))) {
   const mod = f.replace(/\.ts$/, '');
   if (OPEN_SET.has(mod)) continue;

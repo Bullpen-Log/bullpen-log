@@ -1,0 +1,14 @@
+/* R02 시험대 전용 최소 레이아웃 — 실제 레이아웃은 DB 시계 · 구글 글꼴을 불러 이 격리 시험에서 뺐다. 제품 diff 에 없다 */
+import { Toaster } from '@/components/toast';
+import './globals.css';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="ko" className="h-full">
+      <body className="min-h-full font-sans">
+        {children}
+        <Toaster />
+      </body>
+    </html>
+  );
+}

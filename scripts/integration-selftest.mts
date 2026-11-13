@@ -56,6 +56,7 @@ function check(name: string, ok: boolean, detail = '') {
 }
 
 const src = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf-8');
+const isIntakePublicRoute = (r: string) => r.startsWith('app/api/intake/public/');
 const TODAY = new Date('2026-06-15T09:00:00+09:00');
 const TODAY_KEY = '2026-06-15';
 
@@ -333,6 +334,8 @@ console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한
     seen++;
     const key = `${x.file}:${x.name}`;
     if (PUBLIC.has(key)) continue;
+    /* 외부 접수 관리 동작은 모두 asAdmin 한 곳을 거친다 — 그 안의 requirePermission('intake') 을 아래에서 따로 본다. 일반 로그인이 아니라 대표관리자 권한이다 */
+    if (x.file === 'intake-admin.ts' && /\basAdmin\(/.test(x.body)) continue;
     /* 같은 파일 안 도우미(ensureUser 꼴)를 거치면 그 도우미가 확인한다 — 이름에 user · admin 이 든 도우미를 부르면 넘긴다 */
     if (
       !guarded.has(key) &&
@@ -345,6 +348,10 @@ console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한
     `app/actions 의 export 함수는 모두 로그인 확인을 거친다(읽은 함수 ${seen}개)`,
     seen > 100 && open.length === 0,
     open.join(', ')
+  );
+  check(
+    "외부 접수 관리 동작의 asAdmin 은 requirePermission('intake') 로 막는다",
+    /async function asAdmin[\s\S]{0,240}requirePermission\('intake'\)/.test(src('app/actions/intake-admin.ts'))
   );
   const routes = walk('app/api').filter((f) => f.endsWith('route.ts'));
   /* /api/rpc 는 허용 목록의 서버 액션을 부를 뿐이고 로그인은 그 액션이 확인한다(바로 위 시험) — [12] 가 따로 본다 */
@@ -359,8 +366,22 @@ console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한
     'app/api/app-update/publish/route.ts',
     /* 정해진 시각 작업(Vercel cron) — CRON_SECRET 머리로만 열린다(없으면 늘 401). 사람 화면이 아니다(docs/designs/ai-coach.md 10-5) */
     'app/api/cron/daily/route.ts',
+    /* 외부 접수의 지속 작업 — 위와 같다. CRON_SECRET 머리로만 열린다(lib/intake/job-handlers.ts cronAuthorized) */
+    'app/api/cron/intake/route.ts',
+    /* 외부 접수의 공개 API — 받는 사람은 계정이 없다. 로그인 대신 초대 토큰 머리와 이름 · PIN 세션 쿠키를 처리기가 본다(아래 시험이 그 처리기를 쓰는지 본다) */
+    ...routes.filter(isIntakePublicRoute),
   ]);
   const unchecked = routes.filter((r) => !OPEN_ROUTES.has(r) && !AUTH.test(src(r)));
+  check(
+    '외부 접수의 공개 경로는 토큰을 보는 처리기만 내보낸다',
+    routes.filter(isIntakePublicRoute).length >= 9 &&
+      routes.filter(isIntakePublicRoute).every((r) => /\b(intakePublicApi\.\w+|handlePublicResultRequest)\b/.test(src(r))) &&
+      /openIntakeScope\(db, req\.headers\.get\('authorization'\)/.test(src('lib/intake/public-api.ts')) &&
+      /openIntakeScope\(r\.db, req\.headers\.get\('authorization'\)/.test(src('lib/intake/publication.ts')) &&
+      /* 이름 · PIN 세션(INTAKE-MAIN/R03) — 토큰 다음에 세션 쿠키도 본다 */
+      src('lib/intake/public-api.ts').includes("requireInviteeSession(db, scope, req.headers.get('cookie')") &&
+      src('lib/intake/publication.ts').includes("requireInviteeSession(r.db, scope, req.headers.get('cookie')")
+  );
   check(
     `API 경로도 로그인 확인(로그아웃 · 시험 시계 · 굽기 전용 열쇠 · 앱 업데이트는 따로, 읽은 경로 ${routes.length}개)`,
     routes.length > 10 && unchecked.length === 0,
@@ -542,8 +563,10 @@ console.log(
   const actionFiles = readdirSync(new URL('../app/actions/', import.meta.url)).filter(
     (f) => f.endsWith('.ts')
   );
+  /* intake-admin 은 웹 관리 화면만 쓴다 — 앱 RPC 입구에 일부러 안 넣었다(release-access:test 가 안 들어가는 것을 지킨다) */
+  const WEB_ONLY_ACTIONS = new Set(['intake-admin.ts']);
   const missing = actionFiles.filter(
-    (f) => !registry.includes(`from '@/app/actions/${f.slice(0, -3)}'`)
+    (f) => !WEB_ONLY_ACTIONS.has(f) && !registry.includes(`from '@/app/actions/${f.slice(0, -3)}'`)
   );
   check(
     `서버 액션 파일 ${actionFiles.length}개가 모두 허용 목록에 있다`,

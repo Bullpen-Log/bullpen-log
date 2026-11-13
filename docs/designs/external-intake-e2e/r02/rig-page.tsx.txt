@@ -1,0 +1,44 @@
+/* R02 시험대 전용 — 실제 AnalysisPanel(→ RunItem → RunReview → lazy ResultBody → dynamic Body3D)을 합성 결과로 그린다. 제품 diff 에 없다 */
+import { connection } from 'next/server';
+import { AnalysisPanel, type RunRow } from '@/app/(app)/admin/intake/[id]/detail-client';
+import { RUNS, SID, fixtureFrames, rigState } from './state';
+
+export default async function Page() {
+  await connection();
+  const s = rigState();
+  const runs: RunRow[] = RUNS.map((r) => ({
+    id: r.id,
+    revisionNumber: r.revisionNumber,
+    isCurrentRevision: r.isCurrentRevision,
+    engineKey: '2.0.0+r02synth',
+    status: 'succeeded',
+    requestedAt: '2026-11-10T00:00:00.000Z',
+    finishedAt: '2026-11-10T00:01:00.000Z',
+    failureText: null,
+    failureDetail: null,
+    videoFault: false,
+    hasResult: true,
+    frames: fixtureFrames,
+    published: s.publishedRunId === r.id,
+    hasPreviews: false,
+    timingDropped: false,
+    startUnknown: false,
+  }));
+  return (
+    <main className="mx-auto max-w-3xl space-y-4 p-6">
+      <h1 className="text-lg font-semibold">R02 시험대 — 공개 전 3D 검토</h1>
+      <p data-rig-active={s.activePublicationId ?? ''} className="text-xs text-muted">
+        공개 중: {s.publishedRunId ?? '없음'} · {s.activePublicationId ?? '-'}
+      </p>
+      <AnalysisPanel
+        submissionId={SID}
+        analysisStatus="succeeded"
+        readiness={{ runnable: false, blockers: [{ code: 'analysis_consent_pending' as never, text: '(시험대) 분석 실행은 막아 둠' }], needsDraftConfirm: false, hand: 'R', inputNotes: [] }}
+        runs={runs}
+        hand="R"
+        withdrawn={false}
+        activePublicationId={s.activePublicationId}
+      />
+    </main>
+  );
+}

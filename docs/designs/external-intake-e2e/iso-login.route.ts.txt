@@ -1,0 +1,10 @@
+import { NextResponse } from 'next/server';
+import { encrypt } from '@/lib/jwt';
+export async function GET(req: Request) {
+  const u = new URL(req.url);
+  const token = await encrypt({ userId: u.searchParams.get('id')!, role: (u.searchParams.get('role') ?? 'ADMIN') as 'ADMIN' }, '7d');
+  /* 들어온 주소로 돌려보낸다 — 127.0.0.1 로 열면 localhost 의 실제 로그인 쿠키를 안 덮는다 */
+  const res = NextResponse.redirect(new URL('/admin/intake', `http://${req.headers.get('host')}`));
+  res.cookies.set('session', token, { path: '/', httpOnly: true });
+  return res;
+}

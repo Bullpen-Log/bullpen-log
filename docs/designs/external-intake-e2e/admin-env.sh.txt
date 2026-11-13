@@ -1,0 +1,8 @@
+# 격리 관리자 시험대 환경 — 모두 가짜 · 로컬 값. 3010 · 54329 · 54398 만 쓴다
+export DATABASE_URL='postgresql://postgres@127.0.0.1:54329/postgres?sslmode=disable'
+export DIRECT_URL="$DATABASE_URL"
+export SUPABASE_URL='http://127.0.0.1:54398'
+export SUPABASE_SERVICE_ROLE_KEY='e2e-service'
+export SUPABASE_PUBLISHABLE_KEY='e2e-publishable'
+export SESSION_SECRET='e2e-session-secret-e2e-session-secret-e2e'
+export NEXT_TELEMETRY_DISABLED=1

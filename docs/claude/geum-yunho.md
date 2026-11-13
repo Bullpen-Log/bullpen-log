@@ -251,6 +251,7 @@
 
 ## 4. 진행 중인 일
 
+- **외부 투구 영상 접수(2026-11-06 맥북 → 2026-11-07 맥 미니) — 브랜치 `intake/external-video-submission` 에만, 적용 전.** 공개 `/submit#토큰` · 관리 `/admin/intake` · 코드 `lib/intake/` · `components/intake/`. 보유 삭제 지적 12건과 그 뒤 검증 지적을 맥 미니에서 다 고쳤다(`docs/designs/external-intake-retention-findings.md`). 사용 가이드 https://claude.ai/artifact/41VLQX2pzemY6tRJe6kSm7. 남은 것: 맥북에서 격리 브라우저 전체 흐름(`flow.mjs` · `admin.mjs`, 크로미움 필요) · 사용자 확인(14일 기다림 · 90일 다시 셈 등) · 백업 · 김민 알림 뒤 마이그레이션 · 버킷 · `SUPABASE_PUBLISHABLE_KEY` · 실기기 · 실제 Supabase. 함정: Next fetch 는 signal 없는 GET 응답을 tee 해서 `body.cancel()` 이 멈춘다(서버 GET 엔 늘 signal). tsc 전체는 기본 힙에서 죽을 수 있어 `NODE_OPTIONS=--max-old-space-size=8192`. 셸 위치가 본 폴더로 되돌아가니 worktree 에선 `git -C` · 절대 경로.
 - **마커 촬영 2차(2026-10-16, 데스크톱에서 계획 — 맥북에서 이어 받기).** 계획서는 claude.ai 비공개 문서 '마커 촬영 계획서 3판 (카메라 3대)'
   https://claude.ai/code/artifact/12fdf82d-b687-44ce-a6c5-c3c6b561a640 (Docs 커넥터 `read` 로 읽는다). 조건: 카메라 3대(모두 120fps — 지하 조명 깜빡임 때문),
   실내 평지 · 거울은 안 보이는 각도, 막대 대신 배트(반 나무색 · 반 검정), 공 대신 흰 양말 뭉치(처음으로 릴리스 시점 참값), 스티커 46개(골반은 벨트 ·

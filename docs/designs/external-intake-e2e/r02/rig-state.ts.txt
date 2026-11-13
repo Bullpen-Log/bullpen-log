@@ -1,0 +1,41 @@
+/* R02 시험대 전용 — 메모리 상태(서버 한 프로세스). DB · 저장소 · .env 를 쓰지 않는다. 제품 diff 에 없다 */
+import fixture from './fixture.json';
+
+export const SID = 'sub-rig';
+export const CURRENT_REVISION_ID = 'rev-2';
+
+type Run = { id: string; revisionNumber: number; isCurrentRevision: boolean; digest: string };
+export const RUNS: Run[] = [
+  /* 지금 판 · 성공 · 공개 안 됨 → 검토 완료 + 공개 가능 */
+  { id: 'run-cur', revisionNumber: 2, isCurrentRevision: true, digest: fixture.resultSha256 },
+  /* 지금 판 · 성공 · 공개 중 → 보기만 */
+  { id: 'run-pub', revisionNumber: 2, isCurrentRevision: true, digest: 'b'.repeat(64) },
+  /* 옛 판 · 성공 → 보기만 */
+  { id: 'run-old', revisionNumber: 1, isCurrentRevision: false, digest: 'c'.repeat(64) },
+];
+
+export type RigState = {
+  activePublicationId: string | null;
+  publishedRunId: string | null;
+  acks: Record<string, { runId: string; digest: string; revisionId: string | null }>;
+  seq: number;
+  /** 다음 검토 완료를 이 코드로 거절한다(한 번) */
+  ackRefuse: null | 'stale_review' | 'review_required';
+  /** 검토 열기 응답을 늦춘다(ms) */
+  reviewDelayMs: number;
+  calls: { name: string; args: unknown[]; at: number }[];
+};
+
+const g = globalThis as unknown as { __r02?: RigState };
+export function rigState(): RigState {
+  g.__r02 ??= fresh();
+  return g.__r02;
+}
+export function resetRig() {
+  g.__r02 = fresh();
+}
+function fresh(): RigState {
+  return { activePublicationId: 'pub-1', publishedRunId: 'run-pub', acks: {}, seq: 0, ackRefuse: null, reviewDelayMs: 0, calls: [] };
+}
+export const fixtureView = fixture.view;
+export const fixtureFrames = fixture.frames;

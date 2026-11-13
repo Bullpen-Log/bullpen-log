@@ -1,0 +1,296 @@
+/**
+ * external-intake 버킷을 다루는 함수들 — 비밀 값을 인자로 받는다. 앱은 lib/intake/storage.ts 의 getIntakeStorage() 로 쓰고, 시험은 가짜 서버로 이 파일을 바로 부른다.
+ *
+ * 메모리: 해시는 응답 몸통을 읽는 대로 잰다(파일을 통째로 쥐지 않는다).
+ * 사실 대조는 docs/designs/external-intake.md '공식 문서로 확인한 전송 사실'.
+ */
+import { createHash } from 'node:crypto';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { ByteReader } from '@/lib/pitch-lab-file';
+import { IntakeError } from '@/lib/intake/errors';
+import { READ_URL_TTL_SEC, UPLOAD_TOKEN_FALLBACK_TTL_MS } from '@/lib/intake/limits';
+import { INTAKE_BUCKET } from '@/lib/intake/paths';
+
+export type IssuedUpload = {
+  /** TUS 끝점 — 서명 업로드는 /storage/v1/upload/resumable/sign */
+  endpoint: string;
+  /** x-signature 에 넣는 토큰. 그 경로 하나에만 쓴다 */
+  token: string;
+  /** 지금부터 토큰이 살아 있는 시간(ms) — 기기 시계가 달라도 되게 시각이 아니라 길이로 준다 */
+  tokenTtlMs: number;
+  /** 공개 키(publishable/anon) — apikey 머리. service role 키는 절대 아니다. 설정이 없으면 null */
+  apikey: string | null;
+  bucket: string;
+  objectName: string;
+};
+
+export type ObjectStat = { size: number; contentType: string | null };
+
+export type HashResult = { sha256: string; size: number };
+
+export type HashOptions = { signal?: AbortSignal; onBytes?: (bytesRead: number) => void };
+
+const abortReason = (signal: AbortSignal) => signal.reason ?? new DOMException('aborted', 'AbortError');
+
+/**
+ * 응답 몸통을 끝까지 읽으며 SHA-256 을 잰다 — 앱의 hash 와 속도 재기(scripts/intake-hash-bench.mts)가 같이 쓴다.
+ * 조각마다 signal 을 본다. fetch 가 signal 을 몸통까지 잇지 않는 환경(가짜 fetch · 일부 폴리필)에서도 멈추게 하려는 것이다.
+ * 끊기면 몸통 읽기를 취소해 연결을 놓고 signal.reason 을 던진다.
+ */
+export async function hashStream(body: ReadableStream<Uint8Array>, opts: HashOptions = {}): Promise<HashResult> {
+  const { signal, onBytes } = opts;
+  const hash = createHash('sha256');
+  let size = 0;
+  const reader = body.getReader();
+  try {
+    for (;;) {
+      if (signal?.aborted) throw abortReason(signal);
+      const { done, value } = await reader.read();
+      if (done) break;
+      hash.update(value);
+      size += value.byteLength;
+      onBytes?.(size);
+    }
+  } catch (e) {
+    await reader.cancel().catch(() => {});
+    /* 읽기가 끊겨 난 오류(AbortError · 끊긴 연결)도 signal 이 끊긴 때면 signal 의 까닭으로 맞춘다 — 부른 쪽이 예산 끊김을 가를 수 있게 */
+    throw signal?.aborted ? abortReason(signal) : e;
+  }
+  /* 끝까지 읽었으면 그 사이 시각이 와도 값을 돌려준다 — 다 읽은 해시를 버리면 다음 시도가 같은 읽기를 처음부터 한다 */
+  return { sha256: hash.digest('hex'), size };
+}
+
+/** 서비스가 쓰는 저장소 모양 — 시험은 이것을 가짜로 넘긴다 */
+export type IntakeStorage = {
+  /** TUS 주소가 이 값으로 시작해야 저장소의 주소다 */
+  readonly uploadOrigin: string;
+  issueUpload(objectPath: string): Promise<IssuedUpload>;
+  /** 없으면 null */
+  stat(objectPath: string): Promise<ObjectStat | null>;
+  /** 범위 읽기 — 없으면 null */
+  reader(objectPath: string): Promise<ByteReader | null>;
+  /**
+   * 처음부터 끝까지 스트리밍으로 SHA-256 을 잰다. signal 이 끊기면 읽기를 멈추고 signal.reason 을 던진다(값을 돌려주지 않는다).
+   * onBytes 는 지금까지 읽은 바이트 수를 알린다 — 일꾼이 끊겼을 때 실제 읽기 속도를 남기는 데 쓴다.
+   */
+  hash(objectPath: string, opts?: HashOptions): Promise<HashResult>;
+  /** 짧은 서명 읽기 주소. download 를 주면 그 이름으로 내려받는다 */
+  readUrl(objectPath: string, opts?: { ttlSec?: number; download?: string }): Promise<string>;
+  list(prefix: string): Promise<string[]>;
+  remove(objectPaths: string[]): Promise<void>;
+};
+
+/**
+ * 분석 쪽이 더 쓰는 것 — GPU 가 결과를 PUT 할 서명 주소. 영상 전송 토큰(TUS)과 달리 일반 PUT 이고, 분석 서버가 올리기를 다시 시도해도 되게 덮어쓰기를 켠다.
+ * 그래서 run 폴더 경로에만 쓴다. 원본 경로에는 쓰지 않는다(lib/intake/analysis.ts 가 경로를 만든다).
+ */
+export type IntakeRunStorage = IntakeStorage & {
+  resultUploadUrl(objectPath: string): Promise<string>;
+  /**
+   * 관리자가 가져온 결과 파일을 서버가 직접 쓴다(R03 수동 결과). 덮어쓰지 않는다 — 같은 경로가 있으면 실패한다.
+   * 실행 폴더의 .json 에만 쓴다(부르는 쪽 lib/intake/manual-result.ts 와 이 구현이 둘 다 경로를 본다). 원본 경로에는 쓰지 않는다.
+   * 선택 칸인 까닭: 예전 시험의 가짜 저장소가 이것 없이도 돈다. 없으면 가져오기가 storage_unavailable 로 막힌다.
+   */
+  putRunFile?(objectPath: string, bytes: Uint8Array, contentType: string): Promise<void>;
+};
+
+/** 수동 결과를 쓸 수 있는 경로 — 실행 폴더의 analysis.json 하나뿐 */
+export const RUN_FILE_PATH = /^sub\/[0-9a-f-]{36}\/runs\/[0-9a-f-]{36}\/analysis\.json$/;
+
+export type IntakeStorageConfig = {
+  url: string;
+  serviceKey: string;
+  /** 공개 키 — 없으면 apikey 머리 없이 보낸다 */
+  publishableKey?: string | null;
+  bucket?: string;
+  fetch?: typeof fetch;
+};
+
+/**
+ * 공식 문서: 큰 파일은 직접 저장소 주소로 — https://<ref>.supabase.co → https://<ref>.storage.supabase.co.
+ * 그 모양이 아닌 주소(로컬 · 시험)는 그대로 둔다.
+ */
+export function directStorageOrigin(url: string): string {
+  const u = new URL(url);
+  const m = /^([a-z0-9]+)\.supabase\.co$/i.exec(u.hostname);
+  return m ? `${u.protocol}//${m[1]}.storage.supabase.co` : u.origin;
+}
+
+/** 토큰의 exp 를 읽어 남은 시간을 구한다 — 서명은 저장소가 본다. 못 읽으면 짧은 기본값 */
+export function tokenTtlOf(token: string, nowMs: number): number {
+  try {
+    const body = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8')) as { exp?: unknown };
+    if (typeof body.exp === 'number') return Math.max(0, body.exp * 1000 - nowMs);
+  } catch {
+    /* 아래 기본값 */
+  }
+  return UPLOAD_TOKEN_FALLBACK_TTL_MS;
+}
+
+const unavailable = (cause: string) => new IntakeError('storage_unavailable', { cause });
+
+/**
+ * 'not found' 이지만 객체가 없다는 말이 아닌 답 — 버킷 · 테넌트 설정이 없거나, 몸통 없는 게이트웨이 404 를 SDK 가 상태 글('Not Found')로 옮긴 것이다.
+ * 이것을 없음으로 읽으면 지웠다는 답만 오고 남은 파일을 'purged' 로 적는다. 그 줄은 다시 보는 곳이 없다.
+ * 객체 없음의 글(호스팅 서버 'Object not found')을 정확히 못 박지는 않는다 — 실제 버킷으로 확인하기 전에 좁히면, 아직 안 올라온 파일을 묻는 전송 확인 · 대사가 막힌다.
+ */
+const NOT_OBJECT_MISSING = [/^bucket not found$/i, /^tenant config not found$/i, /^not found$/i];
+const notObjectMissing = (message: unknown) => typeof message === 'string' && NOT_OBJECT_MISSING.some((re) => re.test(message.trim()));
+
+/** 크기 확인 · 범위 읽기의 제한 시간 — 작은 읽기라 이보다 오래 걸리면 저장소 문제로 본다 */
+const READ_TIMEOUT_MS = 30_000;
+
+/**
+ * 서버 안 GET 은 늘 signal 을 준다. Next 의 fetch(dedupe-fetch)는 signal 없는 GET 의 응답을 둘로 갈라(tee) 한 갈래를 쥐고 있어서
+ * ① body.cancel() 이 남은 갈래가 가비지 수집될 때까지 안 끝나고(격리 브라우저 시험에서 전송 확인이 119초 걸렸다) ② 안 읽는 갈래에 파일 전체가 쌓인다.
+ * signal 이 있으면 Next 가 가르지 않는다. 시험의 가짜 fetch 로는 안 드러나서 intake:transfer-test 가 Next 의 그 함수를 끼워 본다.
+ */
+const noTee = (headers?: HeadersInit, signal?: AbortSignal): RequestInit => ({
+  ...(headers ? { headers } : {}),
+  cache: 'no-store',
+  signal: signal ?? AbortSignal.timeout(READ_TIMEOUT_MS),
+});
+
+export function createIntakeStorage(cfg: IntakeStorageConfig): IntakeRunStorage {
+  const bucketName = cfg.bucket ?? INTAKE_BUCKET;
+  const doFetch = cfg.fetch ?? fetch;
+  const client: SupabaseClient = createClient(cfg.url, cfg.serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    ...(cfg.fetch ? { global: { fetch: cfg.fetch } } : {}),
+  });
+  const bucket = () => client.storage.from(bucketName);
+  const origin = directStorageOrigin(cfg.url);
+
+  async function signedRead(objectPath: string, ttlSec: number): Promise<string | null> {
+    const { data, error } = await bucket().createSignedUrl(objectPath, ttlSec);
+    if (error || !data?.signedUrl) {
+      const message = error?.message ?? '';
+      if (/not.?found/i.test(message) && !notObjectMissing(message)) return null;
+      throw unavailable('sign_read');
+    }
+    return data.signedUrl;
+  }
+
+  async function stat(objectPath: string): Promise<ObjectStat | null> {
+    const url = await signedRead(objectPath, 60);
+    if (!url) return null;
+    const res = await doFetch(url, noTee({ Range: 'bytes=0-0' })).catch(() => {
+      throw unavailable('stat_fetch');
+    });
+    /*
+     * 호스팅 서버는 없는 객체를 HTTP 400 + 몸통 statusCode '404' 로 답한다. 다른 까닭의 400 을 없음으로 읽으면 삭제 확인이 남은 파일을 지웠다고 적는다.
+     * 맨 404 도 같다 — 저장소가 낸 '객체 없음' 몸통일 때만 없음이다. 몸통 없는 게이트웨이 404 · HTML · 상태 글('Not Found')은 객체가 남아 있을 수 있다.
+     */
+    if (res.status === 400 || res.status === 404) {
+      const body = (await res.json().catch(() => null)) as { statusCode?: unknown; message?: unknown } | null;
+      if (String(body?.statusCode) === '404' && !notObjectMissing(body?.message)) return null;
+      throw unavailable('stat');
+    }
+    await res.body?.cancel().catch(() => {});
+    if (res.status === 416) {
+      const empty = /\/(\d+)$/.exec(res.headers.get('content-range') ?? '');
+      return empty ? { size: Number(empty[1]), contentType: res.headers.get('content-type') } : null;
+    }
+    if (!res.ok) throw unavailable('stat');
+    const total = /\/(\d+)$/.exec(res.headers.get('content-range') ?? '');
+    const size = total ? Number(total[1]) : Number(res.headers.get('content-length'));
+    if (!Number.isFinite(size)) throw unavailable('stat_size');
+    return { size, contentType: res.headers.get('content-type') };
+  }
+
+  return {
+    uploadOrigin: origin,
+
+    async issueUpload(objectPath) {
+      const { data, error } = await bucket().createSignedUploadUrl(objectPath);
+      if (error || !data?.token) throw unavailable('sign_upload');
+      return {
+        endpoint: `${origin}/storage/v1/upload/resumable/sign`,
+        token: data.token,
+        tokenTtlMs: tokenTtlOf(data.token, Date.now()),
+        apikey: cfg.publishableKey ?? null,
+        bucket: bucketName,
+        objectName: objectPath,
+      };
+    },
+
+    stat,
+
+    async resultUploadUrl(objectPath) {
+      const { data, error } = await bucket().createSignedUploadUrl(objectPath, { upsert: true });
+      if (error || !data?.signedUrl) throw unavailable('sign_result');
+      return data.signedUrl;
+    },
+
+    async putRunFile(objectPath, bytes, contentType) {
+      if (!RUN_FILE_PATH.test(objectPath)) throw new IntakeError('invalid_input', { field: 'objectPath' });
+      const { error } = await bucket().upload(objectPath, bytes, { upsert: false, contentType, cacheControl: 'no-store' });
+      if (error) throw unavailable('put_run_file');
+    },
+
+    async reader(objectPath) {
+      const size = (await stat(objectPath))?.size;
+      if (size == null) return null;
+      const url = await signedRead(objectPath, READ_URL_TTL_SEC);
+      if (!url) return null;
+      return {
+        size,
+        read: async (start, end) => {
+          if (end <= start) return new Uint8Array(0);
+          const res = await doFetch(url, noTee({ Range: `bytes=${start}-${end - 1}` })).catch(() => {
+            throw unavailable('range_fetch');
+          });
+          if (res.status !== 206 && res.status !== 200) throw unavailable('range_read');
+          const bytes = new Uint8Array(await res.arrayBuffer());
+          /* 범위를 무시하고 통째로 준 저장소는 앞에서 잘라 쓴다 */
+          return res.status === 200 ? bytes.subarray(start, end) : bytes;
+        },
+      };
+    },
+
+    async hash(objectPath, opts) {
+      const url = await signedRead(objectPath, READ_URL_TTL_SEC);
+      if (!url) throw unavailable('hash_missing');
+      /* 전체 읽기는 파일 크기에 달려 시간을 안 묶는다 — 끊는 것은 부른 쪽 signal(크론의 실행 예산)과 함수 시간 제한이다 */
+      const signal = opts?.signal ?? new AbortController().signal;
+      const res = await doFetch(url, noTee(undefined, signal)).catch((e: unknown) => {
+        if (signal.aborted) throw abortReason(signal);
+        throw e;
+      });
+      if (!res.ok || !res.body) {
+        await res.body?.cancel().catch(() => {});
+        throw unavailable('hash_read');
+      }
+      return hashStream(res.body, { signal, onBytes: opts?.onBytes });
+    },
+
+    async readUrl(objectPath, opts) {
+      const signed = await signedRead(objectPath, opts?.ttlSec ?? READ_URL_TTL_SEC);
+      if (!signed) throw unavailable('read_missing');
+      if (!opts?.download) return signed;
+      /*
+       * SDK 의 download 옵션은 값을 URLSearchParams 로 인코딩한 뒤 주소 전체를 encodeURI 로 한 번 더 싸서 한글 이름이 깨진다(%EA → %25EA).
+       * 그래서 서명 주소를 받은 뒤 직접 붙인다. 서명은 경로 · 토큰만 보므로 download 칸은 서명과 상관없다.
+       */
+      const url = new URL(signed);
+      url.searchParams.set('download', opts.download);
+      return url.toString();
+    },
+
+    async list(prefix) {
+      const out: string[] = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data, error } = await bucket().list(prefix, { limit: 1000, offset });
+        if (error) throw unavailable('list');
+        out.push(...(data ?? []).map((f) => `${prefix}/${f.name}`));
+        if (!data || data.length < 1000) return out;
+      }
+    },
+
+    async remove(objectPaths) {
+      if (!objectPaths.length) return;
+      const { error } = await bucket().remove(objectPaths);
+      if (error) throw unavailable('remove');
+    },
+  };
+}

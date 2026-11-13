@@ -1,0 +1,15 @@
+--- /Users/yuno/Developer/bullpen-log/.claude/worktrees/intake/docs/designs/external-intake-e2e/iso-seed.mts.txt	2026-11-07 17:22:29
++++ <scratch>/rig-admin/scripts/iso-seed.mts	2026-11-13 17:54:07
+@@ -120,5 +120,12 @@
+ console.log('new', JSON.stringify({ many, grantThenRefuse, refuseOnly, refuseThenGrant, otherRelation }));
+ console.log('S8', s8, 's3', s3, 's4', s4, 's6', s6, 's7', s7);
+ await db.$disconnect();
++/* R03 — 최민재(s6) 접수의 받는 사람이 이름 · PIN 을 정했고 한 번 틀린 상태 */
++{
++  const { enrollInvitee } = await import('@/lib/intake/invitee');
++  const sub6 = await db.intakeSubmission.findUniqueOrThrow({ where: { id: s6 }, include: { invitation: true } });
++  await enrollInvitee(db, { invitationId: sub6.invitationId, submissionId: s6, tokenHash: sub6.invitation.tokenHash }, { name: '최민재', pin: '0042', pinConfirm: '0042' }, new Date());
++  await db.intakeInvitation.update({ where: { id: sub6.invitationId }, data: { pinFailures: 1 } });
++}
+ console.log('ready', s1, s2, s6);
+ await new Promise(() => {});

@@ -1,0 +1,9 @@
+#!/bin/zsh
+# 격리 관리자 시험대 — 운영 값을 안 쓴다. 3010 · 54329 만 쓴다
+cd "$(dirname "$0")/iso-admin" || exit 1
+export DATABASE_URL='postgresql://postgres@127.0.0.1:54329/postgres?sslmode=disable' DIRECT_URL='postgresql://postgres@127.0.0.1:54329/postgres?sslmode=disable' SUPABASE_URL='http://127.0.0.1:54398' SUPABASE_SERVICE_ROLE_KEY='e2e-service' SUPABASE_PUBLISHABLE_KEY='e2e-publishable' SESSION_SECRET='e2e-session-secret-e2e-session-secret-e2e' NEXT_TELEMETRY_DISABLED=1
+node --import ./scripts/alias-register.mjs scripts/iso-seed.mts > ../seed.log 2>&1 &
+H=$!
+trap 'kill $H 2>/dev/null' EXIT INT TERM
+for i in {1..120}; do grep -q '^ready' ../seed.log && break; sleep 0.5; done
+npx next dev --port 3010 --hostname 127.0.0.1

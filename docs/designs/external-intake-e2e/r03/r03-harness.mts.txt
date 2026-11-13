@@ -1,0 +1,316 @@
+/* R03 격리 시험대 — R02 e2e-harness 에 수동 결과 · 이름 · PIN 조작을 더했다. 메모리 PostgreSQL + 가짜 Supabase Storage(TUS 포함). 저장소에 넣지 않는다. 운영 값을 읽지 않는다 */
+import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { appendFileSync, createReadStream, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { PGlite } from '@electric-sql/pglite';
+import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { INTAKE_BUCKET } from '@/lib/intake/paths';
+import { TUS_CHUNK_BYTES } from '@/lib/intake/limits';
+import { INTAKE_CONSENT_DOCS } from '@/lib/intake/consent';
+import { createInvitation, reissueInvitationToken, requestCorrection, withdrawRequiredConsent } from '@/lib/intake/service';
+import { mov120, mov240 } from './intake-fixtures.mts';
+import { publishRun, unpublish } from '@/lib/intake/publication';
+import { purgeSubmissionOriginals } from '@/lib/intake/purge';
+import { assetObjectPath } from '@/lib/intake/paths';
+import { createIntakeStorage } from '@/lib/intake/storage-core';
+import { runResultPath } from '@/lib/intake/analysis';
+import { acknowledgeRunReview, loadRunReview } from '@/lib/intake/review';
+import { adminImportManualResult, buildIntakeManifest, issueOriginalLinks } from '@/lib/intake/admin';
+import { resetInviteeEnrollment } from '@/lib/intake/invitee';
+import { MANUAL_RESULT_FORMAT } from '@/lib/intake/manual-result';
+import { fitPitch3dV2 } from '@/lib/pitch-3d/v2/fit';
+import { base, cameras, EV } from './pitch-lab/synth.mts';
+import { makeV2Track } from './pitch-lab/synth-v2.mts';
+
+const DB_PORT = 54399, ST_PORT = 54398;
+const dirs = readdirSync('prisma/pending-migrations').filter((d) => d.endsWith('_external_intake'));
+const pg = await PGlite.create();
+await pg.exec(readFileSync(`prisma/pending-migrations/${dirs[0]}/migration.sql`, 'utf8'));
+const socket = new PGLiteSocketServer({ db: pg, port: DB_PORT, host: '127.0.0.1', maxConnections: 16 } as never);
+await socket.start();
+const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: `postgresql://postgres@127.0.0.1:${DB_PORT}/postgres?sslmode=disable`, max: 1, idleTimeoutMillis: 100 }) });
+
+const dir = mkdtempSync(path.join(tmpdir(), 'intake-e2e-'));
+const SECRET = randomBytes(16);
+const SERVICE_KEY = 'e2e-service';
+/* side2 는 옆과 크기가 같고 바이트가 다르다 — 다른 파일을 이어 붙이지 않는지 본다 */
+const fx = { side: mov240(20 * 1024 * 1024 + 123), side2: mov240(20 * 1024 * 1024 + 123), rear: mov120(14 * 1024 * 1024 + 77), rear2: mov120(14 * 1024 * 1024 + 77), big: mov240(3000) };
+const server = { uploads: new Map<string, any>(), objects: new Map<string, string>(), cutPatchAfter: null as number | null, cutMinOffset: 0, cutTimes: 1, patches: 0, delayMs: 0, hashDelayMs: 0, log: [] as Record<string, unknown>[] };
+/* TUS 기록 — 어느 객체에 무엇이 어느 자리부터 왔나. 끊긴 뒤 이어 가는지(처음부터가 아닌지) 보는 데 쓴다 */
+const tlog = (e: Record<string, unknown>) => server.log.push({ t: Date.now(), ...e });
+
+const CORS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': '*, authorization, x-signature, apikey, tus-resumable, upload-length, upload-metadata, upload-offset, content-type, x-upsert',
+  'Access-Control-Allow-Methods': 'GET,POST,PATCH,HEAD,DELETE,OPTIONS',
+  'Access-Control-Expose-Headers': 'Location, Upload-Offset, Upload-Length, Tus-Resumable, Tus-Version, Content-Range',
+};
+function sign(url: string, ttl: number) {
+  const b = (v: object) => Buffer.from(JSON.stringify(v)).toString('base64url');
+  const head = `${b({ alg: 'HS256' })}.${b({ url, upsert: false, exp: Math.floor(Date.now() / 1000) + ttl })}`;
+  return `${head}.${createHmac('sha256', SECRET).update(head).digest('base64url')}`;
+}
+function verify(token: unknown, name: string) {
+  if (typeof token !== 'string') return 'Missing x-signature header';
+  const [h, p, s] = token.split('.');
+  if (!s || createHmac('sha256', SECRET).update(`${h}.${p}`).digest('base64url') !== s) return 'invalid signature';
+  const pl = JSON.parse(Buffer.from(p, 'base64url').toString());
+  if (pl.url !== `${INTAKE_BUCKET}/${name}`) return 'invalid signature';
+  if (pl.exp * 1000 < Date.now()) return 'jwt expired signature';
+  return null;
+}
+const send = (res: ServerResponse, status: number, body: unknown = null, headers: Record<string, string> = {}) => {
+  res.writeHead(status, { ...CORS, 'Tus-Resumable': '1.0.0', 'Content-Type': 'application/json', ...headers });
+  res.end(body == null ? undefined : JSON.stringify(body));
+};
+const bodyOf = (req: IncomingMessage) => new Promise<string>((r) => { let s = ''; req.on('data', (c) => (s += c)); req.on('end', () => r(s)); });
+const meta = (h: unknown) => Object.fromEntries(String(h ?? '').split(',').map((x) => x.trim().split(' ')).map(([k, v]) => [k, Buffer.from(v ?? '', 'base64').toString()]));
+
+async function tus(req: IncomingMessage, res: ServerResponse, id: string | null) {
+  if (req.method === 'POST') {
+    const m = meta(req.headers['upload-metadata']);
+    const why = verify(req.headers['x-signature'], m.objectName);
+    if (why) return send(res, 400, { message: why });
+    if (server.objects.has(m.objectName)) return send(res, 409, { message: 'Asset Already Exists' });
+    const uid = randomBytes(12).toString('hex');
+    const file = path.join(dir, `tus-${uid}`);
+    writeFileSync(file, '');
+    server.uploads.set(uid, { object: m.objectName, length: Number(req.headers['upload-length']), offset: 0, file });
+    tlog({ m: 'POST', uid, object: m.objectName, length: Number(req.headers['upload-length']) });
+    return send(res, 201, null, { Location: `http://127.0.0.1:${ST_PORT}/storage/v1/upload/resumable/sign/${uid}` });
+  }
+  const up = id ? server.uploads.get(id) : null;
+  if (!up) return send(res, 404, { message: 'Upload not found' });
+  const why = verify(req.headers['x-signature'], up.object);
+  if (why) return send(res, 400, { message: why });
+  if (req.method === 'HEAD') tlog({ m: 'HEAD', uid: id, object: up.object, offset: up.offset });
+  if (req.method === 'HEAD') return send(res, 200, null, { 'Upload-Offset': String(up.offset), 'Upload-Length': String(up.length), 'Cache-Control': 'no-store' });
+  if (req.method === 'PATCH') {
+    const at = up.offset;
+    if (Number(req.headers['upload-offset']) !== up.offset) { tlog({ m: 'PATCH', uid: id, object: up.object, offset: Number(req.headers['upload-offset']), have: at, r: 'conflict' }); return send(res, 409, { message: 'offset conflict' }); }
+    if (server.delayMs) await new Promise((r) => setTimeout(r, server.delayMs));
+    const chunks: Buffer[] = [];
+    const cut = server.cutPatchAfter != null && at >= server.cutMinOffset ? server.cutPatchAfter : null;
+    let got = 0;
+    await new Promise<void>((resolve) => {
+      req.on('data', (c: Buffer) => {
+        chunks.push(c); got += c.length;
+        if (cut != null && got >= cut) { /* 브라우저는 다시 쓴 연결이 끊기면 같은 요청을 한 번 저절로 다시 보낸다 — times 번 끊어야 TUS 쪽 재시도가 돈다 */ if (--server.cutTimes <= 0) server.cutPatchAfter = null; req.socket.destroy(); resolve(); }
+      });
+      req.on('end', () => resolve());
+      req.on('close', () => resolve());
+    });
+    if (req.socket.destroyed && !req.complete) { tlog({ m: 'PATCH', uid: id, object: up.object, offset: at, len: got, r: cut != null && got >= cut ? 'cut' : 'aborted' }); return; }
+    const data = Buffer.concat(chunks);
+    server.patches++;
+    const final = up.offset + data.length >= up.length;
+    if (!final && data.length !== TUS_CHUNK_BYTES) return send(res, 400, { message: 'chunk must be 6MB' });
+    appendFileSync(up.file, data);
+    up.offset += data.length;
+    tlog({ m: 'PATCH', uid: id, object: up.object, offset: at, len: data.length, r: 'ok' });
+    if (up.offset === up.length) server.objects.set(up.object, up.file);
+    return send(res, 204, null, { 'Upload-Offset': String(up.offset) });
+  }
+  send(res, 405);
+}
+async function rest(req: IncomingMessage, res: ServerResponse, url: URL) {
+  /* 서버가 직접 쓰는 올리기(supabase-js upload) — 수동 결과 파일. upsert 가 아니면 있는 객체를 덮지 않는다 */
+  const up = /^\/storage\/v1\/object\/([^/]+)\/(.+)$/.exec(url.pathname);
+  if (up && (req.method === 'POST' || req.method === 'PUT') && !/^(sign|upload|list|info|public|authenticated)$/.test(up[1])) {
+    const name = decodeURIComponent(up[2]);
+    const chunks: Buffer[] = [];
+    await new Promise<void>((r) => { req.on('data', (c: Buffer) => chunks.push(c)); req.on('end', () => r()); });
+    if (server.objects.has(name) && req.headers['x-upsert'] !== 'true') return send(res, 400, { statusCode: '409', error: 'Duplicate', message: 'The resource already exists' });
+    const f = path.join(dir, `put-${randomBytes(6).toString('hex')}`);
+    writeFileSync(f, Buffer.concat(chunks));
+    server.objects.set(name, f);
+    tlog({ m: 'PUT', object: name, len: Buffer.concat(chunks).length });
+    return send(res, 200, { Key: `${up[1]}/${name}` });
+  }
+  if (req.method === 'DELETE' && /^\/storage\/v1\/object\/[^/]+\/?$/.test(url.pathname)) {
+    const { prefixes = [] } = JSON.parse((await bodyOf(req)) || '{}') as { prefixes?: string[] };
+    const gone = prefixes.filter((p) => server.objects.delete(p));
+    return send(res, 200, gone.map((name) => ({ name })));
+  }
+  const su = /^\/storage\/v1\/object\/upload\/sign\/([^/]+)\/(.+)$/.exec(url.pathname);
+  if (su && req.method === 'POST') {
+    await bodyOf(req);
+    const name = decodeURIComponent(su[2]);
+    if (server.objects.has(name)) return send(res, 400, { statusCode: '409', error: 'Duplicate', message: 'The resource already exists' });
+    const token = sign(`${su[1]}/${name}`, 7200);
+    return send(res, 200, { url: `/object/upload/sign/${su[1]}/${name}?token=${token}`, token });
+  }
+  const sr = /^\/storage\/v1\/object\/sign\/([^/]+)\/(.+)$/.exec(url.pathname);
+  if (sr && req.method === 'POST') {
+    await bodyOf(req);
+    const name = decodeURIComponent(sr[2]);
+    if (!server.objects.has(name)) return send(res, 400, { statusCode: '404', error: 'not_found', message: 'Object not found' });
+    return send(res, 200, { signedURL: `/object/sign/${sr[1]}/${name}?token=read-${randomBytes(4).toString('hex')}` });
+  }
+  if (sr && req.method === 'GET') {
+    const file = server.objects.get(decodeURIComponent(sr[2]));
+    if (!file) return send(res, 404, { message: 'nf' });
+    /* 범위 없는 통째 읽기는 서버 검증(전체 해시)이다 — 늦춰서 '확인하고 있어요' 화면을 붙잡아 본다 */
+    tlog({ m: 'GET', object: decodeURIComponent(sr[2]), range: req.headers.range ?? null, delay: !req.headers.range ? server.hashDelayMs : 0 });
+    if (!req.headers.range && server.hashDelayMs) await new Promise((r) => setTimeout(r, server.hashDelayMs));
+    const size = statSync(file).size;
+    const range = /^bytes=(\d+)-(\d+)?$/.exec(req.headers.range ?? '');
+    if (range) {
+      const start = Number(range[1]); const end = Math.min(size - 1, Number(range[2] ?? size - 1));
+      res.writeHead(206, { 'Content-Type': 'video/quicktime', 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(end - start + 1) });
+      return void createReadStream(file, { start, end }).pipe(res);
+    }
+    res.writeHead(200, { 'Content-Type': 'video/quicktime', 'Content-Length': String(size) });
+    return void createReadStream(file).pipe(res);
+  }
+  send(res, 404, { message: 'no route' });
+}
+async function control(req: IncomingMessage, res: ServerResponse, url: URL) {
+  const name = url.pathname.split('/')[2];
+  const q = url.searchParams;
+  if (name === 'fixture') {
+    const b = fx[q.get('f') as keyof typeof fx];
+    res.writeHead(200, { ...CORS, 'Content-Type': 'video/quicktime', 'Content-Length': String(b.length) });
+    return void res.end(b);
+  }
+  if (name === 'invite') {
+    const c = await createInvitation(db, { adminId: 'e2e-admin', uploadExpiresAt: q.get('expired') ? new Date(Date.now() - 1000) : undefined, accessCode: q.get('code') }, new Date());
+    return send(res, 200, c);
+  }
+  if (name === 'cut') { server.cutPatchAfter = q.get('n') === '0' ? null : Number(q.get('n') ?? 1_000_000); server.cutMinOffset = Number(q.get('min') ?? 0); server.cutTimes = Number(q.get('times') ?? 1); return send(res, 200, { ok: true }); }
+  if (name === 'tuslog') { const sub = q.get('sub') ?? ''; return send(res, 200, server.log.filter((e) => String(e.object ?? '').includes(sub))); }
+  /* 머리를 안 보내는 응답 · 머리만 보내고 본문을 끝내지 않는 응답 — 브라우저 쪽이 요청을 여기로 돌린다(CDP Fetch) */
+  if (name === 'stall-headers') { tlog({ m: 'STALL', object: 'stall-headers' }); return; }
+  if (name === 'stall-body') { tlog({ m: 'STALL', object: 'stall-body', origin: req.headers.origin ?? null, auth: req.headers.authorization ? 'yes' : 'no' }); res.writeHead(200, { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.write('{"state":{"screen":'); req.on('close', () => tlog({ m: 'STALL', object: 'stall-body-closed' })); return; }
+  if (name === 'reissue') {
+    const s = await db.intakeSubmission.findUniqueOrThrow({ where: { id: q.get('id')! }, include: { invitation: true } });
+    return send(res, 200, await reissueInvitationToken(db, { adminId: 'e2e-admin', submissionId: s.id, expectedReissueCount: s.invitation.tokenReissueCount }, new Date()));
+  }
+  if (name === 'failures') { const s = await db.intakeSubmission.findUniqueOrThrow({ where: { id: q.get('id')! } }); await db.intakeInvitation.update({ where: { id: s.invitationId }, data: { accessCodeFailures: Number(q.get('n') ?? 0) } }); return send(res, 200, { ok: true }); }
+  if (name === 'codestate') { const s = await db.intakeSubmission.findUniqueOrThrow({ where: { id: q.get('id')! }, include: { invitation: true } }); return send(res, 200, { failures: s.invitation.accessCodeFailures, lockedAt: s.invitation.accessCodeLockedAt }); }
+  if (name === 'withdraw') return send(res, 200, await withdrawRequiredConsent(db, { adminId: 'e2e-admin', submissionId: q.get('id')! }, new Date()));
+  if (name === 'repurge') {
+    /* 지우기가 끊긴 뒤 다시 지운다 — 실제 저장소로 */
+    const st = createIntakeStorage({ url: `http://127.0.0.1:${ST_PORT}`, serviceKey: SERVICE_KEY });
+    const r = await purgeSubmissionOriginals({ db, storage: st as never, now: () => new Date(Date.now() + 16 * 60_000) }, q.get('id')!).catch((e) => ({ threw: String(e) }));
+    const left = [...server.objects.keys()].filter((k) => k.includes(q.get('id')!) && k.endsWith('/original'));
+    return send(res, 200, { purge: r, left });
+  }
+  if (name === 'hashdelay') { server.hashDelayMs = Number(q.get('ms') ?? 0); return send(res, 200, { ok: true }); }
+  if (name === 'delay') { server.delayMs = Number(q.get('ms') ?? 0); return send(res, 200, { ok: true }); }
+  if (name === 'revoke') { await db.intakeInvitation.update({ where: { id: q.get('id')! }, data: { status: 'revoked', revokedAt: new Date() } }); return send(res, 200, { ok: true }); }
+  if (name === 'correct') { await requestCorrection(db, { adminId: 'e2e-admin', submissionId: q.get('id')!, fields: ['athleteName'], views: ['rear'], message: '뒤 영상에서 발이 잘렸어요. 다시 골라 주세요.' }); return send(res, 200, { ok: true }); }
+  if (name === 'run') {
+    const sc = base; const { side: cs, back: cb } = cameras(sc);
+    const ts = makeV2Track(sc, cs, sc.side, 'side', 11); const tb = makeV2Track(sc, cb, sc.back, 'back', 12);
+    const id = randomBytes(16).toString('hex').replace(/^(.{8})(.{4}).(.{3}).(.{3})(.{12}).*$/, '$1-$2-4$3-8$4-$5');
+    await db.intakeSubmission.update({ where: { id: q.get('id')! }, data: { throwingHand: 'R' } });
+    const sub = await db.intakeSubmission.findUniqueOrThrow({ where: { id: q.get('id')! } });
+    const revRow = await db.intakeRevision.findUniqueOrThrow({ where: { id: sub.currentRevisionId! } });
+    const r = fitPitch3dV2({ side: ts.track, back: tb.track, hand: sc.hand, heightCm: 183, jobId: id, poseModel: 'synth', screenRecorded: true, slowmoFps: 240, events: { kneeUp: ts.toMedia(EV.kneeUp), footPlant: ts.toMedia(EV.footPlant), release: ts.toMedia(EV.release) } }).result;
+    const raw = JSON.stringify(r);
+    const key = runResultPath(sub.id, id);
+    const f = path.join(dir, `res-${id}`); writeFileSync(f, raw); server.objects.set(key, f);
+    await db.intakeAnalysisRun.create({ data: { id, submissionId: sub.id, revisionId: sub.currentRevisionId!, engineKey: 'e2e', status: 'succeeded', resultPath: key, resultMeta: { input: { side: revRow.sideAssetId, rear: revRow.rearAssetId, hand: 'R' }, sha256: createHash('sha256').update(raw).digest('hex') }, finishedAt: new Date() } });
+    return send(res, 200, { runId: id });
+  }
+  if (name === 'publish') {
+    const st = createIntakeStorage({ url: `http://127.0.0.1:${ST_PORT}`, serviceKey: SERVICE_KEY });
+    const runRow = await db.intakeAnalysisRun.findUniqueOrThrow({ where: { id: q.get('run')! } });
+    const active = await db.intakePublication.findUnique({ where: { activeFor: runRow.submissionId } });
+    /* INTAKE-MAIN/R01 — 공개 전에 같은 관리자가 검토를 열고 검토 완료를 남긴다(리그가 화면 대신) */
+    const rrt = { db, storage: st } as never;
+    const v = await loadRunReview({ submissionId: runRow.submissionId, runId: runRow.id, adminId: 'e2e-admin' }, rrt);
+    const { acknowledgementId } = await acknowledgeRunReview({ submissionId: runRow.submissionId, runId: runRow.id, adminId: 'e2e-admin', resultDigest: v.resultDigest, currentRevisionId: v.currentRevisionId }, rrt);
+    return send(res, 200, await publishRun({ runId: q.get('run')!, adminId: 'e2e-admin', explanation: q.get('x'), expectedActivePublicationId: active?.id ?? null, acknowledgementId }, rrt));
+  }
+  if (name === 'unpublish') {
+    const st = createIntakeStorage({ url: `http://127.0.0.1:${ST_PORT}`, serviceKey: SERVICE_KEY });
+    const active = await db.intakePublication.findUnique({ where: { activeFor: q.get('id')! } });
+    return send(res, 200, await unpublish({ submissionId: q.get('id')!, adminId: 'e2e-admin', expectedActivePublicationId: active?.id ?? null }, { db, storage: st } as never));
+  }
+  if (name === 'stale') { await db.intakeConsent.updateMany({ where: { submissionId: q.get('id')!, kind: 'overseas' }, data: { docVersion: 'old', textHash: 'old' } }); return send(res, 200, { ok: true }); }
+  if (name === 'expire') { const s = await db.intakeSubmission.findUniqueOrThrow({ where: { id: q.get('id')! } }); await db.intakeInvitation.update({ where: { id: s.invitationId }, data: { uploadExpiresAt: new Date(Date.now() - 1000) } }); return send(res, 200, { ok: true }); }
+  if (name === 'correct2') { await requestCorrection(db, { adminId: 'e2e-admin', submissionId: q.get('id')!, fields: ['athleteName'], views: [], message: '이름을 다시 적어 주세요.' }); return send(res, 200, { ok: true }); }
+  if (name === 'correct3') { await requestCorrection(db, { adminId: 'e2e-admin', submissionId: q.get('id')!, fields: ['submitterRelation'], views: [], message: '누가 보냈는지 다시 골라 주세요.' }); return send(res, 200, { ok: true }); }
+  if (name === 'nameless') {
+    /* 두 파일이 다 왔는데 나이를 고치며 이름이 지워진 초안 */
+    const c = await createInvitation(db, { adminId: 'e2e-admin' }, new Date());
+    const ids: string[] = [];
+    for (const [view, sha] of [['side', 'a'], ['rear', 'b']] as const) {
+      const id = randomBytes(16).toString('hex').replace(/^(.{8})(.{4}).(.{3}).(.{3})(.{12}).*$/, '$1-$2-4$3-8$4-$5');
+      await db.intakeAsset.create({ data: { id, submissionId: c.submissionId, view, objectPath: `sub/${c.submissionId}/${id}/original`, status: 'verified', originalName: `${view}.mov`, declaredSize: BigInt(1000), clientSha256: sha.repeat(64), serverSha256: sha.repeat(64), storedBytes: BigInt(1000), mediaFacts: { container: 'mov', hasVideo: true, nominalFps: 240, averageFps: 240, frameTiming: 'constant', editList: { present: false, segments: 0, retimed: false, shiftSec: 0 } } } });
+      ids.push(id);
+    }
+    await db.intakeSubmission.update({ where: { id: c.submissionId }, data: { sideAssetId: ids[0], rearAssetId: ids[1], athleteAgeBand: '14_or_over', samePitchConfirmed: true, submitterRelation: 'self', version: 3 } });
+    for (const d of INTAKE_CONSENT_DOCS.filter((x) => x.required)) await db.intakeConsent.create({ data: { submissionId: c.submissionId, kind: d.kind, docVersion: d.version, textHash: d.textHash, granted: true, relation: 'self', agreedAt: new Date() } });
+    return send(res, 200, c);
+  }
+  if (name === 'gone') {
+    /* 낸 뒤 검증까지 끝낸 접수를 만들고, 90일이 지난 것으로 지운다. mode=deleting 이면 표시만 걸린 채 멈춘다 */
+    const c = await createInvitation(db, { adminId: 'e2e-admin' }, new Date());
+    const past = new Date(Date.now() - 91 * 86400_000);
+    const ids: string[] = [];
+    for (const [view, sha] of [['side', 'a'], ['rear', 'b']] as const) {
+      const id = randomBytes(16).toString('hex').replace(/^(.{8})(.{4}).(.{3}).(.{3})(.{12}).*$/, '$1-$2-4$3-8$4-$5');
+      const objectPath = assetObjectPath(c.submissionId, id);
+      await db.intakeAsset.create({ data: { id, submissionId: c.submissionId, view, objectPath, status: 'verified', originalName: `${view}.mov`, declaredSize: BigInt(1000), clientSha256: sha.repeat(64), serverSha256: sha.repeat(64) } as never });
+      const f = path.join(dir, `obj-${id}`); writeFileSync(f, Buffer.from('x')); server.objects.set(objectPath, f);
+      ids.push(id);
+    }
+    const rev = await db.intakeRevision.create({ data: { submissionId: c.submissionId, number: 1, sideAssetId: ids[0], rearAssetId: ids[1], athleteName: '지운선수', submitterRelation: 'self', throwingHand: 'R', consentSnapshot: [], finalizeKey: `k-${c.submissionId}`, finalizedAt: past, status: 'verified', settledAt: past } as never });
+    await db.intakeSubmission.update({ where: { id: c.submissionId }, data: { sideAssetId: ids[0], rearAssetId: ids[1], athleteName: '지운선수', athleteAgeBand: '14_or_over', samePitchConfirmed: true, submitterRelation: 'self', status: 'verified', analysisStatus: q.get('analysis') ?? 'ready', currentRevisionId: rev.id, lastFinalizedAt: past, receivedAt: past, receiptCode: `IN-${c.submissionId.slice(0, 6).toUpperCase()}`, version: { increment: 1 } } as never });
+    for (const d of INTAKE_CONSENT_DOCS.filter((x) => x.required)) await db.intakeConsent.create({ data: { submissionId: c.submissionId, kind: d.kind, docVersion: d.version, textHash: d.textHash, granted: true, relation: 'self', agreedAt: past } as never });
+    const st = createIntakeStorage({ url: `http://127.0.0.1:${ST_PORT}`, serviceKey: SERVICE_KEY });
+    const mode = q.get('mode');
+    const shaky = mode === 'deleting' ? { ...st, remove: async () => { throw new Error('연결 끊김'); } } : st;
+    const r = await purgeSubmissionOriginals({ db, storage: shaky as never, now: () => new Date() }, c.submissionId).catch((e) => ({ threw: String(e) }));
+    return send(res, 200, { ...c, purge: r });
+  }
+  /* R03 — 팀이 만든 결과를 관리자가 가져오는 것을 흉내 낸다. mode=mismatch 는 해시 하나를 틀리게, stale 은 화면이 본 판을 틀리게 보낸다 */
+  if (name === 'import') {
+    const sc = base; const { side: cs, back: cb } = cameras(sc);
+    const ts = makeV2Track(sc, cs, sc.side, 'side', 11); const tb = makeV2Track(sc, cb, sc.back, 'back', 12);
+    const sub = await db.intakeSubmission.findUniqueOrThrow({ where: { id: q.get('id')! } });
+    const rev = await db.intakeRevision.findUniqueOrThrow({ where: { id: sub.currentRevisionId! } });
+    const pair = await db.intakeAsset.findMany({ where: { id: { in: [rev.sideAssetId, rev.rearAssetId] } } });
+    const sha = (id: string) => pair.find((a) => a.id === id)?.serverSha256 ?? '';
+    const r = fitPitch3dV2({ side: ts.track, back: tb.track, hand: sc.hand, heightCm: 183, jobId: '00000000-0000-4000-8000-000000000001', poseModel: 'synth', screenRecorded: true, slowmoFps: 240, events: { kneeUp: ts.toMedia(EV.kneeUp), footPlant: ts.toMedia(EV.footPlant), release: ts.toMedia(EV.release) } }).result;
+    const mode = q.get('mode');
+    const env = { format: MANUAL_RESULT_FORMAT, submissionId: sub.id, revisionId: rev.id, sideSha256: mode === 'mismatch' ? 'f'.repeat(64) : sha(rev.sideAssetId), rearSha256: sha(rev.rearAssetId), result: r };
+    const st = createIntakeStorage({ url: `http://127.0.0.1:${ST_PORT}`, serviceKey: SERVICE_KEY });
+    const out = await adminImportManualResult(db, st as never, { id: 'e2e-admin', role: 'ADMIN' }, { submissionId: sub.id, expectedRevisionId: mode === 'stale' ? '00000000-0000-4000-8000-0000000000aa' : rev.id, text: JSON.stringify(env) }).catch((e) => ({ error: e?.code ?? String(e) }));
+    return send(res, 200, out);
+  }
+  if (name === 'reset') return send(res, 200, await resetInviteeEnrollment(db, { adminId: 'e2e-admin', submissionId: q.get('id')! }, new Date()));
+  if (name === 'pinstate') { const s = await db.intakeSubmission.findUniqueOrThrow({ where: { id: q.get('id')! }, include: { invitation: true } }); return send(res, 200, { enrolled: s.invitation.enrolledAt != null, name: s.invitation.inviteeName, failures: s.invitation.pinFailures, lockedAt: s.invitation.pinLockedAt, pinHashPrefix: s.invitation.pinHash?.slice(0, 7) ?? null }); }
+  if (name === 'download') {
+    /* 관리자 내려받기 주소 → 그 주소로 바이트를 받아 해시 — 고른 파일 · 서버 해시와 같은지 */
+    const st = createIntakeStorage({ url: `http://127.0.0.1:${ST_PORT}`, serviceKey: SERVICE_KEY });
+    const links = await issueOriginalLinks(db, st as never, { id: 'e2e-admin', role: 'ADMIN' }, { submissionId: q.get('id')!, purpose: 'download' });
+    const got = [] as Record<string, unknown>[];
+    for (const l of links) { const b = Buffer.from(await (await fetch(l.url)).arrayBuffer()); got.push({ view: l.view, fileName: l.fileName, bytes: b.length, sha: createHash('sha256').update(b).digest('hex') }); }
+    const assets = await db.intakeAsset.findMany({ where: { id: { in: links.map((l) => l.assetId) } } });
+    return send(res, 200, { got, server: assets.map((a) => ({ view: a.view, serverSha256: a.serverSha256, clientSha256: a.clientSha256 })), fx: { side: createHash('sha256').update(fx.side).digest('hex'), rear: createHash('sha256').update(fx.rear).digest('hex') } });
+  }
+  if (name === 'manifest') return send(res, 200, await buildIntakeManifest(db, { id: 'e2e-admin', role: 'ADMIN' }, { submissionIds: [q.get('id')!] }));
+  if (name === 'bumpname') { await db.intakeSubmission.update({ where: { id: q.get('id')! }, data: { athleteName: '다른기기', version: { increment: 1 } } }); return send(res, 200, { ok: true }); }
+  if (name === 'set') { await db.intakeSubmission.update({ where: { id: q.get('id')! }, data: { analysisStatus: q.get('analysis')! } }); return send(res, 200, { ok: true }); }
+  if (name === 'info') {
+    const s = await db.intakeSubmission.findUnique({ where: { id: q.get('id')! }, include: { assets: true, revisions: true, consents: true } });
+    const sha = (f: string) => createHash('sha256').update(readFileSync(f)).digest('hex');
+    return send(res, 200, JSON.parse(JSON.stringify({ s, stored: [...server.objects].map(([k, f]) => ({ k, size: statSync(f).size, sha: sha(f) })), fx: { side: createHash('sha256').update(fx.side).digest('hex'), rear: createHash('sha256').update(fx.rear).digest('hex') }, patches: server.patches }, (_, v) => (typeof v === 'bigint' ? Number(v) : v))));
+  }
+  send(res, 404);
+}
+createServer((req, res) => {
+  const url = new URL(req.url!, 'http://127.0.0.1');
+  if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return void res.end(); }
+  const t = /^\/storage\/v1\/upload\/resumable\/sign(?:\/([^/]+))?$/.exec(url.pathname);
+  const p = url.pathname.startsWith('/__/') ? control(req, res, url) : t ? tus(req, res, t[1] ?? null) : rest(req, res, url);
+  p.catch((e) => { console.error(e); if (!res.headersSent) send(res, 500, { message: 'fake' }); });
+}).listen(ST_PORT, '127.0.0.1', () => console.log('harness ready'));

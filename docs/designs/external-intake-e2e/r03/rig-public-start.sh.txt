@@ -1,0 +1,5 @@
+#!/bin/zsh
+cd <scratch>/rig
+env -i PATH=/opt/homebrew/bin:/usr/bin:/bin HOME=$HOME zsh -c ". <scratch>/rig-env.sh; node --import ./scripts/alias-register.mjs scripts/r03-harness.mts > <scratch>/rig-harness.log 2>&1 &
+for i in {1..80}; do grep -q 'harness ready' <scratch>/rig-harness.log && break; sleep 0.5; done
+NODE_ENV=development ./node_modules/.bin/next dev --port 3127 --hostname 127.0.0.1 > <scratch>/rig-next.log 2>&1 &"

@@ -1,0 +1,588 @@
+// 격리 관리 시험대(3010 접수 표 있음 · 3101 접수 표 없음 · 54398 가짜 저장소 + 가짜 GPU)에 헤드리스 크로미움을 붙여 관리 흐름을 끝까지 눌러 본다.
+// 운영 값을 쓰지 않는다. 브라우저는 CDP(9348)로 몬다. 쓰는 법: node admin-ext.mjs [시나리오,…]
+import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+const DIR = path.dirname(new URL(import.meta.url).pathname);
+const RIG = path.resolve(DIR, '..');
+const APP = 'http://127.0.0.1:3010', NR = 'http://127.0.0.1:3101', ST = 'http://127.0.0.1:54398';
+const CLONE = { [APP]: `${RIG}/clone`, [NR]: `${RIG}/clone-nr` };
+const BIN = process.env.INTAKE_E2E_CHROME ?? '/Users/yuno/Library/Caches/ms-playwright/chromium_headless_shell-1187/chrome-mac/headless_shell';
+const PORT = 9348;
+const UA_IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+const PC = { w: 1440, h: 900, mobile: false, ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36' };
+const A = '11111111-1111-4111-8111-111111111111', B = '22222222-2222-4222-8222-222222222222', U = '33333333-3333-4333-8333-333333333333', M = '44444444-4444-4444-8444-444444444444';
+const results = [];
+const ok = (name, pass, note = '') => { results.push({ name, pass: !!pass, note }); console.log(`${pass ? 'OK  ' : 'FAIL'} ${name}${note ? ' — ' + note : ''}`); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sha = (b) => createHash('sha256').update(b).digest('hex');
+const sql = (q) => fetch(`${ST}/__/sql?q=${encodeURIComponent(q)}`).then((r) => r.json());
+const ctl = (p) => fetch(`${ST}/__/${p}`).then((r) => r.json());
+const lit = (s) => `'${String(s).replace(/'/g, "''")}'`;
+const tokenOf = (link) => link.split('#')[1] ?? '';
+const stateOf = async (token) => { const r = await fetch(`${APP}/api/intake/public/state`, { headers: { Authorization: `Intake ${token}` } }); return { status: r.status, body: await r.json().catch(() => null) }; };
+const cron = async () => { const r = await fetch(`${APP}/api/cron/intake`, { headers: { Authorization: 'Bearer e2e-cron-secret' } }); return { status: r.status, body: await r.json().catch(() => null) }; };
+const ackInDialog = async (who) => { /* INTAKE-MAIN/R01 — 3D 가 준비돼 '이 결과 검토 완료'가 켜지면 누른다 */
+  ok('R01 검토 완료 단추는 3D 준비 뒤에 켜진다', await until(() => who.ev(`(()=>{const d=[...document.querySelectorAll('dialog[open]')].at(-1);const b=d&&[...d.querySelectorAll('button')].find(b=>b.innerText.includes('이 결과 검토 완료'));return !!b&&!b.disabled})()`), 30000));
+  await who.ev(`(()=>{const d=[...document.querySelectorAll('dialog[open]')].at(-1);[...d.querySelectorAll('button')].find(b=>b.innerText.includes('이 결과 검토 완료')).click()})()`);
+  await who.waitText('검토 완료를 남겼어요', 20000); await sleep(600);
+};
+const until = async (fn, ms = 30000, step = 250) => { const end = Date.now() + ms; for (;;) { const v = await fn().catch(() => null); if (v) return v; if (Date.now() > end) return null; await sleep(step); } };
+
+/* 파일 고르기용 합성 영상 */
+for (const f of ['side', 'rear']) { const p = path.join(DIR, `${f}.mov`); if (!existsSync(p)) writeFileSync(p, Buffer.from(await (await fetch(`${ST}/__/fixture?f=${f}`)).arrayBuffer())); }
+const FILE = (f) => path.join(DIR, `${f}.mov`);
+
+/* ── 서버 동작 직접 부르기 — 화면 밖 POST 도 서버가 막는지 본다 ── */
+const sessionOf = async (base, id, role) => { const r = await fetch(`${base}/api/iso-login?id=${id}&role=${role}`, { redirect: 'manual' }); return /session=([^;]+)/.exec(r.headers.getSetCookie().join(';'))?.[1]; };
+const actionId = (base, name) => {
+  const m = JSON.parse(readFileSync(`${CLONE[base]}/.next/dev/server/server-reference-manifest.json`, 'utf8'));
+  return Object.entries(m.node).find(([, v]) => v.filename === 'app/actions/intake-admin.ts' && v.exportedName === name)?.[0];
+};
+async function callAction(base, cookie, name, args, at = '/admin/intake') {
+  let id = actionId(base, name);
+  if (!id) { /* 개발 서버는 쪽을 처음 그릴 때 동작 표를 만든다 — 대표관리자로 한 번 열어 둔다 */
+    const warm = await sessionOf(base, A, 'ADMIN');
+    await fetch(`${base}${at}`, { headers: { Cookie: `session=${warm}` } }).then((r) => r.text());
+    id = actionId(base, name);
+  }
+  if (!id) throw new Error(`동작 번호 없음: ${name}`);
+  const r = await fetch(`${base}${at}`, { method: 'POST', redirect: 'manual', headers: { 'Next-Action': id, 'Content-Type': 'text/plain;charset=UTF-8', Accept: 'text/x-component', Origin: base, ...(cookie ? { Cookie: `session=${cookie}` } : {}) }, body: JSON.stringify(args) });
+  return { status: r.status, redirect: r.headers.get('x-action-redirect') ?? r.headers.get('location'), text: await r.text() };
+}
+
+/* ── 크로미움 ── */
+const prof = mkdtempSync(path.join(tmpdir(), 'intake-admin-cdp-'));
+const DL = mkdtempSync(path.join(tmpdir(), 'intake-admin-dl-'));
+const chrome = spawn(BIN, [`--remote-debugging-port=${PORT}`, `--user-data-dir=${prof}`, '--no-first-run', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', 'about:blank'], { stdio: 'ignore' });
+process.on('exit', () => chrome.kill());
+let ver; for (let i = 0; i < 50; i++) { try { ver = await (await fetch(`http://127.0.0.1:${PORT}/json/version`)).json(); break; } catch { await sleep(200); } }
+const bws = new WebSocket(ver.webSocketDebuggerUrl);
+await new Promise((r) => (bws.onopen = r));
+let mid = 0; const pending = new Map(); const listeners = new Set();
+bws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { const { res, rej } = pending.get(m.id); pending.delete(m.id); m.error ? rej(new Error(JSON.stringify(m.error))) : res(m.result); } else listeners.forEach((l) => l(m)); };
+const send = (method, params = {}, sessionId) => new Promise((res, rej) => { const id = ++mid; pending.set(id, { res, rej }); bws.send(JSON.stringify({ id, method, params, sessionId })); });
+const downloads = [];
+listeners.add((m) => { if (m.method === 'Browser.downloadProgress' && m.params.state === 'completed') downloads.push(m.params); });
+
+async function page({ w = 1440, h = 900, ua = PC.ua, mobile = false } = {}) {
+  const { browserContextId } = await send('Target.createBrowserContext');
+  await send('Browser.setDownloadBehavior', { behavior: 'allowAndName', downloadPath: DL, browserContextId, eventsEnabled: true });
+  const { targetId } = await send('Target.createTarget', { url: 'about:blank', browserContextId });
+  const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+  const s = (m, p) => send(m, p, sessionId);
+  await s('Page.enable'); await s('Runtime.enable'); await s('DOM.enable'); await s('Network.enable');
+  await s('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile });
+  await s('Emulation.setUserAgentOverride', { userAgent: ua });
+  const errors = []; const begun = [];
+  listeners.add((m) => { if (m.sessionId === sessionId && m.method === 'Page.javascriptDialogOpening') void s('Page.handleJavaScriptDialog', { accept: true }); });
+  listeners.add((m) => { if (m.sessionId === sessionId && m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.exception?.description?.slice(0, 200) ?? m.params.exceptionDetails.text); });
+  listeners.add((m) => { if (m.sessionId === sessionId && m.method === 'Page.downloadWillBegin') begun.push(m.params); });
+  listeners.add((m) => { if (m.sessionId === sessionId && m.method === 'Runtime.consoleAPICalled' && process.env.DBG) { const t = m.params.args.map((x) => x.value ?? x.description).join(' '); if (t.includes('DBG') || m.params.type === 'error' || m.params.type === 'warning') console.log('[page]', m.params.type, t.slice(0, 400)); } });
+  let onPause = null;
+  listeners.add((m) => { if (m.sessionId !== sessionId || m.method !== 'Fetch.requestPaused') return; if (onPause) void Promise.resolve(onPause(m.params)).catch(() => {}); else void s('Fetch.continueRequest', { requestId: m.params.requestId }).catch(() => {}); });
+  const intercept = async (patterns, handler) => { onPause = handler; await s('Fetch.enable', { patterns }); };
+  const unintercept = async () => { onPause = null; await s('Fetch.disable').catch(() => {}); };
+  const ev = async (expr) => { const r = await s('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.text + expr.slice(0, 200)); return r.result.value; };
+  const text = () => ev('document.body.innerText');
+  const waitText = async (t, ms = 30000) => { const end = Date.now() + ms; for (;;) { const b = await text().catch(() => ''); if (b.includes(t)) return true; if (Date.now() > end) throw new Error(`못 찾음: ${t}\n--- 화면\n${b.slice(0, 700)}`); await sleep(150); } };
+  const click = async (t, ms = 30000, scope = 'document') => { const end = Date.now() + ms; const q = JSON.stringify(t); for (;;) { const done = await ev(`(()=>{const root=${scope};const c=[...root.querySelectorAll('button,a,label,[role=button]')].filter(e=>e.innerText.trim().includes(${q})&&!e.disabled&&e.getAttribute('aria-disabled')!=='true'&&e.offsetParent!==null);const e=c.at(-1);if(!e)return false;e.click();return true})()`); if (done) return; if (Date.now() > end) throw new Error('못 누름: ' + t + '\n' + (await text()).slice(0, 700)); await sleep(150); } };
+  const type = async (sel, v) => { await ev(`(()=>{const e=document.querySelector(${JSON.stringify(sel)});e.focus();e.select&&e.select();})()`); await s('Input.insertText', { text: v }); };
+  const files = async (paths, nth = 0) => { const { root } = await s('DOM.getDocument', { depth: 1 }); const { nodeIds } = await s('DOM.querySelectorAll', { nodeId: root.nodeId, selector: 'input[type=file]' }); await s('DOM.setFileInputFiles', { nodeId: nodeIds[nth], files: paths }); };
+  const go = async (url) => { await s('Page.navigate', { url }); await sleep(500); };
+  return { s, ev, text, waitText, click, type, files, go, errors, begun, intercept, unintercept, close: () => send('Target.disposeBrowserContext', { browserContextId }) };
+}
+const login = async (p, base, id, role) => { await p.go(`${base}/api/iso-login?id=${id}&role=${role}`); await sleep(1500); };
+const dialogText = (p) => p.ev(`[...document.querySelectorAll('dialog[open]')].map(d=>d.innerText).join('\\n')`);
+const dialogClick = (p, t) => p.ev(`(()=>{const d=[...document.querySelectorAll('dialog[open]')].at(-1);const b=[...d.querySelectorAll('button')].find(b=>b.innerText.trim()===${JSON.stringify(t)});if(!b)return false;b.click();return true})()`);
+const hasBtn = (p, t) => p.ev(`[...document.querySelectorAll('button')].some(b=>b.innerText.includes(${JSON.stringify(t)})&&b.offsetParent!==null)`);
+const btnDisabled = (p, t) => p.ev(`(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.innerText.includes(${JSON.stringify(t)})&&b.offsetParent!==null);return b?b.disabled:null})()`);
+const openDetail = async (p, id, wait = '감사 기록') => { await p.go(`${APP}/admin/intake/${id}`); await p.waitText(wait, 90000); await sleep(900); };
+const subIdByName = async (name) => (await sql(`SELECT id FROM "IntakeSubmission" WHERE "athleteName" = ${lit(name)}`))[0]?.id;
+const subIdByNote = async (note) => (await sql(`SELECT s.id FROM "IntakeSubmission" s JOIN "IntakeInvitation" i ON i.id = s."invitationId" WHERE i.note = ${lit(note)}`))[0]?.id;
+
+/** 초대 만들기 창을 열고 메모를 적는다 */
+async function openCreate(p, note) {
+  await p.go(`${APP}/admin/intake`); await p.waitText('외부 영상 접수', 90000); await sleep(1200);
+  await p.click('초대 만들기');
+  await p.waitText('링크 만들기', 10000);
+  await p.ev(`(()=>{const t=document.querySelector('dialog[open] textarea[name=note]');t.focus();})()`);
+  await p.s('Input.insertText', { text: note });
+}
+/** 링크가 든 창의 '닫기' — 확인 창이 닫히는 움직임 동안 [open] 으로 남아 있어 마지막 창이 링크 창이 아닐 수 있다 */
+const closeLink = async (p) => { await sleep(1500); return p.ev(`(()=>{const d=[...document.querySelectorAll('dialog[open]')].find(d=>d.querySelector('input[readonly]'));if(!d)return false;const b=[...d.querySelectorAll('button')].filter(b=>b.innerText.trim()==='닫기').at(-1);b.click();return true})()`); };
+const shownLink = (p) => p.ev(`(()=>{const i=[...document.querySelectorAll('dialog[open] input[readonly]')].at(-1);return i?i.value:null})()`);
+
+/* 공개 화면으로 보내기 — flow.mjs toReview · agree 와 같다 */
+async function submitPublic(p, link, name) {
+  await p.go(link);
+  await p.waitText('시작하기', 90000); await sleep(1200);
+  await p.click('시작하기');
+  await p.waitText('영상 속 선수의 이름은 무엇인가요?');
+  await p.type('input[type=text],input:not([type])', name);
+  await p.click('다음');
+  await p.waitText('먼저, 옆에서 찍은 영상을 골라주세요');
+  await p.files([FILE('side')]);
+  await p.waitText('이 영상으로 계속'); await p.click('이 영상으로 계속');
+  await p.waitText('이번에는 뒤에서 찍은 영상이에요');
+  await p.files([FILE('rear')]);
+  await p.waitText('이 영상으로 계속'); await p.click('이 영상으로 계속');
+  await p.waitText('이 두 영상을 보내면 돼요');
+  await p.click('두 영상은 같은 투구를 동시에 찍은 영상이에요');
+  await p.click('만 14세 이상');
+  await p.click('선수 본인');
+  await p.ev(`(()=>{const c=[...document.querySelectorAll('input[type=checkbox]')].filter(e=>e.id.startsWith('consent-'));c.forEach(e=>{if(!e.checked)e.click()});return c.length})()`);
+  await p.click('영상 보내기');
+  await p.waitText('영상을 원본 그대로 보내고 있어요', 30000);
+  const done = await until(async () => { const t = await p.text(); if (t.includes('두 영상이 모두 도착했어요')) { await p.click('접수'); return false; } return t.includes('영상이 잘 도착했어요'); }, 120000, 400);
+  return !!done;
+}
+
+const only = process.argv[2];
+const want = (n) => !only || only.split(',').includes(n);
+const CTXF = path.join(DIR, 'ctx.json');
+const ctx = existsSync(CTXF) && only ? JSON.parse(readFileSync(CTXF, 'utf8')) : {};
+const RUN = Date.now().toString(36).slice(-4);
+const N1 = `초대-한번-${RUN}`, N2 = `초대-두번-${RUN}`, N3 = `초대-응답잃음-${RUN}`;
+process.on('exit', () => writeFileSync(CTXF, JSON.stringify(ctx)));
+try {
+
+
+  /* 새 링크 창 닫기 시간 재기 — 링크가 보인 뒤 언제부터 '닫기'가 먹는지(진짜 마우스 누름) */
+  if (want('closeprobe')) {
+    const a = await page(); await login(a, APP, A, 'ADMIN');
+    const ca = await sessionOf(APP, A, 'ADMIN');
+    for (const delay of [0, 3000]) {
+      const note = `닫기재기-${RUN}-${delay}`;
+      await callAction(APP, ca, 'createIntakeInvitation', [{ note }]);
+      await openDetail(a, await subIdByNote(note));
+      await a.click('새 링크 만들기'); await a.waitText('새 링크를 만들까요?', 10000); await sleep(300); await dialogClick(a, '새 링크 만들기');
+      await a.waitText('개발용 새 링크예요', 30000);
+      const t0 = Date.now(); await sleep(delay);
+      let closedAt = null, tries = 0;
+      while (Date.now() - t0 < 30000) {
+        tries++;
+        const r = await a.ev(`(()=>{const d=[...document.querySelectorAll('dialog[open]')].find(d=>d.querySelector('input[readonly]'));if(!d)return null;const b=[...d.querySelectorAll('button')].filter(b=>b.innerText.trim()==='닫기').at(-1);const q=b.getBoundingClientRect();return {x:q.x+q.width/2,y:q.y+q.height/2}})()`);
+        if (!r) { closedAt = Date.now() - t0; break; }
+        await a.s('Input.dispatchMouseEvent', { type: 'mousePressed', x: r.x, y: r.y, button: 'left', clickCount: 1 });
+        await a.s('Input.dispatchMouseEvent', { type: 'mouseReleased', x: r.x, y: r.y, button: 'left', clickCount: 1 });
+        await sleep(700);
+      }
+      console.log(`closeprobe delay=${delay} closedAfterMs=${closedAt} clicks=${tries}`);
+      if (delay === 0) ctx.earlyClose = { closedAt, clicks: tries - 1 };
+      else ok(`4 새 링크 창 '닫기'(진짜 누름, 링크가 보이고 ${delay}ms 뒤)가 한 번에 창을 닫는다`, closedAt != null && tries <= 2, `닫힌 때 ${closedAt}ms · 누름 ${tries - 1}번 · 곧바로 누른 경우: ${JSON.stringify(ctx.earlyClose)}`);
+    }
+    await a.close();
+  }
+
+  /* ═════ 1 권한: 대표관리자만 · 화면과 서버 동작 둘 다 ═════ */
+  if (want('perm')) {
+    const a = await page(); await login(a, APP, A, 'ADMIN'); await a.go(`${APP}/admin/intake`); await a.waitText('외부 영상 접수', 90000);
+    ok('1 대표관리자는 접수함을 연다', (await a.ev('location.pathname')) === '/admin/intake' && (await a.text()).includes('김서준'));
+    ok('1 대표관리자에게 초대 만들기 단추가 켜져 있다', (await btnDisabled(a, '초대 만들기')) === false);
+    const sid = await subIdByName('김서준');
+    for (const [who, id, role] of [['일반', U, 'USER'], ['준관리자', M, 'MANAGER']]) {
+      const p = await page(); await login(p, APP, id, role);
+      await p.go(`${APP}/admin/intake`); await sleep(3000);
+      const t = await p.text();
+      ok(`1 ${who}: 브라우저로 접수함을 열면 돌려보낸다`, (await p.ev('location.pathname')) !== '/admin/intake' && !t.includes('김서준'), await p.ev('location.pathname'));
+      await p.go(`${APP}/admin/intake/${sid}`); await sleep(3000);
+      ok(`1 ${who}: 상세 주소도 돌려보낸다`, !(await p.ev('location.pathname')).startsWith('/admin/intake') && !(await p.text()).includes('감사 기록'), await p.ev('location.pathname'));
+      await p.close();
+      const cookie = await sessionOf(APP, id, role);
+      /* 베타면 관문이 307 로, 정식이면 페이지의 requirePermission 이 흘려보내는 중에 NEXT_REDIRECT(200 + 새로 고침 표시)로 돌려보낸다 — 어느 쪽이든 접수 자료는 한 글자도 안 나가야 한다 */
+      for (const at of ['/admin/intake', `/admin/intake/${sid}`]) {
+        const raw = await fetch(`${APP}${at}`, { redirect: 'manual', headers: { Cookie: `session=${cookie}` } });
+        const body = await raw.text();
+        const redirected = (raw.status >= 300 && raw.status < 400 && !(raw.headers.get('location') ?? '').includes('/admin/intake')) || (raw.status === 200 && body.includes('NEXT_REDIRECT') && body.includes('/today'));
+        const leak = ['김서준', 'Liam', '큰파일대기', '감사 기록', 'IN-261106'].filter((x) => body.includes(x));
+        ok(`1 ${who}: 서버가 ${at === '/admin/intake' ? '접수함' : '상세'} 요청을 돌려보내고 자료를 안 보낸다(HTTP)`, redirected && leak.length === 0, `${raw.status} ${raw.headers.get('location') ?? (body.includes('NEXT_REDIRECT') ? 'NEXT_REDIRECT' : '')} · 샘 ${leak.join(',') || '없음'}`);
+      }
+      ctx[role] = cookie;
+    }
+    /* 화면 밖에서 서버 동작을 직접 부른다 — 대표관리자 아닌 세션은 아무것도 안 바뀐다 */
+    const before = await sql(`SELECT (SELECT count(*)::int FROM "IntakeInvitation") inv, (SELECT "tokenReissueCount" FROM "IntakeInvitation" i JOIN "IntakeSubmission" s ON s."invitationId"=i.id WHERE s.id=${lit(sid)}) rc, (SELECT count(*)::int FROM "IntakeAudit" WHERE action LIKE 'original.%') dl`);
+    for (const [who, role] of [['일반', 'USER'], ['준관리자', 'MANAGER'], ['로그인 없음', null]]) {
+      const cookie = role ? ctx[role] : null;
+      const r1 = await callAction(APP, cookie, 'createIntakeInvitation', [{ note: `막혀야함-${who}-${RUN}` }]);
+      if (r1.status >= 500) ctx.permBlockedBy = (ctx.permBlockedBy ?? '') + `${who}:${r1.status} `;
+      const r2 = await callAction(APP, cookie, 'reissueIntakeInvitation', [sid, 0], `/admin/intake/${sid}`);
+      const r3 = await callAction(APP, cookie, 'getIntakePairLinks', [sid], `/admin/intake/${sid}`);
+      const leaked = [r1, r2, r3].some((r) => r.text.includes('"ok":true') || r.text.includes('/submit#') || r.text.includes('/object/sign/'));
+      ok(`1 ${who}: 만들기 · 새 링크 · 원본 주소 동작을 직접 불러도 막힌다`, !leaked && [r1, r2, r3].every((r) => r.redirect || r.status >= 300), [r1, r2, r3].map((r) => `${r.status}:${r.redirect ?? ''}`).join(' '));
+    }
+    const after = await sql(`SELECT (SELECT count(*)::int FROM "IntakeInvitation") inv, (SELECT "tokenReissueCount" FROM "IntakeInvitation" i JOIN "IntakeSubmission" s ON s."invitationId"=i.id WHERE s.id=${lit(sid)}) rc, (SELECT count(*)::int FROM "IntakeAudit" WHERE action LIKE 'original.%') dl`);
+    ok('1 DB: 막힌 직접 호출로 초대 · 링크 · 원본 기록이 하나도 안 생겼다', JSON.stringify(before) === JSON.stringify(after), JSON.stringify(after));
+    /* 맞는 길(대표관리자)은 같은 호출이 된다 — 위 막힘이 호출 모양 탓이 아님을 보인다 */
+    const ca = await sessionOf(APP, A, 'ADMIN');
+    const good = await callAction(APP, ca, 'createIntakeInvitation', [{ note: `직접호출-대표-${RUN}` }]);
+    const made = await sql(`SELECT count(*)::int n FROM "IntakeInvitation" WHERE note=${lit(`직접호출-대표-${RUN}`)}`);
+    ok('1 대표관리자의 같은 직접 호출은 초대를 만든다(대조)', good.text.includes('"ok":true') && made[0].n === 1, `${good.status} rows ${made[0].n}`);
+    ok('1 화면 오류 없음', a.errors.length === 0, a.errors.join(' | '));
+    await a.close();
+  }
+
+  /* ═════ 2 준비 안 됨: 접수 표가 없는 DB(3101) ═════ */
+  if (want('ready')) {
+    const p = await page(); await login(p, NR, A, 'ADMIN');
+    await p.go(`${NR}/admin/intake`); await p.waitText('외부 영상 접수', 120000); await sleep(1500);
+    const t = await p.text();
+    ok('2 준비 안 됨 안내가 보인다', t.includes('아직 초대를 만들 수 없어요') && t.includes('DB 마이그레이션 적용 전이에요'), t.split('\n').find((l) => l.includes('마이그레이션')));
+    ok('2 목록 자리는 표 준비 안내(오류 화면 아님)', t.includes('접수 표가 아직 준비되지 않았어요') && !t.includes('문제가 생겼') && !t.includes('Error'));
+    ok('2 초대 만들기 단추가 꺼져 있다', (await btnDisabled(p, '초대 만들기')) === true);
+    ok('2 단추가 준비 안내를 가리킨다(aria-describedby)', await p.ev(`[...document.querySelectorAll('button')].find(b=>b.innerText.includes('초대 만들기'))?.getAttribute('aria-describedby')==='intake-readiness'`));
+    const cookie = await sessionOf(NR, A, 'ADMIN');
+    const r = await callAction(NR, cookie, 'createIntakeInvitation', [{ note: '준비안됨' }]);
+    ok('2 서버 동작도 준비 안 됨으로 거절한다', r.text.includes('intake_not_ready') && !r.text.includes('"ok":true') && !r.text.includes('/submit#'), r.text.slice(-240));
+    ok('2 화면 오류 없음', p.errors.length === 0, p.errors.join(' | '));
+    await p.close();
+  }
+
+  /* ═════ 3 초대 만들기: 설정 주소 · 개발용 표시 · 한 번만 · 두 번 누름 · 응답 잃음 ═════ */
+  if (want('create')) {
+    ctx.N1 = N1; ctx.N2 = N2;
+    const a = await page(); await login(a, APP, A, 'ADMIN');
+    await openCreate(a, N1);
+    await a.click('링크 만들기', 10000, `document.querySelector('dialog[open]')`);
+    await a.waitText('개발용 초대 링크예요', 30000);
+    const L1 = await shownLink(a);
+    const dt = await dialogText(a);
+    ok('3 링크가 설정한 주소(INTAKE_PUBLIC_ORIGIN)로 만들어진다', L1?.startsWith('http://127.0.0.1:3010/submit#') && tokenOf(L1).length === 43, L1?.replace(/#.*/, '#…'));
+    ok('3 개발용이라 보내지 말라고 붙인다(제목 · 칸 이름 · 경고)', dt.includes('개발용 링크(보내지 마세요)') && dt.includes('개발용 주소라 받는 사람에게 보내면 안 돼요'));
+    ok('3 개발용 링크에는 링크 복사 단추가 없다', !(await a.ev(`[...document.querySelectorAll('dialog[open] button')].some(b=>b.innerText.includes('링크 복사'))`)));
+    ok('3 접수함 머리에도 개발용 주소 경고', (await a.text()).includes('INTAKE_PUBLIC_ORIGIN 설정으로 정해요'));
+    const s1 = await stateOf(tokenOf(L1));
+    ok('3 만든 링크가 공개 상태 API 에서 열린다', s1.status === 200, String(s1.status));
+    await closeLink(a); await sleep(600);
+    await a.click('초대 만들기'); await a.waitText('링크 만들기', 10000);
+    ok('3 창을 닫고 다시 열면 링크가 안 보인다(한 번만)', !(await a.text()).includes(tokenOf(L1)) && (await shownLink(a)) === null);
+    await a.s('Page.reload'); await a.waitText('외부 영상 접수', 60000); await sleep(800);
+    ok('3 새로고침한 화면 어디에도 토큰이 없다', !(await a.ev('document.documentElement.outerHTML')).includes(tokenOf(L1)));
+    const inv1 = await sql(`SELECT * FROM "IntakeInvitation" WHERE note=${lit(ctx.N1)}`);
+    const audits1 = await sql(`SELECT action, detail::text d FROM "IntakeAudit" WHERE "invitationId"=${lit(inv1[0].id)}`);
+    ok('3 DB: 한 줄 · 토큰 원문 대신 해시', inv1.length === 1 && inv1[0].tokenHash !== tokenOf(L1) && !JSON.stringify(inv1).includes(tokenOf(L1)), `${inv1.length}줄`);
+    ok('3 감사 기록에 만들기 한 줄 · 토큰 원문 없음', audits1.filter((x) => x.action === 'invitation.created').length === 1 && !JSON.stringify(audits1).includes(tokenOf(L1)), audits1.map((x) => x.action).join(','));
+    ctx.L1 = L1; ctx.sub1 = await subIdByNote(ctx.N1);
+
+    /* 두 번 누름 — 같은 창에서 제출을 잇달아 두 번 */
+    await openCreate(a, N2);
+    await a.ev(`(()=>{const f=document.querySelector('dialog[open] form');f.requestSubmit();f.requestSubmit();})()`);
+    await a.waitText('개발용 초대 링크예요', 30000); await sleep(1500);
+    ctx.L2x = await shownLink(a);
+    const two = await sql(`SELECT id, "createRequestKey", "tokenReissueCount" FROM "IntakeInvitation" WHERE note=${lit(ctx.N2)}`);
+    const tw = await sql(`SELECT action FROM "IntakeAudit" WHERE "invitationId"=${lit(two[0]?.id ?? '')}`);
+    ok('3 두 번 눌러도 초대는 하나', two.length === 1 && two[0].createRequestKey != null, `${two.length}줄 · 다시 바꿈 ${two[0]?.tokenReissueCount}`);
+    ok('3 두 번 누름: 감사 기록 만들기 한 줄', tw.filter((x) => x.action === 'invitation.created').length === 1, tw.map((x) => x.action).join(','));
+    const nowTok = await stateOf(tokenOf(ctx.L2x));
+    ok('3 두 번 누름: 화면에 남은 링크가 지금 살아 있는 링크', nowTok.status === 200, String(nowTok.status));
+    await closeLink(a); await sleep(500);
+
+    /* 응답 잃음 — 서버는 만들었는데 화면은 답을 못 받음 → 같은 키로 다시 누름 */
+    await openCreate(a, N3);
+    let dropped = 0;
+    await a.intercept([{ urlPattern: `${APP}/admin/intake*`, requestStage: 'Response' }], async (pp) => {
+      const isAction = pp.request.method === 'POST' && Object.keys(pp.request.headers).some((h) => h.toLowerCase() === 'next-action');
+      if (isAction && dropped === 0) { dropped++; await a.s('Fetch.failRequest', { requestId: pp.requestId, errorReason: 'ConnectionReset' }); }
+      else await a.s('Fetch.continueRequest', { requestId: pp.requestId });
+    });
+    await a.click('링크 만들기', 10000, `document.querySelector('dialog[open]')`);
+    await a.waitText('인터넷 연결을 확인한 뒤 다시 해 주세요', 30000);
+    const lost = await sql(`SELECT id, "createRequestKey", "tokenReissueCount" FROM "IntakeInvitation" WHERE note=${lit(N3)}`);
+    ok('3 응답 잃음: 화면은 연결 오류, 서버에는 초대가 이미 저장됨', dropped === 1 && lost.length === 1, `잃은 응답 ${dropped} · ${lost.length}줄`);
+    ok('3 응답 잃음: 창에 링크가 안 보인다', (await shownLink(a)) === null);
+    await a.unintercept();
+    await a.click('링크 만들기', 10000, `document.querySelector('dialog[open]')`);
+    await a.waitText('개발용 초대 링크예요', 30000);
+    const dt2 = await dialogText(a);
+    const L3 = await shownLink(a);
+    const lost2 = await sql(`SELECT id, "createRequestKey", "tokenReissueCount", "tokenHash" FROM "IntakeInvitation" WHERE note=${lit(N3)}`);
+    const la = await sql(`SELECT action, detail::text d FROM "IntakeAudit" WHERE "invitationId"=${lit(lost2[0].id)} ORDER BY "createdAt"`);
+    ok('3 다시 누르면 같은 초대의 링크를 새로 바꿔 준다(초대는 여전히 하나)', lost2.length === 1 && lost2[0].id === lost[0].id && lost2[0].createRequestKey === lost[0].createRequestKey && lost2[0].tokenReissueCount === lost[0].tokenReissueCount + 1, `rc ${lost[0].tokenReissueCount}→${lost2[0].tokenReissueCount}`);
+    ok('3 다시 누름 안내 글', dt2.includes('앞서 누른 만들기가 이미 저장돼 있었어요'));
+    ok('3 다시 누름: 감사 기록 만들기 1 + 바꿈(create_retry) 1 · 토큰 원문 없음', la.filter((x) => x.action === 'invitation.created').length === 1 && la.some((x) => x.action === 'invitation.reissued' && x.d.includes('create_retry')) && !JSON.stringify(la).includes(tokenOf(L3)), la.map((x) => x.action).join(','));
+    ok('3 다시 누름으로 받은 링크가 열린다', (await stateOf(tokenOf(L3))).status === 200);
+    await closeLink(a);
+    /* 기록 · DB 어디에도 토큰 원문이 없다 */
+    await sleep(1500);
+    const logs = readFileSync(`${DIR}/dev3010.log`, 'utf8') + readFileSync(`${DIR}/harness.log`, 'utf8');
+    const allInv = JSON.stringify(await sql(`SELECT * FROM "IntakeInvitation"`)) + JSON.stringify(await sql(`SELECT detail::text FROM "IntakeAudit"`));
+    const toks = [L1, ctx.L2x, L3].map(tokenOf);
+    ok('3 서버 기록(dev · 시험대 로그)에 토큰 원문이 없다', toks.every((t) => !logs.includes(t)));
+    ok('3 초대 · 감사 표 전체에 토큰 원문이 없다', toks.every((t) => !allInv.includes(t)));
+    ok('3 화면 오류 없음', a.errors.length === 0, a.errors.join(' | '));
+    await a.close();
+  }
+
+  /* ═════ 4 새 링크(상세): 확인 창 · 한 번 보임 · 예전 링크 즉시 막힘 · 감사 · 폐기 ═════ */
+  if (want('reissue')) {
+    const a = await page(); await login(a, APP, A, 'ADMIN');
+    const sid = ctx.sub1 ?? (await subIdByNote(ctx.N1));
+    const before = (await sql(`SELECT "tokenReissueCount" rc FROM "IntakeInvitation" WHERE note=${lit(ctx.N1)}`))[0].rc;
+    await openDetail(a, sid);
+    await a.click('새 링크 만들기');
+    await a.waitText('새 링크를 만들까요?', 10000);
+    ok('4 확인 창이 예전 링크가 막힌다고 말한다', (await dialogText(a)).includes('예전 링크는 바로 막혀요'));
+    await sleep(300); await dialogClick(a, '새 링크 만들기');
+    await a.waitText('개발용 새 링크예요', 30000);
+    const L4 = await shownLink(a);
+    ok('4 새 링크는 설정 주소 · 개발용 표시', L4?.startsWith('http://127.0.0.1:3010/submit#') && (await dialogText(a)).includes('개발용 링크(보내지 마세요)'));
+    const old = ctx.L1 ? await stateOf(tokenOf(ctx.L1)) : null;
+    ok('4 예전 링크는 바로 invitation_invalid', old && old.status === 404 && old.body?.error?.code === 'invitation_invalid', old ? `${old.status} ${old.body?.error?.code}` : '앞 시나리오 없음');
+    const nw = await stateOf(tokenOf(L4));
+    ok('4 새 링크는 열린다', nw.status === 200, String(nw.status));
+    const after = await sql(`SELECT i."tokenReissueCount" rc, i.id FROM "IntakeInvitation" i WHERE note=${lit(ctx.N1)}`);
+    const au = await sql(`SELECT action, detail::text d FROM "IntakeAudit" WHERE "submissionId"=${lit(sid)} AND action='invitation.reissued'`);
+    ok('4 DB: 바꿈 횟수 +1 · 감사(admin) 한 줄 · 토큰 원문 없음', after[0].rc === before + 1 && au.filter((x) => x.d.includes('"admin"')).length === 1 && !JSON.stringify(au).includes(tokenOf(L4)), `rc ${before}→${after[0].rc} · ${au.map((x) => x.d).join(',')}`);
+    await sleep(1500);
+    await closeLink(a);
+    const gone4 = await until(async () => !(await a.ev('document.documentElement.outerHTML')).includes(tokenOf(L4)), 15000);
+    ok('4 닫으면 새 링크가 화면 어디에도 안 남는다', gone4);
+    ok('4 감사 기록(펼친 목록)에 링크 바꿈 글', await until(async () => a.ev(`document.body.textContent.includes('링크를 새로 바꿨어요')`), 20000));
+    ctx.L4 = L4;
+    /* 폐기는 그대로 된다(두 번 누름 초대) */
+    const sid2 = await subIdByNote(ctx.N2);
+    await openDetail(a, sid2);
+    await a.click('초대 폐기'); await a.waitText('초대를 폐기할까요?', 10000); await sleep(300); await dialogClick(a, '폐기');
+    await until(async () => (await sql(`SELECT status FROM "IntakeInvitation" WHERE note=${lit(ctx.N2)}`))[0].status === 'revoked', 20000);
+    const rv = await sql(`SELECT status, "revokedAt" FROM "IntakeInvitation" WHERE note=${lit(ctx.N2)}`);
+    const rs = ctx.L2x ? await stateOf(tokenOf(ctx.L2x)) : null;
+    ok('4 폐기: DB 상태 revoked', rv[0].status === 'revoked' && rv[0].revokedAt != null);
+    ok('4 폐기: 그 링크는 invitation_revoked', rs && rs.status === 403 && rs.body?.error?.code === 'invitation_revoked', rs ? `${rs.status} ${rs.body?.error?.code}` : '');
+    ok('4 폐기 뒤 새 링크 만들기 · 폐기 단추가 사라진다', await until(async () => !(await hasBtn(a, '새 링크 만들기')) && !(await hasBtn(a, '초대 폐기')), 20000));
+    ok('4 화면 오류 없음', a.errors.length === 0, a.errors.join(' | '));
+    await a.close();
+  }
+
+  /* ═════ 8 큰 파일 검증 대기 — 중립색 · 다시 확인 ═════ */
+  if (want('waiting')) {
+    const a = await page(); await login(a, APP, A, 'ADMIN');
+    const sid = await subIdByName('큰파일대기');
+    await openDetail(a, sid);
+    const t = await a.text();
+    const WAIT = '검증 대기 · 큰 파일이라 다음 실행에서 이어 확인해요';
+    ok('8 검증 대기 글이 보인다', t.includes(WAIT));
+    const tone = await a.ev(`(()=>{const w=document.evaluate("//*[contains(text(),'검증 대기 · 큰 파일')]",document,null,9,null).singleNodeValue;let e=w;const cls=[];for(let i=0;i<4&&e;i++){cls.push(e.className||'');e=e.parentElement}return cls.join(' | ')})()`);
+    ok('8 오류 색이 아니다(danger 없음)', !/danger/.test(tone), tone.slice(0, 200));
+    ok('8 실패 · 재시도 말과 시도 횟수를 안 보인다', !t.includes('시도를 다 썼어요') && !t.includes('다시 시도하는 중') && !/시도\s*\d+\s*\/\s*8|8번/.test(t));
+    ok('8 다시 확인 단추가 있다', await hasBtn(a, '다시 확인'));
+    await a.click('다시 확인');
+    await a.waitText('다시 확인을 걸었어요', 15000);
+    ok('8 다시 확인을 누르면 걸었다고 알린다', true);
+    const job = await sql(`SELECT status, "runAfter" <= now() + interval '1 second' due FROM "IntakeJob" WHERE payload->>'assetId' = (SELECT "sideAssetId" FROM "IntakeSubmission" WHERE id=${lit(sid)})`);
+    ok('8 DB: 일감이 지금 차례로 당겨졌다', job.length >= 1 && job.some((j) => j.due), JSON.stringify(job));
+    ok('8 화면 오류 없음', a.errors.length === 0, a.errors.join(' | '));
+    await a.close();
+  }
+
+  /* ═════ 9 지운 접수 화면 ═════ */
+  if (want('gone')) {
+    const a = await page(); await login(a, APP, A, 'ADMIN');
+    for (const [name, chip] of [['지운접수', '지워짐'], ['지우는접수', '지우는 중'], ['분석끝지움', '지워짐'], ['고침지움', '지워짐']]) {
+      const sid = await subIdByName(name);
+      await openDetail(a, sid);
+      const t = await a.text();
+      const dl = await a.ev(`[...document.querySelectorAll('button')].filter(b=>b.innerText.includes('원본 내려받기')).map(b=>b.disabled)`);
+      ok(`9 ${name}: 상세가 그려지고 '${chip}'`, t.includes(chip) && t.includes('감사 기록'), t.split('\n').find((l) => l.includes(chip)));
+      ok(`9 ${name}: 원본 내려받기가 꺼져 있다`, dl.length > 0 && dl.every(Boolean), JSON.stringify(dl));
+      if (name !== '지우는접수') ok(`9 ${name}: 분석은 원본이 지워진 까닭만 보인다`, t.includes('보유 기간이 끝난 원본') && (await btnDisabled(a, '분석 실행')) !== false, t.split('\n').find((l) => l.includes('보유 기간')));
+      if (name === '고침지움') ok('9 고침지움: 고침 요청 칸이 보인다', t.includes('요청한 내용'));
+    }
+    await a.go(`${APP}/admin/intake?q=${encodeURIComponent('지운')}`); await a.waitText('지운접수', 60000);
+    ok('9 목록에서도 지운 접수가 보인다', (await a.text()).includes('지워짐'));
+    ok('9 화면 오류 없음', a.errors.length === 0, a.errors.join(' | '));
+    await a.close();
+  }
+
+  /* ═════ 7 원본 내려받기 — 내준 서명 주소로 받은 파일 SHA-256 = 시드 원본 ═════ */
+  if (want('download')) {
+    const a = await page(); await login(a, APP, A, 'ADMIN');
+    const seed = await ctl('seedsha');
+    await openDetail(a, seed.s1, '원본 내려받기');
+    const n0 = downloads.length;
+    await a.click('원본 내려받기');
+    const got = await until(async () => downloads.length > n0 && a.begun.length > 0, 30000);
+    const f = got ? downloads.at(-1) : null;
+    const file = f ? path.join(DL, f.guid) : null;
+    const bytes = file && existsSync(file) ? readFileSync(file) : null;
+    const want1 = [seed.side, seed.rear];
+    ok('7 원본 내려받기로 파일이 받아진다', !!bytes, a.begun.map((b) => b.suggestedFilename).join(','));
+    ok('7 받은 파일 SHA-256 = 시드 원본', bytes && want1.includes(sha(bytes)), bytes ? sha(bytes).slice(0, 12) : '');
+    const url = a.begun.at(-1)?.url ?? '';
+    ok('7 내준 주소는 서명 읽기 주소(download 이름 붙음)', url.startsWith(`${ST}/storage/v1/object/sign/`) && url.includes('token=') && url.includes('download='), url.replace(/token=[^&]+/, 'token=…'));
+    const direct = Buffer.from(await (await fetch(url)).arrayBuffer());
+    ok('7 같은 주소를 직접 받아도 같은 SHA', want1.includes(sha(direct)));
+    /* 짝 내려받기 */
+    const n1 = a.begun.length;
+    await a.click('옆 · 뒤 원본 함께 받기');
+    await until(async () => a.begun.length >= n1 + 2, 30000);
+    const pair = a.begun.slice(n1).map((b) => b.url);
+    const pairSha = await Promise.all(pair.map(async (u) => sha(Buffer.from(await (await fetch(u)).arrayBuffer()))));
+    ok('7 짝 내려받기: 두 주소 · SHA 가 시드 옆 · 뒤와 같다', pair.length === 2 && pairSha.sort().join() === [...want1].sort().join(), pairSha.map((x) => x.slice(0, 8)).join(','));
+    const au = await sql(`SELECT action FROM "IntakeAudit" WHERE "submissionId"=${lit(seed.s1)} AND action='original.download_issued'`);
+    ok('7 감사 기록에 원본 주소 발급이 남는다(1 + 2)', au.length === 3, String(au.length));
+    const urlAudit = await sql(`SELECT detail::text d FROM "IntakeAudit" WHERE "submissionId"=${lit(seed.s1)} AND action LIKE 'original.%'`);
+    ok('7 감사 기록에 서명 주소 · 토큰이 없다', !JSON.stringify(urlAudit).includes('token=') && !JSON.stringify(urlAudit).includes('/object/sign/'));
+    ok('7 화면 오류 없음', a.errors.length === 0, a.errors.join(' | '));
+    await a.close();
+  }
+
+  /* ═════ 5 접수 → 검증 → 분석(가짜 GPU) → 검토 → 공개 → 공개 링크 → 내리기 ═════ */
+  if (want('pipeline')) {
+    /* 새 링크(4번)를 그대로 쓴다. 이미 쓴 링크면(다시 돌릴 때) 대표관리자 동작으로 새 초대를 하나 만든다 */
+    let link = ctx.L4 ?? null;
+    const used = link ? (await sql(`SELECT s."receivedAt" FROM "IntakeSubmission" s WHERE s.id=${lit(ctx.sub1 ?? '')}`))[0]?.receivedAt : true;
+    if (!link || used) {
+      const r = await callAction(APP, await sessionOf(APP, A, 'ADMIN'), 'createIntakeInvitation', [{ note: `파이프-${RUN}` }]);
+      link = /"link":"([^"]+)"/.exec(r.text)?.[1];
+    }
+    const pipeName = ctx.L4 && !used ? '파이프선수' : `파이프선수${RUN}`;
+    const pub = await page({ w: 390, h: 844, ua: UA_IPHONE, mobile: true });
+    const sent = await submitPublic(pub, link, pipeName);
+    ok('5 공개 링크로 두 영상을 보내 영수증까지', sent);
+    const sid = await subIdByName(pipeName);
+    ctx.pipe = sid; ctx.pipeName = pipeName;
+    const verified = await until(async () => (await sql(`SELECT status FROM "IntakeSubmission" WHERE id=${lit(sid)}`))[0]?.status === 'verified', 60000, 1000) ?? (await cron(), await until(async () => (await sql(`SELECT status FROM "IntakeSubmission" WHERE id=${lit(sid)}`))[0]?.status === 'verified', 60000, 1000));
+    const fx = { side: sha(readFileSync(FILE('side'))), rear: sha(readFileSync(FILE('rear'))) };
+    const assets = await sql(`SELECT view, status, "serverSha256" FROM "IntakeAsset" WHERE "submissionId"=${lit(sid)} AND status='verified'`);
+    ok('5 서버 검증 끝: 두 영상 verified · SHA = 보낸 파일', verified && assets.length === 2 && assets.find((x) => x.view === 'side')?.serverSha256 === fx.side && assets.find((x) => x.view === 'rear')?.serverSha256 === fx.rear, JSON.stringify(assets.map((x) => [x.view, x.status])));
+    const a = await page(); await login(a, APP, A, 'ADMIN');
+    await openDetail(a, sid);
+    ok('5 관리 상세: SHA 일치 표시', ((await a.text()).match(/일치/g) ?? []).length >= 2);
+    if (await hasBtn(a, '오른손')) { await a.click('오른손'); await sleep(2500); }
+    const draft = await a.ev(`!![...document.querySelectorAll('label')].find(l=>l.innerText.includes('국외 이전 안내가 아직 확정 전인 것을 알고'))`);
+    ok('5 국외 이전 안내 확정 전: 확인 칸을 체크하기 전에는 분석 실행이 꺼져 있다', draft && (await btnDisabled(a, '분석 실행')) === true, draft ? '' : '확인 칸 없음 — INTAKE_ALLOW_DRAFT_ANALYSIS 없이 켰나?');
+    if (draft) await a.click('국외 이전 안내가 아직 확정 전인 것을 알고');
+    await sleep(400);
+    await a.click('분석 실행', 20000);
+    await a.waitText('분석을 걸었어요', 30000);
+    ok('5 분석 실행 → 걸었다고 알린다', true, draft ? '국외 이전 확정 전 확인 칸을 체크함' : '');
+    const g = await until(async () => { const l = await ctl('gpulog'); return l.length && l.every((j) => j.status === 'done') ? l : null; }, 60000, 500);
+    ok('5 가짜 GPU 가 서명 주소로 원본 둘을 받아 결과를 올렸다', g && g[0].fetched.side === 20 * 1024 * 1024 + 123 + 0 || (g && g[0].fetched.side > 20_000_000 && g[0].fetched.back > 14_000_000 && g[0].fetched.result === 200), JSON.stringify(g?.[0]?.fetched));
+    /* 일꾼(크론)이 상태를 묻고 결과를 받는다 — 상태 묻기는 30초 뒤 차례 */
+    await sleep(31_000);
+    let run = null;
+    for (let i = 0; i < 6 && !run; i++) { const c = await cron(); run = (await sql(`SELECT id, status FROM "IntakeAnalysisRun" WHERE "submissionId"=${lit(sid)} AND status='succeeded'`))[0]; if (!run) { console.log('cron', JSON.stringify(c.body).slice(0, 200)); await sleep(3000); } }
+    ok('5 크론이 결과를 받아 실행이 succeeded', !!run);
+    /* 공개 전 — 받는 사람 화면은 검토 중 */
+    await pub.s('Page.reload'); await sleep(1500);
+    await pub.waitText('담당자가 결과를 검토하고 있어요', 60000).catch(() => {});
+    ok('5 공개 전 공개 링크: 검토 중 · 3D 없음', (await pub.text()).includes('담당자가 결과를 검토하고 있어요') && !(await pub.ev('!!document.querySelector("canvas")')));
+    await a.s('Page.reload'); await a.waitText('감사 기록', 60000); await sleep(1200);
+    ok('5 검토 완료 전에는 공개 단추가 꺼져 있다', (await btnDisabled(a, '이 결과 공개')) === true && (await a.text()).includes('를 누르면 공개할 수 있어요'));
+    await a.click('3D 결과 검토');
+    await a.waitText('아직 공개 전이에요', 30000);
+    ok('5 3D 검토 창: 공개 전 안내 · 3D 그림', (await dialogText(a)).includes('결과 검토') && (await until(() => a.ev('!!document.querySelector("dialog[open] canvas")'), 20000)));
+    /* R01 — 열기만 하고 닫으면 공개 단추는 그대로 꺼져 있다(열기 ≠ 검토 완료) */
+    await a.ev(`(()=>{const d=[...document.querySelectorAll('dialog[open]')].at(-1);const b=[...d.querySelectorAll('button')].find(b=>b.getAttribute('aria-label')==='닫기'||b.innerText.trim()==='닫기');b&&b.click();})()`); await a.s('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape' }); await sleep(800);
+    ok('R01 열기만 해서는 공개 단추가 안 켜진다', (await btnDisabled(a, '이 결과 공개')) === true);
+    ok('R01 열기는 run.review_opened 로만 남는다', (await sql(`SELECT count(*)::int n FROM "IntakeAudit" WHERE "submissionId"=${lit(sid)} AND action='run.review_acknowledged'`))[0].n === 0);
+    await a.click('3D 결과 검토'); await a.waitText('아직 공개 전이에요', 30000);
+    await ackInDialog(a);
+    ok('5 검토 완료 뒤 공개 단추가 켜진다', (await btnDisabled(a, '이 결과 공개')) === false);
+    await a.ev(`(()=>{const t=document.querySelector('textarea[aria-label="공개 설명"]');t.focus()})()`); await a.s('Input.insertText', { text: '관리자 시험 공개 설명' });
+    await a.click('이 결과 공개');
+    await a.waitText('결과를 공개했어요', 30000);
+    const pubRow = await sql(`SELECT id, explanation FROM "IntakePublication" WHERE "activeFor"=${lit(sid)}`);
+    ok('5 명시적으로 공개 → DB 공개 줄 하나', pubRow.length === 1 && pubRow[0].explanation === '관리자 시험 공개 설명');
+    ok('5 감사 기록: 검토 완료 · 공개', (await sql(`SELECT action FROM "IntakeAudit" WHERE "submissionId"=${lit(sid)} AND action IN ('run.review_acknowledged','publication.published')`)).length >= 2);
+    await pub.s('Page.reload'); await sleep(1500);
+    await pub.waitText('관리자 시험 공개 설명', 60000).catch(() => {});
+    const pt = await pub.text();
+    ok('5 3010 공개 링크에 승인한 결과 · 설명 · 3D', pt.includes(`${pipeName} 선수의 3D 투구 분석`) && pt.includes('관리자 시험 공개 설명') && (await until(() => pub.ev('!!document.querySelector("canvas")'), 20000)));
+    await a.click('공개 내리기'); await a.waitText('공개를 내릴까요?', 10000); await sleep(300); await dialogClick(a, '내리기');
+    await until(async () => (await sql(`SELECT count(*)::int n FROM "IntakePublication" WHERE "activeFor"=${lit(sid)}`))[0].n === 0, 20000);
+    await pub.s('Page.reload'); await sleep(2500);
+    const ht = await pub.text();
+    const rs = await fetch(`${APP}/api/intake/public/result`, { method: "POST", headers: { Authorization: `Intake ${tokenOf(link)}`, "Content-Type": "application/json" }, body: "{}" });
+    const rsb = await rs.json().catch(() => null);
+    ok('5 내린 뒤 결과 API 는 결과를 안 준다', !rs.ok && /result_not_published|result_unavailable/.test(JSON.stringify(rsb)), `${rs.status} ${rsb?.error?.code}`);
+    ok('5 내리면 공개 링크에서 결과가 사라진다', !ht.includes('관리자 시험 공개 설명') && !(await pub.ev('!!document.querySelector("canvas")')), ht.split('\n').slice(0, 4).join(' / '));
+    ok('5 화면 오류 없음(관리 · 공개)', a.errors.length + pub.errors.length === 0, [...a.errors, ...pub.errors].join(' | '));
+    ctx.run1 = run?.id;
+    await a.close(); await pub.close();
+  }
+
+  /* ═════ 6 두 관리자 동시 작업 — 하나만 이기고 다른 쪽은 낡았다고 알린다 ═════ */
+  if (want('race')) {
+    const a = await page(); await login(a, APP, A, 'ADMIN');
+    const b = await page(); await login(b, APP, B, 'ADMIN');
+    /* 담당 */
+    const rid = await subIdByName('담당경합');
+    await openDetail(a, rid);
+    if ((await sql(`SELECT "assigneeAdminId" a FROM "IntakeSubmission" WHERE id=${lit(rid)}`))[0].a) {
+      /* 다시 돌릴 때 — 담당 없음으로 돌려 둔다(화면의 고르개로) */
+      await a.ev(`(()=>{const s=document.querySelector('select[aria-label="담당자"]');const set=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;set.call(s,'');s.dispatchEvent(new Event('change',{bubbles:true}))})()`);
+      await until(async () => (await sql(`SELECT "assigneeAdminId" a FROM "IntakeSubmission" WHERE id=${lit(rid)}`))[0].a == null, 15000);
+    }
+    const asg0 = (await sql(`SELECT count(*)::int n FROM "IntakeAudit" WHERE "submissionId"=${lit(rid)} AND action = 'assignee.changed'`))[0].n;
+    await openDetail(a, rid); await openDetail(b, rid);
+    await Promise.all([a.click('내가 맡기'), b.click('내가 맡기')]);
+    await sleep(4000);
+    const asg = (await sql(`SELECT "assigneeAdminId" a FROM "IntakeSubmission" WHERE id=${lit(rid)}`))[0].a;
+    const [ta, tb] = [await a.text(), await b.text()];
+    const STALE_A = '다른 관리자가 담당자를 바꿨어요';
+    const loser = asg === A ? tb : ta;
+    ok('6 담당 경합: 한 사람만 맡는다', asg === A || asg === B, asg);
+    ok('6 담당 경합: 진 쪽은 낡았다는 글', loser.includes(STALE_A) && !(asg === A ? ta : tb).includes(STALE_A));
+    const audits = await sql(`SELECT count(*)::int n FROM "IntakeAudit" WHERE "submissionId"=${lit(rid)} AND action = 'assignee.changed'`);
+    ok('6 담당 경합: 감사 기록 한 줄만 늘었다', audits[0].n === asg0 + 1, `${asg0}→${audits[0].n}`);
+
+    /* 공개 대 내리기 */
+    const sid = ctx.pipe;
+    const r2 = await ctl(`run?id=${sid}`);
+    await openDetail(a, sid);
+    /* 먼저 첫 실행을 공개해 둔다 — 검토 후 공개 */
+    const firstReview = await a.ev(`(()=>{const bs=[...document.querySelectorAll('button')].filter(b=>b.innerText.includes('3D 결과 검토'));return bs.length})()`);
+    await a.ev(`(()=>{const li=[...document.querySelectorAll('li')].find(l=>l.innerText.includes('3D 결과 검토')&&!l.innerText.includes('e2e-second'));[...li.querySelectorAll('button')].find(b=>b.innerText.includes('3D 결과 검토')).click()})()`);
+    await a.waitText('아직 공개 전이에요', 30000); await ackInDialog(a);
+    const runs = await sql(`SELECT id, "engineKey" FROM "IntakeAnalysisRun" WHERE "submissionId"=${lit(sid)} AND status='succeeded' ORDER BY "requestedAt"`);
+    console.log('runs', JSON.stringify(runs), 'review buttons', firstReview);
+    /* 첫 실행(가짜 GPU 결과)의 공개 단추 — 검토한 그 항목 */
+    await a.ev(`(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.innerText.includes('이 결과 공개')&&!b.disabled);b.click()})()`);
+    await until(async () => (await sql(`SELECT count(*)::int n FROM "IntakePublication" WHERE "activeFor"=${lit(sid)}`))[0].n === 1, 20000);
+    const p1 = (await sql(`SELECT id, "runId" FROM "IntakePublication" WHERE "activeFor"=${lit(sid)}`))[0];
+    await openDetail(a, sid); await openDetail(b, sid);
+    /* a: 공개 내리기 창 · b: 다른 실행을 검토하고 공개 바꾸기 창 */
+    await a.click('공개 내리기'); await a.waitText('공개를 내릴까요?', 10000);
+    await b.ev(`(()=>{const li=[...document.querySelectorAll('li')].find(l=>[...l.querySelectorAll('button')].some(x=>x.innerText.includes('이 결과 공개')));[...li.querySelectorAll('button')].find(x=>x.innerText.includes('3D 결과 검토')).click()})()`);
+    await b.waitText('아직 공개 전이에요', 30000); await ackInDialog(b);
+    await b.ev(`(()=>{const x=[...document.querySelectorAll('button')].find(b=>b.innerText.includes('이 결과 공개')&&!b.disabled);x.click()})()`);
+    await b.waitText('공개 중인 결과를 바꿀까요?', 10000); await sleep(300);
+    await Promise.all([dialogClick(a, '내리기'), dialogClick(b, '바꾸기')]);
+    await sleep(5000);
+    const act = await sql(`SELECT "runId" FROM "IntakePublication" WHERE "activeFor"=${lit(sid)}`);
+    const STALE_P = '다른 관리자가 공개를 바꿨어요';
+    const [pa, pb] = [await a.text(), await b.text()];
+    const aWon = act.length === 0, bWon = act.length === 1 && act[0].runId === r2.runId;
+    ok('6 공개 대 내리기: 하나만 이긴다', aWon !== bWon, aWon ? '내리기가 이김' : bWon ? '바꾸기가 이김' : JSON.stringify(act));
+    ok('6 공개 대 내리기: 진 쪽은 낡았다는 글', aWon ? pb.includes(STALE_P) && !pa.includes(STALE_P) : pa.includes(STALE_P) && !pb.includes(STALE_P));
+    ok('6 공개 대 내리기: 공개 줄이 둘이 되지 않는다', act.length <= 1 && p1.runId !== undefined);
+
+    /* 새 링크 경합 */
+    const lid = await subIdByNote(ctx.N1);
+    const rc0 = (await sql(`SELECT "tokenReissueCount" rc FROM "IntakeInvitation" WHERE note=${lit(ctx.N1)}`))[0].rc;
+    await openDetail(a, lid); await openDetail(b, lid);
+    await a.click('새 링크 만들기'); await a.waitText('새 링크를 만들까요?', 10000);
+    await b.click('새 링크 만들기'); await b.waitText('새 링크를 만들까요?', 10000); await sleep(300);
+    await Promise.all([dialogClick(a, '새 링크 만들기'), dialogClick(b, '새 링크 만들기')]);
+    await sleep(5000);
+    const [la, lb] = [await shownLink(a), await shownLink(b)];
+    const rc1 = (await sql(`SELECT "tokenReissueCount" rc FROM "IntakeInvitation" WHERE note=${lit(ctx.N1)}`))[0].rc;
+    const STALE_R = '다른 관리자가 먼저 링크를 바꿨어요';
+    const [ra, rb] = [await a.text(), await b.text()];
+    ok('6 새 링크 경합: 한쪽만 링크를 받는다', (la != null) !== (lb != null), `a ${la ? '링크' : '없음'} · b ${lb ? '링크' : '없음'}`);
+    ok('6 새 링크 경합: 진 쪽은 낡았다는 글', la ? rb.includes(STALE_R) : ra.includes(STALE_R));
+    ok('6 새 링크 경합: 바꿈 횟수 +1 만', rc1 === rc0 + 1, `${rc0}→${rc1}`);
+    const winner = la ?? lb;
+    ok('6 새 링크 경합: 이긴 링크만 열리고 그 전 링크는 막힌다', winner && (await stateOf(tokenOf(winner))).status === 200 && (!ctx.L4 || (await stateOf(tokenOf(ctx.L4))).status === 404));
+    ok('6 화면 오류 없음(두 관리자)', a.errors.length + b.errors.length === 0, [...a.errors, ...b.errors].join(' | '));
+    await a.close(); await b.close();
+  }
+} catch (e) { ok('시나리오 예외', false, String(e.message).slice(0, 900)); }
+const fail = results.filter((r) => !r.pass).length;
+console.log(`\n${results.length - fail}개 통과, ${fail}개 실패`);
+chrome.kill();
+process.exit(fail ? 1 : 0);

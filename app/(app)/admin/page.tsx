@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import Link from 'next/link';
-import { ChevronRight, Clapperboard, Gauge, ScrollText } from '@/components/icon';
+import { ChevronRight, Clapperboard, Film, Gauge, ScrollText } from '@/components/icon';
 import { RoundBatter, RoundLesson } from '@/components/round-icon';
 import { prisma } from '@/lib/prisma';
 import { requirePermission } from '@/lib/dal';
@@ -283,6 +283,25 @@ export default async function AdminPage() {
           <span className="block text-sm font-bold text-ink">3D 개발 관리자</span>
           <span className="mt-0.5 block text-xs leading-relaxed text-muted">
             3D 스윙 분석 모델을 만들 타자 샘플과 마커 샘플을 올리고 봅니다.
+          </span>
+        </span>
+        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+      </Link>
+      )}
+
+      {can(admin.role, 'intake') && (
+      /* 외부 영상 접수 — 초대 링크로 받은 옆 · 뒤 투구 원본(2026-11-06). 위 3D 개발 관리자의 타자 샘플과는 따로 쌓인다 */
+      <Link
+        href="/admin/intake"
+        className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-strong text-muted">
+          <Film aria-hidden className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-ink">외부 영상 접수</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+            초대 링크로 받은 옆 · 뒤 투구 원본을 확인하고 분석 · 공개를 맡습니다.
           </span>
         </span>
         <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
