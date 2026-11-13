@@ -209,6 +209,29 @@
           ],
           "limits": "Pitching biomechanics studies do not directly establish the chronic effects of this band movement on rotational power or pitch velocity; practical benefit stated as help, not a guaranteed outcome.",
           "at_utc": "2026-11-13T08:54:49.142054+00:00"
+        },
+        {
+          "at_utc": "2026-11-13T11:33:18.187059+00:00",
+          "status": "Admin metadata reviewed; difficulty changed 초급 to 중급 and rest 90 to 180 seconds, saved and UI readback; human review pending.",
+          "metadata": {
+            "bodyParts": [
+              "코어",
+              "고관절",
+              "전신"
+            ],
+            "intensity": "중간",
+            "difficulty": "중급",
+            "equipment": [
+              "밴드"
+            ],
+            "sets": 3,
+            "reps": 6,
+            "holdSeconds": null,
+            "restSeconds": 180,
+            "perSide": true
+          },
+          "source": "https://pubmed.ncbi.nlm.nih.gov/19204579/",
+          "limits": "General power training guidance, not direct proof of optimal rest for this exact exercise; training load varies."
         }
       ]
     },
