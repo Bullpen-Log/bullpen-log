@@ -552,6 +552,17 @@
           "after_description": "■ 어떤 운동인가\r\n랜드마인 고정 장치에 바벨 한쪽 끝을 고정하고, 반대쪽 끝을 한 손으로 앞·위로 빠르게 밀어내는 운동입니다. 지면을 미는 하체의 움직임을 몸통과 팔의 밀기에 연결합니다.\r\n\r\n■ 이렇게 하세요\r\n1. 바벨 한쪽 끝을 랜드마인 고정 장치에 끼웁니다. 랜드마인 고정 장치가 흔들리거나 빠지지 않는지, 바벨이 움직일 공간이 충분한지 확인합니다.\n2. 바벨의 반대쪽 끝을 한 손으로 잡아 어깨 앞에 두고 발을 앞뒤로 벌립니다.\n3. 앞에 둔 발과 같은 쪽 손으로 밀 때는 앞발을 디딘 채 바벨을 앞쪽 위로 빠르게 밉니다.\n4. 뒤에 둔 발과 같은 쪽 손으로 밀 때는 뒷발과 골반, 몸을 함께 돌리며 바벨을 앞쪽 위로 빠르게 밉니다.\n5. 발은 몸이 도는 방향에 맞춰 자연스럽게 움직이고, 허리만 억지로 꺾거나 비틀지 않습니다. 바벨을 놓지 않고 천천히 어깨 앞으로 가져옵니다.\n6. 빠르게 밀고 천천히 돌아올 수 있는 무게를 고릅니다. 통증이 생기거나 랜드마인 고정 장치가 흔들리면 중단합니다.\n\n\r\n■ 투수에게 왜 필요한가\r\n투구는 하체와 몸통의 움직임을 팔의 동작과 연결하는 전신 동작입니다.\r\n\r\n랜드마인 펀치는 하체로 지면을 지지하며 몸통과 한 팔의 빠른 밀기를 연결하는 상체 훈련으로 활용할 수 있습니다.",
           "status": "Saved and DB read back; user review pending.",
           "at_utc": "2026-11-13T07:08:46.832743+00:00"
+        },
+        {
+          "status": "Saved and read back clear anchor safety, alternative stance instructions, controlled bar return and plain pitching purpose. Human review pending.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/35465789/",
+            "https://dspace.cuni.cz/bitstream/handle/20.500.11956/186409/140112977.pdf?isAllowed=y&sequence=4"
+          ],
+          "limits": "Pitching overview and a landmine-throw study in boxers are indirect and do not establish specific exercise effect on pitching or optimal 3x5/90s.",
+          "filming": "Reference only; filming needed. Show both feet and anchor.",
+          "footage_limit": "Observed initial frame cuts off feet; verify different stances and full footage, do not infer complete match.",
+          "at_utc": "2026-11-13T07:59:05.806741+00:00"
         }
       ]
     },
