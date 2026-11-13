@@ -335,7 +335,7 @@
   "approval_rules": {
     "advance": "Only explicit user OK/next authorizes advancement; setup does not.",
     "content": "Current workflow supersedes historical memo-only rules: research and compare demonstration, concretize/save title/description/necessary prescription within user direction, read back and report for human confirmation. Ask about unclear actions/policy. No content edits during this setup.",
-    "media": "Media editing/replacement/deletion/reupload requires specific separate direction.",
+    "media": "Collect video editing requests until all videos have been reviewed; then process together within user direction. Media replacement, deletion and upload require separate specific direction.",
     "deployment": "Existing separate engine/product/deployment authorization boundaries remain."
   },
   "review_method": [
@@ -392,5 +392,16 @@
     },
     "constraints": "브라우저 반복 메뉴 미노출. 제품 코드 수정·페이지 스크립트 변조 없이 UI로 설정할 수 있는 경로 미확인.",
     "youtube": "재생 설정 → 옵션 더보기 → 연속 재생 켬 경로를 다음 참고 영상 차례에 실제 확인. 운동영상 세션 결과를 이 영상 성공으로 간주하지 않음."
-  }
+  },
+  "exercise_review_alignment_2026_11_13": [
+    "Write for first-time learners in plain Korean; numbered preparation, movement, finish and safety; explain technical terms, use consistent sections and sensible paragraphs; place purpose in why.",
+    "Use consistent unambiguous names for identical equipment and body parts; distinguish different equipment.",
+    "Compare footage, editing, source title and description; identify uncertain moments and do not invent obscured details; track reference-only or missing own footage for filming.",
+    "Use appropriate Korean and international original research, systematic reviews or official biomechanical sources; consider load, repetitions and rest where relevant; distinguish direct from indirect evidence and avoid unsupported performance or injury-prevention guarantees. Assess user-proposed changes scientifically.",
+    "Track KR/US/JP claims, safety and rights questions and unresolved evidence without asserting legal clearance.",
+    "Within established user authorization, research and concretize necessary title/description corrections, save and read back, then explain changes and obtain human review; preserve uncertainty.",
+    "Collect requested video edits throughout all reviews and handle together after completion; media replacement/deletion/upload requires separate specific direction.",
+    "Show one video with shared player and repeat ON; no repeat-cycle wait. Advance only on explicit user OK/next.",
+    "Sync only non-sensitive mechanics reviewer records; preserve current item, decisions and separate exercise records."
+  ]
 }
