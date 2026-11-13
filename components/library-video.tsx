@@ -2,11 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Play } from '@/components/icon';
-import {
-  referenceEmbedUrl,
-  referenceWatchUrl,
-  videoFrameClass,
-} from '@/lib/reference-video';
+import { OwnedExercisePlayer } from '@/components/exercise-video/owned-player';
+import { YouTubeExercisePlayer } from '@/components/exercise-video/youtube-player';
+import { YT_ID } from '@/lib/exercise-video-state';
+import { referenceWatchUrl, videoFrameClass } from '@/lib/reference-video';
 import { libraryVideoFromPhone } from '@/lib/local-video';
 
 /**
@@ -16,7 +15,18 @@ import { libraryVideoFromPhone } from '@/lib/local-video';
  * (한 화면에 20개가 있으면 20개를 미리 받아버리기 때문)
  * 누른 순간에만 재생 주소를 받아와 재생한다.
  */
-export function LibraryVideo({
+/** 재생 주소 받기를 기다리는 한도 — 폰 다리 · 서버 주소 모두 포함. */
+const URL_WAIT_MS = 20_000;
+
+export function LibraryVideo(props: LibraryVideoProps) {
+  return <LibraryVideoSource key={`${props.path ?? ""}|${props.referenceVideoId ?? ""}`} {...props} />;
+}
+
+type LibraryVideoProps = {
+  path?: string | null; referenceVideoId?: string | null; title: string; thumbUrl?: string | null; aspectRatio?: number | null; isAdmin?: boolean;
+};
+
+function LibraryVideoSource({
   path,
   referenceVideoId,
   title,
@@ -44,39 +54,25 @@ export function LibraryVideo({
    */
   aspectRatio?: number | null;
   /**
-   * 관리자에게만 재생 막대를 보여준다.
-   *
-   * 재생 막대에는 음량 버튼이 딸려 있는데, 브라우저가 통째로 붙여주는 것이라
-   * 음량만 빼는 방법이 없다. 그래서 관리자가 아니면 막대 자체를 감춘다.
-   * 관리자는 올린 영상을 점검해야 하므로 소리를 켤 수 있어야 한다.
+   * 관리자에게만 '참고 영상' 표시와 '유튜브에서 열기'를 보인다.
+   * 재생 방식(반복 · 조작부)은 VP01 부터 관리자 · 일반 사용자가 같다.
    */
   isAdmin?: boolean;
 }) {
   const [url, setUrl] = useState<string>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
-  /*
-   * 저절로 틀기가 막혔나 — 아이폰 저전력 모드는 소리 없는 영상의 자동 재생도 막는다. 관리자가 아니면 재생 막대가
-   * 없어서 멈춘 첫 장면(또는 검은 네모)만 남고 틀 길이 없었다(2026-10-03 점검). 막히면 가운데 재생 단추를 띄운다.
-   */
-  const [blocked, setBlocked] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  /* 주소 받기 세대 — 늦게 끝난 받기가 새 요청(다시 불러오기)을 덮지 않게. 해제 뒤에 온 blob 은 놓아 준다 */
+  const gen = useRef(0);
+  useEffect(() => () => {
+    gen.current += 1;
+  }, []);
 
   /* 폰에서 꺼낸 영상(blob:)은 다 보면 놓아 준다 — 운동 목록을 넘기며 여러 개를 틀어도 메모리에 쌓이지 않게 */
   useEffect(() => {
     if (!url?.startsWith('blob:')) return;
     return () => URL.revokeObjectURL(url);
   }, [url]);
-
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!url || !v || isAdmin) return;
-    /* autoPlay 와 같은 일을 한 번 더 — 거절되면 그것이 '막혔다'는 알림이다 */
-    v.play().catch((err: unknown) => {
-      if (err instanceof DOMException && err.name === 'NotAllowedError')
-        setBlocked(true);
-    });
-  }, [url, isAdmin]);
 
   /*
    * 참고 영상은 유튜브 재생기를 그대로 띄운다.
@@ -89,17 +85,12 @@ export function LibraryVideo({
   /* 세로 영상이면 세로 틀. 자세한 규칙은 lib/reference-video.ts */
   const frame = videoFrameClass(aspectRatio);
 
+  if (!path && !referenceVideoId) return <div className={`flex ${frame} items-center justify-center rounded-xl bg-surface-2 p-4 text-center text-sm text-muted`} role="status">아직 재생할 영상이 없어요.</div>;
+
   if (referenceVideoId) {
-    if (showEmbed) {
-      return (
-        <iframe
-          src={referenceEmbedUrl(referenceVideoId)}
-          title={title}
-          allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          className={`${frame} rounded-xl border border-line bg-black`}
-        />
-      );
+    const validId = YT_ID.test(referenceVideoId);
+    if (showEmbed && validId) {
+      return <YouTubeExercisePlayer videoId={referenceVideoId} title={title} frame={frame} />;
     }
     return (
       <div className="space-y-2">
@@ -131,6 +122,12 @@ export function LibraryVideo({
               참고 영상
             </span>
           )}
+          {/* 영상 번호가 형식에 맞지 않으면 재생기를 띄우지 않는다 — 누르고 아무 일도 없지 않게 까닭을 보인다 */}
+          {showEmbed && !validId && (
+            <span className="absolute inset-x-0 bottom-0 bg-red-950/80 px-3 py-2 text-xs text-red-200">
+              이 영상은 재생할 수 없어요.
+            </span>
+          )}
         </button>
         {isAdmin && (
           <a
@@ -146,10 +143,20 @@ export function LibraryVideo({
     );
   }
 
-  const play = async () => {
-    if (loading || !path) return;
+  const play = async (force = false) => {
+    if ((loading && !force) || !path) return;
+    const mine = ++gen.current;
     setLoading(true);
     setError(undefined);
+    /* 주소 받기 제한 시간 — 신호가 멎어 영영 안 끝나면 단추가 잠긴 채 남았다. 넘기면 이 요청을 버리고(세대 올림) 다시 누를 수 있게 */
+    const abort = new AbortController();
+    const timer = window.setTimeout(() => {
+      if (mine !== gen.current) return;
+      gen.current += 1;
+      abort.abort();
+      setError('영상 주소를 받지 못했어요. 다시 눌러 주세요.');
+      setLoading(false);
+    }, URL_WAIT_MS);
 
     try {
       let signed: Promise<string> | undefined;
@@ -159,6 +166,7 @@ export function LibraryVideo({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ paths: [path], small: true }),
+            signal: abort.signal,
           });
           const data = await res.json().catch(() => ({}));
           const found = data.urls?.[path];
@@ -168,73 +176,41 @@ export function LibraryVideo({
 
       /* 아이폰 앱이면 앱 안 · 폰에 받아 둔 영상으로(서버에서 다시 받지 않는다). 안 되면 서버에서 바로 */
       const local = await libraryVideoFromPhone(path, signedUrl);
-      setUrl(local ?? (await signedUrl()));
+      const got = local ?? (await signedUrl());
+      if (mine !== gen.current) {
+        if (got.startsWith('blob:')) URL.revokeObjectURL(got);
+        return;
+      }
+      setUrl(got);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '영상을 불러올 수 없어요.');
+      if (mine === gen.current) setError(err instanceof Error ? err.message : '영상을 불러올 수 없어요.');
     } finally {
-      setLoading(false);
+      window.clearTimeout(timer);
+      if (mine === gen.current) setLoading(false);
     }
   };
 
   if (url) {
-    /* 재생 막대가 없는 사람은 영상을 눌러 튼다 — 멈춰 있을 때만(돌고 있으면 그대로 둔다) */
-    const tapToPlay = () => {
-      const v = videoRef.current;
-      if (isAdmin || !v || !v.paused) return;
-      v.play()
-        .then(() => setBlocked(false))
-        .catch(() => {});
-    };
     return (
-      <div className={`relative ${frame}`}>
-        <video
-          ref={videoRef}
-          src={url}
-          // 미리보기 이미지가 있으면 첫 프레임을 받기 전에도 화면이 비지 않는다.
-          poster={thumbUrl ?? undefined}
-          // 관리자만 재생 막대(=음량 버튼)를 본다. 위 isAdmin 설명 참고.
-          controls={isAdmin}
-          // 막대가 없으면 멈출 방법도 없으므로, 짧은 시연 영상처럼 계속 돌린다.
-          loop={!isAdmin}
-          autoPlay
-          /*
-           * 라이브러리 영상은 소리 없이 튼다.
-           *
-           * 동작을 보여주는 시연 영상이라 소리가 필요 없고, 촬영할 때 들어간
-           * 주변 소음이 그대로 나가면 곤란하다. 헬스장에서 폰으로 열었을 때
-           * 갑자기 소리가 나는 것도 막는다.
-           *
-           * 더불어 브라우저는 소리 있는 영상의 자동 재생을 막는다.
-           * 음소거로 두면 autoPlay 가 실제로 동작한다.
-           * 소리를 듣고 싶으면 재생기의 음량 버튼으로 켤 수 있다.
-           */
-          muted
-          playsInline
-          onClick={tapToPlay}
-          onPlaying={() => setBlocked(false)}
-          aria-label={title}
-          className="h-full w-full rounded-xl border border-line bg-black object-contain"
-        />
-        {blocked && !isAdmin && (
-          <button
-            type="button"
-            onClick={tapToPlay}
-            aria-label={`${title} 재생`}
-            className="absolute inset-0 grid place-items-center rounded-xl"
-          >
-            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-sky text-white shadow-lg">
-              <Play className="ml-0.5 h-6 w-6 fill-current" />
-            </span>
-          </button>
-        )}
-      </div>
+      <OwnedExercisePlayer
+        key={url}
+        url={url}
+        poster={thumbUrl}
+        title={title}
+        frame={frame}
+        onRetry={() => {
+          /* 주소가 만료됐을 수 있어 새로 받는다(이 영상만 — 운동 입력 · 메모는 그대로) */
+          setUrl(undefined);
+          void play(true);
+        }}
+      />
     );
   }
 
   return (
     <button
       type="button"
-      onClick={play}
+      onClick={() => void play()}
       disabled={loading}
       aria-label={`${title} 재생`}
       className={`group relative flex ${frame} items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-2 transition-colors hover:border-sky-soft disabled:cursor-wait`}

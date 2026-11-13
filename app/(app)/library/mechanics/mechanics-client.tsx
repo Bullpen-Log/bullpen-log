@@ -9,6 +9,7 @@ import { LATER_CATEGORY, MECHANICS_CATEGORY_NAMES } from '@/lib/categories';
 import { DRILL_EQUIPMENT, DRILL_STAGE_NAMES, FOCUS_POINTS } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
 import { CategoryBadge } from '@/components/category-badge';
+import type { ReviewSelection } from '@/lib/exercise-video-review';
 import { LibraryVideo } from '@/components/library-video';
 import { LibraryTile } from '@/components/exercise-tile';
 import { DrillBadges } from '@/components/meta-badges';
@@ -262,7 +263,18 @@ function GuideGrid({ items, isAdmin }: { items: GuideItem[]; isAdmin: boolean })
   );
 }
 
-export function MechanicsClient({
+type MechanicsClientProps = { guides: GuideItem[]; isAdmin: boolean; reviewSelection?: ReviewSelection<GuideItem> };
+
+/** Resolve a known guide ID or its registered owned-file ID without changing review sequence. */
+export function MechanicsClient(props: MechanicsClientProps) {
+  const [closed, setClosed] = useState(false);
+  const selected = props.reviewSelection;
+  if (closed || !selected || selected.status === 'none') return <MechanicsBrowse {...props} />;
+  if (selected.item) return <div data-library-review="mechanics"><GuideDetail key={selected.item.id} item={selected.item} isAdmin={props.isAdmin} onClose={() => setClosed(true)} /></div>;
+  return <EmptyState title={selected.status === 'ambiguous' ? '같은 영상을 쓰는 드릴이 여러 개예요' : '요청한 드릴을 찾지 못했어요'} description="드릴 목록에서 확인할 항목을 직접 선택해 주세요. 다른 영상으로 자동 이동하지 않아요." action={<Button variant="secondary" onClick={() => setClosed(true)}>드릴 목록 보기</Button>} />;
+}
+
+function MechanicsBrowse({
   guides,
   isAdmin,
 }: {

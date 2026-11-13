@@ -32,6 +32,7 @@ import {
 } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
 import { ExerciseHistoryPanel } from '@/components/exercise-history';
+import type { ReviewSelection } from '@/lib/exercise-video-review';
 import { LibraryVideo } from '@/components/library-video';
 import { LibraryTile } from '@/components/exercise-tile';
 import { ExerciseBadges } from '@/components/meta-badges';
@@ -82,10 +83,13 @@ function ExerciseDetail({
   item,
   isAdmin,
   onClose,
+  initialDescription,
 }: {
   item: ExerciseItem;
   isAdmin: boolean;
   onClose: () => void;
+  /** Review mode supplies a fresh server read; ordinary browse keeps lazy cached loading. */
+  initialDescription?: string;
 }) {
   const [editing, setEditing] = useState(false);
 
@@ -97,7 +101,8 @@ function ExerciseDetail({
    * 이 둘을 섞으면 안 된다 — 수정 폼이 아직 안 온 것을 빈 것으로 보고
    * 저장하면 멀쩡한 설명이 지워진다. 그래서 오기 전에는 수정을 못 연다.
    */
-  const [description, setDescription] = useState<string | null>(null);
+  const [loadedDescription, setDescription] = useState<string | null>(null);
+  const description = initialDescription ?? loadedDescription;
   /* 설명을 못 받았나 — 예전에는 한 번 실패하면 '불러오는 중…'이 영영 남고 수정 단추도 막혔다. 누르면 다시 받는다 */
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -109,6 +114,7 @@ function ExerciseDetail({
    * 바꾸면 그릴 때마다 연쇄로 다시 그린다.
    */
   useEffect(() => {
+    if (initialDescription !== undefined) return;
     let alive = true;
     exerciseDescription(item.id).then(
       (text) => {
@@ -121,7 +127,7 @@ function ExerciseDetail({
     return () => {
       alive = false;
     };
-  }, [item.id, attempt]);
+  }, [item.id, attempt, initialDescription]);
 
   /* 설명이 아직 없으면 수정 화면으로 넘어가지 않는다 (위 주석 참고) */
   if (editing && description !== null) {
@@ -452,7 +458,18 @@ function WarmupFolderRow({
   );
 }
 
-export function TrainingClient({
+type TrainingClientProps = { exercises: ExerciseItem[]; isAdmin: boolean; warmupFolders?: WarmupFolder[]; reviewSelection?: ReviewSelection<ExerciseItem> & { description?: string } };
+
+/** Optional focused launch uses the existing authorized detail/player, not a second review system. */
+export function TrainingClient(props: TrainingClientProps) {
+  const [closed, setClosed] = useState(false);
+  const selected = props.reviewSelection;
+  if (closed || !selected || selected.status === 'none') return <TrainingBrowse {...props} />;
+  if (selected.item) return <div data-library-review="exercise"><ExerciseDetail key={selected.item.id} item={selected.item} initialDescription={selected.description} isAdmin={props.isAdmin} onClose={() => setClosed(true)} /></div>;
+  return <EmptyState title={selected.status === 'ambiguous' ? '같은 영상을 쓰는 운동이 여러 개예요' : '요청한 운동을 찾지 못했어요'} description="운동 목록에서 확인할 항목을 직접 선택해 주세요. 다른 영상으로 자동 이동하지 않아요." action={<Button variant="secondary" onClick={() => setClosed(true)}>운동 목록 보기</Button>} />;
+}
+
+function TrainingBrowse({
   exercises,
   isAdmin,
   warmupFolders = [],

@@ -4,17 +4,19 @@ import { requireUser } from '@/lib/dal';
 import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { loadExerciseLibrary } from '@/lib/library-load';
+import { freshExerciseReview } from '@/lib/exercise-video-review-server';
 import { TrainingClient, type ExerciseItem } from './training-client';
 import { BodyPartsProvider } from '@/components/body-parts';
 import { throwingSide } from '@/lib/armcare/muscle-map';
 import { ArmcareInfoProvider } from '@/app/(app)/training/armcare-info';
 
-export default async function TrainingPage({ searchParams }: { searchParams: Promise<{ web?: string }> }) {
+export default async function TrainingPage({ searchParams }: { searchParams: Promise<{ web?: string; review?: string | string[] }> }) {
   const user = await requireUser();
+  const query = await searchParams;
 
   /* 새 아이폰 앱(Expo)이 라이브러리를 아는 판(BullpenNative/7 부터)이면 앱 화면으로 연다(native/src/app/library/training.tsx) */
   /* ?web=1 — 앱 관리자가 '편집'으로 웹 화면을 연다(운동 · 드릴 고치기는 웹에만 있다, 2026-10-20 대조 검토) */
-  if ((await searchParams).web !== '1' && expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path="/library/training" cover={false} />;
+  if (query.web !== '1' && expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path="/library/training" cover={false} />;
 
   const isAdmin = user.role === 'ADMIN';
 
@@ -34,6 +36,7 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
   ]);
   const usedCounts = new Map(counted.map((row) => [row.exerciseId, row._count._all]));
   const items: ExerciseItem[] = exercises.map((ex) => ({ ...ex, usedCount: usedCounts.get(ex.id) ?? 0 }));
+  const reviewSelection = query.review === undefined ? undefined : await freshExerciseReview(items, query.review, isAdmin);
 
   // 제목과 탭은 라이브러리 레이아웃이 그린다.
   /*
@@ -43,7 +46,7 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
   return (
     <BodyPartsProvider>
       <ArmcareInfoProvider side={throwingSide(user.throwingHand)}>
-        <TrainingClient exercises={items} isAdmin={isAdmin} warmupFolders={warmupFolders} />
+        <TrainingClient key={typeof query.review === "string" ? query.review : "library"} reviewSelection={reviewSelection} exercises={items} isAdmin={isAdmin} warmupFolders={warmupFolders} />
       </ArmcareInfoProvider>
     </BodyPartsProvider>
   );
