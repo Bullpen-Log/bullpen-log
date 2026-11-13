@@ -1,17 +1,15 @@
 import { Icon } from '~/shell/icon';
-import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { useFocusEffect } from 'expo-router';
-import { useEvent } from 'expo';
+import { SymbolView } from 'expo-symbols';
+import { useEvent, useEventListener } from 'expo';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, Animated, AppState, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { ActivityIndicator, Alert, Animated, AppState, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { EXERCISE_NOTE_MAX, cleanExerciseNote } from '@/lib/exercise-meta';
-import { referenceEmbedUrl, referenceWatchUrl } from '@/lib/reference-video';
+import { referenceWatchUrl } from '@/lib/reference-video';
 import { rpc } from '~/lib/rpc';
-import { SITE_URL } from '~/lib/site';
-import type { Palette } from '~/lib/ui';
+import { PALETTES, type Palette } from '~/lib/ui';
+import { CommandTracker, LiveSeek, nativeVideoStageHeight, PlaybackIntent, beginScrub, clampTime, endScrub, onProviderPlaying, seekRange, settleExternalPause, stepTime, YT_ID, type InterruptReason, type PlayTicket, type ScrubSession } from '@/lib/exercise-video-state';
 import { call, loadMe } from '~/pitch/api';
 import { LocalVideo } from '../../modules/local-video';
 import { Press } from '~/shell/press';
@@ -19,6 +17,10 @@ import { useDraftGuard } from '~/community/draft-guard';
 import { rememberNote } from '~/library/sync';
 import { useFavs } from '~/training/favorites';
 import { ExerciseVideoFullscreen } from './exercise-video-fullscreen';
+import { ExerciseVideoControls } from './exercise-video-controls';
+import { activeExerciseVideo, nextVideoId } from './exercise-video-active';
+import { useExerciseVideoLifecycle, useOffscreenPause } from './exercise-video-visibility';
+import { YouTubeExerciseVideo } from './exercise-video-youtube';
 
 /** 운동 진행 화면(native/src/app/workout.tsx)의 작은 조각 — 웹 app/(session)/workout/run/session-client.tsx 의 같은 이름 부품을 옮겼다 */
 
@@ -336,27 +338,19 @@ export function ExerciseVideo({
   referenceVideoId: string | null;
   aspectRatio: number | null;
   /**
-   * 운동 영상 상세(2026-10-31 시안 02)만 — 이 높이의 판 안에 원래 비율 그대로(contain) 담고, 직접 찍은 영상 밑에 조작 줄(멈춤 · 처음부터 ·
-   * 0.5배 · 크게 보기), 화면을 떠나거나 앱이 뒤로 가면 멈춘다. 안 주면 예전 그대로(운동 진행 · 암케어 · 워밍업).
+   * 영상 무대 높이(조작부 제외) — 상세(2026-10-31 시안 02)가 넘긴다. 이 높이 안에 원래 비율 그대로(contain).
+   * 안 주면 원래 비율. 조작부 · 반복 · 화면 이탈 멈춤은 VP01 부터 모든 진입점이 같다.
    */
   height?: number;
 }) {
   const admin = useIsAdmin();
+  /* 소스 우선순위는 그대로 — 앱은 직접 찍은 영상(path)이 먼저(웹은 참고 영상이 먼저, VP01 에서 바꾸지 않음) */
   if (path) return <LibraryClip path={path} aspectRatio={aspectRatio} height={height} />;
-  /* 유튜브 영상 번호만(11자) — 이 글이 사이트 주소(baseUrl)로 도는 웹뷰에 그대로 들어가니, 다른 글자가 섞인 번호는 그리지 않는다 */
-  if (!referenceVideoId || !/^[A-Za-z0-9_-]{11}$/.test(referenceVideoId)) return null;
-  const html = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:#000;height:100%}iframe{border:0;width:100%;height:100%}</style><iframe src="${referenceEmbedUrl(referenceVideoId)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+  /* 유튜브 영상 번호만(11자) — 다른 글자가 섞인 번호는 그리지 않는다 */
+  if (!referenceVideoId || !YT_ID.test(referenceVideoId)) return null;
   return (
     <View style={{ gap: 6 }}>
-      <View style={[s.video, height ? { height } : { aspectRatio: aspectRatio ?? 16 / 9 }]}>
-        <WebView
-          source={{ html, baseUrl: SITE_URL }}
-          allowsInlineMediaPlayback
-          allowsFullscreenVideo
-          scrollEnabled={false}
-          style={{ backgroundColor: '#000' }}
-        />
-      </View>
+      <YouTubeExerciseVideo key={referenceVideoId} videoId={referenceVideoId} aspectRatio={aspectRatio} height={height} />
       {/* 관리자만 — 웹 components/library-video.tsx 와 같다(2026-10-04 '앱 안에 머물기': 일반 사용자는 유튜브로 나가지 않게) */}
       {admin ? (
         <Press
@@ -379,9 +373,10 @@ const libraryKey = (path: string) => /^library\/([\w-]{1,64})\.\w+$/.exec(path)?
  * 2026-10-20 김민: 서버 전송비 — 예전엔 볼 때마다 서버에서 받았다. 받기에 실패하면 예전처럼 주소로 바로 튼다.
  * HEVC 는 같은 화질에 H.264 판의 절반 남짓(영상 10개 시험 −56%, scripts/library-bundle/compress.swift 머리).
  */
-async function libraryUri(path: string): Promise<string | null> {
+async function libraryUri(path: string, fresh = false): Promise<string | null> {
   const key = libraryKey(path);
-  if (key) {
+  /* 다시 불러오기(fresh)는 폰의 파일을 건너뛰고 서버 주소로 바로 튼다 — 받아 둔 파일이 망가졌으면 같은 파일만 다시 열려 빠져나오지 못했다 */
+  if (key && !fresh) {
     const local = await LocalVideo.libraryLoad({ key }).catch(() => null);
     if (local) return `file://${local.path}`;
   }
@@ -391,18 +386,19 @@ async function libraryUri(path: string): Promise<string | null> {
   });
   const url = r.urls[path];
   if (!url) return null;
-  if (!key) return url;
+  if (!key || fresh) return url;
   const got = await LocalVideo.libraryFetch({ key, url }).catch(() => null);
   return got ? `file://${got.path}` : url;
 }
 
 function LibraryClip({ path, aspectRatio, height }: { path: string; aspectRatio: number | null; height?: number }) {
+  const window = useWindowDimensions();
   const [state, setState] = useState<{ path: string; uri: string | null; failed: boolean; tries: number } | null>(null);
   /* [다시 불러오기] — 이 영상만 다시 받는다(설명 · 기록 · 별은 그대로) */
   const [tries, setTries] = useState(0);
   useEffect(() => {
     let alive = true;
-    libraryUri(path).then(
+    libraryUri(path, tries > 0).then(
       (uri) => alive && setState({ path, uri, failed: !uri, tries }),
       () => alive && setState({ path, uri: null, failed: true, tries })
     );
@@ -410,7 +406,7 @@ function LibraryClip({ path, aspectRatio, height }: { path: string; aspectRatio:
       alive = false;
     };
   }, [path, tries]);
-  const box = [s.video, height ? { height } : { aspectRatio: aspectRatio ?? 9 / 16 }];
+  const box = [s.video, { height: nativeVideoStageHeight(window.width - 32, window.height, aspectRatio ?? 9 / 16, height) }];
   if (state?.path !== path || state.tries !== tries || (!state.uri && !state.failed))
     return (
       <View style={[box, s.centerBox]} accessibilityLabel="영상을 불러오는 중">
@@ -433,109 +429,312 @@ function LibraryClip({ path, aspectRatio, height }: { path: string; aspectRatio:
 }
 
 /*
- * 운동 영상 — 아이폰 기본 재생 단추(가운데 큰 재생 · 10초 건너뛰기)가 영상의 동작을 가려서(2026-10-20 김민) 기본 단추를 끄고,
- * 화면을 누르면 멈춤 · 재생, 오른쪽 아래 작은 단추 둘(재생 · 멈춤, 크게 보기).
- * 크게 보기는 앱 안 모달 — 기본 전체화면에 들어가면 앱의 닫기·작은 조작부를 쓸 수 없어 직접 그린다.
- * height(운동 영상 상세)면 단추를 영상 밖 밑 줄로 — 동작을 가리지 않게, 누르는 자리 44pt.
+ * 운동 영상(자체 영상) — VP01 기본 플레이어. 관리자 · 일반 사용자, 상세 · 운동 진행 · 암케어 · 워밍업 모두 같다.
+ * 현재 영상 반복(토글 가능, 처음 켜짐) · 자체 영상 음소거 · 영상 한 번 탭으로 멈춤/재생 · 검은 틀 하단의 분리 조작부(44pt). 화면 이탈 · 앱이 뒤로 · 화면 밖 ·
+ * 다른 영상 재생 · 해제 때 멈추고, 돌아와도 저절로 틀지 않는다. 크게 보기는 앱 안 모달 — 같은 player, VideoView 는 한 번에 하나.
+ * height 는 영상 무대 높이(조작부 제외). 없으면 원래 비율.
  */
 function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRatio: number | null; height?: number; retry: ReactNode }) {
+  const window = useWindowDimensions();
+  const [width, setWidth] = useState(window.width - 32);
+  const stageHeight = nativeVideoStageHeight(width, window.height, aspectRatio ?? 9 / 16, height);
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;
     p.loop = true;
-    p.play();
+    p.timeUpdateEventInterval = 0.25;
   });
+  const intent = useRef(new PlaybackIntent());
+  const tracker = useRef(new CommandTracker());
+  const ticket = useRef<PlayTicket | null>(null);
+  const scrub = useRef<ScrubSession | null>(null);
+  const [scrubbing, setScrubbingState] = useState(false);
+  const preview = useRef(new LiveSeek());
+  const [loop, setLoopState] = useState(true);
+  const stage = useRef<ComponentRef<typeof View>>(null);
+  const [id] = useState(() => nextVideoId('clip'));
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
   const { status } = useEvent(player, 'statusChange', { status: player.status });
-  const [slow, setSlow] = useState(false);
+  const { playbackRate } = useEvent(player, 'playbackRateChange', { playbackRate: player.playbackRate });
+  const [time, setTime] = useState(0);
+  const [duration, setDuration] = useState<number | null>(null);
   const [full, setFull] = useState(false);
-  const detail = height != null;
-  /* 상세만 — 화면을 떠나면(뒤로 · 다른 운동) · 앱이 뒤로 가면 멈춘다. 돌아와도 저절로 다시 틀지 않는다 */
-  useFocusEffect(
-    useCallback(() => {
-      if (!detail) return;
-      return () => player.pause();
-    }, [detail, player])
-  );
+  /*
+   * 재생/멈춤 단추의 모양과 동작은 '사용자 의도'를 따른다 — 불러오는 중 · 버퍼링 중에도 의도가 재생이면 멈춤 단추.
+   * 누른 뒤 마운트(첫 활성화)라 처음 의도는 재생(VP01 검토: 로딩 중 '재생'을 누르면 멈춰 두 번 눌러야 하던 것).
+   */
+  const [want, setWant] = useState(true);
+  const syncWant = () => setWant(intent.current.desired);
+  const pauseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 한 번이라도 실제로 재생됐나 — 그 뒤의 '준비됨'(버퍼링 끝)은 시작 신호가 아니다. */
+  const started = useRef(false);
+
+  /** 지금 재생기 상태로 바깥 멈춤을 확정(의도 맞춤). 맞췄으면 true. */
+  const settleNow = () => {
+    let st: { playing: boolean; ready: boolean };
+    try {
+      st = { playing: player.playing, ready: player.status === 'readyToPlay' };
+    } catch {
+      return false; // 이미 해제됨
+    }
+    if (!settleExternalPause(intent.current, { ...st, scrubbing: !!scrub.current })) return false;
+    ticket.current = null;
+    syncWant();
+    return true;
+  };
+  /** 확정 기다림 중이면 지금 확정한다 — 사용자가 새로 누르기 전에 화면 값과 의도를 맞춰 첫 누름이 삼켜지지 않게. */
+  const flushPendingPause = () => {
+    if (!pauseTimer.current) return;
+    clearTimeout(pauseTimer.current);
+    pauseTimer.current = null;
+    settleNow();
+  };
+  const scheduleSettle = () => {
+    if (pauseTimer.current) clearTimeout(pauseTimer.current);
+    const gen = intent.current.interrupt;
+    pauseTimer.current = setTimeout(() => {
+      pauseTimer.current = null;
+      if (intent.current.interrupt !== gen) return; // 그새 사용자가 새로 정했다
+      settleNow();
+    }, EXTERNAL_PAUSE_SETTLE_MS);
+  };
+
+  const pausePlayer = () => {
+    let active = false;
+    try {
+      active = player.playing;
+    } catch {
+      /* 이미 해제됨 */
+    }
+    tracker.current.sentPause(active);
+    safePause(player);
+  };
+  /** 멈춤. 끄는 중이어도 끌기 세션은 남긴다 — 놓을 때 이동은 하고 재개만 막는다(endScrub). */
+  const interrupt = (reason: InterruptReason) => {
+    if (pauseTimer.current) {
+      clearTimeout(pauseTimer.current);
+      pauseTimer.current = null;
+    }
+    preview.current.cancel();
+    setScrubbingState(false);
+    setScrubbing(player, false);
+    intent.current.pause(reason);
+    ticket.current = null;
+    syncWant();
+    pausePlayer();
+  };
+  const tryPlay = () => {
+    if (!intent.current.allows(ticket.current)) return;
+    activeExerciseVideo.activate(id, () => interrupt('other-player'));
+    tracker.current.sentPlay();
+    safePlay(player);
+  };
+  const toggle = () => {
+    if (status === 'error') return;
+    flushPendingPause();
+    if (intent.current.desired) interrupt('user');
+    else {
+      ticket.current = intent.current.requestPlay();
+      syncWant();
+      tryPlay();
+    }
+  };
+
+  /* 새 player = 새 소스. 누른 뒤 마운트(첫 활성화)라 재생을 한 번 요청한다 */
   useEffect(() => {
-    if (!detail) return;
-    const sub = AppState.addEventListener('change', (st) => {
-      if (st !== 'active') player.pause();
-    });
-    return () => sub.remove();
-  }, [detail, player]);
-  const toggle = () => togglePlay(player);
-  const grow = () => setFull(true);
-  const video = (
-    <View style={[s.video, detail ? { height } : { aspectRatio: aspectRatio ?? 9 / 16 }]}>
-      {/* 같은 재생기를 두 VideoView에 동시에 붙이지 않는다(Android). 전체화면에서도 위치·배속은 같은 player에 남는다. */}
-      {!full && (status === 'error' ? (
-        <View style={[StyleSheet.absoluteFill, s.centerBox, { gap: 8 }]}>
-          <Text style={[s.small, { color: 'rgba(255,255,255,0.8)' }]}>영상을 재생하지 못했어요.</Text>
-          {retry}
-        </View>
-      ) : <>
-        <VideoView player={player} style={StyleSheet.absoluteFill} nativeControls={false} fullscreenOptions={{ enable: false }} contentFit="contain" />
-        <Pressable onPress={toggle} accessibilityRole="button" accessibilityLabel={isPlaying ? '영상 멈춤' : '영상 재생'} style={StyleSheet.absoluteFill} />
-      </>)}
-      {detail || full || status === 'error' ? null : (
-        <View style={s.clipTools}>
-          <Press onPress={toggle} hitSlop={6} accessibilityRole="button" accessibilityLabel={isPlaying ? '멈춤' : '재생'} style={s.clipTool}>
-            <SymbolView name={isPlaying ? 'pause.fill' : 'play.fill'} size={13} tintColor="#fff" />
-          </Press>
-          <Press onPress={grow} hitSlop={6} accessibilityRole="button" accessibilityLabel="크게 보기" style={s.clipTool}>
-            <SymbolView name="arrow.up.left.and.arrow.down.right" size={13} tintColor="#fff" />
-          </Press>
-        </View>
-      )}
-    </View>
-  );
+    const it = intent.current;
+    const previews = preview.current;
+    const timer = pauseTimer;
+    it.setSource();
+    ticket.current = it.requestPlay();
+    tryPlay();
+    return () => {
+      previews.cancel();
+      setScrubbing(player, false);
+      it.pause('unmount');
+      activeExerciseVideo.release(id);
+      if (timer.current) clearTimeout(timer.current);
+      safePause(player);
+    };
+    // tryPlay 는 ref 만 쓴다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player, id]);
+
+  useEventListener(player, 'playingChange', ({ isPlaying: on }) => {
+    if (on) {
+      const r = onProviderPlaying(intent.current, tracker.current, { acceptExternal: false });
+      if (r.verdict === 'stop') pausePlayer();
+      else {
+        started.current = true;
+        activeExerciseVideo.activate(id, () => interrupt('other-player'));
+      }
+      return;
+    }
+    /*
+     * 우리가 시키지 않은 멈춤(오디오 끊김 · 시스템)이면 의도도 멈춤으로 맞춘다 — 다음 한 번 누름이 재생이 되게.
+     * 버퍼링(status 'loading')은 멈춤이 아니다. iOS 는 반복 끝에서 잠깐 멈췄다 처음부터 다시 틀어(expo-video onPlayedToEnd)
+     * 곧바로 확정하지 않고 잠시 뒤에도 멈춰 있을 때만 맞춘다.
+     */
+    if (tracker.current.onPaused() === 'ours' || scrub.current || player.status !== 'readyToPlay') return;
+    scheduleSettle();
+  });
+  useEventListener(player, 'statusChange', ({ status: st }) => {
+    if (st !== 'readyToPlay') return;
+    setDuration(validDuration(player.duration));
+    if (!started.current) {
+      tryPlay(); // 처음 준비 = 첫 활성화 재생
+      return;
+    }
+    /*
+     * 이미 재생된 뒤의 '준비됨'은 버퍼링이 끝났다는 뜻 — 다시 틀지 않는다. 버퍼링 중에 시스템이 멈췄으면(그때는 재생 알림이
+     * 오지 않는다) 여기서 멈춰 있는 것을 보고 의도를 맞춘다(그대로 두면 단추가 '멈춤'인 채 멈춰 있었다).
+     */
+    if (intent.current.desired && !player.playing && !scrub.current) scheduleSettle();
+  });
+  useEventListener(player, 'playToEnd', () => {
+    if (!player.loop) interrupt('user');
+  });
+  useEventListener(player, 'sourceLoad', ({ duration: d }) => setDuration(validDuration(d)));
+  useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    if (!scrub.current) setTime(currentTime);
+  });
+
+  useExerciseVideoLifecycle((reason) => interrupt(reason));
+  useOffscreenPause(stage, (isPlaying || want || scrubbing) && !full, () => interrupt('offscreen'));
+
+  const range = seekRange(duration);
+  const seekTo = (t: number) => {
+    if (!range) return;
+    const to = clampTime(t, range);
+    safeSeek(player, to);
+    setTime(to);
+  };
+  const onScrubStart = () => {
+    flushPendingPause();
+    scrub.current = beginScrub(intent.current, player.currentTime, scrub.current);
+    setScrubbingState(true);
+    setScrubbing(player, true);
+    syncWant();
+    pausePlayer();
+  };
+  const onScrubDraft = (t: number) => {
+    const ss = scrub.current;
+    if (!ss || ss.ticket.interrupt !== intent.current.interrupt) return;
+    ss.draft = t;
+    preview.current.request(() => seekTo(t));
+  };
+  const onScrubEnd = (commit: boolean, t: number) => {
+    preview.current.cancel();
+    setScrubbingState(false);
+    setScrubbing(player, false);
+    const ss = scrub.current;
+    scrub.current = null;
+    if (!ss) return;
+    if (commit) ss.draft = t;
+    const r = endScrub(intent.current, ss, commit, range);
+    if (r.seekTo != null) seekTo(r.seekTo);
+    if (r.resume && AppState.currentState !== 'active') {
+      // 끄는 사이 앱이 뒤로 갔으면 재개하지 않는다(돌아와도 저절로 틀지 않는다).
+      intent.current.pause('background');
+    } else if (r.resume) {
+      ticket.current = intent.current.ticket();
+      tryPlay();
+    }
+    syncWant();
+  };
+  const ctl = {
+    playing: want,
+    ready: status === 'readyToPlay' && duration != null,
+    duration,
+    time,
+    onToggle: toggle,
+    onScrubStart,
+    onScrubDraft,
+    onScrubEnd,
+    onStep: (dir: 1 | -1) => seekTo(stepTime(player.currentTime, dir, range)),
+    loop,
+    onLoop: () => { const next = !player.loop; setLoopState(next); setLoop(player, next); },
+    rates: [0.5, 1],
+    rate: playbackRate,
+    onRate: (r: number) => {
+      flushPendingPause();
+      setRate(player, r);
+      // iOS expo-video 는 배속을 바꾸면 AVPlayer.rate 를 바로 써서 멈춘 영상이 움직인다 — 멈춤 의도면 곧바로 다시 멈춘다.
+      if (!intent.current.desired) pausePlayer();
+    },
+    expanded: full,
+    onExpand: () => setFull((f) => !f),
+    status: status === 'error' ? '오류' : status === 'loading' || (want && !isPlaying) ? '불러오는 중' : null,
+  };
   return (
     <>
-      <View style={{ gap: 4 }}>
-        {video}
-        {detail && !full && status !== 'error' ? <View style={s.detailTools}>
-          <ClipTool label={isPlaying ? '멈춤' : '재생'} icon={isPlaying ? 'pause.fill' : 'play.fill'} onPress={toggle} />
-          <ClipTool label="처음부터" icon="backward.end.fill" onPress={() => restart(player)} />
-          <ClipTool label={slow ? '0.5배' : '1배'} icon="tortoise.fill" onPress={() => setSlow(setRate(player, !slow))} on={slow} />
-          <ClipTool label="크게 보기" icon="arrow.up.left.and.arrow.down.right" onPress={grow} />
-        </View> : null}
+      <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ backgroundColor: '#000', borderRadius: 16, overflow: 'hidden' }}>
+        <View ref={stage} style={{ height: stageHeight, width: '100%' }}>
+          {/* 같은 재생기를 두 VideoView에 동시에 붙이지 않는다(Android). 크게 보기 동안 이 자리는 비운다. */}
+          {!full && (status === 'error' ? (
+            <View style={[StyleSheet.absoluteFill, s.centerBox, { gap: 8 }]}>
+              <Text style={[s.small, { color: 'rgba(255,255,255,0.8)' }]}>영상을 재생하지 못했어요.</Text>
+              {retry}
+            </View>
+          ) : <>
+            <VideoView player={player} style={StyleSheet.absoluteFill} nativeControls={false} fullscreenOptions={{ enable: false }} contentFit="contain" pointerEvents="none" />
+            <Pressable onPress={toggle} accessibilityRole="button" accessibilityLabel={want ? '영상 멈춤' : '영상 재생'} style={StyleSheet.absoluteFill} />
+            {status === 'loading' ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, s.centerBox]}><ActivityIndicator color="#fff" /></View> : null}
+          </>)}
+        </View>
+        {full ? null : <ExerciseVideoControls c={PALETTES.navy} {...ctl} />}
       </View>
-      {full ? <ExerciseVideoFullscreen player={player} onClose={() => setFull(false)} retry={retry} /> : null}
+      {full ? (
+        <ExerciseVideoFullscreen
+          player={player}
+          onClose={() => setFull(false)}
+          onStageTap={toggle}
+          status={status}
+          isPlaying={want}
+          retry={retry}
+          controls={<ExerciseVideoControls c={PALETTES.navy} {...ctl} />}
+        />
+      ) : null}
     </>
   );
 }
 
-/** 상세 영상 밑 조작 하나 — 44pt, 고른 것(0.5배)은 파랑 */
-function ClipTool({ label, icon, onPress, on = false }: { label: string; icon: SFSymbol; onPress: () => void; on?: boolean }) {
-  return (
-    <Press onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: on }} style={s.detailTool}>
-      <SymbolView name={icon} size={15} tintColor={on ? '#0a84d6' : '#8e8e93'} />
-      <Text style={[s.smallBold, { color: on ? '#0a84d6' : '#8e8e93' }]}>{label}</Text>
-    </Press>
-  );
+const validDuration = (d: number) => (Number.isFinite(d) && d > 0 ? d : null);
+/** 바깥 멈춤으로 확정하기 전 기다림 — iOS 반복 끝의 잠깐 멈춤(곧 다시 재생)을 사용자 멈춤으로 오해하지 않게. */
+const EXTERNAL_PAUSE_SETTLE_MS = 800;
+
+/* 재생기 값은 훅 밖 함수에서 바꾼다(컴포넌트 안에서 훅 값을 바꾸면 린트가 막는다 — pitch/video.tsx 와 같다). 정리 중 오류는 삼킨다 */
+function safePlay(p: VideoPlayer) {
+  try {
+    p.play();
+  } catch {
+    /* 이미 해제됨 */
+  }
+}
+function safePause(p: VideoPlayer) {
+  try {
+    p.pause();
+  } catch {
+    /* 이미 해제됨 */
+  }
+}
+function safeSeek(p: VideoPlayer, t: number) {
+  try {
+    p.currentTime = t;
+  } catch {
+    /* 이미 해제됨 */
+  }
+}
+function setRate(p: VideoPlayer, r: number) {
+  try {
+    p.playbackRate = r;
+  } catch {
+    /* 이미 해제됨 */
+  }
 }
 
-/* 재생기 값은 훅 밖 함수에서 바꾼다(컴포넌트 안에서 훅 값을 바꾸면 린트가 막는다 — pitch/video.tsx 와 같다) */
-function togglePlay(p: VideoPlayer) {
-  if (p.playing) p.pause();
-  else p.play();
-}
-function restart(p: VideoPlayer) {
-  p.currentTime = 0;
-  p.play();
-}
-/** 0.5배 ↔ 1배 — 크게 보기에서도 같은 재생기라 배속 · 자리가 그대로다 */
-function setRate(p: VideoPlayer, slow: boolean) {
-  p.playbackRate = slow ? 0.5 : 1;
-  return slow;
-}
 
 const s = StyleSheet.create({
-  clipTools: { position: 'absolute', right: 8, bottom: 8, flexDirection: 'row', gap: 6 },
-  clipTool: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   clipRetry: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center' },
-  detailTools: { flexDirection: 'row', justifyContent: 'space-between' },
-  detailTool: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   rest: { alignSelf: 'center', minHeight: 40, borderRadius: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
   restClock: { fontSize: 18, fontWeight: '600', fontVariant: ['tabular-nums'] },
   small: { fontSize: 13 },
@@ -563,3 +762,8 @@ const s = StyleSheet.create({
   video: { width: '100%', maxHeight: 420, borderRadius: 16, backgroundColor: '#000', overflow: 'hidden' },
   centerBox: { alignItems: 'center', justifyContent: 'center', padding: 16 },
 });
+
+function setLoop(p: VideoPlayer, value: boolean) { try { p.loop = value; } catch { /* released */ } }
+function setScrubbing(p: VideoPlayer, value: boolean) {
+  try { p.scrubbingModeOptions = { scrubbingModeEnabled: value }; } catch { /* released */ }
+}

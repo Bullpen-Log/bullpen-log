@@ -15,16 +15,33 @@ export function referenceThumbUrl(videoId: string): string {
 }
 
 /**
- * 화면 안에서 재생할 때 쓰는 주소.
+ * 화면 안에서 재생할 때 쓰는 주소(공식 삽입 재생기, API 없이 쓰는 옛 길).
  *
- * 유튜브가 다른 사이트에서 틀 수 있게 공식으로 제공하는 재생기다.
- * 관련 영상이 끝나고 뜨지 않도록 rel=0 을 붙인다.
- *
- * playsinline=1 — 아이폰은 이것이 없으면 누르자마자 전체 화면으로 튄다. 앱은 세로로 고정이라 전체 화면에서
- * 돌려 볼 수도 없어 가로 영상이 작게만 보였다. 제자리에서 틀고, 크게 보려면 재생기의 전체 화면 단추를 쓴다.
+ * rel=0 — 관련 영상을 없애지 않는다. 공식 설명대로 끝난 뒤 보여 주는 관련 영상을 '같은 채널'의 것으로 좁힐 뿐이다.
+ * playsinline=1 — 아이폰은 이것이 없으면 누르자마자 전체 화면으로 튄다. 제자리에서 틀고, 크게 보려면 재생기의 전체 화면 단추를 쓴다.
  */
 export function referenceEmbedUrl(videoId: string): string {
   return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&playsinline=1`;
+}
+
+/**
+ * 공식 IFrame Player API 로 띄울 때의 playerVars(VP01).
+ *
+ * 한 영상 반복은 공식 규칙대로 loop=1 + 같은 영상 번호의 playlist. enablejsapi · origin 은 실제로 삽입하는 문서의 출처와
+ * 같아야 한다(웹은 location.origin, 앱은 WebView 의 baseUrl 출처). 공식 조작부(controls)와 표시는 그대로 둔다.
+ *
+ * autoplay 는 넣지 않는다 — 재생기가 준비된 뒤 우리 쪽이 사용자 의도를 확인하고 playVideo 로 시작한다.
+ * autoplay 를 두면 준비 전에 사용자가 화면을 떠나거나 멈춰도 재생기가 스스로 시작해 소리가 잠깐 샜다(VP01 검토).
+ */
+export function referencePlayerVars(videoId: string, origin: string): Record<string, string | number> {
+  return {
+    playsinline: 1,
+    rel: 0,
+    loop: 1,
+    playlist: videoId,
+    enablejsapi: 1,
+    origin,
+  };
 }
 
 /** 유튜브에서 바로 열 때 쓰는 주소. 삽입이 막힌 영상의 대비책이다. */
