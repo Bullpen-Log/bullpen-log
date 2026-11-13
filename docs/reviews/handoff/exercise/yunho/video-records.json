@@ -143,6 +143,16 @@
           "before_description": "■ 어떤 운동인가\r\n허리·골반 부위에 건 밴드의 저항을 받으며 하체와 몸통을 빠르게 회전하는 운동입니다.\r\n\r\n■ 이렇게 하세요\r\n· 밴드를 적합한 고정점에 연결하고 허리·골반 부위에 겁니다. 고정 상태와 밴드 손상을 확인하세요.\r\n· 밴드의 당김 방향에 맞춰 옆으로 서서 두 발을 벌리고, 밴드가 빠지거나 말려 올라가지 않게 둡니다.\r\n· 발로 바닥을 밀며 골반과 몸통을 연결해 빠르게 돌립니다.\r\n· 발과 골반이 자연스럽게 함께 돌도록 하고, 끝에서 균형을 잡습니다.\r\n· 밴드의 당김에 끌려가지 않도록 조절하며 처음 자세로 돌아옵니다. 빠른 회전과 복귀를 제어할 수 있는 저항을 고르세요.\r\n· 통증이 있거나 밴드가 미끄러지고 고정점이 흔들리면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n골반에 걸리는 저항에 맞서 하체와 몸통을 연결해 회전하는 연습입니다. 지면을 미는 동작과 골반·몸통 회전의 연결에 집중합니다.",
           "after_description": "■ 어떤 운동인가\r\n허리·골반 부위에 건 밴드의 저항을 받으며 하체와 몸통을 빠르게 회전하는 운동입니다.\r\n\r\n■ 이렇게 하세요\r\n1. 밴드 한쪽을 튼튼한 곳에 고정하고, 다른 쪽을 허리와 골반에 겁니다. 밴드가 손상되지 않았는지, 빠지지 않게 걸렸는지 확인합니다.\n2. 고정한 곳이 몸의 옆에 오도록 서서 두 발을 벌립니다.\n3. 발로 바닥을 밀며 발과 골반, 몸을 함께 빠르게 돌립니다. 몸이 돌아가는 동안 균형을 유지합니다.\n4. 밴드에 몸이 갑자기 끌려가지 않도록 천천히 처음 자세로 돌아옵니다.\n5. 빠르게 돌고 천천히 돌아올 수 있는 밴드를 사용합니다. 통증이 생기거나 밴드가 미끄러지고 고정한 곳이 흔들리면 중단합니다.\n\n\r\n■ 투수에게 왜 필요한가\r\n골반에 걸리는 저항에 맞서 하체와 몸통을 연결해 회전하는 연습입니다. 지면을 미는 동작과 골반·몸통 회전의 연결에 집중합니다.",
           "at_utc": "2026-11-13T07:05:39.294067+00:00"
+        },
+        {
+          "status": "Saved and read back production description before human review. Simplified setup, band attachment and returning; replaced jargon about resistance with pull; maintained no hand-pulling contrast; focused purpose on rapid rotation and balance.",
+          "research_sources": [
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC4234942/",
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC9720809/"
+          ],
+          "research_limit": "Observational studies of pitching, not trials of this band exercise; do not infer direct effect on velocity or optimal sets/reps/rest.",
+          "filming": "Reference footage; filming required.",
+          "at_utc": "2026-11-13T07:16:56.552339+00:00"
         }
       ]
     },
