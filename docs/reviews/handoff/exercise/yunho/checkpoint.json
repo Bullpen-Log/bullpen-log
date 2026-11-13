@@ -13,13 +13,13 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-007",
-  "current_title": "스탠딩 케이블 익스플로시브 로테이션",
+  "current_review_id": "EX-Y-P-002",
+  "current_title": "밴드 스피드 로테이션",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "verbatim": "제목도 바꿔. 바꾸라고 말하는 건 바로바로 수정해.",
-    "meaning": "Applied title edit immediately; user confirmation and next direction pending."
+    "verbatim": "다음 영상으로 넘어가자. 어떤 부분을 수정했는지도 전부 알려줘.",
+    "meaning": "Explicit next after Cable; opened next displayed Band rotation. Band user re-verification pending."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -596,18 +596,20 @@
   "reverification": {
     "start": 1,
     "target_inclusive": 22,
-    "completed_count": 0,
-    "current": 7,
+    "completed_count": 1,
+    "current": 2,
     "pending_unmodified": 22,
     "order": "User corrected first item to 케이블 스피드 로테이션; follow displayed library order as user confirms. Historical review_id/ordinal retained for identity, not current position.",
-    "user_sequence_first": "EX-Y-P-007"
+    "user_sequence_first": "EX-Y-P-007",
+    "approved_items": [
+      "EX-Y-P-007"
+    ]
   },
   "playback_observation": {
-    "item": "EX-Y-P-007",
-    "route": "production library detail, selected from library",
+    "item": "EX-Y-P-002",
     "source": "REFERENCE",
-    "loop_setting": "shared player loop ON",
-    "actual_playback": "elapsed 6 seconds; player shows pause control",
-    "updated_at_utc": "2026-11-13T06:21:25.511498+00:00"
+    "loop_setting": "shared player ON",
+    "actual_playback": "YouTube title Band Explosive Hip Rotation; playback and loop control visible",
+    "updated_at_utc": "2026-11-13T06:24:08.471990+00:00"
   }
 }
