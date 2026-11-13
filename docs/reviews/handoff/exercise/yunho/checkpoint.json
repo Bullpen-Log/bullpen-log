@@ -13,12 +13,12 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-006",
-  "current_title": "랜드마인 펀치",
+  "current_review_id": "EX-Y-P-005",
+  "current_title": "바벨 스피드 벤치 프레스",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User requests checking repeat switch only, not waiting for a complete cycle. Current Landmine Punch retained; no next approval."
+    "meaning": "User directs evidence review and corrections before requesting review; current landmine improved then Speed Bench opened."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -357,6 +357,7 @@
   },
   "remaining_categories_order": "코어·암케어·회복보강의 개별 전체 순서는 아직 복원되지 않음. 현 라이브러리에서 읽고 기록하되 검수 완료로 간주하지 않음.",
   "rules": [
+    "Before user review, research biomechanics/evidence and apply necessary corrections within authorized scope; explain changes and evidence limits.",
     "Review placement and redundancy: concrete execution and safety cues in how-to; purpose and reasons in why. Apply suitable corrections and show them.",
     "Use direct evidence to state supported facts and effects with appropriate confidence and scope; when evidence is indirect or insufficient, describe the training purpose and potential contribution without claiming established performance benefit. Report errors or evidence gaps in user directions.",
     "Check user-requested changes against biomechanics and research; report scientific errors or weak evidence, distinguish related exercise evidence from direct pitching transfer. Add paragraph breaks as appropriate.",
@@ -599,8 +600,8 @@
   "reverification": {
     "start": 1,
     "target_inclusive": 22,
-    "completed_count": 5,
-    "current": 6,
+    "completed_count": 6,
+    "current": 5,
     "pending_unmodified": 22,
     "order": "User corrected first item to 케이블 스피드 로테이션; follow displayed library order as user confirms. Historical review_id/ordinal retained for identity, not current position.",
     "user_sequence_first": "EX-Y-P-007",
@@ -609,14 +610,15 @@
       "EX-Y-P-002",
       "EX-Y-P-003",
       "EX-Y-P-004",
-      "EX-Y-P-001"
+      "EX-Y-P-001",
+      "EX-Y-P-006"
     ]
   },
   "playback_observation": {
-    "item": "EX-Y-P-006",
+    "item": "EX-Y-P-005",
     "source": "REFERENCE",
     "loop_setting": "ON",
-    "actual_playback": "Landmine Punch",
-    "updated_at_utc": "2026-11-13T06:42:25.388387+00:00"
+    "actual_playback": "Barbell Speed Bench Press",
+    "updated_at_utc": "2026-11-13T06:49:40.831965+00:00"
   }
 }

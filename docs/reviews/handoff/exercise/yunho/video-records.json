@@ -370,7 +370,18 @@
         ],
         "limits": "General healthy-adult guidance and trained-athlete load-power testing. 40–60% and 2–3-minute rest are adjustable starting examples adopted from prior directions, not universal optimum or exact 6x3 protocol proof. Rest papers retained in historical evidence; not all were retrievable in current browsing."
       },
-      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required.",
+      "later_user_edits": [
+        {
+          "status": "Moved load selection to how-to and reframed purpose, saved and verified; 40-60 percent and 2-3 minute examples remain adjustable, default rest 180 seconds.",
+          "sources": [
+            "https://acsm.org/resistance-training-guidelines-update-2026/",
+            "https://pubmed.ncbi.nlm.nih.gov/27097306/"
+          ],
+          "limit": "Bench throw study 40 percent, not identical free-bar exercise or this 6x3 protocol; no universal optimum.",
+          "at_utc": "2026-11-13T06:49:40.831965+00:00"
+        }
+      ]
     },
     "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
@@ -440,6 +451,15 @@
           "source": "https://pubmed.ncbi.nlm.nih.gov/38834184/",
           "limit": "14 boxers, landmine throw measurement, not this precise press or pitching outcomes.",
           "at_utc": "2026-11-13T06:42:25.388468+00:00"
+        },
+        {
+          "status": "User requested evidence-based improvements before next: added pitching kinetic-chain context and framed landmine as quick unilateral press training; saved and verified.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/35465789/",
+            "https://pubmed.ncbi.nlm.nih.gov/38834184/"
+          ],
+          "limit": "Landmine study used 14 boxers performing throws; no direct proof of pitching transfer.",
+          "at_utc": "2026-11-13T06:49:40.831965+00:00"
         }
       ]
     },
