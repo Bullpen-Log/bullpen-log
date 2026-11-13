@@ -1,19 +1,19 @@
 import { SymbolView } from 'expo-symbols';
-import { useRef, useState, type ComponentRef } from 'react';
-import { StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
-import { finiteTime, seekRange, timeText } from '@/lib/exercise-video-state';
-import { CONTROL, TYPE, withAlpha, type Palette } from '~/lib/ui';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { GestureDetector, GestureHandlerRootView, usePanGesture } from 'react-native-gesture-handler';
+import { ScrubGestureSession, clampTime, finiteTime, seekRange, timeText } from '@/lib/exercise-video-state';
+import { type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
 
-/**
- * 운동영상 조작부(앱, VP01) — 검은 플레이어 틀의 하단, 영상 무대와 분리된 형제 칸. 영상 위에 겹치지 않는다. 인라인과 크게 보기가 같은 부품을 쓴다.
- *
- * 재생/정지 · 탐색 막대 · 반복 토글 · 배속 · 크게 보기. 시간은 아래에 두며 좁으면 버튼이 줄바꿈된다. 자체 영상에는 처음으로·소리가 없다.
- * 누르는 자리 44pt. 막대는 responder 를 잡고 놓지 않아(onResponderTerminationRequest false) 영상 탭으로 번지지 않는다.
+/** Thin visible band, full 44pt hit regions. Owned controls sit inside the picture;
+ * YouTube opts out of overlay. Native pan owns the touch from down, never a JS responder race.
  */
 export type NativeControlsProps = {
   c: Palette;
+  overlay?: boolean;
+  forceWide?: boolean;
   playing: boolean;
   ready: boolean;
   duration: number | null;
@@ -21,7 +21,7 @@ export type NativeControlsProps = {
   onToggle: () => void;
   onScrubStart: () => void;
   onScrubDraft: (t: number) => void;
-  onScrubEnd: (commit: boolean, t: number) => void;
+  onScrubEnd: (commit: boolean, t: number, interrupted?: boolean) => void;
   onStep: (dir: 1 | -1) => void;
   onRestart?: () => void;
   loop: boolean;
@@ -36,149 +36,119 @@ export type NativeControlsProps = {
   status?: string | null;
 };
 
+
 export function ExerciseVideoControls(p: NativeControlsProps) {
   const range = seekRange(p.duration);
   const enabled = p.ready && range != null;
   const [draft, setDraft] = useState<number | null>(null);
   const [width, setWidth] = useState(0);
-  const track = useRef<ComponentRef<typeof View>>(null);
-  const left = useRef(0);
-  const dragging = useRef(false);
-  const last = useRef(0);
-
+  const [barWidth, setBarWidth] = useState(0);
+  const [menu, setMenu] = useState(false);
+  const touch = useRef(new ScrubGestureSession());
+  const callbacks = useRef(p);
+  const actionAfterMenu = useRef<(() => void) | null>(null);
+  useLayoutEffect(() => { callbacks.current = p; });
+  useEffect(() => {
+    const session = touch.current;
+    const handlers = callbacks;
+    const action = actionAfterMenu;
+    return () => {
+      action.current = null;
+      const ended = session.finish(false);
+      if (ended) handlers.current.onScrubEnd(false, ended.time, true);
+    };
+  }, []);
+  const pos = (x: number) => clampTime(range ? range.min + Math.min(1, Math.max(0, x / Math.max(1, width))) * (range.max - range.min) : 0, range);
+  const finish = (commit: boolean, x?: number) => {
+    if (commit && x != null) touch.current.move(pos(x));
+    const end = touch.current.finish(commit);
+    if (!end) return;
+    setDraft(null);
+    p.onScrubEnd(end.commit, end.time);
+  };
+  const pan = usePanGesture({
+    enabled: enabled || draft != null,
+    minDistance: 0,
+    maxPointers: 1,
+    shouldCancelWhenOutside: false,
+    runOnJS: true,
+    onTouchesDown: (e) => { if (e.numberOfTouches > 1) finish(false); },
+    // A stationary tap may fail UIPan's activation threshold; actual touch-up still commits.
+    // Cancellation finalizes first and clears ownership, so its later up cannot commit.
+    onTouchesUp: (e) => { if (e.numberOfTouches <= 1) finish(true, e.changedTouches[0]?.x); },
+    onTouchesCancel: () => finish(false),
+    onBegin: (e) => {
+      if (!range || !touch.current.begin(pos(e.x))) return;
+      p.onScrubStart(); setDraft(touch.current.value); p.onScrubDraft(touch.current.value);
+    },
+    onUpdate: (e) => {
+      if (e.numberOfPointers !== 1) { finish(false); return; }
+      const t = pos(e.x);
+      if (touch.current.move(t)) { setDraft(t); p.onScrubDraft(t); }
+    },
+    onFinalize: (e) => finish(!e.canceled, e.x),
+  });
   const shown = draft ?? finiteTime(p.time);
   const frac = range ? Math.min(1, Math.max(0, (shown - range.min) / (range.max - range.min))) : 0;
-  const posOf = (e: GestureResponderEvent) => {
-    if (!range) return 0;
-    const f = Math.min(1, Math.max(0, (e.nativeEvent.pageX - left.current) / Math.max(1, width)));
-    return range.min + f * (range.max - range.min);
+  const ink = '#fff';
+  const buttons = 2 + Number(!!p.onRate && p.rates.length > 1) + Number(!!p.onExpand) + Number(!!p.onMute) + Number(!!p.onRestart);
+  const compact = !p.forceWide && barWidth < buttons * 44 + 64;
+  const tiny = !p.forceWide && barWidth < 152;
+  const closeMenu = (action?: () => void) => {
+    actionAfterMenu.current = action ?? null;
+    setMenu(false);
+    if (Platform.OS !== 'ios' && actionAfterMenu.current) { actionAfterMenu.current(); actionAfterMenu.current = null; }
   };
-  const ink = p.c.ink;
-  const muted = p.c.muted;
-
-  return (
-    <View style={[s.bar, { backgroundColor: '#000' }]}>
-      <View style={s.row}>
-        <Press
-          onPress={p.onToggle}
-          accessibilityRole="button"
-          accessibilityLabel={p.playing ? '영상 일시정지' : '영상 재생'}
-          style={s.btn}
-        >
-          <Icon name={p.playing ? 'pause' : 'play'} size={18} color={ink} fill={ink} />
-        </Press>
-        <View
-          ref={track}
-          accessible
-          accessibilityRole="adjustable"
-          accessibilityLabel="영상 재생 위치"
+  return <View pointerEvents="box-none" style={p.overlay === false ? s.external : s.overlay} onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}>
+    <View pointerEvents="none" style={s.contrast} />
+    <View style={s.row}>
+      {!tiny ? <Press onPress={p.onToggle} accessibilityRole="button" accessibilityLabel={p.playing ? '영상 일시정지' : '영상 재생'} style={s.btn}>
+        <Icon name={p.playing ? 'pause' : 'play'} size={14} color={ink} fill={ink} />
+      </Press> : null}
+      {!tiny ? <GestureDetector gesture={pan}>
+        <View collapsable={false} accessible accessibilityRole="adjustable" accessibilityLabel="영상 재생 위치" accessibilityHint={p.status ?? undefined}
           accessibilityState={{ disabled: !enabled }}
-          accessibilityValue={enabled ? { min: range!.min, max: range!.max, now: shown, text: `${timeText(shown)} / ${timeText(range!.max)}` } : { text: '길이 확인 중' }}
+          accessibilityValue={range ? { min: range.min, max: range.max, now: shown, text: `${timeText(shown)} / ${timeText(range.max)}` } : { text: '길이 확인 중' }}
           accessibilityActions={[{ name: 'increment', label: '5초 앞으로' }, { name: 'decrement', label: '5초 뒤로' }]}
-          onAccessibilityAction={(e) => {
-            if (enabled) p.onStep(e.nativeEvent.actionName === 'increment' ? 1 : -1);
-          }}
-          onLayout={(e) => {
-            if (dragging.current && e.nativeEvent.layout.width !== width) {
-              dragging.current = false;
-              setDraft(null);
-              p.onScrubEnd(false, 0);
-            }
-            setWidth(e.nativeEvent.layout.width);
-            track.current?.measureInWindow((x) => {
-              left.current = x;
-            });
-          }}
-          onStartShouldSetResponder={() => enabled}
-          onMoveShouldSetResponder={() => enabled}
-          onResponderTerminationRequest={() => false}
-          onResponderGrant={(e) => {
-            // locationX is relative to this responder; pointerEvents=none keeps descendants from stealing the origin.
-            left.current = e.nativeEvent.pageX - e.nativeEvent.locationX;
-            dragging.current = true;
-            p.onScrubStart();
-            last.current = posOf(e);
-            setDraft(last.current);
-            p.onScrubDraft(last.current);
-          }}
-          onResponderMove={(e) => {
-            if (!dragging.current) return;
-            last.current = posOf(e);
-            setDraft(last.current);
-            p.onScrubDraft(last.current);
-          }}
-          onResponderRelease={(e) => {
-            if (!dragging.current) return;
-            dragging.current = false;
-            last.current = posOf(e);
-            setDraft(null);
-            p.onScrubEnd(true, last.current);
-          }}
-          onResponderTerminate={() => {
-            if (!dragging.current) return;
-            dragging.current = false;
-            setDraft(null);
-            p.onScrubEnd(false, 0);
-          }}
-          style={[s.seek, !enabled && { opacity: 0.4 }]}
-        >
-          <View pointerEvents="none" style={[s.track, { backgroundColor: withAlpha(ink, 0.18) }]}>
-            <View style={[s.progress, { width: `${frac * 100}%`, backgroundColor: p.c.link }]} />
-          </View>
-          <View pointerEvents="none" style={[s.thumb, { left: Math.max(0, frac * (width - 12)), backgroundColor: p.c.link }]} />
+          onAccessibilityAction={(e) => { if (enabled) p.onStep(e.nativeEvent.actionName === 'increment' ? 1 : -1); }}
+          onLayout={(e) => { if (width !== e.nativeEvent.layout.width) finish(false); setWidth(e.nativeEvent.layout.width); }}
+          style={[s.seek, !enabled && s.off]}>
+          <View pointerEvents="none" style={s.track}><View style={[s.progress, { width: `${frac * 100}%`, backgroundColor: p.c.link }]} /></View>
+          <View pointerEvents="none" style={[s.thumb, { left: Math.max(0, frac * (width - 8)), backgroundColor: p.c.link }]} />
         </View>
-        <Press style={s.repeat} onPress={p.onLoop} accessibilityRole="button" accessibilityState={{ selected: p.loop }} accessibilityLabel={p.loop ? '반복 재생 끄기' : '반복 재생 켜기'}>
-          <SymbolView name="repeat" size={17} tintColor={p.loop ? p.c.link : muted} />
-        </Press>
-        {p.onRestart ? (
-          <Press onPress={p.onRestart} disabled={!p.ready} accessibilityRole="button" accessibilityLabel="처음부터" style={[s.btn, !p.ready && s.off]}>
-            <Icon name="rotate-ccw" size={16} color={ink} />
-          </Press>
-        ) : null}
-        {p.onRate && p.rates.length > 1 ? (
-          <Press
-            onPress={() => {
-              const i = p.rates.indexOf(p.rate);
-              p.onRate!(p.rates[(i + 1) % p.rates.length]);
-            }}
-            disabled={!p.ready}
-            accessibilityRole="button"
-            accessibilityLabel={`재생 속도 ${p.rate}배, 바꾸기`}
-            style={[s.btn, !p.ready && s.off]}
-          >
-            <Text style={[s.rate, { color: p.rate !== 1 ? p.c.link : ink }]}>{p.rate}×</Text>
-          </Press>
-        ) : null}
-        {p.onMute ? (
-          <Press onPress={p.onMute} disabled={!p.ready} accessibilityRole="button" accessibilityLabel={p.muted ? '소리 켜기' : '소리 끄기'} style={[s.btn, !p.ready && s.off]}>
-            <Icon name={p.muted ? 'volume-x' : 'volume-2'} size={16} color={ink} />
-          </Press>
-        ) : null}
-        {p.onExpand ? (
-          <Press onPress={p.onExpand} accessibilityRole="button" accessibilityLabel={p.expanded ? '크게 보기 닫기' : '크게 보기'} style={s.btn}>
-            <SymbolView name={p.expanded ? 'arrow.down.right.and.arrow.up.left' : 'arrow.up.left.and.arrow.down.right'} size={15} tintColor={ink} />
-          </Press>
-        ) : null}
-      </View>
-        <Text style={[s.time, { color: muted }]} maxFontSizeMultiplier={1.5} accessibilityElementsHidden importantForAccessibility="no">
-          {enabled ? `${timeText(shown)} / ${timeText(range!.max)}` : '--:--'}
-        </Text>
-      {p.status ? <Text accessibilityLiveRegion="polite" style={[s.small, { color: muted, padding: 4, flexShrink: 1 }]}>{p.status}</Text> : null}
+      </GestureDetector> : <View style={{ flex: 1 }} />}
+      {compact ? <Press onPress={() => setMenu(true)} accessibilityRole="button" accessibilityLabel="영상 조작 더 보기" style={s.btn}><SymbolView name="ellipsis" size={14} tintColor={ink} /></Press> : <>
+        <Press onPress={p.onLoop} accessibilityRole="button" accessibilityState={{ selected: p.loop }} accessibilityLabel={p.loop ? '반복 재생 끄기' : '반복 재생 켜기'} style={s.btn}><SymbolView name="repeat" size={14} tintColor={p.loop ? p.c.link : ink} /></Press>
+        {p.onRestart ? <Press onPress={p.onRestart} disabled={!p.ready} accessibilityRole="button" accessibilityLabel="처음부터" style={s.btn}><Icon name="rotate-ccw" size={13} color={ink} /></Press> : null}
+        {p.onRate && p.rates.length > 1 ? <Press disabled={!p.ready} onPress={() => p.onRate!(p.rates[(p.rates.indexOf(p.rate) + 1) % p.rates.length])} accessibilityRole="button" accessibilityLabel={`재생 속도 ${p.rate}배, 바꾸기`} style={s.btn}><Text maxFontSizeMultiplier={1.5} style={[s.rate, { color: p.rate === 1 ? ink : p.c.link }]}>{p.rate}×</Text></Press> : null}
+        {p.onMute ? <Press disabled={!p.ready} onPress={p.onMute} accessibilityRole="button" accessibilityLabel={p.muted ? '소리 켜기' : '소리 끄기'} style={s.btn}><Icon name={p.muted ? 'volume-x' : 'volume-2'} size={13} color={ink} /></Press> : null}
+        {p.onExpand ? <Press onPress={p.onExpand} accessibilityRole="button" accessibilityLabel={p.expanded ? '크게 보기 닫기' : '크게 보기'} style={s.btn}><SymbolView name={p.expanded ? 'arrow.down.right.and.arrow.up.left' : 'arrow.up.left.and.arrow.down.right'} size={13} tintColor={ink} /></Press> : null}
+      </>}
     </View>
-  );
+    <Modal transparent visible={menu} animationType="fade" onRequestClose={() => closeMenu()} onDismiss={() => { const action = actionAfterMenu.current; actionAfterMenu.current = null; action?.(); }}>
+      <GestureHandlerRootView style={s.menu}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => closeMenu()} accessibilityRole="button" accessibilityLabel="영상 조작 닫기" />
+        <View accessibilityViewIsModal style={s.panel}>
+          <ExerciseVideoControls {...p} overlay={false} forceWide onExpand={p.onExpand ? () => closeMenu(p.onExpand) : undefined} />
+          <Press onPress={() => closeMenu()} accessibilityRole="button" accessibilityLabel="영상 조작 닫기" style={s.done}><Text style={{ color: '#fff' }}>닫기</Text></Press>
+        </View>
+      </GestureHandlerRootView>
+    </Modal>
+  </View>;
 }
-
 const s = StyleSheet.create({
-  bar: { paddingHorizontal: 4, paddingVertical: 2, width: '100%' },
-  row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 2 },
-  btn: { minWidth: CONTROL.icon, minHeight: CONTROL.icon, alignItems: 'center', justifyContent: 'center' },
+  overlay: { position: 'absolute', left: 6, right: 6, bottom: 4, height: 44 },
+  external: { width: '100%', minHeight: 44 },
+  row: { flexDirection: 'row', alignItems: 'center', height: 44, paddingHorizontal: 2 },
+  contrast: { position: 'absolute', left: 2, right: 2, top: 10, bottom: 10, backgroundColor: 'rgba(0,0,0,0.28)', borderRadius: 12 },
+  btn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   off: { opacity: 0.4 },
-  seek: { flex: 1, minWidth: 64, height: 44, justifyContent: 'center' },
-  track: { height: 3, borderRadius: 2, overflow: 'hidden' },
-  progress: { height: '100%' },
-  thumb: { position: 'absolute', width: 12, height: 12, borderRadius: 6 },
-  time: { ...TYPE.sub, fontVariant: ['tabular-nums'], paddingHorizontal: 8, paddingBottom: 4, alignSelf: 'flex-start' },
-  repeat: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  small: { fontSize: 12 },
-  rate: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  seek: { flex: 1, minWidth: 44, height: 44, justifyContent: 'center', marginHorizontal: 4 },
+  track: { height: 2, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.4)' },
+  progress: { height: 2, borderRadius: 1 },
+  thumb: { position: 'absolute', width: 8, height: 8, borderRadius: 4 },
+  rate: { fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  menu: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.35)' },
+  panel: { width: '92%', maxWidth: 420, backgroundColor: '#101820', borderRadius: 16, padding: 8 },
+  done: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
 });

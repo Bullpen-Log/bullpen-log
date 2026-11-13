@@ -1,5 +1,6 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, type ComponentRef, type RefObject } from 'react';
+import { createVideoSwipeLease } from '@/lib/exercise-video-state';
 import { AppState, Dimensions, type View } from 'react-native';
 
 /**
@@ -64,4 +65,21 @@ export function useOffscreenPause(ref: RefObject<ComponentRef<typeof View> | nul
     }, OFFSCREEN_POLL_MS);
     return () => clearInterval(t);
   }, [playing, ref, minFraction]);
+}
+
+
+// iOS 26 native-stack full-screen pop cancels JS responders. Lease before any touch,
+// leaving edge pop / header back and existing gestureEnabled settings untouched.
+const swipeLeases = new WeakMap<object, ReturnType<typeof createVideoSwipeLease>>();
+export function useExerciseVideoNavigationGuard(enabled: boolean) {
+  const navigation = useNavigation();
+  useFocusEffect(useCallback(() => {
+    if (!enabled) return;
+    let lease = swipeLeases.get(navigation);
+    if (!lease) {
+      lease = createVideoSwipeLease((blocked) => navigation.setOptions({ fullScreenGestureEnabled: blocked ? false : undefined }));
+      swipeLeases.set(navigation, lease);
+    }
+    return lease.acquire();
+  }, [navigation, enabled]));
 }

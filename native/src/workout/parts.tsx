@@ -9,7 +9,7 @@ import { EXERCISE_NOTE_MAX, cleanExerciseNote } from '@/lib/exercise-meta';
 import { referenceWatchUrl } from '@/lib/reference-video';
 import { rpc } from '~/lib/rpc';
 import { PALETTES, type Palette } from '~/lib/ui';
-import { CommandTracker, LiveSeek, nativeVideoStageHeight, PlaybackIntent, beginScrub, clampTime, endScrub, onProviderPlaying, seekRange, settleExternalPause, stepTime, YT_ID, type InterruptReason, type PlayTicket, type ScrubSession } from '@/lib/exercise-video-state';
+import { CommandTracker, LiveSeek, nativeVideoStageHeight, videoPictureRect, videoTrackAspect, PlaybackIntent, beginScrub, clampTime, endScrub, onProviderPlaying, seekRange, settleExternalPause, stepTime, YT_ID, type InterruptReason, type PlayTicket, type ScrubSession } from '@/lib/exercise-video-state';
 import { call, loadMe } from '~/pitch/api';
 import { LocalVideo } from '../../modules/local-video';
 import { Press } from '~/shell/press';
@@ -19,7 +19,7 @@ import { useFavs } from '~/training/favorites';
 import { ExerciseVideoFullscreen } from './exercise-video-fullscreen';
 import { ExerciseVideoControls } from './exercise-video-controls';
 import { activeExerciseVideo, nextVideoId } from './exercise-video-active';
-import { useExerciseVideoLifecycle, useOffscreenPause } from './exercise-video-visibility';
+import { useExerciseVideoLifecycle, useExerciseVideoNavigationGuard, useOffscreenPause } from './exercise-video-visibility';
 import { YouTubeExerciseVideo } from './exercise-video-youtube';
 
 /** 운동 진행 화면(native/src/app/workout.tsx)의 작은 조각 — 웹 app/(session)/workout/run/session-client.tsx 의 같은 이름 부품을 옮겼다 */
@@ -344,6 +344,7 @@ export function ExerciseVideo({
   height?: number;
 }) {
   const admin = useIsAdmin();
+  useExerciseVideoNavigationGuard(Boolean(path || (referenceVideoId && YT_ID.test(referenceVideoId))));
   /* 소스 우선순위는 그대로 — 앱은 직접 찍은 영상(path)이 먼저(웹은 참고 영상이 먼저, VP01 에서 바꾸지 않음) */
   if (path) return <LibraryClip path={path} aspectRatio={aspectRatio} height={height} />;
   /* 유튜브 영상 번호만(11자) — 다른 글자가 섞인 번호는 그리지 않는다 */
@@ -430,19 +431,20 @@ function LibraryClip({ path, aspectRatio, height }: { path: string; aspectRatio:
 
 /*
  * 운동 영상(자체 영상) — VP01 기본 플레이어. 관리자 · 일반 사용자, 상세 · 운동 진행 · 암케어 · 워밍업 모두 같다.
- * 현재 영상 반복(토글 가능, 처음 켜짐) · 자체 영상 음소거 · 영상 한 번 탭으로 멈춤/재생 · 검은 틀 하단의 분리 조작부(44pt). 화면 이탈 · 앱이 뒤로 · 화면 밖 ·
+ * 현재 영상 반복(토글 가능, 처음 켜짐) · 자체 영상 음소거 · 영상 한 번 탭으로 멈춤/재생 · 영상 안쪽 하단의 얇은 조작부(누르는 자리는 44pt). 화면 이탈 · 앱이 뒤로 · 화면 밖 ·
  * 다른 영상 재생 · 해제 때 멈추고, 돌아와도 저절로 틀지 않는다. 크게 보기는 앱 안 모달 — 같은 player, VideoView 는 한 번에 하나.
- * height 는 영상 무대 높이(조작부 제외). 없으면 원래 비율.
+ * height 는 영상 높이 상한. 실제 영상 비율에 맞춘 영역 안에 조작부를 겹친다.
  */
 function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRatio: number | null; height?: number; retry: ReactNode }) {
   const window = useWindowDimensions();
   const [width, setWidth] = useState(window.width - 32);
-  const stageHeight = nativeVideoStageHeight(width, window.height, aspectRatio ?? 9 / 16, height);
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;
     p.loop = true;
     p.timeUpdateEventInterval = 0.25;
   });
+  const [mediaRatio, setMediaRatio] = useState(() => videoTrackAspect(player.videoTrack?.size.width, player.videoTrack?.size.height, aspectRatio));
+  const picture = videoPictureRect(width, Math.max(96, Math.min(height ?? 420, 420, window.height - 180)), mediaRatio);
   const intent = useRef(new PlaybackIntent());
   const tracker = useRef(new CommandTracker());
   const ticket = useRef<PlayTicket | null>(null);
@@ -580,6 +582,8 @@ function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRa
   useEventListener(player, 'statusChange', ({ status: st }) => {
     if (st !== 'readyToPlay') return;
     setDuration(validDuration(player.duration));
+    const size = player.videoTrack?.size;
+    setMediaRatio(videoTrackAspect(size?.width, size?.height, aspectRatio));
     if (!started.current) {
       tryPlay(); // 처음 준비 = 첫 활성화 재생
       return;
@@ -593,10 +597,27 @@ function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRa
   useEventListener(player, 'playToEnd', () => {
     if (!player.loop) interrupt('user');
   });
-  useEventListener(player, 'sourceLoad', ({ duration: d }) => setDuration(validDuration(d)));
+  useEventListener(player, 'sourceLoad', ({ duration: d, availableVideoTracks }) => {
+    setDuration(validDuration(d));
+    const size = player.videoTrack?.size ?? availableVideoTracks[0]?.size;
+    setMediaRatio(videoTrackAspect(size?.width, size?.height, aspectRatio));
+  });
+  useEventListener(player, 'videoTrackChange', ({ videoTrack }) => setMediaRatio(videoTrackAspect(videoTrack?.size.width, videoTrack?.size.height, aspectRatio)));
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
     if (!scrub.current) setTime(currentTime);
   });
+
+  // Cached local files can become ready before event listeners attach.
+  useEffect(() => {
+    let alive = true;
+    void Promise.resolve().then(() => {
+      if (!alive || player.status !== 'readyToPlay') return;
+      setDuration(validDuration(player.duration));
+      const size = player.videoTrack?.size;
+      setMediaRatio(videoTrackAspect(size?.width, size?.height, aspectRatio));
+    });
+    return () => { alive = false; };
+  }, [player, aspectRatio]);
 
   useExerciseVideoLifecycle((reason) => interrupt(reason));
   useOffscreenPause(stage, (isPlaying || want || scrubbing) && !full, () => interrupt('offscreen'));
@@ -622,7 +643,8 @@ function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRa
     ss.draft = t;
     preview.current.request(() => seekTo(t));
   };
-  const onScrubEnd = (commit: boolean, t: number) => {
+  const onScrubEnd = (commit: boolean, t: number, interrupted = false) => {
+    if (interrupted) { intent.current.pause('unmount'); ticket.current = null; }
     preview.current.cancel();
     setScrubbingState(false);
     setScrubbing(player, false);
@@ -667,8 +689,8 @@ function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRa
   };
   return (
     <>
-      <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ backgroundColor: '#000', borderRadius: 16, overflow: 'hidden' }}>
-        <View ref={stage} style={{ height: stageHeight, width: '100%' }}>
+      <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ width: '100%', alignItems: 'center' }}>
+        <View ref={stage} style={{ height: picture.height, width: picture.width, borderRadius: 16, overflow: 'hidden', backgroundColor: '#000' }}>
           {/* 같은 재생기를 두 VideoView에 동시에 붙이지 않는다(Android). 크게 보기 동안 이 자리는 비운다. */}
           {!full && (status === 'error' ? (
             <View style={[StyleSheet.absoluteFill, s.centerBox, { gap: 8 }]}>
@@ -680,12 +702,13 @@ function ClipPlayer({ uri, aspectRatio, height, retry }: { uri: string; aspectRa
             <Pressable onPress={toggle} accessibilityRole="button" accessibilityLabel={want ? '영상 멈춤' : '영상 재생'} style={StyleSheet.absoluteFill} />
             {status === 'loading' ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, s.centerBox]}><ActivityIndicator color="#fff" /></View> : null}
           </>)}
+          {full ? null : <ExerciseVideoControls c={PALETTES.navy} {...ctl} />}
         </View>
-        {full ? null : <ExerciseVideoControls c={PALETTES.navy} {...ctl} />}
       </View>
       {full ? (
         <ExerciseVideoFullscreen
           player={player}
+          aspectRatio={mediaRatio}
           onClose={() => setFull(false)}
           onStageTap={toggle}
           status={status}

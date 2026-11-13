@@ -326,6 +326,7 @@ function YouTubeInner({ videoId, aspectRatio, height, gen, onRetry }: { videoId:
       ) : null}
       <ExerciseVideoControls
         c={PALETTES.navy}
+        overlay={false}
         playing={want}
         ready={ready && !error}
         duration={duration}
@@ -353,7 +354,8 @@ function YouTubeInner({ videoId, aspectRatio, height, gen, onRetry }: { videoId:
           ss.draft = t;
           preview.current.request(() => seekTo(t, true));
         }}
-        onScrubEnd={(commit, t) => {
+        onScrubEnd={(commit, t, interrupted) => {
+          if (interrupted) { intent.current.pause('unmount'); ticket.current = null; }
           preview.current.cancel();
           setScrubbingState(false);
           const ss = scrub.current;

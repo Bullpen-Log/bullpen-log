@@ -469,3 +469,60 @@ export function nativeVideoStageHeight(width: number, windowHeight: number, rati
   const natural = preferred != null && Number.isFinite(preferred) && preferred > 0 ? preferred : width / aspect;
   return Math.max(100, Math.min(available, natural));
 }
+
+
+/** Actual picture bounds: no crop, stretch, forced-height letterboxing or controls footer. */
+export function videoPictureRect(width: number, height: number, ratio: number | null) {
+  const w = Number.isFinite(width) && width > 0 ? width : 1;
+  const h = Number.isFinite(height) && height > 0 ? height : 1;
+  const r = ratio != null && Number.isFinite(ratio) && ratio > 0 ? ratio : 16 / 9;
+  const pictureWidth = Math.min(w, h * r);
+  const pictureHeight = pictureWidth / r;
+  return { width: pictureWidth, height: pictureHeight, x: (w - pictureWidth) / 2, y: (h - pictureHeight) / 2 };
+}
+
+export function videoTrackAspect(width: number | undefined, height: number | undefined, fallback: number | null): number {
+  if (width != null && height != null && Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+    const raw = width / height;
+    // Expo iOS reports AVAssetTrack.naturalSize without preferredTransform.
+    // The registered display aspect disambiguates 90-degree rotation without cropping pixels.
+    if (fallback != null && Number.isFinite(fallback) && fallback > 0 && Math.abs(Math.log((1 / raw) / fallback)) < Math.abs(Math.log(raw / fallback))) return 1 / raw;
+    return raw;
+  }
+  return fallback != null && Number.isFinite(fallback) && fallback > 0 ? fallback : 9 / 16;
+}
+
+/** Exactly one finalize for a native touch; cancellation/late duplicate end cannot commit it. */
+export class ScrubGestureSession {
+  active = false;
+  value = 0;
+  begin(value: number): boolean {
+    if (this.active) return false;
+    this.active = true; this.value = value; return true;
+  }
+  move(value: number): boolean {
+    if (!this.active) return false;
+    this.value = value; return true;
+  }
+  finish(commit: boolean): { commit: boolean; time: number } | null {
+    if (!this.active) return null;
+    this.active = false; return { commit, time: this.value };
+  }
+}
+
+/** Scope native full-screen pop exclusion to the focused route, not each drag or the app globally. */
+export function createVideoSwipeLease(apply: (blocked: boolean) => void) {
+  const owners = new Set<symbol>();
+  return {
+    acquire() {
+      const owner = Symbol(); owners.add(owner);
+      if (owners.size === 1) apply(true);
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true; owners.delete(owner);
+        if (owners.size === 0) apply(false);
+      };
+    },
+  };
+}
