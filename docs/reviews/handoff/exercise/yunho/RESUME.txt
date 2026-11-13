@@ -18,3 +18,5 @@ Check each section for proper placement and duplication: how-to for execution/sa
 Latest repeat instruction: check shared player repeat ON; do not wait for clip to finish or verify a repetition cycle. Inspect footage as needed for actual review.
 
 User requires research and necessary corrections before asking for each video review.
+
+User prefers the Korean heading gangdo (intensity), not segi.
