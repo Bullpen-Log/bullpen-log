@@ -1544,6 +1544,28 @@
         {
           "status": "Updated and read back stop-condition wording in library: prescribed repetitions remain target; listed form or speed issue during exercise stops current set.",
           "at_utc": "2026-11-13T11:16:04.689296+00:00"
+        },
+        {
+          "at_utc": "2026-11-13T11:54:20.203048+00:00",
+          "status": "Pitching direction and purpose clarified; perSide true to false, rest 90 to 180 sec, 세기 to 강도, stop cue moved to numbered instructions; saved/read back. Human review pending.",
+          "metadata": {
+            "bodyParts": [
+              "코어",
+              "고관절",
+              "전신"
+            ],
+            "intensity": "높음",
+            "difficulty": "중급",
+            "equipment": [
+              "메디신볼"
+            ],
+            "sets": 3,
+            "reps": 5,
+            "holdSeconds": null,
+            "restSeconds": 180,
+            "perSide": false
+          },
+          "limits": "Pitching-specific default based on user request, not proof reverse-direction training is harmful. General power guidance not exact optimal prescription; filming required. Apply rule to other similar exercises when reviewed."
         }
       ]
     },
