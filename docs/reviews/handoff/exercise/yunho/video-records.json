@@ -345,6 +345,17 @@
           "before_description": "■ 어떤 운동인가\r\n원판 위에 손을 짚은 자세에서 손을 안쪽 바닥으로 내려 몸을 받고, 곧바로 밀어 다시 원판 위에 손을 짚는 플라이오 푸시업입니다.\r\n\r\n■ 이렇게 하세요\r\n· 원판이 미끄러지거나 흔들리지 않는 평평한 바닥에 놓고, 바닥과 원판 위 모두 손바닥을 충분히 짚을 공간을 확보합니다.\r\n· 낮고 안정된 원판 위에 손을 짚어 몸을 곧게 유지합니다.\r\n· 손을 원판 안쪽 바닥으로 내려 팔꿈치를 부드럽게 굽히며 상체와 몸통으로 착지를 제어합니다.\r\n· 바닥에 오래 머무르지 않고 빠르게 밀어 손을 띄운 뒤, 다시 원판 위에 안정적으로 짚습니다. 빠르기를 위해 안정적인 착지를 생략하지 마세요.\r\n· 높이보다 착지와 빠른 전환을 우선합니다. 허리가 처지거나 손을 안정적으로 짚지 못하면 세트를 끝냅니다.\r\n· 손목·팔꿈치·어깨 등에 통증이 있으면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n플라이오메트릭 훈련은 힘을 받아 근육이 늘어나는 구간에서 곧바로 밀어내는 구간으로 전환하는 신장·단축 주기를 활용합니다.",
           "after_description": "■ 어떤 운동인가\r\n원판 위에 손을 짚은 자세에서 손을 안쪽 바닥으로 내려 몸을 받고, 곧바로 밀어 다시 원판 위에 손을 짚는 플라이오 푸시업입니다.\r\n\r\n■ 이렇게 하세요\r\n1. 낮은 원판 두 개를 미끄럽지 않은 평평한 바닥에 놓습니다. 원판이 흔들리지 않는지, 원판 안쪽 바닥과 원판 위에 손을 짚을 공간이 있는지 확인합니다.\n2. 원판 위에 각각 손을 짚고 발을 뒤로 뻗어 머리부터 발까지 몸을 곧게 유지합니다.\n3. 두 손을 원판 안쪽 바닥으로 옮겨 짚고, 팔꿈치를 부드럽게 굽히며 내려오는 몸을 받습니다.\n4. 몸을 받은 직후 바닥을 빠르게 밀어 두 손을 띄운 다음, 다시 원판 위에 손을 짚습니다.\n5. 바닥에 오래 머무르지 않되 손을 안정적으로 짚는 것을 먼저 챙깁니다. 허리가 처지거나 손을 제대로 짚지 못하면 세트를 끝냅니다.\n6. 손목·팔꿈치·어깨 등에 통증이 생기면 운동을 중단합니다.\n\n\r\n■ 투수에게 왜 필요한가\r\n플라이오메트릭 훈련은 힘을 받아 근육이 늘어나는 구간에서 곧바로 밀어내는 구간으로 전환하는 신장·단축 주기를 활용합니다.",
           "at_utc": "2026-11-13T07:05:39.294067+00:00"
+        },
+        {
+          "status": "Saved and read back simplified plyometric mechanism and purpose; retained beginner how-to and user-requested title.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/21986698/",
+            "https://pubmed.ncbi.nlm.nih.gov/37833510/"
+          ],
+          "limits": "Upper-body plyometric literature and drop push-up force comparisons do not establish this specific exercise improves pitching velocity or validate the current sets/reps/rest.",
+          "footage_limit": "Current playback frames very dark; complete detailed hand-placement comparison remains uncertain, ask user to check.",
+          "filming": "Reference only, filming required.",
+          "at_utc": "2026-11-13T07:43:17.554519+00:00"
         }
       ]
     },
