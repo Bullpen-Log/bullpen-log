@@ -14,3 +14,5 @@ User requests evidence checks of their suggestions and reporting any incorrect/u
 Ongoing user rule: state well-supported claims with confidence appropriate to their evidence; when support is indirect or insufficient, describe purpose or potential contribution rather than an established effect. Report discrepancies and limits.
 
 Check each section for proper placement and duplication: how-to for execution/safety; why for purpose and rationale.
+
+Latest repeat instruction: check shared player repeat ON; do not wait for clip to finish or verify a repetition cycle. Inspect footage as needed for actual review.
