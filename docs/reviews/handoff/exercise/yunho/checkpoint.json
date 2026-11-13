@@ -13,12 +13,12 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-002",
-  "current_title": "밴드 익스플로시브 힙 로테이션",
+  "current_review_id": "EX-Y-P-003",
+  "current_title": "박수 푸시업",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User says why-needed must explain value, not merely call it useful training; band rationale revised, current review pending."
+    "meaning": "User instructed apply why-needed explanation principle for all and requested next; clap push-up awaits user review."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -653,20 +653,21 @@
   "reverification": {
     "start": 1,
     "target_inclusive": 21,
-    "completed_count": 1,
-    "current": 2,
+    "completed_count": 2,
+    "current": 3,
     "approved_items": [
-      "EX-Y-P-007"
+      "EX-Y-P-007",
+      "EX-Y-P-002"
     ],
     "user_sequence_first": "EX-Y-P-007",
     "order": "Restart at cable; sequential next only with user. Historical ordinal is identity, not user display order. 20 other previously edited purposes revised; #9 purpose already revised."
   },
   "playback_observation": {
-    "item": "EX-Y-P-002",
+    "item": "EX-Y-P-003",
     "source": "REFERENCE",
     "loop_setting": "ON",
-    "actual_playback": "Band Explosive Hip Rotation player opened, repeat cycle not checked.",
-    "updated_at_utc": "2026-11-13T08:53:06.180930+00:00"
+    "actual_playback": "Reference opened; repeat cycle not checked",
+    "updated_at_utc": "2026-11-13T08:56:16.070350+00:00"
   },
   "equipment_terminology_review": {
     "scope": "21 previously edited exercise descriptions checked; 13 changed and DB readback verified; other library descriptions not yet comprehensively audited.",
