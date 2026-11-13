@@ -1438,6 +1438,14 @@
             "https://pubmed.ncbi.nlm.nih.gov/38125451/"
           ],
           "limits": "General resistance research not direct evidence for this exact drill or optimal dose. Rotation direction and perSide setting require user review. Reference only, filming required."
+        },
+        {
+          "at_utc": "2026-11-13T11:52:39.276460+00:00",
+          "status": "User direction applied and saved; verified in UI. Remains current for user review.",
+          "user_request": "사용자의 투구 방향에 맞춰서 한다는 설명을 추가",
+          "before": "발을 앞으로 내딛지 않고 제자리에서 발과 골반, 몸을 돌려 메디신볼을 내려칠 방향을 향합니다.",
+          "after": "자신이 투구할 때 몸을 돌리는 방향에 맞춰, 발을 앞으로 내딛지 않고 제자리에서 발과 골반, 몸을 돌립니다.",
+          "perSide": "Retained false for selected throwing-direction execution; does not imply reverse-direction training is prohibited."
         }
       ]
     },
