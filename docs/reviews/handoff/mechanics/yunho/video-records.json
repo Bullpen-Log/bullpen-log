@@ -22,10 +22,10 @@
         "json_pointer": "/queue/0"
       },
       "last_source_file_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
-      "video_observation": "이전 GPT 주요 장면 관찰과 상세/재생 확인만 존재. 현재 인계에서 새 재생·실기기 검사 없음.",
+      "video_observation": "2026-11-13: same registered owned clip plays in production shared player; title/description and loop ON observed. Setup only, no new full content review or user decision.",
       "filming_needed": {
         "status": "대상 아님",
-        "reason": "마지막 확인에서 직접 촬영 영상 표시·자체 저장소 영상 재생 확인. 이번 재확인 없음."
+        "reason": "Same registered owned clip played on 2026-11-13."
       },
       "content_change_approved": false,
       "deployment_approved": false,
@@ -41,11 +41,33 @@
         "user_decision": "대기; 수정 미지시"
       },
       "playback_last_observed": {
+        "observed_at": "2026-11-13T15:54:58+09:00",
+        "source": "production shared LibraryVideo visible UI",
+        "paused": false,
+        "loop": true,
+        "repeat_requested": true,
+        "repeat_applied": true,
+        "evidence": "Pause button visible; loop checkbox checked; screenshot shows loop ON",
+        "repeat_cycle_tested": false,
+        "repeat_cycle_test_required": false
+      },
+      "historical_playback_before_vp01": {
         "time_seconds": 0,
         "paused": true,
         "loop": false,
         "repeat_requested": true,
         "repeat_applied": false
+      },
+      "setup_event": {
+        "at": "2026-11-13T15:54:58+09:00",
+        "scope": "current-item setup only",
+        "content_changed": false,
+        "review_advanced": false,
+        "user_decision_recorded": false,
+        "title_description_visible": true,
+        "owned_source_confirmed": true,
+        "right_panel_request": "queued because caller chat hidden; opens when chat shown",
+        "actual_user_panel_exposure_verified": false
       }
     },
     {

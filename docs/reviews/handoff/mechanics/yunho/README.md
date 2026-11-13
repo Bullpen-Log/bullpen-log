@@ -1,5 +1,12 @@
 # 메커니즘 영상 검수 이어하기
 
+## Current setup: 2026-11-13
+
+Current item **1/120: 스텝백 스로우 드릴**, completed0 and user requests0 preserved. Production shared player displayed the same owned clip and description, played it, and showed **loop ON**. No repeat-end wait or new content review. Right-panel opening is queued because this chat is hidden; actual user-panel exposure is unverified.
+
+Use `docs/shoot/video-review-current-workflow.md` for the current research, content-save/read-back, human-confirmation and advancement rules. Its rules supersede the historical memo-only instructions below. Media editing/replacement still needs specific direction. No content, judgment or order changed for this setup. The old unsupported-loop observation below is historical only.
+
+
 작업: REVIEW-SYNC-20261111 · 작성일: 2026-11-11. 운영 콘텐츠 검수 메모만 옮겼으며 앱·DB·영상·등록 내용은 바꾸지 않았다.
 
 ## 지금 이어갈 곳

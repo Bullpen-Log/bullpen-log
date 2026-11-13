@@ -61,20 +61,42 @@
     "asset_path": "pitch-videos/library-720/95d8dd7e-6969-4d30-a207-afc89322912f.mp4",
     "duration_seconds": 6.87,
     "playback_last_observed": {
-      "time_seconds": 0,
-      "paused": true,
-      "loop": false,
+      "observed_at": "2026-11-13T15:54:58+09:00",
+      "source": "production shared LibraryVideo visible UI",
+      "paused": false,
+      "loop": true,
       "repeat_requested": true,
-      "repeat_applied": false
+      "repeat_applied": true,
+      "evidence": "Pause button visible; loop checkbox checked; screenshot shows loop ON",
+      "repeat_cycle_tested": false,
+      "repeat_cycle_test_required": false
     },
-    "playback_observed_this_handoff": false,
+    "playback_observed_this_handoff": true,
     "source": {
       "source_id": "canonical_local_record",
       "json_pointer": "/current"
     },
     "source_last_modified_at_kst": "2026-11-10T02:07:24.386875+09:00",
     "last_user_decision": null,
-    "last_user_decision_note": "영상에 대한 오케이/다음 판정 기록 없음. 검수 방식 지시나 GPT 관찰을 완료로 계산하지 않음."
+    "last_user_decision_note": "영상에 대한 오케이/다음 판정 기록 없음. 검수 방식 지시나 GPT 관찰을 완료로 계산하지 않음.",
+    "historical_playback_before_vp01": {
+      "time_seconds": 0,
+      "paused": true,
+      "loop": false,
+      "repeat_requested": true,
+      "repeat_applied": false
+    },
+    "setup_event": {
+      "at": "2026-11-13T15:54:58+09:00",
+      "scope": "current-item setup only",
+      "content_changed": false,
+      "review_advanced": false,
+      "user_decision_recorded": false,
+      "title_description_visible": true,
+      "owned_source_confirmed": true,
+      "right_panel_request": "queued because caller chat hidden; opens when chat shown",
+      "actual_user_panel_exposure_verified": false
+    }
   },
   "completed": [],
   "completed_count": 0,
@@ -258,17 +280,21 @@
   "filming_needed": [],
   "filming_needed_note": "현재 직접 촬영 1번은 제외. 빈 목록이 모든 영상 촬영 완료를 뜻하지 않음. 나머지는 차례에 확인.",
   "playback_policy": {
-    "requested": "현재 검수 영상 자동 반복 재생. 다음 영상은 사용자 승인 후에만.",
-    "per_video_check_required": true,
-    "status": "현재 직접 촬영 기본 재생기 반복 옵션 미제공, 미적용",
+    "requested": "Repeat current item; advance only when explicitly directed by user.",
+    "status": "Production shared player loop ON verified in UI.",
     "observed": {
-      "loop": false,
-      "paused": true,
-      "currentTime": 0,
-      "duration": 6.87
+      "observed_at": "2026-11-13T15:54:58+09:00",
+      "source": "production shared LibraryVideo visible UI",
+      "paused": false,
+      "loop": true,
+      "repeat_requested": true,
+      "repeat_applied": true,
+      "evidence": "Pause button visible; loop checkbox checked; screenshot shows loop ON",
+      "repeat_cycle_tested": false,
+      "repeat_cycle_test_required": false
     },
-    "constraints": "브라우저 반복 메뉴 미노출. 제품 코드 수정·페이지 스크립트 변조 없이 UI로 설정할 수 있는 경로 미확인.",
-    "youtube": "재생 설정 → 옵션 더보기 → 연속 재생 켬 경로를 다음 참고 영상 차례에 실제 확인. 운동영상 세션 결과를 이 영상 성공으로 간주하지 않음."
+    "per_video_check_required": true,
+    "wait_for_repeat_cycle": false
   },
   "country_issues": {
     "common": [
@@ -300,18 +326,17 @@
   "pending_or_unverified": [
     "1번 사용자 오케이/다음 판정 미수신",
     "전체 영상 연속/프레임 전수검수 아님",
-    "현재 브라우저/로그인/재생/반복/오른쪽 패널 상태는 이 인계에서 확인하지 않음",
     "다른 맥의 문서 수신·기록 일치·계정 로그인 미확인",
     "9건 영상별 AI 후보와 1건 일반 후보 모두 사용자 수정 지시 아님",
     "촬영자/출연 동의/음악 권리와 안전·효능 근거 검수 미완료; 적법성 판정 아님",
-    "DB drill_id 미확인, 120개 순서는 원본 기록 기준이며 현재 운영 변경 여부 미확인"
+    "DB drill_id 미확인, 120개 순서는 원본 기록 기준이며 현재 운영 변경 여부 미확인",
+    "2026-11-13 production current source/title/description/playback/loop ON verified; right-panel request queued, actual exposure in user chat not verified."
   ],
   "approval_rules": {
-    "advance": "오케이/다음은 현재 항목 판정/다음 이동만. 수정 승인·배포 승인과 별개.",
-    "memo_only": "이 부분 수정 또는 검수 중 반영은 원문/시점/요청 기록만; 다음 의사가 없으면 현재 영상 유지.",
-    "memo_and_advance": "수정 필요, 다음은 메모 후 다음 이동.",
-    "apply_after_review": "전체 검수 종료 뒤 기존→제안→이유·영향을 제시하고 사용자에게 실제 수정 범위를 다시 확인. 종료/과거 반영/AI 후보만으로 적용 금지.",
-    "deployment": "콘텐츠 수정 승인과 운영 DB/업로드/배포 허가 별개. 기존 협업·DB·권한 규칙 유지."
+    "advance": "Only explicit user OK/next authorizes advancement; setup does not.",
+    "content": "Current workflow supersedes historical memo-only rules: research and compare demonstration, concretize/save title/description/necessary prescription within user direction, read back and report for human confirmation. Ask about unclear actions/policy. No content edits during this setup.",
+    "media": "Media editing/replacement/deletion/reupload requires specific separate direction.",
+    "deployment": "Existing separate engine/product/deployment authorization boundaries remain."
   },
   "review_method": [
     "실제 분류/표시 순서로 고유 드릴 한 편씩, 저장된 current부터 재개",
@@ -323,14 +348,9 @@
     "매 사용자 응답을 영상 ID·제목·분류·시점·원문·요청·판정·실제 기록시각으로 보존. 개인정보/개인 건강정보가 섞이면 공개본에서 제외하고 개인 원본에만 보존"
   ],
   "handoff_transport": {
-    "status": "로컬 공유용 문서 작성; 이 세션에서 커밋/푸시/다른 맥 수신 확인 안 함",
-    "common_sync_owner": "전체 총괄",
-    "do_not_touch": [
-      "공통 동기화 파일",
-      "제품 코드",
-      "DB",
-      "영상 원본/등록 내용"
-    ]
+    "status": "Current setup saved; record-only publish pending.",
+    "common_sync_owner": "Overall GPT",
+    "scope": "mechanics/yunho records only"
   },
   "privacy": {
     "export_mode": "운영 콘텐츠 검수 필드만 선별",
@@ -346,5 +366,31 @@
     "prohibited_content_copied": false,
     "personal_health_information_copied": false,
     "signed_urls_copied": false
+  },
+  "updated_at": "2026-11-13T15:54:58+09:00",
+  "current_workflow_document": "docs/shoot/video-review-current-workflow.md",
+  "setup_event": {
+    "at": "2026-11-13T15:54:58+09:00",
+    "scope": "current-item setup only",
+    "content_changed": false,
+    "review_advanced": false,
+    "user_decision_recorded": false,
+    "title_description_visible": true,
+    "owned_source_confirmed": true,
+    "right_panel_request": "queued because caller chat hidden; opens when chat shown",
+    "actual_user_panel_exposure_verified": false
+  },
+  "historical_playback_policy_before_vp01": {
+    "requested": "현재 검수 영상 자동 반복 재생. 다음 영상은 사용자 승인 후에만.",
+    "per_video_check_required": true,
+    "status": "현재 직접 촬영 기본 재생기 반복 옵션 미제공, 미적용",
+    "observed": {
+      "loop": false,
+      "paused": true,
+      "currentTime": 0,
+      "duration": 6.87
+    },
+    "constraints": "브라우저 반복 메뉴 미노출. 제품 코드 수정·페이지 스크립트 변조 없이 UI로 설정할 수 있는 경로 미확인.",
+    "youtube": "재생 설정 → 옵션 더보기 → 연속 재생 켬 경로를 다음 참고 영상 차례에 실제 확인. 운동영상 세션 결과를 이 영상 성공으로 간주하지 않음."
   }
 }
