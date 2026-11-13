@@ -1,3 +1,7 @@
+Exercise review / Yunho — beginner-readable instruction restart
+
+Current: EX-Y-P-007 Standing Cable Explosive Rotation, first of a new human review pass; awaiting user review. User requested all previous how-to sections use plain, consistent beginner language and restart from first through current. 21 previously edited exercises rewritten and DB-readback verified; user has not approved this new pass. Next only after user direction. Preparation, movement, return and safety in numbered steps; maintain prior technique decisions, video accuracy, research and appropriate evidence limits. Original/updated text is preserved per item in video-records.json. Reference video shown; shared-player loop ON, repeat cycle not checked. Shooting-needed list and country-specific legal/rights unresolved items remain in checkpoint.
+
 Exercise review / Yunho — actual-edit workflow (latest user instruction)
 
 Read checkpoint.json and video-records.json after receiving remote handoff.
