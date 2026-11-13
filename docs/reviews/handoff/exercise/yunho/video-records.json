@@ -1102,6 +1102,32 @@
         {
           "status": "Updated and read back stop-condition wording in library: prescribed repetitions remain target; listed form or speed issue during exercise stops current set.",
           "at_utc": "2026-11-13T11:16:04.689296+00:00"
+        },
+        {
+          "at_utc": "2026-11-13T11:42:10.163364+00:00",
+          "status": "Rest 90 to 180 seconds; clarified contribution of trunk and legs to weighted ball, rewrote why-needed as rapid whole-body force; saved and read back; human review pending.",
+          "metadata": {
+            "bodyParts": [
+              "코어",
+              "고관절",
+              "햄스트링·둔근"
+            ],
+            "intensity": "높음",
+            "difficulty": "중급",
+            "equipment": [
+              "메디신볼"
+            ],
+            "sets": 3,
+            "reps": 5,
+            "holdSeconds": null,
+            "restSeconds": 180,
+            "perSide": false
+          },
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/34024247/",
+            "https://pubmed.ncbi.nlm.nih.gov/38125451/"
+          ],
+          "limits": "Indirect general/related evidence; ball load individualized, not absolute inability to throw with arms. No direct proof exact drill or dose improves pitching speed. Filming required."
         }
       ]
     },
