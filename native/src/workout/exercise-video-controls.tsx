@@ -7,7 +7,7 @@ import { type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
 
-/** Thin visible band, full 44pt hit regions. Owned controls sit inside the picture;
+/** Timeline-first transparent row, full 44pt hit regions. Owned controls sit inside the picture;
  * YouTube opts out of overlay. Native pan owns the touch from down, never a JS responder race.
  */
 export type NativeControlsProps = {
@@ -100,9 +100,8 @@ export function ExerciseVideoControls(p: NativeControlsProps) {
     if (Platform.OS !== 'ios' && actionAfterMenu.current) { actionAfterMenu.current(); actionAfterMenu.current = null; }
   };
   return <View pointerEvents="box-none" style={p.overlay === false ? s.external : s.overlay} onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}>
-    <View pointerEvents="none" style={s.contrast} />
     <View style={s.row}>
-      {!tiny ? <Press onPress={p.onToggle} accessibilityRole="button" accessibilityLabel={p.playing ? '영상 일시정지' : '영상 재생'} style={s.btn}>
+      {!tiny ? <Press onPress={p.onToggle} accessibilityRole="button" accessibilityLabel={p.playing ? '영상 일시정지' : '영상 재생'} style={[s.btn, s.leading]}>
         <Icon name={p.playing ? 'pause' : 'play'} size={14} color={ink} fill={ink} />
       </Press> : null}
       {!tiny ? <GestureDetector gesture={pan}>
@@ -114,15 +113,15 @@ export function ExerciseVideoControls(p: NativeControlsProps) {
           onLayout={(e) => { if (width !== e.nativeEvent.layout.width) finish(false); setWidth(e.nativeEvent.layout.width); }}
           style={[s.seek, !enabled && s.off]}>
           <View pointerEvents="none" style={s.track}><View style={[s.progress, { width: `${frac * 100}%`, backgroundColor: p.c.link }]} /></View>
-          <View pointerEvents="none" style={[s.thumb, { left: Math.max(0, frac * (width - 8)), backgroundColor: p.c.link }]} />
+          <View pointerEvents="none" style={[s.thumb, { left: Math.max(0, frac * (width - 12)), backgroundColor: p.c.link }]} />
         </View>
       </GestureDetector> : <View style={{ flex: 1 }} />}
-      {compact ? <Press onPress={() => setMenu(true)} accessibilityRole="button" accessibilityLabel="영상 조작 더 보기" style={s.btn}><SymbolView name="ellipsis" size={14} tintColor={ink} /></Press> : <>
-        <Press onPress={p.onLoop} accessibilityRole="button" accessibilityState={{ selected: p.loop }} accessibilityLabel={p.loop ? '반복 재생 끄기' : '반복 재생 켜기'} style={s.btn}><SymbolView name="repeat" size={14} tintColor={p.loop ? p.c.link : ink} /></Press>
-        {p.onRestart ? <Press onPress={p.onRestart} disabled={!p.ready} accessibilityRole="button" accessibilityLabel="처음부터" style={s.btn}><Icon name="rotate-ccw" size={13} color={ink} /></Press> : null}
-        {p.onRate && p.rates.length > 1 ? <Press disabled={!p.ready} onPress={() => p.onRate!(p.rates[(p.rates.indexOf(p.rate) + 1) % p.rates.length])} accessibilityRole="button" accessibilityLabel={`재생 속도 ${p.rate}배, 바꾸기`} style={s.btn}><Text maxFontSizeMultiplier={1.5} style={[s.rate, { color: p.rate === 1 ? ink : p.c.link }]}>{p.rate}×</Text></Press> : null}
-        {p.onMute ? <Press disabled={!p.ready} onPress={p.onMute} accessibilityRole="button" accessibilityLabel={p.muted ? '소리 켜기' : '소리 끄기'} style={s.btn}><Icon name={p.muted ? 'volume-x' : 'volume-2'} size={13} color={ink} /></Press> : null}
-        {p.onExpand ? <Press onPress={p.onExpand} accessibilityRole="button" accessibilityLabel={p.expanded ? '크게 보기 닫기' : '크게 보기'} style={s.btn}><SymbolView name={p.expanded ? 'arrow.down.right.and.arrow.up.left' : 'arrow.up.left.and.arrow.down.right'} size={13} tintColor={ink} /></Press> : null}
+      {compact ? <Press onPress={() => setMenu(true)} accessibilityRole="button" accessibilityLabel="영상 조작 더 보기" style={[s.btn, s.trailing]}><SymbolView name="ellipsis" size={14} tintColor={ink} /></Press> : <>
+        <Press onPress={p.onLoop} accessibilityRole="button" accessibilityState={{ selected: p.loop }} accessibilityLabel={p.loop ? '반복 재생 끄기' : '반복 재생 켜기'} style={[s.btn, s.trailing]}><SymbolView name="repeat" size={14} tintColor={p.loop ? p.c.link : ink} /></Press>
+        {p.onRestart ? <Press onPress={p.onRestart} disabled={!p.ready} accessibilityRole="button" accessibilityLabel="처음부터" style={[s.btn, s.trailing]}><Icon name="rotate-ccw" size={13} color={ink} /></Press> : null}
+        {p.onRate && p.rates.length > 1 ? <Press disabled={!p.ready} onPress={() => p.onRate!(p.rates[(p.rates.indexOf(p.rate) + 1) % p.rates.length])} accessibilityRole="button" accessibilityLabel={`재생 속도 ${p.rate}배, 바꾸기`} style={[s.btn, s.trailing]}><Text maxFontSizeMultiplier={1.5} style={[s.rate, { color: p.rate === 1 ? ink : p.c.link }]}>{p.rate}×</Text></Press> : null}
+        {p.onMute ? <Press disabled={!p.ready} onPress={p.onMute} accessibilityRole="button" accessibilityLabel={p.muted ? '소리 켜기' : '소리 끄기'} style={[s.btn, s.trailing]}><Icon name={p.muted ? 'volume-x' : 'volume-2'} size={13} color={ink} /></Press> : null}
+        {p.onExpand ? <Press onPress={p.onExpand} accessibilityRole="button" accessibilityLabel={p.expanded ? '크게 보기 닫기' : '크게 보기'} style={[s.btn, s.trailing]}><SymbolView name={p.expanded ? 'arrow.down.right.and.arrow.up.left' : 'arrow.up.left.and.arrow.down.right'} size={13} tintColor={ink} /></Press> : null}
       </>}
     </View>
     <Modal transparent visible={menu} animationType="fade" onRequestClose={() => closeMenu()} onDismiss={() => { const action = actionAfterMenu.current; actionAfterMenu.current = null; action?.(); }}>
@@ -137,16 +136,17 @@ export function ExerciseVideoControls(p: NativeControlsProps) {
   </View>;
 }
 const s = StyleSheet.create({
-  overlay: { position: 'absolute', left: 6, right: 6, bottom: 4, height: 44 },
+  overlay: { position: 'absolute', left: 0, right: 0, bottom: 4, height: 44 },
   external: { width: '100%', minHeight: 44 },
-  row: { flexDirection: 'row', alignItems: 'center', height: 44, paddingHorizontal: 2 },
-  contrast: { position: 'absolute', left: 2, right: 2, top: 10, bottom: 10, backgroundColor: 'rgba(0,0,0,0.28)', borderRadius: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', height: 44 },
   btn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  leading: { alignItems: 'flex-start', paddingLeft: 4 },
+  trailing: { alignItems: 'flex-end', paddingRight: 4 },
   off: { opacity: 0.4 },
-  seek: { flex: 1, minWidth: 44, height: 44, justifyContent: 'center', marginHorizontal: 4 },
-  track: { height: 2, borderRadius: 1, backgroundColor: 'rgba(255,255,255,0.4)' },
-  progress: { height: 2, borderRadius: 1 },
-  thumb: { position: 'absolute', width: 8, height: 8, borderRadius: 4 },
+  seek: { flex: 1, minWidth: 44, height: 44, justifyContent: 'center' },
+  track: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)' },
+  progress: { height: 6, borderRadius: 3 },
+  thumb: { position: 'absolute', width: 12, height: 12, borderRadius: 6 },
   rate: { fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
   menu: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.35)' },
   panel: { width: '92%', maxWidth: 420, backgroundColor: '#101820', borderRadius: 16, padding: 8 },

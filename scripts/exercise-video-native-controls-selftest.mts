@@ -67,6 +67,14 @@ slider.props.onLayout({ nativeEvent: { layout: { width: 160 } } }); tree = rende
 check(pan!.minDistance === 0 && pan!.maxPointers === 1 && pan!.shouldCancelWhenOutside === false, 'native recognition starts from down, retains outside drag');
 check(slider.props.style[0].height === 44 && tree.props.style.height === 44, '44pt invisible gesture target with one-row overlay');
 check(slider.props.accessibilityValue.max === 20 && slider.props.accessibilityValue.text.includes('/ 0:20'), 'duration retained in accessibility');
+const track = find(slider, (n) => n.type === 'View' && n.props?.style?.height === 6);
+check(track?.props.style.borderRadius === 3, 'R3 prominent 6pt timeline');
+check(tree.props.style.left === 0 && tree.props.style.right === 0 && tree.props.style.height === 44, 'R3 edge-to-edge row keeps the same vertical height');
+check(!find(tree, (n) => n.type === 'View' && n.props?.style?.backgroundColor === 'rgba(0,0,0,0.28)'), 'R3 no translucent backing behind rail or icons');
+const play = find(tree, (n) => n.type === 'Press' && n.props?.accessibilityLabel === '영상 일시정지');
+const expand = find(tree, (n) => n.type === 'Press' && n.props?.accessibilityLabel === '크게 보기');
+check(play.props.style[0].width === 44 && play.props.style[1].alignItems === 'flex-start' && expand.props.style[1].alignItems === 'flex-end', 'R3 outer glyph alignment retains separate 44pt button targets');
+check(slider.props.style[0].marginHorizontal === undefined, 'R3 bar takes the freed margins between controls');
 check(!find(tree, (n) => n.type === 'Text' && /\d+:\d+/.test(String(n.props.children))), 'no visual elapsed/total line');
 pan!.onBegin({ x: 40 }); pan!.onUpdate({ x: 80, numberOfPointers: 1 }); pan!.onFinalize({ x: 120, canceled: false });
 check(JSON.stringify(events) === JSON.stringify([['start'],['draft',5],['draft',10],['end',true,15]]), 'real control callbacks seek on down/move and exact release');
