@@ -97,14 +97,14 @@ export function ExerciseVideoControls(p: NativeControlsProps) {
   const dense = !!p.stageTapControls && !p.forceWide;
   const buttonStyle = dense ? s.denseBtn : s.btn;
   const buttons = (p.stageTapControls ? 1 : 2) + Number(!!p.onRate && p.rates.length > 1) + Number(!!p.onExpand) + Number(!!p.onMute) + Number(!!p.onRestart);
-  const compact = !p.forceWide && barWidth < buttons * (dense ? 32 : 44) + 64 + (p.stageTapControls ? 24 : 0);
+  const compact = !p.forceWide && barWidth < buttons * (dense ? 32 : 44) + 64 ;
   const tiny = !p.forceWide && barWidth < 152;
   const closeMenu = (action?: () => void) => {
     actionAfterMenu.current = action ?? null;
     setMenu(false);
     if (Platform.OS !== 'ios' && actionAfterMenu.current) { actionAfterMenu.current(); actionAfterMenu.current = null; }
   };
-  return <View pointerEvents="box-none" style={p.overlay === false ? s.external : s.overlay} onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}>
+  return <View pointerEvents="box-none" style={p.overlay === false ? s.external : p.stageTapControls ? s.ownedOverlay : s.overlay} onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}>
     <View style={s.row}>
       {!tiny && !p.stageTapControls ? <Press onPress={p.onToggle} accessibilityRole="button" accessibilityLabel={p.playing ? '영상 일시정지' : '영상 재생'} style={[buttonStyle, s.leading]}>
         <Icon name={p.playing ? 'pause' : 'play'} size={14} color={ink} fill={ink} />
@@ -121,12 +121,12 @@ export function ExerciseVideoControls(p: NativeControlsProps) {
           <View pointerEvents="none" style={[s.thumb, { left: Math.max(0, frac * (width - 12)), backgroundColor: p.c.link }]} />
         </View>
       </GestureDetector> : <View style={{ flex: 1 }} />}
-      {compact ? <Press onPress={() => setMenu(true)} accessibilityRole="button" accessibilityLabel="영상 조작 더 보기" style={[buttonStyle, s.trailing]}><SymbolView name="ellipsis" size={14} tintColor={ink} /></Press> : <>
-        <Press onPress={p.onLoop} accessibilityRole="button" accessibilityState={{ selected: p.loop }} accessibilityLabel={p.loop ? '반복 재생 끄기' : '반복 재생 켜기'} style={[buttonStyle, s.trailing]}><SymbolView name="repeat" size={14} tintColor={p.loop ? p.c.link : ink} /></Press>
-        {p.onRestart ? <Press onPress={p.onRestart} disabled={!p.ready} accessibilityRole="button" accessibilityLabel="처음부터" style={[buttonStyle, s.trailing]}><Icon name="rotate-ccw" size={13} color={ink} /></Press> : null}
-        {p.onRate && p.rates.length > 1 ? <Press disabled={!p.ready} onPress={() => p.onRate!(p.rates[(p.rates.indexOf(p.rate) + 1) % p.rates.length])} accessibilityRole="button" accessibilityLabel={`재생 속도 ${p.rate}배, 바꾸기`} style={[buttonStyle, s.trailing]}><Text maxFontSizeMultiplier={1.5} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.rate, { color: p.rate === 1 ? ink : p.c.link }]}>{p.rate}×</Text></Press> : null}
-        {p.onMute ? <Press disabled={!p.ready} onPress={p.onMute} accessibilityRole="button" accessibilityLabel={p.muted ? '소리 켜기' : '소리 끄기'} style={[buttonStyle, s.trailing]}><Icon name={p.muted ? 'volume-x' : 'volume-2'} size={13} color={ink} /></Press> : null}
-        {p.onExpand ? <Press onPress={p.onExpand} accessibilityRole="button" accessibilityLabel={p.expanded ? '크게 보기 닫기' : '크게 보기'} style={[buttonStyle, s.trailing]}><SymbolView name={p.expanded ? 'arrow.down.right.and.arrow.up.left' : 'arrow.up.left.and.arrow.down.right'} size={13} tintColor={ink} /></Press> : null}
+      {compact ? <Press onPress={() => setMenu(true)} accessibilityRole="button" accessibilityLabel="영상 조작 더 보기" style={[buttonStyle, !dense && s.trailing]}><SymbolView name="ellipsis" size={dense ? 18 : 14} tintColor={ink} /></Press> : <>
+        <Press onPress={p.onLoop} accessibilityRole="button" accessibilityState={{ selected: p.loop }} accessibilityLabel={p.loop ? '반복 재생 끄기' : '반복 재생 켜기'} style={[buttonStyle, !dense && s.trailing]}><SymbolView name="repeat" size={dense ? 18 : 14} tintColor={p.loop ? p.c.link : ink} /></Press>
+        {p.onRestart ? <Press onPress={p.onRestart} disabled={!p.ready} accessibilityRole="button" accessibilityLabel="처음부터" style={[buttonStyle, !dense && s.trailing]}><Icon name="rotate-ccw" size={13} color={ink} /></Press> : null}
+        {p.onRate && p.rates.length > 1 ? <Press disabled={!p.ready} onPress={() => p.onRate!(p.rates[(p.rates.indexOf(p.rate) + 1) % p.rates.length])} accessibilityRole="button" accessibilityLabel={`재생 속도 ${p.rate}배, 바꾸기`} style={[buttonStyle, !dense && s.trailing]}><Text maxFontSizeMultiplier={1.5} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.rate, dense && s.denseRate, { color: p.rate === 1 ? ink : p.c.link }]}>{p.rate}×</Text></Press> : null}
+        {p.onMute ? <Press disabled={!p.ready} onPress={p.onMute} accessibilityRole="button" accessibilityLabel={p.muted ? '소리 켜기' : '소리 끄기'} style={[buttonStyle, !dense && s.trailing]}><Icon name={p.muted ? 'volume-x' : 'volume-2'} size={13} color={ink} /></Press> : null}
+        {p.onExpand ? <Press onPress={p.onExpand} accessibilityRole="button" accessibilityLabel={p.expanded ? '크게 보기 닫기' : '크게 보기'} style={[buttonStyle, !dense && s.trailing]}><SymbolView name={p.expanded ? 'arrow.down.right.and.arrow.up.left' : 'arrow.up.left.and.arrow.down.right'} size={dense ? 22 : 13} tintColor={ink} /></Press> : null}
       </>}
     </View>
     <Modal transparent visible={menu} animationType="fade" onRequestClose={() => closeMenu()} onDismiss={() => { const action = actionAfterMenu.current; actionAfterMenu.current = null; action?.(); }}>
@@ -142,12 +142,14 @@ export function ExerciseVideoControls(p: NativeControlsProps) {
 }
 const s = StyleSheet.create({
   overlay: { position: 'absolute', left: 0, right: 0, bottom: 4, height: 44 },
+  // Centered22pt fullscreen glyph ends24pt from the edge (19 + (32-22)/2).
+  ownedOverlay: { position: 'absolute', left: 24, right: 19, bottom: 12, height: 44 },
   external: { width: '100%', minHeight: 44 },
   row: { flexDirection: 'row', alignItems: 'center', height: 44 },
   btn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   denseBtn: { width: 32, height: 44, alignItems: 'center', justifyContent: 'center' },
-  // Leave the native screen-edge back strip outside the owned scrub target, including fullscreen.
-  ownedSeek: { marginLeft: 24 },
+  // The outer owned overlay now owns the24pt screen-edge inset.
+  ownedSeek: { marginLeft: 0 },
   leading: { alignItems: 'flex-start', paddingLeft: 4 },
   trailing: { alignItems: 'flex-end', paddingRight: 4 },
   off: { opacity: 0.4 },
@@ -155,6 +157,7 @@ const s = StyleSheet.create({
   track: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)' },
   progress: { height: 6, borderRadius: 3 },
   thumb: { position: 'absolute', width: 12, height: 12, borderRadius: 6 },
+  denseRate: { fontSize: 14 },
   rate: { fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
   menu: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.35)' },
   panel: { width: '92%', maxWidth: 420, backgroundColor: '#101820', borderRadius: 16, padding: 8 },

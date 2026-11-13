@@ -70,11 +70,11 @@ check(slider.props.style[0].height === 44 && tree.props.style.height === 44, '44
 check(slider.props.accessibilityValue.max === 20 && slider.props.accessibilityValue.text.includes('/ 0:20'), 'duration retained in accessibility');
 const track = find(slider, (n) => n.type === 'View' && n.props?.style?.height === 6);
 check(track?.props.style.borderRadius === 3, 'R3 prominent 6pt timeline');
-check(tree.props.style.left === 0 && tree.props.style.right === 0 && tree.props.style.height === 44, 'R3 edge-to-edge row keeps the same vertical height');
+check(tree.props.style.left === 24 && tree.props.style.right === 19 && tree.props.style.bottom === 12 && tree.props.style.height === 44, 'R5 aligned visual edges and centered icons keep44pt row height');
 check(!find(tree, (n) => n.type === 'View' && n.props?.style?.backgroundColor === 'rgba(0,0,0,0.28)'), 'R3 no translucent backing behind rail or icons');
 const play = find(tree, (n) => n.type === 'Press' && n.props?.accessibilityLabel === '영상 일시정지');
 const expand = find(tree, (n) => n.type === 'Press' && n.props?.accessibilityLabel === '크게 보기');
-check(!play && expand.props.style[0].width === 32 && expand.props.style[0].height === 44 && slider.props.style[1].marginLeft === 24, 'R4 no left toggle, separate compact targets and screen-edge scrub inset');
+check(!play && expand.props.style[0].width === 32 && expand.props.style[0].height === 44 && slider.props.style[1].marginLeft === 0, 'R5 no left toggle, centered compact targets and inset owned by outer row');
 check(slider.props.style[0].marginHorizontal === undefined, 'R3 bar takes the freed margins between controls');
 check(!find(tree, (n) => n.type === 'Text' && /\d+:\d+/.test(String(n.props.children))), 'no visual elapsed/total line');
 pan!.onBegin({ x: 40 }); pan!.onUpdate({ x: 80, numberOfPointers: 1 }); pan!.onFinalize({ x: 120, canceled: false });
