@@ -104,7 +104,7 @@ export function ExerciseVideoControls(p: NativeControlsProps) {
     setMenu(false);
     if (Platform.OS !== 'ios' && actionAfterMenu.current) { actionAfterMenu.current(); actionAfterMenu.current = null; }
   };
-  return <View pointerEvents="box-none" style={p.overlay === false ? s.external : p.stageTapControls ? s.ownedOverlay : s.overlay} onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}>
+  return <View pointerEvents="box-none" style={p.overlay === false ? s.external : p.stageTapControls ? (p.expanded ? s.fullOverlay : s.ownedOverlay) : s.overlay} onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}>
     <View style={s.row}>
       {!tiny && !p.stageTapControls ? <Press onPress={p.onToggle} accessibilityRole="button" accessibilityLabel={p.playing ? '영상 일시정지' : '영상 재생'} style={[buttonStyle, s.leading]}>
         <Icon name={p.playing ? 'pause' : 'play'} size={14} color={ink} fill={ink} />
@@ -144,7 +144,9 @@ export function ExerciseVideoControls(p: NativeControlsProps) {
 const s = StyleSheet.create({
   overlay: { position: 'absolute', left: 0, right: 0, bottom: 4, height: 44 },
   // Centered18pt icons end24pt from the edge (17 + (32-18)/2).
-  ownedOverlay: { position: 'absolute', left: 24, right: 17, bottom: 12, height: 44 },
+  // Inline44pt gesture row reaches picture floor: no exposed stage tap below the rail.
+  ownedOverlay: { position: 'absolute', left: 24, right: 17, bottom: 0, height: 44 },
+  fullOverlay: { position: 'absolute', left: 24, right: 17, bottom: 8, height: 44 },
   external: { width: '100%', minHeight: 44 },
   row: { flexDirection: 'row', alignItems: 'center', height: 44 },
   btn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },

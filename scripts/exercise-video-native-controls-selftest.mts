@@ -70,7 +70,7 @@ check(slider.props.style[0].height === 44 && tree.props.style.height === 44, '44
 check(slider.props.accessibilityValue.max === 20 && slider.props.accessibilityValue.text.includes('/ 0:20'), 'duration retained in accessibility');
 const track = find(slider, (n) => n.type === 'View' && n.props?.style?.height === 6);
 check(track?.props.style.borderRadius === 3, 'R3 prominent 6pt timeline');
-check(tree.props.style.left === 24 && tree.props.style.right === 17 && tree.props.style.bottom === 12 && tree.props.style.height === 44, 'R5 aligned visual edges and centered icons keep44pt row height');
+check(tree.props.style.left === 24 && tree.props.style.right === 17 && tree.props.style.bottom === 0 && tree.props.style.height === 44, 'R7 inline44pt seek target reaches picture bottom with centered visual rail19pt above edge');
 check(!find(tree, (n) => n.type === 'View' && n.props?.style?.backgroundColor === 'rgba(0,0,0,0.28)'), 'R3 no translucent backing behind rail or icons');
 const play = find(tree, (n) => n.type === 'Press' && n.props?.accessibilityLabel === '영상 일시정지');
 const expand = find(tree, (n) => n.type === 'Press' && n.props?.accessibilityLabel === '크게 보기');
@@ -105,6 +105,9 @@ endB(); check(navCalls.length === 2 && navCalls[1].fullScreenGestureEnabled === 
 guardPlayerScreen(false); check(focus.shift()!() === undefined && navCalls.length === 2, 'no-media screen takes no navigation lease');
 for (const rate of [1, 1.25, 0.25, 0.5]) { props.rate = rate; tree = render(); find(tree, (n) => n.type === 'Press' && n.props?.accessibilityLabel === `재생 속도 ${rate}배, 바꾸기`).props.onPress(); }
 check(JSON.stringify(selectedRates) === '[1.25,0.25,0.5,1]', 'R4 actual rate callbacks cycle two slow steps and max1.25');
+at = 0;
+const fullTree = ExerciseVideoControls({ ...props, expanded: true });
+check(fullTree.props.style.bottom === 8 && fullTree.props.style.left === 24 && fullTree.props.style.height === 44, 'R7 fullscreen keeps existing horizontal layout and only moves down4pt');
 at = 0;
 const externalTree = ExerciseVideoControls({ ...props, stageTapControls: false, overlay: false });
 check(find(externalTree, (n) => n.type === 'Press' && n.props?.accessibilityLabel === '영상 일시정지')?.props.style[0].width === 44, 'official provider external row retains explicit play and44pt targets');
