@@ -18,7 +18,7 @@
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User said next after Clapping Push Up; Depth Drop Plyo Push Up is open. Human review pending."
+    "meaning": "User requested moving execution guidance to how-to and ongoing section placement checks. Applied; current video remains open."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -357,6 +357,7 @@
   },
   "remaining_categories_order": "코어·암케어·회복보강의 개별 전체 순서는 아직 복원되지 않음. 현 라이브러리에서 읽고 기록하되 검수 완료로 간주하지 않음.",
   "rules": [
+    "Review placement and redundancy: concrete execution and safety cues in how-to; purpose and reasons in why. Apply suitable corrections and show them.",
     "Use direct evidence to state supported facts and effects with appropriate confidence and scope; when evidence is indirect or insufficient, describe the training purpose and potential contribution without claiming established performance benefit. Report errors or evidence gaps in user directions.",
     "Check user-requested changes against biomechanics and research; report scientific errors or weak evidence, distinguish related exercise evidence from direct pitching transfer. Add paragraph breaks as appropriate.",
     "User clarified that proposed corrections should be applied immediately, including title. Show results; next only after user direction.",

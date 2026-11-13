@@ -12,3 +12,5 @@ Backups and result screenshot are private outside repository; public handoff con
 User requests evidence checks of their suggestions and reporting any incorrect/unsupported biomechanics; use readable paragraph breaks in descriptions.
 
 Ongoing user rule: state well-supported claims with confidence appropriate to their evidence; when support is indirect or insufficient, describe purpose or potential contribution rather than an established effect. Report discrepancies and limits.
+
+Check each section for proper placement and duplication: how-to for execution/safety; why for purpose and rationale.
