@@ -97,7 +97,7 @@ export function ExerciseVideoControls(p: NativeControlsProps) {
   const dense = !!p.stageTapControls && !p.forceWide;
   const buttonStyle = dense ? s.denseBtn : s.btn;
   const buttons = (p.stageTapControls ? 1 : 2) + Number(!!p.onRate && p.rates.length > 1) + Number(!!p.onExpand) + Number(!!p.onMute) + Number(!!p.onRestart);
-  const compact = !p.forceWide && barWidth < buttons * (dense ? 32 : 44) + 64 ;
+  const compact = !p.forceWide && barWidth < buttons * (dense ? 32 : 44) + 64 + (p.stageTapControls ? 12 : 0);
   const tiny = !p.forceWide && barWidth < 152;
   const closeMenu = (action?: () => void) => {
     actionAfterMenu.current = action ?? null;
@@ -121,12 +121,13 @@ export function ExerciseVideoControls(p: NativeControlsProps) {
           <View pointerEvents="none" style={[s.thumb, { left: Math.max(0, frac * (width - 12)), backgroundColor: p.c.link }]} />
         </View>
       </GestureDetector> : <View style={{ flex: 1 }} />}
+      {p.stageTapControls && !tiny ? <Pressable accessible={false} onPress={(e) => e.stopPropagation()} style={s.seekGap} /> : null}
       {compact ? <Press onPress={() => setMenu(true)} accessibilityRole="button" accessibilityLabel="영상 조작 더 보기" style={[buttonStyle, !dense && s.trailing]}><SymbolView name="ellipsis" size={dense ? 18 : 14} tintColor={ink} /></Press> : <>
         <Press onPress={p.onLoop} accessibilityRole="button" accessibilityState={{ selected: p.loop }} accessibilityLabel={p.loop ? '반복 재생 끄기' : '반복 재생 켜기'} style={[buttonStyle, !dense && s.trailing]}><SymbolView name="repeat" size={dense ? 18 : 14} tintColor={p.loop ? p.c.link : ink} /></Press>
         {p.onRestart ? <Press onPress={p.onRestart} disabled={!p.ready} accessibilityRole="button" accessibilityLabel="처음부터" style={[buttonStyle, !dense && s.trailing]}><Icon name="rotate-ccw" size={13} color={ink} /></Press> : null}
         {p.onRate && p.rates.length > 1 ? <Press disabled={!p.ready} onPress={() => p.onRate!(p.rates[(p.rates.indexOf(p.rate) + 1) % p.rates.length])} accessibilityRole="button" accessibilityLabel={`재생 속도 ${p.rate}배, 바꾸기`} style={[buttonStyle, !dense && s.trailing]}><Text maxFontSizeMultiplier={1.5} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[s.rate, dense && s.denseRate, { color: p.rate === 1 ? ink : p.c.link }]}>{p.rate}×</Text></Press> : null}
         {p.onMute ? <Press disabled={!p.ready} onPress={p.onMute} accessibilityRole="button" accessibilityLabel={p.muted ? '소리 켜기' : '소리 끄기'} style={[buttonStyle, !dense && s.trailing]}><Icon name={p.muted ? 'volume-x' : 'volume-2'} size={13} color={ink} /></Press> : null}
-        {p.onExpand ? <Press onPress={p.onExpand} accessibilityRole="button" accessibilityLabel={p.expanded ? '크게 보기 닫기' : '크게 보기'} style={[buttonStyle, !dense && s.trailing]}><SymbolView name={p.expanded ? 'arrow.down.right.and.arrow.up.left' : 'arrow.up.left.and.arrow.down.right'} size={dense ? 22 : 13} tintColor={ink} /></Press> : null}
+        {p.onExpand ? <Press onPress={p.onExpand} accessibilityRole="button" accessibilityLabel={p.expanded ? '크게 보기 닫기' : '크게 보기'} style={[buttonStyle, !dense && s.trailing]}><SymbolView name={p.expanded ? 'arrow.down.right.and.arrow.up.left' : 'arrow.up.left.and.arrow.down.right'} size={dense ? 18 : 13} tintColor={ink} /></Press> : null}
       </>}
     </View>
     <Modal transparent visible={menu} animationType="fade" onRequestClose={() => closeMenu()} onDismiss={() => { const action = actionAfterMenu.current; actionAfterMenu.current = null; action?.(); }}>
@@ -142,8 +143,8 @@ export function ExerciseVideoControls(p: NativeControlsProps) {
 }
 const s = StyleSheet.create({
   overlay: { position: 'absolute', left: 0, right: 0, bottom: 4, height: 44 },
-  // Centered22pt fullscreen glyph ends24pt from the edge (19 + (32-22)/2).
-  ownedOverlay: { position: 'absolute', left: 24, right: 19, bottom: 12, height: 44 },
+  // Centered18pt icons end24pt from the edge (17 + (32-18)/2).
+  ownedOverlay: { position: 'absolute', left: 24, right: 17, bottom: 12, height: 44 },
   external: { width: '100%', minHeight: 44 },
   row: { flexDirection: 'row', alignItems: 'center', height: 44 },
   btn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
@@ -152,6 +153,7 @@ const s = StyleSheet.create({
   ownedSeek: { marginLeft: 0 },
   leading: { alignItems: 'flex-start', paddingLeft: 4 },
   trailing: { alignItems: 'flex-end', paddingRight: 4 },
+  seekGap: { width: 12, height: 44 },
   off: { opacity: 0.4 },
   seek: { flex: 1, minWidth: 44, height: 44, justifyContent: 'center' },
   track: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)' },
