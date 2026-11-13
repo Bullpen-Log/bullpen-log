@@ -13,12 +13,12 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-003",
-  "current_title": "박수 푸시업",
+  "current_review_id": "EX-Y-P-004",
+  "current_title": "뎁스 드롭 플라이오 푸쉬업",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User requested this evidence-calibrated wording for all future reviews. Current clapping push-up remains open; no next approval."
+    "meaning": "User said next after Clapping Push Up; Depth Drop Plyo Push Up is open. Human review pending."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -598,21 +598,22 @@
   "reverification": {
     "start": 1,
     "target_inclusive": 22,
-    "completed_count": 2,
-    "current": 3,
+    "completed_count": 3,
+    "current": 4,
     "pending_unmodified": 22,
     "order": "User corrected first item to 케이블 스피드 로테이션; follow displayed library order as user confirms. Historical review_id/ordinal retained for identity, not current position.",
     "user_sequence_first": "EX-Y-P-007",
     "approved_items": [
       "EX-Y-P-007",
-      "EX-Y-P-002"
+      "EX-Y-P-002",
+      "EX-Y-P-003"
     ]
   },
   "playback_observation": {
-    "item": "EX-Y-P-003",
+    "item": "EX-Y-P-004",
     "source": "REFERENCE",
     "loop_setting": "shared player ON",
-    "actual_playback": "Clapping Push Up - OPEX Exercise Library; playback observed",
-    "updated_at_utc": "2026-11-13T06:29:00.916812+00:00"
+    "actual_playback": "Depth Drop Plyo Push Up; playback observed",
+    "updated_at_utc": "2026-11-13T06:37:50.177895+00:00"
   }
 }

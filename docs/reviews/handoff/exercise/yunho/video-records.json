@@ -282,7 +282,15 @@
         ],
         "limits": "Acute kinetics/EMG in healthy men and commandos; variations differ from exact footage. Supports distinguishing receiving/pushing and avoids universal clap-height/force or pitching-transfer claims; no optimal dose or injury-prevention proof."
       },
-      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required.",
+      "later_user_edits": [
+        {
+          "status": "Added paragraph breaks to existing purpose description under standing user formatting instruction. Saved and displayed; content unchanged.",
+          "source": "https://pubmed.ncbi.nlm.nih.gov/27193045/",
+          "evidence_limit": "Acute force testing on active men and variations differs from this exact exercise; not proof of pitching transfer or optimal prescription.",
+          "at_utc": "2026-11-13T06:37:50.178027+00:00"
+        }
+      ]
     },
     "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
