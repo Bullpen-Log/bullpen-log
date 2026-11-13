@@ -459,6 +459,16 @@
           "before_description": "■ 어떤 운동인가\r\n통제할 수 있는 중량을 빠르게 밀어 올리는 벤치 프레스입니다. 상체의 빠른 밀기 동작에 집중합니다.\r\n\r\n■ 이렇게 하세요\r\n· 추정 1RM(한 번 들 수 있는 최대 중량)의 약 40~60%를 출발 범위로 삼고, 빠르기와 자세를 유지할 수 있도록 개인에 맞게 중량을 조절합니다.\r\n· 안전바를 알맞게 설치하거나 보조자를 확보하고, 벤치에 누워 어깨뼈와 발의 지지를 안정적으로 잡습니다.\r\n· 바를 가슴 쪽으로 통제하며 내리고, 가슴에서 튕기지 말고 최대한 빠르게 밀어 올립니다. 바를 손에서 놓지 마세요.\r\n· 한 세트 3회를 기준으로, 반복마다 빠른 밀기와 같은 자세를 유지합니다.\r\n· 속도가 뚜렷하게 떨어지거나 자세가 무너지면 세트를 끝냅니다. 피로·휴식 부족·중량을 함께 확인하고, 충분히 쉰 뒤 필요하면 중량을 낮춥니다.\r\n· 세트 사이는 2~3분을 휴식의 출발 기준으로 삼습니다. 표시된 기본 휴식은 3분이며, 빠르기와 자세가 회복되지 않으면 더 쉽니다.\r\n· 어깨·팔꿈치·가슴 등에 통증이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n투구처럼 빠른 힘 발휘가 요구되는 동작을 준비할 때, 상체가 저항을 빠르게 밀어내는 능력을 훈련하는 방법으로 활용할 수 있습니다.",
           "after_description": "■ 어떤 운동인가\r\n통제할 수 있는 중량을 빠르게 밀어 올리는 벤치 프레스입니다. 상체의 빠른 밀기 동작에 집중합니다.\r\n\r\n■ 이렇게 하세요\r\n1. 한 번 들 수 있는 최대 무게의 약 40~60%를 시작점으로 삼고, 빠르게 밀면서 자세를 유지할 수 있게 조절합니다.\n2. 벤치 옆 안전바를 알맞은 높이에 설치하거나 보조자를 둡니다. 벤치에 누워 발을 바닥에 단단히 놓고 어깨를 안정시킵니다.\n3. 두 손으로 바벨을 잡아 가슴 위로 가져옵니다. 바벨을 가슴 쪽으로 천천히 내립니다.\n4. 가슴에서 바벨을 튕기지 말고 빠르게 밀어 올립니다. 바벨을 손에서 놓지 않습니다.\n5. 한 세트에 3회 반복하면서 매번 같은 자세로 빠르게 밀어 올립니다. 속도가 눈에 띄게 떨어지거나 자세가 흐트러지면 세트를 끝냅니다.\n6. 세트 사이에 2~3분을 쉬고, 빠르게 밀 수 있을 만큼 회복되지 않았다면 더 쉽니다. 필요하면 무게를 낮춥니다.\n7. 어깨·팔꿈치·가슴 등에 통증이 생기면 운동을 중단합니다.\n\n\r\n■ 투수에게 왜 필요한가\r\n투구처럼 빠른 힘 발휘가 요구되는 동작을 준비할 때, 상체가 저항을 빠르게 밀어내는 능력을 훈련하는 방법으로 활용할 수 있습니다.",
           "at_utc": "2026-11-13T07:05:39.294067+00:00"
+        },
+        {
+          "status": "Saved and read back: 40–60% only if maximum known, include bar weight and avoid attempting maximum if unknown; safety bars or spotter, controlled lower/fast press, rerack and fatigue/pain stop. Existing 6x3, 180s retained.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/27699699/",
+            "https://pubmed.ncbi.nlm.nih.gov/38369845/"
+          ],
+          "limits": "Moderate-load power meta-analysis and rest research have different protocols; do not establish universal 40–60% optimum or exact rest for this 6x3, or direct pitching-velocity benefit.",
+          "filming": "Reference only, filming required.",
+          "at_utc": "2026-11-13T08:07:05.425243+00:00"
         }
       ]
     },
