@@ -715,13 +715,20 @@
       "safe_identifier": "youtube:IaKpCClc3VE",
       "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
     },
-    "human_review_status": "사용자 판단 대기",
+    "human_review_status": "다음 이동 승인",
     "content_application_authorized": false,
     "applied": false,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
-    "user_instruction_verbatim_excerpt": null,
-    "user_requests_summary": null,
+    "user_instruction_verbatim_excerpt": "어떤 운동인가에서 팔로는 던질 수 없다는 걸 무게 때문에 팔로만 던질 수 없고 몸을 사용한다는 식으로 설명을 바꾸고 몸과 발을 정면을 바라보고 있는 상태를 유지한다는 설명을 추가하고 너가 말한 거 반영해서 다음으로 넘어가자",
+    "user_requests_summary": {
+      "requests": [
+        "공의 무게 때문에 팔만으로 던지기보다 몸을 사용한다는 의도를 구체화",
+        "몸과 발이 정면을 바라보는 상태를 유지한다는 설명 추가. 정면 기준과 회전 범위는 최종 문구에서 사용자 의도·영상 대조",
+        "GPT가 제시한 앞무릎 제어, 골반·가슴 연결, 공 역할, 측정·안전 안내 보완"
+      ],
+      "status": "기록만; 실제 수정 미승인"
+    },
     "gpt_candidates": [
       "앞무릎 앞으로 밀리지 않기 문구를 무릎 완전고정/발끝 넘기 금지로 해석되지 않게 수정: 앞발 지지·균형·무릎 방향 제어 중심",
       "골반 먼저 가슴 늦게를 과도한 비틀림·의도적 지연 지시로 읽지 않도록 자연스러운 연결·타이밍 설명. 현재 변형이 실제투구 차례만 분리한다는 단정 완화",
@@ -738,6 +745,39 @@
     },
     "unresolved": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
+  },
+  {
+    "review_id": "EX-Y-P-020",
+    "ordinal": 20,
+    "category": "파워",
+    "title_at_review": "메디신볼 턴 앤 번 숏풋",
+    "media": {
+      "kind": "reference_only",
+      "safe_identifier": "youtube:Ae5Z4sRAyR0"
+    },
+    "human_review_status": "사용자 판단 대기",
+    "content_application_authorized": false,
+    "applied": false,
+    "gpt_candidates": [
+      "Shot Put은 포환던지기식 밀어 던지기 의미. 제목과 투척 방식 명확화",
+      "팔로 던질 수 없다는 표현은 저항에 맞춰 하체·몸통·팔 연결하는 의도로 구체화",
+      "앞다리로 몸을 멈춰야 한다는 단정 대신 앞발 지지·제어하며 회전·투척 연결",
+      "벽·반발·주변공간 안내 및 같은 공·동작 측정"
+    ],
+    "evidence": {
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/39074186/",
+        "https://pubmed.ncbi.nlm.nih.gov/39157018/",
+        "https://kjss.sports.re.kr/upload/pdf/kjss-2024-35-2-288.pdf"
+      ],
+      "limits": "대학 선수 메디신볼 밀기·찍기와 투구 비교 및 투구 관찰연구. 본 변형의 구속 향상이나 3×5/90초 최적값 직접 입증 아님."
+    },
+    "playback": "YouTube Shorts loop=true, paused=false 확인",
+    "user_requests_summary": null,
+    "unresolved": [
+      "시작 방향·발 디딤·투척 방식 사용자 판단 대기",
+      "국가별 법률/영상권리 검토 미완료"
     ]
   }
 ]

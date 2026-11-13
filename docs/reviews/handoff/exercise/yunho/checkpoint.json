@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "work_order": "REVIEW-SYNC-20261111",
-  "exported_at_utc": "2026-11-11T04:24:52.860500+00:00",
+  "exported_at_utc": "2026-11-13T04:08:45.127960+00:00",
   "original_json_last_modified_utc": "2026-11-09T17:21:25.150484+00:00",
   "timestamp_caution": "파일 mtime는 운영체제 메타데이터 원문. 대화의 클라이언트 날짜와 불일치하므로 실제 검수일로 환산/추정하지 않음. 마지막 사람 판정은 아래 대화 순서로 식별.",
   "original_sha256": "75ab50c05de1c93042903a0c5b5c7a055650efdc6849e23d1276635f31a27743",
@@ -13,19 +13,19 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-019",
-  "current_title": "스플릿 스탠스 스로우 (큰 공)",
-  "completed_human_count": 18,
+  "current_review_id": "EX-Y-P-020",
+  "current_title": "메디신볼 턴 앤 번 숏풋",
+  "completed_human_count": 19,
   "completed_definition": "사람 검수에서 다음 이동 승인. 콘텐츠 수정/법률 검수/배포 완료가 아님.",
   "last_human_decision": {
-    "review_id": "EX-Y-P-018",
-    "verbatim": "너가 말한 거 반영하고 다음 영상으로 넘어가자.",
-    "meaning": "18번 제안 기록 및19번 이동 승인;19번 판정 없음"
+    "review_id": "EX-Y-P-019",
+    "verbatim": "어떤 운동인가에서 팔로는 던질 수 없다는 걸 무게 때문에 팔로만 던질 수 없고 몸을 사용한다는 식으로 설명을 바꾸고 몸과 발을 정면을 바라보고 있는 상태를 유지한다는 설명을 추가하고 너가 말한 거 반영해서 다음으로 넘어가자",
+    "meaning": "19번 수정 메모 및20번 이동 승인; 실제수정 미승인"
   },
   "next_after_approval": {
-    "ordinal": 20,
-    "title": "메디신볼 턴 앤 번 숏풋",
-    "status": "19번 사용자 다음 승인 전 열지 않음"
+    "ordinal": 21,
+    "title": "스플릿 스탠스 발목 아이소메트릭 프레스",
+    "status": "20번 사용자 다음 승인 전 열지 않음"
   },
   "order": {
     "basis": "이 대화에서 관찰한 파워57개 라이브러리 순서. 재개 시 실제 목록 변경 여부 대조; 새로 검수한 목록 아님.",
@@ -123,12 +123,12 @@
       {
         "ordinal": 19,
         "title": "스플릿 스탠스 스로우 (큰 공)",
-        "status": "human_pending"
+        "status": "human_next_approved"
       },
       {
         "ordinal": 20,
         "title": "메디신볼 턴 앤 번 숏풋",
-        "status": "not_human_reviewed"
+        "status": "human_pending"
       },
       {
         "ordinal": 21,
@@ -439,9 +439,16 @@
       "title": "스플릿 스탠스 스로우 (큰 공)",
       "status": "참고 영상만 있음",
       "evidence": "촬영 전 · 참고 영상"
+    },
+    {
+      "number": 20,
+      "category": "파워",
+      "title": "메디신볼 턴 앤 번 숏풋",
+      "status": "참고 영상만 있음",
+      "evidence": "촬영 전 · 참고 영상"
     }
   ],
-  "filming_count": 15,
+  "filming_count": 16,
   "owned_videos": [
     12,
     15,
