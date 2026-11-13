@@ -14,12 +14,12 @@
     "회복 및 보강"
   ],
   "current_review_id": "EX-Y-P-007",
-  "current_title": "케이블 스피드 로테이션",
+  "current_title": "스탠딩 케이블 익스플로시브 로테이션",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "verbatim": "첫번째는 케이블 스피드로테이션인데 이것부터 계속하자. 무엇을 수정했는지 수정사항까지 다 말해줘.",
-    "meaning": "User corrected restart order: Cable Speed Rotation is first; viewing and re-verification pending, no next approval."
+    "verbatim": "제목도 바꿔. 바꾸라고 말하는 건 바로바로 수정해.",
+    "meaning": "Applied title edit immediately; user confirmation and next direction pending."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -71,7 +71,7 @@
       },
       {
         "ordinal": 7,
-        "title": "케이블 스피드 로테이션",
+        "title": "스탠딩 케이블 익스플로시브 로테이션",
         "status": "content_applied_human_reverification_pending",
         "previous_title": "케이블 스피드 로테이션",
         "library_database_id": "a7d88c1e-91b7-4b73-9a4d-2b6a444a29b1"
@@ -423,7 +423,7 @@
     {
       "number": 7,
       "category": "파워",
-      "title": "케이블 스피드 로테이션",
+      "title": "스탠딩 케이블 익스플로시브 로테이션",
       "status": "참고 영상만 있음",
       "evidence": "촬영 전 · 참고 영상",
       "previous_title": "케이블 스피드 로테이션"
