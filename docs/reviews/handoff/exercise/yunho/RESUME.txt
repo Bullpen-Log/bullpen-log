@@ -1,3 +1,5 @@
+Latest instruction: use the same clear equipment name consistently across all descriptions (e.g. 케이블 머신, 메디신볼, 랜드마인 고정 장치). Previously edited 21 descriptions checked; 13 changed and read back. Apply to remaining videos during review; whole library not yet comprehensively audited. Current first video remains pending human review.
+
 Exercise review / Yunho — beginner-readable instruction restart
 
 Current: EX-Y-P-007 Standing Cable Explosive Rotation, first of a new human review pass; awaiting user review. User requested all previous how-to sections use plain, consistent beginner language and restart from first through current. 21 previously edited exercises rewritten and DB-readback verified; user has not approved this new pass. Next only after user direction. Preparation, movement, return and safety in numbered steps; maintain prior technique decisions, video accuracy, research and appropriate evidence limits. Original/updated text is preserved per item in video-records.json. Reference video shown; shared-player loop ON, repeat cycle not checked. Shooting-needed list and country-specific legal/rights unresolved items remain in checkpoint.
