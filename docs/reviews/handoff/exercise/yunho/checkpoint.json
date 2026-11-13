@@ -18,7 +18,7 @@
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User requested next from cable rotation; band rotation awaits purpose-review decision."
+    "meaning": "User says why-needed must explain value, not merely call it useful training; band rationale revised, current review pending."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -373,7 +373,8 @@
     "Always write how-to instructions for someone performing the exercise for the first time: use plain concrete language and consistent numbered preparation, movement, return and safety cues; maintain accurate video-specific technique and previous user decisions.",
     "User requires the same equipment to be called by the same clear name in all exercise descriptions: use 케이블 머신 rather than 기계, 메디신볼 for medicine balls, 랜드마인 고정 장치 for landmine anchor; distinguish genuinely different equipment and use accessible language. Apply as subsequent exercises are reviewed.",
     "For relevant lead-leg actions use understandable consistent lead-foot ground pressure and controlled forward motion; springing is an analogy. Distinguish each drill and actual video, allow pelvic rotation/normal movement and avoid forced knee lock; pitching data does not prove transfer of the particular drill.",
-    "Across exercises explain the specific training purpose and relevant connection to pitching in why-needed, including rapid force where relevant; retain differences in task and evidence, avoid guaranteed transfer, forced comparisons, vague action repetition and boilerplate."
+    "Across exercises explain the specific training purpose and relevant connection to pitching in why-needed, including rapid force where relevant; retain differences in task and evidence, avoid guaranteed transfer, forced comparisons, vague action repetition and boilerplate.",
+    "Why-needed must explain why the quality or ability matters to pitching and how the exercise may develop it; do not merely say a repeated movement is available for training. Match confidence to evidence and avoid guaranteed pitching effects."
   ],
   "playback_rule": "Latest user instruction: on the shared player check repeat is enabled; do not wait for full playback or an actual repeat cycle. Independently inspect footage as needed for content review. Move on only with user instruction.",
   "title_rule": "Match original title meaning and actual variation; now apply user-directed changes immediately and verify saved result.",

@@ -199,6 +199,16 @@
           "limits": "Pitching observational studies do not establish effectiveness, optimal volume, or velocity benefit of this band drill.",
           "filming": "Reference only; filming required.",
           "at_utc": "2026-11-13T08:53:06.180930+00:00"
+        },
+        {
+          "user_instruction": "빠르게 회전하는 훈련에 활용할 수 있다가 아니라 왜 이 훈련이 필요한가를 설명",
+          "status": "Saved and UI verified: explain pitching rotational movement and relevance of developing ability to generate rotational force quickly against the band. User review pending.",
+          "sources": [
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC4234942/",
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC9720809/"
+          ],
+          "limits": "Pitching biomechanics studies do not directly establish the chronic effects of this band movement on rotational power or pitch velocity; practical benefit stated as help, not a guaranteed outcome.",
+          "at_utc": "2026-11-13T08:54:49.142054+00:00"
         }
       ]
     },
