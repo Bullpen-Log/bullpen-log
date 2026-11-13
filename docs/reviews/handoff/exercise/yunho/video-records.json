@@ -199,6 +199,15 @@
           "source": "https://pubmed.ncbi.nlm.nih.gov/35465789/",
           "evidence_limit": "Pitching kinematics review and plyometric push-up kinetics do not establish this drill directly increases pitching velocity.",
           "at_utc": "2026-11-13T06:32:08.296423+00:00"
+        },
+        {
+          "status": "User asked to check their suggestions for biomechanics and scientific errors, report concerns, and add line breaks as appropriate. Added paragraph breaks to current purpose text; saved and UI verified.",
+          "sources": [
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC3445080/",
+            "https://pubmed.ncbi.nlm.nih.gov/37833510/"
+          ],
+          "evidence_limit": "Pitching is a rapid movement; upper-body plyometric research covers mixed populations and interventions. Do not claim this particular clap push-up directly improves pitching velocity.",
+          "at_utc": "2026-11-13T06:33:24.277288+00:00"
         }
       ]
     },

@@ -8,3 +8,5 @@ Current visible production library detail has Clapping Push Up reference video a
 #10 no forward step, pivot in place. #11 dropstep in place, no diagonal retreat. #12 retain2-second landing hold text; footage unchanged. #19 maintain forward-facing body/feet per user; human variant verification pending. #21 forefoot on ground, fixed rack/bar pushed upward; exact body contact not invented.
 Country-specific KR/US/JP final legal review and reference-media rights remain unresolved. Newly suggested changes need user direction; prior notes-only gate is superseded by explicit latest edit permission.
 Backups and result screenshot are private outside repository; public handoff contains only safe content/IDs and applied text. No code/schema/player/media/deployment edits made by this batch.
+
+User requests evidence checks of their suggestions and reporting any incorrect/unsupported biomechanics; use readable paragraph breaks in descriptions.
