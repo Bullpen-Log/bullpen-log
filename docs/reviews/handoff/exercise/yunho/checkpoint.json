@@ -13,12 +13,12 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-004",
-  "current_title": "뎁스 드롭 플라이오 푸쉬업",
+  "current_review_id": "EX-Y-P-001",
+  "current_title": "랜드마인 회전 펀치",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User requested moving execution guidance to how-to and ongoing section placement checks. Applied; current video remains open."
+    "meaning": "User requested next after Depth Drop; Landmine Rotational Punch opened, human check pending."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -599,22 +599,23 @@
   "reverification": {
     "start": 1,
     "target_inclusive": 22,
-    "completed_count": 3,
-    "current": 4,
+    "completed_count": 4,
+    "current": 1,
     "pending_unmodified": 22,
     "order": "User corrected first item to 케이블 스피드 로테이션; follow displayed library order as user confirms. Historical review_id/ordinal retained for identity, not current position.",
     "user_sequence_first": "EX-Y-P-007",
     "approved_items": [
       "EX-Y-P-007",
       "EX-Y-P-002",
-      "EX-Y-P-003"
+      "EX-Y-P-003",
+      "EX-Y-P-004"
     ]
   },
   "playback_observation": {
-    "item": "EX-Y-P-004",
+    "item": "EX-Y-P-001",
     "source": "REFERENCE",
-    "loop_setting": "shared player ON",
-    "actual_playback": "Depth Drop Plyo Push Up; playback observed",
-    "updated_at_utc": "2026-11-13T06:37:50.177895+00:00"
+    "loop_setting": "ON",
+    "actual_playback": "Landmine Rotational Punch",
+    "updated_at_utc": "2026-11-13T06:40:39.276576+00:00"
   }
 }
