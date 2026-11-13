@@ -583,7 +583,7 @@
       "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
       "Country-specific legal final review and reference-media rights remain unresolved."
     ],
-    "current_title": "폭발적 메디신볼 힌지 토스 (큰 공)",
+    "current_title": "헤비 메디신볼 폭발적 힌지 토스 (큰 공)",
     "application": {
       "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
       "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
@@ -603,7 +603,20 @@
       "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
       "human_reverification": "pending; restart at #1, next only on user instruction",
       "media_file_edited": false,
-      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required.",
+      "later_user_edits": [
+        {
+          "title_before": "폭발적 메디신볼 힌지 토스 (큰 공)",
+          "title_after": "헤비 메디신볼 폭발적 힌지 토스 (큰 공)",
+          "status": "Added heavy to title to reflect source; removed source title explanation and negative comparisons; clarified purpose and placed stop instruction in how-to. Saved and UI verified.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/34024247/",
+            "https://pubmed.ncbi.nlm.nih.gov/42562365/"
+          ],
+          "limits": "Backward overhead medicine ball and pitching observational studies do not prove this forward/upward hinge throw increases pitching velocity or establish exact prescription.",
+          "at_utc": "2026-11-13T06:51:38.068507+00:00"
+        }
+      ]
     },
     "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"

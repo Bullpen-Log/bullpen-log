@@ -13,12 +13,12 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-005",
-  "current_title": "바벨 스피드 벤치 프레스",
+  "current_review_id": "EX-Y-P-008",
+  "current_title": "헤비 메디신볼 폭발적 힌지 토스 (큰 공)",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User directs evidence review and corrections before requesting review; current landmine improved then Speed Bench opened."
+    "meaning": "User requested next after speed bench; evidence and description revised, human review pending."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -77,7 +77,7 @@
       },
       {
         "ordinal": 8,
-        "title": "폭발적 메디신볼 힌지 토스 (큰 공)",
+        "title": "헤비 메디신볼 폭발적 힌지 토스 (큰 공)",
         "status": "content_applied_human_reverification_pending",
         "previous_title": "헤비 메디신볼 힌지 토스 (큰 공)",
         "library_database_id": "f7a2a626-3929-43de-b49c-04c460b0def0"
@@ -435,7 +435,7 @@
     {
       "number": 8,
       "category": "파워",
-      "title": "폭발적 메디신볼 힌지 토스 (큰 공)",
+      "title": "헤비 메디신볼 폭발적 힌지 토스 (큰 공)",
       "status": "참고 영상만 있음",
       "evidence": "촬영 전 · 참고 영상",
       "previous_title": "헤비 메디신볼 힌지 토스 (큰 공)"
@@ -600,8 +600,8 @@
   "reverification": {
     "start": 1,
     "target_inclusive": 22,
-    "completed_count": 6,
-    "current": 5,
+    "completed_count": 7,
+    "current": 8,
     "pending_unmodified": 22,
     "order": "User corrected first item to 케이블 스피드 로테이션; follow displayed library order as user confirms. Historical review_id/ordinal retained for identity, not current position.",
     "user_sequence_first": "EX-Y-P-007",
@@ -611,14 +611,15 @@
       "EX-Y-P-003",
       "EX-Y-P-004",
       "EX-Y-P-001",
-      "EX-Y-P-006"
+      "EX-Y-P-006",
+      "EX-Y-P-005"
     ]
   },
   "playback_observation": {
-    "item": "EX-Y-P-005",
+    "item": "EX-Y-P-008",
     "source": "REFERENCE",
     "loop_setting": "ON",
-    "actual_playback": "Barbell Speed Bench Press",
-    "updated_at_utc": "2026-11-13T06:49:40.831965+00:00"
+    "actual_playback": "Explosive Movement Drills Heavy Med Ball Hinge Toss",
+    "updated_at_utc": "2026-11-13T06:51:38.068590+00:00"
   }
 }
