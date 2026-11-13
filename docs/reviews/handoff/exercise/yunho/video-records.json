@@ -189,6 +189,16 @@
           ],
           "limits": "Sources address pitching or related training programs, not proof each exact exercise improves pitching velocity or its optimal prescription.",
           "at_utc": "2026-11-13T08:49:18.277199+00:00"
+        },
+        {
+          "status": "Reviewed and UI verified existing revised purpose about pitching leg/pelvis/trunk coordination and fast resisted rotation. No further wording edit; user review pending.",
+          "sources": [
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC11835564/",
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC4234942/"
+          ],
+          "limits": "Pitching observational studies do not establish effectiveness, optimal volume, or velocity benefit of this band drill.",
+          "filming": "Reference only; filming required.",
+          "at_utc": "2026-11-13T08:53:06.180930+00:00"
         }
       ]
     },
