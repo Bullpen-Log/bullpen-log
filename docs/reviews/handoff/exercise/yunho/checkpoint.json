@@ -18,7 +18,7 @@
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User requested removal of bounce-check wording and clear explanation of lead leg bracing and connection to trunk/arm. Saved; current item awaits user review."
+    "meaning": "User requested accessible firm lead-foot pressure, avoid excessive forward pelvic drift, upper body springing metaphor; requested consistent treatment in related exercises and pitching drills. Current item awaits user review."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -371,7 +371,8 @@
     "Keep necessary applied-result handoff for cross-computer resume; do not substitute a pending note for an authorized edit.",
     "No code/player/schema/deployment expansion. Common player belongs to Sub1; use supported library entry when supplied.",
     "Always write how-to instructions for someone performing the exercise for the first time: use plain concrete language and consistent numbered preparation, movement, return and safety cues; maintain accurate video-specific technique and previous user decisions.",
-    "User requires the same equipment to be called by the same clear name in all exercise descriptions: use 케이블 머신 rather than 기계, 메디신볼 for medicine balls, 랜드마인 고정 장치 for landmine anchor; distinguish genuinely different equipment and use accessible language. Apply as subsequent exercises are reviewed."
+    "User requires the same equipment to be called by the same clear name in all exercise descriptions: use 케이블 머신 rather than 기계, 메디신볼 for medicine balls, 랜드마인 고정 장치 for landmine anchor; distinguish genuinely different equipment and use accessible language. Apply as subsequent exercises are reviewed.",
+    "For relevant lead-leg actions use understandable consistent lead-foot ground pressure and controlled forward motion; springing is an analogy. Distinguish each drill and actual video, allow pelvic rotation/normal movement and avoid forced knee lock; pitching data does not prove transfer of the particular drill."
   ],
   "playback_rule": "Latest user instruction: on the shared player check repeat is enabled; do not wait for full playback or an actual repeat cycle. Independently inspect footage as needed for content review. Move on only with user instruction.",
   "title_rule": "Match original title meaning and actual variation; now apply user-directed changes immediately and verify saved result.",
