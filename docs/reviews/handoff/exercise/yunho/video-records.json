@@ -916,6 +916,16 @@
           ],
           "limits": "Related pitching and other medicine-ball studies are indirect; stationary slam may not reproduce pitching mechanics or directly improve velocity.",
           "at_utc": "2026-11-13T08:44:39.855442+00:00"
+        },
+        {
+          "user_instruction": "Explain connection to strong fast movement as well as lead-leg braking in why needed.",
+          "status": "Saved and read back: pitching requires strong rapid force and moving a weighted medicine ball quickly can train whole-body rapid force. Retained lead-leg paragraph.",
+          "sources": [
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC10731065/",
+            "https://pubmed.ncbi.nlm.nih.gov/39074186/"
+          ],
+          "limits": "Related resistance/ballistic programs are indirect; this split stance slam alone is not shown to raise pitching velocity; weight must allow fast controlled movement.",
+          "at_utc": "2026-11-13T08:46:53.272618+00:00"
         }
       ]
     },
