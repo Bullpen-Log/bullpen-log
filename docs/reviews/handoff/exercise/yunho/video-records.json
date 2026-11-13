@@ -1659,6 +1659,29 @@
           ],
           "limits": "Sources address pitching or related training programs, not proof each exact exercise improves pitching velocity or its optimal prescription.",
           "at_utc": "2026-11-13T08:49:18.277199+00:00"
+        },
+        {
+          "at_utc": "2026-11-13T11:55:39.541991+00:00",
+          "status": "Purpose rewritten to capacity; per-side and stop guidance added; saved/read back; 2-second landing retained per user request. Metadata unchanged. Human review pending.",
+          "metadata": {
+            "bodyParts": [
+              "고관절",
+              "햄스트링·둔근",
+              "종아리·발목"
+            ],
+            "intensity": "높음",
+            "difficulty": "중급",
+            "equipment": [
+              "맨몸"
+            ],
+            "sets": 3,
+            "reps": 3,
+            "holdSeconds": null,
+            "restSeconds": 120,
+            "perSide": true
+          },
+          "source": "https://pubmed.ncbi.nlm.nih.gov/37123275/",
+          "limits": "General unilateral/bilateral research, not direct pitching speed evidence or exact dose. Video is owned; verify editing visually."
         }
       ]
     },
