@@ -1908,6 +1908,32 @@
         {
           "status": "Updated and read back stop-condition wording in library: prescribed repetitions remain target; listed form or speed issue during exercise stops current set.",
           "at_utc": "2026-11-13T11:16:04.689296+00:00"
+        },
+        {
+          "at_utc": "2026-11-13T12:05:25.140441+00:00",
+          "status": "Saved/read back: pitching direction and lead knee instruction, clarified purpose, stop cue, terminology. Intensity 중간 to 높음, difficulty 초급 to 중급, rest 90 to 180 sec, perSide true to false. Human review pending.",
+          "metadata": {
+            "bodyParts": [
+              "코어",
+              "고관절",
+              "전신"
+            ],
+            "intensity": "높음",
+            "difficulty": "중급",
+            "equipment": [
+              "메디신볼"
+            ],
+            "sets": 3,
+            "reps": 5,
+            "holdSeconds": null,
+            "restSeconds": 180,
+            "perSide": false
+          },
+          "sources": [
+            "https://pmc.ncbi.nlm.nih.gov/articles/PMC9532595/",
+            "https://pubmed.ncbi.nlm.nih.gov/17194236/"
+          ],
+          "limits": "Pitching biomechanics and general power recommendations are indirect; exact drill impact/dose not established. Filming required."
         }
       ]
     },

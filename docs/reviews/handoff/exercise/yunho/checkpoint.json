@@ -13,12 +13,12 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-013",
-  "current_title": "레터럴 셔플 스로우 (큰 공)",
+  "current_review_id": "EX-Y-P-014",
+  "current_title": "스트레치 스로우 (큰 공)",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User says why-needed is awkward and lacks backwards-step relationship to pitching; revised saved; remains on EX-Y-P-013 for human review."
+    "meaning": "User requested next from lateral shuffle; stretch throw awaits review."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -652,8 +652,8 @@
   ],
   "reverification": {
     "pass": "full metadata and dose review",
-    "completed_count": 11,
-    "current": 12,
+    "completed_count": 12,
+    "current": 13,
     "approved_items": [
       "EX-Y-P-007",
       "EX-Y-P-002",
@@ -665,16 +665,17 @@
       "EX-Y-P-009",
       "EX-Y-P-010",
       "EX-Y-P-011",
-      "EX-Y-P-012"
+      "EX-Y-P-012",
+      "EX-Y-P-013"
     ],
     "order": "Cable first; next only on human approval"
   },
   "playback_observation": {
-    "item": "EX-Y-P-013",
+    "item": "EX-Y-P-014",
     "source": "REFERENCE",
     "loop_setting": "ON",
     "actual_playback": "Playing; repeat cycle not checked",
-    "updated_at_utc": "2026-11-13T11:57:27.722067+00:00"
+    "updated_at_utc": "2026-11-13T12:05:25.140441+00:00"
   },
   "equipment_terminology_review": {
     "scope": "21 previously edited exercise descriptions checked; 13 changed and DB readback verified; other library descriptions not yet comprehensively audited.",
