@@ -7,11 +7,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:6BDnA6TN1DI",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "ffbcc8f4-70a7-4671-bc5b-b9032f3da6c6"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "반영하라는 뜻은 기록해두라는거야. 나중에 한번에 정리해서 작업하자.",
@@ -25,7 +25,8 @@
         "효과 표현 근거 확인 또는 훈련 목적 중심 표현 검토"
       ],
       "user_instruction": "반영은 기록만 의미. 전체 검수 후 최종 변경안을 보여주고 수정 여부를 물은 뒤 작업.",
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -35,6 +36,30 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "랜드마인 회전 펀치",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n바벨 한쪽 끝을 바닥 모서리(랜드마인)에 고정하고, 투구하듯 옆으로 선 채 뒷다리로 밀며 엉덩이와 몸통을 돌려 바를 한 손으로 앞으로 밀어내는 운동입니다. 다리에서 만든 힘을 몸통 회전으로 이어 팔 끝까지 보내는 순서를 익힙니다. 메디신볼 없이 할 수 있는 회전 파워 운동입니다.\n\n■ 이렇게 하세요\n· 바 끝을 뒷손으로 잡아 뒤쪽 엉덩이 옆에 두고, 두 발을 넓게 벌려 옆으로 서세요.\n· 뒷발로 바닥을 밀며 엉덩이를 먼저 돌리고, 몸통이 따라 돈 뒤에 팔로 바를 앞으로 밀어내세요.\n· 팔이 다 펴질 때 뒷발 뒤꿈치가 들리며 체중이 앞발로 옮겨 갑니다.\n· 한 회마다 처음 자세로 돌아와 다시 빠르게 하세요.\n· 팔부터 밀면 팔 운동이 됩니다. 엉덩이가 먼저 돌게 하세요.\n\n■ 투수에게 왜 필요한가\n투구 힘은 다리에서 엉덩이, 몸통, 팔 순서로 이어집니다. 이 순서대로 빠르게 힘을 내는 연습이라, 메디신볼을 던질 수 없는 곳에서도 회전 파워를 기를 수 있습니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n랜드마인 고정 장치에 바벨 한쪽 끝을 고정하고, 옆으로 선 자세에서 다리·골반·몸통의 움직임을 연결해 반대쪽 끝을 한 손으로 앞·위로 밀어내는 운동입니다.\r\n\r\n■ 이렇게 하세요\r\n· 바벨과 중량에 맞는 랜드마인 고정 장치를 사용하고, 고정점이 빠지거나 들리지 않는지 확인합니다. 바닥 모서리에 끼우는 것만으로 고정을 대신하지 마세요.\r\n· 두 발을 벌려 옆으로 서고, 바 끝을 뒷손으로 잡아 가슴·어깨 가까이에 둡니다.\r\n· 뒷발로 바닥을 밀며 발과 골반을 돌리고, 몸통과 팔의 움직임을 연결해 바를 앞·위로 빠르게 밀어냅니다.\r\n· 뒷발 뒤꿈치가 자연스럽게 들리며 앞발 쪽으로 체중이 옮겨가도록 합니다. 발을 바닥에 고정한 채 무릎이나 허리만 비틀지 마세요.\r\n· 바를 놓지 말고 가슴·어깨 가까이로 조절하며 돌아온 뒤 다음 회를 시작합니다.\r\n· 바의 이동 범위와 주변 공간을 확보하고, 통증이나 고정 장치의 흔들림이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n다리로 지면을 미는 동작과 골반·몸통 회전, 팔의 밀기를 연결하는 연습입니다. 회전하며 빠르게 힘을 내는 훈련 목적으로 활용합니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required.",
+      "ui_reloaded_and_description_confirmed": true
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -46,11 +71,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:iNSlB1wDaaI",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "5fba8b53-85c7-4312-b6c8-a20aa4aeda6c"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "운동 설명도 팔을 사용한다는 전제인데 애초에 팔을 사용하지 않으니까 이부분도 수정이 필요해.",
@@ -63,7 +88,8 @@
         "밴드를 두 손으로 잡고 가슴 앞에 둔다는 설명을 영상의 허리·골반 부착 방식과 일치시키기",
         "팔로 밴드를 잡거나 당긴다는 전제의 전체 설명 수정: 시범은 팔로 밴드를 당기는 방식이 아님"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -71,6 +97,29 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "밴드 스피드 로테이션",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n기둥에 건 밴드를 두 손으로 잡고 투구 자세로 선 채, 엉덩이를 빠르게 돌려 밴드를 끌어오는 운동입니다. 밴드 하나로 어디서든 회전 파워를 연습할 수 있습니다.\n\n■ 이렇게 하세요\n· 밴드를 허리 높이 기둥에 걸고, 밴드 쪽으로 옆으로 서서 두 발을 넓게 벌리세요.\n· 밴드를 두 손으로 잡고 가슴 앞에 둡니다.\n· 뒷발로 바닥을 밀며 엉덩이를 먼저 빠르게 돌리고, 몸통이 따라 돌게 하세요.\n· 끝에서 멈춘 뒤 천천히 처음 자세로 돌아오세요.\n· 밴드가 너무 세면 엉덩이보다 팔로 당기게 됩니다. 빠르게 돌 수 있는 밴드를 쓰세요.\n\n■ 투수에게 왜 필요한가\n엉덩이가 몸통보다 먼저 빠르게 도는 순서를 익힙니다. 장비가 밴드뿐이어도 회전 파워를 기를 수 있습니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n허리·골반 부위에 건 밴드의 저항을 받으며 하체와 몸통을 빠르게 회전하는 운동입니다. 두 손으로 밴드를 잡아 당기는 동작이 아니라, 골반에 걸리는 저항에 맞춰 몸을 움직이는 방식입니다.\r\n\r\n■ 이렇게 하세요\r\n· 밴드를 적합한 고정점에 연결하고 허리·골반 부위에 겁니다. 고정 상태와 밴드 손상을 확인하세요.\r\n· 밴드의 당김 방향에 맞춰 옆으로 서서 두 발을 벌리고, 밴드가 빠지거나 말려 올라가지 않게 둡니다.\r\n· 손으로 밴드를 잡아 당기지 않고, 발로 바닥을 밀며 골반과 몸통을 연결해 빠르게 돌립니다.\r\n· 발과 골반이 자연스럽게 함께 돌도록 하고, 끝에서 균형을 잡습니다.\r\n· 밴드의 당김에 끌려가지 않도록 조절하며 처음 자세로 돌아옵니다. 빠른 회전과 복귀를 제어할 수 있는 저항을 고르세요.\r\n· 통증이 있거나 밴드가 미끄러지고 고정점이 흔들리면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n골반에 걸리는 저항에 맞서 하체와 몸통을 연결해 회전하는 연습입니다. 팔로 저항을 당기는 대신, 지면을 미는 동작과 골반·몸통 회전의 연결에 집중합니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -82,11 +131,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:zmQ3D6BKyqE",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "f60ca4bb-9189-4034-aee8-1d4ac954351f"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "이 부분 반영하는데 연속으로 해야된다는 설명도 필요할 거 같아.",
@@ -99,7 +148,8 @@
         "플라이오 푸시업과의 불명확한 높이·힘 비교 표현을 동작 중심 설명으로 검토",
         "착지 후 다음 반복으로 이어지는 연속 수행 설명 추가. 최종 문구에서 통증 시 중단 안내와 충돌하지 않도록 정리"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -107,6 +157,36 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "박수 푸시업",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n바닥에서 세게 밀어 몸을 띄운 뒤 공중에서 손뼉을 한 번 치고 착지하는 푸시업입니다. 플라이오 푸시업보다 더 높이 떠야 해서 더 빠르고 큰 힘이 필요합니다.\n\n■ 이렇게 하세요\n· 손을 어깨너비보다 조금 넓게 짚고 몸을 곧게 펴세요.\n· 가슴을 바닥 가까이 내렸다가 세게 밀어 몸을 띄우세요.\n· 공중에서 가슴 앞으로 손뼉을 한 번 치고, 바로 손을 어깨너비로 되돌리세요.\n· 팔꿈치를 부드럽게 굽히며 착지하세요.\n· 손뼉 칠 시간이 모자라거나 손목 · 어깨가 아프면 플라이오 푸시업으로 돌아갑니다.\n\n■ 투수에게 왜 필요한가\n상체가 짧은 시간에 큰 힘을 내는 능력을 기릅니다. 플라이오 푸시업이 쉬워졌을 때 넘어오는 단계입니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n바닥을 빠르게 밀어 손을 띄우고, 공중에서 손뼉을 한 번 친 뒤 다시 손을 짚는 푸시업입니다. 착지를 제어한 직후 다시 밀어내는 동작을 연속으로 수행합니다.\r\n\r\n■ 이렇게 하세요\r\n· 손을 어깨너비보다 조금 넓게 짚고 머리부터 발까지 몸을 곧게 유지합니다.\r\n· 가슴을 바닥 가까이 내렸다가 빠르게 밀어 손을 띄웁니다.\r\n· 공중에서 손뼉을 한 번 치고, 착지 전에 손을 지지할 위치로 되돌립니다.\r\n· 팔꿈치를 부드럽게 굽히며 몸을 받고, 자세가 유지되는 범위에서 곧바로 다시 밀어 다음 반복으로 이어갑니다.\r\n· 손을 제때 되돌리지 못하거나 착지·몸통 정렬이 무너지면 세트를 끝냅니다. 통증이 없는 상태에서 손뼉 없이 하는 플라이오 푸시업으로 난이도를 낮춰 연습할 수 있습니다.\r\n· 손목·어깨·팔꿈치 등에 통증이 생기면 운동을 중단합니다. 통증이 있는 상태에서 다른 푸시업으로 이어가지 마세요.\r\n\r\n■ 투수에게 왜 필요한가\r\n상체와 몸통으로 착지를 제어하고 빠르게 다시 미는 전환을 연습합니다. 손뼉을 친 뒤 손을 되돌려 안정적으로 지지하는 조절도 함께 요구됩니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "research_recheck": {
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/21701289/",
+          "https://pubmed.ncbi.nlm.nih.gov/27193045/"
+        ],
+        "limits": "Acute kinetics/EMG in healthy men and commandos; variations differ from exact footage. Supports distinguishing receiving/pushing and avoids universal clap-height/force or pitching-transfer claims; no optimal dose or injury-prevention proof."
+      },
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -118,11 +198,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:-yRitniIZ4I",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "636f4f96-8e1e-47c6-b5b6-bc004d59a204"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "이름을 뎁스 드롭 플라이오 푸쉬업으로 바꿔야돼.",
@@ -137,7 +217,8 @@
         "투구 후 팔·어깨 감속과 직접 연결하는 문구는 근거 확인 또는 훈련 목적 중심으로 정리",
         "왜 필요한가에 플라이오의 목적 설명 추가: 착지를 받아 곧바로 밀어내는 빠른 전환과 탄성 활용을 설명하는 방향. 생리학적 설명·효과 단정은 최종 문구 작성 시 근거 확인"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -145,9 +226,42 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
-      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
     ],
-    "normalization_note": "옛 메모의 next_video_approved=false는 당시 시점 값. 이후 사용자 다음 승인 및 완료 목록으로 갱신; 실제 적용 승인은 여전히 없음."
+    "normalization_note": "옛 메모의 next_video_approved=false는 당시 시점 값. 이후 사용자 다음 승인 및 완료 목록으로 갱신; 실제 적용 승인은 여전히 없음.",
+    "current_title": "뎁스 드롭 플라이오 푸쉬업",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "title",
+        "description"
+      ],
+      "before": {
+        "title": "드롭 푸시업",
+        "description": "■ 어떤 운동인가\n원판 두 장 위에 손을 짚고 있다가 손을 바닥으로 떨어뜨리며 몸을 받고, 곧바로 세게 밀어 다시 원판 위로 손을 올리는 푸시업입니다. 떨어지는 몸을 받아 멈추는 힘과, 받자마자 되밀어 올리는 힘을 함께 기릅니다.\n\n■ 이렇게 하세요\n· 원판 두 장을 어깨너비보다 조금 넓게 놓고, 그 위에 손을 짚어 몸을 곧게 펴세요.\n· 손을 원판 안쪽 바닥으로 떨어뜨리며 팔꿈치를 부드럽게 굽혀 몸을 받으세요.\n· 받자마자 바닥을 세게 밀어 손을 띄우고, 다시 원판 위에 짚으세요.\n· 허리가 처지거나 엉덩이가 들리면 세트를 끝냅니다.\n· 처음에는 얇은 원판으로 시작하세요.\n\n■ 투수에게 왜 필요한가\n공을 던진 뒤 팔과 어깨는 빠르게 움직이는 몸을 받아 멈춰야 합니다. 받는 힘과 되밀어 올리는 힘을 함께 기르는 상체 플라이오입니다."
+      },
+      "after": {
+        "title": "뎁스 드롭 플라이오 푸쉬업",
+        "description": "■ 어떤 운동인가\r\n원판 위에 손을 짚은 자세에서 손을 안쪽 바닥으로 내려 몸을 받고, 곧바로 밀어 다시 원판 위에 손을 짚는 플라이오 푸시업입니다.\r\n\r\n■ 이렇게 하세요\r\n· 원판이 미끄러지거나 흔들리지 않는 평평한 바닥에 놓고, 바닥과 원판 위 모두 손바닥을 충분히 짚을 공간을 확보합니다.\r\n· 낮고 안정된 원판 위에 손을 짚어 몸을 곧게 유지합니다.\r\n· 손을 원판 안쪽 바닥으로 내려 팔꿈치를 부드럽게 굽히며 몸을 받습니다.\r\n· 착지를 제어한 직후 바닥을 빠르게 밀어 손을 띄우고, 다시 원판 위에 안정적으로 짚습니다.\r\n· 높이보다 착지와 빠른 전환을 우선합니다. 허리가 처지거나 손을 안정적으로 짚지 못하면 세트를 끝냅니다.\r\n· 손목·팔꿈치·어깨 등에 통증이 있으면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n플라이오메트릭 훈련은 힘을 받아 근육이 늘어나는 구간에서 곧바로 밀어내는 구간으로 전환하는 신장·단축 주기를 활용합니다. 이 운동은 상체와 몸통으로 착지를 제어한 뒤 빠르게 다시 밀어내는 연결에 집중합니다. 바닥에 오래 머무르지 않되, 빠르기를 위해 안정적인 착지를 생략하지 마세요."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "research_recheck": {
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/21701289/",
+          "https://pubmed.ncbi.nlm.nih.gov/27193045/"
+        ],
+        "limits": "Acute kinetics/EMG in healthy men and commandos; variations differ from exact footage. Supports distinguishing receiving/pushing and avoids universal clap-height/force or pitching-transfer claims; no optimal dose or injury-prevention proof."
+      },
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
+      "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
+    ]
   },
   {
     "review_id": "EX-Y-P-005",
@@ -157,11 +271,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:LUYI-sD7RJo",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "72dfaa22-44ab-4c8d-8ef7-4a8de03d3068"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음으로",
@@ -175,7 +289,8 @@
         "속도 저하를 중량 하나로 단정하지 않고 세트 종료 후 휴식·중량 조절 안내",
         "통제 가능한 중량을 빠르게 밀어내는 상체 파워 훈련으로 목적 설명; 무거운 훈련 효과 부정 문구 정리"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -188,6 +303,39 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "바벨 스피드 벤치 프레스",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description",
+        "restSeconds"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n가벼운 무게(최대 무게의 40~60%)로 벤치 프레스를 최대한 빠르게 밀어 올리는 운동입니다. 무거운 무게를 드는 날과 달리, 같은 동작을 빠르게 해서 힘을 내는 속도를 기릅니다.\n\n■ 이렇게 하세요\n· 평소 벤치 프레스처럼 누워 어깨뼈를 모으고 발로 바닥을 누르세요.\n· 바를 가슴까지 조절하며 내리고, 가슴에 닿자마자 최대한 빠르게 밀어 올리세요.\n· 한 세트에 3회만 하고, 마지막 회도 첫 회만큼 빨라야 합니다.\n· 느려지면 무게가 무거운 것입니다. 무게를 줄이세요.\n· 세트 사이는 짧게(1분 안) 쉬어 여러 세트를 이어갑니다.\n\n■ 투수에게 왜 필요한가\n투구는 아주 짧은 시간에 힘을 내는 동작이라, 무겁게만 드는 운동으로는 힘을 내는 속도가 잘 늘지 않습니다. 벤치 프레스를 하는 사람이라면 그 동작 그대로 빠르기를 기를 수 있습니다.",
+        "restSeconds": 60
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n통제할 수 있는 중량을 빠르게 밀어 올리는 벤치 프레스입니다. 상체의 빠른 밀기 동작에 집중하며, 중량은 추정 1RM(한 번 들 수 있는 최대 중량)의 약 40~60%를 출발 범위로 개인에 맞게 조절할 수 있습니다. 이 범위가 모든 사람의 최적 중량이라는 뜻은 아닙니다.\r\n\r\n■ 이렇게 하세요\r\n· 안전바를 알맞게 설치하거나 보조자를 확보하고, 벤치에 누워 어깨뼈와 발의 지지를 안정적으로 잡습니다.\r\n· 바를 가슴 쪽으로 통제하며 내리고, 가슴에서 튕기지 말고 최대한 빠르게 밀어 올립니다. 바를 손에서 놓지 마세요.\r\n· 한 세트 3회를 기준으로, 반복마다 빠른 밀기와 같은 자세를 유지합니다.\r\n· 속도가 뚜렷하게 떨어지거나 자세가 무너지면 세트를 끝냅니다. 피로·휴식 부족·중량을 함께 확인하고, 충분히 쉰 뒤 필요하면 중량을 낮춥니다.\r\n· 세트 사이는 2~3분을 휴식의 출발 기준으로 삼습니다. 표시된 기본 휴식은 3분이며, 빠르기와 자세가 회복되지 않으면 더 쉽니다.\r\n· 어깨·팔꿈치·가슴 등에 통증이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n근력 훈련과 함께, 통제 가능한 저항을 빠르게 밀어내는 동작을 연습하는 방법입니다. 투구와 동작·부하가 같지는 않으므로, 이 운동만으로 구속 향상을 보장하지 않습니다.",
+        "restSeconds": 180
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "research_recheck": {
+        "sources": [
+          "https://acsm.org/resistance-training-guidelines-update-2026/",
+          "https://pubmed.ncbi.nlm.nih.gov/23900903/"
+        ],
+        "limits": "General healthy-adult guidance and trained-athlete load-power testing. 40–60% and 2–3-minute rest are adjustable starting examples adopted from prior directions, not universal optimum or exact 6x3 protocol proof. Rest papers retained in historical evidence; not all were retrievable in current browsing."
+      },
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -199,11 +347,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:n-jjDk5N7FI",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "1f1dfe14-6d52-4a78-8e9d-01fbf09a8e06"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음으로",
@@ -217,7 +365,8 @@
         "적합한 랜드마인 고정 장치·복귀 제어 안내",
         "직접 촬영 시 양발·고정점까지 보이는 구도 확보"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -227,6 +376,29 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "랜드마인 펀치",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n바벨 한쪽 끝을 바닥 모서리(랜드마인)에 고정하고, 다리를 앞뒤로 벌린 채 반대쪽 끝을 한 손으로 앞과 위로 빠르게 밀어내는 운동입니다. 랜드마인 프레스를 빠르게 하는 파워 운동으로, 뒷다리로 바닥을 미는 힘이 팔까지 이어집니다.\n\n■ 이렇게 하세요\n· 바 끝을 어깨 앞에 두고, 바를 든 손의 반대쪽 다리를 앞으로 내딛어 서세요.\n· 뒷발로 바닥을 밀며 바를 앞과 위로 최대한 빠르게 밀어내세요.\n· 팔이 다 펴지면 어깨뼈를 앞으로 조금 더 내밉니다.\n· 조절하며 어깨 앞으로 내리고, 다시 빠르게 밀어내세요.\n· 허리를 젖히거나 몸을 비틀어 밀지 마세요.\n\n■ 투수에게 왜 필요한가\n머리 위로 빠르게 미는 운동보다 어깨 부담이 적은 각도에서 상체 파워를 기릅니다. 다리로 바닥을 미는 힘을 팔까지 보내는 연습도 됩니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n랜드마인 고정 장치에 바벨 한쪽 끝을 고정하고, 반대쪽 끝을 한 손으로 앞·위로 빠르게 밀어내는 운동입니다. 지면을 미는 하체의 움직임을 몸통과 팔의 밀기에 연결합니다.\r\n\r\n■ 이렇게 하세요\r\n· 바벨과 중량에 맞는 랜드마인 고정 장치를 사용하고, 고정점과 주변 공간을 확인합니다. 바닥 모서리에 끼우는 것만으로 고정을 대신하지 마세요.\r\n· 바 끝을 어깨 앞에 잡고 앞뒤로 섭니다. 참고 영상의 잽·크로스 변형은 바를 든 손과 앞발의 조합, 몸통 회전 범위가 서로 다릅니다.\r\n· 앞쪽 손으로 미는 잽 변형은 앞발의 지지를 유지하며 바의 궤도를 따라 밉니다. 뒤쪽 손으로 미는 크로스 변형은 뒷발과 골반·몸통의 회전을 밀기에 연결합니다.\r\n· 발은 회전에 맞춰 자연스럽게 돌리고, 허리만 과도하게 꺾거나 비틀어 밀지 않습니다.\r\n· 바를 놓지 말고 어깨 앞으로 조절하며 돌아옵니다. 빠른 밀기와 복귀를 모두 제어할 수 있는 중량을 고릅니다.\r\n· 통증이 생기거나 고정 장치가 흔들리면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n바의 앞·위 방향 궤도를 따라 하체·몸통·팔을 연결해 빠르게 미는 연습입니다. 변형에 따라 발의 지지와 몸통 회전의 사용을 구분해 수행합니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -238,11 +410,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:Ypv4Olh1Sso",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "a7d88c1e-91b7-4b73-9a4d-2b6a444a29b1"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음으로",
@@ -256,7 +428,8 @@
         "빠른 회전과 제어된 복귀 가능한 중량 및 속도·자세 회복 후 다음 세트 기준 보완",
         "끝에서 제어해 멈추고 무게에 끌리지 않게 천천히 복귀하는 설명"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -268,6 +441,29 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "케이블 스피드 로테이션",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n케이블 손잡이를 가슴 높이에서 두 손으로 잡고 옆으로 선 채, 엉덩이부터 빠르게 돌려 케이블을 반대쪽으로 끌어오는 운동입니다. 천천히 버티는 코어 운동이 아니라 한 번에 빠르게 도는 파워 운동입니다.\n\n■ 이렇게 하세요\n· 케이블을 가슴 높이에 두고, 케이블 쪽 어깨가 기계를 보게 옆으로 서세요.\n· 손잡이를 두 손으로 잡고 팔을 가슴 앞에 편 채 둡니다.\n· 뒷발로 밀며 엉덩이를 먼저 돌리고, 몸통과 팔이 따라 돌게 하세요.\n· 끝에서 멈추고, 천천히 처음 자세로 돌아와 다시 빠르게 하세요.\n· 무게는 빠르게 돌 수 있을 만큼만 고르세요. 느려지면 세트를 끝냅니다.\n\n■ 투수에게 왜 필요한가\n투구는 엉덩이가 먼저 돌고 몸통이 따라 도는 동작입니다. 케이블은 무게를 조금씩 올릴 수 있어, 메디신볼 없이도 회전하는 힘을 단계적으로 기를 수 있습니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n케이블 손잡이를 두 손으로 잡고, 하체와 몸통을 연결해 케이블 저항에 맞서 빠르게 회전하는 운동입니다.\r\n\r\n■ 이렇게 하세요\r\n· 케이블을 가슴 높이에 맞추고, 기계가 몸의 옆에 오도록 섭니다. 기계에 가까운 발과 먼 발의 위치를 확인한 뒤 두 발로 지지합니다.\r\n· 손잡이를 두 손으로 잡아 가슴 앞에 두고, 팔로만 당기지 않도록 합니다.\r\n· 기계 쪽 발로 바닥을 밀며 기계에서 멀어지는 방향으로 골반과 몸통을 돌립니다. 시범처럼 발도 회전에 맞춰 자연스럽게 돌려 무릎이나 허리만 비틀지 않습니다.\r\n· 회전 끝에서 자세와 손잡이를 제어해 멈춘 뒤, 무게에 끌려가지 않게 천천히 처음 자세로 돌아옵니다.\r\n· 빠른 회전과 제어된 복귀가 모두 가능한 중량을 고릅니다. 속도가 뚜렷하게 떨어지거나 균형이 무너지면 세트를 끝냅니다.\r\n· 다음 세트는 빠르기와 자세가 회복된 뒤 시작하고, 필요하면 표시된 휴식보다 더 쉽니다. 통증이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n지면을 미는 하체의 움직임을 골반·몸통 회전과 연결하는 연습입니다. 케이블의 저항을 조절하며 회전 속도와 끝에서 멈추는 제어를 함께 다룹니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -279,11 +475,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:zPaIUkm3yXg",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "f7a2a626-3929-43de-b49c-04c460b0def0"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "제목 맞춰야되는 것도 기억해둬.",
@@ -297,7 +493,8 @@
         "고관절·무릎 폄과 몸통·팔 연결 훈련 목적으로 설명, 근육 이분법·투구 전이 단정 정리",
         "빠르게 통제 가능한 공 선택 및 같은 공·같은 방식 측정 기준 안내"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -308,6 +505,32 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "폭발적 메디신볼 힌지 토스 (큰 공)",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "title",
+        "description"
+      ],
+      "before": {
+        "title": "헤비 메디신볼 힌지 토스 (큰 공)",
+        "description": "■ 어떤 운동인가\n무거운 메디신볼을 두 손으로 들고 엉덩이를 접었다 펴며 앞으로 던지는 드릴입니다.\n\n■ 이렇게 하세요\n1. 무거운 공을 두 손으로 아래에 듭니다.\n2. 뒷엉덩이와 뒤꿈치 쪽에 앉듯 엉덩이를 접습니다.\n3. 엉덩이를 펴며 공을 앞으로 던집니다.\n4. 허리나 팔로 들어 올리지 말고 엉덩이 힘을 씁니다.\n\n■ 투수에게 왜 필요한가\n허벅지 앞쪽이 아니라 엉덩이로 힘을 내는 감각을 익힙니다. 뒷다리는 엉덩이로 써야 몸이 위로 뜨지 않고 힘이 앞으로 갑니다.\n\n■ 세기\n처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던집니다. 거리나 속도를 재 두면 힘이 느는지 볼 수 있습니다."
+      },
+      "after": {
+        "title": "폭발적 메디신볼 힌지 토스 (큰 공)",
+        "description": "■ 어떤 운동인가\r\n큰 메디신볼을 두 손으로 들고, 양발을 나란히 지지한 자세에서 고관절과 무릎을 빠르게 펴 공을 위쪽으로 던지는 운동입니다. 원본의 Explosive는 폭발적으로 빠르게 힘을 내는 수행 의도를 뜻합니다.\r\n\r\n■ 이렇게 하세요\r\n1. 양발을 나란히 벌리고 공을 몸 앞 아래쪽에 듭니다.\r\n2. 무릎을 가볍게 굽히고 엉덩이를 뒤로 보내며 고관절을 접습니다. 한쪽 뒷다리에만 앉는 자세가 아닙니다.\r\n3. 지면을 밀며 고관절과 무릎을 빠르게 펴고, 몸통과 팔의 움직임을 연결해 공을 위쪽으로 던집니다.\r\n4. 허리만 과도하게 젖혀 공을 올리지 말고, 던진 뒤 균형을 유지합니다.\r\n5. 낙하지점과 천장·주변 공간을 확보하고, 떨어지는 공의 바로 아래에 서거나 무리하게 받지 않습니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n고관절·무릎의 폄을 몸통과 팔의 움직임에 연결해 빠르게 힘을 내는 연습입니다. 특정 근육만 쓰거나 투구 동작을 그대로 재현하는 운동으로 해석하지 않습니다.\r\n\r\n■ 세기\r\n큰 공이라고 무조건 무거운 공을 고르지 말고, 빠르게 던지면서 자세를 제어할 수 있는 무게를 선택합니다. 처음에는 동작을 익히고 이후 빠르게 수행합니다. 기록을 비교할 때는 같은 공·시작 자세·던지는 방식·측정 방법을 유지합니다. 속도나 자세가 무너지거나 통증이 생기면 중단합니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -319,11 +542,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:EsXd8_luoKE",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "f7acfb47-01db-4d1b-a424-1e9204af3b42"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음으로",
@@ -337,7 +560,8 @@
         "슬램용 공·반발 특성·낙하지점·주변 공간 안내",
         "직접 촬영 시 앞무릎 확인 가능한 측면 구도 보완"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -347,6 +571,29 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "스플릿 스탠스 슬램 (큰 공)",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n앞뒤로 발을 벌린 자세에서 메디신볼을 머리 위로 들었다가 앞 바닥에 내려치는 드릴입니다.\n\n■ 이렇게 하세요\n1. 앞뒤로 발을 벌리고 공을 머리 위로 듭니다.\n2. 앞다리에 체중을 싣습니다.\n3. 공을 앞 바닥에 세게 내려칩니다.\n4. 앞다리가 흔들리지 않게 버팁니다.\n\n■ 투수에게 왜 필요한가\n앞다리가 버티는 위에서 힘을 쏟아내는 연습입니다. 앞다리가 무너지면 힘이 앞으로 새고 몸이 쏟아집니다.\n\n■ 세기\n처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던집니다. 거리나 속도를 재 두면 힘이 느는지 볼 수 있습니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n앞뒤로 발을 벌린 자세에서 메디신볼을 머리 위로 들었다가 앞쪽 바닥에 빠르게 내려치는 운동입니다.\r\n\r\n■ 이렇게 하세요\r\n1. 슬램에 적합한 공을 사용하고, 바닥과 공의 반발 특성을 확인합니다. 공이 튀어 오를 공간과 주변 사람의 위치를 확인하세요.\r\n2. 앞뒤로 발을 벌려 균형을 잡고 공을 머리 위로 듭니다.\r\n3. 앞발의 지지를 유지하며 몸통과 팔을 연결해 공을 앞쪽 바닥에 빠르게 내려칩니다.\r\n4. 앞무릎을 완전히 잠그려 하지 말고, 무릎이 발끝 방향을 따라 움직이며 균형을 유지하도록 합니다.\r\n5. 공이 멈춘 뒤 안전하게 회수해 자세를 다시 잡습니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n앞뒤 지지 자세에서 균형을 유지하며 몸통과 팔을 연결해 아래 방향으로 빠르게 힘을 내는 연습입니다.\r\n\r\n■ 세기\r\n빠른 내려치기와 균형을 유지할 수 있는 공을 고릅니다. 슬램은 멀리 던지는 거리를 목표로 삼지 않습니다. 같은 공·자세·낙하지점에서 속도와 동작 제어를 비교하고, 속도·균형이 무너지면 세트를 끝냅니다. 통증이 생기면 중단합니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -358,11 +605,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:pTETZevHKyE",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "35a1430a-8f25-4415-9aea-2ee587c1a463"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "영상을 잘 보면 발을 내딛지는 않고 제자리에서 돌리면서 방향을 투구처럼 전환하고 슬램하는 모습을 보이고 있어.",
@@ -377,7 +624,8 @@
         "슬램에 맞게 거리 측정 문구 정리 및 공 적합성·반발·공간 안내"
       ],
       "rejected_ai_observation": "앞으로 발 내딛기·스텝 설명은 AI 오판으로 폐기",
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -387,6 +635,29 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "힌지 오버더톱 슬램 (큰 공)",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n엉덩이를 접은 자세에서 메디신볼을 머리 위로 넘겨 앞 바닥에 내려치는 드릴입니다.\n\n■ 이렇게 하세요\n1. 엉덩이를 접고 공을 뒤쪽 아래에 둡니다.\n2. 엉덩이를 펴며 공을 머리 위로 넘깁니다.\n3. 그대로 앞 바닥에 세게 내려칩니다.\n4. 허리를 젖히지 말고 엉덩이를 펴는 힘을 씁니다.\n\n■ 투수에게 왜 필요한가\n엉덩이에서 시작한 힘이 몸통을 거쳐 팔로 넘어가는 차례를 익힙니다. 허리를 젖혀 대신하면 힘이 샙니다.\n\n■ 세기\n처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던집니다. 거리나 속도를 재 두면 힘이 느는지 볼 수 있습니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n공을 몸 앞에 든 자세에서 고관절을 접으며 백스윙하고, 제자리에서 발과 몸을 돌려 투구처럼 방향을 전환한 뒤 공을 머리 위로 넘겨 바닥에 내려치는 운동입니다. 앞으로 발을 내딛는 스텝 동작은 하지 않습니다.\r\n\r\n■ 이렇게 하세요\r\n1. 슬램에 적합한 공을 몸 앞에 들고 두 발로 안정적으로 섭니다. 공의 반발과 낙하지점·주변 공간을 확인합니다.\r\n2. 엉덩이를 뒤로 보내 고관절을 접으며 공을 뒤쪽으로 백스윙합니다. 시작부터 공을 뒤쪽 아래에 고정하는 자세와 구분합니다.\r\n3. 고관절을 펴는 움직임에 맞춰 발과 골반·몸통을 제자리에서 돌려 던질 방향으로 전환합니다. 발을 앞으로 내딛지 않습니다.\r\n4. 몸통과 팔의 움직임을 연결해 공을 머리 위로 넘겨 앞쪽 바닥에 내려칩니다. 허리만 과도하게 꺾어 동작을 만들지 않습니다.\r\n5. 내려친 뒤 균형을 잡고, 공이 멈춘 것을 확인한 뒤 회수합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n고관절 움직임과 제자리 방향 전환을 몸통·팔의 빠른 내려치기에 연결하는 연습입니다.\r\n\r\n■ 세기\r\n빠른 방향 전환과 슬램을 제어할 수 있는 공을 고릅니다. 거리를 늘리기보다 같은 공·자세·낙하지점에서 속도·균형·제어를 확인합니다. 속도나 자세가 무너지면 세트를 끝내고, 통증이 생기면 중단합니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -398,11 +669,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:0HueFcop3N4",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "cb9009b1-df09-483a-86a7-1ae7be4bb23d"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "드롭스탭이라는 말에 맞게 대각선으로 빼는게 아니라 제자리에서 드롭스탭을 하는 거라는 걸 설명에 반영하고 너가 말한 거 반영해서 다음으로",
@@ -416,7 +687,8 @@
         "체중 이동·골반·몸통 회전을 투척에 연결하는 훈련 목적 설명; 구속 상관을 인과로 확대 금지",
         "벽 투척에 맞는 측정 설명과 공·벽·반발 공간 안내"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -426,6 +698,32 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "드롭스텝 메디신볼 회전 토스",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "title",
+        "description"
+      ],
+      "before": {
+        "title": "드롭스텝 → 회전 토스",
+        "description": "■ 어떤 운동인가\n한 발을 뒤 대각선으로 빼며 몸통을 감았다가 돌려 메디신볼을 옆으로 던지는 드릴입니다.\n\n■ 이렇게 하세요\n1. 공을 가슴 앞에 들고 섭니다.\n2. 한 발을 뒤 대각선으로 빼며 몸통을 감습니다.\n3. 그 발에 체중을 받으며 골반을 돌립니다.\n4. 회전을 따라 공을 옆으로 던집니다.\n\n■ 투수에게 왜 필요한가\n골반과 몸통으로 돌며 던지는 힘을 기릅니다. 회전하는 메디신볼 던지기는 투구 구속과 관계가 있는 것으로 알려져 있습니다.\n\n■ 세기\n처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던집니다. 거리나 속도를 재 두면 힘이 느는지 볼 수 있습니다."
+      },
+      "after": {
+        "title": "드롭스텝 메디신볼 회전 토스",
+        "description": "■ 어떤 운동인가\r\n제자리에서 드롭스텝으로 지지와 체중을 전환한 뒤, 골반·몸통 회전을 연결해 메디신볼을 벽으로 던지는 운동입니다. 발을 뒤 대각선으로 멀리 빼는 동작과 구분합니다.\r\n\r\n■ 이렇게 하세요\r\n1. 투척용으로 적합한 벽을 몸의 옆에 두고 공을 몸 앞에 듭니다. 공의 반발과 벽까지의 거리·주변 공간을 확인합니다.\r\n2. 현재 자리에서 드롭스텝으로 발을 디디며 체중을 받습니다. 뒤 대각선으로 이동하는 스텝을 만들지 않습니다.\r\n3. 디딘 발의 지지를 골반·몸통 회전에 연결하고, 벽 쪽으로 돌며 공을 던집니다.\r\n4. 발도 회전에 맞춰 자연스럽게 움직이도록 하고, 무릎이나 허리만 비틀지 않습니다.\r\n5. 던진 뒤 균형을 유지하며 공의 반발 경로에서 벗어나고, 안전하게 회수한 뒤 다시 시작합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n제자리에서 지지와 체중을 전환하는 동작을 골반·몸통 회전과 투척에 연결하는 연습입니다. 메디신볼 던지기 기록과 투구 구속의 관련성이 이 운동만의 구속 향상 효과를 뜻하지는 않습니다.\r\n\r\n■ 세기\r\n빠르게 던지면서 디딤과 균형을 제어할 수 있는 공을 고릅니다. 같은 공·드롭스텝 방식·벽까지 거리에서 동작과 투척 속도를 비교합니다. 속도나 자세가 무너지면 세트를 끝내고, 통증이 생기면 중단합니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -437,11 +735,11 @@
     "media": {
       "kind": "owned",
       "safe_identifier": "owned:title:싱글렉 브로드 점프",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "2a9cc104-087c-4356-b146-1595a8dc7d43"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "2초 버티는 건 영상만 그런 거고 설명은 유지해.",
@@ -457,7 +755,8 @@
       "preserve": [
         "착지 후 2초 정지 설명"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -468,6 +767,35 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "싱글렉 브로드 점프",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n한 발로 앞으로 멀리 뛰어 같은 발로 착지해 멈추는 운동입니다. 한 다리로 앞으로 힘을 내고, 착지에서 그 힘을 받아 멈추는 능력을 기릅니다.\n\n■ 이렇게 하세요\n1. 한 발로 서서 반쯤 앉으며 팔을 뒤로 젖힙니다.\n2. 팔을 앞으로 휘두르며 앞으로 멀리 뜁니다.\n3. 같은 발로 착지하며 무릎과 엉덩이를 굽혀 2초 멈춥니다.\n4. 무릎이 안으로 모이지 않게 발끝 방향으로 둡니다.\n5. 처음에는 멀리보다 흔들림 없이 멈추는 데 집중합니다.\n\n■ 투수에게 왜 필요한가\n투구는 뒷다리 한 발로 밀어 앞으로 나가는 동작입니다. 두 발 점프로는 한 다리가 앞으로 힘을 내는 능력을 따로 기를 수 없습니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n한 발로 앞으로 밀어내고, 같은 발로 착지를 제어하는 데 집중하는 운동입니다.\r\n\r\n■ 이렇게 하세요\r\n1. 한 발로 서서 반쯤 앉으며 팔을 뒤로 젖힙니다.\r\n2. 팔을 앞으로 휘두르며 앞으로 멀리 뜁니다.\r\n3. 같은 발로 착지하며 무릎과 엉덩이를 굽혀 2초 멈춥니다.\r\n4. 무릎이 안으로 모이지 않게 발끝 방향으로 둡니다.\r\n5. 처음에는 멀리보다 흔들림 없이 멈추는 데 집중합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n한쪽 다리의 지지로 앞으로 도약하고 착지에서 균형을 잡는 동작을 따로 연습합니다. 양발 점프와는 도약·착지 과제가 다르므로, 한 발의 추진과 착지 제어에 집중하려는 목적에 맞춰 활용합니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "research_recheck": {
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/37123275/"
+        ],
+        "limits": "Task-specific unilateral/bilateral differences; does not establish that bilateral work cannot develop a limb. User explicitly retained 2-second landing hold text; footage not edited to simulate it."
+      },
+      "media_work_status": "Owned footage retained; apply specifically requested feasible edits and present revised media. Re-shoot needs must remain distinct."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -479,11 +807,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:4ngqsUsk4Ho",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "ee3bbd77-109c-434d-8f97-71d966828d53"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "저기서 말한 팔로 던질수 없다는 건 팔로만 던지기에는 무겁기 때문에 전신을 사용하게 된다는 거 같은데 설명이 너무 간추려진 거 같아.",
@@ -496,7 +824,8 @@
         "구속과 관계가 크다는 일반화 대신 이동을 회전 투척에 연결하는 목적 설명",
         "같은 공·이동 거리·조건 측정 및 투척 공간·반발·회수 안내"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -506,6 +835,29 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "레터럴 셔플 스로우 (큰 공)",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n옆으로 잔걸음을 몇 번 한 뒤 끊지 않고 던지는 동작입니다. 움직이던 몸의 힘을 던지기로 이어 붙입니다. 큰 메디신볼은 팔로는 던질 수 없는 무게라 골반과 몸통이 도는 힘으로 던지게 됩니다.\n\n■ 이렇게 하세요\n1. 옆으로 두세 걸음 잔걸음을 칩니다.\n2. 마지막 걸음에서 뒷엉덩이에 앉듯 체중을 싣습니다.\n3. 그 힘을 따라 골반, 몸통 순서로 돌려 던집니다.\n4. 걸음이 멈춘 뒤에 던지지 말고 이어서 던집니다.\n\n■ 투수에게 왜 필요한가\n홈 쪽으로 가는 힘을 회전으로 바꾸는 연습입니다. 앞으로 나가는 속도는 구속과 관계가 큰 움직임이고, 그 힘이 골반에서 몸통, 팔로 차례로 넘어가야 공에 실립니다.\n\n■ 세기\n처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던집니다. 거리나 속도를 재 두면 힘이 느는지 볼 수 있습니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n옆으로 셔플 이동한 뒤 그 움직임을 끊지 않고 메디신볼 투척에 연결하는 운동입니다. 야구공보다 무거운 공의 저항에 맞춰 팔로만 던지려 하지 않고, 다리·골반·몸통·팔을 함께 사용하는 것이 목적입니다. 팔로 던질 수 없을 만큼 무거운 공을 골라야 한다는 뜻은 아닙니다.\r\n\r\n■ 이렇게 하세요\r\n1. 투척 방향을 확인하고, 옆으로 두세 걸음 셔플할 공간을 확보합니다.\r\n2. 옆으로 셔플하며 이동하고, 마지막 디딤에서 지지 다리에 체중을 받습니다.\r\n3. 디딤을 골반·몸통 회전과 연결하고 팔이 함께 움직이며 공을 던집니다.\r\n4. 이동을 완전히 멈춘 뒤 팔만 쓰기보다, 균형을 유지하며 이동과 회전·투척을 이어갑니다.\r\n5. 던질 공간이나 적합한 벽, 공의 반발 경로를 확인하고 던진 뒤 안전하게 회수합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n옆으로 이동한 몸을 지지 다리로 받아 회전 투척에 연결하는 연습입니다. 특정 이동 속도가 곧바로 투구 구속 향상을 뜻하는 것으로 해석하지 않습니다.\r\n\r\n■ 세기\r\n셔플과 빠른 투척을 제어할 수 있는 공을 사용합니다. 기록은 같은 공·이동 거리·스텝 수·투척 방식과 조건에서 비교합니다. 동작이 느려지거나 균형이 무너지면 세트를 끝내고, 통증이 생기면 중단합니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -517,11 +869,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:uBCwX1sXvkE",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "d94f69e5-cf45-4abf-887c-b347b80c58a0"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음 영상으로 넘어가자.",
@@ -534,7 +886,8 @@
         "공의 저항에 맞춰 하체·골반·몸통·팔 연결하는 목적 구체화",
         "과도한 허리 꺾임과 정상적인 몸통 기울임 구분, 팔이 어깨 회전면에서 벗어난다는 인과 설명 정리"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -545,6 +898,29 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "스트레치 스로우 (큰 공)",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n던지기 직전 자세에서 하체를 거의 쓰지 않고 몸통 회전만으로 던지는 동작입니다. 큰 메디신볼은 팔로는 던질 수 없는 무게라 골반과 몸통이 도는 힘으로 던지게 됩니다.\n\n■ 이렇게 하세요\n1. 옆으로 서서 발을 어깨너비로 벌립니다.\n2. 발은 그대로 두고 몸통을 뒤로 감았다가 앞으로 돌립니다.\n3. 팔은 몸통 회전을 따라 나오게 둡니다.\n4. 허리를 앞으로 꺾지 말고 척추를 축으로 돕니다.\n\n■ 투수에게 왜 필요한가\n몸통이 척추를 축으로 돌며 팔을 끌어내는 순서를 익힙니다. 몸통이 돌지 않고 허리를 꺾어 공을 놓으면 팔이 어깨가 도는 면에서 벗어나 몸 앞으로 밀려 나갑니다.\n\n■ 세기\n처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던집니다. 거리나 속도를 재 두면 힘이 느는지 볼 수 있습니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n무릎을 들어 지지 다리에 체중을 받은 뒤, 디딤·골반·몸통 회전을 연결해 큰 메디신볼을 던지는 운동입니다. 공의 저항에 맞춰 팔로만 던지려 하지 않고 하체와 몸통·팔을 함께 사용합니다.\r\n\r\n■ 이렇게 하세요\r\n1. 던질 방향에 대해 옆으로 서서 공을 몸 앞에 듭니다.\r\n2. 시범처럼 무릎을 들며 지지 다리 위에서 균형을 잡습니다.\r\n3. 들어 올린 발을 디디며 체중을 옮기고, 골반·몸통 회전을 팔의 움직임과 연결해 공을 던집니다. 발을 처음 위치에 고정하는 운동이 아닙니다.\r\n4. 던지며 생기는 자연스러운 몸통 기울임은 허용하되, 허리만 과도하게 꺾거나 균형을 잃어 몸을 쏟아내지 않습니다.\r\n5. 투척 공간과 공의 반발 경로를 확보하고, 던진 뒤 안전하게 회수합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n무릎 들기에서 디딤·체중 이동·회전·투척으로 이어지는 움직임을 공의 저항 속에서 연결하는 연습입니다. 메디신볼과 야구공 투구는 부하와 동작 특성이 다르므로 같은 동작으로 간주하지 않습니다.\r\n\r\n■ 세기\r\n다리·몸통·팔의 연결과 빠르기를 유지할 수 있는 공을 고릅니다. 같은 공·시작 자세·디딤 방식·투척 조건에서 기록을 비교합니다. 속도나 균형이 무너지면 세트를 끝내고, 통증이 생기면 중단합니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -556,11 +932,11 @@
     "media": {
       "kind": "owned",
       "safe_identifier": "owned:title:싱글렉 박스 점프",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "a2c755d9-8be0-4f24-b26c-293ebd7a46f3"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음 영상으로 넘어가자.",
@@ -574,7 +950,8 @@
         "첫 문장에 한발 도약·두발 착지 명확화",
         "박스 고정·미끄럼·공간 점검 추가, 걸어서 내려오기 유지"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -585,6 +962,29 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "싱글렉 박스 점프",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n한 발로 박스 위로 뛰어오르는 운동입니다. 한 다리로 위로 힘을 내는 능력을 기르고, 박스 위에 내려앉아 착지 충격은 적습니다.\n\n■ 이렇게 하세요\n1. 무릎 높이보다 낮은 박스 앞에 한 발로 섭니다.\n2. 반쯤 앉으며 팔을 뒤로 젖혔다가 휘두르며 뛰어오릅니다.\n3. 박스 위에 두 발로 부드럽게 착지합니다.\n4. 뛰어내리지 말고 걸어서 내려옵니다.\n5. 무릎이 안으로 모이면 박스를 낮춥니다.\n\n■ 투수에게 왜 필요한가\n한 다리로 큰 힘을 빠르게 내는 능력을 기릅니다. 박스에 내려앉아 내려오는 충격 없이 뛰는 힘만 연습할 수 있습니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n한 발로 도약해 박스 위에 두 발로 착지하는 운동입니다. 한쪽 다리로 빠르게 지면을 밀어내는 동작과 박스 위에서의 착지 제어를 연습합니다.\r\n\r\n■ 이렇게 하세요\r\n1. 흔들리거나 미끄러지지 않는 박스를 고정하고, 박스 위와 주변 공간을 확보합니다.\r\n2. 무릎을 과도하게 끌어올리지 않아도 두 발로 안정적으로 착지할 수 있는 낮은 박스를 선택합니다.\r\n3. 박스 앞에 한 발로 서서 반쯤 앉으며 팔을 뒤로 젖혔다가, 팔을 휘두르며 뛰어오릅니다.\r\n4. 박스 위에 두 발로 착지하고 무릎과 엉덩이를 굽혀 몸을 받습니다. 발바닥을 충분히 올려 균형을 잡습니다.\r\n5. 무릎이 안으로 모이거나 착지가 불안정하면 높이를 낮춥니다. 박스에서 뛰어내리지 말고 걸어서 내려옵니다.\r\n6. 통증이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n한 발로 빠르게 밀어내는 도약을 연습합니다. 박스는 도약 후 내려오는 높이를 조절하는 도구로 쓸 수 있지만, 착지 부담은 높이와 착지 방식에 따라 달라지며 없어지는 것은 아닙니다. 박스 높이만으로 도약 능력이나 파워를 판단하지 않습니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "media_work_status": "Owned footage retained; apply specifically requested feasible edits and present revised media. Re-shoot needs must remain distinct."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -596,11 +996,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:z1kyFUwt_ks",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "e8aa9b21-643b-4bcb-b174-18c6e1116dc4"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음 영상으로 넘어가자.",
@@ -613,7 +1013,8 @@
         "교차 디딤 이동을 골반·몸통 회전과 투척에 연결하는 훈련 목적 설명,구속 상관과 인과 구분",
         "같은 공·스텝·거리 측정 및 발 걸림 공간·반발·회수 안내"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -623,6 +1024,29 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "크로스언더 메디신볼 회전 토스",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n뒷발을 앞발 뒤로 교차해 넣으며 몸통을 돌려 메디신볼을 옆으로 던지는 드릴입니다.\n\n■ 이렇게 하세요\n1. 옆으로 서서 메디신볼을 가슴 앞에 듭니다.\n2. 뒷발을 앞발 뒤로 교차해 넣습니다.\n3. 그 움직임을 따라 골반과 몸통을 돌립니다.\n4. 회전을 따라 공을 옆으로 던집니다.\n\n■ 투수에게 왜 필요한가\n걸음으로 만든 힘이 끊기지 않고 골반, 몸통 순서의 회전으로 이어지게 합니다. 회전하는 메디신볼 던지기는 투구 구속과 관계가 있는 것으로 알려져 있습니다.\n\n■ 세기\n처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던집니다. 거리나 속도를 재 두면 힘이 느는지 볼 수 있습니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n옆으로 이동하며 한 발을 다른 발 뒤로 교차해 디딘 뒤, 지지와 체중 이동을 골반·몸통 회전 및 메디신볼 투척에 연결하는 운동입니다.\r\n\r\n■ 이렇게 하세요\r\n1. 투척 방향에 대해 옆으로 서서 공을 몸 앞에 듭니다. 이동할 바닥과 발이 교차할 공간을 확인합니다.\r\n2. 투척 방향에서 먼 발을 가까운 발의 뒤로 교차해 넣으며 이동합니다.\r\n3. 교차 디딤으로 체중을 받은 뒤, 투척 방향 쪽 발로 지지를 이어가며 골반과 몸통을 돌립니다.\r\n4. 이동·회전을 팔의 움직임과 연결해 공을 던집니다. 발이 서로 걸리지 않게 하며, 균형을 잃을 만큼 큰 교차를 만들지 않습니다.\r\n5. 적합한 벽이나 투척 공간과 공의 반발 경로를 확인하고, 던진 뒤 안전하게 회수합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n교차 디딤으로 생긴 이동을 회전과 투척에 연결하는 연습입니다. 메디신볼 기록과 투구 구속 사이의 관련성을 이 운동만의 구속 향상 효과로 해석하지 않습니다.\r\n\r\n■ 세기\r\n처음에는 작은 스텝으로 동작을 익히고, 이후 빠르게 던지되 지지와 균형을 유지합니다. 기록은 같은 공·교차 스텝·이동 거리·투척 조건에서 비교합니다. 속도나 자세가 무너지면 세트를 끝내고, 통증이 생기면 중단합니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -634,11 +1058,11 @@
     "media": {
       "kind": "owned",
       "safe_identifier": "owned:title:플라이오 푸시업",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "4a63d7ac-ffe5-46bf-821c-e680b36b06ff"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음 영상으로 넘어가자.",
@@ -651,7 +1075,8 @@
         "상체·몸통이 함께 착지를 제어하는 설명",
         "인클라인에서 전환 기준을 통증 없는 정렬·안정착지·빠른 재도약 유지로 구체화"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -662,6 +1087,36 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "플라이오 푸시업",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n바닥에서 폭발적으로 밀어 손이 바닥에서 떨어지는 푸시업입니다. 가슴과 삼두가 짧은 시간에 큰 힘을 내고, 착지할 때 같은 근육이 늘어나며 충격을 받습니다.\n\n■ 이렇게 하세요\n1. 손을 어깨너비보다 조금 넓게 짚고 몸을 곧게 폅니다.\n2. 가슴을 바닥 가까이 내렸다가 세게 밀어 손을 띄웁니다.\n3. 팔꿈치를 부드럽게 굽히며 착지하고 바로 다음 회로 이어갑니다.\n4. 손목과 어깨가 아프지 않을 때만 합니다.\n5. 뜨는 높이가 낮아지면 세트를 끝냅니다.\n\n■ 투수에게 왜 필요한가\n상체가 힘을 빨리 내고 받는 능력을 기릅니다. 인클라인 플라이오 푸시업이 쉬워지면 넘어오는 단계입니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n바닥을 빠르게 밀어 손을 띄우고, 착지를 제어한 직후 다시 밀어내는 동작을 연속으로 수행하는 푸시업입니다. 상체와 몸통이 함께 몸을 받고 다시 미는 전환에 집중합니다.\r\n\r\n■ 이렇게 하세요\r\n1. 손을 어깨너비보다 조금 넓게 짚고 머리부터 발까지 몸을 곧게 유지합니다.\r\n2. 가슴을 바닥 가까이 내렸다가 빠르게 밀어 손을 띄웁니다.\r\n3. 손을 안정적으로 짚고 팔꿈치를 부드럽게 굽히며 몸을 받습니다. 허리가 처지거나 엉덩이가 들리지 않게 몸통도 함께 제어합니다.\r\n4. 착지를 제어한 직후 곧바로 다시 밀어 다음 반복으로 이어갑니다.\r\n5. 손을 안정적으로 짚지 못하거나 빠르기·몸통 정렬이 무너지면 세트를 끝냅니다.\r\n6. 손목·팔꿈치·어깨 등에 통증이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n힘을 받는 구간에서 빠르게 미는 구간으로 전환하는 상체 플라이오메트릭 연습입니다. 인클라인에서 통증 없이 몸의 정렬·안정된 착지·빠른 반복을 유지할 수 있을 때 바닥 동작으로 진행합니다. 단순히 인클라인이 쉽게 느껴진다는 이유만으로 높이를 낮추지 않습니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "research_recheck": {
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/21701289/",
+          "https://pubmed.ncbi.nlm.nih.gov/27193045/"
+        ],
+        "limits": "Acute kinetics/EMG in healthy men and commandos; variations differ from exact footage. Supports distinguishing receiving/pushing and avoids universal clap-height/force or pitching-transfer claims; no optimal dose or injury-prevention proof."
+      },
+      "media_work_status": "Owned footage retained; apply specifically requested feasible edits and present revised media. Re-shoot needs must remain distinct."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -673,11 +1128,11 @@
     "media": {
       "kind": "owned",
       "safe_identifier": "owned:title:인클라인 플라이오 푸시업",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "6b204b36-d854-4b21-9619-da8a3dda0a52"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음 영상으로 넘어가자.",
@@ -690,7 +1145,8 @@
         "착지 제어 직후 빠르게 다시 밀어내는 전환 목적 추가",
         "충분한 손접촉면·고정된 받침 및 통증 없는 정렬·착지·빠른 반복 유지 시 높이 낮추는 기준"
       ],
-      "status": "기록 확정; 실제 변경 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록 확정; 실제 변경 미승인"
     },
     "gpt_candidates": [],
     "evidence": {
@@ -702,6 +1158,42 @@
       "limits": "현재 운동 변형의 직접 효과/최적 수치와 일반·인접 연구를 구분. 과거 원저/출처 검토의 완전한 스냅샷은 보존되지 않음; 최종 문구 전 재확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "인클라인 플라이오 푸시업",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n벤치에서 폭발적으로 밀어서 수행하는 푸시업입니다.\n\n■ 이렇게 하세요\n1. 벤치나 박스 가장자리에 손을 어깨너비로 올리고 몸을 곧게 폅니다.\n2. 가슴을 받침 가까이 내렸다가 세게 밀어 손을 띄웁니다.\n3. 팔꿈치를 부드럽게 굽히며 착지하고 바로 다음 회로 이어갑니다.\n4. 허리가 처지거나 엉덩이가 들리면 세트를 끝냅니다.\n5. 익숙해지면 받침을 낮춥니다.\n\n■ 투수에게 왜 필요한가\n상체가 힘을 빨리 내는 능력을 기릅니다. 손목과 어깨에 오는 충격이 작아 바닥 플라이오 푸시업 전에 거치는 단계입니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n벤치나 박스에 손을 높여 짚고, 빠르게 밀어 손을 띄운 뒤 착지를 제어해 다시 미는 푸시업입니다. 손의 높이로 상체가 지지하는 체중 부하를 조절하는 단계입니다.\r\n\r\n■ 이렇게 하세요\r\n1. 밀어도 미끄러지거나 넘어지지 않는 받침을 사용하고, 착지할 때 손바닥을 충분히 짚을 면적을 확보합니다. 좁은 모서리에만 손을 걸치지 않습니다.\r\n2. 손을 어깨너비 정도로 짚고 머리부터 발까지 몸을 곧게 유지합니다.\r\n3. 가슴을 받침 가까이 내렸다가 빠르게 밀어 손을 띄웁니다.\r\n4. 같은 지지면에 손을 안정적으로 짚고 팔꿈치를 굽혀 몸을 받은 직후, 곧바로 다시 밀어 다음 반복으로 이어갑니다.\r\n5. 허리가 처지거나 엉덩이가 들리고, 손의 착지나 빠른 전환이 불안정해지면 세트를 끝냅니다.\r\n6. 통증 없이 몸의 정렬·안정된 착지·빠른 반복을 유지할 수 있을 때 받침을 조금 낮춥니다. 통증이 생기면 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n착지를 제어한 직후 빠르게 다시 밀어내는 전환을 연습합니다. 손을 높이면 상체가 지지하는 체중 부하를 조절할 수 있어 바닥 플라이오 푸시업으로 진행하기 위한 단계로 활용합니다. 이것이 손목·어깨의 충격이나 부상 위험이 항상 더 작다는 뜻은 아닙니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "research_recheck": {
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/21701289/",
+          "https://pubmed.ncbi.nlm.nih.gov/27193045/"
+        ],
+        "limits": "Acute kinetics/EMG in healthy men and commandos; variations differ from exact footage. Supports distinguishing receiving/pushing and avoids universal clap-height/force or pitching-transfer claims; no optimal dose or injury-prevention proof."
+      },
+      "research_recheck_elevated": {
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/21873902/"
+        ],
+        "limits": "Support-force differences in push-up variations do not prove lower landing impact or injury risk for this exact ballistic incline version."
+      },
+      "media_work_status": "Owned footage retained; apply specifically requested feasible edits and present revised media. Re-shoot needs must remain distinct."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -713,11 +1205,11 @@
     "media": {
       "kind": "reference_only",
       "safe_identifier": "youtube:IaKpCClc3VE",
-      "library_database_id": "미확인; ID를 추정하지 말고 제목과 실제 항목 대조"
+      "library_database_id": "8ad883fc-49b9-4b6a-ab63-244e96abe433"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "source_record": "세션 외부 JSON 및 동일 검수 대화 복원",
     "per_item_timestamp": "개별 시각 미보존; 임의 생성하지 않음",
     "user_instruction_verbatim_excerpt": "어떤 운동인가에서 팔로는 던질 수 없다는 걸 무게 때문에 팔로만 던질 수 없고 몸을 사용한다는 식으로 설명을 바꾸고 몸과 발을 정면을 바라보고 있는 상태를 유지한다는 설명을 추가하고 너가 말한 거 반영해서 다음으로 넘어가자",
@@ -727,7 +1219,8 @@
         "몸과 발이 정면을 바라보는 상태를 유지한다는 설명 추가. 정면 기준과 회전 범위는 최종 문구에서 사용자 의도·영상 대조",
         "GPT가 제시한 앞무릎 제어, 골반·가슴 연결, 공 역할, 측정·안전 안내 보완"
       ],
-      "status": "기록만; 실제 수정 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록만; 실제 수정 미승인"
     },
     "gpt_candidates": [
       "앞무릎 앞으로 밀리지 않기 문구를 무릎 완전고정/발끝 넘기 금지로 해석되지 않게 수정: 앞발 지지·균형·무릎 방향 제어 중심",
@@ -744,6 +1237,36 @@
       "limitations": "실제투구 앞무릎·분절순서 연구와 다른 종목 스플릿스탠스 가슴패스는 현재변형 효과·3x5/90초 최적값 직접입증 아님. 국내 검색 직접 원저 미확인."
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "current_title": "스플릿 스탠스 스로우 (큰 공)",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n앞뒤로 발을 벌려 앞발이 이미 땅에 닿은 자세에서 던지는 동작입니다. 큰 메디신볼은 팔로는 던질 수 없는 무게라 골반과 몸통이 도는 힘으로 던지게 됩니다.\n\n■ 이렇게 하세요\n1. 앞뒤로 발을 벌려 앞발을 땅에 딛습니다.\n2. 몸통을 뒤로 감았다가 골반부터 앞으로 돌립니다.\n3. 앞다리로 버티며 그 위에서 회전합니다.\n4. 앞무릎이 앞으로 밀리지 않게 합니다.\n\n■ 투수에게 왜 필요한가\n앞발이 닿은 뒤의 차례만 떼어 익힙니다. 골반이 먼저 돌고 가슴이 늦게 따라오며, 앞다리가 버티는 위에서 몸통이 돌아야 합니다.\n\n■ 세기\n처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던집니다. 거리나 속도를 재 두면 힘이 느는지 볼 수 있습니다."
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n발을 앞뒤로 벌리고 몸과 발이 던지는 정면을 향한 상태를 유지하며 큰 메디신볼을 던지는 운동입니다. 야구공보다 무거운 공의 저항에 맞춰 팔로만 던지려 하지 않고, 다리로 지면을 지지하며 하체·몸통·팔을 함께 사용합니다. 팔로 던질 수 없을 만큼 무거운 공을 고르라는 뜻은 아닙니다.\r\n\r\n■ 이렇게 하세요\r\n1. 발을 앞뒤로 벌려 지지하고, 몸과 발을 공을 던질 정면으로 향하게 둡니다.\r\n2. 앞뒤 발의 위치와 정면을 향한 자세를 유지하며 다리로 바닥을 누르고, 몸통과 팔의 움직임을 연결해 공을 던집니다. 몸을 옆으로 크게 돌리는 회전 토스와 구분합니다.\r\n3. 앞발의 지지와 균형을 유지합니다. 앞무릎은 발끝 방향을 따라 제어하며, 완전히 잠그거나 발끝을 넘지 못하도록 억지로 고정하지 않습니다.\r\n4. 골반과 가슴을 일부러 크게 비틀거나 시간차를 만들지 말고, 전신의 움직임을 자연스럽게 연결합니다.\r\n5. 적합한 벽이나 투척 공간, 공의 반발 경로를 확인하고 안전하게 회수합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n앞뒤 발로 지지한 자세에서 하체와 몸통·팔을 연결해 빠르게 던지는 연습입니다. 실제 투구의 분절 순서를 그대로 분리해 재현하는 운동으로 해석하지 않습니다.\r\n\r\n■ 세기\r\n정면을 향한 자세와 빠르기를 유지할 수 있는 공을 선택합니다. 같은 공·발 간격·투척 방식·거리에서 기록과 동작을 비교합니다. 자세나 속도가 무너지면 세트를 끝내고, 통증이 생기면 중단합니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "research_recheck": {
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/39074186/"
+        ],
+        "limits": "Biomechanical comparison in 35 collegiate baseball athletes: medicine-ball push/chop differ from pitching. Does not prove this variant improves velocity or determines optimal dose. Previous domestic PDF currently returns service-error page; no current full-text re-verification claim."
+      },
+      "user_priority": "Forward-facing body/feet maintained as expressly requested; prior rotational preparation instruction removed. Human video confirmation still pending.",
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "최종 기존→제안→이유·영향 문구 및 실제 적용 승인 대기"
     ]
   },
@@ -754,11 +1277,12 @@
     "title_at_review": "메디신볼 턴 앤 번 숏풋",
     "media": {
       "kind": "reference_only",
-      "safe_identifier": "youtube:Ae5Z4sRAyR0"
+      "safe_identifier": "youtube:Ae5Z4sRAyR0",
+      "library_database_id": "27755493-40f9-4c01-b851-326b026c2101"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "gpt_candidates": [
       "Shot Put은 포환던지기식 밀어 던지기 의미. 제목과 투척 방식 명확화",
       "팔로 던질 수 없다는 표현은 저항에 맞춰 하체·몸통·팔 연결하는 의도로 구체화",
@@ -781,13 +1305,46 @@
         "앞다리로 몸을 멈춰야 한다는 단정 대신 앞발 지지·제어하며 회전·투척 연결",
         "벽·반발·주변공간 안내 및 같은 공·동작 측정"
       ],
-      "status": "기록만; 실제 수정 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록만; 실제 수정 미승인"
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음 영상으로 넘어가자.",
+    "current_title": "메디신볼 턴 앤 번 샷풋 (밀어 던지기)",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "title",
+        "description"
+      ],
+      "before": {
+        "title": "메디신볼 턴 앤 번 숏풋",
+        "description": "■ 어떤 운동인가\n목표를 등지고 서서 메디신볼을 가슴 높이에 들었다가, 돌아서며 앞발을 딛고 공을 벽으로 밀어 던지는 드릴입니다. 앞다리 블록 드릴인 턴 앤 번을 메디신볼로 합니다.\n\n■ 이렇게 하세요\n1. 목표를 등지고 서서 메디신볼을 가슴 높이에 듭니다.\n2. 빠르게 돌아서며 홈 쪽으로 나가 앞발을 딛습니다.\n3. 앞다리가 버티는 위에서 골반, 몸통 순서로 돌리며 공을 벽으로 밀어 던집니다.\n4. 투구할 때처럼 자연스럽게 마무리합니다.\n\n■ 투수에게 왜 필요한가\n돌아서는 힘을 앞다리로 멈춰 몸통 회전으로 넘기는 연습입니다. 공이 무거워 팔로는 던질 수 없으니 하체와 몸통이 힘을 내는 순서가 드러납니다. 앞다리가 버티며 몸을 멈춰야 그 힘이 위로 넘어갑니다.\n\n■ 세기\n처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던집니다. 거리나 속도를 재 두면 힘이 느는지 볼 수 있습니다."
+      },
+      "after": {
+        "title": "메디신볼 턴 앤 번 샷풋 (밀어 던지기)",
+        "description": "■ 어떤 운동인가\r\n목표를 등지고 서서 돌아선 뒤 앞발로 지지하며 메디신볼을 벽으로 밀어 던지는 운동입니다. 샷풋(Shot Put)은 포환던지기처럼 공을 밀어 던지는 방식을 뜻합니다.\r\n\r\n■ 이렇게 하세요\r\n1. 투척용으로 적합한 벽을 등지고 서서 공을 가슴 높이에 듭니다. 돌아설 공간과 디딜 바닥, 공의 반발 경로를 확인합니다.\r\n2. 목표 쪽으로 돌아서며 이동해 앞발을 딛습니다.\r\n3. 앞발의 지지를 유지하며 골반·몸통의 회전을 팔의 밀기와 연결해 공을 벽으로 던집니다.\r\n4. 앞다리를 완전히 잠그거나 몸 전체를 갑자기 굳혀 멈추려 하지 말고, 무릎 방향과 균형을 제어하며 자연스럽게 마무리합니다.\r\n5. 공이 돌아오는 경로를 확인하고 안전하게 회수합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n돌아서며 이동한 몸을 앞발로 지지하고 회전·밀어 던지기로 연결하는 연습입니다. 야구공보다 무거운 공의 저항을 이용해 팔로만 던지려 하지 않고 하체·몸통·팔을 함께 사용합니다. 팔로 던질 수 없을 만큼 무거워야 한다는 뜻은 아닙니다.\r\n\r\n■ 세기\r\n빠른 회전과 밀어 던지기를 제어할 수 있는 공을 사용합니다. 기록은 같은 공·회전과 디딤 방식·벽까지 거리에서 비교합니다. 속도나 균형이 무너지면 세트를 끝내고, 통증이 생기면 중단합니다."
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "research_recheck": {
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/39074186/"
+        ],
+        "limits": "Biomechanical comparison in 35 collegiate baseball athletes: medicine-ball push/chop differ from pitching. Does not prove this variant improves velocity or determines optimal dose. Previous domestic PDF currently returns service-error page; no current full-text re-verification claim."
+      },
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "시작 방향·발 디딤·투척 방식 사용자 판단 대기",
       "국가별 법률/영상권리 검토 미완료"
-    ],
-    "user_instruction_verbatim_excerpt": "너가 말한 거 반영하고 다음 영상으로 넘어가자."
+    ]
   },
   {
     "review_id": "EX-Y-P-021",
@@ -796,11 +1353,12 @@
     "title_at_review": "스플릿 스탠스 발목 아이소메트릭 프레스",
     "media": {
       "kind": "reference_only",
-      "safe_identifier": "youtube:bOotAuEkAYs"
+      "safe_identifier": "youtube:bOotAuEkAYs",
+      "library_database_id": "1e3fcb6b-30af-4b33-ada2-3126395007e2"
     },
     "human_review_status": "다음 이동 승인",
-    "content_application_authorized": false,
-    "applied": false,
+    "content_application_authorized": true,
+    "applied": true,
     "gpt_candidates": [
       "영상의 랙 구조물과 발 접촉 방향이 가려짐: 설명의 앞발로 벽을 미는 방식 일치 여부 확인",
       "관절 부담 적게라는 비교 단정은 직접 근거 부족: 자세 유지하며 저항에 힘을 주는 훈련 목적 중심으로 설명",
@@ -822,13 +1380,45 @@
         "바벨 접촉 신체 부위는 미확인, 영상 대조 후 구체화"
       ],
       "accepted_draft": "앞뒤로 선 자세에서 발 앞꿈치를 바닥에 대고 렉에 걸린 바벨을 몸으로 위쪽으로 밀며 움직이지 않는 상태로 버티는 등척성 운동. 발 앞부분으로 바닥을 누르는 자세에서 발목과 앞다리의 지지를 유지하는 연습. 바벨의 움직임이 제한된 렉 상태를 확인하고 자세를 잡아 밀고 버틴 후 천천히 힘을 푼다.",
-      "status": "기록만; 실제 수정 미승인"
+      "status": "Applied title/description within latest explicit authorization; awaiting human re-verification",
+      "historical_status_before_application": "기록만; 실제 수정 미승인"
     },
     "unresolved": [
+      "Human re-verification of saved title/description and actual footage pending; preserve filming/editing candidates separately.",
+      "Country-specific legal final review and reference-media rights remain unresolved."
+    ],
+    "user_instruction_verbatim_excerpt": "발 앞꿈치가 지면에 닿아있고 바벨이 렉에 반대로 걸친 상태에서 위쪽으로 밀고 있다는 걸 감안에서 제시안 다시 보여줘. 이 내용으로 기록해두고 다음 영상으로 넘어가자.",
+    "current_title": "스플릿 스탠스 발목 아이소메트릭 프레스",
+    "application": {
+      "authorized_by_user": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "applied_at_utc": "2026-11-13T05:49:18.948143+00:00",
+      "method": "Existing production library admin edit form; save completion then independent DB readback",
+      "fields_changed": [
+        "description",
+        "equipment"
+      ],
+      "before": {
+        "description": "■ 어떤 운동인가\n앞뒤로 발을 벌린 자세에서 앞발로 벽을 밀어 움직이지 않은 채 힘만 주는 드릴입니다.\n\n■ 이렇게 하세요\n1. 앞뒤로 발을 벌리고 앞발을 벽에 붙입니다.\n2. 발목 힘으로 벽을 밀어 버팁니다.\n3. 자세는 그대로 두고 힘만 줍니다.\n4. 10초씩 여러 번 반복합니다.\n\n■ 왜 하나요\n앞발이 땅을 받치는 힘을 관절 부담 적게 기릅니다. 앞다리 블록은 앞발이 땅을 단단히 받쳐야 걸립니다.",
+        "equipment": [
+          "맨몸"
+        ]
+      },
+      "after": {
+        "description": "■ 어떤 운동인가\r\n앞뒤로 선 자세에서 발 앞꿈치를 바닥에 대고, 랙에 걸린 바벨을 몸으로 위쪽으로 밀며 움직이지 않는 상태로 버티는 등척성 운동입니다. 발 앞부분으로 바닥을 누르는 자세에서 발목과 앞다리의 지지를 유지하는 연습입니다. 앞발로 벽을 미는 방식이 아닙니다.\r\n\r\n■ 이렇게 하세요\r\n1. 바벨이 위로 움직이지 않도록 랙에 고정되어 있는지 확인합니다. 랙이나 바벨이 들리거나 빠질 수 있는 배치에서는 수행하지 않습니다.\r\n2. 발을 앞뒤로 두고 발 앞꿈치로 지면을 지지한 상태에서, 시범처럼 바벨에 몸을 댑니다.\r\n3. 발 앞꿈치로 바닥을 누르며 바벨을 위쪽으로 밀고, 발목과 앞다리의 지지 자세를 유지합니다. 바벨을 실제로 들어 올리는 동작이 아닙니다.\r\n4. 표시된 10초 동안 안정적으로 버틴 뒤 천천히 힘을 풀고 자세를 정리합니다. 10초는 수행 예시이며 자세가 무너지면 먼저 끝냅니다.\r\n5. 발목·무릎·허리 등에 통증이 생기거나 장비가 흔들리면 중단합니다.\r\n\r\n■ 왜 하나요\r\n발 앞부분으로 지면을 누르는 자세에서 움직임 없이 저항에 힘을 주고, 발목과 앞다리의 지지를 유지하는 연습입니다. 관절 부담이 항상 적거나 이 운동만으로 투구의 앞다리 블록이 개선된다고 단정하지 않습니다.",
+        "equipment": [
+          "바벨"
+        ]
+      },
+      "verification": "21 descriptions changed; source/reference ID/category/sets/reps/hold preserved; #5 rest 180 seconds; #21 equipment barbell",
+      "human_reverification": "pending; restart at #1, next only on user instruction",
+      "media_file_edited": false,
+      "equipment_note": "Equipment changed from bodyweight to barbell; fixed rack described in text, not added as nonexistent equipment enum. Exact body contact location remains unspecified.",
+      "media_work_status": "Reference source cannot be edited as our footage; filming remains required."
+    },
+    "historical_unresolved_before_application": [
       "어느 발과 어느 면이 고정물에 닿는지 사용자 확인",
       "국가별 법률/영상권리 검토 미완료"
-    ],
-    "user_instruction_verbatim_excerpt": "발 앞꿈치가 지면에 닿아있고 바벨이 렉에 반대로 걸친 상태에서 위쪽으로 밀고 있다는 걸 감안에서 제시안 다시 보여줘. 이 내용으로 기록해두고 다음 영상으로 넘어가자."
+    ]
   },
   {
     "review_id": "EX-Y-P-022",

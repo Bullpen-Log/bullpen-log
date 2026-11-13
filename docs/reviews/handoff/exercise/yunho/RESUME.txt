@@ -1,12 +1,10 @@
-운동영상 금윤호 검수 재개
+Exercise review / Yunho — actual-edit workflow (latest user instruction)
 
-checkpoint.json과 video-records.json을 먼저 읽는다.
-현재22번 톨닐링 메디신볼 오버헤드 스로우, 사람 판정 대기. 완료21개는 다음이동 승인만 뜻한다.
-23번 버티컬 점프는22번 다음승인 후에만 연다.
-오른쪽 라이브러리에서 제목·안전한영상ID 대조 후22번을 표시한다. 다른 컴퓨터의 탭·로그인·재생 상태는 공유되지 않으므로 다시 확인한다.
-YouTube 참고영상만 현재영상 반복 설정. 직접촬영은 새플레이어 적용 전 반복설정 생략이 사용자지시.
-매영상 실제시범·원본핵심제목·설명·학술근거·법률국가별쟁점·촬영유무를 확인하고 후보를 안내한다.
-사용자 반영=기록만. 모든검수 종료후 기존/제안/이유·영향을 보여주고 별도 실제수정 승인받는다. 지금 콘텐츠 적용·DB·배포·새Claude발주 금지.
-10번 발내딛기 오판 폐기(제자리 방향전환),11번 대각선발빼기 폐기(제자리드롭스텝),12번2초정지설명 유지,13번팔만아닌전신사용 의도 구체화는 사용자정정 우선.
-공유본은 대화/JSON의 검수메모이며 현재라이브러리 내용의 전체백업이 아니다. 기존 원문이 미보존된 항목은 최종변경안 작성시 현재원문을 다시 읽고 대조한다.
-개별시각 미기록. 원본mtime와클라이언트 날짜 불일치 경고 유지. 최신파일 충돌시한쪽덮어쓰기금지.
+Read checkpoint.json and video-records.json after receiving remote handoff.
+Current: #1 EX-Y-P-001 Landmine Rotational Punch, awaiting human re-verification. #1–21 content changes actually saved in production and independently read back; 4 titles changed, bench rest180s, ankle equipment barbell. Historical first-pass next approvals21 are NOT post-edit human approvals. Re-verify1→21 then return22 (unchanged pending user direction); #23 still unreviewed.
+Use historical recorded order/DB IDs; live card order changed after saves. #2 Band Speed Rotation only after explicit okay/next on #1.
+New rule: explain scholarly/title/video/content candidates → user direction → concrete immediate actual edit → show saved result → human check → next only on instruction. Owned footage editing is included when specifically requested; distinguish edited preview, replacement and re-shoot; never simulate real performance with a frozen hold. Retain filming-needed tracking.
+Current visible production library detail has #1 reference video and saved new description; YouTube loop switch ON and playback observed. Sub1 owns shared-player rollout; do not edit player files. Follow latest supported library entry when supplied. No signed URL/raw media replacement for library player.
+#10 no forward step, pivot in place. #11 dropstep in place, no diagonal retreat. #12 retain2-second landing hold text; footage unchanged. #19 maintain forward-facing body/feet per user; human variant verification pending. #21 forefoot on ground, fixed rack/bar pushed upward; exact body contact not invented.
+Country-specific KR/US/JP final legal review and reference-media rights remain unresolved. Newly suggested changes need user direction; prior notes-only gate is superseded by explicit latest edit permission.
+Backups and result screenshot are private outside repository; public handoff contains only safe content/IDs and applied text. No code/schema/player/media/deployment edits made by this batch.

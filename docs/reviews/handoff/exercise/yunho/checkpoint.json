@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "work_order": "REVIEW-SYNC-20261111",
-  "exported_at_utc": "2026-11-13T05:34:29.466189+00:00",
+  "exported_at_utc": "2026-11-13T05:49:18.948143+00:00",
   "original_json_last_modified_utc": "2026-11-09T17:21:25.150484+00:00",
   "timestamp_caution": "파일 mtime는 운영체제 메타데이터 원문. 대화의 클라이언트 날짜와 불일치하므로 실제 검수일로 환산/추정하지 않음. 마지막 사람 판정은 아래 대화 순서로 식별.",
   "original_sha256": "75ab50c05de1c93042903a0c5b5c7a055650efdc6849e23d1276635f31a27743",
@@ -13,19 +13,18 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-022",
-  "current_title": "톨닐링 메디신볼 오버헤드 스로우",
+  "current_review_id": "EX-Y-P-001",
+  "current_title": "랜드마인 회전 펀치",
   "completed_human_count": 21,
-  "completed_definition": "사람 검수에서 다음 이동 승인. 콘텐츠 수정/법률 검수/배포 완료가 아님.",
+  "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "review_id": "EX-Y-P-021",
-    "verbatim": "이 내용으로 기록해두고 다음 영상으로 넘어가자.",
-    "meaning": "21번 설명안 기록 및22번 이동 승인; 실제 수정 미승인"
+    "verbatim": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+    "meaning": "Actual content-edit permission for previously directed #1–21 and explicit restart at #1; not approval of new AI proposals."
   },
   "next_after_approval": {
-    "ordinal": 23,
-    "title": "버티컬 점프",
-    "status": "22번 사용자 다음 승인 전 열지 않음"
+    "ordinal": 2,
+    "title": "밴드 스피드 로테이션",
+    "status": "Open only after user says next/okay on #1"
   },
   "order": {
     "basis": "이 대화에서 관찰한 파워57개 라이브러리 순서. 재개 시 실제 목록 변경 여부 대조; 새로 검수한 목록 아님.",
@@ -33,107 +32,149 @@
       {
         "ordinal": 1,
         "title": "랜드마인 회전 펀치",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "랜드마인 회전 펀치",
+        "library_database_id": "ffbcc8f4-70a7-4671-bc5b-b9032f3da6c6"
       },
       {
         "ordinal": 2,
         "title": "밴드 스피드 로테이션",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "밴드 스피드 로테이션",
+        "library_database_id": "5fba8b53-85c7-4312-b6c8-a20aa4aeda6c"
       },
       {
         "ordinal": 3,
         "title": "박수 푸시업",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "박수 푸시업",
+        "library_database_id": "f60ca4bb-9189-4034-aee8-1d4ac954351f"
       },
       {
         "ordinal": 4,
-        "title": "드롭 푸시업",
-        "status": "human_next_approved"
+        "title": "뎁스 드롭 플라이오 푸쉬업",
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "드롭 푸시업",
+        "library_database_id": "636f4f96-8e1e-47c6-b5b6-bc004d59a204"
       },
       {
         "ordinal": 5,
         "title": "바벨 스피드 벤치 프레스",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "바벨 스피드 벤치 프레스",
+        "library_database_id": "72dfaa22-44ab-4c8d-8ef7-4a8de03d3068"
       },
       {
         "ordinal": 6,
         "title": "랜드마인 펀치",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "랜드마인 펀치",
+        "library_database_id": "1f1dfe14-6d52-4a78-8e9d-01fbf09a8e06"
       },
       {
         "ordinal": 7,
         "title": "케이블 스피드 로테이션",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "케이블 스피드 로테이션",
+        "library_database_id": "a7d88c1e-91b7-4b73-9a4d-2b6a444a29b1"
       },
       {
         "ordinal": 8,
-        "title": "헤비 메디신볼 힌지 토스 (큰 공)",
-        "status": "human_next_approved"
+        "title": "폭발적 메디신볼 힌지 토스 (큰 공)",
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "헤비 메디신볼 힌지 토스 (큰 공)",
+        "library_database_id": "f7a2a626-3929-43de-b49c-04c460b0def0"
       },
       {
         "ordinal": 9,
         "title": "스플릿 스탠스 슬램 (큰 공)",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "스플릿 스탠스 슬램 (큰 공)",
+        "library_database_id": "f7acfb47-01db-4d1b-a424-1e9204af3b42"
       },
       {
         "ordinal": 10,
         "title": "힌지 오버더톱 슬램 (큰 공)",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "힌지 오버더톱 슬램 (큰 공)",
+        "library_database_id": "35a1430a-8f25-4415-9aea-2ee587c1a463"
       },
       {
         "ordinal": 11,
-        "title": "드롭스텝 → 회전 토스",
-        "status": "human_next_approved"
+        "title": "드롭스텝 메디신볼 회전 토스",
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "드롭스텝 → 회전 토스",
+        "library_database_id": "cb9009b1-df09-483a-86a7-1ae7be4bb23d"
       },
       {
         "ordinal": 12,
         "title": "싱글렉 브로드 점프",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "싱글렉 브로드 점프",
+        "library_database_id": "2a9cc104-087c-4356-b146-1595a8dc7d43"
       },
       {
         "ordinal": 13,
         "title": "레터럴 셔플 스로우 (큰 공)",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "레터럴 셔플 스로우 (큰 공)",
+        "library_database_id": "ee3bbd77-109c-434d-8f97-71d966828d53"
       },
       {
         "ordinal": 14,
         "title": "스트레치 스로우 (큰 공)",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "스트레치 스로우 (큰 공)",
+        "library_database_id": "d94f69e5-cf45-4abf-887c-b347b80c58a0"
       },
       {
         "ordinal": 15,
         "title": "싱글렉 박스 점프",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "싱글렉 박스 점프",
+        "library_database_id": "a2c755d9-8be0-4f24-b26c-293ebd7a46f3"
       },
       {
         "ordinal": 16,
         "title": "크로스언더 메디신볼 회전 토스",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "크로스언더 메디신볼 회전 토스",
+        "library_database_id": "e8aa9b21-643b-4bcb-b174-18c6e1116dc4"
       },
       {
         "ordinal": 17,
         "title": "플라이오 푸시업",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "플라이오 푸시업",
+        "library_database_id": "4a63d7ac-ffe5-46bf-821c-e680b36b06ff"
       },
       {
         "ordinal": 18,
         "title": "인클라인 플라이오 푸시업",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "인클라인 플라이오 푸시업",
+        "library_database_id": "6b204b36-d854-4b21-9619-da8a3dda0a52"
       },
       {
         "ordinal": 19,
         "title": "스플릿 스탠스 스로우 (큰 공)",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "스플릿 스탠스 스로우 (큰 공)",
+        "library_database_id": "8ad883fc-49b9-4b6a-ab63-244e96abe433"
       },
       {
         "ordinal": 20,
-        "title": "메디신볼 턴 앤 번 숏풋",
-        "status": "human_next_approved"
+        "title": "메디신볼 턴 앤 번 샷풋 (밀어 던지기)",
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "메디신볼 턴 앤 번 숏풋",
+        "library_database_id": "27755493-40f9-4c01-b851-326b026c2101"
       },
       {
         "ordinal": 21,
         "title": "스플릿 스탠스 발목 아이소메트릭 프레스",
-        "status": "human_next_approved"
+        "status": "content_applied_human_reverification_pending",
+        "previous_title": "스플릿 스탠스 발목 아이소메트릭 프레스",
+        "library_database_id": "1e3fcb6b-30af-4b33-ada2-3126395007e2"
       },
       {
         "ordinal": 22,
@@ -319,20 +360,18 @@
   },
   "remaining_categories_order": "코어·암케어·회복보강의 개별 전체 순서는 아직 복원되지 않음. 현 라이브러리에서 읽고 기록하되 검수 완료로 간주하지 않음.",
   "rules": [
-    "오케이 후에만 다음 영상",
-    "메모만 입력하면 현재 영상 유지; 다음 진행 의사가 명확하면 다음으로",
-    "영상 시간대와 사용자 원문을 기록",
-    "제품/DB/영상/등록내용 수정 및 업로드/배포 보류",
-    "AI 후보를 사용자 승인이나 수정 확정으로 취급하지 않음",
-    "매 영상에 AI 편집/설명 검토 후보와 근거를 안내. 없으면 확인 범위 내 없다고 명시.",
-    "사용자 별도 지시 없는 후보는 수정하지 않음. 전체 검수 후 사용자 지시 항목만 작업 대상.",
-    "한국/미국/일본 출시 관련 안전 안내·효능 주장·권리·현지 표현 쟁점을 구분. 국가별 문구 차이는 필요 근거가 있을 때만 제안. 법률 적합성 전체 완료로 간주하지 않음.",
-    "전체 검수 종료 후 최종 변경안(기존/변경 제안/이유)을 사용자에게 제시하고 실제 수정 승인을 받은 뒤 작업. 메모 확정/다음 진행은 실제 수정 승인이 아님."
+    "Current workflow overrides notes-only history: user direction → concretize → immediately apply authorized title/description/feasible owned-video edits → show result for human check.",
+    "Explain evidence-based edit/content/title candidates before the user decides; do not silently apply unrequested new candidates.",
+    "Next video only on clear user okay/next. Explicit restart at #1 authorized; retain historical first-pass judgments.",
+    "Owned-video editing is authorized when user specifies desired changes; distinguish actual edit, source availability, revised preview, replacement and re-shoot. Never fabricate a real hold by freezing frames.",
+    "Preserve automatic filming-needed tracking and country-specific legal/rights unresolved issues.",
+    "Keep necessary applied-result handoff for cross-computer resume; do not substitute a pending note for an authorized edit.",
+    "No code/player/schema/deployment expansion. Common player belongs to Sub1; use supported library entry when supplied."
   ],
   "playback_rule": "유튜브 참고 영상은 현재 영상 자동 반복 설정. 직접 촬영 영상은 현 플레이어가 반복 미지원이므로 사용자 지시로 자동 반복 설정 생략(새 공통 플레이어 적용 전). 모든 다음 영상 이동은 사용자 승인 후.",
-  "title_rule": "원본 영상 제목의 핵심 의미(Explosive=폭발적 등)·운동 변형과 실제 동작을 한국어 제목에 대조. 원본 홍보성 효과 주장을 그대로 복사하지 않으며 변경안은 최종 승인 전 기록만.",
-  "research_rule": "매 운동마다 국내외 논문 원문·학회 지침을 검색하고 목적·동작·부하·세트·횟수·휴식을 대조해 수정안 제시. 연구 대상과 장비, 급성/장기 효과, 투구 전이의 적용 한계 구분. 출처는 검수 기록에 보관하고 제품 설명은 쉽게 작성. 실제 수정은 전체 검수 후 승인.",
-  "research_coverage_caution": "학술근거 절차는5번부터 강화.1~4번의 운동별 직접 학술 검토 완료를 소급 주장하지 않음. 이전 current가 덮어써져 과거 GPT 후보/원문 전체가 JSON에 남지 않은 것은 대화 복원 또는 미보존으로 표시.",
+  "title_rule": "Match original title meaning and actual variation; now apply user-directed changes immediately and verify saved result.",
+  "research_rule": "매 운동마다 국내외 논문 원문·학회 지침을 검색하고 목적·동작·부하·세트·횟수·휴식을 대조해 수정안 제시. 연구 대상과 장비, 급성/장기 효과, 투구 전이의 적용 한계 구분. 출처는 검수 기록에 보관하고 제품 설명은 쉽게 작성. 사용자 수정 방향을 구체화해 즉시 적용하고 사람이 수정본 확인. 신규 제안 자동승인 금지.",
+  "research_coverage_caution": "학술근거 절차는5번부터 강화.1~4번의 운동별 직접 학술 검토 완료를 소급 주장하지 않음. 이전 current가 덮어써져 과거 GPT 후보/원문 전체가 JSON에 남지 않은 것은 대화 복원 또는 미보존으로 표시. Current batch rechecked general plyometric/push-up, bench-load, unilateral and ball-throw biomechanics evidence. Prior per-exercise sources remain historical; no claim that all exact variations or doses or domestic full texts were revalidated.",
   "filming_needed": [
     {
       "number": 1,
@@ -340,119 +379,136 @@
       "title": "랜드마인 회전 펀치",
       "available": "참고 영상만 있음",
       "evidence": "라이브러리 촬영 전 · 참고 영상 표시",
-      "status": "촬영 필요"
+      "status": "촬영 필요",
+      "previous_title": "랜드마인 회전 펀치"
     },
     {
       "number": 2,
       "category": "파워",
       "title": "밴드 스피드 로테이션",
       "status": "참고 영상만 있음",
-      "evidence": "화면: 촬영 전 · 참고 영상"
+      "evidence": "화면: 촬영 전 · 참고 영상",
+      "previous_title": "밴드 스피드 로테이션"
     },
     {
       "number": 3,
       "category": "파워",
       "title": "박수 푸시업",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "박수 푸시업"
     },
     {
       "number": 4,
       "category": "파워",
-      "title": "드롭 푸시업",
+      "title": "뎁스 드롭 플라이오 푸쉬업",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "드롭 푸시업"
     },
     {
       "number": 5,
       "category": "파워",
       "title": "바벨 스피드 벤치 프레스",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "바벨 스피드 벤치 프레스"
     },
     {
       "number": 6,
       "category": "파워",
       "title": "랜드마인 펀치",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "랜드마인 펀치"
     },
     {
       "number": 7,
       "category": "파워",
       "title": "케이블 스피드 로테이션",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "케이블 스피드 로테이션"
     },
     {
       "number": 8,
       "category": "파워",
-      "title": "헤비 메디신볼 힌지 토스 (큰 공)",
+      "title": "폭발적 메디신볼 힌지 토스 (큰 공)",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "헤비 메디신볼 힌지 토스 (큰 공)"
     },
     {
       "number": 9,
       "category": "파워",
       "title": "스플릿 스탠스 슬램 (큰 공)",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "스플릿 스탠스 슬램 (큰 공)"
     },
     {
       "number": 10,
       "category": "파워",
       "title": "힌지 오버더톱 슬램 (큰 공)",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "힌지 오버더톱 슬램 (큰 공)"
     },
     {
       "number": 11,
       "category": "파워",
-      "title": "드롭스텝 → 회전 토스",
+      "title": "드롭스텝 메디신볼 회전 토스",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "드롭스텝 → 회전 토스"
     },
     {
       "number": 13,
       "category": "파워",
       "title": "레터럴 셔플 스로우 (큰 공)",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "레터럴 셔플 스로우 (큰 공)"
     },
     {
       "number": 14,
       "category": "파워",
       "title": "스트레치 스로우 (큰 공)",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "스트레치 스로우 (큰 공)"
     },
     {
       "number": 16,
       "category": "파워",
       "title": "크로스언더 메디신볼 회전 토스",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "크로스언더 메디신볼 회전 토스"
     },
     {
       "number": 19,
       "category": "파워",
       "title": "스플릿 스탠스 스로우 (큰 공)",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "스플릿 스탠스 스로우 (큰 공)"
     },
     {
       "number": 20,
       "category": "파워",
-      "title": "메디신볼 턴 앤 번 숏풋",
+      "title": "메디신볼 턴 앤 번 샷풋 (밀어 던지기)",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "메디신볼 턴 앤 번 숏풋"
     },
     {
       "number": 21,
       "category": "파워",
       "title": "스플릿 스탠스 발목 아이소메트릭 프레스",
       "status": "참고 영상만 있음",
-      "evidence": "촬영 전 · 참고 영상"
+      "evidence": "촬영 전 · 참고 영상",
+      "previous_title": "스플릿 스탠스 발목 아이소메트릭 프레스"
     }
   ],
   "filming_count": 17,
@@ -517,7 +573,42 @@
     ],
     "status": "법률 전체 적합성 확인 완료 아님. 개별19개 운동 국가별 최종 검토·참고영상 이용권 확인 미완료."
   },
-  "sync_status": "로컬 문서 생성; 커밋·푸시·다른컴퓨터 수신 미확인",
+  "sync_status": "Applied-result handoff updated locally; publish outcome tracked by video-review-sync.",
   "privacy": "계정·로컬 사용자 절대경로·서명URL·영상원본·개인건강정보 제외. 개인 이름은 담당 구분과 승인된경로에만 해당. 공개 YouTube ID와 학술/공식 URL만 포함.",
-  "implementation": "제품·DB·영상·설명 수정 없음. 플레이어는별도VP01 담당이며 이번복원으로 새발주 안함."
+  "implementation": "Production admin form saved 21 descriptions,4 titles, #5 rest and #21 equipment; independent readback verified. #1 refreshed UI shows saved description and reference video playing. No media files/code/schema/deployment changed.",
+  "workflow_history": [
+    {
+      "previous_current": "EX-Y-P-022",
+      "previous_current_title": "톨닐링 메디신볼 오버헤드 스로우",
+      "previous_notes_only_rules": [
+        "오케이 후에만 다음 영상",
+        "메모만 입력하면 현재 영상 유지; 다음 진행 의사가 명확하면 다음으로",
+        "영상 시간대와 사용자 원문을 기록",
+        "제품/DB/영상/등록내용 수정 및 업로드/배포 보류",
+        "AI 후보를 사용자 승인이나 수정 확정으로 취급하지 않음",
+        "매 영상에 AI 편집/설명 검토 후보와 근거를 안내. 없으면 확인 범위 내 없다고 명시.",
+        "사용자 별도 지시 없는 후보는 수정하지 않음. 전체 검수 후 사용자 지시 항목만 작업 대상.",
+        "한국/미국/일본 출시 관련 안전 안내·효능 주장·권리·현지 표현 쟁점을 구분. 국가별 문구 차이는 필요 근거가 있을 때만 제안. 법률 적합성 전체 완료로 간주하지 않음.",
+        "전체 검수 종료 후 최종 변경안(기존/변경 제안/이유)을 사용자에게 제시하고 실제 수정 승인을 받은 뒤 작업. 메모 확정/다음 진행은 실제 수정 승인이 아님."
+      ],
+      "superseded_by": "이제부터 기록하지말고 바로바로 수정하는 걸로 하자. 이전 영상까지 기록된 방향을 구체화해 수정한 뒤 처음부터 다시 확인하며 현재 영상까지 돌아온다.",
+      "at_utc": "2026-11-13T05:49:18.948143+00:00"
+    }
+  ],
+  "reverification": {
+    "start": 1,
+    "target_inclusive": 22,
+    "completed_count": 0,
+    "current": 1,
+    "pending_unmodified": 22,
+    "order": "Historical review order, not current library card order; site list reshuffled after saves."
+  },
+  "playback_observation": {
+    "item": "EX-Y-P-001",
+    "route": "production /library/training inline detail",
+    "source": "REFERENCE",
+    "loop_setting": "YouTube continuous replay switch observed ON",
+    "actual_playback": "pause control and elapsed6/13 observed, then controls hidden",
+    "new_player_rollout": "owned by Sub1; this session has not verified deployment/local new-player route"
+  }
 }
