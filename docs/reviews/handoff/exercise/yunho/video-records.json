@@ -821,6 +821,35 @@
           ],
           "limits": "Sources address pitching or related training programs, not proof each exact exercise improves pitching velocity or its optimal prescription.",
           "at_utc": "2026-11-13T08:49:18.277199+00:00"
+        },
+        {
+          "at_utc": "2026-11-13T11:38:59.822501+00:00",
+          "status": "Rest 90 to 180 seconds, why-needed and per-side/rest explanation updated; saved and read back; human review pending.",
+          "before_why": "랜드마인 펀치는 발로 바닥을 디디고 몸과 한쪽 팔을 함께 움직이며 바벨을 빠르게 미는 훈련에 활용할 수 있습니다.",
+          "after_why": "이 운동은 발로 바닥을 디디고 몸과 한쪽 팔을 연결해 빠르게 밀어내는 힘을 기르는 데 도움이 됩니다.",
+          "metadata": {
+            "bodyParts": [
+              "어깨",
+              "가슴",
+              "삼두",
+              "코어"
+            ],
+            "intensity": "높음",
+            "difficulty": "중급",
+            "equipment": [
+              "바벨"
+            ],
+            "sets": 3,
+            "reps": 5,
+            "holdSeconds": null,
+            "restSeconds": 180,
+            "perSide": true
+          },
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/17194236/",
+            "https://pubmed.ncbi.nlm.nih.gov/19691365/"
+          ],
+          "limits": "General resistance/power literature does not prove optimal rest for this specific landmine exercise or improved pitching velocity. Filming needed."
         }
       ]
     },
