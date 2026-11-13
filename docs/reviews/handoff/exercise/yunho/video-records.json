@@ -864,6 +864,16 @@
           "after_description": "■ 어떤 운동인가\r\n앞뒤로 발을 벌린 자세에서 메디신볼을 머리 위로 들었다가 앞쪽 바닥에 빠르게 내려치는 운동입니다.\r\n\r\n■ 이렇게 하세요\r\n1. 바닥에 내려치기 적합한 메디신볼을 고릅니다. 메디신볼이 얼마나 튀는지 확인하고, 주변 사람과 물건으로부터 충분한 공간을 확보합니다.\r\n2. 한 발은 앞에, 다른 발은 뒤에 두고 균형을 잡은 뒤 메디신볼을 두 손으로 머리 위에 듭니다.\r\n3. 앞발을 바닥에 디딘 채 몸과 팔을 함께 움직여 메디신볼을 앞쪽 바닥으로 빠르게 내려칩니다.\r\n4. 앞쪽 무릎을 억지로 끝까지 펴지 말고 자연스럽게 움직입니다. 무릎이 발끝 방향을 따라가도록 하며 균형을 유지하세요.\r\n5. 메디신볼이 멈춘 뒤 안전하게 주워 처음 자세로 돌아옵니다.\r\n6. 속도가 느려지거나 균형을 잃으면 세트를 끝냅니다. 통증이 생기면 운동을 중단합니다.\r\n\r\n■ 투수에게 왜 필요한가\r\n투구에서는 앞발의 지지와 몸통·팔의 움직임을 연결하는 과정이 중요합니다.\r\n\r\n이 운동은 앞뒤로 선 자세에서 균형을 유지하며 몸통과 팔을 연결해 아래 방향으로 빠르게 힘을 내는 훈련으로 활용할 수 있습니다.\r\n\r\n■ 강도\r\n빠른 내려치기와 균형을 유지할 수 있는 메디신볼을 고릅니다.\r\n\r\n동작의 변화를 확인하려면 같은 메디신볼·자세·낙하지점에서 속도와 제어를 비교합니다.",
           "status": "Saved and DB read back; user review pending.",
           "at_utc": "2026-11-13T07:08:46.832743+00:00"
+        },
+        {
+          "status": "Saved and read back accessible purpose and intensity wording. Preserved user-requested simple front knee cue and step-by-step execution. Human review pending.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/22344047/",
+            "https://pubmed.ncbi.nlm.nih.gov/39074186/"
+          ],
+          "limits": "Pitching observation and other medicine-ball throw variations are indirect; no proven pitching velocity effect or optimal dose for this specific slam.",
+          "filming": "Reference only, filming needed; lateral view for front knee.",
+          "at_utc": "2026-11-13T08:23:31.410500+00:00"
         }
       ]
     },

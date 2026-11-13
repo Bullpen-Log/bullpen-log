@@ -13,12 +13,12 @@
     "암케어",
     "회복 및 보강"
   ],
-  "current_review_id": "EX-Y-P-008",
-  "current_title": "헤비 메디신볼 폭발적 힌지 토스 (큰 공)",
+  "current_review_id": "EX-Y-P-009",
+  "current_title": "스플릿 스탠스 메디신볼 슬램 (큰 공)",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "meaning": "User requested next from speed bench; heavy medicine ball hinge toss awaits human review."
+    "meaning": "User requested next from heavy hinge; split stance slam awaits new pass human review."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -627,8 +627,8 @@
   "reverification": {
     "start": 1,
     "target_inclusive": 21,
-    "completed_count": 7,
-    "current": 8,
+    "completed_count": 8,
+    "current": 9,
     "approved_items": [
       "EX-Y-P-007",
       "EX-Y-P-002",
@@ -636,17 +636,18 @@
       "EX-Y-P-004",
       "EX-Y-P-001",
       "EX-Y-P-006",
-      "EX-Y-P-005"
+      "EX-Y-P-005",
+      "EX-Y-P-008"
     ],
     "user_sequence_first": "EX-Y-P-007",
     "order": "Restart at cable rotation, then user-confirmed sequence. Historical ordinals remain IDs, not display order. Previously edited 21 items rewritten, not yet approved in this new pass."
   },
   "playback_observation": {
-    "item": "EX-Y-P-008",
+    "item": "EX-Y-P-009",
     "source": "REFERENCE",
     "loop_setting": "ON",
-    "actual_playback": "Reference heavy med ball hinge toss opened; repeat cycle not checked",
-    "updated_at_utc": "2026-11-13T08:17:22.568571+00:00"
+    "actual_playback": "Reference Split Stance Slam opened; repeat cycle not checked",
+    "updated_at_utc": "2026-11-13T08:23:31.410500+00:00"
   },
   "equipment_terminology_review": {
     "scope": "21 previously edited exercise descriptions checked; 13 changed and DB readback verified; other library descriptions not yet comprehensively audited.",
