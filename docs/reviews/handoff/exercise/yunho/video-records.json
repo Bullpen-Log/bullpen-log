@@ -896,6 +896,16 @@
           ],
           "limits": "Front-leg braking does not require pelvis to remain motionless and does not guarantee actual upper-body rebound or improved velocity; pitching studies do not prove direct transfer of stationary slam.",
           "at_utc": "2026-11-13T08:37:48.039373+00:00"
+        },
+        {
+          "user_instruction": "Explain why this downward medicine ball movement relates to pitching; saying it practices slamming repeats the movement without explaining its value.",
+          "status": "Saved and read back. Purpose identifies lead-foot support while moving trunk and arms quickly; distinguishes downward stationary exercise from forward stride pitching.",
+          "sources": [
+            "https://pubmed.ncbi.nlm.nih.gov/39074186/",
+            "https://pubmed.ncbi.nlm.nih.gov/22344047/"
+          ],
+          "limits": "Observed baseball pitcher braking and different medicine ball exercises are indirect; no established direct pitch transfer or velocity improvement for this slam.",
+          "at_utc": "2026-11-13T08:40:41.824387+00:00"
         }
       ]
     },
