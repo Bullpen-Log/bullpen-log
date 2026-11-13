@@ -14,12 +14,11 @@
     "회복 및 보강"
   ],
   "current_review_id": "EX-Y-P-002",
-  "current_title": "밴드 스피드 로테이션",
+  "current_title": "밴드 익스플로시브 힙 로테이션",
   "completed_human_count": 21,
   "completed_definition": "Historical first-pass next approvals:21. Actual content changes now applied for #1–21; post-edit human verification remains0.",
   "last_human_decision": {
-    "verbatim": "다음 영상으로 넘어가자. 어떤 부분을 수정했는지도 전부 알려줘.",
-    "meaning": "Explicit next after Cable; opened next displayed Band rotation. Band user re-verification pending."
+    "meaning": "User directed proposed title change and removal of hand-pulling comparison; applied and verified, next not approved."
   },
   "next_after_approval": {
     "status": "Wait for explicit next; use the displayed library order after user correction and verify item identity."
@@ -36,7 +35,7 @@
       },
       {
         "ordinal": 2,
-        "title": "밴드 스피드 로테이션",
+        "title": "밴드 익스플로시브 힙 로테이션",
         "status": "content_applied_human_reverification_pending",
         "previous_title": "밴드 스피드 로테이션",
         "library_database_id": "5fba8b53-85c7-4312-b6c8-a20aa4aeda6c"
@@ -358,6 +357,7 @@
   },
   "remaining_categories_order": "코어·암케어·회복보강의 개별 전체 순서는 아직 복원되지 않음. 현 라이브러리에서 읽고 기록하되 검수 완료로 간주하지 않음.",
   "rules": [
+    "User clarified that proposed corrections should be applied immediately, including title. Show results; next only after user direction.",
     "Current workflow overrides notes-only history: user direction → concretize → immediately apply authorized title/description/feasible owned-video edits → show result for human check.",
     "Explain evidence-based edit/content/title candidates before the user decides; do not silently apply unrequested new candidates.",
     "Next video only on clear user okay/next. Explicit restart at #1 authorized; retain historical first-pass judgments.",
@@ -383,7 +383,7 @@
     {
       "number": 2,
       "category": "파워",
-      "title": "밴드 스피드 로테이션",
+      "title": "밴드 익스플로시브 힙 로테이션",
       "status": "참고 영상만 있음",
       "evidence": "화면: 촬영 전 · 참고 영상",
       "previous_title": "밴드 스피드 로테이션"
